@@ -12,4 +12,4 @@ menuentry "Spartix" {
 	multiboot /boot/vmspartix
 }
 EOF
-grub-mkrescue -o myos.iso isodir
+grub-mkrescue -o Spartix.iso isodir
