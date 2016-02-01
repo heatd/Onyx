@@ -12,11 +12,16 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#ifndef ISR_H
-#define ISR_H
+#ifndef PANIC_H
+#define PANIC_H
 
-#include <stdlib.h>
-#include <kernel/registers.h>
+ARCH_SPECIFIC void halt();
+ARCH_SPECIFIC void get_thread_ctx();
+/* The functions halt and get_thread_ctx are architecture dependent, as they require manual assembly.
+ * As so, its left for the architecture to implement these functions. The kernel exepcts them to be hooked.
+ */
+__attribute__ ((noreturn,cold,noinline))
+void panic(const char* msg);
 
-#endif
- 
+
+#endif // PANIC_H

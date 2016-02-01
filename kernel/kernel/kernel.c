@@ -36,14 +36,16 @@ typedef multiboot_info_t multiboot_tag_structure
 #endif
 #include <kernel/tty.h>
 #include <kernel/compiler.h>
-
+#include <stdlib.h>
 /* Function: init_arch()
  * Purpose: Initialize architecture specific features, should be hooked by the architecture the kernel will run on
  */
 ARCH_SPECIFIC void init_arch();
-
-void kernel_early(multiboot_info_t* mbt, size_t magic)
+static multiboot_info_t* mbt;
+void kernel_early(multiboot_info_t* info, size_t magic)
 {
+	if(info == NULL)
+		panic("Invalid multiboot_info_t*.The bootloader currently being used is broken");
 	terminal_initialize();
 	puts("Booting ...");
 	if(magic == 0x2BADB002)

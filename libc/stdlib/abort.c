@@ -18,8 +18,10 @@ limitations under the License.
 __attribute__((__noreturn__))
 void abort(void)
 {
-	// TODO: Add proper kernel panic.
-	printf("Kernel Panic: abort()\n");
-	while ( 1 ) { }
+#ifdef __is_spartix_kernel
+	panic("abort()");
+#else
+	//TODO: Abort system call
+#endif
 	__builtin_unreachable();
 }
