@@ -27,7 +27,7 @@ limitations under the License.
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
-
+#include <kernel/portio.h>
 #include <kernel/vga.h>
 
 size_t terminal_row;
@@ -67,6 +67,7 @@ void terminal_putchar(char c)
 	if(c == '\n'){
 		terminal_column = 0;
 		terminal_row++;
+		terminal_update_cursor();
 		return;
 	}
 	terminal_putentryat(c, terminal_color, terminal_column, terminal_row);
@@ -78,8 +79,16 @@ void terminal_putchar(char c)
 			terminal_row = 0;
 		}
 	}
+	terminal_update_cursor();
 }
-
+void terminal_update_cursor()
+{
+	uint16_t position=(terminal_row*80) + terminal_column;
+	outb(0x3D4, 0x0F);
+	outb(0x3D5, (unsigned char)(position&0xFF));//Cursor low
+	outb(0x3D4, 0x0E);
+	outb(0x3D5, (unsigned char)((position>>8)&0xFF));
+}
 void terminal_write(const char* data, size_t size)
 {
 	for ( size_t i = 0; i < size; i++ )
