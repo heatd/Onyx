@@ -12,28 +12,22 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-/**************************************************************************
- * 
- * 
- * File: arch.c
- * 
- * Description: Contains architecture specific initialization functions
- * 
- * Date: 1/2/2016
- * 
- * 
- **************************************************************************/
-#include <kernel/idt.h>
-#include <kernel/gdt.h>
-#include <kernel/pic.h>
-extern void init_sse();
-void init_arch()
-{
-	init_sse();
-	
-	init_gdt();
-	
-	init_idt();
-	
-	pic_remap();
-}
+#ifndef PIC_H
+#define PIC_H
+#include <stdint.h>
+#define PIC1		0x20		/* IO base address for master PIC */
+#define PIC2		0xA0		/* IO base address for slave PIC */
+#define PIC1_COMMAND	PIC1
+#define PIC1_DATA	(PIC1+1)
+#define PIC2_COMMAND	PIC2
+#define PIC2_DATA	(PIC2+1) 
+#define PIC_READ_IRR	0x0a
+#define PIC_READ_ISR	0x0b
+void pic_disable();
+void pic_remap();
+void pic_unmask_irq(uint16_t irqn);
+void pic_mask_irq(uint16_t irqn);
+void pic_send_eoi(uint16_t irqn);
+uint16_t pic_get_irr();
+uint16_t pic_get_isr();
+#endif // PIC_H

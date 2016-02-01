@@ -15,6 +15,17 @@ limitations under the License.
 #include <kernel/registers.h>
 #include <kernel/compiler.h>
 #include <kernel/panic.h>
+/**************************************************************************
+ * 
+ * 
+ * File: panic.c
+ * 
+ * Description: Contains the implementation of the panic function
+ * 
+ * Date: 1/2/2016
+ * 
+ * 
+ **************************************************************************/
 __attribute__ ((noreturn,cold,noinline))
 void panic(const char* msg)
 {

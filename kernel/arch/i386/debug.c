@@ -12,6 +12,17 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+/**************************************************************************
+ * 
+ * 
+ * File: debug.c
+ * 
+ * Description: Contains the implementation of debug procedures on the x86 architecture
+ * 
+ * Date: 1/2/2016
+ * 
+ * 
+ **************************************************************************/
 #include <kernel/registers.h>
 __attribute__((noinline))
 void get_thread_ctx(registers_t* regs)
