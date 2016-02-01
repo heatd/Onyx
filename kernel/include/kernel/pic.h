@@ -23,11 +23,12 @@ limitations under the License.
 #define PIC2_DATA	(PIC2+1) 
 #define PIC_READ_IRR	0x0a
 #define PIC_READ_ISR	0x0b
+#define PIC_EOI		0x20		/* End-of-interrupt command code */
 void pic_disable();
 void pic_remap();
 void pic_unmask_irq(uint16_t irqn);
 void pic_mask_irq(uint16_t irqn);
-void pic_send_eoi(uint16_t irqn);
+void pic_send_eoi(unsigned char irqn);
 uint16_t pic_get_irr();
 uint16_t pic_get_isr();
 #endif // PIC_H

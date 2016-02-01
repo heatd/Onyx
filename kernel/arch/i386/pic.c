@@ -98,7 +98,13 @@ uint16_t pic_get_irr(void)
 {
     return __pic_get_irq_reg(PIC_READ_IRR);
 }
+void pic_send_eoi(unsigned char irq)
+{
+	if(irq >= 8)
+		outb(PIC2_COMMAND,PIC_EOI);
  
+	outb(PIC1_COMMAND,PIC_EOI);
+}
 /* Returns the combined value of the cascaded PICs in-service register */
 uint16_t pic_get_isr(void)
 {

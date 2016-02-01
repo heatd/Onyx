@@ -52,8 +52,8 @@ void init_idt()
 	idt_create_descriptor(29, (uint32_t)isr29, 0x08, 0x8E);
 	idt_create_descriptor(30, (uint32_t)isr30, 0x08, 0x8E);
 	idt_create_descriptor(31, (uint32_t)isr31, 0x08, 0x8E);
-	/*idt_create_descriptor(32, (uint32_t)irq0, 0x08, 0x8E); //PIT
-	idt_create_descriptor(33, (uint32_t)irq1, 0x08, 0x8E); //Keyboard
+	idt_create_descriptor(32, (uint32_t)irq0, 0x08, 0x8E);
+	idt_create_descriptor(33, (uint32_t)irq1, 0x08, 0x8E);
 	idt_create_descriptor(34, (uint32_t)irq2, 0x08, 0x8E);
 	idt_create_descriptor(35, (uint32_t)irq3, 0x08, 0x8E);
 	idt_create_descriptor(36, (uint32_t)irq4, 0x08, 0x8E);
@@ -69,7 +69,7 @@ void init_idt()
 	idt_create_descriptor(46, (uint32_t)irq14, 0x08, 0x8E);
 	idt_create_descriptor(47, (uint32_t)irq15, 0x08, 0x8E);
 
-	idt_create_descriptor(0x80, (uint32_t)syscall,0x08,0x8E);//System call interrupt*/
+	//idt_create_descriptor(0x80, (uint32_t)syscall,0x08,0x8E);//System call interrupt
 
 	load_idt();
 }
