@@ -16,6 +16,41 @@ limitations under the License.
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdint-gcc.h>
+#include <stdlib.h>
+char tbuf[32];
+char bchars[] = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
+char lchars[] = {'0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f'};
+void itoa(unsigned int i,unsigned int base,char* buf,_Bool is_upper)
+{
+   	int pos = 0;
+   	int opos = 0;
+   	int top = 0;
+
+   if (i == 0 || base > 16) {
+      buf[0] = '0';
+      buf[1] = '\0';
+      return;
+   }
+	if(is_upper==false){
+		while (i != 0) {
+	           tbuf[pos] = lchars[i % base];
+	           pos++;
+	           i /= base;
+	        }
+	}else{
+   while (i != 0) {
+      tbuf[pos] = bchars[i % base];
+      pos++;
+      i /= base;
+   }
+   }
+   top=pos--;
+   for (opos=0; opos<top; pos--,opos++) {
+      buf[opos] = tbuf[pos];
+   }
+   buf[opos] = 0;
+}
 
 static void print(const char* data, size_t data_length)
 {
@@ -23,7 +58,7 @@ static void print(const char* data, size_t data_length)
 		putchar((int) ((const unsigned char*) data)[i]);
 }
 
-int printf(const char* restrict format, ...)
+int printf(const char* __restrict__ format, ...)
 {
 	va_list parameters;
 	va_start(parameters, format);
@@ -71,6 +106,38 @@ int printf(const char* restrict format, ...)
 			const char* s = va_arg(parameters, const char*);
 			print(s, strlen(s));
 		}
+		else if ( *format == 'X')
+		{
+			unsigned int i = va_arg(parameters, uint32_t);
+			char buffer [30]={0};
+			itoa(i,16,buffer,true);
+			print(buffer,strlen(buffer));
+			memset(buffer,0,sizeof(buffer));
+			format++;
+		}
+		else if ( *format == 'x')
+		{
+			unsigned int i = va_arg(parameters, uint32_t);
+			char buffer [30]={0};
+			itoa(i,16,buffer,false);
+			print(buffer,strlen(buffer));
+			memset(buffer,0,sizeof(buffer));
+			format++;
+		}
+		else if ( *format == 'i')
+                {
+                     format++;
+                     char string [60];
+                     itoa(va_arg(parameters, int),10,string,false);
+                     print(string,strlen(string));
+                }
+                else if( *format == 'd')
+                {
+                     format++;
+                     char string [60];
+                     itoa(va_arg(parameters, int),10,string,false);
+                     print(string,strlen(string));
+                }
 		else
 		{
 			goto incomprehensible_conversion;

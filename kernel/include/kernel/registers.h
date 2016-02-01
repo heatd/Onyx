@@ -12,9 +12,23 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#ifndef ISR_H
-#define ISR_H
-#include <stdlib.h>
-#include <kernel/registers.h>
-#endif
- 
+#ifndef REGISTERS_H
+#define REGISTERS_H
+#include <stdint.h>
+#ifdef AMD64
+
+typedef struct registers
+{
+	uint64_t rax,rbx,rcx,rdx,rdi,rsi,rsp,rbp,rip,rflags;
+	uint16_t cs, ss;
+}__attribute__((packed))registers_t;
+#else
+
+typedef struct registers
+{
+   uint32_t eax,ebx,ecx,edx,edi,esi,esp,ebp,eip,eflags;
+   uint16_t ss,cs;
+} __attribute__((packed)) registers_t;
+
+#endif // AMD64
+#endif // REGISTERS_H

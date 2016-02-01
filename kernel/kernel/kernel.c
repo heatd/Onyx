@@ -38,14 +38,14 @@ typedef multiboot_info_t multiboot_tag_structure
 #include <kernel/compiler.h>
 
 /* Function: init_arch()
- * Purpose: Initialize architecture specific features
+ * Purpose: Initialize architecture specific features, should be hooked by the architecture the kernel will run on
  */
 ARCH_SPECIFIC void init_arch();
 
 void kernel_early(multiboot_info_t* mbt, size_t magic)
 {
 	terminal_initialize();
-	
+	puts("Booting ...");
 	if(magic == 0x2BADB002)
 		puts("Kernel booted by a Multiboot 1 compliant bootloader");
 	else
@@ -54,7 +54,7 @@ void kernel_early(multiboot_info_t* mbt, size_t magic)
 }
 void kernel_main()
 {
-	puts("Spartix 0.1");
+	puts("Spartix kernel 0.1");
 	while(1)
 	{
 		asm volatile("hlt");
