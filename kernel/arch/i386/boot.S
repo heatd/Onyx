@@ -40,7 +40,55 @@ align 4
 	dd MAGIC
 	dd FLAGS
 	dd CHECKSUM
- 
+ KERNEL_VIRTUAL_BASE equ 0x80000000                  ; 3GB
+KERNEL_PAGE_NUMBER equ (KERNEL_VIRTUAL_BASE >> 22)  ; Page directory index of kernel's 4MB PTE.
+section .data
+align 0x1000
+BootPageDirectory:
+    ; This page directory entry identity-maps the first 4MB of the 32-bit physical address space.
+    ; All bits are clear except the following:
+    ; bit 7: PS The kernel page is 4MB.
+    ; bit 1: RW The kernel page is read/write.
+    ; bit 0: P  The kernel page is present.
+    ; This entry must be here -- otherwise the kernel will crash immediately after paging is
+    ; enabled because it can't fetch the next instruction! It's ok to unmap this page later.
+    dd 0x00000083
+    times (KERNEL_PAGE_NUMBER - 1) dd 0                 ; Pages before kernel space.
+    ; This page directory entry defines a 4MB page containing the kernel.
+    dd 0x00000083
+    times (1024 - KERNEL_PAGE_NUMBER - 1) dd 0  ; Pages after the kernel image.
+
+; The kernel entry point.
+section .bootstrap
+; setting up entry point for linker
+loader equ _loader
+global loader
+_loader:
+; NOTE: Until paging is set up, the code must be position-independent and use physical
+    ; addresses, not virtual ones!
+    mov ecx, (BootPageDirectory - KERNEL_VIRTUAL_BASE)
+    mov cr3, ecx                                        ; Load Page Directory Base Register.
+
+    mov ecx, cr4
+    or ecx, 0x00000010                          ; Set PSE bit in CR4 to enable 4MB pages.
+    mov cr4, ecx
+
+    mov ecx, cr0
+    or ecx, 0x80000000                          ; Set PG bit in CR0 to enable paging.
+    mov cr0, ecx
+
+    ; Start fetching instructions in kernel space.
+    ; Since eip at this point holds the physical address of this command (approximately 0x00100000)
+    ; we need to do a long jump to the correct virtual address of _start which is
+    ; approximately 0xC0100000.
+    cli
+    lea ecx, [_start]
+    jmp ecx
+
+; Currently the stack pointer register (esp) points at anything and using it may
+; cause massive harm. Instead, we'll provide our own stack. We will allocate
+; room for a small temporary stack by creating a symbol at the bottom of it,
+; then allocating 16384 bytes for it, and finally creating a symbol at the top.
 ; Currently the stack pointer register (esp) points at anything and using it may
 ; cause massive harm. Instead, we'll provide our own stack. We will allocate
 ; room for a small temporary stack by creating a symbol at the bottom of it,
@@ -58,13 +106,13 @@ section .text
 global _start
 _start:
 	mov esp, stack_top
+	add  ebx,KERNEL_VIRTUAL_BASE
+	push eax
+	push ebx
 	extern kernel_early
 	call kernel_early
 	extern _init
 	call _init
-	; We are now ready to actually execute C code. We cannot embed that in an
-	; assembly file, so we'll create a kernel.c file in a moment. In that file,
-	; we'll create a C entry point called kernel_main and call it here.
 	extern kernel_main
 	call kernel_main
  

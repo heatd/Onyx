@@ -12,26 +12,15 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#ifndef _STDLIB_H
-#define _STDLIB_H 1
-
-#include <sys/cdefs.h>
-
-#ifdef __cplusplus
-extern "C" {
+#ifndef ISR_H
+#define ISR_H
+#include <stdlib.h>
+#include <stdint.h>
+typedef struct registers
+{
+   uint32_t edi, esi, ebp, esp, ebx, edx, ecx, eax; // Pushed by pusha.
+   uint32_t int_no, err_code;    // Interrupt number and error code (if applicable)
+   uint32_t eip, cs, eflags, useresp, ss; // Pushed by the processor automatically.
+} __attribute__((packed)) registers_t;
 #endif
-#ifndef NULL
-#ifdef __cplusplus
-#define NULL 0
-#else
-#define NULL (void*)0
-#endif
-#endif
-__attribute__((__noreturn__))
-void abort(void);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif
+ 

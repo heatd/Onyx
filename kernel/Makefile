@@ -52,6 +52,7 @@ all: vmspartix
 .PHONY: all clean install install-headers install-kernel
 
 vmspartix: $(OBJ_LINK_LIST) $(ARCHDIR)/linker.ld
+	echo $(OBJS)
 	$(CC) -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(OBJ_LINK_LIST) $(LDFLAGS) $(LIBS)
 
 %.o: %.c

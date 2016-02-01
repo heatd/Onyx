@@ -28,16 +28,34 @@ limitations under the License.
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
-
+#ifdef AMD64
+#include <multiboot2.h>
+typedef multiboot_info_t multiboot_tag_structure
+#else
+#include <multiboot.h>
+#endif
 #include <kernel/tty.h>
+#include <kernel/compiler.h>
 
-void kernel_early()
+/* Function: init_arch()
+ * Purpose: Initialize architecture specific features
+ */
+ARCH_SPECIFIC void init_arch();
+
+void kernel_early(multiboot_info_t* mbt, size_t magic)
 {
 	terminal_initialize();
+	
+	if(magic == 0x2BADB002)
+		puts("Kernel booted by a Multiboot 1 compliant bootloader");
+	else
+		abort();
+	init_arch();
 }
 void kernel_main()
 {
 	puts("Spartix 0.1");
+	asm volatile("sti");
 	while(1)
 	{
 		asm volatile("hlt");

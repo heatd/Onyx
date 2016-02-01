@@ -12,26 +12,25 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#ifndef _STDLIB_H
-#define _STDLIB_H 1
-
-#include <sys/cdefs.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-#ifndef NULL
-#ifdef __cplusplus
-#define NULL 0
-#else
-#define NULL (void*)0
-#endif
-#endif
-__attribute__((__noreturn__))
-void abort(void);
-
-#ifdef __cplusplus
+/**************************************************************************
+ * 
+ * 
+ * File: arch.c
+ * 
+ * Description: Contains architecture specific initialization functions
+ * 
+ * Date: 1/2/2016
+ * 
+ * 
+ **************************************************************************/
+#include <kernel/idt.h>
+#include <kernel/gdt.h>
+extern void init_sse();
+void init_arch()
+{
+	init_sse();
+	
+	init_gdt();
+	
+	init_idt();
 }
-#endif
-
-#endif
