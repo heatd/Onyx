@@ -40,7 +40,7 @@ align 4
 	dd MAGIC
 	dd FLAGS
 	dd CHECKSUM
- KERNEL_VIRTUAL_BASE equ 0x80000000                  ; 3GB
+ KERNEL_VIRTUAL_BASE equ 0xC0000000                  ; 3GB
 KERNEL_PAGE_NUMBER equ (KERNEL_VIRTUAL_BASE >> 22)  ; Page directory index of kernel's 4MB PTE.
 section .data
 align 0x1000

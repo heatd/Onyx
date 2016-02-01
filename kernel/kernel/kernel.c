@@ -55,7 +55,6 @@ void kernel_early(multiboot_info_t* mbt, size_t magic)
 void kernel_main()
 {
 	puts("Spartix 0.1");
-	asm volatile("sti");
 	while(1)
 	{
 		asm volatile("hlt");

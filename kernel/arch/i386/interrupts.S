@@ -34,21 +34,9 @@ isr%1:
 extern isr_handler
 global isr_common
 isr_common:
-	
-	;mov ax, ds               ; Lower 16-bits of eax = ds.
-	;push eax                 ; save the data segment descriptor
-	;mov ax, 10h		 ; load the kernel data segment descriptor
-	;mov ds, ax
-	;mov es, ax
-	;mov fs, ax
-	;mov gs, ax
 	call isr_handler
-	;pop eax        ; reload the original data segment descriptor
-	;mov ds, ax
-	;mov es, ax
-	;mov fs, ax
-	;mov gs, ax
-	add esp,8
+	pop eax
+	pop eax
 	iret
 ISR_NOERRCODE 0
 ISR_NOERRCODE 1
