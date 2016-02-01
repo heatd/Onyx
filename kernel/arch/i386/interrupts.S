@@ -43,13 +43,13 @@ extern isr_handler
 global isr_common
 isr_common:
 	call isr_handler
-	pop eax
-	pop eax
+	add esp, 8
 	iret
 extern irq_handler
 global irq_common:
 irq_common:
 	call irq_handler
+	pop byte eax
 	iret
 
 ISR_NOERRCODE 0
