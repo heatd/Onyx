@@ -37,6 +37,8 @@ typedef multiboot_info_t multiboot_tag_structure
 #include <kernel/tty.h>
 #include <kernel/compiler.h>
 #include <stdlib.h>
+#include <kernel/timer.h>
+
 /* Function: init_arch()
  * Purpose: Initialize architecture specific features, should be hooked by the architecture the kernel will run on
  */
@@ -58,6 +60,7 @@ void kernel_main()
 {
 	puts("Spartix kernel 0.1");
 	asm volatile("sti");
+	timer_init(1000);
 	while(1)
 	{
 		asm volatile("hlt");
