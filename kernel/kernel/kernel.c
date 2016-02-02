@@ -53,7 +53,7 @@ void kernel_early(multiboot_info_t* info, size_t magic)
 	if(magic == 0x2BADB002)
 		puts("Kernel booted by a Multiboot 1 compliant bootloader");
 	else
-		abort();
+		panic("Bootloader not Multiboot 1 compliant");
 	init_arch();
 }
 void kernel_main()
@@ -61,7 +61,6 @@ void kernel_main()
 	puts("Spartix kernel 0.1");
 	asm volatile("sti");
 	timer_init(1000);
-	asm volatile("int $0x80");
 	while(1)
 	{
 		asm volatile("hlt");
