@@ -61,6 +61,7 @@ void kernel_main()
 	puts("Spartix kernel 0.1");
 	asm volatile("sti");
 	timer_init(1000);
+	asm volatile("int $0x80");
 	while(1)
 	{
 		asm volatile("hlt");

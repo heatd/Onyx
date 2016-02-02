@@ -16,16 +16,16 @@ limitations under the License.
 #include <stdio.h>
 #include <kernel/isr.h>
 static uint32_t faulting_address;
-void isr_handler(uint32_t int_no)
+void isr_handler(uint32_t ds,uint32_t int_no)
 {
     switch(int_no)
     {
 	case 0: {
-		printf("Division by zero exception!");
+		panic("Division by zero exception!");
 		break;
 	}
 	case 1: {
-		printf("Debug Trap!");
+		panic("Debug Trap!");
 		break;
 	}
 	case 2: {
@@ -44,7 +44,7 @@ void isr_handler(uint32_t int_no)
 		break;
 	}
 	case 6: {
-		puts("Opcode invalid.The kernel image might be damaged or is running in an unknown or incompatible architecture");
+		panic("Opcode invalid.The kernel image might be damaged or is running in an unknown or incompatible architecture");
 		break;
 	}
 	case 7: {
@@ -52,26 +52,26 @@ void isr_handler(uint32_t int_no)
 		break;
 		}
 	case 8: {
-		printf("Double fault!The kernel is exiting shortly.");
+		panic("Double fault!The kernel is exiting shortly.");
 		break;
 		}
 	case 9:{
 		break;//Obsolete
 		}
 	case 10: {
-		printf("Invalid TSS !!!");
+		panic("Invalid TSS");
 		break;
 		}
 	case 11: {
-		printf("Segment not present!");
+		panic("Segment not present!");
 		break;
 		}
 	case 12: {
-		puts("Stack segment fault!");
+		panic("Stack segment fault!");
 		break;
 		}
 	case 13: {
-		puts("General Protection Fault");
+		panic("General Protection Fault");
 		break;
 		}
 	case 14:

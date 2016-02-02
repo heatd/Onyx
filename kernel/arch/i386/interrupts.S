@@ -42,7 +42,21 @@ isr%1:
 extern isr_handler
 global isr_common
 isr_common:
+	mov ax,ds
+	push eax
+	mov ax,10h
+	mov ds,ax
+	mov ss,ax
+	mov es,ax
+	mov fs,ax
+	mov gs,ax
 	call isr_handler
+	pop eax
+	mov ds,ax
+	mov ss,ax
+	mov es,ax
+	mov fs,ax
+	mov fs,ax
 	add esp, 8
 	iret
 extern irq_handler
@@ -51,7 +65,26 @@ irq_common:
 	call irq_handler
 	pop byte eax
 	iret
-
+extern syscall
+global _syscall
+_syscall:
+	mov ax,ds
+	push eax
+	mov ax,10h
+	mov ds,ax
+	mov ss,ax
+	mov es,ax
+	mov fs,ax
+	mov gs,ax
+	;Don't know if im forgetting any register, but idc anyway since its fucking late
+	call syscall
+	pop eax
+	mov ds,ax
+	mov ss,ax
+	mov es,ax
+	mov fs,ax
+	mov gs,ax
+	iret
 ISR_NOERRCODE 0
 ISR_NOERRCODE 1
 ISR_NOERRCODE 2
