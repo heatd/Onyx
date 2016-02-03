@@ -15,6 +15,7 @@ limitations under the License.
 #ifndef PANIC_H
 #define PANIC_H
 
+#include <kernel/compiler.h>
 ARCH_SPECIFIC void halt();
 ARCH_SPECIFIC void get_thread_ctx();
 /* The functions halt and get_thread_ctx are architecture dependent, as they require manual assembly.
