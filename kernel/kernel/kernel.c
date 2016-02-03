@@ -44,6 +44,7 @@ typedef multiboot_info_t multiboot_tag_structure
  * Purpose: Initialize architecture specific features, should be hooked by the architecture the kernel will run on
  */
 ARCH_SPECIFIC void init_arch();
+ARCH_SPECIFIC void init_vmm();
 static multiboot_info_t* mbt;
 extern uint32_t end;
 void kernel_early(multiboot_info_t* info, size_t magic)
@@ -100,9 +101,6 @@ void kernel_early(multiboot_info_t* info, size_t magic)
 	}
 	printf("Memory in KiB:%i\n",mbt->mem_lower+mbt->mem_upper);
 	printf("Blocks total: %i\n",pmmngr_get_block_count());
-	printf("Blocks free: %i\n",pmmngr_get_free_block_count());
-	pmmngr_alloc_blocks(1024);
-	printf("Blocks free: %i\n",pmmngr_get_free_block_count());
 }
 void kernel_main()
 {
@@ -112,6 +110,7 @@ void kernel_main()
 	// Initialize the timer
 	timer_init(1000);
 	
+	init_vmm();
 	while(1)
 	{
 		asm volatile("hlt");
