@@ -62,10 +62,9 @@ void kernel_early(multiboot_info_t* info, size_t magic)
 	
 	mbt->mmap_addr+=0xC0000000;
 	multiboot_memory_map_t* mmap = (multiboot_memory_map_t*) mbt->mmap_addr;
-	memset(0xC0300000,0,4096);
-	pmmngr_init(mbt->mem_lower + mbt->mem_upper,(uint32_t) 0xC0300000);
+	memset(0xC0200000,0xF,4096);
+	pmmngr_init(mbt->mem_lower + mbt->mem_upper,(uint32_t) 0xC0200000);
 	multiboot_memory_map_t*  mmap_arr[10];
-	printf("Memory in KiB:%i\n",mbt->mem_lower+mbt->mem_upper);
 	while((unsigned int)mmap < mbt->mmap_addr + mbt->mmap_length) {
 		static int i = 0;
 
@@ -99,6 +98,11 @@ void kernel_early(multiboot_info_t* info, size_t magic)
 		}
 		mmap = (multiboot_memory_map_t*) ( (unsigned int)mmap + mmap->size + sizeof(unsigned int) );
 	}
+	printf("Memory in KiB:%i\n",mbt->mem_lower+mbt->mem_upper);
+	printf("Blocks total: %i\n",pmmngr_get_block_count());
+	printf("Blocks free: %i\n",pmmngr_get_free_block_count());
+	pmmngr_alloc_blocks(1024);
+	printf("Blocks free: %i\n",pmmngr_get_free_block_count());
 }
 void kernel_main()
 {

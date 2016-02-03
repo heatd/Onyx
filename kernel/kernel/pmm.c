@@ -39,15 +39,15 @@ uint32_t pmmngr_get_free_block_count ()
 
 	return _mmngr_max_blocks - _mmngr_used_blocks;
 }
-int mmap_first_free ()
+int32_t mmap_first_free ()
 {
 
 	//! find the first free bit
 	for (uint32_t i=0; i< pmmngr_get_block_count() / 32; i++)
 		if (_mmngr_memory_map[i] != 0xffffffff)
-			for (int j=0; j<32; j++) {		//! test each bit in the dword
+			for (int32_t j=0; j<32; j++) {		//! test each bit in the dword
 
-				int bit = 1 << j;
+				int32_t bit = 1 << j;
 				if (! (_mmngr_memory_map[i] & bit) )
 					return i*4*8+j;
 			}
@@ -63,7 +63,7 @@ void	pmmngr_init (size_t memSize, physical_addr bitmap)
 	_mmngr_used_blocks	=	pmmngr_get_block_count();
 	
 	//! By default, all of memory is in use
-	memset (_mmngr_memory_map, 0xf, pmmngr_get_block_count() / PMMNGR_BLOCKS_PER_BYTE );
+	memset (_mmngr_memory_map, 0xffffffff, pmmngr_get_block_count() / PMMNGR_BLOCKS_PER_BYTE );
 }
 
 void	pmmngr_init_region (physical_addr base, size_t size)
@@ -127,7 +127,7 @@ void*	pmmngr_alloc_blocks (size_t size) {
 	if (pmmngr_get_free_block_count() <= size)
 		return 0;	//not enough space
 
-	int frame = mmap_first_free(size);
+	int32_t frame = mmap_first_free(size);
 
 	if (frame == -1)
 		return 0;	//not enough space

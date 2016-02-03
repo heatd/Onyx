@@ -77,7 +77,7 @@ void isr_handler(uint32_t ds,uint32_t int_no)
 	case 14:
 		// A page fault has occurred.
 		// The faulting address is stored in the CR2 register.
-		__asm volatile("mov %%cr2, %0" : "=r" (faulting_address));
+		asm volatile("mov %%cr2, %0" : "=r" (faulting_address));
 
 		// Output an error message.
 
