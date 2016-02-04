@@ -108,7 +108,7 @@ void kernel_main()
 	// Enable interrupts
 	asm volatile("sti");
 	// Initialize the timer
-	//timer_init(1000);
+	timer_init(1000);
 	
 	init_vmm();
 	while(1)
