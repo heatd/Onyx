@@ -40,6 +40,8 @@ typedef multiboot_info_t multiboot_tag_structure
 #include <kernel/timer.h>
 #include <kernel/pmm.h>
 #include <kernel/sleep.h>
+#include <kernel/initrd.h>
+#include <kernel/fs.h>
 
 /* Function: init_arch()
  * Purpose: Initialize architecture specific features, should be hooked by the architecture the kernel will run on
@@ -47,6 +49,7 @@ typedef multiboot_info_t multiboot_tag_structure
 ARCH_SPECIFIC void init_arch();
 ARCH_SPECIFIC void init_vmm();
 static multiboot_info_t* mbt;
+static uint32_t initrd_addr;
 extern uint32_t end;
 void kernel_early(multiboot_info_t* info, size_t magic)
 {
@@ -102,6 +105,12 @@ void kernel_early(multiboot_info_t* info, size_t magic)
 	}
 	printf("Memory in KiB:%i\n",mbt->mem_lower+mbt->mem_upper);
 	printf("Blocks total: %i\n",pmmngr_get_block_count());
+	pmmngr_deinit_region((physical_addr)mbt, sizeof(multiboot_info_t));
+	pmmngr_deinit_region(0x100000, end-0xC0000000-0x100000);
+	multiboot_module_t* mod_start_ptr = (multiboot_module_t*)mbt->mods_addr;
+	initrd_addr = mod_start_ptr->mod_start;
+	pmmngr_deinit_region((physical_addr)mod_start_ptr,sizeof(multiboot_module_t));
+	pmmngr_deinit_region((physical_addr)mod_start_ptr->mod_start,mod_start_ptr->mod_end - mod_start_ptr->mod_start);
 }
 void kernel_main()
 {
@@ -109,12 +118,20 @@ void kernel_main()
 	// Enable interrupts
 	asm volatile("sti");
 	// Initialize the timer
-	timer_init(1000);
+	//timer_init(1000);
 	//Initialize the VMM
 	init_vmm();
-	
+	// Initialize the kernel heap
 	init_heap();
-	while(1)
+	fs_node_t* initrd_root = init_initrd(initrd_addr);
+	if(!initrd_root)
+		panic("Initrd failed loading");
+	
+	fs_node_t* node = finddir_fs(initrd_root,"boot/Kernel.map");
+	void* buffer = kmalloc(100);
+	read_fs(node,0,100,buffer);
+	printf("Contents of %s:\n%s",node->name,buffer);
+	for(;;)
 	{
 		asm volatile("hlt");
 	}

@@ -105,8 +105,8 @@ stack_top:
 section .text
 global _start
 _start:
-	invlpg [0]
-	mov dword [BootPageDirectory], 0
+	;invlpg [0]
+	;mov dword [BootPageDirectory], 0
 	mov esp, stack_top
 	add  ebx,KERNEL_VIRTUAL_BASE
 	push eax
