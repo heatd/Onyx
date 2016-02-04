@@ -81,7 +81,7 @@ void idt_create_descriptor(uint8_t entry,uint32_t offset,uint16_t selector,uint8
 	idt_entries[entry].selector = selector;
 
 	idt_entries[entry].zero = 0;
-	idt_entries[entry].type_attr = flags;
+	idt_entries[entry].type_attr = flags | 0x60;
 
 }
 void load_idt()

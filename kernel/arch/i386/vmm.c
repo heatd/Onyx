@@ -96,6 +96,7 @@ void init_vmm()
 	{
 		pt_entry page=0;
 		pt_entry_set_bit(&page,_PTE_PRESENT);
+		pt_entry_set_bit(&page,_PTE_USER);
 		pt_entry_set_frame(&page, frame);
 
 		mb->entries [PAGE_TABLE_INDEX(virt)] = page;
@@ -104,6 +105,7 @@ void init_vmm()
 	{
 		pt_entry page=0;
 		pt_entry_set_bit(&page,_PTE_PRESENT);
+		pt_entry_set_bit(&page,_PTE_USER);
 		pt_entry_set_frame(&page, frame);
 
 		table->entries [PAGE_TABLE_INDEX(virt)] = page;
@@ -126,6 +128,7 @@ void init_vmm()
 	pd_entry* entry2 = &dir->entries[PAGE_DIRECTORY_INDEX(0)];
 	pd_entry_set_bit(entry2,_PDE_PRESENT);
 	pd_entry_set_bit(entry2,_PDE_WRITABLE);
+	pd_entry_set_bit(entry2,_PTE_USER);
 	mb = (ptable*) 0x3F5000;
 	pd_entry_set_frame(entry2,(physical_addr)mb);
 	pd_entry* entry3 = &dir->entries[PAGE_DIRECTORY_INDEX(0xFFC00000)];
@@ -226,7 +229,6 @@ void map_kernel()
 		pt_entry page=0;
 		pt_entry_set_bit(&page,_PTE_PRESENT);
 		pt_entry_set_frame(&page, frame);
-
 		table->entries [PAGE_TABLE_INDEX(virt)] = page;
         }
         pdirectory* pd = get_directory();

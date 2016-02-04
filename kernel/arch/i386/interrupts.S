@@ -68,22 +68,7 @@ irq_common:
 extern syscall
 global _syscall
 _syscall:
-	mov ax,ds
-	push eax
-	mov ax,10h
-	mov ds,ax
-	mov ss,ax
-	mov es,ax
-	mov fs,ax
-	mov gs,ax
-	;Don't know if im forgetting any register, but idc anyway since its fucking late
 	call syscall
-	pop eax
-	mov ds,ax
-	mov ss,ax
-	mov es,ax
-	mov fs,ax
-	mov gs,ax
 	iret
 ISR_NOERRCODE 0
 ISR_NOERRCODE 1

@@ -14,16 +14,19 @@ limitations under the License.
 */
 #include <kernel/gdt.h>
 static gdt_ptr_t gdt_ptr;
-static gdt_entry_t entries[5];
+static gdt_entry_t entries[6];
+static tss_entry_t tss_entry;
 void init_gdt()
 {
-	memset(&entries,0,sizeof(gdt_entry_t)*5);
+	memset(&entries,0,sizeof(gdt_entry_t)*6);
 	memset(&gdt_ptr,0,sizeof(gdt_ptr));
+	memset(&tss_entry,0,sizeof(tss_entry_t));
 	create_descriptor(0, 0, 0, 0, 0);
 	create_descriptor(1, 0, 0xFFFFFFFF, 0x9A, 0xCF);
 	create_descriptor(2, 0, 0xFFFFFFFF, 0x92, 0xCF);
 	create_descriptor(3, 0, 0xFFFFFFFF, 0xFA, 0xCF);
 	create_descriptor(4, 0, 0xFFFFFFFF, 0xF2, 0xCF);
+	install_tss();
 	load_gdt();
 }
 extern void  GDT_Flush(uint32_t);
@@ -39,9 +42,23 @@ void create_descriptor(uint32_t entrynum,uint32_t base,uint32_t limit,uint8_t ac
 	entries[entrynum].access		= access;
 
 }
+extern void tss_flush();
+void install_tss()
+{
+	uint32_t base = (uint32_t) &tss_entry;
+	uint32_t limit = base + sizeof(tss_entry);
+
+	create_descriptor(5, base, limit, 0xE9, 0);
+	memset(&tss_entry, 0, sizeof(tss_entry));
+	tss_entry.ss0 = 0x10;
+	tss_entry.esp0 = (uint32_t)pmmngr_alloc_block();
+	tss_entry.cs = 0x0b;
+	tss_entry.ss = tss_entry.ds = tss_entry.es = tss_entry.fs = tss_entry.gs = 0x13;
+}
 void load_gdt()
 {
-	gdt_ptr.limit = (sizeof(gdt_entry_t) * 5) - 1;
+	gdt_ptr.limit = (sizeof(gdt_entry_t) * 6) - 1;
 	gdt_ptr.base  = (uint32_t)&entries;
 	GDT_Flush((uint32_t)&gdt_ptr);
+	tss_flush();
 }

@@ -48,6 +48,7 @@ typedef multiboot_info_t multiboot_tag_structure
  */
 ARCH_SPECIFIC void init_arch();
 ARCH_SPECIFIC void init_vmm();
+ARCH_SPECIFIC void jump_userspace();
 static multiboot_info_t* mbt;
 static uint32_t initrd_addr;
 extern uint32_t end;
@@ -118,19 +119,15 @@ void kernel_main()
 	// Enable interrupts
 	asm volatile("sti");
 	// Initialize the timer
-	//timer_init(1000);
+	timer_init(1000);
 	//Initialize the VMM
 	init_vmm();
 	// Initialize the kernel heap
 	init_heap();
 	fs_node_t* initrd_root = init_initrd(initrd_addr);
-	if(!initrd_root)
-		panic("Initrd failed loading");
 	
-	fs_node_t* node = finddir_fs(initrd_root,"boot/Kernel.map");
-	void* buffer = kmalloc(100);
-	read_fs(node,0,100,buffer);
-	printf("Contents of %s:\n%s",node->name,buffer);
+	
+	jump_userspace();
 	for(;;)
 	{
 		asm volatile("hlt");
