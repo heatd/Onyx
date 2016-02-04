@@ -15,6 +15,7 @@ limitations under the License.
 #ifndef SLEEP_H
 #define SLEEP_H
 #include <stdint.h>
+#include <kernel/timer.h>
 
 void ksleep(long long ms);
 

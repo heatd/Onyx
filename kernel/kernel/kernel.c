@@ -110,10 +110,10 @@ void kernel_main()
 	asm volatile("sti");
 	// Initialize the timer
 	timer_init(1000);
-	
+	//Initialize the VMM
 	init_vmm();
-	ksleep(10000);
-	printf("Timer ended");
+	
+	init_heap();
 	while(1)
 	{
 		asm volatile("hlt");

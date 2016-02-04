@@ -143,9 +143,8 @@ void* mmap(uint32_t virt, DWORD npages)
 	if (!npages)
 		return NULL;
 	pdirectory* pdir = get_directory();
-	printf("pdir:0x%X\n",pdir);
 	if (!pdir)
-		return NULL;
+		abort();
 	pd_entry* entry = &pdir->entries[PAGE_DIRECTORY_INDEX(virt)];
 	ptable* pt = NULL;
 	if (pd_entry_is_present(*entry))
