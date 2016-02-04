@@ -14,7 +14,8 @@ limitations under the License.
 */
 #include <kernel/fs.h>
 #include <stdlib.h>
-
+#include <kernel/tty.h>
+#include <kernel/vga.h>
 fs_node_t* fs_root = 0;
 
 uint32_t read_fs(fs_node_t* node, uint32_t offset, uint32_t size, void* buffer)

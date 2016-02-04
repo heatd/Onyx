@@ -16,6 +16,7 @@ limitations under the License.
 #define FS_H
 #include <stdlib.h>
 #include <stdint.h>
+#include <stddef.h>
 struct fs_node;
 struct dirent // One of these is returned by the readdir call, according to POSIX.
 {
@@ -67,4 +68,5 @@ void open_fs(fs_node_t *node, uint8_t read, uint8_t write);
 void close_fs(fs_node_t *node);
 struct dirent *readdir_fs(fs_node_t *node, uint32_t index);
 fs_node_t *finddir_fs(fs_node_t *node, char *name);
+ssize_t write(int fildes, const void* buf,size_t nbyte);
 #endif

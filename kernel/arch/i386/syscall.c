@@ -12,9 +12,22 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+/**************************************************************************
+ * 
+ * 
+ * File: syscall.c
+ * 
+ * Description: Contains the implementation of syscalls on x86
+ * 
+ * Date: 4/2/2016
+ * 
+ * 
+ **************************************************************************/
 #include <stdint.h>
 #include <kernel/registers.h>
 #include <kernel/panic.h>
+#include <stdlib.h>
+#include <kernel/kheap.h>
 void syscall()
 {
 	uint32_t eax,ebx,ecx,edx,edi;
@@ -23,6 +36,11 @@ void syscall()
 	asm volatile("mov %%ecx,%0":"=a"(ecx));
 	asm volatile("mov %%edx,%0":"=a"(edx));
 	asm volatile("mov %%edi,%0":"=a"(edi));
-	if(eax == 0)
-		terminal_writestring(ebx);
+	
+	switch(eax){
+		case 0:
+			terminal_writestring(ebx);
+		default:
+			break;
+	}
 }

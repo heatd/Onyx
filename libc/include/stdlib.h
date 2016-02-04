@@ -27,6 +27,7 @@ extern "C" {
 #define NULL (void*)0
 #endif
 #endif
+typedef int ssize_t;
 __attribute__((__noreturn__))
 void abort(void);
 
