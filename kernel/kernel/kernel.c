@@ -39,6 +39,7 @@ typedef multiboot_info_t multiboot_tag_structure
 #include <stdlib.h>
 #include <kernel/timer.h>
 #include <kernel/pmm.h>
+#include <kernel/sleep.h>
 
 /* Function: init_arch()
  * Purpose: Initialize architecture specific features, should be hooked by the architecture the kernel will run on
@@ -111,6 +112,8 @@ void kernel_main()
 	timer_init(1000);
 	
 	init_vmm();
+	ksleep(10000);
+	printf("Timer ended");
 	while(1)
 	{
 		asm volatile("hlt");
