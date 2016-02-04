@@ -16,7 +16,7 @@ limitations under the License.
 #include <stdio.h>
 #include <kernel/isr.h>
 static uint32_t faulting_address;
-void isr_handler(uint32_t ds,uint32_t int_no)
+void isr_handler(uint32_t ds,uint32_t int_no,uint32_t err_code)
 {
     switch(int_no)
     {
@@ -83,18 +83,18 @@ void isr_handler(uint32_t ds,uint32_t int_no)
 
 		printf("Page fault at 0x%x\n",(unsigned int)faulting_address);
 		printf("Details: ");
-// 		if((regs.err_code >> 1) & 1)
-// 			printf("Present,");
-// 
-// 		if((regs.err_code >> 2) & 1)
-// 			printf(" write-access caused the fault,");
-// 		else
-// 			printf(" read-access caused the fault,");
-// 
-// 		if((regs.err_code >> 3) & 1)
-// 			printf("user mode");
-// 		else
-// 			printf("kernel-mode\n");
+		if((err_code >> 1) & 1)
+ 			printf("Present,");
+ 
+		if((err_code >> 2) & 1)
+ 			printf(" write-access caused the fault,");
+ 		else
+ 			printf(" read-access caused the fault,");
+ 
+ 		if((err_code >> 3) & 1)
+ 			printf("user mode");
+ 		else
+ 			printf("kernel-mode\n");
 
 		int i =(int) __builtin_frame_address(1);
 		if(i==0)
@@ -102,7 +102,7 @@ void isr_handler(uint32_t ds,uint32_t int_no)
 		i = (int) __builtin_frame_address(2);
 		if(i==0)
 			printf("0x%x",(unsigned int)__builtin_return_address(2));
-		//mmap(faulting_address, 1);
+		while(1);
 		break;
 	case 15: {
 		break;//Reserved exception

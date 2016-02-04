@@ -54,16 +54,27 @@ int switch_directory (pdirectory* dir) {
 
 pdirectory* get_directory () {
 
-	return _cur_directory + 0xC0000000;
+	void* ret = _cur_directory + 0xC0000000;
+	return (pdirectory*)ret;
 }
 
 void init_vmm()
 {
+	ptable* mb = (ptable*)0xC03F5000;
+	memset(mb,0,sizeof(ptable));
         ptable* table = (ptable*)0xC0300000;
         memset(table, 0,sizeof(ptable));
         ptable* table3 = (ptable*)0xC02F0000;
         memset(table3,0,sizeof(ptable));
 
+	for(int i=0,frame=0x000000,virt=0x00000000;i<1024;i++,frame+=4096, virt+=4096)
+	{
+		pt_entry page=0;
+		pt_entry_set_bit(&page,_PTE_PRESENT);
+		pt_entry_set_frame(&page, frame);
+
+		mb->entries [PAGE_TABLE_INDEX(virt)] = page;
+        }
 	for(int i=0,frame=0x000000,virt=0xC0000000;i<1024;i++,frame+=4096, virt+=4096)
 	{
 		pt_entry page=0;
@@ -87,7 +98,11 @@ void init_vmm()
 	pd_entry_set_bit (entry, _PDE_USER);
         table=(ptable*)0x300000;
         pd_entry_set_frame(entry,(physical_addr)table);
-
+	pd_entry* entry2 = &dir->entries[PAGE_DIRECTORY_INDEX(0)];
+	pd_entry_set_bit(entry2,_PDE_PRESENT);
+	pd_entry_set_bit(entry2,_PDE_WRITABLE);
+	mb = (ptable*) 0x3F5000;
+	pd_entry_set_frame(entry2,(physical_addr)mb);
 	pd_entry* entry3 = &dir->entries[PAGE_DIRECTORY_INDEX(0xFFC00000)];
         pd_entry_set_bit(entry3,_PDE_PRESENT);
         pd_entry_set_bit(entry3,_PDE_WRITABLE);
@@ -104,7 +119,6 @@ void* mmap(uint32_t virt, DWORD npages)
 		return NULL;
 	pdirectory* pdir = get_directory();
 	printf("pdir:0x%X\n",pdir);
-	abort();
 	if (!pdir)
 		return NULL;
 	pd_entry* entry = &pdir->entries[PAGE_DIRECTORY_INDEX(virt)];
