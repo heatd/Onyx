@@ -12,8 +12,10 @@ static uint32_t last_entry = 0;
 void pmm_push(uintptr_t base,size_t size)
 {
 	// Don't alloc the kernel
-	if(base == 0x100000)
-		base+=&end - 0x100000;
+	if(base == 0x100000){
+		base += 0x300000;
+		base &= 0xFFFFFF000;
+	}
 	for(int i = 0;i < pmm_memory_size/PMM_BLOCK_SIZE ;i++)
 		if(stack->next[i].base==0 && stack->next[i].size == 0){
 			stack->next[i].base = base;
@@ -34,12 +36,15 @@ void pmm_pop()
 }
 void* pmalloc(size_t blocks)
 {
-	void* ret_addr;
+	void* ret_addr = NULL;
 	for(int i = 0;i < 12;i++)
-		if(stack->next[i].base !=0 && stack->next[i].size != 0){
-			ret_addr = stack->next[i].base;
-			stack->next[i].base+=PMM_BLOCK_SIZE * blocks;
-			stack->next[i].size-=PMM_BLOCK_SIZE * blocks;
+		if(stack->next[i].base !=0 || stack->next[i].size != 0){
+			if(stack->next[i].base >= blocks * PMM_BLOCK_SIZE){
+				ret_addr = stack->next[i].base;
+				stack->next[i].base+=PMM_BLOCK_SIZE * blocks;
+				stack->next[i].size-=PMM_BLOCK_SIZE * blocks;
+				return (void*)((uint32_t)ret_addr & 0xFFFFFF000);
+			}
 		}
 	
 	return ret_addr;

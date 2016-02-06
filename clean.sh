@@ -9,3 +9,4 @@ done
 rm -rfv sysroot
 rm -rfv isodir
 rm -rfv Spartix.iso
+rm -rfv Kernel.map
