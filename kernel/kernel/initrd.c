@@ -66,7 +66,6 @@ unsigned int tar_parse(uint32_t address)
 uint32_t tar_read(fs_node_t* node,uint32_t offset,uint32_t size,void* buffer)
 {
 	tar_header_t* header = headers[node->inode];
-// 	printf("data:%s\n",(void*)headers[node->inode]+512);
 	if(offset + size > tar_getsize(header->size))
 		return 1;
 	void* data = (void*)header + 512 + offset;

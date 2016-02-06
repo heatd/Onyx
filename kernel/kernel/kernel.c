@@ -122,7 +122,13 @@ void kernel_main()
 	// Initialize the kernel heap
 	init_heap();
 	fs_node_t* initrd_root = init_initrd(initrd_addr);
+	if(!initrd_root)
+		abort();
+	fs_node_t* node = finddir_fs(initrd_root,"boot/Kernel.map");
+	if(!node)
+		abort();
 	init_keyboard();
+	init_scheduler();
 	jump_userspace();
 	
 	for(;;)

@@ -12,19 +12,12 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#include <stdio.h>
-
-#if defined(__is_spartix_kernel)
-#include <kernel/tty.h>
-#endif
-#include <sys/syscall.h>
-int putchar(int ic)
+#include <stdint.h>
+typedef struct task
 {
-	char c = (char) ic;
-#if defined(__is_spartix_kernel)
-	terminal_write(&c, sizeof(c));
-#else
-	SYSCALL(TERMINAL_WRITE_SYSCALL,ic,0,0,0);
-#endif
-	return ic;
-}
+	uint32_t eax, ebx, ecx, edx, esi, edi, esp, ebp, eip, eflags, cr3;
+	struct task* next;
+	
+}task_t;
+void init_scheduler();
+void create_task(task_t* task);
