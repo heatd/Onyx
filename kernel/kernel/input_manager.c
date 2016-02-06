@@ -13,9 +13,30 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 #include <stdint.h>
-void send_input_to_kern(char c, uint8_t keycode)
-{
-	//TODO
-	
-	
+#include <stdbool.h>
+#include <stdlib.h>
+unsigned char keys[200]={0,'1','2','3','4','5','6','7','8','9','0','-','=','\b','\t',
+'q','w','e','r','t','y','u','i','o','p','[',']','\n',0,'a','s','d','f','g','h',
+'j','k','l',';','\'','`',0,'\\','z','x','c','v','b','n','m',',','.','/',0,'*',0,
+' ',0,0,0,0,0,0,0,0,0,0,0,0,0,'7','8','9','-','4','5','6','+','1','2','3','0',
+'.',0,0,0,0,0};
+static _Bool is_shift_pressed = false;
+void send_event_to_kern(uint8_t keycode)
+{	
+	if(keycode == 0x2A || keycode == 0x36){
+		is_shift_pressed = true;
+		return;
+	}
+	if(keycode == 0xAA || keycode == 0xB6){
+		is_shift_pressed = false;
+		return;
+	}
+	if(keycode & 0x80)
+		return;
+	char c = keys[keycode - 1];
+	if(is_shift_pressed == true && c > 96 && c < 123){
+		printf("%c",c - 32);
+		return;
+	}
+		printf("%c",c);
 }

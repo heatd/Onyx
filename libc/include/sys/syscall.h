@@ -15,19 +15,19 @@ limitations under the License.
 #ifndef SYSCALL_H
 #define SYSCALL_H
 
-#define TERMINAL_WRITE_SYSCALL 0
+#define TERMINAL_WRITE_SYSCALL 0L
 #define FORK_SYSCALL 1
 #define EXIT_SYSCALL 2
 #define EXEC_SYSCALL 3
 #define ABORT_SYSCALL 4
 
 #define SYSCALL(intno,ebxr,ecxr,edxr,edir) \
-asm volatile("mov eax,intno"); \
-asm volatile("mov ebx,ebxr"); \
-asm volatile("mov ecx,ecxr"); \
-asm volatile("mov edx,edxr"); \
-asm volatile("mov edi,edir"); \
-asm volatile("int 0x80"); \
+asm volatile("movl %0,%%eax"::"a"(intno)); \
+asm volatile("movl %0,%%ebx"::"a"(ebxr)); \
+asm volatile("movl %0,%%ecx"::"a"(ecxr)); \
+asm volatile("movl %0,%%edx"::"a"(edxr)); \
+asm volatile("movl %0,%%edi"::"a"(edir)); \
+asm volatile("int $0x80"); 
 
 
 

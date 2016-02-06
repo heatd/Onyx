@@ -147,7 +147,6 @@ void* mmap(uint32_t virt, DWORD npages)
 		pd_entry_set_bit(entry,_PDE_WRITABLE);
 		pd_entry_set_bit(entry,_PDE_4MB);
 		void* ptr = pmalloc(1024);
-		printf("ptr:0x%X\n",ptr);
 		pd_entry_set_frame(entry,(uintptr_t)ptr);
 		return;
 		
