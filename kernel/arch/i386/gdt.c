@@ -51,7 +51,7 @@ void install_tss()
 	create_descriptor(5, base, limit, 0xE9, 0);
 	memset(&tss_entry, 0, sizeof(tss_entry));
 	tss_entry.ss0 = 0x10;
-	tss_entry.esp0 = (uint32_t)pmmngr_alloc_block();
+	tss_entry.esp0 = (uint32_t)0xC03FFF00;
 	tss_entry.cs = 0x0b;
 	tss_entry.ss = tss_entry.ds = tss_entry.es = tss_entry.fs = tss_entry.gs = 0x13;
 }

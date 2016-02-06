@@ -12,16 +12,10 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/syscall.h>
-__attribute__((__noreturn__))
-void abort(void)
+#include <stdint.h>
+void send_input_to_kern(char c, uint8_t keycode)
 {
-#ifdef __is_spartix_kernel
-	panic("abort()");
-#else
-	SYSCALL(ABORT_SYSCALL,0,0,0,0);
-#endif
-	__builtin_unreachable();
+	//TODO
+	
+	
 }

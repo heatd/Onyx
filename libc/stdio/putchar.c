@@ -17,14 +17,14 @@ limitations under the License.
 #if defined(__is_spartix_kernel)
 #include <kernel/tty.h>
 #endif
-
+#include <sys/syscall.h>
 int putchar(int ic)
 {
-#if defined(__is_spartix_kernel)
 	char c = (char) ic;
+#if defined(__is_spartix_kernel)
 	terminal_write(&c, sizeof(c));
 #else
-	// TODO: You need to implement a write system call.
+	SYSCALL(TERMINAL_WRITE_SYSCALL,c,0,0,0);
 #endif
 	return ic;
 }

@@ -12,16 +12,23 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/syscall.h>
-__attribute__((__noreturn__))
-void abort(void)
-{
-#ifdef __is_spartix_kernel
-	panic("abort()");
-#else
-	SYSCALL(ABORT_SYSCALL,0,0,0,0);
-#endif
-	__builtin_unreachable();
-}
+#ifndef SYSCALL_H
+#define SYSCALL_H
+
+#define TERMINAL_WRITE_SYSCALL 0
+#define FORK_SYSCALL 1
+#define EXIT_SYSCALL 2
+#define EXEC_SYSCALL 3
+#define ABORT_SYSCALL 4
+
+#define SYSCALL(intno,ebxr,ecxr,edxr,edir) \
+asm volatile("mov eax,intno"); \
+asm volatile("mov ebx,ebxr"); \
+asm volatile("mov ecx,ecxr"); \
+asm volatile("mov edx,edxr"); \
+asm volatile("mov edi,edir"); \
+asm volatile("int 0x80"); \
+
+
+
+#endif // SYSCALL_H

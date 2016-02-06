@@ -5,19 +5,23 @@
 
 #include <stdint.h>
 #include <stddef.h>
-typedef uint32_t physical_addr;
-#define PMMNGR_BLOCKS_PER_BYTE 8
+// block size (4k)
+#define PMM_BLOCK_SIZE	4096
 
-//! block size (4k)
-#define PMMNGR_BLOCK_SIZE	4096
+typedef struct stack_entry
+{
+	uintptr_t base;
+	size_t size;
+	size_t magic;
+}stack_entry_t;
+typedef struct stack
+{
+	stack_entry_t* next;
+}stack_t;
 
-//! block alignment
-#define PMMNGR_BLOCK_ALIGN	PMMNGR_BLOCK_SIZE
-void*	pmmngr_alloc_block ();
-void	pmmngr_init_region (physical_addr base, size_t size);
-void	pmmngr_deinit_region (physical_addr base, size_t size);
-void	pmmngr_init (size_t memSize, physical_addr bitmap);
-void	pmmngr_free_block (void* p);
-
-
+void pmm_push(uintptr_t base,size_t size);
+void pmm_pop();
+void* pmalloc(size_t blocks);
+void pfree(size_t blocks,void* ptr);
+void pmm_init(size_t memory_size,uintptr_t stack_space);
 #endif // PMM_H

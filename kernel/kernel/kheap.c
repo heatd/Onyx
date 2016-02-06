@@ -171,11 +171,13 @@ uint32_t heap_extensions;
 static KHEAPBM kheap;
 void init_heap()
 {
+	asm volatile("cli");
 	k_heapBMInit(&kheap);
 	if(mmap(0xC0400000,1024)==NULL)
 		abort();
 	k_heapBMAddBlock(&kheap,0xC0400000,0x400000,16);
 	heap_extensions = 0;
+	asm volatile("sti");
 }
 void* kmalloc(size_t size)
 {

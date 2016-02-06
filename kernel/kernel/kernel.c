@@ -42,7 +42,7 @@ typedef multiboot_info_t multiboot_tag_structure
 #include <kernel/sleep.h>
 #include <kernel/initrd.h>
 #include <kernel/fs.h>
-
+#include <drivers/ps2.h>
 /* Function: init_arch()
  * Purpose: Initialize architecture specific features, should be hooked by the architecture the kernel will run on
  */
@@ -68,8 +68,8 @@ void kernel_early(multiboot_info_t* info, size_t magic)
 	
 	mbt->mmap_addr+=0xC0000000;
 	multiboot_memory_map_t* mmap = (multiboot_memory_map_t*) mbt->mmap_addr;
-	memset(0xC0200000,0xF,4096);
-	pmmngr_init(mbt->mem_lower + mbt->mem_upper,(uint32_t) 0xC0200000);
+	memset(0xC0200000,0,4096);
+	pmm_init(mbt->mem_lower + mbt->mem_upper,(uintptr_t) 0xC0200000);
 	multiboot_memory_map_t*  mmap_arr[10];
 	while((unsigned int)mmap < mbt->mmap_addr + mbt->mmap_length) {
 		static int i = 0;
@@ -77,7 +77,7 @@ void kernel_early(multiboot_info_t* info, size_t magic)
 		mmap_arr [i] = mmap;
 
 		if(mmap->type==MULTIBOOT_MEMORY_AVAILABLE)
-		    pmmngr_init_region(mmap->addr,mmap->len);
+		    pmm_push(mmap->addr,mmap->len);
 
 		printf("Size:0x%X ",mmap->len);
 
@@ -105,13 +105,10 @@ void kernel_early(multiboot_info_t* info, size_t magic)
 		mmap = (multiboot_memory_map_t*) ( (unsigned int)mmap + mmap->size + sizeof(unsigned int) );
 	}
 	printf("Memory in KiB:%i\n",mbt->mem_lower+mbt->mem_upper);
-	printf("Blocks total: %i\n",pmmngr_get_block_count());
-	pmmngr_deinit_region((physical_addr)mbt, sizeof(multiboot_info_t));
-	pmmngr_deinit_region(0x100000, end-0xC0000000-0x100000);
 	multiboot_module_t* mod_start_ptr = (multiboot_module_t*)mbt->mods_addr;
 	initrd_addr = mod_start_ptr->mod_start;
-	pmmngr_deinit_region((physical_addr)mod_start_ptr,sizeof(multiboot_module_t));
-	pmmngr_deinit_region((physical_addr)mod_start_ptr->mod_start,mod_start_ptr->mod_end - mod_start_ptr->mod_start);
+// 	pmmngr_deinit_region((physical_addr)mod_start_ptr,sizeof(multiboot_module_t));
+// 	pmmngr_deinit_region((physical_addr)mod_start_ptr->mod_start,mod_start_ptr->mod_end - mod_start_ptr->mod_start);
 }
 void kernel_main()
 {
@@ -125,9 +122,9 @@ void kernel_main()
 	// Initialize the kernel heap
 	init_heap();
 	fs_node_t* initrd_root = init_initrd(initrd_addr);
-	
-	
+	init_keyboard();
 	jump_userspace();
+	
 	for(;;)
 	{
 		asm volatile("hlt");

@@ -26,7 +26,12 @@ CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS)
 LDFLAGS:=$(LDFLAGS) $(KERNEL_ARCH_LDFLAGS)
 LIBS:=$(LIBS) $(KERNEL_ARCH_LIBS)
 
+DRIVERS:=drivers/ps2keyb
+
+include drivers/make.config
+
 OBJS:=\
+$(DRIVER_OBJS) \
 $(KERNEL_ARCH_OBJS) \
 kernel/kernel.o \
 kernel/panic.o \
@@ -36,6 +41,7 @@ kernel/kheap.o \
 kernel/sleep.o \
 kernel/fs.o \
 kernel/initrd.o \
+kernel/input_manager.o \
 
 CRTI_OBJ:=$(ARCHDIR)/crti.o
 CRTBEGIN_OBJ:=$(shell $(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=crtbegin.o)
@@ -76,6 +82,7 @@ install: install-headers install-kernel
 install-headers:
 	mkdir -p $(DESTDIR)$(INCLUDEDIR)
 	cp -RTv include $(DESTDIR)$(INCLUDEDIR)
+	cp -RTv drivers/*/include $(DESTDIR)$(INCLUDEDIR)/drivers
 
 install-kernel: vmspartix
 	mkdir -p $(DESTDIR)$(BOOTDIR)

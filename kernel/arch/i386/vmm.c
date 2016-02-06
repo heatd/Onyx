@@ -37,11 +37,10 @@ void enablePaging();
 
 int alloc_page(pt_entry* pt)
 {
-	void* p = pmmngr_alloc_block();
+	void* p = pmalloc(1);
 	if(!p)
 		return 1;
-
-	pt_entry_set_frame(pt,(physical_addr)p);
+	pt_entry_set_frame(pt,(uintptr_t)p);
 	pt_entry_set_bit(pt,_PTE_PRESENT);
 
 	return 0;
@@ -50,7 +49,7 @@ void free_page(pt_entry* pt)
 {
 	void* p = (void*)pt_entry_pfn(*pt);
 	if(p)
-		pmmngr_free_block(p);
+		pfree(1,p);
 
 	pt_entry_unset_bit(pt,_PTE_PRESENT);
 }
@@ -124,19 +123,19 @@ void init_vmm()
         pd_entry_set_bit (entry,_PDE_WRITABLE);
 	pd_entry_set_bit (entry, _PDE_USER);
         table=(ptable*)0x300000;
-        pd_entry_set_frame(entry,(physical_addr)table);
+        pd_entry_set_frame(entry,(uintptr_t)table);
 	pd_entry* entry2 = &dir->entries[PAGE_DIRECTORY_INDEX(0)];
 	pd_entry_set_bit(entry2,_PDE_PRESENT);
 	pd_entry_set_bit(entry2,_PDE_WRITABLE);
 	pd_entry_set_bit(entry2,_PTE_USER);
 	mb = (ptable*) 0x3F5000;
-	pd_entry_set_frame(entry2,(physical_addr)mb);
+	pd_entry_set_frame(entry2,(uintptr_t)mb);
 	pd_entry* entry3 = &dir->entries[PAGE_DIRECTORY_INDEX(0xFFC00000)];
         pd_entry_set_bit(entry3,_PDE_PRESENT);
         pd_entry_set_bit(entry3,_PDE_WRITABLE);
 	pd_entry_set_bit(entry3,_PDE_USER);
 	table3 =(ptable*)0x2F0000;
-	pd_entry_set_frame(entry3,(physical_addr)table3);
+	pd_entry_set_frame(entry3,(uintptr_t)table3);
 
         dir=(pdirectory*)0x3FF000;
         switch_directory(dir);
@@ -153,11 +152,13 @@ void* mmap(uint32_t virt, DWORD npages)
 	if (pd_entry_is_present(*entry))
 		pt = (ptable*)pd_entry_pfn(*entry);
 	else {
-		pt = (ptable*)pmmngr_alloc_block();
+		pt = (ptable*)pmalloc(1);
+		if(pt == NULL)
+			panic("No free blocks");
 		memset(pt, 0, sizeof(ptable));
 		pd_entry_set_bit(entry, _PDE_PRESENT);
 		pd_entry_set_bit(entry, _PDE_WRITABLE);
-		pd_entry_set_frame(entry, (physical_addr)pt);
+		pd_entry_set_frame(entry, (uintptr_t)pt);
 	}
 	uint32_t ret_addr = 0;
 	for (int i = 0, vaddr = virt; i<npages; i++, vaddr+=4096) {
@@ -165,13 +166,15 @@ void* mmap(uint32_t virt, DWORD npages)
 
 	if (i == 0)
 		ret_addr = vaddr;
-        //! create a new page
+        // create a new page
 		pt_entry page=0;
-		alloc_page(&page);
-		//! ...and add it to the page table
+		if(alloc_page(&page)==1){
+			printf("Failed to map page 0x%x\n",vaddr);
+			panic("No more physical memory");
+		}
+		//...and add it to the page table
 		pt->entries [PAGE_TABLE_INDEX (vaddr) ] = page;
 	}
-
 	return (void*)ret_addr;
 }
 
@@ -202,10 +205,10 @@ void* vmalloc(DWORD npages)
 {
 	if(!npages)
 		return NULL;
-	void* ptr = pmmngr_alloc_blocks(npages);
+	void* ptr = pmalloc(npages);
 	if(!ptr)
 		return NULL;
-	pmmngr_free_blocks(ptr,npages);
+	pfree(npages,ptr);
 	if(!mmap(ptr,npages))
 		return NULL;
 	return ptr;

@@ -86,7 +86,7 @@ inline void pt_entry_unset_bit(pt_entry* pt,uint32_t bit)
 {
 	*pt&=~bit;
 }
-inline void pt_entry_set_frame(pt_entry* pt, physical_addr p_addr)
+inline void pt_entry_set_frame(pt_entry* pt, uintptr_t p_addr)
 {
 	*pt=(*pt & ~_PTE_FRAME) | p_addr;
 }
@@ -99,7 +99,7 @@ inline int pt_entry_is_writable (pt_entry pt)
 	return pt & _PTE_WRITABLE;
 }
 
-inline physical_addr pt_entry_pfn (pt_entry pt)
+inline uintptr_t pt_entry_pfn (pt_entry pt)
 {
 	return pt & _PTE_FRAME;
 }
@@ -111,7 +111,7 @@ inline void pd_entry_unset_bit(pd_entry* pd, uint32_t bit)
 {
 	*pd&=~bit;
 }
-inline void pd_entry_set_frame(pd_entry* pd,physical_addr paddr)
+inline void pd_entry_set_frame(pd_entry* pd,uintptr_t paddr)
 {
 	*pd=(*pd & ~_PDE_FRAME) | paddr;
 }
@@ -127,7 +127,7 @@ inline _Bool pd_entry_is_4MB(pd_entry pd)
 {
 	return pd & _PDE_4MB;
 }
-inline physical_addr pd_entry_pfn(pd_entry pd)
+inline uintptr_t pd_entry_pfn(pd_entry pd)
 {
 	return pd & _PDE_FRAME;
 }
