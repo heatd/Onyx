@@ -12,13 +12,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#include <string.h>
-
-void* memcpy(void* restrict dstptr, const void* restrict srcptr, size_t size)
-{
-	unsigned char* dst = (unsigned char*) dstptr;
-	const unsigned char* src = (const unsigned char*) srcptr;
-	for ( size_t i = 0; i < size; i++ )
-		dst[i] = src[i];
-	return dstptr;
-}
+/* Definitions of pid_t, uid_t and gid_t, according to the standard */
+typedef int pid_t;
+typedef unsigned int uid_t;
+typedef unsigned int gid_t;

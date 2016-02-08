@@ -13,9 +13,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 #include <kernel/gdt.h>
+#include <string.h>
 static gdt_ptr_t gdt_ptr;
 static gdt_entry_t entries[6];
 static tss_entry_t tss_entry;
+static void install_tss();
 void init_gdt()
 {
 	memset(&entries,0,sizeof(gdt_entry_t)*6);
@@ -29,7 +31,7 @@ void init_gdt()
 	install_tss();
 	load_gdt();
 }
-extern void  GDT_Flush(uint32_t);
+extern "C" void  GDT_Flush(uint32_t);
 void create_descriptor(uint32_t entrynum,uint32_t base,uint32_t limit,uint8_t access,uint8_t granularity)
 {
 	entries[entrynum].base_low		= (base & 0xFFFF);
@@ -42,8 +44,8 @@ void create_descriptor(uint32_t entrynum,uint32_t base,uint32_t limit,uint8_t ac
 	entries[entrynum].access		= access;
 
 }
-extern void tss_flush();
-void install_tss()
+extern "C" void tss_flush();
+static void install_tss()
 {
 	uint32_t base = (uint32_t) &tss_entry;
 	uint32_t limit = base + sizeof(tss_entry);

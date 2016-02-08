@@ -34,7 +34,7 @@ void get_thread_ctx(registers_t* regs)
 	asm volatile("mov %%edi,%0":"=a"(regs->edi));
 	asm volatile("mov %%ebp,%0":"=a"(regs->ebp));
 	asm volatile("mov %%esp,%0":"=a"(regs->esp));
-	regs->eip = __builtin_return_address(0); // Find the return address in the stack frame (ebp + 4 in x86 architecure)
+	regs->eip =(uint32_t)__builtin_return_address(0); // Find the return address in the stack frame (ebp + 4 in x86 architecure)
 	asm volatile("mov %%esi,%0":"=a"(regs->esi));
 	asm volatile("mov %%cs,%0":"=a"(regs->cs));
 	asm volatile("mov %%ss,%0":"=a"(regs->ss));

@@ -15,8 +15,9 @@ limitations under the License.
 #include <stdlib.h>
 #include <stdio.h>
 #include <kernel/isr.h>
+#include <kernel/panic.h>
 static uint32_t faulting_address;
-void isr_handler(uint32_t ds,uint32_t int_no,uint32_t err_code)
+extern "C" void isr_handler(uint32_t ds,uint32_t int_no,uint32_t err_code)
 {
     switch(int_no)
     {
@@ -77,7 +78,7 @@ void isr_handler(uint32_t ds,uint32_t int_no,uint32_t err_code)
 		panic("GPF");
 		break;
 		}
-	case 14:
+	case 14:{
 		// A page fault has occurred.
 		// The faulting address is stored in the CR2 register.
 		asm volatile("mov %%cr2, %0" : "=r" (faulting_address));
@@ -107,6 +108,7 @@ void isr_handler(uint32_t ds,uint32_t int_no,uint32_t err_code)
 			printf("0x%x",(unsigned int)__builtin_return_address(2));
 		while(1);
 		break;
+	}
 	case 15: {
 		break;//Reserved exception
 		}

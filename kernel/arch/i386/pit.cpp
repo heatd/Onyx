@@ -32,25 +32,13 @@ limitations under the License.
 #include <stdio.h>
 #include <kernel/task_scheduler.h>
 static uint64_t timer_ticks;
-static uint64_t scheduler_last_period;
+static uint64_t scheduler_last_period = 0;
 extern task_t* last_task;
 void timer_handler()
 {
 	timer_ticks++;
-	
-	if(scheduler_last_period == 0 || scheduler_last_period < timer_ticks)
-		scheduler_last_period = timer_ticks;
-	
-	while(timer_ticks - 35 != scheduler_last_period){
-		last_task->eip = read_ip();
-		return;
-	}
-	if(last_task->next != NULL || last_task != NULL)
-		preempt(last_task->next);
-	else
-		return;
 }
-void pit_init(uint32_t frequency)
+void PitInit(uint32_t frequency)
 {
 	int divisor = 1193180 / frequency;
 	

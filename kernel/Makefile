@@ -12,7 +12,7 @@ EXEC_PREFIX?=$(PREFIX)
 BOOTDIR?=$(EXEC_PREFIX)/boot
 INCLUDEDIR?=$(PREFIX)/include
 
-CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-strong
+CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-strong -fno-exceptions -fno-rtti
 CPPFLAGS:=$(CPPFLAGS) -D__is_spartix_kernel -Iinclude
 LDFLAGS:=$(LDFLAGS)
 LIBS:=$(LIBS) -nostdlib -lk -lgcc
@@ -66,11 +66,10 @@ all: vmspartix
 .PHONY: all clean install install-headers install-kernel
 
 vmspartix: $(OBJ_LINK_LIST) $(ARCHDIR)/linker.ld
-	echo $(OBJS)
-	$(CC) -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(OBJ_LINK_LIST) $(LDFLAGS) $(LIBS)
+	$(CXX) -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(OBJ_LINK_LIST) $(LDFLAGS) $(LIBS)
 
-%.o: %.c
-	$(CC) -c $< -o $@ -std=gnu11 $(CFLAGS) $(CPPFLAGS)
+%.o: %.cpp
+	$(CXX) -c $< -o $@ -std=c++11 $(CFLAGS) $(CPPFLAGS)
 
 %.o: %.S
 	nasm -felf32 $< -o $@

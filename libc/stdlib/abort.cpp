@@ -12,31 +12,19 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#include <kernel/irq.h>
-#include <kernel/pic.h>
-#include <kernel/portio.h>
-#include <kernel/panic.h>
 #include <stdio.h>
-#include <drivers/ps2.h>
-// This took a while to make... Some keys still remain, but I don't need them right now
-void keyboard_handler()
+#include <stdlib.h>
+#include <sys/syscall.h>
+#if defined(__is_spartix_kernel)
+#include <kernel/panic.h>
+#endif // __is__spartix_kernel
+__attribute__((__noreturn__))
+void abort(void)
 {
-	unsigned char status;
-	unsigned char keycode;
-	status = inb(PS2_STATUS);
-
-	if(status & 0x01){
-		keycode = inb(PS2_DATA);
-		if(keycode < 0)
-			return;
-		send_event_to_kern(keycode);
-	}
+#ifdef __is_spartix_kernel
+	panic("abort()");
+#else
+	SYSCALL(ABORT_SYSCALL,0,0,0,0,0);
+#endif
+	__builtin_unreachable();
 }
-int init_keyboard()
-{
-	irq_t handler = &keyboard_handler;
-	pic_unmask_irq(1);
-	irq_install_handler(1,handler);
-	return 0;
-}
-

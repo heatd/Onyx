@@ -28,12 +28,15 @@ limitations under the License.
 #include <string.h>
 #include <kernel/pmm.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <kernel/panic.h>
 //! virtual address
 typedef uint32_t virtual_addr;
 
 
-void loadPageDirectory(pdirectory*);
-void enablePaging();
+extern "C" void loadPageDirectory(pdirectory*);
+extern "C" void enablePaging();
 
 int alloc_page(pt_entry* pt)
 {
@@ -128,7 +131,7 @@ void init_vmm()
 	pd_entry_set_frame(entry3,(uintptr_t)dir);
         switch_directory(dir);
 }
-void* mmap(uint32_t virt, DWORD npages)
+void* kmmap(uint32_t virt, DWORD npages)
 {
 	if (!npages)
 		return NULL;
@@ -148,7 +151,7 @@ void* mmap(uint32_t virt, DWORD npages)
 		pd_entry_set_bit(entry,_PDE_4MB);
 		void* ptr = pmalloc(1024);
 		pd_entry_set_frame(entry,(uintptr_t)ptr);
-		return;
+		return ptr;
 		
 	}
 	if (pd_entry_is_present(*entry))
@@ -178,7 +181,7 @@ void* mmap(uint32_t virt, DWORD npages)
 	return (void*)ret_addr;
 }
 
-void munmap(void* virt, DWORD npages)
+void kmunmap(void* virt, DWORD npages)
 {
 	if (!virt)
 		return;
@@ -209,7 +212,7 @@ void* vmalloc(DWORD npages)
 	if(!ptr)
 		return NULL;
 	pfree(npages,ptr);
-	if(!mmap(ptr,npages))
+	if(!kmmap((uint32_t)ptr,npages))
 		return NULL;
 	return ptr;
 }
@@ -220,12 +223,12 @@ void vfree(void* ptr, DWORD npages)
 		return;
 	if(!ptr)
 		return;
-	munmap(ptr,npages);
+	kmunmap(ptr,npages);
 }
 
 void map_kernel()
 {
-	ptable* table = vmalloc(1);
+	ptable* table = (ptable*)vmalloc(1);
 	
 	for(int i=0,frame=0x000000,virt=0xC0000000;i<1024;i++,frame+=4096, virt+=4096)
 	{
@@ -237,8 +240,8 @@ void map_kernel()
         pdirectory* pd = get_directory();
 	if(!pd)
 		abort();
-	pd_entry* entry = pd->entries[PAGE_DIRECTORY_INDEX(0xC0000000)];
-	pd_entry_set_frame(entry,table);
+	pd_entry* entry = &pd->entries[PAGE_DIRECTORY_INDEX(0xC0000000)];
+	pd_entry_set_frame(entry,(uintptr_t)table);
 	pd_entry_set_bit(entry, _PDE_PRESENT);
 	pd_entry_set_bit(entry, _PDE_WRITABLE);
 }

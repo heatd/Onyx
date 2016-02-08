@@ -115,15 +115,15 @@ inline void pd_entry_set_frame(pd_entry* pd,uintptr_t paddr)
 {
 	*pd=(*pd & ~_PDE_FRAME) | paddr;
 }
-inline _Bool pd_entry_is_present(pd_entry pd)
+inline bool pd_entry_is_present(pd_entry pd)
 {
 	return pd & _PDE_PRESENT;
 }
-inline _Bool pd_entry_is_user(pd_entry pd)
+inline bool pd_entry_is_user(pd_entry pd)
 {
 	return pd & _PDE_USER;
 }
-inline _Bool pd_entry_is_4MB(pd_entry pd)
+inline bool pd_entry_is_4MB(pd_entry pd)
 {
 	return pd & _PDE_4MB;
 }
@@ -131,7 +131,7 @@ inline uintptr_t pd_entry_pfn(pd_entry pd)
 {
 	return pd & _PDE_FRAME;
 }
-inline _Bool pd_entry_is_writable (pd_entry pd)
+inline bool pd_entry_is_writable (pd_entry pd)
 {
 	return pd & _PDE_WRITABLE;
 }
@@ -143,9 +143,9 @@ inline void _flush_tlb_page(unsigned long addr)
 {
    	asm volatile("invlpg (%0)" ::"r" (addr) : "memory");
 }
-void* mmap(uint32_t virt, DWORD npages);
+void* kmmap(uint32_t virt, DWORD npages);
 
-void munmap(void* virt, DWORD npages);
+void kmunmap(void* virt, DWORD npages);
 
 void* vmalloc(DWORD npages);
 

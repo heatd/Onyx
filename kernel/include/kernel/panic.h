@@ -16,12 +16,13 @@ limitations under the License.
 #define PANIC_H
 
 #include <kernel/compiler.h>
+#include <kernel/registers.h>
 ARCH_SPECIFIC void halt();
-ARCH_SPECIFIC void get_thread_ctx();
+ARCH_SPECIFIC void get_thread_ctx(registers_t* regs);
 /* The functions halt and get_thread_ctx are architecture dependent, as they require manual assembly.
  * As so, its left for the architecture to implement these functions. The kernel exepcts them to be hooked.
  */
-__attribute__ ((noreturn,cold,noinline))
+extern "C++"/* Weird hack i had to make to make this compile */ __attribute__ ((noreturn,cold,noinline))
 void panic(const char* msg);
 
 

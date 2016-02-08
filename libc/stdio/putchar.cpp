@@ -12,15 +12,19 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#ifndef _KERNEL_TTY_H
-#define _KERNEL_TTY_H
+#include <stdio.h>
 
-#include <stddef.h>
-#include <stdint-gcc.h>
-void terminal_initialize(void);
-void terminal_putchar(char c);
-extern "C++" /* Weird hack i had to make to make this compile */void terminal_write(const char* data, size_t size);
-void terminal_writestring(const char* data);
-void terminal_setcolor(uint8_t color);
-void terminal_update_cursor();
+#if defined(__is_spartix_kernel)
+#include <kernel/tty.h>
 #endif
+#include <sys/syscall.h>
+int putchar(int ic)
+{
+	char c = (char) ic;
+#if defined(__is_spartix_kernel)
+	terminal_write(&c, sizeof(c));
+#else
+	SYSCALL(TERMINAL_WRITE_SYSCALL,ic,0,0,0,0);
+#endif
+	return ic;
+}

@@ -16,7 +16,7 @@ limitations under the License.
 #define PIT_H
 #include <stdint.h>
 
-void pit_init(uint32_t hz);
+void PitInit(uint32_t hz);
 uint64_t pit_get_tick_cnt();
 
 #endif // PIT_H

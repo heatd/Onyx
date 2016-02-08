@@ -15,7 +15,7 @@ limitations under the License.
 #ifndef TIMER_H
 #define TIMER_H
 #include <stdint.h>
-void timer_init(uint32_t freq);
-uint64_t get_tick_count();
+void TimerInit(uint32_t freq);
+uint64_t GetTickCount();
 
 #endif // TIMER_H

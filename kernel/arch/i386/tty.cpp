@@ -29,7 +29,7 @@ limitations under the License.
 #include <string.h>
 #include <kernel/portio.h>
 #include <kernel/vga.h>
-
+#include <kernel/tty.h>
 size_t terminal_row;
 size_t terminal_column;
 uint8_t terminal_color;

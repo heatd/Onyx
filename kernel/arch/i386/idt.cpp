@@ -14,8 +14,9 @@ limitations under the License.
 */
 #include <string.h>
 #include <kernel/idt.h>
-
-extern void IDT_Flush(uint32_t);
+idt_ptr_t idt_ptr;
+idt_entry_t idt_entries[256];
+extern "C" void IDT_Flush(uint32_t);
 void init_idt()
 {
 	memset(&idt_entries, 0, sizeof(idt_entry_t) * 256);

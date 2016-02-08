@@ -25,7 +25,7 @@ typedef struct tar_header
     	char size[12];
     	char mtime[12];
     	char chksum[8];
-    	char typeflag[1];
+    	char typeflag;
 }tar_header_t;
 
 #define TAR_TYPE_FILE		'\0'

@@ -15,34 +15,22 @@ limitations under the License.
 /**************************************************************************
  * 
  * 
- * File: ssp.c
+ * File: timer.c
  * 
- * Description: Contains the implementation of the GCC stack protector functions
+ * Description: Contains the timer code
  * 
- * Date: 2/2/2016
+ * Date: 30/1/2016
  * 
  * 
  **************************************************************************/
+#include <kernel/pit.h>
 
-#include <stdint-gcc.h> //FIXME
-#include <stdlib.h>
-#ifdef __is_spartix_kernel
-#include <kernel/panic.h>
-#endif
 
-#if UINT32_MAX == UINTPTR_MAX
-#define STACK_CHK_GUARD 0xdeadc0de
-#else
-#define STACK_CHK_GUARD 0xdeadd00ddeadc0de
-#endif
-
-uintptr_t __stack_chk_guard = STACK_CHK_GUARD;
-__attribute__((noreturn))
-void __stack_chk_fail()
+void TimerInit(uint32_t freq)
 {
-#if __STDC_HOSTED__
-	abort(); // abort() right away, its unsafe!
-#elif __is_spartix_kernel
-	panic("Stack smashing detected");
-#endif
+	PitInit(freq);
+}
+uint64_t GetTickCount()
+{
+	return pit_get_tick_cnt();
 }

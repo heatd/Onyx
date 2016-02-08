@@ -27,7 +27,7 @@ limitations under the License.
 #include <kernel/kheap.h>
 #include <kernel/compiler.h>
 #include <stdlib.h>
-
+#include <kernel/panic.h>
 void k_heapBMInit(KHEAPBM *heap)
 {
 	heap->fblock = 0;
@@ -172,7 +172,7 @@ static KHEAPBM kheap;
 void init_heap()
 {
 	k_heapBMInit(&kheap);
-	if(mmap(0xC0400000,1024)==NULL)
+	if(kmmap(0xC0400000,1024)==NULL)
 		abort();
 	k_heapBMAddBlock(&kheap,0xC0400000,0x400000,16);
 	heap_extensions = 0;

@@ -1,5 +1,19 @@
-#include <kernel/pmm.h>
+/* Copyright 2016 Pedro Falcato
 
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http ://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+#include <kernel/pmm.h>
+#include <string.h>
 // size of physical memory
 static	size_t	pmm_memory_size = 0;
 // Kernel addresses reserved for pmm stack
@@ -40,7 +54,7 @@ void* pmalloc(size_t blocks)
 	for(int i = 0;i < 12;i++)
 		if(stack->next[i].base !=0 || stack->next[i].size != 0){
 			if(stack->next[i].base >= blocks * PMM_BLOCK_SIZE){
-				ret_addr = stack->next[i].base;
+				ret_addr =(void*)stack->next[i].base;
 				stack->next[i].base+=PMM_BLOCK_SIZE * blocks;
 				stack->next[i].size-=PMM_BLOCK_SIZE * blocks;
 				return (void*)((uint32_t)ret_addr & 0xFFFFFF000);
@@ -55,14 +69,14 @@ void pfree(size_t blocks,void* p)
 		return;
 	if(!p)
 		return;
-	pmm_push(p,blocks * PMM_BLOCK_SIZE); // Maybe implement a better solution
+	pmm_push((uintptr_t)p,blocks * PMM_BLOCK_SIZE); // Maybe implement a better solution
 }
 void pmm_init(size_t memory_size,uintptr_t stack_space)
 {
 	pmm_memory_size = memory_size * 1024;
 	pmm_stack_space = (uintptr_t*)stack_space;
 	
-	stack = stack_space;
+	stack =(stack_t*)stack_space;
 	memset(stack, 0,4096);
-	stack->next=0xC0200010;
+	stack->next=(stack_entry*)0xC0200010;
 }

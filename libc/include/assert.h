@@ -12,28 +12,12 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-/**************************************************************************
- * 
- * 
- * File: arch.c
- * 
- * Description: Contains architecture specific initialization functions
- * 
- * Date: 1/2/2016
- * 
- * 
- **************************************************************************/
-#include <kernel/idt.h>
-#include <kernel/gdt.h>
-#include <kernel/pic.h>
-extern void init_sse();
-void init_arch()
-{
-	init_sse();
-	
-	init_gdt();
-	
-	init_idt();
-	
-	pic_remap();
-}
+
+#ifdef NDEBUG
+#define assert(expression)	(void)0
+#else
+#define assert(expression)                                         \
+if (expression == 0) {                                             \
+printf("assert failed: %s, line %i, function:%s()\n",__FILE__, __LINE__, __func__); \
+abort();}
+#endif

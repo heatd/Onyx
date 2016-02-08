@@ -12,19 +12,21 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#include <stdio.h>
+#ifndef _STDINT_H
+#define _STDINT_H 1
 
-#if defined(__is_spartix_kernel)
-#include <kernel/tty.h>
-#endif
-#include <sys/syscall.h>
-int putchar(int ic)
-{
-	char c = (char) ic;
-#if defined(__is_spartix_kernel)
-	terminal_write(&c, sizeof(c));
-#else
-	SYSCALL(TERMINAL_WRITE_SYSCALL,ic,0,0,0);
-#endif
-	return ic;
-}
+typedef signed char 		int8_t;
+typedef unsigned char 		uint8_t;
+typedef signed short		int16_t;
+typedef unsigned short 		uint16_t;
+typedef signed long int 	int32_t;
+typedef unsigned long int 	uint32_t;
+typedef signed long long int 	int64_t;
+typedef unsigned long long int 	uint64_t;
+typedef unsigned long 		uintptr_t;
+typedef long 			intptr_t;
+
+
+
+
+#endif // _STDINT_H

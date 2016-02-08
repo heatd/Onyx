@@ -15,6 +15,6 @@ limitations under the License.
 #ifndef IRQ_H
 #define IRQ_H
 typedef void(*irq_t)(void);
-void irq_install_handler(int irq, void (*handler)(registers_t));
+void irq_install_handler(int irq, irq_t handler);
 void irq_uninstall_handler(int irq);
 #endif // IRQ_H

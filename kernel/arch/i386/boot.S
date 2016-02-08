@@ -111,12 +111,12 @@ _start:
 	add  ebx,KERNEL_VIRTUAL_BASE
 	push eax
 	push ebx
-	extern kernel_early
-	call kernel_early
+	extern KernelEarly
+	call KernelEarly
 	extern _init
 	call _init
-	extern kernel_main
-	call kernel_main
+	extern KernelMain
+	call KernelMain
  
 	; In case the function returns, we'll want to put the computer into an
 	; infinite loop. To do that, we use the clear interrupt ('cli') instruction

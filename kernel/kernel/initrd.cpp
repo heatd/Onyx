@@ -21,7 +21,7 @@ limitations under the License.
 #include <kernel/compiler.h>
 #include <string.h>
 #include <stdlib.h>	
-static tar_header_t* headers[50];
+static tar_header_t* headers[1000];
 static fs_node_t* root_fs;
 static fs_node_t* nodes;
 
@@ -122,7 +122,7 @@ fs_node_t* init_initrd(uint32_t addr)
 	
 	printf("Found %i files in initrd\n",num_files);
 	
-	root_fs = kmalloc(sizeof(fs_node_t));
+	root_fs = (fs_node_t*)kmalloc(sizeof(fs_node_t));
 	
 	if(!root_fs)
 		return root_fs;
@@ -133,7 +133,7 @@ fs_node_t* init_initrd(uint32_t addr)
 	root_fs->flags = FS_ROOT;
 	root_fs->readdir = &tar_readdir;
 	root_fs->finddir = &tar_finddir;
-	nodes = kmalloc(sizeof(fs_node_t) * num_files);
+	nodes = (fs_node_t*)kmalloc(sizeof(fs_node_t) * num_files);
 	
 	memset(nodes,0,sizeof(fs_node_t) * num_files);
 	

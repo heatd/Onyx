@@ -15,20 +15,34 @@ limitations under the License.
 /**************************************************************************
  * 
  * 
- * File: sleep.c
+ * File: ssp.c
  * 
- * Description: Implementation of ksleep
+ * Description: Contains the implementation of the GCC stack protector functions
  * 
- * Date: 4/2/2016
+ * Date: 2/2/2016
  * 
  * 
  **************************************************************************/
-#include <kernel/sleep.h>
-void ksleep(long long ms)
+
+#include <stdint-gcc.h> //FIXME
+#include <stdlib.h>
+#ifdef __is_spartix_kernel
+#include <kernel/panic.h>
+#endif
+
+#if UINT32_MAX == UINTPTR_MAX
+#define STACK_CHK_GUARD 0xdeadc0de
+#else
+#define STACK_CHK_GUARD 0xdeadd00ddeadc0de
+#endif
+
+uintptr_t __stack_chk_guard = STACK_CHK_GUARD;
+extern "C" __attribute__((noreturn))
+void __stack_chk_fail()
 {
-	uint32_t ticks = get_tick_count();
-	while(get_tick_count() - ticks != ms)
-	{
-		asm volatile("hlt");
-	}
+#if __STDC_HOSTED__
+	abort(); // abort() right away, its unsafe!
+#elif __is_spartix_kernel
+	panic("Stack smashing detected");
+#endif
 }

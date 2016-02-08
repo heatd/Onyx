@@ -15,22 +15,33 @@ limitations under the License.
 /**************************************************************************
  * 
  * 
- * File: timer.c
+ * File: syscall.c
  * 
- * Description: Contains the timer code
+ * Description: Contains the implementation of syscalls on x86
  * 
- * Date: 30/1/2016
+ * Date: 4/2/2016
  * 
  * 
  **************************************************************************/
-#include <kernel/pit.h>
-
-
-void timer_init(uint32_t freq)
+#include <stdint.h>
+#include <kernel/registers.h>
+#include <kernel/panic.h>
+#include <kernel/tty.h>
+#include <stdlib.h>
+#include <kernel/kheap.h>
+extern "C" void syscall()
 {
-	pit_init(freq);
-}
-uint64_t get_tick_count()
-{
-	return pit_get_tick_cnt();
+	uint32_t eax,ebx,ecx,edx,edi;
+	asm volatile("mov %%eax,%0":"=a"(eax));
+	asm volatile("mov %%ebx,%0":"=a"(ebx));
+	asm volatile("mov %%ecx,%0":"=a"(ecx));
+	asm volatile("mov %%edx,%0":"=a"(edx));
+	asm volatile("mov %%edi,%0":"=a"(edi));
+	
+	switch(eax){
+		case 0:
+			terminal_writestring((const char*)ebx);
+		default:
+			break;
+	}
 }

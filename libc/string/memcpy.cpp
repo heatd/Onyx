@@ -12,16 +12,13 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/syscall.h>
-__attribute__((__noreturn__))
-void abort(void)
+#include <string.h>
+
+void* memcpy(void* __restrict__ dstptr, const void* __restrict__ srcptr, size_t size)
 {
-#ifdef __is_spartix_kernel
-	panic("abort()");
-#else
-	SYSCALL(ABORT_SYSCALL,0,0,0,0);
-#endif
-	__builtin_unreachable();
+	unsigned char* dst = (unsigned char*) dstptr;
+	const unsigned char* src = (const unsigned char*) srcptr;
+	for ( size_t i = 0; i < size; i++ )
+		dst[i] = src[i];
+	return dstptr;
 }

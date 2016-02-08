@@ -15,32 +15,25 @@ limitations under the License.
 /**************************************************************************
  * 
  * 
- * File: syscall.c
+ * File: arch.c
  * 
- * Description: Contains the implementation of syscalls on x86
+ * Description: Contains architecture specific initialization functions
  * 
- * Date: 4/2/2016
+ * Date: 1/2/2016
  * 
  * 
  **************************************************************************/
-#include <stdint.h>
-#include <kernel/registers.h>
-#include <kernel/panic.h>
-#include <stdlib.h>
-#include <kernel/kheap.h>
-void syscall()
+#include <kernel/idt.h>
+#include <kernel/gdt.h>
+#include <kernel/pic.h>
+extern "C" void init_sse();
+void init_arch()
 {
-	uint32_t eax,ebx,ecx,edx,edi;
-	asm volatile("mov %%eax,%0":"=a"(eax));
-	asm volatile("mov %%ebx,%0":"=a"(ebx));
-	asm volatile("mov %%ecx,%0":"=a"(ecx));
-	asm volatile("mov %%edx,%0":"=a"(edx));
-	asm volatile("mov %%edi,%0":"=a"(edi));
+	init_sse();
 	
-	switch(eax){
-		case 0:
-			terminal_writestring(ebx);
-		default:
-			break;
-	}
+	init_gdt();
+	
+	init_idt();
+	
+	pic_remap();
 }
