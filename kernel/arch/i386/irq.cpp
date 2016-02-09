@@ -32,15 +32,17 @@ irq_t irq_routines[16]  =
     0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0
 };
-
-void irq_install_handler(int irq, irq_t handler)
+namespace IRQ
+{
+void InstallHandler(int irq, irq_t handler)
 {
 	irq_routines[irq] = handler;
 }
-void irq_uninstall_handler(int irq)
+void UninstallHandler(int irq)
 {
 	irq_routines[irq] = NULL;
 }
+};
 extern "C" void irq_handler(uint32_t irqn)
 {
 	
@@ -48,5 +50,5 @@ extern "C" void irq_handler(uint32_t irqn)
 	if(handler)
 		handler();
 	
-	pic_send_eoi(irqn - 32);
+	PIC::SendEOI(irqn - 32);
 }

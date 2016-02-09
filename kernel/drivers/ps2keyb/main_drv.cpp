@@ -18,9 +18,9 @@ limitations under the License.
 #include <kernel/panic.h>
 #include <stdio.h>
 #include <drivers/ps2.h>
-extern void send_event_to_kern(unsigned char keycode);
+extern void SendEventToKern(unsigned char keycode);
 // This took a while to make... Some keys still remain, but I don't need them right now
-void keyboard_handler()
+void KeyboardHandler()
 {
 	unsigned char status;
 	unsigned char keycode;
@@ -28,16 +28,14 @@ void keyboard_handler()
 
 	if(status & 0x01){
 		keycode = inb(PS2_DATA);
-		if(keycode < 0)
-			return;
-		send_event_to_kern(keycode);
+		SendEventToKern(keycode);
 	}
 }
 int init_keyboard()
 {
-	irq_t handler = &keyboard_handler;
-	pic_unmask_irq(1);
-	irq_install_handler(1,handler);
+	irq_t handler = &KeyboardHandler;
+	PIC::UnmaskIRQ(1);
+	IRQ::InstallHandler(1,handler);
 	return 0;
 }
 

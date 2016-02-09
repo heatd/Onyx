@@ -28,9 +28,9 @@ limitations under the License.
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
-#ifdef AMD64
+#ifdef __x86_64__
 #include <multiboot2.h>
-typedef multiboot_info_t multiboot_tag_structure
+typedef multiboot_tag multiboot_info_t;
 #else
 #include <multiboot.h>
 #endif
@@ -59,10 +59,10 @@ static uint32_t initrd_addr;
 extern uint32_t end;
 extern "C" void KernelEarly(multiboot_info_t* info, size_t magic)
 {
-	if(info == NULL)
-		panic("Invalid multiboot_info_t*.The bootloader currently being used is broken");
+	if(info == NULL);
+		//panic("Invalid multiboot_info_t*.The bootloader currently being used is broken");
 	mbt = info;
-	terminal_initialize();
+	TTY::Init();
 	puts("Booting ...");
 	// Check if the magic number is the same as the multiboot 1 spec
 	if(magic == 0x2BADB002)
@@ -74,15 +74,13 @@ extern "C" void KernelEarly(multiboot_info_t* info, size_t magic)
 	mbt->mmap_addr+=0xC0000000;
 	multiboot_memory_map_t* mmap = (multiboot_memory_map_t*) mbt->mmap_addr;
 	memset((void*)0xC0200000,0,4096);
-	pmm_init(mbt->mem_lower + mbt->mem_upper,(uintptr_t) 0xC0200000);
+	PMM::Init(mbt->mem_lower + mbt->mem_upper,(uintptr_t) 0xC0200000);
 	multiboot_memory_map_t*  mmap_arr[10];
 	while((unsigned int)mmap < mbt->mmap_addr + mbt->mmap_length) {
 		static int i = 0;
-
 		mmap_arr [i] = mmap;
-
 		if(mmap->type==MULTIBOOT_MEMORY_AVAILABLE)
-		    pmm_push(mmap->addr,mmap->len);
+		    PMM::Push(mmap->addr,mmap->len);
 		mmap = (multiboot_memory_map_t*) ( (unsigned int)mmap + mmap->size + sizeof(unsigned int) );
 	}
 	printf("Memory in KiB:%i\n",mbt->mem_lower+mbt->mem_upper);
@@ -95,7 +93,7 @@ extern "C" void KernelMain()
 	// Enable interrupts
 	asm volatile("sti");
 	// Initialize the timer
-	TimerInit(1000);
+	Timer::Init(1000);
 	//Initialize the VMM
 	init_vmm();
 	// Initialize the kernel heap
@@ -103,11 +101,10 @@ extern "C" void KernelMain()
 	fs_node_t* initrd_root = init_initrd(initrd_addr);
 	if(!initrd_root)
 		abort();
-	fs_node_t* node = finddir_fs(initrd_root,"boot/Kernel.map");
+	fs_node_t* node = finddir_fs(initrd_root,(char*)"boot/Kernel.map");
 	if(!node)
 		abort();
 	init_keyboard();
-	
 	init_scheduler();
 	//preempt();
 	

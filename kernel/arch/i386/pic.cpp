@@ -25,14 +25,25 @@ limitations under the License.
  **************************************************************************/
 #include <kernel/pic.h>
 #include <kernel/portio.h>
+/* Helper func */
+static uint16_t __pic_get_irq_reg(int ocw3)
+{
+	/* OCW3 to PIC CMD to get the register values.  PIC2 is chained, and
+	* represents IRQs 8-15.  PIC1 is IRQs 0-7, with 2 being the chain */
+	outb(PIC1_COMMAND, ocw3);
+	outb(PIC2_COMMAND, ocw3);
+	return (inb(PIC2_COMMAND) << 8) | inb(PIC1_COMMAND);
+}
+namespace PIC
+{
 /* Disables the PIC */
-void pic_disable()
+void Disable()
 {
 	outb(0xa1, 0xFF);
 	outb(0x21, 0xFF);
 }
 /* Remaps the PIC */
-void pic_remap()
+void Remap()
 {
 	outb(0x20, 0x11);
 	io_wait();
@@ -55,7 +66,7 @@ void pic_remap()
 	outb(0xA1, 0x0);
 }
 /* Unmask an irq line on the PIC (they are by default all masked) */
-void pic_unmask_irq(uint16_t irqn)
+void UnmaskIRQ(uint16_t irqn)
 {
 	uint16_t port;
 	uint8_t value;
@@ -70,7 +81,7 @@ void pic_unmask_irq(uint16_t irqn)
 	outb(port, value);
 }
 /* Mask an irq line on the PIC (they are by default all masked) */
-void pic_mask_irq(uint16_t irqn)
+void MaskIRQ(uint16_t irqn)
 {
 	uint16_t port;
 	uint8_t value;
@@ -83,22 +94,13 @@ void pic_mask_irq(uint16_t irqn)
 	value = inb(port) | (1 << irqn);
 	outb(port, value);
 }
-/* Helper func */
-static uint16_t __pic_get_irq_reg(int ocw3)
-{
-    /* OCW3 to PIC CMD to get the register values.  PIC2 is chained, and
-     * represents IRQs 8-15.  PIC1 is IRQs 0-7, with 2 being the chain */
-    outb(PIC1_COMMAND, ocw3);
-    outb(PIC2_COMMAND, ocw3);
-    return (inb(PIC2_COMMAND) << 8) | inb(PIC1_COMMAND);
-}
  
 /* Returns the combined value of the cascaded PICs irq request register */
-uint16_t pic_get_irr(void)
+uint16_t GetIRR(void)
 {
     return __pic_get_irq_reg(PIC_READ_IRR);
 }
-void pic_send_eoi(unsigned char irq)
+void SendEOI(unsigned char irq)
 {
 	if(irq >= 8)
 		outb(PIC2_COMMAND,PIC_EOI);
@@ -106,7 +108,8 @@ void pic_send_eoi(unsigned char irq)
 	outb(PIC1_COMMAND,PIC_EOI);
 }
 /* Returns the combined value of the cascaded PICs in-service register */
-uint16_t pic_get_isr(void)
+uint16_t GetISR(void)
 {
     return __pic_get_irq_reg(PIC_READ_ISR);
+}
 }

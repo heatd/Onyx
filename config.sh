@@ -1,7 +1,7 @@
 SYSTEM_HEADER_PROJECTS="libc kernel"
 PROJECTS="libc kernel"
 
-export MAKE=${MAKE:-make}
+export MAKE=${MAKE:-make -j4}
 export HOST=${HOST:-$(./default-host.sh)}
 
 export AR=${HOST}-ar
@@ -14,7 +14,7 @@ export BOOTDIR=/boot
 export LIBDIR=$EXEC_PREFIX/lib
 export INCLUDEDIR=$PREFIX/include
 
-export CFLAGS='-O2 -g'
+export CFLAGS='-O2 -g -Wno-format'
 export CPPFLAGS=''
 
 # Configure the cross-compiler to use the desired system root.

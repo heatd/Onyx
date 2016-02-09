@@ -17,10 +17,14 @@ limitations under the License.
 
 #include <stddef.h>
 #include <stdint-gcc.h>
-void terminal_initialize(void);
-void terminal_putchar(char c);
-extern "C++" /* Weird hack i had to make to make this compile */void terminal_write(const char* data, size_t size);
-void terminal_writestring(const char* data);
-void terminal_setcolor(uint8_t color);
-void terminal_update_cursor();
+namespace TTY{
+	
+void Init(void);
+void PutChar(char c);
+extern "C++" /* Weird hack i had to make to make this compile */void Write(const char* data, size_t size);
+void WriteString(const char* data);
+void SetColor(uint8_t color);
+void UpdateCursor();
+
+};
 #endif

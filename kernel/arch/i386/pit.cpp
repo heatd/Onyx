@@ -32,13 +32,13 @@ limitations under the License.
 #include <stdio.h>
 #include <kernel/task_scheduler.h>
 static uint64_t timer_ticks;
-static uint64_t scheduler_last_period = 0;
-extern task_t* last_task;
 void timer_handler()
 {
 	timer_ticks++;
 }
-void PitInit(uint32_t frequency)
+namespace PIT
+{
+void Init(uint32_t frequency)
 {
 	int divisor = 1193180 / frequency;
 	
@@ -48,14 +48,15 @@ void PitInit(uint32_t frequency)
 	io_wait();
 	outb(0x40, divisor >> 8);     // Set high byte of divisor
 	io_wait();
-	pic_unmask_irq(0); // Unmask IRQ0 (PIT)
+	PIC::UnmaskIRQ(0); // Unmask IRQ0 (PIT)
 	
 	irq_t handler = &timer_handler;
 	// Install the IRQ handler
-	irq_install_handler(0,handler);
+	IRQ::InstallHandler(0,handler);
 }
 
-uint64_t pit_get_tick_cnt()
+uint64_t GetTickCount()
 {
 	return timer_ticks;
-} 
+}
+};

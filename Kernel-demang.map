@@ -1,0 +1,239 @@
+c0102ff0 T abort
+c0106118 D bchars
+c0105000 d BootPageDirectory
+e4524ffb a CHECKSUM
+c0106140 b completed.3857
+c0106130 d __CTOR_END__
+c010612c d __CTOR_LIST__
+c0106aa8 B _cur_directory
+c01029c0 T __cxa_guard_abort
+c01029a0 T __cxa_guard_acquire
+c01029b0 T __cxa_guard_release
+c01029d0 T __cxa_pure_virtual
+         w __deregister_frame_info
+c0100010 t deregister_tm_clones
+c0106ae0 B dirent
+c01029e0 t __do_global_ctors_aux
+c0100080 t __do_global_dtors_aux
+c0104000 D __dso_handle
+c0106138 D __DTOR_END__
+c0106144 b dtor_idx.3859
+c0106134 d __DTOR_LIST__
+c0107c00 B _ebss
+00200028 r __EH_FRAME_BEGIN__
+c0101a4e T enablePaging
+c0107c00 B end
+c0106000 d ErrorMSG
+c0103161 T _fini
+00000003 a FLAGS
+c0100100 t frame_dummy
+00200cf0 r __FRAME_END__
+c0106ac8 B fs_root
+c0100e70 T GDT_Flush
+c0100e8c t GDT_Flush.flush
+c0106ac0 B heap_extensions
+c0106240 B idt_entries
+c0100e8d T IDT_Flush
+c0106a40 B idt_ptr
+c0103152 T _init
+c01012b0 T init_sse
+c01012d8 t init_sse.noSSE
+c0101226 T irq0
+c010122e T irq1
+c0101276 T irq10
+c010127e T irq11
+c0101286 T irq12
+c010128e T irq13
+c0101296 T irq14
+c010129e T irq15
+c0101236 T irq2
+c010123e T irq3
+c0101246 T irq4
+c010124e T irq5
+c0101256 T irq6
+c010125e T irq7
+c0101266 T irq8
+c010126e T irq9
+c0101106 T irq_common
+c0101490 T irq_handler
+c0106a60 B irq_routines
+c0101113 T isr0
+c010111a T isr1
+c0101157 T isr10
+c010115c T isr11
+c0101164 T isr12
+c010116c T isr13
+c0101174 T isr14
+c010117c T isr15
+c0101186 T isr16
+c0101190 T isr17
+c010119a T isr18
+c01011a4 T isr19
+c0101121 T isr2
+c01011ae T isr20
+c01011b8 T isr21
+c01011c2 T isr22
+c01011cc T isr23
+c01011d6 T isr24
+c01011e0 T isr25
+c01011ea T isr26
+c01011f4 T isr27
+c01011fe T isr28
+c0101208 T isr29
+c0101128 T isr3
+c0101212 T isr30
+c010121c T isr31
+c010112f T isr4
+c0101136 T isr5
+c010113d T isr6
+c0101144 T isr7
+c010114b T isr8
+c0101150 T isr9
+c01010e0 T isr_common
+c0100ea0 T isr_handler
+         w _ITM_deregisterTMCloneTable
+         w _ITM_registerTMCloneTable
+c010613c d __JCR_END__
+c010613c d __JCR_LIST__
+c0101a6d T jump_userspace
+         w _Jv_RegisterClasses
+c0101af0 T KernelEarly
+c0101c10 T KernelMain
+00000300 a KERNEL_PAGE_NUMBER
+c0000000 a KERNEL_VIRTUAL_BASE
+c0106040 D keys
+c0107b40 B last_task
+c0106108 D lchars
+00200000 R loader
+00200000 r _loader
+c0101a40 T loadPageDirectory
+1badb002 a MAGIC
+00000001 a MBALIGN
+c0103000 T memcpy
+00000002 a MEMINFO
+c0103040 T memset
+c0106024 d msg
+c0106148 b object.3869
+c0102b00 T printf
+c0102f90 T putchar
+c0102fd0 T puts
+         w __register_frame_info
+c0100040 t register_tm_clones
+c0106140 B _sbss
+c0107c00 b stack_bottom
+c0103090 T __stack_chk_fail
+c0106128 D __stack_chk_guard
+c010bc00 b stack_top
+c01001b0 T _start
+c01001cd t _start.hang
+c0103120 T strcat
+c01030d0 T strcmp
+c01030a0 T strcpy
+c0103070 T strlen
+c0101a90 T switch_task
+c0101530 T syscall
+c010110d T _syscall
+c0107be0 B tbuf
+c0106160 B terminal_buffer
+c0106164 B terminal_color
+c0106168 B terminal_column
+c010616c B terminal_row
+c0101a60 t test
+c0101a6b t test.lp
+c0106140 D __TMC_END__
+c0100e95 T tss_flush
+c0101610 T alloc_page(unsigned long*)
+c0102930 T createTask(task*, void (*)(), unsigned long, unsigned long*)
+c0102350 T finddir_fs(fs_node*, char*)
+c01019e0 T map_kernel()
+c0102310 T readdir_fs(fs_node*, unsigned long)
+c0102650 T init_initrd(unsigned long)
+c01025a0 T tar_getsize(char const*)
+c0102080 T k_heapBMFree(_KHEAPBM*, void*)
+c0101e10 T k_heapBMInit(_KHEAPBM*)
+c01016b0 T get_directory()
+c0100190 T init_keyboard()
+c0101ec0 T k_heapBMAlloc(_KHEAPBM*, unsigned long)
+c01014c0 T timer_handler()
+c01012f0 T get_thread_ctx(registers*)
+c01028a0 T init_scheduler()
+c0100160 T KeyboardHandler()
+c0102800 T SendEventToKern(unsigned char)
+c0100270 T terminal_scroll()
+c0101e20 T k_heapBMAddBlock(_KHEAPBM*, unsigned long, unsigned long, unsigned long)
+c0101680 T switch_directory(pdirectory*)
+c01005c0 T create_descriptor(unsigned long, unsigned long, unsigned long, unsigned char, unsigned char)
+c0100240 T terminal_putentryat(char, unsigned char, unsigned long, unsigned long)
+c0100de0 T idt_create_descriptor(unsigned char, unsigned long, unsigned short, unsigned char)
+c0103660 T halt()
+c0102ac0 T itoa(unsigned int, unsigned int, char*, bool)
+c0102a20 t itoa(unsigned int, unsigned int, char*, bool) [clone .part.0]
+c0102210 T kfree(void*)
+c0101790 T kmmap(unsigned long, unsigned long)
+c0103664 T panic(char const*)
+c0101de0 T pfree(unsigned long, void*)
+c01019b0 T vfree(void*, unsigned long)
+c0102230 T ksleep(long long)
+c01021d0 T kmalloc(unsigned long)
+c0101920 T kmunmap(void*, unsigned long)
+c0101560 t kmunmap(void*, unsigned long) [clone .part.0]
+c01022d0 T open_fs(fs_node*, unsigned char, unsigned char)
+c0101d90 T pmalloc(unsigned long)
+c0102990 T preempt()
+c0102270 T read_fs(fs_node*, unsigned long, unsigned long, void*)
+c0101950 T vmalloc(unsigned long)
+c01022f0 T close_fs(fs_node*)
+c0100480 T init_gdt()
+c0100650 T init_idt()
+c01016c0 T init_vmm()
+c0100620 T load_gdt()
+c0100e20 T load_idt()
+c0102390 T tar_read(fs_node*, unsigned long, unsigned long, void*)
+c01022a0 T write_fs(fs_node*, unsigned long, unsigned long, void*)
+c0101650 T free_page(unsigned long*)
+c0100e50 T init_arch()
+c0102110 T init_heap()
+c01025e0 T tar_parse(unsigned long)
+c0106ab8 b last_entry
+c0102880 t other_main()
+c0107b60 b other_task
+c0106aac b initrd_addr
+c01024e0 t tar_finddir(fs_node*, char*)
+c0102450 t tar_readdir(fs_node*, unsigned long)
+c0106aa0 b timer_ticks
+c0106abc b pmm_memory_size
+c0106a48 b faulting_address
+c0107b20 b is_shift_pressed
+c0106ab0 b mbt
+c0106ac4 b kheap
+c0106b68 b nodes
+c0106200 b entries
+c0106230 b gdt_ptr
+c0106b80 b headers
+c0106b6c b root_fs
+c0107ba0 b main_task
+c0106b64 b NUM_FILES
+c0106180 b tss_entry
+c0101470 T IRQ::InstallHandler(int, void (*)())
+c0101480 T IRQ::UninstallHandler(int)
+c0101340 T PIC::Remap()
+c0101410 T PIC::GetIRR()
+c0101450 T PIC::GetISR()
+c0101330 T PIC::Disable()
+c01013e0 T PIC::MaskIRQ(unsigned short)
+c0101430 T PIC::SendEOI(unsigned char)
+c01013b0 T PIC::UnmaskIRQ(unsigned short)
+c0101520 T PIT::GetTickCount()
+c01014d0 T PIT::Init(unsigned long)
+c0101d10 T PMM::Pop()
+c0101d40 T PMM::Init(unsigned long, unsigned long)
+c0101ca0 T PMM::Push(unsigned long, unsigned long)
+c0106ab4 B PMM::stack
+c0100440 T TTY::WriteString(char const*)
+c01003c0 T TTY::UpdateCursor()
+c01001d0 T TTY::Init()
+c0100400 T TTY::Write(char const*, unsigned long)
+c01002b0 T TTY::PutChar(char)
+c0100230 T TTY::SetColor(unsigned char)
+c0101c90 T Timer::GetTickCount()
+c0101c80 T Timer::Init(unsigned long)

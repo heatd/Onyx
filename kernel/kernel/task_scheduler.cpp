@@ -61,7 +61,7 @@ void createTask(task_t* task, void (*main)(), uint32_t flags, uint32_t* pagedir)
  
 void preempt()
 {
-    task_t* last = running_task;
-    running_task = running_task->next;
+   // task_t* last = running_task;
+    //running_task = running_task->next;
     //switch_task(&last->regs, &running_task->regs);
 }

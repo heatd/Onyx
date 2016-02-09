@@ -35,5 +35,5 @@ void init_arch()
 	
 	init_idt();
 	
-	pic_remap();
+	PIC::Remap();
 }

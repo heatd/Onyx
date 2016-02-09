@@ -12,21 +12,24 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#ifndef _STDINT_H
-#define _STDINT_H 1
-
-typedef signed char 		int8_t;
-typedef unsigned char 		uint8_t;
-typedef signed short		int16_t;
-typedef unsigned short 		uint16_t;
-typedef signed long int 	int32_t;
-typedef unsigned long int 	uint32_t;
-typedef signed long long int 	int64_t;
-typedef unsigned long long int 	uint64_t;
-typedef unsigned long 		uintptr_t;
-typedef long 			intptr_t;
-
-
-
-
-#endif // _STDINT_H
+#include <stddef.h>
+#ifdef __is_spartix_kernel
+#include <kernel/kheap.h>
+void *operator new(size_t size)
+{return kmalloc(size);}
+void *operator new[](size_t size)
+{return kmalloc(size);}
+void operator delete(void *p)
+{kfree(p);}
+void operator delete[](void *p)
+{kfree(p);}
+#else //STUB
+void *operator new(size_t size)
+{return NULL;} 
+void *operator new[](size_t size)
+{return NULL;}
+void operator delete(void *p)
+{}
+void operator delete[](void *p)
+{}
+#endif

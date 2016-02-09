@@ -35,7 +35,7 @@ size_t terminal_column;
 uint8_t terminal_color;
 uint16_t* terminal_buffer;
 
-void terminal_initialize(void)
+void TTY::Init(void)
 {
 	terminal_row = 0;
 	terminal_column = 0;
@@ -51,7 +51,7 @@ void terminal_initialize(void)
 	}
 }
 
-void terminal_setcolor(uint8_t color)
+void TTY::SetColor(uint8_t color)
 {
 	terminal_color = color;
 }
@@ -69,7 +69,7 @@ void terminal_scroll()
 		}
 	}
 }
-void terminal_putchar(char c)
+void TTY::PutChar(char c)
 {
 	if(c == '\n'){
 		terminal_column = 0;
@@ -78,7 +78,7 @@ void terminal_putchar(char c)
 		else
 		terminal_row++;
 		
-		terminal_update_cursor();
+		UpdateCursor();
 		return;
 	}
 	terminal_putentryat(c, terminal_color, terminal_column, terminal_row);
@@ -90,9 +90,9 @@ void terminal_putchar(char c)
 			terminal_scroll();
 		}
 	}
-	terminal_update_cursor();
+	UpdateCursor();
 }
-void terminal_update_cursor()
+void TTY::UpdateCursor()
 {
 	uint16_t position=(terminal_row*80) + terminal_column;
 	outb(0x3D4, 0x0F);
@@ -100,13 +100,13 @@ void terminal_update_cursor()
 	outb(0x3D4, 0x0E);
 	outb(0x3D5, (unsigned char)((position>>8)&0xFF));
 }
-void terminal_write(const char* data, size_t size)
+void TTY::Write(const char* data, size_t size)
 {
 	for ( size_t i = 0; i < size; i++ )
-		terminal_putchar(data[i]);
+		PutChar(data[i]);
 }
 
-void terminal_writestring(const char* data)
+void TTY::WriteString(const char* data)
 {
-	terminal_write(data, strlen(data));
+	Write(data, strlen(data));
 }

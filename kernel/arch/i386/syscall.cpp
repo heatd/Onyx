@@ -40,7 +40,7 @@ extern "C" void syscall()
 	
 	switch(eax){
 		case 0:
-			terminal_writestring((const char*)ebx);
+			TTY::WriteString((const char*)ebx);
 		default:
 			break;
 	}

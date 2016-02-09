@@ -21,7 +21,7 @@ unsigned char keys[200]={0,'1','2','3','4','5','6','7','8','9','0','-','=','\b',
 ' ',0,0,0,0,0,0,0,0,0,0,0,0,0,'7','8','9','-','4','5','6','+','1','2','3','0',
 '.',0,0,0,0,0};
 static bool is_shift_pressed = false;
-void send_event_to_kern(uint8_t keycode)
+void SendEventToKern(uint8_t keycode)
 {	
 	if(keycode == 0x2A || keycode == 0x36){
 		is_shift_pressed = true;

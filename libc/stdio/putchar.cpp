@@ -22,7 +22,7 @@ int putchar(int ic)
 {
 	char c = (char) ic;
 #if defined(__is_spartix_kernel)
-	terminal_write(&c, sizeof(c));
+	TTY::Write(&c, sizeof(c));
 #else
 	SYSCALL(TERMINAL_WRITE_SYSCALL,ic,0,0,0,0);
 #endif

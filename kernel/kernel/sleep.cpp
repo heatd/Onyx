@@ -26,8 +26,8 @@ limitations under the License.
 #include <kernel/sleep.h>
 void ksleep(long long ms)
 {
-	uint32_t ticks = GetTickCount();
-	while(GetTickCount() - ticks != ms)
+	uint32_t ticks = Timer::GetTickCount();
+	while(Timer::GetTickCount() - ticks != ms)
 	{
 		asm volatile("hlt");
 	}

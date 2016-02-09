@@ -43,6 +43,7 @@ kernel/fs.o \
 kernel/initrd.o \
 kernel/input_manager.o \
 kernel/task_scheduler.o \
+kernel/cxxabi.o \
 
 CRTI_OBJ:=$(ARCHDIR)/crti.o
 CRTBEGIN_OBJ:=$(shell $(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=crtbegin.o)

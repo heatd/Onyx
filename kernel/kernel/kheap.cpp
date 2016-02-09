@@ -185,6 +185,7 @@ void* kmalloc(size_t size)
 	if(ptr == NULL){
 		panic("No more kheap space!");
 	}
+	return ptr;
 }
 void kfree(void* ptr)
 {

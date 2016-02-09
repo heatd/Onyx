@@ -25,7 +25,7 @@ static tar_header_t* headers[1000];
 static fs_node_t* root_fs;
 static fs_node_t* nodes;
 
-uint32_t tar_getsize(const char *in)
+uint32_t tar_getsize(const char* in)
 {
 
 	unsigned int size = 0;
@@ -68,7 +68,7 @@ uint32_t tar_read(fs_node_t* node,uint32_t offset,uint32_t size,void* buffer)
 	tar_header_t* header = headers[node->inode];
 	if(offset + size > tar_getsize(header->size))
 		return 1;
-	void* data = (void*)header + 512 + offset;
+	void* data = (void*)(header + 512 + offset);
 	memcpy(buffer,data,size);
 	
 	return tar_getsize(header->size);
@@ -137,7 +137,7 @@ fs_node_t* init_initrd(uint32_t addr)
 	
 	memset(nodes,0,sizeof(fs_node_t) * num_files);
 	
-	for(int i = 0;i < num_files;i++){
+	for(uint32_t i = 0;i < num_files;i++){
 		
 		fs_node_t* node = &nodes[i];
 		

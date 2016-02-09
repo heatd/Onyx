@@ -41,6 +41,7 @@ ssp/ssp.o \
 string/strcpy.o \
 string/strcmp.o \
 string/strcat.o \
+c++/new.o \
 
 HOSTEDOBJS:=\
 $(ARCH_HOSTEDOBJS) \

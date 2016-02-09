@@ -25,12 +25,14 @@ limitations under the License.
  **************************************************************************/
 #include <kernel/pit.h>
 
-
-void TimerInit(uint32_t freq)
+namespace Timer
 {
-	PitInit(freq);
+void Init(uint32_t freq)
+{
+	PIT::Init(freq);
 }
 uint64_t GetTickCount()
 {
-	return pit_get_tick_cnt();
+	return PIT::GetTickCount();
 }
+};
