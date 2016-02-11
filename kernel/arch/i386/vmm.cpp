@@ -35,10 +35,10 @@ limitations under the License.
 typedef uint32_t virtual_addr;
 
 
-extern "C" void loadPageDirectory(pdirectory*);
+extern "C" void loadPageDirectory(VMM::pdirectory*);
 extern "C" void enablePaging();
 
-int alloc_page(pt_entry* pt)
+static int alloc_page(VMM::pt_entry* pt)
 {
 	void* p = pmalloc(1);
 	if(!p)
@@ -48,7 +48,7 @@ int alloc_page(pt_entry* pt)
 
 	return 0;
 }
-void free_page(pt_entry* pt)
+static void free_page(VMM::pt_entry* pt)
 {
 	void* p = (void*)pt_entry_pfn(*pt);
 	if(p)
@@ -56,21 +56,21 @@ void free_page(pt_entry* pt)
 
 	pt_entry_unset_bit(pt,_PTE_PRESENT);
 }
-inline pt_entry* ptable_lookup_entry (ptable* p,virtual_addr addr) {
+inline VMM::pt_entry* ptable_lookup_entry (VMM::ptable* p,virtual_addr addr) {
 
 	if (p)
 		return &p->entries[ PAGE_TABLE_INDEX (addr) ];
 	return 0;
 }
-inline pd_entry* pdirectory_lookup_entry (pdirectory* p, virtual_addr addr) {
+inline VMM::pd_entry* pdirectory_lookup_entry (VMM::pdirectory* p, virtual_addr addr) {
 
 	if (p)
 		return &p->entries[ PAGE_TABLE_INDEX (addr) ];
 	return 0;
 }
-pdirectory*		_cur_directory=0;
+VMM::pdirectory*		_cur_directory=0;
 
-int switch_directory (pdirectory* dir) {
+int switch_directory (VMM::pdirectory* dir) {
 
 	if (!dir)
 		return 1;
@@ -79,17 +79,17 @@ int switch_directory (pdirectory* dir) {
 	return 0;
 }
 
-pdirectory* get_directory () {
+VMM::pdirectory* get_directory () {
 
-	void* ret = _cur_directory + 0xC0000000;
-	return (pdirectory*)ret;
+	void* ret = _cur_directory;
+	return (VMM::pdirectory*)ret;
 }
 
-void init_vmm()
+void VMM::Init()
 {
-	ptable* mb = (ptable*)0xC03F0000;
+	ptable* mb = (ptable*)0x803F0000;
 	memset(mb,0,sizeof(ptable));
-        ptable* table = (ptable*)0xC03F1000;
+        ptable* table = (ptable*)0x803F1000;
         memset(table, 0,sizeof(ptable));
 
 	for(int i=0,frame=0x000000,virt=0x00000000;i<1024;i++,frame+=4096, virt+=4096)
@@ -101,7 +101,7 @@ void init_vmm()
 
 		mb->entries [PAGE_TABLE_INDEX(virt)] = page;
         }
-	for(int i=0,frame=0x000000,virt=0xC0000000;i<1024;i++,frame+=4096, virt+=4096)
+	for(int i=0,frame=0x000000,virt=0x80000000;i<1024;i++,frame+=4096, virt+=4096)
 	{
 		pt_entry page=0;
 		pt_entry_set_bit(&page,_PTE_PRESENT);
@@ -110,9 +110,9 @@ void init_vmm()
 
 		table->entries [PAGE_TABLE_INDEX(virt)] = page;
         }
-	pdirectory* dir = (pdirectory*)0xC03F2000;
+	pdirectory* dir = (pdirectory*)0x803F2000;
 	memset(dir, 0,sizeof(pdirectory));
-	pd_entry* entry =&dir->entries [PAGE_DIRECTORY_INDEX (0xC0000000)];
+	pd_entry* entry =&dir->entries [PAGE_DIRECTORY_INDEX (0x80000000)];
         pd_entry_set_bit (entry,_PDE_PRESENT);
         pd_entry_set_bit (entry,_PDE_WRITABLE);
 	pd_entry_set_bit (entry, _PDE_USER);
@@ -134,16 +134,16 @@ void init_vmm()
 void* kmmap(uint32_t virt, DWORD npages)
 {
 	if (!npages)
-		return NULL;
-	pdirectory* pdir = get_directory();
+		return nullptr;
+	VMM::pdirectory* pdir = get_directory();
 	if (!pdir)
 		abort();
 	if(npages > 1024)
 		npages = 1024;
-	pd_entry* entry = &pdir->entries[PAGE_DIRECTORY_INDEX(virt)];
-	ptable* pt = NULL;
+	VMM::pd_entry* entry = &pdir->entries[PAGE_DIRECTORY_INDEX(virt)];
+	VMM::ptable* pt = nullptr;
 	if(pd_entry_is_4MB(*entry) == 1 && pd_entry_pfn(*entry) != NULL)
-		return NULL;
+		return nullptr;
 	
 	if(npages == 1024){
 		pd_entry_set_bit(entry,_PDE_PRESENT);
@@ -155,12 +155,12 @@ void* kmmap(uint32_t virt, DWORD npages)
 		
 	}
 	if (pd_entry_is_present(*entry))
-		pt = (ptable*)pd_entry_pfn(*entry);
+		pt = (VMM::ptable*)pd_entry_pfn(*entry);
 	else {
-		pt = (ptable*)pmalloc(1);
-		if(pt == NULL)
+		pt = (VMM::ptable*)pmalloc(1);
+		if(pt == nullptr)
 			panic("No free blocks");
-		memset(pt, 0, sizeof(ptable));
+		memset(pt, 0, sizeof(VMM::ptable));
 		pd_entry_set_bit(entry, _PDE_PRESENT);
 		pd_entry_set_bit(entry, _PDE_WRITABLE);
 		pd_entry_set_frame(entry, (uintptr_t)pt);
@@ -170,8 +170,8 @@ void* kmmap(uint32_t virt, DWORD npages)
 	if (i == 0)
 		ret_addr = vaddr;
         // create a new page
-		pt_entry page=0;
-		if(alloc_page(&page)==1){
+		VMM::pt_entry page=0;
+		if(alloc_page(&page) == 1){
 			printf("Failed to map page 0x%x\n",vaddr);
 			panic("No more physical memory");
 		}
@@ -187,18 +187,18 @@ void kmunmap(void* virt, DWORD npages)
 		return;
 	if (!npages)
 		return;
-	pdirectory* pdir = get_directory();
+	VMM::pdirectory* pdir = get_directory();
 	if (!pdir)
 		return;
-	pd_entry* entry = &pdir->entries[PAGE_DIRECTORY_INDEX((uint32_t)virt)];
+	VMM::pd_entry* entry = &pdir->entries[PAGE_DIRECTORY_INDEX((uint32_t)virt)];
 	if (!pd_entry_is_present(*entry))
 		return;
-	ptable* pt = (ptable*)pd_entry_pfn(*entry);
+	VMM::ptable* pt = (VMM::ptable*)pd_entry_pfn(*entry);
 	if ( !pt_entry_is_present(pt->entries[PAGE_TABLE_INDEX((uint32_t)virt)]))
-	 return;
+		return;
 	for (DWORD i = 0, vaddr = (DWORD)virt; i<npages;i++, vaddr += 4096){
 
-		pt_entry* page = &pt->entries [PAGE_TABLE_INDEX(vaddr)];
+		VMM::pt_entry* page = &pt->entries [PAGE_TABLE_INDEX(vaddr)];
 		free_page(page);
 		_flush_tlb_page(vaddr);
 	}
@@ -207,13 +207,13 @@ void kmunmap(void* virt, DWORD npages)
 void* vmalloc(DWORD npages)
 {
 	if(!npages)
-		return NULL;
+		return nullptr;
 	void* ptr = pmalloc(npages);
 	if(!ptr)
-		return NULL;
+		return nullptr;
 	pfree(npages,ptr);
 	if(!kmmap((uint32_t)ptr,npages))
-		return NULL;
+		return nullptr;
 	return ptr;
 }
 
@@ -228,19 +228,19 @@ void vfree(void* ptr, DWORD npages)
 
 void map_kernel()
 {
-	ptable* table = (ptable*)vmalloc(1);
+	VMM::ptable* table = (VMM::ptable*)vmalloc(1);
 	
-	for(int i=0,frame=0x000000,virt=0xC0000000;i<1024;i++,frame+=4096, virt+=4096)
+	for(int i=0,frame=0x000000,virt=0x80000000;i<1024;i++,frame+=4096, virt+=4096)
 	{
-		pt_entry page=0;
+		VMM::pt_entry page = 0;
 		pt_entry_set_bit(&page,_PTE_PRESENT);
 		pt_entry_set_frame(&page, frame);
 		table->entries [PAGE_TABLE_INDEX(virt)] = page;
         }
-        pdirectory* pd = get_directory();
+        VMM::pdirectory* pd = get_directory();
 	if(!pd)
 		abort();
-	pd_entry* entry = &pd->entries[PAGE_DIRECTORY_INDEX(0xC0000000)];
+	VMM::pd_entry* entry = &pd->entries[PAGE_DIRECTORY_INDEX(0x80000000)];
 	pd_entry_set_frame(entry,(uintptr_t)table);
 	pd_entry_set_bit(entry, _PDE_PRESENT);
 	pd_entry_set_bit(entry, _PDE_WRITABLE);

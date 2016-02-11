@@ -43,6 +43,6 @@ extern "C++" void* kmalloc(size_t size);
 extern "C++" void kfree(void* ptr);
 
 
-void init_heap();
+void InitHeap();
 
 #endif // KHEAP_H 

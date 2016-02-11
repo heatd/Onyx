@@ -20,12 +20,14 @@ limitations under the License.
 #include <kernel/tty.h>
 #include <kernel/compiler.h>
 #include <string.h>
-#include <stdlib.h>	
+#include <stdlib.h>
+namespace Initrd
+{
 static tar_header_t* headers[1000];
 static fs_node_t* root_fs;
 static fs_node_t* nodes;
 
-uint32_t tar_getsize(const char* in)
+uint32_t GetSize(const char* in)
 {
 
 	unsigned int size = 0;
@@ -38,7 +40,7 @@ uint32_t tar_getsize(const char* in)
 	return size;
 
 }
-unsigned int tar_parse(uint32_t address)
+unsigned int Parse(uint32_t address)
 {
 
 	unsigned int i;
@@ -50,7 +52,7 @@ unsigned int tar_parse(uint32_t address)
 
 		if (header->filename[0] == '\0')
 			break;
-		unsigned int size = tar_getsize(header->size);
+		unsigned int size = GetSize(header->size);
 
 		headers[i] = header;
 
@@ -66,12 +68,12 @@ unsigned int tar_parse(uint32_t address)
 uint32_t tar_read(fs_node_t* node,uint32_t offset,uint32_t size,void* buffer)
 {
 	tar_header_t* header = headers[node->inode];
-	if(offset + size > tar_getsize(header->size))
+	if(offset + size > GetSize(header->size))
 		return 1;
 	void* data = (void*)(header + 512 + offset);
 	memcpy(buffer,data,size);
 	
-	return tar_getsize(header->size);
+	return GetSize(header->size);
 }
 struct dirent dirent;
 static unsigned int NUM_FILES;
@@ -109,14 +111,14 @@ static fs_node_t* tar_finddir(fs_node_t* node,char* name)
 	return NULL;
 }
 
-fs_node_t* init_initrd(uint32_t addr)
+fs_node_t* Init(uint32_t addr)
 {	
 	if(addr < 0x100000) // GRUB doesn't load anything below 0x100000 (1 MiB)
 		panic("Invalid initrd address.");
 	
 	printf("Found initrd module at 0x%X\n",addr);
 	
-	unsigned int num_files = tar_parse(addr);
+	unsigned int num_files = Parse(addr);
 	
 	NUM_FILES = num_files;
 	
@@ -152,8 +154,9 @@ fs_node_t* init_initrd(uint32_t addr)
 		node->read = &tar_read;
 		node->readdir = &tar_readdir;
 		node->finddir = &tar_finddir;
-		node->length = tar_getsize(headers[i]->size);
+		node->length = GetSize(headers[i]->size);
 	}
 	
 	return root_fs;
+}
 }

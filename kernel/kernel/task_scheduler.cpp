@@ -20,7 +20,8 @@ limitations under the License.
 #include <stdio.h>
 #include <stdlib.h>
 task_t* last_task = NULL;
-ARCH_SPECIFIC uint32_t read_ip();
+extern "C" void jump_userspace();
+extern "C" void switch_task(registers_mt_t* oldr, registers_mt_t* newr);
 static task_t*running_task;
 static task_t main_task;
 static task_t other_task;
@@ -28,6 +29,8 @@ void createTask(task_t* task, void (*main)(), uint32_t flags, uint32_t* pagedir)
 static void other_main()
 {
     printf("Hello multitasking world!"); // Not implemented here...
+    jump_userspace();
+    asm volatile("cli/hlt");
     preempt();
 }
  
@@ -46,22 +49,22 @@ void init_scheduler()
  
 void createTask(task_t* task, void (*main)(), uint32_t flags, uint32_t* pagedir) 
 {
-    task->regs.eax = 0;
-    task->regs.ebx = 0;
-    task->regs.ecx = 0;
-    task->regs.edx = 0;
-    task->regs.esi = 0;
-    task->regs.edi = 0;
-    task->regs.eflags = flags;
-    task->regs.eip = (uint32_t) main;
-    task->regs.cr3 = (uint32_t) pagedir;
-    task->regs.esp = (uint32_t) 0;
-    task->next = NULL;
+	task->regs.eax = 0;
+	task->regs.ebx = 0;
+	task->regs.ecx = 0;
+	task->regs.edx = 0;
+	task->regs.esi = 0;
+	task->regs.edi = 0;
+	task->regs.eflags = flags;
+	task->regs.eip = (uint32_t) main;
+	task->regs.cr3 = (uint32_t) pagedir;
+	task->regs.esp = (uint32_t) 0;
+	task->next = NULL;
 }
  
 void preempt()
 {
-   // task_t* last = running_task;
-    //running_task = running_task->next;
-    //switch_task(&last->regs, &running_task->regs);
+	task_t* last = running_task;
+	running_task = running_task->next;
+	switch_task(&last->regs, &running_task->regs);
 }

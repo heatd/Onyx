@@ -17,9 +17,10 @@ limitations under the License.
 
 #include <stdint.h>
 #include <kernel/pmm.h>
-
 typedef uint32_t DWORD;
-void init_vmm();
+namespace VMM
+{
+void Init();
 /* Page table defines just to help the code not have "magic values"*/
 #define _PTE_PRESENT		1
 #define _PTE_WRITABLE		2
@@ -76,66 +77,67 @@ typedef struct pdirectory {
 
 	pd_entry entries[PAGES_PER_DIR];
 }pdirectory;
-void init_paging();
 
-inline void pt_entry_set_bit(pt_entry* pt,uint32_t bit)
+
+};
+inline void pt_entry_set_bit(VMM::pt_entry* pt,uint32_t bit)
 {
 	*pt|= bit;
 }
-inline void pt_entry_unset_bit(pt_entry* pt,uint32_t bit)
+inline void pt_entry_unset_bit(VMM::pt_entry* pt,uint32_t bit)
 {
 	*pt&=~bit;
 }
-inline void pt_entry_set_frame(pt_entry* pt, uintptr_t p_addr)
+inline void pt_entry_set_frame(VMM::pt_entry* pt, uintptr_t p_addr)
 {
 	*pt=(*pt & ~_PTE_FRAME) | p_addr;
 }
-inline int pt_entry_is_present(pt_entry pt)
+inline int pt_entry_is_present(VMM::pt_entry pt)
 {
 	return pt & _PTE_PRESENT;
 }
-inline int pt_entry_is_writable (pt_entry pt)
+inline int pt_entry_is_writable (VMM::pt_entry pt)
 {
 	return pt & _PTE_WRITABLE;
 }
 
-inline uintptr_t pt_entry_pfn (pt_entry pt)
+inline uintptr_t pt_entry_pfn (VMM::pt_entry pt)
 {
 	return pt & _PTE_FRAME;
 }
-inline void pd_entry_set_bit(pd_entry* pd,uint32_t bit)
+inline void pd_entry_set_bit(VMM::pd_entry* pd,uint32_t bit)
 {
 	*pd|= bit;
 }
-inline void pd_entry_unset_bit(pd_entry* pd, uint32_t bit)
+inline void pd_entry_unset_bit(VMM::pd_entry* pd, uint32_t bit)
 {
 	*pd&=~bit;
 }
-inline void pd_entry_set_frame(pd_entry* pd,uintptr_t paddr)
+inline void pd_entry_set_frame(VMM::pd_entry* pd,uintptr_t paddr)
 {
 	*pd=(*pd & ~_PDE_FRAME) | paddr;
 }
-inline bool pd_entry_is_present(pd_entry pd)
+inline bool pd_entry_is_present(VMM::pd_entry pd)
 {
 	return pd & _PDE_PRESENT;
 }
-inline bool pd_entry_is_user(pd_entry pd)
+inline bool pd_entry_is_user(VMM::pd_entry pd)
 {
 	return pd & _PDE_USER;
 }
-inline bool pd_entry_is_4MB(pd_entry pd)
+inline bool pd_entry_is_4MB(VMM::pd_entry pd)
 {
 	return pd & _PDE_4MB;
 }
-inline uintptr_t pd_entry_pfn(pd_entry pd)
+inline uintptr_t pd_entry_pfn(VMM::pd_entry pd)
 {
 	return pd & _PDE_FRAME;
 }
-inline bool pd_entry_is_writable (pd_entry pd)
+inline bool pd_entry_is_writable (VMM::pd_entry pd)
 {
 	return pd & _PDE_WRITABLE;
 }
-inline void pd_entry_enable_global(pd_entry pd)
+inline void pd_entry_enable_global(VMM::pd_entry pd)
 {
 	pd|=_PDE_CPU_GLOBAL;
 }

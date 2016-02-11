@@ -40,7 +40,7 @@ align 4
 	dd MAGIC
 	dd FLAGS
 	dd CHECKSUM
- KERNEL_VIRTUAL_BASE equ 0xC0000000                  ; 3GB
+ KERNEL_VIRTUAL_BASE equ 0x80000000                  ; 3GB
 KERNEL_PAGE_NUMBER equ (KERNEL_VIRTUAL_BASE >> 22)  ; Page directory index of kernel's 4MB PTE.
 section .data
 align 0x1000
@@ -80,7 +80,7 @@ _loader:
     ; Start fetching instructions in kernel space.
     ; Since eip at this point holds the physical address of this command (approximately 0x00100000)
     ; we need to do a long jump to the correct virtual address of _start which is
-    ; approximately 0xC0100000.
+    ; approximately 0x80100000.
     cli
     lea ecx, [_start]
     jmp ecx

@@ -169,12 +169,12 @@ void k_heapBMFree(KHEAPBM *heap, void *ptr)
 }
 uint32_t heap_extensions;
 static KHEAPBM kheap;
-void init_heap()
+void InitHeap()
 {
 	k_heapBMInit(&kheap);
-	if(kmmap(0xC0400000,1024)==NULL)
+	if(kmmap(0x80400000,1024)==NULL)
 		abort();
-	k_heapBMAddBlock(&kheap,0xC0400000,0x400000,16);
+	k_heapBMAddBlock(&kheap,0x80400000,0x400000,16);
 	heap_extensions = 0;
 }
 void* kmalloc(size_t size)

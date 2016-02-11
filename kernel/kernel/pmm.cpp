@@ -55,7 +55,7 @@ void Init(size_t memory_size,uintptr_t stack_space)
 	
 	stack =(stack_t*)stack_space;
 	memset(stack, 0,4096);
-	stack->next=(stack_entry*)0xC0200010;
+	stack->next=(stack_entry*)0x80200010;
 }
 };
 void* pmalloc(size_t blocks)

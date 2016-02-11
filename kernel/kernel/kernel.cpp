@@ -34,6 +34,7 @@ typedef multiboot_tag multiboot_info_t;
 #else
 #include <multiboot.h>
 #endif
+#include <kernel/vmm.h>
 #include <kernel/tty.h>
 #include <kernel/compiler.h>
 #include <stdlib.h>
@@ -47,6 +48,7 @@ typedef multiboot_tag multiboot_info_t;
 #include <kernel/kheap.h>
 #include <kernel/panic.h>
 #include <drivers/ps2.h>
+#include <kernel/mm.h>
 /* Function: init_arch()
  * Purpose: Initialize architecture specific features, should be hooked by the architecture the kernel will run on
  */
@@ -71,10 +73,10 @@ extern "C" void KernelEarly(multiboot_info_t* info, size_t magic)
 		panic("Bootloader not Multiboot 1 compliant"); // If not, panic, because our kernel relies on it 
 	init_arch();
 	
-	mbt->mmap_addr+=0xC0000000;
+	mbt->mmap_addr+=0x80000000;
 	multiboot_memory_map_t* mmap = (multiboot_memory_map_t*) mbt->mmap_addr;
-	memset((void*)0xC0200000,0,4096);
-	PMM::Init(mbt->mem_lower + mbt->mem_upper,(uintptr_t) 0xC0200000);
+	memset((void*)0x80200000,0,4096);
+	PMM::Init(mbt->mem_lower + mbt->mem_upper,(uintptr_t) 0x80200000);
 	multiboot_memory_map_t*  mmap_arr[10];
 	while((unsigned int)mmap < mbt->mmap_addr + mbt->mmap_length) {
 		static int i = 0;
@@ -95,10 +97,10 @@ extern "C" void KernelMain()
 	// Initialize the timer
 	Timer::Init(1000);
 	//Initialize the VMM
-	init_vmm();
+	VMM::Init();
 	// Initialize the kernel heap
-	init_heap();
-	fs_node_t* initrd_root = init_initrd(initrd_addr);
+	InitHeap();
+	fs_node_t* initrd_root = Initrd::Init(initrd_addr);
 	if(!initrd_root)
 		abort();
 	fs_node_t* node = finddir_fs(initrd_root,(char*)"boot/Kernel.map");
@@ -106,7 +108,7 @@ extern "C" void KernelMain()
 		abort();
 	init_keyboard();
 	init_scheduler();
-	//preempt();
+	preempt();
 	
 	for(;;)
 	{
