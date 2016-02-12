@@ -43,6 +43,7 @@ typedef multiboot_tag multiboot_info_t;
 #include <kernel/sleep.h>
 #include <kernel/initrd.h>
 #include <kernel/fs.h>
+#include <kernel/vga.h>
 #include <kernel/registers.h>
 #include <kernel/task_scheduler.h>
 #include <kernel/kheap.h>
@@ -52,40 +53,55 @@ typedef multiboot_tag multiboot_info_t;
 /* Function: init_arch()
  * Purpose: Initialize architecture specific features, should be hooked by the architecture the kernel will run on
  */
+#define TERM_OK(str) \
+                printf("["); \
+		TTY::SetColor(make_color(COLOR_GREEN, COLOR_BLACK)); \
+		printf("OK"); \
+		TTY::SetColor(make_color(COLOR_LIGHT_GREY, COLOR_BLACK)); \
+		printf("] "); \
+		puts(str); \
+
 ARCH_SPECIFIC void init_arch();
 ARCH_SPECIFIC void init_vmm();
 extern "C" void jump_userspace();
 ARCH_SPECIFIC void init_keyboard();
 static multiboot_info_t* mbt;
+static multiboot_memory_map_t*  mmap_arr[10];
 static uint32_t initrd_addr;
 extern uint32_t end;
 extern "C" void KernelEarly(multiboot_info_t* info, size_t magic)
 {
-	if(info == NULL);
-		//panic("Invalid multiboot_info_t*.The bootloader currently being used is broken");
-	mbt = info;
 	TTY::Init();
+	if(info == NULL)
+		panic("Invalid multiboot_info_t*.The bootloader currently being used is broken");
+	mbt = info;
 	puts("Booting ...");
+	
 	// Check if the magic number is the same as the multiboot 1 spec
-	if(magic == 0x2BADB002)
-		puts("Spartix kernel booted by a Multiboot 1 compliant bootloader");
-	else
+	if(magic == 0x2BADB002){
+		TERM_OK("Spartix kernel booted by a Multiboot 1 compliant bootloader");
+	}else
 		panic("Bootloader not Multiboot 1 compliant"); // If not, panic, because our kernel relies on it 
 	init_arch();
 	
 	mbt->mmap_addr+=0x80000000;
+	
 	multiboot_memory_map_t* mmap = (multiboot_memory_map_t*) mbt->mmap_addr;
+	
 	memset((void*)0x80200000,0,4096);
+	
 	PMM::Init(mbt->mem_lower + mbt->mem_upper,(uintptr_t) 0x80200000);
-	multiboot_memory_map_t*  mmap_arr[10];
+
+	
 	while((unsigned int)mmap < mbt->mmap_addr + mbt->mmap_length) {
 		static int i = 0;
 		mmap_arr [i] = mmap;
 		if(mmap->type==MULTIBOOT_MEMORY_AVAILABLE)
 		    PMM::Push(mmap->addr,mmap->len);
+		i++;
 		mmap = (multiboot_memory_map_t*) ( (unsigned int)mmap + mmap->size + sizeof(unsigned int) );
 	}
-	printf("Memory in KiB:%i\n",mbt->mem_lower+mbt->mem_upper);
+	printf("Total memory:%i MiB\n",mbt->mem_lower+mbt->mem_upper/1024);
 	multiboot_module_t* mod_start_ptr = (multiboot_module_t*)mbt->mods_addr;
 	initrd_addr = mod_start_ptr->mod_start;
 }
@@ -96,10 +112,13 @@ extern "C" void KernelMain()
 	asm volatile("sti");
 	// Initialize the timer
 	Timer::Init(1000);
+	TERM_OK("Initialized the Timer");
 	//Initialize the VMM
 	VMM::Init();
+	TERM_OK("Initialized the Virtual Memory Manager");
 	// Initialize the kernel heap
 	InitHeap();
+	TERM_OK("Initialized the Kernel Heap");
 	fs_node_t* initrd_root = Initrd::Init(initrd_addr);
 	if(!initrd_root)
 		abort();
@@ -108,7 +127,7 @@ extern "C" void KernelMain()
 		abort();
 	init_keyboard();
 	init_scheduler();
-	preempt();
+	//preempt();
 	
 	for(;;)
 	{

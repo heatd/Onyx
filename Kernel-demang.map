@@ -1,4 +1,4 @@
-80102f70 T abort
+80103090 T abort
 80106118 D bchars
 80105000 d BootPageDirectory
 e4524ffb a CHECKSUM
@@ -6,13 +6,13 @@ e4524ffb a CHECKSUM
 80106130 d __CTOR_END__
 8010612c d __CTOR_LIST__
 80106aa8 B _cur_directory
-80102940 T __cxa_guard_abort
-80102920 T __cxa_guard_acquire
-80102930 T __cxa_guard_release
-80102950 T __cxa_pure_virtual
+80102a60 T __cxa_guard_abort
+80102a40 T __cxa_guard_acquire
+80102a50 T __cxa_guard_release
+80102a70 T __cxa_pure_virtual
          w __deregister_frame_info
 80100010 t deregister_tm_clones
-80102960 t __do_global_ctors_aux
+80102a80 t __do_global_ctors_aux
 80100080 t __do_global_dtors_aux
 80104000 D __dso_handle
 80106138 D __DTOR_END__
@@ -23,18 +23,18 @@ e4524ffb a CHECKSUM
 801019de T enablePaging
 80107c00 B end
 80106000 d ErrorMSG
-801030e1 T _fini
+80103201 T _fini
 00000003 a FLAGS
 80100100 t frame_dummy
-00200ca8 r __FRAME_END__
-80106ac8 B fs_root
+00200cb8 r __FRAME_END__
+80106acc B fs_root
 80100e70 T GDT_Flush
 80100e8c t GDT_Flush.flush
-80106ac0 B heap_extensions
+80106ac4 B heap_extensions
 80106240 B idt_entries
 80100e8d T IDT_Flush
 80106a40 B idt_ptr
-801030d2 T _init
+801031f2 T _init
 801012b0 T init_sse
 801012d8 t init_sse.noSSE
 80101226 T irq0
@@ -97,7 +97,7 @@ e4524ffb a CHECKSUM
 801019fd T jump_userspace
          w _Jv_RegisterClasses
 80101a40 T KernelEarly
-80101b60 T KernelMain
+80101bb0 T KernelMain
 00000200 a KERNEL_PAGE_NUMBER
 80000000 a KERNEL_VIRTUAL_BASE
 80106040 D keys
@@ -108,28 +108,28 @@ e4524ffb a CHECKSUM
 801019d0 T loadPageDirectory
 1badb002 a MAGIC
 00000001 a MBALIGN
-80102f80 T memcpy
+801030a0 T memcpy
 00000002 a MEMINFO
-80102fc0 T memset
+801030e0 T memset
 80106024 d msg
 80106034 d msg
 80106148 b object.3869
-80102a80 T printf
-80102f10 T putchar
-80102f50 T puts
+80102ba0 T printf
+80103030 T putchar
+80103070 T puts
          w __register_frame_info
 80100040 t register_tm_clones
 80106140 B _sbss
 80107c00 b stack_bottom
-80103010 T __stack_chk_fail
+80103130 T __stack_chk_fail
 80106128 D __stack_chk_guard
 8010bc00 b stack_top
 801001b0 T _start
 801001cd t _start.hang
-801030a0 T strcat
-80103050 T strcmp
-80103020 T strcpy
-80102ff0 T strlen
+801031c0 T strcat
+80103170 T strcmp
+80103140 T strcpy
+80103110 T strlen
 80101a2c T switch_task
 80101530 T syscall
 8010110d T _syscall
@@ -143,62 +143,62 @@ e4524ffb a CHECKSUM
 801019fb t test.lp
 80106140 D __TMC_END__
 80100e95 T tss_flush
-801028a0 T createTask(task*, void (*)(), unsigned long, unsigned long*)
-801022a0 T finddir_fs(fs_node*, char*)
+801029c0 T createTask(task*, void (*)(), unsigned long, unsigned long*)
+801023c0 T finddir_fs(fs_node*, char*)
 80101970 T map_kernel()
-80102260 T readdir_fs(fs_node*, unsigned long)
-80101fd0 T k_heapBMFree(_KHEAPBM*, void*)
-80101d60 T k_heapBMInit(_KHEAPBM*)
+80102380 T readdir_fs(fs_node*, unsigned long)
+801020f0 T k_heapBMFree(_KHEAPBM*, void*)
+80101e80 T k_heapBMInit(_KHEAPBM*)
 80101640 T get_directory()
 80100190 T init_keyboard()
-80101e10 T k_heapBMAlloc(_KHEAPBM*, unsigned long)
+80101f30 T k_heapBMAlloc(_KHEAPBM*, unsigned long)
 801014c0 T timer_handler()
 801012f0 T get_thread_ctx(registers*)
-80102800 T init_scheduler()
+80102920 T init_scheduler()
 80100160 T KeyboardHandler()
-80102750 T SendEventToKern(unsigned char)
+80102870 T SendEventToKern(unsigned char)
 80100270 T terminal_scroll()
-80101d70 T k_heapBMAddBlock(_KHEAPBM*, unsigned long, unsigned long, unsigned long)
+80101e90 T k_heapBMAddBlock(_KHEAPBM*, unsigned long, unsigned long, unsigned long)
 80101610 T switch_directory(VMM::pdirectory*)
 801005c0 T create_descriptor(unsigned long, unsigned long, unsigned long, unsigned char, unsigned char)
 80100240 T terminal_putentryat(char, unsigned char, unsigned long, unsigned long)
 80100de0 T idt_create_descriptor(unsigned char, unsigned long, unsigned short, unsigned char)
-801035e0 T halt()
-80102a40 T itoa(unsigned int, unsigned int, char*, bool)
-801029a0 t itoa(unsigned int, unsigned int, char*, bool) [clone .part.0]
-80102160 T kfree(void*)
+801037ac T halt()
+80102b60 T itoa(unsigned int, unsigned int, char*, bool)
+80102ac0 t itoa(unsigned int, unsigned int, char*, bool) [clone .part.0]
+80102280 T kfree(void*)
 80101720 T kmmap(unsigned long, unsigned long)
-801035e4 T panic(char const*)
-80101d30 T pfree(unsigned long, void*)
+801037b0 T panic(char const*)
+80101e50 T pfree(unsigned long, void*)
 80101940 T vfree(void*, unsigned long)
-80102180 T ksleep(long long)
-80102120 T kmalloc(unsigned long)
+801022a0 T ksleep(long long)
+80102240 T kmalloc(unsigned long)
 801018b0 T kmunmap(void*, unsigned long)
 80101560 t kmunmap(void*, unsigned long) [clone .part.0]
-80102220 T open_fs(fs_node*, unsigned char, unsigned char)
-80101ce0 T pmalloc(unsigned long)
-80102900 T preempt()
-801021c0 T read_fs(fs_node*, unsigned long, unsigned long, void*)
+80102340 T open_fs(fs_node*, unsigned char, unsigned char)
+80101e00 T pmalloc(unsigned long)
+80102a20 T preempt()
+801022e0 T read_fs(fs_node*, unsigned long, unsigned long, void*)
 801018e0 T vmalloc(unsigned long)
-80102240 T close_fs(fs_node*)
+80102360 T close_fs(fs_node*)
 80100480 T init_gdt()
-80102060 T InitHeap()
+80102180 T InitHeap()
 80100650 T init_idt()
 80100620 T load_gdt()
 80100e20 T load_idt()
-801021f0 T write_fs(fs_node*, unsigned long, unsigned long, void*)
+80102310 T write_fs(fs_node*, unsigned long, unsigned long, void*)
 80100e50 T init_arch()
-80106ab8 b last_entry
-801027d0 t other_main()
+80106abc b last_entry
+801028f0 t other_main()
 80107b60 b other_task
-80106aac b initrd_addr
+80106ab0 b initrd_addr
 80106aa0 b timer_ticks
 80107bd0 b running_task
-80106abc b pmm_memory_size
+80106ac0 b pmm_memory_size
 80106a48 b faulting_address
 80107b20 b is_shift_pressed
-80106ab0 b mbt
-80106ac4 b kheap
+80106ab4 b mbt
+80106ac8 b kheap
 80106200 b entries
 80106230 b gdt_ptr
 80107ba0 b main_task
@@ -214,10 +214,10 @@ e4524ffb a CHECKSUM
 801013b0 T PIC::UnmaskIRQ(unsigned short)
 80101520 T PIT::GetTickCount()
 801014d0 T PIT::Init(unsigned long)
-80101c60 T PMM::Pop()
-80101c90 T PMM::Init(unsigned long, unsigned long)
-80101bf0 T PMM::Push(unsigned long, unsigned long)
-80106ab4 B PMM::stack
+80101d80 T PMM::Pop()
+80101db0 T PMM::Init(unsigned long, unsigned long)
+80101d10 T PMM::Push(unsigned long, unsigned long)
+80106ab8 B PMM::stack
 80100440 T TTY::WriteString(char const*)
 801003c0 T TTY::UpdateCursor()
 801001d0 T TTY::Init()
@@ -225,16 +225,17 @@ e4524ffb a CHECKSUM
 801002b0 T TTY::PutChar(char)
 80100230 T TTY::SetColor(unsigned char)
 80101650 T VMM::Init()
-80101be0 T Timer::GetTickCount()
-80101bd0 T Timer::Init(unsigned long)
-801025a0 T Initrd::Init(unsigned long)
-80102530 T Initrd::Parse(unsigned long)
+80101d00 T Timer::GetTickCount()
+80101cf0 T Timer::Init(unsigned long)
+801026c0 T Initrd::Init(unsigned long)
+80102650 T Initrd::Parse(unsigned long)
 80106ae0 B Initrd::dirent
-801024f0 T Initrd::GetSize(char const*)
-801022e0 T Initrd::tar_read(fs_node*, unsigned long, unsigned long, void*)
-80102430 t Initrd::tar_finddir(fs_node*, char*)
-801023a0 t Initrd::tar_readdir(fs_node*, unsigned long)
+80102610 T Initrd::GetSize(char const*)
+80102400 T Initrd::tar_read(fs_node*, unsigned long, unsigned long, void*)
+80102550 t Initrd::tar_finddir(fs_node*, char*)
+801024c0 t Initrd::tar_readdir(fs_node*, unsigned long)
 80106b68 b Initrd::nodes
 80106b80 b Initrd::headers
 80106b6c b Initrd::root_fs
 80106b64 b Initrd::NUM_FILES
+80106aac b KernelEarly::i
