@@ -152,7 +152,6 @@ void* kmmap(uint32_t virt, DWORD npages)
 		void* ptr = pmalloc(1024);
 		pd_entry_set_frame(entry,(uintptr_t)ptr);
 		return ptr;
-		
 	}
 	if (pd_entry_is_present(*entry))
 		pt = (VMM::ptable*)pd_entry_pfn(*entry);
@@ -172,7 +171,7 @@ void* kmmap(uint32_t virt, DWORD npages)
         // create a new page
 		VMM::pt_entry page=0;
 		if(alloc_page(&page) == 1){
-			printf("Failed to map page 0x%x\n",vaddr);
+			printf("Failed to map page 0x%X\n",vaddr);
 			panic("No more physical memory");
 		}
 		//...and add it to the page table

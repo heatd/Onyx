@@ -16,7 +16,7 @@ limitations under the License.
 #include <kernel/compiler.h>
 typedef struct {
     uint32_t eax, ebx, ecx, edx, esi, edi, esp, ebp, eip, eflags, cr3;
-} registers_mt_t;
+} __attribute__((packed))registers_mt_t;
 typedef struct task
 {
 	registers_mt_t regs;
@@ -25,5 +25,5 @@ typedef struct task
 }task_t;
 void init_scheduler();
 void create_task(task_t* task);
-void preempt();
+void preempt(uint32_t);
 //ARCH_SPECIFIC void switch_task(registers_mt_t* old,registers_mt_t* new);

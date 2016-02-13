@@ -127,8 +127,6 @@ extern "C" void KernelMain()
 		abort();
 	init_keyboard();
 	init_scheduler();
-	//preempt();
-	
 	for(;;)
 	{
 		asm volatile("hlt");

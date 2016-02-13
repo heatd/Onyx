@@ -20,8 +20,9 @@ limitations under the License.
 #include <drivers/ps2.h>
 extern void SendEventToKern(unsigned char keycode);
 // This took a while to make... Some keys still remain, but I don't need them right now
-void KeyboardHandler()
+void KeyboardHandler(unsigned int eip)
 {
+	(void)eip;
 	unsigned char status;
 	unsigned char keycode;
 	status = inb(PS2_STATUS);

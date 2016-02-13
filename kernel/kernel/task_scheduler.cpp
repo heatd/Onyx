@@ -19,52 +19,70 @@ limitations under the License.
 #include <kernel/compiler.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <kernel/mm.h>
+#include <string.h>
 task_t* last_task = NULL;
 extern "C" void jump_userspace();
-extern "C" void switch_task(registers_mt_t* oldr, registers_mt_t* newr);
-static task_t*running_task;
-static task_t main_task;
-static task_t other_task;
-void createTask(task_t* task, void (*main)(), uint32_t flags, uint32_t* pagedir);
-static void other_main()
+extern "C" void switch_task(uint32_t,registers_mt_t* oldr, registers_mt_t* newr);
+static task_t* running_task;
+static task_t* main_task;
+void CreateTask(task_t* task, void (*main)(), uint32_t flags, uint32_t* pagedir);
+static void new_main()
 {
-    printf("Hello multitasking world!"); // Not implemented here...
-    jump_userspace();
-    asm volatile("cli/hlt");
-    preempt();
+	printf("Hello cool ass multitasking world\n");
+	asm volatile("cli \t\n hlt");
 }
- 
+static uint32_t placement = 0x90000000;
 void init_scheduler()
 {
-    // Get EFLAGS and CR3
-    asm volatile("movl %%cr3, %%eax; movl %%eax, %0;":"=m"(main_task.regs.cr3)::"%eax");
-    asm volatile("pushfl; movl (%%esp), %%eax; movl %%eax, %0; popfl;":"=m"(main_task.regs.eflags)::"%eax");
- 
-    createTask(&other_task, other_main, main_task.regs.eflags, (uint32_t*)main_task.regs.cr3);
-    main_task.next = &other_task;
-    other_task.next = &main_task;
- 
-    running_task = &main_task;
+	main_task = (task_t*)kmalloc(sizeof(task_t));
+	memset(main_task,0,sizeof(task_t));
+	// Get EFLAGS and CR3
+	asm volatile("movl %%cr3, %%eax; movl %%eax, %0;":"=m"(main_task->regs.cr3)::"%eax");
+	
+	asm volatile("pushfl; movl (%%esp), %%eax; movl %%eax, %0; popfl;":"=m"(main_task->regs.eflags)::"%eax");
+	
+	kmmap(placement,1024);
+	
+	running_task = main_task;
+	
+	task_t* new_task = new task_t;
+	
+	CreateTask(new_task,new_main,main_task->regs.eflags,(uint32_t*)main_task->regs.cr3);
 }
- 
-void createTask(task_t* task, void (*main)(), uint32_t flags, uint32_t* pagedir) 
+void CreateTask(task_t* task, void (*main)(), uint32_t flags, uint32_t* pagedir) 
 {
-	task->regs.eax = 0;
-	task->regs.ebx = 0;
-	task->regs.ecx = 0;
-	task->regs.edx = 0;
-	task->regs.esi = 0;
-	task->regs.edi = 0;
+	task->regs.eax = 0xDEADBEEF;
+	task->regs.ebx = 0xDEADBEEF;
+	task->regs.ecx = 0xDEADBEEF;
+	task->regs.edx = 0xDEADBEEF;
+	task->regs.esi = 0xDEADBEEF;
+	task->regs.edi = 0xDEADBEEF;
 	task->regs.eflags = flags;
 	task->regs.eip = (uint32_t) main;
 	task->regs.cr3 = (uint32_t) pagedir;
-	task->regs.esp = (uint32_t) 0;
+	task->regs.esp = (uint32_t) kmalloc(sizeof(4096));
+	if(task->regs.esp == NULL)
+		abort();//How did this even happen???
 	task->next = NULL;
+	placement += 4096 * 2;
+	task_t* placement_task = running_task;
+	if(running_task!=NULL){
+		while(placement_task->next != nullptr){
+			placement_task= placement_task->next;
+		}
+		placement_task->next = task;
+	}
 }
  
-void preempt()
-{
-	task_t* last = running_task;
-	running_task = running_task->next;
-	switch_task(&last->regs, &running_task->regs);
+void preempt(uint32_t past_eip)
+{	if(running_task->next != nullptr){
+		task_t* last = running_task;
+		running_task = running_task->next;
+		printf("0x%X\n",&running_task->regs);
+		printf("0x%X\n",&last->regs);
+		switch_task(past_eip,&last->regs, &running_task->regs);
+	}
+	else
+		return;
 }

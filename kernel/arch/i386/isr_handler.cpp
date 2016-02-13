@@ -99,13 +99,6 @@ extern "C" void isr_handler(uint32_t ds,uint32_t int_no,uint32_t err_code)
  			printf("user mode");
  		else
  			printf("kernel-mode\n");
-
-		int i =(int) __builtin_frame_address(1);
-		if(i==0)
-			printf("0x%x",(unsigned int)__builtin_return_address(1));
-		i = (int) __builtin_frame_address(2);
-		if(i==0)
-			printf("0x%x",(unsigned int)__builtin_return_address(2));
 		while(1);
 		break;
 	}
