@@ -8,4 +8,4 @@ The bootloader (Grub 2 by default) calls the kernel entry point `loader()`.`load
 ## Semi-stable state
 After `KernelEarly()` returns, `_start()` calls `_init()`( Basically it initializes the global constructors ). After that, it calls `KernelMain()`, which initializes some less crucial parts of the kernel ( although still very important ). After that, it initializes the task scheduler and jumps to the stable kernel state.
 ## Stable kernel state
-When the stable kernel state is initiated, everything should be initialzed, and the kernel should have the harddisk mounted ( or the initrd ). It then enters userspace.
+When the stable kernel state is initiated, `KernelMain()` calls `KernelUserspace` everything should be initialzed, and the kernel should have the harddisk mounted ( or the initrd ). It then enters userspace.
