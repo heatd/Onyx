@@ -45,6 +45,7 @@ kernel/initrd.o \
 kernel/input_manager.o \
 kernel/scheduler.o \
 kernel/cxxabi.o \
+kernel/kthread.o \
 
 CRTI_OBJ:=$(ARCHDIR)/crti.o
 CRTBEGIN_OBJ:=$(shell $(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=crtbegin.o)

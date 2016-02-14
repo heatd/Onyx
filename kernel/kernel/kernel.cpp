@@ -49,6 +49,7 @@ typedef multiboot_tag multiboot_info_t;
 #include <kernel/scheduler.h>
 #include <kernel/kheap.h>
 #include <kernel/panic.h>
+#include <kernel/kthread.h>
 #include <drivers/serial.h>
 #include <drivers/ps2.h>
 #include <kernel/mm.h>
@@ -129,10 +130,8 @@ extern "C" void KernelMain()
 	
 	InitKeyboard();
 	
-	Task_t* main_task = new Task_t;
-	
-	CreateTask(main_task,KernelUserspace);
-	
+	KThread* main = CreateThread(KernelUserspace);
+	main->Start();
 	// Enable interrupts
 	asm volatile("sti");
 	for(;;)

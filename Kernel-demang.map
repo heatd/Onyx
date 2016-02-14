@@ -1,4 +1,4 @@
-80102e90 T abort
+80102fb0 T abort
 80106118 D bchars
 80105000 d BootPageDirectory
 e4524ffb a CHECKSUM
@@ -12,7 +12,7 @@ e4524ffb a CHECKSUM
 8010286a T __cxa_pure_virtual
          w __deregister_frame_info
 80100010 t deregister_tm_clones
-80102880 t __do_global_ctors_aux
+801029a0 t __do_global_ctors_aux
 80100080 t __do_global_dtors_aux
 80104000 D __dso_handle
 80106138 D __DTOR_END__
@@ -23,10 +23,10 @@ e4524ffb a CHECKSUM
 8010188e T enablePaging
 80107b60 B end
 80106000 d ErrorMSG
-80103004 T _fini
+80103124 T _fini
 00000003 a FLAGS
 80100100 t frame_dummy
-00200be4 r __FRAME_END__
+00200cb0 r __FRAME_END__
 80106ad4 B fs_root
 80100e10 T GDT_Flush
 80100e2c t GDT_Flush.flush
@@ -34,7 +34,7 @@ e4524ffb a CHECKSUM
 80106240 B idt_entries
 80100e2d T IDT_Flush
 80106a40 B idt_ptr
-80102ff5 T _init
+80103115 T _init
 801001af T Init
 801011d0 T init_sse
 801011f8 t init_sse.noSSE
@@ -111,27 +111,27 @@ e4524ffb a CHECKSUM
 1badb002 a MAGIC
 00000001 a MBALIGN
 00000002 a MEMINFO
-80102ea0 T memset
+80102fc0 T memset
 80106024 d msg
 80106148 b object.3869
-801029a0 T printf
-80102e30 T putchar
-80102e70 T puts
+80102ac0 T printf
+80102f50 T putchar
+80102f90 T puts
 801001f7 T Read
          w __register_frame_info
 80100040 t register_tm_clones
 80106140 B _sbss
 80106034 D skull
 80107b60 b stack_bottom
-80102ef0 T __stack_chk_fail
+80103010 T __stack_chk_fail
 80106128 D __stack_chk_guard
 8010bb60 b stack_top
 80100260 T _start
 8010027d t _start.hang
-80102f80 T strcat
-80102f30 T strcmp
-80102f00 T strcpy
-80102ed0 T strlen
+801030a0 T strcat
+80103050 T strcmp
+80103020 T strcpy
+80102ff0 T strlen
 80102822 T SwitchTask
 80101420 T syscall
 8010100d T _syscall
@@ -151,9 +151,11 @@ e4524ffb a CHECKSUM
 8010219e T finddir_fs(fs_node*, char*)
 80101812 T map_kernel()
 80102171 T readdir_fs(fs_node*, unsigned long)
+8010287a T CreateThread(void (*)())
 8010016f T InitKeyboard()
 80101f7d T k_heapBMFree(_KHEAPBM*, void*)
 80101d50 T k_heapBMInit(_KHEAPBM*)
+801028fd T DestroyThread(KThread*)
 80101526 T get_directory()
 80101dd2 T k_heapBMAlloc(_KHEAPBM*, unsigned long)
 80102802 T TerminateTask(task*)
@@ -169,12 +171,12 @@ e4524ffb a CHECKSUM
 801001a2 T is_transmit_empty()
 801002cf T terminal_putentryat(char, unsigned char, unsigned long, unsigned long)
 80100d87 T idt_create_descriptor(unsigned char, unsigned long, unsigned short, unsigned char)
-801036d8 T halt()
-80102960 T itoa(unsigned int, unsigned int, char*, bool)
-801028c0 t itoa(unsigned int, unsigned int, char*, bool) [clone .part.0]
+801037f8 T halt()
+80102a80 T itoa(unsigned int, unsigned int, char*, bool)
+801029e0 t itoa(unsigned int, unsigned int, char*, bool) [clone .part.0]
 801020ca T kfree(void*)
 801015f7 T kmmap(unsigned long, unsigned long)
-801036dc T panic(char const*)
+801037fc T panic(char const*)
 80101d28 T pfree(unsigned long, void*)
 801017fc T vfree(void*, unsigned long)
 801020e9 T ksleep(long long)
@@ -194,14 +196,15 @@ e4524ffb a CHECKSUM
 80102136 T write_fs(fs_node*, unsigned long, unsigned long, void*)
 80100ded T init_arch()
 801018c7 T sys_yield()
-80102ff0 T operator delete[](void*)
-80102fe0 T operator delete(void*)
+80103110 T operator delete[](void*)
+80103100 T operator delete(void*)
 80107b2c b first_task
 80106ac4 b last_entry
 80107b28 b CurrentTask
 80106ab8 b initrd_addr
 80106ab4 b initrd_root
 80106aa0 b timer_ticks
+80107b30 b assignable_id
 80106ac8 b pmm_memory_size
 80106a48 b faulting_address
 80107b20 b is_shift_pressed
@@ -232,8 +235,8 @@ e4524ffb a CHECKSUM
 80100332 T TTY::PutChar(char)
 801002c4 T TTY::SetColor(unsigned char)
 8010152c T VMM::Init()
-80101bfb T Timer::GetTickCount()
-80101bf6 T Timer::Init(unsigned long)
+80101bf3 T Timer::GetTickCount()
+80101bee T Timer::Init(unsigned long)
 801024c1 T Initrd::Init(unsigned long)
 80102456 T Initrd::Parse(unsigned long)
 80106ae0 B Initrd::dirent
@@ -245,6 +248,11 @@ e4524ffb a CHECKSUM
 80106b80 b Initrd::headers
 80106b6c b Initrd::root_fs
 80106b64 b Initrd::NUM_FILES
-80102fd0 T operator new[](unsigned long)
-80102fc0 T operator new(unsigned long)
+8010294e T KThread::GetEntryPoint()
+8010293e T KThread::IsThreadRunning()
+80102946 T KThread::GetID()
+80102956 T KThread::Start()
+80102978 T KThread::Terminate()
+801030f0 T operator new[](unsigned long)
+801030e0 T operator new(unsigned long)
 80106ab0 b KernelEarly::i
