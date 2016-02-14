@@ -14,16 +14,15 @@ limitations under the License.
 */
 #include <stdint.h>
 #include <kernel/compiler.h>
-typedef struct {
-    uint32_t eax, ebx, ecx, edx, esi, edi, esp, ebp, eip, eflags, cr3;
-} __attribute__((packed))registers_mt_t;
-typedef struct task
+#include <kernel/registers.h>
+typedef struct thread
 {
-	registers_mt_t regs;
-	struct task* next;
+	bool is_kernel;
+	registers_t regs;
+	struct thread* next;
 	
-}task_t;
+}Thread_t;
 void init_scheduler();
-void create_task(task_t* task);
-void preempt(uint32_t);
+void CreateTask(int id,void (*thread)());
+void preempt(unsigned int);
 //ARCH_SPECIFIC void switch_task(registers_mt_t* old,registers_mt_t* new);

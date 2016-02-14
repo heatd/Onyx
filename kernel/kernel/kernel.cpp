@@ -45,7 +45,7 @@ typedef multiboot_tag multiboot_info_t;
 #include <kernel/fs.h>
 #include <kernel/vga.h>
 #include <kernel/registers.h>
-#include <kernel/task_scheduler.h>
+#include <kernel/scheduler.h>
 #include <kernel/kheap.h>
 #include <kernel/panic.h>
 #include <drivers/ps2.h>
@@ -105,11 +105,30 @@ extern "C" void KernelEarly(multiboot_info_t* info, size_t magic)
 	multiboot_module_t* mod_start_ptr = (multiboot_module_t*)mbt->mods_addr;
 	initrd_addr = mod_start_ptr->mod_start;
 }
+void KernelSleep()
+{
+	printf("sleeping");
+	for(;;)
+	{
+		asm volatile("hlt");
+	}
+}
+void ThreadTest0()
+{
+	printf("Going to sleep now!\n");
+	for(;;)
+	{
+		asm volatile("hlt");
+	}
+}
+void ThreadTest1()
+{
+	printf("Working\n");
+	while(1);
+}
 extern "C" void KernelMain()
 {
 	puts("Spartix kernel 0.1");
-	// Enable interrupts
-	asm volatile("sti");
 	// Initialize the timer
 	Timer::Init(1000);
 	TERM_OK("Initialized the Timer");
@@ -126,7 +145,12 @@ extern "C" void KernelMain()
 	if(!node)
 		abort();
 	init_keyboard();
-	init_scheduler();
+	CreateTask(0,ThreadTest0);
+	CreateTask(1,ThreadTest1);
+	// Enable interrupts
+	asm volatile("sti");
+	ksleep(1000);
+	printf("Multitasking works like a breeze man \n");
 	for(;;)
 	{
 		asm volatile("hlt");

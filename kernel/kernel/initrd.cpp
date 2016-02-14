@@ -96,19 +96,19 @@ static fs_node_t* tar_finddir(fs_node_t* node,char* name)
 {
 	if(node->flags == FS_ROOT){
 		
-		for(int i = 0;i < NUM_FILES;i++){
+		for(unsigned int i = 0;i < NUM_FILES;i++){
 			if(strcmp(name,nodes[i].name)==0){
 				return &nodes[i];
 			}
 		}
 	}else{
-		for(int i = 0;i < NUM_FILES;i++){
+		for(unsigned int i = 0;i < NUM_FILES;i++){
 			if(strcmp(strcat(node->name,name),nodes[i].name)==0){
 				return &nodes[i];
 			}
 		}
 	}
-	return NULL;
+	return nullptr;
 }
 
 fs_node_t* Init(uint32_t addr)

@@ -15,7 +15,7 @@ limitations under the License.
 #ifndef REGISTERS_H
 #define REGISTERS_H
 #include <stdint.h>
-#ifdef AMD64
+#ifdef __x86_64__
 
 typedef struct registers
 {
@@ -26,7 +26,7 @@ typedef struct registers
 
 typedef struct registers
 {
-   uint32_t eax,ebx,ecx,edx,edi,esi,esp,ebp,eip,eflags;
+   uint32_t eax,ebx,ecx,edx,edi,esi,esp,ebp,eip,eflags,cr3;
    uint16_t ss,cs;
 } __attribute__((packed)) registers_t;
 

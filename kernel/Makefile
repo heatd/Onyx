@@ -12,7 +12,7 @@ EXEC_PREFIX?=$(PREFIX)
 BOOTDIR?=$(EXEC_PREFIX)/boot
 INCLUDEDIR?=$(PREFIX)/include
 
-CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-strong -fno-exceptions -fno-rtti
+CFLAGS:=$(CFLAGS) -mtune=pentium4 -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-strong -fno-exceptions -fno-rtti
 CPPFLAGS:=$(CPPFLAGS) -D__is_spartix_kernel -Iinclude
 LDFLAGS:=$(LDFLAGS)
 LIBS:=$(LIBS) -nostdlib -lk -lgcc
@@ -42,7 +42,7 @@ kernel/sleep.o \
 kernel/fs.o \
 kernel/initrd.o \
 kernel/input_manager.o \
-kernel/task_scheduler.o \
+kernel/scheduler.o \
 kernel/cxxabi.o \
 
 CRTI_OBJ:=$(ARCHDIR)/crti.o

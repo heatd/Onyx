@@ -27,10 +27,22 @@ limitations under the License.
  * 
  * 
  **************************************************************************/
+const char* skull = " _,,,,,,,_\n\
+          ,88888888888,\n\
+        ,888\'       \`888,\n\
+        888\' 0     0 \`888\n\
+       888      0      888\n\
+       888             888\n\
+       888    ,000,    888\n\
+        888, 0     0 ,888\n\
+        \'888,       ,888\'\n\
+          \'8JGS8888888\'\n\
+            \`\`\`\`\`\`\`\`\n";
 __attribute__ ((noreturn,cold,noinline))
 void panic(const char* msg)
 {
-	printf("\npanic: %s\n",msg);
+	printf("%s",skull);
+	printf("panic: %s\n",msg);
 	registers_t ctx;
 	get_thread_ctx(&ctx);
 	printf("Thread context: \n");

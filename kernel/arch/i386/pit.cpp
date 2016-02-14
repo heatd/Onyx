@@ -30,21 +30,12 @@ limitations under the License.
 #include <stdint.h>
 #include <kernel/compiler.h>
 #include <stdio.h>
-#include <kernel/task_scheduler.h>
+#include <kernel/scheduler.h>
 static uint64_t timer_ticks = NULL;
 extern void halt();
 static uint64_t scheduler_last_time;
-void timer_handler(unsigned int eip)
+extern "C" void timer_handler()
 {
-	(void)eip;
-	if(scheduler_last_time == NULL)
-		scheduler_last_time = timer_ticks;
-	if(timer_ticks - 2 == scheduler_last_time){
-		printf("EIP:0x%x\n",eip);
-		printf("Preempting\n");
-		preempt(eip);
-		scheduler_last_time = timer_ticks;
-	}
 	timer_ticks++;
 }
 namespace PIT

@@ -43,11 +43,10 @@ void UninstallHandler(int irq)
 	irq_routines[irq] = NULL;
 }
 };
-extern "C" void irq_handler(uint32_t irqn,unsigned int eip)
+extern "C" void irq_handler(uint32_t irqn)
 {
 	irq_t handler = irq_routines[irqn - 32];
-	if(handler)
-		handler(eip);
-	
 	PIC::SendEOI(irqn - 32);
+	if(handler)
+		handler();
 }

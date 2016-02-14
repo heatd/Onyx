@@ -102,7 +102,33 @@ ISR_NOERRCODE 28
 ISR_NOERRCODE 29
 ISR_NOERRCODE 30
 ISR_NOERRCODE 31
-IRQ 0,32
+global irq0
+irq0:
+	pusha
+	push ds
+	push es
+	push fs
+	push gs
+	mov eax,10h
+	mov ds,eax
+	mov es,eax
+	mov fs,eax
+	mov gs,eax
+	
+	push esp
+	extern SwitchTask
+	extern timer_handler
+	call SwitchTask
+	call timer_handler
+	mov esp,eax
+	mov al,20h
+	out 20h,al
+	pop gs
+	pop fs
+	pop es
+	pop ds
+	popa
+	iret
 IRQ 1,33
 IRQ 2,34
 IRQ 3,35

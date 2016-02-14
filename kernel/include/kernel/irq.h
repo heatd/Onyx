@@ -14,7 +14,7 @@ limitations under the License.
 */
 #ifndef IRQ_H
 #define IRQ_H
-typedef void(*irq_t)(unsigned int);
+typedef void(*irq_t)();
 namespace IRQ
 {
 void InstallHandler(int irq, irq_t handler);
