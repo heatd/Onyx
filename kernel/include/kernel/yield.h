@@ -12,14 +12,9 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#include <stdint.h>
-#include <kernel/compiler.h>
-#include <kernel/registers.h>
-typedef struct task
-{
-	bool is_kernel;
-	registers_t regs;
-	struct task* next;
-	
-}Task_t;
-void CreateTask(Task_t*,void (*thread)());
+#ifndef YIELD_H
+#define YIELD_H
+
+void sys_yield();
+
+#endif // YIELD_H

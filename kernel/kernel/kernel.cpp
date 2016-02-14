@@ -28,6 +28,7 @@ limitations under the License.
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
+#include <kernel/yield.h>
 #ifdef __x86_64__
 #include <multiboot2.h>
 typedef multiboot_tag multiboot_info_t;
@@ -115,11 +116,8 @@ void KernelSleep()
 }
 void ThreadTest0()
 {
-	printf("Going to sleep now!\n");
-	for(;;)
-	{
-		asm volatile("hlt");
-	}
+	printf("Going to yield()\n");
+	sys_yield();
 }
 void ThreadTest1()
 {
@@ -145,12 +143,12 @@ extern "C" void KernelMain()
 	if(!node)
 		abort();
 	init_keyboard();
-	CreateTask(0,ThreadTest0);
-	CreateTask(1,ThreadTest1);
+	Task_t* tsk = new Task_t;
+	Task_t* tsk2 = new Task_t;
+	CreateTask(tsk,ThreadTest0);
+	CreateTask(tsk2,ThreadTest1);
 	// Enable interrupts
 	asm volatile("sti");
-	ksleep(1000);
-	printf("Multitasking works like a breeze man \n");
 	for(;;)
 	{
 		asm volatile("hlt");

@@ -12,14 +12,13 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#include <stdint.h>
-#include <kernel/compiler.h>
-#include <kernel/registers.h>
-typedef struct task
+#include <kernel/yield.h>
+#include <kernel/idt.h>
+bool is_yielding;
+/* This System Call is very simple, it yields the control to another task, by doing the IRQ0*/
+//IS NOT WORKING
+void sys_yield()
 {
-	bool is_kernel;
-	registers_t regs;
-	struct task* next;
-	
-}Task_t;
-void CreateTask(Task_t*,void (*thread)());
+	is_yielding = true;
+	irq0();
+}

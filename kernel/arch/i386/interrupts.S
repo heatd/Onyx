@@ -114,7 +114,6 @@ irq0:
 	mov es,eax
 	mov fs,eax
 	mov gs,eax
-	
 	push esp
 	extern SwitchTask
 	extern timer_handler

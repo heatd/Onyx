@@ -21,19 +21,18 @@ limitations under the License.
 #include <stdlib.h>
 #include <kernel/mm.h>
 #include <string.h>
-Thread_t* last_thread = nullptr;
+Task_t* last_thread = nullptr;
 extern "C" void jump_userspace();
-extern "C" void switch_task(unsigned int eip,registers_t* oldr, registers_t* newr);
-static Thread_t threads[2];
-int CurrentTask = -1;
+static Task_t* first_task;
+static Task_t* CurrentTask = nullptr;
 void CreateTask(int id,void (*thread)());
 
-void CreateTask(int id,void (*thread)()) 
+void CreateTask(Task_t* task,void (*thread)()) 
 {
 	unsigned int* stack;
 	
-	threads[id].regs.esp = (uint32_t)kmalloc(4096) + 4096;
-	stack = (unsigned int*)threads[id].regs.esp;
+	task->regs.esp = (uint32_t)kmalloc(4096) + 4096;
+	stack = (unsigned int*)task->regs.esp;
 	//First, this stuff is pushed by the processor
 	*--stack = 0x0202; //This is EFLAGS
 	*--stack = 0x08;   //This is CS, our code segment
@@ -54,18 +53,27 @@ void CreateTask(int id,void (*thread)())
 	*--stack = 0x10; //ES
 	*--stack = 0x10; //FS
 	*--stack = 0x10; //GS
-	threads[id].regs.esp = (uint32_t)stack;
+	task->regs.esp = (uint32_t)stack;
+	task->next = nullptr;
+	if(!first_task){
+		first_task = task;
+		task->next = first_task;
+	}else{
+		Task_t* new_task = first_task;
+		task->next = first_task;
+		while(new_task->next != first_task)
+		{
+			new_task = new_task->next;
+		}
+		new_task->next = task;
+	}
 }
 extern "C" unsigned int SwitchTask(unsigned int OldEsp){
-	if(CurrentTask != -1){ //Were we even running a task?
-		threads[CurrentTask].regs.esp = OldEsp; //Save the new esp for the thread
-  
-	//Now switch what task we're on
-	if(CurrentTask == 0)CurrentTask = 1;
-		else CurrentTask = 0;	
+	if(CurrentTask != nullptr){ //Were we even running a task?
+		CurrentTask->regs.esp = OldEsp; //Save the new esp for the thread
+		CurrentTask = CurrentTask->next;
 	} else{
-		CurrentTask = 0; //We just started multi-tasking, start with task 0
+		CurrentTask = first_task; //We just started multi-tasking, start with task 0
 	}
- 
-	return threads[CurrentTask].regs.esp; //Return new stack pointer to ASM
+	return CurrentTask->regs.esp; //Return new stack pointer to ASM
 }

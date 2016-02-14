@@ -27,6 +27,7 @@ limitations under the License.
 #include <kernel/registers.h>
 #include <kernel/panic.h>
 #include <kernel/tty.h>
+#include <kernel/yield.h>
 #include <stdlib.h>
 #include <kernel/kheap.h>
 extern "C" void syscall()
@@ -41,6 +42,8 @@ extern "C" void syscall()
 	switch(eax){
 		case 0:
 			TTY::WriteString((const char*)ebx);
+		case 2:
+			sys_yield();
 		default:
 			break;
 	}
