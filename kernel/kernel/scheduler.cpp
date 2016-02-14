@@ -68,6 +68,18 @@ void CreateTask(Task_t* task,void (*thread)())
 		new_task->next = task;
 	}
 }
+void TerminateTask(Task_t* task)
+{
+	if(task != nullptr)
+	{
+		Task_t* search_task = first_task;
+		while(search_task->next != task)
+		{
+			search_task = search_task->next;
+		}
+		search_task->next = task->next;
+	}
+}
 extern "C" unsigned int SwitchTask(unsigned int OldEsp){
 	if(CurrentTask != nullptr){ //Were we even running a task?
 		CurrentTask->regs.esp = OldEsp; //Save the new esp for the thread

@@ -23,3 +23,4 @@ typedef struct task
 	
 }Task_t;
 void CreateTask(Task_t*,void (*thread)());
+void TerminateTask(Task_t*);

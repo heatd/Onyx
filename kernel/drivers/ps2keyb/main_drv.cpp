@@ -31,7 +31,7 @@ void KeyboardHandler()
 		SendEventToKern(keycode);
 	}
 }
-int init_keyboard()
+int InitKeyboard()
 {
 	irq_t handler = &KeyboardHandler;
 	PIC::UnmaskIRQ(1);

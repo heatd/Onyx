@@ -66,11 +66,12 @@ typedef multiboot_tag multiboot_info_t;
 ARCH_SPECIFIC void init_arch();
 ARCH_SPECIFIC void init_vmm();
 extern "C" void jump_userspace();
-ARCH_SPECIFIC void init_keyboard();
+ARCH_SPECIFIC void InitKeyboard();
 static multiboot_info_t* mbt;
 static multiboot_memory_map_t*  mmap_arr[10];
 static uint32_t initrd_addr;
 extern uint32_t end;
+static fs_node_t* initrd_root;
 extern "C" void KernelEarly(multiboot_info_t* info, size_t magic)
 {
 	TTY::Init();
@@ -107,13 +108,6 @@ extern "C" void KernelEarly(multiboot_info_t* info, size_t magic)
 	multiboot_module_t* mod_start_ptr = (multiboot_module_t*)mbt->mods_addr;
 	initrd_addr = mod_start_ptr->mod_start;
 }
-void KernelSleep()
-{
-	for(;;)
-	{
-		asm volatile("hlt");
-	}
-}
 void KernelUserspace();
 extern "C" void KernelMain()
 {
@@ -128,21 +122,12 @@ extern "C" void KernelMain()
 	InitHeap();
 	TERM_OK("Initialized the Kernel Heap");
 	
-	fs_node_t* initrd_root = Initrd::Init(initrd_addr);
+	initrd_root = Initrd::Init(initrd_addr);
 	
 	if(!initrd_root)
 		abort();
 	
-	fs_node_t* node = finddir_fs(initrd_root,(char*)"boot/Kernel.map");
-	
-	if(!node)
-		abort();
-	
-	init_keyboard();
-	
-	Task_t* tsk = new Task_t;
-	
-	CreateTask(tsk,KernelSleep);
+	InitKeyboard();
 	
 	Task_t* main_task = new Task_t;
 	
@@ -161,7 +146,13 @@ void KernelUserspace()
 	Serial::Init();
 	
 	Serial::WriteString("[OK] Serial driver initialized");
+	
 	TERM_OK("Serial driver initialized");
+	
+	fs_node_t* node = finddir_fs(initrd_root,(char*)"boot/Kernel.map");
+	
+	if(!node)
+		abort();
 	for(;;)
 	{
 		asm volatile("hlt");
