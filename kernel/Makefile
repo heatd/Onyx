@@ -26,7 +26,8 @@ CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS)
 LDFLAGS:=$(LDFLAGS) $(KERNEL_ARCH_LDFLAGS)
 LIBS:=$(LIBS) $(KERNEL_ARCH_LIBS)
 
-DRIVERS:=drivers/ps2keyb
+DRIVERS:=drivers/ps2keyb \
+	 drivers/serial \
 
 include drivers/make.config
 
@@ -83,7 +84,7 @@ install: install-headers install-kernel
 install-headers:
 	mkdir -p $(DESTDIR)$(INCLUDEDIR)
 	cp -RTv include $(DESTDIR)$(INCLUDEDIR)
-	cp -RTv drivers/*/include $(DESTDIR)$(INCLUDEDIR)/drivers
+	cp -RTv drivers/include $(DESTDIR)$(INCLUDEDIR)/drivers
 
 install-kernel: vmspartix
 	mkdir -p $(DESTDIR)$(BOOTDIR)

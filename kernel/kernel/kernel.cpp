@@ -49,6 +49,7 @@ typedef multiboot_tag multiboot_info_t;
 #include <kernel/scheduler.h>
 #include <kernel/kheap.h>
 #include <kernel/panic.h>
+#include <drivers/serial.h>
 #include <drivers/ps2.h>
 #include <kernel/mm.h>
 /* Function: init_arch()
@@ -108,22 +109,12 @@ extern "C" void KernelEarly(multiboot_info_t* info, size_t magic)
 }
 void KernelSleep()
 {
-	printf("sleeping");
 	for(;;)
 	{
 		asm volatile("hlt");
 	}
 }
-void ThreadTest0()
-{
-	printf("Going to yield()\n");
-	sys_yield();
-}
-void ThreadTest1()
-{
-	printf("Working\n");
-	while(1);
-}
+void KernelUserspace();
 extern "C" void KernelMain()
 {
 	puts("Spartix kernel 0.1");
@@ -136,21 +127,44 @@ extern "C" void KernelMain()
 	// Initialize the kernel heap
 	InitHeap();
 	TERM_OK("Initialized the Kernel Heap");
+	
 	fs_node_t* initrd_root = Initrd::Init(initrd_addr);
+	
 	if(!initrd_root)
 		abort();
+	
 	fs_node_t* node = finddir_fs(initrd_root,(char*)"boot/Kernel.map");
+	
 	if(!node)
 		abort();
+	
 	init_keyboard();
+	
 	Task_t* tsk = new Task_t;
-	Task_t* tsk2 = new Task_t;
-	CreateTask(tsk,ThreadTest0);
-	CreateTask(tsk2,ThreadTest1);
+	
+	CreateTask(tsk,KernelSleep);
+	
+	Task_t* main_task = new Task_t;
+	
+	CreateTask(main_task,KernelUserspace);
+	
 	// Enable interrupts
 	asm volatile("sti");
 	for(;;)
 	{
 		asm volatile("hlt");
 	}
+}
+void KernelUserspace()
+{
+	// Initialize less important drivers
+	Serial::Init();
+	
+	Serial::WriteString("Serial Initialized");
+	TERM_OK("Serial driver initialized");
+	for(;;)
+	{
+		asm volatile("hlt");
+	}
+	
 }
