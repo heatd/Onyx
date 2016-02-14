@@ -37,7 +37,7 @@ const char* skull = " _,,,,,,,_\n\
         888, 0     0 ,888\n\
         \'888,       ,888\'\n\
           \'8JGS8888888\'\n\
-            \`\`\`\`\`\`\`\`\n";
+            \\`\\`\\`\\`\\`\\`\\`\\`\n";
 __attribute__ ((noreturn,cold,noinline))
 void panic(const char* msg)
 {

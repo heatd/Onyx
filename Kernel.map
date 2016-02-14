@@ -171,12 +171,12 @@ e4524ffb a CHECKSUM
 801001a2 T _Z17is_transmit_emptyv
 801002cf T _Z19terminal_putentryatchmm
 80100d87 T _Z21idt_create_descriptorhmth
-801037f8 T _Z4haltv
+80103800 T _Z4haltv
 80102a80 T _Z4itoajjPcb
 801029e0 t _Z4itoajjPcb.part.0
 801020ca T _Z5kfreePv
 801015f7 T _Z5kmmapmm
-801037fc T _Z5panicPKc
+80103804 T _Z5panicPKc
 80101d28 T _Z5pfreemPv
 801017fc T _Z5vfreePvm
 801020e9 T _Z6ksleepx
