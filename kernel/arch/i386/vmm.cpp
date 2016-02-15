@@ -159,6 +159,7 @@ void* kmmap(uint32_t virt, DWORD npages)
 		pt = (VMM::ptable*)pmalloc(1);
 		if(pt == nullptr)
 			panic("No free blocks");
+		kmmap((uint32_t)pt,1024);
 		memset(pt, 0, sizeof(VMM::ptable));
 		pd_entry_set_bit(entry, _PDE_PRESENT);
 		pd_entry_set_bit(entry, _PDE_WRITABLE);

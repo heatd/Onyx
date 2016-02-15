@@ -14,11 +14,20 @@ limitations under the License.
 */
 #include <kernel/yield.h>
 #include <kernel/idt.h>
+#include <kernel/scheduler.h>
 bool is_yielding;
 /* This System Call is very simple, it yields the control to another task, by doing the IRQ0*/
 //IS NOT WORKING
 void sys_yield()
 {
 	is_yielding = true;
-	irq0();
+	unsigned int esp;
+	asm volatile("movl %%esp,%0":"=r"(esp));
+	esp = SwitchTask(esp);
+	asm volatile("movl %%esp,%0":"=r"(esp));
+	asm volatile("popa");
+	asm volatile("cli\t\nhlt");
+	asm volatile("iret");
+	
 }
+

@@ -144,7 +144,6 @@ void KernelUserspace()
 {
 	// Initialize less important drivers
 	Serial::Init();
-	
 	Serial::WriteString("[OK] Serial driver initialized");
 	
 	TERM_OK("Serial driver initialized");

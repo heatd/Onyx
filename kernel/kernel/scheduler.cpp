@@ -31,7 +31,9 @@ void CreateTask(Task_t* task,void (*thread)())
 {
 	unsigned int* stack;
 	
-	task->regs.esp = (uint32_t)kmalloc(4096) + 4096;
+	task->regs.esp = (uint32_t)vmalloc(2) + 8192;
+	if(!task->regs.esp)
+		abort();
 	stack = (unsigned int*)task->regs.esp;
 	//First, this stuff is pushed by the processor
 	*--stack = 0x0202; //This is EFLAGS
@@ -80,7 +82,8 @@ void TerminateTask(Task_t* task)
 		search_task->next = task->next;
 	}
 }
-extern "C" unsigned int SwitchTask(unsigned int OldEsp){
+extern "C" unsigned int SwitchTask(unsigned int OldEsp)
+{
 	if(CurrentTask != nullptr){ //Were we even running a task?
 		CurrentTask->regs.esp = OldEsp; //Save the new esp for the thread
 		CurrentTask = CurrentTask->next;
