@@ -30,6 +30,7 @@ limitations under the License.
 #include <kernel/yield.h>
 #include <stdlib.h>
 #include <kernel/kheap.h>
+#include <kernel/fd.h>
 extern "C" void syscall()
 {
 	uint32_t eax,ebx,ecx,edx,edi;
@@ -41,7 +42,9 @@ extern "C" void syscall()
 	
 	switch(eax){
 		case 0:
-			TTY::WriteString((const char*)ebx);
+			sys_write(ebx,(const void*)ecx,edx);
+		case 1:
+			sys_read(ebx,(const void*)ecx,edx);
 		case 2:
 			sys_yield();
 		default:

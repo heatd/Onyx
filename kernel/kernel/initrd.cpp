@@ -81,7 +81,7 @@ static struct dirent* tar_readdir(fs_node_t* node,uint32_t index)
 {		
 	
 	if(node == root_fs){
-		strcpy(dirent.name, "initrdfs\0");
+		strcpy(dirent.name, "/dev/initfs\0");
 		dirent.ino = 0;
 		return &dirent;
 	}
@@ -127,23 +127,25 @@ fs_node_t* Init(uint32_t addr)
 	root_fs = (fs_node_t*)kmalloc(sizeof(fs_node_t));
 	
 	if(!root_fs)
-		return root_fs;
+		panic("Not enough memory!");
 	memset(root_fs,0,sizeof(fs_node_t));
-	strcpy(root_fs->name,"initrdfs");
+	strcpy(root_fs->name,"/dev/initfs");
 	
 	root_fs->inode = 0;
 	root_fs->flags = FS_ROOT;
 	root_fs->readdir = &tar_readdir;
 	root_fs->finddir = &tar_finddir;
 	nodes = (fs_node_t*)kmalloc(sizeof(fs_node_t) * num_files);
+	if(!nodes)
+		panic("Not enough memory!");
 	
 	memset(nodes,0,sizeof(fs_node_t) * num_files);
 	
 	for(uint32_t i = 0;i < num_files;i++){
 		
 		fs_node_t* node = &nodes[i];
-		
-		strcpy(node->name,headers[i]->filename);
+		strcpy(node->name,"/");
+		strcpy(node->name + 1,headers[i]->filename);
 		
 		if(headers[i]->typeflag == TAR_TYPE_DIR)
 			node->flags = FS_DIRECTORY;

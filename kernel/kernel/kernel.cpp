@@ -42,6 +42,7 @@ typedef multiboot_tag multiboot_info_t;
 #include <kernel/timer.h>
 #include <kernel/pmm.h>
 #include <kernel/sleep.h>
+#include <kernel/fd.h>
 #include <kernel/initrd.h>
 #include <kernel/fs.h>
 #include <kernel/vga.h>
@@ -148,7 +149,7 @@ void KernelUserspace()
 	
 	TERM_OK("Serial driver initialized");
 	
-	fs_node_t* node = finddir_fs(initrd_root,(char*)"boot/Kernel.map");
+	fs_node_t* node = finddir_fs(initrd_root,(char*)"/boot/Kernel.map");
 	
 	if(!node)
 		abort();
@@ -156,5 +157,4 @@ void KernelUserspace()
 	{
 		asm volatile("hlt");
 	}
-	
 }
