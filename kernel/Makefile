@@ -12,18 +12,18 @@ EXEC_PREFIX?=$(PREFIX)
 BOOTDIR?=$(EXEC_PREFIX)/boot
 INCLUDEDIR?=$(PREFIX)/include
 
+include ../kversion.config
 CFLAGS:=$(CFLAGS) -mtune=pentium4 -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-strong -fno-exceptions -fno-rtti
-CPPFLAGS:=$(CPPFLAGS) -D__is_spartix_kernel -Iinclude
+CPPFLAGS:=$(CPPFLAGS) -D__is_spartix_kernel -Iinclude -DKERNEL_VERSION='"$(KERNEL_VERSION)"' -DKERNEL_BRANCH='"$(KERNEL_BRANCH)"'
 LDFLAGS:=$(LDFLAGS)
 LIBS:=$(LIBS) -nostdlib -lk -lgcc
 
 ARCHDIR:=arch/$(HOSTARCH)
 
 include $(ARCHDIR)/make.config
-
 CFLAGS:=$(CFLAGS) $(KERNEL_ARCH_CFLAGS)
 CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS)
-LDFLAGS:=$(LDFLAGS) $(KERNEL_ARCH_LDFLAGS)
+LDFLAGS:=$(LDFLAGS) $(KERNEL_ARCH_LDFLAGS) $(BUILD_NUMBER_LDFLAGS)
 LIBS:=$(LIBS) $(KERNEL_ARCH_LIBS)
 
 DRIVERS:=drivers/ps2keyb \
@@ -69,7 +69,7 @@ all: vmspartix
 
 .PHONY: all clean install install-headers install-kernel
 
-vmspartix: $(OBJ_LINK_LIST) $(ARCHDIR)/linker.ld
+vmspartix: BUILD $(OBJ_LINK_LIST) $(ARCHDIR)/linker.ld
 	$(CXX) -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(OBJ_LINK_LIST) $(LDFLAGS) $(LIBS)
 
 %.o: %.cpp

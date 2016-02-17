@@ -73,6 +73,7 @@ static multiboot_info_t* mbt;
 static multiboot_memory_map_t*  mmap_arr[10];
 static uint32_t initrd_addr;
 extern uint32_t end;
+extern char __BUILD_NUMBER;
 static fs_node_t* initrd_root;
 extern "C" void KernelEarly(multiboot_info_t* info, size_t magic)
 {
@@ -113,7 +114,7 @@ extern "C" void KernelEarly(multiboot_info_t* info, size_t magic)
 void KernelUserspace();
 extern "C" void KernelMain()
 {
-	puts("Spartix kernel 0.1");
+	printf("Spartix kernel %s branch %s build %d\n",KERNEL_VERSION,KERNEL_BRANCH,&__BUILD_NUMBER);
 	// Initialize the timer
 	Timer::Init(1000);
 	TERM_OK("Initialized the Timer");
