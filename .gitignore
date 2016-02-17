@@ -1,3 +1,5 @@
+*.map
+kernel/vmspartix
 *.iso
 isodir
 sysroot

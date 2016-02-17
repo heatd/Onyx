@@ -96,7 +96,6 @@ void VMM::Init()
 	{
 		pt_entry page=0;
 		pt_entry_set_bit(&page,_PTE_PRESENT);
-		pt_entry_set_bit(&page,_PTE_USER);
 		pt_entry_set_frame(&page, frame);
 
 		mb->entries [PAGE_TABLE_INDEX(virt)] = page;
@@ -105,7 +104,6 @@ void VMM::Init()
 	{
 		pt_entry page=0;
 		pt_entry_set_bit(&page,_PTE_PRESENT);
-		pt_entry_set_bit(&page,_PTE_USER);
 		pt_entry_set_frame(&page, frame);
 
 		table->entries [PAGE_TABLE_INDEX(virt)] = page;
@@ -115,13 +113,11 @@ void VMM::Init()
 	pd_entry* entry =&dir->entries [PAGE_DIRECTORY_INDEX (0x80000000)];
         pd_entry_set_bit (entry,_PDE_PRESENT);
         pd_entry_set_bit (entry,_PDE_WRITABLE);
-	pd_entry_set_bit (entry, _PDE_USER);
         table=(ptable*)0x3F0000;
         pd_entry_set_frame(entry,(uintptr_t)table);
 	pd_entry* entry2 = &dir->entries[PAGE_DIRECTORY_INDEX(0)];
 	pd_entry_set_bit(entry2,_PDE_PRESENT);
 	pd_entry_set_bit(entry2,_PDE_WRITABLE);
-	pd_entry_set_bit(entry2,_PTE_USER);
 	mb = (ptable*) 0x3F1000;
 	pd_entry_set_frame(entry2,(uintptr_t)mb);
 	pd_entry* entry3 = &dir->entries[PAGE_DIRECTORY_INDEX(0xFFC00000)];
@@ -202,7 +198,13 @@ void kmunmap(void* virt, DWORD npages)
 		free_page(page);
 		_flush_tlb_page(vaddr);
 	}
-
+	for(uint32_t i = 0;i < 1024;i++) //Optimization
+	{
+		if(pt_entry_is_present(pt->entries[i]))
+			break;
+		else if(i == 1024)
+			kmunmap((void*)pt,1);
+	}
 }
 void* vmalloc(DWORD npages)
 {

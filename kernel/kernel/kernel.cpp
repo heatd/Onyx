@@ -149,7 +149,6 @@ void KernelUserspace()
 	TERM_OK("Serial driver initialized");
 	
 	fs_node_t* node = finddir_fs(initrd_root,(char*)"/boot/Kernel.map");
-	
 	if(!node)
 		abort();
 	for(;;)
