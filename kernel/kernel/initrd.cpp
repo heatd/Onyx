@@ -23,7 +23,7 @@ limitations under the License.
 #include <stdlib.h>
 namespace Initrd
 {
-static tar_header_t* headers[1000];
+static tar_header_t* headers[100];
 static fs_node_t* root_fs;
 static fs_node_t* nodes;
 

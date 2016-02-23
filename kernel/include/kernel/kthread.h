@@ -12,9 +12,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#ifndef KTHREAD_H
-#define KTHREAD_H
-
+#pragma once
+#include <kernel/scheduler.h>
 typedef void (*KThread_Entry_point)();
 class KThread
 {
@@ -22,6 +21,7 @@ private:
 	bool is_running;
 public:
 	KThread_Entry_point thread_entry;
+	int (*MessageCallback)(unsigned int);
 	Task_t* thread_task;
 	int id;
 	bool IsThreadRunning();
@@ -32,6 +32,3 @@ public:
 };
 KThread* 	CreateThread(KThread_Entry_point);
 void 		DestroyThread(KThread*);
-
-
-#endif // KTHREAD_H

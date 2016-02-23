@@ -13,16 +13,23 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 #pragma once
-#include <stdint.h>
-#include <kernel/compiler.h>
-#include <kernel/registers.h>
-typedef struct task
+#include <kernel/kthread.h>
+#include <kernel/message.h>
+#define KERN_ECHO 0x1000
+#define MSG_KERN_THREAD_NOT_FOUND 0x3000
+#define MSG_KERN_NO_RESPONSE 0x200
+#define MSG_KERN_ECHO_AND_ACK 0x2000
+namespace Spartix
 {
-	bool is_kernel;
-	registers_t regs;
-	struct task* next;
-	
-}Task_t;
-void CreateTask(Task_t*,void (*thread)());
-void TerminateTask(Task_t*);
-extern "C" unsigned int SwitchTask(unsigned int OldEsp);
+	class Watchdog
+	{
+	private:	
+		KThread* watchdog;
+		KThread* to_be_watched;
+	public:
+		Watchdog(KThread* kt);
+		~Watchdog();
+		void Stop();
+		void Start();
+	};
+}

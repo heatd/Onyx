@@ -40,6 +40,7 @@ typedef multiboot_tag multiboot_info_t;
 #include <kernel/compiler.h>
 #include <stdlib.h>
 #include <kernel/timer.h>
+#include <kernel/watchdog.h>
 #include <kernel/pmm.h>
 #include <kernel/sleep.h>
 #include <kernel/fd.h>
@@ -54,6 +55,8 @@ typedef multiboot_tag multiboot_info_t;
 #include <drivers/serial.h>
 #include <drivers/ps2.h>
 #include <kernel/mm.h>
+#include <kernel/rtc.h>
+static Spartix::Watchdog* wt;
 /* Function: init_arch()
  * Purpose: Initialize architecture specific features, should be hooked by the architecture the kernel will run on
  */
@@ -133,6 +136,7 @@ extern "C" void KernelMain()
 	InitKeyboard();
 	
 	KThread* main = CreateThread(KernelUserspace);
+	wt = new Spartix::Watchdog(main);
 	main->Start();
 	// Enable interrupts
 	asm volatile("sti");
@@ -150,6 +154,11 @@ void KernelUserspace()
 	TERM_OK("Serial driver initialized");
 	
 	fs_node_t* node = finddir_fs(initrd_root,(char*)"/boot/Kernel.map");
+	
+	wt->Start();
+	RTC::Init();
+	rtc_t* rtc = RTC::ReadRTC();
+	printf("%d\n",rtc->years);
 	if(!node)
 		abort();
 	for(;;)

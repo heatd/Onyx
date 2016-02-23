@@ -13,16 +13,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 #pragma once
-#include <stdint.h>
-#include <kernel/compiler.h>
-#include <kernel/registers.h>
-typedef struct task
+#include <kernel/watchdog.h>
+namespace Spartix
 {
-	bool is_kernel;
-	registers_t regs;
-	struct task* next;
-	
-}Task_t;
-void CreateTask(Task_t*,void (*thread)());
-void TerminateTask(Task_t*);
-extern "C" unsigned int SwitchTask(unsigned int OldEsp);
+	int SendMessage(unsigned int message,KThread* thread);
+}

@@ -12,17 +12,15 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#pragma once
-#include <stdint.h>
-#include <kernel/compiler.h>
-#include <kernel/registers.h>
-typedef struct task
+#include <kernel/nmi.h>
+namespace NMI
 {
-	bool is_kernel;
-	registers_t regs;
-	struct task* next;
-	
-}Task_t;
-void CreateTask(Task_t*,void (*thread)());
-void TerminateTask(Task_t*);
-extern "C" unsigned int SwitchTask(unsigned int OldEsp);
+	void Enable()
+	{
+		outb(0x70, inb(0x70)&0x7F);
+	}
+	void Disable()
+	{
+		outb(0x70, inb(0x70) | 0x80);
+	}
+}

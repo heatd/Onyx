@@ -15,7 +15,19 @@ limitations under the License.
 #include <kernel/scheduler.h>
 #include <kernel/kthread.h>
 #include <string.h>
+#include <kernel/watchdog.h>
 static uint32_t assignable_id = 0;
+int ThreadMessage(unsigned int msg)
+{
+	switch(msg)
+	{
+		case KERN_ECHO:
+			return MSG_KERN_ECHO_AND_ACK;
+		default:
+			return 0x7fffffff;
+	}
+}
+
 KThread* CreateThread(KThread_Entry_point entry)
 {
 	KThread* kt = new KThread;
@@ -25,10 +37,13 @@ KThread* CreateThread(KThread_Entry_point entry)
 	
 	kt->id = assignable_id;
 	assignable_id++;
-	
+	kt->MessageCallback = ThreadMessage;
 	kt->thread_entry = entry;
 	
 	kt->thread_task = new Task_t;
+	if(!kt->thread_task)
+		return nullptr;
+	
 	memset(kt->thread_task,0,sizeof(Task_t));
 	
 	return kt;
@@ -58,11 +73,11 @@ KThread_Entry_point KThread::GetEntryPoint()
 }
 void KThread::Start()
 {
-	CreateTask(thread_task,thread_entry);
 	is_running = true;
+	CreateTask(thread_task,thread_entry);
 }
 void KThread::Terminate()
 {
-	TerminateTask(thread_task);
 	is_running = false;
+	TerminateTask(thread_task);
 }
