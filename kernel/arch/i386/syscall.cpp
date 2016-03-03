@@ -46,7 +46,7 @@ extern "C" void syscall()
 		case 1:
 			sys_read(ebx,(const void*)ecx,edx);
 		case 2:
-			sys_yield();
+			asm volatile("int $0x10");
 		default:
 			break;
 	}

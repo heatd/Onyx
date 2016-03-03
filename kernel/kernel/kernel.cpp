@@ -35,6 +35,7 @@ typedef multiboot_tag multiboot_info_t;
 #else
 #include <multiboot.h>
 #endif
+#include <kernel/ElfLoader.h>
 #include <kernel/vmm.h>
 #include <kernel/tty.h>
 #include <kernel/compiler.h>
@@ -154,13 +155,10 @@ void KernelUserspace()
 	TERM_OK("Serial driver initialized");
 	
 	fs_node_t* node = finddir_fs(initrd_root,(char*)"/boot/Kernel.map");
-	
-	wt->Start();
-	RTC::Init();
-	rtc_t* rtc = RTC::ReadRTC();
-	printf("%d\n",rtc->years);
 	if(!node)
 		abort();
+	wt->Start();
+	RTC::Init();
 	for(;;)
 	{
 		asm volatile("hlt");

@@ -71,7 +71,7 @@ void init_idt()
 	idt_create_descriptor(47, (uint32_t)irq15, 0x08, 0x8E);
 
 	idt_create_descriptor(0x80, (uint32_t)_syscall,0x08,0x8E);//System call interrupt
-
+	idt_create_descriptor(0x50, (uint32_t)_yield, 0x08, 0x8E); // Yield
 	load_idt();
 }
 void idt_create_descriptor(uint8_t entry,uint32_t offset,uint16_t selector,uint8_t flags)

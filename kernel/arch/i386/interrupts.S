@@ -38,7 +38,30 @@ isr%1:
 	push byte %1 ;push the interrupt number
 	jmp isr_common ;Go to the handler
 %endmacro
-
+global _yield
+_yield:
+	pusha
+	push ds
+	push es
+	push fs
+	push gs
+	mov eax,10h
+	mov ds,eax
+	mov es,eax
+	mov fs,eax
+	mov gs,eax
+	push esp
+	extern SwitchTask
+	call SwitchTask
+	mov esp,eax
+	mov al,20h
+	out 20h,al
+	pop gs
+	pop fs
+	pop es
+	pop ds
+	popa
+	iret
 extern isr_handler
 global isr_common
 isr_common:

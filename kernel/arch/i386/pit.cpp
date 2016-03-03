@@ -34,14 +34,8 @@ limitations under the License.
 static uint64_t timer_ticks = NULL;
 extern void halt();
 static uint64_t scheduler_last_time;
-extern bool is_yielding;
 extern "C" void timer_handler()
 {
-	if(is_yielding == true){
-		is_yielding = false;
-		return;
-	}
-	else
 		timer_ticks++;
 }
 namespace PIT

@@ -29,6 +29,7 @@ public:
 	KThread_Entry_point GetEntryPoint();
 	void Start();
 	void Terminate();
+	void ThreadRuntime();
 };
 KThread* 	CreateThread(KThread_Entry_point);
 void 		DestroyThread(KThread*);

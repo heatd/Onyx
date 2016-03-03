@@ -76,6 +76,11 @@ void KThread::Start()
 	is_running = true;
 	CreateTask(thread_task,thread_entry);
 }
+void KThread::ThreadRuntime()
+{
+	thread_entry();
+	Terminate();
+}
 void KThread::Terminate()
 {
 	is_running = false;

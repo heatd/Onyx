@@ -16,4 +16,4 @@ menuentry "Spartix" {
 	module    /boot/initrd.tar
 }
 EOF
-grub-mkrescue -o Spartix.iso isodir
+grub2-mkrescue -o Spartix.iso isodir # Change this acording to your distro/OS.

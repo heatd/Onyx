@@ -70,7 +70,7 @@ uint32_t tar_read(fs_node_t* node,uint32_t offset,uint32_t size,void* buffer)
 	tar_header_t* header = headers[node->inode];
 	if(offset + size > GetSize(header->size))
 		return 1;
-	void* data = (void*)(header + 512 + offset);
+	void* data = (void*)header + 512 + offset;
 	memcpy(buffer,data,size);
 	
 	return GetSize(header->size);

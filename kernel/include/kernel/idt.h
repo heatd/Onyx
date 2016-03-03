@@ -90,4 +90,5 @@ extern "C" void irq13();
 extern "C" void irq14();
 extern "C" void irq15();
 extern "C" void _syscall();
+extern "C" void _yield();
 #endif // IDT_H
