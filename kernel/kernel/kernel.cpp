@@ -148,7 +148,8 @@ extern "C" void KernelMain()
 void KernelUserspace()
 {
 	// Initialize less important drivers
-	// Initalize Serial driver
+
+	//Initalize Serial driver
 	Serial::Init();
 	Serial::WriteString("[  OK  ] Serial driver initialized");
 

@@ -13,7 +13,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 #pragma once
-/* Definitions of pid_t, uid_t and gid_t, according to the standard */
-typedef int pid_t;
-typedef unsigned int uid_t;
-typedef unsigned int gid_t;
+
+#include <sys/cdefs.h>
+
+#ifndef __cplusplus
+#error "C++ header cannot be used in C!"
+#endif
+_STD_START
+#include <stdio.h>
+_STD_END
