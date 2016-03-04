@@ -12,6 +12,17 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+/**************************************************************************
+ *
+ *
+ * File: message.cpp
+ *
+ * Description: Contains thread message passing routines (the implementation needs to be deepened)
+ *
+ * Date: 4/3/2016
+ *
+ *
+ **************************************************************************/
 #include <kernel/message.h>
 
 namespace Spartix
@@ -23,7 +34,7 @@ namespace Spartix
 			return MSG_KERN_NO_RESPONSE;
 		if(thread->MessageCallback != nullptr)
 			ret = thread->MessageCallback(message);
-		
+
 		return ret;
 	}
 }

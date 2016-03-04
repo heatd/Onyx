@@ -12,21 +12,21 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+/**************************************************************************
+ *
+ *
+ * File: panic.cpp
+ *
+ * Description: Contains the implementation of the panic function
+ *
+ * Date: 1/2/2016
+ *
+ *
+ **************************************************************************/
 #include <stdio.h>
 #include <kernel/registers.h>
 #include <kernel/compiler.h>
 #include <kernel/panic.h>
-/**************************************************************************
- * 
- * 
- * File: panic.c
- * 
- * Description: Contains the implementation of the panic function
- * 
- * Date: 1/2/2016
- * 
- * 
- **************************************************************************/
 const char* skull = " _,,,,,,,_\n\
           ,88888888888,\n\
         ,888\'       \`888,\n\
@@ -49,9 +49,9 @@ void panic(const char* msg)
 #ifdef __x86_64__
 	ctx.rip =(uint64_t)__builtin_return_address(0);
 
-	
+
 	printf("rax: %i\nrbx: %i\nrcx: %i\nrdx: %i\nrdi: %i\nrsi: %i\nrbp: 0x%x\nrsp: 0x%x\nrip: 00%x:0x%x\nss:  00%x\nrflags:%i\n",	ctx.rax,ctx.rbx,ctx.rcx,ctx.rdx,ctx.rdi,ctx.rsi,ctx.rbp,ctx.rsp,ctx.cs,ctx.rip,ctx.ss);
-	
+
 	printf("Stack dump: \n");
 	void* ret_addr = __builtin_frame_address(0);
 	printf("#0 stack frame:0x%x\n",(uint64_t)ret_addr);

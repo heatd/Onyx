@@ -12,6 +12,17 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+/**************************************************************************
+ *
+ *
+ * File: input_manager.cpp
+ *
+ * Description: Recieves keyboard presses, and translates them to keyboard events
+ *
+ * Date: 4/3/2016
+ *
+ *
+ **************************************************************************/
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -22,7 +33,7 @@ unsigned char keys[200]={0,'1','2','3','4','5','6','7','8','9','0','-','=','\b',
 '.',0,0,0,0,0};
 static bool is_shift_pressed = false;
 void SendEventToKern(uint8_t keycode)
-{	
+{
 	if(keycode == 0x2A || keycode == 0x36){
 		is_shift_pressed = true;
 		return;

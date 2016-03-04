@@ -13,15 +13,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 /**************************************************************************
- * 
- * 
- * File: kheap.c
- * 
- * Description: Contains implementation of 
- * 
- * Date: 1/2/2016
- * 
- * 
+ *
+ *
+ * File: kheap.cpp
+ *
+ * Description: Contains implementation of the kernel's heap
+ *
+ * Date: 4/3/2016
+ *
+ *
  **************************************************************************/
 #include <stdint.h>
 #include <kernel/kheap.h>
@@ -192,4 +192,4 @@ void kfree(void* ptr)
 	if(!ptr)
 		return;
 	k_heapBMFree(&kheap,ptr);
-} 
+}

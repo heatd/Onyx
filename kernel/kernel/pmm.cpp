@@ -12,6 +12,17 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+/**************************************************************************
+ *
+ *
+ * File: pmm.cpp
+ *
+ * Description: Contains the implementation of the kernel's PMM
+ *
+ * Date: 4/3/2016
+ *
+ *
+ **************************************************************************/
 #include <kernel/pmm.h>
 #include <string.h>
 // size of physical memory
@@ -43,7 +54,7 @@ void Pop()
 {
 	if(last_entry == 0)
 		return;
-	
+
 	stack->next[last_entry].base = 0;
 	stack->next[last_entry].size = 0;
 	stack->next[last_entry].magic = 0xCDCDCDCD;
@@ -52,7 +63,7 @@ void Init(size_t memory_size,uintptr_t stack_space)
 {
 	pmm_memory_size = memory_size * 1024;
 	pmm_stack_space = (uintptr_t*)stack_space;
-	
+
 	stack =(stack_t*)stack_space;
 	memset(stack, 0,4096);
 	stack->next=(stack_entry*)0x80200010;
@@ -70,7 +81,7 @@ void* pmalloc(size_t blocks)
 				return (void*)((uint32_t)ret_addr & 0xFFFFFF000);
 			}
 		}
-	
+
 	return ret_addr;
 }
 void pfree(size_t blocks,void* p)

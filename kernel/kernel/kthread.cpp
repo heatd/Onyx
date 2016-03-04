@@ -12,6 +12,17 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+/**************************************************************************
+ *
+ *
+ * File: kthread.cpp
+ *
+ * Description: Contains KThread's implementation
+ *
+ * Date: 4/3/2016
+ *
+ *
+ **************************************************************************/
 #include <kernel/scheduler.h>
 #include <kernel/kthread.h>
 #include <string.h>
@@ -31,21 +42,21 @@ int ThreadMessage(unsigned int msg)
 KThread* CreateThread(KThread_Entry_point entry)
 {
 	KThread* kt = new KThread;
-	
+
 	if(!kt)
 		return kt;
-	
+
 	kt->id = assignable_id;
 	assignable_id++;
 	kt->MessageCallback = ThreadMessage;
 	kt->thread_entry = entry;
-	
+
 	kt->thread_task = new Task_t;
 	if(!kt->thread_task)
 		return nullptr;
-	
+
 	memset(kt->thread_task,0,sizeof(Task_t));
-	
+
 	return kt;
 }
 void DestroyThread(KThread* kt)
@@ -53,9 +64,9 @@ void DestroyThread(KThread* kt)
 	if(kt->IsThreadRunning() == true)
 		kt->Terminate();
 	kt->id = 0;
-	
+
 	kt->thread_entry = nullptr;
-	
+
 	delete kt->thread_task;
 	delete kt;
 }

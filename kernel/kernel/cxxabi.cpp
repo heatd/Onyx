@@ -12,12 +12,23 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+/**************************************************************************
+ *
+ *
+ * File: cxxabi.cpp
+ *
+ * Description: C++ ABI implementation
+ *
+ * Date: 1/2/2016
+ *
+ *
+ **************************************************************************/
 #include <stdlib.h>
 #include <kernel/panic.h>
-namespace __cxxabiv1 
+namespace __cxxabiv1
 {
 	/* guard variables */
- 
+
 	/* The ABI requires a 64-bit type.  */
 	__extension__ typedef int __guard __attribute__((mode(__DI__)));
 	/* All these calls are marked extern "C", so the compiler(gcc) can call them */
@@ -25,16 +36,16 @@ namespace __cxxabiv1
 	extern "C" void __cxa_guard_release (__guard *);
 	extern "C" void __cxa_guard_abort (__guard *);
 	extern "C" void __cxa_pure_virtual();
-	extern "C" int __cxa_guard_acquire (__guard *g) 
+	extern "C" int __cxa_guard_acquire (__guard *g)
 	{
 		return !*(char *)(g);
 	}
- 
+
 	extern "C" void __cxa_guard_release (__guard *g)
 	{
 		*(char *)g = 1;
 	}
- 
+
 	extern "C" void __cxa_guard_abort (__guard *)
 	{
 		abort();

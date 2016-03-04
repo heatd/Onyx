@@ -12,6 +12,17 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+/**************************************************************************
+ *
+ *
+ * File: watchdog.cpp
+ *
+ * Description: Contains the implementation of the kernel's watchdog
+ *
+ * Date: 1/2/2016
+ *
+ *
+ **************************************************************************/
 #include <kernel/panic.h>
 #include <kernel/watchdog.h>
 #include <stdlib.h>
@@ -35,7 +46,7 @@ namespace Spartix
 		if(err_code != MSG_KERN_ECHO_AND_ACK)//The thread response was corrupted
 			panic("Fatal error: Watchdog response corrupted");
 		last_tick = Timer::GetTickCount();
-		
+
 	asm volatile("sti");
 		goto redo;
 	}
@@ -45,7 +56,7 @@ namespace Spartix
 			return;
 		to_be_watched = kt;
 		watchdog = CreateThread(WatchdogRoutine);
-		
+
 		if(!watchdog)
 			abort();
 	}

@@ -13,15 +13,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 /**************************************************************************
- * 
- * 
- * File: timer.c
- * 
+ *
+ *
+ * File: timer.cpp
+ *
  * Description: Contains the timer code
- * 
+ *
  * Date: 30/1/2016
- * 
- * 
+ *
+ *
  **************************************************************************/
 #include <kernel/pit.h>
 

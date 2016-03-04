@@ -13,15 +13,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 /**************************************************************************
- * 
- * 
+ *
+ *
  * File: vmm.c
- * 
+ *
  * Description: Implementation of virtual memory on x86
- * 
+ *
  * Date: 4/2/2016
- * 
- * 
+ *
+ *
  **************************************************************************/
 #include <kernel/vmm.h>
 #include <stddef.h>
@@ -33,7 +33,6 @@ limitations under the License.
 #include <kernel/panic.h>
 //! virtual address
 typedef uint32_t virtual_addr;
-
 
 extern "C" void loadPageDirectory(VMM::pdirectory*);
 extern "C" void enablePaging();
@@ -92,12 +91,13 @@ void VMM::Init()
         ptable* table = (ptable*)0x803F1000;
         memset(table, 0,sizeof(ptable));
 
-	for(int i=0,frame=0x000000,virt=0x00000000;i<1024;i++,frame+=4096, virt+=4096)
+	for(int i=0,frame=0,virt=0;i<1024;i++,frame+=4096, virt+=4096)
 	{
 		pt_entry page=0;
 		pt_entry_set_bit(&page,_PTE_PRESENT);
 		pt_entry_set_frame(&page, frame);
-
+		if(virt == 0)
+			pt_entry_unset_bit(&page,_PTE_PRESENT);
 		mb->entries [PAGE_TABLE_INDEX(virt)] = page;
         }
 	for(int i=0,frame=0x000000,virt=0x80000000;i<1024;i++,frame+=4096, virt+=4096)
@@ -140,7 +140,7 @@ void* kmmap(uint32_t virt, DWORD npages)
 	VMM::ptable* pt = nullptr;
 	if(pd_entry_is_4MB(*entry) == 1 && pd_entry_pfn(*entry) != NULL)
 		return nullptr;
-	
+
 	if(npages == 1024){
 		pd_entry_set_bit(entry,_PDE_PRESENT);
 		pd_entry_set_bit(entry,_PDE_WRITABLE);
@@ -231,7 +231,7 @@ void vfree(void* ptr, DWORD npages)
 void map_kernel()
 {
 	VMM::ptable* table = (VMM::ptable*)vmalloc(1);
-	
+
 	for(int i=0,frame=0x000000,virt=0x80000000;i<1024;i++,frame+=4096, virt+=4096)
 	{
 		VMM::pt_entry page = 0;

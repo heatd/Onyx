@@ -12,6 +12,17 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+/**************************************************************************
+ *
+ *
+ * File: ElfLoader.cpp
+ *
+ * Description: Elf Loader
+ *
+ * Date: 4/3/2016
+ *
+ *
+ **************************************************************************/
 #include <kernel/ElfLoader.h>
 
 bool ElfCheckFile(Elf32_Ehdr* hdr)
@@ -91,7 +102,7 @@ static inline void* elf_load_rel(Elf32_Ehdr* hdr) {
 	// TODO : Parse the program header (if present)
 	return (void *)hdr->e_entry;
 }
- 
+
 void* elf_load_file(void* file) {
 	Elf32_Ehdr *hdr = (Elf32_Ehdr *)file;
 	if(!elf_check_supported(hdr)) {

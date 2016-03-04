@@ -30,5 +30,5 @@ typedef struct registers
    uint16_t ss,cs;
 } __attribute__((packed)) registers_t;
 
-#endif // AMD64
+#endif // __x86_64__
 #endif // REGISTERS_H

@@ -13,15 +13,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 /**************************************************************************
- * 
- * 
- * File: sleep.c
- * 
+ *
+ *
+ * File: sleep.cpp
+ *
  * Description: Implementation of ksleep
- * 
+ *
  * Date: 4/2/2016
- * 
- * 
+ *
+ *
  **************************************************************************/
 #include <kernel/sleep.h>
 void ksleep(long long ms)

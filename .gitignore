@@ -3,3 +3,4 @@ kernel/vmspartix
 *.iso
 isodir
 sysroot
+.directory

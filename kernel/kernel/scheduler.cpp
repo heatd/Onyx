@@ -12,6 +12,17 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+/**************************************************************************
+ *
+ *
+ * File: scheduler.cpp
+ *
+ * Description: Contains the implementation of the kernel's thread scheduler
+ *
+ * Date: 4/3/2016
+ *
+ *
+ **************************************************************************/
 #include <kernel/scheduler.h>
 #include <kernel/registers.h>
 #include <kernel/panic.h>
@@ -27,10 +38,10 @@ static Task_t* first_task;
 static Task_t* CurrentTask = nullptr;
 void CreateTask(int id,void (*thread)());
 
-void CreateTask(Task_t* task,void (*thread)()) 
+void CreateTask(Task_t* task,void (*thread)())
 {
 	unsigned int* stack;
-	
+
 	task->regs.esp = (uint32_t)vmalloc(2) + 8192;
 	if(!task->regs.esp)
 		abort();
@@ -39,7 +50,7 @@ void CreateTask(Task_t* task,void (*thread)())
 	*--stack = 0x0202; //This is EFLAGS
 	*--stack = 0x08;   //This is CS, our code segment
 	*--stack = (unsigned int)thread; //This is EIP
- 
+
 	//Next, the stuff pushed by 'pusha'
 	*--stack = 0; //EDI
 	*--stack = 0; //ESI
@@ -49,7 +60,7 @@ void CreateTask(Task_t* task,void (*thread)())
 	*--stack = 0; //EDX
 	*--stack = 0; //ECX
 	*--stack = 0; //EAX
- 
+
 	//Now these are the data segments pushed by the IRQ handler
 	*--stack = 0x10; //DS
 	*--stack = 0x10; //ES
