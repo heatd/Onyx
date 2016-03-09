@@ -113,13 +113,17 @@ extern "C" void KernelEarly(multiboot_info_t* info, size_t magic)
 void KernelUserspace();
 extern "C" void KernelMain()
 {
+
 	printf("Spartix kernel %s branch %s build %d\n",KERNEL_VERSION,KERNEL_BRANCH,&__BUILD_NUMBER);
+
 	// Initialize the timer
 	Timer::Init(1000);
 	TERM_OK("Initialized the Timer");
+
 	//Initialize the VMM
 	VMM::Init();
 	TERM_OK("Initialized the Virtual Memory Manager");
+
 	// Initialize the kernel heap
 	InitHeap();
 	TERM_OK("Initialized the Kernel Heap");
@@ -145,31 +149,41 @@ extern "C" void KernelMain()
 void KernelUserspace()
 {
 	// Test kernel features
+
 	// Test the timer
 	TERM_OK("Testing the timer...");
 	uint64_t time = Timer::GetTickCount();
+
 	while(Timer::GetTickCount() == time)
 	{
 		asm volatile("hlt");
 	}
 	TERM_OK("Timer test successful");
+
 	// Test Kheap
 	TERM_OK("Testing the Kernel Heap...");
+
 	void* test_ptr = kmalloc(4096); // Allocate 4 Kilobytes of memory
+
 	if(!test_ptr)
 		panic("Heap test failed");
 	kfree(test_ptr);
+
 	TERM_OK("Heap test successful");
+
 	// Initialize less important drivers
 	// Initalize Serial driver
 	Serial::Init();
 	Serial::WriteString("[  OK  ] Serial driver initialized");
 
 	TERM_OK("Serial driver initialized");
+
 	fs_node_t* node = finddir_fs(initrd_root,(char*)"/boot/Kernel.map");
+
 	if(!node)
 		abort();
 	wt->Start();
+
 	RTC::Init();
 	for(;;)
 	{

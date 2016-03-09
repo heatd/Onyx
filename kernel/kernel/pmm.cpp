@@ -27,19 +27,27 @@ limitations under the License.
 #include <string.h>
 // size of physical memory
 static	size_t	pmm_memory_size = 0;
+static  size_t  pmm_used_memory = 0;
+static  size_t 	pmm_free_memory = 0;
+static 	uint32_t pushed_blocks = 0;
 // Kernel addresses reserved for pmm stack
 static	uintptr_t*	pmm_stack_space = NULL;
 extern uint32_t end;
 static uint32_t last_entry = 0;
 namespace PMM
 {
-	stack_t* stack = NULL;
+stack_t* stack = nullptr;
 void Push(uintptr_t base,size_t size)
 {
+	pmm_free_memory += size;
+	pmm_used_memory -=size;
 	// Don't alloc the kernel
-	if(base == 0x100000){
+	if(base == 0x100000)
+	{
 		base += 0x300000;
 		base &= 0xFFFFFF000;
+		pmm_free_memory -=0x300000;
+		pmm_used_memory +=0x300000;
 	}
 	for(int i = 0;i < pmm_memory_size/PMM_BLOCK_SIZE ;i++)
 		if(stack->next[i].base==0 && stack->next[i].size == 0){
@@ -49,6 +57,7 @@ void Push(uintptr_t base,size_t size)
 			last_entry = i;
 			break;
 		}
+		pushed_blocks++;
 }
 void Pop()
 {
@@ -63,21 +72,31 @@ void Init(size_t memory_size,uintptr_t stack_space)
 {
 	pmm_memory_size = memory_size * 1024;
 	pmm_stack_space = (uintptr_t*)stack_space;
-
+	pmm_used_memory = memory_size;
 	stack =(stack_t*)stack_space;
 	memset(stack, 0,4096);
 	stack->next=(stack_entry*)0x80200010;
+}
+size_t GetFreeMemory()
+{
+	return pmm_free_memory;
+}
+size_t GetUsedMemory()
+{
+	return pmm_used_memory;
 }
 };
 void* pmalloc(size_t blocks)
 {
 	void* ret_addr = NULL;
-	for(int i = 0;i < 12;i++)
+	for(int i = 0;i < pushed_blocks;i++)
 		if(PMM::stack->next[i].base !=0 || PMM::stack->next[i].size != 0){
-			if(PMM::stack->next[i].base >= blocks * PMM_BLOCK_SIZE){
+			if(PMM::stack->next[i].size >= blocks * PMM_BLOCK_SIZE){
 				ret_addr =(void*)PMM::stack->next[i].base;
 				PMM::stack->next[i].base+=PMM_BLOCK_SIZE * blocks;
 				PMM::stack->next[i].size-=PMM_BLOCK_SIZE * blocks;
+				pmm_used_memory += PMM_BLOCK_SIZE * blocks;
+				pmm_free_memory -= PMM_BLOCK_SIZE * blocks;
 				return (void*)((uint32_t)ret_addr & 0xFFFFFF000);
 			}
 		}
@@ -90,5 +109,11 @@ void pfree(size_t blocks,void* p)
 		return;
 	if(!p)
 		return;
-	PMM::Push((uintptr_t)p,blocks * PMM_BLOCK_SIZE); // Maybe implement a better solution
+	pmm_free_memory += PMM_BLOCK_SIZE * blocks;
+	pmm_used_memory -= PMM_BLOCK_SIZE * blocks;
+	memcpy((void*)&PMM::stack->next[1],(void*)&PMM::stack->next[0],sizeof(PMM::stack_entry_t) * 10);
+	PMM::stack->next[0].base = (uintptr_t)p;
+	PMM::stack->next[0].size = blocks;
+	PMM::stack->next[0].magic = 0xFDFDFDFD;
+	pushed_blocks++;
 }

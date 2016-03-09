@@ -22,7 +22,9 @@ typedef struct stack
 void Push(uintptr_t base,size_t size);
 void Pop();
 void Init(size_t memory_size,uintptr_t stack_space);
+size_t GetFreeMemory();
+size_t GetUsedMemory();
 };
 void* pmalloc(size_t blocks);
-void pfree(size_t blocks,void* ptr);
+void  pfree(size_t blocks,void* ptr);
 #endif // PMM_H
