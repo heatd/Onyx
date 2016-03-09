@@ -7,4 +7,4 @@ The operators in the C source files will always be seperated by a space
 Example:
 	i = j + x;
 ## Bracket position
-The brackets will always be in the same line as the if/for/while statement, except with a function
+The brackets will always be in a newline, in all cases

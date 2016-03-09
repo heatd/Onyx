@@ -145,12 +145,12 @@ inline void _flush_tlb_page(unsigned long addr)
 {
    	asm volatile("invlpg (%0)" ::"r" (addr) : "memory");
 }
-void* kmmap(uint32_t virt, DWORD npages);
+void* kmmap(uint32_t virt, uint32_t npages,uint32_t flags);
 
-void kmunmap(void* virt, DWORD npages);
+void kmunmap(void* virt, uint32_t npages);
 
-void* vmalloc(DWORD npages);
+void* vmalloc(uint32_t npages);
 
-void vfree(void* ptr, DWORD npages);
+void vfree(void* ptr, uint32_t npages);
 
 #endif // VMM_H

@@ -45,7 +45,7 @@ KThread* CreateThread(KThread_Entry_point entry)
 
 	if(!kt)
 		return kt;
-
+		
 	kt->id = assignable_id;
 	assignable_id++;
 	kt->MessageCallback = ThreadMessage;

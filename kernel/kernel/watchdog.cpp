@@ -35,19 +35,24 @@ namespace Spartix
 	void WatchdogRoutine()
 	{
 	redo:
-	if(Timer::GetTickCount() - 100 != last_tick)
-		asm volatile("hlt");
-	asm volatile("cli");
-		int err_code = SendMessage(KERN_ECHO,g_tobewatch);
-		if(err_code == MSG_KERN_THREAD_NOT_FOUND)
-			panic("Fatal error: Watchdog response failed");
-		else if(err_code == MSG_KERN_NO_RESPONSE)
-			panic("Fatal error: Watchdog response failed");
-		if(err_code != MSG_KERN_ECHO_AND_ACK)//The thread response was corrupted
-			panic("Fatal error: Watchdog response corrupted");
-		last_tick = Timer::GetTickCount();
+		if(Timer::GetTickCount() - 100 != last_tick)
+			asm volatile("hlt");
 
-	asm volatile("sti");
+			asm volatile("cli");
+
+			int err_code = SendMessage(KERN_ECHO,g_tobewatch);
+
+			if(err_code == MSG_KERN_THREAD_NOT_FOUND)
+				panic("Fatal error: Watchdog response failed");
+			else if(err_code == MSG_KERN_NO_RESPONSE)
+				panic("Fatal error: Watchdog response failed");
+
+			if(err_code != MSG_KERN_ECHO_AND_ACK)//The thread response was corrupted
+				panic("Fatal error: Watchdog response corrupted");
+
+			last_tick = Timer::GetTickCount();
+
+			asm volatile("sti");
 		goto redo;
 	}
 	Watchdog::Watchdog(KThread* kt)

@@ -126,8 +126,9 @@ void VMM::Init()
 	dir = (pdirectory*) 0x3F2000;
 	pd_entry_set_frame(entry3,(uintptr_t)dir);
         switch_directory(dir);
+	_flush_tlb_page(0);
 }
-void* kmmap(uint32_t virt, DWORD npages)
+void* kmmap(uint32_t virt, uint32_t npages,uint32_t flags)
 {
 	if (!npages)
 		return nullptr;
@@ -143,7 +144,7 @@ void* kmmap(uint32_t virt, DWORD npages)
 
 	if(npages == 1024){
 		pd_entry_set_bit(entry,_PDE_PRESENT);
-		pd_entry_set_bit(entry,_PDE_WRITABLE);
+		pd_entry_set_bit(entry,flags);
 		pd_entry_set_bit(entry,_PDE_4MB);
 		void* ptr = pmalloc(1024);
 		pd_entry_set_frame(entry,(uintptr_t)ptr);
@@ -155,29 +156,32 @@ void* kmmap(uint32_t virt, DWORD npages)
 		pt = (VMM::ptable*)pmalloc(1);
 		if(pt == nullptr)
 			panic("No free blocks");
-		kmmap((uint32_t)pt,1024);
+		kmmap((uint32_t)pt,1024,_PDE_WRITABLE);
 		memset(pt, 0, sizeof(VMM::ptable));
 		pd_entry_set_bit(entry, _PDE_PRESENT);
-		pd_entry_set_bit(entry, _PDE_WRITABLE);
+		pd_entry_set_bit(entry,flags);
 		pd_entry_set_frame(entry, (uintptr_t)pt);
 	}
 	uint32_t ret_addr = 0;
-	for (int i = 0, vaddr = virt; i<npages; i++, vaddr+=4096) {
-	if (i == 0)
-		ret_addr = vaddr;
-        // create a new page
+	for (int i = 0, vaddr = virt; i<npages; i++, vaddr+=4096)
+	{
+		if (i == 0)
+			ret_addr = vaddr;
+      		// create a new page
 		VMM::pt_entry page=0;
-		if(alloc_page(&page) == 1){
+		if(alloc_page(&page) == 1)
+		{
 			printf("Failed to map page 0x%X\n",vaddr);
 			panic("No more physical memory");
 		}
+		pt_entry_set_bit(entry,flags);
 		//...and add it to the page table
 		pt->entries [PAGE_TABLE_INDEX (vaddr) ] = page;
 	}
 	return (void*)ret_addr;
 }
 
-void kmunmap(void* virt, DWORD npages)
+void kmunmap(void* virt, uint32_t npages)
 {
 	if (!virt)
 		return;
@@ -206,7 +210,7 @@ void kmunmap(void* virt, DWORD npages)
 			kmunmap((void*)pt,1);
 	}
 }
-void* vmalloc(DWORD npages)
+void* vmalloc(uint32_t npages)
 {
 	if(!npages)
 		return nullptr;
@@ -214,12 +218,12 @@ void* vmalloc(DWORD npages)
 	if(!ptr)
 		return nullptr;
 	pfree(npages,ptr);
-	if(!kmmap((uint32_t)ptr,npages))
+	if(!kmmap((uint32_t)ptr,npages,_PDE_WRITABLE))
 		return nullptr;
 	return ptr;
 }
 
-void vfree(void* ptr, DWORD npages)
+void vfree(void* ptr, uint32_t npages)
 {
 	if(!npages)
 		return;

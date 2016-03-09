@@ -13,15 +13,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 /**************************************************************************
- * 
- * 
+ *
+ *
  * File: pit.c
- * 
+ *
  * Description: Contains the PIT code
- * 
+ *
  * Date: 2/2/2016
- * 
- * 
+ *
+ *
  **************************************************************************/
 #include <kernel/irq.h>
 #include <kernel/portio.h>
@@ -43,7 +43,7 @@ namespace PIT
 void Init(uint32_t frequency)
 {
 	int divisor = 1193180 / frequency;
-	
+
 	outb(0x43, 0x36);
 	io_wait();
 	outb(0x40, divisor & 0xFF);   // Set low byte of divisor
@@ -51,7 +51,7 @@ void Init(uint32_t frequency)
 	outb(0x40, divisor >> 8);     // Set high byte of divisor
 	io_wait();
 	PIC::UnmaskIRQ(0); // Unmask IRQ0 (PIT)
-	
+
 	irq_t handler = &timer_handler;
 	// Install the IRQ handler
 	IRQ::InstallHandler(0,handler);

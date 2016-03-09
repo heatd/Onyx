@@ -28,6 +28,7 @@ limitations under the License.
 #include <kernel/compiler.h>
 #include <stdlib.h>
 #include <kernel/panic.h>
+#include <kernel/sbrk.h>
 void k_heapBMInit(KHEAPBM *heap)
 {
 	heap->fblock = 0;
@@ -172,18 +173,22 @@ static KHEAPBM kheap;
 void InitHeap()
 {
 	k_heapBMInit(&kheap);
-	if(kmmap(0x80400000,1024)==NULL)
-		abort();
-	k_heapBMAddBlock(&kheap,0x80400000,0x400000,16);
+	set_data_area((void*)0x90400000);
+	__brk((void*)0x90800000);
+	k_heapBMAddBlock(&kheap,0x90400000,0x400000,16);
 	heap_extensions = 0;
 }
 void* kmalloc(size_t size)
 {
 	if(!size)
-		return NULL;
+		return nullptr;
 	void* ptr = k_heapBMAlloc(&kheap,size);
-	if(ptr == NULL){
-		panic("No more kheap space!");
+	if(ptr == nullptr)
+	{
+		void* new_limit = sbrk(size);
+		if(!new_limit)
+			return nullptr;
+		k_heapBMAddBlock(&kheap,(uintptr_t)new_limit - size,size,16);
 	}
 	return ptr;
 }

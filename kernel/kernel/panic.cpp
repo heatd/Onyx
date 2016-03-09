@@ -27,7 +27,7 @@ limitations under the License.
 #include <kernel/registers.h>
 #include <kernel/compiler.h>
 #include <kernel/panic.h>
-const char* skull = " _,,,,,,,_\n\
+const char* skull = "            _,,,,,,,_\n\
           ,88888888888,\n\
         ,888\'       \`888,\n\
         888\' 0     0 \`888\n\

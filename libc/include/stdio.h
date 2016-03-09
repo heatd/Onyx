@@ -16,15 +16,27 @@ limitations under the License.
 #define _STDIO_H 1
 
 #include <sys/cdefs.h>
-
+#include <string.h>
+#include <stdarg.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
-
+#define SEEK_SET 0
+typedef struct { int unused; } FILE;
+extern FILE* stderr;
+#define stderr stderr
+int fprintf(FILE*, const char*, ...);
+int fclose(FILE*);
+FILE* fopen(const char*, const char*);
+size_t fread(void*, size_t, size_t, FILE*);
+int fseek(FILE*, long, int);
+long ftell(FILE*);
+size_t fwrite(const void*, size_t, size_t, FILE*);
+void setbuf(FILE*, char*);
+int vfprintf(FILE*, const char*, va_list);
 int printf(const char* __restrict, ...);
 int putchar(int);
 int puts(const char*);
-
 #ifdef __cplusplus
 }
 #endif

@@ -35,7 +35,7 @@ namespace RTC
 		//It won't be reset by a reboot
 		asm volatile("cli");
 		
-		//Disable NMI's(Non-maskable interrupts)
+		//Disable NMI's (Non-maskable interrupts)
 		NMI::Disable();
 		
 		uint8_t b = inb(CMOS_DATA);

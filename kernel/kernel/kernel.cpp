@@ -25,15 +25,11 @@ limitations under the License.
  **************************************************************************/
 #include <stddef.h>
 #include <stdint.h>
+#include <kernel/sbrk.h>
 #include <string.h>
 #include <stdio.h>
 #include <kernel/yield.h>
-#ifdef __x86_64__
-#include <multiboot2.h>
-typedef multiboot_tag multiboot_info_t;
-#else
 #include <multiboot.h>
-#endif
 #include <kernel/ElfLoader.h>
 #include <kernel/vmm.h>
 #include <kernel/tty.h>
@@ -140,6 +136,7 @@ extern "C" void KernelMain()
 	main->Start();
 	// Enable interrupts
 	asm volatile("sti");
+
 	for(;;)
 	{
 		asm volatile("hlt");
@@ -147,14 +144,28 @@ extern "C" void KernelMain()
 }
 void KernelUserspace()
 {
+	// Test kernel features
+	// Test the timer
+	TERM_OK("Testing the timer...");
+	uint64_t time = Timer::GetTickCount();
+	while(Timer::GetTickCount() == time)
+	{
+		asm volatile("hlt");
+	}
+	TERM_OK("Timer test successful");
+	// Test Kheap
+	TERM_OK("Testing the Kernel Heap...");
+	void* test_ptr = kmalloc(4096); // Allocate 4 Kilobytes of memory
+	if(!test_ptr)
+		panic("Heap test failed");
+	kfree(test_ptr);
+	TERM_OK("Heap test successful");
 	// Initialize less important drivers
-
-	//Initalize Serial driver
+	// Initalize Serial driver
 	Serial::Init();
 	Serial::WriteString("[  OK  ] Serial driver initialized");
 
 	TERM_OK("Serial driver initialized");
-
 	fs_node_t* node = finddir_fs(initrd_root,(char*)"/boot/Kernel.map");
 	if(!node)
 		abort();

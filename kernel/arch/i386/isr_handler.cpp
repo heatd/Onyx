@@ -16,6 +16,7 @@ limitations under the License.
 #include <stdio.h>
 #include <kernel/isr.h>
 #include <kernel/panic.h>
+#include <kernel/sbrk.h>
 static uint32_t faulting_address;
 extern "C" void isr_handler(uint32_t ds,uint32_t int_no,uint32_t err_code)
 {
@@ -82,7 +83,6 @@ extern "C" void isr_handler(uint32_t ds,uint32_t int_no,uint32_t err_code)
 		// A page fault has occurred.
 		// The faulting address is stored in the CR2 register.
 		asm volatile("mov %%cr2, %0" : "=r" (faulting_address));
-
 		// Output an error message.
 
 		printf("Page fault at 0x%x\n",(unsigned int)faulting_address);
@@ -98,8 +98,7 @@ extern "C" void isr_handler(uint32_t ds,uint32_t int_no,uint32_t err_code)
  		if((err_code >> 3) & 1)
  			printf("user mode");
  		else
- 			printf("kernel-mode\n");
-		while(1);
+ 			printf("kernel-mode\n");		
 		break;
 	}
 	case 15: {

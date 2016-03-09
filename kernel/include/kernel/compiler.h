@@ -29,7 +29,9 @@ limitations under the License.
 #ifndef __GNUC__
 #error "The OS needs to be compiled using GCC"
 #endif //__GNUC__
-
+#ifndef __spartix__ || #ifndef __SPARTIX
+#error "Spartix needs to be compiled using a Spartix Cross Compiler"
+#endif
 #define likely(x)      __builtin_expect(!!(x), 1)
 #define unlikely(x)    __builtin_expect(!!(x), 0)
 #define TRAP() __builtin_trap()

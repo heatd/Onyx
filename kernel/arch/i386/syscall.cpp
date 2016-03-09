@@ -31,6 +31,7 @@ limitations under the License.
 #include <stdlib.h>
 #include <kernel/kheap.h>
 #include <kernel/fd.h>
+#include <kernel/sbrk.h>
 extern "C" void syscall()
 {
 	uint32_t eax,ebx,ecx,edx,edi;
@@ -46,7 +47,9 @@ extern "C" void syscall()
 		case 1:
 			sys_read(ebx,(const void*)ecx,edx);
 		case 2:
-			asm volatile("int $0x10");
+			asm volatile("int $0x50");
+		case 3:
+			__brk((void*)ebx);
 		default:
 			break;
 	}

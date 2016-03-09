@@ -12,31 +12,12 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#ifndef _STDLIB_H
-#define _STDLIB_H 1
-
-#include <sys/cdefs.h>
-#include <string.h>
-#ifdef __cplusplus
-extern "C" {
-#endif
-#ifndef NULL
-#ifdef __cplusplus
-#define NULL 0
-#else
-#define NULL (void*)0
-#endif
-#endif
-typedef int ssize_t;
-int atexit(void (*)(void));
-int atoi(const char*);
-char* getenv(const char*);
-__attribute__((__noreturn__))
-void abort(void);
-void free(void*);
-void malloc(size_t size);
-#ifdef __cplusplus
-}
-#endif
-
-#endif
+#pragma once
+#include <stdint.h>
+#include <stdint.h>
+#include <kernel/mm.h>
+void set_data_area(void* data_area);
+int __brk(void* addr);
+void* sbrk(uint32_t inc);
+void* get_end_data();
+void* get_start_data();
