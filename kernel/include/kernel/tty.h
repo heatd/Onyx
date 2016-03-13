@@ -24,8 +24,6 @@ void PutChar(char c);
 extern "C++" /* Weird hack i had to make to make this compile */void Write(const char* data, size_t size);
 void WriteString(const char* data);
 void SetColor(int color);
-void UpdateCursor();
-void ClearCursor(uint32_t column,uint32_t row);
 
 };
 #endif

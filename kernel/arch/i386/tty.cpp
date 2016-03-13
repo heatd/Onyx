@@ -73,35 +73,6 @@ void TTY::PutChar(char c)
 	terminal_putentryat(c, terminal_color, terminal_column, terminal_row);
 	terminal_column++;
 }
-void TTY::ClearCursor(uint32_t terminal_column, uint32_t terminal_row)
-{
-	uint32_t x = terminal_column * 16;
-	uint32_t y = terminal_row * 9;
-	for(int i = 0; i < 5;i++)
-	{
-		for(int j = 0;j < 15; j++)
-		{
-			Vesa::PutPixel(x + j, y + i,0);
-		}
-	}
-}
-void TTY::UpdateCursor()
-{
-
-	uint32_t x = terminal_column + 1 * 16 - 14;
-	uint32_t y = terminal_row * 9;
-	/*last_x = x;
-	last_y = y;
-	int k = 0;
-	for(int i = 0; i < 5;i++)
-	{
-		for(int j = 0;j < 15; j++)
-		{
-			Vesa::PutPixel(x + j, y + i,0xC0C0C0);
-		}
-	}*/
-	Vesa::DrawChar('\0',x,y,0x0,0xC0C0C0);
-}
 void TTY::Write(const char* data, size_t size)
 {
 	for ( size_t i = 0; i < size; i++ )
