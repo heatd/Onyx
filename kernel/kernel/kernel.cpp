@@ -98,9 +98,8 @@ extern "C" void KernelEarly(multiboot_info_t* info, size_t magic)
 	}
 	//Initialize the VMM
 	VMM::Init(mbt->framebuffer_addr);
-	TTY::Init();
-
 	Vesa::Init(mbt);
+	TTY::Init();
 	puts("Booting ...");
 	// Check if the magic number is the same as the multiboot 1 spec
 	if(magic == 0x2BADB002){

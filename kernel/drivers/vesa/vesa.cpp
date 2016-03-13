@@ -83,5 +83,6 @@ void Init(multiboot_info_t* info)
 	assert(Vesa::framebuffer_bpp == 32);
 	// Without this call to PutPixel, it doesn't draw anything. Weird Bug
 	PutPixel(0,100,0);
+	DrawChar('\0',16,0,0x0,0xC0C0C0);
 }
 }
