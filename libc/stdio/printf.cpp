@@ -138,6 +138,15 @@ int printf(const char* __restrict__ format, ...)
                      itoa(va_arg(parameters, int),10,string,false);
                      print(string,strlen(string));
                 }
+		else if( *format =='p')
+		{
+			format++;
+			void* ptr = va_arg(parameters, void*);
+			if(!ptr)
+				printf("(nil)");
+			else
+				printf("0x%X",(uint32_t)ptr);
+		}
 		else
 		{
 			goto incomprehensible_conversion;

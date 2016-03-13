@@ -146,8 +146,9 @@ void VMM::Init(uint32_t framebuffer_addr)
 void VMM::Finish()
 {
 	first = new area_struct;
-	first->addr = 0;
+	first->addr = 0x0;
 	first->size = 1024;
+	first->is_used = true;
 	first->type = PAGE_RAM | PAGE_KERNEL;
 	first->protection = PAGE_RW;
 	area_struct* area = new area_struct;
@@ -156,6 +157,7 @@ void VMM::Finish()
 	area->size = 3840;
 	area->type = PAGE_RAM | PAGE_KERNEL;
 	area->protection = PAGE_RWE;
+	area->is_used = true;
 	area->next = nullptr;
 
 }
@@ -241,22 +243,34 @@ void kmunmap(void* virt, uint32_t npages)
 			kmunmap((void*)pt,1);
 	}
 }
-void* VMM::FindFreeAddress(size_t num_pages,bool is_kernel)
+void* VMM::AllocateAddress(size_t num_pages,bool is_kernel)
 {
-	uint32_t placement_address;
+	uint32_t placement_addr = 0;
 	if(is_kernel)
 	{
-		placement_address= kernel_lowest_addr;
 		area_struct* tosearch = first;
+		area_struct* last_kernel = first;
 		// Search the linked list
-		while(tosearch->addr < kernel_lowest_addr && tosearch->next != nullptr)
+		while(1)
 		{
+			if(tosearch->addr >= kernel_lowest_addr)
+			{
+				last_kernel = tosearch;
+				if(last_kernel->size >= num_pages && last_kernel->is_used == false)
+				{
+					placement_addr = last_kernel->addr;
+					last_kernel->is_used = true;
+					return (void*)last_kernel->addr;
+				}
+			}
+			if(tosearch->next == nullptr)
+				break;
 			tosearch = tosearch->next;
 		}
 		area_struct* new_area = new area_struct;
 		memset(new_area,0,sizeof(area_struct));
 		tosearch->next = new_area;
-		new_area->addr = tosearch->addr + tosearch->size * PAGE_SIZE;
+		new_area->addr = last_kernel->addr + last_kernel->size * PAGE_SIZE;
 		if(new_area->addr + num_pages * PAGE_SIZE >= 0xFFC00000)
 		{
 			// Out of virtual memory, return
@@ -266,21 +280,34 @@ void* VMM::FindFreeAddress(size_t num_pages,bool is_kernel)
 		new_area->size = num_pages;
 		new_area->type = PAGE_RAM | PAGE_KERNEL;
 		new_area->protection = PAGE_RW;
+		new_area->is_used = true;
 		return (void*)new_area->addr;
 	}
 	else // If is_kernel != true, then the pages are going to be user accessible
 	{
-		placement_address = user_lowest_addr;
 		area_struct* tosearch = first;
+		area_struct* last_user = first;
 		// Search the linked list
-		while(tosearch->addr < user_lowest_addr && tosearch->next != nullptr)
+		while(1)
 		{
+			if(tosearch->addr >= user_lowest_addr)
+			{
+				last_user = tosearch;
+				if(last_user->size >= num_pages && last_user->is_used == false)
+				{
+					placement_addr = last_user->addr;
+					last_user->is_used = true;
+					return (void*)last_user->addr;
+				}
+			}
+			if(tosearch->next == nullptr)
+				break;
 			tosearch = tosearch->next;
 		}
 		area_struct* new_area = new area_struct;
 		memset(new_area,0,sizeof(area_struct));
 		tosearch->next = new_area;
-		new_area->addr = tosearch->addr + tosearch->size * PAGE_SIZE;
+		new_area->addr = last_user->addr + last_user->size * PAGE_SIZE;
 		if(new_area->addr + num_pages * PAGE_SIZE >= 0x80000000)
 		{
 			// Out of virtual memory, return
@@ -291,7 +318,23 @@ void* VMM::FindFreeAddress(size_t num_pages,bool is_kernel)
 		new_area->size = num_pages;
 		new_area->type = PAGE_RAM | PAGE_USER;
 		new_area->protection = PAGE_RW;
+		new_area->is_used = true;
 		return (void*)new_area->addr;
+	}
+}
+void VMM::FreeAddress(void* address)
+{
+	if(!address)
+		return;
+	area_struct* tosearch = first;
+	while(1)
+	{
+		if(tosearch->addr == (uintptr_t)address)
+		{
+			tosearch->is_used = false;
+			return;
+		}
+		tosearch = tosearch->next;
 	}
 }
 void* vmalloc(uint32_t npages)

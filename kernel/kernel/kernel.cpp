@@ -180,7 +180,6 @@ void KernelUserspace()
 	if(!node)
 		abort();
 	wt->Start();
-
 	for(;;)
 	{
 		asm volatile("hlt");

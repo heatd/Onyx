@@ -77,8 +77,9 @@ typedef struct pdirectory {
 pdirectory* CopyAddressSpace();
 void* IdentityMap(uint32_t addr,uint32_t pages);
 VMM::pdirectory* CreateAddressSpace();
-void Finish();
-void* FindFreeAddress(size_t, bool);
+void  Finish();
+void* AllocateAddress(size_t, bool);
+void  FreeAddress(void*  address);
 #define PAGE_RAM 0x1
 #define PAGE_KERNEL 0x2
 #define PAGE_USER 0x4
@@ -100,6 +101,7 @@ typedef struct AreaStruct
 
 	uint8_t protection; // R/W, just read, executable, etc...
 
+	bool is_used;
 	struct AreaStruct* next; // The next VMM::area_struct in the linked list
 }area_struct;
 };
