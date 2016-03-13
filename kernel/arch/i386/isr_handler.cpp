@@ -89,17 +89,18 @@ extern "C" void isr_handler(uint32_t ds,uint32_t int_no,uint32_t err_code)
 		printf("Details: ");
 		if((err_code >> 1) & 1)
  			printf("Present,");
- 
+
 		if((err_code >> 2) & 1)
  			printf(" write-access caused the fault,");
  		else
  			printf(" read-access caused the fault,");
- 
+
  		if((err_code >> 3) & 1)
  			printf("user mode");
  		else
- 			printf("kernel-mode\n");		
+ 			printf("kernel-mode\n");
 		break;
+		halt();
 	}
 	case 15: {
 		break;//Reserved exception
@@ -135,4 +136,4 @@ extern "C" void isr_handler(uint32_t ds,uint32_t int_no,uint32_t err_code)
 	case 31:
 		break;
     }
-} 
+}

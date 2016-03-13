@@ -10,21 +10,21 @@ SECTIONS {
    {
    *(.bootstrap)
    }
-   . = 0x80100000;
+   . = 0xC0100000;
 
-   .text : AT(ADDR(.text) - 0x80000000) {
-	*(.multiboot)       
+   .text : AT(ADDR(.text) - 0xC0000000) {
+	*(.multiboot)
 	*(.text)
 	*(.init)
 	*(.fini)
 	*(.rodata*)
    }
 
-   .data ALIGN (0x1000) : AT(ADDR(.data) - 0x80000000) {
+   .data ALIGN (0x1000) : AT(ADDR(.data) - 0xC0000000) {
        *(.data)
    }
 
-   .bss : AT(ADDR(.bss) - 0x80000000) {
+   .bss : AT(ADDR(.bss) - 0xC0000000) {
        _sbss = .;
        *(COMMON)
        *(.bss)

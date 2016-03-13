@@ -33,9 +33,10 @@ limitations under the License.
 #include <kernel/panic.h>
 //! virtual address
 typedef uint32_t virtual_addr;
-
+static VMM::area_struct* first = nullptr;
 extern "C" void loadPageDirectory(VMM::pdirectory*);
 extern "C" void enablePaging();
+using namespace VMM;
 
 static int alloc_page(VMM::pt_entry* pt)
 {
@@ -69,7 +70,8 @@ inline VMM::pd_entry* pdirectory_lookup_entry (VMM::pdirectory* p, virtual_addr 
 }
 VMM::pdirectory*		_cur_directory=0;
 
-int switch_directory (VMM::pdirectory* dir) {
+int switch_directory (VMM::pdirectory* dir)
+{
 
 	if (!dir)
 		return 1;
@@ -84,13 +86,14 @@ VMM::pdirectory* get_directory () {
 	return (VMM::pdirectory*)ret;
 }
 
-void VMM::Init()
+void VMM::Init(uint32_t framebuffer_addr)
 {
-	ptable* mb = (ptable*)0x803F0000;
+	ptable* mb = (ptable*)0xC03F0000;
 	memset(mb,0,sizeof(ptable));
-        ptable* table = (ptable*)0x803F1000;
+        ptable* table = (ptable*)0xC03F1000;
         memset(table, 0,sizeof(ptable));
-
+	ptable* framebuffer = (ptable*)0xC03F3000;
+	memset(table,0, sizeof(ptable));
 	for(int i=0,frame=0,virt=0;i<1024;i++,frame+=4096, virt+=4096)
 	{
 		pt_entry page=0;
@@ -100,7 +103,14 @@ void VMM::Init()
 			pt_entry_unset_bit(&page,_PTE_PRESENT);
 		mb->entries [PAGE_TABLE_INDEX(virt)] = page;
         }
-	for(int i=0,frame=0x000000,virt=0x80000000;i<1024;i++,frame+=4096, virt+=4096)
+	for(int i=0,frame=framebuffer_addr,virt=framebuffer_addr;i<1024;i++,frame+=4096, virt+=4096)
+	{
+		pt_entry page=0;
+		pt_entry_set_bit(&page,_PTE_PRESENT);
+		pt_entry_set_frame(&page, frame);
+		framebuffer->entries [PAGE_TABLE_INDEX(virt)] = page;
+        }
+	for(int i=0,frame=0x000000,virt=0xC0000000;i<1024;i++,frame+=4096, virt+=4096)
 	{
 		pt_entry page=0;
 		pt_entry_set_bit(&page,_PTE_PRESENT);
@@ -108,9 +118,9 @@ void VMM::Init()
 
 		table->entries [PAGE_TABLE_INDEX(virt)] = page;
         }
-	pdirectory* dir = (pdirectory*)0x803F2000;
+	pdirectory* dir = (pdirectory*)0xC03F2000;
 	memset(dir, 0,sizeof(pdirectory));
-	pd_entry* entry =&dir->entries [PAGE_DIRECTORY_INDEX (0x80000000)];
+	pd_entry* entry =&dir->entries [PAGE_DIRECTORY_INDEX (0xC0000000)];
         pd_entry_set_bit (entry,_PDE_PRESENT);
         pd_entry_set_bit (entry,_PDE_WRITABLE);
         table=(ptable*)0x3F0000;
@@ -123,10 +133,31 @@ void VMM::Init()
 	pd_entry* entry3 = &dir->entries[PAGE_DIRECTORY_INDEX(0xFFC00000)];
         pd_entry_set_bit(entry3,_PDE_PRESENT);
         pd_entry_set_bit(entry3,_PDE_WRITABLE);
+	pd_entry* framebuf = &dir->entries[PAGE_DIRECTORY_INDEX(framebuffer_addr)];
+	pd_entry_set_bit(framebuf,_PDE_PRESENT);
+	pd_entry_set_bit(framebuf,_PDE_WRITABLE);
+	framebuffer = (ptable*) 0x3F3000;
+	pd_entry_set_frame(framebuf,(uintptr_t)framebuffer);
 	dir = (pdirectory*) 0x3F2000;
 	pd_entry_set_frame(entry3,(uintptr_t)dir);
         switch_directory(dir);
-	_flush_tlb_page(0);
+}
+// Finish installing the VMM
+void VMM::Finish()
+{
+	first = new area_struct;
+	first->addr = 0;
+	first->size = 1024;
+	first->type = PAGE_RAM | PAGE_KERNEL;
+	first->protection = PAGE_RW;
+	area_struct* area = new area_struct;
+	first->next = area;
+	area->addr = 0xC0000000;
+	area->size = 3840;
+	area->type = PAGE_RAM | PAGE_KERNEL;
+	area->protection = PAGE_RWE;
+	area->next = nullptr;
+
 }
 void* kmmap(uint32_t virt, uint32_t npages,uint32_t flags)
 {
@@ -210,6 +241,59 @@ void kmunmap(void* virt, uint32_t npages)
 			kmunmap((void*)pt,1);
 	}
 }
+void* VMM::FindFreeAddress(size_t num_pages,bool is_kernel)
+{
+	uint32_t placement_address;
+	if(is_kernel)
+	{
+		placement_address= kernel_lowest_addr;
+		area_struct* tosearch = first;
+		// Search the linked list
+		while(tosearch->addr < kernel_lowest_addr && tosearch->next != nullptr)
+		{
+			tosearch = tosearch->next;
+		}
+		area_struct* new_area = new area_struct;
+		memset(new_area,0,sizeof(area_struct));
+		tosearch->next = new_area;
+		new_area->addr = tosearch->addr + tosearch->size * PAGE_SIZE;
+		if(new_area->addr + num_pages * PAGE_SIZE >= 0xFFC00000)
+		{
+			// Out of virtual memory, return
+			// This if statement is critical, so its impossible for attackers to exploit the vmm to map over the recursive mapping
+			return nullptr;
+		}
+		new_area->size = num_pages;
+		new_area->type = PAGE_RAM | PAGE_KERNEL;
+		new_area->protection = PAGE_RW;
+		return (void*)new_area->addr;
+	}
+	else // If is_kernel != true, then the pages are going to be user accessible
+	{
+		placement_address = user_lowest_addr;
+		area_struct* tosearch = first;
+		// Search the linked list
+		while(tosearch->addr < user_lowest_addr && tosearch->next != nullptr)
+		{
+			tosearch = tosearch->next;
+		}
+		area_struct* new_area = new area_struct;
+		memset(new_area,0,sizeof(area_struct));
+		tosearch->next = new_area;
+		new_area->addr = tosearch->addr + tosearch->size * PAGE_SIZE;
+		if(new_area->addr + num_pages * PAGE_SIZE >= 0x80000000)
+		{
+			// Out of virtual memory, return
+			// This if statement is critical, so its impossible for attackers to exploit the vmm to map over the kernel
+			// (therefor crashing the OS)
+			return nullptr;
+		}
+		new_area->size = num_pages;
+		new_area->type = PAGE_RAM | PAGE_USER;
+		new_area->protection = PAGE_RW;
+		return (void*)new_area->addr;
+	}
+}
 void* vmalloc(uint32_t npages)
 {
 	if(!npages)
@@ -231,23 +315,67 @@ void vfree(void* ptr, uint32_t npages)
 		return;
 	kmunmap(ptr,npages);
 }
-
-void map_kernel()
+void* VMM::IdentityMap(uint32_t addr,uint32_t npages)
 {
-	VMM::ptable* table = (VMM::ptable*)vmalloc(1);
-
-	for(int i=0,frame=0x000000,virt=0x80000000;i<1024;i++,frame+=4096, virt+=4096)
+	pdirectory* dir = get_directory();
+	ptable* table = (ptable*)pmalloc(1);
+	memset((void*)table,0,sizeof(ptable));
+	for(int i, virt = addr;i < npages;i++,addr+=4096)
 	{
-		VMM::pt_entry page = 0;
+		pt_entry page = 0;
 		pt_entry_set_bit(&page,_PTE_PRESENT);
-		pt_entry_set_frame(&page, frame);
-		table->entries [PAGE_TABLE_INDEX(virt)] = page;
-        }
-        VMM::pdirectory* pd = get_directory();
-	if(!pd)
-		abort();
-	VMM::pd_entry* entry = &pd->entries[PAGE_DIRECTORY_INDEX(0x80000000)];
+		pt_entry_set_bit(&page,_PTE_WRITABLE);
+		pt_entry_set_frame(&page,virt);
+		table->entries[PAGE_TABLE_INDEX(virt)] = page;
+	}
+	pd_entry* entry = &dir->entries[PAGE_DIRECTORY_INDEX(addr)];
+	pd_entry_set_bit(entry,_PDE_PRESENT);
+	pd_entry_set_bit(entry,_PDE_WRITABLE);
 	pd_entry_set_frame(entry,(uintptr_t)table);
-	pd_entry_set_bit(entry, _PDE_PRESENT);
-	pd_entry_set_bit(entry, _PDE_WRITABLE);
+	return (void*)addr;
+}
+VMM::pdirectory* VMM::CreateAddressSpace()
+{
+	pdirectory* newpd = (pdirectory*)vmalloc(1);
+	//STUB
+}
+VMM::pdirectory* VMM::CopyAddressSpace()
+{
+	//Get the current page directory
+	VMM::pdirectory* tobeforked = get_directory();
+	// if there is none,return
+	if(!tobeforked)
+		return nullptr;
+	// Copy the page directory to a new address
+	VMM::pdirectory* newdir = (VMM::pdirectory*)vmalloc(1);
+	memcpy((void*)newdir,(void*)tobeforked,sizeof(VMM::pdirectory));
+
+	for(int i = 0;i < 1024; i++)
+	{
+		if(newdir->entries[i] == NULL)
+			continue;
+		VMM::pd_entry* entry = &newdir->entries[i];
+		if(pd_entry_is_4MB(*entry))
+		{
+			void* newmem = vmalloc(1024);
+			memcpy(newmem,(const void*)pd_entry_pfn(newdir->entries[i]),1024 * 4096);
+			kmunmap((void*)newmem,1024);
+		}
+		void* newtable = vmalloc(1);
+		memcpy(newtable,(const void*)pd_entry_pfn(newdir->entries[i]),sizeof(VMM::ptable));
+		VMM::ptable* pt = (VMM::ptable*)newtable;
+		for(int j = 0; j < 1024; j++)
+		{
+			if(pt->entries[i] == NULL )
+				continue;
+			void* newphys = vmalloc(1);
+			puts("hi");
+			pt_entry_set_frame(&pt->entries[i],(uintptr_t)newphys);
+			memcpy(newphys,(void*)(j * 0x400000),4096); // Copy the contents to a new page
+			kmunmap((void*)newphys,1);
+		}
+		kmunmap((void*)newtable,1);
+	}
+	kmunmap((void*)newdir,1);
+	return (VMM::pdirectory*)newdir;
 }

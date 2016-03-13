@@ -12,16 +12,20 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#ifndef _ASSERT_H
-#define _ASSERT_H
-#include <stdio.h>
-#include <stdlib.h>
-#ifdef NDEBUG
-#define assert(expression)	(void)0
-#else
-#define assert(expression)                                         \
-if (expression == 0) {                                             \
-printf("assert failed: %s, line %i, function:%s()\n",__FILE__, __LINE__, __func__); \
-abort();}
-#endif
-#endif // _ASSERT_H
+#pragma once
+#include <stdint.h>
+#include <multiboot.h>
+namespace Vesa
+{
+	extern volatile unsigned char* framebuffer;
+	extern uint32_t framebuffer_pitch;
+	extern uint32_t framebuffer_width;
+	extern uint32_t framebuffer_height;
+	extern uint32_t framebuffer_bpp;
+	extern uint32_t framebuffer_pixelwidth;
+	void PutPixel(int x,int y, int color);
+	void DrawSquare(int side,int x, int y, int color);
+	void DrawString(const char* str,int x,int y);
+	void DrawChar(unsigned char c, int x, int y, int fgcolor, int bgcolor);
+	void Init(multiboot_info_t* info);
+}

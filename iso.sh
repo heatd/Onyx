@@ -12,8 +12,20 @@ cd $ROOTDIR
 cp sysroot/boot/vmspartix isodir/boot/vmspartix
 cat > isodir/boot/grub/grub.cfg << EOF
 menuentry "Spartix" {
+	set timeout=10
+	loadfont unicode
+	insmod vbe
+  	insmod vga
+  	insmod gfxterm
+	terminal_output gfxterm
+	echo "Loading the vmspartix kernel"
 	multiboot /boot/vmspartix
+	echo "done."
+	set gfxpayload=1024x768x32
+	echo "Loading the initrd"
 	module    /boot/initrd.tar
+	echo "done."
+	boot
 }
 EOF
 grub2-mkrescue -o Spartix.iso isodir # Change this acording to your distro/OS.

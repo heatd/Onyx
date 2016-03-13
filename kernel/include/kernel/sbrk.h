@@ -18,6 +18,6 @@ limitations under the License.
 #include <kernel/mm.h>
 void set_data_area(void* data_area);
 int __brk(void* addr);
-void* sbrk(uint32_t inc);
+void* __sbrk(uint32_t inc);
 void* get_end_data();
 void* get_start_data();

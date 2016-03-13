@@ -12,16 +12,17 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#ifndef _ASSERT_H
-#define _ASSERT_H
-#include <stdio.h>
-#include <stdlib.h>
-#ifdef NDEBUG
-#define assert(expression)	(void)0
-#else
-#define assert(expression)                                         \
-if (expression == 0) {                                             \
-printf("assert failed: %s, line %i, function:%s()\n",__FILE__, __LINE__, __func__); \
-abort();}
-#endif
-#endif // _ASSERT_H
+#include <kernel/mm.h>
+#include <string.h>
+#include <unistd.h>
+#include <kernel/kthread.h>
+static pid_t current_pid = -1;
+pid_t fork()
+{
+	current_pid++;
+	VMM::pdirectory* newpd = VMM::CopyAddressSpace();
+	switch_directory(newpd);
+	KThread* kt = CreateThread((KThread_Entry_point)__builtin_return_address(0));
+	kt->Start();
+	return current_pid;
+}

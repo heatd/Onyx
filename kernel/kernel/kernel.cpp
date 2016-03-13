@@ -52,15 +52,17 @@ limitations under the License.
 #include <drivers/ps2.h>
 #include <kernel/mm.h>
 #include <kernel/rtc.h>
+#include <unistd.h>
+#include <drivers/vesa.h>
 static Spartix::Watchdog* wt;
 /* Function: init_arch()
  * Purpose: Initialize architecture specific features, should be hooked by the architecture the kernel will run on
  */
 #define TERM_OK(str) \
                 printf("[  "); \
-		TTY::SetColor(make_color(COLOR_GREEN, COLOR_BLACK)); \
+		TTY::SetColor(0x00FF00); \
 		printf("OK"); \
-		TTY::SetColor(make_color(COLOR_LIGHT_GREY, COLOR_BLACK)); \
+		TTY::SetColor(0xC0C0C0); \
 		printf("  ] "); \
 		puts(str); \
 
@@ -76,26 +78,14 @@ extern char __BUILD_NUMBER;
 static fs_node_t* initrd_root;
 extern "C" void KernelEarly(multiboot_info_t* info, size_t magic)
 {
-	TTY::Init();
-	if(info == nullptr)
-		panic("Invalid multiboot_info_t*.The bootloader currently being used is broken");
 	mbt = info;
-	puts("Booting ...");
-
-	// Check if the magic number is the same as the multiboot 1 spec
-	if(magic == 0x2BADB002){
-		TERM_OK("Spartix kernel booted by a Multiboot 1 compliant bootloader");
-	}else
-		panic("Bootloader not Multiboot 1 compliant"); // If not, panic, because our kernel relies on it
-	init_arch();
-	printf("Loaded by %s\n",mbt->boot_loader_name);
-	mbt->mmap_addr+=0x80000000;
+	mbt->mmap_addr+=0xC0000000;
 
 	multiboot_memory_map_t* mmap = (multiboot_memory_map_t*) mbt->mmap_addr;
 
-	memset((void*)0x80200000,0,4096);
+	memset((void*)0xC0200000,0,4096);
 
-	PMM::Init(mbt->mem_lower + mbt->mem_upper,(uintptr_t) 0x80200000);
+	PMM::Init(mbt->mem_lower + mbt->mem_upper,(uintptr_t) 0xC0200000);
 	// Initialize the Physical memory manager
 
 	while((unsigned int)mmap < mbt->mmap_addr + mbt->mmap_length) {
@@ -106,6 +96,19 @@ extern "C" void KernelEarly(multiboot_info_t* info, size_t magic)
 		i++;
 		mmap = (multiboot_memory_map_t*) ( (unsigned int)mmap + mmap->size + sizeof(unsigned int) );
 	}
+	//Initialize the VMM
+	VMM::Init(mbt->framebuffer_addr);
+	TTY::Init();
+
+	Vesa::Init(mbt);
+	puts("Booting ...");
+	// Check if the magic number is the same as the multiboot 1 spec
+	if(magic == 0x2BADB002){
+		TERM_OK("Spartix kernel booted by a Multiboot 1 compliant bootloader");
+	}else
+		panic("Bootloader not Multiboot 1 compliant"); // If not, panic, because our kernel relies on it
+	init_arch();
+	printf("Loaded by %s\n",mbt->boot_loader_name);
 	printf("Total memory: %i MiB\n",mbt->mem_lower+mbt->mem_upper/1024);
 	multiboot_module_t* mod_start_ptr = (multiboot_module_t*)mbt->mods_addr;
 	initrd_addr = mod_start_ptr->mod_start;
@@ -119,14 +122,10 @@ extern "C" void KernelMain()
 	// Initialize the timer
 	Timer::Init(1000);
 	TERM_OK("Initialized the Timer");
-
-	//Initialize the VMM
-	VMM::Init();
-	TERM_OK("Initialized the Virtual Memory Manager");
-
 	// Initialize the kernel heap
 	InitHeap();
 	TERM_OK("Initialized the Kernel Heap");
+	VMM::Finish();
 	//Initialize the Initrd
 	initrd_root = Initrd::Init(initrd_addr);
 
@@ -159,7 +158,6 @@ void KernelUserspace()
 		asm volatile("hlt");
 	}
 	TERM_OK("Timer test successful");
-
 	// Test Kheap
 	TERM_OK("Testing the Kernel Heap...");
 
@@ -184,7 +182,6 @@ void KernelUserspace()
 		abort();
 	wt->Start();
 
-	RTC::Init();
 	for(;;)
 	{
 		asm volatile("hlt");

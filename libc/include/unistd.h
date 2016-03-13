@@ -71,9 +71,9 @@ limitations under the License.
 #define _POSIX_TRACE_EVENT_FILTER -1
 #define _POSIX_TRACE_LOG	-1
 #define _POSIX_TYPED_MEMORY_OBJECTS -1
-#ifdef i386
+#ifdef __i386__
 #define _POSIX_V6_ILP32_OFF32 	1
-#endif // i386
+#endif // __i386__
 #define _POSIX2_C_BIND 		200809L
 #define _POSIX2_C_DEV		200809L
 #define _POSIX2_CHAR_TERM	-1
@@ -98,4 +98,6 @@ int execv(const char* path, char* const argv[]);
 int execvp(const char* file, char* const argv[]);
 int execve(const char* filename, char* const argv[],
 char* const envp[]);
+int brk(void* addr);
+void* sbrk(uint32_t inc);
 #endif // _UNISTD_H

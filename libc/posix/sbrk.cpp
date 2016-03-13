@@ -12,16 +12,17 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#ifndef _ASSERT_H
-#define _ASSERT_H
-#include <stdio.h>
-#include <stdlib.h>
-#ifdef NDEBUG
-#define assert(expression)	(void)0
+#include <kernel/sbrk.h>
+int brk(void* addr)
+{
+#ifdef is_spartix_kernel
+	return __brk(addr);
 #else
-#define assert(expression)                                         \
-if (expression == 0) {                                             \
-printf("assert failed: %s, line %i, function:%s()\n",__FILE__, __LINE__, __func__); \
-abort();}
+	asm volatile("movl $3,%%eax\t\n movl %0,%%ebx"::"r"(addr));
+	asm volatile("int $0x80");
 #endif
-#endif // _ASSERT_H
+}
+void* sbrk(uint32_t inc)
+{
+	return __sbrk(inc);
+}

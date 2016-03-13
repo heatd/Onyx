@@ -13,15 +13,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 /**************************************************************************
- * 
- * 
+ *
+ *
  * File: tty.c
- * 
+ *
  * Description: Contains the text terminal initialization and manipulation code
- * 
+ *
  * Date: 30/1/2016
- * 
- * 
+ *
+ *
  **************************************************************************/
 #include <stdbool.h>
 #include <stddef.h>
@@ -30,75 +30,58 @@ limitations under the License.
 #include <kernel/portio.h>
 #include <kernel/vga.h>
 #include <kernel/tty.h>
+#include <drivers/vesa.h>
+#include <stdio.h>
 size_t terminal_row;
 size_t terminal_column;
-uint8_t terminal_color;
-uint16_t* terminal_buffer;
-
+uint32_t last_x;
+uint32_t last_y;
+int terminal_color;
 void TTY::Init(void)
 {
-	terminal_row = 0;
+	terminal_row = 1;
 	terminal_column = 0;
-	terminal_color = make_color(COLOR_LIGHT_GREY, COLOR_BLACK);
-	terminal_buffer = VGA_MEMORY;
-	for ( size_t y = 0; y < VGA_HEIGHT; y++ )
-	{
-		for ( size_t x = 0; x < VGA_WIDTH; x++ )
-		{
-			const size_t index = y * VGA_WIDTH + x;
-			terminal_buffer[index] = make_vgaentry(' ', terminal_color);
-		}
-	}
+	terminal_color = 0xC0C0C0;
 }
 
-void TTY::SetColor(uint8_t color)
+void TTY::SetColor(int color)
 {
 	terminal_color = color;
 }
 
-void terminal_putentryat(char c, uint8_t color, size_t x, size_t y)
+void terminal_putentryat(char c, uint8_t color, size_t column, size_t row)
 {
-	const size_t index = y * VGA_WIDTH + x;
-	terminal_buffer[index] = make_vgaentry(c, color);
-}
-void terminal_scroll()
-{
-	for(unsigned int i = 0; i < VGA_HEIGHT; i++){
-		for (unsigned int m = 0; m < VGA_WIDTH; m++){
-			terminal_buffer[i * VGA_WIDTH + m] = terminal_buffer[(i + 1) * VGA_WIDTH + m];
-		}
-	}
+	int y = row * 16;
+	int x = column * 9;
+	Vesa::DrawChar(c,x,y,terminal_color,0);
 }
 void TTY::PutChar(char c)
 {
 	if(c == '\n'){
 		terminal_column = 0;
-		if(terminal_row +1 == VGA_HEIGHT)
-			terminal_scroll();
-		else
 		terminal_row++;
-		
 		UpdateCursor();
 		return;
 	}
 	terminal_putentryat(c, terminal_color, terminal_column, terminal_row);
-	if ( ++terminal_column == VGA_WIDTH )
-	{
-		terminal_column = 0;
-		if ( ++terminal_row == VGA_HEIGHT )
-		{
-			terminal_scroll();
-		}
-	}
+	terminal_column++;
 	UpdateCursor();
 }
 void TTY::UpdateCursor()
 {
-	uint16_t position=(terminal_row*80) + terminal_column;
-	outb(0x3D4, 0x0F);
-	outb(0x3D5, (unsigned char)(position&0xFF));//Cursor low
-	outb(0x3D4, 0x0E);
-	outb(0x3D5, (unsigned char)((position>>8)&0xFF));
+
+	/*uint32_t x = terminal_column * 16;
+	uint32_t y = terminal_row * 10;
+	last_x = x;
+	last_y = y;
+	int k = 0;
+	for(int i = 0; i < 16;i++)
+	{
+		for(int j = 0;j < 8; j++)
+		{
+			Vesa::PutPixel(x + j, y + i,0xC0C0C0);
+		}
+	}*/
 }
 void TTY::Write(const char* data, size_t size)
 {

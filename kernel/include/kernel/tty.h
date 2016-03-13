@@ -18,13 +18,14 @@ limitations under the License.
 #include <stddef.h>
 #include <stdint-gcc.h>
 namespace TTY{
-	
+
 void Init(void);
 void PutChar(char c);
 extern "C++" /* Weird hack i had to make to make this compile */void Write(const char* data, size_t size);
 void WriteString(const char* data);
-void SetColor(uint8_t color);
+void SetColor(int color);
 void UpdateCursor();
+void ClearCursor();
 
 };
 #endif

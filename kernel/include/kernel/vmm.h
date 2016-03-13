@@ -20,7 +20,7 @@ limitations under the License.
 typedef uint32_t DWORD;
 namespace VMM
 {
-void Init();
+void Init(uint32_t framebuffer_addr);
 /* Page table defines just to help the code not have "magic values"*/
 #define _PTE_PRESENT		1
 #define _PTE_WRITABLE		2
@@ -46,26 +46,23 @@ void Init();
 #define _PDE_FRAME			0x7FFFF000
 typedef uint32_t pd_entry;
 typedef uint32_t pt_entry;
-//! i86 architecture defines 1024 entries per table--do not change
+// i686 architecture defines 1024 entries per table
 #define PAGES_PER_TABLE 1024
 #define PAGES_PER_DIR	1024
-#define MEM_REGULAR 0
-#define MEM_EXEC 0x1
-#define MEM_DMA 0x2
 #define PAGE_DIRECTORY_INDEX(x) (((x) >> 22) & 0x3ff)
 #define PAGE_TABLE_INDEX(x) (((x) >> 12) & 0x3ff)
 #define PAGE_GET_PHYSICAL_ADDRESS(x) (*x & ~0xfff)
 
-//! page table represents 4mb address space
+// page table represents 4mb address space
 #define PTABLE_ADDR_SPACE_SIZE 0x400000
 
-//! directory table represents 4gb address space
+// directory table represents 4gb address space
 #define DTABLE_ADDR_SPACE_SIZE 0x100000000
 
-//! page sizes are 4k
+// page sizes are 4k
 #define PAGE_SIZE 4096
 
-//! page table
+// page table
 typedef struct ptable {
 
 	pt_entry entries[PAGES_PER_TABLE];
@@ -77,8 +74,34 @@ typedef struct pdirectory {
 
 	pd_entry entries[PAGES_PER_DIR];
 }pdirectory;
+pdirectory* CopyAddressSpace();
+void* IdentityMap(uint32_t addr,uint32_t pages);
+VMM::pdirectory* CreateAddressSpace();
+void Finish();
+void* FindFreeAddress(size_t, bool);
+#define PAGE_RAM 0x1
+#define PAGE_KERNEL 0x2
+#define PAGE_USER 0x4
 
+#define PAGE_READ 0x1
+#define PAGE_WRITE 0x2
+#define PAGE_EXECUTABLE 0x4
+#define PAGE_RW PAGE_READ | PAGE_WRITE
+#define PAGE_RWE PAGE_RW | PAGE_EXECUTABLE
+const uintptr_t kernel_lowest_addr 	= 0xC0000000;
+const uintptr_t user_lowest_addr 	= 0x400000;
+typedef struct AreaStruct
+{
+	uintptr_t addr; // Address of pages
 
+	size_t size; // Size in pages
+
+	uint8_t type; // Type of page ( its type is uint8_t just to save some memory)
+
+	uint8_t protection; // R/W, just read, executable, etc...
+
+	struct AreaStruct* next; // The next VMM::area_struct in the linked list
+}area_struct;
 };
 inline void pt_entry_set_bit(VMM::pt_entry* pt,uint32_t bit)
 {
@@ -153,4 +176,5 @@ void* vmalloc(uint32_t npages);
 
 void vfree(void* ptr, uint32_t npages);
 
+int switch_directory (VMM::pdirectory* dir);
 #endif // VMM_H

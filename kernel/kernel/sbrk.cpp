@@ -48,7 +48,7 @@ int __brk(void* addr)
 *	Function Name: sbrk(2)
 *	Description: Implementaion of sbrk(2). Increments the program's data area for inc bytes, and maps it
 */
-void* sbrk(uint32_t inc)
+void* __sbrk(uint32_t inc)
 {
 	if(inc == 0)
 		return data_area_limit;
