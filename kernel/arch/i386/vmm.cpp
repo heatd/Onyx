@@ -187,7 +187,7 @@ void* kmmap(uint32_t virt, uint32_t npages,uint32_t flags)
 		pt = (VMM::ptable*)pd_entry_pfn(*entry);
 	else {
 		pt = (VMM::ptable*)pmalloc(1);
-		if(pt == nullptr)
+		if(!pt)
 			panic("No free blocks");
 		kmmap((uint32_t)pt,1024,_PDE_WRITABLE);
 		memset(pt, 0, sizeof(VMM::ptable));
@@ -337,17 +337,14 @@ void VMM::FreeAddress(void* address)
 		tosearch = tosearch->next;
 	}
 }
-void* vmalloc(uint32_t npages)
+void* valloc(uint32_t npages)
 {
 	if(!npages)
 		return nullptr;
-	void* ptr = pmalloc(npages);
-	if(!ptr)
+	void* vaddr = VMM::AllocateAddress(npages,true);
+	if(!kmmap((uint32_t)vaddr,npages,_PDE_WRITABLE))
 		return nullptr;
-	pfree(npages,ptr);
-	if(!kmmap((uint32_t)ptr,npages,_PDE_WRITABLE))
-		return nullptr;
-	return ptr;
+	return vaddr;
 }
 
 void vfree(void* ptr, uint32_t npages)
@@ -357,6 +354,7 @@ void vfree(void* ptr, uint32_t npages)
 	if(!ptr)
 		return;
 	kmunmap(ptr,npages);
+	VMM::FreeAddress(ptr);
 }
 void* VMM::IdentityMap(uint32_t addr,uint32_t npages)
 {
@@ -379,7 +377,7 @@ void* VMM::IdentityMap(uint32_t addr,uint32_t npages)
 }
 VMM::pdirectory* VMM::CreateAddressSpace()
 {
-	pdirectory* newpd = (pdirectory*)vmalloc(1);
+	pdirectory* newpd = (pdirectory*)valloc(1);
 	//STUB
 }
 VMM::pdirectory* VMM::CopyAddressSpace()
@@ -390,7 +388,7 @@ VMM::pdirectory* VMM::CopyAddressSpace()
 	if(!tobeforked)
 		return nullptr;
 	// Copy the page directory to a new address
-	VMM::pdirectory* newdir = (VMM::pdirectory*)vmalloc(1);
+	VMM::pdirectory* newdir = (VMM::pdirectory*)valloc(1);
 	memcpy((void*)newdir,(void*)tobeforked,sizeof(VMM::pdirectory));
 
 	for(int i = 0;i < 1024; i++)
@@ -400,19 +398,18 @@ VMM::pdirectory* VMM::CopyAddressSpace()
 		VMM::pd_entry* entry = &newdir->entries[i];
 		if(pd_entry_is_4MB(*entry))
 		{
-			void* newmem = vmalloc(1024);
+			void* newmem = valloc(1024);
 			memcpy(newmem,(const void*)pd_entry_pfn(newdir->entries[i]),1024 * 4096);
 			kmunmap((void*)newmem,1024);
 		}
-		void* newtable = vmalloc(1);
+		void* newtable = valloc(1);
 		memcpy(newtable,(const void*)pd_entry_pfn(newdir->entries[i]),sizeof(VMM::ptable));
 		VMM::ptable* pt = (VMM::ptable*)newtable;
 		for(int j = 0; j < 1024; j++)
 		{
 			if(pt->entries[i] == NULL )
 				continue;
-			void* newphys = vmalloc(1);
-			puts("hi");
+			void* newphys = valloc(1);
 			pt_entry_set_frame(&pt->entries[i],(uintptr_t)newphys);
 			memcpy(newphys,(void*)(j * 0x400000),4096); // Copy the contents to a new page
 			kmunmap((void*)newphys,1);

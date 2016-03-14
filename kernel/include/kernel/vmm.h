@@ -174,7 +174,7 @@ void* kmmap(uint32_t virt, uint32_t npages,uint32_t flags);
 
 void kmunmap(void* virt, uint32_t npages);
 
-void* vmalloc(uint32_t npages);
+void* valloc(uint32_t npages);
 
 void vfree(void* ptr, uint32_t npages);
 

@@ -132,7 +132,7 @@ extern "C" void KernelMain()
 		abort();
 	//Initialize PS/2 keyboard drivers
 	InitKeyboard();
-
+	printf("Initializing multitasking\n");
 	KThread* main = CreateThread(KernelUserspace);
 	wt = new Spartix::Watchdog(main);
 	main->Start();
@@ -146,6 +146,7 @@ extern "C" void KernelMain()
 }
 void KernelUserspace()
 {
+	TERM_OK("Multitasking Initialized");
 	// Test kernel features
 
 	// Test the timer

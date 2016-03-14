@@ -42,7 +42,7 @@ void CreateTask(Task_t* task,void (*thread)())
 {
 	unsigned int* stack;
 
-	task->regs.esp = (uint32_t)vmalloc(2) + 8192;
+	task->regs.esp = (uint32_t)valloc(2) + 8192;
 	if(!task->regs.esp)
 		abort();
 	stack = (unsigned int*)task->regs.esp;

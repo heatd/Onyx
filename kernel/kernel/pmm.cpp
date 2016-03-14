@@ -24,6 +24,7 @@ limitations under the License.
  *
  **************************************************************************/
 #include <kernel/pmm.h>
+#include <stdio.h>
 #include <string.h>
 // size of physical memory
 static	size_t	pmm_memory_size = 0;
@@ -43,7 +44,7 @@ void Push(uintptr_t base,size_t size)
 		base += 0x300000;
 		base &= 0xFFFFFF000;
 	}
-	for(int i = 0;i < pmm_memory_size/PMM_BLOCK_SIZE ;i++)
+	for(int i = 0;i < pushed_blocks + 1 ;i++)
 		if(stack->next[i].base==0 && stack->next[i].size == 0){
 			stack->next[i].base = base;
 			stack->next[i].size = size;
@@ -73,18 +74,18 @@ void Init(size_t memory_size,uintptr_t stack_space)
 };
 void* pmalloc(size_t blocks)
 {
-	void* ret_addr = NULL;
+	uint32_t ret_addr = NULL;
 	for(int i = 0;i < pushed_blocks;i++)
-		if(PMM::stack->next[i].base !=0 || PMM::stack->next[i].size != 0){
+		if(PMM::stack->next[i].base !=0 && PMM::stack->next[i].size != 0 && PMM::stack->next[i].size >= PMM_BLOCK_SIZE * blocks){
 			if(PMM::stack->next[i].size >= blocks * PMM_BLOCK_SIZE){
-				ret_addr =(void*)PMM::stack->next[i].base;
+				ret_addr = PMM::stack->next[i].base;
 				PMM::stack->next[i].base+=PMM_BLOCK_SIZE * blocks;
 				PMM::stack->next[i].size-=PMM_BLOCK_SIZE * blocks;
-				return (void*)((uint32_t)ret_addr & 0xFFFFFF000);
+				return (void*)(ret_addr & 0xFFFFFF000);
 			}
 		}
 
-	return ret_addr;
+	return (void*)ret_addr;
 }
 void pfree(size_t blocks,void* p)
 {

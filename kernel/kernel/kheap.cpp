@@ -175,8 +175,8 @@ void InitHeap()
 {
 	k_heapBMInit(&kheap);
 	set_data_area((void*)0xC0600000);
-	__brk((void*)0xC0F00000);
-	k_heapBMAddBlock(&kheap,0xC0600000,0xC0F00000 - 0xC0600000,16);
+	__brk((void*)0xC0A00000);
+	k_heapBMAddBlock(&kheap,0xC0600000,0xC0A00000 - 0xC0600000,16);
 	heap_extensions = 0;
 }
 void* kmalloc(size_t size)
