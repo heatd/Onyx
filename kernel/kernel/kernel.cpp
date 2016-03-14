@@ -188,7 +188,6 @@ void KernelUserspace()
 	void* file_buffer = kmalloc(file_size);
 	read_fs(elf_file,0,file_size,file_buffer);
 	ELFLoader::LoadFile(file_buffer);*/
-	kmmap((uint32_t)VMM::AllocateAddress(2048,true),2048,_PDE_WRITABLE);
 	wt->Start();
 	for(;;)
 	{

@@ -99,8 +99,6 @@ void VMM::Init(uint32_t framebuffer_addr)
 		pt_entry page=0;
 		pt_entry_set_bit(&page,_PTE_PRESENT);
 		pt_entry_set_frame(&page, frame);
-		if(virt == 0)
-			pt_entry_unset_bit(&page,_PTE_PRESENT);
 		mb->entries [PAGE_TABLE_INDEX(virt)] = page;
         }
 	for(int i=0,frame=framebuffer_addr,virt=framebuffer_addr;i<1024;i++,frame+=4096, virt+=4096)
@@ -169,8 +167,8 @@ void* kmmap(uint32_t virt, uint32_t npages, uint32_t flags)
 		uint32_t number_of_allocs = npages / 1024;
 		for(int i = 0; i < number_of_allocs; i++)
 		{
-			VMM::Map(virt,1024,flags);
-			vaddr+=4096 * PAGE_SIZE;
+			VMM::Map(vaddr,1024,flags);
+			vaddr += 0x400000;
 		}
 		VMM::Map(vaddr,npages % 1024,flags);
 	}
