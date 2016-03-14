@@ -75,6 +75,7 @@ static multiboot_memory_map_t*  mmap_arr[10];
 static uint32_t initrd_addr;
 extern uint32_t end;
 extern char __BUILD_NUMBER;
+extern char __BUILD_DATE;
 static fs_node_t* initrd_root;
 extern "C" void KernelEarly(multiboot_info_t* info, size_t magic)
 {
@@ -117,7 +118,7 @@ extern "C" void KernelMain()
 {
 
 	printf("Spartix kernel %s branch %s build %d\n",KERNEL_VERSION,KERNEL_BRANCH,&__BUILD_NUMBER);
-
+	printf("Built on %d\n",&__BUILD_DATE);
 	// Initialize the timer
 	Timer::Init(1000);
 	TERM_OK("Initialized the Timer");
@@ -132,7 +133,7 @@ extern "C" void KernelMain()
 		abort();
 	//Initialize PS/2 keyboard drivers
 	InitKeyboard();
-	printf("Initializing multitasking\n");
+	TERM_OK("Initializing multitasking");
 	KThread* main = CreateThread(KernelUserspace);
 	wt = new Spartix::Watchdog(main);
 	main->Start();
