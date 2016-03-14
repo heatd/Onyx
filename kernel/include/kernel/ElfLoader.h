@@ -21,7 +21,19 @@ typedef uint32_t Elf32_Word;	// Unsigned int
 typedef int32_t  Elf32_Sword;	// Signed int
 
 # define ELF_NIDENT	16
- 
+namespace ELFLoader
+{
+typedef struct
+{
+        Elf32_Word      p_type;
+        Elf32_Off       p_offset;
+        Elf32_Addr      p_vaddr;
+        Elf32_Addr      p_paddr;
+        Elf32_Word      p_filesz;
+        Elf32_Word      p_memsz;
+        Elf32_Word      p_flags;
+        Elf32_Word      p_align;
+} Elf32_Phdr;
 typedef struct
 {
 	uint8_t		e_ident[ELF_NIDENT];
@@ -53,21 +65,29 @@ enum Elf_Ident
 	EI_ABIVERSION	= 8, // OS Specific
 	EI_PAD		= 9  // Padding
 };
- 
-# define ELFMAG0	0x7F // e_ident[EI_MAG0]
-# define ELFMAG1	'E'  // e_ident[EI_MAG1]
-# define ELFMAG2	'L'  // e_ident[EI_MAG2]
-# define ELFMAG3	'F'  // e_ident[EI_MAG3]
- 
-# define ELFDATA2LSB	(1)  // Little Endian
-# define ELFCLASS32	(1)  // 32-bit Architecture
+
+#define ELFMAG0	0x7F // e_ident[EI_MAG0]
+#define ELFMAG1	'E'  // e_ident[EI_MAG1]
+#define ELFMAG2	'L'  // e_ident[EI_MAG2]
+#define ELFMAG3	'F'  // e_ident[EI_MAG3]
+
+#define ELFDATA2LSB	(1)  // Little Endian
+#define ELFCLASS32	(1)  // 32-bit Architecture
 
 enum Elf_Type
 {
-	ET_NONE		= 0, // Unkown Type
+	ET_NONE		= 0, // Unknown Type
 	ET_REL		= 1, // Relocatable File
 	ET_EXEC		= 2  // Executable File
 };
- 
-# define EM_386		(3)  // x86 Machine Type
-# define EV_CURRENT	(1)  // ELF Current Version
+
+#define EM_386		(3)  // x86 Machine Type
+#define EV_CURRENT	(1)  // ELF Current Version
+#define HDR_INV 0x1
+#define ARCH_INV 0x2
+#define DATAORDER_INV 0x3
+int errno;
+/* Function Declarations*/
+bool LoadFile(void* file);
+bool CheckValid(Elf32_Ehdr* header);
+};

@@ -161,7 +161,24 @@ void VMM::Finish()
 	area->next = nullptr;
 
 }
-void* kmmap(uint32_t virt, uint32_t npages,uint32_t flags)
+void* kmmap(uint32_t virt, uint32_t npages, uint32_t flags)
+{
+	uint32_t vaddr = virt;
+	if(npages > 1024)
+	{
+		uint32_t number_of_allocs = npages / 1024;
+		for(int i = 0; i < number_of_allocs; i++)
+		{
+			VMM::Map(virt,1024,flags);
+			vaddr+=4096 * PAGE_SIZE;
+		}
+		VMM::Map(vaddr,npages % 1024,flags);
+	}
+	else
+		VMM::Map(vaddr,npages,flags);
+	return (void*)vaddr;
+}
+void* VMM::Map(uint32_t virt, uint32_t npages,uint32_t flags)
 {
 	if (!npages)
 		return nullptr;

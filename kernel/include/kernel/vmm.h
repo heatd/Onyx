@@ -76,6 +76,7 @@ typedef struct pdirectory {
 }pdirectory;
 pdirectory* CopyAddressSpace();
 void* IdentityMap(uint32_t addr,uint32_t pages);
+void* Map(uint32_t virt, uint32_t npages,uint32_t flags);
 VMM::pdirectory* CreateAddressSpace();
 void  Finish();
 void* AllocateAddress(size_t, bool);
