@@ -24,16 +24,49 @@ limitations under the License.
  *
  **************************************************************************/
 #include <kernel/ElfLoader.h>
-
+#include <kernel/tty.h>
+#include <kernel/mm.h>
+#include <kernel/kthread.h>
+#include <stdio.h>
 namespace ELFLoader
 {
+
+extern int errno = 0;
+int ParseProgramHeader(Elf32_Phdr* prog_hdr,Elf32_Half entries,void* file)
+{
+	for(int i = 0; i <= entries; i++)
+	{
+		if(prog_hdr[i].p_type == 1)
+		{
+			if(VMM::MarkAddressAsUsed((void*)prog_hdr[i].p_vaddr,prog_hdr[i].p_memsz / 1024) == 1)
+			{
+				return 1;
+			}
+			if(prog_hdr[i].p_filesz < prog_hdr[i].p_memsz)
+			{
+				// Its the bss section, zero it out
+				kmmap(prog_hdr[i].p_vaddr,prog_hdr[i].p_memsz / 1024,_PDE_WRITABLE);
+				memset((void*)prog_hdr[i].p_vaddr,0,prog_hdr[i].p_memsz);
+			}
+			kmmap(prog_hdr[i].p_vaddr,prog_hdr[i].p_memsz / 1024 + 1024,_PDE_WRITABLE);
+			memcpy((void*)prog_hdr[i].p_vaddr,file + prog_hdr[i].p_offset,prog_hdr[i].p_filesz);
+		}
+	}
+	return 0;
+}
 bool LoadFile(void* file)
 {
 	Elf32_Ehdr* header = (Elf32_Ehdr*)file;
-	if(!CheckSupported(header)
+	if(!CheckSupported(header))
 		return false;
 	Elf32_Phdr* prog_hdr = (Elf32_Phdr*)(file + header->e_phoff);
-	ParseProgramHeader(prog_hdr);
+	if(ParseProgramHeader(prog_hdr,header->e_phnum,file) == 1)
+	{
+		ThrowError(0x4,"Invalid Load address");
+		return false;
+	}
+	KThread* kt = CreateThread((KThread_Entry_point)header->e_entry);
+	kt->Start();
 }
 void ThrowError(int errn,const char* err_msg)
 {

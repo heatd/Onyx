@@ -12,8 +12,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#ifndef INITRD_H
-#define INITRD_H
+#pragma once
 #include <kernel/fs.h>
 #include <stdint.h>
 namespace Initrd
@@ -41,4 +40,3 @@ uint32_t GetSize(const char *in);
 unsigned int Parse(uint32_t address);
 fs_node_t* Init(uint32_t addr);
 };
-#endif

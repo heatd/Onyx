@@ -40,12 +40,10 @@ jump_userspace:
 	mov es,ax
 	mov fs,ax
 	mov gs,ax
-	
 	mov eax,esp
 	push 0x23
 	push eax
-	pushf 
+	pushf
 	push 0x1B
 	push test
 	iret
-	

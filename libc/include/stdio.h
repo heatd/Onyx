@@ -18,6 +18,9 @@ limitations under the License.
 #include <sys/cdefs.h>
 #include <string.h>
 #include <stdarg.h>
+#ifdef __is_spartix_kernel
+#include <kernel/spinlock.h>
+#endif
 #ifdef __cplusplus
 extern "C" {
 #endif

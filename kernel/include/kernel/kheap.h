@@ -12,8 +12,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#ifndef KHEAP_H
-#define KHEAP_H
+#pragma once
 
 #include <kernel/vmm.h>
 typedef struct _KHEAPBLOCKBM {
@@ -23,12 +22,12 @@ typedef struct _KHEAPBLOCKBM {
 	uint32_t					bsize;
         uint32_t                                  lfb;
 } KHEAPBLOCKBM;
- 
-typedef struct _KHEAPBM 
+
+typedef struct _KHEAPBM
 {
 	KHEAPBLOCKBM			*fblock;
 } KHEAPBM;
- 
+
 
 void k_heapBMFree(KHEAPBM *heap, void *ptr);
 
@@ -44,5 +43,3 @@ extern "C++" void kfree(void* ptr);
 
 
 void InitHeap();
-
-#endif // KHEAP_H 

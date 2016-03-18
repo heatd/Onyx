@@ -52,6 +52,10 @@ kernel/watchdog.o \
 kernel/sbrk.o \
 kernel/fork.o \
 kernel/fonts/font.o \
+kernel/ElfLoader.o \
+kernel/spinlock.o \
+kernel/log.o \
+kernel/process.o \
 
 
 CRTI_OBJ:=$(ARCHDIR)/crti.o

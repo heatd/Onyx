@@ -13,15 +13,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 /**************************************************************************
- * 
- * 
+ *
+ *
  * File: syscall.c
- * 
+ *
  * Description: Contains the implementation of syscalls on x86
- * 
+ *
  * Date: 4/2/2016
- * 
- * 
+ *
+ *
  **************************************************************************/
 #include <stdint.h>
 #include <kernel/registers.h>
@@ -32,24 +32,22 @@ limitations under the License.
 #include <kernel/kheap.h>
 #include <kernel/fd.h>
 #include <kernel/sbrk.h>
-extern "C" void syscall()
+extern "C" void syscall(uint32_t edi,uint32_t edx,uint32_t ecx, uint32_t ebx, uint32_t eax)
 {
-	uint32_t eax,ebx,ecx,edx,edi;
-	asm volatile("mov %%eax,%0":"=a"(eax));
-	asm volatile("mov %%ebx,%0":"=a"(ebx));
-	asm volatile("mov %%ecx,%0":"=a"(ecx));
-	asm volatile("mov %%edx,%0":"=a"(edx));
-	asm volatile("mov %%edi,%0":"=a"(edi));
-	
-	switch(eax){
+	switch(eax)
+	{
 		case 0:
 			sys_write(ebx,(const void*)ecx,edx);
+			return;
 		case 1:
 			sys_read(ebx,(const void*)ecx,edx);
+			return;
 		case 2:
 			asm volatile("int $0x50");
+			return;
 		case 3:
-			__brk((void*)ebx);
+			__sbrk((int)ebx);
+			return;
 		default:
 			break;
 	}

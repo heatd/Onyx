@@ -12,12 +12,10 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#ifndef PIT_H
-#define PIT_H
+#pragma once
 #include <stdint.h>
 namespace PIT
 {
 void Init(uint32_t hz);
 uint64_t GetTickCount();
 };
-#endif // PIT_H

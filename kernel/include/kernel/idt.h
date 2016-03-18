@@ -12,9 +12,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#ifndef IDT_H
-#define IDT_H
-
+#pragma once
 #include <stdlib.h>
 #include <stdint.h>
 struct idt_ptr
@@ -91,4 +89,3 @@ extern "C" void irq14();
 extern "C" void irq15();
 extern "C" void _syscall();
 extern "C" void _yield();
-#endif // IDT_H

@@ -12,8 +12,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#ifndef GDT_H
-#define GDT_H
+#pragma once
+
 #include <stdint.h>
 struct gdt_ptr
 {
@@ -68,5 +68,3 @@ typedef struct tss_entry_struct tss_entry_t;
 void load_gdt();
 void create_descriptor(uint32_t entrynum,uint32_t base,uint32_t limit,uint8_t access,uint8_t granularity);
 void init_gdt();
-
-#endif // GDT_H

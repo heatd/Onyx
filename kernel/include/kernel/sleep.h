@@ -12,12 +12,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#ifndef SLEEP_H
-#define SLEEP_H
+#pragma once
 #include <stdint.h>
 #include <kernel/timer.h>
 
-void ksleep(long long ms);
-
-
-#endif // SLEEP_H
+void ksleep(uint32_t ms);

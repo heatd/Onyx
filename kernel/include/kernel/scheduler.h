@@ -21,8 +21,8 @@ typedef struct task
 	bool is_kernel;
 	registers_t regs;
 	struct task* next;
-	
+
 }Task_t;
-void CreateTask(Task_t*,void (*thread)());
+void CreateTask(Task_t*,void (*thread)(),uint32_t,uint32_t);
 void TerminateTask(Task_t*);
 extern "C" unsigned int SwitchTask(unsigned int OldEsp);

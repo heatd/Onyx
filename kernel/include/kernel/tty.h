@@ -12,9 +12,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#ifndef _KERNEL_TTY_H
-#define _KERNEL_TTY_H
-
+#pragma once
 #include <stddef.h>
 #include <stdint-gcc.h>
 namespace TTY{
@@ -26,4 +24,3 @@ void WriteString(const char* data);
 void SetColor(int color);
 
 };
-#endif

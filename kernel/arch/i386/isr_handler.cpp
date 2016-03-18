@@ -83,24 +83,12 @@ extern "C" void isr_handler(uint32_t ds,uint32_t int_no,uint32_t err_code)
 		// A page fault has occurred.
 		// The faulting address is stored in the CR2 register.
 		asm volatile("mov %%cr2, %0" : "=r" (faulting_address));
-		// Output an error message.
-
-		printf("Page fault at 0x%x\n",(unsigned int)faulting_address);
-		printf("Details: ");
-		if((err_code >> 1) & 1)
- 			printf("Present,");
-
-		if((err_code >> 2) & 1)
- 			printf(" write-access caused the fault,");
- 		else
- 			printf(" read-access caused the fault,");
-
- 		if((err_code >> 3) & 1)
- 			printf("user mode");
- 		else
- 			printf("kernel-mode\n");
-		break;
-		halt();
+		if(err_code & 0x2)
+		{
+ 			if(VMM::AllocCOW(faulting_address & 0xFFFFF000) == 1)
+				abort();
+			return;
+		}
 	}
 	case 15: {
 		break;//Reserved exception

@@ -13,15 +13,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 /**************************************************************************
- * 
- * 
+ *
+ *
  * File: compiler.h
- * 
+ *
  * Description: Contains GCC specific features and builtins
- * 
+ *
  * Date: 1/2/2016
- * 
- * 
+ *
+ *
  **************************************************************************/
 #ifndef COMPILER_H
 #define COMPILER_H

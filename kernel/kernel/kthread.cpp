@@ -26,8 +26,25 @@ limitations under the License.
 #include <kernel/scheduler.h>
 #include <kernel/kthread.h>
 #include <string.h>
+#include <stdio.h>
 #include <kernel/watchdog.h>
+extern Task_t* CurrentTask;
 static uint32_t assignable_id = 0;
+static KThread* first = nullptr;
+static KThread* last = nullptr;
+KThread* GetCurrentThread()
+{
+	KThread* kt = first;
+	while(kt->next != nullptr)
+	{
+		if(kt->thread_task == CurrentTask)
+		{
+			return kt;
+		}
+		kt = kt->next;
+	}
+	return nullptr;
+}
 int ThreadMessage(unsigned int msg)
 {
 	switch(msg)
@@ -45,13 +62,21 @@ KThread* CreateThread(KThread_Entry_point entry)
 
 	if(!kt)
 		return kt;
-		
+
 	kt->id = assignable_id;
 	assignable_id++;
 	kt->MessageCallback = ThreadMessage;
 	kt->thread_entry = entry;
 
 	kt->thread_task = new Task_t;
+	if(first == nullptr)
+	{
+		first = kt;
+	}
+	else
+		last->next = kt;
+	last = kt;
+	kt->next = nullptr;
 	if(!kt->thread_task)
 		return nullptr;
 
@@ -85,7 +110,7 @@ KThread_Entry_point KThread::GetEntryPoint()
 void KThread::Start()
 {
 	is_running = true;
-	CreateTask(thread_task,thread_entry);
+	CreateTask(thread_task,thread_entry,0x08,0x10);
 }
 void KThread::ThreadRuntime()
 {

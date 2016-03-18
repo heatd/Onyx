@@ -24,6 +24,7 @@ limitations under the License.
  *
  **************************************************************************/
 #include <kernel/vmm.h>
+#include <kernel/spinlock.h>
 #include <stddef.h>
 #include <string.h>
 #include <kernel/pmm.h>
@@ -31,6 +32,7 @@ limitations under the License.
 #include <stdlib.h>
 #include <stdio.h>
 #include <kernel/panic.h>
+#include <kernel/bitfield.h>
 //! virtual address
 typedef uint32_t virtual_addr;
 static VMM::area_struct* first = nullptr;
@@ -352,6 +354,35 @@ void VMM::FreeAddress(void* address)
 		tosearch = tosearch->next;
 	}
 }
+int VMM::MarkAddressAsUsed(void* address,size_t pages)
+{
+	uint32_t addr = (uint32_t) address;
+
+	area_struct* tosearch = first;
+	while(1)
+	{
+		if(tosearch->addr == (uintptr_t)addr)
+		{
+			if(tosearch->is_used == true)
+				return 1;
+			if(tosearch->size < pages)
+				return 1;
+			tosearch->is_used = true;
+			return 0;
+		}
+		if(tosearch->next == nullptr)
+			break;
+		tosearch = tosearch->next;
+	}
+	area_struct* area = new area_struct;
+	area->addr = addr;
+	area->size = pages;
+	area->type = PAGE_RAM | PAGE_USER;
+	area->protection = PAGE_RW;
+	area->is_used = true;
+	tosearch->next = area;
+	return 0;
+}
 void* valloc(uint32_t npages)
 {
 	if(!npages)
@@ -395,7 +426,7 @@ VMM::pdirectory* VMM::CreateAddressSpace()
 	pdirectory* newpd = (pdirectory*)valloc(1);
 	//STUB
 }
-VMM::pdirectory* VMM::CopyAddressSpace()
+VMM::pdirectory* VMM::fork()
 {
 	//Get the current page directory
 	VMM::pdirectory* tobeforked = get_directory();
@@ -406,31 +437,59 @@ VMM::pdirectory* VMM::CopyAddressSpace()
 	VMM::pdirectory* newdir = (VMM::pdirectory*)valloc(1);
 	memcpy((void*)newdir,(void*)tobeforked,sizeof(VMM::pdirectory));
 
-	for(int i = 0;i < 1024; i++)
+	for(int i = 0; i < 1024; i++)
 	{
-		if(newdir->entries[i] == NULL)
-			continue;
-		VMM::pd_entry* entry = &newdir->entries[i];
-		if(pd_entry_is_4MB(*entry))
+		if(pd_entry_is_present(newdir->entries[i]) && i < 682 && i != 0)
 		{
-			void* newmem = valloc(1024);
-			memcpy(newmem,(const void*)pd_entry_pfn(newdir->entries[i]),1024 * 4096);
-			kmunmap((void*)newmem,1024);
+
+			// Signal Copy-on-Write
+			SET_BIT(newdir->entries[i],10);
+			SET_BIT(newdir->entries[i],9);
+			SET_BIT(tobeforked->entries[i],10);
+			SET_BIT(tobeforked->entries[i],9);
+			//Use COW (Copy-on-Write)
+			pd_entry_unset_bit(&newdir->entries[i],_PDE_WRITABLE);
+			pd_entry_unset_bit(&tobeforked->entries[i],_PDE_WRITABLE);
 		}
-		void* newtable = valloc(1);
-		memcpy(newtable,(const void*)pd_entry_pfn(newdir->entries[i]),sizeof(VMM::ptable));
-		VMM::ptable* pt = (VMM::ptable*)newtable;
-		for(int j = 0; j < 1024; j++)
-		{
-			if(pt->entries[i] == NULL )
-				continue;
-			void* newphys = valloc(1);
-			pt_entry_set_frame(&pt->entries[i],(uintptr_t)newphys);
-			memcpy(newphys,(void*)(j * 0x400000),4096); // Copy the contents to a new page
-			kmunmap((void*)newphys,1);
-		}
-		kmunmap((void*)newtable,1);
 	}
-	kmunmap((void*)newdir,1);
-	return (VMM::pdirectory*)newdir;
+	return (pdirectory*)GetPhysicalAddress(tobeforked,(uint32_t)newdir);
+}
+void* VMM::GetPhysicalAddress (pdirectory* dir, uint32_t virt)
+{
+	pd_entry* entry = &dir->entries[PAGE_DIRECTORY_INDEX(virt)];
+	if(pd_entry_is_4MB(*entry))
+	{
+		return (void*)pd_entry_pfn(*entry);
+	}
+	else
+	{
+		ptable* pt = (ptable*)pd_entry_pfn(*entry);
+		pt_entry* page = &pt->entries[PAGE_TABLE_INDEX(virt)];
+		return (void*)pt_entry_pfn(*page);
+	}
+}
+int VMM::AllocCOW(uintptr_t address)
+{
+	pdirectory* dir = get_directory();
+	if(!dir)
+		abort();
+
+	void* new_page = valloc(1);
+	memcpy(new_page,(void*)address,4096);
+	uint32_t new_frame =(uint32_t)GetPhysicalAddress(dir,(uint32_t)new_page);
+	pd_entry* entry = &dir->entries[PAGE_DIRECTORY_INDEX(address)];
+	if(!TEST_BIT(*entry,10) && TEST_BIT(*entry,9))
+	{
+		return 1;
+	}
+	if(pd_entry_is_4MB(*entry))
+	{
+		pd_entry_set_frame(entry,new_frame);
+	}
+	else
+	{
+		ptable* pt = (ptable*)pd_entry_pfn(*entry);
+		pt_entry_set_frame(&pt->entries[PAGE_TABLE_INDEX(address)],new_frame);
+	}
+	return 0;
 }

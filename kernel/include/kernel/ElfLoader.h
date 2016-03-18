@@ -86,8 +86,10 @@ enum Elf_Type
 #define HDR_INV 0x1
 #define ARCH_INV 0x2
 #define DATAORDER_INV 0x3
-int errno;
+extern int errno;
 /* Function Declarations*/
 bool LoadFile(void* file);
-bool CheckValid(Elf32_Ehdr* header);
+bool CheckSupported(Elf32_Ehdr* header);
+int ParseProgramHeader(Elf32_Phdr* prog_hdr,Elf32_Half entries,void* file);
+void ThrowError(int errn,const char* err_msg);
 };

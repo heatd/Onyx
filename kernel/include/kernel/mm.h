@@ -12,8 +12,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#ifndef _MM_H
-#define _MM_H
+#pragma once
 
 #include "kheap.h"
 #include "vmm.h"
@@ -31,5 +30,3 @@ void SafeCRTFree(T* ptr)
 	kfree(ptr);
 	ptr = nullptr;
 }
-
-#endif // _MM_H

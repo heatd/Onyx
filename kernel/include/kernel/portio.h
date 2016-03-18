@@ -12,8 +12,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#ifndef PORTIO_H
-#define PORTIO_H
+#pragma once
 #include <stdlib.h>
 #include <stdint.h>
 
@@ -53,4 +52,3 @@ static inline void io_wait(void)
     /* The Linux kernel seems to think it is free for use :-/ */
     asm volatile ( "outb %%al, $0x80" : : "a"(0) );
 }
-#endif

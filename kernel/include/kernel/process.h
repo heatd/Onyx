@@ -13,13 +13,21 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 #pragma once
-
-#include <kernel/compiler.h>
-#include <kernel/registers.h>
-ARCH_SPECIFIC void halt();
-ARCH_SPECIFIC void get_thread_ctx(registers_t* regs);
-/* The functions halt and get_thread_ctx are architecture dependent, as they require manual assembly.
- * As so, its left for the architecture to implement these functions. The kernel exepcts them to be hooked.
- */
-extern "C++"/* Weird hack i had to make to make this compile */ __attribute__ ((noreturn,cold,noinline))
-void panic(const char* msg);
+#include <stdint.h>
+#include <kernel/fd.h>
+#include <kernel/kthread.h>
+#define MAX_THREADS 32
+typedef struct process
+{
+	KThread* kt[MAX_THREADS];
+	uint32_t data;
+	uint32_t brk;
+	int pid;
+	fd_t fildes[MAX_FILDES];
+	struct process* next;
+}process_t;
+namespace PCB
+{
+	extern process_t* kernel;
+	void Init();
+}

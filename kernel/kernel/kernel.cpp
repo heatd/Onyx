@@ -52,8 +52,11 @@ limitations under the License.
 #include <drivers/ps2.h>
 #include <kernel/mm.h>
 #include <kernel/rtc.h>
+#include <kernel/spinlock.h>
 #include <unistd.h>
 #include <drivers/vesa.h>
+#include <kernel/log.h>
+#include <kernel/process.h>
 static Spartix::Watchdog* wt;
 /* Function: init_arch()
  * Purpose: Initialize architecture specific features, should be hooked by the architecture the kernel will run on
@@ -145,6 +148,10 @@ extern "C" void KernelMain()
 		asm volatile("hlt");
 	}
 }
+void test()
+{
+	while(1);
+}
 void KernelUserspace()
 {
 	TERM_OK("Multitasking Initialized");
@@ -181,14 +188,17 @@ void KernelUserspace()
 
 	if(!node)
 		abort();
-	/*fs_node_t* elf_file = finddir_fs(initrd_root,(char*)"/bin/test");
-	if(!elf_file)
+	fs_node_t* elf_file = finddir_fs(initrd_root,(char*)"/bin/test");
+	/*if(!elf_file)
 		abort();
 	size_t file_size = (size_t)read_fs(elf_file,0,0,NULL);
 	void* file_buffer = kmalloc(file_size);
 	read_fs(elf_file,0,file_size,file_buffer);
-	ELFLoader::LoadFile(file_buffer);*/
-	wt->Start();
+	//ELFLoader::LoadFile(file_buffer);*/
+	Log log("tty","vesa");
+
+	log << "[  " << "\x1b[32m" << "OK" << "\x1b[0m" << "  ]" << " Initialized Kernel Log\n";
+	PCB::Init();
 	for(;;)
 	{
 		asm volatile("hlt");

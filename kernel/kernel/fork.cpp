@@ -16,13 +16,13 @@ limitations under the License.
 #include <string.h>
 #include <unistd.h>
 #include <kernel/kthread.h>
+#include <stdio.h>
 static pid_t current_pid = -1;
+static int forks = 0;
 pid_t fork()
 {
 	current_pid++;
-	VMM::pdirectory* newpd = VMM::CopyAddressSpace();
+	VMM::pdirectory* newpd = VMM::fork();
 	switch_directory(newpd);
-	KThread* kt = CreateThread((KThread_Entry_point)__builtin_return_address(0));
-	kt->Start();
 	return current_pid;
 }

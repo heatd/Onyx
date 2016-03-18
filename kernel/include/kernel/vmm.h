@@ -12,9 +12,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#ifndef VMM_H
-#define VMM_H
-
+#pragma once
 #include <stdint.h>
 #include <kernel/pmm.h>
 typedef uint32_t DWORD;
@@ -74,17 +72,19 @@ typedef struct pdirectory {
 
 	pd_entry entries[PAGES_PER_DIR];
 }pdirectory;
-pdirectory* CopyAddressSpace();
+pdirectory* fork();
 void* IdentityMap(uint32_t addr,uint32_t pages);
 void* Map(uint32_t virt, uint32_t npages,uint32_t flags);
 VMM::pdirectory* CreateAddressSpace();
+int MarkAddressAsUsed(void*,size_t);
 void  Finish();
 void* AllocateAddress(size_t, bool);
 void  FreeAddress(void*  address);
 #define PAGE_RAM 0x1
 #define PAGE_KERNEL 0x2
 #define PAGE_USER 0x4
-
+int AllocCOW(uintptr_t);
+void* GetPhysicalAddress (pdirectory* dir, uint32_t virt);
 #define PAGE_READ 0x1
 #define PAGE_WRITE 0x2
 #define PAGE_EXECUTABLE 0x4
@@ -180,4 +180,3 @@ void* valloc(uint32_t npages);
 void vfree(void* ptr, uint32_t npages);
 
 int switch_directory (VMM::pdirectory* dir);
-#endif // VMM_H

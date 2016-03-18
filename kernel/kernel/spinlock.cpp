@@ -12,14 +12,25 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#pragma once
-
+#include <kernel/spinlock.h>
+#include <stdio.h>
 #include <kernel/compiler.h>
-#include <kernel/registers.h>
-ARCH_SPECIFIC void halt();
-ARCH_SPECIFIC void get_thread_ctx(registers_t* regs);
-/* The functions halt and get_thread_ctx are architecture dependent, as they require manual assembly.
- * As so, its left for the architecture to implement these functions. The kernel exepcts them to be hooked.
- */
-extern "C++"/* Weird hack i had to make to make this compile */ __attribute__ ((noreturn,cold,noinline))
-void panic(const char* msg);
+void acquire(spinlock_t* lock)
+{
+	if(lock->lock == 1)
+	{
+		wait(lock);
+	}
+	__sync_lock_test_and_set(&lock->lock,1);
+}
+void release(spinlock_t* lock)
+{
+	__sync_lock_release(&lock->lock);
+}
+void wait(spinlock_t* lock)
+{
+	while(lock->lock == 1)
+	{
+		asm volatile("int $0x50");
+	}
+}

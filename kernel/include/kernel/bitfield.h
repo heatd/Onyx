@@ -13,19 +13,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 /**************************************************************************
- * 
- * 
+ *
+ *
  * File: bitfield.h
- * 
+ *
  * Description: Contains macros for bitsetting and other things,useful for bitmaps
- * 
+ *
  * Date: 30/1/2016
- * 
- * 
+ *
+ *
  **************************************************************************/
-#ifndef BITFIELD_H
-#define BITFIELD_H
-
+#pragma once
 #define SET_BIT(x,y) \
 x |= (1 << y)
 
@@ -37,5 +35,3 @@ x ^= (1 << y)
 
 #define TEST_BIT(x,y) \
 x & (1 << y)
-
-#endif // BITFIELD_H

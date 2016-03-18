@@ -12,8 +12,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#ifndef _KERNEL_VGA_H
-#define _KERNEL_VGA_H
+#pragma once
 
 #include <stdint.h>
 
@@ -52,6 +51,4 @@ static inline uint16_t make_vgaentry(char c, uint8_t color)
 static const size_t VGA_WIDTH = 80;
 static const size_t VGA_HEIGHT = 25;
 
-static uint16_t* const VGA_MEMORY = (uint16_t*) 0x800B8000;
-
-#endif
+static uint16_t* const VGA_MEMORY = (uint16_t*) 0xC00B8000;

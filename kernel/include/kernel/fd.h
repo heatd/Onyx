@@ -12,6 +12,16 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+#pragma once
 #include <stdlib.h>
+#define MAX_PATHNAME 250
+#define MAX_FILDES 32
 ssize_t sys_write(int fd,const void* buf, size_t count);
 ssize_t sys_read(int fd,const void* buf,size_t count);
+typedef struct _fd
+{
+	int fd;
+	char path[MAX_PATHNAME];
+	int permitions;
+}fd_t;
+void SetupFDT(fd_t* fdt);

@@ -58,8 +58,14 @@ static void print(const char* data, size_t data_length)
 		putchar((int) ((const unsigned char*) data)[i]);
 }
 
+#ifdef __is_spartix_kernel
+static spinlock_t spl;
+#endif
 int printf(const char* __restrict__ format, ...)
 {
+	#ifdef __is_spartix_kernel
+	acquire(&spl);
+	#endif
 	va_list parameters;
 	va_start(parameters, format);
 
@@ -143,9 +149,15 @@ int printf(const char* __restrict__ format, ...)
 			format++;
 			void* ptr = va_arg(parameters, void*);
 			if(!ptr)
-				printf("(nil)");
+				print("(nil)",strlen("(nil)"));
 			else
-				printf("0x%X",(uint32_t)ptr);
+			{
+				unsigned int i = (unsigned int)ptr;
+				char buffer [30]={0};
+				itoa(i,16,buffer,true);
+				print("0x",strlen("0x"));
+				print(buffer,30);
+			}
 		}
 		else
 		{
@@ -155,5 +167,8 @@ int printf(const char* __restrict__ format, ...)
 
 	va_end(parameters);
 
+	#ifdef __is_spartix_kernel
+	release(&spl);
+	#endif
 	return written;
 }

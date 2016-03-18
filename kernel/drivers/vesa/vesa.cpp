@@ -84,4 +84,12 @@ void Init(multiboot_info_t* info)
 	// Without this call to PutPixel, it doesn't draw anything. Weird Bug
 	PutPixel(0,100,0);
 }
+void* GetFramebufferAddr()
+{
+	return (void*)framebuffer;
+}
+vid_mode_t* GetVideoMode()
+{
+	return new vid_mode_t(framebuffer_width,framebuffer_height,framebuffer_bpp);
+}
 }

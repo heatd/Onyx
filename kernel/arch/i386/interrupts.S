@@ -91,7 +91,14 @@ irq_common:
 extern syscall
 global _syscall
 _syscall:
+	cli
+	push eax
+	push ebx
+	push ecx
+	push edx
+	push edi
 	call syscall
+	add esp,20
 	iret
 ISR_NOERRCODE 0
 ISR_NOERRCODE 1
@@ -127,6 +134,7 @@ ISR_NOERRCODE 30
 ISR_NOERRCODE 31
 global irq0
 irq0:
+	cli
 	pusha
 	push ds
 	push es

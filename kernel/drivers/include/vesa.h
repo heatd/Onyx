@@ -15,6 +15,18 @@ limitations under the License.
 #pragma once
 #include <stdint.h>
 #include <multiboot.h>
+typedef struct vid_mode
+{
+	uint32_t width;
+	uint32_t height;
+	uint32_t bpp;
+	vid_mode(uint32_t w,uint32_t h,uint32_t b)
+	{
+		width = w;
+		height = h;
+		bpp = b;
+	}
+}vid_mode_t;
 namespace Vesa
 {
 	extern volatile unsigned char* framebuffer;
@@ -28,4 +40,6 @@ namespace Vesa
 	void DrawString(const char* str,int x,int y);
 	void DrawChar(unsigned char c, int x, int y, int fgcolor, int bgcolor);
 	void Init(multiboot_info_t* info);
+	void* GetFramebufferAddr();
+	vid_mode_t* GetVideoMode();
 }

@@ -23,6 +23,7 @@ public:
 	KThread_Entry_point thread_entry;
 	int (*MessageCallback)(unsigned int);
 	Task_t* thread_task;
+	KThread* next;
 	int id;
 	bool IsThreadRunning();
 	int GetID();
@@ -33,3 +34,4 @@ public:
 };
 KThread* 	CreateThread(KThread_Entry_point);
 void 		DestroyThread(KThread*);
+KThread* 	GetCurrentThread();

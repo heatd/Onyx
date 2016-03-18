@@ -55,7 +55,7 @@ void panic(const char* msg)
 	printf("Stack dump: \n");
 	void* ret_addr = __builtin_frame_address(0);
 	printf("#0 stack frame:0x%x\n",(uint64_t)ret_addr);
-#elifdef __i386__
+#else
 	ctx.eip =(uint32_t)__builtin_return_address(0);
 	printf("eax: %i\nebx: %i\necx: %i\nedx: %i\nedi: %i\nesi: %i\nebp: 0x%x\nesp: 0x%x\neip: 00%x:0x%x\nss:  00%x\neflags:%i\n",	ctx.eax,ctx.ebx,ctx.ecx,ctx.edx,ctx.edi,ctx.esi,ctx.ebp,ctx.esp,ctx.cs,ctx.eip,ctx.ss);
 	printf("Stack dump: \n");

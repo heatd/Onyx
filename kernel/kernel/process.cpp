@@ -12,14 +12,17 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#pragma once
-
-#include <kernel/compiler.h>
-#include <kernel/registers.h>
-ARCH_SPECIFIC void halt();
-ARCH_SPECIFIC void get_thread_ctx(registers_t* regs);
-/* The functions halt and get_thread_ctx are architecture dependent, as they require manual assembly.
- * As so, its left for the architecture to implement these functions. The kernel exepcts them to be hooked.
- */
-extern "C++"/* Weird hack i had to make to make this compile */ __attribute__ ((noreturn,cold,noinline))
-void panic(const char* msg);
+#include <kernel/process.h>
+namespace PCB
+{
+	process_t* kernel = nullptr;
+	void Init()
+	{
+		kernel = new process_t;
+		memset(kernel,0,sizeof(process_t));
+		kernel->data = 0xC0600000;
+		kernel->brk  = 0xC0F00000;
+		kernel->pid = -1;
+		SetupFDT(kernel->fildes);
+	}
+}

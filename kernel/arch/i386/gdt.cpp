@@ -55,6 +55,7 @@ static void install_tss()
 	tss_entry.ss0 = 0x10;
 	tss_entry.esp0 = (uint32_t)0xC03FFF00;
 	tss_entry.cs = 0x0b;
+	tss_entry.iomap_base = sizeof(tss_entry_t);
 	tss_entry.ss = tss_entry.ds = tss_entry.es = tss_entry.fs = tss_entry.gs = 0x13;
 }
 void load_gdt()

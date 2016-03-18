@@ -32,6 +32,7 @@ limitations under the License.
 #include <kernel/tty.h>
 #include <drivers/vesa.h>
 #include <stdio.h>
+#include <kernel/spinlock.h>
 size_t terminal_row;
 size_t terminal_column;
 uint32_t last_x;
@@ -73,10 +74,13 @@ void TTY::PutChar(char c)
 	terminal_putentryat(c, terminal_color, terminal_column, terminal_row);
 	terminal_column++;
 }
+static spinlock_t spl;
 void TTY::Write(const char* data, size_t size)
 {
+	acquire(&spl);
 	for ( size_t i = 0; i < size; i++ )
 		PutChar(data[i]);
+	release(&spl);
 }
 
 void TTY::WriteString(const char* data)

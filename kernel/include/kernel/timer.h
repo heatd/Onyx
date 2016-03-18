@@ -12,12 +12,10 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#ifndef TIMER_H
-#define TIMER_H
+#pragma once
 #include <stdint.h>
 namespace Timer
 {
 void Init(uint32_t freq);
 uint64_t GetTickCount();
 };
-#endif // TIMER_H

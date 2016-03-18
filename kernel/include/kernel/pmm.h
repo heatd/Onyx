@@ -1,7 +1,5 @@
 
-#ifndef PMM_H
-#define PMM_H
-
+#pragma once
 
 #include <stdint.h>
 #include <stddef.h>
@@ -27,4 +25,3 @@ size_t GetUsedMemory();
 };
 void* pmalloc(size_t blocks);
 void  pfree(size_t blocks,void* ptr);
-#endif // PMM_H

@@ -35,10 +35,10 @@ limitations under the License.
 Task_t* last_thread = nullptr;
 extern "C" void jump_userspace();
 static Task_t* first_task;
-static Task_t* CurrentTask = nullptr;
+Task_t* CurrentTask = nullptr;
 void CreateTask(int id,void (*thread)());
 
-void CreateTask(Task_t* task,void (*thread)())
+void CreateTask(Task_t* task,void (*thread)(), uint32_t cs, uint32_t ss)
 {
 	unsigned int* stack;
 
@@ -48,7 +48,7 @@ void CreateTask(Task_t* task,void (*thread)())
 	stack = (unsigned int*)task->regs.esp;
 	//First, this stuff is pushed by the processor
 	*--stack = 0x0202; //This is EFLAGS
-	*--stack = 0x08;   //This is CS, our code segment
+	*--stack = cs;   //This is CS, our code segment
 	*--stack = (unsigned int)thread; //This is EIP
 
 	//Next, the stuff pushed by 'pusha'
@@ -62,10 +62,10 @@ void CreateTask(Task_t* task,void (*thread)())
 	*--stack = 0; //EAX
 
 	//Now these are the data segments pushed by the IRQ handler
-	*--stack = 0x10; //DS
-	*--stack = 0x10; //ES
-	*--stack = 0x10; //FS
-	*--stack = 0x10; //GS
+	*--stack = ss; //DS
+	*--stack = ss; //ES
+	*--stack = ss; //FS
+	*--stack = ss; //GS
 	task->regs.esp = (uint32_t)stack;
 	task->next = nullptr;
 	if(!first_task){
@@ -95,10 +95,13 @@ void TerminateTask(Task_t* task)
 }
 extern "C" unsigned int SwitchTask(unsigned int OldEsp)
 {
-	if(CurrentTask != nullptr){ //Were we even running a task?
+	if(CurrentTask != nullptr)
+	{
+		//Were we even running a task?
 		CurrentTask->regs.esp = OldEsp; //Save the new esp for the thread
 		CurrentTask = CurrentTask->next;
-	} else{
+	} else
+	{
 		CurrentTask = first_task; //We just started multi-tasking, start with task 0
 	}
 	return CurrentTask->regs.esp; //Return new stack pointer to ASM

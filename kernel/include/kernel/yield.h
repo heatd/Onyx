@@ -12,9 +12,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#ifndef YIELD_H
-#define YIELD_H
+#pragma once
 
 void sys_yield();
-
-#endif // YIELD_H
