@@ -57,7 +57,6 @@ limitations under the License.
 #include <drivers/vesa.h>
 #include <kernel/log.h>
 #include <kernel/process.h>
-static Spartix::Watchdog* wt;
 /* Function: init_arch()
  * Purpose: Initialize architecture specific features, should be hooked by the architecture the kernel will run on
  */
@@ -138,7 +137,6 @@ extern "C" void KernelMain()
 	InitKeyboard();
 	TERM_OK("Initializing multitasking");
 	KThread* main = CreateThread(KernelUserspace);
-	wt = new Spartix::Watchdog(main);
 	main->Start();
 	// Enable interrupts
 	asm volatile("sti");

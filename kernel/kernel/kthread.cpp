@@ -35,14 +35,14 @@ static KThread* last = nullptr;
 KThread* GetCurrentThread()
 {
 	KThread* kt = first;
-	while(kt->next != nullptr)
+	do
 	{
 		if(kt->thread_task == CurrentTask)
 		{
 			return kt;
 		}
 		kt = kt->next;
-	}
+	}while(kt->next != nullptr);
 	return nullptr;
 }
 int ThreadMessage(unsigned int msg)
@@ -115,7 +115,6 @@ void KThread::Start()
 void KThread::ThreadRuntime()
 {
 	thread_entry();
-	Terminate();
 }
 void KThread::Terminate()
 {

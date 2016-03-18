@@ -17,9 +17,10 @@ limitations under the License.
 #include <kernel/fd.h>
 #include <kernel/kthread.h>
 #define MAX_THREADS 32
+#define MAX_PID 6556
 typedef struct process
 {
-	KThread* kt[MAX_THREADS];
+	KThread* threads[MAX_THREADS];
 	uint32_t data;
 	uint32_t brk;
 	int pid;
@@ -29,5 +30,10 @@ typedef struct process
 namespace PCB
 {
 	extern process_t* kernel;
+	extern process_t* last;
+	extern bool is_used[MAX_PID];
 	void Init();
+	void CreatePCB(uint32_t data_seg,uint32_t brk);
+	int  GeneratePID();
+	process_t* GetCurrentProcess();
 }

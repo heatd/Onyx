@@ -37,7 +37,11 @@ extern "C" void jump_userspace();
 static Task_t* first_task;
 Task_t* CurrentTask = nullptr;
 void CreateTask(int id,void (*thread)());
-
+void _exit_task()
+{
+	TerminateTask(CurrentTask);
+	asm volatile("int $0x50"); // yield the current task
+}
 void CreateTask(Task_t* task,void (*thread)(), uint32_t cs, uint32_t ss)
 {
 	unsigned int* stack;
@@ -46,6 +50,8 @@ void CreateTask(Task_t* task,void (*thread)(), uint32_t cs, uint32_t ss)
 	if(!task->regs.esp)
 		abort();
 	stack = (unsigned int*)task->regs.esp;
+	// Push the return address
+	*--stack = (unsigned int)&_exit_task;
 	//First, this stuff is pushed by the processor
 	*--stack = 0x0202; //This is EFLAGS
 	*--stack = cs;   //This is CS, our code segment

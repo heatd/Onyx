@@ -13,16 +13,77 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 #include <kernel/process.h>
+#include <kernel/spinlock.h>
+#include <stdio.h>
 namespace PCB
 {
 	process_t* kernel = nullptr;
+	process_t* last = nullptr;
+	bool is_used[MAX_PID];
 	void Init()
 	{
+		memset(&is_used,0,sizeof(is_used));
 		kernel = new process_t;
 		memset(kernel,0,sizeof(process_t));
 		kernel->data = 0xC0600000;
 		kernel->brk  = 0xC0F00000;
 		kernel->pid = -1;
+		kernel->threads[0] = GetCurrentThread();
 		SetupFDT(kernel->fildes);
+		last = kernel;
+	}
+	int AddThread(KThread* kt)
+	{
+		for(int i = 0;i < MAX_THREADS; i++)
+		{
+			if(GetCurrentProcess()->threads[i] == nullptr)
+			{
+				GetCurrentProcess()->threads[i] = kt;
+				return 0;
+			}
+		}
+		return 1;
+	}
+	static spinlock_t spl;
+	void CreatePCB(uint32_t data_seg,uint32_t brk)
+	{
+		acquire(&spl);
+		process_t* new_process = new process_t;
+		last->next = new_process;
+		new_process->data = data_seg;
+		new_process->brk = brk;
+		new_process->pid = GeneratePID();
+		last = new_process;
+		SetupFDT(new_process->fildes);
+		release(&spl);
+	}
+	int GeneratePID()
+	{
+		//Search the array
+		for(int i = 0;i < MAX_PID; i++)
+		{
+			if(is_used[i] == false)
+			{
+				is_used[i] = true;
+				return i;
+			}
+		}
+	}
+	process_t* GetCurrentProcess()
+	{
+		process_t* search = kernel;
+		KThread* curr_thread = GetCurrentThread();
+		if(!curr_thread)
+			abort();
+		// Search the linked list
+		do {
+			for(int i = 0;i < MAX_THREADS;i++)
+			{
+				if(search->threads[i] == curr_thread)
+					return search;// If one of the threads match, return
+			}
+			search = search->next;
+		} while(search->next != nullptr);
+		return nullptr;
 	}
 }
