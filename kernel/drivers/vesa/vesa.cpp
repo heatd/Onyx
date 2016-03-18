@@ -20,6 +20,7 @@ limitations under the License.
 #include <string.h>
 #include <assert.h>
 #include <fonts.h>
+extern struct bitmap_font font;
 namespace Vesa
 {
 volatile unsigned char* framebuffer = nullptr;
@@ -28,7 +29,6 @@ uint32_t framebuffer_height = 0;
 uint32_t framebuffer_width = 0;
 uint32_t framebuffer_bpp = 0;
 uint32_t framebuffer_pixelwidth = 0;
-extern "C" struct bitmap_font font;
 unsigned char* bitmap = nullptr;
 void DrawChar(unsigned char c, int x, int y, int fgcolor, int bgcolor)
 {

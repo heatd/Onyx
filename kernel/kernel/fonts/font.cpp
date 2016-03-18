@@ -5136,11 +5136,10 @@ static const unsigned short __font_index__[] = {
 };
 
 	/// bitmap font structure
-const struct bitmap_font font = {
+extern "C" const struct bitmap_font font = {
 	.Width = 8, .Height = 16,
 	.Chars = 256,
 	.Widths = __font_widths__,
 	.Index = __font_index__,
 	.Bitmap = __font_bitmap__,
 };
-

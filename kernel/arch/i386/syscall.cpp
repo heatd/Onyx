@@ -32,6 +32,7 @@ limitations under the License.
 #include <kernel/kheap.h>
 #include <kernel/fd.h>
 #include <kernel/sbrk.h>
+#include <kernel/process.h>
 extern "C" void syscall(uint32_t edi,uint32_t edx,uint32_t ecx, uint32_t ebx, uint32_t eax)
 {
 	switch(eax)
@@ -47,6 +48,12 @@ extern "C" void syscall(uint32_t edi,uint32_t edx,uint32_t ecx, uint32_t ebx, ui
 			return;
 		case 3:
 			__sbrk((int)ebx);
+			return;
+		case 4:
+			//fork(2)
+			return;
+		case 5:
+			sys_getpid();
 			return;
 		default:
 			break;

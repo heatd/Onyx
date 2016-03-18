@@ -47,6 +47,6 @@ void halt()
 	asm volatile("cli");
 	asm volatile("hlt");
 	for(;;);
-	// If execution passes this, the processor is broken (or the code is broken)
+	// If execution passes this, the processor is broken (or the code is broken, i mean, the compiler, but whatever)
 	__builtin_unreachable();
 }

@@ -37,6 +37,11 @@ extern "C" void jump_userspace();
 static Task_t* first_task;
 Task_t* CurrentTask = nullptr;
 void CreateTask(int id,void (*thread)());
+/*	This is a version of _exit, but exits the thread instead of the process.
+	It doesn't release memory, unmap or call destructors.
+	It terminates the task from the scheduler, and yields the control
+	It yields because it has no where to return to, as returning to the thread would cause disastrous consequences
+	*/
 void _exit_task()
 {
 	TerminateTask(CurrentTask);

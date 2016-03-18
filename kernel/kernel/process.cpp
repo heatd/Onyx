@@ -12,6 +12,17 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+/**************************************************************************
+ *
+ *
+ * File: process.cpp
+ *
+ * Description: Contains the implementation of the PCB, and the data structures the kernel has to keep track of the processes
+ *
+ * Date: 18/3/2016
+ *
+ *
+ **************************************************************************/
 #include <kernel/process.h>
 #include <kernel/spinlock.h>
 #include <stdio.h>
@@ -27,7 +38,7 @@ namespace PCB
 		memset(kernel,0,sizeof(process_t));
 		kernel->data = 0xC0600000;
 		kernel->brk  = 0xC0F00000;
-		kernel->pid = -1;
+		kernel->pid = GeneratePID();
 		kernel->threads[0] = GetCurrentThread();
 		SetupFDT(kernel->fildes);
 		last = kernel;
@@ -86,4 +97,13 @@ namespace PCB
 		} while(search->next != nullptr);
 		return nullptr;
 	}
+}
+/*
+  	UNIX system call: getpid(2)
+  	Return value: returns the PID of the current process
+*/
+int sys_getpid()
+{
+	process_t* curr = PCB::GetCurrentProcess();
+	return curr->pid;
 }

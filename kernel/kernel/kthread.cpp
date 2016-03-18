@@ -112,10 +112,6 @@ void KThread::Start()
 	is_running = true;
 	CreateTask(thread_task,thread_entry,0x08,0x10);
 }
-void KThread::ThreadRuntime()
-{
-	thread_entry();
-}
 void KThread::Terminate()
 {
 	is_running = false;

@@ -37,3 +37,4 @@ namespace PCB
 	int  GeneratePID();
 	process_t* GetCurrentProcess();
 }
+int sys_getpid();
