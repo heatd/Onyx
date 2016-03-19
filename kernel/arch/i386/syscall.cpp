@@ -28,33 +28,40 @@ limitations under the License.
 #include <kernel/panic.h>
 #include <kernel/tty.h>
 #include <kernel/yield.h>
+#include <unistd.h>
 #include <stdlib.h>
 #include <kernel/kheap.h>
 #include <kernel/fd.h>
 #include <kernel/sbrk.h>
 #include <kernel/process.h>
-extern "C" void syscall(uint32_t edi,uint32_t edx,uint32_t ecx, uint32_t ebx, uint32_t eax)
+extern "C" int syscall(uint32_t edi,uint32_t edx,uint32_t ecx, uint32_t ebx, uint32_t eax)
 {
 	switch(eax)
 	{
-		case 0:
-			sys_write(ebx,(const void*)ecx,edx);
-			return;
-		case 1:
-			sys_read(ebx,(const void*)ecx,edx);
-			return;
+		case 0:{
+			ssize_t ret = sys_write(ebx,(const void*)ecx,edx);
+			return ret;
+		}
+		case 1:{
+			ssize_t ret = sys_read(ebx,(const void*)ecx,edx);
+			return ret;
+		}
 		case 2:
 			asm volatile("int $0x50");
-			return;
+			return 0;
 		case 3:
-			__sbrk((int)ebx);
-			return;
+		{
+			void* res = __sbrk((int)ebx);
+			return (int)res;
+		}
 		case 4:
 			//fork(2)
-			return;
+			return 0;
 		case 5:
-			sys_getpid();
-			return;
+		{
+			pid_t pid = sys_getpid();
+			return pid;
+		}
 		default:
 			break;
 	}

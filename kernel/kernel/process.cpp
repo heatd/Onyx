@@ -68,6 +68,21 @@ namespace PCB
 		SetupFDT(new_process->fildes);
 		release(&spl);
 	}
+	void DestroyPCB(process_t* process)
+	{
+		process_t* search = kernel;
+		process_t* last_search = search;
+		do {
+			if(search == process)
+			{
+				last_search->next = search->next;
+				delete search;
+				return;
+			}
+			last_search = search;
+			search = search->next;
+		} while(search != process);
+	}
 	int GeneratePID()
 	{
 		//Search the array

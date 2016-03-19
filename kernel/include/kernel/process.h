@@ -36,5 +36,6 @@ namespace PCB
 	void CreatePCB(uint32_t data_seg,uint32_t brk);
 	int  GeneratePID();
 	process_t* GetCurrentProcess();
+	void DestroyPCB(process_t* process);
 }
 int sys_getpid();
