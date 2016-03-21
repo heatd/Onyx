@@ -76,7 +76,7 @@ void process_create(uint32_t data_seg, uint32_t brk)
 	new_process->brk = brk;
 	new_process->pid = generate_pid();
 	last = new_process;
-	SetupFDT(new_process->fildes);
+	fdt_setup(new_process->fildes);
 	release(&spl);
 }
 
