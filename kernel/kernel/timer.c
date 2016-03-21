@@ -12,8 +12,24 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#pragma once
+/**************************************************************************
+ *
+ *
+ * File: timer.cpp
+ *
+ * Description: Contains the timer code
+ *
+ * Date: 30/1/2016
+ *
+ *
+ **************************************************************************/
+#include <kernel/pit.h>
 
-#include "kheap.h"
-#include "vmm.h"
-#include "pmm.h"
+void timer_init(uint32_t freq)
+{
+	pit_init(freq);
+}
+uint64_t timer_get_tick_count()
+{
+	return pit_get_tick_count();
+}

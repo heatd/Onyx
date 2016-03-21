@@ -12,13 +12,14 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#pragma once
+#ifndef _VMM_H
+#define _VMM_H
 #include <stdint.h>
 #include <kernel/pmm.h>
+#include <stdbool.h>
 typedef uint32_t DWORD;
-namespace VMM
-{
-void Init(uint32_t framebuffer_addr);
+
+void vmm_init(uint32_t framebuffer_addr);
 /* Page table defines just to help the code not have "magic values"*/
 #define _PTE_PRESENT		1
 #define _PTE_WRITABLE		2
@@ -72,27 +73,25 @@ typedef struct pdirectory {
 
 	pd_entry entries[PAGES_PER_DIR];
 }pdirectory;
-pdirectory* fork();
-void* IdentityMap(uint32_t addr,uint32_t pages);
-void* Map(uint32_t virt, uint32_t npages,uint32_t flags);
-VMM::pdirectory* CreateAddressSpace();
-int MarkAddressAsUsed(void*,size_t);
-void  Finish();
-void* AllocateAddress(size_t, bool);
-void  FreeAddress(void*  address);
+pdirectory* vmm_fork();
+void* vmm_map(uint32_t virt, uint32_t npages,uint32_t flags);
+int vmm_mark_addr_as_used(void*,size_t);
+void  vmm_finish();
+void* vmm_alloc_addr(size_t, _Bool);
+void  vmm_free_addr(void*  address);
 #define PAGE_RAM 0x1
 #define PAGE_KERNEL 0x2
 #define PAGE_USER 0x4
-int AllocCOW(uintptr_t);
-void* GetPhysicalAddress (pdirectory* dir, uint32_t virt);
+int vmm_alloc_cow(uintptr_t);
+void* get_phys_addr (pdirectory* dir, uint32_t virt);
 #define PAGE_READ 0x1
 #define PAGE_WRITE 0x2
 #define PAGE_EXECUTABLE 0x4
 #define PAGE_RW PAGE_READ | PAGE_WRITE
 #define PAGE_RWE PAGE_RW | PAGE_EXECUTABLE
-const uintptr_t kernel_lowest_addr 	= 0xC0000000;
-const uintptr_t user_lowest_addr 	= 0x400000;
-typedef struct AreaStruct
+#define kernel_lowest_addr 0xC0000000
+#define user_lowest_addr  0x400000
+typedef struct area_strct
 {
 	uintptr_t addr; // Address of pages
 
@@ -102,68 +101,67 @@ typedef struct AreaStruct
 
 	uint8_t protection; // R/W, just read, executable, etc...
 
-	bool is_used;
-	struct AreaStruct* next; // The next VMM::area_struct in the linked list
+	_Bool is_used;
+	struct area_strct* next; // The next area_struct in the linked list
 }area_struct;
-};
-inline void pt_entry_set_bit(VMM::pt_entry* pt,uint32_t bit)
+inline void pt_entry_set_bit(pt_entry* pt,uint32_t bit)
 {
 	*pt|= bit;
 }
-inline void pt_entry_unset_bit(VMM::pt_entry* pt,uint32_t bit)
+inline void pt_entry_unset_bit(pt_entry* pt,uint32_t bit)
 {
 	*pt&=~bit;
 }
-inline void pt_entry_set_frame(VMM::pt_entry* pt, uintptr_t p_addr)
+inline void pt_entry_set_frame(pt_entry* pt, uintptr_t p_addr)
 {
 	*pt=(*pt & ~_PTE_FRAME) | p_addr;
 }
-inline int pt_entry_is_present(VMM::pt_entry pt)
+inline int pt_entry_is_present(pt_entry pt)
 {
 	return pt & _PTE_PRESENT;
 }
-inline int pt_entry_is_writable (VMM::pt_entry pt)
+inline int pt_entry_is_writable (pt_entry pt)
 {
 	return pt & _PTE_WRITABLE;
 }
 
-inline uintptr_t pt_entry_pfn (VMM::pt_entry pt)
+inline uintptr_t pt_entry_pfn (pt_entry pt)
 {
 	return pt & _PTE_FRAME;
 }
-inline void pd_entry_set_bit(VMM::pd_entry* pd,uint32_t bit)
+inline void pd_entry_set_bit(pd_entry* pd,uint32_t bit)
 {
 	*pd|= bit;
 }
-inline void pd_entry_unset_bit(VMM::pd_entry* pd, uint32_t bit)
+inline void pd_entry_unset_bit(pd_entry* pd, uint32_t bit)
 {
 	*pd&=~bit;
 }
-inline void pd_entry_set_frame(VMM::pd_entry* pd,uintptr_t paddr)
+inline void pd_entry_set_frame(pd_entry* pd,uintptr_t paddr)
 {
 	*pd=(*pd & ~_PDE_FRAME) | paddr;
 }
-inline bool pd_entry_is_present(VMM::pd_entry pd)
+inline _Bool pd_entry_is_present(pd_entry pd)
 {
 	return pd & _PDE_PRESENT;
 }
-inline bool pd_entry_is_user(VMM::pd_entry pd)
+inline _Bool pd_entry_is_user(pd_entry pd)
 {
 	return pd & _PDE_USER;
 }
-inline bool pd_entry_is_4MB(VMM::pd_entry pd)
+inline _Bool pd_entry_is_4MB(pd_entry pd)
 {
 	return pd & _PDE_4MB;
 }
-inline uintptr_t pd_entry_pfn(VMM::pd_entry pd)
+inline uintptr_t pd_entry_pfn(pd_entry pd)
 {
 	return pd & _PDE_FRAME;
 }
-inline bool pd_entry_is_writable (VMM::pd_entry pd)
+inline _Bool pd_entry_is_writable (pd_entry pd)
 {
 	return pd & _PDE_WRITABLE;
 }
-inline void pd_entry_enable_global(VMM::pd_entry pd)
+inline void pd_entry_enable_global(pd_entry pd)
 {
 	pd|=_PDE_CPU_GLOBAL;
 }
@@ -179,4 +177,5 @@ void* valloc(uint32_t npages);
 
 void vfree(void* ptr, uint32_t npages);
 
-int switch_directory (VMM::pdirectory* dir);
+int switch_directory (pdirectory* dir);
+#endif

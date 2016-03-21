@@ -12,7 +12,7 @@ EXEC_PREFIX?=$(PREFIX)
 INCLUDEDIR?=$(PREFIX)/include
 LIBDIR?=$(EXEC_PREFIX)/lib
 
-CFLAGS:=$(CFLAGS) -Wall -Wextra -fstack-protector-strong -fno-exceptions -fno-rtti
+CFLAGS:=$(CFLAGS) -Wall -Wextra -fstack-protector-strong
 CPPFLAGS:=$(CPPFLAGS) -D__is_spartix_libc -Iinclude
 LIBK_CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin
 LIBK_CPPFLAGS:=$(CPPFLAGS) -D__is_spartix_kernel
@@ -41,7 +41,6 @@ ssp/ssp.o \
 string/strcpy.o \
 string/strcmp.o \
 string/strcat.o \
-c++/new.o \
 posix/sbrk.o \
 
 HOSTEDOBJS:=\
@@ -68,14 +67,14 @@ libg.a:
 libk.a: $(LIBK_OBJS)
 	$(AR) rcs $@ $(LIBK_OBJS)
 
-%.o: %.cpp
-	$(CXX) -c $< -o $@ -std=c++11 $(CFLAGS) $(CPPFLAGS)
+%.o: %.c
+	$(CC) -c $< -o $@ -std=gnu11 $(CFLAGS) $(CPPFLAGS)
 
 %.o: %.S
 	$(CXX) -c $< -o $@ $(CFLAGS) $(CPPFLAGS)
 
-%.libk.o: %.cpp
-	$(CXX) -c $< -o $@ -std=c++11 $(LIBK_CFLAGS) $(LIBK_CPPFLAGS)
+%.libk.o: %.c
+	$(CC) -c $< -o $@ -std=gnu11 $(LIBK_CFLAGS) $(LIBK_CPPFLAGS)
 
 %.libk.o: %.S
 	$(CXX) -c $< -o $@ $(LIBK_CFLAGS) $(LIBK_CPPFLAGS)

@@ -20,22 +20,17 @@ limitations under the License.
 #define MAX_PID 6556
 typedef struct process
 {
-	KThread* threads[MAX_THREADS];
+	kthread_t* threads[MAX_THREADS];
 	uint32_t data;
 	uint32_t brk;
 	int pid;
 	fd_t fildes[MAX_FILDES];
 	struct process* next;
 }process_t;
-namespace PCB
-{
-	extern process_t* kernel;
-	extern process_t* last;
-	extern bool is_used[MAX_PID];
-	void Init();
-	void CreatePCB(uint32_t data_seg,uint32_t brk);
-	int  GeneratePID();
-	process_t* GetCurrentProcess();
-	void DestroyPCB(process_t* process);
-}
+void process_init();
+void process_create(uint32_t data_seg,uint32_t brk);
+int  generate_pid();
+process_t* get_current_process();
+void process_destroy(process_t* process);
+int process_destroy_thread(kthread_t* kt);
 int sys_getpid();

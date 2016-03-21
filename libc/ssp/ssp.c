@@ -15,35 +15,34 @@ limitations under the License.
 /**************************************************************************
  *
  *
- * File: compiler.h
+ * File: ssp.c
  *
- * Description: Contains GCC specific features and builtins
+ * Description: Contains the implementation of the GCC stack protector functions
  *
- * Date: 1/2/2016
+ * Date: 2/2/2016
  *
  *
  **************************************************************************/
-#ifndef COMPILER_H
-#define COMPILER_H
 
 #include <stdint.h>
-#ifndef __GNUC__
-#error "The OS needs to be compiled using GCC"
-#endif //__GNUC__
-#ifndef __spartix__
-#error "Spartix needs to be compiled using a Spartix Cross Compiler"
-#endif // __spartix__
-#define likely(x)      __builtin_expect(!!(x), 1)
-#define unlikely(x)    __builtin_expect(!!(x), 0)
-#define TRAP() __builtin_trap()
-#define PREFETCH(x,y,z) __builtin_prefetch(x,y,z)
-#define ASSUME_ALIGNED(x,y) __builtin_assume_aligned(x,y)
-#define ARCH_SPECIFIC extern
+#include <stdlib.h>
+#ifdef __is_spartix_kernel
+#include <kernel/panic.h>
+#endif
 
-inline uint64_t rdtsc()
+#if UINT32_MAX == UINTPTR_MAX
+#define STACK_CHK_GUARD 0xdeadc0de
+#else
+#define STACK_CHK_GUARD 0xdeadd00ddeadc0de
+#endif
+
+uintptr_t __stack_chk_guard = STACK_CHK_GUARD;
+__attribute__((noreturn))
+void __stack_chk_fail()
 {
-    	uint64_t ret;
-    	asm volatile ( "rdtsc" : "=A"(ret) );
-    	return ret;
+#if __STDC_HOSTED__
+	abort(); // abort() right away, its unsafe!
+#elif __is_spartix_kernel
+	panic("Stack smashing detected");
+#endif
 }
-#endif // COMPILER_H

@@ -12,8 +12,28 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#pragma once
+/**************************************************************************
+ *
+ *
+ * File: arch.c
+ *
+ * Description: Contains architecture specific initialization functions
+ *
+ * Date: 1/2/2016
+ *
+ *
+ **************************************************************************/
+#include <kernel/idt.h>
+#include <kernel/gdt.h>
+#include <kernel/pic.h>
+void init_sse();
+void init_arch()
+{
+	init_sse();
 
-#include "kheap.h"
-#include "vmm.h"
-#include "pmm.h"
+	init_gdt();
+
+	init_idt();
+
+	pic_remap();
+}

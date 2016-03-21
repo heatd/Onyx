@@ -44,7 +44,7 @@ align 4
 	dd 1024
 	dd 768
 	dd 32
- KERNEL_VIRTUAL_BASE equ 0xC0000000                  ; 3GB
+KERNEL_VIRTUAL_BASE equ 0xC0000000                  ; 3GB
 KERNEL_PAGE_NUMBER equ (KERNEL_VIRTUAL_BASE >> 22)  ; Page directory index of kernel's 4MB PTE.
 section .data
 align 0x1000
@@ -84,8 +84,7 @@ _loader:
     ; Start fetching instructions in kernel space.
     ; Since eip at this point holds the physical address of this command (approximately 0x00100000)
     ; we need to do a long jump to the correct virtual address of _start which is
-    ; approximately 0x80100000.
-    cli
+    ; approximately 0xC0100000.
     lea ecx, [_start]
     jmp ecx
 
@@ -109,18 +108,16 @@ stack_top:
 section .text
 global _start
 _start:
-	;invlpg [0]
-	;mov dword [BootPageDirectory], 0
 	mov esp, stack_top
 	add  ebx,KERNEL_VIRTUAL_BASE
 	push eax
 	push ebx
-	extern KernelEarly
-	call KernelEarly
+	extern kernel_early
+	call kernel_early
 	extern _init
 	call _init
-	extern KernelMain
-	call KernelMain
+	extern kernel_main
+	call kernel_main
 
 	; In case the function returns, we'll want to put the computer into an
 	; infinite loop. To do that, we use the clear interrupt ('cli') instruction

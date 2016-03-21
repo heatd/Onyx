@@ -13,7 +13,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 #pragma once
-
-#include "kheap.h"
-#include "vmm.h"
-#include "pmm.h"
+#include <kernel/fs.h>
+fs_node_t* devfs_init();

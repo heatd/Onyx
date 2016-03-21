@@ -51,8 +51,8 @@ _yield:
 	mov fs,eax
 	mov gs,eax
 	push esp
-	extern SwitchTask
-	call SwitchTask
+	extern sched_switch_task
+	call sched_switch_task
 	mov esp,eax
 	mov al,20h
 	out 20h,al
@@ -146,9 +146,9 @@ irq0:
 	mov fs,eax
 	mov gs,eax
 	push esp
-	extern SwitchTask
+	extern sched_switch_task
 	extern timer_handler
-	call SwitchTask
+	call sched_switch_task
 	call timer_handler
 	mov esp,eax
 	mov al,20h

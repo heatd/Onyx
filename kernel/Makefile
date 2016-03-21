@@ -13,7 +13,7 @@ BOOTDIR?=$(EXEC_PREFIX)/boot
 INCLUDEDIR?=$(PREFIX)/include
 
 include ../kversion.config
-CFLAGS:=$(CFLAGS) -mtune=pentium4 -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-strong -fno-exceptions -fno-rtti
+CFLAGS:=$(CFLAGS) -mtune=pentium4 -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-strong
 CPPFLAGS:=$(CPPFLAGS) -D__is_spartix_kernel -Iinclude -DKERNEL_VERSION='"$(KERNEL_VERSION)"' -DKERNEL_BRANCH='"$(KERNEL_BRANCH)"'
 LDFLAGS:=$(LDFLAGS)
 LIBS:=$(LIBS) -nostdlib -lk -lgcc
@@ -44,19 +44,15 @@ kernel/fs.o \
 kernel/initrd.o \
 kernel/input_manager.o \
 kernel/scheduler.o \
-kernel/cxxabi.o \
 kernel/kthread.o \
 kernel/fd.o \
-kernel/message.o \
-kernel/watchdog.o \
 kernel/sbrk.o \
 kernel/fork.o \
 kernel/fonts/font.o \
-kernel/ElfLoader.o \
+kernel/elf_loader.o \
 kernel/spinlock.o \
-kernel/log.o \
 kernel/process.o \
-
+kernel/fs/devfs.o \
 
 CRTI_OBJ:=$(ARCHDIR)/crti.o
 CRTBEGIN_OBJ:=$(shell $(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=crtbegin.o)
@@ -82,8 +78,8 @@ all: vmspartix
 vmspartix: BUILD $(OBJ_LINK_LIST) $(ARCHDIR)/linker.ld
 	$(CXX) -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(OBJ_LINK_LIST) $(LDFLAGS) $(LIBS)
 
-%.o: %.cpp
-	$(CXX) -c $< -o $@ -std=c++11 $(CFLAGS) $(CPPFLAGS)
+%.o: %.c
+	$(CC) -c $< -o $@ -std=gnu11 $(CFLAGS) $(CPPFLAGS)
 
 %.o: %.S
 	nasm -felf32 $< -o $@

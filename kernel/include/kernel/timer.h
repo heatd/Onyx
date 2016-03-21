@@ -14,8 +14,5 @@ limitations under the License.
 */
 #pragma once
 #include <stdint.h>
-namespace Timer
-{
-void Init(uint32_t freq);
-uint64_t GetTickCount();
-};
+void timer_init(uint32_t freq);
+uint64_t timer_get_tick_count();

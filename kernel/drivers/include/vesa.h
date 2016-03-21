@@ -20,26 +20,11 @@ typedef struct vid_mode
 	uint32_t width;
 	uint32_t height;
 	uint32_t bpp;
-	vid_mode(uint32_t w,uint32_t h,uint32_t b)
-	{
-		width = w;
-		height = h;
-		bpp = b;
-	}
 }vid_mode_t;
-namespace Vesa
-{
-	extern volatile unsigned char* framebuffer;
-	extern uint32_t framebuffer_pitch;
-	extern uint32_t framebuffer_width;
-	extern uint32_t framebuffer_height;
-	extern uint32_t framebuffer_bpp;
-	extern uint32_t framebuffer_pixelwidth;
-	void PutPixel(int x,int y, int color);
-	void DrawSquare(int side,int x, int y, int color);
-	void DrawString(const char* str,int x,int y);
-	void DrawChar(unsigned char c, int x, int y, int fgcolor, int bgcolor);
-	void Init(multiboot_info_t* info);
-	void* GetFramebufferAddr();
-	vid_mode_t* GetVideoMode();
-}
+void put_pixel(int x,int y, int color);
+void draw_square(int side,int x, int y, int color);
+void draw_string(const char* str,int x,int y);
+void draw_char(unsigned char c, int x, int y, int fgcolor, int bgcolor);
+void vesa_init(multiboot_info_t* info);
+void* vesa_get_framebuffer_addr();
+vid_mode_t* vesa_get_videomode();

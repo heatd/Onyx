@@ -12,8 +12,23 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#pragma once
-
-#include "kheap.h"
-#include "vmm.h"
-#include "pmm.h"
+/**************************************************************************
+ *
+ *
+ * File: sleep.cpp
+ *
+ * Description: Implementation of ksleep
+ *
+ * Date: 4/2/2016
+ *
+ *
+ **************************************************************************/
+#include <kernel/sleep.h>
+void ksleep(uint32_t ms)
+{
+	uint64_t ticks = timer_get_tick_count();
+	while(timer_get_tick_count() - ticks != ms)
+	{
+		asm volatile("hlt");
+	}
+}

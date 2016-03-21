@@ -22,12 +22,10 @@ limitations under the License.
 #define COM4 0x2E8
 #define PORT COM1 //We are only going to use COM1
 
-namespace Serial{
-	void Init();
-	char Read();
-	void Write(char);
-	void WriteString(const char*);
-};
+void serial_init();
+char serial_read();
+void serial_write(char);
+void serial_write_string(const char*);
 
 
 

@@ -12,8 +12,23 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#pragma once
+/**************************************************************************
+ *
+ *
+ * File: devfs.cpp
+ *
+ * Description: Devfs initialization, and mounting
+ *
+ * Date: 20/3/2016
+ *
+ *
+ **************************************************************************/
+#include <kernel/devfs.h>
 
-#include "kheap.h"
-#include "vmm.h"
-#include "pmm.h"
+fs_node_t* devfs_init()
+{
+	fs_node_t* devfs = open_fs(NULL,0,0,"/dev/");
+	if(!devfs)
+		abort();
+	return devfs;
+}

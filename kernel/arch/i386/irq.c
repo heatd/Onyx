@@ -15,35 +15,35 @@ limitations under the License.
 /**************************************************************************
  *
  *
- * File: compiler.h
+ * File: irq.c
  *
- * Description: Contains GCC specific features and builtins
+ * Description: Contains irq instalation functions
  *
  * Date: 1/2/2016
  *
  *
  **************************************************************************/
-#ifndef COMPILER_H
-#define COMPILER_H
 
-#include <stdint.h>
-#ifndef __GNUC__
-#error "The OS needs to be compiled using GCC"
-#endif //__GNUC__
-#ifndef __spartix__
-#error "Spartix needs to be compiled using a Spartix Cross Compiler"
-#endif // __spartix__
-#define likely(x)      __builtin_expect(!!(x), 1)
-#define unlikely(x)    __builtin_expect(!!(x), 0)
-#define TRAP() __builtin_trap()
-#define PREFETCH(x,y,z) __builtin_prefetch(x,y,z)
-#define ASSUME_ALIGNED(x,y) __builtin_assume_aligned(x,y)
-#define ARCH_SPECIFIC extern
-
-inline uint64_t rdtsc()
+#include <kernel/pic.h>
+#include <kernel/irq.h>
+#include <stdlib.h>
+irq_t irq_routines[16]  =
 {
-    	uint64_t ret;
-    	asm volatile ( "rdtsc" : "=A"(ret) );
-    	return ret;
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0
+};
+void irq_install_handler(int irq, irq_t handler)
+{
+	irq_routines[irq] = handler;
 }
-#endif // COMPILER_H
+void irq_uninstall_handler(int irq)
+{
+	irq_routines[irq] = NULL;
+}
+void irq_handler(uint32_t irqn)
+{
+	irq_t handler = irq_routines[irqn - 32];
+	pic_send_eoi(irqn - 32);
+	if(handler)
+		handler();
+}

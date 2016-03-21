@@ -12,8 +12,19 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#pragma once
+#include <stdio.h>
 
-#include "kheap.h"
-#include "vmm.h"
-#include "pmm.h"
+#if defined(__is_spartix_kernel)
+#include <kernel/tty.h>
+#endif
+#include <sys/syscall.h>
+int putchar(int ic)
+{
+	char c = (char) ic;
+#if defined(__is_spartix_kernel)
+	tty_write(&c, sizeof(c));
+#else
+	SYSCALL(TERMINAL_WRITE_SYSCALL,ic,0,0,0,0);
+#endif
+	return ic;
+}

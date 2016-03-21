@@ -14,23 +14,23 @@ limitations under the License.
 */
 #pragma once
 #include <kernel/scheduler.h>
-typedef void (*KThread_Entry_point)();
-class KThread
+#include <stdbool.h>
+typedef void (*kthread_entry_point_t)();
+typedef struct kt
 {
-private:
-	bool is_running;
-public:
-	KThread_Entry_point thread_entry;
-	int (*MessageCallback)(unsigned int);
-	Task_t* thread_task;
-	KThread* next;
+	// NEVER CHANGE THE FOLLOWING MEMBERS
+	_Bool is_running;
+	kthread_entry_point_t thread_entry;
+	task_t* thread_task;
+	struct kt* next;
 	int id;
-	bool IsThreadRunning();
-	int GetID();
-	KThread_Entry_point GetEntryPoint();
-	void Start();
-	void Terminate();
-};
-KThread* 	CreateThread(KThread_Entry_point);
-void 		DestroyThread(KThread*);
-KThread* 	GetCurrentThread();
+
+}kthread_t;
+bool kthread_is_running(kthread_t*);
+int kthread_get_id(kthread_t*);
+kthread_entry_point_t kthread_get_entry_point(kthread_t*);
+void kthread_start(kthread_t*);
+void kthread_terminate(kthread_t*);
+kthread_t* kthread_create(kthread_entry_point_t);
+void 	kthread_destroy(kthread_t*);
+kthread_t* get_current_thread();

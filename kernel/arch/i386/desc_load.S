@@ -13,8 +13,8 @@
 ;limitations under the License.
 section .text
 
-global GDT_Flush
-GDT_Flush:
+global gdt_flush
+gdt_flush:
 	mov eax, [esp+4]  ; Get the pointer to the GDT, passed as a parameter.
 	lgdt [eax]        ; Load the new GDT pointer
 
@@ -28,8 +28,8 @@ GDT_Flush:
 .flush:
 	ret
 
-global IDT_Flush
-IDT_Flush:
+global idt_flush
+idt_flush:
 	mov eax, [esp + 4]
 	lidt [eax]
 	ret

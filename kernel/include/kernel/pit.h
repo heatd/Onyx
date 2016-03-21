@@ -14,8 +14,6 @@ limitations under the License.
 */
 #pragma once
 #include <stdint.h>
-namespace PIT
-{
-void Init(uint32_t hz);
-uint64_t GetTickCount();
-};
+
+void pit_init(uint32_t hz);
+uint64_t pit_get_tick_count();

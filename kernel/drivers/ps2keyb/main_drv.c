@@ -12,18 +12,29 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#pragma once
-#include <stdint.h>
-#include <kernel/compiler.h>
-#include <kernel/registers.h>
+#include <kernel/irq.h>
+#include <kernel/pic.h>
+#include <kernel/portio.h>
+#include <kernel/panic.h>
 #include <stdio.h>
-typedef struct task
+#include <drivers/ps2.h>
+extern void SendEventToKern(unsigned char keycode);
+// This took a while to make... Some keys still remain, but I don't need them right now
+void keyb_handler()
 {
-	_Bool is_kernel;
-	registers_t regs;
-	struct task* next;
+	unsigned char status;
+	unsigned char keycode;
+	status = inb(PS2_STATUS);
 
-}task_t;
-void sched_create_task(task_t*,void (*thread)(),uint32_t,uint32_t);
-void sched_terminate_task(task_t*);
-unsigned int sched_switch_task(unsigned int old_esp);
+	if(status & 0x01){
+		keycode = inb(PS2_DATA);
+		SendEventToKern(keycode);
+	}
+}
+int init_keyboard()
+{
+	irq_t handler = &keyb_handler;
+	pic_unmask_irq(1);
+	irq_install_handler(1,handler);
+	return 0;
+}

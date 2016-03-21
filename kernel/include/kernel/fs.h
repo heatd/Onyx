@@ -12,8 +12,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#ifndef FS_H
-#define FS_H
+#pragma once
 #include <stdlib.h>
 #include <stdint.h>
 #include <stddef.h>
@@ -25,7 +24,7 @@ struct dirent // One of these is returned by the readdir call, according to POSI
 };
 typedef uint32_t (*read_type_t)(struct fs_node*,uint32_t,uint32_t,void*);
 typedef uint32_t (*write_type_t)(struct fs_node*,uint32_t,uint32_t,void*);
-typedef void (*open_type_t)(struct fs_node*);
+typedef struct fs_node* (*open_type_t)(struct fs_node*,const char* name);
 typedef void (*close_type_t)(struct fs_node*);
 typedef struct dirent * (*readdir_type_t)(struct fs_node*,uint32_t);
 typedef struct fs_node * (*finddir_type_t)(struct fs_node*,char* name);
@@ -54,7 +53,8 @@ typedef struct fs_node
    close_type_t close;
    readdir_type_t readdir;
    finddir_type_t finddir;
-   struct fs_node *ptr; // Used by mountpoints and symlinks.
+   struct fs_node* ptr; // Used by mountpoints and symlinks.
+   struct fs_node* next;
 } fs_node_t;
 
 extern fs_node_t *fs_root; // The root of the filesystem.
@@ -64,9 +64,8 @@ extern fs_node_t *fs_root; // The root of the filesystem.
 // not file nodes.
 uint32_t read_fs(fs_node_t *node, uint32_t offset, uint32_t size, void* buffer);
 uint32_t write_fs(fs_node_t *node, uint32_t offset, uint32_t size, void* buffer);
-void open_fs(fs_node_t *node, uint8_t read, uint8_t write);
+fs_node_t* open_fs(fs_node_t *node, uint8_t read, uint8_t write,const char* name);
 void close_fs(fs_node_t *node);
+fs_node_t* mount_fs(const char* mountpoint, fs_node_t* dest);
 struct dirent *readdir_fs(fs_node_t *node, uint32_t index);
 fs_node_t *finddir_fs(fs_node_t *node, char* name);
-ssize_t write(int fildes, const void* buf,size_t nbyte);
-#endif

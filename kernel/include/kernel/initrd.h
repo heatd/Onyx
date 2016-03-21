@@ -15,8 +15,6 @@ limitations under the License.
 #pragma once
 #include <kernel/fs.h>
 #include <stdint.h>
-namespace Initrd
-{
 typedef struct tar_header
 {
     	char filename[100];
@@ -36,7 +34,6 @@ typedef struct tar_header
 #define TAR_TYPE_BLOCK_SPECIAL	'4'
 #define TAR_TYPE_DIR		'5'
 //I will only need to support these types,so more isn't needed
-uint32_t GetSize(const char *in);
-unsigned int Parse(uint32_t address);
-fs_node_t* Init(uint32_t addr);
-};
+uint32_t tar_get_size(const char *in);
+unsigned int tar_parse(uint32_t address);
+fs_node_t* initrd_init(uint32_t addr);
