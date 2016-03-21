@@ -22,7 +22,7 @@ static int forks = 0;
 pid_t fork()
 {
 	current_pid++;
-	pdirectory* newpd = vmm_fork();
+	pdirectory *newpd = vmm_fork();
 	switch_directory(newpd);
 	return current_pid;
 }

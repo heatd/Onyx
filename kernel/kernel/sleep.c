@@ -27,8 +27,7 @@ limitations under the License.
 void ksleep(uint32_t ms)
 {
 	uint64_t ticks = timer_get_tick_count();
-	while(timer_get_tick_count() - ticks != ms)
-	{
-		asm volatile("hlt");
+	while (timer_get_tick_count() - ticks != ms) {
+		asm volatile ("hlt");
 	}
 }

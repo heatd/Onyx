@@ -29,6 +29,7 @@ void timer_init(uint32_t freq)
 {
 	pit_init(freq);
 }
+
 uint64_t timer_get_tick_count()
 {
 	return pit_get_tick_count();

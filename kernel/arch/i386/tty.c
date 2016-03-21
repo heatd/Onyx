@@ -52,38 +52,42 @@ void tty_set_color(int color)
 
 void terminal_putentryat(char c, uint8_t color, size_t column, size_t row)
 {
-	draw_char('\0',last_x,last_y,0,0);
+	draw_char('\0', last_x, last_y, 0, 0);
 	int y = row * 16;
 	int x = column * 9;
 	last_x = x + 9;
 	last_y = y;
-	draw_char(c,x,y,terminal_color,0);
-	draw_char('\0',x + 9,y,0,0xC0C0C0);
+	draw_char(c, x, y, terminal_color, 0);
+	draw_char('\0', x + 9, y, 0, 0xC0C0C0);
 }
+
 void tty_put_char(char c)
 {
-	if(c == '\n'){
+	if (c == '\n') {
 		terminal_column = 0;
 		terminal_row++;
-		draw_char('\0',last_x,last_y,0,0);
-		draw_char('\0',terminal_column *9,terminal_row * 16,0,0xC0C0C0);
+		draw_char('\0', last_x, last_y, 0, 0);
+		draw_char('\0', terminal_column * 9, terminal_row * 16, 0,
+			  0xC0C0C0);
 		last_x = terminal_column * 9;
 		last_y = terminal_row * 16;
 		return;
 	}
-	terminal_putentryat(c, terminal_color, terminal_column, terminal_row);
+	terminal_putentryat(c, terminal_color, terminal_column,
+			    terminal_row);
 	terminal_column++;
 }
+
 static spinlock_t spl;
-void tty_write(const char* data, size_t size)
+void tty_write(const char *data, size_t size)
 {
 	acquire(&spl);
-	for ( size_t i = 0; i < size; i++ )
+	for (size_t i = 0; i < size; i++)
 		tty_put_char(data[i]);
 	release(&spl);
 }
 
-void tty_write_string(const char* data)
+void tty_write_string(const char *data)
 {
 	tty_write(data, strlen(data));
 }

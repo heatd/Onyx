@@ -19,53 +19,57 @@ limitations under the License.
 #include <stdint-gcc.h>
 #include <stdlib.h>
 char tbuf[32];
-char bchars[] = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
-char lchars[] = {'0','1','2','3','4','5','6','7','8','9','a','b','c','d','e','f'};
-void itoa(unsigned int i,unsigned int base,char* buf,_Bool is_upper)
+char bchars[] =
+    { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D',
+'E', 'F' };
+char lchars[] =
+    { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd',
+'e', 'f' };
+void itoa(unsigned int i, unsigned int base, char *buf, _Bool is_upper)
 {
-   	int pos = 0;
-   	int opos = 0;
-   	int top = 0;
+	int pos = 0;
+	int opos = 0;
+	int top = 0;
 
-   if (i == 0 || base > 16) {
-      buf[0] = '0';
-      buf[1] = '\0';
-      return;
-   }
-	if(is_upper==false){
+	if (i == 0 || base > 16) {
+		buf[0] = '0';
+		buf[1] = '\0';
+		return;
+	}
+	if (is_upper == false) {
 		while (i != 0) {
-	           tbuf[pos] = lchars[i % base];
-	           pos++;
-	           i /= base;
-	        }
-	}else{
-   while (i != 0) {
-      tbuf[pos] = bchars[i % base];
-      pos++;
-      i /= base;
-   }
-   }
-   top=pos--;
-   for (opos=0; opos<top; pos--,opos++) {
-      buf[opos] = tbuf[pos];
-   }
-   buf[opos] = 0;
+			tbuf[pos] = lchars[i % base];
+			pos++;
+			i /= base;
+		}
+	} else {
+		while (i != 0) {
+			tbuf[pos] = bchars[i % base];
+			pos++;
+			i /= base;
+		}
+	}
+	top = pos--;
+	for (opos = 0; opos < top; pos--, opos++) {
+		buf[opos] = tbuf[pos];
+	}
+	buf[opos] = 0;
 }
 
-static void print(const char* data, size_t data_length)
+static void print(const char *data, size_t data_length)
 {
-	for ( size_t i = 0; i < data_length; i++ )
-		putchar((int) ((const unsigned char*) data)[i]);
+	for (size_t i = 0; i < data_length; i++)
+		putchar((int) ((const unsigned char *) data)[i]);
 }
 
 #ifdef __is_spartix_kernel
 static spinlock_t spl;
 #endif
-int printf(const char* __restrict__ format, ...)
+int printf(const char *__restrict__ format, ...)
 {
-	#ifdef __is_spartix_kernel
+#ifdef __is_spartix_kernel
 	acquire(&spl);
-	#endif
+#endif
 	va_list parameters;
 	va_start(parameters, format);
 
@@ -73,13 +77,11 @@ int printf(const char* __restrict__ format, ...)
 	size_t amount;
 	bool rejected_bad_specifier = false;
 
-	while ( *format != '\0' )
-	{
-		if ( *format != '%' )
-		{
-		print_c:
+	while (*format != '\0') {
+		if (*format != '%') {
+		      print_c:
 			amount = 1;
-			while ( format[amount] && format[amount] != '%' )
+			while (format[amount] && format[amount] != '%')
 				amount++;
 			print(format, amount);
 			format += amount;
@@ -87,88 +89,73 @@ int printf(const char* __restrict__ format, ...)
 			continue;
 		}
 
-		const char* format_begun_at = format;
+		const char *format_begun_at = format;
 
-		if ( *(++format) == '%' )
+		if (*(++format) == '%')
 			goto print_c;
 
-		if ( rejected_bad_specifier )
-		{
-		incomprehensible_conversion:
+		if (rejected_bad_specifier) {
+		      incomprehensible_conversion:
 			rejected_bad_specifier = true;
 			format = format_begun_at;
 			goto print_c;
 		}
 
-		if ( *format == 'c' )
-		{
+		if (*format == 'c') {
 			format++;
-			char c = (char) va_arg(parameters, int /* char promotes to int */);
+			char c =
+			    (char) va_arg(parameters,
+					  int /* char promotes to int */ );
 			print(&c, sizeof(c));
-		}
-		else if ( *format == 's' )
-		{
+		} else if (*format == 's') {
 			format++;
-			const char* s = va_arg(parameters, const char*);
+			const char *s = va_arg(parameters, const char *);
 			print(s, strlen(s));
-		}
-		else if ( *format == 'X')
-		{
+		} else if (*format == 'X') {
 			unsigned int i = va_arg(parameters, uint32_t);
-			char buffer [30]={0};
-			itoa(i,16,buffer,true);
-			print(buffer,strlen(buffer));
-			memset(buffer,0,sizeof(buffer));
+			char buffer[30] = { 0 };
+			itoa(i, 16, buffer, true);
+			print(buffer, strlen(buffer));
+			memset(buffer, 0, sizeof(buffer));
 			format++;
-		}
-		else if ( *format == 'x')
-		{
+		} else if (*format == 'x') {
 			unsigned int i = va_arg(parameters, uint32_t);
-			char buffer [30]={0};
-			itoa(i,16,buffer,false);
-			print(buffer,strlen(buffer));
-			memset(buffer,0,sizeof(buffer));
+			char buffer[30] = { 0 };
+			itoa(i, 16, buffer, false);
+			print(buffer, strlen(buffer));
+			memset(buffer, 0, sizeof(buffer));
 			format++;
-		}
-		else if ( *format == 'i')
-                {
-                     format++;
-                     char string [60];
-                     itoa(va_arg(parameters, int),10,string,false);
-                     print(string,strlen(string));
-                }
-                else if( *format == 'd')
-                {
-                     format++;
-                     char string [60];
-                     itoa(va_arg(parameters, int),10,string,false);
-                     print(string,strlen(string));
-                }
-		else if( *format =='p')
-		{
+		} else if (*format == 'i') {
 			format++;
-			void* ptr = va_arg(parameters, void*);
-			if(!ptr)
-				print("(nil)",strlen("(nil)"));
-			else
-			{
-				unsigned int i = (unsigned int)ptr;
-				char buffer [30]={0};
-				itoa(i,16,buffer,true);
-				print("0x",strlen("0x"));
-				print(buffer,30);
+			char string[60];
+			itoa(va_arg(parameters, int), 10, string, false);
+			print(string, strlen(string));
+		} else if (*format == 'd') {
+			format++;
+			char string[60];
+			itoa(va_arg(parameters, int), 10, string, false);
+			print(string, strlen(string));
+		} else if (*format == 'p') {
+			format++;
+			void *ptr = va_arg(parameters, void *);
+			if (!ptr)
+				print("(nil)", strlen("(nil)"));
+			else {
+				unsigned int i = (unsigned int) ptr;
+				char buffer[30] = { 0 };
+				itoa(i, 16, buffer, true);
+				print("0x", strlen("0x"));
+				print(buffer, 30);
 			}
-		}
-		else
-		{
+		} else {
 			goto incomprehensible_conversion;
 		}
 	}
 
 	va_end(parameters);
 
-	#ifdef __is_spartix_kernel
+#ifdef __is_spartix_kernel
 	release(&spl);
-	#endif
+#endif
 	return written;
 }

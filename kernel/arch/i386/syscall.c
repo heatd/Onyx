@@ -34,35 +34,37 @@ limitations under the License.
 #include <kernel/fd.h>
 #include <kernel/sbrk.h>
 #include <kernel/process.h>
-int syscall(uint32_t edi,uint32_t edx,uint32_t ecx, uint32_t ebx, uint32_t eax)
+int syscall(uint32_t edi, uint32_t edx, uint32_t ecx, uint32_t ebx,
+	    uint32_t eax)
 {
-	switch(eax)
-	{
-		case 0:{
-			ssize_t ret = sys_write(ebx,(const void*)ecx,edx);
+	switch (eax) {
+	case 0:{
+			ssize_t ret =
+			    sys_write(ebx, (const void *) ecx, edx);
 			return ret;
 		}
-		case 1:{
-			ssize_t ret = sys_read(ebx,(const void*)ecx,edx);
+	case 1:{
+			ssize_t ret =
+			    sys_read(ebx, (const void *) ecx, edx);
 			return ret;
 		}
-		case 2:
-			asm volatile("int $0x50");
-			return 0;
-		case 3:
+	case 2:
+		asm volatile ("int $0x50");
+		return 0;
+	case 3:
 		{
-			void* res = __sbrk((int)ebx);
-			return (int)res;
+			void *res = __sbrk((int) ebx);
+			return (int) res;
 		}
-		case 4:
-			//fork(2)
-			return 0;
-		case 5:
+	case 4:
+		//fork(2)
+		return 0;
+	case 5:
 		{
 			pid_t pid = sys_getpid();
 			return pid;
 		}
-		default:
-			break;
+	default:
+		break;
 	}
 }

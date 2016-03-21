@@ -23,7 +23,8 @@ limitations under the License.
  *
  *
  **************************************************************************/
-#pragma once
+#ifndef _BITFIELD_H
+#define _BITFIELD_H
 #define SET_BIT(x,y) \
 x |= (1 << y)
 
@@ -35,3 +36,4 @@ x ^= (1 << y)
 
 #define TEST_BIT(x,y) \
 x & (1 << y)
+#endif

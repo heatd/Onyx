@@ -13,16 +13,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 #include <kernel/sbrk.h>
-int brk(void* addr)
+int brk(void *addr)
 {
 #ifdef is_spartix_kernel
 	return __brk(addr);
 #else
-	asm volatile("movl $3,%%eax\t\n movl %0,%%ebx"::"r"(addr));
-	asm volatile("int $0x80");
+	asm volatile ("movl $3,%%eax\t\n movl %0,%%ebx"::"r" (addr));
+	asm volatile ("int $0x80");
 #endif
 }
-void* sbrk(uint32_t inc)
+
+void *sbrk(uint32_t inc)
 {
 	return __sbrk(inc);
 }

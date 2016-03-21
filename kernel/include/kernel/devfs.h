@@ -12,6 +12,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#pragma once
+#ifndef _DEVFS_H
+#define _DEVFS_H
 #include <kernel/fs.h>
 fs_node_t* devfs_init();
+#endif

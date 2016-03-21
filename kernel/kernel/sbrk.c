@@ -26,45 +26,54 @@ limitations under the License.
 #include <stdint.h>
 #include <stdint.h>
 #include <kernel/mm.h>
-static void* data_area_limit;
-static void* data_area_start;
+static void *data_area_limit;
+static void *data_area_start;
 
-void set_data_area(void* data_area)
+void set_data_area(void *data_area)
 {
 	data_area_start = data_area;
 }
-int __brk(void* addr)
+
+int __brk(void *addr)
 {
 
 	// If the new limit is lesser than 0x400000 ( 4 MiB )or bigger than 0xC0000000 ( 3 GiB ), its invalid
 	data_area_limit = addr;
-	uint32_t data_area_difference = (uint32_t)data_area_limit - (uint32_t)data_area_start;
-	void* mem = kmmap((uint32_t)data_area_start,  data_area_difference / 4096, _PDE_WRITABLE);
+	uint32_t data_area_difference =
+	    (uint32_t) data_area_limit - (uint32_t) data_area_start;
+	void *mem =
+	    kmmap((uint32_t) data_area_start, data_area_difference / 4096,
+		  _PDE_WRITABLE);
 	if (!mem)
 		return -1;
 	return 0;
 }
+
 /**
 *	Function Name: sbrk(2)
 *	Description: Implementaion of sbrk(2). Increments the program's data area for inc bytes, and maps it
 */
-void* __sbrk(uint32_t inc)
+void *__sbrk(uint32_t inc)
 {
-	if(inc == 0)
+	if (inc == 0)
 		return data_area_limit;
 	// Map it
 	uint32_t pages = inc / 4096;
-	if(pages == 0) pages = 1;
+	if (pages == 0)
+		pages = 1;
 
-	kmmap((uint32_t)data_area_limit & 0xFFFFF000, pages,_PDE_WRITABLE);
+	kmmap((uint32_t) data_area_limit & 0xFFFFF000, pages,
+	      _PDE_WRITABLE);
 	__brk(data_area_limit + inc);
 	return data_area_limit;
 }
-void* get_end_data()
+
+void *get_end_data()
 {
 	return data_area_limit;
 }
-void* get_start_data()
+
+void *get_start_data()
 {
 	return data_area_start;
 }

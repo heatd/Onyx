@@ -15,22 +15,22 @@ limitations under the License.
 #include <kernel/spinlock.h>
 #include <stdio.h>
 #include <kernel/compiler.h>
-void acquire(spinlock_t* lock)
+void acquire(spinlock_t * lock)
 {
-	if(lock->lock == 1)
-	{
+	if (lock->lock == 1) {
 		wait(lock);
 	}
-	__sync_lock_test_and_set(&lock->lock,1);
+	__sync_lock_test_and_set(&lock->lock, 1);
 }
-void release(spinlock_t* lock)
+
+void release(spinlock_t * lock)
 {
 	__sync_lock_release(&lock->lock);
 }
-void wait(spinlock_t* lock)
+
+void wait(spinlock_t * lock)
 {
-	while(lock->lock == 1)
-	{
-		asm volatile("int $0x50");
+	while (lock->lock == 1) {
+		asm volatile ("int $0x50");
 	}
 }

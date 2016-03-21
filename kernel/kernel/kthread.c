@@ -28,28 +28,27 @@ limitations under the License.
 #include <string.h>
 #include <stdio.h>
 #include <kernel/mm.h>
-extern task_t* current_task;
+extern task_t *current_task;
 static uint32_t assignable_id = 0;
-static kthread_t* first = NULL;
-static kthread_t* last = NULL;
-kthread_t* get_current_thread()
+static kthread_t *first = NULL;
+static kthread_t *last = NULL;
+kthread_t *get_current_thread()
 {
-	kthread_t* kt = first;
-	do
-	{
-		if(kt->thread_task == current_task)
-		{
+	kthread_t *kt = first;
+	do {
+		if (kt->thread_task == current_task) {
 			return kt;
 		}
 		kt = kt->next;
-	}while(kt->next != NULL);
+	} while (kt->next != NULL);
 	return NULL;
 }
-kthread_t* kthread_create(kthread_entry_point_t entry)
-{
-	kthread_t* kt = kmalloc(sizeof(kthread_t));
 
-	if(!kt)
+kthread_t *kthread_create(kthread_entry_point_t entry)
+{
+	kthread_t *kt = kmalloc(sizeof(kthread_t));
+
+	if (!kt)
 		return kt;
 
 	kt->id = assignable_id;
@@ -57,25 +56,23 @@ kthread_t* kthread_create(kthread_entry_point_t entry)
 	kt->thread_entry = entry;
 
 	kt->thread_task = kmalloc(sizeof(task_t));
-	if(first == NULL)
-	{
+	if (first == NULL) {
 		first = kt;
-	}
-	else
+	} else
 		last->next = kt;
 	last = kt;
 	kt->next = NULL;
-	if(!kt->thread_task)
+	if (!kt->thread_task)
 		return NULL;
 
-	memset(kt->thread_task,0,sizeof(task_t));
+	memset(kt->thread_task, 0, sizeof(task_t));
 
 	return kt;
 }
-void kthread_destroy(kthread_t* kt)
+
+void kthread_destroy(kthread_t * kt)
 {
-	if(kthread_is_running(kt))
-	{
+	if (kthread_is_running(kt)) {
 		kthread_terminate(kt);
 	}
 	kt->id = 0;
@@ -85,24 +82,29 @@ void kthread_destroy(kthread_t* kt)
 	kfree(kt->thread_task);
 	kfree(kt);
 }
-bool kthread_is_running(kthread_t* kt)
+
+bool kthread_is_running(kthread_t * kt)
 {
 	return kt->is_running;
 }
-int kthread_get_id(kthread_t* kt)
+
+int kthread_get_id(kthread_t * kt)
 {
 	return kt->id;
 }
-kthread_entry_point_t kthread_get_entry_point(kthread_t* kt)
+
+kthread_entry_point_t kthread_get_entry_point(kthread_t * kt)
 {
 	return kt->thread_entry;
 }
-void kthread_start(kthread_t* kt)
+
+void kthread_start(kthread_t * kt)
 {
 	kt->is_running = true;
-	sched_create_task(kt->thread_task,kt->thread_entry,0x08,0x10);
+	sched_create_task(kt->thread_task, kt->thread_entry, 0x08, 0x10);
 }
-void kthread_terminate(kthread_t* kt)
+
+void kthread_terminate(kthread_t * kt)
 {
 	kt->is_running = false;
 	sched_terminate_task(kt->thread_task);

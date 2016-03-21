@@ -27,23 +27,25 @@ limitations under the License.
 #include <kernel/pic.h>
 #include <kernel/irq.h>
 #include <stdlib.h>
-irq_t irq_routines[16]  =
-{
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0
+irq_t irq_routines[16] = {
+	0, 0, 0, 0, 0, 0, 0, 0,
+	0, 0, 0, 0, 0, 0, 0, 0
 };
+
 void irq_install_handler(int irq, irq_t handler)
 {
 	irq_routines[irq] = handler;
 }
+
 void irq_uninstall_handler(int irq)
 {
 	irq_routines[irq] = NULL;
 }
+
 void irq_handler(uint32_t irqn)
 {
 	irq_t handler = irq_routines[irqn - 32];
 	pic_send_eoi(irqn - 32);
-	if(handler)
+	if (handler)
 		handler();
 }

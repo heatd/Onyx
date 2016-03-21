@@ -12,7 +12,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#pragma once
+#ifndef _FS_H
+#define _FS_H
 #include <stdlib.h>
 #include <stdint.h>
 #include <stddef.h>
@@ -69,3 +70,4 @@ void close_fs(fs_node_t *node);
 fs_node_t* mount_fs(const char* mountpoint, fs_node_t* dest);
 struct dirent *readdir_fs(fs_node_t *node, uint32_t index);
 fs_node_t *finddir_fs(fs_node_t *node, char* name);
+#endif

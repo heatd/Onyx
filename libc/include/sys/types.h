@@ -12,8 +12,10 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#pragma once
+#ifndef _TYPES_H
+#define _TYPES_H
 /* Definitions of pid_t, uid_t and gid_t, according to the standard */
 typedef int pid_t;
 typedef unsigned int uid_t;
 typedef unsigned int gid_t;
+#endif

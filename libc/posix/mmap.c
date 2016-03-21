@@ -15,27 +15,27 @@ limitations under the License.
 #include <sys/syscall.h>
 #if defined(__is_spartix_kernel)
 #include <kernel/vmm.h>
-#endif // __is_spartix_kernel
+#endif				// __is_spartix_kernel
 #include <sys/mman.h>
 #include <stdint.h>
 // fildes and offset are ignored
 // void* mmap(void* addr, size_t len,int prot,int flags,int fildes,off_t off)
 // {
-// 	if(flags == MAP_FIXED && ((uintptr_t)addr % 4096) == 1)
-// 		return NULL;
-// 	if((len % 4096) == 1)
-// 		return NULL;
+//      if(flags == MAP_FIXED && ((uintptr_t)addr % 4096) == 1)
+//              return NULL;
+//      if((len % 4096) == 1)
+//              return NULL;
 // #if defined(__is_spartix_kernel)
-// 	kmmap(addr,len / 4096,prot,flags,0,0);
+//      kmmap(addr,len / 4096,prot,flags,0,0);
 // #else
-// 	SYSCALL(MMAP_SYSCALL,(uint32_t)addr,len,flags,fildes,off);
+//      SYSCALL(MMAP_SYSCALL,(uint32_t)addr,len,flags,fildes,off);
 // #endif // __is_spartix_kernel
 // }
 // int munmap(void* addr,size_t len)
 // {
 // #if defined(__is_spartix_kernel)
-// 	kmunmap(addr,len);
+//      kmunmap(addr,len);
 // #else
-// 	
+//      
 // #endif // __is_spartix_kernel
 // }

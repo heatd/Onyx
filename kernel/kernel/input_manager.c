@@ -27,28 +27,35 @@ limitations under the License.
 #include <stdlib.h>
 #include <stdio.h>
 #include <kernel/kheap.h>
-unsigned char keys[200]={0,'1','2','3','4','5','6','7','8','9','0','-','=','\b','\t',
-'q','w','e','r','t','y','u','i','o','p','[',']','\n',0,'a','s','d','f','g','h',
-'j','k','l',';','\'','`',0,'\\','z','x','c','v','b','n','m',',','.','/',0,'*',0,
-' ',0,0,0,0,0,0,0,0,0,0,0,0,0,'7','8','9','-','4','5','6','+','1','2','3','0',
-'.',0,0,0,0,0};
+unsigned char keys[200] =
+    { 0, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b',
+'\t',
+	'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', '\n',
+	    0, 'a', 's', 'd', 'f', 'g', 'h',
+	'j', 'k', 'l', ';', '\'', '`', 0, '\\', 'z', 'x', 'c', 'v', 'b',
+	    'n', 'm', ',', '.', '/', 0, '*', 0,
+	' ', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, '7', '8', '9', '-',
+	    '4', '5', '6', '+', '1', '2', '3', '0',
+	'.', 0, 0, 0, 0, 0
+};
+
 static _Bool is_shift_pressed = false;
 void SendEventToKern(uint8_t keycode)
 {
-	if(keycode == 0x2A || keycode == 0x36){
+	if (keycode == 0x2A || keycode == 0x36) {
 		is_shift_pressed = true;
 		return;
 	}
-	if(keycode == 0xAA || keycode == 0xB6){
+	if (keycode == 0xAA || keycode == 0xB6) {
 		is_shift_pressed = false;
 		return;
 	}
-	if(keycode & 0x80)
+	if (keycode & 0x80)
 		return;
 	char c = keys[keycode - 1];
-	if(is_shift_pressed == true && c > 96 && c < 123){
-		printf("%c",c - 32);
+	if (is_shift_pressed == true && c > 96 && c < 123) {
+		printf("%c", c - 32);
 		return;
 	}
-		printf("%c",c);
+	printf("%c", c);
 }

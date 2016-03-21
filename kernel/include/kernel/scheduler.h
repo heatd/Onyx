@@ -12,7 +12,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#pragma once
+#ifndef _SCHED_H
+#define _SCHED_H
 #include <stdint.h>
 #include <kernel/compiler.h>
 #include <kernel/registers.h>
@@ -27,3 +28,4 @@ typedef struct task
 void sched_create_task(task_t*,void (*thread)(),uint32_t,uint32_t);
 void sched_terminate_task(task_t*);
 unsigned int sched_switch_task(unsigned int old_esp);
+#endif

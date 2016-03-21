@@ -17,14 +17,14 @@ limitations under the License.
 #include <sys/syscall.h>
 #if defined(__is_spartix_kernel)
 #include <kernel/panic.h>
-#endif // __is__spartix_kernel
-__attribute__((__noreturn__))
+#endif				// __is__spartix_kernel
+__attribute__ ((__noreturn__))
 void abort(void)
 {
 #ifdef __is_spartix_kernel
 	panic("abort()");
 #else
-	SYSCALL(ABORT_SYSCALL,0,0,0,0,0);
+	SYSCALL(ABORT_SYSCALL, 0, 0, 0, 0, 0);
 #endif
 	__builtin_unreachable();
 }

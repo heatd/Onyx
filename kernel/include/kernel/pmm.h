@@ -1,5 +1,6 @@
 
-#pragma once
+#ifndef _PMM_H
+#define _PMM_H
 
 #include <stdint.h>
 #include <stddef.h>
@@ -20,3 +21,4 @@ void pmm_pop();
 void pmm_init(size_t memory_size,uintptr_t stack_space);
 void* pmalloc(size_t blocks);
 void  pfree(size_t blocks,void* ptr);
+#endif

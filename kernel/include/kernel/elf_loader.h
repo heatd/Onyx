@@ -12,7 +12,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#pragma once
+#ifndef _ELF_LOADER_H
+#define _ELF_LOADER_H
 #include <stdint.h>
 #include <stdbool.h>
 typedef uint16_t Elf32_Half;	// Unsigned half int
@@ -91,3 +92,4 @@ _Bool elf_load_file(void* file);
 _Bool elf_check_supported(Elf32_Ehdr* header);
 int elf_parse_program_heade(Elf32_Phdr* prog_hdr,Elf32_Half entries,void* file);
 void throw_error(int errn,const char* err_msg);
+#endif

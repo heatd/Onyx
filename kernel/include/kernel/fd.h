@@ -12,7 +12,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#pragma once
+#ifndef _FD_H
+#define _FD_H
 #include <stdlib.h>
 #define MAX_PATHNAME 250
 #define MAX_FILDES 32
@@ -24,4 +25,5 @@ typedef struct _fd
 	char path[MAX_PATHNAME];
 	int permitions;
 }fd_t;
-void SetupFDT(fd_t* fdt);
+void fdt_setup(fd_t* fdt);
+#endif
