@@ -151,7 +151,10 @@ void kernel_main()
 		asm volatile ("hlt");
 	}
 }
-
+void test()
+{
+	while(1);
+}
 void kernel_late()
 {
 	TERM_OK("Multitasking Initialized");
@@ -187,8 +190,9 @@ void kernel_late()
 	if (!node)
 		abort();
 
-	process_init();
 	devfs_init();
+	process_init();
+	sched_create_task(kmalloc(sizeof(task_t)),&test,0x23,0x1B);
 	for (;;) {
 		asm volatile ("hlt");
 	}

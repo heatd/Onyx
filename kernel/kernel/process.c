@@ -27,7 +27,7 @@ limitations under the License.
 #include <kernel/spinlock.h>
 #include <stdio.h>
 #include <kernel/mm.h>
-
+#include <errno.h>
 process_t *kernel = NULL;
 process_t *last = NULL;
 bool is_used[MAX_PID];
@@ -40,6 +40,7 @@ void process_init()
 	kernel->brk = 0xC0F00000;
 	kernel->pid = generate_pid();
 	kernel->threads[0] = get_current_thread();
+	kernel->errno = errno;
 	fdt_setup(kernel->fildes);
 	last = kernel;
 }
@@ -67,7 +68,7 @@ int process_destroy_thread(kthread_t * kt)
 }
 
 static spinlock_t spl;
-void process_create(uint32_t data_seg, uint32_t brk)
+int process_create(uint32_t data_seg, uint32_t brk,process_t *parent)
 {
 	acquire(&spl);
 	process_t *new_process = kmalloc(sizeof(process_t));
@@ -75,13 +76,19 @@ void process_create(uint32_t data_seg, uint32_t brk)
 	new_process->data = data_seg;
 	new_process->brk = brk;
 	new_process->pid = generate_pid();
+	if(new_process->pid == -MAX_PID){
+		kfree(new_process);
+		return 1;
+	}
+	new_process->parent = parent;
 	last = new_process;
 	fdt_setup(new_process->fildes);
 	release(&spl);
+	return 0;
 }
-
-void process_destroy(process_t * process)
+void process_destroy(process_t *process)
 {
+	acquire(&spl);
 	process_t *search = kernel;
 	process_t *last_search = search;
 	do {
@@ -93,18 +100,22 @@ void process_destroy(process_t * process)
 		last_search = search;
 		search = search->next;
 	} while (search != process);
+	release(&spl);
 }
 
 int generate_pid()
 {
+	acquire(&spl);
 	//Search the array
 	for (int i = 0; i < MAX_PID; i++) {
 		if (is_used[i] == false) {
 			is_used[i] = true;
+			release(&spl);
 			return i;
 		}
 	}
-	return -6556;// err_code
+	release(&spl);
+	return -MAX_PID;// err_code
 }
 
 process_t *get_current_process()

@@ -179,10 +179,10 @@ void *kmmap(uint32_t virt, uint32_t npages, uint32_t flags)
 	uint32_t ptflags = 0, pdflags = 0;
 	if(flags == MAP_WRITE) {
 		ptflags = _PTE_WRITABLE;
-		ptflags = _PDE_WRITABLE;
+		pdflags = _PDE_WRITABLE;
 	}else if(flags == (MAP_WRITE | MAP_USER)) {
 		ptflags = _PTE_WRITABLE | _PTE_USER;
-		ptflags = _PDE_WRITABLE | _PDE_USER;
+		pdflags = _PDE_WRITABLE | _PDE_USER;
 	}
 	uint32_t vaddr = virt;
 	if (npages > 1024) {
@@ -213,7 +213,9 @@ void *vmm_map(uint32_t virt, uint32_t npages, uint32_t ptflags,uint32_t pdflags)
 
 	if (npages == 1024) {
 		pd_entry_set_bit(entry, _PDE_PRESENT);
-		pd_entry_set_bit(entry, pdflags);
+		if(ptflags != 0 && pdflags != 0){
+			pd_entry_set_bit(entry, pdflags);
+		}
 		pd_entry_set_bit(entry, _PDE_4MB);
 		void *ptr = pmalloc(1024);
 		pd_entry_set_frame(entry, (uintptr_t) ptr);
@@ -228,7 +230,9 @@ void *vmm_map(uint32_t virt, uint32_t npages, uint32_t ptflags,uint32_t pdflags)
 		kmmap((uint32_t) pt, 1024, MAP_WRITE);
 		memset(pt, 0, sizeof(ptable));
 		pd_entry_set_bit(entry, _PDE_PRESENT);
-		pd_entry_set_bit(entry, pdflags);
+		if(ptflags != 0 && pdflags != 0){
+			pd_entry_set_bit(entry, pdflags);
+		}
 		pd_entry_set_frame(entry, (uintptr_t) pt);
 	}
 	uint32_t ret_addr = 0;
@@ -241,7 +245,9 @@ void *vmm_map(uint32_t virt, uint32_t npages, uint32_t ptflags,uint32_t pdflags)
 			printf("Failed to map page 0x%X\n", vaddr);
 			panic("No more physical memory");
 		}
-		pt_entry_set_bit(entry, ptflags);
+		if(ptflags != 0 && pdflags != 0){
+			pt_entry_set_bit(entry, ptflags);
+		}
 		//...and add it to the page table
 		pt->entries[PAGE_TABLE_INDEX(vaddr)] = page;
 	}

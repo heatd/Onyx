@@ -16,21 +16,25 @@ limitations under the License.
 #include <stdint.h>
 #include <kernel/fd.h>
 #include <kernel/kthread.h>
+#include <stdbool.h>
 #define MAX_THREADS 32
-#define MAX_PID 6556
+#define MAX_PID 32768
 typedef struct process
 {
-	kthread_t* threads[MAX_THREADS];
+	kthread_t *threads[MAX_THREADS];
 	uint32_t data;
 	uint32_t brk;
 	int pid;
 	fd_t fildes[MAX_FILDES];
 	struct process* next;
+	struct process* parent;
+	_Bool has_exited;
+	int errno;
 }process_t;
 void process_init();
-void process_create(uint32_t data_seg,uint32_t brk);
+int process_create(uint32_t data_seg,uint32_t brk,process_t *parent);
 int  generate_pid();
 process_t* get_current_process();
-void process_destroy(process_t* process);
-int process_destroy_thread(kthread_t* kt);
+void process_destroy(process_t *process);
+int process_destroy_thread(kthread_t *kt);
 int sys_getpid();

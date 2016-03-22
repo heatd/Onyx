@@ -76,7 +76,7 @@ void isr_handler(uint32_t ds, uint32_t int_no, uint32_t err_code)
 	case 13:{
 			printf("General Protection Fault");
 			if (err_code != 0)
-				printf("\nSegment %X\n", err_code);
+				printf("\nSegment 0x%X\n", err_code);
 			panic("GPF");
 			break;
 		}
