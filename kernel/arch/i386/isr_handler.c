@@ -20,6 +20,7 @@ limitations under the License.
 static uint32_t faulting_address;
 void isr_handler(uint32_t ds, uint32_t int_no, uint32_t err_code)
 {
+	(void)ds;
 	switch (int_no) {
 	case 0:{
 			panic("Division by zero exception!");
@@ -75,7 +76,7 @@ void isr_handler(uint32_t ds, uint32_t int_no, uint32_t err_code)
 		}
 	case 13:{
 			printf("General Protection Fault");
-			if (err_code != NULL)
+			if (err_code != 0)
 				printf("\nSegment %X\n", err_code);
 			panic("GPF");
 			break;

@@ -42,6 +42,7 @@ string/strcpy.o \
 string/strcmp.o \
 string/strcat.o \
 posix/sbrk.o \
+errno/errno.o \
 
 HOSTEDOBJS:=\
 $(ARCH_HOSTEDOBJS) \

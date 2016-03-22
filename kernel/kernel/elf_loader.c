@@ -29,8 +29,8 @@ limitations under the License.
 #include <kernel/kthread.h>
 #include <stdio.h>
 #include <stdbool.h>
-extern int errno = 0;
-int elf_parse_program_header(Elf32_Phdr * prog_hdr, Elf32_Half entries,
+#include <errno.h>
+int elf_parse_program_header(Elf32_Phdr *prog_hdr, Elf32_Half entries,
 			     void *file)
 {
 	for (int i = 0; i <= entries; i++) {
@@ -72,6 +72,7 @@ bool elf_load_file(void *file)
 	kthread_t *kt =
 	    kthread_create((kthread_entry_point_t) header->e_entry);
 	kthread_start(kt);
+	return true;
 }
 
 void throw_error(int errn, const char *err_msg)

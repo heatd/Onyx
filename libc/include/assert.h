@@ -20,8 +20,8 @@ limitations under the License.
 #define assert(expression)	(void)0
 #else
 #define assert(expression)                                         \
-if (expression == 0) {                                             \
-printf("assert failed: %s, line %i, function:%s()\n",__FILE__, __LINE__, __func__); \
+if ((expression) == 0) {                                             \
+printf("assertion failed: %s, line %i, function:%s()\n",__FILE__, __LINE__, __func__); \
 abort();}
 #endif
 #endif // _ASSERT_H

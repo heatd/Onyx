@@ -50,13 +50,12 @@ typedef uint32_t pt_entry;
 #define PAGES_PER_DIR	1024
 #define PAGE_DIRECTORY_INDEX(x) (((x) >> 22) & 0x3ff)
 #define PAGE_TABLE_INDEX(x) (((x) >> 12) & 0x3ff)
-#define PAGE_GET_PHYSICAL_ADDRESS(x) (*x & ~0xfff)
 
 // page table represents 4mb address space
 #define PTABLE_ADDR_SPACE_SIZE 0x400000
 
 // directory table represents 4gb address space
-#define DTABLE_ADDR_SPACE_SIZE 0x100000000
+#define DTABLE_ADDR_SPACE_SIZE 0xFFFFFFFF
 
 // page sizes are 4k
 #define PAGE_SIZE 4096

@@ -31,7 +31,7 @@ limitations under the License.
 #include <kernel/compiler.h>
 #include <stdio.h>
 #include <kernel/scheduler.h>
-static uint64_t timer_ticks = NULL;
+static uint64_t timer_ticks = 0;
 extern void halt();
 void timer_handler()
 {

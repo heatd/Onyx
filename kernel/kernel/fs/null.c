@@ -12,21 +12,20 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#include <kernel/sbrk.h>
-int brk(void *addr)
+#include <fs/null.h>
+#include <kernel/fs.h>
+uint32_t null_write(fs_node_t*,uint32_t,uint32_t size,void* buffer)
 {
-#ifdef is_spartix_kernel
-	return __brk(addr);
-#else
-	asm volatile ("movl $3,%%eax\t\n movl %0,%%ebx"::"r" (addr));
-	asm volatile ("int $0x80");
-	int ret = 0;
-	asm volatile ("mov %%eax,%0":"=a"(ret));
-	return ret;
-#endif
+	/* Writing to /dev/null is a no-op, no need to transfer data between the buffer and memory */
+	return size;
 }
-
-void *sbrk(uint32_t inc)
+void null_dev_init()
 {
-	return __sbrk(inc);
+	/* Create a filesystem node for /dev/null (the /dev/ should already be created)*/
+	fs_node_t* null = open_fs(NULL,0,0,"/dev/null");
+	if(!null)
+		abort();
+	null->flags = FS_CHARDEVICE;
+	null->read = 0;
+	null->write = &null_write;
 }

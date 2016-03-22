@@ -41,10 +41,10 @@ void draw_char(unsigned char c, int x, int y, int fgcolor, int bgcolor)
 	}
 }
 __attribute__((hot))
-void put_pixel(int x,int y, int color)
+void put_pixel(unsigned int x,unsigned int y, int color)
 {
    	//do not write memory outside the screen buffer, check parameters against the VBE mode info
-   	if (x<0 || x> framebuffer_width || y<0 || y>framebuffer_height) return;
+   	if (x> framebuffer_width || y>framebuffer_height) return;
    	if (x) x = (x*(framebuffer_bpp>>3));
    	if (y) y = (y*framebuffer_pitch);
    	volatile unsigned char* cTemp;
@@ -59,23 +59,15 @@ void draw_square(int side,int x, int y, int color)
 	{
 		for(int i = x; i < x + side;i++)
 		{
-			put_pixel(i,j,0xFFFF00);
+			put_pixel(i,j,color);
 		}
-	}
-}
-void draw_string(const char* str,int x,int y)
-{
-	size_t len = strlen(str);
-	for(size_t i,j = 0; i < len;i++,j+=8)
-	{
-		draw_char(str[i],j,y,0xC0C0C0,0);
 	}
 }
 __attribute__((cold))
 void vesa_init(multiboot_info_t* info)
 {
 	bitmap = (unsigned char*)font.Bitmap;
-	framebuffer = (unsigned char*) info->framebuffer_addr;
+	framebuffer = (volatile unsigned char*) ((uint32_t)info->framebuffer_addr);
 	framebuffer_pitch = info->framebuffer_pitch;
 	framebuffer_bpp = info->framebuffer_bpp;
 	framebuffer_width = info->framebuffer_width;

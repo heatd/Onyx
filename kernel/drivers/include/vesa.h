@@ -21,9 +21,8 @@ typedef struct vid_mode
 	uint32_t height;
 	uint32_t bpp;
 }vid_mode_t;
-void put_pixel(int x,int y, int color);
+void put_pixel(unsigned int x,unsigned int y, int color);
 void draw_square(int side,int x, int y, int color);
-void draw_string(const char* str,int x,int y);
 void draw_char(unsigned char c, int x, int y, int fgcolor, int bgcolor);
 void vesa_init(multiboot_info_t* info);
 void* vesa_get_framebuffer_addr();

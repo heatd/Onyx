@@ -187,13 +187,7 @@ void kernel_late()
 
 	if (!node)
 		abort();
-	fs_node_t *elf_file = finddir_fs(fs_root, (char *) "/bin/test");
-	/*if(!elf_file)
-	   abort();
-	   size_t file_size = (size_t)read_fs(elf_file,0,0,NULL);
-	   void* file_buffer = kmalloc(file_size);
-	   read_fs(elf_file,0,file_size,file_buffer);
-	   //ELFLoader::LoadFile(file_buffer); */
+		
 	process_init();
 	devfs_init();
 	for (;;) {

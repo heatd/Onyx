@@ -41,7 +41,7 @@ void pmm_push(uintptr_t base, size_t size)
 		base += 0x300000;
 		base &= 0xFFFFFF000;
 	}
-	for (int i = 0; i < pushed_blocks + 1; i++)
+	for (unsigned int i = 0; i < pushed_blocks + 1; i++)
 		if (stack->next[i].base == 0 && stack->next[i].size == 0) {
 			stack->next[i].base = base;
 			stack->next[i].size = size;
@@ -73,8 +73,8 @@ void pmm_init(size_t memory_size, uintptr_t stack_space)
 
 void *pmalloc(size_t blocks)
 {
-	uint32_t ret_addr = NULL;
-	for (int i = 0; i < pushed_blocks; i++)
+	uint32_t ret_addr = 0;
+	for (unsigned int i = 0; i < pushed_blocks; i++)
 		if (stack->next[i].base != 0 && stack->next[i].size != 0
 		    && stack->next[i].size >= PMM_BLOCK_SIZE * blocks) {
 			if (stack->next[i].size >= blocks * PMM_BLOCK_SIZE) {
@@ -83,7 +83,7 @@ void *pmalloc(size_t blocks)
 				    PMM_BLOCK_SIZE * blocks;
 				stack->next[i].size -=
 				    PMM_BLOCK_SIZE * blocks;
-				return (void *) (ret_addr & 0xFFFFFF000);
+				return (void *)ret_addr;
 			}
 		}
 

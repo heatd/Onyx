@@ -34,7 +34,7 @@ char* getenv(const char*);
 __attribute__((__noreturn__))
 void abort(void);
 void free(void*);
-void malloc(size_t size);
+void* malloc(size_t size);
 #ifdef __cplusplus
 }
 #endif

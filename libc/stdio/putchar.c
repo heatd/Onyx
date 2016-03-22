@@ -24,7 +24,7 @@ int putchar(int ic)
 #if defined(__is_spartix_kernel)
 	tty_write(&c, sizeof(c));
 #else
-	SYSCALL(TERMINAL_WRITE_SYSCALL, ic, 0, 0, 0, 0);
+	(void)c;
 #endif
 	return ic;
 }

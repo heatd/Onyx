@@ -3,13 +3,14 @@
 // the end of dest, and return dest.
 char *strcat(char *dest, const char *src)
 {
-	while (*dest != 0) {
-		*dest = *dest++;
+	while(*dest != '\0'){
+		++dest;
 	}
-
-	do {
-		*dest++ = *src++;
+	while(*src != '\0'){
+		*dest = *src;
+		++src;
+		++dest;
 	}
-	while (*src != 0);
+	*dest = '\0';
 	return dest;
 }

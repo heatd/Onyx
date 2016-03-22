@@ -65,8 +65,8 @@ BootPageDirectory:
 ; The kernel entry point.
 section .bootstrap
 ; setting up entry point for linker
-loader equ _loader
 global loader
+loader equ _loader
 _loader:
 ; NOTE: Until paging is set up, the code must be position-independent and use physical
     ; addresses, not virtual ones!

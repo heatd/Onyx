@@ -102,7 +102,7 @@ fs_node_t *root_open(fs_node_t * node, const char *name)
 	}
 }
 
-uint32_t tar_read(fs_node_t * node, uint32_t offset, uint32_t size,
+uint32_t tar_read(fs_node_t *node, uint32_t offset, uint32_t size,
 		  void *buffer)
 {
 	tar_header_t *header = headers[node->inode];
@@ -115,8 +115,9 @@ uint32_t tar_read(fs_node_t * node, uint32_t offset, uint32_t size,
 }
 
 struct dirent *dirent;
-static struct dirent *tar_readdir(fs_node_t * node, uint32_t index)
+static struct dirent *tar_readdir(fs_node_t *node, uint32_t index)
 {
+	(void) node;
 	if (index > NUM_FILES)
 		return NULL;
 	dirent = kmalloc(sizeof(struct dirent));

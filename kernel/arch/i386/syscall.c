@@ -33,10 +33,12 @@ limitations under the License.
 #include <kernel/kheap.h>
 #include <kernel/fd.h>
 #include <kernel/sbrk.h>
+#include <errno.h>
 #include <kernel/process.h>
-int syscall(uint32_t edi, uint32_t edx, uint32_t ecx, uint32_t ebx,
+uint32_t syscall(uint32_t edi, uint32_t edx, uint32_t ecx, uint32_t ebx,
 	    uint32_t eax)
 {
+	(void)edi;
 	switch (eax) {
 	case 0:{
 			ssize_t ret =
@@ -67,4 +69,5 @@ int syscall(uint32_t edi, uint32_t edx, uint32_t ecx, uint32_t ebx,
 	default:
 		break;
 	}
+	return errno = 0x7fffffff;
 }

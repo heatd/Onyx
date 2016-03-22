@@ -18,7 +18,6 @@ limitations under the License.
 #include <kernel/kthread.h>
 #include <stdio.h>
 static pid_t current_pid = -1;
-static int forks = 0;
 pid_t fork()
 {
 	current_pid++;

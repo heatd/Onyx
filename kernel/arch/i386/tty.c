@@ -50,18 +50,18 @@ void tty_set_color(int color)
 	terminal_color = color;
 }
 
-void terminal_putentryat(char c, uint8_t color, size_t column, size_t row)
+void terminal_putentryat(char c, uint32_t color, size_t column, size_t row)
 {
 	draw_char('\0', last_x, last_y, 0, 0);
 	int y = row * 16;
 	int x = column * 9;
 	last_x = x + 9;
 	last_y = y;
-	draw_char(c, x, y, terminal_color, 0);
+	draw_char(c, x, y, color, 0);
 	draw_char('\0', x + 9, y, 0, 0xC0C0C0);
 }
 
-void tty_put_char(char c)
+void tty_putchar(char c)
 {
 	if (c == '\n') {
 		terminal_column = 0;
@@ -83,7 +83,7 @@ void tty_write(const char *data, size_t size)
 {
 	acquire(&spl);
 	for (size_t i = 0; i < size; i++)
-		tty_put_char(data[i]);
+		tty_putchar(data[i]);
 	release(&spl);
 }
 

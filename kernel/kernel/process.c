@@ -104,6 +104,7 @@ int generate_pid()
 			return i;
 		}
 	}
+	return -6556;// err_code
 }
 
 process_t *get_current_process()

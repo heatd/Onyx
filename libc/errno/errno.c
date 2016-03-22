@@ -12,21 +12,4 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#include <kernel/sbrk.h>
-int brk(void *addr)
-{
-#ifdef is_spartix_kernel
-	return __brk(addr);
-#else
-	asm volatile ("movl $3,%%eax\t\n movl %0,%%ebx"::"r" (addr));
-	asm volatile ("int $0x80");
-	int ret = 0;
-	asm volatile ("mov %%eax,%0":"=a"(ret));
-	return ret;
-#endif
-}
-
-void *sbrk(uint32_t inc)
-{
-	return __sbrk(inc);
-}
+int errno = 0;

@@ -19,29 +19,28 @@ limitations under the License.
 ssize_t sys_write(int fd, const void *buf, size_t count)
 {
 	char *buffer = (char *) buf;
-	if (fd == 1)		//stdout
-	{
+	if (fd == 1) {//stdout
 		tty_write(buffer, count);
-	} else if (fd == 2)	// stderr
-	{
+	} else if (fd == 2) {	// stderr
 		tty_set_color(0xFF0000);
 		tty_write(buffer, count);
 		tty_set_color(0xC0C0C0);
 	}
-	//Implement writing to files,when we support ATA/PATA/SATA/AHCI
+	/*Implement writing to files,when we support ATA/PATA/SATA/AHCI*/
 	return count;
 }
 
 ssize_t sys_read(int fd, const void *buf, size_t count)
 {
-	if (fd == 0)		//stdin
-	{
-
+	(void)buf;
+	(void)count;
+	if (fd == 0) {			/* TODO: Implement reading from stdin */
+		return 0;
 	}
-	return NULL;
+	return 0;
 }
 
-// Setup the file descriptor table
+/* Setup the file descriptor table */
 void fdt_setup(fd_t * fdt)
 {
 	for (int i = 0; i < MAX_FILDES; i++) {

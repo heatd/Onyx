@@ -19,7 +19,7 @@ limitations under the License.
 #include <kernel/vga.h>
 fs_node_t *fs_root = 0;
 
-uint32_t read_fs(fs_node_t * node, uint32_t offset, uint32_t size,
+uint32_t read_fs(fs_node_t *node, uint32_t offset, uint32_t size,
 		 void *buffer)
 {
 	if (node->read != 0)
@@ -28,7 +28,7 @@ uint32_t read_fs(fs_node_t * node, uint32_t offset, uint32_t size,
 		return 0;
 }
 
-uint32_t write_fs(fs_node_t * node, uint32_t offset, uint32_t size,
+uint32_t write_fs(fs_node_t *node, uint32_t offset, uint32_t size,
 		  void *buffer)
 {
 
@@ -38,47 +38,51 @@ uint32_t write_fs(fs_node_t * node, uint32_t offset, uint32_t size,
 		return 0;
 }
 
-fs_node_t *open_fs(fs_node_t * node, uint8_t read, uint8_t write,
+fs_node_t *open_fs(fs_node_t *node, uint8_t read, uint8_t write,
 		   const char *name)
 {
+	(void) read;
+	(void) write;
 	if (fs_root->open != 0)
 		return fs_root->open(node, name);
+	else
+		return NULL;
 }
 
-void close_fs(fs_node_t * node)
+void close_fs(fs_node_t *node)
 {
 	if (node->close != 0)
 		return node->close(node);
 }
 
-struct dirent *readdir_fs(fs_node_t * node, uint32_t index)
+struct dirent *readdir_fs(fs_node_t *node, uint32_t index)
 {
 	// Is the node a directory, and does it have a callback?
-	if ((node->flags & 0x7) == FS_DIRECTORY || FS_ROOT &&
+	if ((node->flags & 0x7) == (FS_DIRECTORY || FS_ROOT) &&
 	    node->readdir != 0)
 		return node->readdir(node, index);
 	else
 		return NULL;
 }
 
-fs_node_t *finddir_fs(fs_node_t * node, char *name)
+fs_node_t *finddir_fs(fs_node_t *node, char *name)
 {
 	// Is the node a directory, and does it have a callback?
-	if ((node->flags & 0x7) == FS_DIRECTORY || FS_ROOT &&
+	if ((node->flags & 0x7) == (FS_DIRECTORY || FS_ROOT) &&
 	    node->finddir != 0)
 		return node->finddir(node, name);
 	else
 		return 0;
 }
 
-fs_node_t *mount_fs(const char *mountpoint, fs_node_t * dest)
+fs_node_t *mount_fs(const char *mountpoint, fs_node_t *dest)
 {
 	assert(mountpoint);
 	assert(dest);
 
 	fs_node_t *mount_node = finddir_fs(fs_root, (char *) mountpoint);
 	if (!mount_node)
-		return;
+		return NULL;
 
 	mount_node->flags = FS_MOUNTPOINT;
 	mount_node->ptr = dest;

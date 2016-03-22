@@ -177,7 +177,7 @@ void *kmmap(uint32_t virt, uint32_t npages, uint32_t flags)
 	uint32_t vaddr = virt;
 	if (npages > 1024) {
 		uint32_t number_of_allocs = npages / 1024;
-		for (int i = 0; i < number_of_allocs; i++) {
+		for (unsigned int i = 0; i < number_of_allocs; i++) {
 			vmm_map(vaddr, 1024, flags);
 			vaddr += 0x400000;
 		}
@@ -198,7 +198,7 @@ void *vmm_map(uint32_t virt, uint32_t npages, uint32_t flags)
 		npages = 1024;
 	pd_entry *entry = &pdir->entries[PAGE_DIRECTORY_INDEX(virt)];
 	ptable *pt = NULL;
-	if (pd_entry_is_4MB(*entry) == 1 && pd_entry_pfn(*entry) != NULL)
+	if (pd_entry_is_4MB(*entry) == 1 && pd_entry_pfn(*entry) != 0)
 		return NULL;
 
 	if (npages == 1024) {
@@ -222,7 +222,7 @@ void *vmm_map(uint32_t virt, uint32_t npages, uint32_t flags)
 		pd_entry_set_frame(entry, (uintptr_t) pt);
 	}
 	uint32_t ret_addr = 0;
-	for (int i = 0, vaddr = virt; i < npages; i++, vaddr += 4096) {
+	for (unsigned int i = 0, vaddr = virt; i < npages; i++, vaddr += 4096) {
 		if (i == 0)
 			ret_addr = vaddr;
 		// create a new page
@@ -273,7 +273,6 @@ void kmunmap(void *virt, uint32_t npages)
 
 void *vmm_alloc_addr(size_t num_pages, _Bool is_kernel)
 {
-	uint32_t placement_addr = 0;
 	if (is_kernel) {
 		area_struct *tosearch = first;
 		area_struct *last_kernel = first;
@@ -283,7 +282,6 @@ void *vmm_alloc_addr(size_t num_pages, _Bool is_kernel)
 				last_kernel = tosearch;
 				if (last_kernel->size >= num_pages
 				    && last_kernel->is_used == false) {
-					placement_addr = last_kernel->addr;
 					last_kernel->is_used = true;
 					return (void *) last_kernel->addr;
 				}
@@ -317,7 +315,6 @@ void *vmm_alloc_addr(size_t num_pages, _Bool is_kernel)
 				last_user = tosearch;
 				if (last_user->size >= num_pages
 				    && last_user->is_used == false) {
-					placement_addr = last_user->addr;
 					last_user->is_used = true;
 					return (void *) last_user->addr;
 				}
@@ -460,7 +457,7 @@ int vmm_alloc_cow(uintptr_t address)
 	uint32_t new_frame =
 	    (uint32_t) get_phys_addr(dir, (uint32_t) new_page);
 	pd_entry *entry = &dir->entries[PAGE_DIRECTORY_INDEX(address)];
-	if (!TEST_BIT(*entry, 10) && TEST_BIT(*entry, 9)) {
+	if (!(TEST_BIT(*entry, 10)) && TEST_BIT(*entry, 9)) {
 		return 1;
 	}
 	if (pd_entry_is_4MB(*entry)) {
