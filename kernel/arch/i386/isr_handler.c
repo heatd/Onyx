@@ -47,7 +47,7 @@ void isr_handler(uint32_t ds, uint32_t int_no, uint32_t err_code)
 		}
 	case 6:{
 			panic
-			    ("Opcode invalid.The kernel image might be damaged or is running in an unknown or incompatible architecture");
+			    ("Invalid Instruction.");
 			break;
 		}
 	case 7:{
@@ -55,8 +55,7 @@ void isr_handler(uint32_t ds, uint32_t int_no, uint32_t err_code)
 			break;
 		}
 	case 8:{
-			panic
-			    ("Double fault!The kernel is exiting shortly.");
+			panic("Double fault!The kernel is exiting shortly.");
 			break;
 		}
 	case 9:{

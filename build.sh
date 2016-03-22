@@ -7,6 +7,5 @@ for PROJECT in $PROJECTS; do
 done
 i686-spartix-nm kernel/vmspartix > Kernel.map
 i686-spartix-nm -C kernel/vmspartix > Kernel-demang.map
-i686-spartix-strip sysroot/boot/vmspartix
 cp Kernel.map sysroot/boot/Kernel.map
 cp Kernel-demang.map sysroot/boot/Kernel-demang.map

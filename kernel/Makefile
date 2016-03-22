@@ -15,7 +15,7 @@ INCLUDEDIR?=$(PREFIX)/include
 include ../kversion.config
 CFLAGS:=$(CFLAGS) -mtune=pentium4 -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-strong
 CPPFLAGS:=$(CPPFLAGS) -D__is_spartix_kernel -Iinclude -DKERNEL_VERSION='"$(KERNEL_VERSION)"' -DKERNEL_BRANCH='"$(KERNEL_BRANCH)"'
-LDFLAGS:=$(LDFLAGS)
+LDFLAGS:=$(LDFLAGS) -fwhole-program -fkeep-inline-functions
 LIBS:=$(LIBS) -nostdlib -lk -lgcc
 
 ARCHDIR:=arch/$(HOSTARCH)
@@ -78,7 +78,7 @@ all: vmspartix
 .PHONY: all clean install install-headers install-kernel
 
 vmspartix: BUILD $(OBJ_LINK_LIST) $(ARCHDIR)/linker.ld
-	$(CXX) -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(OBJ_LINK_LIST) $(LDFLAGS) $(LIBS)
+	$(CC) -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(OBJ_LINK_LIST) $(LDFLAGS) $(LIBS)
 
 %.o: %.c
 	$(CC) -c $< -o $@ -std=gnu11 $(CFLAGS) $(CPPFLAGS)

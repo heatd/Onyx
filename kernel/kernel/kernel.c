@@ -67,6 +67,7 @@ limitations under the License.
 		puts(str); \
 
 ARCH_SPECIFIC void init_arch();
+void kernel_late();
 ARCH_SPECIFIC void init_vmm();
 extern void jump_userspace();
 ARCH_SPECIFIC void init_keyboard();
@@ -120,8 +121,6 @@ void kernel_early(multiboot_info_t * info, size_t magic)
 	    (multiboot_module_t *) mbt->mods_addr;
 	initrd_addr = mod_start_ptr->mod_start;
 }
-
-void kernel_late();
 void kernel_main()
 {
 
@@ -187,7 +186,7 @@ void kernel_late()
 
 	if (!node)
 		abort();
-	
+
 	process_init();
 	devfs_init();
 	for (;;) {

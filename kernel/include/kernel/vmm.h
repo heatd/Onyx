@@ -73,7 +73,7 @@ typedef struct pdirectory {
 	pd_entry entries[PAGES_PER_DIR];
 }pdirectory;
 pdirectory* vmm_fork();
-void* vmm_map(uint32_t virt, uint32_t npages,uint32_t flags);
+void *vmm_map(uint32_t virt, uint32_t npages, uint32_t ptflags,uint32_t pdflags);
 int vmm_mark_addr_as_used(void*,size_t);
 void  vmm_finish();
 void* vmm_alloc_addr(size_t, _Bool);
@@ -90,6 +90,10 @@ void* get_phys_addr (pdirectory* dir, uint32_t virt);
 #define PAGE_RWE PAGE_RW | PAGE_EXECUTABLE
 #define kernel_lowest_addr 0xC0000000
 #define user_lowest_addr  0x400000
+#define MAP_KERNEL PAGE_KERNEL
+#define MAP_USER   PAGE_USER
+#define MAP_READ   PAGE_READ
+#define MAP_WRITE  PAGE_WRITE
 typedef struct area_strct
 {
 	uintptr_t addr; // Address of pages
@@ -177,4 +181,5 @@ void* valloc(uint32_t npages);
 void vfree(void* ptr, uint32_t npages);
 
 int switch_directory (pdirectory* dir);
+
 #endif

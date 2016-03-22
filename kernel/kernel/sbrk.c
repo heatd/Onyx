@@ -43,7 +43,7 @@ int __brk(void *addr)
 	    (uint32_t) data_area_limit - (uint32_t) data_area_start;
 	void *mem =
 	    kmmap((uint32_t) data_area_start, data_area_difference / 4096,
-		  _PDE_WRITABLE);
+		  MAP_WRITE);
 	if (!mem)
 		return -1;
 	return 0;
@@ -62,8 +62,8 @@ void *__sbrk(uint32_t inc)
 	if (pages == 0)
 		pages = 1;
 
-	kmmap((uint32_t) data_area_limit & 0xFFFFF000, pages,
-	      _PDE_WRITABLE);
+	kmmap(((uint32_t) data_area_limit & 0xFFFFF000), pages,
+	      MAP_WRITE);
 	__brk(data_area_limit + inc);
 	return data_area_limit;
 }
