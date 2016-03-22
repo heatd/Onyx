@@ -187,7 +187,7 @@ void kernel_late()
 
 	if (!node)
 		abort();
-		
+	
 	process_init();
 	devfs_init();
 	for (;;) {

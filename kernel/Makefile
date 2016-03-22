@@ -53,6 +53,8 @@ kernel/elf_loader.o \
 kernel/spinlock.o \
 kernel/process.o \
 kernel/fs/devfs.o \
+kernel/fs/null.o \
+kernel/fs/zero.o \
 
 CRTI_OBJ:=$(ARCHDIR)/crti.o
 CRTBEGIN_OBJ:=$(shell $(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=crtbegin.o)

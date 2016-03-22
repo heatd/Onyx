@@ -33,7 +33,7 @@ fs_node_t* devfs_init()
 	devfs->flags = FS_DIRECTORY;
 	if(!devfs)
 		abort();
-	/*null_dev_init();
-	zero_dev_init();*/
+	null_dev_init();
+	zero_dev_init();
 	return devfs;
 }

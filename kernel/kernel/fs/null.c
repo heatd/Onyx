@@ -14,8 +14,11 @@ limitations under the License.
 */
 #include <fs/null.h>
 #include <kernel/fs.h>
-uint32_t null_write(fs_node_t*,uint32_t,uint32_t size,void* buffer)
+uint32_t null_write(fs_node_t* unused0,uint32_t unused1,uint32_t size,void* unused2)
 {
+	(void) unused0;
+	(void) unused1;
+	(void) unused2;
 	/* Writing to /dev/null is a no-op, no need to transfer data between the buffer and memory */
 	return size;
 }
