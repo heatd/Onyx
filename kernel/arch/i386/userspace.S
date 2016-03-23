@@ -27,9 +27,6 @@ section .data
 	msg db 'SYSCALL WORKS',0
 section .text
 test:
-	;xor eax,eax
-	;mov ebx, msg
-	;int 0x80
 	jmp .lp
 .lp:
 	jmp .lp

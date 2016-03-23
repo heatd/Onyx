@@ -52,14 +52,23 @@ void _exit_task()
 void sched_create_task(task_t * task, void (*thread) (), uint32_t cs,
 		       uint32_t ss)
 {
-	unsigned int *stack;
+	unsigned int *stack = NULL;
 
 	task->regs.esp = (uint32_t) valloc(2) + 8192;
 	if (!task->regs.esp)
 		abort();
+	if(cs == 0x1B) {
+		printf("User-space thread has stack %p\n",task->regs.esp);
+		task->is_kernel = false;
+	}else {
+		task->is_kernel = true;
+	}
 	stack = (unsigned int *) task->regs.esp;
+	unsigned int *original_stack = stack;
 	// Push the return address
 	*--stack = (unsigned int) &_exit_task;
+	*--stack = ss;
+	*--stack = (unsigned int)original_stack - 4;
 	//First, this stuff is pushed by the processor
 	*--stack = 0x0202;	//This is EFLAGS
 	*--stack = cs;		//This is CS, our code segment
@@ -95,7 +104,7 @@ void sched_create_task(task_t * task, void (*thread) (), uint32_t cs,
 	}
 }
 
-void sched_terminate_task(task_t * task)
+void sched_terminate_task(task_t *task)
 {
 	if (task != NULL) {
 		task_t *search_task = first_task;
@@ -112,6 +121,9 @@ unsigned int sched_switch_task(unsigned int old_esp)
 		//Were we even running a task?
 		current_task->regs.esp = old_esp;	//Save the new esp for the thread
 		current_task = current_task->next;
+		if(current_task->is_kernel == false){
+			asm volatile("cli");
+	}
 	} else {
 		current_task = first_task;	//We just started multi-tasking, start with task 0
 	}

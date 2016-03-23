@@ -153,6 +153,7 @@ void kernel_main()
 }
 void test()
 {
+	asm volatile("mov $0xDEADBEEF,%eax");
 	while(1);
 }
 void kernel_late()
@@ -192,7 +193,7 @@ void kernel_late()
 
 	devfs_init();
 	process_init();
-	sched_create_task(kmalloc(sizeof(task_t)),&test,0x23,0x1B);
+	sched_create_task(kmalloc(sizeof(task_t)),&test,0x1B,0x23);
 	for (;;) {
 		asm volatile ("hlt");
 	}

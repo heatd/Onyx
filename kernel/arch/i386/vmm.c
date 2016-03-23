@@ -133,6 +133,7 @@ void vmm_init(uint32_t framebuffer_addr)
 	pd_entry *entry = &dir->entries[PAGE_DIRECTORY_INDEX(0xC0000000)];
 	pd_entry_set_bit(entry, _PDE_PRESENT);
 	pd_entry_set_bit(entry, _PDE_WRITABLE);
+	pd_entry_set_bit(entry, _PDE_USER);
 	table = (ptable *) 0x3F1000;
 	pd_entry_set_frame(entry, (uintptr_t) table);
 	pd_entry *entry2 = &dir->entries[PAGE_DIRECTORY_INDEX(0)];
@@ -405,7 +406,7 @@ void *valloc(uint32_t npages)
 	if (!npages)
 		return NULL;
 	void *vaddr = vmm_alloc_addr(npages, true);
-	if (!kmmap((uint32_t) vaddr, npages, MAP_WRITE))
+	if (!kmmap((uint32_t) vaddr, npages, MAP_WRITE|MAP_USER))
 		return NULL;
 	return vaddr;
 }

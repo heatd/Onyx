@@ -91,6 +91,7 @@ void isr_handler(uint32_t ds, uint32_t int_no, uint32_t err_code)
 					abort();
 				return;
 			}
+			abort();
 		}
 	case 15:{
 			break;	//Reserved exception

@@ -24,9 +24,9 @@ void init_gdt()
 	memset(&gdt_ptr, 0, sizeof(gdt_ptr));
 	memset(&tss_entry, 0, sizeof(tss_entry_t));
 	create_descriptor(0, 0, 0, 0, 0);
-	create_descriptor(1, 0, 0xFFFFFFFF, 0x9A, 0xCF);
+	create_descriptor(1, 0, 0xFFFFFFFF, 0x9E, 0xCF);
 	create_descriptor(2, 0, 0xFFFFFFFF, 0x92, 0xCF);
-	create_descriptor(3, 0, 0xFFFFFFFF, 0xFA, 0xCF);
+	create_descriptor(3, 0, 0xFFFFFFFF, 0xFE, 0xCF);
 	create_descriptor(4, 0, 0xFFFFFFFF, 0xF2, 0xCF);
 	install_tss();
 	load_gdt();
