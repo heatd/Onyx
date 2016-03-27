@@ -35,8 +35,7 @@ limitations under the License.
 #endif /* __spartix__ */
 #define likely(x)      __builtin_expect(!!(x), 1)
 #define unlikely(x)    __builtin_expect(!!(x), 0)
-#define TRAP() __builtin_trap()
-#define PREFETCH(x,y,z) __builtin_prefetch(x,y,z)
+#define prefetch(x,y,z) __builtin_prefetch(x,y,z)
 #define ASSUME_ALIGNED(x,y) __builtin_assume_aligned(x,y)
 #define ARCH_SPECIFIC extern
 

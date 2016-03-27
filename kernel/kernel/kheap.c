@@ -195,6 +195,7 @@ void init_heap()
 	__brk((void *) 0xC0F00000);
 	k_heapBMAddBlock(&kheap, 0xC0600000, 0xC0F00000 - 0xC0600000, 16);
 	heap_extensions = 0;
+	prefetch((const void *)0xC0600000,1,3);
 }
 
 static spinlock_t spl;

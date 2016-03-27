@@ -15,7 +15,7 @@ INCLUDEDIR?=$(PREFIX)/include
 include ../kversion.config
 CFLAGS:=$(CFLAGS) -mtune=pentium4 -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-strong
 CPPFLAGS:=$(CPPFLAGS) -D__is_spartix_kernel -Iinclude -DKERNEL_VERSION='"$(KERNEL_VERSION)"' -DKERNEL_BRANCH='"$(KERNEL_BRANCH)"'
-LDFLAGS:=$(LDFLAGS) -fwhole-program -fkeep-inline-functions
+LDFLAGS:=$(LDFLAGS) -fwhole-program -fkeep-inline-functions -flto
 LIBS:=$(LIBS) -nostdlib -lk -lgcc
 
 ARCHDIR:=arch/$(HOSTARCH)

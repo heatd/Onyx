@@ -189,6 +189,12 @@ void kernel_late()
 
 	devfs_init();
 	process_init();
+
+	time = rdtsc();
+	volatile int *ptr = kmalloc(64);
+	*ptr = 0xFF;
+	uint64_t last_time = rdtsc();
+	printf("Took %d cycles\n",last_time - time);
 	/*kthread_t *uthread = kthread_create(jump_userspace);
 	kthread_start(uthread);*/
 	for (;;) {
