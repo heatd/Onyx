@@ -25,7 +25,7 @@ cpuid: mmx=1, apic=xapic, simd=sse2, sse4a=0, misaligned_sse=0, sep=1, movbe=0, 
 cpuid: aes=0, sha=0, xsave=0, xsaveopt=0, smep=0, smap=0, mwait=1
 print_timestamps: enabled=0
 debugger_log: -
-magic_break: enabled=0
+magic_break: enabled=1
 port_e9_hack: enabled=0
 private_colormap: enabled=0
 clock: sync=none, time0=local, rtc_sync=0

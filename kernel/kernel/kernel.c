@@ -55,6 +55,7 @@ limitations under the License.
 #include <drivers/vesa.h>
 #include <kernel/process.h>
 #include <kernel/devfs.h>
+#include <ctype.h>
 /* Function: init_arch()
  * Purpose: Initialize architecture specific features, should be hooked by the architecture the kernel will run on
  */
@@ -145,16 +146,11 @@ void kernel_main()
 	kthread_t *main = kthread_create(kernel_late);
 	kthread_start(main);
 	// Enable interrupts
-	asm volatile ("sti");
+	__asm__ __volatile__ ("sti");
 
 	for (;;) {
-		asm volatile ("hlt");
+		__asm__ __volatile__ ("hlt");
 	}
-}
-void test()
-{
-	asm volatile("mov $0xDEADBEEF,%eax");
-	while(1);
 }
 void kernel_late()
 {
@@ -165,7 +161,7 @@ void kernel_late()
 	TERM_OK("Testing the timer...");
 	uint64_t time = timer_get_tick_count();
 	while (timer_get_tick_count() == time) {
-		asm volatile ("hlt");
+		__asm__ __volatile__ ("hlt");
 	}
 	TERM_OK("Timer test successful");
 	// Test Kheap
@@ -193,7 +189,8 @@ void kernel_late()
 
 	devfs_init();
 	process_init();
-	sched_create_task(kmalloc(sizeof(task_t)),&test,0x1B,0x23);
+	/*kthread_t *uthread = kthread_create(jump_userspace);
+	kthread_start(uthread);*/
 	for (;;) {
 		asm volatile ("hlt");
 	}

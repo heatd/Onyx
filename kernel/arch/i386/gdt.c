@@ -50,15 +50,14 @@ void create_descriptor(uint32_t entrynum, uint32_t base, uint32_t limit,
 void tss_flush();
 static void install_tss()
 {
-	uint32_t base = (uint32_t) & tss_entry;
-	uint32_t limit = base + sizeof(tss_entry);
+	uint32_t base = (uint32_t) &tss_entry;
+	uint32_t limit = sizeof(tss_entry);
 
 	create_descriptor(5, base, limit, 0xE9, 0);
 	memset(&tss_entry, 0, sizeof(tss_entry));
 	tss_entry.ss0 = 0x10;
-	tss_entry.esp0 = (uint32_t) 0xC03FFF00;
+	tss_entry.esp0 = (uint32_t) 0xC03F6000;
 	tss_entry.cs = 0x0b;
-	tss_entry.iomap_base = sizeof(tss_entry_t);
 	tss_entry.ss = tss_entry.ds = tss_entry.es = tss_entry.fs =
 	    tss_entry.gs = 0x13;
 }

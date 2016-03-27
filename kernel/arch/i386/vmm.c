@@ -34,6 +34,7 @@ limitations under the License.
 #include <stdio.h>
 #include <kernel/panic.h>
 #include <kernel/bitfield.h>
+#include <kernel/compiler.h>
 #include <stdbool.h>
 //! virtual address
 typedef uint32_t virtual_addr;
@@ -111,12 +112,16 @@ void vmm_init(uint32_t framebuffer_addr)
 		pt_entry page = 0;
 		pt_entry_set_bit(&page, _PTE_PRESENT);
 		pt_entry_set_frame(&page, frame);
+		pt_entry_set_bit(&page, _PTE_USER);
+		pt_entry_set_bit(&page, _PTE_WRITABLE);
 		mb->entries[PAGE_TABLE_INDEX(virt)] = page;
 	}
 	for (int i = 0, frame = framebuffer_addr, virt = framebuffer_addr;
 	     i < 1024; i++, frame += 4096, virt += 4096) {
 		pt_entry page = 0;
 		pt_entry_set_bit(&page, _PTE_PRESENT);
+		pt_entry_set_bit(&page, _PTE_USER);
+		pt_entry_set_bit(&page, _PTE_WRITABLE);
 		pt_entry_set_frame(&page, frame);
 		framebuffer->entries[PAGE_TABLE_INDEX(virt)] = page;
 	}
@@ -124,6 +129,8 @@ void vmm_init(uint32_t framebuffer_addr)
 	     i++, frame += 4096, virt += 4096) {
 		pt_entry page = 0;
 		pt_entry_set_bit(&page, _PTE_PRESENT);
+		pt_entry_set_bit(&page, _PTE_USER);
+		pt_entry_set_bit(&page, _PTE_WRITABLE);
 		pt_entry_set_frame(&page, frame);
 
 		table->entries[PAGE_TABLE_INDEX(virt)] = page;
@@ -139,6 +146,7 @@ void vmm_init(uint32_t framebuffer_addr)
 	pd_entry *entry2 = &dir->entries[PAGE_DIRECTORY_INDEX(0)];
 	pd_entry_set_bit(entry2, _PDE_PRESENT);
 	pd_entry_set_bit(entry2, _PDE_WRITABLE);
+	pd_entry_set_bit(entry2, _PDE_USER);
 	mb = (ptable *) 0x3F0000;
 	pd_entry_set_frame(entry2, (uintptr_t) mb);
 	pd_entry *entry3 = &dir->entries[PAGE_DIRECTORY_INDEX(0xFFC00000)];
@@ -148,6 +156,7 @@ void vmm_init(uint32_t framebuffer_addr)
 	    &dir->entries[PAGE_DIRECTORY_INDEX(framebuffer_addr)];
 	pd_entry_set_bit(framebuf, _PDE_PRESENT);
 	pd_entry_set_bit(framebuf, _PDE_WRITABLE);
+	pd_entry_set_bit(framebuf, _PDE_USER);
 	framebuffer = (ptable *) 0x3F3000;
 	pd_entry_set_frame(framebuf, (uintptr_t) framebuffer);
 	dir = (pdirectory *) 0x3F2000;
@@ -215,7 +224,12 @@ void *vmm_map(uint32_t virt, uint32_t npages, uint32_t ptflags,uint32_t pdflags)
 	if (npages == 1024) {
 		pd_entry_set_bit(entry, _PDE_PRESENT);
 		if(ptflags != 0 && pdflags != 0){
-			pd_entry_set_bit(entry, pdflags);
+			if(pdflags == _PDE_WRITABLE) {
+				pd_entry_set_bit(entry,_PDE_WRITABLE);
+			}else if(pdflags == (_PDE_WRITABLE | _PDE_USER)) {
+				pd_entry_set_bit(entry,_PDE_USER);
+				pd_entry_set_bit(entry,_PDE_WRITABLE);
+			}
 		}
 		pd_entry_set_bit(entry, _PDE_4MB);
 		void *ptr = pmalloc(1024);
@@ -232,7 +246,12 @@ void *vmm_map(uint32_t virt, uint32_t npages, uint32_t ptflags,uint32_t pdflags)
 		memset(pt, 0, sizeof(ptable));
 		pd_entry_set_bit(entry, _PDE_PRESENT);
 		if(ptflags != 0 && pdflags != 0){
-			pd_entry_set_bit(entry, pdflags);
+			if(pdflags == _PDE_WRITABLE) {
+				pd_entry_set_bit(entry,_PDE_WRITABLE);
+			}else if(pdflags == (_PDE_WRITABLE | _PDE_USER)) {
+				pd_entry_set_bit(entry,_PDE_USER);
+				pd_entry_set_bit(entry,_PDE_WRITABLE);
+			}
 		}
 		pd_entry_set_frame(entry, (uintptr_t) pt);
 	}
@@ -247,7 +266,12 @@ void *vmm_map(uint32_t virt, uint32_t npages, uint32_t ptflags,uint32_t pdflags)
 			panic("No more physical memory");
 		}
 		if(ptflags != 0 && pdflags != 0){
-			pt_entry_set_bit(entry, ptflags);
+			if(ptflags == _PTE_WRITABLE) {
+				pt_entry_set_bit(&page,_PTE_WRITABLE);
+			}else if(ptflags == (_PTE_WRITABLE | _PTE_USER)) {
+				pt_entry_set_bit(&page,_PTE_USER);
+				pt_entry_set_bit(&page,_PTE_WRITABLE);
+			}
 		}
 		//...and add it to the page table
 		pt->entries[PAGE_TABLE_INDEX(vaddr)] = page;
@@ -290,7 +314,7 @@ void kmunmap(void *virt, uint32_t npages)
 
 void *vmm_alloc_addr(size_t num_pages, _Bool is_kernel)
 {
-	if (is_kernel) {
+	if (unlikely(is_kernel == true)) {
 		area_struct *tosearch = first;
 		area_struct *last_kernel = first;
 		// Search the linked list
@@ -328,7 +352,7 @@ void *vmm_alloc_addr(size_t num_pages, _Bool is_kernel)
 		area_struct *last_user = first;
 		// Search the linked list
 		while (1) {
-			if (tosearch->addr >= user_lowest_addr) {
+			if (tosearch->addr < kernel_lowest_addr) {
 				last_user = tosearch;
 				if (last_user->size >= num_pages
 				    && last_user->is_used == false) {
@@ -342,10 +366,10 @@ void *vmm_alloc_addr(size_t num_pages, _Bool is_kernel)
 		}
 		area_struct *new_area = kmalloc(sizeof(area_struct));
 		memset(new_area, 0, sizeof(area_struct));
-		tosearch->next = kmalloc(sizeof(area_struct));
+		tosearch->next = new_area;
 		new_area->addr =
 		    last_user->addr + last_user->size * PAGE_SIZE;
-		if (new_area->addr + num_pages * PAGE_SIZE >= 0x80000000) {
+		if (new_area->addr + num_pages * PAGE_SIZE >= 0xC0000000) {
 			// Out of virtual memory, return
 			// This if statement is critical, so its impossible for attackers to exploit the vmm to map over the kernel
 			// (therefor crashing the OS)
@@ -401,12 +425,18 @@ int vmm_mark_addr_as_used(void *address, size_t pages)
 	return 0;
 }
 
-void *valloc(uint32_t npages)
+void *valloc(uint32_t npages,_Bool is_kernel)
 {
 	if (!npages)
 		return NULL;
-	void *vaddr = vmm_alloc_addr(npages, true);
-	if (!kmmap((uint32_t) vaddr, npages, MAP_WRITE|MAP_USER))
+	void *vaddr = vmm_alloc_addr(npages, is_kernel);
+	uint32_t flags;
+	if(unlikely(is_kernel == true)) {
+		flags = MAP_WRITE;
+	}else {
+		flags = MAP_WRITE | MAP_USER;
+	}
+	if (!kmmap((uint32_t) vaddr, npages,flags))
 		return NULL;
 	return vaddr;
 }
@@ -429,7 +459,7 @@ pdirectory *vmm_fork()
 	if (!tobeforked)
 		return NULL;
 	// Copy the page directory to a new address
-	pdirectory *newdir = (pdirectory *) valloc(1);
+	pdirectory *newdir = (pdirectory *) valloc(1,true);
 	memcpy((void *) newdir, (void *) tobeforked, sizeof(pdirectory));
 
 	for (int i = 0; i < 1024; i++) {
@@ -469,11 +499,12 @@ int vmm_alloc_cow(uintptr_t address)
 	if (!dir)
 		abort();
 
-	void *new_page = valloc(1);
+	void *new_page = valloc(1,true);
 	memcpy(new_page, (void *) address, 4096);
 	uint32_t new_frame =
 	    (uint32_t) get_phys_addr(dir, (uint32_t) new_page);
 	pd_entry *entry = &dir->entries[PAGE_DIRECTORY_INDEX(address)];
+	// TODO: Complete the implementation
 	if (!(TEST_BIT(*entry, 10)) && TEST_BIT(*entry, 9)) {
 		return 1;
 	}

@@ -89,7 +89,7 @@ void* get_phys_addr (pdirectory* dir, uint32_t virt);
 #define PAGE_RW PAGE_READ | PAGE_WRITE
 #define PAGE_RWE PAGE_RW | PAGE_EXECUTABLE
 #define kernel_lowest_addr 0xC0000000
-#define user_lowest_addr  0x400000
+#define user_lowest_addr  0
 #define MAP_KERNEL PAGE_KERNEL
 #define MAP_USER   PAGE_USER
 #define MAP_READ   PAGE_READ
@@ -176,7 +176,7 @@ void* kmmap(uint32_t virt, uint32_t npages,uint32_t flags);
 
 void kmunmap(void* virt, uint32_t npages);
 
-void* valloc(uint32_t npages);
+void* valloc(uint32_t npages, _Bool is_kernel);
 
 void vfree(void* ptr, uint32_t npages);
 

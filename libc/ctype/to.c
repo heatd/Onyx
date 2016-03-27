@@ -12,28 +12,29 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#ifndef _STRING_H
-#define _STRING_H 1
-
-#include <sys/cdefs.h>
-
-#include <stddef.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-int memcmp(const void*, const void*, size_t);
-void *memcpy(void* __restrict__, const void* __restrict__, size_t);
-void *memmove(void*, const void*, size_t);
-void *memset(void*, int, size_t);
-size_t strlen(const char*);
-char *strcat(char *dest, const char *src);
-char *strcpy(char *dest, const char *src);
-int strcmp(char *s, char *t);
-void *memchr(const void *str, int c, size_t n);
-#ifdef __cplusplus
+#include <ctype.h>
+// Damn thats a long macro name...
+#define ASCII_DIFF_BETWEEN_LOWER_AND_UPPER 32
+int tolower(int c)
+{
+	// If the ascii character code is between 91 and 64, its uppercase
+	if(c < 91 && c > 64) {
+		return c + ASCII_DIFF_BETWEEN_LOWER_AND_UPPER;
+	}
+	return c;
 }
-#endif
-
-#endif
+int toupper(int c)
+{
+	if(c > 96 && c < 123) {
+		return c - ASCII_DIFF_BETWEEN_LOWER_AND_UPPER;
+	}
+	return c;
+}
+int _toupper(int c)
+{
+	return toupper(c);
+}
+int _tolower(int c)
+{
+	return tolower(c);
+}

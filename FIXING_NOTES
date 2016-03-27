@@ -1,0 +1,7 @@
+Observations:
+	The ESP is correct
+	I'm not sure if the memory is mapped correctly
+	I think the TSS might be ruining task switching
+	Needs alot of debugging
+	I need to remove useless crap from the task_t structures
+	I need to implement CR3 task switching

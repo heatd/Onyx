@@ -18,63 +18,98 @@ limitations under the License.
 #include <kernel/panic.h>
 #include <kernel/sbrk.h>
 static uint32_t faulting_address;
+char *exception_msg[] = {
+    "Division by zero exception",
+    "Debug Trap",
+    "Non-maskable interrupt",
+    "Hit a breakpoint",
+    "Overflow trap",
+    "Overflow trap",
+    "Fault: Bound range exceeded",
+    "Invalid Instruction",
+    "FPU not detected",
+    "Critical error: DOUBLE FAULT",
+    "Invalid TSS",
+    "Segment not present",
+    "Stack segment fault",
+    "General Protection Fault",
+    "Page fault at ",
+    "",
+    "x87 floating point exception",
+    "Alignment check exception",
+    "Machine check exception",
+    "SIMD floating point exception",
+    "Virtualization exception",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "Security exception"
+};
+
 void isr_handler(uint32_t ds, uint32_t int_no, uint32_t err_code)
 {
 	(void)ds;
 	switch (int_no) {
 	case 0:{
-			panic("Division by zero exception!");
+			panic(exception_msg[int_no]);
 			break;
 		}
 	case 1:{
-			panic("Debug Trap!");
+			panic(exception_msg[int_no]);
 			break;
 		}
 	case 2:{
 			break;
 		}
 	case 3:{
-			printf("Hit a breakpoint");
+			printf(exception_msg[int_no]);
 			break;
 		}
 	case 4:{
-			printf("Overflow trap");
+			printf(exception_msg[int_no]);
 			break;
 		}
 	case 5:{
-			printf("Fault: Bound range exceeded");
+			printf(exception_msg[int_no]);
 			break;
 		}
 	case 6:{
 			panic
-			    ("Invalid Instruction.");
+			    (exception_msg[int_no]);
 			break;
 		}
 	case 7:{
-			printf("Device not available");
+			printf(exception_msg[int_no]);
 			break;
 		}
 	case 8:{
-			panic("Double fault!The kernel is exiting shortly.");
+			panic(exception_msg[int_no]);
 			break;
 		}
 	case 9:{
-			break;	//Obsolete
+			panic("i386 processors not supported by Spartix");
+			break;
 		}
 	case 10:{
-			panic("Invalid TSS");
+			panic(exception_msg[int_no]);
 			break;
 		}
 	case 11:{
-			panic("Segment not present!");
+			panic(exception_msg[int_no]);
 			break;
 		}
 	case 12:{
-			panic("Stack segment fault!");
+			panic(exception_msg[int_no]);
 			break;
 		}
 	case 13:{
-			printf("General Protection Fault");
+			printf(exception_msg[int_no]);
 			if (err_code != 0)
 				printf("\nSegment 0x%X\n", err_code);
 			panic("GPF");
@@ -91,13 +126,14 @@ void isr_handler(uint32_t ds, uint32_t int_no, uint32_t err_code)
 					abort();
 				return;
 			}
-			abort();
+			printf("0x%X\n",exception_msg[int_no],faulting_address);
+                        while(1);
 		}
 	case 15:{
 			break;	//Reserved exception
 		}
 	case 16:{
-			printf("x87 floating point exception!");
+			printf(exception_msg[int_no]);
 			break;
 		}
 	case 17:{
@@ -107,11 +143,11 @@ void isr_handler(uint32_t ds, uint32_t int_no, uint32_t err_code)
 			break;
 		}
 	case 19:{
-			printf("SIMD Floating-point exception");
+			printf(exception_msg[int_no]);
 			break;
 		}
 	case 20:{
-			printf("Virtualization exception!");
+			printf(exception_msg[int_no]);
 			break;
 		}
 	case 21:		/*Handle the intel reserved exceptions to do nothing */

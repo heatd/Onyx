@@ -25,8 +25,16 @@
 ;**************************************************************************
 section .data
 	msg db 'SYSCALL WORKS',0
+	hi db 0xFAFF
 section .text
 test:
+	mov edi,[msg]
+	mov eax,0xDEADBEEF
+	jmp $
+	mov edi,0x1337
+	extern printf
+	push msg
+	call printf
 	jmp .lp
 .lp:
 	jmp .lp
