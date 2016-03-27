@@ -12,7 +12,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#pragma once
+#ifndef _VESA_H
+#define _VESA_H
 #include <stdint.h>
 #include <multiboot.h>
 typedef struct vid_mode
@@ -27,3 +28,4 @@ void draw_char(unsigned char c, int x, int y, int fgcolor, int bgcolor);
 void vesa_init(multiboot_info_t* info);
 void* vesa_get_framebuffer_addr();
 vid_mode_t* vesa_get_videomode();
+#endif

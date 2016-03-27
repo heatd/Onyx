@@ -116,9 +116,9 @@ void isr_handler(uint32_t ds, uint32_t int_no, uint32_t err_code)
 			break;
 		}
 	case 14:{
-			// A page fault has occurred.
-			// The faulting address is stored in the CR2 register.
-			asm volatile ("mov %%cr2, %0":"=r"
+			/* A page fault has occurred. */
+			/* The faulting address is stored in the CR2 register. */
+			__asm__ __volatile__ ("mov %%cr2, %0":"=r"
 				      (faulting_address));
 			if (err_code & 0x2) {
 				if (vmm_alloc_cow
@@ -130,7 +130,7 @@ void isr_handler(uint32_t ds, uint32_t int_no, uint32_t err_code)
                         while(1);
 		}
 	case 15:{
-			break;	//Reserved exception
+			break;	/*Reserved exception */
 		}
 	case 16:{
 			printf(exception_msg[int_no]);

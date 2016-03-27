@@ -12,8 +12,10 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#pragma once
+#ifndef _PIT_H
+#define _PIT_H
 #include <stdint.h>
 
 void pit_init(uint32_t hz);
 uint64_t pit_get_tick_count();
+#endif

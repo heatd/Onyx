@@ -106,7 +106,7 @@ void process_destroy(process_t *process)
 int generate_pid()
 {
 	acquire(&spl);
-	//Search the array
+	/*Search the array */
 	for (int i = 0; i < MAX_PID; i++) {
 		if (is_used[i] == false) {
 			is_used[i] = true;
@@ -115,7 +115,7 @@ int generate_pid()
 		}
 	}
 	release(&spl);
-	return -MAX_PID;// err_code
+	return -MAX_PID;/* err_code */
 }
 
 process_t *get_current_process()
@@ -124,11 +124,11 @@ process_t *get_current_process()
 	kthread_t *curr_thread = get_current_thread();
 	if (!curr_thread)
 		abort();
-	// Search the linked list
+	/* Search the linked list */
 	do {
 		for (int i = 0; i < MAX_THREADS; i++) {
 			if (search->threads[i] == curr_thread)
-				return search;	// If one of the threads match, return
+				return search;	/* If one of the threads match, return */
 		}
 		search = search->next;
 	} while (search->next != NULL);

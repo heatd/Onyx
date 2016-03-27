@@ -12,12 +12,14 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#pragma once
+#ifndef _SBRK_H
+#define _SBRK_H
 #include <stdint.h>
 #include <stdint.h>
 #include <kernel/mm.h>
-void set_data_area(void* data_area);
-int __brk(void* addr);
+void set_data_area(void *data_area);
+int __brk(void *addr);
 void* __sbrk(uint32_t inc);
 void* get_end_data();
 void* get_start_data();
+#endif

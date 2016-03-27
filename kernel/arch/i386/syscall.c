@@ -51,7 +51,7 @@ uint32_t syscall(uint32_t edi, uint32_t edx, uint32_t ecx, uint32_t ebx,
 			return ret;
 		}
 	case 2:
-		asm volatile ("int $0x50");
+		__asm__ __volatile__ ("int $0x50");
 		return 0;
 	case 3:
 		{
@@ -59,7 +59,7 @@ uint32_t syscall(uint32_t edi, uint32_t edx, uint32_t ecx, uint32_t ebx,
 			return (int) res;
 		}
 	case 4:
-		//fork(2)
+		/*fork(2) */
 		return 0;
 	case 5:
 		{

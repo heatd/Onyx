@@ -24,4 +24,4 @@ if ((expression) == 0) {                                             \
 printf("assertion failed: %s, line %i, function:%s()\n",__FILE__, __LINE__, __func__); \
 abort();}
 #endif
-#endif // _ASSERT_H
+#endif

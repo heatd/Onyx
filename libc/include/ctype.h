@@ -21,4 +21,4 @@ int toupper(int c);
 int _tolower(int c);
 int _toupper(int c);
 
-#endif // _CTYPE_H
+#endif

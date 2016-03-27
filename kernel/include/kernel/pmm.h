@@ -4,7 +4,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
-// block size (4k)
+/* block size (4k) */
 #define PMM_BLOCK_SIZE	4096
 typedef struct stack_entry
 {

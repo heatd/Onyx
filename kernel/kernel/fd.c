@@ -19,9 +19,9 @@ limitations under the License.
 ssize_t sys_write(int fd, const void *buf, size_t count)
 {
 	char *buffer = (char *) buf;
-	if (fd == 1) {//stdout
+	if (fd == 1) {/*stdout */
 		tty_write(buffer, count);
-	} else if (fd == 2) {	// stderr
+	} else if (fd == 2) {	/* stderr */
 		tty_set_color(0xFF0000);
 		tty_write(buffer, count);
 		tty_set_color(0xC0C0C0);

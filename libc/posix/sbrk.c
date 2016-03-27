@@ -18,10 +18,10 @@ int brk(void *addr)
 #ifdef is_spartix_kernel
 	return __brk(addr);
 #else
-	asm volatile ("movl $3,%%eax\t\n movl %0,%%ebx"::"r" (addr));
-	asm volatile ("int $0x80");
+	__asm__ __volatile__ ("movl $3,%%eax\t\n movl %0,%%ebx"::"r" (addr));
+	__asm__ __volatile__ ("int $0x80");
 	int ret = 0;
-	asm volatile ("mov %%eax,%0":"=a"(ret));
+	__asm__ __volatile__ ("mov %%eax,%0":"=a"(ret));
 	return ret;
 #endif
 }

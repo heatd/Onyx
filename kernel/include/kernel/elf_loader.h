@@ -16,11 +16,11 @@ limitations under the License.
 #define _ELF_LOADER_H
 #include <stdint.h>
 #include <stdbool.h>
-typedef uint16_t Elf32_Half;	// Unsigned half int
-typedef uint32_t Elf32_Off;	// Unsigned offset
-typedef uint32_t Elf32_Addr;	// Unsigned address
-typedef uint32_t Elf32_Word;	// Unsigned int
-typedef int32_t  Elf32_Sword;	// Signed int
+typedef uint16_t Elf32_Half;	/* Unsigned half int */
+typedef uint32_t Elf32_Off;	/* Unsigned offset */
+typedef uint32_t Elf32_Addr;	/* Unsigned address */
+typedef uint32_t Elf32_Word;	/* Unsigned int */
+typedef int32_t  Elf32_Sword;	/* Signed int */
 
 # define ELF_NIDENT	16
 typedef struct
@@ -54,42 +54,42 @@ typedef struct
 
 enum Elf_Ident
 {
-	EI_MAG0		= 0, // 0x7F
-	EI_MAG1		= 1, // 'E'
-	EI_MAG2		= 2, // 'L'
-	EI_MAG3		= 3, // 'F'
-	EI_CLASS	= 4, // Architecture (32/64)
-	EI_DATA		= 5, // Byte Order
-	EI_VERSION	= 6, // ELF Version
-	EI_OSABI	= 7, // OS Specific
-	EI_ABIVERSION	= 8, // OS Specific
-	EI_PAD		= 9  // Padding
+	EI_MAG0		= 0, /* 0x7F */
+	EI_MAG1		= 1, /* 'E' */
+	EI_MAG2		= 2, /* 'L' */
+	EI_MAG3		= 3, /* 'F' */
+	EI_CLASS	= 4, /* Architecture (32/64) */
+	EI_DATA		= 5, /* Byte Order */
+	EI_VERSION	= 6, /* ELF Version */
+	EI_OSABI	= 7, /* OS Specific */
+	EI_ABIVERSION	= 8, /* OS Specific */
+	EI_PAD		= 9  /* Padding */
 };
 
-#define ELFMAG0	0x7F // e_ident[EI_MAG0]
-#define ELFMAG1	'E'  // e_ident[EI_MAG1]
-#define ELFMAG2	'L'  // e_ident[EI_MAG2]
-#define ELFMAG3	'F'  // e_ident[EI_MAG3]
+#define ELFMAG0	0x7F /* e_ident[EI_MAG0] */
+#define ELFMAG1	'E'  /* e_ident[EI_MAG1] */
+#define ELFMAG2	'L'  /* e_ident[EI_MAG2] */
+#define ELFMAG3	'F'  /* e_ident[EI_MAG3] */
 
-#define ELFDATA2LSB	(1)  // Little Endian
-#define ELFCLASS32	(1)  // 32-bit Architecture
+#define ELFDATA2LSB	(1)  /* Little Endian */
+#define ELFCLASS32	(1)  /* 32-bit Architecture */
 
 enum Elf_Type
 {
-	ET_NONE		= 0, // Unknown Type
-	ET_REL		= 1, // Relocatable File
-	ET_EXEC		= 2  // Executable File
+	ET_NONE		= 0, /* Unknown Type */
+	ET_REL		= 1, /* Relocatable File */
+	ET_EXEC		= 2  /* Executable File */
 };
 
-#define EM_386		(3)  // x86 Machine Type
-#define EV_CURRENT	(1)  // ELF Current Version
+#define EM_386		(3)  /* x86 Machine Type */
+#define EV_CURRENT	(1)  /* ELF Current Version */
 #define HDR_INV 0x1
 #define ARCH_INV 0x2
 #define DATAORDER_INV 0x3
 extern int errno;
 /* Function Declarations*/
-_Bool elf_load_file(void* file);
-_Bool elf_check_supported(Elf32_Ehdr* header);
-int elf_parse_program_heade(Elf32_Phdr* prog_hdr,Elf32_Half entries,void* file);
+_Bool elf_load_file(char *file);
+_Bool elf_check_supported(Elf32_Ehdr *header);
+int elf_parse_program_heade(Elf32_Phdr *prog_hdr,Elf32_Half entries,char *file);
 void throw_error(int errn,const char* err_msg);
 #endif

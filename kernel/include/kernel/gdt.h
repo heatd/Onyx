@@ -12,7 +12,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#pragma once
+#ifndef _GDT_H
+#define _GDT_H
 
 #include <stdint.h>
 struct gdt_ptr
@@ -23,22 +24,22 @@ struct gdt_ptr
 }__attribute__((packed));
 struct gdt_entry_struct
 {
-   uint16_t limit_low;           // The lower 16 bits of the limit.
-   uint16_t base_low;            // The lower 16 bits of the base.
-   uint8_t  base_middle;         // The next 8 bits of the base.
-   uint8_t  access;              // Access flags, determine what ring this segment can be used in.
+   uint16_t limit_low;           /* The lower 16 bits of the limit. */
+   uint16_t base_low;            /* The lower 16 bits of the base. */
+   uint8_t  base_middle;         /* The next 8 bits of the base. */
+   uint8_t  access;              /* Access flags, determine what ring this segment can be used in. */
    uint8_t  granularity;
-   uint8_t  base_high;           // The last 8 bits of the base.
+   uint8_t  base_high;           /* The last 8 bits of the base. */
 } __attribute__((packed));
 typedef struct gdt_entry_struct gdt_entry_t;
 typedef struct gdt_ptr gdt_ptr_t;
-// A struct describing a Task State Segment.
+/* A struct describing a Task State Segment. */
 struct tss_entry_struct
 {
-   uint32_t prev_tss;   // The previous TSS - if we used hardware task switching this would form a linked list.
-   uint32_t esp0;       // The stack pointer to load when we change to kernel mode.
-   uint32_t ss0;        // The stack segment to load when we change to kernel mode.
-   uint32_t esp1;       // everything below here is unusued now..
+   uint32_t prev_tss;   /* The previous TSS - if we used hardware task switching this would form a linked list. */
+   uint32_t esp0;       /* The stack pointer to load when we change to kernel mode. */
+   uint32_t ss0;        /* The stack segment to load when we change to kernel mode. */
+   uint32_t esp1;       /* everything below here is unusued now.. */
    uint32_t ss1;
    uint32_t esp2;
    uint32_t ss2;
@@ -68,3 +69,5 @@ typedef struct tss_entry_struct tss_entry_t;
 void load_gdt();
 void create_descriptor(uint32_t entrynum,uint32_t base,uint32_t limit,uint8_t access,uint8_t granularity);
 void init_gdt();
+
+#endif /* _GDT_H */

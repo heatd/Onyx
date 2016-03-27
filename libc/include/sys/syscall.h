@@ -24,22 +24,22 @@ limitations under the License.
 
 #ifdef __i386__
 #define SYSCALL(intno,ebxr,ecxr,edxr,edir,esir) \
-asm volatile("movl %0,%%eax"::"a"(intno)); \
-asm volatile("movl %0,%%ebx"::"a"(ebxr)); \
-asm volatile("movl %0,%%ecx"::"a"(ecxr)); \
-asm volatile("movl %0,%%edx"::"a"(edxr)); \
-asm volatile("movl %0,%%edi"::"a"(edir)); \
-asm volatile("movl %0,%%esi"::"a"(esir)); \
-asm volatile("int $0x80"); 
+__asm__ __volatile__("movl %0,%%eax"::"a"(intno)); \
+__asm__ __volatile__("movl %0,%%ebx"::"a"(ebxr)); \
+__asm__ __volatile__("movl %0,%%ecx"::"a"(ecxr)); \
+__asm__ __volatile__("movl %0,%%edx"::"a"(edxr)); \
+__asm__ __volatile__("movl %0,%%edi"::"a"(edir)); \
+__asm__ __volatile__("movl %0,%%esi"::"a"(esir)); \
+__asm__ __volatile__("int $0x80");
 #endif
 #ifdef __x86_64__
 #define SYSCALL(intno,rbxr,rcxr,rdxr,rdir,rsir) \
-asm volatile("movq %0,%%rax"::"a"(intno)); \
-asm volatile("movq %0,%%rbx"::"a"(rbxr)); \
-asm volatile("movq %0,%%rcx"::"a"(rcxr)); \
-asm volatile("movq %0,%%rdx"::"a"(rdxr)); \
-asm volatile("movq %0,%%rdi"::"a"(rdir)); \
-asm volatile("movq %0,%%rsi"::"a"(rsir)); \
-asm volatile("int $0x80"); 
+__asm__ __volatile__("movq %0,%%rax"::"a"(intno)); \
+__asm__ __volatile__("movq %0,%%rbx"::"a"(rbxr)); \
+__asm__ __volatile__("movq %0,%%rcx"::"a"(rcxr)); \
+__asm__ __volatile__("movq %0,%%rdx"::"a"(rdxr)); \
+__asm__ __volatile__("movq %0,%%rdi"::"a"(rdir)); \
+__asm__ __volatile__("movq %0,%%rsi"::"a"(rsir)); \
+__asm__ __volatile__("int $0x80");
 #endif
-#endif // SYSCALL_H
+#endif

@@ -45,28 +45,28 @@ void vmm_init(uint32_t framebuffer_addr);
 #define _PDE_FRAME			0x7FFFF000
 typedef uint32_t pd_entry;
 typedef uint32_t pt_entry;
-// i686 architecture defines 1024 entries per table
+/* i686 architecture defines 1024 entries per table */
 #define PAGES_PER_TABLE 1024
 #define PAGES_PER_DIR	1024
 #define PAGE_DIRECTORY_INDEX(x) (((x) >> 22) & 0x3ff)
 #define PAGE_TABLE_INDEX(x) (((x) >> 12) & 0x3ff)
 
-// page table represents 4mb address space
+/* page table represents 4mb address space */
 #define PTABLE_ADDR_SPACE_SIZE 0x400000
 
-// directory table represents 4gb address space
+/* directory table represents 4gb address space */
 #define DTABLE_ADDR_SPACE_SIZE 0xFFFFFFFF
 
-// page sizes are 4k
+/* page sizes are 4k */
 #define PAGE_SIZE 4096
 
-// page table
+/* page table */
 typedef struct ptable {
 
 	pt_entry entries[PAGES_PER_TABLE];
 }ptable;
 
-//! page directory
+/*! page directory */
 
 typedef struct pdirectory {
 
@@ -96,16 +96,16 @@ void* get_phys_addr (pdirectory* dir, uint32_t virt);
 #define MAP_WRITE  PAGE_WRITE
 typedef struct area_strct
 {
-	uintptr_t addr; // Address of pages
+	uintptr_t addr; /* Address of pages */
 
-	size_t size; // Size in pages
+	size_t size; /* Size in pages */
 
-	uint8_t type; // Type of page ( its type is uint8_t just to save some memory)
+	uint8_t type; /* Type of page ( its type is uint8_t just to save some memory) */
 
-	uint8_t protection; // R/W, just read, executable, etc...
+	uint8_t protection; /* R/W, just read, executable, etc... */
 
 	_Bool is_used;
-	struct area_strct* next; // The next area_struct in the linked list
+	struct area_strct* next; /* The next area_struct in the linked list */
 }area_struct;
 inline void pt_entry_set_bit(pt_entry* pt,uint32_t bit)
 {
@@ -170,7 +170,7 @@ inline void pd_entry_enable_global(pd_entry pd)
 }
 inline void _flush_tlb_page(unsigned long addr)
 {
-   	asm volatile("invlpg (%0)" ::"r" (addr) : "memory");
+   	__asm__ __volatile__ ("invlpg (%0)" ::"r" (addr) : "memory");
 }
 void* kmmap(uint32_t virt, uint32_t npages,uint32_t flags);
 

@@ -36,7 +36,7 @@ limitations under the License.
 #include <kernel/bitfield.h>
 #include <kernel/compiler.h>
 #include <stdbool.h>
-//! virtual address
+/*! virtual address */
 typedef uint32_t virtual_addr;
 static area_struct *first = NULL;
 void loadPageDirectory(pdirectory *);
@@ -107,7 +107,7 @@ void vmm_init(uint32_t framebuffer_addr)
 	memset(table, 0, sizeof(ptable));
 	for (int i = 0, frame = 0, virt = 0; i < 1024;
 	     i++, frame += 4096, virt += 4096) {
-		if(i == 0) // Unmap the NULL page (0x0)
+		if(i == 0) /* Unmap the NULL page (0x0) */
 			continue;
 		pt_entry page = 0;
 		pt_entry_set_bit(&page, _PTE_PRESENT);
@@ -164,7 +164,7 @@ void vmm_init(uint32_t framebuffer_addr)
 	switch_directory(dir);
 }
 
-// Finish installing the VMM
+/* Finish installing the VMM */
 void vmm_finish()
 {
 	first = kmalloc(sizeof(area_struct));
@@ -259,7 +259,7 @@ void *vmm_map(uint32_t virt, uint32_t npages, uint32_t ptflags,uint32_t pdflags)
 	for (unsigned int i = 0, vaddr = virt; i < npages; i++, vaddr += 4096) {
 		if (i == 0)
 			ret_addr = vaddr;
-		// create a new page
+		/* create a new page */
 		pt_entry page = 0;
 		if (alloc_page(&page) == 1) {
 			printf("Failed to map page 0x%X\n", vaddr);
@@ -273,7 +273,7 @@ void *vmm_map(uint32_t virt, uint32_t npages, uint32_t ptflags,uint32_t pdflags)
 				pt_entry_set_bit(&page,_PTE_WRITABLE);
 			}
 		}
-		//...and add it to the page table
+		/*...and add it to the page table */
 		pt->entries[PAGE_TABLE_INDEX(vaddr)] = page;
 	}
 	return (void *) ret_addr;
@@ -303,7 +303,7 @@ void kmunmap(void *virt, uint32_t npages)
 		free_page(page);
 		_flush_tlb_page(vaddr);
 	}
-	for (uint32_t i = 0; i < 1024; i++)	//Optimization
+	for (uint32_t i = 0; i < 1024; i++)	/*Optimization */
 	{
 		if (pt_entry_is_present(pt->entries[i]))
 			break;
@@ -317,7 +317,7 @@ void *vmm_alloc_addr(size_t num_pages, _Bool is_kernel)
 	if (unlikely(is_kernel == true)) {
 		area_struct *tosearch = first;
 		area_struct *last_kernel = first;
-		// Search the linked list
+		/* Search the linked list */
 		while (1) {
 			if (tosearch->addr >= kernel_lowest_addr) {
 				last_kernel = tosearch;
@@ -337,8 +337,8 @@ void *vmm_alloc_addr(size_t num_pages, _Bool is_kernel)
 		new_area->addr =
 		    last_kernel->addr + last_kernel->size * PAGE_SIZE;
 		if (new_area->addr + num_pages * PAGE_SIZE >= 0xFFC00000) {
-			// Out of virtual memory, return
-			// This if statement is critical, so its impossible for attackers to exploit the vmm to map over the recursive mapping
+			/* Out of virtual memory, return */
+			/* This if statement is critical, so its impossible for attackers to exploit the vmm to map over the recursive mapping */
 			return NULL;
 		}
 		new_area->size = num_pages;
@@ -346,11 +346,11 @@ void *vmm_alloc_addr(size_t num_pages, _Bool is_kernel)
 		new_area->protection = PAGE_RW;
 		new_area->is_used = true;
 		return (void *) new_area->addr;
-	} else			// If is_kernel != true, then the pages are going to be user accessible
+	} else			/* If is_kernel != true, then the pages are going to be user accessible */
 	{
 		area_struct *tosearch = first;
 		area_struct *last_user = first;
-		// Search the linked list
+		/* Search the linked list */
 		while (1) {
 			if (tosearch->addr < kernel_lowest_addr) {
 				last_user = tosearch;
@@ -370,9 +370,9 @@ void *vmm_alloc_addr(size_t num_pages, _Bool is_kernel)
 		new_area->addr =
 		    last_user->addr + last_user->size * PAGE_SIZE;
 		if (new_area->addr + num_pages * PAGE_SIZE >= 0xC0000000) {
-			// Out of virtual memory, return
-			// This if statement is critical, so its impossible for attackers to exploit the vmm to map over the kernel
-			// (therefor crashing the OS)
+			/* Out of virtual memory, return */
+			/* This if statement is critical, so its impossible for attackers to exploit the vmm to map over the kernel */
+			/* (therefor crashing the OS) */
 			return NULL;
 		}
 		new_area->size = num_pages;
@@ -453,12 +453,12 @@ void vfree(void *ptr, uint32_t npages)
 
 pdirectory *vmm_fork()
 {
-	//Get the current page directory
+	/*Get the current page directory */
 	pdirectory *tobeforked = get_directory();
-	// if there is none,return
+	/* if there is none,return */
 	if (!tobeforked)
 		return NULL;
-	// Copy the page directory to a new address
+	/* Copy the page directory to a new address */
 	pdirectory *newdir = (pdirectory *) valloc(1,true);
 	memcpy((void *) newdir, (void *) tobeforked, sizeof(pdirectory));
 
@@ -466,12 +466,12 @@ pdirectory *vmm_fork()
 		if (pd_entry_is_present(newdir->entries[i]) && i < 682
 		    && i != 0) {
 
-			// Signal Copy-on-Write
+			/* Signal Copy-on-Write */
 			SET_BIT(newdir->entries[i], 10);
 			SET_BIT(newdir->entries[i], 9);
 			SET_BIT(tobeforked->entries[i], 10);
 			SET_BIT(tobeforked->entries[i], 9);
-			//Use COW (Copy-on-Write)
+			/*Use COW (Copy-on-Write) */
 			pd_entry_unset_bit(&newdir->entries[i],
 					   _PDE_WRITABLE);
 			pd_entry_unset_bit(&tobeforked->entries[i],
@@ -504,7 +504,7 @@ int vmm_alloc_cow(uintptr_t address)
 	uint32_t new_frame =
 	    (uint32_t) get_phys_addr(dir, (uint32_t) new_page);
 	pd_entry *entry = &dir->entries[PAGE_DIRECTORY_INDEX(address)];
-	// TODO: Complete the implementation
+	/* TODO: Complete the implementation */
 	if (!(TEST_BIT(*entry, 10)) && TEST_BIT(*entry, 9)) {
 		return 1;
 	}

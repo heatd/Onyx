@@ -43,7 +43,7 @@ void draw_char(unsigned char c, int x, int y, int fgcolor, int bgcolor)
 __attribute__((hot))
 void put_pixel(unsigned int x,unsigned int y, int color)
 {
-   	//do not write memory outside the screen buffer, check parameters against the VBE mode info
+   	/* do not write memory outside the screen buffer, check parameters against the VBE mode info */
    	if (x> framebuffer_width || y>framebuffer_height) return;
    	if (x) x = (x*(framebuffer_bpp>>3));
    	if (y) y = (y*framebuffer_pitch);
@@ -74,7 +74,7 @@ void vesa_init(multiboot_info_t* info)
 	framebuffer_height = info->framebuffer_height;
 	framebuffer_pixelwidth = framebuffer_bpp / 8;
 	assert(framebuffer_bpp == 32);
-	// Without this call to PutPixel, it doesn't draw anything. Weird Bug
+	/* Without this call to put_pixel, it doesn't draw anything. Weird Bug */
 	put_pixel(0,100,0);
 }
 void* vesa_get_framebuffer_addr()

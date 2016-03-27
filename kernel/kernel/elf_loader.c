@@ -31,7 +31,7 @@ limitations under the License.
 #include <stdbool.h>
 #include <errno.h>
 int elf_parse_program_header(Elf32_Phdr *prog_hdr, Elf32_Half entries,
-			     void *file)
+			     char *file)
 {
 	for (int i = 0; i <= entries; i++) {
 		if (prog_hdr[i].p_type == 1) {
@@ -41,7 +41,7 @@ int elf_parse_program_header(Elf32_Phdr *prog_hdr, Elf32_Half entries,
 				return 1;
 			}
 			if (prog_hdr[i].p_filesz < prog_hdr[i].p_memsz) {
-				// Its the bss section, zero it out
+				/* Its the bss section, zero it out */
 				kmmap(prog_hdr[i].p_vaddr,
 				      prog_hdr[i].p_memsz / 1024,
 				      _PDE_WRITABLE);
@@ -59,7 +59,7 @@ int elf_parse_program_header(Elf32_Phdr *prog_hdr, Elf32_Half entries,
 	return 0;
 }
 
-bool elf_load_file(void *file)
+bool elf_load_file(char *file)
 {
 	Elf32_Ehdr *header = (Elf32_Ehdr *) file;
 	if (!elf_check_supported(header))
@@ -83,7 +83,7 @@ void throw_error(int errn, const char *err_msg)
 	tty_set_color(0xC0C0C0);
 }
 
-_Bool elf_check_supported(Elf32_Ehdr * header)
+_Bool elf_check_supported(Elf32_Ehdr *header)
 {
 	if (header->e_ident[EI_MAG0] != ELFMAG0) {
 		throw_error(HDR_INV, "Invalid ELF header!");

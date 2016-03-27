@@ -12,7 +12,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#pragma once
+#ifndef _REGISTERS_H
+#define _REGISTERS_H
 #include <stdint.h>
 #ifdef __x86_64__
 
@@ -29,4 +30,5 @@ typedef struct registers
    uint16_t ss,cs;
 } __attribute__((packed)) registers_t;
 
-#endif // __x86_64__
+#endif /* __x86_64__ */
+#endif

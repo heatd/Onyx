@@ -26,8 +26,8 @@ limitations under the License.
 #include <stdint.h>
 #include <stdint.h>
 #include <kernel/mm.h>
-static void *data_area_limit;
-static void *data_area_start;
+static char *data_area_limit;
+static char *data_area_start;
 
 void set_data_area(void *data_area)
 {
@@ -37,7 +37,7 @@ void set_data_area(void *data_area)
 int __brk(void *addr)
 {
 
-	// If the new limit is lesser than 0x400000 ( 4 MiB )or bigger than 0xC0000000 ( 3 GiB ), its invalid
+	/* If the new limit is lesser than 0x400000 ( 4 MiB )or bigger than 0xC0000000 ( 3 GiB ), its invalid */
 	data_area_limit = addr;
 	uint32_t data_area_difference =
 	    (uint32_t) data_area_limit - (uint32_t) data_area_start;
@@ -57,7 +57,7 @@ void *__sbrk(uint32_t inc)
 {
 	if (inc == 0)
 		return data_area_limit;
-	// Map it
+	/* Map it */
 	uint32_t pages = inc / 4096;
 	if (pages == 0)
 		pages = 1;

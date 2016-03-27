@@ -44,14 +44,14 @@ void pit_init(uint32_t frequency)
 
 	outb(0x43, 0x36);
 	io_wait();
-	outb(0x40, divisor & 0xFF);	// Set low byte of divisor
+	outb(0x40, divisor & 0xFF);	/* Set low byte of divisor */
 	io_wait();
-	outb(0x40, divisor >> 8);	// Set high byte of divisor
+	outb(0x40, divisor >> 8);	/* Set high byte of divisor */
 	io_wait();
-	pic_unmask_irq(0);	// Unmask IRQ0 (PIT)
+	pic_unmask_irq(0);	/* Unmask IRQ0 (PIT) */
 
 	irq_t handler = &timer_handler;
-	// Install the IRQ handler
+	/* Install the IRQ handler */
 	irq_install_handler(0, handler);
 }
 

@@ -90,7 +90,7 @@ void kernel_early(multiboot_info_t * info, size_t magic)
 	memset((void *) 0xC0200000, 0, 4096);
 
 	pmm_init(mbt->mem_lower + mbt->mem_upper, (uintptr_t) 0xC0200000);
-	// Initialize the Physical memory manager
+	/* Initialize the Physical memory manager */
 
 	while ((unsigned int) mmap < mbt->mmap_addr + mbt->mmap_length) {
 		static int i = 0;
@@ -103,17 +103,17 @@ void kernel_early(multiboot_info_t * info, size_t magic)
 						mmap->size +
 						sizeof(unsigned int));
 	}
-	//Initialize the VMM
+	/*Initialize the VMM */
 	vmm_init(mbt->framebuffer_addr);
 	vesa_init(mbt);
 	tty_init();
 	puts("Booting ...");
-	// Check if the magic number is the same as the multiboot 1 spec
+	/* Check if the magic number is the same as the multiboot 1 spec */
 	if (magic == 0x2BADB002) {
 		TERM_OK
 		    ("Spartix kernel booted by a Multiboot 1 compliant bootloader");
 	} else
-		panic("Bootloader not Multiboot 1 compliant");	// If not, panic, because our kernel relies on it
+		panic("Bootloader not Multiboot 1 compliant");	/* If not, panic, because our kernel relies on it */
 	init_arch();
 	printf("Loaded by %s\n", mbt->boot_loader_name);
 	printf("Total memory: %i MiB\n",
@@ -128,24 +128,24 @@ void kernel_main()
 	printf("Spartix kernel %s branch %s build %d\n", KERNEL_VERSION,
 	       KERNEL_BRANCH, &__BUILD_NUMBER);
 	printf("Built on %d\n", &__BUILD_DATE);
-	// Initialize the timer
+	/* Initialize the timer */
 	timer_init(1000);
 	TERM_OK("Initialized the Timer");
-	// Initialize the kernel heap
+	/* Initialize the kernel heap */
 	init_heap();
 	TERM_OK("Initialized the Kernel Heap");
 	vmm_finish();
-	//Initialize the Initrd
+	/*Initialize the Initrd */
 	fs_root = initrd_init(initrd_addr);
 
 	if (!fs_root)
 		abort();
-	//Initialize PS/2 keyboard drivers
+	/*Initialize PS/2 keyboard drivers */
 	init_keyboard();
 	TERM_OK("Initializing multitasking");
 	kthread_t *main = kthread_create(kernel_late);
 	kthread_start(main);
-	// Enable interrupts
+	/* Enable interrupts */
 	__asm__ __volatile__ ("sti");
 
 	for (;;) {
@@ -155,19 +155,19 @@ void kernel_main()
 void kernel_late()
 {
 	TERM_OK("Multitasking Initialized");
-	// Test kernel features
+	/* Test kernel features */
 
-	// Test the timer
+	/* Test the timer */
 	TERM_OK("Testing the timer...");
 	uint64_t time = timer_get_tick_count();
 	while (timer_get_tick_count() == time) {
 		__asm__ __volatile__ ("hlt");
 	}
 	TERM_OK("Timer test successful");
-	// Test Kheap
+	/* Test Kheap */
 	TERM_OK("Testing the Kernel Heap...");
 
-	void *test_ptr = kmalloc(4096);	// Allocate 4 Kilobytes of memory
+	void *test_ptr = kmalloc(4096);	/* Allocate 4 Kilobytes of memory */
 
 	if (!test_ptr)
 		panic("Heap test failed");
@@ -175,8 +175,8 @@ void kernel_late()
 
 	TERM_OK("Heap test successful");
 
-	// Initialize less important drivers
-	// Initalize Serial driver
+	/* Initialize less important drivers */
+	/* Initalize Serial driver */
 	serial_init();
 	serial_write_string("[  OK  ] Serial driver initialized");
 
@@ -192,6 +192,6 @@ void kernel_late()
 	/*kthread_t *uthread = kthread_create(jump_userspace);
 	kthread_start(uthread);*/
 	for (;;) {
-		asm volatile ("hlt");
+		__asm__ __volatile__ ("hlt");
 	}
 }

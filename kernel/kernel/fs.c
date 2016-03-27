@@ -52,12 +52,12 @@ fs_node_t *open_fs(fs_node_t *node, uint8_t read, uint8_t write,
 void close_fs(fs_node_t *node)
 {
 	if (node->close != 0)
-		return node->close(node);
+		node->close(node);
 }
 
 struct dirent *readdir_fs(fs_node_t *node, uint32_t index)
 {
-	// Is the node a directory, and does it have a callback?
+	/* Is the node a directory, and does it have a callback? */
 	if ((node->flags & 0x7) == (FS_DIRECTORY || FS_ROOT) &&
 	    node->readdir != 0)
 		return node->readdir(node, index);
@@ -67,7 +67,7 @@ struct dirent *readdir_fs(fs_node_t *node, uint32_t index)
 
 fs_node_t *finddir_fs(fs_node_t *node, char *name)
 {
-	// Is the node a directory, and does it have a callback?
+	/* Is the node a directory, and does it have a callback? */
 	if ((node->flags & 0x7) == (FS_DIRECTORY || FS_ROOT) &&
 	    node->finddir != 0)
 		return node->finddir(node, name);

@@ -12,7 +12,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#pragma once
+#ifndef _KHEAP_H
+#define _KHEAP_H
 
 #include <kernel/vmm.h>
 typedef struct _KHEAPBLOCKBM {
@@ -42,3 +43,5 @@ void* kmalloc(size_t size);
 void kfree(void* ptr);
 
 void init_heap();
+
+#endif

@@ -81,7 +81,7 @@ vmspartix: BUILD $(OBJ_LINK_LIST) $(ARCHDIR)/linker.ld
 	$(CC) -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(OBJ_LINK_LIST) $(LDFLAGS) $(LIBS)
 
 %.o: %.c
-	$(CC) -c $< -o $@ -std=gnu11 $(CFLAGS) $(CPPFLAGS)
+	$(CC) -c $< -o $@ $(CFLAGS) $(CPPFLAGS)
 
 %.o: %.S
 	nasm -felf32 $< -o $@

@@ -46,7 +46,7 @@ void sched_create_task(task_t * task, void (*thread) (), uint32_t cs,
 void _exit_task()
 {
 	sched_terminate_task(current_task);
-	__asm__ __volatile__ ("int $0x50");	// yield the current task
+	__asm__ __volatile__ ("int $0x50");	/* yield the current task */
 }
 
 void sched_create_task(task_t * task, void (*thread) (), uint32_t cs,
@@ -66,34 +66,34 @@ void sched_create_task(task_t * task, void (*thread) (), uint32_t cs,
 	}
 	stack = (unsigned int *) task->regs.esp;
 	unsigned int *original_stack = stack;
-	// Push the return address
+	/* Push the return address */
 	*--stack = (unsigned int) &_exit_task;
 	*--stack = ss;
-	*--stack = (unsigned int) stack;
+	*--stack = (unsigned int) original_stack - 4;
 	if(thread == jump_userspace) {
 		*--stack = 0x2;
 		task->is_kernel = false;
 	}else
-	//First, this stuff is pushed by the processor
-	*--stack = 0x0202;	//This is EFLAGS
-	*--stack = cs;		//This is CS, our code segment
-	*--stack = (unsigned int) thread;	//This is EIP
+	/*First, this stuff is pushed by the processor */
+	*--stack = 0x0202;	/*This is EFLAGS */
+	*--stack = cs;		/*This is CS, our code segment */
+	*--stack = (unsigned int) thread;	/*This is EIP */
 
-	//Next, the stuff pushed by 'pusha'
-	*--stack = 0;		//EDI
-	*--stack = 0;		//ESI
-	*--stack = 0;		//EBP
-	*--stack = 0;		//Just an offset, no value
-	*--stack = 0;		//EBX
-	*--stack = 0;		//EDX
-	*--stack = 0;		//ECX
-	*--stack = 0;		//EAX
+	/*Next, the stuff pushed by 'pusha' */
+	*--stack = 0;		/*EDI */
+	*--stack = 0;		/*ESI */
+	*--stack = 0;		/*EBP */
+	*--stack = 0;		/*Just an offset, no value */
+	*--stack = 0;		/*EBX */
+	*--stack = 0;		/*EDX */
+	*--stack = 0;		/*ECX */
+	*--stack = 0;		/*EAX */
 
-	//Now these are the data segments pushed by the IRQ handler
-	*--stack = ss;		//DS
-	*--stack = ss;		//ES
-	*--stack = ss;		//FS
-	*--stack = ss;		//GS
+	/*Now these are the data segments pushed by the IRQ handler */
+	*--stack = ss;		/*DS */
+	*--stack = ss;		/*ES */
+	*--stack = ss;		/*FS */
+	*--stack = ss;		/*GS */
 	task->regs.esp = (uint32_t) stack;
 	task->next = NULL;
 	if (!first_task) {
@@ -123,14 +123,14 @@ void sched_terminate_task(task_t *task)
 unsigned int sched_switch_task(unsigned int old_esp)
 {
 	if (likely(current_task != NULL)) {
-		//Were we even running a task?
-		current_task->regs.esp = old_esp;	//Save the new esp for the thread
+		/*Were we even running a task? */
+		current_task->regs.esp = old_esp;	/*Save the new esp for the thread */
 		current_task = current_task->next;
 		if(current_task->is_kernel == false) {
 			printf("0x%X\n",current_task->regs.esp);
 	}
 	} else {
-		current_task = first_task;	//We just started multi-tasking, start with task 0
+		current_task = first_task;	/*We just started multi-tasking, start with task 0 */
 	}
-	return current_task->regs.esp;	//Return new stack pointer to ASM
+	return current_task->regs.esp;	/*Return new stack pointer to ASM */
 }

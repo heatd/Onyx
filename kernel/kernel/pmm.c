@@ -26,17 +26,17 @@ limitations under the License.
 #include <kernel/pmm.h>
 #include <stdio.h>
 #include <string.h>
-// size of physical memory
+/* size of physical memory */
 static size_t pmm_memory_size = 0;
 static uint32_t pushed_blocks = 0;
-// Kernel addresses reserved for pmm stack
+/* Kernel addresses reserved for pmm stack */
 static uintptr_t *pmm_stack_space = NULL;
 extern uint32_t end;
 static uint32_t last_entry = 0;
 stack_t *stack = NULL;
 void pmm_push(uintptr_t base, size_t size)
 {
-	// Don't alloc the kernel
+	/* Don't alloc the kernel */
 	if (base == 0x100000) {
 		base += 0x300000;
 		base &= 0xFFFFFF000;

@@ -31,6 +31,6 @@ void release(spinlock_t * lock)
 void wait(spinlock_t * lock)
 {
 	while (lock->lock == 1) {
-		asm volatile ("int $0x50");
+		__asm__ __volatile__ ("int $0x50");
 	}
 }

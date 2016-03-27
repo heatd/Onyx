@@ -29,10 +29,10 @@ limitations under the License.
 #include <stdint.h>
 #ifndef __GNUC__
 #error "The OS needs to be compiled using GCC"
-#endif //__GNUC__
+#endif /*__GNUC__ */
 #ifndef __spartix__
 #error "Spartix needs to be compiled using a Spartix Cross Compiler"
-#endif // __spartix__
+#endif /* __spartix__ */
 #define likely(x)      __builtin_expect(!!(x), 1)
 #define unlikely(x)    __builtin_expect(!!(x), 0)
 #define TRAP() __builtin_trap()
@@ -43,7 +43,7 @@ limitations under the License.
 inline uint64_t rdtsc()
 {
     	uint64_t ret;
-    	asm volatile ( "rdtsc" : "=A"(ret) );
+    	__asm__ __volatile__ ( "rdtsc" : "=A"(ret) );
     	return ret;
 }
-#endif // COMPILER_H
+#endif /* COMPILER_H */

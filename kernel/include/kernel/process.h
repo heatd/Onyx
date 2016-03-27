@@ -12,7 +12,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#pragma once
+#ifndef _PROCESS_H
+#define _PROCESS_H
 #include <stdint.h>
 #include <kernel/fd.h>
 #include <kernel/kthread.h>
@@ -38,3 +39,4 @@ process_t* get_current_process();
 void process_destroy(process_t *process);
 int process_destroy_thread(kthread_t *kt);
 int sys_getpid();
+#endif

@@ -12,13 +12,14 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#pragma once
+#ifndef _KTHREAD_H
+#define _KTHREAD_H
 #include <kernel/scheduler.h>
 #include <stdbool.h>
 typedef void (*kthread_entry_point_t)();
 typedef struct kt
 {
-	// NEVER CHANGE THE FOLLOWING MEMBERS
+	/* NEVER CHANGE THE FOLLOWING MEMBERS */
 	_Bool is_running;
 	kthread_entry_point_t thread_entry;
 	task_t* thread_task;
@@ -34,3 +35,4 @@ void kthread_terminate(kthread_t*);
 kthread_t* kthread_create(kthread_entry_point_t);
 void 	kthread_destroy(kthread_t*);
 kthread_t* get_current_thread();
+#endif

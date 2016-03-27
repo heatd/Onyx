@@ -1,12 +1,12 @@
-// Created from bdf2c Version 3, (c) 2009, 2010 by Lutz Sammer
-//	License AGPLv3: GNU Affero General Public License version 3
+/* Created from bdf2c Version 3, (c) 2009, 2010 by Lutz Sammer */
+/*	License AGPLv3: GNU Affero General Public License version 3 */
 
 #include <fonts.h>
 
-	/// character bitmap for each encoding
+	/*/ character bitmap for each encoding */
 static const unsigned char __font_bitmap__[] = {
-//   0 $00 'C0000'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*   0 $00 'C0000' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -23,8 +23,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//   1 $01 'C0001'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*   1 $01 'C0001' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	_XXXXXX_,
@@ -41,8 +41,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//   2 $02 'C0002'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*   2 $02 'C0002' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	_XXXXXX_,
@@ -59,8 +59,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//   3 $03 'C0003'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*   3 $03 'C0003' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -77,8 +77,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//   4 $04 'C0004'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*   4 $04 'C0004' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -95,8 +95,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//   5 $05 'C0005'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*   5 $05 'C0005' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -113,8 +113,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//   6 $06 'C0006'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*   6 $06 'C0006' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -131,8 +131,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//   7 $07 'C0007'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*   7 $07 'C0007' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -149,8 +149,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//   8 $08 'C0008'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*   8 $08 'C0008' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	XXXXXXXX,
 	XXXXXXXX,
 	XXXXXXXX,
@@ -167,8 +167,8 @@ static const unsigned char __font_bitmap__[] = {
 	XXXXXXXX,
 	XXXXXXXX,
 	XXXXXXXX,
-//   9 $09 'C0009'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*   9 $09 'C0009' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -185,8 +185,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  10 $0a 'C000a'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  10 $0a 'C000a' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	XXXXXXXX,
 	XXXXXXXX,
 	XXXXXXXX,
@@ -203,8 +203,8 @@ static const unsigned char __font_bitmap__[] = {
 	XXXXXXXX,
 	XXXXXXXX,
 	XXXXXXXX,
-//  11 $0b 'C000b'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  11 $0b 'C000b' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	___XXXX_,
@@ -221,8 +221,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  12 $0c 'C000c'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  12 $0c 'C000c' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	__XXXX__,
@@ -239,8 +239,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  13 $0d 'C000d'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  13 $0d 'C000d' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	__XXXXXX,
@@ -257,8 +257,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  14 $0e 'C000e'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  14 $0e 'C000e' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	_XXXXXXX,
@@ -275,8 +275,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  15 $0f 'C000f'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  15 $0f 'C000f' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -293,8 +293,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  16 $10 'C0010'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  16 $10 'C0010' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	X_______,
 	XX______,
@@ -311,8 +311,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  17 $11 'C0011'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  17 $11 'C0011' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	______X_,
 	_____XX_,
@@ -329,8 +329,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  18 $12 'C0012'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  18 $12 'C0012' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	___XX___,
@@ -347,8 +347,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  19 $13 'C0013'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  19 $13 'C0013' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	_XX__XX_,
@@ -365,8 +365,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  20 $14 'C0014'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  20 $14 'C0014' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	_XXXXXXX,
@@ -383,8 +383,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  21 $15 'C0015'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  21 $15 'C0015' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	_XXXXX__,
 	XX___XX_,
@@ -401,8 +401,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  22 $16 'C0016'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  22 $16 'C0016' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -419,8 +419,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  23 $17 'C0017'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  23 $17 'C0017' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	___XX___,
@@ -437,8 +437,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  24 $18 'C0018'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  24 $18 'C0018' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	___XX___,
@@ -455,8 +455,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  25 $19 'C0019'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  25 $19 'C0019' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	___XX___,
@@ -473,8 +473,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  26 $1a 'C001a'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  26 $1a 'C001a' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -491,8 +491,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  27 $1b 'C001b'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  27 $1b 'C001b' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -509,8 +509,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  28 $1c 'C001c'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  28 $1c 'C001c' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -527,8 +527,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  29 $1d 'C001d'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  29 $1d 'C001d' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -545,8 +545,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  30 $1e 'C001e'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  30 $1e 'C001e' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -563,8 +563,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  31 $1f 'C001f'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  31 $1f 'C001f' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -581,8 +581,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  32 $20 'C0020'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  32 $20 'C0020' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -599,8 +599,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  33 $21 'C0021'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  33 $21 'C0021' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	___XX___,
@@ -617,8 +617,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  34 $22 'C0022'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  34 $22 'C0022' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	_XX__XX_,
 	_XX__XX_,
@@ -635,8 +635,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  35 $23 'C0023'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  35 $23 'C0023' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -653,8 +653,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  36 $24 'C0024'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  36 $24 'C0024' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	___XX___,
 	___XX___,
 	_XXXXX__,
@@ -671,8 +671,8 @@ static const unsigned char __font_bitmap__[] = {
 	___XX___,
 	________,
 	________,
-//  37 $25 'C0025'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  37 $25 'C0025' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -689,8 +689,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  38 $26 'C0026'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  38 $26 'C0026' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	__XXX___,
@@ -707,8 +707,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  39 $27 'C0027'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  39 $27 'C0027' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	__XX____,
 	__XX____,
@@ -725,8 +725,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  40 $28 'C0028'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  40 $28 'C0028' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	____XX__,
@@ -743,8 +743,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  41 $29 'C0029'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  41 $29 'C0029' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	__XX____,
@@ -761,8 +761,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  42 $2a 'C002a'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  42 $2a 'C002a' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -779,8 +779,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  43 $2b 'C002b'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  43 $2b 'C002b' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -797,8 +797,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  44 $2c 'C002c'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  44 $2c 'C002c' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -815,8 +815,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  45 $2d 'C002d'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  45 $2d 'C002d' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -833,8 +833,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  46 $2e 'C002e'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  46 $2e 'C002e' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -851,8 +851,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  47 $2f 'C002f'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  47 $2f 'C002f' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -869,8 +869,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  48 $30 'C0030'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  48 $30 'C0030' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	__XXX___,
@@ -887,8 +887,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  49 $31 'C0031'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  49 $31 'C0031' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	___XX___,
@@ -905,8 +905,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  50 $32 'C0032'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  50 $32 'C0032' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	_XXXXX__,
@@ -923,8 +923,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  51 $33 'C0033'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  51 $33 'C0033' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	_XXXXX__,
@@ -941,8 +941,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  52 $34 'C0034'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  52 $34 'C0034' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	____XX__,
@@ -959,8 +959,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  53 $35 'C0035'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  53 $35 'C0035' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	XXXXXXX_,
@@ -977,8 +977,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  54 $36 'C0036'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  54 $36 'C0036' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	__XXX___,
@@ -995,8 +995,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  55 $37 'C0037'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  55 $37 'C0037' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	XXXXXXX_,
@@ -1013,8 +1013,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  56 $38 'C0038'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  56 $38 'C0038' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	_XXXXX__,
@@ -1031,8 +1031,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  57 $39 'C0039'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  57 $39 'C0039' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	_XXXXX__,
@@ -1049,8 +1049,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  58 $3a 'C003a'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  58 $3a 'C003a' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -1067,8 +1067,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  59 $3b 'C003b'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  59 $3b 'C003b' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -1085,8 +1085,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  60 $3c 'C003c'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  60 $3c 'C003c' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -1103,8 +1103,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  61 $3d 'C003d'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  61 $3d 'C003d' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -1121,8 +1121,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  62 $3e 'C003e'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  62 $3e 'C003e' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -1139,8 +1139,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  63 $3f 'C003f'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  63 $3f 'C003f' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	_XXXXX__,
@@ -1157,8 +1157,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  64 $40 'C0040'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  64 $40 'C0040' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -1175,8 +1175,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  65 $41 'C0041'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  65 $41 'C0041' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	___X____,
@@ -1193,8 +1193,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  66 $42 'C0042'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  66 $42 'C0042' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	XXXXXX__,
@@ -1211,8 +1211,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  67 $43 'C0043'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  67 $43 'C0043' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	__XXXX__,
@@ -1229,8 +1229,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  68 $44 'C0044'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  68 $44 'C0044' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	XXXXX___,
@@ -1247,8 +1247,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  69 $45 'C0045'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  69 $45 'C0045' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	XXXXXXX_,
@@ -1265,8 +1265,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  70 $46 'C0046'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  70 $46 'C0046' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	XXXXXXX_,
@@ -1283,8 +1283,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  71 $47 'C0047'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  71 $47 'C0047' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	__XXXX__,
@@ -1301,8 +1301,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  72 $48 'C0048'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  72 $48 'C0048' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	XX___XX_,
@@ -1319,8 +1319,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  73 $49 'C0049'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  73 $49 'C0049' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	__XXXX__,
@@ -1337,8 +1337,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  74 $4a 'C004a'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  74 $4a 'C004a' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	___XXXX_,
@@ -1355,8 +1355,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  75 $4b 'C004b'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  75 $4b 'C004b' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	XXX__XX_,
@@ -1373,8 +1373,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  76 $4c 'C004c'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  76 $4c 'C004c' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	XXXX____,
@@ -1391,8 +1391,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  77 $4d 'C004d'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  77 $4d 'C004d' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	XX___XX_,
@@ -1409,8 +1409,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  78 $4e 'C004e'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  78 $4e 'C004e' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	XX___XX_,
@@ -1427,8 +1427,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  79 $4f 'C004f'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  79 $4f 'C004f' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	_XXXXX__,
@@ -1445,8 +1445,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  80 $50 'C0050'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  80 $50 'C0050' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	XXXXXX__,
@@ -1463,8 +1463,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  81 $51 'C0051'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  81 $51 'C0051' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	_XXXXX__,
@@ -1481,8 +1481,8 @@ static const unsigned char __font_bitmap__[] = {
 	____XXX_,
 	________,
 	________,
-//  82 $52 'C0052'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  82 $52 'C0052' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	XXXXXX__,
@@ -1499,8 +1499,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  83 $53 'C0053'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  83 $53 'C0053' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	_XXXXX__,
@@ -1517,8 +1517,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  84 $54 'C0054'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  84 $54 'C0054' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	_XXXXXX_,
@@ -1535,8 +1535,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  85 $55 'C0055'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  85 $55 'C0055' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	XX___XX_,
@@ -1553,8 +1553,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  86 $56 'C0056'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  86 $56 'C0056' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	XX___XX_,
@@ -1571,8 +1571,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  87 $57 'C0057'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  87 $57 'C0057' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	XX___XX_,
@@ -1589,8 +1589,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  88 $58 'C0058'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  88 $58 'C0058' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	XX___XX_,
@@ -1607,8 +1607,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  89 $59 'C0059'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  89 $59 'C0059' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	_XX__XX_,
@@ -1625,8 +1625,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  90 $5a 'C005a'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  90 $5a 'C005a' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	XXXXXXX_,
@@ -1643,8 +1643,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  91 $5b 'C005b'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  91 $5b 'C005b' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	__XXXX__,
@@ -1661,8 +1661,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  92 $5c 'C005c'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  92 $5c 'C005c' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -1679,8 +1679,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  93 $5d 'C005d'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  93 $5d 'C005d' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	__XXXX__,
@@ -1697,8 +1697,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  94 $5e 'C005e'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  94 $5e 'C005e' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	___X____,
 	__XXX___,
 	_XX_XX__,
@@ -1715,8 +1715,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  95 $5f 'C005f'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  95 $5f 'C005f' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -1733,8 +1733,8 @@ static const unsigned char __font_bitmap__[] = {
 	XXXXXXXX,
 	________,
 	________,
-//  96 $60 'C0060'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  96 $60 'C0060' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	__XX____,
 	__XX____,
 	___XX___,
@@ -1751,8 +1751,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  97 $61 'C0061'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  97 $61 'C0061' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -1769,8 +1769,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  98 $62 'C0062'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  98 $62 'C0062' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	XXX_____,
@@ -1787,8 +1787,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-//  99 $63 'C0063'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/*  99 $63 'C0063' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -1805,8 +1805,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 100 $64 'C0064'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 100 $64 'C0064' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	___XXX__,
@@ -1823,8 +1823,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 101 $65 'C0065'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 101 $65 'C0065' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -1841,8 +1841,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 102 $66 'C0066'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 102 $66 'C0066' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	__XXX___,
@@ -1859,8 +1859,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 103 $67 'C0067'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 103 $67 'C0067' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -1877,8 +1877,8 @@ static const unsigned char __font_bitmap__[] = {
 	XX__XX__,
 	_XXXX___,
 	________,
-// 104 $68 'C0068'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 104 $68 'C0068' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	XXX_____,
@@ -1895,8 +1895,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 105 $69 'C0069'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 105 $69 'C0069' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	___XX___,
@@ -1913,8 +1913,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 106 $6a 'C006a'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 106 $6a 'C006a' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	_____XX_,
@@ -1931,8 +1931,8 @@ static const unsigned char __font_bitmap__[] = {
 	_XX__XX_,
 	__XXXX__,
 	________,
-// 107 $6b 'C006b'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 107 $6b 'C006b' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	XXX_____,
@@ -1949,8 +1949,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 108 $6c 'C006c'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 108 $6c 'C006c' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	__XXX___,
@@ -1967,8 +1967,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 109 $6d 'C006d'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 109 $6d 'C006d' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -1985,8 +1985,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 110 $6e 'C006e'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 110 $6e 'C006e' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -2003,8 +2003,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 111 $6f 'C006f'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 111 $6f 'C006f' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -2021,8 +2021,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 112 $70 'C0070'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 112 $70 'C0070' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -2039,8 +2039,8 @@ static const unsigned char __font_bitmap__[] = {
 	_XX_____,
 	XXXX____,
 	________,
-// 113 $71 'C0071'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 113 $71 'C0071' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -2057,8 +2057,8 @@ static const unsigned char __font_bitmap__[] = {
 	____XX__,
 	___XXXX_,
 	________,
-// 114 $72 'C0072'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 114 $72 'C0072' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -2075,8 +2075,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 115 $73 'C0073'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 115 $73 'C0073' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -2093,8 +2093,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 116 $74 'C0074'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 116 $74 'C0074' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	___X____,
@@ -2111,8 +2111,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 117 $75 'C0075'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 117 $75 'C0075' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -2129,8 +2129,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 118 $76 'C0076'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 118 $76 'C0076' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -2147,8 +2147,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 119 $77 'C0077'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 119 $77 'C0077' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -2165,8 +2165,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 120 $78 'C0078'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 120 $78 'C0078' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -2183,8 +2183,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 121 $79 'C0079'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 121 $79 'C0079' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -2201,8 +2201,8 @@ static const unsigned char __font_bitmap__[] = {
 	____XX__,
 	XXXXX___,
 	________,
-// 122 $7a 'C007a'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 122 $7a 'C007a' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -2219,8 +2219,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 123 $7b 'C007b'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 123 $7b 'C007b' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	____XXX_,
@@ -2237,8 +2237,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 124 $7c 'C007c'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 124 $7c 'C007c' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	___XX___,
@@ -2255,8 +2255,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 125 $7d 'C007d'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 125 $7d 'C007d' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	_XXX____,
@@ -2273,8 +2273,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 126 $7e 'C007e'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 126 $7e 'C007e' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	_XXX_XX_,
@@ -2291,8 +2291,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 127 $7f 'C007f'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 127 $7f 'C007f' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -2309,8 +2309,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 128 $80 'C0080'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 128 $80 'C0080' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	__XXXX__,
@@ -2327,8 +2327,8 @@ static const unsigned char __font_bitmap__[] = {
 	_XXXXX__,
 	________,
 	________,
-// 129 $81 'C0081'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 129 $81 'C0081' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	XX__XX__,
@@ -2345,8 +2345,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 130 $82 'C0082'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 130 $82 'C0082' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	____XX__,
 	___XX___,
@@ -2363,8 +2363,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 131 $83 'C0083'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 131 $83 'C0083' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	___X____,
 	__XXX___,
@@ -2381,8 +2381,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 132 $84 'C0084'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 132 $84 'C0084' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	XX__XX__,
@@ -2399,8 +2399,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 133 $85 'C0085'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 133 $85 'C0085' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	_XX_____,
 	__XX____,
@@ -2417,8 +2417,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 134 $86 'C0086'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 134 $86 'C0086' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	__XXX___,
 	_XX_XX__,
@@ -2435,8 +2435,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 135 $87 'C0087'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 135 $87 'C0087' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -2453,8 +2453,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 136 $88 'C0088'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 136 $88 'C0088' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	___X____,
 	__XXX___,
@@ -2471,8 +2471,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 137 $89 'C0089'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 137 $89 'C0089' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	XX___XX_,
@@ -2489,8 +2489,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 138 $8a 'C008a'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 138 $8a 'C008a' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	_XX_____,
 	__XX____,
@@ -2507,8 +2507,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 139 $8b 'C008b'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 139 $8b 'C008b' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	_XX__XX_,
@@ -2525,8 +2525,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 140 $8c 'C008c'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 140 $8c 'C008c' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	___XX___,
 	__XXXX__,
@@ -2543,8 +2543,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 141 $8d 'C008d'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 141 $8d 'C008d' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	_XX_____,
 	__XX____,
@@ -2561,8 +2561,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 142 $8e 'C008e'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 142 $8e 'C008e' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	XX___XX_,
 	________,
@@ -2579,8 +2579,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 143 $8f 'C008f'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 143 $8f 'C008f' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	__XXX___,
 	_XX_XX__,
 	__XXX___,
@@ -2597,8 +2597,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 144 $90 'C0090'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 144 $90 'C0090' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	___XX___,
 	__XX____,
 	_XX_____,
@@ -2615,8 +2615,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 145 $91 'C0091'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 145 $91 'C0091' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -2633,8 +2633,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 146 $92 'C0092'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 146 $92 'C0092' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	__XXXXX_,
@@ -2651,8 +2651,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 147 $93 'C0093'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 147 $93 'C0093' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	___X____,
 	__XXX___,
@@ -2669,8 +2669,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 148 $94 'C0094'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 148 $94 'C0094' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	XX___XX_,
@@ -2687,8 +2687,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 149 $95 'C0095'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 149 $95 'C0095' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	_XX_____,
 	__XX____,
@@ -2705,8 +2705,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 150 $96 'C0096'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 150 $96 'C0096' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	__XX____,
 	_XXXX___,
@@ -2723,8 +2723,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 151 $97 'C0097'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 151 $97 'C0097' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	_XX_____,
 	__XX____,
@@ -2741,8 +2741,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 152 $98 'C0098'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 152 $98 'C0098' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	XX___XX_,
@@ -2759,8 +2759,8 @@ static const unsigned char __font_bitmap__[] = {
 	____XX__,
 	_XXXX___,
 	________,
-// 153 $99 'C0099'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 153 $99 'C0099' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	XX___XX_,
 	________,
@@ -2777,8 +2777,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 154 $9a 'C009a'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 154 $9a 'C009a' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	XX___XX_,
 	________,
@@ -2795,8 +2795,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 155 $9b 'C009b'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 155 $9b 'C009b' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	___XX___,
 	___XX___,
@@ -2813,8 +2813,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 156 $9c 'C009c'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 156 $9c 'C009c' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	__XXX___,
 	_XX_XX__,
@@ -2831,8 +2831,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 157 $9d 'C009d'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 157 $9d 'C009d' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	_XX__XX_,
@@ -2849,8 +2849,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 158 $9e 'C009e'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 158 $9e 'C009e' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	XXXXX___,
 	XX__XX__,
@@ -2867,8 +2867,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 159 $9f 'C009f'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 159 $9f 'C009f' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	____XXX_,
 	___XX_XX,
@@ -2885,8 +2885,8 @@ static const unsigned char __font_bitmap__[] = {
 	_XXX____,
 	________,
 	________,
-// 160 $a0 'C00a0'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 160 $a0 'C00a0' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	___XX___,
 	__XX____,
@@ -2903,8 +2903,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 161 $a1 'C00a1'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 161 $a1 'C00a1' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	____XX__,
 	___XX___,
@@ -2921,8 +2921,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 162 $a2 'C00a2'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 162 $a2 'C00a2' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	___XX___,
 	__XX____,
@@ -2939,8 +2939,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 163 $a3 'C00a3'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 163 $a3 'C00a3' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	___XX___,
 	__XX____,
@@ -2957,8 +2957,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 164 $a4 'C00a4'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 164 $a4 'C00a4' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	_XXX_XX_,
@@ -2975,8 +2975,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 165 $a5 'C00a5'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 165 $a5 'C00a5' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	_XXX_XX_,
 	XX_XXX__,
 	________,
@@ -2993,8 +2993,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 166 $a6 'C00a6'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 166 $a6 'C00a6' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	__XXXX__,
 	_XX_XX__,
@@ -3011,8 +3011,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 167 $a7 'C00a7'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 167 $a7 'C00a7' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	__XXX___,
 	_XX_XX__,
@@ -3029,8 +3029,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 168 $a8 'C00a8'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 168 $a8 'C00a8' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	__XX____,
@@ -3047,8 +3047,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 169 $a9 'C00a9'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 169 $a9 'C00a9' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -3065,8 +3065,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 170 $aa 'C00aa'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 170 $aa 'C00aa' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -3083,8 +3083,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 171 $ab 'C00ab'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 171 $ab 'C00ab' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	XX______,
 	XX______,
@@ -3101,8 +3101,8 @@ static const unsigned char __font_bitmap__[] = {
 	__XXXXX_,
 	________,
 	________,
-// 172 $ac 'C00ac'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 172 $ac 'C00ac' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	XX______,
 	XX______,
@@ -3119,8 +3119,8 @@ static const unsigned char __font_bitmap__[] = {
 	_____XX_,
 	________,
 	________,
-// 173 $ad 'C00ad'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 173 $ad 'C00ad' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	___XX___,
@@ -3137,8 +3137,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 174 $ae 'C00ae'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 174 $ae 'C00ae' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -3155,8 +3155,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 175 $af 'C00af'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 175 $af 'C00af' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -3173,8 +3173,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 176 $b0 'C00b0'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 176 $b0 'C00b0' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	___X___X,
 	_X___X__,
 	___X___X,
@@ -3191,8 +3191,8 @@ static const unsigned char __font_bitmap__[] = {
 	_X___X__,
 	___X___X,
 	_X___X__,
-// 177 $b1 'C00b1'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 177 $b1 'C00b1' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	_X_X_X_X,
 	X_X_X_X_,
 	_X_X_X_X,
@@ -3209,8 +3209,8 @@ static const unsigned char __font_bitmap__[] = {
 	X_X_X_X_,
 	_X_X_X_X,
 	X_X_X_X_,
-// 178 $b2 'C00b2'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 178 $b2 'C00b2' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	XX_XXX_X,
 	_XXX_XXX,
 	XX_XXX_X,
@@ -3227,8 +3227,8 @@ static const unsigned char __font_bitmap__[] = {
 	_XXX_XXX,
 	XX_XXX_X,
 	_XXX_XXX,
-// 179 $b3 'C00b3'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 179 $b3 'C00b3' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	___XX___,
 	___XX___,
 	___XX___,
@@ -3245,8 +3245,8 @@ static const unsigned char __font_bitmap__[] = {
 	___XX___,
 	___XX___,
 	___XX___,
-// 180 $b4 'C00b4'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 180 $b4 'C00b4' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	___XX___,
 	___XX___,
 	___XX___,
@@ -3263,8 +3263,8 @@ static const unsigned char __font_bitmap__[] = {
 	___XX___,
 	___XX___,
 	___XX___,
-// 181 $b5 'C00b5'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 181 $b5 'C00b5' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	___XX___,
 	___XX___,
 	___XX___,
@@ -3281,8 +3281,8 @@ static const unsigned char __font_bitmap__[] = {
 	___XX___,
 	___XX___,
 	___XX___,
-// 182 $b6 'C00b6'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 182 $b6 'C00b6' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	__XX_XX_,
 	__XX_XX_,
 	__XX_XX_,
@@ -3299,8 +3299,8 @@ static const unsigned char __font_bitmap__[] = {
 	__XX_XX_,
 	__XX_XX_,
 	__XX_XX_,
-// 183 $b7 'C00b7'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 183 $b7 'C00b7' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -3317,8 +3317,8 @@ static const unsigned char __font_bitmap__[] = {
 	__XX_XX_,
 	__XX_XX_,
 	__XX_XX_,
-// 184 $b8 'C00b8'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 184 $b8 'C00b8' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -3335,8 +3335,8 @@ static const unsigned char __font_bitmap__[] = {
 	___XX___,
 	___XX___,
 	___XX___,
-// 185 $b9 'C00b9'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 185 $b9 'C00b9' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	__XX_XX_,
 	__XX_XX_,
 	__XX_XX_,
@@ -3353,8 +3353,8 @@ static const unsigned char __font_bitmap__[] = {
 	__XX_XX_,
 	__XX_XX_,
 	__XX_XX_,
-// 186 $ba 'C00ba'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 186 $ba 'C00ba' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	__XX_XX_,
 	__XX_XX_,
 	__XX_XX_,
@@ -3371,8 +3371,8 @@ static const unsigned char __font_bitmap__[] = {
 	__XX_XX_,
 	__XX_XX_,
 	__XX_XX_,
-// 187 $bb 'C00bb'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 187 $bb 'C00bb' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -3389,8 +3389,8 @@ static const unsigned char __font_bitmap__[] = {
 	__XX_XX_,
 	__XX_XX_,
 	__XX_XX_,
-// 188 $bc 'C00bc'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 188 $bc 'C00bc' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	__XX_XX_,
 	__XX_XX_,
 	__XX_XX_,
@@ -3407,8 +3407,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 189 $bd 'C00bd'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 189 $bd 'C00bd' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	__XX_XX_,
 	__XX_XX_,
 	__XX_XX_,
@@ -3425,8 +3425,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 190 $be 'C00be'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 190 $be 'C00be' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	___XX___,
 	___XX___,
 	___XX___,
@@ -3443,8 +3443,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 191 $bf 'C00bf'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 191 $bf 'C00bf' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -3461,8 +3461,8 @@ static const unsigned char __font_bitmap__[] = {
 	___XX___,
 	___XX___,
 	___XX___,
-// 192 $c0 'C00c0'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 192 $c0 'C00c0' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	___XX___,
 	___XX___,
 	___XX___,
@@ -3479,8 +3479,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 193 $c1 'C00c1'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 193 $c1 'C00c1' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	___XX___,
 	___XX___,
 	___XX___,
@@ -3497,8 +3497,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 194 $c2 'C00c2'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 194 $c2 'C00c2' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -3515,8 +3515,8 @@ static const unsigned char __font_bitmap__[] = {
 	___XX___,
 	___XX___,
 	___XX___,
-// 195 $c3 'C00c3'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 195 $c3 'C00c3' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	___XX___,
 	___XX___,
 	___XX___,
@@ -3533,8 +3533,8 @@ static const unsigned char __font_bitmap__[] = {
 	___XX___,
 	___XX___,
 	___XX___,
-// 196 $c4 'C00c4'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 196 $c4 'C00c4' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -3551,8 +3551,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 197 $c5 'C00c5'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 197 $c5 'C00c5' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	___XX___,
 	___XX___,
 	___XX___,
@@ -3569,8 +3569,8 @@ static const unsigned char __font_bitmap__[] = {
 	___XX___,
 	___XX___,
 	___XX___,
-// 198 $c6 'C00c6'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 198 $c6 'C00c6' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	___XX___,
 	___XX___,
 	___XX___,
@@ -3587,8 +3587,8 @@ static const unsigned char __font_bitmap__[] = {
 	___XX___,
 	___XX___,
 	___XX___,
-// 199 $c7 'C00c7'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 199 $c7 'C00c7' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	__XX_XX_,
 	__XX_XX_,
 	__XX_XX_,
@@ -3605,8 +3605,8 @@ static const unsigned char __font_bitmap__[] = {
 	__XX_XX_,
 	__XX_XX_,
 	__XX_XX_,
-// 200 $c8 'C00c8'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 200 $c8 'C00c8' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	__XX_XX_,
 	__XX_XX_,
 	__XX_XX_,
@@ -3623,8 +3623,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 201 $c9 'C00c9'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 201 $c9 'C00c9' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -3641,8 +3641,8 @@ static const unsigned char __font_bitmap__[] = {
 	__XX_XX_,
 	__XX_XX_,
 	__XX_XX_,
-// 202 $ca 'C00ca'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 202 $ca 'C00ca' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	__XX_XX_,
 	__XX_XX_,
 	__XX_XX_,
@@ -3659,8 +3659,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 203 $cb 'C00cb'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 203 $cb 'C00cb' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -3677,8 +3677,8 @@ static const unsigned char __font_bitmap__[] = {
 	__XX_XX_,
 	__XX_XX_,
 	__XX_XX_,
-// 204 $cc 'C00cc'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 204 $cc 'C00cc' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	__XX_XX_,
 	__XX_XX_,
 	__XX_XX_,
@@ -3695,8 +3695,8 @@ static const unsigned char __font_bitmap__[] = {
 	__XX_XX_,
 	__XX_XX_,
 	__XX_XX_,
-// 205 $cd 'C00cd'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 205 $cd 'C00cd' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -3713,8 +3713,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 206 $ce 'C00ce'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 206 $ce 'C00ce' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	__XX_XX_,
 	__XX_XX_,
 	__XX_XX_,
@@ -3731,8 +3731,8 @@ static const unsigned char __font_bitmap__[] = {
 	__XX_XX_,
 	__XX_XX_,
 	__XX_XX_,
-// 207 $cf 'C00cf'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 207 $cf 'C00cf' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	___XX___,
 	___XX___,
 	___XX___,
@@ -3749,8 +3749,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 208 $d0 'C00d0'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 208 $d0 'C00d0' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	__XX_XX_,
 	__XX_XX_,
 	__XX_XX_,
@@ -3767,8 +3767,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 209 $d1 'C00d1'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 209 $d1 'C00d1' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -3785,8 +3785,8 @@ static const unsigned char __font_bitmap__[] = {
 	___XX___,
 	___XX___,
 	___XX___,
-// 210 $d2 'C00d2'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 210 $d2 'C00d2' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -3803,8 +3803,8 @@ static const unsigned char __font_bitmap__[] = {
 	__XX_XX_,
 	__XX_XX_,
 	__XX_XX_,
-// 211 $d3 'C00d3'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 211 $d3 'C00d3' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	__XX_XX_,
 	__XX_XX_,
 	__XX_XX_,
@@ -3821,8 +3821,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 212 $d4 'C00d4'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 212 $d4 'C00d4' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	___XX___,
 	___XX___,
 	___XX___,
@@ -3839,8 +3839,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 213 $d5 'C00d5'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 213 $d5 'C00d5' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -3857,8 +3857,8 @@ static const unsigned char __font_bitmap__[] = {
 	___XX___,
 	___XX___,
 	___XX___,
-// 214 $d6 'C00d6'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 214 $d6 'C00d6' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -3875,8 +3875,8 @@ static const unsigned char __font_bitmap__[] = {
 	__XX_XX_,
 	__XX_XX_,
 	__XX_XX_,
-// 215 $d7 'C00d7'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 215 $d7 'C00d7' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	__XX_XX_,
 	__XX_XX_,
 	__XX_XX_,
@@ -3893,8 +3893,8 @@ static const unsigned char __font_bitmap__[] = {
 	__XX_XX_,
 	__XX_XX_,
 	__XX_XX_,
-// 216 $d8 'C00d8'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 216 $d8 'C00d8' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	___XX___,
 	___XX___,
 	___XX___,
@@ -3911,8 +3911,8 @@ static const unsigned char __font_bitmap__[] = {
 	___XX___,
 	___XX___,
 	___XX___,
-// 217 $d9 'C00d9'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 217 $d9 'C00d9' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	___XX___,
 	___XX___,
 	___XX___,
@@ -3929,8 +3929,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 218 $da 'C00da'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 218 $da 'C00da' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -3947,8 +3947,8 @@ static const unsigned char __font_bitmap__[] = {
 	___XX___,
 	___XX___,
 	___XX___,
-// 219 $db 'C00db'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 219 $db 'C00db' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	XXXXXXXX,
 	XXXXXXXX,
 	XXXXXXXX,
@@ -3965,8 +3965,8 @@ static const unsigned char __font_bitmap__[] = {
 	XXXXXXXX,
 	XXXXXXXX,
 	XXXXXXXX,
-// 220 $dc 'C00dc'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 220 $dc 'C00dc' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -3983,8 +3983,8 @@ static const unsigned char __font_bitmap__[] = {
 	XXXXXXXX,
 	XXXXXXXX,
 	XXXXXXXX,
-// 221 $dd 'C00dd'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 221 $dd 'C00dd' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	XXXX____,
 	XXXX____,
 	XXXX____,
@@ -4001,8 +4001,8 @@ static const unsigned char __font_bitmap__[] = {
 	XXXX____,
 	XXXX____,
 	XXXX____,
-// 222 $de 'C00de'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 222 $de 'C00de' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	____XXXX,
 	____XXXX,
 	____XXXX,
@@ -4019,8 +4019,8 @@ static const unsigned char __font_bitmap__[] = {
 	____XXXX,
 	____XXXX,
 	____XXXX,
-// 223 $df 'C00df'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 223 $df 'C00df' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	XXXXXXXX,
 	XXXXXXXX,
 	XXXXXXXX,
@@ -4037,8 +4037,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 224 $e0 'C00e0'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 224 $e0 'C00e0' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -4055,8 +4055,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 225 $e1 'C00e1'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 225 $e1 'C00e1' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	_XXXX___,
@@ -4073,8 +4073,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 226 $e2 'C00e2'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 226 $e2 'C00e2' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	XXXXXXX_,
@@ -4091,8 +4091,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 227 $e3 'C00e3'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 227 $e3 'C00e3' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -4109,8 +4109,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 228 $e4 'C00e4'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 228 $e4 'C00e4' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -4127,8 +4127,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 229 $e5 'C00e5'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 229 $e5 'C00e5' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -4145,8 +4145,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 230 $e6 'C00e6'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 230 $e6 'C00e6' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -4163,8 +4163,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 231 $e7 'C00e7'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 231 $e7 'C00e7' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -4181,8 +4181,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 232 $e8 'C00e8'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 232 $e8 'C00e8' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -4199,8 +4199,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 233 $e9 'C00e9'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 233 $e9 'C00e9' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -4217,8 +4217,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 234 $ea 'C00ea'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 234 $ea 'C00ea' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	__XXX___,
@@ -4235,8 +4235,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 235 $eb 'C00eb'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 235 $eb 'C00eb' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	___XXXX_,
@@ -4253,8 +4253,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 236 $ec 'C00ec'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 236 $ec 'C00ec' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -4271,8 +4271,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 237 $ed 'C00ed'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 237 $ed 'C00ed' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -4289,8 +4289,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 238 $ee 'C00ee'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 238 $ee 'C00ee' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	___XXX__,
@@ -4307,8 +4307,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 239 $ef 'C00ef'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 239 $ef 'C00ef' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -4325,8 +4325,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 240 $f0 'C00f0'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 240 $f0 'C00f0' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -4343,8 +4343,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 241 $f1 'C00f1'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 241 $f1 'C00f1' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -4361,8 +4361,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 242 $f2 'C00f2'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 242 $f2 'C00f2' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -4379,8 +4379,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 243 $f3 'C00f3'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 243 $f3 'C00f3' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -4397,8 +4397,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 244 $f4 'C00f4'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 244 $f4 'C00f4' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	____XXX_,
@@ -4415,8 +4415,8 @@ static const unsigned char __font_bitmap__[] = {
 	___XX___,
 	___XX___,
 	___XX___,
-// 245 $f5 'C00f5'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 245 $f5 'C00f5' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	___XX___,
 	___XX___,
 	___XX___,
@@ -4433,8 +4433,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 246 $f6 'C00f6'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 246 $f6 'C00f6' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -4451,8 +4451,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 247 $f7 'C00f7'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 247 $f7 'C00f7' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -4469,8 +4469,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 248 $f8 'C00f8'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 248 $f8 'C00f8' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	__XXX___,
 	_XX_XX__,
@@ -4487,8 +4487,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 249 $f9 'C00f9'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 249 $f9 'C00f9' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -4505,8 +4505,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 250 $fa 'C00fa'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 250 $fa 'C00fa' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -4523,8 +4523,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 251 $fb 'C00fb'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 251 $fb 'C00fb' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	____XXXX,
 	____XX__,
@@ -4541,8 +4541,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 252 $fc 'C00fc'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 252 $fc 'C00fc' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	XX_XX___,
 	_XX_XX__,
@@ -4559,8 +4559,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 253 $fd 'C00fd'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 253 $fd 'C00fd' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	_XXX____,
 	XX_XX___,
@@ -4577,8 +4577,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 254 $fe 'C00fe'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 254 $fe 'C00fe' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -4595,8 +4595,8 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 	________,
 	________,
-// 255 $ff 'C00ff'
-//	width 8, bbx 0, bby -4, bbw 8, bbh 16
+/* 255 $ff 'C00ff' */
+/*	width 8, bbx 0, bby -4, bbw 8, bbh 16 */
 	________,
 	________,
 	________,
@@ -4615,7 +4615,7 @@ static const unsigned char __font_bitmap__[] = {
 	________,
 };
 
-	/// character width for each encoding
+	/*/ character width for each encoding */
 static const unsigned char __font_widths__[] = {
 	8,
 	8,
@@ -4875,7 +4875,7 @@ static const unsigned char __font_widths__[] = {
 	8,
 };
 
-	/// character encoding for each index entry
+	/*/ character encoding for each index entry */
 static const unsigned short __font_index__[] = {
 	0,
 	1,
@@ -5135,7 +5135,7 @@ static const unsigned short __font_index__[] = {
 	255,
 };
 
-	/// bitmap font structure
+	/*/ bitmap font structure */
 const struct bitmap_font font = {
 	.Width = 8, .Height = 16,
 	.Chars = 256,

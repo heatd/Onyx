@@ -17,7 +17,7 @@ limitations under the License.
 #include <sys/syscall.h>
 #if defined(__is_spartix_kernel)
 #include <kernel/panic.h>
-#endif				// __is__spartix_kernel
+#endif
 __attribute__ ((__noreturn__))
 void abort(void)
 {

@@ -86,7 +86,7 @@ static uint32_t NUM_FILES;
 fs_node_t *root_open(fs_node_t * node, const char *name)
 {
 	if (!node) {
-		// If the node is invalid, create one
+		/* If the node is invalid, create one */
 		fs_node_t *open = kmalloc(sizeof(fs_node_t));
 		memset(open, 0, sizeof(fs_node_t));
 		open->open = root_open;
@@ -97,7 +97,7 @@ fs_node_t *root_open(fs_node_t * node, const char *name)
 		NUM_FILES++;
 		return open;
 	} else {
-		// Implement fs permitions
+		/* Implement fs permitions */
 		return node;
 	}
 }
@@ -108,7 +108,7 @@ uint32_t tar_read(fs_node_t *node, uint32_t offset, uint32_t size,
 	tar_header_t *header = headers[node->inode];
 	if (offset + size > tar_get_size(header->size))
 		return 1;
-	void *data = (void *) header + 512 + offset;
+	void *data = (char *) header + 512 + offset;
 	memcpy(buffer, data, size);
 
 	return tar_get_size(header->size);
@@ -163,7 +163,7 @@ static fs_node_t *tar_finddir(fs_node_t * node, char *name)
 
 fs_node_t *initrd_init(uint32_t addr)
 {
-	if (addr < 0x100000)	// GRUB doesn't load anything below 0x100000 (1 MiB)
+	if (addr < 0x100000)	/* GRUB doesn't load anything below 0x100000 (1 MiB) */
 		panic("Invalid initrd address.");
 
 	printf("Found initrd module at 0x%X\n", addr);
@@ -203,7 +203,7 @@ fs_node_t *initrd_init(uint32_t addr)
 			node->flags = FS_DIRECTORY;
 		else
 			node->flags = FS_FILE;
-		//TODO:^^ Add support to more file types
+		/*TODO:^^ Add support to more file types */
 		node->inode = gen_inode();
 		node->read = &tar_read;
 		node->readdir = &tar_readdir;

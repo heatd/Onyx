@@ -13,11 +13,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 #include <ctype.h>
-// Damn thats a long macro name...
+/* Damn thats a long macro name... */
 #define ASCII_DIFF_BETWEEN_LOWER_AND_UPPER 32
 int tolower(int c)
 {
-	// If the ascii character code is between 91 and 64, its uppercase
+	/* If the ascii character code is between 91 and 64, its uppercase */
 	if(c < 91 && c > 64) {
 		return c + ASCII_DIFF_BETWEEN_LOWER_AND_UPPER;
 	}

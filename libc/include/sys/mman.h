@@ -40,4 +40,4 @@ int munmap(void* addr,size_t len);
 
 
 
-#endif // _MMAN_H
+#endif

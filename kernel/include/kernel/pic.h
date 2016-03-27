@@ -12,7 +12,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#pragma once
+#ifndef _PIC_H
+#define _PIC_H
 #include <stdint.h>
 #define PIC1		0x20		/* IO base address for master PIC */
 #define PIC2		0xA0		/* IO base address for slave PIC */
@@ -30,3 +31,4 @@ void pic_mask_irq(uint16_t irqn);
 void pic_send_eoi(unsigned char irqn);
 uint16_t pic_get_irr();
 uint16_t pic_get_isr();
+#endif

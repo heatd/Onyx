@@ -19,7 +19,7 @@ limitations under the License.
 #include <stdio.h>
 #include <drivers/ps2.h>
 extern void SendEventToKern(unsigned char keycode);
-// This took a while to make... Some keys still remain, but I don't need them right now
+/* This took a while to make... Some keys still remain, but I don't need them right now */
 void keyb_handler()
 {
 	unsigned char status;

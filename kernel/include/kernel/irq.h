@@ -12,7 +12,9 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#pragma once
+#ifndef _IRQ_H
+#define _IRQ_H
 typedef void(*irq_t)();
 void irq_install_handler(int irq, irq_t handler);
 void irq_uninstall_handler(int irq);
+#endif

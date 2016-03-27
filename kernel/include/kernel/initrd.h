@@ -12,7 +12,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#pragma once
+#ifndef _INITRD_H
+#define _INITRD_H
 #include <kernel/fs.h>
 #include <stdint.h>
 typedef struct tar_header
@@ -33,7 +34,8 @@ typedef struct tar_header
 #define TAR_TYPE_CHAR_SPECIAL	'3'
 #define TAR_TYPE_BLOCK_SPECIAL	'4'
 #define TAR_TYPE_DIR		'5'
-//I will only need to support these types,so more isn't needed
+/*I will only need to support these types,so more isn't needed */
 uint32_t tar_get_size(const char *in);
 unsigned int tar_parse(uint32_t address);
 fs_node_t* initrd_init(uint32_t addr);
+#endif

@@ -12,7 +12,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#pragma once
+#ifndef _IDT_H
+#define _IDT_H
 #include <stdlib.h>
 #include <stdint.h>
 struct idt_ptr
@@ -27,7 +28,7 @@ struct IDT_entry
 {
 	uint16_t offset_low;
 	uint16_t selector;
-	uint8_t zero;// unused, set to 0
+	uint8_t zero;/* unused, set to 0 */
 	uint8_t type_attr;
 	uint16_t offset_high;
 }__attribute__((packed));
@@ -89,3 +90,5 @@ void irq14();
 void irq15();
 void _syscall();
 void _yield();
+
+#endif /* _IDT_H */

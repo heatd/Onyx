@@ -100,4 +100,4 @@ int execve(const char* filename, char* const argv[],
 char* const envp[]);
 int brk(void* addr);
 void* sbrk(uint32_t inc);
-#endif // _UNISTD_H
+#endif
