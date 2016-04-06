@@ -40,6 +40,8 @@ isr%1:
 %endmacro
 global _yield
 _yield:
+	cli
+	hlt
 	pusha
 	push ds
 	push es

@@ -28,14 +28,9 @@ section .data
 	hi db 0xFAFF
 section .text
 test:
-	mov edi,[msg]
-	mov eax,0xDEADBEEF
-	jmp $
-	mov edi,0x1337
-	extern printf
-	push msg
-	call printf
-	jmp .lp
+	mov edx,0xde5ea5e
+	int 0x2
+	mov edx,0xdeadbeef
 .lp:
 	jmp .lp
 global jump_userspace
