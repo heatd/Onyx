@@ -15,7 +15,7 @@ cp sysroot/boot/vmspartix isodir/boot/vmspartix
 echo "Compressing kernel and initrd images"
 xz -9 -e -f isodir/boot/vmspartix
 xz -9 -e -f isodir/boot/initrd.tar
-echo "Testing the initrd and kernel intergrity"
+echo "Testing the initrd and kernel integrity"
 xz -t isodir/boot/vmspartix.xz
 xz -t isodir/boot/initrd.tar.xz
 cat > isodir/boot/grub/grub.cfg << EOF

@@ -80,8 +80,7 @@ void isr_handler(uint32_t ds, uint32_t int_no, uint32_t err_code)
 			break;
 		}
 	case 6:{
-			panic
-			    (exception_msg[int_no]);
+			panic(exception_msg[int_no]);
 			break;
 		}
 	case 7:{
@@ -126,7 +125,7 @@ void isr_handler(uint32_t ds, uint32_t int_no, uint32_t err_code)
 					abort();
 				return;
 			}
-			printf("0x%X\n",exception_msg[int_no],faulting_address);
+			printf("%s0x%X\n",exception_msg[int_no],faulting_address);
                         while(1);
 		}
 	case 15:{

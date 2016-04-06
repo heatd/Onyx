@@ -28,6 +28,7 @@ limitations under the License.
 #include <stdio.h>
 #include <kernel/mm.h>
 #include <errno.h>
+#include <kernel/panic.h>
 process_t *kernel = NULL;
 process_t *last = NULL;
 bool is_used[MAX_PID];
@@ -35,6 +36,8 @@ void process_init()
 {
 	memset(&is_used, 0, sizeof(is_used));
 	kernel = kmalloc(sizeof(process_t));
+	if(!kernel)
+		panic("No more kheap mem");
 	memset(kernel, 0, sizeof(process_t));
 	kernel->data = 0xC0600000;
 	kernel->brk = 0xC0F00000;

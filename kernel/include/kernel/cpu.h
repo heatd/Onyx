@@ -12,22 +12,22 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#ifndef _SCHED_H
-#define _SCHED_H
+#ifndef _CPU_H
+#define _CPU_H
 #include <stdint.h>
-#include <kernel/compiler.h>
-#include <kernel/registers.h>
-#include <kernel/vmm.h>
-#include <stdio.h>
-typedef struct task
-{
-	_Bool is_kernel;
-	pdirectory *pgdir;
-	uint32_t *stack;
-	struct task *next;
+typedef struct cpu {
+	char manuid[13];
+	char brandstr[48];
+	uint32_t max_function;
+	uint32_t stepping, family, model, extended_model, extended_family;
+	/* Add more as needed*/
+}cpu_t;
+#define CPUID_MANUFACTURERID 		0
+#define CPUID_MAXFUNCTIONSUPPORTED 	0x80000000
+#define CPUID_BRAND0			0x80000002
+#define CPUID_BRAND1 			0x80000003
+#define CPUID_BRAND2 			0x80000004
+#define CPUID_SIGN   			0x1
+void cpu_identify();
 
-}task_t;
-void sched_create_task(task_t*,void (*thread)(),uint32_t,uint32_t);
-void sched_terminate_task(task_t*);
-unsigned int sched_switch_task(uint32_t *old_esp);
 #endif

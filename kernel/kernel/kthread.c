@@ -70,7 +70,7 @@ kthread_t *kthread_create(kthread_entry_point_t entry)
 	return kt;
 }
 
-void kthread_destroy(kthread_t * kt)
+void kthread_destroy(kthread_t *kt)
 {
 	if (kthread_is_running(kt)) {
 		kthread_terminate(kt);
@@ -83,28 +83,28 @@ void kthread_destroy(kthread_t * kt)
 	kfree(kt);
 }
 
-bool kthread_is_running(kthread_t * kt)
+bool kthread_is_running(kthread_t *kt)
 {
 	return kt->is_running;
 }
 
-int kthread_get_id(kthread_t * kt)
+int kthread_get_id(kthread_t *kt)
 {
 	return kt->id;
 }
 
-kthread_entry_point_t kthread_get_entry_point(kthread_t * kt)
+kthread_entry_point_t kthread_get_entry_point(kthread_t *kt)
 {
 	return kt->thread_entry;
 }
 
-void kthread_start(kthread_t * kt)
+void kthread_start(kthread_t *kt)
 {
 	kt->is_running = true;
 	sched_create_task(kt->thread_task, kt->thread_entry, 0x08, 0x10);
 }
 
-void kthread_terminate(kthread_t * kt)
+void kthread_terminate(kthread_t *kt)
 {
 	kt->is_running = false;
 	sched_terminate_task(kt->thread_task);

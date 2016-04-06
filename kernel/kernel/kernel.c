@@ -143,10 +143,9 @@ void kernel_main()
 	/*Initialize PS/2 keyboard drivers */
 	init_keyboard();
 	TERM_OK("Initializing multitasking");
-	kthread_t *main = kthread_create(kernel_late);
-	kthread_start(main);
-	/* Enable interrupts */
-	__asm__ __volatile__ ("sti");
+	/* Start the first (official) thread in the kernel and the whole OS */
+	kthread_t *kt = kthread_create(kernel_late);
+	kthread_start(kt);
 
 	for (;;) {
 		__asm__ __volatile__ ("hlt");
@@ -156,7 +155,6 @@ void kernel_late()
 {
 	TERM_OK("Multitasking Initialized");
 	/* Test kernel features */
-
 	/* Test the timer */
 	TERM_OK("Testing the timer...");
 	uint64_t time = timer_get_tick_count();
@@ -186,17 +184,9 @@ void kernel_late()
 
 	if (!node)
 		abort();
-
+	/* Iniialize the devs ( /dev/ tree )*/
 	devfs_init();
 	process_init();
-
-	time = rdtsc();
-	volatile int *ptr = kmalloc(64);
-	*ptr = 0xFF;
-	uint64_t last_time = rdtsc();
-	printf("Took %d cycles\n",last_time - time);
-	/*kthread_t *uthread = kthread_create(jump_userspace);
-	kthread_start(uthread);*/
 	for (;;) {
 		__asm__ __volatile__ ("hlt");
 	}

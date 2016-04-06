@@ -26,14 +26,21 @@ limitations under the License.
 #include <kernel/idt.h>
 #include <kernel/gdt.h>
 #include <kernel/pic.h>
+#include <kernel/cpu.h>
 void init_sse();
 void init_arch()
 {
+	/* Initialize SSE */
 	init_sse();
-
+	/* Initialize GDT */
 	init_gdt();
-
+	/* Initialize IDT */
 	init_idt();
-
+	/* Remap the PIC */
 	pic_remap();
+	/* Identify the CPU */
+	cpu_identify();
+	/* Note that interrupts are not enabled after this point, as not everything is ready to run
+	   ex: scheduling
+	*/
 }
