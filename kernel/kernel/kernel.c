@@ -184,9 +184,21 @@ void kernel_late()
 
 	if (!node)
 		abort();
-	/* Iniialize the devs ( /dev/ tree )*/
+	/* Initialize the devs ( /dev/ tree )*/
 	devfs_init();
 	process_init();
+
+        fs_node_t *mod = finddir_fs(fs_root, (char *) "/usr/bin/testmod");
+
+	if (!mod)
+		abort();
+
+	/*size_t file_size = (size_t)read_fs(mod,0,0,NULL);
+
+	void *file_buffer = kmalloc(file_size);
+	read_fs(mod,0,file_size,file_buffer);
+	elf_load_file(file_buffer);
+	*/
 	for (;;) {
 		__asm__ __volatile__ ("hlt");
 	}

@@ -1,5 +1,5 @@
 ./clean.sh
 ./iso.sh
 git stage .
-git commit
+git commit -S
 git push
