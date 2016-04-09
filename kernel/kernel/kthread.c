@@ -15,7 +15,7 @@ limitations under the License.
 /**************************************************************************
  *
  *
- * File: kthread.cpp
+ * File: kthread.c
  *
  * Description: Contains kthread's implementation
  *

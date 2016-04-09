@@ -25,7 +25,7 @@
 ;**************************************************************************
 section .data
 	msg db 'SYSCALL WORKS',0
-	hi db 0xFAFF
+	hi db 0xFF
 section .text
 test:
 	mov edx,0xde5ea5e

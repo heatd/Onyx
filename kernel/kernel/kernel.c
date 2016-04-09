@@ -15,7 +15,7 @@ limitations under the License.
 /**************************************************************************
  *
  *
- * File: kernel.cpp
+ * File: kernel.c
  *
  * Description: Main kernel file, contains the entry point and initialization
  *

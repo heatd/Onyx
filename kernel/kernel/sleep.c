@@ -15,7 +15,7 @@ limitations under the License.
 /**************************************************************************
  *
  *
- * File: sleep.cpp
+ * File: sleep.c
  *
  * Description: Implementation of ksleep
  *

@@ -15,7 +15,7 @@ limitations under the License.
 /**************************************************************************
  *
  *
- * File: input_manager.cpp
+ * File: input_manager.c
  *
  * Description: Recieves keyboard presses, and translates them to keyboard events
  *

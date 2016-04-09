@@ -15,7 +15,7 @@ limitations under the License.
 /**************************************************************************
  *
  *
- * File: kheap.cpp
+ * File: kheap.c
  *
  * Description: Contains implementation of the kernel's heap
  *

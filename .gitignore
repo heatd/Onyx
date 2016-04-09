@@ -1,3 +1,5 @@
+*.o
+testmod
 *.map
 kernel/vmspartix
 *.iso

@@ -26,36 +26,12 @@ CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS)
 LDFLAGS:=$(LDFLAGS) $(KERNEL_ARCH_LDFLAGS) $(BUILD_NUMBER_LDFLAGS)
 LIBS:=$(LIBS) $(KERNEL_ARCH_LIBS)
 
-DRIVERS:=drivers/ps2keyb \
-	 drivers/serial \
-
-include drivers/make.config
-
 OBJS:=\
-$(DRIVER_OBJS) \
-$(KERNEL_ARCH_OBJS) \
-kernel/kernel.o \
-kernel/panic.o \
-kernel/timer.o \
-kernel/pmm.o \
-kernel/kheap.o \
-kernel/sleep.o \
-kernel/fs.o \
-kernel/initrd.o \
-kernel/input_manager.o \
-kernel/scheduler.o \
-kernel/kthread.o \
-kernel/fd.o \
-kernel/sbrk.o \
-kernel/fork.o \
-kernel/fonts/font.o \
-kernel/elf_loader.o \
-kernel/spinlock.o \
-kernel/process.o \
-kernel/fs/devfs.o \
-kernel/fs/null.o \
-kernel/fs/zero.o \
-
+$(patsubst %.c,%.o,$(wildcard drivers/*/*.c)) \
+$(patsubst %.c,%.o,$(wildcard kernel/*.c)) \
+$(patsubst %.c,%.o,$(wildcard kernel/*/*.c)) \
+$(patsubst %.c,%.o,$(wildcard $(ARCHDIR)/*.c)) \
+$(filter-out $(ARCHDIR)/crti.o, $(patsubst %.S,%.o,$(wildcard $(ARCHDIR)/*.S)))
 CRTI_OBJ:=$(ARCHDIR)/crti.o
 CRTBEGIN_OBJ:=$(shell $(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=crtbegin.o)
 CRTEND_OBJ:=$(shell $(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=crtend.o)
@@ -78,6 +54,7 @@ all: vmspartix
 .PHONY: all clean install install-headers install-kernel
 
 vmspartix: BUILD $(OBJ_LINK_LIST) $(ARCHDIR)/linker.ld
+
 	$(CC) -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(OBJ_LINK_LIST) $(LDFLAGS) $(LIBS)
 
 %.o: %.c

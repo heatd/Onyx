@@ -15,7 +15,7 @@ limitations under the License.
 /**************************************************************************
  *
  *
- * File: sbrk.cpp
+ * File: sbrk.c
  *
  * Description: sbrk(2) implementation
  *

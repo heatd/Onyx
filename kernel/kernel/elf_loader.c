@@ -15,7 +15,7 @@ limitations under the License.
 /**************************************************************************
  *
  *
- * File: ElfLoader.cpp
+ * File: elf_loader.c
  *
  * Description: Elf Loader
  *

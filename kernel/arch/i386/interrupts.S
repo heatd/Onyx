@@ -88,7 +88,7 @@ extern irq_handler
 global irq_common:
 irq_common:
 	call irq_handler
-	pop byte eax
+	add esp, 4
 	iret
 extern syscall
 global _syscall

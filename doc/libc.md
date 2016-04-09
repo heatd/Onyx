@@ -7,4 +7,4 @@ The only functions that should be available in the Spartix's libc are not a lot.
 ## The Principle
 It's principle is that it should be light-weight AND functional. This will not turn into a glibc of a mess.
 ## Warnings
-Don't try to link it with a user-space program. You should use newlib instead (or a port of glibc if i ever try one, if it ever stops to be bloated)
+Don't try to link it with a user-space program. You should use newlib instead (or a port of glibc if I ever try one, if it ever stops to be bloated)

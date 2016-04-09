@@ -15,7 +15,7 @@ limitations under the License.
 /**************************************************************************
  *
  *
- * File: pmm.cpp
+ * File: pmm.c
  *
  * Description: Contains the implementation of the kernel's PMM
  *

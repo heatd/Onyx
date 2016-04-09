@@ -15,7 +15,7 @@ limitations under the License.
 /**************************************************************************
  *
  *
- * File: panic.cpp
+ * File: panic.c
  *
  * Description: Contains the implementation of the panic function
  *

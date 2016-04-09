@@ -15,7 +15,7 @@ limitations under the License.
 /**************************************************************************
  *
  *
- * File: scheduler.cpp
+ * File: scheduler.c
  *
  * Description: Contains the implementation of the kernel's thread scheduler
  *

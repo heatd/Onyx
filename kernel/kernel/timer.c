@@ -15,7 +15,7 @@ limitations under the License.
 /**************************************************************************
  *
  *
- * File: timer.cpp
+ * File: timer.c
  *
  * Description: Contains the timer code
  *

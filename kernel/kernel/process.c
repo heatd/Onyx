@@ -15,7 +15,7 @@ limitations under the License.
 /**************************************************************************
  *
  *
- * File: process.cpp
+ * File: process.c
  *
  * Description: Contains the implementation of the PCB, and the data structures the kernel has to keep track of the processes
  *

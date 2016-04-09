@@ -15,7 +15,7 @@ limitations under the License.
 /**************************************************************************
  *
  *
- * File: initrd.cpp
+ * File: initrd.c
  *
  * Description: Contains the code to read the initrd
  *
