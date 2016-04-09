@@ -28,7 +28,7 @@ uint32_t framebuffer_height = 0;
 uint32_t framebuffer_width = 0;
 uint32_t framebuffer_bpp = 0;
 uint32_t framebuffer_pixelwidth = 0;
-unsigned char* bitmap = NULL;
+unsigned char *bitmap = NULL;
 __attribute__((hot))
 void draw_char(unsigned char c, int x, int y, int fgcolor, int bgcolor)
 {
@@ -45,14 +45,14 @@ __attribute__((hot))
 void put_pixel(unsigned int x,unsigned int y, int color)
 {
    	/* do not write memory outside the screen buffer, check parameters against the VBE mode info */
-   	if (x> framebuffer_width || y>framebuffer_height) return;
-   	if (x) x = (x*(framebuffer_bpp>>3));
-   	if (y) y = (y*framebuffer_pitch);
+   	if (x > framebuffer_width || y > framebuffer_height) return;
+   	if (x) x = (x * (framebuffer_bpp>>3));
+   	if (y) y = (y * framebuffer_pitch);
    	volatile unsigned char *cTemp;
-   	cTemp = &framebuffer[x+y];
+   	cTemp = &framebuffer[x + y];
    	cTemp[0] = color & 0xff;
-   	cTemp[1] = (color>>8) & 0xff;
-   	cTemp[2] = (color>>16) & 0xff;
+   	cTemp[1] = (color >> 8) & 0xff;
+   	cTemp[2] = (color >> 16) & 0xff;
 }
 void draw_square(int side,int x, int y, int color)
 {
@@ -83,11 +83,20 @@ void* vesa_get_framebuffer_addr()
 {
 	return (void *)framebuffer;
 }
-vid_mode_t* vesa_get_videomode()
+static vid_mode_t vidm = {0};
+vid_mode_t *vesa_get_videomode()
 {
-	vid_mode_t *vidm = kmalloc(sizeof(vid_mode_t));
-	vidm->width = framebuffer_width;
-	vidm->height = framebuffer_height;
-	vidm->bpp = framebuffer_bpp;
-	return vidm;
+	if( vidm.width == 0 ) {
+		vidm.width = framebuffer_width;
+		vidm.height = framebuffer_height;
+		vidm.bpp = framebuffer_bpp;
+	}
+	return &vidm;
+}
+void vesa_scroll()
+{
+	unsigned char *second_line = ( unsigned char *)framebuffer;
+	second_line += framebuffer_pitch * 20;
+	memmove((void *)framebuffer,second_line,0x400000 - framebuffer_pixelwidth * framebuffer_width +
+	framebuffer_pitch * 16);
 }

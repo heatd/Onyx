@@ -38,11 +38,23 @@ size_t terminal_column;
 uint32_t last_x;
 uint32_t last_y;
 int terminal_color;
+static unsigned int max_row;
+static const unsigned int max_row_fallback = 1024/16;
+static unsigned int max_column;
+static const unsigned int max_column_fallback = 768/9;
 void tty_init(void)
 {
 	terminal_row = 1;
 	terminal_column = 0;
 	terminal_color = 0xC0C0C0;
+	vid_mode_t *vid = vesa_get_videomode();
+	if( vid->width == 0 ) {
+		max_row = max_row_fallback;
+		max_column = max_column_fallback;
+	} else {
+		max_row = vid->height / 16;
+		max_column = vid->width / 9;
+	}
 }
 
 void tty_set_color(int color)
@@ -60,18 +72,31 @@ void terminal_putentryat(char c, uint32_t color, size_t column, size_t row)
 	draw_char(c, x, y, color, 0);
 	draw_char('\0', x + 9, y, 0, 0xC0C0C0);
 }
-
+void tty_scroll()
+{
+	if ( terminal_row == max_row ) {
+		vesa_scroll();
+	}
+	else {
+		terminal_row++;
+	}
+}
 void tty_putchar(char c)
 {
 	if (c == '\n') {
+		newline:
 		terminal_column = 0;
-		terminal_row++;
+		tty_scroll();
 		draw_char('\0', last_x, last_y, 0, 0);
 		draw_char('\0', terminal_column * 9, terminal_row * 16, 0,
 			  0xC0C0C0);
 		last_x = terminal_column * 9;
 		last_y = terminal_row * 16;
 		return;
+	}
+	if( terminal_column == max_column ) {
+		/* If we reach the line limit, fake a newline */
+		goto newline;
 	}
 	terminal_putentryat(c, terminal_color, terminal_column,
 			    terminal_row);

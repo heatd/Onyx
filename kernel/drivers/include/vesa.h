@@ -27,5 +27,6 @@ void draw_square(int side,int x, int y, int color);
 void draw_char(unsigned char c, int x, int y, int fgcolor, int bgcolor);
 void vesa_init(multiboot_info_t* info);
 void* vesa_get_framebuffer_addr();
+void vesa_scroll();
 vid_mode_t* vesa_get_videomode();
 #endif

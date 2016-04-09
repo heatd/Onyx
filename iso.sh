@@ -5,6 +5,9 @@ set -e
 mkdir -p isodir
 mkdir -p isodir/boot
 mkdir -p isodir/boot/grub
+i686-spartix-gcc -nostdlib -ffreestanding -O2 -c test.c -o testmod
+mkdir -p sysroot/usr/bin
+cp testmod sysroot/usr/bin/testmod
 ROOTDIR="$(pwd)"
 cd sysroot
 echo "Generating initrd"
