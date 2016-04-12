@@ -6,3 +6,4 @@ kernel/vmspartix
 isodir
 sysroot
 .directory
+testmod
