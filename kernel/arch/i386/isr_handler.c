@@ -51,10 +51,26 @@ char *exception_msg[] = {
     "",
     "Security exception"
 };
-
+_Bool faulting = false;
+inline void exit_isr_handler()
+{
+	faulting = false;
+}
+inline void enter_isr_handler()
+{
+	faulting = true;
+}
+inline _Bool is_recursive_fault()
+{
+	return faulting;
+}
 void isr_handler(uint32_t ds, uint32_t int_no, uint32_t err_code)
 {
 	(void)ds;
+	if(is_recursive_fault()) { /* If this fault happened inside another fault, */
+		for(;;);           /* Something is wrong with the environment, so just for(;;); */
+	}
+	enter_isr_handler();
 	switch (int_no) {
 	case 0:{
 			panic(exception_msg[int_no]);
@@ -111,7 +127,7 @@ void isr_handler(uint32_t ds, uint32_t int_no, uint32_t err_code)
 			printf(exception_msg[int_no]);
 			if (err_code != 0)
 				printf("\nSegment 0x%X\n", err_code);
-			panic("GPF");
+			panic("");
 			break;
 		}
 	case 14:{
@@ -123,6 +139,7 @@ void isr_handler(uint32_t ds, uint32_t int_no, uint32_t err_code)
 				if (vmm_alloc_cow
 				    (faulting_address & 0xFFFFF000) == 1)
 					abort();
+				exit_isr_handler();
 				return;
 			}
 			printf("%s0x%X\n",exception_msg[int_no],faulting_address);
@@ -162,4 +179,5 @@ void isr_handler(uint32_t ds, uint32_t int_no, uint32_t err_code)
 	case 31:
 		break;
 	}
+	exit_isr_handler();
 }

@@ -5,7 +5,7 @@ set -e
 mkdir -p isodir
 mkdir -p isodir/boot
 mkdir -p isodir/boot/grub
-i686-spartix-gcc -nostdlib -ffreestanding -O2 -c test.c -o testmod
+i686-spartix-gcc -nostdlib -ffreestanding -O2 -c test.c -o testmod -Wl,-emodule_main
 mkdir -p sysroot/usr/bin
 cp testmod sysroot/usr/bin/testmod
 ROOTDIR="$(pwd)"

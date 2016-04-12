@@ -45,6 +45,7 @@ posix/sbrk.o \
 errno/errno.o \
 ctype/to.o \
 string/memchr.o \
+string/strstr.o \
 
 
 HOSTEDOBJS:=\

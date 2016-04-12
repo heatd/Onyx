@@ -26,7 +26,8 @@
 ; Declare constants used for creating a multiboot header.
 MBALIGN     equ  1<<0                   ; align loaded modules on page boundaries
 MEMINFO     equ  1<<1                   ; provide memory map
-FLAGS       equ  MBALIGN | MEMINFO | 1 << 2     ; this is the Multiboot 'flag' field
+VIDMODE	    equ  1<<2			; provide a vidmode
+FLAGS       equ  MBALIGN | MEMINFO | VIDMODE    ; this is the Multiboot 'flag' field
 MAGIC       equ  0x1BADB002             ; 'magic number' lets bootloader find the header
 CHECKSUM    equ -(MAGIC + FLAGS)        ; checksum of above, to prove we are multiboot
 

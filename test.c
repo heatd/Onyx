@@ -1,6 +1,7 @@
 #include <stdio.h>
-int _start()
+#include <stdlib.h>
+int module_init()
 {
-	printf("Hello World");
+	printf("Hello Module World! \n");
 	while (1);
 }

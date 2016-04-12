@@ -72,7 +72,7 @@ void kernel_late();
 ARCH_SPECIFIC void init_vmm();
 extern void jump_userspace();
 ARCH_SPECIFIC void init_keyboard();
-static multiboot_info_t *mbt;
+multiboot_info_t *mbt;
 static multiboot_memory_map_t *mmap_arr[10];
 static uint32_t initrd_addr;
 extern uint32_t end;
@@ -193,12 +193,12 @@ void kernel_late()
 	if (!mod)
 		abort();
 
-	/*size_t file_size = (size_t)read_fs(mod,0,0,NULL);
+	size_t file_size = (size_t)read_fs(mod,0,0,NULL);
 
 	void *file_buffer = kmalloc(file_size);
 	read_fs(mod,0,file_size,file_buffer);
 	elf_load_file(file_buffer);
-	*/
+
 	for (;;) {
 		__asm__ __volatile__ ("hlt");
 	}

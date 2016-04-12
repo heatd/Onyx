@@ -31,6 +31,7 @@ size_t strlen(const char*);
 char *strcat(char *dest, const char *src);
 char *strcpy(char *dest, const char *src);
 int strcmp(char *s, char *t);
+char *strstr(char *str, char *substr);
 void *memchr(const void *str, int c, size_t n);
 #ifdef __cplusplus
 }

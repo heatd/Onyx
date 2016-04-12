@@ -74,8 +74,13 @@ enum Elf_Ident {
 	EI_ABIVERSION	= 8, /* OS Specific */
 	EI_PAD		= 9  /* Padding */
 };
-# define SHN_UNDEF	(0x00) // Undefined/Not present
-
+#define SHN_UNDEF	(0x00) // Undefined/Not present
+#define SHN_LORESERVE 0xFF00
+#define SHN_LOPROC 0xFF00
+#define SHN_HIPROC 0xFF1F
+#define SHN_ABS 0xfff1
+#define SHN_COMMON 0xfff2
+#define SHN_HIRESERVE 0xffff
 enum ShT_Types {
 	SHT_NULL	= 0,   // Null section
 	SHT_PROGBITS	= 1,   // Program information
@@ -117,7 +122,42 @@ typedef struct {
 	uint8_t			st_other;
 	Elf32_Half		st_shndx;
 } Elf32_Sym;
-/* Function Declarations*/
+
+# define ELF32_ST_BIND(INFO)	((INFO) >> 4)
+# define ELF32_ST_TYPE(INFO)	((INFO) & 0x0F)
+
+enum StT_Bindings {
+	STB_LOCAL		= 0, // Local scope
+	STB_GLOBAL		= 1, // Global scope
+	STB_WEAK		= 2  // Weak, (ie. __attribute__((weak)))
+};
+
+enum StT_Types {
+	STT_NOTYPE		= 0, // No type
+	STT_OBJECT		= 1, // Variables, arrays, etc.
+	STT_FUNC		= 2  // Methods or functions
+};
+typedef struct {
+	Elf32_Addr		r_offset;
+	Elf32_Word		r_info;
+} Elf32_Rel;
+
+typedef struct {
+	Elf32_Addr		r_offset;
+	Elf32_Word		r_info;
+	Elf32_Sword		r_addend;
+} Elf32_Rela;
+
+# define ELF32_R_SYM(INFO)	((INFO) >> 8)
+# define ELF32_R_TYPE(INFO)	((uint8_t)(INFO))
+
+enum RtT_Types {
+	R_386_NONE		= 0, // No relocation
+	R_386_32		= 1, // Symbol + Offset
+	R_386_PC32		= 2  // Symbol + Offset - Section Offset
+};
+# define ELF_RELOC_ERR -1
+/* Function Declarations */
 _Bool elf_load_file(char *file);
 _Bool elf_check_supported(Elf32_Ehdr *header);
 int elf_parse_program_heade(Elf32_Phdr *prog_hdr,Elf32_Half entries,char *file);
