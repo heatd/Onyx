@@ -14,7 +14,7 @@ limitations under the License.
 */
 #include <fs/null.h>
 #include <kernel/fs.h>
-uint32_t null_write(fs_node_t* unused0,uint32_t unused1,uint32_t size,void* unused2)
+uint32_t null_write(fs_node_t *unused0,uint32_t unused1,uint32_t size,void *unused2)
 {
 	(void) unused0;
 	(void) unused1;
@@ -25,7 +25,7 @@ uint32_t null_write(fs_node_t* unused0,uint32_t unused1,uint32_t size,void* unus
 void null_dev_init()
 {
 	/* Create a filesystem node for /dev/null (the /dev/ should already be created)*/
-	fs_node_t* null = open_fs(NULL,0,0,"/dev/null");
+	fs_node_t *null = open_fs(NULL,0,0,"/dev/null");
 	if(!null)
 		abort();
 	null->flags = FS_CHARDEVICE;

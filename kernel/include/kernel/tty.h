@@ -20,3 +20,4 @@ void tty_put_char(char c);
 void tty_write(const char* data, size_t size);
 void tty_write_string(const char* data);
 void tty_set_color(int color);
+void tty_swap();

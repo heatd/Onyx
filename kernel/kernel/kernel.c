@@ -59,6 +59,11 @@ limitations under the License.
 /* Function: init_arch()
  * Purpose: Initialize architecture specific features, should be hooked by the architecture the kernel will run on
  */
+#if defined (__i386__)
+	#define KERNEL_VIRTUAL_BASE 0xC0000000
+#elif defined (__x86_64__)
+	#define KERNEL_VIRTUAL_BASE 0xFFFFFFFF80000000
+#endif
 #define TERM_OK(str) \
                 printf("[  "); \
 		tty_set_color(0x00FF00); \
@@ -82,14 +87,14 @@ extern fs_node_t *fs_root;
 void kernel_early(multiboot_info_t * info, size_t magic)
 {
 	mbt = info;
-	mbt->mmap_addr += 0xC0000000;
+	mbt->mmap_addr += KERNEL_VIRTUAL_BASE;
 
 	multiboot_memory_map_t *mmap =
 	    (multiboot_memory_map_t *) mbt->mmap_addr;
 
-	memset((void *) 0xC0200000, 0, 4096);
+	memset((void *) &end, 0, 4096);
 
-	pmm_init(mbt->mem_lower + mbt->mem_upper, (uintptr_t) 0xC0200000);
+	pmm_init(mbt->mem_lower + mbt->mem_upper, (uintptr_t) &end);
 	/* Initialize the Physical memory manager */
 
 	while ((unsigned int) mmap < mbt->mmap_addr + mbt->mmap_length) {
@@ -139,11 +144,15 @@ void kernel_main()
 	fs_root = initrd_init(initrd_addr);
 
 	if (!fs_root)
-		abort();
+		panic("Could not allocate enough memory to allocate the \
+		filesystem root\n");
 	/*Initialize PS/2 keyboard drivers */
 	init_keyboard();
 	TERM_OK("Initializing multitasking");
-	/* Start the first (official) thread in the kernel and the whole OS */
+	/* Start the first thread in the kernel.
+	   The bootstrap thread never gets executed again,
+	   so this thread will stop executing when we start kt
+	   */
 	kthread_t *kt = kthread_create(kernel_late);
 	kthread_start(kt);
 
@@ -174,30 +183,21 @@ void kernel_late()
 	TERM_OK("Heap test successful");
 
 	/* Initialize less important drivers */
-	/* Initalize Serial driver */
-	serial_init();
-	serial_write_string("[  OK  ] Serial driver initialized");
-
-	TERM_OK("Serial driver initialized");
 
 	fs_node_t *node = finddir_fs(fs_root, (char *) "/boot/Kernel.map");
 
 	if (!node)
-		abort();
+		panic("Could not find the node\n");
 	/* Initialize the devs ( /dev/ tree )*/
 	devfs_init();
+
+	/* Initalize Serial driver */
+	serial_init();
+	serial_write_string("serial0: serial_driver initialized\n");
+
+	TERM_OK("Serial driver initialized");
+
 	process_init();
-
-        fs_node_t *mod = finddir_fs(fs_root, (char *) "/usr/bin/testmod");
-
-	if (!mod)
-		abort();
-
-	size_t file_size = (size_t)read_fs(mod,0,0,NULL);
-
-	void *file_buffer = kmalloc(file_size);
-	read_fs(mod,0,file_size,file_buffer);
-	elf_load_file(file_buffer);
 
 	for (;;) {
 		__asm__ __volatile__ ("hlt");

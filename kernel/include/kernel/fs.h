@@ -54,8 +54,8 @@ typedef struct fs_node
    close_type_t close;
    readdir_type_t readdir;
    finddir_type_t finddir;
-   struct fs_node* ptr; /* Used by mountpoints and symlinks. */
-   struct fs_node* next;
+   struct fs_node *ptr; /* Used by mountpoints and symlinks. */
+   struct fs_node *next;
 } fs_node_t;
 
 extern fs_node_t *fs_root; /* The root of the filesystem. */

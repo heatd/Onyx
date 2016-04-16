@@ -12,21 +12,14 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#ifndef _VESA_H
-#define _VESA_H
-#include <stdint.h>
-#include <multiboot.h>
-typedef struct vid_mode
-{
-	uint32_t width;
-	uint32_t height;
-	uint32_t bpp;
-}vid_mode_t;
-void put_pixel(unsigned int x,unsigned int y, int color);
-void draw_square(int side,int x, int y, int color);
-void draw_char(unsigned char c, int x, int y, int fgcolor, int bgcolor);
-void vesa_init(multiboot_info_t* info);
-void *vesa_get_framebuffer_addr();
-void vesa_scroll();
-vid_mode_t *vesa_get_videomode();
+#ifndef _FB_H
+#define _FB_H
+
+
+typedef volatile unsigned char _fb;
+typedef _fb *framebuffer_t;
+void fb_swap(framebuffer_t fb);
+void fb_destroy(framebuffer_t fb);
+framebuffer_t fb_create();
+
 #endif

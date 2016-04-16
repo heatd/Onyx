@@ -33,6 +33,7 @@ limitations under the License.
 #include <drivers/vesa.h>
 #include <stdio.h>
 #include <kernel/spinlock.h>
+#include <drivers/serial.h>
 size_t terminal_row;
 size_t terminal_column;
 uint32_t last_x;
@@ -75,10 +76,14 @@ void terminal_putentryat(char c, uint32_t color, size_t column, size_t row)
 void tty_scroll()
 {
 	if ( terminal_row == max_row ) {
+		serial_write_string("tty0: scrolling\n");
 		vesa_scroll();
 	}
 	else {
 		terminal_row++;
+	}
+	if( terminal_row > max_row ) {
+		serial_write_string("tty0: terminal_row > max_row\n");
 	}
 }
 void tty_putchar(char c)

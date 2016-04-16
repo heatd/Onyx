@@ -298,8 +298,6 @@ _Bool elf_load_file(char *file)
 	}
 	kthread_t *kt = kthread_create((kthread_entry_point_t) (header->e_entry));
 
-	printf("%p\n",kt->thread_entry);
-
 	kthread_start(kt);
 
 	return true;

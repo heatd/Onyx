@@ -33,13 +33,17 @@ static uint32_t pushed_blocks = 0;
 static uintptr_t *pmm_stack_space = NULL;
 extern uint32_t end;
 static uint32_t last_entry = 0;
+static size_t _used_mem = 0;
 stack_t *stack = NULL;
+size_t pmm_get_used_mem()
+{
+	return _used_mem;
+}
 void pmm_push(uintptr_t base, size_t size)
 {
 	/* Don't alloc the kernel */
 	if (base == 0x100000) {
 		base += 0x300000;
-		base &= 0xFFFFFF000;
 	}
 	for (unsigned int i = 0; i < pushed_blocks + 1; i++)
 		if (stack->next[i].base == 0 && stack->next[i].size == 0) {
@@ -68,7 +72,7 @@ void pmm_init(size_t memory_size, uintptr_t stack_space)
 	pmm_stack_space = (uintptr_t *) stack_space;
 	stack = (stack_t *) stack_space;
 	memset(stack, 0, 4096);
-	stack->next = (stack_entry_t *) 0xC0200010;
+	stack->next = (stack_entry_t *) (stack_space + sizeof(stack_t));
 }
 
 void *pmalloc(size_t blocks)
@@ -83,6 +87,7 @@ void *pmalloc(size_t blocks)
 				    PMM_BLOCK_SIZE * blocks;
 				stack->next[i].size -=
 				    PMM_BLOCK_SIZE * blocks;
+				_used_mem += PMM_BLOCK_SIZE * blocks;
 				return (void *)ret_addr;
 			}
 		}
@@ -98,8 +103,9 @@ void pfree(size_t blocks, void *p)
 		return;
 	memmove((void *) &stack->next[1], (void *) &stack->next[0],
 		sizeof(stack_entry_t) * pushed_blocks);
+	_used_mem -= PMM_BLOCK_SIZE * blocks;
 	stack->next[0].base = (uintptr_t) p;
-	stack->next[0].size = blocks;
+	stack->next[0].size = PMM_BLOCK_SIZE * blocks;
 	stack->next[0].magic = 0xFDFDFDFD;
 	pushed_blocks++;
 }

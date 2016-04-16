@@ -25,7 +25,7 @@ uint32_t zero_read(fs_node_t *node, uint32_t offset, uint32_t size,
 void zero_dev_init()
 {
 	/* Create a filesystem node for /dev/zero (the /dev/ should already be created)*/
-	fs_node_t* zero = open_fs(NULL,0,0,"/dev/zero");
+	fs_node_t *zero = open_fs(NULL,0,0,"/dev/zero");
 	if(!zero)
 		abort();
 	zero->flags = FS_CHARDEVICE;

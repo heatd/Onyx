@@ -12,7 +12,7 @@ EXEC_PREFIX?=$(PREFIX)
 INCLUDEDIR?=$(PREFIX)/include
 LIBDIR?=$(EXEC_PREFIX)/lib
 
-CFLAGS:=$(CFLAGS) -Wall -Wextra -fstack-protector-strong
+CFLAGS:=$(CFLAGS) -Wall -Wextra -fstack-protector-strong -ftree-vectorize -ftree-vectorizer-verbose=7
 CPPFLAGS:=$(CPPFLAGS) -D__is_spartix_libc -Iinclude
 LIBK_CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin
 LIBK_CPPFLAGS:=$(CPPFLAGS) -D__is_spartix_kernel
