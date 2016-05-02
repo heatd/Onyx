@@ -15,6 +15,7 @@ limitations under the License.
 #ifndef _FD_H
 #define _FD_H
 #include <stdlib.h>
+#include <kernel/fs.h>
 #define MAX_PATHNAME 250
 #define MAX_FILDES 32
 ssize_t sys_write(int fd,const void* buf, size_t count);
@@ -24,6 +25,7 @@ typedef struct _fd
 	int fd;
 	char path[MAX_PATHNAME];
 	int permitions;
+	fs_node_t *node;
 }fd_t;
-void fdt_setup(fd_t* fdt);
+void fdt_setup(fd_t *fdt);
 #endif

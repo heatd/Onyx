@@ -43,7 +43,7 @@ int __brk(void *addr)
 	    (uint32_t) data_area_limit - (uint32_t) data_area_start;
 	void *mem =
 	    kmmap((uint32_t) data_area_start, data_area_difference / 4096,
-		  MAP_WRITE);
+		  MAP_WRITE|MAP_USER);
 	if (!mem)
 		return -1;
 	return 0;

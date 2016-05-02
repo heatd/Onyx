@@ -12,7 +12,9 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#pragma once
+#ifndef _SPINLOCK_H
+#define _SPINLOCK_H
+
 typedef struct spinlock
 {
 	unsigned long lock;
@@ -21,3 +23,4 @@ typedef struct spinlock
 void acquire(spinlock_t*);
 void release(spinlock_t*);
 void wait(spinlock_t*);
+#endif

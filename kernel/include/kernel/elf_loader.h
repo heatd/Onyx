@@ -17,6 +17,7 @@ limitations under the License.
 #include <stdint.h>
 #include <stdbool.h>
 #include <errno.h>
+#include <kernel/kthread.h>
 typedef uint16_t Elf32_Half;	/* Unsigned half int */
 typedef uint32_t Elf32_Off;	/* Unsigned offset */
 typedef uint32_t Elf32_Addr;	/* Unsigned address */
@@ -158,7 +159,7 @@ enum RtT_Types {
 };
 # define ELF_RELOC_ERR -1
 /* Function Declarations */
-_Bool elf_load_file(char *file);
+kthread_t *elf_load_file(char *file);
 _Bool elf_check_supported(Elf32_Ehdr *header);
 int elf_parse_program_heade(Elf32_Phdr *prog_hdr,Elf32_Half entries,char *file);
 void throw_error(int errn,const char* err_msg);

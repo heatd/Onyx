@@ -27,16 +27,17 @@ typedef struct process
 	uint32_t brk;
 	int pid;
 	fd_t fildes[MAX_FILDES];
-	struct process* next;
-	struct process* parent;
+	struct process *next;
+	struct process *parent;
 	_Bool has_exited;
 	int errno;
 }process_t;
 void process_init();
-int process_create(uint32_t data_seg,uint32_t brk,process_t *parent);
+process_t *process_create(uint32_t data_seg,uint32_t brk,process_t *parent);
 int  generate_pid();
 process_t* get_current_process();
 void process_destroy(process_t *process);
-int process_destroy_thread(kthread_t *kt);
+int process_destroy_thread(process_t* process, kthread_t *kt);
+int process_add_thread(process_t *process, kthread_t *kt);
 int sys_getpid();
 #endif

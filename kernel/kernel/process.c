@@ -29,9 +29,11 @@ limitations under the License.
 #include <kernel/mm.h>
 #include <errno.h>
 #include <kernel/panic.h>
+
 process_t *kernel = NULL;
 process_t *last = NULL;
-bool is_used[MAX_PID];
+_Bool is_initialized = false;
+static _Bool is_used[MAX_PID];
 void process_init()
 {
 	memset(&is_used, 0, sizeof(is_used));
@@ -46,24 +48,25 @@ void process_init()
 	kernel->errno = errno;
 	fdt_setup(kernel->fildes);
 	last = kernel;
+	is_initialized = true;
 }
 
-int process_add_thread(kthread_t * kt)
+int process_add_thread(process_t *process, kthread_t *kt)
 {
 	for (int i = 0; i < MAX_THREADS; i++) {
-		if (get_current_process()->threads[i] == NULL) {
-			get_current_process()->threads[i] = kt;
+		if (process->threads[i] == NULL) {
+			process->threads[i] = kt;
 			return 0;
 		}
 	}
 	return 1;
 }
 
-int process_destroy_thread(kthread_t * kt)
+int process_destroy_thread(process_t *process, kthread_t * kt)
 {
 	for (int i = 0; i < MAX_THREADS; i++) {
-		if (get_current_process()->threads[i] == kt) {
-			get_current_process()->threads[i] = NULL;
+		if (process->threads[i] == kt) {
+			process->threads[i] = NULL;
 			return 0;
 		}
 	}
@@ -71,7 +74,7 @@ int process_destroy_thread(kthread_t * kt)
 }
 
 static spinlock_t spl;
-int process_create(uint32_t data_seg, uint32_t brk,process_t *parent)
+process_t *process_create(uint32_t data_seg, uint32_t brk,process_t *parent)
 {
 	acquire(&spl);
 	process_t *new_process = kmalloc(sizeof(process_t));
@@ -81,13 +84,13 @@ int process_create(uint32_t data_seg, uint32_t brk,process_t *parent)
 	new_process->pid = generate_pid();
 	if(new_process->pid == -MAX_PID){
 		kfree(new_process);
-		return 1;
+		return NULL;
 	}
 	new_process->parent = parent;
 	last = new_process;
 	fdt_setup(new_process->fildes);
 	release(&spl);
-	return 0;
+	return new_process;
 }
 void process_destroy(process_t *process)
 {
@@ -108,25 +111,20 @@ void process_destroy(process_t *process)
 
 int generate_pid()
 {
-	acquire(&spl);
 	/*Search the array */
 	for (int i = 0; i < MAX_PID; i++) {
 		if (is_used[i] == false) {
 			is_used[i] = true;
-			release(&spl);
 			return i;
 		}
 	}
-	release(&spl);
 	return -MAX_PID;/* err_code */
 }
 
 process_t *get_current_process()
 {
-	process_t *search = kernel;
+	process_t *search = kernel->next;
 	kthread_t *curr_thread = get_current_thread();
-	if (!curr_thread)
-		abort();
 	/* Search the linked list */
 	do {
 		for (int i = 0; i < MAX_THREADS; i++) {
@@ -145,5 +143,9 @@ process_t *get_current_process()
 int sys_getpid()
 {
 	process_t *curr = get_current_process();
+	if(!curr)
+		return -1;
+	if(curr == kernel)
+		panic("Shit");
 	return curr->pid;
 }

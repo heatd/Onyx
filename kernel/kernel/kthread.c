@@ -25,6 +25,7 @@ limitations under the License.
  **************************************************************************/
 #include <kernel/scheduler.h>
 #include <kernel/kthread.h>
+#include <kernel/process.h>
 #include <string.h>
 #include <stdio.h>
 #include <kernel/mm.h>
@@ -43,8 +44,8 @@ kthread_t *get_current_thread()
 	} while (kt->next != NULL);
 	return NULL;
 }
-
-kthread_t *kthread_create(kthread_entry_point_t entry)
+extern _Bool is_initialized;
+kthread_t *kthread_create(kthread_entry_point_t entry, _Bool is_user)
 {
 	kthread_t *kt = kmalloc(sizeof(kthread_t));
 
@@ -54,7 +55,7 @@ kthread_t *kthread_create(kthread_entry_point_t entry)
 	kt->id = assignable_id;
 	assignable_id++;
 	kt->thread_entry = entry;
-
+	kt->is_user = is_user;
 	kt->thread_task = kmalloc(sizeof(task_t));
 	if (first == NULL) {
 		first = kt;
@@ -101,7 +102,7 @@ kthread_entry_point_t kthread_get_entry_point(kthread_t *kt)
 void kthread_start(kthread_t *kt)
 {
 	kt->is_running = true;
-	sched_create_task(kt->thread_task, kt->thread_entry, 0x08, 0x10);
+	sched_create_task(kt->thread_task, kt->thread_entry, kt->is_user ? 0x1b : 0x08, kt->is_user ? 0x23 : 0x10);
 }
 
 void kthread_terminate(kthread_t *kt)

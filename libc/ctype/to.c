@@ -38,3 +38,7 @@ int _tolower(int c)
 {
 	return tolower(c);
 }
+int isalpha(int c)
+{
+    return toupper(c) || tolower(c);
+}

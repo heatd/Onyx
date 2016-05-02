@@ -16,6 +16,7 @@ limitations under the License.
 #include <kernel/vga.h>
 #include <kernel/fd.h>
 #include <stdio.h>
+#include <kernel/process.h>
 ssize_t sys_write(int fd, const void *buf, size_t count)
 {
 	char *buffer = (char *) buf;
@@ -32,16 +33,13 @@ ssize_t sys_write(int fd, const void *buf, size_t count)
 
 ssize_t sys_read(int fd, const void *buf, size_t count)
 {
-	(void)buf;
-	(void)count;
-	if (fd == 0) {			/* TODO: Implement reading from stdin */
-		return 0;
-	}
-	return 0;
+	process_t *process = get_current_process();
+	fd_t *fdt = process->fildes;
+	return read_fs(fdt[fd].node, 0, count, (void *)buf);
 }
 
 /* Setup the file descriptor table */
-void fdt_setup(fd_t * fdt)
+void fdt_setup(fd_t *fdt)
 {
 	for (int i = 0; i < MAX_FILDES; i++) {
 		fdt[i].fd = i;

@@ -260,12 +260,12 @@ uintptr_t elf_load_sections(Elf32_Ehdr *hdr, size_t size)
 	}
 	return base;
 }
-_Bool elf_load_file(char *file)
+kthread_t *elf_load_file(char *file)
 {
 	Elf32_Ehdr *header = (Elf32_Ehdr *) file;
 
 	if (!elf_check_supported(header))
-		return false;
+		return NULL;
 
 	size_t size = elf_parse_sections(header);
 
@@ -293,14 +293,12 @@ _Bool elf_load_file(char *file)
 	if (elf_parse_program_header(prog_hdr, header->e_phnum, file) == 1) {
 
 		throw_error(0x4, "Invalid Load address");
-		return false;
+		return NULL;
 	}
 	}
-	kthread_t *kt = kthread_create((kthread_entry_point_t) (header->e_entry));
+	kthread_t *kt = kthread_create((kthread_entry_point_t) (header->e_entry), true);
 
-	kthread_start(kt);
-
-	return true;
+	return kt;
 }
 
 void throw_error(int errn, const char *err_msg)

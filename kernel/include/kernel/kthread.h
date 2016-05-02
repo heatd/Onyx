@@ -21,6 +21,7 @@ typedef struct kt
 {
 	/* NEVER CHANGE THE FOLLOWING MEMBERS */
 	_Bool is_running;
+	_Bool is_user;
 	kthread_entry_point_t thread_entry;
 	task_t* thread_task;
 	struct kt* next;
@@ -32,7 +33,7 @@ int kthread_get_id(kthread_t*);
 kthread_entry_point_t kthread_get_entry_point(kthread_t*);
 void kthread_start(kthread_t*);
 void kthread_terminate(kthread_t*);
-kthread_t* kthread_create(kthread_entry_point_t);
+kthread_t* kthread_create(kthread_entry_point_t,_Bool is_user);
 void 	kthread_destroy(kthread_t*);
 kthread_t* get_current_thread();
 #endif
