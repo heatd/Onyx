@@ -41,7 +41,6 @@ isr%1:
 global _yield
 _yield:
 	cli
-	hlt
 	pusha
 	push ds
 	push es

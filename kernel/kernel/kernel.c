@@ -56,6 +56,7 @@ limitations under the License.
 #include <kernel/process.h>
 #include <kernel/devfs.h>
 #include <ctype.h>
+int exec();
 /* Function: init_arch()
  * Purpose: Initialize architecture specific features, should be hooked by the architecture the kernel will run on
  */
@@ -205,13 +206,8 @@ void kernel_late()
 
 	process_init();
 
-	process_t *daemon = process_create(0x500000,0x600000,NULL);
-	if(!daemon) {
-		panic("Fail\n");
-	}
-	kthread_t *kt = kthread_create(test,true);
-	process_add_thread(daemon,kt);
-	kthread_start(kt);
+	exec("/usr/bin/daemon");
+
 	for (;;) {
 		__asm__ __volatile__ ("hlt");
 	}

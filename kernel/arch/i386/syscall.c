@@ -35,6 +35,7 @@ limitations under the License.
 #include <kernel/sbrk.h>
 #include <errno.h>
 #include <kernel/process.h>
+extern task_t *current_task;
 uint32_t syscall(uint32_t edi, uint32_t edx, uint32_t ecx, uint32_t ebx,
 	    uint32_t eax)
 {
@@ -65,6 +66,13 @@ uint32_t syscall(uint32_t edi, uint32_t edx, uint32_t ecx, uint32_t ebx,
 		{
 			pid_t pid = sys_getpid();
 			return pid;
+		}
+	case 6:
+		{
+			process_destroy(get_current_process());
+			sched_terminate_task(current_task);
+			__asm__ __volatile__("int $0x50");
+			return 0;
 		}
 	default:
 		break;

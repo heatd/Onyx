@@ -48,12 +48,9 @@ int exec(const char *path)
 	kthread_t *kt = elf_load_file(buffer);
 	/* Add the thread to the process */
 	process_add_thread(process, kt);
-	/* Delete this process */
-	process_destroy(get_current_process());
-	sched_terminate_task(current_task);
-	__asm__ __volatile__("int $0x50");
 	/* Start it */
 	kthread_start(kt);
+	/* Delete this process */
 
 	return 0;
 }

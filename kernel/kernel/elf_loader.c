@@ -46,13 +46,13 @@ int elf_parse_program_header(Elf32_Phdr *prog_hdr, Elf32_Half entries,
 				/* Its the bss section, zero it out */
 				kmmap(prog_hdr[i].p_vaddr,
 				      prog_hdr[i].p_memsz / 1024 + 4096,
-				      _PDE_WRITABLE);
+				      MAP_WRITE|MAP_USER);
 				memset((void *) prog_hdr[i].p_vaddr, 0,
 				       prog_hdr[i].p_memsz);
 			}
 			kmmap(prog_hdr[i].p_vaddr,
 			      prog_hdr[i].p_memsz / 1024 + 1024,
-			      _PDE_WRITABLE);
+			      MAP_WRITE|MAP_USER);
 			memcpy((void *) prog_hdr[i].p_vaddr,
 			       file + prog_hdr[i].p_offset,
 			       prog_hdr[i].p_filesz);

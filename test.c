@@ -1,13 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
-__attribute__((noinline))
-volatile void module_step()
+
+int main()
 {
-	abort();
-}
-int module_init()
-{
-	module_step();
-	printf("Hello Module World! \n");
-	while (1);
+	printf("Hello World");
+	__asm__ __volatile__("movl $6,%eax \t\n int $0x80");
+	return 0;
 }
