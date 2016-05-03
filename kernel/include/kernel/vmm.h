@@ -180,6 +180,7 @@ void* valloc(uint32_t npages, _Bool is_kernel);
 
 void vfree(void* ptr, uint32_t npages);
 
-int switch_directory (pdirectory* dir);
+int switch_directory (pdirectory* vdir, pdirectory* dir);
 
+pdirectory *get_directory();
 #endif

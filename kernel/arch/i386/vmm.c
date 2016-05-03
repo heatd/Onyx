@@ -80,13 +80,12 @@ inline pd_entry *pdirectory_lookup_entry(pdirectory * p, virtual_addr addr)
 
 pdirectory *_cur_directory = 0;
 
-int switch_directory(pdirectory * dir)
+int switch_directory(pdirectory *vdir, pdirectory *dir)
 {
-
 	if (!dir)
 		return 1;
-	_cur_directory = dir;
-	loadPageDirectory(_cur_directory);
+	_cur_directory = vdir;
+	loadPageDirectory(dir);
 	return 0;
 }
 
@@ -161,7 +160,7 @@ void vmm_init(uint32_t framebuffer_addr)
 	pd_entry_set_frame(framebuf, (uintptr_t) framebuffer);
 	dir = (pdirectory *) 0x3F2000;
 	pd_entry_set_frame(entry3, (uintptr_t) dir);
-	switch_directory(dir);
+	switch_directory(dir,dir);
 }
 
 /* Finish installing the VMM */
@@ -307,7 +306,7 @@ void kmunmap(void *virt, uint32_t npages)
 	{
 		if (pt_entry_is_present(pt->entries[i]))
 			break;
-		else if (i == 1024)
+		else if (i == 1023)
 			kmunmap((void *) pt, 1);
 	}
 }
@@ -432,7 +431,7 @@ void *valloc(uint32_t npages,_Bool is_kernel)
 	void *vaddr = vmm_alloc_addr(npages, is_kernel);
 	uint32_t flags;
 	if(unlikely(is_kernel == true)) {
-		flags = MAP_WRITE;
+		flags = MAP_WRITE | MAP_USER;
 	}else {
 		flags = MAP_WRITE | MAP_USER;
 	}
@@ -478,7 +477,7 @@ pdirectory *vmm_fork()
 					   _PDE_WRITABLE);
 		}
 	}
-	return (pdirectory *) get_phys_addr(tobeforked, (uint32_t) newdir);
+	return newdir;
 }
 
 void *get_phys_addr(pdirectory * dir, uint32_t virt)

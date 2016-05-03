@@ -154,7 +154,7 @@ void kernel_main()
 	   The bootstrap thread never gets executed again,
 	   so this thread will stop executing when we start kt
 	   */
-	kthread_t *kt = kthread_create(kernel_late, false);
+	kthread_t *kt = kthread_create(kernel_late, false, 0,0);
 	kthread_start(kt);
 
 	for (;;) {
@@ -178,7 +178,7 @@ void kernel_late()
 		__asm__ __volatile__ ("hlt");
 	}
 	TERM_OK("Timer test successful");
-	/* Test Kheap */
+	/* Test the heap */
 	TERM_OK("Testing the Kernel Heap...");
 
 	void *test_ptr = kmalloc(4096);	/* Allocate 4 Kilobytes of memory */
@@ -200,13 +200,15 @@ void kernel_late()
 
 	/* Initalize Serial driver */
 	serial_init();
-	serial_write_string("serial0: Serial Driver initialized\n");
+	serial_write_string("serial0: Serial driver initialized\n");
 
 	TERM_OK("Serial driver initialized");
 
 	process_init();
-
-	exec("/usr/bin/daemon");
+	pid_t pid = fork();
+	
+	if(pid == 0)
+		exec("/usr/bin/daemon");
 
 	for (;;) {
 		__asm__ __volatile__ ("hlt");

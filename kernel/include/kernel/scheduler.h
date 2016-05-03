@@ -23,6 +23,7 @@ typedef struct task
 {
 	_Bool is_kernel;
 	pdirectory *pgdir;
+	pdirectory *vpgdir;
 	uint32_t *stack;
 	struct task *next;
 

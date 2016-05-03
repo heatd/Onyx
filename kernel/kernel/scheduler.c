@@ -59,21 +59,12 @@ void sched_create_task(task_t *task, void (*thread) (), uint32_t cs,
 	if (task->stack == (uint32_t *)0x2000)
 		abort();
 	printf("thread has stack %p\n",task->stack);
-	if(cs == 0x1B) {
-		printf("User-space thread has stack %p\n",task->stack);
-		task->is_kernel = false;
-	}else {
-		task->is_kernel = true;
-	}
+	task->is_kernel = (cs == 0x1b) ? false:true;
 	stack = task->stack;
 	/* Push the return address */
 	*--stack = (uint32_t) _exit_task;
 	*--stack = ss;
 	*--stack = (unsigned int) task->stack - 1;
-	if(thread == jump_userspace) {
-		*--stack = 0x02;
-		task->is_kernel = false;
-	}else
 	*--stack = 0x0202;	/*This is EFLAGS */
 	*--stack = cs;		/*This is CS, our code segment */
 	*--stack = (unsigned int) thread;	/*This is EIP */
@@ -122,12 +113,17 @@ void sched_terminate_task(task_t *task)
 
 unsigned int sched_switch_task(uint32_t *old_esp)
 {
+	pdirectory *old_pg = NULL;
 	if (likely(current_task != NULL)) {
 		/*Were we even running a task? */
 		current_task->stack = old_esp;	/*Save the new esp for the thread */
+		old_pg = current_task->pgdir;
 		current_task = current_task->next;
 	} else {
 		current_task = first_task;	/*We just started multi-tasking, start with task 0 */
+	}
+	if(likely(current_task->pgdir != old_pg)) {
+		switch_directory(current_task->vpgdir, current_task->pgdir);
 	}
 	return (unsigned int) current_task->stack;	/*Return new stack pointer to ASM */
 }

@@ -17,11 +17,17 @@ limitations under the License.
 #include <unistd.h>
 #include <kernel/kthread.h>
 #include <stdio.h>
-static pid_t current_pid = -1;
+#include <kernel/process.h>
+#include <kernel/panic.h>
+int cnt = 0;
 pid_t fork()
 {
-	current_pid++;
 	pdirectory *newpd = vmm_fork();
-	switch_directory(newpd);
-	return current_pid;
+	switch_directory(newpd,get_phys_addr(get_directory(),(uint32_t) newpd));
+	kthread_t *kt = kthread_create(__builtin_return_address(0), cnt ? true : false,(uintptr_t) get_phys_addr(get_directory(),(uint32_t) newpd), (uintptr_t) newpd);
+	if(!cnt)
+		cnt++;
+	process_t *p = process_create(0x600000,0x700000,NULL);
+	kthread_start(kt);
+	return p->pid;
 }

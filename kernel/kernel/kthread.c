@@ -33,6 +33,7 @@ extern task_t *current_task;
 static uint32_t assignable_id = 0;
 static kthread_t *first = NULL;
 static kthread_t *last = NULL;
+#define KERNEL_DEFAULT_PGD 0x3f2000
 kthread_t *get_current_thread()
 {
 	kthread_t *kt = first;
@@ -45,18 +46,26 @@ kthread_t *get_current_thread()
 	return NULL;
 }
 extern _Bool is_initialized;
-kthread_t *kthread_create(kthread_entry_point_t entry, _Bool is_user)
+kthread_t *kthread_create(kthread_entry_point_t entry, _Bool is_user, uintptr_t cr3,uintptr_t vcr3)
 {
 	kthread_t *kt = kmalloc(sizeof(kthread_t));
 
 	if (!kt)
-		return kt;
+		return NULL;
 
 	kt->id = assignable_id;
 	assignable_id++;
 	kt->thread_entry = entry;
 	kt->is_user = is_user;
 	kt->thread_task = kmalloc(sizeof(task_t));
+	if(!kt->thread_task)
+		return NULL;
+	if(!cr3) {
+		cr3 = KERNEL_DEFAULT_PGD;
+		vcr3 = KERNEL_DEFAULT_PGD;
+	}
+	kt->thread_task->pgdir = (pdirectory *)cr3;
+	kt->thread_task->vpgdir = (pdirectory *)vcr3;
 	if (first == NULL) {
 		first = kt;
 	} else
