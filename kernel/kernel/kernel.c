@@ -156,7 +156,7 @@ void kernel_main()
 	   */
 	kthread_t *kt = kthread_create(kernel_late, false, 0,0);
 	kthread_start(kt);
-
+	__asm__ __volatile__("sti");
 	for (;;) {
 		__asm__ __volatile__ ("hlt");
 	}
@@ -205,10 +205,11 @@ void kernel_late()
 	TERM_OK("Serial driver initialized");
 
 	process_init();
+	/* Fork the kernel */
 	pid_t pid = fork();
-	
+	__asm__ __volatile__("sti");
 	if(pid == 0)
-		exec("/usr/bin/daemon");
+		exec("/usr/bin/daemon"); /* Exec the daemon */
 
 	for (;;) {
 		__asm__ __volatile__ ("hlt");

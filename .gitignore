@@ -1,5 +1,5 @@
 *.o
-testmod
+daemon
 *.map
 kernel/vmspartix
 *.iso

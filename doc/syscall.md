@@ -12,3 +12,4 @@ The kernel exposes the system calls to the user-space by the interrupt vector 0x
 | 3 | sbrk() system call  |
 | 4 | fork() system call  |
 | 5 | getpid() system call |
+| 6 | exec() system call |

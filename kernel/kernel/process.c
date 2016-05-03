@@ -123,7 +123,7 @@ int generate_pid()
 
 process_t *get_current_process()
 {
-	process_t *search = kernel->next;
+	process_t *search = kernel;
 	kthread_t *curr_thread = get_current_thread();
 	/* Search the linked list */
 	do {
@@ -132,6 +132,8 @@ process_t *get_current_process()
 				return search;	/* If one of the threads match, return */
 		}
 		search = search->next;
+		if(search == NULL)
+			break;
 	} while (search->next != NULL);
 	return NULL;
 }
@@ -146,6 +148,6 @@ int sys_getpid()
 	if(!curr)
 		return -1;
 	if(curr == kernel)
-		panic("Shit");
+		panic("Error: Dont call getpid in kernel-mode!");
 	return curr->pid;
 }

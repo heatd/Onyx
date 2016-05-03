@@ -138,11 +138,16 @@ void isr_handler(uint32_t ds, uint32_t int_no, uint32_t err_code)
 			if (err_code & 0x2) {
 				if (vmm_alloc_cow
 				    (faulting_address & 0xFFFFF000) == 1)
-					abort();
 				exit_isr_handler();
 				return;
 			}
 			printf("%s0x%X\n",exception_msg[int_no],faulting_address);
+			if(err_code & 0x2)
+				printf(" caused by a write\n");
+			if(err_code & 0x4)
+			{
+				printf("user-mode\n");
+			}
                         while(1);
 		}
 	case 15:{

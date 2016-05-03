@@ -1,9 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
-
+#include <unistd.h>
 int main()
 {
-	printf("Hello World");
-	__asm__ __volatile__("movl $6,%eax \t\n int $0x80");
+	asm volatile("movl $4, %eax\t\nint $0x80");
+
+	while(1);
 	return 0;
 }

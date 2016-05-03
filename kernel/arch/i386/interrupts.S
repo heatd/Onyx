@@ -11,6 +11,8 @@
 ;WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 ;See the License for the specific language governing permissions and
 ;limitations under the License.
+section .bss
+	last_stack: resd 1
 section .text
 
 %macro IRQ 2
@@ -81,8 +83,6 @@ isr_common:
 	mov es,ax
 	mov fs,ax
 	mov fs,ax
-	add esp, 8
-	iret
 extern irq_handler
 global irq_common:
 irq_common:
@@ -93,6 +93,13 @@ extern syscall
 global _syscall
 _syscall:
 	cli
+	mov [last_stack], esp
+	push eax
+	extern get_current_stack
+	call get_current_stack
+	mov ebp, eax
+	pop eax
+	mov esp, ebp
 	push eax
 	push ebx
 	push ecx
@@ -100,6 +107,7 @@ _syscall:
 	push edi
 	call syscall
 	add esp,20
+	mov esp, [last_stack]
 	iret
 ISR_NOERRCODE 0
 ISR_NOERRCODE 1

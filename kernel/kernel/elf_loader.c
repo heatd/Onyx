@@ -38,20 +38,20 @@ int elf_parse_program_header(Elf32_Phdr *prog_hdr, Elf32_Half entries,
 	for (int i = 0; i <= entries; i++) {
 		if (prog_hdr[i].p_type == 1) {
 			if (vmm_mark_addr_as_used
-			    ((void *) prog_hdr[i].p_vaddr,
-			     prog_hdr[i].p_memsz / 1024) == 1) {
+			    ((void *) (prog_hdr[i].p_vaddr & 0xFFFFF000),
+			     prog_hdr[i].p_memsz / 4096 + 4096) == 1) {
 				return 1;
 			}
 			if (prog_hdr[i].p_filesz < prog_hdr[i].p_memsz) {
 				/* Its the bss section, zero it out */
 				kmmap(prog_hdr[i].p_vaddr,
-				      prog_hdr[i].p_memsz / 1024 + 4096,
+				      prog_hdr[i].p_memsz / 4096 + 4096,
 				      MAP_WRITE|MAP_USER);
 				memset((void *) prog_hdr[i].p_vaddr, 0,
 				       prog_hdr[i].p_memsz);
 			}
-			kmmap(prog_hdr[i].p_vaddr,
-			      prog_hdr[i].p_memsz / 1024 + 1024,
+			kmmap(prog_hdr[i].p_vaddr & 0xFFFFF000,
+			      prog_hdr[i].p_memsz / 4096 + 4096,
 			      MAP_WRITE|MAP_USER);
 			memcpy((void *) prog_hdr[i].p_vaddr,
 			       file + prog_hdr[i].p_offset,

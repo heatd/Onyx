@@ -36,6 +36,11 @@ task_t *last_thread = NULL;
 void jump_userspace();
 static task_t *first_task;
 task_t *current_task = NULL;
+void *get_current_stack()
+{
+	printf("%p\n",current_task->stack);
+	return current_task->stack;
+}
 void sched_create_task(task_t * task, void (*thread) (), uint32_t cs,
 		       uint32_t ss);
 /*	This is a version of _exit, but exits the thread instead of the process.
@@ -48,43 +53,37 @@ void _exit_task()
 	sched_terminate_task(current_task);
 	__asm__ __volatile__ ("int $0x50");	/* yield the current task */
 }
-
 void sched_create_task(task_t *task, void (*thread) (), uint32_t cs,
 		       uint32_t ss)
 {
-	__asm__ __volatile__("cli");
-	unsigned int *stack = NULL;
-
 	task->stack = (uint32_t *)((uint32_t)valloc(2,false) + 0x2000);
+	uint32_t *stack_base = task->stack;
 	if (task->stack == (uint32_t *)0x2000)
 		abort();
 	printf("thread has stack %p\n",task->stack);
 	task->is_kernel = (cs == 0x1b) ? false:true;
-	stack = task->stack;
 	/* Push the return address */
-	*--stack = (uint32_t) _exit_task;
-	*--stack = ss;
-	*--stack = (unsigned int) task->stack - 1;
-	*--stack = 0x0202;	/*This is EFLAGS */
-	*--stack = cs;		/*This is CS, our code segment */
-	*--stack = (unsigned int) thread;	/*This is EIP */
+	*--task->stack = (uint32_t) _exit_task;
+	*--task->stack = ss;
+	*--task->stack = (unsigned int) stack_base - 1;
+	*--task->stack = 0x0202;	/*This is EFLAGS */
+	*--task->stack = cs;		/*This is CS, our code segment */
+	*--task->stack = (unsigned int) thread;	/*This is EIP */
 
 	/*Next, the stuff pushed by 'pusha' */
-	*--stack = 0;		/*EDI */
-	*--stack = 0;		/*ESI */
-	*--stack = 0;		/*EBP */
-	*--stack = 0;		/*Just an offset, no value */
-	*--stack = 0;		/*EBX */
-	*--stack = 0;		/*EDX */
-	*--stack = 0;		/*ECX */
-	*--stack = 0;		/*EAX */
-
+	*--task->stack = 0;		/*EDI */
+	*--task->stack = 0;		/*ESI */
+	*--task->stack = 0;		/*EBP */
+	*--task->stack = 0;		/*Just an offset, no value */
+	*--task->stack = 0;		/*EBX */
+	*--task->stack = 0;		/*EDX */
+	*--task->stack = 0;		/*ECX */
+	*--task->stack = 0;		/*EAX */
 	/*Now these are the data segments pushed by the IRQ handler */
-	*--stack = ss;		/*DS */
-	*--stack = ss;		/*ES */
-	*--stack = ss;		/*FS */
-	*--stack = ss;		/*GS */
-	task->stack = stack;
+	*--task->stack = ss;		/*DS */
+	*--task->stack = ss;		/*ES */
+	*--task->stack = ss;		/*FS */
+	*--task->stack = ss;		/*GS */
 	task->next = NULL;
 	if (!first_task) {
 		first_task = task;
@@ -97,7 +96,6 @@ void sched_create_task(task_t *task, void (*thread) (), uint32_t cs,
 		}
 		new_task->next = task;
 	}
-	__asm__ __volatile__("sti");
 }
 
 void sched_terminate_task(task_t *task)
@@ -110,7 +108,10 @@ void sched_terminate_task(task_t *task)
 		search_task->next = task->next;
 	}
 }
-
+__attribute__((noinline)) void stop222()
+{
+	__asm__ __volatile__("mov %eax,%eax");
+}
 unsigned int sched_switch_task(uint32_t *old_esp)
 {
 	pdirectory *old_pg = NULL;
@@ -124,6 +125,9 @@ unsigned int sched_switch_task(uint32_t *old_esp)
 	}
 	if(likely(current_task->pgdir != old_pg)) {
 		switch_directory(current_task->vpgdir, current_task->pgdir);
+	}
+	if(!current_task->is_kernel) {
+		stop222();
 	}
 	return (unsigned int) current_task->stack;	/*Return new stack pointer to ASM */
 }

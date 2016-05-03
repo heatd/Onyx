@@ -27,7 +27,7 @@ typedef struct task
 	uint32_t *stack;
 	struct task *next;
 
-}task_t;
+}__attribute__((packed)) task_t;
 void sched_create_task(task_t*,void (*thread)(),uint32_t,uint32_t);
 void sched_terminate_task(task_t*);
 unsigned int sched_switch_task(uint32_t *old_esp);

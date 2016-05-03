@@ -21,7 +21,7 @@ ssize_t sys_write(int fd, const void *buf, size_t count)
 {
 	char *buffer = (char *) buf;
 	if (fd == 1) {/*stdout */
-		tty_write(buffer, count);
+		printf("%s",buf);
 	} else if (fd == 2) {	/* stderr */
 		tty_set_color(0xFF0000);
 		tty_write(buffer, count);
