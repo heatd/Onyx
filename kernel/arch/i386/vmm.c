@@ -40,8 +40,72 @@ limitations under the License.
 typedef uint32_t virtual_addr;
 static area_struct *first = NULL;
 void loadPageDirectory(pdirectory *);
-void enablePaging();
 
+inline void pt_entry_set_bit(pt_entry* pt,uint32_t bit)
+{
+	*pt|= bit;
+}
+inline void pt_entry_unset_bit(pt_entry* pt,uint32_t bit)
+{
+	*pt&=~bit;
+}
+inline void pt_entry_set_frame(pt_entry* pt, uintptr_t p_addr)
+{
+	*pt=(*pt & ~_PTE_FRAME) | p_addr;
+}
+inline int pt_entry_is_present(pt_entry pt)
+{
+	return pt & _PTE_PRESENT;
+}
+inline int pt_entry_is_writable (pt_entry pt)
+{
+	return pt & _PTE_WRITABLE;
+}
+
+inline uintptr_t pt_entry_pfn (pt_entry pt)
+{
+	return pt & _PTE_FRAME;
+}
+inline void pd_entry_set_bit(pd_entry* pd,uint32_t bit)
+{
+	*pd|= bit;
+}
+inline void pd_entry_unset_bit(pd_entry* pd, uint32_t bit)
+{
+	*pd&=~bit;
+}
+inline void pd_entry_set_frame(pd_entry* pd,uintptr_t paddr)
+{
+	*pd=(*pd & ~_PDE_FRAME) | paddr;
+}
+inline _Bool pd_entry_is_present(pd_entry pd)
+{
+	return pd & _PDE_PRESENT;
+}
+inline _Bool pd_entry_is_user(pd_entry pd)
+{
+	return pd & _PDE_USER;
+}
+inline _Bool pd_entry_is_4MB(pd_entry pd)
+{
+	return pd & _PDE_4MB;
+}
+inline uintptr_t pd_entry_pfn(pd_entry pd)
+{
+	return pd & _PDE_FRAME;
+}
+inline _Bool pd_entry_is_writable (pd_entry pd)
+{
+	return pd & _PDE_WRITABLE;
+}
+inline void pd_entry_enable_global(pd_entry pd)
+{
+	pd|=_PDE_CPU_GLOBAL;
+}
+inline void _flush_tlb_page(unsigned long addr)
+{
+   	__asm__ __volatile__ ("invlpg (%0)" ::"r" (addr) : "memory");
+}
 static int alloc_page(pt_entry * pt)
 {
 	void *p = pmalloc(1);
@@ -80,11 +144,11 @@ inline pd_entry *pdirectory_lookup_entry(pdirectory * p, virtual_addr addr)
 
 pdirectory *_cur_directory = 0;
 
-int switch_directory(pdirectory *vdir, pdirectory *dir)
+int _switch_directory(pdirectory *dir)
 {
 	if (!dir)
 		return 1;
-	_cur_directory = vdir;
+	_cur_directory = dir;
 	loadPageDirectory(dir);
 	return 0;
 }
@@ -92,8 +156,7 @@ int switch_directory(pdirectory *vdir, pdirectory *dir)
 pdirectory *get_directory()
 {
 
-	void *ret = _cur_directory;
-	return (pdirectory *) ret;
+	return (pdirectory *) 0xFFFFF000;
 }
 
 void vmm_init(uint32_t framebuffer_addr)
@@ -160,7 +223,7 @@ void vmm_init(uint32_t framebuffer_addr)
 	pd_entry_set_frame(framebuf, (uintptr_t) framebuffer);
 	dir = (pdirectory *) 0x3F2000;
 	pd_entry_set_frame(entry3, (uintptr_t) dir);
-	switch_directory(dir,dir);
+	switch_directory(dir);
 }
 
 /* Finish installing the VMM */
@@ -182,37 +245,11 @@ void vmm_finish()
 	area->next = NULL;
 
 }
-
-void *kmmap(uint32_t virt, uint32_t npages, uint32_t flags)
-{
-	uint32_t ptflags = 0, pdflags = 0;
-	if(flags == MAP_WRITE) {
-		ptflags = _PTE_WRITABLE;
-		pdflags = _PDE_WRITABLE;
-	}else if(flags == (MAP_WRITE | MAP_USER)) {
-		ptflags = _PTE_WRITABLE | _PTE_USER;
-		pdflags = _PDE_WRITABLE | _PDE_USER;
-	}
-	uint32_t vaddr = virt;
-	if (npages > 1024) {
-		uint32_t number_of_allocs = npages / 1024;
-		for (unsigned int i = 0; i < number_of_allocs; i++) {
-			vmm_map(vaddr, 1024, ptflags, pdflags);
-			vaddr += 0x400000;
-		}
-		vmm_map(vaddr, npages % 1024, ptflags, pdflags);
-	} else
-		vmm_map(vaddr, npages, ptflags, pdflags);
-	return (void *) vaddr;
-}
-
 void *vmm_map(uint32_t virt, uint32_t npages, uint32_t ptflags,uint32_t pdflags)
 {
 	if (!npages)
 		return NULL;
-	pdirectory *pdir = get_directory();
-	if (!pdir)
-		abort();
+	pdirectory *pdir = (pdirectory *)0xFFFFF000;
 	if (npages > 1024)
 		npages = 1024;
 	pd_entry *entry = &pdir->entries[PAGE_DIRECTORY_INDEX(virt)];
@@ -236,13 +273,11 @@ void *vmm_map(uint32_t virt, uint32_t npages, uint32_t ptflags,uint32_t pdflags)
 		return ptr;
 	}
 	if (pd_entry_is_present(*entry))
-		pt = (ptable *) pd_entry_pfn(*entry);
+		pt = (ptable *) (0xFFC00000 + (virt / 0x400000 * 0x1000));
 	else {
 		pt = (ptable *) pmalloc(1);
 		if (!pt)
 			panic("No free blocks");
-		kmmap((uint32_t) pt, 1024, MAP_WRITE);
-		memset(pt, 0, sizeof(ptable));
 		pd_entry_set_bit(entry, _PDE_PRESENT);
 		if(ptflags != 0 && pdflags != 0){
 			if(pdflags == _PDE_WRITABLE) {
@@ -253,6 +288,8 @@ void *vmm_map(uint32_t virt, uint32_t npages, uint32_t ptflags,uint32_t pdflags)
 			}
 		}
 		pd_entry_set_frame(entry, (uintptr_t) pt);
+		pt = (ptable *) (0xFFC00000 + (virt / 0x400000 * 0x1000));
+		memset(pt,0,sizeof(ptable));
 	}
 	uint32_t ret_addr = 0;
 	for (unsigned int i = 0, vaddr = virt; i < npages; i++, vaddr += 4096) {
@@ -277,8 +314,29 @@ void *vmm_map(uint32_t virt, uint32_t npages, uint32_t ptflags,uint32_t pdflags)
 	}
 	return (void *) ret_addr;
 }
-
-void kmunmap(void *virt, uint32_t npages)
+void *_kmmap(uint32_t virt, uint32_t npages, uint32_t flags)
+{
+	uint32_t ptflags = 0, pdflags = 0;
+	if(flags == MAP_WRITE) {
+		ptflags = _PTE_WRITABLE;
+		pdflags = _PDE_WRITABLE;
+	}else if(flags == (MAP_WRITE | MAP_USER)) {
+		ptflags = _PTE_WRITABLE | _PTE_USER;
+		pdflags = _PDE_WRITABLE | _PDE_USER;
+	}
+	uint32_t vaddr = virt;
+	if (npages > 1024) {
+		uint32_t number_of_allocs = npages / 1024;
+		for (unsigned int i = 0; i < number_of_allocs; i++) {
+			vmm_map(vaddr, 1024, ptflags, pdflags);
+			vaddr += 0x400000;
+		}
+		vmm_map(vaddr, npages % 1024, ptflags, pdflags);
+	} else
+		vmm_map(vaddr, npages, ptflags, pdflags);
+	return (void *) vaddr;
+}
+void _kmunmap(void *virt, size_t npages)
 {
 	if (!virt)
 		return;
@@ -291,7 +349,7 @@ void kmunmap(void *virt, uint32_t npages)
 	    &pdir->entries[PAGE_DIRECTORY_INDEX((uint32_t) virt)];
 	if (!pd_entry_is_present(*entry))
 		return;
-	ptable *pt = (ptable *) pd_entry_pfn(*entry);
+	ptable *pt = (ptable *) ((uint32_t) virt / 0x400000 * 0x1000);
 	if (!pt_entry_is_present
 	    (pt->entries[PAGE_TABLE_INDEX((uint32_t) virt)]))
 		return;
@@ -310,7 +368,6 @@ void kmunmap(void *virt, uint32_t npages)
 			kmunmap((void *) pt, 1);
 	}
 }
-
 void *vmm_alloc_addr(size_t num_pages, _Bool is_kernel)
 {
 	if (unlikely(is_kernel == true)) {
@@ -368,7 +425,7 @@ void *vmm_alloc_addr(size_t num_pages, _Bool is_kernel)
 		tosearch->next = new_area;
 		new_area->addr =
 		    last_user->addr + last_user->size * PAGE_SIZE;
-		if (new_area->addr + num_pages * PAGE_SIZE >= 0xC0000000) {
+		if (new_area->addr + num_pages * PAGE_SIZE >= kernel_lowest_addr) {
 			/* Out of virtual memory, return */
 			/* This if statement is critical, so its impossible for attackers to exploit the vmm to map over the kernel */
 			/* (therefor crashing the OS) */
@@ -423,34 +480,7 @@ int vmm_mark_addr_as_used(void *address, size_t pages)
 	tosearch->next = area;
 	return 0;
 }
-
-void *valloc(uint32_t npages,_Bool is_kernel)
-{
-	if (!npages)
-		return NULL;
-	void *vaddr = vmm_alloc_addr(npages, is_kernel);
-	uint32_t flags;
-	if(unlikely(is_kernel == true)) {
-		flags = MAP_WRITE | MAP_USER;
-	}else {
-		flags = MAP_WRITE | MAP_USER;
-	}
-	if (!kmmap((uint32_t) vaddr, npages,flags))
-		return NULL;
-	return vaddr;
-}
-
-void vfree(void *ptr, uint32_t npages)
-{
-	if (!npages)
-		return;
-	if (!ptr)
-		return;
-	kmunmap(ptr, npages);
-	vmm_free_addr(ptr);
-}
-
-pdirectory *vmm_fork()
+pdirectory *_vmm_fork()
 {
 	/*Get the current page directory */
 	pdirectory *tobeforked = get_directory();
@@ -462,7 +492,7 @@ pdirectory *vmm_fork()
 	memcpy((void *) newdir, (void *) tobeforked, sizeof(pdirectory));
 
 	for (int i = 0; i < 1024; i++) {
-		if (pd_entry_is_present(newdir->entries[i]) && i < 682
+		if (pd_entry_is_present(newdir->entries[i]) && i < 768
 		    && i != 0) {
 
 			/* Signal Copy-on-Write */
@@ -477,16 +507,23 @@ pdirectory *vmm_fork()
 					   _PDE_WRITABLE);
 		}
 	}
+	newdir = get_phys_addr(tobeforked, (uintptr_t)newdir);
+	kmunmap(newdir,1);
+	void *ptr = NULL;
+	while(ptr != newdir)
+	{
+		ptr = pmalloc(1);
+	}
 	return newdir;
 }
 
-void *get_phys_addr(pdirectory * dir, uint32_t virt)
+void *get_phys_addr(pdirectory *dir, uint32_t virt)
 {
 	pd_entry *entry = &dir->entries[PAGE_DIRECTORY_INDEX(virt)];
 	if (pd_entry_is_4MB(*entry)) {
 		return (void *) pd_entry_pfn(*entry);
 	} else {
-		ptable *pt = (ptable *) pd_entry_pfn(*entry);
+		ptable *pt = (ptable *) (virt / 0x400000 * 0x1000);
 		pt_entry *page = &pt->entries[PAGE_TABLE_INDEX(virt)];
 		return (void *) pt_entry_pfn(*page);
 	}

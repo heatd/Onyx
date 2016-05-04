@@ -46,7 +46,7 @@ kthread_t *get_current_thread()
 	return NULL;
 }
 extern _Bool is_initialized;
-kthread_t *kthread_create(kthread_entry_point_t entry, _Bool is_user, uintptr_t cr3,uintptr_t vcr3,_Bool is_fork)
+kthread_t *kthread_create(kthread_entry_point_t entry, _Bool is_user, uintptr_t cr3, _Bool is_fork)
 {
 	kthread_t *kt = kmalloc(sizeof(kthread_t));
 
@@ -62,10 +62,8 @@ kthread_t *kthread_create(kthread_entry_point_t entry, _Bool is_user, uintptr_t 
 		return NULL;
 	if(!cr3) {
 		cr3 = KERNEL_DEFAULT_PGD;
-		vcr3 = KERNEL_DEFAULT_PGD;
 	}
 	kt->thread_task->pgdir = (pdirectory *)cr3;
-	kt->thread_task->vpgdir = (pdirectory *)vcr3;
 	kt->is_fork = is_fork;
 	if (first == NULL) {
 		first = kt;

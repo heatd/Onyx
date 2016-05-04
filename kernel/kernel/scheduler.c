@@ -122,7 +122,7 @@ unsigned int sched_switch_task(uint32_t *old_esp)
 		current_task = first_task;	/*We just started multi-tasking, start with task 0 */
 	}
 	if(likely(current_task->pgdir != old_pg)) {
-		switch_directory(current_task->vpgdir, current_task->pgdir);
+		switch_directory(current_task->pgdir);
 	}
 	return (unsigned int) current_task->stack;	/*Return new stack pointer to ASM */
 }

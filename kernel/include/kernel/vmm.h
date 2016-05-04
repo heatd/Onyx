@@ -17,9 +17,7 @@ limitations under the License.
 #include <stdint.h>
 #include <kernel/pmm.h>
 #include <stdbool.h>
-typedef uint32_t DWORD;
-
-void vmm_init(uint32_t framebuffer_addr);
+#include <kernel/compiler.h>
 /* Page table defines just to help the code not have "magic values"*/
 #define _PTE_PRESENT		1
 #define _PTE_WRITABLE		2
@@ -43,6 +41,7 @@ void vmm_init(uint32_t framebuffer_addr);
 #define _PDE_CPU_GLOBAL		0x100
 #define _PDE_LV4_GLOBAL		0x200
 #define _PDE_FRAME			0x7FFFF000
+#ifdef __i386__
 typedef uint32_t pd_entry;
 typedef uint32_t pt_entry;
 /* i686 architecture defines 1024 entries per table */
@@ -50,7 +49,7 @@ typedef uint32_t pt_entry;
 #define PAGES_PER_DIR	1024
 #define PAGE_DIRECTORY_INDEX(x) (((x) >> 22) & 0x3ff)
 #define PAGE_TABLE_INDEX(x) (((x) >> 12) & 0x3ff)
-
+#endif
 /* page table represents 4mb address space */
 #define PTABLE_ADDR_SPACE_SIZE 0x400000
 
@@ -66,23 +65,15 @@ typedef struct ptable {
 	pt_entry entries[PAGES_PER_TABLE];
 }ptable;
 
-/*! page directory */
+/* page directory */
 
 typedef struct pdirectory {
 
 	pd_entry entries[PAGES_PER_DIR];
 }pdirectory;
-pdirectory* vmm_fork();
-void *vmm_map(uint32_t virt, uint32_t npages, uint32_t ptflags,uint32_t pdflags);
-int vmm_mark_addr_as_used(void*,size_t);
-void  vmm_finish();
-void* vmm_alloc_addr(size_t, _Bool);
-void  vmm_free_addr(void*  address);
 #define PAGE_RAM 0x1
 #define PAGE_KERNEL 0x2
 #define PAGE_USER 0x4
-int vmm_alloc_cow(uintptr_t);
-void* get_phys_addr (pdirectory* dir, uint32_t virt);
 #define PAGE_READ 0x1
 #define PAGE_WRITE 0x2
 #define PAGE_EXECUTABLE 0x4
@@ -97,90 +88,54 @@ void* get_phys_addr (pdirectory* dir, uint32_t virt);
 typedef struct area_strct
 {
 	uintptr_t addr; /* Address of pages */
-
 	size_t size; /* Size in pages */
-
 	uint8_t type; /* Type of page ( its type is uint8_t just to save some memory) */
-
 	uint8_t protection; /* R/W, just read, executable, etc... */
-
-	_Bool is_used;
+	_Bool is_used; /* Is it used or not (maybe merge with the type field)*/
 	struct area_strct* next; /* The next area_struct in the linked list */
 }area_struct;
-inline void pt_entry_set_bit(pt_entry* pt,uint32_t bit)
-{
-	*pt|= bit;
-}
-inline void pt_entry_unset_bit(pt_entry* pt,uint32_t bit)
-{
-	*pt&=~bit;
-}
-inline void pt_entry_set_frame(pt_entry* pt, uintptr_t p_addr)
-{
-	*pt=(*pt & ~_PTE_FRAME) | p_addr;
-}
-inline int pt_entry_is_present(pt_entry pt)
-{
-	return pt & _PTE_PRESENT;
-}
-inline int pt_entry_is_writable (pt_entry pt)
-{
-	return pt & _PTE_WRITABLE;
-}
-
-inline uintptr_t pt_entry_pfn (pt_entry pt)
-{
-	return pt & _PTE_FRAME;
-}
-inline void pd_entry_set_bit(pd_entry* pd,uint32_t bit)
-{
-	*pd|= bit;
-}
-inline void pd_entry_unset_bit(pd_entry* pd, uint32_t bit)
-{
-	*pd&=~bit;
-}
-inline void pd_entry_set_frame(pd_entry* pd,uintptr_t paddr)
-{
-	*pd=(*pd & ~_PDE_FRAME) | paddr;
-}
-inline _Bool pd_entry_is_present(pd_entry pd)
-{
-	return pd & _PDE_PRESENT;
-}
-inline _Bool pd_entry_is_user(pd_entry pd)
-{
-	return pd & _PDE_USER;
-}
-inline _Bool pd_entry_is_4MB(pd_entry pd)
-{
-	return pd & _PDE_4MB;
-}
-inline uintptr_t pd_entry_pfn(pd_entry pd)
-{
-	return pd & _PDE_FRAME;
-}
-inline _Bool pd_entry_is_writable (pd_entry pd)
-{
-	return pd & _PDE_WRITABLE;
-}
-inline void pd_entry_enable_global(pd_entry pd)
-{
-	pd|=_PDE_CPU_GLOBAL;
-}
-inline void _flush_tlb_page(unsigned long addr)
-{
-   	__asm__ __volatile__ ("invlpg (%0)" ::"r" (addr) : "memory");
-}
+/*************************************************
+* Arch dependent functions
+* They communicate with the architecture directly, being the abstraction layer
+**************************************************/
+NATIVE void *_kmmap(uint32_t virt, uint32_t npages,uint32_t flags); /* Native level part of kmmap */
+NATIVE void _kmunmap(void *addr, size_t size);
+NATIVE int vmm_mark_addr_as_used(void*,size_t);
+NATIVE void  vmm_finish();
+NATIVE void *vmm_alloc_addr(size_t, _Bool);
+NATIVE void  vmm_free_addr(void *address);
+NATIVE int vmm_alloc_cow(uintptr_t);
+NATIVE void *get_phys_addr (pdirectory *dir, uint32_t virt);
+NATIVE pdirectory *get_directory();
+NATIVE int _switch_directory (pdirectory* dir);
+NATIVE pdirectory* _vmm_fork();
+NATIVE void vmm_init(uintptr_t);
+/*************************************************
+* Arch neutral functions
+* They communicate with the native level functions
+**************************************************/
+/* Function: kmmap()
+*  Purpose: Map some memory into a certain address
+*/
 void* kmmap(uint32_t virt, uint32_t npages,uint32_t flags);
-
-void kmunmap(void* virt, uint32_t npages);
-
-void* valloc(uint32_t npages, _Bool is_kernel);
-
+/* Function: kmunmap()
+*  Purpose: Unmap some memory in a certain address
+*/
+void kmunmap(void* virt, size_t npages);
+/* Function: valloc()
+*  Purpose: Allocate a virtual address and kmmap()'it
+*/
+void* valloc(size_t npages, _Bool is_kernel);
+/* Function: vfree()
+*  Purpose: Free a virtual address and kmunmap()'it
+*/
 void vfree(void* ptr, uint32_t npages);
-
-int switch_directory (pdirectory* vdir, pdirectory* dir);
-
-pdirectory *get_directory();
+/* Function: switch_directory()
+*  Purpose: Switch the paging directory
+*/
+int switch_directory (pdirectory* dir);
+/* Function: vmm_fork()
+*  Purpose: Fork the current address space
+*/
+pdirectory* vmm_fork();
 #endif

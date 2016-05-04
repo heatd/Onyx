@@ -34,7 +34,7 @@ int kthread_get_id(kthread_t*);
 kthread_entry_point_t kthread_get_entry_point(kthread_t*);
 void kthread_start(kthread_t*);
 void kthread_terminate(kthread_t*);
-kthread_t* kthread_create(kthread_entry_point_t,_Bool is_user, uintptr_t cr3, uintptr_t vcr3,_Bool is_fork);
+kthread_t* kthread_create(kthread_entry_point_t,_Bool is_user, uintptr_t cr3, _Bool is_fork);
 void 	kthread_destroy(kthread_t*);
 kthread_t* get_current_thread();
 #endif

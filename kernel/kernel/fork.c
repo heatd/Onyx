@@ -22,8 +22,7 @@ limitations under the License.
 pid_t fork()
 {
 	pdirectory *newpd = vmm_fork();
-	switch_directory(newpd,get_phys_addr(get_directory(),(uint32_t) newpd));
-	kthread_t *kt = kthread_create(__builtin_return_address(0), true ,(uintptr_t) get_phys_addr(get_directory(),(uint32_t) newpd), (uintptr_t) newpd, true);
+	kthread_t *kt = kthread_create(__builtin_return_address(0), true, (uintptr_t) newpd, true);
 	process_t *p = process_create(0x600000,0x700000,get_current_process());
 	process_add_thread(p, kt);
 	kthread_start(kt);
