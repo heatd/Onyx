@@ -46,7 +46,7 @@ kthread_t *get_current_thread()
 	return NULL;
 }
 extern _Bool is_initialized;
-kthread_t *kthread_create(kthread_entry_point_t entry, _Bool is_user, uintptr_t cr3,uintptr_t vcr3)
+kthread_t *kthread_create(kthread_entry_point_t entry, _Bool is_user, uintptr_t cr3,uintptr_t vcr3,_Bool is_fork)
 {
 	kthread_t *kt = kmalloc(sizeof(kthread_t));
 
@@ -66,6 +66,7 @@ kthread_t *kthread_create(kthread_entry_point_t entry, _Bool is_user, uintptr_t 
 	}
 	kt->thread_task->pgdir = (pdirectory *)cr3;
 	kt->thread_task->vpgdir = (pdirectory *)vcr3;
+	kt->is_fork = is_fork;
 	if (first == NULL) {
 		first = kt;
 	} else
@@ -111,7 +112,7 @@ kthread_entry_point_t kthread_get_entry_point(kthread_t *kt)
 void kthread_start(kthread_t *kt)
 {
 	kt->is_running = true;
-	sched_create_task(kt->thread_task, kt->thread_entry, kt->is_user ? 0x1b : 0x08, kt->is_user ? 0x23 : 0x10);
+	sched_create_task(kt->thread_task, kt->thread_entry, kt->is_user ? 0x1b : 0x08, kt->is_user ? 0x23 : 0x10, kt->is_fork);
 }
 
 void kthread_terminate(kthread_t *kt)

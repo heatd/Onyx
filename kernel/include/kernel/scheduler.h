@@ -15,6 +15,7 @@ limitations under the License.
 #ifndef _SCHED_H
 #define _SCHED_H
 #include <stdint.h>
+#include <stdbool.h>
 #include <kernel/compiler.h>
 #include <kernel/registers.h>
 #include <kernel/vmm.h>
@@ -28,7 +29,7 @@ typedef struct task
 	struct task *next;
 
 }__attribute__((packed)) task_t;
-void sched_create_task(task_t*,void (*thread)(),uint32_t,uint32_t);
+void sched_create_task(task_t *task, void (*thread) (), uint32_t cs, uint32_t ss, _Bool is_fork);
 void sched_terminate_task(task_t*);
 unsigned int sched_switch_task(uint32_t *old_esp);
 #endif

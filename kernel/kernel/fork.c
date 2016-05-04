@@ -19,15 +19,12 @@ limitations under the License.
 #include <stdio.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
-static int cnt = 0;
 pid_t fork()
 {
 	pdirectory *newpd = vmm_fork();
 	switch_directory(newpd,get_phys_addr(get_directory(),(uint32_t) newpd));
-	kthread_t *kt = kthread_create(__builtin_return_address(0), !cnt ? false : true ,(uintptr_t) get_phys_addr(get_directory(),(uint32_t) newpd), (uintptr_t) newpd);
-	if(!cnt)
-		cnt++;
-	process_t *p = process_create(0x600000,0x700000,cnt ? get_current_process() : NULL);
+	kthread_t *kt = kthread_create(__builtin_return_address(0), true ,(uintptr_t) get_phys_addr(get_directory(),(uint32_t) newpd), (uintptr_t) newpd, true);
+	process_t *p = process_create(0x600000,0x700000,get_current_process());
 	process_add_thread(p, kt);
 	kthread_start(kt);
 	return p->pid;

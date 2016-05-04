@@ -41,8 +41,7 @@ void *get_current_stack()
 	printf("%p\n",current_task->stack);
 	return current_task->stack;
 }
-void sched_create_task(task_t * task, void (*thread) (), uint32_t cs,
-		       uint32_t ss);
+void sched_create_task(task_t *task, void (*thread) (), uint32_t cs, uint32_t ss, _Bool is_fork);
 /*	This is a version of _exit, but exits the thread instead of the process.
 	It doesn't release memory, unmap memory or call destructors.
 	It terminates the task from the scheduler, and yields the control
@@ -53,14 +52,17 @@ void _exit_task()
 	sched_terminate_task(current_task);
 	__asm__ __volatile__ ("int $0x50");	/* yield the current task */
 }
-void sched_create_task(task_t *task, void (*thread) (), uint32_t cs,
-		       uint32_t ss)
+void sched_create_task(task_t *task, void (*thread) (), uint32_t cs, uint32_t ss, _Bool is_fork)
 {
-	task->stack = (uint32_t *)((uint32_t)valloc(2,false) + 0x2000);
+	register uint32_t esp __asm__("esp");
+	if(is_fork) {
+		printf("esp: %p\n",esp);
+		task->stack = (uint32_t *)esp;
+	}else
+		task->stack = (uint32_t *)((uint32_t)valloc(2,false) + 0x2000);
 	uint32_t *stack_base = task->stack;
 	if (task->stack == (uint32_t *)0x2000)
 		abort();
-	printf("thread has stack %p\n",task->stack);
 	task->is_kernel = (cs == 0x1b) ? false:true;
 	/* Push the return address */
 	*--task->stack = (uint32_t) _exit_task;
@@ -108,10 +110,6 @@ void sched_terminate_task(task_t *task)
 		search_task->next = task->next;
 	}
 }
-__attribute__((noinline)) void stop222()
-{
-	__asm__ __volatile__("mov %eax,%eax");
-}
 unsigned int sched_switch_task(uint32_t *old_esp)
 {
 	pdirectory *old_pg = NULL;
@@ -125,9 +123,6 @@ unsigned int sched_switch_task(uint32_t *old_esp)
 	}
 	if(likely(current_task->pgdir != old_pg)) {
 		switch_directory(current_task->vpgdir, current_task->pgdir);
-	}
-	if(!current_task->is_kernel) {
-		stop222();
 	}
 	return (unsigned int) current_task->stack;	/*Return new stack pointer to ASM */
 }

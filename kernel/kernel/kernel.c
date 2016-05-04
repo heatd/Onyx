@@ -154,18 +154,12 @@ void kernel_main()
 	   The bootstrap thread never gets executed again,
 	   so this thread will stop executing when we start kt
 	   */
-	kthread_t *kt = kthread_create(kernel_late, false, 0,0);
+	kthread_t *kt = kthread_create(kernel_late, false, 0,0, false);
 	kthread_start(kt);
 	__asm__ __volatile__("sti");
 	for (;;) {
 		__asm__ __volatile__ ("hlt");
 	}
-}
-void test()
-{
-	printf("Failfish\n");
-	printf("Current PID: %d\n",sys_getpid());
-	while(1);
 }
 void kernel_late()
 {
@@ -205,11 +199,8 @@ void kernel_late()
 	TERM_OK("Serial driver initialized");
 
 	process_init();
-	/* Fork the kernel */
-	pid_t pid = fork();
-	__asm__ __volatile__("sti");
-	if(pid == 0)
-		exec("/usr/bin/daemon"); /* Exec the daemon */
+
+	exec("/usr/bin/daemon"); /* Exec the /usr/bin/daemon */
 
 	for (;;) {
 		__asm__ __volatile__ ("hlt");
