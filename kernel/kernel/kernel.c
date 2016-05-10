@@ -81,6 +81,7 @@ ARCH_SPECIFIC void init_keyboard();
 multiboot_info_t *mbt;
 static multiboot_memory_map_t *mmap_arr[10];
 static uint32_t initrd_addr;
+static uint32_t initrd_size;
 extern uint32_t end;
 extern char __BUILD_NUMBER;
 extern char __BUILD_DATE;
@@ -127,6 +128,7 @@ void kernel_early(multiboot_info_t * info, size_t magic)
 	multiboot_module_t *mod_start_ptr =
 	    (multiboot_module_t *) mbt->mods_addr;
 	initrd_addr = mod_start_ptr->mod_start;
+	initrd_size = mod_start_ptr->mod_end - mod_start_ptr->mod_start;
 }
 void kernel_main()
 {
@@ -143,18 +145,20 @@ void kernel_main()
 	vmm_finish();
 	/*Initialize the Initrd */
 	fs_root = initrd_init(initrd_addr);
-
+	float initrd_sizef = (float)initrd_size / (1024.0f * 1024.0f); /* Using double for the actual size for more precision */
+	printf("Initrd size: %f MiB\n",initrd_sizef);
 	if (!fs_root)
 		panic("Could not allocate enough memory to allocate the \
 		filesystem root\n");
-	/*Initialize PS/2 keyboard drivers */
+	/* Initialize PS/2 keyboard drivers */
 	init_keyboard();
 	TERM_OK("Initializing multitasking");
-	/* Start the first thread in the kernel.
+	/*
+	   Start the first thread in the kernel.
 	   The bootstrap thread never gets executed again,
 	   so this thread will stop executing when we start kt
 	   */
-	kthread_t *kt = kthread_create(kernel_late, false, 0,0, false);
+	kthread_t *kt = kthread_create(kernel_late, false, 0, false);
 	kthread_start(kt);
 	__asm__ __volatile__("sti");
 	for (;;) {

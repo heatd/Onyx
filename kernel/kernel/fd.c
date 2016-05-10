@@ -23,11 +23,9 @@ ssize_t sys_write(int fd, const void *buf, size_t count)
 	if (fd == 1) {/*stdout */
 		printf("%s",buf);
 	} else if (fd == 2) {	/* stderr */
-		tty_set_color(0xFF0000);
 		tty_write(buffer, count);
-		tty_set_color(0xC0C0C0);
 	}
-	/*Implement writing to files,when we support ATA/PATA/SATA/AHCI*/
+	/* Implement writing to files,when we support writing to devices */
 	return count;
 }
 

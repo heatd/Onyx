@@ -296,7 +296,7 @@ kthread_t *elf_load_file(char *file)
 		return NULL;
 	}
 	}
-	kthread_t *kt = kthread_create((kthread_entry_point_t) (header->e_entry), true, 0,0, false);
+	kthread_t *kt = kthread_create((kthread_entry_point_t) (header->e_entry), true, 0, false);
 
 	return kt;
 }

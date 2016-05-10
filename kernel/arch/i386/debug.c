@@ -25,7 +25,7 @@ limitations under the License.
  **************************************************************************/
 #include <kernel/registers.h>
 __attribute__ ((noinline))
-void get_thread_ctx(registers_t * regs)
+void get_thread_ctx(registers_t *regs)
 {
 	__asm__ __volatile__ ("mov %%eax,%0":"=a" (regs->eax));
 	__asm__ __volatile__ ("mov %%ebx,%0":"=a" (regs->ebx));
@@ -48,6 +48,6 @@ void halt()
 	__asm__ __volatile__ ("cli");
 	__asm__ __volatile__ ("hlt");
 	for (;;);
-	/* If execution passes this, the processor is broken (or the code is broken, i mean, the compiler, but whatever) */
+	/* If execution passes this, the processor is broken (or the code is broken, I mean, the compiler, but whatever) */
 	__builtin_unreachable();
 }

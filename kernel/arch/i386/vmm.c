@@ -349,7 +349,7 @@ void _kmunmap(void *virt, size_t npages)
 	    &pdir->entries[PAGE_DIRECTORY_INDEX((uint32_t) virt)];
 	if (!pd_entry_is_present(*entry))
 		return;
-	ptable *pt = (ptable *) ((uint32_t) virt / 0x400000 * 0x1000);
+	ptable *pt = (ptable *) ((uint32_t) (0xFFC00000 + (uint32_t)virt / 0x400000 * 0x1000));
 	if (!pt_entry_is_present
 	    (pt->entries[PAGE_TABLE_INDEX((uint32_t) virt)]))
 		return;
@@ -509,6 +509,7 @@ pdirectory *_vmm_fork()
 	}
 	newdir = get_phys_addr(tobeforked, (uintptr_t)newdir);
 	kmunmap(newdir,1);
+	printf("hey");
 	void *ptr = NULL;
 	while(ptr != newdir)
 	{
@@ -523,34 +524,45 @@ void *get_phys_addr(pdirectory *dir, uint32_t virt)
 	if (pd_entry_is_4MB(*entry)) {
 		return (void *) pd_entry_pfn(*entry);
 	} else {
-		ptable *pt = (ptable *) (virt / 0x400000 * 0x1000);
+		ptable *pt = (ptable *) (0xFFC00000 + (virt / 0x400000 * 0x1000));
 		pt_entry *page = &pt->entries[PAGE_TABLE_INDEX(virt)];
 		return (void *) pt_entry_pfn(*page);
 	}
 }
-
+static spinlock_t spl;
 int vmm_alloc_cow(uintptr_t address)
 {
+	acquire(&spl);
+	printf("(mooo)address: %p\n",address);
 	pdirectory *dir = get_directory();
 	if (!dir)
 		abort();
 
 	void *new_page = valloc(1,true);
+	printf("new_page == %p\n",new_page);
 	memcpy(new_page, (void *) address, 4096);
 	uint32_t new_frame =
 	    (uint32_t) get_phys_addr(dir, (uint32_t) new_page);
+	if(!new_frame)
+		panic("New frame == NULL");
 	pd_entry *entry = &dir->entries[PAGE_DIRECTORY_INDEX(address)];
 	/* TODO: Complete the implementation */
-	if (!(TEST_BIT(*entry, 10)) && TEST_BIT(*entry, 9)) {
+	if (!(TEST_BIT(*entry, 10)) && TEST_BIT(*entry, 9))
+	{
 		return 1;
 	}
 	if (pd_entry_is_4MB(*entry)) {
 		pd_entry_set_frame(entry, new_frame);
+		printf("new_frame = %p\n", new_frame);
 	} else {
-		ptable *pt = (ptable *) pd_entry_pfn(*entry);
+		ptable *pt = (ptable *) 0xFFC00000 + (address / 0x400000 * 0x1000);
 		pt_entry_set_frame(&pt->entries[PAGE_TABLE_INDEX(address)],
 				   new_frame);
+		printf("new_frame = %p\n", new_frame);
 	}
+	/* NOT SMP SAFE */
 	vfree(new_page, 1);
+	pmalloc(1);
+	release(&spl);
 	return 0;
 }

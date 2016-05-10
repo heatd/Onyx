@@ -42,9 +42,9 @@ void vfree(void *ptr, uint32_t npages)
 	kmunmap(ptr, npages);
 	vmm_free_addr(ptr);
 }
-int switch_directory (pdirectory* vdir, pdirectory* dir)
+int switch_directory (pdirectory* dir)
 {
-	return _switch_directory(vdir, dir);
+	return _switch_directory(dir);
 }
 void kmunmap(void *virt, size_t npages)
 {
