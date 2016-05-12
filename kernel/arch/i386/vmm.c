@@ -250,13 +250,10 @@ void *vmm_map(uint32_t virt, uint32_t npages, uint32_t ptflags,uint32_t pdflags)
 	if (!npages)
 		return NULL;
 	pdirectory *pdir = (pdirectory *)0xFFFFF000;
-	if (npages > 1024)
-		npages = 1024;
 	pd_entry *entry = &pdir->entries[PAGE_DIRECTORY_INDEX(virt)];
 	ptable *pt = NULL;
 	if (pd_entry_is_4MB(*entry) == 1 && pd_entry_pfn(*entry) != 0)
 		return NULL;
-
 	if (npages == 1024) {
 		pd_entry_set_bit(entry, _PDE_PRESENT);
 		if(ptflags != 0 && pdflags != 0){
@@ -270,7 +267,7 @@ void *vmm_map(uint32_t virt, uint32_t npages, uint32_t ptflags,uint32_t pdflags)
 		pd_entry_set_bit(entry, _PDE_4MB);
 		void *ptr = pmalloc(1024);
 		pd_entry_set_frame(entry, (uintptr_t) ptr);
-		return ptr;
+		return (void *)virt;
 	}
 	if (pd_entry_is_present(*entry))
 		pt = (ptable *) (0xFFC00000 + (virt / 0x400000 * 0x1000));
@@ -312,6 +309,7 @@ void *vmm_map(uint32_t virt, uint32_t npages, uint32_t ptflags,uint32_t pdflags)
 		/*...and add it to the page table */
 		pt->entries[PAGE_TABLE_INDEX(vaddr)] = page;
 	}
+	printf("test");
 	return (void *) ret_addr;
 }
 void *_kmmap(uint32_t virt, uint32_t npages, uint32_t flags)
@@ -487,14 +485,13 @@ pdirectory *_vmm_fork()
 	/* if there is none,return */
 	if (!tobeforked)
 		return NULL;
-	/* Copy the page directory to a new address */
 	pdirectory *newdir = (pdirectory *) valloc(1,true);
+	/* Copy the page directory to a new address */
 	memcpy((void *) newdir, (void *) tobeforked, sizeof(pdirectory));
 
 	for (int i = 0; i < 1024; i++) {
 		if (pd_entry_is_present(newdir->entries[i]) && i < 768
 		    && i != 0) {
-
 			/* Signal Copy-on-Write */
 			SET_BIT(newdir->entries[i], 10);
 			SET_BIT(newdir->entries[i], 9);
@@ -507,15 +504,14 @@ pdirectory *_vmm_fork()
 					   _PDE_WRITABLE);
 		}
 	}
-	newdir = get_phys_addr(tobeforked, (uintptr_t)newdir);
-	kmunmap(newdir,1);
-	printf("hey");
+	pdirectory *pnewdir = get_phys_addr(tobeforked, (uintptr_t)newdir);
+	vfree(newdir,1);
 	void *ptr = NULL;
-	while(ptr != newdir)
+	while(ptr != pnewdir)
 	{
 		ptr = pmalloc(1);
 	}
-	return newdir;
+	return pnewdir;
 }
 
 void *get_phys_addr(pdirectory *dir, uint32_t virt)
@@ -529,22 +525,12 @@ void *get_phys_addr(pdirectory *dir, uint32_t virt)
 		return (void *) pt_entry_pfn(*page);
 	}
 }
-static spinlock_t spl;
 int vmm_alloc_cow(uintptr_t address)
 {
-	acquire(&spl);
-	printf("(mooo)address: %p\n",address);
 	pdirectory *dir = get_directory();
 	if (!dir)
 		abort();
 
-	void *new_page = valloc(1,true);
-	printf("new_page == %p\n",new_page);
-	memcpy(new_page, (void *) address, 4096);
-	uint32_t new_frame =
-	    (uint32_t) get_phys_addr(dir, (uint32_t) new_page);
-	if(!new_frame)
-		panic("New frame == NULL");
 	pd_entry *entry = &dir->entries[PAGE_DIRECTORY_INDEX(address)];
 	/* TODO: Complete the implementation */
 	if (!(TEST_BIT(*entry, 10)) && TEST_BIT(*entry, 9))
@@ -552,17 +538,36 @@ int vmm_alloc_cow(uintptr_t address)
 		return 1;
 	}
 	if (pd_entry_is_4MB(*entry)) {
-		pd_entry_set_frame(entry, new_frame);
-		printf("new_frame = %p\n", new_frame);
+		char *mem = kmmap(0xD0000000,1024, MAP_USER | MAP_WRITE);
+		if(!mem)
+			panic("Kernel address space out of memory");
+
+		/* Align the pointer to the nearest 4mb page */
+		void *aligned_ptr = (void *) (address - (address % 0x400000));
+		memcpy(mem, aligned_ptr, 0x400000);
+		pd_entry_set_frame(entry, (uint32_t)get_phys_addr(get_directory(),(uint32_t)mem));
+		pd_entry_set_bit(entry, _PDE_WRITABLE);
+		/* TODO: Put a spinlock right here */
+		kmunmap(mem, 1024);
+		pmalloc(1024);
 	} else {
-		ptable *pt = (ptable *) 0xFFC00000 + (address / 0x400000 * 0x1000);
+		void *new_page = valloc(1,true);
+		memcpy(new_page, (void *) address, 4096);
+		uint32_t new_frame =
+		    (uint32_t) get_phys_addr(dir, (uint32_t) new_page);
+		if(!new_frame)
+			panic("New frame == NULL");
+		ptable *pt = (ptable *) (0xFFC00000 + (address / 0x400000 * 0x1000));
+		if(pt_entry_is_writable(pt->entries[PAGE_TABLE_INDEX(address)])) {
+			/* Already COW'ed*/
+			return 0;
+		}
 		pt_entry_set_frame(&pt->entries[PAGE_TABLE_INDEX(address)],
 				   new_frame);
-		printf("new_frame = %p\n", new_frame);
+		pt_entry_set_bit(&pt->entries[PAGE_TABLE_INDEX(address)],_PTE_WRITABLE);
+		/* NOT SMP SAFE */
+		vfree(new_page, 1);
+		pmalloc(1);
 	}
-	/* NOT SMP SAFE */
-	vfree(new_page, 1);
-	pmalloc(1);
-	release(&spl);
 	return 0;
 }

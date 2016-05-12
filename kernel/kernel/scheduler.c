@@ -54,10 +54,9 @@ void _exit_task()
 }
 void sched_create_task(task_t *task, void (*thread) (), uint32_t cs, uint32_t ss, _Bool is_fork)
 {
-	register uint32_t esp __asm__("esp");
+	extern uint32_t *last_stack;
 	if(is_fork) {
-		printf("esp: %p\n",esp);
-		task->stack = (uint32_t *)esp;
+		task->stack = (uint32_t *)last_stack;
 	}else
 		task->stack = (uint32_t *)((uint32_t)valloc(2,false) + 0x2000);
 	uint32_t *stack_base = task->stack;
@@ -113,6 +112,8 @@ void sched_terminate_task(task_t *task)
 unsigned int sched_switch_task(uint32_t *old_esp)
 {
 	pdirectory *old_pg = NULL;
+/*	if(old_esp > (uint32_t*)0xC0000000)
+		panic("Debug Me!");*/
 	if (likely(current_task != NULL)) {
 		/*Were we even running a task? */
 		current_task->stack = old_esp;	/*Save the new esp for the thread */

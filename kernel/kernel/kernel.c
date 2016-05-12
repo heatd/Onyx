@@ -145,8 +145,8 @@ void kernel_main()
 	vmm_finish();
 	/*Initialize the Initrd */
 	fs_root = initrd_init(initrd_addr);
-	float initrd_sizef = (float)initrd_size / (1024.0f * 1024.0f); /* Using double for the actual size for more precision */
-	printf("Initrd size: %f MiB\n",initrd_sizef);
+	//float initrd_sizef = (float)initrd_size / (1024.0f * 1024.0f); /* Using double for the actual size for more precision */
+	//printf("Initrd size: %f MiB\n",initrd_sizef);
 	if (!fs_root)
 		panic("Could not allocate enough memory to allocate the \
 		filesystem root\n");
@@ -203,7 +203,6 @@ void kernel_late()
 	TERM_OK("Serial driver initialized");
 
 	process_init();
-
 	exec("/usr/bin/daemon"); /* Exec the /usr/bin/daemon */
 
 	for (;;) {

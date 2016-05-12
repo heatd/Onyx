@@ -62,7 +62,11 @@ uint32_t syscall(uint32_t edi, uint32_t edx, uint32_t ecx, uint32_t ebx,
 		}
 	case 4:
 		/*fork(2) */
-		return fork();
+		{
+			int pid = fork();
+			printf("Returned from fork\n");
+			return pid;
+		}
 	case 5:
 		{
 			/* getpid(2)*/

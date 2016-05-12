@@ -5,7 +5,7 @@ set -e
 mkdir -p isodir
 mkdir -p isodir/boot
 mkdir -p isodir/boot/grub
-i686-spartix-gcc -O2 -I../toolchains/i686-spartix/i686-spartix/included/ test.c -o daemon
+i686-spartix-gcc -O2 -g -I../toolchains/i686-spartix/i686-spartix/included/ test.c -o daemon
 mkdir -p sysroot/usr/bin
 cp daemon sysroot/usr/bin/daemon
 ROOTDIR="$(pwd)"

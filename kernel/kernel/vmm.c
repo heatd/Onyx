@@ -13,7 +13,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 #include <kernel/vmm.h>
-
+#include <string.h>
+#include <stdio.h>
+#include <kernel/panic.h>
 void* kmmap(uint32_t virt, uint32_t npages,uint32_t flags)
 {
 	return _kmmap(virt, npages, flags);
@@ -23,15 +25,20 @@ void *valloc(size_t npages,_Bool is_kernel)
 	if (!npages)
 		return NULL;
 	void *vaddr = vmm_alloc_addr(npages, is_kernel);
-	uint32_t flags;
+	uint32_t flags = 0;
 	if(unlikely(is_kernel == true)) {
 		flags = MAP_WRITE | MAP_USER;
 	}else {
 		flags = MAP_WRITE | MAP_USER;
 	}
-	if (!kmmap((uint32_t) vaddr, npages,flags))
+	void *mem = kmmap((uint32_t) vaddr, npages,flags);
+	if (!mem)
 		return NULL;
-	return vaddr;
+	printf("mem: %p\n",mem);
+	if(mem != vaddr) {
+		panic("Something is wrong!");
+	}
+	return mem;
 }
 void vfree(void *ptr, uint32_t npages)
 {

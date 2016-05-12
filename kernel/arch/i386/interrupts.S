@@ -12,6 +12,7 @@
 ;See the License for the specific language governing permissions and
 ;limitations under the License.
 section .bss
+	global last_stack
 	last_stack: resd 1
 section .text
 
@@ -94,12 +95,6 @@ global _syscall
 _syscall:
 	cli
 	mov [last_stack], esp
-	push eax
-	extern get_current_stack
-	call get_current_stack
-	mov ebp, eax
-	pop eax
-	mov esp, ebp
 	push eax
 	push ebx
 	push ecx

@@ -21,10 +21,15 @@ limitations under the License.
 #include <kernel/process.h>
 pid_t fork()
 {
+	/* Fork the address space */
 	pdirectory *newpd = vmm_fork();
+	/* Create a kthread struct */
 	kthread_t *kt = kthread_create(__builtin_return_address(0), true, (uintptr_t) newpd, true);
+	/* Create a process struct */
 	process_t *p = process_create(0x600000,0x700000,get_current_process());
 	process_add_thread(p, kt);
+	/* Start it */
 	kthread_start(kt);
+	/* Return the PID */
 	return p->pid;
 }

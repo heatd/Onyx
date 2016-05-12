@@ -1,19 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-volatile int i;
-__attribute__ ((noinline)) void forked()
-{
-	int i;
-	volatile char *h = &i;
-	*h = 'c';
-}
+const char *msg = "[INIT] /usr/bin/daemon launched!\n";
 int main()
 {
-	asm volatile("movl $4, %eax\t\nint $0x80");
-	register unsigned int eax asm("eax");
-	printf("a");
-	forked();
+	asm volatile("mov $0, %%eax\t\nmov $1, %%ebx\t\nmov %0, %%ecx\t\nmov $26, %%edx\t\nint $0x80"::"r"(msg):"eax","ebx","ecx","edx");
 	while(1);
 	return 0;
 }
