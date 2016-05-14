@@ -2,9 +2,14 @@
 #include <stdlib.h>
 #include <unistd.h>
 const char *msg = "[INIT] /usr/bin/daemon launched!\n";
+int i = 0;
 int main()
 {
-	asm volatile("mov $0, %%eax\t\nmov $1, %%ebx\t\nmov %0, %%ecx\t\nmov $26, %%edx\t\nint $0x80"::"r"(msg):"eax","ebx","ecx","edx");
+	//asm volatile("mov $4, %eax\t\nint $0x80");
+	i = 5;
+	while(1);
+	if( i == 5)
+		return 1;
 	while(1);
 	return 0;
 }

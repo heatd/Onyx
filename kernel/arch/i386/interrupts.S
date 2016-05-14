@@ -11,6 +11,8 @@
 ;WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 ;See the License for the specific language governing permissions and
 ;limitations under the License.
+section .rodata
+	msg db "Returned from fork",10,0x0
 section .bss
 	global last_stack
 	last_stack: resd 1
@@ -103,6 +105,10 @@ _syscall:
 	call syscall
 	add esp,20
 	mov esp, [last_stack]
+	push msg
+	extern printf
+	call printf
+	add esp,4
 	iret
 ISR_NOERRCODE 0
 ISR_NOERRCODE 1

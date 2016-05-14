@@ -1,8 +1,0 @@
-Observations:
-	The ESP is correct
-	I'm not sure if the memory is mapped correctly
-	I think the TSS might be ruining task switching
-	Needs alot of debugging
-	I need to implement CR3 task switching
-	There is a very serious bug in the GDT, as the entries were conforming
-	Thats whats causing the triple fault, as the processor is respecting the GDT entries, so it cannot jump to higher privileged code

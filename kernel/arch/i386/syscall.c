@@ -64,7 +64,6 @@ uint32_t syscall(uint32_t edi, uint32_t edx, uint32_t ecx, uint32_t ebx,
 		/*fork(2) */
 		{
 			int pid = fork();
-			printf("Returned from fork\n");
 			return pid;
 		}
 	case 5:

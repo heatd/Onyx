@@ -26,7 +26,8 @@ pid_t fork()
 	/* Create a kthread struct */
 	kthread_t *kt = kthread_create(__builtin_return_address(0), true, (uintptr_t) newpd, true);
 	/* Create a process struct */
-	process_t *p = process_create(0x600000,0x700000,get_current_process());
+	void *mem = vmm_alloc_addr(1024, false);
+	process_t *p = process_create((uint32_t)mem, (uint32_t)mem + 0x400000,get_current_process());
 	process_add_thread(p, kt);
 	/* Start it */
 	kthread_start(kt);

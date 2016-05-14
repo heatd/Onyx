@@ -309,7 +309,6 @@ void *vmm_map(uint32_t virt, uint32_t npages, uint32_t ptflags,uint32_t pdflags)
 		/*...and add it to the page table */
 		pt->entries[PAGE_TABLE_INDEX(vaddr)] = page;
 	}
-	printf("test");
 	return (void *) ret_addr;
 }
 void *_kmmap(uint32_t virt, uint32_t npages, uint32_t flags)

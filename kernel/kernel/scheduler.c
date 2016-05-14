@@ -54,9 +54,9 @@ void _exit_task()
 }
 void sched_create_task(task_t *task, void (*thread) (), uint32_t cs, uint32_t ss, _Bool is_fork)
 {
-	extern uint32_t *last_stack;
+	register uint32_t *ebp = __builtin_frame_address(0);
 	if(is_fork) {
-		task->stack = (uint32_t *)last_stack;
+		task->stack = (uint32_t *)ebp;
 	}else
 		task->stack = (uint32_t *)((uint32_t)valloc(2,false) + 0x2000);
 	uint32_t *stack_base = task->stack;

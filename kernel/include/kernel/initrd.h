@@ -36,6 +36,6 @@ typedef struct tar_header
 #define TAR_TYPE_DIR		'5'
 /*I will only need to support these types,so more isn't needed */
 uint32_t tar_get_size(const char *in);
-unsigned int tar_parse(uint32_t address);
-fs_node_t* initrd_init(uint32_t addr);
+unsigned int tar_parse(uintptr_t address);
+fs_node_t *initrd_init(uintptr_t addr);
 #endif
