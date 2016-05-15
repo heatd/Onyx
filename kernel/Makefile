@@ -13,11 +13,11 @@ BOOTDIR?=$(EXEC_PREFIX)/boot
 INCLUDEDIR?=$(PREFIX)/include
 
 include ../kversion.config
-CFLAGS:=$(CFLAGS) -mtune=pentium4 -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-strong -ftree-vectorize -ftree-vectorizer-verbose=7
+CFLAGS:=$(CFLAGS) -ffreestanding -mcmodel=kernel -fbuiltin -Wall -Wextra -fstack-protector-strong -ftree-vectorize -ftree-vectorizer-verbose=7
 CPPFLAGS:=$(CPPFLAGS) -D__is_spartix_kernel -Iinclude -DKERNEL_VERSION='"$(KERNEL_VERSION)"' -DKERNEL_BRANCH='"$(KERNEL_BRANCH)"'
-LDFLAGS:=$(LDFLAGS) -fwhole-program -fkeep-inline-functions -flto
+LDFLAGS:=$(LDFLAGS) -z max-page-size=0x1000 -fwhole-program -fkeep-inline-functions -flto
 LIBS:=$(LIBS) -nostdlib -lk -lgcc
-
+CXXFLAGS:=-fno-exceptions -fno-rtti
 ARCHDIR:=arch/$(HOSTARCH)
 
 include $(ARCHDIR)/make.config
@@ -28,9 +28,9 @@ LIBS:=$(LIBS) $(KERNEL_ARCH_LIBS)
 
 OBJS:=\
 $(patsubst %.c,%.o,$(wildcard drivers/*/*.c)) \
-$(patsubst %.c,%.o,$(wildcard kernel/*.c)) \
-$(patsubst %.c,%.o,$(wildcard kernel/*/*.c)) \
-$(patsubst %.c,%.o,$(wildcard $(ARCHDIR)/*.c)) \
+$(patsubst %.cpp,%.o,$(wildcard kernel/*.cpp)) \
+$(patsubst %.cpp,%.o,$(wildcard kernel/*/*.cpp)) \
+$(patsubst %.cpp,%.o,$(wildcard $(ARCHDIR)/*.cpp)) \
 $(filter-out $(ARCHDIR)/crti.o, $(patsubst %.S,%.o,$(wildcard $(ARCHDIR)/*.S)))
 CRTI_OBJ:=$(ARCHDIR)/crti.o
 CRTBEGIN_OBJ:=$(shell $(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=crtbegin.o)
@@ -54,14 +54,17 @@ all: vmspartix
 .PHONY: all clean install install-headers install-kernel
 
 vmspartix: BUILD $(OBJ_LINK_LIST) $(ARCHDIR)/linker.ld
-
+	echo $(OBJS)
 	$(CC) -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(OBJ_LINK_LIST) $(LDFLAGS) $(LIBS)
 
 %.o: %.c
 	$(CC) -c $< -o $@ $(CFLAGS) $(CPPFLAGS)
 
 %.o: %.S
-	nasm -felf32 $< -o $@
+	nasm -felf64 $< -o $@
+
+%.o: %.cpp
+	$(CXX) -c $< -o $@ -std=c++14 $(CFLAGS) $(CPPFLAGS) $(CXXFLAGS)
 
 clean:
 	rm -f vmspartix $(OBJS) $(ALL_OUR_OBJS) *.o */*.o */*/*.o

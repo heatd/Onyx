@@ -5,9 +5,6 @@ set -e
 mkdir -p isodir
 mkdir -p isodir/boot
 mkdir -p isodir/boot/grub
-i686-spartix-gcc -O2 -g -I../toolchains/i686-spartix/i686-spartix/included/ test.c -o daemon
-mkdir -p sysroot/usr/bin
-cp daemon sysroot/usr/bin/daemon
 ROOTDIR="$(pwd)"
 cd sysroot
 echo "Generating initrd"
@@ -32,11 +29,11 @@ menuentry "Spartix" {
   	insmod gfxterm
 	terminal_output gfxterm
 	echo "Loading the vmspartix kernel"
-	multiboot /boot/vmspartix.xz
+	multiboot2 /boot/vmspartix.xz
 	echo "done."
 	set gfxpayload=1024x768x32
 	echo "Loading the initrd"
-	module    /boot/initrd.tar.xz
+	module /boot/initrd.tar.xz
 	echo "done."
 	boot
 }

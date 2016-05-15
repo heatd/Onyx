@@ -1,2 +1,2 @@
 #!/bin/sh
-echo i686-spartix
+echo x86_64-elf

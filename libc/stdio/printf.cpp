@@ -142,7 +142,7 @@ int printf(const char *__restrict__ format, ...)
 			if (!ptr)
 				print("(nil)", strlen("(nil)"));
 			else {
-				unsigned int i = (unsigned int) ptr;
+				uintptr_t i = (uintptr_t) ptr;
 				char buffer[30] = { 0 };
 				itoa(i, 16, buffer, true);
 				print("0x", strlen("0x"));

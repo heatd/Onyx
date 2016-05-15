@@ -15,7 +15,6 @@ limitations under the License.
 #include <drivers/serial.h>
 #include <string.h>
 #include <stdio.h>
-#include <kernel/fs.h>
 #include <kernel/panic.h>
 uint32_t serial_write_nd(fs_node_t *node, uint32_t offset, uint32_t size, void *buffer)
 {
@@ -45,11 +44,11 @@ void serial_init()
 	outb(PORT + 3, 0x03);
 	outb(PORT + 2, 0xC7);
 	outb(PORT + 4, 0x0B);
-	fs_node_t *dev = open_fs(NULL,0,0, "/dev/serial0");
+	/*fs_node_t *dev = open_fs(NULL,0,0, "/dev/serial0");
 	if(!dev)
 		panic("Could allocate a node for serial0");
 	dev->flags = FS_CHARDEVICE;
-	dev->write = &serial_write_nd;
+	dev->write = &serial_write_nd;*/
 }
 char serial_read()
 {

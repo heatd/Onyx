@@ -14,10 +14,10 @@ limitations under the License.
 */
 #pragma once
 #include <stddef.h>
-#include <stdint-gcc.h>
-void tty_init(void);
-void tty_put_char(char c);
-void tty_write(const char* data, size_t size);
-void tty_write_string(const char* data);
-void tty_set_color(int color);
-void tty_swap();
+#include <stdint.h>
+extern "C++" void tty_init(void);
+extern "C++" void tty_put_char(char c);
+extern "C++" void tty_write(const char* data, size_t size);
+extern "C++" void tty_write_string(const char* data);
+extern "C++" void tty_set_color(int color);
+extern "C++" void tty_swap();

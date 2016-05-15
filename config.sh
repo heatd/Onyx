@@ -14,14 +14,16 @@ export BOOTDIR=/boot
 export LIBDIR=$EXEC_PREFIX/lib
 export INCLUDEDIR=$PREFIX/include
 
-export CFLAGS='-O2 -g -Wno-format -std=c11 -Werror'
+export CFLAGS='-O2 -g -Wno-format -Werror'
 export CPPFLAGS=''
 
 # Configure the cross-compiler to use the desired system root.
 export CXX="$CXX --sysroot=$PWD/sysroot"
+export CC="$CC --sysroot=$PWD/sysroot"
 
 # Work around that the -elf gcc targets doesn't have a system include directory
 # because configure received --without-headers rather than --with-sysroot.
 if echo "$HOST" | grep -Eq -- '-elf($|-)'; then
-  export CXX="$CXX -isystem=$INCLUDEDIR"
+    export CXX="$CXX -isystem=$INCLUDEDIR"
+    export CC="$CC -isystem=$INCLUDEDIR"
 fi

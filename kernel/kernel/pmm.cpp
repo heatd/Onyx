@@ -39,11 +39,11 @@ size_t pmm_get_used_mem()
 {
 	return _used_mem;
 }
-void pmm_push(uintptr_t base, size_t size)
+void pmm_push(uintptr_t base, size_t size, size_t kernel_space_size)
 {
 	/* Don't alloc the kernel */
 	if (base == 0x100000) {
-		base += 0x300000;
+		base += kernel_space_size;
 	}
 	for (unsigned int i = 0; i < pushed_blocks + 1; i++)
 		if (stack->next[i].base == 0 && stack->next[i].size == 0) {
@@ -77,7 +77,7 @@ void pmm_init(size_t memory_size, uintptr_t stack_space)
 
 void *pmalloc(size_t blocks)
 {
-	uint32_t ret_addr = 0;
+	uintptr_t ret_addr = 0;
 	for (unsigned int i = 0; i < pushed_blocks; i++)
 		if (stack->next[i].base != 0 && stack->next[i].size != 0
 		    && stack->next[i].size >= PMM_BLOCK_SIZE * blocks) {

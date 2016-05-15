@@ -15,11 +15,6 @@ limitations under the License.
 #ifndef _MM_H
 #define _MM_H
 #include "kheap.h"
-#include "vmm.h"
 #include "pmm.h"
 
-inline void safe_free(void *ptr)
-{
-	kfree(ptr);
-}
 #endif

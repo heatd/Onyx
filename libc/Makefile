@@ -12,7 +12,7 @@ EXEC_PREFIX?=$(PREFIX)
 INCLUDEDIR?=$(PREFIX)/include
 LIBDIR?=$(EXEC_PREFIX)/lib
 
-CFLAGS:=$(CFLAGS) -Wall -Wextra -fstack-protector-strong -ftree-vectorize -ftree-vectorizer-verbose=7
+CFLAGS:=$(CFLAGS) -Wall -Wextra -mcmodel=kernel -fstack-protector-strong -ftree-vectorize -ftree-vectorizer-verbose=7
 CPPFLAGS:=$(CPPFLAGS) -D__is_spartix_libc -Iinclude
 LIBK_CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin
 LIBK_CPPFLAGS:=$(CPPFLAGS) -D__is_spartix_kernel
@@ -41,7 +41,6 @@ ssp/ssp.o \
 string/strcpy.o \
 string/strcmp.o \
 string/strcat.o \
-posix/sbrk.o \
 errno/errno.o \
 ctype/to.o \
 string/memchr.o \
@@ -74,15 +73,14 @@ libk.a: $(LIBK_OBJS)
 
 %.o: %.c
 	$(CC) -c $< -o $@ -std=gnu11 $(CFLAGS) $(CPPFLAGS)
-
-%.o: %.S
-	$(CXX) -c $< -o $@ $(CFLAGS) $(CPPFLAGS)
+%.o: %.cpp
+	$(CXX) -c $< -o $@ -std=c++14 $(CFLAGS) $(CPPFLAGS)
 
 %.libk.o: %.c
 	$(CC) -c $< -o $@ -std=gnu11 $(LIBK_CFLAGS) $(LIBK_CPPFLAGS)
 
-%.libk.o: %.S
-	$(CXX) -c $< -o $@ $(LIBK_CFLAGS) $(LIBK_CPPFLAGS)
+%.libk.o: %.cpp
+	$(CXX) -c $< -o $@ -std=c++14 $(LIBK_CFLAGS) $(LIBK_CPPFLAGS)
 
 clean:
 	rm -f $(BINARIES) $(OBJS) $(LIBK_OBJS) *.o */*.o */*/*.o

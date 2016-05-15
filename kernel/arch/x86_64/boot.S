@@ -12,21 +12,20 @@
 ;See the License for the specific language governing permissions and
 ;limitations under the License.
 bits 32
-MBALIGN     equ  1<<0                   ; align loaded modules on page boundaries
-MEMINFO     equ  1<<1                   ; provide memory map
-VIDMODE	    equ  1<<2			; provide a video mode
-FLAGS       equ  MBALIGN | MEMINFO | VIDMODE     ; this is the Multiboot 'flag' field
-MAGIC       equ  0x1BADB002             ; 'magic number' lets bootloader find the header
-CHECKSUM    equ -(MAGIC + FLAGS)        ; checksum of above, to prove we are multiboot
 section .multiboot
 align 4
-	dd MAGIC
-	dd FLAGS
-	dd CHECKSUM
-
+hdr_start:
+	dd 0xe85250d6
+	dd 0
+	dd hdr_end - hdr_start
+	dd 0x100000000 - (0xe85250d6 + 0 + (hdr_end - hdr_start))
+	dw 0
+	dw 0
+	dd 8
+hdr_end:
 [SECTION .boot]
-[GLOBAL entry]
-entry:
+[GLOBAL EntryPoint]
+EntryPoint:
 	cli
 	push eax
 	push ebx
@@ -73,20 +72,41 @@ stack_bottom:
 resb 16384
 stack_top:
 section .text
-extern init_sse
-extern kernel_early
-extern kernel_main
+extern KernelEarly
+extern KernelMain
 extern _init
 _start:
 	mov rsp, stack_top
 	call init_sse
-	call kernel_early
+	call KernelEarly
 	call _init
-	call kernel_main
+	call KernelMain
 	cli
 .Lhang:
 	hlt
 	jmp .Lhang
+
+section .data
+	ErrorMSG db 'Spartix needs SSE to be supported!', 0
+section .text
+global init_sse
+init_sse:
+	mov rax, 0x1
+	cpuid
+	test edx, 1<<25
+	jz .noSSE
+	mov rax, cr0
+	and ax, 0xFFFB
+	or ax, 0x2
+	mov cr0, rax
+	mov rax, cr4
+	or ax, 3 << 9
+	mov cr4, rax
+	ret
+.noSSE:
+	push ErrorMSG
+	extern printf
+	call printf 
 section .boot
 [BITS 32]
 [EXTERN pml4]

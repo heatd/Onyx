@@ -39,7 +39,7 @@ unsigned char keys[200] =
 	'.', 0, 0, 0, 0, 0
 };
 
-static _Bool is_shift_pressed = false;
+static bool is_shift_pressed = false;
 void SendEventToKern(uint8_t keycode)
 {
 	if (keycode == 0x2A || keycode == 0x36) {

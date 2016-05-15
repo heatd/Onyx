@@ -27,7 +27,7 @@ struct idt_ptr
 {
 	uint16_t limit;
 	uint64_t base;
-}
+}__attribute__((packed));
 #endif
 
 typedef struct idt_ptr idt_ptr_t;

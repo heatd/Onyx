@@ -15,7 +15,8 @@ limitations under the License.
 #ifndef _KHEAP_H
 #define _KHEAP_H
 
-#include <kernel/vmm.h>
+#include <stdint.h>
+#include <string.h>
 typedef struct _KHEAPBLOCKBM {
 	struct _KHEAPBLOCKBM	                *next;
 	uint32_t					size;

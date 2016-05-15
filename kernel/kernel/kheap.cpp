@@ -29,7 +29,6 @@ limitations under the License.
 #include <stdlib.h>
 #include <kernel/spinlock.h>
 #include <kernel/panic.h>
-#include <kernel/sbrk.h>
 #include <unistd.h>
 void k_heapBMInit(KHEAPBM * heap)
 {
@@ -191,8 +190,6 @@ static KHEAPBM kheap;
 void init_heap()
 {
 	k_heapBMInit(&kheap);
-	set_data_area((void *) 0xC0600000);
-	__brk((void *) 0xC0F00000);
 	k_heapBMAddBlock(&kheap, 0xC0600000, 0xC0F00000 - 0xC0600000, 16);
 	heap_extensions = 0;
 	prefetch((const void *)0xC0600000,1,3);
@@ -205,13 +202,6 @@ void *kmalloc(size_t size)
 	if (!size)
 		return NULL;
 	void *ptr = k_heapBMAlloc(&kheap, size);
-	if (ptr == NULL) {
-		void *new_limit = sbrk(size);
-		if (!new_limit)
-			return NULL;
-		k_heapBMAddBlock(&kheap, (uintptr_t) new_limit - size,
-				 size, 16);
-	}
 	release(&spl);
 	return ptr;
 }

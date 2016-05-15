@@ -12,23 +12,19 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-#include <fs/zero.h>
-#include <kernel/fs.h>
-uint32_t zero_read(fs_node_t *node, uint32_t offset, uint32_t size,
-		  void *buffer)
+#include <stdio.h>
+
+#if defined(__is_spartix_kernel)
+#include <kernel/tty.h>
+#endif
+int putchar(int ic)
 {
-	(void) node;
-	(void) offset;
-	memset(buffer,0,size);
-	return size;
-}
-void zero_dev_init()
-{
-	/* Create a filesystem node for /dev/zero (the /dev/ should already be created)*/
-	fs_node_t *zero = open_fs(NULL,0,0,"/dev/zero");
-	if(!zero)
-		abort();
-	zero->flags = FS_CHARDEVICE;
-	zero->read = &zero_read;
-	zero->write = 0;
+	char c = (char) ic;
+	(void) c;
+#if defined(__is_spartix_kernel)
+	//tty_write(&c, sizeof(c));
+#else
+	(void)c;
+#endif
+	return ic;
 }
