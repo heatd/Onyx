@@ -26,6 +26,8 @@ limitations under the License.
 #include <kernel/pmm.h>
 #include <stdio.h>
 #include <string.h>
+namespace PhysicalMemoryManager
+{
 /* size of physical memory */
 static size_t pmm_memory_size = 0;
 static uint32_t pushed_blocks = 0;
@@ -35,11 +37,11 @@ extern uint32_t end;
 static uint32_t last_entry = 0;
 static size_t _used_mem = 0;
 stack_t *stack = NULL;
-size_t pmm_get_used_mem()
+size_t GetUsedMem()
 {
 	return _used_mem;
 }
-void pmm_push(uintptr_t base, size_t size, size_t kernel_space_size)
+void Push(uintptr_t base, size_t size, size_t kernel_space_size)
 {
 	/* Don't alloc the kernel */
 	if (base == 0x100000) {
@@ -56,7 +58,7 @@ void pmm_push(uintptr_t base, size_t size, size_t kernel_space_size)
 	pushed_blocks++;
 }
 
-void pmm_pop()
+void Pop()
 {
 	if (last_entry == 0)
 		return;
@@ -66,7 +68,7 @@ void pmm_pop()
 	stack->next[last_entry].magic = 0xCDCDCDCD;
 }
 
-void pmm_init(size_t memory_size, uintptr_t stack_space)
+void Init(size_t memory_size, uintptr_t stack_space)
 {
 	pmm_memory_size = memory_size * 1024;
 	pmm_stack_space = (uintptr_t *) stack_space;
@@ -75,27 +77,27 @@ void pmm_init(size_t memory_size, uintptr_t stack_space)
 	stack->next = (stack_entry_t *) (stack_space + sizeof(stack_t));
 }
 
-void *pmalloc(size_t blocks)
+void *Alloc(size_t blocks)
 {
-	uintptr_t ret_addr = 0;
+	uintptr_t retAddr = 0;
 	for (unsigned int i = 0; i < pushed_blocks; i++)
 		if (stack->next[i].base != 0 && stack->next[i].size != 0
 		    && stack->next[i].size >= PMM_BLOCK_SIZE * blocks) {
 			if (stack->next[i].size >= blocks * PMM_BLOCK_SIZE) {
-				ret_addr = stack->next[i].base;
+				retAddr = stack->next[i].base;
 				stack->next[i].base +=
 				    PMM_BLOCK_SIZE * blocks;
 				stack->next[i].size -=
 				    PMM_BLOCK_SIZE * blocks;
 				_used_mem += PMM_BLOCK_SIZE * blocks;
-				return (void *)ret_addr;
+				return (void *)retAddr;
 			}
 		}
 
-	return (void *) ret_addr;
+	return (void *) retAddr;
 }
 
-void pfree(size_t blocks, void *p)
+void Free(size_t blocks, void *p)
 {
 	if (!blocks)
 		return;
@@ -109,3 +111,4 @@ void pfree(size_t blocks, void *p)
 	stack->next[0].magic = 0xFDFDFDFD;
 	pushed_blocks++;
 }
+};

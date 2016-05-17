@@ -16,10 +16,14 @@ typedef struct stack
 {
 	stack_entry_t* next;
 }stack_t;
-size_t pmm_get_used_mem();
-void pmm_push(uintptr_t base,size_t size,size_t kernel_space_size);
-void pmm_pop();
-void pmm_init(size_t memory_size,uintptr_t stack_space);
-void *pmalloc(size_t blocks);
-void  pfree(size_t blocks,void* ptr);
+namespace PhysicalMemoryManager
+{
+	size_t GetUsedMem();
+	void Push(uintptr_t base,size_t size,size_t kernel_space_size);
+	void Pop();
+	void Init(size_t memory_size,uintptr_t stack_space);
+	void *Alloc(size_t blocks);
+	void  Free(size_t blocks,void* ptr);
+
+}
 #endif

@@ -5,5 +5,5 @@ set -e
 for PROJECT in $PROJECTS; do
   DESTDIR="$PWD/sysroot" $MAKE -C $PROJECT install
 done
-i686-spartix-nm kernel/vmspartix > Kernel.map
+x86_64-elf-nm kernel/vmspartix > Kernel.map
 cp Kernel.map sysroot/boot/Kernel.map

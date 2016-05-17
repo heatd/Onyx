@@ -23,7 +23,7 @@ SECTIONS
 	}
 
 	. += VIRT_BASE;
-
+	kernelStart = .;
 	.text ALIGN(0x1000) : AT(ADDR(.text) - VIRT_BASE)
 	{
 		*(.text)
@@ -54,5 +54,6 @@ SECTIONS
 		*(.bss)
 		*(.gnu.linkonce.b*)
 	}
+	kernelEnd = .;
 
 }

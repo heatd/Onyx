@@ -19,6 +19,21 @@ hdr_start:
 	dd 0
 	dd hdr_end - hdr_start
 	dd 0x100000000 - (0xe85250d6 + 0 + (hdr_end - hdr_start))
+	align 8 ;All tags need to be 8 byte aligned
+	;Framebuffer tag
+	dw 5
+	dw 0
+	dd 20
+	dd 1024
+	dd 768
+	dd 32
+	align 8
+	; Module alignment tag
+	dw 6
+	dw 0
+	dd 12
+	align 8
+	;Finish tag
 	dw 0
 	dw 0
 	dd 8
@@ -56,13 +71,16 @@ EntryPoint:
 	mov ds, ax
 	mov es, ax
 	mov ss, ax
-
+	
 	; If you later decide to unmap the lower zone, you will have an invalid GDT if you're still using gdtr2
 	mov rax, gdtr3
 	lgdt [rax]
 	pop rbx
+	xor rsi,rsi
 	mov rsi, rbx
+	shr rsi, 32
 	mov r8,rbx
+	xor rdi,rdi
 	mov edi,r8d
 	mov rax, _start
 	jmp rax
@@ -77,7 +95,7 @@ extern KernelMain
 extern _init
 _start:
 	mov rsp, stack_top
-	call init_sse
+	call InitSSE
 	call KernelEarly
 	call _init
 	call KernelMain
@@ -89,8 +107,8 @@ _start:
 section .data
 	ErrorMSG db 'Spartix needs SSE to be supported!', 0
 section .text
-global init_sse
-init_sse:
+global InitSSE
+InitSSE:
 	mov rax, 0x1
 	cpuid
 	test edx, 1<<25
@@ -104,9 +122,7 @@ init_sse:
 	mov cr4, rax
 	ret
 .noSSE:
-	push ErrorMSG
-	extern printf
-	call printf 
+	hlt
 section .boot
 [BITS 32]
 [EXTERN pml4]
