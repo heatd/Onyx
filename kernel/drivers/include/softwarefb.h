@@ -15,18 +15,21 @@ limitations under the License.
 #ifndef _VESA_H
 #define _VESA_H
 #include <stdint.h>
-#include <multiboot.h>
+#include <multiboot2.h>
 typedef struct vid_mode
 {
 	uint32_t width;
 	uint32_t height;
 	uint32_t bpp;
-}vid_mode_t;
-void put_pixel(unsigned int x,unsigned int y, int color);
-void draw_square(int side,int x, int y, int color);
-void draw_char(unsigned char c, int x, int y, int fgcolor, int bgcolor);
-void vesa_init(multiboot_info_t* info);
-void *vesa_get_framebuffer_addr();
-void vesa_scroll();
-vid_mode_t *vesa_get_videomode();
+}VideoMode;
+namespace SoftwareFramebuffer
+{
+	void PutPixel(unsigned int x,unsigned int y, int color);
+	void DrawSquare(int side,int x, int y, int color);
+	void DrawChar(unsigned char c, int x, int y, int fgcolor, int bgcolor);
+	void Init(uintptr_t fb_address, uint32_t bpp, uint32_t width, uint32_t height,uint32_t pitch);
+	void *GetFBAddress();
+	void Scroll();
+	VideoMode *GetVideomode();
+}
 #endif

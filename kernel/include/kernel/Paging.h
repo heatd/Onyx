@@ -18,45 +18,10 @@ limitations under the License.
 #include <stdint.h>
 #include <string.h>
 #include <kernel/pmm.h>
-#define MAKE_PML4E(base, avl, pcd, pwt, us, rw, p) \
- 		(uint64_t)( \
-  		(base << 12) | \
-  		(avl << 9) | \
-  		(pcd << 4) | \
-  		(pwt << 3) | \
-  		(us << 2) | \
-  		(rw << 1) | \
-  		p)
-#define MAKE_PML3E(base, avl, glbl, pcd, pwt, us, rw, p) \
- 		(uint64_t)( \
-  		(base << 12) | \
-  		(avl << 9) | \
-  		(glbl << 8) | \
-  		(pcd << 4) | \
-  		(pwt << 3) | \
-  		(us << 2) | \
-  		(rw << 1) | \
-  		p)
-#define MAKE_PML2E(base, avl, glbl, pcd, pwt, us, rw, p) \
- 		(uint64_t)( \
-  		(base << 12) | \
-  		(avl << 9) | \
-  		(glbl << 8) | \
-  		(pcd << 4) | \
-  		(pwt << 3) | \
-  		(us << 2) | \
-  		(rw << 1) | \
-  		p)
-#define MAKE_PML1E(base, avl, glbl, pcd, pwt, us, rw, p) \
- 		(uint64_t)( \
-  		(base << 12) | \
-  		(avl << 9) | \
-  		(glbl << 8) | \
-  		(pcd << 4) | \
-  		(pwt << 3) | \
-  		(us << 2) | \
-  		(rw << 1) | \
-  		p)
+	
+#define PAGE_WRITABLE 0x1
+#define PAGE_GLOBAL 0x2
+#define PAGE_KERNEL (PAGE_GLOBAL|PAGE_WRITABLE)
 #define PAGES_PER_TABLE 512
 typedef struct {uint64_t entries[512];} PML4;
 typedef struct {uint64_t entries[512];} PML3;

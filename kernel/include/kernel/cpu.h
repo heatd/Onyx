@@ -28,6 +28,9 @@ typedef struct cpu {
 #define CPUID_BRAND1 			0x80000003
 #define CPUID_BRAND2 			0x80000004
 #define CPUID_SIGN   			0x1
-void cpu_identify();
+namespace CPU
+{
+	void Identify();
+}
 
 #endif

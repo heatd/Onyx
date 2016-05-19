@@ -27,7 +27,7 @@ LDFLAGS:=$(LDFLAGS) $(KERNEL_ARCH_LDFLAGS) $(BUILD_NUMBER_LDFLAGS)
 LIBS:=$(LIBS) $(KERNEL_ARCH_LIBS)
 
 OBJS:=\
-$(patsubst %.c,%.o,$(wildcard drivers/*/*.c)) \
+$(patsubst %.cpp,%.o,$(wildcard drivers/softwarefb/*.cpp)) \
 $(patsubst %.cpp,%.o,$(wildcard kernel/*.cpp)) \
 $(patsubst %.cpp,%.o,$(wildcard kernel/*/*.cpp)) \
 $(patsubst %.cpp,%.o,$(wildcard $(ARCHDIR)/*.cpp)) \

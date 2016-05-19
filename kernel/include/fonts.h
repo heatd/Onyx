@@ -10,7 +10,6 @@ struct bitmap_font {
 	const unsigned short *Index;	/*/< encoding to character index */
 	const unsigned char *Bitmap;	/*/< bitmap of all characters */
 };
-
 	/*/ @{ defines to have human readable font files */
 #define ________ 0x00
 #define _______X 0x01

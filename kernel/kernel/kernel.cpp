@@ -31,7 +31,9 @@ limitations under the License.
 #include <kernel/Paging.h>
 #include <kernel/pmm.h>
 #include <kernel/idt.h>
-
+#include <drivers/softwarefb.h>
+#include <kernel/tty.h>
+#include <kernel/cpu.h>
 /* Function: init_arch()
  * Purpose: Initialize architecture specific features, should be hooked by the architecture the kernel will run on
  */
@@ -40,12 +42,15 @@ limitations under the License.
 #elif defined (__x86_64__)
 	#define KERNEL_VIRTUAL_BASE 0xFFFFFFFF80000000
 #endif
+#define KERNEL_FB 0xFFFFE00000000000
 void KernelLate();
 void InitKeyboard();
 extern uint64_t kernelEnd;
 extern char __BUILD_NUMBER;
 extern char __BUILD_DATE;
 #define UNUSED_PARAMETER(x) (void)x
+TTY* global_terminal;
+TTY firstTerminal;
 extern "C" void KernelEarly(uintptr_t addr, uint32_t magic)
 {
 	addr += KERNEL_VIRTUAL_BASE;
@@ -54,6 +59,7 @@ extern "C" void KernelEarly(uintptr_t addr, uint32_t magic)
 		return;
 	}
 	IDT::Init();
+	struct multiboot_tag_framebuffer *tagfb = nullptr;
 	for (struct multiboot_tag *tag = (struct multiboot_tag *)(addr + 8);tag->type != MULTIBOOT_TAG_TYPE_END;
 		tag = (struct multiboot_tag *) ((multiboot_uint8_t *) tag + ((tag->size + 7) & ~7))) {
 		size_t totalMemory = 0;
@@ -79,25 +85,31 @@ extern "C" void KernelEarly(uintptr_t addr, uint32_t magic)
 			}
 			case MULTIBOOT_TAG_TYPE_FRAMEBUFFER:
 			{
-				struct multiboot_tag_framebuffer *tagfb = (struct multiboot_tag_framebuffer *) tag;
-				void *fb = (void *) (unsigned long) tagfb->common.framebuffer_addr;
-				(void)fb;
-				VirtualMemoryManager::Init();
-				// Use Paging:: directly, as we have no heap yet
+				tagfb = (struct multiboot_tag_framebuffer *) tag;
 			}
 		}
 	}
-	char* mem = (char *)Paging::MapPhysToVirt(0x0,(uintptr_t)0x0, 0);
-	*mem = 0xFF;
-	while(1);
+	VirtualMemoryManager::Init();
+	// Map the FB
+	for(uintptr_t virt = KERNEL_FB, phys = tagfb->common.framebuffer_addr; virt < KERNEL_FB + 0x400000; virt +=4096, phys+=4096)
+	{
+		// Use Paging:: directly, as we have no heap yet
+		Paging::MapPhysToVirt(virt,phys, 0x3);
+	}
+	// Initialize the Software framebuffer
+	SoftwareFramebuffer::Init(KERNEL_FB, tagfb->common.framebuffer_bpp, tagfb->common.framebuffer_width, tagfb->common.framebuffer_height, tagfb->common.framebuffer_pitch);
+	// Initialize the first terminal
+	firstTerminal.Init();
+	global_terminal = &firstTerminal;
+	printf("TTY Device initialized!\n");
 }
 extern "C" void KernelMain()
 {
-
 	printf("Spartix kernel %s branch %s build %d\n", KERNEL_VERSION,
 	       KERNEL_BRANCH, &__BUILD_NUMBER);
 	printf("Built on %d\n", &__BUILD_DATE);
-	
+	// Identify the CPU it's running on (bootstrap CPU)
+	CPU::Identify();	
 	for (;;) {
 		__asm__ __volatile__ ("hlt");
 	}

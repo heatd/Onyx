@@ -13,38 +13,39 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 #include <stdint.h>
-#include <drivers/vesa.h>
+#include <drivers/softwarefb.h>
 #include <kernel/vmm.h>
 #include <kernel/mm.h>
-#include <multiboot.h>
 #include <kernel/panic.h>
 #include <string.h>
 #include <assert.h>
-#include <fonts.h>
-extern struct bitmap_font font;
-volatile unsigned char *framebuffer = NULL;
+#include <../kernel/fonts/font.cpp>
+volatile unsigned char *framebuffer = nullptr;
 uint32_t framebuffer_pitch = 0;
 uint32_t framebuffer_height = 0;
 uint32_t framebuffer_width = 0;
 uint32_t framebuffer_bpp = 0;
 uint32_t framebuffer_pixelwidth = 0;
-unsigned char *bitmap = NULL;
+unsigned char *bitmap = nullptr;
+namespace SoftwareFramebuffer
+{
+
 __attribute__((hot))
-void draw_char(unsigned char c, int x, int y, int fgcolor, int bgcolor)
+void DrawChar(unsigned char c, int x, int y, int fgcolor, int bgcolor)
 {
 	prefetch((const void *)framebuffer,1,1);
 	int cx,cy;
 	int mask[8]={128,64,32,16,8,4,2,1};
 	for(cy=0;cy<16;cy++){
 		for(cx=0;cx<8;cx++){
-			put_pixel(x+cx,y+cy-12,(bitmap+(int)c*16)[cy] & mask[cx] ? fgcolor:bgcolor);
+			PutPixel(x+cx,y+cy-12,(bitmap+(int)c*16)[cy] & mask[cx] ? fgcolor:bgcolor);
 		}
 	}
 }
 __attribute__((hot))
-void put_pixel(unsigned int x,unsigned int y, int color)
+void PutPixel(unsigned int x,unsigned int y, int color)
 {
-   	/* do not write memory outside the screen buffer, check parameters against the VBE mode info */
+   	/* do not write memory outside the screen buffer, check parameters against the framebuffer info */
    	if (x > framebuffer_width || y > framebuffer_height) return;
    	if (x) x = (x * (framebuffer_bpp>>3));
    	if (y) y = (y * framebuffer_pitch);
@@ -54,37 +55,37 @@ void put_pixel(unsigned int x,unsigned int y, int color)
    	cTemp[1] = (color >> 8) & 0xff;
    	cTemp[2] = (color >> 16) & 0xff;
 }
-void draw_square(int side,int x, int y, int color)
+void DrawSquare(int side,int x, int y, int color)
 {
 	for(int j = y; j < y + side;j++)
 	{
 		for(int i = x; i < x + side;i++)
 		{
-			put_pixel(i,j,color);
+			PutPixel(i,j,color);
 		}
 	}
 }
 __attribute__((cold))
-void vesa_init(multiboot_info_t* info)
+void Init(uintptr_t fb_address, uint32_t bpp, uint32_t width, uint32_t height,uint32_t pitch)
 {
 	bitmap = (unsigned char *)font.Bitmap;
-	framebuffer = (volatile unsigned char *) ((uint32_t)info->framebuffer_addr);
-	framebuffer_pitch = info->framebuffer_pitch;
-	framebuffer_bpp = info->framebuffer_bpp;
-	framebuffer_width = info->framebuffer_width;
-	framebuffer_height = info->framebuffer_height;
-	framebuffer_pixelwidth = framebuffer_bpp / 8;
+	framebuffer = (volatile unsigned char*)fb_address;
+	framebuffer_pitch = pitch;
+	framebuffer_bpp = bpp;
+	framebuffer_width = width;
+	framebuffer_height = height;
+	framebuffer_pixelwidth = bpp / 8;
 	assert(framebuffer_bpp == 32);
-	/* Without this call to put_pixel, it doesn't draw anything. Weird Bug */
-	put_pixel(0,100,0);
+	/* Without this call to PutPixel, it doesn't draw anything. Weird Bug */
+	PutPixel(0,100,0);
 	prefetch((const void *)framebuffer,1,3);
 }
-void* vesa_get_framebuffer_addr()
+void* GetFBAddress()
 {
 	return (void *)framebuffer;
 }
-static vid_mode_t vidm = {0};
-vid_mode_t *vesa_get_videomode()
+static VideoMode vidm = {0,0,0};
+VideoMode *GetVideomode()
 {
 	if( vidm.width == 0 ) {
 		vidm.width = framebuffer_width;
@@ -93,10 +94,11 @@ vid_mode_t *vesa_get_videomode()
 	}
 	return &vidm;
 }
-void vesa_scroll()
+void Scroll()
 {
 	unsigned char *second_line = ( unsigned char *)framebuffer;
 	second_line += framebuffer_pitch * 20;
 	memmove((void *)framebuffer,second_line,0x400000 - framebuffer_pixelwidth * framebuffer_width +
 	framebuffer_pitch * 16);
 }
+};

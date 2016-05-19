@@ -133,7 +133,6 @@ setup_paging_and_longm:
 	or eax, 1
 	mov [pml4], eax
 	mov [pml4 + 0xFF8], eax
-
 	mov eax, pd
 	or eax, 1
 	mov [pdpt], eax

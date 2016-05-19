@@ -20,9 +20,8 @@ limitations under the License.
 int putchar(int ic)
 {
 	char c = (char) ic;
-	(void) c;
 #if defined(__is_spartix_kernel)
-	//tty_write(&c, sizeof(c));
+	global_terminal->Write(&c, sizeof(c));
 #else
 	(void)c;
 #endif

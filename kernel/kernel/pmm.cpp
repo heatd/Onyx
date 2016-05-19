@@ -36,6 +36,7 @@ static uintptr_t *pmm_stack_space = NULL;
 extern uint32_t end;
 static uint32_t last_entry = 0;
 static size_t _used_mem = 0;
+static bool is_initialized = false;
 stack_t *stack = NULL;
 size_t GetUsedMem()
 {
@@ -70,15 +71,20 @@ void Pop()
 
 void Init(size_t memory_size, uintptr_t stack_space)
 {
+	if(is_initialized)
+		return;
 	pmm_memory_size = memory_size * 1024;
 	pmm_stack_space = (uintptr_t *) stack_space;
 	stack = (stack_t *) stack_space;
 	memset(stack, 0, 4096);
 	stack->next = (stack_entry_t *) (stack_space + sizeof(stack_t));
+	is_initialized = true;
 }
 
 void *Alloc(size_t blocks)
 {
+	if(!is_initialized)
+		return (void*)0xDEADDEADDEAD;
 	uintptr_t retAddr = 0;
 	for (unsigned int i = 0; i < pushed_blocks; i++)
 		if (stack->next[i].base != 0 && stack->next[i].size != 0
