@@ -20,6 +20,7 @@ typedef struct cpu {
 	char brandstr[48];
 	uint32_t max_function;
 	uint32_t stepping, family, model, extended_model, extended_family;
+	int virtualAddressSpace, physicalAddressSpace;
 	/* Add more as needed*/
 }cpu_t;
 #define CPUID_MANUFACTURERID 		0
@@ -27,11 +28,13 @@ typedef struct cpu {
 #define CPUID_BRAND0			0x80000002
 #define CPUID_BRAND1 			0x80000003
 #define CPUID_BRAND2 			0x80000004
+#define CPUID_ASS			0x80000008 // Address space size (ASS for short :P)
 #define CPUID_SIGN   			0x1
 namespace CPU
 {
 	void Identify();
 	void InitInterrupts();
+	void GetAddressSpaceSize(int& vas, int& pas);
 }
 
 #endif

@@ -131,5 +131,9 @@ void* MapPhysToVirt(uint64_t virt, uint64_t phys, uint64_t prot)
 	*entry = make_pml1e( phys, 1, 0, (prot & 0x2)? 1 : 0, 0, 0, 0, (prot & 1)? 1 : 0 , 1);
 	return (void*)virt;
 }
+void UnmapMemory(void* memory)
+{
+	(void) memory;
+}
 
 };

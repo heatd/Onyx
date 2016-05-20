@@ -70,6 +70,10 @@ char *GetName()
 		cpuid[3] = edx;
 		memcpy(&cpu.brandstr[32],&cpuid,16);
 		cpu.brandstr[47] = '\0';
+		// Get the address space sizes
+		__get_cpuid(CPUID_ASS, &eax, &ebx, &ecx, &edx);
+		cpu.physicalAddressSpace = eax & 0xFF;
+		cpu.virtualAddressSpace = (eax >> 8) & 0xFF;
 	}
 	return &cpu.manuid[0];
 }
@@ -93,4 +97,9 @@ void CPU::Identify()
 void CPU::InitInterrupts()
 {
 	PIC::Remap();
+}
+void CPU::GetAddressSpaceSize(int& vas, int& pas)
+{
+	vas = cpu.virtualAddressSpace;
+	pas = cpu.physicalAddressSpace;
 }

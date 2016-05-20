@@ -121,6 +121,10 @@ extern "C" void KernelMain()
 	InitKeyboard();
 	printf("PIT initialized!\n");
 	printf("Keyboard initialized!\n");
+	int virtualAddressSpace = 0, physAddressSpace = 0;
+	CPU::GetAddressSpaceSize(virtualAddressSpace, physAddressSpace);
+	printf("Address space info:\n    Physical Address Bits: %d\n    Virtual Address Bits: %d\n"
+		, virtualAddressSpace, physAddressSpace);
 	for (;;) {
 		__asm__ __volatile__ ("hlt");
 	}
