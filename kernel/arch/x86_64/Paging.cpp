@@ -25,10 +25,11 @@ inline uint64_t make_pml4e(uint64_t base,uint64_t avl,uint64_t pcd,uint64_t pwt,
   		(rw << 1) | \
   		p);
 }
-inline uint64_t make_pml3e(uint64_t base,uint64_t avl,uint64_t glbl,uint64_t pcd,uint64_t pwt,uint64_t us,uint64_t rw,uint64_t p)
+inline uint64_t make_pml3e(uint64_t base,uint64_t nx, uint64_t avl,uint64_t glbl,uint64_t pcd,uint64_t pwt,uint64_t us,uint64_t rw,uint64_t p)
 {
 	return (uint64_t)( \
   		(base) | \
+  		(nx << 63) | \
   		(avl << 9) | \
   		(glbl << 8) | \
   		(pcd << 4) | \
@@ -37,10 +38,11 @@ inline uint64_t make_pml3e(uint64_t base,uint64_t avl,uint64_t glbl,uint64_t pcd
   		(rw << 1) | \
   		p);
 }
-inline uint64_t make_pml2e(uint64_t base,uint64_t avl,uint64_t glbl,uint64_t pcd,uint64_t pwt,uint64_t us,uint64_t rw,uint64_t p)
+inline uint64_t make_pml2e(uint64_t base,uint64_t nx, uint64_t avl,uint64_t glbl,uint64_t pcd,uint64_t pwt,uint64_t us,uint64_t rw,uint64_t p)
 {
 	return (uint64_t)( \
   		(base) | \
+  		(nx << 63) | \
   		(avl << 9) | \
   		(glbl << 8) | \
   		(pcd << 4) | \
@@ -49,10 +51,11 @@ inline uint64_t make_pml2e(uint64_t base,uint64_t avl,uint64_t glbl,uint64_t pcd
   		(rw << 1) | \
   		p);
 }
-inline uint64_t make_pml1e(uint64_t base,uint64_t avl,uint64_t glbl,uint64_t pcd,uint64_t pwt,uint64_t us,uint64_t rw,uint64_t p)
+inline uint64_t make_pml1e(uint64_t base,uint64_t nx, uint64_t avl,uint64_t glbl,uint64_t pcd,uint64_t pwt,uint64_t us,uint64_t rw,uint64_t p)
 {
 	return (uint64_t)( \
   		(base) | \
+  		(nx << 63) | \
   		(avl << 9) | \
   		(glbl << 8) | \
   		(pcd << 4) | \
@@ -111,7 +114,7 @@ void* MapPhysToVirt(uint64_t virt, uint64_t phys, uint64_t prot)
 		if(!pml2 )
 			return nullptr;
 		memset(pml2, 0, sizeof(PML2));
-		*entry = make_pml3e( (uint64_t)pml2, 0, (prot & 2)? 1 : 0, 0, 0, 0, (prot & 1)? 1 : 0, 1);
+		*entry = make_pml3e( (uint64_t)pml2, 1, 0, (prot & 2)? 1 : 0, 0, 0, 0, (prot & 1)? 1 : 0, 1);
 	}
 	entry = &pml2->entries[decAddr.pd];
 	if(*entry & 1) {
@@ -122,10 +125,10 @@ void* MapPhysToVirt(uint64_t virt, uint64_t phys, uint64_t prot)
 		if(!pml1)
 			return nullptr;
 		memset(pml1, 0, sizeof(PML1));
-		*entry = make_pml2e( (uint64_t)pml1, 0, (prot & 2)? 1 : 0, 0, 0, 0, (prot & 1)? 1 : 0, 1);
+		*entry = make_pml2e( (uint64_t)pml1, 1, 0, (prot & 2)? 1 : 0, 0, 0, 0, (prot & 1)? 1 : 0, 1);
 	}
 	entry = &pml1->entries[decAddr.pt];
-	*entry = make_pml1e( phys, 0, (prot & 0x2)? 1 : 0, 0, 0, 0, (prot & 1)? 1 : 0 , 1);
+	*entry = make_pml1e( phys, 1, 0, (prot & 0x2)? 1 : 0, 0, 0, 0, (prot & 1)? 1 : 0 , 1);
 	return (void*)virt;
 }
 
