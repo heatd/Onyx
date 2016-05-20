@@ -3,43 +3,44 @@ section .text
 global isr%1
 isr%1:
 	cli
-	xor rdx,rdx   ;push dummy err code
+	xor rdi,rdi   ;push dummy err code
 	mov rsi, %1  ;push the interrupt number
-	jmp isr_common ;Go to the handler
+	jmp IsrCommon ;Go to the handler
 %endmacro
-irq_common:
-	nop
-	iret
+extern IrqHandler
+IrqCommon:
+	call IrqHandler
+	iretq
 %macro IRQ 2
 global irq%1
 irq%1:
 cli
-mov rdx, %2
-jmp irq_common
+mov rdi, %2
+jmp IrqCommon
 %endmacro
 %macro ISR_ERRCODE 1
 global isr%1
 isr%1:
 	cli
-	pop rdx
-	mov rsi, %1 ;push the interrupt number
-	jmp isr_common ;Go to the handler
+	mov rdi, [rsp]
+	mov rsi, %1 ;push the interrupt number to the arguments
+	jmp IsrCommon ;Go to the handler
 %endmacro
 
-extern isr_handler
-global isr_common
-isr_common:
+extern IsrHandler
+global IsrCommon
+IsrCommon:
 	mov ax,ds
-	xor rdi,rdi
-	mov di,ax
+	xor rdx,rdx
+	mov dx,ax
 	mov ax,10h
 	mov ds,ax
 	mov ss,ax
 	mov es,ax
 	mov fs,ax
 	mov gs,ax
-	hlt
-	mov ax,si
+	jmp IsrHandler
+	mov ax,dx
 	mov ds,ax
 	mov ss,ax
 	mov es,ax
@@ -47,7 +48,7 @@ isr_common:
 	mov fs,ax
 	iretq
 
-	ISR_NOERRCODE 0
+ISR_NOERRCODE 0
 ISR_NOERRCODE 1
 ISR_NOERRCODE 2
 ISR_NOERRCODE 3

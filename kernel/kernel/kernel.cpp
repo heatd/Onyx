@@ -15,7 +15,7 @@ limitations under the License.
 /**************************************************************************
  *
  *
- * File: kernel.c
+ * File: kernel.cpp
  *
  * Description: Main kernel file, contains the entry point and initialization
  *
@@ -33,7 +33,9 @@ limitations under the License.
 #include <kernel/idt.h>
 #include <drivers/softwarefb.h>
 #include <kernel/tty.h>
+#include <kernel/panic.h>
 #include <kernel/cpu.h>
+#include <kernel/pit.h>
 /* Function: init_arch()
  * Purpose: Initialize architecture specific features, should be hooked by the architecture the kernel will run on
  */
@@ -49,8 +51,10 @@ extern uint64_t kernelEnd;
 extern char __BUILD_NUMBER;
 extern char __BUILD_DATE;
 #define UNUSED_PARAMETER(x) (void)x
+// Global TTY device, used by printf
 TTY* global_terminal;
-TTY firstTerminal;
+// First TTY device
+static TTY firstTerminal;
 extern "C" void KernelEarly(uintptr_t addr, uint32_t magic)
 {
 	addr += KERNEL_VIRTUAL_BASE;
@@ -105,11 +109,14 @@ extern "C" void KernelEarly(uintptr_t addr, uint32_t magic)
 }
 extern "C" void KernelMain()
 {
-	printf("Spartix kernel %s branch %s build %d\n", KERNEL_VERSION,
-	       KERNEL_BRANCH, &__BUILD_NUMBER);
-	printf("Built on %d\n", &__BUILD_DATE);
+	printf("Spartix kernel %s branch %s build %d for the %s architecture\n", KERNEL_VERSION,
+	       KERNEL_BRANCH, &__BUILD_NUMBER, KERNEL_ARCH);
+	printf("This kernel was built on %s, %d as integer\n", __DATE__, &__BUILD_DATE);
 	// Identify the CPU it's running on (bootstrap CPU)
-	CPU::Identify();	
+	CPU::Identify();
+	CPU::InitInterrupts();
+	PIT::Init(1000);
+	asm volatile("sti");
 	for (;;) {
 		__asm__ __volatile__ ("hlt");
 	}

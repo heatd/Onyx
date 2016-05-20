@@ -29,6 +29,7 @@ limitations under the License.
 #include <kernel/panic.h>
 #include <string.h>
 #include <stdio.h>
+#include <kernel/pic.h>
 static cpu_t cpu;
 
 extern int putchar(int ic);
@@ -88,4 +89,8 @@ void CPU::Identify()
 		printf("Name: %s\n",cpu.brandstr);
 	GetSign();
 	printf("Stepping %i, Model %i, Family %i\n",cpu.stepping,cpu.model,cpu.family);
+}
+void CPU::InitInterrupts()
+{
+	PIC::Remap();
 }

@@ -31,6 +31,7 @@ typedef struct cpu {
 namespace CPU
 {
 	void Identify();
+	void InitInterrupts();
 }
 
 #endif

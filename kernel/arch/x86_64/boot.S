@@ -130,19 +130,23 @@ section .boot
 [EXTERN pd]
 setup_paging_and_longm:
 	mov eax, pdpt
-	or eax, 1
+	or eax, 3
 	mov [pml4], eax
 	mov [pml4 + 0xFF8], eax
 	mov eax, pd
-	or eax, 1
+	or eax, 3
+	or eax, 1 << 8
 	mov [pdpt], eax
 	mov [pdpt + 0xFF0], eax
 
 	mov dword [pd], 0x000083
+	or dword [pd], 1 << 8
 	mov dword [pd + 8], 0x200083
+	or dword [pd + 8], 1 << 8
 	mov dword [pd + 16], 0x400083
+	or dword [pd + 16], 1 << 8
 	mov dword [pd + 24], 0x600083
-
+	or dword [pd + 24], 1 << 8
 	; Load CR3 with PML4
 	mov eax, pml4
 	mov cr3, eax

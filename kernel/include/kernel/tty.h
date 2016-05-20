@@ -27,6 +27,11 @@ public:
 	void WriteString(const char *data);
 	void SetColor(int color);
 	void Init(void);
+	TTY& operator << (const char* str)
+	{
+		WriteString(str);
+		return *this;
+	} 
 private:
 	size_t terminal_row;
 	size_t terminal_column;

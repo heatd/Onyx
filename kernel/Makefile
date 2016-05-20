@@ -13,8 +13,8 @@ BOOTDIR?=$(EXEC_PREFIX)/boot
 INCLUDEDIR?=$(PREFIX)/include
 
 include ../kversion.config
-CFLAGS:=$(CFLAGS) -ffreestanding -mcmodel=kernel -mno-red-zone -fbuiltin -Wall -Wextra -fstack-protector-strong -ftree-vectorize -ftree-vectorizer-verbose=7
-CPPFLAGS:=$(CPPFLAGS) -D__is_spartix_kernel -Iinclude -DKERNEL_VERSION='"$(KERNEL_VERSION)"' -DKERNEL_BRANCH='"$(KERNEL_BRANCH)"'
+CFLAGS:=$(CFLAGS) -ffreestanding -mcmodel=kernel -mno-red-zone -fbuiltin -Wall -Wextra -fstack-protector-strong -ftree-vectorize -ftree-vectorizer-verbose=7 -mno-aes -mno-mmx -mno-pclmul -mno-sse -mno-sse2 -mno-sse3 -mno-sse4 -mno-sse4a -mno-fma4 -mno-ssse3
+CPPFLAGS:=$(CPPFLAGS) -D__is_spartix_kernel -Iinclude -DKERNEL_VERSION='"$(KERNEL_VERSION)"' -DKERNEL_BRANCH='"$(KERNEL_BRANCH)"' -DKERNEL_ARCH='"$(KERNEL_ARCH)"'
 LDFLAGS:=$(LDFLAGS) -z max-page-size=0x1000 -fwhole-program -fkeep-inline-functions -flto
 LIBS:=$(LIBS) -nostdlib -lk -lgcc
 CXXFLAGS:=-fno-exceptions -fno-rtti

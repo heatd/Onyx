@@ -12,7 +12,7 @@ EXEC_PREFIX?=$(PREFIX)
 INCLUDEDIR?=$(PREFIX)/include
 LIBDIR?=$(EXEC_PREFIX)/lib
 
-CFLAGS:=$(CFLAGS) -Wall -Wextra -mcmodel=kernel -fstack-protector-strong -ftree-vectorize -ftree-vectorizer-verbose=7
+CFLAGS:=$(CFLAGS) -Wall -Wextra -mcmodel=kernel -fstack-protector-strong -ftree-vectorize -ftree-vectorizer-verbose=7 -mno-aes -mno-mmx -mno-pclmul -mno-sse2 -mno-sse3 -mno-sse4 -mno-sse4a -mno-fma4 -mno-ssse3
 CPPFLAGS:=$(CPPFLAGS) -D__is_spartix_libc -Iinclude
 LIBK_CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin
 LIBK_CPPFLAGS:=$(CPPFLAGS) -D__is_spartix_kernel

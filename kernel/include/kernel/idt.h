@@ -16,13 +16,8 @@ limitations under the License.
 #define _IDT_H
 #include <stdlib.h>
 #include <stdint.h>
-#ifdef __i386__
-struct idt_ptr
-{
-	uint16_t limit;
-	uint32_t base;
-}__attribute__((packed));
-#elif defined (__x86_64__)
+
+#if defined (__x86_64__)
 struct idt_ptr
 {
 	uint16_t limit;
@@ -31,16 +26,7 @@ struct idt_ptr
 #endif
 
 typedef struct idt_ptr idt_ptr_t;
-#ifdef __i386__
-struct IDT_entry
-{
-	uint16_t offset_low;
-	uint16_t selector;
-	uint8_t zero;/* unused, set to 0 */
-	uint8_t type_attr;
-	uint16_t offset_high;
-}__attribute__((packed));
-#elif defined (__x86_64__)
+#if defined (__x86_64__)
 struct IDT_entry
 {
 	uint16_t offset_low;
@@ -49,6 +35,7 @@ struct IDT_entry
 	uint8_t type_attr;
 	uint16_t offset_high;
 	uint32_t offset_top;
+	uint32_t res;
 }__attribute__((packed));
 #endif
 typedef struct IDT_entry idt_entry_t;
