@@ -36,6 +36,7 @@ limitations under the License.
 #include <kernel/panic.h>
 #include <kernel/cpu.h>
 #include <kernel/pit.h>
+#include <drivers/ps2.h>
 /* Function: init_arch()
  * Purpose: Initialize architecture specific features, should be hooked by the architecture the kernel will run on
  */
@@ -117,6 +118,9 @@ extern "C" void KernelMain()
 	CPU::InitInterrupts();
 	PIT::Init(1000);
 	asm volatile("sti");
+	InitKeyboard();
+	printf("PIT initialized!\n");
+	printf("Keyboard initialized!\n");
 	for (;;) {
 		__asm__ __volatile__ ("hlt");
 	}

@@ -31,10 +31,10 @@ void keyb_handler()
 		SendEventToKern(keycode);
 	}
 }
-int init_keyboard()
+int InitKeyboard()
 {
 	irq_t handler = &keyb_handler;
-	pic_unmask_irq(1);
-	irq_install_handler(1,handler);
+	PIC::UnmaskIRQ(1);
+	IRQ::InstallHandler(1,handler);
 	return 0;
 }
