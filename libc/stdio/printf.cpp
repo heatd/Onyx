@@ -25,7 +25,7 @@ char bchars[] =
 char lchars[] =
     { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd',
 'e', 'f' };
-void itoa(unsigned int i, unsigned int base, char *buf, _Bool is_upper)
+void itoa(uint64_t i, unsigned int base, char *buf, _Bool is_upper)
 {
 	int pos = 0;
 	int opos = 0;
@@ -113,14 +113,14 @@ int printf(const char *__restrict__ format, ...)
 			const char *s = va_arg(parameters, const char *);
 			print(s, strlen(s));
 		} else if (*format == 'X') {
-			unsigned int i = va_arg(parameters, uint32_t);
+			uint64_t i = va_arg(parameters, uint64_t);
 			char buffer[30] = { 0 };
 			itoa(i, 16, buffer, true);
 			print(buffer, strlen(buffer));
 			memset(buffer, 0, sizeof(buffer));
 			format++;
 		} else if (*format == 'x') {
-			unsigned int i = va_arg(parameters, uint32_t);
+			uint64_t i = va_arg(parameters, uint64_t);
 			char buffer[30] = { 0 };
 			itoa(i, 16, buffer, false);
 			print(buffer, strlen(buffer));
@@ -143,10 +143,10 @@ int printf(const char *__restrict__ format, ...)
 				print("(nil)", strlen("(nil)"));
 			else {
 				uintptr_t i = (uintptr_t) ptr;
-				char buffer[30] = { 0 };
+				char buffer[60] = { 0 };
 				itoa(i, 16, buffer, true);
 				print("0x", strlen("0x"));
-				print(buffer, 30);
+				print(buffer, 60);
 			}
 		} else if (*format == 'f') {
 			format++;

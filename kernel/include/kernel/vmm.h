@@ -15,9 +15,29 @@ limitations under the License.
 #ifndef _VMM_H
 #define _VMM_H
 
+#if defined (__i386__)
+	#define KERNEL_VIRTUAL_BASE 0xC0000000
+#elif defined (__x86_64__)
+	#define KERNEL_VIRTUAL_BASE 0xFFFFFFFF80000000
+#endif
+#include <stdint.h>
+#include <stdlib.h>
+typedef struct ventry
+{
+	uintptr_t baseAddress;
+	size_t size;
+	size_t sizeInPages;
+	int rw;
+	int nx;
+	struct ventry* next;
+} VasEntry;
+#define VM_KERNEL (1)
+#define VM_UPSIDEDOWN (2)
 namespace VirtualMemoryManager
 {
 	void Init();
+	void StartAddressBookkeeping(uintptr_t framebufferAddress);
+	void* AllocateVirtAddress(uint64_t flags);
 };
 
 

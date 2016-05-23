@@ -38,4 +38,4 @@ menuentry "Spartix" {
 	boot
 }
 EOF
-grub2-mkrescue -o Spartix.iso isodir # Change this acording to your distro/OS.
+grub-mkrescue -o Spartix.iso isodir # Change this acording to your distro/OS.

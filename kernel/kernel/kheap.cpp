@@ -24,12 +24,16 @@ limitations under the License.
  *
  **************************************************************************/
 #include <stdint.h>
+#include <stdio.h>
 #include <kernel/kheap.h>
 #include <kernel/compiler.h>
 #include <stdlib.h>
 #include <kernel/spinlock.h>
 #include <kernel/panic.h>
 #include <unistd.h>
+#include <kernel/pmm.h>
+#include <kernel/vmm.h>
+#include <kernel/Paging.h>
 void k_heapBMInit(KHEAPBM * heap)
 {
 	heap->fblock = 0;
@@ -187,16 +191,50 @@ void k_heapBMFree(KHEAPBM * heap, void *ptr)
 
 uint32_t heap_extensions;
 static KHEAPBM kheap;
-void init_heap()
+void InitHeap()
 {
 	k_heapBMInit(&kheap);
-	k_heapBMAddBlock(&kheap, 0xC0600000, 0xC0F00000 - 0xC0600000, 16);
+	for(uintptr_t i = 0, address = KERNEL_VIRTUAL_BASE + 0x10000000; i < 1024; i++, address+=0x1000)
+	{
+		asm volatile("cli");
+		Paging::MapPhysToVirt(address, (uintptr_t)PhysicalMemoryManager::Alloc(1), 3);
+		asm volatile("sti");
+	}
+	printf("Mapped memory for the heap\n");
+	k_heapBMAddBlock(&kheap, KERNEL_VIRTUAL_BASE + 0x10000000, 0x100000, 16);
 	heap_extensions = 0;
-	prefetch((const void *)0xC0600000,1,3);
+	//prefetch((const void *)(KERNEL_VIRTUAL_BASE + 0x10000000),1,3);
 }
-
+void *operator new(size_t size)
+{
+    return malloc(size);
+}
+ 
+void *operator new[](size_t size)
+{
+    return malloc(size);
+}
+void operator delete (void* ptr, size_t size)
+{
+	free(ptr);
+	(void) size;
+}
+void operator delete[](void* ptr, size_t size)
+{
+	free(ptr);
+	(void) size;
+}
+void operator delete(void *p)
+{
+    free(p);
+}
+ 
+void operator delete[](void *p)
+{
+    free(p);
+}
 static spinlock_t spl;
-void *kmalloc(size_t size)
+void *malloc(size_t size)
 {
 	acquire(&spl);
 	if (!size)
@@ -206,7 +244,7 @@ void *kmalloc(size_t size)
 	return ptr;
 }
 
-void kfree(void *ptr)
+void free(void *ptr)
 {
 	if (!ptr)
 		return;

@@ -39,10 +39,6 @@ int k_heapBMAddBlock(KHEAPBM *heap, uintptr_t addr, uint32_t size, uint32_t bsiz
 
 void k_heapBMInit(KHEAPBM *heap);
 
-void* kmalloc(size_t size);
-
-void kfree(void* ptr);
-
-void init_heap();
+void InitHeap();
 
 #endif

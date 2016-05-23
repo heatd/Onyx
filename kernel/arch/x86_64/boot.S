@@ -31,7 +31,7 @@ hdr_start:
 	; Module alignment tag
 	dw 6
 	dw 0
-	dd 12
+	dd 8
 	align 8
 	;Finish tag
 	dw 0
