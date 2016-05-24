@@ -14,8 +14,9 @@ limitations under the License.
 */
 #ifndef _INITRD_H
 #define _INITRD_H
-#include <kernel/fs.h>
 #include <stdint.h>
+#include <string.h>
+#include <kernel/vfs.h>
 typedef struct tar_header
 {
     	char filename[100];
@@ -34,8 +35,36 @@ typedef struct tar_header
 #define TAR_TYPE_CHAR_SPECIAL	'3'
 #define TAR_TYPE_BLOCK_SPECIAL	'4'
 #define TAR_TYPE_DIR		'5'
-/*I will only need to support these types,so more isn't needed */
-uint32_t tar_get_size(const char *in);
-unsigned int tar_parse(uintptr_t address);
-fs_node_t *initrd_init(uintptr_t addr);
+
+namespace Tar
+{
+	inline size_t GetSize(const char *in)
+	{
+
+    		size_t size = 0;
+    		unsigned int j;
+    		unsigned int count = 1;
+    		for (j = 11; j > 0; j--, count *= 8)
+        		size += ((in[j - 1] - '0') * count);
+    		return size;
+	}
+	size_t Parse(uintptr_t adress);
+
+};
+class TarInode : public BaseInode
+{
+private:
+public:
+	size_t read(size_t offset, size_t sizeOfReading, void* buffer);
+	size_t write(size_t offset, size_t sizeOfWriting, void* buffer);
+};
+class Initrd
+{
+private:
+	size_t files;
+public:
+	Initrd();
+	~Initrd();
+	int LoadIntoRamfs();
+};
 #endif

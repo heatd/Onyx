@@ -30,7 +30,6 @@ typedef struct _KHEAPBM
 	KHEAPBLOCKBM			*fblock;
 } KHEAPBM;
 
-
 void k_heapBMFree(KHEAPBM *heap, void *ptr);
 
 void *k_heapBMAlloc(KHEAPBM *heap, uint32_t size);

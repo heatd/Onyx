@@ -29,7 +29,7 @@ limitations under the License.
 #include <stdio.h>
 #include <kernel/vmm.h>
 #include <kernel/Paging.h>
-#include <kernel/kheap.h>	
+#include <kernel/kheap.h>
 #include <kernel/pmm.h>
 #include <kernel/idt.h>
 #include <drivers/softwarefb.h>
@@ -39,6 +39,8 @@ limitations under the License.
 #include <kernel/pit.h>
 #include <drivers/ps2.h>
 #include <kernel/vfs.h>
+#include <kernel/initrd.h>
+#include <new.h>
 /* Function: init_arch()
  * Purpose: Initialize architecture specific features, should be hooked by the architecture the kernel will run on
  */
@@ -118,6 +120,7 @@ extern "C" void KernelEarly(uintptr_t addr, uint32_t magic)
 	printf("TTY Device initialized!\n");
 	printf("%d\n",i);
 }
+VFS* vfs = nullptr;
 extern "C" void KernelMain()
 {
 	printf("Spartix kernel %s branch %s build %d for the %s architecture\n", KERNEL_VERSION,
@@ -127,7 +130,6 @@ extern "C" void KernelMain()
 	CPU::Identify();
 	CPU::InitInterrupts();
 	PIT::Init(1000);
-	asm volatile("sti");
 	InitKeyboard();
 	printf("PIT initialized!\n");
 	printf("Keyboard initialized!\n");
@@ -140,13 +142,16 @@ extern "C" void KernelMain()
 	// Initialize the kernel heap
 	InitHeap();
 	//Initialize the VFS
-	VFS* vfs = new VFS;
+	VFS* kvfs = new VFS;
+	vfs = kvfs;
 	printf("VFS initialized!\n");
-	(void) vfs;
 	if(!initrd_tag)
 		panic("Initrd not found\n");
 	printf("Initrd module loaded at 0x%X\n",initrd_tag->mod_start);
-	printf("cmdline: %s\n",initrd_tag->cmdline);
+	void *initrdAddress = reinterpret_cast<void *>(initrd_tag->mod_start + KERNEL_VIRTUAL_BASE);
+	Initrd* initfs = new (initrdAddress) Initrd;
+	initfs->LoadIntoRamfs();
+	
 	for (;;) {
 		__asm__ __volatile__ ("hlt");
 	}

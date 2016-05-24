@@ -33,7 +33,7 @@ menuentry "Spartix" {
 	echo "done."
 	set gfxpayload=1024x768x32
 	echo "Loading the initrd"
-	module /boot/initrd.tar.xz
+	module2 /boot/initrd.tar.xz
 	echo "done."
 	boot
 }

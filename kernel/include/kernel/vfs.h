@@ -16,19 +16,23 @@ limitations under the License.
 #define _VFS_H
 #include <stdint.h>
 #include <string.h>
-//VFSNode is a stub
+
+#define VFS_TYPE_FILE 0
+#define VFS_TYPE_DIR 1
+#define VFS_TYPE_SYMLINK 3
+#define VFS_TYPE_MOUNTPOINT 4
+#define VFS_TYPE_DEV 5
 class VFSNode
 {
 private:
-	int inode;
-	int fsType;
-	int permitions;
-	int type;
 public:
+	int inode;
+	int gid;
+	int uid;
+	int permitions;
 	int GetPermitions() {return permitions;}
-	int GetFsType() {return fsType;}
 	int GetInode() {return inode;}
-	int GetFileType() {return type;}
+	int type;
 	char* name;
 	virtual ~VFSNode() {}
 	virtual size_t read(size_t offset, size_t sizeOfReading, void* buffer) = 0;
@@ -38,9 +42,9 @@ class BaseInode : public VFSNode
 {
 public:
 	BaseInode* next;
+	BaseInode* link;
 	virtual size_t read(size_t offset, size_t sizeOfReading, void* buffer);
 	virtual size_t write(size_t offset, size_t sizeOfWriting, void* buffer);
-
 };
 class VFS
 {
@@ -49,13 +53,10 @@ private:
 public:
 	VFS();
 	~VFS();
-	BaseInode* FindNode(BaseInode* node);
+	BaseInode* FindNode(const char* path);
 	void RegisterNode(BaseInode* toBeAdded);
 	int DeregisterNode(BaseInode* toBeRemoved);
 };
-
-
-
-
+extern VFS* vfs;
 
 #endif

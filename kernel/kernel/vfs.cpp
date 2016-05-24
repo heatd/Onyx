@@ -13,7 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 #include <kernel/vfs.h>
-
+#include <stdio.h>
 // ***************************************
 // Class VFS
 // ***************************************
@@ -29,12 +29,13 @@ VFS::~VFS()
 		delete search;
 	}
 }
-BaseInode* VFS::FindNode(BaseInode* toBeFound)
+BaseInode* VFS::FindNode(const char* path)
 {
 	BaseInode* search = nodeList;
 	for((void)search; search != nullptr; search = search->next)
 	{
-		if(search == toBeFound)
+		printf("search->name: %s\n",search->name);
+		if(strcmp(search->name, (char*)path) == 0)
 			return search;
 	}
 	return nullptr;
@@ -83,5 +84,5 @@ size_t BaseInode::write(size_t offset, size_t sizeOfWriting, void* buffer)
 	(void) offset;
 	(void) buffer;
 	return sizeOfWriting;
-	
+
 }
