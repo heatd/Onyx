@@ -31,7 +31,8 @@ public:
 	{
 		WriteString(str);
 		return *this;
-	} 
+	}
+	void Scroll();
 private:
 	size_t terminal_row;
 	size_t terminal_column;

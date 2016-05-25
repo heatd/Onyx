@@ -41,6 +41,7 @@ limitations under the License.
 #include <kernel/vfs.h>
 #include <kernel/initrd.h>
 #include <new.h>
+#include <drivers/pci.h>
 /* Function: init_arch()
  * Purpose: Initialize architecture specific features, should be hooked by the architecture the kernel will run on
  */
@@ -64,7 +65,6 @@ extern "C" void KernelEarly(uintptr_t addr, uint32_t magic)
 	{
 		return;
 	}
-	int i = 0;
 	IDT::Init();
 	struct multiboot_tag_framebuffer* tagfb = nullptr;
 	for (struct multiboot_tag *tag = (struct multiboot_tag *)(addr + 8);tag->type != MULTIBOOT_TAG_TYPE_END;
@@ -100,7 +100,6 @@ extern "C" void KernelEarly(uintptr_t addr, uint32_t magic)
 			case MULTIBOOT_TAG_TYPE_MODULE:
 			{
 				initrd_tag = (struct multiboot_tag_module*) tag;
-				i++;
 				break;
 			}
 		}
@@ -118,7 +117,6 @@ extern "C" void KernelEarly(uintptr_t addr, uint32_t magic)
 	firstTerminal.Init();
 	global_terminal = &firstTerminal;
 	printf("TTY Device initialized!\n");
-	printf("%d\n",i);
 }
 VFS* vfs = nullptr;
 extern "C" void KernelMain()
@@ -131,6 +129,7 @@ extern "C" void KernelMain()
 	CPU::InitInterrupts();
 	PIT::Init(1000);
 	InitKeyboard();
+	asm volatile("sti");
 	printf("PIT initialized!\n");
 	printf("Keyboard initialized!\n");
 	int virtualAddressSpace = 0, physAddressSpace = 0;
@@ -151,7 +150,7 @@ extern "C" void KernelMain()
 	void *initrdAddress = reinterpret_cast<void *>(initrd_tag->mod_start + KERNEL_VIRTUAL_BASE);
 	Initrd* initfs = new (initrdAddress) Initrd;
 	initfs->LoadIntoRamfs();
-	
+	PCI::Init();
 	for (;;) {
 		__asm__ __volatile__ ("hlt");
 	}

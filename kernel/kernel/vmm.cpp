@@ -28,7 +28,7 @@ VasEntry framebufferEntry;
 #ifdef __x86_64__
 const uintptr_t highHalfAddress = 0xFFFF800000000000;
 const uintptr_t lowerHalfMaxAddress = 0x00007fffffffffff;
-const uintptr_t lowerHalfMinAddress = 0x600000;
+const uintptr_t lowerHalfMinAddress = 0x800000;
 #endif
 void StartAddressBookkeeping(uintptr_t framebufferAddress)
 {
@@ -47,7 +47,7 @@ void StartAddressBookkeeping(uintptr_t framebufferAddress)
 	framebufferEntry.nx = 1;
 	framebufferEntry.next = nullptr;
 }
-void* AllocateVirtAddress(uint64_t flags)
+void* AllocateVirtAddress(uint64_t flags, size_t pages)
 {
 	bool isKernel = false, allocUpsideDown = false;
 	if(flags & 1)
@@ -66,9 +66,9 @@ void* AllocateVirtAddress(uint64_t flags)
 		{
 			if(searchNode->baseAddress + searchNode->size > bestAddress)
 			{
-				if(isKernel && searchNode->baseAddress + searchNode->size > highHalfAddress) 
+				if(isKernel && searchNode->baseAddress + searchNode->size > highHalfAddress)
 					bestAddress = searchNode->baseAddress + searchNode->size;
-				else if(!isKernel && searchNode->baseAddress + searchNode->size 
+				else if(!isKernel && searchNode->baseAddress + searchNode->size
 					< lowerHalfMaxAddress)
 					bestAddress = searchNode->baseAddress + searchNode->size;
 			}
@@ -78,9 +78,9 @@ void* AllocateVirtAddress(uint64_t flags)
 			// Same as above, just with an operator inverted
 			if(searchNode->baseAddress + searchNode->size < bestAddress)
 			{
-				if(isKernel && searchNode->baseAddress + searchNode->size > highHalfAddress) 
+				if(isKernel && searchNode->baseAddress + searchNode->size > highHalfAddress)
 					bestAddress = searchNode->baseAddress + searchNode->size;
-				else if(!isKernel && searchNode->baseAddress + searchNode->size 
+				else if(!isKernel && searchNode->baseAddress + searchNode->size
 					< lowerHalfMaxAddress)
 					bestAddress = searchNode->baseAddress + searchNode->size;
 			}
@@ -91,12 +91,12 @@ void* AllocateVirtAddress(uint64_t flags)
 	}while(searchNode);
 	VasEntry* newVas = new VasEntry;
 	newVas->baseAddress = bestAddress;
-	newVas->size = 0x1000;
-	newVas->sizeInPages = 1;
+	newVas->size = 0x1000 * pages;
+	newVas->sizeInPages = pages;
 	newVas->rw = 1;
 	newVas->nx = 1;
 	newVas->next = nullptr;
 	searchNode->next = newVas;
-	return (void*)newVas->baseAddress; 
+	return (void*)newVas->baseAddress;
 }
 }

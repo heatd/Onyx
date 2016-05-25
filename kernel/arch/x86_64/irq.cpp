@@ -10,15 +10,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 /**************************************************************************
- * 
- * 
+ *
+ *
  * File: irq.c
- * 
+ *
  * Description: Contains irq instalation functions
- * 
+ *
  * Date: 1/2/2016
- * 
- * 
+ *
+ *
  **************************************************************************/
 
 #include <kernel/pic.h>
@@ -41,7 +41,7 @@ void UninstallHandler(int irq)
 	irq_routines[irq] = NULL;
 }
 };
-extern "C" void IrqHandler(uint32_t irqn)
+extern "C" void IrqHandler(uint64_t irqn)
 {
 	irq_t handler = irq_routines[irqn - 32];
 	PIC::SendEOI(irqn - 32);

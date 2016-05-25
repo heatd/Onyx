@@ -67,8 +67,16 @@ void TTY::PutChar(char c)
 {
 	if (c == '\n') {
 		newline:
+		if(terminal_row == max_row)
+		{
+			TTY::Scroll();
+			terminal_row = max_row - 1;
+			terminal_column = 0;
+			goto skip_setting;
+		}
 		terminal_column = 0;
 		terminal_row++;
+		skip_setting:
 		SoftwareFramebuffer::DrawChar('\0', last_x, last_y, 0, 0);
 		SoftwareFramebuffer::DrawChar('\0', terminal_column * 9, terminal_row * 16, 0,
 			  0xC0C0C0);
@@ -93,4 +101,8 @@ void TTY::Write(const char *data, size_t size)
 void TTY::WriteString(const char *data)
 {
 	Write(data, strlen(data));
+}
+void TTY::Scroll()
+{
+	SoftwareFramebuffer::Scroll();
 }

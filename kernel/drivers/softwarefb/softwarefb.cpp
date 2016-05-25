@@ -96,8 +96,7 @@ VideoMode *GetVideomode()
 }
 void Scroll()
 {
-	unsigned char *second_line = ( unsigned char *)framebuffer;
-	second_line += framebuffer_pitch * 20;
+	unsigned char* second_line = ( unsigned char *)framebuffer + framebuffer_pitch * 16;
 	memmove((void *)framebuffer,second_line,0x400000 - framebuffer_pixelwidth * framebuffer_width +
 	framebuffer_pitch * 16);
 }

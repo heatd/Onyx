@@ -196,9 +196,7 @@ void InitHeap()
 	k_heapBMInit(&kheap);
 	for(uintptr_t i = 0, address = KERNEL_VIRTUAL_BASE + 0x10000000; i < 1024; i++, address+=0x1000)
 	{
-		asm volatile("cli");
 		Paging::MapPhysToVirt(address, (uintptr_t)PhysicalMemoryManager::Alloc(1), 3);
-		asm volatile("sti");
 	}
 	printf("Mapped memory for the heap\n");
 	k_heapBMAddBlock(&kheap, KERNEL_VIRTUAL_BASE + 0x10000000, 0x100000, 16);
