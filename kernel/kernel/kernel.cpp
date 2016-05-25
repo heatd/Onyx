@@ -129,28 +129,39 @@ extern "C" void KernelMain()
 	CPU::InitInterrupts();
 	PIT::Init(1000);
 	InitKeyboard();
+
 	asm volatile("sti");
+
 	printf("PIT initialized!\n");
 	printf("Keyboard initialized!\n");
+
 	int virtualAddressSpace = 0, physAddressSpace = 0;
 	CPU::GetAddressSpaceSize(virtualAddressSpace, physAddressSpace);
 	printf("Address space info:\n    Physical Address Bits: %d\n    Virtual Address Bits: %d\n"
 		, virtualAddressSpace, physAddressSpace);
+
 	// Start the Virtual address bookkeeping
 	VirtualMemoryManager::StartAddressBookkeeping(KERNEL_FB);
+
 	// Initialize the kernel heap
 	InitHeap();
+
 	//Initialize the VFS
 	VFS* kvfs = new VFS;
 	vfs = kvfs;
 	printf("VFS initialized!\n");
+
 	if(!initrd_tag)
 		panic("Initrd not found\n");
 	printf("Initrd module loaded at 0x%X\n",initrd_tag->mod_start);
 	void *initrdAddress = reinterpret_cast<void *>(initrd_tag->mod_start + KERNEL_VIRTUAL_BASE);
+
 	Initrd* initfs = new (initrdAddress) Initrd;
 	initfs->LoadIntoRamfs();
+
+	// Initialize PCI
 	PCI::Init();
+
 	for (;;) {
 		__asm__ __volatile__ ("hlt");
 	}

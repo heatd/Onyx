@@ -43,6 +43,11 @@ namespace PCI
 	const uint16_t CLASS_DATA_AND_SIGNAL_CONTROLLER = 0x11;
 	void Init();
 	uint16_t ConfigReadWord (uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset);
+	void CheckDevices();
+	uint32_t ConfigReadDword (uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset);
+	const char* IdentifyCommonVendors(uint16_t vendorID);
+	const char* IdentifyDeviceType(uint16_t headerType);
+	const char* IdentifyDeviceFunction(uint8_t pciClass, uint8_t subClass, uint8_t progIF);
 	}
 };
 

@@ -199,7 +199,7 @@ void InitHeap()
 		Paging::MapPhysToVirt(address, (uintptr_t)PhysicalMemoryManager::Alloc(1), 3);
 	}
 	printf("Mapped memory for the heap\n");
-	k_heapBMAddBlock(&kheap, KERNEL_VIRTUAL_BASE + 0x10000000, 0x100000, 16);
+	k_heapBMAddBlock(&kheap, KERNEL_VIRTUAL_BASE + 0x10000000, 0x200000, 16);
 	heap_extensions = 0;
 	//prefetch((const void *)(KERNEL_VIRTUAL_BASE + 0x10000000),1,3);
 }
