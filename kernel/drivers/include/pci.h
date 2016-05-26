@@ -17,7 +17,27 @@ limitations under the License.
 #include <stdint.h>
 #include <kernel/portio.h>
 
-
+class PCIDevice
+{
+private:
+	uint16_t deviceID, vendorID;
+	char* vendorString, *functionString;
+	uint8_t slot, device;
+	uint8_t pciClass, subClass, progIF;
+public:
+	PCIDevice* next;
+	PCIDevice(uint16_t deviceID, uint16_t vendorID, const char* vendorString, const char* functionString, uint8_t slot,
+	uint8_t device, uint8_t pciClass, uint8_t subClass, uint8_t progIF);
+	uint8_t getSlot(){return slot;}
+	uint8_t getDevice(){return device;}
+	uint8_t getPciClass(){return pciClass;}
+	uint8_t getSubClass(){return subClass;}
+	uint8_t getProgIF(){return progIF;}
+	char* getVendorString(){return vendorString;}
+	char* getFunctionString(){return functionString;}
+	uint16_t getDeviceID(){return deviceID;}
+	uint16_t getVendorID(){return vendorID;}
+};
 namespace PCI
 {
 	extern "C++"
@@ -49,6 +69,12 @@ namespace PCI
 	const char* IdentifyDeviceType(uint16_t headerType);
 	const char* IdentifyDeviceFunction(uint8_t pciClass, uint8_t subClass, uint8_t progIF);
 	}
+	typedef struct
+	{
+		uint32_t address;
+		bool isPrefetchable;
+		bool isIO;
+	}PciBar_t;
 };
 
 #endif

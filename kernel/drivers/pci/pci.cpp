@@ -32,7 +32,7 @@ namespace PCI
 				}
 				break;
 			}
-			case 1:
+			case CLASS_MASS_STORAGE_CONTROLLER:
 			{
 				switch(subClass)
 				{
@@ -93,7 +93,7 @@ namespace PCI
 				}
 				break;
 			}
-			case 2:
+			case CLASS_NETWORK_CONTROLLER:
 			{
 				switch(subClass)
 				{
@@ -132,7 +132,7 @@ namespace PCI
 				}
 				break;
 			}
-			case 3:
+			case CLASS_DISPLAY_CONTROLLER:
 			{
 				switch(subClass)
 				{
@@ -157,7 +157,7 @@ namespace PCI
 				}
 				break;
 			}
-			case 4:
+			case CLASS_MULTIMEDIA_CONTROLLER:
 			{
 				switch(subClass)
 				{
@@ -180,7 +180,7 @@ namespace PCI
 				}
 				break;
 			}
-			case 5:
+			case CLASS_MEMORY_CONTROLLER:
 			{
 				switch(subClass)
 				{
@@ -199,7 +199,7 @@ namespace PCI
 				}
 				break;
 			}
-			case 6:
+			case CLASS_BRIDGE_DEVICE:
 			{
 				switch(subClass)
 				{
@@ -262,7 +262,7 @@ namespace PCI
 				}
 				break;
 			}
-			case 7:
+			case CLASS_COMMUNICATIONS_CONTROLLER:
 			{
 				switch(subClass)
 				{
@@ -371,7 +371,7 @@ namespace PCI
 				}
 				break;
 			}
-			case 8:
+			case CLASS_BASE_SYSTEM_PERIPHERALS:
 			{
 				switch(subClass)
 				{
@@ -436,7 +436,7 @@ namespace PCI
 				}
 				break;
 			}
-			case 9:
+			case CLASS_INPUT_DEVICES:
 			{
 				switch(subClass)
 				{
@@ -454,7 +454,7 @@ namespace PCI
 						return "Unknown Input Controller";
 				}
 			}
-			case 0xA:
+			case CLASS_DOCKING_STATIONS:
 			{
 				switch(subClass)
 				{
@@ -464,7 +464,7 @@ namespace PCI
 						return "Unknown Docking Station";
 				}
 			}
-			case 0xB:
+			case CLASS_PROCESSORS:
 			{
 				switch(subClass)
 				{
@@ -484,7 +484,7 @@ namespace PCI
 						return "Co-Processor";
 				}
 			}
-			case 0xC:
+			case CLASS_SERIAL_BUS_CONTROLLER:
 			{
 				switch(subClass)
 				{
@@ -545,7 +545,7 @@ namespace PCI
 						return "CANbus";
 				}
 			}
-			case 0xD:
+			case CLASS_WIRELESS_CONTROLLER:
 			{
 				switch(subClass)
 				{
@@ -567,7 +567,7 @@ namespace PCI
 						return "Unknown Wireless Controller";
 				}
 			}
-			case 0xE:
+			case CLASS_INTELIGENT_CONTROLLER:
 			{
 				switch(subClass)
 				{
@@ -580,7 +580,7 @@ namespace PCI
 					}
 				}
 			}
-			case 0xF:
+			case CLASS_SATELLITE_CONTROLLER:
 			{
 				switch(subClass)
 				{
@@ -594,7 +594,7 @@ namespace PCI
 						return "Data Controller";
 				}
 			}
-			case 0x10:
+			case CLASS_ENCRYPTION_DECRYPTION_CONTROLLER:
 			{
 				switch(subClass)
 				{
@@ -606,7 +606,7 @@ namespace PCI
 						return "Other Encryption/Decryption";
 				}
 			}
-			case 0x11:
+			case CLASS_DATA_AND_SIGNAL_CONTROLLER:
 			{
 				switch(subClass)
 				{
@@ -697,6 +697,7 @@ namespace PCI
         }
 	void CheckDevices()
 	{
+		PCIDevice* last = nullptr;
 		for(uint16_t slot = 0; slot < 256; slot++)
 		{
 			for(uint16_t device = 0; device < 32; device++)
@@ -708,17 +709,40 @@ namespace PCI
 				printf("Device: ");
 				// Check the vendor against a bunch of mainstream hardware developers
 				printf("Vendor: %s\n", IdentifyCommonVendors(vendor));
-				printf("DeviceID: %x\n", ConfigReadDword(slot, device, 0,0) >> 16);
+				printf("DeviceID: %X\n", ConfigReadDword(slot, device, 0,0) >> 16);
 				// Get header type
-				uint16_t header = (uint16_t)(ConfigReadDword(slot, device, 0,0xC) & 0x0000ffff);
+				uint16_t header = (uint16_t)(ConfigReadWord(slot, device, 0,0xD));
+				if(header & 0x80)
+					printf("This cunt has multiple functions!\n");
 				printf("Device type: %s\n",IdentifyDeviceType(header));
-				// DON'T NAME THIS AS class, c++ recognizes this as a keyword
+				// DON'T NAME THIS AS "class", c++ recognizes this as a keyword
 				uint8_t pciClass = (uint8_t)(ConfigReadWord(slot, device, 0 , 0xA)>>8);
 				uint8_t subClass = (uint8_t)ConfigReadWord(slot,device, 0, 0xB);
 				uint8_t progIF = (uint8_t)(ConfigReadWord(slot, device, 0,0xC)>>8);
 				printf("Function of Device: %s\n", IdentifyDeviceFunction(pciClass, subClass, progIF));
+				// Set up some meta-data
+				PCIDevice* dev = new PCIDevice(device, vendor, IdentifyCommonVendors(vendor), IdentifyDeviceFunction(pciClass, subClass, progIF),
+				slot, device, pciClass, subClass, progIF);
+
+				if(last)
+					last->next = dev;
+				last = dev;
 			}
 		}
+	}
+	PciBar_t* GetBAR0(uint8_t slot, uint8_t device, uint8_t function)
+	{
+		uint32_t i = ConfigReadDword(slot, device,function,0x10);
+		PciBar_t* pcibar = new PciBar_t;
+		pcibar->address = i & 0xFFFFFFF0;
+		pcibar->isIO = i & 1;
+		pcibar->isPrefetchable = i & 4;
+		return pcibar;
+	}
+	uint16_t GetINTN(uint8_t slot, uint8_t device, uint8_t function)
+	{
+		uint16_t intn = ConfigReadWord(slot, device, function, 0x44);
+		return intn;
 	}
 	void Init()
 	{
@@ -727,3 +751,16 @@ namespace PCI
 		CheckDevices();
 	}
 };
+PCIDevice::PCIDevice(uint16_t deviceID, uint16_t vendorID, const char* vendorString, const char* functionString, uint8_t slot,
+uint8_t device, uint8_t pciClass, uint8_t subClass, uint8_t progIF)
+{
+	this->deviceID = deviceID;
+	this->vendorID = vendorID;
+	this->vendorString = (char*)vendorString;
+	this->functionString = (char*)functionString;
+	this->slot = slot;
+	this->device = device;
+	this->pciClass = pciClass;
+	this->subClass = subClass;
+	this->progIF = progIF;
+}
