@@ -22,14 +22,15 @@ class PCIDevice
 private:
 	uint16_t deviceID, vendorID;
 	char* vendorString, *functionString;
-	uint8_t slot, device;
+	uint8_t slot, device, function;
 	uint8_t pciClass, subClass, progIF;
 public:
 	PCIDevice* next;
 	PCIDevice(uint16_t deviceID, uint16_t vendorID, const char* vendorString, const char* functionString, uint8_t slot,
-	uint8_t device, uint8_t pciClass, uint8_t subClass, uint8_t progIF);
+	uint8_t device, uint8_t function, uint8_t pciClass, uint8_t subClass, uint8_t progIF);
 	uint8_t getSlot(){return slot;}
 	uint8_t getDevice(){return device;}
+	uint8_t getFunction(){return function;}
 	uint8_t getPciClass(){return pciClass;}
 	uint8_t getSubClass(){return subClass;}
 	uint8_t getProgIF(){return progIF;}

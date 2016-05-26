@@ -14,9 +14,13 @@ limitations under the License.
 */
 #include <drivers/pci.h>
 #include <stdio.h>
-
+#include <kernel/compiler.h>
 namespace PCI
 {
+	/* A _HUGE_ function to identify the device's function using the device's class, subClass and progIF
+	   Returns a pointer to a string that is the purpose of the device
+	   Returns "Unknown" on error
+	   */
 	const char* IdentifyDeviceFunction(uint8_t pciClass, uint8_t subClass, uint8_t progIF)
 	{
 		switch(pciClass)
@@ -627,15 +631,26 @@ namespace PCI
 		}
 		return "Unknown";
 	}
+	/* Identify the Device type with the headerType as an argument
+	    Possible return values are "PCI Device", "PCI-to-PCI Bridge" or "CardBus Bridge"
+	    Returns a pointer to a device type string
+	    Returns "Invalid" on error
+	    */
 	const char* IdentifyDeviceType(uint16_t headerType)
 	{
 		if(headerType == 0)
 			return "PCI Device";
 		else if(headerType == 1)
 			return "PCI-to-PCI Bridge";
+		else if(headerType == 2)
+			return "CardBus Bridge";
 
 		return "Invalid";
 	}
+	/* This function checks the vendorID against a bunch of common vendor strings
+	   like nvidia, intel, etc...
+	   Returns a pointer to a vendor string
+	   */
 	const char* IdentifyCommonVendors(uint16_t vendorID)
 	{
 		switch(vendorID)
@@ -695,38 +710,89 @@ namespace PCI
            tmp = (uint32_t)((inl (CONFIG_DATA)));
            return (tmp);
         }
+	PCIDevice* last = nullptr;
+	PCIDevice* CheckFunction(uint8_t bus, uint8_t device, uint8_t function)
+	{
+		// Get vendorID
+		uint16_t vendorID = (uint16_t)(ConfigReadDword(bus, device, function, 0) & 0x0000ffff);
+		if(vendorID == 0xFFFF) //Invalid function
+			return nullptr;
+		// Get vendor string from common vendors
+		const char* vendor = IdentifyCommonVendors(vendorID);
+		// Get device ID
+		uint16_t deviceID = (uint16_t)ConfigReadDword(bus, device, function, 0) >> 16;
+
+		// Get Device Class
+		uint8_t pciClass = (uint8_t)(ConfigReadWord(bus, device, function , 0xA)>>8);
+		// Get Device SubClass
+		uint8_t subClass = (uint8_t)ConfigReadWord(bus,device, function, 0xB);
+		// Get ProgIF
+		uint8_t progIF = (uint8_t)(ConfigReadWord(bus, device, function,0xC)>>8);
+		// What a nice variable name :D
+		const char* functionFunction = IdentifyDeviceFunction(pciClass, subClass, progIF); /* Get the device's
+		function */
+		// Set up the meta-data
+		PCIDevice* dev = new PCIDevice(deviceID, vendorID, vendor, functionFunction,
+		bus, device, function, pciClass, subClass, progIF);
+		// Put it on the linked list
+		last->next = dev;
+		last = dev;
+
+		return dev;
+
+	}
 	void CheckDevices()
 	{
-		PCIDevice* last = nullptr;
 		for(uint16_t slot = 0; slot < 256; slot++)
 		{
 			for(uint16_t device = 0; device < 32; device++)
 			{
+				uint8_t function = 0;
 				// Get vendor
 				uint16_t vendor = (uint16_t)(ConfigReadDword(slot, device, 0,0) & 0x0000ffff);
+
 				if(vendor == 0xFFFF) //Invalid, just skip this device
 					break;
-				printf("Device: ");
+
+				printf("Found a device at slot %d, device %d, function %d: ",slot,device,0);
+
 				// Check the vendor against a bunch of mainstream hardware developers
 				printf("Vendor: %s\n", IdentifyCommonVendors(vendor));
 				printf("DeviceID: %X\n", ConfigReadDword(slot, device, 0,0) >> 16);
+
 				// Get header type
-				uint16_t header = (uint16_t)(ConfigReadWord(slot, device, 0,0xD));
-				if(header & 0x80)
-					printf("This cunt has multiple functions!\n");
-				printf("Device type: %s\n",IdentifyDeviceType(header));
+				uint16_t header = (uint16_t)(ConfigReadWord(slot, device, 0,0xE));
+
+				printf("Device type: %s\n",IdentifyDeviceType(header & 0x7F));
+
 				// DON'T NAME THIS AS "class", c++ recognizes this as a keyword
 				uint8_t pciClass = (uint8_t)(ConfigReadWord(slot, device, 0 , 0xA)>>8);
 				uint8_t subClass = (uint8_t)ConfigReadWord(slot,device, 0, 0xB);
 				uint8_t progIF = (uint8_t)(ConfigReadWord(slot, device, 0,0xC)>>8);
 				printf("Function of Device: %s\n", IdentifyDeviceFunction(pciClass, subClass, progIF));
+
 				// Set up some meta-data
 				PCIDevice* dev = new PCIDevice(device, vendor, IdentifyCommonVendors(vendor), IdentifyDeviceFunction(pciClass, subClass, progIF),
-				slot, device, pciClass, subClass, progIF);
+				slot, device, function, pciClass, subClass, progIF);
 
-				if(last)
+				// If last is not nullptr (it is at first), set this device as the last node's next
+				if(likely(last))
 					last->next = dev;
 				last = dev;
+
+				if((header & 0x80) != 0)
+				{
+					for(int i = 1; i < 8;i++)
+					{
+						PCIDevice* dev = CheckFunction(slot, device, i);
+						if(!dev)
+							continue;
+						printf("Found PCI device at bus %d, device %d, function %d\n", dev->getSlot(), dev->getDevice(),
+						dev->getFunction());
+						printf("Device function: %s\n",dev->getFunctionString());
+
+					}
+				}
 			}
 		}
 	}
@@ -752,7 +818,7 @@ namespace PCI
 	}
 };
 PCIDevice::PCIDevice(uint16_t deviceID, uint16_t vendorID, const char* vendorString, const char* functionString, uint8_t slot,
-uint8_t device, uint8_t pciClass, uint8_t subClass, uint8_t progIF)
+uint8_t device, uint8_t function, uint8_t pciClass, uint8_t subClass, uint8_t progIF)
 {
 	this->deviceID = deviceID;
 	this->vendorID = vendorID;
@@ -760,6 +826,7 @@ uint8_t device, uint8_t pciClass, uint8_t subClass, uint8_t progIF)
 	this->functionString = (char*)functionString;
 	this->slot = slot;
 	this->device = device;
+	this->function = function;
 	this->pciClass = pciClass;
 	this->subClass = subClass;
 	this->progIF = progIF;

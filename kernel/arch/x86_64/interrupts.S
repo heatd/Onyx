@@ -1,12 +1,4 @@
 section .text
-%macro ISR_NOERRCODE 1
-global isr%1
-isr%1:
-	cli
-	xor rdi,rdi   ;push dummy err code
-	mov rsi, %1  ;push the interrupt number
-	jmp IsrCommon ;Go to the handler
-%endmacro
 %macro pushaq 0
 	push rax
 	push rbx
@@ -41,10 +33,17 @@ isr%1:
 	pop rbx
 	pop rax
 %endmacro
-
+%macro ISR_NOERRCODE 1
+global isr%1
+isr%1:
+	cli
+	pushaq
+	xor rdi,rdi   ;push dummy err code
+	mov rsi, %1  ;push the interrupt number
+	jmp IsrCommon ;Go to the handler
+%endmacro
 extern IrqHandler
 IrqCommon:
-	pushaq
 	call IrqHandler
 	popaq
 	iretq
@@ -54,6 +53,7 @@ IrqCommon:
 global irq%1
 irq%1:
 cli
+pushaq
 mov rdi, %2
 jmp IrqCommon
 %endmacro
@@ -61,6 +61,7 @@ jmp IrqCommon
 global isr%1
 isr%1:
 	cli
+	pushaq
 	mov rdi, [rsp]
 	mov rsi, %1 ;push the interrupt number to the arguments
 	jmp IsrCommon ;Go to the handler
@@ -85,6 +86,7 @@ IsrCommon:
 	mov es,ax
 	mov fs,ax
 	mov fs,ax
+	popaq
 	iretq
 
 ISR_NOERRCODE 0
