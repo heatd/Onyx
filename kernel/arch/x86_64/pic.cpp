@@ -1,17 +1,13 @@
-/* Copyright 2016 Pedro Falcato
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-http ://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/*----------------------------------------------------------------------
+ * Copyright (C) 2016 Pedro Falcato
+ *
+ * This file is part of Spartix, and is made available under
+ * the terms of the GNU General Public License version 2.
+ *
+ * You can redistribute it and/or modify it under the terms of the GNU
+ * General Public License version 2 as published by the Free Software
+ * Foundation.
+ *----------------------------------------------------------------------*/
 #include <kernel/pic.h>
 #include <stdint.h>
 #include <kernel/portio.h>
@@ -59,7 +55,7 @@ void UnmaskIRQ(uint16_t irqn)
 {
 	uint16_t port;
 	uint8_t value;
- 
+
 	if(irqn < 8) {
 		port = PIC1_DATA;
 	} else {
@@ -83,7 +79,7 @@ void MaskIRQ(uint16_t irqn)
 	value = inb(port) | (1 << irqn);
 	outb(port, value);
 }
- 
+
 /* Returns the combined value of the cascaded PICs irq request register */
 uint16_t GetIRR(void)
 {
@@ -93,7 +89,7 @@ void SendEOI(unsigned char irq)
 {
 	if(irq >= 8)
 		outb(PIC2_COMMAND,PIC_EOI);
- 
+
 	outb(PIC1_COMMAND,PIC_EOI);
 }
 /* Returns the combined value of the cascaded PICs in-service register */

@@ -1,17 +1,13 @@
-/* Copyright 2016 Pedro Falcato
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-http ://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+/*----------------------------------------------------------------------
+ * Copyright (C) 2016 Pedro Falcato
+ *
+ * This file is part of Spartix, and is made available under
+ * the terms of the GNU General Public License version 2.
+ *
+ * You can redistribute it and/or modify it under the terms of the GNU
+ * General Public License version 2 as published by the Free Software
+ * Foundation.
+ *----------------------------------------------------------------------*/
 #include <kernel/Paging.h>
 
 inline uint64_t make_pml4e(uint64_t base,uint64_t avl,uint64_t pcd,uint64_t pwt,uint64_t us,uint64_t rw,uint64_t p)
@@ -63,7 +59,7 @@ inline uint64_t make_pml1e(uint64_t base,uint64_t nx, uint64_t avl,uint64_t glbl
   		(us << 2) | \
   		(rw << 1) | \
   		p);
-}	
+}
 
 typedef struct {
     uint64_t offsetFromPage :12;
@@ -103,7 +99,7 @@ void* MapPhysToVirt(uint64_t virt, uint64_t phys, uint64_t prot)
 		if(!pml3)
 			return nullptr;
 		memset(pml3, 0, sizeof(PML3));
-		*entry = make_pml4e((uint64_t)pml3, 0, 0, 0, 0, (prot & 1)? 1 : 0, 1);	
+		*entry = make_pml4e((uint64_t)pml3, 0, 0, 0, 0, (prot & 1)? 1 : 0, 1);
 	}
 	entry = &pml3->entries[decAddr.pdpt];
 	if(*entry & 1) {
