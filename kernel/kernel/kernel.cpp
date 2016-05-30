@@ -38,11 +38,12 @@
 #include <kernel/initrd.h>
 #include <new.h>
 #include <drivers/pci.h>
+#include <kernel/task_switching.h>
 /* Function: init_arch()
  * Purpose: Initialize architecture specific features, should be hooked by the architecture the kernel will run on
  */
 #define KERNEL_FB 0xFFFFE00000000000
-void KernelLate();
+void KernelLate(void*);
 void InitKeyboard();
 extern uint64_t kernelEnd;
 extern char __BUILD_NUMBER;
@@ -126,8 +127,6 @@ extern "C" void KernelMain()
 	PIT::Init(1000);
 	InitKeyboard();
 
-	asm volatile("sti");
-
 	printf("PIT initialized!\n");
 	printf("Keyboard initialized!\n");
 
@@ -156,14 +155,19 @@ extern "C" void KernelMain()
 	initfs->LoadIntoRamfs();
 
 	// Initialize PCI
-	PCI::Init();
+	//PCI::Init();
 
+	NativeSchedulerCreateThread(KernelLate, 1, (void*)"Started multitasking!");
+
+	asm volatile("sti");
 	for (;;) {
 		__asm__ __volatile__ ("hlt");
 	}
 }
-void KernelLate()
+void KernelLate(void* args)
 {
+
+	printf("%s\n",args);
 	for (;;) {
 		__asm__ __volatile__ ("hlt");
 	}

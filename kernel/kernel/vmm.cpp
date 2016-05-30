@@ -43,6 +43,16 @@ void StartAddressBookkeeping(uintptr_t framebufferAddress)
 	framebufferEntry.nx = 1;
 	framebufferEntry.next = nullptr;
 }
+void* MapRange(void* range, size_t pages)
+{
+	uintptr_t mem = (uintptr_t)range;
+	for(size_t pgs = 0; pgs < pages; pgs++)
+	{
+		Paging::MapPhysToVirt(mem, (uintptr_t)PhysicalMemoryManager::Alloc(1), 0x3);
+		mem+=0x1000;
+	}
+	return range;
+}
 void* AllocateVirtAddress(uint64_t flags, size_t pages)
 {
 	bool isKernel = false, allocUpsideDown = false;
@@ -72,7 +82,7 @@ void* AllocateVirtAddress(uint64_t flags, size_t pages)
 		else
 		{
 			// Same as above, just with an operator inverted
-			if(searchNode->baseAddress + searchNode->size < bestAddress)
+			if(searchNode->baseAddress + searchNode->size < bestAddress && bestAddress != 0)
 			{
 				if(isKernel && searchNode->baseAddress + searchNode->size > highHalfAddress)
 					bestAddress = searchNode->baseAddress + searchNode->size;
@@ -80,7 +90,14 @@ void* AllocateVirtAddress(uint64_t flags, size_t pages)
 					< lowerHalfMaxAddress)
 					bestAddress = searchNode->baseAddress + searchNode->size;
 			}
+			else
+			{
+				bestAddress = searchNode->baseAddress + searchNode->size;
+			}
 		}
+		if(searchNode->baseAddress == bestAddress || (bestAddress + pages * 0x1000
+			< searchNode->baseAddress && bestAddress + pages * 0x1000 >= searchNode->baseAddress + searchNode->size))
+			bestAddress = searchNode->baseAddress + searchNode->size;
 		if(searchNode->next == nullptr)
 			break;
 		searchNode = searchNode->next;

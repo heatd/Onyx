@@ -38,6 +38,7 @@ namespace VirtualMemoryManager
 	void Init();
 	void StartAddressBookkeeping(uintptr_t framebufferAddress);
 	void* AllocateVirtAddress(uint64_t flags, size_t pages);
+	void* MapRange(void* range, size_t pages);
 };
 
 

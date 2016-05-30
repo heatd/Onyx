@@ -16,7 +16,6 @@ section .text
 	push rdx
 	push rdi
 	push rsi
-	push rsp
 	push r8
 	push r9
 	push r10
@@ -35,7 +34,6 @@ section .text
 	pop r10
 	pop r9
 	pop r8
-	pop rsp
 	pop rsi
 	pop rdi
 	pop rdx
@@ -131,7 +129,20 @@ ISR_NOERRCODE 28
 ISR_NOERRCODE 29
 ISR_NOERRCODE 30
 ISR_NOERRCODE 31
-IRQ 0, 32
+global irq0
+irq0:
+	cli
+	pushaq
+	extern TimerHandler
+	call TimerHandler
+	mov rdi, rsp
+	extern NativeSchedulerSwitchThread
+	call NativeSchedulerSwitchThread
+	mov rsp, rax
+	mov al, 0x20
+	out 0x20, al
+	popaq
+	iretq
 IRQ 1,33
 IRQ 2,34
 IRQ 3,35
