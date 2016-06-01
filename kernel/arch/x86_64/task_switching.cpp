@@ -14,14 +14,17 @@
 #include <stdlib.h>
 #include <kernel/task_switching.h>
 #include <kernel/vmm.h>
+#include <kernel/spinlock.h>
 // First and last nodes of the linked list
 static Thread* firstThread = nullptr;
 static Thread* lastThread = nullptr;
 static Thread* currentThread = nullptr;
 /* Creates a thread for the scheduler to switch to
    Expects a callback for the code(RIP) and some flags */
+static spinlock_t spl;
 Thread* NativeSchedulerCreateThread(ThreadCallback callback, uint32_t flags,void* args)
 {
+	acquire(&spl);
 	Thread* newThread = new Thread;
 	newThread->rip = callback;
 	newThread->flags = flags;
@@ -98,6 +101,7 @@ Thread* NativeSchedulerCreateThread(ThreadCallback callback, uint32_t flags,void
 	else
 		lastThread->next = newThread;
 	lastThread = newThread;
+	release(&spl);
 	return newThread;
 }
 extern "C" void* NativeSchedulerSwitchThread(void* lastStack)

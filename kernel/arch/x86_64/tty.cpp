@@ -27,6 +27,7 @@
 #include <kernel/vga.h>
 #include <kernel/tty.h>
 #include <drivers/softwarefb.h>
+#include <kernel/spinlock.h>
 #include <stdio.h>
 
 void TTY::Init(void)
@@ -88,10 +89,17 @@ void TTY::PutChar(char c)
 			    terminal_row);
 	terminal_column++;
 }
+static spinlock_t spl;
 void TTY::Write(const char *data, size_t size)
 {
+	uint64_t rflags = __builtin_ia32_readeflags_u64();
+	asm volatile("cli");
+	acquire(&spl);
 	for (size_t i = 0; i < size; i++)
 		PutChar(data[i]);
+	release(&spl);
+	if(rflags & 0x200)
+		asm volatile("sti");
 }
 
 void TTY::WriteString(const char *data)

@@ -18,7 +18,6 @@ typedef struct thr
 	uintptr_t* userStack;
 	uintptr_t* kernelStack;
 	ThreadCallback rip;
-	void* args;
 	uint32_t flags;
 	struct thr* next;
 } Thread;

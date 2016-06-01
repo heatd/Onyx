@@ -58,15 +58,17 @@ static void print(const char *data, size_t data_length)
 	for ( i = 0; i < data_length; i++)
 		putchar((int) ((const unsigned char *) data)[i]);
 }
-
-#ifdef __is_spartix_kernel
-static spinlock_t spl;
-#endif
+bool is_init = false;
+void libc_late_init()
+{
+	is_init = true;
+}
 int printf(const char *__restrict__ format, ...)
 {
-#ifdef __is_spartix_kernel
+/*#ifdef __is_spartix_kernel
 	acquire(&spl);
-#endif
+#endif*/
+	asm volatile("cli");
 	va_list parameters;
 	va_start(parameters, format);
 
@@ -164,8 +166,9 @@ int printf(const char *__restrict__ format, ...)
 
 	va_end(parameters);
 
-#ifdef __is_spartix_kernel
+/*ifdef __is_spartix_kernel
 	release(&spl);
-#endif
+#endif*/if(is_init)
+		asm volatile("sti");
 	return written;
 }

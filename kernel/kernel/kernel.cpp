@@ -116,6 +116,13 @@ extern "C" void KernelEarly(uintptr_t addr, uint32_t magic)
 	printf("TTY Device initialized!\n");
 }
 VFS* vfs = nullptr;
+void KernelLate2(void* args)
+{
+	(void) args;
+	printf("hello\n");
+	while(1);
+}
+extern void libc_late_init();
 extern "C" void KernelMain()
 {
 	printf("Spartix kernel %s branch %s build %d for the %s architecture\n", KERNEL_VERSION,
@@ -158,7 +165,8 @@ extern "C" void KernelMain()
 	//PCI::Init();
 
 	NativeSchedulerCreateThread(KernelLate, 1, (void*)"Started multitasking!");
-
+	NativeSchedulerCreateThread(KernelLate2, 1, (void*)"Started multitasking2!");
+	libc_late_init();
 	asm volatile("sti");
 	for (;;) {
 		__asm__ __volatile__ ("hlt");
@@ -166,6 +174,9 @@ extern "C" void KernelMain()
 }
 void KernelLate(void* args)
 {
+	/* At this point, multitasking is initialized in the kernel
+	 * Perform a small test to check if the argument string was passed correctly,
+	 * and continue with initialization */
 
 	printf("%s\n",args);
 	for (;;) {
