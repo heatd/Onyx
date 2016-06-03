@@ -24,9 +24,9 @@ typedef struct vid_mode
 }VideoMode;
 namespace SoftwareFramebuffer
 {
-	void PutPixel(unsigned int x,unsigned int y, int color);
+	void PutPixel(unsigned int x,unsigned int y, int color, void* fb);
 	void DrawSquare(int side,int x, int y, int color);
-	void DrawChar(unsigned char c, int x, int y, int fgcolor, int bgcolor);
+	void DrawChar(unsigned char c, int x, int y, int fgcolor, int bgcolor, void* fb);
 	void Init(uintptr_t fb_address, uint32_t bpp, uint32_t width, uint32_t height,uint32_t pitch);
 	void *GetFBAddress();
 	void Scroll();

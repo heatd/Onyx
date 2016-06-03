@@ -64,9 +64,9 @@ extern "C" void KernelEarly(uintptr_t addr, uint32_t magic)
 	}
 	IDT::Init();
 	struct multiboot_tag_framebuffer* tagfb = nullptr;
+	size_t totalMemory = 0;
 	for (struct multiboot_tag *tag = (struct multiboot_tag *)(addr + 8);tag->type != MULTIBOOT_TAG_TYPE_END;
 		tag = (struct multiboot_tag *) ((multiboot_uint8_t *) tag + ((tag->size + 7) & ~7))) {
-		size_t totalMemory = 0;
 		switch(tag->type) {
 			case MULTIBOOT_TAG_TYPE_BASIC_MEMINFO:
 			{
@@ -102,6 +102,7 @@ extern "C" void KernelEarly(uintptr_t addr, uint32_t magic)
 		}
 	}
 	VirtualMemoryManager::Init();
+	Paging::MapAllPhys(totalMemory * 1024);
 	// Map the FB
 	for(uintptr_t virt = KERNEL_FB, phys = tagfb->common.framebuffer_addr; virt < KERNEL_FB + 0x400000; virt +=4096, phys+=4096)
 	{
@@ -114,6 +115,7 @@ extern "C" void KernelEarly(uintptr_t addr, uint32_t magic)
 	firstTerminal.Init();
 	global_terminal = &firstTerminal;
 	printf("TTY Device initialized!\n");
+
 }
 VFS* vfs = nullptr;
 void KernelLate2(void* args)
@@ -161,11 +163,10 @@ extern "C" void KernelMain()
 	Initrd* initfs = new (initrdAddress) Initrd;
 	initfs->LoadIntoRamfs();
 
-	// Initialize PCI
-	//PCI::Init();
-
+	// Initalize Multitasking
 	NativeSchedulerCreateThread(KernelLate, 1, (void*)"Started multitasking!");
 	NativeSchedulerCreateThread(KernelLate2, 1, (void*)"Started multitasking2!");
+	// Initialize Late LIBC
 	libc_late_init();
 	asm volatile("sti");
 	for (;;) {
@@ -179,6 +180,13 @@ void KernelLate(void* args)
 	 * and continue with initialization */
 
 	printf("%s\n",args);
+	void* mem = VirtualMemoryManager::AllocateVirtAddress(VM_KERNEL, 1024);
+	VirtualMemoryManager::MapRange(mem, 1024);
+	global_terminal->CreatePTYAndSwitch(mem);
+
+	// Initialize PCI
+	PCI::Init();
+
 	for (;;) {
 		__asm__ __volatile__ ("hlt");
 	}

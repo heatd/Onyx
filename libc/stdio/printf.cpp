@@ -14,6 +14,9 @@
 #include <string.h>
 #include <stdint-gcc.h>
 #include <stdlib.h>
+#ifdef __is_spartix_kernel
+#include <kernel/tty.h>
+#endif
 char tbuf[32];
 char bchars[] =
     { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D',
@@ -51,12 +54,24 @@ void itoa(uint64_t i, unsigned int base, char *buf, _Bool is_upper)
 	}
 	buf[opos] = 0;
 }
-
+char buffer[500];
+int bufferPos = 0;
 static void print(const char *data, size_t data_length)
 {
 	size_t i;
 	for ( i = 0; i < data_length; i++)
-		putchar((int) ((const unsigned char *) data)[i]);
+	{
+		buffer[bufferPos] = data[i];
+		bufferPos++;
+	}
+}
+void flushPrint()
+{
+	#ifdef __is_spartix_kernel
+	global_terminal->Write(buffer, bufferPos);
+	#endif
+	memset(buffer, 0 ,500);
+	bufferPos = 0;
 }
 bool is_init = false;
 void libc_late_init()
@@ -163,7 +178,7 @@ int printf(const char *__restrict__ format, ...)
 			goto incomprehensible_conversion;
 		}
 	}
-
+	flushPrint();
 	va_end(parameters);
 
 /*ifdef __is_spartix_kernel

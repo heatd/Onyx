@@ -22,6 +22,8 @@ public:
 	void Write(const char *data, size_t size);
 	void WriteString(const char *data);
 	void SetColor(int color);
+	int CreatePTYAndSwitch(void*);
+	void SwapFramebuffers();
 	void Init(void);
 	TTY& operator << (const char* str)
 	{
