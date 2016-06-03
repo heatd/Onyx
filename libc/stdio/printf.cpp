@@ -12,7 +12,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
-#include <stdint-gcc.h>
+#include <stdint.h>
 #include <stdlib.h>
 #ifdef __is_spartix_kernel
 #include <kernel/tty.h>

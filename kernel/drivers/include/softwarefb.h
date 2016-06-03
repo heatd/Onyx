@@ -25,7 +25,7 @@ namespace SoftwareFramebuffer
 	void DrawChar(unsigned char c, int x, int y, int fgcolor, int bgcolor, void* fb);
 	void Init(uintptr_t fb_address, uint32_t bpp, uint32_t width, uint32_t height,uint32_t pitch);
 	void *GetFBAddress();
-	void Scroll();
+	void Scroll(void*);
 	VideoMode *GetVideomode();
 }
 #endif

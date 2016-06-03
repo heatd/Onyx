@@ -95,5 +95,5 @@ int execvp(const char* file, char* const argv[]);
 int execve(const char* filename, char* const argv[],
 char* const envp[]);
 int brk(void* addr);
-void* sbrk(uint32_t inc);
+void* sbrk(unsigned long long inc);
 #endif

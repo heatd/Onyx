@@ -189,7 +189,7 @@ extern "C" void KernelMain()
 		panic("Initrd not found\n");
 	printf("Initrd module loaded at 0x%X\n",initrd_tag->mod_start);
 	void *initrdAddress = reinterpret_cast<void *>(initrd_tag->mod_start + KERNEL_VIRTUAL_BASE);
-
+	// Initialize the InitRD
 	Initrd* initfs = new (initrdAddress) Initrd;
 	initfs->LoadIntoRamfs();
 
@@ -217,6 +217,7 @@ void KernelLate(void* args)
 	printf("Created PTY0!\n");
 	// Initialize PCI
 	PCI::Init();
+
 
 	for (;;) {
 		__asm__ __volatile__ ("hlt");
