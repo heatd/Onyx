@@ -55,6 +55,36 @@ TTY* global_terminal;
 static TTY firstTerminal;
 static struct multiboot_tag_module* initrd_tag = nullptr;
 uintptr_t address = 0;
+namespace __cxxabiv1
+{
+	/* guard variables */
+
+	/* The ABI requires a 64-bit type.  */
+	__extension__ typedef int __guard __attribute__((mode(__DI__)));
+	/* All these calls are marked extern "C", so the compiler(gcc) can call them */
+	extern "C" int __cxa_guard_acquire (__guard *);
+	extern "C" void __cxa_guard_release (__guard *);
+	extern "C" void __cxa_guard_abort (__guard *);
+	extern "C" void __cxa_pure_virtual();
+	extern "C" int __cxa_guard_acquire (__guard *g)
+	{
+		return !*(char *)(g);
+	}
+
+	extern "C" void __cxa_guard_release (__guard *g)
+	{
+		*(char *)g = 1;
+	}
+
+	extern "C" void __cxa_guard_abort (__guard *)
+	{
+		abort();
+	}
+	extern "C" void __cxa_pure_virtual()
+	{
+		panic("Error: Pure virtual call could not be made");
+	}
+}
 extern "C" void KernelEarly(uintptr_t addr, uint32_t magic)
 {
 	addr += KERNEL_VIRTUAL_BASE;
@@ -182,8 +212,9 @@ void KernelLate(void* args)
 	printf("%s\n",args);
 	void* mem = VirtualMemoryManager::AllocateVirtAddress(VM_KERNEL, 1024);
 	VirtualMemoryManager::MapRange(mem, 1024);
+	// Create PTY
 	global_terminal->CreatePTYAndSwitch(mem);
-
+	printf("Created PTY0!\n");
 	// Initialize PCI
 	PCI::Init();
 

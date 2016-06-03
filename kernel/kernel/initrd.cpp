@@ -76,3 +76,12 @@ size_t TarInode::write(size_t offset, size_t sizeOfWriting, void* buffer)
 	// You can not write to a tar file (usually results in corruption)
 	return 0;
 }
+int TarInode::open(uint8_t rw)
+{
+	(void) rw;
+	return vfs->AllocateFileDescriptor();
+}
+void TarInode::close()
+{
+	return;
+}

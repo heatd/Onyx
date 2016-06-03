@@ -10,6 +10,7 @@
  *----------------------------------------------------------------------*/
 #include <kernel/vfs.h>
 #include <stdio.h>
+#include <errno.h>
 // ***************************************
 // Class VFS
 // ***************************************
@@ -63,6 +64,18 @@ int VFS::DeregisterNode(BaseInode* toBeRemoved)
 	// If it was not found, return 1
 	return 1;
 }
+int VFS::AllocateFileDescriptor()
+{
+	for(int i = 0; i < 6550; i++)
+	{
+		if(fdlist[i]==0)
+		{
+			fdlist[i] = 1;
+			return i;
+		}
+	}
+	return -1;
+}
 // ***************************************
 // Class BaseInode
 // ***************************************
@@ -81,4 +94,13 @@ size_t BaseInode::write(size_t offset, size_t sizeOfWriting, void* buffer)
 	(void) buffer;
 	return sizeOfWriting;
 
+}
+int BaseInode::open(uint8_t rw)
+{
+	(void) rw;
+	return errno = 13, -1;
+}
+void BaseInode::close()
+{
+	return;
 }
