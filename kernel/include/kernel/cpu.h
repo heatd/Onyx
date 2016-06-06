@@ -26,11 +26,7 @@ typedef struct cpu {
 #define CPUID_BRAND2 			0x80000004
 #define CPUID_ASS			0x80000008 // Address space size (ASS for short :P)
 #define CPUID_SIGN   			0x1
-namespace CPU
-{
-	void Identify();
-	void InitInterrupts();
-	void GetAddressSpaceSize(int& vas, int& pas);
-}
+void cpu_identify();
+void cpu_init_interrupts();
 
 #endif

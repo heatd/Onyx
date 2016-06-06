@@ -11,9 +11,8 @@
 #ifndef _IRQ_H
 #define _IRQ_H
 typedef void(*irq_t)();
-namespace IRQ
-{
-void InstallHandler(int irq, irq_t handler);
-void UninstallHandler(int irq);
-}
+
+void irq_install_handler(int irq, irq_t handler);
+void irq_uninstall_handler(int irq);
+
 #endif

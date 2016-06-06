@@ -27,10 +27,10 @@ LDFLAGS:=$(LDFLAGS) $(KERNEL_ARCH_LDFLAGS) $(BUILD_NUMBER_LDFLAGS)
 LIBS:=$(LIBS) $(KERNEL_ARCH_LIBS)
 
 OBJS:=\
-$(patsubst %.cpp,%.o,$(wildcard drivers/*/*.cpp)) \
-$(patsubst %.cpp,%.o,$(wildcard kernel/*.cpp)) \
-$(patsubst %.cpp,%.o,$(wildcard kernel/*/*.cpp)) \
-$(patsubst %.cpp,%.o,$(wildcard $(ARCHDIR)/*.cpp)) \
+$(patsubst %.c,%.o,$(wildcard drivers/*/*.c)) \
+$(patsubst %.c,%.o,$(wildcard kernel/*.c)) \
+$(patsubst %.c,%.o,$(wildcard kernel/*/*.c)) \
+$(patsubst %.c,%.o,$(wildcard $(ARCHDIR)/*.c)) \
 $(filter-out $(ARCHDIR)/crti.o, $(patsubst %.S,%.o,$(wildcard $(ARCHDIR)/*.S)))
 CRTI_OBJ:=$(ARCHDIR)/crti.o
 CRTBEGIN_OBJ:=$(shell $(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=crtbegin.o)
@@ -58,7 +58,7 @@ vmspartix: BUILD $(OBJ_LINK_LIST) $(ARCHDIR)/linker.ld
 	$(CC) -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(OBJ_LINK_LIST) $(LDFLAGS) $(LIBS)
 
 %.o: %.c
-	$(CC) -c $< -o $@ $(CFLAGS) $(CPPFLAGS)
+	$(CC) -c $< -o $@ -std=gnu99 $(CFLAGS) $(CPPFLAGS)
 
 %.o: %.S
 	nasm -felf64 $< -o $@

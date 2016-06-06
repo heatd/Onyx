@@ -87,15 +87,15 @@ stack_bottom:
 resb 16384
 stack_top:
 section .text
-extern KernelEarly
-extern KernelMain
+extern kernel_early
+extern kernel_main
 extern _init
 _start:
 	mov rsp, stack_top
-	call InitSSE
-	call KernelEarly
+	call initsse
+	call kernel_early
 	call _init
-	call KernelMain
+	call kernel_main
 	cli
 .Lhang:
 	hlt
@@ -104,8 +104,8 @@ _start:
 section .data
 	ErrorMSG db 'Spartix needs SSE to be supported!', 0
 section .text
-global InitSSE
-InitSSE:
+global initsse
+initsse:
 	mov rax, 0x1
 	cpuid
 	test edx, 1<<25
@@ -156,8 +156,9 @@ setup_paging_and_longm:
 	; Enable Long Mode in the MSR
 	mov ecx, 0xC0000080
 	rdmsr
-	or eax, 1 << 8
-	or eax, 1 << 11
+	or eax, 1 ; enable syscall/sysret
+	or eax, 1 << 8 ; enable long mode
+	or eax, 1 << 11 ; enable NX
 	wrmsr
 
 	; Enable Paging
@@ -176,6 +177,10 @@ tmp_gdt:
 	DQ	0x00A0920000000000
 	DQ	0x00A0FA0000000000
 	DQ	0x00A0F20000000000
+	DW	0x67,0xc000
+	DB	0x10, 0xE9, 0
+	DB	0x80
+	DD	0xffffffff
 
 gdtr1:
 	DW	40
@@ -187,5 +192,5 @@ gdtr2:
 	DD	0
 
 gdtr3:
-	DW	40
+	DW	56
 	DQ	tmp_gdt + 24 + 0xFFFFFFFF80000000

@@ -11,11 +11,6 @@
 #ifndef _PCI_H
 #define _PCI_H
 
-
-
-namespace PCI
-{
-	void Init();
-};
+void pci_init();
 
 #endif

@@ -1,4 +1,4 @@
-for file in *.c
+for file in *.cpp
 do
- mv "$file" "${file%.c}.cpp"
+ mv "$file" "${file%.cpp}.c"
 done

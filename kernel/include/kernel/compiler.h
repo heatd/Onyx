@@ -27,14 +27,13 @@
 #error "The OS needs to be compiled using GCC"
 #endif /*__GNUC__ */
 #ifndef __spartix__
-//#error "Spartix needs to be compiled using a Spartix Cross Compiler"
+#error "Spartix needs to be compiled using a Spartix Cross Compiler"
 #endif /* __spartix__ */
 #define likely(x)      __builtin_expect(!!(x), 1)
 #define unlikely(x)    __builtin_expect(!!(x), 0)
 #define prefetch(x,y,z) __builtin_prefetch(x,y,z)
 #define ASSUME_ALIGNED(x,y) __builtin_assume_aligned(x,y)
 #define ARCH_SPECIFIC extern
-#define NATIVE extern
 inline uint64_t rdtsc()
 {
     	uint64_t ret;

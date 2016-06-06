@@ -9,6 +9,11 @@
 ; * Foundation.
 ; *----------------------------------------------------------------------
 section .text
+global tss_flush
+tss_flush:
+	mov ax, 0x2B
+	ltr ax
+	ret
 global GDT_Flush
 GDT_Flush:
 	mov rax,rdi
@@ -25,8 +30,8 @@ GDT_Flush:
 	mov gs, ax
 	mov ss, ax
 	ret
-global IDT_Flush
-IDT_Flush:
+global idt_flush
+idt_flush:
 	mov rax,rdi
 	lidt [rax]
 	ret

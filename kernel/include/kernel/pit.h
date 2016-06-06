@@ -11,9 +11,8 @@
 #ifndef _PIT_H
 #define _PIT_H
 #include <stdint.h>
-namespace PIT
-{
-void Init(uint32_t hz);
-uint64_t GetTickCount();
-}
+
+void pit_init(uint32_t hz);
+uint64_t get_tick_count();
+
 #endif

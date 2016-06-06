@@ -16,7 +16,7 @@ typedef struct spinlock
 	unsigned long lock;
 }spinlock_t;
 
-extern "C++" void acquire(spinlock_t*);
-extern "C++" void release(spinlock_t*);
+extern void acquire(spinlock_t*);
+extern void release(spinlock_t*);
 void wait(spinlock_t*);
 #endif

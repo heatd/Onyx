@@ -18,7 +18,7 @@ ARCH_SPECIFIC void get_thread_ctx(registers_t* regs);
 /* The functions halt and get_thread_ctx are architecture dependent, as they require manual assembly.
  * As so, its left for the architecture to implement these functions. The kernel exepcts them to be hooked.
  */
-extern "C++"  __attribute__ ((noreturn,cold,noinline))
+extern __attribute__ ((noreturn,cold,noinline))
 void panic(const char* msg);
 
 #endif

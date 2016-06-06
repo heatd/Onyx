@@ -29,13 +29,10 @@ typedef struct ventry
 } VasEntry;
 #define VM_KERNEL (1)
 #define VM_UPSIDEDOWN (2)
-namespace VirtualMemoryManager
-{
-	void Init();
-	void StartAddressBookkeeping(uintptr_t framebufferAddress);
-	void* AllocateVirtAddress(uint64_t flags, size_t pages);
-	void* MapRange(void* range, size_t pages);
-};
+void vmm_init();
+void StartAddressBookkeeping(uintptr_t framebufferAddress);
+void* AllocateVirtAddress(uint64_t flags, size_t pages);
+void* vmm_map_range(void* range, size_t pages);
 
 
 

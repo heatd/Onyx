@@ -18,47 +18,33 @@
 #define VFS_TYPE_SYMLINK 3
 #define VFS_TYPE_MOUNTPOINT 4
 #define VFS_TYPE_DEV 5
-class VFSNode
+struct vfsnode;
+typedef size_t (*__read)(size_t offset, size_t sizeofread, void* buffer, struct vfsnode* this);
+typedef size_t (*__write)(size_t offset, size_t sizeofwrite, void* buffer, struct vfsnode* this);
+typedef void (*__close)(struct vfsnode* this);
+typedef int (*__open)(uint8_t rw, struct vfsnode* this);
+typedef struct vfsnode
 {
-private:
-public:
 	int inode;
 	int gid;
 	int uid;
 	int permitions;
-	int GetPermitions() {return permitions;}
-	int GetInode() {return inode;}
 	int type;
-	char* name;
-	virtual ~VFSNode() {}
-	virtual size_t read(size_t offset, size_t sizeOfReading, void* buffer) = 0;
-	virtual size_t write(size_t offset, size_t sizeOfWriting, void* buffer) = 0;
-	virtual int open(uint8_t rw) = 0;
-	virtual void close() = 0;
-};
-class BaseInode : public VFSNode
-{
-public:
-	BaseInode* next;
-	BaseInode* link;
-	virtual size_t read(size_t offset, size_t sizeOfReading, void* buffer);
-	virtual size_t write(size_t offset, size_t sizeOfWriting, void* buffer);
-	virtual int open(uint8_t rw);
-	virtual void close();
-};
-class VFS
-{
-private:
-	BaseInode* nodeList;
-	short fdlist[6550];
-public:
-	VFS();
-	~VFS();
-	BaseInode* FindNode(const char* path);
-	void RegisterNode(BaseInode* toBeAdded);
-	int DeregisterNode(BaseInode* toBeRemoved);
-	int AllocateFileDescriptor();
-};
-extern VFS* vfs;
+	size_t size;
+	char *name;
+	struct vfsnode *next;
+	struct vfsnode *link;
+	__read read;
+	__write write;
+	__open open;
+	__close close;
+}vfsnode_t;
+
+int vfs_init();
+void vfs_fini();
+vfsnode_t* vfs_findnode(const char *path);
+void vfs_register_node(vfsnode_t *toBeAdded);
+int vfs_destroy_node(vfsnode_t *toBeRemoved);
+int vfs_allocate_fd();
 
 #endif

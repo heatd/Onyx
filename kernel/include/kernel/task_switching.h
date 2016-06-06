@@ -9,9 +9,9 @@
  * Foundation.
  *----------------------------------------------------------------------*/
 
- #ifndef _TASK_SWITCHING_AMD64_H
- #define _TASK_SWITCHING_AMD64_H
-
+#ifndef _TASK_SWITCHING_AMD64_H
+#define _TASK_SWITCHING_AMD64_H
+#include <stdint.h>
 typedef void(*ThreadCallback)(void*);
 typedef struct thr
 {
@@ -20,7 +20,7 @@ typedef struct thr
 	ThreadCallback rip;
 	uint32_t flags;
 	struct thr* next;
-} Thread;
-Thread* NativeSchedulerCreateThread(ThreadCallback callback, uint32_t flags, void* args);
+} thread_t;
+thread_t* sched_create_thread(ThreadCallback callback, uint32_t flags, void* args);
 
  #endif

@@ -48,11 +48,11 @@ isr%1:
 	pushaq
 	xor rdi,rdi   ;push dummy err code
 	mov rsi, %1  ;push the interrupt number
-	jmp IsrCommon ;Go to the handler
+	jmp isr_common ;Go to the handler
 %endmacro
-extern IrqHandler
-IrqCommon:
-	call IrqHandler
+extern irq_handler
+irq_common:
+	call irq_handler
 	popaq
 	iretq
 
@@ -63,21 +63,23 @@ irq%1:
 cli
 pushaq
 mov rdi, %2
-jmp IrqCommon
+jmp irq_common
 %endmacro
 %macro ISR_ERRCODE 1
 global isr%1
 isr%1:
 	cli
+	pop r15
 	pushaq
-	mov rdi, [rsp]
+	mov rdi, r15
+	mov r15, [rsp]
 	mov rsi, %1 ;push the interrupt number to the arguments
-	jmp IsrCommon ;Go to the handler
+	jmp isr_common ;Go to the handler
 %endmacro
 
-extern IsrHandler
-global IsrCommon
-IsrCommon:
+extern isr_handler
+global isr_common
+isr_common:
 	mov ax,ds
 	xor rdx,rdx
 	mov dx,ax
@@ -87,7 +89,7 @@ IsrCommon:
 	mov es,ax
 	mov fs,ax
 	mov gs,ax
-	jmp IsrHandler
+	jmp isr_handler
 	mov ax,dx
 	mov ds,ax
 	mov ss,ax
@@ -133,11 +135,11 @@ global irq0
 irq0:
 	cli
 	pushaq
-	extern TimerHandler
-	call TimerHandler
+	extern timer_handler
+	call timer_handler
 	mov rdi, rsp
-	extern NativeSchedulerSwitchThread
-	call NativeSchedulerSwitchThread
+	extern sched_switch_thread
+	call sched_switch_thread
 	mov rsp, rax
 	mov al, 0x20
 	out 0x20, al
