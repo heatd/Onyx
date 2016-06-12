@@ -61,11 +61,10 @@ static inline bool is_recursive_fault()
 }
 void isr_handler(uint64_t err_code, uint64_t int_no)
 {
-	/*if(is_recursive_fault())
+	if(is_recursive_fault())
 	{
 		for(;;);
-	}*/
-	asm volatile("hlt");
+	}
 	// Enter the isr handler
 	enter_isr_handler();
 	switch (int_no) {
@@ -124,7 +123,7 @@ void isr_handler(uint64_t err_code, uint64_t int_no)
 			printf(exception_msg[int_no]);
 			if (err_code != 0)
 				printf("\nSegment 0x%X\n", err_code);
-			asm volatile("hlt");
+			halt();
 			break;
 		}
 	case 14:{

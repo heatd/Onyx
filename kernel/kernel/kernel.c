@@ -195,10 +195,7 @@ void kernel_multitasking(void *args)
 	printf("Created PTY0!\n");
 	// Initialize PCI
 	pci_init();
-	printf("Waiting 5 seconds...");
-	uint64_t time = get_tick_count();
-	while(get_tick_count() != time + 5000);
-	printf("done.\n");
+
 	exec("/boot/helloworld");
 	for (;;) {
 		__asm__ __volatile__("hlt");

@@ -80,8 +80,6 @@ isr%1:
 extern isr_handler
 global isr_common
 isr_common:
-	cli
-	hlt
 	mov ax, ds
 	push rax
 	mov ax, 0x10
