@@ -24,7 +24,6 @@ int exec(const char *path)
 	if (read != size)
 		return errno = EAGAIN;
 	void *entry = elf_load((void *) buffer);
-	printf("hi\n");
 	sched_create_thread((ThreadCallback) entry, 0, NULL);
 	return 0;
 }

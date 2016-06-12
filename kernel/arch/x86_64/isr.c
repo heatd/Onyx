@@ -61,10 +61,11 @@ static inline bool is_recursive_fault()
 }
 void isr_handler(uint64_t err_code, uint64_t int_no)
 {
-	if(is_recursive_fault())
+	/*if(is_recursive_fault())
 	{
 		for(;;);
-	}
+	}*/
+	asm volatile("hlt");
 	// Enter the isr handler
 	enter_isr_handler();
 	switch (int_no) {

@@ -48,13 +48,16 @@ thread_t* sched_create_thread(ThreadCallback callback, uint32_t flags,void* args
 	stack = newThread->kernelStack;
 	uintptr_t originalStack = (uintptr_t)stack;
 	if(!(flags & 1))
-		originalStack = (uintptr_t)newThread->kernelStack;
+		originalStack = (uintptr_t)newThread->userStack;
 	uint64_t ds = 0x10, cs = 0x08;
 	if(!(flags & 1))
 		ds = 0x23, cs = 0x1b;
 	*--stack = ds; //SS
 	*--stack = originalStack; //RSP
-	*--stack = 0x0202; //RFLAGS
+	if(!(flags & 1))
+		*--stack = 0; //RFLAGS
+	else
+		*--stack = 0x0202;
 	*--stack = cs; //CS
 	*--stack = (uint64_t) callback; //RIP
 	*--stack = 0; // RAX
