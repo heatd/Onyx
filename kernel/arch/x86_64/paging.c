@@ -124,7 +124,7 @@ void* paging_map_phys_to_virt(uint64_t virt, uint64_t phys, uint64_t prot)
 		if(!pml3)
 			return NULL;
 		memset((void*)((uint64_t)pml3 + PHYS_BASE), 0, sizeof(PML3));
-		*entry = make_pml4e((uint64_t)pml3, (prot & 4), 0, 0, 0, (prot & 1)? 1 : 0, 1);
+		*entry = make_pml4e((uint64_t)pml3, 0, 0, 0, 0, 0, 1);
 	}
 	pml3 = (PML3*)((uint64_t)pml3 + PHYS_BASE);
 	entry = &pml3->entries[decAddr.pdpt];
@@ -136,7 +136,7 @@ void* paging_map_phys_to_virt(uint64_t virt, uint64_t phys, uint64_t prot)
 		if(!pml2 )
 			return NULL;
 		memset((void*)((uint64_t)pml2 + PHYS_BASE), 0, sizeof(PML2));
-		*entry = make_pml3e( (uint64_t)pml2, (prot & 4), 0, (prot & 2)? 1 : 0, 0, 0, 0, (prot & 1)? 1 : 0, 1);
+		*entry = make_pml3e( (uint64_t)pml2, 0, 0, 0, 0, 0, 0, 0, 1);
 	}
 	pml2 = (PML2*)((uint64_t)pml2 + PHYS_BASE);
 	entry = &pml2->entries[decAddr.pd];
@@ -152,7 +152,7 @@ void* paging_map_phys_to_virt(uint64_t virt, uint64_t phys, uint64_t prot)
 	}
 	pml1 = (PML1*)((uint64_t)pml1 + PHYS_BASE);
 	entry = &pml1->entries[decAddr.pt];
-	*entry = make_pml1e( phys, (prot & 4), 0, (prot & 0x2)? 1 : 0, 0, 0, 0, (prot & 1)? 1 : 0 , 1);
+	*entry = make_pml1e( phys, (prot & 4) ? 1 : 0, 0, (prot & 0x2) ? 1 : 0, 0, 0, (prot & 0x80) ? 1 : 0, (prot & 1) ? 1 : 0, 1);
 	return (void*)virt;
 }
 void paging_unmap(void* memory, size_t pages)

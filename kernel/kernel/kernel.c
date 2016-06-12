@@ -84,8 +84,7 @@ extern void kernel_early(uintptr_t addr, uint32_t magic)
 				// Initialize the PMM stack KERNEL_VIRTUAL_BASE + 1MB. TODO: detect size of modules and calculate size from that
 				pmm_init(total_mem,
 							    (uintptr_t) &
-							    kernel_end +
-							    0x100000);
+							    kernel_end);
 				struct multiboot_tag_mmap *mmaptag =
 				    (struct multiboot_tag_mmap *) tag;
 				size_t entries =
@@ -126,7 +125,7 @@ extern void kernel_early(uintptr_t addr, uint32_t magic)
 	     tagfb->common.framebuffer_addr; virt < KERNEL_FB + 0x400000;
 	     virt += 4096, phys += 4096) {
 		// Use Paging:: directly, as we have no heap yet
-		paging_map_phys_to_virt(virt, phys, 0x3);
+		paging_map_phys_to_virt(virt, phys, 0x2);
 	}
 	// Initialize the Software framebuffer
 	softfb_init(KERNEL_FB, tagfb->common.framebuffer_bpp,
@@ -138,13 +137,6 @@ extern void kernel_early(uintptr_t addr, uint32_t magic)
 	printf("TTY Device initialized!\n");
 
 }
-void KernelLate2(void *args)
-{
-	(void) args;
-	printf("hello\n");
-	while (1);
-}
-
 extern void libc_late_init();
 void kernel_main()
 {
@@ -162,12 +154,11 @@ void kernel_main()
 
 	printf("PIT initialized!\n");
 	printf("Keyboard initialized!\n");
+	InitHeap();
 	// Start the Virtual address bookkeeping
-	StartAddressBookkeeping(KERNEL_FB);
+	vmm_start_address_bookeeping(KERNEL_FB);
 
 	// Initialize the kernel heap
-	InitHeap();
-
 	init_tss();
 	vfs_init();
 	printf("VFS initialized!\n");
@@ -188,7 +179,7 @@ void kernel_main()
 		__asm__ __volatile__("hlt");
 	}
 }
-
+extern int exec(const char *);
 void kernel_multitasking(void *args)
 {
 	/* At this point, multitasking is initialized in the kernel
@@ -197,14 +188,17 @@ void kernel_multitasking(void *args)
 
 	printf("%s\n", args);
 	void *mem =
-	    AllocateVirtAddress(VM_KERNEL, 1024);
-	vmm_map_range(mem, 1024);
+	    vmm_allocate_virt_address(VM_KERNEL, 1024, VMM_TYPE_REGULAR);
+	vmm_map_range(mem, 1024, 0x3);
 	// Create PTY
 	tty_create_pty_and_switch(mem);
 	printf("Created PTY0!\n");
 	// Initialize PCI
 	pci_init();
-	extern int exec(const char *);
+	printf("Waiting 5 seconds...");
+	uint64_t time = get_tick_count();
+	while(get_tick_count() != time + 5000);
+	printf("done.\n");
 	exec("/boot/helloworld");
 	for (;;) {
 		__asm__ __volatile__("hlt");

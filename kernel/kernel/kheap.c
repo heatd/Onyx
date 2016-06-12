@@ -191,16 +191,17 @@ static KHEAPBM kheap;
 void InitHeap()
 {
 	k_heapBMInit(&kheap);
-	for (uintptr_t i = 0, address = KERNEL_VIRTUAL_BASE + 0x10000000;
-	     i < 1024; i++, address += 0x1000) {
+	uintptr_t address = KERNEL_VIRTUAL_BASE - 0x10000000;
+	for (uintptr_t i = 0;
+	     i < 1024; i++) {
 		paging_map_phys_to_virt(address, (uintptr_t)
 				     pmalloc(1), 3);
+		address+=0x1000;
 	}
 	printf("Mapped memory for the heap\n");
-	k_heapBMAddBlock(&kheap, KERNEL_VIRTUAL_BASE + 0x10000000,
-			 0x200000, 16);
+	k_heapBMAddBlock(&kheap, address - 0x400000,
+			 0x400000, 16);
 	heap_extensions = 0;
-	//prefetch((const void *)(KERNEL_VIRTUAL_BASE + 0x10000000),1,3);
 }
 static spinlock_t spl;
 void *malloc(size_t size)

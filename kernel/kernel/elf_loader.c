@@ -14,25 +14,28 @@
 
 _Bool elf_parse_program_headers(void *file)
 {
+	printf("Loading program headers\n");
 	Elf64_Ehdr *hdr = (Elf64_Ehdr *) file;
 	Elf64_Phdr *phdrs = (Elf64_Phdr *) ((char *) file + hdr->e_phoff);
 	for (Elf64_Half i = 0; i < hdr->e_phnum; i++) {
 		if (phdrs[i].p_type == PT_NULL)
 			continue;
 		if (phdrs[i].p_type == PT_LOAD) {
+			printf("Loading memory at %x, ",phdrs[i].p_vaddr);
 			size_t pages = phdrs[i].p_memsz / 4096;
-			if (!pages)
+			if (!pages || pages % 4096)
 				pages++;
 			void *mem =
 			    vmm_map_range((void *) (phdrs[i].p_vaddr &
 						    0xFFFFFFFFFFFFF000),
-					  pages);
+					  pages, 0x2 | 0x80);
 			memcpy(mem,
 			       (void *) ((char *) file +
 					 phdrs[i].p_offset),
 			       phdrs[i].p_filesz);
 		}
 	}
+	printf("Done.\n");
 	return true;
 }
 

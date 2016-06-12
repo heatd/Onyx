@@ -9,6 +9,7 @@
  * Foundation.
  *----------------------------------------------------------------------*/
 #include <kernel/registers.h>
+#include <stdio.h>
 __attribute__((noinline))
 void get_thread_ctx(registers_t *regs)
 {

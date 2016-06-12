@@ -45,7 +45,8 @@ errno/errno.o \
 ctype/to.o \
 string/memchr.o \
 string/strstr.o \
-
+stdlib/realloc.o \
+stdlib/qsort.o \
 
 HOSTEDOBJS:=\
 $(ARCH_HOSTEDOBJS) \

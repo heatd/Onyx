@@ -123,7 +123,7 @@ void isr_handler(uint64_t err_code, uint64_t int_no)
 			printf(exception_msg[int_no]);
 			if (err_code != 0)
 				printf("\nSegment 0x%X\n", err_code);
-			panic("");
+			asm volatile("hlt");
 			break;
 		}
 	case 14:{
@@ -140,7 +140,7 @@ void isr_handler(uint64_t err_code, uint64_t int_no)
 			}
 			if(err_code & 0x10)
 				printf("Instruction fetch\n");
-                        while(1);
+                        asm volatile("hlt");
 		}
 	case 15:{
 			break;	/*Reserved exception */

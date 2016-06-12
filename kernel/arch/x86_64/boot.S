@@ -93,6 +93,8 @@ extern _init
 _start:
 	mov rsp, stack_top
 	call initsse
+	extern __syscall
+	call __syscall
 	call kernel_early
 	call _init
 	call kernel_main
@@ -154,6 +156,8 @@ setup_paging_and_longm:
 	mov cr4, eax
 
 	; Enable Long Mode in the MSR
+	; Use this to perform some initialization of features
+	; we might need
 	mov ecx, 0xC0000080
 	rdmsr
 	or eax, 1 ; enable syscall/sysret

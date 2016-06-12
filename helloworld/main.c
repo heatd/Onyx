@@ -4,6 +4,7 @@
 
 int main()
 {
-	asm volatile("cli\t\nhlt");
+	asm volatile("mov %rax, (0xDEADBEEEF)\t\n");
+	while(1);
 	return 0;
 }

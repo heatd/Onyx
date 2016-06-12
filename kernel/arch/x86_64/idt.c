@@ -29,9 +29,9 @@ void idt_init()
 	idt_create_descriptor(9, (uint64_t) isr9, 0x08, 0x8E);
 	idt_create_descriptor(10, (uint64_t) isr10, 0x08, 0x8E);
 	idt_create_descriptor(11, (uint64_t) isr11, 0x08, 0x8E);
-	idt_create_descriptor(12, (uint64_t) isr12, 0x08, 0x8E);
+	idt_create_descriptor(12, (uint64_t) isr12, 0x08, 0xE);
 	idt_create_descriptor(13, (uint64_t) isr13, 0x08, 0x8E);
-	idt_create_descriptor(14, (uint64_t) isr14, 0x08, 0x8E);
+	idt_create_descriptor(14, (uint64_t) isr14, 0x08, 0xE);
 	idt_create_descriptor(15, (uint64_t) isr15, 0x08, 0x8E);
 	idt_create_descriptor(16, (uint64_t) isr16, 0x08, 0x8E);
 	idt_create_descriptor(17, (uint64_t) isr17, 0x08, 0x8E);

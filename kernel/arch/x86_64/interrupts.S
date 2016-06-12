@@ -80,22 +80,22 @@ isr%1:
 extern isr_handler
 global isr_common
 isr_common:
-	mov ax,ds
-	xor rdx,rdx
-	mov dx,ax
-	mov ax,10h
+	cli
+	hlt
+	mov ax, ds
+	push rax
+	mov ax, 0x10
+	mov ds, ax
+	mov fs, ax
+	mov gs, ax
+	mov es, ax
+	call isr_handler
+
+	pop rax
 	mov ds,ax
-	mov ss,ax
 	mov es,ax
 	mov fs,ax
 	mov gs,ax
-	jmp isr_handler
-	mov ax,dx
-	mov ds,ax
-	mov ss,ax
-	mov es,ax
-	mov fs,ax
-	mov fs,ax
 	popaq
 	iretq
 
@@ -135,12 +135,26 @@ global irq0
 irq0:
 	cli
 	pushaq
+	; load the kernel's segments
+	mov ax, ds
+	push rax
+	mov ax, 0x10
+	mov ds, ax
+	mov fs, ax
+	mov gs, ax
+	mov es, ax
 	extern timer_handler
 	call timer_handler
 	mov rdi, rsp
 	extern sched_switch_thread
 	call sched_switch_thread
 	mov rsp, rax
+	; reload segs
+	pop rax
+	mov ds, ax
+	mov fs, ax
+	mov gs, ax
+	mov es, ax
 	mov al, 0x20
 	out 0x20, al
 	popaq

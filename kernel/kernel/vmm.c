@@ -12,119 +12,114 @@
 #include <kernel/vmm.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <kernel/panic.h>
 _Bool isInitialized = false;
 void vmm_init()
 {
 	isInitialized = true;
 	paging_init();
-} VasEntry list;
-
-VasEntry framebufferEntry;
-#ifdef __x86_64__
-const uintptr_t highHalfAddress = 0xFFFF800000000000;
-const uintptr_t lowerHalfMaxAddress = 0x00007fffffffffff;
-const uintptr_t lowerHalfMinAddress = 0x800000;
-#endif
-void StartAddressBookkeeping(uintptr_t framebufferAddress)
+}
+uintptr_t max(uintptr_t x, uintptr_t y)
 {
-	list.baseAddress = KERNEL_VIRTUAL_BASE;
-	// Last 4GiB
-	list.size = 1024LL * 0x400000LL;
-	list.sizeInPages = 1024;
-	list.rw = 1;
-	list.nx = 0;
-	list.next = &framebufferEntry;
+	return x > y ? x : y;
+}
+uintptr_t min(uintptr_t x, uintptr_t y)
+{
+	return x < y ? x : y;
+}
+vmm_entry_t *areas = NULL;
+size_t num_areas = 2;
+#ifdef __x86_64__
+const uintptr_t high_half = 0xFFFF800000000000;
+const uintptr_t low_half_max = 0x00007fffffffffff;
+const uintptr_t low_half_min = 0x800000;
+#endif
+void vmm_start_address_bookeeping(uintptr_t framebuffer_address)
+{
+	areas = malloc(num_areas * sizeof(vmm_entry_t));
+	if(!areas)
+		panic("Not enough memory\n");
+	areas[0].base = KERNEL_VIRTUAL_BASE;
+	areas[0].pages = 524288; /* last 2 GB*/
+	areas[0].rwx = VMM_RWX; /* RWX */
+	areas[0].type = VMM_TYPE_REGULAR;
 
-	framebufferEntry.baseAddress = framebufferAddress;
-	framebufferEntry.size = 0x400000;
-	framebufferEntry.sizeInPages = 1024;
-	framebufferEntry.rw = 1;
-	framebufferEntry.nx = 1;
-	framebufferEntry.next = NULL;
+	areas[1].base = framebuffer_address;
+	areas[1].pages = 1024;
+	areas[1].rwx = VMM_RW; /* RW- */
+	areas[1].type = VMM_TYPE_HW;
 }
 
-void *vmm_map_range(void *range, size_t pages)
+void *vmm_map_range(void *range, size_t pages, uint64_t flags)
 {
 	uintptr_t mem = (uintptr_t) range;
 	for (size_t pgs = 0; pgs < pages; pgs++) {
 		paging_map_phys_to_virt(mem, (uintptr_t)
-				      pmalloc(1), 2);
+				      pmalloc(1), flags);
 		mem += 0x1000;
 	}
 	return range;
 }
-
-void *AllocateVirtAddress(uint64_t flags, size_t pages)
+static int vmm_comp(void *ptr1, void *ptr2)
 {
-	bool isKernel = false, allocUpsideDown = false;
-	if (flags & 1) {
-		isKernel = true;
-	}
-	if (flags & 2) {
-		allocUpsideDown = true;
-	}
-	VasEntry *searchNode = &list;
-	uintptr_t bestAddress = 0;
-	do {
-		if (allocUpsideDown) {
-			if (searchNode->baseAddress +
-			    searchNode->size > bestAddress) {
-				if (isKernel
-				    && searchNode->baseAddress +
-				    searchNode->size > highHalfAddress)
-					bestAddress =
-					    searchNode->baseAddress
-					    + searchNode->size;
-				else if (!isKernel
-					 && searchNode->baseAddress
-					 + searchNode->size <
-					 lowerHalfMaxAddress)
-					bestAddress =
-					    searchNode->baseAddress
-					    + searchNode->size;
-			}
-		} else {
-			// Same as above, just with an operator inverted
-			if (searchNode->baseAddress +
-			    searchNode->size < bestAddress
-			    && bestAddress != 0) {
-				if (isKernel
-				    && searchNode->baseAddress +
-				    searchNode->size > highHalfAddress)
-					bestAddress =
-					    searchNode->baseAddress
-					    + searchNode->size;
-				else if (!isKernel
-					 && searchNode->baseAddress
-					 + searchNode->size <
-					 lowerHalfMaxAddress)
-					bestAddress =
-					    searchNode->baseAddress
-					    + searchNode->size;
-			} else {
-				bestAddress =
-				    searchNode->baseAddress +
-				    searchNode->size;
-			}
-		}
-		if (searchNode->baseAddress == bestAddress
-		    || (bestAddress + pages * 0x1000 <
-			searchNode->baseAddress
-			&& bestAddress + pages * 0x1000 >=
-			searchNode->baseAddress + searchNode->size))
-			bestAddress =
-			    searchNode->baseAddress + searchNode->size;
-		if (searchNode->next == NULL)
+	const vmm_entry_t *a = (const vmm_entry_t*) ptr1;
+	const vmm_entry_t *b = (const vmm_entry_t*) ptr2;
+
+	return a->base < b->base ? -1 :
+		b->base < a->base ?  1 :
+		a->pages < b->pages ? -1 :
+		b->pages < a->pages ?  1 :
+	                            0 ;
+}
+void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type)
+{
+	uintptr_t base_address = 0;
+	switch(type)
+	{
+		case VMM_TYPE_SHARED:
+		case VMM_TYPE_STACK:
+		{
+			if(!(flags & 1))
+				base_address = 0x00007a0000000000;
+			else
+				base_address = 0xfffff7a000000000;
 			break;
-		searchNode = searchNode->next;
-	} while (searchNode);
-	VasEntry *newVas = malloc(sizeof(VasEntry));
-	newVas->baseAddress = bestAddress;
-	newVas->size = 0x1000 * pages;
-	newVas->sizeInPages = pages;
-	newVas->rw = 1;
-	newVas->nx = 1;
-	newVas->next = NULL;
-	searchNode->next = newVas;
-	return (void *) newVas->baseAddress;
+		}
+		default:
+		case VMM_TYPE_REGULAR:
+		{
+			if(flags & 1)
+				base_address = high_half;
+			else
+				base_address = low_half_min;
+			break;
+		}
+	}
+	uintptr_t best_address = base_address;
+	for(size_t i = 0; i < num_areas; i++)
+	{
+		if(areas[i].base == best_address)
+			best_address = areas[i].base + areas[i].pages * PAGE_SIZE;
+		if(areas[i].base < best_address && areas[i].base + areas[i].pages * PAGE_SIZE > best_address)
+			best_address = areas[i].base + areas[i].pages * PAGE_SIZE;
+	}
+	num_areas++;
+	areas = realloc(areas, num_areas * sizeof(vmm_entry_t));
+	areas[num_areas-1].base = best_address;
+	areas[num_areas-1].pages = pages;
+	areas[num_areas-1].type = type;
+	areas[num_areas-1].rwx = VMM_RWX;
+	qsort(areas,num_areas,sizeof(vmm_entry_t),vmm_comp);
+	return (void*)best_address;
+}
+void *vmm_reserve_address(void *addr, size_t pages, uint32_t type)
+{
+	num_areas++;
+	areas = realloc(areas, num_areas * sizeof(vmm_entry_t));
+	areas[num_areas-1].base = (uintptr_t)addr;
+	areas[num_areas-1].pages = pages;
+	areas[num_areas-1].type = type;
+	areas[num_areas-1].rwx = VMM_RWX;
+	qsort(areas,num_areas,sizeof(vmm_entry_t),vmm_comp);
+	return addr;
 }

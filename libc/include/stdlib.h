@@ -31,6 +31,8 @@ __attribute__((__noreturn__))
 void abort(void);
 void free(void*);
 void* malloc(size_t size);
+void* realloc(void *ptr, size_t new_size);
+void qsort(void *array, size_t nitems, size_t size, int (*cmp)(void*,void*));
 #ifdef __cplusplus
 }
 #endif
