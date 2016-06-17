@@ -99,17 +99,12 @@ void tty_putchar(char c)
 static spinlock_t spl;
 void tty_write(const char *data, size_t size)
 {
-	(void)spl;
-	uint64_t rflags = __builtin_ia32_readeflags_u64();
-	asm volatile("cli");
 	acquire(&spl);
 	for (size_t i = 0; i < size; i++)
 		tty_putchar(data[i]);
 	if(currentPty != 0)
 		tty_swap_framebuffers();
 	release(&spl);
-	if(rflags & 0x200)
-		asm volatile("sti");
 }
 void tty_swap_framebuffers()
 {

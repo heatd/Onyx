@@ -11,8 +11,10 @@
 #include <kernel/task_switching.h>
 #include <kernel/elf.h>
 #include <kernel/vfs.h>
+#include <kernel/panic.h>
 int exec(const char *path)
 {
+	panic("");
 	vfsnode_t *in = vfs_findnode(path);
 	if (!in)
 		return errno = ENOENT;

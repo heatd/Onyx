@@ -31,6 +31,7 @@
 #include <kernel/pmm.h>
 #include <kernel/vmm.h>
 #include <kernel/paging.h>
+#include <errno.h>
 void k_heapBMInit(KHEAPBM * heap)
 {
 	heap->fblock = 0;
@@ -183,12 +184,13 @@ void k_heapBMFree(KHEAPBM * heap, void *ptr)
 	}
 
 	/* this error needs to be raised or reported somehow */
+	errno = EINVAL;
 	return;
 }
 
 uint32_t heap_extensions;
 static KHEAPBM kheap;
-void InitHeap()
+void init_heap()
 {
 	k_heapBMInit(&kheap);
 	uintptr_t address = KERNEL_VIRTUAL_BASE - 0x10000000;
@@ -219,4 +221,67 @@ void free(void *ptr)
 	if (!ptr)
 		return;
 	k_heapBMFree(&kheap, ptr);
+}
+void *heap_start = NULL;
+char *kbrk = NULL;
+void *heap_end = NULL;
+static block_t *last = NULL;
+block_t *list = NULL;
+block_t *alloc_block(size_t size)
+{
+	block_t *block = (block_t *)kbrk;
+	block->size = size;
+	block->prev = last;
+	last->next = block;
+	last = block;
+	kbrk += size;
+	return block;
+}
+int init_exp_heap(void *address, size_t sizeofheap)
+{
+	heap_start = address;
+	heap_end = (void*)((uintptr_t)address + sizeofheap);
+	uintptr_t addr = (uintptr_t) heap_start;
+	for (uintptr_t i = 0;
+	     i < 1024; i++) {
+		paging_map_phys_to_virt(addr, (uintptr_t)
+				     pmalloc(1), 3);
+		addr+=0x1000;
+	}
+	printf("Mapped memory for the heap\n");
+	list = heap_start;
+	list->size = 16;
+	last = list;
+	kbrk = (char *)heap_start + 16;
+	return 0;
+}
+static const uint16_t alignment = 16;
+static const uint16_t overhead = sizeof(size_t);
+void *expmalloc(size_t size)
+{
+	size = (size + overhead + (alignment - 1)) & ~ (alignment - 1);
+	// search the free block list
+	block_t *search = list->next;
+	while(search)
+	{
+		if(search->size >= size)
+		{
+			search->prev->next = search->next;
+			return (void*)((const char*) search + sizeof(size_t));
+		}
+		search = search->next;
+	}
+	// If there isn't a free block, allocate some
+	block_t *b = alloc_block(size);
+
+	return b;
+}
+void expfree(void *ptr)
+{
+	// Simple as that
+	block_t *b = ptr;
+	b->prev = last;
+	b->next = NULL;
+	last->next = b;
+	last = b;
 }

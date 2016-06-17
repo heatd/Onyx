@@ -51,7 +51,7 @@ extern char __BUILD_DATE;
 #define UNUSED_PARAMETER(x) (void)x
 static struct multiboot_tag_module *initrd_tag = NULL;
 uintptr_t address = 0;
-
+struct multiboot_tag_elf_sections *secs = NULL;
 extern void kernel_early(uintptr_t addr, uint32_t magic)
 {
 	addr += KERNEL_VIRTUAL_BASE;
@@ -116,6 +116,11 @@ extern void kernel_early(uintptr_t addr, uint32_t magic)
 				    (struct multiboot_tag_module *) tag;
 				break;
 			}
+		case MULTIBOOT_TAG_TYPE_ELF_SECTIONS:
+		{
+			secs = (struct multiboot_tag_elf_sections *)tag;
+			break;
+		}
 		}
 	}
 	vmm_init();
@@ -154,7 +159,8 @@ void kernel_main()
 
 	printf("PIT initialized!\n");
 	printf("Keyboard initialized!\n");
-	InitHeap();
+	init_exp_heap((void*)0xC000000, 0x400000);
+	init_heap();
 	// Start the Virtual address bookkeeping
 	vmm_start_address_bookeeping(KERNEL_FB);
 
@@ -194,8 +200,16 @@ void kernel_multitasking(void *args)
 	tty_create_pty_and_switch(mem);
 	printf("Created PTY0!\n");
 	// Initialize PCI
-	pci_init();
+	//pci_init();
 
+	extern void init_elf_symbols(struct multiboot_tag_elf_sections *);
+	init_elf_symbols(secs);
+
+	for(int i = 0; i < 100; i++)
+	{
+		volatile size_t *mem = expmalloc(sizeof(size_t));
+		asm volatile(""::"m"(mem):"memory");
+	}
 	exec("/boot/helloworld");
 	for (;;) {
 		__asm__ __volatile__("hlt");

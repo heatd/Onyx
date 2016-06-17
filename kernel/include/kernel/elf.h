@@ -16,7 +16,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
-
+#include <multiboot2.h>
 // Standard elf64 types
 typedef uint64_t Elf64_Addr;
 typedef uint64_t Elf64_Off;
@@ -68,6 +68,28 @@ typedef struct
     	Elf64_Xword p_align;
 } Elf64_Phdr;
 
+typedef struct
+{
+	Elf64_Word sh_name;           /* Section name, index in string tbl */
+	Elf64_Word sh_type;           /* Type of section */
+	Elf64_Xword sh_flags;         /* Miscellaneous section attributes */
+	Elf64_Addr sh_addr;           /* Section virtual addr at execution */
+	Elf64_Off sh_offset;          /* Section file offset */
+	Elf64_Xword sh_size;          /* Size of section in bytes */
+	Elf64_Word sh_link;           /* Index of another section */
+	Elf64_Word sh_info;           /* Additional section information */
+	Elf64_Xword sh_addralign;     /* Section alignment */
+	Elf64_Xword sh_entsize;       /* Entry size if section holds table */
+} Elf64_Shdr;
+
+typedef struct {
+    	Elf64_Word      st_name;
+    	unsigned char   st_info;
+    	unsigned char   st_other;
+    	Elf64_Half      st_shndx;
+    	Elf64_Addr      st_value;
+    	Elf64_Xword     st_size;
+} Elf64_Sym;
 #define ELF_MAGIC "\x7F""ELF"
 // EI_CLASS values
 #define ELFCLASS32 (1)
