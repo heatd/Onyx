@@ -11,6 +11,7 @@
 #include <kernel/task_switching.h>
 #include <kernel/elf.h>
 #include <kernel/vfs.h>
+#include <kernel/panic.h>
 int exec(const char *path)
 {
 	vfsnode_t *in = vfs_findnode(path);
@@ -24,6 +25,6 @@ int exec(const char *path)
 	if (read != size)
 		return errno = EAGAIN;
 	void *entry = elf_load((void *) buffer);
-	sched_create_thread((ThreadCallback) entry, 0, NULL);
+	sched_create_thread((ThreadCallback) entry, 1, NULL);
 	return 0;
 }

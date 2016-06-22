@@ -161,19 +161,6 @@ int printf(const char *__restrict__ format, ...)
 				print("0x", strlen("0x"));
 				print(buffer, 60);
 			}
-		} else if (*format == 'f') {
-			format++;
-			char string[60];
-			double dbl = va_arg(parameters, double);
-			itoa((int)dbl, 10, string, false);
-			print(string, strlen(string));
-			memset(&string, 0, 60);
-			print(".",1);
-			if(dbl < 0)
-				dbl = -dbl;
-			dbl = (dbl - (int)dbl) * 1000000;
-			itoa((int)dbl, 10, string, false);
-			print(string, strlen(string));
 		} else {
 			goto incomprehensible_conversion;
 		}

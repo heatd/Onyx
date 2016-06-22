@@ -34,6 +34,17 @@ int k_heapBMAddBlock(KHEAPBM *heap, uintptr_t addr, uint32_t size, uint32_t bsiz
 
 void k_heapBMInit(KHEAPBM *heap);
 
-void InitHeap();
+void init_heap();
 
+typedef struct __block
+{
+	size_t size;
+	struct __block *prev;
+	struct __block *next;
+}block_t;
+
+int init_exp_heap(void *address, size_t sizeofheap);
+
+void *expmalloc(size_t size);
+void expfree(void *);
 #endif

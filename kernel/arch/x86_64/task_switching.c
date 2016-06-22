@@ -29,26 +29,28 @@ thread_t* sched_create_thread(ThreadCallback callback, uint32_t flags,void* args
 	newThread->rip = callback;
 	newThread->flags = flags;
 	if(!(flags & 1)) // If the thread is user mode, create a user stack
-		newThread->userStack = (uintptr_t*)vmm_allocate_virt_address(0, 2, VMM_TYPE_STACK);
-	newThread->kernelStack = (uintptr_t*)vmm_allocate_virt_address(VM_KERNEL, 2, VMM_TYPE_STACK);
+		newThread->user_stack = (uintptr_t*)vmm_allocate_virt_address(0, 2, VMM_TYPE_STACK);
+	newThread->kernel_stack = (uintptr_t*)vmm_allocate_virt_address(VM_KERNEL, 2, VMM_TYPE_STACK);
 	// Map the stacks on the virtual address space
 	if(!(flags & 1))
-		vmm_map_range(newThread->userStack, 2, 0x3 | 0x80);
-	vmm_map_range(newThread->kernelStack, 2, 0x3);
+		vmm_map_range(newThread->user_stack, 2, 0x3 | 0x80);
+	vmm_map_range(newThread->kernel_stack, 2, 0x3);
 	// Increment the stacks by 8 KiB
 	{
-	char** stack = (char**)&newThread->userStack;
+	char** stack = (char**)&newThread->user_stack;
 	if(!(flags & 1))
 		*stack+=0x2000;
-	stack = (char**)&newThread->kernelStack;
+	stack = (char**)&newThread->kernel_stack;
 	*stack+=0x2000;
 	}
 	uint64_t* stack = NULL;
 	// Reserve space in the stacks for the registers that are popped during a switch
-	stack = newThread->kernelStack;
+	stack = newThread->kernel_stack;
+	newThread->kernel_stack_top = stack;
+	newThread->user_stack_top = newThread->user_stack;
 	uintptr_t originalStack = (uintptr_t)stack;
 	if(!(flags & 1))
-		originalStack = (uintptr_t)newThread->userStack;
+		originalStack = (uintptr_t)newThread->user_stack;
 	uint64_t ds = 0x10, cs = 0x08;
 	if(!(flags & 1))
 		ds = 0x23, cs = 0x1b;
@@ -75,7 +77,7 @@ thread_t* sched_create_thread(ThreadCallback callback, uint32_t flags,void* args
 	*--stack = 0; // R9
 	*--stack = 0; // R8
 	*--stack = ds; // DS
-	newThread->kernelStack = stack;
+	newThread->kernel_stack = stack;
 	if(!firstThread)
 		firstThread = newThread;
 
@@ -92,16 +94,20 @@ void* sched_switch_thread(void* last_stack)
 	if(!currentThread)
 	{
 		currentThread = firstThread;
-		return currentThread->kernelStack;
+		return currentThread->kernel_stack;
 	}
 	else
 	{
-		currentThread->kernelStack = (uintptr_t*)last_stack;
+		currentThread->kernel_stack = (uintptr_t*)last_stack;
 		if(currentThread->next)
 			currentThread = currentThread->next;
 		else
 			currentThread = firstThread;
 
-		return currentThread->kernelStack;
+		return currentThread->kernel_stack;
 	}
+}
+thread_t *get_current_thread()
+{
+	return currentThread;
 }

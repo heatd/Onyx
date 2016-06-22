@@ -15,12 +15,14 @@
 typedef void(*ThreadCallback)(void*);
 typedef struct thr
 {
-	uintptr_t* userStack;
-	uintptr_t* kernelStack;
+	uintptr_t *user_stack;
+	uintptr_t *kernel_stack;
+	uintptr_t *kernel_stack_top;
+	uintptr_t *user_stack_top;
 	ThreadCallback rip;
 	uint32_t flags;
-	struct thr* next;
+	struct thr *next;
 } thread_t;
-thread_t* sched_create_thread(ThreadCallback callback, uint32_t flags, void* args);
-
+thread_t *sched_create_thread(ThreadCallback callback, uint32_t flags, void* args);
+thread_t *get_current_thread();
  #endif

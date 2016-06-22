@@ -53,8 +53,8 @@ void panic(const char *msg)
 	     ctx.rsp, ctx.cs, ctx.rip, ctx.ss);
 
 	printf("Stack dump: \n");
-	void *ret_addr = __builtin_frame_address(0);
-	printf("#0 stack frame:0x%x\n", (uint64_t) ret_addr);
+	extern void *stack_trace();
+	stack_trace();
 #else
 	ctx.eip = (uint32_t) __builtin_return_address(0);
 	printf
