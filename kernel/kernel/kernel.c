@@ -205,11 +205,11 @@ void kernel_multitasking(void *args)
 	extern void init_elf_symbols(struct multiboot_tag_elf_sections *);
 	init_elf_symbols(secs);
 
-	for(int i = 0; i < 100; i++)
+	/*for(int i = 0; i < 100; i++)
 	{
 		volatile size_t *mem = expmalloc(sizeof(size_t));
 		asm volatile(""::"m"(mem):"memory");
-	}
+	}*/
 	exec("/boot/helloworld");
 	for (;;) {
 		__asm__ __volatile__("hlt");

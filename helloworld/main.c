@@ -4,6 +4,6 @@
 
 int main()
 {
-	while(1);
+	asm volatile("cli;hlt");
 	return 0;
 }

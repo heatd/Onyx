@@ -14,7 +14,6 @@
 #include <kernel/panic.h>
 int exec(const char *path)
 {
-	panic("");
 	vfsnode_t *in = vfs_findnode(path);
 	if (!in)
 		return errno = ENOENT;
@@ -26,6 +25,6 @@ int exec(const char *path)
 	if (read != size)
 		return errno = EAGAIN;
 	void *entry = elf_load((void *) buffer);
-	sched_create_thread((ThreadCallback) entry, 0, NULL);
+	sched_create_thread((ThreadCallback) entry, 1, NULL);
 	return 0;
 }

@@ -43,7 +43,7 @@ void *stack_trace()
 	{
 		if((uint64_t*)*rbp >= thread->kernel_stack_top)
 			break;
-		printf("Stack dump #%d: %s\n", i, resolve_sym((void*)*(rbp+1)));
+		printf("Stack trace #%d: %s\n", i, resolve_sym((void*)*(rbp+1)));
 		rbp = (uint64_t*)*rbp;
 		return_addresses++;
 	}
