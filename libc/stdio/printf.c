@@ -83,7 +83,6 @@ int printf(const char *__restrict__ format, ...)
 /*#ifdef __is_spartix_kernel
 	acquire(&spl);
 #endif*/
-	asm volatile("cli");
 	va_list parameters;
 	va_start(parameters, format);
 
@@ -170,7 +169,6 @@ int printf(const char *__restrict__ format, ...)
 
 /*ifdef __is_spartix_kernel
 	release(&spl);
-#endif*/if(is_init)
-		asm volatile("sti");
+#endif*/
 	return written;
 }

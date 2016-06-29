@@ -21,7 +21,6 @@ void keyb_handler()
 	unsigned char status;
 	unsigned char keycode;
 	status = inb(PS2_STATUS);
-
 	if(status & 0x01){
 		keycode = inb(PS2_DATA);
 		send_event_to_kernel(keycode);

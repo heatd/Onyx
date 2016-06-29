@@ -72,11 +72,8 @@ typedef struct {
 static PML4 *current_pml4 = NULL;
 void paging_init()
 {
-	// Get the current PML4 and store it
+	/* Get the current PML4 and store it */
 	asm volatile("movq %%cr3, %%rax\t\nmovq %%rax, %0":"=r"(current_pml4));
-	//Set up recursive mapping
-	uint64_t* entry = &current_pml4->entries[510];
-	*entry = make_pml4e((uint64_t)current_pml4, 0, 0, 0, 0, 1, 1);
 }
 void paging_map_all_phys(size_t memInBytes)
 {
@@ -85,11 +82,11 @@ void paging_map_all_phys(size_t memInBytes)
 	memcpy(&decAddr, &virt, sizeof(decomposed_addr_t));
 	uint64_t* entry = &current_pml4->entries[decAddr.pml4];
 	PML3* pml3 = NULL;
-	// If its present, use that pml3
+	/* If its present, use that pml3 */
 	if(*entry & 1) {
 		pml3 = (PML3*)(*entry & 0x0FFFFFFFFFFFF000);
 	}
-	else { // Else create one
+	else { /* Else create one */
 		pml3 = (PML3*)pmalloc(1);
 		if(!pml3)
 			return;
@@ -106,7 +103,9 @@ void paging_map_all_phys(size_t memInBytes)
 }
 void* paging_map_phys_to_virt(uint64_t virt, uint64_t phys, uint64_t prot)
 {
-
+	_Bool user = 0;
+	if (virt < 0x00007fffffffffff)
+		user = 1;
 	if(!current_pml4)
 		return NULL;
 	decomposed_addr_t decAddr;
@@ -115,16 +114,16 @@ void* paging_map_phys_to_virt(uint64_t virt, uint64_t phys, uint64_t prot)
 	PML3* pml3 = NULL;
 	PML2* pml2 = NULL;
 	PML1* pml1 = NULL;
-	// If its present, use that pml3
+	/* If its present, use that pml3 */
 	if(*entry & 1) {
 		pml3 = (PML3*)(*entry & 0x0FFFFFFFFFFFF000 );
 	}
-	else { // Else create one
+	else { /* Else create one */
 		pml3 = (PML3*)pmalloc(1);
 		if(!pml3)
 			return NULL;
 		memset((void*)((uint64_t)pml3 + PHYS_BASE), 0, sizeof(PML3));
-		*entry = make_pml4e((uint64_t)pml3, 0, 0, 0, 0, 0, 1);
+		*entry = make_pml4e((uint64_t)pml3, 0, 0, 0, user ? 1 : 0, 0, 1);
 	}
 	pml3 = (PML3*)((uint64_t)pml3 + PHYS_BASE);
 	entry = &pml3->entries[decAddr.pdpt];
@@ -136,7 +135,7 @@ void* paging_map_phys_to_virt(uint64_t virt, uint64_t phys, uint64_t prot)
 		if(!pml2 )
 			return NULL;
 		memset((void*)((uint64_t)pml2 + PHYS_BASE), 0, sizeof(PML2));
-		*entry = make_pml3e( (uint64_t)pml2, 0, 0, 0, 0, 0, 0, 0, 1);
+		*entry = make_pml3e( (uint64_t)pml2, 0, 0, 0, 0, 0, user ? 1 : 0, 0, 1);
 	}
 	pml2 = (PML2*)((uint64_t)pml2 + PHYS_BASE);
 	entry = &pml2->entries[decAddr.pd];
@@ -148,7 +147,7 @@ void* paging_map_phys_to_virt(uint64_t virt, uint64_t phys, uint64_t prot)
 		if(!pml1)
 			return NULL;
 		memset((void*)((uint64_t)pml1 + PHYS_BASE), 0, sizeof(PML1));
-		*entry = make_pml2e( (uint64_t)pml1, (prot & 4), 0, (prot & 2)? 1 : 0, 0, 0, 0, (prot & 1)? 1 : 0, 1);
+		*entry = make_pml2e( (uint64_t)pml1, (prot & 4), 0, (prot & 2)? 1 : 0, 0, 0, (prot & 0x80) ? 1 : 0, (prot & 1)? 1 : 0, 1);
 	}
 	pml1 = (PML1*)((uint64_t)pml1 + PHYS_BASE);
 	entry = &pml1->entries[decAddr.pt];

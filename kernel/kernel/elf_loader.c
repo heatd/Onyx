@@ -28,7 +28,7 @@ _Bool elf_parse_program_headers(void *file)
 			void *mem =
 			    vmm_map_range((void *) (phdrs[i].p_vaddr &
 						    0xFFFFFFFFFFFFF000),
-					  pages, 0x2 | 0x80);
+					  pages, 0x1 | 0x80);
 			memcpy(mem,
 			       (void *) ((char *) file +
 					 phdrs[i].p_offset),
@@ -51,7 +51,7 @@ _Bool elf_is_valid(Elf64_Ehdr * header)
 		return false;
 	if (header->e_ident[EI_OSABI] != ELFOSABI_SYSV)
 		return false;
-	if (header->e_ident[EI_ABIVERSION] != 0)	//SYSV specific
+	if (header->e_ident[EI_ABIVERSION] != 0)	/* SYSV specific */
 		return false;
 
 	return true;
@@ -61,8 +61,7 @@ void *elf_load(void *file)
 {
 	if (!file)
 		return errno = EINVAL, NULL;
-
-	// Check if its elf64 file is invalid
+	/* Check if its elf64 file is invalid */
 	if (!elf_is_valid((Elf64_Ehdr *) file))
 		return errno = EINVAL, NULL;
 	elf_parse_program_headers(file);

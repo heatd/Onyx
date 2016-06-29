@@ -1,7 +1,7 @@
 SYSTEM_HEADER_PROJECTS="libc kernel"
 PROJECTS="libc kernel helloworld"
 
-export MAKE=${MAKE:-make -j4}
+export MAKE=${MAKE:-make}
 export HOST=${HOST:-$(./default-host.sh)}
 
 export AR=${HOST}-ar

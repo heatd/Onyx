@@ -24,3 +24,4 @@ typedef struct tss_entry
 } __attribute__((packed)) tss_entry_t;
 
 void init_tss();
+void set_kernel_stack(uintptr_t stack0);

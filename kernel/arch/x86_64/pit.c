@@ -15,7 +15,7 @@
 #include <stdint.h>
 #include <kernel/compiler.h>
 #include <stdio.h>
-static uint64_t timer_ticks = 0;
+static volatile uint64_t timer_ticks = 0;
 void timer_handler()
 {
 	timer_ticks++;
@@ -39,5 +39,5 @@ void pit_init(uint32_t frequency)
 
 uint64_t get_tick_count()
 {
-	return timer_ticks;
+	return (uint64_t)timer_ticks;
 }

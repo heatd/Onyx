@@ -15,22 +15,23 @@
 #include <kernel/task_switching.h>
 #include <kernel/vmm.h>
 #include <kernel/spinlock.h>
+#include <kernel/panic.h>
+#include <kernel/tss.h>
 // First and last nodes of the linked list
-static thread_t* firstThread = NULL;
-static thread_t* lastThread = NULL;
-static thread_t* currentThread = NULL;
+static volatile thread_t* firstThread = NULL;
+static volatile thread_t* lastThread = NULL;
+static volatile thread_t* currentThread = NULL;
 /* Creates a thread for the scheduler to switch to
    Expects a callback for the code(RIP) and some flags */
-static spinlock_t spl;
 thread_t* sched_create_thread(ThreadCallback callback, uint32_t flags,void* args)
 {
-	acquire(&spl);
 	thread_t* newThread = malloc(sizeof(thread_t));
 	newThread->rip = callback;
 	newThread->flags = flags;
 	if(!(flags & 1)) // If the thread is user mode, create a user stack
-		newThread->user_stack = (uintptr_t*)vmm_allocate_virt_address(0, 2, VMM_TYPE_STACK);
-	newThread->kernel_stack = (uintptr_t*)vmm_allocate_virt_address(VM_KERNEL, 2, VMM_TYPE_STACK);
+		newThread->user_stack = (uintptr_t*)vmm_allocate_virt_address(0, 2, VMM_TYPE_REGULAR);
+	newThread->kernel_stack = (uintptr_t*)vmm_allocate_virt_address(VM_KERNEL, 2, VMM_TYPE_REGULAR);
+	printf("kernel stack: %p\nuser_stack: %p\n",newThread->kernel_stack, newThread->user_stack);
 	// Map the stacks on the virtual address space
 	if(!(flags & 1))
 		vmm_map_range(newThread->user_stack, 2, 0x3 | 0x80);
@@ -56,10 +57,7 @@ thread_t* sched_create_thread(ThreadCallback callback, uint32_t flags,void* args
 		ds = 0x23, cs = 0x1b;
 	*--stack = ds; //SS
 	*--stack = originalStack; //RSP
-	if(!(flags & 1))
-		*--stack = 0; //RFLAGS
-	else
-		*--stack = 0x0202;
+	*--stack = 0x202; // RFLAGS
 	*--stack = cs; //CS
 	*--stack = (uint64_t) callback; //RIP
 	*--stack = 0; // RAX
@@ -86,14 +84,15 @@ thread_t* sched_create_thread(ThreadCallback callback, uint32_t flags,void* args
 	else
 		lastThread->next = newThread;
 	lastThread = newThread;
-	release(&spl);
 	return newThread;
 }
 void* sched_switch_thread(void* last_stack)
 {
+	//printf("Switching\n");
 	if(!currentThread)
 	{
 		currentThread = firstThread;
+		set_kernel_stack((uintptr_t)currentThread->kernel_stack);
 		return currentThread->kernel_stack;
 	}
 	else
@@ -103,11 +102,11 @@ void* sched_switch_thread(void* last_stack)
 			currentThread = currentThread->next;
 		else
 			currentThread = firstThread;
-
+		set_kernel_stack((uintptr_t)currentThread->kernel_stack);
 		return currentThread->kernel_stack;
 	}
 }
 thread_t *get_current_thread()
 {
-	return currentThread;
+	return (thread_t*)currentThread;
 }

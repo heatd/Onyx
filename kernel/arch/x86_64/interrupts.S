@@ -52,7 +52,25 @@ isr%1:
 %endmacro
 extern irq_handler
 irq_common:
+	mov ax, ds
+	push rax
+	mov ax, 0x10
+	mov ss, ax
+	mov ds, ax
+	mov es, ax
+	mov fs, ax
+	mov gs, ax
 	call irq_handler
+	push rdi
+	sub rdi, 32
+	extern pic_send_eoi
+	call pic_send_eoi
+	pop rdi
+	pop rax
+	mov ds, ax
+	mov es, ax
+	mov fs, ax
+	mov gs, ax
 	popaq
 	iretq
 
@@ -65,6 +83,8 @@ pushaq
 mov rdi, %2
 jmp irq_common
 %endmacro
+
+
 %macro ISR_ERRCODE 1
 global isr%1
 isr%1:

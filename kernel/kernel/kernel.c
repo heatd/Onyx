@@ -81,7 +81,7 @@ extern void kernel_early(uintptr_t addr, uint32_t magic)
 			}
 		case MULTIBOOT_TAG_TYPE_MMAP:
 			{
-				// Initialize the PMM stack KERNEL_VIRTUAL_BASE + 1MB. TODO: detect size of modules and calculate size from that
+				/* Initialize the PMM stack KERNEL_VIRTUAL_BASE + 1MB. TODO: detect size of modules and calculate size from that */
 				pmm_init(total_mem,
 							    (uintptr_t) &
 							    kernel_end);
@@ -125,19 +125,19 @@ extern void kernel_early(uintptr_t addr, uint32_t magic)
 	}
 	vmm_init();
 	paging_map_all_phys(total_mem * 1024);
-	// Map the FB
+	/* Map the FB */
 	for (uintptr_t virt = KERNEL_FB, phys =
 	     tagfb->common.framebuffer_addr; virt < KERNEL_FB + 0x400000;
 	     virt += 4096, phys += 4096) {
-		// Use Paging:: directly, as we have no heap yet
+		/* Use Paging:: directly, as we have no heap yet */
 		paging_map_phys_to_virt(virt, phys, 0x2);
 	}
-	// Initialize the Software framebuffer
+	/* Initialize the Software framebuffer */
 	softfb_init(KERNEL_FB, tagfb->common.framebuffer_bpp,
 				  tagfb->common.framebuffer_width,
 				  tagfb->common.framebuffer_height,
 				  tagfb->common.framebuffer_pitch);
-	// Initialize the first terminal
+	/* Initialize the first terminal */
 	tty_init();
 	printf("TTY Device initialized!\n");
 
@@ -150,7 +150,7 @@ void kernel_main()
 	     KERNEL_VERSION, KERNEL_BRANCH, &__BUILD_NUMBER, KERNEL_ARCH);
 	printf("This kernel was built on %s, %d as integer\n", __DATE__,
 	       &__BUILD_DATE);
-	// Identify the CPU it's running on (bootstrap CPU)
+	/* Identify the CPU it's running on (bootstrap CPU) */
 	cpu_identify();
 	cpu_init_interrupts();
 	pit_init(1000);
@@ -159,12 +159,11 @@ void kernel_main()
 
 	printf("PIT initialized!\n");
 	printf("Keyboard initialized!\n");
-	init_exp_heap((void*)0xC000000, 0x400000);
 	init_heap();
-	// Start the Virtual address bookkeeping
+	/* Start the Virtual address bookkeeping */
 	vmm_start_address_bookeeping(KERNEL_FB);
 
-	// Initialize the kernel heap
+	/* Initialize the kernel heap */
 	init_tss();
 	vfs_init();
 	printf("VFS initialized!\n");
@@ -173,12 +172,12 @@ void kernel_main()
 		panic("Initrd not found\n");
 	printf("Initrd module loaded at 0x%X\n", initrd_tag->mod_start);
 	void *initrd_address = (void*)(initrd_tag->mod_start + PHYS_BASE);
-	// Initialize the InitRD
+	/* Initialize the initrd */
 	init_initrd(initrd_address);
-	// Initalize Multitasking
+	/* Initalize multitasking */
 	sched_create_thread(kernel_multitasking, 1,
 				    (void *) "Started multitasking!");
-	// Initialize Late LIBC
+	/* Initialize late libc */
 	libc_late_init();
 	asm volatile ("sti");
 	for (;;) {
@@ -191,27 +190,19 @@ void kernel_multitasking(void *args)
 	/* At this point, multitasking is initialized in the kernel
 	 * Perform a small test to check if the argument string was passed correctly,
 	 * and continue with initialization */
-
 	printf("%s\n", args);
 	void *mem =
 	    vmm_allocate_virt_address(VM_KERNEL, 1024, VMM_TYPE_REGULAR);
 	vmm_map_range(mem, 1024, 0x3);
-	// Create PTY
+	/* Create PTY */
 	tty_create_pty_and_switch(mem);
 	printf("Created PTY0!\n");
-	// Initialize PCI
-	//pci_init();
+	/* Initialize PCI */
+	pci_init();
 
 	extern void init_elf_symbols(struct multiboot_tag_elf_sections *);
 	init_elf_symbols(secs);
-
-	/*for(int i = 0; i < 100; i++)
-	{
-		volatile size_t *mem = expmalloc(sizeof(size_t));
-		asm volatile(""::"m"(mem):"memory");
-	}*/
 	exec("/boot/helloworld");
-	for (;;) {
-		__asm__ __volatile__("hlt");
-	}
+	asm volatile("sti");
+	for (;;) ;
 }

@@ -40,7 +40,7 @@ void irq_uninstall_handler(int irq)
 void irq_handler(uint64_t irqn)
 {
 	irq_t handler = irq_routines[irqn - 32];
-	pic_send_eoi(irqn - 32);
 	if(handler)
 		handler();
+	pic_send_eoi(irqn - 32);
 }

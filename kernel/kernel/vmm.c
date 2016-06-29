@@ -58,6 +58,7 @@ void *vmm_map_range(void *range, size_t pages, uint64_t flags)
 				      pmalloc(1), flags);
 		mem += 0x1000;
 	}
+	memset(range, 0, 4096 * pages);
 	return range;
 }
 static int vmm_comp(void *ptr1, void *ptr2)

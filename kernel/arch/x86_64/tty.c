@@ -116,6 +116,7 @@ void tty_write_string(const char *data)
 }
 void tty_scroll()
 {
+	asm volatile("cli;hlt");
 	softfb_scroll(fbs[currentPty]);
 	terminal_row--;
 	terminal_column = 0;

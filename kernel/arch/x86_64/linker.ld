@@ -24,11 +24,6 @@ SECTIONS
 
 	. += VIRT_BASE;
 	kernel_start = .;
-	.tss ALIGN(0x1000) : AT(ADDR(.tss) - VIRT_BASE)
-	{
-		tss = .;
-		. += 0x1000;
-	}
 	.text ALIGN(0x1000) : AT(ADDR(.text) - VIRT_BASE)
 	{
 		*(.text)

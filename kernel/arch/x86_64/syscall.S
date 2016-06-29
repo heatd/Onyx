@@ -31,25 +31,33 @@ section .text
 	pop rbx
 	pop rax
 %endmacro
+section .bss
+user_stack: resq 1
+section .text
 global __syscall_stub
 __syscall_stub:
 	cli
-	pushaq
+	extern tss
+	mov [user_stack], rsp
+	; First thing we need to do is get the kernel stack from the tss
+	; so we know it's safe
+	mov rsp, [tss + 4]
+	; Save the return register
+	push r11
+	push rcx
+	mov rcx, r10
 	extern syscall_handler
 	call syscall_handler
-	extern errno
-	mov rbx, errno
-	cmp rbx, 0
-	jz .exit
-	mov rax, errno
-.exit:
-	popaq
-	sysexit
+	pop rcx
+	pop r11
+	mov rsp, [user_stack]
+	o64 sysret
 
 global __syscall
 __syscall:
 	mov ecx, 0xC0000081 ; STAR
-	mov edx, 0x00080008
+	mov rdx, 0x00080008
+	xor eax, eax
 	wrmsr
 	mov ecx, 0xC0000082 ;LSTAR
 	mov rax, __syscall_stub

@@ -12,6 +12,7 @@
 #include <kernel/vfs.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 tar_header_t *headers[100] = { 0 };
 
 size_t tar_parse(uintptr_t address)
@@ -51,8 +52,8 @@ size_t tar_write(size_t offset, size_t sizeOfWriting, void *buffer, vfsnode_t *t
 	(void) sizeOfWriting;
 	(void) buffer;
 	(void) this;
-	// You can not write to a tar file (usually results in corruption)
-	return 0;
+	/* You can not write to a tar file (usually results in corruption) */
+	return errno = EROFS, 0;
 }
 
 int tar_open(uint8_t rw, vfsnode_t *this)

@@ -87,6 +87,19 @@ stack_bottom:
 resb 16384
 stack_top:
 section .text
+test:
+jmp test
+global user_space
+user_space:
+	mov ax,0x23
+	mov ds,ax
+	mov es,ax
+	mov fs,ax
+	mov gs,ax ;we don't need to worry about SS. it's handled by iret
+	mov rcx, test
+	pushf
+	pop r11
+	o64 sysret
 extern kernel_early
 extern kernel_main
 extern _init
@@ -130,22 +143,28 @@ section .boot
 setup_paging_and_longm:
 	mov eax, pdpt
 	or eax, 3
+	or eax, 1 << 2
 	mov [pml4], eax
 	mov [pml4 + 0xFF8], eax
 	mov eax, pd
 	or eax, 3
 	or eax, 1 << 8
+	or eax, 1 << 2
 	mov [pdpt], eax
 	mov [pdpt + 0xFF0], eax
 
 	mov dword [pd], 0x000083
 	or dword [pd], 1 << 8
+	or dword[pd], 1 << 2
 	mov dword [pd + 8], 0x200083
 	or dword [pd + 8], 1 << 8
+	or dword[pd + 8], 1 << 2
 	mov dword [pd + 16], 0x400083
 	or dword [pd + 16], 1 << 8
+	or dword[pd + 16], 1 << 2
 	mov dword [pd + 24], 0x600083
 	or dword [pd + 24], 1 << 8
+	or dword[pd + 24], 1 << 2
 	; Load CR3 with PML4
 	mov eax, pml4
 	mov cr3, eax
@@ -171,7 +190,6 @@ setup_paging_and_longm:
 	mov cr0, eax
 
 	ret
-
 tmp_gdt:
 	DQ	0x0000000000000000
 	DQ	0x00CF9A000000FFFF
@@ -181,10 +199,12 @@ tmp_gdt:
 	DQ	0x00A0920000000000
 	DQ	0x00A0FA0000000000
 	DQ	0x00A0F20000000000
-	DW	0x67,0xc000
-	DB	0x10, 0xE9, 0
-	DB	0x80
-	DD	0xffffffff
+global tss_gdt
+tss_gdt:
+	DW	0x67,0
+	DB	0, 0xE9, 0
+	DB	0
+	DD	0
 
 gdtr1:
 	DW	40
@@ -198,3 +218,7 @@ gdtr2:
 gdtr3:
 	DW	56
 	DQ	tmp_gdt + 24 + 0xFFFFFFFF80000000
+section .bss
+global tss
+tss:
+	resb 4096

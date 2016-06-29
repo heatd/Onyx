@@ -14,12 +14,24 @@
 #include <string.h>
 extern tss_entry_t tss;
 extern void tss_flush();
+extern int tss_gdt;
 void init_tss()
 {
 	printf("tss: %x\n",&tss);
 	memset(&tss, 0, sizeof(tss_entry_t));
-	tss.stack0 = (uint64_t)vmm_allocate_virt_address(VM_KERNEL, 2, VMM_TYPE_STACK);
-	vmm_map_range((void*)tss.stack0, 2, 0x3);
-	tss.ist[0] = tss.stack0;
+	/* Easier to do bit manipulation with different pointer sizes */
+	uint8_t *tss_gdtb = (uint8_t*)&tss_gdt;
+	uint16_t *tss_gdtw = (uint16_t*)&tss_gdt;
+	uint32_t *tss_gdtd = (uint32_t*)&tss_gdt;
+	tss_gdtw[1] = (uintptr_t)&tss & 0xFFFF;
+	tss_gdtb[4] = ((uintptr_t)&tss >> 16) & 0xFF;
+	tss_gdtb[6] = ((uintptr_t)&tss >> 24) & 0xFF;
+	tss_gdtb[7] = ((uintptr_t)&tss >> 24) & 0xFF;
+	tss_gdtd[2] = ((uintptr_t)&tss >> 32);
 	tss_flush();
+}
+void set_kernel_stack(uintptr_t stack0)
+{
+	tss.stack0 = stack0;
+	tss.ist[0] = stack0;
 }
