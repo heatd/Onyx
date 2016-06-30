@@ -33,6 +33,8 @@ vfsnode_t* vfs_findnode(const char *path)
 {
 	vfsnode_t *search = node_list;
 	for ((void) search; search != NULL; search = search->next) {
+		if(search->name < (const char*)0x1000)
+			continue;
 		if (strcmp(search->name, (char *) path) == 0)
 			return search;
 	}
@@ -76,4 +78,27 @@ int vfs_allocate_fd()
 		   }
 	   }
 	   return -1;
+}
+size_t read_vfs(size_t offset, size_t sizeofread, void* buffer, vfsnode_t* this)
+{
+	if(this->read != NULL)
+		return this->read(offset,sizeofread,buffer,this);
+	return errno = ENOSYS;
+}
+size_t write_vfs(size_t offset, size_t sizeofwrite, void* buffer, vfsnode_t* this)
+{
+	if(this->write != NULL)
+		return this->write(offset,sizeofwrite,buffer,this);
+	return errno = ENOSYS;
+}
+void close_vfs(vfsnode_t* this)
+{
+	if(this->close != NULL)
+		this->close(this);
+}
+int open_vfs(uint8_t rw, vfsnode_t* this)
+{
+	if(this->open != NULL)
+		return this->open(rw, this);
+	return errno = ENOSYS;
 }

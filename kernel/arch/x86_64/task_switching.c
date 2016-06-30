@@ -29,18 +29,18 @@ thread_t* sched_create_thread(ThreadCallback callback, uint32_t flags,void* args
 	newThread->rip = callback;
 	newThread->flags = flags;
 	if(!(flags & 1)) // If the thread is user mode, create a user stack
-		newThread->user_stack = (uintptr_t*)vmm_allocate_virt_address(0, 2, VMM_TYPE_REGULAR);
-	newThread->kernel_stack = (uintptr_t*)vmm_allocate_virt_address(VM_KERNEL, 2, VMM_TYPE_REGULAR);
+		newThread->user_stack = (uintptr_t*)vmm_allocate_virt_address(0, 256, VMM_TYPE_STACK, VMM_WRITE | VMM_NOEXEC | VMM_USER);
+	newThread->kernel_stack = (uintptr_t*)vmm_allocate_virt_address(VM_KERNEL, 2, VMM_TYPE_STACK, VMM_WRITE | VMM_NOEXEC);
 	printf("kernel stack: %p\nuser_stack: %p\n",newThread->kernel_stack, newThread->user_stack);
 	// Map the stacks on the virtual address space
 	if(!(flags & 1))
-		vmm_map_range(newThread->user_stack, 2, 0x3 | 0x80);
-	vmm_map_range(newThread->kernel_stack, 2, 0x3);
+		vmm_map_range(newThread->user_stack, 256, VMM_WRITE | VMM_NOEXEC | VMM_USER);
+	vmm_map_range(newThread->kernel_stack, 2, VMM_WRITE | VMM_NOEXEC);
 	// Increment the stacks by 8 KiB
 	{
 	char** stack = (char**)&newThread->user_stack;
 	if(!(flags & 1))
-		*stack+=0x2000;
+		*stack+=0x100000;
 	stack = (char**)&newThread->kernel_stack;
 	*stack+=0x2000;
 	}
@@ -109,4 +109,18 @@ void* sched_switch_thread(void* last_stack)
 thread_t *get_current_thread()
 {
 	return (thread_t*)currentThread;
+}
+void sched_destroy_thread(thread_t *thread)
+{
+	for(volatile thread_t *i = firstThread; i; i=i->next)
+	{
+		if(i->next == thread)
+		{
+			i->next = thread;
+			break;
+		}
+	}
+	/*unmap(thread->kernel_stack_top - 0x2000);
+	  unmap(thread->user_stack_top - 0x2000);*/
+	  free(thread);
 }

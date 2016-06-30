@@ -208,19 +208,21 @@ void init_heap()
 static spinlock_t spl;
 void *malloc(size_t size)
 {
-	acquire(&spl);
+	acquire_spinlock(&spl);
 	if (!size)
 		return NULL;
 	void *ptr = k_heapBMAlloc(&kheap, size);
-	release(&spl);
+	release_spinlock(&spl);
 	return ptr;
 }
-
+static spinlock_t freespl;
 void free(void *ptr)
 {
+	acquire_spinlock(&freespl);
 	if (!ptr)
 		return;
 	k_heapBMFree(&kheap, ptr);
+	release_spinlock(&freespl);
 }
 void *heap_start = NULL;
 char *kbrk = NULL;

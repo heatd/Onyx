@@ -110,7 +110,8 @@ void* paging_map_phys_to_virt(uint64_t virt, uint64_t phys, uint64_t prot)
 		return NULL;
 	decomposed_addr_t decAddr;
 	memcpy(&decAddr, &virt, sizeof(decomposed_addr_t));
-	uint64_t* entry = &current_pml4->entries[decAddr.pml4];
+	PML4 *pml4 = (PML4*)((uint64_t)current_pml4 + PHYS_BASE);
+	uint64_t* entry = &pml4->entries[decAddr.pml4];
 	PML3* pml3 = NULL;
 	PML2* pml2 = NULL;
 	PML1* pml1 = NULL;
@@ -123,7 +124,7 @@ void* paging_map_phys_to_virt(uint64_t virt, uint64_t phys, uint64_t prot)
 		if(!pml3)
 			return NULL;
 		memset((void*)((uint64_t)pml3 + PHYS_BASE), 0, sizeof(PML3));
-		*entry = make_pml4e((uint64_t)pml3, 0, 0, 0, user ? 1 : 0, 0, 1);
+		*entry = make_pml4e((uint64_t)pml3, 0, 0, 0, user ? 1 : 0, 1, 1);
 	}
 	pml3 = (PML3*)((uint64_t)pml3 + PHYS_BASE);
 	entry = &pml3->entries[decAddr.pdpt];
@@ -135,7 +136,7 @@ void* paging_map_phys_to_virt(uint64_t virt, uint64_t phys, uint64_t prot)
 		if(!pml2 )
 			return NULL;
 		memset((void*)((uint64_t)pml2 + PHYS_BASE), 0, sizeof(PML2));
-		*entry = make_pml3e( (uint64_t)pml2, 0, 0, 0, 0, 0, user ? 1 : 0, 0, 1);
+		*entry = make_pml3e( (uint64_t)pml2, 0, 0, 0, 0, 0, user ? 1 : 0, 1, 1);
 	}
 	pml2 = (PML2*)((uint64_t)pml2 + PHYS_BASE);
 	entry = &pml2->entries[decAddr.pd];

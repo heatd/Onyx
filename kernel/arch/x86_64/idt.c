@@ -17,7 +17,7 @@ void idt_init()
 {
 	memset(&idt_entries, 0, sizeof(idt_entry_t) * 256);
 
-	/*idt_create_descriptor(0, (uint64_t) isr0, 0x08, 0x8E);
+	idt_create_descriptor(0, (uint64_t) isr0, 0x08, 0x8E);
 	idt_create_descriptor(1, (uint64_t) isr1, 0x08, 0x8E);
 	idt_create_descriptor(2, (uint64_t) isr2, 0x08, 0x8E);
 	idt_create_descriptor(3, (uint64_t) isr3, 0x08, 0x8E);
@@ -48,7 +48,7 @@ void idt_init()
 	idt_create_descriptor(28, (uint64_t) isr28, 0x08, 0x8E);
 	idt_create_descriptor(29, (uint64_t) isr29, 0x08, 0x8E);
 	idt_create_descriptor(30, (uint64_t) isr30, 0x08, 0x8E);
-	idt_create_descriptor(31, (uint64_t) isr31, 0x08, 0x8E);*/
+	idt_create_descriptor(31, (uint64_t) isr31, 0x08, 0x8E);
 	/* IRQ descriptors */
 	idt_create_descriptor(32, (uint64_t) irq0, 0x08, 0x8E);
 	idt_create_descriptor(33, (uint64_t) irq1, 0x08, 0x8E);

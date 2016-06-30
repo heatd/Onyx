@@ -83,5 +83,5 @@ videomode_t *softfb_getvideomode()
 void softfb_scroll(void* fb)
 {
 	unsigned char* second_line = ( unsigned char *)fb + framebuffer_pitch * 16;
-	memmove((void *)fb,second_line,0x400000 - framebuffer_pitch * 16 - framebuffer_pixelwidth * framebuffer_width);
+	memmove((void *)fb,second_line,(0x400000 - framebuffer_pitch * 16 - framebuffer_pixelwidth * framebuffer_width));
 }

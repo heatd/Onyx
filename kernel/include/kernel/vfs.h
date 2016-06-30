@@ -40,6 +40,10 @@ typedef struct vfsnode
 	__close close;
 }vfsnode_t;
 
+size_t read_vfs(size_t offset, size_t sizeofread, void* buffer, vfsnode_t* this);
+size_t write_vfs(size_t offset, size_t sizeofwrite, void* buffer, vfsnode_t* this);
+void close_vfs(vfsnode_t* this);
+int open_vfs(uint8_t rw, vfsnode_t* this);
 int vfs_init();
 void vfs_fini();
 vfsnode_t* vfs_findnode(const char *path);

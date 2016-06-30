@@ -34,7 +34,10 @@ void free(void*);
 void itoa(uint64_t i, unsigned int base, char *buf, _Bool is_upper);
 void* malloc(size_t size);
 void* realloc(void *ptr, size_t new_size);
-void qsort(void *array, size_t nitems, size_t size, int (*cmp)(void*,void*));
+void qsort(void* base_ptr,
+           size_t num_elements,
+           size_t element_size,
+           int (*compare)(const void*, const void*));
 #ifdef __cplusplus
 }
 #endif

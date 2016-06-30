@@ -11,20 +11,22 @@
 #include <kernel/spinlock.h>
 #include <stdio.h>
 #include <kernel/compiler.h>
-void acquire(spinlock_t * lock)
+void acquire_spinlock(spinlock_t *lock)
 {
 	if (lock->lock == 1) {
-		wait(lock);
+		wait_spinlock(lock);
 	}
 	__sync_lock_test_and_set(&lock->lock, 1);
+	__sync_synchronize();
 }
 
-void release(spinlock_t * lock)
+void release_spinlock(spinlock_t *lock)
 {
 	__sync_lock_release(&lock->lock);
+	__sync_synchronize();
 }
 
-void wait(spinlock_t * lock)
+void wait_spinlock(spinlock_t *lock)
 {
 	while (lock->lock == 1);
 }

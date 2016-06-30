@@ -28,7 +28,9 @@ _Bool elf_parse_program_headers(void *file)
 			void *mem =
 			    vmm_map_range((void *) (phdrs[i].p_vaddr &
 						    0xFFFFFFFFFFFFF000),
-					  pages, 0x1 | 0x80);
+					  pages, VMM_WRITE | VMM_USER);
+			    vmm_reserve_address((void *) (phdrs[i].p_vaddr &
+						    0xFFFFFFFFFFFFF000), pages, VMM_TYPE_REGULAR, VMM_WRITE | VMM_USER);
 			memcpy(mem,
 			       (void *) ((char *) file +
 					 phdrs[i].p_offset),

@@ -23,12 +23,11 @@
 #define VMM_TYPE_SHARED 2
 #define VMM_TYPE_HEAP 3
 #define VMM_TYPE_HW 4
-#define VMM_READ 0x5
-#define VMM_WRITE 0x4
-#define VMM_EXEC 0x1
-#define VMM_RW (VMM_READ | VMM_WRITE)
-#define VMM_RX (VMM_READ | VM_EXEC)
-#define VMM_RWX (VMM_READ | VMM_EXEC | VMM_WRITE)
+#define VMM_GLOBAL 0x2
+#define VMM_USER 0x80
+#define VMM_WRITE 0x1
+#define VMM_NOEXEC 0x4
+
 typedef struct ventry
 {
 	uintptr_t base;
@@ -41,9 +40,9 @@ typedef struct ventry
 #define PAGE_SIZE 4096
 void vmm_init();
 void vmm_start_address_bookeeping(uintptr_t framebuffer_address);
-void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type);
+void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uint64_t prot);
 void *vmm_map_range(void* range, size_t pages, uint64_t flags);
-void *vmm_reserve_address(void *addr, size_t pages, uint32_t type);
+void *vmm_reserve_address(void *addr, size_t pages, uint32_t type, uint64_t prot);
 
 
 #endif

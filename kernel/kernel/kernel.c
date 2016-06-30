@@ -125,13 +125,15 @@ extern void kernel_early(uintptr_t addr, uint32_t magic)
 	}
 	vmm_init();
 	paging_map_all_phys(total_mem * 1024);
+	asm volatile("movq $0, pdlower\t\ninvlpg 0x0");
 	/* Map the FB */
 	for (uintptr_t virt = KERNEL_FB, phys =
 	     tagfb->common.framebuffer_addr; virt < KERNEL_FB + 0x400000;
 	     virt += 4096, phys += 4096) {
 		/* Use Paging:: directly, as we have no heap yet */
-		paging_map_phys_to_virt(virt, phys, 0x2);
+		paging_map_phys_to_virt(virt, phys, VMM_GLOBAL | VMM_WRITE | VMM_NOEXEC);
 	}
+
 	/* Initialize the Software framebuffer */
 	softfb_init(KERNEL_FB, tagfb->common.framebuffer_bpp,
 				  tagfb->common.framebuffer_width,
@@ -192,8 +194,8 @@ void kernel_multitasking(void *args)
 	 * and continue with initialization */
 	printf("%s\n", args);
 	void *mem =
-	    vmm_allocate_virt_address(VM_KERNEL, 1024, VMM_TYPE_REGULAR);
-	vmm_map_range(mem, 1024, 0x3);
+	    vmm_allocate_virt_address(VM_KERNEL, 1024, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
+	vmm_map_range(mem, 1024, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
 	/* Create PTY */
 	tty_create_pty_and_switch(mem);
 	printf("Created PTY0!\n");

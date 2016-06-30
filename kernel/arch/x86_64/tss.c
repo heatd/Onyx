@@ -20,9 +20,9 @@ void init_tss()
 	printf("tss: %x\n",&tss);
 	memset(&tss, 0, sizeof(tss_entry_t));
 	/* Easier to do bit manipulation with different pointer sizes */
-	uint8_t *tss_gdtb = (uint8_t*)&tss_gdt;
-	uint16_t *tss_gdtw = (uint16_t*)&tss_gdt;
-	uint32_t *tss_gdtd = (uint32_t*)&tss_gdt;
+	uint8_t *tss_gdtb = (uint8_t*)((uint64_t)&tss_gdt + 0xFFFFFFFF80000000);
+	uint16_t *tss_gdtw = (uint16_t*)((uint64_t)&tss_gdt + 0xFFFFFFFF80000000);
+	uint32_t *tss_gdtd = (uint32_t*)((uint64_t)&tss_gdt + 0xFFFFFFFF80000000);
 	tss_gdtw[1] = (uintptr_t)&tss & 0xFFFF;
 	tss_gdtb[4] = ((uintptr_t)&tss >> 16) & 0xFF;
 	tss_gdtb[6] = ((uintptr_t)&tss >> 24) & 0xFF;

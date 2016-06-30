@@ -76,6 +76,7 @@ EntryPoint:
 	xor rsi,rsi
 	mov rsi, rbx
 	shr rsi, 32
+
 	mov r8,rbx
 	xor rdi,rdi
 	mov edi,r8d
@@ -84,8 +85,9 @@ EntryPoint:
 section .bootstrap_stack, nobits
 align 4
 stack_bottom:
-resb 16384
+	resb 16384
 stack_top:
+
 section .text
 test:
 jmp test
@@ -117,7 +119,7 @@ _start:
 	jmp .Lhang
 
 section .data
-	ErrorMSG db 'Spartix needs SSE to be supported!', 0
+	error_msg db 'Spartix needs SSE to be supported!', 0
 section .text
 global initsse
 initsse:
@@ -137,34 +139,36 @@ initsse:
 	hlt
 section .boot
 [BITS 32]
-[EXTERN pml4]
-[EXTERN pdpt]
-[EXTERN pd]
+extern pml4
+extern pdpt
+extern pd
+extern pdlower
 setup_paging_and_longm:
 	mov eax, pdpt
 	or eax, 3
 	or eax, 1 << 2
 	mov [pml4], eax
 	mov [pml4 + 0xFF8], eax
-	mov eax, pd
+	mov eax, pdlower
 	or eax, 3
 	or eax, 1 << 8
 	or eax, 1 << 2
 	mov [pdpt], eax
+	mov eax, pd
+	or eax, 3
+	or eax, 1 << 8
+	or eax, 1 << 2
 	mov [pdpt + 0xFF0], eax
 
 	mov dword [pd], 0x000083
 	or dword [pd], 1 << 8
-	or dword[pd], 1 << 2
 	mov dword [pd + 8], 0x200083
 	or dword [pd + 8], 1 << 8
-	or dword[pd + 8], 1 << 2
-	mov dword [pd + 16], 0x400083
-	or dword [pd + 16], 1 << 8
-	or dword[pd + 16], 1 << 2
-	mov dword [pd + 24], 0x600083
-	or dword [pd + 24], 1 << 8
-	or dword[pd + 24], 1 << 2
+
+	mov dword [pdlower], 0x000083
+	or dword [pdlower], 1 << 8
+	mov dword [pdlower + 8], 0x200083
+	or dword [pdlower + 8], 1 << 8
 	; Load CR3 with PML4
 	mov eax, pml4
 	mov cr3, eax
@@ -190,7 +194,7 @@ setup_paging_and_longm:
 	mov cr0, eax
 
 	ret
-tmp_gdt:
+gdt:
 	DQ	0x0000000000000000
 	DQ	0x00CF9A000000FFFF
 	DQ	0x00CF92000000FFFF
@@ -208,16 +212,16 @@ tss_gdt:
 
 gdtr1:
 	DW	40
-	DD	tmp_gdt
+	DD	gdt
 
 gdtr2:
 	DW	40
-	DD	tmp_gdt + 24
+	DD	gdt + 24
 	DD	0
 
 gdtr3:
 	DW	56
-	DQ	tmp_gdt + 24 + 0xFFFFFFFF80000000
+	DQ	gdt + 24 + 0xFFFFFFFF80000000
 section .bss
 global tss
 tss:

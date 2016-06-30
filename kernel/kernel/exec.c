@@ -21,7 +21,7 @@ int exec(const char *path)
 	char *buffer = malloc(size);
 	if (!buffer)
 		return errno = ENOMEM;
-	size_t read = in->read(0, size, buffer, in);
+	size_t read = read_vfs(0, size, buffer, in);
 	if (read != size)
 		return errno = EAGAIN;
 	void *entry = elf_load((void *) buffer);

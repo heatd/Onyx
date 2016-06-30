@@ -32,7 +32,7 @@ size_t num_areas = 2;
 #ifdef __x86_64__
 const uintptr_t high_half = 0xFFFF800000000000;
 const uintptr_t low_half_max = 0x00007fffffffffff;
-const uintptr_t low_half_min = 0x800000;
+const uintptr_t low_half_min = 0x400000;
 #endif
 void vmm_start_address_bookeeping(uintptr_t framebuffer_address)
 {
@@ -41,12 +41,12 @@ void vmm_start_address_bookeeping(uintptr_t framebuffer_address)
 		panic("Not enough memory\n");
 	areas[0].base = KERNEL_VIRTUAL_BASE;
 	areas[0].pages = 524288; /* last 2 GB*/
-	areas[0].rwx = VMM_RWX; /* RWX */
+	areas[0].rwx = VMM_WRITE | VMM_GLOBAL; /* RWX */
 	areas[0].type = VMM_TYPE_REGULAR;
 
 	areas[1].base = framebuffer_address;
 	areas[1].pages = 1024;
-	areas[1].rwx = VMM_RW; /* RW- */
+	areas[1].rwx = VMM_WRITE | VMM_NOEXEC; /* RW- */
 	areas[1].type = VMM_TYPE_HW;
 }
 
@@ -61,7 +61,7 @@ void *vmm_map_range(void *range, size_t pages, uint64_t flags)
 	memset(range, 0, 4096 * pages);
 	return range;
 }
-static int vmm_comp(void *ptr1, void *ptr2)
+static int vmm_comp(const void *ptr1, const void *ptr2)
 {
 	const vmm_entry_t *a = (const vmm_entry_t*) ptr1;
 	const vmm_entry_t *b = (const vmm_entry_t*) ptr2;
@@ -72,7 +72,8 @@ static int vmm_comp(void *ptr1, void *ptr2)
 		b->pages < a->pages ?  1 :
 	                            0 ;
 }
-void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type)
+int di = 0;
+void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uint64_t prot)
 {
 	uintptr_t base_address = 0;
 	switch(type)
@@ -109,18 +110,18 @@ void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type)
 	areas[num_areas-1].base = best_address;
 	areas[num_areas-1].pages = pages;
 	areas[num_areas-1].type = type;
-	areas[num_areas-1].rwx = VMM_RWX;
+	areas[num_areas-1].rwx = prot;
 	qsort(areas,num_areas,sizeof(vmm_entry_t),vmm_comp);
 	return (void*)best_address;
 }
-void *vmm_reserve_address(void *addr, size_t pages, uint32_t type)
+void *vmm_reserve_address(void *addr, size_t pages, uint32_t type, uint64_t prot)
 {
 	num_areas++;
 	areas = realloc(areas, num_areas * sizeof(vmm_entry_t));
 	areas[num_areas-1].base = (uintptr_t)addr;
 	areas[num_areas-1].pages = pages;
 	areas[num_areas-1].type = type;
-	areas[num_areas-1].rwx = VMM_RWX;
+	areas[num_areas-1].rwx = prot;
 	qsort(areas,num_areas,sizeof(vmm_entry_t),vmm_comp);
 	return addr;
 }

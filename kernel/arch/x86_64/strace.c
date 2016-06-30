@@ -71,7 +71,7 @@ char *elf_get_string(Elf64_Word off)
 char *resolve_sym(void *address)
 {
 	size_t num = symtab->sh_size / symtab->sh_entsize;
-	Elf64_Sym *syms = (Elf64_Sym*)symtab->sh_addr;
+	Elf64_Sym *syms = (Elf64_Sym*)(symtab->sh_addr + 0xFFFFFFFF80000000);
 	for(size_t i = 1; i < num; i++)
 	{
 		if(syms[i].st_value == (Elf64_Addr)address){
@@ -111,9 +111,9 @@ char *resolve_sym(void *address)
 }
 void init_elf_symbols(struct multiboot_tag_elf_sections *secs)
 {
-	Elf64_Shdr *sections = (Elf64_Shdr*)secs->sections;
+	Elf64_Shdr *sections = (Elf64_Shdr*)(secs->sections);
 	strtabs = &sections[secs->shndx];
-	strtab = (char*)strtabs->sh_addr;
+	strtab = (char*)(strtabs->sh_addr + 0xFFFFFFFF80000000);
 	for(unsigned int i = 0; i < secs->num; i++)
 	{
 		if(!strcmp(".symtab",elf_get_string(sections[i].sh_name)))
@@ -122,7 +122,7 @@ void init_elf_symbols(struct multiboot_tag_elf_sections *secs)
 		}
 		if(!strcmp(".strtab",elf_get_string(sections[i].sh_name)))
 		{
-			strtab = (char*)sections[i].sh_addr;
+			strtab = (char*)(sections[i].sh_addr + 0xFFFFFFFF80000000);
 		}
 	}
 	resolve_sym(&init_elf_symbols);
