@@ -12,8 +12,7 @@ EXEC_PREFIX?=$(PREFIX)
 INCLUDEDIR?=$(PREFIX)/include
 LIBDIR?=$(EXEC_PREFIX)/lib
 
-CFLAGS:=$(CFLAGS) -Wall -Wextra -mcmodel=kernel -fstack-protector-strong -ftree-vectorize -ftree-vectorizer-verbose=7 -mno-aes -mno-mmx -mno-pclmul -mno-sse -mno-sse2 -mno-sse3 -mno-sse4 -mno-sse4a -mno-fma4 -mno-ssse3 -fno-omit-frame-pointer
-CPPFLAGS:=$(CPPFLAGS) -D__is_spartix_libc -Iinclude
+CFLAGS:=$(CFLAGS) -Wall -Wextra
 LIBK_CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin
 LIBK_CPPFLAGS:=$(CPPFLAGS) -D__is_spartix_kernel
 
@@ -57,7 +56,7 @@ $(HOSTEDOBJS) \
 
 LIBK_OBJS:=$(FREEOBJS:.o=.libk.o)
 
-BINARIES=libc.a libg.a libk.a
+BINARIES=libc.a libg.a libk.a $(ARCHDIR)/crti.o $(ARCHDIR)/crtn.o
 
 all: $(BINARIES)
 
@@ -83,6 +82,10 @@ libk.a: $(LIBK_OBJS)
 %.libk.o: %.cpp
 	$(CXX) -c $< -o $@ -std=c++14 $(LIBK_CFLAGS) $(LIBK_CPPFLAGS)
 
+%.libk.o: %.S
+	nasm -felf$(NASMARCH) $< -o $@
+%.o: %.S
+	nasm -felf$(NASMARCH) $< -o $@
 clean:
 	rm -f $(BINARIES) $(OBJS) $(LIBK_OBJS) *.o */*.o */*/*.o
 

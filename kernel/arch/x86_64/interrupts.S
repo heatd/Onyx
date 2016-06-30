@@ -74,7 +74,6 @@ irq_common:
 	popaq
 	iretq
 
-
 %macro IRQ 2
 global irq%1
 irq%1:
@@ -158,6 +157,7 @@ irq0:
 	push rax
 	mov ax, 0x10
 	mov ds, ax
+	mov ss, ax
 	mov fs, ax
 	mov gs, ax
 	mov es, ax

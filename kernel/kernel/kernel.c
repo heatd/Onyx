@@ -203,6 +203,5 @@ void kernel_multitasking(void *args)
 	extern void init_elf_symbols(struct multiboot_tag_elf_sections *);
 	init_elf_symbols(secs);
 	exec("/boot/helloworld");
-	asm volatile("sti");
 	for (;;) ;
 }
