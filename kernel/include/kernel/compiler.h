@@ -36,7 +36,7 @@
 #define ARCH_SPECIFIC extern
 inline uint64_t rdtsc()
 {
-    	uint64_t ret;
+    	uint64_t ret = 0;
     	__asm__ __volatile__ ( "rdtsc" : "=A"(ret) );
     	return ret;
 }

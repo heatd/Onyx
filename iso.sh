@@ -11,12 +11,12 @@ echo "Generating initrd"
 tar -cvf $ROOTDIR/isodir/boot/initrd.tar *
 cd $ROOTDIR
 echo "Copying the kernel to the isodir"
-cp sysroot/boot/vmspartix isodir/boot/vmspartix
+cp sysroot/boot/vmspartix-0.1-gen64 isodir/boot/vmspartix-0.1-gen64
 echo "Compressing kernel and initrd images"
-xz -9 -e -f isodir/boot/vmspartix
+xz -9 -e -f isodir/boot/vmspartix-0.1-gen64
 xz -9 -e -f isodir/boot/initrd.tar
 echo "Testing the initrd and kernel integrity"
-xz -t isodir/boot/vmspartix.xz
+xz -t isodir/boot/vmspartix-0.1-gen64.xz
 xz -t isodir/boot/initrd.tar.xz
 cat > isodir/boot/grub/grub.cfg << EOF
 menuentry "Spartix" {
@@ -29,7 +29,7 @@ menuentry "Spartix" {
   	insmod gfxterm
 	terminal_output gfxterm
 	echo "Loading the vmspartix kernel"
-	multiboot2 /boot/vmspartix.xz
+	multiboot2 /boot/vmspartix-0.1-gen64.xz
 	echo "done."
 	set gfxpayload=1024x768x32
 	echo "Loading the initrd"
@@ -38,4 +38,5 @@ menuentry "Spartix" {
 	boot
 }
 EOF
+grub-file --is-x86-multiboot2 kernel/vmspartix-0.1-gen64
 grub-mkrescue -o Spartix.iso isodir # Change this acording to your distro/OS.

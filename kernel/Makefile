@@ -52,7 +52,7 @@ all: vmspartix
 
 .PHONY: all clean install install-headers install-kernel
 
-vmspartix: BUILD $(OBJ_LINK_LIST) $(ARCHDIR)/linker.ld
+vmspartix-0.1-gen64: BUILD $(OBJ_LINK_LIST) $(ARCHDIR)/linker.ld
 	echo $(OBJS)
 	$(CC) -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(OBJ_LINK_LIST) $(LDFLAGS) $(LIBS)
 
@@ -75,6 +75,6 @@ install-headers:
 	cp -RTv include $(DESTDIR)$(INCLUDEDIR)
 	cp -RTv drivers/include $(DESTDIR)$(INCLUDEDIR)/drivers
 
-install-kernel: vmspartix
+install-kernel: vmspartix-0.1-gen64
 	mkdir -p $(DESTDIR)$(BOOTDIR)
-	cp vmspartix $(DESTDIR)$(BOOTDIR)
+	cp $<  $(DESTDIR)$(BOOTDIR)

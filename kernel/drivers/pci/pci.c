@@ -673,7 +673,8 @@ const uint16_t CONFIG_DATA = 0xCFC;
 			return "NVIDIA";
 		case 0x8086:
 			return "Intel";
-		case 0x1002 | 0x1022:
+		case 0x1002:
+		case 0x1022:
 			return "AMD";
 		case 0x10EC:
 			return "Realtek";
@@ -685,7 +686,7 @@ const uint16_t CONFIG_DATA = 0xCFC;
 			return "Unknown vendor";
 		}
 	}
-	uint16_t ConfigReadWord (uint8_t bus, uint8_t slot,
+	uint16_t pci_config_read_word (uint8_t bus, uint8_t slot,
                                     uint8_t func, uint8_t offset)
         {
            uint32_t address;
@@ -705,7 +706,7 @@ const uint16_t CONFIG_DATA = 0xCFC;
            tmp = (uint16_t)((inl (CONFIG_DATA) >> ((offset & 2) * 8)) & 0xffff);
            return (tmp);
         }
-	uint32_t ConfigReadDword (uint8_t bus, uint8_t slot,
+	uint32_t pci_config_read_dword (uint8_t bus, uint8_t slot,
                                     uint8_t func, uint8_t offset)
         {
            uint32_t address;
@@ -724,24 +725,56 @@ const uint16_t CONFIG_DATA = 0xCFC;
            tmp = (uint32_t)((inl (CONFIG_DATA)));
            return (tmp);
         }
+void pci_write_dword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint32_t data)
+{
+	uint32_t address;
+	uint32_t lbus  = (uint32_t)bus;
+	uint32_t lslot = (uint32_t)slot;
+	uint32_t lfunc = (uint32_t)func;
+
+	/* create configuration address as per Figure 1 */
+	address = (uint32_t)((lbus << 16) | (lslot << 11) |
+		  (lfunc << 8) | (offset & 0xfc) | ((uint32_t)0x80000000));
+
+	/* write out the address */
+	outl (CONFIG_ADDRESS, address);
+	/* read in the data */
+	outl(CONFIG_DATA, data);
+}
+void pci_write_word(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint16_t data)
+{
+	uint32_t address;
+	uint32_t lbus  = (uint32_t)bus;
+	uint32_t lslot = (uint32_t)slot;
+	uint32_t lfunc = (uint32_t)func;
+
+	/* create configuration address as per Figure 1 */
+	address = (uint32_t)((lbus << 16) | (lslot << 11) |
+		  (lfunc << 8) | (offset & 0xfc) | ((uint32_t)0x80000000));
+
+	/* write out the address */
+	outl (CONFIG_ADDRESS, address);
+	/* read in the data */
+	outw(CONFIG_DATA, data);
+}
+	PCIDevice *linked_list = NULL;
 	PCIDevice* last = NULL;
 	void* pci_check_function(uint8_t bus, uint8_t device, uint8_t function)
 	{
 		// Get vendorID
-		uint16_t vendorID = (uint16_t)(ConfigReadDword(bus, device, function, 0) & 0x0000ffff);
+		uint16_t vendorID = (uint16_t)(pci_config_read_dword(bus, device, function,0) & 0x0000ffff);
 		if(vendorID == 0xFFFF) //Invalid function
 			return NULL;
 		// Get vendor string from common vendors
 		const char* vendor = IdentifyCommonVendors(vendorID);
 		// Get device ID
-		uint16_t deviceID = (uint16_t)ConfigReadDword(bus, device, function, 0) >> 16;
-
+		uint16_t deviceID = (pci_config_read_dword(bus, device, function,0) >> 16);
 		// Get Device Class
-		uint8_t pciClass = (uint8_t)(ConfigReadWord(bus, device, function , 0xA)>>8);
+		uint8_t pciClass = (uint8_t)(pci_config_read_word(bus, device, function , 0xA)>>8);
 		// Get Device SubClass
-		uint8_t subClass = (uint8_t)ConfigReadWord(bus,device, function, 0xB);
+		uint8_t subClass = (uint8_t)pci_config_read_word(bus,device, function, 0xB);
 		// Get ProgIF
-		uint8_t progIF = (uint8_t)(ConfigReadWord(bus, device, function,0xC)>>8);
+		uint8_t progIF = (uint8_t)(pci_config_read_word(bus, device, function,0xC)>>8);
 		// What a nice variable name :D
 		const char* function_function = IdentifyDeviceFunction(pciClass, subClass, progIF); /* Get the device's
 		function */
@@ -755,11 +788,14 @@ const uint16_t CONFIG_DATA = 0xCFC;
 		dev->vendor_string = (char*)vendor;
 		dev->vendorID = vendorID;
 		dev->deviceID = deviceID;
+		dev->pciClass = pciClass;
+		dev->subClass = subClass;
+		dev->progIF = progIF;
 		// Put it on the linked list
 		last->next = dev;
 		last = dev;
 
-		return NULL;
+		return dev;
 
 	}
 	void pci_check_devices()
@@ -770,7 +806,7 @@ const uint16_t CONFIG_DATA = 0xCFC;
 			{
 				//uint8_t function = 0;
 				// Get vendor
-				uint16_t vendor = (uint16_t)(ConfigReadDword(slot, device, 0,0) & 0x0000ffff);
+				uint16_t vendor = (uint16_t)(pci_config_read_dword(slot, device, 0,0) & 0x0000ffff);
 
 				if(vendor == 0xFFFF) //Invalid, just skip this device
 					break;
@@ -779,15 +815,15 @@ const uint16_t CONFIG_DATA = 0xCFC;
 
 				// Check the vendor against a bunch of mainstream hardware developers
 				printf("Vendor: %s\n", IdentifyCommonVendors(vendor));
-				printf("DeviceID: %X\n", ConfigReadDword(slot, device, 0,0) >> 16);
+				printf("DeviceID: %X\n", pci_config_read_dword(slot, device, 0,0) >> 16);
 
 				// Get header type
-				uint16_t header = (uint16_t)(ConfigReadWord(slot, device, 0,0xE));
+				uint16_t header = (uint16_t)(pci_config_read_word(slot, device, 0,0xE));
 
 				printf("Device type: %s\n",IdentifyDeviceType(header & 0x7F));
-				uint8_t pciClass = (uint8_t)(ConfigReadWord(slot, device, 0 , 0xA)>>8);
-				uint8_t subClass = (uint8_t)ConfigReadWord(slot,device, 0, 0xB);
-				uint8_t progIF = (uint8_t)(ConfigReadWord(slot, device, 0,0xC)>>8);
+				uint8_t pciClass = (uint8_t)(pci_config_read_word(slot, device, 0 , 0xA)>>8);
+				uint8_t subClass = (uint8_t)pci_config_read_word(slot,device, 0, 0xB);
+				uint8_t progIF = (uint8_t)(pci_config_read_word(slot, device, 0,0xC)>>8);
 				printf("Function of Device: %s\n", IdentifyDeviceFunction(pciClass, subClass, progIF));
 
 				// Set up some meta-data
@@ -799,12 +835,19 @@ const uint16_t CONFIG_DATA = 0xCFC;
 				dev->function_string = (char*)IdentifyDeviceFunction(pciClass, subClass, progIF);
 				dev->vendor_string = (char*)IdentifyCommonVendors(vendor);
 				dev->vendorID = vendor;
-				dev->deviceID = (ConfigReadDword(slot, device, 0,0) >> 16);
-				// If last is not nullptr (it is at first), set this device as the last node's next
+				dev->deviceID = (pci_config_read_dword(slot, device, 0,0) >> 16);
+				dev->pciClass = pciClass;
+				dev->subClass = subClass;
+				dev->progIF = progIF;
+				// If last is not NULL (it is at first), set this device as the last node's next
 				if(likely(last))
 					last->next = dev;
+				else
+					linked_list = dev;
+
+
 				last = dev;
-				if((header & 0x80) != 0)
+				if(header & 0x80)
 				{
 					for(int i = 1; i < 8;i++)
 					{
@@ -813,30 +856,60 @@ const uint16_t CONFIG_DATA = 0xCFC;
 							continue;
 						printf("Found PCI device at bus %d, device %d, function %d\n", dev->slot, dev->device,
 						dev->function);
-						printf("Device function: %s\n",dev->function);
+						printf("Device function: %s\n",dev->function_string);
 
 					}
 				}
 			}
 		}
 	}
-	pcibar_t* pci_get_bar0(uint8_t slot, uint8_t device, uint8_t function)
+pcibar_t* pci_get_bar(uint8_t slot, uint8_t device, uint8_t function, uint8_t barindex)
+{
+	uint8_t offset = 0x10 + 0x4 * barindex;
+	uint32_t i = pci_config_read_dword(slot, device,function,offset);
+	pcibar_t* pcibar = malloc(sizeof(pcibar_t));
+	pcibar->address = i & 0xFFFFFFF0;
+	pcibar->isIO = i & 1;
+	if(i & 1)
+		pcibar->address = i & 0xFFFFFFFC;
+	pcibar->isPrefetchable = i & 4;
+	pci_write_dword(slot, device, function, offset, 0xFFFFFFFF);
+	size_t size = (~((pci_config_read_dword(slot, device,function,offset) & 0xFFFFFFF0))) + 1;
+	pcibar->size = size;
+	pci_write_dword(slot, device,function,offset, i);
+	return pcibar;
+}
+uint16_t pci_get_intn(uint8_t slot, uint8_t device, uint8_t function)
+{
+	uint16_t intn = pci_config_read_word(slot, device, function, 0x44);
+	return intn;
+}
+void pci_init()
+{
+	printf("Initializing the PCI driver\n");
+	printf("Enumerating PCI devices\n");
+	pci_check_devices();
+}
+PCIDevice *get_pcidev_from_vendor_device(uint16_t deviceid, uint16_t vendorid)
+{
+	for(PCIDevice *i = linked_list; i;i = i->next)
 	{
-		uint32_t i = ConfigReadDword(slot, device,function,0x10);
-		pcibar_t* pcibar = malloc(sizeof(pcibar_t));
-		pcibar->address = i & 0xFFFFFFF0;
-		pcibar->isIO = i & 1;
-		pcibar->isPrefetchable = i & 4;
-		return pcibar;
+		if(i->deviceID == deviceid && i->vendorID == vendorid)
+			return i;
 	}
-	uint16_t pci_get_intn(uint8_t slot, uint8_t device, uint8_t function)
+	return NULL;
+}
+PCIDevice *get_pcidev_from_classes(uint8_t class, uint8_t subclass, uint8_t progif)
+{
+	for(PCIDevice *i = linked_list; i;i = i->next)
 	{
-		uint16_t intn = ConfigReadWord(slot, device, function, 0x44);
-		return intn;
+		if(i->pciClass == class && i->subClass == subclass && i->progIF == progif)
+			return i;
 	}
-	void pci_init()
-	{
-		printf("Initializing the PCI driver\n");
-		printf("Enumerating PCI devices\n");
-		pci_check_devices();
-	}
+	return NULL;
+}
+void pci_set_barx(uint8_t slot, uint8_t device, uint8_t function, uint8_t index, uint32_t address, uint8_t is_io, uint8_t is_prefetch)
+{
+	uint32_t bar = address | is_io | (is_prefetch << 2);
+	pci_write_dword(slot, device, function, PCI_BARx(index), bar);
+}

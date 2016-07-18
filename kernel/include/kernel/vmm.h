@@ -18,6 +18,7 @@
 #endif
 #include <stdint.h>
 #include <stdlib.h>
+#include <kernel/paging.h>
 #define VMM_TYPE_REGULAR 0
 #define VMM_TYPE_STACK 1
 #define VMM_TYPE_SHARED 2

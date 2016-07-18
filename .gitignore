@@ -1,7 +1,7 @@
 *.o
 daemon
 *.map
-kernel/vmspartix
+kernel/vmspartix-*
 *.iso
 isodir
 sysroot

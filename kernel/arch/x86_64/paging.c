@@ -9,7 +9,7 @@
  * Foundation.
  *----------------------------------------------------------------------*/
 #include <kernel/paging.h>
-
+#include <stdio.h>
 inline uint64_t make_pml4e(uint64_t base,uint64_t avl,uint64_t pcd,uint64_t pwt,uint64_t us,uint64_t rw,uint64_t p)
 {
 	return (uint64_t)( \
@@ -70,6 +70,16 @@ typedef struct {
     uint64_t rest :16;
 } decomposed_addr_t;
 static PML4 *current_pml4 = NULL;
+void *virtual2phys(void *ptr)
+{
+	decomposed_addr_t dec;
+	memcpy(&dec, &ptr, sizeof(decomposed_addr_t));
+	PML4 *pml4 = (PML4*)((uint64_t)current_pml4 + PHYS_BASE);
+	PML3 *pml3 = (PML3*)((pml4->entries[dec.pml4] & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
+	PML2 *pml2 = (PML2*)((pml3->entries[dec.pdpt] & 0x0FFFFFFFFFFFF000)+ PHYS_BASE);
+	PML1 *pml1 = (PML1*)((pml2->entries[dec.pd] & 0x0FFFFFFFFFFFF000)+ PHYS_BASE);
+	return (void *)((pml1->entries[dec.pt] & 0x0FFFFFFFFFFFF000) + dec.offsetFromPage);
+}
 void paging_init()
 {
 	/* Get the current PML4 and store it */

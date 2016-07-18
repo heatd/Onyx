@@ -40,6 +40,7 @@
 #include <kernel/task_switching.h>
 #include <kernel/elf.h>
 #include <kernel/tss.h>
+#include <drivers/ata.h>
 /* Function: init_arch()
  * Purpose: Initialize architecture specific features, should be hooked by the architecture the kernel will run on
  */
@@ -199,11 +200,18 @@ void kernel_multitasking(void *args)
 	/* Create PTY */
 	tty_create_pty_and_switch(mem);
 	printf("Created PTY0!\n");
+	vfsnode_t *node = malloc(sizeof(vfsnode_t));
+	node->name = "/dev";
+	node->type = VFS_TYPE_DEV | VFS_TYPE_DIR;
+	vfs_register_node(node);
 	/* Initialize PCI */
 	pci_init();
 
 	extern void init_elf_symbols(struct multiboot_tag_elf_sections *);
 	init_elf_symbols(secs);
+	readdir_fs(fs_root, 1);
+	//initialize_ata();
+
 	exec("/boot/helloworld");
 	for (;;) ;
 }

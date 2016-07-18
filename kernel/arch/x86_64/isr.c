@@ -140,6 +140,7 @@ void isr_handler(uint64_t err_code, uint64_t int_no)
 			}
 			if(err_code & 0x10)
 				printf("Instruction fetch\n");
+			panic("");
                         asm volatile("hlt");
 		}
 	case 15:{

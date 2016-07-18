@@ -12,13 +12,18 @@
 #include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
-vfsnode_t *node_list;
+vfsnode_t* fs_root = NULL;
+vfsnode_t *node_list = NULL;
 _Bool fd_list[6550];
 int vfs_init()
 {
-	node_list = malloc(sizeof(vfsnode_t*));
+	node_list = malloc(sizeof(vfsnode_t));
 	if(!node_list)
 		return 1;
+	node_list->name = malloc(sizeof(char)*2);
+	node_list->type = VFS_TYPE_DIR;
+	*node_list->name = '/';
+	*(node_list->name+1) = '\0';
 	return 0;
 }
 void vfs_fini()
@@ -43,6 +48,8 @@ vfsnode_t* vfs_findnode(const char *path)
 
 void vfs_register_node(vfsnode_t *toBeAdded)
 {
+	if(!fs_root)
+		fs_root = node_list;
 	vfsnode_t *search = node_list;
 	for ((void) search; search != NULL; search = search->next) {
 		if (search->next == NULL) {
@@ -101,4 +108,22 @@ int open_vfs(uint8_t rw, vfsnode_t* this)
 	if(this->open != NULL)
 		return this->open(rw, this);
 	return errno = ENOSYS;
+}
+struct dirent* readdir_fs(vfsnode_t* this, unsigned int index)
+{
+	if(this->type != VFS_TYPE_DIR)
+		return errno = ENOTDIR, NULL;
+	const char* base_path = this->name;
+	size_t len = strlen(base_path);
+	unsigned int index_count = 0;
+	vfsnode_t* search = node_list;
+	for ((void) search; search != NULL; search = search->next) {
+		if (memcmp(search->name, base_path, len) == 0)
+		{
+			if(index_count == index)
+				printf("search->name: %s\n", search->name);
+			index_count++;
+		}
+	}
+	return NULL;
 }

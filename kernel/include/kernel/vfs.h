@@ -12,7 +12,7 @@
 #define _VFS_H
 #include <stdint.h>
 #include <string.h>
-
+#include <dirent.h>
 #define VFS_TYPE_FILE 0
 #define VFS_TYPE_DIR 1
 #define VFS_TYPE_SYMLINK 3
@@ -25,7 +25,7 @@ typedef void (*__close)(struct vfsnode* this);
 typedef int (*__open)(uint8_t rw, struct vfsnode* this);
 typedef struct vfsnode
 {
-	int inode;
+	ino_t inode;
 	int gid;
 	int uid;
 	int permitions;
@@ -44,11 +44,12 @@ size_t read_vfs(size_t offset, size_t sizeofread, void* buffer, vfsnode_t* this)
 size_t write_vfs(size_t offset, size_t sizeofwrite, void* buffer, vfsnode_t* this);
 void close_vfs(vfsnode_t* this);
 int open_vfs(uint8_t rw, vfsnode_t* this);
+struct dirent* readdir_fs(vfsnode_t* this, unsigned int index);
 int vfs_init();
 void vfs_fini();
 vfsnode_t* vfs_findnode(const char *path);
 void vfs_register_node(vfsnode_t *toBeAdded);
 int vfs_destroy_node(vfsnode_t *toBeRemoved);
 int vfs_allocate_fd();
-
+extern vfsnode_t* fs_root;
 #endif
