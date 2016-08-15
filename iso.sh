@@ -38,5 +38,5 @@ menuentry "Spartix" {
 	boot
 }
 EOF
-grub-file --is-x86-multiboot2 kernel/vmspartix-0.1-gen64
-grub-mkrescue -o Spartix.iso isodir # Change this acording to your distro/OS.
+#grub2-file --is-x86-multiboot2 kernel/vmspartix-0.1-gen64
+grub2-mkrescue -o Spartix.iso isodir # Change this acording to your distro/OS.

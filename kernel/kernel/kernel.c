@@ -210,8 +210,7 @@ void kernel_multitasking(void *args)
 	extern void init_elf_symbols(struct multiboot_tag_elf_sections *);
 	init_elf_symbols(secs);
 	readdir_fs(fs_root, 1);
-	//initialize_ata();
+	initialize_ata();
 
-	exec("/boot/helloworld");
 	for (;;) ;
 }

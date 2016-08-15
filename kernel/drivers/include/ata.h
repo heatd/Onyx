@@ -89,4 +89,5 @@ typedef struct
 #define ATA_IRQ	  14
 void initialize_ata();
 void ata_read_sectors(unsigned int channel, unsigned int drive, uint32_t buffer, uint16_t bytesoftransfer, uint64_t lba48);
+void ata_write_sectors(unsigned int channel, unsigned int drive, uint32_t buffer, uint16_t bytesoftransfer, uint64_t lba48);
 #endif

@@ -29,7 +29,7 @@ struct ide_drive
 } ide_drives[4];
 unsigned int current_drive = (unsigned int)-1;
 unsigned int current_channel = (unsigned int)-1;
-static volatile int irq;
+static volatile int irq = 0;
 #define ATA_TIMEOUT 10000
 int ata_wait_for_irq(uint64_t timeout)
 {
@@ -38,7 +38,7 @@ int ata_wait_for_irq(uint64_t timeout)
 	{
 		if(get_tick_count() - time == timeout)
 		{
-			irq = 1;
+			irq = 0;
 			return 2;
 		}
 		uint16_t altstatus = inb(current_channel ? ATA_CONTROL1 : ATA_CONTROL2);
@@ -46,7 +46,7 @@ int ata_wait_for_irq(uint64_t timeout)
 		{
 			altstatus &= ~1;
 			outb((current_channel ? ATA_DATA1 : ATA_DATA2) + ATA_REG_STATUS, altstatus);
-			irq = 1;
+			irq = 0;
 			return 1;
 		}
 	}
@@ -58,7 +58,6 @@ void ata_irq()
 	irq = 1;
 	inb(bar4_base + 2);
 	inb((current_channel ? ATA_DATA2 : ATA_DATA1) + ATA_REG_STATUS);
-	printf("ata: irq\n");
 }
 uint8_t delay_400ns()
 {
@@ -141,7 +140,7 @@ void initialize_ata()
 			}
 			for(int i = 0; i < 256; i++)
 			{
-				uint64_t data = (uint64_t)inb(ATA_DATA1);
+				uint64_t data = (uint64_t)inw(ATA_DATA1);
 				if(i == 61)
 					ide_drives[curr].lba28 |= data;
 				else if(i == 60)
@@ -166,8 +165,10 @@ void initialize_ata()
 	uint64_t phys = (uint64_t)virtual2phys(buffer);
 	uint32_t arg = (uint32_t)phys;
 	ata_read_sectors(0, 0, arg, 1024, 0);
+
 	printf("%x\n", *buffer);
-	//ata_read_sectors(0, 0, arg, 0);
+	*buffer = 0xFFFFFFFF;
+	 ata_write_sectors(0, 0, arg, 1024, 0);
 }
 void ata_read_sectors(unsigned int channel, unsigned int drive, uint32_t buffer, uint16_t bytesoftransfer, uint64_t lba48)
 {
@@ -180,9 +181,19 @@ void ata_read_sectors(unsigned int channel, unsigned int drive, uint32_t buffer,
 		PRDT = prdt_base;
 	PRDT->data_buffer = buffer;
 	PRDT->size = bytesoftransfer;
-	PRDT->res = 0;
+	PRDT->res = 0x8000;
 	uint32_t param = (uint32_t)((uint64_t)virtual2phys(PRDT));
-	outb(0x1F6, 0x40 | drive << 4);
+	if(!channel)
+	{
+		outl(bar4_base + 0x4, param);
+		outb(bar4_base + 2, 4);
+	}else
+	{
+		outl(bar4_base + 0x8 + 0x4, param);
+		outb(bar4_base + 0x8 + 2, 4);
+	}
+	ata_set_drive(channel, drive);
+	outb(0x1F6, 0xE0 | drive << 4);
 	outb(0x1F2, num_secs >> 8);
 	outb(0x1F3, (lba48 >> 24) & 0xFF);
 	outb(0x1F4, (lba48 >> 24) & 0xFF00);
@@ -192,24 +203,56 @@ void ata_read_sectors(unsigned int channel, unsigned int drive, uint32_t buffer,
 	outb(0x1F4, lba48 & 0xFF00);
 	outb(0x1F5, lba48 & 0xFF0000);
 	/* Send the read command */
-	outl(bar4_base + 0x4, param);
-	/* Start the PCI DMA */
-	uint8_t cmdb = inb(bar4_base);
-	cmdb |= 8;
-	outb(bar4_base, cmdb);
+	outb(bar4_base, 8);
 	if(channel == 0)
 		outb(ATA_DATA1 + ATA_REG_COMMAND, ATA_CMD_READ_DMA_EXT);
 	else
 		outb(ATA_DATA2 + ATA_REG_COMMAND, ATA_CMD_READ_DMA_EXT);
-	outb(bar4_base, cmdb | 1);
-	PCIDevice *dev = get_pcidev_from_classes(1,1,0);
-	uint16_t status = (pci_config_read_dword(dev->slot, dev->device, dev->function, PCI_COMMAND)) >> 16;
-	printf("0x%X\n",status);
-	uint16_t status2 = inb(bar4_base + 2);
-	printf("0x%X\n",status2);
+	outb(bar4_base, 9);
 	int ret = ata_wait_for_irq(10000);
-	cmdb = inb(bar4_base);
-	cmdb &= ~1;
-	outb(bar4_base, cmdb);
+	outb(bar4_base, 0);
+	printf("finished request with return value %d\n", ret);
+}
+void ata_write_sectors(unsigned int channel, unsigned int drive, uint32_t buffer, uint16_t bytesoftransfer, uint64_t lba48)
+{
+	printf("ata: starting write\n");
+	if(bytesoftransfer == 0) bytesoftransfer = UINT16_MAX;
+	uint16_t num_secs = bytesoftransfer / 512;
+	if(bytesoftransfer % 512)
+		num_secs++;
+	if(!PRDT)
+		PRDT = prdt_base;
+	PRDT->data_buffer = buffer;
+	PRDT->size = bytesoftransfer;
+	PRDT->res = 0x8000;
+	uint32_t param = (uint32_t)((uint64_t)virtual2phys(PRDT));
+	if(!channel)
+	{
+		outl(bar4_base + 0x4, param);
+		outb(bar4_base + 2, 4);
+	}else
+	{
+		outl(bar4_base + 0x8 + 0x4, param);
+		outb(bar4_base + 0x8 + 2, 4);
+	}
+	ata_set_drive(channel, drive);
+	outb(0x1F6, 0xE0 | drive << 4);
+	outb(0x1F2, num_secs >> 8);
+	outb(0x1F3, (lba48 >> 24) & 0xFF);
+	outb(0x1F4, (lba48 >> 24) & 0xFF00);
+	outb(0x1F5, (lba48 >> 24) & 0xFF0000);
+	outb(0x1F2, num_secs & 0xFF);
+	outb(0x1F3, lba48 & 0x00FF);
+	outb(0x1F4, lba48 & 0xFF00);
+	outb(0x1F5, lba48 & 0xFF0000);
+	/* Send the write command */
+	outb(bar4_base, 0);
+	if(channel == 0)
+		outb(ATA_DATA1 + ATA_REG_COMMAND, ATA_CMD_WRITE_DMA_EXT);
+	else
+		outb(ATA_DATA2 + ATA_REG_COMMAND, ATA_CMD_WRITE_DMA_EXT);
+	outb(bar4_base, 1);
+	int ret = ata_wait_for_irq(10000);
+	outb(bar4_base, 0);
 	printf("finished request with return value %d\n", ret);
 }
