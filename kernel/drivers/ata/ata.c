@@ -17,6 +17,7 @@
 #include <kernel/irq.h>
 #include <kernel/pit.h>
 #include <kernel/panic.h>
+#include <mbr.h>
 prdt_entry_t *PRDT;
 void *prdt_base = NULL;
 PCIDevice *idedev = NULL;
@@ -71,9 +72,9 @@ void ata_set_drive(unsigned int channel, unsigned int drive)
 	current_channel = channel;
 	current_drive = drive;
 	if(channel == 0)
-		outb(ATA_DATA1 + ATA_REG_HDDEVSEL, 0xA0 | (drive << 4));
+		outb(ATA_DATA1 + ATA_REG_HDDEVSEL, 0x40 | (drive << 4));
 	else
-		outb(ATA_DATA2 + ATA_REG_HDDEVSEL, 0xA0 | (drive << 4));
+		outb(ATA_DATA2 + ATA_REG_HDDEVSEL, 0x40 | (drive << 4));
 	delay_400ns();
 }
 void enable_pci_ide(PCIDevice *dev)
@@ -157,22 +158,9 @@ void initialize_ata()
 		}
 	}
 	printf("Probing finished\n");
-	unsigned int *buffer = vmm_allocate_virt_address(VM_KERNEL, 16/*64K*/, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
-	vmm_map_range(buffer, 16, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
-	printf("buffer: %p\n", buffer);
-	memset(buffer, 0xFFFFFFFF, 65536);
-	printf("%x\n", *buffer);
-	uint64_t phys = (uint64_t)virtual2phys(buffer);
-	uint32_t arg = (uint32_t)phys;
-	ata_read_sectors(0, 0, arg, 1024, 0);
-
-	printf("%x\n", *buffer);
-	*buffer = 0xFFFFFFFF;
-	 ata_write_sectors(0, 0, arg, 1024, 0);
 }
 void ata_read_sectors(unsigned int channel, unsigned int drive, uint32_t buffer, uint16_t bytesoftransfer, uint64_t lba48)
 {
-	printf("ata: starting read\n");
 	if(bytesoftransfer == 0) bytesoftransfer = UINT16_MAX;
 	uint16_t num_secs = bytesoftransfer / 512;
 	if(bytesoftransfer % 512)
@@ -193,15 +181,14 @@ void ata_read_sectors(unsigned int channel, unsigned int drive, uint32_t buffer,
 		outb(bar4_base + 0x8 + 2, 4);
 	}
 	ata_set_drive(channel, drive);
-	outb(0x1F6, 0xE0 | drive << 4);
-	outb(0x1F2, num_secs >> 8);
-	outb(0x1F3, (lba48 >> 24) & 0xFF);
-	outb(0x1F4, (lba48 >> 24) & 0xFF00);
-	outb(0x1F5, (lba48 >> 24) & 0xFF0000);
-	outb(0x1F2, num_secs & 0xFF);
-	outb(0x1F3, lba48 & 0x00FF);
-	outb(0x1F4, lba48 & 0xFF00);
-	outb(0x1F5, lba48 & 0xFF0000);
+	outb(0x1F0 + ATA_REG_SECCOUNT0 , num_secs >> 8 & 0xFF);
+	outb(0x1F0 + ATA_REG_LBA0, lba48 >> 24 & 0xFF);
+	outb(0x1F0 + ATA_REG_LBA1, lba48 >> 32 & 0xFF);
+	outb(0x1F0 + ATA_REG_LBA2, lba48 >> 40 & 0xFF);
+	outb(0x1F0 + ATA_REG_SECCOUNT0 , num_secs & 0xFF);
+	outb(0x1F0 + ATA_REG_LBA0, lba48 & 0xFF);
+	outb(0x1F0 + ATA_REG_LBA1, lba48 >> 8 & 0xFF);
+	outb(0x1F0 + ATA_REG_LBA2, lba48 >> 16 & 0xFF);
 	/* Send the read command */
 	outb(bar4_base, 8);
 	if(channel == 0)
@@ -209,13 +196,11 @@ void ata_read_sectors(unsigned int channel, unsigned int drive, uint32_t buffer,
 	else
 		outb(ATA_DATA2 + ATA_REG_COMMAND, ATA_CMD_READ_DMA_EXT);
 	outb(bar4_base, 9);
-	int ret = ata_wait_for_irq(10000);
+	ata_wait_for_irq(10000);
 	outb(bar4_base, 0);
-	printf("finished request with return value %d\n", ret);
 }
 void ata_write_sectors(unsigned int channel, unsigned int drive, uint32_t buffer, uint16_t bytesoftransfer, uint64_t lba48)
 {
-	printf("ata: starting write\n");
 	if(bytesoftransfer == 0) bytesoftransfer = UINT16_MAX;
 	uint16_t num_secs = bytesoftransfer / 512;
 	if(bytesoftransfer % 512)
@@ -236,15 +221,14 @@ void ata_write_sectors(unsigned int channel, unsigned int drive, uint32_t buffer
 		outb(bar4_base + 0x8 + 2, 4);
 	}
 	ata_set_drive(channel, drive);
-	outb(0x1F6, 0xE0 | drive << 4);
-	outb(0x1F2, num_secs >> 8);
-	outb(0x1F3, (lba48 >> 24) & 0xFF);
-	outb(0x1F4, (lba48 >> 24) & 0xFF00);
-	outb(0x1F5, (lba48 >> 24) & 0xFF0000);
-	outb(0x1F2, num_secs & 0xFF);
-	outb(0x1F3, lba48 & 0x00FF);
-	outb(0x1F4, lba48 & 0xFF00);
-	outb(0x1F5, lba48 & 0xFF0000);
+	outb(0x1F0 + ATA_REG_SECCOUNT0 , num_secs >> 8 & 0xFF);
+	outb(0x1F0 + ATA_REG_LBA0, lba48 >> 24 & 0xFF);
+	outb(0x1F0 + ATA_REG_LBA1, lba48 >> 32 & 0xFF);
+	outb(0x1F0 + ATA_REG_LBA2, lba48 >> 40 & 0xFF);
+	outb(0x1F0 + ATA_REG_SECCOUNT0 , num_secs & 0xFF);
+	outb(0x1F0 + ATA_REG_LBA0, lba48 & 0xFF);
+	outb(0x1F0 + ATA_REG_LBA1, lba48 >> 8 & 0xFF);
+	outb(0x1F0 + ATA_REG_LBA2, lba48 >> 16 & 0xFF);
 	/* Send the write command */
 	outb(bar4_base, 0);
 	if(channel == 0)
@@ -252,7 +236,15 @@ void ata_write_sectors(unsigned int channel, unsigned int drive, uint32_t buffer
 	else
 		outb(ATA_DATA2 + ATA_REG_COMMAND, ATA_CMD_WRITE_DMA_EXT);
 	outb(bar4_base, 1);
-	int ret = ata_wait_for_irq(10000);
+	ata_wait_for_irq(10000);
 	outb(bar4_base, 0);
-	printf("finished request with return value %d\n", ret);
+	if(!channel)
+	{
+		outl(bar4_base + 0x4, 0);
+		outb(bar4_base + 2, 4);
+	}else
+	{
+		outl(bar4_base + 0x8 + 0x4, 0);
+		outb(bar4_base + 0x8 + 2, 4);
+	}
 }

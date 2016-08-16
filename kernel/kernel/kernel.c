@@ -41,6 +41,8 @@
 #include <kernel/elf.h>
 #include <kernel/tss.h>
 #include <drivers/ata.h>
+#include <mbr.h>
+#include <drivers/ext2.h>
 /* Function: init_arch()
  * Purpose: Initialize architecture specific features, should be hooked by the architecture the kernel will run on
  */
@@ -211,6 +213,7 @@ void kernel_multitasking(void *args)
 	init_elf_symbols(secs);
 	readdir_fs(fs_root, 1);
 	initialize_ata();
-
+	init_ext2drv();
+	read_partitions();
 	for (;;) ;
 }

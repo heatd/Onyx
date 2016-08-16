@@ -1,4 +1,5 @@
 *.o
+*.img
 daemon
 *.map
 kernel/vmspartix-*
