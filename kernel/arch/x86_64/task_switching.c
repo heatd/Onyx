@@ -52,12 +52,12 @@ thread_t* sched_create_thread(ThreadCallback callback, uint32_t flags,void* args
 	uintptr_t originalStack = (uintptr_t)stack;
 	if(!(flags & 1))
 		originalStack = (uintptr_t)newThread->user_stack;
-	uint64_t ds = 0x10, cs = 0x08;
+	uint64_t ds = 0x10, cs = 0x08, rf = 0x202;
 	if(!(flags & 1))
-		ds = 0x23, cs = 0x1b;
+		ds = 0x23, cs = 0x1b, rf = 0x202;
 	*--stack = ds; //SS
 	*--stack = originalStack; //RSP
-	*--stack = 0x202; // RFLAGS
+	*--stack = rf; // RFLAGS
 	*--stack = cs; //CS
 	*--stack = (uint64_t) callback; //RIP
 	*--stack = 0; // RAX
@@ -92,17 +92,17 @@ void* sched_switch_thread(void* last_stack)
 	if(!currentThread)
 	{
 		currentThread = firstThread;
-		set_kernel_stack((uintptr_t)currentThread->kernel_stack);
+		set_kernel_stack((uintptr_t)currentThread->kernel_stack_top);
 		return currentThread->kernel_stack;
 	}
 	else
-	{
+	{	
 		currentThread->kernel_stack = (uintptr_t*)last_stack;
 		if(currentThread->next)
 			currentThread = currentThread->next;
 		else
 			currentThread = firstThread;
-		set_kernel_stack((uintptr_t)currentThread->kernel_stack);
+		set_kernel_stack((uintptr_t)currentThread->kernel_stack_top);
 		return currentThread->kernel_stack;
 	}
 }

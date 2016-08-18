@@ -8,13 +8,24 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#ifndef _PARTITIONS_H
-#define _PARTITIONS_H
+#ifndef _PROCESS_H
+#define _PROCESS_H
+#include <kernel/task_switching.h>
+#include <kernel/vmm.h>
+#include <kernel/ioctx.h>
+#define THREADS_PER_PROCESS 30
+typedef struct proc
+{
+	thread_t *threads[30];
+	uint64_t brk;
+	uint64_t data_area;
+	int errno;
+	vmm_entry_t *areas;
+	size_t num_areas;
+	const char *cmd_line;
+	ioctx_t ctx;
+	struct proc *parent;
+	struct proc *next;
+} process_t;
 
-#include <stdint.h>
-
-typedef int (*fs_handler)(uint64_t sector, int drive, int channel);
-
-fs_handler lookup_handler_from_partition_code(uint8_t part_code);
-void part_add_handler(uint8_t part_code, fs_handler handler);
 #endif

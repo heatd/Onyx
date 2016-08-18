@@ -28,6 +28,7 @@ char *strcat(char *dest, const char *src);
 char *strcpy(char *dest, const char *src);
 int strcmp(char *s, char *t);
 char *strstr(char *str, char *substr);
+char* strtok(char* s, char* delm);
 void *memchr(const void *str, int c, size_t n);
 #ifdef __cplusplus
 }

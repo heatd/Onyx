@@ -165,8 +165,22 @@ void* paging_map_phys_to_virt(uint64_t virt, uint64_t phys, uint64_t prot)
 	*entry = make_pml1e( phys, (prot & 4) ? 1 : 0, 0, (prot & 0x2) ? 1 : 0, 0, 0, (prot & 0x80) ? 1 : 0, (prot & 1) ? 1 : 0, 1);
 	return (void*)virt;
 }
-void paging_unmap(void* memory, size_t pages)
+void paging_unmap(void* memory)
 {
-	(void) memory;
-	(void) pages;
+	decomposed_addr_t dec;
+	memcpy(&dec, &memory, sizeof(decomposed_addr_t));
+	PML4 *pml4 = (PML4*)((uint64_t)current_pml4 + PHYS_BASE);
+	uint64_t* entry = &pml4->entries[dec.pml4];
+	PML3 *pml3 = (PML3*)(*entry & 0x0FFFFFFFFFFFF000);
+	entry = &pml3->entries[dec.pdpt];
+	PML2 *pml2 = (PML2*)(*entry & 0x0FFFFFFFFFFFF000);
+	entry = &pml2->entries[dec.pd];
+	PML1 *pml1 = (PML1*)(*entry & 0x0FFFFFFFFFFFF000);
+	entry = &pml1->entries[dec.pt];
+	for(size_t i = 0; i < 1024; i++)
+	{
+		pfree(1, (void*)(entry[i] & 0x0FFFFFFFFFFFF000));
+		entry[i] = 0;
+	}
+
 }

@@ -6,10 +6,8 @@ mkdir -p isodir
 mkdir -p isodir/boot
 mkdir -p isodir/boot/grub
 ROOTDIR="$(pwd)"
-cd sysroot
 echo "Generating initrd"
-tar -cvf $ROOTDIR/isodir/boot/initrd.tar *
-cd $ROOTDIR
+tar -cvf $ROOTDIR/isodir/boot/initrd.tar sysroot
 echo "Copying the kernel to the isodir"
 cp sysroot/boot/vmspartix-0.1-gen64 isodir/boot/vmspartix-0.1-gen64
 echo "Compressing kernel and initrd images"

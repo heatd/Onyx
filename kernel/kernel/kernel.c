@@ -202,18 +202,17 @@ void kernel_multitasking(void *args)
 	/* Create PTY */
 	tty_create_pty_and_switch(mem);
 	printf("Created PTY0!\n");
-	vfsnode_t *node = malloc(sizeof(vfsnode_t));
-	node->name = "/dev";
-	node->type = VFS_TYPE_DEV | VFS_TYPE_DIR;
-	vfs_register_node(node);
 	/* Initialize PCI */
 	pci_init();
 
 	extern void init_elf_symbols(struct multiboot_tag_elf_sections *);
 	init_elf_symbols(secs);
-	readdir_fs(fs_root, 1);
 	initialize_ata();
+
+	exec("boot/helloworld");
 	init_ext2drv();
 	read_partitions();
-	for (;;) ;
+	vfsnode_t *nd = open_vfs(fs_root, "bin/helloworld");
+	(void) nd;
+	for (;;) asm volatile("hlt");
 }

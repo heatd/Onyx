@@ -8,13 +8,14 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#ifndef _PARTITIONS_H
-#define _PARTITIONS_H
+#ifndef _IOCTX_H
+#define _IOCTX_H
 
-#include <stdint.h>
+#include <kernel/vfs.h>
+typedef struct
+{
+	const char *working_dir;
+	vfsnode_t *file_desc[255];
+} ioctx_t;
 
-typedef int (*fs_handler)(uint64_t sector, int drive, int channel);
-
-fs_handler lookup_handler_from_partition_code(uint8_t part_code);
-void part_add_handler(uint8_t part_code, fs_handler handler);
 #endif

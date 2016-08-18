@@ -66,6 +66,7 @@ void idt_init()
 	idt_create_descriptor(45, (uint64_t) irq13, 0x08, 0x8E);
 	idt_create_descriptor(46, (uint64_t) irq14, 0x08, 0x8E);
 	idt_create_descriptor(47, (uint64_t) irq15, 0x08, 0x8E);
+	idt_create_descriptor(128, (uint64_t)__syscall_int, 0x08, 0x8E);
 	idt_load();
 }
 

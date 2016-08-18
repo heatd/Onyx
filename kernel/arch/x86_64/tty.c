@@ -96,15 +96,15 @@ void tty_putchar(char c)
 			    terminal_row);
 	terminal_column++;
 }
-static spinlock_t spl;
+//static spinlock_t spl;
 void tty_write(const char *data, size_t size)
 {
-	acquire_spinlock(&spl);
+	//acquire_spinlock(&spl);
 	for (size_t i = 0; i < size; i++)
 		tty_putchar(data[i]);
 	if(currentPty != 0)
 		tty_swap_framebuffers();
-	release_spinlock(&spl);
+	//release_spinlock(&spl);
 }
 void tty_swap_framebuffers()
 {

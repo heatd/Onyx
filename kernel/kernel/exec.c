@@ -14,15 +14,17 @@
 #include <kernel/panic.h>
 int exec(const char *path)
 {
-	vfsnode_t *in = vfs_findnode(path);
+	vfsnode_t *in = open_vfs(fs_root, path);
 	if (!in)
+	{
+		printf("%s: No such file or directory\n",path);
 		return errno = ENOENT;
-	size_t size = in->size;
-	char *buffer = malloc(size);
+	}
+	char *buffer = malloc(in->size);
 	if (!buffer)
 		return errno = ENOMEM;
-	size_t read = read_vfs(0, size, buffer, in);
-	if (read != size)
+	size_t read = read_vfs(0, in->size, buffer, in);
+	if (read != in->size)
 		return errno = EAGAIN;
 	void *entry = elf_load((void *) buffer);
 	sched_create_thread((ThreadCallback) entry, 0, NULL);

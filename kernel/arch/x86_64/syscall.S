@@ -36,6 +36,7 @@ user_stack: resq 1
 section .text
 global __syscall_stub
 __syscall_stub:
+	o64 sysret
 	cli
 	extern tss
 	mov [user_stack], rsp
@@ -51,12 +52,13 @@ __syscall_stub:
 	pop rcx
 	pop r11
 	mov rsp, [user_stack]
+	sti
 	o64 sysret
 
 global __syscall
 __syscall:
 	mov ecx, 0xC0000081 ; STAR
-	mov rdx, 0x00080008
+	mov rdx, 0x00160008
 	xor eax, eax
 	wrmsr
 	mov ecx, 0xC0000082 ;LSTAR

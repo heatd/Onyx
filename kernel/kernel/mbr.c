@@ -28,12 +28,16 @@ void read_partitions()
 	/* Cycle through all the partitions */
 	for(int i = 0; i < 4; i++)
 	{
-		printf("Partition %d: %d\nNumber of sectors: %d\nPartition type: 0%X\n"
+		if(part->part_type != 0)
+		{
+			printf("Partition %d: %d\nNumber of sectors: %d\nPartition type: 0%X\n"
 		, i, part->sector, part->size_sector, part->part_type);
 		 fs_handler handler = lookup_handler_from_partition_code(part->part_type);
 		 if(!handler) continue;
-		 handler(part->sector);
-		  part++;
+		 handler(part->sector, 0, 0);
+		}
+			part++;
+
 	}
 
 }

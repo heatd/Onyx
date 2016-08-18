@@ -22,7 +22,7 @@ struct vfsnode;
 typedef size_t (*__read)(size_t offset, size_t sizeofread, void* buffer, struct vfsnode* this);
 typedef size_t (*__write)(size_t offset, size_t sizeofwrite, void* buffer, struct vfsnode* this);
 typedef void (*__close)(struct vfsnode* this);
-typedef int (*__open)(uint8_t rw, struct vfsnode* this);
+typedef struct vfsnode *(*__open)(struct vfsnode* this, const char *name);
 typedef struct vfsnode
 {
 	ino_t inode;
@@ -32,6 +32,7 @@ typedef struct vfsnode
 	int type;
 	size_t size;
 	char *name;
+	char *mountpoint;
 	struct vfsnode *next;
 	struct vfsnode *link;
 	__read read;
@@ -43,13 +44,12 @@ typedef struct vfsnode
 size_t read_vfs(size_t offset, size_t sizeofread, void* buffer, vfsnode_t* this);
 size_t write_vfs(size_t offset, size_t sizeofwrite, void* buffer, vfsnode_t* this);
 void close_vfs(vfsnode_t* this);
-int open_vfs(uint8_t rw, vfsnode_t* this);
+vfsnode_t *open_vfs(vfsnode_t* this, const char*);
+int mount_fs(vfsnode_t *node, const char *mp);
 struct dirent* readdir_fs(vfsnode_t* this, unsigned int index);
 int vfs_init();
-void vfs_fini();
 vfsnode_t* vfs_findnode(const char *path);
 void vfs_register_node(vfsnode_t *toBeAdded);
 int vfs_destroy_node(vfsnode_t *toBeRemoved);
-int vfs_allocate_fd();
 extern vfsnode_t* fs_root;
 #endif

@@ -9,8 +9,17 @@
  * Foundation.
  *----------------------------------------------------------------------*/
 #include <stdio.h>
-int syscall_handler()
+#include <stdint.h>
+int syscall_handler(uint64_t intno, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5)
 {
-	printf("hi\n");
+	(void) arg2;
+	(void) arg3;
+	(void) arg4;
+	(void) arg5;
+	switch(intno)
+	{
+		case 0:
+			printf("%s", arg1);
+	}
 	return 0;
 }

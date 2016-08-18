@@ -103,10 +103,10 @@ void initialize_ata()
 		printf("ata: found IDE controller\n");
 	else
 		return;
-	vfsnode_t *node = malloc(sizeof(node));
+	/*vfsnode_t *node = malloc(sizeof(node));
 	node->name = "/dev/ata";
 	node->type = VFS_TYPE_DEV;
-	vfs_register_node(node);
+	//vfs_register_node(node);*/
 	/* Allocate PRDT base */
 	prdt_base = vmm_allocate_virt_address(VM_KERNEL, 16/*64K*/, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
 	vmm_map_range(prdt_base, 16, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);

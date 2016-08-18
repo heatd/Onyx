@@ -59,7 +59,7 @@ static inline bool is_recursive_fault()
 {
 	return faulting;
 }
-void isr_handler(uint64_t err_code, uint64_t int_no)
+void isr_handler( uint64_t i, uint64_t b,uint64_t err_code, uint64_t int_no)
 {
 	if(is_recursive_fault())
 	{
@@ -132,6 +132,8 @@ void isr_handler(uint64_t err_code, uint64_t int_no)
 			__asm__ __volatile__ ("mov %%cr2, %0":"=r"
 				      (faulting_address));
 			printf("%s0x%X\n",exception_msg[int_no],faulting_address);
+			printf("i: %x\nb: %x\n",i ,b);
+			panic("");
 			if(err_code & 0x2)
 				printf(" caused by a write\n");
 			if(err_code & 0x4)

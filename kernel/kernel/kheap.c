@@ -190,6 +190,7 @@ void k_heapBMFree(KHEAPBM * heap, void *ptr)
 
 uint32_t heap_extensions;
 static KHEAPBM kheap;
+uint64_t last_addr = 0;
 void init_heap()
 {
 	k_heapBMInit(&kheap);
@@ -201,6 +202,7 @@ void init_heap()
 		address+=0x1000;
 	}
 	printf("Mapped memory for the heap\n");
+	last_addr = address;
 	k_heapBMAddBlock(&kheap, address - 0x400000,
 			 0x400000, 16);
 	heap_extensions = 0;
@@ -210,8 +212,17 @@ void *malloc(size_t size)
 {
 	acquire_spinlock(&spl);
 	if (!size)
-		return NULL;
+		printf("null size\n");
 	void *ptr = k_heapBMAlloc(&kheap, size);
+	if(!ptr)
+	{
+		vmm_map_range((void*)last_addr, 1024, VMM_USER|VMM_WRITE|VMM_NOEXEC|VMM_GLOBAL);
+		k_heapBMAddBlock(&kheap, last_addr,
+			 0x400000, 16);
+		vmm_reserve_address((void*)last_addr, 1024, VMM_TYPE_HEAP, VMM_USER);
+		last_addr+=0x400000;
+		ptr = k_heapBMAlloc(&kheap, size);
+	}
 	release_spinlock(&spl);
 	return ptr;
 }

@@ -14,7 +14,7 @@
 #include <stdlib.h>
 #include <errno.h>
 tar_header_t *headers[100] = { 0 };
-
+size_t n_files = 0;
 size_t tar_parse(uintptr_t address)
 {
 	size_t i = 0;
@@ -30,14 +30,6 @@ size_t tar_parse(uintptr_t address)
 			address += 512;
 	}
 	return i;
-}
-int initrd_load_into_ramfs(size_t files);
-void init_initrd(void *initrd)
-{
-	printf("Found an Initrd at %p\n", initrd);
-	size_t n = tar_parse((uintptr_t) initrd);
-	printf("Found %d files in the Initrd\n", n);
-	initrd_load_into_ramfs(n);
 }
 size_t tar_read(size_t offset, size_t sizeOfReading, void *buffer, vfsnode_t *this)
 {
@@ -55,43 +47,52 @@ size_t tar_write(size_t offset, size_t sizeOfWriting, void *buffer, vfsnode_t *t
 	/* You can not write to a tar file (usually results in corruption) */
 	return errno = EROFS, 0;
 }
-
-int tar_open(uint8_t rw, vfsnode_t *this)
-{
-	(void) rw;
-	(void) this;
-	return vfs_allocate_fd();
-}
-
 void tar_close(vfsnode_t *this)
 {
 	(void) this;
 	return;
 }
-int initrd_load_into_ramfs(size_t files)
+vfsnode_t *tar_open(vfsnode_t *this, const char *name)
 {
-	tar_header_t *iterate = headers[0];
-	for (size_t i = 0; i < files; i++) {
-		iterate = headers[i];
-		vfsnode_t *inode = malloc(sizeof(vfsnode_t));
-		inode->inode = i;
-		char *str = malloc(strlen(iterate->filename) + 2);
-		memset(str, 0, strlen(iterate->filename) + 2);
-		str[0] = '/';
-		strcpy(str + 1, iterate->filename);
-		inode->name = str;
-		inode->size = tar_get_size(iterate->size);
-		inode->gid = tar_get_size(iterate->gid);
-		inode->uid = tar_get_size(iterate->gid);
-		inode->read = tar_read;
-		inode->write = tar_write;
-		inode->open = tar_open;
-		inode->close = tar_close;
-		if (iterate->typeflag == TAR_TYPE_FILE)
-			inode->type = VFS_TYPE_FILE;
-		else if (iterate->typeflag == TAR_TYPE_DIR)
-			inode->type = VFS_TYPE_DIR;
-		vfs_register_node(inode);
+	char *full_path = malloc(strlen(this->name) + strlen(name) + 1);
+	strcpy(full_path, this->name);
+	strcpy(full_path + strlen(this->name), name);
+	tar_header_t **iterator = headers;
+	for(size_t i = 0; i < n_files; i++)
+	{
+		if(!strcmp(full_path, iterator[i]->filename))
+		{
+			vfsnode_t *node = malloc(sizeof(vfsnode_t));
+			node->name = malloc(strlen(this->mountpoint) + strlen(full_path));
+			strcpy(node->name, this->mountpoint);
+			strcpy(node->name + strlen(this->mountpoint), full_path);
+			node->open = tar_open;
+			node->close = tar_close;
+			node->read = tar_read;
+			node->write = tar_write;
+			node->inode = i;
+			node->size = tar_get_size(iterator[i]->size);
+			if(iterator[i]->typeflag == TAR_TYPE_DIR)
+				node->type = VFS_TYPE_DIR;
+			else
+				node->type = VFS_TYPE_FILE;
+			return node;
+		}
 	}
-	return 0;
+	return errno = ENOENT, NULL;
+}
+void init_initrd(void *initrd)
+{
+	printf("Found an Initrd at %p\n", initrd);
+	n_files = tar_parse((uintptr_t) initrd);
+	printf("Found %d files in the Initrd\n", n_files);
+	vfsnode_t *node = malloc(sizeof(vfsnode_t));
+	node->name = "sysroot/";
+	node->open = tar_open;
+	node->close = tar_close;
+	node->read = tar_read;
+	node->write = tar_write;
+	node->type = VFS_TYPE_DIR;
+	node->inode = 0;
+	mount_fs(node, "/");
 }

@@ -46,6 +46,8 @@ string/memchr.o \
 string/strstr.o \
 stdlib/realloc.o \
 stdlib/qsort.o \
+string/strtok.o \
+
 
 HOSTEDOBJS:=\
 $(ARCH_HOSTEDOBJS) \
