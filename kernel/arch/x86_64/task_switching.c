@@ -17,6 +17,7 @@
 #include <kernel/spinlock.h>
 #include <kernel/panic.h>
 #include <kernel/tss.h>
+#include <kernel/process.h>
 // First and last nodes of the linked list
 static volatile thread_t* firstThread = NULL;
 static volatile thread_t* lastThread = NULL;
@@ -96,13 +97,14 @@ void* sched_switch_thread(void* last_stack)
 		return currentThread->kernel_stack;
 	}
 	else
-	{	
+	{
 		currentThread->kernel_stack = (uintptr_t*)last_stack;
 		if(currentThread->next)
 			currentThread = currentThread->next;
 		else
 			currentThread = firstThread;
 		set_kernel_stack((uintptr_t)currentThread->kernel_stack_top);
+		current_process = currentThread->owner;
 		return currentThread->kernel_stack;
 	}
 }
@@ -120,7 +122,7 @@ void sched_destroy_thread(thread_t *thread)
 			break;
 		}
 	}
-	/*unmap(thread->kernel_stack_top - 0x2000);
-	  unmap(thread->user_stack_top - 0x2000);*/
-	  free(thread);
+	paging_unmap(thread->kernel_stack_top - 0x2000, 2);
+	paging_unmap(thread->user_stack_top - 0x2000, 1024);
+	free(thread);
 }

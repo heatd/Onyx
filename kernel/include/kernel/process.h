@@ -24,8 +24,11 @@ typedef struct proc
 	size_t num_areas;
 	const char *cmd_line;
 	ioctx_t ctx;
+	uint64_t pid;
 	struct proc *parent;
 	struct proc *next;
 } process_t;
-
+process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent);
+void process_create_thread(process_t *proc, ThreadCallback callback, uint32_t flags, void* args);
+extern process_t * current_process;
 #endif

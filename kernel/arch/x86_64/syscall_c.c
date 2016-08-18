@@ -10,16 +10,40 @@
  *----------------------------------------------------------------------*/
 #include <stdio.h>
 #include <stdint.h>
-int syscall_handler(uint64_t intno, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5)
+#include <unistd.h>
+#include <kernel/tty.h>
+#include <sys/types.h>
+#include <kernel/process.h>
+ssize_t sys_write(int fd, const void *buf, size_t count)
 {
-	(void) arg2;
-	(void) arg3;
+	if(fd == 1)
+		tty_write(buf, count);
+
+	return count;
+}
+ssize_t sys_read(int fd, const void *buf, size_t count)
+{
+	(void) fd;
+	(void) buf;
+	return count;
+}
+uint64_t sys_getpid()
+{
+	return current_process->pid;
+}
+uint64_t syscall_handler(uint64_t intno, uint64_t arg1, uint64_t arg2, uint64_t arg3, uint64_t arg4, uint64_t arg5)
+{
 	(void) arg4;
 	(void) arg5;
+	uint64_t returnval = 0;
 	switch(intno)
 	{
 		case 0:
-			printf("%s", arg1);
+			returnval = (uint64_t)sys_write((int)arg1, (void*)arg2, arg3);
+		case 1:
+			returnval = (uint64_t)sys_read((int)arg1, (void*)arg2, arg3);
+		case 4:
+			returnval = (uint64_t)sys_getpid();
 	}
-	return 0;
+	return returnval;
 }

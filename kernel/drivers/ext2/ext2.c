@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <drivers/ext2.h>
 #include <kernel/vfs.h>
+#include <errno.h>
 ext2_fs_t *fslist = NULL;
 void *ext2_read_block(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs)
 {
@@ -117,6 +118,99 @@ char *ext2_read_inode_bp(inode_t *inode, ext2_fs_t *fs, size_t *sz)
 	return buf;
 
 }
+static spinlock_t spl;
+size_t ext2_read_file(inode_t *inode, ext2_fs_t *fs, size_t sz, uint32_t blck, void *buffer)
+{
+	acquire_spinlock(&spl);
+	uint32_t remainder = sz % fs->block_size;
+	uint32_t block_space = sz + fs->block_size - remainder;
+	char *buf = malloc(block_space);
+	char *put = buf;
+	uint32_t block = blck;
+	for(uint64_t i = block; i < block_space / fs->block_size; i++)
+	{
+		if(i < 12)
+		{
+			char *bf = ext2_read_block(inode->dbp[i], 1, fs);
+			memcpy(put, bf, fs->block_size);
+			free(bf);
+			put+=fs->block_size;
+		}
+		if(i >= 12 && i < fs->block_size / 4 + 12)
+		{
+			uint32_t *indb = ext2_read_block(inode->single_indirect_bp, 1, fs);
+			for(uint64_t j = 0; j < fs->block_size / 4; j++)
+			{
+				if(indb[j] != 0)
+				{
+					char *bf = ext2_read_block(indb[j], 1, fs);
+					memcpy(put, bf, fs->block_size);
+					free(bf);
+					put+=fs->block_size;
+					i++;
+				}
+			}
+		}
+		if(i >= fs->block_size / 4 + 12 && i < (fs->block_size / 4)*(fs->block_size / 4) + 12)
+		{
+			uint32_t *dib = ext2_read_block(inode->doubly_indirect_bp, 1, fs);
+			for(uint64_t j = 0; j < fs->block_size / 4 ; j++)
+			{
+				if(dib[j] != 0)
+				{
+					uint32_t *ib = ext2_read_block(dib[j], 1, fs);
+					for(uint64_t k = 0; k < 1024; k++)
+					{
+						if(ib[j] != 0)
+						{
+							char *bf = ext2_read_block(ib[j], 1, fs);
+							memcpy(put, bf, fs->block_size);
+							free(bf);
+							put+=fs->block_size;
+							i++;
+						}
+					}
+				}
+			}
+
+		}
+		if(i >= (fs->block_size / 4)* (fs->block_size / 4) + 12 && i < (fs->block_size / 4)*(fs->block_size / 4)
+		*(fs->block_size / 4) + 12)
+		{
+			uint32_t *tib = ext2_read_block(inode->trebly_indirect_bp, 1, fs);
+			for(uint64_t j = 0; j < fs->block_size/4; j++)
+			{
+				if(tib[j] != 0)
+				{
+					uint32_t *dib = ext2_read_block(inode->doubly_indirect_bp, 1, fs);
+					for(uint64_t k = 0; k < fs->block_size / 4 ; k++)
+					{
+						if(dib[k] != 0)
+						{
+							uint32_t *ib = ext2_read_block(dib[k], 1, fs);
+							for(uint64_t l = 0; l < 1024; l++)
+							{
+								if(ib[l] != 0)
+								{
+									char *bf = ext2_read_block(ib[l], 1, fs);
+									memcpy(put, bf, fs->block_size);
+									free(bf);
+									put+=fs->block_size;
+									i++;
+								}
+							}
+						}
+					}
+				}
+
+			}
+		}
+	}
+	memcpy(buffer, buf, sz);
+	free(buf);
+	release_spinlock(&spl);
+	return sz;
+}
 inode_t *ext2_get_inode_from_number(ext2_fs_t *fs, uint32_t inode)
 {
 	uint32_t block_size = fs->block_size;
@@ -145,11 +239,19 @@ inode_t *ext2_get_inode_from_dir(ext2_fs_t *fs, dir_entry_t *dirent, char *name,
 }
 size_t ext2_read(size_t offset, size_t sizeofreading, void *buffer, vfsnode_t *nd)
 {
-	(void) offset;
-	(void) sizeofreading;
-	(void) buffer;
-	(void)nd;
-	return -1;
+	if(offset > nd->size)
+		return errno = EINVAL, -1;
+	printf("Hello\n");
+	ext2_fs_t *fs = fslist;
+	uint32_t block_index = offset/fs->block_size;
+	if(offset%fs->block_size)
+		block_index++;
+	inode_t *ino = ext2_get_inode_from_number(fs, nd->inode);
+	printf("Hello\n");
+	if(!ino)
+		return errno = EINVAL;
+	size_t size = ext2_read_file(ino, fs, sizeofreading, block_index, buffer);
+	return size;
 }
 vfsnode_t *ext2_open(vfsnode_t *nd, const char *name)
 {

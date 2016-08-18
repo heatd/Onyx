@@ -209,10 +209,9 @@ void kernel_multitasking(void *args)
 	init_elf_symbols(secs);
 	initialize_ata();
 
-	exec("boot/helloworld");
 	init_ext2drv();
 	read_partitions();
-	vfsnode_t *nd = open_vfs(fs_root, "bin/helloworld");
-	(void) nd;
+
+	exec("bin/helloworld");
 	for (;;) asm volatile("hlt");
 }

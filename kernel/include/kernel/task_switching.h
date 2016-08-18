@@ -27,5 +27,6 @@ typedef struct thr
 	struct thr *next;
 } thread_t;
 thread_t *sched_create_thread(ThreadCallback callback, uint32_t flags, void* args);
+void sched_destroy_thread(thread_t *thread);
 thread_t *get_current_thread();
  #endif

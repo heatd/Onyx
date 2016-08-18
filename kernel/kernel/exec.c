@@ -12,8 +12,10 @@
 #include <kernel/elf.h>
 #include <kernel/vfs.h>
 #include <kernel/panic.h>
+#include <kernel/process.h>
 int exec(const char *path)
 {
+	process_t *proc = process_create(path, NULL, NULL);
 	vfsnode_t *in = open_vfs(fs_root, path);
 	if (!in)
 	{
@@ -27,6 +29,6 @@ int exec(const char *path)
 	if (read != in->size)
 		return errno = EAGAIN;
 	void *entry = elf_load((void *) buffer);
-	sched_create_thread((ThreadCallback) entry, 0, NULL);
+	process_create_thread(proc, (ThreadCallback) entry, 0, NULL);
 	return 0;
 }

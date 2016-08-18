@@ -211,8 +211,6 @@ static spinlock_t spl;
 void *malloc(size_t size)
 {
 	acquire_spinlock(&spl);
-	if (!size)
-		printf("null size\n");
 	void *ptr = k_heapBMAlloc(&kheap, size);
 	if(!ptr)
 	{

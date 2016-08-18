@@ -223,7 +223,6 @@ extern syscall_handler
 __syscall_int:
 	cli
 	; load the kernel's segments
-	push rax
 	mov ax, ds
 	push rax
 	mov ax, 0x10
@@ -233,10 +232,9 @@ __syscall_int:
 	mov gs, ax
 	mov es, ax
 	call syscall_handler
-	pop rax
-	mov ds, ax
-	mov fs, ax
-	mov gs, ax
-	mov es, ax
-	pop rax
+	pop rbx
+	mov ds, bx
+	mov fs, bx
+	mov gs, bx
+	mov es, bx
 	iretq

@@ -14,4 +14,5 @@
 typedef int pid_t;
 typedef unsigned int uid_t;
 typedef unsigned int gid_t;
+typedef long long ssize_t;
 #endif
