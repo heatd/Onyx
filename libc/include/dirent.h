@@ -10,9 +10,7 @@
  *----------------------------------------------------------------------*/
 #ifndef _DIRENT_H
 #define _DIRENT_H
-
-typedef int ino_t;
-typedef long long off_t;
+#include <sys/types.h>
 
 struct dirent
 {

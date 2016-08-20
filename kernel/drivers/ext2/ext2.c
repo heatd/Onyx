@@ -247,7 +247,6 @@ size_t ext2_read(size_t offset, size_t sizeofreading, void *buffer, vfsnode_t *n
 	if(offset%fs->block_size)
 		block_index++;
 	inode_t *ino = ext2_get_inode_from_number(fs, nd->inode);
-	printf("Hello\n");
 	if(!ino)
 		return errno = EINVAL;
 	size_t size = ext2_read_file(ino, fs, sizeofreading, block_index, buffer);
@@ -255,7 +254,6 @@ size_t ext2_read(size_t offset, size_t sizeofreading, void *buffer, vfsnode_t *n
 }
 vfsnode_t *ext2_open(vfsnode_t *nd, const char *name)
 {
-	printf("name: %s\n", strtok((char *)name, "/"));
 	uint32_t inoden = nd->inode;
 	ext2_fs_t *fs = fslist;
 	uint32_t inode_num;
@@ -268,8 +266,7 @@ vfsnode_t *ext2_open(vfsnode_t *nd, const char *name)
 	inode_data = ext2_read_inode_bp(ino, fs, &size);
 	dir = (dir_entry_t*)inode_data;
 	ino = ext2_get_inode_from_dir(fs, dir, "helloworld", &inode_num);
-	printf("ino: %p\n", ino);
-	printf("inode: %d\n", ino->dbp[0]);
+
 	vfsnode_t *node = malloc(sizeof(vfsnode_t));
 	node->name = (char*)name;
 	node->inode = inode_num;

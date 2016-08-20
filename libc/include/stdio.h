@@ -14,16 +14,13 @@
 #include <sys/cdefs.h>
 #include <string.h>
 #include <stdarg.h>
+#include <unistd.h>
 #ifdef __is_spartix_kernel
 #include <kernel/spinlock.h>
 #endif
 #ifdef __cplusplus
 extern "C" {
 #endif
-#define EOF -1
-#define SEEK_SET 0
-#define SEEK_CUR -1
-#define SEEK_END 0
 typedef struct { int unused; } FILE;
 extern FILE* stderr;
 #define stderr stderr

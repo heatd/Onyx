@@ -1,7 +1,17 @@
+extern int open(const char*, int flags);
+extern int read(int fd, void *buf, unsigned int count);
+extern int write(int fd, void *buf, unsigned int count);
+extern unsigned long lseek(int fd, unsigned long offset, int whence);
+int file = 0;
 int main()
 {
-	const char *str = "Hello World\n";
-	asm volatile("mov $4, %%rdi; mov $1, %%rsi; mov %0, %%rdx; mov $12, %%rcx; int $0x80"::"a"(str));
+	const char *str = "/usr/include/dirent.h";
+	int fd = open(str, 0);
+	file = fd;
+	char buffer[500];
+	read(fd, &buffer, 500);
+	write(1, &buffer, 500);
+	unsigned long size = lseek(fd, 0, 3);
 	while(1);
 	return 0;
 }

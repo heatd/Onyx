@@ -12,6 +12,8 @@
 #include <stdio.h>
 #include <kernel/panic.h>
 #include <stdbool.h>
+#include <kernel/task_switching.h>
+#include <kernel/vmm.h>
 static uint64_t faulting_address;
 const char* exception_msg[] = {
     "Division by zero exception",
@@ -59,7 +61,7 @@ static inline bool is_recursive_fault()
 {
 	return faulting;
 }
-void isr_handler( uint64_t i, uint64_t b,uint64_t err_code, uint64_t int_no)
+void isr_handler(uint64_t err_code, uint64_t int_no)
 {
 	if(is_recursive_fault())
 	{
@@ -130,10 +132,12 @@ void isr_handler( uint64_t i, uint64_t b,uint64_t err_code, uint64_t int_no)
 			/* A page fault has occurred. */
 			/* The faulting address is stored in the CR2 register. */
 			__asm__ __volatile__ ("mov %%cr2, %0":"=r"
-				      (faulting_address));
+      				(faulting_address));
+		vmm_entry_t *entr = vmm_is_mapped((void*)faulting_address);
+		if(!entr)
+		{
+		pf:
 			printf("%s0x%X\n",exception_msg[int_no],faulting_address);
-			printf("i: %x\nb: %x\n",i ,b);
-			panic("");
 			if(err_code & 0x2)
 				printf(" caused by a write\n");
 			if(err_code & 0x4)
@@ -142,8 +146,15 @@ void isr_handler( uint64_t i, uint64_t b,uint64_t err_code, uint64_t int_no)
 			}
 			if(err_code & 0x10)
 				printf("Instruction fetch\n");
-			panic("");
                         asm volatile("hlt");
+		}
+		if(err_code & 0x2 && ~entr->rwx & VMM_WRITE)
+			goto pf;
+		if(err_code & 0x10 && entr->rwx & VMM_NOEXEC)
+			goto pf;
+		if(err_code & 0x4 && faulting_address > 0xFFFF800000000000)
+			goto pf;
+		vmm_map_range((void*)faulting_address, 1, entr->rwx);
 		}
 	case 15:{
 			break;	/*Reserved exception */

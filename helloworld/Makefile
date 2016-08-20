@@ -3,4 +3,6 @@ clean:
 install: helloworld
 	cp helloworld $(DESTDIR)/boot/
 helloworld:
-	$(CC) -O2 -g -ffreestanding -nostdlib -lk -lgcc -Wl,-emain -o $@ main.c
+	nasm -felf64 asm.S -o asm.o
+	$(CC) -O2 -g -ffreestanding -c -o main.o main.c
+	$(CC) -nostartfiles -Wl,-emain main.o asm.o -o $@

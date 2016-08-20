@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <kernel/panic.h>
 tar_header_t *headers[100] = { 0 };
 size_t n_files = 0;
 size_t tar_parse(uintptr_t address)
@@ -62,6 +63,7 @@ vfsnode_t *tar_open(vfsnode_t *this, const char *name)
 	{
 		if(!strcmp(full_path, iterator[i]->filename))
 		{
+			printf("found file\n");
 			vfsnode_t *node = malloc(sizeof(vfsnode_t));
 			node->name = malloc(strlen(this->mountpoint) + strlen(full_path));
 			strcpy(node->name, this->mountpoint);

@@ -50,9 +50,17 @@ vfsnode_t *open_vfs(vfsnode_t* this, const char *name)
 {
 
 	if(this->open != NULL)
-		return this->open(this, name);
+	{
+		const char *file = name + strlen(this->name);
+		printf("open\n");
+		return this->open(this, file);
+	}
 	if(this->type & VFS_TYPE_MOUNTPOINT)
-		return this->link->open(this->link, name);
+	{
+		size_t s = strlen(this->link->mountpoint);
+		printf("open %p\n", name);
+		return this->link->open(this->link, name + s);
+	}
 
 	return errno = ENOSYS, NULL;
 }
@@ -60,7 +68,6 @@ int mount_fs(vfsnode_t *fsroot, const char *path)
 {
 	if(!strcmp((char*)path, "/"))
 	{
-		printf("Mounting root!\n");
 		fs_root->link = fsroot;
 		fs_root->type |= VFS_TYPE_MOUNTPOINT;
 		if(!fs_root->name)

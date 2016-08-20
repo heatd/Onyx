@@ -47,8 +47,8 @@ __syscall_stub:
 	push r11
 	push rcx
 	mov rcx, r10
-	extern syscall_handler
-	call syscall_handler
+	;extern syscall_handler
+	;call syscall_handler
 	pop rcx
 	pop r11
 	mov rsp, [user_stack]

@@ -190,6 +190,7 @@ void kernel_main()
 	}
 }
 extern int exec(const char *);
+char *pathsep = "/";
 void kernel_multitasking(void *args)
 {
 	/* At this point, multitasking is initialized in the kernel
@@ -210,8 +211,9 @@ void kernel_multitasking(void *args)
 	initialize_ata();
 
 	init_ext2drv();
-	read_partitions();
-
-	exec("bin/helloworld");
+	//read_partitions();
+	volatile char *v = vmm_allocate_virt_address(1, 1, VMM_TYPE_REGULAR, VMM_WRITE|VMM_GLOBAL|VMM_NOEXEC);
+	*v = 'c';
+	exec("/boot/helloworld");
 	for (;;) asm volatile("hlt");
 }

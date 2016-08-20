@@ -88,6 +88,10 @@
 #define _XOPEN_SHM		1
 #define _XOPEN_UUCP		-1
 
+/* lseek(2) */
+#define SEEK_SET 1
+#define SEEK_CUR 2
+#define SEEK_END 3
 typedef int pid_t;
 pid_t fork();
 int execv(const char* path, char* const argv[]);

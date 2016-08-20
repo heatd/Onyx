@@ -31,6 +31,7 @@ typedef struct vfsnode
 	int permitions;
 	int type;
 	size_t size;
+	int refcount;
 	char *name;
 	char *mountpoint;
 	struct vfsnode *next;

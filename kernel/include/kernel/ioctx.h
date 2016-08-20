@@ -12,10 +12,18 @@
 #define _IOCTX_H
 
 #include <kernel/vfs.h>
+#include <sys/types.h>
+#include <limits.h>
+typedef struct
+{
+	off_t seek;
+	vfsnode_t *vfs_node;
+	int flags;
+} file_desc_t;
 typedef struct
 {
 	const char *working_dir;
-	vfsnode_t *file_desc[255];
+	file_desc_t *file_desc[UINT16_MAX];
 } ioctx_t;
 
 #endif

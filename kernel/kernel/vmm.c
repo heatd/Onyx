@@ -125,3 +125,14 @@ void *vmm_reserve_address(void *addr, size_t pages, uint32_t type, uint64_t prot
 	qsort(areas,num_areas,sizeof(vmm_entry_t),vmm_comp);
 	return addr;
 }
+vmm_entry_t *vmm_is_mapped(void *addr)
+{
+	for(size_t i = 0; i < num_areas; i++)
+	{
+		if(areas[i].base == (uintptr_t)addr)
+			return &areas[i];
+		if(areas[i].base + areas[i].pages * 4096 > (uintptr_t) addr && areas[i].base < (uintptr_t) addr)
+			return &areas[i];
+	}
+	return NULL;
+}

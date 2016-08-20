@@ -50,31 +50,6 @@ isr%1:
 	mov rsi, %1  ;push the interrupt number
 	jmp isr_common ;Go to the handler
 %endmacro
-%macro popaq 0
-	pop r15
-	pop r14
-	pop r13
-	pop r12
-	pop r11
-	pop r10
-	pop r9
-	pop r8
-	pop rsi
-	pop rdi
-	pop rdx
-	pop rcx
-	pop rbx
-	pop rax
-%endmacro
-%macro ISR_NOERRCODE 1
-global isr%1
-isr%1:
-	cli
-	pushaq
-	xor rdi,rdi   ;push dummy err code
-	mov rsi, %1  ;push the interrupt number
-	jmp isr_common ;Go to the handler
-%endmacro
 extern irq_handler
 irq_common:
 	mov ax, ds
@@ -131,6 +106,7 @@ isr_common:
 	mov fs, ax
 	mov gs, ax
 	mov es, ax
+	mov ss, ax
 	call isr_handler
 
 	pop rax
@@ -138,6 +114,7 @@ isr_common:
 	mov es,ax
 	mov fs,ax
 	mov gs,ax
+	mov ss, ax
 	popaq
 	iretq
 
@@ -219,22 +196,26 @@ IRQ 13 ,45
 IRQ 14 ,46
 IRQ 15 ,47
 global __syscall_int
-extern syscall_handler
+extern syscall_list
+extern SYSCALL_MAX_NUM
 __syscall_int:
 	cli
 	; load the kernel's segments
-	mov ax, ds
-	push rax
-	mov ax, 0x10
-	mov ds, ax
-	mov ss, ax
-	mov fs, ax
-	mov gs, ax
-	mov es, ax
-	call syscall_handler
-	pop rbx
-	mov ds, bx
-	mov fs, bx
-	mov gs, bx
-	mov es, bx
+	mov cx, ds
+	push rcx
+	mov cx, 0x10
+	mov ds, cx
+	mov ss, cx
+	mov fs, cx
+	mov gs, cx
+	mov es, cx
+	cmp rax, SYSCALL_MAX_NUM
+	jl .exit
+	call [syscall_list + rax * 8]
+.exit:
+	pop rcx
+	mov ds, cx
+	mov fs, cx
+	mov gs, cx
+	mov es, cx
 	iretq
