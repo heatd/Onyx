@@ -18,7 +18,7 @@
 #define PAGE_WRITABLE 0x1
 #define PAGE_GLOBAL 0x2
 #define PAGE_KERNEL (PAGE_GLOBAL|PAGE_WRITABLE)
-#define PAGES_PER_TABLE 512
+#define PAGE_TABLE_ENTRIES 512
 typedef struct {uint64_t entries[512];} PML4;
 typedef struct {uint64_t entries[512];} PML3;
 typedef struct {uint64_t entries[512];} PML2;

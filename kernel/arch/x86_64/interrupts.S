@@ -198,6 +198,10 @@ IRQ 15 ,47
 global __syscall_int
 extern syscall_list
 extern SYSCALL_MAX_NUM
+section .data
+global forkstack
+forkstack: dq 0
+section .text
 __syscall_int:
 	cli
 	; load the kernel's segments
@@ -210,9 +214,11 @@ __syscall_int:
 	mov gs, cx
 	mov es, cx
 	cmp rax, SYSCALL_MAX_NUM
-	jl .exit
+	jl syscall_exit
+	mov [forkstack], rsp
 	call [syscall_list + rax * 8]
-.exit:
+global syscall_exit
+syscall_exit:
 	pop rcx
 	mov ds, cx
 	mov fs, cx

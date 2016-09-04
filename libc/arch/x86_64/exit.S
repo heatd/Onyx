@@ -4,7 +4,7 @@ global exit
 extern _fini
 exit:
 
-call _fini
+	call _fini
 
 ; Find a way to syscall. Right now I still need to fix handling on the kernel
 ; mov rax, SYSCALL_EXIT

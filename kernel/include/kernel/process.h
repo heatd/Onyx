@@ -31,5 +31,6 @@ typedef struct proc
 } process_t;
 process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent);
 void process_create_thread(process_t *proc, ThreadCallback callback, uint32_t flags, int argc, char **argv);
+void process_fork_thread(process_t *dest, process_t *src, int thread_index);
 extern process_t * current_process;
 #endif

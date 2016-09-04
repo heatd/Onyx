@@ -176,6 +176,18 @@ PML4 *vmm_clone_as(vmm_entry_t **vmmstructs)
 	qsort(areas,num_areas,sizeof(vmm_entry_t),vmm_comp);
 	return pt;
 }
+PML4 *vmm_fork_as(vmm_entry_t **vmmstructs)
+{
+	PML4 *pt = paging_fork_as();
+	vmm_entry_t *entries = malloc(sizeof(vmm_entry_t) * num_areas);
+	memcpy(entries, areas, sizeof(vmm_entry_t) * num_areas);
+	is_spawning = 1;
+	old_entries = areas;
+	old_num_entries = num_areas;
+	*vmmstructs = entries;
+	areas = entries;
+	return pt;
+}
 void vmm_stop_spawning()
 {
 	is_spawning = 0;

@@ -92,12 +92,22 @@
 #define SEEK_SET 1
 #define SEEK_CUR 2
 #define SEEK_END 3
+
+/* Standard file descriptors required by POSIX */
+#define STDIN_FILENO 0
+#define STDOUT_FILENO 1
+#define STDERR_FILENO 2
+
 typedef int pid_t;
+
 pid_t fork();
 int execv(const char* path, char* const argv[]);
 int execvp(const char* file, char* const argv[]);
-int execve(const char* filename, char* const argv[],
-char* const envp[]);
+int execve(const char* filename, char* const argv[],char* const envp[]);
+int open(const char*, int flags);
+int read(int fd, void *buf, unsigned int count);
+int write(int fd, void *buf, unsigned int count);
+unsigned long lseek(int fd, unsigned long offset, int whence);
 int brk(void* addr);
 void* sbrk(unsigned long long inc);
 #endif

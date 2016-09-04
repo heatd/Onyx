@@ -190,7 +190,7 @@ void kernel_main()
 	if (!initrd_tag)
 		panic("Initrd not found\n");
 	void *initrd_address = (void*)(initrd_tag->mod_start + PHYS_BASE);
-	asm volatile("movq $0, pdlower;invlpg 0x0");
+	asm volatile("movq $0, pdlower; movq $0, pdlower + 8;invlpg 0x0;invlpg 0x200000");
 	/* Initialize the initrd */
 	init_initrd(initrd_address);
 

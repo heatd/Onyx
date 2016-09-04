@@ -10,8 +10,10 @@
  *----------------------------------------------------------------------*/
 #include <kernel/paging.h>
 #include <stdio.h>
+#include <kernel/vmm.h>
 static _Bool is_spawning = 0;
 PML4 *spawning_pml = NULL;
+#define PML_EXTRACT_ADDRESS(n) n & 0x0FFFFFFFFFFFF000
 inline uint64_t make_pml4e(uint64_t base,uint64_t avl,uint64_t pcd,uint64_t pwt,uint64_t us,uint64_t rw,uint64_t p)
 {
 	return (uint64_t)( \
@@ -192,11 +194,8 @@ void paging_unmap(void* memory, size_t pages)
 	entry = &pml2->entries[dec.pd];
 	PML1 *pml1 = (PML1*)(*entry & 0x0FFFFFFFFFFFF000);
 	entry = &pml1->entries[dec.pt];
-	for(size_t i = 0; i < pages; i++)
-	{
-		pfree(1, (void*)(entry[i] & 0x0FFFFFFFFFFFF000));
-		entry[i] = 0;
-	}
+	pfree(1, entry);
+	*entry = 0;
 }
 PML4 *paging_clone_as()
 {
@@ -209,6 +208,55 @@ PML4 *paging_clone_as()
 	memcpy(&p->entries[256], &curr->entries[256], 256 * sizeof(uint64_t));
 	is_spawning = 1;
 	spawning_pml = new_pml;
+	return new_pml;
+}
+inline PML4 *paging_fork_pml(PML4 *pml, int entry)
+{
+	uint64_t old_address = PML_EXTRACT_ADDRESS(pml->entries[entry]);
+	uint64_t perms = pml->entries[entry] & 0xF000000000000FFF;
+	pml->entries[entry] = PML_EXTRACT_ADDRESS((uint64_t)pmalloc(1)) | perms;
+	PML4 *new_pml = (PML4*)((PML_EXTRACT_ADDRESS(pml->entries[entry])) + PHYS_BASE);
+	PML4 *old_pml = (PML4*)(old_address + PHYS_BASE);
+	memcpy(new_pml, old_pml, sizeof(PML4));
+	return new_pml;
+}
+PML4 *paging_fork_as()
+{
+	PML4 *new_pml = pmalloc(1);
+	if(!new_pml)
+		panic("OOM while cloning address space!");
+	PML4 *p = (PML4*)((uint64_t)new_pml + PHYS_BASE);
+	PML4 *curr = (PML4*)((uint64_t)current_pml4 + PHYS_BASE);
+	memcpy(p, curr, sizeof(PML4));
+	PML4 *mod_pml = (char*)new_pml + PHYS_BASE;
+	for(int i = 0; i < 256; i++)
+	{
+		if(mod_pml->entries[i] & 1)
+		{
+			PML3 *pml3 = (PML2*)paging_fork_pml(mod_pml, i);
+			for(int j = 0; j < PAGE_TABLE_ENTRIES; j++)
+			{
+				if(pml3->entries[j] & 1)
+				{
+					PML2 *pml2 = (PML2*)paging_fork_pml((PML4*) pml3, j);
+					for(int k = 0; k < PAGE_TABLE_ENTRIES; k++)
+					{
+						if(pml2->entries[k] & 1 && !(pml2->entries[k] & (1<<7)))
+						{
+							PML1 *pml1 = (PML1*)paging_fork_pml((PML4*)pml2, k);
+							for(int l = 0; l < PAGE_TABLE_ENTRIES; l++)
+							{
+								if(pml1->entries[l] & 1)
+								{
+									paging_fork_pml((PML4*)pml1, l);
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 	return new_pml;
 }
 void paging_stop_spawning()

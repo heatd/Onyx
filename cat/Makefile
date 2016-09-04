@@ -1,6 +1,6 @@
 PROG:= cat
 OBJS:= asm.o main.o
-CFLAGS:=-ffreestanding -O2 -g
+CFLAGS:=-O2 -g
 clean:
 	rm -f $(PROG)
 install: $(PROG)
@@ -9,4 +9,4 @@ install: $(PROG)
 %.o: %.S
 	nasm -felf64 $< -o $@
 $(PROG): $(OBJS)
-	$(CC) -nostartfiles -Wl,-emain $(OBJS) -o $@
+	$(CC) $(OBJS) -o $@

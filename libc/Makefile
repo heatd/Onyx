@@ -50,16 +50,12 @@ string/strtok.o \
 math/fabs.o \
 
 
-HOSTEDOBJS:=\
-$(ARCH_HOSTEDOBJS) \
-
 OBJS:=\
 $(FREEOBJS) \
-$(HOSTEDOBJS) \
 
 LIBK_OBJS:=$(FREEOBJS:.o=.libk.o)
 
-BINARIES=libc.a libg.a libk.a $(ARCHDIR)/crti.o $(ARCHDIR)/crtn.o
+BINARIES=libc.a libg.a libk.a $(ARCHDIR)/crti.o $(ARCHDIR)/crtn.o $(ARCHDIR)/crt0.o
 
 all: $(BINARIES)
 

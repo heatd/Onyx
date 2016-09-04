@@ -58,3 +58,13 @@ void process_create_thread(process_t *proc, ThreadCallback callback, uint32_t fl
 	if(!is_set)
 		sched_destroy_thread(thread);
 }
+void process_fork_thread(process_t *dest, process_t *src, int thread_index)
+{
+	dest->threads[thread_index] = malloc(sizeof(thread_t));
+	memcpy(dest->threads[thread_index], src->threads[thread_index], sizeof(thread_t));
+	extern thread_t *last_thread;
+	last_thread->next = dest->threads[thread_index];
+	last_thread = last_thread->next;
+	extern int curr_id;
+	last_thread->id = curr_id++;
+}

@@ -39,3 +39,11 @@ posix_spawn:
 	int 0x80
 	pop rbp
 	ret
+global fork
+fork:
+	push rbp
+	mov rbp, rsp
+	mov rax, 11
+	int 0x80
+	pop rbp
+	ret

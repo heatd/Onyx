@@ -20,7 +20,7 @@
 #include <kernel/process.h>
 // First and last nodes of the linked list
 static volatile thread_t* first_thread = NULL;
-static volatile thread_t* last_thread = NULL;
+volatile thread_t* last_thread = NULL;
 static volatile thread_t* current_thread = NULL;
 /* Creates a thread for the scheduler to switch to
    Expects a callback for the code(RIP) and some flags */

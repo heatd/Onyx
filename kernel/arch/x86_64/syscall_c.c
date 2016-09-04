@@ -18,7 +18,7 @@
 #include <errno.h>
 #include <kernel/elf.h>
 #include <kernel/panic.h>
-uint32_t SYSCALL_MAX_NUM = 10;
+uint32_t SYSCALL_MAX_NUM = 11;
 off_t sys_lseek(int fd, off_t offset, int whence)
 {
 	if (fd > UINT16_MAX)
@@ -134,14 +134,43 @@ void sys__exit(int status)
 	asm volatile("sti");
 	while(1) asm volatile("hlt");
 }
-int sys_posix_spawn(pid_t *pid, const char *path)
+int sys_posix_spawn(pid_t *pid, const char *path, void *file_actions, void *attrp, char **const argv, char **const envp)
 {
 	process_t *new_proc = process_create(path, &current_process->ctx, current_process);
 	*pid = new_proc->pid;
 	if(!new_proc)
 		panic("OOM while creating process");
+	size_t num_args = 1;
+	size_t total_size = strlen(path) + 1 + sizeof(uintptr_t);
+	char **n = argv;
+	while(*n != NULL)
+	{
+		num_args++;
+		total_size += strlen(*argv) + 1;
+		total_size += sizeof(uintptr_t);
+		n++;
+	}
+	size_t pages = total_size / PAGE_SIZE;
+	if(total_size % PAGE_SIZE)
+		pages++;
+	uintptr_t *arguments = vmm_allocate_virt_address(VM_KERNEL, pages, VMM_TYPE_REGULAR, VMM_NOEXEC | VMM_WRITE);
+	vmm_map_range(arguments, pages,  VMM_NOEXEC | VMM_WRITE);
+	char *argument_strings = (char*)arguments + num_args * sizeof(uintptr_t);
+	for(size_t i = 0; i < num_args; i++)
+	{
+		if( i == 0)
+		{
+			arguments[i] = (uint64_t)argument_strings;
+			strcpy(argument_strings, path);
+			argument_strings += strlen(path) + 1;
+			continue;
+		}
+		
+		arguments[i] = (uint64_t)argument_strings;
+		strcpy(argument_strings, argv[i-1]);
+		argument_strings += strlen(argv[i-1]) + 1;
+	}
 	vfsnode_t *in = open_vfs(fs_root, path);
-
 	if (!in)
 	{
 		printf("%s: No such file or directory\n", path);
@@ -159,13 +188,58 @@ int sys_posix_spawn(pid_t *pid, const char *path)
 	asm volatile ("mov %0, %%cr3" :: "r"(new_pt)); /* We can't use paging_load_cr3 because that would change current_pml4
 							* which we will need for later 
 							*/
+	uintptr_t *new_arguments = vmm_allocate_virt_address(0, pages, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_USER);
+	vmm_map_range(new_arguments, pages, VMM_WRITE | VMM_NOEXEC | VMM_USER);
+	memcpy(new_arguments, arguments, pages * PAGE_SIZE);
+	for(int i = 0; i < num_args; i++)
+	{
+		new_arguments[i] = ((uint64_t)new_arguments[i] - (uint64_t)arguments) + (uint64_t)new_arguments;
+	}
 	void *entry = elf_load((void *) buffer);
-	process_create_thread(new_proc, (ThreadCallback) entry, 0, 0, NULL);
+	process_create_thread(new_proc, (ThreadCallback) entry, 0, num_args, new_arguments);
+	
 	new_proc->cr3 = new_pt;
 	vmm_stop_spawning();
 	extern PML4 *current_pml4;
 	asm volatile("mov %0, %%cr3"::"r"(current_pml4));
 	return 0;
+}
+pid_t sys_fork()
+{
+	process_t *proc = current_process;
+	process_t *forked = process_create(current_process->cmd_line, &proc->ctx, proc);
+	vmm_entry_t *areas;
+	PML4 *new_pt = vmm_fork_as(&areas);
+	forked->areas = areas;
+	forked->cr3 = new_pt;
+	process_fork_thread(forked, proc, 0);
+	extern uintptr_t forkstack;
+	forked->threads[0]->kernel_stack = malloc(4096);
+	uint64_t *stk = (uint64_t*)forked->threads[0]->kernel_stack;
+	*--stk = 0x10; //SS
+	*--stk = forkstack; //RSP
+	*--stk = 0x202; // RFLAGS
+	*--stk = 0x08; //CS
+	extern uintptr_t syscall_exit; // If you were wondering, syscall_exit is the exit procedure after entering a system call
+					// (_exit(2) is sys__exit ;) )
+	*--stk = (uint64_t) &syscall_exit; //RIP
+	*--stk = 0; // RAX
+	*--stk = 0; // RBX
+	*--stk = 0; // RCX
+	*--stk = 0; // RDX
+	*--stk = 0; // RDI
+	*--stk = 0; // RSI
+	*--stk = 0; // R15
+	*--stk = 0; // R14
+	*--stk = 0; // R13
+	*--stk = 0; // R12
+	*--stk = 0; // R11
+	*--stk = 0; // R10
+	*--stk = 0; // R9
+	*--stk = 0; // R8
+	*--stk = 0x10; // DS
+	forked->threads[0]->kernel_stack = stk;
+	return forked->pid;
 }
 void *syscall_list[] =
 {
@@ -179,4 +253,5 @@ void *syscall_list[] =
 	[8] = (void*) sys_lseek,
 	[9] = (void*) sys__exit,
 	[10] = (void*) sys_posix_spawn,
+	[11] = (void*) sys_fork,
 };
