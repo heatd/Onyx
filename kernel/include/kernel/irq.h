@@ -12,7 +12,13 @@
 #define _IRQ_H
 typedef void(*irq_t)();
 
+typedef struct irq
+{
+	irq_t handler;
+	struct irq *next;
+}irq_list_t;
+
 void irq_install_handler(int irq, irq_t handler);
-void irq_uninstall_handler(int irq);
+void irq_uninstall_handler(int irq, irq_t handler);
 
 #endif

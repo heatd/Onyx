@@ -11,7 +11,6 @@
 #include <stdint.h>
 #include <drivers/softwarefb.h>
 #include <kernel/vmm.h>
-#include <kernel/kheap.h>
 #include <kernel/panic.h>
 #include <string.h>
 #include <assert.h>

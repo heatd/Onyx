@@ -23,7 +23,7 @@ typedef struct
 typedef struct
 {
 	const char *working_dir;
-	file_desc_t *file_desc[UINT16_MAX];
+	file_desc_t *file_desc[UINT8_MAX];
 } ioctx_t;
 
 #endif

@@ -13,8 +13,8 @@ BOOTDIR?=$(EXEC_PREFIX)/boot
 INCLUDEDIR?=$(PREFIX)/include
 
 include ../kversion.config
-CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-strong
-CPPFLAGS:=$(CPPFLAGS) -D__is_spartix_kernel -Iinclude -DKERNEL_VERSION='"$(KERNEL_VERSION)"' -DKERNEL_BRANCH='"$(KERNEL_BRANCH)"' -DKERNEL_ARCH='"$(KERNEL_ARCH)"'
+CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-strong -Wno-error -Wno-unused-parameter -Wno-unused-function
+CPPFLAGS:=$(CPPFLAGS) -D__is_spartix_kernel -Iinclude -Iinclude/acpica -DKERNEL_VERSION='"$(KERNEL_VERSION)"' -DKERNEL_BRANCH='"$(KERNEL_BRANCH)"' -DKERNEL_ARCH='"$(KERNEL_ARCH)"'
 LDFLAGS:=$(LDFLAGS) -fwhole-program -fkeep-inline-functions -flto
 LIBS:=$(LIBS) -nostdlib -lk -lgcc
 ARCHDIR:=arch/$(HOSTARCH)
@@ -29,6 +29,7 @@ OBJS:=\
 $(patsubst %.c,%.o,$(wildcard drivers/*/*.c)) \
 $(patsubst %.c,%.o,$(wildcard kernel/*.c)) \
 $(patsubst %.c,%.o,$(wildcard kernel/*/*.c)) \
+$(patsubst %.c,%.o,$(wildcard acpica/*.c)) \
 $(patsubst %.c,%.o,$(wildcard $(ARCHDIR)/*.c)) \
 $(filter-out $(ARCHDIR)/crti.o, $(patsubst %.S,%.o,$(wildcard $(ARCHDIR)/*.S)))
 CRTI_OBJ:=../sysroot/usr/lib/crti.o

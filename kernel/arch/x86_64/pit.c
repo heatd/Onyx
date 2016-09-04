@@ -31,10 +31,10 @@ void pit_init(uint32_t frequency)
 	outb(0x40, divisor >> 8);     // Set high byte of divisor
 	io_wait();
 	pic_unmask_irq(0); // Unmask IRQ0 (PIT)
-
 	irq_t handler = &timer_handler;
 	// Install the IRQ handler
 	irq_install_handler(0,handler);
+
 }
 
 uint64_t get_tick_count()

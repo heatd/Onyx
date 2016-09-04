@@ -44,9 +44,10 @@ errno/errno.o \
 ctype/to.o \
 string/memchr.o \
 string/strstr.o \
-stdlib/realloc.o \
+stdlib/malloc.o \
 stdlib/qsort.o \
 string/strtok.o \
+math/fabs.o \
 
 
 HOSTEDOBJS:=\

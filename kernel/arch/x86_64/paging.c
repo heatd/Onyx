@@ -10,6 +10,8 @@
  *----------------------------------------------------------------------*/
 #include <kernel/paging.h>
 #include <stdio.h>
+static _Bool is_spawning = 0;
+PML4 *spawning_pml = NULL;
 inline uint64_t make_pml4e(uint64_t base,uint64_t avl,uint64_t pcd,uint64_t pwt,uint64_t us,uint64_t rw,uint64_t p)
 {
 	return (uint64_t)( \
@@ -69,12 +71,16 @@ typedef struct {
     uint64_t pml4 :9;
     uint64_t rest :16;
 } decomposed_addr_t;
-static PML4 *current_pml4 = NULL;
+PML4 *current_pml4 = NULL;
 void *virtual2phys(void *ptr)
 {
 	decomposed_addr_t dec;
 	memcpy(&dec, &ptr, sizeof(decomposed_addr_t));
-	PML4 *pml4 = (PML4*)((uint64_t)current_pml4 + PHYS_BASE);
+	PML4 *pml4;
+	if(!is_spawning)
+		pml4 = (PML4*)((uint64_t)current_pml4 + PHYS_BASE);
+	else
+		pml4 = (PML4*)((uint64_t)spawning_pml + PHYS_BASE);
 	PML3 *pml3 = (PML3*)((pml4->entries[dec.pml4] & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
 	PML2 *pml2 = (PML2*)((pml3->entries[dec.pdpt] & 0x0FFFFFFFFFFFF000)+ PHYS_BASE);
 	PML1 *pml1 = (PML1*)((pml2->entries[dec.pd] & 0x0FFFFFFFFFFFF000)+ PHYS_BASE);
@@ -120,7 +126,12 @@ void* paging_map_phys_to_virt(uint64_t virt, uint64_t phys, uint64_t prot)
 		return NULL;
 	decomposed_addr_t decAddr;
 	memcpy(&decAddr, &virt, sizeof(decomposed_addr_t));
-	PML4 *pml4 = (PML4*)((uint64_t)current_pml4 + PHYS_BASE);
+	PML4 *pml4;
+	if(!is_spawning)
+		pml4 = (PML4*)((uint64_t)current_pml4 + PHYS_BASE);
+	else
+		pml4 = (PML4*)((uint64_t)spawning_pml + PHYS_BASE);
+	
 	uint64_t* entry = &pml4->entries[decAddr.pml4];
 	PML3* pml3 = NULL;
 	PML2* pml2 = NULL;
@@ -169,7 +180,11 @@ void paging_unmap(void* memory, size_t pages)
 {
 	decomposed_addr_t dec;
 	memcpy(&dec, &memory, sizeof(decomposed_addr_t));
-	PML4 *pml4 = (PML4*)((uint64_t)current_pml4 + PHYS_BASE);
+	PML4 *pml4;
+	if(!is_spawning)
+		pml4 = (PML4*)((uint64_t)current_pml4 + PHYS_BASE);
+	else
+		pml4 = (PML4*)((uint64_t)spawning_pml + PHYS_BASE);
 	uint64_t* entry = &pml4->entries[dec.pml4];
 	PML3 *pml3 = (PML3*)(*entry & 0x0FFFFFFFFFFFF000);
 	entry = &pml3->entries[dec.pdpt];
@@ -182,4 +197,27 @@ void paging_unmap(void* memory, size_t pages)
 		pfree(1, (void*)(entry[i] & 0x0FFFFFFFFFFFF000));
 		entry[i] = 0;
 	}
+}
+PML4 *paging_clone_as()
+{
+	PML4 *new_pml = pmalloc(1);
+	if(!new_pml)
+		panic("OOM while cloning address space!");
+	PML4 *p = (PML4*)((uint64_t)new_pml + PHYS_BASE);
+	PML4 *curr = (PML4*)((uint64_t)current_pml4 + PHYS_BASE);
+	// Clone the kernel-space memory
+	memcpy(&p->entries[256], &curr->entries[256], 256 * sizeof(uint64_t));
+	is_spawning = 1;
+	spawning_pml = new_pml;
+	return new_pml;
+}
+void paging_stop_spawning()
+{
+	is_spawning = 0;
+	spawning_pml = NULL;
+}
+void paging_load_cr3(PML4 *pml)
+{
+	asm volatile("movq %0, %%cr3"::"r"(pml));
+	current_pml4 = pml;
 }

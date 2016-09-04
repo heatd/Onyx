@@ -14,6 +14,9 @@
 #include <stdbool.h>
 #include <kernel/panic.h>
 _Bool isInitialized = false;
+_Bool is_spawning = 0;
+vmm_entry_t *old_entries = NULL;
+size_t old_num_entries = 0;
 void vmm_init()
 {
 	isInitialized = true;
@@ -28,13 +31,13 @@ uintptr_t min(uintptr_t x, uintptr_t y)
 	return x < y ? x : y;
 }
 vmm_entry_t *areas = NULL;
-size_t num_areas = 2;
+size_t num_areas = 3;
 #ifdef __x86_64__
 const uintptr_t high_half = 0xFFFF800000000000;
 const uintptr_t low_half_max = 0x00007fffffffffff;
 const uintptr_t low_half_min = 0x400000;
 #endif
-void vmm_start_address_bookeeping(uintptr_t framebuffer_address)
+void vmm_start_address_bookeeping(uintptr_t framebuffer_address, uintptr_t heap)
 {
 	areas = malloc(num_areas * sizeof(vmm_entry_t));
 	if(!areas)
@@ -48,6 +51,11 @@ void vmm_start_address_bookeeping(uintptr_t framebuffer_address)
 	areas[1].pages = 1024;
 	areas[1].rwx = VMM_WRITE | VMM_NOEXEC; /* RW- */
 	areas[1].type = VMM_TYPE_HW;
+
+	areas[2].base = heap;
+	areas[2].pages = 1024;
+	areas[2].rwx = VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC; /* RW- */
+	areas[2].type = VMM_TYPE_REGULAR;
 }
 
 void *vmm_map_range(void *range, size_t pages, uint64_t flags)
@@ -72,7 +80,6 @@ static int vmm_comp(const void *ptr1, const void *ptr2)
 		b->pages < a->pages ?  1 :
 	                            0 ;
 }
-int di = 0;
 void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uint64_t prot)
 {
 	uintptr_t base_address = 0;
@@ -107,6 +114,8 @@ void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uin
 	}
 	num_areas++;
 	areas = realloc(areas, num_areas * sizeof(vmm_entry_t));
+	if(!areas)
+		panic("Severe OOM!");
 	areas[num_areas-1].base = best_address;
 	areas[num_areas-1].pages = pages;
 	areas[num_areas-1].type = type;
@@ -115,9 +124,11 @@ void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uin
 	return (void*)best_address;
 }
 void *vmm_reserve_address(void *addr, size_t pages, uint32_t type, uint64_t prot)
-{
-	num_areas++;
+{	num_areas++;
 	areas = realloc(areas, num_areas * sizeof(vmm_entry_t));
+	if(!areas)
+		panic("Severe OOM!");
+
 	areas[num_areas-1].base = (uintptr_t)addr;
 	areas[num_areas-1].pages = pages;
 	areas[num_areas-1].type = type;
@@ -135,4 +146,40 @@ vmm_entry_t *vmm_is_mapped(void *addr)
 			return &areas[i];
 	}
 	return NULL;
+}
+PML4 *vmm_clone_as(vmm_entry_t **vmmstructs)
+{
+	PML4 *pt = paging_clone_as();
+	printf("Cloned the paging structures\n");
+	vmm_entry_t *entries;
+	size_t remaining_entries = 0;
+	for(size_t i = 0; i < num_areas; i++)
+	{
+		if(areas[i].base <= high_half)
+			remaining_entries++;
+	}
+	entries = malloc(sizeof(vmm_entry_t) * remaining_entries);
+	size_t curr_entry = 0;
+	for(size_t i = 0; i < num_areas; i++)
+	{
+		if(areas[i].base <= high_half)
+		{
+			memcpy(&entries[i], &areas[i], sizeof(vmm_entry_t));
+		}
+	}
+	is_spawning = 1;
+	old_entries = areas;
+	old_num_entries = num_areas;
+	*vmmstructs = entries;
+	areas = entries;
+	num_areas = remaining_entries;
+	qsort(areas,num_areas,sizeof(vmm_entry_t),vmm_comp);
+	return pt;
+}
+void vmm_stop_spawning()
+{
+	is_spawning = 0;
+	areas = old_entries;
+	num_areas = old_num_entries;
+	paging_stop_spawning();
 }

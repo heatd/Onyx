@@ -23,7 +23,7 @@ void *ext2_read_block(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs)
 	void *buff = malloc(size); /* Allocate a buffer */
 	if(!buff)
 		return NULL;
-	memset(buff, 0xCACACA, size);
+	memset(buff, 0, size);
 	uint32_t phys = (uint64_t)virtual2phys(buff) >> 0 & 0xFFFFFFFF;
 	uint64_t lba = fs->first_sector + (block_index * fs->block_size / 512);
 	ata_read_sectors(fs->channel, fs->drive, phys, size, lba);
@@ -35,6 +35,7 @@ char *ext2_read_inode_bp(inode_t *inode, ext2_fs_t *fs, size_t *sz)
 	printf("Size: %d\n",size);
 	*sz = size;
 	char *buf = malloc(size);
+	memset(buf, 0, size);
 	char *put = buf;
 	for(uint64_t i = 0; i < size / fs->block_size; i++)
 	{
@@ -125,6 +126,7 @@ size_t ext2_read_file(inode_t *inode, ext2_fs_t *fs, size_t sz, uint32_t blck, v
 	uint32_t remainder = sz % fs->block_size;
 	uint32_t block_space = sz + fs->block_size - remainder;
 	char *buf = malloc(block_space);
+	memset(buf, 0, block_space);
 	char *put = buf;
 	uint32_t block = blck;
 	for(uint64_t i = block; i < block_space / fs->block_size; i++)
@@ -268,6 +270,7 @@ vfsnode_t *ext2_open(vfsnode_t *nd, const char *name)
 	ino = ext2_get_inode_from_dir(fs, dir, "helloworld", &inode_num);
 
 	vfsnode_t *node = malloc(sizeof(vfsnode_t));
+	memset(node, 0, sizeof(vfsnode_t));
 	node->name = (char*)name;
 	node->inode = inode_num;
 	node->read = ext2_read;

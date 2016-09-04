@@ -16,6 +16,7 @@
 #define THREADS_PER_PROCESS 30
 typedef struct proc
 {
+	struct proc *next;
 	thread_t *threads[30];
 	uint64_t brk;
 	uint64_t data_area;
@@ -25,10 +26,10 @@ typedef struct proc
 	const char *cmd_line;
 	ioctx_t ctx;
 	uint64_t pid;
+	PML4 *cr3;
 	struct proc *parent;
-	struct proc *next;
 } process_t;
 process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent);
-void process_create_thread(process_t *proc, ThreadCallback callback, uint32_t flags, void* args);
+void process_create_thread(process_t *proc, ThreadCallback callback, uint32_t flags, int argc, char **argv);
 extern process_t * current_process;
 #endif

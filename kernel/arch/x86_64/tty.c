@@ -24,7 +24,6 @@
 #include <stdint.h>
 #include <string.h>
 #include <kernel/portio.h>
-#include <kernel/vga.h>
 #include <kernel/tty.h>
 #include <drivers/softwarefb.h>
 #include <kernel/spinlock.h>
@@ -86,6 +85,15 @@ void tty_putchar(char c)
 			  0xC0C0C0, fbs[currentPty]);
 		last_x = terminal_column * 9;
 		last_y = terminal_row * 16;
+		return;
+	}
+	if (c == '\t')
+	{
+		for(int i = 0; i < 8; i++)
+		{
+			tty_put_entry_at(0x20, terminal_color, terminal_column, terminal_row);
+			terminal_column++;
+		}
 		return;
 	}
 	if( terminal_column == max_column ) {

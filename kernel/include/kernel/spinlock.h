@@ -8,8 +8,8 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#ifndef _SPINLOCK_H
-#define _SPINLOCK_H
+#ifndef _KERNEL_SPINLOCK_H
+#define _KERNEL_SPINLOCK_H
 
 typedef struct spinlock
 {

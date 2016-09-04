@@ -23,10 +23,11 @@ typedef struct thr
 	struct proc *owner;
 	ThreadCallback rip;
 	uint32_t flags;
-	uint64_t cr3;
+	int id;
 	struct thr *next;
 } thread_t;
 thread_t *sched_create_thread(ThreadCallback callback, uint32_t flags, void* args);
+thread_t* sched_create_main_thread(ThreadCallback callback, uint32_t flags,int argc, char **argv);
 void sched_destroy_thread(thread_t *thread);
 thread_t *get_current_thread();
- #endif
+#endif

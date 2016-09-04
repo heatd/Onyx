@@ -169,6 +169,8 @@ setup_paging_and_longm:
 	or dword [pdlower], 1 << 8
 	mov dword [pdlower + 8], 0x200083
 	or dword [pdlower + 8], 1 << 8
+	;mov dword [pdlower + 16], 0x400083
+	;or dword [pdlower + 16], 1 << 8
 	; Load CR3 with PML4
 	mov eax, pml4
 	mov cr3, eax

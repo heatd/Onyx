@@ -56,6 +56,8 @@ void tar_close(vfsnode_t *this)
 vfsnode_t *tar_open(vfsnode_t *this, const char *name)
 {
 	char *full_path = malloc(strlen(this->name) + strlen(name) + 1);
+	if(!full_path)
+		panic("OOM");
 	strcpy(full_path, this->name);
 	strcpy(full_path + strlen(this->name), name);
 	tar_header_t **iterator = headers;
@@ -63,8 +65,10 @@ vfsnode_t *tar_open(vfsnode_t *this, const char *name)
 	{
 		if(!strcmp(full_path, iterator[i]->filename))
 		{
-			printf("found file\n");
 			vfsnode_t *node = malloc(sizeof(vfsnode_t));
+			if(!node)
+				panic("OOM");
+			memset(node, 0, sizeof(*node));
 			node->name = malloc(strlen(this->mountpoint) + strlen(full_path));
 			strcpy(node->name, this->mountpoint);
 			strcpy(node->name + strlen(this->mountpoint), full_path);
@@ -89,6 +93,9 @@ void init_initrd(void *initrd)
 	n_files = tar_parse((uintptr_t) initrd);
 	printf("Found %d files in the Initrd\n", n_files);
 	vfsnode_t *node = malloc(sizeof(vfsnode_t));
+	if(!node)
+		panic("OOM while initializing initrd");
+	memset(node, 0, sizeof(vfsnode_t));
 	node->name = "sysroot/";
 	node->open = tar_open;
 	node->close = tar_close;
@@ -97,4 +104,5 @@ void init_initrd(void *initrd)
 	node->type = VFS_TYPE_DIR;
 	node->inode = 0;
 	mount_fs(node, "/");
+	printf("Mounted initrd on /\n");
 }

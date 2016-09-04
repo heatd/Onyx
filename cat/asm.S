@@ -31,3 +31,11 @@ lseek:
 	int 0x80
 	pop rbp
 	ret
+global posix_spawn
+posix_spawn:
+	push rbp
+	mov rbp, rsp
+	mov rax, 10
+	int 0x80
+	pop rbp
+	ret

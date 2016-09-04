@@ -8,8 +8,8 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#ifndef _REGISTERS_H
-#define _REGISTERS_H
+#ifndef _KERNEL_REGISTERS_H
+#define _KERNEL_REGISTERS_H
 #include <stdint.h>
 #ifdef __x86_64__
 

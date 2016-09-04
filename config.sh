@@ -1,5 +1,5 @@
 SYSTEM_HEADER_PROJECTS="libc kernel"
-PROJECTS="libc kernel helloworld"
+PROJECTS="libc kernel cat echo"
 
 export MAKE=${MAKE:-make}
 export HOST=${HOST:-$(./default-host.sh)}
@@ -14,7 +14,7 @@ export BOOTDIR=/boot
 export LIBDIR=$EXEC_PREFIX/lib
 export INCLUDEDIR=$PREFIX/include
 
-export CFLAGS='-O2 -g -Wno-format -Werror -mno-red-zone'
+export CFLAGS='-Os -g -Wno-format -Werror -mno-red-zone'
 export CPPFLAGS=''
 
 # Configure the cross-compiler to use the desired system root.

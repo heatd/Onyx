@@ -13,7 +13,7 @@
 
 #include <sys/cdefs.h>
 #include <string.h>
-#include <stdarg.h>
+
 #include <unistd.h>
 #ifdef __is_spartix_kernel
 #include <kernel/spinlock.h>
@@ -32,7 +32,6 @@ int fseek(FILE*, long, int);
 long ftell(FILE*);
 size_t fwrite(const void*, size_t, size_t, FILE*);
 void setbuf(FILE*, char*);
-int vfprintf(FILE*, const char*, va_list);
 int printf(const char* __restrict, ...);
 int putchar(int);
 int puts(const char*);

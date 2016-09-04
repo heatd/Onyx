@@ -38,12 +38,14 @@ typedef struct ventry
 } vmm_entry_t;
 #define VM_KERNEL (1)
 #define VM_UPSIDEDOWN (2)
+#define KERNEL_FB 0xFFFFE00000000000
 #define PAGE_SIZE 4096
 void vmm_init();
-void vmm_start_address_bookeeping(uintptr_t framebuffer_address);
+void vmm_start_address_bookeeping(uintptr_t framebuffer_address, uintptr_t heap);
 void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uint64_t prot);
 void *vmm_map_range(void* range, size_t pages, uint64_t flags);
 void *vmm_reserve_address(void *addr, size_t pages, uint32_t type, uint64_t prot);
 vmm_entry_t *vmm_is_mapped(void *addr);
-
+PML4 *vmm_clone_as(vmm_entry_t **);
+void vmm_stop_spawning();
 #endif

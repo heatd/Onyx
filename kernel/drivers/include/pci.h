@@ -8,8 +8,8 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#ifndef _PCI_H
-#define _PCI_H
+#ifndef _KERNEL_PCI_H
+#define _KERNEL_PCI_H
 #include <stdint.h>
 #include <kernel/portio.h>
 

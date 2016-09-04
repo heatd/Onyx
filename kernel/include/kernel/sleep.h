@@ -8,8 +8,8 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#ifndef _SLEEP_H
-#define _SLEEP_H
+#ifndef _KERNEL_SLEEP_H
+#define _KERNEL_SLEEP_H
 #include <stdint.h>
 #include <kernel/timer.h>
 

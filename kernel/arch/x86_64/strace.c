@@ -48,7 +48,7 @@ void *stack_trace()
 		return_addresses++;
 	}
 	uint64_t *retaddrbuf = malloc(sizeof(uint64_t) * return_addresses);
-	//memset(retaddrbuf, 0, sizeof(uint64_t) * return_addresses);
+	memset(retaddrbuf, 0, sizeof(uint64_t) * return_addresses);
 	get_frame_pointer(&rbp);
 	for(size_t i = 0; i < return_addresses; i++)
 	{

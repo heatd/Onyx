@@ -17,6 +17,9 @@ uint64_t current_pid = 1;
 process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent)
 {
 	process_t *proc = malloc(sizeof(process_t));
+	if(!proc)
+		return NULL;
+	memset(proc, 0, sizeof(process_t));
 	proc->pid = current_pid;
 	current_pid++;
 	proc->cmd_line = cmd_line;
@@ -25,20 +28,23 @@ process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent)
 		memcpy(&proc->ctx, ctx, sizeof(ioctx_t));
 	if(parent)
 		proc->parent = parent;
-
 	if(!first_process)
 		first_process = proc;
 	else
 	{
-		process_t *it = first_process;
+		process_t *it = current_process;
 		while(it->next) it = it->next;
 		it->next = proc;
 	}
 	return proc;
 }
-void process_create_thread(process_t *proc, ThreadCallback callback, uint32_t flags, void* args)
+void process_create_thread(process_t *proc, ThreadCallback callback, uint32_t flags, int argc, char **argv)
 {
-	thread_t *thread = sched_create_thread(callback, flags, args);
+	thread_t *thread = NULL;
+	if(!argv)
+		thread = sched_create_thread(callback, flags, NULL);
+	else
+		thread = sched_create_main_thread(callback, flags, argc, argv);
 	int is_set = 0;
 	for(int i = 0; i < THREADS_PER_PROCESS; i++)
 	{

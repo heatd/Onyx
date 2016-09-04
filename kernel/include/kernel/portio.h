@@ -8,8 +8,8 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#ifndef _PORTIO_H
-#define _PORTIO_H
+#ifndef _PORTIO_KERNEL_H
+#define _PORTIO_KERNEL_H
 #include <stdlib.h>
 #include <stdint.h>
 

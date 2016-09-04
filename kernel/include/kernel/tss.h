@@ -8,6 +8,8 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
+#ifndef _TSS_H
+#define _TSS_H
 #include <stdint.h>
 
 typedef struct tss_entry
@@ -25,3 +27,4 @@ typedef struct tss_entry
 
 void init_tss();
 void set_kernel_stack(uintptr_t stack0);
+#endif

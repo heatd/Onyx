@@ -16,10 +16,11 @@
 #include <kernel/process.h>
 #include <kernel/vmm.h>
 #include <errno.h>
-uint32_t SYSCALL_MAX_NUM = 8;
+#include <kernel/elf.h>
+#include <kernel/panic.h>
+uint32_t SYSCALL_MAX_NUM = 10;
 off_t sys_lseek(int fd, off_t offset, int whence)
 {
-	printf("lseek\nfd: %d offset %d whence %d\n", fd, offset, whence);
 	if (fd > UINT16_MAX)
 		return errno = EBADFD, -1;
 	ioctx_t *ioctx = &current_process->ctx;
@@ -33,7 +34,6 @@ off_t sys_lseek(int fd, off_t offset, int whence)
 		ioctx->file_desc[fd]->seek = ioctx->file_desc[fd]->vfs_node->size;
 	else
 		return errno = EINVAL;
-	printf("seek: %d\n",ioctx->file_desc[fd]->seek);
 	return ioctx->file_desc[fd]->seek;
 }
 ssize_t sys_write(int fd, const void *buf, size_t count)
@@ -66,17 +66,16 @@ uint64_t sys_getpid()
 int sys_open(const char *filename, int flags)
 {
 	ioctx_t *ioctx = &current_process->ctx;
-	printf("hi\n");
 	for(int i = 0; i < UINT16_MAX; i++)
 	{
 		if(ioctx->file_desc[i] == NULL)
 		{
 			ioctx->file_desc[i] = malloc(sizeof(file_desc_t));
+			memset(ioctx->file_desc[i], 0, sizeof(file_desc_t));
 			ioctx->file_desc[i]->vfs_node = open_vfs(fs_root, filename);
 			ioctx->file_desc[i]->vfs_node->refcount++;
 			ioctx->file_desc[i]->seek = 0;
 			ioctx->file_desc[i]->flags = flags;
-			printf("Allocating FD number %d\n", i);
 			return i;
 		}
 	}
@@ -85,7 +84,7 @@ int sys_open(const char *filename, int flags)
 int sys_close(int fd)
 {
 	if(fd > UINT16_MAX) return errno = EBADFD;
-	ioctx_t *ioctx = &current_process->ctx;
+	ioctx_t *ioctx = &current_process->ctx;	
 	if(ioctx->file_desc[fd] == NULL) return errno = EBADFD;
 	close_vfs(ioctx->file_desc[fd]->vfs_node);
 	ioctx->file_desc[fd]->vfs_node->refcount--;
@@ -129,6 +128,45 @@ int sys_dup2(int oldfd, int newfd)
 	ioctx->file_desc[newfd]->vfs_node->refcount++;
 	return newfd;
 }
+void sys__exit(int status)
+{
+	sched_destroy_thread(get_current_thread());
+	asm volatile("sti");
+	while(1) asm volatile("hlt");
+}
+int sys_posix_spawn(pid_t *pid, const char *path)
+{
+	process_t *new_proc = process_create(path, &current_process->ctx, current_process);
+	*pid = new_proc->pid;
+	if(!new_proc)
+		panic("OOM while creating process");
+	vfsnode_t *in = open_vfs(fs_root, path);
+
+	if (!in)
+	{
+		printf("%s: No such file or directory\n", path);
+		return errno = ENOENT;
+	}
+	
+	char *buffer = malloc(in->size);
+	if (!buffer)
+		return errno = ENOMEM;
+	size_t read = read_vfs(0, in->size, buffer, in);
+	if (read != in->size)
+		return errno = EAGAIN;
+	vmm_entry_t *areas;
+	PML4 *new_pt = vmm_clone_as(&areas);
+	asm volatile ("mov %0, %%cr3" :: "r"(new_pt)); /* We can't use paging_load_cr3 because that would change current_pml4
+							* which we will need for later 
+							*/
+	void *entry = elf_load((void *) buffer);
+	process_create_thread(new_proc, (ThreadCallback) entry, 0, 0, NULL);
+	new_proc->cr3 = new_pt;
+	vmm_stop_spawning();
+	extern PML4 *current_pml4;
+	asm volatile("mov %0, %%cr3"::"r"(current_pml4));
+	return 0;
+}
 void *syscall_list[] =
 {
 	[0] = (void*) sys_write,
@@ -139,4 +177,6 @@ void *syscall_list[] =
 	[5] = (void*) sys_dup2,
 	[7] = (void*) sys_getpid,
 	[8] = (void*) sys_lseek,
+	[9] = (void*) sys__exit,
+	[10] = (void*) sys_posix_spawn,
 };

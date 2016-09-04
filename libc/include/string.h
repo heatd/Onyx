@@ -8,8 +8,8 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#ifndef _STRING_H
-#define _STRING_H 1
+#ifndef _STRING_LIBC_H
+#define _STRING_LIBC_H 1
 
 #include <sys/cdefs.h>
 

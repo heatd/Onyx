@@ -780,7 +780,7 @@ void pci_write_word(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uin
 		function */
 		// Set up the meta-data
 		PCIDevice* dev = malloc(sizeof(PCIDevice));
-		//memset(dev, 0 , sizeof(PCIDevice));
+		memset(dev, 0 , sizeof(PCIDevice));
 		dev->slot = bus;
 		dev->function = function;
 		dev->device = device;
@@ -828,7 +828,7 @@ void pci_write_word(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uin
 
 				// Set up some meta-data
 				PCIDevice* dev = malloc(sizeof(PCIDevice));
-				//memset(dev, 0 , sizeof(PCIDevice)); IMPLEMENT CALLOC
+				memset(dev, 0 , sizeof(PCIDevice));
 				dev->slot = slot;
 				dev->function = 0;
 				dev->device = device;

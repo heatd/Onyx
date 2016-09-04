@@ -8,8 +8,8 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#ifndef _CPU_H
-#define _CPU_H
+#ifndef _KERNEL_CPU_H
+#define _KERNEL_CPU_H
 #include <stdint.h>
 typedef struct cpu {
 	char manuid[13];

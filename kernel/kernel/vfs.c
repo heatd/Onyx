@@ -12,14 +12,17 @@
 #include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <kernel/panic.h>
 vfsnode_t *fs_root = NULL;
 vfsnode_t *mount_list = NULL;
 int vfs_init()
 {
 	mount_list = malloc(sizeof(vfsnode_t));
-	fs_root = mount_list;
+	memset(mount_list, 0 ,sizeof(vfsnode_t));
 	if(!mount_list)
 		return 1;
+	fs_root = mount_list;
+	memset(fs_root, 0 ,sizeof(vfsnode_t));
 	return 0;
 }
 size_t read_vfs(size_t offset, size_t sizeofread, void* buffer, vfsnode_t* this)
@@ -48,17 +51,14 @@ void close_vfs(vfsnode_t* this)
 }
 vfsnode_t *open_vfs(vfsnode_t* this, const char *name)
 {
-
 	if(this->open != NULL)
 	{
 		const char *file = name + strlen(this->name);
-		printf("open\n");
 		return this->open(this, file);
 	}
 	if(this->type & VFS_TYPE_MOUNTPOINT)
 	{
 		size_t s = strlen(this->link->mountpoint);
-		printf("open %p\n", name);
 		return this->link->open(this->link, name + s);
 	}
 
@@ -72,6 +72,8 @@ int mount_fs(vfsnode_t *fsroot, const char *path)
 		fs_root->type |= VFS_TYPE_MOUNTPOINT;
 		if(!fs_root->name)
 			fs_root->name = malloc(2);
+		if(!fs_root->name)
+			panic("OOM while allocating fs_root->name");
 		strcpy(fs_root->name, path);
 		fsroot->mountpoint = (char*)path;
 	}
