@@ -16,6 +16,7 @@ section .text
 	push rdx
 	push rdi
 	push rsi
+	push rbp
 	push r8
 	push r9
 	push r10
@@ -34,6 +35,7 @@ section .text
 	pop r10
 	pop r9
 	pop r8
+	pop rbp
 	pop rsi
 	pop rdi
 	pop rdx
@@ -201,6 +203,10 @@ extern SYSCALL_MAX_NUM
 section .data
 global forkstack
 forkstack: dq 0
+global forkret
+forkret: dq 0
+global forkretregs
+forkretregs: dq 0
 section .text
 __syscall_int:
 	cli
@@ -215,10 +221,26 @@ __syscall_int:
 	mov es, cx
 	cmp rax, SYSCALL_MAX_NUM
 	jl syscall_exit
-	mov [forkstack], rsp
+	mov r10, [rsp + 8]
+	mov r11, [rsp + 32]
+	mov [forkstack], r11
+	mov [forkret], r10
+	push rbx
+	push rbp
+	push r12
+	push r13
+	push r14
+	push r15
+	mov [forkretregs], rsp
 	call [syscall_list + rax * 8]
 global syscall_exit
 syscall_exit:
+	pop r15
+	pop r14
+	pop r13
+	pop r12
+	pop rbp
+	pop rbx
 	pop rcx
 	mov ds, cx
 	mov fs, cx

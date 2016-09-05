@@ -13,17 +13,12 @@
 #include <kernel/compiler.h>
 void acquire_spinlock(spinlock_t *lock)
 {
-	if (lock->lock == 1) {
-		wait_spinlock(lock);
-	}
-	__sync_lock_test_and_set(&lock->lock, 1);
-	__sync_synchronize();
+	mutex_lock(&lock->lock);
 }
 
 void release_spinlock(spinlock_t *lock)
 {
-	__sync_lock_release(&lock->lock);
-	__sync_synchronize();
+	mutex_unlock(&lock->lock);
 }
 
 void wait_spinlock(spinlock_t *lock)

@@ -147,7 +147,7 @@ vmm_entry_t *vmm_is_mapped(void *addr)
 	}
 	return NULL;
 }
-PML4 *vmm_clone_as(vmm_entry_t **vmmstructs)
+PML4 *vmm_clone_as(vmm_entry_t **vmmstructs, size_t *num_are)
 {
 	PML4 *pt = paging_clone_as();
 	printf("Cloned the paging structures\n");
@@ -173,6 +173,7 @@ PML4 *vmm_clone_as(vmm_entry_t **vmmstructs)
 	*vmmstructs = entries;
 	areas = entries;
 	num_areas = remaining_entries;
+	*num_are = num_areas;
 	qsort(areas,num_areas,sizeof(vmm_entry_t),vmm_comp);
 	return pt;
 }

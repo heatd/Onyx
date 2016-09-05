@@ -71,6 +71,7 @@ thread_t* sched_create_thread(ThreadCallback callback, uint32_t flags,void* args
 	*--stack = 0; // RDX
 	*--stack = (uint64_t) args; // RDI
 	*--stack = 0; // RSI
+	*--stack = 0; // RBP
 	*--stack = 0; // R15
 	*--stack = 0; // R14
 	*--stack = 0; // R13
@@ -137,6 +138,7 @@ thread_t* sched_create_main_thread(ThreadCallback callback, uint32_t flags,int a
 	*--stack = 0; // RDX
 	*--stack = (uint64_t) argc; // RDI
 	*--stack = (uint64_t)argv; // RSI
+	*--stack = 0; // RBP
 	*--stack = 0; // R15
 	*--stack = 0; // R14
 	*--stack = 0; // R13

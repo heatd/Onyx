@@ -134,8 +134,10 @@ void sys__exit(int status)
 	asm volatile("sti");
 	while(1) asm volatile("hlt");
 }
+static spinlock_t spl;
 int sys_posix_spawn(pid_t *pid, const char *path, void *file_actions, void *attrp, char **const argv, char **const envp)
 {
+	acquire_spinlock(&spl);
 	process_t *new_proc = process_create(path, &current_process->ctx, current_process);
 	*pid = new_proc->pid;
 	if(!new_proc)
@@ -184,10 +186,12 @@ int sys_posix_spawn(pid_t *pid, const char *path, void *file_actions, void *attr
 	if (read != in->size)
 		return errno = EAGAIN;
 	vmm_entry_t *areas;
-	PML4 *new_pt = vmm_clone_as(&areas);
+	size_t num_r;
+	PML4 *new_pt = vmm_clone_as(&areas, &num_r);
 	asm volatile ("mov %0, %%cr3" :: "r"(new_pt)); /* We can't use paging_load_cr3 because that would change current_pml4
 							* which we will need for later 
 							*/
+	new_proc->num_areas = num_r;
 	uintptr_t *new_arguments = vmm_allocate_virt_address(0, pages, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_USER);
 	vmm_map_range(new_arguments, pages, VMM_WRITE | VMM_NOEXEC | VMM_USER);
 	memcpy(new_arguments, arguments, pages * PAGE_SIZE);
@@ -197,15 +201,17 @@ int sys_posix_spawn(pid_t *pid, const char *path, void *file_actions, void *attr
 	}
 	void *entry = elf_load((void *) buffer);
 	process_create_thread(new_proc, (ThreadCallback) entry, 0, num_args, new_arguments);
-	
 	new_proc->cr3 = new_pt;
 	vmm_stop_spawning();
 	extern PML4 *current_pml4;
 	asm volatile("mov %0, %%cr3"::"r"(current_pml4));
+	release_spinlock(&spl);
 	return 0;
 }
 pid_t sys_fork()
 {
+	extern uintptr_t forkretregs;
+	uintptr_t *forkstackregs = forkretregs; // Go to the start of the little reg save
 	process_t *proc = current_process;
 	process_t *forked = process_create(current_process->cmd_line, &proc->ctx, proc);
 	vmm_entry_t *areas;
@@ -213,32 +219,39 @@ pid_t sys_fork()
 	forked->areas = areas;
 	forked->cr3 = new_pt;
 	process_fork_thread(forked, proc, 0);
+	forked->threads[0]->kernel_stack = malloc(0x2000);
+	forked->threads[0]->kernel_stack += 0x2000;
+	forked->threads[0]->kernel_stack_top = forked->threads[0]->kernel_stack;
+	uint64_t *stack = (uint64_t*)forked->threads[0]->kernel_stack;
 	extern uintptr_t forkstack;
-	forked->threads[0]->kernel_stack = malloc(4096);
-	uint64_t *stk = (uint64_t*)forked->threads[0]->kernel_stack;
-	*--stk = 0x10; //SS
-	*--stk = forkstack; //RSP
-	*--stk = 0x202; // RFLAGS
-	*--stk = 0x08; //CS
-	extern uintptr_t syscall_exit; // If you were wondering, syscall_exit is the exit procedure after entering a system call
-					// (_exit(2) is sys__exit ;) )
-	*--stk = (uint64_t) &syscall_exit; //RIP
-	*--stk = 0; // RAX
-	*--stk = 0; // RBX
-	*--stk = 0; // RCX
-	*--stk = 0; // RDX
-	*--stk = 0; // RDI
-	*--stk = 0; // RSI
-	*--stk = 0; // R15
-	*--stk = 0; // R14
-	*--stk = 0; // R13
-	*--stk = 0; // R12
-	*--stk = 0; // R11
-	*--stk = 0; // R10
-	*--stk = 0; // R9
-	*--stk = 0; // R8
-	*--stk = 0x10; // DS
-	forked->threads[0]->kernel_stack = stk;
+	uint64_t rflags = forkstackregs[9];
+	uint64_t cs = forkstackregs[8];
+	uint64_t ss = forkstackregs[11];
+	*--stack = ss; //SS
+	*--stack = forkstack; //RSP
+	*--stack = rflags; // RFLAGS
+	*--stack = cs; //CS
+	extern uintptr_t forkret;
+	*--stack = forkret; //RIP
+	*--stack = 0; // RAX
+	*--stack = forkstackregs[0]; // RBX
+	*--stack = 0; // RCX
+	*--stack = 0; // RDX
+	*--stack = 0; // RDI
+	*--stack = 0; // RSI
+	*--stack = forkstackregs[1]; // RBP
+	*--stack = forkstackregs[5]; // R15
+	*--stack = forkstackregs[4]; // R14
+	*--stack = forkstackregs[3]; // R13
+	*--stack = forkstackregs[2]; // R12
+	*--stack = 0; // R11
+	*--stack = 0; // R10
+	*--stack = 0; // R9
+	*--stack = 0; // R8
+	*--stack = ss; // DS
+	forked->threads[0]->kernel_stack = stack;
+	extern size_t num_areas;
+	forked->num_areas = num_areas;
 	return forked->pid;
 }
 void *syscall_list[] =
