@@ -1,6 +1,6 @@
 PROG:= echo
-OBJS:= asm.o main.o
-CFLAGS:=-O2 -g
+OBJS:= main.o
+CFLAGS:=-O2 -g -static
 clean:
 	rm -f $(PROG)
 install: $(PROG)
@@ -9,4 +9,4 @@ install: $(PROG)
 %.o: %.S
 	nasm -felf64 $< -o $@
 $(PROG): $(OBJS)
-	$(CC) $(OBJS) -o $@
+	$(CC) $(OBJS) $(CFLAGS) -o $@

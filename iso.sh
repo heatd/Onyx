@@ -6,9 +6,17 @@ mkdir -p isodir
 mkdir -p isodir/boot
 mkdir -p isodir/boot/grub
 ROOTDIR="$(pwd)"
-echo "Generating initrd"
+echo "Generating Packages..."
 rm -rf sysroot/usr/include/acpica
+mkdir -p $ROOTDIR/sysroot/pkg
+tar -cvf $ROOTDIR/sysroot/pkg/devel.tar sysroot/usr/include
+xz -9 -e -f $ROOTDIR/sysroot/pkg/devel.tar
+rm -rf $ROOTDIR/sysroot/usr/include
+tar -cvf $ROOTDIR/sysroot/pkg/libs-devel.tar sysroot/usr/lib
+xz -9 -e -f $ROOTDIR/sysroot/pkg/libs-devel.tar
+rm -rf $ROOTDIR/sysroot/usr/lib
 tar -cvf $ROOTDIR/isodir/boot/initrd.tar sysroot
+echo "Generating initrd..."
 echo "Copying the kernel to the isodir"
 cp sysroot/boot/vmspartix-0.1-gen64 isodir/boot/vmspartix-0.1-gen64
 echo "Compressing kernel and initrd images"

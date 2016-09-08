@@ -9,6 +9,7 @@ SECTIONS
 		*(.multiboot)
 	}
 	. = 0x100000;
+	kernel_start = VIRT_BASE + .;
 	.boot :
 	{
 		*(.boot)
@@ -21,11 +22,12 @@ SECTIONS
 		. += 0x1000;
 		pdlower = .;
 		. += 0x1000;
+		pdptphysical_map = .;
+		. += 0x1000;
 		. += 0x8000;
 	}
 
 	. += VIRT_BASE;
-	kernel_start = .;
 	.text ALIGN(0x1000) : AT(ADDR(.text) - VIRT_BASE)
 	{
 		*(.text)

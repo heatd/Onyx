@@ -197,6 +197,36 @@ IRQ 12 ,44
 IRQ 13 ,45
 IRQ 14 ,46
 IRQ 15 ,47
+%macro syscallsaveregs 0
+	push rbx
+	push rcx
+	push rdx
+	push rdi
+	push rsi
+	push rbp
+	push r8
+	push r9
+	push r10
+	push r12
+	push r13
+	push r14
+	push r15
+%endmacro
+%macro syscallpopregs 0
+	pop r15
+	pop r14
+	pop r13
+	pop r12
+	pop r10
+	pop r9
+	pop r8
+	pop rbp
+	pop rsi
+	pop rdi
+	pop rdx
+	pop rcx
+	pop rbx
+%endmacro
 global __syscall_int
 extern syscall_list
 extern SYSCALL_MAX_NUM
@@ -209,8 +239,9 @@ global forkretregs
 forkretregs: dq 0
 section .text
 __syscall_int:
-	cli
+	sti
 	; load the kernel's segments
+	syscallsaveregs
 	mov cx, ds
 	push rcx
 	mov cx, 0x10
@@ -220,30 +251,17 @@ __syscall_int:
 	mov gs, cx
 	mov es, cx
 	cmp rax, SYSCALL_MAX_NUM
-	jl syscall_exit
-	mov r10, [rsp + 8]
-	mov r11, [rsp + 32]
+	jl .syscall_exit
+	mov r10, [rsp + 104 + 8]
+	mov r11, [rsp + 104 + 32]
 	mov [forkstack], r11
 	mov [forkret], r10
-	push rbx
-	push rbp
-	push r12
-	push r13
-	push r14
-	push r15
 	mov [forkretregs], rsp
 	call [syscall_list + rax * 8]
-global syscall_exit
-syscall_exit:
-	pop r15
-	pop r14
-	pop r13
-	pop r12
-	pop rbp
-	pop rbx
-	pop rcx
+.syscall_exit:	pop rcx
 	mov ds, cx
 	mov fs, cx
 	mov gs, cx
 	mov es, cx
+	syscallpopregs
 	iretq

@@ -5,7 +5,7 @@ extern "C" {
 #endif
 
 long long int llabs(long long int i);
-
+int rand();
 
 #ifdef __cplusplus
 }

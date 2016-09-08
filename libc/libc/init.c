@@ -8,22 +8,10 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#include <kernel/spinlock.h>
-#include <stdio.h>
-#include <kernel/compiler.h>
-void mutex_lock(unsigned long *);
-void mutex_unlock(unsigned long *);
-void acquire_spinlock(spinlock_t *lock)
+#include <string.h>
+#include <unistd.h>
+extern int malloc_init();
+void _init_standard_libc()
 {
-	mutex_lock(&lock->lock);
-}
-
-void release_spinlock(spinlock_t *lock)
-{
-	mutex_unlock(&lock->lock);
-}
-
-void wait_spinlock(spinlock_t *lock)
-{
-	while (lock->lock == 1);
+	malloc_init();
 }

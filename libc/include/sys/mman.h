@@ -11,6 +11,8 @@
 #ifndef _MMAN_H
 #define _MMAN_H
 
+#include <sys/types.h>
+
 #define PROT_NONE	0x0
 #define PROT_READ	0x1
 #define PROT_WRITE	0x2
@@ -30,9 +32,9 @@
 #define MAP_NORESERVE	0x14
 #define MAP_STACK	0x16
 #define MAP_UNINITIALIZED 0x18
-
+#define MAP_FAILED 	(void*) 0x0
 void* mmap(void* addr, size_t len,int prot,int flags,int fildes,off_t off);
-int munmap(void* addr,size_t len);
+int munmap(void* addr, size_t len);
 
 
 

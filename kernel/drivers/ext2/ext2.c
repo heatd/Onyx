@@ -32,7 +32,6 @@ void *ext2_read_block(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs)
 char *ext2_read_inode_bp(inode_t *inode, ext2_fs_t *fs, size_t *sz)
 {
 	uint64_t size = ((uint64_t)inode->size_hi << 32) | inode->size_lo;
-	printf("Size: %d\n",size);
 	*sz = size;
 	char *buf = malloc(size);
 	memset(buf, 0, size);
@@ -243,7 +242,6 @@ size_t ext2_read(size_t offset, size_t sizeofreading, void *buffer, vfsnode_t *n
 {
 	if(offset > nd->size)
 		return errno = EINVAL, -1;
-	printf("Hello\n");
 	ext2_fs_t *fs = fslist;
 	uint32_t block_index = offset/fs->block_size;
 	if(offset%fs->block_size)
@@ -256,13 +254,18 @@ size_t ext2_read(size_t offset, size_t sizeofreading, void *buffer, vfsnode_t *n
 }
 vfsnode_t *ext2_open(vfsnode_t *nd, const char *name)
 {
+	printf("Opening\n");
 	uint32_t inoden = nd->inode;
 	ext2_fs_t *fs = fslist;
 	uint32_t inode_num;
 	inode_t *ino = ext2_get_inode_from_number(fs, inoden);
 	size_t size;
 	char *inode_data = ext2_read_inode_bp(ino, fs, &size);
-
+	char *path = strstr(name, "/f");
+	printf("Cutn\n");
+	path = strstr(path+1, "/");
+	printf("Path: %s\n", path);
+	while(1);
 	dir_entry_t *dir = (dir_entry_t*)inode_data;
 	ino = ext2_get_inode_from_dir(fs, dir, "bin", &inode_num);
 	inode_data = ext2_read_inode_bp(ino, fs, &size);
@@ -284,7 +287,6 @@ int ext2_open_partition(uint64_t sector, int drive, int channel)
 	superblock_t *sb = vmm_allocate_virt_address(VM_KERNEL, 1/*64K*/, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
 	vmm_map_range(sb, 1, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
 	uint32_t phys = (uint64_t)virtual2phys(sb) >> 0 & 0xFFFFFFFF;
-	printf("phys: %x\n", phys);
 	uint64_t lba = sector + 2;
 	ata_read_sectors(channel, drive, phys, 1024, lba);
 	if(sb->ext2sig == 0xef53)
@@ -313,8 +315,6 @@ int ext2_open_partition(uint64_t sector, int drive, int channel)
 	fs->first_sector = sector;
 	fs->total_inodes = sb->total_inodes;
 	fs->total_blocks = sb->total_blocks;
-	printf("Number of inodes: %d\nNumber of blocks: %d\n", sb->total_inodes,sb->total_blocks);
-	printf("Size of blocks: %d\n", 1024 << sb->log2blocksz);
 	fs->block_size = 1024 << sb->log2blocksz;
 	fs->frag_size = 1024 << sb->log2fragsz;
 	fs->inode_size = sb->size_inode_bytes;
@@ -323,8 +323,6 @@ int ext2_open_partition(uint64_t sector, int drive, int channel)
 	fs->number_of_block_groups = fs->total_blocks / fs->blocks_per_block_group;
 	if (fs->total_blocks % fs->blocks_per_block_group)
 		fs->number_of_block_groups++;
-	printf("Number of block groups: %d\n", fs->number_of_block_groups);
-	printf("ext2 fs version %d.%d\n",fs->major, fs->minor);
 	block_group_desc_t *bgdt = NULL;
 	size_t blocks_for_bgdt = (fs->number_of_block_groups * sizeof(block_group_desc_t)) / fs->block_size;
 	if((fs->number_of_block_groups * sizeof(block_group_desc_t)) % fs->block_size)
@@ -340,6 +338,7 @@ int ext2_open_partition(uint64_t sector, int drive, int channel)
 	node->open = ext2_open;
 	node->read = ext2_read;
 	mount_fs(node, "/");
+	printf("Mounted!\n");
 	return 0;
 }
 void init_ext2drv()

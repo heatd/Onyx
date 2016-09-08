@@ -27,7 +27,8 @@ typedef struct thr
 	struct thr *next;
 } thread_t;
 thread_t *sched_create_thread(ThreadCallback callback, uint32_t flags, void* args);
-thread_t* sched_create_main_thread(ThreadCallback callback, uint32_t flags,int argc, char **argv);
+thread_t* sched_create_main_thread(ThreadCallback callback, uint32_t flags,int argc, char **argv, char **envp);
 void sched_destroy_thread(thread_t *thread);
 thread_t *get_current_thread();
+uintptr_t *sched_fork_stack(uintptr_t *stack, uintptr_t *forkregstack, uintptr_t *rsp, uintptr_t rip);
 #endif

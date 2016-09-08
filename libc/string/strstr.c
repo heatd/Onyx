@@ -8,6 +8,7 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
+#include <string.h>
 char* strstr(char *str, char *substr)
 {
 	  while (*str)
@@ -28,4 +29,8 @@ char* strstr(char *str, char *substr)
 		    str = begin + 1;	// Increament main string
 	  }
 	  return 0;
+}
+char *strchr(char *str, int c)
+{
+	return memchr(str, c, strlen(str));
 }

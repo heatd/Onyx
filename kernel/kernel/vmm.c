@@ -37,6 +37,17 @@ const uintptr_t high_half = 0xFFFF800000000000;
 const uintptr_t low_half_max = 0x00007fffffffffff;
 const uintptr_t low_half_min = 0x400000;
 #endif
+static int vmm_comp(const void *ptr1, const void *ptr2)
+{
+	const vmm_entry_t *a = (const vmm_entry_t*) ptr1;
+	const vmm_entry_t *b = (const vmm_entry_t*) ptr2;
+
+	return a->base < b->base ? -1 :
+		b->base < a->base ?  1 :
+		a->pages < b->pages ? -1 :
+		b->pages < a->pages ?  1 :
+	                            0 ;
+}
 void vmm_start_address_bookeeping(uintptr_t framebuffer_address, uintptr_t heap)
 {
 	areas = malloc(num_areas * sizeof(vmm_entry_t));
@@ -61,24 +72,62 @@ void vmm_start_address_bookeeping(uintptr_t framebuffer_address, uintptr_t heap)
 void *vmm_map_range(void *range, size_t pages, uint64_t flags)
 {
 	uintptr_t mem = (uintptr_t) range;
-	for (size_t pgs = 0; pgs < pages; pgs++) {
-		paging_map_phys_to_virt(mem, (uintptr_t)
-				      pmalloc(1), flags);
+	for (size_t pgs = 0; pgs < pages; pgs++)
+	{
+		paging_map_phys_to_virt(mem, (uintptr_t) pmalloc(1), flags);
+		asm volatile("invlpg %0"::"m"(mem));
 		mem += 0x1000;
 	}
 	memset(range, 0, 4096 * pages);
 	return range;
 }
-static int vmm_comp(const void *ptr1, const void *ptr2)
+void vmm_unmap_range(void *range, size_t pages)
 {
-	const vmm_entry_t *a = (const vmm_entry_t*) ptr1;
-	const vmm_entry_t *b = (const vmm_entry_t*) ptr2;
+	uintptr_t mem = (uintptr_t) range;
+	for (size_t i = 0; i < pages; i++)
+	{
+		paging_unmap((void*) mem);
+		asm volatile("invlpg %0"::"m"(mem));
+		mem += 0x1000;
+	}
+}
+void vmm_destroy_mappings(void *range, size_t pages)
+{
+	if(!vmm_is_mapped(range))
+		return;
 
-	return a->base < b->base ? -1 :
-		b->base < a->base ?  1 :
-		a->pages < b->pages ? -1 :
-		b->pages < a->pages ?  1 :
-	                            0 ;
+	for(size_t i = 0; i < num_areas; i++)
+	{
+		if(areas[i].base == (uintptr_t)range && areas[i].pages == pages)
+		{
+			areas[i].base = 0xFFFFFFFFFFFFFFFF;
+			areas[i].pages = 0xFFFFFFF;
+			num_areas--;
+			break;
+		}
+		if(areas[i].base + areas[i].pages * PAGE_SIZE > (uintptr_t) range && areas[i].base < (uintptr_t) range)
+		{
+			if((uintptr_t) (range + pages * PAGE_SIZE) != areas[i].base + areas[i].pages * PAGE_SIZE)
+			{
+				size_t old_pages = areas[i].pages;
+				areas[i].pages -= ((uintptr_t) range - areas[i].base / 4096);
+				size_t second_half_pages = old_pages - pages - areas[i].pages;
+				num_areas++;
+				areas = realloc(areas, sizeof(vmm_entry_t) * num_areas);
+				areas[num_areas-1].base = (uintptr_t)range + pages * PAGE_SIZE;
+				areas[num_areas-1].pages = second_half_pages;
+				qsort(areas,num_areas,sizeof(vmm_entry_t),vmm_comp);
+				return;
+			}
+			else
+			{
+				areas[i].pages -= pages;
+				return;
+			}
+		}
+	}
+	areas = realloc(areas, sizeof(vmm_entry_t) * num_areas);
+	qsort(areas,num_areas,sizeof(vmm_entry_t),vmm_comp);
 }
 void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uint64_t prot)
 {
@@ -124,7 +173,10 @@ void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uin
 	return (void*)best_address;
 }
 void *vmm_reserve_address(void *addr, size_t pages, uint32_t type, uint64_t prot)
-{	num_areas++;
+{	
+	if(vmm_is_mapped(addr))
+		return NULL;
+	num_areas++;
 	areas = realloc(areas, num_areas * sizeof(vmm_entry_t));
 	if(!areas)
 		panic("Severe OOM!");
@@ -150,7 +202,6 @@ vmm_entry_t *vmm_is_mapped(void *addr)
 PML4 *vmm_clone_as(vmm_entry_t **vmmstructs, size_t *num_are)
 {
 	PML4 *pt = paging_clone_as();
-	printf("Cloned the paging structures\n");
 	vmm_entry_t *entries;
 	size_t remaining_entries = 0;
 	for(size_t i = 0; i < num_areas; i++)
@@ -159,7 +210,6 @@ PML4 *vmm_clone_as(vmm_entry_t **vmmstructs, size_t *num_are)
 			remaining_entries++;
 	}
 	entries = malloc(sizeof(vmm_entry_t) * remaining_entries);
-	size_t curr_entry = 0;
 	for(size_t i = 0; i < num_areas; i++)
 	{
 		if(areas[i].base <= high_half)
@@ -195,4 +245,11 @@ void vmm_stop_spawning()
 	areas = old_entries;
 	num_areas = old_num_entries;
 	paging_stop_spawning();
+}
+void vmm_change_perms(void *range, size_t pages, int perms)
+{
+	for(size_t i = 0; i < pages; i++)
+	{
+		paging_change_perms(range, perms);
+	}
 }

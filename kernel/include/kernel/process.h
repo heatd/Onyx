@@ -18,7 +18,6 @@ typedef struct proc
 {
 	struct proc *next;
 	thread_t *threads[30];
-	uint64_t brk;
 	uint64_t data_area;
 	int errno;
 	vmm_entry_t *areas;
@@ -27,10 +26,11 @@ typedef struct proc
 	ioctx_t ctx;
 	uint64_t pid;
 	PML4 *cr3;
+	void *brk;
 	struct proc *parent;
 } process_t;
 process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent);
-void process_create_thread(process_t *proc, ThreadCallback callback, uint32_t flags, int argc, char **argv);
+void process_create_thread(process_t *proc, ThreadCallback callback, uint32_t flags, int argc, char **argv, char **envp);
 void process_fork_thread(process_t *dest, process_t *src, int thread_index);
 extern process_t * current_process;
 #endif

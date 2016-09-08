@@ -8,22 +8,18 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#include <kernel/spinlock.h>
-#include <stdio.h>
-#include <kernel/compiler.h>
-void mutex_lock(unsigned long *);
-void mutex_unlock(unsigned long *);
-void acquire_spinlock(spinlock_t *lock)
-{
-	mutex_lock(&lock->lock);
-}
+#ifndef _MOUNT_H
+#define _MOUNT_H
 
-void release_spinlock(spinlock_t *lock)
-{
-	mutex_unlock(&lock->lock);
-}
+int mount(const char *source, const char *target,
+                 const char *filesystemtype, unsigned long mountflags,
+                 const void *data);
 
-void wait_spinlock(spinlock_t *lock)
-{
-	while (lock->lock == 1);
-}
+
+
+
+
+
+
+
+#endif

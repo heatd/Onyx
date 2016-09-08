@@ -11,9 +11,14 @@
 #include <kernel/paging.h>
 #include <stdio.h>
 #include <kernel/vmm.h>
+#include <kernel/panic.h>
 static _Bool is_spawning = 0;
 PML4 *spawning_pml = NULL;
-#define PML_EXTRACT_ADDRESS(n) n & 0x0FFFFFFFFFFFF000
+#define PML_EXTRACT_ADDRESS(n) (n & 0x0FFFFFFFFFFFF000)
+inline void __native_tlb_invalidate_page(void *addr)
+{
+	__asm__ __volatile__("invlpg %0"::"m"(addr));
+}
 inline uint64_t make_pml4e(uint64_t base,uint64_t avl,uint64_t pcd,uint64_t pwt,uint64_t us,uint64_t rw,uint64_t p)
 {
 	return (uint64_t)( \
@@ -93,7 +98,8 @@ void paging_init()
 	/* Get the current PML4 and store it */
 	asm volatile("movq %%cr3, %%rax\t\nmovq %%rax, %0":"=r"(current_pml4));
 }
-void paging_map_all_phys(size_t memInBytes)
+extern PML3 pdptphysical_map;
+void paging_map_all_phys(size_t bytes)
 {
 	uintptr_t virt = 0xFFFFA00000000000;
 	decomposed_addr_t decAddr;
@@ -105,19 +111,17 @@ void paging_map_all_phys(size_t memInBytes)
 		pml3 = (PML3*)(*entry & 0x0FFFFFFFFFFFF000);
 	}
 	else { /* Else create one */
-		pml3 = (PML3*)pmalloc(1);
-		if(!pml3)
-			return;
+		pml3 = (PML3*)&pdptphysical_map;
 		memset(pml3, 0, sizeof(PML3));
 		*entry = make_pml4e((uint64_t)pml3, 0, 0, 0, 0, 1, 1);
 	}
-	for(size_t mapped = 0, i = 0; mapped < memInBytes;mapped+=0x40000000, i++)
+	for(size_t mapped = 0, i = 0; mapped < bytes; mapped+=0x40000000, i++)
 	{
 		entry = &pml3->entries[i];
 		*entry = make_pml3e(mapped, 1, 0, 1, 0, 0, 0, 1, 1);
 		*entry |= (1 << 7);
+		__native_tlb_invalidate_page((void*)(virt + mapped));
 	}
-
 }
 void* paging_map_phys_to_virt(uint64_t virt, uint64_t phys, uint64_t prot)
 {
@@ -140,7 +144,7 @@ void* paging_map_phys_to_virt(uint64_t virt, uint64_t phys, uint64_t prot)
 	PML1* pml1 = NULL;
 	/* If its present, use that pml3 */
 	if(*entry & 1) {
-		pml3 = (PML3*)(*entry & 0x0FFFFFFFFFFFF000 );
+		pml3 = (PML3*)(*entry & 0x0FFFFFFFFFFFF000);
 	}
 	else { /* Else create one */
 		pml3 = (PML3*)pmalloc(1);
@@ -178,7 +182,7 @@ void* paging_map_phys_to_virt(uint64_t virt, uint64_t phys, uint64_t prot)
 	*entry = make_pml1e( phys, (prot & 4) ? 1 : 0, 0, (prot & 0x2) ? 1 : 0, 0, 0, (prot & 0x80) ? 1 : 0, (prot & 1) ? 1 : 0, 1);
 	return (void*)virt;
 }
-void paging_unmap(void* memory, size_t pages)
+void paging_unmap(void* memory)
 {
 	decomposed_addr_t dec;
 	memcpy(&dec, &memory, sizeof(decomposed_addr_t));
@@ -188,11 +192,11 @@ void paging_unmap(void* memory, size_t pages)
 	else
 		pml4 = (PML4*)((uint64_t)spawning_pml + PHYS_BASE);
 	uint64_t* entry = &pml4->entries[dec.pml4];
-	PML3 *pml3 = (PML3*)(*entry & 0x0FFFFFFFFFFFF000);
+	PML3 *pml3 = (PML3*)((*entry & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
 	entry = &pml3->entries[dec.pdpt];
-	PML2 *pml2 = (PML2*)(*entry & 0x0FFFFFFFFFFFF000);
+	PML2 *pml2 = (PML2*)((*entry & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
 	entry = &pml2->entries[dec.pd];
-	PML1 *pml1 = (PML1*)(*entry & 0x0FFFFFFFFFFFF000);
+	PML1 *pml1 = (PML1*)((*entry & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
 	entry = &pml1->entries[dec.pt];
 	pfree(1, entry);
 	*entry = 0;
@@ -228,12 +232,12 @@ PML4 *paging_fork_as()
 	PML4 *p = (PML4*)((uint64_t)new_pml + PHYS_BASE);
 	PML4 *curr = (PML4*)((uint64_t)current_pml4 + PHYS_BASE);
 	memcpy(p, curr, sizeof(PML4));
-	PML4 *mod_pml = (char*)new_pml + PHYS_BASE;
+	PML4 *mod_pml = (PML4*)((char*)new_pml + PHYS_BASE);
 	for(int i = 0; i < 256; i++)
 	{
 		if(mod_pml->entries[i] & 1)
 		{
-			PML3 *pml3 = (PML2*)paging_fork_pml(mod_pml, i);
+			PML3 *pml3 = (PML3*)paging_fork_pml(mod_pml, i);
 			for(int j = 0; j < PAGE_TABLE_ENTRIES; j++)
 			{
 				if(pml3->entries[j] & 1)
@@ -268,4 +272,28 @@ void paging_load_cr3(PML4 *pml)
 {
 	asm volatile("movq %0, %%cr3"::"r"(pml));
 	current_pml4 = pml;
+}
+void paging_change_perms(void *addr, int prot)
+{
+	decomposed_addr_t dec;
+	memcpy(&dec, &addr, sizeof(decomposed_addr_t));
+	PML4 *pml4;
+	if(!is_spawning)
+		pml4 = (PML4*)((uint64_t)current_pml4 + PHYS_BASE);
+	else
+		pml4 = (PML4*)((uint64_t)spawning_pml + PHYS_BASE);
+	uint64_t* entry = &pml4->entries[dec.pml4];
+	PML3 *pml3 = (PML3*)((*entry & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
+	entry = &pml3->entries[dec.pdpt];
+	PML2 *pml2 = (PML2*)((*entry & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
+	entry = &pml2->entries[dec.pd];
+	PML1 *pml1 = (PML1*)((*entry & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
+	entry = &pml1->entries[dec.pt];
+	uint32_t perms = *entry & 0xF00000000000FFF;
+	uint64_t page = PML_EXTRACT_ADDRESS(*entry);
+	if(prot & VMM_NOEXEC)
+		perms |= 0xF00000000000000;
+	if(prot & VMM_WRITE)
+		perms |= (1 << 1);
+	*entry = perms | page;
 }

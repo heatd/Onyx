@@ -66,8 +66,10 @@ vfsnode_t *open_vfs(vfsnode_t* this, const char *name)
 }
 int mount_fs(vfsnode_t *fsroot, const char *path)
 {
+	printf("Mountfs\n");
 	if(!strcmp((char*)path, "/"))
 	{
+		printf("Mounting root\n");
 		fs_root->link = fsroot;
 		fs_root->type |= VFS_TYPE_MOUNTPOINT;
 		if(!fs_root->name)

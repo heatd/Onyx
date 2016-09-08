@@ -12,7 +12,7 @@ EXEC_PREFIX?=$(PREFIX)
 INCLUDEDIR?=$(PREFIX)/include
 LIBDIR?=$(EXEC_PREFIX)/lib
 
-CFLAGS:=$(CFLAGS) -Wall -Wextra
+CFLAGS:=$(CFLAGS) -Wall -Wextra -march=ivybridge
 LIBK_CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin
 LIBK_CPPFLAGS:=$(CPPFLAGS) -D__is_spartix_kernel
 
@@ -44,16 +44,19 @@ errno/errno.o \
 ctype/to.o \
 string/memchr.o \
 string/strstr.o \
-stdlib/malloc.o \
 stdlib/qsort.o \
 string/strtok.o \
 math/fabs.o \
+posix/posix_syscalls.o \
+stdlib/malloc.o \
 
 
 OBJS:=\
 $(FREEOBJS) \
+math/rand.o \
+libc/init.o \
 
-LIBK_OBJS:=$(FREEOBJS:.o=.libk.o)
+LIBK_OBJS:=$(FREEOBJS:.o=.libk.o) \
 
 BINARIES=libc.a libg.a libk.a $(ARCHDIR)/crti.o $(ARCHDIR)/crtn.o $(ARCHDIR)/crt0.o
 

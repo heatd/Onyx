@@ -39,14 +39,14 @@ process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent)
 	return proc;
 }
 static int c;
-void process_create_thread(process_t *proc, ThreadCallback callback, uint32_t flags, int argc, char **argv)
+void process_create_thread(process_t *proc, ThreadCallback callback, uint32_t flags, int argc, char **argv, char **envp)
 {
 	c++;
 	thread_t *thread = NULL;
 	if(!argv)
 		thread = sched_create_thread(callback, flags, NULL);
 	else
-		thread = sched_create_main_thread(callback, flags, argc, argv);
+		thread = sched_create_main_thread(callback, flags, argc, argv, envp);
 	int is_set = 0;
 	for(int i = 0; i < THREADS_PER_PROCESS; i++)
 	{
@@ -57,6 +57,8 @@ void process_create_thread(process_t *proc, ThreadCallback callback, uint32_t fl
 			is_set = 1;
 		}
 	}
+	if(!is_set)
+		sched_destroy_thread(thread);
 }
 void process_fork_thread(process_t *dest, process_t *src, int thread_index)
 {

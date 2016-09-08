@@ -9,3 +9,5 @@ sysroot
 .directory
 testmod
 .vscode
+musl
+newlib

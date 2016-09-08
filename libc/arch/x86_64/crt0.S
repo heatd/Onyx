@@ -4,9 +4,7 @@ global _start
 extern _init
 extern main
 extern exit
-init_libc:
-	; Nothing to init yet, just ret
-	ret
+extern _init_standard_libc
 _start:
 	; Setup end of stack frame linked list
 	push rbp
@@ -14,14 +12,14 @@ _start:
 
 	push rdi ; argc
 	push rsi ; argv
-
-	;call init_libc ; Libc initialization
+	push rdx ;envp
+	;call _init_standard_libc ; Libc initialization
 
 	;call _init ; global constructors
-
+	
+	pop rdx
 	pop rsi
 	pop rdi
-
 	call main ; Call int main(int argc, char *argv[])
 
 	mov rdi, rax ; use the main()'s return value for exit(2)

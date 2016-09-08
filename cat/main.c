@@ -1,3 +1,13 @@
+/*----------------------------------------------------------------------
+ * Copyright (C) 2016 Pedro Falcato
+ *
+ * This file is part of Spartix, and is made available under
+ * the terms of the GNU General Public License version 2.
+ *
+ * You can redistribute it and/or modify it under the terms of the GNU
+ * General Public License version 2 as published by the Free Software
+ * Foundation.
+ *----------------------------------------------------------------------*/
 #include <string.h>
 #include <stdio.h>
 #include <unistd.h>
@@ -15,10 +25,8 @@ int main(int argc, char **argv)
 	write(STDOUT_FILENO, &buffer, size);
 	int c;
 	char *args[] = {"Hello World!", NULL};
-	posix_spawn(&c, "/bin/echo", NULL, NULL, args, NULL);
-	if(fork() == 0)
-		write(STDOUT_FILENO, "cunt\n", strlen("cunt\n"));
-	posix_spawn(&c, "/bin/echo", NULL, NULL, args, NULL);
+	//posix_spawn(&c, "/bin/echo", NULL, NULL, args, NULL);
+	//posix_spawn(&c, "/bin/echo", NULL, NULL, args, NULL);
 	write(STDOUT_FILENO, "STATUS: OK\n", strlen("STATUS: OK\n"));
 	return 0;
 }

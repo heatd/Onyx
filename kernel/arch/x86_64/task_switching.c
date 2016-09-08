@@ -92,7 +92,7 @@ thread_t* sched_create_thread(ThreadCallback callback, uint32_t flags,void* args
 	last_thread = new_thread;
 	return new_thread;
 }
-thread_t* sched_create_main_thread(ThreadCallback callback, uint32_t flags,int argc, char **argv)
+thread_t* sched_create_main_thread(ThreadCallback callback, uint32_t flags,int argc, char **argv, char **envp)
 {
 	thread_t* new_thread = malloc(sizeof(thread_t));
 	if(!new_thread)
@@ -135,7 +135,7 @@ thread_t* sched_create_main_thread(ThreadCallback callback, uint32_t flags,int a
 	*--stack = 0; // RAX
 	*--stack = 0; // RBX
 	*--stack = 0; // RCX
-	*--stack = 0; // RDX
+	*--stack = (uint64_t) envp; // RDX
 	*--stack = (uint64_t) argc; // RDI
 	*--stack = (uint64_t)argv; // RSI
 	*--stack = 0; // RBP
@@ -214,7 +214,38 @@ void sched_destroy_thread(thread_t *thread)
 			break;
 		}
 	}
-	paging_unmap(thread->kernel_stack_top - 0x2000, 2);
-	paging_unmap(thread->user_stack_top - 0x2000, 1024);
+	//paging_unmap(thread->kernel_stack_top - 0x2000, 2);
+	//paging_unmap(thread->user_stack_top - 0x2000, 1024);
 	free(thread);
+}
+uintptr_t *sched_fork_stack(uintptr_t *stack, uintptr_t *forkstackregs, uintptr_t *rsp, uintptr_t rip)
+{
+	uint64_t rflags = forkstackregs[16]; // Get the RFLAGS, CS and SS
+	uint64_t cs = forkstackregs[15];
+	uint64_t ss = forkstackregs[18];
+
+	// Set up the stack.
+	*--stack = ss; //SS
+	*--stack = (uintptr_t) rsp; //RSP
+	*--stack = rflags; // RFLAGS
+	*--stack = cs; //CS
+	*--stack = rip; //RIP
+	*--stack = 0; // RAX
+	*--stack = forkstackregs[12]; // RBX
+	*--stack = forkstackregs[11]; // RCX
+	*--stack = forkstackregs[10]; // RDX
+	*--stack = forkstackregs[9]; // RDI
+	*--stack = forkstackregs[8]; // RSI
+	*--stack = forkstackregs[7]; // RBP
+	*--stack = forkstackregs[6]; // R15
+	*--stack = forkstackregs[5]; // R14
+	*--stack = forkstackregs[4]; // R13
+	*--stack = forkstackregs[3]; // R12
+	*--stack = 0;
+	*--stack = forkstackregs[2]; // R10
+	*--stack = forkstackregs[1]; // R9
+	*--stack = forkstackregs[0]; // R8
+	*--stack = ss; // DS
+	
+	return stack; 
 }

@@ -96,6 +96,27 @@ void tty_putchar(char c)
 		}
 		return;
 	}
+	if(c == '\b')
+	{
+		size_t column = 0, row = terminal_row;
+		if(terminal_column)
+			column = terminal_column-1;
+		else
+		{
+			row--;
+			column = max_column;
+		}
+		softfb_draw_char('\0', terminal_column * 9, terminal_row * 16, 0, 0, fbs[currentPty]);
+		softfb_draw_char('\0', column * 9, row * 16, 0, 0, fbs[currentPty]);
+		softfb_draw_char('\0', column * 9, row * 16, 0, 0xC0C0C0, fbs[currentPty]);
+		int y = row * 16;
+		int x = column * 9;
+		last_x = x;
+		last_y = y;
+		terminal_column = column;
+		terminal_row = row;
+		return;
+	}
 	if( terminal_column == max_column ) {
 		/* If we reach the line limit, fake a newline */
 		goto newline;

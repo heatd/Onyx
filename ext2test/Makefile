@@ -1,6 +1,6 @@
-PROG:= cat
+PROG:= ext2test
 OBJS:= main.o
-CFLAGS:=-O2 -g -static
+CFLAGS:=-O2 -g
 clean:
 	rm -f $(PROG)
 install: $(PROG)
@@ -9,4 +9,4 @@ install: $(PROG)
 %.o: %.S
 	nasm -felf64 $< -o $@
 $(PROG): $(OBJS)
-	$(CC) $(OBJS) $(CFLAGS) -o $@
+	$(CC) $(OBJS) -o $@

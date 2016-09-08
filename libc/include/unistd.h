@@ -110,4 +110,5 @@ int write(int fd, void *buf, unsigned int count);
 unsigned long lseek(int fd, unsigned long offset, int whence);
 int brk(void* addr);
 void* sbrk(unsigned long long inc);
+void _exit(int exit_code);
 #endif
