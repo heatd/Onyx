@@ -21,7 +21,8 @@ The kernel exposes the system calls to the user-space by the interrupt vector 0x
 | 12 | munmap() system call |
 | 13 | mprotect() system call |
 | 14 | mount() system call |
-| 15 | exec() system call |
+| 15 | execve() system call |
 | 16 | brk() system call |
 | 17 | kill() system call |
 | 18 | getppid() system call |
+| 19 | wait() system call |

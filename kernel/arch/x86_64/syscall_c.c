@@ -19,7 +19,7 @@
 #include <kernel/elf.h>
 #include <kernel/panic.h>
 #include <sys/mman.h>
-const uint32_t SYSCALL_MAX_NUM = 18;
+const uint32_t SYSCALL_MAX_NUM = 19;
 spinlock_t lseek_spl;
 off_t sys_lseek(int fd, off_t offset, int whence)
 {
@@ -261,15 +261,15 @@ int sys_dup2(int oldfd, int newfd)
 }
 void sys__exit(int status)
 {
+	asm volatile("cli");
 	if(current_process->pid == 1)
 	{
 		printf("Panic: %s returned!\n", current_process->cmd_line);
 		asm volatile("sti");
 		for(;;) asm volatile("pause");
 	}
-	get_current_thread()->owner = NULL;
+	current_process->has_exited = status;
 	sched_destroy_thread(get_current_thread());
-	free(current_process);
 	asm volatile("sti");
 	while(1) asm volatile("hlt");
 }
@@ -452,6 +452,62 @@ pid_t sys_getppid()
 	else
 		return -1;
 }
+extern process_t *first_process;
+static spinlock_t execve_spl;
+int sys_execve(char *path, char *argv[], char *envp[])
+{
+	acquire_spinlock(&execve_spl);
+	size_t areas;
+	vmm_entry_t *entries;
+	current_process->cr3 = vmm_clone_as(&entries, &areas);
+	current_process->areas = entries;
+	current_process->num_areas = areas;
+	vfsnode_t *in = open_vfs(fs_root, path);
+	if (!in)
+	{
+		release_spinlock(&execve_spl);
+		return errno = ENOENT;
+	}
+	char *buffer = malloc(in->size);
+	if (!buffer)
+		return errno = ENOMEM;
+	size_t read = read_vfs(0, in->size, buffer, in);
+	if (read != in->size)
+		return errno = EAGAIN;
+	asm volatile ("mov %0, %%cr3" :: "r"(current_process->cr3)); /* We can't use paging_load_cr3 because that would change current_pml4
+							* which we will need for later 
+							*/
+	void *entry = elf_load((void *) buffer);
+	asm volatile("cli");
+	thread_t *t = sched_create_thread((ThreadCallback) entry,0, NULL);
+	t->owner = current_process;
+	current_process->threads[0] = t;
+	vmm_stop_spawning();
+	release_spinlock(&execve_spl);
+	asm volatile ("mov %0, %%cr3" :: "r"(current_pml4)); /* We can't use paging_load_cr3 because that would change current_pml4
+							* which we will need for later 
+							*/
+	asm volatile("sti");
+	while(1);
+}
+int sys_wait(int *exitstatus)
+{
+	process_t *i = current_process;
+	_Bool has_one_child = 0;
+loop:
+	while(i)
+	{
+		if(i->parent == current_process)
+			has_one_child = 1;
+		if(i->parent == current_process && i->has_exited == 1)
+			return i->pid;
+		i = i->next;
+	}
+	i = first_process;
+	if(has_one_child == 0)
+		return -1;
+	goto loop;
+}
 void *syscall_list[] =
 {
 	[0] = (void*) sys_write,
@@ -469,8 +525,9 @@ void *syscall_list[] =
 	[12] = (void*) sys_munmap,
 	[13] = (void*) sys_mprotect,
 	[14] = (void*) sys_mount,
-	[15] = (void*) sys_nosys,
+	[15] = (void*) sys_execve,
 	[16] = (void*) sys_brk,
 	[17] = (void*) sys_nosys,
 	[18] = (void*) sys_getppid,
+	[19] = (void*) sys_wait,
 };

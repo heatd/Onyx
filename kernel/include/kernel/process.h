@@ -27,6 +27,7 @@ typedef struct proc
 	uint64_t pid;
 	PML4 *cr3;
 	void *brk;
+	int has_exited;
 	struct proc *parent;
 } process_t;
 process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent);

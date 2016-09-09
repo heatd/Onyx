@@ -210,7 +210,7 @@ void sched_destroy_thread(thread_t *thread)
 	{
 		if(i->next == thread)
 		{
-			i->next = thread;
+			i->next = thread->next;
 			break;
 		}
 	}

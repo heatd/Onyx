@@ -36,16 +36,19 @@ int process_command()
 			return 0;
 		}
 	}
-	/*char *exec = buf;
-	size_t size = 0;
-	while(*exec != ' '||*exec != '\n'||*exec!='\0')
+	pid_t pid = fork();
+	if(pid == 0)
 	{
-		size++;
+		if(execve(buf, NULL, environ))
+			exit(1);
 	}
-	char path[size];
-	memcpy(path, exec, size);*/
+	if(pid > 0)
+	{
+		int status;
+		wait(&status);
+		return 0;
+	}
 	return 1;
-
 }
 int help(char *unused)
 {
@@ -53,7 +56,7 @@ int help(char *unused)
 }
 int uname(char *unused)
 {
-	printf("Spartix 0.1-rc3 x86_64\n");
+	printf("Spartix 0.1 x86_64\n");
 }
 int echo(char *str)
 {
@@ -106,6 +109,7 @@ loop:
 			pos++;
 		}
 	}
+	buf[pos-1] = '\0';
 	int ret = process_command();
 	if(ret)
 	{
@@ -115,7 +119,6 @@ loop:
 			pos = 0;
 			goto loop;
 		}
-		buf[pos-1] = '\0';
 		printf("%s : Command not found!\n", buf);
 	}
 	memset(buf, 0, 1024);
