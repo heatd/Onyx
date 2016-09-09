@@ -439,8 +439,6 @@ uint64_t sys_nosys()
 }
 uint64_t sys_brk(void *addr)
 {
-	printf("Brk\n");
-	printf("Addr: 0x%X\n", addr);
 	if(addr == NULL)
 		return current_process->brk;
 	else

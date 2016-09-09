@@ -14,7 +14,6 @@
 #include <sys/mman.h>
 #include <stdlib.h>
 #include <string.h>
-#define write_log(x) write(STDOUT_FILENO, x, strlen(x))
 char buf[1024] = {0};
 volatile size_t pos = 0;
 #define MAX_COMMANDS 100
@@ -26,12 +25,6 @@ typedef struct
 	command_callback_t cmdc;
 } command_t;
 command_t commands[MAX_COMMANDS];
-int posix_spawn(char *path, void *d, void* w, char* argv, char *envp)
-{
-	int ret;
-	asm volatile("int $0x80":"=a"(ret):"a"(9));
-	return ret;
-}
 int process_command()
 {
 	for(int i = 0; i < last_command_index; i++)
@@ -56,30 +49,28 @@ int process_command()
 }
 int help(char *unused)
 {
-	write_log("Commands: uname\n\t  help\n\t  echo\n\t  whoami\n\t  getshellpid\n");
+	printf("Commands: uname\n\t  help\n\t  echo\n\t  whoami\n\t  getshellpid\n");
 }
 int uname(char *unused)
 {
-	write_log("Spartix 0.1-rc3 x86_64\n");
+	printf("Spartix 0.1-rc3 x86_64\n");
 }
 int echo(char *str)
 {
-	write_log(str);
+	printf("%s\n",str);
 }
 int whoami(char *unused)
 {
-	write_log("root\n");
+	printf("root\n");
 }
 int getshellpid(char *unused)
 {
-	char c = getpid() + 48;
-	write(STDOUT_FILENO, &c, 1);
-	write_log("\n");
+	printf("pid: %d\n", getpid());
 }
 int _start(int argc, char **argv, char **envp)
 {
-	write_log("/sbin/init invoked!\n");
-	write_log("Becoming the shell!\n");
+	printf("/sbin/init invoked!\n");
+	printf("Becoming the shell!\n");
 	commands[0].name = "help";
 	commands[0].cmdc = help;
 	last_command_index++;
@@ -96,7 +87,7 @@ int _start(int argc, char **argv, char **envp)
 	commands[4].cmdc = getshellpid;
 	last_command_index++;
 loop:
-	write_log("/sbin/init $ ");
+	write(STDOUT_FILENO, "/sbin/init $ ", strlen("/sbin/init $ "));
 	while(buf[pos-1] != '\n' && pos < 1024)
 	{
 		read(STDIN_FILENO, &buf[pos], 1);
@@ -118,8 +109,14 @@ loop:
 	int ret = process_command();
 	if(ret)
 	{
-		write(STDOUT_FILENO, buf, pos - 1);
-		write_log(" : Command not found!\n");
+		if(buf[0] == '\n')
+		{
+			buf[0] = 0;
+			pos = 0;
+			goto loop;
+		}
+		buf[pos-1] = '\0';
+		printf("%s : Command not found!\n", buf);
 	}
 	memset(buf, 0, 1024);
 	pos = 0;
