@@ -15,6 +15,7 @@
 #include <kernel/process.h>
 #include <kernel/envp.h>
 #include <sys/mman.h>
+#include <errno.h>
 int exec(const char *path, char **argv, char **envp)
 {
 	process_t *proc = process_create(path, NULL, NULL);

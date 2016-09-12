@@ -51,23 +51,26 @@ $(CRTN_OBJ) \
 
 all: vmspartix
 
-.PHONY: all clean install install-headers install-kernel
+.PHONY: all clean install install-headers install-kernel kernel-modules
 
-vmspartix-0.1-gen64: BUILD $(OBJ_LINK_LIST) $(ARCHDIR)/linker.ld
-	echo $(OBJS)
-	$(CC) -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(OBJ_LINK_LIST) $(LDFLAGS) $(LIBS)
+vmspartix: BUILD $(OBJ_LINK_LIST) $(ARCHDIR)/linker.ld
+	@echo [LD] $@
+	@$(CC) -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(OBJ_LINK_LIST) $(LDFLAGS) $(LIBS)
 
 %.o: %.c
-	$(CC) -c $< -o $@ -std=gnu99 $(CFLAGS) $(CPPFLAGS)
-
+	@echo [CC] $<
+	@$(CC) -c $< -o $@ -std=gnu99 $(CFLAGS) $(CPPFLAGS)
 %.o: %.S
-	nasm -felf$(NASMARCH) $< -o $@
+	@echo [AS] $<
+	@nasm -felf$(NASMARCH) $< -o $@
 
 %.o: %.cpp
-	$(CXX) -c $< -o $@ -std=c++14 $(CFLAGS) $(CPPFLAGS) $(CXXFLAGS)
+	@echo [CXX] $<
+	@$(CXX) -c $< -o $@ -std=c++14 $(CFLAGS) $(CPPFLAGS) $(CXXFLAGS)
 
 clean:
 	rm -f vmspartix $(OBJS) $(ALL_OUR_OBJS) *.o */*.o */*/*.o
+	$(MAKE) -C modules/ clean
 
 install: install-headers install-kernel
 
@@ -76,6 +79,9 @@ install-headers:
 	cp -RTv include $(DESTDIR)$(INCLUDEDIR)
 	cp -RTv drivers/include $(DESTDIR)$(INCLUDEDIR)/drivers
 
-install-kernel: vmspartix-0.1-gen64
+install-kernel: vmspartix kernel-modules
 	mkdir -p $(DESTDIR)$(BOOTDIR)
 	cp $<  $(DESTDIR)$(BOOTDIR)
+
+kernel-modules:
+	$(MAKE) -C modules/

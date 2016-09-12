@@ -13,6 +13,7 @@
 #include <stdint.h>
 #include <kernel/task_switching.h>
 #include <kernel/elf.h>
+#include <multiboot2.h>
 #define DEFAULT_UNWIND_NUMBER 6
 inline void get_frame_pointer(uint64_t **ptr)
 {
@@ -67,6 +68,18 @@ char *strtab = NULL;
 char *elf_get_string(Elf64_Word off)
 {
 	return strtab + off;
+}
+uintptr_t get_kernel_sym_by_name(char *name)
+{
+	size_t num = symtab->sh_size / symtab->sh_entsize;
+	Elf64_Sym *syms = (Elf64_Sym*)(symtab->sh_addr + 0xFFFFFFFF80000000);
+	for(size_t i = 1; i < num; i++)
+	{
+		if(!strcmp(elf_get_string(syms[i].st_name), name))
+		{
+			return syms[i].st_value;
+		}
+	}
 }
 char *resolve_sym(void *address)
 {

@@ -208,9 +208,9 @@ void kernel_multitasking(void *arg)
 	char *args[] = {"/etc/fstab", NULL};
 	char *envp[] = {"PATH=/bin:/usr/bin:/usr/lib", NULL};
 	init_ext2drv();
-	//read_partitions();
-	//vfsnode_t *n = open_vfs(fs_root, "/etc/fstab");
-	
+	initialize_module_subsystem();
+	load_module("/lib/modules/example.kmod", "example");
+
 	exec("/sbin/init", args, envp);
 	for (;;) asm volatile("hlt");
 }

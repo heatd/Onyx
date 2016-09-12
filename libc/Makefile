@@ -65,28 +65,37 @@ all: $(BINARIES)
 .PHONY: all clean install install-headers install-libs
 
 libc.a: $(OBJS)
+	echo [AR] $(LIBC_OBJS)
 	$(AR) rcs $@ $(OBJS)
 
 libg.a:
+	echo [AR] $(LIBG_OBJS)
 	$(AR) rcs $@
 
 libk.a: $(LIBK_OBJS)
+	echo [AR] $(LIBK_OBJS)
 	$(AR) rcs $@ $(LIBK_OBJS)
 
 %.o: %.c
+	echo [CC] $<
 	$(CC) -c $< -o $@ -std=gnu11 $(CFLAGS) $(CPPFLAGS)
 %.o: %.cpp
+	echo [CXX] $<
 	$(CXX) -c $< -o $@ -std=c++14 $(CFLAGS) $(CPPFLAGS)
 
 %.libk.o: %.c
+	echo [CC] $<.libk
 	$(CC) -c $< -o $@ -std=gnu11 $(LIBK_CFLAGS) $(LIBK_CPPFLAGS)
 
 %.libk.o: %.cpp
+	echo [CXX] $<.libk
 	$(CXX) -c $< -o $@ -std=c++14 $(LIBK_CFLAGS) $(LIBK_CPPFLAGS)
 
 %.libk.o: %.S
+	echo [AS] $<.libk
 	nasm -felf$(NASMARCH) $< -o $@
 %.o: %.S
+	echo [AS] $<
 	nasm -felf$(NASMARCH) $< -o $@
 clean:
 	rm -f $(BINARIES) $(OBJS) $(LIBK_OBJS) *.o */*.o */*/*.o
