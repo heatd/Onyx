@@ -11,3 +11,6 @@ testmod
 .vscode
 musl
 newlib
+init/init
+cat/cat
+echo/echo

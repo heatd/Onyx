@@ -56,7 +56,7 @@ int help(char *unused)
 }
 int uname(char *unused)
 {
-	printf("Spartix 0.1 x86_64\n");
+	printf("Spartix 0.2-dev x86_64\n");
 }
 int echo(char *str)
 {

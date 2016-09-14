@@ -19,7 +19,9 @@
 #include <kernel/elf.h>
 #include <kernel/panic.h>
 #include <sys/mman.h>
-const uint32_t SYSCALL_MAX_NUM = 19;
+#include <drivers/rtc.h>
+#include <sys/time.h>
+const uint32_t SYSCALL_MAX_NUM = 21;
 spinlock_t lseek_spl;
 off_t sys_lseek(int fd, off_t offset, int whence)
 {
@@ -508,6 +510,26 @@ loop:
 		return -1;
 	goto loop;
 }
+time_t sys_time(time_t *s)
+{
+	if(s)
+		*s = get_posix_time();
+	return get_posix_time();
+}
+int sys_gettimeofday(struct timeval *tv, struct timezone *tz)
+{
+	if(tv)
+	{
+		tv->tv_sec = get_posix_time();
+		tv->tv_usec = 0;
+	}
+	if(tz)
+	{
+		tz->tz_minuteswest = 0;
+		tz->tz_dsttime = 0; 
+	}
+	return 0;
+}
 void *syscall_list[] =
 {
 	[0] = (void*) sys_write,
@@ -530,4 +552,6 @@ void *syscall_list[] =
 	[17] = (void*) sys_nosys,
 	[18] = (void*) sys_getppid,
 	[19] = (void*) sys_wait,
+	[20] = (void*) sys_time,
+	[21] = (void*) sys_gettimeofday
 };
