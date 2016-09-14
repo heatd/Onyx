@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <kernel/vmm.h>
 size_t bucket0, bucket1, bucket2, bucket3, bucket4;
-bucket_t *buckets[5];
+bucket_t *buckets[5] = {0};
 void *heap_malloc(size_t size)
 {
 	_Bool merge_existing = 0;

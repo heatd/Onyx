@@ -1,8 +1,13 @@
-/*
-* Copyright (c) 2016 Pedro Falcato
-* This file is a part of Spartix, and is released under the terms of the MIT License
-* - check LICENSE at the root directory for more information
-*/
+/*----------------------------------------------------------------------
+ * Copyright (C) 2016 Pedro Falcato
+ *
+ * This file is part of Spartix, and is made available under
+ * the terms of the GNU General Public License version 2.
+ *
+ * You can redistribute it and/or modify it under the terms of the GNU
+ * General Public License version 2 as published by the Free Software
+ * Foundation.
+ *----------------------------------------------------------------------*/
 /* File: acpica_port.c. It's here as the OS layer for ACPICA */
 #include <acpi.h>
 #include <kernel/vmm.h>

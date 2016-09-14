@@ -9,4 +9,4 @@ install: $(PROG)
 %.o: %.S
 	nasm -felf64 $< -o $@
 $(PROG): $(OBJS)
-	$(CC) $(OBJS) $(CFLAGS) -o $@
+	$(CC) $(OBJS) $(CFLAGS) -lg -lm -lnosys -o $@

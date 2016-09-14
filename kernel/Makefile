@@ -24,14 +24,16 @@ CFLAGS:=$(CFLAGS) $(KERNEL_ARCH_CFLAGS)
 CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS)
 LDFLAGS:=$(LDFLAGS) $(KERNEL_ARCH_LDFLAGS) $(BUILD_NUMBER_LDFLAGS)
 LIBS:=$(LIBS) $(KERNEL_ARCH_LIBS)
+ACPICA_CFLAGS:=$(filter-out -g, $(CFLAGS))
 
 OBJS:=\
 $(patsubst %.c,%.o,$(wildcard drivers/*/*.c)) \
 $(patsubst %.c,%.o,$(wildcard kernel/*.c)) \
 $(patsubst %.c,%.o,$(wildcard kernel/*/*.c)) \
-$(patsubst %.c,%.o,$(wildcard acpica/*.c)) \
 $(patsubst %.c,%.o,$(wildcard $(ARCHDIR)/*.c)) \
+$(patsubst %.c,%.o,$(wildcard acpica/*.c)) \
 $(filter-out $(ARCHDIR)/crti.o, $(patsubst %.S,%.o,$(wildcard $(ARCHDIR)/*.S)))
+
 CRTI_OBJ:=../sysroot/usr/lib/crti.o
 CRTBEGIN_OBJ:=$(shell $(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=crtbegin.o)
 CRTEND_OBJ:=$(shell $(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=crtend.o)
@@ -56,7 +58,9 @@ all: vmspartix
 vmspartix: BUILD $(OBJ_LINK_LIST) $(ARCHDIR)/linker.ld
 	@echo [LD] $@
 	@$(CC) -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(OBJ_LINK_LIST) $(LDFLAGS) $(LIBS)
-
+acpica/%.o: acpica/%.c
+	@echo [CC] $<
+	@$(CC) -c $< -o $@ -std=gnu99 $(ACPICA_CFLAGS) $(CPPFLAGS)
 %.o: %.c
 	@echo [CC] $<
 	@$(CC) -c $< -o $@ -std=gnu99 $(CFLAGS) $(CPPFLAGS)

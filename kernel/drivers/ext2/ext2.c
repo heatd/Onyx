@@ -29,10 +29,9 @@ void *ext2_read_block(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs)
 	ata_read_sectors(fs->channel, fs->drive, phys, size, lba);
 	return buff;
 }
-char *ext2_read_inode_bp(inode_t *inode, ext2_fs_t *fs, size_t *sz)
+char *ext2_read_inode_bp(inode_t *inode, ext2_fs_t *fs, size_t size_read)
 {
 	uint64_t size = ((uint64_t)inode->size_hi << 32) | inode->size_lo;
-	*sz = size;
 	char *buf = malloc(size);
 	memset(buf, 0, size);
 	char *put = buf;
@@ -258,10 +257,15 @@ vfsnode_t *ext2_open(vfsnode_t *nd, const char *name)
 	uint32_t inoden = nd->inode;
 	ext2_fs_t *fs = fslist;
 	uint32_t inode_num;
+	// Get the inode structure from the number
 	inode_t *ino = ext2_get_inode_from_number(fs, inoden);
-	size_t size;
+	// Calculate the size of the directory
+	size_t size = ((uint64_t)ino->size_hi << 32) | ino->size_lo;
+	printf("Size: %x\n", size);
+	printf("Read inode bp is broken\n");
 	char *inode_data = ext2_read_inode_bp(ino, fs, &size);
-	char *path = strstr(name, "/f");
+	printf("Strstr = broken\n");
+	char *path = strstr(name, "/");
 	printf("Cutn\n");
 	path = strstr(path+1, "/");
 	printf("Path: %s\n", path);

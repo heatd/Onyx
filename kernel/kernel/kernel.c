@@ -43,8 +43,8 @@
 #include <mbr.h>
 #include <drivers/ext2.h>
 #include <kernel/heap.h>
-#include <acpi.h>
-
+#include <kernel/acpi.h>
+#include <drivers/rtc.h>
 /* Function: init_arch()
  * Purpose: Initialize architecture specific features, should be hooked by the architecture the kernel will run on
  */
@@ -54,18 +54,16 @@ extern uint64_t kernel_end;
 #define KERNEL_START_VIRT (KERNEL_VIRTUAL_BASE + KERNEL_START_PHYS)
 extern char __BUILD_NUMBER;
 extern char __BUILD_DATE;
-#define UNUSED_PARAMETER(x) (void)x
 static struct multiboot_tag_module *initrd_tag = NULL;
 uintptr_t address = 0;
 struct multiboot_tag_elf_sections *secs = NULL;
 struct multiboot_tag_mmap *mmap_tag = NULL;
-extern void unmap_lower_4gb();
+
 void kernel_early(uintptr_t addr, uint32_t magic)
 {
 	addr += KERNEL_VIRTUAL_BASE;
-	if (magic != MULTIBOOT2_BOOTLOADER_MAGIC) {
+	if (magic != MULTIBOOT2_BOOTLOADER_MAGIC)
 		return;
-	}
 	idt_init();
 	struct multiboot_tag_framebuffer *tagfb = NULL;
 	size_t total_mem = 0;
@@ -149,6 +147,7 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 	tty_init();
 
 }
+uintptr_t rsdp;
 extern void libc_late_init();
 void kernel_main()
 {
@@ -159,6 +158,22 @@ void kernel_main()
 	void *mem = (void*)0xFFFFFFF890000000;
 	vmm_map_range(mem, 1024, VMM_GLOBAL | VMM_WRITE | VMM_NOEXEC);
 	heap_init (mem, 16, 64, 128, 256, 512);
+	for(int i = 0; i < 0x100000/16; i++)
+	{
+		if(!memcmp((char*)(PHYS_BASE + 0x000E0000 + i * 16),(char*)"RSD PTR ", 8))
+		{	
+			char *addr = (char*)(PHYS_BASE + 0x000E0000 + i * 16);
+			printf("Found the RSP at %x\n",addr);
+			for(int j = 0; j < 8; j++)
+				printf("%c", addr[j]);
+			printf("\n");
+			rsdp = addr - (char*)PHYS_BASE;
+			break;
+		}
+	}
+	// Initialize ACPI
+//	acpi_initialize();
+
 	pit_init(1000);
 	extern void init_keyboard();
 	init_keyboard();
@@ -167,6 +182,7 @@ void kernel_main()
 	vfs_init();
 	if (!initrd_tag)
 		panic("Initrd not found\n");
+	printf("Initrd tag: %p\n", initrd_tag);
 	void *initrd_address = (void*)(initrd_tag->mod_start + PHYS_BASE);
 	asm volatile("movq $0, pdlower; movq $0, pdlower + 8;invlpg 0x0;invlpg 0x200000");
 	/* Initialize the initrd */
@@ -190,8 +206,7 @@ void kernel_multitasking(void *arg)
 	/* At this point, multitasking is initialized in the kernel
 	 * Perform a small test to check if the argument string was passed correctly,
 	 * and continue with initialization */
-	void *mem =
-	    vmm_allocate_virt_address(VM_KERNEL, 1024, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
+	void *mem = vmm_allocate_virt_address(VM_KERNEL, 1024, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
 	vmm_map_range(mem, 1024, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
 	/* Create PTY */
 	tty_create_pty_and_switch(mem);
@@ -209,8 +224,7 @@ void kernel_multitasking(void *arg)
 	char *envp[] = {"PATH=/bin:/usr/bin:/usr/lib", NULL};
 	init_ext2drv();
 	initialize_module_subsystem();
-	load_module("/lib/modules/example.kmod", "example");
-
+	init_rtc();
 	exec("/sbin/init", args, envp);
 	for (;;) asm volatile("hlt");
 }
