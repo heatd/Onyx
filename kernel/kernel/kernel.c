@@ -45,6 +45,7 @@
 #include <kernel/heap.h>
 #include <kernel/acpi.h>
 #include <drivers/rtc.h>
+#include <drivers/e1000.h>
 /* Function: init_arch()
  * Purpose: Initialize architecture specific features, should be hooked by the architecture the kernel will run on
  */
@@ -61,10 +62,13 @@ struct multiboot_tag_mmap *mmap_tag = NULL;
 
 void kernel_early(uintptr_t addr, uint32_t magic)
 {
-	addr += KERNEL_VIRTUAL_BASE;
+	addr += PHYS_BASE;
 	if (magic != MULTIBOOT2_BOOTLOADER_MAGIC)
 		return;
 	idt_init();
+	vmm_init();
+	
+	paging_map_all_phys(0x8000000000);
 	struct multiboot_tag_framebuffer *tagfb = NULL;
 	size_t total_mem = 0;
 	size_t initrd_size = 0;
@@ -128,9 +132,6 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 		}
 		mmap++;
 	}
-	vmm_init();
-	
-	paging_map_all_phys(total_mem * 1024);
 	/* Map the FB */
 	for (uintptr_t virt = KERNEL_FB, phys =
 	     tagfb->common.framebuffer_addr; virt < KERNEL_FB + 0x400000;
@@ -225,6 +226,11 @@ void kernel_multitasking(void *arg)
 	init_ext2drv();
 	initialize_module_subsystem();
 	init_rtc();
+	if(e1000_init())
+		printf("e1000: failed to find a compatible device\n");
+	else
+		printf("e1000: found compatible device\n");
+	
 	exec("/sbin/init", args, envp);
 	for (;;) asm volatile("hlt");
 }

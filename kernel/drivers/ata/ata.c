@@ -88,6 +88,7 @@ void enable_pci_ide(PCIDevice *dev)
 	pci_set_barx(dev->slot, dev->device, dev->function, 1, 0x3F6, 1, 0);
 	pci_set_barx(dev->slot, dev->device, dev->function, 2, 0x170, 1, 0);
 	pci_set_barx(dev->slot, dev->device, dev->function, 3, 0x376, 1, 0);
+	printf("IRQ: %d\n", pci_get_intn(dev->slot, dev->device, dev->function));
 	pcibar_t *bar4 = pci_get_bar(dev->slot, dev->device, dev->function, 4);
 	bar4_base = bar4->address;
 	printf("bar4: %x\n", bar4_base);
