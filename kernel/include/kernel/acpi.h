@@ -10,9 +10,10 @@
  *----------------------------------------------------------------------*/
 #ifndef _ACPI_KERNEL_H
 #define _ACPI_KERNEL_H
+#include <stdint.h>
 
 int acpi_initialize();
-
+uint32_t acpi_shutdown(void *context);
 
 
 

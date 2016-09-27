@@ -1,0 +1,46 @@
+/*----------------------------------------------------------------------
+ * Copyright (C) 2016 Pedro Falcato
+ *
+ * This file is part of Spartix, and is made available under
+ * the terms of the GNU General Public License version 2.
+ *
+ * You can redistribute it and/or modify it under the terms of the GNU
+ * General Public License version 2 as published by the Free Software
+ * Foundation.
+ *----------------------------------------------------------------------*/
+
+#ifndef _ETHERNET_H
+#define _ETHERNET_H
+
+#include <stdint.h>
+
+#define PROTO_IPV4 0x800
+#define PROTO_ARP 0x806
+#define PROTO_IPV6 0x86DD
+
+typedef struct
+{
+	uint8_t mac_dest[6];
+	uint8_t mac_source[6];
+	uint16_t ethertype;
+	uint8_t payload[0];
+} __attribute__((packed)) ethernet_header_t;
+
+typedef struct
+{
+	uint8_t frame_check_sequence[4];
+	uint8_t interpacket_gap[12];
+} __attribute__((packed)) ethernet_footer_t;
+
+#define LITTLE_TO_BIG16(n) ((n >> 8) | (n << 8))
+
+extern char mac_address[6];
+
+typedef int (*device_send_packet)(char*, uint16_t);
+
+void eth_set_packet_buf(uint8_t *buf);
+void eth_set_packet_len(uint16_t len);
+void eth_set_dev_send_packet(device_send_packet);
+int eth_send_packet(char *destmac, char *payload, uint16_t len, uint16_t protocol);
+int ethernet_init();
+#endif

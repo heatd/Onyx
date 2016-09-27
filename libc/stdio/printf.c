@@ -56,7 +56,7 @@ void itoa(uint64_t i, unsigned int base, char *buf, _Bool is_upper)
 }
 char buffer[500];
 int bufferPos = 0;
-static void print(const char *data, size_t data_length)
+void print(const char *data, size_t data_length)
 {
 	size_t i;
 	for ( i = 0; i < data_length; i++)

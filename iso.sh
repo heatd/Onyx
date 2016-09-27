@@ -15,10 +15,11 @@ rm -rf $ROOTDIR/sysroot/usr/include
 tar -cvf $ROOTDIR/sysroot/pkg/libs-devel.tar sysroot/usr/lib
 xz -9 -e -f $ROOTDIR/sysroot/pkg/libs-devel.tar
 rm -f $ROOTDIR/sysroot/usr/lib/*
-tar -cvf $ROOTDIR/isodir/boot/initrd.tar sysroot
 echo "Generating initrd..."
 echo "Copying the kernel to the isodir"
 cp sysroot/boot/vmspartix isodir/boot/vmspartix
+rm -f sysroot/boot/vmspartix
+tar -cvf $ROOTDIR/isodir/boot/initrd.tar sysroot
 echo "Compressing kernel and initrd images"
 xz -9 -e -f isodir/boot/vmspartix
 xz -9 -e -f isodir/boot/initrd.tar

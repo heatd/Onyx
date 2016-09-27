@@ -135,19 +135,4 @@ struct e1000_tx_desc {
 
 int e1000_init();
 
-typedef struct
-{
-        char mac_dest[6];
-        char mac_source[6];
-        uint16_t ethertype;
-        char payload[0];
-} __attribute__((packed)) ethernet_header_t;
-
-typedef struct
-{
-        char frame_check_sequence[4];
-        char interpacket_gap[12];
-} ethernet_footer_t;
-
-#define LITTLE_TO_BIG16(n) ((n >> 8) | (n << 8))
 #endif

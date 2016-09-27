@@ -21,7 +21,7 @@ ARCHDIR:=arch/$(HOSTARCH)
 
 include $(ARCHDIR)/make.config
 CFLAGS:=$(CFLAGS) $(KERNEL_ARCH_CFLAGS)
-CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS)
+CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS) -D ACPI_LIBRARY -D ACPI_DEBUG_OUTPUT=1
 LDFLAGS:=$(LDFLAGS) $(KERNEL_ARCH_LDFLAGS) $(BUILD_NUMBER_LDFLAGS)
 LIBS:=$(LIBS) $(KERNEL_ARCH_LIBS)
 ACPICA_CFLAGS:=$(filter-out -g, $(CFLAGS))
@@ -31,7 +31,7 @@ $(patsubst %.c,%.o,$(wildcard drivers/*/*.c)) \
 $(patsubst %.c,%.o,$(wildcard kernel/*.c)) \
 $(patsubst %.c,%.o,$(wildcard kernel/*/*.c)) \
 $(patsubst %.c,%.o,$(wildcard $(ARCHDIR)/*.c)) \
-$(patsubst %.c,%.o,$(wildcard acpica/*.c)) \
+$(filter-out acpica/components/disassembler/%, $(patsubst %.c,%.o,$(wildcard acpica/components/*/*.c))) \
 $(filter-out $(ARCHDIR)/crti.o, $(patsubst %.S,%.o,$(wildcard $(ARCHDIR)/*.S)))
 
 CRTI_OBJ:=../sysroot/usr/lib/crti.o

@@ -12,8 +12,11 @@
 #include <stdio.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <stdbool.h>
+
 #include <kernel/compiler.h>
 #include <kernel/vmm.h>
+#include <kernel/panic.h>
 extern uintptr_t rsdp;
 static const ACPI_EXCEPTION_INFO    AcpiGbl_ExceptionNames_Env[] =
 {
@@ -51,43 +54,38 @@ static const ACPI_EXCEPTION_INFO    AcpiGbl_ExceptionNames_Env[] =
 uint32_t acpi_shutdown(void *context)
 {
 	UNUSED_PARAMETER(context);
-	//AcpiEnterSleepStatePrep(5);
+	AcpiEnterSleepStatePrep(5);
 	asm volatile("cli");
-	//AcpiEnterSleepState(5);
+	AcpiEnterSleepState(5);
 	panic("ACPI: Failed to enter sleep state! Panic'ing!");
 	return 0;
 }
 int acpi_initialize()
 {
-	/*ACPI_STATUS st = AcpiInitializeSubsystem();
+	ACPI_STATUS st = AcpiInitializeSubsystem();
 	if(ACPI_FAILURE(st))
 	{
 		printf("Error: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
 		panic("ACPI subsystem initialization failed!");
 	}	
-	st = AcpiInitializeTables(NULL, 16, 1);
+	st = AcpiInitializeTables(NULL, 32, true);
 	if(ACPI_FAILURE(st))
 	{
-		printf("Error: %s\n %s\n", AcpiGbl_ExceptionNames_Env[st].Name, AcpiGbl_ExceptionNames_Env[st].Description);
+		printf("Error: %s\n %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
 		panic("ACPI table subsystem initialization failed!");
 	}
 	st = AcpiLoadTables();
 	if(ACPI_FAILURE(st))
 		panic("AcpiLoadTables failed!");
+	
 	st = AcpiEnableSubsystem (ACPI_FULL_INITIALIZATION);
 	if (ACPI_FAILURE (st))
 		panic("AcpiEnableSubsystem failed!");
 	st = AcpiInitializeObjects (ACPI_FULL_INITIALIZATION);
 	if(ACPI_FAILURE(st))
 		panic("AcpiInitializeObjects failed!");
-	
+
 	printf("ACPI initialized!\n");
-	AcpiEnableEvent(ACPI_EVENT_POWER_BUTTON, 0);
-	AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON, acpi_shutdown, NULL);
-	ACPI_TABLE_RSDP *rsdpp = (ACPI_TABLE_RSDP*)(rsdp + PHYS_BASE);
-	printf("OEM: ");
-	for(int i = 0; i < ACPI_OEM_ID_SIZE; i++)
-		printf("%c", rsdpp->OemId[i]);
-	printf("\n");*/
+
 	return 0;
 }

@@ -38,3 +38,15 @@ int isalpha(int c)
 {
     return toupper(c) || tolower(c);
 }
+int tonum(int c)
+{
+	return c - '0';
+}
+int isnum(int c)
+{
+	if(c >= 48 && c <= 57)
+	{
+		return 1;
+	}
+	return 0;
+}

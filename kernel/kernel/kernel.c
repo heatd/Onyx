@@ -21,13 +21,14 @@
  **************************************************************************/
 #include <stddef.h>
 #include <stdint.h>
-#include <multiboot2.h>
 #include <stdio.h>
+#include <mbr.h>
+#include <multiboot2.h>
+
 #include <kernel/vmm.h>
 #include <kernel/paging.h>
 #include <kernel/pmm.h>
 #include <kernel/idt.h>
-#include <drivers/softwarefb.h>
 #include <kernel/tty.h>
 #include <kernel/panic.h>
 #include <kernel/cpu.h>
@@ -35,17 +36,18 @@
 #include <drivers/ps2.h>
 #include <kernel/vfs.h>
 #include <kernel/initrd.h>
-#include <drivers/pci.h>
 #include <kernel/task_switching.h>
 #include <kernel/elf.h>
 #include <kernel/tss.h>
-#include <drivers/ata.h>
-#include <mbr.h>
-#include <drivers/ext2.h>
 #include <kernel/heap.h>
 #include <kernel/acpi.h>
+
+#include <drivers/ata.h>
+#include <drivers/ext2.h>
 #include <drivers/rtc.h>
 #include <drivers/e1000.h>
+#include <drivers/softwarefb.h>
+#include <drivers/pci.h>
 /* Function: init_arch()
  * Purpose: Initialize architecture specific features, should be hooked by the architecture the kernel will run on
  */
@@ -173,8 +175,7 @@ void kernel_main()
 		}
 	}
 	// Initialize ACPI
-//	acpi_initialize();
-
+	acpi_initialize();
 	pit_init(1000);
 	extern void init_keyboard();
 	init_keyboard();
@@ -185,17 +186,20 @@ void kernel_main()
 		panic("Initrd not found\n");
 	printf("Initrd tag: %p\n", initrd_tag);
 	void *initrd_address = (void*)(initrd_tag->mod_start + PHYS_BASE);
+	printf("Initrd address: %p\n", initrd_address);
 	asm volatile("movq $0, pdlower; movq $0, pdlower + 8;invlpg 0x0;invlpg 0x200000");
 	/* Initialize the initrd */
 	init_initrd(initrd_address);
-
+	
 	/* Initalize multitasking */
 	sched_create_thread(kernel_multitasking, 1,
 				    (void *) "Started multitasking!");
 	/* Initialize late libc */
 	libc_late_init();
+	while(1);
 	asm volatile ("sti");
-	for (;;) {
+	for (;;)
+	{
 		__asm__ __volatile__("hlt");
 	}
 }
@@ -226,11 +230,12 @@ void kernel_multitasking(void *arg)
 	init_ext2drv();
 	initialize_module_subsystem();
 	init_rtc();
-	if(e1000_init())
-		printf("e1000: failed to find a compatible device\n");
+	if(ethernet_init())
+		printf("eth0: failed to find a compatible device\n");
 	else
-		printf("e1000: found compatible device\n");
-	
+		printf("eth0: found compatible device\n");
+	char ip[] = {192, 168, 0, 1};
+	send_arp_request_ipv4((char*)&ip);
 	exec("/sbin/init", args, envp);
 	for (;;) asm volatile("hlt");
 }

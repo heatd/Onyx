@@ -13,23 +13,7 @@
 #include <kernel/compiler.h>
 const uint16_t CONFIG_ADDRESS = 0xCF8;
 const uint16_t CONFIG_DATA = 0xCFC;
-#define CLASS_MASS_STORAGE_CONTROLLER 0x1
-#define CLASS_NETWORK_CONTROLLER 0x2
-#define CLASS_DISPLAY_CONTROLLER 0x3
-#define CLASS_MULTIMEDIA_CONTROLLER 0x4
-#define CLASS_MEMORY_CONTROLLER 0x5
-#define CLASS_BRIDGE_DEVICE 0x6
-#define CLASS_COMMUNICATIONS_CONTROLLER 0x7
-#define CLASS_BASE_SYSTEM_PERIPHERALS 0x8
-#define CLASS_INPUT_DEVICES 0x9
-#define CLASS_DOCKING_STATIONS 0xA
-#define CLASS_PROCESSORS 0xB
-#define CLASS_SERIAL_BUS_CONTROLLER 0xC
-#define CLASS_WIRELESS_CONTROLLER 0xD
-#define CLASS_INTELIGENT_CONTROLLER 0xE
-#define CLASS_SATELLITE_CONTROLLER 0xF
-#define CLASS_ENCRYPTION_DECRYPTION_CONTROLLER 0x10
-#define CLASS_DATA_AND_SIGNAL_CONTROLLER 0x11
+
 
 	/* A _HUGE_ function to identify the device's function using the device's class, subClass and progIF
 	   Returns a pointer to a string that is the purpose of the device

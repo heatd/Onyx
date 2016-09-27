@@ -49,7 +49,7 @@ string/strtok.o \
 math/fabs.o \
 posix/posix_syscalls.o \
 stdlib/malloc.o \
-
+stdio/vprintf.o
 
 OBJS:=\
 $(FREEOBJS) \

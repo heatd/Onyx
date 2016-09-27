@@ -100,6 +100,9 @@ BOOLEAN AcpiOsWritable(void * Memory, ACPI_SIZE Length)
 }
 ACPI_THREAD_ID AcpiOsGetThreadId()
 {
+	thread_t *thread = get_current_thread();
+	if(!thread)
+		return 1;
 	return get_current_thread()->id;
 }
 ACPI_STATUS AcpiOsExecute(ACPI_EXECUTE_TYPE Type, ACPI_OSD_EXEC_CALLBACK Function, void * Context)
@@ -118,7 +121,7 @@ void AcpiOsStall(UINT32 Microseconds)
 }
 ACPI_STATUS AcpiOsCreateMutex(ACPI_MUTEX *OutHandle)
 {
-	*OutHandle = malloc(sizeof(ACPI_MUTEX));
+	*OutHandle = AcpiOsAllocate(sizeof(ACPI_MUTEX));
 	if(*OutHandle == NULL)	return AE_NO_MEMORY;
 	return AE_OK;
 }
@@ -136,13 +139,17 @@ void AcpiOsReleaseMutex(ACPI_MUTEX Handle)
 {
 	mutex_unlock((unsigned long*)Handle);
 }
-// TODO: Implement Semaphores (should be prettty simple)
+// TODO: Implement Semaphores (should be pretty simple)
 ACPI_STATUS AcpiOsCreateSemaphore(UINT32 MaxUnits, UINT32 InitialUnits, ACPI_SEMAPHORE * OutHandle)
 {
+	*OutHandle = AcpiOsAllocate(sizeof(ACPI_MUTEX));
+	memset(*OutHandle, 0, sizeof(ACPI_MUTEX));
+	if(*OutHandle == NULL) return AE_NO_MEMORY;
 	return AE_OK;
 }
 ACPI_STATUS AcpiOsDeleteSemaphore(ACPI_SEMAPHORE Handle)
 {
+	free(Handle);
 	return AE_OK;
 }
 ACPI_STATUS AcpiOsWaitSemaphore(ACPI_SEMAPHORE Handle, UINT32 Units, UINT16 Timeout)
@@ -156,20 +163,21 @@ ACPI_STATUS AcpiOsSignalSemaphore(ACPI_SEMAPHORE Handle, UINT32 Units)
 ACPI_STATUS AcpiOsCreateLock(ACPI_SPINLOCK *OutHandle)
 {
 	*OutHandle = malloc(sizeof(ACPI_SPINLOCK));
+	memset(*OutHandle, 0, sizeof(ACPI_SPINLOCK));
 	return AE_OK;
 }
 void AcpiOsDeleteLock(ACPI_HANDLE Handle)
 {
 	free(Handle);
 }
-// TODO: Find a better solution
 ACPI_CPU_FLAGS AcpiOsAcquireLock(ACPI_SPINLOCK Handle)
 {
-	asm volatile("cli");
+	mutex_lock((unsigned long*)Handle);
 	return 0;
 }
 void AcpiOsReleaseLock(ACPI_SPINLOCK Handle, ACPI_CPU_FLAGS Flags)
 {
+	mutex_unlock((unsigned long*)Handle);
 }
 ACPI_OSD_HANDLER ServiceRout;
 void *ctx;
@@ -331,7 +339,7 @@ UINT64
 AcpiOsGetTimer (
 void)
 {
-	return get_tick_count();
+	return get_unix_time();
 }
 ACPI_STATUS
 AcpiOsTerminate()
@@ -342,4 +350,11 @@ int isprint( int ch )
 {
 	return 1;
 }
-
+void
+AcpiOsVprintf(
+	const char	*Fmt,
+	va_list	Args)
+{
+	printf("ACPI: ");
+	vprintf(Fmt, Args);
+}

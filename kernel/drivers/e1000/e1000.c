@@ -14,6 +14,7 @@
 #include <stdbool.h>
 
 #include <kernel/vmm.h>
+#include <kernel/ethernet.h>
 
 #include <drivers/mmio.h>
 #include <drivers/e1000.h>
@@ -23,6 +24,10 @@ static PCIDevice *nicdev = NULL;
 static struct e1000_rx_desc *rx_descs[E1000_NUM_RX_DESC];
 static struct e1000_tx_desc *tx_descs[E1000_NUM_TX_DESC];
 static int rx_cur = 0, tx_cur = 0;
+_Bool eeprom_exists = false;
+_Bool got_packet = false;
+static char *mem_space = NULL;
+static uint16_t io_space = 0;
 // Returns 1 if it exists, 0 if not
 int detect_e1000_nic()
 {
@@ -38,14 +43,30 @@ static void initialize_e1000_busmastering()
 	uint32_t command_reg = pci_config_read_dword(nicdev->slot, nicdev->device, nicdev->function, PCI_COMMAND);
 	pci_write_dword(nicdev->slot, nicdev->device, nicdev->function, PCI_COMMAND, command_reg | 4);
 }
+void e1000_handle_recieve()
+{
+	uint16_t old_cur = 0;
+	while((rx_descs[rx_cur]->status & 0x1))
+	{
+		got_packet = true;
+		uint8_t *buf = (uint8_t *)rx_descs[rx_cur]->addr;
+		uint16_t len = rx_descs[rx_cur]->length;
+		eth_set_packet_buf(buf + PHYS_BASE);
+		eth_set_packet_len(len);
+		rx_descs[rx_cur]->status = 0;
+		old_cur = rx_cur;
+		rx_cur = (rx_cur + 1) % E1000_NUM_RX_DESC;
+		e1000_write_command(REG_RXDESCTAIL, old_cur);
+}
+}
 static void e1000_irq()
 {
-	printf("Recieved IRQ from e1000!\n");
 	volatile uint32_t status = e1000_read_command(0xc0);
+	if(status & 0x80)
+	{
+		e1000_handle_recieve();
+	}
 }
-static char *mem_space = NULL;
-static uint16_t io_space = 0;
-
 void e1000_write_command(uint16_t addr, uint32_t val)
 {
 	mmio_writel(mem_space + addr, val);
@@ -54,7 +75,6 @@ uint32_t e1000_read_command(uint16_t p_address)
 {
 	return mmio_readl(mem_space + p_address);
 }
-_Bool eeprom_exists = false;
 void e1000_detect_eeprom()
 {
 	e1000_write_command(REG_EEPROM, 0x1);
@@ -69,7 +89,6 @@ void e1000_detect_eeprom()
 		}
 	}
 }
-static char mac_address[6] = {0};
 uint32_t e1000_eeprom_read(uint8_t addr)
 {
 	uint16_t data = 0;
@@ -207,7 +226,9 @@ void e1000_enable_interrupts()
 }
 int e1000_send_packet(const void *p_data, uint16_t p_len)
 {
+	printf("Data: %p\n", p_data);
 	tx_descs[tx_cur]->addr = (uint64_t)virtual2phys(p_data);
+	printf("Sending buffer %p\n", tx_descs[tx_cur]->addr);
 	tx_descs[tx_cur]->length = p_len;
 	tx_descs[tx_cur]->cmd = CMD_EOP | CMD_IFCS | CMD_RS | CMD_RPS;
 	tx_descs[tx_cur]->status = 0;
@@ -246,8 +267,7 @@ int e1000_init()
 		phys_mem_space += 0x1000;
 		virt += 0x1000;
 	}
-	printf("e1000: allocated %p\n", mem_space);
-	printf("e1000: pages: %d\n", needed_pages);
+
 	// Initialize PCI Busmastering (needed for DMA)
 	initialize_e1000_busmastering();
 
@@ -258,16 +278,7 @@ int e1000_init()
 	if(e1000_init_descs())
 		printf("e1000: failed to initialize!\n");
 	e1000_enable_interrupts();
-	ethernet_header_t *hdr = malloc(84);
-	memset(hdr, 0, 84);
-	memcpy(&hdr->mac_dest, mac_address, 6);
-	memcpy(&hdr->mac_source, mac_address, 6);
-	hdr->ethertype = LITTLE_TO_BIG16(0x800);
-	//printf("%x:%x:%x:%x:%x:%x\n", hdr->mac_dest[0], hdr->mac_dest[1], hdr->mac_dest[2], hdr->mac_dest[3], hdr->mac_dest[4], hdr->mac_dest[5]);
-	strcpy(&hdr->payload, "Hello networking!\n");
-	e1000_send_packet(hdr, 84);
-	e1000_send_packet(hdr, 84);
-	e1000_send_packet(hdr, 84);
+	eth_set_dev_send_packet(e1000_send_packet);
 	free(bar); // Don't forget to free bar, as we don't want a memory leak
 	return 0;
 }
