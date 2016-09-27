@@ -21,7 +21,9 @@
 #include <sys/mman.h>
 #include <drivers/rtc.h>
 #include <sys/time.h>
-const uint32_t SYSCALL_MAX_NUM = 21;
+#include <kernel/power_management.h>
+
+const uint32_t SYSCALL_MAX_NUM = 23;
 spinlock_t lseek_spl;
 off_t sys_lseek(int fd, off_t offset, int whence)
 {
@@ -530,6 +532,14 @@ int sys_gettimeofday(struct timeval *tv, struct timezone *tz)
 	}
 	return 0;
 }
+void sys_reboot()
+{
+	pm_reboot();
+}
+void sys_shutdown()
+{
+	pm_shutdown();
+}
 void *syscall_list[] =
 {
 	[0] = (void*) sys_write,
@@ -553,5 +563,7 @@ void *syscall_list[] =
 	[18] = (void*) sys_getppid,
 	[19] = (void*) sys_wait,
 	[20] = (void*) sys_time,
-	[21] = (void*) sys_gettimeofday
+	[21] = (void*) sys_gettimeofday,
+	[22] = (void*) sys_reboot,
+	[23] = (void*) sys_shutdown,
 };
