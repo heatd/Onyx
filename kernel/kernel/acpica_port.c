@@ -52,16 +52,8 @@ ACPI_STATUS AcpiOsTableOverride(ACPI_TABLE_HEADER *ExistingTable, ACPI_TABLE_HEA
 }
 void *AcpiOsMapMemory(ACPI_PHYSICAL_ADDRESS PhysicalAddress, ACPI_SIZE Length)
 {
-	void *addrl = (void*)(PhysicalAddress & 0xFFFFFFFFFFFFF000);
-	size_t pages = Length / 4096;
-	if(Length % 4096)
-		pages++;
-	void *vaddrl = vmm_allocate_virt_address(1, pages, VMM_TYPE_REGULAR, VMM_WRITE);
-	for(uintptr_t i = 0, vaddr = (uintptr_t) vaddrl, addr = (uintptr_t) addrl; i < pages; i++, vaddr += 0x1000, addr += 0x1000)
-	{
-		paging_map_phys_to_virt(vaddr, addr, VMM_WRITE | VMM_GLOBAL);
-	}
-	return (void*)((ACPI_PHYSICAL_ADDRESS)vaddrl + (PhysicalAddress & 0xFFF));
+	void *addrl = (void*)(PhysicalAddress + PHYS_BASE);
+	return addrl;
 }
 void AcpiOsUnmapMemory(void *where, ACPI_SIZE Length)
 {

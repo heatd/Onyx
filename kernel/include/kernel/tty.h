@@ -21,3 +21,5 @@ void tty_swap_framebuffers();
 void tty_init(void);
 void tty_scroll();
 void tty_put_entry_at(char c, uint32_t color, size_t column, size_t row);
+char *tty_wait_for_line();
+void tty_recieved_character(char c);

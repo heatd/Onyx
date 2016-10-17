@@ -37,8 +37,6 @@ unsigned char keys[200] =
 char num_shft[] = {'!','\"','#','$','%','&','/','(',')','='};
 static _Bool is_shift_pressed = false;
 // TODO: Improve this crap
-char keyboard_buffer[1024];
-volatile size_t keyboard_pos = 0;
 void send_event_to_kernel(uint8_t keycode)
 {
 	if (keycode == 0x2A || keycode == 0x36) {
@@ -53,9 +51,8 @@ void send_event_to_kernel(uint8_t keycode)
 		return;
 	char c = keys[keycode - 1];
 	if (is_shift_pressed == true && c > 96 && c < 123)
-		keyboard_buffer[keyboard_pos++] = c-32;
+		c = c-32;
 	else if(is_shift_pressed && c > 47 && c < 58)
-		keyboard_buffer[keyboard_pos++] = num_shft[c - 49];
-	else
-		keyboard_buffer[keyboard_pos++] = c;
+		c = num_shft[c - 49];
+	tty_recieved_character(c);
 }

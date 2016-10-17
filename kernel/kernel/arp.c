@@ -29,10 +29,10 @@ int send_arp_request_ipv4(char *requested_ip)
 	arp->target_hw_address[3] = 0xFF;
 	arp->target_hw_address[4] = 0xFF;
 	arp->target_hw_address[5] = 0xFF;
-	arp->sender_proto_address[0] =  192;
-	arp->sender_proto_address[1] = 168;
-	arp->sender_proto_address[2] = 1;
-	arp->sender_proto_address[3] = 187;
+	arp->sender_proto_address[0] =  255;
+	arp->sender_proto_address[1] = 255;
+	arp->sender_proto_address[2] = 255;
+	arp->sender_proto_address[3] = 255;
 	memcpy(&arp->target_proto_address, requested_ip, ARP_PLEN_IPV4);
 	int ret = eth_send_packet(&arp->target_hw_address, arp, sizeof(arp_request_t), PROTO_ARP);
 //	free(arp);

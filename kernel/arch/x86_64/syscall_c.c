@@ -120,17 +120,17 @@ int sys_mprotect(void *addr, size_t len, int prot)
 	return 0;
 }
 spinlock_t read_spl;
-extern char keyboard_buffer[];
-extern volatile size_t keyboard_pos;
+extern int tty_keyboard_pos;
 ssize_t sys_read(int fd, const void *buf, size_t count)
 {
 	acquire_spinlock(&read_spl);
 	if (fd == STDIN_FILENO)
 	{
-		while(keyboard_pos == 0);
-		memcpy(buf, &keyboard_buffer[keyboard_pos-1], count);
-		memset(keyboard_buffer, 0, 1024);
-		keyboard_pos = 0;
+		char *kb_buf = tty_wait_for_line();
+		memcpy(buf, kb_buf, count);
+		tty_keyboard_pos = 0;
+		memset(kb_buf, 0, count);
+		memmove(kb_buf, &kb_buf[count], count);
 		release_spinlock(&read_spl);
 		return count;
 	}

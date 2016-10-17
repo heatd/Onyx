@@ -223,19 +223,19 @@ void kernel_multitasking(void *arg)
 	
 	extern void init_elf_symbols(struct multiboot_tag_elf_sections *);
 	init_elf_symbols(secs);
-	//initialize_ata();
+	initialize_ata();
 
 	char *args[] = {"/etc/fstab", NULL};
 	char *envp[] = {"PATH=/bin:/usr/bin:/usr/lib", NULL};
 	init_ext2drv();
 	initialize_module_subsystem();
 	init_rtc();
-	/*if(ethernet_init())
+	if(ethernet_init())
 		printf("eth0: failed to find a compatible device\n");
 	else
 		printf("eth0: found compatible device\n");
 	char ip[] = {192, 168, 0, 1};
-	send_arp_request_ipv4((char*)&ip);*/
+	send_arp_request_ipv4((char*)&ip);
 	exec("/sbin/init", args, envp);
 	for (;;) asm volatile("hlt");
 }

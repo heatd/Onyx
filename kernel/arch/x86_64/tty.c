@@ -71,7 +71,8 @@ void tty_put_entry_at(char c, uint32_t color, size_t column, size_t row)
 }
 void tty_putchar(char c)
 {
-	if (c == '\n') {
+	if(c == '\n')
+	{
 		newline:
 		terminal_column = 0;
 		terminal_row++;
@@ -134,6 +135,44 @@ void tty_write(const char *data, size_t size)
 	if(currentPty != 0)
 		tty_swap_framebuffers();
 	//release_spinlock(&spl);
+}
+#define TTY_PRINT_IF_ECHO(c, l) if(echo) tty_write(c, l)
+char keyboard_buffer[2048];
+volatile int tty_keyboard_pos = 0;
+volatile _Bool got_line_ready = 0;
+_Bool echo = true;
+void tty_recieved_character(char c)
+{
+	if(c == '\n')
+	{
+		got_line_ready = 1;
+		TTY_PRINT_IF_ECHO("\n", 1);
+		keyboard_buffer[tty_keyboard_pos++] = c;
+		return;
+	}
+	if(c == '\b')
+	{
+		if(tty_keyboard_pos <= 0)
+		{
+			tty_keyboard_pos = 0;
+			return;
+		}
+		TTY_PRINT_IF_ECHO(&c, 1);
+		keyboard_buffer[tty_keyboard_pos] = 0;
+		tty_keyboard_pos--;
+		return;
+	}
+	keyboard_buffer[tty_keyboard_pos++] = c;
+	TTY_PRINT_IF_ECHO(&c, 1);
+}
+char *tty_wait_for_line()
+{
+	while(!got_line_ready)
+	{
+		asm volatile("hlt");
+	}
+	got_line_ready = 0;
+	return keyboard_buffer;
 }
 void tty_swap_framebuffers()
 {

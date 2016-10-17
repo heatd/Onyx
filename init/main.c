@@ -15,7 +15,6 @@
 #include <stdlib.h>
 #include <string.h>
 char buf[1024] = {0};
-volatile size_t pos = 0;
 #define MAX_COMMANDS 100
 int last_command_index = 0;
 typedef int(*command_callback_t)(char *args);
@@ -35,7 +34,7 @@ int process_command()
 			call(&buf[strlen(commands[i].name)]);
 			return 0;
 		}
-	}
+	}/*
 	pid_t pid = fork();
 	if(pid == 0)
 	{
@@ -47,7 +46,7 @@ int process_command()
 		int status;
 		wait(&status);
 		return 0;
-	}
+	}*/
 	return 1;
 }
 int help(char *unused)
@@ -89,40 +88,26 @@ int _start(int argc, char **argv, char **envp)
 	commands[4].name = "getshellpid";
 	commands[4].cmdc = getshellpid;
 	last_command_index++;
-loop:
-	write(STDOUT_FILENO, "/sbin/init $ ", strlen("/sbin/init $ "));
-	while(buf[pos-1] != '\n' && pos < 1024)
+	while(1)
 	{
-		read(STDIN_FILENO, &buf[pos], 1);
-		if(buf[pos] == '\b')
+		printf("/sbin/init $ ");
+		fflush(stdout);
+		size_t b = fread(buf, 1024, 1, stdin);
+		if(b == (size_t) -1)
+			printf("[LIBC] ERROR: fread() failed!\n");
+		int ret = process_command();
+		printf("[%d]", buf[0]);
+		if(ret)
 		{
-			if(pos == 0)
+			if(buf[0] == '\n')
+			{
+				memset(buf, 0, 1024);
 				continue;
-			write(STDOUT_FILENO, "\b", strlen("\b"));
-			buf[pos] = 0;
-			pos--;
-			buf[pos] = 0;
+			}
+			printf("%s : Command not found!\n", buf);
+			fflush(stdout);
 		}
-		else
-		{
-			write(STDOUT_FILENO, &buf[pos], 1);
-			pos++;
-		}
+		memset(buf, 0, 1024);
 	}
-	buf[pos-1] = '\0';
-	int ret = process_command();
-	if(ret)
-	{
-		if(buf[0] == '\n')
-		{
-			buf[0] = 0;
-			pos = 0;
-			goto loop;
-		}
-		printf("%s : Command not found!\n", buf);
-	}
-	memset(buf, 0, 1024);
-	pos = 0;
-	goto loop;
 	return 0;
 }

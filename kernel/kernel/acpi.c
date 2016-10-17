@@ -62,7 +62,7 @@ uint32_t acpi_shutdown(void *context)
 }
 int acpi_initialize()
 {
-	ACPI_STATUS st = AcpiInitializeSubsystem();
+    ACPI_STATUS st = AcpiInitializeSubsystem();
 	if(ACPI_FAILURE(st))
 	{
 		printf("Error: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
