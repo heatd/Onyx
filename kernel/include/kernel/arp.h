@@ -36,5 +36,6 @@ typedef struct
 
 } __attribute__((packed)) arp_request_t;
 
-int send_arp_request_ipv4(char *requested_ip);
+arp_request_t* send_arp_request_ipv4(char *requested_ip);
+int arp_handle_packet(arp_request_t *arp, uint16_t len);
 #endif

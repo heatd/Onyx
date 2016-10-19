@@ -51,6 +51,7 @@ void e1000_handle_recieve()
 		got_packet = true;
 		uint8_t *buf = (uint8_t *)rx_descs[rx_cur]->addr;
 		uint16_t len = rx_descs[rx_cur]->length;
+		ethernet_handle_packet(buf, len);
 		eth_set_packet_buf(buf + PHYS_BASE);
 		eth_set_packet_len(len);
 		rx_descs[rx_cur]->status = 0;
@@ -226,17 +227,14 @@ void e1000_enable_interrupts()
 }
 int e1000_send_packet(const void *p_data, uint16_t p_len)
 {
-	printf("Data: %p\n", p_data);
 	tx_descs[tx_cur]->addr = (uint64_t)virtual2phys(p_data);
-	printf("Sending buffer %p\n", tx_descs[tx_cur]->addr);
 	tx_descs[tx_cur]->length = p_len;
-	tx_descs[tx_cur]->cmd = CMD_EOP | CMD_IFCS | CMD_RS | CMD_RPS;
+	tx_descs[tx_cur]->cmd = CMD_EOP | CMD_IFCS | CMD_RS | CMD_RPS | CMD_IC;
 	tx_descs[tx_cur]->status = 0;
 	uint8_t old_cur = tx_cur;
 	tx_cur = (tx_cur + 1) % E1000_NUM_TX_DESC;
 	e1000_write_command(REG_TXDESCTAIL, tx_cur);   
 	while(!(tx_descs[old_cur]->status & 0xff));
-	printf("Packet sent!\n");
 	return 0;
 }
 int e1000_init()

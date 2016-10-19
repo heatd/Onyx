@@ -41,6 +41,8 @@
 #include <kernel/heap.h>
 #include <kernel/acpi.h>
 #include <kernel/power_management.h>
+#include <kernel/udp.h>
+#include <kernel/dhcp.h>
 
 #include <drivers/ps2.h>
 #include <drivers/ata.h>
@@ -234,8 +236,8 @@ void kernel_multitasking(void *arg)
 		printf("eth0: failed to find a compatible device\n");
 	else
 		printf("eth0: found compatible device\n");
-	char ip[] = {192, 168, 0, 1};
-	send_arp_request_ipv4((char*)&ip);
+	char ip[] = {10, 0, 2, 2};
+	dhcp_initialize();
 	exec("/sbin/init", args, envp);
 	for (;;) asm volatile("hlt");
 }

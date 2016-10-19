@@ -35,6 +35,7 @@
 #define ASSUME_ALIGNED(x,y) __builtin_assume_aligned(x,y)
 #define ARCH_SPECIFIC extern
 #define UNUSED_PARAMETER(x) (void)x
+#define UNUSED(x) UNUSED_PARAMETER(x)
 inline uint64_t rdtsc()
 {
     	uint64_t ret = 0;

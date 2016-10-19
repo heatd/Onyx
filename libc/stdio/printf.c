@@ -148,7 +148,13 @@ int printf(const char *__restrict__ format, ...)
 			char string[60];
 			itoa(va_arg(parameters, int), 10, string, false);
 			print(string, strlen(string));
-		} else if (*format == 'p') {
+		} else if(*format == 'u')
+		{
+			format++;
+			char string[60];
+			itoa(va_arg(parameters, unsigned int), 10, string, false);
+			print(string, strlen(string));	
+		} else if(*format == 'p') {
 			format++;
 			void *ptr = va_arg(parameters, void *);
 			if (!ptr)

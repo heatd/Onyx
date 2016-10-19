@@ -13,11 +13,16 @@
 #include <string.h>
 
 #include <kernel/ethernet.h>
+#include <kernel/ip.h>
+#include <kernel/arp.h>
+#include <kernel/network.h>
+#include <kernel/vmm.h>
 
 #include <drivers/pci.h>
 #include <drivers/e1000.h>
 
 char mac_address[6] = {0};
+char router_mac[6] = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
 int ethernet_init()
 {
 	PCIDevice *dev = get_pcidev_from_classes(CLASS_NETWORK_CONTROLLER, 0, 0);
@@ -50,17 +55,30 @@ void eth_set_dev_send_packet(device_send_packet p)
 }
 int eth_send_packet(char *destmac, char *payload, uint16_t len, uint16_t protocol)
 {
-	ethernet_header_t *hdr = malloc(len + sizeof(ethernet_header_t) + sizeof(ethernet_footer_t));
+	ethernet_header_t *hdr = malloc(len + sizeof(ethernet_header_t));
 	if(!hdr)
 		return 1;
-	memset(hdr, 0, sizeof(ethernet_header_t));
+	memset(hdr, 0, sizeof(ethernet_header_t) + len);
 	memcpy(&hdr->payload, payload, len);
 	hdr->ethertype = LITTLE_TO_BIG16(protocol);
 	memcpy(&hdr->mac_dest, destmac, 6);
 	memcpy(&hdr->mac_source, &mac_address, 6);
-	printf("eth: mac_dest: %x:%x:%x:%x:%x:%x\n    mac_source: %x:%x:%x:%x:%x:%x\n    ethertype: %x\n", hdr->mac_dest[0], hdr->mac_dest[1], hdr->mac_dest[2], hdr->mac_dest[3], hdr->mac_dest[4], hdr->mac_dest[5],
-	hdr->mac_dest[0], hdr->mac_dest[1], hdr->mac_dest[2], hdr->mac_dest[3], hdr->mac_dest[4], hdr->mac_dest[5], hdr->ethertype);
-	dev_send_packet(hdr, len + sizeof(ethernet_header_t) + sizeof(ethernet_footer_t));
+	dev_send_packet((char*)hdr, len + sizeof(ethernet_header_t));
 	free(hdr);
 	return 0;
+}
+int ethernet_handle_packet(uint8_t *packet, uint16_t len)
+{
+	ethernet_header_t *hdr = (ethernet_header_t*) (packet + PHYS_BASE);
+	hdr->ethertype = LITTLE_TO_BIG16(hdr->ethertype);
+	if(hdr->ethertype == PROTO_IPV4)
+		network_handle_packet((ip_header_t*)(hdr+1), len - sizeof(ethernet_header_t));
+	else if(hdr->ethertype == PROTO_ARP)
+		arp_handle_packet((arp_request_t*)(hdr+1), len - sizeof(ethernet_header_t));
+
+	return 0;
+}
+void eth_set_router_mac(char* mac)
+{
+	memcpy(&router_mac, mac, 6);
 }

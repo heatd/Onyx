@@ -9,8 +9,25 @@
  * Foundation.
  *----------------------------------------------------------------------*/
 
-#include <kernel/arp.h> 
-int send_arp_request_ipv4(char *requested_ip)
+#include <kernel/spinlock.h>
+#include <kernel/arp.h>
+#include <stdlib.h>
+#include <kernel/compiler.h>
+#include <errno.h>
+static spinlock_t arp_spl;
+arp_request_t *arp_response = NULL;
+static volatile int arp_response_arrived = 0;
+void arp_await_response()
+{
+	while(1)
+	{
+		if(arp_response_arrived == 1)
+		{
+			return;
+		}
+	}
+}
+arp_request_t* send_arp_request_ipv4(char *requested_ip)
 {
 	arp_request_t *arp = malloc(sizeof(arp_request_t));
 	if(!arp)
@@ -29,12 +46,29 @@ int send_arp_request_ipv4(char *requested_ip)
 	arp->target_hw_address[3] = 0xFF;
 	arp->target_hw_address[4] = 0xFF;
 	arp->target_hw_address[5] = 0xFF;
-	arp->sender_proto_address[0] =  255;
-	arp->sender_proto_address[1] = 255;
-	arp->sender_proto_address[2] = 255;
-	arp->sender_proto_address[3] = 255;
+	arp->sender_proto_address[0] =  0;
+	arp->sender_proto_address[1] = 0;
+	arp->sender_proto_address[2] = 0;
+	arp->sender_proto_address[3] = 0;
 	memcpy(&arp->target_proto_address, requested_ip, ARP_PLEN_IPV4);
-	int ret = eth_send_packet(&arp->target_hw_address, arp, sizeof(arp_request_t), PROTO_ARP);
-//	free(arp);
+	acquire_spinlock(&arp_spl);
+	int st = eth_send_packet(&arp->target_hw_address, arp, sizeof(arp_request_t), PROTO_ARP);
+	if(st)
+		return 1;
+	arp_await_response();
+	arp_response_arrived = 0;
+	free(arp);
+	arp_request_t *ret = malloc(sizeof(arp_request_t));
+	if(!ret) return errno = ENOMEM, ret;
+	memcpy(ret, arp_response, sizeof(arp_request_t));
+	release_spinlock(&arp_spl);
 	return ret;
+}
+int arp_handle_packet(arp_request_t *arp, uint16_t len)
+{
+	if(arp_response == NULL)
+		arp_response = malloc(sizeof(arp_request_t));
+	memcpy(arp_response, arp, len);
+	arp_response_arrived = 1;
+	return 0;
 }

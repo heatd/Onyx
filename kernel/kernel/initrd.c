@@ -60,6 +60,7 @@ vfsnode_t *tar_open(vfsnode_t *this, const char *name)
 		panic("OOM");
 	strcpy(full_path, this->name);
 	strcpy(full_path + strlen(this->name), name);
+	full_path[strlen(this->name) + strlen(name)] = 0;
 	tar_header_t **iterator = headers;
 	for(size_t i = 0; i < n_files; i++)
 	{
