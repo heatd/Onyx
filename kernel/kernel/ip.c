@@ -17,8 +17,8 @@
 #include <kernel/ip.h>
 #include <kernel/ethernet.h>
 
-uint32_t local_ip = 0;
-uint32_t router_ip = 0;
+uint32_t ip_local_ip = 0;
+uint32_t ip_router_ip = 0;
 
 int send_ipv4_packet(uint32_t senderip, uint32_t destip, unsigned int type, char *payload, size_t payload_size)
 {
@@ -42,9 +42,9 @@ int send_ipv4_packet(uint32_t senderip, uint32_t destip, unsigned int type, char
 }
 void ip_set_local_ip(uint32_t lip)
 {
-	local_ip = lip;
+	ip_local_ip = lip;
 }
 void ip_set_router_ip(uint32_t rout_ip)
 {
-	router_ip = rout_ip;
+	ip_router_ip = rout_ip;
 }

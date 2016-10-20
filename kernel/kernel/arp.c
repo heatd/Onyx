@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <kernel/compiler.h>
 #include <errno.h>
+#include <kernel/ip.h>
 static spinlock_t arp_spl;
 arp_request_t *arp_response = NULL;
 static volatile int arp_response_arrived = 0;
@@ -26,6 +27,24 @@ void arp_await_response()
 			return;
 		}
 	}
+}
+arp_request_t *reply_to_arp_request(char *source_mac)
+{
+	arp_request_t *arp = malloc(sizeof(arp_request_t));
+	if(!arp)
+		return 1;
+	memset(arp, 0, sizeof(arp_request_t));
+	arp->htype = LITTLE_TO_BIG16(ARP_ETHERNET);
+	arp->ptype = LITTLE_TO_BIG16(PROTO_IPV4); 
+	arp->hlen = ARP_HLEN_ETHERNET;
+	arp->plen = ARP_PLEN_IPV4;
+	arp->operation = LITTLE_TO_BIG16(ARP_OP_REQUEST);
+	
+	memcpy(&arp->sender_hw_address, &mac_address, 6);
+	memcpy(&arp->target_hw_address, source_mac, 6);
+	int st = eth_send_packet(&arp->target_hw_address, arp, sizeof(arp_request_t), PROTO_ARP);
+	free(arp);
+	return arp;
 }
 arp_request_t* send_arp_request_ipv4(char *requested_ip)
 {
@@ -66,6 +85,15 @@ arp_request_t* send_arp_request_ipv4(char *requested_ip)
 }
 int arp_handle_packet(arp_request_t *arp, uint16_t len)
 {
+	arp->operation = LITTLE_TO_BIG16(arp->operation);
+	if(arp->target_proto_address == ip_local_ip && arp->operation == ARP_OP_REQUEST)
+	{
+		// If some machine is querying our IP, respond to it
+		reply_to_arp_request(&arp->sender_hw_address);
+		// This should do the trick, open an issue on the bug tracker if there's any problem with this
+		return 0;
+
+	}
 	if(arp_response == NULL)
 		arp_response = malloc(sizeof(arp_request_t));
 	memcpy(arp_response, arp, len);

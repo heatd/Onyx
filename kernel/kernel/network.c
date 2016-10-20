@@ -79,7 +79,7 @@ int send(int socket, const void *buffer, size_t len)
 	socket_t *sock = sock_table[socket];
 	if(!sock)
 		return errno = EINVAL, 1;
-	return send_udp_packet(buffer, len, sock->localport, sock->remote_port, local_ip, sock->remote_ip);
+	return send_udp_packet(buffer, len, sock->localport, sock->remote_port, ip_local_ip, sock->remote_ip);
 }
 void network_handle_packet(ip_header_t *hdr, uint16_t len)
 {

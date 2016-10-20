@@ -58,6 +58,8 @@ inline uint16_t ipsum(ip_header_t *hdr)
 	}
 	return ~ret;
 }
+extern uint32_t ip_local_ip;
+extern uint32_t ip_router_ip;
 int send_ipv4_packet(uint32_t senderip, uint32_t destip, unsigned int type, char *payload, size_t payload_size);
 void ip_set_local_ip(uint32_t lip);
 void ip_set_router_ip(uint32_t rout_ip);
