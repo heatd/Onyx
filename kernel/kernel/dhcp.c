@@ -42,8 +42,6 @@ void test_netstack()
 	int s = socket(AF_INET, SOCK_DGRAM, 0);
 	if(s == -1)
 		panic("Failed to create a sock for the dhcp client\n");
-		panic("Failed to bind a socket for the dhcp client!\n");
-	send(s, "ayy google", strlen("ayy google"));
 }
 int dhcp_sock = -1;
 int dhcp_initialize()
@@ -86,7 +84,7 @@ int dhcp_initialize()
 	free(dhcp_header);
 	dhcp_packet_t *response = NULL;
 
-	int response_len = recv(dhcp_sock, &response);
+	int response_len = recv(dhcp_sock, (void**) &response);
 	
 	/*uint32_t *convert = &response->options[19];
 	convert = &response->options[25];
@@ -103,14 +101,16 @@ int dhcp_initialize()
 	memcpy(&dns_server, &response->options[28], 4);
 	uint32_t own_ip = response->yiaddr;
 	char router_ip_b[4] = {0};
-	parse_ipnumber_to_char_array(router_ip, &router_ip_b);
+	parse_ipnumber_to_char_array(router_ip, router_ip_b);
 	printf("router_ip: %u.%u.%u.%u\n", router_ip_b[0], router_ip_b[1], router_ip_b[2], router_ip_b[3]);
+	UNUSED(own_ip);
+	UNUSED(response_len);
 	arp_request_t *returned_arp = send_arp_request_ipv4((char*)&router_ip_b);
 	if(!returned_arp)
 		return 1;
 	char router_mac_dhcp[6] = {0};
 	memcpy(&router_mac_dhcp, &returned_arp->sender_hw_address, 6);
-	eth_set_router_mac(&router_mac_dhcp);
+	eth_set_router_mac(router_mac_dhcp);
 	test_netstack();
 	return 0;
 }

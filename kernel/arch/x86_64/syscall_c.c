@@ -23,7 +23,9 @@
 #include <sys/time.h>
 #include <kernel/power_management.h>
 #include <sys/uio.h>
-#ifdef DEBUG_SYSCALL 1
+#include <dirent.h>
+#include <mbr.h>
+#ifdef DEBUG_SYSCALL
 #define DEBUG_PRINT_SYSTEMCALL() printf("%s: syscall\n", __func__)
 #else
 #define DEBUG_PRINT_SYSTEMCALL() asm volatile("nop")
@@ -63,6 +65,8 @@ off_t sys_lseek(int fd, off_t offset, int whence)
 spinlock_t write_spl;
 ssize_t sys_write(int fd, const void *buf, size_t count)
 {
+	if(!vmm_is_mapped((void*) buf))
+		return errno = EINVAL, -1;
 	acquire_spinlock(&write_spl);
 	DEBUG_PRINT_SYSTEMCALL();
 
@@ -112,6 +116,8 @@ int sys_munmap(void *addr, size_t length)
 		pages++;
 	if(!((uintptr_t) addr & 0xFFFFFFFFFFFFF000))
 		return errno = EINVAL, -1;
+	if(!vmm_is_mapped(addr))
+		return errno = EINVAL, -1;
 	vmm_unmap_range(addr, pages);
 	vmm_destroy_mappings(addr, pages);
 	return 0;
@@ -121,7 +127,7 @@ int sys_mprotect(void *addr, size_t len, int prot)
 	DEBUG_PRINT_SYSTEMCALL();
 
 	if(!vmm_is_mapped(addr))
-		return -1;
+		return errno = EINVAL, -1;
 	int vm_prot = 0;
 	if(prot & PROT_WRITE)
 		vm_prot |= VMM_WRITE;
@@ -137,13 +143,15 @@ spinlock_t read_spl;
 extern int tty_keyboard_pos;
 ssize_t sys_read(int fd, const void *buf, size_t count)
 {
+	if(!vmm_is_mapped((void*) buf))
+		return errno = EINVAL, -1;
 	DEBUG_PRINT_SYSTEMCALL();
 
 	acquire_spinlock(&read_spl);
 	if (fd == STDIN_FILENO)
 	{
 		char *kb_buf = tty_wait_for_line();
-		memcpy(buf, kb_buf, count);
+		memcpy((void*) buf, kb_buf, count);
 		tty_keyboard_pos = 0;
 		memset(kb_buf, 0, count);
 		memmove(kb_buf, &kb_buf[count], count);
@@ -180,6 +188,8 @@ uint64_t sys_getpid()
 spinlock_t open_spl;
 int sys_open(const char *filename, int flags)
 {
+	if(!vmm_is_mapped((void*) filename))
+		return errno = EINVAL, -1;
 	DEBUG_PRINT_SYSTEMCALL();
 	
 	acquire_spinlock(&open_spl);
@@ -197,7 +207,6 @@ int sys_open(const char *filename, int flags)
 			ioctx->file_desc[i]->seek = 0;
 			ioctx->file_desc[i]->flags = flags;
 			release_spinlock(&open_spl);
-			printf("Returning fd %i\n", i);
 			return i;
 		}
 	}
@@ -309,6 +318,14 @@ static spinlock_t posix_spawn_spl;
 extern PML4 *current_pml4;
 int sys_posix_spawn(pid_t *pid, const char *path, void *file_actions, void *attrp, char **const argv, char **const envp)
 {
+	if(!vmm_is_mapped(pid))
+		return errno = EINVAL, -1;
+	if(!vmm_is_mapped((void*) path))
+		return errno = EINVAL, -1;
+	if(!vmm_is_mapped(argv))
+		return errno = EINVAL, -1;
+	if(!vmm_is_mapped(envp))
+		return errno = EINVAL, -1;
 	DEBUG_PRINT_SYSTEMCALL();
 
 	acquire_spinlock(&posix_spawn_spl);
@@ -470,6 +487,14 @@ pid_t sys_fork()
 }
 int sys_mount(const char *source, const char *target, const char *filesystemtype, unsigned long mountflags, const void *data)
 {
+	if(!vmm_is_mapped((void*) source))
+		return errno = EINVAL, -1;
+	if(!vmm_is_mapped((void*) target))
+		return errno = EINVAL, -1;
+	if(!vmm_is_mapped((void*) filesystemtype))
+		return errno = EINVAL, -1;
+	if(!vmm_is_mapped((void*) data))
+		return errno = EINVAL, -1;
 	DEBUG_PRINT_SYSTEMCALL();
 
 	read_partitions();
@@ -486,7 +511,7 @@ uint64_t sys_brk(void *addr)
 	DEBUG_PRINT_SYSTEMCALL();
 
 	if(addr == NULL)
-		return current_process->brk;
+		return (uint64_t) current_process->brk;
 	else
 		current_process->brk = addr;
 	return 0;
@@ -504,6 +529,12 @@ extern process_t *first_process;
 static spinlock_t execve_spl;
 int sys_execve(char *path, char *argv[], char *envp[])
 {
+	if(!vmm_is_mapped(path))
+		return errno = EINVAL, -1;
+	if(!vmm_is_mapped(argv))
+		return errno = EINVAL, -1;
+	if(!vmm_is_mapped(envp))
+		return errno = EINVAL, -1;
 	DEBUG_PRINT_SYSTEMCALL();
 
 	acquire_spinlock(&execve_spl);
@@ -543,7 +574,6 @@ int sys_execve(char *path, char *argv[], char *envp[])
 int sys_wait(int *exitstatus)
 {
 	DEBUG_PRINT_SYSTEMCALL();
-
 	process_t *i = current_process;
 	_Bool has_one_child = 0;
 loop:
@@ -563,15 +593,13 @@ loop:
 time_t sys_time(time_t *s)
 {
 	DEBUG_PRINT_SYSTEMCALL();
-
-	if(s)
+	if(vmm_is_mapped(s))
 		*s = get_posix_time();
 	return get_posix_time();
 }
 int sys_gettimeofday(struct timeval *tv, struct timezone *tz)
 {
 	DEBUG_PRINT_SYSTEMCALL();
-
 	if(tv)
 	{
 		tv->tv_sec = get_posix_time();
@@ -587,7 +615,6 @@ int sys_gettimeofday(struct timeval *tv, struct timezone *tz)
 void sys_reboot()
 {
 	DEBUG_PRINT_SYSTEMCALL();
-
 	pm_reboot();
 }
 void sys_shutdown()
@@ -608,6 +635,9 @@ inline int validate_fd(int fd)
 }
 ssize_t sys_readv(int fd, const struct iovec *vec, int veccnt)
 {
+	if(!vmm_is_mapped((void*) vec))
+		return errno = EINVAL, -1;
+
 	DEBUG_PRINT_SYSTEMCALL();
 	if(validate_fd(fd))
 		return -1;
@@ -626,6 +656,9 @@ ssize_t sys_readv(int fd, const struct iovec *vec, int veccnt)
 }
 ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt)
 {
+	if(!vmm_is_mapped((void*) vec))
+		return errno = EINVAL, -1;
+	
 	DEBUG_PRINT_SYSTEMCALL();
 	size_t wrote = 0;
 
@@ -654,6 +687,9 @@ ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt)
 }
 ssize_t sys_preadv(int fd, const struct iovec *vec, int veccnt, off_t offset)
 {
+	if(!vmm_is_mapped((void*) vec))
+		return errno = EINVAL, -1;
+	
 	DEBUG_PRINT_SYSTEMCALL();
 	if(validate_fd(fd))
 		return -1;
@@ -672,6 +708,8 @@ ssize_t sys_preadv(int fd, const struct iovec *vec, int veccnt, off_t offset)
 }
 ssize_t sys_pwritev(int fd, const struct iovec *vec, int veccnt, off_t offset)
 {
+	if(!vmm_is_mapped((void*) vec))
+		return errno = EINVAL, -1;
 	DEBUG_PRINT_SYSTEMCALL();
 	if(validate_fd(fd))
 		return -1;
@@ -688,6 +726,14 @@ ssize_t sys_pwritev(int fd, const struct iovec *vec, int veccnt, off_t offset)
 	}
 	return wrote;
 }
+int sys_getdents(unsigned int fd, struct dirent *dirp, unsigned int count)
+{
+	if(!vmm_is_mapped(dirp))
+		return errno = EINVAL, -1;
+	
+	return sizeof(struct dirent) * count;
+}
+
 void *syscall_list[] =
 {
 	[0] = (void*) sys_write,

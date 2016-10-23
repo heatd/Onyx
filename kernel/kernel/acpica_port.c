@@ -19,6 +19,7 @@
 #include <kernel/task_switching.h>
 #include <drivers/pci.h>
 #include <kernel/pit.h>
+#include <drivers/rtc.h>
 
 void mutex_lock(unsigned long*);
 void mutex_unlock(unsigned long*);

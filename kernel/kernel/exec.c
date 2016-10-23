@@ -8,22 +8,27 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
+#include <errno.h>
+#include <stdio.h>
+#include <string.h>
+
+#include <sys/mman.h>
+
+#include <pthread_kernel.h>
 #include <kernel/task_switching.h>
 #include <kernel/elf.h>
 #include <kernel/vfs.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
 #include <kernel/envp.h>
-#include <sys/mman.h>
-#include <errno.h>
-#include <pthread_kernel.h>
+
 int exec(const char *path, char **argv, char **envp)
 {
 	process_t *proc = process_create(path, NULL, NULL);
 	vfsnode_t *in = open_vfs(fs_root, path);
 	if (!in)
 	{
-		printf("%s: No such file or directory\n",path);
+		printf("%s: %s\n", path, strerror(errno));
 		return errno = ENOENT;
 	}
 	char *buffer = malloc(in->size);
@@ -51,7 +56,7 @@ int exec(const char *path, char **argv, char **envp)
 	uintptr_t *fs = vmm_allocate_virt_address(0, 1, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_USER);
 	vmm_map_range(fs, 1, VMM_WRITE | VMM_NOEXEC | VMM_USER);
 	pthread_t *p = (struct pthread*) fs;
-	p->self = fs;
+	p->self = (pthread_t*) fs;
 	proc->fs = (uintptr_t) fs;
 	asm volatile("cli");
 	process_create_thread(proc, (ThreadCallback) entry, 0, argc, args, env);
