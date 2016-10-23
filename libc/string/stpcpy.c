@@ -8,10 +8,14 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#include <unistd.h>
-#include <string.h>
-int main(int argc, char **argv, char **envp)
+
+char *stpcpy(char *restrict s1, const char *restrict s2)
 {
-	write(STDOUT_FILENO, "/bin/echo: usage: /bin/echo [arguments]\n", strlen("/bin/echo: usage: /bin/echo [arguments]\n"));
-	return 0;
+	char *restrict dst = s1;
+	const char *restrict src = s2;
+	while(*src != '\0')
+	{
+		*dst++ = *src++;
+	}
+	return dst;
 }

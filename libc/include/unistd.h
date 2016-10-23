@@ -11,6 +11,8 @@
 /* My Operating System is aiming for POSIX compliance, so this header is needed */
 #ifndef _UNISTD_H
 #define _UNISTD_H
+#include <sys/types.h>
+
 /* This is complying with POSIX-1.2008 */
 #define _POSIX_VERSION 	200809L
 #define _POSIX2_VERSION 200809L
@@ -97,8 +99,6 @@
 #define STDIN_FILENO 0
 #define STDOUT_FILENO 1
 #define STDERR_FILENO 2
-
-typedef int pid_t;
 
 pid_t fork();
 int execv(const char* path, char* const argv[]);

@@ -60,8 +60,6 @@ irq_common:
 	mov ss, ax
 	mov ds, ax
 	mov es, ax
-	mov fs, ax
-	mov gs, ax
 	call irq_handler
 	push rdi
 	sub rdi, 32
@@ -71,8 +69,6 @@ irq_common:
 	pop rax
 	mov ds, ax
 	mov es, ax
-	mov fs, ax
-	mov gs, ax
 	popaq
 	iretq
 
@@ -90,7 +86,6 @@ jmp irq_common
 global isr%1
 isr%1:
 	cli
-	pop r15
 	pushaq
 	mov rdi, r15
 	mov r15, [rsp]
@@ -105,8 +100,6 @@ isr_common:
 	push rax
 	mov ax, 0x10
 	mov ds, ax
-	mov fs, ax
-	mov gs, ax
 	mov es, ax
 	mov ss, ax
 	call isr_handler
@@ -114,8 +107,6 @@ isr_common:
 	pop rax
 	mov ds,ax
 	mov es,ax
-	mov fs,ax
-	mov gs,ax
 	mov ss, ax
 	popaq
 	iretq
@@ -162,8 +153,6 @@ irq0:
 	mov ax, 0x10
 	mov ds, ax
 	mov ss, ax
-	mov fs, ax
-	mov gs, ax
 	mov es, ax
 	extern timer_handler
 	call timer_handler
@@ -174,8 +163,6 @@ irq0:
 	; reload segs
 	pop rax
 	mov ds, ax
-	mov fs, ax
-	mov gs, ax
 	mov es, ax
 	mov al, 0x20
 	out 0x20, al
@@ -247,8 +234,6 @@ __syscall_int:
 	mov cx, 0x10
 	mov ds, cx
 	mov ss, cx
-	mov fs, cx
-	mov gs, cx
 	mov es, cx
 	cmp rax, SYSCALL_MAX_NUM
 	jl .syscall_exit
@@ -260,8 +245,6 @@ __syscall_int:
 	call [syscall_list + rax * 8]
 .syscall_exit:	pop rcx
 	mov ds, cx
-	mov fs, cx
-	mov gs, cx
 	mov es, cx
 	syscallpopregs
 	iretq

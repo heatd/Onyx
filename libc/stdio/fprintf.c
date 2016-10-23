@@ -8,10 +8,17 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#include <unistd.h>
-#include <string.h>
-int main(int argc, char **argv, char **envp)
+#include "stdio_impl.h"
+#include <stdio.h>
+#include <stdarg.h>
+
+int fprintf(FILE* file, const char* string, ...)
 {
-	write(STDOUT_FILENO, "/bin/echo: usage: /bin/echo [arguments]\n", strlen("/bin/echo: usage: /bin/echo [arguments]\n"));
-	return 0;
+	va_list varg;
+	va_start(varg, string);
+	char buffer[strlen(string) + 250];
+	vsprintf(buffer, string, varg);
+	va_end(varg);
+	return fwrite((const void*) &buffer, strlen(buffer), sizeof(char), file);
 }
+

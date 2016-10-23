@@ -3,6 +3,7 @@ OBJS:= main.o
 CFLAGS:=-O2 -g -static -nostartfiles
 clean:
 	rm -f $(PROG)
+	rm -f $(OBJS)
 install: $(PROG)
 	mkdir -p $(DESTDIR)/sbin/
 	cp $(PROG) $(DESTDIR)/sbin/

@@ -89,19 +89,6 @@ stack_bottom:
 stack_top:
 
 section .text
-test:
-jmp test
-global user_space
-user_space:
-	mov ax,0x23
-	mov ds,ax
-	mov es,ax
-	mov fs,ax
-	mov gs,ax ;we don't need to worry about SS. it's handled by iret
-	mov rcx, test
-	pushf
-	pop r11
-	o64 sysret
 extern kernel_early
 extern kernel_main
 extern _init
@@ -216,12 +203,12 @@ gdtr1:
 	DD	gdt
 
 gdtr2:
-	DW	40
+	DW	72
 	DD	gdt + 24
 	DD	0
 
 gdtr3:
-	DW	56
+	DW	72
 	DQ	gdt + 24 + 0xFFFFFFFF80000000
 section .bss
 global tss

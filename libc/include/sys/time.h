@@ -10,9 +10,9 @@
  *----------------------------------------------------------------------*/
 #ifndef _TIME_H
 #define _TIME_H
-#include <stdint.h>
-typedef uint64_t time_t;
-typedef uint64_t suseconds_t;
+#include <sys/types.h>
+
+typedef unsigned long long suseconds_t;
 struct timeval
 {
 	time_t      tv_sec;     /* seconds */

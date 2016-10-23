@@ -8,10 +8,18 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#include <unistd.h>
-#include <string.h>
-int main(int argc, char **argv, char **envp)
-{
-	write(STDOUT_FILENO, "/bin/echo: usage: /bin/echo [arguments]\n", strlen("/bin/echo: usage: /bin/echo [arguments]\n"));
-	return 0;
-}
+#ifndef _WCHAR_H
+#define _WCHAR_H
+
+#include <stdint.h>
+#include <stddef.h>
+
+
+wchar_t *wmemcpy(wchar_t *restrict, const wchar_t *restrict, size_t);
+
+
+
+
+
+
+#endif

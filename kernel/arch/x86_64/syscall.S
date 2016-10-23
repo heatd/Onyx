@@ -67,6 +67,6 @@ __syscall:
 	shr rdx, 32
 	wrmsr
 	mov ecx, 0xC0000084
-	xor eax, eax
+	mov eax, 0b11000000000
 	wrmsr
 	ret

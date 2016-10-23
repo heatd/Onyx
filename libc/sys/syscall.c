@@ -8,10 +8,5 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#include <unistd.h>
-#include <string.h>
-int main(int argc, char **argv, char **envp)
-{
-	write(STDOUT_FILENO, "/bin/echo: usage: /bin/echo [arguments]\n", strlen("/bin/echo: usage: /bin/echo [arguments]\n"));
-	return 0;
-}
+#include <stdarg.h>
+#include <sys/syscall.h>

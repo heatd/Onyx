@@ -196,6 +196,8 @@ void* sched_switch_thread(void* last_stack)
 			{
 				paging_load_cr3(current_process->cr3);
 			}
+			wrmsr(FS_BASE_MSR, current_process->fs & 0xFFFFFFFF, current_process->fs >> 32);
+			wrmsr(GS_BASE_MSR, (uintptr_t)current_thread & 0xFFFFFFFF, (uintptr_t)current_thread >> 32);
 		}
 		return current_thread->kernel_stack;
 	}

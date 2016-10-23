@@ -8,10 +8,11 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#include <unistd.h>
-#include <string.h>
-int main(int argc, char **argv, char **envp)
+#include <stddef.h>
+#include <stdint.h>
+#include "stdio_impl.h"
+#include <stdio.h>
+size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream)
 {
-	write(STDOUT_FILENO, "/bin/echo: usage: /bin/echo [arguments]\n", strlen("/bin/echo: usage: /bin/echo [arguments]\n"));
-	return 0;
+	return __stdio_read(ptr, size, nmemb, stream);
 }

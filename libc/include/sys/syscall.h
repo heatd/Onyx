@@ -11,31 +11,48 @@
 #ifndef SYSCALL_H
 #define SYSCALL_H
 
-#define TERMINAL_WRITE_SYSCALL 0L
-#define FORK_SYSCALL 	1L
-#define EXIT_SYSCALL 	2L
-#define MMAP_SYSCALL 	3L
-#define EXEC_SYSCALL 	4L
-#define ABORT_SYSCALL 	5L
+// The Spartix kernel's system call numbers
+#define SYS_write	0
+#define SYS_read 	1
+#define SYS_open 	2
+#define SYS_close 	3
+#define SYS_dup  	4
+#define SYS_dup2 	5
+#define SYS_getpid	6
+#define SYS_lseek	7
+#define SYS_exit	8
+#define SYS_posix_spawn	9
+#define SYS_fork	10
+#define SYS_mmap	11
+#define SYS_munmap	12
+#define SYS_mprotect	13
+#define SYS_mount	14
+#define SYS_execve	15
+#define SYS_brk		16
+#define SYS_kill	17
+#define SYS_getppid	18
+#define SYS_wait	19	
+#define SYS_time	20
+#define SYS_gettimeofday 21
+#define SYS_reboot	22
+#define SYS_shutdown	23
+#define SYS_readv	24
+#define SYS_writev	25
+#define SYS_preadv	26
+#define SYS_pwritev	27
 
-#ifdef __i386__
-#define SYSCALL(intno,ebxr,ecxr,edxr,edir,esir) \
-__asm__ __volatile__("movl %0,%%eax"::"a"(intno)); \
-__asm__ __volatile__("movl %0,%%ebx"::"a"(ebxr)); \
-__asm__ __volatile__("movl %0,%%ecx"::"a"(ecxr)); \
-__asm__ __volatile__("movl %0,%%edx"::"a"(edxr)); \
-__asm__ __volatile__("movl %0,%%edi"::"a"(edir)); \
-__asm__ __volatile__("movl %0,%%esi"::"a"(esir)); \
-__asm__ __volatile__("int $0x80");
-#endif
-#ifdef __x86_64__
-#define SYSCALL(intno,rbxr,rcxr,rdxr,rdir,rsir) \
-__asm__ __volatile__("movq %0,%%rax"::"a"(intno)); \
-__asm__ __volatile__("movq %0,%%rbx"::"a"(rbxr)); \
-__asm__ __volatile__("movq %0,%%rcx"::"a"(rcxr)); \
-__asm__ __volatile__("movq %0,%%rdx"::"a"(rdxr)); \
-__asm__ __volatile__("movq %0,%%rdi"::"a"(rdir)); \
-__asm__ __volatile__("movq %0,%%rsi"::"a"(rsir)); \
-__asm__ __volatile__("int $0x80");
-#endif
+#define __syscall0(no) __asm__ __volatile__("int $0x80"::"a"(no):"memory")
+#define __syscall1(no, a) __asm__ __volatile__("int $0x80"::"a"(no), "D"(a) : "memory")
+#define __syscall2(no, a, b) __asm__ __volatile__("int $0x80"::"a"(no), "D"(a), "S"(b) : "memory")
+#define __syscall3(no, a, b, c) __asm__ __volatile__("int $0x80"::"a"(no), "D"(a), "S"(b), "d"(c) : "memory")
+#define __syscall4(no, a, b, c, d) __asm__ __volatile__("int $0x80"::"a"(no), "D"(a), "S"(b), "d"(c), "c"(d) : "memory")
+#define __syscall5(no, a, b, c, d, e) __asm__ __volatile__("mov %0, %r8;int $0x80"::"r"(e), a"(no), "D"(a), "S"(b), "d"(c), "c"(d) : "memory")
+#define __syscall6(no, a, b, c, d, e, f) __asm__ __volatile__("mov %0, %r8;mov %1, %r9;int $0x80"::"r"(e), "r"(f), "a"(no), "D"(a), "S"(b), "d"(c), "c"(d) : "memory")
+
+#define MKFN(fn,...) MKFN_N(fn,##__VA_ARGS__,9,8,7,6,5,4,3,2,1,0)(__VA_ARGS__)
+#define MKFN_N(fn,NR,n0,n1,n2,n3,n4,n5,n6,n7,n8,n,...) fn##n
+
+#define syscall(...) MKFN(__syscall, ##__VA_ARGS__); \
+register unsigned long rax asm ("rax") \
+
 #endif

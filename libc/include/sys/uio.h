@@ -8,10 +8,18 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#include <unistd.h>
-#include <string.h>
-int main(int argc, char **argv, char **envp)
+#ifndef _UIO_H
+#define _UIO_H
+#include <stddef.h>
+
+#undef iovec
+struct iovec
 {
-	write(STDOUT_FILENO, "/bin/echo: usage: /bin/echo [arguments]\n", strlen("/bin/echo: usage: /bin/echo [arguments]\n"));
-	return 0;
-}
+	void *iov_base;
+	size_t iov_len;
+};
+
+ssize_t readv(int, const struct iovec *, int);
+ssize_t writev(int, const struct iovec *, int);
+
+#endif

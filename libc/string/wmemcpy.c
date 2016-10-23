@@ -8,10 +8,13 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#include <unistd.h>
 #include <string.h>
-int main(int argc, char **argv, char **envp)
+
+wchar_t *wmemcpy(wchar_t *restrict ws1, const wchar_t *restrict ws2, size_t n)
 {
-	write(STDOUT_FILENO, "/bin/echo: usage: /bin/echo [arguments]\n", strlen("/bin/echo: usage: /bin/echo [arguments]\n"));
-	return 0;
+	for(size_t i = 0; i < n; i++)
+	{
+		ws1[i] = ws2[i];
+	}
+	return ws1;
 }

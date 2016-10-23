@@ -1,6 +1,6 @@
 # System Calls
 
-The kernel exposes the system calls to the user-space by the interrupt vector 0x80 ( 128 decimal ). In the future, syscall will be supported.
+The kernel exposes the system calls to the user-space by the interrupt vector 0x80(128 decimal). In the future, syscall will be supported.
 
 ## Table of System calls
 
@@ -26,3 +26,11 @@ The kernel exposes the system calls to the user-space by the interrupt vector 0x
 | 17 | kill() system call |
 | 18 | getppid() system call |
 | 19 | wait() system call |
+| 20 | time() system call |
+| 21 | gettimeofday() system call |
+| 22 | reboot() system call |
+| 23 | shutdown() system call |
+| 24 | readv() system call |
+| 25 | writev() system call |
+| 26 | preadv() system call |
+| 27 | pwritev() system call |

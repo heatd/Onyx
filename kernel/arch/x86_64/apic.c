@@ -32,11 +32,6 @@ void rdmsr(uint32_t msr, uint32_t *lo, uint32_t *hi)
 {
    asm volatile("rdmsr" : "=a"(*lo), "=d"(*hi) : "c"(msr));
 }
- 
-void wrmsr(uint32_t msr, uint32_t lo, uint32_t hi)
-{
-   asm volatile("wrmsr" : : "a"(lo), "d"(hi), "c"(msr));
-}
 
 uint32_t volatile *lapic_ipiid = NULL;
 uint32_t volatile *lapic_icr = NULL;

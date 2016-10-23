@@ -22,22 +22,29 @@
 #include <drivers/rtc.h>
 #include <sys/time.h>
 #include <kernel/power_management.h>
+#include <sys/uio.h>
+#ifdef DEBUG_SYSCALL 1
+#define DEBUG_PRINT_SYSTEMCALL() printf("%s: syscall\n", __func__)
+#else
+#define DEBUG_PRINT_SYSTEMCALL() asm volatile("nop")
+#endif
 
-const uint32_t SYSCALL_MAX_NUM = 23;
+const uint32_t SYSCALL_MAX_NUM = 27;
 spinlock_t lseek_spl;
 off_t sys_lseek(int fd, off_t offset, int whence)
 {
 	acquire_spinlock(&lseek_spl);
+	DEBUG_PRINT_SYSTEMCALL();
 	if (fd > UINT16_MAX)
 	{
 		release_spinlock(&lseek_spl);
-		return errno = EBADFD, -1;
+		return errno = EBADF, -1;
 	}
 	ioctx_t *ioctx = &current_process->ctx;
 	if(ioctx->file_desc[fd] == NULL)
 	{
 		release_spinlock(&lseek_spl);
-		return errno = EBADFD, -1;
+		return errno = EBADF, -1;
 	}
 	if(whence == SEEK_CUR)
 		ioctx->file_desc[fd]->seek += offset;
@@ -57,6 +64,8 @@ spinlock_t write_spl;
 ssize_t sys_write(int fd, const void *buf, size_t count)
 {
 	acquire_spinlock(&write_spl);
+	DEBUG_PRINT_SYSTEMCALL();
+
 	if(fd == 1)
 		tty_write(buf, count);
 	release_spinlock(&write_spl);
@@ -64,6 +73,7 @@ ssize_t sys_write(int fd, const void *buf, size_t count)
 }
 void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
+	DEBUG_PRINT_SYSTEMCALL();
 	void *mapping_addr = NULL;
 	// Calculate the pages needed for the overall size
 	size_t pages = length / PAGE_SIZE;
@@ -93,6 +103,8 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 }
 int sys_munmap(void *addr, size_t length)
 {
+	DEBUG_PRINT_SYSTEMCALL();
+
 	if ((uintptr_t) addr >= VM_HIGHER_HALF)
 		return errno = EINVAL, -1;
 	size_t pages = length / PAGE_SIZE;
@@ -106,6 +118,8 @@ int sys_munmap(void *addr, size_t length)
 }
 int sys_mprotect(void *addr, size_t len, int prot)
 {
+	DEBUG_PRINT_SYSTEMCALL();
+
 	if(!vmm_is_mapped(addr))
 		return -1;
 	int vm_prot = 0;
@@ -123,6 +137,8 @@ spinlock_t read_spl;
 extern int tty_keyboard_pos;
 ssize_t sys_read(int fd, const void *buf, size_t count)
 {
+	DEBUG_PRINT_SYSTEMCALL();
+
 	acquire_spinlock(&read_spl);
 	if (fd == STDIN_FILENO)
 	{
@@ -138,12 +154,12 @@ ssize_t sys_read(int fd, const void *buf, size_t count)
 	if( fd > UINT16_MAX)
 	{
 		release_spinlock(&read_spl);
-		return errno = EBADFD;
+		return errno = EBADF;
 	}
 	if(ioctx->file_desc[fd] == NULL)
 	{
 		release_spinlock(&read_spl);
-		return errno = EBADFD;
+		return errno = EBADF;
 	}
 	if(!buf)
 	{
@@ -157,11 +173,15 @@ ssize_t sys_read(int fd, const void *buf, size_t count)
 }
 uint64_t sys_getpid()
 {
+	DEBUG_PRINT_SYSTEMCALL();
+
 	return current_process->pid;
 }
 spinlock_t open_spl;
 int sys_open(const char *filename, int flags)
 {
+	DEBUG_PRINT_SYSTEMCALL();
+	
 	acquire_spinlock(&open_spl);
 	ioctx_t *ioctx = &current_process->ctx;
 	for(int i = 0; i < UINT16_MAX; i++)
@@ -187,17 +207,19 @@ int sys_open(const char *filename, int flags)
 spinlock_t close_spl;
 int sys_close(int fd)
 {
+	DEBUG_PRINT_SYSTEMCALL();
+
 	acquire_spinlock(&close_spl);
 	if(fd > UINT16_MAX) 
 	{
 		release_spinlock(&close_spl);
-		return errno = EBADFD;
+		return errno = EBADF;
 	}
 	ioctx_t *ioctx = &current_process->ctx;	
 	if(ioctx->file_desc[fd] == NULL)
 	{
 		release_spinlock(&close_spl);
-		return errno = EBADFD;
+		return errno = EBADF;
 	}
 	close_vfs(ioctx->file_desc[fd]->vfs_node);
 	ioctx->file_desc[fd]->vfs_node->refcount--;
@@ -212,17 +234,19 @@ int sys_close(int fd)
 spinlock_t dup_spl;
 int sys_dup(int fd)
 {
+	DEBUG_PRINT_SYSTEMCALL();
+
 	acquire_spinlock(&dup_spl);
 	if(fd > UINT16_MAX)
 	{
 		release_spinlock(&dup_spl);
-		return errno = EBADFD;
+		return errno = EBADF;
 	}
 	ioctx_t *ioctx = &current_process->ctx;
 	if(ioctx->file_desc[fd] == NULL)
 	{
 		release_spinlock(&dup_spl);
-		return errno = EBADFD;
+		return errno = EBADF;
 	}
 	for(int i = 0; i < UINT16_MAX; i++)
 	{
@@ -239,22 +263,24 @@ int sys_dup(int fd)
 spinlock_t dup2_spl;
 int sys_dup2(int oldfd, int newfd)
 {
+	DEBUG_PRINT_SYSTEMCALL();
+
 	acquire_spinlock(&dup2_spl);
 	if(oldfd > UINT16_MAX)
 	{
 		release_spinlock(&dup2_spl);
-		return errno = EBADFD;
+		return errno = EBADF;
 	}
 	if(newfd > UINT16_MAX)
 	{
 		release_spinlock(&dup2_spl);
-		return errno = EBADFD;
+		return errno = EBADF;
 	}
 	ioctx_t *ioctx = &current_process->ctx;
 	if(ioctx->file_desc[oldfd] == NULL)
 	{
 		release_spinlock(&dup2_spl);
-		return errno = EBADFD;
+		return errno = EBADF;
 	}
 	if(ioctx->file_desc[newfd])
 		sys_close(newfd);
@@ -265,6 +291,8 @@ int sys_dup2(int oldfd, int newfd)
 }
 void sys__exit(int status)
 {
+	DEBUG_PRINT_SYSTEMCALL();
+
 	asm volatile("cli");
 	if(current_process->pid == 1)
 	{
@@ -281,6 +309,8 @@ static spinlock_t posix_spawn_spl;
 extern PML4 *current_pml4;
 int sys_posix_spawn(pid_t *pid, const char *path, void *file_actions, void *attrp, char **const argv, char **const envp)
 {
+	DEBUG_PRINT_SYSTEMCALL();
+
 	acquire_spinlock(&posix_spawn_spl);
 	// Create a new clean process
 	process_t *new_proc = process_create(path, &current_process->ctx, current_process);
@@ -377,6 +407,10 @@ int sys_posix_spawn(pid_t *pid, const char *path, void *file_actions, void *attr
 	{
 		new_arguments[i] = ((uint64_t)new_arguments[i] - (uint64_t)arguments) + (uint64_t)new_arguments;
 	}
+	// Allocate space for %fs TODO: Do this while in elf_load, as we need the TLS size
+	uintptr_t *fs = vmm_allocate_virt_address(0, 1, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_USER);
+	vmm_map_range(fs, 1, VMM_WRITE | VMM_NOEXEC | VMM_USER);
+	new_proc->fs = (uintptr_t) fs;
 	/*uintptr_t *new_envp = vmm_allocate_virt_address(0, env_pages, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_USER);
 	vmm_map_range(new_envp, env_pages, VMM_WRITE | VMM_NOEXEC | VMM_USER);
 	memcpy(new_envp, variables, env_pages * PAGE_SIZE);
@@ -400,6 +434,8 @@ extern uintptr_t forkstack;
 extern uintptr_t forkret;
 pid_t sys_fork()
 {	
+	DEBUG_PRINT_SYSTEMCALL();
+
 	uintptr_t *forkstackregs = (uintptr_t*)forkretregs; // Go to the start of the little reg save
 	process_t *proc = current_process;
 	if(!proc)
@@ -434,15 +470,21 @@ pid_t sys_fork()
 }
 int sys_mount(const char *source, const char *target, const char *filesystemtype, unsigned long mountflags, const void *data)
 {
+	DEBUG_PRINT_SYSTEMCALL();
+
 	read_partitions();
 	return 0;
 }
 uint64_t sys_nosys()
 {
+	DEBUG_PRINT_SYSTEMCALL();
+
 	return (uint64_t) -1;
 }
 uint64_t sys_brk(void *addr)
 {
+	DEBUG_PRINT_SYSTEMCALL();
+
 	if(addr == NULL)
 		return current_process->brk;
 	else
@@ -451,6 +493,8 @@ uint64_t sys_brk(void *addr)
 }
 pid_t sys_getppid()
 {
+	DEBUG_PRINT_SYSTEMCALL();
+
 	if(current_process->parent)
 		return current_process->parent->pid;
 	else
@@ -460,6 +504,8 @@ extern process_t *first_process;
 static spinlock_t execve_spl;
 int sys_execve(char *path, char *argv[], char *envp[])
 {
+	DEBUG_PRINT_SYSTEMCALL();
+
 	acquire_spinlock(&execve_spl);
 	size_t areas;
 	vmm_entry_t *entries;
@@ -496,6 +542,8 @@ int sys_execve(char *path, char *argv[], char *envp[])
 }
 int sys_wait(int *exitstatus)
 {
+	DEBUG_PRINT_SYSTEMCALL();
+
 	process_t *i = current_process;
 	_Bool has_one_child = 0;
 loop:
@@ -514,12 +562,16 @@ loop:
 }
 time_t sys_time(time_t *s)
 {
+	DEBUG_PRINT_SYSTEMCALL();
+
 	if(s)
 		*s = get_posix_time();
 	return get_posix_time();
 }
 int sys_gettimeofday(struct timeval *tv, struct timezone *tz)
 {
+	DEBUG_PRINT_SYSTEMCALL();
+
 	if(tv)
 	{
 		tv->tv_sec = get_posix_time();
@@ -534,11 +586,107 @@ int sys_gettimeofday(struct timeval *tv, struct timezone *tz)
 }
 void sys_reboot()
 {
+	DEBUG_PRINT_SYSTEMCALL();
+
 	pm_reboot();
 }
 void sys_shutdown()
 {
+	DEBUG_PRINT_SYSTEMCALL();
 	pm_shutdown();
+}
+inline int validate_fd(int fd)
+{
+	if(fd > UINT16_MAX)
+	{
+		return errno = EBADF;
+	}
+	ioctx_t *ctx = &current_process->ctx;
+	if(ctx->file_desc[fd] == NULL)
+		return errno = EBADF;
+	return 0;
+}
+ssize_t sys_readv(int fd, const struct iovec *vec, int veccnt)
+{
+	DEBUG_PRINT_SYSTEMCALL();
+	if(validate_fd(fd))
+		return -1;
+	ioctx_t *ctx = &current_process->ctx;
+	if(!vec)
+		return errno = EINVAL, -1;
+	if(veccnt == 0)
+		return 0;
+	size_t read = 0;
+	for(int i = 0; i < veccnt; i++)
+	{
+		read_vfs(ctx->file_desc[fd]->seek, vec[i].iov_len, vec[i].iov_base, ctx->file_desc[fd]->vfs_node);
+		read += vec[i].iov_len;
+	}
+	return read;
+}
+ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt)
+{
+	DEBUG_PRINT_SYSTEMCALL();
+	size_t wrote = 0;
+
+	if(fd == STDOUT_FILENO)
+	{
+		for(int i = 0; i < veccnt; i++)
+		{
+			tty_write(vec[i].iov_base, vec[i].iov_len);
+			wrote += vec[i].iov_len;
+		}
+		return wrote;
+	}
+	if(validate_fd(fd))
+		return -1;
+	ioctx_t *ctx = &current_process->ctx;
+	if(!vec)
+		return errno = EINVAL, -1;
+	if(veccnt == 0)
+		return 0;
+	for(int i = 0; i < veccnt; i++)
+	{
+		write_vfs(ctx->file_desc[fd]->seek, vec[i].iov_len, vec[i].iov_base, ctx->file_desc[fd]->vfs_node);
+		wrote += vec[i].iov_len;
+	}
+	return wrote;
+}
+ssize_t sys_preadv(int fd, const struct iovec *vec, int veccnt, off_t offset)
+{
+	DEBUG_PRINT_SYSTEMCALL();
+	if(validate_fd(fd))
+		return -1;
+	ioctx_t *ctx = &current_process->ctx;
+	if(!vec)
+		return errno = EINVAL, -1;
+	if(veccnt == 0)
+		return 0;
+	size_t read = 0;
+	for(int i = 0; i < veccnt; i++)
+	{
+		read_vfs(offset, vec[i].iov_len, vec[i].iov_base, ctx->file_desc[fd]->vfs_node);
+		read += vec[i].iov_len;
+	}
+	return read;
+}
+ssize_t sys_pwritev(int fd, const struct iovec *vec, int veccnt, off_t offset)
+{
+	DEBUG_PRINT_SYSTEMCALL();
+	if(validate_fd(fd))
+		return -1;
+	ioctx_t *ctx = &current_process->ctx;
+	if(!vec)
+		return errno = EINVAL, -1;
+	if(veccnt == 0)
+		return 0;
+	size_t wrote = 0;
+	for(int i = 0; i < veccnt; i++)
+	{
+		write_vfs(offset, vec[i].iov_len, vec[i].iov_base, ctx->file_desc[fd]->vfs_node);
+		wrote += vec[i].iov_len;
+	}
+	return wrote;
 }
 void *syscall_list[] =
 {
@@ -566,4 +714,8 @@ void *syscall_list[] =
 	[21] = (void*) sys_gettimeofday,
 	[22] = (void*) sys_reboot,
 	[23] = (void*) sys_shutdown,
+	[24] = (void*) sys_readv,
+	[25] = (void*) sys_writev,
+	[26] = (void*) sys_preadv,
+	[27] = (void*) sys_pwritev,
 };

@@ -14,6 +14,7 @@
 #include <sys/cdefs.h>
 
 #include <stddef.h>
+#include <wchar.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,6 +31,9 @@ int strcmp(char *s, char *t);
 char *strstr(char *str, char *substr);
 char* strtok(char* s, char* delm);
 void *memchr(const void *str, int c, size_t n);
+wchar_t *wmemcpy(wchar_t *restrict ws1, const wchar_t *restrict ws2, size_t n);
+char *stpcpy(char *restrict s1, const char *restrict s2);
+char *strerror(int errnum);
 #ifdef __cplusplus
 }
 #endif

@@ -236,7 +236,6 @@ void kernel_multitasking(void *arg)
 		printf("eth0: failed to find a compatible device\n");
 	else
 		printf("eth0: found compatible device\n");
-	char ip[] = {10, 0, 2, 2};
 	dhcp_initialize();
 	exec("/sbin/init", args, envp);
 	for (;;) asm volatile("hlt");

@@ -8,10 +8,11 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#include <unistd.h>
-#include <string.h>
-int main(int argc, char **argv, char **envp)
-{
-	write(STDOUT_FILENO, "/bin/echo: usage: /bin/echo [arguments]\n", strlen("/bin/echo: usage: /bin/echo [arguments]\n"));
-	return 0;
-}
+#include <stddef.h>
+#include <stdint.h>
+#include "stdio_impl.h"
+#include <stdio.h>
+size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream)
+ {
+	 return __stdio_write(ptr, size, nmemb, stream);
+ }

@@ -8,10 +8,20 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#include <unistd.h>
 #include <string.h>
-int main(int argc, char **argv, char **envp)
+#include <stdlib.h>
+
+void *memccpy(void *restrict s1, const void *restrict s2, int c, size_t n)
 {
-	write(STDOUT_FILENO, "/bin/echo: usage: /bin/echo [arguments]\n", strlen("/bin/echo: usage: /bin/echo [arguments]\n"));
-	return 0;
+	unsigned char *restrict dstptr = (unsigned char *restrict) s1;
+	const unsigned char *restrict srcptr = (const unsigned char *restrict) s2;
+	for(size_t i = 0; i < n; i++)
+	{
+		*dstptr++ = *srcptr++;
+		if(*srcptr-1 == (unsigned char) c)
+		{
+			return (void*) dstptr;
+		}
+	}
+	return NULL;
 }

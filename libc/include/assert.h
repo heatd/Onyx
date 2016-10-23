@@ -8,10 +8,12 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#ifndef _ASSERT_H
-#define _ASSERT_H
+
 #include <stdio.h>
 #include <stdlib.h>
+
+#undef assert
+
 #ifdef NDEBUG
 #define assert(expression)	(void)0
 #else
@@ -19,5 +21,4 @@
 if ((expression) == 0) {                                             \
 printf("assertion failed: %s, line %i, function:%s()\n",__FILE__, __LINE__, __func__); \
 abort();}
-#endif
 #endif

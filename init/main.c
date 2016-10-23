@@ -14,6 +14,7 @@
 #include <sys/mman.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/uio.h>
 char buf[1024] = {0};
 #define MAX_COMMANDS 100
 int last_command_index = 0;
@@ -24,6 +25,7 @@ typedef struct
 	command_callback_t cmdc;
 } command_t;
 command_t commands[MAX_COMMANDS];
+
 int process_command()
 {
 	for(int i = 0; i < last_command_index; i++)
@@ -34,19 +36,7 @@ int process_command()
 			call(&buf[strlen(commands[i].name)]);
 			return 0;
 		}
-	}/*
-	pid_t pid = fork();
-	if(pid == 0)
-	{
-		if(execve(buf, NULL, environ))
-			exit(1);
 	}
-	if(pid > 0)
-	{
-		int status;
-		wait(&status);
-		return 0;
-	}*/
 	return 1;
 }
 int help(char *unused)
@@ -96,7 +86,6 @@ int _start(int argc, char **argv, char **envp)
 		if(b == (size_t) -1)
 			printf("[LIBC] ERROR: fread() failed!\n");
 		int ret = process_command();
-		printf("[%d]", buf[0]);
 		if(ret)
 		{
 			if(buf[0] == '\n')

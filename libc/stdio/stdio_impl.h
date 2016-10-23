@@ -8,10 +8,20 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#include <unistd.h>
-#include <string.h>
-int main(int argc, char **argv, char **envp)
+#ifndef _STDIO_IMPL_H
+#define _STDIO_IMPL_H
+#include <stddef.h>
+#include <stdio.h>
+#include <sys/types.h>
+struct _IO_FILE
 {
-	write(STDOUT_FILENO, "/bin/echo: usage: /bin/echo [arguments]\n", strlen("/bin/echo: usage: /bin/echo [arguments]\n"));
-	return 0;
-}
+	int fd;
+	void *buf;
+	size_t buf_size;
+	off_t off;
+	unsigned int mode;
+	volatile long lock;
+};
+size_t __stdio_write(const void *ptr, size_t size, size_t nmemb, FILE *stream);
+size_t __stdio_read(const void *ptr, size_t size, size_t nmemb, FILE *stream);
+#endif

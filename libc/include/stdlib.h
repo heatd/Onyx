@@ -37,6 +37,10 @@ void qsort(void* base_ptr,
            size_t num_elements,
            size_t element_size,
            int (*compare)(const void*, const void*));
+
+__attribute__ ((__noreturn__))
+void _Exit(int s);
+
 #ifdef __cplusplus
 }
 #endif

@@ -9,9 +9,26 @@
  * Foundation.
  *----------------------------------------------------------------------*/
 #include <unistd.h>
-#include <string.h>
-int main(int argc, char **argv, char **envp)
+#include <sys/types.h>
+#include <sys/syscall.h>
+
+int open(const char *path, int flags)
 {
-	write(STDOUT_FILENO, "/bin/echo: usage: /bin/echo [arguments]\n", strlen("/bin/echo: usage: /bin/echo [arguments]\n"));
-	return 0;
+	syscall(SYS_open, path, flags);
+	return rax;
+}
+int read(int fd, void *buf, unsigned int count)
+{
+	syscall(SYS_read, fd, buf, count);
+	return rax;
+}
+int write(int fd, void *buf, unsigned int count)
+{
+	syscall(SYS_write, fd, buf, count);
+	return rax;
+}
+unsigned long lseek(int fd, unsigned long offset, int whence)
+{
+	syscall(SYS_lseek, fd, offset, whence);
+	return rax;
 }

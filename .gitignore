@@ -14,3 +14,5 @@ newlib
 init/init
 cat/cat
 echo/echo
+*.pcap
+*.pcapng

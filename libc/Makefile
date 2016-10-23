@@ -47,9 +47,20 @@ string/strstr.o \
 stdlib/qsort.o \
 string/strtok.o \
 math/fabs.o \
-posix/posix_syscalls.o \
 stdlib/malloc.o \
-stdio/vprintf.o
+stdio/vprintf.o \
+string/wmemcpy.o \
+string/memccpy.o \
+string/strerror.o \
+string/stpcpy.o \
+stdlib/_Exit.o \
+posix/io.o \
+posix/uio.o \
+stdio/fprintf.o \
+stdio/fread.o \
+stdio/fwrite.o \
+stdio/sprintf.o \
+stdio/stdio.o
 
 OBJS:=\
 $(FREEOBJS) \
