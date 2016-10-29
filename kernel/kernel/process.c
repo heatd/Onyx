@@ -10,6 +10,7 @@
  *----------------------------------------------------------------------*/
 #include <stdint.h>
 #include <stdlib.h>
+#include <errno.h>
 #include <kernel/process.h>
 process_t *first_process = NULL;
 process_t *current_process = NULL;
@@ -18,7 +19,7 @@ process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent)
 {
 	process_t *proc = malloc(sizeof(process_t));
 	if(!proc)
-		return NULL;
+		return errno = ENOMEM, NULL;
 	memset(proc, 0, sizeof(process_t));
 	proc->pid = current_pid;
 	current_pid++;

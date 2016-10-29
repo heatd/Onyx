@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <mbr.h>
 #include <multiboot2.h>
+#include <errno.h>
 
 #include <kernel/vmm.h>
 #include <kernel/paging.h>
@@ -217,12 +218,11 @@ void kernel_multitasking(void *arg)
 	vmm_map_range(mem, 1024, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
 	/* Create PTY */
 	tty_create_pty_and_switch(mem);
-	printf("Spartix kernel %s branch %s build %d for the %s architecture\n",
+	printf(ANSI_COLOR_GREEN "Spartix kernel %s branch %s build %d for the %s architecture\n" ANSI_COLOR_RESET,
 	     KERNEL_VERSION, KERNEL_BRANCH, &__BUILD_NUMBER, KERNEL_ARCH);
 	printf("This kernel was built on %s, %d as integer\n", __DATE__, &__BUILD_DATE);
 	/* Initialize PCI */
 	pci_init();
-	
 	extern void init_elf_symbols(struct multiboot_tag_elf_sections *);
 	init_elf_symbols(secs);
 	initialize_ata();
@@ -237,6 +237,7 @@ void kernel_multitasking(void *arg)
 	else
 		printf("eth0: found compatible device\n");
 	dhcp_initialize();
+	// TODO: Fix the ext2 driver
 	exec("/sbin/init", args, envp);
 	for (;;) asm volatile("hlt");
 }

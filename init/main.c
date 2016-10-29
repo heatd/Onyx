@@ -17,6 +17,14 @@
 #include <sys/uio.h>
 char buf[1024] = {0};
 #define MAX_COMMANDS 100
+#define ANSI_COLOR_RED     "\x1b[31m"
+#define ANSI_COLOR_GREEN   "\x1b[32m"
+#define ANSI_COLOR_YELLOW  "\x1b[33m"
+#define ANSI_COLOR_BLUE    "\x1b[34m"
+#define ANSI_COLOR_MAGENTA "\x1b[35m"
+#define ANSI_COLOR_CYAN    "\x1b[36m"
+#define ANSI_COLOR_RESET   "\x1b[0m"
+
 int last_command_index = 0;
 typedef int(*command_callback_t)(char *args);
 typedef struct
@@ -61,7 +69,7 @@ int getshellpid(char *unused)
 }
 int _start(int argc, char **argv, char **envp)
 {
-	printf("/sbin/init invoked!\n");
+	printf(ANSI_COLOR_GREEN "/sbin/init invoked!\n" ANSI_COLOR_RESET);
 	printf("Becoming the shell!\n");
 	commands[0].name = "help";
 	commands[0].cmdc = help;
@@ -80,7 +88,7 @@ int _start(int argc, char **argv, char **envp)
 	last_command_index++;
 	while(1)
 	{
-		printf("/sbin/init $ ");
+		printf(ANSI_COLOR_GREEN "/sbin/init" ANSI_COLOR_YELLOW " # " ANSI_COLOR_RESET);
 		fflush(stdout);
 		size_t b = fread(buf, 1024, 1, stdin);
 		if(b == (size_t) -1)

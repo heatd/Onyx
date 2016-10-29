@@ -31,6 +31,7 @@ typedef struct bucket
 } bucket_t;
 size_t bucket0, bucket1, bucket2, bucket3, bucket4;
 bucket_t *buckets[5];
+_Bool dbg_flag = 0;
 void *heap_malloc(size_t size)
 {
 	_Bool merge_existing = 0;

@@ -253,8 +253,9 @@ size_t ext2_read(size_t offset, size_t sizeofreading, void *buffer, vfsnode_t *n
 }
 vfsnode_t *ext2_open(vfsnode_t *nd, const char *name)
 {
-	printf("Opening\n");
+	printf("Opening %s\n", name);
 	uint32_t inoden = nd->inode;
+	printf("Inode number: %d\n", inoden);
 	ext2_fs_t *fs = fslist;
 	uint32_t inode_num;
 	// Get the inode structure from the number

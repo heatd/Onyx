@@ -25,6 +25,8 @@
 int exec(const char *path, char **argv, char **envp)
 {
 	process_t *proc = process_create(path, NULL, NULL);
+	if(!proc)
+		return NULL;
 	vfsnode_t *in = open_vfs(fs_root, path);
 	if (!in)
 	{

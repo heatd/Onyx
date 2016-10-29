@@ -3,10 +3,12 @@
 #include <kernel/vmm.h>
 size_t bucket0, bucket1, bucket2, bucket3, bucket4;
 bucket_t *buckets[5] = {0};
+volatile _Bool dbg_flag = 0;
 void *heap_malloc(size_t size)
 {
 	_Bool merge_existing = 0;
-	
+	if(dbg_flag)
+		printf("malloc(%u)\n", size);
 	size_t new_size = bucket4;
 	if(size <= bucket0) new_size = llabs(bucket0 - size) < llabs(size - new_size) ? bucket0 : new_size;
 	if(size <= bucket1) new_size = llabs(bucket1 - size) < llabs(size - new_size) ? bucket1 : new_size;
@@ -26,9 +28,11 @@ void *heap_malloc(size_t size)
 	size_t bucket_indexn = bucket_index;
 	if(bucket_indexn == 0xFFFFF)
 	{
+		if(dbg_flag) printf("malloc: merging\n");
 		merge_existing = 1;
 		bucket_indexn = 4;
 	}
+	if(dbg_flag) printf("malloc: block_size(%u)\n", block_size);
 	bucket_t *bucket = buckets[bucket_indexn];
 	if(merge_existing)
 	{
@@ -59,7 +63,8 @@ void *heap_malloc(size_t size)
 	}
 	block_t *block = bucket->closest_free_block;
 	block_t *search = bucket->closest_free_block;
-
+	if(dbg_flag) printf("Closest free block: %p\n", block);
+	if(dbg_flag) printf("Base address: %p\n", bucket+1);
 	block->size = block_size;
 	
 	for(size_t i = 0; i < bucket->sizeof_bucket / bucket->size_elements; i++)

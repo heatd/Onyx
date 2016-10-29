@@ -131,7 +131,52 @@ void tty_write(const char *data, size_t size)
 {
 	//acquire_spinlock(&spl);
 	for (size_t i = 0; i < size; i++)
+	{
+		// Parse ANSI terminal escape codes
+		if(!memcmp(&data[i], ANSI_COLOR_RED, strlen(ANSI_COLOR_RED)))
+		{
+			tty_set_color(TTY_DEFAULT_RED);
+			i += strlen(ANSI_COLOR_RED);
+			if(i >= size) break;
+		}
+		if(!memcmp(&data[i], ANSI_COLOR_GREEN, strlen(ANSI_COLOR_GREEN)))
+		{
+			tty_set_color(TTY_DEFAULT_GREEN);
+			i += strlen(ANSI_COLOR_GREEN);
+			if(i >= size) break;			
+		}
+		if(!memcmp(&data[i], ANSI_COLOR_YELLOW, strlen(ANSI_COLOR_YELLOW)))
+		{
+			tty_set_color(TTY_DEFAULT_YELLOW);
+			i += strlen(ANSI_COLOR_YELLOW);
+			if(i >= size) break;
+		}
+		if(!memcmp(&data[i], ANSI_COLOR_BLUE, strlen(ANSI_COLOR_BLUE)))
+		{
+			tty_set_color(TTY_DEFAULT_BLUE);
+			i += strlen(ANSI_COLOR_BLUE);
+			if(i >= size) break;
+		}
+		if(!memcmp(&data[i], ANSI_COLOR_MAGENTA, strlen(ANSI_COLOR_MAGENTA)))
+		{
+			tty_set_color(TTY_DEFAULT_MAGENTA);
+			i += strlen(ANSI_COLOR_MAGENTA);
+			if(i >= size) break;
+		}
+		if(!memcmp(&data[i], ANSI_COLOR_CYAN, strlen(ANSI_COLOR_CYAN)))
+		{
+			tty_set_color(TTY_DEFAULT_CYAN);
+			i += strlen(ANSI_COLOR_CYAN);
+			if(i >= size) break;
+		}
+		if(!memcmp(&data[i], ANSI_COLOR_RESET, strlen(ANSI_COLOR_RESET)))
+		{
+			tty_set_color(TTY_RESET_COLOR);
+			i += strlen(ANSI_COLOR_RESET);
+			if(i >= size) break;
+		}
 		tty_putchar(data[i]);
+	}
 	if(currentPty != 0)
 		tty_swap_framebuffers();
 	//release_spinlock(&spl);
@@ -147,7 +192,6 @@ void tty_recieved_character(char c)
 	{
 		got_line_ready = 1;
 		TTY_PRINT_IF_ECHO("\n", 1);
-		keyboard_buffer[tty_keyboard_pos++] = c;
 		return;
 	}
 	if(c == '\b')
