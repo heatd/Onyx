@@ -35,33 +35,32 @@ size_t read_vfs(size_t offset, size_t sizeofread, void* buffer, vfsnode_t* this)
 }
 size_t write_vfs(size_t offset, size_t sizeofwrite, void* buffer, vfsnode_t* this)
 {
-	if(this->write != NULL)
-		return this->write(offset,sizeofwrite,buffer,this);
 	if(this->type & VFS_TYPE_MOUNTPOINT)
 		return this->link->write(offset,sizeofwrite,buffer,this->link);
+	if(this->write != NULL)
+		return this->write(offset,sizeofwrite,buffer,this);
 
 	return errno = ENOSYS;
 }
 void close_vfs(vfsnode_t* this)
 {
-	if(this->close != NULL)
-		this->close(this);
 	if(this->type & VFS_TYPE_MOUNTPOINT)
 		this->link->close(this->link);
+	if(this->close != NULL)
+		this->close(this);
 }
 vfsnode_t *open_vfs(vfsnode_t* this, const char *name)
 {
-	if(this->open != NULL)
-	{
-		const char *file = name + strlen(this->name);
-		return this->open(this, file);
-	}
 	if(this->type & VFS_TYPE_MOUNTPOINT)
 	{
 		size_t s = strlen(this->link->mountpoint);
 		return this->link->open(this->link, name + s);
 	}
-
+	if(this->open != NULL)
+	{
+		const char *file = name + strlen(this->name);
+		return this->open(this, file);
+	}
 	return errno = ENOSYS, NULL;
 }
 int mount_fs(vfsnode_t *fsroot, const char *path)
@@ -71,7 +70,7 @@ int mount_fs(vfsnode_t *fsroot, const char *path)
 	{
 		printf("Mounting root\n");
 		fs_root->link = fsroot;
-		fs_root->type |= VFS_TYPE_MOUNTPOINT;
+		fs_root->type |= VFS_TYPE_MOUNTPOINT | VFS_TYPE_DIR;
 		if(!fs_root->name)
 			fs_root->name = malloc(2);
 		if(!fs_root->name)
@@ -87,28 +86,22 @@ int mount_fs(vfsnode_t *fsroot, const char *path)
 			node = node->next;
 		}
 		node->link = fsroot;
-		node->type |= VFS_TYPE_MOUNTPOINT;
+		node->type |= VFS_TYPE_MOUNTPOINT | VFS_TYPE_DIR;
 		node->name = malloc(strlen(path));
 		strcpy(node->name, path);
 		fsroot->mountpoint = (char*)path;
 	}
 	return 0;
 }
-struct dirent *readdir_fs(vfsnode_t* this, unsigned int index)
+unsigned int getdents_vfs(unsigned int count, struct dirent* dirp, vfsnode_t *this)
 {
-	if(this->type != VFS_TYPE_DIR)
-		return errno = ENOTDIR, NULL;
-	const char* base_path = this->name;
-	size_t len = strlen(base_path);
-	unsigned int index_count = 0;
-	vfsnode_t* search = mount_list;
-	for ((void) search; search != NULL; search = search->next) {
-		if (memcmp(search->name, base_path, len) == 0)
-		{
-			if(index_count == index)
-				printf("search->name: %s\n", search->name);
-			index_count++;
-		}
-	}
-	return NULL;
+	if(!(this->type & VFS_TYPE_DIR))
+		return errno = ENOTDIR, -1;
+	if(this->type & VFS_TYPE_MOUNTPOINT)
+		return this->link->getdents(count, dirp, this->link);
+	if(this->getdents != NULL)
+		return this->getdents(count, dirp, this);
+	
+	return errno = ENOSYS, (unsigned int)-1;
+
 }

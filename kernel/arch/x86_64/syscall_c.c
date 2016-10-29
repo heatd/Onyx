@@ -714,8 +714,6 @@ ssize_t sys_pwritev(int fd, const struct iovec *vec, int veccnt, off_t offset)
 	if(validate_fd(fd))
 		return -1;
 	ioctx_t *ctx = &current_process->ctx;
-	if(!vec)
-		return errno = EINVAL, -1;
 	if(veccnt == 0)
 		return 0;
 	size_t wrote = 0;
@@ -726,12 +724,17 @@ ssize_t sys_pwritev(int fd, const struct iovec *vec, int veccnt, off_t offset)
 	}
 	return wrote;
 }
-int sys_getdents(unsigned int fd, struct dirent *dirp, unsigned int count)
+int sys_getdents(int fd, struct dirent *dirp, unsigned int count)
 {
 	if(!vmm_is_mapped(dirp))
 		return errno = EINVAL, -1;
-	
-	return sizeof(struct dirent) * count;
+	if(validate_fd(fd))
+		return errno = EINVAL, -1;
+	if(!count)
+		return 0;
+	ioctx_t *ctx = &current_process->ctx;
+	int read_entries_size = getdents_vfs(count, dirp, ctx->file_desc[fd]->vfs_node);
+	return read_entries_size;
 }
 
 void *syscall_list[] =

@@ -23,6 +23,7 @@ typedef size_t (*__read)(size_t offset, size_t sizeofread, void* buffer, struct 
 typedef size_t (*__write)(size_t offset, size_t sizeofwrite, void* buffer, struct vfsnode* this);
 typedef void (*__close)(struct vfsnode* this);
 typedef struct vfsnode *(*__open)(struct vfsnode* this, const char *name);
+typedef unsigned int (*__getdents)(unsigned int count, struct dirent* dirp, struct vfsnode* this);
 typedef struct vfsnode
 {
 	ino_t inode;
@@ -40,6 +41,7 @@ typedef struct vfsnode
 	__write write;
 	__open open;
 	__close close;
+	__getdents getdents;
 }vfsnode_t;
 
 size_t read_vfs(size_t offset, size_t sizeofread, void* buffer, vfsnode_t* this);
@@ -47,7 +49,7 @@ size_t write_vfs(size_t offset, size_t sizeofwrite, void* buffer, vfsnode_t* thi
 void close_vfs(vfsnode_t* this);
 vfsnode_t *open_vfs(vfsnode_t* this, const char*);
 int mount_fs(vfsnode_t *node, const char *mp);
-struct dirent* readdir_fs(vfsnode_t* this, unsigned int index);
+unsigned int getdents_vfs(unsigned int count, struct dirent* dirp, vfsnode_t *this);
 int vfs_init();
 vfsnode_t* vfs_findnode(const char *path);
 void vfs_register_node(vfsnode_t *toBeAdded);

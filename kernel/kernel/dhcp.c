@@ -111,7 +111,6 @@ int dhcp_initialize()
 	char router_mac_dhcp[6] = {0};
 	memcpy(&router_mac_dhcp, &returned_arp->sender_hw_address, 6);
 	eth_set_router_mac(router_mac_dhcp);
-	test_netstack();
 	return 0;
 }
 
