@@ -40,7 +40,6 @@ int exec(const char *path, char **argv, char **envp)
 	if (read != in->size)
 		return errno = EAGAIN;
 	void *entry = elf_load((void *) buffer);
-	
 	char **env = copy_env_vars(envp);
 	int argc;
 	char **args = copy_argv(argv, path, &argc);

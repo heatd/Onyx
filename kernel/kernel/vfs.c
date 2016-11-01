@@ -11,7 +11,9 @@
 #include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <assert.h>
+
 #include <kernel/panic.h>
 #include <kernel/vfs.h>
 
@@ -43,6 +45,12 @@ size_t write_vfs(size_t offset, size_t sizeofwrite, void* buffer, vfsnode_t* thi
 		return this->write(offset,sizeofwrite,buffer,this);
 
 	return errno = ENOSYS;
+}
+int ioctl_vfs(int request, va_list args, vfsnode_t *this)
+{
+	if(this->ioctl != NULL)
+		return this->ioctl(this, request, args);
+	return errno = ENOSYS, -1;
 }
 void close_vfs(vfsnode_t* this)
 {

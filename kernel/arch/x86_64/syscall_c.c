@@ -729,14 +729,20 @@ int sys_getdents(int fd, struct dirent *dirp, unsigned int count)
 	if(!vmm_is_mapped(dirp))
 		return errno = EINVAL, -1;
 	if(validate_fd(fd))
-		return errno = EINVAL, -1;
+		return errno = EBADF, -1;
 	if(!count)
 		return 0;
 	ioctx_t *ctx = &current_process->ctx;
 	int read_entries_size = getdents_vfs(count, dirp, ctx->file_desc[fd]->vfs_node);
 	return read_entries_size;
 }
-
+int sys_ioctl(int fd, int request, va_list args)
+{
+	if(validate_fd(fd))
+		return errno = EBADF, -1;
+	ioctx_t *ctx = &current_process->ctx;
+	return ioctl_vfs(request, args, ctx->file_desc[fd]->vfs_node);
+}
 void *syscall_list[] =
 {
 	[0] = (void*) sys_write,
@@ -767,4 +773,6 @@ void *syscall_list[] =
 	[25] = (void*) sys_writev,
 	[26] = (void*) sys_preadv,
 	[27] = (void*) sys_pwritev,
+	[28] = (void*) sys_getdents,
+	[29] = (void*) sys_ioctl
 };

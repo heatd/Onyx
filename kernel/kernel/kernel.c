@@ -63,9 +63,9 @@ extern char __BUILD_NUMBER;
 extern char __BUILD_DATE;
 static struct multiboot_tag_module *initrd_tag = NULL;
 uintptr_t address = 0;
-struct multiboot_tag_elf_sections *secs = NULL;
+struct multiboot_tag_elf_sections secs;
 struct multiboot_tag_mmap *mmap_tag = NULL;
-
+void *initrd_addr = NULL;
 void kernel_early(uintptr_t addr, uint32_t magic)
 {
 	addr += PHYS_BASE;
@@ -118,7 +118,7 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 			}
 		case MULTIBOOT_TAG_TYPE_ELF_SECTIONS:
 		{
-			secs = (struct multiboot_tag_elf_sections *)tag;
+			memcpy(&secs, tag, sizeof(struct multiboot_tag_elf_sections));
 			break;
 		}
 		}
@@ -152,7 +152,7 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 				  tagfb->common.framebuffer_pitch);
 	/* Initialize the first terminal */
 	tty_init();
-
+	initrd_addr = initrd_tag->mod_start;
 }
 uintptr_t rsdp;
 extern void libc_late_init();
@@ -170,10 +170,6 @@ void kernel_main()
 		if(!memcmp((char*)(PHYS_BASE + 0x000E0000 + i * 16),(char*)"RSD PTR ", 8))
 		{	
 			char *addr = (char*)(PHYS_BASE + 0x000E0000 + i * 16);
-			printf("Found the RSP at %x\n",addr);
-			for(int j = 0; j < 8; j++)
-				printf("%c", addr[j]);
-			printf("\n");
 			rsdp = addr - (char*)PHYS_BASE;
 			break;
 		}
@@ -188,12 +184,10 @@ void kernel_main()
 	vfs_init();
 	if (!initrd_tag)
 		panic("Initrd not found\n");
-	printf("Initrd tag: %p\n", initrd_tag);
-	void *initrd_address = (void*)(initrd_tag->mod_start + PHYS_BASE);
-	printf("Initrd address: %p\n", initrd_address);
+	initrd_addr = (void*)((char*) initrd_addr + PHYS_BASE);
 	asm volatile("movq $0, pdlower; movq $0, pdlower + 8;invlpg 0x0;invlpg 0x200000");
 	/* Initialize the initrd */
-	init_initrd(initrd_address);
+	init_initrd(initrd_addr);
 	
 	/* Initalize multitasking */
 	sched_create_thread(kernel_multitasking, 1,
@@ -207,7 +201,6 @@ void kernel_main()
 	}
 }
 extern int exec(const char *, char**, char**);
-char *pathsep = "/";
 uintptr_t rsdp;
 void kernel_multitasking(void *arg)
 {
@@ -223,8 +216,8 @@ void kernel_multitasking(void *arg)
 	printf("This kernel was built on %s, %d as integer\n", __DATE__, &__BUILD_DATE);
 	/* Initialize PCI */
 	pci_init();
-	extern void init_elf_symbols(struct multiboot_tag_elf_sections *);
-	init_elf_symbols(secs);
+	/*extern void init_elf_symbols(struct multiboot_tag_elf_sections *);
+	init_elf_symbols(&secs);*/
 	initialize_ata();
 
 	char *args[] = {"/etc/fstab", NULL};
@@ -237,7 +230,16 @@ void kernel_multitasking(void *arg)
 	else
 		printf("eth0: found compatible device\n");
 	dhcp_initialize();
-	// TODO: Fix the ext2 driver
+	/*read_partitions();
+	vfsnode_t *in = open_vfs(fs_root, "/etc/fstab");
+	if (!in)
+	{
+		printf("%s: %s\n", "/etc/fstab", strerror(errno));
+		return errno = ENOENT;
+	}
+	char *b = malloc(in->size);
+	memset(b, 0, in->size);
+	write_vfs(0, in->size, b, in);*/
 	exec("/sbin/init", args, envp);
 	for (;;) asm volatile("hlt");
 }

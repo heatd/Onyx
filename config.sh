@@ -1,6 +1,6 @@
 SYSTEM_HEADER_PROJECTS="libc kernel"
 PROJECTS="libc kernel newlib"
-SOURCE_PACKAGES="cat echo init"
+SOURCE_PACKAGES="cat echo init lua"
 
 export MAKE=${MAKE:-make}
 export HOST=${HOST:-$(./default-host.sh)}
@@ -14,7 +14,7 @@ export EXEC_PREFIX=$PREFIX
 export BOOTDIR=/boot
 export LIBDIR=$EXEC_PREFIX/lib
 export INCLUDEDIR=$PREFIX/include
-
+export PKGDIR=/pkg
 export CFLAGS='-Os -g -Wno-format -Werror -mno-red-zone'
 export CPPFLAGS=''
 

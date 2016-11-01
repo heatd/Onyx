@@ -348,6 +348,6 @@ AcpiOsVprintf(
 	const char	*Fmt,
 	va_list	Args)
 {
-	printf("ACPI: ");
-	vprintf(Fmt, Args);
+	/*printf("ACPI: ");
+	vprintf(Fmt, Args);*/
 }

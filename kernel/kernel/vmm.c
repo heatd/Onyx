@@ -95,7 +95,6 @@ void vmm_destroy_mappings(void *range, size_t pages)
 {
 	if(!vmm_is_mapped(range))
 		return;
-
 	for(size_t i = 0; i < num_areas; i++)
 	{
 		if(areas[i].base == (uintptr_t)range && areas[i].pages == pages)
