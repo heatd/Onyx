@@ -34,3 +34,5 @@ The kernel exposes the system calls to the user-space by the interrupt vector 0x
 | 25 | writev() system call |
 | 26 | preadv() system call |
 | 27 | pwritev() system call |
+| 28 | getdents() system call |
+| 29 | ioctl() system call |

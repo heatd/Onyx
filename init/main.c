@@ -67,8 +67,9 @@ int getshellpid(char *unused)
 {
 	printf("pid: %d\n", getpid());
 }
-int _start(int argc, char **argv, char **envp)
+int main(int argc, char **argv, char **envp)
 {
+	write(STDOUT_FILENO, "Hello World!\n", strlen("Hello World!\n"));
 	printf(ANSI_COLOR_GREEN "/sbin/init invoked!\n" ANSI_COLOR_RESET);
 	printf("Becoming the shell!\n");
 	commands[0].name = "help";
@@ -86,10 +87,13 @@ int _start(int argc, char **argv, char **envp)
 	commands[4].name = "getshellpid";
 	commands[4].cmdc = getshellpid;
 	last_command_index++;
+	int pid;
+	pid = fork();
+	//asm volatile("mov $9, %%rax;int $0x80"::"D"(&pid),"S"("/bin/echo"));
+	printf(ANSI_COLOR_CYAN"Hey, we just forked!"ANSI_COLOR_RESET"\n");
 	while(1)
 	{
 		printf(ANSI_COLOR_GREEN "/sbin/init" ANSI_COLOR_YELLOW " # " ANSI_COLOR_RESET);
-		fflush(stdout);
 		size_t b = fread(buf, 1024, 1, stdin);
 		if(b == (size_t) -1)
 			printf("[LIBC] ERROR: fread() failed!\n");
@@ -102,7 +106,6 @@ int _start(int argc, char **argv, char **envp)
 				continue;
 			}
 			printf("%s : Command not found!\n", buf);
-			fflush(stdout);
 		}
 		memset(buf, 0, 1024);
 	}

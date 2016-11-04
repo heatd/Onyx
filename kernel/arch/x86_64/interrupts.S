@@ -53,6 +53,8 @@ isr%1:
 	jmp isr_common ;Go to the handler
 %endmacro
 extern irq_handler
+extern handle_signal
+extern current_process
 irq_common:
 	mov ax, ds
 	push rax
@@ -62,6 +64,13 @@ irq_common:
 	mov es, ax
 	call irq_handler
 	push rdi
+	mov rax, current_process
+	cmp qword [rax], qword 0
+	je .continue
+	mov rax, [rax]
+	cmp dword [rax], dword 1
+	je .handle_signal
+.continue:
 	sub rdi, 32
 	extern pic_send_eoi
 	call pic_send_eoi
@@ -71,7 +80,9 @@ irq_common:
 	mov es, ax
 	popaq
 	iretq
-
+.handle_signal:
+	call handle_signal
+	jmp .continue
 %macro IRQ 2
 global irq%1
 irq%1:
@@ -103,14 +114,22 @@ isr_common:
 	mov es, ax
 	mov ss, ax
 	call isr_handler
-
+	mov rax, current_process
+	cmp qword [rax], qword 0
+	je .isr_continue
+	mov rax, [rax]
+	cmp dword [rax], dword 1
+	je .isr_handle_signal
+.isr_continue:
 	pop rax
 	mov ds,ax
 	mov es,ax
 	mov ss, ax
 	popaq
 	iretq
-
+.isr_handle_signal:
+	call handle_signal
+	jmp .isr_continue
 ISR_NOERRCODE 0
 ISR_NOERRCODE 1
 ISR_NOERRCODE 2
@@ -160,6 +179,13 @@ irq0:
 	extern sched_switch_thread
 	call sched_switch_thread
 	mov rsp, rax
+	mov rax, current_process
+	cmp qword [rax], qword 0
+	je .irq0_cont
+	mov rax, qword [rax]
+	cmp dword [rax], dword 1
+	je .irq0_handle
+.irq0_cont:
 	; reload segs
 	pop rax
 	mov ds, ax
@@ -168,7 +194,9 @@ irq0:
 	out 0x20, al
 	popaq
 	iretq
-
+.irq0_handle:
+	call handle_signal
+	jmp .irq0_cont
 IRQ 1,33
 IRQ 2,34
 IRQ 3,35

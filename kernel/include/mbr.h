@@ -11,6 +11,7 @@
 #ifndef _MBR_H
 #define _MBR_H
 
+#include <stdint.h>
 typedef struct
 {
 	uint8_t status;

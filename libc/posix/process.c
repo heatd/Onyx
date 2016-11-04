@@ -8,8 +8,28 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#ifdef __is_spartix_kernel
-int errno = 0;
-#else
-__thread int errno = 0;
-#endif
+#include <unistd.h>
+#include <sys/syscall.h>
+#include <sys/types.h>
+
+__attribute__((noreturn))
+void _exit(int code)
+{
+	syscall(SYS_exit, code);
+	__builtin_unreachable();
+}
+pid_t fork()
+{
+	syscall(SYS_fork);
+	return rax;
+}
+pid_t getpid()
+{
+	syscall(SYS_getpid);
+	return rax;
+}
+pid_t getppid()
+{
+	syscall(SYS_getppid);
+	return rax;
+}

@@ -11,9 +11,13 @@
 #ifndef _ERRNO_H
 #define _ERRNO_H
 
+#ifdef __is_spartix_kernel
 extern int errno;
+#else
+extern __thread int errno;
+#endif
+#define errno errno
 
-// Thanks to "http://www.virtsync.com/c-error-codes-include-errno" for these error codes
 #define EPERM        1  /* Operation not permitted */
 #define ENOENT       2  /* No such file or directory */
 #define ESRCH        3  /* No such process */
@@ -118,9 +122,9 @@ extern int errno;
 #define EADDRNOTAVAIL   99  /* Cannot assign requested address */
 #define ENETDOWN    100 /* Network is down */
 #define ENETUNREACH 101 /* Network is unreachable */
-#define ENETRESET   102 /* Network dropped connection because of reset */
 #define ECONNABORTED    103 /* Software caused connection abort */
 #define ECONNRESET  104 /* Connection reset by peer */
+#define ENETRESET   102 /* Network dropped connection because of reset */
 #define ENOBUFS     105 /* No buffer space available */
 #define EISCONN     106 /* Transport endpoint is already connected */
 #define ENOTCONN    107 /* Transport endpoint is not connected */

@@ -18,8 +18,13 @@
 #include <kernel/tty.h>
 #endif
 #include <ctype.h>
-extern void flushPrint();
-extern void print(const char *data, size_t data_length);
+static char buffer[4096] = {0};
+static size_t buffer_pos = 0;
+static void print(const char *data, size_t data_length)
+{
+	memcpy(&buffer[buffer_pos], data, data_length);
+	buffer_pos += data_length;
+}
 int vprintf(const char *__restrict__ format, va_list parameters)
 {
 	int written = 0;
@@ -178,7 +183,10 @@ int vprintf(const char *__restrict__ format, va_list parameters)
 			goto incomprehensible_conversion;
 		}
 	}
-	flushPrint();
-
+#ifndef __is_spartix_kernel
+	fwrite(buffer, buffer_pos, 1, stdout);
+#else
+	tty_write(buffer, buffer_pos);
+#endif
 	return written;
 }

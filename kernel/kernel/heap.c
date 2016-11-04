@@ -1,11 +1,24 @@
+/*----------------------------------------------------------------------
+ * Copyright (C) 2016 Pedro Falcato
+ *
+ * This file is part of Spartix, and is made available under
+ * the terms of the GNU General Public License version 2.
+ *
+ * You can redistribute it and/or modify it under the terms of the GNU
+ * General Public License version 2 as published by the Free Software
+ * Foundation.
+ *----------------------------------------------------------------------*/
 #include <kernel/heap.h>
 #include <stdio.h>
 #include <kernel/vmm.h>
+#include <kernel/spinlock.h>
 size_t bucket0, bucket1, bucket2, bucket3, bucket4;
 bucket_t *buckets[5] = {0};
 volatile _Bool dbg_flag = 0;
+static spinlock_t heap_spl;
 void *heap_malloc(size_t size)
 {
+	acquire_spinlock(&heap_spl);
 	_Bool merge_existing = 0;
 	if(dbg_flag)
 		printf("malloc(%u)\n", size);
@@ -59,6 +72,7 @@ void *heap_malloc(size_t size)
 		}
 	ret:
 		first_block->size = size;
+		release_spinlock(&heap_spl);
 		return &first_block->data;
 	}
 	block_t *block = bucket->closest_free_block;
@@ -78,10 +92,12 @@ void *heap_malloc(size_t size)
 			((char*)(search+1) + bucket->size_elements);
 	}
 	/*if(!bucket->closest_free_block) Extend();*/
+	release_spinlock(&heap_spl);
 	return &block->data;
 }
 void heap_free(void *address)
 {
+	acquire_spinlock(&heap_spl);
 	block_t *block = (block_t*)((char *)(address) - sizeof(block_t));
 	size_t block_size = block->size;
 	size_t bucket_index = 0;
@@ -119,6 +135,7 @@ void heap_free(void *address)
 		bucket->closest_free_block = block;
 	}
 	block->size = 0;
+	release_spinlock(&heap_spl);
 }
 void heap_init(void *address, size_t bucket0s, size_t bucket1s, size_t bucket2s, size_t bucket3s, size_t bucket4s) 
 {

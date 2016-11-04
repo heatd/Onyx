@@ -8,8 +8,11 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#ifdef __is_spartix_kernel
-int errno = 0;
-#else
-__thread int errno = 0;
-#endif
+#include <stdio.h>
+#include <stdlib.h>
+int main()
+{
+	write(STDOUT_FILENO, "Loaded!\n", strlen("Loaded!\n"));
+	while(1);
+	return 0;
+}

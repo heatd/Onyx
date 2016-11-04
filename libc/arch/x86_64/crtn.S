@@ -1,6 +1,6 @@
-section .init
-	pop rbp
+.section .init
+	pop %rbp
 	ret
-section .fini
-	pop rbp
+.section .fini
+	pop %rbp
 	ret

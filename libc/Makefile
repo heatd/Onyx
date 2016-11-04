@@ -20,8 +20,8 @@ ARCHDIR:=arch/$(HOSTARCH)
 
 include $(ARCHDIR)/make.config
 
-CFLAGS:=$(CFLAGS) $(ARCH_CFLAGS)
-CPPFLAGS:=$(CPPFLAGS) $(ARCH_CPPFLAGS)
+CFLAGS:=$(CFLAGS) $(ARCH_CFLAGS) -fPIC
+CPPFLAGS:=$(CPPFLAGS) $(ARCH_CPPFLAGS) -DPIC
 LIBK_CFLAGS:=$(LIBK_CFLAGS) $(KERNEL_ARCH_CFLAGS)
 LIBK_CPPFLAGS:=$(LIBK_CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS)
 
@@ -60,7 +60,10 @@ stdio/fprintf.o \
 stdio/fread.o \
 stdio/fwrite.o \
 stdio/sprintf.o \
-stdio/stdio.o
+stdio/stdio.o \
+stdio/stdstream.o \
+posix/process.o \
+posix/memory.o \
 
 OBJS:=\
 $(FREEOBJS) \
@@ -69,7 +72,9 @@ libc/init.o \
 
 LIBK_OBJS:=$(FREEOBJS:.o=.libk.o) \
 
-BINARIES=libc.a libg.a libk.a $(ARCHDIR)/crti.o $(ARCHDIR)/crtn.o $(ARCHDIR)/crt0.o
+LD_SPARTIX_OBJS:=ld/main.o
+
+BINARIES=libc.a libg.a libk.a $(ARCHDIR)/crti.o $(ARCHDIR)/crtn.o $(ARCHDIR)/crt0.o $(ARCHDIR)/Scrt0.o
 
 all: $(BINARIES)
 
@@ -86,32 +91,39 @@ libg.a:
 libk.a: $(LIBK_OBJS)
 	echo [AR] $(LIBK_OBJS)
 	$(AR) rcs $@ $(LIBK_OBJS)
-
+libc.so: $(OBJS)
+	$(CC) $(OBJS) -shared $(CFLAGS) $(CPPFLAGS) -o $@
+	mkdir -p $(DESTDIR)$(LIBDIR)
+	cp $@ $(DESTDIR)$(LIBDIR)
+ld-spartix.so: $(LD_SPARTIX_OBJS)
+	$(CC) $(LD_SPARTIX_OBJS) -shared -static $(CFLAGS) $(CPPFLAGS) -o $@
+	mkdir -p $(DESTDIR)/lib
+	cp $@ $(DESTDIR)/lib
 %.o: %.c
 	echo [CC] $<
-	$(CC) -c $< -o $@ -std=gnu11 $(CFLAGS) $(CPPFLAGS)
+	$(CC) -c $< -o $@ -std=gnu11 -fPIC $(CFLAGS) $(CPPFLAGS)
 %.o: %.cpp
 	echo [CXX] $<
 	$(CXX) -c $< -o $@ -std=c++14 $(CFLAGS) $(CPPFLAGS)
 
 %.libk.o: %.c
 	echo [CC] $<.libk
-	$(CC) -c $< -o $@ -std=gnu11 $(LIBK_CFLAGS) $(LIBK_CPPFLAGS)
+	$(CC) -c $< -o $@ -std=gnu11 -mcmodel=kernel $(LIBK_CFLAGS) $(LIBK_CPPFLAGS)
 
 %.libk.o: %.cpp
 	echo [CXX] $<.libk
-	$(CXX) -c $< -o $@ -std=c++14 $(LIBK_CFLAGS) $(LIBK_CPPFLAGS)
+	$(CXX) -c $< -o $@ -std=c++14 -mcmode=kernel $(LIBK_CFLAGS) $(LIBK_CPPFLAGS)
 
 %.libk.o: %.S
 	echo [AS] $<.libk
-	nasm -felf$(NASMARCH) $< -o $@
+	$(CC) -c $(CFLAGS) $(CPPFLAGS) $< -o $@
 %.o: %.S
 	echo [AS] $<
-	nasm -felf$(NASMARCH) $< -o $@
+	$(CC) -c $(CFLAGS) $(CPPFLAGS) $< -o $@
 clean:
 	rm -f $(BINARIES) $(OBJS) $(LIBK_OBJS) *.o */*.o */*/*.o
 
-install: install-headers install-libs
+install: install-headers install-libs libc.so ld-spartix.so
 
 install-headers:
 	mkdir -p $(DESTDIR)$(INCLUDEDIR)

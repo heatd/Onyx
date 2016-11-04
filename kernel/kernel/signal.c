@@ -8,8 +8,10 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#ifdef __is_spartix_kernel
-int errno = 0;
-#else
-__thread int errno = 0;
-#endif
+#include <kernel/panic.h>
+#include <kernel/process.h>
+void handle_signal()
+{
+	printf("Handling signal\n");
+	current_process->signal_pending = 0;
+}

@@ -28,6 +28,10 @@ typedef struct _IO_FILE FILE;
 
 extern FILE* stderr;
 #define stderr stderr
+extern FILE* stdout;
+#define stdout stdout
+extern FILE* stdin;
+#define stdin stdin
 
 int fprintf(FILE*, const char*, ...);
 int fclose(FILE*);
@@ -41,8 +45,8 @@ int vsprintf(char *restrict s, const char *__restrict__ format, va_list paramete
 #undef setbuf
 void setbuf(FILE*, char*);
 
-#undef printf
 int printf(const char* __restrict, ...);
+int vprintf(const char *__restrict__ format, va_list parameters);
 
 #undef putchar
 int putchar(int);

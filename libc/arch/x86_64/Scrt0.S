@@ -1,4 +1,4 @@
-# crt0.S - _start procedure. Initializes the C Library, calls main, calls exit(2)
+# Scrt0.S - _start procedure. Initializes the C Library, calls main, calls exit(2)
 .section .text
 .global _start
 .extern _init

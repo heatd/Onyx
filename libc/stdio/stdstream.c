@@ -8,14 +8,12 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#ifndef _SBRK_H
-#define _SBRK_H
-#include <stdint.h>
-#include <stdint.h>
-#include <kernel/mm.h>
-void set_data_area(void *data_area);
-int __brk(void *addr);
-void* __sbrk(uint32_t inc);
-void* get_end_data();
-void* get_start_data();
-#endif
+#include "stdio_impl.h"
+#include <stdio.h>
+#include <unistd.h>
+FILE stdout_obj = {.fd = STDOUT_FILENO};
+FILE stdin_obj = {.fd = STDIN_FILENO};
+FILE stderr_obj = {.fd = STDERR_FILENO};
+FILE *stdout = &stdout_obj;
+FILE *stdin = &stdin_obj;
+FILE *stderr = &stderr_obj;

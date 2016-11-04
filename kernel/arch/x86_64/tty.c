@@ -126,10 +126,10 @@ void tty_putchar(char c)
 			    terminal_row);
 	terminal_column++;
 }
-//static spinlock_t spl;
+static spinlock_t spl;
 void tty_write(const char *data, size_t size)
 {
-	//acquire_spinlock(&spl);
+	acquire_spinlock(&spl);
 	for (size_t i = 0; i < size; i++)
 	{
 		// Parse ANSI terminal escape codes
@@ -179,7 +179,7 @@ void tty_write(const char *data, size_t size)
 	}
 	if(currentPty != 0)
 		tty_swap_framebuffers();
-	//release_spinlock(&spl);
+	release_spinlock(&spl);
 }
 #define TTY_PRINT_IF_ECHO(c, l) if(echo) tty_write(c, l)
 char keyboard_buffer[2048];

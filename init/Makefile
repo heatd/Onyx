@@ -1,6 +1,6 @@
 PROG:= init
 OBJS:= main.o
-CFLAGS:=-O2 -g -static -nostartfiles
+CFLAGS:=-O2 -g
 clean:
 	rm -f $(PROG)
 	rm -f $(OBJS)
@@ -10,4 +10,4 @@ install: $(PROG)
 %.o: %.S
 	nasm -felf64 $< -o $@
 $(PROG): $(OBJS)
-	$(CC) $(OBJS) $(CFLAGS) -lg -lm -lnosys -o $@
+	$(CC) $(OBJS) $(CFLAGS) -o $@

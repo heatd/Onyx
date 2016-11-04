@@ -72,3 +72,13 @@ void process_fork_thread(process_t *dest, process_t *src, int thread_index)
 	last_thread->id = curr_id++;
 	last_thread->owner = dest;
 }
+process_t *get_process_from_pid(pid_t pid)
+{
+	process_t *p = first_process;
+	for(;p;p = p->next)
+	{
+		if(p->pid == pid)
+			return p;
+	}
+	return NULL;
+}

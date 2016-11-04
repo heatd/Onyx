@@ -19,6 +19,11 @@ _Bool elf_parse_program_headers(void *file)
 	for (Elf64_Half i = 0; i < hdr->e_phnum; i++) {
 		if (phdrs[i].p_type == PT_NULL)
 			continue;
+		if(phdrs[i].p_type == PT_INTERP)
+		{
+			printf("This program needs an interpreter!\n");
+			printf("Interpreter: %s\n", (char*)file + phdrs[i].p_offset);
+		}
 		if (phdrs[i].p_type == PT_LOAD) {
 			size_t pages = phdrs[i].p_memsz / 4096;
 			if (!pages || pages % 4096)
@@ -38,7 +43,7 @@ _Bool elf_parse_program_headers(void *file)
 	return true;
 }
 
-_Bool elf_is_valid(Elf64_Ehdr * header)
+_Bool elf_is_valid(Elf64_Ehdr *header)
 {
 	if (header->e_ident[EI_MAG0] != 0x7F || header->e_ident[EI_MAG1] != 'E' || header->e_ident[EI_MAG2] != 'L' || header->e_ident[EI_MAG3] != 'F')
 		return false;

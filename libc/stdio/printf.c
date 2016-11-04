@@ -83,6 +83,7 @@ int printf(const char *__restrict__ format, ...)
 /*#ifdef __is_spartix_kernel
 	acquire(&spl);
 #endif*/
+#ifdef __is_spartix_kernel
 	va_list parameters;
 	va_start(parameters, format);
 
@@ -177,4 +178,11 @@ int printf(const char *__restrict__ format, ...)
 	release(&spl);
 #endif*/
 	return written;
+#else
+	va_list params;
+	va_start(params, format);
+	int ret = vprintf(format, params);
+	va_end(params);
+	return ret;
+#endif
 }

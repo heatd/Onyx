@@ -37,8 +37,6 @@ int exec(const char *path, char **argv, char **envp)
 	if (!buffer)
 		return errno = ENOMEM;
 	size_t read = read_vfs(0, in->size, buffer, in);
-	if (read != in->size)
-		return errno = EAGAIN;
 	void *entry = elf_load((void *) buffer);
 	char **env = copy_env_vars(envp);
 	int argc;
@@ -63,6 +61,8 @@ int exec(const char *path, char **argv, char **envp)
 	process_create_thread(proc, (ThreadCallback) entry, 0, argc, args, env);
 	p->tid = proc->threads[0]->id;
 	p->pid = proc->pid;
+	free(buffer);
+	free(in);
 	asm volatile("sti");
 	return 0;
 }
