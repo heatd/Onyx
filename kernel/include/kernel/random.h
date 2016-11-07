@@ -8,26 +8,14 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#include <stdint.h>
-#include <string.h>
-#include <stdio.h>
+#ifndef _RANDOM_H
+#define _RANDOM_H
 
-#include <acpi.h>
+#include <stddef.h>
 
-#include <kernel/portio.h>
-#include <kernel/acpi.h>
+void add_entropy(void *ent, size_t size);
+void get_entropy(char *buf, size_t s);
+void initialize_entropy();
 
-void pm_reboot()
-{
-	if(ACPI_FAILURE(AcpiReset()))
-		printf("ACPI reset failed, trying PS/2\n");
-	outb(0x64, 0xFE);
-	// If the reboot hasn't happened yet, load a zero-idt and interrupt
-	asm volatile("lidt 0x0");
-	asm volatile("cli; int $0x60");
-	asm volatile("cli;hlt");
-}
-void pm_shutdown()
-{
-	acpi_shutdown(NULL);
-}
+
+#endif

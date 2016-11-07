@@ -14,9 +14,9 @@
 
 #include <stdint.h>
 
-#define PROTO_IPV4 0x800
-#define PROTO_ARP 0x806
-#define PROTO_IPV6 0x86DD
+#define PROTO_IPV4 ((uint16_t)0x800)
+#define PROTO_ARP ((uint16_t)0x806)
+#define PROTO_IPV6 ((uint16_t)0x86DD)
 
 typedef struct
 {
@@ -36,7 +36,7 @@ typedef struct
 #define LITTLE_TO_BIG32(n) ((n >> 24) & 0xFF) | ((n << 8) & 0xFF0000) | ((n >> 8) & 0xFF00) | ((n << 24) & 0xFF000000)
 extern char mac_address[6];
 extern char router_mac[6];
-typedef int (*device_send_packet)(char*, uint16_t);
+typedef int (*device_send_packet)(const void*, uint16_t);
 
 void eth_set_packet_buf(uint8_t *buf);
 void eth_set_packet_len(uint16_t len);

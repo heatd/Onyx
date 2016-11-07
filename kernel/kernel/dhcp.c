@@ -100,7 +100,7 @@ int dhcp_initialize()
 	uint32_t dns_server = 0;
 	memcpy(&dns_server, &response->options[28], 4);
 	uint32_t own_ip = response->yiaddr;
-	char router_ip_b[4] = {0};
+	unsigned char router_ip_b[4] = {0};
 	parse_ipnumber_to_char_array(router_ip, router_ip_b);
 	printf("router_ip: %u.%u.%u.%u\n", router_ip_b[0], router_ip_b[1], router_ip_b[2], router_ip_b[3]);
 	UNUSED(own_ip);

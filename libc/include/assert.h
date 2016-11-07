@@ -8,17 +8,23 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-
+#include <sys/cdefs.h>
+#define __need_printf
 #include <stdio.h>
+#define __need_abort
 #include <stdlib.h>
 
-#undef assert
-
 #ifdef NDEBUG
-#define assert(expression)	(void)0
+#define assert(ignore)	((void) 0)
 #else
 #define assert(expression)                                         \
 if ((expression) == 0) {                                             \
-printf("assertion failed: %s, line %i, function:%s()\n",__FILE__, __LINE__, __func__); \
+printf("assertion failed: %s, line %u, function: %s()\n", __FILE__, __LINE__, __func__); \
 abort();}
+
+/* If the used C standard is C11 or higher, define static_assert */
+#if defined(__STDC_VERSION__) && 201112L <= __STDC_VERSION__
+#define static_assert _Static_assert
+#endif
+
 #endif

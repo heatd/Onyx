@@ -79,26 +79,26 @@ int send(int socket, const void *buffer, size_t len)
 	socket_t *sock = sock_table[socket];
 	if(!sock)
 		return errno = EINVAL, 1;
-	return send_udp_packet(buffer, len, sock->localport, sock->remote_port, ip_local_ip, sock->remote_ip);
+	return send_udp_packet((char*) buffer, len, sock->localport, sock->remote_port, ip_local_ip, sock->remote_ip);
 }
 void network_handle_packet(ip_header_t *hdr, uint16_t len)
 {
 	hdr->source_ip = LITTLE_TO_BIG32(hdr->source_ip);
-	uint32_t ip = hdr->source_ip;
-	int source_port, dest_port;
+	int dest_port;
 	int protocol_len = 0;
 	switch(hdr->proto)
 	{
 		case IPV4_UDP:
 		{
 			udp_header_t *udp_packet = (udp_header_t*)&hdr->payload;
-			source_port = LITTLE_TO_BIG16(udp_packet->source_port);
 			udp_packet->dest_port = LITTLE_TO_BIG16(udp_packet->dest_port);
 			dest_port = udp_packet->dest_port;
 			udp_packet->len = LITTLE_TO_BIG16(udp_packet->len);
 			protocol_len = udp_packet->len;
 			break;
 		}
+		default:
+			return;
 	}
 	
 	for(int i = 0; i < MAX_NETWORK_CONNECTIONS; i++)

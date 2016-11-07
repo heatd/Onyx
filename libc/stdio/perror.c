@@ -8,26 +8,15 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#include <stdint.h>
-#include <string.h>
+#include <errno.h>
 #include <stdio.h>
+#include <string.h>
 
-#include <acpi.h>
-
-#include <kernel/portio.h>
-#include <kernel/acpi.h>
-
-void pm_reboot()
+void perror(const char *error_msg)
 {
-	if(ACPI_FAILURE(AcpiReset()))
-		printf("ACPI reset failed, trying PS/2\n");
-	outb(0x64, 0xFE);
-	// If the reboot hasn't happened yet, load a zero-idt and interrupt
-	asm volatile("lidt 0x0");
-	asm volatile("cli; int $0x60");
-	asm volatile("cli;hlt");
-}
-void pm_shutdown()
-{
-	acpi_shutdown(NULL);
+	const char *error = (const char*) strerror(errno);
+	if(error_msg && *error_msg != '\0')
+		printf("%s%s\n", error_msg, error);
+	else
+		printf("%s\n", error);	
 }

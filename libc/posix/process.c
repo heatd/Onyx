@@ -21,15 +21,27 @@ void _exit(int code)
 pid_t fork()
 {
 	syscall(SYS_fork);
+	if(rax == (unsigned long long) -1)
+	{
+		set_errno();
+	}
 	return rax;
 }
 pid_t getpid()
 {
 	syscall(SYS_getpid);
+	if(rax == (unsigned long long) -1)
+	{
+		set_errno();
+	}
 	return rax;
 }
 pid_t getppid()
 {
 	syscall(SYS_getppid);
+	if(rax == (unsigned long long) -1)
+	{
+		set_errno();
+	}
 	return rax;
 }

@@ -20,7 +20,6 @@
 #include <drivers/pci.h>
 #include <kernel/pit.h>
 #include <drivers/rtc.h>
-
 void mutex_lock(unsigned long*);
 void mutex_unlock(unsigned long*);
 int printf(const char *, ...);
@@ -332,7 +331,7 @@ UINT64
 AcpiOsGetTimer (
 void)
 {
-	return get_unix_time();
+	return get_posix_time();
 }
 ACPI_STATUS
 AcpiOsTerminate()

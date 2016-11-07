@@ -10,10 +10,13 @@
  *----------------------------------------------------------------------*/
 #ifndef _PROCESS_H
 #define _PROCESS_H
+#include <sys/types.h>
+
 #include <kernel/vmm.h>
 #include <kernel/ioctx.h>
 #include <kernel/spinlock.h>
 #include <kernel/task_switching.h>
+#include <kernel/signal.h>
 #define THREADS_PER_PROCESS 30
 typedef struct proc
 {
@@ -26,7 +29,7 @@ typedef struct proc
 	size_t num_areas;
 	const char *cmd_line;
 	ioctx_t ctx;
-	uint64_t pid;
+	pid_t pid;
 	uintptr_t fs;
 	PML4 *cr3;
 	void *brk;
@@ -35,6 +38,7 @@ typedef struct proc
 	gid_t gid;
 	spinlock_t vm_spl;
 	unsigned long personality;
+	struct signal_info sinfo;
 	struct proc *parent;
 } process_t;
 process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent);

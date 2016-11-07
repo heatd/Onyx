@@ -40,6 +40,8 @@ void qsort(void* base_ptr,
 
 __attribute__ ((__noreturn__))
 void _Exit(int s);
+void srand(unsigned int);
+int rand();
 
 #ifdef __cplusplus
 }

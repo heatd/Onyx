@@ -38,7 +38,7 @@
 #define DEBUG_PRINT_SYSTEMCALL() asm volatile("nop")
 #endif
 
-const uint32_t SYSCALL_MAX_NUM = 27;
+const uint32_t SYSCALL_MAX_NUM = 34;
 spinlock_t lseek_spl;
 off_t sys_lseek(int fd, off_t offset, int whence)
 {
@@ -380,7 +380,7 @@ int sys_posix_spawn(pid_t *pid, const char *path, void *file_actions, void *attr
 		strcpy(argument_strings, argv[i-1]);
 		argument_strings += strlen(argv[i-1]) + 1;
 	}
-	/*size_t total_env = 0;
+	size_t total_env = 0;
 	size_t num_vars = 0;
 	n = envp;
 	while(*n != NULL)
@@ -560,7 +560,7 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	if (!buffer)
 		return errno = ENOMEM;
 	printf("Buffer: %p\n", buffer);
-	size_t read = in->read(0, in->size, buffer, in);
+	in->read(0, in->size, buffer, in);
 	printf("HE\n");
 	asm volatile ("mov %0, %%cr3" :: "r"(current_process->cr3)); /* We can't use paging_load_cr3 because that would change current_pml4
 							* which we will need for later 
@@ -778,6 +778,7 @@ int sys_kill(pid_t pid, int sig)
 	if(sig < 0)
 		return errno = EINVAL, -1;
 	current_process->signal_pending = 1;
+	current_process->sinfo.signum = sig;
 	return 0;
 }
 int sys_truncate(const char *path, off_t length)

@@ -10,77 +10,48 @@
  *----------------------------------------------------------------------*/
 #ifndef _SIGNAL_H
 #define _SIGNAL_H
-
+#include <sys/cdefs.h>
 #include <sys/types.h>
+
+__START_C_HEADER
 
 int kill(pid_t, int);
 int raise(int);
+void (*signal(int sig, void (*func)(int)))(int);
 
-/* These all need to be defined for ANSI C, but I don't think they are
-   meaningful.  */
+/* Signal numbers, as required by POSIX and the ISO C standard */
 #define SIGABRT 1
-#define SIGFPE 1
-#define SIGILL 1
-#define SIGINT 1
-#define SIGSEGV 1
-#define SIGTERM 1
-/* These need to be defined for POSIX, and some others do too.  */
-#define SIGHUP 1
-#define SIGQUIT 1
-#define NSIG 2
-#elif defined(__GO32__)
-#define SIGINT  1
-#define SIGKILL 2
-#define SIGPIPE 3
-#define SIGFPE  4
-#define SIGHUP  5
+#define SIGFPE 2
+#define SIGILL 3
+#define SIGINT 4
+#define SIGSEGV 5
 #define SIGTERM 6
-#define SIGSEGV 7
-#define SIGTSTP 8
-#define SIGQUIT 9
-#define SIGTRAP 10
-#define SIGILL  11
-#define SIGEMT  12
-#define SIGALRM 13
-#define SIGBUS  14
-#define SIGLOST 15
-#define SIGSTOP 16
-#define SIGABRT 17
-#define SIGUSR1	18
-#define SIGUSR2	19
-#define NSIG    20
-#elif !defined(SIGTRAP)
-#define	SIGHUP	1	/* hangup */
-#define	SIGINT	2	/* interrupt */
-#define	SIGQUIT	3	/* quit */
-#define	SIGILL	4	/* illegal instruction (not reset when caught) */
-#define	SIGTRAP	5	/* trace trap (not reset when caught) */
-#define	SIGIOT	6	/* IOT instruction */
-#define	SIGABRT 6	/* used by abort, replace SIGIOT in the future */
-#define	SIGEMT	7	/* EMT instruction */
-#define	SIGFPE	8	/* floating point exception */
-#define	SIGKILL	9	/* kill (cannot be caught or ignored) */
-#define	SIGBUS	10	/* bus error */
-#define	SIGSEGV	11	/* segmentation violation */
-#define	SIGSYS	12	/* bad argument to system call */
-#define	SIGPIPE	13	/* write on a pipe with no one to read it */
-#define	SIGALRM	14	/* alarm clock */
-#define	SIGTERM	15	/* software termination signal from kill */
+#define SIGKILL 7
+#define SIGQUIT 8
+#define SIGSTOP 9
+#define SIGALRM 10
+#define SIGBUS 11
+#define SIGCHLD 12
+#define SIGPIPE 13
+#define SIGTERM 14
+#define SIGTSTP 15
+#define SIGTTIN 16
+#define SIGTTOU 17
+#define SIGUSR1 18
+#define SIGUSR2 19
+#define SIGPOLL 20
+#define SIGPROF 21
+#define SIGSYS 22
+#define SIGTRAP 23
+#define SIGURG 24
+#define SIGVTALRM 25
+#define SIGXCPU 26
+#define SIGXFSZ 27
 
-#if defined(__rtems__)
-#define	SIGURG	16	/* urgent condition on IO channel */
-#define	SIGSTOP	17	/* sendable stop signal not from tty */
-#define	SIGTSTP	18	/* stop signal from tty */
-#define	SIGCONT	19	/* continue a stopped process */
-#define	SIGCHLD	20	/* to parent on child stop or exit */
-#define	SIGCLD	20	/* System V name for SIGCHLD */
-#define	SIGTTIN	21	/* to readers pgrp upon background tty read */
-#define	SIGTTOU	22	/* like TTIN for output if (tp->t_local&LTOSTOP) */
-#define	SIGIO	23	/* input/output possible signal */
-#define	SIGPOLL	SIGIO	/* System V name for SIGIO */
-#define	SIGWINCH 24	/* window changed */
-#define	SIGUSR1 25	/* user defined signal 1 */
-#define	SIGUSR2 26	/* user defined signal 2 */
-
-#endif
+/* Defines for signal() */
+#define SIG_DFL 0
+#define SIG_ERR -1
+#define SIG_HOLD 1
+#define SIG_IGN 2
+__END_C_HEADER
 #endif

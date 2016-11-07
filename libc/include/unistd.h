@@ -111,4 +111,5 @@ unsigned long lseek(int fd, unsigned long offset, int whence);
 int brk(void* addr);
 void* sbrk(unsigned long long inc);
 void _exit(int exit_code);
+pid_t getpid();
 #endif

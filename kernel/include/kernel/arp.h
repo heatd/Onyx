@@ -16,12 +16,12 @@
 
 #include <kernel/ethernet.h>
 
-#define ARP_ETHERNET 1
-#define ARP_HLEN_ETHERNET 6
-#define ARP_PLEN_IPV4 4
-#define ARP_PLEN_IPV6 6
-#define ARP_OP_REQUEST 1
-#define ARP_OP_REPLY 2 
+#define ARP_ETHERNET ((uint16_t)1)
+#define ARP_HLEN_ETHERNET ((uint16_t)6)
+#define ARP_PLEN_IPV4 ((uint16_t)4)
+#define ARP_PLEN_IPV6 ((uint16_t)6)
+#define ARP_OP_REQUEST ((uint16_t)1)
+#define ARP_OP_REPLY ((uint16_t)2) 
 typedef struct
 {
 	uint16_t htype;

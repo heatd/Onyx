@@ -11,7 +11,7 @@
 /**************************************************************************
  *
  *
- * File: kernel.cpp
+ * File: kernel.c
  *
  * Description: Main kernel file, contains the entry point and initialization
  *
@@ -44,6 +44,9 @@
 #include <kernel/power_management.h>
 #include <kernel/udp.h>
 #include <kernel/dhcp.h>
+#include <kernel/modules.h>
+#include <kernel/ethernet.h>
+#include <kernel/random.h>
 
 #include <drivers/ps2.h>
 #include <drivers/ata.h>
@@ -126,7 +129,7 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 	pmm_init(total_mem, (uintptr_t) &kernel_end);
 	size_t entries = mmap_tag->size / mmap_tag->entry_size;
 	struct multiboot_mmap_entry *mmap = (struct multiboot_mmap_entry *) mmap_tag->entries;
-	uintptr_t end_kernel = &kernel_end;
+	uintptr_t end_kernel = (uintptr_t) &kernel_end;
 	initrd_size += end_kernel - KERNEL_START_VIRT;
 	initrd_size += 0x1000;
 	initrd_size &= 0xFFFFFFFFFFFFF000;
@@ -152,7 +155,7 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 				  tagfb->common.framebuffer_pitch);
 	/* Initialize the first terminal */
 	tty_init();
-	initrd_addr = initrd_tag->mod_start;
+	initrd_addr = (void*) (uintptr_t) initrd_tag->mod_start;
 }
 uintptr_t rsdp;
 extern void libc_late_init();
@@ -240,6 +243,9 @@ void kernel_multitasking(void *arg)
 	char *b = malloc(in->size);
 	memset(b, 0, in->size);
 	write_vfs(0, in->size, b, in);*/
+	initialize_entropy();
+	for(int i = 0; i < 10; i++)
+		printf("entropy: %x\n", rand());
 	exec("/sbin/init", args, envp);
 	for (;;) asm volatile("hlt");
 }

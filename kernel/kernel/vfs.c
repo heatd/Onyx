@@ -49,7 +49,7 @@ size_t write_vfs(size_t offset, size_t sizeofwrite, void* buffer, vfsnode_t* thi
 int ioctl_vfs(int request, va_list args, vfsnode_t *this)
 {
 	if(this->ioctl != NULL)
-		return this->ioctl(this, request, args);
+		return this->ioctl(request, args, this);
 	return errno = ENOSYS, -1;
 }
 void close_vfs(vfsnode_t* this)

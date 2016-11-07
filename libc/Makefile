@@ -2,7 +2,7 @@ HOST?=$(shell ../default-host.sh)
 HOSTARCH:=$(shell ../target-triplet-to-arch.sh $(HOST))
 
 CFLAGS?=-O2 -g
-CPPFLAGS?=
+CPPFLAGS?=-D__is_spartix_libc
 LDFLAGS?=
 LIBS?=
 
@@ -64,10 +64,13 @@ stdio/stdio.o \
 stdio/stdstream.o \
 posix/process.o \
 posix/memory.o \
+posix/signal.o \
+stdio/perror.o \
+math/rand.o \
+libc/__tls_get_addr.o
 
 OBJS:=\
 $(FREEOBJS) \
-math/rand.o \
 libc/init.o \
 
 LIBK_OBJS:=$(FREEOBJS:.o=.libk.o) \

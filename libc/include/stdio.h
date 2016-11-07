@@ -12,26 +12,29 @@
 #define _STDIO_H 1
 
 #include <sys/cdefs.h>
-#include <string.h>
-#undef va_list
+#undef va_list /* ACPICA defines va_list, which messes up the kernel's compilation */
 #include <stdarg.h>
-#include <unistd.h>
 #ifdef __is_spartix_kernel
 #include <kernel/spinlock.h>
 #endif
-#ifdef __cplusplus
-extern "C" {
+__START_C_HEADER
+#ifndef __need_FILE
+#define __need_FILE 1
 #endif
-
+#if defined(__need_FILE) && !defined(__FILE_defined)
 struct _IO_FILE;
 typedef struct _IO_FILE FILE;
-
 extern FILE* stderr;
 #define stderr stderr
 extern FILE* stdout;
 #define stdout stdout
 extern FILE* stdin;
 #define stdin stdin
+
+#ifndef __size_t_defined
+#define __need_size_t 1
+#include <stddef.h>
+#endif
 
 int fprintf(FILE*, const char*, ...);
 int fclose(FILE*);
@@ -40,20 +43,17 @@ size_t fread(void*, size_t, size_t, FILE*);
 int fseek(FILE*, long, int);
 long ftell(FILE*);
 size_t fwrite(const void*, size_t, size_t, FILE*);
-int vsprintf(char *restrict s, const char *__restrict__ format, va_list parameters);
-
-#undef setbuf
 void setbuf(FILE*, char*);
+#endif /* __need_FILE */
 
-int printf(const char* __restrict, ...);
+int vsprintf(char *restrict s, const char *__restrict__ format, va_list parameters);
 int vprintf(const char *__restrict__ format, va_list parameters);
-
-#undef putchar
+int printf(const char *s, ...);
 int putchar(int);
 int puts(const char*);
 
-#ifdef __cplusplus
-}
-#endif
+void perror(const char *errmsg);
+
+__END_C_HEADER
 
 #endif

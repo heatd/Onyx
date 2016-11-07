@@ -80,6 +80,7 @@ uintptr_t get_kernel_sym_by_name(char *name)
 			return syms[i].st_value;
 		}
 	}
+	return 0;
 }
 char *resolve_sym(void *address)
 {

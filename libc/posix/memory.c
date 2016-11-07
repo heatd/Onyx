@@ -9,9 +9,11 @@
  * Foundation.
  *----------------------------------------------------------------------*/
 #include <unistd.h>
+#include <stdlib.h>
+
 #include <sys/syscall.h>
 #include <sys/types.h>
-#include <stdlib.h>
+#include <sys/mman.h>
 
 void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
@@ -23,20 +25,36 @@ void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 	(void) offset;
 	asm volatile("mov $11, %rax; int $0x80");
 	register void *rax asm("rax");
+	if(rax == MAP_FAILED)
+	{
+		set_errno();
+	}
 	return rax;
 }
 int munmap(void *addr, size_t length)
 {
 	syscall(SYS_munmap, addr, length);
+	if(rax == (unsigned long long) -1)
+	{
+		set_errno();
+	}
 	return (int) rax;
 }
 int mprotect(void *addr, size_t len, int prot)
 {
 	syscall(SYS_mprotect, addr, len, prot);
+	if(rax == (unsigned long long) -1)
+	{
+		set_errno();
+	}
 	return (int) rax;
 }
 int brk(void *addr)
 {
 	syscall(SYS_brk, addr);
+	if(rax == (unsigned long long) -1)
+	{
+		set_errno();
+	}
 	return (int) rax;
 }

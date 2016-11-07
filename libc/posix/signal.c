@@ -8,26 +8,31 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#include <stdint.h>
-#include <string.h>
-#include <stdio.h>
+#include <unistd.h>
+#include <signal.h>
 
-#include <acpi.h>
+#include <sys/syscall.h>
+#include <sys/types.h>
 
-#include <kernel/portio.h>
-#include <kernel/acpi.h>
-
-void pm_reboot()
+int kill(pid_t pid, int sig)
 {
-	if(ACPI_FAILURE(AcpiReset()))
-		printf("ACPI reset failed, trying PS/2\n");
-	outb(0x64, 0xFE);
-	// If the reboot hasn't happened yet, load a zero-idt and interrupt
-	asm volatile("lidt 0x0");
-	asm volatile("cli; int $0x60");
-	asm volatile("cli;hlt");
+	syscall(SYS_kill, pid, sig);
+	if(rax == (unsigned long) -1)
+	{
+		set_errno();
+	}
+	return rax;
 }
-void pm_shutdown()
+int raise(int signal)
 {
-	acpi_shutdown(NULL);
+	return kill(getpid(), signal);
+}
+void (*signal(int sig, void (*func)(int)))(int)
+{
+	syscall(sig, func);
+	if(rax == (unsigned long) SIG_ERR)
+	{
+		set_errno();
+	}
+	return (void(*)(int)) rax;
 }

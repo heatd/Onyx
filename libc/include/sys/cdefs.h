@@ -11,6 +11,11 @@
 #ifndef _SYS_CDEFS_H
 #define _SYS_CDEFS_H 1
 
-#define __is_spartix_libc 1
-
+#ifdef __cplusplus
+#define __START_C_HEADER extern "C" {
+#define __END_C_HEADER }
+#else
+#define __START_C_HEADER
+#define __END_C_HEADER
+#endif
 #endif

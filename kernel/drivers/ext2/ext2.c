@@ -36,7 +36,10 @@ void ext2_write_block(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs, void
 	void *buff = vmm_allocate_virt_address(VM_KERNEL, 1, VMM_TYPE_REGULAR, 0); /* Allocate a buffer */
 	vmm_map_range(buff, 1, VMM_GLOBAL | VMM_WRITE | VMM_NOEXEC);
 	if(!buff)
-		return NULL;
+	{
+		errno = ENOMEM;
+		return;
+	}
 	memcpy(buff, buffer, size);
 	uint32_t phys = (uint64_t)virtual2phys(buff) >> 0 & 0xFFFFFFFF;
 	uint64_t lba = fs->first_sector + (block_index * fs->block_size / 512);
@@ -408,8 +411,8 @@ vfsnode_t *ext2_open(vfsnode_t *nd, const char *name)
 	inode_t *ino = ext2_get_inode_from_number(fs, inoden);
 	// Calculate the size of the directory
 	size_t size = ((uint64_t)ino->size_hi << 32) | ino->size_lo;
-	char *p = name;
-	char *inode_data = ext2_read_inode_bp(ino, fs, &size);
+	char *p = (char*) name;
+	char *inode_data = ext2_read_inode_bp(ino, fs, size);
 	dir_entry_t *dir = (dir_entry_t*)inode_data;
 	while(p)
 	{
@@ -429,7 +432,7 @@ vfsnode_t *ext2_open(vfsnode_t *nd, const char *name)
 		ino = ext2_get_inode_from_dir(fs, dir, path, &inode_num);
 		if(strtok(p, "/") == NULL)
 			break;
-		inode_data = ext2_read_inode_bp(ino, fs, &size);
+		inode_data = ext2_read_inode_bp(ino, fs, size);
 		dir = (dir_entry_t*)inode_data;
 		p = strtok(p, "/");
 		free(path);

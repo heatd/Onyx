@@ -1,7 +1,7 @@
 #ifndef _KERNEL_PTHREADS
 #define _KERNEL_PTHREADS
 
-
+#include <sys/types.h>
 
 typedef struct pthread {
 	struct pthread *self;

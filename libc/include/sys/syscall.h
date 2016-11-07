@@ -10,7 +10,7 @@
  *----------------------------------------------------------------------*/
 #ifndef SYSCALL_H
 #define SYSCALL_H
-
+#include <errno.h>
 // The Spartix kernel's system call numbers
 #define SYS_write	0
 #define SYS_read 	1
@@ -40,6 +40,15 @@
 #define SYS_writev	25
 #define SYS_preadv	26
 #define SYS_pwritev	27
+#define SYS_getdents	28
+#define SYS_ioctl	29
+#define SYS_truncate	30
+#define SYS_ftruncate	31
+#define SYS_personality	32
+#define SYS_signal	33
+#define SYS_isatty	34
+#define set_errno() register int __err asm("r11"); \
+errno = __err
 
 #define __syscall0(no) __asm__ __volatile__("int $0x80"::"a"(no):"memory")
 #define __syscall1(no, a) __asm__ __volatile__("int $0x80"::"a"(no), "D"(a) : "memory")

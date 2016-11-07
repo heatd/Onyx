@@ -31,12 +31,12 @@ int send_ipv4_packet(uint32_t senderip, uint32_t destip, unsigned int type, char
 	ip_header->proto = type;
 	ip_header->frag_off__flags =  LITTLE_TO_BIG16(2 & 0x7);
 	ip_header->ttl = 0xFF;
-	ip_header->total_len = LITTLE_TO_BIG16(sizeof(ip_header_t) + payload_size);
+	ip_header->total_len = LITTLE_TO_BIG16((sizeof(ip_header_t) + payload_size));
 	ip_header->version = 4;
 	ip_header->ihl = 5;
 	ip_header->header_checksum = ipsum(ip_header);
 	memcpy(&ip_header->payload, payload, payload_size);
-	eth_send_packet(&router_mac, (char*) ip_header, sizeof(ip_header_t) + payload_size, PROTO_IPV4);
+	eth_send_packet(router_mac, (char*) ip_header, sizeof(ip_header_t) + payload_size, PROTO_IPV4);
 	free(ip_header);
 	return 0;
 }

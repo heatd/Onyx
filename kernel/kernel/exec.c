@@ -11,22 +11,23 @@
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#include <pthread_kernel.h>
 
 #include <sys/mman.h>
 
-#include <pthread_kernel.h>
 #include <kernel/task_switching.h>
 #include <kernel/elf.h>
 #include <kernel/vfs.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
 #include <kernel/envp.h>
+#include <kernel/compiler.h>
 
 int exec(const char *path, char **argv, char **envp)
 {
 	process_t *proc = process_create(path, NULL, NULL);
 	if(!proc)
-		return NULL;
+		return errno = ENOMEM, -1;
 	vfsnode_t *in = open_vfs(fs_root, path);
 	if (!in)
 	{
@@ -36,7 +37,7 @@ int exec(const char *path, char **argv, char **envp)
 	char *buffer = malloc(in->size);
 	if (!buffer)
 		return errno = ENOMEM;
-	size_t read = read_vfs(0, in->size, buffer, in);
+	read_vfs(0, in->size, buffer, in);
 	void *entry = elf_load((void *) buffer);
 	char **env = copy_env_vars(envp);
 	int argc;

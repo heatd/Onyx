@@ -15,6 +15,8 @@
 
 #include <kernel/vmm.h>
 #include <kernel/ethernet.h>
+#include <kernel/pic.h>
+#include <kernel/irq.h>
 
 #include <drivers/mmio.h>
 #include <drivers/e1000.h>
@@ -28,6 +30,8 @@ _Bool eeprom_exists = false;
 _Bool got_packet = false;
 static char *mem_space = NULL;
 static uint16_t io_space = 0;
+void e1000_write_command(uint16_t addr, uint32_t val);
+uint32_t e1000_read_command(uint16_t p_address);
 // Returns 1 if it exists, 0 if not
 int detect_e1000_nic()
 {
@@ -37,7 +41,6 @@ int detect_e1000_nic()
 	nicdev = pcidev;
 	return 1;
 }
-uint32_t e1000_read_command(uint16_t p_address);
 static void initialize_e1000_busmastering()
 {
 	uint32_t command_reg = pci_config_read_dword(nicdev->slot, nicdev->device, nicdev->function, PCI_COMMAND);
@@ -70,11 +73,11 @@ static void e1000_irq()
 }
 void e1000_write_command(uint16_t addr, uint32_t val)
 {
-	mmio_writel(mem_space + addr, val);
+	mmio_writel((uintptr_t) (mem_space + addr), val);
 }
-uint32_t e1000_read_command(uint16_t p_address)
+uint32_t e1000_read_command(uint16_t addr)
 {
-	return mmio_readl(mem_space + p_address);
+	return mmio_readl((uintptr_t) (mem_space + addr));
 }
 void e1000_detect_eeprom()
 {
@@ -153,13 +156,13 @@ int e1000_init_descs()
 	for(int i = 0; i < E1000_NUM_RX_DESC; i++)
 	{
 		rx_descs[i] = (struct e1000_rx_desc *)((uint8_t *)rxdescs + i*16);
-		rx_descs[i]->addr = malloc(MAX_MTU);
+		rx_descs[i]->addr = (uint64_t) malloc(MAX_MTU);
 		if(!rx_descs[i]->addr)
 		{
 			vmm_unmap_range(ptr, needed_pages);
 			return 1;
 		}
-		rx_descs[i]->addr = virtual2phys((void*) rx_descs[i]->addr);
+		rx_descs[i]->addr = (uint64_t) virtual2phys((void*) rx_descs[i]->addr);
 		rx_descs[i]->status = 0;
 	}
 	ptr = virtual2phys(ptr);
@@ -225,10 +228,10 @@ void e1000_enable_interrupts()
 	e1000_write_command(REG_IMASK ,0xff & ~4);
 	e1000_read_command(0xC0);
 }
-int e1000_send_packet(const void *p_data, uint16_t p_len)
+int e1000_send_packet(const void *data, uint16_t len)
 {
-	tx_descs[tx_cur]->addr = (uint64_t)virtual2phys(p_data);
-	tx_descs[tx_cur]->length = p_len;
+	tx_descs[tx_cur]->addr = (uint64_t)virtual2phys((void*) data);
+	tx_descs[tx_cur]->length = len;
 	tx_descs[tx_cur]->cmd = CMD_EOP | CMD_IFCS | CMD_RS | CMD_RPS | CMD_IC;
 	tx_descs[tx_cur]->status = 0;
 	uint8_t old_cur = tx_cur;

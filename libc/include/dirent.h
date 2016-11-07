@@ -10,6 +10,7 @@
  *----------------------------------------------------------------------*/
 #ifndef _DIRENT_H
 #define _DIRENT_H
+#include <sys/cdefs.h>
 #include <sys/types.h>
 
 struct dirent

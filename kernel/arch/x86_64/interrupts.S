@@ -245,7 +245,10 @@ IRQ 15 ,47
 global __syscall_int
 extern syscall_list
 extern SYSCALL_MAX_NUM
+extern errno
 section .data
+; Forkstack, forkret, and forkretregs are dangerous.
+; Rage condition waiting to happen...
 global forkstack
 forkstack: dq 0
 global forkret
@@ -271,7 +274,9 @@ __syscall_int:
 	mov [forkret], r10
 	mov [forkretregs], rsp
 	call [syscall_list + rax * 8]
-.syscall_exit:	pop rcx
+.syscall_exit:
+	mov r11, errno
+	pop rcx
 	mov ds, cx
 	mov es, cx
 	syscallpopregs

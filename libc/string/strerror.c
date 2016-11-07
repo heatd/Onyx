@@ -137,7 +137,6 @@ const char *errno_table[] =
 "Key has expired",
 "Key has been revoked",
 "Key was rejected by service",
-"for robust mutexes",
 "Owner died",
 "State not recoverable"
 };
