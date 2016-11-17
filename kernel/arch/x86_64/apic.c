@@ -18,7 +18,7 @@
 #include <kernel/task_switching.h>
 #include <kernel/acpi.h>
 
-volatile uint32_t *lapic = NULL;
+volatile uint32_t *bsp_lapic = NULL;
 volatile uint64_t ap_done = 0;
 volatile uint64_t core_stack = 0;
 int cores_turned_on = 0;
@@ -28,19 +28,20 @@ void idle_smp()
 	cores_turned_on++;
 	while(1);
 }
-void lapic_write(uint32_t addr, uint32_t val)
+void lapic_write(volatile uint32_t *lapic, uint32_t addr, uint32_t val)
 {
 	volatile uint32_t *laddr = (volatile uint32_t *)((volatile char*) lapic + addr);
 	*laddr = val;
 }
-uint32_t lapic_read(uint32_t addr)
+uint32_t lapic_read(volatile uint32_t *lapic, uint32_t addr)
 {
 	volatile uint32_t *laddr = (volatile uint32_t *)((volatile char*) lapic + addr);
 	return *laddr;
 }
 void lapic_send_eoi()
 {
-	lapic_write(LAPIC_EOI, 0);
+	// TODO: Get the current CPU's lapic address and use it
+	lapic_write(bsp_lapic, LAPIC_EOI, 0);
 }
 void rdmsr(uint32_t msr, uint32_t *lo, uint32_t *hi)
 {
@@ -55,14 +56,14 @@ void lapic_init()
 	uint64_t addr = low | ((uint64_t)high << 32);
 	addr &= 0xFFFFF000;
 	/* Map the BSP's LAPIC */
-	lapic = vmm_allocate_virt_address(VM_KERNEL, 1, VMM_TYPE_REGULAR, VMM_TYPE_HW);
-	paging_map_phys_to_virt((uintptr_t)lapic, addr, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
+	bsp_lapic = vmm_allocate_virt_address(VM_KERNEL, 1, VMM_TYPE_REGULAR, VMM_TYPE_HW);
+	paging_map_phys_to_virt((uintptr_t)bsp_lapic, addr, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
 
 	/* Enable the LAPIC by setting LAPIC_SPUINT to 0x100 OR'd with the default spurious IRQ(15) */
-	lapic_write(LAPIC_SPUINT, 0x100 | APIC_DEFAULT_SPURIOUS_IRQ);
+	lapic_write(bsp_lapic, LAPIC_SPUINT, 0x100 | APIC_DEFAULT_SPURIOUS_IRQ);
 	
 	/* Send an EOI because some interrupts might've gotten stuck when the interrupts weren't enabled */
-	lapic_write(LAPIC_EOI, 0);
+	lapic_write(bsp_lapic, LAPIC_EOI, 0);
 }
 volatile char *ioapic_base = NULL;
 ACPI_TABLE_MADT *madt = NULL;
@@ -172,7 +173,7 @@ static uintptr_t apic_timer_irq(registers_t *regs)
 void apic_timer_init()
 {
 	/* Set the timer divisor to 16 */
-	lapic_write(LAPIC_TIMER_DIV, 3);
+	lapic_write(bsp_lapic, LAPIC_TIMER_DIV, 3);
 	
 	asm volatile("sti");
 	/* Initialize the PIT to 100 hz */
@@ -183,22 +184,22 @@ void apic_timer_init()
 	while(t == pit_get_tick_count());
 	
 	/* 0xFFFFFFFF shouldn't overflow in 10ms */
-	lapic_write(LAPIC_TIMER_INITCNT, 0xFFFFFFFF);
+	lapic_write(bsp_lapic, LAPIC_TIMER_INITCNT, 0xFFFFFFFF);
 
 	/* Wait for the 10 ms*/
 	t = pit_get_tick_count();
 	while(t == pit_get_tick_count());
 
 	/* Get the ticks that passed in 10ms */
-	uint32_t ticks_in_10ms = 0xFFFFFFFF - lapic_read(LAPIC_TIMER_CURRCNT); 
+	uint32_t ticks_in_10ms = 0xFFFFFFFF - lapic_read(bsp_lapic, LAPIC_TIMER_CURRCNT); 
 	
-	lapic_write(LAPIC_LVT_TIMER, LAPIC_TIMER_IVT_MASK);
+	lapic_write(bsp_lapic, LAPIC_LVT_TIMER, LAPIC_TIMER_IVT_MASK);
 	
 	/* Initialize the APIC timer with IRQ2, periodic mode and an init count of ticks_in_10ms/10(so we get a rate of 1000hz)*/
-	lapic_write(LAPIC_TIMER_DIV, 3);
+	lapic_write(bsp_lapic, LAPIC_TIMER_DIV, 3);
 
-	lapic_write(LAPIC_LVT_TIMER, 34 | LAPIC_LVT_TIMER_MODE_PERIODIC);
-	lapic_write(LAPIC_TIMER_INITCNT, ticks_in_10ms/10);
+	lapic_write(bsp_lapic, LAPIC_LVT_TIMER, 34 | LAPIC_LVT_TIMER_MODE_PERIODIC);
+	lapic_write(bsp_lapic, LAPIC_TIMER_INITCNT, ticks_in_10ms/10);
 
 	/* De-initialize the PIT's used resources */	
 	pit_deinit();
@@ -211,10 +212,10 @@ uint64_t get_tick_count()
 }
 void send_ipi(uint8_t id, uint32_t type, uint32_t page)
 {
-	lapic_write(LAPIC_IPIID, (uint32_t)id << 24);
+	lapic_write(bsp_lapic, LAPIC_IPIID, (uint32_t)id << 24);
 	uint64_t icr = type << 8;
 	icr |= (1 << 14);
-	lapic_write(LAPIC_ICR, (uint32_t) icr);
+	lapic_write(bsp_lapic, LAPIC_ICR, (uint32_t) icr);
 }
 void apic_wake_up_processor(uint8_t lapicid)
 {

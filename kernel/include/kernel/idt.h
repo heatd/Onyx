@@ -39,6 +39,7 @@ typedef struct IDT_entry idt_entry_t;
 void idt_create_descriptor(uint8_t entry,uint64_t offset,uint16_t selector,uint8_t flags);
 void idt_load();
 void idt_init();
+void setvect(uint8_t entry, uint64_t addr);
 extern void isr0 ();
 extern void isr1();
 extern void isr2 ();

@@ -45,7 +45,7 @@ __long_mode_enter:
 	retf
 _long_mode:
 BITS 64
-	mov eax, 0x10
+	mov rax, 0x10
 	mov ds, ax
 	mov es, ax
 	mov ss, ax
@@ -61,7 +61,7 @@ BITS 64
 	mov rsp, [core_stack]
 	mov rax, cr3
 	mov cr3, rax
-	
+
 	mov rax, cr0
 	and ax, 0xFFFB
 	or ax, 0x2
@@ -69,14 +69,21 @@ BITS 64
 	mov rax, cr4
 	or ax, 3 << 9
 	mov cr4, rax
+	extern cpu_num
+	mov rdi, [cpu_num]
 	; Say to the BSP that we finished
 	extern ap_done
 	lock inc byte [ap_done]
+	push 0
+	extern cpu_ap_entry
+	push cpu_ap_entry
+	ret
 halt:
 	hlt
 	jmp halt
 align 16
-stack: resb 512
+stack:
+times 256 dq 0
 global _smp_func_end
 _smp_func_end:
 gdt:

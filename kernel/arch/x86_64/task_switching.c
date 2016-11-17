@@ -207,8 +207,7 @@ void* sched_switch_thread(void* last_stack)
 			{
 				paging_load_cr3(current_process->cr3);
 			}
-			wrmsr(FS_BASE_MSR, current_process->fs & 0xFFFFFFFF, current_process->fs >> 32);
-			wrmsr(GS_BASE_MSR, (uintptr_t)current_thread & 0xFFFFFFFF, (uintptr_t)current_thread >> 32);
+			wrmsr(FS_BASE_MSR, (uintptr_t)current_process->fs & 0xFFFFFFFF, (uintptr_t)current_process->fs >> 32);
 		}
 		return current_thread->kernel_stack;
 	}
@@ -254,7 +253,7 @@ uintptr_t *sched_fork_stack(uintptr_t *stack, uintptr_t *forkstackregs, uintptr_
 	*--stack = forkstackregs[6]; // R14
 	*--stack = forkstackregs[5]; // R13
 	*--stack = forkstackregs[4]; // R12
-	*--stack = forkstackregs[3];
+	*--stack = forkstackregs[3]; // R11
 	*--stack = forkstackregs[2]; // R10
 	*--stack = forkstackregs[1]; // R9
 	*--stack = forkstackregs[0]; // R8

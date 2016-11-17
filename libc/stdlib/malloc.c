@@ -208,6 +208,8 @@ void *calloc(size_t nmemb, size_t size)
 }
 void *realloc(void *ptr, size_t newsize)
 {
+	if(!ptr)
+		return malloc(newsize);
 	void *newbuf = malloc(newsize);
 	block_t *block = (block_t*)((char*)(ptr) - sizeof(block_t));
 	size_t block_size = block->size;

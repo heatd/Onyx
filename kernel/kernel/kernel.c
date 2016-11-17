@@ -70,6 +70,7 @@ struct multiboot_tag_elf_sections secs;
 struct multiboot_tag_mmap *mmap_tag = NULL;
 void *initrd_addr = NULL;
 static void *tramp = NULL;
+
 void kernel_early(uintptr_t addr, uint32_t magic)
 {
 	addr += PHYS_BASE;
@@ -191,6 +192,7 @@ void kernel_main()
 	extern uintptr_t _start_smp;
 	extern uintptr_t _end_smp;
 	memcpy((void*)tramp, &_start_smp, (uintptr_t)&_end_smp - (uintptr_t)&_start_smp);
+	
 	int cpus = cpu_init_mp();
 	extern void init_keyboard();
 	init_keyboard();

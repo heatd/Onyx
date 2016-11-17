@@ -24,6 +24,6 @@ void *__tls_get_addr(size_t *v)
 {
 	(void) v;
 	void *ret = NULL;
-	asm volatile("movq %%gs:0x0, %0"::"r"(ret));
+	asm volatile("movq %%fs:0x0, %0"::"r"(ret));
 	return ret;
 }

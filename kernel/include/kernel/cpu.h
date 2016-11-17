@@ -11,14 +11,22 @@
 #ifndef _KERNEL_CPU_H
 #define _KERNEL_CPU_H
 #include <stdint.h>
-typedef struct cpu {
+typedef struct cpu
+{
 	char manuid[13];
 	char brandstr[48];
 	uint32_t max_function;
 	uint32_t stepping, family, model, extended_model, extended_family;
 	int virtualAddressSpace, physicalAddressSpace;
 	/* Add more as needed*/
-}cpu_t;
+} cpu_t;
+struct processor
+{
+	volatile char *lapic;
+	volatile char *lapic_phys;
+	int cpu_num;
+	int lapic_id;
+};
 #define CPUID_MANUFACTURERID 		0
 #define CPUID_MAXFUNCTIONSUPPORTED 	0x80000000
 #define CPUID_BRAND0			0x80000002

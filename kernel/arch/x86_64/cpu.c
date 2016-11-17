@@ -30,6 +30,7 @@
 #include <kernel/apic.h>
 #include <kernel/pic.h>
 #include <kernel/acpi.h>
+#include <kernel/spinlock.h>
 static cpu_t cpu;
 
 char *cpu_get_name()
@@ -100,25 +101,66 @@ void cpu_init_interrupts()
 	lapic_init();
 	apic_timer_init();
 }
-uint8_t *lapic_ids = NULL;
+static struct processor *cpus = NULL;
 static int booted_cpus = 0;
 extern ACPI_TABLE_MADT *madt;
+int cpu_num = 0;
+static spinlock_t ap_entry_spinlock;
+extern volatile uint32_t *bsp_lapic;
 int cpu_init_mp()
 {
+	ACPI_SUBTABLE_HEADER *first = (ACPI_SUBTABLE_HEADER *) (madt+1);
 	/* Lets parse through the MADT to get the number of cores.
 	 * Each LAPIC = 1 core */
-	ACPI_SUBTABLE_HEADER *first = (ACPI_SUBTABLE_HEADER *) (madt+1);
+	
+	/* APs can't access ´cpus´ before we've finished, as it's subject to memory address changes */
+	acquire_spinlock(&ap_entry_spinlock);
+	
 	for(ACPI_SUBTABLE_HEADER *i = first; i < (ACPI_SUBTABLE_HEADER*)((char*)madt + madt->Header.Length); i = 
 	(ACPI_SUBTABLE_HEADER*)((uint64_t)i + (uint64_t)i->Length))
 	{
 		if(i->Type == ACPI_MADT_TYPE_LOCAL_APIC)
 		{
 			ACPI_MADT_LOCAL_APIC *apic = (ACPI_MADT_LOCAL_APIC *) i;
+			cpus = realloc(cpus, booted_cpus * sizeof(struct processor) + sizeof(struct processor));
+			cpus[booted_cpus].lapic_id = apic->Id;
+			cpus[booted_cpus].cpu_num = booted_cpus;
+
 			booted_cpus++;
 			if(booted_cpus != 1)
 				apic_wake_up_processor(apic->Id);
-
+			cpu_num = booted_cpus;
 		}
 	}
+	/* Fill CPU0's data */
+	cpus[0].lapic = (volatile char*) bsp_lapic;
+	wrmsr(GS_BASE_MSR, (uint64_t) &cpus[0] & 0xFFFFFFFF, (uint64_t) &cpus[0] >> 32);
+	release_spinlock(&ap_entry_spinlock);
 	return booted_cpus;
+}
+void cpu_ap_entry(int cpu_num)
+{
+	acquire_spinlock(&ap_entry_spinlock);
+
+	uint32_t high, low;
+	rdmsr(0x1b, &low, &high);
+	uint64_t addr = low | ((uint64_t)high << 32);
+	addr &= 0xFFFFF000;
+	/* Map the BSP's LAPIC */
+	uintptr_t _lapic = vmm_allocate_virt_address(VM_KERNEL, 1, VMM_TYPE_REGULAR, VMM_TYPE_HW);
+	paging_map_phys_to_virt((uintptr_t)_lapic, addr, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
+	
+	/* Fill the processor struct with the LAPIC data */
+	cpus[cpu_num].lapic = _lapic;
+	cpus[cpu_num].lapic_phys = addr;
+
+	/* Fill this core's fs with &cpus[cpu_num] */
+	printf("CPU#%u FS base: %p\n", cpu_num, &cpus[cpu_num]);
+	wrmsr(GS_BASE_MSR, (uint64_t) &cpus[cpu_num] & 0xFFFFFFFF, (uint64_t) &cpus[cpu_num] >> 32);
+	release_spinlock(&ap_entry_spinlock);
+
+	/* cpu_ap_entry() can't return, as there's no valid return address on the stack, so just hlt until the scheduler
+	   preempts the AP
+	*/
+	while(1);
 }

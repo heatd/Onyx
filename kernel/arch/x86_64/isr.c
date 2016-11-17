@@ -137,6 +137,7 @@ void isr_handler(uint64_t err_code, uint64_t int_no)
 		if(!entr)
 		{
 		pf:
+			printf("\n");
 			printf("%s0x%X\n",exception_msg[int_no],faulting_address);
 			if(err_code & 0x2)
 				printf(" caused by a write\n");
@@ -148,6 +149,7 @@ void isr_handler(uint64_t err_code, uint64_t int_no)
 				printf("Instruction fetch\n");
                         asm volatile("hlt");
 		}
+		goto pf;
 		if(err_code & 0x2 && ~entr->rwx & VMM_WRITE)
 			goto pf;
 		if(err_code & 0x10 && entr->rwx & VMM_NOEXEC)
