@@ -83,13 +83,16 @@ void cpu_get_sign()
 void cpu_identify()
 {
 	printf("Detected x86_64 CPU\n");
-	printf("Manufacturer ID: %s\n",cpu_get_name());
+	printf("Manufacturer ID: %s\n", cpu_get_name());
 	if(cpu.brandstr[0] != '\0')
-		printf("Name: %s\n",cpu.brandstr);
+		printf("Name: %s\n", cpu.brandstr);
 	cpu_get_sign();
-	printf("Stepping %i, Model %i, Family %i\n",cpu.stepping,cpu.model,cpu.family);
+	printf("Stepping %i, Model %i, Family %i\n", cpu.stepping, cpu.model, cpu.family);
 }
 void cpu_init_interrupts()
 {
 	pic_remap();
+	ioapic_init();
+	lapic_init();
+	apic_timer_init();
 }

@@ -415,8 +415,8 @@ typedef struct aml_resource_gpio
     UINT8                           ConnectionType;
     UINT16                          Flags;
     UINT16                          IntFlags;
-    UINT8                           PinConfig;
     UINT16                          DriveStrength;
+    UINT8                           PinConfig;
     UINT16                          DebounceTimeout;
     UINT16                          PinTableOffset;
     UINT8                           ResSourceIndex;

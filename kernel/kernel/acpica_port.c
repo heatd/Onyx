@@ -9,17 +9,19 @@
  * Foundation.
  *----------------------------------------------------------------------*/
 /* File: acpica_port.c. It's here as the OS layer for ACPICA */
-#include <acpi.h>
-#include <kernel/vmm.h>
 #include <stdio.h>
+#include <acpi.h>
+
+#include <kernel/vmm.h>
 #include <kernel/irq.h>
 #include <kernel/portio.h>
 #include <kernel/panic.h>
-#include <kernel/pic.h>
 #include <kernel/task_switching.h>
+#include <kernel/timer.h>
+
 #include <drivers/pci.h>
-#include <kernel/pit.h>
 #include <drivers/rtc.h>
+
 void mutex_lock(unsigned long*);
 void mutex_unlock(unsigned long*);
 int printf(const char *, ...);
@@ -173,23 +175,21 @@ void AcpiOsReleaseLock(ACPI_SPINLOCK Handle, ACPI_CPU_FLAGS Flags)
 }
 ACPI_OSD_HANDLER ServiceRout;
 void *ctx;
-void ACPI_IRQ()
+static uintptr_t acpi_irq(registers_t *regs)
 {
 	ServiceRout(ctx);
+	return 0;
 }
 ACPI_STATUS AcpiOsInstallInterruptHandler(UINT32 InterruptLevel, ACPI_OSD_HANDLER Handler, void *Context)
 {
-	irq_install_handler(InterruptLevel, ACPI_IRQ);
-	pic_unmask_irq((uint16_t)InterruptLevel);
+	irq_install_handler(InterruptLevel, acpi_irq);
 	ServiceRout = Handler;
 	ctx = Context;
-	printf("Set ACPI handler\n");
 	return AE_OK;
 }
 ACPI_STATUS AcpiOsRemoveInterruptHandler(UINT32 InterruptNumber, ACPI_OSD_HANDLER Handler)
 {
-	irq_uninstall_handler(InterruptNumber, ACPI_IRQ);
-	pic_mask_irq((uint16_t)InterruptNumber);
+	irq_uninstall_handler(InterruptNumber, acpi_irq);
 	ServiceRout = NULL;
 	return AE_OK;
 }
@@ -284,19 +284,48 @@ void pci_write_qword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, ui
 ACPI_STATUS AcpiOsWritePciConfiguration (ACPI_PCI_ID *PciId, UINT32 Register, UINT64 Value, UINT32 Width)
 {
 	if(Width == 8)
-		pci_write_byte(PciId->Bus, PciId->Device, PciId->Function, PciId->Segment, (uint8_t)Value);
+		pci_write_byte(PciId->Bus, PciId->Device, PciId->Function, Register, (uint8_t)Value);
 	if(Width == 16)
-		pci_write_word(PciId->Bus, PciId->Device, PciId->Function, PciId->Segment, (uint16_t)Value);
+		pci_write_word(PciId->Bus, PciId->Device, PciId->Function, Register, (uint16_t)Value);
 	if(Width == 32)
-		pci_write_dword(PciId->Bus, PciId->Device, PciId->Function, PciId->Segment, (uint32_t)Value);
+		pci_write_dword(PciId->Bus, PciId->Device, PciId->Function, Register, (uint32_t)Value);
 	if(Width == 64)
-		pci_write_qword(PciId->Bus, PciId->Device, PciId->Function, PciId->Segment, Value);
+		pci_write_qword(PciId->Bus, PciId->Device, PciId->Function, Register, Value);
 	
 	return AE_OK;
 }
 ACPI_STATUS AcpiOsReadPciConfiguration (ACPI_PCI_ID *PciId, UINT32 Register, UINT64 *Value, UINT32 Width)
 {
-	*Value = (UINT64)pci_config_read_dword(PciId->Bus, PciId->Device, PciId->Function, PciId->Segment);
+	uint64_t mask = 0xFF;
+	switch(Width)
+	{
+		case 16:
+			mask = 0xFFFF;
+			break;
+		case 32:
+			mask = 0xFFFFFFFF;
+			break;
+		case 64:
+			mask = 0xFFFFFFFFFFFFFFFF;
+			break; 
+	}
+	UINT64 val = (UINT64)pci_config_read_dword(PciId->Bus, PciId->Device, PciId->Function, Register) & mask;
+	switch(Width)
+	{
+		case 8:
+			*((UINT8*)Value) = val;
+			break;
+		case 16:
+			*((UINT16*)Value) = val;
+			break;
+		case 32:
+			*((UINT32*)Value) = val;
+			break;
+		case 64:
+			*((UINT64*)Value) = val;
+			break; 
+	}
+	printf("val %x\n", *Value);
 	return AE_OK;
 }
 ACPI_STATUS
@@ -311,7 +340,10 @@ UINT32 * NewTableLength)
 void AcpiOsPrintf (
 const char *Format, ...)
 {
-	printf(Format);
+	va_list params;
+	va_start(params, Format);
+	vprintf(Format, params);
+	va_end(params);
 }
 void
 AcpiOsWaitEventsComplete (
@@ -331,7 +363,7 @@ UINT64
 AcpiOsGetTimer (
 void)
 {
-	return get_posix_time();
+	return get_tick_count();
 }
 ACPI_STATUS
 AcpiOsTerminate()
@@ -347,6 +379,5 @@ AcpiOsVprintf(
 	const char	*Fmt,
 	va_list	Args)
 {
-	/*printf("ACPI: ");
-	vprintf(Fmt, Args);*/
+	vprintf(Fmt, Args);
 }

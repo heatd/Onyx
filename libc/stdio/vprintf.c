@@ -185,8 +185,12 @@ int vprintf(const char *__restrict__ format, va_list parameters)
 	}
 #ifndef __is_spartix_kernel
 	fwrite(buffer, buffer_pos, 1, stdout);
+	buffer_pos = 0;
+	memset(buffer, 0, 4096);
 #else
 	tty_write(buffer, buffer_pos);
+	buffer_pos = 0;
+	memset(buffer, 0, 4096);
 #endif
 	return written;
 }

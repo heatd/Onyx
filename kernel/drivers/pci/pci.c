@@ -865,9 +865,7 @@ pcibar_t* pci_get_bar(uint8_t slot, uint8_t device, uint8_t function, uint8_t ba
 }
 uint16_t pci_get_intn(uint8_t slot, uint8_t device, uint8_t function)
 {
-	uint16_t intn = pci_config_read_dword(slot, device, function, 0x3C);
-	printf("Returning intn %d\n", intn&0xFF);
-	return intn&0xFF;
+	return acpi_get_irq_routing_for_dev(slot, device, function);
 }
 void pci_init()
 {

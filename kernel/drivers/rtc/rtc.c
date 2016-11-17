@@ -99,7 +99,7 @@ uint64_t get_unix_time(const date_t const *udate)
 	return utime;
 }
 static date_t date;
-void rtc_handler()
+static uintptr_t rtc_handler(registers_t *regs)
 {
 	date.seconds = rtc_get_date_reg(RTC_REG_SECONDS);
 	date.minutes = rtc_get_date_reg(RTC_REG_MINUTES);
@@ -112,6 +112,7 @@ void rtc_handler()
 	outb(0x70, RTC_STATUS_REG_C);
 	asm volatile("":::"memory");
 	inb(0x71);
+	return 0;
 }
 void init_rtc()
 {

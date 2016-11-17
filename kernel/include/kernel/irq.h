@@ -10,7 +10,8 @@
  *----------------------------------------------------------------------*/
 #ifndef _IRQ_H
 #define _IRQ_H
-typedef void(*irq_t)();
+#include <kernel/registers.h>
+typedef uintptr_t(*irq_t)(registers_t *);
 
 typedef struct irq
 {

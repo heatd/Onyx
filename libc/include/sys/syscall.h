@@ -50,18 +50,18 @@
 #define set_errno() register int __err asm("r11"); \
 errno = __err
 
-#define __syscall0(no) __asm__ __volatile__("int $0x80"::"a"(no):"memory")
-#define __syscall1(no, a) __asm__ __volatile__("int $0x80"::"a"(no), "D"(a) : "memory")
-#define __syscall2(no, a, b) __asm__ __volatile__("int $0x80"::"a"(no), "D"(a), "S"(b) : "memory")
-#define __syscall3(no, a, b, c) __asm__ __volatile__("int $0x80"::"a"(no), "D"(a), "S"(b), "d"(c) : "memory")
-#define __syscall4(no, a, b, c, d) __asm__ __volatile__("int $0x80"::"a"(no), "D"(a), "S"(b), "d"(c), "c"(d) : "memory")
-#define __syscall5(no, a, b, c, d, e) __asm__ __volatile__("mov %0, %r8;int $0x80"::"r"(e), a"(no), "D"(a), "S"(b), "d"(c), "c"(d) : "memory")
-#define __syscall6(no, a, b, c, d, e, f) __asm__ __volatile__("mov %0, %r8;mov %1, %r9;int $0x80"::"r"(e), "r"(f), "a"(no), "D"(a), "S"(b), "d"(c), "c"(d) : "memory")
+#define __syscall0(no) __asm__ __volatile__("int $0x80" :"=a"(rax) :"a"(no):"memory")
+#define __syscall1(no, a) __asm__ __volatile__("int $0x80" :"=a"(rax) :"a"(no), "D"(a) : "memory")
+#define __syscall2(no, a, b) __asm__ __volatile__("int $0x80" :"=a"(rax) :"a"(no), "D"(a), "S"(b) : "memory")
+#define __syscall3(no, a, b, c) __asm__ __volatile__("int $0x80" :"=a"(rax) :"a"(no), "D"(a), "S"(b), "d"(c) : "memory")
+#define __syscall4(no, a, b, c, d) __asm__ __volatile__("int $0x80":"=a"(rax) :"a"(no), "D"(a), "S"(b), "d"(c), "c"(d) : "memory")
+#define __syscall5(no, a, b, c, d, e) __asm__ __volatile__("mov %0, %r8;int $0x80":"=a"(rax) :"r"(e), a"(no), "D"(a), "S"(b), "d"(c), "c"(d) : "memory")
+#define __syscall6(no, a, b, c, d, e, f) __asm__ __volatile__("mov %0, %r8;mov %1, %r9;int $0x80":"=a"(rax) :"r"(e), "r"(f), "a"(no), "D"(a), "S"(b), "d"(c), "c"(d) : "memory")
 
 #define MKFN(fn,...) MKFN_N(fn,##__VA_ARGS__,9,8,7,6,5,4,3,2,1,0)(__VA_ARGS__)
 #define MKFN_N(fn,NR,n0,n1,n2,n3,n4,n5,n6,n7,n8,n,...) fn##n
 
-#define syscall(...) MKFN(__syscall, ##__VA_ARGS__); \
-register unsigned long rax asm ("rax") \
+#define syscall(...) register unsigned long rax asm ("rax"); \
+MKFN(__syscall, ##__VA_ARGS__); \
 
 #endif

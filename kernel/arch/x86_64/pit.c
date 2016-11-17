@@ -16,28 +16,31 @@
 #include <kernel/compiler.h>
 #include <stdio.h>
 static volatile uint64_t timer_ticks = 0;
-void timer_handler()
+uintptr_t timer_handler(registers_t *regs)
 {
 	timer_ticks++;
+	return 0;
 }
 void pit_init(uint32_t frequency)
 {
 	int divisor = 1193180 / frequency;
 
-	outb(0x43, 0x36);
+	outb(0x43, 0x34);
 	io_wait();
 	outb(0x40, divisor & 0xFF);   // Set low byte of divisor
 	io_wait();
 	outb(0x40, divisor >> 8);     // Set high byte of divisor
 	io_wait();
-	pic_unmask_irq(0); // Unmask IRQ0 (PIT)
 	irq_t handler = &timer_handler;
 	// Install the IRQ handler
-	irq_install_handler(0,handler);
-
+	irq_install_handler(2, handler);
 }
-
-uint64_t get_tick_count()
+void pit_deinit()
+{
+	outb(0x42, 0x34);
+	irq_uninstall_handler(2, timer_handler);
+}
+uint64_t pit_get_tick_count()
 {
 	return (uint64_t)timer_ticks;
 }

@@ -25,6 +25,14 @@ static volatile thread_t* current_thread = NULL;
 /* Creates a thread for the scheduler to switch to
    Expects a callback for the code(RIP) and some flags */
 int curr_id = 1;
+void sched_yield()
+{
+	thread_t *t;
+	for( t = first_thread; t->next != current_thread; t = t->next);
+	t->next = current_thread->next;
+	free(current_thread);
+	while(1);
+}
 thread_t* sched_create_thread(ThreadCallback callback, uint32_t flags,void* args)
 {
 	thread_t* new_thread = malloc(sizeof(thread_t));
@@ -60,6 +68,7 @@ thread_t* sched_create_thread(ThreadCallback callback, uint32_t flags,void* args
 	uint64_t ds = 0x10, cs = 0x08, rf = 0x202;
 	if(!(flags & 1))
 		ds = 0x23, cs = 0x1b, rf = 0x202;
+	*--stack = sched_yield;
 	*--stack = ds; //SS
 	*--stack = originalStack; //RSP
 	*--stack = rf; // RFLAGS
@@ -161,6 +170,8 @@ thread_t* sched_create_main_thread(ThreadCallback callback, uint32_t flags,int a
 }
 void* sched_switch_thread(void* last_stack)
 {
+	if(!first_thread)
+		return last_stack;
 	if(!current_thread)
 	{
 		current_thread = first_thread;

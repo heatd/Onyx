@@ -62,8 +62,9 @@ irq_common:
 	mov ss, ax
 	mov ds, ax
 	mov es, ax
+	mov rsi, rsp
 	call irq_handler
-	push rdi
+	mov rsp, rax
 	mov rax, current_process
 	cmp qword [rax], qword 0
 	je .continue
@@ -71,10 +72,8 @@ irq_common:
 	cmp dword [rax], dword 1
 	je .handle_signal
 .continue:
-	sub rdi, 32
-	extern pic_send_eoi
-	call pic_send_eoi
-	pop rdi
+	extern lapic_send_eoi
+	call lapic_send_eoi
 	pop rax
 	mov ds, ax
 	mov es, ax
@@ -83,12 +82,12 @@ irq_common:
 .handle_signal:
 	call handle_signal
 	jmp .continue
-%macro IRQ 2
+%macro IRQ 1
 global irq%1
 irq%1:
 cli
 pushaq
-mov rdi, %2
+mov rdi, %1
 jmp irq_common
 %endmacro
 
@@ -162,56 +161,30 @@ ISR_NOERRCODE 28
 ISR_NOERRCODE 29
 ISR_NOERRCODE 30
 ISR_NOERRCODE 31
-global irq0
-irq0:
-	cli
-	pushaq
-	; load the kernel's segments
-	mov ax, ds
-	push rax
-	mov ax, 0x10
-	mov ds, ax
-	mov ss, ax
-	mov es, ax
-	extern timer_handler
-	call timer_handler
-	mov rdi, rsp
-	extern sched_switch_thread
-	call sched_switch_thread
-	mov rsp, rax
-	mov rax, current_process
-	cmp qword [rax], qword 0
-	je .irq0_cont
-	mov rax, qword [rax]
-	cmp dword [rax], dword 1
-	je .irq0_handle
-.irq0_cont:
-	; reload segs
-	pop rax
-	mov ds, ax
-	mov es, ax
-	mov al, 0x20
-	out 0x20, al
-	popaq
-	iretq
-.irq0_handle:
-	call handle_signal
-	jmp .irq0_cont
-IRQ 1,33
-IRQ 2,34
-IRQ 3,35
-IRQ 4,36
-IRQ 5,37
-IRQ 6,38
-IRQ 7 ,39
-IRQ 8 ,40
-IRQ 9 ,41
-IRQ 10 ,42
-IRQ 11 ,43
-IRQ 12 ,44
-IRQ 13 ,45
-IRQ 14 ,46
-IRQ 15 ,47
+IRQ 0
+IRQ 1
+IRQ 2
+IRQ 3
+IRQ 4
+IRQ 5
+IRQ 6
+IRQ 7
+IRQ 8
+IRQ 9
+IRQ 10
+IRQ 11
+IRQ 12
+IRQ 13
+IRQ 14
+IRQ 15
+IRQ 16
+IRQ 17
+IRQ 18
+IRQ 19
+IRQ 20
+IRQ 21
+IRQ 22
+IRQ 23
 %macro syscallsaveregs 0
 	push rbx
 	push rcx

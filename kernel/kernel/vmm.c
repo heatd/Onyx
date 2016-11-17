@@ -217,30 +217,21 @@ void *vmm_reserve_address(void *addr, size_t pages, uint32_t type, uint64_t prot
 }
 vmm_entry_t *vmm_is_mapped(void *addr)
 {
-	if(likely(current_process))
-		acquire_spinlock(&current_process->vm_spl);
 	for(size_t i = 0; i < num_areas; i++)
 	{
 		if(areas[i].base == (uintptr_t)addr)
 		{
-			if(likely(current_process))
-				release_spinlock(&current_process->vm_spl);
+			return &areas[i];
 		}
 		if(areas[i].base + areas[i].pages * 4096 > (uintptr_t) addr && areas[i].base < (uintptr_t) addr)
 		{
-			if(likely(current_process))
-				release_spinlock(&current_process->vm_spl);
 			return &areas[i];
 		}
 	}
-	if(likely(current_process))
-		release_spinlock(&current_process->vm_spl);
 	return NULL;
 }
 PML4 *vmm_clone_as(vmm_entry_t **vmmstructs, size_t *num_are)
 {
-	if(likely(current_process))
-		acquire_spinlock(&current_process->vm_spl);
 	PML4 *pt = paging_clone_as();
 	vmm_entry_t *entries;
 	size_t remaining_entries = 0;
@@ -265,14 +256,10 @@ PML4 *vmm_clone_as(vmm_entry_t **vmmstructs, size_t *num_are)
 	num_areas = remaining_entries;
 	*num_are = num_areas;
 	qsort(areas,num_areas,sizeof(vmm_entry_t),vmm_comp);
-	if(likely(current_process))
-		release_spinlock(&current_process->vm_spl);
 	return pt;
 }
 PML4 *vmm_fork_as(vmm_entry_t **vmmstructs)
 {
-	if(likely(current_process))
-		acquire_spinlock(&current_process->vm_spl);
 	PML4 *pt = paging_fork_as();
 	vmm_entry_t *entries = malloc(sizeof(vmm_entry_t) * num_areas);
 	memcpy(entries, areas, sizeof(vmm_entry_t) * num_areas);
@@ -281,20 +268,14 @@ PML4 *vmm_fork_as(vmm_entry_t **vmmstructs)
 	old_num_entries = num_areas;
 	*vmmstructs = entries;
 	areas = entries;
-	if(likely(current_process))
-		release_spinlock(&current_process->vm_spl);
 	return pt;
 }
 void vmm_stop_spawning()
 {
-	if(likely(current_process))
-		acquire_spinlock(&current_process->vm_spl);
 	is_spawning = 0;
 	areas = old_entries;
 	num_areas = old_num_entries;
 	paging_stop_spawning();
-	if(likely(current_process))
-		release_spinlock(&current_process->vm_spl);
 }
 void vmm_change_perms(void *range, size_t pages, int perms)
 {

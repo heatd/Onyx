@@ -8,16 +8,20 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#include <drivers/ata.h>
-#include <kernel/vmm.h>
 #include <stdio.h>
+#include <mbr.h>
+
+#include <kernel/vmm.h>
 #include <kernel/portio.h>
 #include <kernel/vfs.h>
 #include <kernel/pic.h>
 #include <kernel/irq.h>
 #include <kernel/pit.h>
 #include <kernel/panic.h>
-#include <mbr.h>
+#include <kernel/timer.h>
+
+#include <drivers/ata.h>
+
 prdt_entry_t *PRDT;
 void *prdt_base = NULL;
 PCIDevice *idedev = NULL;
@@ -54,11 +58,12 @@ int ata_wait_for_irq(uint64_t timeout)
 	irq = 0;
 	return 0;
 }
-void ata_irq()
+static uintptr_t ata_irq(registers_t *regs)
 {
 	irq = 1;
 	inb(bar4_base + 2);
 	inb((current_channel ? ATA_DATA2 : ATA_DATA1) + ATA_REG_STATUS);
+	return 0;
 }
 uint8_t delay_400ns()
 {
@@ -88,12 +93,9 @@ void enable_pci_ide(PCIDevice *dev)
 	pci_set_barx(dev->slot, dev->device, dev->function, 1, 0x3F6, 1, 0);
 	pci_set_barx(dev->slot, dev->device, dev->function, 2, 0x170, 1, 0);
 	pci_set_barx(dev->slot, dev->device, dev->function, 3, 0x376, 1, 0);
-	printf("IRQ: %d\n", pci_get_intn(dev->slot, dev->device, dev->function));
 	pcibar_t *bar4 = pci_get_bar(dev->slot, dev->device, dev->function, 4);
 	bar4_base = bar4->address;
 	printf("bar4: %x\n", bar4_base);
-	pic_unmask_irq(14);
-	pic_unmask_irq(15);
 	irq_install_handler(14, &ata_irq);
 	irq_install_handler(15, &ata_irq);
 }

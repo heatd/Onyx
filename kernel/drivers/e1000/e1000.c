@@ -63,13 +63,14 @@ void e1000_handle_recieve()
 		e1000_write_command(REG_RXDESCTAIL, old_cur);
 }
 }
-static void e1000_irq()
+static uintptr_t e1000_irq(registers_t *regs)
 {
 	volatile uint32_t status = e1000_read_command(0xc0);
 	if(status & 0x80)
 	{
 		e1000_handle_recieve();
 	}
+	return 0;
 }
 void e1000_write_command(uint16_t addr, uint32_t val)
 {
@@ -221,7 +222,6 @@ void e1000_enable_interrupts()
 	// Get the IRQ number and install its handler
 	printf("e1000: using IRQ number %d\n", int_no);
 
-	pic_unmask_irq(int_no);
 	irq_install_handler(int_no, e1000_irq);
 	
 	e1000_write_command(REG_IMASK, 0x1F6DC);
@@ -236,7 +236,7 @@ int e1000_send_packet(const void *data, uint16_t len)
 	tx_descs[tx_cur]->status = 0;
 	uint8_t old_cur = tx_cur;
 	tx_cur = (tx_cur + 1) % E1000_NUM_TX_DESC;
-	e1000_write_command(REG_TXDESCTAIL, tx_cur);   
+	e1000_write_command(REG_TXDESCTAIL, tx_cur);
 	while(!(tx_descs[old_cur]->status & 0xff));
 	return 0;
 }

@@ -31,6 +31,6 @@
 #define PS2_PORT_1_TEST		0xAB
 #define PS2_PORT_2_TEST		0xA9
 
-
+#define KEYBOARD_IRQ 1
 
 #endif // PS2_H

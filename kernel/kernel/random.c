@@ -14,6 +14,8 @@
 
 #include <kernel/compiler.h>
 #include <kernel/pit.h>
+#include <kernel/timer.h>
+
 #include <drivers/rtc.h>
 
 const size_t max_entropy = 512;
@@ -45,7 +47,7 @@ void initialize_entropy()
 	add_entropy(&tick, sizeof(uint64_t));
 	uint64_t tsc = rdtsc();
 	add_entropy(&tsc, sizeof(uint64_t));
-	srand((unsigned int) p << 32);
+	srand((unsigned int) (p << 32));
 	for(size_t i = current_entropy; i < max_entropy; i++)
 	{
 		int r = rand();

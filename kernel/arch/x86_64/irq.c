@@ -19,13 +19,13 @@
  *
  *
  **************************************************************************/
-
-#include <kernel/pic.h>
-#include <kernel/irq.h>
 #include <stdlib.h>
 #include <stdio.h>
 
-irq_list_t *irq_routines[16]  =
+#include <kernel/registers.h>
+#include <kernel/irq.h>
+
+irq_list_t *irq_routines[24]  =
 {
     0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0
@@ -52,9 +52,9 @@ void irq_uninstall_handler(int irq, irq_t handler)
 	irq_list_t *list = irq_routines[irq];
 	if(list->handler == handler)
 	{
-		irq_list_t *list = irq_routines[irq];
 		free(list);
-		list = list->next;
+		irq_routines[irq] = NULL;
+		return;
 	}
 	irq_list_t *prev = NULL;
 	while(list->handler != handler)
@@ -65,13 +65,22 @@ void irq_uninstall_handler(int irq, irq_t handler)
 	free(list);
 	prev->next = list->next;
 }
-void irq_handler(uint64_t irqn)
+uintptr_t irq_handler(uint64_t irqn, registers_t *regs)
 {
-	irq_list_t *handlers = irq_routines[irqn - 32];
+	if(irqn > 23)
+	{
+		return (uintptr_t) regs;
+	}
+	uintptr_t ret = (uintptr_t) regs;
+	irq_list_t *handlers = irq_routines[irqn];
 	for(irq_list_t *i = handlers; i != NULL;i = i->next)
 	{
 		irq_t handler = i->handler;
-		handler();
+		uintptr_t p = handler(regs);
+		if(p != 0)
+		{
+			ret = p;
+		}
 	}
-	pic_send_eoi(irqn - 32);
+	return ret;
 }

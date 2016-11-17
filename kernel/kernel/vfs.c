@@ -61,6 +61,15 @@ void close_vfs(vfsnode_t* this)
 }
 vfsnode_t *open_vfs(vfsnode_t* this, const char *name)
 {
+	vfsnode_t *it = mount_list;
+	while(it != NULL)
+	{
+		if(strcmp(name, it->name) == 0)
+		{
+			return it;
+		}
+		it = it->next;
+	}
 	if(this->type & VFS_TYPE_MOUNTPOINT)
 	{
 		size_t s = strlen(this->link->mountpoint);
@@ -95,7 +104,7 @@ int mount_fs(vfsnode_t *fsroot, const char *path)
 		}
 		node->link = fsroot;
 		node->type = VFS_TYPE_MOUNTPOINT | VFS_TYPE_DIR;
-		node->name = malloc(strlen(path));
+		node->name = malloc(strlen(path) + 1);
 		strcpy(node->name, path);
 		fsroot->mountpoint = (char*)path;
 	}

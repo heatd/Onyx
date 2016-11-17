@@ -66,10 +66,21 @@ void idt_init()
 	idt_create_descriptor(45, (uint64_t) irq13, 0x08, 0x8E);
 	idt_create_descriptor(46, (uint64_t) irq14, 0x08, 0x8E);
 	idt_create_descriptor(47, (uint64_t) irq15, 0x08, 0x8E);
+	idt_create_descriptor(48, (uint64_t) irq16, 0x08, 0x8E);
+	idt_create_descriptor(49, (uint64_t) irq17, 0x08, 0x8E);
+	idt_create_descriptor(50, (uint64_t) irq18, 0x08, 0x8E);
+	idt_create_descriptor(51, (uint64_t) irq19, 0x08, 0x8E);
+	idt_create_descriptor(52, (uint64_t) irq20, 0x08, 0x8E);
+	idt_create_descriptor(53, (uint64_t) irq21, 0x08, 0x8E);
+	idt_create_descriptor(54, (uint64_t) irq22, 0x08, 0x8E);
+	idt_create_descriptor(55, (uint64_t) irq23, 0x08, 0x8E);
 	idt_create_descriptor(128, (uint64_t)__syscall_int, 0x08, 0x8E);
 	idt_load();
 }
-
+void setvect(uint8_t entry, uintptr_t address)
+{
+	idt_create_descriptor(entry, address, 0x08, 0x8E);
+}
 void idt_create_descriptor(uint8_t entry, uint64_t offset,
 			   uint16_t selector, uint8_t flags)
 {

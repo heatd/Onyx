@@ -108,15 +108,19 @@ int elf_relocate_addend(Elf64_Ehdr *hdr, Elf64_Rela *rela, Elf64_Shdr *section)
 	}
 	return 0;
 }
+static Elf64_Rela * rela_table = NULL;
+static size_t rela_ent_size = 0;
+static size_t rela_size = 0;
 /* Shared version of elf_parse_program_headers*/
 _Bool elf_parse_program_headers_s(void *file)
 {
 	Elf64_Ehdr *hdr = (Elf64_Ehdr *) file;
 	Elf64_Phdr *phdrs = (Elf64_Phdr *) ((char *) file + hdr->e_phoff);
-	for (Elf64_Half i = 0; i < hdr->e_phnum; i++) {
-		if (phdrs[i].p_type == PT_NULL)
+	for(Elf64_Half i = 0; i < hdr->e_phnum; i++)
+	{
+		if(phdrs[i].p_type == PT_NULL)
 			continue;
-		if (phdrs[i].p_type == PT_LOAD)
+		if(phdrs[i].p_type == PT_LOAD)
 		{
 			size_t pages = phdrs[i].p_memsz / 4096;
 			if (!pages || pages % 4096)
@@ -124,10 +128,81 @@ _Bool elf_parse_program_headers_s(void *file)
 			phdrs[i].p_vaddr = (Elf64_Addr) vmm_allocate_virt_address(0, pages, VMM_TYPE_SHARED, VMM_WRITE | VMM_USER);
 			vmm_map_range(phdrs[i].p_vaddr, pages, VMM_WRITE | VMM_USER);
 			printf("[ELF] virtual addresses %p - %p\n", phdrs[i].p_vaddr, phdrs[i].p_vaddr + PAGE_SIZE * pages);
-			memcpy(phdrs[i].p_vaddr, (void *) ((char *) file + phdrs[i].p_offset),  phdrs[i].p_filesz);
+			memcpy((void*) phdrs[i].p_vaddr, (void *) ((char *) file + phdrs[i].p_offset),  phdrs[i].p_filesz);
+		}
+		if(phdrs[i].p_type == PT_DYNAMIC)
+		{
+			/* Found the dynamic section, very important, as it contains vital information for loading */
+			Elf64_Dyn *d = (Elf64_Dyn*)((char*) file + phdrs[i].p_offset);
+			for(int i = 0; d[i].d_tag != DT_NULL; i++)
+			{
+				puts("elf: dynamic tag found");
+				/* Here we handle the different tag types that might appear on the DYNAMIC array */
+				switch(d[i].d_tag)
+				{
+					/* We ignore the entries that we're not going to use, or that are never going to come up
+					 * while we are loading the interpreter(ld-spartix.so by default)
+					*/
+					case DT_RELASZ:
+					{
+						rela_size = d[i].d_un.d_val;
+						break;
+					
+					}
+					case DT_STRTAB:
+					{
+						strtab = (Elf64_Shdr *) ((char*) file + d[i].d_un.d_ptr);
+						break; 
+					}
+					case DT_SYMTAB:
+					{
+						symtab = (Elf64_Shdr *) ((char*) file + d[i].d_un.d_ptr);
+						break;
+					}
+					case DT_RELA:
+					{
+						rela_table = (Elf64_Rela *) ((char*) file + d[i].d_un.d_ptr);
+						break;
+					}
+					case DT_RELAENT:
+					{
+						rela_ent_size = d[i].d_un.d_val;
+						break;
+					}
+
+				}
+			}
+						/* 
+			 * Start to do relocations
+			 * Ok, right here we need to start processing the Rela table,
+			 * and getting the section associated with it. After we get the section header,
+			 * we need to compare it against the program headers looking for the program header that
+			 * contains the .rela.xxxxx section we're processing
+			*/
+			size_t num_rela_ent = rela_size / rela_ent_size;
+			printf("eu\n");
+			for(unsigned int j = 0; j < num_rela_ent; j++)
+			{
+				uint32_t sidx = ELF64_R_INFO(rela_table[j].r_info, ELF64_R_TYPE(rela_table[j].r_info));
+				printf("Section index (%u)\n", sidx);
+				Elf64_Shdr *sections = (Elf64_Shdr *)((char*) file + hdr->e_shoff);
+				Elf64_Shdr *rela_sec = &sections[sidx];
+				for(Elf64_Half k = 0; k < hdr->e_phnum; k++)
+				{
+					if(phdrs[k].p_type == PT_NULL)
+						continue;
+					if(rela_sec->sh_offset == phdrs[k].p_offset || 
+						rela_sec->sh_offset <= phdrs[k].p_offset + phdrs[k].p_filesz && rela_sec->sh_offset > phdrs[k].p_offset)
+					{
+						puts("Found the closest section!\n");
+						printf("Rela offset: %x\n", rela_table[j].r_offset);
+						break;
+					}
+				}
+			}
 		}
 	}
-	return true;
+	return 0;
 }
 int elf_load_pie(char *path)
 {
@@ -152,6 +227,9 @@ int elf_load_pie(char *path)
 	if(read != f->size)
 	{
 		perror("read_vfs: ");
+		free(file);
+		close_vfs(file);
+		free(f);
 		return -1;
 	}
 	Elf64_Ehdr *header = (Elf64_Ehdr*) file;
@@ -163,33 +241,9 @@ int elf_load_pie(char *path)
 		free(f);
 		return errno = EINVAL, -1;
 	}
-	Elf64_Shdr *sections = (Elf64_Shdr*)((char*)file + header->e_shoff);
-	shstrtab = &sections[header->e_shstrndx];
-	for(size_t i = 0; i < header->e_shnum; i++)
-	{
-		if(!strcmp(elf_get_shstring(header, sections[i].sh_name), ".symtab"))
-			symtab = &sections[i];
-		if(!strcmp(elf_get_shstring(header, sections[i].sh_name), ".strtab"))
-			strtab = &sections[i];
-	}
-	uintptr_t first_address = 0;
-	elf_parse_program_headers_s(file);
-	for(size_t i = 0; i < header->e_shnum; i++)
-	{
-		if(sections[i].sh_type == SHT_RELA)
-		{
-			Elf64_Rela *r = (Elf64_Rela*)((char*)file + sections[i].sh_offset);
-			for(size_t j = 0; j < sections[i].sh_size / sections[i].sh_entsize; j++)
-			{
-				Elf64_Rela *rela = &r[j];
-				if(elf_relocate_addend(header, rela, &sections[i]) == 1)
-				{
-					printf("elf: could not relocate the interpreter!\n");
-					return errno = EINVAL, NULL;
-				}
-			}
-		}
-	}
+	int ret = elf_parse_program_headers_s(file);
+	printf("elf_parse_program_headers_s returned %u\n", ret);
+	while(1);
 	return 0;
 }
 _Bool elf_parse_program_headers(void *file)
@@ -210,9 +264,9 @@ _Bool elf_parse_program_headers(void *file)
 			size_t pages = phdrs[i].p_memsz / 4096;
 			if (!pages || pages % 4096)
 				pages++;
+			vmm_reserve_address((void *) (phdrs[i].p_vaddr & 0xFFFFFFFFFFFFF000), pages, VMM_TYPE_REGULAR, VMM_WRITE | VMM_USER);
 			void *mem = vmm_map_range((void *) (phdrs[i].p_vaddr & 0xFFFFFFFFFFFFF000), pages, VMM_WRITE | VMM_USER);
-			vmm_reserve_address((void *) (phdrs[i].p_vaddr &  0xFFFFFFFFFFFFF000), pages, VMM_TYPE_REGULAR, VMM_WRITE | VMM_USER);
-			memcpy(mem, (void *) ((char *) file + phdrs[i].p_offset),  phdrs[i].p_filesz);
+			memcpy(mem, (void *) ((char *) file + phdrs[i].p_offset),  phdrs[i].p_filesz);			
 		}
 	}
 	return true;

@@ -31,4 +31,5 @@ thread_t* sched_create_main_thread(ThreadCallback callback, uint32_t flags,int a
 void sched_destroy_thread(thread_t *thread);
 thread_t *get_current_thread();
 uintptr_t *sched_fork_stack(uintptr_t *stack, uintptr_t *forkregstack, uintptr_t *rsp, uintptr_t rip);
+void* sched_switch_thread(void* last_stack);
 #endif

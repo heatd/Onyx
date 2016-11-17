@@ -10,19 +10,9 @@ void srand(unsigned int s)
 }
 int rand_r(unsigned int *seed)
 {
-	if(rdrand_supported)
-	{
-		unsigned long long ret;
-		_rdrand64_step(&ret);
-		*seed = (unsigned int) ret;
-		return (int)ret;
-	}
-	else
-	{
-		// Else use an LCG
-		*seed = ((*seed * 1103515245) + 123456) & 0x7fffffff;
-		return (int) *seed;
-	}
+	// Else use an LCG
+	*seed = ((*seed * 1103515245) + 123456) & 0x7fffffff;
+	return (int) *seed;
 }
 int rand()
 {

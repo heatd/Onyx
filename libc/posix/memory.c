@@ -25,10 +25,6 @@ void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 	(void) offset;
 	asm volatile("mov $11, %rax; int $0x80");
 	register void *rax asm("rax");
-	if(rax == MAP_FAILED)
-	{
-		set_errno();
-	}
 	return rax;
 }
 int munmap(void *addr, size_t length)

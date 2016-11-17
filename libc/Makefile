@@ -99,7 +99,7 @@ libc.so: $(OBJS)
 	mkdir -p $(DESTDIR)$(LIBDIR)
 	cp $@ $(DESTDIR)$(LIBDIR)
 ld-spartix.so: $(LD_SPARTIX_OBJS)
-	$(CC) $(LD_SPARTIX_OBJS) -shared -static $(CFLAGS) $(CPPFLAGS) -o $@
+	$(CC) $(LD_SPARTIX_OBJS) -Wl,-Bstatic -shared -lc $(CFLAGS) $(CPPFLAGS) -o $@
 	mkdir -p $(DESTDIR)/lib
 	cp $@ $(DESTDIR)/lib
 %.o: %.c
@@ -126,7 +126,7 @@ ld-spartix.so: $(LD_SPARTIX_OBJS)
 clean:
 	rm -f $(BINARIES) $(OBJS) $(LIBK_OBJS) *.o */*.o */*/*.o
 
-install: install-headers install-libs libc.so ld-spartix.so
+install: install-headers install-libs ld-spartix.so
 
 install-headers:
 	mkdir -p $(DESTDIR)$(INCLUDEDIR)

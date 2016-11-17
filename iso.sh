@@ -31,8 +31,7 @@ cat > isodir/boot/grub/grub.cfg << EOF
 menuentry "Spartix" {
 	set timeout=10
 	loadfont unicode
-	insmod vbe
-  	insmod vga
+	insmod all_video
   	insmod xzio
 	insmod gzio
   	insmod gfxterm

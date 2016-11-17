@@ -163,11 +163,15 @@ void kernel_main()
 {
 	/* Identify the CPU it's running on (bootstrap CPU) */
 	cpu_identify();
-	cpu_init_interrupts();
-
+	
+	/* Map the first bucket's memory address */
 	void *mem = (void*)0xFFFFFFF890000000;
 	vmm_map_range(mem, 1024, VMM_GLOBAL | VMM_WRITE | VMM_NOEXEC);
-	heap_init (mem, 16, 64, 128, 256, 512);
+	
+	/* Initialize the heap */
+	heap_init(mem, 16, 64, 128, 256, 512);
+	
+	/* Find the RSDP(needed for ACPI and ACPICA) */
 	for(int i = 0; i < 0x100000/16; i++)
 	{
 		if(!memcmp((char*)(PHYS_BASE + 0x000E0000 + i * 16),(char*)"RSD PTR ", 8))
@@ -177,24 +181,30 @@ void kernel_main()
 			break;
 		}
 	}
-	// Initialize ACPI
+	/* Initialize ACPI */
 	acpi_initialize();
-	pit_init(1000);
+
+	/* Intialize the interrupt part of the CPU (arch dependent) */
+	cpu_init_interrupts();
 	extern void init_keyboard();
 	init_keyboard();
+	
 	/* Initialize the kernel heap */
 	init_tss();
+	
+	/* Initialize the VFS */
 	vfs_init();
 	if (!initrd_tag)
 		panic("Initrd not found\n");
 	initrd_addr = (void*)((char*) initrd_addr + PHYS_BASE);
+	
+	/* Invalidate and unmap the lower memory zones (0x0 to 0x400000) */
 	asm volatile("movq $0, pdlower; movq $0, pdlower + 8;invlpg 0x0;invlpg 0x200000");
 	/* Initialize the initrd */
 	init_initrd(initrd_addr);
 	
 	/* Initalize multitasking */
-	sched_create_thread(kernel_multitasking, 1,
-				    (void *) "Started multitasking!");
+	sched_create_thread(kernel_multitasking, 1, NULL);
 	/* Initialize late libc */
 	libc_late_init();
 	asm volatile ("sti");
@@ -207,9 +217,6 @@ extern int exec(const char *, char**, char**);
 uintptr_t rsdp;
 void kernel_multitasking(void *arg)
 {
-	/* At this point, multitasking is initialized in the kernel
-	 * Perform a small test to check if the argument string was passed correctly,
-	 * and continue with initialization */
 	void *mem = vmm_allocate_virt_address(VM_KERNEL, 1024, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
 	vmm_map_range(mem, 1024, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
 	/* Create PTY */
@@ -228,11 +235,11 @@ void kernel_multitasking(void *arg)
 	init_ext2drv();
 	initialize_module_subsystem();
 	init_rtc();
-	if(ethernet_init())
+	/*if(ethernet_init())
 		printf("eth0: failed to find a compatible device\n");
 	else
-		printf("eth0: found compatible device\n");
-	dhcp_initialize();
+		printf("eth0: found compatible device\n");*/
+	//dhcp_initialize();
 	/*read_partitions();
 	vfsnode_t *in = open_vfs(fs_root, "/etc/fstab");
 	if (!in)
@@ -244,8 +251,6 @@ void kernel_multitasking(void *arg)
 	memset(b, 0, in->size);
 	write_vfs(0, in->size, b, in);*/
 	initialize_entropy();
-	for(int i = 0; i < 10; i++)
-		printf("entropy: %x\n", rand());
 	exec("/sbin/init", args, envp);
 	for (;;) asm volatile("hlt");
 }

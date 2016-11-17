@@ -13,6 +13,6 @@
 #include <stdint.h>
 
 void pit_init(uint32_t hz);
-uint64_t get_tick_count();
-
+uint64_t pit_get_tick_count();
+void pit_deinit();
 #endif

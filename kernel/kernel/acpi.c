@@ -60,6 +60,127 @@ uint32_t acpi_shutdown(void *context)
 	panic("ACPI: Failed to enter sleep state! Panic'ing!");
 	return 0;
 }
+static ACPI_HANDLE root_bridge;
+static ACPI_DEVICE_INFO *root_bridge_info;
+
+ACPI_STATUS acpi_walk_irq(ACPI_HANDLE object, UINT32 nestingLevel, void *context, void **returnvalue)
+{
+	ACPI_DEVICE_INFO *devinfo;
+	ACPI_STATUS st = AcpiGetObjectInfo(object, &devinfo);
+
+	// TODO: Build a device tree off this information (with PCI as well)
+	if(ACPI_FAILURE(st))
+	{
+		printf("ACPI: Error: AcpiGetObjectInfo failed!\n");
+		return AE_ERROR;
+	}
+	
+	if(devinfo->Flags & ACPI_PCI_ROOT_BRIDGE)
+	{
+		root_bridge = object;
+		root_bridge_info = devinfo;
+	}
+	return AE_OK;
+}
+uint32_t acpi_execute_pic(int value)
+{
+	ACPI_OBJECT arg;
+	ACPI_OBJECT_LIST list;
+	
+	arg.Type = ACPI_TYPE_INTEGER;
+	arg.Integer.Value = value;
+	list.Count = 1;
+	list.Pointer = &arg;
+
+	return AcpiEvaluateObject(ACPI_ROOT_OBJECT, (char*)"_PIC", &list, NULL);
+}
+static ACPI_PCI_ROUTING_TABLE *routing_table = NULL;
+int acpi_get_irq_routing_tables()
+{
+	void* retval;
+	ACPI_STATUS st = AcpiGetDevices("PNP0A03", acpi_walk_irq, NULL, &retval);
+	if(ACPI_FAILURE(st))
+	{
+		printf("ACPI: Error while calling AcpiGetDevices: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
+		return 1;
+	}
+	ACPI_PNP_DEVICE_ID *root_hid = &root_bridge_info->HardwareId;
+	printf("root_hid: %s\n", root_hid->String); 
+	ACPI_BUFFER buf;
+	buf.Length = ACPI_ALLOCATE_BUFFER;
+	buf.Pointer = NULL;
+	
+	st = AcpiGetIrqRoutingTable(root_bridge, &buf);
+	if(ACPI_FAILURE(st))
+	{
+		printf("ACPI: Error while calling AcpiGetIrqRoutingTable: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
+		return 1;
+	}
+	routing_table = (ACPI_PCI_ROUTING_TABLE*) buf.Pointer;
+	
+	return 0;
+}
+static spinlock_t irq_rout_lock;
+int acpi_get_irq_routing_for_dev(uint8_t bus, uint8_t device, uint8_t function)
+{
+	acquire_spinlock(&irq_rout_lock);
+	ACPI_PCI_ROUTING_TABLE *it = routing_table;
+	for(; it->Length != 0; it = (ACPI_PCI_ROUTING_TABLE*)ACPI_NEXT_RESOURCE(it))
+	{
+		printf("Checking bus %d\n", it->Address >> 16);
+		if(device != (it->Address >> 16))
+			continue;
+		if(it->Source[0] == 0)
+		{
+			printf("Using GSI\nPin %d : %d\n", it->Pin+1, it->SourceIndex);
+			release_spinlock(&irq_rout_lock);
+			return it->SourceIndex+1;
+		}
+		else
+		{
+			ACPI_HANDLE link_obj;
+			ACPI_STATUS st = AcpiGetHandle(root_bridge, it->Source, &link_obj);
+
+			if(ACPI_FAILURE(st))
+			{
+				printf("ACPI: Error while calling AcpiGetHandle: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
+				return -1;
+			}
+			ACPI_BUFFER buf;
+			buf.Length = ACPI_ALLOCATE_BUFFER;
+			buf.Pointer = NULL;
+			
+			st = AcpiGetCurrentResources(link_obj, &buf);
+			if(ACPI_FAILURE(st))
+			{
+				printf("ACPI: Error while calling AcpiGetCurrentResources: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
+				return -1;
+			}
+			
+			for(ACPI_RESOURCE *res = (ACPI_RESOURCE*) buf.Pointer; res->Type != ACPI_RESOURCE_TYPE_END_TAG; res = ACPI_NEXT_RESOURCE(res))
+			{
+				switch(res->Type)
+				{
+					case ACPI_RESOURCE_TYPE_IRQ:
+					{
+						printf("IRQ: %u\n", res->Data.Irq.Interrupts[0]);
+						release_spinlock(&irq_rout_lock);
+						return res->Data.Irq.Interrupts[0]+1;
+					}
+					case ACPI_RESOURCE_TYPE_EXTENDED_IRQ:
+					{
+						printf("Extended IRQ: %u\n", res->Data.ExtendedIrq.Interrupts[0]);
+						release_spinlock(&irq_rout_lock);
+						return res->Data.ExtendedIrq.Interrupts[0]+1;
+					}
+				}
+			}
+			release_spinlock(&irq_rout_lock);
+		}
+	}
+	release_spinlock(&irq_rout_lock);
+	return -1;
+}
 int acpi_initialize()
 {
     ACPI_STATUS st = AcpiInitializeSubsystem();

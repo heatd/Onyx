@@ -31,7 +31,6 @@
 
 #include <drivers/rtc.h>
 
-#define DEBUG_SYSCALL
 #ifdef DEBUG_SYSCALL
 #define DEBUG_PRINT_SYSTEMCALL() printf("%s: syscall\n", __func__)
 #else
@@ -78,7 +77,9 @@ ssize_t sys_write(int fd, const void *buf, size_t count)
 	DEBUG_PRINT_SYSTEMCALL();
 
 	if(fd == 1)
+	{
 		tty_write(buf, count);
+	}
 	release_spinlock(&write_spl);
 	return count;
 }
@@ -105,7 +106,20 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 		if(!mapping_addr)
 			mapping_addr = vmm_allocate_virt_address(0, pages, VMM_TYPE_REGULAR, vm_prot);
 	}
-	printf("Returning %p\n", mapping_addr);
+	if(fd != 0)
+	{
+		printf("Mapping fb!\n");
+		uintptr_t virt = (uintptr_t)mapping_addr, phys = (uintptr_t) virtual2phys(softfb_getfb());
+		for(int i = 0; i < 1024; i++)
+		{
+			paging_map_phys_to_virt(virt, phys, vm_prot);
+			virt+=0x1000;
+			phys+=0x1000;
+			asm volatile("invlpg %0"::"m"(virt));
+		}
+		printf("done!\n");
+		return mapping_addr;
+	}
 	if(!mapping_addr)
 		return errno = ENOMEM, NULL;
 	if(!vmm_map_range(mapping_addr, pages, vm_prot))
@@ -189,7 +203,6 @@ ssize_t sys_read(int fd, const void *buf, size_t count)
 uint64_t sys_getpid()
 {
 	DEBUG_PRINT_SYSTEMCALL();
-
 	return current_process->pid;
 }
 spinlock_t open_spl;
@@ -334,7 +347,7 @@ int sys_posix_spawn(pid_t *pid, const char *path, void *file_actions, void *attr
 	if(!vmm_is_mapped(envp))
 		return errno = EINVAL, -1;*/
 	DEBUG_PRINT_SYSTEMCALL();
-
+	printf("Acquiring spinlock!\n");
 	acquire_spinlock(&posix_spawn_spl);
 	// Create a new clean process
 	process_t *new_proc = process_create(path, &current_process->ctx, current_process);
@@ -424,6 +437,7 @@ int sys_posix_spawn(pid_t *pid, const char *path, void *file_actions, void *attr
 							* which we will need for later 
 							*/
 	new_proc->num_areas = num_r;
+	printf("Hilarious!\n");
 	/*uintptr_t *new_arguments = vmm_allocate_virt_address(0, pages, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_USER);
 	vmm_map_range(new_arguments, pages, VMM_WRITE | VMM_NOEXEC | VMM_USER);
 	memcpy(new_arguments, arguments, pages * PAGE_SIZE);
@@ -647,7 +661,18 @@ ssize_t sys_readv(int fd, const struct iovec *vec, int veccnt)
 {
 	if(!vmm_is_mapped((void*) vec))
 		return errno = EINVAL, -1;
-
+	if (fd == STDIN_FILENO)
+	{
+		char *kb_buf = tty_wait_for_line();
+		for(int i = 0; i < veccnt; i++)
+		{
+			memcpy(vec[i].iov_base, kb_buf, vec[i].iov_len);
+		}
+		tty_keyboard_pos = 0;
+		memset(kb_buf, 0, vec[0].iov_len);
+		memmove(kb_buf, &kb_buf[vec[0].iov_len], vec[0].iov_len);
+		return vec[0].iov_len;
+	}
 	DEBUG_PRINT_SYSTEMCALL();
 	if(validate_fd(fd))
 		return -1;

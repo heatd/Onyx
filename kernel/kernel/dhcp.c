@@ -86,13 +86,6 @@ int dhcp_initialize()
 
 	int response_len = recv(dhcp_sock, (void**) &response);
 	
-	/*uint32_t *convert = &response->options[19];
-	convert = &response->options[25];
-	*convert = LITTLE_TO_BIG32(*convert);
-	*convert = LITTLE_TO_BIG32(*convert);
-	convert = &response->options[31];
-	*convert = LITTLE_TO_BIG32(*convert);
-	*/
 	uint32_t subnet_mask = 0;
 	memcpy(&subnet_mask, &response->options[15], 4);
 	uint32_t router_ip = 0;
