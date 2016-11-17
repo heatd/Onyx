@@ -87,7 +87,6 @@ int main(int argc, char **argv, char **envp)
 	commands[4].name = "getshellpid";
 	commands[4].cmdc = getshellpid;
 	last_command_index++;
-	char *graphics = mmap(NULL, 0x400000, PROT_READ | PROT_WRITE, MAP_ANON, 0xDEAD, 0);
 	while(1)
 	{
 		printf(ANSI_COLOR_GREEN "/sbin/init" ANSI_COLOR_YELLOW " # " ANSI_COLOR_RESET);

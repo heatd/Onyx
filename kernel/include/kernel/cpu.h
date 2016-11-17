@@ -28,5 +28,6 @@ typedef struct cpu {
 #define CPUID_SIGN   			0x1
 void cpu_identify();
 void cpu_init_interrupts();
+int cpu_init_mp();
 
 #endif

@@ -40,6 +40,11 @@ size_t pmm_get_used_mem()
 
 void pmm_push(uintptr_t base, size_t size, size_t kernel_space_size)
 {
+	if(base == 0)
+	{
+		base += 0x1000;
+		size -= 0x1000;
+	}
 	/* Don't alloc the kernel */
 	if (base == 0x100000) {
 		base += kernel_space_size;

@@ -19,13 +19,17 @@
  *
  *
  **************************************************************************/
-#include <kernel/cpu.h>
 #include <stdlib.h>
 #include <cpuid.h>
-#include <kernel/panic.h>
 #include <string.h>
 #include <stdio.h>
+#include <acpi.h>
+
+#include <kernel/cpu.h>
+#include <kernel/panic.h>
+#include <kernel/apic.h>
 #include <kernel/pic.h>
+#include <kernel/acpi.h>
 static cpu_t cpu;
 
 char *cpu_get_name()
@@ -95,4 +99,26 @@ void cpu_init_interrupts()
 	ioapic_init();
 	lapic_init();
 	apic_timer_init();
+}
+uint8_t *lapic_ids = NULL;
+static int booted_cpus = 0;
+extern ACPI_TABLE_MADT *madt;
+int cpu_init_mp()
+{
+	/* Lets parse through the MADT to get the number of cores.
+	 * Each LAPIC = 1 core */
+	ACPI_SUBTABLE_HEADER *first = (ACPI_SUBTABLE_HEADER *) (madt+1);
+	for(ACPI_SUBTABLE_HEADER *i = first; i < (ACPI_SUBTABLE_HEADER*)((char*)madt + madt->Header.Length); i = 
+	(ACPI_SUBTABLE_HEADER*)((uint64_t)i + (uint64_t)i->Length))
+	{
+		if(i->Type == ACPI_MADT_TYPE_LOCAL_APIC)
+		{
+			ACPI_MADT_LOCAL_APIC *apic = (ACPI_MADT_LOCAL_APIC *) i;
+			booted_cpus++;
+			if(booted_cpus != 1)
+				apic_wake_up_processor(apic->Id);
+
+		}
+	}
+	return booted_cpus;
 }

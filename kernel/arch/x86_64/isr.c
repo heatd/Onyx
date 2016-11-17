@@ -94,7 +94,7 @@ void isr_handler(uint64_t err_code, uint64_t int_no)
 			break;
 		}
 	case 6:{
-			panic(exception_msg[int_no]);
+			printf(exception_msg[int_no]);
 			break;
 		}
 	case 7:{

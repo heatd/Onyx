@@ -30,7 +30,6 @@
 #include <kernel/power_management.h>
 
 #include <drivers/rtc.h>
-
 #ifdef DEBUG_SYSCALL
 #define DEBUG_PRINT_SYSTEMCALL() printf("%s: syscall\n", __func__)
 #else
@@ -164,8 +163,9 @@ spinlock_t read_spl;
 extern int tty_keyboard_pos;
 ssize_t sys_read(int fd, const void *buf, size_t count)
 {
-	if(!vmm_is_mapped((void*) buf))
-		return errno = EINVAL, -1;
+	/*if(!vmm_is_mapped((void*) buf))
+		return errno = EINVAL, -1;*/
+	printf("Hey!\n");
 	DEBUG_PRINT_SYSTEMCALL();
 
 	acquire_spinlock(&read_spl);
@@ -659,8 +659,8 @@ inline int validate_fd(int fd)
 }
 ssize_t sys_readv(int fd, const struct iovec *vec, int veccnt)
 {
-	if(!vmm_is_mapped((void*) vec))
-		return errno = EINVAL, -1;
+	/*if(!vmm_is_mapped((void*) vec))
+		return errno = EINVAL, -1;*/
 	if (fd == STDIN_FILENO)
 	{
 		char *kb_buf = tty_wait_for_line();
@@ -722,12 +722,12 @@ ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt)
 }
 ssize_t sys_preadv(int fd, const struct iovec *vec, int veccnt, off_t offset)
 {
-	if(!vmm_is_mapped((void*) vec))
-		return errno = EINVAL, -1;
+	/*if(!vmm_is_mapped((void*) vec))
+		return errno = EINVAL, -1;*/
 	
 	DEBUG_PRINT_SYSTEMCALL();
-	if(validate_fd(fd))
-		return -1;
+	/*if(validate_fd(fd))
+		return -1;*/
 	ioctx_t *ctx = &current_process->ctx;
 	if(!vec)
 		return errno = EINVAL, -1;

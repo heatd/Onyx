@@ -206,7 +206,7 @@ gdtr2:
 	DW	72
 	DD	gdt + 24
 	DD	0
-
+global gdtr3
 gdtr3:
 	DW	72
 	DQ	gdt + 24 + 0xFFFFFFFF80000000

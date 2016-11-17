@@ -64,24 +64,6 @@ void lapic_init()
 	/* Send an EOI because some interrupts might've gotten stuck when the interrupts weren't enabled */
 	lapic_write(LAPIC_EOI, 0);
 }
-void send_ipi(uint8_t id, uint32_t type, uint32_t page)
-{
-	lapic_write(LAPIC_IPIID, (uint32_t)id << 24);
-	uint64_t icr = type << 8;
-	icr |= (1 << 14);
-	lapic_write(LAPIC_ICR, (uint32_t) icr);
-}
-void wake_up_processor(uint8_t lapicid)
-{
-	send_ipi(lapicid, 5, 0);
-	core_stack = (volatile uint64_t)vmm_allocate_virt_address(VM_KERNEL, 2, VMM_TYPE_SHARED, VMM_WRITE) + 0x2000;
-	vmm_map_range((void*)(core_stack - 0x2000), 2, VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC);
-	send_ipi(lapicid, 6, 0);
-	while(ap_done != 1);
-	
-	ap_done = 0;
-}
-
 volatile char *ioapic_base = NULL;
 ACPI_TABLE_MADT *madt = NULL;
 uint32_t read_io_apic(uint32_t reg)
@@ -144,7 +126,7 @@ void set_pin_handlers()
 	for(ACPI_SUBTABLE_HEADER *i = first; i < (ACPI_SUBTABLE_HEADER*)((char*)madt + madt->Header.Length); i = 
 	(ACPI_SUBTABLE_HEADER*)((uint64_t)i + (uint64_t)i->Length))
 	{
-		if(i->Type == 2)
+		if(i->Type == ACPI_MADT_TYPE_INTERRUPT_OVERRIDE)
 		{
 			ACPI_MADT_INTERRUPT_OVERRIDE *mio = (ACPI_MADT_INTERRUPT_OVERRIDE*) i;
 			printf("Interrupt override for GSI %d\n", mio->SourceIrq);
@@ -226,4 +208,49 @@ void apic_timer_init()
 uint64_t get_tick_count()
 {
 	return (uint64_t) ticks;
+}
+void send_ipi(uint8_t id, uint32_t type, uint32_t page)
+{
+	lapic_write(LAPIC_IPIID, (uint32_t)id << 24);
+	uint64_t icr = type << 8;
+	icr |= (1 << 14);
+	lapic_write(LAPIC_ICR, (uint32_t) icr);
+}
+void apic_wake_up_processor(uint8_t lapicid)
+{
+	ap_done = 0;
+	send_ipi(lapicid, 5, 0);
+	uint64_t tick = get_tick_count();
+	while(get_tick_count() - tick < 200)
+		asm volatile("hlt");
+	core_stack = (volatile uint64_t)vmm_allocate_virt_address(1, 2, VMM_TYPE_STACK, VMM_WRITE) + 0x2000;
+	vmm_map_range((void*)(core_stack - 0x2000), 2, VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC);
+	send_ipi(lapicid, 6, 0);
+	tick = get_tick_count();
+	while(get_tick_count() - tick < 1000)
+	{
+		if(ap_done == 1)
+		{
+			printf("AP core woke up! LAPICID %d at tick %d\n", lapicid, get_tick_count());
+			break;
+		}
+	}
+	if(ap_done == 0)
+	{
+		send_ipi(lapicid, 6, 0);
+		tick = get_tick_count();
+		while(get_tick_count() - tick < 1000)
+		{
+			if(ap_done == 1)
+			{
+				printf("AP core woke up! LAPICID %d at tick %d\n", lapicid, get_tick_count());
+				break;
+			}
+		}
+	}
+	if(ap_done == 0)
+	{
+		printf("Failed to start an AP with LAPICID %d\n", lapicid);
+	}
+	ap_done = 0;
 }
