@@ -17,17 +17,12 @@
 #include <kernel/irq.h>
 #include <kernel/task_switching.h>
 #include <kernel/acpi.h>
+#include <kernel/cpu.h>
 
 volatile uint32_t *bsp_lapic = NULL;
 volatile uint64_t ap_done = 0;
 volatile uint64_t core_stack = 0;
-int cores_turned_on = 0;
-void idle_smp()
-{
-	asm volatile("hlt");
-	cores_turned_on++;
-	while(1);
-}
+_Bool is_smp_enabled = 0;
 void lapic_write(volatile uint32_t *lapic, uint32_t addr, uint32_t val)
 {
 	volatile uint32_t *laddr = (volatile uint32_t *)((volatile char*) lapic + addr);
@@ -40,12 +35,20 @@ uint32_t lapic_read(volatile uint32_t *lapic, uint32_t addr)
 }
 void lapic_send_eoi()
 {
-	// TODO: Get the current CPU's lapic address and use it
-	lapic_write(bsp_lapic, LAPIC_EOI, 0);
+	if(is_smp_enabled == 0)
+		lapic_write(bsp_lapic, LAPIC_EOI, 0);
+	else
+	{
+		uint32_t l, h;
+		rdmsr(GS_BASE_MSR, &l, &h);
+		uint64_t addr = l | ((uint64_t)h << 32);
+		struct processor *proc = (struct processor*) addr;
+		lapic_write(proc->lapic, LAPIC_EOI, 0);
+	}
 }
 void rdmsr(uint32_t msr, uint32_t *lo, uint32_t *hi)
 {
-   asm volatile("rdmsr" : "=a"(*lo), "=d"(*hi) : "c"(msr));
+	asm volatile("rdmsr" : "=a"(*lo), "=d"(*hi) : "c"(msr));
 }
 
 void lapic_init()
@@ -165,11 +168,17 @@ static uintptr_t apic_timer_irq(registers_t *regs)
 	if(sched_quantum == 0)
 	{
 		sched_quantum = 10;
-		uintptr_t s = sched_switch_thread((uintptr_t)regs);
-		return s;
+		uint32_t l, h;
+		rdmsr(GS_BASE_MSR, &l, &h);
+		uint64_t addr = l | ((uint64_t)h << 32);
+		struct processor *proc = (struct processor*) addr;
+		if(proc->cpu_num == 0)
+			return sched_switch_thread((uintptr_t)regs);
+		return 0;
 	}
 	return 0;
 }
+unsigned long apic_rate = 0;
 void apic_timer_init()
 {
 	/* Set the timer divisor to 16 */
@@ -198,6 +207,7 @@ void apic_timer_init()
 	/* Initialize the APIC timer with IRQ2, periodic mode and an init count of ticks_in_10ms/10(so we get a rate of 1000hz)*/
 	lapic_write(bsp_lapic, LAPIC_TIMER_DIV, 3);
 
+	apic_rate = ticks_in_10ms/10;
 	lapic_write(bsp_lapic, LAPIC_LVT_TIMER, 34 | LAPIC_LVT_TIMER_MODE_PERIODIC);
 	lapic_write(bsp_lapic, LAPIC_TIMER_INITCNT, ticks_in_10ms/10);
 
@@ -205,6 +215,23 @@ void apic_timer_init()
 	pit_deinit();
 	/* Install an IRQ handler for IRQ2 */
 	irq_install_handler(2, apic_timer_irq);
+}
+void apic_timer_smp_init(volatile uint32_t *lapic)
+{
+	/* Enable the local apic */
+	lapic_write(lapic, LAPIC_SPUINT, 0x100 | APIC_DEFAULT_SPURIOUS_IRQ);
+
+	/* Flush pending interrupts */
+	lapic_write(bsp_lapic, LAPIC_EOI, 0);
+	
+	/* Initialize the APIC timer with IRQ2, periodic mode and an init count of ticks_in_10ms/10(so we get a rate of 1000hz)*/
+	lapic_write(lapic, LAPIC_TIMER_DIV, 3);
+
+	lapic_write(lapic, LAPIC_LVT_TIMER, 34 | LAPIC_LVT_TIMER_MODE_PERIODIC);
+	lapic_write(lapic, LAPIC_TIMER_INITCNT, apic_rate);
+
+	/* If this is called, that means we've enabled SMP and can use struct processor/%%gs*/
+	is_smp_enabled = 1;
 }
 uint64_t get_tick_count()
 {

@@ -62,6 +62,8 @@ irq_common:
 	mov ss, ax
 	mov ds, ax
 	mov es, ax
+	extern lapic_send_eoi
+	call lapic_send_eoi
 	mov rsi, rsp
 	call irq_handler
 	mov rsp, rax
@@ -72,8 +74,6 @@ irq_common:
 	cmp dword [rax], dword 1
 	je .handle_signal
 .continue:
-	extern lapic_send_eoi
-	call lapic_send_eoi
 	pop rax
 	mov ds, ax
 	mov es, ax

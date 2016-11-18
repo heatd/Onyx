@@ -92,13 +92,8 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 		switch (tag->type) {
 		case MULTIBOOT_TAG_TYPE_BASIC_MEMINFO:
 			{
-				struct multiboot_tag_basic_meminfo *memInfo
-				    =
-				    (struct multiboot_tag_basic_meminfo *)
-				    tag;
-				total_mem =
-				    memInfo->mem_lower +
-				    memInfo->mem_upper;
+				struct multiboot_tag_basic_meminfo *memInfo = (struct multiboot_tag_basic_meminfo *) tag;
+				total_mem = memInfo->mem_lower + memInfo->mem_upper;
 				break;
 			}
 		case MULTIBOOT_TAG_TYPE_MMAP:
@@ -109,15 +104,12 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 			}
 		case MULTIBOOT_TAG_TYPE_FRAMEBUFFER:
 			{
-				tagfb =
-				    (struct multiboot_tag_framebuffer *)
-				    tag;
+				tagfb = (struct multiboot_tag_framebuffer *) tag;
 				break;
 			}
 		case MULTIBOOT_TAG_TYPE_MODULE:
 			{
-				initrd_tag =
-				    (struct multiboot_tag_module *) tag;
+				initrd_tag = (struct multiboot_tag_module *) tag;
 				initrd_size = initrd_tag->size;
 				break;
 			}
@@ -193,7 +185,9 @@ void kernel_main()
 	extern uintptr_t _end_smp;
 	memcpy((void*)tramp, &_start_smp, (uintptr_t)&_end_smp - (uintptr_t)&_start_smp);
 	
+	/* Initialize multi-processors */
 	int cpus = cpu_init_mp();
+
 	extern void init_keyboard();
 	init_keyboard();
 	
@@ -215,7 +209,6 @@ void kernel_main()
 	sched_create_thread(kernel_multitasking, 1, NULL);
 	/* Initialize late libc */
 	libc_late_init();
-	asm volatile ("sti");
 	for (;;)
 	{
 		__asm__ __volatile__("hlt");

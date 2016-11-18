@@ -80,11 +80,12 @@ void libc_late_init()
 }
 #ifdef __is_spartix_kernel
 static spinlock_t spl;
+extern int panicing;
 #endif
 int printf(const char *__restrict__ format, ...)
 {
 #ifdef __is_spartix_kernel
-	acquire_spinlock(&spl);
+	if(panicing != 1) acquire_spinlock(&spl);
 #endif
 #ifdef __is_spartix_kernel
 	va_list parameters;

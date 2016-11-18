@@ -51,7 +51,7 @@ thread_t* sched_create_thread(ThreadCallback callback, uint32_t flags,void* args
 	vmm_map_range(new_thread->kernel_stack, 4, VMM_WRITE | VMM_NOEXEC);
 	// Increment the stacks by 8 KiB
 	{
-	char** stack = (char**)&new_thread->user_stack;
+	char** stack = (char**) &new_thread->user_stack;
 	if(!(flags & 1))
 		*stack+=0x100000;
 	stack = (char**)&new_thread->kernel_stack;

@@ -34,9 +34,11 @@ const char *skull = "            _,,,,,,,_\n\
         \'888,       ,888\'\n\
           \'8JGS8888888\'\n\
             \\`\\`\\`\\`\\`\\`\\`\\`\n";
+int panicing = 0;
 __attribute__ ((noreturn, cold, noinline))
 void panic(const char *msg)
 {
+	panicing = 1;
 	printf("\n%s", skull);
 	printf("panic: %s\n", msg);
 	registers_t ctx;

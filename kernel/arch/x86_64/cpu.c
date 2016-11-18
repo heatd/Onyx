@@ -107,6 +107,7 @@ extern ACPI_TABLE_MADT *madt;
 int cpu_num = 0;
 static spinlock_t ap_entry_spinlock;
 extern volatile uint32_t *bsp_lapic;
+volatile int initialized_cpus = 0;
 int cpu_init_mp()
 {
 	ACPI_SUBTABLE_HEADER *first = (ACPI_SUBTABLE_HEADER *) (madt+1);
@@ -136,6 +137,8 @@ int cpu_init_mp()
 	cpus[0].lapic = (volatile char*) bsp_lapic;
 	wrmsr(GS_BASE_MSR, (uint64_t) &cpus[0] & 0xFFFFFFFF, (uint64_t) &cpus[0] >> 32);
 	release_spinlock(&ap_entry_spinlock);
+	
+	while(initialized_cpus+1 != booted_cpus);
 	return booted_cpus;
 }
 void cpu_ap_entry(int cpu_num)
@@ -154,11 +157,17 @@ void cpu_ap_entry(int cpu_num)
 	cpus[cpu_num].lapic = _lapic;
 	cpus[cpu_num].lapic_phys = addr;
 
-	/* Fill this core's fs with &cpus[cpu_num] */
-	printf("CPU#%u FS base: %p\n", cpu_num, &cpus[cpu_num]);
-	wrmsr(GS_BASE_MSR, (uint64_t) &cpus[cpu_num] & 0xFFFFFFFF, (uint64_t) &cpus[cpu_num] >> 32);
-	release_spinlock(&ap_entry_spinlock);
+	/* Initialize the local apic + apic timer */
+	apic_timer_smp_init((volatile uint32_t *) cpus[cpu_num].lapic);
 
+	/* Fill this core's fs with &cpus[cpu_num] */
+	wrmsr(GS_BASE_MSR, (uint64_t) &cpus[cpu_num] & 0xFFFFFFFF, (uint64_t) &cpus[cpu_num] >> 32);
+
+	/* Enable interrupts */
+	asm volatile("sti");
+
+	initialized_cpus++;
+	release_spinlock(&ap_entry_spinlock);
 	/* cpu_ap_entry() can't return, as there's no valid return address on the stack, so just hlt until the scheduler
 	   preempts the AP
 	*/

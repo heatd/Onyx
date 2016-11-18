@@ -26,7 +26,7 @@ uint32_t read_io_apic(uint32_t reg);
 void write_io_apic(uint32_t reg, uint32_t value);
 void lapic_init();
 void wake_up_processor(uint8_t);
-
+void apic_timer_smp_init(volatile uint32_t *lapic);
 #define LAPIC_EOI	0xB0
 #define LAPIC_TSKPRI	0x80
 #define LAPIC_ICR	0x300
