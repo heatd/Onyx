@@ -64,6 +64,8 @@ extern uint64_t kernel_end;
 #define KERNEL_START_VIRT (KERNEL_VIRTUAL_BASE + KERNEL_START_PHYS)
 extern char __BUILD_NUMBER;
 extern char __BUILD_DATE;
+extern uintptr_t _start_smp;
+extern uintptr_t _end_smp;
 static struct multiboot_tag_module *initrd_tag = NULL;
 uintptr_t address = 0;
 struct multiboot_tag_elf_sections secs;
@@ -153,6 +155,7 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 }
 uintptr_t rsdp;
 extern void libc_late_init();
+extern void init_keyboard();
 void kernel_main()
 {
 	/* Identify the CPU it's running on (bootstrap CPU) */
@@ -180,15 +183,14 @@ void kernel_main()
 
 	/* Intialize the interrupt part of the CPU (arch dependent) */
 	cpu_init_interrupts();
+	
 	printf("Trampoline code at: %p\n", tramp);
-	extern uintptr_t _start_smp;
-	extern uintptr_t _end_smp;
+	
 	memcpy((void*)tramp, &_start_smp, (uintptr_t)&_end_smp - (uintptr_t)&_start_smp);
 	
 	/* Initialize multi-processors */
-	int cpus = cpu_init_mp();
+	cpu_init_mp();
 
-	extern void init_keyboard();
 	init_keyboard();
 	
 	/* Initialize the kernel heap */
@@ -205,10 +207,16 @@ void kernel_main()
 	/* Initialize the initrd */
 	init_initrd(initrd_addr);
 	
+	asm volatile("cli");
+	/* Initialize the scheduler */
+	if(sched_init())
+		panic("sched: failed to initialize!");
+	
 	/* Initalize multitasking */
 	sched_create_thread(kernel_multitasking, 1, NULL);
 	/* Initialize late libc */
 	libc_late_init();
+	asm volatile("sti");
 	for (;;)
 	{
 		__asm__ __volatile__("hlt");
@@ -251,6 +259,7 @@ void kernel_multitasking(void *arg)
 	char *b = malloc(in->size);
 	memset(b, 0, in->size);
 	write_vfs(0, in->size, b, in);*/
+
 	initialize_entropy();
 	exec("/sbin/init", args, envp);
 	for (;;) asm volatile("hlt");

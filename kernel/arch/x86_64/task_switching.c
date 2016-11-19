@@ -12,65 +12,72 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
+
+#include <kernel/data_structures.h>
 #include <kernel/task_switching.h>
 #include <kernel/vmm.h>
 #include <kernel/spinlock.h>
 #include <kernel/panic.h>
 #include <kernel/tss.h>
 #include <kernel/process.h>
-// First and last nodes of the linked list
-static volatile thread_t* first_thread = NULL;
-volatile thread_t* last_thread = NULL;
-static volatile thread_t* current_thread = NULL;
+
+static queue_t *running_queue = NULL;
+static thread_t *idle_thread = NULL; 
+static thread_t *current_thread = NULL;
+static _Bool is_initialized = false;
 /* Creates a thread for the scheduler to switch to
    Expects a callback for the code(RIP) and some flags */
 int curr_id = 1;
-void sched_yield()
-{
-	thread_t *t;
-	for( t = first_thread; t->next != current_thread; t = t->next);
-	t->next = current_thread->next;
-	free(current_thread);
-	while(1);
-}
-thread_t* sched_create_thread(ThreadCallback callback, uint32_t flags,void* args)
+thread_t* task_switching_create_context(thread_callback_t callback, uint32_t flags, void* args)
 {
 	thread_t* new_thread = malloc(sizeof(thread_t));
+	
 	if(!new_thread)
 		panic("OOM while allocating thread");
+	
 	memset(new_thread, 0 ,sizeof(thread_t));
+	
 	new_thread->rip = callback;
 	new_thread->flags = flags;
 	new_thread->id = curr_id++;
+	
 	if(!(flags & 1)) // If the thread is user mode, create a user stack
 		new_thread->user_stack = (uintptr_t*)vmm_allocate_virt_address(0, 256, VMM_TYPE_STACK, VMM_WRITE | VMM_NOEXEC | VMM_USER);
 	new_thread->kernel_stack = (uintptr_t*)vmm_allocate_virt_address(VM_KERNEL, 4, VMM_TYPE_STACK, VMM_WRITE | VMM_NOEXEC);
+	
 	// Map the stacks on the virtual address space
 	if(!(flags & 1))
 		vmm_map_range(new_thread->user_stack, 256, VMM_WRITE | VMM_NOEXEC | VMM_USER);
 	vmm_map_range(new_thread->kernel_stack, 4, VMM_WRITE | VMM_NOEXEC);
+	
 	// Increment the stacks by 8 KiB
 	{
 	char** stack = (char**) &new_thread->user_stack;
+
 	if(!(flags & 1))
 		*stack+=0x100000;
+
 	stack = (char**)&new_thread->kernel_stack;
 	*stack+=0x4000;
 	}
 	uint64_t* stack = NULL;
 	// Reserve space in the stacks for the registers that are popped during a switch
 	stack = new_thread->kernel_stack;
+
 	new_thread->kernel_stack_top = stack;
 	new_thread->user_stack_top = new_thread->user_stack;
-	uintptr_t originalStack = (uintptr_t)stack;
+
+	uintptr_t original_stack = (uintptr_t)stack;
 	if(!(flags & 1))
-		originalStack = (uintptr_t)new_thread->user_stack;
+		original_stack = (uintptr_t)new_thread->user_stack;
+
 	uint64_t ds = 0x10, cs = 0x08, rf = 0x202;
 	if(!(flags & 1))
 		ds = 0x23, cs = 0x1b, rf = 0x202;
-	*--stack = sched_yield;
+
 	*--stack = ds; //SS
-	*--stack = originalStack; //RSP
+	*--stack = original_stack; //RSP
 	*--stack = rf; // RFLAGS
 	*--stack = cs; //CS
 	*--stack = (uint64_t) callback; //RIP
@@ -90,54 +97,78 @@ thread_t* sched_create_thread(ThreadCallback callback, uint32_t flags,void* args
 	*--stack = 0; // R9
 	*--stack = 0; // R8
 	*--stack = ds; // DS
+	
 	new_thread->kernel_stack = stack;
-	if(!first_thread)
-		first_thread = new_thread;
-
-	if(!last_thread)
-		last_thread = new_thread;
-	else
-		last_thread->next = new_thread;
-	last_thread = new_thread;
+	
 	return new_thread;
 }
-thread_t* sched_create_main_thread(ThreadCallback callback, uint32_t flags,int argc, char **argv, char **envp)
+extern PML4 *current_pml4;
+extern vmm_entry_t *areas;
+extern size_t num_areas;
+thread_t* task_switching_create_main_progcontext(thread_callback_t callback, uint32_t flags,int argc, char **argv, char **envp)
 {
 	thread_t* new_thread = malloc(sizeof(thread_t));
+	
 	if(!new_thread)
-		panic("OOM while allocating thread");
+		return NULL;
+	
 	memset(new_thread, 0, sizeof(thread_t));
+	
 	new_thread->rip = callback;
 	new_thread->flags = flags;
 	new_thread->id = curr_id++;
+	
 	if(!(flags & 1)) // If the thread is user mode, create a user stack
+	{
 		new_thread->user_stack = (uintptr_t*)vmm_allocate_virt_address(0, 256, VMM_TYPE_STACK, VMM_WRITE | VMM_NOEXEC | VMM_USER);
+		if(!new_thread->user_stack)
+			return NULL;
+	}
+	
 	new_thread->kernel_stack = (uintptr_t*)vmm_allocate_virt_address(VM_KERNEL, 4, VMM_TYPE_STACK, VMM_WRITE | VMM_NOEXEC);
+	
+	if(!new_thread->kernel_stack)
+	{
+		if(new_thread->user_stack)
+		{
+			vmm_destroy_mappings(new_thread->user_stack, 256);
+		}
+		return NULL;
+	}
+	
 	// Map the stacks on the virtual address space
 	if(!(flags & 1))
 		vmm_map_range(new_thread->user_stack, 256, VMM_WRITE | VMM_NOEXEC | VMM_USER);
 	vmm_map_range(new_thread->kernel_stack, 4, VMM_WRITE | VMM_NOEXEC);
+	
 	// Increment the stacks by 8 KiB
 	{
 	char** stack = (char**)&new_thread->user_stack;
+	
 	if(!(flags & 1))
 		*stack+=0x100000;
+	
 	stack = (char**)&new_thread->kernel_stack;
 	*stack+=0x4000;
 	}
+	
 	uint64_t* stack = NULL;
 	// Reserve space in the stacks for the registers that are popped during a switch
 	stack = new_thread->kernel_stack;
+	
 	new_thread->kernel_stack_top = stack;
 	new_thread->user_stack_top = new_thread->user_stack;
-	uintptr_t originalStack = (uintptr_t)stack;
+	
+	uintptr_t original_stack = (uintptr_t)stack;
 	if(!(flags & 1))
-		originalStack = (uintptr_t)new_thread->user_stack;
+		original_stack = (uintptr_t)new_thread->user_stack;
+	
 	uint64_t ds = 0x10, cs = 0x08, rf = 0x202;
 	if(!(flags & 1))
 		ds = 0x23, cs = 0x1b, rf = 0x202;
+	
 	*--stack = ds; //SS
-	*--stack = originalStack; //RSP
+	*--stack = original_stack; //RSP
 	*--stack = rf; // RFLAGS
 	*--stack = cs; //CS
 	*--stack = (uint64_t) callback; //RIP
@@ -157,78 +188,73 @@ thread_t* sched_create_main_thread(ThreadCallback callback, uint32_t flags,int a
 	*--stack = 0; // R9
 	*--stack = 0; // R8
 	*--stack = ds; // DS
+	
 	new_thread->kernel_stack = stack;
-	if(!first_thread)
-		first_thread = new_thread;
-
-	if(!last_thread)
-		last_thread = new_thread;
-	else
-		last_thread->next = new_thread;
-	last_thread = new_thread;
+	
 	return new_thread;
 }
 void* sched_switch_thread(void* last_stack)
 {
-	if(!first_thread)
+	if(is_initialized == 0)
+	{
 		return last_stack;
+	}
+	if(!running_queue)
+	{
+		/* TODO: Add multiprocessor support */
+		printf("Returning idle thread!\n");
+		current_thread = idle_thread;
+		set_kernel_stack((uintptr_t) current_thread->kernel_stack_top);
+		return idle_thread->kernel_stack;
+	}
 	if(!current_thread)
 	{
-		current_thread = first_thread;
-		set_kernel_stack((uintptr_t)current_thread->kernel_stack_top);
-		return current_thread->kernel_stack;
+		current_thread = running_queue->data;
+		free(running_queue);
+		running_queue = running_queue->next;	
+	}
+	current_thread->kernel_stack = (uintptr_t*)last_stack;
+	if(current_process)
+	{
+		current_process->areas = areas;
+		current_process->num_areas = num_areas;
+	}
+	if(!running_queue)
+	{
+		running_queue = malloc(sizeof(queue_t));
+		running_queue->data = current_thread;
+		running_queue->prev = NULL;
+		running_queue->next = NULL;
 	}
 	else
 	{
-		current_thread->kernel_stack = (uintptr_t*)last_stack;
-		if(current_process)
-		{
-			extern vmm_entry_t *areas;
-			extern size_t num_areas;
-			current_process->areas = areas;
-			current_process->num_areas = num_areas;
-		}
-		if(current_thread->next)
-			current_thread = current_thread->next;
-		else
-			current_thread = first_thread;
-		if(first_thread->next && current_thread == first_thread)
-			current_thread = first_thread->next;
-		set_kernel_stack((uintptr_t)current_thread->kernel_stack_top);
-		current_process = current_thread->owner;
-		if(current_process)
-		{
-			extern vmm_entry_t *areas;
-			extern size_t num_areas;
-			areas = current_process->areas;
-			num_areas = current_process->num_areas;
-			extern PML4 *current_pml4;
-			if (current_pml4 != current_process->cr3)
-			{
-				paging_load_cr3(current_process->cr3);
-			}
-			wrmsr(FS_BASE_MSR, (uintptr_t)current_process->fs & 0xFFFFFFFF, (uintptr_t)current_process->fs >> 32);
-		}
-		return current_thread->kernel_stack;
+		queue_add_to_tail(running_queue, current_thread);
 	}
+	/* Get a thread from the queue */
+	current_thread = running_queue->data;
+	free(running_queue);
+	running_queue = running_queue->next;
+	
+	/* Fill the TSS with a kernel stack*/
+	set_kernel_stack((uintptr_t)current_thread->kernel_stack_top);
+	current_process = current_thread->owner;
+	if(current_process)
+	{
+		areas = current_process->areas;
+		num_areas = current_process->num_areas;
+		
+		if (current_pml4 != current_process->cr3)
+		{
+			paging_load_cr3(current_process->cr3);
+		}
+		
+		wrmsr(FS_BASE_MSR, (uintptr_t)current_process->fs & 0xFFFFFFFF, (uintptr_t)current_process->fs >> 32);
+	}
+	return current_thread->kernel_stack;
 }
 thread_t *get_current_thread()
 {
 	return (thread_t*)current_thread;
-}
-void sched_destroy_thread(thread_t *thread)
-{
-	for(volatile thread_t *i = first_thread; i; i=i->next)
-	{
-		if(i->next == thread)
-		{
-			i->next = thread->next;
-			break;
-		}
-	}
-	//paging_unmap(thread->kernel_stack_top - 0x2000, 2);
-	//paging_unmap(thread->user_stack_top - 0x2000, 1024);
-	free(thread);
 }
 uintptr_t *sched_fork_stack(uintptr_t *stack, uintptr_t *forkstackregs, uintptr_t *rsp, uintptr_t rip)
 {
@@ -260,4 +286,60 @@ uintptr_t *sched_fork_stack(uintptr_t *stack, uintptr_t *forkstackregs, uintptr_
 	*--stack = ss; // DS
 	
 	return stack; 
+}
+void sched_idle()
+{
+	/* This function will not do work at all, just idle using hlt*/
+	for(;;)
+		asm volatile("hlt");
+}
+thread_t *sched_create_thread(thread_callback_t callback, uint32_t flags, void* args)
+{
+	/* Create the thread context (aka the real work) */
+	thread_t *t = task_switching_create_context(callback, flags, args);
+	if(!t)
+		return NULL;
+	/* Add it to the queue */
+	if(unlikely(!running_queue))
+	{
+		running_queue = malloc(sizeof(queue_t));
+		if(unlikely(!running_queue))
+			panic("sched_create_thread: no memory for 'running_queue'");
+		memset(running_queue, 0, sizeof(queue_t));
+		running_queue->data = t;
+	}
+	else
+	{
+		queue_add_to_tail(running_queue, t);
+	}
+	return t;
+}
+thread_t* sched_create_main_thread(thread_callback_t callback, uint32_t flags, int argc, char **argv, char **envp)
+{
+	/* Create the thread context (aka the real work) */
+	thread_t *t = task_switching_create_main_progcontext(callback, flags, argc, argv, envp);
+	if(!t)
+		return NULL;
+	/* Add it to the queue */
+	if(unlikely(!running_queue))
+	{
+		running_queue = malloc(sizeof(queue_t));
+		if(unlikely(!running_queue))
+			panic("sched_create_thread: no memory for 'running_queue'");
+		memset(running_queue, 0, sizeof(queue_t));
+		running_queue->data = t;
+	}
+	else
+	{
+		queue_add_to_tail(running_queue, t);
+	}
+	return t;
+}
+int sched_init()
+{
+	idle_thread = sched_create_thread(sched_idle, 1, NULL);
+	if(!idle_thread)
+			return 1;
+	is_initialized = true;
+	return 0;
 }

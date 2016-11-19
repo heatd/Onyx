@@ -42,7 +42,7 @@ typedef struct proc
 	struct proc *parent;
 } process_t;
 process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent);
-void process_create_thread(process_t *proc, ThreadCallback callback, uint32_t flags, int argc, char **argv, char **envp);
+void process_create_thread(process_t *proc, thread_callback_t callback, uint32_t flags, int argc, char **argv, char **envp);
 void process_fork_thread(process_t *dest, process_t *src, int thread_index);
 process_t *get_process_from_pid(pid_t pid);
 extern process_t *current_process;

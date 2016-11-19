@@ -59,7 +59,7 @@ int exec(const char *path, char **argv, char **envp)
 	p->self = (pthread_t*) fs;
 	proc->fs = (uintptr_t) fs;
 	asm volatile("cli");
-	process_create_thread(proc, (ThreadCallback) entry, 0, argc, args, env);
+	process_create_thread(proc, (thread_callback_t) entry, 0, argc, args, env);
 	p->tid = proc->threads[0]->id;
 	p->pid = proc->pid;
 	free(buffer);

@@ -40,7 +40,7 @@ process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent)
 	return proc;
 }
 static int c;
-void process_create_thread(process_t *proc, ThreadCallback callback, uint32_t flags, int argc, char **argv, char **envp)
+void process_create_thread(process_t *proc, thread_callback_t callback, uint32_t flags, int argc, char **argv, char **envp)
 {
 	c++;
 	thread_t *thread = NULL;
@@ -58,19 +58,19 @@ void process_create_thread(process_t *proc, ThreadCallback callback, uint32_t fl
 			is_set = 1;
 		}
 	}
-	if(!is_set)
-		sched_destroy_thread(thread);
+	/*if(!is_set)
+		sched_destroy_thread(thread);*/
 }
 void process_fork_thread(process_t *dest, process_t *src, int thread_index)
 {
 	dest->threads[thread_index] = malloc(sizeof(thread_t));
 	memcpy(dest->threads[thread_index], src->threads[thread_index], sizeof(thread_t));
-	extern thread_t *last_thread;
+	/*extern thread_t *last_thread;
 	last_thread->next = dest->threads[thread_index];
 	last_thread = last_thread->next;
 	extern int curr_id;
 	last_thread->id = curr_id++;
-	last_thread->owner = dest;
+	last_thread->owner = dest;*/
 }
 process_t *get_process_from_pid(pid_t pid)
 {

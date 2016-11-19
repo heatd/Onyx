@@ -330,7 +330,6 @@ void sys__exit(int status)
 		for(;;) asm volatile("pause");
 	}
 	current_process->has_exited = status;
-	sched_destroy_thread(get_current_thread());
 	asm volatile("sti");
 	while(1) asm volatile("hlt");
 }
@@ -458,7 +457,7 @@ int sys_posix_spawn(pid_t *pid, const char *path, void *file_actions, void *attr
 	}*/
 	void *entry = elf_load((void *) buffer);
 	// Create the new thread
-	process_create_thread(new_proc, (ThreadCallback) entry, 0, 0, NULL, NULL);
+	process_create_thread(new_proc, (thread_callback_t) entry, 0, 0, NULL, NULL);
 	new_proc->cr3 = new_pt;
 	vmm_stop_spawning();
 	asm volatile("mov %0, %%cr3"::"r"(current_pml4));
@@ -583,7 +582,7 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	void *entry = elf_load((void *) buffer);
 	printf("Loaded the elf file!\n");
 	asm volatile("cli");
-	thread_t *t = sched_create_thread((ThreadCallback) entry,0, NULL);
+	thread_t *t = sched_create_thread((thread_callback_t) entry,0, NULL);
 	t->owner = current_process;
 	current_process->threads[0] = t;
 	vmm_stop_spawning();

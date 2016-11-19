@@ -172,9 +172,8 @@ static uintptr_t apic_timer_irq(registers_t *regs)
 		rdmsr(GS_BASE_MSR, &l, &h);
 		uint64_t addr = l | ((uint64_t)h << 32);
 		struct processor *proc = (struct processor*) addr;
-		if(proc->cpu_num == 0)
-			return sched_switch_thread((uintptr_t)regs);
-		return 0;
+		
+		return sched_switch_thread((uintptr_t)regs);
 	}
 	return 0;
 }
