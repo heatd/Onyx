@@ -87,6 +87,15 @@ int main(int argc, char **argv, char **envp)
 	commands[4].name = "getshellpid";
 	commands[4].cmdc = getshellpid;
 	last_command_index++;
+	int pid = fork();
+	if(pid == 0)
+	{
+		execve("/bin/echo", NULL, NULL);
+	}
+	else
+	{
+		printf("[%u]\n", pid);
+	}
 	while(1)
 	{
 		printf(ANSI_COLOR_GREEN "/sbin/init" ANSI_COLOR_YELLOW " # " ANSI_COLOR_RESET);

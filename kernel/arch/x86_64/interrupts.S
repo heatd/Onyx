@@ -47,9 +47,9 @@ section .text
 global isr%1
 isr%1:
 	cli
+	push 0 ;push dummy err code
+	push %1 ;push the interrupt number
 	pushaq
-	xor rdi,rdi   ;push dummy err code
-	mov rsi, %1  ;push the interrupt number
 	jmp isr_common ;Go to the handler
 %endmacro
 extern irq_handler
@@ -96,10 +96,8 @@ jmp irq_common
 global isr%1
 isr%1:
 	cli
+	push %1 ;push the interrupt number to the intctx
 	pushaq
-	mov rdi, r15
-	mov r15, [rsp]
-	mov rsi, %1 ;push the interrupt number to the arguments
 	jmp isr_common ;Go to the handler
 %endmacro
 
@@ -112,6 +110,7 @@ isr_common:
 	mov ds, ax
 	mov es, ax
 	mov ss, ax
+	mov rdi, rsp
 	call isr_handler
 	mov rax, current_process
 	cmp qword [rax], qword 0
@@ -185,6 +184,19 @@ IRQ 20
 IRQ 21
 IRQ 22
 IRQ 23
+global _sched_yield
+extern sched_switch_thread
+_sched_yield:
+	pushaq
+	mov ax, ds
+	push rax
+	mov rdi, rsp
+	call sched_switch_thread
+	pop rax
+	mov ds, ax
+	mov es, ax
+	popaq
+	iretq
 %macro syscallsaveregs 0
 	push rbx
 	push rcx

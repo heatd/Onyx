@@ -13,6 +13,7 @@
 idt_ptr_t idt_ptr;
 idt_entry_t idt_entries[256];
 void idt_flush(uint64_t);
+extern void _sched_yield();
 void idt_init()
 {
 	memset(&idt_entries, 0, sizeof(idt_entry_t) * 256);
@@ -75,6 +76,7 @@ void idt_init()
 	idt_create_descriptor(54, (uint64_t) irq22, 0x08, 0x8E);
 	idt_create_descriptor(55, (uint64_t) irq23, 0x08, 0x8E);
 	idt_create_descriptor(128, (uint64_t)__syscall_int, 0x08, 0x8E);
+	idt_create_descriptor(129, (uint64_t)_sched_yield, 0x08, 0x8E);
 	idt_load();
 }
 void setvect(uint8_t entry, uintptr_t address)

@@ -21,8 +21,9 @@
 #include <kernel/panic.h>
 #include <kernel/tss.h>
 #include <kernel/process.h>
+#include <kernel/idt.h>
 
-static queue_t *running_queue = NULL;
+static thread_t *run_queue = NULL;
 static thread_t *idle_thread = NULL; 
 static thread_t *current_thread = NULL;
 static _Bool is_initialized = false;
@@ -193,48 +194,54 @@ thread_t* task_switching_create_main_progcontext(thread_callback_t callback, uin
 	
 	return new_thread;
 }
+thread_t *sched_find_runnable(void)
+{
+	thread_t *t = current_thread->next;
+	if(!t)
+		return run_queue;
+	while(t)
+	{
+		if(t->status == THREAD_RUNNABLE)
+			return t;
+		/*if(t->status == THREAD_SLEEPING && t->timestamp + t->sleeping_for == get_tick_count())
+		{
+			t->status = THREAD_RUNNABLE;
+			t->timestamp = 0;
+			t->sleeping_for = 0;
+			return t;
+		}*/
+		t = t->next;
+	}
+	return run_queue;
+}
 void* sched_switch_thread(void* last_stack)
 {
 	if(is_initialized == 0)
 	{
 		return last_stack;
 	}
-	if(!running_queue)
+	/*if(!running_queue)
 	{
-		/* TODO: Add multiprocessor support */
-		printf("Returning idle thread!\n");
-		current_thread = idle_thread;
+		/*TODO: Add multiprocessor support */
+		//printf("Returning idle thread!\n");
+		/*current_thread = idle_thread;
 		set_kernel_stack((uintptr_t) current_thread->kernel_stack_top);
 		return idle_thread->kernel_stack;
-	}
-	if(!current_thread)
+	}*/
+	if(unlikely(!current_thread))
 	{
-		current_thread = running_queue->data;
-		free(running_queue);
-		running_queue = running_queue->next;	
+		current_thread = run_queue;
+		set_kernel_stack((uintptr_t)current_thread->kernel_stack_top);
+		return current_thread->kernel_stack;
 	}
 	current_thread->kernel_stack = (uintptr_t*)last_stack;
-	if(current_process)
+	if(likely(current_process))
 	{
 		current_process->areas = areas;
 		current_process->num_areas = num_areas;
 	}
-	if(!running_queue)
-	{
-		running_queue = malloc(sizeof(queue_t));
-		running_queue->data = current_thread;
-		running_queue->prev = NULL;
-		running_queue->next = NULL;
-	}
-	else
-	{
-		queue_add_to_tail(running_queue, current_thread);
-	}
-	/* Get a thread from the queue */
-	current_thread = running_queue->data;
-	free(running_queue);
-	running_queue = running_queue->next;
 	
+	current_thread = sched_find_runnable();
 	/* Fill the TSS with a kernel stack*/
 	set_kernel_stack((uintptr_t)current_thread->kernel_stack_top);
 	current_process = current_thread->owner;
@@ -293,6 +300,13 @@ void sched_idle()
 	for(;;)
 		asm volatile("hlt");
 }
+void thread_add(thread_t *add)
+{
+	thread_t *it = current_thread;
+	while(it->next)
+		it = it->next;
+	it->next = add;
+}
 thread_t *sched_create_thread(thread_callback_t callback, uint32_t flags, void* args)
 {
 	/* Create the thread context (aka the real work) */
@@ -300,17 +314,13 @@ thread_t *sched_create_thread(thread_callback_t callback, uint32_t flags, void* 
 	if(!t)
 		return NULL;
 	/* Add it to the queue */
-	if(unlikely(!running_queue))
+	if(unlikely(!run_queue))
 	{
-		running_queue = malloc(sizeof(queue_t));
-		if(unlikely(!running_queue))
-			panic("sched_create_thread: no memory for 'running_queue'");
-		memset(running_queue, 0, sizeof(queue_t));
-		running_queue->data = t;
+		run_queue = t;
 	}
 	else
 	{
-		queue_add_to_tail(running_queue, t);
+		thread_add(t);
 	}
 	return t;
 }
@@ -321,25 +331,34 @@ thread_t* sched_create_main_thread(thread_callback_t callback, uint32_t flags, i
 	if(!t)
 		return NULL;
 	/* Add it to the queue */
-	if(unlikely(!running_queue))
+	if(unlikely(!run_queue))
 	{
-		running_queue = malloc(sizeof(queue_t));
-		if(unlikely(!running_queue))
-			panic("sched_create_thread: no memory for 'running_queue'");
-		memset(running_queue, 0, sizeof(queue_t));
-		running_queue->data = t;
+		run_queue = t;
 	}
 	else
 	{
-		queue_add_to_tail(running_queue, t);
+		thread_add(t);
 	}
 	return t;
 }
+extern void _sched_yield();
 int sched_init()
 {
-	idle_thread = sched_create_thread(sched_idle, 1, NULL);
+	idle_thread = task_switching_create_context(sched_idle, 1, NULL);
 	if(!idle_thread)
 			return 1;
 	is_initialized = true;
 	return 0;
+}
+void sched_yield()
+{
+	if(is_initialized)
+		asm volatile("int $0x81");
+}
+void sched_sleep(unsigned long ms)
+{
+	current_thread->timestamp = get_tick_count();
+	current_thread->sleeping_for = ms;
+	current_thread->status = THREAD_SLEEPING;
+	sched_yield();
 }

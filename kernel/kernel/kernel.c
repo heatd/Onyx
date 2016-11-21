@@ -224,6 +224,13 @@ void kernel_main()
 }
 extern int exec(const char *, char**, char**);
 uintptr_t rsdp;
+void test()
+{
+	printf("Sleeping for 1 second!\n");
+	sched_sleep(1000000UL);
+	printf("Done!\n");
+	while(1);
+}
 void kernel_multitasking(void *arg)
 {
 	void *mem = vmm_allocate_virt_address(VM_KERNEL, 1024, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
@@ -259,7 +266,7 @@ void kernel_multitasking(void *arg)
 	char *b = malloc(in->size);
 	memset(b, 0, in->size);
 	write_vfs(0, in->size, b, in);*/
-
+	//sched_create_thread(test, 1, NULL);
 	initialize_entropy();
 	exec("/sbin/init", args, envp);
 	for (;;) asm volatile("hlt");

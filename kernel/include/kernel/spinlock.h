@@ -14,6 +14,7 @@
 typedef struct spinlock
 {
 	unsigned long lock;
+	unsigned long waiters;
 }spinlock_t;
 
 extern void acquire_spinlock(spinlock_t*);

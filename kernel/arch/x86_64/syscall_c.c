@@ -159,16 +159,13 @@ int sys_mprotect(void *addr, size_t len, int prot)
 	vmm_change_perms(addr, pages, vm_prot);
 	return 0;
 }
-spinlock_t read_spl;
 extern int tty_keyboard_pos;
 ssize_t sys_read(int fd, const void *buf, size_t count)
 {
 	/*if(!vmm_is_mapped((void*) buf))
 		return errno = EINVAL, -1;*/
-	printf("Hey!\n");
 	DEBUG_PRINT_SYSTEMCALL();
 
-	acquire_spinlock(&read_spl);
 	if (fd == STDIN_FILENO)
 	{
 		char *kb_buf = tty_wait_for_line();
@@ -176,28 +173,23 @@ ssize_t sys_read(int fd, const void *buf, size_t count)
 		tty_keyboard_pos = 0;
 		memset(kb_buf, 0, count);
 		memmove(kb_buf, &kb_buf[count], count);
-		release_spinlock(&read_spl);
 		return count;
 	}
 	ioctx_t *ioctx = &current_process->ctx;
 	if( fd > UINT16_MAX)
 	{
-		release_spinlock(&read_spl);
 		return errno = EBADF;
 	}
 	if(ioctx->file_desc[fd] == NULL)
 	{
-		release_spinlock(&read_spl);
 		return errno = EBADF;
 	}
 	if(!buf)
 	{
-		release_spinlock(&read_spl);
 		return errno = EINVAL;
 	}
 	ssize_t size = read_vfs(ioctx->file_desc[fd]->seek, count, (char*)buf, ioctx->file_desc[fd]->vfs_node);
 	ioctx->file_desc[fd]->seek += size;
-	release_spinlock(&read_spl);
 	return size;
 }
 uint64_t sys_getpid()
@@ -556,8 +548,6 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	if(!vmm_is_mapped(envp))
 		return errno = EINVAL, -1;*/
 	DEBUG_PRINT_SYSTEMCALL();
-	asm volatile("cli");
-	acquire_spinlock(&execve_spl);
 	size_t areas;
 	vmm_entry_t *entries;
 	current_process->cr3 = vmm_clone_as(&entries, &areas);
@@ -572,17 +562,14 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	char *buffer = malloc(in->size);
 	if (!buffer)
 		return errno = ENOMEM;
-	printf("Buffer: %p\n", buffer);
 	in->read(0, in->size, buffer, in);
-	printf("HE\n");
 	asm volatile ("mov %0, %%cr3" :: "r"(current_process->cr3)); /* We can't use paging_load_cr3 because that would change current_pml4
 							* which we will need for later 
 							*/
-	printf("Eh\n");
 	void *entry = elf_load((void *) buffer);
-	printf("Loaded the elf file!\n");
+	printf("entry %p\n", entry);
 	asm volatile("cli");
-	thread_t *t = sched_create_thread((thread_callback_t) entry,0, NULL);
+	thread_t *t = sched_create_thread((thread_callback_t) entry, 0, NULL);
 	t->owner = current_process;
 	current_process->threads[0] = t;
 	vmm_stop_spawning();
@@ -590,7 +577,6 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	asm volatile ("mov %0, %%cr3" :: "r"(current_pml4)); /* We can't use paging_load_cr3 because that would change current_pml4
 							* which we will need for later 
 							*/
-	printf("Hey\n");
 	asm volatile("sti");
 	while(1);
 }

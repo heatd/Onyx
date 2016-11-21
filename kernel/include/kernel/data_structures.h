@@ -19,16 +19,21 @@ typedef struct queue
 	struct queue *prev, *next;
 } queue_t;
 
-inline int queue_add_to_tail(queue_t *queue, void *data)
+inline int queue_add_to_tail(queue_t *queue, void *data, queue_t *new_queue)
 {
-	queue_t *new = malloc(sizeof(queue_t));
-	if(!new)
-		return 1;
-	
-	memset(new, 0, sizeof(queue_t));
+	queue_t *new;
+	if(!new_queue)
+	{
+		new = malloc(sizeof(queue_t));
+		if(!new)
+			return 1;
+		memset(new, 0, sizeof(queue_t));
 
+	}
+	else
+		new = new_queue;
 	queue_t *it = queue;
-	while(it->next)
+	while(it->next != NULL)
 		it = it->next;
 	
 	it->next = new;

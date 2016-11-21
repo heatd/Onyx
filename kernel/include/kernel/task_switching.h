@@ -12,6 +12,10 @@
 #ifndef _TASK_SWITCHING_AMD64_H
 #define _TASK_SWITCHING_AMD64_H
 #include <stdint.h>
+
+#define THREAD_RUNNABLE 0
+#define THREAD_SLEEPING 1
+
 typedef void(*thread_callback_t)(void*);
 struct proc;
 typedef struct thr
@@ -24,8 +28,12 @@ typedef struct thr
 	thread_callback_t rip;
 	uint32_t flags;
 	int id;
+	int status;
 	struct thr *next;
+	uint64_t timestamp;
+	unsigned long sleeping_for;
 } thread_t;
+
 thread_t *sched_create_thread(thread_callback_t callback, uint32_t flags, void* args);
 thread_t* sched_create_main_thread(thread_callback_t callback, uint32_t flags,int argc, char **argv, char **envp);
 void sched_destroy_thread(thread_t *thread);
