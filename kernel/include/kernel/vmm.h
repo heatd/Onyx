@@ -52,4 +52,12 @@ PML4 *vmm_clone_as(vmm_entry_t **, size_t *);
 PML4 *vmm_fork_as(vmm_entry_t **);
 void vmm_stop_spawning();
 void vmm_change_perms(void *range, size_t pages, int perms);
+
+inline size_t vmm_align_size_to_pages(size_t size)
+{
+	size_t pages = size / PAGE_SIZE;
+	if(size % PAGE_SIZE)
+		pages++;
+	return pages;
+}
 #endif

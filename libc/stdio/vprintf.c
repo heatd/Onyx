@@ -18,12 +18,12 @@
 #include <kernel/tty.h>
 #endif
 #include <ctype.h>
-static char buffer[4096] = {0};
-static size_t buffer_pos = 0;
+static char printf_buffer[4096] = {0};
+static size_t printf_buffer_pos = 0;
 static void print(const char *data, size_t data_length)
 {
-	memcpy(&buffer[buffer_pos], data, data_length);
-	buffer_pos += data_length;
+	memcpy(&printf_buffer[printf_buffer_pos], data, data_length);
+	printf_buffer_pos += data_length;
 }
 int vprintf(const char *__restrict__ format, va_list parameters)
 {
@@ -82,35 +82,35 @@ int vprintf(const char *__restrict__ format, va_list parameters)
 			print(s, strlen(s));
 		} else if (*format == 'X') {
 			uint64_t i = va_arg(parameters, uint64_t);
-			char buffer[30] = { 0 };
-			itoa(i, 16, buffer, true);
-			print(buffer, strlen(buffer));
-			if(strlen(buffer) < padding)
+			char printf_buffer[30] = { 0 };
+			itoa(i, 16, printf_buffer, true);
+			print(printf_buffer, strlen(printf_buffer));
+			if(strlen(printf_buffer) < padding)
 			{
 				if(pad_zeroes)
 				{
-					char zeroes[padding - strlen(buffer)];
-					memset(&zeroes, 0, padding - strlen(buffer));
-					printf(zeroes, padding - strlen(buffer));
+					char zeroes[padding - strlen(printf_buffer)];
+					memset(&zeroes, 0, padding - strlen(printf_buffer));
+					printf(zeroes, padding - strlen(printf_buffer));
 				}
 			}
-			memset(buffer, 0, sizeof(buffer));
+			memset(printf_buffer, 0, sizeof(printf_buffer));
 			format++;
 		} else if (*format == 'x') {
 			uint64_t i = va_arg(parameters, uint64_t);
-			char buffer[30] = { 0 };
-			itoa(i, 16, buffer, false);
-			print(buffer, strlen(buffer));
-			if(strlen(buffer) < padding)
+			char printf_buffer[30] = { 0 };
+			itoa(i, 16, printf_buffer, false);
+			print(printf_buffer, strlen(printf_buffer));
+			if(strlen(printf_buffer) < padding)
 			{
 				if(pad_zeroes)
 				{
-					char zeroes[padding - strlen(buffer)];
-					memset(&zeroes, 0, padding - strlen(buffer));
-					printf(zeroes, padding - strlen(buffer));
+					char zeroes[padding - strlen(printf_buffer)];
+					memset(&zeroes, 0, padding - strlen(printf_buffer));
+					printf(zeroes, padding - strlen(printf_buffer));
 				}
 			}
-			memset(buffer, 0, sizeof(buffer));
+			memset(printf_buffer, 0, sizeof(printf_buffer));
 			format++;
 		} else if (*format == 'i') {
 			format++;
@@ -147,17 +147,17 @@ int vprintf(const char *__restrict__ format, va_list parameters)
 				print("(nil)", strlen("(nil)"));
 			else {
 				uintptr_t i = (uintptr_t) ptr;
-				char buffer[60] = { 0 };
-				itoa(i, 16, buffer, true);
+				char printf_buffer[60] = { 0 };
+				itoa(i, 16, printf_buffer, true);
 				print("0x", strlen("0x"));
-				print(buffer, 60);
-				if(strlen(buffer) < padding)
+				print(printf_buffer, 60);
+				if(strlen(printf_buffer) < padding)
 			{
 				if(pad_zeroes)
 				{
-					char zeroes[padding - strlen(buffer)];
-					memset(&zeroes, 0, padding - strlen(buffer));
-					printf(zeroes, padding - strlen(buffer));
+					char zeroes[padding - strlen(printf_buffer)];
+					memset(&zeroes, 0, padding - strlen(printf_buffer));
+					printf(zeroes, padding - strlen(printf_buffer));
 				}
 			}
 			}
@@ -184,13 +184,13 @@ int vprintf(const char *__restrict__ format, va_list parameters)
 		}
 	}
 #ifndef __is_spartix_kernel
-	fwrite(buffer, buffer_pos, 1, stdout);
-	buffer_pos = 0;
-	memset(buffer, 0, 4096);
+	fwrite(printf_buffer, printf_buffer_pos, 1, stdout);
+	printf_buffer_pos = 0;
+	memset(printf_buffer, 0, 4096);
 #else
-	tty_write(buffer, buffer_pos);
-	buffer_pos = 0;
-	memset(buffer, 0, 4096);
+	tty_write(printf_buffer, printf_buffer_pos);
+	printf_buffer_pos = 0;
+	memset(printf_buffer, 0, 4096);
 #endif
 	return written;
 }

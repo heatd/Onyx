@@ -14,5 +14,5 @@
 #include <stdio.h>
 size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream)
  {
-	 return __stdio_write(ptr, size, nmemb, stream);
+	return __stdio_write(ptr, size, nmemb, stream);
  }

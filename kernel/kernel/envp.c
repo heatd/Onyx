@@ -30,7 +30,7 @@ char **copy_env_vars(char **envp)
 		pages++;
 	uintptr_t *variables = vmm_allocate_virt_address(0, pages, VMM_TYPE_REGULAR, VMM_NOEXEC | VMM_WRITE | VMM_USER);
 	vmm_map_range(variables, pages,  VMM_NOEXEC | VMM_WRITE | VMM_USER);
-	memset(variables, 0 ,PAGE_SIZE * pages);
+
 	char *variable_strings = (char*)variables + num_vars * sizeof(uintptr_t);
 	for(size_t i = 0; i < num_vars; i++)
 	{
@@ -38,7 +38,7 @@ char **copy_env_vars(char **envp)
 		strcpy(variable_strings, envp[i]);
 		variable_strings += strlen(envp[i]) + 1;
 	}
-	memset((char*)variables + total_size, 0, total_size % PAGE_SIZE);
+	variables[num_vars] = NULL;
 	return (char **) variables;
 }
 char **copy_argv(char **argv, const char *path, int *argc)

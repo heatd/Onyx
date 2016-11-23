@@ -240,10 +240,11 @@ void* sched_switch_thread(void* last_stack)
 		current_process->areas = areas;
 		current_process->num_areas = num_areas;
 	}
-	
+	//asm volatile("fxsave %0"::"m"(current_thread->fxsave));
 	current_thread = sched_find_runnable();
 	/* Fill the TSS with a kernel stack*/
 	set_kernel_stack((uintptr_t)current_thread->kernel_stack_top);
+	//asm volatile("fxrstor %0"::"m"(current_thread->fxsave));
 	current_process = current_thread->owner;
 	if(current_process)
 	{

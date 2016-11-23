@@ -25,6 +25,7 @@
 #ifdef __is_spartix_kernel
 #include <kernel/panic.h>
 #endif
+#include <math.h>
 
 #if UINT32_MAX == UINTPTR_MAX
 #define STACK_CHK_GUARD 0xdeadc0de
@@ -33,6 +34,16 @@
 #endif
 
 uintptr_t __stack_chk_guard = STACK_CHK_GUARD;
+
+void initialize_ssp()
+{
+	#if __STDC_HOSTED__
+	/* If in user-space, seed rand() ourselves */
+	// TODO: Implement time.h
+	//srand(time(NULL));
+	#endif
+	__stack_chk_guard = (uint64_t) rand() << 32 | (uint64_t) rand();
+}
 __attribute__((noreturn))
 void __stack_chk_fail()
 {

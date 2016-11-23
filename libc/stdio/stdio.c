@@ -26,17 +26,19 @@ size_t __stdio_write(const void *ptr, size_t size, size_t nmemb, FILE *stream)
 size_t __stdio_read(const void *ptr, size_t size, size_t nmemb, FILE *stream)
 {
 	int fd = stream->fd;
-	/*if(size > stream->buf_size)
+	if(size > stream->buf_size)
 	{
+		if(stream->buf)
+			free(stream->buf);
 		stream->buf = malloc(size);
+		if(!stream->buf)
+			exit(EXIT_FAILURE);
 		memset(stream->buf, 0, size);
-		FIX MALLOC(3)!!!
-		stream->buf = (void*) ptr;
 	}
-	*/
+
 	struct iovec v[2] = {0};
 	size_t passed_size = size * nmemb;
-	v[0].iov_base = (void*) ptr;
+	v[0].iov_base = (void*) stream->buf;
 	v[0].iov_len = passed_size;
 	v[1].iov_base = (void*) ptr;
 	v[1].iov_len = passed_size;

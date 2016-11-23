@@ -24,6 +24,8 @@ extern "C" {
 #define NULL (void*)0
 #endif
 #endif
+#define EXIT_SUCCESS (0)
+#define EXIT_FAILURE (1)
 int atexit(void (*)(void));
 int atoi(const char*);
 char* getenv(const char*);
@@ -40,6 +42,7 @@ void qsort(void* base_ptr,
 
 __attribute__ ((__noreturn__))
 void _Exit(int s);
+void exit(int exitcode);
 void srand(unsigned int);
 int rand();
 

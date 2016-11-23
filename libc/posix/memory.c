@@ -8,7 +8,6 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#include <unistd.h>
 #include <stdlib.h>
 
 #include <sys/syscall.h>
@@ -17,15 +16,12 @@
 
 void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
-	(void) addr;
-	(void) length;
-	(void) prot;
-	(void) flags;
-	(void) fd;
-	(void) offset;
-	asm volatile("mov $11, %rax; int $0x80");
-	register void *rax asm("rax");
-	return rax;
+	syscall(SYS_mmap, addr, length, prot, flags, fd, offset);
+	if(rax == (unsigned long long) -1)
+	{
+		set_errno();
+	}
+	return (void*) rax;
 }
 int munmap(void *addr, size_t length)
 {
@@ -45,12 +41,40 @@ int mprotect(void *addr, size_t len, int prot)
 	}
 	return (int) rax;
 }
-int brk(void *addr)
+uint64_t brk(void *addr)
 {
 	syscall(SYS_brk, addr);
 	if(rax == (unsigned long long) -1)
 	{
 		set_errno();
 	}
-	return (int) rax;
+	return rax;
 }
+#pragma GCC push_options
+#pragma GCC optimize("O0")
+char *current_position = NULL;
+void *sbrk(unsigned long long incr)
+{
+	if(current_position == NULL)
+	{
+		current_position = (void*)brk(0);
+		char *ret = current_position;
+		current_position += incr;
+		return ret;
+	}
+	else if(((uint64_t)current_position % 4096) == 0)
+	{
+		current_position = mmap(NULL, 4096, 2, 0x4, 0, 0);
+		brk(current_position);
+		char *ret = current_position;
+		current_position += incr;
+		return ret;
+	}
+	else
+	{
+		char *ret = current_position;
+		current_position +=incr;
+		return ret;
+	}
+}
+#pragma GCC pop_options

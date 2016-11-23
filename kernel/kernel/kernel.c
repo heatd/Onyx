@@ -245,7 +245,7 @@ void kernel_multitasking(void *arg)
 	/*extern void init_elf_symbols(struct multiboot_tag_elf_sections *);
 	init_elf_symbols(&secs);*/
 	initialize_ata();
-
+	
 	char *args[] = {"/etc/fstab", NULL};
 	char *envp[] = {"PATH=/bin:/usr/bin:/usr/lib", NULL};
 	init_ext2drv();
@@ -256,8 +256,8 @@ void kernel_multitasking(void *arg)
 	else
 		printf("eth0: found compatible device\n");*/
 	//dhcp_initialize();
-	/*read_partitions();
-	vfsnode_t *in = open_vfs(fs_root, "/etc/fstab");
+	//read_partitions();
+	/*vfsnode_t *in = open_vfs(fs_root, "/etc/fstab");
 	if (!in)
 	{
 		printf("%s: %s\n", "/etc/fstab", strerror(errno));
@@ -265,7 +265,8 @@ void kernel_multitasking(void *arg)
 	}
 	char *b = malloc(in->size);
 	memset(b, 0, in->size);
-	write_vfs(0, in->size, b, in);*/
+	write_vfs(0, in->size, b, in);
+	printf("%s\n", b);*/
 	//sched_create_thread(test, 1, NULL);
 	initialize_entropy();
 	exec("/sbin/init", args, envp);

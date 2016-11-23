@@ -69,7 +69,6 @@ int getshellpid(char *unused)
 }
 int main(int argc, char **argv, char **envp)
 {
-	write(STDOUT_FILENO, "Hello World!\n", strlen("Hello World!\n"));
 	printf(ANSI_COLOR_GREEN "/sbin/init invoked!\n" ANSI_COLOR_RESET);
 	printf("Becoming the shell!\n");
 	commands[0].name = "help";
@@ -90,7 +89,8 @@ int main(int argc, char **argv, char **envp)
 	int pid = fork();
 	if(pid == 0)
 	{
-		execve("/bin/echo", NULL, NULL);
+		char *args[]={"execve works!", NULL};
+		execve("/bin/echo", args, envp);
 	}
 	else
 	{

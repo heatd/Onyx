@@ -4,7 +4,7 @@
 .extern _fini
 exit:
 	push %rdi
-	call *_fini@GOTPCREL(%rip)
+	call _fini
 	pop %rdi
 	.extern _exit
-	call *_exit@GOTPCREL(%rip)
+	call _exit

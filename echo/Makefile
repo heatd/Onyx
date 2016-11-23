@@ -1,6 +1,6 @@
 PROG:= echo
 OBJS:= main.o
-CFLAGS:=-O2 -g -static -nostartfiles
+CFLAGS:=-O2 -g
 clean:
 	rm -f $(PROG)
 install: $(PROG)

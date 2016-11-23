@@ -55,8 +55,15 @@ errno = __err
 #define __syscall2(no, a, b) __asm__ __volatile__("int $0x80" :"=a"(rax) :"a"(no), "D"(a), "S"(b) : "memory")
 #define __syscall3(no, a, b, c) __asm__ __volatile__("int $0x80" :"=a"(rax) :"a"(no), "D"(a), "S"(b), "d"(c) : "memory")
 #define __syscall4(no, a, b, c, d) __asm__ __volatile__("int $0x80":"=a"(rax) :"a"(no), "D"(a), "S"(b), "d"(c), "c"(d) : "memory")
-#define __syscall5(no, a, b, c, d, e) __asm__ __volatile__("mov %0, %r8;int $0x80":"=a"(rax) :"r"(e), a"(no), "D"(a), "S"(b), "d"(c), "c"(d) : "memory")
-#define __syscall6(no, a, b, c, d, e, f) __asm__ __volatile__("mov %0, %r8;mov %1, %r9;int $0x80":"=a"(rax) :"r"(e), "r"(f), "a"(no), "D"(a), "S"(b), "d"(c), "c"(d) : "memory")
+#define __syscall5(no, a, b, c, d, e) register uint64_t r8 asm("r8"); \
+	r8 = e; \
+	__asm__ __volatile__("int $0x80":"=a"(rax) :"a"(no), "D"(a), "S"(b), "d"(c), "c"(d) : "memory")
+
+#define __syscall6(no, a, b, c, d, e, f) register uint64_t r8 asm("r8"); \
+	r8 = e; \
+	register uint64_t r9 asm("r9"); \
+	r9 = f; \
+	__asm__ __volatile__("int $0x80":"=a"(rax) :"a"(no), "D"(a), "S"(b), "d"(c), "c"(d) : "memory")
 
 #define MKFN(fn,...) MKFN_N(fn,##__VA_ARGS__,9,8,7,6,5,4,3,2,1,0)(__VA_ARGS__)
 #define MKFN_N(fn,NR,n0,n1,n2,n3,n4,n5,n6,n7,n8,n,...) fn##n

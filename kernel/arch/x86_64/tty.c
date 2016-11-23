@@ -1,4 +1,4 @@
-/*----------------------------------------------------------------------
+ /*----------------------------------------------------------------------
  * Copyright (C) 2016 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
@@ -129,7 +129,7 @@ void tty_putchar(char c)
 static spinlock_t spl;
 void tty_write(const char *data, size_t size)
 {
-	acquire_spinlock(&spl);
+	//acquire_spinlock(&spl);
 	for (size_t i = 0; i < size; i++)
 	{
 		// Parse ANSI terminal escape codes
