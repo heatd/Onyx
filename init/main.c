@@ -89,12 +89,9 @@ int main(int argc, char **argv, char **envp)
 	int pid = fork();
 	if(pid == 0)
 	{
-		char *args[]={"execve works!", NULL};
-		execve("/bin/echo", args, envp);
-	}
-	else
-	{
-		printf("[%u]\n", pid);
+		char *args[] = {"/etc/fstab", NULL};
+		char *env[] = {"", NULL};
+		execve("/bin/cat", args, env);
 	}
 	while(1)
 	{

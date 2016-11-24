@@ -537,6 +537,7 @@ MAX_RELEASE_CHECK_RATE   default: 4095 unless not HAVE_MMAP
 #define LACKS_TIME_H 1
 #define LACKS_SYS_PARAM_H 1
 #define NO_MALLOC_STATS 1
+#define HAVE_MMAP 1
 #endif /*__spartix*/
 
 #ifndef WIN32

@@ -13,7 +13,7 @@ _start:
 	push %rdi # argc
 	push %rsi # argv
 	push %rdx # envp
-	#call _init_standard_libc ; Libc initialization
+	call _init_standard_libc # Libc initialization
 
 	call _init # global constructors
 	

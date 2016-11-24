@@ -36,6 +36,13 @@ extern FILE* stdin;
 #include <stddef.h>
 #endif
 
+#undef SEEK_SET
+#define SEEK_SET 1
+#undef SEEK_CUR
+#define SEEK_CUR 2
+#undef SEEK_END
+#define SEEK_END 3
+
 int fprintf(FILE*, const char*, ...);
 int fclose(FILE*);
 FILE* fopen(const char*, const char*);
@@ -44,6 +51,7 @@ int fseek(FILE*, long, int);
 long ftell(FILE*);
 size_t fwrite(const void*, size_t, size_t, FILE*);
 void setbuf(FILE*, char*);
+void rewind(FILE *stream);
 #endif /* __need_FILE */
 
 int vsprintf(char *restrict s, const char *__restrict__ format, va_list parameters);

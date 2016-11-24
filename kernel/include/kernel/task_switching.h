@@ -20,6 +20,7 @@ typedef void(*thread_callback_t)(void*);
 struct proc;
 typedef struct thr
 {
+	//char *fxsave;
 	uintptr_t *user_stack;
 	uintptr_t *kernel_stack;
 	uintptr_t *kernel_stack_top;

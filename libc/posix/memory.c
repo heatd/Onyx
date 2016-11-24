@@ -52,19 +52,19 @@ uint64_t brk(void *addr)
 }
 #pragma GCC push_options
 #pragma GCC optimize("O0")
-char *current_position = NULL;
+static char *current_position = NULL;
 void *sbrk(unsigned long long incr)
 {
 	if(current_position == NULL)
 	{
-		current_position = (void*)brk(0);
+		current_position = (void*)brk(NULL);
 		char *ret = current_position;
 		current_position += incr;
 		return ret;
 	}
 	else if(((uint64_t)current_position % 4096) == 0)
 	{
-		current_position = mmap(NULL, 4096, 2, 0x4, 0, 0);
+		current_position = mmap(NULL, 4096, PROT_WRITE | PROT_READ, MAP_ANONYMOUS, 0, 0);
 		brk(current_position);
 		char *ret = current_position;
 		current_position += incr;

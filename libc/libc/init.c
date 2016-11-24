@@ -9,9 +9,18 @@
  * Foundation.
  *----------------------------------------------------------------------*/
 #include <string.h>
+#include <stdlib.h>
 #include <unistd.h>
-extern int malloc_init();
+
+#include <sys/mman.h>
+
 void _init_standard_libc()
 {
-	malloc_init();
+	/* Initialize sbrk(3) */
+	void *addr = mmap(NULL, 4096, PROT_WRITE | PROT_READ, MAP_ANONYMOUS, 0, 0);
+	/* Basically, any failure here results in an exit(1), as we have no malloc or sbrk */
+	if(!addr)
+		exit(1);
+	if(brk(addr))
+		exit(1);
 }

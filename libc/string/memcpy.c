@@ -17,14 +17,14 @@ void *memcpy(void *__restrict__ dstptr, const void *__restrict__ srcptr,
   size_t bigblocks;
   size_t gran;
   if(((uintptr_t) dstptr & 15)== 0)
-  { 
-    bigblocks = size / 16;
-    gran = size % 16;
-    __m128 *s = (__m128*)srcptr;
-    __m128 *d = (__m128*)dstptr;
-    unsigned char *dst = (unsigned char *) dstptr + bigblocks * 16;
-    const unsigned char *src = (const unsigned char *) srcptr + bigblocks * 16;
-    for(size_t i = 0; i < bigblocks; i++)
+	{
+	bigblocks = size / 16;
+	gran = size % 16;
+	__m128 *s = (__m128*)srcptr;
+	__m128 *d = (__m128*)dstptr;
+	unsigned char *dst = (unsigned char *) dstptr + bigblocks * 16;
+	const unsigned char *src = (const unsigned char *) srcptr + bigblocks * 16;
+	for(size_t i = 0; i < bigblocks; i++)
     {
       d[i] = s[i];
     }

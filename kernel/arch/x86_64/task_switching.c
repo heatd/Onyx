@@ -38,7 +38,8 @@ thread_t* task_switching_create_context(thread_callback_t callback, uint32_t fla
 		panic("OOM while allocating thread");
 	
 	memset(new_thread, 0 ,sizeof(thread_t));
-	
+	/*new_thread->fxsave = malloc(512);
+	memset(new_thread->fxsave, 0, 512);*/
 	new_thread->rip = callback;
 	new_thread->flags = flags;
 	new_thread->id = curr_id++;
@@ -114,7 +115,8 @@ thread_t* task_switching_create_main_progcontext(thread_callback_t callback, uin
 		return NULL;
 	
 	memset(new_thread, 0, sizeof(thread_t));
-	
+	/*new_thread->fxsave = malloc(512);
+	memset(new_thread->fxsave, 0, 512);*/
 	new_thread->rip = callback;
 	new_thread->flags = flags;
 	new_thread->id = curr_id++;

@@ -30,6 +30,7 @@
 #include <kernel/power_management.h>
 
 #include <drivers/rtc.h>
+
 #ifdef DEBUG_SYSCALL
 #define DEBUG_PRINT_SYSTEMCALL() printf("%s: syscall\n", __func__)
 #else
@@ -42,6 +43,9 @@ off_t sys_lseek(int fd, off_t offset, int whence)
 {
 	acquire_spinlock(&lseek_spl);
 	DEBUG_PRINT_SYSTEMCALL();
+	#ifdef DEBUG_SYSCALL
+		printf("fd %u, off %u, whence %u\n", fd, offset, whence);
+	#endif
 	if (fd > UINT16_MAX)
 	{
 		release_spinlock(&lseek_spl);
@@ -521,7 +525,6 @@ uint64_t sys_nosys()
 uint64_t sys_brk(void *addr)
 {
 	DEBUG_PRINT_SYSTEMCALL();
-
 	if(addr == NULL)
 		return (uint64_t) current_process->brk;
 	else

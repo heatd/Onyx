@@ -48,10 +48,7 @@ int exec(const char *path, char **argv, char **envp)
 	extern size_t num_areas;
 	proc->areas = areas;
 	proc->num_areas = num_areas;
-	proc->brk = vmm_allocate_virt_address(0, 1, VMM_TYPE_REGULAR, VMM_USER|VMM_WRITE);
-	if(!proc->brk)
-		return errno = ENOMEM;
-	vmm_map_range(proc->brk, 1, VMM_WRITE | VMM_USER);
+
 	// Allocate space for %fs TODO: Do this while in elf_load, as we need the TLS size
 	uintptr_t *fs = vmm_allocate_virt_address(0, 1, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_USER);
 	vmm_map_range(fs, 1, VMM_WRITE | VMM_NOEXEC | VMM_USER);

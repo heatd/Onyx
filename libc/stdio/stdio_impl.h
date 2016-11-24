@@ -22,6 +22,10 @@ struct _IO_FILE
 	unsigned int mode;
 	volatile long lock;
 };
+FILE *__stdio_open(const char *path, const char *attrb);
 size_t __stdio_write(const void *ptr, size_t size, size_t nmemb, FILE *stream);
 size_t __stdio_read(const void *ptr, size_t size, size_t nmemb, FILE *stream);
+int __stdio_fseek(FILE *stream, long offset, int whence);
+long __stdio_ftell(FILE *stream);
+void __stdio_rewind(FILE *stream);
 #endif

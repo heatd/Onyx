@@ -67,8 +67,11 @@ posix/memory.o \
 posix/signal.o \
 stdio/perror.o \
 math/rand.o \
-libc/__tls_get_addr.o
-
+libc/__tls_get_addr.o \
+stdio/ftell.o \
+stdio/fopen.o \
+stdio/fseek.o \
+stdio/rewind.o
 OBJS:=\
 $(FREEOBJS) \
 libc/init.o \

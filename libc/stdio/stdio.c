@@ -16,6 +16,14 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 #include <sys/uio.h>
+FILE *__stdio_open(const char *path, const char *attrb)
+{
+	FILE *file = malloc(sizeof(FILE));
+	memset(file, 0, sizeof(FILE));
+	(void) attrb;
+	file->fd = open(path, 0); // Fix this to use open(3)'s attributes (see POSIX.1-2008), still needs support in the kernel
+	return file;
+}
 size_t __stdio_write(const void *ptr, size_t size, size_t nmemb, FILE *stream)
 {
 	int fd = stream->fd;
@@ -44,4 +52,23 @@ size_t __stdio_read(const void *ptr, size_t size, size_t nmemb, FILE *stream)
 	v[1].iov_len = passed_size;
 	size_t r = readv(fd, v, 2);
 	return r;
+}
+int __stdio_fseek(FILE *stream, long offset, int whence)
+{
+	off_t off = lseek(stream->fd, offset, whence);
+	if(off == (off_t) -1)
+	{
+		return -1;
+	}
+	stream->off = off;
+	return 0;
+}
+long __stdio_ftell(FILE *stream)
+{
+	return stream->off;
+}
+void __stdio_rewind(FILE *stream)
+{
+	lseek(stream->fd, 0, SEEK_SET);
+	stream->off = 0;
 }
