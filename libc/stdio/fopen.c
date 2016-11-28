@@ -8,15 +8,11 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#include <errno.h>
+#include <stddef.h>
+#include <stdint.h>
+#include "stdio_impl.h"
 #include <stdio.h>
-#include <string.h>
-
-void perror(const char *error_msg)
+FILE *fopen(const char *path, const char *mode)
 {
-	const char *error = (const char*) strerror(errno);
-	if(error_msg && *error_msg != '\0')
-		printf("%s%s\n", error_msg, error);
-	else
-		printf("%s\n", error);	
+	return __stdio_open(path, mode);
 }

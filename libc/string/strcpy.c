@@ -9,13 +9,23 @@
  * Foundation.
  *----------------------------------------------------------------------*/
  #include <string.h>
-// Copy the NULL-terminated string src into dest, and
-// return dest.
+/* Copy the NULL-terminated string src into dest, and return dest. */
 char *strcpy(char *dest, const char *src)
 {
-	do {
+	char *ret = dest;
+	while(*src != '\0')
 		*dest++ = *src++;
+	*dest = '\0';
+	return ret;
+}
+char *strncpy(char *dest, const char *src, size_t n)
+{
+	char *ret = dest;
+	while(n)
+	{
+		*dest++ = *src++;
+		n--;
 	}
-	while (*src != 0);
-	return dest;
+	*dest = '\0';
+	return ret;
 }

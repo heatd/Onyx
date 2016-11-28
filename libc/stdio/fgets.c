@@ -8,15 +8,10 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#include <errno.h>
 #include <stdio.h>
-#include <string.h>
-
-void perror(const char *error_msg)
+#include "stdio_impl.h"
+char *fgets(char *buf, int size, FILE *file)
 {
-	const char *error = (const char*) strerror(errno);
-	if(error_msg && *error_msg != '\0')
-		printf("%s%s\n", error_msg, error);
-	else
-		printf("%s\n", error);	
+	fread(buf, size, 1, file);
+	return buf;
 }

@@ -12,14 +12,26 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-int main(int argc, char **argv)
+void print_usage(char *prog_name)
 {
-	printf("opening %s\n", argv[1]);
+	printf("%s: Usage: %s [filename]\n", prog_name, prog_name);
+}
+int main(int argc, char **argv, char **envp)
+{
+	if(argc < 2)
+	{
+		print_usage(argv[0]);
+		return 1;
+	}
 	FILE *file = fopen(argv[1], "r");
+	if(!file)
+	{
+		perror(argv[1]);
+		return 1;
+	}
 	if(fseek(file, 0L, SEEK_END) == -1)
 		return 1;
 	size_t file_size = ftell(file);
-	printf("file_size: %u\n", file_size);
 	rewind(file);
 	char *buf = malloc(file_size);
 	if(!buf)

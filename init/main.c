@@ -8,108 +8,93 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
+#include <ctype.h>
 #include <stdio.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <sys/mman.h>
 #include <stdlib.h>
-#include <string.h>
-#include <sys/uio.h>
-char buf[1024] = {0};
-#define MAX_COMMANDS 100
-#define ANSI_COLOR_RED     "\x1b[31m"
-#define ANSI_COLOR_GREEN   "\x1b[32m"
-#define ANSI_COLOR_YELLOW  "\x1b[33m"
-#define ANSI_COLOR_BLUE    "\x1b[34m"
-#define ANSI_COLOR_MAGENTA "\x1b[35m"
-#define ANSI_COLOR_CYAN    "\x1b[36m"
-#define ANSI_COLOR_RESET   "\x1b[0m"
+#include <unistd.h>
 
-int last_command_index = 0;
-typedef int(*command_callback_t)(char *args);
-typedef struct
-{
-	const char *name;
-	command_callback_t cmdc;
-} command_t;
-command_t commands[MAX_COMMANDS];
+/* x is a placeholder */
+char *prefix = "/etc/init.d/rcx.d";
 
-int process_command()
+char *copy_until_newline(char *s)
 {
-	for(int i = 0; i < last_command_index; i++)
+	char *str = s;
+	size_t len = 0;
+	while(*str != '\n' && *str != '\0')
 	{
-		if(memcmp(buf, commands[i].name,strlen(commands[i].name)) == 0)
-		{
-			command_callback_t call = commands[i].cmdc;
-			call(&buf[strlen(commands[i].name)]);
-			return 0;
-		}
+		len++;
+		str++;
 	}
-	return 1;
-}
-int help(char *unused)
-{
-	printf("Commands: uname\n\t  help\n\t  echo\n\t  whoami\n\t  getshellpid\n");
-}
-int uname(char *unused)
-{
-	printf("Spartix 0.2-dev x86_64\n");
-}
-int echo(char *str)
-{
-	printf("%s\n",str);
-}
-int whoami(char *unused)
-{
-	printf("root\n");
-}
-int getshellpid(char *unused)
-{
-	printf("pid: %d\n", getpid());
+	char *buffer = malloc(len + 1);
+	memset(buffer, 0, len + 1);
+	char *ret = buffer;
+	str = s;
+	for(; len; len--)
+		*buffer++ = *str++;
+	return ret;
+		
 }
 int main(int argc, char **argv, char **envp)
 {
-	printf(ANSI_COLOR_GREEN "/sbin/init invoked!\n" ANSI_COLOR_RESET);
-	printf("Becoming the shell!\n");
-	commands[0].name = "help";
-	commands[0].cmdc = help;
-	last_command_index++;
-	commands[1].name = "uname";
-	commands[1].cmdc = uname;
-	last_command_index++;
-	commands[2].name = "echo";
-	commands[2].cmdc = echo;
-	last_command_index++;
-	commands[3].name = "whoami";
-	commands[3].cmdc = whoami;
-	last_command_index++;
-	commands[4].name = "getshellpid";
-	commands[4].cmdc = getshellpid;
-	last_command_index++;
+	printf("/sbin/init invoked!\n");
+	/* Open the config */
+	FILE *f = fopen("/etc/init.d/init.config", "rw");
+	if(!f)
+	{
+		perror("/etc/init.d/init.config");
+		return 1;
+	}
+	char *buf = malloc(1024);
+	if(!buf)
+	{
+		perror("/sbin/init");
+		return 1;
+	}
+	memset(buf, 0, 1024);
+	int ringlevel = 0;
+	/* Now lets loop through the file, and get the default ring level */
+	fgets(buf, 1024, f);
+	if(memcmp(buf, "defaultrl:", strlen("defaultrl:")) == 0)
+	{
+		/* If the argument after 'defaultrl:' isn't a number, throw a parsing error and return 1*/
+		if(!isnum(*(buf + strlen("defaultrl:"))))
+		{
+			printf("syntax error: at '%c'\n", *(buf + strlen("defaultrl:")));
+			return 1;
+		}
+		else
+		{
+			/* It's a number, use tonum(3), as ring levels are from 0-6 */
+			ringlevel = tonum(*(buf + strlen("defaultrl:")));
+			printf("Ring level: %d\n", ringlevel);
+		}
+	}
+	/* Free up the resources we've just used */
+	fclose(f);
+	/* Allocate a buffer for the filename */
+	char *filename = malloc(strlen(prefix) + 4);
+	if(!filename)
+		return 1;
+	strcpy(filename, prefix);
+	/*  Edit in the ring level */
+	filename[14] = ringlevel + '0';
+	/* Open the script file */
+	f = fopen(filename, "r");
+	if(!f)
+	{
+		perror(filename);
+		return 1;
+	}
+	memset(buf, 0, 1024);
+	fgets(buf, 1024, f);
+	char *args[] = {"/etc/fstab", NULL};
+	char *env[] = {"", NULL};
+	char *shell = copy_until_newline(buf);
+	printf("Shell: %s\n", shell);
 	int pid = fork();
 	if(pid == 0)
-	{
-		char *args[] = {"/etc/fstab", NULL};
-		char *env[] = {"", NULL};
-		execve("/bin/cat", args, env);
-	}
-	while(1)
-	{
-		printf(ANSI_COLOR_GREEN "/sbin/init" ANSI_COLOR_YELLOW " # " ANSI_COLOR_RESET);
-		size_t b = fread(buf, 1024, 1, stdin);
-		if(b == (size_t) -1)
-			printf("[LIBC] ERROR: fread() failed!\n");
-		int ret = process_command();
-		if(ret)
-		{
-			if(buf[0] == '\n')
-			{
-				memset(buf, 0, 1024);
-				continue;
-			}
-			printf("%s : Command not found!\n", buf);
-		}
-		memset(buf, 0, 1024);
-	}
+		execve(shell, args, env);
+
+	while(1);
 	return 0;
 }

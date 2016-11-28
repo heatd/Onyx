@@ -8,15 +8,9 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#include <errno.h>
 #include <stdio.h>
-#include <string.h>
-
-void perror(const char *error_msg)
+#include "stdio_impl.h"
+int fclose(FILE *file)
 {
-	const char *error = (const char*) strerror(errno);
-	if(error_msg && *error_msg != '\0')
-		printf("%s%s\n", error_msg, error);
-	else
-		printf("%s\n", error);	
+	return __stdio_close(file);
 }

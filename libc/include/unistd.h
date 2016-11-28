@@ -105,6 +105,7 @@ int execv(const char* path, char* const argv[]);
 int execvp(const char* file, char* const argv[]);
 int execve(const char* filename, char* const argv[],char* const envp[]);
 int open(const char*, int flags);
+int close(int fd);
 int read(int fd, void *buf, unsigned int count);
 int write(int fd, void *buf, unsigned int count);
 unsigned long lseek(int fd, unsigned long offset, int whence);

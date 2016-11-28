@@ -9,18 +9,17 @@
  * Foundation.
  *----------------------------------------------------------------------*/
  #include <string.h>
-// Concatenate the NULL-terminated string src onto
-// the end of dest, and return dest.
-char *strcat(char *dest, const char *src)
+/* Concatenate the NULL-terminated string src onto the end of dest, and return dest. */
+char *strcat(char * restrict dest, const char * restrict src)
 {
-	while(*dest != '\0'){
-		++dest;
-	}
-	while(*src != '\0'){
-		*dest = *src;
-		++src;
-		++dest;
-	}
+	char *ret = dest;
+
+	while(*dest != '\0')
+		dest++;
+	while(*src != '\0')
+		*dest++ = *src++; 
+
 	*dest = '\0';
-	return dest;
+	
+	return ret;
 }

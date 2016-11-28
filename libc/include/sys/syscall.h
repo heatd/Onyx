@@ -70,5 +70,6 @@ errno = __err
 
 #define syscall(...) register unsigned long rax asm ("rax"); \
 MKFN(__syscall, ##__VA_ARGS__); \
+unsigned long ret = rax; \
 
 #endif

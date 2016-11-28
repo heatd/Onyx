@@ -13,6 +13,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <sys/types.h>
+
 struct _IO_FILE
 {
 	int fd;
@@ -22,10 +23,16 @@ struct _IO_FILE
 	unsigned int mode;
 	volatile long lock;
 };
+
 FILE *__stdio_open(const char *path, const char *attrb);
+int __stdio_close(FILE *file);
 size_t __stdio_write(const void *ptr, size_t size, size_t nmemb, FILE *stream);
 size_t __stdio_read(const void *ptr, size_t size, size_t nmemb, FILE *stream);
 int __stdio_fseek(FILE *stream, long offset, int whence);
 long __stdio_ftell(FILE *stream);
 void __stdio_rewind(FILE *stream);
+char *__stdio_gets(char *buf);
+
+
+#define STDIO_DEFAULT_GETS_SIZE 1024
 #endif

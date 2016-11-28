@@ -31,6 +31,9 @@
 
 #include <drivers/rtc.h>
 
+#define DEBUG_SYSCALL 1
+#undef DEBUG_SYSCALL
+
 #ifdef DEBUG_SYSCALL
 #define DEBUG_PRINT_SYSTEMCALL() printf("%s: syscall\n", __func__)
 #else
@@ -219,6 +222,11 @@ int sys_open(const char *filename, int flags)
 			ioctx->file_desc[i] = malloc(sizeof(file_desc_t));
 			memset(ioctx->file_desc[i], 0, sizeof(file_desc_t));
 			ioctx->file_desc[i]->vfs_node = open_vfs(fs_root, filename);
+			if(!ioctx->file_desc[i]->vfs_node)
+			{
+				free(ioctx->file_desc[i]);
+				return errno = ENOENT, -1;
+			}
 			ioctx->file_desc[i]->vfs_node->refcount++;
 			ioctx->file_desc[i]->seek = 0;
 			ioctx->file_desc[i]->flags = flags;
@@ -227,7 +235,7 @@ int sys_open(const char *filename, int flags)
 		}
 	}
 	release_spinlock(&open_spl);
-	return errno = EMFILE;
+	return errno = EMFILE, -1;
 }
 spinlock_t close_spl;
 int sys_close(int fd)
@@ -542,20 +550,22 @@ pid_t sys_getppid()
 }
 extern process_t *first_process;
 static spinlock_t execve_spl;
+extern _Bool is_spawning;
 #pragma GCC push_options
 #pragma GCC optimize("O2")
 int sys_execve(char *path, char *argv[], char *envp[])
 {
-	/*if(!vmm_is_mapped(path))
+	if(!vmm_is_mapped(path))
 		return errno = EINVAL, -1;
 	if(!vmm_is_mapped(argv))
 		return errno = EINVAL, -1;
 	if(!vmm_is_mapped(envp))
-		return errno = EINVAL, -1;*/
+		return errno = EINVAL, -1;
 	DEBUG_PRINT_SYSTEMCALL();
 	size_t areas;
 	vmm_entry_t *entries;
 	current_process->cr3 = vmm_clone_as(&entries, &areas);
+	is_spawning = 0;
 	current_process->areas = entries;
 	current_process->num_areas = areas;
 	vfsnode_t *in = open_vfs(fs_root, path);
@@ -605,6 +615,8 @@ int sys_execve(char *path, char *argv[], char *envp[])
 							* which we will need for later 
 							*/
 	/* Count the arguments and envp */
+	void *entry = elf_load((void *) buffer);
+
 	/* Map argv and envp */
 	char **new_args = vmm_allocate_virt_address(0, vmm_align_size_to_pages(sizeof(void*) * nargs), VMM_TYPE_REGULAR, VMM_USER|VMM_WRITE);
 	char **new_envp = vmm_allocate_virt_address(0, vmm_align_size_to_pages(sizeof(void*) * nenvp), VMM_TYPE_REGULAR, VMM_USER|VMM_WRITE);
@@ -632,12 +644,10 @@ int sys_execve(char *path, char *argv[], char *envp[])
 		new_envp[i] = temp;
 		temp += strlen(new_envp[i]) + 1;
 	}
-	void *entry = elf_load((void *) buffer);
 	asm volatile("cli");
 	thread_t *t = sched_create_main_thread((thread_callback_t) entry, 0, nargs, new_args, new_envp);
 	t->owner = current_process;
 	current_process->threads[0] = t;
-	vmm_stop_spawning();
 	release_spinlock(&execve_spl);
 	asm volatile ("mov %0, %%cr3" :: "r"(current_pml4)); /* We can't use paging_load_cr3 because that would change current_pml4
 							* which we will need for later 
