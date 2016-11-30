@@ -17,4 +17,5 @@ int _tolower(int c);
 int _toupper(int c);
 int tonum(int c);
 int isnum(int c);
+int isalnum(int c);
 #endif

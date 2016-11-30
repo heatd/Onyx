@@ -43,8 +43,9 @@ void qsort(void* base_ptr,
 __attribute__ ((__noreturn__))
 void _Exit(int s);
 void exit(int exitcode);
-void srand(unsigned int);
 int rand();
+int rand_r(unsigned int *seed);
+void srand(unsigned int s);
 
 #ifdef __cplusplus
 }

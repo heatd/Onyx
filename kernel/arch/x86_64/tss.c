@@ -30,6 +30,7 @@ void init_tss()
 	tss_gdtd[2] = ((uintptr_t)&tss >> 32);
 	tss_flush();
 }
+int is_dbg_tss = 0;
 void set_kernel_stack(uintptr_t stack0)
 {
 	tss.stack0 = stack0;

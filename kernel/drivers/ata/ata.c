@@ -19,6 +19,7 @@
 #include <kernel/pit.h>
 #include <kernel/panic.h>
 #include <kernel/timer.h>
+#include <kernel/dev.h>
 
 #include <drivers/ata.h>
 
@@ -31,6 +32,8 @@ struct ide_drive
 	_Bool exists;
 	uint32_t lba28;
 	uint64_t lba48;
+	int type; /* Can be ATA_TYPE_ATA or ATA_TYPE_ATAPI */
+	unsigned char buffer[512];
 } ide_drives[4];
 unsigned int current_drive = (unsigned int)-1;
 unsigned int current_channel = (unsigned int)-1;
@@ -60,9 +63,16 @@ int ata_wait_for_irq(uint64_t timeout)
 }
 static uintptr_t ata_irq(registers_t *regs)
 {
+	uint8_t status = inb((current_channel ? ATA_DATA2 : ATA_DATA1) + ATA_REG_STATUS);
+	/*if(!(status & 0x4))
+	{
+		// If this bit isn't set, then the ATA device didn't trigger an IRQ, so just return
+		return 0;
+	}*/
 	irq = 1;
 	inb(bar4_base + 2);
-	inb((current_channel ? ATA_DATA2 : ATA_DATA1) + ATA_REG_STATUS);
+	//status &= ~0x4;
+	//outb((current_channel ? ATA_DATA2 : ATA_DATA1) + ATA_REG_STATUS, status);
 	return 0;
 }
 uint8_t delay_400ns()
@@ -82,7 +92,7 @@ void ata_set_drive(unsigned int channel, unsigned int drive)
 		outb(ATA_DATA2 + ATA_REG_HDDEVSEL, 0x40 | (drive << 4));
 	delay_400ns();
 }
-void enable_pci_ide(PCIDevice *dev)
+void ata_enable_pci_ide(PCIDevice *dev)
 {
 	/* Enable PCI Busmastering and PCI IDE mode by setting the bits 2 and 0 on the command register of the PCI
 	configuration space */
@@ -95,27 +105,74 @@ void enable_pci_ide(PCIDevice *dev)
 	pci_set_barx(dev->slot, dev->device, dev->function, 3, 0x376, 1, 0);
 	pcibar_t *bar4 = pci_get_bar(dev->slot, dev->device, dev->function, 4);
 	bar4_base = bar4->address;
-	printf("bar4: %x\n", bar4_base);
 	irq_install_handler(14, &ata_irq);
 	irq_install_handler(15, &ata_irq);
 }
-void initialize_ata()
+static int num_drives = 0;
+static char devname[] = "/dev/hdx";
+int ata_initialize_drive(int channel, int drive)
+{
+	ata_set_drive(channel, drive);
+	int curr = channel + drive;
+	uint8_t status;
+	if(channel == 0)
+		status = inb(ATA_DATA1 + ATA_REG_STATUS);
+	else
+		status = inb(ATA_DATA2 + ATA_REG_STATUS);
+	if (status != 0)
+		ide_drives[curr].exists = 1;
+	else
+	{
+		return 0;
+	}
+	if(channel == 0)
+		outb(ATA_DATA1 + ATA_REG_COMMAND, ATA_CMD_IDENTIFY);
+	else
+		outb(ATA_DATA1 + ATA_REG_COMMAND, ATA_CMD_IDENTIFY);
+	delay_400ns();
+	if(ata_wait_for_irq(100))
+	{
+		printf("ata: IDENTIFY error\n");
+		return 0;
+	}
+	for(int i = 0; i < 256; i++)
+	{
+		uint16_t data;
+		if(channel == 0)
+			data = inw(ATA_DATA1);
+		else
+			data = inw(ATA_DATA2);
+		uint16_t *ptr = &ide_drives[curr].buffer[i*2];
+		*ptr = data;
+	}
+	char *path = malloc(strlen(devname) + 1);
+	strcpy(path, devname);
+	path[strlen(path) - 1] = 'a' + curr;
+	vfsnode_t *atadev = creat_vfs(slashdev, path, 0666);
+	/*atadev->write = atadevfs_write;
+	atadev->read = atadevfs_read;*/
+	atadev->type = VFS_TYPE_CHAR_DEVICE;
+	num_drives++;
+	if(ide_drives[curr].buffer[0] == 0)
+		ide_drives[curr].type = ATA_TYPE_ATAPI;
+	else
+		ide_drives[curr].type = ATA_TYPE_ATA;
+	printf("ata: Created %s for drive %u\n", devname, num_drives);
+	return 1;
+}
+void ata_init()
 {
 	idedev = get_pcidev_from_classes(1,1,0);
 	if(idedev)
 		printf("ata: found IDE controller\n");
 	else
 		return;
-	/*vfsnode_t *node = malloc(sizeof(node));
-	node->name = "/dev/ata";
-	node->type = VFS_TYPE_DEV;
-	//vfs_register_node(node);*/
 	/* Allocate PRDT base */
 	prdt_base = vmm_allocate_virt_address(VM_KERNEL, 16/*64K*/, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
 	vmm_map_range(prdt_base, 16, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
 	printf("ata: allocated prdt base %x\n",prdt_base);
 	/* Enable PCI IDE mode, and PCI busmastering DMA*/
-	enable_pci_ide(idedev);
+	ata_enable_pci_ide(idedev);
 	/* Reset the controller */
 	outb(ATA_CONTROL1, 4);
 	outb(ATA_CONTROL2, 4);
@@ -123,44 +180,15 @@ void initialize_ata()
 	/* Enable interrupts */
 	outb(ATA_CONTROL1, 0);
 	outb(ATA_CONTROL2, 0);
-	printf("Probing the ATA drives\n");
-	for(int f = 0; f < 2; f++)
+	
+	for(int channel = 0; channel < 2; channel++)
 	{
-		for(int w = 0; w < 2; w++)
+		for(int drive = 0; drive < 2; drive++)
 		{
-			ata_set_drive(f, w);
-			int curr = f + w;
-			uint8_t status = inb(ATA_DATA1 + ATA_REG_STATUS);
-			if (status != 0)
-				ide_drives[curr].exists = 1;
-			else
-				continue;
-			outb(ATA_DATA1 + ATA_REG_COMMAND, ATA_CMD_IDENTIFY);
-			delay_400ns();
-			if(ata_wait_for_irq(100))
-			{
-				printf("ata: IDENTIFY error\n");
-				continue;
-			}
-			for(int i = 0; i < 256; i++)
-			{
-				uint64_t data = (uint64_t)inw(ATA_DATA1);
-				if(i == 61)
-					ide_drives[curr].lba28 |= data;
-				else if(i == 60)
-					ide_drives[curr].lba28 |= data << 16;
-				else if(i == 100)
-					ide_drives[curr].lba48 |= data << 48;
-				else if(i == 101)
-					ide_drives[curr].lba48 |= data << 32;
-				else if(i == 102)
-					ide_drives[curr].lba48 |= data << 16;
-				else if(i == 103)
-					ide_drives[curr].lba48 |= data;
-			}
+			if(ata_initialize_drive(channel, drive))
+				printf("ata: Found ATA drive at %d:%d\n", channel, drive);
 		}
-	}
-	printf("Probing finished\n");
+	}	
 }
 void ata_read_sectors(unsigned int channel, unsigned int drive, uint32_t buffer, uint16_t bytesoftransfer, uint64_t lba48)
 {

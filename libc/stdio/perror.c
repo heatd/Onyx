@@ -16,7 +16,7 @@ void perror(const char *error_msg)
 {
 	const char *error = (const char*) strerror(errno);
 	if(error_msg && *error_msg != '\0')
-		printf("%s%s\n", error_msg, error);
+		printf("%s: %s\n", error_msg, error);
 	else
 		printf("%s\n", error);	
 }

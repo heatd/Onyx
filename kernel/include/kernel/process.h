@@ -36,6 +36,8 @@ typedef struct proc
 	int has_exited;
 	uid_t uid;
 	gid_t gid;
+	uid_t setuid;
+	gid_t setgid;
 	spinlock_t vm_spl;
 	unsigned long personality;
 	struct signal_info sinfo;

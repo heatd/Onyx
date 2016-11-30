@@ -13,6 +13,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include "stdio_impl.h"
 
@@ -22,8 +23,14 @@ FILE *__stdio_open(const char *path, const char *attrb)
 {
 	FILE *file = malloc(sizeof(FILE));
 	memset(file, 0, sizeof(FILE));
-	(void) attrb;
-	file->fd = open(path, 0); // Fix this to use open(3)'s attributes (see POSIX.1-2008), still needs support in the kernel
+	int open_perms = O_RDONLY;
+	if(strcmp((char*) attrb, "r") == 0)
+		open_perms = O_RDONLY;
+	else if(strcmp((char*) attrb, "w") == 0)
+		open_perms = O_WRONLY;
+	else if(strcmp((char*) attrb, "rw") == 0)
+		open_perms = O_RDWR;
+	file->fd = open(path, open_perms);
 	if(file->fd == -1)
 	{
 		free(file);

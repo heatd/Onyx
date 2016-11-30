@@ -15,6 +15,7 @@
 #include <kernel/compiler.h>
 #include <kernel/pit.h>
 #include <kernel/timer.h>
+#include <kernel/dev.h>
 
 #include <drivers/rtc.h>
 
@@ -23,13 +24,14 @@ static char entropy_buffer[512];
 static size_t current_entropy = 0;
 void add_entropy(void *ent, size_t size)
 {
-	if(current_entropy == max_entropy || current_entropy + size >= max_entropy)
+	if(current_entropy == max_entropy || current_entropy + size > max_entropy)
 		return;
 	memcpy(&entropy_buffer[current_entropy], ent, size);
 	current_entropy += size;
 }
 void get_entropy(char *buf, size_t s)
 {
+	printf("Getting entropy! %x\n", s);
 	for(size_t i = 0; i < s; i++)
 	{
 		while(current_entropy == 0);
@@ -37,6 +39,11 @@ void get_entropy(char *buf, size_t s)
 		current_entropy--;
 		memmove(entropy_buffer, &entropy_buffer[1], current_entropy);
 	}
+}
+size_t ent_read(size_t off, size_t count, void *buffer, vfsnode_t *node)
+{
+	get_entropy((char*) buffer, count);
+	return count;
 }
 void initialize_entropy()
 {
@@ -48,12 +55,15 @@ void initialize_entropy()
 	uint64_t tsc = rdtsc();
 	add_entropy(&tsc, sizeof(uint64_t));
 	srand((unsigned int) (p << 32));
-	for(size_t i = current_entropy; i < max_entropy; i++)
+	for(size_t i = current_entropy; i < max_entropy; i = current_entropy)
 	{
 		int r = rand();
 		add_entropy(&r, sizeof(int));
 	}
-	uint16_t uuid[16];
-	get_entropy((char*) &uuid, 16);
-	printf("UUID: %x:%x:%x:%x\n", uuid[0], uuid[1], uuid[2], uuid[3]);
+	uint16_t buf[2];
+	/* Spit out the weakest bytes of them all */
+	get_entropy((char*) &buf, 2);
+	vfsnode_t *n = creat_vfs(slashdev, "/dev/random", 0666);
+	n->type = VFS_TYPE_BLOCK_DEVICE;
+	n->read = ent_read;
 }

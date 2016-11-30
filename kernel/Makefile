@@ -13,7 +13,7 @@ BOOTDIR?=$(EXEC_PREFIX)/boot
 INCLUDEDIR?=$(PREFIX)/include
 
 include ../kversion.config
-CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-strong -Wno-error -Wno-unused-parameter -Wno-unused-function
+CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-strong -Wno-error -Wno-unused-parameter -Wno-unused-function -fsanitize=undefined
 CPPFLAGS:=$(CPPFLAGS) -D__is_spartix_kernel -Iinclude -Iinclude/acpica -DKERNEL_VERSION='"$(KERNEL_VERSION)"' -DKERNEL_BRANCH='"$(KERNEL_BRANCH)"' -DKERNEL_ARCH='"$(KERNEL_ARCH)"'
 LDFLAGS:=$(LDFLAGS) -fwhole-program -fkeep-inline-functions -flto
 LIBS:=$(LIBS) -nostdlib -lk -lgcc
@@ -24,7 +24,7 @@ CFLAGS:=$(CFLAGS) $(KERNEL_ARCH_CFLAGS)
 CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS) -D ACPI_LIBRARY -D ACPI_DEBUG_OUTPUT=1
 LDFLAGS:=$(LDFLAGS) $(KERNEL_ARCH_LDFLAGS) $(BUILD_NUMBER_LDFLAGS)
 LIBS:=$(LIBS) $(KERNEL_ARCH_LIBS)
-ACPICA_CFLAGS:=$(filter-out -g, $(CFLAGS))
+ACPICA_CFLAGS:=$(filter-out -g -fsanitize=undefined -fsanitize=address, $(CFLAGS))
 
 OBJS:=\
 $(patsubst %.c,%.o,$(wildcard drivers/*/*.c)) \
@@ -85,6 +85,12 @@ install-headers:
 
 install-kernel: vmspartix kernel-modules
 	mkdir -p $(DESTDIR)$(BOOTDIR)
+	# Create livefs directories
+	mkdir -p $(DESTDIR)/dev/
+	mkdir -p $(DESTDIR)/proc/
+	mkdir -p $(DESTDIR)/var/
+	mkdir -p $(DESTDIR)/tmp/
+	mkdir -p $(DESTDIR)/sys/
 	cp $<  $(DESTDIR)$(BOOTDIR)
 
 kernel-modules:

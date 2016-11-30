@@ -36,3 +36,8 @@ The kernel exposes the system calls to the user-space by the interrupt vector 0x
 | 27 | pwritev() system call |
 | 28 | getdents() system call |
 | 29 | ioctl() system call |
+| 30 | truncate() system call |
+| 31 | ftruncate() system call |
+| 32 | personality() system call |
+| 33 | setuid() system call |
+| 34 | setgid() system call |

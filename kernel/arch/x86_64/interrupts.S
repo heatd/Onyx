@@ -260,7 +260,7 @@ __syscall_int:
 	mov [forkretregs], rsp
 	call [syscall_list + rax * 8]
 .syscall_exit:
-	mov r11, errno
+	mov r11, [errno]
 	pop rcx
 	mov ds, cx
 	mov es, cx

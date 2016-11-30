@@ -5,9 +5,9 @@ set -e
 for PROJECT in $PROJECTS; do
   DESTDIR="$PWD/sysroot" $MAKE -C $PROJECT install -s
 done
-export CFLAGS="$CFLAGS -lnosys"
+
 for PACKAGE in $SOURCE_PACKAGES; do
-  DESTDIR="$PWD/sysroot" $MAKE -C $PACKAGE install -s 
+  DESTDIR="$PWD/sysroot" $MAKE -C $PACKAGE install -s
 done
 mkdir -p sysroot/etc/
 cat > sysroot/etc/fstab << EOF

@@ -11,6 +11,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#include <fcntl.h>
 #include <pthread_kernel.h>
 
 #include <sys/mman.h>
@@ -22,6 +23,7 @@
 #include <kernel/process.h>
 #include <kernel/envp.h>
 #include <kernel/compiler.h>
+#include <kernel/dev.h>
 
 int exec(const char *path, char **argv, char **envp)
 {
@@ -48,7 +50,20 @@ int exec(const char *path, char **argv, char **envp)
 	extern size_t num_areas;
 	proc->areas = areas;
 	proc->num_areas = num_areas;
-
+	current_process = proc;
+	/* Setup stdio */
+	proc->ctx.file_desc[0] = malloc(sizeof(file_desc_t));
+	proc->ctx.file_desc[0]->vfs_node = open_vfs(slashdev, "/dev/tty");
+	proc->ctx.file_desc[0]->seek = 0;
+	proc->ctx.file_desc[0]->flags = O_RDONLY;
+	proc->ctx.file_desc[1] = malloc(sizeof(file_desc_t));
+	proc->ctx.file_desc[1]->vfs_node = open_vfs(slashdev, "/dev/tty");
+	proc->ctx.file_desc[1]->seek = 0;
+	proc->ctx.file_desc[1]->flags = O_WRONLY;
+	proc->ctx.file_desc[2] = malloc(sizeof(file_desc_t));
+	proc->ctx.file_desc[2]->vfs_node = open_vfs(slashdev, "/dev/tty");
+	proc->ctx.file_desc[2]->seek = 0;
+	proc->ctx.file_desc[2]->flags = O_WRONLY;
 	// Allocate space for %fs TODO: Do this while in elf_load, as we need the TLS size
 	uintptr_t *fs = vmm_allocate_virt_address(0, 1, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_USER);
 	vmm_map_range(fs, 1, VMM_WRITE | VMM_NOEXEC | VMM_USER);

@@ -26,6 +26,9 @@
 #include <kernel/panic.h>
 #endif
 #include <math.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/time.h>
 
 #if UINT32_MAX == UINTPTR_MAX
 #define STACK_CHK_GUARD 0xdeadc0de
@@ -35,14 +38,20 @@
 
 uintptr_t __stack_chk_guard = STACK_CHK_GUARD;
 
-void initialize_ssp()
+void __initialize_ssp()
 {
 	#if __STDC_HOSTED__
-	/* If in user-space, seed rand() ourselves */
-	// TODO: Implement time.h
-	//srand(time(NULL));
+	/* If in user-space, seed ssp ourselves */
+	/*TODO: Implement /dev/urandom and start using it, as /dev/random might block 
+	 *TODO: Fix the kernel's entropy generator 
+	*/
+	/*int fd = open("/dev/random", O_RDONLY);
+	read(fd, &__stack_chk_guard, 8);
+	close(fd);*/
+	srand(time(NULL));
+	__stack_chk_guard = (uint64_t) rand() << 32 | rand();
 	#endif
-	__stack_chk_guard = (uint64_t) rand() << 32 | (uint64_t) rand();
+
 }
 __attribute__((noreturn))
 void __stack_chk_fail()

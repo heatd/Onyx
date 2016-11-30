@@ -13,7 +13,11 @@
 #include <sys/cdefs.h>
 #include <sys/types.h>
 
+#ifdef __cplusplus
 __START_C_HEADER
+#endif
+
+typedef int sig_atomic_t;
 
 int kill(pid_t, int);
 int raise(int);
@@ -53,5 +57,11 @@ void (*signal(int sig, void (*func)(int)))(int);
 #define SIG_ERR -1
 #define SIG_HOLD 1
 #define SIG_IGN 2
+
+typedef int sigset_t;
+// HACK!
+#define SIG_SETMASK 1
+#ifdef __cplusplus
 __END_C_HEADER
+#endif
 #endif

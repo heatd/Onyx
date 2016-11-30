@@ -14,7 +14,7 @@
 #ifdef __is_spartix_kernel
 extern int errno;
 #else
-extern __thread int errno;
+extern /*__thread*/ int errno;
 #endif
 #define errno errno
 

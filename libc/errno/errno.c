@@ -11,5 +11,5 @@
 #ifdef __is_spartix_kernel
 int errno = 0;
 #else
-__thread int errno = 0;
+/*__thread*/ int errno = 0;
 #endif

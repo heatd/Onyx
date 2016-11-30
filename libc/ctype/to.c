@@ -36,7 +36,9 @@ int _tolower(int c)
 }
 int isalpha(int c)
 {
-    return toupper(c) || tolower(c);
+	if(c > 64 && c < 123)
+		return 1;
+	return 0;
 }
 int tonum(int c)
 {
@@ -45,8 +47,12 @@ int tonum(int c)
 int isnum(int c)
 {
 	if(c >= 48 && c <= 57)
-	{
 		return 1;
-	}
 	return 0;
+}
+int isalnum(int c)
+{
+	if(isnum(c) || isalpha(c))
+		return 1;
+	return 0;	
 }

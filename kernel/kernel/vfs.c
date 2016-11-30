@@ -16,6 +16,7 @@
 
 #include <kernel/panic.h>
 #include <kernel/vfs.h>
+#include <kernel/dev.h>
 
 vfsnode_t *fs_root = NULL;
 vfsnode_t *mount_list = NULL;
@@ -40,7 +41,7 @@ size_t read_vfs(size_t offset, size_t sizeofread, void* buffer, vfsnode_t* this)
 size_t write_vfs(size_t offset, size_t sizeofwrite, void* buffer, vfsnode_t* this)
 {
 	if(this->type & VFS_TYPE_MOUNTPOINT)
-		return this->link->write(offset,sizeofwrite,buffer,this->link);
+		return this->link->write(offset, sizeofwrite, buffer, this->link);
 	if(this->write != NULL)
 		return this->write(offset,sizeofwrite,buffer,this);
 
@@ -48,6 +49,8 @@ size_t write_vfs(size_t offset, size_t sizeofwrite, void* buffer, vfsnode_t* thi
 }
 int ioctl_vfs(int request, va_list args, vfsnode_t *this)
 {
+	if(this->type & VFS_TYPE_MOUNTPOINT)
+		return this->link->ioctl(request, args, this->link);
 	if(this->ioctl != NULL)
 		return this->ioctl(request, args, this);
 	return errno = ENOSYS, -1;
@@ -70,6 +73,10 @@ vfsnode_t *open_vfs(vfsnode_t* this, const char *name)
 		}
 		it = it->next;
 	}
+	if(memcmp(name, "/dev", strlen("/dev")) == 0 && slashdev)
+	{
+		this = slashdev;
+	}
 	if(this->type & VFS_TYPE_MOUNTPOINT)
 	{
 		size_t s = strlen(this->link->mountpoint);
@@ -82,9 +89,20 @@ vfsnode_t *open_vfs(vfsnode_t* this, const char *name)
 	}
 	return errno = ENOSYS, NULL;
 }
+vfsnode_t *creat_vfs(vfsnode_t *this, const char *path, int mode)
+{
+	if(this->type & VFS_TYPE_MOUNTPOINT)
+	{
+		return this->link->creat(path, mode, this);
+	}
+	if(this->creat != NULL)
+	{
+		return this->creat(path, mode, this);
+	}
+	return errno = ENOSYS, NULL;
+}
 int mount_fs(vfsnode_t *fsroot, const char *path)
 {
-	printf("Mountfs\n");
 	if(!strcmp((char*)path, "/"))
 	{
 		printf("Mounting root\n");
@@ -98,15 +116,11 @@ int mount_fs(vfsnode_t *fsroot, const char *path)
 	else
 	{
 		vfsnode_t *node = mount_list;
-		while(node->name)
+		while(node->next)
 		{
 			node = node->next;
 		}
-		node->link = fsroot;
-		node->type = VFS_TYPE_MOUNTPOINT | VFS_TYPE_DIR;
-		node->name = malloc(strlen(path) + 1);
-		strcpy(node->name, path);
-		fsroot->mountpoint = (char*)path;
+		node->next = fsroot;
 	}
 	return 0;
 }

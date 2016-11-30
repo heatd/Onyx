@@ -63,7 +63,11 @@ uint64_t get_unix_time(const date_t const *udate)
 	uint64_t utime = 0;
 	for(int i = 1970; i < udate->year; i++)
 	{
-		if (i % 400 == 0)
+		if(i % 100 == 0)
+		{
+			utime += 365 * 24 * 60 * 60;
+		}
+		else if (i % 400 == 0)
 		{
 			utime += 366 * 24 * 60 * 60; 
 		}

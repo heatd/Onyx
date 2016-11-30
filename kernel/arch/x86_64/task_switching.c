@@ -365,3 +365,16 @@ void sched_sleep(unsigned long ms)
 	current_thread->status = THREAD_SLEEPING;
 	sched_yield();
 }
+void sched_destroy_thread(thread_t *thread)
+{
+	thread_t *it = run_queue;
+	for(; it->next; it = it->next)
+	{
+		if(it == thread)
+		{
+			it->next = thread->next;
+			free(thread);
+			return;
+		}
+	}
+}

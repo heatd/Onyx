@@ -1,6 +1,6 @@
 SYSTEM_HEADER_PROJECTS="libc kernel"
 PROJECTS="libc kernel"
-SOURCE_PACKAGES="cat echo init"
+SOURCE_PACKAGES="cat echo init login sh"
 
 export MAKE=${MAKE:-make}
 export HOST=${HOST:-$(./default-host.sh)}

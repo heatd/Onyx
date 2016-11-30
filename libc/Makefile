@@ -56,6 +56,7 @@ string/stpcpy.o \
 stdlib/_Exit.o \
 posix/io.o \
 posix/uio.o \
+posix/time.o \
 stdio/fprintf.o \
 stdio/fread.o \
 stdio/fwrite.o \
@@ -66,7 +67,7 @@ posix/process.o \
 posix/memory.o \
 posix/signal.o \
 stdio/perror.o \
-math/rand.o \
+stdlib/rand.o \
 libc/__tls_get_addr.o \
 stdio/ftell.o \
 stdio/fopen.o \
@@ -74,7 +75,8 @@ stdio/fseek.o \
 stdio/rewind.o \
 stdio/fgets.o \
 stdio/gets.o \
-stdio/fclose.o
+stdio/fclose.o \
+stdio/tmpnam.o
 OBJS:=\
 $(FREEOBJS) \
 libc/init.o \

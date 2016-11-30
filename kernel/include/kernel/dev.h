@@ -9,15 +9,9 @@
  * Foundation.
  *----------------------------------------------------------------------*/
 #include <stdint.h>
-
 #include <kernel/vfs.h>
 
-typedef struct
-{
-	__read read;
-	__write write;
-	__open open;
-	__close close;
-	__getdents getdents;
-	__ioctl ioctl;
-} fs_device_t;
+int devfs_init();
+void null_init();
+void zero_init();
+extern vfsnode_t *slashdev;

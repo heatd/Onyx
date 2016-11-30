@@ -28,10 +28,12 @@
 #include <drivers/softwarefb.h>
 #include <kernel/spinlock.h>
 #include <stdio.h>
+
+#include <kernel/dev.h>
 unsigned int max_row = 0;
 static const unsigned int max_row_fallback = 1024/16;
 unsigned int max_column = 0;
-static const unsigned int max_column_fallback = 768/9;
+static const unsigned int max_column_fallback = 768/8;
 size_t terminal_row = 0;
 size_t terminal_column = 0;
 uint32_t last_x = 0;
@@ -50,7 +52,7 @@ void tty_init(void)
 		max_column = max_column_fallback;
 	} else {
 		max_row = vid->height / 16;
-		max_column = vid->width / 9;
+		max_column = vid->width / 8;
 	}
 }
 
@@ -61,13 +63,13 @@ void tty_set_color(int color)
 
 void tty_put_entry_at(char c, uint32_t color, size_t column, size_t row)
 {
-	softfb_draw_char('\0', last_x, last_y, 0, 0, fbs[currentPty]);
+	softfb_draw_cursor(last_x, last_y, 0, 0, fbs[currentPty]);
 	int y = row * 16;
-	int x = column * 9;
+	int x = column * 8;
 	last_x = x + 9;
 	last_y = y;
 	softfb_draw_char(c, x, y, color, 0, fbs[currentPty]);
-	softfb_draw_char('\0', x + 9, y, 0, 0xC0C0C0, fbs[currentPty]);
+	softfb_draw_cursor(x + 9, y, 0, 0xC0C0C0, fbs[currentPty]);
 }
 void tty_putchar(char c)
 {
@@ -78,13 +80,13 @@ void tty_putchar(char c)
 		terminal_row++;
 		if(terminal_row >= max_row)
 		{
-			softfb_draw_char('\0', last_x, last_y, 0, 0, fbs[currentPty]);
+			softfb_draw_cursor(last_x, last_y, 0, 0, fbs[currentPty]);
 			tty_scroll();
 		}
-		softfb_draw_char('\0', last_x, last_y, 0, 0, fbs[currentPty]);
-		softfb_draw_char('\0', terminal_column * 9, terminal_row * 16, 0,
+		softfb_draw_cursor(last_x, last_y, 0, 0, fbs[currentPty]);
+		softfb_draw_cursor(terminal_column * 8, terminal_row * 16, 0,
 			  0xC0C0C0, fbs[currentPty]);
-		last_x = terminal_column * 9;
+		last_x = terminal_column * 8;
 		last_y = terminal_row * 16;
 		return;
 	}
@@ -107,11 +109,11 @@ void tty_putchar(char c)
 			row--;
 			column = max_column;
 		}
-		softfb_draw_char('\0', terminal_column * 9, terminal_row * 16, 0, 0, fbs[currentPty]);
-		softfb_draw_char('\0', column * 9, row * 16, 0, 0, fbs[currentPty]);
-		softfb_draw_char('\0', column * 9, row * 16, 0, 0xC0C0C0, fbs[currentPty]);
+		softfb_draw_cursor(terminal_column * 8, terminal_row * 16, 0, 0, fbs[currentPty]);
+		softfb_draw_cursor(column * 8, row * 16, 0, 0, fbs[currentPty]);
+		softfb_draw_cursor(column * 8, row * 16, 0, 0xC0C0C0, fbs[currentPty]);
 		int y = row * 16;
-		int x = column * 9;
+		int x = column * 8;
 		last_x = x;
 		last_y = y;
 		terminal_column = column;
@@ -247,4 +249,25 @@ int tty_create_pty_and_switch(void* address)
 	last_y = terminal_row * 16;
 	tty_swap_framebuffers();
 	return 0;
+}
+size_t ttydevfs_write(size_t offset, size_t sizeofwrite, void* buffer, struct vfsnode* this)
+{
+	tty_write(buffer, sizeofwrite);
+	return sizeofwrite;
+}
+size_t ttydevfs_read(size_t offset, size_t count, void *buffer, vfsnode_t *this)
+{
+	char *kb_buf = tty_wait_for_line();
+	memcpy(buffer, kb_buf, count);
+	tty_keyboard_pos = 0;
+	memset(kb_buf, 0, count);
+	memmove(kb_buf, &kb_buf[count], count);
+	return count;
+}
+void tty_create_dev()
+{
+	vfsnode_t *ttydev = creat_vfs(slashdev, "/dev/tty", 0666);
+	ttydev->write = ttydevfs_write;
+	ttydev->read = ttydevfs_read;
+	ttydev->type = VFS_TYPE_CHAR_DEVICE;
 }

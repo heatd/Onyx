@@ -8,7 +8,6 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#include <unistd.h>
 #include <string.h>
 int main(int argc, char **argv, char **envp)
 {

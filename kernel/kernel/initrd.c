@@ -88,6 +88,9 @@ unsigned int tar_getdents(unsigned int count, struct dirent* dirp, vfsnode_t* th
 			l++;
 			dirp[found].d_ino = i;
 			strcpy(dirp[found].d_name, l);
+			/* Fix trailing slashes (TAR specific) */
+			if(dirp[found].d_name[strlen(dirp[found].d_name)-1] == '/')
+				dirp[found].d_name[strlen(dirp[found].d_name)-1] = '\0';
 			if(iterator[i]->typeflag == TAR_TYPE_DIR)
 				dirp[found].d_type = DT_DIR;
 			else if(iterator[i]->typeflag == TAR_TYPE_FILE)

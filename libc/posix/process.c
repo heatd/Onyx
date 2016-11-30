@@ -48,10 +48,7 @@ pid_t getppid()
 int execve(const char *filename, char *const argv[], char *const envp[])
 {
 	syscall(SYS_execve, filename, argv, envp);
-	if(rax == (unsigned long long) -1)
-	{
-		set_errno();
-	}
+	set_errno();
 	return rax;
 }
 int posix_spawn(pid_t *pid, const char *path, const void *file_actions
@@ -65,4 +62,22 @@ int posix_spawn(pid_t *pid, const char *path, const void *file_actions
 	(void) envp;
 	asm volatile("mov %0, %%rax; int $0x80"::"i"(SYS_posix_spawn));
 	return 0;
+}
+int setuid(uid_t uid)
+{
+	syscall(SYS_setuid, uid);
+	if(rax == (unsigned long long) -1)
+	{
+		set_errno();
+	}
+	return rax;
+}
+int setgid(gid_t gid)
+{
+	syscall(SYS_setgid, gid);
+	if(rax == (unsigned long long) -1)
+	{
+		set_errno();
+	}
+	return rax;
 }

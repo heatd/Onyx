@@ -15,7 +15,9 @@
 
 #include <sys/mman.h>
 
-void _init_standard_libc()
+char **environ = NULL;
+extern void __initialize_ssp();
+void _init_standard_libc(char **envp)
 {
 	/* Initialize sbrk(3) */
 	void *addr = mmap(NULL, 4096, PROT_WRITE | PROT_READ, MAP_ANONYMOUS, 0, 0);
@@ -25,4 +27,6 @@ void _init_standard_libc()
 		exit(1);
 	if(brk(addr))
 		exit(1);
+	environ = envp;
+	__initialize_ssp();
 }

@@ -6,7 +6,5 @@ clean:
 install: $(PROG)
 	mkdir -p $(DESTDIR)/bin/
 	cp $(PROG) $(DESTDIR)/bin/
-%.o: %.S
-	nasm -felf64 $< -o $@
 $(PROG): $(OBJS)
 	$(CC) $(OBJS) $(CFLAGS) -o $@

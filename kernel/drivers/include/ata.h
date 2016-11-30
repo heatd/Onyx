@@ -87,7 +87,9 @@ typedef struct
 #define ATA_CONTROL1	   0x3F6
 #define ATA_CONTROL2	   0x376
 #define ATA_IRQ	  14
-void initialize_ata();
+#define ATA_TYPE_ATA 1
+#define ATA_TYPE_ATAPI 2
+void ata_init();
 void ata_read_sectors(unsigned int channel, unsigned int drive, uint32_t buffer, uint16_t bytesoftransfer, uint64_t lba48);
 void ata_write_sectors(unsigned int channel, unsigned int drive, uint32_t buffer, uint16_t bytesoftransfer, uint64_t lba48);
 #endif

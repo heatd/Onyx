@@ -47,6 +47,7 @@
 #include <kernel/modules.h>
 #include <kernel/ethernet.h>
 #include <kernel/random.h>
+#include <kernel/dev.h>
 
 #include <drivers/ps2.h>
 #include <drivers/ata.h>
@@ -240,11 +241,14 @@ void kernel_multitasking(void *arg)
 	printf(ANSI_COLOR_GREEN "Spartix kernel %s branch %s build %d for the %s architecture\n" ANSI_COLOR_RESET,
 	     KERNEL_VERSION, KERNEL_BRANCH, &__BUILD_NUMBER, KERNEL_ARCH);
 	printf("This kernel was built on %s, %d as integer\n", __DATE__, &__BUILD_DATE);
+	/* Initialize devfs */
+	devfs_init();
+
 	/* Initialize PCI */
 	pci_init();
 	/*extern void init_elf_symbols(struct multiboot_tag_elf_sections *);
 	init_elf_symbols(&secs);*/
-	initialize_ata();
+	ata_init();
 	
 	char *args[] = {"/etc/fstab", NULL};
 	char *envp[] = {"PATH=/bin:/usr/bin:/usr/lib", NULL};
@@ -268,7 +272,13 @@ void kernel_multitasking(void *arg)
 	write_vfs(0, in->size, b, in);
 	printf("%s\n", b);*/
 	//sched_create_thread(test, 1, NULL);
-	initialize_entropy();
+	
+	/* Start populating /dev */
+	initialize_entropy(); /* /dev/random */
+	tty_create_dev(); /* /dev/tty */
+	null_init(); /* /dev/null */
+	zero_init(); /* /dev/zero */
+
 	exec("/sbin/init", args, envp);
 	for (;;) asm volatile("hlt");
 }

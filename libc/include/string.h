@@ -11,13 +11,12 @@
 #ifndef _STRING_LIBC_H
 #define _STRING_LIBC_H 1
 
-#include <sys/cdefs.h>
-
 #include <stddef.h>
 #include <wchar.h>
+#include <sys/cdefs.h>
 
 #ifdef __cplusplus
-extern "C" {
+__START_C_HEADER
 #endif
 
 int memcmp(const void*, const void*, size_t);
@@ -34,8 +33,9 @@ void *memchr(const void *str, int c, size_t n);
 wchar_t *wmemcpy(wchar_t *restrict ws1, const wchar_t *restrict ws2, size_t n);
 char *stpcpy(char *restrict s1, const char *restrict s2);
 char *strerror(int errnum);
+
 #ifdef __cplusplus
-}
+__END_C_HEADER
 #endif
 
 #endif

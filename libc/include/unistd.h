@@ -19,8 +19,7 @@
 
 #define _XOPEN_VERSION 700
 
-/* According to POSIX-1.2008, stuff that isn't supported shall be set with the value -1
- */
+/* According to POSIX-1.2008, stuff that isn't supported shall be set with the value -1 */
 #define _POSIX_ADVISORY_INFO 	-1
 #define _POSIX_ASYNCHRONOUS_IO 	-1
 #define _POSIX_BARRIERS		-1
@@ -47,10 +46,10 @@
 #define _POSIX_SEMAPHORES	200809L
 #define _POSIX_SHARED_MEMORY_OBJECTS -1
 #define _POSIX_SHELL		1
-#define _POSIX_SPAWN		-1
+#define _POSIX_SPAWN		200809L
 #define _POSIX_SPIN_LOCKS	200809L
 #define _POSIX_SPORADIC_SERVER	-1
-#define _POSIX_SYNCHRONIZED_IO	-1
+#define _POSIX_SYNCHRONIZED_IO	200809L
 #define _POSIX_THREAD_ATTR_STACKADDR 200809L
 #define _POSIX_THREAD_ATTR_STACKSIZE 200809L
 #define _POSIX_THREAD_CPUTIME	200809L
@@ -113,4 +112,8 @@ int brk(void* addr);
 void* sbrk(unsigned long long inc);
 void _exit(int exit_code);
 pid_t getpid();
+pid_t getppid();
+int setuid(uid_t uid);
+int setgid(gid_t gid);
+
 #endif

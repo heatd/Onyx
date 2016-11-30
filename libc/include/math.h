@@ -5,9 +5,6 @@ extern "C" {
 #endif
 
 long long int llabs(long long int i);
-int rand();
-int rand_r(unsigned int *seed);
-void srand(unsigned int s);
 
 #ifdef __cplusplus
 }

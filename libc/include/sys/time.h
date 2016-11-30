@@ -24,8 +24,8 @@ struct timezone
 	int tz_dsttime;         /* type of DST correction */
 };
 
-
-
+int gettimeofday(struct timeval *tv, struct timezone *tz);
+time_t time(time_t *t);
 
 
 

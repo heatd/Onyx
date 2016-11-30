@@ -17,7 +17,10 @@
 #ifdef __is_spartix_kernel
 #include <kernel/spinlock.h>
 #endif
+#ifdef __cplusplus
 __START_C_HEADER
+#endif
+
 #ifndef __need_FILE
 #define __need_FILE 1
 #endif
@@ -52,6 +55,8 @@ long ftell(FILE*);
 size_t fwrite(const void*, size_t, size_t, FILE*);
 void setbuf(FILE*, char*);
 void rewind(FILE *stream);
+char *gets(char *buf);
+char *fgets(char *buf, int size, FILE *stream);
 #endif /* __need_FILE */
 
 int vsprintf(char *restrict s, const char *__restrict__ format, va_list parameters);
@@ -62,6 +67,10 @@ int puts(const char*);
 
 void perror(const char *errmsg);
 
+char *tmpnam(char *b);
+
+#ifdef __cplusplus
 __END_C_HEADER
+#endif
 
 #endif
