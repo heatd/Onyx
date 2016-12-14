@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2015, Intel Corp.
+ * Copyright (C) 2000 - 2016, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -49,29 +49,31 @@
 #include "accommon.h"
 #include "acapps.h"
 
-#include <stdio.h>
-#include <sys/stat.h>
 #include <sys/types.h>
-#include <fcntl.h>
-#include <ctype.h>
-#include <string.h>
 #ifdef WIN32
 #include <io.h>
 #include <direct.h>
 #endif
-#include <errno.h>
 
 
-#define     AH_DECODE_DEFAULT           0
-#define     AH_DECODE_ASL               1
-#define     AH_DECODE_ASL_KEYWORD       2
-#define     AH_DECODE_PREDEFINED_NAME   3
-#define     AH_DECODE_AML               4
-#define     AH_DECODE_AML_OPCODE        5
-#define     AH_DISPLAY_DEVICE_IDS       6
-#define     AH_DECODE_EXCEPTION         7
-#define     AH_DECODE_ASL_AML           8
-#define     AH_DISPLAY_UUIDS            9
+typedef enum
+{
+    AH_DECODE_DEFAULT           = 0,
+    AH_DECODE_ASL,
+    AH_DECODE_ASL_KEYWORD,
+    AH_DECODE_PREDEFINED_NAME,
+    AH_DECODE_AML,
+    AH_DECODE_AML_OPCODE,
+    AH_DECODE_AML_TYPE,
+    AH_DECODE_ASL_AML,
+    AH_DECODE_EXCEPTION,
+
+    AH_DISPLAY_DEVICE_IDS,
+    AH_DISPLAY_UUIDS,
+    AH_DISPLAY_TABLES,
+    AH_DISPLAY_DIRECTIVES
+
+} AH_OPTION_TYPES;
 
 #define     AH_MAX_ASL_LINE_LENGTH      70
 #define     AH_MAX_AML_LINE_LENGTH      100
@@ -90,6 +92,13 @@ typedef struct ah_aml_opcode
 
 } AH_AML_OPCODE;
 
+typedef struct ah_aml_type
+{
+    char            *Name;
+    char            *Description;
+
+} AH_AML_TYPE;
+
 typedef struct ah_asl_operator
 {
     char            *Name;
@@ -106,16 +115,21 @@ typedef struct ah_asl_keyword
 
 } AH_ASL_KEYWORD;
 
+typedef struct ah_directive_info
+{
+    char            *Name;
+    char            *Description;
+
+} AH_DIRECTIVE_INFO;
 
 extern const AH_AML_OPCODE          AmlOpcodeInfo[];
+extern const AH_AML_TYPE            AmlTypesInfo[];
 extern const AH_ASL_OPERATOR        AslOperatorInfo[];
 extern const AH_ASL_KEYWORD         AslKeywordInfo[];
 extern const AH_UUID                AcpiUuids[];
+extern const AH_DIRECTIVE_INFO      PreprocessorDirectives[];
+extern const AH_TABLE               AcpiSupportedTables[];
 extern BOOLEAN                      AhDisplayAll;
-
-void
-AhStrupr (
-    char                    *SrcString);
 
 void
 AhFindAmlOpcode (
@@ -146,11 +160,27 @@ AhFindAslKeywords (
     char                    *Name);
 
 void
+AhFindAmlTypes (
+    char                    *Name);
+
+void
 AhDisplayDeviceIds (
     char                    *Name);
 
 void
+AhDisplayTables (
+    void);
+
+const AH_TABLE *
+AcpiAhGetTableInfo (
+    char                    *Signature);
+
+void
 AhDisplayUuids (
+    void);
+
+void
+AhDisplayDirectives (
     void);
 
 #endif /* __ACPIHELP_H */

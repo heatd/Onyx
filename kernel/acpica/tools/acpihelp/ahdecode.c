@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2015, Intel Corp.
+ * Copyright (C) 2000 - 2016, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -60,6 +60,7 @@
 static char         Gbl_Buffer[BUFFER_LENGTH];
 static char         Gbl_LineBuffer[LINE_BUFFER_LENGTH];
 
+
 /* Local prototypes */
 
 static BOOLEAN
@@ -80,6 +81,10 @@ AhDisplayAmlOpcode (
     const AH_AML_OPCODE     *Op);
 
 static void
+AhDisplayAmlType (
+    const AH_AML_TYPE       *Op);
+
+static void
 AhDisplayAslOperator (
     const AH_ASL_OPERATOR   *Op);
 
@@ -97,6 +102,34 @@ AhPrintOneField (
     UINT32                  CurrentPosition,
     UINT32                  MaxPosition,
     const char              *Field);
+
+
+/*******************************************************************************
+ *
+ * FUNCTION:    AhDisplayDirectives
+ *
+ * PARAMETERS:  None
+ *
+ * RETURN:      None
+ *
+ * DESCRIPTION: Display all iASL preprocessor directives.
+ *
+ ******************************************************************************/
+
+void
+AhDisplayDirectives (
+    void)
+{
+    const AH_DIRECTIVE_INFO *Info;
+
+
+    printf ("iASL Preprocessor Directives\n\n");
+
+    for (Info = PreprocessorDirectives; Info->Name; Info++)
+    {
+        printf ("  %-36s : %s\n", Info->Name, Info->Description);
+    }
+}
 
 
 /*******************************************************************************
@@ -123,15 +156,15 @@ AhFindPredefinedNames (
     char                    Name[9];
 
 
-    if (!NamePrefix)
+    if (!NamePrefix || (NamePrefix[0] == '*'))
     {
-        Found = AhDisplayPredefinedName (Name, 0);
+        Found = AhDisplayPredefinedName (NULL, 0);
         return;
     }
 
     /* Contruct a local name or name prefix */
 
-    AhStrupr (NamePrefix);
+    AcpiUtStrupr (NamePrefix);
     if (*NamePrefix == '_')
     {
         NamePrefix++;
@@ -141,7 +174,7 @@ AhFindPredefinedNames (
     strncpy (&Name[1], NamePrefix, 7);
 
     Length = strlen (Name);
-    if (Length > 4)
+    if (Length > ACPI_NAME_SIZE)
     {
         printf ("%.8s: Predefined name must be 4 characters maximum\n", Name);
         return;
@@ -176,7 +209,7 @@ AhDisplayPredefinedName (
     const AH_PREDEFINED_NAME    *Info;
     BOOLEAN                     Found = FALSE;
     BOOLEAN                     Matched;
-    UINT32                      i;
+    UINT32                      i = 0;
 
 
     /* Find/display all names that match the input name prefix */
@@ -190,6 +223,7 @@ AhDisplayPredefinedName (
             printf ("%*s%s\n", 6, " ", Info->Action);
 
             AhDisplayPredefinedInfo (Info->Name);
+            i++;
             continue;
         }
 
@@ -213,6 +247,10 @@ AhDisplayPredefinedName (
         }
     }
 
+    if (!Name)
+    {
+        printf ("\nFound %d Predefined ACPI Names\n", i);
+    }
     return (Found);
 }
 
@@ -311,7 +349,7 @@ AhFindAmlOpcode (
     BOOLEAN                 Found = FALSE;
 
 
-    AhStrupr (Name);
+    AcpiUtStrupr (Name);
 
     /* Find/display all opcode names that match the input name prefix */
 
@@ -322,7 +360,7 @@ AhFindAmlOpcode (
             continue;
         }
 
-        if (!Name)
+        if (!Name || (Name[0] == '*'))
         {
             AhDisplayAmlOpcode (Op);
             Found = TRUE;
@@ -332,7 +370,7 @@ AhFindAmlOpcode (
         /* Upper case the opcode name before substring compare */
 
         strcpy (Gbl_Buffer, Op->OpcodeName);
-        AhStrupr (Gbl_Buffer);
+        AcpiUtStrupr (Gbl_Buffer);
 
         if (strstr (Gbl_Buffer, Name) == Gbl_Buffer)
         {
@@ -375,7 +413,7 @@ AhDecodeAmlOpcode (
         return;
     }
 
-    Opcode = ACPI_STRTOUL (OpcodeString, NULL, 16);
+    Opcode = strtoul (OpcodeString, NULL, 16);
     if (Opcode > ACPI_UINT16_MAX)
     {
         printf ("Invalid opcode (more than 16 bits)\n");
@@ -469,6 +507,122 @@ AhDisplayAmlOpcode (
 
 /*******************************************************************************
  *
+ * FUNCTION:    AhFindAmlTypes (entry point for AML grammar keyword search)
+ *
+ * PARAMETERS:  Name                - Name or prefix for an AML grammar element.
+ *                                    NULL means "find all"
+ *
+ * RETURN:      None
+ *
+ * DESCRIPTION: Find all AML grammar keywords that match the input Name or name
+ *              prefix.
+ *
+ ******************************************************************************/
+
+void
+AhFindAmlTypes (
+    char                    *Name)
+{
+    const AH_AML_TYPE       *Keyword;
+    BOOLEAN                 Found = FALSE;
+
+
+    AcpiUtStrupr (Name);
+
+    for (Keyword = AmlTypesInfo; Keyword->Name; Keyword++)
+    {
+        if (!Name)
+        {
+            printf ("    %s\n", Keyword->Name);
+            Found = TRUE;
+            continue;
+        }
+
+        if (*Name == '*')
+        {
+            AhDisplayAmlType (Keyword);
+            Found = TRUE;
+            continue;
+        }
+
+        /* Upper case the operator name before substring compare */
+
+        strcpy (Gbl_Buffer, Keyword->Name);
+        AcpiUtStrupr (Gbl_Buffer);
+
+        if (strstr (Gbl_Buffer, Name) == Gbl_Buffer)
+        {
+            AhDisplayAmlType (Keyword);
+            Found = TRUE;
+        }
+    }
+
+    if (!Found)
+    {
+        printf ("%s, no matching AML grammar type\n", Name);
+    }
+}
+
+
+/*******************************************************************************
+ *
+ * FUNCTION:    AhDisplayAmlType
+ *
+ * PARAMETERS:  Op                  - Pointer to AML grammar info
+ *
+ * RETURN:      None
+ *
+ * DESCRIPTION: Format and display info for an AML grammar element.
+ *
+ ******************************************************************************/
+
+static void
+AhDisplayAmlType (
+    const AH_AML_TYPE       *Op)
+{
+    char                    *Description;
+
+
+    Description = Op->Description;
+    printf ("%4s", " ");    /* Primary indent */
+
+    /* Emit the entire description string */
+
+    while (*Description)
+    {
+        /* Description can be multiple lines, must indent each */
+
+        while (*Description != '\n')
+        {
+            printf ("%c", *Description);
+            Description++;
+        }
+
+        printf ("\n");
+        Description++;
+
+        /* Do indent */
+
+        if (*Description)
+        {
+            printf ("%8s", " ");    /* Secondary indent */
+
+            /* Index extra for a comment */
+
+            if ((Description[0] == '/') &&
+                (Description[1] == '/'))
+            {
+                printf ("%4s", " ");
+            }
+        }
+    }
+
+    printf ("\n");
+}
+
+
+/*******************************************************************************
+ *
  * FUNCTION:    AhFindAslKeywords (entry point for ASL keyword search)
  *
  * PARAMETERS:  Name                - Name or prefix for an ASL keyword.
@@ -489,11 +643,11 @@ AhFindAslKeywords (
     BOOLEAN                 Found = FALSE;
 
 
-    AhStrupr (Name);
+    AcpiUtStrupr (Name);
 
     for (Keyword = AslKeywordInfo; Keyword->Name; Keyword++)
     {
-        if (!Name)
+        if (!Name || (Name[0] == '*'))
         {
             AhDisplayAslKeyword (Keyword);
             Found = TRUE;
@@ -503,7 +657,7 @@ AhFindAslKeywords (
         /* Upper case the operator name before substring compare */
 
         strcpy (Gbl_Buffer, Keyword->Name);
-        AhStrupr (Gbl_Buffer);
+        AcpiUtStrupr (Gbl_Buffer);
 
         if (strstr (Gbl_Buffer, Name) == Gbl_Buffer)
         {
@@ -604,13 +758,13 @@ AhFindAslOperators (
     BOOLEAN                 MatchCount = 0;
 
 
-    AhStrupr (Name);
+    AcpiUtStrupr (Name);
 
     /* Find/display all names that match the input name prefix */
 
     for (Operator = AslOperatorInfo; Operator->Name; Operator++)
     {
-        if (!Name)
+        if (!Name || (Name[0] == '*'))
         {
             AhDisplayAslOperator (Operator);
             MatchCount++;
@@ -620,7 +774,7 @@ AhFindAslOperators (
         /* Upper case the operator name before substring compare */
 
         strcpy (Gbl_Buffer, Operator->Name);
-        AhStrupr (Gbl_Buffer);
+        AcpiUtStrupr (Gbl_Buffer);
 
         if (strstr (Gbl_Buffer, Name) == Gbl_Buffer)
         {
@@ -793,6 +947,7 @@ AhPrintOneField (
         {
             printf ("\n%*s", (int) Indent, " ");
         }
+
         printf ("%s", This);
     }
 }
@@ -824,7 +979,7 @@ AhDisplayDeviceIds (
 
     /* Null input name indicates "display all" */
 
-    if (!Name)
+    if (!Name || (Name[0] == '*'))
     {
         printf ("ACPI and PNP Device/Hardware IDs:\n\n");
         for (Info = AslDeviceIds; Info->Name; Info++)
@@ -844,7 +999,7 @@ AhDisplayDeviceIds (
 
     /* Find/display all names that match the input name prefix */
 
-    AhStrupr (Name);
+    AcpiUtStrupr (Name);
     for (Info = AslDeviceIds; Info->Name; Info++)
     {
         Matched = TRUE;
@@ -890,12 +1045,64 @@ AhDisplayUuids (
     const AH_UUID           *Info;
 
 
-    printf ("ACPI-related UUIDs:\n\n");
+    printf ("ACPI-related UUIDs/GUIDs:\n");
+
+    /* Display entire table of known ACPI-related UUIDs/GUIDs */
 
     for (Info = AcpiUuids; Info->Description; Info++)
     {
-        printf ("%32s : %s\n", Info->Description, Info->String);
+        if (!Info->String) /* Null UUID string means group description */
+        {
+            printf ("\n%36s\n", Info->Description);
+        }
+        else
+        {
+            printf ("%32s : %s\n", Info->Description, Info->String);
+        }
     }
+
+    /* Help info on how UUIDs/GUIDs strings are encoded */
+
+    printf ("\n\nByte encoding of UUID/GUID strings"
+        " into ACPI Buffer objects (use ToUUID from ASL):\n\n");
+
+    printf ("%32s : %s\n", "Input UUID/GUID String format",
+        "aabbccdd-eeff-gghh-iijj-kkllmmnnoopp");
+
+    printf ("%32s : %s\n", "Expected output ACPI buffer",
+        "dd,cc,bb,aa, ff,ee, hh,gg, ii,jj, kk,ll,mm,nn,oo,pp");
+}
+
+
+/*******************************************************************************
+ *
+ * FUNCTION:    AhDisplayTables
+ *
+ * PARAMETERS:  None
+ *
+ * RETURN:      None
+ *
+ * DESCRIPTION: Display all known ACPI tables
+ *
+ ******************************************************************************/
+
+void
+AhDisplayTables (
+    void)
+{
+    const AH_TABLE          *Info;
+    UINT32                  i = 0;
+
+
+    printf ("Known ACPI tables:\n");
+
+    for (Info = AcpiSupportedTables; Info->Signature; Info++)
+    {
+        printf ("%8s : %s\n", Info->Signature, Info->Description);
+        i++;
+    }
+
+    printf ("\nTotal %u ACPI tables\n\n", i);
 }
 
 
@@ -928,7 +1135,8 @@ AhDecodeException (
     if (!HexString)
     {
         printf ("All defined ACPICA exception codes:\n\n");
-        AH_DISPLAY_EXCEPTION (0, "AE_OK                        (No error occurred)");
+        AH_DISPLAY_EXCEPTION (0,
+            "AE_OK                        (No error occurred)");
 
         /* Display codes in each block of exception types */
 
@@ -942,6 +1150,7 @@ AhDecodeException (
                 {
                     AH_DISPLAY_EXCEPTION_TEXT (Status, ExceptionInfo);
                 }
+
                 Status++;
 
             } while (ExceptionInfo);
@@ -951,7 +1160,7 @@ AhDecodeException (
 
     /* Decode a single user-supplied exception code */
 
-    Status = ACPI_STRTOUL (HexString, NULL, 16);
+    Status = strtoul (HexString, NULL, 16);
     if (!Status)
     {
         printf ("%s: Invalid hexadecimal exception code value\n", HexString);

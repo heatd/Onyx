@@ -18,10 +18,13 @@
 #define ACPI_UINTPTR_T      uintptr_t
 
 #define ACPI_USE_DO_WHILE_0
-#define ACPI_USE_LOCAL_CACHE
+
+#undef ACPI_APPLICATION
+#undef ACPI_DEBUGGER
+#undef ACPI_DISASSEMBLER
 
 #define ACPI_MUTEX_TYPE             ACPI_OSL_MUTEX
-#define ACPI_MUTEX                  unsigned long *
+#define ACPI_MUTEX                  unsigned long*
 #undef ACPI_USE_SYSTEM_CLIBRARY
 #undef ACPI_USE_STANDARD_HEADERS
 //#undef ACPI_USE_NATIVE_DIVIDE

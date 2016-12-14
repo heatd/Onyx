@@ -93,6 +93,7 @@ extern kernel_early
 extern kernel_main
 extern _init
 _start:
+	push 0
 	mov rsp, stack_top
 	call initsse
 	extern __syscall

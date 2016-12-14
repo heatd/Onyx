@@ -14,6 +14,8 @@
 #include <kernel/portio.h>
 #include <kernel/irq.h>
 #include <kernel/pic.h>
+#include <kernel/log.h>
+
 #include <drivers/nmi.h>
 #include <drivers/rtc.h>
 
@@ -33,6 +35,21 @@ int rtc_get_date_reg(uint8_t reg)
 	outb(0x70, reg);
 	uint8_t datereg = inb(0x71);
 	asm volatile("sti");
+	nmi_enable();
+	int ret = datereg;
+	if(!binary_mode_enabled)
+	{
+		ret = ((datereg / 16) * 10) + (datereg & 0xf);
+		return ret;
+	}
+	else
+		return ret;
+}
+int rtc_get_date_reg_early(uint8_t reg)
+{
+	nmi_disable();
+	outb(0x70, reg);
+	uint8_t datereg = inb(0x71);
 	nmi_enable();
 	int ret = datereg;
 	if(!binary_mode_enabled)
@@ -118,9 +135,19 @@ static uintptr_t rtc_handler(registers_t *regs)
 	inb(0x71);
 	return 0;
 }
+void early_boot_rtc()
+{
+	date.seconds = rtc_get_date_reg_early(RTC_REG_SECONDS);
+	date.minutes = rtc_get_date_reg_early(RTC_REG_MINUTES);
+	date.hours = rtc_get_date_reg_early(RTC_REG_HOURS);
+	date.day = rtc_get_date_reg_early(RTC_REG_MONTH_DAY);
+	date.month = rtc_get_date_reg_early(RTC_REG_MONTH);
+	date.year = rtc_get_date_reg_early(RTC_REG_CENTURY) * 100 + rtc_get_date_reg_early(RTC_REG_YEAR);
+	date.unixtime = get_unix_time(&date);
+}
 void init_rtc()
 {
-	printf("rtc: initializing\n");
+	INFO("rtc", "initializing\n");
 	// Disable NMI's so we can access the CMOS without any risk of corruption
 	nmi_disable();
 	asm volatile("cli");
@@ -133,9 +160,9 @@ void init_rtc()
 	if(b & 4)
 		binary_mode_enabled = true;
 	if(enabled24_hour)
-		printf("rtc: 24 hour mode set\n");
+		INFO("rtc", "24 hour mode set\n");
 	if(binary_mode_enabled)
-		printf("rtc: binary mode enabled\n");
+		INFO("rtc", "binary mode enabled\n");
 	date.seconds = rtc_get_date_reg(RTC_REG_SECONDS);
 	date.minutes = rtc_get_date_reg(RTC_REG_MINUTES);
 	date.hours = rtc_get_date_reg(RTC_REG_HOURS);
@@ -145,7 +172,6 @@ void init_rtc()
 	date.unixtime = get_unix_time(&date);
 	// Enable IRQ8
 	irq_install_handler(8, rtc_handler);
-	pic_unmask_irq(8);
 	nmi_disable();
 	asm volatile("cli");
 	outb(0x70, RTC_STATUS_REG_B);

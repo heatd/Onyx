@@ -9,6 +9,7 @@
  * Foundation.
  *----------------------------------------------------------------------*/
 #include <stdio.h>
+#include <errno.h>
 #include <mbr.h>
 
 #include <kernel/vmm.h>
@@ -20,8 +21,12 @@
 #include <kernel/panic.h>
 #include <kernel/timer.h>
 #include <kernel/dev.h>
+#include <kernel/block.h>
+#include <kernel/log.h>
 
 #include <drivers/ata.h>
+
+#define ATA_TIMEOUT 10000
 
 prdt_entry_t *PRDT;
 void *prdt_base = NULL;
@@ -33,12 +38,21 @@ struct ide_drive
 	uint32_t lba28;
 	uint64_t lba48;
 	int type; /* Can be ATA_TYPE_ATA or ATA_TYPE_ATAPI */
+	int channel;
+	int drive;
 	unsigned char buffer[512];
 } ide_drives[4];
+static volatile int irq = 0;
 unsigned int current_drive = (unsigned int)-1;
 unsigned int current_channel = (unsigned int)-1;
-static volatile int irq = 0;
-#define ATA_TIMEOUT 10000
+
+void ata_send_command(struct ide_drive* drive, uint8_t command)
+{
+	if(drive->channel > 0)
+		outb(ATA_DATA2 + ATA_REG_COMMAND, command);
+	else
+		outb(ATA_DATA1 + ATA_REG_COMMAND, command);
+}
 int ata_wait_for_irq(uint64_t timeout)
 {
 	uint64_t time = get_tick_count();
@@ -110,6 +124,71 @@ void ata_enable_pci_ide(PCIDevice *dev)
 }
 static int num_drives = 0;
 static char devname[] = "/dev/hdx";
+int ata_flush(struct blkdev *blkd)
+{
+	struct ide_drive *drv = blkd->device_info;
+	if(!drv)
+		return errno = EINVAL, -1;
+	ata_send_command(drv, ATA_CMD_CACHE_FLUSH_EXT);
+	return 0;
+}
+int ata_pm(int op, struct blkdev *blkd)
+{
+	/* Flush all data before entering any power mode */
+	ata_flush(blkd);
+	struct ide_drive *drv = blkd->device_info;
+	if(!drv)
+		return errno = EINVAL, -1;
+
+	if(op == BLKDEV_PM_SLEEP)
+	{
+		ata_send_command(drv, ATA_CMD_IDLE);
+		return 0;
+	}
+	else
+		return errno = ENOSYS, -1;
+}
+ssize_t ata_read(size_t offset, size_t count, void* buffer, struct blkdev* blkd)
+{
+	struct ide_drive *drv = blkd->device_info;
+	if(drv->type == ATA_TYPE_ATAPI)
+		return -1;
+	if(!drv)
+		return errno = EINVAL, -1;
+	size_t off = offset;
+	printf("reading from offset %u\n", off);
+	void *buf = vmm_allocate_virt_address(VM_KERNEL, vmm_align_size_to_pages(count), VMM_TYPE_REGULAR, VMM_NOEXEC | VMM_WRITE);
+	vmm_map_range(buf, vmm_align_size_to_pages(count), VMM_WRITE | VMM_NOEXEC);
+
+	if(count < UINT16_MAX) ata_read_sectors(drv->channel, drv->drive, (uint32_t) virtual2phys(buf), count + off % 512, off / 512);
+	/* If count > count_max, split this into multiple I/O operations */
+	if(count > UINT16_MAX)
+	{
+		panic("Implement, you lazy ass!");
+	}
+	memcpy(buffer, buf, count);
+	return count;
+}
+ssize_t ata_write(size_t offset, size_t count, void* buffer, struct blkdev* blkd)
+{
+	struct ide_drive *drv = blkd->device_info;
+	if(!drv)
+		return errno = EINVAL, -1;
+	size_t off = offset;
+	printf("reading from offset %u\n", off);
+	void *buf = vmm_allocate_virt_address(VM_KERNEL, vmm_align_size_to_pages(count), VMM_TYPE_REGULAR, VMM_NOEXEC | VMM_WRITE);
+	vmm_map_range(buf, vmm_align_size_to_pages(count), VMM_WRITE | VMM_NOEXEC);
+
+	memcpy(buf, buffer, count);
+
+	if(count < UINT16_MAX) ata_write_sectors(drv->channel, drv->drive, (uint32_t) buf, count + off % 512, off / 512);
+	/* If count > count_max, split this into multiple I/O operations */
+	if(count > UINT16_MAX)
+	{
+		panic("Implement, you lazy ass!");
+	}
+	return count;
+}
 int ata_initialize_drive(int channel, int drive)
 {
 	ata_set_drive(channel, drive);
@@ -132,7 +211,7 @@ int ata_initialize_drive(int channel, int drive)
 	delay_400ns();
 	if(ata_wait_for_irq(100))
 	{
-		printf("ata: IDENTIFY error\n");
+		ERROR("ata", "IDENTIFY error\n");
 		return 0;
 	}
 	for(int i = 0; i < 256; i++)
@@ -145,32 +224,54 @@ int ata_initialize_drive(int channel, int drive)
 		uint16_t *ptr = &ide_drives[curr].buffer[i*2];
 		*ptr = data;
 	}
+	ide_drives[curr].drive = drive;
+	ide_drives[curr].channel = channel;
+
 	char *path = malloc(strlen(devname) + 1);
 	strcpy(path, devname);
 	path[strlen(path) - 1] = 'a' + curr;
+
+	/* Create /dev/hdx */
 	vfsnode_t *atadev = creat_vfs(slashdev, path, 0666);
 	/*atadev->write = atadevfs_write;
 	atadev->read = atadevfs_read;*/
 	atadev->type = VFS_TYPE_CHAR_DEVICE;
 	num_drives++;
+
 	if(ide_drives[curr].buffer[0] == 0)
 		ide_drives[curr].type = ATA_TYPE_ATAPI;
 	else
 		ide_drives[curr].type = ATA_TYPE_ATA;
-	printf("ata: Created %s for drive %u\n", devname, num_drives);
+	INFO("ata", "Created %s for drive %u\n", path, num_drives);
+
+	/* Add to the block device layer */
+	block_device_t *dev = malloc(sizeof(block_device_t));
+	memset(dev, 0, sizeof(block_device_t));
+
+	dev->device_info = &ide_drives[curr];
+
+	dev->read = ata_read;
+	dev->write = ata_write;
+	dev->flush = ata_flush;
+	dev->power = ata_pm;
+	blkdev_add_device(dev);
+	
 	return 1;
 }
 void ata_init()
 {
 	idedev = get_pcidev_from_classes(1,1,0);
 	if(idedev)
-		printf("ata: found IDE controller\n");
+		INFO("ata", "found IDE controller\n");
 	else
+	{
+		ERROR("ata", "failed to find a valid IDE controller\n");
 		return;
+	}
 	/* Allocate PRDT base */
 	prdt_base = vmm_allocate_virt_address(VM_KERNEL, 16/*64K*/, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
 	vmm_map_range(prdt_base, 16, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
-	printf("ata: allocated prdt base %x\n",prdt_base);
+	INFO("ata", "allocated prdt base %x\n", prdt_base);
 	/* Enable PCI IDE mode, and PCI busmastering DMA*/
 	ata_enable_pci_ide(idedev);
 	/* Reset the controller */
@@ -186,7 +287,7 @@ void ata_init()
 		for(int drive = 0; drive < 2; drive++)
 		{
 			if(ata_initialize_drive(channel, drive))
-				printf("ata: Found ATA drive at %d:%d\n", channel, drive);
+				INFO("ata", "Found ATA drive at %d:%d\n", channel, drive);
 		}
 	}	
 }
@@ -206,7 +307,8 @@ void ata_read_sectors(unsigned int channel, unsigned int drive, uint32_t buffer,
 	{
 		outl(bar4_base + 0x4, param);
 		outb(bar4_base + 2, 4);
-	}else
+	}
+	else
 	{
 		outl(bar4_base + 0x8 + 0x4, param);
 		outb(bar4_base + 0x8 + 2, 4);
@@ -246,7 +348,8 @@ void ata_write_sectors(unsigned int channel, unsigned int drive, uint32_t buffer
 	{
 		outl(bar4_base + 0x4, param);
 		outb(bar4_base + 2, 4);
-	}else
+	}
+	else
 	{
 		outl(bar4_base + 0x8 + 0x4, param);
 		outb(bar4_base + 0x8 + 2, 4);
@@ -273,7 +376,8 @@ void ata_write_sectors(unsigned int channel, unsigned int drive, uint32_t buffer
 	{
 		outl(bar4_base + 0x4, 0);
 		outb(bar4_base + 2, 4);
-	}else
+	}
+	else
 	{
 		outl(bar4_base + 0x8 + 0x4, 0);
 		outb(bar4_base + 0x8 + 2, 4);

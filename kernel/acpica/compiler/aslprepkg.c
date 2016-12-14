@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2015, Intel Corp.
+ * Copyright (C) 2000 - 2016, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -52,7 +52,7 @@
 
 /* Local prototypes */
 
-static void
+static ACPI_PARSE_OBJECT *
 ApCheckPackageElements (
     const char                  *PredefinedName,
     ACPI_PARSE_OBJECT           *Op,
@@ -87,6 +87,11 @@ ApPackageTooLarge (
     ACPI_PARSE_OBJECT           *Op,
     UINT32                      Count,
     UINT32                      ExpectedCount);
+
+static void
+ApCustomPackage (
+    ACPI_PARSE_OBJECT           *ParentOp,
+    const ACPI_PREDEFINED_INFO  *Predefined);
 
 
 /*******************************************************************************
@@ -151,6 +156,7 @@ ApCheckPackage (
         case ACPI_PTYPE2_FIXED:
         case ACPI_PTYPE2_MIN:
         case ACPI_PTYPE2_FIX_VAR:
+        case ACPI_PTYPE2_VAR_VAR:
         default:
 
             break;
@@ -167,6 +173,11 @@ ApCheckPackage (
 
     switch (Package->RetInfo.Type)
     {
+    case ACPI_PTYPE_CUSTOM:
+
+        ApCustomPackage (ParentOp, Predefined);
+        break;
+
     case ACPI_PTYPE1_FIXED:
         /*
          * The package count is fixed and there are no subpackages
@@ -237,6 +248,7 @@ ApCheckPackage (
                 ApCheckObjectType (Predefined->Info.Name, Op,
                     Package->RetInfo3.TailObjectType, i);
             }
+
             Op = Op->Asl.Next;
         }
         break;
@@ -324,6 +336,32 @@ ApCheckPackage (
 
         break;
 
+    case ACPI_PTYPE2_VAR_VAR:
+
+        /* Check for minimum size (ints at beginning + 1 subpackage) */
+
+        ExpectedCount = Package->RetInfo4.Count1 + 1;
+        if (Count < ExpectedCount)
+        {
+            goto PackageTooSmall;
+        }
+
+        /* Check the non-package elements at beginning of main package */
+
+        for (i = 0; i < Package->RetInfo4.Count1; ++i)
+        {
+            Status = ApCheckObjectType (Predefined->Info.Name, Op,
+                Package->RetInfo4.ObjectType1, i);
+            Op = Op->Asl.Next;
+        }
+
+        /* Examine the variable-length list of subpackages */
+
+        ApCheckPackageList (Predefined->Info.Name, Op,
+            Package, Package->RetInfo4.Count1, Count);
+
+        break;
+
     case ACPI_PTYPE2:
     case ACPI_PTYPE2_FIXED:
     case ACPI_PTYPE2_MIN:
@@ -354,6 +392,86 @@ PackageTooSmall:
 
 /*******************************************************************************
  *
+ * FUNCTION:    ApCustomPackage
+ *
+ * PARAMETERS:  ParentOp            - Parse op for the package
+ *              Predefined          - Pointer to package-specific info for
+ *                                    the method
+ *
+ * RETURN:      None
+ *
+ * DESCRIPTION: Validate packages that don't fit into the standard model and
+ *              require custom code.
+ *
+ * NOTE: Currently used for the _BIX method only. When needed for two or more
+ * methods, probably a detect/dispatch mechanism will be required.
+ *
+ ******************************************************************************/
+
+static void
+ApCustomPackage (
+    ACPI_PARSE_OBJECT           *ParentOp,
+    const ACPI_PREDEFINED_INFO  *Predefined)
+{
+    ACPI_PARSE_OBJECT           *Op;
+    UINT32                      Count;
+    UINT32                      ExpectedCount;
+    UINT32                      Version;
+
+
+    /* First child is the package length */
+
+    Op = ParentOp->Asl.Child;
+    Count = (UINT32) Op->Asl.Value.Integer;
+
+    /* Get the version number, must be Integer */
+
+    Op = Op->Asl.Next;
+    Version = (UINT32) Op->Asl.Value.Integer;
+    if (Op->Asl.ParseOpcode != PARSEOP_INTEGER)
+    {
+        AslError (ASL_ERROR, ASL_MSG_RESERVED_OPERAND_TYPE, Op, MsgBuffer);
+        return;
+    }
+
+    /* Validate count (# of elements) */
+
+    ExpectedCount = 21;         /* Version 1 */
+    if (Version == 0)
+    {
+        ExpectedCount = 20;     /* Version 0 */
+    }
+
+    if (Count < ExpectedCount)
+    {
+        ApPackageTooSmall (Predefined->Info.Name, ParentOp,
+            Count, ExpectedCount);
+        return;
+    }
+    else if (Count > ExpectedCount)
+    {
+        ApPackageTooLarge (Predefined->Info.Name, ParentOp,
+            Count, ExpectedCount);
+    }
+
+    /* Validate all elements of the package */
+
+    Op = ApCheckPackageElements (Predefined->Info.Name, Op,
+        ACPI_RTYPE_INTEGER, 16,
+        ACPI_RTYPE_STRING, 4);
+
+    /* Version 1 has a single trailing integer */
+
+    if (Version > 0)
+    {
+        ApCheckPackageElements (Predefined->Info.Name, Op,
+            ACPI_RTYPE_INTEGER, 1, 0, 0);
+    }
+}
+
+
+/*******************************************************************************
+ *
  * FUNCTION:    ApCheckPackageElements
  *
  * PARAMETERS:  PredefinedName      - Name of the predefined object
@@ -363,7 +481,9 @@ PackageTooSmall:
  *              Type2               - Object type for second group
  *              Count2              - Count for second group
  *
- * RETURN:      None
+ * RETURN:      Next Op peer in the parse tree, after all specified elements
+ *              have been validated. Used for multiple validations (calls
+ *              to this function).
  *
  * DESCRIPTION: Validate all elements of a package. Works with packages that
  *              are defined to contain up to two groups of different object
@@ -371,7 +491,7 @@ PackageTooSmall:
  *
  ******************************************************************************/
 
-static void
+static ACPI_PARSE_OBJECT *
 ApCheckPackageElements (
     const char              *PredefinedName,
     ACPI_PARSE_OBJECT       *Op,
@@ -403,6 +523,8 @@ ApCheckPackageElements (
         ApCheckObjectType (PredefinedName, Op, Type2, (i + Count1));
         Op = Op->Asl.Next;
     }
+
+    return (Op);
 }
 
 
@@ -427,6 +549,7 @@ ApCheckPackageElements (
  *              ACPI_PTYPE2_MIN
  *              ACPI_PTYPE2_COUNT
  *              ACPI_PTYPE2_FIX_VAR
+ *              ACPI_PTYPE2_VAR_VAR
  *
  ******************************************************************************/
 
@@ -473,9 +596,12 @@ ApCheckPackageList (
         Count = (UINT32) Op->Asl.Value.Integer;
         Op = Op->Asl.Next;
 
-        /* The subpackage must have at least one element */
-
-        if (!Count)
+        /*
+         * Most subpackage must have at least one element, with
+         * only rare exceptions. (_RDI)
+         */
+        if (!Count &&
+            (Package->RetInfo.Type != ACPI_PTYPE2_VAR_VAR))
         {
             ApZeroLengthPackage (PredefinedName, SubPackageOp);
             goto NextSubpackage;
@@ -531,6 +657,25 @@ ApCheckPackageList (
                 Package->RetInfo.ObjectType1, Package->RetInfo.Count1,
                 Package->RetInfo.ObjectType2,
                 Count - Package->RetInfo.Count1);
+            break;
+
+        case ACPI_PTYPE2_VAR_VAR:
+            /*
+             * Must have at least the minimum number elements.
+             * A zero PkgCount means the number of elements is variable.
+             */
+            ExpectedCount = Package->RetInfo4.PkgCount;
+            if (ExpectedCount && (Count < ExpectedCount))
+            {
+                ApPackageTooSmall (PredefinedName, SubPackageOp,
+                    Count, 1);
+                break;
+            }
+
+            ApCheckPackageElements (PredefinedName, Op,
+                Package->RetInfo4.SubObjectTypes,
+                Package->RetInfo4.PkgCount,
+                0, 0);
             break;
 
         case ACPI_PTYPE2_FIXED:

@@ -33,9 +33,10 @@ void read_partitions()
 		{
 			printf("Partition %d: %d\nNumber of sectors: %d\nPartition type: 0%X\n" , i, part->sector, part->size_sector, part->part_type);
 		 	fs_handler handler = lookup_handler_from_partition_code(part->part_type);
-			 if(!handler) continue;
+			if(!handler) continue;
+		 	
 		 	handler(part->sector, 0, 0);
-			 break;
+			break;
 		}
 		part++;
 

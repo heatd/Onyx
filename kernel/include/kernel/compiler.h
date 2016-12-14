@@ -31,7 +31,7 @@
 #endif /* __spartix__ */
 #define likely(x)      __builtin_expect(!!(x), 1)
 #define unlikely(x)    __builtin_expect(!!(x), 0)
-#define prefetch(x,y,z) __builtin_prefetch(x,y,z)
+#define prefetch(...) __builtin_prefetch(__VA_ARGS__)
 #define ASSUME_ALIGNED(x,y) __builtin_assume_aligned(x,y)
 #define ARCH_SPECIFIC extern
 #define UNUSED_PARAMETER(x) (void)x

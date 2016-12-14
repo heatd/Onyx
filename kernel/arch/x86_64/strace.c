@@ -26,6 +26,7 @@ inline void get_frame_pointer(uint64_t **ptr)
 }
 extern uintptr_t __stack_chk_guard;
 char *resolve_sym(void *address);
+__attribute__((no_sanitize_undefined))
 void *stack_trace()
 {
 	uint64_t *stack = NULL;
@@ -42,10 +43,18 @@ void *stack_trace()
 	uint64_t *rbp = stack;
 	for(size_t i = 0; i < unwinds_possible; i++)
 	{
-		if((uint64_t*)*rbp >= thread->kernel_stack_top)
+		if(thread)
+		{
+			if((uint64_t*)*rbp >= thread->kernel_stack_top)
+				break;
+		}
+		char *s = resolve_sym((void*)*(rbp+1));
+		if(!s)
 			break;
-		printf("Stack trace #%d: %s\n", i, resolve_sym((void*)*(rbp+1)));
+		printf("Stack trace #%d: %s\n", i, s);
 		rbp = (uint64_t*)*rbp;
+		if(!rbp)
+			break;
 		return_addresses++;
 	}
 	uint64_t *retaddrbuf = malloc(sizeof(uint64_t) * return_addresses);
@@ -65,10 +74,12 @@ void *stack_trace()
 Elf64_Shdr *strtabs = NULL;
 Elf64_Shdr *symtab = NULL;
 char *strtab = NULL;
+__attribute__((no_sanitize_undefined))
 char *elf_get_string(Elf64_Word off)
 {
 	return strtab + off;
 }
+__attribute__((no_sanitize_undefined))
 uintptr_t get_kernel_sym_by_name(char *name)
 {
 	size_t num = symtab->sh_size / symtab->sh_entsize;
@@ -81,7 +92,9 @@ uintptr_t get_kernel_sym_by_name(char *name)
 		}
 	}
 	return 0;
+
 }
+__attribute__((no_sanitize_undefined))
 char *resolve_sym(void *address)
 {
 	size_t num = symtab->sh_size / symtab->sh_entsize;
@@ -107,9 +120,11 @@ char *resolve_sym(void *address)
 			break;
 		}
 	}
+	if(!closest_sym)
+		return NULL;
 	char buff[120] = {0};
 	memcpy(buff, "0x", 2);
-	itoa((uint64_t)address - closest_sym->st_value, 16, buff+2, 1);
+	itoa((uint64_t)address - closest_sym->st_value, 16, (char*) &buff[2], 1);
 	size_t lenof = strlen(buff);
 	char *ret = malloc(strlen(elf_get_string(closest_sym->st_name) + lenof + 7));
 	*ret = '<';
@@ -123,7 +138,8 @@ char *resolve_sym(void *address)
 	*endof = '>';
 	return ret;
 }
-void init_elf_symbols(struct multiboot_tag_elf_sections *secs)
+__attribute__((no_sanitize_undefined))
+void init_elf_symbols(struct multiboot_tag_elf_sections *restrict secs)
 {
 	Elf64_Shdr *sections = (Elf64_Shdr*)(secs->sections);
 	strtabs = &sections[secs->shndx];
@@ -139,5 +155,4 @@ void init_elf_symbols(struct multiboot_tag_elf_sections *secs)
 			strtab = (char*)(sections[i].sh_addr + 0xFFFFFFFF80000000);
 		}
 	}
-	resolve_sym(&init_elf_symbols);
 }

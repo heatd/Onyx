@@ -18,6 +18,7 @@
 #include <kernel/panic.h>
 #include <kernel/task_switching.h>
 #include <kernel/timer.h>
+#include <kernel/slab.h>
 
 #include <drivers/pci.h>
 #include <drivers/rtc.h>
@@ -37,7 +38,7 @@ ACPI_STATUS AcpiOsShutdown()
 {
 	return AE_OK;
 }
-extern uintptr_t rsdp; 
+extern uintptr_t rsdp;
 ACPI_PHYSICAL_ADDRESS AcpiOsGetRootPointer()
 {
 	return (ACPI_PHYSICAL_ADDRESS)rsdp;
@@ -72,7 +73,7 @@ ACPI_STATUS AcpiOsGetPhysicalAddress(void *LogicalAddress, ACPI_PHYSICAL_ADDRESS
 	return AE_OK;
 }
 void *AcpiOsAllocate(ACPI_SIZE Size)
-{
+{	
 	void *ptr = malloc(Size);
 	if(!ptr)
 		printf("Allocation failed with size %d\n", Size);
@@ -107,7 +108,7 @@ ACPI_STATUS AcpiOsExecute(ACPI_EXECUTE_TYPE Type, ACPI_OSD_EXEC_CALLBACK Functio
 }
 void AcpiOsSleep(UINT64 Milliseconds)
 {
-	return;	
+	return;
 }
 void AcpiOsStall(UINT32 Microseconds)
 {
@@ -291,7 +292,7 @@ ACPI_STATUS AcpiOsWritePciConfiguration (ACPI_PCI_ID *PciId, UINT32 Register, UI
 		pci_write_dword(PciId->Bus, PciId->Device, PciId->Function, Register, (uint32_t)Value);
 	if(Width == 64)
 		pci_write_qword(PciId->Bus, PciId->Device, PciId->Function, Register, Value);
-	
+
 	return AE_OK;
 }
 ACPI_STATUS AcpiOsReadPciConfiguration (ACPI_PCI_ID *PciId, UINT32 Register, UINT64 *Value, UINT32 Width)
@@ -307,7 +308,7 @@ ACPI_STATUS AcpiOsReadPciConfiguration (ACPI_PCI_ID *PciId, UINT32 Register, UIN
 			break;
 		case 64:
 			mask = 0xFFFFFFFFFFFFFFFF;
-			break; 
+			break;
 	}
 	UINT64 val = (UINT64)pci_config_read_dword(PciId->Bus, PciId->Device, PciId->Function, Register) & mask;
 	switch(Width)
@@ -323,9 +324,8 @@ ACPI_STATUS AcpiOsReadPciConfiguration (ACPI_PCI_ID *PciId, UINT32 Register, UIN
 			break;
 		case 64:
 			*((UINT64*)Value) = val;
-			break; 
+			break;
 	}
-	printf("val %x\n", *Value);
 	return AE_OK;
 }
 ACPI_STATUS
@@ -340,6 +340,7 @@ UINT32 * NewTableLength)
 void AcpiOsPrintf (
 const char *Format, ...)
 {
+	return;
 	va_list params;
 	va_start(params, Format);
 	vprintf(Format, params);
@@ -370,14 +371,51 @@ AcpiOsTerminate()
 {
 	return AE_OK;
 }
-int isprint( int ch )
+int isprint(int ch)
 {
 	return 1;
 }
 void
-AcpiOsVprintf(
-	const char	*Fmt,
-	va_list	Args)
+AcpiOsVprintf(const char *Fmt, va_list Args)
 {
-	vprintf(Fmt, Args);
+	//vprintf(Fmt, Args);
 }
+#if 0
+ACPI_STATUS
+AcpiOsCreateCache (
+    char                    *CacheName,
+    UINT16                  ObjectSize,
+    UINT16                  MaxDepth,
+    ACPI_CACHE_T        **ReturnCache)
+{
+	*ReturnCache = slab_create(CacheName, ObjectSize, MaxDepth, 0);
+	return AE_OK;
+}
+ACPI_STATUS
+AcpiOsPurgeCache (
+    ACPI_CACHE_T        *Cache)
+{
+	return AE_OK;
+}
+ACPI_STATUS
+AcpiOsDeleteCache (
+    ACPI_CACHE_T        *Cache)
+{
+	return AE_OK;
+
+}
+ACPI_STATUS
+AcpiOsReleaseObject (
+    ACPI_CACHE_T        *Cache,
+    void                    *Object)
+    {
+	slab_free(Cache, Object);
+    	return AE_OK;
+    }
+void *
+AcpiOsAcquireObject (
+    ACPI_CACHE_T        *Cache)
+{
+	return slab_allocate(Cache);
+}
+#endif

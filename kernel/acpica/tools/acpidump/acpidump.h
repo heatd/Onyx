@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2015, Intel Corp.
+ * Copyright (C) 2000 - 2016, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -55,29 +55,18 @@
 #include "acpi.h"
 #include "accommon.h"
 #include "actables.h"
-
-#include <stdio.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <sys/stat.h>
-
+#include "acapps.h"
 
 /* Globals */
 
 EXTERN BOOLEAN              INIT_GLOBAL (Gbl_SummaryMode, FALSE);
 EXTERN BOOLEAN              INIT_GLOBAL (Gbl_VerboseMode, FALSE);
 EXTERN BOOLEAN              INIT_GLOBAL (Gbl_BinaryMode, FALSE);
-EXTERN BOOLEAN              INIT_GLOBAL (Gbl_DumpCustomizedTables, FALSE);
+EXTERN BOOLEAN              INIT_GLOBAL (Gbl_DumpCustomizedTables, TRUE);
 EXTERN BOOLEAN              INIT_GLOBAL (Gbl_DoNotDumpXsdt, FALSE);
 EXTERN ACPI_FILE            INIT_GLOBAL (Gbl_OutputFile, NULL);
 EXTERN char                 INIT_GLOBAL (*Gbl_OutputFilename, NULL);
 EXTERN UINT64               INIT_GLOBAL (Gbl_RsdpBase, 0);
-
-/* Globals required for use with ACPICA modules */
-
-#ifdef _DECLARE_GLOBALS
-UINT8                       AcpiGbl_IntegerByteWidth = 8;
-#endif
 
 /* Action table used to defer requested options */
 

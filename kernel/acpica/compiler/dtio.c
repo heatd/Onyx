@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2015, Intel Corp.
+ * Copyright (C) 2000 - 2016, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -102,7 +102,7 @@ DtDumpSubtableTree (
 #define DT_MERGE_LINES              6
 #define DT_ESCAPE_SEQUENCE          7
 
-static UINT32  Gbl_NextLineOffset;
+static UINT32               Gbl_NextLineOffset;
 
 
 /******************************************************************************
@@ -129,7 +129,7 @@ DtTrim (
 
     /* Skip lines that start with a space */
 
-    if (!ACPI_STRCMP (String, " "))
+    if (!strcmp (String, " "))
     {
         ReturnString = UtStringCacheCalloc (1);
         return (ReturnString);
@@ -138,7 +138,7 @@ DtTrim (
     /* Setup pointers to start and end of input string */
 
     Start = String;
-    End = String + ACPI_STRLEN (String) - 1;
+    End = String + strlen (String) - 1;
 
     /* Find first non-whitespace character */
 
@@ -180,9 +180,9 @@ DtTrim (
 
     Length = ACPI_PTR_DIFF (End, Start) + 1;
     ReturnString = UtStringCacheCalloc (Length + 1);
-    if (ACPI_STRLEN (Start))
+    if (strlen (Start))
     {
-        ACPI_STRNCPY (ReturnString, Start, Length);
+        strncpy (ReturnString, Start, Length);
     }
 
     ReturnString[Length] = 0;
@@ -313,7 +313,7 @@ DtParseLine (
     Length = ACPI_PTR_DIFF (End, Start);
 
     TmpName = UtLocalCalloc (Length + 1);
-    ACPI_STRNCPY (TmpName, Start, Length);
+    strncpy (TmpName, Start, Length);
     Name = DtTrim (TmpName);
     ACPI_FREE (TmpName);
 
@@ -354,13 +354,14 @@ DtParseLine (
             End--;
             break;
         }
+
         End++;
     }
 
     Length = ACPI_PTR_DIFF (End, Start);
     TmpValue = UtLocalCalloc (Length + 1);
 
-    ACPI_STRNCPY (TmpValue, Start, Length);
+    strncpy (TmpValue, Start, Length);
     Value = DtTrim (TmpValue);
     ACPI_FREE (TmpValue);
 
@@ -406,7 +407,8 @@ DtParseLine (
 
 UINT32
 DtGetNextLine (
-    FILE                    *Handle)
+    FILE                    *Handle,
+    UINT32                  Flags)
 {
     BOOLEAN                 LineNotAllBlanks = FALSE;
     UINT32                  State = DT_NORMAL_TEXT;
@@ -415,7 +417,7 @@ DtGetNextLine (
     int                     c;
 
 
-    ACPI_MEMSET (Gbl_CurrentLineBuffer, 0, Gbl_LineBufferSize);
+    memset (Gbl_CurrentLineBuffer, 0, Gbl_LineBufferSize);
     for (i = 0; ;)
     {
         /*
@@ -550,9 +552,13 @@ DtGetNextLine (
 
             case '\n':
 
-                AcpiOsPrintf ("ERROR at line %u: Unterminated quoted string\n",
-                    Gbl_CurrentLineNumber++);
-                State = DT_NORMAL_TEXT;
+                if (!(Flags & DT_ALLOW_MULTILINE_QUOTES))
+                {
+                    AcpiOsPrintf (
+                        "ERROR at line %u: Unterminated quoted string\n",
+                        Gbl_CurrentLineNumber++);
+                    State = DT_NORMAL_TEXT;
+                }
                 break;
 
             default:    /* Get next character */
@@ -746,12 +752,13 @@ DtScanFile (
 
     /* Scan line-by-line */
 
-    while ((Offset = DtGetNextLine (Handle)) != ASL_EOF)
+    while ((Offset = DtGetNextLine (Handle, 0)) != ASL_EOF)
     {
         ACPI_DEBUG_PRINT ((ACPI_DB_PARSE, "Line %2.2u/%4.4X - %s",
             Gbl_CurrentLineNumber, Offset, Gbl_CurrentLineBuffer));
 
-        Status = DtParseLine (Gbl_CurrentLineBuffer, Gbl_CurrentLineNumber, Offset);
+        Status = DtParseLine (Gbl_CurrentLineBuffer,
+            Gbl_CurrentLineNumber, Offset);
         if (Status == AE_NOT_FOUND)
         {
             break;
@@ -897,7 +904,7 @@ DtDumpBuffer (
             }
 
             BufChar = Buffer[(ACPI_SIZE) i + j];
-            if (ACPI_IS_PRINT (BufChar))
+            if (isprint (BufChar))
             {
                 FlPrintFile (FileId, "%c", BufChar);
             }
@@ -942,6 +949,7 @@ DtDumpFieldList (
     DbgPrint (ASL_DEBUG_OUTPUT,  "\nField List:\n"
         "LineNo   ByteOff  NameCol  Column   TableOff "
         "Flags %32s : %s\n\n", "Name", "Value");
+
     while (Field)
     {
         DbgPrint (ASL_DEBUG_OUTPUT,
@@ -978,8 +986,8 @@ DtDumpSubtableInfo (
 {
 
     DbgPrint (ASL_DEBUG_OUTPUT,
-        "[%.04X] %.08X %.08X %.08X %.08X %.08X %p %p %p\n",
-        Subtable->Depth, Subtable->Length, Subtable->TotalLength,
+        "[%.04X] %24s %.08X %.08X %.08X %.08X %.08X %p %p %p\n",
+        Subtable->Depth, Subtable->Name, Subtable->Length, Subtable->TotalLength,
         Subtable->SizeOfLengthField, Subtable->Flags, Subtable,
         Subtable->Parent, Subtable->Child, Subtable->Peer);
 }
@@ -992,8 +1000,8 @@ DtDumpSubtableTree (
 {
 
     DbgPrint (ASL_DEBUG_OUTPUT,
-        "[%.04X] %*s%08X (%.02X) - (%.02X)\n",
-        Subtable->Depth, (4 * Subtable->Depth), " ",
+        "[%.04X] %24s %*s%08X (%.02X) - (%.02X)\n",
+        Subtable->Depth, Subtable->Name, (4 * Subtable->Depth), " ",
         Subtable, Subtable->Length, Subtable->TotalLength);
 }
 
@@ -1024,12 +1032,12 @@ DtDumpSubtableList (
 
     DbgPrint (ASL_DEBUG_OUTPUT,
         "Subtable Info:\n"
-        "Depth  Length   TotalLen LenSize  Flags    "
+        "Depth                      Name Length   TotalLen LenSize  Flags    "
         "This     Parent   Child    Peer\n\n");
     DtWalkTableTree (Gbl_RootTable, DtDumpSubtableInfo, NULL, NULL);
 
     DbgPrint (ASL_DEBUG_OUTPUT,
-        "\nSubtable Tree: (Depth, Subtable, Length, TotalLength)\n\n");
+        "\nSubtable Tree: (Depth, Name, Subtable, Length, TotalLength)\n\n");
     DtWalkTableTree (Gbl_RootTable, DtDumpSubtableTree, NULL, NULL);
 
     DbgPrint (ASL_DEBUG_OUTPUT, "\n");
@@ -1088,6 +1096,7 @@ DtWriteFieldToListing (
         FlPrintFile (ASL_FILE_LISTING_OUTPUT, "...Additional data, length 0x%X\n",
             strlen (Field->Value));
     }
+
     FlPrintFile (ASL_FILE_LISTING_OUTPUT, "\n");
 
     /* Dump the hex data that will be output for this field */

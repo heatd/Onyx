@@ -8,9 +8,13 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#include <drivers/pci.h>
 #include <stdio.h>
+
 #include <kernel/compiler.h>
+#include <kernel/log.h>
+
+#include <drivers/pci.h>
+
 const uint16_t CONFIG_ADDRESS = 0xCF8;
 const uint16_t CONFIG_DATA = 0xCFC;
 
@@ -795,7 +799,7 @@ void pci_write_word(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uin
 				if(vendor == 0xFFFF) //Invalid, just skip this device
 					break;
 
-				printf("Found a device at slot %d, device %d, function %d: ",slot,device,0);
+				INFO("pci", "Found a device at slot %d, device %d, function %d: ",slot,device,0);
 
 				// Check the vendor against a bunch of mainstream hardware developers
 				printf("Vendor: %s\n", IdentifyCommonVendors(vendor));
@@ -838,7 +842,7 @@ void pci_write_word(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uin
 						PCIDevice* dev = pci_check_function(slot, device, i);
 						if(!dev)
 							continue;
-						printf("Found PCI device at bus %d, device %d, function %d\n", dev->slot, dev->device,
+						INFO("pci", "Found PCI device at bus %d, device %d, function %d\n", dev->slot, dev->device,
 						dev->function);
 						printf("Device function: %s\n",dev->function_string);
 
@@ -869,8 +873,8 @@ uint16_t pci_get_intn(uint8_t slot, uint8_t device, uint8_t function)
 }
 void pci_init()
 {
-	printf("Initializing the PCI driver\n");
-	printf("Enumerating PCI devices\n");
+	LOG("pci", "Initializing the PCI driver\n");
+	LOG("pci", "Enumerating PCI devices\n");
 	pci_check_devices();
 }
 PCIDevice *get_pcidev_from_vendor_device(uint16_t deviceid, uint16_t vendorid)

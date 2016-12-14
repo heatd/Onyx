@@ -17,6 +17,7 @@
 #include <kernel/ethernet.h>
 #include <kernel/pic.h>
 #include <kernel/irq.h>
+#include <kernel/log.h>
 
 #include <drivers/mmio.h>
 #include <drivers/e1000.h>
@@ -88,7 +89,7 @@ void e1000_detect_eeprom()
 		uint32_t test = e1000_read_command(REG_EEPROM);
 		if(test & 0x10)
 		{
-			printf("e1000: confirmed eeprom exists at spin %d\n", i);
+			INFO("e1000", "confirmed eeprom exists at spin %d\n", i);
 			eeprom_exists = true;
 			break;
 		}
@@ -149,7 +150,7 @@ int e1000_init_descs()
 	size_t needed_pages = (sizeof(struct e1000_rx_desc) * E1000_NUM_RX_DESC + 16) / 4096;
 	if((sizeof(struct e1000_rx_desc) * E1000_NUM_RX_DESC + 16) % 4096)
 		needed_pages++;
-	ptr = vmm_allocate_virt_address(VM_KERNEL, needed_pages, VMM_TYPE_HW, VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC);
+	ptr = vmm_allocate_virt_address(VM_KERNEL, needed_pages, VM_TYPE_HW, VM_WRITE | VM_GLOBAL | VM_NOEXEC);
 	if(!ptr)
 		return 1;
 	vmm_map_range(ptr, needed_pages, VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC);
@@ -220,7 +221,7 @@ void e1000_enable_interrupts()
 	uint16_t int_no = pci_get_intn(nicdev->slot, nicdev->device, nicdev->function);
 	
 	// Get the IRQ number and install its handler
-	printf("e1000: using IRQ number %d\n", int_no);
+	INFO("e1000", "using IRQ number %u\n", int_no);
 
 	irq_install_handler(int_no, e1000_irq);
 	
@@ -251,10 +252,13 @@ int e1000_init()
 	else
 		phys_mem_space = (char *)(uint64_t)bar->address;
 	if(phys_mem_space)
-		printf("e1000: mmio mode\n");
+		INFO("e1000", "mmio mode\n");
 	else
+	{
+		ERROR("e1000", "Sorry! This driver only supports e1000 register access through MMIO, and sadly your card needs the legacy I/O port method of accessing registers\n");
 		return 1;
-	printf("e1000: physical mem %p\n", phys_mem_space);
+	}
+	INFO("e1000", "physical mem %p\n", phys_mem_space);
 	size_t needed_pages = bar->size / PAGE_SIZE;
 	if(bar->size % PAGE_SIZE)
 		needed_pages++;
@@ -268,16 +272,14 @@ int e1000_init()
 		phys_mem_space += 0x1000;
 		virt += 0x1000;
 	}
-
 	// Initialize PCI Busmastering (needed for DMA)
 	initialize_e1000_busmastering();
-
 	e1000_detect_eeprom();
 	if(e1000_read_mac_address())
 		return 1;
-	printf("MAC address: %x:%x:%x:%x:%x:%x\n", mac_address[0], mac_address[1], mac_address[2], mac_address[3], mac_address[4], mac_address[5]);
+	INFO("eth0", "MAC address: %x:%x:%x:%x:%x:%x\n", mac_address[0], mac_address[1], mac_address[2], mac_address[3], mac_address[4], mac_address[5]);
 	if(e1000_init_descs())
-		printf("e1000: failed to initialize!\n");
+		ERROR("e1000", "failed to initialize!\n");
 	e1000_enable_interrupts();
 	eth_set_dev_send_packet(e1000_send_packet);
 	free(bar); // Don't forget to free bar, as we don't want a memory leak

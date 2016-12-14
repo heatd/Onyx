@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2015, Intel Corp.
+ * Copyright (C) 2000 - 2016, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -287,8 +287,8 @@ AcpiPsGetNextNamepath (
      * the upsearch)
      */
     Status = AcpiNsLookup (WalkState->ScopeInfo, Path,
-                ACPI_TYPE_ANY, ACPI_IMODE_EXECUTE,
-                ACPI_NS_SEARCH_PARENT | ACPI_NS_DONT_OPEN_SCOPE, NULL, &Node);
+        ACPI_TYPE_ANY, ACPI_IMODE_EXECUTE,
+        ACPI_NS_SEARCH_PARENT | ACPI_NS_DONT_OPEN_SCOPE, NULL, &Node);
 
     /*
      * If this name is a control method invocation, we must
@@ -298,25 +298,14 @@ AcpiPsGetNextNamepath (
         PossibleMethodCall &&
         (Node->Type == ACPI_TYPE_METHOD))
     {
-        if (WalkState->Opcode == AML_UNLOAD_OP)
-        {
-            /*
-             * AcpiPsGetNextNamestring has increased the AML pointer,
-             * so we need to restore the saved AML pointer for method call.
-             */
-            WalkState->ParserState.Aml = Start;
-            WalkState->ArgCount = 1;
-            AcpiPsInitOp (Arg, AML_INT_METHODCALL_OP);
-            return_ACPI_STATUS (AE_OK);
-        }
-
         /* This name is actually a control method invocation */
 
         MethodDesc = AcpiNsGetAttachedObject (Node);
         ACPI_DEBUG_PRINT ((ACPI_DB_PARSE,
-            "Control Method - %p Desc %p Path=%p\n", Node, MethodDesc, Path));
+            "Control Method invocation %4.4s - %p Desc %p Path=%p\n",
+            Node->Name.Ascii, Node, MethodDesc, Path));
 
-        NameOp = AcpiPsAllocOp (AML_INT_NAMEPATH_OP);
+        NameOp = AcpiPsAllocOp (AML_INT_NAMEPATH_OP, Start);
         if (!NameOp)
         {
             return_ACPI_STATUS (AE_NO_MEMORY);
@@ -359,7 +348,7 @@ AcpiPsGetNextNamepath (
         /* 1) NotFound is ok during load pass 1/2 (allow forward references) */
 
         if ((WalkState->ParseFlags & ACPI_PARSE_MODE_MASK) !=
-                ACPI_PARSE_EXECUTE)
+            ACPI_PARSE_EXECUTE)
         {
             Status = AE_OK;
         }
@@ -391,7 +380,7 @@ AcpiPsGetNextNamepath (
         ACPI_ERROR_NAMESPACE (Path, Status);
 
         if ((WalkState->ParseFlags & ACPI_PARSE_MODE_MASK) ==
-                ACPI_PARSE_EXECUTE)
+            ACPI_PARSE_EXECUTE)
         {
             /* Report a control method execution error */
 
@@ -524,7 +513,7 @@ static ACPI_PARSE_OBJECT *
 AcpiPsGetNextField (
     ACPI_PARSE_STATE        *ParserState)
 {
-    UINT32                  AmlOffset;
+    UINT8                   *Aml;
     ACPI_PARSE_OBJECT       *Field;
     ACPI_PARSE_OBJECT       *Arg = NULL;
     UINT16                  Opcode;
@@ -540,8 +529,7 @@ AcpiPsGetNextField (
     ACPI_FUNCTION_TRACE (PsGetNextField);
 
 
-    AmlOffset = (UINT32) ACPI_PTR_DIFF (
-        ParserState->Aml, ParserState->AmlStart);
+    Aml = ParserState->Aml;
 
     /* Determine field type */
 
@@ -579,13 +567,11 @@ AcpiPsGetNextField (
 
     /* Allocate a new field op */
 
-    Field = AcpiPsAllocOp (Opcode);
+    Field = AcpiPsAllocOp (Opcode, Aml);
     if (!Field)
     {
         return_PTR (NULL);
     }
-
-    Field->Common.AmlOffset = AmlOffset;
 
     /* Decode the field type */
 
@@ -650,6 +636,7 @@ AcpiPsGetNextField (
          * Argument for Connection operator can be either a Buffer
          * (resource descriptor), or a NameString.
          */
+        Aml = ParserState->Aml;
         if (ACPI_GET8 (ParserState->Aml) == AML_BUFFER_OP)
         {
             ParserState->Aml++;
@@ -662,7 +649,7 @@ AcpiPsGetNextField (
             {
                 /* Non-empty list */
 
-                Arg = AcpiPsAllocOp (AML_INT_BYTELIST_OP);
+                Arg = AcpiPsAllocOp (AML_INT_BYTELIST_OP, Aml);
                 if (!Arg)
                 {
                     AcpiPsFreeOp (Field);
@@ -712,7 +699,7 @@ AcpiPsGetNextField (
         }
         else
         {
-            Arg = AcpiPsAllocOp (AML_INT_NAMEPATH_OP);
+            Arg = AcpiPsAllocOp (AML_INT_NAMEPATH_OP, Aml);
             if (!Arg)
             {
                 AcpiPsFreeOp (Field);
@@ -773,6 +760,10 @@ AcpiPsGetNextArg (
     ACPI_FUNCTION_TRACE_PTR (PsGetNextArg, ParserState);
 
 
+    ACPI_DEBUG_PRINT ((ACPI_DB_PARSE,
+        "Expected argument type ARGP: %s (%2.2X)\n",
+        AcpiUtGetArgumentTypeName (ArgType), ArgType));
+
     switch (ArgType)
     {
     case ARGP_BYTEDATA:
@@ -784,11 +775,12 @@ AcpiPsGetNextArg (
 
         /* Constants, strings, and namestrings are all the same size */
 
-        Arg = AcpiPsAllocOp (AML_BYTE_OP);
+        Arg = AcpiPsAllocOp (AML_BYTE_OP, ParserState->Aml);
         if (!Arg)
         {
             return_ACPI_STATUS (AE_NO_MEMORY);
         }
+
         AcpiPsGetNextSimpleArg (ParserState, ArgType, Arg);
         break;
 
@@ -836,7 +828,8 @@ AcpiPsGetNextArg (
         {
             /* Non-empty list */
 
-            Arg = AcpiPsAllocOp (AML_INT_BYTELIST_OP);
+            Arg = AcpiPsAllocOp (AML_INT_BYTELIST_OP,
+                ParserState->Aml);
             if (!Arg)
             {
                 return_ACPI_STATUS (AE_NO_MEMORY);
@@ -854,9 +847,12 @@ AcpiPsGetNextArg (
         }
         break;
 
-    case ARGP_TARGET:
-    case ARGP_SUPERNAME:
     case ARGP_SIMPLENAME:
+    case ARGP_NAME_OR_REF:
+
+        ACPI_DEBUG_PRINT ((ACPI_DB_PARSE,
+            "**** SimpleName/NameOrRef: %s (%2.2X)\n",
+            AcpiUtGetArgumentTypeName (ArgType), ArgType));
 
         Subop = AcpiPsPeekOpcode (ParserState);
         if (Subop == 0                  ||
@@ -866,32 +862,43 @@ AcpiPsGetNextArg (
         {
             /* NullName or NameString */
 
-            Arg = AcpiPsAllocOp (AML_INT_NAMEPATH_OP);
+            Arg = AcpiPsAllocOp (AML_INT_NAMEPATH_OP, ParserState->Aml);
             if (!Arg)
             {
                 return_ACPI_STATUS (AE_NO_MEMORY);
             }
 
-            /* To support SuperName arg of Unload */
+            Status = AcpiPsGetNextNamepath (WalkState, ParserState,
+                Arg, ACPI_NOT_METHOD_CALL);
+        }
+        else
+        {
+            /* Single complex argument, nothing returned */
 
-            if (WalkState->Opcode == AML_UNLOAD_OP)
-            {
-                Status = AcpiPsGetNextNamepath (WalkState, ParserState, Arg, 1);
+            WalkState->ArgCount = 1;
+        }
+        break;
 
-                /*
-                 * If the SuperName arg of Unload is a method call,
-                 * we have restored the AML pointer, just free this Arg
-                 */
-                if (Arg->Common.AmlOpcode == AML_INT_METHODCALL_OP)
-                {
-                    AcpiPsFreeOp (Arg);
-                    Arg = NULL;
-                }
-            }
-            else
+    case ARGP_TARGET:
+    case ARGP_SUPERNAME:
+
+        ACPI_DEBUG_PRINT ((ACPI_DB_PARSE,
+            "**** Target/Supername: %s (%2.2X)\n",
+            AcpiUtGetArgumentTypeName (ArgType), ArgType));
+
+        Subop = AcpiPsPeekOpcode (ParserState);
+        if (Subop == 0)
+        {
+            /* NULL target (zero). Convert to a NULL namepath */
+
+            Arg = AcpiPsAllocOp (AML_INT_NAMEPATH_OP, ParserState->Aml);
+            if (!Arg)
             {
-                Status = AcpiPsGetNextNamepath (WalkState, ParserState, Arg, 0);
+                return_ACPI_STATUS (AE_NO_MEMORY);
             }
+
+            Status = AcpiPsGetNextNamepath (WalkState, ParserState,
+                Arg, ACPI_POSSIBLE_METHOD_CALL);
         }
         else
         {
@@ -903,6 +910,11 @@ AcpiPsGetNextArg (
 
     case ARGP_DATAOBJ:
     case ARGP_TERMARG:
+
+
+    ACPI_DEBUG_PRINT ((ACPI_DB_PARSE,
+        "**** TermArg/DataObj: %s (%2.2X)\n",
+        AcpiUtGetArgumentTypeName (ArgType), ArgType));
 
         /* Single complex argument, nothing returned */
 

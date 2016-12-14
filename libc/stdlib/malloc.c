@@ -11,42 +11,31 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/mman.h>
-#ifdef __is_spartix_kernel
-#include <kernel/heap.h>
-#endif
 #include <math.h>
-#ifndef __is_spartix_kernel
 #include "dlmalloc.c"
-#else
-void *malloc(size_t size)
+#ifdef __is_spartix_kernel
+char *heap = (char*) 0xFFFFFFF890000000;
+void *sbrk(unsigned long long increment)
 {
-	#ifndef __is_spartix_kernel
-	if(!is_init)
-		malloc_init();
-	#endif
-	return heap_malloc(size);
+	void *ret = heap;
+	heap+=increment;
+	return ret;
 }
-void free(void *ptr)
+void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
-	return heap_free(ptr);
+	void *ret = heap;
+	heap += (length + 4096) & 0xFFFFFFFFFFFFF000; 
+	(void) addr;
+	(void) prot;
+	(void) flags;
+	(void) fd;
+	(void) offset;
+	return ret;
 }
-void *calloc(size_t nmemb, size_t size)
+int munmap(void *addr, size_t length)
 {
-	void *mem = malloc(size * nmemb);
-	if(!mem)
-		return NULL;
-	memset(mem, 0, size * nmemb);
-	return mem;
-}
-void *realloc(void *ptr, size_t newsize)
-{
-	if(!ptr)
-		return malloc(newsize);
-	void *newbuf = malloc(newsize);
-	block_t *block = (block_t*)((char*)(ptr) - sizeof(block_t));
-	size_t block_size = block->size;
-	memcpy(newbuf, ptr , block_size);
-	free(ptr);
-	return newbuf;
+	(void) addr;
+	(void) length;
+	return 0;
 }
 #endif

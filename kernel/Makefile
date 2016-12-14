@@ -24,7 +24,7 @@ CFLAGS:=$(CFLAGS) $(KERNEL_ARCH_CFLAGS)
 CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS) -D ACPI_LIBRARY -D ACPI_DEBUG_OUTPUT=1
 LDFLAGS:=$(LDFLAGS) $(KERNEL_ARCH_LDFLAGS) $(BUILD_NUMBER_LDFLAGS)
 LIBS:=$(LIBS) $(KERNEL_ARCH_LIBS)
-ACPICA_CFLAGS:=$(filter-out -g -fsanitize=undefined -fsanitize=address, $(CFLAGS))
+ACPICA_CFLAGS:=$(filter-out -fsanitize=undefined -fsanitize=address, $(CFLAGS))
 
 OBJS:=\
 $(patsubst %.c,%.o,$(wildcard drivers/*/*.c)) \

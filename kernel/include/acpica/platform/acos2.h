@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2015, Intel Corp.
+ * Copyright (C) 2000 - 2016, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -43,6 +43,10 @@
 
 #ifndef __ACOS2_H__
 #define __ACOS2_H__
+
+#define ACPI_USE_STANDARD_HEADERS
+#define ACPI_USE_SYSTEM_CLIBRARY
+
 #define INCL_LONGLONG
 #include <os2.h>
 
@@ -66,7 +70,6 @@
  */
 #define ACPI_UNUSED_VAR
 
-#define ACPI_USE_STANDARD_HEADERS
 #include <io.h>
 
 #define ACPI_FLUSH_CPU_CACHE() Wbinvd()

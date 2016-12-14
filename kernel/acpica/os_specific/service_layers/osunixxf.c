@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2015, Intel Corp.
+ * Copyright (C) 2000 - 2016, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -62,9 +62,6 @@
 
 #define _COMPONENT          ACPI_OS_SERVICES
         ACPI_MODULE_NAME    ("osunixxf")
-
-
-BOOLEAN                        AcpiGbl_DebugTimeout = FALSE;
 
 
 /* Upcalls to AcpiExec */
@@ -757,8 +754,12 @@ AcpiOsCreateSemaphore (
 
 #ifdef __APPLE__
     {
-        char            *SemaphoreName = tmpnam (NULL);
+        static int      SemaphoreCount = 0;
+        char            SemaphoreName[32];
 
+        snprintf (SemaphoreName, sizeof (SemaphoreName), "acpi_sem_%d",
+            SemaphoreCount++);
+        printf ("%s\n", SemaphoreName);
         Sem = sem_open (SemaphoreName, O_EXCL|O_CREAT, 0755, InitialUnits);
         if (!Sem)
         {
@@ -810,10 +811,17 @@ AcpiOsDeleteSemaphore (
         return (AE_BAD_PARAMETER);
     }
 
+#ifdef __APPLE__
+    if (sem_close (Sem) == -1)
+    {
+        return (AE_BAD_PARAMETER);
+    }
+#else
     if (sem_destroy (Sem) == -1)
     {
         return (AE_BAD_PARAMETER);
     }
+#endif
 
     return (AE_OK);
 }

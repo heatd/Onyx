@@ -6,7 +6,7 @@ NoEcho('
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2015, Intel Corp.
+ * Copyright (C) 2000 - 2016, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -53,6 +53,16 @@ NoEcho('
  *
  *****************************************************************************/
 
+/*
+ * Most tokens are defined to return <i>, which is a UINT64.
+ *
+ * These tokens return <s>, a pointer to the associated lexed string:
+ *
+ *  PARSEOP_NAMESEG
+ *  PARSEOP_NAMESTRING
+ *  PARSEOP_STRING_LITERAL
+ *  PARSEOP_STRUCTURE_NAMESTRING
+ */
 %token <i> PARSEOP_ACCESSAS
 %token <i> PARSEOP_ACCESSATTRIB_BLOCK
 %token <i> PARSEOP_ACCESSATTRIB_BLOCK_CALL
@@ -124,7 +134,7 @@ NoEcho('
 %token <i> PARSEOP_DECREMENT
 %token <i> PARSEOP_DEFAULT
 %token <i> PARSEOP_DEFAULT_ARG
-%token <i> PARSEOP_DEFINITIONBLOCK
+%token <i> PARSEOP_DEFINITION_BLOCK
 %token <i> PARSEOP_DEREFOF
 %token <i> PARSEOP_DEVICE
 %token <i> PARSEOP_DEVICEPOLARITY_HIGH
@@ -166,6 +176,7 @@ NoEcho('
 %token <i> PARSEOP_GPIO_INT
 %token <i> PARSEOP_GPIO_IO
 %token <i> PARSEOP_I2C_SERIALBUS
+%token <i> PARSEOP_I2C_SERIALBUS_V2
 %token <i> PARSEOP_IF
 %token <i> PARSEOP_INCLUDE
 %token <i> PARSEOP_INCLUDE_END
@@ -323,6 +334,7 @@ NoEcho('
 %token <i> PARSEOP_SLAVEMODE_DEVICEINIT
 %token <i> PARSEOP_SLEEP
 %token <i> PARSEOP_SPI_SERIALBUS
+%token <i> PARSEOP_SPI_SERIALBUS_V2
 %token <i> PARSEOP_STALL
 %token <i> PARSEOP_STARTDEPENDENTFN
 %token <i> PARSEOP_STARTDEPENDENTFN_NOPRI
@@ -348,6 +360,7 @@ NoEcho('
 %token <i> PARSEOP_TYPE_STATIC
 %token <i> PARSEOP_TYPE_TRANSLATION
 %token <i> PARSEOP_UART_SERIALBUS
+%token <i> PARSEOP_UART_SERIALBUS_V2
 %token <i> PARSEOP_UNICODE
 %token <i> PARSEOP_UNLOAD
 %token <i> PARSEOP_UPDATERULE_ONES
@@ -452,11 +465,56 @@ NoEcho('
 %left <i>  PARSEOP_EXP_INCREMENT
            PARSEOP_EXP_DECREMENT
 
+%left <i>  PARSEOP_OPEN_PAREN
+           PARSEOP_CLOSE_PAREN
+
+/* Brackets for Index() support */
+
+%left <i>  PARSEOP_EXP_INDEX_LEFT
+%right <i> PARSEOP_EXP_INDEX_RIGHT
+
+/* Macros */
+
 %token <i> PARSEOP_PRINTF
 %token <i> PARSEOP_FPRINTF
+%token <i> PARSEOP_FOR
+
+/* Structures */
+
+%token <i> PARSEOP_STRUCTURE
+%token <s> PARSEOP_STRUCTURE_NAMESTRING
+%token <i> PARSEOP_STRUCTURE_TAG
+%token <i> PARSEOP_STRUCTURE_ELEMENT
+%token <i> PARSEOP_STRUCTURE_INSTANCE
+%token <i> PARSEOP_STRUCTURE_REFERENCE
+%token <i> PARSEOP_STRUCTURE_POINTER
+
+/* Top level */
+
+%token <i> PARSEOP_ASL_CODE
+
+
+/*******************************************************************************
+ *
+ * Tokens below are not in the aslmap.c file
+ *
+ ******************************************************************************/
+
+
+/* Tokens below this are not in the aslmap.c file */
+
 /* Specific parentheses tokens are not used at this time */
            /* PARSEOP_EXP_PAREN_OPEN */
            /* PARSEOP_EXP_PAREN_CLOSE */
+
+/* ASL+ variable creation */
+
+%token <i> PARSEOP_INTEGER_TYPE
+%token <i> PARSEOP_STRING_TYPE
+%token <i> PARSEOP_BUFFER_TYPE
+%token <i> PARSEOP_PACKAGE_TYPE
+%token <i> PARSEOP_REFERENCE_TYPE
+
 
 /*
  * Special functions. These should probably stay at the end of this

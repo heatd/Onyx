@@ -82,7 +82,7 @@ int main(int argc, char **argv, char **envp)
 	f = fopen(filename, "r");
 	if(!f)
 	{
-		perror(filename);
+		printf("%s: No such file or directory!\n", filename);
 		return 1;
 	}
 	memset(buf, 0, 1024);

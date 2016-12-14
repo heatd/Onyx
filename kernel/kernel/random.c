@@ -31,7 +31,6 @@ void add_entropy(void *ent, size_t size)
 }
 void get_entropy(char *buf, size_t s)
 {
-	printf("Getting entropy! %x\n", s);
 	for(size_t i = 0; i < s; i++)
 	{
 		while(current_entropy == 0);
@@ -50,20 +49,15 @@ void initialize_entropy()
 	/* Use get_posix_time as entropy, together with the TSC and the PIT */
 	uint64_t p = get_posix_time();
 	add_entropy(&p, sizeof(uint64_t));
-	uint64_t tick = get_tick_count();
-	add_entropy(&tick, sizeof(uint64_t));
 	uint64_t tsc = rdtsc();
-	add_entropy(&tsc, sizeof(uint64_t));
-	srand((unsigned int) (p << 32));
+	add_entropy(&tsc, sizeof(uint32_t));
+	srand((unsigned int) (tsc | ~p));
 	for(size_t i = current_entropy; i < max_entropy; i = current_entropy)
 	{
 		int r = rand();
 		add_entropy(&r, sizeof(int));
 	}
-	uint16_t buf[2];
-	/* Spit out the weakest bytes of them all */
-	get_entropy((char*) &buf, 2);
-	vfsnode_t *n = creat_vfs(slashdev, "/dev/random", 0666);
+	/*vfsnode_t *n = creat_vfs(slashdev, "/dev/random", 0666);
 	n->type = VFS_TYPE_BLOCK_DEVICE;
-	n->read = ent_read;
+	n->read = ent_read;*/
 }

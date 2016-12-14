@@ -5,7 +5,7 @@
  ******************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2015, Intel Corp.
+ * Copyright (C) 2000 - 2016, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,11 +45,10 @@
 #include "accommon.h"
 #include "acparser.h"
 #include "amlcode.h"
-#include "acdisasm.h"
 #include "acinterp.h"
 #include "acnamesp.h"
+#include "acdebug.h"
 
-#ifdef ACPI_DISASSEMBLER
 
 #define _COMPONENT          ACPI_CA_DEBUGGER
         ACPI_MODULE_NAME    ("dmopcode")
@@ -60,6 +59,14 @@
 static void
 AcpiDmMatchKeyword (
     ACPI_PARSE_OBJECT       *Op);
+
+static void
+AcpiDmConvertToElseIf (
+    ACPI_PARSE_OBJECT       *Op);
+
+static void
+AcpiDmPromoteSubtree (
+    ACPI_PARSE_OBJECT       *StartOp);
 
 
 /*******************************************************************************
@@ -246,11 +253,11 @@ AcpiDmPredefinedDescription (
 
     /* Ensure that the comment field is emitted only once */
 
-    if (Op->Common.DisasmFlags & ACPI_PARSEOP_PREDEF_CHECKED)
+    if (Op->Common.DisasmFlags & ACPI_PARSEOP_PREDEFINED_CHECKED)
     {
         return;
     }
-    Op->Common.DisasmFlags |= ACPI_PARSEOP_PREDEF_CHECKED;
+    Op->Common.DisasmFlags |= ACPI_PARSEOP_PREDEFINED_CHECKED;
 
     /* Predefined name must start with an underscore */
 
@@ -269,10 +276,10 @@ AcpiDmPredefinedDescription (
      * Note: NameString is guaranteed to be upper case here.
      */
     LastCharIsDigit =
-        (ACPI_IS_DIGIT (NameString[3]));    /* d */
+        (isdigit ((int) NameString[3]));    /* d */
     LastCharsAreHex =
-        (ACPI_IS_XDIGIT (NameString[2]) &&  /* xx */
-         ACPI_IS_XDIGIT (NameString[3]));
+        (isxdigit ((int) NameString[2]) &&  /* xx */
+         isxdigit ((int) NameString[3]));
 
     switch (NameString[1])
     {
@@ -382,11 +389,11 @@ AcpiDmFieldPredefinedDescription (
 
     /* Ensure that the comment field is emitted only once */
 
-    if (Op->Common.DisasmFlags & ACPI_PARSEOP_PREDEF_CHECKED)
+    if (Op->Common.DisasmFlags & ACPI_PARSEOP_PREDEFINED_CHECKED)
     {
         return;
     }
-    Op->Common.DisasmFlags |= ACPI_PARSEOP_PREDEF_CHECKED;
+    Op->Common.DisasmFlags |= ACPI_PARSEOP_PREDEFINED_CHECKED;
 
     /*
      * Op must be one of the Create* operators: CreateField, CreateBitField,
@@ -643,8 +650,8 @@ AcpiDmMatchKeyword (
     }
     else
     {
-        AcpiOsPrintf ("%s", ACPI_CAST_PTR (char,
-            AcpiGbl_MatchOps[(ACPI_SIZE) Op->Common.Value.Integer]));
+        AcpiOsPrintf ("%s",
+            AcpiGbl_MatchOps[(ACPI_SIZE) Op->Common.Value.Integer]);
     }
 }
 
@@ -682,6 +689,11 @@ AcpiDmDisassembleOneOp (
     {
         AcpiOsPrintf ("<NULL OP PTR>");
         return;
+    }
+
+    if (Op->Common.DisasmFlags & ACPI_PARSEOP_ELSEIF)
+    {
+        return; /* ElseIf macro was already emitted */
     }
 
     switch (Op->Common.DisasmOpcode)
@@ -821,7 +833,9 @@ AcpiDmDisassembleOneOp (
             }
             else if (Status == AE_AML_NO_RESOURCE_END_TAG)
             {
-                AcpiOsPrintf ("/**** Is ResourceTemplate, but EndTag not at buffer end ****/ ");
+                AcpiOsPrintf (
+                    "/**** Is ResourceTemplate, "
+                    "but EndTag not at buffer end ****/ ");
             }
         }
 
@@ -896,7 +910,8 @@ AcpiDmDisassembleOneOp (
 
         if (Op->Common.AmlOpcode == AML_INT_EXTACCESSFIELD_OP)
         {
-            AcpiOsPrintf (" (0x%2.2X)", (unsigned) ((Op->Common.Value.Integer >> 16) & 0xFF));
+            AcpiOsPrintf (" (0x%2.2X)", (unsigned)
+                ((Op->Common.Value.Integer >> 16) & 0xFF));
         }
 
         AcpiOsPrintf (")");
@@ -953,6 +968,24 @@ AcpiDmDisassembleOneOp (
         AcpiDmNamestring (Op->Common.Value.Name);
         break;
 
+    case AML_ELSE_OP:
+
+        AcpiDmConvertToElseIf (Op);
+        break;
+
+    case AML_EXTERNAL_OP:
+
+        if (AcpiGbl_DmEmitExternalOpcodes)
+        {
+            AcpiOsPrintf ("/* Opcode 0x15 */ ");
+
+            /* Fallthrough */
+        }
+        else
+        {
+            break;
+        }
+
     default:
 
         /* Just get the opcode name and print it */
@@ -967,7 +1000,7 @@ AcpiDmDisassembleOneOp (
             (WalkState->Results) &&
             (WalkState->ResultCount))
         {
-            AcpiDmDecodeInternalObject (
+            AcpiDbDecodeInternalObject (
                 WalkState->Results->Results.ObjDesc [
                     (WalkState->ResultCount - 1) %
                         ACPI_RESULTS_FRAME_OBJ_NUM]);
@@ -978,4 +1011,176 @@ AcpiDmDisassembleOneOp (
     }
 }
 
-#endif  /* ACPI_DISASSEMBLER */
+
+/*******************************************************************************
+ *
+ * FUNCTION:    AcpiDmConvertToElseIf
+ *
+ * PARAMETERS:  OriginalElseOp          - ELSE Object to be examined
+ *
+ * RETURN:      None. Emits either an "Else" or an "ElseIf" ASL operator.
+ *
+ * DESCRIPTION: Detect and convert an If..Else..If sequence to If..ElseIf
+ *
+ * EXAMPLE:
+ *
+ * This If..Else..If nested sequence:
+ *
+ *        If (Arg0 == 1)
+ *        {
+ *            Local0 = 4
+ *        }
+ *        Else
+ *        {
+ *            If (Arg0 == 2)
+ *            {
+ *                Local0 = 5
+ *            }
+ *        }
+ *
+ * Is converted to this simpler If..ElseIf sequence:
+ *
+ *        If (Arg0 == 1)
+ *        {
+ *            Local0 = 4
+ *        }
+ *        ElseIf (Arg0 == 2)
+ *        {
+ *            Local0 = 5
+ *        }
+ *
+ * NOTE: There is no actual ElseIf AML opcode. ElseIf is essentially an ASL
+ * macro that emits an Else opcode followed by an If opcode. This function
+ * reverses these AML sequences back to an ElseIf macro where possible. This
+ * can make the disassembled ASL code simpler and more like the original code.
+ *
+ ******************************************************************************/
+
+static void
+AcpiDmConvertToElseIf (
+    ACPI_PARSE_OBJECT       *OriginalElseOp)
+{
+    ACPI_PARSE_OBJECT       *IfOp;
+    ACPI_PARSE_OBJECT       *ElseOp;
+
+
+    /*
+     * To be able to perform the conversion, two conditions must be satisfied:
+     * 1) The first child of the Else must be an If statement.
+     * 2) The If block can only be followed by an Else block and these must
+     *    be the only blocks under the original Else.
+     */
+    IfOp = OriginalElseOp->Common.Value.Arg;
+
+    if (!IfOp ||
+        (IfOp->Common.AmlOpcode != AML_IF_OP) ||
+        (IfOp->Asl.Next && (IfOp->Asl.Next->Common.AmlOpcode != AML_ELSE_OP)))
+    {
+        /* Not a proper Else..If sequence, cannot convert to ElseIf */
+
+        AcpiOsPrintf ("%s", "Else");
+        return;
+    }
+
+    /* Cannot have anything following the If...Else block */
+
+    ElseOp = IfOp->Common.Next;
+    if (ElseOp && ElseOp->Common.Next)
+    {
+        AcpiOsPrintf ("%s", "Else");
+        return;
+    }
+
+    /* Emit ElseIf, mark the IF as now an ELSEIF */
+
+    AcpiOsPrintf ("%s", "ElseIf");
+    IfOp->Common.DisasmFlags |= ACPI_PARSEOP_ELSEIF;
+
+    /* The IF parent will now be the same as the original ELSE parent */
+
+    IfOp->Common.Parent = OriginalElseOp->Common.Parent;
+
+    /*
+     * Update the NEXT pointers to restructure the parse tree, essentially
+     * promoting an If..Else block up to the same level as the original
+     * Else.
+     *
+     * Check if the IF has a corresponding ELSE peer
+     */
+    ElseOp = IfOp->Common.Next;
+    if (ElseOp &&
+        (ElseOp->Common.AmlOpcode == AML_ELSE_OP))
+    {
+        /* If an ELSE matches the IF, promote it also */
+
+        ElseOp->Common.Parent = OriginalElseOp->Common.Parent;
+
+        /* Promote the entire block under the ElseIf (All Next OPs) */
+
+        AcpiDmPromoteSubtree (OriginalElseOp);
+    }
+    else
+    {
+        /* Otherwise, set the IF NEXT to the original ELSE NEXT */
+
+        IfOp->Common.Next = OriginalElseOp->Common.Next;
+    }
+
+    /* Detach the child IF block from the original ELSE */
+
+    OriginalElseOp->Common.Value.Arg = NULL;
+
+    /* Ignore the original ELSE from now on */
+
+    OriginalElseOp->Common.DisasmFlags |= ACPI_PARSEOP_IGNORE;
+    OriginalElseOp->Common.DisasmOpcode = ACPI_DASM_LNOT_PREFIX;
+
+    /* Insert IF (now ELSEIF) as next peer of the original ELSE */
+
+    OriginalElseOp->Common.Next = IfOp;
+}
+
+
+/*******************************************************************************
+ *
+ * FUNCTION:    AcpiDmPromoteSubtree
+ *
+ * PARAMETERS:  StartOpOp           - Original parent of the entire subtree
+ *
+ * RETURN:      None
+ *
+ * DESCRIPTION: Promote an entire parse subtree up one level.
+ *
+ ******************************************************************************/
+
+static void
+AcpiDmPromoteSubtree (
+    ACPI_PARSE_OBJECT       *StartOp)
+{
+    ACPI_PARSE_OBJECT       *Op;
+    ACPI_PARSE_OBJECT       *ParentOp;
+
+
+    /* New parent for subtree elements */
+
+    ParentOp = StartOp->Common.Parent;
+
+    /* First child starts the subtree */
+
+    Op = StartOp->Common.Value.Arg;
+
+    /* Walk the top-level elements of the subtree */
+
+    while (Op)
+    {
+        Op->Common.Parent = ParentOp;
+        if (!Op->Common.Next)
+        {
+            /* Last Op in list, update its next field */
+
+            Op->Common.Next = StartOp->Common.Next;
+            break;
+        }
+        Op = Op->Common.Next;
+    }
+}

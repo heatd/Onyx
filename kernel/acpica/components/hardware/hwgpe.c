@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2015, Intel Corp.
+ * Copyright (C) 2000 - 2016, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -97,6 +97,8 @@ AcpiHwGetGpeRegisterBit (
  * RETURN:      Status
  *
  * DESCRIPTION: Enable or disable a single GPE in the parent enable register.
+ *              The EnableMask field of the involved GPE register must be
+ *              updated by the caller if necessary.
  *
  ******************************************************************************/
 
@@ -106,7 +108,7 @@ AcpiHwLowSetGpe (
     UINT32                  Action)
 {
     ACPI_GPE_REGISTER_INFO  *GpeRegisterInfo;
-    ACPI_STATUS             Status;
+    ACPI_STATUS             Status = AE_OK;
     UINT32                  EnableMask;
     UINT32                  RegisterBit;
 
@@ -133,7 +135,7 @@ AcpiHwLowSetGpe (
     /* Set or clear just the bit that corresponds to this GPE */
 
     RegisterBit = AcpiHwGetGpeRegisterBit (GpeEventInfo);
-    switch (Action & ~ACPI_GPE_SAVE_MASK)
+    switch (Action)
     {
     case ACPI_GPE_CONDITIONAL_ENABLE:
 
@@ -162,12 +164,11 @@ AcpiHwLowSetGpe (
         return (AE_BAD_PARAMETER);
     }
 
-    /* Write the updated enable mask */
-
-    Status = AcpiHwWrite (EnableMask, &GpeRegisterInfo->EnableAddress);
-    if (ACPI_SUCCESS (Status) && (Action & ACPI_GPE_SAVE_MASK))
+    if (!(RegisterBit & GpeRegisterInfo->MaskForRun))
     {
-        GpeRegisterInfo->EnableMask = (UINT8) EnableMask;
+        /* Write the updated enable mask */
+
+        Status = AcpiHwWrite (EnableMask, &GpeRegisterInfo->EnableAddress);
     }
     return (Status);
 }
@@ -210,9 +211,7 @@ AcpiHwClearGpe (
      */
     RegisterBit = AcpiHwGetGpeRegisterBit (GpeEventInfo);
 
-    Status = AcpiHwWrite (RegisterBit,
-                    &GpeRegisterInfo->StatusAddress);
-
+    Status = AcpiHwWrite (RegisterBit, &GpeRegisterInfo->StatusAddress);
     return (Status);
 }
 
@@ -253,7 +252,7 @@ AcpiHwGetGpeStatus (
     /* GPE currently handled? */
 
     if (ACPI_GPE_DISPATCH_TYPE (GpeEventInfo->Flags) !=
-            ACPI_GPE_DISPATCH_NONE)
+        ACPI_GPE_DISPATCH_NONE)
     {
         LocalEventStatus |= ACPI_EVENT_FLAG_HAS_HANDLER;
     }
@@ -271,6 +270,13 @@ AcpiHwGetGpeStatus (
     if (RegisterBit & GpeRegisterInfo->EnableForRun)
     {
         LocalEventStatus |= ACPI_EVENT_FLAG_ENABLED;
+    }
+
+    /* GPE currently masked? (masked for runtime?) */
+
+    if (RegisterBit & GpeRegisterInfo->MaskForRun)
+    {
+        LocalEventStatus |= ACPI_EVENT_FLAG_MASKED;
     }
 
     /* GPE enabled for wake? */
@@ -334,12 +340,9 @@ AcpiHwGpeEnableWrite (
     ACPI_STATUS             Status;
 
 
-    Status = AcpiHwWrite (EnableMask, &GpeRegisterInfo->EnableAddress);
-    if (ACPI_SUCCESS (Status))
-    {
-        GpeRegisterInfo->EnableMask = EnableMask;
-    }
+    GpeRegisterInfo->EnableMask = EnableMask;
 
+    Status = AcpiHwWrite (EnableMask, &GpeRegisterInfo->EnableAddress);
     return (Status);
 }
 
@@ -447,6 +450,7 @@ AcpiHwEnableRuntimeGpeBlock (
     UINT32                  i;
     ACPI_STATUS             Status;
     ACPI_GPE_REGISTER_INFO  *GpeRegisterInfo;
+    UINT8                   EnableMask;
 
 
     /* NOTE: assumes that all GPEs are currently disabled */
@@ -463,8 +467,9 @@ AcpiHwEnableRuntimeGpeBlock (
 
         /* Enable all "runtime" GPEs in this register */
 
-        Status = AcpiHwGpeEnableWrite (GpeRegisterInfo->EnableForRun,
-                    GpeRegisterInfo);
+        EnableMask = GpeRegisterInfo->EnableForRun &
+            ~GpeRegisterInfo->MaskForRun;
+        Status = AcpiHwGpeEnableWrite (EnableMask, GpeRegisterInfo);
         if (ACPI_FAILURE (Status))
         {
             return (Status);
@@ -511,7 +516,7 @@ AcpiHwEnableWakeupGpeBlock (
          * remaining ones.
          */
         Status = AcpiHwGpeEnableWrite (GpeRegisterInfo->EnableForWake,
-                    GpeRegisterInfo);
+            GpeRegisterInfo);
         if (ACPI_FAILURE (Status))
         {
             return (Status);

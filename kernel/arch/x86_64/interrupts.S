@@ -240,9 +240,12 @@ global forkret
 forkret: dq 0
 global forkretregs
 forkretregs: dq 0
+global syscalls
+syscalls: dq 0
 section .text
 __syscall_int:
 	sti
+	inc qword [syscalls]
 	; load the kernel's segments
 	syscallsaveregs
 	mov cx, ds
@@ -252,7 +255,7 @@ __syscall_int:
 	mov ss, cx
 	mov es, cx
 	cmp rax, SYSCALL_MAX_NUM
-	jl .syscall_exit
+	jl .syscall_exit_sig
 	mov r10, [rsp + 104 + 8]
 	mov r11, [rsp + 104 + 32]
 	mov [forkstack], r11
@@ -266,3 +269,6 @@ __syscall_int:
 	mov es, cx
 	syscallpopregs
 	iretq
+.syscall_exit_sig:
+	cli
+	hlt

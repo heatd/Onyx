@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2015, Intel Corp.
+ * Copyright (C) 2000 - 2016, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -85,6 +85,14 @@ AcpiUtCopyIobjectToIobject (
     return (AE_NOT_IMPLEMENTED);
 }
 
+/* Hardware */
+
+UINT32
+AcpiHwGetMode (
+    void)
+{
+    return (0);
+}
 
 /* Event manager */
 
@@ -104,8 +112,21 @@ AcpiEvInitializeOpRegions (
 
 ACPI_STATUS
 AcpiEvInitializeRegion (
-    ACPI_OPERAND_OBJECT     *RegionObj,
-    BOOLEAN                 AcpiNsLocked)
+    ACPI_OPERAND_OBJECT     *RegionObj)
+{
+    return (AE_OK);
+}
+
+ACPI_STATUS
+AcpiEvInstallXruptHandlers (
+    void)
+{
+    return (AE_OK);
+}
+
+ACPI_STATUS
+AcpiEvInitializeEvents (
+    void)
 {
     return (AE_OK);
 }
@@ -129,13 +150,6 @@ AcpiExWriteDataToField (
     ACPI_OPERAND_OBJECT     **ResultDesc)
 {
     return (AE_NOT_IMPLEMENTED);
-}
-
-ACPI_STATUS
-AcpiExPrepFieldValue (
-    ACPI_CREATE_FIELD_INFO  *Info)
-{
-    return (AE_OK);
 }
 
 ACPI_STATUS
@@ -164,13 +178,74 @@ AcpiNsExecModuleCodeList (
 {
 }
 
+void
+AcpiExDoDebugObject (
+    ACPI_OPERAND_OBJECT     *SourceDesc,
+    UINT32                  Level,
+    UINT32                  Index)
+{
+    return;
+}
+
+void
+AcpiExStartTraceMethod (
+    ACPI_NAMESPACE_NODE     *MethodNode,
+    ACPI_OPERAND_OBJECT     *ObjDesc,
+    ACPI_WALK_STATE         *WalkState)
+{
+    return;
+}
+
+void
+AcpiExStopTraceMethod (
+    ACPI_NAMESPACE_NODE     *MethodNode,
+    ACPI_OPERAND_OBJECT     *ObjDesc,
+    ACPI_WALK_STATE         *WalkState)
+{
+    return;
+}
+
+void
+AcpiExStartTraceOpcode (
+    ACPI_PARSE_OBJECT       *Op,
+    ACPI_WALK_STATE         *WalkState)
+{
+    return;
+}
+
+void
+AcpiExStopTraceOpcode (
+    ACPI_PARSE_OBJECT       *Op,
+    ACPI_WALK_STATE         *WalkState)
+
+{
+    return;
+}
+
+void
+AcpiExTracePoint (
+    ACPI_TRACE_EVENT_TYPE   Type,
+    BOOLEAN                 Begin,
+    UINT8                   *Aml,
+    char                    *Pathname)
+{
+    return;
+}
+
 
 /* Dispatcher */
 
 ACPI_STATUS
-AcpiDsInitializeObjects (
-    UINT32                  TableIndex,
-    ACPI_NAMESPACE_NODE     *StartNode)
+AcpiDsAutoSerializeMethod (
+    ACPI_NAMESPACE_NODE     *Node,
+    ACPI_OPERAND_OBJECT     *ObjDesc)
+{
+    return (AE_OK);
+}
+
+ACPI_STATUS
+AcpiDsInitializeRegion (
+    ACPI_HANDLE             ObjHandle)
 {
     return (AE_OK);
 }

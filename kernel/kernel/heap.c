@@ -8,177 +8,124 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#include <kernel/heap.h>
 #include <stdio.h>
+#include <assert.h>
+#include <sys/types.h>
+
+#include <kernel/heap.h>
 #include <kernel/vmm.h>
 #include <kernel/spinlock.h>
-size_t bucket0, bucket1, bucket2, bucket3, bucket4;
-bucket_t *buckets[5] = {0};
-volatile _Bool dbg_flag = 0;
-static spinlock_t heap_spl;
-void *heap_malloc(size_t size)
+#include <kernel/log.h>
+struct malloc_header *free_list = NULL;
+static size_t heap_size = 0;
+static spinlock_t heap_lock;
+static size_t heap_used_memory = 0;
+inline size_t heap_align_size(size_t orig)
 {
-	acquire_spinlock(&heap_spl);
-	_Bool merge_existing = 0;
-	if(dbg_flag)
-		printf("malloc(%u)\n", size);
-	size_t new_size = bucket4;
-	if(size <= bucket0) new_size = llabs(bucket0 - size) < llabs(size - new_size) ? bucket0 : new_size;
-	if(size <= bucket1) new_size = llabs(bucket1 - size) < llabs(size - new_size) ? bucket1 : new_size;
-	if(size <= bucket2) new_size = llabs(bucket2 - size) < llabs(size - new_size) ? bucket2 : new_size;
-	if(size <= bucket3) new_size = llabs(bucket3 - size) < llabs(size - new_size) ? bucket3 : new_size;
-	if(size <= bucket4) new_size = llabs(bucket4 - size) < llabs(size - new_size) ? bucket4 : new_size;
-	size_t block_size = new_size;
-	if(block_size == bucket4 && size > bucket4)
-		block_size = size;
-	size_t bucket_index = 0;
-	if(block_size == bucket0) bucket_index = 0;
-	if(block_size == bucket1) bucket_index = 1;
-	if(block_size == bucket2) bucket_index = 2;
-	if(block_size == bucket3) bucket_index = 3;
-	if(size > bucket4) bucket_index = 0xFFFFF;
-	if(block_size == bucket4) bucket_index = 4;
-	size_t bucket_indexn = bucket_index;
-	if(bucket_indexn == 0xFFFFF)
-	{
-		if(dbg_flag) printf("malloc: merging\n");
-		merge_existing = 1;
-		bucket_indexn = 4;
-	}
-	if(dbg_flag) printf("malloc: block_size(%u)\n", block_size);
-	bucket_t *bucket = buckets[bucket_indexn];
-	if(merge_existing)
-	{
-		size_t num_contig_blocks = size / bucket4;
-		if(size % bucket4) num_contig_blocks++;
-		block_t *search = bucket->closest_free_block;
-		size_t contig_blocks_found = 0;
-		block_t *first_block = NULL;
-		for(size_t i = 0; i < bucket->sizeof_bucket / bucket->size_elements; i++)
-		{
-			if(search->size == 0)
-			{	first_block = search;
-				contig_blocks_found++;
-				if(num_contig_blocks == contig_blocks_found)
-					goto ret;
-			}
-			else
-			{
-				contig_blocks_found = 0;
-				first_block = NULL;
-			}
-			search = (block_t*)
-				((char*)(search+1) + bucket->size_elements);
-		}
-	ret:
-		first_block->size = size;
-		release_spinlock(&heap_spl);
-		return &first_block->data;
-	}
-	block_t *block = bucket->closest_free_block;
-	block_t *search = bucket->closest_free_block;
-	if(dbg_flag) printf("Closest free block: %p\n", block);
-	if(dbg_flag) printf("Base address: %p\n", bucket+1);
-	block->size = block_size;
-	
-	for(size_t i = 0; i < bucket->sizeof_bucket / bucket->size_elements; i++)
-	{
-		if(search->size == 0)
-		{
-			bucket->closest_free_block = search;
-			break;
-		}
-		search = (block_t*)
-			((char*)(search+1) + bucket->size_elements);
-	}
-	/*if(!bucket->closest_free_block) Extend();*/
-	release_spinlock(&heap_spl);
-	return &block->data;
+	return (orig + 16) & ~0xF;
 }
-void heap_free(void *address)
+struct malloc_header *heap_expand()
 {
-	acquire_spinlock(&heap_spl);
-	block_t *block = (block_t*)((char *)(address) - sizeof(block_t));
-	size_t block_size = block->size;
-	size_t bucket_index = 0;
-	if(block_size == bucket0) bucket_index = 0;
-	if(block_size == bucket1) bucket_index = 1;
-	if(block_size == bucket2) bucket_index = 2;
-	if(block_size == bucket3) bucket_index = 3;
-	if(block_size > bucket4) bucket_index = 0xFFFFF;
-	if(block_size == bucket4) bucket_index = 4;
+	/* TODO */
+	return NULL;
+}
+inline size_t heap_get_contig_blocks_from_size(size_t size, size_t block_size)
+{
+	size_t b = size / block_size;
+	return b;
+}
+struct malloc_header *heap_find_free_blocks(size_t size)
+{	
+	size_t aligned_size = heap_align_size(size);	
+	if(!free_list)
+		free_list = heap_expand(); /* If free_list == NULL, expand the heap */
+	size_t block_size = free_list->size;
 
-	size_t idx = bucket_index;
-	if(idx == 0xFFFFF)
+	/* Get the number of contiguous blocks needed for this allocation */
+	size_t contig_blocks = heap_get_contig_blocks_from_size(aligned_size, block_size);
+
+	struct malloc_header *h = free_list;
+	struct malloc_header *first_header = NULL;
+	struct malloc_header *last_header = NULL;
+
+	size_t blocks_found = 0;
+	for(size_t i = 0; i < heap_size; i += sizeof(struct malloc_header) + h->size)
 	{
-		if(block_size < bucket4)
+		if(blocks_found == contig_blocks)
 		{
-			return; // Invalid pointer, just return (delete would throw an exception here)
+			h = first_header;
+			printf("h->next: %p\n", h->next);
+			for(ssize_t j = contig_blocks; j >= 0; j--)
+			{
+				struct malloc_header *d = h->next;
+				if(j == 0) free_list = h->next;
+				h->next = NULL;
+				h = d;
+			}
+			return first_header;
 		}
-		size_t num_contig_blocks = block_size / bucket4;
-		if(block_size % bucket4) num_contig_blocks++;
-		bucket_t *bucket = buckets[4];
-		block_t *blck = block;
-		for(size_t i = 0; i < num_contig_blocks; i++)
+		if(blocks_found)
 		{
-			blck->size = 0;
-			blck = (block_t*)
-				((char*)(blck+1) + bucket->size_elements);
+			if((char*) &last_header->data + last_header->size != h)
+			{
+				blocks_found = 1;
+				last_header = h;
+				first_header = h;
+				continue;
+			}
 		}
-		idx = 4;
+		if(!last_header)
+			last_header = h;
+		if(!first_header)
+			first_header = h;
+		blocks_found++;
+		h = h->next;
 	}
-	bucket_t *bucket = buckets[idx];
-	if((char *)(bucket->closest_free_block) - (char *)(bucket) 
-	> (char *)(block) - (char *)(bucket))
+	return NULL;
+}
+size_t heap_get_used_memory()
+{
+	printf("%x\n", heap_used_memory);
+	return heap_used_memory;
+}
+void *heap_malloc(size_t t)
+{
+	/* Acquire the spinlock */
+	acquire_spinlock(&heap_lock);
+
+	struct malloc_header *ret = heap_find_free_blocks(t);
+	if(!ret)
 	{
-		block->next_free = bucket->closest_free_block;
-		bucket->closest_free_block = block;
+		release_spinlock(&heap_lock);
+		return NULL;
 	}
-	block->size = 0;
-	release_spinlock(&heap_spl);
+	ret->size = heap_align_size(t);
+	heap_used_memory += ret->size;
+retur:
+	release_spinlock(&heap_lock);
+	return ret+1;
+}
+void heap_free(void *f)
+{}
+void heap_search(uintptr_t pt)
+{}
+void heap_fill(struct malloc_header *hdr, size_t size, size_t block_size)
+{
+	for(size_t i = 0; i < size; i += sizeof(struct malloc_header) + block_size)
+	{
+		hdr->next = (char*) &hdr->data + block_size;
+		hdr->size = block_size;
+		hdr = hdr->next;
+	}
 }
 void heap_init(void *address, size_t bucket0s, size_t bucket1s, size_t bucket2s, size_t bucket3s, size_t bucket4s) 
 {
-	bucket0 = bucket0s;
-	bucket1 = bucket1s;
-	bucket2 = bucket2s;
-	bucket3 = bucket3s;
-	bucket4 = bucket4s;
-	buckets[2] = (bucket_t *)(address);
-	buckets[2]->sizeof_bucket = 0x400000; // 4 MiB by default, maybe add another constructor
-	buckets[2]->size_elements = bucket2;
-	buckets[2]->closest_free_block = (block_t *)((char *)(address) + sizeof(bucket_t));
-	/* Now you might be asking yourself why index 3 was chosen.
-	 * Index 1 has the default size of 64 bytes (512 bytes). Never forget that the other buckets have no memory,
-	 * so they need to be allocated by the Memory Manager. Such structures need 32 bytes at least.
-	 * Other buckets would be too large or too small
-	 */
-	vmm_start_address_bookeeping(KERNEL_FB, 0xFFFFFFF890000000);
+	/* Initialize the free list */
+	heap_fill((struct malloc_header *) address, 0x400000, 32);
+	free_list = address;
+	
+	heap_size = 0x400000;
 
-	// Start filling up the larger block sizes
-	buckets[3] = (bucket_t *)(vmm_allocate_virt_address
-	 (1, 1024, VMM_TYPE_REGULAR, VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC));
-	vmm_map_range((void*)(buckets[3]), 1024, VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC);
-	buckets[3]->sizeof_bucket = 0x400000;
-	buckets[3]->size_elements = bucket3;
-	buckets[3]->closest_free_block = (block_t *)((char *)(buckets[3]) + sizeof(bucket_t));
-	buckets[4] = (bucket_t *)(vmm_allocate_virt_address
-	 (1, 1024, VMM_TYPE_REGULAR, VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC));
-	vmm_map_range((void*)(buckets[4]), 1024, VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC);
-	buckets[4]->sizeof_bucket = 0x400000;
-	buckets[4]->size_elements = bucket4;
-	buckets[4]->closest_free_block = (block_t *)((char *)(buckets[4]) + sizeof(bucket_t));
-	buckets[0] = (bucket_t *)(vmm_allocate_virt_address
-	 (1, 1024, VMM_TYPE_REGULAR, VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC));
-	vmm_map_range((void*)(buckets[0]), 1024, VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC);
-	buckets[0]->sizeof_bucket = 0x400000;
-	buckets[0]->size_elements = bucket0;
-	buckets[0]->closest_free_block = (block_t *)((char *)(buckets[0]) + sizeof(bucket_t));
-	buckets[1] = (bucket_t *)(vmm_allocate_virt_address
-	 (1, 1024, VMM_TYPE_REGULAR, VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC));
-	vmm_map_range((void*)(buckets[1]), 1024, VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC);
-	buckets[1]->sizeof_bucket = 0x400000;
-	buckets[1]->size_elements = bucket1;
-	buckets[1]->closest_free_block = (block_t *)((char *)(buckets[1]) + sizeof(bucket_t));
+
 	printf("Heap initialized!\n");
 }

@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2015, Intel Corp.
+ * Copyright (C) 2000 - 2016, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -166,7 +166,7 @@ AcpiUtGetExpectedReturnTypes (
 
     if (!ExpectedBtypes)
     {
-        ACPI_STRCPY (Buffer, "NONE");
+        strcpy (Buffer, "NONE");
         return;
     }
 
@@ -180,7 +180,7 @@ AcpiUtGetExpectedReturnTypes (
 
         if (ExpectedBtypes & ThisRtype)
         {
-            ACPI_STRCAT (Buffer, &UtRtypeNames[i][j]);
+            strcat (Buffer, &UtRtypeNames[i][j]);
             j = 0;              /* Use name separator from now on */
         }
 
@@ -196,8 +196,6 @@ AcpiUtGetExpectedReturnTypes (
  ******************************************************************************/
 
 #if (defined ACPI_ASL_COMPILER || defined ACPI_HELP_APP)
-#include <stdio.h>
-#include <string.h>
 
 /* Local prototypes */
 
@@ -254,8 +252,10 @@ AcpiUtMatchResourceName (
     const ACPI_PREDEFINED_INFO  *ThisName;
 
 
-    /* Quick check for a predefined name, first character must be underscore */
-
+    /*
+     * Quick check for a predefined name, first character must
+     * be underscore
+     */
     if (Name[0] != '_')
     {
         return (NULL);

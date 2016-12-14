@@ -210,8 +210,6 @@ uint64_t sys_getpid()
 spinlock_t open_spl;
 int sys_open(const char *filename, int flags)
 {
-	if(!vmm_is_mapped((void*) filename))
-		return errno = EINVAL, -1;
 	DEBUG_PRINT_SYSTEMCALL();
 	
 	acquire_spinlock(&open_spl);
@@ -333,6 +331,8 @@ void sys__exit(int status)
 	if(current_process->pid == 1)
 	{
 		printf("Panic: %s returned!\n", current_process->cmd_line);
+		extern int syscalls;
+		printf("%u system calls!\n", syscalls);
 		asm volatile("sti");
 		for(;;);
 	}

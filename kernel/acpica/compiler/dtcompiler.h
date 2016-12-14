@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2015, Intel Corp.
+ * Copyright (C) 2000 - 2016, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -115,6 +115,7 @@ typedef struct dt_subtable
     struct dt_subtable      *StackTop;
     UINT8                   *Buffer;
     UINT8                   *LengthField;
+    char                    *Name;
     UINT32                  Length;
     UINT32                  TotalLength;
     UINT32                  SizeOfLengthField;
@@ -170,12 +171,29 @@ DtCompileTable (
     DT_SUBTABLE             **RetSubtable,
     BOOLEAN                 Required);
 
+ACPI_STATUS
+DtCompileTwoSubtables (
+    void                    **List,
+    ACPI_DMTABLE_INFO       *TableInfo1,
+    ACPI_DMTABLE_INFO       *TableInfo2);
+
+ACPI_STATUS
+DtCompilePadding (
+    UINT32                  Length,
+    DT_SUBTABLE             **RetSubtable);
+
 
 /* dtio - binary and text input/output */
 
 UINT32
 DtGetNextLine (
-    FILE                    *Handle);
+    FILE                    *Handle,
+    UINT32                  Flags);
+
+/* Flags for DtGetNextLine */
+
+#define DT_ALLOW_MULTILINE_QUOTES   0x01
+
 
 DT_FIELD *
 DtScanFile (
@@ -355,11 +373,6 @@ DtFatal (
     DT_FIELD                *FieldObject,
     char                    *ExtraMessage);
 
-ACPI_STATUS
-DtStrtoul64 (
-    char                    *String,
-    UINT64                  *ReturnInteger);
-
 char*
 DtGetFieldValue (
     DT_FIELD                *Field);
@@ -429,6 +442,10 @@ DtCompileDmar (
     void                    **PFieldList);
 
 ACPI_STATUS
+DtCompileDrtm (
+    void                    **PFieldList);
+
+ACPI_STATUS
 DtCompileEinj (
     void                    **PFieldList);
 
@@ -450,6 +467,10 @@ DtCompileGtdt (
 
 ACPI_STATUS
 DtCompileHest (
+    void                    **PFieldList);
+
+ACPI_STATUS
+DtCompileIort (
     void                    **PFieldList);
 
 ACPI_STATUS
@@ -481,6 +502,10 @@ DtCompileMtmr (
     void                    **PFieldList);
 
 ACPI_STATUS
+DtCompileNfit (
+    void                    **PFieldList);
+
+ACPI_STATUS
 DtCompilePmtt (
     void                    **PFieldList);
 
@@ -509,6 +534,14 @@ DtCompileSrat (
     void                    **PFieldList);
 
 ACPI_STATUS
+DtCompileStao (
+    void                    **PFieldList);
+
+ACPI_STATUS
+DtCompileTcpa (
+    void                    **PFieldList);
+
+ACPI_STATUS
 DtCompileUefi (
     void                    **PFieldList);
 
@@ -521,12 +554,18 @@ DtCompileWdat (
     void                    **PFieldList);
 
 ACPI_STATUS
+DtCompileWpbt (
+    void                    **PFieldList);
+
+ACPI_STATUS
 DtCompileXsdt (
     void                    **PFieldList);
 
 ACPI_STATUS
 DtCompileGeneric (
-    void                    **PFieldList);
+    void                    **PFieldList,
+    char                    *TermFieldName,
+    UINT32                  *PFieldLength);
 
 ACPI_DMTABLE_INFO *
 DtGetGenericTableInfo (
@@ -543,6 +582,7 @@ extern const unsigned char  TemplateCsrt[];
 extern const unsigned char  TemplateDbg2[];
 extern const unsigned char  TemplateDbgp[];
 extern const unsigned char  TemplateDmar[];
+extern const unsigned char  TemplateDrtm[];
 extern const unsigned char  TemplateEcdt[];
 extern const unsigned char  TemplateEinj[];
 extern const unsigned char  TemplateErst[];
@@ -551,6 +591,7 @@ extern const unsigned char  TemplateFpdt[];
 extern const unsigned char  TemplateGtdt[];
 extern const unsigned char  TemplateHest[];
 extern const unsigned char  TemplateHpet[];
+extern const unsigned char  TemplateIort[];
 extern const unsigned char  TemplateIvrs[];
 extern const unsigned char  TemplateLpit[];
 extern const unsigned char  TemplateMadt[];
@@ -560,8 +601,10 @@ extern const unsigned char  TemplateMpst[];
 extern const unsigned char  TemplateMsct[];
 extern const unsigned char  TemplateMsdm[];
 extern const unsigned char  TemplateMtmr[];
+extern const unsigned char  TemplateNfit[];
 extern const unsigned char  TemplatePcct[];
 extern const unsigned char  TemplatePmtt[];
+extern const unsigned char  TemplateRasf[];
 extern const unsigned char  TemplateRsdt[];
 extern const unsigned char  TemplateS3pt[];
 extern const unsigned char  TemplateSbst[];
@@ -570,6 +613,7 @@ extern const unsigned char  TemplateSlit[];
 extern const unsigned char  TemplateSpcr[];
 extern const unsigned char  TemplateSpmi[];
 extern const unsigned char  TemplateSrat[];
+extern const unsigned char  TemplateStao[];
 extern const unsigned char  TemplateTcpa[];
 extern const unsigned char  TemplateTpm2[];
 extern const unsigned char  TemplateUefi[];
@@ -578,6 +622,8 @@ extern const unsigned char  TemplateWaet[];
 extern const unsigned char  TemplateWdat[];
 extern const unsigned char  TemplateWddt[];
 extern const unsigned char  TemplateWdrt[];
+extern const unsigned char  TemplateWpbt[];
+extern const unsigned char  TemplateXenv[];
 extern const unsigned char  TemplateXsdt[];
 
 #endif

@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2015, Intel Corp.
+ * Copyright (C) 2000 - 2016, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -71,7 +71,7 @@
 /*
  * Overrides for in-kernel ACPICA
  */
-ACPI_STATUS __init AcpiOsInitialize (
+ACPI_STATUS ACPI_INIT_FUNCTION AcpiOsInitialize (
     void);
 
 ACPI_STATUS AcpiOsTerminate (
@@ -135,6 +135,15 @@ AcpiOsGetThreadId (
         } \
         Lock ? AE_OK : AE_NO_MEMORY; \
     })
+
+static inline BOOLEAN
+AcpiOsReadable (
+    void                    *Pointer,
+    ACPI_SIZE               Length)
+{
+    return TRUE;
+}
+
 
 /*
  * OSL interfaces added by Linux

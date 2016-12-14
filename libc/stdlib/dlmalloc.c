@@ -538,6 +538,9 @@ MAX_RELEASE_CHECK_RATE   default: 4095 unless not HAVE_MMAP
 #define LACKS_SYS_PARAM_H 1
 #define NO_MALLOC_STATS 1
 #define HAVE_MMAP 1
+#ifdef __is_spartix_kernel
+#undef HAVE_MMAP
+#endif
 #endif /*__spartix*/
 
 #ifndef WIN32
@@ -3555,9 +3558,6 @@ static void internal_malloc_stats(mstate m) {
       }
     }
     POSTACTION(m); /* drop lock */
-    fprintf(stderr, "max system bytes = %10lu\n", (unsigned long)(maxfp));
-    fprintf(stderr, "system bytes     = %10lu\n", (unsigned long)(fp));
-    fprintf(stderr, "in use bytes     = %10lu\n", (unsigned long)(used));
   }
 }
 #endif /* NO_MALLOC_STATS */

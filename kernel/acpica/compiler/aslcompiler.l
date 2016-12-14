@@ -6,7 +6,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2015, Intel Corp.
+ * Copyright (C) 2000 - 2016, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -156,6 +156,15 @@ NamePathTail                [.]{NameSeg}
 "^="                        { count (3); return (PARSEOP_EXP_XOR_EQ); }
 "|="                        { count (3); return (PARSEOP_EXP_OR_EQ); }
 
+"["                         { count (3); return (PARSEOP_EXP_INDEX_LEFT); }
+"]"                         { count (0); return (PARSEOP_EXP_INDEX_RIGHT); }
+"("                         { count (0); return (PARSEOP_OPEN_PAREN); }
+")"                         { count (0); return (PARSEOP_CLOSE_PAREN); }
+
+"{"                         { count (0); return ('{'); }
+"}"                         { count (0); return ('}'); }
+","                         { count (0); return (','); }
+
 
     /*
      * Begin standard ASL grammar
@@ -207,7 +216,7 @@ NamePathTail                [.]{NameSeg}
 "Debug"                     { count (1); return (PARSEOP_DEBUG); }
 "Decrement"                 { count (3); return (PARSEOP_DECREMENT); }
 "Default"                   { count (3); return (PARSEOP_DEFAULT); }
-"DefinitionBlock"           { count (1); return (PARSEOP_DEFINITIONBLOCK); }
+"DefinitionBlock"           { count (1); return (PARSEOP_DEFINITION_BLOCK); }
 "DeRefOf"                   { count (3); return (PARSEOP_DEREFOF); }
 "Device"                    { count (2); return (PARSEOP_DEVICE); }
 "Divide"                    { count (3); return (PARSEOP_DIVIDE); }
@@ -329,6 +338,7 @@ NamePathTail                [.]{NameSeg}
 "GpioInt"                   { count (1); return (PARSEOP_GPIO_INT); }
 "GpioIo"                    { count (1); return (PARSEOP_GPIO_IO); }
 "I2cSerialBus"              { count (1); return (PARSEOP_I2C_SERIALBUS); }
+"I2cSerialBusV2"            { count (1); return (PARSEOP_I2C_SERIALBUS_V2); }
 "Interrupt"                 { count (1); return (PARSEOP_INTERRUPT); }
 "IO"                        { count (1); return (PARSEOP_IO); }
 "IRQ"                       { count (1); return (PARSEOP_IRQ); }
@@ -341,9 +351,11 @@ NamePathTail                [.]{NameSeg}
 "QWordSpace"                { count (1); return (PARSEOP_QWORDSPACE); }
 "Register"                  { count (1); return (PARSEOP_REGISTER); }
 "SpiSerialBus"              { count (1); return (PARSEOP_SPI_SERIALBUS); }
+"SpiSerialBusV2"            { count (1); return (PARSEOP_SPI_SERIALBUS_V2); }
 "StartDependentFn"          { count (1); return (PARSEOP_STARTDEPENDENTFN); }
 "StartDependentFnNoPri"     { count (1); return (PARSEOP_STARTDEPENDENTFN_NOPRI); }
 "UartSerialBus"             { count (1); return (PARSEOP_UART_SERIALBUS); }
+"UartSerialBusV2"           { count (1); return (PARSEOP_UART_SERIALBUS_V2); }
 "VendorLong"                { count (1); return (PARSEOP_VENDORLONG); }
 "VendorShort"               { count (1); return (PARSEOP_VENDORSHORT); }
 "WordBusNumber"             { count (1); return (PARSEOP_WORDBUSNUMBER); }
@@ -669,8 +681,13 @@ NamePathTail                [.]{NameSeg}
 
 
     /* printf debug macros */
+
 "printf"                    { count (0); return (PARSEOP_PRINTF); }
 "fprintf"                   { count (0); return (PARSEOP_FPRINTF); }
+
+    /* Other macros */
+
+"For"                       { count (0); return (PARSEOP_FOR); }
 
     /* Predefined compiler names */
 
@@ -679,12 +696,6 @@ NamePathTail                [.]{NameSeg}
 "__LINE__"                  { count (0); return (PARSEOP___LINE__); }
 "__PATH__"                  { count (0); return (PARSEOP___PATH__); }
 
-
-"{"                         { count (0); return('{'); }
-"}"                         { count (0); return('}'); }
-","                         { count (0); return(','); }
-"("                         { count (0); return('('); }
-")"                         { count (0); return(')'); }
 
 {NameSeg}                   { char *s;
                                 count (0);
@@ -709,9 +720,18 @@ NamePathTail                [.]{NameSeg}
                                 return (PARSEOP_NAMESTRING); }
 
 .                           { count (1);
-                                sprintf (MsgBuffer,
-                                    "Invalid character (0x%2.2X), expecting ASL keyword or name",
-                                    *AslCompilertext);
+                                if (isprint ((int) *AslCompilertext))
+                                {
+                                    sprintf (MsgBuffer,
+                                        "Invalid character (%c), expecting ASL keyword or name",
+                                        *AslCompilertext);
+                                }
+                                else
+                                {
+                                    sprintf (MsgBuffer,
+                                        "Invalid character (0x%2.2X), expecting ASL keyword or name",
+                                        *AslCompilertext);
+                                }
                                 AslCompilererror (MsgBuffer);}
 
 <<EOF>>                     { if (AslPopInputFileStack ())

@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2015, Intel Corp.
+ * Copyright (C) 2000 - 2016, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -252,6 +252,7 @@ AsMatchValidToken (
             {
                 SubBuffer++;
             }
+
             SubBuffer++;
             continue;
         }
@@ -272,8 +273,8 @@ AsMatchValidToken (
                 if ((*SubBuffer == '\n') ||
                     (!(*SubBuffer)))
                 {
-                    AsPrint ("Unbalanced quoted string", 1, Filename);
-                    printf ("    %.32s\n", StringStart);
+                    AsPrint ("Unbalanced quoted string",1, Filename);
+                    printf ("    %.32s (line %u)\n", StringStart, TotalLines);
                     break;
                 }
 
@@ -283,6 +284,7 @@ AsMatchValidToken (
                 {
                     SubBuffer++;
                 }
+
                 SubBuffer++;
             }
 
@@ -1154,6 +1156,7 @@ AsTabify8 (
                     LastLineTabCount = TabCount;
                     TabCount = 0;
                 }
+
                 FirstNonBlank = NULL;
                 LastLineColumnStart = ThisColumnStart;
                 SubBuffer++;
@@ -1190,6 +1193,7 @@ AsTabify8 (
                     LastLineTabCount = TabCount;
                     TabCount = 0;
                 }
+
                 FirstNonBlank = NULL;
                 LastLineColumnStart = ThisColumnStart;
             }
@@ -1208,6 +1212,7 @@ AsTabify8 (
             {
                 return;
             }
+
             SpaceCount = 0;
         }
 
@@ -1396,8 +1401,8 @@ AsCountSourceLines (
             /* Find end of comment */
 
             while (SubBuffer[0] && SubBuffer[1] &&
-                    !(((SubBuffer[0] == '*') &&
-                      (SubBuffer[1] == '/'))))
+                !(((SubBuffer[0] == '*') &&
+                    (SubBuffer[1] == '/'))))
             {
                 if (SubBuffer[0] == '\n')
                 {
@@ -1487,7 +1492,7 @@ AsInsertPrefix (
     }
 
     strcpy (LowerKeyword, Keyword);
-    AsStrlwr (LowerKeyword);
+    AcpiUtStrlwr (LowerKeyword);
 
     SubBuffer = Buffer;
     SubString = Buffer;

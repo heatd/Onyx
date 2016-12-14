@@ -54,18 +54,12 @@ string/memccpy.o \
 string/strerror.o \
 string/stpcpy.o \
 stdlib/_Exit.o \
-posix/io.o \
-posix/uio.o \
-posix/time.o \
 stdio/fprintf.o \
 stdio/fread.o \
 stdio/fwrite.o \
 stdio/sprintf.o \
 stdio/stdio.o \
 stdio/stdstream.o \
-posix/process.o \
-posix/memory.o \
-posix/signal.o \
 stdio/perror.o \
 stdlib/rand.o \
 libc/__tls_get_addr.o \
@@ -80,7 +74,12 @@ stdio/tmpnam.o
 OBJS:=\
 $(FREEOBJS) \
 libc/init.o \
-
+posix/memory.o \
+posix/io.o \
+posix/signal.o \
+posix/time.o \
+posix/process.o \
+posix/uio.o
 LIBK_OBJS:=$(FREEOBJS:.o=.libk.o) \
 
 LD_SPARTIX_OBJS:=ld/main.o

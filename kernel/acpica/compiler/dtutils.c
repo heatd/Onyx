@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2015, Intel Corp.
+ * Copyright (C) 2000 - 2016, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -197,93 +197,6 @@ DtFatal (
 
 /******************************************************************************
  *
- * FUNCTION:    DtStrtoul64
- *
- * PARAMETERS:  String              - Null terminated string
- *              ReturnInteger       - Where the converted integer is returned
- *
- * RETURN:      Status
- *
- * DESCRIPTION: Simple conversion of a string hex integer constant to unsigned
- *              value. Assumes no leading "0x" for the constant.
- *
- * Portability note: The reason this function exists is because a 64-bit
- * sscanf is not available in all environments.
- *
- *****************************************************************************/
-
-ACPI_STATUS
-DtStrtoul64 (
-    char                    *String,
-    UINT64                  *ReturnInteger)
-{
-    char                    *ThisChar = String;
-    UINT32                  ThisDigit;
-    UINT64                  ReturnValue = 0;
-    int                     DigitCount = 0;
-
-
-    /* Skip over any white space in the buffer */
-
-    while ((*ThisChar == ' ') || (*ThisChar == '\t'))
-    {
-        ThisChar++;
-    }
-
-    /* Skip leading zeros */
-
-    while ((*ThisChar) == '0')
-    {
-        ThisChar++;
-    }
-
-    /* Convert character-by-character */
-
-    while (*ThisChar)
-    {
-        if (ACPI_IS_DIGIT (*ThisChar))
-        {
-            /* Convert ASCII 0-9 to Decimal value */
-
-            ThisDigit = ((UINT8) *ThisChar) - '0';
-        }
-        else /* Letter */
-        {
-            ThisDigit = (UINT32) ACPI_TOUPPER (*ThisChar);
-            if (!ACPI_IS_XDIGIT ((char) ThisDigit))
-            {
-                /* Not A-F */
-
-                return (AE_BAD_CHARACTER);
-            }
-
-            /* Convert ASCII Hex char (A-F) to value */
-
-            ThisDigit = (ThisDigit - 'A') + 10;
-        }
-
-        /* Insert the 4-bit hex digit */
-
-        ReturnValue <<= 4;
-        ReturnValue += ThisDigit;
-
-        ThisChar++;
-        DigitCount++;
-        if (DigitCount > 16)
-        {
-            /* Value is too large (> 64 bits/8 bytes/16 hex digits) */
-
-            return (AE_LIMIT);
-        }
-    }
-
-    *ReturnInteger = ReturnValue;
-    return (AE_OK);
-}
-
-
-/******************************************************************************
- *
  * FUNCTION:    DtGetFieldValue
  *
  * PARAMETERS:  Field               - Current field list pointer
@@ -367,6 +280,7 @@ DtGetFieldType (
     case ACPI_DMT_RAW_BUFFER:
     case ACPI_DMT_BUF7:
     case ACPI_DMT_BUF10:
+    case ACPI_DMT_BUF12:
     case ACPI_DMT_BUF16:
     case ACPI_DMT_BUF128:
     case ACPI_DMT_PCI_PATH:
@@ -376,6 +290,7 @@ DtGetFieldType (
 
     case ACPI_DMT_GAS:
     case ACPI_DMT_HESTNTFY:
+    case ACPI_DMT_IORTMEM:
 
         Type = DT_FIELD_TYPE_INLINE_SUBTABLE;
         break;
@@ -520,6 +435,7 @@ DtGetFieldLength (
     case ACPI_DMT_UINT16:
     case ACPI_DMT_DMAR:
     case ACPI_DMT_HEST:
+    case ACPI_DMT_NFIT:
     case ACPI_DMT_PCI_PATH:
 
         ByteLength = 2;
@@ -566,7 +482,7 @@ DtGetFieldLength (
         Value = DtGetFieldValue (Field);
         if (Value)
         {
-            ByteLength = ACPI_STRLEN (Value) + 1;
+            ByteLength = strlen (Value) + 1;
         }
         else
         {   /* At this point, this is a fatal error */
@@ -585,6 +501,11 @@ DtGetFieldLength (
     case ACPI_DMT_HESTNTFY:
 
         ByteLength = sizeof (ACPI_HEST_NOTIFY);
+        break;
+
+    case ACPI_DMT_IORTMEM:
+
+        ByteLength = sizeof (ACPI_IORT_MEMORY_ACCESS);
         break;
 
     case ACPI_DMT_BUFFER:
@@ -609,6 +530,11 @@ DtGetFieldLength (
         ByteLength = 10;
         break;
 
+    case ACPI_DMT_BUF12:
+
+        ByteLength = 12;
+        break;
+
     case ACPI_DMT_BUF16:
     case ACPI_DMT_UUID:
 
@@ -626,7 +552,7 @@ DtGetFieldLength (
 
         /* TBD: error if Value is NULL? (as below?) */
 
-        ByteLength = (ACPI_STRLEN (Value) + 1) * sizeof(UINT16);
+        ByteLength = (strlen (Value) + 1) * sizeof(UINT16);
         break;
 
     default:

@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2015, Intel Corp.
+ * Copyright (C) 2000 - 2016, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -116,6 +116,11 @@ AcpiEvEnableGpe (
     ACPI_GPE_EVENT_INFO     *GpeEventInfo);
 
 ACPI_STATUS
+AcpiEvMaskGpe (
+    ACPI_GPE_EVENT_INFO     *GpeEventInfo,
+    BOOLEAN                 IsMasked);
+
+ACPI_STATUS
 AcpiEvAddGpeReference (
     ACPI_GPE_EVENT_INFO     *GpeEventInfo);
 
@@ -222,6 +227,11 @@ AcpiEvDeleteGpeHandlers (
 /*
  * evhandler - Address space handling
  */
+ACPI_OPERAND_OBJECT *
+AcpiEvFindRegionHandler (
+    ACPI_ADR_SPACE_TYPE     SpaceId,
+    ACPI_OPERAND_OBJECT     *HandlerObj);
+
 BOOLEAN
 AcpiEvHasDefaultHandler (
     ACPI_NAMESPACE_NODE     *Node,
@@ -264,17 +274,18 @@ AcpiEvAttachRegion (
 
 void
 AcpiEvDetachRegion (
-    ACPI_OPERAND_OBJECT    *RegionObj,
+    ACPI_OPERAND_OBJECT     *RegionObj,
     BOOLEAN                 AcpiNsIsLocked);
 
-ACPI_STATUS
+void
 AcpiEvExecuteRegMethods (
     ACPI_NAMESPACE_NODE     *Node,
-    ACPI_ADR_SPACE_TYPE     SpaceId);
+    ACPI_ADR_SPACE_TYPE     SpaceId,
+    UINT32                  Function);
 
 ACPI_STATUS
 AcpiEvExecuteRegMethod (
-    ACPI_OPERAND_OBJECT    *RegionObj,
+    ACPI_OPERAND_OBJECT     *RegionObj,
     UINT32                  Function);
 
 
@@ -325,8 +336,7 @@ AcpiEvDefaultRegionSetup (
 
 ACPI_STATUS
 AcpiEvInitializeRegion (
-    ACPI_OPERAND_OBJECT     *RegionObj,
-    BOOLEAN                 AcpiNsLocked);
+    ACPI_OPERAND_OBJECT     *RegionObj);
 
 
 /*

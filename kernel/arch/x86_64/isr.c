@@ -126,6 +126,7 @@ void isr_handler(intctx_t *ctx)
 			break;
 		}
 	case 13:{
+			heap_search(0xCACACACACACACACA);
 			printf(exception_msg[int_no]);
 			if (err_code != 0)
 				printf("\nSegment 0x%X\n", err_code);
@@ -151,6 +152,8 @@ void isr_handler(intctx_t *ctx)
 			}
 			if(err_code & 0x10)
 				printf("Instruction fetch\n");
+			if(err_code & (1 << 3))
+				printf("Reserved bit was set!\n");
                         asm volatile("hlt");
 		}
 		goto pf;

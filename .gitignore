@@ -16,3 +16,5 @@ cat/cat
 echo/echo
 *.pcap
 *.pcapng
+login/login
+sh/sh

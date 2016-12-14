@@ -13,9 +13,9 @@
 
 #include <stdint.h>
 #include <string.h>
-#include <kernel/pmm.h>
+#include <kernel/bootmem.h>
 
-#define PHYS_BASE (0xFFFFA00000000000)
+#define PHYS_BASE (0xffffea0000000000)
 #define PAGE_WRITABLE 0x1
 #define PAGE_GLOBAL 0x2
 #define PAGE_KERNEL (PAGE_GLOBAL|PAGE_WRITABLE)
@@ -30,8 +30,9 @@ typedef struct {uint64_t entries[512];} PML1;
 
 void paging_init();
 void paging_unmap(void* memory);
-void* paging_map_phys_to_virt(uintptr_t virt, uintptr_t phys, uint64_t prot);
-void paging_map_all_phys(size_t);
+void *paging_map_phys_to_virt(uintptr_t virt, uintptr_t phys, uint64_t prot);
+void *paging_map_phys_to_virt_huge(uint64_t virt, uint64_t phys, uint64_t prot);
+void paging_map_all_phys(void);
 void *virtual2phys(void *ptr);
 PML4 *paging_clone_as();
 PML4 *paging_fork_as();

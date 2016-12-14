@@ -20,8 +20,10 @@
 #include <kernel/network.h>
 #include <kernel/panic.h>
 #include <kernel/arp.h>
+#include <kernel/log.h>
+#include <kernel/dns.h>
 
-inline void parse_ipnumber_to_char_array(uint32_t ip, unsigned char* buffer)
+void parse_ipnumber_to_char_array(uint32_t ip, unsigned char* buffer)
 {
 	buffer[0] = ip & 0xFF;
 	buffer[1] = (ip >> 8) & 0xFF;
@@ -37,15 +39,10 @@ inline uint32_t parse_char_array_to_ip_number(unsigned char* buffer)
 	ret |= (buffer[0] << 24);
 	return ret;
 }
-void test_netstack()
-{
-	int s = socket(AF_INET, SOCK_DGRAM, 0);
-	if(s == -1)
-		panic("Failed to create a sock for the dhcp client\n");
-}
 int dhcp_sock = -1;
 int dhcp_initialize()
 {
+	INFO("dhcp", "initializing\n");
 	// Create and setup a dhcp packet for BOOTP
 	dhcp_packet_t *dhcp_header = malloc(sizeof(dhcp_packet_t));
 	if(!dhcp_header)
@@ -81,6 +78,7 @@ int dhcp_initialize()
 	if(bind(dhcp_sock, 68, 0xFFFFFFFF, 67))
 		panic("Failed to bind a socket for the dhcp client!\n");
 	send(dhcp_sock, (const void*) dhcp_header, sizeof(dhcp_packet_t));
+	
 	free(dhcp_header);
 	dhcp_packet_t *response = NULL;
 
@@ -91,19 +89,23 @@ int dhcp_initialize()
 	uint32_t router_ip = 0;
 	memcpy(&router_ip, &response->options[21], 4);
 	uint32_t dns_server = 0;
-	memcpy(&dns_server, &response->options[28], 4);
+	memcpy(&dns_server, &response->options[27], 4);
+	dns_set_server_ip(dns_server);
 	uint32_t own_ip = response->yiaddr;
 	unsigned char router_ip_b[4] = {0};
 	parse_ipnumber_to_char_array(router_ip, router_ip_b);
-	printf("router_ip: %u.%u.%u.%u\n", router_ip_b[0], router_ip_b[1], router_ip_b[2], router_ip_b[3]);
+	
+	INFO("dhcp", "router_ip: %u.%u.%u.%u\n", router_ip_b[0], router_ip_b[1], router_ip_b[2], router_ip_b[3]);
+	
 	UNUSED(own_ip);
 	UNUSED(response_len);
+	
 	arp_request_t *returned_arp = send_arp_request_ipv4((char*)&router_ip_b);
 	if(!returned_arp)
 		return 1;
 	char router_mac_dhcp[6] = {0};
 	memcpy(&router_mac_dhcp, &returned_arp->sender_hw_address, 6);
 	eth_set_router_mac(router_mac_dhcp);
+
 	return 0;
 }
-

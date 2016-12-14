@@ -14,9 +14,12 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include <kernel/log.h>
 #include <kernel/compiler.h>
 #include <kernel/vmm.h>
 #include <kernel/panic.h>
+#include <kernel/log.h>
+
 extern uintptr_t rsdp;
 static const ACPI_EXCEPTION_INFO    AcpiGbl_ExceptionNames_Env[] =
 {
@@ -71,7 +74,7 @@ ACPI_STATUS acpi_walk_irq(ACPI_HANDLE object, UINT32 nestingLevel, void *context
 	// TODO: Build a device tree off this information (with PCI as well)
 	if(ACPI_FAILURE(st))
 	{
-		printf("ACPI: Error: AcpiGetObjectInfo failed!\n");
+		ERROR("acpi", "Error: AcpiGetObjectInfo failed!\n");
 		return AE_ERROR;
 	}
 	
@@ -101,7 +104,7 @@ int acpi_get_irq_routing_tables()
 	ACPI_STATUS st = AcpiGetDevices("PNP0A03", acpi_walk_irq, NULL, &retval);
 	if(ACPI_FAILURE(st))
 	{
-		printf("ACPI: Error while calling AcpiGetDevices: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
+		ERROR("acpi", "Error while calling AcpiGetDevices: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
 		return 1;
 	}
 	ACPI_PNP_DEVICE_ID *root_hid = &root_bridge_info->HardwareId;
@@ -113,7 +116,7 @@ int acpi_get_irq_routing_tables()
 	st = AcpiGetIrqRoutingTable(root_bridge, &buf);
 	if(ACPI_FAILURE(st))
 	{
-		printf("ACPI: Error while calling AcpiGetIrqRoutingTable: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
+		ERROR("acpi", "Error while calling AcpiGetIrqRoutingTable: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
 		return 1;
 	}
 	routing_table = (ACPI_PCI_ROUTING_TABLE*) buf.Pointer;
@@ -127,12 +130,10 @@ int acpi_get_irq_routing_for_dev(uint8_t bus, uint8_t device, uint8_t function)
 	ACPI_PCI_ROUTING_TABLE *it = routing_table;
 	for(; it->Length != 0; it = (ACPI_PCI_ROUTING_TABLE*)ACPI_NEXT_RESOURCE(it))
 	{
-		printf("Checking bus %d\n", it->Address >> 16);
 		if(device != (it->Address >> 16))
 			continue;
 		if(it->Source[0] == 0)
 		{
-			printf("Using GSI\nPin %d : %d\n", it->Pin+1, it->SourceIndex);
 			release_spinlock(&irq_rout_lock);
 			return it->SourceIndex+1;
 		}
@@ -143,7 +144,8 @@ int acpi_get_irq_routing_for_dev(uint8_t bus, uint8_t device, uint8_t function)
 
 			if(ACPI_FAILURE(st))
 			{
-				printf("ACPI: Error while calling AcpiGetHandle: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
+				ERROR("acpi", "Error while calling AcpiGetHandle: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
+				release_spinlock(&irq_rout_lock);
 				return -1;
 			}
 			ACPI_BUFFER buf;
@@ -153,7 +155,8 @@ int acpi_get_irq_routing_for_dev(uint8_t bus, uint8_t device, uint8_t function)
 			st = AcpiGetCurrentResources(link_obj, &buf);
 			if(ACPI_FAILURE(st))
 			{
-				printf("ACPI: Error while calling AcpiGetCurrentResources: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
+				ERROR("acpi", "Error while calling AcpiGetCurrentResources: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
+				release_spinlock(&irq_rout_lock);
 				return -1;
 			}
 			
@@ -163,13 +166,11 @@ int acpi_get_irq_routing_for_dev(uint8_t bus, uint8_t device, uint8_t function)
 				{
 					case ACPI_RESOURCE_TYPE_IRQ:
 					{
-						printf("IRQ: %u\n", res->Data.Irq.Interrupts[0]);
 						release_spinlock(&irq_rout_lock);
 						return res->Data.Irq.Interrupts[0]+1;
 					}
 					case ACPI_RESOURCE_TYPE_EXTENDED_IRQ:
 					{
-						printf("Extended IRQ: %u\n", res->Data.ExtendedIrq.Interrupts[0]);
 						release_spinlock(&irq_rout_lock);
 						return res->Data.ExtendedIrq.Interrupts[0]+1;
 					}
@@ -206,7 +207,7 @@ int acpi_initialize()
 	if(ACPI_FAILURE(st))
 		panic("AcpiInitializeObjects failed!");
 
-	printf("ACPI initialized!\n");
+	INFO("acpi", "initialized!\n");
 
 	return 0;
 }

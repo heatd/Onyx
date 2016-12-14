@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2015, Intel Corp.
+ * Copyright (C) 2000 - 2016, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -74,9 +74,9 @@ ApIsValidHeader (
     {
         /* Make sure signature is all ASCII and a valid ACPI name */
 
-        if (!AcpiUtValidAcpiName (Table->Signature))
+        if (!AcpiUtValidNameseg (Table->Signature))
         {
-            AcpiLogError ("Table signature (0x%8.8X) is invalid\n",
+            fprintf (stderr, "Table signature (0x%8.8X) is invalid\n",
                 *(UINT32 *) Table->Signature);
             return (FALSE);
         }
@@ -85,7 +85,7 @@ ApIsValidHeader (
 
         if (Table->Length < sizeof (ACPI_TABLE_HEADER))
         {
-            AcpiLogError ("Table length (0x%8.8X) is invalid\n",
+            fprintf (stderr, "Table length (0x%8.8X) is invalid\n",
                 Table->Length);
             return (FALSE);
         }
@@ -131,7 +131,7 @@ ApIsValidChecksum (
 
     if (ACPI_FAILURE (Status))
     {
-        AcpiLogError ("%4.4s: Warning: wrong checksum in table\n",
+        fprintf (stderr, "%4.4s: Warning: wrong checksum in table\n",
             Table->Signature);
     }
 
@@ -223,13 +223,13 @@ ApDumpTableBuffer (
      * Note: simplest to just always emit a 64-bit address. AcpiXtract
      * utility can handle this.
      */
-    AcpiUtFilePrintf (Gbl_OutputFile, "%4.4s @ 0x%8.8X%8.8X\n",
+    fprintf (Gbl_OutputFile, "%4.4s @ 0x%8.8X%8.8X\n",
         Table->Signature, ACPI_FORMAT_UINT64 (Address));
 
     AcpiUtDumpBufferToFile (Gbl_OutputFile,
         ACPI_CAST_PTR (UINT8, Table), TableLength,
         DB_BYTE_DISPLAY, 0);
-    AcpiUtFilePrintf (Gbl_OutputFile, "\n");
+    fprintf (Gbl_OutputFile, "\n");
     return (0);
 }
 
@@ -274,13 +274,13 @@ ApDumpAllTables (
             }
             else if (i == 0)
             {
-                AcpiLogError ("Could not get ACPI tables, %s\n",
+                fprintf (stderr, "Could not get ACPI tables, %s\n",
                     AcpiFormatException (Status));
                 return (-1);
             }
             else
             {
-                AcpiLogError ("Could not get ACPI table at index %u, %s\n",
+                fprintf (stderr, "Could not get ACPI table at index %u, %s\n",
                     i, AcpiFormatException (Status));
                 continue;
             }
@@ -326,10 +326,11 @@ ApDumpTableByAddress (
 
     /* Convert argument to an integer physical address */
 
-    Status = AcpiUtStrtoul64 (AsciiAddress, 0, &LongAddress);
+    Status = AcpiUtStrtoul64 (AsciiAddress, ACPI_STRTOUL_64BIT,
+        &LongAddress);
     if (ACPI_FAILURE (Status))
     {
-        AcpiLogError ("%s: Could not convert to a physical address\n",
+        fprintf (stderr, "%s: Could not convert to a physical address\n",
             AsciiAddress);
         return (-1);
     }
@@ -338,7 +339,7 @@ ApDumpTableByAddress (
     Status = AcpiOsGetTableByAddress (Address, &Table);
     if (ACPI_FAILURE (Status))
     {
-        AcpiLogError ("Could not get table at 0x%8.8X%8.8X, %s\n",
+        fprintf (stderr, "Could not get table at 0x%8.8X%8.8X, %s\n",
             ACPI_FORMAT_UINT64 (Address),
             AcpiFormatException (Status));
         return (-1);
@@ -375,9 +376,9 @@ ApDumpTableByName (
     int                     TableStatus;
 
 
-    if (ACPI_STRLEN (Signature) != ACPI_NAME_SIZE)
+    if (strlen (Signature) != ACPI_NAME_SIZE)
     {
-        AcpiLogError (
+        fprintf (stderr,
             "Invalid table signature [%s]: must be exactly 4 characters\n",
             Signature);
         return (-1);
@@ -385,18 +386,18 @@ ApDumpTableByName (
 
     /* Table signatures are expected to be uppercase */
 
-    ACPI_STRCPY (LocalSignature, Signature);
+    strcpy (LocalSignature, Signature);
     AcpiUtStrupr (LocalSignature);
 
     /* To be friendly, handle tables whose signatures do not match the name */
 
     if (ACPI_COMPARE_NAME (LocalSignature, "FADT"))
     {
-        ACPI_STRCPY (LocalSignature, ACPI_SIG_FADT);
+        strcpy (LocalSignature, ACPI_SIG_FADT);
     }
     else if (ACPI_COMPARE_NAME (LocalSignature, "MADT"))
     {
-        ACPI_STRCPY (LocalSignature, ACPI_SIG_MADT);
+        strcpy (LocalSignature, ACPI_SIG_MADT);
     }
 
     /* Dump all instances of this signature (to handle multiple SSDTs) */
@@ -414,7 +415,7 @@ ApDumpTableByName (
                 return (0);
             }
 
-            AcpiLogError (
+            fprintf (stderr,
                 "Could not get ACPI table with signature [%s], %s\n",
                 LocalSignature, AcpiFormatException (Status));
             return (-1);
@@ -464,11 +465,18 @@ ApDumpTableFromFile (
         return (-1);
     }
 
+    if (!AcpiUtValidNameseg (Table->Signature))
+    {
+        fprintf (stderr,
+            "No valid ACPI signature was found in input file %s\n",
+            Pathname);
+    }
+
     /* File must be at least as long as the table length */
 
     if (Table->Length > FileSize)
     {
-        AcpiLogError (
+        fprintf (stderr,
             "Table length (0x%X) is too large for input file (0x%X) %s\n",
             Table->Length, FileSize, Pathname);
         goto Exit;
@@ -476,7 +484,7 @@ ApDumpTableFromFile (
 
     if (Gbl_VerboseMode)
     {
-        AcpiLogError (
+        fprintf (stderr,
             "Input file:  %s contains table [%4.4s], 0x%X (%u) bytes\n",
             Pathname, Table->Signature, FileSize, FileSize);
     }

@@ -30,7 +30,7 @@ size_t pmm_get_used_mem();
 void pmm_push(uintptr_t base,size_t size,size_t kernel_space_size);
 void pmm_pop();
 void pmm_init(size_t memory_size,uintptr_t stack_space);
-void *pmalloc(size_t blocks);
+void *bootmem_alloc(size_t blocks);
 void  pfree(size_t blocks,void* ptr);
 
 #endif
