@@ -8,12 +8,21 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 
 #include <kernel/log.h>
 #include <kernel/dns.h>
 #include <kernel/network.h>
+#include <kernel/crc32.h>
+
 static uint32_t server_ip = 0;
+static hostname_hashtable_t *hashtable = NULL;
+#define DEFAULT_SIZE 256
+
 extern void parse_ipnumber_to_char_array(uint32_t, unsigned char *);
+extern uint32_t parse_char_array_to_ip_number(unsigned char*);
 void dns_set_server_ip(uint32_t ip)
 {
 	unsigned char ip_b[4] = {0};
@@ -22,13 +31,121 @@ void dns_set_server_ip(uint32_t ip)
 	server_ip = ip;
 }
 int dns_sock = -1;
-void dns_test()
+void dns_init()
 {
-	INFO("dns", "testing\n");
+	INFO("dns", "initializing\n");
 	dns_sock = socket(AF_INET, SOCK_DGRAM, 0);
 	if(dns_sock == -1)
 		panic("Failed to create a sock for the dns subsystem\n");
 	// Bind a socket with the dhcp port numbers and the broadcast IP
-	if(bind(dns_sock, 53, server_ip, 53))
-		panic("Failed to bind a socket for the dhcp client!\n");*/
+	if(bind(dns_sock, 53, LITTLE_TO_BIG32(server_ip), 53))
+		panic("Failed to bind a socket for the dhcp client!\n");
+	
+	/* Allocate and zero-out a hashtable */
+	hashtable = malloc(sizeof(hostname_hashtable_t));
+	if(!hashtable)
+		panic("Error while allocating the dns hashtable: No memory\n");
+
+	memset(hashtable, 0, sizeof(hostname_hashtable_t));
+	hashtable->size = DEFAULT_SIZE;
+	hashtable->buckets = malloc(DEFAULT_SIZE * sizeof(void*));
+	memset(hashtable->buckets, 0, sizeof(void*) * DEFAULT_SIZE);
+}
+
+static int dns_hash_string(const char *name)
+{
+	return crc32_calculate(name, strlen(name)) % DEFAULT_SIZE;
+}
+void dns_fill_hashtable(int hash, const char *name, uint32_t address)
+{
+	hostname_t *host = hashtable->buckets[hash];
+	
+	hostname_t *prev = NULL;
+	for(; host; host = host->next)
+		prev = host;
+	
+	host = malloc(sizeof(hostname_t));
+	memset(host, 0, sizeof(hostname_t));
+
+	if(!hashtable->buckets[hash])
+		hashtable->buckets[hash] = host;
+	if(prev)
+		prev->next = host;
+	host->name = name;
+	host->address = address;
+}
+uint32_t dns_resolve_host(const char *name)
+{
+	int hash = dns_hash_string(name);
+	/* See if this host is already on the hashtable, if so just return the contents */
+	hostname_t *host = hashtable->buckets[hash];
+	for(; host; host = host->next)
+	{
+		if(strcmp(host->name, name) == 0)
+			return host->address;
+	}
+	/* else just perform a normal dns request and fill the hashtable after that */
+	uint32_t address = dns_send_request(name);
+
+	dns_fill_hashtable(hash, name, address);
+
+	return address;
+}
+uint32_t dns_send_request(const char *name)
+{
+	size_t size = sizeof(struct dns) + strlen(name) + 6;
+	/* The size of the allocate buffer = size of the dns header + the length of the name + 1 bytes for the beginning token's size
+	+ 1 byte for the terminating zero + 4 bytes for the remaining QTYPE and QCLASS */
+
+	/* Allocate and zero it out */
+	struct dns *request = malloc(size);
+	memset(request, 0, size);
+	/* TODO: When we support concurent network operations(we currently don't), make sure we use the dns_id field for something */
+	request->dns_id = 0xFEFE;
+	
+	request->flags = 1;
+	request->qdcount = LITTLE_TO_BIG16(1);
+	char *s = &request->names;
+	*s = 3;
+	s++;
+	while(*name != '\0')
+	{
+		if(*name == '.')
+		{
+			unsigned char len = 0;
+			char *next_token = strchr(name+1, '.');
+			if(!next_token)
+				len = strlen(name) - 1;
+			else
+				len = next_token - name - 1;
+			*s++ = len;
+			name++;
+		}
+		else
+		{
+			*s++ = *name++;
+		}
+	}
+	s++;
+	uint16_t *i = s;
+	*i++ = LITTLE_TO_BIG16(1);
+	*i = LITTLE_TO_BIG16(1);
+	send(dns_sock, (const void*) request, size);
+	
+	/* Free up request, and see if we get a response */
+	free(request);
+	struct dns *answer = NULL;
+	recv(dns_sock, &answer);
+	unsigned char *b = (unsigned char*)&answer->names + size - sizeof(struct dns);
+again:;
+	uint16_t in = LITTLE_TO_BIG16(*((uint16_t*)(b + 2)));
+	if( in != 1)
+	{
+		b += 14;
+		goto again;
+	}
+	b+= 12;
+
+	free(answer);
+	return parse_char_array_to_ip_number(b);
 }

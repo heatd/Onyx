@@ -43,15 +43,17 @@ static void ubsan_abort(const struct ubsan_source_location* location,
 {
 	if(strcmp(violation, "unaligned access") == 0)
 	{
-		printf("WARNING: %s at %s:%u:%u\n", violation, location->filename, location->line, location->column);
+		//printf("WARNING: %s at %s:%u:%u\n", violation, location->filename, location->line, location->column);
 		return;
 	}
 	if ( !location || !location->filename )
 		location = &unknown_location;
 	if(strcmp(violation, "null argument") == 0 && strcmp(location->filename, "kernel/kernel.c") == 0 )
 		return;
+	#ifdef __DEBUG
 	printf("Violating %s at %s:%u:%u\n", violation, location->filename, location->line, location->column);
 	while(1) asm volatile("cli;hlt");
+	#endif
 }
 #define ABORT_VARIANT(name, params, call) \
 __attribute__((noreturn)) \

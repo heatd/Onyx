@@ -30,13 +30,13 @@ void parse_ipnumber_to_char_array(uint32_t ip, unsigned char* buffer)
 	buffer[2] = (ip >> 16) & 0xFF;
 	buffer[3] = (ip >> 24) & 0xFF;
 }
-inline uint32_t parse_char_array_to_ip_number(unsigned char* buffer)
+uint32_t parse_char_array_to_ip_number(unsigned char* buffer)
 {
 	uint32_t ret = 0;
 	ret = buffer[3];
-	ret |= (buffer[2] << 8);
-	ret |= (buffer[1] << 16);
-	ret |= (buffer[0] << 24);
+	ret |= ((uint32_t) buffer[2] << 8);
+	ret |= ((uint32_t) buffer[1] << 16);
+	ret |= ((uint32_t) buffer[0] << 24);
 	return ret;
 }
 int dhcp_sock = -1;
@@ -97,7 +97,7 @@ int dhcp_initialize()
 	
 	INFO("dhcp", "router_ip: %u.%u.%u.%u\n", router_ip_b[0], router_ip_b[1], router_ip_b[2], router_ip_b[3]);
 	
-	UNUSED(own_ip);
+	ip_set_local_ip(LITTLE_TO_BIG32(own_ip));
 	UNUSED(response_len);
 	
 	arp_request_t *returned_arp = send_arp_request_ipv4((char*)&router_ip_b);

@@ -58,6 +58,26 @@ inline uint16_t ipsum(ip_header_t *hdr)
 	}
 	return ~ret;
 }
+inline uint16_t internetchksum(void *addr, size_t bytes)
+{
+	uint32_t sum = 0;
+	uint32_t ret = 0;
+	uint16_t *ptr = (uint16_t*) addr;
+	size_t words = bytes / 2;
+	for(int i = 0; i < words; i++)
+	{
+		sum += ptr[i];
+	}
+	ret = sum & 0xFFFF;
+	uint32_t carry = sum - ret;
+	while(carry)
+	{
+		ret += carry;
+		carry = (ret - (ret & 0xFFFF)) >> 16;
+		ret &= 0xFFFF;
+	}
+	return ~ret;
+}
 extern uint32_t ip_local_ip;
 extern uint32_t ip_router_ip;
 int send_ipv4_packet(uint32_t senderip, uint32_t destip, unsigned int type, char *payload, size_t payload_size);

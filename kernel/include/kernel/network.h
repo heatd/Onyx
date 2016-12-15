@@ -18,6 +18,7 @@
 #define SOCK_DGRAM 1
 #define AF_INET 1
 
+#define SOCK_RAW 2
 #define SOCK_RDONLY 1
 #define SOCK_WR 2
 #define SOCK_RDWR 4
@@ -26,6 +27,7 @@
 typedef struct sock
 {
 	int mode;
+	int proto;
 	int connection_type;
 	int domain;
 	int localport;
@@ -38,7 +40,7 @@ typedef struct sock
 
 int socket(int domain, int connection_type, int protocol);
 int bind(int socket, int localport, uint32_t ip, int destport);
-int recv(int socket, void**bufptr);
+int recv(int socket, void **bufptr);
 int send(int socket, const void *buffer, size_t len);
 void network_handle_packet(ip_header_t *hdr, uint16_t len);
 

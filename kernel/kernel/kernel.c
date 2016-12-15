@@ -51,6 +51,8 @@
 #include <kernel/dev.h>
 #include <kernel/bootmem.h>
 #include <kernel/log.h>
+#include <kernel/dns.h>
+#include <kernel/icmp.h>
 
 #include <drivers/ps2.h>
 #include <drivers/ata.h>
@@ -260,8 +262,10 @@ void kernel_multitasking(void *arg)
 	else
 		INFO("eth0", "found compatible device\n");
 	dhcp_initialize();
-	extern void dns_test();
-	dns_test();
+	dns_init();
+	uint32_t ip = dns_resolve_host("www.google.com");
+	icmp_init();
+	icmp_ping(ip, 10);
 	// read_partitions();
 	/*vfsnode_t *in = open_vfs(fs_root, "/etc/fstab");
 	if (!in)
@@ -280,7 +284,7 @@ void kernel_multitasking(void *arg)
 	null_init(); /* /dev/null */
 	zero_init(); /* /dev/zero */
 
-	exec("/sbin/init", args, envp);
+	//exec("/sbin/init", args, envp);
 
 	if(errno == ENOENT)
 	{

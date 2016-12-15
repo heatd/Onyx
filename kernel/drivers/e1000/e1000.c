@@ -176,7 +176,7 @@ int e1000_init_descs()
 	e1000_write_command(REG_RXDESCHEAD, 0);
 	e1000_write_command(REG_RXDESCTAIL, E1000_NUM_RX_DESC-1);
 	rx_cur = 0;
-	e1000_write_command(REG_RCTRL, RCTL_EN| RCTL_SBP| RCTL_UPE | RCTL_MPE | RCTL_LBM_NONE | RTCL_RDMTS_HALF | RCTL_BAM | RCTL_SECRC  | RCTL_BSIZE_2048);
+	e1000_write_command(REG_RCTRL, RCTL_EN| RCTL_SBP| RCTL_UPE | RCTL_MPE | RCTL_LBM_NONE | RTCL_RDMTS_HALF | RCTL_BAM | RCTL_SECRC | RCTL_BSIZE_2048);
 	
 	struct e1000_tx_desc *txdescs = NULL;
 	
@@ -205,11 +205,11 @@ int e1000_init_descs()
 	e1000_write_command( REG_TXDESCHEAD, 0);
 	e1000_write_command( REG_TXDESCTAIL, 0);
 	tx_cur = 0;
-	e1000_write_command(REG_TCTRL,  TCTL_EN
+	/*e1000_write_command(REG_TCTRL,  TCTL_EN
         | TCTL_PSP
         | (15 << TCTL_CT_SHIFT)
         | (64 << TCTL_COLD_SHIFT)
-        | TCTL_RTLC);
+        | TCTL_RTLC); */
  
 	e1000_write_command(REG_TCTRL,  0b0110000000000111111000011111010);
 	e1000_write_command(REG_TIPG,  0x0060200A);

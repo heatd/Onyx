@@ -28,8 +28,8 @@ typedef struct
 
 typedef struct
 {
-	uint32_t crc32;
 	uint8_t interpacket_gap[12];
+	uint32_t crc32;
 } __attribute__((packed)) ethernet_footer_t;
 
 #define LITTLE_TO_BIG16(n) ((n >> 8) | (n << 8))

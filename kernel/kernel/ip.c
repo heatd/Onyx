@@ -30,7 +30,7 @@ int send_ipv4_packet(uint32_t senderip, uint32_t destip, unsigned int type, char
 	ip_header->dest_ip = LITTLE_TO_BIG32(destip);
 	ip_header->proto = type;
 	ip_header->frag_off__flags =  LITTLE_TO_BIG16(2 & 0x7);
-	ip_header->ttl = 0xFF;
+	ip_header->ttl = 64;
 	ip_header->total_len = LITTLE_TO_BIG16((sizeof(ip_header_t) + payload_size));
 	ip_header->version = 4;
 	ip_header->ihl = 5;

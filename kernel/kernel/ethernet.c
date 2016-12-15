@@ -17,6 +17,7 @@
 #include <kernel/arp.h>
 #include <kernel/network.h>
 #include <kernel/vmm.h>
+#include <kernel/crc32.h>
 
 #include <drivers/pci.h>
 #include <drivers/e1000.h>
