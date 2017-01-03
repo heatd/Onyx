@@ -52,7 +52,7 @@ void dns_init()
 	memset(hashtable->buckets, 0, sizeof(void*) * DEFAULT_SIZE);
 }
 
-static int dns_hash_string(const char *name)
+int dns_hash_string(const char *name)
 {
 	return crc32_calculate(name, strlen(name)) % DEFAULT_SIZE;
 }

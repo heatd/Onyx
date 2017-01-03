@@ -56,7 +56,7 @@ int add_module_to_hashtable(module_t *mod)
 		for(; i->next != NULL; i=i->next);
 		i->next = mod;
 	}
-	return key;
+	return 0;
 }
 module_t *get_module_from_key(int key, char *name)
 {

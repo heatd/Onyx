@@ -13,9 +13,16 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
+
+#include <sys/syscall.h>
+#include <sys/utsname.h>
 /* x is a placeholder */
 char *prefix = "/etc/init.d/rcx.d";
 
+void sethostname(const char *name, size_t len)
+{
+	syscall(SYS_sethostname, name, len);
+}
 char *copy_until_newline(char *s)
 {
 	char *str = s;
@@ -33,6 +40,10 @@ char *copy_until_newline(char *s)
 		*buffer++ = *str++;
 	return ret;
 		
+}
+void insmod(const char *path, const char *name)
+{
+	syscall(SYS_insmod, path, name);
 }
 int main(int argc, char **argv, char **envp)
 {
@@ -90,11 +101,18 @@ int main(int argc, char **argv, char **envp)
 	char *env[] = {"", NULL};
 	char *shell = copy_until_newline(buf);
 	char *args[] = {shell, "/etc/fstab", NULL};
-	//printf("Shell: %s\n", shell);
-	int pid = fork();
+	printf("Shell: %s\n", shell);
 	
-	if(pid == 0)
-		execve(shell, args, env);
+	sethostname("localhost", strlen("localhost"));
+
+	struct utsname uname_data = {0};
+	syscall(SYS_uname, &uname_data);
+	printf("%s %s %s %s %s\n", uname_data.sysname, uname_data.release, uname_data.version, uname_data.machine, uname_data.nodename);
+	
+	insmod("/lib/modules/example.kmod", "example");
+	int pid = fork();
+	/*if(pid == 0)
+		execve(shell, args, env);*/
 
 	while(1);
 	return 0;

@@ -50,6 +50,10 @@
 #define SYS_isatty	35
 #define SYS_signal	36
 #define SYS_sigreturn	37
+#define SYS_insmod 	38
+#define SYS_uname	39
+#define SYS_gethostname	40
+#define SYS_sethostname	41
 #define set_errno() register int __err asm("r11"); \
 errno = __err
 

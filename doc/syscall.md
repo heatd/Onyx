@@ -41,3 +41,10 @@ The kernel exposes the system calls to the user-space by the interrupt vector 0x
 | 32 | personality() system call |
 | 33 | setuid() system call |
 | 34 | setgid() system call |
+| 35 | isatty() system call |
+| 36 | signal() system call |
+| 37 | sigreturn() system call |
+| 38 | insmod() system call |
+| 39 | uname() system call |
+| 40 | gethostname() system call |
+| 41 | sethostname() system call |

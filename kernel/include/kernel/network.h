@@ -43,7 +43,7 @@ int bind(int socket, int localport, uint32_t ip, int destport);
 int recv(int socket, void **bufptr);
 int send(int socket, const void *buffer, size_t len);
 void network_handle_packet(ip_header_t *hdr, uint16_t len);
-
-
+const char *network_gethostname();
+void network_sethostname(const char *);
 
 #endif

@@ -251,7 +251,7 @@ _sched_yield:
 	pop rcx
 	pop rbx
 %endmacro
-global __syscall_int
+global syscall_ENTRY64_int
 extern syscall_list
 extern SYSCALL_MAX_NUM
 extern errno
@@ -259,7 +259,7 @@ section .data
 global syscalls
 syscalls: dq 0
 section .text
-__syscall_int:
+syscall_ENTRY64_int:
 	sti
 	inc qword [syscalls]
 	
@@ -303,7 +303,7 @@ __syscall_int:
 	; Store relevant arguments to sys_fork and pass them in
 	
 	mov rdi, rsp
-	
+
 	jmp .continue 
 global __sigret_return
 __sigret_return:

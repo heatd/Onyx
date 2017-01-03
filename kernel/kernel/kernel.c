@@ -415,8 +415,6 @@ void kernel_multitasking(void *arg)
 	null_init(); /* /dev/null */
 	zero_init(); /* /dev/zero */
 
-	load_module("/lib/modules/example.kmod", "example");
-
 	find_and_exec_init(args, envp);
 
 	if(errno == ENOENT)

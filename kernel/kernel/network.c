@@ -18,6 +18,7 @@
 #include <kernel/icmp.h>
 #include <kernel/compiler.h>
 
+static const char *hostname = "";
 socket_t *sock_table[MAX_NETWORK_CONNECTIONS] = {0};
 int socket(int domain, int type, int protocol)
 {
@@ -130,4 +131,16 @@ void network_handle_packet(ip_header_t *hdr, uint16_t len)
 		}
 	}
 
+}
+const char *network_gethostname()
+{
+	return hostname;
+}
+void network_sethostname(const char *name)
+{
+	/* TODO: Invalidate the dns cache entry of the last host name */
+	if(hostname != "")
+		free(hostname);
+	dns_fill_hashtable(dns_hash_string(name), name, 0x7F00001);
+	hostname = name;
 }

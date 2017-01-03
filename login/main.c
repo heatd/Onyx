@@ -25,7 +25,7 @@ char **args;
 int main(int argc, char **argv, char **envp)
 {
 	printf("Hi\n");
-	while(1);
+
 	args = argv;
 	printf("%s: ", argv[0]);
 	char *buf = malloc(1024);

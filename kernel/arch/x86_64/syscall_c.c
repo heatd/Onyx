@@ -22,7 +22,11 @@
 #include <sys/mman.h>
 
 #include <sys/uio.h>
+#include <sys/utsname.h>
 
+#include <kernel/modules.h>
+#include <kernel/network.h>
+#include <kernel/kernelinfo.h>
 #include <kernel/tty.h>
 #include <kernel/process.h>
 #include <kernel/vmm.h>
@@ -34,7 +38,7 @@
 #include <drivers/rtc.h>
 
 #define DEBUG_SYSCALL 1
-//#undef DEBUG_SYSCALL
+#undef DEBUG_SYSCALL
 
 #ifdef DEBUG_SYSCALL
 #define DEBUG_PRINT_SYSTEMCALL() printf("%s: syscall\n", __func__)
@@ -949,6 +953,60 @@ void sys_sigreturn(void *ret)
 		return errno = EINVAL; 
 	current_process->sigreturn = ret;
 }
+int sys_insmod(const char *path, const char *name)
+{
+	if(!vmm_is_mapped(path))
+		return errno = EFAULT, -1;
+	if(!vmm_is_mapped(name))
+		return errno = EFAULT, -1;
+	/* All the work is done by load_module; A return value of 1 means -1 for user-space, while -0 still = 0 */
+	return -load_module(path, name);
+}
+int sys_uname(struct utsname *buf)
+{
+	if(!vmm_is_mapped(buf))
+		return errno = EFAULT, -1;
+	strcpy(buf->sysname, OS_NAME);
+	strcpy(buf->release, OS_RELEASE);
+	strcpy(buf->version, OS_VERSION);
+	strcpy(buf->machine, OS_MACHINE);
+
+	strcpy(buf->nodename, network_gethostname());
+	
+	return 0;
+}
+int sys_sethostname(const void *name, size_t len)
+{
+	if(len > _UTSNAME_LENGTH)
+		return errno = EINVAL, -1;
+	if(!vmm_is_mapped(name))
+		return errno = EFAULT, -1;
+	if((ssize_t) len < 0)
+		return errno = EINVAL, -1;
+	/* We need to copy the name, since the user pointer isn't safe */
+	char *hostname = malloc(len+1);
+	if(!name)
+		return errno = ENOMEM, -1;
+	memset(hostname, 0, len+1);
+	memcpy(hostname, name, len);
+	network_sethostname(hostname);
+	
+	return 0;
+}
+int sys_gethostname(char *name, size_t len)
+{
+	if(!vmm_is_mapped(name))
+		return errno = EFAULT, -1;
+	if((ssize_t) len < 0)
+		return errno = EINVAL, -1;
+	
+	size_t str_len = strlen(network_gethostname());
+	if(len < str_len)
+		return errno = EINVAL, -1;
+	strcpy(name, network_gethostname());
+	
+	return 0;
+}
 void *syscall_list[] =
 {
 	[0] = (void*) sys_write,
@@ -988,5 +1046,9 @@ void *syscall_list[] =
 	[34] = (void*) sys_setgid,
 	[35] = (void*) sys_isatty,
 	[36] = (void*) sys_signal,
-	[37] = (void*) sys_sigreturn
+	[37] = (void*) sys_sigreturn,
+	[38] = (void*) sys_insmod,
+	[39] = (void*) sys_uname,
+	[40] = (void*) sys_gethostname,
+	[41] = (void*) sys_sethostname
 };

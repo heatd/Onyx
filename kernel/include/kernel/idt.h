@@ -96,5 +96,5 @@ extern void irq20();
 extern void irq21();
 extern void irq22();
 extern void irq23();
-extern void __syscall_int();
+extern void syscall_ENTRY64_int();
 #endif /* _IDT_H */

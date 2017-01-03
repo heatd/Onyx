@@ -301,7 +301,6 @@ void *elf_load(void *file)
 }
 void *elf_load_kernel_module(void *file, void **fini_func)
 {
-	printf("Loading module %p\n", file);
 	if (!file)
 		return errno = EINVAL, NULL;
 	/* Check if its elf64 file is invalid */
