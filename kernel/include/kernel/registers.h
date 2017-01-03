@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016 Pedro Falcato
+ * Copyright (C) 2016, 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -21,7 +21,7 @@ typedef struct registers
 	uint64_t rflags;
 	uint64_t rsp;
 	uint64_t ss;
-} __attribute__((packed))registers_t;
+} registers_t;
 typedef struct
 {
 	uint64_t ds;
@@ -33,7 +33,17 @@ typedef struct
 	uint64_t rflags;
 	uint64_t rsp;
 	uint64_t ss;
-} __attribute__((packed)) intctx_t;
+} intctx_t;
+typedef struct
+{
+	uint64_t ds;
+	uint64_t r15, r14, r13, r12, r10, r9, r8, rbp, rsi, rdi, rdx, rcx, rbx;
+	uint64_t rip;
+	uint64_t cs;
+	uint64_t rflags;
+	uint64_t rsp;
+	uint64_t ss;
+} syscall_ctx_t;
 inline void wrmsr(uint32_t msr, uint32_t lo, uint32_t hi)
 {
 	asm volatile("wrmsr"::"a"(lo), "d"(hi), "c"(msr));
@@ -41,6 +51,10 @@ inline void wrmsr(uint32_t msr, uint32_t lo, uint32_t hi)
 #define FS_BASE_MSR 0xC0000100
 #define GS_BASE_MSR 0xC0000101
 #define KERNEL_GS_BASE 0xC0000102
+#define IA32_MSR_STAR 0xC0000081
+#define IA32_MSR_LSTAR 0xC0000082
+#define IA32_MSR_CSTAR 0xC0000083
+#define IA32_MSR_SFMASK 0xC0000084
 #else
 
 typedef struct registers

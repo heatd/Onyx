@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016 Pedro Falcato
+ * Copyright (C) 2016, 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -64,4 +64,17 @@ void pci_set_barx(uint8_t slot, uint8_t device, uint8_t function, uint8_t index,
 #define CLASS_SATELLITE_CONTROLLER 0xF
 #define CLASS_ENCRYPTION_DECRYPTION_CONTROLLER 0x10
 #define CLASS_DATA_AND_SIGNAL_CONTROLLER 0x11
+
+typedef void (*pci_callback_t)(PCIDevice *dev);
+#define PCI_DRIVER_GENERIC 0
+#define PCI_DRIVER_SPECIFIC 1
+typedef struct
+{
+	uint16_t deviceID, vendorID;
+	uint8_t pciClass, subClass, progIF;
+	uint8_t driver_type;
+	pci_callback_t cb;
+} pci_driver_t;
+
+void pci_initialize_drivers();
 #endif

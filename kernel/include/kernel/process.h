@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016 Pedro Falcato
+ * Copyright (C) 2016, 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -17,16 +17,17 @@
 #include <kernel/spinlock.h>
 #include <kernel/task_switching.h>
 #include <kernel/signal.h>
+#include <kernel/registers.h>
 #define THREADS_PER_PROCESS 30
 typedef struct proc
 {
 	int signal_pending;
+	int signal_dispatched;
 	struct proc *next;
 	thread_t *threads[30];
 	uint64_t data_area;
 	int errno;
-	vmm_entry_t *areas;
-	size_t num_areas;
+	avl_node_t *tree;
 	const char *cmd_line;
 	ioctx_t ctx;
 	pid_t pid;
@@ -39,6 +40,9 @@ typedef struct proc
 	uid_t setuid;
 	gid_t setgid;
 	spinlock_t vm_spl;
+	registers_t old_regs;
+	sighandler_t sighandlers[27];
+	void *sigreturn;
 	unsigned long personality;
 	struct signal_info sinfo;
 	struct proc *parent;

@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016 Pedro Falcato
+ * Copyright (C) 2016, 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -32,14 +32,31 @@ typedef struct cpu
 
 struct processor
 {
+#if defined (__x86_64__)
 	volatile char *lapic;
+	struct processor *self;
 	volatile char *lapic_phys;
 	int cpu_num;
 	int lapic_id;
+	size_t apic_ticks;
+#else
+#error "Implement this structure for your architecture"
+#endif
+	size_t sched_quantum;
 };
 
 void cpu_identify();
 void cpu_init_interrupts();
 int cpu_init_mp();
 
+__attribute__((always_inline))
+inline struct processor *get_gs_data()
+{
+	struct processor *proc;
+	asm volatile("movq %%gs:0x8, %0":"=r"(proc));
+	return proc;
+}
+
+#define DISABLE_INTERRUPTS() asm volatile("cli")
+#define ENABLE_INTERRUPTS() asm volatile("sti")
 #endif

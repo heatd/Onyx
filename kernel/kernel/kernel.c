@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016 Pedro Falcato
+ * Copyright (C) 2016, 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -25,6 +25,11 @@
 #include <mbr.h>
 #include <multiboot2.h>
 #include <errno.h>
+#include <string.h>
+#include <fcntl.h>
+#include <pthread_kernel.h>
+
+#include <sys/mman.h>
 
 #include <kernel/slab.h>
 #include <kernel/vmm.h>
@@ -53,6 +58,8 @@
 #include <kernel/log.h>
 #include <kernel/dns.h>
 #include <kernel/icmp.h>
+#include <kernel/process.h>
+#include <kernel/envp.h>
 
 #include <drivers/ps2.h>
 #include <drivers/ata.h>
@@ -61,27 +68,132 @@
 #include <drivers/e1000.h>
 #include <drivers/softwarefb.h>
 #include <drivers/pci.h>
-/* Function: init_arch()
- * Purpose: Initialize architecture specific features, should be hooked by the architecture the kernel will run on
- */
-void kernel_multitasking(void *);
+
+#define KERNEL_START_VIRT 0xffffffff80100000
+
 extern uint64_t kernel_end;
-#define KERNEL_START_PHYS 0x100000
-#define KERNEL_START_VIRT (KERNEL_VIRTUAL_BASE + KERNEL_START_PHYS)
 extern char __BUILD_NUMBER;
 extern char __BUILD_DATE;
 extern uintptr_t _start_smp;
 extern uintptr_t _end_smp;
+ 
 static struct multiboot_tag_module *initrd_tag = NULL;
-uintptr_t address = 0;
 struct multiboot_tag_elf_sections *secs;
 struct multiboot_tag_mmap *mmap_tag = NULL;
 void *initrd_addr = NULL;
 static void *tramp = NULL;
+
+char kernel_cmdline[256];
+uintptr_t address = 0;
 uintptr_t rsdp;
+
 extern void libc_late_init();
 extern void init_keyboard();
 extern int exec(const char *, char**, char**);
+
+char *kernel_arguments[200];
+int kernel_argc = 0;
+void kernel_parse_command_line(char *cmd)
+{
+	char *original_string = cmd;
+	while(*cmd)
+	{
+		if(*cmd == '-') /* Found an argument */
+		{
+			char *token = strchr(cmd, ' ');
+			if(!token)
+				token = original_string + strlen(original_string);
+			size_t size_token = (size_t)(token - cmd);
+			char *new_string = malloc(size_token + 1);
+			memset(new_string, 0, size_token + 1);
+			memcpy(new_string, cmd, size_token);
+			kernel_arguments[kernel_argc] = new_string;
+			kernel_argc++;
+			cmd += size_token -1;
+		}
+		cmd++;
+	}
+}
+char *kernel_getopt(char *opt)
+{
+	for(int i = 0; i < kernel_argc; i++)
+	{
+		if(memcmp(kernel_arguments[i], opt, strlen(opt)) == 0)
+		{
+			/* We found the argument, retrieve the value */
+			if(strlen(opt) == strlen(kernel_arguments[i])) /* if len(opt) == len(kargs[i]),
+			 the argument has no value (or the caller fucked up) */
+				return opt;
+			char *parse = kernel_arguments[i] + strlen(opt);
+			if(*parse == '=')
+				return ++parse;
+			if(*parse == ' ')
+				return ++parse;
+		}
+	}
+	ERROR("kernel", "%s: no such argument\n", opt);
+	return NULL;
+}
+extern PML4 *current_pml4;
+int find_and_exec_init(char **argv, char **envp)
+{
+	char *path = "/sbin/init";
+retry:;
+	vfsnode_t *in = open_vfs(fs_root, path);
+	if(!in)
+	{
+		if(path == "/bin/init")
+			panic("No init program found!\n");
+		path = "/bin/init";
+		goto retry;
+	}
+	process_t *proc = process_create(path, NULL, NULL);
+	if(!proc)
+		return errno = ENOMEM, -1;
+	char *buffer = malloc(in->size);
+	if (!buffer)
+		return errno = ENOMEM;
+	read_vfs(0, in->size, buffer, in);
+	
+	void *entry = elf_load((void *) buffer);
+	
+	char **env = copy_env_vars(envp);
+	
+	int argc;
+	char **args = copy_argv(argv, path, &argc);
+	
+	proc->cr3 = current_pml4;
+	proc->tree = vmm_get_tree();
+
+	current_process = proc;
+	/* Setup stdio */
+	proc->ctx.file_desc[0] = malloc(sizeof(file_desc_t));
+	proc->ctx.file_desc[0]->vfs_node = open_vfs(slashdev, "/dev/tty");
+	proc->ctx.file_desc[0]->seek = 0;
+	proc->ctx.file_desc[0]->flags = O_RDONLY;
+	proc->ctx.file_desc[1] = malloc(sizeof(file_desc_t));
+	proc->ctx.file_desc[1]->vfs_node = open_vfs(slashdev, "/dev/tty");
+	proc->ctx.file_desc[1]->seek = 0;
+	proc->ctx.file_desc[1]->flags = O_WRONLY;
+	proc->ctx.file_desc[2] = malloc(sizeof(file_desc_t));
+	proc->ctx.file_desc[2]->vfs_node = open_vfs(slashdev, "/dev/tty");
+	proc->ctx.file_desc[2]->seek = 0;
+	proc->ctx.file_desc[2]->flags = O_WRONLY;
+	// Allocate space for %fs TODO: Do this while in elf_load, as we need the TLS size
+	uintptr_t *fs = vmm_allocate_virt_address(0, 1, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_USER);
+	vmm_map_range(fs, 1, VMM_WRITE | VMM_NOEXEC | VMM_USER);
+	pthread_t *p = (struct pthread*) fs;
+	p->self = (pthread_t*) fs;
+	proc->fs = (uintptr_t) fs;
+	DISABLE_INTERRUPTS();
+	process_create_thread(proc, (thread_callback_t) entry, 0, argc, args, env);
+	p->tid = proc->threads[0]->id;
+	p->pid = proc->pid;
+	free(buffer);
+	free(in);
+	ENABLE_INTERRUPTS();
+	return 0;
+}
 void kernel_early(uintptr_t addr, uint32_t magic)
 {
 	addr += PHYS_BASE;
@@ -128,6 +240,12 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 			secs = (struct multiboot_tag_elf_sections *) tag;
 			break;
 		}
+		case MULTIBOOT_TAG_TYPE_CMDLINE:
+		{
+			struct multiboot_tag_string *t = (struct multiboot_tag_string *) tag;
+			strcpy(kernel_cmdline, t->string);
+			break;
+		}
 		}
 	}
 	bootmem_init(total_mem, (uintptr_t) &kernel_end);
@@ -162,6 +280,7 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 	tty_init();
 	initrd_addr = (void*) (uintptr_t) initrd_tag->mod_start;
 }
+void kernel_multitasking(void *);
 void kernel_main()
 {
 	/* Identify the CPU it's running on (bootstrap CPU) */
@@ -190,7 +309,6 @@ void kernel_main()
 	}
 	init_elf_symbols(secs);
 
-	heap_get_used_memory();
 	/* Initialize ACPI */
 	acpi_initialize();
 
@@ -220,7 +338,7 @@ void kernel_main()
 	/* Initialize the initrd */
 	init_initrd(initrd_addr);
 
-	asm volatile("cli");
+	DISABLE_INTERRUPTS();
 	/* Initialize the scheduler */
 	if(sched_init())
 		panic("sched: failed to initialize!");
@@ -229,26 +347,30 @@ void kernel_main()
 	sched_create_thread(kernel_multitasking, 1, NULL);
 	/* Initialize late libc */
 	libc_late_init();
-	asm volatile("sti");
+
+	ENABLE_INTERRUPTS();
 	for (;;)
 	{
 		__asm__ __volatile__("hlt");
 	}
 }
+
 void kernel_multitasking(void *arg)
 {
 	void *mem = vmm_allocate_virt_address(VM_KERNEL, 1024, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
 	vmm_map_range(mem, 1024, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
 	/* Create PTY */
 	tty_create_pty_and_switch(mem);
-	printf(ANSI_COLOR_GREEN "Spartix kernel %s branch %s build %d for the %s architecture\n" ANSI_COLOR_RESET,
+	LOG("kernel", ANSI_COLOR_GREEN "Spartix kernel %s branch %s build %d for the %s architecture\n" ANSI_COLOR_RESET,
 	     KERNEL_VERSION, KERNEL_BRANCH, &__BUILD_NUMBER, KERNEL_ARCH);
-	printf("This kernel was built on %s, %d as integer\n", __DATE__, &__BUILD_DATE);
+	LOG("kernel", "Command line: %s\n", kernel_cmdline);
+	pci_init();
+	pci_initialize_drivers();
+	
 	/* Initialize devfs */
 	devfs_init();
 
 	/* Initialize PCI */
-	pci_init();
 	ata_init();
 
 	char *args[] = {"/etc/fstab", NULL};
@@ -257,16 +379,25 @@ void kernel_multitasking(void *arg)
 	initialize_module_subsystem();
 	init_rtc();
 
-	if(ethernet_init())
-		ERROR("eth0", "failed to find a compatible device\n");
-	else
-		INFO("eth0", "found compatible device\n");
+	/* Initialize the network-related subsystems(the ones that need it) */
+	
+	/* Initialize dhcp */
 	dhcp_initialize();
+
+	/* Initialize DNS */
 	dns_init();
-	uint32_t ip = dns_resolve_host("www.google.com");
+	
+	/* Initialize ICMP */
 	icmp_init();
-	icmp_ping(ip, 10);
-	// read_partitions();
+	
+	/* Just a little demo for the recent DNS and ICMP features */
+	uint32_t ip = dns_resolve_host("www.google.com");
+	//icmp_ping(ip, 10);
+
+	/* Parse the command line string to a more friendly argv-like buffer */
+	kernel_parse_command_line(kernel_cmdline);
+
+	LOG("kernel", "root device %s\n", kernel_getopt("--root"));
 	/*vfsnode_t *in = open_vfs(fs_root, "/etc/fstab");
 	if (!in)
 	{
@@ -284,7 +415,9 @@ void kernel_multitasking(void *arg)
 	null_init(); /* /dev/null */
 	zero_init(); /* /dev/zero */
 
-	//exec("/sbin/init", args, envp);
+	load_module("/lib/modules/example.kmod", "example");
+
+	find_and_exec_init(args, envp);
 
 	if(errno == ENOENT)
 	{

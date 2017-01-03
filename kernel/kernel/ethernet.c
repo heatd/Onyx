@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016 Pedro Falcato
+ * Copyright (C) 2016, 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -24,21 +24,7 @@
 
 char mac_address[6] = {0};
 char router_mac[6] = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
-int ethernet_init()
-{
-	PCIDevice *dev = get_pcidev_from_classes(CLASS_NETWORK_CONTROLLER, 0, 0);
-	if(!dev)
-		return 1;
-	
-	if(dev->vendorID == INTEL_VEND && dev->deviceID == E1000_DEV)
-		return e1000_init();
-	if(dev->vendorID == INTEL_VEND && dev->deviceID == E1000_I217)
-		return e1000_init();
-	if(dev->vendorID == INTEL_VEND && dev->deviceID == E1000_82577LM)
-		return e1000_init();
-	else
-		return 1;
-}
+
 uint8_t *packet = NULL;
 uint16_t packet_len = 0;
 void eth_set_packet_buf(uint8_t *buf)

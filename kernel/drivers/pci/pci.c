@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016 Pedro Falcato
+ * Copyright (C) 2016, 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -799,20 +799,20 @@ void pci_write_word(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uin
 				if(vendor == 0xFFFF) //Invalid, just skip this device
 					break;
 
-				INFO("pci", "Found a device at slot %d, device %d, function %d: ",slot,device,0);
+				//INFO("pci", "Found a device at slot %d, device %d, function %d: ",slot,device,0);
 
 				// Check the vendor against a bunch of mainstream hardware developers
-				printf("Vendor: %s\n", IdentifyCommonVendors(vendor));
-				printf("DeviceID: %X\n", pci_config_read_dword(slot, device, 0,0) >> 16);
+				//printf("Vendor: %s\n", IdentifyCommonVendors(vendor));
+				//printf("DeviceID: %X\n", pci_config_read_dword(slot, device, 0,0) >> 16);
 
 				// Get header type
 				uint16_t header = (uint16_t)(pci_config_read_word(slot, device, 0,0xE));
 
-				printf("Device type: %s\n",IdentifyDeviceType(header & 0x7F));
+				//printf("Device type: %s\n",IdentifyDeviceType(header & 0x7F));
 				uint8_t pciClass = (uint8_t)(pci_config_read_word(slot, device, 0 , 0xA)>>8);
 				uint8_t subClass = (uint8_t)pci_config_read_word(slot,device, 0, 0xB);
 				uint8_t progIF = (uint8_t)(pci_config_read_word(slot, device, 0,0xC)>>8);
-				printf("Function of Device: %s\n", IdentifyDeviceFunction(pciClass, subClass, progIF));
+				//printf("Function of Device: %s\n", IdentifyDeviceFunction(pciClass, subClass, progIF));
 
 				// Set up some meta-data
 				PCIDevice* dev = malloc(sizeof(PCIDevice));
@@ -842,9 +842,9 @@ void pci_write_word(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uin
 						PCIDevice* dev = pci_check_function(slot, device, i);
 						if(!dev)
 							continue;
-						INFO("pci", "Found PCI device at bus %d, device %d, function %d\n", dev->slot, dev->device,
-						dev->function);
-						printf("Device function: %s\n",dev->function_string);
+						//INFO("pci", "Found PCI device at bus %d, device %d, function %d\n", dev->slot, dev->device,
+						//dev->function);
+						//printf("Device function: %s\n",dev->function_string);
 
 					}
 				}
@@ -873,8 +873,8 @@ uint16_t pci_get_intn(uint8_t slot, uint8_t device, uint8_t function)
 }
 void pci_init()
 {
-	LOG("pci", "Initializing the PCI driver\n");
-	LOG("pci", "Enumerating PCI devices\n");
+	//LOG("pci", "Initializing the PCI driver\n");
+	//LOG("pci", "Enumerating PCI devices\n");
 	pci_check_devices();
 }
 PCIDevice *get_pcidev_from_vendor_device(uint16_t deviceid, uint16_t vendorid)
@@ -899,4 +899,37 @@ void pci_set_barx(uint8_t slot, uint8_t device, uint8_t function, uint8_t index,
 {
 	uint32_t bar = address | is_io | (is_prefetch << 2);
 	pci_write_dword(slot, device, function, PCI_BARx(index), bar);
+}
+/* All the PCI drivers' headers */
+#include <drivers/bochsvga.h>
+#include <drivers/e1000.h>
+pci_driver_t pci_drivers[] =
+{
+	{BOCHSVGA_PCI_VENDORID, BOCHSVGA_PCI_DEVICEID, CLASS_DISPLAY_CONTROLLER, 0, 0, PCI_DRIVER_SPECIFIC, bochsvga_init},
+	{E1000_DEV, INTEL_VEND, CLASS_NETWORK_CONTROLLER, 0, 0, PCI_DRIVER_SPECIFIC, e1000_init},
+	{E1000_I217, INTEL_VEND, CLASS_NETWORK_CONTROLLER, 0, 0, PCI_DRIVER_SPECIFIC, e1000_init},
+	{E1000_82577LM, INTEL_VEND, CLASS_NETWORK_CONTROLLER, 0, 0, PCI_DRIVER_SPECIFIC, e1000_init},
+};
+
+const size_t pci_driver_array_entries = sizeof(pci_drivers) / sizeof(pci_driver_t);
+void pci_initialize_drivers()
+{
+	for(size_t i = 0; i < pci_driver_array_entries; i++)
+	{
+		if(pci_drivers[i].driver_type == PCI_DRIVER_GENERIC)
+		{
+			PCIDevice *dev = get_pcidev_from_classes(pci_drivers[i].pciClass, pci_drivers[i].subClass, pci_drivers[i].progIF);
+			if(!dev)
+				continue;
+			pci_drivers[i].cb(dev);
+		}	
+		else
+		{
+			PCIDevice *dev = get_pcidev_from_vendor_device(pci_drivers[i].deviceID, pci_drivers[i].vendorID);
+			if(!dev)
+				continue;
+			pci_drivers[i].cb(dev);
+		}
+			
+	}
 }

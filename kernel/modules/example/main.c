@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016 Pedro Falcato
+ * Copyright (C) 2016, 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -13,7 +13,7 @@
 
 int module_init()
 {
-	abort();
+	printf("Module loaded!\n");
 	return 0;
 } 
 int module_fini()

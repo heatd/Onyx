@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016 Pedro Falcato
+ * Copyright (C) 2016, 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -8,9 +8,10 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#include <stdint.h>
 #ifndef _RTC_DRIVERS_H
 #define _RTC_DRIVERS_H
+
+#include <stdint.h>
 
 #define RTC_REG_SECONDS 0
 #define RTC_REG_MINUTES 0x2
@@ -35,5 +36,6 @@ typedef struct date
 } date_t;
 
 void init_rtc(void);
-uint64_t get_posix_time();
+void early_boot_rtc(void);
+uint64_t get_posix_time(void);
 #endif

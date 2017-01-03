@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016 Pedro Falcato
+ * Copyright (C) 2016, 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -39,10 +39,7 @@ void lapic_send_eoi()
 		lapic_write(bsp_lapic, LAPIC_EOI, 0);
 	else
 	{
-		uint32_t l, h;
-		rdmsr(GS_BASE_MSR, &l, &h);
-		uint64_t addr = l | ((uint64_t)h << 32);
-		struct processor *proc = (struct processor*) addr;
+		struct processor *proc = get_gs_data();
 		lapic_write(proc->lapic, LAPIC_EOI, 0);
 	}
 }
@@ -159,20 +156,22 @@ void ioapic_init()
 	/* Set each APIC pin's polarity, flags, and vectors to their defaults */
 	set_pin_handlers();
 }
-static volatile uint64_t ticks = 0;
-static int sched_quantum = 10;
+volatile uint64_t boot_ticks = 0;
+static int boot_sched_quantum = 10;
 static uintptr_t apic_timer_irq(registers_t *regs)
 {
-	ticks++;
-	sched_quantum--;
-	if(sched_quantum == 0)
+	if(!is_smp_enabled)
 	{
-		sched_quantum = 10;
-		uint32_t l, h;
-		rdmsr(GS_BASE_MSR, &l, &h);
-		uint64_t addr = l | ((uint64_t)h << 32);
-		struct processor *proc = (struct processor*) addr;
-		
+		boot_ticks++;
+		boot_sched_quantum--;
+		return 0;
+	}
+	struct processor *cpu = get_gs_data();
+	cpu->apic_ticks++;
+	cpu->sched_quantum--;
+	if(cpu->sched_quantum == 0)
+	{
+		cpu->sched_quantum = 10;
 		return sched_switch_thread((uintptr_t)regs);
 	}
 	return 0;
@@ -234,7 +233,10 @@ void apic_timer_smp_init(volatile uint32_t *lapic)
 }
 uint64_t get_tick_count()
 {
-	return (uint64_t) ticks;
+	if(!is_smp_enabled)
+		return boot_ticks;
+	struct processor *cpu = get_gs_data();
+	return cpu->apic_ticks;
 }
 void send_ipi(uint8_t id, uint32_t type, uint32_t page)
 {

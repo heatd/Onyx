@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016 Pedro Falcato
+ * Copyright (C) 2016, 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -25,7 +25,7 @@ void pm_reboot()
 	// If the reboot hasn't happened yet, load a zero-idt and interrupt
 	asm volatile("lidt 0x0");
 	asm volatile("cli; int $0x60");
-	asm volatile("cli;hlt");
+	halt();
 }
 void pm_shutdown()
 {

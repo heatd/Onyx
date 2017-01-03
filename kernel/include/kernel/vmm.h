@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016 Pedro Falcato
+ * Copyright (C) 2016, 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -21,7 +21,7 @@
 	#define KERNEL_VIRTUAL_BASE 0xFFFFFFFF80000000
 #endif
 
-#define VM_TYPE_REGULAR	(0)
+#define VM_TYPE_REGULAR		(0)
 #define VM_TYPE_STACK 		(1)
 #define VM_TYPE_SHARED 		(2)
 #define VM_TYPE_HEAP 		(3)
@@ -55,8 +55,7 @@ typedef struct ventry
 	int rwx;
 	int type;
 } vmm_entry_t;
-#ifdef __need_avl_node_t
-#undef __need_avl_node_t
+#ifndef __avl_tree_defined_
 typedef struct avl_node
 {
 	uintptr_t key;
@@ -64,6 +63,7 @@ typedef struct avl_node
 	vmm_entry_t *data;
 	struct avl_node *left, *right;
 } avl_node_t;
+#define __avl_tree_defined_
 #endif
 
 void vmm_init();
@@ -74,10 +74,12 @@ void vmm_unmap_range(void *range, size_t pages);
 void vmm_destroy_mappings(void *range, size_t pages);
 void *vmm_reserve_address(void *addr, size_t pages, uint32_t type, uint64_t prot);
 vmm_entry_t *vmm_is_mapped(void *addr);
-PML4 *vmm_clone_as(vmm_entry_t **, size_t *);
-PML4 *vmm_fork_as(vmm_entry_t **);
+PML4 *vmm_clone_as(avl_node_t **);
+PML4 *vmm_fork_as(avl_node_t **);
 void vmm_stop_spawning();
 void vmm_change_perms(void *range, size_t pages, int perms);
+void vmm_set_tree(avl_node_t *tree_);
+avl_node_t *vmm_get_tree();
 
 inline size_t vmm_align_size_to_pages(size_t size)
 {

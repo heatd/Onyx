@@ -37,7 +37,7 @@ menuentry "Spartix" {
   	insmod gfxterm
 	terminal_output gfxterm
 	echo "Loading the vmspartix kernel"
-	multiboot2 /boot/vmspartix.xz
+	multiboot2 /boot/vmspartix.xz --root=/dev/hda1
 	echo "done."
 	set gfxpayload=1024x768x32
 	echo "Loading the initrd"

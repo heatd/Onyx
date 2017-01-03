@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016 Pedro Falcato
+ * Copyright (C) 2016, 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -76,7 +76,7 @@ thread_t* task_switching_create_context(thread_callback_t callback, uint32_t fla
 
 	uint64_t ds = 0x10, cs = 0x08, rf = 0x202;
 	if(!(flags & 1))
-		ds = 0x23, cs = 0x1b, rf = 0x202;
+		ds = 0x2b, cs = 0x33, rf = 0x202;
 
 	*--stack = ds; //SS
 	*--stack = original_stack; //RSP
@@ -105,9 +105,7 @@ thread_t* task_switching_create_context(thread_callback_t callback, uint32_t fla
 	return new_thread;
 }
 extern PML4 *current_pml4;
-extern vmm_entry_t *areas;
-extern size_t num_areas;
-thread_t* task_switching_create_main_progcontext(thread_callback_t callback, uint32_t flags,int argc, char **argv, char **envp)
+thread_t* task_switching_create_main_progcontext(thread_callback_t callback, uint32_t flags, int argc, char **argv, char **envp)
 {
 	thread_t* new_thread = malloc(sizeof(thread_t));
 	
@@ -128,7 +126,7 @@ thread_t* task_switching_create_main_progcontext(thread_callback_t callback, uin
 			return NULL;
 	}
 	
-	new_thread->kernel_stack = (uintptr_t*)vmm_allocate_virt_address(VM_KERNEL, 4, VMM_TYPE_STACK, VMM_WRITE | VMM_NOEXEC);
+	new_thread->kernel_stack = (uintptr_t*)vmm_allocate_virt_address(VM_KERNEL, 2, VMM_TYPE_STACK, VMM_WRITE | VMM_NOEXEC);
 	
 	if(!new_thread->kernel_stack)
 	{
@@ -142,7 +140,7 @@ thread_t* task_switching_create_main_progcontext(thread_callback_t callback, uin
 	// Map the stacks on the virtual address space
 	if(!(flags & 1))
 		vmm_map_range(new_thread->user_stack, 256, VMM_WRITE | VMM_NOEXEC | VMM_USER);
-	vmm_map_range(new_thread->kernel_stack, 4, VMM_WRITE | VMM_NOEXEC);
+	vmm_map_range(new_thread->kernel_stack, 2, VMM_WRITE | VMM_NOEXEC);
 	
 	// Increment the stacks by 8 KiB
 	{
@@ -152,7 +150,7 @@ thread_t* task_switching_create_main_progcontext(thread_callback_t callback, uin
 		*stack+=0x100000;
 	
 	stack = (char**)&new_thread->kernel_stack;
-	*stack+=0x4000;
+	*stack+=0x2000;
 	}
 	
 	uint64_t* stack = NULL;
@@ -168,7 +166,7 @@ thread_t* task_switching_create_main_progcontext(thread_callback_t callback, uin
 	
 	uint64_t ds = 0x10, cs = 0x08, rf = 0x202;
 	if(!(flags & 1))
-		ds = 0x23, cs = 0x1b, rf = 0x202;
+		ds = 0x33, cs = 0x2b, rf = 0x202;
 	
 	*--stack = ds; //SS
 	*--stack = original_stack; //RSP
@@ -239,8 +237,7 @@ void* sched_switch_thread(void* last_stack)
 	current_thread->kernel_stack = (uintptr_t*)last_stack;
 	if(likely(current_process))
 	{
-		current_process->areas = areas;
-		current_process->num_areas = num_areas;
+		current_process->tree = vmm_get_tree();
 	}
 	//asm volatile("fxsave %0"::"m"(current_thread->fxsave));
 	current_thread = sched_find_runnable();
@@ -250,8 +247,7 @@ void* sched_switch_thread(void* last_stack)
 	current_process = current_thread->owner;
 	if(current_process)
 	{
-		areas = current_process->areas;
-		num_areas = current_process->num_areas;
+		vmm_set_tree(current_process->tree);
 		
 		if (current_pml4 != current_process->cr3)
 		{
@@ -266,33 +262,33 @@ thread_t *get_current_thread()
 {
 	return (thread_t*)current_thread;
 }
-uintptr_t *sched_fork_stack(uintptr_t *stack, uintptr_t *forkstackregs, uintptr_t *rsp, uintptr_t rip)
+uintptr_t *sched_fork_stack(syscall_ctx_t *ctx, uintptr_t *stack)
 {
-	uint64_t rflags = forkstackregs[16]; // Get the RFLAGS, CS and SS
-	uint64_t cs = forkstackregs[15];
-	uint64_t ss = forkstackregs[18];
+	uint64_t rflags = ctx->rflags; // Get the RFLAGS, CS and SS
+	uint64_t cs = ctx->cs;
+	uint64_t ss = ctx->ss;
 
 	// Set up the stack.
 	*--stack = ss; //SS
-	*--stack = (uintptr_t) rsp; //RSP
+	*--stack = (uintptr_t) ctx->rsp; //RSP
 	*--stack = rflags; // RFLAGS
 	*--stack = cs; //CS
-	*--stack = rip; //RIP
+	*--stack = ctx->rip; //RIP
 	*--stack = 0; // RAX
-	*--stack = forkstackregs[13]; // RBX
-	*--stack = forkstackregs[12]; // RCX
-	*--stack = forkstackregs[11]; // RDX
-	*--stack = forkstackregs[10]; // RDI
-	*--stack = forkstackregs[9]; // RSI
-	*--stack = forkstackregs[8]; // RBP
-	*--stack = forkstackregs[7]; // R15
-	*--stack = forkstackregs[6]; // R14
-	*--stack = forkstackregs[5]; // R13
-	*--stack = forkstackregs[4]; // R12
-	*--stack = forkstackregs[3]; // R11
-	*--stack = forkstackregs[2]; // R10
-	*--stack = forkstackregs[1]; // R9
-	*--stack = forkstackregs[0]; // R8
+	*--stack = ctx->rbx; // RBX
+	*--stack = ctx->rcx; // RCX
+	*--stack = ctx->rdx; // RDX
+	*--stack = ctx->rdi; // RDI
+	*--stack = ctx->rsi; // RSI
+	*--stack = ctx->rbp; // RBP
+	*--stack = ctx->r15; // R15
+	*--stack = ctx->r14; // R14
+	*--stack = ctx->r13; // R13
+	*--stack = ctx->r12; // R12
+	*--stack = 0; // R11
+	*--stack = ctx->r10; // R10
+	*--stack = ctx->r9; // R9
+	*--stack = ctx->r8; // R8
 	*--stack = ss; // DS
 	
 	return stack; 

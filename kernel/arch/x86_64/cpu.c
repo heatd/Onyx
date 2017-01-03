@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016 Pedro Falcato
+ * Copyright (C) 2016, 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -36,11 +36,8 @@ static cpu_t cpu;
 char *cpu_get_name()
 {
 	uint32_t eax,ebx,edx,ecx = 0;
-	int i = __get_cpuid(0,&eax,&ebx,&ecx,&edx);
-	if( i == 0 ) {
-		panic("cpuid instruction not supported");
-		__builtin_unreachable();
-	}
+	__get_cpuid(0,&eax,&ebx,&ecx,&edx);
+	
 	uint32_t cpuid[4] = {0};
 	cpuid[0] = ebx;
 	cpuid[1] = edx;
@@ -48,7 +45,7 @@ char *cpu_get_name()
 	memcpy(&cpu.manuid,&cpuid,12);
 	/* Zero terminate the string */
 	cpu.manuid[12] = '\0';
-	i = __get_cpuid(CPUID_MAXFUNCTIONSUPPORTED,&eax,&ebx,&ecx,&edx);
+	__get_cpuid(CPUID_MAXFUNCTIONSUPPORTED,&eax,&ebx,&ecx,&edx);
 	cpu.max_function = eax;
 	if( cpu.max_function >= 0x8000004 ) {
 		__get_cpuid(CPUID_BRAND0,&eax,&ebx,&ecx,&edx);
@@ -94,12 +91,17 @@ void cpu_identify()
 	cpu_get_sign();
 	printf("Stepping %i, Model %i, Family %i\n", cpu.stepping, cpu.model, cpu.family);
 }
+extern void syscall_ENTRY64();
 void cpu_init_interrupts()
 {
 	pic_remap();
 	ioapic_init();
 	lapic_init();
 	apic_timer_init();
+
+	wrmsr(IA32_MSR_STAR, 0, (0x18 << 16) | 0x8);
+	wrmsr(IA32_MSR_LSTAR, (unsigned long) syscall_ENTRY64 & 0xFFFFFFFF, (unsigned long) syscall_ENTRY64 >> 32);
+	wrmsr(IA32_MSR_SFMASK, 0b10000000000, 0);
 }
 static struct processor *cpus = NULL;
 static int booted_cpus = 0;
@@ -108,6 +110,7 @@ int cpu_num = 0;
 static spinlock_t ap_entry_spinlock;
 extern volatile uint32_t *bsp_lapic;
 volatile int initialized_cpus = 0;
+extern volatile uint64_t boot_ticks;
 int cpu_init_mp()
 {
 	ACPI_SUBTABLE_HEADER *first = (ACPI_SUBTABLE_HEADER *) (madt+1);
@@ -126,7 +129,8 @@ int cpu_init_mp()
 			cpus = realloc(cpus, booted_cpus * sizeof(struct processor) + sizeof(struct processor));
 			cpus[booted_cpus].lapic_id = apic->Id;
 			cpus[booted_cpus].cpu_num = booted_cpus;
-
+			cpus[booted_cpus].self = &cpus[booted_cpus];
+			cpus[booted_cpus].sched_quantum = 10;
 			booted_cpus++;
 			if(booted_cpus != 1)
 				apic_wake_up_processor(apic->Id);
@@ -135,6 +139,9 @@ int cpu_init_mp()
 	}
 	/* Fill CPU0's data */
 	cpus[0].lapic = (volatile char*) bsp_lapic;
+	cpus[0].self = &cpus[0];
+	cpus[0].apic_ticks = boot_ticks;
+	cpus[0].sched_quantum = 10;
 	wrmsr(GS_BASE_MSR, (uint64_t) &cpus[0] & 0xFFFFFFFF, (uint64_t) &cpus[0] >> 32);
 	release_spinlock(&ap_entry_spinlock);
 	
@@ -160,7 +167,7 @@ void cpu_ap_entry(int cpu_num)
 	/* Initialize the local apic + apic timer */
 	apic_timer_smp_init((volatile uint32_t *) cpus[cpu_num].lapic);
 
-	/* Fill this core's fs with &cpus[cpu_num] */
+	/* Fill this core's gs with &cpus[cpu_num] */
 	wrmsr(GS_BASE_MSR, (uint64_t) &cpus[cpu_num] & 0xFFFFFFFF, (uint64_t) &cpus[cpu_num] >> 32);
 
 	/* Enable interrupts */

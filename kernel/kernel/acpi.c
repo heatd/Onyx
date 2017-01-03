@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016 Pedro Falcato
+ * Copyright (C) 2016, 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -19,6 +19,7 @@
 #include <kernel/vmm.h>
 #include <kernel/panic.h>
 #include <kernel/log.h>
+#include <kernel/cpu.h>
 
 extern uintptr_t rsdp;
 static const ACPI_EXCEPTION_INFO    AcpiGbl_ExceptionNames_Env[] =
@@ -58,7 +59,7 @@ uint32_t acpi_shutdown(void *context)
 {
 	UNUSED_PARAMETER(context);
 	AcpiEnterSleepStatePrep(5);
-	asm volatile("cli");
+	DISABLE_INTERRUPTS();
 	AcpiEnterSleepState(5);
 	panic("ACPI: Failed to enter sleep state! Panic'ing!");
 	return 0;

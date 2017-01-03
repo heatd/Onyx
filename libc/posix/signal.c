@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016 Pedro Falcato
+ * Copyright (C) 2016, 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -27,12 +27,12 @@ int raise(int signal)
 {
 	return kill(getpid(), signal);
 }
-void (*signal(int sig, void (*func)(int)))(int)
+sighandler_t signal(int signum, sighandler_t handler)
 {
-	syscall(sig, func);
+	syscall(SYS_signal, signum, handler);
 	if(rax == (unsigned long) SIG_ERR)
 	{
 		set_errno();
 	}
-	return (void(*)(int)) rax;
+	return (sighandler_t) rax;
 }

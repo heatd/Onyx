@@ -1,5 +1,5 @@
 ;----------------------------------------------------------------------
-; * Copyright (C) 2016 Pedro Falcato
+; * Copyright (C) 2016, 2017 Pedro Falcato
 ; *
 ; * This file is part of Spartix, and is made available under
 ; * the terms of the GNU General Public License version 2.
@@ -62,6 +62,11 @@ irq_common:
 	mov ss, ax
 	mov ds, ax
 	mov es, ax
+	mov rax, [rsp + 136]
+	cmp rax, 0x8
+	je .skip_swapgs
+	swapgs
+.skip_swapgs:
 	extern lapic_send_eoi
 	call lapic_send_eoi
 	mov rsi, rsp
@@ -74,12 +79,19 @@ irq_common:
 	cmp dword [rax], dword 1
 	je .handle_signal
 .continue:
+	mov rax, [rsp + 136]
+	cmp rax, 0x8
+	je .skip_swapgs2
+	swapgs
+.skip_swapgs2:
 	pop rax
 	mov ds, ax
 	mov es, ax
 	popaq
 	iretq
 .handle_signal:
+	mov rdi, rsp
+	mov rsi, 0
 	call handle_signal
 	jmp .continue
 %macro IRQ 1
@@ -110,6 +122,11 @@ isr_common:
 	mov ds, ax
 	mov es, ax
 	mov ss, ax
+	mov rax, [rsp + 152]
+	cmp rax, 0x8
+	je .skip_swap
+	swapgs
+.skip_swap: 
 	mov rdi, rsp
 	call isr_handler
 	mov rax, current_process
@@ -119,6 +136,11 @@ isr_common:
 	cmp dword [rax], dword 1
 	je .isr_handle_signal
 .isr_continue:
+	mov rax, [rsp + 144]
+	cmp rax, 0x8
+	je .skip_swap2
+	swapgs
+.skip_swap2: 
 	pop rax
 	mov ds,ax
 	mov es,ax
@@ -126,6 +148,8 @@ isr_common:
 	popaq
 	iretq
 .isr_handle_signal:
+	mov rdi, rsp
+	mov rsi, 1
 	call handle_signal
 	jmp .isr_continue
 ISR_NOERRCODE 0
@@ -232,38 +256,41 @@ extern syscall_list
 extern SYSCALL_MAX_NUM
 extern errno
 section .data
-; Forkstack, forkret, and forkretregs are dangerous.
-; Rage condition waiting to happen...
-global forkstack
-forkstack: dq 0
-global forkret
-forkret: dq 0
-global forkretregs
-forkretregs: dq 0
 global syscalls
 syscalls: dq 0
 section .text
 __syscall_int:
 	sti
 	inc qword [syscalls]
-	; load the kernel's segments
+	
 	syscallsaveregs
+	; load the kernel's segments
 	mov cx, ds
+	
 	push rcx
 	mov cx, 0x10
 	mov ds, cx
 	mov ss, cx
 	mov es, cx
+
+	mov rcx, [rsp + 136]
+	cmp rcx, 0x8
+	je .skip_swapgs_syscall
+	swapgs 
+.skip_swapgs_syscall:
 	cmp rax, SYSCALL_MAX_NUM
 	jl .syscall_exit_sig
-	mov r10, [rsp + 104 + 8]
-	mov r11, [rsp + 104 + 32]
-	mov [forkstack], r11
-	mov [forkret], r10
-	mov [forkretregs], rsp
+	cmp rax, 10 ; If syscallnum == 10, it's a fork system call
+	je .fork
+.continue:
 	call [syscall_list + rax * 8]
 .syscall_exit:
 	mov r11, [errno]
+	mov rcx, [rsp + 136]
+	cmp rcx, 0x8
+	je .skip_swapgs_syscall2
+	swapgs 
+.skip_swapgs_syscall2:
 	pop rcx
 	mov ds, cx
 	mov es, cx
@@ -272,3 +299,18 @@ __syscall_int:
 .syscall_exit_sig:
 	cli
 	hlt
+.fork:
+	; Store relevant arguments to sys_fork and pass them in
+	
+	mov rdi, rsp
+	
+	jmp .continue 
+global __sigret_return
+__sigret_return:
+	mov rsp, rdi
+	swapgs
+	pop rcx
+	mov ds, cx
+	mov es, cx
+	popaq
+	iretq

@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016 Pedro Falcato
+ * Copyright (C) 2016, 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -13,10 +13,15 @@
 #include <stdio.h>
 #include <unistd.h>
 
+#include <sys/syscall.h>
 #include <sys/mman.h>
 
 char **environ = NULL;
 extern void __initialize_ssp();
+void __ret_sig()
+{
+	syscall(SYS_sigreturn, (uint64_t)-1ULL);
+}
 void _init_standard_libc(char **envp)
 {
 	/* Initialize sbrk(3) */
@@ -29,4 +34,5 @@ void _init_standard_libc(char **envp)
 		exit(1);
 	environ = envp;
 	__initialize_ssp();
+	syscall(SYS_sigreturn, (uint64_t)(void*) __ret_sig);
 }

@@ -52,7 +52,7 @@ static void ubsan_abort(const struct ubsan_source_location* location,
 		return;
 	#ifdef __DEBUG
 	printf("Violating %s at %s:%u:%u\n", violation, location->filename, location->line, location->column);
-	while(1) asm volatile("cli;hlt");
+	while(1) halt();
 	#endif
 }
 #define ABORT_VARIANT(name, params, call) \

@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016 Pedro Falcato
+ * Copyright (C) 2016, 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -138,8 +138,8 @@ void AcpiOsReleaseMutex(ACPI_MUTEX Handle)
 ACPI_STATUS AcpiOsCreateSemaphore(UINT32 MaxUnits, UINT32 InitialUnits, ACPI_SEMAPHORE * OutHandle)
 {
 	*OutHandle = AcpiOsAllocate(sizeof(ACPI_MUTEX));
-	memset(*OutHandle, 0, sizeof(ACPI_MUTEX));
 	if(*OutHandle == NULL) return AE_NO_MEMORY;
+	memset(*OutHandle, 0, sizeof(ACPI_MUTEX));
 	return AE_OK;
 }
 ACPI_STATUS AcpiOsDeleteSemaphore(ACPI_SEMAPHORE Handle)
@@ -157,7 +157,8 @@ ACPI_STATUS AcpiOsSignalSemaphore(ACPI_SEMAPHORE Handle, UINT32 Units)
 }
 ACPI_STATUS AcpiOsCreateLock(ACPI_SPINLOCK *OutHandle)
 {
-	*OutHandle = malloc(sizeof(ACPI_SPINLOCK));
+	*OutHandle = AcpiOsAllocate(sizeof(ACPI_SPINLOCK));
+	if(*OutHandle == NULL) return AE_NO_MEMORY;
 	memset(*OutHandle, 0, sizeof(ACPI_SPINLOCK));
 	return AE_OK;
 }

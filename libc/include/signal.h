@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016 Pedro Falcato
+ * Copyright (C) 2016, 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -18,10 +18,10 @@ __START_C_HEADER
 #endif
 
 typedef int sig_atomic_t;
-
+typedef int(*sighandler_t)(int);
 int kill(pid_t, int);
 int raise(int);
-void (*signal(int sig, void (*func)(int)))(int);
+sighandler_t signal(int signum, sighandler_t handler);
 
 /* Signal numbers, as required by POSIX and the ISO C standard */
 #define SIGABRT 1

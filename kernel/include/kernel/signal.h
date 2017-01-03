@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016 Pedro Falcato
+ * Copyright (C) 2016, 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -11,12 +11,13 @@
 #ifndef _KERNEL_SIGNAL_H
 #define _KERNEL_SIGNAL_H
 
+#include <signal.h>
 
 struct signal_info
 {
 	int signum;
 	int type;
-	void (*handler)(int);
+	sighandler_t handler;
 };
 
 

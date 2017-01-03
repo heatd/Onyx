@@ -1,5 +1,5 @@
 ;----------------------------------------------------------------------
-; * Copyright (C) 2016 Pedro Falcato
+; * Copyright (C) 2016, 2017 Pedro Falcato
 ; *
 ; * This file is part of Spartix, and is made available under
 ; * the terms of the GNU General Public License version 2.
@@ -11,7 +11,7 @@
 section .text
 global tss_flush
 tss_flush:
-	mov ax, 0x2B
+	mov ax, 0x3b
 	ltr ax
 	ret
 global GDT_Flush

@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016 Pedro Falcato
+ * Copyright (C) 2016, 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -13,6 +13,8 @@
 
 #include <stdint.h>
 #include <string.h>
+
+#include <kernel/elf.h>
 typedef struct mod
 {
 	const char *path;
@@ -20,6 +22,7 @@ typedef struct mod
 	void *base_address;
 	size_t size;
 	struct mod *next;
+	module_fini_t fini;
 } module_t;
 
 typedef struct

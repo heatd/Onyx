@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016 Pedro Falcato
+ * Copyright (C) 2016, 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -15,6 +15,7 @@
 #include <kernel/irq.h>
 #include <kernel/pic.h>
 #include <kernel/log.h>
+#include <kernel/cpu.h>
 
 #include <drivers/nmi.h>
 #include <drivers/rtc.h>
@@ -31,10 +32,10 @@ _Bool enabled24_hour = false, binary_mode_enabled = false;
 int rtc_get_date_reg(uint8_t reg)
 {
 	nmi_disable();
-	asm volatile("cli");
+	DISABLE_INTERRUPTS();
 	outb(0x70, reg);
 	uint8_t datereg = inb(0x71);
-	asm volatile("sti");
+	ENABLE_INTERRUPTS();
 	nmi_enable();
 	int ret = datereg;
 	if(!binary_mode_enabled)
@@ -150,10 +151,10 @@ void init_rtc()
 	INFO("rtc", "initializing\n");
 	// Disable NMI's so we can access the CMOS without any risk of corruption
 	nmi_disable();
-	asm volatile("cli");
+	DISABLE_INTERRUPTS();
 	outb(0x70, RTC_STATUS_REG_B);
 	uint8_t b = inb(0x71);
-	asm volatile("sti");
+	ENABLE_INTERRUPTS();
 	nmi_enable();
 	if(b & 2)
 		enabled24_hour = true;
@@ -173,13 +174,13 @@ void init_rtc()
 	// Enable IRQ8
 	irq_install_handler(8, rtc_handler);
 	nmi_disable();
-	asm volatile("cli");
+	DISABLE_INTERRUPTS();
 	outb(0x70, RTC_STATUS_REG_B);
 	b = inb(0x71);
 	outb(0x70, RTC_STATUS_REG_B | 0x80);
 	outb(0x71, b | 0x40);
 	nmi_enable();
-	asm volatile("sti");
+	ENABLE_INTERRUPTS();
 }
 uint64_t get_posix_time()
 {

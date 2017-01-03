@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016 Pedro Falcato
+ * Copyright (C) 2016, 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -12,6 +12,7 @@
 #define _DRIVERS_E1000_H
 
 #include <stdint.h>
+#include <drivers/pci.h>
 // Thanks to wiki.osdev.org for these defines
 
 #define INTEL_VEND     0x8086  // Vendor ID for Intel 
@@ -133,6 +134,6 @@ struct e1000_tx_desc {
         volatile uint16_t special;
 } __attribute__((packed));
 
-int e1000_init();
+void e1000_init(PCIDevice *dev);
 
 #endif

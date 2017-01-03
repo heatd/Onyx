@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016 Pedro Falcato
+ * Copyright (C) 2016, 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -40,7 +40,6 @@ static int generate_key(const char *path, const char *name)
 	for(int i = 0; i < 8; i++)
 		key *= n + m;
 	key = key % hashtable->size;
-	printf("Key: %d\n", key);
 	return key;
 }
 int add_module_to_hashtable(module_t *mod)
@@ -102,8 +101,8 @@ int load_module(const char *path, const char *name)
 	if(errno == EINVAL)
 		printf("Invalid ELF file\n");
 	module_init_t *functor = (module_init_t*) entry;
-	printf("Functor: %p\n", functor);
 	functor();
+	mod->fini = (module_fini_t) fini;
 	return add_module_to_hashtable(mod);
 }
 uintptr_t last_kernel_address = KERNEL_VIRTUAL_BASE + 0x600000;

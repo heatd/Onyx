@@ -3021,6 +3021,7 @@ enum
 #define RELOCATE_R_X86_64_PC32(S, A, P) (S + A - P)
 #define RELOCATE_R_X86_64_RELATIVE(B, A) (B + A)
 typedef int (module_init_t)(void);
+typedef int (*module_fini_t)(void);
 void *elf_load_kernel_module(void *file, void **);
 _Bool elf_is_valid(Elf64_Ehdr* header);
 void* elf_load(void* file);

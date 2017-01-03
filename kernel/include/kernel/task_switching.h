@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016 Pedro Falcato
+ * Copyright (C) 2016, 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -12,6 +12,8 @@
 #ifndef _TASK_SWITCHING_AMD64_H
 #define _TASK_SWITCHING_AMD64_H
 #include <stdint.h>
+
+#include <kernel/registers.h>
 
 #define THREAD_RUNNABLE 0
 #define THREAD_SLEEPING 1
@@ -35,10 +37,11 @@ typedef struct thr
 	unsigned long sleeping_for;
 } thread_t;
 
+int sched_init(void);
 thread_t *sched_create_thread(thread_callback_t callback, uint32_t flags, void* args);
 thread_t* sched_create_main_thread(thread_callback_t callback, uint32_t flags,int argc, char **argv, char **envp);
 void sched_destroy_thread(thread_t *thread);
 thread_t *get_current_thread();
-uintptr_t *sched_fork_stack(uintptr_t *stack, uintptr_t *forkregstack, uintptr_t *rsp, uintptr_t rip);
+uintptr_t *sched_fork_stack(syscall_ctx_t *ctx, uintptr_t *stack);
 void* sched_switch_thread(void* last_stack);
 #endif

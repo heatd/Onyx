@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016 Pedro Falcato
+ * Copyright (C) 2016, 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -19,11 +19,11 @@
 #include <kernel/panic.h>
 #include <kernel/compiler.h>
 #include <kernel/process.h>
+#include <kernel/log.h>
 
 _Bool is_initialized = false;
 _Bool is_spawning = 0;
-vmm_entry_t *old_entries = NULL;
-size_t old_num_entries = 0;
+vmm_entry_t *old_tree = NULL;
 vmm_entry_t *areas = NULL;
 size_t num_areas = 3;
 #ifdef __x86_64__
@@ -33,6 +33,7 @@ const uintptr_t low_half_min = 0x400000;
 #endif
 uintptr_t kstacks_offset = 0xffffff0000000000;
 uintptr_t vmalloc_space = 0xffffc90000000000;
+static avl_node_t *kernel_tree = NULL;
 static avl_node_t *tree = NULL;
 int imax(int x, int y)
 {
@@ -49,7 +50,6 @@ uintptr_t min(uintptr_t x, uintptr_t y)
 int avl_get_height(avl_node_t *ptr)
 {
 	int height_left = 0, height_right = 0;
-
 	if(ptr->left) height_left = -avl_get_height(ptr->left) + 1;
 	if(ptr->right) height_right = avl_get_height(ptr->right) + 1;
 
@@ -101,6 +101,7 @@ void avl_balance_tree(avl_node_t **t)
 {
 	avl_node_t *ptr = *t;
 	int height_left = 0, height_right = 0;
+
 	if(ptr->left) height_left = avl_get_height(ptr->left);
 	if(ptr->right) height_right = avl_get_height(ptr->right);
 
@@ -152,13 +153,19 @@ vmm_entry_t *avl_insert_key(avl_node_t **t, uintptr_t key, uintptr_t end)
 	else if (key < ptr->key)
 	{
 		vmm_entry_t *ret = avl_insert_key(&ptr->left, key, end);
-		avl_balance_tree(&tree);
+		if(key < high_half)
+			avl_balance_tree(&tree);
+		else
+			avl_balance_tree(&kernel_tree);
 		return ret;
 	}
 	else
 	{
 		vmm_entry_t *ret = avl_insert_key(&ptr->right, key, end);
-		avl_balance_tree(&tree);
+		if(key < high_half)
+			avl_balance_tree(&tree);
+		else
+			avl_balance_tree(&kernel_tree);
 		return ret;
 	}
 }
@@ -169,7 +176,7 @@ avl_node_t **avl_search_key(avl_node_t **t, uintptr_t key)
 	avl_node_t *ptr = *t;
 	if(key == ptr->key)
 		return t;
-	if(key > ptr->key && key < ptr->end)
+	if(key > ptr->key && key < ptr->key + ptr->end)
 		return t;
 	if(key < ptr->key)
 		return avl_search_key(&ptr->left, key);
@@ -191,6 +198,30 @@ int avl_delete_node(uintptr_t key)
 
 	return 0;
 }
+avl_node_t *avl_copy(avl_node_t *node)
+{
+	if(node->left) node->left = avl_copy(node->left);
+	if(node->right) node->right = avl_copy(node->right);
+
+	avl_node_t *new = malloc(sizeof(avl_node_t));
+	memcpy(new, node, sizeof(avl_node_t));
+	return new;
+}
+void avl_clone(avl_node_t *node)
+{
+	if(node->left && node->left->key < high_half)
+	{
+		free(node->left);
+		node->left = NULL;
+	}
+	if(node->right && node->right->key < high_half)
+	{
+		free(node->right);
+		node->right = NULL;
+	}
+	if(node->left) avl_clone(node->left);
+	if(node->right) avl_clone(node->right);
+}
 void vmm_init()
 {
 	paging_init();
@@ -209,15 +240,16 @@ static int vmm_comp(const void *ptr1, const void *ptr2)
 void vmm_start_address_bookkeeping(uintptr_t framebuffer_address, uintptr_t heap)
 {
 	/* Start populating the address space */
-	vmm_entry_t *v = avl_insert_key(&tree, framebuffer_address, framebuffer_address + 0x400000);
+	vmm_entry_t *v = avl_insert_key(&kernel_tree, framebuffer_address, framebuffer_address + 0x400000);
+	
 	v->base = framebuffer_address;
 	/* TODO: Support multiple sizes of framebuffers */
 	v->pages = 0x800000 / PAGE_SIZE;
 	v->type = VM_TYPE_HW;
 	v->rwx = VM_NOEXEC | VM_WRITE;
-
+	printf("Hello\n");
 	/* TODO: Support multiple sizes of heap */
-	v = avl_insert_key(&tree, heap, heap + 0x400000);
+	v = avl_insert_key(&kernel_tree, heap, heap + 0x400000);
 
 	v->base = framebuffer_address;
 
@@ -225,7 +257,7 @@ void vmm_start_address_bookkeeping(uintptr_t framebuffer_address, uintptr_t heap
 	v->type = VM_TYPE_HW;
 	v->rwx = VM_NOEXEC | VM_WRITE;
 
-	v = avl_insert_key(&tree, KERNEL_VIRTUAL_BASE, UINT64_MAX);
+	v = avl_insert_key(&kernel_tree, KERNEL_VIRTUAL_BASE, UINT64_MAX);
 
 	v->base = KERNEL_VIRTUAL_BASE;
 	v->pages = 0x80000000 / PAGE_SIZE;
@@ -338,18 +370,37 @@ void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uin
 			break;
 		}
 	}
-	avl_node_t **e = avl_search_key(&tree, base_address);
-	while(e && *e)
+	if(flags & 1)
 	{
-		avl_node_t *n = *e;
-		base_address += n->data->pages * PAGE_SIZE;
-		e = avl_search_key(&tree, base_address);
-		if(avl_search_key(&tree, base_address + pages * PAGE_SIZE) == NULL && !e)
-			break;
+		avl_node_t **e = avl_search_key(&kernel_tree, base_address);
+		while(e && *e)
+		{
+			avl_node_t *n = *e;
+			base_address += n->data->pages * PAGE_SIZE;
+			e = avl_search_key(&kernel_tree, base_address);
+			if(avl_search_key(&kernel_tree, base_address + pages * PAGE_SIZE) == NULL && !e)
+				break;
+		}
 	}
-
+	else
+	{
+		avl_node_t **e = avl_search_key(&tree, base_address);
+		while(e && *e)
+		{
+			avl_node_t *n = *e;
+			base_address += n->data->pages * PAGE_SIZE;
+			e = avl_search_key(&tree, base_address);
+			if(avl_search_key(&tree, base_address + pages * PAGE_SIZE) == NULL && !e)
+				break;
+		}
+	}
 	//printf("Address %x is free!\n", base_address);
-	vmm_entry_t *en = avl_insert_key(&tree, base_address, pages * PAGE_SIZE);
+	vmm_entry_t *en;
+	
+	if(flags & 1)
+		en = avl_insert_key(&kernel_tree, base_address, pages * PAGE_SIZE);
+	else
+		en = avl_insert_key(&tree, base_address, pages * PAGE_SIZE);
 
 	en->rwx = (int) prot;
 	en->type = type;
@@ -369,14 +420,18 @@ void *vmm_reserve_address(void *addr, size_t pages, uint32_t type, uint64_t prot
 			release_spinlock(&current_process->vm_spl);
 		return NULL;
 	}
-	vmm_entry_t *v = avl_insert_key(&tree, (uintptr_t)addr, (uintptr_t) addr + pages * PAGE_SIZE);
+	vmm_entry_t *v;
+	if((uintptr_t) addr >= high_half)
+		v = avl_insert_key(&kernel_tree, (uintptr_t)addr, pages * PAGE_SIZE);
+	else
+		v = avl_insert_key(&tree, (uintptr_t)addr, pages * PAGE_SIZE);
 	if(!v)
 	{
 		addr = NULL;
 		errno = ENOMEM;
 		goto return_;
 	}
-	v->pages = pages * PAGE_SIZE;
+	v->pages = pages;
 	v->type = type;
 	v->rwx = prot;
 return_:
@@ -388,55 +443,36 @@ vmm_entry_t *vmm_is_mapped(void *addr)
 {
 	avl_node_t **e = avl_search_key(&tree, (uintptr_t) addr);
 	if(!e)
-		return NULL;
+	{
+		e = avl_search_key(&kernel_tree, (uintptr_t) addr);
+		if(!e)
+			return NULL;
+	}
 	avl_node_t *n = *e;
 	return n->data;
 }
-PML4 *vmm_clone_as(vmm_entry_t **vmmstructs, size_t *num_are)
+PML4 *vmm_clone_as(avl_node_t **treep)
 {
+	/* Create a new address space */
 	PML4 *pt = paging_clone_as();
-	vmm_entry_t *entries;
-	size_t remaining_entries = 0;
-	for(size_t i = 0; i < num_areas; i++)
-	{
-		if(areas[i].base <= high_half)
-			remaining_entries++;
-	}
-	entries = malloc(sizeof(vmm_entry_t) * remaining_entries);
-	for(size_t i = 0; i < num_areas; i++)
-	{
-		if(areas[i].base <= high_half)
-		{
-			memcpy(&entries[i], &areas[i], sizeof(vmm_entry_t));
-		}
-	}
+	
 	is_spawning = 1;
-	old_entries = areas;
-	old_num_entries = num_areas;
-	*vmmstructs = entries;
-	areas = entries;
-	num_areas = remaining_entries;
-	*num_are = num_areas;
-	qsort(areas,num_areas,sizeof(vmm_entry_t),vmm_comp);
+	old_tree = tree;
+	*treep = NULL;
+
 	return pt;
 }
-PML4 *vmm_fork_as(vmm_entry_t **vmmstructs)
+PML4 *vmm_fork_as(avl_node_t **vmmstructs)
 {
 	PML4 *pt = paging_fork_as();
-	vmm_entry_t *entries = malloc(sizeof(vmm_entry_t) * num_areas);
-	memcpy(entries, areas, sizeof(vmm_entry_t) * num_areas);
-	is_spawning = 1;
-	old_entries = areas;
-	old_num_entries = num_areas;
-	*vmmstructs = entries;
-	areas = entries;
+	avl_node_t *new_tree = avl_copy(tree);
+	*vmmstructs = new_tree;
 	return pt;
 }
 void vmm_stop_spawning()
 {
 	is_spawning = 0;
-	areas = old_entries;
-	num_areas = old_num_entries;
+	vmm_set_tree(old_tree);
 	paging_stop_spawning();
 }
 void vmm_change_perms(void *range, size_t pages, int perms)
@@ -455,4 +491,12 @@ void *vmalloc(size_t pages, int type, int perms)
 	void *addr = vmm_allocate_virt_address(VM_KERNEL, pages, type, perms);
 	vmm_map_range(addr, pages, perms);
 	return addr;
+}
+avl_node_t *vmm_get_tree()
+{
+	return tree;
+}
+void vmm_set_tree(avl_node_t *tree_)
+{
+	tree = tree_;
 }

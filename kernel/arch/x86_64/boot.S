@@ -1,5 +1,5 @@
 ;----------------------------------------------------------------------
-; * Copyright (C) 2016 Pedro Falcato
+; * Copyright (C) 2016, 2017 Pedro Falcato
 ; *
 ; * This file is part of Spartix, and is made available under
 ; * the terms of the GNU General Public License version 2.
@@ -96,8 +96,6 @@ _start:
 	push 0
 	mov rsp, stack_top
 	call initsse
-	extern __syscall
-	call __syscall
 	call kernel_early
 	call _init
 	call kernel_main
@@ -152,6 +150,8 @@ setup_paging_and_longm:
 	or dword [pd], 1 << 8
 	mov dword [pd + 8], 0x200083
 	or dword [pd + 8], 1 << 8
+	mov dword [pd + 16], 0x400083
+	or dword [pd + 16], 1 << 8
 
 	mov dword [pdlower], 0x000083
 	or dword [pdlower], 1 << 8
@@ -187,30 +187,35 @@ gdt:
 	DQ	0x0000000000000000
 	DQ	0x00CF9A000000FFFF
 	DQ	0x00CF92000000FFFF
-	DQ	0x0000000000000000
-	DQ	0x00A09A0000000000
-	DQ	0x00A0920000000000
-	DQ	0x00A0FA0000000000
-	DQ	0x00A0F20000000000
-global tss_gdt
+gdt_begin:
+	DQ	0x0000000000000000 ; 0x0  - NULL segment
+	DQ	0x00A09A0000000000 ; 0x8  - KERNEL CS
+	DQ	0x00A0920000000000 ; 0x10 - KERNEL DS
+	DQ	0x00CF9A000000FFFF ; 0x18 - 32-bit user CS
+	DQ	0x00CF92000000FFFF ; 0x20 - 32-bit user DS
+	DQ	0x00A0FA0000000000 ; 0x28 - USER CS
+global fark
+fark:
+	DQ	0x00A0F20000000000 ; 0x30 - USER DS
+global tss_gdt			   ; 0x38 - TSS
 tss_gdt:
 	DW	0x67,0
 	DB	0, 0xE9, 0
 	DB	0
 	DD	0
-
+gdt_end:
 gdtr1:
 	DW	40
 	DD	gdt
 
 gdtr2:
-	DW	72
-	DD	gdt + 24
+	DW	76
+	DD	gdt_begin
 	DD	0
 global gdtr3
 gdtr3:
-	DW	72
-	DQ	gdt + 24 + 0xFFFFFFFF80000000
+	DW	76
+	DQ	gdt_begin + 0xFFFFFFFF80000000
 section .bss
 global tss
 tss:

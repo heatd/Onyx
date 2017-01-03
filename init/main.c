@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016 Pedro Falcato
+ * Copyright (C) 2016, 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -12,7 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-
+#include <signal.h>
 /* x is a placeholder */
 char *prefix = "/etc/init.d/rcx.d";
 
@@ -36,7 +36,7 @@ char *copy_until_newline(char *s)
 }
 int main(int argc, char **argv, char **envp)
 {
-	printf("/sbin/init invoked!\n");
+	//printf("/sbin/init invoked!\n");
 	/* Open the config */
 	FILE *f = fopen("/etc/init.d/init.config", "rw");
 	if(!f)
@@ -66,7 +66,7 @@ int main(int argc, char **argv, char **envp)
 		{
 			/* It's a number, use tonum(3), as ring levels are from 0-6 */
 			ringlevel = tonum(*(buf + strlen("defaultrl:")));
-			printf("Ring level: %d\n", ringlevel);
+			//printf("Ring level: %d\n", ringlevel);
 		}
 	}
 	/* Free up the resources we've just used */
@@ -87,11 +87,12 @@ int main(int argc, char **argv, char **envp)
 	}
 	memset(buf, 0, 1024);
 	fgets(buf, 1024, f);
-	char *args[] = {"/etc/fstab", NULL};
 	char *env[] = {"", NULL};
 	char *shell = copy_until_newline(buf);
-	printf("Shell: %s\n", shell);
+	char *args[] = {shell, "/etc/fstab", NULL};
+	//printf("Shell: %s\n", shell);
 	int pid = fork();
+	
 	if(pid == 0)
 		execve(shell, args, env);
 

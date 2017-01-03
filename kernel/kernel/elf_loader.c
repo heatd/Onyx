@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016 Pedro Falcato
+ * Copyright (C) 2016, 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -56,7 +56,7 @@ uintptr_t elf_resolve_symbol(Elf64_Ehdr *hdr, Elf64_Shdr *sections, Elf64_Shdr *
 		const char *name = elf_get_reloc_str(hdr, stringtab, symbol->st_name);
 		uintptr_t val = get_kernel_sym_by_name(name);
 		if(val)
-			return sym;
+			return val;
 		else
 		{
 			if(ELF64_ST_BIND(symbol->st_info) & STB_WEAK)

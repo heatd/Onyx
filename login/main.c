@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016 Pedro Falcato
+ * Copyright (C) 2016, 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -24,6 +24,8 @@ void switch_users()
 char **args;
 int main(int argc, char **argv, char **envp)
 {
+	printf("Hi\n");
+	while(1);
 	args = argv;
 	printf("%s: ", argv[0]);
 	char *buf = malloc(1024);

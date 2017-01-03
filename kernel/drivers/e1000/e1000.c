@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016 Pedro Falcato
+ * Copyright (C) 2016, 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -33,15 +33,7 @@ static char *mem_space = NULL;
 static uint16_t io_space = 0;
 void e1000_write_command(uint16_t addr, uint32_t val);
 uint32_t e1000_read_command(uint16_t p_address);
-// Returns 1 if it exists, 0 if not
-int detect_e1000_nic()
-{
-	PCIDevice *pcidev = get_pcidev_from_vendor_device(E1000_DEV, INTEL_VEND);
-	if(!pcidev)
-		return 0;
-	nicdev = pcidev;
-	return 1;
-}
+
 static void initialize_e1000_busmastering()
 {
 	uint32_t command_reg = pci_config_read_dword(nicdev->slot, nicdev->device, nicdev->function, PCI_COMMAND);
@@ -241,10 +233,9 @@ int e1000_send_packet(const void *data, uint16_t len)
 	while(!(tx_descs[old_cur]->status & 0xff));
 	return 0;
 }
-int e1000_init()
+void e1000_init(PCIDevice *dev)
 {
-	if(!detect_e1000_nic())
-		return 1;
+	nicdev = dev;
 	pcibar_t *bar = pci_get_bar(nicdev->slot, nicdev->device, nicdev->function, 0);
 	char *phys_mem_space = NULL;
 	if(bar->isIO)
@@ -264,7 +255,7 @@ int e1000_init()
 		needed_pages++;
 	mem_space = vmm_allocate_virt_address(VM_KERNEL, needed_pages, VMM_TYPE_HW, VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC);
 	if(!mem_space)
-		return 1;
+		return;
 	uintptr_t virt = (uintptr_t) mem_space;
 	for(size_t i = 0; i < needed_pages; i++)
 	{
@@ -276,12 +267,11 @@ int e1000_init()
 	initialize_e1000_busmastering();
 	e1000_detect_eeprom();
 	if(e1000_read_mac_address())
-		return 1;
+		return;
 	INFO("eth0", "MAC address: %x:%x:%x:%x:%x:%x\n", mac_address[0], mac_address[1], mac_address[2], mac_address[3], mac_address[4], mac_address[5]);
 	if(e1000_init_descs())
 		ERROR("e1000", "failed to initialize!\n");
 	e1000_enable_interrupts();
 	eth_set_dev_send_packet(e1000_send_packet);
 	free(bar); // Don't forget to free bar, as we don't want a memory leak
-	return 0;
 }

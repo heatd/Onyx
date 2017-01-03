@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016 Pedro Falcato
+ * Copyright (C) 2016, 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -29,11 +29,12 @@
 #include <kernel/elf.h>
 #include <kernel/panic.h>
 #include <kernel/power_management.h>
+#include <kernel/cpu.h>
 
 #include <drivers/rtc.h>
 
 #define DEBUG_SYSCALL 1
-#undef DEBUG_SYSCALL
+//#undef DEBUG_SYSCALL
 
 #ifdef DEBUG_SYSCALL
 #define DEBUG_PRINT_SYSTEMCALL() printf("%s: syscall\n", __func__)
@@ -327,17 +328,17 @@ void sys__exit(int status)
 {
 	DEBUG_PRINT_SYSTEMCALL();
 
-	asm volatile("cli");
+	DISABLE_INTERRUPTS();
 	if(current_process->pid == 1)
 	{
 		printf("Panic: %s returned!\n", current_process->cmd_line);
 		extern int syscalls;
 		printf("%u system calls!\n", syscalls);
-		asm volatile("sti");
+		ENABLE_INTERRUPTS();
 		for(;;);
 	}
 	current_process->has_exited = status;
-	asm volatile("sti");
+	ENABLE_INTERRUPTS();
 	while(1) asm volatile("hlt");
 }
 static spinlock_t posix_spawn_spl;
@@ -436,13 +437,11 @@ int sys_posix_spawn(pid_t *pid, const char *path, void *file_actions, void *attr
 	size_t read = read_vfs(0, in->size, buffer, in);
 	if (read != in->size)
 		return errno = EAGAIN, -1;
-	vmm_entry_t *areas;
-	size_t num_r;
-	PML4 *new_pt = vmm_clone_as(&areas, &num_r);
+	avl_node_t *tree;
+	PML4 *new_pt = vmm_clone_as(&tree);
 	asm volatile ("mov %0, %%cr3" :: "r"(new_pt)); /* We can't use paging_load_cr3 because that would change current_pml4
 							* which we will need for later 
 							*/
-	new_proc->num_areas = num_r;
 	uintptr_t *new_arguments = vmm_allocate_virt_address(0, pages, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_USER);
 	vmm_map_range(new_arguments, pages, VMM_WRITE | VMM_NOEXEC | VMM_USER);
 	memcpy(new_arguments, arguments, pages * PAGE_SIZE);
@@ -471,45 +470,52 @@ int sys_posix_spawn(pid_t *pid, const char *path, void *file_actions, void *attr
 	return 0;
 }
 spinlock_t fork_spl;
-extern uintptr_t forkretregs;
 extern size_t num_areas;
-extern uintptr_t forkstack;
-extern uintptr_t forkret;
-pid_t sys_fork()
+pid_t sys_fork(syscall_ctx_t *ctx)
 {	
 	DEBUG_PRINT_SYSTEMCALL();
 
-	uintptr_t *forkstackregs = (uintptr_t*)forkretregs; // Go to the start of the little reg save
 	process_t *proc = current_process;
 	if(!proc)
 		return -1;
-	process_t *forked = process_create(current_process->cmd_line, &proc->ctx, proc); /* Create a process with the current
+	
+	/* Create a new process */
+	process_t *child = process_create(current_process->cmd_line, &proc->ctx, proc); /* Create a process with the current
 								  			  * process's info */
-	if(!forked)
+	if(!child)
 		return -1;
-	vmm_entry_t *areas;
+	
+	/* Fork the vmm data and the address space */
+	avl_node_t *areas;
 	acquire_spinlock(&fork_spl);
 	PML4 *new_pt = vmm_fork_as(&areas); // Fork the address space
 	release_spinlock(&fork_spl);
-	forked->areas = areas;
-	forked->num_areas = num_areas;
-	forked->cr3 = new_pt; // Set the new cr3
+	child->tree = areas;
+	child->cr3 = new_pt; // Set the new cr3
 
-	process_fork_thread(forked, proc, 0); // Fork the thread (basically memcpy)
-	forked->threads[0]->kernel_stack = malloc(0x2000); // TODO: Is this a bad hack?
-	if(!forked->threads[0]->kernel_stack)
-		return -1;
-	forked->threads[0]->kernel_stack += 0x2000;
-	forked->threads[0]->kernel_stack_top = forked->threads[0]->kernel_stack;
+	/* We need to disable the interrupts for a moment, because thread_add adds it to the queue, 
+	   and the thread isn't ready yet */
+	
+	DISABLE_INTERRUPTS();
+	/* Fork and create the new thread */
+	process_fork_thread(child, proc, 0);
 
-	uintptr_t *stack = (uint64_t*)forked->threads[0]->kernel_stack;
-
-	stack = sched_fork_stack(stack, forkstackregs, (uintptr_t*) forkstack, forkret);
-
-	forked->threads[0]->kernel_stack = stack;
-
+	child->threads[0]->kernel_stack = vmalloc(2, VM_TYPE_STACK, VM_WRITE | VM_NOEXEC | VM_GLOBAL);
+	if(!child->threads[0]->kernel_stack)
+	{
+		free(child->threads[0]);
+		sched_destroy_thread(child->threads[0]);
+		free(child);
+		ENABLE_INTERRUPTS();
+		return errno = ENOMEM, -1;
+	}
+	child->threads[0]->kernel_stack = (unsigned char*) child->threads[0]->kernel_stack + 0x2000;
+	child->threads[0]->kernel_stack_top = child->threads[0]->kernel_stack;
+	child->threads[0]->kernel_stack = sched_fork_stack(ctx, child->threads[0]->kernel_stack);
+	
+	ENABLE_INTERRUPTS();
 	// Return the pid to the caller
-	return forked->pid;
+	return child->pid;
 }
 int sys_mount(const char *source, const char *target, const char *filesystemtype, unsigned long mountflags, const void *data)
 {
@@ -553,7 +559,6 @@ pid_t sys_getppid()
 extern process_t *first_process;
 static spinlock_t execve_spl;
 extern _Bool is_spawning;
-extern int is_dbg_tss;
 #pragma GCC push_options
 #pragma GCC optimize("O2")
 int sys_execve(char *path, char *argv[], char *envp[])
@@ -565,12 +570,15 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	if(!vmm_is_mapped(envp))
 		return errno = EINVAL, -1;
 	DEBUG_PRINT_SYSTEMCALL();
-	size_t areas;
-	vmm_entry_t *entries;
-	current_process->cr3 = vmm_clone_as(&entries, &areas);
-	is_spawning = 0;
-	current_process->areas = entries;
-	current_process->num_areas = areas;
+
+	/* Create a new address space */
+	avl_node_t *tree;
+	current_process->cr3 = vmm_clone_as(&tree);
+	//vmm_stop_spawning();
+
+	current_process->tree = tree;
+
+	/* Open the file */
 	vfsnode_t *in = open_vfs(fs_root, path);
 	if (!in)
 	{
@@ -579,10 +587,13 @@ int sys_execve(char *path, char *argv[], char *envp[])
 		release_spinlock(&execve_spl);
 		return errno = ENOENT;
 	}
+	/* Allocate a buffer and read the whole file to it */
 	char *buffer = malloc(in->size);
 	if (!buffer)
 		return errno = ENOMEM;
+
 	in->read(0, in->size, buffer, in);
+
 	int nargs = 0;
 	size_t arg_string_len = strlen(path) + 1;
 	for(; argv[nargs]; nargs++)
@@ -591,22 +602,14 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	size_t envp_string_len = 0;
 	for(; envp[nenvp]; nenvp++)
 		envp_string_len += strlen(envp[nenvp]) + 1;
-	nargs++;
+
 	char *intermediary_buffer_args = malloc(arg_string_len);
 	memset(intermediary_buffer_args, 0, arg_string_len);
 	volatile char *temp = intermediary_buffer_args;
 	for(int i = 0; i < nargs; i++)
 	{
-		if(i == 0)
-		{
-			strcpy(temp, path);
-			temp += strlen(path) + 1;
-		}
-		else
-		{
-			strcpy(temp, argv[i-1]);
-			temp += strlen(argv[i-1]) + 1;
-		}
+		strcpy(temp, argv[i]);
+		temp += strlen(argv[i]) + 1;
 	}
 	char *intermediary_buffer_envp = malloc(envp_string_len);
 	memset(intermediary_buffer_envp, 0, envp_string_len);
@@ -649,7 +652,7 @@ int sys_execve(char *path, char *argv[], char *envp[])
 		new_envp[i] = temp;
 		temp += strlen(new_envp[i]) + 1;
 	}
-	asm volatile("cli");
+	DISABLE_INTERRUPTS();
 	thread_t *t = sched_create_main_thread((thread_callback_t) entry, 0, nargs, new_args, new_envp);
 	sched_destroy_thread(current_process->threads[0]);
 	/* Set the appropriate uid and gid */
@@ -665,7 +668,7 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	asm volatile ("mov %0, %%cr3" :: "r"(current_pml4)); /* We can't use paging_load_cr3 because that would change current_pml4
 							* which we will need for later 
 							*/
-	asm volatile("sti");
+	ENABLE_INTERRUPTS();
 	while(1);
 }
 #pragma GCC pop_options
@@ -854,6 +857,7 @@ int sys_kill(pid_t pid, int sig)
 		return errno = EINVAL, -1;
 	current_process->signal_pending = 1;
 	current_process->sinfo.signum = sig;
+	current_process->sinfo.handler = current_process->sighandlers[sig];
 	return 0;
 }
 int sys_truncate(const char *path, off_t length)
@@ -901,6 +905,50 @@ int sys_isatty(int fd)
 	else
 		return errno = ENOTTY, 0;
 }
+sighandler_t sys_signal(int signum, sighandler_t handler)
+{
+	process_t *proc = current_process;
+	if(!proc)
+		return SIG_ERR;
+	if(signum > 26)
+		return SIG_ERR;
+	if(signum < 0)
+		return SIG_ERR;
+	if(!vmm_is_mapped(handler))
+		return SIG_ERR;
+	if(handler == SIG_IGN)
+	{
+		/* SIGKILL, SIGSEGV and SIGSTOP can't be masked (yes, I'm also enforcing SIGSEGV to be on(non-standard)*/
+		switch(signum)
+		{
+			case SIGKILL:
+			case SIGSEGV:
+			case SIGSTOP:
+				return SIG_ERR;
+		}
+	}
+	sighandler_t ret = proc->sighandlers[signum];
+	proc->sighandlers[signum] = handler;
+
+	return ret;
+}
+extern void __sigret_return(uintptr_t stack);
+void sys_sigreturn(void *ret)
+{
+	DEBUG_PRINT_SYSTEMCALL();
+	if(ret == (void*) -1 && current_process->signal_pending)
+	{
+		/* Switch the registers again */
+		memcpy(get_current_thread()->kernel_stack, &current_process->old_regs, sizeof(registers_t));
+		current_process->signal_pending = 0;
+		current_process->signal_dispatched = 0;
+		__sigret_return(get_current_thread()->kernel_stack);
+		__builtin_unreachable();
+	}
+	if(!vmm_is_mapped(ret))
+		return errno = EINVAL; 
+	current_process->sigreturn = ret;
+}
 void *syscall_list[] =
 {
 	[0] = (void*) sys_write,
@@ -938,5 +986,7 @@ void *syscall_list[] =
 	[32] = (void*) sys_personality,
 	[33] = (void*) sys_setuid,
 	[34] = (void*) sys_setgid,
-	[35] = (void*) sys_isatty
+	[35] = (void*) sys_isatty,
+	[36] = (void*) sys_signal,
+	[37] = (void*) sys_sigreturn
 };
