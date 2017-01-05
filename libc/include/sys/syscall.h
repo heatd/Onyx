@@ -54,6 +54,8 @@
 #define SYS_uname	39
 #define SYS_gethostname	40
 #define SYS_sethostname	41
+#define SYS_mapfb	42
+#define SYS_nanosleep	43
 #define set_errno() register int __err asm("r11"); \
 errno = __err
 

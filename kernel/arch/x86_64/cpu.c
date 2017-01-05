@@ -99,7 +99,7 @@ void cpu_init_interrupts()
 	lapic_init();
 	apic_timer_init();
 
-	wrmsr(IA32_MSR_STAR, 0, (0x18 << 16) | 0x8);
+	wrmsr(IA32_MSR_STAR, 0, ((0x18 | 3) << 16) | 0x8);
 	wrmsr(IA32_MSR_LSTAR, (unsigned long) syscall_ENTRY64 & 0xFFFFFFFF, (unsigned long) syscall_ENTRY64 >> 32);
 	wrmsr(IA32_MSR_SFMASK, 0b10000000000, 0);
 }

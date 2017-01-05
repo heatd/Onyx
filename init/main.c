@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <signal.h>
 
+#include <sys/time.h>
 #include <sys/syscall.h>
 #include <sys/utsname.h>
 /* x is a placeholder */
@@ -105,12 +106,19 @@ int main(int argc, char **argv, char **envp)
 	
 	sethostname("localhost", strlen("localhost"));
 
-	struct utsname uname_data = {0};
+	/*struct utsname uname_data = {0};
 	syscall(SYS_uname, &uname_data);
-	printf("%s %s %s %s %s\n", uname_data.sysname, uname_data.release, uname_data.version, uname_data.machine, uname_data.nodename);
-	
+	printf("%s %s %s %s %s\n", uname_data.sysname, uname_data.release, uname_data.version, uname_data.machine, uname_data.nodename);*/
 	insmod("/lib/modules/example.kmod", "example");
-	int pid = fork();
+	
+	struct timespec time;
+	time.tv_sec = 10;
+	time.tv_nsec = 0;
+	printf("Sleeping!\n");
+	syscall(SYS_nanosleep, &time, NULL);
+	printf("Done\n");
+	asm volatile("syscall");
+	//printf("hi\n");
 	/*if(pid == 0)
 		execve(shell, args, env);*/
 

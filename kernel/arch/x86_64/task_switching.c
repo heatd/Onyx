@@ -198,21 +198,30 @@ thread_t *sched_find_runnable(void)
 {
 	thread_t *t = current_thread->next;
 	if(!t)
-		return run_queue;
+		t = run_queue;
 	while(t)
 	{
 		if(t->status == THREAD_RUNNABLE)
+		{
 			return t;
-		/*if(t->status == THREAD_SLEEPING && t->timestamp + t->sleeping_for == get_tick_count())
+		}
+		if(t->status == THREAD_SLEEPING && t->timestamp + t->sleeping_for == get_tick_count())
 		{
 			t->status = THREAD_RUNNABLE;
 			t->timestamp = 0;
 			t->sleeping_for = 0;
 			return t;
-		}*/
+		}
+		if(t->status == THREAD_SLEEPING && t->timestamp + t->sleeping_for < get_tick_count() && t->timestamp)
+		{
+			t->status = THREAD_RUNNABLE;
+			t->timestamp = 0;
+			t->sleeping_for = 0;
+			return t;
+		}
 		t = t->next;
 	}
-	return run_queue;
+	return idle_thread;
 }
 void* sched_switch_thread(void* last_stack)
 {
@@ -295,9 +304,11 @@ uintptr_t *sched_fork_stack(syscall_ctx_t *ctx, uintptr_t *stack)
 }
 void sched_idle()
 {
-	/* This function will not do work at all, just idle using hlt*/
+	/* This function will not do work at all, just idle using hlt */
 	for(;;)
+	{
 		asm volatile("hlt");
+	}
 }
 void thread_add(thread_t *add)
 {
@@ -345,14 +356,13 @@ int sched_init()
 {
 	idle_thread = task_switching_create_context(sched_idle, 1, NULL);
 	if(!idle_thread)
-			return 1;
+		return 1;
 	is_initialized = true;
 	return 0;
 }
 void sched_yield()
 {
-	if(is_initialized)
-		asm volatile("int $0x81");
+	asm volatile("int $0x81");
 }
 void sched_sleep(unsigned long ms)
 {

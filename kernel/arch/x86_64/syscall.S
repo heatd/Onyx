@@ -36,12 +36,13 @@ syscall_ENTRY64:
 	swapgs
 	swapgs
 	
-	mov ax, 0x33
-	mov ds, ax
-	mov es, ax
-	push ax
-	push rsp
-	push r11
-	push 0x2b
-	push rcx
-	iretq
+	;mov ax, 0x33
+	;mov ds, ax
+	;mov es, ax
+	;push ax
+	;push rsp
+	;push r11
+	;push 0x2b
+	;push rcx
+	;iretq
+	o64 sysret

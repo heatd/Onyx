@@ -216,6 +216,7 @@ _sched_yield:
 	push rax
 	mov rdi, rsp
 	call sched_switch_thread
+	mov rsp, rax
 	pop rax
 	mov ds, ax
 	mov es, ax

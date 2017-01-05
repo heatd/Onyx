@@ -56,7 +56,7 @@ inline int validate_fd(int fd)
 		return errno = EBADF;
 	return 0;
 }
-const uint32_t SYSCALL_MAX_NUM = 34;
+const uint32_t SYSCALL_MAX_NUM = 43;
 spinlock_t lseek_spl;
 off_t sys_lseek(int fd, off_t offset, int whence)
 {
@@ -1007,6 +1007,32 @@ int sys_gethostname(char *name, size_t len)
 	
 	return 0;
 }
+extern void *phys_fb;
+void *sys_mapfb()
+{
+	void *mapping_addr = vmm_allocate_virt_address(0, 1024, VMM_TYPE_REGULAR, VMM_USER | VMM_WRITE);
+	uintptr_t temp = (uintptr_t) mapping_addr, temp2 = (uintptr_t) phys_fb; 
+	for(int i = 0; i < 1024; i++)
+	{
+		paging_map_phys_to_virt(temp, temp2, VMM_WRITE | VMM_USER);
+		temp += 4096;
+		temp2 += 4096;
+	}
+	return mapping_addr;
+}
+int sys_nanosleep(const struct timespec *req, struct timespec *rem)
+{
+	if(!vmm_is_mapped(req))
+		return errno = -EFAULT, -1;
+	time_t ticks = req->tv_sec * 1000;
+	if(req->tv_nsec)
+	{
+		if(req->tv_nsec < 500)
+			ticks++;
+	}
+	sched_sleep(ticks);
+	return 0;
+}
 void *syscall_list[] =
 {
 	[0] = (void*) sys_write,
@@ -1050,5 +1076,7 @@ void *syscall_list[] =
 	[38] = (void*) sys_insmod,
 	[39] = (void*) sys_uname,
 	[40] = (void*) sys_gethostname,
-	[41] = (void*) sys_sethostname
+	[41] = (void*) sys_sethostname,
+	[42] = (void*) sys_mapfb,
+	[43] = (void*) sys_nanosleep
 };

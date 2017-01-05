@@ -82,7 +82,7 @@ struct multiboot_tag_elf_sections *secs;
 struct multiboot_tag_mmap *mmap_tag = NULL;
 void *initrd_addr = NULL;
 static void *tramp = NULL;
-
+void *phys_fb = NULL;
 char kernel_cmdline[256];
 uintptr_t address = 0;
 uintptr_t rsdp;
@@ -266,7 +266,7 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 		}
 		mmap++;
 	}
-
+	phys_fb = tagfb->common.framebuffer_addr;
 	/* Map the FB */
 	for (uintptr_t virt = KERNEL_FB, phys = tagfb->common.framebuffer_addr; virt < KERNEL_FB + 0x400000; virt += 4096, phys += 4096)
 	{
@@ -414,12 +414,13 @@ void kernel_multitasking(void *arg)
 	tty_create_dev(); /* /dev/tty */
 	null_init(); /* /dev/null */
 	zero_init(); /* /dev/zero */
-
+	
 	find_and_exec_init(args, envp);
-
 	if(errno == ENOENT)
 	{
 		panic("/sbin/init not found!");
 	}
+	
+	get_current_thread()->status = THREAD_SLEEPING;
 	for (;;) asm volatile("hlt");
 }

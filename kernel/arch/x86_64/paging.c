@@ -99,7 +99,6 @@ void paging_init()
 	asm volatile("movq %%cr3, %%rax\t\nmovq %%rax, %0":"=r"(current_pml4));
 }
 extern PML3 pdptphysical_map;
-void write_string(const char *s);
 void paging_map_all_phys()
 {
 	uintptr_t virt = 0xffffea0000000000;
