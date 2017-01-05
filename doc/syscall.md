@@ -48,3 +48,5 @@ The kernel exposes the system calls to the user-space by the interrupt vector 0x
 | 39 | uname() system call |
 | 40 | gethostname() system call |
 | 41 | sethostname() system call |
+| 42 | mapfb() system call |
+| 43 | nanosleep() system call |
