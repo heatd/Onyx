@@ -115,5 +115,5 @@ pid_t getpid();
 pid_t getppid();
 int setuid(uid_t uid);
 int setgid(gid_t gid);
-
+ int ioctl(int fildes, int request, ...);
 #endif

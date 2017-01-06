@@ -82,13 +82,14 @@ void* softfb_getfb()
 {
 	return (void *)framebuffer;
 }
-static videomode_t vidm = {0,0,0};
+static videomode_t vidm = {0, 0, 0, 0};
 videomode_t *softfb_getvideomode()
 {
 	if( vidm.width == 0 ) {
 		vidm.width = framebuffer_width;
 		vidm.height = framebuffer_height;
 		vidm.bpp = framebuffer_bpp;
+		vidm.pitch = framebuffer_pitch;
 	}
 	return &vidm;
 }

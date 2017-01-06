@@ -1,5 +1,5 @@
-SYSTEM_HEADER_PROJECTS="libc kernel"
-PROJECTS="libc kernel"
+SYSTEM_HEADER_PROJECTS="libc libdrm kernel"
+PROJECTS="libc libdrm kernel"
 SOURCE_PACKAGES="cat echo init login sh"
 
 export MAKE=${MAKE:-make}

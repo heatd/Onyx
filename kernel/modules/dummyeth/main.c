@@ -8,22 +8,31 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-/* example - An example of a simple kernel module for Spartix */
-
+#include <stdlib.h>
 #include <stdio.h>
 
+#include <kernel/ethernet.h>
 #include <kernel/module.h>
 
 MODULE_AUTHOR("Pedro Falcato");
 MODULE_LICENSE(MODULE_LICENSE_GPL2);
 
+#define MPRINTF(...) printf("dummyeth: "__VA_ARGS__)
+
+int dummy_send_packet(const void *ptr, uint16_t len)
+{
+	(void) ptr;
+	(void) len;
+	return 0;
+}
+
 int module_init()
 {
-	printf("Module loaded!\n");
-	return 0;
-} 
+	MPRINTF("initializing!\n");
+	eth_set_dev_send_packet(dummy_send_packet);
+}
 int module_fini()
 {
-	printf("Module unloaded!\n");
-	return 0;
+	MPRINTF("exiting!\n");
+	eth_set_dev_send_packet((device_send_packet)NULL);
 }

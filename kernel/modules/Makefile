@@ -1,4 +1,6 @@
-MODULES:=mod_example
+MODULES:=mod_example \
+mod_dummyeth \
+mod_drm
 CFLAGS:=$(CFLAGS) -mcmodel=large
 all: $(MODULES)
 

@@ -8,22 +8,12 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-/* example - An example of a simple kernel module for Spartix */
+#ifndef DRM_KERNEL_H_INCLUDED
+#define DRM_KERNEL_H_INCLUDED
 
-#include <stdio.h>
+#define DRM_VERSION_STRING "drm-0.1"
+#define DRM_SOFTWARE_DRIVER_STRING "drm-software"
+#define DRM_SOFTWARE_CARD_STRING   "drm-software"
 
-#include <kernel/module.h>
 
-MODULE_AUTHOR("Pedro Falcato");
-MODULE_LICENSE(MODULE_LICENSE_GPL2);
-
-int module_init()
-{
-	printf("Module loaded!\n");
-	return 0;
-} 
-int module_fini()
-{
-	printf("Module unloaded!\n");
-	return 0;
-}
+#endif

@@ -13,10 +13,13 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
+#include <fcntl.h>
 
 #include <sys/time.h>
 #include <sys/syscall.h>
 #include <sys/utsname.h>
+
+#include <drm/drm.h>
 /* x is a placeholder */
 char *prefix = "/etc/init.d/rcx.d";
 
@@ -109,14 +112,12 @@ int main(int argc, char **argv, char **envp)
 	/*struct utsname uname_data = {0};
 	syscall(SYS_uname, &uname_data);
 	printf("%s %s %s %s %s\n", uname_data.sysname, uname_data.release, uname_data.version, uname_data.machine, uname_data.nodename);*/
-	insmod("/lib/modules/example.kmod", "example");
+	insmod("/lib/modules/drm.kmod", "drm");
 	
-	struct timespec time;
-	time.tv_sec = 10;
-	time.tv_nsec = 0;
-	printf("Sleeping!\n");
-	syscall(SYS_nanosleep, &time, NULL);
-	printf("Done\n");
+	struct drm_info *info = NULL;
+	if(drm_initialize(&info) < 0)
+		printf("Error: Failed to initialize drm!\n");
+
 	asm volatile("syscall");
 	//printf("hi\n");
 	/*if(pid == 0)

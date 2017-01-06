@@ -64,3 +64,11 @@ int isatty(int fildes)
 	}
 	return ret;
 }
+unsigned int ioctl(int fd, int op, ...)
+{
+	va_list varg;
+	va_start(varg, op);
+	syscall(SYS_ioctl, fd, op, varg);
+	va_end(varg);
+	return rax;
+}

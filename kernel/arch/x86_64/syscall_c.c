@@ -831,7 +831,6 @@ int sys_getdents(int fd, struct dirent *dirp, unsigned int count)
 int sys_ioctl(int fd, int request, va_list args)
 {
 	DEBUG_PRINT_SYSTEMCALL();
-
 	if(validate_fd(fd))
 		return errno = EBADF, -1;
 	ioctx_t *ctx = &current_process->ctx;

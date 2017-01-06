@@ -13,4 +13,4 @@ install: $(PROG)
 	mkdir -p $(DESTDIR)/sbin/
 	cp $(PROG) $(DESTDIR)/sbin/
 $(PROG): $(OBJS)
-	$(CC) $(OBJS) $(CFLAGS) -o $@
+	$(CC) $(OBJS) $(CFLAGS) -ldrm -o $@
