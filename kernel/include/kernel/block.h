@@ -32,9 +32,18 @@ typedef struct blkdev
 	__blkwrite write;
 	__blkflush flush;
 	__blkpowermanagement power;
+	const char *node_path; /* A /dev path */
 	void *device_info;
 	struct blkdev *next;
 } block_device_t;
+
+/* 
+ * Function: block_device_t *blkdev_search(const char *name);
+ * Description: Search for 'name' on the linked list
+ * Return value: Returns a valid block device on success, NULL on error. Sets errno properly.
+ * errno values: EINVAL - invalid argument;
+*/
+block_device_t *blkdev_search(const char *name);
 /* 
  * Function: int block_add_device(block_device_t *dev);
  * Description: Adds dev to the registered block devices.

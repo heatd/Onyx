@@ -22,6 +22,7 @@
 #include <kernel/tss.h>
 #include <kernel/process.h>
 #include <kernel/idt.h>
+#include <kernel/fpu.h>
 
 static thread_t *run_queue = NULL;
 static thread_t *idle_thread = NULL; 
@@ -248,11 +249,16 @@ void* sched_switch_thread(void* last_stack)
 	{
 		current_process->tree = vmm_get_tree();
 	}
-	//asm volatile("fxsave %0"::"m"(current_thread->fxsave));
+
+	/* Save the FPU state */
+	SAVE_FPU(current_thread->fpu_area);
+	
 	current_thread = sched_find_runnable();
 	/* Fill the TSS with a kernel stack*/
 	set_kernel_stack((uintptr_t)current_thread->kernel_stack_top);
-	//asm volatile("fxrstor %0"::"m"(current_thread->fxsave));
+
+	/* Restore the FPU state */
+	RESTORE_FPU(current_thread->fpu_area);
 	current_process = current_thread->owner;
 	if(current_process)
 	{

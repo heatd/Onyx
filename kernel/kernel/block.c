@@ -18,6 +18,26 @@
 
 static block_device_t *dev_list = NULL;
 /* 
+ * Function: block_device_t *blkdev_search(const char *name);
+ * Description: Search for 'name' on the linked list
+ * Return value: Returns a valid block device on success, NULL on error. Sets errno properly.
+ * errno values: EINVAL - invalid argument;
+*/
+block_device_t *blkdev_search(const char *name)
+{
+	if(!name)
+		return errno = EINVAL, NULL;
+	
+	block_device_t *dev = dev_list;
+	while(dev)
+	{
+		if(!strcmp(dev->node_path, name))
+			break;
+		dev = dev->next;
+	}
+	return dev;
+}
+/* 
  * Function: int block_add_device(block_device_t *dev);
  * Description: Adds dev to the registered block devices.
  * Return value: 0 on success, -1 on error. Sets errno properly.

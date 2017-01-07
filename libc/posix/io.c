@@ -64,7 +64,7 @@ int isatty(int fildes)
 	}
 	return ret;
 }
-unsigned int ioctl(int fd, int op, ...)
+int ioctl(int fd, int op, ...)
 {
 	va_list varg;
 	va_start(varg, op);

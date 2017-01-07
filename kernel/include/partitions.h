@@ -13,8 +13,15 @@
 
 #include <stdint.h>
 
-typedef int (*fs_handler)(uint64_t sector, int drive, int channel);
+#include <kernel/block.h>
+typedef int (*fs_handler)(uint64_t sector, block_device_t *dev);
 
-fs_handler lookup_handler_from_partition_code(uint8_t part_code);
-void part_add_handler(uint8_t part_code, fs_handler handler);
+enum partition_type_t
+{
+	PARTITION_TYPE_MBR,
+	PARTITION_TYPE_GPT
+};
+void partition_add_handler(enum partition_type_t part_type, uint8_t part_code, fs_handler handler);
+void partition_find_and_mount(enum partition_type_t type, int index, block_device_t *dev);
+fs_handler lookup_handler_from_partition_code(enum partition_type_t type, uint8_t part_code);
 #endif

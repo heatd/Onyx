@@ -8,15 +8,18 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#include <partitions.h>
-#include <stdio.h>
-static volatile fs_handler code_handlers[0xFF];
+#ifndef _FPU_H
+#define _FPU_H
 
-void part_add_handler(uint8_t part_code, fs_handler handler)
-{
-	code_handlers[part_code] = handler;
-}
-fs_handler lookup_handler_from_partition_code(uint8_t part_code)
-{
-	return code_handlers[part_code];
-}
+#ifdef __x86_64__
+
+#define FPU_AREA_ALIGNMENT 	16
+#define FPU_AREA_SIZE		512
+#define SAVE_FPU(addr) asm volatile("fxsave %0"::"m"(addr));
+#define RESTORE_FPU(addr) asm volatile("fxrstor %0"::"m"(addr));
+
+#else
+#error "Implement FPU switching for your arch"
+#endif
+
+#endif

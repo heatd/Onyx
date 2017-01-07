@@ -28,6 +28,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <pthread_kernel.h>
+#include <partitions.h>
 
 #include <sys/mman.h>
 
@@ -60,6 +61,7 @@
 #include <kernel/icmp.h>
 #include <kernel/process.h>
 #include <kernel/envp.h>
+#include <kernel/block.h>
 
 #include <drivers/ps2.h>
 #include <drivers/ata.h>
@@ -279,10 +281,7 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 	/* Initialize the first terminal */
 	tty_init();
 	initrd_addr = (void*) (uintptr_t) initrd_tag->mod_start;
-}
-void kernel_multitasking(void *);
-void kernel_main()
-{
+
 	/* Identify the CPU it's running on (bootstrap CPU) */
 	cpu_identify();
 
@@ -307,6 +306,10 @@ void kernel_main()
 			break;
 		}
 	}
+}
+void kernel_multitasking(void *);
+void kernel_main()
+{
 	init_elf_symbols(secs);
 
 	/* Initialize ACPI */
@@ -415,7 +418,27 @@ void kernel_multitasking(void *arg)
 	null_init(); /* /dev/null */
 	zero_init(); /* /dev/zero */
 	
-	find_and_exec_init(args, envp);
+	/* Mount the root partition */
+	char *root_partition = kernel_getopt("--root");
+	if(!root_partition)
+		panic("--root wasn't specified in the kernel arguments");
+	
+	/* Note that we don't actually allocate an extra byte for the NUL terminator, since the partition number will
+	 become just that */
+	char *device_name = malloc(strlen(root_partition));
+	if(!device_name)
+		panic("Out of memory while allocating ´device_name´");
+
+	strcpy(device_name, root_partition);
+	/* Zero-terminate the string */
+	device_name[strlen(root_partition)-1] = '\0';
+	
+	/* Search for it */
+	block_device_t *dev = blkdev_search(device_name);
+	if(!dev)
+		panic("Root device not found!");
+
+	//find_and_exec_init(args, envp);
 	if(errno == ENOENT)
 	{
 		panic("/sbin/init not found!");

@@ -533,7 +533,6 @@ int sys_mount(const char *source, const char *target, const char *filesystemtype
 		return errno = EINVAL, -1;
 	DEBUG_PRINT_SYSTEMCALL();
 
-	read_partitions();
 	return 0;
 }
 uint64_t sys_nosys()

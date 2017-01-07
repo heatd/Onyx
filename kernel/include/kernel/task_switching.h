@@ -14,7 +14,7 @@
 #include <stdint.h>
 
 #include <kernel/registers.h>
-
+#include <kernel/fpu.h>
 #define THREAD_RUNNABLE 0
 #define THREAD_SLEEPING 1
 
@@ -22,7 +22,6 @@ typedef void(*thread_callback_t)(void*);
 struct proc;
 typedef struct thr
 {
-	//char *fxsave;
 	uintptr_t *user_stack;
 	uintptr_t *kernel_stack;
 	uintptr_t *kernel_stack_top;
@@ -35,6 +34,7 @@ typedef struct thr
 	struct thr *next;
 	uint64_t timestamp;
 	unsigned long sleeping_for;
+	unsigned char fpu_area[FPU_AREA_SIZE] __attribute__((aligned(FPU_AREA_ALIGNMENT)));
 } thread_t;
 
 int sched_init(void);

@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <drivers/ext2.h>
 #include <kernel/vfs.h>
+#include <kernel/compiler.h>
 #include <errno.h>
 ext2_fs_t *fslist = NULL;
 void *ext2_read_block(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs)
@@ -465,6 +466,7 @@ int ext2_open_partition(uint64_t sector, int drive, int channel)
 		return 1;
 	}
 	ext2_fs_t *fs = malloc(sizeof(ext2_fs_t));
+	memset(fs, 0, sizeof(ext2_fs_t));
 	if(!fslist) fslist = fs;
 	else
 	{
@@ -509,7 +511,7 @@ int ext2_open_partition(uint64_t sector, int drive, int channel)
 	mount_fs(node, "/");
 	return 0;
 }
-void init_ext2drv()
+__init void init_ext2drv()
 {
-	part_add_handler(EXT2_MBR_CODE, ext2_open_partition);
+	partition_add_handler(PARTITION_TYPE_MBR, EXT2_MBR_CODE, ext2_open_partition);
 }

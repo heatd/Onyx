@@ -36,6 +36,7 @@
 #define ARCH_SPECIFIC extern
 #define UNUSED_PARAMETER(x) (void)x
 #define UNUSED(x) UNUSED_PARAMETER(x)
+#define __init __attribute__((constructor))
 inline uint64_t rdtsc()
 {
     	uint64_t ret = 0;

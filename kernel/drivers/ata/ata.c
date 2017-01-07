@@ -156,7 +156,6 @@ ssize_t ata_read(size_t offset, size_t count, void* buffer, struct blkdev* blkd)
 	if(!drv)
 		return errno = EINVAL, -1;
 	size_t off = offset;
-	printf("reading from offset %u\n", off);
 	void *buf = vmm_allocate_virt_address(VM_KERNEL, vmm_align_size_to_pages(count), VMM_TYPE_REGULAR, VMM_NOEXEC | VMM_WRITE);
 	vmm_map_range(buf, vmm_align_size_to_pages(count), VMM_WRITE | VMM_NOEXEC);
 
@@ -250,6 +249,7 @@ int ata_initialize_drive(int channel, int drive)
 
 	dev->device_info = &ide_drives[curr];
 
+	dev->node_path = path;
 	dev->read = ata_read;
 	dev->write = ata_write;
 	dev->flush = ata_flush;
