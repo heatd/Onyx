@@ -62,6 +62,7 @@
 #include <kernel/process.h>
 #include <kernel/envp.h>
 #include <kernel/block.h>
+#include <kernel/elf.h>
 
 #include <drivers/ps2.h>
 #include <drivers/ata.h>
@@ -189,6 +190,36 @@ retry:;
 	proc->fs = (uintptr_t) fs;
 	DISABLE_INTERRUPTS();
 	process_create_thread(proc, (thread_callback_t) entry, 0, argc, args, env);
+	// Ugh, a really bad hack to put it here. The ELF loader/execve needs to be restructered
+	/* Setup the auxv at the stack bottom */
+	Elf64_auxv_t *auxv = proc->threads[0]->user_stack_bottom;
+	unsigned char *scratch_space = (unsigned char *) (auxv + 37);
+	for(int i = 0; i < 38; i++)
+	{
+		if(i != 0)
+			auxv[i].a_type = i;
+		if(i == 37)
+			auxv[i].a_type = 0;
+		switch(i)
+		{
+			case AT_PAGESZ:
+				auxv[i].a_un.a_val = PAGE_SIZE;
+				break;
+			case AT_UID:
+				auxv[i].a_un.a_val = proc->uid;
+				break;
+			case AT_GID:
+				auxv[i].a_un.a_val = proc->gid;
+				break;
+			case AT_RANDOM:
+				get_entropy(scratch_space, 16);
+				printf("Random: %x%x\n", *(uint64_t*) scratch_space, *(uint64_t*) scratch_space+1);
+				scratch_space += 16;
+				break;
+		}
+	}
+	registers_t *regs = proc->threads[0]->kernel_stack;
+	regs->rcx = auxv;
 	p->tid = proc->threads[0]->id;
 	p->pid = proc->pid;
 	free(buffer);
@@ -368,13 +399,11 @@ void kernel_multitasking(void *arg)
 	     KERNEL_VERSION, KERNEL_BRANCH, &__BUILD_NUMBER, KERNEL_ARCH);
 	LOG("kernel", "Command line: %s\n", kernel_cmdline);
 	pci_init();
-	pci_initialize_drivers();
 	
 	/* Initialize devfs */
 	devfs_init();
 
-	/* Initialize PCI */
-	ata_init();
+	pci_initialize_drivers();
 
 	char *args[] = {"/etc/fstab", NULL};
 	char *envp[] = {"PATH=/bin:/usr/bin:/usr/lib", NULL};
@@ -417,12 +446,12 @@ void kernel_multitasking(void *arg)
 	tty_create_dev(); /* /dev/tty */
 	null_init(); /* /dev/null */
 	zero_init(); /* /dev/zero */
-	
+
 	/* Mount the root partition */
 	char *root_partition = kernel_getopt("--root");
 	if(!root_partition)
 		panic("--root wasn't specified in the kernel arguments");
-	
+
 	/* Note that we don't actually allocate an extra byte for the NUL terminator, since the partition number will
 	 become just that */
 	char *device_name = malloc(strlen(root_partition));
@@ -432,18 +461,18 @@ void kernel_multitasking(void *arg)
 	strcpy(device_name, root_partition);
 	/* Zero-terminate the string */
 	device_name[strlen(root_partition)-1] = '\0';
-	
+
 	/* Search for it */
 	block_device_t *dev = blkdev_search(device_name);
 	if(!dev)
 		panic("Root device not found!");
 
-	//find_and_exec_init(args, envp);
+	find_and_exec_init(args, envp);
 	if(errno == ENOENT)
 	{
 		panic("/sbin/init not found!");
 	}
-	
+
 	get_current_thread()->status = THREAD_SLEEPING;
 	for (;;) asm volatile("hlt");
 }

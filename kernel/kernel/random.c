@@ -52,7 +52,7 @@ void initialize_entropy()
 	uint64_t tsc = rdtsc();
 	add_entropy(&tsc, sizeof(uint32_t));
 	srand((unsigned int) (tsc | ~p));
-	for(size_t i = current_entropy; i < max_entropy; i = current_entropy)
+	for(size_t i = current_entropy; i < max_entropy; i+= sizeof(int))
 	{
 		int r = rand();
 		add_entropy(&r, sizeof(int));

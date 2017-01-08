@@ -25,7 +25,7 @@ typedef struct thr
 	uintptr_t *user_stack;
 	uintptr_t *kernel_stack;
 	uintptr_t *kernel_stack_top;
-	uintptr_t *user_stack_top;
+	uintptr_t *user_stack_bottom;
 	struct proc *owner;
 	thread_callback_t rip;
 	uint32_t flags;

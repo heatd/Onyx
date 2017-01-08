@@ -258,16 +258,10 @@ int ata_initialize_drive(int channel, int drive)
 	
 	return 1;
 }
-void ata_init()
+void ata_init(PCIDevice *dev)
 {
-	idedev = get_pcidev_from_classes(1,1,0);
-	if(idedev)
-		INFO("ata", "found IDE controller\n");
-	else
-	{
-		ERROR("ata", "failed to find a valid IDE controller\n");
-		return;
-	}
+	idedev = dev;
+
 	/* Allocate PRDT base */
 	prdt_base = vmm_allocate_virt_address(VM_KERNEL, 16/*64K*/, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
 	vmm_map_range(prdt_base, 16, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);

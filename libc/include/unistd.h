@@ -90,9 +90,12 @@
 #define _XOPEN_UUCP		-1
 
 /* lseek(2) */
-#define SEEK_SET 1
-#define SEEK_CUR 2
-#define SEEK_END 3
+#undef SEEK_SET
+#undef SEEK_CUR
+#undef SEEK_END
+#define SEEK_SET 0
+#define SEEK_CUR 1
+#define SEEK_END 2
 
 /* Standard file descriptors required by POSIX */
 #define STDIN_FILENO 0

@@ -40,11 +40,11 @@ extern FILE* stdin;
 #endif
 
 #undef SEEK_SET
-#define SEEK_SET 1
 #undef SEEK_CUR
-#define SEEK_CUR 2
 #undef SEEK_END
-#define SEEK_END 3
+#define SEEK_SET 0
+#define SEEK_CUR 1
+#define SEEK_END 2
 
 int fprintf(FILE*, const char*, ...);
 int fclose(FILE*);

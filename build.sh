@@ -16,3 +16,6 @@ cat > sysroot/etc/fstab << EOF
 EOF
 x86_64-spartix-nm kernel/vmspartix > Kernel.map
 cp Kernel.map sysroot/boot/Kernel.map
+sha256sum kernel/vmspartix > vmspartix.sha256
+mkdir -p $PWD/sysroot/sbin
+cp vmspartix.sha256 $PWD/sysroot/sbin/vmspartix.checksum

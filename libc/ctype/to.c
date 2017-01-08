@@ -40,16 +40,6 @@ int isalpha(int c)
 		return 1;
 	return 0;
 }
-int tonum(int c)
-{
-	return c - '0';
-}
-int isnum(int c)
-{
-	if(c >= 48 && c <= 57)
-		return 1;
-	return 0;
-}
 int isalnum(int c)
 {
 	if(isnum(c) || isalpha(c))

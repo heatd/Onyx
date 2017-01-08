@@ -12,9 +12,9 @@
 #define _FCNTL_H
 
 
-#define O_RDONLY 	1
-#define O_WRONLY	2
-#define O_RDWR		(O_RDONLY | O_WRONLY)
+#define O_RDONLY  00
+#define O_WRONLY  01
+#define O_RDWR    02
 
 
 

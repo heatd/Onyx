@@ -47,8 +47,6 @@ int drm_initialize(struct drm_info **out)
 	if(drm_request_info(buf) < 0)
 		return -1;
 	*out = buf;
-	struct drm_fb fb;
-	ioctl(drm_fd, DRM_REQUEST_GET_FB, &fb);
-	printf("Framebuffer: %p\nWidth %u, Height %u, BPP %u\n", fb.framebuffer, fb.width, fb.height, fb.bpp);
+
 	return 0;
 }

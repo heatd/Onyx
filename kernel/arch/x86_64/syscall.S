@@ -1,6 +1,5 @@
 section .text
 %macro pushaq 0
-	push rax
 	push rbx
 	push rcx
 	push rdx
@@ -29,20 +28,39 @@ section .text
 	pop rdx
 	pop rcx
 	pop rbx
-	pop rax
 %endmacro
+extern syscall_list
+extern syscall_helper
 global syscall_ENTRY64
 syscall_ENTRY64:
+	cld
 	swapgs
+	; Get the kernel stack, and save the user-stack
+	mov qword[gs:0x18], rsp
+	mov rsp, qword [gs:0x10]
+	sti
+	; Save the registers
+	pushaq
+	; Save the old segments, and switch to the kernel ones
+
+	mov ecx, ds
+	push rcx
+	mov cx, 0x10
+	mov ds, cx
+	mov es, cx
+
+	; To conform to the Sys V ABI, we need to move r10 to rcx
+	mov rcx, r10
+
+	call [syscall_list + rax * 8]
+
+	pop rcx
+	mov ds, cx
+	mov es, cx
+
+	popaq
+	cli
+	mov rsp, qword[gs:0x18]
 	swapgs
-	
-	;mov ax, 0x33
-	;mov ds, ax
-	;mov es, ax
-	;push ax
-	;push rsp
-	;push r11
-	;push 0x2b
-	;push rcx
-	;iretq
+
 	o64 sysret

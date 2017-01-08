@@ -18,3 +18,5 @@ echo/echo
 *.pcapng
 login/login
 sh/sh
+*.sha256sum
+

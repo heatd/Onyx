@@ -1,0 +1,421 @@
+diff -Naur musl-1.1.16/arch/x86_64/bits/syscall.h.in musl-1.1.16-patched/arch/x86_64/bits/syscall.h.in
+--- musl-1.1.16/arch/x86_64/bits/syscall.h.in	2017-01-01 03:27:17.000000000 +0000
++++ musl-1.1.16-patched/arch/x86_64/bits/syscall.h.in	2017-01-08 23:09:33.018761901 +0000
+@@ -1,52 +1,52 @@
+-#define __NR_read				0
+-#define __NR_write				1
++#define __NR_write				0
++#define __NR_read				1
+ #define __NR_open				2
+ #define __NR_close				3
+ #define __NR_stat				4
+ #define __NR_fstat				5
+ #define __NR_lstat				6
+-#define __NR_poll				7
+-#define __NR_lseek				8
+-#define __NR_mmap				9
+-#define __NR_mprotect			10
+-#define __NR_munmap				11
+-#define __NR_brk				12
+-#define __NR_rt_sigaction		13
+-#define __NR_rt_sigprocmask		14
+-#define __NR_rt_sigreturn		15
+-#define __NR_ioctl				16
+-#define __NR_pread64			17
+-#define __NR_pwrite64			18
+-#define __NR_readv				19
+-#define __NR_writev				20
+-#define __NR_access				21
+-#define __NR_pipe				22
+-#define __NR_select				23
+-#define __NR_sched_yield		24
+-#define __NR_mremap				25
+-#define __NR_msync				26
+-#define __NR_mincore			27
+-#define __NR_madvise			28
+-#define __NR_shmget				29
+-#define __NR_shmat				30
+-#define __NR_shmctl				31
+-#define __NR_dup				32
+-#define __NR_dup2				33
+-#define __NR_pause				34
+-#define __NR_nanosleep			35
+-#define __NR_getitimer			36
+-#define __NR_alarm				37
+-#define __NR_setitimer			38
+-#define __NR_getpid				39
+-#define __NR_sendfile			40
+-#define __NR_socket				41
+-#define __NR_connect			42
+-#define __NR_accept				43
+-#define __NR_sendto				44
+-#define __NR_recvfrom			45
+-#define __NR_sendmsg			46
+-#define __NR_recvmsg			47
+-#define __NR_shutdown			48
++#define __NR_poll				255
++#define __NR_lseek				7
++#define __NR_mmap				11
++#define __NR_mprotect			13
++#define __NR_munmap				12
++#define __NR_brk				16
++#define __NR_rt_sigaction		255
++#define __NR_rt_sigprocmask		255
++#define __NR_rt_sigreturn		255
++#define __NR_ioctl				29
++#define __NR_pread64			255
++#define __NR_pwrite64			255
++#define __NR_readv				24
++#define __NR_writev				25
++#define __NR_access				255
++#define __NR_pipe				255
++#define __NR_select				255
++#define __NR_sched_yield		255
++#define __NR_mremap				255
++#define __NR_msync				255
++#define __NR_mincore			255
++#define __NR_madvise			255
++#define __NR_shmget				255
++#define __NR_shmat				255
++#define __NR_shmctl				255
++#define __NR_dup				4
++#define __NR_dup2				5
++#define __NR_pause				255
++#define __NR_nanosleep			43
++#define __NR_getitimer			255
++#define __NR_alarm				255
++#define __NR_setitimer			255
++#define __NR_getpid				6
++#define __NR_sendfile			255
++#define __NR_socket				255
++#define __NR_connect			255
++#define __NR_accept				255
++#define __NR_sendto				255
++#define __NR_recvfrom			255
++#define __NR_sendmsg			255
++#define __NR_recvmsg			255
++#define __NR_shutdown			23
+ #define __NR_bind				49
+ #define __NR_listen				50
+ #define __NR_getsockname		51
+@@ -55,13 +55,13 @@
+ #define __NR_setsockopt			54
+ #define __NR_getsockopt			55
+ #define __NR_clone				56
+-#define __NR_fork				57
++#define __NR_fork				10
+ #define __NR_vfork				58
+-#define __NR_execve				59
+-#define __NR_exit				60
+-#define __NR_wait4				61
+-#define __NR_kill				62
+-#define __NR_uname				63
++#define __NR_execve				15
++#define __NR_exit				8
++#define __NR_wait4				19
++#define __NR_kill				17
++#define __NR_uname				39
+ #define __NR_semget				64
+ #define __NR_semop				65
+ #define __NR_semctl				66
+@@ -74,9 +74,9 @@
+ #define __NR_flock				73
+ #define __NR_fsync				74
+ #define __NR_fdatasync			75
+-#define __NR_truncate			76
+-#define __NR_ftruncate			77
+-#define __NR_getdents			78
++#define __NR_truncate			30
++#define __NR_ftruncate			31
++#define __NR_getdents			28
+ #define __NR_getcwd				79
+ #define __NR_chdir				80
+ #define __NR_fchdir				81
+@@ -94,7 +94,7 @@
+ #define __NR_fchown				93
+ #define __NR_lchown				94
+ #define __NR_umask				95
+-#define __NR_gettimeofday		96
++#define __NR_gettimeofday		21
+ #define __NR_getrlimit			97
+ #define __NR_getrusage			98
+ #define __NR_sysinfo			99
+@@ -103,12 +103,12 @@
+ #define __NR_getuid				102
+ #define __NR_syslog				103
+ #define __NR_getgid				104
+-#define __NR_setuid				105
+-#define __NR_setgid				106
++#define __NR_setuid				33
++#define __NR_setgid				34
+ #define __NR_geteuid			107
+ #define __NR_getegid			108
+ #define __NR_setpgid			109
+-#define __NR_getppid			110
++#define __NR_getppid			18
+ #define __NR_getpgrp			111
+ #define __NR_setsid				112
+ #define __NR_setreuid			113
+@@ -133,7 +133,7 @@
+ #define __NR_utime				132
+ #define __NR_mknod				133
+ #define __NR_uselib				134
+-#define __NR_personality		135
++#define __NR_personality		32
+ #define __NR_ustat				136
+ #define __NR_statfs				137
+ #define __NR_fstatfs			138
+@@ -156,19 +156,19 @@
+ #define __NR_pivot_root				155
+ #define __NR__sysctl				156
+ #define __NR_prctl					157
+-#define __NR_arch_prctl				158
++#define __NR_arch_prctl				44
+ #define __NR_adjtimex				159
+ #define __NR_setrlimit				160
+ #define __NR_chroot					161
+ #define __NR_sync					162
+ #define __NR_acct					163
+ #define __NR_settimeofday			164
+-#define __NR_mount					165
++#define __NR_mount					14
+ #define __NR_umount2				166
+ #define __NR_swapon					167
+ #define __NR_swapoff				168
+-#define __NR_reboot					169
+-#define __NR_sethostname			170
++#define __NR_reboot					22
++#define __NR_sethostname			41
+ #define __NR_setdomainname			171
+ #define __NR_iopl					172
+ #define __NR_ioperm					173
+@@ -199,7 +199,7 @@
+ #define __NR_lremovexattr			198
+ #define __NR_fremovexattr			199
+ #define __NR_tkill					200
+-#define __NR_time					201
++#define __NR_time					20
+ #define __NR_futex					202
+ #define __NR_sched_setaffinity		203
+ #define __NR_sched_getaffinity		204
+@@ -216,7 +216,7 @@
+ #define __NR_epoll_wait_old			215
+ #define __NR_remap_file_pages		216
+ #define __NR_getdents64				217
+-#define __NR_set_tid_address		218
++#define __NR_set_tid_address		45
+ #define __NR_restart_syscall		219
+ #define __NR_semtimedop				220
+ #define __NR_fadvise64				221
+@@ -293,8 +293,8 @@
+ #define __NR_dup3					292
+ #define __NR_pipe2					293
+ #define __NR_inotify_init1			294
+-#define __NR_preadv					295
+-#define __NR_pwritev				296
++#define __NR_preadv					26
++#define __NR_pwritev				27
+ #define __NR_rt_tgsigqueueinfo		297
+ #define __NR_perf_event_open		298
+ #define __NR_recvmmsg				299
+@@ -330,4 +330,5 @@
+ #define __NR_pkey_mprotect			329
+ #define __NR_pkey_alloc				330
+ #define __NR_pkey_free				331
++#define __NR_insmod				38
+ 
+diff -Naur musl-1.1.16/arch/x86_64/crt_arch.h musl-1.1.16-patched/arch/x86_64/crt_arch.h
+--- musl-1.1.16/arch/x86_64/crt_arch.h	2017-01-01 03:27:17.000000000 +0000
++++ musl-1.1.16-patched/arch/x86_64/crt_arch.h	2017-01-08 00:57:01.813652062 +0000
+@@ -3,10 +3,6 @@
+ ".global " START " \n"
+ START ": \n"
+ "	xor %rbp,%rbp \n"
+-"	mov %rsp,%rdi \n"
+-".weak _DYNAMIC \n"
+-".hidden _DYNAMIC \n"
+-"	lea _DYNAMIC(%rip),%rsi \n"
+ "	andq $-16,%rsp \n"
+ "	call " START "_c \n"
+ );
+diff -Naur musl-1.1.16/arch/x86_64/crt_arch.h~ musl-1.1.16-patched/arch/x86_64/crt_arch.h~
+--- musl-1.1.16/arch/x86_64/crt_arch.h~	1970-01-01 01:00:00.000000000 +0100
++++ musl-1.1.16-patched/arch/x86_64/crt_arch.h~	2017-01-08 00:55:51.204398011 +0000
+@@ -0,0 +1,11 @@
++__asm__(
++".text \n"
++".global " START " \n"
++START ": \n"
++"	xor %rbp,%rbp \n"
++".weak _DYNAMIC \n"
++".hidden _DYNAMIC \n"
++"	lea _DYNAMIC(%rip),%rsi \n"
++"	andq $-16,%rsp \n"
++"	call " START "_c \n"
++);
+diff -Naur musl-1.1.16/arch/x86_64/syscall_arch.h~ musl-1.1.16-patched/arch/x86_64/syscall_arch.h~
+--- musl-1.1.16/arch/x86_64/syscall_arch.h~	1970-01-01 01:00:00.000000000 +0100
++++ musl-1.1.16-patched/arch/x86_64/syscall_arch.h~	2017-01-08 20:18:20.376150805 +0000
+@@ -0,0 +1,68 @@
++#define __SYSCALL_LL_E(x) (x)
++#define __SYSCALL_LL_O(x) (x)
++
++static __inline long __syscall0(long n)
++{
++	unsigned long ret;
++	__asm__ __volatile__ ("syscall" : "=a"(ret) : "a"(n) : "rcx", "r11", "memory");
++	return ret;
++}
++
++static __inline long __syscall1(long n, long a1)
++{
++	unsigned long ret;
++	__asm__ __volatile__ ("syscall" : "=a"(ret) : "a"(n), "D"(a1) : "rcx", "r11", "memory");
++	return ret;
++}
++
++static __inline long __syscall2(long n, long a1, long a2)
++{
++	unsigned long ret;
++	__asm__ __volatile__ ("syscall" : "=a"(ret) : "a"(n), "D"(a1), "S"(a2)
++						  : "rcx", "r11", "memory");
++	return ret;
++}
++
++static __inline long __syscall3(long n, long a1, long a2, long a3)
++{
++	unsigned long ret;
++	__asm__ __volatile__ ("syscall" : "=a"(ret) : "a"(n), "D"(a1), "S"(a2),
++						  "d"(a3) : "rcx", "r11", "memory");
++	return ret;
++}
++
++static __inline long __syscall4(long n, long a1, long a2, long a3, long a4)
++{
++	unsigned long ret;
++	register long r10 __asm__("r10") = a4;
++	__asm__ __volatile__ ("syscall" : "=a"(ret) : "a"(n), "D"(a1), "S"(a2),
++						  "d"(a3), "r"(r10): "rcx", "r11", "memory");
++	return ret;
++}
++
++static __inline long __syscall5(long n, long a1, long a2, long a3, long a4, long a5)
++{
++	unsigned long ret;
++	register long r10 __asm__("r10") = a4;
++	register long r8 __asm__("r8") = a5;
++	__asm__ __volatile__ ("syscall" : "=a"(ret) : "a"(n), "D"(a1), "S"(a2),
++						  "d"(a3), "r"(r10), "r"(r8) : "rcx", "r11", "memory");
++	return ret;
++}
++
++static __inline long __syscall6(long n, long a1, long a2, long a3, long a4, long a5, long a6)
++{
++	unsigned long ret;
++	register long r10 __asm__("r10") = a4;
++	register long r8 __asm__("r8") = a5;
++	register long r9 __asm__("r9") = a6;
++	__asm__ __volatile__ ("syscall" : "=a"(ret) : "a"(n), "D"(a1), "S"(a2),
++						  "d"(a3), "r"(r10), "r"(r8), "r"(r9) : "rcx", "r11", "memory");
++	return ret;
++}
++
++#define VDSO_USEFUL
++#define VDSO_CGT_SYM "__vdso_clock_gettime"
++#define VDSO_CGT_VER "LINUX_2.6"
++#define VDSO_GETCPU_SYM "__vdso_getcpu"
++#define VDSO_GETCPU_VER "LINUX_2.6"
+diff -Naur musl-1.1.16/crt/crt1.c musl-1.1.16-patched/crt/crt1.c
+--- musl-1.1.16/crt/crt1.c	2017-01-01 03:27:17.000000000 +0000
++++ musl-1.1.16-patched/crt/crt1.c	2017-01-08 18:55:48.026699976 +0000
+@@ -1,5 +1,5 @@
+ #include <features.h>
+-
++#include <string.h>
+ #define START "_start"
+ 
+ #include "crt_arch.h"
+@@ -7,12 +7,10 @@
+ int main();
+ void _init() __attribute__((weak));
+ void _fini() __attribute__((weak));
+-_Noreturn int __libc_start_main(int (*)(), int, char **,
++_Noreturn int __libc_start_main(int (*)(), int, char **, char **, size_t *,
+ 	void (*)(), void(*)(), void(*)());
+ 
+-void _start_c(long *p)
++void _start_c(int argc, char **argv, char **envp, size_t *auxv)
+ {
+-	int argc = p[0];
+-	char **argv = (void *)(p+1);
+-	__libc_start_main(main, argc, argv, _init, _fini, 0);
++	__libc_start_main(main, argc, argv, envp, auxv, _init, _fini, 0);
+ }
+diff -Naur musl-1.1.16/src/env/__libc_start_main.c musl-1.1.16-patched/src/env/__libc_start_main.c
+--- musl-1.1.16/src/env/__libc_start_main.c	2017-01-01 03:27:17.000000000 +0000
++++ musl-1.1.16-patched/src/env/__libc_start_main.c	2017-01-08 18:49:21.868691730 +0000
+@@ -19,12 +19,12 @@
+ 
+ #define AUX_CNT 38
+ 
+-void __init_libc(char **envp, char *pn)
++void __init_libc(char **envp, char *pn, size_t *_auxv)
+ {
+ 	size_t i, *auxv, aux[AUX_CNT] = { 0 };
+ 	__environ = envp;
+-	for (i=0; envp[i]; i++);
+-	libc.auxv = auxv = (void *)(envp+i+1);
++    
++	libc.auxv = auxv = _auxv;
+ 	for (i=0; auxv[i]; i+=2) if (auxv[i]<AUX_CNT) aux[auxv[i]] = auxv[i+1];
+ 	__hwcap = aux[AT_HWCAP];
+ 	__sysinfo = aux[AT_SYSINFO];
+@@ -63,11 +63,10 @@
+ 
+ weak_alias(libc_start_init, __libc_start_init);
+ 
+-int __libc_start_main(int (*main)(int,char **,char **), int argc, char **argv)
++int __libc_start_main(int (*main)(int,char **,char **), int argc, char **argv, char **envp, size_t *auxv)
+ {
+-	char **envp = argv+argc+1;
+ 
+-	__init_libc(envp, argv[0]);
++	__init_libc(envp, argv[0], auxv);
+ 	__libc_start_init();
+ 
+ 	/* Pass control to the application */
+diff -Naur musl-1.1.16/src/misc/ioctl.c musl-1.1.16-patched/src/misc/ioctl.c
+--- musl-1.1.16/src/misc/ioctl.c	2017-01-01 03:27:17.000000000 +0000
++++ musl-1.1.16-patched/src/misc/ioctl.c	2017-01-08 23:18:18.691363325 +0000
+@@ -7,7 +7,7 @@
+ 	void *arg;
+ 	va_list ap;
+ 	va_start(ap, req);
+-	arg = va_arg(ap, void *);
++	int status = syscall(SYS_ioctl, fd, req, ap);
+ 	va_end(ap);
+-	return syscall(SYS_ioctl, fd, req, arg);
++	return status;
+ }
+diff -Naur musl-1.1.16/src/stdio/__stdout_write.c musl-1.1.16-patched/src/stdio/__stdout_write.c
+--- musl-1.1.16/src/stdio/__stdout_write.c	2017-01-01 03:27:17.000000000 +0000
++++ musl-1.1.16-patched/src/stdio/__stdout_write.c	2017-01-08 23:02:05.380379426 +0000
+@@ -5,7 +5,5 @@
+ {
+ 	struct winsize wsz;
+ 	f->write = __stdio_write;
+-	if (!(f->flags & F_SVB) && __syscall(SYS_ioctl, f->fd, TIOCGWINSZ, &wsz))
+-		f->lbf = -1;
+ 	return __stdio_write(f, buf, len);
+ }
+diff -Naur musl-1.1.16/src/thread/x86_64/__set_thread_area.s musl-1.1.16-patched/src/thread/x86_64/__set_thread_area.s
+--- musl-1.1.16/src/thread/x86_64/__set_thread_area.s	2017-01-01 03:27:17.000000000 +0000
++++ musl-1.1.16-patched/src/thread/x86_64/__set_thread_area.s	2017-01-08 19:08:22.569513758 +0000
+@@ -5,6 +5,6 @@
+ __set_thread_area:
+ 	mov %rdi,%rsi           /* shift for syscall */
+ 	movl $0x1002,%edi       /* SET_FS register */
+-	movl $158,%eax          /* set fs segment to */
++	movl $44,%eax          /* set fs segment to */
+ 	syscall                 /* arch_prctl(SET_FS, arg)*/
+ 	ret

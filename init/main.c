@@ -22,10 +22,15 @@
 #include <drm/drm.h>
 /* x is a placeholder */
 char *prefix = "/etc/init.d/rcx.d";
-
-void sethostname(const char *name, size_t len)
+int tonum(int c)
 {
-	syscall(SYS_sethostname, name, len);
+	return c - '0';
+}
+int isnum(int c)
+{
+	if(c >= 48 && c <= 57)
+		return 1;
+	return 0;
 }
 char *copy_until_newline(char *s)
 {
@@ -51,7 +56,7 @@ void insmod(const char *path, const char *name)
 }
 int main(int argc, char **argv, char **envp)
 {
-	//printf("/sbin/init invoked!\n");
+	printf("/sbin/init invoked!\n");
 	/* Open the config */
 	FILE *f = fopen("/etc/init.d/init.config", "rw");
 	if(!f)
@@ -68,7 +73,7 @@ int main(int argc, char **argv, char **envp)
 	memset(buf, 0, 1024);
 	int ringlevel = 0;
 	/* Now lets loop through the file, and get the default ring level */
-	fgets(buf, 1024, f);
+	fread(buf, 1024, 1, f);
 	if(memcmp(buf, "defaultrl:", strlen("defaultrl:")) == 0)
 	{
 		/* If the argument after 'defaultrl:' isn't a number, throw a parsing error and return 1*/
@@ -105,6 +110,7 @@ int main(int argc, char **argv, char **envp)
 	char *env[] = {"", NULL};
 	char *shell = copy_until_newline(buf);
 	char *args[] = {shell, "/etc/fstab", NULL};
+
 	printf("Shell: %s\n", shell);
 	
 	sethostname("localhost", strlen("localhost"));
@@ -117,9 +123,6 @@ int main(int argc, char **argv, char **envp)
 	struct drm_info *info = NULL;
 	if(drm_initialize(&info) < 0)
 		printf("Error: Failed to initialize drm!\n");
-
-	asm volatile("syscall");
-	//printf("hi\n");
 	/*if(pid == 0)
 		execve(shell, args, env);*/
 

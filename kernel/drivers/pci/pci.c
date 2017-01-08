@@ -903,12 +903,14 @@ void pci_set_barx(uint8_t slot, uint8_t device, uint8_t function, uint8_t index,
 /* All the PCI drivers' headers */
 #include <drivers/bochsvga.h>
 #include <drivers/e1000.h>
+#include <drivers/ata.h>
 pci_driver_t pci_drivers[] =
 {
 	{BOCHSVGA_PCI_VENDORID, BOCHSVGA_PCI_DEVICEID, CLASS_DISPLAY_CONTROLLER, 0, 0, PCI_DRIVER_SPECIFIC, bochsvga_init},
 	{E1000_DEV, INTEL_VEND, CLASS_NETWORK_CONTROLLER, 0, 0, PCI_DRIVER_SPECIFIC, e1000_init},
 	{E1000_I217, INTEL_VEND, CLASS_NETWORK_CONTROLLER, 0, 0, PCI_DRIVER_SPECIFIC, e1000_init},
 	{E1000_82577LM, INTEL_VEND, CLASS_NETWORK_CONTROLLER, 0, 0, PCI_DRIVER_SPECIFIC, e1000_init},
+	{0, 0, CLASS_MASS_STORAGE_CONTROLLER, 1, 0, PCI_DRIVER_GENERIC, ata_init},
 };
 
 const size_t pci_driver_array_entries = sizeof(pci_drivers) / sizeof(pci_driver_t);

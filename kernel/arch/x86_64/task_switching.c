@@ -22,7 +22,9 @@
 #include <kernel/tss.h>
 #include <kernel/process.h>
 #include <kernel/idt.h>
+#include <kernel/elf.h>
 #include <kernel/fpu.h>
+#include <kernel/cpu.h>
 
 static thread_t *run_queue = NULL;
 static thread_t *idle_thread = NULL; 
@@ -53,7 +55,7 @@ thread_t* task_switching_create_context(thread_callback_t callback, uint32_t fla
 	if(!(flags & 1))
 		vmm_map_range(new_thread->user_stack, 256, VMM_WRITE | VMM_NOEXEC | VMM_USER);
 	vmm_map_range(new_thread->kernel_stack, 4, VMM_WRITE | VMM_NOEXEC);
-	
+	new_thread->user_stack_bottom = new_thread->user_stack;
 	// Increment the stacks by 8 KiB
 	{
 	char** stack = (char**) &new_thread->user_stack;
@@ -69,7 +71,6 @@ thread_t* task_switching_create_context(thread_callback_t callback, uint32_t fla
 	stack = new_thread->kernel_stack;
 
 	new_thread->kernel_stack_top = stack;
-	new_thread->user_stack_top = new_thread->user_stack;
 
 	uintptr_t original_stack = (uintptr_t)stack;
 	if(!(flags & 1))
@@ -142,7 +143,7 @@ thread_t* task_switching_create_main_progcontext(thread_callback_t callback, uin
 	if(!(flags & 1))
 		vmm_map_range(new_thread->user_stack, 256, VMM_WRITE | VMM_NOEXEC | VMM_USER);
 	vmm_map_range(new_thread->kernel_stack, 2, VMM_WRITE | VMM_NOEXEC);
-	
+	new_thread->user_stack_bottom = new_thread->user_stack;
 	// Increment the stacks by 8 KiB
 	{
 	char** stack = (char**)&new_thread->user_stack;
@@ -159,7 +160,6 @@ thread_t* task_switching_create_main_progcontext(thread_callback_t callback, uin
 	stack = new_thread->kernel_stack;
 	
 	new_thread->kernel_stack_top = stack;
-	new_thread->user_stack_top = new_thread->user_stack;
 	
 	uintptr_t original_stack = (uintptr_t)stack;
 	if(!(flags & 1))
@@ -230,6 +230,7 @@ void* sched_switch_thread(void* last_stack)
 	{
 		return last_stack;
 	}
+	struct processor *p = get_gs_data();
 	/*if(!running_queue)
 	{
 		/*TODO: Add multiprocessor support */
@@ -242,6 +243,7 @@ void* sched_switch_thread(void* last_stack)
 	{
 		current_thread = run_queue;
 		set_kernel_stack((uintptr_t)current_thread->kernel_stack_top);
+		p->kernel_stack = current_thread->kernel_stack_top;
 		return current_thread->kernel_stack;
 	}
 	current_thread->kernel_stack = (uintptr_t*)last_stack;
@@ -252,8 +254,9 @@ void* sched_switch_thread(void* last_stack)
 
 	/* Save the FPU state */
 	SAVE_FPU(current_thread->fpu_area);
-	
+
 	current_thread = sched_find_runnable();
+	p->kernel_stack = current_thread->kernel_stack_top;
 	/* Fill the TSS with a kernel stack*/
 	set_kernel_stack((uintptr_t)current_thread->kernel_stack_top);
 

@@ -90,7 +90,7 @@ typedef struct
 #define ATA_IRQ	  14
 #define ATA_TYPE_ATA 1
 #define ATA_TYPE_ATAPI 2
-void ata_init();
+void ata_init(PCIDevice *dev);
 void ata_read_sectors(unsigned int channel, unsigned int drive, uint32_t buffer, uint16_t bytesoftransfer, uint64_t lba48);
 void ata_write_sectors(unsigned int channel, unsigned int drive, uint32_t buffer, uint16_t bytesoftransfer, uint64_t lba48);
 #endif

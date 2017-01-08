@@ -15,7 +15,6 @@ xz -9 -e -f $ROOTDIR/sysroot/pkg/devel.tar
 rm -rf $ROOTDIR/sysroot/usr/include
 tar -cvf $ROOTDIR/sysroot/pkg/libs-devel.tar sysroot/usr/lib
 xz -9 -e -f $ROOTDIR/sysroot/pkg/libs-devel.tar
-rm -f $ROOTDIR/sysroot/usr/lib/*
 echo "Generating initrd..."
 echo "Copying the kernel to the isodir"
 cp sysroot/boot/vmspartix isodir/boot/vmspartix

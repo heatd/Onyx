@@ -35,6 +35,8 @@ struct processor
 #if defined (__x86_64__)
 	volatile char *lapic;
 	struct processor *self;
+	void *kernel_stack;
+	void *scratch_rsp_stack;
 	volatile char *lapic_phys;
 	int cpu_num;
 	int lapic_id;

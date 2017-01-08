@@ -56,6 +56,7 @@ extern irq_handler
 extern handle_signal
 extern current_process
 irq_common:
+	cld
 	mov ax, ds
 	push rax
 	mov ax, 0x10
@@ -116,6 +117,7 @@ isr%1:
 extern isr_handler
 global isr_common
 isr_common:
+	cld
 	mov ax, ds
 	push rax
 	mov ax, 0x10

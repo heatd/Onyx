@@ -49,32 +49,32 @@ inline int validate_fd(int fd)
 {
 	if(fd > UINT16_MAX)
 	{
-		return errno = EBADF;
+		printf("fd %d is invalid\n", fd);
+		return errno =-EBADF;
 	}
 	ioctx_t *ctx = &current_process->ctx;
 	if(ctx->file_desc[fd] == NULL)
-		return errno = EBADF;
+	{
+		printf("fd %d is invalid\n", fd);
+		return errno =-EBADF;
+	}
 	return 0;
 }
-const uint32_t SYSCALL_MAX_NUM = 43;
-spinlock_t lseek_spl;
+const int SYSCALL_MAX_NUM = 45;
 off_t sys_lseek(int fd, off_t offset, int whence)
 {
-	acquire_spinlock(&lseek_spl);
 	DEBUG_PRINT_SYSTEMCALL();
 	#ifdef DEBUG_SYSCALL
 		printf("fd %u, off %u, whence %u\n", fd, offset, whence);
 	#endif
 	if (fd > UINT16_MAX)
 	{
-		release_spinlock(&lseek_spl);
-		return errno = EBADF, -1;
+		return errno =-EBADF;
 	}
 	ioctx_t *ioctx = &current_process->ctx;
 	if(ioctx->file_desc[fd] == NULL)
 	{
-		release_spinlock(&lseek_spl);
-		return errno = EBADF, -1;
+		return errno =-EBADF;
 	}
 	if(whence == SEEK_CUR)
 		ioctx->file_desc[fd]->seek += offset;
@@ -84,25 +84,20 @@ off_t sys_lseek(int fd, off_t offset, int whence)
 		ioctx->file_desc[fd]->seek = ioctx->file_desc[fd]->vfs_node->size;
 	else
 	{
-		release_spinlock(&lseek_spl);
-		return errno = EINVAL;
+		return errno =-EINVAL;
 	}
-	release_spinlock(&lseek_spl);
 	return ioctx->file_desc[fd]->seek;
 }
-spinlock_t write_spl;
 ssize_t sys_write(int fd, const void *buf, size_t count)
 {
 	if(!vmm_is_mapped((void*) buf))
-		return errno = EINVAL, -1;
-	acquire_spinlock(&write_spl);
+		return errno =-EINVAL;
 	DEBUG_PRINT_SYSTEMCALL();
-	if(!current_process->ctx.file_desc[fd]->flags & O_WRONLY)
-		return errno = EROFS, -1;
 	if(validate_fd(fd))
-		return errno = EBADF, -1;
+		return errno =-EBADF;
+	if(!current_process->ctx.file_desc[fd]->flags & O_WRONLY)
+		return errno =-EROFS;
 	write_vfs(current_process->ctx.file_desc[fd]->seek, count, buf, current_process->ctx.file_desc[fd]->vfs_node);
-	release_spinlock(&write_spl);
 	return count;
 }
 void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
@@ -128,24 +123,10 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 		if(!mapping_addr)
 			mapping_addr = vmm_allocate_virt_address(0, pages, VMM_TYPE_REGULAR, vm_prot);
 	}
-	if(fd != 0)
-	{
-		printf("Mapping fb!\n");
-		uintptr_t virt = (uintptr_t)mapping_addr, phys = (uintptr_t) virtual2phys(softfb_getfb());
-		for(int i = 0; i < 1024; i++)
-		{
-			paging_map_phys_to_virt(virt, phys, vm_prot);
-			virt+=0x1000;
-			phys+=0x1000;
-			asm volatile("invlpg %0"::"m"(virt));
-		}
-		printf("done!\n");
-		return mapping_addr;
-	}
 	if(!mapping_addr)
-		return errno = ENOMEM, NULL;
+		return errno =-ENOMEM, NULL;
 	if(!vmm_map_range(mapping_addr, pages, vm_prot))
-		return errno = ENOMEM, NULL;
+		return errno =-ENOMEM, NULL;
 	return mapping_addr;
 }
 int sys_munmap(void *addr, size_t length)
@@ -153,14 +134,14 @@ int sys_munmap(void *addr, size_t length)
 	DEBUG_PRINT_SYSTEMCALL();
 
 	if ((uintptr_t) addr >= VM_HIGHER_HALF)
-		return errno = EINVAL, -1;
+		return errno =-EINVAL;
 	size_t pages = length / PAGE_SIZE;
 	if(length % PAGE_SIZE)
 		pages++;
 	if(!((uintptr_t) addr & 0xFFFFFFFFFFFFF000))
-		return errno = EINVAL, -1;
+		return errno =-EINVAL;
 	if(!vmm_is_mapped(addr))
-		return errno = EINVAL, -1;
+		return errno =-EINVAL;
 	vmm_unmap_range(addr, pages);
 	vmm_destroy_mappings(addr, pages);
 	return 0;
@@ -170,7 +151,7 @@ int sys_mprotect(void *addr, size_t len, int prot)
 	DEBUG_PRINT_SYSTEMCALL();
 
 	if(!vmm_is_mapped(addr))
-		return errno = EINVAL, -1;
+		return errno =-EINVAL;
 	int vm_prot = 0;
 	if(prot & PROT_WRITE)
 		vm_prot |= VMM_WRITE;
@@ -184,25 +165,25 @@ int sys_mprotect(void *addr, size_t len, int prot)
 }
 ssize_t sys_read(int fd, const void *buf, size_t count)
 {
-	/*if(!vmm_is_mapped((void*) buf))
-		return errno = EINVAL, -1;*/
+	if(!vmm_is_mapped((void*) buf))
+		return errno =-EINVAL;
 	DEBUG_PRINT_SYSTEMCALL();
 
 	ioctx_t *ioctx = &current_process->ctx;
 	if( fd > UINT16_MAX)
 	{
-		return errno = EBADF;
+		return errno =-EBADF;
 	}
 	if(ioctx->file_desc[fd] == NULL)
 	{
-		return errno = EBADF;
+		return errno =-EBADF;
 	}
 	if(!buf)
 	{
-		return errno = EINVAL;
+		return errno =-EINVAL;
 	}
 	if(!ioctx->file_desc[fd]->flags & O_RDONLY)
-		return errno = EBADF, -1;
+		return errno =-EBADF;
 	ssize_t size = read_vfs(ioctx->file_desc[fd]->seek, count, (char*)buf, ioctx->file_desc[fd]->vfs_node);
 	ioctx->file_desc[fd]->seek += size;
 	return size;
@@ -212,12 +193,9 @@ uint64_t sys_getpid()
 	DEBUG_PRINT_SYSTEMCALL();
 	return current_process->pid;
 }
-spinlock_t open_spl;
 int sys_open(const char *filename, int flags)
 {
 	DEBUG_PRINT_SYSTEMCALL();
-	
-	acquire_spinlock(&open_spl);
 	ioctx_t *ioctx = &current_process->ctx;
 	for(int i = 0; i < UINT16_MAX; i++)
 	{
@@ -231,17 +209,15 @@ int sys_open(const char *filename, int flags)
 			if(!ioctx->file_desc[i]->vfs_node)
 			{
 				free(ioctx->file_desc[i]);
-				return errno = ENOENT, -1;
+				return errno =-ENOENT;
 			}
 			ioctx->file_desc[i]->vfs_node->refcount++;
 			ioctx->file_desc[i]->seek = 0;
 			ioctx->file_desc[i]->flags = flags;
-			release_spinlock(&open_spl);
 			return i;
 		}
 	}
-	release_spinlock(&open_spl);
-	return errno = EMFILE, -1;
+	return errno =-ENFILE;
 }
 spinlock_t close_spl;
 int sys_close(int fd)
@@ -252,13 +228,13 @@ int sys_close(int fd)
 	if(fd > UINT16_MAX) 
 	{
 		release_spinlock(&close_spl);
-		return errno = EBADF;
+		return errno =-EBADF;
 	}
 	ioctx_t *ioctx = &current_process->ctx;	
 	if(ioctx->file_desc[fd] == NULL)
 	{
 		release_spinlock(&close_spl);
-		return errno = EBADF;
+		return errno =-EBADF;
 	}
 	close_vfs(ioctx->file_desc[fd]->vfs_node);
 	ioctx->file_desc[fd]->vfs_node->refcount--;
@@ -279,13 +255,13 @@ int sys_dup(int fd)
 	if(fd > UINT16_MAX)
 	{
 		release_spinlock(&dup_spl);
-		return errno = EBADF;
+		return errno =-EBADF;
 	}
 	ioctx_t *ioctx = &current_process->ctx;
 	if(ioctx->file_desc[fd] == NULL)
 	{
 		release_spinlock(&dup_spl);
-		return errno = EBADF;
+		return errno =-EBADF;
 	}
 	for(int i = 0; i < UINT16_MAX; i++)
 	{
@@ -297,7 +273,7 @@ int sys_dup(int fd)
 			return i;
 		}
 	}
-	return errno = EMFILE;
+	return errno =-EMFILE;
 }
 spinlock_t dup2_spl;
 int sys_dup2(int oldfd, int newfd)
@@ -308,18 +284,18 @@ int sys_dup2(int oldfd, int newfd)
 	if(oldfd > UINT16_MAX)
 	{
 		release_spinlock(&dup2_spl);
-		return errno = EBADF;
+		return errno =-EBADF;
 	}
 	if(newfd > UINT16_MAX)
 	{
 		release_spinlock(&dup2_spl);
-		return errno = EBADF;
+		return errno =-EBADF;
 	}
 	ioctx_t *ioctx = &current_process->ctx;
 	if(ioctx->file_desc[oldfd] == NULL)
 	{
 		release_spinlock(&dup2_spl);
-		return errno = EBADF;
+		return errno =-EBADF;
 	}
 	if(ioctx->file_desc[newfd])
 		sys_close(newfd);
@@ -350,13 +326,13 @@ extern PML4 *current_pml4;
 int sys_posix_spawn(pid_t *pid, const char *path, void *file_actions, void *attrp, char **const argv, char **const envp)
 {
 	if(!vmm_is_mapped(pid))
-		return errno = EINVAL, -1;
+		return errno =-EINVAL;
 	if(!vmm_is_mapped((void*) path))
-		return errno = EINVAL, -1;
+		return errno =-EINVAL;
 	/*if(!vmm_is_mapped(argv))
-		return errno = EINVAL, -1;
+		return errno =-EINVAL;
 	if(!vmm_is_mapped(envp))
-		return errno = EINVAL, -1;*/
+		return errno =-EINVAL;*/
 	DEBUG_PRINT_SYSTEMCALL();
 	printf("Acquiring spinlock!\n");
 	acquire_spinlock(&posix_spawn_spl);
@@ -366,7 +342,7 @@ int sys_posix_spawn(pid_t *pid, const char *path, void *file_actions, void *attr
 	if(!new_proc)
 	{
 		release_spinlock(&posix_spawn_spl);
-		return errno = ENOMEM, -1;
+		return errno =-ENOMEM;
 	}
 	// Parse through the argv
 	size_t num_args = 1;
@@ -432,15 +408,15 @@ int sys_posix_spawn(pid_t *pid, const char *path, void *file_actions, void *attr
 	if (!in)
 	{
 		printf("%s: No such file or directory\n", path);
-		return errno = ENOENT, 1;
+		return errno =-ENOENT, 1;
 	}
 	
 	char *buffer = malloc(in->size);
 	if (!buffer)
-		return errno = ENOMEM, -1;
+		return errno =-ENOMEM;
 	size_t read = read_vfs(0, in->size, buffer, in);
 	if (read != in->size)
-		return errno = EAGAIN, -1;
+		return errno =-EAGAIN;
 	avl_node_t *tree;
 	PML4 *new_pt = vmm_clone_as(&tree);
 	asm volatile ("mov %0, %%cr3" :: "r"(new_pt)); /* We can't use paging_load_cr3 because that would change current_pml4
@@ -511,7 +487,7 @@ pid_t sys_fork(syscall_ctx_t *ctx)
 		sched_destroy_thread(child->threads[0]);
 		free(child);
 		ENABLE_INTERRUPTS();
-		return errno = ENOMEM, -1;
+		return errno =-ENOMEM;
 	}
 	child->threads[0]->kernel_stack = (unsigned char*) child->threads[0]->kernel_stack + 0x2000;
 	child->threads[0]->kernel_stack_top = child->threads[0]->kernel_stack;
@@ -524,13 +500,13 @@ pid_t sys_fork(syscall_ctx_t *ctx)
 int sys_mount(const char *source, const char *target, const char *filesystemtype, unsigned long mountflags, const void *data)
 {
 	if(!vmm_is_mapped((void*) source))
-		return errno = EINVAL, -1;
+		return errno =-EINVAL;
 	if(!vmm_is_mapped((void*) target))
-		return errno = EINVAL, -1;
+		return errno =-EINVAL;
 	if(!vmm_is_mapped((void*) filesystemtype))
-		return errno = EINVAL, -1;
+		return errno =-EINVAL;
 	if(!vmm_is_mapped((void*) data))
-		return errno = EINVAL, -1;
+		return errno =-EINVAL;
 	DEBUG_PRINT_SYSTEMCALL();
 
 	return 0;
@@ -567,11 +543,11 @@ extern _Bool is_spawning;
 int sys_execve(char *path, char *argv[], char *envp[])
 {
 	if(!vmm_is_mapped(path))
-		return errno = EINVAL, -1;
+		return errno =-EINVAL;
 	if(!vmm_is_mapped(argv))
-		return errno = EINVAL, -1;
+		return errno =-EINVAL;
 	if(!vmm_is_mapped(envp))
-		return errno = EINVAL, -1;
+		return errno =-EINVAL;
 	DEBUG_PRINT_SYSTEMCALL();
 
 	/* Create a new address space */
@@ -585,15 +561,15 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	vfsnode_t *in = open_vfs(fs_root, path);
 	if (!in)
 	{
-		errno = ENOENT;
+		errno =-ENOENT;
 		perror(NULL);
 		release_spinlock(&execve_spl);
-		return errno = ENOENT;
+		return errno =-ENOENT;
 	}
 	/* Allocate a buffer and read the whole file to it */
 	char *buffer = malloc(in->size);
 	if (!buffer)
-		return errno = ENOMEM;
+		return errno =-ENOMEM;
 
 	in->read(0, in->size, buffer, in);
 
@@ -728,23 +704,23 @@ void sys_shutdown()
 }
 ssize_t sys_readv(int fd, const struct iovec *vec, int veccnt)
 {
-	/*if(!vmm_is_mapped((void*) vec))
-		return errno = EINVAL, -1;*/
+	if(!vmm_is_mapped((void*) vec))
+		return errno =-EINVAL;
 	DEBUG_PRINT_SYSTEMCALL();
 	if(validate_fd(fd))
-		return errno = EBADF, -1;
+		return errno =-EBADF;
 	ioctx_t *ctx = &current_process->ctx;
 	if(!vec)
-		return errno = EINVAL, -1;
+		return errno =-EINVAL;
 	if(veccnt == 0)
 		return 0;
 	if(!ctx->file_desc[fd]->flags & O_RDONLY)
-		return errno = EBADF, -1;
+		return errno =-EBADF;
 	size_t read = 0;
 	read_vfs(ctx->file_desc[fd]->seek, vec[0].iov_len, vec[0].iov_base, ctx->file_desc[fd]->vfs_node);
 	for(int i = 0; i < veccnt; i++)
 	{
-		memcpy(vec[i].iov_base, vec[0].iov_base, vec[i].iov_len);
+		read_vfs(ctx->file_desc[fd]->seek, vec[i].iov_len, vec[i].iov_base, ctx->file_desc[fd]->vfs_node);
 		read += vec[i].iov_len;
 	}
 	return read;
@@ -752,7 +728,7 @@ ssize_t sys_readv(int fd, const struct iovec *vec, int veccnt)
 ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt)
 {
 	if(!vmm_is_mapped((void*) vec))
-		return errno = EINVAL, -1;
+		return errno =-EINVAL;
 	
 	DEBUG_PRINT_SYSTEMCALL();
 	size_t wrote = 0;
@@ -760,11 +736,11 @@ ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt)
 		return -1;
 	ioctx_t *ctx = &current_process->ctx;
 	if(!vec)
-		return errno = EINVAL, -1;
+		return errno =-EINVAL;
 	if(veccnt == 0)
 		return 0;
 	if(!ctx->file_desc[fd]->flags & O_WRONLY)
-		return errno = EROFS, -1;
+		return errno =-EROFS;
 	for(int i = 0; i < veccnt; i++)
 	{
 		write_vfs(ctx->file_desc[fd]->seek, vec[i].iov_len, vec[i].iov_base, ctx->file_desc[fd]->vfs_node);
@@ -775,18 +751,18 @@ ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt)
 ssize_t sys_preadv(int fd, const struct iovec *vec, int veccnt, off_t offset)
 {
 	/*if(!vmm_is_mapped((void*) vec))
-		return errno = EINVAL, -1;*/
+		return errno =-EINVAL;*/
 	
 	DEBUG_PRINT_SYSTEMCALL();
 	/*if(validate_fd(fd))
 		return -1;*/
 	ioctx_t *ctx = &current_process->ctx;
 	if(!vec)
-		return errno = EINVAL, -1;
+		return errno =-EINVAL;
 	if(veccnt == 0)
 		return 0;
 	if(!ctx->file_desc[fd]->flags & O_RDONLY)
-		return errno = EBADF, -1;
+		return errno =-EBADF;
 	size_t read = 0;
 	for(int i = 0; i < veccnt; i++)
 	{
@@ -798,7 +774,7 @@ ssize_t sys_preadv(int fd, const struct iovec *vec, int veccnt, off_t offset)
 ssize_t sys_pwritev(int fd, const struct iovec *vec, int veccnt, off_t offset)
 {
 	if(!vmm_is_mapped((void*) vec))
-		return errno = EINVAL, -1;
+		return errno =-EINVAL;
 	DEBUG_PRINT_SYSTEMCALL();
 	if(validate_fd(fd))
 		return -1;
@@ -806,7 +782,7 @@ ssize_t sys_pwritev(int fd, const struct iovec *vec, int veccnt, off_t offset)
 	if(veccnt == 0)
 		return 0;
 	if(!ctx->file_desc[fd]->flags & O_WRONLY)
-		return errno = EROFS, -1;
+		return errno =-EROFS;
 	size_t wrote = 0;
 	for(int i = 0; i < veccnt; i++)
 	{
@@ -818,9 +794,9 @@ ssize_t sys_pwritev(int fd, const struct iovec *vec, int veccnt, off_t offset)
 int sys_getdents(int fd, struct dirent *dirp, unsigned int count)
 {
 	if(!vmm_is_mapped(dirp))
-		return errno = EINVAL, -1;
+		return errno =-EINVAL;
 	if(validate_fd(fd))
-		return errno = EBADF, -1;
+		return errno =-EBADF;
 	if(!count)
 		return 0;
 	ioctx_t *ctx = &current_process->ctx;
@@ -831,7 +807,7 @@ int sys_ioctl(int fd, int request, va_list args)
 {
 	DEBUG_PRINT_SYSTEMCALL();
 	if(validate_fd(fd))
-		return errno = EBADF, -1;
+		return errno =-EBADF;
 	ioctx_t *ctx = &current_process->ctx;
 	return ioctl_vfs(request, args, ctx->file_desc[fd]->vfs_node);
 }
@@ -849,14 +825,14 @@ int sys_kill(pid_t pid, int sig)
 		else
 			p = get_process_from_pid(pid);
 		if(!p)
-			return errno = ESRCH, -1;	
+			return errno =-ESRCH;	
 	}
 	if(sig == 0)
 		return 0;
 	if(sig > 26)
-		return errno = EINVAL, -1;
+		return errno =-EINVAL;
 	if(sig < 0)
-		return errno = EINVAL, -1;
+		return errno =-EINVAL;
 	current_process->signal_pending = 1;
 	current_process->sinfo.signum = sig;
 	current_process->sinfo.handler = current_process->sighandlers[sig];
@@ -864,13 +840,13 @@ int sys_kill(pid_t pid, int sig)
 }
 int sys_truncate(const char *path, off_t length)
 {
-	return errno = ENOSYS, -1;
+	return errno =-ENOSYS;
 }
 int sys_ftruncate(int fd, off_t length)
 {
 	if(validate_fd(fd))
-		return errno = EBADF, -1;
-	return errno = ENOSYS, -1; 
+		return errno =-EBADF;
+	return errno =-ENOSYS; 
 }
 int sys_personality(unsigned long val)
 {
@@ -884,7 +860,7 @@ int sys_setuid(uid_t uid)
 	DEBUG_PRINT_SYSTEMCALL();
 
 	if(uid == 0 && current_process->uid != 0)
-		return errno = EPERM, -1;
+		return errno =-EPERM;
 	current_process->setuid = uid;
 	return 0;
 }
@@ -897,18 +873,20 @@ int sys_setgid(gid_t gid)
 }
 int sys_isatty(int fd)
 {
+	DEBUG_PRINT_SYSTEMCALL();
 	if(fd < 3)
 		return 1;
 	if(validate_fd(fd))
-		return errno = EBADF, -1;
+		return errno =-EBADF;
 	ioctx_t *ioctx = &current_process->ctx;
 	if(ioctx->file_desc[fd]->vfs_node->type & VFS_TYPE_CHAR_DEVICE)
 		return 1;
 	else
-		return errno = ENOTTY, 0;
+		return errno =-ENOTTY, 0;
 }
 sighandler_t sys_signal(int signum, sighandler_t handler)
 {
+	DEBUG_PRINT_SYSTEMCALL();
 	process_t *proc = current_process;
 	if(!proc)
 		return SIG_ERR;
@@ -948,22 +926,24 @@ void sys_sigreturn(void *ret)
 		__builtin_unreachable();
 	}
 	if(!vmm_is_mapped(ret))
-		return errno = EINVAL; 
+		return errno =-EINVAL; 
 	current_process->sigreturn = ret;
 }
 int sys_insmod(const char *path, const char *name)
 {
+	DEBUG_PRINT_SYSTEMCALL();
 	if(!vmm_is_mapped(path))
-		return errno = EFAULT, -1;
+		return errno =-EFAULT;
 	if(!vmm_is_mapped(name))
-		return errno = EFAULT, -1;
+		return errno =-EFAULT;
 	/* All the work is done by load_module; A return value of 1 means -1 for user-space, while -0 still = 0 */
 	return -load_module(path, name);
 }
 int sys_uname(struct utsname *buf)
 {
+	DEBUG_PRINT_SYSTEMCALL();
 	if(!vmm_is_mapped(buf))
-		return errno = EFAULT, -1;
+		return errno =-EFAULT;
 	strcpy(buf->sysname, OS_NAME);
 	strcpy(buf->release, OS_RELEASE);
 	strcpy(buf->version, OS_VERSION);
@@ -975,16 +955,17 @@ int sys_uname(struct utsname *buf)
 }
 int sys_sethostname(const void *name, size_t len)
 {
+	DEBUG_PRINT_SYSTEMCALL();
 	if(len > _UTSNAME_LENGTH)
-		return errno = EINVAL, -1;
+		return errno =-EINVAL;
 	if(!vmm_is_mapped(name))
-		return errno = EFAULT, -1;
+		return errno =-EFAULT;
 	if((ssize_t) len < 0)
-		return errno = EINVAL, -1;
+		return errno =-EINVAL;
 	/* We need to copy the name, since the user pointer isn't safe */
 	char *hostname = malloc(len+1);
 	if(!name)
-		return errno = ENOMEM, -1;
+		return errno =-ENOMEM;
 	memset(hostname, 0, len+1);
 	memcpy(hostname, name, len);
 	network_sethostname(hostname);
@@ -993,14 +974,15 @@ int sys_sethostname(const void *name, size_t len)
 }
 int sys_gethostname(char *name, size_t len)
 {
+	DEBUG_PRINT_SYSTEMCALL();
 	if(!vmm_is_mapped(name))
-		return errno = EFAULT, -1;
+		return errno =-EFAULT;
 	if((ssize_t) len < 0)
-		return errno = EINVAL, -1;
+		return errno =-EINVAL;
 	
 	size_t str_len = strlen(network_gethostname());
 	if(len < str_len)
-		return errno = EINVAL, -1;
+		return errno =-EINVAL;
 	strcpy(name, network_gethostname());
 	
 	return 0;
@@ -1020,8 +1002,9 @@ void *sys_mapfb()
 }
 int sys_nanosleep(const struct timespec *req, struct timespec *rem)
 {
+	DEBUG_PRINT_SYSTEMCALL();
 	if(!vmm_is_mapped(req))
-		return errno = -EFAULT, -1;
+		return errno =-EFAULT;
 	time_t ticks = req->tv_sec * 1000;
 	if(req->tv_nsec)
 	{
@@ -1030,6 +1013,37 @@ int sys_nanosleep(const struct timespec *req, struct timespec *rem)
 	}
 	sched_sleep(ticks);
 	return 0;
+}
+void syscall_helper(int syscall_num)
+{
+	printf("Syscall invoked!\nNumber: %u\n", syscall_num);
+}
+#define ARCH_SET_FS 0x1002
+#define ARCH_GET_FS 0x1003
+int sys_arch_prctl(int code, unsigned long *addr)
+{
+	DEBUG_PRINT_SYSTEMCALL();
+	if(code == ARCH_SET_FS)
+	{
+		current_process->fs = (unsigned long) addr;
+		wrmsr(FS_BASE_MSR, (uintptr_t)current_process->fs & 0xFFFFFFFF, (uintptr_t)current_process->fs >> 32);
+	}
+	else if(code == ARCH_GET_FS)
+	{
+		if(!vmm_is_mapped(addr))
+			return errno =-EINVAL;
+		*addr = (unsigned long) current_process->fs;
+	}
+	return 0;
+}
+pid_t sys_set_tid_address(pid_t *tidptr)
+{
+	DEBUG_PRINT_SYSTEMCALL();
+	return get_current_thread()->id;
+}
+void sys_badsys()
+{
+	printf("Non-implemented syscall invoked!\n");
 }
 void *syscall_list[] =
 {
@@ -1076,5 +1090,8 @@ void *syscall_list[] =
 	[40] = (void*) sys_gethostname,
 	[41] = (void*) sys_sethostname,
 	[42] = (void*) sys_mapfb,
-	[43] = (void*) sys_nanosleep
+	[43] = (void*) sys_nanosleep,
+	[44] = (void*) sys_arch_prctl,
+	[45] = (void*) sys_set_tid_address,
+	[255] = (void*) sys_badsys
 };
