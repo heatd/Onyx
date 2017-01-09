@@ -5,6 +5,7 @@ section .text
 	push rdx
 	push rdi
 	push rsi
+	push rbp
 	push r8
 	push r9
 	push r10
@@ -23,6 +24,7 @@ section .text
 	pop r10
 	pop r9
 	pop r8
+	pop rbp
 	pop rsi
 	pop rdi
 	pop rdx
@@ -51,7 +53,11 @@ syscall_ENTRY64:
 
 	; To conform to the Sys V ABI, we need to move r10 to rcx
 	mov rcx, r10
-
+	
+	; If the syscall is fork, setup pt_regs first
+	cmp rax, 10
+	je .setup_fork
+.continue_systemcall:
 	call [syscall_list + rax * 8]
 
 	pop rcx
@@ -64,3 +70,7 @@ syscall_ENTRY64:
 	swapgs
 
 	o64 sysret
+.setup_fork:
+	mov rdi, rsp
+
+	jmp .continue_systemcall

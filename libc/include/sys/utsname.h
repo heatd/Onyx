@@ -11,7 +11,7 @@
 #ifndef _SYS_UTSNAME_H
 #define _SYS_UTSNAME_H
 
-#define _UTSNAME_LENGTH 100
+#define _UTSNAME_LENGTH 65
 
 struct utsname 
 {

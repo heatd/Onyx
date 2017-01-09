@@ -282,16 +282,17 @@ thread_t *get_current_thread()
 }
 uintptr_t *sched_fork_stack(syscall_ctx_t *ctx, uintptr_t *stack)
 {
-	uint64_t rflags = ctx->rflags; // Get the RFLAGS, CS and SS
-	uint64_t cs = ctx->cs;
-	uint64_t ss = ctx->ss;
+	uint64_t rflags = ctx->r11; // Get the RFLAGS, CS and SS
+	uint64_t ds = ctx->ds;
+	uint64_t cs = ds - 8;
 
 	// Set up the stack.
-	*--stack = ss; //SS
-	*--stack = (uintptr_t) ctx->rsp; //RSP
+	*--stack = ds; //SS
+	uintptr_t user_stack = get_gs_data()->scratch_rsp_stack;
+	*--stack = user_stack; //RSP
 	*--stack = rflags; // RFLAGS
 	*--stack = cs; //CS
-	*--stack = ctx->rip; //RIP
+	*--stack = ctx->rcx; //RIP
 	*--stack = 0; // RAX
 	*--stack = ctx->rbx; // RBX
 	*--stack = ctx->rcx; // RCX
@@ -303,12 +304,12 @@ uintptr_t *sched_fork_stack(syscall_ctx_t *ctx, uintptr_t *stack)
 	*--stack = ctx->r14; // R14
 	*--stack = ctx->r13; // R13
 	*--stack = ctx->r12; // R12
-	*--stack = 0; // R11
+	*--stack = ctx->r11; // R11
 	*--stack = ctx->r10; // R10
 	*--stack = ctx->r9; // R9
 	*--stack = ctx->r8; // R8
-	*--stack = ss; // DS
-	
+	*--stack = ds; // DS
+
 	return stack; 
 }
 void sched_idle()

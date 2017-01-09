@@ -37,7 +37,7 @@ typedef struct
 typedef struct
 {
 	uint64_t ds;
-	uint64_t r15, r14, r13, r12, r10, r9, r8, rbp, rsi, rdi, rdx, rcx, rbx;
+	uint64_t r15, r14, r13, r12, r11, r10, r9, r8, rbp, rsi, rdi, rdx, rcx, rbx;
 	uint64_t rip;
 	uint64_t cs;
 	uint64_t rflags;

@@ -114,15 +114,15 @@ int main(int argc, char **argv, char **envp)
 	printf("Shell: %s\n", shell);
 	
 	sethostname("localhost", strlen("localhost"));
-
-	/*struct utsname uname_data = {0};
-	syscall(SYS_uname, &uname_data);
-	printf("%s %s %s %s %s\n", uname_data.sysname, uname_data.release, uname_data.version, uname_data.machine, uname_data.nodename);*/
+	
 	insmod("/lib/modules/drm.kmod", "drm");
 	
 	struct drm_info *info = NULL;
 	if(drm_initialize(&info) < 0)
 		printf("Error: Failed to initialize drm!\n");
+
+	int pid = fork();
+	
 	/*if(pid == 0)
 		execve(shell, args, env);*/
 

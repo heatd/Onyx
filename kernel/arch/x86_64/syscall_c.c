@@ -452,13 +452,12 @@ int sys_posix_spawn(pid_t *pid, const char *path, void *file_actions, void *attr
 spinlock_t fork_spl;
 extern size_t num_areas;
 pid_t sys_fork(syscall_ctx_t *ctx)
-{	
+{
 	DEBUG_PRINT_SYSTEMCALL();
 
 	process_t *proc = current_process;
 	if(!proc)
 		return -1;
-	
 	/* Create a new process */
 	process_t *child = process_create(current_process->cmd_line, &proc->ctx, proc); /* Create a process with the current
 								  			  * process's info */
