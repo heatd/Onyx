@@ -19,4 +19,6 @@ echo/echo
 login/login
 sh/sh
 *.sha256sum
-
+*.a
+luac
+lua
