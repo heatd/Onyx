@@ -45,4 +45,6 @@ thread_t *get_current_thread();
 uintptr_t *sched_fork_stack(syscall_ctx_t *ctx, uintptr_t *stack);
 void* sched_switch_thread(void* last_stack);
 void sched_sleep(unsigned long ms);
+void sched_yield();
+void thread_add(thread_t *add);
 #endif

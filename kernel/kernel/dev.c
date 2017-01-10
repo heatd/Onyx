@@ -10,6 +10,7 @@
  *----------------------------------------------------------------------*/
 #include <stdio.h>
 #include <errno.h>
+#include <stdlib.h>
 
 #include <kernel/vfs.h>
 #include <kernel/dev.h>
@@ -22,11 +23,11 @@ size_t num_child = 0;
 
 unsigned int devfs_getdents(unsigned int count, struct dirent* dirp, vfsnode_t* this)
 {
-	int found = 0;
+	unsigned int found = 0;
 	for(size_t i = 0; i < num_child; i++)
 	{
 		strcpy(dirp[found].d_name, "/dev/");
-		strcat(&dirp[found].d_name, children[i]->name);
+		strcat((char*) &dirp[found].d_name, children[i]->name);
 		dirp[found].d_ino = i;
 		if(children[i]->type & VFS_TYPE_DIR) dirp[found].d_type = DT_DIR;
 		else if(children[i]->type & VFS_TYPE_FILE) dirp[found].d_type = DT_REG;
@@ -44,7 +45,7 @@ vfsnode_t *devfs_open(vfsnode_t *this, const char *name)
 		return errno = ENOENT, NULL;
 	for(size_t i = 0; i < num_child; i++)
 	{
-		if(strcmp(name, children[i]->name) == 0)
+		if(strcmp((char*) name, (char*) children[i]->name) == 0)
 		{
 			return children[i];
 		}
@@ -61,7 +62,7 @@ vfsnode_t *devfs_creat(const char *pathname, int mode, vfsnode_t *self)
 		children = malloc(sizeof(void*) * num_child);
 		children[0] = malloc(sizeof(vfsnode_t));
 		memset(children[0], 0, sizeof(vfsnode_t));
-		children[0]->name = pathname;
+		children[0]->name = (char*) pathname;
 		children[0]->inode = 0;
 		children[0]->type = VFS_TYPE_FILE;
 		return children[0];
@@ -72,7 +73,7 @@ vfsnode_t *devfs_creat(const char *pathname, int mode, vfsnode_t *self)
 		children = realloc(children, sizeof(void*) * num_child);
 		children[num_child-1] = malloc(sizeof(vfsnode_t));
 		memset(children[num_child-1], 0, sizeof(vfsnode_t));
-		children[num_child-1]->name = pathname;
+		children[num_child-1]->name = (char*) pathname;
 		children[num_child-1]->inode = num_child-1;
 		children[num_child-1]->type = VFS_TYPE_FILE;
 		return children[num_child-1];

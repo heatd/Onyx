@@ -64,7 +64,7 @@ inline uint16_t internetchksum(void *addr, size_t bytes)
 	uint32_t ret = 0;
 	uint16_t *ptr = (uint16_t*) addr;
 	size_t words = bytes / 2;
-	for(int i = 0; i < words; i++)
+	for(size_t i = 0; i < words; i++)
 	{
 		sum += ptr[i];
 	}

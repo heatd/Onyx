@@ -30,9 +30,11 @@ int module_init()
 {
 	MPRINTF("initializing!\n");
 	eth_set_dev_send_packet(dummy_send_packet);
+	return 0;
 }
 int module_fini()
 {
 	MPRINTF("exiting!\n");
 	eth_set_dev_send_packet((device_send_packet)NULL);
+	return 0;
 }

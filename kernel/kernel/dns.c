@@ -16,6 +16,7 @@
 #include <kernel/dns.h>
 #include <kernel/network.h>
 #include <kernel/crc32.h>
+#include <kernel/panic.h>
 
 static uint32_t server_ip = 0;
 static hostname_hashtable_t *hashtable = NULL;
@@ -54,7 +55,7 @@ void dns_init()
 
 int dns_hash_string(const char *name)
 {
-	return crc32_calculate(name, strlen(name)) % DEFAULT_SIZE;
+	return crc32_calculate((uint8_t *) name, strlen(name)) % DEFAULT_SIZE;
 }
 void dns_fill_hashtable(int hash, const char *name, uint32_t address)
 {
@@ -81,7 +82,7 @@ uint32_t dns_resolve_host(const char *name)
 	hostname_t *host = hashtable->buckets[hash];
 	for(; host; host = host->next)
 	{
-		if(strcmp(host->name, name) == 0)
+		if(!strcmp((char*) host->name,(char*) name))
 			return host->address;
 	}
 	/* else just perform a normal dns request and fill the hashtable after that */
@@ -105,7 +106,7 @@ uint32_t dns_send_request(const char *name)
 	
 	request->flags = 1;
 	request->qdcount = LITTLE_TO_BIG16(1);
-	char *s = &request->names;
+	char *s = (char*) &request->names;
 	*s = 3;
 	s++;
 	while(*name != '\0')
@@ -113,7 +114,7 @@ uint32_t dns_send_request(const char *name)
 		if(*name == '.')
 		{
 			unsigned char len = 0;
-			char *next_token = strchr(name+1, '.');
+			char *next_token = (char*) strchr((char*) name+1, '.');
 			if(!next_token)
 				len = strlen(name) - 1;
 			else
@@ -127,7 +128,7 @@ uint32_t dns_send_request(const char *name)
 		}
 	}
 	s++;
-	uint16_t *i = s;
+	uint16_t *i = (uint16_t *) s;
 	*i++ = LITTLE_TO_BIG16(1);
 	*i = LITTLE_TO_BIG16(1);
 	send(dns_sock, (const void*) request, size);
@@ -135,7 +136,7 @@ uint32_t dns_send_request(const char *name)
 	/* Free up request, and see if we get a response */
 	free(request);
 	struct dns *answer = NULL;
-	recv(dns_sock, &answer);
+	recv(dns_sock, (void **) &answer);
 	unsigned char *b = (unsigned char*)&answer->names + size - sizeof(struct dns);
 again:;
 	uint16_t in = LITTLE_TO_BIG16(*((uint16_t*)(b + 2)));

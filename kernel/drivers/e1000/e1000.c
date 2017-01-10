@@ -246,8 +246,10 @@ void e1000_init(PCIDevice *dev)
 		INFO("e1000", "mmio mode\n");
 	else
 	{
+		free(dev);
+		free(bar);
 		ERROR("e1000", "Sorry! This driver only supports e1000 register access through MMIO, and sadly your card needs the legacy I/O port method of accessing registers\n");
-		return 1;
+		return;
 	}
 	INFO("e1000", "physical mem %p\n", phys_mem_space);
 	size_t needed_pages = bar->size / PAGE_SIZE;

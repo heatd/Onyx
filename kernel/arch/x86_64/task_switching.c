@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
+#include <kernel/timer.h>
 #include <kernel/data_structures.h>
 #include <kernel/task_switching.h>
 #include <kernel/vmm.h>
@@ -24,6 +25,7 @@
 #include <kernel/idt.h>
 #include <kernel/elf.h>
 #include <kernel/fpu.h>
+#include <kernel/apic.h>
 #include <kernel/cpu.h>
 
 static thread_t *run_queue = NULL;
@@ -231,14 +233,7 @@ void* sched_switch_thread(void* last_stack)
 		return last_stack;
 	}
 	struct processor *p = get_gs_data();
-	/*if(!running_queue)
-	{
-		/*TODO: Add multiprocessor support */
-		//printf("Returning idle thread!\n");
-		/*current_thread = idle_thread;
-		set_kernel_stack((uintptr_t) current_thread->kernel_stack_top);
-		return idle_thread->kernel_stack;
-	}*/
+	/* TODO: Add multiprocessor support */
 	if(unlikely(!current_thread))
 	{
 		current_thread = run_queue;
@@ -288,7 +283,7 @@ uintptr_t *sched_fork_stack(syscall_ctx_t *ctx, uintptr_t *stack)
 
 	// Set up the stack.
 	*--stack = ds; //SS
-	uintptr_t user_stack = get_gs_data()->scratch_rsp_stack;
+	uintptr_t user_stack = (uintptr_t) get_gs_data()->scratch_rsp_stack;
 	*--stack = user_stack; //RSP
 	*--stack = rflags; // RFLAGS
 	*--stack = cs; //CS

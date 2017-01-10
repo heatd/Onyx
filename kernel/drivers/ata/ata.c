@@ -23,6 +23,7 @@
 #include <kernel/dev.h>
 #include <kernel/block.h>
 #include <kernel/log.h>
+#include <kernel/compiler.h>
 
 #include <drivers/ata.h>
 
@@ -78,6 +79,7 @@ int ata_wait_for_irq(uint64_t timeout)
 static uintptr_t ata_irq(registers_t *regs)
 {
 	uint8_t status = inb((current_channel ? ATA_DATA2 : ATA_DATA1) + ATA_REG_STATUS);
+	UNUSED(status);
 	/*if(!(status & 0x4))
 	{
 		// If this bit isn't set, then the ATA device didn't trigger an IRQ, so just return
@@ -159,7 +161,7 @@ ssize_t ata_read(size_t offset, size_t count, void* buffer, struct blkdev* blkd)
 	void *buf = vmm_allocate_virt_address(VM_KERNEL, vmm_align_size_to_pages(count), VMM_TYPE_REGULAR, VMM_NOEXEC | VMM_WRITE);
 	vmm_map_range(buf, vmm_align_size_to_pages(count), VMM_WRITE | VMM_NOEXEC);
 
-	if(count < UINT16_MAX) ata_read_sectors(drv->channel, drv->drive, (uint32_t) virtual2phys(buf), count + off % 512, off / 512);
+	if(count < UINT16_MAX) ata_read_sectors(drv->channel, drv->drive, (uint32_t) (uintptr_t)virtual2phys(buf), count + off % 512, off / 512);
 	/* If count > count_max, split this into multiple I/O operations */
 	if(count > UINT16_MAX)
 	{
@@ -180,7 +182,7 @@ ssize_t ata_write(size_t offset, size_t count, void* buffer, struct blkdev* blkd
 
 	memcpy(buf, buffer, count);
 
-	if(count < UINT16_MAX) ata_write_sectors(drv->channel, drv->drive, (uint32_t) buf, count + off % 512, off / 512);
+	if(count < UINT16_MAX) ata_write_sectors(drv->channel, drv->drive, (uint32_t) (uintptr_t) buf, count + off % 512, off / 512);
 	/* If count > count_max, split this into multiple I/O operations */
 	if(count > UINT16_MAX)
 	{
@@ -220,7 +222,7 @@ int ata_initialize_drive(int channel, int drive)
 			data = inw(ATA_DATA1);
 		else
 			data = inw(ATA_DATA2);
-		uint16_t *ptr = &ide_drives[curr].buffer[i*2];
+		uint16_t *ptr = (uint16_t *)&ide_drives[curr].buffer[i*2];
 		*ptr = data;
 	}
 	ide_drives[curr].drive = drive;

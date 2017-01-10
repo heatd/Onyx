@@ -11,7 +11,9 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <errno.h>
+
 #include <kernel/process.h>
+#include <kernel/task_switching.h>
 process_t *first_process = NULL;
 process_t *current_process = NULL;
 uint64_t current_pid = 1;
@@ -58,8 +60,8 @@ void process_create_thread(process_t *proc, thread_callback_t callback, uint32_t
 			is_set = 1;
 		}
 	}
-	/*if(!is_set)
-		sched_destroy_thread(thread);*/
+	if(!is_set)
+		sched_destroy_thread(thread);
 }
 extern int curr_id;
 void process_fork_thread(process_t *dest, process_t *src, int thread_index)

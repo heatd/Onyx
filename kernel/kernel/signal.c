@@ -34,8 +34,6 @@ void kernel_default_signal(struct signal_info *sig)
 #if defined(__x86_64__)
 void signal_transfer_to_userspace(struct signal_info *sig, registers_t *regs, _Bool is_int)
 {
-	sighandler_t handler = current_process->sighandlers[sig->signum];
-	
 	/* Start setting the register state for the register switch */
 	/* Note that we're saving the old ones */
 	uintptr_t *userspace_stack = NULL;
@@ -44,7 +42,7 @@ void signal_transfer_to_userspace(struct signal_info *sig, registers_t *regs, _B
 		memcpy(&current_process->old_regs, regs, sizeof(registers_t));
 		regs->rdi = sig->signum;
 		regs->rip = (uintptr_t) sig->handler;
-		userspace_stack = regs->rsp;
+		userspace_stack = (uintptr_t *) regs->rsp;
 	}
 	else
 	{
@@ -72,12 +70,12 @@ void signal_transfer_to_userspace(struct signal_info *sig, registers_t *regs, _B
 		current_process->old_regs.rflags = intctx->rflags;
 		intctx->rdi = sig->signum;
 		intctx->rip = (uintptr_t) sig->handler;
-		userspace_stack = intctx->rsp;
+		userspace_stack = (uintptr_t *) intctx->rsp;
 	}
 	if(userspace_stack && vmm_is_mapped(userspace_stack))
 	{
 		printf("userspace stack: %p\n", userspace_stack);
-		*userspace_stack = current_process->sigreturn;
+		*userspace_stack = (uintptr_t) current_process->sigreturn;
 	}
 }
 #else
@@ -93,7 +91,7 @@ void handle_signal(registers_t *regs, _Bool is_int)
 	struct signal_info *sig = &curr_proc->sinfo;
 	printf("Signal number: (%u)\n", sig->signum);
 
-	if(sig->handler == SIG_IGN) // Ignore the signal if it's handler is set to SIG_IGN
+	if(sig->handler == (sighandler_t) SIG_IGN) // Ignore the signal if it's handler is set to SIG_IGN
 		return;
 	if(sig->handler != SIG_DFL)
 	{

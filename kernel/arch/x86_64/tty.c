@@ -60,6 +60,7 @@ void tty_set_color(int color)
 {
 	terminal_color = color;
 }
+void softfb_draw_cursor(int x, int y, int fgcolor, int bgcolor, void* fb);
 
 void tty_put_entry_at(char c, uint32_t color, size_t column, size_t row)
 {

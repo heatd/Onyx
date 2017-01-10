@@ -513,5 +513,5 @@ int ext2_open_partition(uint64_t sector, int drive, int channel)
 }
 __init void init_ext2drv()
 {
-	partition_add_handler(PARTITION_TYPE_MBR, EXT2_MBR_CODE, ext2_open_partition);
+	//partition_add_handler(PARTITION_TYPE_MBR, EXT2_MBR_CODE, ext2_open_partition);
 }

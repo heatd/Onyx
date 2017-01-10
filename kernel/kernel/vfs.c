@@ -67,7 +67,7 @@ vfsnode_t *open_vfs(vfsnode_t* this, const char *name)
 	vfsnode_t *it = mount_list;
 	while(it != NULL)
 	{
-		if(strcmp(name, it->name) == 0)
+		if(!strcmp((char*) name, it->name))
 		{
 			return it;
 		}

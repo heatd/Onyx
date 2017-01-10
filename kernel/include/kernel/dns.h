@@ -46,5 +46,7 @@ void dns_set_server_ip(uint32_t ip);
 void dns_init();
 uint32_t dns_send_request(const char *name);
 uint32_t dns_resolve_host(const char *name);
+void dns_fill_hashtable(int hash, const char *name, uint32_t address);
+int dns_hash_string(const char *name);
 
 #endif

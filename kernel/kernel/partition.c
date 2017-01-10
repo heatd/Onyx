@@ -24,6 +24,7 @@ fs_handler lookup_handler_from_partition_code(enum partition_type_t type, uint8_
 {
 	if(type == PARTITION_TYPE_MBR)
 		return mbr_code_handlers[part_code];
+	return NULL;
 }
 void partition_find_and_mount(enum partition_type_t type, int index, block_device_t *dev)
 {

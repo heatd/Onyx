@@ -50,7 +50,7 @@ uintptr_t elf_resolve_symbol(Elf64_Ehdr *hdr, Elf64_Shdr *sections, Elf64_Shdr *
 	Elf64_Sym *symbol = (Elf64_Sym*)((char*)hdr + symtab->sh_offset);
 	symbol = &symbol[sym_idx];
 	Elf64_Shdr *stringtab = &sections[symtab->sh_link];
-	uintptr_t sym = symbol->st_value;
+
 	if (symbol->st_shndx == SHN_UNDEF)
 	{
 		const char *name = elf_get_reloc_str(hdr, stringtab, symbol->st_name);
@@ -126,7 +126,7 @@ _Bool elf_parse_program_headers_s(void *file)
 			if (!pages || pages % 4096)
 				pages++;
 			phdrs[i].p_vaddr = (Elf64_Addr) vmm_allocate_virt_address(0, pages, VMM_TYPE_SHARED, VMM_WRITE | VMM_USER);
-			vmm_map_range(phdrs[i].p_vaddr, pages, VMM_WRITE | VMM_USER);
+			vmm_map_range((void*) phdrs[i].p_vaddr, pages, VMM_WRITE | VMM_USER);
 			printf("[ELF] virtual addresses %p - %p\n", phdrs[i].p_vaddr, phdrs[i].p_vaddr + PAGE_SIZE * pages);
 			memcpy((void*) phdrs[i].p_vaddr, (void *) ((char *) file + phdrs[i].p_offset),  phdrs[i].p_filesz);
 		}
@@ -192,7 +192,7 @@ _Bool elf_parse_program_headers_s(void *file)
 					if(phdrs[k].p_type == PT_NULL)
 						continue;
 					if(rela_sec->sh_offset == phdrs[k].p_offset || 
-						rela_sec->sh_offset <= phdrs[k].p_offset + phdrs[k].p_filesz && rela_sec->sh_offset > phdrs[k].p_offset)
+					(rela_sec->sh_offset <= phdrs[k].p_offset + phdrs[k].p_filesz && rela_sec->sh_offset > phdrs[k].p_offset))
 					{
 						puts("Found the closest section!\n");
 						printf("Rela offset: %x\n", rela_table[j].r_offset);
@@ -228,7 +228,7 @@ int elf_load_pie(char *path)
 	{
 		perror("read_vfs: ");
 		free(file);
-		close_vfs(file);
+		close_vfs(f);
 		free(f);
 		return -1;
 	}
@@ -266,7 +266,7 @@ _Bool elf_parse_program_headers(void *file)
 				pages++;
 			vmm_reserve_address((void *) (phdrs[i].p_vaddr & 0xFFFFFFFFFFFFF000), pages, VMM_TYPE_REGULAR, VMM_WRITE | VMM_USER);
 			void *mem = vmm_map_range((void *) (phdrs[i].p_vaddr & 0xFFFFFFFFFFFFF000), pages, VMM_WRITE | VMM_USER);
-			memcpy((void*) phdrs[i].p_vaddr, (void *) ((char *) file + phdrs[i].p_offset),  phdrs[i].p_filesz);			
+			memcpy(mem, (void *) ((char *) file + phdrs[i].p_offset),  phdrs[i].p_filesz);			
 		}
 	}
 	return true;

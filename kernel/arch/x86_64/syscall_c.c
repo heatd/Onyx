@@ -97,7 +97,7 @@ ssize_t sys_write(int fd, const void *buf, size_t count)
 		return errno =-EBADF;
 	if(!current_process->ctx.file_desc[fd]->flags & O_WRONLY)
 		return errno =-EROFS;
-	write_vfs(current_process->ctx.file_desc[fd]->seek, count, buf, current_process->ctx.file_desc[fd]->vfs_node);
+	write_vfs(current_process->ctx.file_desc[fd]->seek, count, (void*) buf, current_process->ctx.file_desc[fd]->vfs_node);
 	return count;
 }
 void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
@@ -380,7 +380,6 @@ int sys_posix_spawn(pid_t *pid, const char *path, void *file_actions, void *attr
 		strcpy(argument_strings, argv[i-1]);
 		argument_strings += strlen(argv[i-1]) + 1;
 	}
-	size_t total_env = 0;
 	size_t num_vars = 0;
 	n = envp;
 	while(*n != NULL)
@@ -442,7 +441,7 @@ int sys_posix_spawn(pid_t *pid, const char *path, void *file_actions, void *attr
 	}
 	void *entry = elf_load((void *) buffer);
 	// Create the new thread
-	process_create_thread(new_proc, (thread_callback_t) entry, 0, 0, new_arguments, new_envp);
+	process_create_thread(new_proc, (thread_callback_t) entry, 0, 0, (char **) new_arguments, (char **) new_envp);
 	new_proc->cr3 = new_pt;
 	vmm_stop_spawning();
 	asm volatile("mov %0, %%cr3"::"r"(current_pml4));
@@ -488,7 +487,7 @@ pid_t sys_fork(syscall_ctx_t *ctx)
 		ENABLE_INTERRUPTS();
 		return errno =-ENOMEM;
 	}
-	child->threads[0]->kernel_stack = (unsigned char*) child->threads[0]->kernel_stack + 0x2000;
+	child->threads[0]->kernel_stack = (uintptr_t *) ((unsigned char *)child->threads[0]->kernel_stack + 0x2000);
 	child->threads[0]->kernel_stack_top = child->threads[0]->kernel_stack;
 	child->threads[0]->kernel_stack = sched_fork_stack(ctx, child->threads[0]->kernel_stack);
 	
@@ -586,7 +585,7 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	volatile char *temp = intermediary_buffer_args;
 	for(int i = 0; i < nargs; i++)
 	{
-		strcpy(temp, argv[i]);
+		strcpy((char *) temp, argv[i]);
 		temp += strlen(argv[i]) + 1;
 	}
 	char *intermediary_buffer_envp = malloc(envp_string_len);
@@ -594,7 +593,7 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	temp = intermediary_buffer_envp;
 	for(int i = 0; i < nenvp; i++)
 	{
-		strcpy(temp, envp[i]);
+		strcpy((char*) temp, envp[i]);
 		temp += strlen(envp[i]) + 1;
 	}
 	asm volatile ("mov %0, %%cr3" :: "r"(current_process->cr3)); /* We can't use paging_load_cr3 because that would change current_pml4
@@ -621,13 +620,13 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	temp = argv_buffer;
 	for(int i = 0; i < nargs; i++)
 	{
-		new_args[i] = temp;
+		new_args[i] = (char*) temp;
 		temp += strlen(new_args[i]) + 1;
 	}
 	temp = envp_buffer;
 	for(int i = 0; i < nenvp; i++)
 	{
-		new_envp[i] = temp;
+		new_envp[i] = (char*) temp;
 		temp += strlen(new_envp[i]) + 1;
 	}
 	DISABLE_INTERRUPTS();
@@ -888,14 +887,14 @@ sighandler_t sys_signal(int signum, sighandler_t handler)
 	DEBUG_PRINT_SYSTEMCALL();
 	process_t *proc = current_process;
 	if(!proc)
-		return SIG_ERR;
+		return (sighandler_t) SIG_ERR;
 	if(signum > 26)
-		return SIG_ERR;
+		return (sighandler_t) SIG_ERR;
 	if(signum < 0)
-		return SIG_ERR;
+		return (sighandler_t) SIG_ERR;
 	if(!vmm_is_mapped(handler))
-		return SIG_ERR;
-	if(handler == SIG_IGN)
+		return (sighandler_t) SIG_ERR;
+	if(handler == (sighandler_t) SIG_IGN)
 	{
 		/* SIGKILL, SIGSEGV and SIGSTOP can't be masked (yes, I'm also enforcing SIGSEGV to be on(non-standard)*/
 		switch(signum)
@@ -903,7 +902,7 @@ sighandler_t sys_signal(int signum, sighandler_t handler)
 			case SIGKILL:
 			case SIGSEGV:
 			case SIGSTOP:
-				return SIG_ERR;
+				return (sighandler_t) SIG_ERR;
 		}
 	}
 	sighandler_t ret = proc->sighandlers[signum];
@@ -921,19 +920,19 @@ void sys_sigreturn(void *ret)
 		memcpy(get_current_thread()->kernel_stack, &current_process->old_regs, sizeof(registers_t));
 		current_process->signal_pending = 0;
 		current_process->signal_dispatched = 0;
-		__sigret_return(get_current_thread()->kernel_stack);
+		__sigret_return((uintptr_t) get_current_thread()->kernel_stack);
 		__builtin_unreachable();
 	}
 	if(!vmm_is_mapped(ret))
-		return errno =-EINVAL; 
+		return;
 	current_process->sigreturn = ret;
 }
 int sys_insmod(const char *path, const char *name)
 {
 	DEBUG_PRINT_SYSTEMCALL();
-	if(!vmm_is_mapped(path))
+	if(!vmm_is_mapped((void*) path))
 		return errno =-EFAULT;
-	if(!vmm_is_mapped(name))
+	if(!vmm_is_mapped((void*) name))
 		return errno =-EFAULT;
 	/* All the work is done by load_module; A return value of 1 means -1 for user-space, while -0 still = 0 */
 	return -load_module(path, name);
@@ -957,7 +956,7 @@ int sys_sethostname(const void *name, size_t len)
 	DEBUG_PRINT_SYSTEMCALL();
 	if(len > _UTSNAME_LENGTH)
 		return errno =-EINVAL;
-	if(!vmm_is_mapped(name))
+	if(!vmm_is_mapped((void *) name))
 		return errno =-EFAULT;
 	if((ssize_t) len < 0)
 		return errno =-EINVAL;
@@ -1002,7 +1001,7 @@ void *sys_mapfb()
 int sys_nanosleep(const struct timespec *req, struct timespec *rem)
 {
 	DEBUG_PRINT_SYSTEMCALL();
-	if(!vmm_is_mapped(req))
+	if(!vmm_is_mapped((void*) req))
 		return errno =-EFAULT;
 	time_t ticks = req->tv_sec * 1000;
 	if(req->tv_nsec)

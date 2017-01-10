@@ -31,7 +31,7 @@ block_device_t *blkdev_search(const char *name)
 	block_device_t *dev = dev_list;
 	while(dev)
 	{
-		if(!strcmp(dev->node_path, name))
+		if(!strcmp((char *) dev->node_path,(char *) name))
 			break;
 		dev = dev->next;
 	}

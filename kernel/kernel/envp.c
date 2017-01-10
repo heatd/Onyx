@@ -38,7 +38,7 @@ char **copy_env_vars(char **envp)
 		strcpy(variable_strings, envp[i]);
 		variable_strings += strlen(envp[i]) + 1;
 	}
-	variables[num_vars] = NULL;
+	variables[num_vars] = 0;
 	return (char **) variables;
 }
 char **copy_argv(char **argv, const char *path, int *argc)

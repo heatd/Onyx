@@ -12,6 +12,7 @@
 
 #include <kernel/compiler.h>
 #include <kernel/log.h>
+#include <kernel/acpi.h>
 
 #include <drivers/pci.h>
 

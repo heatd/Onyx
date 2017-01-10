@@ -42,7 +42,7 @@ int _icmp_ping()
 	send(icmp_socket, hdr, sizeof(icmp_header_t) + 30);
 	free(hdr);
 	hdr = NULL;
-	recv(icmp_socket, &hdr);
+	recv(icmp_socket, (void**) &hdr);
 	if(hdr->type && hdr->rest == 0x100FEFE)
 	{
 		/* If hdr->type != ICMP_TYPE_ECHO_REPLY and the identification number is identical to the sent one,

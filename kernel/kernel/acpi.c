@@ -14,6 +14,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include <kernel/acpi.h>
 #include <kernel/log.h>
 #include <kernel/compiler.h>
 #include <kernel/vmm.h>

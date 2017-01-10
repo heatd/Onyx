@@ -11,6 +11,7 @@
 #ifndef _PANIC_H
 #define _PANIC_H
 
+#include <multiboot2.h>
 #include <kernel/compiler.h>
 #include <kernel/registers.h>
 ARCH_SPECIFIC void halt();

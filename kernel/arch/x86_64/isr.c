@@ -126,7 +126,6 @@ void isr_handler(intctx_t *ctx)
 			break;
 		}
 	case 13:{
-			heap_search(0xCACACACACACACACA);
 			printf(exception_msg[int_no]);
 			if (err_code != 0)
 				printf("\nSegment 0x%X\n", err_code);

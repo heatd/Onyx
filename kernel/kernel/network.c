@@ -17,6 +17,7 @@
 #include <kernel/udp.h>
 #include <kernel/icmp.h>
 #include <kernel/compiler.h>
+#include <kernel/dns.h>
 
 static const char *hostname = "";
 socket_t *sock_table[MAX_NETWORK_CONNECTIONS] = {0};
@@ -82,7 +83,7 @@ int send(int socket, const void *buffer, size_t len)
 	if(!sock)
 		return errno = EINVAL, 1;
 	if(sock->proto)
-		return send_ipv4_packet(ip_local_ip, sock->remote_ip, sock->proto, buffer, len);
+		return send_ipv4_packet(ip_local_ip, sock->remote_ip, sock->proto, (char*) buffer, len);
 	return send_udp_packet((char*) buffer, len, sock->localport, sock->remote_port, ip_local_ip, sock->remote_ip);
 }
 void network_handle_packet(ip_header_t *hdr, uint16_t len)
@@ -139,8 +140,8 @@ const char *network_gethostname()
 void network_sethostname(const char *name)
 {
 	/* TODO: Invalidate the dns cache entry of the last host name */
-	if(hostname != "")
-		free(hostname);
+	if(strcmp((char*) hostname, ""))
+		free((void *) hostname);
 	dns_fill_hashtable(dns_hash_string(name), name, 0x7F00001);
 	hostname = name;
 }

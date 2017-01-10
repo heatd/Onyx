@@ -23,7 +23,7 @@
 
 _Bool is_initialized = false;
 _Bool is_spawning = 0;
-vmm_entry_t *old_tree = NULL;
+avl_node_t *old_tree = NULL;
 vmm_entry_t *areas = NULL;
 size_t num_areas = 3;
 #ifdef __x86_64__

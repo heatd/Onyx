@@ -3014,10 +3014,10 @@ enum
 #define R_OR1K_TLS_DTPMOD	34
 
 #define RELOCATE_R_X86_64_64(S, A) (S + A)
-#define RELOCATE_R_X86_64_32(S, A) (uint32_t)RELOCATE_R_X86_64_64(S,A)
-#define RELOCATE_R_X86_64_16(S, A) (uint16_t)RELOCATE_R_X86_64_64(S,A)
-#define RELOCATE_R_X86_64_8(S, A) (uint8_t)RELOCATE_R_X86_64_64(S,A)
-#define RELOCATE_R_X86_64_32S(S, A) (0xFFFFFFFF00000000 | RELOCATE_R_X86_64_32(S, A))
+#define RELOCATE_R_X86_64_32(S, A) (S + A)
+#define RELOCATE_R_X86_64_16(S, A) (S + A)
+#define RELOCATE_R_X86_64_8(S, A) (S + A)
+#define RELOCATE_R_X86_64_32S(S, A) (S + A)
 #define RELOCATE_R_X86_64_PC32(S, A, P) (S + A - P)
 #define RELOCATE_R_X86_64_RELATIVE(B, A) (B + A)
 typedef int (module_init_t)(void);

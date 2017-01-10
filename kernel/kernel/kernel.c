@@ -145,7 +145,7 @@ retry:;
 	vfsnode_t *in = open_vfs(fs_root, path);
 	if(!in)
 	{
-		if(path == "/bin/init")
+		if(!strcmp(path, "/bin/init"))
 			panic("No init program found!\n");
 		path = "/bin/init";
 		goto retry;
@@ -192,7 +192,7 @@ retry:;
 	process_create_thread(proc, (thread_callback_t) entry, 0, argc, args, env);
 	// Ugh, a really bad hack to put it here. The ELF loader/execve needs to be restructered
 	/* Setup the auxv at the stack bottom */
-	Elf64_auxv_t *auxv = proc->threads[0]->user_stack_bottom;
+	Elf64_auxv_t *auxv = (Elf64_auxv_t *) proc->threads[0]->user_stack_bottom;
 	unsigned char *scratch_space = (unsigned char *) (auxv + 37);
 	for(int i = 0; i < 38; i++)
 	{
@@ -212,14 +212,14 @@ retry:;
 				auxv[i].a_un.a_val = proc->gid;
 				break;
 			case AT_RANDOM:
-				get_entropy(scratch_space, 16);
+				get_entropy((char*) scratch_space, 16);
 				printf("Random: %x%x\n", *(uint64_t*) scratch_space, *(uint64_t*) scratch_space+1);
 				scratch_space += 16;
 				break;
 		}
 	}
-	registers_t *regs = proc->threads[0]->kernel_stack;
-	regs->rcx = auxv;
+	registers_t *regs = (registers_t *) proc->threads[0]->kernel_stack;
+	regs->rcx = (uintptr_t) auxv;
 	p->tid = proc->threads[0]->id;
 	p->pid = proc->pid;
 	free(buffer);
@@ -299,7 +299,7 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 		}
 		mmap++;
 	}
-	phys_fb = tagfb->common.framebuffer_addr;
+	phys_fb = (void*) tagfb->common.framebuffer_addr;
 	/* Map the FB */
 	for (uintptr_t virt = KERNEL_FB, phys = tagfb->common.framebuffer_addr; virt < KERNEL_FB + 0x400000; virt += 4096, phys += 4096)
 	{
@@ -423,7 +423,7 @@ void kernel_multitasking(void *arg)
 	icmp_init();
 	
 	/* Just a little demo for the recent DNS and ICMP features */
-	uint32_t ip = dns_resolve_host("www.google.com");
+	//uint32_t ip = dns_resolve_host("www.google.com");
 	//icmp_ping(ip, 10);
 
 	/* Parse the command line string to a more friendly argv-like buffer */

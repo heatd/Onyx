@@ -18,6 +18,7 @@
 #include <kernel/task_switching.h>
 #include <kernel/acpi.h>
 #include <kernel/cpu.h>
+#include <kernel/registers.h>
 
 volatile uint32_t *bsp_lapic = NULL;
 volatile uint64_t ap_done = 0;
@@ -40,14 +41,9 @@ void lapic_send_eoi()
 	else
 	{
 		struct processor *proc = get_gs_data();
-		lapic_write(proc->lapic, LAPIC_EOI, 0);
+		lapic_write((volatile uint32_t *) proc->lapic, LAPIC_EOI, 0);
 	}
 }
-void rdmsr(uint32_t msr, uint32_t *lo, uint32_t *hi)
-{
-	asm volatile("rdmsr" : "=a"(*lo), "=d"(*hi) : "c"(msr));
-}
-
 void lapic_init()
 {
 	/* Get the BSP's LAPIC base address from the msr's */
@@ -172,7 +168,7 @@ static uintptr_t apic_timer_irq(registers_t *regs)
 	if(cpu->sched_quantum == 0)
 	{
 		cpu->sched_quantum = 10;
-		return sched_switch_thread((uintptr_t)regs);
+		return (uintptr_t) sched_switch_thread((void *)regs);
 	}
 	return 0;
 }

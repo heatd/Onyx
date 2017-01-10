@@ -16,6 +16,7 @@
 
 #include <kernel/portio.h>
 #include <kernel/acpi.h>
+#include <kernel/panic.h>
 
 void pm_reboot()
 {
