@@ -63,6 +63,7 @@
 #include <kernel/envp.h>
 #include <kernel/block.h>
 #include <kernel/elf.h>
+#include <kernel/smbios.h>
 
 #include <drivers/ps2.h>
 #include <drivers/ata.h>
@@ -400,17 +401,26 @@ void kernel_multitasking(void *arg)
 	LOG("kernel", ANSI_COLOR_GREEN "Spartix kernel %s branch %s build %d for the %s architecture\n" ANSI_COLOR_RESET,
 	     KERNEL_VERSION, KERNEL_BRANCH, &__BUILD_NUMBER, KERNEL_ARCH);
 	LOG("kernel", "Command line: %s\n", kernel_cmdline);
+	
+	/* Initialize the SMBIOS subsystem */
+	smbios_init();
+
+	/* Initialize the PCI subsystem */
 	pci_init();
 	
 	/* Initialize devfs */
 	devfs_init();
 
+	/* Initialize each PCI device driver, according to the bus */
 	pci_initialize_drivers();
 
 	char *args[] = {"/etc/fstab", NULL};
 	char *envp[] = {"PATH=/bin:/usr/bin:/usr/lib", NULL};
-	init_ext2drv();
+
+	/* Initialize the module subsystem */
 	initialize_module_subsystem();
+
+	/* Initialize the RTC(TODO: Move this bit over to ACPI initialization, so it gets automated) */
 	init_rtc();
 
 	/* Initialize the network-related subsystems(the ones that need it) */
