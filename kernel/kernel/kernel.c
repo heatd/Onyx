@@ -234,7 +234,7 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 		return;
 	idt_init();
 	vmm_init();
-	paging_map_all_phys();
+
 	struct multiboot_tag_framebuffer *tagfb = NULL;
 	size_t total_mem = 0;
 	size_t initrd_size = 0;
@@ -299,6 +299,8 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 		}
 		mmap++;
 	}
+
+	paging_map_all_phys();
 	phys_fb = (void*) tagfb->common.framebuffer_addr;
 	/* Map the FB */
 	for (uintptr_t virt = KERNEL_FB, phys = tagfb->common.framebuffer_addr; virt < KERNEL_FB + 0x400000; virt += 4096, phys += 4096)

@@ -31,6 +31,8 @@ typedef struct {uint64_t entries[512];} PML1;
 void paging_init();
 void paging_unmap(void* memory);
 void *paging_map_phys_to_virt(uintptr_t virt, uintptr_t phys, uint64_t prot);
+void *paging_map_phys_to_virt_large(uintptr_t virt, uintptr_t phys, uint64_t prot);
+void *paging_map_phys_to_virt_large_early(uintptr_t virt, uintptr_t phys, uint64_t prot);
 void *paging_map_phys_to_virt_huge(uint64_t virt, uint64_t phys, uint64_t prot);
 void paging_map_all_phys(void);
 void *virtual2phys(void *ptr);
