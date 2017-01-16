@@ -124,6 +124,8 @@ int main(int argc, char **argv, char **envp)
 
 	int pid = fork();
 	
+	if(pid == 0)
+		execve(shell, args, env);
 	while(1);
 	return 0;
 }

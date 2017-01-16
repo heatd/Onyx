@@ -391,7 +391,6 @@ void kernel_main()
 		__asm__ __volatile__("hlt");
 	}
 }
-
 void kernel_multitasking(void *arg)
 {
 	void *mem = vmm_allocate_virt_address(VM_KERNEL, 1024, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
