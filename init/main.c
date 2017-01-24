@@ -116,7 +116,9 @@ int main(int argc, char **argv, char **envp)
 	
 	sethostname("localhost", strlen("localhost"));
 	
+	insmod("/lib/modules/ahci.kmod", "ahci");
 	insmod("/lib/modules/drm.kmod", "drm");
+
 	fflush(stdout);
 	struct drm_info *info = NULL;
 	if(drm_initialize(&info) < 0)

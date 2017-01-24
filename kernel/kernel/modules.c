@@ -30,6 +30,7 @@ int initialize_module_subsystem()
 	memset(hashtable, 0, sizeof(module_hashtable_t));
 	hashtable->size = DEFAULT_SIZE;
 	hashtable->buckets = malloc(DEFAULT_SIZE * sizeof(void*));
+	memset(hashtable->buckets, 0, DEFAULT_SIZE * sizeof(void*));
 	return 0;
 }
 static int generate_key(const char *path, const char *name)
@@ -53,9 +54,11 @@ int add_module_to_hashtable(module_t *mod)
 	else
 	{
 		module_t *i = hashtable->buckets[key];
-		for(; i->next != NULL; i=i->next);
+		for(; i->next != NULL; i = i->next);
+
 		i->next = mod;
 	}
+	mod->next = NULL;
 	return 0;
 }
 module_t *get_module_from_key(int key, char *name)

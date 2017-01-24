@@ -15,7 +15,7 @@
 
 #include <kernel/tty.h>
 #define INFO(x, ...) printf("["ANSI_COLOR_GREEN"INFO"ANSI_COLOR_RESET"] "x": "__VA_ARGS__)
-#define WARN(x, ...) printf("["ANSI_COLOR_RED"WARNING"ANSI_COLOR_RESET"] "x": "__VA_ARGS__)
+#define WARN(x, ...) printf("["ANSI_COLOR_YELLOW"WARNING"ANSI_COLOR_RESET"] "x": "__VA_ARGS__)
 #define ERROR(x, ...) printf("["ANSI_COLOR_RED"ERROR"ANSI_COLOR_RESET"] "x": "__VA_ARGS__)
 #define FATAL(x, ...) printf("["ANSI_COLOR_RED"FATAL"ANSI_COLOR_RESET"] "x": "__VA_ARGS__)
 
