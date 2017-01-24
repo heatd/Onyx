@@ -43,4 +43,26 @@ inline uint64_t rdtsc()
     	__asm__ __volatile__ ( "rdtsc" : "=A"(ret) );
     	return ret;
 }
+inline int count_bits32(uint32_t num)
+{
+	int nbits = 0;
+	for(int i = 0; i < 32; i++)
+	{
+		if(num & 1)
+			nbits++;
+		num = num >> 1;
+	}
+	return nbits;
+}
+inline int count_bits64(uint64_t num)
+{
+	int nbits = 0;
+	for(int i = 0; i < 64; i++)
+	{
+		if(num & 1)
+			nbits++;
+		num = num >> 1;
+	}
+	return nbits;
+}
 #endif /* COMPILER_H */

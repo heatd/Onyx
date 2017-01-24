@@ -29,17 +29,6 @@ MODULE_INSERT_VERSION();
 static PCIDevice *ahci_dev = NULL;
 static ahci_hba_memory_regs_t *hba = NULL;
 
-int count_bits(uint32_t num)
-{
-	int nbits = 0;
-	for(int i = 0; i < 32; i++)
-	{
-		if(num & 1)
-			nbits++;
-		num = num >> 1;
-	}
-	return nbits;
-}
 void probe_ports(int n_ports)
 {
 	uint32_t ports_impl = hba->ports_implemented;
