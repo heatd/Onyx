@@ -11,6 +11,9 @@
 #ifndef _AHCI_H
 #define _AHCI_H
 
+#define	SATA_SIG_ATA	0x00000101	// SATA drive
+#define	SATA_SIG_ATAPI	0xEB140101	// SATAPI drive
+
 typedef enum
 {
 	FIS_TYPE_REG_H2D	= 0x27,	// Register FIS - host to device

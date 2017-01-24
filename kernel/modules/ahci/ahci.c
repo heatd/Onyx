@@ -29,15 +29,42 @@ MODULE_INSERT_VERSION();
 static PCIDevice *ahci_dev = NULL;
 static ahci_hba_memory_regs_t *hba = NULL;
 
-void probe_ports(int n_ports)
+int ahci_check_drive_type(ahci_port_t *port)
+{
+	uint32_t status = port->sata_status;
+
+	uint8_t ipm = (status >> 8) & 0x0F;
+	uint8_t det = status & 0x0F;
+
+	if(!det)
+		return -1;
+	if(!ipm)
+		return -1;
+	
+	if(!port->sig)
+		return -1;
+	return port->sig;
+}
+void ahci_probe_ports(int n_ports)
 {
 	uint32_t ports_impl = hba->ports_implemented;
 	for(int i = 0; i < 32; i++)
 	{
 		if(ports_impl & 1)
 		{
-			if(hba->ports[i].sig)
-				MPRINTF("Found a drive!\n");
+			int type = 0;
+			if((type = ahci_check_drive_type(&hba->ports[i])))
+			{
+				switch(type)
+				{
+					case SATA_SIG_ATA:
+						MPRINTF("Found a SATA drive on port %u\n", i);
+						break;
+					case SATA_SIG_ATAPI:
+						MPRINTF("Found a SATAPI drive on port %u\n", i);
+						break;
+				}
+			}
 		}
 		ports_impl >>= 1;
 		i++;
@@ -56,14 +83,13 @@ int module_init()
 	pcibar_t *bar = pci_get_bar(ahci_dev->slot, ahci_dev->device, ahci_dev->function, 5);
 	hba = (ahci_hba_memory_regs_t*)(((uintptr_t) bar->address) + PHYS_BASE);
 
-	printf("Ports implemented: %u\n", count_bits(hba->ports_implemented));
+	MPRINTF("ports implemented: %u\n", count_bits32(hba->ports_implemented));
 
-	probe_ports(count_bits(hba->ports_implemented));
+	ahci_probe_ports(count_bits32(hba->ports_implemented));
 	return 0;
 }
 int module_fini()
 {
 	MPRINTF("de-initializing!\n");
-	
 	return 0;
 }
