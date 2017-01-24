@@ -13,6 +13,7 @@
 #include <cpuid.h>
 
 #include <kernel/paging.h>
+#include <kernel/process.h>
 #include <kernel/vmm.h>
 #include <kernel/panic.h>
 static _Bool is_spawning = 0;
@@ -296,7 +297,8 @@ void* paging_map_phys_to_virt(uint64_t virt, uint64_t phys, uint64_t prot)
 	if(!is_spawning)
 		pml4 = (PML4*)((uint64_t)current_pml4 + PHYS_BASE);
 	else
-		pml4 = (PML4*)((uint64_t)spawning_pml + PHYS_BASE);
+		{
+		pml4 = (PML4*)((uint64_t)spawning_pml + PHYS_BASE);}
 	
 	uint64_t* entry = &pml4->entries[decAddr.pml4];
 	PML3* pml3 = NULL;
@@ -367,6 +369,7 @@ PML4 *paging_clone_as()
 	if(!new_pml)
 		panic("OOM while cloning address space!");
 	PML4 *p = (PML4*)((uint64_t)new_pml + PHYS_BASE);
+	memset(p, 0, sizeof(PML4));
 	PML4 *curr = (PML4*)((uint64_t)current_pml4 + PHYS_BASE);
 	// Clone the kernel-space memory
 	memcpy(&p->entries[256], &curr->entries[256], 256 * sizeof(uint64_t));
@@ -428,8 +431,22 @@ void paging_stop_spawning()
 	is_spawning = 0;
 	spawning_pml = NULL;
 }
+extern process_t *first_process;
 void paging_load_cr3(PML4 *pml)
 {
+	if(!pml)
+	{
+		printf("Trace: %p\n", __builtin_return_address(0));
+		process_t *p = first_process;
+		while(p)
+		{
+			printf("%p: ", p);
+			printf("CR3: %p\n", p->cr3);
+			p = p->next;
+		}
+		printf("current process: %p\n Current CR3: %p\n", current_process, current_process->cr3);
+		abort();
+	}
 	asm volatile("movq %0, %%cr3"::"r"(pml));
 	current_pml4 = pml;
 }

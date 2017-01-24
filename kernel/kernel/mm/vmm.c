@@ -247,7 +247,6 @@ void vmm_start_address_bookkeeping(uintptr_t framebuffer_address, uintptr_t heap
 	v->pages = 0x800000 / PAGE_SIZE;
 	v->type = VM_TYPE_HW;
 	v->rwx = VM_NOEXEC | VM_WRITE;
-	printf("Hello\n");
 	/* TODO: Support multiple sizes of heap */
 	v = avl_insert_key(&kernel_tree, heap, heap + 0x400000);
 
@@ -280,7 +279,7 @@ void *vmm_map_range(void *range, size_t pages, uint64_t flags)
 		asm volatile("invlpg %0"::"m"(mem));
 		mem += 0x1000;
 	}
-	memset(range, 0, 4096 * pages);
+	memset(range, 0, PAGE_SIZE * pages);
 	if(likely(current_process))
 		release_spinlock(&current_process->vm_spl);
 	return range;
@@ -394,7 +393,6 @@ void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uin
 				break;
 		}
 	}
-	//printf("Address %x is free!\n", base_address);
 	vmm_entry_t *en;
 	
 	if(flags & 1)
@@ -455,9 +453,7 @@ PML4 *vmm_clone_as(avl_node_t **treep)
 {
 	/* Create a new address space */
 	PML4 *pt = paging_clone_as();
-	
-	is_spawning = 1;
-	old_tree = tree;
+
 	*treep = NULL;
 
 	return pt;

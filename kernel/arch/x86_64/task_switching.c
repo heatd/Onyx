@@ -381,8 +381,9 @@ void sched_destroy_thread(thread_t *thread)
 	thread_t *it = run_queue;
 	for(; it->next; it = it->next)
 	{
-		if(it == thread)
+		if(it->next == thread)
 		{
+			printf("Deleted %p\n", thread);
 			it->next = thread->next;
 			free(thread);
 			return;

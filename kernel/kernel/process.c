@@ -18,7 +18,8 @@
 #include <kernel/process.h>
 #include <kernel/task_switching.h>
 #include <kernel/cpu.h>
-
+#include <kernel/random.h>
+#include <pthread_kernel.h>
 
 extern PML4 *current_pml4;
 process_t *first_process = NULL;
@@ -103,10 +104,8 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	/* Create a new address space */
 	avl_node_t *tree;
 	current_process->cr3 = vmm_clone_as(&tree);
-	//vmm_stop_spawning();
 
 	current_process->tree = tree;
-
 	/* Open the file */
 	vfsnode_t *in = open_vfs(fs_root, path);
 	if (!in)
@@ -148,11 +147,9 @@ int sys_execve(char *path, char *argv[], char *envp[])
 		strcpy((char*) temp, envp[i]);
 		temp += strlen(envp[i]) + 1;
 	}
-	asm volatile ("mov %0, %%cr3" :: "r"(current_process->cr3)); /* We can't use paging_load_cr3 because that would change current_pml4
-							* which we will need for later 
-							*/
-	/* Count the arguments and envp */
-	void *entry = elf_load((void *) buffer);
+	DISABLE_INTERRUPTS();
+
+	paging_load_cr3(current_process->cr3);
 
 	/* Map argv and envp */
 	char **new_args = vmm_allocate_virt_address(0, vmm_align_size_to_pages(sizeof(void*) * nargs), VMM_TYPE_REGULAR, VMM_USER|VMM_WRITE);
@@ -181,9 +178,13 @@ int sys_execve(char *path, char *argv[], char *envp[])
 		new_envp[i] = (char*) temp;
 		temp += strlen(new_envp[i]) + 1;
 	}
-	DISABLE_INTERRUPTS();
+
+	void *entry = elf_load((void *) buffer);
+
 	thread_t *t = sched_create_main_thread((thread_callback_t) entry, 0, nargs, new_args, new_envp);
+		
 	sched_destroy_thread(current_process->threads[0]);
+
 	/* Set the appropriate uid and gid */
 	if(current_process->setuid != 0)
 		current_process->uid = current_process->setuid;
@@ -193,10 +194,51 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	current_process->setgid = 0;
 	t->owner = current_process;
 	current_process->threads[0] = t;
+
+	/* Allocate the program's data break */
+	current_process->brk = vmm_allocate_virt_address(0, 1, VMM_TYPE_HEAP, VMM_WRITE | VMM_NOEXEC | VMM_USER);
+
+	vmm_map_range(current_process->brk, 1, VMM_WRITE | VMM_NOEXEC | VMM_USER);
+
+	/* Prepare the auxv */
+	Elf64_auxv_t *auxv = (Elf64_auxv_t *) current_process->threads[0]->user_stack_bottom;
+	unsigned char *scratch_space = (unsigned char *) (auxv + 37);
+	for(int i = 0; i < 38; i++)
+	{
+		if(i != 0)
+			auxv[i].a_type = i;
+		if(i == 37)
+			auxv[i].a_type = 0;
+		switch(i)
+		{
+			case AT_PAGESZ:
+				auxv[i].a_un.a_val = PAGE_SIZE;
+				break;
+			case AT_UID:
+				auxv[i].a_un.a_val = current_process->uid;
+				break;
+			case AT_GID:
+				auxv[i].a_un.a_val = current_process->gid;
+				break;
+			case AT_RANDOM:
+				get_entropy((char*) scratch_space, 16);
+				printf("Random: %x%x\n", *(uint64_t*) scratch_space, *(uint64_t*) scratch_space+1);
+				scratch_space += 16;
+				break;
+		}
+	}
+	registers_t *regs = (registers_t *) current_process->threads[0]->kernel_stack;
+	regs->rcx = (uintptr_t) auxv;
+	
+	current_process->fs = (uintptr_t) vmm_allocate_virt_address(0, 1, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_USER);
+	vmm_map_range((void*) current_process->fs, 1, VMM_WRITE | VMM_NOEXEC | VMM_USER);
+	pthread_t *p = (struct pthread*) current_process->fs;
+	p->self = (pthread_t*) p;
+
+	p->tid = current_process->threads[0]->id;
+	p->pid = current_process->pid;
+
 	release_spinlock(&execve_spl);
-	asm volatile ("mov %0, %%cr3" :: "r"(current_pml4)); /* We can't use paging_load_cr3 because that would change current_pml4
-							* which we will need for later 
-							*/
 	ENABLE_INTERRUPTS();
 	while(1);
 }
@@ -235,10 +277,10 @@ pid_t sys_fork(syscall_ctx_t *ctx)
 		return -1;
 	/* Create a new process */
 	process_t *child = process_create(current_process->cmd_line, &proc->ctx, proc); /* Create a process with the current
-								  			  * process's info */
+							  			  * process's info */
 	if(!child)
 		return -1;
-	
+
 	/* Fork the vmm data and the address space */
 	avl_node_t *areas;
 	acquire_spinlock(&fork_spl);

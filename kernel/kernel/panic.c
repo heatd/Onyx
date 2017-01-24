@@ -39,7 +39,7 @@ __attribute__ ((noreturn, cold, noinline))
 void panic(const char *msg)
 {
 	panicing = 1;
-	printf("\n%s", skull);
+	//printf("\n%s", skull);
 	printf("panic: %s\n", msg);
 	registers_t ctx;
 	// Get thread's context

@@ -12,7 +12,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <unistd.h>
-
+#include <string.h>
 void switch_users()
 {
 	uid_t uid = 0;
@@ -24,31 +24,37 @@ void switch_users()
 char **args;
 int main(int argc, char **argv, char **envp)
 {
-	printf("Hi\n");
-
 	args = argv;
+
 	printf("%s: ", argv[0]);
+	fflush(stdout);
 	char *buf = malloc(1024);
-loop:
-	printf("username:");
 	if(!buf)
 		return 1;
-	fgets(buf, 1024, stdin);
+loop:
+	printf("username:");
+	fflush(stdout);
+
+	read(STDIN_FILENO, buf, 1024);
 	if(strcmp(buf, "root") != 0)
 	{
 		printf("Unknown username %s!\n", buf);
 		goto loop;
 	}
 	printf("password:");
-	fgets(buf, 1024, stdin);
+	fflush(stdout);
+
+	read(STDIN_FILENO, buf, 1024);
 	if(strcmp(buf, "root") != 0)
 	{
 		printf("Unknown password! Try again.\n", buf);
 		goto loop;
 	}
-	switch_users();
+	//switch_users();
 	/* Spawn the login shell */
 	int pid = fork();
+
+	args[0] = "/bin/sh";
 	if(pid == 0)
 	{
 		extern char **environ;

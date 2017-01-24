@@ -117,7 +117,7 @@ int main(int argc, char **argv, char **envp)
 	sethostname("localhost", strlen("localhost"));
 	
 	insmod("/lib/modules/drm.kmod", "drm");
-	
+	fflush(stdout);
 	struct drm_info *info = NULL;
 	if(drm_initialize(&info) < 0)
 		printf("Error: Failed to initialize drm!\n");
