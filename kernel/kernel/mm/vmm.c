@@ -496,3 +496,13 @@ void vmm_set_tree(avl_node_t *tree_)
 {
 	tree = tree_;
 }
+int vmm_check_pointer(void *addr, size_t needed_space)
+{
+	vmm_entry_t *e = vmm_is_mapped(addr);
+	if(!e)
+		return -1;
+	if((uintptr_t) addr + needed_space <= e->base + e->pages * PAGE_SIZE)
+		return 0;
+	else
+		return -1;
+}

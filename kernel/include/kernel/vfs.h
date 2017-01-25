@@ -39,6 +39,7 @@ typedef struct vfsnode
 	int refcount;
 	char *name;
 	char *mountpoint;
+	dev_t dev;
 	struct vfsnode *next;
 	struct vfsnode *link;
 	__read read;
@@ -48,7 +49,7 @@ typedef struct vfsnode
 	__getdents getdents;
 	__ioctl ioctl;
 	__creat creat;
-}vfsnode_t;
+} vfsnode_t;
 
 size_t read_vfs(size_t offset, size_t sizeofread, void* buffer, vfsnode_t* this);
 size_t write_vfs(size_t offset, size_t sizeofwrite, void* buffer, vfsnode_t* this);
@@ -59,8 +60,6 @@ vfsnode_t *creat_vfs(vfsnode_t *node, const char *path, int mode);
 unsigned int getdents_vfs(unsigned int count, struct dirent* dirp, vfsnode_t *this);
 int ioctl_vfs(int request, va_list args, vfsnode_t *this);
 int vfs_init();
-vfsnode_t* vfs_findnode(const char *path);
-void vfs_register_node(vfsnode_t *toBeAdded);
-int vfs_destroy_node(vfsnode_t *toBeRemoved);
+
 extern vfsnode_t* fs_root;
 #endif

@@ -14,8 +14,11 @@
 
 #include <kernel/vfs.h>
 #include <kernel/elf.h>
+#include <kernel/kernelinfo.h>
 #include <kernel/vmm.h>
 #include <kernel/modules.h>
+#include <kernel/log.h>
+
 static Elf64_Shdr *strtab = NULL;
 static Elf64_Shdr *symtab = NULL;
 static Elf64_Shdr *shstrtab = NULL;
@@ -265,8 +268,8 @@ _Bool elf_parse_program_headers(void *file)
 			if (!pages || pages % 4096)
 				pages++;
 			vmm_reserve_address((void *) (phdrs[i].p_vaddr & 0xFFFFFFFFFFFFF000), pages, VMM_TYPE_REGULAR, VMM_WRITE | VMM_USER);
-			void *mem = vmm_map_range((void *) (phdrs[i].p_vaddr & 0xFFFFFFFFFFFFF000), pages, VMM_WRITE | VMM_USER);
-			memcpy(mem, (void *) ((char *) file + phdrs[i].p_offset),  phdrs[i].p_filesz);
+			vmm_map_range((void *) (phdrs[i].p_vaddr & 0xFFFFFFFFFFFFF000), pages, VMM_WRITE | VMM_USER);
+			memcpy((void*) phdrs[i].p_vaddr, (void *) ((char *) file + phdrs[i].p_offset),  phdrs[i].p_filesz);
 		}
 	}
 	return true;
@@ -316,6 +319,38 @@ void *elf_load_kernel_module(void *file, void **fini_func)
 		if(!strcmp(elf_get_shstring(header, sections[i].sh_name), ".strtab"))
 			strtab = &sections[i];
 	}
+	_Bool modinfo_found = 0;
+	for(size_t i = 0; i < header->e_shnum; i++)
+	{
+			if(!strcmp(elf_get_shstring(header, sections[i].sh_name), ".modinfo"))
+			{
+				modinfo_found = 1;
+
+				char *parse = (char*) file + sections[i].sh_offset;
+				char *kver = NULL;
+				_Bool found_kernel_ver = 0;
+				for(size_t j = 0; j < sections[i].sh_size; j++)
+				{
+					if(*parse != 'k' && *(parse+1) != 'e' && *(parse+2) != 'r' && *(parse+3) != 'n' && *(parse+4) != 'e' && *(parse+5) != 'l' && *(parse+6) != '=')
+					{
+						found_kernel_ver = 1;
+						kver = parse + strlen("kernel=") - 1;
+						break;
+					}
+					parse++;
+				}
+				if(!found_kernel_ver)
+					return NULL;
+				/* Check if the kernel version matches up */
+				if(strcmp(OS_RELEASE, kver))
+				{
+					FATAL("module", "Kernel version does not match with the module!\n");
+					return NULL;
+				}
+			}
+	}
+	if(!modinfo_found)
+		return NULL;	
 	uintptr_t first_address = 0;
 	for(size_t i = 0; i < header->e_shnum; i++)
 	{

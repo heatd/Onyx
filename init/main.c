@@ -16,6 +16,7 @@
 #include <signal.h>
 #include <fcntl.h>
 
+#include <sys/mman.h>
 #include <sys/time.h>
 #include <sys/syscall.h>
 #include <sys/utsname.h>
@@ -116,6 +117,10 @@ int main(int argc, char **argv, char **envp)
 	
 	sethostname("localhost", strlen("localhost"));
 	
+	void *addr = mmap(NULL, 4096, PROT_READ | PROT_WRITE, MAP_ANON,
+                  0, 0);
+	
+	uname((char*) addr + 4095);
 	insmod("/lib/modules/ahci.kmod", "ahci");
 	insmod("/lib/modules/drm.kmod", "drm");
 

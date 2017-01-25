@@ -101,6 +101,8 @@ int load_module(const char *path, const char *name)
 		return errno = EAGAIN;
 	void *fini;
 	void *entry = elf_load_kernel_module(buffer, &fini);
+	if(!entry)
+		return 1;
 	if(errno == EINVAL)
 		printf("Invalid ELF file\n");
 	module_init_t *functor = (module_init_t*) entry;

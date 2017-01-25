@@ -80,7 +80,7 @@ void vmm_stop_spawning();
 void vmm_change_perms(void *range, size_t pages, int perms);
 void vmm_set_tree(avl_node_t *tree_);
 avl_node_t *vmm_get_tree();
-
+int vmm_check_pointer(void *addr, size_t needed_space);
 inline size_t vmm_align_size_to_pages(size_t size)
 {
 	size_t pages = size / PAGE_SIZE;

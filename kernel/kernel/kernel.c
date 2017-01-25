@@ -477,7 +477,7 @@ void kernel_multitasking(void *arg)
 	block_device_t *dev = blkdev_search(device_name);
 	if(!dev)
 		WARN("kernel", "root device not found!\n");
-
+	
 	find_and_exec_init(args, envp);
 	if(errno == ENOENT)
 	{

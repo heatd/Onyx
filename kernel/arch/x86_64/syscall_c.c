@@ -90,7 +90,7 @@ off_t sys_lseek(int fd, off_t offset, int whence)
 }
 ssize_t sys_write(int fd, const void *buf, size_t count)
 {
-	if(!vmm_is_mapped((void*) buf))
+	if(vmm_check_pointer((void*) buf, count) < 0)
 		return errno =-EINVAL;
 	DEBUG_PRINT_SYSTEMCALL();
 	if(validate_fd(fd))
@@ -165,7 +165,7 @@ int sys_mprotect(void *addr, size_t len, int prot)
 }
 ssize_t sys_read(int fd, const void *buf, size_t count)
 {
-	if(!vmm_is_mapped((void*) buf))
+	if(vmm_check_pointer((void*) buf, count) < 0)
 		return errno =-EINVAL;
 	DEBUG_PRINT_SYSTEMCALL();
 
@@ -331,7 +331,7 @@ uint64_t sys_brk(void *addr)
 time_t sys_time(time_t *s)
 {
 	DEBUG_PRINT_SYSTEMCALL();
-	if(vmm_is_mapped(s))
+	if(vmm_check_pointer(s, sizeof(time_t)) == 0)
 		*s = get_posix_time();
 	return get_posix_time();
 }
@@ -362,7 +362,7 @@ void sys_shutdown()
 }
 ssize_t sys_readv(int fd, const struct iovec *vec, int veccnt)
 {
-	if(!vmm_is_mapped((void*) vec))
+	if(vmm_check_pointer((void*) vec, sizeof(struct iovec) * veccnt) < 0)
 		return errno =-EINVAL;
 	DEBUG_PRINT_SYSTEMCALL();
 	if(validate_fd(fd))
@@ -385,7 +385,7 @@ ssize_t sys_readv(int fd, const struct iovec *vec, int veccnt)
 }
 ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt)
 {
-	if(!vmm_is_mapped((void*) vec))
+	if(vmm_check_pointer((void*) vec, sizeof(struct iovec) * veccnt) < 0)
 		return errno =-EINVAL;
 	
 	DEBUG_PRINT_SYSTEMCALL();
@@ -408,8 +408,8 @@ ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt)
 }
 ssize_t sys_preadv(int fd, const struct iovec *vec, int veccnt, off_t offset)
 {
-	/*if(!vmm_is_mapped((void*) vec))
-		return errno =-EINVAL;*/
+	if(vmm_check_pointer((void*) vec, sizeof(struct iovec) * veccnt) < 0)
+		return errno =-EINVAL;
 	
 	DEBUG_PRINT_SYSTEMCALL();
 	/*if(validate_fd(fd))
@@ -431,7 +431,7 @@ ssize_t sys_preadv(int fd, const struct iovec *vec, int veccnt, off_t offset)
 }
 ssize_t sys_pwritev(int fd, const struct iovec *vec, int veccnt, off_t offset)
 {
-	if(!vmm_is_mapped((void*) vec))
+	if(vmm_check_pointer((void*) vec, sizeof(struct iovec) * veccnt) < 0)
 		return errno =-EINVAL;
 	DEBUG_PRINT_SYSTEMCALL();
 	if(validate_fd(fd))
@@ -451,7 +451,7 @@ ssize_t sys_pwritev(int fd, const struct iovec *vec, int veccnt, off_t offset)
 }
 int sys_getdents(int fd, struct dirent *dirp, unsigned int count)
 {
-	if(!vmm_is_mapped(dirp))
+	if(vmm_check_pointer((void*) dirp, sizeof(struct dirent) * count) < 0)
 		return errno =-EINVAL;
 	if(validate_fd(fd))
 		return errno =-EBADF;
@@ -600,7 +600,7 @@ int sys_insmod(const char *path, const char *name)
 int sys_uname(struct utsname *buf)
 {
 	DEBUG_PRINT_SYSTEMCALL();
-	if(!vmm_is_mapped(buf))
+	if(vmm_check_pointer(buf, sizeof(struct utsname)) < 0)
 		return errno =-EFAULT;
 	strcpy(buf->sysname, OS_NAME);
 	strcpy(buf->release, OS_RELEASE);
@@ -616,7 +616,7 @@ int sys_sethostname(const void *name, size_t len)
 	DEBUG_PRINT_SYSTEMCALL();
 	if(len > _UTSNAME_LENGTH)
 		return errno =-EINVAL;
-	if(!vmm_is_mapped((void *) name))
+	if(vmm_check_pointer((void *) name, len) < 0)
 		return errno =-EFAULT;
 	if((ssize_t) len < 0)
 		return errno =-EINVAL;
@@ -633,7 +633,7 @@ int sys_sethostname(const void *name, size_t len)
 int sys_gethostname(char *name, size_t len)
 {
 	DEBUG_PRINT_SYSTEMCALL();
-	if(!vmm_is_mapped(name))
+	if(vmm_check_pointer(name, len) < 0)
 		return errno =-EFAULT;
 	if((ssize_t) len < 0)
 		return errno =-EINVAL;
@@ -661,7 +661,7 @@ void *sys_mapfb()
 int sys_nanosleep(const struct timespec *req, struct timespec *rem)
 {
 	DEBUG_PRINT_SYSTEMCALL();
-	if(!vmm_is_mapped((void*) req))
+	if(vmm_check_pointer((void*) req, sizeof(struct timespec)) < 0)
 		return errno =-EFAULT;
 	time_t ticks = req->tv_sec * 1000;
 	if(req->tv_nsec)

@@ -12,5 +12,7 @@ install: $(PROG)
 	echo "PATH:=/bin:/usr/bin:/usr/local/bin:" > $(DESTDIR)/etc/init.d/rc3-envvar.d
 	mkdir -p $(DESTDIR)/sbin/
 	cp $(PROG) $(DESTDIR)/sbin/
+%.o: %.c
+	$(CC) -c $< $(CFLAGS) -o $@
 $(PROG): $(OBJS)
 	$(CC) $(OBJS) $(CFLAGS) -ldrm -o $@
