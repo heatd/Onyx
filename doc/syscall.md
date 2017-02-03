@@ -52,3 +52,4 @@ The kernel exposes the system calls to the user-space by the interrupt vector 0x
 | 43 | nanosleep() system call |
 | 44 | arch_prctl() system call |
 | 45 | set_tid_address() system call |
+| 46 | syslog() system call |

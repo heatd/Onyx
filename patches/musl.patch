@@ -142,7 +142,8 @@ diff -Naur musl-1.1.16/arch/x86_64/bits/syscall.h.in musl-1.1.16-patched/arch/x8
  #define __NR_sysinfo			99
 @@ -103,12 +103,12 @@
  #define __NR_getuid				102
- #define __NR_syslog				103
+-#define __NR_syslog				103
++#define __NR_syslog				46
  #define __NR_getgid				104
 -#define __NR_setuid				105
 -#define __NR_setgid				106

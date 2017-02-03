@@ -21,6 +21,7 @@
 #include <kernel/panic.h>
 #include <kernel/log.h>
 #include <kernel/cpu.h>
+#include <kernel/pnp.h>
 
 extern uintptr_t rsdp;
 static const ACPI_EXCEPTION_INFO    AcpiGbl_ExceptionNames_Env[] =
@@ -79,7 +80,7 @@ ACPI_STATUS acpi_walk_irq(ACPI_HANDLE object, UINT32 nestingLevel, void *context
 		ERROR("acpi", "Error: AcpiGetObjectInfo failed!\n");
 		return AE_ERROR;
 	}
-	
+	//pnp_register_dev_acpi(devinfo);
 	if(devinfo->Flags & ACPI_PCI_ROOT_BRIDGE)
 	{
 		root_bridge = object;

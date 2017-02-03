@@ -121,21 +121,6 @@ uint64_t get_unix_time(const date_t const *udate)
 	return utime;
 }
 static date_t date;
-static uintptr_t rtc_handler(registers_t *regs)
-{
-	date.seconds = rtc_get_date_reg(RTC_REG_SECONDS);
-	date.minutes = rtc_get_date_reg(RTC_REG_MINUTES);
-	date.hours = rtc_get_date_reg(RTC_REG_HOURS);
-	date.day = rtc_get_date_reg(RTC_REG_MONTH_DAY);
-	date.month = rtc_get_date_reg(RTC_REG_MONTH);
-	date.year = rtc_get_date_reg(RTC_REG_CENTURY) * 100 + rtc_get_date_reg(RTC_REG_YEAR);
-	date.unixtime = get_unix_time((const date_t *const) &date);
-	// Needed for the RTC to fire again
-	outb(0x70, RTC_STATUS_REG_C);
-	asm volatile("":::"memory");
-	inb(0x71);
-	return 0;
-}
 void early_boot_rtc()
 {
 	date.seconds = rtc_get_date_reg_early(RTC_REG_SECONDS);
@@ -171,18 +156,21 @@ void init_rtc()
 	date.month = rtc_get_date_reg(RTC_REG_MONTH);
 	date.year = rtc_get_date_reg(RTC_REG_CENTURY) * 100 + rtc_get_date_reg(RTC_REG_YEAR);
 	date.unixtime = get_unix_time(&date);
-	// Enable IRQ8
-	irq_install_handler(8, rtc_handler);
-	nmi_disable();
-	DISABLE_INTERRUPTS();
-	outb(0x70, RTC_STATUS_REG_B);
-	b = inb(0x71);
-	outb(0x70, RTC_STATUS_REG_B | 0x80);
-	outb(0x71, b | 0x40);
-	nmi_enable();
+
 	ENABLE_INTERRUPTS();
 }
 uint64_t get_posix_time()
+{
+	date.seconds = rtc_get_date_reg(RTC_REG_SECONDS);
+	date.minutes = rtc_get_date_reg(RTC_REG_MINUTES);
+	date.hours = rtc_get_date_reg(RTC_REG_HOURS);
+	date.day = rtc_get_date_reg(RTC_REG_MONTH_DAY);
+	date.month = rtc_get_date_reg(RTC_REG_MONTH);
+	date.year = rtc_get_date_reg(RTC_REG_CENTURY) * 100 + rtc_get_date_reg(RTC_REG_YEAR);
+	date.unixtime = get_unix_time((const date_t *const) &date);
+	return date.unixtime;
+}
+uint64_t get_posix_time_early()
 {
 	return date.unixtime;
 }

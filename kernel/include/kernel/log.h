@@ -21,4 +21,9 @@
 
 #define LOG INFO
 #define SUBMIT_BUG_REPORT(x) printf("If you want this bug/feature to be fixed, open an issue at the repo's issue tracker(https://github.com/heatd/Spartix/issues) with a title along the lines of \"%s: Fix x bug\". Thanks!\n", x);
+
+#define LOG_BUF_SHIFT 	18
+#define LOG_BUF_SIZE	(1 << LOG_BUF_SHIFT)
+
+void kernlog_print(const char *msg);
 #endif

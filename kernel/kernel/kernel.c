@@ -93,7 +93,6 @@ uintptr_t rsdp;
 
 extern void libc_late_init();
 extern void init_keyboard();
-extern int exec(const char *, char**, char**);
 
 char *kernel_arguments[200];
 int kernel_argc = 0;
@@ -478,6 +477,7 @@ void kernel_multitasking(void *arg)
 	if(!dev)
 		WARN("kernel", "root device not found!\n");
 	
+	kernlog_print("kernel: Hello World!\n");
 	find_and_exec_init(args, envp);
 	if(errno == ENOENT)
 	{

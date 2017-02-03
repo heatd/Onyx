@@ -173,6 +173,12 @@ static uintptr_t apic_timer_irq(registers_t *regs)
 	return 0;
 }
 unsigned long apic_rate = 0;
+unsigned long us_apic_rate = 0;
+uint64_t get_nanoseconds()
+{
+	struct processor *cpu = get_gs_data();
+	return lapic_read((volatile uint32_t *) cpu->lapic, LAPIC_TIMER_CURRCNT) / us_apic_rate;
+}
 void apic_timer_init()
 {
 	/* Set the timer divisor to 16 */
@@ -201,9 +207,11 @@ void apic_timer_init()
 	/* Initialize the APIC timer with IRQ2, periodic mode and an init count of ticks_in_10ms/10(so we get a rate of 1000hz)*/
 	lapic_write(bsp_lapic, LAPIC_TIMER_DIV, 3);
 
-	apic_rate = ticks_in_10ms/10;
+	apic_rate = ticks_in_10ms / 10;
+
+	us_apic_rate = apic_rate / 1000;
 	lapic_write(bsp_lapic, LAPIC_LVT_TIMER, 34 | LAPIC_LVT_TIMER_MODE_PERIODIC);
-	lapic_write(bsp_lapic, LAPIC_TIMER_INITCNT, ticks_in_10ms/10);
+	lapic_write(bsp_lapic, LAPIC_TIMER_INITCNT, ticks_in_10ms / 10);
 
 	/* De-initialize the PIT's used resources */	
 	pit_deinit();

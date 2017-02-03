@@ -57,10 +57,14 @@ void setbuf(FILE*, char*);
 void rewind(FILE *stream);
 char *gets(char *buf);
 char *fgets(char *buf, int size, FILE *stream);
+
 #endif /* __need_FILE */
 
+int printk(const char *__restrict__ format, ...);
 int vsprintf(char *restrict s, const char *__restrict__ format, va_list parameters);
 int vprintf(const char *__restrict__ format, va_list parameters);
+int sprintf(char *string, const char *format, ...);
+int snprintf(char *string, size_t len, const char *format, ...);
 int printf(const char *s, ...);
 int putchar(int);
 int puts(const char*);

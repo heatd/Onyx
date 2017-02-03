@@ -15,7 +15,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #ifdef __is_spartix_kernel
-#include <kernel/tty.h>
+#include <kernel/log.h>
 #endif
 char tbuf[32];
 char bchars[] =
@@ -68,7 +68,15 @@ void print(const char *data, size_t data_length)
 void flushPrint()
 {
 	#ifdef __is_spartix_kernel
-	tty_write(buffer, bufferPos);
+	kernlog_print(buffer);
+	#endif
+	memset(buffer, 0 ,500);
+	bufferPos = 0;
+}
+void flushPrint_screen()
+{
+	#ifdef __is_spartix_kernel
+	tty_write_string(buffer);
 	#endif
 	memset(buffer, 0 ,500);
 	bufferPos = 0;
@@ -176,6 +184,114 @@ int printf(const char *__restrict__ format, ...)
 		}
 	}
 	flushPrint();
+	va_end(parameters);
+
+#ifdef __is_spartix_kernel
+	//release_spinlock(&spl);
+#endif
+	return written;
+#else
+	va_list params;
+	va_start(params, format);
+	int ret = vprintf(format, params);
+	va_end(params);
+	return ret;
+#endif
+}
+int printk(const char *__restrict__ format, ...)
+{
+#ifdef __is_spartix_kernel
+	//if(panicing != 1) acquire_spinlock(&spl);
+#endif
+#ifdef __is_spartix_kernel
+	va_list parameters;
+	va_start(parameters, format);
+
+	int written = 0;
+	size_t amount;
+	bool rejected_bad_specifier = false;
+
+	while (*format != '\0') {
+		if (*format != '%') {
+		      print_c:
+			amount = 1;
+			while (format[amount] && format[amount] != '%')
+				amount++;
+			print(format, amount);
+			format += amount;
+			written += amount;
+			continue;
+		}
+
+		const char *format_begun_at = format;
+
+		if (*(++format) == '%')
+			goto print_c;
+
+		if (rejected_bad_specifier) {
+		      incomprehensible_conversion:
+			rejected_bad_specifier = true;
+			format = format_begun_at;
+			goto print_c;
+		}
+
+		if (*format == 'c') {
+			format++;
+			char c =
+			    (char) va_arg(parameters,
+					  int /* char promotes to int */ );
+			print(&c, sizeof(c));
+		} else if (*format == 's') {
+			format++;
+			const char *s = va_arg(parameters, const char *);
+			print(s, strlen(s));
+		} else if (*format == 'X') {
+			uint64_t i = va_arg(parameters, uint64_t);
+			char buffer[30] = { 0 };
+			itoa(i, 16, buffer, true);
+			print(buffer, strlen(buffer));
+			memset(buffer, 0, sizeof(buffer));
+			format++;
+		} else if (*format == 'x') {
+			uint64_t i = va_arg(parameters, uint64_t);
+			char buffer[30] = { 0 };
+			itoa(i, 16, buffer, false);
+			print(buffer, strlen(buffer));
+			memset(buffer, 0, sizeof(buffer));
+			format++;
+		} else if (*format == 'i') {
+			format++;
+			char string[60];
+			itoa(va_arg(parameters, int), 10, string, false);
+			print(string, strlen(string));
+		} else if (*format == 'd') {
+			format++;
+			char string[60];
+			itoa(va_arg(parameters, int), 10, string, false);
+			print(string, strlen(string));
+		} else if(*format == 'u')
+		{
+			format++;
+			char string[60];
+			itoa(va_arg(parameters, unsigned int), 10, string, false);
+			print(string, strlen(string));	
+		} else if(*format == 'p') {
+			format++;
+			void *ptr = va_arg(parameters, void *);
+			if (!ptr)
+				print("(nil)", strlen("(nil)"));
+			else {
+				uintptr_t i = (uintptr_t) ptr;
+				char buffer[60] = { 0 };
+				itoa(i, 16, buffer, true);
+				print("0x", strlen("0x"));
+				print(buffer, 60);
+			}
+		} else {
+			goto incomprehensible_conversion;
+		}
+	}
+	flushPrint_screen();
 	va_end(parameters);
 
 #ifdef __is_spartix_kernel

@@ -60,7 +60,7 @@ inline int validate_fd(int fd)
 	}
 	return 0;
 }
-const int SYSCALL_MAX_NUM = 45;
+const int SYSCALL_MAX_NUM = 46;
 off_t sys_lseek(int fd, off_t offset, int whence)
 {
 	DEBUG_PRINT_SYSTEMCALL();
@@ -710,6 +710,7 @@ extern void sys_getppid();
 extern void sys_getpid();
 extern void sys_execve();
 extern void sys_wait();
+extern int sys_syslog(int type, char *buffer, int len);
 void *syscall_list[] =
 {
 	[0] = (void*) sys_write,
@@ -758,5 +759,6 @@ void *syscall_list[] =
 	[43] = (void*) sys_nanosleep,
 	[44] = (void*) sys_arch_prctl,
 	[45] = (void*) sys_set_tid_address,
+	[46] = (void*) sys_syslog,
 	[255] = (void*) sys_badsys
 };

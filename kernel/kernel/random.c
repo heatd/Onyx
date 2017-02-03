@@ -47,7 +47,7 @@ size_t ent_read(size_t off, size_t count, void *buffer, vfsnode_t *node)
 void initialize_entropy()
 {
 	/* Use get_posix_time as entropy, together with the TSC and the PIT */
-	uint64_t p = get_posix_time();
+	uint64_t p = get_posix_time_early();
 	add_entropy(&p, sizeof(uint64_t));
 	uint64_t tsc = rdtsc();
 	add_entropy(&tsc, sizeof(uint32_t));
