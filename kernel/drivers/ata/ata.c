@@ -267,7 +267,7 @@ void ata_init(PCIDevice *dev)
 	/* Allocate PRDT base */
 	prdt_base = vmm_allocate_virt_address(VM_KERNEL, 16/*64K*/, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
 	vmm_map_range(prdt_base, 16, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
-	INFO("ata", "allocated prdt base %x\n", prdt_base);
+	INFO("ata", "allocated prdt base %p\n", prdt_base);
 	/* Enable PCI IDE mode, and PCI busmastering DMA*/
 	ata_enable_pci_ide(idedev);
 	/* Reset the controller */

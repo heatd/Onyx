@@ -177,7 +177,7 @@ int printf(const char *__restrict__ format, ...)
 				char buffer[60] = { 0 };
 				itoa(i, 16, buffer, true);
 				print("0x", strlen("0x"));
-				print(buffer, 60);
+				print(buffer, strlen(buffer));
 			}
 		} else {
 			goto incomprehensible_conversion;

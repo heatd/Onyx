@@ -22,7 +22,7 @@ int drm_request_info(struct drm_info *info)
 		return -1;
 	if(ioctl(drm_fd, DRM_REQUEST_DRMINFO, info) < 0)
 	{
-		printf("libdrm: %s: DRM_REQUEST_DRMINFO failed!\n", __FUNCTION__);
+		printf("libdrm: %s: DRM_REQUEST_DRMINFO failed!\n", __func__);
 		return -1;
 	}
 	return 0;
@@ -40,7 +40,7 @@ int drm_initialize(struct drm_info **out)
 	struct drm_info *buf = malloc(sizeof(struct drm_info));
 	if(!buf)
 	{
-		printf("libdrm: %s: Not enough memory\n", __FUNCTION__);
+		printf("libdrm: %s: Not enough memory\n", __func__);
 		return -1;
 	}
 	memset(buf, 0, sizeof(struct drm_info));
