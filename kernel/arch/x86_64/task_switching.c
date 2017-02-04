@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <errno.h>
 
 #include <kernel/timer.h>
 #include <kernel/data_structures.h>
@@ -243,6 +244,7 @@ void* sched_switch_thread(void* last_stack)
 	if(likely(current_process))
 	{
 		current_process->tree = vmm_get_tree();
+		current_process->errno = errno;
 	}
 
 	/* Save the FPU state */
@@ -264,7 +266,7 @@ void* sched_switch_thread(void* last_stack)
 		{
 			paging_load_cr3(current_process->cr3);
 		}
-		
+		errno = current_process->errno;
 		wrmsr(FS_BASE_MSR, (uintptr_t)current_process->fs & 0xFFFFFFFF, (uintptr_t)current_process->fs >> 32);
 	}
 	return current_thread->kernel_stack;
@@ -381,7 +383,6 @@ void sched_destroy_thread(thread_t *thread)
 	{
 		if(it->next == thread)
 		{
-			printf("Deleted %p\n", thread);
 			it->next = thread->next;
 			free(thread);
 			return;

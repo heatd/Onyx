@@ -28,6 +28,17 @@ typedef struct vfsnode *(*__open)(struct vfsnode* this, const char *name);
 typedef unsigned int (*__getdents)(unsigned int count, struct dirent* dirp, struct vfsnode* this);
 typedef unsigned int (*__ioctl)(int request, va_list varg, struct vfsnode* this);
 typedef struct vfsnode *(*__creat)(const char *pathname, int mode, struct vfsnode *this);
+
+struct file_ops
+{
+	__read read;
+	__write write;
+	__open open;
+	__close close;
+	__getdents getdents;
+	__ioctl ioctl;
+	__creat creat;
+};
 typedef struct vfsnode
 {
 	ino_t inode;

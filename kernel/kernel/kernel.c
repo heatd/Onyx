@@ -477,7 +477,6 @@ void kernel_multitasking(void *arg)
 	if(!dev)
 		WARN("kernel", "root device not found!\n");
 	
-	kernlog_print("kernel: Hello World!\n");
 	find_and_exec_init(args, envp);
 	if(errno == ENOENT)
 	{

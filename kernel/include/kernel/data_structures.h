@@ -59,11 +59,4 @@ inline int queue_add_to_head(queue_t *queue, void *data)
 	new->next = it;
 	return 0;
 }
-
-
-
-
-
-
-
 #endif

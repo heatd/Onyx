@@ -79,7 +79,7 @@ typedef unsigned long id_t;
 
 #ifndef __dev_t_defined
 #define __dev_t_defined
-typedef long dev_t;
+typedef unsigned int dev_t;
 #endif
 
 #endif

@@ -265,7 +265,7 @@ void vmm_start_address_bookkeeping(uintptr_t framebuffer_address, uintptr_t heap
 
 	kstacks_offset |= (rand() & 0xFFFFFFF000);
 	vmalloc_space |= (rand() & 0xFFFFFFF000);
-	printf("OFF: %p\nVM: %p\n", kstacks_offset, vmalloc_space);
+
 	is_initialized = true;
 }
 void *vmm_map_range(void *range, size_t pages, uint64_t flags)

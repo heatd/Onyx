@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2017 Pedro Falcato
+ * Copyright (C) 2016, 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -17,6 +17,7 @@
 #include <kernel/vmm.h>
 #include <kernel/vfs.h>
 #include <kernel/process.h>
+#include <kernel/pipe.h>
 
 #include <sys/uio.h>
 
@@ -29,7 +30,18 @@ inline int validate_fd(int fd)
 		return errno =-EBADF;
 	return 0;
 }
-
+inline int find_free_fd()
+{
+	ioctx_t *ioctx = &current_process->ctx;
+	for(int i = 0; i < UINT16_MAX; i++)
+	{
+		if(ioctx->file_desc[i] == NULL)
+		{
+			return i;
+		}
+	}
+	return -EMFILE;
+}
 ssize_t sys_read(int fd, const void *buf, size_t count)
 {
 	if(vmm_check_pointer((void*) buf, count) < 0)
@@ -69,8 +81,6 @@ int sys_open(const char *filename, int flags)
 	ioctx_t *ioctx = &current_process->ctx;
 	for(int i = 0; i < UINT16_MAX; i++)
 	{
-		if (i <= 2)
-			continue;
 		if(ioctx->file_desc[i] == NULL)
 		{
 			ioctx->file_desc[i] = malloc(sizeof(file_desc_t));
@@ -313,4 +323,53 @@ int sys_isatty(int fd)
 		return 1;
 	else
 		return errno =-ENOTTY;
+}
+int sys_pipe(int pipefd[2])
+{
+	if(vmm_check_pointer(pipefd, sizeof(int) * 2) < 0)
+		return errno = -EFAULT;
+
+	ioctx_t *ioctx = &current_process->ctx;
+	/* Find 2 free file descriptors */
+	int wrfd = find_free_fd();
+
+	if(wrfd < 0)
+		return errno = -EMFILE;
+	/* and allocate each of them */
+	ioctx->file_desc[wrfd] = malloc(sizeof(file_desc_t));
+	if(!ioctx->file_desc[wrfd])
+		return errno = -ENOMEM;
+
+	int rdfd = find_free_fd();
+	
+	if(rdfd < 0)
+		return errno = -EMFILE;
+	ioctx->file_desc[rdfd] = malloc(sizeof(file_desc_t));
+	if(!ioctx->file_desc[rdfd])
+	{
+		free(ioctx->file_desc[wrfd]);
+		ioctx->file_desc[wrfd] = NULL;
+		return errno = -ENOMEM;
+	}
+	
+	memset(ioctx->file_desc[rdfd], 0, sizeof(file_desc_t));
+	memset(ioctx->file_desc[wrfd], 0, sizeof(file_desc_t));
+	/* Create the pipe */
+
+	ioctx->file_desc[wrfd]->vfs_node = pipe_create();
+	if(!ioctx->file_desc[wrfd]->vfs_node)
+	{
+		free(ioctx->file_desc[wrfd]);
+		ioctx->file_desc[wrfd] = NULL;
+		free(ioctx->file_desc[rdfd]);
+		ioctx->file_desc[rdfd] = NULL;
+
+		return errno = -ENOMEM;
+	}
+	ioctx->file_desc[rdfd]->vfs_node = ioctx->file_desc[wrfd]->vfs_node;
+
+	pipefd[0] = rdfd;
+	pipefd[1] = wrfd;
+
+	return 0;
 }
