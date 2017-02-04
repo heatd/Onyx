@@ -204,7 +204,7 @@ ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt)
 	{
 		write_vfs(ctx->file_desc[fd]->seek, vec[i].iov_len, vec[i].iov_base, ctx->file_desc[fd]->vfs_node);
 		wrote += vec[i].iov_len;
-		ctx->file_desc[fd]->seek += vec[i].iov_len
+		ctx->file_desc[fd]->seek += vec[i].iov_len;
 		
 	}
 	return wrote;
@@ -228,7 +228,7 @@ ssize_t sys_preadv(int fd, const struct iovec *vec, int veccnt, off_t offset)
 	{
 		read_vfs(offset, vec[i].iov_len, vec[i].iov_base, ctx->file_desc[fd]->vfs_node);
 		read += vec[i].iov_len;
-		offset += vec[i].iov_len
+		offset += vec[i].iov_len;
 	}
 	return read;
 }
@@ -249,7 +249,7 @@ ssize_t sys_pwritev(int fd, const struct iovec *vec, int veccnt, off_t offset)
 	{
 		write_vfs(offset, vec[i].iov_len, vec[i].iov_base, ctx->file_desc[fd]->vfs_node);
 		wrote += vec[i].iov_len;
-		offset += vec[i].iov_len
+		offset += vec[i].iov_len;
 	}
 	return wrote;
 }

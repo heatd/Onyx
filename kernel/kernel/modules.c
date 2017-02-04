@@ -121,3 +121,12 @@ void *allocate_module_memory(size_t size)
 	last_kernel_address += pages * PAGE_SIZE;
 	return ret;
 }
+int sys_insmod(const char *path, const char *name)
+{
+	if(!vmm_is_mapped((void*) path))
+		return errno =-EFAULT;
+	if(!vmm_is_mapped((void*) name))
+		return errno =-EFAULT;
+	/* All the work is done by load_module; A return value of 1 means -1 for user-space, while -0 still = 0 */
+	return -load_module(path, name);
+}

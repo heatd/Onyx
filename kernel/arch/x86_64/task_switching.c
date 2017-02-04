@@ -29,6 +29,7 @@
 #include <kernel/apic.h>
 #include <kernel/cpu.h>
 
+#include <sys/time.h>
 static thread_t *run_queue = NULL;
 static thread_t *idle_thread = NULL; 
 static thread_t *current_thread = NULL;
@@ -388,4 +389,38 @@ void sched_destroy_thread(thread_t *thread)
 			return;
 		}
 	}
+}
+#define ARCH_SET_FS 0x1002
+#define ARCH_GET_FS 0x1003
+int sys_arch_prctl(int code, unsigned long *addr)
+{
+	if(code == ARCH_SET_FS)
+	{
+		current_process->fs = (unsigned long) addr;
+		wrmsr(FS_BASE_MSR, (uintptr_t)current_process->fs & 0xFFFFFFFF, (uintptr_t)current_process->fs >> 32);
+	}
+	else if(code == ARCH_GET_FS)
+	{
+		if(!vmm_is_mapped(addr))
+			return errno =-EINVAL;
+		*addr = (unsigned long) current_process->fs;
+	}
+	return 0;
+}
+pid_t sys_set_tid_address(pid_t *tidptr)
+{
+	return get_current_thread()->id;
+}
+int sys_nanosleep(const struct timespec *req, struct timespec *rem)
+{
+	if(vmm_check_pointer((void*) req, sizeof(struct timespec)) < 0)
+		return errno =-EFAULT;
+	time_t ticks = req->tv_sec * 1000;
+	if(req->tv_nsec)
+	{
+		if(req->tv_nsec < 500)
+			ticks++;
+	}
+	sched_sleep(ticks);
+	return 0;
 }

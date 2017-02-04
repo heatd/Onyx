@@ -32,3 +32,11 @@ void pm_shutdown()
 {
 	acpi_shutdown(NULL);
 }
+void sys_reboot()
+{
+	pm_reboot();
+}
+void sys_shutdown()
+{
+	pm_shutdown();
+}

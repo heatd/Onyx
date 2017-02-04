@@ -21,6 +21,8 @@
 #include <kernel/process.h>
 #include <kernel/log.h>
 
+#include <sys/mman.h>
+
 _Bool is_initialized = false;
 _Bool is_spawning = 0;
 avl_node_t *old_tree = NULL;
@@ -505,4 +507,70 @@ int vmm_check_pointer(void *addr, size_t needed_space)
 		return 0;
 	else
 		return -1;
+}
+void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
+{
+	void *mapping_addr = NULL;
+	// Calculate the pages needed for the overall size
+	size_t pages = length / PAGE_SIZE;
+	if(length % PAGE_SIZE)
+		pages++;
+	
+	int vm_prot = 0;
+	vm_prot |= VMM_USER;
+	if(prot & PROT_WRITE)
+		vm_prot |= VMM_WRITE;
+	if(!(prot & PROT_EXEC))
+		vm_prot |= VMM_NOEXEC;
+	if(!addr) // Specified by posix, if addr == NULL, guess an address
+		mapping_addr = vmm_allocate_virt_address(0, pages, VMM_TYPE_REGULAR, vm_prot);
+	else
+	{
+		mapping_addr = vmm_reserve_address(addr, pages, VMM_TYPE_REGULAR, vm_prot);
+		if(!mapping_addr)
+			mapping_addr = vmm_allocate_virt_address(0, pages, VMM_TYPE_REGULAR, vm_prot);
+	}
+	if(!mapping_addr)
+		return errno =-ENOMEM, NULL;
+	if(!vmm_map_range(mapping_addr, pages, vm_prot))
+		return errno =-ENOMEM, NULL;
+	return mapping_addr;
+}
+int sys_munmap(void *addr, size_t length)
+{
+	if ((uintptr_t) addr >= VM_HIGHER_HALF)
+		return errno =-EINVAL;
+	size_t pages = length / PAGE_SIZE;
+	if(length % PAGE_SIZE)
+		pages++;
+	if(!((uintptr_t) addr & 0xFFFFFFFFFFFFF000))
+		return errno =-EINVAL;
+	if(!vmm_is_mapped(addr))
+		return errno =-EINVAL;
+	vmm_unmap_range(addr, pages);
+	vmm_destroy_mappings(addr, pages);
+	return 0;
+}
+int sys_mprotect(void *addr, size_t len, int prot)
+{
+	if(!vmm_is_mapped(addr))
+		return errno =-EINVAL;
+	int vm_prot = 0;
+	if(prot & PROT_WRITE)
+		vm_prot |= VMM_WRITE;
+	if(!(prot & PROT_EXEC))
+		vm_prot |= VMM_NOEXEC;
+	size_t pages = len / PAGE_SIZE;
+	if(len % PAGE_SIZE)
+		pages++;
+	vmm_change_perms(addr, pages, vm_prot);
+	return 0;
+}
+uint64_t sys_brk(void *addr)
+{
+	if(addr == NULL)
+		return (uint64_t) current_process->brk;
+	else
+		current_process->brk = addr;
+	return 0;
 }

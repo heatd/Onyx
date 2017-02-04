@@ -332,3 +332,21 @@ uint64_t sys_getpid()
 {
 	return current_process->pid;
 }
+int sys_personality(unsigned long val)
+{
+	// TODO: Use this syscall for something. This might be potentially very useful
+	current_process->personality = val;
+	return 0;
+}
+int sys_setuid(uid_t uid)
+{
+	if(uid == 0 && current_process->uid != 0)
+		return errno =-EPERM;
+	current_process->setuid = uid;
+	return 0;
+}
+int sys_setgid(gid_t gid)
+{
+	current_process->setgid = gid;
+	return 0;
+}
