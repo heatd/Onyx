@@ -35,6 +35,8 @@ size_t tar_parse(uintptr_t address)
 }
 size_t tar_read(size_t offset, size_t sizeOfReading, void *buffer, vfsnode_t *this)
 {
+	if(offset > this->size)
+		return 0;
 	char *tempBuffer = (char *) headers[this->inode] + 512 + offset;
 	memcpy(buffer, tempBuffer, sizeOfReading);
 	return sizeOfReading;

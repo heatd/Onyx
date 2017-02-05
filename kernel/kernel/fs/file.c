@@ -179,7 +179,11 @@ ssize_t sys_readv(int fd, const struct iovec *vec, int veccnt)
 	size_t read = 0;
 	for(int i = 0; i < veccnt; i++)
 	{
-		read_vfs(ctx->file_desc[fd]->seek, vec[i].iov_len, vec[i].iov_base, ctx->file_desc[fd]->vfs_node);
+		size_t s = read_vfs(ctx->file_desc[fd]->seek, vec[i].iov_len, vec[i].iov_base, ctx->file_desc[fd]->vfs_node);
+		if(s != vec[i].iov_len)
+		{
+			return read;
+		}
 		read += vec[i].iov_len;
 		ctx->file_desc[fd]->seek += vec[i].iov_len;
 	}

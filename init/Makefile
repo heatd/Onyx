@@ -15,4 +15,4 @@ install: $(PROG)
 %.o: %.c
 	$(CC) -c $< $(CFLAGS) -o $@
 $(PROG): $(OBJS)
-	$(CC) $(OBJS) $(CFLAGS) -ldrm -o $@
+	$(CC) $(OBJS) $(CFLAGS) -o $@

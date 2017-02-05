@@ -8,24 +8,21 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <signal.h>
-#include <fcntl.h>
-#include <errno.h>
 
-#include <sys/mman.h>
-#include <sys/time.h>
 #include <sys/syscall.h>
 #include <sys/utsname.h>
 
-#include <drm/drm.h>
+#define MODULE_PREFIX "/lib/modules/"
+#define MODULE_EXT    ".kmod"
+
+void load_modules();
+void setup_hostname();
 /* x is a placeholder */
 char *prefix = "/etc/init.d/rcx.d";
-void load_modules();
 int tonum(int c)
 {
 	return c - '0';
@@ -58,13 +55,8 @@ void insmod(const char *path, const char *name)
 {
 	syscall(SYS_insmod, path, name);
 }
-int main(int argc, char **argv, char **envp)
+int get_ring_level()
 {
-	printf("%s invoked!\n", argv[0]);
-
-	/* Load the needed kernel modules */
-	load_modules();
-
 	/* Open the config */
 	FILE *f = fopen("/etc/init.d/init.config", "rw");
 	if(!f)
@@ -93,12 +85,23 @@ int main(int argc, char **argv, char **envp)
 		else
 		{
 			/* It's a number, use tonum(3), as ring levels are from 0-6 */
-			ringlevel = tonum(*(buf + strlen("defaultrl:")));
-			//printf("Ring level: %d\n", ringlevel);
+			return ringlevel = tonum(*(buf + strlen("defaultrl:")));
 		}
 	}
 	/* Free up the resources we've just used */
 	fclose(f);
+	free(buf);
+}
+int main(int argc, char **argv, char **envp)
+{
+	/* Load the needed kernel modules */
+	load_modules();
+
+	/* Setup the hostname */
+	setup_hostname();
+
+	/* Read the config files, and find the startup program */
+		int ringlevel = get_ring_level();
 	/* Allocate a buffer for the filename */
 	char *filename = malloc(strlen(prefix) + 4);
 	if(!filename)
@@ -107,29 +110,28 @@ int main(int argc, char **argv, char **envp)
 	/*  Edit in the ring level */
 	filename[14] = ringlevel + '0';
 	/* Open the script file */
-	f = fopen(filename, "r");
+	FILE *f = fopen(filename, "r");
 	if(!f)
 	{
 		printf("%s: No such file or directory!\n", filename);
+		free(filename);
+		return 1;
+	}
+
+	char *buf = malloc(1024);
+	if(!buf)
+	{
+		fclose(f);
+		free(filename);
 		return 1;
 	}
 	memset(buf, 0, 1024);
 	fgets(buf, 1024, f);
+	
 	char *env[] = {"", NULL};
 	char *shell = copy_until_newline(buf);
 	char *args[] = {shell, "/etc/fstab", NULL};
 
-	printf("Shell: %s\n", shell);
-	
-	sethostname("localhost", strlen("localhost"));
-	
-	insmod("/lib/modules/ahci.kmod", "ahci");
-	insmod("/lib/modules/drm.kmod", "drm");
-
-	fflush(stdout);
-	struct drm_info *info = NULL;
-	if(drm_initialize(&info) < 0)
-		printf("Error: Failed to initialize drm!\n");
 	int pid = fork();
 	
 	if(pid == 0)
@@ -140,7 +142,7 @@ int main(int argc, char **argv, char **envp)
 void load_modules()
 {
 	/* Open the modules file */
-	FILE *file = fopen("/etc/init.d/init.config", "r");
+	FILE *file = fopen("/etc/modules.load", "r");
 	if(!file)
 	{
 		perror("/etc/modules.load");
@@ -151,8 +153,59 @@ void load_modules()
 		return;
 	memset(buf, 0, 1024);
 
-	/*while(fgets(buf, 1024, file) != NULL)
+	/* At every line there's a module name. Get it, and insmod it */
+	while(fgets(buf, 1024, file) != NULL)
 	{
-		printf("%s", buf);
-	}*/
+		buf[strlen(buf)-1] = '\0';
+		
+		if(buf[0] == '\0')
+			continue;
+		char *path = malloc(strlen(MODULE_PREFIX) + strlen(buf) + 1 + strlen(MODULE_EXT));
+		if(!path)
+		{
+			free(buf);
+			return;
+		}
+		strcpy(path, MODULE_PREFIX);
+		strcat(path, buf);
+		strcat(path, MODULE_EXT);
+		printf("Loading %s (path %s)\n", buf, path);
+		insmod(path, buf);
+	}
+
+	free(buf);
+	fclose(file);
+}
+void setup_hostname()
+{
+	/* Open the /etc/hostname file */
+	FILE *file = fopen("/etc/hostname", "r");
+	if(!file)
+	{
+		perror("/etc/hostname");
+
+		printf("Hostname not found - using 'localhost'\n");
+		sethostname("localhost", strlen("localhost"));
+
+		return;
+	}
+	char *buf = malloc(1024);
+	if(!buf)
+		return;
+	memset(buf, 0, 1024);
+	/* There should only be one line in the file(that contains the hostname itself), so we only need one fgets() */
+	fgets(buf, 1024, file);
+
+	buf[strlen(buf)-1] = '\0';	
+	if(buf[0] == '\0')
+	{
+		printf("Hostname not found - using 'localhost'\n");
+		sethostname("localhost", strlen("localhost"));
+	}
+	else
+	{
+		sethostname(buf, strlen(buf));
+	}
+	fclose(file);
+	free(buf);
 }
