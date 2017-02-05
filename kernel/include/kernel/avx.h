@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016, 2017 Pedro Falcato
+ * Copyright (C) 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -8,21 +8,13 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#ifndef _FPU_H
-#define _FPU_H
+#ifndef _KERNEL_AVX_H
+#define _KERNEL_AVX_H
 
-#include <stdbool.h>
-#ifdef __x86_64__
+#define AVX_XCR0_FPU	(1 << 0)
+#define AVX_XCR0_SSE	(1 << 1)
+#define AVX_XCR0_AVX	(1 << 2)
+void avx_init(void);
 
-#define FPU_AREA_ALIGNMENT 	64
-#define FPU_AREA_SIZE		2048
 
-extern _Bool avx_supported;
-
-#else
-#error "Implement FPU switching for your arch"
-#endif
-
-void save_fpu(void *address);
-void restore_fpu(void *address);
 #endif

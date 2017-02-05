@@ -119,6 +119,7 @@ initsse:
 	mov cr0, rax
 	mov rax, cr4
 	or ax, 3 << 9
+	or eax, 1 << 18
 	mov cr4, rax
 	ret
 .noSSE:

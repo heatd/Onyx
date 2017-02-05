@@ -40,21 +40,21 @@ void panic(const char *msg)
 {
 	panicing = 1;
 	//printf("\n%s", skull);
-	printf("panic: %s\n", msg);
+	printk("panic: %s\n", msg);
 	registers_t ctx;
 	// Get thread's context
 	get_thread_ctx(&ctx);
-	printf("Thread context: \n");
+	printk("Thread context: \n");
 #ifdef __x86_64__
 	ctx.rip = (uint64_t) __builtin_return_address(0);
 
 
-	printf
+	printk
 	    ("rax: %i\nrbx: %i\nrcx: %i\nrdx: %i\nrdi: %i\nrsi: %i\nrbp: 0x%x\nrsp: 0x%x\nrip: 00%x:0x%x\nss:  00%x\nrflags:%i\n",
 	     ctx.rax, ctx.rbx, ctx.rcx, ctx.rdx, ctx.rdi, ctx.rsi, ctx.rbp,
 	     ctx.rsp, ctx.cs, ctx.rip, ctx.ss);
 
-	printf("Stack dump: \n");
+	printk("Stack dump: \n");
 	extern void *stack_trace();
 	stack_trace();
 #else

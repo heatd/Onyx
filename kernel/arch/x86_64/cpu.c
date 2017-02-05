@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <acpi.h>
 
+#include <kernel/log.h>
 #include <kernel/cpu.h>
 #include <kernel/panic.h>
 #include <kernel/apic.h>
@@ -32,6 +33,7 @@
 #include <kernel/acpi.h>
 #include <kernel/spinlock.h>
 #include <kernel/registers.h>
+#include <kernel/avx.h>
 static cpu_t cpu;
 
 char *cpu_get_name()
@@ -85,16 +87,17 @@ void cpu_get_sign()
 }
 void cpu_identify()
 {
-	printf("Detected x86_64 CPU\n");
-	printf("Manufacturer ID: %s\n", cpu_get_name());
+	INFO("cpu", "Detected x86_64 CPU\n");
+	INFO("cpu", "Manufacturer ID: %s\n", cpu_get_name());
 	if(cpu.brandstr[0] != '\0')
 		printf("Name: %s\n", cpu.brandstr);
 	cpu_get_sign();
-	printf("Stepping %i, Model %i, Family %i\n", cpu.stepping, cpu.model, cpu.family);
+	INFO("cpu", "Stepping %i, Model %i, Family %i\n", cpu.stepping, cpu.model, cpu.family);
 }
 extern void syscall_ENTRY64();
 void cpu_init_interrupts()
 {
+	avx_init();
 	pic_remap();
 	ioapic_init();
 	lapic_init();
@@ -164,7 +167,9 @@ void cpu_ap_entry(int cpu_num)
 	/* Fill the processor struct with the LAPIC data */
 	cpus[cpu_num].lapic = (void *) _lapic;
 	cpus[cpu_num].lapic_phys = (void*) addr;
-
+	
+	/* Initialize AVX */
+	avx_init();
 	/* Initialize the local apic + apic timer */
 	apic_timer_smp_init((volatile uint32_t *) cpus[cpu_num].lapic);
 

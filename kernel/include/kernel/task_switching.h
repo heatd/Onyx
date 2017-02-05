@@ -34,7 +34,7 @@ typedef struct thr
 	struct thr *next;
 	uint64_t timestamp;
 	unsigned long sleeping_for;
-	unsigned char fpu_area[FPU_AREA_SIZE] __attribute__((aligned(FPU_AREA_ALIGNMENT)));
+	unsigned char *fpu_area;
 } thread_t;
 
 int sched_init(void);

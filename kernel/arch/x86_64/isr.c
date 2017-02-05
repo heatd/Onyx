@@ -69,8 +69,8 @@ void isr_handler(intctx_t *ctx)
 	{
 		for(;;);
 	}
-	printf("Exception %u at %p\n", int_no, ctx->rip);
-	printf("RSP: %p\n", ctx->rsp);
+	printk("Exception %u at %p\n", int_no, ctx->rip);
+	printk("RSP: %p\n", ctx->rsp);
 	// Enter the isr handler
 	enter_isr_handler();
 	switch (ctx->int_no) {

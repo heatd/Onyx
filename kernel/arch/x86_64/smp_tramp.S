@@ -68,6 +68,7 @@ BITS 64
 	mov cr0, rax
 	mov rax, cr4
 	or ax, 3 << 9
+	or eax, 1 << 18
 	mov cr4, rax
 	extern cpu_num
 	mov rdi, [cpu_num]

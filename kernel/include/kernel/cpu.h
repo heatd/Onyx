@@ -19,7 +19,9 @@
 #define CPUID_BRAND2 			0x80000004
 #define CPUID_ASS			0x80000008 // Address space size (ASS for short :P)
 #define CPUID_SIGN   			0x1
-
+#define CPUID_FEATURES			1
+#define CPUID_FEATURE_ECX_AVX		(1 << 28)
+#define CPUID_FEATURE_ECX_XSAVE		(1 << 26)
 typedef struct cpu
 {
 	char manuid[13];

@@ -49,7 +49,13 @@ thread_t* task_switching_create_context(thread_callback_t callback, uint32_t fla
 	new_thread->rip = callback;
 	new_thread->flags = flags;
 	new_thread->id = curr_id++;
-	
+	posix_memalign((void**) &new_thread->fpu_area, FPU_AREA_ALIGNMENT, FPU_AREA_SIZE);
+	if(!new_thread->fpu_area)
+	{
+		free(new_thread);
+		return NULL;
+	}
+	memset(new_thread->fpu_area, 0, FPU_AREA_SIZE);
 	if(!(flags & 1)) // If the thread is user mode, create a user stack
 		new_thread->user_stack = (uintptr_t*)vmm_allocate_virt_address(0, 256, VMM_TYPE_STACK, VMM_WRITE | VMM_NOEXEC | VMM_USER);
 	new_thread->kernel_stack = (uintptr_t*)vmm_allocate_virt_address(VM_KERNEL, 4, VMM_TYPE_STACK, VMM_WRITE | VMM_NOEXEC);
@@ -122,7 +128,13 @@ thread_t* task_switching_create_main_progcontext(thread_callback_t callback, uin
 	new_thread->rip = callback;
 	new_thread->flags = flags;
 	new_thread->id = curr_id++;
-	
+	posix_memalign((void**) &new_thread->fpu_area, FPU_AREA_ALIGNMENT, FPU_AREA_SIZE);
+	if(!new_thread->fpu_area)
+	{
+		free(new_thread);
+		return NULL;
+	}
+	memset(new_thread->fpu_area, 0, FPU_AREA_SIZE);
 	if(!(flags & 1)) // If the thread is user mode, create a user stack
 	{
 		new_thread->user_stack = (uintptr_t*)vmm_allocate_virt_address(0, 256, VMM_TYPE_STACK, VMM_WRITE | VMM_NOEXEC | VMM_USER);
@@ -249,7 +261,7 @@ void* sched_switch_thread(void* last_stack)
 	}
 
 	/* Save the FPU state */
-	SAVE_FPU(current_thread->fpu_area);
+	save_fpu(current_thread->fpu_area);
 
 	current_thread = sched_find_runnable();
 	p->kernel_stack = current_thread->kernel_stack_top;
@@ -257,7 +269,7 @@ void* sched_switch_thread(void* last_stack)
 	set_kernel_stack((uintptr_t)current_thread->kernel_stack_top);
 
 	/* Restore the FPU state */
-	RESTORE_FPU(current_thread->fpu_area);
+	restore_fpu(current_thread->fpu_area);
 	current_process = current_thread->owner;
 	if(current_process)
 	{

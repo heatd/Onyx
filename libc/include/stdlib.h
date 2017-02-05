@@ -39,7 +39,8 @@ void qsort(void* base_ptr,
            size_t num_elements,
            size_t element_size,
            int (*compare)(const void*, const void*));
-
+void *aligned_alloc(size_t alignment, size_t size);
+int posix_memalign(void **memptr, size_t alignment, size_t size);
 __attribute__ ((__noreturn__))
 void _Exit(int s);
 void exit(int exitcode);
