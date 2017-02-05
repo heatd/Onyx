@@ -412,9 +412,6 @@ void kernel_multitasking(void *arg)
 	/* Initialize each PCI device driver, according to the bus */
 	pci_initialize_drivers();
 
-	char *args[] = {"/etc/fstab", NULL};
-	char *envp[] = {"PATH=/bin:/usr/bin:/usr/lib", NULL};
-
 	/* Initialize the module subsystem */
 	initialize_module_subsystem();
 
@@ -439,7 +436,6 @@ void kernel_multitasking(void *arg)
 	/* Parse the command line string to a more friendly argv-like buffer */
 	kernel_parse_command_line(kernel_cmdline);
 
-	LOG("kernel", "root device %s\n", kernel_getopt("--root"));
 	/*vfsnode_t *in = open_vfs(fs_root, "/etc/fstab");
 	if (!in)
 	{
@@ -462,7 +458,7 @@ void kernel_multitasking(void *arg)
 	if(!root_partition)
 		panic("--root wasn't specified in the kernel arguments");
 
-	/* Note that we don't actually allocate an extra byte for the NUL terminator, since the partition number will
+	/* Note that we don't actually allocate an extra byte for the NULL terminator, since the partition number will
 	 become just that */
 	char *device_name = malloc(strlen(root_partition));
 	if(!device_name)
@@ -476,7 +472,11 @@ void kernel_multitasking(void *arg)
 	block_device_t *dev = blkdev_search(device_name);
 	if(!dev)
 		WARN("kernel", "root device not found!\n");
-	
+
+	/* Pass the root partition to init */
+	char *args[] = {root_partition, NULL};
+	char *envp[] = {"", NULL};
+
 	find_and_exec_init(args, envp);
 	if(errno == ENOENT)
 	{
