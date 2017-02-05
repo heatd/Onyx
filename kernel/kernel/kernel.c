@@ -213,7 +213,6 @@ retry:;
 				break;
 			case AT_RANDOM:
 				get_entropy((char*) scratch_space, 16);
-				printf("Random: %x%x\n", *(uint64_t*) scratch_space, *(uint64_t*) scratch_space+1);
 				scratch_space += 16;
 				break;
 		}
@@ -478,10 +477,6 @@ void kernel_multitasking(void *arg)
 	char *envp[] = {"", NULL};
 
 	find_and_exec_init(args, envp);
-	if(errno == ENOENT)
-	{
-		panic("/sbin/init not found!");
-	}
 
 	get_current_thread()->status = THREAD_SLEEPING;
 	for (;;) asm volatile("hlt");
