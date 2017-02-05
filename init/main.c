@@ -15,6 +15,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <fcntl.h>
+#include <errno.h>
 
 #include <sys/mman.h>
 #include <sys/time.h>
@@ -24,6 +25,7 @@
 #include <drm/drm.h>
 /* x is a placeholder */
 char *prefix = "/etc/init.d/rcx.d";
+void load_modules();
 int tonum(int c)
 {
 	return c - '0';
@@ -58,7 +60,11 @@ void insmod(const char *path, const char *name)
 }
 int main(int argc, char **argv, char **envp)
 {
-	printf("/sbin/init invoked!\n");
+	printf("%s invoked!\n", argv[0]);
+
+	/* Load the needed kernel modules */
+	load_modules();
+
 	/* Open the config */
 	FILE *f = fopen("/etc/init.d/init.config", "rw");
 	if(!f)
@@ -75,7 +81,7 @@ int main(int argc, char **argv, char **envp)
 	memset(buf, 0, 1024);
 	int ringlevel = 0;
 	/* Now lets loop through the file, and get the default ring level */
-	fread(buf, 1024, 1, f);
+	fgets(buf, 1024, f);
 	if(memcmp(buf, "defaultrl:", strlen("defaultrl:")) == 0)
 	{
 		/* If the argument after 'defaultrl:' isn't a number, throw a parsing error and return 1*/
@@ -130,4 +136,23 @@ int main(int argc, char **argv, char **envp)
 		execve(shell, args, env);
 	while(1);
 	return 0;
+}
+void load_modules()
+{
+	/* Open the modules file */
+	FILE *file = fopen("/etc/init.d/init.config", "r");
+	if(!file)
+	{
+		perror("/etc/modules.load");
+		return;
+	}
+	char *buf = malloc(1024);
+	if(!buf)
+		return;
+	memset(buf, 0, 1024);
+
+	/*while(fgets(buf, 1024, file) != NULL)
+	{
+		printf("%s", buf);
+	}*/
 }

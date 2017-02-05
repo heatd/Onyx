@@ -175,7 +175,7 @@ int printf(const char *__restrict__ format, ...)
 			else {
 				uintptr_t i = (uintptr_t) ptr;
 				char buffer[60] = { 0 };
-				itoa(i, 16, buffer, true);
+				itoa(i, 16, buffer, false);
 				print("0x", strlen("0x"));
 				print(buffer, strlen(buffer));
 			}
@@ -283,9 +283,9 @@ int printk(const char *__restrict__ format, ...)
 			else {
 				uintptr_t i = (uintptr_t) ptr;
 				char buffer[60] = { 0 };
-				itoa(i, 16, buffer, true);
+				itoa(i, 16, buffer, false);
 				print("0x", strlen("0x"));
-				print(buffer, 60);
+				print(buffer, strlen(buffer));
 			}
 		} else {
 			goto incomprehensible_conversion;
