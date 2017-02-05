@@ -25,15 +25,17 @@ void pit_init(uint32_t frequency)
 {
 	int divisor = 1193180 / frequency;
 
+	irq_t handler = &timer_handler;
+
+	// Install the IRQ handler
+	irq_install_handler(2, handler);
+
 	outb(0x43, 0x34);
 	io_wait();
 	outb(0x40, divisor & 0xFF);   // Set low byte of divisor
 	io_wait();
 	outb(0x40, divisor >> 8);     // Set high byte of divisor
 	io_wait();
-	irq_t handler = &timer_handler;
-	// Install the IRQ handler
-	irq_install_handler(2, handler);
 }
 void pit_deinit()
 {

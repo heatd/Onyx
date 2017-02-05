@@ -117,10 +117,6 @@ int main(int argc, char **argv, char **envp)
 	
 	sethostname("localhost", strlen("localhost"));
 	
-	void *addr = mmap(NULL, 4096, PROT_READ | PROT_WRITE, MAP_ANON,
-                  0, 0);
-	
-	uname((char*) addr + 4095);
 	insmod("/lib/modules/ahci.kmod", "ahci");
 	insmod("/lib/modules/drm.kmod", "drm");
 
@@ -128,9 +124,6 @@ int main(int argc, char **argv, char **envp)
 	struct drm_info *info = NULL;
 	if(drm_initialize(&info) < 0)
 		printf("Error: Failed to initialize drm!\n");
-	char *log = malloc(4096);
-	syscall(46, 2, log, 4096);
-	printf(log);
 	int pid = fork();
 	
 	if(pid == 0)
