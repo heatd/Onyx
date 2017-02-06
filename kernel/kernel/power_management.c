@@ -14,6 +14,7 @@
 
 #include <acpi.h>
 
+#include <kernel/power_management.h>
 #include <kernel/portio.h>
 #include <kernel/acpi.h>
 #include <kernel/panic.h>
@@ -39,4 +40,9 @@ void sys_reboot()
 void sys_shutdown()
 {
 	pm_shutdown();
+}
+void pm_init(void)
+{
+	AcpiEnableEvent(ACPI_EVENT_POWER_BUTTON, 0);
+	AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON, acpi_shutdown, NULL);
 }

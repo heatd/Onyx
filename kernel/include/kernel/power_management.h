@@ -11,7 +11,7 @@
 #ifndef _POWER_MANAGEMENT_H
 #define _POWER_MANAGEMENT_H
 
-void pm_reboot();
-void pm_shutdown();
-
+void pm_reboot(void);
+void pm_shutdown(void);
+void pm_init(void);
 #endif

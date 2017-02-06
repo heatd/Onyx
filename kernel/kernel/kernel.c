@@ -417,6 +417,9 @@ void kernel_multitasking(void *arg)
 	/* Initialize the RTC(TODO: Move this bit over to ACPI initialization, so it gets automated) */
 	init_rtc();
 
+	/* Initialize power management */
+	pm_init();
+
 	/* Initialize the network-related subsystems(the ones that need it) */
 	
 	/* Initialize dhcp */
