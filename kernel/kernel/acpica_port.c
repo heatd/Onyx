@@ -108,11 +108,16 @@ ACPI_STATUS AcpiOsExecute(ACPI_EXECUTE_TYPE Type, ACPI_OSD_EXEC_CALLBACK Functio
 }
 void AcpiOsSleep(UINT64 Milliseconds)
 {
-	return;
+	/* Without this check, the kernel might crash at early boot, when we don't have a thread */
+	if(get_current_thread())
+		sched_sleep(Milliseconds);
 }
 void AcpiOsStall(UINT32 Microseconds)
 {
-	return;
+	uint64_t orig_us = get_microseconds();
+
+	while(get_microseconds() != orig_us + Microseconds)
+		__asm__ __volatile__("pause");
 }
 ACPI_STATUS AcpiOsCreateMutex(ACPI_MUTEX *OutHandle)
 {

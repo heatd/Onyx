@@ -14,6 +14,6 @@
 #include <stdint.h>
 
 uint64_t get_tick_count();
-uint64_t get_nanoseconds();
+uint64_t get_microseconds();
 
 #endif

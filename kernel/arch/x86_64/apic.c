@@ -174,7 +174,7 @@ static uintptr_t apic_timer_irq(registers_t *regs)
 }
 unsigned long apic_rate = 0;
 unsigned long us_apic_rate = 0;
-uint64_t get_nanoseconds()
+uint64_t get_microseconds()
 {
 	struct processor *cpu = get_gs_data();
 	return lapic_read((volatile uint32_t *) cpu->lapic, LAPIC_TIMER_CURRCNT) / us_apic_rate;
