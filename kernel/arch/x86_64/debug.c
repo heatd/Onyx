@@ -13,7 +13,7 @@
 __attribute__((noreturn,cold))
 void halt()
 {
-	asm volatile("cli \t\n hlt");
+	__asm__ __volatile__("cli \t\n hlt");
 	// If execution goes past this, I don't know what the hell our kernel is running on
 	for(;;);
 	__builtin_unreachable();

@@ -326,7 +326,7 @@ void sys__exit(int status)
 	}
 	current_process->has_exited = status;
 	ENABLE_INTERRUPTS();
-	while(1) asm volatile("hlt");
+	while(1) __asm__ __volatile__("hlt");
 }
 uint64_t sys_getpid()
 {

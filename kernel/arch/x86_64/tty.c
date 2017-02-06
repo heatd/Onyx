@@ -216,7 +216,7 @@ char *tty_wait_for_line()
 {
 	while(!got_line_ready)
 	{
-		asm volatile("hlt");
+		__asm__ __volatile__("hlt");
 	}
 	got_line_ready = 0;
 	return keyboard_buffer;

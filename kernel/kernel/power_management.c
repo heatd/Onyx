@@ -24,8 +24,8 @@ void pm_reboot()
 		printf("ACPI reset failed, trying PS/2\n");
 	outb(0x64, 0xFE);
 	// If the reboot hasn't happened yet, load a zero-idt and interrupt
-	asm volatile("lidt 0x0");
-	asm volatile("cli; int $0x60");
+	__asm__ __volatile__("lidt 0x0");
+	__asm__ __volatile__("cli; int $0x60");
 	halt();
 }
 void pm_shutdown()

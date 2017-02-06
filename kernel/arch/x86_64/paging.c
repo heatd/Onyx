@@ -102,7 +102,7 @@ static PML2 pdphysical_map __attribute__((aligned(PAGE_SIZE)));
 void paging_init()
 {
 	/* Get the current PML4 and store it */
-	asm volatile("movq %%cr3, %%rax\t\nmovq %%rax, %0":"=r"(current_pml4));
+	__asm__ __volatile__("movq %%cr3, %%rax\t\nmovq %%rax, %0":"=r"(current_pml4));
 	/* Bootstrap the first 1GB */
 	uintptr_t virt = 0xffffea0000000000;
 	decomposed_addr_t decAddr;
@@ -447,7 +447,7 @@ void paging_load_cr3(PML4 *pml)
 		printf("current process: %p\n Current CR3: %p\n", current_process, current_process->cr3);
 		abort();
 	}
-	asm volatile("movq %0, %%cr3"::"r"(pml));
+	__asm__ __volatile__("movq %0, %%cr3"::"r"(pml));
 	current_pml4 = pml;
 }
 void paging_change_perms(void *addr, int prot)

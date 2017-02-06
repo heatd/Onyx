@@ -22,7 +22,7 @@ inline void get_frame_pointer(uint64_t **ptr)
 	 * which allows us to skip the variables used by the stack_trace function,
 	 * which by turn makes the code slightly faster and less confusing
 	 */
-	asm volatile("mov %%rbp, %0":"=m"(*ptr)::"memory");
+	__asm__ __volatile__("mov %%rbp, %0":"=m"(*ptr)::"memory");
 }
 extern uintptr_t __stack_chk_guard;
 char *resolve_sym(void *address);

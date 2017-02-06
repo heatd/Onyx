@@ -60,10 +60,10 @@ vmspartix: BUILD $(OBJ_LINK_LIST) $(ARCHDIR)/linker.ld
 	@$(CC) -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(OBJ_LINK_LIST) $(LDFLAGS) $(LIBS)
 acpica/%.o: acpica/%.c
 	@echo [CC] $<
-	@$(CC) -c $< -o $@ -std=gnu99 $(ACPICA_CFLAGS) $(CPPFLAGS)
+	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) $(CPPFLAGS)
 %.o: %.c
 	@echo [CC] $<
-	@$(CC) -c $< -o $@ -std=gnu99 $(CFLAGS) $(CPPFLAGS)
+	@$(CC) -c $< -o $@ -std=c11 $(CFLAGS) $(CPPFLAGS)
 %.o: %.S
 	@echo [AS] $<
 	@nasm -felf$(NASMARCH) $< -o $@

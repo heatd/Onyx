@@ -278,7 +278,7 @@ void *vmm_map_range(void *range, size_t pages, uint64_t flags)
 	for (size_t pgs = 0; pgs < pages; pgs++)
 	{
 		paging_map_phys_to_virt(mem, (uintptr_t) bootmem_alloc(1), flags);
-		asm volatile("invlpg %0"::"m"(mem));
+		__asm__ __volatile__("invlpg %0"::"m"(mem));
 		mem += 0x1000;
 	}
 	memset(range, 0, PAGE_SIZE * pages);
@@ -294,7 +294,7 @@ void vmm_unmap_range(void *range, size_t pages)
 	for (size_t i = 0; i < pages; i++)
 	{
 		paging_unmap((void*) mem);
-		asm volatile("invlpg %0"::"m"(mem));
+		__asm__ __volatile__("invlpg %0"::"m"(mem));
 		mem += 0x1000;
 	}
 	if(likely(current_process))

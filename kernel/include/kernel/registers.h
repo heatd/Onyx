@@ -46,11 +46,11 @@ typedef struct
 } syscall_ctx_t;
 inline void wrmsr(uint32_t msr, uint32_t lo, uint32_t hi)
 {
-	asm volatile("wrmsr"::"a"(lo), "d"(hi), "c"(msr));
+	__asm__ __volatile__("wrmsr"::"a"(lo), "d"(hi), "c"(msr));
 }
 inline void rdmsr(uint32_t msr, uint32_t *lo, uint32_t *hi)
 {
-	asm volatile("rdmsr" : "=a"(*lo), "=d"(*hi) : "c"(msr));
+	__asm__ __volatile__("rdmsr" : "=a"(*lo), "=d"(*hi) : "c"(msr));
 }
 #define FS_BASE_MSR 0xC0000100
 #define GS_BASE_MSR 0xC0000101

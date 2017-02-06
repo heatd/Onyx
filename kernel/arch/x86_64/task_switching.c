@@ -325,7 +325,7 @@ void sched_idle()
 	/* This function will not do work at all, just idle using hlt */
 	for(;;)
 	{
-		asm volatile("hlt");
+		__asm__ __volatile__("hlt");
 	}
 }
 void thread_add(thread_t *add)
@@ -380,7 +380,7 @@ int sched_init()
 }
 void sched_yield()
 {
-	asm volatile("int $0x81");
+	__asm__ __volatile__("int $0x81");
 }
 void sched_sleep(unsigned long ms)
 {

@@ -369,7 +369,7 @@ void kernel_main()
 	initrd_addr = (void*)((char*) initrd_addr + PHYS_BASE);
 
 	/* Invalidate and unmap the lower memory zones (0x0 to 0x400000) */
-	asm volatile("movq $0, pdlower; movq $0, pdlower + 8;invlpg 0x0;invlpg 0x200000");
+	__asm__ __volatile__("movq $0, pdlower; movq $0, pdlower + 8;invlpg 0x0;invlpg 0x200000");
 	/* Initialize the initrd */
 	init_initrd(initrd_addr);
 
@@ -479,5 +479,5 @@ void kernel_multitasking(void *arg)
 	find_and_exec_init(args, envp);
 
 	get_current_thread()->status = THREAD_SLEEPING;
-	for (;;) asm volatile("hlt");
+	for (;;) __asm__ __volatile__("hlt");
 }

@@ -60,7 +60,7 @@ int posix_spawn(pid_t *pid, const char *path, const void *file_actions
 	(void) attrp;
 	(void) argv;
 	(void) envp;
-	asm volatile("mov %0, %%rax; int $0x80"::"i"(SYS_posix_spawn));
+	__asm__ __volatile__("mov %0, %%rax; int $0x80"::"i"(SYS_posix_spawn));
 	return 0;
 }
 int setuid(uid_t uid)

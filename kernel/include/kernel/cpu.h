@@ -57,10 +57,10 @@ __attribute__((always_inline))
 inline struct processor *get_gs_data()
 {
 	struct processor *proc;
-	asm volatile("movq %%gs:0x8, %0":"=r"(proc));
+	__asm__ __volatile__("movq %%gs:0x8, %0":"=r"(proc));
 	return proc;
 }
 
-#define DISABLE_INTERRUPTS() asm volatile("cli")
-#define ENABLE_INTERRUPTS() asm volatile("sti")
+#define DISABLE_INTERRUPTS() __asm__ __volatile__("cli")
+#define ENABLE_INTERRUPTS() __asm__ __volatile__("sti")
 #endif

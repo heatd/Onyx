@@ -184,7 +184,7 @@ void apic_timer_init()
 	/* Set the timer divisor to 16 */
 	lapic_write(bsp_lapic, LAPIC_TIMER_DIV, 3);
 	
-	asm volatile("sti");
+	__asm__ __volatile__("sti");
 	/* Initialize the PIT to 100 hz */
 	pit_init(100);
 
@@ -255,7 +255,7 @@ void apic_wake_up_processor(uint8_t lapicid)
 	send_ipi(lapicid, 5, 0);
 	uint64_t tick = get_tick_count();
 	while(get_tick_count() - tick < 200)
-		asm volatile("hlt");
+		__asm__ __volatile__("hlt");
 	core_stack = (volatile uint64_t)vmm_allocate_virt_address(1, 2, VMM_TYPE_STACK, VMM_WRITE) + 0x2000;
 	vmm_map_range((void*)(core_stack - 0x2000), 2, VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC);
 	send_ipi(lapicid, 6, 0);

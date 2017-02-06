@@ -153,7 +153,7 @@ void isr_handler(intctx_t *ctx)
 				printf("Instruction fetch\n");
 			if(err_code & (1 << 3))
 				printf("Reserved bit was set!\n");
-                        asm volatile("hlt");
+                        __asm__ __volatile__("hlt");
 		}
 		goto pf;
 		if(err_code & 0x2 && ~entr->rwx & VMM_WRITE)

@@ -177,7 +177,7 @@ void cpu_ap_entry(int cpu_num)
 	wrmsr(GS_BASE_MSR, (uint64_t) &cpus[cpu_num] & 0xFFFFFFFF, (uint64_t) &cpus[cpu_num] >> 32);
 
 	/* Enable interrupts */
-	//asm volatile("sti");
+	//__asm__ __volatile__("sti");
 
 	initialized_cpus++;
 	release_spinlock(&ap_entry_spinlock);
