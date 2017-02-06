@@ -8,6 +8,5 @@ all: $(MODULE)
 $(MODULE): $(MOD_OBJS)
 	echo [LD] $@.kmod
 	$(CC) -c $(CFLAGS) $(LDFLAGS) $< -o $@.kmod
-	echo $(CFLAGS)
 clean:
 	rm $(MODULE).kmod

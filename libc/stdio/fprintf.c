@@ -8,7 +8,7 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#include "stdio_impl.h"
+#include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
 

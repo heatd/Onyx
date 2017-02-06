@@ -14,15 +14,16 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <stdio.h>
 
 #include "stdio_impl.h"
 
 #include <sys/syscall.h>
 #include <sys/uio.h>
-FILE *__stdio_open(const char *path, const char *attrb)
+struct _IO_FILE *__stdio_open(const char *path, const char *attrb)
 {
-	FILE *file = malloc(sizeof(FILE));
-	memset(file, 0, sizeof(FILE));
+	struct _IO_FILE *file = malloc(sizeof(struct _IO_FILE));
+	memset(file, 0, sizeof(struct _IO_FILE));
 	int open_perms = O_RDONLY;
 	if(strcmp((char*) attrb, "r") == 0)
 		open_perms = O_RDONLY;
@@ -38,14 +39,14 @@ FILE *__stdio_open(const char *path, const char *attrb)
 	}
 	return file;
 }
-size_t __stdio_write(const void *ptr, size_t size, size_t nmemb, FILE *stream)
+size_t __stdio_write(const void *ptr, size_t size, size_t nmemb, struct _IO_FILE *stream)
 {
 	int fd = stream->fd;
 	size_t passed_size = size * nmemb;
 	size_t ret = write(fd, (void*) ptr, passed_size);
 	return ret;
 }
-size_t __stdio_read(const void *ptr, size_t size, size_t nmemb, FILE *stream)
+size_t __stdio_read(const void *ptr, size_t size, size_t nmemb, struct _IO_FILE *stream)
 {
 	int fd = stream->fd;
 	if(size > stream->buf_size)
@@ -66,7 +67,7 @@ size_t __stdio_read(const void *ptr, size_t size, size_t nmemb, FILE *stream)
 	size_t r = readv(fd, v, 2);
 	return r;
 }
-int __stdio_fseek(FILE *stream, long offset, int whence)
+int __stdio_fseek(struct _IO_FILE *stream, long offset, int whence)
 {
 	off_t off = lseek(stream->fd, offset, whence);
 	if(off == (off_t) -1)
@@ -76,11 +77,11 @@ int __stdio_fseek(FILE *stream, long offset, int whence)
 	stream->off = off;
 	return 0;
 }
-long __stdio_ftell(FILE *stream)
+long __stdio_ftell(struct _IO_FILE *stream)
 {
 	return stream->off;
 }
-void __stdio_rewind(FILE *stream)
+void __stdio_rewind(struct _IO_FILE *stream)
 {
 	lseek(stream->fd, 0, SEEK_SET);
 	stream->off = 0;
@@ -101,7 +102,7 @@ char *__stdio_gets(char *buf)
 	memcpy(buf, stdin->buf, r);
 	return buf;
 }
-int __stdio_close(FILE *file)
+int __stdio_close(struct _IO_FILE *file)
 {
 	close(file->fd);
 	free(file->buf);

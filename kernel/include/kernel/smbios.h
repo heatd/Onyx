@@ -9,7 +9,7 @@
  * Foundation.
  *----------------------------------------------------------------------*/
 #ifndef _KERNEL_SMBIOS_H
-#define _KERNEL_SMBIOB_H
+#define _KERNEL_SMBIOS_H
 
 #include <stdint.h>
 
