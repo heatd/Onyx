@@ -22,7 +22,7 @@ int sys_gettimeofday(struct timeval *tv, struct timezone *tz)
 	if(tv)
 	{
 		tv->tv_sec = get_posix_time();
-		tv->tv_usec = 0;
+		tv->tv_usec = get_posix_time() * 1000 + get_microseconds();
 	}
 	if(tz)
 	{
