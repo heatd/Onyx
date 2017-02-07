@@ -73,3 +73,7 @@ int sys_syslog(int type, char *buffer, int len)
 	}
 	return 0;
 }
+void kernlog_dump(void)
+{
+	printk("%s\n", _log_buf);
+}

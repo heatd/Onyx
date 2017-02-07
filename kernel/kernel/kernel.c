@@ -64,6 +64,7 @@
 #include <kernel/block.h>
 #include <kernel/elf.h>
 #include <kernel/smbios.h>
+#include <kernel/fscache.h>
 
 #include <drivers/ps2.h>
 #include <drivers/ata.h>
@@ -427,10 +428,13 @@ void kernel_multitasking(void *arg)
 
 	/* Initialize DNS */
 	dns_init();
-	
+
 	/* Initialize ICMP */
 	icmp_init();
-	
+
+	/* Initialize filesystem caches */
+	fscache_initialize();
+
 	/* Just a little demo for the recent DNS and ICMP features */
 	//uint32_t ip = dns_resolve_host("www.google.com");
 	//icmp_ping(ip, 10);

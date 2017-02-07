@@ -15,8 +15,8 @@
 #include <kernel/compiler.h>
 #include <kernel/vmm.h>
 #include <kernel/slab.h>
+#include <kernel/log.h>
 
-// NOT WORKING: NEEDS FIXES
 void slab_setup_caches(void *addr, size_t size_obj, size_t num_objs)
 {
 	struct slab_header *hd = addr;
@@ -32,16 +32,17 @@ struct cache_info *slab_create(const char *name, size_t size_obj, size_t num_obj
 	struct cache_info *cache = vmalloc(vmm_align_size_to_pages((size_obj * num_objs) +
 sizeof(struct cache_info) + num_objs * sizeof(struct slab_header)), VM_TYPE_REGULAR, VM_WRITE | VM_NOEXEC | VM_GLOBAL);
 	cache->name = name;
-	cache->addr = cache+1;
+	cache->addr = (void*)((uintptr_t)(cache + 2) & ~15);
 	cache->size_bytes = size_obj;
 	cache->num_objs = num_objs;
 	cache->should_prefetch = sprefetch;
 	slab_setup_caches(cache->addr, cache->size_bytes, cache->num_objs);
-	printf("Created cache %s\n", name);
+	INFO("slab","created cache %s\n", name);
 	return cache;
 }
 void *slab_allocate(struct cache_info *cache)
 {
+	acquire_spinlock(&cache->lock);
 	struct slab_header *hd = (struct slab_header *)(cache+1);
 	_Bool found = false;
 	struct slab_header *ret = NULL;
@@ -59,17 +60,22 @@ void *slab_allocate(struct cache_info *cache)
 	{
 		/* If there's a chained cache, try to allocate from it */
 		if(cache->next)
+		{
+			release_spinlock(&cache->lock);
 			return slab_allocate(cache->next);
+		}
 		else
 		{
 			/* If !cache->next, expand the cache */
 			cache->next = slab_create(cache->name, cache->size_bytes, cache->num_objs, cache->should_prefetch);
+			release_spinlock(&cache->lock);
 			return slab_allocate(cache->next);
 		}
 	}
 	ret->next = NULL;
 	if(cache->should_prefetch) /* If we should prefetch objects from this cache, do so (this is just a neat little optimization) */
 		prefetch(ret+1);
+	release_spinlock(&cache->lock);
 	return ret+1;
 }
 struct slab_header *slab_find_first_fit(struct cache_info *cache)
@@ -89,7 +95,13 @@ void slab_free(struct cache_info *cache, void *addr)
 {
 	if(!addr)
 		return;
-	struct slab_header *header = (struct slab_header *)((char *) addr - cache->size_bytes);
+	if(!cache)
+		return;
+	acquire_spinlock(&cache->lock);
+	
+	/* Find the header */
+	struct slab_header *header = (struct slab_header *)((char *) addr - sizeof(struct slab_header));
 	header->next = slab_find_first_fit(cache);
-	if(header->next == NULL) header->next = header; // Just so we don't waste an object
+	
+	release_spinlock(&cache->lock);
 }

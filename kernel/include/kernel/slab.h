@@ -12,6 +12,8 @@
 #define _KERNEL_SLAB_H
 #include <stdint.h>
 #include <stddef.h>
+
+#include <kernel/spinlock.h>
 struct cache_info
 {
 	const char *name;
@@ -19,6 +21,7 @@ struct cache_info
 	size_t size_bytes;
 	size_t num_objs;
 	size_t should_prefetch; /* Using size_t here so we're sure this aligns nicely */
+	spinlock_t lock;
 	struct cache_info *next;
 };
 struct slab_header

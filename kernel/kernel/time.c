@@ -8,6 +8,9 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
+#include <errno.h>
+
+#include <kernel/timer.h>
 #include <drivers/rtc.h>
 #include <kernel/vmm.h>
 #include <sys/time.h>

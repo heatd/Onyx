@@ -34,6 +34,7 @@ typedef struct blkdev
 	__blkpowermanagement power;
 	const char *node_path; /* A /dev path */
 	void *device_info;
+	dev_t dev;
 	struct blkdev *next;
 } block_device_t;
 
