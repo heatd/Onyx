@@ -99,7 +99,6 @@ int main(int argc, char **argv, char **envp)
 	if(p != 1)
 		return 1;
 
-	asm volatile("ud2");
 	/* Load the needed kernel modules */
 	load_modules();
 
@@ -107,7 +106,7 @@ int main(int argc, char **argv, char **envp)
 	setup_hostname();
 
 	/* Read the config files, and find the startup program */
-		int ringlevel = get_ring_level();
+	int ringlevel = get_ring_level();
 	/* Allocate a buffer for the filename */
 	char *filename = malloc(strlen(prefix) + 4);
 	if(!filename)
