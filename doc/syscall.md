@@ -1,6 +1,10 @@
 # System Calls
 
-The kernel exposes the system calls to the user-space by the interrupt vector 0x80(128 decimal). In the future, syscall will be supported.
+The kernel exposes the system calls to the user-space by the syscall instruction.
+
+## System Call ABI
+Arguments are passed to the kernel by the x86_64 registers rdi, rsi, rdx, r8, r9 and r10. The return value is passed by the rax register.
+Errno also gets passed through rax, as -errno.
 
 ## Table of System calls
 
