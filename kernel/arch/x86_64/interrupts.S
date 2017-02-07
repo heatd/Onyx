@@ -317,3 +317,6 @@ __sigret_return:
 	mov es, cx
 	popaq
 	iretq
+global apic_spurious_irq
+apic_spurious_irq:
+	iretq

@@ -10,10 +10,15 @@
  *----------------------------------------------------------------------*/
 #include <stdint.h>
 #include <stdio.h>
-#include <kernel/panic.h>
 #include <stdbool.h>
+
+#include <signal.h>
+
+#include <kernel/process.h>
+#include <kernel/signal.h>
 #include <kernel/task_switching.h>
 #include <kernel/vmm.h>
+#include <kernel/panic.h>
 static uint64_t faulting_address;
 const char* exception_msg[] = {
     "Division by zero exception",
@@ -69,56 +74,63 @@ void isr_handler(intctx_t *ctx)
 	{
 		for(;;);
 	}
-	printk("Exception %u at %p\n", int_no, ctx->rip);
-	printk("RSP: %p\n", ctx->rsp);
+	if(ctx->rip > VM_HIGHER_HALF)
+	{
+		printk("Kernel exception %u at %p\n", int_no, ctx->rip);
+		printk("RSP: %p\n", ctx->rsp);
+
+		printk("Halting!\n");
+		halt();
+
+	}
 	// Enter the isr handler
 	enter_isr_handler();
 	switch (ctx->int_no) {
 	case 0:{
-			panic(exception_msg[int_no]);
+			sys_kill(current_process->pid, SIGSEGV);
 			break;
 		}
 	case 1:{
-			panic(exception_msg[int_no]);
+			sys_kill(current_process->pid, SIGSEGV);
 			break;
 		}
 	case 2:{
 			break;
 		}
 	case 3:{
-			printf(exception_msg[int_no]);
+			sys_kill(current_process->pid, SIGSEGV);
 			break;
 		}
 	case 4:{
-			printf(exception_msg[int_no]);
+			sys_kill(current_process->pid, SIGSEGV);
 			break;
 		}
 	case 5:{
-			printf(exception_msg[int_no]);
+			sys_kill(current_process->pid, SIGSEGV);
 			break;
 		}
 	case 6:{
-			printf(exception_msg[int_no]);
+			sys_kill(current_process->pid, SIGSEGV);
 			break;
 		}
 	case 7:{
-			printf(exception_msg[int_no]);
+			sys_kill(current_process->pid, SIGSEGV);
 			break;
 		}
 	case 8:{
-			panic(exception_msg[int_no]);
+			sys_kill(current_process->pid, SIGSEGV);
 			break;
 		}
 	case 9:{
-			panic("i386 processors not supported by Spartix");
+			sys_kill(current_process->pid, SIGSEGV);
 			break;
 		}
 	case 10:{
-			panic(exception_msg[int_no]);
+			sys_kill(current_process->pid, SIGSEGV);
 			break;
 		}
 	case 11:{
-			panic(exception_msg[int_no]);
+			sys_kill(current_process->pid, SIGSEGV);
 			break;
 		}
 	case 12:{
@@ -126,10 +138,7 @@ void isr_handler(intctx_t *ctx)
 			break;
 		}
 	case 13:{
-			printf(exception_msg[int_no]);
-			if (err_code != 0)
-				printf("\nSegment 0x%X\n", err_code);
-			halt();
+			sys_kill(current_process->pid, SIGSEGV);
 			break;
 		}
 	case 14:{
@@ -153,7 +162,8 @@ void isr_handler(intctx_t *ctx)
 				printf("Instruction fetch\n");
 			if(err_code & (1 << 3))
 				printf("Reserved bit was set!\n");
-                        __asm__ __volatile__("hlt");
+                       sys_kill(current_process->pid, SIGSEGV);
+		       break;
 		}
 		goto pf;
 		if(err_code & 0x2 && ~entr->rwx & VMM_WRITE)
@@ -168,7 +178,7 @@ void isr_handler(intctx_t *ctx)
 			break;	/*Reserved exception */
 		}
 	case 16:{
-			printf(exception_msg[int_no]);
+			sys_kill(current_process->pid, SIGSEGV);
 			break;
 		}
 	case 17:{
@@ -178,11 +188,11 @@ void isr_handler(intctx_t *ctx)
 			break;
 		}
 	case 19:{
-			printf(exception_msg[int_no]);
+			sys_kill(current_process->pid, SIGSEGV);
 			break;
 		}
 	case 20:{
-			printf(exception_msg[int_no]);
+			sys_kill(current_process->pid, SIGSEGV);
 			break;
 		}
 	case 21:		/*Handle the intel reserved exceptions to do nothing */

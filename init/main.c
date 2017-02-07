@@ -94,6 +94,12 @@ int get_ring_level()
 }
 int main(int argc, char **argv, char **envp)
 {
+	/* Check if we're actually the first process */
+	pid_t p = getpid();
+	if(p != 1)
+		return 1;
+
+	asm volatile("ud2");
 	/* Load the needed kernel modules */
 	load_modules();
 

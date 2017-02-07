@@ -47,12 +47,12 @@ void fscache_cache_sectors(char *sectors, block_device_t *dev, uint64_t lba, siz
 	s->data = malloc(nr_sectors * 512); /* TODO: We shouldn't assume this. Detect from block_device_t */
 	if(!s->data)
 	{
-		slab_free(s);
+		slab_free(slab_cache, s);
 		return;
 	}
 	memcpy(s->data, sectors, nr_sectors * 512); /* See above */
 
-	struct fscache_hashtable *h = cache_hashtable[hash_device(dev->dev)];
+	struct fscache_hashtable *h = &cache_hashtable[hash_device(dev->dev)];
 
 	/* If it's the first cached sector in this hash */
 	if(!h->cache)
@@ -68,7 +68,7 @@ void fscache_cache_sectors(char *sectors, block_device_t *dev, uint64_t lba, siz
 	if(!h->next)
 	{
 		free(s->data);
-		slab_free(s);
+		slab_free(slab_cache, s);
 		return;
 	}
 	h->next->cache = s;
@@ -82,11 +82,11 @@ void *fscache_try_to_find_block(uint64_t lba, block_device_t *dev, size_t nr_sec
 	int hash = hash_device(dev->dev);
 
 	/* Go through the fscache, looking for the data blocks in question */
-	struct fscache_hashtable *h = cache_hashtable[hash];
+	struct fscache_hashtable *h = &cache_hashtable[hash];
 
 	for(; h->next; h = h->next)
 	{
-		if(h->cache->lba == lba && h->cache->dev = dev && h->cache->nr_sectors >= nr_sectors)
+		if(h->cache->lba == lba && h->cache->dev == dev && h->cache->nr_sectors >= nr_sectors)
 			return h->cache->data;
 		if(h->cache->lba + h->cache->nr_sectors < lba && h->cache->nr_sectors - (lba - h->cache->lba) >= nr_sectors)
 			return h->cache->data + (lba - h->cache->lba);

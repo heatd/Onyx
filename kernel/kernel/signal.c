@@ -16,6 +16,7 @@
 #include <kernel/signal.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
+void sys__exit(int exitcode);
 void kernel_default_signal(struct signal_info *sig)
 {
 	switch(sig->signum)
@@ -27,7 +28,9 @@ void kernel_default_signal(struct signal_info *sig)
 		}
 		case SIGSEGV:
 		{
-			printk("sig: Segmentation fault!\n");
+			printk("Segmentation fault\n");
+			current_process->signal_pending = 0;
+			sys__exit(127);
 			break;
 		}
 	}
@@ -90,7 +93,6 @@ void handle_signal(registers_t *regs, _Bool is_int)
 	if(curr_proc->signal_dispatched == 1)
 		return;
 	struct signal_info *sig = &curr_proc->sinfo;
-	printf("Signal number: (%u)\n", sig->signum);
 
 	if(sig->handler == (sighandler_t) SIG_IGN) // Ignore the signal if it's handler is set to SIG_IGN
 		return;

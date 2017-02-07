@@ -97,4 +97,5 @@ extern void irq21();
 extern void irq22();
 extern void irq23();
 extern void syscall_ENTRY64_int();
+extern void apic_spurious_irq();
 #endif /* _IDT_H */
