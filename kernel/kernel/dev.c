@@ -54,14 +54,28 @@ vfsnode_t *devfs_open(vfsnode_t *this, const char *name)
 }
 vfsnode_t *devfs_creat(const char *pathname, int mode, vfsnode_t *self)
 {
-	(void) self;
+	UNUSED(self);
 	pathname += strlen("/dev/");
 	if(!children)
 	{
 		num_child++;
 		children = malloc(sizeof(void*) * num_child);
+		if(!children)
+		{
+			num_child--;
+			return errno = ENOMEM, NULL;
+		}
+
 		children[0] = malloc(sizeof(vfsnode_t));
+		if(!children[0])
+		{
+			free(children);
+			children = NULL;
+			num_child--;
+			return errno = ENOMEM, NULL;
+		}
 		memset(children[0], 0, sizeof(vfsnode_t));
+
 		children[0]->name = (char*) pathname;
 		children[0]->inode = 0;
 		children[0]->type = VFS_TYPE_FILE;
@@ -70,9 +84,26 @@ vfsnode_t *devfs_creat(const char *pathname, int mode, vfsnode_t *self)
 	else
 	{
 		num_child++;
+		/* Save the pointer in case realloc fails, so the whole /dev tree doesn't crash */
+		vfsnode_t **old_children = children;
+
 		children = realloc(children, sizeof(void*) * num_child);
+		if(!children)
+		{
+			/* Restore the old data */
+			num_child--;
+			children = old_children;
+			return errno = ENOMEM, NULL;
+		}
 		children[num_child-1] = malloc(sizeof(vfsnode_t));
+		if(!children[num_child-1])
+		{
+			/* Restore the old data */
+			num_child--;
+			return errno = ENOMEM, NULL;
+		}
 		memset(children[num_child-1], 0, sizeof(vfsnode_t));
+
 		children[num_child-1]->name = (char*) pathname;
 		children[num_child-1]->inode = num_child-1;
 		children[num_child-1]->type = VFS_TYPE_FILE;
@@ -93,8 +124,20 @@ int devfs_init()
 	i->type |= VFS_TYPE_MOUNTPOINT;
 	slashdev->name = "/dev/";
 	slashdev->type = VFS_TYPE_DIR;
-	slashdev->open = devfs_open;
-	slashdev->getdents = devfs_getdents;
-	slashdev->creat = devfs_creat;
+
+	struct minor_device *minor = dev_register(0, 0);
+	if(!minor)
+		panic("Could not allocate a device ID!\n");
+	
+	minor->fops = malloc(sizeof(struct file_ops));
+	if(!minor->fops)
+		panic("Could not allocate a file operation table!\n");
+	
+	memset(minor->fops, 0, sizeof(struct file_ops));
+
+	slashdev->dev = minor->majorminor;
+	minor->fops->open = devfs_open;
+	minor->fops->getdents = devfs_getdents;
+	minor->fops->creat = devfs_creat;
 	return 0;
 }

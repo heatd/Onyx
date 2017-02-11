@@ -11,9 +11,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <multiboot2.h>
+
 #include <kernel/task_switching.h>
 #include <kernel/elf.h>
-#include <multiboot2.h>
+#include <kernel/panic.h>
 #define DEFAULT_UNWIND_NUMBER 6
 inline void get_frame_pointer(uint64_t **ptr)
 {
@@ -58,6 +60,10 @@ void *stack_trace()
 		return_addresses++;
 	}
 	uint64_t *retaddrbuf = malloc(sizeof(uint64_t) * return_addresses);
+	if(!retaddrbuf)
+	{
+		panic("stack trace: oom\n");
+	}
 	memset(retaddrbuf, 0, sizeof(uint64_t) * return_addresses);
 	get_frame_pointer(&rbp);
 	for(size_t i = 0; i < return_addresses; i++)
@@ -104,6 +110,8 @@ char *resolve_sym(void *address)
 		if(syms[i].st_value == (Elf64_Addr)address){
 			size_t len = strlen(elf_get_string(syms[i].st_name)) + 3;
 			char *buf = malloc(len);
+			if(!buf)
+				return NULL;
 			*buf = '<';
 			strcpy(buf+1, elf_get_string(syms[i].st_name));
 			char *endofstr = buf + strlen(elf_get_string(syms[i].st_name));
@@ -127,6 +135,8 @@ char *resolve_sym(void *address)
 	itoa((uint64_t)address - closest_sym->st_value, 16, (char*) &buff[2], 1);
 	size_t lenof = strlen(buff);
 	char *ret = malloc(strlen(elf_get_string(closest_sym->st_name) + lenof + 7));
+	if(!ret)
+		return NULL;
 	*ret = '<';
 	strcpy(ret+1, elf_get_string(closest_sym->st_name));
 	char *endof = ret+1 + strlen(elf_get_string(closest_sym->st_name));

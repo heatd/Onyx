@@ -10,6 +10,7 @@
  *----------------------------------------------------------------------*/
 #include <partitions.h>
 #include <stdio.h>
+#include <errno.h>
 #include <mbr.h>
 
 #include <kernel/vmm.h>
@@ -30,6 +31,8 @@ void partition_find_and_mount(enum partition_type_t type, int index, block_devic
 {
 	/* Map the buffer */
 	unsigned int *mbrbuf = malloc(512);
+	if(!dev)
+		return errno = ENOMEM, (void) 0;
 	memset(mbrbuf, 0, 512);
 	/* Read the mbr from the disk */
 	blkdev_read(0, 512, mbrbuf, dev);

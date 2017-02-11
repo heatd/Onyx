@@ -40,7 +40,7 @@ int drm_initialize(struct drm_info **out)
 	struct drm_info *buf = malloc(sizeof(struct drm_info));
 	if(!buf)
 	{
-		printf("libdrm: %s: Not enough memory\n", __func__);
+		perror("libdrm");
 		return -1;
 	}
 	memset(buf, 0, sizeof(struct drm_info));

@@ -153,6 +153,11 @@ int e1000_init_descs()
 		rx_descs[i]->addr = (uint64_t) malloc(MAX_MTU);
 		if(!rx_descs[i]->addr)
 		{
+			/* Free the past entries */
+			for(int j = 0; j < i; j++)
+			{
+				free(rx_descs[j]);
+			}
 			vmm_unmap_range(ptr, needed_pages);
 			return 1;
 		}

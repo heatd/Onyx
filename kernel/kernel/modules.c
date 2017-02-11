@@ -30,6 +30,12 @@ int initialize_module_subsystem()
 	memset(hashtable, 0, sizeof(module_hashtable_t));
 	hashtable->size = DEFAULT_SIZE;
 	hashtable->buckets = malloc(DEFAULT_SIZE * sizeof(void*));
+	if(!hashtable->buckets)
+	{
+		printf("Kernel modules disabled. Not enough memory.\n");
+		mods_disabled = 1;
+		return errno = ENOMEM;
+	}
 	memset(hashtable->buckets, 0, DEFAULT_SIZE * sizeof(void*));
 	return 0;
 }
@@ -93,9 +99,9 @@ int load_module(const char *path, const char *name)
 		return 1;
 	}
 	char *buffer = malloc(file->size);
-	memset(buffer, 0, file->size);
 	if (!buffer)
 		return errno = ENOMEM;
+	memset(buffer, 0, file->size);
 	size_t read = read_vfs(0, file->size, buffer, file);
 	if (read != file->size)
 		return errno = EAGAIN;

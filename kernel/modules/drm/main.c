@@ -17,6 +17,7 @@
 #include <kernel/dev.h>
 #include <kernel/vmm.h>
 #include <kernel/module.h>
+#include <kernel/log.h>
 
 #include <drivers/softwarefb.h>
 
@@ -94,14 +95,30 @@ int module_init()
 {
 	MPRINTF("initializing DRM\n");
 
-	drm_node = slashdev->creat("/dev/drm", 0666, slashdev);
+	drm_node = creat_vfs(slashdev, "/dev/drm", 0666);
 	if(!drm_node)
 	{
-		MPRINTF("error while creating the 'drm' device node: ENOMEM\n");
+		MPRINTF("error while creating the 'drm' device node: %s\n", strerror(errno));
 		return 1;
 	}
-	MPRINTF("created /dev/drm\n");
+	struct minor_device *min = dev_register(0, 0);
+	if(!min)
+	{
+		FATAL("drm", "could not create a device ID for /dev/drm: %s\n", strerror(errno));
+		return 1;
+	}
+	
+	min->fops = malloc(sizeof(struct file_ops));
+	if(!min->fops)
+	{
+		dev_unregister(min->majorminor);
+		FATAL("drm", "could not create a file operation table for /dev/drm: %s\n", strerror(errno));
+		return 1;
+	}
+	memset(min->fops, 0, sizeof(struct file_ops));
 	drm_node->ioctl = drm_ioctl;
+
+	MPRINTF("created /dev/drm\n");
 
 	return 0;
 }

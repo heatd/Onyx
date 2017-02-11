@@ -13,16 +13,16 @@
 #include <kernel/spinlock.h>
 #include <kernel/compiler.h>
 #include <kernel/task_switching.h>
-void mutex_lock(unsigned long *);
-void mutex_unlock(unsigned long *);
+void spinlock_lock(unsigned long *);
+void spinlock_unlock(unsigned long *);
 void acquire_spinlock(spinlock_t *lock)
 {
-	mutex_lock(&lock->lock);
+	spinlock_lock(&lock->lock);
 }
 
 void release_spinlock(spinlock_t *lock)
 {
-	mutex_unlock(&lock->lock);
+	spinlock_unlock(&lock->lock);
 }
 void wait_spinlock(spinlock_t *lock)
 {
@@ -33,11 +33,11 @@ void acquire_critical_lock(spinlock_t *critical_lock)
 	unsigned long l = __sync_add_and_fetch(&critical_lock->waiters, 1);
 	if(l > 1)
 		sched_yield();
-	mutex_lock(&critical_lock->lock);
+	spinlock_lock(&critical_lock->lock);
 	__sync_sub_and_fetch(&critical_lock->waiters, 1);
 }
 void release_critical_lock(spinlock_t *critical_lock)
 {
-	mutex_unlock(&critical_lock->lock);
+	spinlock_unlock(&critical_lock->lock);
 	sched_yield();
 }

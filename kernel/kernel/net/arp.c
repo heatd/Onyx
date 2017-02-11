@@ -8,13 +8,14 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
+#include <stdlib.h>
+#include <errno.h>
 
 #include <kernel/spinlock.h>
 #include <kernel/arp.h>
-#include <stdlib.h>
 #include <kernel/compiler.h>
-#include <errno.h>
 #include <kernel/ip.h>
+#include <kernel/log.h>
 static spinlock_t arp_spl;
 arp_request_t *arp_response = NULL;
 static volatile int arp_response_arrived = 0;
@@ -96,7 +97,13 @@ int arp_handle_packet(arp_request_t *arp, uint16_t len)
 
 	}
 	if(arp_response == NULL)
+	{
 		arp_response = malloc(sizeof(arp_request_t));
+		if(!arp_response)
+		{
+			ERROR("arp", "out of memory\n");
+		}
+	}
 	memcpy(arp_response, arp, len);
 	arp_response_arrived = 1;
 	return 0;

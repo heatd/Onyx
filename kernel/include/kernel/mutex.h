@@ -8,16 +8,12 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#ifndef _KERNEL_SPINLOCK_H
-#define _KERNEL_SPINLOCK_H
+#ifndef _KERNEL_MUTEX_H
+#define _KERNEL_MUTEX_H
 
-typedef struct spinlock
-{
-	unsigned long lock;
-	unsigned long waiters;
-} spinlock_t;
+typedef unsigned long mutex_t;
 
-extern void acquire_spinlock(spinlock_t*);
-extern void release_spinlock(spinlock_t*);
-void wait_spinlock(spinlock_t*);
+void mutex_lock(mutex_t *);
+void mutex_unlock(mutex_t*);
+
 #endif

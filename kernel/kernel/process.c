@@ -19,6 +19,8 @@
 #include <kernel/task_switching.h>
 #include <kernel/cpu.h>
 #include <kernel/random.h>
+#include <kernel/mutex.h>
+
 #include <pthread_kernel.h>
 
 extern PML4 *current_pml4;
@@ -75,6 +77,8 @@ extern int curr_id;
 void process_fork_thread(process_t *dest, process_t *src, int thread_index)
 {
 	dest->threads[thread_index] = malloc(sizeof(thread_t));
+	if(!dest->threads[thread_index])
+		return errno = ENOMEM, (void) 0;
 	memcpy(dest->threads[thread_index], src->threads[thread_index], sizeof(thread_t));
 	thread_add(dest->threads[thread_index]);
 	dest->threads[thread_index]->id = curr_id++;
@@ -120,7 +124,7 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	if (!buffer)
 		return errno =-ENOMEM;
 
-	in->read(0, in->size, buffer, in);
+	read_vfs(0, in->size, buffer, in);
 
 	int nargs = 0;
 	size_t arg_string_len = strlen(path) + 1;
@@ -132,6 +136,13 @@ int sys_execve(char *path, char *argv[], char *envp[])
 		envp_string_len += strlen(envp[nenvp]) + 1;
 
 	char *intermediary_buffer_args = malloc(arg_string_len);
+	if(!intermediary_buffer_args)
+	{
+		/* Free all the past mallocs */
+		free(buffer);
+		close_vfs(in);
+		return errno = -ENOMEM;
+	}
 	memset(intermediary_buffer_args, 0, arg_string_len);
 	volatile char *temp = intermediary_buffer_args;
 	for(int i = 0; i < nargs; i++)
@@ -140,6 +151,14 @@ int sys_execve(char *path, char *argv[], char *envp[])
 		temp += strlen(argv[i]) + 1;
 	}
 	char *intermediary_buffer_envp = malloc(envp_string_len);
+	if(!intermediary_buffer_envp)
+	{
+		/* Free all the past mallocs */
+		free(buffer);
+		close_vfs(in);
+		free(intermediary_buffer_args);
+		return errno = -ENOMEM;
+	}
 	memset(intermediary_buffer_envp, 0, envp_string_len);
 	temp = intermediary_buffer_envp;
 	for(int i = 0; i < nenvp; i++)
@@ -182,8 +201,6 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	void *entry = elf_load((void *) buffer);
 
 	thread_t *t = sched_create_main_thread((thread_callback_t) entry, 0, nargs, new_args, new_envp);
-		
-	sched_destroy_thread(current_process->threads[0]);
 
 	/* Set the appropriate uid and gid */
 	if(current_process->setuid != 0)
@@ -237,7 +254,7 @@ int sys_execve(char *path, char *argv[], char *envp[])
 
 	p->tid = current_process->threads[0]->id;
 	p->pid = current_process->pid;
-
+	
 	release_spinlock(&execve_spl);
 	ENABLE_INTERRUPTS();
 	while(1);
@@ -267,8 +284,7 @@ loop:
 		return -1;
 	goto loop;
 }
-spinlock_t fork_spl;
-extern size_t num_areas;
+static mutex_t forkmutex;
 pid_t sys_fork(syscall_ctx_t *ctx)
 {
 
@@ -283,9 +299,9 @@ pid_t sys_fork(syscall_ctx_t *ctx)
 
 	/* Fork the vmm data and the address space */
 	avl_node_t *areas;
-	acquire_spinlock(&fork_spl);
+	mutex_lock(&forkmutex);
 	PML4 *new_pt = vmm_fork_as(&areas); // Fork the address space
-	release_spinlock(&fork_spl);
+	mutex_unlock(&forkmutex);
 	child->tree = areas;
 	child->cr3 = new_pt; // Set the new cr3
 
@@ -319,8 +335,6 @@ void sys__exit(int status)
 	if(current_process->pid == 1)
 	{
 		printf("Panic: %s returned!\n", current_process->cmd_line);
-		extern int syscalls;
-		printf("%u system calls!\n", syscalls);
 		ENABLE_INTERRUPTS();
 		for(;;);
 	}

@@ -243,7 +243,10 @@ void vmm_start_address_bookkeeping(uintptr_t framebuffer_address, uintptr_t heap
 {
 	/* Start populating the address space */
 	vmm_entry_t *v = avl_insert_key(&kernel_tree, framebuffer_address, framebuffer_address + 0x400000);
-	
+	if(!v)
+	{
+		panic("vmm: early boot oom");	
+	}
 	v->base = framebuffer_address;
 	/* TODO: Support multiple sizes of framebuffers */
 	v->pages = 0x800000 / PAGE_SIZE;
@@ -251,7 +254,10 @@ void vmm_start_address_bookkeeping(uintptr_t framebuffer_address, uintptr_t heap
 	v->rwx = VM_NOEXEC | VM_WRITE;
 	/* TODO: Support multiple sizes of heap */
 	v = avl_insert_key(&kernel_tree, heap, heap + 0x400000);
-
+	if(!v)
+	{
+		panic("vmm: early boot oom");	
+	}
 	v->base = framebuffer_address;
 
 	v->pages = 0x400000 / PAGE_SIZE;
@@ -259,7 +265,10 @@ void vmm_start_address_bookkeeping(uintptr_t framebuffer_address, uintptr_t heap
 	v->rwx = VM_NOEXEC | VM_WRITE;
 
 	v = avl_insert_key(&kernel_tree, KERNEL_VIRTUAL_BASE, UINT64_MAX);
-
+	if(!v)
+	{
+		panic("vmm: early boot oom");	
+	}
 	v->base = KERNEL_VIRTUAL_BASE;
 	v->pages = 0x80000000 / PAGE_SIZE;
 	v->type = VM_TYPE_SHARED;

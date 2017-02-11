@@ -42,7 +42,7 @@ thread_t* task_switching_create_context(thread_callback_t callback, uint32_t fla
 	thread_t* new_thread = malloc(sizeof(thread_t));
 	
 	if(!new_thread)
-		panic("OOM while allocating thread");
+		return NULL;
 	
 	memset(new_thread, 0 ,sizeof(thread_t));
 
@@ -401,6 +401,10 @@ void sched_destroy_thread(thread_t *thread)
 			return;
 		}
 	}
+}
+void set_current_thread(thread_t *t)
+{
+	current_thread = t;
 }
 #define ARCH_SET_FS 0x1002
 #define ARCH_GET_FS 0x1003

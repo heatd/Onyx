@@ -13,6 +13,7 @@
 #include <kernel/compiler.h>
 #include <kernel/log.h>
 #include <kernel/acpi.h>
+#include <kernel/panic.h>
 
 #include <drivers/pci.h>
 
@@ -769,6 +770,8 @@ void pci_write_word(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uin
 		function */
 		// Set up the meta-data
 		PCIDevice* dev = malloc(sizeof(PCIDevice));
+		if(!dev)
+			panic("pci: early unrecoverable oom\n");
 		memset(dev, 0 , sizeof(PCIDevice));
 		dev->slot = bus;
 		dev->function = function;
@@ -817,6 +820,8 @@ void pci_write_word(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uin
 
 				// Set up some meta-data
 				PCIDevice* dev = malloc(sizeof(PCIDevice));
+				if(!dev)
+					panic("pci: early unrecoverable oom\n");
 				memset(dev, 0 , sizeof(PCIDevice));
 				dev->slot = slot;
 				dev->function = 0;
@@ -857,6 +862,8 @@ pcibar_t* pci_get_bar(uint8_t slot, uint8_t device, uint8_t function, uint8_t ba
 	uint8_t offset = 0x10 + 0x4 * barindex;
 	uint32_t i = pci_config_read_dword(slot, device,function,offset);
 	pcibar_t* pcibar = malloc(sizeof(pcibar_t));
+	if(!pcibar)
+		return NULL;
 	pcibar->address = i & 0xFFFFFFF0;
 	pcibar->isIO = i & 1;
 	if(i & 1)

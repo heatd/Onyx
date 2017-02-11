@@ -49,7 +49,6 @@ char *copy_until_newline(char *s)
 	for(; len; len--)
 		*buffer++ = *str++;
 	return ret;
-		
 }
 void insmod(const char *path, const char *name)
 {

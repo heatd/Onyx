@@ -77,12 +77,19 @@ void isr_handler(intctx_t *ctx)
 	if(ctx->rip > VM_HIGHER_HALF)
 	{
 		printk("Kernel exception %u at %p\n", int_no, ctx->rip);
-		printk("RSP: %p\n", ctx->rsp);
-
+		printk("Registers: rax: %x\nrbx: %x\nrcx: %x\nrdx: %x\nrdi: %x\nrsi: %x\nrbp: %x\nr8:  %x\nr9:  %x\n\
+r10: %x\nr11: %x\nr12: %x\nr13: %x\nr14: %x\nr15: %x\nrsp: %x\nrflags: %x\nds: %x\ncs: %x\n", 
+			ctx->rax, ctx->rbx, ctx->rcx, ctx->rdx, ctx->rdi, ctx->rsi, ctx->rbp, ctx->r8, ctx->r9, 
+		ctx->r10, ctx->r11, ctx->r12, ctx->r13, ctx->r14, ctx->r15, ctx->rsp, ctx->rflags, ctx->ds, ctx->cs);
 		printk("Halting!\n");
 		halt();
 
 	}
+	printk("Exception %u at %p\n", int_no, ctx->rip);
+	printk("Registers: rax: %x\nrbx: %x\nrcx: %x\nrdx: %x\nrdi: %x\nrsi: %x\nrbp: %x\nr8:  %x\nr9:  %x\n\
+r10: %x\nr11: %x\nr12: %x\nr13: %x\nr14: %x\nr15: %x\nrsp: %x\nrflags: %x\nds: %x\ncs: %x\n", 
+			ctx->rax, ctx->rbx, ctx->rcx, ctx->rdx, ctx->rdi, ctx->rsi, ctx->rbp, ctx->r8, ctx->r9, 
+		ctx->r10, ctx->r11, ctx->r12, ctx->r13, ctx->r14, ctx->r15, ctx->rsp, ctx->rflags, ctx->ds, ctx->cs);
 	// Enter the isr handler
 	enter_isr_handler();
 	switch (ctx->int_no) {

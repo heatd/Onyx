@@ -11,6 +11,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
 #include <kernel/ethernet.h>
 #include <kernel/ip.h>
@@ -44,7 +45,7 @@ int eth_send_packet(char *destmac, char *payload, uint16_t len, uint16_t protoco
 {
 	ethernet_header_t *hdr = malloc(len + sizeof(ethernet_header_t));
 	if(!hdr)
-		return 1;
+		return errno = ENOMEM, 1;
 	memset(hdr, 0, sizeof(ethernet_header_t) + len);
 	memcpy(&hdr->payload, payload, len);
 	hdr->ethertype = LITTLE_TO_BIG16(protocol);

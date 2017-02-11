@@ -23,6 +23,8 @@
 struct _IO_FILE *__stdio_open(const char *path, const char *attrb)
 {
 	struct _IO_FILE *file = malloc(sizeof(struct _IO_FILE));
+	if(!file)
+		return errno = ENOMEM, NULL;
 	memset(file, 0, sizeof(struct _IO_FILE));
 	int open_perms = O_RDONLY;
 	if(strcmp((char*) attrb, "r") == 0)

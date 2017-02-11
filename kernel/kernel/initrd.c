@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <kernel/panic.h>
+#include <kernel/dev.h>
 #include <assert.h>
 tar_header_t *headers[100] = { 0 };
 size_t n_files = 0;
@@ -117,7 +118,8 @@ vfsnode_t *tar_open(vfsnode_t *this, const char *name)
 {
 	char *full_path = malloc(strlen(this->name) + strlen(name) + 1);
 
-	assert(full_path);
+	if(!full_path)
+		return errno = ENOMEM, NULL;
 
 	strcpy(full_path, this->name);
 	strcpy(full_path + strlen(this->name), name);
@@ -130,16 +132,21 @@ vfsnode_t *tar_open(vfsnode_t *this, const char *name)
 		{
 			// This part of the code seems broken, needs to be looked at
 			vfsnode_t *node = malloc(sizeof(vfsnode_t));
-			assert(node);
+			if(!node)
+			{
+				return errno = ENOMEM, NULL;
+			}
 			memset(node, 0, sizeof(*node));
 			node->name = malloc(strlen(this->mountpoint) + strlen(full_path));
+			if(!node->name)
+			{
+				free(node);
+				return errno = ENOMEM, NULL;
+			}
 			strcpy(node->name, this->mountpoint);
 			strcpy(node->name + strlen(this->mountpoint), full_path);
-			node->open = tar_open;
-			node->close = tar_close;
-			node->read = tar_read;
-			node->write = tar_write;
-			node->getdents = tar_getdents;
+
+			node->dev = this->dev;
 			node->inode = i;
 			node->size = tar_get_size(iterator[i]->size);
 			if(iterator[i]->typeflag == TAR_TYPE_DIR)
@@ -157,14 +164,29 @@ void init_initrd(void *initrd)
 	n_files = tar_parse((uintptr_t) initrd);
 	printf("Found %d files in the Initrd\n", n_files);
 	vfsnode_t *node = malloc(sizeof(vfsnode_t));
-	assert(node);
+	if(!node)
+	{
+		panic("initrd: out of memory\n");
+	}
 	memset(node, 0, sizeof(vfsnode_t));
 	node->name = "sysroot/";
-	node->open = tar_open;
-	node->close = tar_close;
-	node->read = tar_read;
-	node->write = tar_write;
-	node->getdents = tar_getdents;
+	struct minor_device *min_dev = dev_register(0, 0);
+	if(!min_dev)
+		panic("Could not allocate a device id!\n");
+	
+	min_dev->fops = malloc(sizeof(struct file_ops));
+	if(!min_dev->fops)
+		panic("Could not allocate a file operation table!\n");
+	memset(min_dev->fops, 0, sizeof(struct file_ops));
+
+	min_dev->fops->open = tar_open;
+	min_dev->fops->close = tar_close;
+	min_dev->fops->read = tar_read;
+	min_dev->fops->write = tar_write;
+	min_dev->fops->getdents = tar_getdents;
+
+	node->dev = min_dev->majorminor;
+
 	node->type = VFS_TYPE_DIR;
 	node->inode = 0;
 	mount_fs(node, "/");

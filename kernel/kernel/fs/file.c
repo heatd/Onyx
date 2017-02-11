@@ -13,7 +13,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
-
+#include <stdio.h>
 #include <kernel/vmm.h>
 #include <kernel/vfs.h>
 #include <kernel/process.h>
@@ -84,6 +84,8 @@ int sys_open(const char *filename, int flags)
 		if(ioctx->file_desc[i] == NULL)
 		{
 			ioctx->file_desc[i] = malloc(sizeof(file_desc_t));
+			if(!ioctx->file_desc[i])
+				return errno = -ENOMEM;
 			memset(ioctx->file_desc[i], 0, sizeof(file_desc_t));
 			ioctx->file_desc[i]->vfs_node = open_vfs(fs_root, filename);
 			if(!ioctx->file_desc[i]->vfs_node)

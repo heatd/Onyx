@@ -29,6 +29,7 @@
 #include <kernel/spinlock.h>
 #include <stdio.h>
 
+#include <kernel/panic.h>
 #include <kernel/dev.h>
 unsigned int max_row = 0;
 static const unsigned int max_row_fallback = 1024/16;
@@ -268,7 +269,21 @@ size_t ttydevfs_read(size_t offset, size_t count, void *buffer, vfsnode_t *this)
 void tty_create_dev()
 {
 	vfsnode_t *ttydev = creat_vfs(slashdev, "/dev/tty", 0666);
-	ttydev->write = ttydevfs_write;
-	ttydev->read = ttydevfs_read;
+	if(!ttydev)
+		panic("Could not allocate /dev/tty!\n");
+
+	struct minor_device *minor = dev_register(0, 0);
+	if(!minor)
+		panic("Could not allocate a device ID!\n");
+	
+	minor->fops = malloc(sizeof(struct file_ops));
+	if(!minor->fops)
+		panic("Could not allocate a file operation table!\n");
+	
+	memset(minor->fops, 0, sizeof(struct file_ops));
+
+	ttydev->dev = minor->majorminor;
+	minor->fops->write = ttydevfs_write;
+	minor->fops->read = ttydevfs_read;
 	ttydev->type = VFS_TYPE_CHAR_DEVICE;
 }

@@ -21,10 +21,10 @@
  **************************************************************************/
 #include <stdlib.h>
 #include <stdio.h>
+#include <errno.h>
 
 #include <kernel/registers.h>
 #include <kernel/irq.h>
-
 irq_list_t *irq_routines[24]  =
 {
     0, 0, 0, 0, 0, 0, 0, 0,
@@ -36,6 +36,11 @@ void irq_install_handler(int irq, irq_t handler)
 	if(!lst)
 	{
 		lst = (irq_list_t*)malloc(sizeof(irq_list_t));
+		if(!lst)
+		{
+			errno = ENOMEM;
+			return; /* TODO: Return a value indicating an error */
+		}
 		memset(lst, 0, sizeof(irq_list_t));
 		lst->handler = handler;
 		irq_routines[irq] = lst;
@@ -44,6 +49,11 @@ void irq_install_handler(int irq, irq_t handler)
 	while(lst->next != NULL)
 		lst = lst->next;
 	lst->next = (irq_list_t*)malloc(sizeof(irq_list_t));
+	if(!lst->next)
+	{
+		errno = ENOMEM;
+		return; /* See the above TODO */
+	}
 	lst->next->handler = handler;
 	lst->next->next = NULL;
 }

@@ -25,6 +25,8 @@
 
 void mutex_lock(unsigned long*);
 void mutex_unlock(unsigned long*);
+void spinlock_lock(unsigned long*);
+void spinlock_unlock(unsigned long*);
 int printf(const char *, ...);
 extern const uint16_t CONFIG_ADDRESS;
 extern const uint16_t CONFIG_DATA;
@@ -132,12 +134,12 @@ void AcpiOsDeleteMutex(ACPI_MUTEX Handle)
 // TODO: Implement Timeout
 ACPI_STATUS AcpiOsAcquireMutex(ACPI_MUTEX Handle, UINT16 Timeout)
 {
-	mutex_lock((unsigned long*)Handle);
+	spinlock_lock((unsigned long*) Handle);
 	return AE_OK;
 }
 void AcpiOsReleaseMutex(ACPI_MUTEX Handle)
 {
-	mutex_unlock((unsigned long*)Handle);
+	spinlock_unlock((unsigned long*) Handle);
 }
 // TODO: Implement Semaphores (should be pretty simple)
 ACPI_STATUS AcpiOsCreateSemaphore(UINT32 MaxUnits, UINT32 InitialUnits, ACPI_SEMAPHORE * OutHandle)
@@ -173,12 +175,12 @@ void AcpiOsDeleteLock(ACPI_HANDLE Handle)
 }
 ACPI_CPU_FLAGS AcpiOsAcquireLock(ACPI_SPINLOCK Handle)
 {
-	mutex_lock((unsigned long*)Handle);
+	spinlock_lock((unsigned long*)Handle);
 	return 0;
 }
 void AcpiOsReleaseLock(ACPI_SPINLOCK Handle, ACPI_CPU_FLAGS Flags)
 {
-	mutex_unlock((unsigned long*)Handle);
+	spinlock_unlock((unsigned long*)Handle);
 }
 ACPI_OSD_HANDLER ServiceRout;
 void *ctx;

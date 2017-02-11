@@ -109,6 +109,10 @@ void kernel_parse_command_line(char *cmd)
 				token = original_string + strlen(original_string);
 			size_t size_token = (size_t)(token - cmd);
 			char *new_string = malloc(size_token + 1);
+			if(!new_string)
+			{
+				ERROR("kernel", "failed parsing: out of memory\n");
+			}
 			memset(new_string, 0, size_token + 1);
 			memcpy(new_string, cmd, size_token);
 			kernel_arguments[kernel_argc] = new_string;
@@ -172,14 +176,31 @@ retry:;
 	current_process = proc;
 	/* Setup stdio */
 	proc->ctx.file_desc[0] = malloc(sizeof(file_desc_t));
+	if(!proc->ctx.file_desc[0])
+	{
+		panic("kernel: out of memory while loading init(file descriptor 0)!\n");
+	}
 	proc->ctx.file_desc[0]->vfs_node = open_vfs(slashdev, "/dev/tty");
+	if(!proc->ctx.file_desc[0]->vfs_node)
+	{
+		perror("kernel: ");
+		panic("");
+	}
 	proc->ctx.file_desc[0]->seek = 0;
 	proc->ctx.file_desc[0]->flags = O_RDONLY;
 	proc->ctx.file_desc[1] = malloc(sizeof(file_desc_t));
+	if(!proc->ctx.file_desc[1])
+	{
+		panic("kernel: out of memory while loading init(file descriptor 1)!\n");
+	}
 	proc->ctx.file_desc[1]->vfs_node = open_vfs(slashdev, "/dev/tty");
 	proc->ctx.file_desc[1]->seek = 0;
 	proc->ctx.file_desc[1]->flags = O_WRONLY;
 	proc->ctx.file_desc[2] = malloc(sizeof(file_desc_t));
+	if(!proc->ctx.file_desc[2])
+	{
+		panic("kernel: out of memory while loading init(file descriptor 2)!\n");
+	}
 	proc->ctx.file_desc[2]->vfs_node = open_vfs(slashdev, "/dev/tty");
 	proc->ctx.file_desc[2]->seek = 0;
 	proc->ctx.file_desc[2]->flags = O_WRONLY;

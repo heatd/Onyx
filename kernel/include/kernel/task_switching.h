@@ -47,4 +47,5 @@ void* sched_switch_thread(void* last_stack);
 void sched_sleep(unsigned long ms);
 void sched_yield();
 void thread_add(thread_t *add);
+void set_current_thread(thread_t *t);
 #endif

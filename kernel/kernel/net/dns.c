@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <errno.h>
 
 #include <kernel/log.h>
 #include <kernel/dns.h>
@@ -50,6 +51,8 @@ void dns_init()
 	memset(hashtable, 0, sizeof(hostname_hashtable_t));
 	hashtable->size = DEFAULT_SIZE;
 	hashtable->buckets = malloc(DEFAULT_SIZE * sizeof(void*));
+	if(!hashtable->buckets)
+		panic("oom while allocating a hashtable bucket\n");
 	memset(hashtable->buckets, 0, sizeof(void*) * DEFAULT_SIZE);
 }
 
@@ -66,6 +69,8 @@ void dns_fill_hashtable(int hash, const char *name, uint32_t address)
 		prev = host;
 	
 	host = malloc(sizeof(hostname_t));
+	if(!host)
+		return errno = ENOMEM, (void) 0;
 	memset(host, 0, sizeof(hostname_t));
 
 	if(!hashtable->buckets[hash])
@@ -87,7 +92,8 @@ uint32_t dns_resolve_host(const char *name)
 	}
 	/* else just perform a normal dns request and fill the hashtable after that */
 	uint32_t address = dns_send_request(name);
-
+	if(address == (uint32_t) -1 && errno == ENOMEM)
+		return -1;
 	dns_fill_hashtable(hash, name, address);
 
 	return address;
@@ -100,6 +106,8 @@ uint32_t dns_send_request(const char *name)
 
 	/* Allocate and zero it out */
 	struct dns *request = malloc(size);
+	if(!request)
+		return errno = ENOMEM, -1;
 	memset(request, 0, size);
 	/* TODO: When we support concurent network operations(we currently don't), make sure we use the dns_id field for something */
 	request->dns_id = 0xFEFE;

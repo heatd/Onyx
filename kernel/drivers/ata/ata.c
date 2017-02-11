@@ -154,13 +154,15 @@ ssize_t ata_read(size_t offset, size_t count, void* buffer, struct blkdev* blkd)
 {
 	struct ide_drive *drv = blkd->device_info;
 	if(drv->type == ATA_TYPE_ATAPI)
-		return -1;
+		return errno = ENODEV, -1;
 	if(!drv)
 		return errno = EINVAL, -1;
 	size_t off = offset;
-	void *buf = vmm_allocate_virt_address(VM_KERNEL, vmm_align_size_to_pages(count), VMM_TYPE_REGULAR, VMM_NOEXEC | VMM_WRITE);
-	vmm_map_range(buf, vmm_align_size_to_pages(count), VMM_WRITE | VMM_NOEXEC);
+	void *buf = NULL;
+	posix_memalign(&buf, UINT16_MAX, count);
 
+	if(!buf)
+		return errno = ENOMEM, -1;
 	if(count < UINT16_MAX) ata_read_sectors(drv->channel, drv->drive, (uint32_t) (uintptr_t)virtual2phys(buf), count + off % 512, off / 512);
 	/* If count > count_max, split this into multiple I/O operations */
 	if(count > UINT16_MAX)
@@ -168,6 +170,8 @@ ssize_t ata_read(size_t offset, size_t count, void* buffer, struct blkdev* blkd)
 		panic("Implement, you lazy ass!");
 	}
 	memcpy(buffer, buf, count);
+
+	free(buf);
 	return count;
 }
 ssize_t ata_write(size_t offset, size_t count, void* buffer, struct blkdev* blkd)
@@ -176,9 +180,9 @@ ssize_t ata_write(size_t offset, size_t count, void* buffer, struct blkdev* blkd
 	if(!drv)
 		return errno = EINVAL, -1;
 	size_t off = offset;
-	printf("reading from offset %u\n", off);
-	void *buf = vmm_allocate_virt_address(VM_KERNEL, vmm_align_size_to_pages(count), VMM_TYPE_REGULAR, VMM_NOEXEC | VMM_WRITE);
-	vmm_map_range(buf, vmm_align_size_to_pages(count), VMM_WRITE | VMM_NOEXEC);
+	
+	void *buf = NULL;
+	posix_memalign(&buf, UINT16_MAX, count);
 
 	memcpy(buf, buffer, count);
 
@@ -188,6 +192,8 @@ ssize_t ata_write(size_t offset, size_t count, void* buffer, struct blkdev* blkd
 	{
 		panic("Implement, you lazy ass!");
 	}
+
+	memcpy(buffer, buf, count);
 	return count;
 }
 int ata_initialize_drive(int channel, int drive)
@@ -229,28 +235,62 @@ int ata_initialize_drive(int channel, int drive)
 	ide_drives[curr].channel = channel;
 
 	char *path = malloc(strlen(devname) + 1);
+	if(!path)
+		return 1;
 	strcpy(path, devname);
 	path[strlen(path) - 1] = 'a' + curr;
 
 	/* Create /dev/hdx */
 	vfsnode_t *atadev = creat_vfs(slashdev, path, 0666);
-	/*atadev->write = atadevfs_write;
-	atadev->read = atadevfs_read;*/
+	if(!atadev)
+	{
+		free(path);
+		FATAL("ata", "could not create a device node!\n");
+		return 0;
+	}
+	/* Allocate a major-minor pair for a device */
+	struct minor_device *min = dev_register(0, 0);
+	if(!min)
+	{
+		free(path);
+		FATAL("ata", "could not create a device ID for %s\n", path);
+		return 0;
+	}
+	
+	min->fops = malloc(sizeof(struct file_ops));
+	if(!min->fops)
+	{
+		free(path);
+		dev_unregister(min->majorminor);
+		FATAL("ata", "could not create a file operation table for %s\n", path);
+		return 0;
+	}
+	memset(min->fops, 0, sizeof(struct file_ops));
+	/*min->fops->write = atadevfs_write;
+	min->fops->read = atadevfs_read;*/
 	atadev->type = VFS_TYPE_CHAR_DEVICE;
+	atadev->dev = min->majorminor;
 	num_drives++;
 
 	if(ide_drives[curr].buffer[0] == 0)
 		ide_drives[curr].type = ATA_TYPE_ATAPI;
 	else
 		ide_drives[curr].type = ATA_TYPE_ATA;
-	INFO("ata", "Created %s for drive %u\n", path, num_drives);
 
 	/* Add to the block device layer */
 	block_device_t *dev = malloc(sizeof(block_device_t));
+
+	if(!dev)
+	{
+		FATAL("ata", "could not create a block device\n");
+		free(min->fops);
+		dev_unregister(min->majorminor);
+		return 1;	
+	}
 	memset(dev, 0, sizeof(block_device_t));
 
 	dev->device_info = &ide_drives[curr];
-
+	dev->dev = min->majorminor;
 	dev->node_path = path;
 	dev->read = ata_read;
 	dev->write = ata_write;
@@ -258,6 +298,8 @@ int ata_initialize_drive(int channel, int drive)
 	dev->power = ata_pm;
 	blkdev_add_device(dev);
 	
+	INFO("ata", "Created %s for drive %u\n", path, num_drives);
+	free(path);
 	return 1;
 }
 void ata_init(PCIDevice *dev)

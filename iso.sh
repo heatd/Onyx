@@ -9,6 +9,7 @@ mkdir -p isodir/boot/grub
 ROOTDIR="$(pwd)"
 cp modules.load sysroot/etc/modules.load
 cp hostname sysroot/etc/hostname
+cp passwd sysroot/etc/passwd
 echo "Generating Packages..."
 rm -rf sysroot/usr/include/acpica
 mkdir -p $ROOTDIR/sysroot/pkg
