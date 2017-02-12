@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016, 2017 Pedro Falcato
+ * Copyright (C) 2017 Pedro Falcato
  *
  * This file is part of Spartix, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -8,15 +8,14 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#include <errno.h>
-#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-
-void perror(const char *error_msg)
+#include <errno.h>
+char *strdup(const char *s)
 {
-	const char *error = (const char*) strerror(errno);
-	if(error_msg && *error_msg != '\0')
-		printk("%s: %s\n", error_msg, error);
-	else
-		printk("%s\n", error);	
+	char *new_string = malloc(strlen(s) + 1);
+	if(!new_string)
+		return errno = ENOMEM, NULL;
+	strcpy(new_string, s);
+	return new_string;
 }

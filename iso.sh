@@ -10,6 +10,7 @@ ROOTDIR="$(pwd)"
 cp modules.load sysroot/etc/modules.load
 cp hostname sysroot/etc/hostname
 cp passwd sysroot/etc/passwd
+cp fstab sysroot/etc/fstab
 echo "Generating Packages..."
 rm -rf sysroot/usr/include/acpica
 mkdir -p $ROOTDIR/sysroot/pkg

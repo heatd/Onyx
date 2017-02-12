@@ -160,10 +160,9 @@ typedef struct ex
 	uint32_t blocks_per_block_group;
 	uint32_t inodes_per_block_group;
 	uint32_t number_of_block_groups;
-	int channel, drive;
+	block_device_t *blkdevice;
 	uint16_t inode_size;
 	block_group_desc_t *bgdt;
 	struct ex *next;
 } ext2_fs_t;
-void init_ext2drv();
 #endif

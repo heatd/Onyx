@@ -11,7 +11,7 @@
 #include <string.h>
 #include <stdio.h>
 
-char *last_string = NULL;
+static char *last_string = NULL;
 char *strtok(char *s, char *delim)
 {
 	if(!s)

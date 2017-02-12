@@ -53,6 +53,7 @@ string/wmemcpy.o \
 string/memccpy.o \
 string/strerror.o \
 string/stpcpy.o \
+string/strdup.o \
 stdlib/_Exit.o \
 stdio/fprintf.o \
 stdio/fread.o \

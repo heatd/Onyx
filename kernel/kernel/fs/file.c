@@ -14,6 +14,10 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdio.h>
+
+#include <partitions.h>
+
+#include <kernel/compiler.h>
 #include <kernel/vmm.h>
 #include <kernel/vfs.h>
 #include <kernel/process.h>
@@ -78,6 +82,7 @@ ssize_t sys_write(int fd, const void *buf, size_t count)
 }
 int sys_open(const char *filename, int flags)
 {
+	printk("Opening %s\n", filename);
 	ioctx_t *ioctx = &current_process->ctx;
 	for(int i = 0; i < UINT16_MAX; i++)
 	{
@@ -319,10 +324,33 @@ int sys_mount(const char *source, const char *target, const char *filesystemtype
 		return errno =-EINVAL;
 	if(!vmm_is_mapped((void*) filesystemtype))
 		return errno =-EINVAL;
-	if(!vmm_is_mapped((void*) data))
-		return errno =-EINVAL;
+	
+	/* Find the 'filesystemtype's handler */
+	filesystem_mount_t *fs = find_filesystem_handler(filesystemtype);
+	if(!fs)
+		return errno = -ENODEV;
+	/* Get the device name */
+	char *dev_name = strdup(source);
+	if(!dev_name)
+		return errno = -ENOMEM;
+	dev_name[strlen(dev_name)-1] = '\0';
+	block_device_t *block = blkdev_search((const char *)dev_name);
 
-	return 0;
+	int part_index = source[strlen(source)-1] - '1';
+
+	uint64_t lba = partition_find(part_index, block, fs);
+	
+	vfsnode_t *node = NULL;
+	int ret = 0;
+	if(!(node = fs->handler(lba, block)))
+	{
+		ret = 1;
+		goto exit;
+	}
+	mount_fs(node, target);
+exit:
+	free(dev_name);
+	return ret;
 }
 int sys_isatty(int fd)
 {

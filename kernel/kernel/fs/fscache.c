@@ -36,21 +36,22 @@ void fscache_initialize(void)
 		ERROR("fscache", "No memory available for the caches.");
 	}
 }
-void fscache_cache_sectors(char *sectors, block_device_t *dev, uint64_t lba, size_t nr_sectors)
+void fscache_cache_sectors(char *sectors, block_device_t *dev, uint64_t lba, size_t count)
 {
+	printk("Caching!\n");
 	struct fscache_section *s = slab_allocate(slab_cache);
 	if(!s)
 		return;
 	s->dev = dev;
 	s->lba = lba;
-	s->nr_sectors = nr_sectors;
-	s->data = malloc(nr_sectors * 512); /* TODO: We shouldn't assume this. Detect from block_device_t */
+	s->count = count;
+	s->data = malloc(count);
 	if(!s->data)
 	{
 		slab_free(slab_cache, s);
 		return;
 	}
-	memcpy(s->data, sectors, nr_sectors * 512); /* See above */
+	memcpy(s->data, sectors, count);
 
 	struct fscache_hashtable *h = &cache_hashtable[hash_device(dev->dev)];
 
@@ -74,7 +75,14 @@ void fscache_cache_sectors(char *sectors, block_device_t *dev, uint64_t lba, siz
 	h->next->cache = s;
 	h->next->next = NULL;
 }
-void *fscache_try_to_find_block(uint64_t lba, block_device_t *dev, size_t nr_sectors)
+inline uint64_t count2lba(size_t count)
+{
+	uint64_t lba = count / 512;
+	if(count % 512)
+		lba++;
+	return lba;
+}
+void *fscache_try_to_find_block(uint64_t lba, block_device_t *dev, size_t count)
 {
 	if(!dev)
 		return NULL;
@@ -86,10 +94,10 @@ void *fscache_try_to_find_block(uint64_t lba, block_device_t *dev, size_t nr_sec
 
 	for(; h->next; h = h->next)
 	{
-		if(h->cache->lba == lba && h->cache->dev == dev && h->cache->nr_sectors >= nr_sectors)
+		if(h->cache->lba == lba && h->cache->dev == dev && h->cache->count >= count)
 			return h->cache->data;
-		if(h->cache->lba + h->cache->nr_sectors < lba && h->cache->nr_sectors - (lba - h->cache->lba) >= nr_sectors)
-			return h->cache->data + (lba - h->cache->lba);
+		if(h->cache->lba + count2lba(h->cache->count) > lba && h->cache->lba < lba)
+			return h->cache->data + (h->cache->lba - lba) * 512;
 	}
 
 	return NULL;

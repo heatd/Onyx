@@ -11,6 +11,8 @@
 #ifndef _TYPES_H
 #define _TYPES_H
 
+#include <assert.h>
+
 #ifndef __pid_t_defined
 #define __pid_t_defined
 typedef long pid_t;
@@ -80,6 +82,12 @@ typedef unsigned long id_t;
 #ifndef __dev_t_defined
 #define __dev_t_defined
 typedef unsigned int dev_t;
+#endif
+
+#if defined(__is_spartix_kernel) && !defined(__uuid_t_defined)
+#define __uuid_t_defined
+static_assert(sizeof(unsigned short) == 2, "uuid_t needs a 16-bit(2 byte) type!");
+typedef unsigned short uuid_t[8];
 #endif
 
 #endif

@@ -91,13 +91,8 @@ struct minor_device *dev_register(unsigned int major, unsigned int first_minor)
 	else
 	{
 		c = major_devices[major_to_hash(major)]->list;
-		for(; c->next; c = c->next)
-		{
-			if(MINOR(c->majorminor) == first_minor)
-			{
-				first_minor++;
-			}
-		}
+		first_minor = major_devices[major_to_hash(major)]->subdevs;
+		for(; c->next; c = c->next);
 	}
 
 	c->next = malloc(sizeof(struct minor_device));
@@ -108,7 +103,6 @@ struct minor_device *dev_register(unsigned int major, unsigned int first_minor)
 	major_devices[major_to_hash(major)]->subdevs++;
 	c->next->majorminor = MKDEV(major, first_minor);
 	c->next->next = NULL;
-
 	return c->next;
 }
 void dev_unregister(dev_t dev)

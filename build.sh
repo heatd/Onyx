@@ -9,11 +9,6 @@ done
 for PACKAGE in $SOURCE_PACKAGES; do
   DESTDIR="$PWD/sysroot" $MAKE -C $PACKAGE install -s
 done
-mkdir -p sysroot/etc/
-cat > sysroot/etc/fstab << EOF
-/dev/sda1     /
-
-EOF
 x86_64-spartix-nm kernel/vmspartix > Kernel.map
 cp Kernel.map sysroot/boot/Kernel.map
 sha256sum kernel/vmspartix > vmspartix.sha256

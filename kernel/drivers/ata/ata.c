@@ -23,6 +23,7 @@
 #include <kernel/dev.h>
 #include <kernel/block.h>
 #include <kernel/log.h>
+#include <kernel/fscache.h>
 #include <kernel/compiler.h>
 
 #include <drivers/ata.h>
@@ -59,7 +60,7 @@ int ata_wait_for_irq(uint64_t timeout)
 	uint64_t time = get_tick_count();
 	while(!irq)
 	{
-		if(get_tick_count() - time == timeout)
+		if(get_tick_count() - time <= timeout)
 		{
 			irq = 0;
 			return 2;
@@ -159,11 +160,12 @@ ssize_t ata_read(size_t offset, size_t count, void* buffer, struct blkdev* blkd)
 		return errno = EINVAL, -1;
 	size_t off = offset;
 	void *buf = NULL;
-	posix_memalign(&buf, UINT16_MAX, count);
+	errno = posix_memalign(&buf, UINT16_MAX+1, count);
 
 	if(!buf)
-		return errno = ENOMEM, -1;
-	if(count < UINT16_MAX) ata_read_sectors(drv->channel, drv->drive, (uint32_t) (uintptr_t)virtual2phys(buf), count + off % 512, off / 512);
+		return -1;
+	if(count < UINT16_MAX) ata_read_sectors(drv->channel, drv->drive, (uint32_t) (uintptr_t)virtual2phys(buf), count, off / 512);
+	//fscache_cache_sectors(buffer, blkd, off / 512, count);
 	/* If count > count_max, split this into multiple I/O operations */
 	if(count > UINT16_MAX)
 	{
@@ -180,13 +182,15 @@ ssize_t ata_write(size_t offset, size_t count, void* buffer, struct blkdev* blkd
 	if(!drv)
 		return errno = EINVAL, -1;
 	size_t off = offset;
-	
-	void *buf = NULL;
-	posix_memalign(&buf, UINT16_MAX, count);
 
+	void *buf = NULL;
+	errno = posix_memalign(&buf, UINT16_MAX+1, count);
+
+	if(!buf)
+		return -1;
 	memcpy(buf, buffer, count);
 
-	if(count < UINT16_MAX) ata_write_sectors(drv->channel, drv->drive, (uint32_t) (uintptr_t) buf, count + off % 512, off / 512);
+	if(count < UINT16_MAX) ata_write_sectors(drv->channel, drv->drive, (uint32_t) (uintptr_t)virtual2phys(buf), count, off / 512);
 	/* If count > count_max, split this into multiple I/O operations */
 	if(count > UINT16_MAX)
 	{
@@ -299,7 +303,6 @@ int ata_initialize_drive(int channel, int drive)
 	blkdev_add_device(dev);
 	
 	INFO("ata", "Created %s for drive %u\n", path, num_drives);
-	free(path);
 	return 1;
 }
 void ata_init(PCIDevice *dev)
