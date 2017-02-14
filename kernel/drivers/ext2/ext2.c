@@ -275,9 +275,14 @@ vfsnode_t *ext2_open(vfsnode_t *nd, const char *name)
 	/* Calculate the size of the directory */
 	size_t size = ((uint64_t)ino->size_hi << 32) | ino->size_lo;
 	char *p = strdup(name);
+	if(!p)
+		return errno = ENOMEM, NULL;
 	char *inode_data = malloc(size);
 	if(!inode_data)
+	{
+		free(p);
 		return errno = ENOMEM, NULL;
+	}
 	ext2_read_inode(ino, fs, size, 0, inode_data);
 	dir_entry_t *dir = (dir_entry_t*) inode_data;
 
@@ -289,7 +294,7 @@ vfsnode_t *ext2_open(vfsnode_t *nd, const char *name)
 		if(!ino)
 			return errno = ENOENT, NULL;
 
-		inode_data = malloc(size);
+		inode_data = realloc(inode_data, ((uint64_t)ino->size_hi << 32) | ino->size_lo);
 		if(!inode_data)
 			return errno = ENOMEM, NULL;
 		ext2_read_inode(ino, fs, size, 0, inode_data);
@@ -311,6 +316,7 @@ vfsnode_t *ext2_open(vfsnode_t *nd, const char *name)
 	node->size = ((uint64_t)ino->size_hi << 32) | ino->size_lo;
 	node->uid = ino->uid;
 	node->gid = ino->gid;
+	
 	return node;
 }
 vfsnode_t *ext2_mount_partition(uint64_t sector, block_device_t *dev)
@@ -402,4 +408,9 @@ __init void init_ext2drv()
 {
 	if(partition_add_handler(ext2_mount_partition, "ext2", EXT2_MBR_CODE, ext2_gpt_uuid, 4) == 1)
 		FATAL("ext2", "error initializing the handler data\n");
+}
+unsigned int ext2_getdents(unsigned int count, struct dirent* dirp, vfsnode_t* this)
+{
+	size_t read = count;
+	return read;
 }
