@@ -207,6 +207,8 @@ loop:
 		goto loop;
 	}
 	switch_users(user->gid, user->uid);
+	int fd = open("/bin/sh", O_RDONLY);
+	
 	while(1);
 	/* Spawn the login shell */
 	int pid = fork();
