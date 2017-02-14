@@ -116,7 +116,7 @@ typedef struct
 } __attribute__((aligned(32))) block_group_desc_t;
 typedef struct
 {
-	uint16_t type_perm;
+	uint16_t mode;
 	uint16_t uid;
 	uint32_t size_lo;
 	uint32_t atime;

@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <dirent.h>
 
 #include <sys/types.h>
 
@@ -40,6 +41,7 @@ uuid_t ext2_gpt_uuid[4] =
 };
 ext2_fs_t *fslist = NULL;
 ssize_t ext2_read_inode(inode_t *ino, ext2_fs_t *fs, size_t size, off_t off, char *buffer);
+unsigned int ext2_getdents(unsigned int count, struct dirent* dirp, off_t off, vfsnode_t* this);
 void *ext2_read_block(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs)
 {
 	size_t size = blocks * fs->block_size; /* size = nblocks * block size */
@@ -314,10 +316,29 @@ vfsnode_t *ext2_open(vfsnode_t *nd, const char *name)
 	node->name = (char*) name;
 	node->dev = nd->dev;
 	node->inode = inode_num;
+
+	/* Detect the file type */
+	if(ino->mode & EXT2_INO_TYPE_DIR)
+		node->type = VFS_TYPE_DIR;
+	else if(ino->mode & EXT2_INO_TYPE_REGFILE)
+		node->type = VFS_TYPE_FILE;
+	else if(ino->mode & EXT2_INO_TYPE_BLOCKDEV)
+		node->type = VFS_TYPE_BLOCK_DEVICE;
+	else if(ino->mode & EXT2_INO_TYPE_CHARDEV)
+		node->type = VFS_TYPE_CHAR_DEVICE;
+	else if(ino->mode & EXT2_INO_TYPE_SYMLINK)
+		node->type = VFS_TYPE_SYMLINK;
+	else if(ino->mode & EXT2_INO_TYPE_FIFO)
+		node->type = VFS_TYPE_FIFO;
+	else if(ino->mode & EXT2_INO_TYPE_UNIX_SOCK)
+		node->type = VFS_TYPE_UNIX_SOCK;
+	else
+		node->type = VFS_TYPE_UNK;
 	node->size = ((uint64_t)ino->size_hi << 32) | ino->size_lo;
 	node->uid = ino->uid;
 	node->gid = ino->gid;
 	
+	free(ino);
 	return node;
 }
 vfsnode_t *ext2_mount_partition(uint64_t sector, block_device_t *dev)
@@ -401,6 +422,7 @@ vfsnode_t *ext2_mount_partition(uint64_t sector, block_device_t *dev)
 	memset(minor->fops, 0, sizeof(struct file_ops));
 	minor->fops->open = ext2_open;
 	minor->fops->read = ext2_read;
+	minor->fops->getdents = ext2_getdents;
 
 	node->dev = minor->majorminor;
 	return node;
@@ -410,8 +432,70 @@ __init void init_ext2drv()
 	if(partition_add_handler(ext2_mount_partition, "ext2", EXT2_MBR_CODE, ext2_gpt_uuid, 4) == 1)
 		FATAL("ext2", "error initializing the handler data\n");
 }
-unsigned int ext2_getdents(unsigned int count, struct dirent* dirp, vfsnode_t* this)
+unsigned int ext2_getdents(unsigned int count, struct dirent* dirp, off_t off, vfsnode_t* this)
 {
-	size_t read = count;
+	size_t read = 0;
+	uint32_t inoden = this->inode;
+	ext2_fs_t *fs = fslist;
+	/* Get the inode structure */
+	inode_t *ino = ext2_get_inode_from_number(fs, inoden);	
+
+	size_t inode_size = ((uint64_t)ino->size_hi << 32) | ino->size_lo; 
+	dir_entry_t *dir_entries = malloc(inode_size);
+	if(!dir_entries)
+	{
+		free(ino);
+		return errno = ENOMEM, (unsigned int) -1;
+	}
+	if(ext2_read_inode(ino, fs, inode_size, 0, (char*) dir_entries) != (ssize_t) inode_size)
+	{
+		free(ino);
+		free(dir_entries);
+		return (unsigned int) -1;
+	}
+	while(read < count)
+	{
+		if(dir_entries->inode == 0 && (ssize_t) read == off)
+			return 0;
+		if(dir_entries->inode == 0)
+			return read;
+		if(read + dir_entries->lsbit_namelen + 1 + sizeof(ino_t) + sizeof(off_t) + sizeof(unsigned short) + sizeof(unsigned char) > count)
+			return read;
+		dirp->d_ino = dir_entries->inode;
+		/* Set the dirent type */
+		switch(dir_entries->type_indic)
+		{
+			case 1:
+				dirp->d_type = DT_REG;
+				break;
+			case 4:
+				dirp->d_type = DT_BLK;
+				break;
+			case 2:
+				dirp->d_type = DT_DIR;
+				break;
+			case 3:
+				dirp->d_type = DT_CHR;
+				break;
+			case 5:
+				dirp->d_type = DT_FIFO;
+				break;
+			case 7:
+				dirp->d_type = DT_LNK;
+				break;
+			case 6:
+				dirp->d_type = DT_SOCK;
+				break;
+			default:
+				dirp->d_type = DT_UNKNOWN;
+				break;
+		}
+		memcpy(dirp->d_name, dir_entries->name, dir_entries->lsbit_namelen);
+		dirp->d_name[strlen(dirp->d_name)] = '\0';
+		dirp->d_reclen = dir_entries->lsbit_namelen + 1 + sizeof(ino_t) + sizeof(off_t) + sizeof(unsigned short) + sizeof(unsigned char);
+		read += dirp->d_reclen;
+		dirp = (struct dirent *)((char*) dirp + dirp->d_reclen);
+		dir_entries = (dir_entry_t*)((char*)dir_entries + dir_entries->size);
+	}
 	return read;
 }

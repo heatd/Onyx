@@ -87,7 +87,7 @@ extern int sys_kill(pid_t pid, int sig);
 extern int sys_personality(unsigned long val);
 extern int sys_setuid(uid_t uid);
 extern int sys_setgid(gid_t gid);
-
+extern int sys_fcntl(int fd, int cmd, ...);
 void *syscall_list[] =
 {
 	[0] = (void*) sys_write,
@@ -137,5 +137,6 @@ void *syscall_list[] =
 	[44] = (void*) sys_arch_prctl,
 	[45] = (void*) sys_set_tid_address,
 	[46] = (void*) sys_syslog,
+	[47] = (void*) sys_fcntl,
 	[255] = (void*) sys_nosys
 };

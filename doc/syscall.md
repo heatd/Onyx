@@ -57,3 +57,8 @@ Errno also gets passed through rax, as -errno.
 | 44 | arch_prctl() system call |
 | 45 | set_tid_address() system call |
 | 46 | syslog() system call |
+| 47 | fcntl() system call |
+| 48 | sync() system call |
+| 49 | stat() system call |
+| 50 | fstat() system call |
+| 51 | lstat() system call |

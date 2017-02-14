@@ -13,6 +13,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <string.h>
+#include <dirent.h>
 
 #include <sys/syscall.h>
 struct user
@@ -171,7 +172,6 @@ int main(int argc, char **argv, char **envp)
 	args = argv;
 
 	program_name = argv[0];
-
 	printf("%s: ", argv[0]);
 	fflush(stdout);
 	char *buf = malloc(1024);

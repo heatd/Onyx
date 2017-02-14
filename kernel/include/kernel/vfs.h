@@ -14,18 +14,22 @@
 #include <string.h>
 #include <dirent.h>
 #include <stdarg.h>
+
 #define VFS_TYPE_FILE 		0
 #define VFS_TYPE_DIR 		1
 #define VFS_TYPE_SYMLINK 	(1 << 1)
 #define VFS_TYPE_MOUNTPOINT 	(1 << 2)
 #define VFS_TYPE_CHAR_DEVICE 	(1 << 3)
 #define VFS_TYPE_BLOCK_DEVICE 	(1 << 4)
+#define VFS_TYPE_FIFO		(1 << 5)
+#define VFS_TYPE_UNIX_SOCK	(1 << 6)
+#define VFS_TYPE_UNK		(1 << 7)
 struct vfsnode;
 typedef size_t (*__read)(size_t offset, size_t sizeofread, void* buffer, struct vfsnode* this);
 typedef size_t (*__write)(size_t offset, size_t sizeofwrite, void* buffer, struct vfsnode* this);
 typedef void (*__close)(struct vfsnode* this);
 typedef struct vfsnode *(*__open)(struct vfsnode* this, const char *name);
-typedef unsigned int (*__getdents)(unsigned int count, struct dirent* dirp, struct vfsnode* this);
+typedef unsigned int (*__getdents)(unsigned int count, struct dirent* dirp, off_t off, struct vfsnode* this);
 typedef unsigned int (*__ioctl)(int request, va_list varg, struct vfsnode* this);
 typedef struct vfsnode *(*__creat)(const char *pathname, int mode, struct vfsnode *this);
 
@@ -68,7 +72,7 @@ void close_vfs(vfsnode_t* this);
 vfsnode_t *open_vfs(vfsnode_t* this, const char*);
 int mount_fs(vfsnode_t *node, const char *mp);
 vfsnode_t *creat_vfs(vfsnode_t *node, const char *path, int mode);
-unsigned int getdents_vfs(unsigned int count, struct dirent* dirp, vfsnode_t *this);
+unsigned int getdents_vfs(unsigned int count, struct dirent* dirp, off_t off, vfsnode_t *this);
 int ioctl_vfs(int request, va_list args, vfsnode_t *this);
 int vfs_init();
 

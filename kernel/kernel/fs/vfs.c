@@ -160,7 +160,7 @@ int mount_fs(vfsnode_t *fsroot, const char *path)
 	}
 	return 0;
 }
-unsigned int getdents_vfs(unsigned int count, struct dirent* dirp, vfsnode_t *this)
+unsigned int getdents_vfs(unsigned int count, struct dirent* dirp, off_t off, vfsnode_t *this)
 {
 	struct minor_device *m = dev_find(this->dev);
 	if(!m)
@@ -170,10 +170,10 @@ unsigned int getdents_vfs(unsigned int count, struct dirent* dirp, vfsnode_t *th
 	if(!(this->type & VFS_TYPE_DIR))
 		return errno = ENOTDIR, -1;
 	if(this->type & VFS_TYPE_MOUNTPOINT)
-		return getdents_vfs(count, dirp, this->link);
+		return getdents_vfs(count, dirp, off, this->link);
 	if(m->fops->getdents != NULL)
-		return m->fops->getdents(count, dirp, this);
+		return m->fops->getdents(count, dirp, off, this);
 	
-	return errno = ENOSYS, (unsigned int)-1;
+	return errno = ENOSYS, (unsigned int) -1;
 
 }

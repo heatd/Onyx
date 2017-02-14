@@ -57,7 +57,7 @@ void tar_close(vfsnode_t *this)
 	(void) this;
 	return;
 }
-unsigned int tar_getdents(unsigned int count, struct dirent* dirp, vfsnode_t* this)
+unsigned int tar_getdents(unsigned int count, struct dirent* dirp, off_t off, vfsnode_t* this)
 {
 	char *full_path = this->name;
 	tar_header_t **iterator = headers;

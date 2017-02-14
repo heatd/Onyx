@@ -245,7 +245,7 @@ ssize_t sys_preadv(int fd, const struct iovec *vec, int veccnt, off_t offset)
 ssize_t sys_pwritev(int fd, const struct iovec *vec, int veccnt, off_t offset)
 {
 	if(vmm_check_pointer((void*) vec, sizeof(struct iovec) * veccnt) < 0)
-		return errno =-EINVAL;
+		return errno =-EFAULT;
 
 	if(validate_fd(fd))
 		return -1;
@@ -265,14 +265,14 @@ ssize_t sys_pwritev(int fd, const struct iovec *vec, int veccnt, off_t offset)
 }
 int sys_getdents(int fd, struct dirent *dirp, unsigned int count)
 {
-	if(vmm_check_pointer((void*) dirp, sizeof(struct dirent) * count) < 0)
-		return errno =-EINVAL;
 	if(validate_fd(fd))
 		return errno =-EBADF;
 	if(!count)
 		return 0;
+
 	ioctx_t *ctx = &current_process->ctx;
-	int read_entries_size = getdents_vfs(count, dirp, ctx->file_desc[fd]->vfs_node);
+	int read_entries_size = getdents_vfs(count, dirp, ctx->file_desc[fd]->seek, ctx->file_desc[fd]->vfs_node);
+	ctx->file_desc[fd]->seek += read_entries_size;
 	return read_entries_size;
 }
 int sys_ioctl(int fd, int request, va_list args)
@@ -409,5 +409,10 @@ int sys_pipe(int pipefd[2])
 	pipefd[0] = rdfd;
 	pipefd[1] = wrfd;
 
+	return 0;
+}
+int sys_fcntl(int fd, int cmd, ...)
+{
+	printk("%s: not implemented yet\n", __func__);
 	return 0;
 }

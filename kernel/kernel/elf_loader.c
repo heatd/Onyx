@@ -209,7 +209,7 @@ _Bool elf_parse_program_headers_s(void *file)
 }
 int elf_load_pie(char *path)
 {
-	printf("elf: loading interp %s\n", path);
+	printk("elf: loading interp %s\n", path);
 	if(!path)
 		return errno = EINVAL, 1;
 	if(*path == '\0')
@@ -217,19 +217,19 @@ int elf_load_pie(char *path)
 	vfsnode_t *f = open_vfs(fs_root, path);
 	if(!f)
 	{
-		perror("open_vfs: ");
+		perror("open_vfs");
 		return -1;
 	}
 	char *file = malloc(f->size);
 	if(!file)
 	{
-		perror("malloc: ");
+		perror("malloc");
 		return -1;
 	}
 	size_t read = read_vfs(0, f->size, file, f);
 	if(read != f->size)
 	{
-		perror("read_vfs: ");
+		perror("read_vfs");
 		free(file);
 		close_vfs(f);
 		free(f);
