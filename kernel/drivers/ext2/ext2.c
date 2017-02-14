@@ -290,6 +290,7 @@ vfsnode_t *ext2_open(vfsnode_t *nd, const char *name)
 	char *path = strtok(p, "/");
 	while(path)
 	{
+		free(ino);
 		ino = ext2_get_inode_from_dir(fs, dir, path, &inode_num);
 		if(!ino)
 			return errno = ENOENT, NULL;

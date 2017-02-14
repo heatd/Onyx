@@ -106,9 +106,8 @@ int sys_execve(char *path, char *argv[], char *envp[])
 		return errno =-EINVAL;
 	/* Create a new address space */
 	avl_node_t *tree;
-	current_process->cr3 = vmm_clone_as(&tree);
+	PML4 *cr3 = vmm_clone_as(&tree);
 
-	current_process->tree = tree;
 	/* Open the file */
 	vfsnode_t *in = open_vfs(fs_root, path);
 	if (!in)
@@ -167,6 +166,8 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	}
 	DISABLE_INTERRUPTS();
 
+	current_process->cr3 = cr3;
+	current_process->tree = tree;
 	paging_load_cr3(current_process->cr3);
 
 	/* Map argv and envp */
