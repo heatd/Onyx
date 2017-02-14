@@ -82,7 +82,6 @@ ssize_t sys_write(int fd, const void *buf, size_t count)
 }
 int sys_open(const char *filename, int flags)
 {
-	printk("Opening %s\n", filename);
 	ioctx_t *ioctx = &current_process->ctx;
 	for(int i = 0; i < UINT16_MAX; i++)
 	{
@@ -347,7 +346,8 @@ int sys_mount(const char *source, const char *target, const char *filesystemtype
 		ret = 1;
 		goto exit;
 	}
-	mount_fs(node, target);
+	char *str = strdup(target);
+	mount_fs(node, str);
 exit:
 	free(dev_name);
 	return ret;

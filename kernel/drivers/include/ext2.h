@@ -145,7 +145,6 @@ typedef struct
 	uint8_t lsbit_namelen;
 	uint8_t type_indic;
 	char name[255];
-
 } dir_entry_t;
 typedef struct ex
 {

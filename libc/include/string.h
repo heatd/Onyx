@@ -28,13 +28,15 @@ char *strcat(char *dest, const char *src);
 char *strcpy(char *dest, const char *src);
 int strcmp(char *s, char *t);
 char *strstr(char *str, char *substr);
-char* strtok(char* s, char* delm);
+char *strtok(char *restrict s, const char *restrict sep);
 char *strchr(char *str, int c);
 char *strdup(const char *s);
 void *memchr(const void *str, int c, size_t n);
 wchar_t *wmemcpy(wchar_t *restrict ws1, const wchar_t *restrict ws2, size_t n);
 char *stpcpy(char *restrict s1, const char *restrict s2);
 char *strerror(int errnum);
+size_t strcspn(const char *s, const char *c);
+size_t strspn(const char *s, const char *c);
 
 #ifdef __cplusplus
 __END_C_HEADER

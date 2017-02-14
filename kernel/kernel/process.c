@@ -104,7 +104,6 @@ int sys_execve(char *path, char *argv[], char *envp[])
 		return errno =-EINVAL;
 	if(!vmm_is_mapped(envp))
 		return errno =-EINVAL;
-
 	/* Create a new address space */
 	avl_node_t *tree;
 	current_process->cr3 = vmm_clone_as(&tree);

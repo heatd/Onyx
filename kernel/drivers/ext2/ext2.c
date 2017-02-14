@@ -65,6 +65,12 @@ void ext2_write_block(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs, void
 	size_t size = blocks * fs->block_size; /* size = nblocks * block size */
 	blkdev_write(fs->first_sector * 512 + (block_index * fs->block_size), size, buffer, fs->blkdevice);
 }
+void __ext2_update_atime(inode_t *ino, uint32_t block, ext2_fs_t *fs, inode_t *inode_table)
+{
+	/* Update atime */
+	ino->atime = (uint32_t) get_posix_time();
+	ext2_write_block(block, 1, fs, inode_table);
+}
 inode_t *ext2_get_inode_from_number(ext2_fs_t *fs, uint32_t inode)
 {
 	uint32_t block_size = fs->block_size;
@@ -78,10 +84,9 @@ inode_t *ext2_get_inode_from_number(ext2_fs_t *fs, uint32_t inode)
 	
 	if(!inode_block)
 		return NULL;
-	/* Update atime */
-	inode_block->atime = (uint32_t) get_posix_time();
-	ext2_write_block(bgd->inode_table_addr + block, 1, fs, inode_table);
-
+	
+	/* Update the atime field */
+	__ext2_update_atime(inode_block, bgd->inode_table_addr + block, fs, inode_table);
 	return inode_block;
 }
 inode_t *ext2_get_inode_from_dir(ext2_fs_t *fs, dir_entry_t *dirent, char *name, uint32_t *inode_number)
@@ -89,8 +94,7 @@ inode_t *ext2_get_inode_from_dir(ext2_fs_t *fs, dir_entry_t *dirent, char *name,
 	dir_entry_t *dirs = dirent;
 	while(dirs->inode != 0)
 	{
-		printk("dirs %s\n", dirs->name);
-		if(!strcmp(dirs->name, name))
+		if(!memcmp(dirs->name, name, dirs->lsbit_namelen))
 		{
 			*inode_number = dirs->inode;
 			return ext2_get_inode_from_number(fs, dirs->inode);
@@ -170,7 +174,7 @@ inline ssize_t ext2_read_inode_block(inode_t *ino, uint32_t block, char *buffer,
 	{
 		case EXT2_TYPE_DIRECT_BLOCK:
 		{
-			ext2_read_block_raw(block, 1, fs, buffer);
+			ext2_read_block_raw(ino->dbp[block], 1, fs, buffer);
 			break;
 		}
 		case EXT2_TYPE_SINGLY_BLOCK:
@@ -274,36 +278,25 @@ vfsnode_t *ext2_open(vfsnode_t *nd, const char *name)
 	char *inode_data = malloc(size);
 	if(!inode_data)
 		return errno = ENOMEM, NULL;
-
 	ext2_read_inode(ino, fs, size, 0, inode_data);
-	dir_entry_t *dir = (dir_entry_t*)inode_data;
-	while(p)
+	dir_entry_t *dir = (dir_entry_t*) inode_data;
+
+	/* Get inodes by path segments */
+	char *path = strtok(p, "/");
+	while(path)
 	{
-		if(p != name)
-			p++;
-		// Count the size needed to contain the name
-		size_t len = 0;
-		while(p[len] != '\0' && p[len] != '/')
-		{
-			len++;
-		}
-		char *path = malloc(len+2);
-		if(!path)
-			return errno = ENOMEM, NULL;
-		memset(path, 0, len); // This memset is just to make sure the string is zero-terminated
-		memcpy(path, p, len);
 		ino = ext2_get_inode_from_dir(fs, dir, path, &inode_num);
 		if(!ino)
 			return errno = ENOENT, NULL;
-		if(strtok(p, "/") == NULL)
-			break;
+
 		inode_data = malloc(size);
 		if(!inode_data)
 			return errno = ENOMEM, NULL;
 		ext2_read_inode(ino, fs, size, 0, inode_data);
 		dir = (dir_entry_t*)inode_data;
-		p = strtok(p, "/");
-		free(path);
+
+		/* Get the next path segment */
+		path = strtok(NULL, "/");
 	}
 	vfsnode_t *node = malloc(sizeof(vfsnode_t));
 	if(!node)
@@ -377,7 +370,6 @@ vfsnode_t *ext2_mount_partition(uint64_t sector, block_device_t *dev)
 	else
 		bgdt = ext2_read_block(1, (uint16_t)blocks_for_bgdt, fs);
 	fs->bgdt = bgdt;
-	printk("Blocks for bgdt: %u\n", blocks_for_bgdt);
 	vfsnode_t *node = malloc(sizeof(vfsnode_t));
 	if(!node)
 	{
@@ -404,9 +396,6 @@ vfsnode_t *ext2_mount_partition(uint64_t sector, block_device_t *dev)
 	minor->fops->read = ext2_read;
 
 	node->dev = minor->majorminor;
-	open_vfs(node, "Hello\n");
-	while(1);
-	printk("errno: %u\n", errno);
 	return node;
 }
 __init void init_ext2drv()

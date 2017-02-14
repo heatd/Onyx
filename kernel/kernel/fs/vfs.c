@@ -138,7 +138,6 @@ int mount_fs(vfsnode_t *fsroot, const char *path)
 {
 	if(!strcmp((char*)path, "/"))
 	{
-		printk("Mounting root\n");
 		fs_root->link = fsroot;
 		fs_root->dev = fsroot->dev;
 		fs_root->type = VFS_TYPE_MOUNTPOINT | VFS_TYPE_DIR;
@@ -148,7 +147,7 @@ int mount_fs(vfsnode_t *fsroot, const char *path)
 			ERROR("mount_fs", "out of memory\n");
 		}
 		strcpy(fs_root->name, path);
-		fsroot->mountpoint = (char*)path;
+		fsroot->mountpoint = (char*) path;
 	}
 	else
 	{

@@ -71,7 +71,10 @@ stdio/rewind.o \
 stdio/fgets.o \
 stdio/gets.o \
 stdio/fclose.o \
-stdio/tmpnam.o
+stdio/tmpnam.o \
+string/strcspn.o \
+string/strspn.o \
+string/strchrnul.o
 OBJS:=\
 $(FREEOBJS) \
 libc/init.o \
