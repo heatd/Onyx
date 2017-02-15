@@ -26,7 +26,7 @@
 #include <kernel/portio.h>
 #include <kernel/tty.h>
 #include <drivers/softwarefb.h>
-#include <kernel/spinlock.h>
+#include <kernel/mutex.h>
 #include <stdio.h>
 
 #include <kernel/panic.h>
@@ -130,10 +130,10 @@ void tty_putchar(char c)
 			    terminal_row);
 	terminal_column++;
 }
-static spinlock_t spl;
+static mutex_t spl;
 void tty_write(const char *data, size_t size)
 {
-	acquire_spinlock(&spl);
+	mutex_lock(&spl);
 	for (size_t i = 0; i < size; i++)
 	{
 		// Parse ANSI terminal escape codes
@@ -183,7 +183,7 @@ void tty_write(const char *data, size_t size)
 	}
 	if(currentPty != 0)
 		tty_swap_framebuffers();
-	release_spinlock(&spl);
+	mutex_unlock(&spl);
 }
 #define TTY_PRINT_IF_ECHO(c, l) if(echo) tty_write(c, l)
 char keyboard_buffer[2048];
@@ -195,8 +195,6 @@ void tty_recieved_character(char c)
 	if(c == '\n')
 	{
 		got_line_ready = 1;
-		TTY_PRINT_IF_ECHO("\n", 1);
-		return;
 	}
 	if(c == '\b')
 	{
@@ -262,8 +260,7 @@ size_t ttydevfs_read(size_t offset, size_t count, void *buffer, vfsnode_t *this)
 	char *kb_buf = tty_wait_for_line();
 	memcpy(buffer, kb_buf, count);
 	tty_keyboard_pos = 0;
-	memset(kb_buf, 0, count);
-	memmove(kb_buf, &kb_buf[count], count);
+	memset(kb_buf, 0, 2048);
 	return count;
 }
 void tty_create_dev()

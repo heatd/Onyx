@@ -30,6 +30,8 @@
 #define EXT2_TYPE_SINGLY_BLOCK		1
 #define EXT2_TYPE_DOUBLY_BLOCK		2
 #define EXT2_TYPE_TREBLY_BLOCK		3
+
+#define EXT2_CALCULATE_SIZE64(ino) (((uint64_t)ino->size_hi << 32) | ino->size_lo)
 const unsigned int direct_block_count = 12;
 uuid_t ext2_gpt_uuid[4] = 
 {
@@ -41,6 +43,8 @@ uuid_t ext2_gpt_uuid[4] =
 };
 ext2_fs_t *fslist = NULL;
 ssize_t ext2_read_inode(inode_t *ino, ext2_fs_t *fs, size_t size, off_t off, char *buffer);
+ssize_t ext2_write_inode(inode_t *ino, ext2_fs_t *fs, size_t size, off_t off, char *buffer);
+int ext2_stat(struct stat *buf, vfsnode_t *node);
 unsigned int ext2_getdents(unsigned int count, struct dirent* dirp, off_t off, vfsnode_t* this);
 void *ext2_read_block(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs)
 {
@@ -69,9 +73,16 @@ void ext2_write_block(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs, void
 }
 void __ext2_update_atime(inode_t *ino, uint32_t block, ext2_fs_t *fs, inode_t *inode_table)
 {
+	/* Skip atime updating if the inode doesn't want to */
+	if(ino->flags & EXT2_INO_FLAG_ATIME_NO_UPDT)
+		return;
 	/* Update atime */
 	ino->atime = (uint32_t) get_posix_time();
 	ext2_write_block(block, 1, fs, inode_table);
+}
+inline void __ext2_update_ctime(inode_t *ino)
+{
+	ino->ctime = (uint32_t) get_posix_time();
 }
 inode_t *ext2_get_inode_from_number(ext2_fs_t *fs, uint32_t inode)
 {
@@ -91,6 +102,17 @@ inode_t *ext2_get_inode_from_number(ext2_fs_t *fs, uint32_t inode)
 	__ext2_update_atime(inode_block, bgd->inode_table_addr + block, fs, inode_table);
 	return inode_block;
 }
+void ext2_update_inode(inode_t *ino, ext2_fs_t *fs, uint32_t inode)
+{
+	uint32_t block_size = fs->block_size;
+	uint32_t index = (inode - 1) % fs->inodes_per_block_group;
+	uint32_t block = (index * fs->inode_size) / block_size;
+	uint32_t blockind = (index * fs->inode_size) % block_size;
+	inode_t *inode_block = (inode_t*)((char *) ino - blockind);
+	
+	__ext2_update_ctime(ino);
+	ext2_write_block(block, 1, fs, inode_block);
+}
 inode_t *ext2_get_inode_from_dir(ext2_fs_t *fs, dir_entry_t *dirent, char *name, uint32_t *inode_number)
 {
 	dir_entry_t *dirs = dirent;
@@ -107,34 +129,25 @@ inode_t *ext2_get_inode_from_dir(ext2_fs_t *fs, dir_entry_t *dirent, char *name,
 }
 size_t ext2_write(size_t offset, size_t sizeofwrite, void *buffer, vfsnode_t *node)
 {
+	printk("Writing!\n");
 	ext2_fs_t *fs = fslist;
-	uint32_t block_index = offset / fs->block_size;
-	if(offset % fs->block_size)
-		block_index--;
 	inode_t *ino = ext2_get_inode_from_number(fs, node->inode);
 	if(!ino)
 		return errno = EINVAL, (size_t) -1;
-	/* Ok, this one will be tricky. I'll need to handle 3 different cases of writing. 
+	/* Ok, this one will be tricky. We'll need to handle 3 different cases of writing. 
 	 * 1 - Overwriting file data - this one is easy. Just get the block offset and write to it, then write to disk again again
 	 * 2 - We're writing to a block that's already allocated to the inode, and zeroed - this is also easy, just write to it
 	 * 3 - We're writing to a new block - this one is the hardest. We'll need to allocate a new block, and add it to the disk inode
 	 * this one will require many more writes and reads than usual.
 	*/
-	/*if(offset < node->size)
+	if(offset >= EXT2_CALCULATE_SIZE64(ino))
 	{
-		// This is case 1 of ext2_write
-		char *buf = malloc(sizeofwrite);
-		if(!buf)
-			return errno = ENOMEM, -1;
-		printf("Block index: %u\nSize of write: %u\n", block_index, sizeofwrite);
-		size_t read = ext2_read_file(ino, fs, sizeofwrite, block_index, buf);
-		if(read == (size_t)-1)
-			return errno = EIO, -1;
-		memcpy(buf + (offset % fs->block_size), buffer, sizeofwrite);
-		printf("Writing!\n");
-		return ext2_write_file(ino, fs, sizeofwrite, block_index, buf);
-	}*/
-	return errno = ENOSYS, -1;
+		if(ino->size_lo != UINT16_MAX)
+			ino->size_lo = ino->size_lo + (offset + sizeofwrite - ino->size_lo);
+		/* TODO: Support LFS writing */
+	}
+	ext2_update_inode(ino, fs, node->inode);
+	return ext2_write_inode(ino, fs, sizeofwrite, offset, buffer);
 }
 size_t ext2_read(size_t offset, size_t sizeofreading, void *buffer, vfsnode_t *nd)
 {
@@ -164,7 +177,7 @@ unsigned int ext2_detect_block_type(uint32_t block, ext2_fs_t *fs)
 		return EXT2_TYPE_DOUBLY_BLOCK;
 	return EXT2_TYPE_TREBLY_BLOCK;
 }
-inline ssize_t ext2_read_inode_block(inode_t *ino, uint32_t block, char *buffer, ext2_fs_t *fs)
+ssize_t ext2_read_inode_block(inode_t *ino, uint32_t block, char *buffer, ext2_fs_t *fs)
 {
 	unsigned int type = ext2_detect_block_type(block, fs);
 	
@@ -244,6 +257,108 @@ inline ssize_t ext2_read_inode_block(inode_t *ino, uint32_t block, char *buffer,
 	}
 	return fs->block_size;
 }
+ssize_t ext2_write_inode_block(inode_t *ino, uint32_t block, char *buffer, ext2_fs_t *fs)
+{
+	unsigned int type = ext2_detect_block_type(block, fs);
+	
+	unsigned int min_singly_block = direct_block_count + 1;
+	unsigned int min_doubly_block = (fs->block_size / sizeof(uint32_t)) * (fs->block_size / sizeof(uint32_t));
+	unsigned int min_trebly_block = min_doubly_block * (fs->block_size / sizeof(uint32_t));
+
+	switch(type)
+	{
+		case EXT2_TYPE_DIRECT_BLOCK:
+		{
+			ext2_write_block(ino->dbp[block], 1, fs, buffer);
+			break;
+		}
+		case EXT2_TYPE_SINGLY_BLOCK:
+		{
+			char *sbp = malloc(fs->block_size);
+			if(!sbp)
+				return errno = ENOMEM, -1;
+			ext2_read_block_raw(ino->single_indirect_bp, 1, fs, sbp);
+			ext2_write_block(sbp[block - min_singly_block], 1, fs, buffer);
+			free(sbp);
+			break;
+		}
+		case EXT2_TYPE_DOUBLY_BLOCK:
+		{
+			char *sbp = malloc(fs->block_size);
+			if(!sbp)
+				return errno = ENOMEM, -1;
+			char *dbp = malloc(fs->block_size);
+			if(!dbp)
+			{
+				free(sbp);
+				return errno = ENOMEM, -1;
+			}
+			uint32_t block_index = block;
+			ext2_read_block_raw(ino->doubly_indirect_bp, 1, fs, dbp);
+			ext2_read_block_raw(dbp[block_index - min_doubly_block], 1, fs, sbp);
+			block_index -= min_doubly_block;
+			free(sbp);
+			ext2_write_block(sbp[block_index - min_singly_block], 1, fs, buffer);
+
+			free(dbp);
+			break;
+		}
+		case EXT2_TYPE_TREBLY_BLOCK:
+		{
+			char *sbp = malloc(fs->block_size);
+			if(!sbp)
+				return errno = ENOMEM, -1;
+			char *dbp = malloc(fs->block_size);
+			if(!dbp)
+			{
+				free(sbp);
+				return errno = ENOMEM, -1;
+			}
+			char *tbp = malloc(fs->block_size);
+			if(!tbp)
+			{
+				free(dbp);
+				free(sbp);
+				return errno = ENOMEM, -1;
+			}
+			uint32_t block_index = block - min_trebly_block;
+			ext2_read_block_raw(ino->trebly_indirect_bp, 1, fs, tbp);
+			ext2_read_block_raw(tbp[block_index], 1, fs, dbp);
+			block_index -= min_doubly_block;
+			ext2_read_block_raw(dbp[block_index], 1, fs, sbp);
+			block_index -= min_doubly_block;
+			ext2_write_block(sbp[block_index - min_singly_block], 1, fs, buffer);
+
+			free(tbp);
+			free(sbp);
+			free(dbp);
+			break;
+		}
+	}
+	return fs->block_size;
+}
+ssize_t ext2_write_inode(inode_t *ino, ext2_fs_t *fs, size_t size, off_t off, char *buffer)
+{
+	char *scratch = malloc(fs->block_size);
+	if(!scratch)
+		return errno = ENOMEM, -1;
+	memset(scratch, 0, fs->block_size);
+	ssize_t written = 0;
+	while(written != (ssize_t) size)
+	{
+		uint32_t block = off / fs->block_size;
+		off_t block_off = off % fs->block_size;
+		off_t block_left = fs->block_size - block_off;
+		ext2_read_inode_block(ino, block, scratch, fs);
+		size_t amount = (ssize_t) size - written < block_left ? (ssize_t) size - written : block_left;
+		memcpy(scratch + block_off, buffer + written, amount);
+		ext2_write_inode_block(ino, block, scratch, fs);
+		written += amount;
+		off += amount;
+	}
+	free(scratch);
+	return written;
+}
 /* Reads off an inode */
 ssize_t ext2_read_inode(inode_t *ino, ext2_fs_t *fs, size_t size, off_t off, char *buffer)
 {
@@ -275,7 +390,7 @@ vfsnode_t *ext2_open(vfsnode_t *nd, const char *name)
 	/* Get the inode structure from the number */
 	inode_t *ino = ext2_get_inode_from_number(fs, inoden);	
 	/* Calculate the size of the directory */
-	size_t size = ((uint64_t)ino->size_hi << 32) | ino->size_lo;
+	size_t size = EXT2_CALCULATE_SIZE64(ino);
 	char *p = strdup(name);
 	if(!p)
 		return errno = ENOMEM, NULL;
@@ -297,7 +412,7 @@ vfsnode_t *ext2_open(vfsnode_t *nd, const char *name)
 		if(!ino)
 			return errno = ENOENT, NULL;
 
-		inode_data = realloc(inode_data, ((uint64_t)ino->size_hi << 32) | ino->size_lo);
+		inode_data = realloc(inode_data, EXT2_CALCULATE_SIZE64(ino));
 		if(!inode_data)
 			return errno = ENOMEM, NULL;
 		ext2_read_inode(ino, fs, size, 0, inode_data);
@@ -313,7 +428,7 @@ vfsnode_t *ext2_open(vfsnode_t *nd, const char *name)
 		return errno = ENOMEM, NULL;
 	}
 	memset(node, 0, sizeof(vfsnode_t));
-	node->name = (char*) name;
+	node->name = strdup(name);
 	node->dev = nd->dev;
 	node->inode = inode_num;
 
@@ -334,7 +449,7 @@ vfsnode_t *ext2_open(vfsnode_t *nd, const char *name)
 		node->type = VFS_TYPE_UNIX_SOCK;
 	else
 		node->type = VFS_TYPE_UNK;
-	node->size = ((uint64_t)ino->size_hi << 32) | ino->size_lo;
+	node->size = EXT2_CALCULATE_SIZE64(ino);
 	node->uid = ino->uid;
 	node->gid = ino->gid;
 	
@@ -422,7 +537,9 @@ vfsnode_t *ext2_mount_partition(uint64_t sector, block_device_t *dev)
 	memset(minor->fops, 0, sizeof(struct file_ops));
 	minor->fops->open = ext2_open;
 	minor->fops->read = ext2_read;
+	minor->fops->write = ext2_write;
 	minor->fops->getdents = ext2_getdents;
+	minor->fops->stat = ext2_stat;
 
 	node->dev = minor->majorminor;
 	return node;
@@ -440,7 +557,7 @@ unsigned int ext2_getdents(unsigned int count, struct dirent* dirp, off_t off, v
 	/* Get the inode structure */
 	inode_t *ino = ext2_get_inode_from_number(fs, inoden);	
 
-	size_t inode_size = ((uint64_t)ino->size_hi << 32) | ino->size_lo; 
+	size_t inode_size = EXT2_CALCULATE_SIZE64(ino); 
 	dir_entry_t *dir_entries = malloc(inode_size);
 	if(!dir_entries)
 	{
@@ -498,4 +615,29 @@ unsigned int ext2_getdents(unsigned int count, struct dirent* dirp, off_t off, v
 		dir_entries = (dir_entry_t*)((char*)dir_entries + dir_entries->size);
 	}
 	return read;
+}
+int ext2_stat(struct stat *buf, vfsnode_t *node)
+{
+	uint32_t inoden = node->inode;
+	ext2_fs_t *fs = fslist;
+	/* Get the inode structure */
+	inode_t *ino = ext2_get_inode_from_number(fs, inoden);	
+
+	if(!ino)
+		return 1;
+	/* Start filling the structure */
+	buf->st_dev = node->dev;
+	buf->st_ino = node->inode;
+	buf->st_nlink = ino->hard_links;
+	buf->st_mode = ino->mode;
+	buf->st_uid = node->uid;
+	buf->st_gid = node->gid;
+	buf->st_size = EXT2_CALCULATE_SIZE64(ino);
+	buf->st_atime = ino->atime;
+	buf->st_mtime = ino->mtime;
+	buf->st_ctime = ino->ctime;
+	buf->st_blksize = fs->block_size;
+	buf->st_blocks = buf->st_size % fs->block_size ? (buf->st_size / fs->block_size) + 1 : buf->st_size / fs->block_size;
+	
+	return 0;
 }

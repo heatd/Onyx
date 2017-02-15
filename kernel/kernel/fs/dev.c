@@ -153,7 +153,7 @@ struct minor_device *dev_find(dev_t dev)
 	}
 	return NULL;
 }
-unsigned int devfs_getdents(unsigned int count, struct dirent* dirp, vfsnode_t* this)
+unsigned int devfs_getdents(unsigned int count, struct dirent* dirp, off_t off, vfsnode_t* this)
 {
 	unsigned int found = 0;
 	for(size_t i = 0; i < num_child; i++)

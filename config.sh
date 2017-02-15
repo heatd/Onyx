@@ -1,6 +1,6 @@
 SYSTEM_HEADER_PROJECTS="libc libdrm kernel"
 PROJECTS="libc libdrm kernel"
-SOURCE_PACKAGES="musl cat echo init login sh"
+SOURCE_PACKAGES="musl cat echo init login sh ls"
 
 export MAKE=${MAKE:-make}
 export HOST=${HOST:-$(./default-host.sh)}

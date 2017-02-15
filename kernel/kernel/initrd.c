@@ -49,6 +49,7 @@ size_t tar_write(size_t offset, size_t sizeOfWriting, void *buffer, vfsnode_t *t
 	(void) sizeOfWriting;
 	(void) buffer;
 	(void) this;
+	printk("HEy?\b");
 	/* You can not write to a tar file (usually results in corruption) */
 	return errno = EROFS, 0;
 }

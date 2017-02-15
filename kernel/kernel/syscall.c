@@ -88,6 +88,8 @@ extern int sys_personality(unsigned long val);
 extern int sys_setuid(uid_t uid);
 extern int sys_setgid(gid_t gid);
 extern int sys_fcntl(int fd, int cmd, ...);
+int sys_stat(const char *pathname, struct stat *buf);
+int sys_fstat(int fd, struct stat *buf);
 void *syscall_list[] =
 {
 	[0] = (void*) sys_write,
@@ -138,5 +140,7 @@ void *syscall_list[] =
 	[45] = (void*) sys_set_tid_address,
 	[46] = (void*) sys_syslog,
 	[47] = (void*) sys_fcntl,
+	[48] = (void*) sys_stat,
+	[49] = (void*) sys_fstat,
 	[255] = (void*) sys_nosys
 };

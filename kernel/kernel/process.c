@@ -107,13 +107,11 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	/* Create a new address space */
 	avl_node_t *tree;
 	PML4 *cr3 = vmm_clone_as(&tree);
-
 	/* Open the file */
 	vfsnode_t *in = open_vfs(fs_root, path);
 	if (!in)
 	{
-		errno =-ENOENT;
-		perror(NULL);
+		errno = -ENOENT;
 		release_spinlock(&execve_spl);
 		return errno =-ENOENT;
 	}

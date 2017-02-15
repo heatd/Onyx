@@ -48,8 +48,8 @@ inline int find_free_fd()
 }
 ssize_t sys_read(int fd, const void *buf, size_t count)
 {
-	if(vmm_check_pointer((void*) buf, count) < 0)
-		return errno =-EINVAL;
+	/*if(vmm_check_pointer((void*) buf, count) < 0)
+		return errno =-EFAULT;*/
 
 	ioctx_t *ioctx = &current_process->ctx;
 	if( fd > UINT16_MAX)
@@ -60,8 +60,6 @@ ssize_t sys_read(int fd, const void *buf, size_t count)
 	{
 		return errno =-EBADF;
 	}
-	if(!buf)
-		return errno =-EINVAL;
 	if(!ioctx->file_desc[fd]->flags & O_RDONLY)
 		return errno =-EBADF;
 	ssize_t size = read_vfs(ioctx->file_desc[fd]->seek, count, (char*)buf, ioctx->file_desc[fd]->vfs_node);
@@ -70,14 +68,15 @@ ssize_t sys_read(int fd, const void *buf, size_t count)
 }
 ssize_t sys_write(int fd, const void *buf, size_t count)
 {
-	if(vmm_check_pointer((void*) buf, count) < 0)
-		return errno =-EINVAL;
-
+	/*if(vmm_check_pointer((void*) buf, count) < 0)
+		return errno =-EINVAL;*/
 	if(validate_fd(fd))
 		return errno =-EBADF;
 	if(!current_process->ctx.file_desc[fd]->flags & O_WRONLY)
 		return errno =-EROFS;
 	write_vfs(current_process->ctx.file_desc[fd]->seek, count, (void*) buf, current_process->ctx.file_desc[fd]->vfs_node);
+	if(errno)
+		perror(NULL);
 	return count;
 }
 int sys_open(const char *filename, int flags)
@@ -415,4 +414,24 @@ int sys_fcntl(int fd, int cmd, ...)
 {
 	printk("%s: not implemented yet\n", __func__);
 	return 0;
+}
+int sys_stat(const char *pathname, struct stat *buf)
+{
+	if(!vmm_is_mapped((void*) pathname))
+		return errno = -EFAULT;
+	if(vmm_check_pointer(buf, sizeof(struct stat)) < 0)
+		return errno = -EFAULT;
+	
+	vfsnode_t *stat_node = open_vfs(fs_root, pathname);
+	if(!stat_node)
+		return errno; /* Don't set errno, as we don't know if it was actually a ENOENT */
+	return stat_vfs(buf, stat_node);
+}
+int sys_fstat(int fd, struct stat *buf)
+{
+	if(vmm_check_pointer(buf, sizeof(struct stat)) < 0)
+		return errno = -EFAULT;
+	if(validate_fd(fd))
+		return errno = -EBADF;
+	return stat_vfs(buf, current_process->ctx.file_desc[fd]->vfs_node);
 }

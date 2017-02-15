@@ -14,7 +14,7 @@
 #undef stringify
 #define stringify(str) #str
 #define OS_NAME "Spartix"
-#define OS_RELEASE "0.1.1"
+#define OS_RELEASE "0.2"
 #define OS_VERSION "SMP "__DATE__" "__TIME__
 
 #if defined(__x86_64__)

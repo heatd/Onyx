@@ -15,6 +15,7 @@
 #include <dirent.h>
 #include <stdarg.h>
 
+#include <sys/stat.h>
 #define VFS_TYPE_FILE 		0
 #define VFS_TYPE_DIR 		1
 #define VFS_TYPE_SYMLINK 	(1 << 1)
@@ -32,7 +33,9 @@ typedef struct vfsnode *(*__open)(struct vfsnode* this, const char *name);
 typedef unsigned int (*__getdents)(unsigned int count, struct dirent* dirp, off_t off, struct vfsnode* this);
 typedef unsigned int (*__ioctl)(int request, va_list varg, struct vfsnode* this);
 typedef struct vfsnode *(*__creat)(const char *pathname, int mode, struct vfsnode *this);
-
+typedef int (*stat)(struct stat *buf, struct vfsnode *node);
+typedef int (*link)(const char *newpath, struct vfsnode *node);
+typedef int (*symlink)(const char *linkpath, struct vfsnode *node);
 struct file_ops
 {
 	__read read;
@@ -42,6 +45,9 @@ struct file_ops
 	__getdents getdents;
 	__ioctl ioctl;
 	__creat creat;
+	stat stat;
+	link link;
+	symlink symlink;
 };
 typedef struct vfsnode
 {
@@ -74,6 +80,7 @@ int mount_fs(vfsnode_t *node, const char *mp);
 vfsnode_t *creat_vfs(vfsnode_t *node, const char *path, int mode);
 unsigned int getdents_vfs(unsigned int count, struct dirent* dirp, off_t off, vfsnode_t *this);
 int ioctl_vfs(int request, va_list args, vfsnode_t *this);
+int stat_vfs(struct stat *buf, vfsnode_t *node);
 int vfs_init();
 
 extern vfsnode_t* fs_root;

@@ -7,7 +7,6 @@ spinlock_lock:
 	pause
 	mov rax, 1
 	xchg [rdi], rax
-.mutex_test:
 	cmp rax, 1
 	je .retry
 	pop rbp

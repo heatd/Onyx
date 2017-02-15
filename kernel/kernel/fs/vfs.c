@@ -175,5 +175,18 @@ unsigned int getdents_vfs(unsigned int count, struct dirent* dirp, off_t off, vf
 		return m->fops->getdents(count, dirp, off, this);
 	
 	return errno = ENOSYS, (unsigned int) -1;
-
+}
+int stat_vfs(struct stat *buf, vfsnode_t *node)
+{
+	struct minor_device *m = dev_find(node->dev);
+	if(!m)
+		return errno = ENODEV;
+	if(!m->fops)
+		return errno = ENOSYS;
+	if(node->type & VFS_TYPE_MOUNTPOINT)
+		return stat_vfs(buf, node->link);
+	if(m->fops->stat != NULL)
+		return m->fops->stat(buf, node);
+	
+	return errno = ENOSYS, (unsigned int) -1;
 }

@@ -13,7 +13,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <string.h>
-#include <dirent.h>
+#include <fcntl.h>
 
 #include <sys/syscall.h>
 struct user
@@ -92,7 +92,6 @@ int setup_users()
 		perror(program_name);
 		return 1;
 	}
-
 	/* Allocate a buffer */
 	char *read_buffer = malloc(1024);
 	if(!read_buffer)
@@ -181,7 +180,6 @@ int main(int argc, char **argv, char **envp)
 	/* Setup the internal user-password-uid-gid structures */
 	if(setup_users() == 1)
 	{
-		printf("fuck\n");
 		return 1;
 	}
 loop:
@@ -189,7 +187,9 @@ loop:
 	fflush(stdout);
 
 	read(STDIN_FILENO, buf, 1024);
-
+	char *pos;
+	if((pos = strchr(buf, '\n')))
+    		*pos = '\0';
 	/* Try to find the user */
 	struct user *user = find_user_by_name(buf);
 	if(!user)
@@ -199,26 +199,20 @@ loop:
 	}
 	printf("password:");
 	fflush(stdout);
-
+	memset(buf, 0, 1024);
 	read(STDIN_FILENO, buf, 1024);
+	if((pos = strchr(buf, '\n')))
+    		*pos = '\0';
 	if(strcmp(buf, user->password) != 0)
 	{
 		printf("Unknown password! Try again.\n", buf);
 		goto loop;
 	}
 	switch_users(user->gid, user->uid);
-	int fd = open("/bin/sh", O_RDONLY);
-	
-	while(1);
-	/* Spawn the login shell */
-	int pid = fork();
 
 	args[0] = "/bin/sh";
-	if(pid == 0)
-	{
-		extern char **environ;
-		execve("/bin/sh", args, environ);
-	}
+	extern char **environ;
+	execve("/bin/sh", args, environ);
 	while(1);
 	return 0;
 }

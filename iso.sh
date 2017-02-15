@@ -1,4 +1,3 @@
-
 #!/bin/sh
 set -e
 . ./build.sh
@@ -16,8 +15,8 @@ rm -rf sysroot/usr/include/acpica
 mkdir -p $ROOTDIR/sysroot/pkg
 tar -cvf $ROOTDIR/sysroot/pkg/devel.tar sysroot/usr/include
 xz -9 -e -f $ROOTDIR/sysroot/pkg/devel.tar
-rm -rf $ROOTDIR/sysroot/usr/include
 tar -cvf $ROOTDIR/sysroot/pkg/libs-devel.tar sysroot/usr/lib
+rm -rf $ROOTDIR/sysroot/usr/include
 xz -9 -e -f $ROOTDIR/sysroot/pkg/libs-devel.tar
 echo "Generating initrd..."
 echo "Copying the kernel to the isodir"
