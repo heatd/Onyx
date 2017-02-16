@@ -10,4 +10,4 @@ All the system calls are exposed through syscall.
 Onyx's purpose is to be function-heavy, and light-weight when possible. Bloat is a *NOT* a necessary evil for functionality, as software can be very functional, while remaining light-weight. Onyx will never turn into a glibc or a systemd, as those pieces of software add unnecessary crap to its binary.
 
 ## Development
-If you want to help out in the development of Onyx, you can try joining #onyx on freenode, or fixing issues on GitHub's issue tracker.
+If you want to help out in the development of Onyx, you can try joining #onyx-os on freenode, or fixing issues on GitHub's issue tracker.
