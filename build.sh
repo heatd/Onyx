@@ -9,8 +9,8 @@ done
 for PACKAGE in $SOURCE_PACKAGES; do
   DESTDIR="$PWD/sysroot" $MAKE -C $PACKAGE install -s
 done
-x86_64-spartix-nm kernel/vmspartix > Kernel.map
+x86_64-spartix-nm kernel/vmonyx > Kernel.map
 cp Kernel.map sysroot/boot/Kernel.map
-sha256sum kernel/vmspartix > vmspartix.sha256
+sha256sum kernel/vmonyx > vmonyx.sha256
 mkdir -p $PWD/sysroot/sbin
-cp vmspartix.sha256 $PWD/sysroot/sbin/vmspartix.checksum
+cp vmonyx.sha256 $PWD/sysroot/sbin/vmonyx.checksum

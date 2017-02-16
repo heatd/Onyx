@@ -1,11 +1,11 @@
 # Port Guidelines
 
-## Requirements for a port to Spartix
+## Requirements for a port to Onyx
 - ELF file support (the binary must be in ELF format)
 - No use of dynamic libraries (They are not yet supported)
 - No use of fancy 2D and 3D features
 
-## Requirements for a port to be accepted in the Spartix source tree
+## Requirements for a port to be accepted in the Onyx source tree
 - It *MUST* not be a really hacky patch
 - It *MUST* work
 - It *MUST* be legal (can't contain code used without permition)

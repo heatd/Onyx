@@ -10,5 +10,5 @@ for PACKAGE in $SOURCE_PACKAGES; do
 done
 rm -rfv sysroot
 rm -rfv isodir
-rm -rfv Spartix.iso
+rm -rfv Onyx.iso
 rm -rfv Kernel.map

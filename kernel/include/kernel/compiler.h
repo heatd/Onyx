@@ -1,7 +1,7 @@
 /*----------------------------------------------------------------------
  * Copyright (C) 2016, 2017 Pedro Falcato
  *
- * This file is part of Spartix, and is made available under
+ * This file is part of Onyx, and is made available under
  * the terms of the GNU General Public License version 2.
  *
  * You can redistribute it and/or modify it under the terms of the GNU
@@ -27,7 +27,7 @@
 #error "The OS needs to be compiled using GCC"
 #endif /*__GNUC__ */
 #ifndef __spartix__
-#error "Spartix needs to be compiled using a Spartix Cross Compiler"
+#error "Onyx needs to be compiled using a Onyx Cross Compiler"
 #endif /* __spartix__ */
 #define likely(x)      __builtin_expect(!!(x), 1)
 #define unlikely(x)    __builtin_expect(!!(x), 0)

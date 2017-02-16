@@ -1,7 +1,7 @@
 /*----------------------------------------------------------------------
  * Copyright (C) 2016, 2017 Pedro Falcato
  *
- * This file is part of Spartix, and is made available under
+ * This file is part of Onyx, and is made available under
  * the terms of the GNU General Public License version 2.
  *
  * You can redistribute it and/or modify it under the terms of the GNU
@@ -11,7 +11,7 @@
 #ifndef SYSCALL_H
 #define SYSCALL_H
 #include <errno.h>
-// The Spartix kernel's system call numbers
+// The Onyx kernel's system call numbers
 #define SYS_write	0
 #define SYS_read 	1
 #define SYS_open 	2

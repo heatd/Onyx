@@ -1,7 +1,7 @@
 /*----------------------------------------------------------------------
  * Copyright (C) 2016, 2017 Pedro Falcato
  *
- * This file is part of Spartix, and is made available under
+ * This file is part of Onyx, and is made available under
  * the terms of the GNU General Public License version 2.
  *
  * You can redistribute it and/or modify it under the terms of the GNU
@@ -13,7 +13,7 @@
 
 #undef stringify
 #define stringify(str) #str
-#define OS_NAME "Spartix"
+#define OS_NAME "Onyx"
 #define OS_RELEASE "0.2"
 #define OS_VERSION "SMP "__DATE__" "__TIME__
 

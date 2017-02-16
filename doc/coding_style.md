@@ -1,4 +1,4 @@
-# Spartix Coding Guidelines
+# Onyx Coding Guidelines
 This file will describe the Coding Guidelines used to get a pull accepted to the OS
 ## Identation
 A tab MUST equal 8 spaces ( don't come up with any broken identation, because i won't fix it )

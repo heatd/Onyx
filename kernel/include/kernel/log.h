@@ -1,7 +1,7 @@
 /*----------------------------------------------------------------------
  * Copyright (C) 2016, 2017 Pedro Falcato
  *
- * This file is part of Spartix, and is made available under
+ * This file is part of Onyx, and is made available under
  * the terms of the GNU General Public License version 2.
  *
  * You can redistribute it and/or modify it under the terms of the GNU
@@ -20,7 +20,7 @@
 #define FATAL(x, ...) printf("["ANSI_COLOR_RED"FATAL"ANSI_COLOR_RESET"] "x": "__VA_ARGS__)
 
 #define LOG INFO
-#define SUBMIT_BUG_REPORT(x) printf("If you want this bug/feature to be fixed, open an issue at the repo's issue tracker(https://github.com/heatd/Spartix/issues) with a title along the lines of \"%s: Fix x bug\". Thanks!\n", x);
+#define SUBMIT_BUG_REPORT(x) printf("If you want this bug/feature to be fixed, open an issue at the repo's issue tracker(https://github.com/heatd/Onyx/issues) with a title along the lines of \"%s: Fix x bug\". Thanks!\n", x);
 
 #define LOG_BUF_SHIFT 	18
 #define LOG_BUF_SIZE	(1 << LOG_BUF_SHIFT)

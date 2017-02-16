@@ -530,6 +530,7 @@ MAX_RELEASE_CHECK_RATE   default: 4095 unless not HAVE_MMAP
 #define DLMALLOC_EXPORT extern
 #endif
 
+/* TODO: Shift the GCC target name to onyx */
 #ifdef __spartix__
 #define LACKS_FCNTL_H 1
 #define LACKS_STRINGS_H 1
@@ -538,10 +539,10 @@ MAX_RELEASE_CHECK_RATE   default: 4095 unless not HAVE_MMAP
 #define LACKS_SYS_PARAM_H 1
 #define NO_MALLOC_STATS 1
 #define HAVE_MMAP 1
-#ifdef __is_spartix_kernel
+#ifdef __is_onyx_kernel
 #undef HAVE_MMAP
 #endif
-#endif /*__spartix*/
+#endif /*__onyx*/
 
 #ifndef WIN32
 #ifdef _WIN32

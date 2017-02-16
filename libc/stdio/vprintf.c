@@ -1,7 +1,7 @@
 /*----------------------------------------------------------------------
  * Copyright (C) 2016, 2017 Pedro Falcato
  *
- * This file is part of Spartix, and is made available under
+ * This file is part of Onyx, and is made available under
  * the terms of the GNU General Public License version 2.
  *
  * You can redistribute it and/or modify it under the terms of the GNU
@@ -14,7 +14,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
-#ifdef __is_spartix_kernel
+#ifdef __is_onyx_kernel
 #include <kernel/tty.h>
 #endif
 #include <ctype.h>
@@ -183,7 +183,7 @@ int vprintf(const char *__restrict__ format, va_list parameters)
 			goto incomprehensible_conversion;
 		}
 	}
-#ifndef __is_spartix_kernel
+#ifndef __is_onyx_kernel
 	fwrite(printf_buffer, printf_buffer_pos, 1, stdout);
 	printf_buffer_pos = 0;
 	memset(printf_buffer, 0, 4096);

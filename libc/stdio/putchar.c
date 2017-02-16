@@ -1,7 +1,7 @@
 /*----------------------------------------------------------------------
  * Copyright (C) 2016, 2017 Pedro Falcato
  *
- * This file is part of Spartix, and is made available under
+ * This file is part of Onyx, and is made available under
  * the terms of the GNU General Public License version 2.
  *
  * You can redistribute it and/or modify it under the terms of the GNU
@@ -10,13 +10,13 @@
  *----------------------------------------------------------------------*/
 #include <stdio.h>
 
-#if defined(__is_spartix_kernel)
+#if defined(__is_onyx_kernel)
 #include <kernel/tty.h>
 #endif
 int putchar(int ic)
 {
 	char c = (char) ic;
-#if defined(__is_spartix_kernel)
+#if defined(__is_onyx_kernel)
 	tty_write(&c, sizeof(c));
 #else
 	(void)c;

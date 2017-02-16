@@ -2,7 +2,7 @@
 *.img
 daemon
 *.map
-kernel/vmspartix-*
+kernel/vmonyx-*
 *.iso
 isodir
 sysroot

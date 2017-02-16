@@ -14,7 +14,7 @@ INCLUDEDIR?=$(PREFIX)/include
 
 include ../kversion.config
 CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-strong -Wno-unused-parameter -Wno-unused-function -Werror
-CPPFLAGS:=$(CPPFLAGS) -D__is_spartix_kernel -Iinclude -Iinclude/acpica -DKERNEL_VERSION='"$(KERNEL_VERSION)"' -DKERNEL_BRANCH='"$(KERNEL_BRANCH)"' -DKERNEL_ARCH='"$(KERNEL_ARCH)"'
+CPPFLAGS:=$(CPPFLAGS) -D__is_onyx_kernel -Iinclude -Iinclude/acpica -DKERNEL_VERSION='"$(KERNEL_VERSION)"' -DKERNEL_BRANCH='"$(KERNEL_BRANCH)"' -DKERNEL_ARCH='"$(KERNEL_ARCH)"'
 LDFLAGS:=$(LDFLAGS) -fwhole-program -fkeep-inline-functions -flto
 LIBS:=$(LIBS) -nostdlib -lk -lgcc
 ARCHDIR:=arch/$(HOSTARCH)
@@ -51,11 +51,11 @@ $(OBJS) \
 $(CRTEND_OBJ) \
 $(CRTN_OBJ) \
 
-all: vmspartix
+all: vmonyx
 
 .PHONY: all clean install install-headers install-kernel kernel-modules
 
-vmspartix: BUILD $(OBJ_LINK_LIST) $(ARCHDIR)/linker.ld
+vmonyx: BUILD $(OBJ_LINK_LIST) $(ARCHDIR)/linker.ld
 	@echo [LD] $@
 	@$(CC) -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(OBJ_LINK_LIST) $(LDFLAGS) $(LIBS)
 acpica/%.o: acpica/%.c
@@ -73,7 +73,7 @@ acpica/%.o: acpica/%.c
 	@$(CXX) -c $< -o $@ -std=c++14 $(CFLAGS) $(CPPFLAGS) $(CXXFLAGS)
 
 clean:
-	rm -f vmspartix $(OBJS) $(ALL_OUR_OBJS) *.o */*.o */*/*.o
+	rm -f vmonyx $(OBJS) $(ALL_OUR_OBJS) *.o */*.o */*/*.o
 	$(MAKE) -C modules/ clean
 
 install: install-headers install-kernel
@@ -83,7 +83,7 @@ install-headers:
 	cp -RTv include $(DESTDIR)$(INCLUDEDIR)
 	cp -RTv drivers/include $(DESTDIR)$(INCLUDEDIR)/drivers
 
-install-kernel: vmspartix kernel-modules
+install-kernel: vmonyx kernel-modules
 	mkdir -p $(DESTDIR)$(BOOTDIR)
 	# Create livefs directories
 	mkdir -p $(DESTDIR)/dev/

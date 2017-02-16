@@ -20,17 +20,17 @@ rm -rf $ROOTDIR/sysroot/usr/include
 xz -9 -e -f $ROOTDIR/sysroot/pkg/libs-devel.tar
 echo "Generating initrd..."
 echo "Copying the kernel to the isodir"
-cp sysroot/boot/vmspartix isodir/boot/vmspartix
-rm -f sysroot/boot/vmspartix
+cp sysroot/boot/vmonyx isodir/boot/vmonyx
+rm -f sysroot/boot/vmonyx
 tar -cvf $ROOTDIR/isodir/boot/initrd.tar sysroot
 echo "Compressing kernel and initrd images"
-xz -9 -e -f isodir/boot/vmspartix
+xz -9 -e -f isodir/boot/vmonyx
 xz -9 -e -f isodir/boot/initrd.tar
 echo "Testing the initrd and kernel integrity"
-xz -t isodir/boot/vmspartix.xz
+xz -t isodir/boot/vmonyx.xz
 xz -t isodir/boot/initrd.tar.xz
 cat > isodir/boot/grub/grub.cfg << EOF
-menuentry "Spartix" {
+menuentry "Onyx" {
 	set timeout=10
 	loadfont unicode
 	insmod all_video
@@ -38,8 +38,8 @@ menuentry "Spartix" {
 	insmod gzio
   	insmod gfxterm
 	terminal_output gfxterm
-	echo "Loading the vmspartix kernel"
-	multiboot2 /boot/vmspartix.xz --root=/dev/hda1
+	echo "Loading the vmonyx kernel"
+	multiboot2 /boot/vmonyx.xz --root=/dev/hda1
 	echo "done."
 	set gfxpayload=1024x768x32
 	echo "Loading the initrd"
@@ -48,5 +48,5 @@ menuentry "Spartix" {
 	boot
 }
 EOF
-#grub2-file --is-x86-multiboot2 kernel/vmspartix-0.1-gen64
-grub2-mkrescue -o Spartix.iso isodir # Change this acording to your distro/OS.
+#grub2-file --is-x86-multiboot2 kernel/vmonyx-0.1-gen64
+grub2-mkrescue -o Onyx.iso isodir # Change this acording to your distro/OS.

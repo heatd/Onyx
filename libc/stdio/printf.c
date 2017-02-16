@@ -1,7 +1,7 @@
 /*----------------------------------------------------------------------
  * Copyright (C) 2016, 2017 Pedro Falcato
  *
- * This file is part of Spartix, and is made available under
+ * This file is part of Onyx, and is made available under
  * the terms of the GNU General Public License version 2.
  *
  * You can redistribute it and/or modify it under the terms of the GNU
@@ -14,7 +14,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
-#ifdef __is_spartix_kernel
+#ifdef __is_onyx_kernel
 #include <kernel/log.h>
 #endif
 char tbuf[32];
@@ -67,7 +67,7 @@ void print(const char *data, size_t data_length)
 }
 void flushPrint()
 {
-	#ifdef __is_spartix_kernel
+	#ifdef __is_onyx_kernel
 	kernlog_print(buffer);
 	#endif
 	memset(buffer, 0 ,500);
@@ -75,7 +75,7 @@ void flushPrint()
 }
 void flushPrint_screen()
 {
-	#ifdef __is_spartix_kernel
+	#ifdef __is_onyx_kernel
 	tty_write_string(buffer);
 	#endif
 	memset(buffer, 0 ,500);
@@ -86,16 +86,16 @@ void libc_late_init()
 {
 	is_init = true;
 }
-#ifdef __is_spartix_kernel
+#ifdef __is_onyx_kernel
 //static spinlock_t spl;
 extern int panicing;
 #endif
 int printf(const char *__restrict__ format, ...)
 {
-#ifdef __is_spartix_kernel
+#ifdef __is_onyx_kernel
 	//if(panicing != 1) acquire_spinlock(&spl);
 #endif
-#ifdef __is_spartix_kernel
+#ifdef __is_onyx_kernel
 	va_list parameters;
 	va_start(parameters, format);
 
@@ -186,7 +186,7 @@ int printf(const char *__restrict__ format, ...)
 	flushPrint();
 	va_end(parameters);
 
-#ifdef __is_spartix_kernel
+#ifdef __is_onyx_kernel
 	//release_spinlock(&spl);
 #endif
 	return written;
@@ -200,10 +200,10 @@ int printf(const char *__restrict__ format, ...)
 }
 int printk(const char *__restrict__ format, ...)
 {
-#ifdef __is_spartix_kernel
+#ifdef __is_onyx_kernel
 	//if(panicing != 1) acquire_spinlock(&spl);
 #endif
-#ifdef __is_spartix_kernel
+#ifdef __is_onyx_kernel
 	va_list parameters;
 	va_start(parameters, format);
 
@@ -294,7 +294,7 @@ int printk(const char *__restrict__ format, ...)
 	flushPrint_screen();
 	va_end(parameters);
 
-#ifdef __is_spartix_kernel
+#ifdef __is_onyx_kernel
 	//release_spinlock(&spl);
 #endif
 	return written;

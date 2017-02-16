@@ -2,7 +2,7 @@ HOST?=$(shell ../default-host.sh)
 HOSTARCH:=$(shell ../target-triplet-to-arch.sh $(HOST))
 
 CFLAGS?=-O2 -g
-CPPFLAGS?=-D__is_spartix_libc
+CPPFLAGS?=-D__is_onyx_libc
 LDFLAGS?=
 LIBS?=
 
@@ -14,7 +14,7 @@ LIBDIR?=$(EXEC_PREFIX)/lib
 
 CFLAGS:=$(CFLAGS) -Wall -Wextra -mtune=generic
 LIBK_CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin
-LIBK_CPPFLAGS:=$(CPPFLAGS) -D__is_spartix_kernel
+LIBK_CPPFLAGS:=$(CPPFLAGS) -D__is_onyx_kernel
 
 ARCHDIR:=arch/$(HOSTARCH)
 
@@ -109,7 +109,7 @@ libc.so: $(OBJS)
 	$(CC) $(OBJS) -shared $(CFLAGS) $(CPPFLAGS) -o $@
 	mkdir -p $(DESTDIR)$(LIBDIR)
 	cp $@ $(DESTDIR)$(LIBDIR)
-ld-spartix.so: $(LD_SPARTIX_OBJS)
+ld-onyx.so: $(LD_SPARTIX_OBJS)
 	#$(CC) $(LD_SPARTIX_OBJS) -Wl,-Bstatic -shared -lc $(CFLAGS) $(CPPFLAGS) -o $@
 	mkdir -p $(DESTDIR)/lib
 	#cp $@ $(DESTDIR)/lib
@@ -137,7 +137,7 @@ ld-spartix.so: $(LD_SPARTIX_OBJS)
 clean:
 	rm -f $(BINARIES) $(OBJS) $(LIBK_OBJS) *.o */*.o */*/*.o
 
-install: install-headers install-libs ld-spartix.so
+install: install-headers install-libs ld-onyx.so
 
 install-headers:
 	mkdir -p $(DESTDIR)$(INCLUDEDIR)

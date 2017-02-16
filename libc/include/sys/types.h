@@ -1,7 +1,7 @@
 /*----------------------------------------------------------------------
  * Copyright (C) 2016, 2017 Pedro Falcato
  *
- * This file is part of Spartix, and is made available under
+ * This file is part of Onyx, and is made available under
  * the terms of the GNU General Public License version 2.
  *
  * You can redistribute it and/or modify it under the terms of the GNU
@@ -84,7 +84,7 @@ typedef unsigned long id_t;
 typedef unsigned int dev_t;
 #endif
 
-#if defined(__is_spartix_kernel) && !defined(__uuid_t_defined)
+#if defined(__is_onyx_kernel) && !defined(__uuid_t_defined)
 #define __uuid_t_defined
 static_assert(sizeof(unsigned short) == 2, "uuid_t needs a 16-bit(2 byte) type!");
 typedef unsigned short uuid_t[8];
