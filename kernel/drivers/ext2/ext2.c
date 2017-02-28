@@ -22,6 +22,7 @@
 #include <kernel/compiler.h>
 #include <kernel/dev.h>
 #include <kernel/log.h>
+#include <kernel/fscache.h>
 
 #include <drivers/rtc.h>
 #include <drivers/ext2.h>
@@ -49,11 +50,15 @@ unsigned int ext2_getdents(unsigned int count, struct dirent* dirp, off_t off, v
 void *ext2_read_block(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs)
 {
 	size_t size = blocks * fs->block_size; /* size = nblocks * block size */
-	void *buff = malloc(size); /* Allocate a buffer */
+	void *buff = NULL;
+	/*if((buff = fscache_try_to_find_block(fs->first_sector + ((block_index * fs->block_size) % 512), fs->blkdevice, size)))
+		return buff;*/
+	buff = malloc(size); /* Allocate a buffer */
 	if(!buff)
 		return NULL;
 	memset(buff, 0, size);
 	size_t read = blkdev_read(fs->first_sector * 512 + (block_index * fs->block_size), size, buff, fs->blkdevice);
+	//fscache_cache_sectors(buff, fs->blkdevice, fs->first_sector + ((block_index * fs->block_size) % 512), size);
 	if(read == (size_t) -1)
 	{
 		free(buff);
@@ -64,7 +69,16 @@ void *ext2_read_block(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs)
 void ext2_read_block_raw(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs, void *buffer)
 {
 	size_t size = blocks * fs->block_size; /* size = nblocks * block size */
+	/*void *buff = NULL;
+	if((buff = fscache_try_to_find_block(fs->first_sector + ((block_index * fs->block_size) % 512), fs->blkdevice, size)))
+	{
+		memcpy(buffer, buff, size);
+		return;
+	}*/
+	
 	blkdev_read(fs->first_sector * 512 + (block_index * fs->block_size), size, buffer, fs->blkdevice);
+
+	//fscache_cache_sectors(buffer, fs->blkdevice, fs->first_sector + ((block_index * fs->block_size) % 512), size);
 }
 void ext2_write_block(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs, void *buffer)
 {
@@ -149,18 +163,19 @@ size_t ext2_write(size_t offset, size_t sizeofwrite, void *buffer, vfsnode_t *no
 	ext2_update_inode(ino, fs, node->inode);
 	return ext2_write_inode(ino, fs, sizeofwrite, offset, buffer);
 }
-size_t ext2_read(size_t offset, size_t sizeofreading, void *buffer, vfsnode_t *nd)
+size_t ext2_read(size_t offset, size_t sizeofreading, void *buffer, vfsnode_t *node)
 {
-	if(offset > nd->size)
+	if(offset > node->size)
 		return errno = EINVAL, -1;
 	ext2_fs_t *fs = fslist;
 	uint32_t block_index = offset / fs->block_size;
 	if(offset % fs->block_size)
 		block_index++;
-	inode_t *ino = ext2_get_inode_from_number(fs, nd->inode);
+	inode_t *ino = ext2_get_inode_from_number(fs, node->inode);
 	if(!ino)
-		return errno = EINVAL;
-	size_t size = ext2_read_inode(ino, fs, sizeofreading, block_index, buffer);
+		return errno = EINVAL, -1;
+	size_t to_be_read = offset + sizeofreading > node->size ? sizeofreading - offset - sizeofreading + node->size : sizeofreading;
+	size_t size = ext2_read_inode(ino, fs, to_be_read, block_index, buffer);
 	return size;
 }
 unsigned int ext2_detect_block_type(uint32_t block, ext2_fs_t *fs)

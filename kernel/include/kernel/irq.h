@@ -11,6 +11,9 @@
 #ifndef _IRQ_H
 #define _IRQ_H
 #include <kernel/registers.h>
+#ifdef __x86_64__
+#include <kernel/apic.h>
+#endif
 typedef uintptr_t(*irq_t)(registers_t *);
 
 typedef struct irq

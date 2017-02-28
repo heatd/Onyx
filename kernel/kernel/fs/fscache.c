@@ -21,25 +21,14 @@ static struct fscache_hashtable
 	struct fscache_hashtable *next;
 	struct fscache_section *cache;
 } cache_hashtable[FSCACHE_NR_HASHTABLE];
-static struct cache_info *slab_cache = NULL;
 
 static int hash_device(dev_t dev)
 {
 	return dev % FSCACHE_NR_HASHTABLE;
 }
-void fscache_initialize(void)
-{
-	/* Create a slab cache */
-	slab_cache = slab_create("fscache", sizeof(struct fscache_section), 100, 0);
-	if(!slab_cache)
-	{
-		ERROR("fscache", "No memory available for the caches.");
-	}
-}
 void fscache_cache_sectors(char *sectors, block_device_t *dev, uint64_t lba, size_t count)
 {
-	printk("Caching!\n");
-	struct fscache_section *s = slab_allocate(slab_cache);
+	struct fscache_section *s = malloc(sizeof(struct fscache_section));
 	if(!s)
 		return;
 	s->dev = dev;
@@ -48,7 +37,7 @@ void fscache_cache_sectors(char *sectors, block_device_t *dev, uint64_t lba, siz
 	s->data = malloc(count);
 	if(!s->data)
 	{
-		slab_free(slab_cache, s);
+		free(s);
 		return;
 	}
 	memcpy(s->data, sectors, count);
@@ -69,7 +58,7 @@ void fscache_cache_sectors(char *sectors, block_device_t *dev, uint64_t lba, siz
 	if(!h->next)
 	{
 		free(s->data);
-		slab_free(slab_cache, s);
+		free(s);
 		return;
 	}
 	h->next->cache = s;

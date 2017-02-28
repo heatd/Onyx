@@ -176,7 +176,6 @@ int main(int argc, char **argv, char **envp)
 	/* Mount filesystems */
 	if(mount_filesystems() == 1)
 		return 1;
-
 	/* Read the config files, and find the startup program */
 	int ringlevel = get_ring_level();
 	/* Allocate a buffer for the filename */

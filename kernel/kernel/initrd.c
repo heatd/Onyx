@@ -16,6 +16,7 @@
 #include <kernel/panic.h>
 #include <kernel/dev.h>
 #include <assert.h>
+#include <math.h>
 tar_header_t *headers[100] = { 0 };
 size_t n_files = 0;
 size_t tar_parse(uintptr_t address)
@@ -34,13 +35,14 @@ size_t tar_parse(uintptr_t address)
 	}
 	return i;
 }
-size_t tar_read(size_t offset, size_t sizeOfReading, void *buffer, vfsnode_t *this)
+size_t tar_read(size_t offset, size_t sizeofreading, void *buffer, vfsnode_t *this)
 {
 	if(offset > this->size)
 		return 0;
-	char *tempBuffer = (char *) headers[this->inode] + 512 + offset;
-	memcpy(buffer, tempBuffer, sizeOfReading);
-	return sizeOfReading;
+	size_t to_be_read = offset + sizeofreading > this->size ? sizeofreading - offset - sizeofreading + this->size : sizeofreading;
+	char *temp_buffer = (char *) headers[this->inode] + 512 + offset;
+	memcpy(buffer, temp_buffer, to_be_read);
+	return to_be_read;
 }
 
 size_t tar_write(size_t offset, size_t sizeOfWriting, void *buffer, vfsnode_t *this)

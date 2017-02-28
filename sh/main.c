@@ -37,7 +37,7 @@ print:
 }
 char *wait_for_command(void)
 {
-	read(STDIN_FILENO, command_buffer, 4096);
+	fgets(command_buffer, 4096, stdin);
 	char *pos;
 	if((pos = strchr(command_buffer, '\n')))
     		*pos = '\0';

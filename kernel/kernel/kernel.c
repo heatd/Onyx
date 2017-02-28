@@ -453,8 +453,6 @@ void kernel_multitasking(void *arg)
 	/* Initialize ICMP */
 	icmp_init();
 
-	/* Initialize filesystem caches */
-	fscache_initialize();
 
 	/* Just a little demo for the recent DNS and ICMP features */
 	//uint32_t ip = dns_resolve_host("www.google.com");

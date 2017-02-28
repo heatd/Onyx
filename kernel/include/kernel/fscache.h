@@ -25,7 +25,6 @@ struct fscache_section
 	size_t count;
 	unsigned char *data;
 };
-void fscache_initialize(void);
 void fscache_cache_sectors(char *sectors, block_device_t *dev, uint64_t lba, size_t count);
 void *fscache_try_to_find_block(uint64_t lba, block_device_t *dev, size_t count);
 

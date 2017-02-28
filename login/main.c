@@ -186,7 +186,7 @@ loop:
 	printf("username:");
 	fflush(stdout);
 
-	read(STDIN_FILENO, buf, 1024);
+	fgets(buf, 1024, stdin);
 	char *pos;
 	if((pos = strchr(buf, '\n')))
     		*pos = '\0';
@@ -200,7 +200,7 @@ loop:
 	printf("password:");
 	fflush(stdout);
 	memset(buf, 0, 1024);
-	read(STDIN_FILENO, buf, 1024);
+	fgets(buf, 1024, stdin);
 	if((pos = strchr(buf, '\n')))
     		*pos = '\0';
 	if(strcmp(buf, user->password) != 0)

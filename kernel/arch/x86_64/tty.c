@@ -255,13 +255,21 @@ size_t ttydevfs_write(size_t offset, size_t sizeofwrite, void* buffer, struct vf
 	tty_write(buffer, sizeofwrite);
 	return sizeofwrite;
 }
+size_t strnewlinelen(char *str)
+{
+	size_t len = 0;
+	for(; *str != '\n'; ++str)
+		++len;
+	return len+1;
+}
 size_t ttydevfs_read(size_t offset, size_t count, void *buffer, vfsnode_t *this)
 {
 	char *kb_buf = tty_wait_for_line();
-	memcpy(buffer, kb_buf, count);
-	tty_keyboard_pos = 0;
-	memset(kb_buf, 0, 2048);
-	return count;
+	size_t len = strnewlinelen(kb_buf);
+	memcpy(buffer, kb_buf, len);
+	tty_keyboard_pos -= len;
+	memcpy(kb_buf, kb_buf + len, 2048 - len);
+	return len;
 }
 void tty_create_dev()
 {

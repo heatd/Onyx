@@ -27,6 +27,12 @@ void write_io_apic(uint32_t reg, uint32_t value);
 void lapic_init();
 void apic_wake_up_processor(uint8_t);
 void apic_timer_smp_init(volatile uint32_t *lapic);
+void apic_set_irql(int irql);
+int apic_get_irql(void);
+
+#define irq_set_irql	apic_set_irql
+#define irq_get_irql	apic_get_irql
+
 #define LAPIC_EOI	0xB0
 #define LAPIC_TSKPRI	0x80
 #define LAPIC_ICR	0x300

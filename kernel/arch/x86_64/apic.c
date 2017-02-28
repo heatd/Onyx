@@ -19,6 +19,7 @@
 #include <kernel/acpi.h>
 #include <kernel/cpu.h>
 #include <kernel/registers.h>
+#include <kernel/log.h>
 
 volatile uint32_t *bsp_lapic = NULL;
 volatile uint64_t ap_done = 0;
@@ -60,6 +61,9 @@ void lapic_init()
 	
 	/* Send an EOI because some interrupts might've gotten stuck when the interrupts weren't enabled */
 	lapic_write(bsp_lapic, LAPIC_EOI, 0);
+
+	/* Set the task pri to 0 */
+	lapic_write(bsp_lapic, LAPIC_TSKPRI, 0);
 }
 volatile char *ioapic_base = NULL;
 ACPI_TABLE_MADT *madt = NULL;
@@ -126,7 +130,7 @@ void set_pin_handlers()
 		if(i->Type == ACPI_MADT_TYPE_INTERRUPT_OVERRIDE)
 		{
 			ACPI_MADT_INTERRUPT_OVERRIDE *mio = (ACPI_MADT_INTERRUPT_OVERRIDE*) i;
-			printf("Interrupt override for GSI %d\n", mio->SourceIrq);
+			INFO("apic", "Interrupt override for GSI %d\n", mio->SourceIrq);
 			uint64_t red = read_redirection_entry(mio->GlobalIrq);
 			red |= 32 + mio->GlobalIrq;
 			if(mio->IntiFlags & 0x3)
@@ -225,7 +229,10 @@ void apic_timer_smp_init(volatile uint32_t *lapic)
 
 	/* Flush pending interrupts */
 	lapic_write(bsp_lapic, LAPIC_EOI, 0);
-	
+
+	/* Set the task pri to 0 */
+	lapic_write(bsp_lapic, LAPIC_TSKPRI, 0);
+
 	/* Initialize the APIC timer with IRQ2, periodic mode and an init count of ticks_in_10ms/10(so we get a rate of 1000hz)*/
 	lapic_write(lapic, LAPIC_TIMER_DIV, 3);
 
@@ -286,4 +293,16 @@ void apic_wake_up_processor(uint8_t lapicid)
 		printf("Failed to start an AP with LAPICID %d\n", lapicid);
 	}
 	ap_done = 0;
+}
+void apic_set_irql(int irql)
+{
+	/* Get the current process and use its lapic pointer */
+	struct processor *proc = get_gs_data();
+	lapic_write((volatile uint32_t *) proc->lapic, LAPIC_TSKPRI, irql);
+}
+int apic_get_irql(void)
+{
+	/* Get the current process and use its lapic pointer */
+	struct processor *proc = get_gs_data();
+	return (int) lapic_read((volatile uint32_t *) proc->lapic, LAPIC_TSKPRI);
 }
