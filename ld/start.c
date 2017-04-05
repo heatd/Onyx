@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016, 2017 Pedro Falcato
+ * Copyright (C) 2017 Pedro Falcato
  *
  * This file is part of Onyx, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -8,12 +8,15 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#ifndef _KERNEL_MUTEX_H
-#define _KERNEL_MUTEX_H
+#include <stdlib.h>
 
-typedef volatile unsigned long mutex_t;
-
-void mutex_lock(mutex_t *);
-void mutex_unlock(mutex_t*);
-
-#endif
+extern void _init();
+extern int main(int argc, char **argv, char **envp);
+int _dlstart(int argc, char **argv, char **envp)
+{
+	/* Call the global constructors */
+	_init();
+	/* Call main and exit */
+	exit(main(argc, argv, envp));
+	return 0;
+}

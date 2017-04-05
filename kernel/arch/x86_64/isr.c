@@ -90,54 +90,55 @@ r10: %x\nr11: %x\nr12: %x\nr13: %x\nr14: %x\nr15: %x\nrsp: %x\nrflags: %x\nds: %
 r10: %x\nr11: %x\nr12: %x\nr13: %x\nr14: %x\nr15: %x\nrsp: %x\nrflags: %x\nds: %x\ncs: %x\n", 
 			ctx->rax, ctx->rbx, ctx->rcx, ctx->rdx, ctx->rdi, ctx->rsi, ctx->rbp, ctx->r8, ctx->r9, 
 		ctx->r10, ctx->r11, ctx->r12, ctx->r13, ctx->r14, ctx->r15, ctx->rsp, ctx->rflags, ctx->ds, ctx->cs);
+	//printk("Current process: %s\n", get_current_process()->cmd_line);
 	// Enter the isr handler
 	enter_isr_handler();
 	switch (ctx->int_no) {
 	case 0:{
-			sys_kill(current_process->pid, SIGSEGV);
+			sys_kill(get_current_process()->pid, SIGSEGV);
 			break;
 		}
 	case 1:{
-			sys_kill(current_process->pid, SIGSEGV);
+			sys_kill(get_current_process()->pid, SIGSEGV);
 			break;
 		}
 	case 2:{
 			break;
 		}
 	case 3:{
-			sys_kill(current_process->pid, SIGSEGV);
+			sys_kill(get_current_process()->pid, SIGSEGV);
 			break;
 		}
 	case 4:{
-			sys_kill(current_process->pid, SIGSEGV);
+			sys_kill(get_current_process()->pid, SIGSEGV);
 			break;
 		}
 	case 5:{
-			sys_kill(current_process->pid, SIGSEGV);
+			sys_kill(get_current_process()->pid, SIGSEGV);
 			break;
 		}
 	case 6:{
-			sys_kill(current_process->pid, SIGSEGV);
+			sys_kill(get_current_process()->pid, SIGSEGV);
 			break;
 		}
 	case 7:{
-			sys_kill(current_process->pid, SIGSEGV);
+			sys_kill(get_current_process()->pid, SIGSEGV);
 			break;
 		}
 	case 8:{
-			sys_kill(current_process->pid, SIGSEGV);
+			sys_kill(get_current_process()->pid, SIGSEGV);
 			break;
 		}
 	case 9:{
-			sys_kill(current_process->pid, SIGSEGV);
+			sys_kill(get_current_process()->pid, SIGSEGV);
 			break;
 		}
 	case 10:{
-			sys_kill(current_process->pid, SIGSEGV);
+			sys_kill(get_current_process()->pid, SIGSEGV);
 			break;
 		}
 	case 11:{
-			sys_kill(current_process->pid, SIGSEGV);
+			sys_kill(get_current_process()->pid, SIGSEGV);
 			break;
 		}
 	case 12:{
@@ -145,7 +146,7 @@ r10: %x\nr11: %x\nr12: %x\nr13: %x\nr14: %x\nr15: %x\nrsp: %x\nrflags: %x\nds: %
 			break;
 		}
 	case 13:{
-			sys_kill(current_process->pid, SIGSEGV);
+			sys_kill(get_current_process()->pid, SIGSEGV);
 			break;
 		}
 	case 14:{
@@ -157,35 +158,36 @@ r10: %x\nr11: %x\nr12: %x\nr13: %x\nr14: %x\nr15: %x\nrsp: %x\nrflags: %x\nds: %
 		if(!entr)
 		{
 		pf:
-			printf("\n");
-			printf("%s0x%X\n",exception_msg[int_no],faulting_address);
+			printk("\n");
+			printk("%s0x%X\n",exception_msg[int_no],faulting_address);
 			if(err_code & 0x2)
-				printf(" caused by a write\n");
+				printk(" caused by a write\n");
 			if(err_code & 0x4)
 			{
-				printf("user-mode\n");
+				printk("user-mode\n");
 			}
 			if(err_code & 0x10)
-				printf("Instruction fetch\n");
+				printk("Instruction fetch\n");
 			if(err_code & (1 << 3))
-				printf("Reserved bit was set!\n");
-                       sys_kill(current_process->pid, SIGSEGV);
+				printk("Reserved bit was set!\n");
+                       sys_kill(get_current_process()->pid, SIGSEGV);
 		       break;
 		}
-		goto pf;
-		if(err_code & 0x2 && ~entr->rwx & VMM_WRITE)
+		if(err_code & 0x2 && !(entr->rwx & VMM_WRITE))
 			goto pf;
-		if(err_code & 0x10 && entr->rwx & VMM_NOEXEC)
+		if(err_code & 0x10 && !(entr->rwx & VMM_NOEXEC))
 			goto pf;
 		if(err_code & 0x4 && faulting_address > 0xFFFF800000000000)
 			goto pf;
+		printk("Works!\n");
 		vmm_map_range((void*)faulting_address, 1, entr->rwx);
+		break;
 		}
 	case 15:{
 			break;	/*Reserved exception */
 		}
 	case 16:{
-			sys_kill(current_process->pid, SIGSEGV);
+			sys_kill(get_current_process()->pid, SIGSEGV);
 			break;
 		}
 	case 17:{
@@ -195,11 +197,11 @@ r10: %x\nr11: %x\nr12: %x\nr13: %x\nr14: %x\nr15: %x\nrsp: %x\nrflags: %x\nds: %
 			break;
 		}
 	case 19:{
-			sys_kill(current_process->pid, SIGSEGV);
+			sys_kill(get_current_process()->pid, SIGSEGV);
 			break;
 		}
 	case 20:{
-			sys_kill(current_process->pid, SIGSEGV);
+			sys_kill(get_current_process()->pid, SIGSEGV);
 			break;
 		}
 	case 21:		/*Handle the intel reserved exceptions to do nothing */

@@ -283,7 +283,7 @@ void* paging_map_phys_to_virt_large(uint64_t virt, uint64_t phys, uint64_t prot)
 	*entry = make_pml2e(phys, (prot & 4), 0, (prot & 2)? 1 : 0, 0, 0, (prot & 0x80) ? 1 : 0, (prot & 1)? 1 : 0, 1);
 	*entry |= (1 << 7);
 	return (void*) virt;
-}
+} 
 void* paging_map_phys_to_virt(uint64_t virt, uint64_t phys, uint64_t prot)
 {
 	_Bool user = 0;
@@ -337,7 +337,7 @@ void* paging_map_phys_to_virt(uint64_t virt, uint64_t phys, uint64_t prot)
 		if(!pml1)
 			return NULL;
 		memset((void*)((uint64_t)pml1 + PHYS_BASE), 0, sizeof(PML1));
-		*entry = make_pml2e( (uint64_t)pml1, (prot & 4), 0, (prot & 2)? 1 : 0, 0, 0, (prot & 0x80) ? 1 : 0, (prot & 1)? 1 : 0, 1);
+		*entry = make_pml2e( (uint64_t)pml1, 0, 0, (prot & 2) ? 1 : 0, 0, 0, (prot & 0x80) ? 1 : 0, 1, 1);
 	}
 	pml1 = (PML1*)((uint64_t)pml1 + PHYS_BASE);
 	entry = &pml1->entries[decAddr.pt];
@@ -444,7 +444,7 @@ void paging_load_cr3(PML4 *pml)
 			printf("CR3: %p\n", p->cr3);
 			p = p->next;
 		}
-		printf("current process: %p\n Current CR3: %p\n", current_process, current_process->cr3);
+		printf("current process: %p\n Current CR3: %p\n", get_current_process(), get_current_process()->cr3);
 		abort();
 	}
 	__asm__ __volatile__("movq %0, %%cr3"::"r"(pml));

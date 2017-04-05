@@ -26,9 +26,9 @@
 #ifndef __GNUC__
 #error "The OS needs to be compiled using GCC"
 #endif /*__GNUC__ */
-#ifndef __spartix__
+#ifndef __onyx__
 #error "Onyx needs to be compiled using a Onyx Cross Compiler"
-#endif /* __spartix__ */
+#endif /* __onyx__ */
 #define likely(x)      __builtin_expect(!!(x), 1)
 #define unlikely(x)    __builtin_expect(!!(x), 0)
 #define prefetch(...) __builtin_prefetch(__VA_ARGS__)

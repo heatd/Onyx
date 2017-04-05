@@ -13,7 +13,7 @@
  *
  * File: irq.c
  *
- * Description: Contains irq instalation functions
+ * Description: Contains irq installation functions
  *
  * Date: 1/2/2016
  *
@@ -25,17 +25,23 @@
 
 #include <kernel/registers.h>
 #include <kernel/irq.h>
+
+volatile _Bool is_in_irq = false;
 irq_list_t *irq_routines[24]  =
 {
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0
+	NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+	NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
 };
+_Bool isirq()
+{
+	return is_in_irq;
+}
 void irq_install_handler(int irq, irq_t handler)
 {
 	irq_list_t *lst = irq_routines[irq];
 	if(!lst)
 	{
-		lst = (irq_list_t*)malloc(sizeof(irq_list_t));
+		lst = (irq_list_t*) malloc(sizeof(irq_list_t));
 		if(!lst)
 		{
 			errno = ENOMEM;
@@ -48,7 +54,7 @@ void irq_install_handler(int irq, irq_t handler)
 	}
 	while(lst->next != NULL)
 		lst = lst->next;
-	lst->next = (irq_list_t*)malloc(sizeof(irq_list_t));
+	lst->next = (irq_list_t*) malloc(sizeof(irq_list_t));
 	if(!lst->next)
 	{
 		errno = ENOMEM;
@@ -85,6 +91,7 @@ uintptr_t irq_handler(uint64_t irqn, registers_t *regs)
 	irq_list_t *handlers = irq_routines[irqn];
 	if(!handlers)
 		printf("Unhandled interrupt at IRQ %u\n", irqn);
+	is_in_irq = true;
 	for(irq_list_t *i = handlers; i != NULL;i = i->next)
 	{
 		irq_t handler = i->handler;
@@ -94,5 +101,6 @@ uintptr_t irq_handler(uint64_t irqn, registers_t *regs)
 			ret = p;
 		}
 	}
+	is_in_irq = false;
 	return ret;
 }

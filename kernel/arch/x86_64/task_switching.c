@@ -57,9 +57,9 @@ thread_t* task_switching_create_context(thread_callback_t callback, uint32_t fla
 	}
 	memset(new_thread->fpu_area, 0, FPU_AREA_SIZE);
 	if(!(flags & 1)) // If the thread is user mode, create a user stack
-		new_thread->user_stack = (uintptr_t*)vmm_allocate_virt_address(0, 256, VMM_TYPE_STACK, VMM_WRITE | VMM_NOEXEC | VMM_USER);
-	new_thread->kernel_stack = (uintptr_t*)vmm_allocate_virt_address(VM_KERNEL, 4, VMM_TYPE_STACK, VMM_WRITE | VMM_NOEXEC);
-	
+		new_thread->user_stack = (uintptr_t*)vmm_allocate_virt_address(0, 256, VMM_TYPE_STACK, VMM_WRITE | VMM_NOEXEC | VMM_USER, 0);
+	new_thread->kernel_stack = (uintptr_t*)vmm_allocate_virt_address(VM_KERNEL, 4, VMM_TYPE_STACK, VMM_WRITE | VMM_NOEXEC, 0);
+
 	// Map the stacks on the virtual address space
 	if(!(flags & 1))
 		vmm_map_range(new_thread->user_stack, 256, VMM_WRITE | VMM_NOEXEC | VMM_USER);
@@ -137,12 +137,14 @@ thread_t* task_switching_create_main_progcontext(thread_callback_t callback, uin
 	memset(new_thread->fpu_area, 0, FPU_AREA_SIZE);
 	if(!(flags & 1)) // If the thread is user mode, create a user stack
 	{
-		new_thread->user_stack = (uintptr_t*)vmm_allocate_virt_address(0, 256, VMM_TYPE_STACK, VMM_WRITE | VMM_NOEXEC | VMM_USER);
+		new_thread->user_stack = (uintptr_t*)vmm_allocate_virt_address(0, 256, VMM_TYPE_STACK, VMM_WRITE | VMM_NOEXEC | VMM_USER, 0);
+		printk("User stack: %p\n", new_thread->user_stack);
+		printk("RIP: %p\n", callback);
 		if(!new_thread->user_stack)
 			return NULL;
 	}
 	
-	new_thread->kernel_stack = (uintptr_t*)vmm_allocate_virt_address(VM_KERNEL, 2, VMM_TYPE_STACK, VMM_WRITE | VMM_NOEXEC);
+	new_thread->kernel_stack = (uintptr_t*)vmm_allocate_virt_address(VM_KERNEL, 2, VMM_TYPE_STACK, VMM_WRITE | VMM_NOEXEC, 0);
 	
 	if(!new_thread->kernel_stack)
 	{
@@ -158,17 +160,14 @@ thread_t* task_switching_create_main_progcontext(thread_callback_t callback, uin
 		vmm_map_range(new_thread->user_stack, 256, VMM_WRITE | VMM_NOEXEC | VMM_USER);
 	vmm_map_range(new_thread->kernel_stack, 2, VMM_WRITE | VMM_NOEXEC);
 	new_thread->user_stack_bottom = new_thread->user_stack;
-	// Increment the stacks by 8 KiB
-	{
-	char** stack = (char**)&new_thread->user_stack;
 	
 	if(!(flags & 1))
-		*stack+=0x100000;
-	
-	stack = (char**)&new_thread->kernel_stack;
-	*stack+=0x2000;
+	{
+		new_thread->user_stack = (uintptr_t*)((uintptr_t) new_thread->user_stack + 0x100000);
 	}
 	
+	new_thread->kernel_stack = (uintptr_t*) ((uintptr_t) new_thread->kernel_stack + 0x2000);
+
 	uint64_t* stack = NULL;
 	// Reserve space in the stacks for the registers that are popped during a switch
 	stack = new_thread->kernel_stack;
@@ -254,10 +253,10 @@ void* sched_switch_thread(void* last_stack)
 		return current_thread->kernel_stack;
 	}
 	current_thread->kernel_stack = (uintptr_t*)last_stack;
-	if(likely(current_process))
+	if(likely(get_current_process()))
 	{
-		current_process->tree = vmm_get_tree();
-		current_process->errno = errno;
+		get_current_process()->tree = vmm_get_tree();
+		get_current_process()->errno = errno;
 	}
 
 	/* Save the FPU state */
@@ -271,16 +270,16 @@ void* sched_switch_thread(void* last_stack)
 	/* Restore the FPU state */
 	restore_fpu(current_thread->fpu_area);
 	current_process = current_thread->owner;
-	if(current_process)
+	if(get_current_process())
 	{
-		vmm_set_tree(current_process->tree);
+		vmm_set_tree(get_current_process()->tree);
 		
-		if (current_pml4 != current_process->cr3)
+		if (current_pml4 != get_current_process()->cr3)
 		{
-			paging_load_cr3(current_process->cr3);
+			paging_load_cr3(get_current_process()->cr3);
 		}
-		errno = current_process->errno;
-		wrmsr(FS_BASE_MSR, (uintptr_t)current_process->fs & 0xFFFFFFFF, (uintptr_t)current_process->fs >> 32);
+		errno = get_current_process()->errno;
+		wrmsr(FS_BASE_MSR, (uintptr_t)get_current_process()->fs & 0xFFFFFFFF, (uintptr_t)get_current_process()->fs >> 32);
 	}
 	return current_thread->kernel_stack;
 }
@@ -412,14 +411,14 @@ int sys_arch_prctl(int code, unsigned long *addr)
 {
 	if(code == ARCH_SET_FS)
 	{
-		current_process->fs = (unsigned long) addr;
-		wrmsr(FS_BASE_MSR, (uintptr_t)current_process->fs & 0xFFFFFFFF, (uintptr_t)current_process->fs >> 32);
+		get_current_process()->fs = (unsigned long) addr;
+		wrmsr(FS_BASE_MSR, (uintptr_t)get_current_process()->fs & 0xFFFFFFFF, (uintptr_t)get_current_process()->fs >> 32);
 	}
 	else if(code == ARCH_GET_FS)
 	{
 		if(!vmm_is_mapped(addr))
 			return errno =-EINVAL;
-		*addr = (unsigned long) current_process->fs;
+		*addr = (unsigned long) get_current_process()->fs;
 	}
 	return 0;
 }

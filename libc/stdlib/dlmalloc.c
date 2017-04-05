@@ -530,8 +530,7 @@ MAX_RELEASE_CHECK_RATE   default: 4095 unless not HAVE_MMAP
 #define DLMALLOC_EXPORT extern
 #endif
 
-/* TODO: Shift the GCC target name to onyx */
-#ifdef __spartix__
+#ifdef __onyx__
 #define LACKS_FCNTL_H 1
 #define LACKS_STRINGS_H 1
 #define LACKS_SCHED_H 1

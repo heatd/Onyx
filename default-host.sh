@@ -1,2 +1,2 @@
 #!/bin/sh
-echo x86_64-spartix
+echo x86_64-onyx

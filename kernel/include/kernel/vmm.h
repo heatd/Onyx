@@ -68,7 +68,7 @@ typedef struct avl_node
 
 void vmm_init();
 void vmm_start_address_bookkeeping(uintptr_t framebuffer_address, uintptr_t heap);
-void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uint64_t prot);
+void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uint64_t prot, uintptr_t alignment);
 void *vmm_map_range(void* range, size_t pages, uint64_t flags);
 void vmm_unmap_range(void *range, size_t pages);
 void vmm_destroy_mappings(void *range, size_t pages);
@@ -90,4 +90,5 @@ inline size_t vmm_align_size_to_pages(size_t size)
 }
 
 void *vmalloc(size_t pages, int type, int perms);
+void vmm_print_stats(void);
 #endif

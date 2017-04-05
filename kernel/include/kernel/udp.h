@@ -26,7 +26,7 @@ inline uint16_t udpsum(udp_header_t *hdr)
 	uint32_t sum = 0;
 	uint32_t ret = 0;
 	uint16_t *ptr = (uint16_t*) hdr;
-	for(int i = 0; i < (hdr->len* 2); i++)
+	for(int i = 0; i < (hdr->len * 2); i++)
 	{
 		sum += ptr[i];
 	}

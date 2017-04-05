@@ -25,7 +25,7 @@
 
 extern PML4 *current_pml4;
 process_t *first_process = NULL;
-process_t *current_process = NULL;
+volatile process_t *current_process = NULL;
 uint64_t current_pid = 1;
 process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent)
 {
@@ -35,7 +35,7 @@ process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent)
 	memset(proc, 0, sizeof(process_t));
 	proc->pid = current_pid;
 	current_pid++;
-	proc->cmd_line = cmd_line;
+	proc->cmd_line = (char*) cmd_line;
 	// TODO: Setup proc->ctx
 	if(ctx)
 		memcpy(&proc->ctx, ctx, sizeof(ioctx_t));
@@ -45,7 +45,7 @@ process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent)
 		first_process = proc;
 	else
 	{
-		process_t *it = current_process;
+		process_t *it = (process_t*) get_current_process();
 		while(it->next) it = it->next;
 		it->next = proc;
 	}
@@ -164,19 +164,20 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	}
 	DISABLE_INTERRUPTS();
 
-	current_process->cr3 = cr3;
-	current_process->tree = tree;
-	paging_load_cr3(current_process->cr3);
+	get_current_process()->cr3 = cr3;
+	get_current_process()->tree = tree;
+	get_current_process()->cmd_line = strdup(path);
+	paging_load_cr3(get_current_process()->cr3);
 
 	/* Map argv and envp */
-	char **new_args = vmm_allocate_virt_address(0, vmm_align_size_to_pages(sizeof(void*) * nargs), VMM_TYPE_REGULAR, VMM_USER|VMM_WRITE);
-	char **new_envp = vmm_allocate_virt_address(0, vmm_align_size_to_pages(sizeof(void*) * nenvp), VMM_TYPE_REGULAR, VMM_USER|VMM_WRITE);
+	char **new_args = vmm_allocate_virt_address(0, vmm_align_size_to_pages(sizeof(void*) * nargs), VMM_TYPE_REGULAR, VMM_USER|VMM_WRITE, 0);
+	char **new_envp = vmm_allocate_virt_address(0, vmm_align_size_to_pages(sizeof(void*) * nenvp), VMM_TYPE_REGULAR, VMM_USER|VMM_WRITE, 0);
 	vmm_map_range(new_args, vmm_align_size_to_pages(sizeof(void*) * nargs), VMM_WRITE | VMM_USER | VMM_NOEXEC);
 	vmm_map_range(new_envp, vmm_align_size_to_pages(sizeof(void*) * nenvp), VMM_WRITE | VMM_USER | VMM_NOEXEC);
 	
 	/* Map the actual strings */
-	char *argv_buffer = vmm_allocate_virt_address(0, vmm_align_size_to_pages(arg_string_len), VMM_TYPE_REGULAR, VMM_USER|VMM_WRITE);
-	char *envp_buffer = vmm_allocate_virt_address(0, vmm_align_size_to_pages(envp_string_len), VMM_TYPE_REGULAR, VMM_USER|VMM_WRITE);
+	char *argv_buffer = vmm_allocate_virt_address(0, vmm_align_size_to_pages(arg_string_len), VMM_TYPE_REGULAR, VMM_USER|VMM_WRITE, 0);
+	char *envp_buffer = vmm_allocate_virt_address(0, vmm_align_size_to_pages(envp_string_len), VMM_TYPE_REGULAR, VMM_USER|VMM_WRITE, 0);
 	vmm_map_range(argv_buffer, vmm_align_size_to_pages(arg_string_len), VMM_WRITE | VMM_USER | VMM_NOEXEC);
 	vmm_map_range(envp_buffer, vmm_align_size_to_pages(envp_string_len), VMM_WRITE | VMM_USER | VMM_NOEXEC);
 	
@@ -201,22 +202,22 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	thread_t *t = sched_create_main_thread((thread_callback_t) entry, 0, nargs, new_args, new_envp);
 
 	/* Set the appropriate uid and gid */
-	if(current_process->setuid != 0)
-		current_process->uid = current_process->setuid;
-	if(current_process->setgid != 0)
-		current_process->gid = current_process->setgid;
-	current_process->setuid = 0;
-	current_process->setgid = 0;
-	t->owner = current_process;
-	current_process->threads[0] = t;
+	if(get_current_process()->setuid != 0)
+		get_current_process()->uid = get_current_process()->setuid;
+	if(get_current_process()->setgid != 0)
+		get_current_process()->gid = get_current_process()->setgid;
+	get_current_process()->setuid = 0;
+	get_current_process()->setgid = 0;
+	t->owner = get_current_process();
+	get_current_process()->threads[0] = t;
 
 	/* Allocate the program's data break */
-	current_process->brk = vmm_allocate_virt_address(0, 1, VMM_TYPE_HEAP, VMM_WRITE | VMM_NOEXEC | VMM_USER);
+	get_current_process()->brk = vmm_allocate_virt_address(0, 1, VMM_TYPE_HEAP, VMM_WRITE | VMM_NOEXEC | VMM_USER, 0);
 
-	vmm_map_range(current_process->brk, 1, VMM_WRITE | VMM_NOEXEC | VMM_USER);
+	vmm_map_range(get_current_process()->brk, 1, VMM_WRITE | VMM_NOEXEC | VMM_USER);
 
 	/* Prepare the auxv */
-	Elf64_auxv_t *auxv = (Elf64_auxv_t *) current_process->threads[0]->user_stack_bottom;
+	Elf64_auxv_t *auxv = (Elf64_auxv_t *) get_current_process()->threads[0]->user_stack_bottom;
 	unsigned char *scratch_space = (unsigned char *) (auxv + 37);
 	for(int i = 0; i < 38; i++)
 	{
@@ -230,10 +231,10 @@ int sys_execve(char *path, char *argv[], char *envp[])
 				auxv[i].a_un.a_val = PAGE_SIZE;
 				break;
 			case AT_UID:
-				auxv[i].a_un.a_val = current_process->uid;
+				auxv[i].a_un.a_val = get_current_process()->uid;
 				break;
 			case AT_GID:
-				auxv[i].a_un.a_val = current_process->gid;
+				auxv[i].a_un.a_val = get_current_process()->gid;
 				break;
 			case AT_RANDOM:
 				get_entropy((char*) scratch_space, 16);
@@ -242,16 +243,15 @@ int sys_execve(char *path, char *argv[], char *envp[])
 				break;
 		}
 	}
-	registers_t *regs = (registers_t *) current_process->threads[0]->kernel_stack;
+	registers_t *regs = (registers_t *) get_current_process()->threads[0]->kernel_stack;
 	regs->rcx = (uintptr_t) auxv;
 	
-	current_process->fs = (uintptr_t) vmm_allocate_virt_address(0, 1, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_USER);
-	vmm_map_range((void*) current_process->fs, 1, VMM_WRITE | VMM_NOEXEC | VMM_USER);
-	pthread_t *p = (struct pthread*) current_process->fs;
+	get_current_process()->fs = (uintptr_t) vmm_allocate_virt_address(0, 1, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_USER, 0);
+	vmm_map_range((void*) get_current_process()->fs, 1, VMM_WRITE | VMM_NOEXEC | VMM_USER);
+	pthread_t *p = (struct pthread*) get_current_process()->fs;
 	p->self = (pthread_t*) p;
-
-	p->tid = current_process->threads[0]->id;
-	p->pid = current_process->pid;
+	p->tid = get_current_process()->threads[0]->id;
+	p->pid = get_current_process()->pid;
 	
 	release_spinlock(&execve_spl);
 	ENABLE_INTERRUPTS();
@@ -259,21 +259,21 @@ int sys_execve(char *path, char *argv[], char *envp[])
 }
 pid_t sys_getppid()
 {
-	if(current_process->parent)
-		return current_process->parent->pid;
+	if(get_current_process()->parent)
+		return get_current_process()->parent->pid;
 	else
 		return -1;
 }
 int sys_wait(int *exitstatus)
 {
-	process_t *i = current_process;
+	process_t *i = (process_t*) get_current_process();
 	_Bool has_one_child = 0;
 loop:
 	while(i)
 	{
-		if(i->parent == current_process)
+		if(i->parent == get_current_process())
 			has_one_child = 1;
-		if(i->parent == current_process && i->has_exited == 1)
+		if(i->parent == get_current_process() && i->has_exited == 1)
 			return i->pid;
 		i = i->next;
 	}
@@ -286,11 +286,11 @@ static mutex_t forkmutex;
 pid_t sys_fork(syscall_ctx_t *ctx)
 {
 
-	process_t *proc = current_process;
+	process_t *proc = (process_t*) get_current_process();
 	if(!proc)
 		return -1;
 	/* Create a new process */
-	process_t *child = process_create(current_process->cmd_line, &proc->ctx, proc); /* Create a process with the current
+	process_t *child = process_create(get_current_process()->cmd_line, &proc->ctx, proc); /* Create a process with the current
 							  			  * process's info */
 	if(!child)
 		return -1;
@@ -323,6 +323,8 @@ pid_t sys_fork(syscall_ctx_t *ctx)
 	child->threads[0]->kernel_stack_top = child->threads[0]->kernel_stack;
 	child->threads[0]->kernel_stack = sched_fork_stack(ctx, child->threads[0]->kernel_stack);
 	
+	child->fs = get_current_process()->fs;
+
 	ENABLE_INTERRUPTS();
 	// Return the pid to the caller
 	return child->pid;
@@ -330,35 +332,35 @@ pid_t sys_fork(syscall_ctx_t *ctx)
 void sys__exit(int status)
 {
 	DISABLE_INTERRUPTS();
-	if(current_process->pid == 1)
+	if(get_current_process()->pid == 1)
 	{
-		printf("Panic: %s returned!\n", current_process->cmd_line);
+		printf("Panic: %s returned!\n", get_current_process()->cmd_line);
 		ENABLE_INTERRUPTS();
 		for(;;);
 	}
-	current_process->has_exited = status;
+	get_current_process()->has_exited = status;
 	ENABLE_INTERRUPTS();
 	while(1) __asm__ __volatile__("hlt");
 }
 uint64_t sys_getpid()
 {
-	return current_process->pid;
+	return get_current_process()->pid;
 }
 int sys_personality(unsigned long val)
 {
 	// TODO: Use this syscall for something. This might be potentially very useful
-	current_process->personality = val;
+	get_current_process()->personality = val;
 	return 0;
 }
 int sys_setuid(uid_t uid)
 {
-	if(uid == 0 && current_process->uid != 0)
+	if(uid == 0 && get_current_process()->uid != 0)
 		return errno =-EPERM;
-	current_process->setuid = uid;
+	get_current_process()->setuid = uid;
 	return 0;
 }
 int sys_setgid(gid_t gid)
 {
-	current_process->setgid = gid;
+	get_current_process()->setgid = gid;
 	return 0;
 }

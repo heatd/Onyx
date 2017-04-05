@@ -281,24 +281,25 @@ void vmm_start_address_bookkeeping(uintptr_t framebuffer_address, uintptr_t heap
 }
 void *vmm_map_range(void *range, size_t pages, uint64_t flags)
 {
-	if(likely(current_process))
-		acquire_spinlock(&current_process->vm_spl);
+	if(likely(get_current_process()))
+		acquire_spinlock((spinlock_t*) &get_current_process()->vm_spl);
 	uintptr_t mem = (uintptr_t) range;
 	for (size_t pgs = 0; pgs < pages; pgs++)
 	{
-		paging_map_phys_to_virt(mem, (uintptr_t) bootmem_alloc(1), flags);
+		if(!paging_map_phys_to_virt(mem, (uintptr_t) bootmem_alloc(1), flags))
+			panic("out of memory.");
 		__asm__ __volatile__("invlpg %0"::"m"(mem));
 		mem += 0x1000;
 	}
 	memset(range, 0, PAGE_SIZE * pages);
-	if(likely(current_process))
-		release_spinlock(&current_process->vm_spl);
+	if(likely(get_current_process()))
+		release_spinlock((spinlock_t*) &get_current_process()->vm_spl);
 	return range;
 }
 void vmm_unmap_range(void *range, size_t pages)
 {
-	if(likely(current_process))
-		acquire_spinlock(&current_process->vm_spl);
+	if(likely(get_current_process()))
+		acquire_spinlock((spinlock_t*) &get_current_process()->vm_spl);
 	uintptr_t mem = (uintptr_t) range;
 	for (size_t i = 0; i < pages; i++)
 	{
@@ -306,15 +307,15 @@ void vmm_unmap_range(void *range, size_t pages)
 		__asm__ __volatile__("invlpg %0"::"m"(mem));
 		mem += 0x1000;
 	}
-	if(likely(current_process))
-		release_spinlock(&current_process->vm_spl);
+	if(likely(get_current_process()))
+		release_spinlock((spinlock_t*) &get_current_process()->vm_spl);
 }
 void vmm_destroy_mappings(void *range, size_t pages)
 {
 	if(!vmm_is_mapped(range))
 		return;
-	if(likely(current_process))
-		acquire_spinlock(&current_process->vm_spl);
+	if(likely(get_current_process()))
+		acquire_spinlock((spinlock_t*) &get_current_process()->vm_spl);
 	for(size_t i = 0; i < num_areas; i++)
 	{
 		if(areas[i].base == (uintptr_t)range && areas[i].pages == pages)
@@ -336,28 +337,30 @@ void vmm_destroy_mappings(void *range, size_t pages)
 				areas[num_areas-1].base = (uintptr_t)range + pages * PAGE_SIZE;
 				areas[num_areas-1].pages = second_half_pages;
 				qsort(areas,num_areas,sizeof(vmm_entry_t),vmm_comp);
-				if(likely(current_process))
-					release_spinlock(&current_process->vm_spl);
+				if(likely(get_current_process()))
+					release_spinlock((spinlock_t*) &get_current_process()->vm_spl);
 				return;
 			}
 			else
 			{
 				areas[i].pages -= pages;
-				if(likely(current_process))
-					release_spinlock(&current_process->vm_spl);
+				if(likely(get_current_process()))
+					release_spinlock((spinlock_t*) &get_current_process()->vm_spl);
 				return;
 			}
 		}
 	}
 	areas = realloc(areas, sizeof(vmm_entry_t) * num_areas);
 	qsort(areas,num_areas,sizeof(vmm_entry_t),vmm_comp);
-	if(likely(current_process))
-		release_spinlock(&current_process->vm_spl);
+	if(likely(get_current_process()))
+		release_spinlock((spinlock_t*) &get_current_process()->vm_spl);
 }
-void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uint64_t prot)
+void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uint64_t prot, uintptr_t alignment)
 {
-	if(likely(current_process))
-		acquire_spinlock(&current_process->vm_spl);
+	if(alignment == 0)
+		alignment = 1;
+	if(likely(get_current_process()))
+		acquire_spinlock((spinlock_t*) &get_current_process()->vm_spl);
 	uintptr_t base_address = 0;
 	switch(type)
 	{
@@ -387,6 +390,8 @@ void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uin
 		{
 			avl_node_t *n = *e;
 			base_address += n->data->pages * PAGE_SIZE;
+			if(base_address % alignment)
+				base_address += alignment - (base_address % alignment);
 			e = avl_search_key(&kernel_tree, base_address);
 			if(avl_search_key(&kernel_tree, base_address + pages * PAGE_SIZE) == NULL && !e)
 				break;
@@ -397,11 +402,17 @@ void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uin
 		avl_node_t **e = avl_search_key(&tree, base_address);
 		while(e && *e)
 		{
+again:
+			;
 			avl_node_t *n = *e;
 			base_address += n->data->pages * PAGE_SIZE;
-			e = avl_search_key(&tree, base_address);
-			if(avl_search_key(&tree, base_address + pages * PAGE_SIZE) == NULL && !e)
-				break;
+			if(base_address % alignment)
+				base_address += alignment - (base_address % alignment);
+			for(uintptr_t base = base_address; base < base_address + pages * PAGE_SIZE; base += PAGE_SIZE)
+			{
+				if((e = avl_search_key(&tree, base)))
+					goto again;
+			}
 		}
 	}
 	vmm_entry_t *en;
@@ -415,18 +426,18 @@ void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uin
 	en->type = type;
 	en->pages = pages;
 	en->base = base_address;
-	if(likely(current_process))
-		release_spinlock(&current_process->vm_spl);
+	if(likely(get_current_process()))
+		release_spinlock((spinlock_t*) &get_current_process()->vm_spl);
 	return (void*)base_address;
 }
 void *vmm_reserve_address(void *addr, size_t pages, uint32_t type, uint64_t prot)
 {
-	if(likely(current_process))
-		acquire_spinlock(&current_process->vm_spl);
+	if(likely(get_current_process()))
+		acquire_spinlock((spinlock_t*) &get_current_process()->vm_spl);
 	if(vmm_is_mapped(addr))
 	{
-		if(likely(current_process))
-			release_spinlock(&current_process->vm_spl);
+		if(likely(get_current_process()))
+			release_spinlock((spinlock_t*) &get_current_process()->vm_spl);
 		return NULL;
 	}
 	vmm_entry_t *v;
@@ -440,12 +451,13 @@ void *vmm_reserve_address(void *addr, size_t pages, uint32_t type, uint64_t prot
 		errno = ENOMEM;
 		goto return_;
 	}
+	v->base = (uintptr_t) addr;
 	v->pages = pages;
 	v->type = type;
 	v->rwx = prot;
 return_:
-	if(likely(current_process))
-		release_spinlock(&current_process->vm_spl);
+	if(likely(get_current_process()))
+		release_spinlock((spinlock_t*) &get_current_process()->vm_spl);
 	return addr;
 }
 vmm_entry_t *vmm_is_mapped(void *addr)
@@ -484,18 +496,18 @@ void vmm_stop_spawning()
 }
 void vmm_change_perms(void *range, size_t pages, int perms)
 {
-	if(likely(current_process))
-		acquire_spinlock(&current_process->vm_spl);
+	if(likely(get_current_process()))
+		acquire_spinlock((spinlock_t*) &get_current_process()->vm_spl);
 	for(size_t i = 0; i < pages; i++)
 	{
 		paging_change_perms(range, perms);
 	}
-	if(likely(current_process))
-		release_spinlock(&current_process->vm_spl);
+	if(likely(get_current_process()))
+		release_spinlock((spinlock_t*) &get_current_process()->vm_spl);
 }
 void *vmalloc(size_t pages, int type, int perms)
 {
-	void *addr = vmm_allocate_virt_address(VM_KERNEL, pages, type, perms);
+	void *addr = vmm_allocate_virt_address(VM_KERNEL, pages, type, perms, 0);
 	vmm_map_range(addr, pages, perms);
 	return addr;
 }
@@ -532,17 +544,17 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 	if(!(prot & PROT_EXEC))
 		vm_prot |= VMM_NOEXEC;
 	if(!addr) // Specified by posix, if addr == NULL, guess an address
-		mapping_addr = vmm_allocate_virt_address(0, pages, VMM_TYPE_REGULAR, vm_prot);
+		mapping_addr = vmm_allocate_virt_address(0, pages, VMM_TYPE_REGULAR, vm_prot, 0);
 	else
 	{
 		mapping_addr = vmm_reserve_address(addr, pages, VMM_TYPE_REGULAR, vm_prot);
 		if(!mapping_addr)
-			mapping_addr = vmm_allocate_virt_address(0, pages, VMM_TYPE_REGULAR, vm_prot);
+			mapping_addr = vmm_allocate_virt_address(0, pages, VMM_TYPE_REGULAR, vm_prot, 0);
 	}
 	if(!mapping_addr)
 		return errno =-ENOMEM, NULL;
-	if(!vmm_map_range(mapping_addr, pages, vm_prot))
-		return errno =-ENOMEM, NULL;
+	/*if(!vmm_map_range(mapping_addr, pages, vm_prot))
+		return errno =-ENOMEM, NULL;*/
 	return mapping_addr;
 }
 int sys_munmap(void *addr, size_t length)
@@ -578,8 +590,21 @@ int sys_mprotect(void *addr, size_t len, int prot)
 uint64_t sys_brk(void *addr)
 {
 	if(addr == NULL)
-		return (uint64_t) current_process->brk;
+		return (uint64_t) get_current_process()->brk;
 	else
-		current_process->brk = addr;
+		get_current_process()->brk = addr;
 	return 0;
+}
+void print_vmm_structs(avl_node_t *node)
+{
+	printk("[Base %x Length %x End %x]\n", node->data->base, node->data->pages * PAGE_SIZE, 
+	(uintptr_t) node->data->base + node->data->pages * PAGE_SIZE);
+	if(node->left)
+		print_vmm_structs(node->left);
+	if(node->right)
+		print_vmm_structs(node->right);
+}
+void vmm_print_stats(void)
+{
+	print_vmm_structs(tree);
 }

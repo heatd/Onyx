@@ -161,7 +161,7 @@ void cpu_ap_entry(int cpu_num)
 	uint64_t addr = low | ((uint64_t)high << 32);
 	addr &= 0xFFFFF000;
 	/* Map the BSP's LAPIC */
-	uintptr_t _lapic = (uintptr_t) vmm_allocate_virt_address(VM_KERNEL, 1, VMM_TYPE_REGULAR, VMM_TYPE_HW);
+	uintptr_t _lapic = (uintptr_t) vmm_allocate_virt_address(VM_KERNEL, 1, VMM_TYPE_REGULAR, VMM_TYPE_HW, 0);
 	paging_map_phys_to_virt((uintptr_t)_lapic, addr, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
 	
 	/* Fill the processor struct with the LAPIC data */

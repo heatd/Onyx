@@ -142,7 +142,7 @@ int e1000_init_descs()
 	size_t needed_pages = (sizeof(struct e1000_rx_desc) * E1000_NUM_RX_DESC + 16) / 4096;
 	if((sizeof(struct e1000_rx_desc) * E1000_NUM_RX_DESC + 16) % 4096)
 		needed_pages++;
-	ptr = vmm_allocate_virt_address(VM_KERNEL, needed_pages, VM_TYPE_HW, VM_WRITE | VM_GLOBAL | VM_NOEXEC);
+	ptr = vmm_allocate_virt_address(VM_KERNEL, needed_pages, VM_TYPE_HW, VM_WRITE | VM_GLOBAL | VM_NOEXEC, 0);
 	if(!ptr)
 		return 1;
 	vmm_map_range(ptr, needed_pages, VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC);
@@ -180,7 +180,7 @@ int e1000_init_descs()
 	needed_pages = (sizeof(struct e1000_tx_desc) * E1000_NUM_TX_DESC + 16) / 4096;
 	if((sizeof(struct e1000_tx_desc) * E1000_NUM_TX_DESC + 16) % 4096)
 		needed_pages++;
-	ptr = vmm_allocate_virt_address(VM_KERNEL, needed_pages, VMM_TYPE_HW, VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC);
+	ptr = vmm_allocate_virt_address(VM_KERNEL, needed_pages, VMM_TYPE_HW, VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC, 0);
 	if(!ptr)
 		return 1;
 	vmm_map_range(ptr, needed_pages, VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC);
@@ -260,7 +260,7 @@ void e1000_init(PCIDevice *dev)
 	size_t needed_pages = bar->size / PAGE_SIZE;
 	if(bar->size % PAGE_SIZE)
 		needed_pages++;
-	mem_space = vmm_allocate_virt_address(VM_KERNEL, needed_pages, VMM_TYPE_HW, VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC);
+	mem_space = vmm_allocate_virt_address(VM_KERNEL, needed_pages, VMM_TYPE_HW, VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC, 0);
 	if(!mem_space)
 		return;
 	uintptr_t virt = (uintptr_t) mem_space;

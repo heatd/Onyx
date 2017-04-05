@@ -234,7 +234,7 @@
 #elif defined(_AED_EFI) || defined(_GNU_EFI) || defined(_EDK2_EFI)
 #include "acefi.h"
 
-#elif defined (__spartix__)
+#elif defined (__onyx__)
 #include "acspartix.h"
 #else
 

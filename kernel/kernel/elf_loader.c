@@ -17,8 +17,16 @@
 #include <kernel/kernelinfo.h>
 #include <kernel/vmm.h>
 #include <kernel/modules.h>
+#include <kernel/process.h>
+#include <kernel/cpu.h>
+#include <kernel/random.h>
 #include <kernel/log.h>
+#include <kernel/envp.h>
+#include <kernel/binfmt.h>
+#include <kernel/compiler.h>
+#include <pthread_kernel.h>
 
+int elf_load(struct binfmt_args *args);
 static Elf64_Shdr *strtab = NULL;
 static Elf64_Shdr *symtab = NULL;
 static Elf64_Shdr *shstrtab = NULL;
@@ -111,96 +119,66 @@ int elf_relocate_addend(Elf64_Ehdr *hdr, Elf64_Rela *rela, Elf64_Shdr *section)
 	}
 	return 0;
 }
-static Elf64_Rela * rela_table = NULL;
-static size_t rela_ent_size = 0;
-static size_t rela_size = 0;
 /* Shared version of elf_parse_program_headers*/
 _Bool elf_parse_program_headers_s(void *file)
 {
 	Elf64_Ehdr *hdr = (Elf64_Ehdr *) file;
 	Elf64_Phdr *phdrs = (Elf64_Phdr *) ((char *) file + hdr->e_phoff);
+	Elf64_Shdr *sections = (Elf64_Shdr *) ((char *) file + hdr->e_shoff);
+	void *base = NULL;
+	size_t needed_size = 0;
+	size_t last_size = 0;
+	uintptr_t alignment = (uintptr_t) -1;
 	for(Elf64_Half i = 0; i < hdr->e_phnum; i++)
 	{
 		if(phdrs[i].p_type == PT_NULL)
 			continue;
 		if(phdrs[i].p_type == PT_LOAD)
 		{
-			size_t pages = phdrs[i].p_memsz / 4096;
-			if (!pages || pages % 4096)
-				pages++;
-			phdrs[i].p_vaddr = (Elf64_Addr) vmm_allocate_virt_address(0, pages, VMM_TYPE_SHARED, VMM_WRITE | VMM_USER);
-			vmm_map_range((void*) phdrs[i].p_vaddr, pages, VMM_WRITE | VMM_USER);
-			printf("[ELF] virtual addresses %p - %p\n", phdrs[i].p_vaddr, phdrs[i].p_vaddr + PAGE_SIZE * pages);
-			memcpy((void*) phdrs[i].p_vaddr, (void *) ((char *) file + phdrs[i].p_offset),  phdrs[i].p_filesz);
+			needed_size += phdrs[i].p_vaddr;
+			last_size = phdrs[i].p_memsz;
+			if(alignment == (uintptr_t) -1)
+				alignment = phdrs[i].p_align;
 		}
-		if(phdrs[i].p_type == PT_DYNAMIC)
+	}
+	needed_size += last_size;
+	base = vmm_allocate_virt_address(0, vmm_align_size_to_pages(needed_size), 
+				VM_TYPE_SHARED, VM_WRITE | VM_USER, alignment);
+	printk("Allocated [%x - %x]\n", base, (uintptr_t) base + needed_size);
+	hdr->e_entry += (uintptr_t) base;
+	for(Elf64_Half i = 0; i < hdr->e_phnum; i++)
+	{
+		if(phdrs[i].p_type == PT_NULL)
+			continue;
+		if(phdrs[i].p_type == PT_LOAD)
 		{
-			/* Found the dynamic section, very important, as it contains vital information for loading */
-			Elf64_Dyn *d = (Elf64_Dyn*)((char*) file + phdrs[i].p_offset);
-			for(int i = 0; d[i].d_tag != DT_NULL; i++)
+			phdrs[i].p_vaddr += (uintptr_t) base;
+			uint64_t prot = VM_NOEXEC | VM_USER;
+			if(phdrs[i].p_flags & PF_X)
+				prot &= ~VM_NOEXEC;
+			if(phdrs[i].p_flags & PF_W)
+				prot |= VM_WRITE;
+			vmm_map_range((void*) (phdrs[i].p_vaddr & 0xFFFFFFFFFFFFF000), 
+				vmm_align_size_to_pages(phdrs[i].p_memsz + (phdrs[i].p_vaddr & 0xFFF)), prot);
+			memcpy((void*) phdrs[i].p_vaddr, (const void*)((char*) file + phdrs[i].p_offset), 
+			phdrs[i].p_filesz);
+		}
+	}
+	for(size_t i = 0; i < hdr->e_shnum; i++)
+	{
+		if(sections[i].sh_type == SHT_RELA)
+		{
+			Elf64_Rela *r = (Elf64_Rela *)((char *) file + sections[i].sh_offset);
+			for(size_t j = 0; j < sections[i].sh_size / sections[i].sh_entsize; j++)
 			{
-				puts("elf: dynamic tag found");
-				/* Here we handle the different tag types that might appear on the DYNAMIC array */
-				switch(d[i].d_tag)
+				Elf64_Rela *rela = &r[j];
+				rela->r_offset += (uintptr_t) base;
+				uintptr_t *addr = (uintptr_t*) rela->r_offset;
+				printk("Applying relocation to %x\n", addr);
+				switch(ELF64_R_TYPE(rela->r_info))
 				{
-					/* We ignore the entries that we're not going to use, or that are never going to come up
-					 * while we are loading the interpreter(ld-onyx.so by default)
-					*/
-					case DT_RELASZ:
-					{
-						rela_size = d[i].d_un.d_val;
-						break;
-					
-					}
-					case DT_STRTAB:
-					{
-						strtab = (Elf64_Shdr *) ((char*) file + d[i].d_un.d_ptr);
-						break; 
-					}
-					case DT_SYMTAB:
-					{
-						symtab = (Elf64_Shdr *) ((char*) file + d[i].d_un.d_ptr);
-						break;
-					}
-					case DT_RELA:
-					{
-						rela_table = (Elf64_Rela *) ((char*) file + d[i].d_un.d_ptr);
-						break;
-					}
-					case DT_RELAENT:
-					{
-						rela_ent_size = d[i].d_un.d_val;
-						break;
-					}
-
-				}
-			}
-						/* 
-			 * Start to do relocations
-			 * Ok, right here we need to start processing the Rela table,
-			 * and getting the section associated with it. After we get the section header,
-			 * we need to compare it against the program headers looking for the program header that
-			 * contains the .rela.xxxxx section we're processing
-			*/
-			size_t num_rela_ent = rela_size / rela_ent_size;
-			printf("eu\n");
-			for(unsigned int j = 0; j < num_rela_ent; j++)
-			{
-				uint32_t sidx = ELF64_R_INFO(rela_table[j].r_info, ELF64_R_TYPE(rela_table[j].r_info));
-				printf("Section index (%u)\n", sidx);
-				Elf64_Shdr *sections = (Elf64_Shdr *)((char*) file + hdr->e_shoff);
-				Elf64_Shdr *rela_sec = &sections[sidx];
-				for(Elf64_Half k = 0; k < hdr->e_phnum; k++)
-				{
-					if(phdrs[k].p_type == PT_NULL)
-						continue;
-					if(rela_sec->sh_offset == phdrs[k].p_offset || 
-					(rela_sec->sh_offset <= phdrs[k].p_offset + phdrs[k].p_filesz && rela_sec->sh_offset > phdrs[k].p_offset))
-					{
-						puts("Found the closest section!\n");
-						printf("Rela offset: %x\n", rela_table[j].r_offset);
-						break;
-					}
+					case R_X86_64_RELATIVE:
+						*addr = RELOCATE_R_X86_64_RELATIVE((uintptr_t) base, rela->r_addend);
 				}
 			}
 		}
@@ -244,31 +222,93 @@ int elf_load_pie(char *path)
 		free(f);
 		return errno = EINVAL, -1;
 	}
-	int ret = elf_parse_program_headers_s(file);
-	printf("elf_parse_program_headers_s returned %u\n", ret);
+	elf_parse_program_headers_s(file);
+	process_t *proc = get_current_process();
+	char *kargv[] = {path, proc->cmd_line, NULL};
+	int argc;
+	char **argv = copy_argv(kargv, path, &argc);
+	DISABLE_INTERRUPTS();
+	process_create_thread((process_t*) proc, (thread_callback_t) header->e_entry, 0, argc, argv, NULL);
+	Elf64_auxv_t *auxv = (Elf64_auxv_t *) proc->threads[0]->user_stack_bottom;
+	unsigned char *scratch_space = (unsigned char *) (auxv + 37);
+	for(int i = 0; i < 38; i++)
+	{
+		if(i != 0)
+			auxv[i].a_type = i;
+		if(i == 37)
+			auxv[i].a_type = 0;
+		switch(i)
+		{
+			case AT_PAGESZ:
+				auxv[i].a_un.a_val = PAGE_SIZE;
+				break;
+			case AT_UID:
+				auxv[i].a_un.a_val = proc->uid;
+				break;
+			case AT_GID:
+				auxv[i].a_un.a_val = proc->gid;
+				break;
+			case AT_RANDOM:
+				get_entropy((char*) scratch_space, 16);
+				scratch_space += 16;
+				break;
+		}
+	}
+	registers_t *regs = (registers_t *) proc->threads[0]->kernel_stack;
+	regs->rcx = (uintptr_t) auxv;
+	ENABLE_INTERRUPTS();
 	while(1);
 	return 0;
 }
-_Bool elf_parse_program_headers(void *file)
+int elf_parse_program_headers(void *file, struct binfmt_args *args)
 {
 	Elf64_Ehdr *hdr = (Elf64_Ehdr *) file;
 	Elf64_Phdr *phdrs = (Elf64_Phdr *) ((char *) file + hdr->e_phoff);
-	for (Elf64_Half i = 0; i < hdr->e_phnum; i++) {
+	for (Elf64_Half i = 0; i < hdr->e_phnum; i++)
+	{
 		if (phdrs[i].p_type == PT_NULL)
 			continue;
 		if(phdrs[i].p_type == PT_INTERP)
 		{
-			printf("This program needs an interpreter!\n");
-			printf("Interpreter: %s\n", (char*)file + phdrs[i].p_offset);
-			elf_load_pie((char*)file + phdrs[i].p_offset);
+			printk("This program needs an interpreter!\n");
+			printk("Interpreter: %s\n", (char*)file + phdrs[i].p_offset);
+			args->filename = strdup((char*)file + phdrs[i].p_offset);
+			close_vfs(args->file);
+			free(args->file);
+			args->file = open_vfs(fs_root, args->filename);
+			free(args->file_signature);
+			args->file_signature = malloc(100);
+			if(!args->file_signature)
+			{
+				close_vfs(args->file);
+				free(args->file);
+				free(args->filename);
+			}
+			read_vfs(0, 100, args->file_signature, args->file);
+			for (Elf64_Half j = 0; j < hdr->e_phnum; j++)
+			{
+				if (phdrs[j].p_type == PT_LOAD)
+				{
+					size_t pages = phdrs[j].p_memsz / 4096;
+					if (!pages || pages % 4096)
+						pages++;
+					printk("[%p - %u]\n", phdrs[j].p_vaddr & 0xFFFFFFFFFFFFF000, pages);
+					vmm_reserve_address((void *) (phdrs[j].p_vaddr & 0xFFFFFFFFFFFFF000), pages, VM_TYPE_REGULAR, VM_WRITE | VM_USER);
+				}
+			}
+			/* TODO: Handle argv and envp */
+			int ret = elf_load(args);
+			if(!ret)
+				return ELF_INTERP_MAGIC;
+			return ret;
 		}
 		if (phdrs[i].p_type == PT_LOAD)
 		{
 			size_t pages = phdrs[i].p_memsz / 4096;
 			if (!pages || pages % 4096)
 				pages++;
-			vmm_reserve_address((void *) (phdrs[i].p_vaddr & 0xFFFFFFFFFFFFF000), pages, VMM_TYPE_REGULAR, VMM_WRITE | VMM_USER);
-			vmm_map_range((void *) (phdrs[i].p_vaddr & 0xFFFFFFFFFFFFF000), pages, VMM_WRITE | VMM_USER);
+			vmm_reserve_address((void *) (phdrs[i].p_vaddr & 0xFFFFFFFFFFFFF000), pages, VM_TYPE_REGULAR, VM_WRITE | VM_USER);
+			vmm_map_range((void *) (phdrs[i].p_vaddr & 0xFFFFFFFFFFFFF000), pages, VM_WRITE | VM_USER);
 			memcpy((void*) phdrs[i].p_vaddr, (void *) ((char *) file + phdrs[i].p_offset),  phdrs[i].p_filesz);
 		}
 	}
@@ -292,15 +332,83 @@ _Bool elf_is_valid(Elf64_Ehdr *header)
 	return true;
 }
 
-void *elf_load(void *file)
+void *elf_load_old(void *file)
 {
 	if (!file)
 		return errno = EINVAL, NULL;
 	/* Check if its elf64 file is invalid */
 	if (!elf_is_valid((Elf64_Ehdr *) file))
 		return errno = EINVAL, NULL;
-	elf_parse_program_headers(file);
+	//elf_parse_program_headers(file);
+	
 	return (void *) ((Elf64_Ehdr *) file)->e_entry;
+}
+int elf_load(struct binfmt_args *args)
+{
+	uint8_t *file_buf = malloc(args->file->size);
+	if(!args)
+		return errno = EINVAL, -1;
+	/* Read the file */
+	read_vfs(0, args->file->size, file_buf, args->file);
+	Elf64_Ehdr *header = (Elf64_Ehdr *) file_buf;
+	/* Validate the header */
+	if(!elf_is_valid(header))
+		return errno = EINVAL, -1;
+	int i;
+	if(header->e_type == ET_DYN)
+		i = (int) elf_parse_program_headers_s((void*) header);
+	else
+		i = elf_parse_program_headers((void*) header, args);
+	if(i == ELF_INTERP_MAGIC)
+		return 0;
+	int argc;
+	char **argv = copy_argv(args->argv, get_current_process()->cmd_line, &argc);
+	printk("%s\n", argv[0]);
+	char **env = copy_env_vars(args->envp);
+	DISABLE_INTERRUPTS();
+	process_create_thread(get_current_process(), (thread_callback_t) header->e_entry, 0, argc, argv, env);
+	
+	/* Setup the auxv at the stack bottom */
+	Elf64_auxv_t *auxv = (Elf64_auxv_t *) get_current_process()->threads[0]->user_stack_bottom;
+	unsigned char *scratch_space = (unsigned char *) (auxv + 37);
+	for(int i = 0; i < 38; i++)
+	{
+		if(i != 0)
+			auxv[i].a_type = i;
+		if(i == 37)
+			auxv[i].a_type = 0;
+		switch(i)
+		{
+			case AT_PAGESZ:
+				auxv[i].a_un.a_val = PAGE_SIZE;
+				break;
+			case AT_UID:
+				auxv[i].a_un.a_val = get_current_process()->uid;
+				break;
+			case AT_GID:
+				auxv[i].a_un.a_val = get_current_process()->gid;
+				break;
+			case AT_RANDOM:
+				get_entropy((char*) scratch_space, 16);
+				scratch_space += 16;
+				break;
+		}
+	}
+	registers_t *regs = (registers_t *) get_current_process()->threads[0]->kernel_stack;
+	regs->rcx = (uintptr_t) auxv;
+	uintptr_t *fs = vmm_allocate_virt_address(0, 1, VM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_USER, 0);
+	vmm_map_range(fs, 1, VMM_WRITE | VMM_NOEXEC | VMM_USER);
+	printk("TLS: %p\n", fs);
+	get_current_process()->fs = (uintptr_t) fs;
+	pthread_t *p = (struct pthread*) fs;
+	p->self = (pthread_t*) fs;
+	p->tid = get_current_process()->threads[0]->id;
+	p->pid = get_current_process()->pid;
+
+	get_current_process()->brk = vmm_allocate_virt_address(0, 1024, VM_TYPE_HEAP, VM_WRITE | VM_NOEXEC | VM_USER, 0);
+	printk("Brk is %p\n", get_current_process()->brk);
+	ENABLE_INTERRUPTS();
+	return i;
 }
 void *elf_load_kernel_module(void *file, void **fini_func)
 {
@@ -387,4 +495,14 @@ void *elf_load_kernel_module(void *file, void **fini_func)
 	void *fini = (void*)(init_sym->st_value + first_address);
 	*fini_func = fini;
 	return sym;
+}
+struct binfmt elf_binfmt = {
+	.signature = (unsigned char *)"\x7f""ELF",
+	.size_signature = 4,
+	.callback = elf_load,
+	.next = NULL
+};
+__init void __elf_init()
+{
+	install_binfmt(&elf_binfmt);
 }

@@ -66,7 +66,7 @@ unsigned int drm_ioctl(int request, va_list args, vfsnode_t *self)
 			
 			/* Map the framebuffer */
 			/* TODO: Do this better, without hardcoded variables */
-			void *mapping_addr = vmm_allocate_virt_address(0, 1024, VMM_TYPE_REGULAR, VMM_USER | VMM_WRITE);
+			void *mapping_addr = vmm_allocate_virt_address(0, 1024, VMM_TYPE_REGULAR, VMM_USER | VMM_WRITE, 0);
 			
 			if(!mapping_addr)
 				return errno = -ENOMEM, -1;

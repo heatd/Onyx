@@ -10,6 +10,8 @@
  *----------------------------------------------------------------------*/
 #ifndef _IRQ_H
 #define _IRQ_H
+#include <stdbool.h>
+
 #include <kernel/registers.h>
 #ifdef __x86_64__
 #include <kernel/apic.h>
@@ -22,6 +24,8 @@ typedef struct irq
 	struct irq *next;
 }irq_list_t;
 
+extern volatile _Bool is_in_irq;
+_Bool isirq();
 void irq_install_handler(int irq, irq_t handler);
 void irq_uninstall_handler(int irq, irq_t handler);
 

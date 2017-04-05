@@ -13,7 +13,7 @@ BOOTDIR?=$(EXEC_PREFIX)/boot
 INCLUDEDIR?=$(PREFIX)/include
 
 include ../kversion.config
-CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-strong -Wno-unused-parameter -Wno-unused-function -Werror
+CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin -Wall -Wextra -Wno-format -fstack-protector-strong -Wno-unused-parameter -Wno-unused-function -Werror
 CPPFLAGS:=$(CPPFLAGS) -D__is_onyx_kernel -Iinclude -Iinclude/acpica -DKERNEL_VERSION='"$(KERNEL_VERSION)"' -DKERNEL_BRANCH='"$(KERNEL_BRANCH)"' -DKERNEL_ARCH='"$(KERNEL_ARCH)"'
 LDFLAGS:=$(LDFLAGS) -fwhole-program -fkeep-inline-functions -flto
 LIBS:=$(LIBS) -nostdlib -lk -lgcc
@@ -63,6 +63,7 @@ acpica/%.o: acpica/%.c
 	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) $(CPPFLAGS)
 %.o: %.c
 	@echo [CC] $<
+	@echo $(CFLAGS)
 	@$(CC) -c $< -o $@ -std=c11 $(CFLAGS) $(CPPFLAGS)
 %.o: %.S
 	@echo [AS] $<

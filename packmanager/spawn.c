@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016, 2017 Pedro Falcato
+ * Copyright (C) 2017 Pedro Falcato
  *
  * This file is part of Onyx, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -8,12 +8,9 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#ifndef _KERNEL_MUTEX_H
-#define _KERNEL_MUTEX_H
+#include <unistd.h>
 
-typedef volatile unsigned long mutex_t;
+int spawn_process(const char *path, char **args)
+{
 
-void mutex_lock(mutex_t *);
-void mutex_unlock(mutex_t*);
-
-#endif
+}

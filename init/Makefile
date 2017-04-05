@@ -1,6 +1,6 @@
 PROG:= init
 OBJS:= main.o
-CFLAGS:=-O2 -g -static -std=c99
+CFLAGS:=-O2 -g -std=c99
 clean:
 	rm -f $(PROG)
 	rm -f $(OBJS)

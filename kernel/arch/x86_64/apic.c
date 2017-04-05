@@ -53,7 +53,7 @@ void lapic_init()
 	uint64_t addr = low | ((uint64_t)high << 32);
 	addr &= 0xFFFFF000;
 	/* Map the BSP's LAPIC */
-	bsp_lapic = vmm_allocate_virt_address(VM_KERNEL, 1, VMM_TYPE_REGULAR, VMM_TYPE_HW);
+	bsp_lapic = vmm_allocate_virt_address(VM_KERNEL, 1, VMM_TYPE_REGULAR, VMM_TYPE_HW, 0);
 	paging_map_phys_to_virt((uintptr_t)bsp_lapic, addr, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
 
 	/* Enable the LAPIC by setting LAPIC_SPUINT to 0x100 OR'd with the default spurious IRQ(15) */
@@ -145,7 +145,7 @@ void set_pin_handlers()
 void ioapic_init()
 {
 	/* Map the I/O APIC base */
-	ioapic_base = (volatile char*)vmm_allocate_virt_address(VM_KERNEL, 1, VMM_TYPE_REGULAR, VMM_TYPE_HW);
+	ioapic_base = (volatile char*)vmm_allocate_virt_address(VM_KERNEL, 1, VMM_TYPE_REGULAR, VMM_TYPE_HW, 0);
 	if(!ioapic_base)
 		panic("Virtual memory allocation for the I/O APIC failed!");
 	paging_map_phys_to_virt((uintptr_t)ioapic_base, IOAPIC_BASE_PHYS, VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC);
@@ -263,7 +263,7 @@ void apic_wake_up_processor(uint8_t lapicid)
 	uint64_t tick = get_tick_count();
 	while(get_tick_count() - tick < 200)
 		__asm__ __volatile__("hlt");
-	core_stack = (volatile uint64_t)vmm_allocate_virt_address(1, 2, VMM_TYPE_STACK, VMM_WRITE) + 0x2000;
+	core_stack = (volatile uint64_t)vmm_allocate_virt_address(1, 2, VMM_TYPE_STACK, VMM_WRITE, 0) + 0x2000;
 	vmm_map_range((void*)(core_stack - 0x2000), 2, VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC);
 	send_ipi(lapicid, 6, 0);
 	tick = get_tick_count();

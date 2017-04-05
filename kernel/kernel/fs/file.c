@@ -29,14 +29,14 @@ inline int validate_fd(int fd)
 {
 	if(fd > UINT16_MAX)
 		return errno =-EBADF;
-	ioctx_t *ctx = &current_process->ctx;
+	ioctx_t *ctx = &get_current_process()->ctx;
 	if(ctx->file_desc[fd] == NULL)
 		return errno =-EBADF;
 	return 0;
 }
 inline int find_free_fd()
 {
-	ioctx_t *ioctx = &current_process->ctx;
+	ioctx_t *ioctx = &get_current_process()->ctx;
 	for(int i = 0; i < UINT16_MAX; i++)
 	{
 		if(ioctx->file_desc[i] == NULL)
@@ -51,7 +51,7 @@ ssize_t sys_read(int fd, const void *buf, size_t count)
 	/*if(vmm_check_pointer((void*) buf, count) < 0)
 		return errno =-EFAULT;*/
 
-	ioctx_t *ioctx = &current_process->ctx;
+	ioctx_t *ioctx = &get_current_process()->ctx;
 	if( fd > UINT16_MAX)
 	{
 		return errno =-EBADF;
@@ -72,16 +72,16 @@ ssize_t sys_write(int fd, const void *buf, size_t count)
 		return errno =-EINVAL;*/
 	if(validate_fd(fd))
 		return errno =-EBADF;
-	if(!current_process->ctx.file_desc[fd]->flags & O_WRONLY)
+	if(!get_current_process()->ctx.file_desc[fd]->flags & O_WRONLY)
 		return errno =-EROFS;
-	write_vfs(current_process->ctx.file_desc[fd]->seek, count, (void*) buf, current_process->ctx.file_desc[fd]->vfs_node);
+	write_vfs(get_current_process()->ctx.file_desc[fd]->seek, count, (void*) buf, get_current_process()->ctx.file_desc[fd]->vfs_node);
 	if(errno)
 		perror(NULL);
 	return count;
 }
 int sys_open(const char *filename, int flags)
 {
-	ioctx_t *ioctx = &current_process->ctx;
+	ioctx_t *ioctx = &get_current_process()->ctx;
 	for(int i = 0; i < UINT16_MAX; i++)
 	{
 		if(ioctx->file_desc[i] == NULL)
@@ -110,7 +110,7 @@ int sys_close(int fd)
 	{
 		return errno =-EBADF;
 	}
-	ioctx_t *ioctx = &current_process->ctx;	
+	ioctx_t *ioctx = &get_current_process()->ctx;	
 	if(ioctx->file_desc[fd] == NULL)
 	{
 		return errno =-EBADF;
@@ -130,7 +130,7 @@ int sys_dup(int fd)
 	{
 		return errno =-EBADF;
 	}
-	ioctx_t *ioctx = &current_process->ctx;
+	ioctx_t *ioctx = &get_current_process()->ctx;
 	if(ioctx->file_desc[fd] == NULL)
 	{
 		return errno =-EBADF;
@@ -156,7 +156,7 @@ int sys_dup2(int oldfd, int newfd)
 	{
 		return errno =-EBADF;
 	}
-	ioctx_t *ioctx = &current_process->ctx;
+	ioctx_t *ioctx = &get_current_process()->ctx;
 	if(ioctx->file_desc[oldfd] == NULL)
 	{
 		return errno =-EBADF;
@@ -174,7 +174,7 @@ ssize_t sys_readv(int fd, const struct iovec *vec, int veccnt)
 
 	if(validate_fd(fd))
 		return errno =-EBADF;
-	ioctx_t *ctx = &current_process->ctx;
+	ioctx_t *ctx = &get_current_process()->ctx;
 	if(!vec)
 		return errno =-EINVAL;
 	if(veccnt == 0)
@@ -202,11 +202,11 @@ ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt)
 {
 	if(vmm_check_pointer((void*) vec, sizeof(struct iovec) * veccnt) < 0)
 		return errno =-EINVAL;
-	
+
 	size_t wrote = 0;
 	if(validate_fd(fd))
 		return -EBADF;
-	ioctx_t *ctx = &current_process->ctx;
+	ioctx_t *ctx = &get_current_process()->ctx;
 	if(!vec)
 		return errno =-EINVAL;
 	if(veccnt == 0)
@@ -218,7 +218,6 @@ ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt)
 		write_vfs(ctx->file_desc[fd]->seek, vec[i].iov_len, vec[i].iov_base, ctx->file_desc[fd]->vfs_node);
 		wrote += vec[i].iov_len;
 		ctx->file_desc[fd]->seek += vec[i].iov_len;
-		
 	}
 	return wrote;
 }
@@ -226,10 +225,10 @@ ssize_t sys_preadv(int fd, const struct iovec *vec, int veccnt, off_t offset)
 {
 	if(vmm_check_pointer((void*) vec, sizeof(struct iovec) * veccnt) < 0)
 		return errno =-EINVAL;
-	
+
 	if(validate_fd(fd))
 		return errno =-EBADF;
-	ioctx_t *ctx = &current_process->ctx;
+	ioctx_t *ctx = &get_current_process()->ctx;
 	if(!vec)
 		return errno =-EINVAL;
 	if(veccnt == 0)
@@ -252,7 +251,7 @@ ssize_t sys_pwritev(int fd, const struct iovec *vec, int veccnt, off_t offset)
 
 	if(validate_fd(fd))
 		return -1;
-	ioctx_t *ctx = &current_process->ctx;
+	ioctx_t *ctx = &get_current_process()->ctx;
 	if(veccnt == 0)
 		return 0;
 	if(!ctx->file_desc[fd]->flags & O_WRONLY)
@@ -273,7 +272,7 @@ int sys_getdents(int fd, struct dirent *dirp, unsigned int count)
 	if(!count)
 		return 0;
 
-	ioctx_t *ctx = &current_process->ctx;
+	ioctx_t *ctx = &get_current_process()->ctx;
 	int read_entries_size = getdents_vfs(count, dirp, ctx->file_desc[fd]->seek, ctx->file_desc[fd]->vfs_node);
 	ctx->file_desc[fd]->seek += read_entries_size;
 	return read_entries_size;
@@ -282,7 +281,7 @@ int sys_ioctl(int fd, int request, va_list args)
 {
 	if(validate_fd(fd))
 		return errno =-EBADF;
-	ioctx_t *ctx = &current_process->ctx;
+	ioctx_t *ctx = &get_current_process()->ctx;
 	return ioctl_vfs(request, args, ctx->file_desc[fd]->vfs_node);
 }
 int sys_truncate(const char *path, off_t length)
@@ -301,7 +300,7 @@ off_t sys_lseek(int fd, off_t offset, int whence)
 	{
 		return errno =-EBADF;
 	}
-	ioctx_t *ioctx = &current_process->ctx;
+	ioctx_t *ioctx = &get_current_process()->ctx;
 	if(ioctx->file_desc[fd] == NULL)
 	{
 		return errno =-EBADF;
@@ -359,7 +358,7 @@ int sys_isatty(int fd)
 {
 	if(validate_fd(fd))
 		return errno =-EBADF;
-	ioctx_t *ioctx = &current_process->ctx;
+	ioctx_t *ioctx = &get_current_process()->ctx;
 	if(ioctx->file_desc[fd]->vfs_node->type & VFS_TYPE_CHAR_DEVICE)
 		return 1;
 	else
@@ -370,7 +369,7 @@ int sys_pipe(int pipefd[2])
 	if(vmm_check_pointer(pipefd, sizeof(int) * 2) < 0)
 		return errno = -EFAULT;
 
-	ioctx_t *ioctx = &current_process->ctx;
+	ioctx_t *ioctx = &get_current_process()->ctx;
 	/* Find 2 free file descriptors */
 	int wrfd = find_free_fd();
 
@@ -437,5 +436,5 @@ int sys_fstat(int fd, struct stat *buf)
 		return errno = -EFAULT;
 	if(validate_fd(fd))
 		return errno = -EBADF;
-	return stat_vfs(buf, current_process->ctx.file_desc[fd]->vfs_node);
+	return stat_vfs(buf, get_current_process()->ctx.file_desc[fd]->vfs_node);
 }

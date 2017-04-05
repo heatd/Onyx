@@ -58,7 +58,7 @@ void *smbios_find_tables()
 
 		/* Reserve space for them */
 		void *vaddr = vmm_allocate_virt_address(VM_KERNEL, vmm_align_size_to_pages(total_tables), 
-			VM_TYPE_REGULAR, VM_WRITE | VM_NOEXEC | VM_GLOBAL);
+			VM_TYPE_REGULAR, VM_WRITE | VM_NOEXEC | VM_GLOBAL, 0);
 		/* And map them */
 		for(size_t i = 0; i < vmm_align_size_to_pages(total_tables); i++)
 		{
@@ -82,7 +82,7 @@ void *smbios_find_tables()
 
 		/* Reserve space for them */
 		void *vaddr = vmm_allocate_virt_address(VM_KERNEL, vmm_align_size_to_pages(total_tables), 
-			VM_TYPE_REGULAR, VM_WRITE | VM_NOEXEC | VM_GLOBAL);
+			VM_TYPE_REGULAR, VM_WRITE | VM_NOEXEC | VM_GLOBAL, 0);
 		/* And map them */
 		for(size_t i = 0; i < vmm_align_size_to_pages(total_tables); i++)
 		{

@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016, 2017 Pedro Falcato
+ * Copyright (C) 2017 Pedro Falcato
  *
  * This file is part of Onyx, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -8,12 +8,23 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#ifndef _KERNEL_MUTEX_H
-#define _KERNEL_MUTEX_H
+#include <stdio.h>
 
-typedef volatile unsigned long mutex_t;
+#include <kernel/irq.h>
+#include <kernel/mutex.h>
+#include <kernel/task_switching.h>
 
-void mutex_lock(mutex_t *);
-void mutex_unlock(mutex_t*);
-
-#endif
+void mutex_lock(mutex_t *mutex)
+{
+	return;
+	while(!__sync_bool_compare_and_swap(mutex, 0, 1))
+	{
+		__asm__ __volatile__("pause");
+	}
+	__sync_synchronize();
+}
+void mutex_unlock(mutex_t *mutex)
+{
+	__sync_synchronize();
+	*mutex = 0;
+}

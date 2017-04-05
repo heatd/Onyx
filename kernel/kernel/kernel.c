@@ -44,6 +44,7 @@
 #include <kernel/vfs.h>
 #include <kernel/initrd.h>
 #include <kernel/task_switching.h>
+#include <kernel/binfmt.h>
 #include <kernel/elf.h>
 #include <kernel/tss.h>
 #include <kernel/heap.h>
@@ -158,22 +159,13 @@ retry:;
 	process_t *proc = process_create(path, NULL, NULL);
 	if(!proc)
 		return errno = ENOMEM, -1;
-	char *buffer = malloc(in->size);
-	if (!buffer)
-		return errno = ENOMEM;
-	read_vfs(0, in->size, buffer, in);
-	
-	void *entry = elf_load((void *) buffer);
-	
-	char **env = copy_env_vars(envp);
-	
-	int argc;
-	char **args = copy_argv(argv, path, &argc);
-	
+
 	proc->cr3 = current_pml4;
 	proc->tree = vmm_get_tree();
 
 	current_process = proc;
+
+	get_current_thread()->owner = proc;
 	/* Setup stdio */
 	proc->ctx.file_desc[0] = malloc(sizeof(file_desc_t));
 	if(!proc->ctx.file_desc[0])
@@ -204,49 +196,26 @@ retry:;
 	proc->ctx.file_desc[2]->vfs_node = open_vfs(slashdev, "/dev/tty");
 	proc->ctx.file_desc[2]->seek = 0;
 	proc->ctx.file_desc[2]->flags = O_WRONLY;
-	// Allocate space for %fs TODO: Do this while in elf_load, as we need the TLS size
-	uintptr_t *fs = vmm_allocate_virt_address(0, 1, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_USER);
-	vmm_map_range(fs, 1, VMM_WRITE | VMM_NOEXEC | VMM_USER);
-	pthread_t *p = (struct pthread*) fs;
-	p->self = (pthread_t*) fs;
-	proc->fs = (uintptr_t) fs;
-	DISABLE_INTERRUPTS();
-	process_create_thread(proc, (thread_callback_t) entry, 0, argc, args, env);
-	// Ugh, a really bad hack to put it here. The ELF loader/execve needs to be restructered
-	/* Setup the auxv at the stack bottom */
-	Elf64_auxv_t *auxv = (Elf64_auxv_t *) proc->threads[0]->user_stack_bottom;
-	unsigned char *scratch_space = (unsigned char *) (auxv + 37);
-	for(int i = 0; i < 38; i++)
-	{
-		if(i != 0)
-			auxv[i].a_type = i;
-		if(i == 37)
-			auxv[i].a_type = 0;
-		switch(i)
-		{
-			case AT_PAGESZ:
-				auxv[i].a_un.a_val = PAGE_SIZE;
-				break;
-			case AT_UID:
-				auxv[i].a_un.a_val = proc->uid;
-				break;
-			case AT_GID:
-				auxv[i].a_un.a_val = proc->gid;
-				break;
-			case AT_RANDOM:
-				get_entropy((char*) scratch_space, 16);
-				scratch_space += 16;
-				break;
-		}
-	}
-	registers_t *regs = (registers_t *) proc->threads[0]->kernel_stack;
-	regs->rcx = (uintptr_t) auxv;
-	p->tid = proc->threads[0]->id;
-	p->pid = proc->pid;
-	free(buffer);
-	free(in);
-	ENABLE_INTERRUPTS();
-	return 0;
+
+	/* Read the file signature */
+	unsigned char *buffer = malloc(100);
+	if (!buffer)
+		return errno = ENOMEM;
+	read_vfs(0, 100, buffer, in);
+
+	argv[0] = path;
+	/* Prepare the argument struct */
+	struct binfmt_args args;
+	args.file_signature = buffer;
+	args.filename = path;
+	args.file = in;
+	args.argv = argv;
+	args.envp = envp;
+
+	/* Finally, load the binary */
+	int status = load_binary(&args);
+
+	return status;
 }
 void kernel_early(uintptr_t addr, uint32_t magic)
 {
@@ -413,7 +382,7 @@ void kernel_main()
 }
 void kernel_multitasking(void *arg)
 {
-	void *mem = vmm_allocate_virt_address(VM_KERNEL, 1024, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
+	void *mem = vmm_allocate_virt_address(VM_KERNEL, 1024, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL, 0);
 	vmm_map_range(mem, 1024, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
 	/* Create PTY */
 	tty_create_pty_and_switch(mem);
@@ -499,7 +468,7 @@ void kernel_multitasking(void *arg)
 		WARN("kernel", "root device not found!\n");
 
 	/* Pass the root partition to init */
-	char *args[] = {root_partition, NULL};
+	char *args[] = {"", root_partition, NULL};
 	char *envp[] = {"", NULL};
 
 	find_and_exec_init(args, envp);

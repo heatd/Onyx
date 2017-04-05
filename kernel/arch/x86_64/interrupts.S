@@ -118,7 +118,7 @@ extern isr_handler
 global isr_common
 isr_common:
 	cld
-	mov ax, ds
+	mov rax, ds
 	push rax
 	mov ax, 0x10
 	mov ds, ax
@@ -142,12 +142,12 @@ isr_common:
 	cmp rax, 0x8
 	je .skip_swap2
 	swapgs
-.skip_swap2: 
+.skip_swap2:
 	pop rax
-	mov ds,ax
-	mov es,ax
-	mov ss, ax
+	mov ds, ax
+	mov es, ax
 	popaq
+	add rsp, 16
 	iretq
 .isr_handle_signal:
 	mov rdi, rsp

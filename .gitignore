@@ -22,3 +22,5 @@ sh/sh
 *.a
 luac
 lua
+ports/*
+packmanager/packmanager*

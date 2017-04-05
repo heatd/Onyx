@@ -29,7 +29,7 @@ void kernel_default_signal(struct signal_info *sig)
 		case SIGSEGV:
 		{
 			printk("Segmentation fault\n");
-			current_process->signal_pending = 0;
+			get_current_process()->signal_pending = 0;
 			sys__exit(127);
 			break;
 		}
@@ -43,7 +43,7 @@ void signal_transfer_to_userspace(struct signal_info *sig, registers_t *regs, _B
 	uintptr_t *userspace_stack = NULL;
 	if(!is_int)
 	{
-		memcpy(&current_process->old_regs, regs, sizeof(registers_t));
+		memcpy((registers_t*) &get_current_process()->old_regs, regs, sizeof(registers_t));
 		regs->rdi = sig->signum;
 		regs->rip = (uintptr_t) sig->handler;
 		userspace_stack = (uintptr_t *) regs->rsp;
@@ -51,27 +51,27 @@ void signal_transfer_to_userspace(struct signal_info *sig, registers_t *regs, _B
 	else
 	{
 		intctx_t *intctx = (intctx_t*) regs;
-		current_process->old_regs.rax = intctx->rax;
-		current_process->old_regs.rbx = intctx->rbx;
-		current_process->old_regs.rcx = intctx->rcx;
-		current_process->old_regs.rdx = intctx->rdx;
-		current_process->old_regs.rdi = intctx->rdi;
-		current_process->old_regs.rsi = intctx->rsi;
-		current_process->old_regs.rbp = intctx->rbp;
-		current_process->old_regs.rsp = intctx->rsp;
-		current_process->old_regs.rip = intctx->rip;
-		current_process->old_regs.r8 = intctx->r8;
-		current_process->old_regs.r9 = intctx->r9;
-		current_process->old_regs.r10 = intctx->r10;
-		current_process->old_regs.r11 = intctx->r11;
-		current_process->old_regs.r12 = intctx->r12;
-		current_process->old_regs.r13 = intctx->r13;
-		current_process->old_regs.r14 = intctx->r14;
-		current_process->old_regs.r15 = intctx->r15;
-		current_process->old_regs.ds = intctx->ds;
-		current_process->old_regs.ss = intctx->ss;
-		current_process->old_regs.cs = intctx->cs;
-		current_process->old_regs.rflags = intctx->rflags;
+		get_current_process()->old_regs.rax = intctx->rax;
+		get_current_process()->old_regs.rbx = intctx->rbx;
+		get_current_process()->old_regs.rcx = intctx->rcx;
+		get_current_process()->old_regs.rdx = intctx->rdx;
+		get_current_process()->old_regs.rdi = intctx->rdi;
+		get_current_process()->old_regs.rsi = intctx->rsi;
+		get_current_process()->old_regs.rbp = intctx->rbp;
+		get_current_process()->old_regs.rsp = intctx->rsp;
+		get_current_process()->old_regs.rip = intctx->rip;
+		get_current_process()->old_regs.r8 = intctx->r8;
+		get_current_process()->old_regs.r9 = intctx->r9;
+		get_current_process()->old_regs.r10 = intctx->r10;
+		get_current_process()->old_regs.r11 = intctx->r11;
+		get_current_process()->old_regs.r12 = intctx->r12;
+		get_current_process()->old_regs.r13 = intctx->r13;
+		get_current_process()->old_regs.r14 = intctx->r14;
+		get_current_process()->old_regs.r15 = intctx->r15;
+		get_current_process()->old_regs.ds = intctx->ds;
+		get_current_process()->old_regs.ss = intctx->ss;
+		get_current_process()->old_regs.cs = intctx->cs;
+		get_current_process()->old_regs.rflags = intctx->rflags;
 		intctx->rdi = sig->signum;
 		intctx->rip = (uintptr_t) sig->handler;
 		userspace_stack = (uintptr_t *) intctx->rsp;
@@ -79,7 +79,7 @@ void signal_transfer_to_userspace(struct signal_info *sig, registers_t *regs, _B
 	if(userspace_stack && vmm_is_mapped(userspace_stack))
 	{
 		printf("userspace stack: %p\n", userspace_stack);
-		*userspace_stack = (uintptr_t) current_process->sigreturn;
+		*userspace_stack = (uintptr_t) get_current_process()->sigreturn;
 	}
 }
 #else
@@ -87,7 +87,7 @@ void signal_transfer_to_userspace(struct signal_info *sig, registers_t *regs, _B
 #endif
 void handle_signal(registers_t *regs, _Bool is_int)
 {
-	process_t *curr_proc = current_process;
+	process_t *curr_proc = get_current_process();
 	if(!curr_proc)
 		panic("Signal invoked without a process!");
 	if(curr_proc->signal_dispatched == 1)
@@ -115,9 +115,9 @@ int sys_kill(pid_t pid, int sig)
 	process_t *p = NULL;
 	if((int)pid > 0)
 	{
-		if(pid == current_process->pid)
+		if(pid == get_current_process()->pid)
 		{
-			p = current_process;
+			p = get_current_process();
 		}
 		else
 			p = get_process_from_pid(pid);
@@ -130,14 +130,14 @@ int sys_kill(pid_t pid, int sig)
 		return errno =-EINVAL;
 	if(sig < 0)
 		return errno =-EINVAL;
-	current_process->signal_pending = 1;
-	current_process->sinfo.signum = sig;
-	current_process->sinfo.handler = current_process->sighandlers[sig];
+	get_current_process()->signal_pending = 1;
+	get_current_process()->sinfo.signum = sig;
+	get_current_process()->sinfo.handler = get_current_process()->sighandlers[sig];
 	return 0;
 }
 sighandler_t sys_signal(int signum, sighandler_t handler)
 {
-	process_t *proc = current_process;
+	process_t *proc = get_current_process();
 	if(!proc)
 		return (sighandler_t) SIG_ERR;
 	if(signum > 26)
@@ -165,16 +165,16 @@ sighandler_t sys_signal(int signum, sighandler_t handler)
 extern void __sigret_return(uintptr_t stack);
 void sys_sigreturn(void *ret)
 {
-	if(ret == (void*) -1 && current_process->signal_pending)
+	if(ret == (void*) -1 && get_current_process()->signal_pending)
 	{
 		/* Switch the registers again */
-		memcpy(get_current_thread()->kernel_stack, &current_process->old_regs, sizeof(registers_t));
-		current_process->signal_pending = 0;
-		current_process->signal_dispatched = 0;
+		memcpy(get_current_thread()->kernel_stack, (registers_t*) &get_current_process()->old_regs, sizeof(registers_t));
+		get_current_process()->signal_pending = 0;
+		get_current_process()->signal_dispatched = 0;
 		__sigret_return((uintptr_t) get_current_thread()->kernel_stack);
 		__builtin_unreachable();
 	}
 	if(!vmm_is_mapped(ret))
 		return;
-	current_process->sigreturn = ret;
+	get_current_process()->sigreturn = ret;
 }
