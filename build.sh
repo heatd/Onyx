@@ -3,10 +3,12 @@ set -e
 . ./headers.sh
 
 for PROJECT in $PROJECTS; do
+  echo Building $PROJECT
   DESTDIR="$PWD/sysroot" $MAKE -C $PROJECT install -s
 done
 
 for PACKAGE in $SOURCE_PACKAGES; do
+  echo Building $PACKAGE
   DESTDIR="$PWD/sysroot" $MAKE -C $PACKAGE install -s
 done
 $NM kernel/vmonyx > Kernel.map

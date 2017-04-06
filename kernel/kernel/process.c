@@ -20,6 +20,8 @@
 #include <kernel/cpu.h>
 #include <kernel/random.h>
 #include <kernel/mutex.h>
+#include <kernel/panic.h>
+#include <kernel/binfmt.h>
 
 #include <pthread_kernel.h>
 
@@ -197,8 +199,11 @@ int sys_execve(char *path, char *argv[], char *envp[])
 		temp += strlen(new_envp[i]) + 1;
 	}
 
-	void *entry = elf_load((void *) buffer);
+	/* TODO: Doesn't work, refractor this */
+	load_binary((void *) buffer);
 
+	panic("todo");
+	void *entry = NULL;
 	thread_t *t = sched_create_main_thread((thread_callback_t) entry, 0, nargs, new_args, new_envp);
 
 	/* Set the appropriate uid and gid */

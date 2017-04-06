@@ -5,6 +5,7 @@ clean:
 	rm -f $(PROG)
 	rm -f $(OBJS)
 install: $(PROG)
+	echo "Hello"
 	mkdir -p $(DESTDIR)/lib
 	cp $(PROG) $(DESTDIR)/lib
 $(PROG): $(OBJS)

@@ -363,7 +363,6 @@ int elf_load(struct binfmt_args *args)
 		return 0;
 	int argc;
 	char **argv = copy_argv(args->argv, get_current_process()->cmd_line, &argc);
-	printk("%s\n", argv[0]);
 	char **env = copy_env_vars(args->envp);
 	DISABLE_INTERRUPTS();
 	process_create_thread(get_current_process(), (thread_callback_t) header->e_entry, 0, argc, argv, env);

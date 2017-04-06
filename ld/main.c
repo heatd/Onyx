@@ -9,12 +9,20 @@
  * Foundation.
  *----------------------------------------------------------------------*/
 #include <stdio.h>
-#include <sys/mman.h>
+#include <unistd.h>
+#include <sys/stat.h>
+#include <sys/syscall.h>
+#include <errno.h>
 int main(int argc, char **argv)
 {
 	for(int i = 0; i < argc; i++)
 	{
 		printf("Arg: %s\n", argv[i]);
 	}
+	struct stat buf;
+	int r = stat("/sbin/init", &buf);
+	printf("stat() returned %d\n", r);
+	printf("Size: %x\n", buf.st_size);
+	printf("Errno: %d\n", errno);
 	return 0;
 }

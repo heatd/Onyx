@@ -59,6 +59,16 @@ void tar_close(vfsnode_t *this)
 	(void) this;
 	return;
 }
+int tar_stat(struct stat *buf, struct vfsnode *node)
+{
+	buf->st_dev = node->dev;
+	buf->st_ino = node->inode;
+	buf->st_uid = node->uid;
+	buf->st_gid = node->gid;
+	buf->st_size = node->size;
+
+	return 0;
+}
 unsigned int tar_getdents(unsigned int count, struct dirent* dirp, off_t off, vfsnode_t* this)
 {
 	char *full_path = this->name;
@@ -186,6 +196,7 @@ void init_initrd(void *initrd)
 	min_dev->fops->read = tar_read;
 	min_dev->fops->write = tar_write;
 	min_dev->fops->getdents = tar_getdents;
+	min_dev->fops->stat = tar_stat;
 
 	node->dev = min_dev->majorminor;
 

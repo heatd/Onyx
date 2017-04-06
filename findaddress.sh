@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 echo "Finding debugging information about" "$1"
 echo "Using addr2line"

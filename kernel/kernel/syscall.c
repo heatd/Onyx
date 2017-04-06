@@ -140,7 +140,7 @@ void *syscall_list[] =
 	[45] = (void*) sys_set_tid_address,
 	[46] = (void*) sys_syslog,
 	[47] = (void*) sys_fcntl,
-	[48] = (void*) sys_stat,
-	[49] = (void*) sys_fstat,
+	[49] = (void*) sys_stat,
+	[50] = (void*) sys_fstat,
 	[255] = (void*) sys_nosys
 };

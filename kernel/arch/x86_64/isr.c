@@ -69,7 +69,40 @@ static inline bool is_recursive_fault()
 void isr_handler(intctx_t *ctx)
 {
 	int int_no = ctx->int_no;
+	/* I currently need to do this, since the register dump is still useful to me in user-mode */
 	uint64_t err_code = ctx->err_code;
+	if(int_no == 14)
+	{
+		__asm__ __volatile__ ("mov %%cr2, %0":"=r"
+      				(faulting_address));
+		vmm_entry_t *entr = vmm_is_mapped((void*)faulting_address);
+		if(!entr)
+		{
+		pf0:
+			printk("\n");
+			printk("%s0x%X\n",exception_msg[int_no],faulting_address);
+			if(err_code & 0x2)
+				printk(" caused by a write\n");
+			if(err_code & 0x4)
+			{
+				printk("user-mode\n");
+			}
+			if(err_code & 0x10)
+				printk("Instruction fetch\n");
+			if(err_code & (1 << 3))
+				printk("Reserved bit was set!\n");
+                       sys_kill(get_current_process()->pid, SIGSEGV);
+		       return;
+		}
+		if(err_code & 0x2 && !(entr->rwx & VMM_WRITE))
+			goto pf0;
+		if(err_code & 0x10 && !(entr->rwx & VMM_NOEXEC))
+			goto pf0;
+		if(err_code & 0x4 && faulting_address > 0xFFFF800000000000)
+			goto pf0;
+		vmm_map_range((void*)faulting_address, 1, entr->rwx);
+		return;
+	}
 	if(is_recursive_fault())
 	{
 		for(;;);
@@ -179,7 +212,6 @@ r10: %x\nr11: %x\nr12: %x\nr13: %x\nr14: %x\nr15: %x\nrsp: %x\nrflags: %x\nds: %
 			goto pf;
 		if(err_code & 0x4 && faulting_address > 0xFFFF800000000000)
 			goto pf;
-		printk("Works!\n");
 		vmm_map_range((void*)faulting_address, 1, entr->rwx);
 		break;
 		}
