@@ -80,7 +80,12 @@ void isr_handler(intctx_t *ctx)
 		{
 		pf0:
 			printk("\n");
-			printk("%s0x%X\n",exception_msg[int_no],faulting_address);
+			printk("%s0x%X at %p\n",exception_msg[int_no], faulting_address, ctx->rip);
+			printk("Registers: rax: %x\nrbx: %x\nrcx: %x\nrdx: %x\nrdi: %x\nrsi: %x\nrbp: %x\nr8:  %x\nr9:  %x\n\
+r10: %x\nr11: %x\nr12: %x\nr13: %x\nr14: %x\nr15: %x\nrsp: %x\nrflags: %x\nds: %x\ncs: %x\n", 
+			ctx->rax, ctx->rbx, ctx->rcx, ctx->rdx, ctx->rdi, ctx->rsi, ctx->rbp, ctx->r8, ctx->r9, 
+		ctx->r10, ctx->r11, ctx->r12, ctx->r13, ctx->r14, ctx->r15, ctx->rsp, ctx->rflags, ctx->ds, ctx->cs);
+			while(1);
 			if(err_code & 0x2)
 				printk(" caused by a write\n");
 			if(err_code & 0x4)
@@ -100,7 +105,7 @@ void isr_handler(intctx_t *ctx)
 			goto pf0;
 		if(err_code & 0x4 && faulting_address > 0xFFFF800000000000)
 			goto pf0;
-		vmm_map_range((void*)faulting_address, 1, entr->rwx);
+		vmm_map_range((void*)(faulting_address & 0xFFFFFFFFFFFFF000), 1, entr->rwx);
 		return;
 	}
 	if(is_recursive_fault())

@@ -427,8 +427,9 @@ int sys_stat(const char *pathname, struct stat *buf)
 	
 	vfsnode_t *stat_node = open_vfs(fs_root, pathname);
 	if(!stat_node)
-		return errno; /* Don't set errno, as we don't know if it was actually a ENOENT */
+		return -errno; /* Don't set errno, as we don't know if it was actually a ENOENT */
 	stat_vfs(buf, stat_node);
+	close_vfs(stat_node);
 	return -errno;
 }
 int sys_fstat(int fd, struct stat *buf)

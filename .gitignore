@@ -24,3 +24,4 @@ luac
 lua
 ports/*
 packmanager/packmanager*
+ld/ld-onyx.so

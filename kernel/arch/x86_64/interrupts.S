@@ -138,7 +138,7 @@ isr_common:
 	cmp dword [rax], dword 1
 	je .isr_handle_signal
 .isr_continue:
-	mov rax, [rsp + 144]
+	mov rax, [rsp + 152]
 	cmp rax, 0x8
 	je .skip_swap2
 	swapgs
