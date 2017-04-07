@@ -536,20 +536,16 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 	size_t pages = length / PAGE_SIZE;
 	if(length % PAGE_SIZE)
 		pages++;
-	
-	int vm_prot = 0;
-	vm_prot |= VMM_USER;
-	if(prot & PROT_WRITE)
-		vm_prot |= VMM_WRITE;
-	if(!(prot & PROT_EXEC))
-		vm_prot |= VMM_NOEXEC;
+	int vm_prot = VM_USER |
+		      ((prot & PROT_WRITE) ? VM_WRITE : 0) |
+		      ((!(prot & PROT_EXEC)) ? VM_NOEXEC : 0);
 	if(!addr) // Specified by posix, if addr == NULL, guess an address
-		mapping_addr = vmm_allocate_virt_address(0, pages, VMM_TYPE_REGULAR, vm_prot, 0);
+		mapping_addr = vmm_allocate_virt_address(0, pages, VM_TYPE_SHARED, vm_prot, 0);
 	else
 	{
-		mapping_addr = vmm_reserve_address(addr, pages, VMM_TYPE_REGULAR, vm_prot);
+		mapping_addr = vmm_reserve_address(addr, pages, VM_TYPE_REGULAR, vm_prot);
 		if(!mapping_addr)
-			mapping_addr = vmm_allocate_virt_address(0, pages, VMM_TYPE_REGULAR, vm_prot, 0);
+			mapping_addr = vmm_allocate_virt_address(0, pages, VM_TYPE_REGULAR, vm_prot, 0);
 	}
 	if(!mapping_addr)
 		return errno =-ENOMEM, NULL;
@@ -574,16 +570,92 @@ int sys_munmap(void *addr, size_t length)
 }
 int sys_mprotect(void *addr, size_t len, int prot)
 {
-	if(!vmm_is_mapped(addr))
-		return errno =-EINVAL;
-	int vm_prot = 0;
-	if(prot & PROT_WRITE)
-		vm_prot |= VMM_WRITE;
-	if(!(prot & PROT_EXEC))
-		vm_prot |= VMM_NOEXEC;
-	size_t pages = len / PAGE_SIZE;
+	vmm_entry_t *area = NULL;
+
+	if(!(area = vmm_is_mapped(addr)))
+		return errno = -EINVAL;
+	
+	/* The address needs to be page aligned */
+	if((uintptr_t) addr % PAGE_SIZE)
+		return errno = -EINVAL;
+	
+	/* Error on len misalignment */
 	if(len % PAGE_SIZE)
-		pages++;
+		return errno = -EINVAL;
+	
+	int vm_prot = VM_USER |
+		      ((prot & PROT_WRITE) ? VM_WRITE : 0) |
+		      ((!(prot & PROT_EXEC)) ? VM_NOEXEC : 0);
+	
+	size_t pages = vmm_align_size_to_pages(len);
+	/* TODO: This needs a fix, since a single mprotect call and the whole area gets tainted by it
+	(implement splitting/merging areas */
+	len = pages * PAGE_SIZE; /* Align len on a page boundary */
+	if(area->base == (uintptr_t) addr && area->pages * PAGE_SIZE == len)
+	{
+		area->rwx = vm_prot;
+	}
+	else if(area->base == (uintptr_t) addr && area->pages * PAGE_SIZE > len)
+	{
+		/* Split this into two areas */
+		vmm_entry_t copy;
+		memcpy(&copy, area, sizeof(vmm_entry_t));
+		avl_delete_node(area->base);
+		area = avl_insert_key(&tree, copy.base + len, copy.base + len + pages * PAGE_SIZE);
+		memcpy(area, &copy, sizeof(vmm_entry_t));
+		area->base += len;
+		area->pages -= pages;
+		vmm_entry_t *new_area = avl_insert_key(&tree, (uintptr_t) addr, (uintptr_t) addr + len);
+		if(!new_area)
+			return errno =-ENOMEM;
+		memcpy(new_area, area, sizeof(vmm_entry_t));
+
+		new_area->pages = pages;
+	}
+	else if(area->base < (uintptr_t) addr && area->base + area->pages * PAGE_SIZE > (uintptr_t) addr + len)
+	{
+		size_t total_pages = area->pages;
+		avl_node_t *node = *avl_search_key(&tree, area->base);
+		node->end = (uintptr_t) addr;
+		area->pages = ((uintptr_t) addr - area->base) / PAGE_SIZE;
+
+		vmm_entry_t *second_area = avl_insert_key(&tree, (uintptr_t) addr, (uintptr_t) addr + len);
+		if(!second_area)
+		{
+			/* TODO: Unsafe to just return, maybe restore the old area? */
+			return errno = -ENOMEM;
+		}
+		second_area->base = (uintptr_t) addr;
+		second_area->pages = pages;
+		second_area->type = area->type;
+		second_area->rwx = vm_prot;
+
+		vmm_entry_t *third_area = avl_insert_key(&tree, (uintptr_t) addr + len, 
+		(uintptr_t) area->base + total_pages * PAGE_SIZE);
+		if(!third_area)
+		{
+			/* TODO: Unsafe to just return, maybe restore the old area? */
+			return errno = -ENOMEM;
+		}
+		third_area->base = (uintptr_t) addr + len;
+		third_area->pages = total_pages - pages - area->pages;
+		third_area->type = area->type;
+		third_area->rwx = area->rwx;
+	}
+	else if(area->base < (uintptr_t) addr && (uintptr_t) addr + len == area->base + area->pages * PAGE_SIZE)
+	{
+		area->pages -= pages;
+		vmm_entry_t *new_area = avl_insert_key(&tree, (uintptr_t) addr, (uintptr_t) addr + len);
+		if(!new_area)
+		{
+			area->pages += pages;
+			return errno = -ENOMEM;
+		}
+		new_area->base = (uintptr_t) addr;
+		new_area->pages = pages;
+		new_area->type = area->type;
+		new_area->rwx = vm_prot;
+	}
 	vmm_change_perms(addr, pages, vm_prot);
 	return 0;
 }

@@ -80,7 +80,7 @@ void isr_handler(intctx_t *ctx)
 		{
 		pf0:
 			printk("\n");
-			printk("%s0x%X at %p\n",exception_msg[int_no], faulting_address, ctx->rip);
+			printk("%s%p at %p\n",exception_msg[int_no], faulting_address, ctx->rip);
 			printk("Registers: rax: %x\nrbx: %x\nrcx: %x\nrdx: %x\nrdi: %x\nrsi: %x\nrbp: %x\nr8:  %x\nr9:  %x\n\
 r10: %x\nr11: %x\nr12: %x\nr13: %x\nr14: %x\nr15: %x\nrsp: %x\nrflags: %x\nds: %x\ncs: %x\n", 
 			ctx->rax, ctx->rbx, ctx->rcx, ctx->rdx, ctx->rdi, ctx->rsi, ctx->rbp, ctx->r8, ctx->r9, 

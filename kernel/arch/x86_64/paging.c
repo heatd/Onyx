@@ -460,12 +460,20 @@ void paging_change_perms(void *addr, int prot)
 	else
 		pml4 = (PML4*)((uint64_t)spawning_pml + PHYS_BASE);
 	uint64_t* entry = &pml4->entries[dec.pml4];
+	if(*entry == 0)
+		return;
 	PML3 *pml3 = (PML3*)((*entry & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
 	entry = &pml3->entries[dec.pdpt];
+	if(*entry == 0)
+		return;
 	PML2 *pml2 = (PML2*)((*entry & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
 	entry = &pml2->entries[dec.pd];
+	if(*entry == 0)
+		return;
 	PML1 *pml1 = (PML1*)((*entry & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
 	entry = &pml1->entries[dec.pt];
+	if(*entry == 0)
+		return;
 	uint32_t perms = *entry & 0xF00000000000FFF;
 	uint64_t page = PML_EXTRACT_ADDRESS(*entry);
 	if(prot & VMM_NOEXEC)

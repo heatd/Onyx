@@ -404,7 +404,7 @@ int elf_load(struct binfmt_args *args)
 	p->tid = get_current_process()->threads[0]->id;
 	p->pid = get_current_process()->pid;
 
-	get_current_process()->brk = vmm_allocate_virt_address(0, 1024, VM_TYPE_HEAP, VM_WRITE | VM_NOEXEC | VM_USER, 0);
+	get_current_process()->brk = vmm_allocate_virt_address(0, 1, VM_TYPE_HEAP, VM_WRITE | VM_NOEXEC | VM_USER, 0);
 	printk("Brk is %p\n", get_current_process()->brk);
 	ENABLE_INTERRUPTS();
 	return i;
