@@ -339,7 +339,7 @@ void *elf_load_old(void *file)
 	/* Check if its elf64 file is invalid */
 	if (!elf_is_valid((Elf64_Ehdr *) file))
 		return errno = EINVAL, NULL;
-	//elf_parse_program_headers(file);
+	elf_parse_program_headers(file, NULL);
 	
 	return (void *) ((Elf64_Ehdr *) file)->e_entry;
 }
@@ -397,7 +397,6 @@ int elf_load(struct binfmt_args *args)
 	regs->rcx = (uintptr_t) auxv;
 	uintptr_t *fs = vmm_allocate_virt_address(0, 1, VM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_USER, 0);
 	vmm_map_range(fs, 1, VMM_WRITE | VMM_NOEXEC | VMM_USER);
-	printk("TLS: %p\n", fs);
 	get_current_process()->fs = (uintptr_t) fs;
 	pthread_t *p = (struct pthread*) fs;
 	p->self = (pthread_t*) fs;
@@ -405,7 +404,6 @@ int elf_load(struct binfmt_args *args)
 	p->pid = get_current_process()->pid;
 
 	get_current_process()->brk = vmm_allocate_virt_address(0, 1, VM_TYPE_HEAP, VM_WRITE | VM_NOEXEC | VM_USER, 0);
-	printk("Brk is %p\n", get_current_process()->brk);
 	ENABLE_INTERRUPTS();
 	return i;
 }

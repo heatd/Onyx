@@ -63,7 +63,7 @@ acpica/%.o: acpica/%.c
 	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) $(CPPFLAGS)
 %.o: %.c
 	@echo [CC] $<
-	@$(CC) -c $< -o $@ -std=c11 $(CFLAGS) $(CPPFLAGS)
+	@$(CC) -c $< -o $@ -std=c11 $(CFLAGS) $(CPPFLAGS) -Wno-error=deprecated-declarations
 %.o: %.S
 	@echo [AS] $<
 	@nasm -felf$(NASMARCH) $< -o $@

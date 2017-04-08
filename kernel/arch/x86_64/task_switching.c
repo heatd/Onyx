@@ -138,8 +138,6 @@ thread_t* task_switching_create_main_progcontext(thread_callback_t callback, uin
 	if(!(flags & 1)) // If the thread is user mode, create a user stack
 	{
 		new_thread->user_stack = (uintptr_t*)vmm_allocate_virt_address(0, 256, VMM_TYPE_STACK, VMM_WRITE | VMM_NOEXEC | VMM_USER, 0);
-		printk("User stack: %p\n", new_thread->user_stack);
-		printk("RIP: %p\n", callback);
 		if(!new_thread->user_stack)
 			return NULL;
 	}

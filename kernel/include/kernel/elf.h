@@ -3025,7 +3025,7 @@ typedef int (module_init_t)(void);
 typedef int (*module_fini_t)(void);
 void *elf_load_kernel_module(void *file, void **);
 _Bool elf_is_valid(Elf64_Ehdr* header);
-
+__attribute__((deprecated)) void *elf_load_old(void *file);
 #ifdef __cplusplus
 }
 #endif

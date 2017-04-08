@@ -113,11 +113,6 @@ end:
 }
 int main(int argc, char **argv)
 {
-	int pid = fork();
-
-	char *args[] = {"/bin/lua", NULL};
-	if(pid == 0)
-		execvpe("/bin/lua", args, environ);
 	while(1)
 	{
 		/* Print the shell's PS1 */

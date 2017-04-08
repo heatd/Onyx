@@ -199,11 +199,9 @@ int sys_execve(char *path, char *argv[], char *envp[])
 		temp += strlen(new_envp[i]) + 1;
 	}
 
-	/* TODO: Doesn't work, refractor this */
-	load_binary((void *) buffer);
+	/* TODO: Refractor this */
+	void *entry = elf_load_old((void *) buffer);
 
-	panic("todo");
-	void *entry = NULL;
 	thread_t *t = sched_create_main_thread((thread_callback_t) entry, 0, nargs, new_args, new_envp);
 
 	/* Set the appropriate uid and gid */
