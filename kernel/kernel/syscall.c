@@ -35,7 +35,7 @@
 #include <kernel/power_management.h>
 #include <kernel/cpu.h>
 
-const int SYSCALL_MAX_NUM = 46;
+const int SYSCALL_MAX_NUM = 50;
 
 uint64_t sys_nosys()
 {

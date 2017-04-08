@@ -33,6 +33,7 @@ section .text
 %endmacro
 extern syscall_list
 extern syscall_helper
+extern SYSCALL_MAX_NUM
 global syscall_ENTRY64
 syscall_ENTRY64:
 	cld
@@ -58,6 +59,8 @@ syscall_ENTRY64:
 	cmp rax, 10
 	je .setup_fork
 .continue_systemcall:
+	cmp rax, [SYSCALL_MAX_NUM]
+	jg .invalid_syscall
 	call [syscall_list + rax * 8]
 
 	pop rcx
@@ -74,3 +77,6 @@ syscall_ENTRY64:
 	mov rdi, rsp
 
 	jmp .continue_systemcall
+.invalid_syscall:
+	cli
+	hlt

@@ -209,7 +209,6 @@ int main(int argc, char **argv, char **envp)
 	char *args[] = {shell, "/etc/fstab", NULL};
 
 	int pid = fork();
-	
 	if(pid == 0)
 		execve(shell, args, env);
 	while(1);

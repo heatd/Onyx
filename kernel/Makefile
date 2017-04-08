@@ -63,7 +63,6 @@ acpica/%.o: acpica/%.c
 	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) $(CPPFLAGS)
 %.o: %.c
 	@echo [CC] $<
-	@echo $(CFLAGS)
 	@$(CC) -c $< -o $@ -std=c11 $(CFLAGS) $(CPPFLAGS)
 %.o: %.S
 	@echo [AS] $<

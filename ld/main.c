@@ -15,39 +15,12 @@
 #include <elf.h>
 #include <libgen.h>
 
+#include <utils.h>
+#include <dynlink.h>
+
 #include <sys/mman.h>
 #include <sys/stat.h>
 
-typedef struct linked_list
-{
-	void *data;
-	struct linked_list *next;
-} linked_list_t;
-inline int list_insert(linked_list_t *list, void *obj)
-{
-	for(; list->next; list = list->next)
-	{
-
-	}
-	list->next = malloc(sizeof(linked_list_t));
-	if(!list->next)
-		return -1;
-	list->next->data = obj;
-	list->next->next = NULL;
-
-	return 0;
-}
-struct dso
-{
-	char *name;
-	void *file;
-	char *strtab;
-	char *shstrtab;
-	char *dynstr;
-	int refcount;
-	linked_list_t *dependencies;
-	struct dso *next;
-};
 static struct dso *objects = NULL;
 inline char *elf_get_string(Elf64_Word off, struct dso* obj)
 {
@@ -64,6 +37,10 @@ inline char *elf_get_dynstring(Elf64_Word off, struct dso* obj)
 inline void *elf_get_pointer(void *file, Elf64_Off offset)
 {
 	return (void*)(char*)file + offset;
+}
+inline Elf64_Sym *elf_get_sym(size_t idx, struct dso *dso)
+{
+	return &dso->dyntab[idx];
 }
 size_t elf_get_object_size(struct dso *dso)
 {
@@ -85,38 +62,6 @@ size_t elf_get_object_size(struct dso *dso)
 	}
 
 	return highest_address - lowest_address;
-}
-/* Utility function to read a whole file to a buffer - returns NULL on any failure */
-void *read_file(const char *path)
-{
-	/* Get the size of the file */
-	struct stat buf;
-	memset(&buf, 0, sizeof(struct stat));
-	if(stat(path, &buf) < 0)
-		return NULL;
-	size_t file_size = buf.st_size;
-	/* Allocate a buffer with the apropriate size */
-	void *buffer = malloc(file_size);
-	if(!buffer)
-		return NULL;
-
-	/* Open the file and read it */
-	FILE *fp = fopen(path, "rb");
-	if(!fp)
-	{
-		free(buffer);
-		return NULL;
-	}
-	size_t read = fread(buffer, 1, file_size, fp);
-	if(read != file_size)
-	{
-		printf("read_file: read I/O error\n");
-		fclose(fp);
-		free(buffer);
-		return NULL;
-	}
-	fclose(fp);
-	return buffer;
 }
 /* Check if it's a valid elf64 x86_64 SYSV ABI file */
 int verify_elf(void *file)
@@ -200,20 +145,21 @@ struct dso *load_library(char *libname)
 	}
 	
 	object->refcount = 1;
+	object->name = libname;
 	object->next = NULL;
 	header = (Elf64_Ehdr *) object->file;
 	phdrs = elf_get_pointer(object->file, header->e_phoff);
 	sections = elf_get_pointer(object->file, header->e_shoff);
 	n_sections = header->e_shnum;
-
+	object->shstrtab = elf_get_pointer(object->file, sections[header->e_shstrndx].sh_offset);
 	/* Get the object's total size while loaded */
 	size_t object_size = elf_get_object_size(object);
 
 	/* and mmap it */
-	printf("Size %u\n", object_size);
 	void *base = mmap(NULL, object_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 	if(base == MAP_FAILED)
 		abort();
+	object->base = (uintptr_t) base;
 	printf("ld: shared lib base %p-%p\n", base, (uintptr_t) base + object_size);
 	/* Firstly, load the library */
 	for(Elf64_Half i = 0; i < header->e_phnum; i++)
@@ -236,29 +182,196 @@ struct dso *load_library(char *libname)
 			n_dyn = phdrs[i].p_filesz / sizeof(Elf64_Dyn);
 		}
 	}
-	for(Elf64_Half i = 0; i < header->e_phnum; i++)
-	{
-		if(phdrs[i].p_type == PT_LOAD)
-		{
-			/* TODO: See kernel/mm/vmm.c */
-		}
-	}
 	if(!dyn)
 		abort(); /* TODO: Appropriately handle this, abort() seems too severe */
 
 	for(struct dso *i = objects; i; i = i->next)
 	{
-		/* We've already loaded this, just return */
 		if(!i->next)
 		{
 			i->next = object;
+			break;
 		}
 	}
-
+	for(Elf64_Half i = 0; i < n_sections; i++)
+	{
+		if(strcmp(elf_get_shstring(sections[i].sh_name, object), ".strtab") == 0)
+			object->strtab = elf_get_pointer(object->file, sections[i].sh_offset);
+		if(strcmp(elf_get_shstring(sections[i].sh_name, object), ".dynstr") == 0)
+			object->dynstr = elf_get_pointer(object->file, sections[i].sh_offset);
+		if(strcmp(elf_get_shstring(sections[i].sh_name, object), ".symtab") == 0)
+		{
+			object->symtab = elf_get_pointer(object->file, sections[i].sh_offset);
+			object->nr_symtab = sections[i].sh_size / sections[i].sh_entsize;
+		}
+		if(strcmp(elf_get_shstring(sections[i].sh_name, object), ".dynsym") == 0)
+		{
+			object->dyntab = elf_get_pointer(object->file, sections[i].sh_offset);
+			object->nr_dyntab = sections[i].sh_size / sections[i].sh_entsize;
+		}
+	}
+	for(size_t i = 0; i < n_dyn; i++)
+	{
+		switch(dyn[i].d_tag)
+		{
+			case DT_NEEDED:
+			{
+				printf("ld: loading %s\n", elf_get_dynstring(dyn[i].d_un.d_val, object));
+				struct dso *lib = load_library(elf_get_dynstring(dyn[i].d_un.d_val, object));
+				if(!lib)
+				{
+					printf("Failed to load %s\n", elf_get_dynstring(dyn[i].d_un.d_val, object));
+					return NULL;
+				}
+				if(!object->dependencies)
+				{
+					object->dependencies = malloc(sizeof(linked_list_t));
+					if(!object->dependencies)
+						abort();
+					object->dependencies->data = lib;
+					object->dependencies->next = NULL;
+				}
+				else
+				{
+					if(list_insert(object->dependencies, lib) < 0)
+						abort();
+				}
+				break;
+			}
+			case DT_INIT:
+			{
+				object->init = (void (*)()) dyn[i].d_un.d_ptr;
+				break;
+			}
+			case DT_FINI:
+			{
+				object->fini = (void (*)()) dyn[i].d_un.d_ptr;
+				break;
+			}
+			case DT_INIT_ARRAY:
+			{
+				object->initarray = (void*) dyn[i].d_un.d_ptr;
+				break;
+			}
+			case DT_INIT_ARRAYSZ:
+			{
+				object->initarraysz = dyn[i].d_un.d_ptr;
+				break;
+			}
+			case DT_FINI_ARRAY:
+			{
+				object->finiarray = (void*) dyn[i].d_un.d_ptr;
+				break;
+			}
+			case DT_FINI_ARRAYSZ:
+			{
+				object->finiarraysz = dyn[i].d_un.d_ptr;
+				break;
+			}
+		}
+	}
 	printf("Found the library at %s\n", path);
 	return object;
 }
-int load_elf(void *file, char *path)
+Elf64_Sym *lookup_symbol(char *name, struct dso *dso)
+{
+	linked_list_t *dependencies = dso->dependencies;
+	for(; dependencies; dependencies = dependencies->next)
+	{
+		struct dso *object = dependencies->data;
+		Elf64_Sym *symtab = object->dyntab;
+		for(Elf64_Half i = 0; i < object->nr_dyntab; i++)
+		{
+			if(strcmp(elf_get_dynstring(symtab[i].st_name, object), name) == 0)
+			{
+				symtab[i].st_value += object->base;
+				return &symtab[i];
+			}
+		}
+	}
+	return NULL;
+}
+int resolve_dependencies(struct dso *dso)
+{
+	printf("Resolving the dependencies of %s\n", dso->name);
+	Elf64_Sym *symtab = dso->symtab;
+	Elf64_Ehdr *header = (Elf64_Ehdr *) dso->file;
+	Elf64_Shdr *sections = elf_get_pointer(dso->file, header->e_shoff);
+	Elf64_Half n_sections = header->e_shnum;
+	for(Elf64_Half i = 0; i < n_sections; i++)
+	{
+		if(sections[i].sh_type == SHT_RELA)
+		{
+			Elf64_Rela *r = elf_get_pointer(dso->file, sections[i].sh_offset);
+			for(size_t j = 0; j < sections[i].sh_size / sections[i].sh_entsize; j++)
+			{
+				Elf64_Rela *rela = &r[j];
+				rela->r_offset += (uintptr_t) dso->base;
+				uintptr_t *addr = (uintptr_t*) rela->r_offset;
+
+				size_t sym_index = ELF64_R_SYM(rela->r_info);
+				Elf64_Sym *symbol;
+				if(sym_index != 0)
+				{
+					symbol = elf_get_sym(sym_index, dso);
+					if(!symbol)
+						return -1;
+					char *symbol_name = elf_get_dynstring(symbol->st_name, dso);
+					symbol->st_value += dso->base;
+					if(symbol->st_shndx == STN_UNDEF) /* symbol is undefined, look for the actual one */
+						symbol = lookup_symbol(symbol_name, dso);
+					if(!symbol)
+					{
+						printf("Unresolved symbol %s\n", symbol_name);
+						return -1;
+					}
+				}
+				switch(ELF64_R_TYPE(rela->r_info))
+				{
+					case R_X86_64_RELATIVE:
+						*addr = RELOCATE_R_X86_64_RELATIVE(dso->base, rela->r_addend);
+						break;
+					case R_X86_64_JUMP_SLOT:
+						*addr = RELOCATE_R_X86_64_JUMP_SLOT(symbol->st_value);
+						break;
+					case R_X86_64_64:
+						*addr = RELOCATE_R_X86_64_64(symbol->st_value, rela->r_addend);
+						break;
+					case R_X86_64_GLOB_DAT:
+						*addr = RELOCATE_R_X86_64_GLOB_DAT(symbol->st_value);
+						break;
+					default:
+						printf("Unhandled relocation type %u\n", ELF64_R_TYPE(rela->r_info));
+						return -1;
+				}
+			}
+		}
+	}
+
+	for(linked_list_t *dep = dso->dependencies; dep; dep = dep->next)
+	{
+		if(resolve_dependencies(dep->data) < 0)
+			return -1;
+	}
+	return 0;
+}
+void do_init(struct dso *dso)
+{
+	if(dso->init)
+	{
+		fpaddr(dso->init, dso)();
+	}
+	else if(dso->initarray)
+	{
+		size_t nr_initarray = dso->initarraysz/sizeof(void*);
+		void (**initarray)() = (void (**)()) dso->initarray; 
+		for(size_t i = 0; i < nr_initarray; i++)
+		{
+			fpaddr(initarray[i], dso)();
+		}
+	}
+}
+void *load_elf(void *file, char *path)
 {
 	Elf64_Ehdr *header = (Elf64_Ehdr *) file;
 	Elf64_Phdr *phdrs = elf_get_pointer(file, header->e_phoff);
@@ -292,6 +405,7 @@ int load_elf(void *file, char *path)
 	object->shstrtab = elf_get_pointer(file, sections[header->e_shstrndx].sh_offset);
 	object->name = basename(path);
 	object->refcount = 1;
+	object->base = 0;
 	objects = object;
 	/* Parse through the sections, looking for the sections we're interested in */
 	for(Elf64_Half i = 0; i < n_sections; i++)
@@ -300,6 +414,10 @@ int load_elf(void *file, char *path)
 			object->strtab = elf_get_pointer(file, sections[i].sh_offset);
 		if(strcmp(elf_get_shstring(sections[i].sh_name, object), ".dynstr") == 0)
 			object->dynstr = elf_get_pointer(file, sections[i].sh_offset);
+		if(strcmp(elf_get_shstring(sections[i].sh_name, object), ".dynsym") == 0)
+			object->dyntab = elf_get_pointer(file, sections[i].sh_offset);
+		if(strcmp(elf_get_shstring(sections[i].sh_name, object), ".symtab") == 0)
+			object->symtab = elf_get_pointer(object->file, sections[i].sh_offset);
 	}
 	/* Parse through the DYNAMIC section, and load the needed libraries */
 	for(size_t i = 0; i < n_dyn; i++)
@@ -313,7 +431,7 @@ int load_elf(void *file, char *path)
 				if(!lib)
 				{
 					printf("Failed to load %s\n", elf_get_dynstring(dyn[i].d_un.d_val, object));
-					return 1;
+					return NULL;
 				}
 				if(!object->dependencies)
 				{
@@ -328,30 +446,74 @@ int load_elf(void *file, char *path)
 					if(list_insert(object->dependencies, lib) < 0)
 						abort();
 				}
+				break;
+			}
+			case DT_INIT:
+			{
+				object->init = (void (*)()) dyn[i].d_un.d_ptr;
+				break;
+			}
+			case DT_FINI:
+			{
+				object->fini = (void (*)()) dyn[i].d_un.d_ptr;
+				break;
+			}
+			case DT_INIT_ARRAY:
+			{
+				object->initarray = (void*) dyn[i].d_un.d_ptr;
+				break;
+			}
+			case DT_INIT_ARRAYSZ:
+			{
+				object->initarraysz = dyn[i].d_un.d_ptr;
+				break;
+			}
+			case DT_FINI_ARRAY:
+			{
+				object->finiarray = (void*) dyn[i].d_un.d_ptr;
+				break;
+			}
+			case DT_FINI_ARRAYSZ:
+			{
+				object->finiarraysz = dyn[i].d_un.d_ptr;
+				break;
 			}
 		}
 	}
-	
-	while(1);
-	return 0;
+	if(resolve_dependencies(object) < 0)
+		return NULL;
+	/* Do init */
+	for(struct dso *dso = objects; dso; dso = dso->next)
+	{
+		do_init(dso);
+	}
+	return (void*) header->e_entry;
 }
-int load_prog(const char *filename)
+void *load_prog(const char *filename)
 {
 	/* Read the file */
 	void *file = read_file(filename);
 	if(!file)
-		return 1;
+		return NULL;
 	/* and check if it's valid */
 	if(verify_elf(file) < 0)
 	{
 		free(file);
-		return 1;
+		return NULL;
 	}
 	/* and load it */
 	return load_elf(file, (char*) filename);
 }
-int main(int argc, char **argv)
+int main(int argc, char **argv, char **envp, void *auxv)
 {
 	/* In our case, argv[0] is the to-be-loaded program's name*/
-	return load_prog((const char *) argv[0]);
+	void *retval = load_prog((const char *) argv[0]);
+	if(retval)
+	{
+		/* Launch the program */
+		prog_entry_t start = (prog_entry_t) retval;
+		printf("entry %p\n", retval);
+		start(argc, argv, envp, auxv); 
+	}
+	return 1;
 }

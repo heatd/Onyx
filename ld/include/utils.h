@@ -8,15 +8,27 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#include <stdlib.h>
+#ifndef _H_UTILS_H
+#define _H_UTILS_H
 
-extern void _init();
-extern int main(int argc, char **argv, char **envp, void *auxv);
-int _dlstart(int argc, char **argv, char **envp, void *auxv)
+#include <stdlib.h>
+void *read_file(const char *path);
+
+typedef struct linked_list
 {
-	/* Call the global constructors */
-	_init();
-	/* Call main and exit */
-	exit(main(argc, argv, envp, auxv));
+	void *data;
+	struct linked_list *next;
+} linked_list_t;
+inline int list_insert(linked_list_t *list, void *obj)
+{
+	for(; list->next; list = list->next);
+	list->next = malloc(sizeof(linked_list_t));
+	if(!list->next)
+		return -1;
+	list->next->data = obj;
+	list->next->next = NULL;
+
 	return 0;
 }
+
+#endif
