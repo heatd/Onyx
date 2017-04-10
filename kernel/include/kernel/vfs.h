@@ -15,6 +15,8 @@
 #include <dirent.h>
 #include <stdarg.h>
 
+#include <kernel/vmm.h>
+
 #include <sys/stat.h>
 #define VFS_TYPE_FILE 		0
 #define VFS_TYPE_DIR 		1
@@ -48,6 +50,7 @@ struct file_ops
 	stat stat;
 	link link;
 	symlink symlink;
+	int (*mmap)(vmm_entry_t *area, struct vfsnode *node);
 };
 typedef struct vfsnode
 {

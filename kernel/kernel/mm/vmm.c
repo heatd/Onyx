@@ -14,12 +14,14 @@
 #include <unistd.h>
 
 #include <kernel/paging.h>
+#include <kernel/page.h>
 #define __need_avl_node_t
 #include <kernel/vmm.h>
 #include <kernel/panic.h>
 #include <kernel/compiler.h>
 #include <kernel/process.h>
 #include <kernel/log.h>
+#include <fcntl.h>
 
 #include <sys/mman.h>
 
@@ -286,7 +288,7 @@ void *vmm_map_range(void *range, size_t pages, uint64_t flags)
 	uintptr_t mem = (uintptr_t) range;
 	for (size_t pgs = 0; pgs < pages; pgs++)
 	{
-		if(!paging_map_phys_to_virt(mem, (uintptr_t) bootmem_alloc(1), flags))
+		if(!paging_map_phys_to_virt(mem, (uintptr_t) __alloc_page(PAGE_AREA_HIGH_MEM), flags))
 			panic("out of memory.");
 		__asm__ __volatile__("invlpg %0"::"m"(mem));
 		mem += 0x1000;
@@ -303,8 +305,9 @@ void vmm_unmap_range(void *range, size_t pages)
 	uintptr_t mem = (uintptr_t) range;
 	for (size_t i = 0; i < pages; i++)
 	{
-		paging_unmap((void*) mem);
+		void *page = paging_unmap((void*) mem);
 		__asm__ __volatile__("invlpg %0"::"m"(mem));
+		__free_page(page);
 		mem += 0x1000;
 	}
 	if(likely(get_current_process()))
@@ -529,17 +532,49 @@ int vmm_check_pointer(void *addr, size_t needed_space)
 	else
 		return -1;
 }
-void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
+inline int validate_fd(int fd)
 {
+	if(fd < 0)
+		return errno = -EBADF;
+	if(fd > UINT16_MAX)
+		return errno =-EBADF;
+	ioctx_t *ctx = &get_current_process()->ctx;
+	if(ctx->file_desc[fd] == NULL)
+		return errno =-EBADF;
+	return 0;
+}
+void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off)
+{
+	if(length == 0)
+		return (void*)-EINVAL;
+	if(!(flags & MAP_PRIVATE) && !(flags & MAP_SHARED))
+		return (void*)-EINVAL;
+	if(flags & MAP_PRIVATE && flags & MAP_SHARED)
+		return (void*)-EINVAL;
+	
+	if(!(flags & MAP_ANONYMOUS)) /* This is a file-backed mapping */
+	{
+		if(!validate_fd(fd))
+			return (void*)-EBADF;
+		ioctx_t *ctx = &get_current_process()->ctx;
+		/* Get the file descriptor */
+		file_desc_t *file_descriptor = ctx->file_desc[fd];
+		if(file_descriptor->flags != O_WRONLY && file_descriptor->flags != O_RDWR && prot & PROT_WRITE)
+		{
+			/* You can't do that! */
+			return (void*)-EACCES;
+		}
+	}
 	void *mapping_addr = NULL;
-	// Calculate the pages needed for the overall size
+	/* Calculate the pages needed for the overall size */
 	size_t pages = length / PAGE_SIZE;
 	if(length % PAGE_SIZE)
 		pages++;
 	int vm_prot = VM_USER |
 		      ((prot & PROT_WRITE) ? VM_WRITE : 0) |
 		      ((!(prot & PROT_EXEC)) ? VM_NOEXEC : 0);
-	if(!addr) // Specified by posix, if addr == NULL, guess an address
+
+	if(!addr) /* Specified by POSIX, if addr == NULL, guess an address */
 		mapping_addr = vmm_allocate_virt_address(0, pages, VM_TYPE_SHARED, vm_prot, 0);
 	else
 	{
@@ -548,9 +583,22 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 			mapping_addr = vmm_allocate_virt_address(0, pages, VM_TYPE_REGULAR, vm_prot, 0);
 	}
 	if(!mapping_addr)
-		return errno =-ENOMEM, NULL;
-	/*if(!vmm_map_range(mapping_addr, pages, vm_prot))
-		return errno =-ENOMEM, NULL;*/
+		return (void*)-ENOMEM;
+
+	if(!(flags & MAP_ANONYMOUS))
+	{
+		vmm_entry_t *area = (*avl_search_key(&tree, (uintptr_t) mapping_addr))->data;
+		/* Set additional meta-data */
+		if(flags & MAP_SHARED)
+			area->mapping_type = MAP_SHARED;
+		else
+			area->mapping_type = MAP_PRIVATE;
+		area->type = VM_TYPE_FILE_BACKED;
+		if(flags & MAP_SHARED)
+			area->rwx &= ~PROT_WRITE; /* If MAP_SHARED wants to work, we need a page fault on write */
+		area->offset = off;
+		area->fd = fd;
+	}
 	return mapping_addr;
 }
 int sys_munmap(void *addr, size_t length)

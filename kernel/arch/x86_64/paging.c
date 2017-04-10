@@ -12,6 +12,7 @@
 #include <stdbool.h>
 #include <cpuid.h>
 
+#include <kernel/page.h>
 #include <kernel/paging.h>
 #include <kernel/process.h>
 #include <kernel/vmm.h>
@@ -183,7 +184,7 @@ void *paging_map_phys_to_virt_huge(uint64_t virt, uint64_t phys, uint64_t prot)
 	}
 	else
 	{
-		pml3 = (PML3*)bootmem_alloc(1);
+		pml3 = (PML3*) __alloc_page(PAGE_AREA_HIGH_MEM);
 		if(!pml3)
 			return NULL;
 		memset((void*)((uint64_t)pml3 + KERNEL_VIRTUAL_BASE), 0, sizeof(PML3));
@@ -215,7 +216,7 @@ void* paging_map_phys_to_virt_large_early(uint64_t virt, uint64_t phys, uint64_t
 		pml3 = (PML3*)(*entry & 0x0FFFFFFFFFFFF000);
 	}
 	else { /* Else create one */
-		pml3 = (PML3*)bootmem_alloc(1);
+		pml3 = (PML3*)__alloc_page(PAGE_AREA_HIGH_MEM);
 		if(!pml3)
 			return NULL;
 		memset((void*)((uint64_t)pml3 + KERNEL_VIRTUAL_BASE), 0, sizeof(PML3));
@@ -227,7 +228,7 @@ void* paging_map_phys_to_virt_large_early(uint64_t virt, uint64_t phys, uint64_t
 		pml2 = (PML2*)(*entry & 0x0FFFFFFFFFFFF000);
 	}
 	else {
-		pml2 = (PML2*)bootmem_alloc(1);
+		pml2 = (PML2*)__alloc_page(PAGE_AREA_HIGH_MEM);
 		if(!pml2 )
 			return NULL;
 		memset((void*)((uint64_t)pml2 + KERNEL_VIRTUAL_BASE), 0, sizeof(PML2));
@@ -259,7 +260,7 @@ void* paging_map_phys_to_virt_large(uint64_t virt, uint64_t phys, uint64_t prot)
 		pml3 = (PML3*)(*entry & 0x0FFFFFFFFFFFF000);
 	}
 	else { /* Else create one */
-		pml3 = (PML3*)bootmem_alloc(1);
+		pml3 = (PML3*)__alloc_page(PAGE_AREA_HIGH_MEM);
 		if(!pml3)
 			return NULL;
 		memset((void*)((uint64_t)pml3 + PHYS_BASE), 0, sizeof(PML3));
@@ -271,7 +272,7 @@ void* paging_map_phys_to_virt_large(uint64_t virt, uint64_t phys, uint64_t prot)
 		pml2 = (PML2*)(*entry & 0x0FFFFFFFFFFFF000);
 	}
 	else {
-		pml2 = (PML2*)bootmem_alloc(1);
+		pml2 = (PML2*)__alloc_page(PAGE_AREA_HIGH_MEM);
 		if(!pml2 )
 			return NULL;
 		memset((void*)((uint64_t)pml2 + PHYS_BASE), 0, sizeof(PML2));
@@ -309,7 +310,7 @@ void* paging_map_phys_to_virt(uint64_t virt, uint64_t phys, uint64_t prot)
 		pml3 = (PML3*)(*entry & 0x0FFFFFFFFFFFF000);
 	}
 	else { /* Else create one */
-		pml3 = (PML3*)bootmem_alloc(1);
+		pml3 = (PML3*)__alloc_page(PAGE_AREA_HIGH_MEM);
 		if(!pml3)
 			return NULL;
 		memset((void*)((uint64_t)pml3 + PHYS_BASE), 0, sizeof(PML3));
@@ -321,7 +322,7 @@ void* paging_map_phys_to_virt(uint64_t virt, uint64_t phys, uint64_t prot)
 		pml2 = (PML2*)(*entry & 0x0FFFFFFFFFFFF000);
 	}
 	else {
-		pml2 = (PML2*)bootmem_alloc(1);
+		pml2 = (PML2*)__alloc_page(PAGE_AREA_HIGH_MEM);
 		if(!pml2 )
 			return NULL;
 		memset((void*)((uint64_t)pml2 + PHYS_BASE), 0, sizeof(PML2));
@@ -333,7 +334,7 @@ void* paging_map_phys_to_virt(uint64_t virt, uint64_t phys, uint64_t prot)
 		pml1 = (PML1*)(*entry & 0x0FFFFFFFFFFFF000);
 	}
 	else {
-		pml1 = (PML1*)bootmem_alloc(1);
+		pml1 = (PML1*)__alloc_page(PAGE_AREA_HIGH_MEM);
 		if(!pml1)
 			return NULL;
 		memset((void*)((uint64_t)pml1 + PHYS_BASE), 0, sizeof(PML1));
@@ -344,7 +345,7 @@ void* paging_map_phys_to_virt(uint64_t virt, uint64_t phys, uint64_t prot)
 	*entry = make_pml1e( phys, (prot & 4) ? 1 : 0, 0, (prot & 0x2) ? 1 : 0, 0, 0, (prot & 0x80) ? 1 : 0, (prot & 1) ? 1 : 0, 1);
 	return (void*)virt;
 }
-void paging_unmap(void* memory)
+void *paging_unmap(void* memory)
 {
 	decomposed_addr_t dec;
 	memcpy(&dec, &memory, sizeof(decomposed_addr_t));
@@ -360,12 +361,14 @@ void paging_unmap(void* memory)
 	entry = &pml2->entries[dec.pd];
 	PML1 *pml1 = (PML1*)((*entry & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
 	entry = &pml1->entries[dec.pt];
-	//pfree(1, entry);
+
+	uintptr_t address = PML_EXTRACT_ADDRESS(*entry);
 	*entry = 0;
+	return (void*) address;
 }
 PML4 *paging_clone_as()
 {
-	PML4 *new_pml = bootmem_alloc(1);
+	PML4 *new_pml = __alloc_page(PAGE_AREA_HIGH_MEM);
 	if(!new_pml)
 		panic("OOM while cloning address space!");
 	PML4 *p = (PML4*)((uint64_t)new_pml + PHYS_BASE);
@@ -381,7 +384,7 @@ inline PML4 *paging_fork_pml(PML4 *pml, int entry)
 {
 	uint64_t old_address = PML_EXTRACT_ADDRESS(pml->entries[entry]);
 	uint64_t perms = pml->entries[entry] & 0xF000000000000FFF;
-	pml->entries[entry] = PML_EXTRACT_ADDRESS((uint64_t)bootmem_alloc(1)) | perms;
+	pml->entries[entry] = PML_EXTRACT_ADDRESS((uint64_t)__alloc_page(PAGE_AREA_HIGH_MEM)) | perms;
 	PML4 *new_pml = (PML4*)((PML_EXTRACT_ADDRESS(pml->entries[entry])) + PHYS_BASE);
 	PML4 *old_pml = (PML4*)(old_address + PHYS_BASE);
 	memcpy(new_pml, old_pml, sizeof(PML4));
@@ -389,7 +392,7 @@ inline PML4 *paging_fork_pml(PML4 *pml, int entry)
 }
 PML4 *paging_fork_as()
 {
-	PML4 *new_pml = bootmem_alloc(1);
+	PML4 *new_pml = __alloc_page(PAGE_AREA_HIGH_MEM);
 	if(!new_pml)
 		panic("OOM while cloning address space!");
 	PML4 *p = (PML4*)((uint64_t)new_pml + PHYS_BASE);

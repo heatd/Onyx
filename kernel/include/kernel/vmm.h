@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <kernel/paging.h>
 
+#include <sys/types.h>
 #if defined (__i386__)
 	#define KERNEL_VIRTUAL_BASE 0xC0000000
 #elif defined (__x86_64__)
@@ -26,6 +27,7 @@
 #define VM_TYPE_SHARED 		(2)
 #define VM_TYPE_HEAP 		(3)
 #define VM_TYPE_HW 		(4)
+#define VM_TYPE_FILE_BACKED	(5)
 #define VM_GLOBAL 		(0x2)
 #define VM_USER 		(0x80)
 #define VM_WRITE 		(0x1)
@@ -48,12 +50,16 @@
 #define VMM_NOEXEC VM_NOEXEC
 
 #define VM_HIGHER_HALF 0xFFFF800000000000
+#define PHYS_TO_VIRT(x) (void*)((uintptr_t) x + PHYS_BASE)
 typedef struct ventry
 {
 	uintptr_t base;
 	size_t pages;
 	int rwx;
 	int type;
+	int mapping_type;
+	int fd;
+	off_t offset;
 } vmm_entry_t;
 #ifndef __avl_tree_defined_
 typedef struct avl_node

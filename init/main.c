@@ -162,6 +162,9 @@ func_exit:
 }
 int main(int argc, char **argv, char **envp)
 {
+	/* Test mmap */
+	printf("Testing mmap!\n");
+
 	/* Check if we're actually the first process */
 	pid_t p = getpid();
 	if(p != 1)

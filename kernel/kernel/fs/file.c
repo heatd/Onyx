@@ -27,6 +27,8 @@
 
 inline int validate_fd(int fd)
 {
+	if(fd < 0)
+		return errno = -EBADF;
 	if(fd > UINT16_MAX)
 		return errno =-EBADF;
 	ioctx_t *ctx = &get_current_process()->ctx;

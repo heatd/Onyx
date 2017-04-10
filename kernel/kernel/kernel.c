@@ -66,6 +66,7 @@
 #include <kernel/elf.h>
 #include <kernel/smbios.h>
 #include <kernel/fscache.h>
+#include <kernel/page.h>
 
 #include <drivers/ps2.h>
 #include <drivers/ata.h>
@@ -304,7 +305,7 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 	/* Initialize the first terminal */
 	tty_init();
 	initrd_addr = (void*) (uintptr_t) initrd_tag->mod_start;
-
+	page_init();
 	/* Identify the CPU it's running on (bootstrap CPU) */
 	cpu_identify();
 
