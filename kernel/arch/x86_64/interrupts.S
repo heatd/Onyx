@@ -217,8 +217,18 @@ _sched_yield:
 	mov ax, ds
 	push rax
 	mov rdi, rsp
+	mov rax, [rsp + 136]
+	cmp rax, 0x8
+	je .skip_swap_yield
+	swapgs
+.skip_swap_yield:
 	call sched_switch_thread
 	mov rsp, rax
+	mov rax, [rsp + 136]
+	cmp rax, 0x8
+	je .skip_swap_yield2
+	swapgs
+.skip_swap_yield2:
 	pop rax
 	mov ds, ax
 	mov es, ax

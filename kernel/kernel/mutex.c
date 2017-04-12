@@ -16,10 +16,9 @@
 
 void mutex_lock(mutex_t *mutex)
 {
-	return;
 	while(!__sync_bool_compare_and_swap(mutex, 0, 1))
 	{
-		__asm__ __volatile__("pause");
+		sched_yield();
 	}
 	__sync_synchronize();
 }

@@ -24,7 +24,13 @@
 #include <fcntl.h>
 
 #include <sys/mman.h>
-
+typedef struct avl_node
+{
+	uintptr_t key;
+	uintptr_t end;
+	vmm_entry_t *data;
+	struct avl_node *left, *right;
+} avl_node_t;
 _Bool is_initialized = false;
 _Bool is_spawning = 0;
 avl_node_t *old_tree = NULL;
@@ -139,7 +145,7 @@ void avl_balance_tree(avl_node_t **t)
 			avl_rotate_right_to_right(t);
 	}
 }
-vmm_entry_t *avl_insert_key(avl_node_t **t, uintptr_t key, uintptr_t end)
+static vmm_entry_t *avl_insert_key(avl_node_t **t, uintptr_t key, uintptr_t end)
 {
 	avl_node_t *ptr = *t;
 	if(!*t)
@@ -173,7 +179,7 @@ vmm_entry_t *avl_insert_key(avl_node_t **t, uintptr_t key, uintptr_t end)
 		return ret;
 	}
 }
-avl_node_t **avl_search_key(avl_node_t **t, uintptr_t key)
+static avl_node_t **avl_search_key(avl_node_t **t, uintptr_t key)
 {
 	if(!*t)
 		return NULL;
@@ -187,7 +193,7 @@ avl_node_t **avl_search_key(avl_node_t **t, uintptr_t key)
 	else
 		return avl_search_key(&ptr->right, key);
 }
-int avl_delete_node(uintptr_t key)
+static int avl_delete_node(uintptr_t key)
 {
 	/* Try to find the node inside the tree */
 	avl_node_t **n = avl_search_key(&tree, key);
@@ -204,11 +210,12 @@ int avl_delete_node(uintptr_t key)
 }
 avl_node_t *avl_copy(avl_node_t *node)
 {
-	if(node->left) node->left = avl_copy(node->left);
-	if(node->right) node->right = avl_copy(node->right);
-
 	avl_node_t *new = malloc(sizeof(avl_node_t));
 	memcpy(new, node, sizeof(avl_node_t));
+
+	if(new->left) new->left = avl_copy(new->left);
+	if(new->right) new->right = avl_copy(new->right);
+
 	return new;
 }
 void avl_clone(avl_node_t *node)
@@ -513,6 +520,11 @@ void *vmalloc(size_t pages, int type, int perms)
 	void *addr = vmm_allocate_virt_address(VM_KERNEL, pages, type, perms, 0);
 	vmm_map_range(addr, pages, perms);
 	return addr;
+}
+void vfree(void *ptr, size_t pages)
+{
+	vmm_destroy_mappings(ptr, pages);
+	vmm_unmap_range(ptr, pages);
 }
 avl_node_t *vmm_get_tree()
 {

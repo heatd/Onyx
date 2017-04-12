@@ -62,13 +62,7 @@ typedef struct ventry
 	off_t offset;
 } vmm_entry_t;
 #ifndef __avl_tree_defined_
-typedef struct avl_node
-{
-	uintptr_t key;
-	uintptr_t end;
-	vmm_entry_t *data;
-	struct avl_node *left, *right;
-} avl_node_t;
+typedef struct avl_node avl_node_t;
 #define __avl_tree_defined_
 #endif
 
@@ -87,6 +81,10 @@ void vmm_change_perms(void *range, size_t pages, int perms);
 void vmm_set_tree(avl_node_t *tree_);
 avl_node_t *vmm_get_tree();
 int vmm_check_pointer(void *addr, size_t needed_space);
+void *vmalloc(size_t pages, int type, int perms);
+void vfree(void *ptr, size_t pages);
+void vmm_print_stats(void);
+
 inline size_t vmm_align_size_to_pages(size_t size)
 {
 	size_t pages = size / PAGE_SIZE;
@@ -94,7 +92,4 @@ inline size_t vmm_align_size_to_pages(size_t size)
 		pages++;
 	return pages;
 }
-
-void *vmalloc(size_t pages, int type, int perms);
-void vmm_print_stats(void);
 #endif

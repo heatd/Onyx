@@ -66,13 +66,6 @@ typedef struct vfsnode
 	dev_t dev;
 	struct vfsnode *next;
 	struct vfsnode *link;
-	__read read;
-	__write write;
-	__open open;
-	__close close;
-	__getdents getdents;
-	__ioctl ioctl;
-	__creat creat;
 } vfsnode_t;
 
 size_t read_vfs(size_t offset, size_t sizeofread, void* buffer, vfsnode_t* this);
