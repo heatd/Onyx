@@ -327,7 +327,7 @@ void sched_idle()
 }
 void thread_add(thread_t *add)
 {
-	thread_t *it = current_thread;
+	thread_t *it = run_queue;
 	while(it->next)
 		it = it->next;
 	it->next = add;

@@ -67,6 +67,7 @@
 #include <kernel/smbios.h>
 #include <kernel/fscache.h>
 #include <kernel/page.h>
+#include <kernel/irq.h>
 
 #include <drivers/ps2.h>
 #include <drivers/ata.h>
@@ -374,6 +375,9 @@ void kernel_main()
 	sched_create_thread(kernel_multitasking, 1, NULL);
 	/* Initialize late libc */
 	libc_late_init();
+
+	/* Initialize the IRQ worker thread */
+	irq_init();
 
 	ENABLE_INTERRUPTS();
 	for (;;)

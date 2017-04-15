@@ -34,6 +34,7 @@ section .text
 extern syscall_list
 extern syscall_helper
 extern SYSCALL_MAX_NUM
+extern do_irq_work
 global syscall_ENTRY64
 syscall_ENTRY64:
 	cld
