@@ -14,6 +14,7 @@ newlib
 init/init
 cat/cat
 echo/echo
+ls/ls
 *.pcap
 *.pcapng
 login/login

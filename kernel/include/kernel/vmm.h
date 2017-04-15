@@ -13,7 +13,9 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+
 #include <kernel/paging.h>
+#include <kernel/avl.h>
 
 #include <sys/types.h>
 #if defined (__i386__)
@@ -61,10 +63,6 @@ typedef struct ventry
 	int fd;
 	off_t offset;
 } vmm_entry_t;
-#ifndef __avl_tree_defined_
-typedef struct avl_node avl_node_t;
-#define __avl_tree_defined_
-#endif
 
 void vmm_init();
 void vmm_start_address_bookkeeping(uintptr_t framebuffer_address, uintptr_t heap);

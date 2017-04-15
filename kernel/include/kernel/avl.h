@@ -8,18 +8,12 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#ifndef _PAGECACHE_H
-#define _PAGECACHE_H
+#include <stdint.h>
 
-#include <kernel/list.h>
-#include <kernel/vfs.h>
-
-struct page_cache
-{
-	void *page;
-	vfsnode_t *node; /* IF it's actually a file */
-};
-
-#define PAGE_CACHE_SIZE 65536 /* Each component of the cache has 64KiB */
-void *add_to_cache(void *data, vfsnode_t *node);
+#ifndef __avl_tree_defined_
+typedef struct avl_node avl_node_t;
+#define __avl_tree_defined_
 #endif
+
+int avl_get_height(avl_node_t *ptr);
+void avl_balance_tree(avl_node_t **t);

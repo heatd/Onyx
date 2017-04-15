@@ -8,18 +8,20 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#ifndef _PAGECACHE_H
-#define _PAGECACHE_H
+#ifndef _KERNEL_RWLOCK_H
+#define _KERNEL_RWLOCK_H
 
-#include <kernel/list.h>
-#include <kernel/vfs.h>
-
-struct page_cache
+#include <kernel/compiler.h>
+struct rwlock	
 {
-	void *page;
-	vfsnode_t *node; /* IF it's actually a file */
+	unsigned long lock;
+	unsigned long rw;
+	unsigned long readers __align_cache; /* We're aligning these four, to minimize cache line bouncing */
+	unsigned long writers __align_cache;
 };
 
-#define PAGE_CACHE_SIZE 65536 /* Each component of the cache has 64KiB */
-void *add_to_cache(void *data, vfsnode_t *node);
+void rw_lock_read(struct rwlock *lock);
+void rw_lock_write(struct rwlock *lock);
+void rw_unlock_read(struct rwlock *lock);
+void rw_unlock_write(struct rwlock *lock);
 #endif

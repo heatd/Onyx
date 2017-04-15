@@ -327,7 +327,6 @@ int sys_mount(const char *source, const char *target, const char *filesystemtype
 		return errno =-EINVAL;
 	if(!vmm_is_mapped((void*) filesystemtype))
 		return errno =-EINVAL;
-	
 	/* Find the 'filesystemtype's handler */
 	filesystem_mount_t *fs = find_filesystem_handler(filesystemtype);
 	if(!fs)
@@ -337,17 +336,15 @@ int sys_mount(const char *source, const char *target, const char *filesystemtype
 	if(!dev_name)
 		return errno = -ENOMEM;
 	dev_name[strlen(dev_name)-1] = '\0';
-	block_device_t *block = blkdev_search((const char *)dev_name);
-
+	block_device_t *block = blkdev_search((const char *) dev_name);
 	int part_index = source[strlen(source)-1] - '1';
 
 	uint64_t lba = partition_find(part_index, block, fs);
-	
 	vfsnode_t *node = NULL;
 	int ret = 0;
 	if(!(node = fs->handler(lba, block)))
 	{
-		ret = 1;
+		ret = -1;
 		goto exit;
 	}
 	char *str = strdup(target);

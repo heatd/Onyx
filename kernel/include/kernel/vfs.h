@@ -10,11 +10,13 @@
  *----------------------------------------------------------------------*/
 #ifndef _VFS_H
 #define _VFS_H
+
 #include <stdint.h>
 #include <string.h>
 #include <dirent.h>
 #include <stdarg.h>
 
+#include <kernel/avl.h>
 #include <kernel/vmm.h>
 
 #include <sys/stat.h>
@@ -64,10 +66,12 @@ typedef struct vfsnode
 	char *name;
 	char *mountpoint;
 	dev_t dev;
+	avl_node_t *cache_tree;
 	struct vfsnode *next;
 	struct vfsnode *link;
 } vfsnode_t;
 
+void *add_cache_to_node(void *ptr, off_t offset, vfsnode_t *node);
 size_t read_vfs(size_t offset, size_t sizeofread, void* buffer, vfsnode_t* this);
 size_t write_vfs(size_t offset, size_t sizeofwrite, void* buffer, vfsnode_t* this);
 void close_vfs(vfsnode_t* this);
@@ -78,6 +82,8 @@ unsigned int getdents_vfs(unsigned int count, struct dirent* dirp, off_t off, vf
 int ioctl_vfs(int request, va_list args, vfsnode_t *this);
 int stat_vfs(struct stat *buf, vfsnode_t *node);
 int vfs_init();
+struct minor_device;
+ssize_t lookup_file_cache(void *buffer, size_t sizeofread, vfsnode_t *file, struct minor_device *m, off_t offset);
 
 extern vfsnode_t* fs_root;
 #endif

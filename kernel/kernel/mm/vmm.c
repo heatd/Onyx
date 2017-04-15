@@ -26,10 +26,10 @@
 #include <sys/mman.h>
 typedef struct avl_node
 {
+	struct avl_node *left, *right;
 	uintptr_t key;
 	uintptr_t end;
 	vmm_entry_t *data;
-	struct avl_node *left, *right;
 } avl_node_t;
 _Bool is_initialized = false;
 _Bool is_spawning = 0;

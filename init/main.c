@@ -16,7 +16,7 @@
 #include <ctype.h>
 #include <sys/syscall.h>
 #include <sys/utsname.h>
-
+#include <fcntl.h>
 #define MODULE_PREFIX "/lib/modules/"
 #define MODULE_EXT    ".kmod"
 
@@ -150,6 +150,7 @@ int mount_filesystems(void)
 		if(mount(source, target, filesystem_type, 0, NULL) < 0)
 		{
 			printf("init: failed to mount %s\n", source);
+			perror("");
 			free(read_buffer);
 			fclose(fp);
 			return 1;
