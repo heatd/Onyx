@@ -14,6 +14,10 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include <ctype.h>
+#include <stdint.h>
+int tonum(int c);
+int isnum(int c);
+void itoa(uint64_t i, unsigned int base, char *buf, _Bool is_upper);
 int vsprintf(char *restrict s, const char *__restrict__ format, va_list parameters)
 {
 	int written = 0;

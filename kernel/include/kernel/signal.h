@@ -13,11 +13,12 @@
 
 #include <signal.h>
 
+typedef void * sighandler_t;
 struct signal_info
 {
 	int signum;
 	int type;
-	sighandler_t handler;
+	void *handler;
 };
 int sys_kill(pid_t pid, int sig);
 

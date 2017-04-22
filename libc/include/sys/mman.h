@@ -1,17 +1,23 @@
-/*----------------------------------------------------------------------
- * Copyright (C) 2016, 2017 Pedro Falcato
- *
- * This file is part of Onyx, and is made available under
- * the terms of the GNU General Public License version 2.
- *
- * You can redistribute it and/or modify it under the terms of the GNU
- * General Public License version 2 as published by the Free Software
- * Foundation.
- *----------------------------------------------------------------------*/
-#ifndef _MMAN_H
-#define _MMAN_H
+#ifndef	_SYS_MMAN_H
+#define	_SYS_MMAN_H
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-#include <sys/types.h>
+#include <features.h>
+
+#define __NEED_mode_t
+#define __NEED_size_t
+#define __NEED_off_t
+
+#if defined(_GNU_SOURCE)
+#define __NEED_ssize_t
+#endif
+
+#include <bits/alltypes.h>
+
+#define MAP_FAILED ((void *) -1)
+
 #define MAP_SHARED     0x01
 #define MAP_PRIVATE    0x02
 #define MAP_TYPE       0x0f
@@ -35,10 +41,78 @@
 #define PROT_EXEC      4
 #define PROT_GROWSDOWN 0x01000000
 #define PROT_GROWSUP   0x02000000
-#define MAP_FAILED 	((void*) -1)
-void* mmap(void* addr, size_t len,int prot,int flags,int fildes,off_t off);
-int munmap(void* addr, size_t len);
 
+#define MS_ASYNC       1
+#define MS_INVALIDATE  2
+#define MS_SYNC        4
 
+#define MCL_CURRENT    1
+#define MCL_FUTURE     2
+#define MCL_ONFAULT    4
 
+#define POSIX_MADV_NORMAL     0
+#define POSIX_MADV_RANDOM     1
+#define POSIX_MADV_SEQUENTIAL 2
+#define POSIX_MADV_WILLNEED   3
+#define POSIX_MADV_DONTNEED   4
+
+#if defined(_GNU_SOURCE) || defined(_BSD_SOURCE)
+#define MADV_NORMAL      0
+#define MADV_RANDOM      1
+#define MADV_SEQUENTIAL  2
+#define MADV_WILLNEED    3
+#define MADV_DONTNEED    4
+#define MADV_FREE        8
+#define MADV_REMOVE      9
+#define MADV_DONTFORK    10
+#define MADV_DOFORK      11
+#define MADV_MERGEABLE   12
+#define MADV_UNMERGEABLE 13
+#define MADV_HUGEPAGE    14
+#define MADV_NOHUGEPAGE  15
+#define MADV_DONTDUMP    16
+#define MADV_DODUMP      17
+#define MADV_HWPOISON    100
+#define MADV_SOFT_OFFLINE 101
+#endif
+
+#include <bits/mman.h>
+
+void *mmap (void *, size_t, int, int, int, off_t);
+int munmap (void *, size_t);
+
+int mprotect (void *, size_t, int);
+int msync (void *, size_t, int);
+
+int posix_madvise (void *, size_t, int);
+
+int mlock (const void *, size_t);
+int munlock (const void *, size_t);
+int mlockall (int);
+int munlockall (void);
+
+#ifdef _GNU_SOURCE
+#define MREMAP_MAYMOVE 1
+#define MREMAP_FIXED 2
+void *mremap (void *, size_t, size_t, int, ...);
+int remap_file_pages (void *, size_t, int, size_t, int);
+#endif
+
+#if defined(_GNU_SOURCE) || defined(_BSD_SOURCE)
+#define MLOCK_ONFAULT   0x01
+int madvise (void *, size_t, int);
+int mincore (void *, size_t, unsigned char *);
+#endif
+
+int shm_open (const char *, int, mode_t);
+int shm_unlink (const char *);
+
+#if defined(_LARGEFILE64_SOURCE) || defined(_GNU_SOURCE)
+#define mmap64 mmap
+#define off64_t off_t
+#endif
+
+#ifdef __cplusplus
+}
+#endif
 #endif

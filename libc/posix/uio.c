@@ -13,39 +13,22 @@
 #include <sys/syscall.h>
 #include <sys/uio.h>
 
+#pragma GCC push_options
+#pragma GCC diagnostic ignored "-Wunused-parameter"
 ssize_t readv(int fd, const struct iovec *v, int veccount)
 {
-	syscall(SYS_readv, fd, v, veccount);
-	if(rax == (unsigned long long) -1)
-	{
-		set_errno();
-	}
-	return (ssize_t)rax;
+	return -1;
 }
 ssize_t writev(int fd, const struct iovec *v, int veccount)
 {
-	syscall(SYS_writev, fd, v, veccount);
-	if(rax == (unsigned long long) -1)
-	{
-		set_errno();
-	}
-	return (ssize_t)rax;
+	return -1;
 }
 ssize_t preadv(int fd, const struct iovec *v, int veccount, off_t offset)
 {
-	syscall(SYS_preadv, fd, v, veccount, offset);
-	if(rax == (unsigned long long) -1)
-	{
-		set_errno();
-	}
-	return (ssize_t)rax;
+	return -1;
 }
 ssize_t pwritev(int fd, const struct iovec *v, int veccount, off_t offset)
 {
-	syscall(SYS_pwritev, fd, v, veccount, offset);
-	if(rax == (unsigned long long) -1)
-	{
-		set_errno();
-	}
-	return (ssize_t)rax;
+	return -1;
 }
+#pragma GCC pop_options

@@ -14,42 +14,26 @@
 #include <sys/types.h>
 #include <sys/mman.h>
 
+#pragma GCC push_options
+#pragma GCC diagnostic ignored "-Wunused-parameter"
 void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
-	syscall(SYS_mmap, addr, length, prot, flags, fd, offset);
-	if(rax == (unsigned long long) -1)
-	{
-		set_errno();
-	}
-	return (void*) rax;
+	
+	return (void*) MAP_FAILED;
 }
 int munmap(void *addr, size_t length)
 {
-	syscall(SYS_munmap, addr, length);
-	if(rax == (unsigned long long) -1)
-	{
-		set_errno();
-	}
-	return (int) rax;
+	return (int) -1;
 }
 int mprotect(void *addr, size_t len, int prot)
 {
-	syscall(SYS_mprotect, addr, len, prot);
-	if(rax == (unsigned long long) -1)
-	{
-		set_errno();
-	}
-	return (int) rax;
+	return (int) -1;
 }
 uint64_t brk(void *addr)
 {
-	syscall(SYS_brk, addr);
-	if(rax == (unsigned long long) -1)
-	{
-		set_errno();
-	}
-	return rax;
+	return 0;
 }
+#pragma GCC pop_options
 #pragma GCC push_options
 #pragma GCC optimize("O0")
 static char *current_position = NULL;

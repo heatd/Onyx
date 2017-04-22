@@ -10,7 +10,7 @@
  *----------------------------------------------------------------------*/
  #include <string.h>
 
-int strcmp(char *s, char *t)
+int strcmp(const char *s, const char *t)
 {
 	int i;
 	for (i = 0; s[i] == t[i]; i++)

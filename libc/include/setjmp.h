@@ -1,31 +1,41 @@
-/*----------------------------------------------------------------------
- * Copyright (C) 2016, 2017 Pedro Falcato
- *
- * This file is part of Onyx, and is made available under
- * the terms of the GNU General Public License version 2.
- *
- * You can redistribute it and/or modify it under the terms of the GNU
- * General Public License version 2 as published by the Free Software
- * Foundation.
- *----------------------------------------------------------------------*/
-
-#ifndef _SETJMP_H
-#define _SETJMP_H
-#include <sys/cdefs.h>
-typedef unsigned long sigjmp_buf[8];
-
-typedef sigjmp_buf jmp_buf;
+#ifndef	_SETJMP_H
+#define	_SETJMP_H
 
 #ifdef __cplusplus
-__START_C_HEADER
+extern "C" {
 #endif
 
-int setjmp(jmp_buf env);
-int sigsetjmp(sigjmp_buf env, int savesigs);
-void longjmp(jmp_buf env, int val);
-void siglongjmp(sigjmp_buf env, int val);
+#include <features.h>
+
+#include <bits/setjmp.h>
+
+typedef struct __jmp_buf_tag {
+	__jmp_buf __jb;
+	unsigned long __fl;
+	unsigned long __ss[128/sizeof(long)];
+} jmp_buf[1];
+
+#if defined(_POSIX_SOURCE) || defined(_POSIX_C_SOURCE) \
+ || defined(_XOPEN_SOURCE) || defined(_GNU_SOURCE) \
+ || defined(_BSD_SOURCE)
+typedef jmp_buf sigjmp_buf;
+int sigsetjmp (sigjmp_buf, int);
+_Noreturn void siglongjmp (sigjmp_buf, int);
+#endif
+
+#if defined(_XOPEN_SOURCE) || defined(_GNU_SOURCE) \
+ || defined(_BSD_SOURCE)
+int _setjmp (jmp_buf);
+_Noreturn void _longjmp (jmp_buf, int);
+#endif
+
+int setjmp (jmp_buf);
+_Noreturn void longjmp (jmp_buf, int);
+
+#define setjmp setjmp
 
 #ifdef __cplusplus
-__END_C_HEADER
+}
 #endif
+
 #endif

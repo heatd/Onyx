@@ -15,16 +15,6 @@
 #include <stddef.h>
 /* block size (4KiB) */
 #define PMM_BLOCK_SIZE	4096
-typedef struct stack_entry
-{
-	uintptr_t base;
-	size_t size;
-	size_t magic;
-}stack_entry_t;
-typedef struct stack
-{
-	stack_entry_t* next;
-} stack_t;
 
 void bootmem_push(uintptr_t base, size_t size, size_t kernel_space_size);
 void bootmem_init(size_t memory_size, uintptr_t stack_space);

@@ -9,7 +9,7 @@
  * Foundation.
  *----------------------------------------------------------------------*/
 #include <string.h>
-char *strchr(char *str, int c)
+char *strchr(const char *str, int c)
 {
 	return memchr(str, c, strlen(str));
 }

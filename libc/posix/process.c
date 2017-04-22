@@ -12,72 +12,40 @@
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <stdio.h>
+#pragma GCC push_options
+#pragma GCC diagnostic ignored "-Wunused-parameter"
 __attribute__((noreturn))
 void _exit(int code)
 {
-	syscall(SYS_exit, code);
 	__builtin_unreachable();
 }
 pid_t fork()
 {
-	syscall(SYS_fork);
-	if(rax == (unsigned long long) -1)
-	{
-		set_errno();
-	}
-	return rax;
+	return 0;
 }
 pid_t getpid()
 {
-	syscall(SYS_getpid);
-	if(rax == (unsigned long long) -1)
-	{
-		set_errno();
-	}
-	return rax;
+	return 0;
 }
 pid_t getppid()
 {
-	syscall(SYS_getppid);
-	if(rax == (unsigned long long) -1)
-	{
-		set_errno();
-	}
-	return rax;
+	return 0;
 }
 int execve(const char *filename, char *const argv[], char *const envp[])
 {
-	syscall(SYS_execve, filename, argv, envp);
-	set_errno();
-	return rax;
+	return 0;
 }
 int posix_spawn(pid_t *pid, const char *path, const void *file_actions
 , const void *attrp, char *const argv[], char *const envp[])
 {
-	(void) pid;
-	(void) path;
-	(void) file_actions;
-	(void) attrp;
-	(void) argv;
-	(void) envp;
-	__asm__ __volatile__("mov %0, %%rax; int $0x80"::"i"(SYS_posix_spawn));
 	return 0;
 }
 int setuid(uid_t uid)
 {
-	syscall(SYS_setuid, uid);
-	if(rax == (unsigned long long) -1)
-	{
-		set_errno();
-	}
-	return rax;
+	return 0;
 }
 int setgid(gid_t gid)
 {
-	syscall(SYS_setgid, gid);
-	if(rax == (unsigned long long) -1)
-	{
-		set_errno();
-	}
-	return rax;
+	return 0;
 }
+#pragma GCC pop_options

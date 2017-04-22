@@ -25,6 +25,9 @@ static void print(const char *data, size_t data_length)
 	memcpy(&printf_buffer[printf_buffer_pos], data, data_length);
 	printf_buffer_pos += data_length;
 }
+int tonum(int c);
+int isnum(int c);
+void itoa(uint64_t i, unsigned int base, char *buf, _Bool is_upper);
 int vprintf(const char *__restrict__ format, va_list parameters)
 {
 	int written = 0;

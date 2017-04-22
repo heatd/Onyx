@@ -9,7 +9,7 @@
  * Foundation.
  *----------------------------------------------------------------------*/
 #include <string.h>
-
+#include <wchar.h>
 wchar_t *wmemcpy(wchar_t *restrict ws1, const wchar_t *restrict ws2, size_t n)
 {
 	for(size_t i = 0; i < n; i++)

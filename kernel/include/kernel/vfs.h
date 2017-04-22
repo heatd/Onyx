@@ -33,9 +33,9 @@ typedef struct vfsnode *(*__open)(struct vfsnode* this, const char *name);
 typedef unsigned int (*__getdents)(unsigned int count, struct dirent* dirp, off_t off, struct vfsnode* this);
 typedef unsigned int (*__ioctl)(int request, va_list varg, struct vfsnode* this);
 typedef struct vfsnode *(*__creat)(const char *pathname, int mode, struct vfsnode *this);
-typedef int (*stat)(struct stat *buf, struct vfsnode *node);
-typedef int (*link)(const char *newpath, struct vfsnode *node);
-typedef int (*symlink)(const char *linkpath, struct vfsnode *node);
+typedef int (*__stat)(struct stat *buf, struct vfsnode *node);
+typedef int (*__link)(const char *newpath, struct vfsnode *node);
+typedef int (*__symlink)(const char *linkpath, struct vfsnode *node);
 struct file_ops
 {
 	__read read;
@@ -45,9 +45,9 @@ struct file_ops
 	__getdents getdents;
 	__ioctl ioctl;
 	__creat creat;
-	stat stat;
-	link link;
-	symlink symlink;
+	__stat stat;
+	__link link;
+	__symlink symlink;
 };
 typedef struct vfsnode
 {

@@ -12,6 +12,7 @@
 #define _KERNEL_DATA_STRUCTURES_H
 
 #include <stdlib.h>
+#include <string.h>
 
 typedef struct queue
 {

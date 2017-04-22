@@ -23,7 +23,16 @@
 #include <string.h>
 
 #include <kernel/bootmem.h>
-
+typedef struct stack_entry
+{
+	uintptr_t base;
+	size_t size;
+	size_t magic;
+} stack_entry_t;
+typedef struct stack
+{
+	stack_entry_t* next;
+} stack_t;
 /* size of physical memory */
 static uint32_t pushed_blocks = 0;
 static uintptr_t pmm_memory_size = 0;

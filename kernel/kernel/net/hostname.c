@@ -22,7 +22,7 @@
 
 int sys_sethostname(const void *name, size_t len)
 {
-	if(len > _UTSNAME_LENGTH)
+	if(len > 65)
 		return errno =-EINVAL;
 	if(vmm_check_pointer((void *) name, len) < 0)
 		return errno =-EFAULT;

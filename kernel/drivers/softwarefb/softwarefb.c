@@ -73,8 +73,8 @@ void softfb_init(uintptr_t fb_address, uint32_t bpp, uint32_t width, uint32_t he
 	framebuffer_width = width;
 	framebuffer_height = height;
 	framebuffer_pixelwidth = bpp / 8;
-	assert(framebuffer_bpp == 32);
-	/* Without this call to PutPixel, it doesn't draw anything. Weird Bug */
+
+	/* Without this call to put_pixel, it doesn't draw anything. Weird Bug */
 	put_pixel(0,100,0,(void*)0xDEADDEAD);
 	prefetch((const void *)framebuffer,1,3);
 }

@@ -398,8 +398,8 @@ int elf_load(struct binfmt_args *args)
 	uintptr_t *fs = vmm_allocate_virt_address(0, 1, VM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_USER, 0);
 	vmm_map_range(fs, 1, VMM_WRITE | VMM_NOEXEC | VMM_USER);
 	get_current_process()->fs = (uintptr_t) fs;
-	pthread_t *p = (struct pthread*) fs;
-	p->self = (pthread_t*) fs;
+	__pthread_t *p = (__pthread_t*) fs;
+	p->self = (__pthread_t*) fs;
 	p->tid = get_current_process()->threads[0]->id;
 	p->pid = get_current_process()->pid;
 

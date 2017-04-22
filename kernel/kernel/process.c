@@ -251,8 +251,8 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	
 	get_current_process()->fs = (uintptr_t) vmm_allocate_virt_address(0, 1, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_USER, 0);
 	vmm_map_range((void*) get_current_process()->fs, 1, VMM_WRITE | VMM_NOEXEC | VMM_USER);
-	pthread_t *p = (struct pthread*) get_current_process()->fs;
-	p->self = (pthread_t*) p;
+	__pthread_t *p = (struct pthread*) get_current_process()->fs;
+	p->self = (__pthread_t*) p;
 	p->tid = get_current_process()->threads[0]->id;
 	p->pid = get_current_process()->pid;
 	

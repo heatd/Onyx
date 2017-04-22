@@ -40,6 +40,6 @@ typedef struct pthread {
 	void *stdio_locks;
 	uintptr_t canary_at_end;
 	void **dtv_copy;
-}pthread_t;
+} __pthread_t;
 
 #endif

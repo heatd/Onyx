@@ -11,9 +11,3 @@
 #include "stdio_impl.h"
 #include <stdio.h>
 #include <unistd.h>
-FILE stdout_obj = {.fd = STDOUT_FILENO};
-FILE stdin_obj = {.fd = STDIN_FILENO};
-FILE stderr_obj = {.fd = STDERR_FILENO};
-FILE *stdout = &stdout_obj;
-FILE *stdin = &stdin_obj;
-FILE *stderr = &stderr_obj;

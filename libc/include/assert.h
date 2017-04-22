@@ -1,30 +1,23 @@
-/*----------------------------------------------------------------------
- * Copyright (C) 2016, 2017 Pedro Falcato
- *
- * This file is part of Onyx, and is made available under
- * the terms of the GNU General Public License version 2.
- *
- * You can redistribute it and/or modify it under the terms of the GNU
- * General Public License version 2 as published by the Free Software
- * Foundation.
- *----------------------------------------------------------------------*/
-#include <sys/cdefs.h>
-#define __need_printf
-#include <stdio.h>
-#define __need_abort
-#include <stdlib.h>
+#include <features.h>
+
+#undef assert
 
 #ifdef NDEBUG
-#define assert(ignore)	((void) 0)
+#define	assert(x) (void)0
 #else
-#define assert(expression)                                         \
-if ((expression) == 0) {                                             \
-printf("assertion failed: %s, line %u, function: %s()\n", __FILE__, __LINE__, __func__); \
-abort();}
+#define assert(x) ((void)((x) || (__assert_fail(#x, __FILE__, __LINE__, __func__),0)))
+#endif
 
-/* If the used C standard is C11 or higher, define static_assert */
-#if defined(__STDC_VERSION__) && 201112L <= __STDC_VERSION__
+#if __STDC_VERSION__ >= 201112L && !defined(__cplusplus)
 #define static_assert _Static_assert
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+_Noreturn void __assert_fail (const char *, const char *, int, const char *);
+
+#ifdef __cplusplus
+}
 #endif

@@ -28,7 +28,7 @@
 #include <math.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <sys/time.h>
+#include <time.h>
 
 #if UINT32_MAX == UINTPTR_MAX
 #define STACK_CHK_GUARD 0xdeadc0de

@@ -14,21 +14,14 @@
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/syscall.h>
-int gettimeofday(struct timeval *tv, struct timezone *tz)
+#pragma GCC push_options
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+int gettimeofday (struct timeval *__restrict tm, void *__restrict tz)
 {
-	syscall(SYS_gettimeofday, tv, tz);
-	if(rax == (unsigned long) -1)
-	{
-		set_errno();
-	}
-	return rax;
+	return 0;
 }
 time_t time(time_t *t)
 {
-	syscall(SYS_time, t);
-	if(rax == (unsigned long) -1)
-	{
-		set_errno();
-	}
-	return (time_t) rax;
+	return 0;
 }
+#pragma GCC pop_options

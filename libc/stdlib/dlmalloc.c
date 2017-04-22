@@ -1558,6 +1558,10 @@ unsigned char _BitScanReverse(unsigned long *index, unsigned long mask);
 #endif /* BitScanForward */
 #endif /* defined(_MSC_VER) && _MSC_VER>=1300 */
 
+#ifdef __is_onyx_kernel
+#undef _SC_PAGE_SIZE
+#undef _SC_PAGESIZE
+#endif
 #ifndef WIN32
 #ifndef malloc_getpagesize
 #  ifdef _SC_PAGESIZE         /* some SVR4 systems omit an underscore */

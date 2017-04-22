@@ -18,7 +18,7 @@
 #include <kernel/vmm.h>
 extern _Bool is_initialized;
 char *heap = (char*) 0xFFFFFFF890000000;
-void *sbrk(unsigned long long increment)
+void *sbrk(intptr_t increment)
 {
 	void *ret = heap;
 	heap+=increment;

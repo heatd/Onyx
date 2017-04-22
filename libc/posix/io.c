@@ -13,62 +13,34 @@
 
 #include <sys/types.h>
 #include <sys/syscall.h>
-
+#pragma GCC push_options
+#pragma GCC diagnostic ignored "-Wunused-parameter"
 int open(const char *path, int flags)
 {
-	syscall(SYS_open, path, flags);
-	if(ret == (unsigned long long) -1)
-	{
-		set_errno();
-	}
-	return ret;
+	return 0;
 }
 int close(int fd)
 {
-	syscall(SYS_close, fd);
-	return ret;
+	return 0;
 }
-int read(int fd, void *buf, unsigned int count)
+ssize_t read(int fd, void *buf, size_t count)
 {
-	syscall(SYS_read, fd, buf, count);
-	if(ret == (unsigned long long) -1)
-	{
-		set_errno();
-	}
-	return ret;
+	return 0;
 }
-int write(int fd, void *buf, unsigned int count)
+ssize_t write(int fd, const void *buf, size_t count)
 {
-	syscall(SYS_write, fd, buf, count);
-	if(ret == (unsigned long long) -1)
-	{
-		set_errno();
-	}
-	return ret;
+	return 0;
 }
-unsigned long lseek(int fd, unsigned long offset, int whence)
+off_t lseek(int fd, off_t offset, int whence)
 {
-	syscall(SYS_lseek, fd, offset, whence);
-	if(ret == (unsigned long long) -1)
-	{
-		set_errno();
-	}
-	return ret;
+	return 0;
 }
 int isatty(int fildes)
 {
-	syscall(SYS_isatty, fildes);
-	if(ret == 0)
-	{
-		set_errno();
-	}
-	return ret;
+	return 0;
 }
 int ioctl(int fd, int op, ...)
 {
-	va_list varg;
-	va_start(varg, op);
-	syscall(SYS_ioctl, fd, op, varg);
-	va_end(varg);
-	return rax;
+	return 0;
 }
+#pragma GCC pop_options

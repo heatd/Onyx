@@ -1,35 +1,62 @@
-/*----------------------------------------------------------------------
- * Copyright (C) 2016, 2017 Pedro Falcato
- *
- * This file is part of Onyx, and is made available under
- * the terms of the GNU General Public License version 2.
- *
- * You can redistribute it and/or modify it under the terms of the GNU
- * General Public License version 2 as published by the Free Software
- * Foundation.
- *----------------------------------------------------------------------*/
-#ifndef _TIME_H
-#define _TIME_H
-#include <sys/types.h>
+#ifndef _SYS_TIME_H
+#define _SYS_TIME_H
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-typedef unsigned long long suseconds_t;
-struct timeval
-{
-	time_t      tv_sec;     /* seconds */
-	suseconds_t tv_usec;    /* microseconds */
+#include <features.h>
+
+#include <sys/select.h>
+
+int gettimeofday (struct timeval *__restrict, void *__restrict);
+
+#define ITIMER_REAL    0
+#define ITIMER_VIRTUAL 1
+#define ITIMER_PROF    2
+
+struct itimerval {
+	struct timeval it_interval;
+	struct timeval it_value;
 };
-struct timezone
-{
-	int tz_minuteswest;     /* minutes west of Greenwich */
-	int tz_dsttime;         /* type of DST correction */
+
+int getitimer (int, struct itimerval *);
+int setitimer (int, const struct itimerval *__restrict, struct itimerval *__restrict);
+int utimes (const char *, const struct timeval [2]);
+
+#if defined(_GNU_SOURCE) || defined(_BSD_SOURCE)
+struct timezone {
+	int tz_minuteswest;
+	int tz_dsttime;
 };
-struct timespec {
-	time_t	tv_sec;		/* seconds */
-	long	tv_nsec;	/* and nanoseconds */
-};
-int gettimeofday(struct timeval *tv, struct timezone *tz);
-time_t time(time_t *t);
+int futimes(int, const struct timeval [2]);
+int futimesat(int, const char *, const struct timeval [2]);
+int lutimes(const char *, const struct timeval [2]);
+int settimeofday(const struct timeval *, const struct timezone *);
+int adjtime (const struct timeval *, struct timeval *);
+#define timerisset(t) ((t)->tv_sec || (t)->tv_usec)
+#define timerclear(t) ((t)->tv_sec = (t)->tv_usec = 0)
+#define timercmp(s,t,op) ((s)->tv_sec == (t)->tv_sec ? \
+	(s)->tv_usec op (t)->tv_usec : (s)->tv_sec op (t)->tv_sec)
+#define timeradd(s,t,a) (void) ( (a)->tv_sec = (s)->tv_sec + (t)->tv_sec, \
+	((a)->tv_usec = (s)->tv_usec + (t)->tv_usec) >= 1000000 && \
+	((a)->tv_usec -= 1000000, (a)->tv_sec++) )
+#define timersub(s,t,a) (void) ( (a)->tv_sec = (s)->tv_sec - (t)->tv_sec, \
+	((a)->tv_usec = (s)->tv_usec - (t)->tv_usec) < 0 && \
+	((a)->tv_usec += 1000000, (a)->tv_sec--) )
+#endif
 
+#if defined(_GNU_SOURCE)
+#define TIMEVAL_TO_TIMESPEC(tv, ts) ( \
+	(ts)->tv_sec = (tv)->tv_sec, \
+	(ts)->tv_nsec = (tv)->tv_usec * 1000, \
+	(void)0 )
+#define TIMESPEC_TO_TIMEVAL(tv, ts) ( \
+	(tv)->tv_sec = (ts)->tv_sec, \
+	(tv)->tv_usec = (ts)->tv_nsec / 1000, \
+	(void)0 )
+#endif
 
-
+#ifdef __cplusplus
+}
+#endif
 #endif

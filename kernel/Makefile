@@ -14,7 +14,7 @@ INCLUDEDIR?=$(PREFIX)/include
 
 include ../kversion.config
 CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin -Wall -Wextra -Wno-format -fstack-protector-strong -Wno-unused-parameter -Wno-unused-function -Werror
-CPPFLAGS:=$(CPPFLAGS) -D__is_onyx_kernel -Iinclude -Iinclude/acpica -DKERNEL_VERSION='"$(KERNEL_VERSION)"' -DKERNEL_BRANCH='"$(KERNEL_BRANCH)"' -DKERNEL_ARCH='"$(KERNEL_ARCH)"'
+CPPFLAGS:=$(CPPFLAGS) -D__is_onyx_kernel -D_POSIX_C_SOURCE -D_BSD_SOURCE -Iinclude -Iinclude/acpica -DKERNEL_VERSION='"$(KERNEL_VERSION)"' -DKERNEL_BRANCH='"$(KERNEL_BRANCH)"' -DKERNEL_ARCH='"$(KERNEL_ARCH)"'
 LDFLAGS:=$(LDFLAGS) -fwhole-program -fkeep-inline-functions -flto
 LIBS:=$(LIBS) -nostdlib -lk -lgcc
 ARCHDIR:=arch/$(HOSTARCH)

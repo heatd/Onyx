@@ -20,7 +20,7 @@ char **environ = NULL;
 extern void __initialize_ssp();
 void __ret_sig()
 {
-	syscall(SYS_sigreturn, (uint64_t)-1ULL);
+	//syscall(SYS_sigreturn, (uint64_t)-1ULL);
 }
 void _init_standard_libc(char **envp)
 {
@@ -34,5 +34,5 @@ void _init_standard_libc(char **envp)
 		exit(1);
 	environ = envp;
 	__initialize_ssp();
-	syscall(SYS_sigreturn, (uint64_t)(void*) __ret_sig);
+	//syscall(SYS_sigreturn, (uint64_t)(void*) __ret_sig);
 }

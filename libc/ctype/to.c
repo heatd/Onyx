@@ -26,17 +26,9 @@ int toupper(int c)
 	}
 	return c;
 }
-int _toupper(int c)
+int isnum(int c)
 {
-	return toupper(c);
-}
-int _tolower(int c)
-{
-	return tolower(c);
-}
-int isalpha(int c)
-{
-	if(c > 64 && c < 123)
+	if(c >= 48 && c <= 57)
 		return 1;
 	return 0;
 }
