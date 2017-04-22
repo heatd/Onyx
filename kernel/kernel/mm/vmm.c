@@ -680,3 +680,18 @@ void vmm_print_stats(void)
 {
 	print_vmm_structs(tree);
 }
+void *dma_map_range(void *phys, size_t size, size_t flags)
+{
+	size_t pages = vmm_align_size_to_pages(size);
+
+	void *ptr = vmm_allocate_virt_address(flags & VM_USER ? VM_ADDRESS_USER : VM_KERNEL, pages, VM_TYPE_REGULAR, flags, 0);
+	if(!ptr)
+		return NULL;
+	for(uintptr_t virt = (uintptr_t) ptr, _phys = (uintptr_t) phys, i = 0; i < pages; virt += PAGE_SIZE, 
+		_phys += PAGE_SIZE, ++i)
+	{
+		if(!paging_map_phys_to_virt(virt, _phys, flags))
+			return NULL;
+	}
+	return ptr;
+}

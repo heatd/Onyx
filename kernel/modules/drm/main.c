@@ -35,7 +35,7 @@ static vfsnode_t *drm_node = NULL;
 
 #define VALIDATE_VALIST(args) \
 if(!vmm_is_mapped(args)) \
-	return -1; \
+	return -EFAULT; \
 
 extern void *phys_fb;
 unsigned int drm_ioctl(int request, va_list args, vfsnode_t *self)
@@ -47,8 +47,8 @@ unsigned int drm_ioctl(int request, va_list args, vfsnode_t *self)
 			VALIDATE_VALIST(args);
 			struct drm_info *info = va_arg(args, struct drm_info *);
 
-			if(!vmm_is_mapped(info))
-				return -1;
+			if(vmm_check_pointer(info, sizeof(struct drm_info)) < 0)
+				return -EFAULT;
 			strcpy(info->drm_version, DRM_VERSION_STRING);
 			/* TODO: Actually detect this in the future */
 			strcpy(info->video_driver, DRM_SOFTWARE_DRIVER_STRING);
@@ -61,26 +61,18 @@ unsigned int drm_ioctl(int request, va_list args, vfsnode_t *self)
 			VALIDATE_VALIST(args);
 			struct drm_fb *out = va_arg(args, struct drm_fb *);
 
-			if(!vmm_is_mapped(out))
-				return -1;
+			if(vmm_check_pointer(out, sizeof(struct drm_fb)) < 0)
+				return -EFAULT;
 			
-			/* Map the framebuffer */
-			/* TODO: Do this better, without hardcoded variables */
-			void *mapping_addr = vmm_allocate_virt_address(0, 1024, VMM_TYPE_REGULAR, VMM_USER | VMM_WRITE, 0);
-			
-			if(!mapping_addr)
-				return errno = -ENOMEM, -1;
-			
-			uintptr_t temp = (uintptr_t) mapping_addr, temp2 = (uintptr_t) phys_fb; 
-			for(int i = 0; i < 1024; i++)
-			{
-				paging_map_phys_to_virt(temp, temp2, VMM_WRITE | VMM_USER);
-				temp += 4096;
-				temp2 += 4096;
-			}
-			out->framebuffer = mapping_addr;
 			/* Get the current video mode */
 			videomode_t *v = softfb_getvideomode();
+			/* Map the framebuffer */
+			/* TODO: Do this better, without hardcoded variables */
+			void *ptr = dma_map_range(phys_fb, v->width * v->height * v->bpp, VM_USER | VM_WRITE);
+			if(!ptr)
+				return -ENOMEM;
+
+			out->framebuffer = ptr;
 			out->width = v->width;
 			out->height = v->height;
 			out->bpp = v->bpp;
@@ -107,7 +99,6 @@ int module_init()
 		FATAL("drm", "could not create a device ID for /dev/drm: %s\n", strerror(errno));
 		return 1;
 	}
-	
 	min->fops = malloc(sizeof(struct file_ops));
 	if(!min->fops)
 	{
