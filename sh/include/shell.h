@@ -3,9 +3,7 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
-#include <unistd.h>
+#ifndef _SH_SHELL
+#define _SH_SHELL
 
-int spawn_process(const char *path, char **args)
-{
-
-}
+#endif

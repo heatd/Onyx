@@ -1,6 +1,6 @@
 PROG:= sh
-OBJS:= main.o
-CFLAGS:=-O2 -g -static
+OBJS:= main.o login.o shell.o
+CFLAGS:=-O2 -g -static -Iinclude
 clean:
 	rm -f $(PROG)
 install: $(PROG)

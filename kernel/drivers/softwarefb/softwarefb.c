@@ -66,8 +66,8 @@ extern struct bitmap_font font;
 __attribute__((cold))
 void softfb_init(uintptr_t fb_address, uint32_t bpp, uint32_t width, uint32_t height,uint32_t pitch)
 {
-	bitmap = (unsigned char *)font.Bitmap;
-	framebuffer = (volatile unsigned char*)fb_address;
+	bitmap = (unsigned char *) font.Bitmap;
+	framebuffer = (volatile unsigned char*) fb_address;
 	framebuffer_pitch = pitch;
 	framebuffer_bpp = bpp;
 	framebuffer_width = width;
@@ -75,7 +75,7 @@ void softfb_init(uintptr_t fb_address, uint32_t bpp, uint32_t width, uint32_t he
 	framebuffer_pixelwidth = bpp / 8;
 
 	/* Without this call to put_pixel, it doesn't draw anything. Weird Bug */
-	put_pixel(0,100,0,(void*)0xDEADDEAD);
+	//put_pixel(0,100,0,(void*)0xDEADDEAD);
 	prefetch((const void *)framebuffer,1,3);
 }
 void* softfb_getfb()

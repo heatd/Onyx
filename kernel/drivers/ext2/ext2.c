@@ -536,6 +536,7 @@ vfsnode_t *ext2_mount_partition(uint64_t sector, block_device_t *dev)
 	}
 	node->name = "";
 	node->inode = 2;
+	node->type = VFS_TYPE_DIR;
 	struct minor_device *minor = dev_register(MAJOR(dev->dev), 0);
 	if(!minor)
 	{
@@ -566,6 +567,7 @@ __init void init_ext2drv()
 }
 unsigned int ext2_getdents(unsigned int count, struct dirent* dirp, off_t off, vfsnode_t* this)
 {
+	printk("Getdenting %s\n", this->name);
 	size_t read = 0;
 	uint32_t inoden = this->inode;
 	ext2_fs_t *fs = fslist;

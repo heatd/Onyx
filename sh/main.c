@@ -1,13 +1,8 @@
-/*----------------------------------------------------------------------
- * Copyright (C) 2016, 2017 Pedro Falcato
- *
- * This file is part of Onyx, and is made available under
- * the terms of the GNU General Public License version 2.
- *
- * You can redistribute it and/or modify it under the terms of the GNU
- * General Public License version 2 as published by the Free Software
- * Foundation.
- *----------------------------------------------------------------------*/
+/*
+* Copyright (c) 2017 Pedro Falcato
+* This file is part of Onyx, and is released under the terms of the MIT License
+* check LICENSE at the root directory for more information
+*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -20,6 +15,8 @@
 #include <sys/utsname.h>
 #include <sys/syscall.h>
 
+#include <shell.h>
+#include <login.h>
 #define DEFAULT_PS1	"sh $ "
 
 static char command_buffer[4096];
@@ -113,6 +110,8 @@ end:
 }
 int main(int argc, char **argv)
 {
+	if(argv[0][0] == '-')
+		tash_do_login();
 	while(1)
 	{
 		/* Print the shell's PS1 */
