@@ -12,7 +12,7 @@
 #include <sys/syscall.h>
 #include <sys/utsname.h>
 
-#define MODULE_PREFIX "/lib/modules/"
+#define MODULE_PREFIX "/usr/lib/modules/"
 #define MODULE_EXT    ".kmod"
 
 void load_modules();

@@ -81,7 +81,6 @@ ssize_t sys_write(int fd, const void *buf, size_t count)
 }
 int sys_open(const char *filename, int flags)
 {
-	printk("sys_open(%s, %x)\n", filename, flags);
 	ioctx_t *ioctx = &get_current_process()->ctx;
 	for(int i = 0; i < UINT16_MAX; i++)
 	{

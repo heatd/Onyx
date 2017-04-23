@@ -1,6 +1,6 @@
 MODULE:= ahci
 MOD_OBJS:=$(wildcard *.c)
-MODDIR:=/lib/modules
+MODDIR:=/usr/lib/modules
 CFLAGS+=-Iinclude
 all: $(MODULE)
 	mkdir -p $(DESTDIR)$(MODDIR)/

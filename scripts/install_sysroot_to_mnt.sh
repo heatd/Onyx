@@ -1,2 +1,2 @@
 #!/bin/sh
-sudo cp -r sysroot/* /mnt/onyx-root
+sudo cp -rLTv sysroot/ /mnt/onyx-root

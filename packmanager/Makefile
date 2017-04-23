@@ -7,8 +7,8 @@ CFLAGS:=-O2 -g -static
 clean:
 	rm -f $(PROG)
 install: $(PROG) $(PROG)-host
-	mkdir -p $(DESTDIR)/bin/
-	cp $(PROG) $(DESTDIR)/bin/
+	mkdir -p $(DESTDIR)/usr/bin/
+	cp $(PROG) $(DESTDIR)/usr/bin/
 $(PROG)-host: $(C_FILES)
 	$(HOST_CC) $(C_FILES) $(HOST_CFLAGS) -o $@
 $(PROG): $(C_FILES)

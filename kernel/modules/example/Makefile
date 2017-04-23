@@ -1,6 +1,6 @@
 MODULE:= example
 MOD_OBJS:=$(wildcard *.c)
-MODDIR:=/lib/modules
+MODDIR:=/usr/lib/modules
 all: $(MODULE)
 	mkdir -p $(DESTDIR)$(MODDIR)/
 	cp $(MODULE).kmod $(DESTDIR)$(MODDIR)/$(MODULE).kmod

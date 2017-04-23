@@ -164,4 +164,6 @@ typedef struct ex
 	block_group_desc_t *bgdt;
 	struct ex *next;
 } ext2_fs_t;
+
+#define EXT2_GET_FILE_TYPE(mode) (mode & 0xE000)
 #endif

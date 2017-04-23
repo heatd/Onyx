@@ -9,8 +9,8 @@ LIBS?=
 DESTDIR?=
 PREFIX?=/usr/local
 EXEC_PREFIX?=$(PREFIX)
-INCLUDEDIR?=$(PREFIX)/include
-LIBDIR?=$(EXEC_PREFIX)/lib
+INCLUDEDIR?=$(PREFIX)/usr/include
+LIBDIR?=$(EXEC_PREFIX)/usr/lib
 
 CFLAGS:=$(CFLAGS) -Wall -Wextra -mtune=generic
 

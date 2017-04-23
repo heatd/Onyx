@@ -5,7 +5,7 @@ clean:
 	rm -f $(PROG)
 	rm -f $(OBJS)
 install: $(PROG)
-	mkdir -p $(DESTDIR)/lib
-	cp $(PROG) $(DESTDIR)/lib
+	mkdir -p $(DESTDIR)/usr/lib
+	cp $(PROG) $(DESTDIR)/usr/lib
 $(PROG): $(OBJS)
 	$(CC) $(OBJS) $(CFLAGS) -nostdlib -pie -l:libc_ld.a -Wl,-e,_dlstart -o $@

@@ -5,7 +5,7 @@ clean:
 	rm -f $(PROG)
 	rm $(OBJS)
 install: $(PROG)
-	mkdir -p $(DESTDIR)/bin/
-	cp $(PROG) $(DESTDIR)/bin/
+	mkdir -p $(DESTDIR)/usr/bin/
+	cp $(PROG) $(DESTDIR)/usr/bin/
 $(PROG): $(OBJS)
 	$(CC) $(OBJS) $(CFLAGS) -o $@

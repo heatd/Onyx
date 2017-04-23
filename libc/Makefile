@@ -9,8 +9,8 @@ LIBS?=
 DESTDIR?=
 PREFIX?=/usr/local
 EXEC_PREFIX?=$(PREFIX)
-INCLUDEDIR?=$(PREFIX)/include
-LIBDIR?=$(EXEC_PREFIX)/lib
+INCLUDEDIR?=$(PREFIX)/usr/include
+LIBDIR?=$(EXEC_PREFIX)/usr/lib
 
 CFLAGS:=$(CFLAGS) -Wall -Wextra -mtune=generic
 LIBK_CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin
@@ -111,8 +111,7 @@ libc.so: $(OBJS)
 	cp $@ $(DESTDIR)$(LIBDIR)
 ld-onyx.so: $(LD_SPARTIX_OBJS)
 	#$(CC) $(LD_SPARTIX_OBJS) -Wl,-Bstatic -shared -lc $(CFLAGS) $(CPPFLAGS) -o $@
-	mkdir -p $(DESTDIR)/lib
-	#cp $@ $(DESTDIR)/lib
+	mkdir -p $(DESTDIR)/usr/lib
 %.o: %.c
 	echo [CC] $<
 	$(CC) -c $< -o $@ -std=gnu11 -fPIC $(CFLAGS) $(CPPFLAGS)

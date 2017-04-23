@@ -10,7 +10,7 @@ DESTDIR?=
 PREFIX?=/usr/local
 EXEC_PREFIX?=$(PREFIX)
 BOOTDIR?=$(EXEC_PREFIX)/boot
-INCLUDEDIR?=$(PREFIX)/include
+INCLUDEDIR?=$(PREFIX)/usr/include
 
 include ../kversion.config
 CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin -Wall -Wextra -Wno-format -fstack-protector-strong -Wno-unused-parameter -Wno-unused-function -Werror
