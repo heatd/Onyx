@@ -565,7 +565,7 @@ vfsnode_t *ext2_mount_partition(uint64_t sector, block_device_t *dev)
 		ERROR("ext2", "invalid ext2 signature %x\n", sb->ext2sig);
 		return errno = EINVAL, NULL;
 	}
-
+	printk("Free blocks: %u\n", sb->unallocated_blocks);
 	ext2_fs_t *fs = malloc(sizeof(ext2_fs_t));
 	if(!fs)
 	{
