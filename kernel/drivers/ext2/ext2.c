@@ -475,6 +475,7 @@ vfsnode_t *ext2_open(vfsnode_t *nd, const char *name)
 {
 	uint32_t inoden = nd->inode;
 	ext2_fs_t *fs = fslist;
+	uint32_t num;
 	uint32_t inode_num;
 	/* Get the inode structure from the number */
 	inode_t *ino = ext2_get_inode_from_number(fs, inoden);	
@@ -550,6 +551,11 @@ vfsnode_t *ext2_open(vfsnode_t *nd, const char *name)
 	
 	free(ino);
 	return node;
+}
+vfsnode_t *ext2_creat(const char *path, int mode, vfsnode_t *file)
+{
+	/* Create a file */
+	return NULL;
 }
 vfsnode_t *ext2_mount_partition(uint64_t sector, block_device_t *dev)
 {
@@ -736,4 +742,18 @@ int ext2_stat(struct stat *buf, vfsnode_t *node)
 	buf->st_blocks = buf->st_size % fs->block_size ? (buf->st_size / fs->block_size) + 1 : buf->st_size / fs->block_size;
 	
 	return 0;
+}
+void ext2_register_superblock_changes(ext2_fs_t *fs)
+{
+	blkdev_write((fs->first_sector + 2) * 512, 1024, fs->sb, fs->blkdevice);
+}
+void ext2_register_bgdt_changes(ext2_fs_t *fs)
+{
+	size_t blocks_for_bgdt = (fs->number_of_block_groups * sizeof(block_group_desc_t)) / fs->block_size;
+	if((fs->number_of_block_groups * sizeof(block_group_desc_t)) % fs->block_size)
+		blocks_for_bgdt++;
+	if(fs->block_size == 1024)
+		ext2_write_block(2, (uint16_t)blocks_for_bgdt, fs, fs->bgdt);
+	else
+		ext2_write_block(1, (uint16_t)blocks_for_bgdt, fs, fs->bgdt);
 }

@@ -40,15 +40,9 @@ uint32_t ext2_allocate_from_block_group(ext2_fs_t *fs, uint32_t block_group)
 				bitmap[i] |= (1 << j);
 				_block_group->unallocated_blocks_in_group--;
 				fs->sb->unallocated_blocks--;
-				blkdev_write((fs->first_sector + 2) * 512, 1024, fs->sb, fs->blkdevice);
 				ext2_write_block(_block_group->block_usage_addr, total_blocks, fs, bitmap);
-				size_t blocks_for_bgdt = (fs->number_of_block_groups * sizeof(block_group_desc_t)) / fs->block_size;
-				if((fs->number_of_block_groups * sizeof(block_group_desc_t)) % fs->block_size)
-					blocks_for_bgdt++;
-				if(fs->block_size == 1024)
-					ext2_write_block(2, (uint16_t)blocks_for_bgdt, fs, fs->bgdt);
-				else
-					ext2_write_block(1, (uint16_t)blocks_for_bgdt, fs, fs->bgdt);
+				ext2_register_superblock_changes(fs);
+				ext2_register_bgdt_changes(fs);
 				mutex_unlock(&fs->bgdt_lock);
 				return fs->blocks_per_block_group * block_group + i * CHAR_BIT + j;
 			}
