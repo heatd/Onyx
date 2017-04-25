@@ -16,6 +16,7 @@
 #include <ctype.h>
 #include <sys/syscall.h>
 #include <sys/utsname.h>
+#include <sys/mman.h>
 #include <fcntl.h>
 #define MODULE_PREFIX "/lib/modules/"
 #define MODULE_EXT    ".kmod"
@@ -163,9 +164,6 @@ func_exit:
 }
 int main(int argc, char **argv, char **envp)
 {
-	/* Test mmap */
-	printf("Testing mmap!\n");
-
 	/* Check if we're actually the first process */
 	pid_t p = getpid();
 	if(p != 1)

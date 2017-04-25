@@ -64,6 +64,14 @@ typedef struct ventry
 	off_t offset;
 } vmm_entry_t;
 
+struct fault_info
+{
+	uintptr_t fault_address;
+	_Bool write;
+	_Bool read;
+	_Bool exec;
+	_Bool user;
+};
 void vmm_init();
 void vmm_start_address_bookkeeping(uintptr_t framebuffer_address, uintptr_t heap);
 void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uint64_t prot, uintptr_t alignment);
@@ -82,7 +90,7 @@ int vmm_check_pointer(void *addr, size_t needed_space);
 void *vmalloc(size_t pages, int type, int perms);
 void vfree(void *ptr, size_t pages);
 void vmm_print_stats(void);
-
+int vmm_handle_page_fault(vmm_entry_t *entry, struct fault_info *info);
 inline size_t vmm_align_size_to_pages(size_t size)
 {
 	size_t pages = size / PAGE_SIZE;

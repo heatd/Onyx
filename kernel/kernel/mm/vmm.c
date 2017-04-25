@@ -563,15 +563,18 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 		return (void*)-EINVAL;
 	if(flags & MAP_PRIVATE && flags & MAP_SHARED)
 		return (void*)-EINVAL;
-	
+	/* If we don't like the offset, return EINVAL */
+	if(off % PAGE_SIZE)
+		return (void*) -EINVAL;
+
 	if(!(flags & MAP_ANONYMOUS)) /* This is a file-backed mapping */
 	{
-		if(!validate_fd(fd))
+		if(validate_fd(fd) < 0)
 			return (void*)-EBADF;
 		ioctx_t *ctx = &get_current_process()->ctx;
 		/* Get the file descriptor */
 		file_desc_t *file_descriptor = ctx->file_desc[fd];
-		if(file_descriptor->flags != O_WRONLY && file_descriptor->flags != O_RDWR && prot & PROT_WRITE)
+		if((file_descriptor->flags != O_WRONLY && file_descriptor->flags != O_RDWR) && prot & PROT_WRITE)
 		{
 			/* You can't do that! */
 			return (void*)-EACCES;
@@ -606,8 +609,6 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 		else
 			area->mapping_type = MAP_PRIVATE;
 		area->type = VM_TYPE_FILE_BACKED;
-		if(flags & MAP_SHARED)
-			area->rwx &= ~PROT_WRITE; /* If MAP_SHARED wants to work, we need a page fault on write */
 		area->offset = off;
 		area->fd = fd;
 	}
@@ -648,8 +649,7 @@ int sys_mprotect(void *addr, size_t len, int prot)
 		      ((!(prot & PROT_EXEC)) ? VM_NOEXEC : 0);
 	
 	size_t pages = vmm_align_size_to_pages(len);
-	/* TODO: This needs a fix, since a single mprotect call and the whole area gets tainted by it
-	(implement splitting/merging areas */
+
 	len = pages * PAGE_SIZE; /* Align len on a page boundary */
 	if(area->base == (uintptr_t) addr && area->pages * PAGE_SIZE == len)
 	{
@@ -739,4 +739,46 @@ void print_vmm_structs(avl_node_t *node)
 void vmm_print_stats(void)
 {
 	print_vmm_structs(tree);
+}
+int __vm_handle_private(vmm_entry_t *entry, struct fault_info *info)
+{
+	/* Map a page */
+	uintptr_t aligned_address = (info->fault_address & 0xFFFFFFFFFFFFF000);
+	void *ptr = vmm_map_range((void*) aligned_address, 1, entry->rwx);
+	if(!ptr)
+		return -1;
+	vfsnode_t *file = get_current_process()->ctx.file_desc[entry->fd]->vfs_node;
+	size_t to_read = file->size - entry->offset < PAGE_SIZE ? file->size - entry->offset : PAGE_SIZE;
+	if(read_vfs(entry->offset + (aligned_address - entry->base), to_read, ptr, file) != to_read)
+	{
+		vmm_unmap_range(ptr, 1);
+		return -1;
+	}
+	return 0;
+}
+int __vm_handle_shared(vmm_entry_t *entry, struct fault_info *info)
+{
+	return -1;
+}
+int __vm_handle_anon(vmm_entry_t *entry, struct fault_info *info)
+{
+	if(!vmm_map_range((void*)(info->fault_address & 0xFFFFFFFFFFFFF000), 1, entry->rwx))
+		return -1;
+	return 0;
+}
+
+int vmm_handle_page_fault(vmm_entry_t *entry, struct fault_info *info)
+{
+	if(info->write && !(entry->rwx & VM_WRITE))
+		return -1;
+	if(info->exec && entry->rwx & VM_NOEXEC)
+		return -1;
+	if(info->user && !(entry->rwx & VM_USER))
+		return -1;
+	if(entry->mapping_type == MAP_PRIVATE && entry->type == VM_TYPE_FILE_BACKED)
+		return __vm_handle_private(entry, info);
+	else if(entry->mapping_type == MAP_SHARED && entry->type == VM_TYPE_FILE_BACKED)
+		return __vm_handle_shared(entry, info);
+	else 
+		return __vm_handle_anon(entry, info);
 }

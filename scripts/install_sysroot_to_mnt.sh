@@ -1,2 +1,2 @@
 #!/bin/sh
-sudo cp -r sysroot/* /mnt
+sudo cp -rv sysroot/* /mnt

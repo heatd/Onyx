@@ -99,13 +99,18 @@ r10: %x\nr11: %x\nr12: %x\nr13: %x\nr14: %x\nr15: %x\nrsp: %x\nrflags: %x\nds: %
                        sys_kill(get_current_process()->pid, SIGSEGV);
 		       return;
 		}
-		if(err_code & 0x2 && !(entr->rwx & VMM_WRITE))
-			goto pf0;
-		if(err_code & 0x10 && !(entr->rwx & VMM_NOEXEC))
-			goto pf0;
-		if(err_code & 0x4 && faulting_address > 0xFFFF800000000000)
-			goto pf0;
-		vmm_map_range((void*)(faulting_address & 0xFFFFFFFFFFFFF000), 1, entr->rwx);
+		else
+		{
+			struct fault_info info;
+			info.fault_address = faulting_address;
+			info.write = err_code & 0x2;
+			info.read = info.write ? 0 : 1;
+			info.exec = err_code & 0x10;
+			info.user = err_code & 0x4;
+			if(vmm_handle_page_fault(entr, &info) < 0)
+				goto pf0;
+			return;
+		}
 		return;
 	}
 	if(is_recursive_fault())
