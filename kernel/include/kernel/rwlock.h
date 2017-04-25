@@ -8,22 +8,20 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#include <stdio.h>
+#ifndef _KERNEL_RWLOCK_H
+#define _KERNEL_RWLOCK_H
 
-#include <kernel/irq.h>
-#include <kernel/mutex.h>
-#include <kernel/task_switching.h>
+#include <kernel/compiler.h>
+struct rwlock	
+{
+	unsigned long lock;
+	unsigned long rw;
+	unsigned long readers __align_cache; /* We're aligning these four, to minimize cache line bouncing */
+	unsigned long writers __align_cache;
+};
 
-void mutex_lock(mutex_t *mutex)
-{
-	while(!__sync_bool_compare_and_swap(mutex, 0, 1))
-	{
-		sched_yield();
-	}
-	__sync_synchronize();
-}
-void mutex_unlock(mutex_t *mutex)
-{
-	__sync_synchronize();
-	*mutex = 0;
-}
+void rw_lock_read(struct rwlock *lock);
+void rw_lock_write(struct rwlock *lock);
+void rw_unlock_read(struct rwlock *lock);
+void rw_unlock_write(struct rwlock *lock);
+#endif

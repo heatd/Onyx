@@ -29,6 +29,8 @@
 #ifndef __onyx__
 #error "Onyx needs to be compiled using a Onyx Cross Compiler"
 #endif /* __onyx__ */
+#define align(x) __attribute__((aligned(x)))
+#define __align_cache align(16)
 #define likely(x)      __builtin_expect(!!(x), 1)
 #define unlikely(x)    __builtin_expect(!!(x), 0)
 #define prefetch(...) __builtin_prefetch(__VA_ARGS__)

@@ -319,7 +319,6 @@ uintptr_t *sched_fork_stack(syscall_ctx_t *ctx, uintptr_t *stack)
 }
 void sched_idle()
 {
-	printk("Can't find threads\n");
 	/* This function will not do work at all, just idle using hlt */
 	for(;;)
 	{
@@ -328,7 +327,7 @@ void sched_idle()
 }
 void thread_add(thread_t *add)
 {
-	thread_t *it = current_thread;
+	thread_t *it = run_queue;
 	while(it->next)
 		it = it->next;
 	it->next = add;

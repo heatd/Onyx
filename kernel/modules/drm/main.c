@@ -107,7 +107,8 @@ int module_init()
 		return 1;
 	}
 	memset(min->fops, 0, sizeof(struct file_ops));
-	drm_node->ioctl = drm_ioctl;
+	min->fops->ioctl = drm_ioctl;
+	drm_node->dev = min->majorminor;
 
 	MPRINTF("created /dev/drm\n");
 

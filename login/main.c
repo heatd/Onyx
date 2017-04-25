@@ -213,6 +213,7 @@ loop:
 	args[0] = "-/bin/sh";
 	extern char **environ;
 	execve("/bin/sh", args, environ);
-	while(1);
+	while(1)
+		sleep((unsigned int) -1);
 	return 0;
 }

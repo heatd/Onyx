@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016, 2017 Pedro Falcato
+ * Copyright (C) 2017 Pedro Falcato
  *
  * This file is part of Onyx, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -8,25 +8,14 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#ifndef _KERNEL_INFO_H
-#define _KERNEL_INFO_H
-
-#undef stringify
-#define stringify(str) #str
-#define OS_NAME "Onyx"
-#define OS_TAGLINE "hey it's me, your unix"
-#define OS_RELEASE "0.2"
-#define OS_VERSION "SMP "__DATE__" "__TIME__
-
-#if defined(__x86_64__)
-#define OS_MACHINE "x86_64 amd64"
-#else
-#error "Define a machine string for your architecture"
-#endif
-
-
-
-
-
-
-#endif
+#include <kernel/rwlock.h>
+/* TODO: Implement this properly*/
+void rw_lock_read(struct rwlock *lock)
+{
+	if(lock->rw == 0) /* is reading, just return */
+	{
+		lock->readers++;
+		return;
+	}
+	//while(!__sync_bool_compare_and_swap(lock->lock, 0, 1))
+}

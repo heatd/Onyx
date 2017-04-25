@@ -63,7 +63,7 @@ int handle_builtin_commands(char *command)
 	{
 		struct timeval buf;
 		syscall(SYS_gettimeofday, &buf, NULL);
-		printf("%u\n", buf.tv_sec);
+		printf("%s", ctime(&buf.tv_sec));
 		return 0;
 	}
 	else if(!strncmp(command, "cat", strlen("cat")))

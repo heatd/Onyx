@@ -26,14 +26,14 @@ struct minor_device
 	struct file_ops *fops;
 };
 
-unsigned int __allocate_dynamic_major();
+unsigned int __allocate_dynamic_major(void);
 struct minor_device *dev_register(unsigned int major, unsigned int first_minor);
 void dev_unregister(dev_t dev);
 struct minor_device *dev_find(dev_t dev);
 
-int devfs_init();
-void null_init();
-void zero_init();
+int devfs_init(void);
+void null_init(void);
+void zero_init(void);
 extern vfsnode_t *slashdev;
 
 #endif

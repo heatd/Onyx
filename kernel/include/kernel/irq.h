@@ -24,9 +24,18 @@ typedef struct irq
 	struct irq *next;
 }irq_list_t;
 
+struct irq_work
+{
+	void (*callback)(void *, size_t);
+	size_t payload_size;
+	char payload[0];
+};
+#define IRQ_WORK_QUEUE_SIZE (8192)
 extern volatile _Bool is_in_irq;
+int irq_schedule_work(void (*callback)(void *, size_t), size_t payload_size, void *payload);
 _Bool isirq();
 void irq_install_handler(int irq, irq_t handler);
 void irq_uninstall_handler(int irq, irq_t handler);
+void irq_init(void);
 
 #endif

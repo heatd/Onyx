@@ -11,6 +11,8 @@ for PACKAGE in $SOURCE_PACKAGES; do
   echo Building $PACKAGE
   DESTDIR="$PWD/sysroot" $MAKE -C $PACKAGE install -s
 done
+
+./build_packages.sh
 $NM kernel/vmonyx > Kernel.map
 cp Kernel.map sysroot/boot/Kernel.map
 sha256sum kernel/vmonyx > vmonyx.sha256

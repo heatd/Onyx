@@ -27,6 +27,5 @@ int sys_uname(struct utsname *buf)
 	strcpy(buf->machine, OS_MACHINE);
 
 	strcpy(buf->nodename, network_gethostname());
-	
 	return 0;
 }

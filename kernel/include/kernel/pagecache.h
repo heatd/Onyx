@@ -1,5 +1,5 @@
 /*----------------------------------------------------------------------
- * Copyright (C) 2016, 2017 Pedro Falcato
+ * Copyright (C) 2017 Pedro Falcato
  *
  * This file is part of Onyx, and is made available under
  * the terms of the GNU General Public License version 2.
@@ -8,25 +8,18 @@
  * General Public License version 2 as published by the Free Software
  * Foundation.
  *----------------------------------------------------------------------*/
-#ifndef _KERNEL_INFO_H
-#define _KERNEL_INFO_H
+#ifndef _PAGECACHE_H
+#define _PAGECACHE_H
 
-#undef stringify
-#define stringify(str) #str
-#define OS_NAME "Onyx"
-#define OS_TAGLINE "hey it's me, your unix"
-#define OS_RELEASE "0.2"
-#define OS_VERSION "SMP "__DATE__" "__TIME__
+#include <kernel/list.h>
+#include <kernel/vfs.h>
 
-#if defined(__x86_64__)
-#define OS_MACHINE "x86_64 amd64"
-#else
-#error "Define a machine string for your architecture"
-#endif
+struct page_cache
+{
+	void *page;
+	vfsnode_t *node; /* IF it's actually a file */
+};
 
-
-
-
-
-
+#define PAGE_CACHE_SIZE 65536 /* Each component of the cache has 64KiB */
+void *add_to_cache(void *data, vfsnode_t *node);
 #endif

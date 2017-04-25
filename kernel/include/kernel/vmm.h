@@ -13,8 +13,11 @@
 
 #include <stdint.h>
 #include <stdlib.h>
-#include <kernel/paging.h>
 
+#include <kernel/paging.h>
+#include <kernel/avl.h>
+
+#include <sys/types.h>
 #if defined (__i386__)
 	#define KERNEL_VIRTUAL_BASE 0xC0000000
 #elif defined (__x86_64__)
@@ -26,6 +29,7 @@
 #define VM_TYPE_SHARED 		(2)
 #define VM_TYPE_HEAP 		(3)
 #define VM_TYPE_HW 		(4)
+#define VM_TYPE_FILE_BACKED	(5)
 #define VM_GLOBAL 		(0x2)
 #define VM_USER 		(0x80)
 #define VM_WRITE 		(0x1)
@@ -49,24 +53,26 @@
 #define VMM_NOEXEC VM_NOEXEC
 
 #define VM_HIGHER_HALF 0xFFFF800000000000
+#define PHYS_TO_VIRT(x) (void*)((uintptr_t) x + PHYS_BASE)
 typedef struct ventry
 {
 	uintptr_t base;
 	size_t pages;
 	int rwx;
 	int type;
+	int mapping_type;
+	int fd;
+	off_t offset;
 } vmm_entry_t;
-#ifndef __avl_tree_defined_
-typedef struct avl_node
-{
-	uintptr_t key;
-	uintptr_t end;
-	vmm_entry_t *data;
-	struct avl_node *left, *right;
-} avl_node_t;
-#define __avl_tree_defined_
-#endif
 
+struct fault_info
+{
+	uintptr_t fault_address;
+	_Bool write;
+	_Bool read;
+	_Bool exec;
+	_Bool user;
+};
 void vmm_init();
 void vmm_start_address_bookkeeping(uintptr_t framebuffer_address, uintptr_t heap);
 void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uint64_t prot, uintptr_t alignment);
@@ -82,6 +88,10 @@ void vmm_change_perms(void *range, size_t pages, int perms);
 void vmm_set_tree(avl_node_t *tree_);
 avl_node_t *vmm_get_tree();
 int vmm_check_pointer(void *addr, size_t needed_space);
+void *vmalloc(size_t pages, int type, int perms);
+void vfree(void *ptr, size_t pages);
+void vmm_print_stats(void);
+int vmm_handle_page_fault(vmm_entry_t *entry, struct fault_info *info);
 inline size_t vmm_align_size_to_pages(size_t size)
 {
 	size_t pages = size / PAGE_SIZE;
@@ -89,7 +99,6 @@ inline size_t vmm_align_size_to_pages(size_t size)
 		pages++;
 	return pages;
 }
-
 void *vmalloc(size_t pages, int type, int perms);
 void vmm_print_stats(void);
 void *dma_map_range(void *phys, size_t size, size_t flags);

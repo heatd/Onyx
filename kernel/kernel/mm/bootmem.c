@@ -88,19 +88,3 @@ void *bootmem_alloc(size_t blocks)
 
 	return NULL;
 }
-
-typedef struct
-{
-        char *start_address;
-        char *end_address;
-        size_t size; // Just for convinience
-        struct buddy_block *top;
-} memory_zone_t;
-
-memory_zone_t dma = {0};
-memory_zone_t high_mem = {0};
-void pmm_init_new(size_t memory_size)
-{
-	pmm_memory_size = memory_size * 1024;
-	
-}

@@ -1,2 +1,4 @@
 #!/bin/sh
-git clone https://github.com/heatd/spartix-packages
+cd ports
+git clone https://github.com/heatd/onyx-packages
+cd ..

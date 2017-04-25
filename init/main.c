@@ -145,6 +145,7 @@ int mount_filesystems(void)
 		if(mount(source, target, filesystem_type, 0, NULL) < 0)
 		{
 			printf("init: failed to mount %s\n", source);
+			perror("");
 			free(read_buffer);
 			fclose(fp);
 			return 1;
@@ -202,11 +203,11 @@ int main(int argc, char **argv, char **envp)
 	char *env[] = {"", NULL};
 	char *shell = copy_until_newline(buf);
 	char *args[] = {shell, "/etc/fstab", NULL};
-
 	int pid = fork();
 	if(pid == 0)
 		execve(shell, args, env);
-	while(1);
+	while(1) /* TODO: Implement wait() and replace this */
+		sleep((unsigned int) -1);
 	return 0;
 }
 void load_modules()

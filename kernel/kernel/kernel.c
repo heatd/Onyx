@@ -66,6 +66,8 @@
 #include <kernel/elf.h>
 #include <kernel/smbios.h>
 #include <kernel/fscache.h>
+#include <kernel/page.h>
+#include <kernel/irq.h>
 
 #include <drivers/ps2.h>
 #include <drivers/ata.h>
@@ -304,7 +306,7 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 	/* Initialize the first terminal */
 	tty_init();
 	initrd_addr = (void*) (uintptr_t) initrd_tag->mod_start;
-
+	page_init();
 	/* Identify the CPU it's running on (bootstrap CPU) */
 	cpu_identify();
 
@@ -373,6 +375,9 @@ void kernel_main()
 	sched_create_thread(kernel_multitasking, 1, NULL);
 	/* Initialize late libc */
 	libc_late_init();
+
+	/* Initialize the IRQ worker thread */
+	irq_init();
 
 	ENABLE_INTERRUPTS();
 	for (;;)

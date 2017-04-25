@@ -25,6 +25,7 @@
 #include <stdbool.h>
 
 #include <kernel/tty.h>
+#include <kernel/irq.h>
 unsigned char keys[200] =
     { 0, '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', '\b',
 	'\t',
@@ -39,18 +40,26 @@ unsigned char keys[200] =
 char num_shft[] = {'!','\"','#','$','%','&','/','(',')','='};
 static _Bool is_shift_pressed = false;
 // TODO: Improve this crap
+void input_callback(void *payload, size_t payload_size);
 void send_event_to_kernel(uint8_t keycode)
 {
-	if (keycode == 0x2A || keycode == 0x36) {
+	if(keycode == 0x2A || keycode == 0x36)
+	{
 		is_shift_pressed = true;
 		return;
 	}
-	if (keycode == 0xAA || keycode == 0xB6) {
+	if(keycode == 0xAA || keycode == 0xB6)
+	{
 		is_shift_pressed = false;
 		return;
 	}
-	if (keycode & 0x80)
+	if(keycode & 0x80)
 		return;
+	irq_schedule_work(input_callback, sizeof(uint8_t), &keycode);
+}
+void input_callback(void *payload, size_t payload_size)
+{
+	uint8_t keycode = *(uint8_t*) payload;
 	char c = keys[keycode - 1];
 	if (is_shift_pressed == true && c > 96 && c < 123)
 		c = c-32;
