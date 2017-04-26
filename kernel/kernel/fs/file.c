@@ -99,12 +99,31 @@ int sys_open(const char *filename, int flags)
 				return errno =-ENOENT;
 			}
 			ioctx->file_desc[i]->vfs_node->refcount++;
+			ioctx->file_desc[i]->refcount++;
 			ioctx->file_desc[i]->seek = 0;
 			ioctx->file_desc[i]->flags = flags;
 			return i;
 		}
 	}
 	return errno =-ENFILE;
+}
+inline int decrement_fd_refcount(file_desc_t *fd)
+{
+	/* If there's nobody referencing this file descriptor, close the vfs node and free memory */
+	fd->refcount--;
+	if(fd->refcount == 0)
+	{
+		close_vfs(fd->vfs_node);
+		fd->vfs_node->refcount--;
+		/* TODO: When we implement a VFS hash table, remove this bit of code */
+		if(fd->vfs_node->refcount == 0)
+		{
+			free(fd->vfs_node);
+		}
+		free(fd);
+		return 1;
+	}
+	return 0;
 }
 int sys_close(int fd)
 {
@@ -117,12 +136,10 @@ int sys_close(int fd)
 	{
 		return errno =-EBADF;
 	}
-	close_vfs(ioctx->file_desc[fd]->vfs_node);
-	ioctx->file_desc[fd]->vfs_node->refcount--;
-	if(ioctx->file_desc[fd]->vfs_node->refcount == 0)
+	/* Decrement the refcount of the file descriptor*/
+	if(decrement_fd_refcount(ioctx->file_desc[fd]))
 	{
-		free(ioctx->file_desc[fd]->vfs_node);
-		free(ioctx->file_desc[fd]);
+		ioctx->file_desc[fd] = NULL;
 	}
 	return 0;
 }
