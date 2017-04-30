@@ -92,7 +92,7 @@ uintptr_t irq_handler(uint64_t irqn, registers_t *regs)
 	uintptr_t ret = (uintptr_t) regs;
 	irq_list_t *handlers = irq_routines[irqn];
 	if(!handlers)
-		printf("Unhandled interrupt at IRQ %u\n", irqn);
+		printf("irq: Unhandled interrupt at IRQ %u\n", irqn);
 	is_in_irq = true;
 	for(irq_list_t *i = handlers; i != NULL;i = i->next)
 	{

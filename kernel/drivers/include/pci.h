@@ -20,14 +20,14 @@ typedef struct PCIDevice
 	uint8_t slot, device, function;
 	uint8_t pciClass, subClass, progIF;
 	struct PCIDevice* next;
-}PCIDevice;
+} PCIDevice;
 typedef struct
 {
 	uint32_t address;
 	_Bool isPrefetchable;
 	_Bool isIO;
 	size_t size;
-}pcibar_t;
+} pcibar_t;
 
 void pci_init();
 uint16_t pci_config_read_word (uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset);
