@@ -23,6 +23,8 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+
+#include <kernel/task_switching.h>
 #include <kernel/portio.h>
 #include <kernel/tty.h>
 #include <drivers/softwarefb.h>
@@ -215,7 +217,7 @@ char *tty_wait_for_line()
 {
 	while(!got_line_ready)
 	{
-		__asm__ __volatile__("hlt");
+		sched_yield();
 	}
 	got_line_ready = 0;
 	return keyboard_buffer;
