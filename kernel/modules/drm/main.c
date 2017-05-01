@@ -82,6 +82,18 @@ unsigned int drm_ioctl(int request, va_list args, vfsnode_t *self)
 
 			break;
 		}
+		case DRM_REQUEST_MODESET:
+		{
+			VALIDATE_VALIST(args);
+			unsigned int width = va_arg(args, unsigned int);
+			unsigned int height = va_arg(args, unsigned int);
+			unsigned int bpp = va_arg(args, unsigned int);
+			
+			struct video_device *device = video_get_main_adapter();
+			if(!device)
+				return errno = -ENODEV;
+			return video_modeset(width, height, bpp, device);
+		}
 	}
 	return 0;
 }

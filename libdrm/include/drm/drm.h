@@ -15,7 +15,8 @@ extern "C"{
 enum DRM_REQUEST
 {
 	DRM_REQUEST_DRMINFO,
-	DRM_REQUEST_GET_FB
+	DRM_REQUEST_GET_FB,
+	DRM_REQUEST_MODESET
 };
 
 #define __DRM_INFO_MAX 60
@@ -38,7 +39,7 @@ struct drm_fb
 
 int drm_initialize(struct drm_info **out);
 int drm_request_info(struct drm_info *info);
-
+int drm_modeset(unsigned int width, unsigned int height, unsigned int bpp);
 
 #ifdef __cplusplus
 }
