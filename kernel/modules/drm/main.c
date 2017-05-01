@@ -18,6 +18,7 @@
 #include <kernel/vmm.h>
 #include <kernel/module.h>
 #include <kernel/log.h>
+#include <kernel/video.h>
 
 #include <drivers/softwarefb.h>
 
@@ -65,7 +66,7 @@ unsigned int drm_ioctl(int request, va_list args, vfsnode_t *self)
 				return -EFAULT;
 			
 			/* Get the current video mode */
-			videomode_t *v = softfb_getvideomode();
+			struct video_mode *v = video_get_videomode(video_get_main_adapter());
 			/* Map the framebuffer */
 			/* TODO: Do this better, without hardcoded variables */
 			void *ptr = dma_map_range(phys_fb, v->width * v->height * v->bpp, VM_USER | VM_WRITE);

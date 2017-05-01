@@ -9,18 +9,40 @@
  * Foundation.
  *----------------------------------------------------------------------*/
 #include <stdint.h>
-#include <drivers/softwarefb.h>
-#include <kernel/vmm.h>
-#include <kernel/panic.h>
 #include <string.h>
 #include <assert.h>
+
 #include <fonts.h>
+
+#include <kernel/compiler.h>
+#include <kernel/video.h>
+#include <kernel/vmm.h>
+#include <kernel/kernelinfo.h>
+#include <kernel/panic.h>
+
+#include <drivers/softwarefb.h>
 volatile unsigned char *framebuffer = NULL;
-uint32_t framebuffer_pitch = 0;
-uint32_t framebuffer_height = 0;
-uint32_t framebuffer_width = 0;
-uint32_t framebuffer_bpp = 0;
-uint32_t framebuffer_pixelwidth = 0;
+static uint32_t framebuffer_pitch = 0;
+static uint32_t framebuffer_height = 0;
+static uint32_t framebuffer_width = 0;
+static uint32_t framebuffer_bpp = 0;
+static uint32_t framebuffer_pixelwidth = 0;
+struct video_ops softfb_ops =
+{
+	.get_fb = softfb_getfb,
+	.draw_cursor = softfb_draw_cursor,
+	.draw_char = softfb_draw_char,
+	.get_videomode = softfb_getvideomode,
+	.scroll = softfb_scroll
+};
+struct video_device softfb_device = 
+{
+	.ops = &softfb_ops,
+	.driver_string = OS_NAME OS_RELEASE OS_VERSION "softfb driver",
+	.card_string = "softfb",
+	.status = VIDEO_STATUS_INSERTED,
+	.refcount = 0
+};
 unsigned char *bitmap = NULL;
 __attribute__((hot))
 void softfb_draw_char(unsigned char c, int x, int y, int fgcolor, int bgcolor, void* fb)
@@ -50,8 +72,8 @@ void softfb_draw_cursor(int x, int y, int fgcolor, int bgcolor, void* fb)
 __attribute__((hot))
 void put_pixel(unsigned int x,unsigned int y, int color, void* fb)
 {
-	if(fb == (uint64_t*)0xDEADDEAD)
-		fb = (void*)framebuffer;
+	if(fb == (uint64_t*) 0xDEADDEAD)
+		fb = (void*) framebuffer;
    	/* do not write memory outside the screen buffer, check parameters against the framebuffer info */
    	if (x > framebuffer_width || y > framebuffer_height) return;
    	if (x) x = (x * (framebuffer_bpp>>3));
@@ -74,17 +96,18 @@ void softfb_init(uintptr_t fb_address, uint32_t bpp, uint32_t width, uint32_t he
 	framebuffer_height = height;
 	framebuffer_pixelwidth = bpp / 8;
 
-	/* Without this call to put_pixel, it doesn't draw anything. Weird Bug */
-	//put_pixel(0,100,0,(void*)0xDEADDEAD);
-	prefetch((const void *)framebuffer,1,3);
+	prefetch((const void *)framebuffer, 1, 3);
+	video_set_main_adapter(&softfb_device);
 }
-void* softfb_getfb()
+void* softfb_getfb(struct video_device *dev)
 {
+	UNUSED(dev);
 	return (void *)framebuffer;
 }
-static videomode_t vidm = {0, 0, 0, 0};
-videomode_t *softfb_getvideomode()
+static struct video_mode vidm = {0, 0, 0, 0};
+struct video_mode *softfb_getvideomode(struct video_device *dev)
 {
+	UNUSED(dev);
 	if( vidm.width == 0 ) {
 		vidm.width = framebuffer_width;
 		vidm.height = framebuffer_height;
@@ -95,6 +118,6 @@ videomode_t *softfb_getvideomode()
 }
 void softfb_scroll(void* fb)
 {
-	unsigned char* second_line = ( unsigned char *)fb + framebuffer_pitch * 16;
-	memmove((void *)fb,second_line,(0x400000 - framebuffer_pitch * 16 - framebuffer_pixelwidth * framebuffer_width));
+	unsigned char* second_line = ( unsigned char *) fb + framebuffer_pitch * 16;
+	memmove((void *) fb, second_line,(0x400000 - framebuffer_pitch * 16 - framebuffer_pixelwidth * framebuffer_width));
 }

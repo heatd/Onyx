@@ -16,6 +16,7 @@
 #include <kernel/vmm.h>
 #include <kernel/module.h>
 #include <kernel/portio.h>
+#include <kernel/video.h>
 
 #include <drivers/pci.h>
 MODULE_AUTHOR("Pedro Falcato");
@@ -69,7 +70,6 @@ int svga_modeset(uint32_t width, uint32_t height, uint32_t bpp)
 	svga_write(SVGA_REG_WIDTH, width);
 	svga_write(SVGA_REG_HEIGHT, height);
 	svga_write(SVGA_REG_BITS_PER_PIXEL, bpp);
-	memset(framebuffer, 0, framebuffer_size);
 
 	return 0;
 }
@@ -133,7 +133,7 @@ int module_init(void)
 	svga_write(SVGA_REG_ENABLE, 1);
 
 	/* Note that we need to set the video mode right now, as if we don't, it will fallback to the lowest VGA res */
-	videomode_t *mode = softfb_getvideomode();
+	struct video_mode *mode = video_get_videomode(video_get_main_adapter());
 	svga_modeset(mode->width, mode->height, mode->bpp);
 	free(iospace_bar);
 	free(framebuffer_bar);

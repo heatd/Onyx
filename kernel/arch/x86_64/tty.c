@@ -23,16 +23,19 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include <stdio.h>
+#include <errno.h>
 
 #include <kernel/task_switching.h>
 #include <kernel/portio.h>
 #include <kernel/tty.h>
-#include <drivers/softwarefb.h>
+#include <kernel/video.h>
 #include <kernel/mutex.h>
-#include <stdio.h>
 
 #include <kernel/panic.h>
 #include <kernel/dev.h>
+
+static struct video_device *main_device = NULL;
 unsigned int max_row = 0;
 static const unsigned int max_row_fallback = 1024/16;
 unsigned int max_column = 0;
@@ -43,13 +46,14 @@ uint32_t last_x = 0;
 uint32_t last_y = 0;
 int terminal_color = 0;
 int currentPty = 0;
-void* fbs[5] ={(void*)0xDEADDEAD/*Vid mem*/,NULL};
+void* fbs[5] ={(void*) 0xDEADDEAD/*Vid mem*/,NULL};
 void tty_init(void)
 {
 	terminal_row = 1;
 	terminal_column = 0;
 	terminal_color = 0xC0C0C0;
-	videomode_t *vid = softfb_getvideomode();
+	main_device = video_get_main_adapter();
+	struct video_mode *vid = video_get_videomode(main_device);
 	if( vid->width == 0 ) {
 		max_row = max_row_fallback;
 		max_column = max_column_fallback;
@@ -63,17 +67,56 @@ void tty_set_color(int color)
 {
 	terminal_color = color;
 }
-void softfb_draw_cursor(int x, int y, int fgcolor, int bgcolor, void* fb);
-
+void tty_draw_cursor(int x, int y, int fgcolor, int bgcolor, void *fb)
+{
+retry:;
+	int err = video_draw_cursor(x, y, fgcolor, bgcolor, fb, main_device);
+	if(errno == ENODEV && err < 0)
+	{
+		main_device = video_get_main_adapter();
+		goto retry;
+	}
+}
+void tty_draw_char(unsigned char c, int x, int y, int fgcolor, int bgcolor, void* fb)
+{
+retry:;
+	int err = video_draw_char(c, x, y, fgcolor, bgcolor, fb, main_device);
+	if(errno == ENODEV && err < 0)
+	{
+		main_device = video_get_main_adapter();
+		goto retry;
+	}
+}
+void __tty_scroll(void *fb)
+{
+retry:;
+	int err = video_scroll(fb, main_device);
+	if(errno == ENODEV && err < 0)
+	{
+		main_device = video_get_main_adapter();
+		goto retry;
+	}
+}
+void *tty_get_fb()
+{
+retry:;
+	void *err = video_get_fb(main_device);
+	if(errno == ENODEV && err == 0)
+	{
+		main_device = video_get_main_adapter();
+		goto retry;
+	}
+	return err;
+}
 void tty_put_entry_at(char c, uint32_t color, size_t column, size_t row)
 {
-	softfb_draw_cursor(last_x, last_y, 0, 0, fbs[currentPty]);
+	
 	int y = row * 16;
 	int x = column * 8;
 	last_x = x + 9;
 	last_y = y;
-	softfb_draw_char(c, x, y, color, 0, fbs[currentPty]);
-	softfb_draw_cursor(x + 9, y, 0, 0xC0C0C0, fbs[currentPty]);
+	tty_draw_char(c, x, y, color, 0, fbs[currentPty]);
+	tty_draw_cursor(x + 9, y, 0, 0xC0C0C0, fbs[currentPty]);
 }
 void tty_putchar(char c)
 {
@@ -84,11 +127,11 @@ void tty_putchar(char c)
 		terminal_row++;
 		if(terminal_row >= max_row)
 		{
-			softfb_draw_cursor(last_x, last_y, 0, 0, fbs[currentPty]);
+			tty_draw_cursor(last_x, last_y, 0, 0, fbs[currentPty]);
 			tty_scroll();
 		}
-		softfb_draw_cursor(last_x, last_y, 0, 0, fbs[currentPty]);
-		softfb_draw_cursor(terminal_column * 8, terminal_row * 16, 0,
+		tty_draw_cursor(last_x, last_y, 0, 0, fbs[currentPty]);
+		tty_draw_cursor(terminal_column * 8, terminal_row * 16, 0,
 			  0xC0C0C0, fbs[currentPty]);
 		last_x = terminal_column * 8;
 		last_y = terminal_row * 16;
@@ -113,9 +156,9 @@ void tty_putchar(char c)
 			row--;
 			column = max_column;
 		}
-		softfb_draw_cursor(terminal_column * 8, terminal_row * 16, 0, 0, fbs[currentPty]);
-		softfb_draw_cursor(column * 8, row * 16, 0, 0, fbs[currentPty]);
-		softfb_draw_cursor(column * 8, row * 16, 0, 0xC0C0C0, fbs[currentPty]);
+		tty_draw_cursor(terminal_column * 8, terminal_row * 16, 0, 0, fbs[currentPty]);
+		tty_draw_cursor(column * 8, row * 16, 0, 0, fbs[currentPty]);
+		tty_draw_cursor(column * 8, row * 16, 0, 0xC0C0C0, fbs[currentPty]);
 		int y = row * 16;
 		int x = column * 8;
 		last_x = x;
@@ -224,7 +267,7 @@ char *tty_wait_for_line()
 }
 void tty_swap_framebuffers()
 {
-	memcpy(softfb_getfb(), fbs[currentPty], 0x400000);
+	memcpy(tty_get_fb(), fbs[currentPty], 0x400000);
 }
 void tty_write_string(const char *data)
 {
@@ -232,7 +275,7 @@ void tty_write_string(const char *data)
 }
 void tty_scroll()
 {
-	softfb_scroll(fbs[currentPty]);
+	__tty_scroll(fbs[currentPty]);
 	terminal_row--;
 	terminal_column = 0;
 	tty_swap_framebuffers();
@@ -242,10 +285,10 @@ int tty_create_pty_and_switch(void* address)
 	currentPty++;
 	/* Save the fb address */
 	fbs[currentPty] = address;
-	memset(softfb_getfb(), 0, 0x400000);
+	memset(tty_get_fb(), 0, 0x400000);
 	terminal_row = 1;
 	terminal_column = 0;
-	softfb_draw_char('\0', terminal_column * 9, terminal_row * 16, 0,
+	tty_draw_char('\0', terminal_column * 9, terminal_row * 16, 0,
 		  0xC0C0C0, fbs[currentPty]);
 	last_x = terminal_column * 9;
 	last_y = terminal_row * 16;

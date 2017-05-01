@@ -378,7 +378,6 @@ void kernel_main()
 
 	/* Initialize the IRQ worker thread */
 	irq_init();
-
 	ENABLE_INTERRUPTS();
 	for (;;)
 	{
