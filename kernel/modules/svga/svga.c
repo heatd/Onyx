@@ -11,13 +11,14 @@
 #include <stdio.h>
 #include <svga.h>
 
-#include <drivers/softwarefb.h>
 #include <kernel/mutex.h>
 #include <kernel/vmm.h>
 #include <kernel/module.h>
 #include <kernel/portio.h>
 #include <kernel/video.h>
+#include <kernel/compiler.h>
 
+#include <drivers/softwarefb.h>
 #include <drivers/pci.h>
 MODULE_AUTHOR("Pedro Falcato");
 MODULE_LICENSE(MODULE_LICENSE_GPL2);
@@ -56,8 +57,9 @@ uint32_t svga_read(uint16_t index)
 	mutex_unlock(&mtx);
 	return ret;
 }
-int svga_modeset(uint32_t width, uint32_t height, uint32_t bpp)
+int svga_modeset(unsigned int width, unsigned int height, unsigned int bpp, struct video_device *dev)
 {
+	UNUSED(dev);
 	/* To set the video mode with SVGA, we need to write the width to _REG_WIDTH, height to _REG_HEIGHT,
 	   and bpp to _REG_BITS_PER_PIXEL
 	*/
@@ -73,6 +75,24 @@ int svga_modeset(uint32_t width, uint32_t height, uint32_t bpp)
 
 	return 0;
 }
+void *svga_get_fb(struct video_device *dev)
+{
+	UNUSED(dev);
+	return framebuffer;
+}
+static struct video_ops svga_ops = 
+{
+	.get_fb = svga_get_fb,
+	.modeset = svga_modeset
+};
+static struct video_device svga_device = 
+{
+	.ops = &svga_ops,
+	.driver_string = "svga",
+	.card_string = "svga",
+	.status = VIDEO_STATUS_INSERTED,
+	.refcount = 0
+};
 int module_init(void)
 {
 	MPRINTF("initializing\n");
@@ -134,7 +154,8 @@ int module_init(void)
 
 	/* Note that we need to set the video mode right now, as if we don't, it will fallback to the lowest VGA res */
 	struct video_mode *mode = video_get_videomode(video_get_main_adapter());
-	svga_modeset(mode->width, mode->height, mode->bpp);
+	svga_modeset(mode->width, mode->height, mode->bpp, NULL);
+	video_set_main_adapter(&svga_device);
 	free(iospace_bar);
 	free(framebuffer_bar);
 	free(command_buffer_bar);

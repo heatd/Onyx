@@ -28,7 +28,7 @@ struct video_ops
 	void *(*create_fb)(struct video_device*);
 	void (*draw_cursor)(int x, int y, int fgcolor, int bgcolor, void *fb);
 	void (*draw_char)(unsigned char c, int x, int y, int fgcolor, int bgcolor, void* fb);
-	void (*modeset)(unsigned int width, unsigned int height, unsigned int bpp, struct video_device *);
+	int (*modeset)(unsigned int width, unsigned int height, unsigned int bpp, struct video_device *);
 	struct video_mode *(*get_videomode)(struct video_device *);
 	void (*scroll)(void *fb);
 };

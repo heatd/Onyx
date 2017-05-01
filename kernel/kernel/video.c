@@ -59,7 +59,7 @@ int video_modeset(unsigned int width, unsigned int height, unsigned int bpp, str
 	if(dev->status == VIDEO_STATUS_REMOVED)
 		return errno = ENODEV, -1;
 	if(dev->ops->modeset)
-		return dev->ops->modeset(width, height, bpp, dev), 0;
+		return dev->ops->modeset(width, height, bpp, dev);
 	return 0;
 }
 struct video_mode *video_get_videomode(struct video_device *dev)
@@ -76,6 +76,7 @@ int video_scroll(void *fb, struct video_device *dev)
 		return errno = ENODEV, -1;
 	if(dev->ops->scroll)
 		return dev->ops->scroll(fb), 0;
+	softfb_scroll(fb);
 	return 0;
 }
 void video_remove(struct video_device *dev)
