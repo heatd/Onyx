@@ -11,7 +11,7 @@
 #include <ctype.h>
 #include <sys/syscall.h>
 #include <sys/utsname.h>
-
+#include <drm/drm.h>
 #define MODULE_PREFIX "/usr/lib/modules/"
 #define MODULE_EXT    ".kmod"
 
@@ -166,6 +166,9 @@ int main(int argc, char **argv, char **envp)
 	/* Load the needed kernel modules */
 	load_modules();
 
+	struct drm_info *info = NULL;
+	drm_initialize(&info);
+	printf("%s %s\n", info->video_driver, info->card);
 	/* Setup the hostname */
 	setup_hostname();
 

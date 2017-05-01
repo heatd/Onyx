@@ -89,7 +89,7 @@ static struct video_device svga_device =
 {
 	.ops = &svga_ops,
 	.driver_string = "svga",
-	.card_string = "svga",
+	.card_string = "VMWare SVGAII",
 	.status = VIDEO_STATUS_INSERTED,
 	.refcount = 0
 };
