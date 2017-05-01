@@ -18,7 +18,6 @@
 #include <kernel/video.h>
 #include <kernel/compiler.h>
 
-#include <drivers/softwarefb.h>
 #include <drivers/pci.h>
 MODULE_AUTHOR("Pedro Falcato");
 MODULE_LICENSE(MODULE_LICENSE_GPL2);
@@ -155,7 +154,11 @@ int module_init(void)
 	/* Note that we need to set the video mode right now, as if we don't, it will fallback to the lowest VGA res */
 	struct video_mode *mode = video_get_videomode(video_get_main_adapter());
 	svga_modeset(mode->width, mode->height, mode->bpp, NULL);
+	
+	/* Set this video adapter as the main adapter */
 	video_set_main_adapter(&svga_device);
+
+	/* Free memory and return */
 	free(iospace_bar);
 	free(framebuffer_bar);
 	free(command_buffer_bar);

@@ -910,12 +910,10 @@ void pci_set_barx(uint8_t slot, uint8_t device, uint8_t function, uint8_t index,
 	pci_write_dword(slot, device, function, PCI_BARx(index), bar);
 }
 /* All the PCI drivers' headers */
-#include <drivers/bochsvga.h>
 #include <drivers/e1000.h>
 #include <drivers/ata.h>
 pci_driver_t pci_drivers[] =
 {
-	{BOCHSVGA_PCI_VENDORID, BOCHSVGA_PCI_DEVICEID, CLASS_DISPLAY_CONTROLLER, 0, 0, PCI_DRIVER_SPECIFIC, bochsvga_init},
 	{E1000_DEV, INTEL_VEND, CLASS_NETWORK_CONTROLLER, 0, 0, PCI_DRIVER_SPECIFIC, e1000_init},
 	{E1000_I217, INTEL_VEND, CLASS_NETWORK_CONTROLLER, 0, 0, PCI_DRIVER_SPECIFIC, e1000_init},
 	{E1000_82577LM, INTEL_VEND, CLASS_NETWORK_CONTROLLER, 0, 0, PCI_DRIVER_SPECIFIC, e1000_init},

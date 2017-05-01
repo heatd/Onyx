@@ -29,8 +29,8 @@
 #define VBE_DISPI_INDEX_X_OFFSET 	8
 #define VBE_DISPI_INDEX_Y_OFFSET 	9
 
+#define VBE_DISPI_LFB_ENABLED 0x40
 #define BOCHSVGA_PCI_DEVICEID 0x1234
 #define BOCHSVGA_PCI_VENDORID 0x1111
-void bochsvga_init(PCIDevice *dev);
 
 #endif
