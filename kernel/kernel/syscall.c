@@ -88,8 +88,9 @@ extern int sys_personality(unsigned long val);
 extern int sys_setuid(uid_t uid);
 extern int sys_setgid(gid_t gid);
 extern int sys_fcntl(int fd, int cmd, ...);
-int sys_stat(const char *pathname, struct stat *buf);
-int sys_fstat(int fd, struct stat *buf);
+extern int sys_stat(const char *pathname, struct stat *buf);
+extern int sys_fstat(int fd, struct stat *buf);
+extern int sys_clock_gettime(clockid_t clk_id, struct timespec *tp);
 void *syscall_list[] =
 {
 	[0] = (void*) sys_write,
@@ -134,13 +135,16 @@ void *syscall_list[] =
 	[39] = (void*) sys_uname,
 	[40] = (void*) sys_gethostname,
 	[41] = (void*) sys_sethostname,
-	[42] = (void*) sys_nosys, /* needs to be filled with another system call (was a redundent one) */
+	[42] = (void*) sys_clock_gettime,
 	[43] = (void*) sys_nanosleep,
 	[44] = (void*) sys_arch_prctl,
 	[45] = (void*) sys_set_tid_address,
 	[46] = (void*) sys_syslog,
 	[47] = (void*) sys_fcntl,
+	[48] = (void*) sys_nosys, /* Reserved for sync */
 	[49] = (void*) sys_stat,
 	[50] = (void*) sys_fstat,
+	[51] = (void*) sys_nosys, /* Reserved for lstat */
+	[52] = (void*) sys_nosys, /* Reserved for rt_sigaction */
 	[255] = (void*) sys_nosys
 };

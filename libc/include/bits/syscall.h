@@ -226,7 +226,7 @@
 #define __NR_timer_getoverrun		225
 #define __NR_timer_delete			226
 #define __NR_clock_settime			227
-#define __NR_clock_gettime			228
+#define __NR_clock_gettime			42
 #define __NR_clock_getres			229
 #define __NR_clock_nanosleep		230
 #define __NR_exit_group				231

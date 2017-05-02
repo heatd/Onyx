@@ -52,6 +52,7 @@ Errno also gets passed through rax, as -errno.
 | 39 | uname() system call |
 | 40 | gethostname() system call |
 | 41 | sethostname() system call |
+| 42 | clock_gettime() system call |
 | 43 | nanosleep() system call |
 | 44 | arch_prctl() system call |
 | 45 | set_tid_address() system call |

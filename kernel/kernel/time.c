@@ -13,6 +13,7 @@
 #include <kernel/timer.h>
 #include <drivers/rtc.h>
 #include <kernel/vmm.h>
+#include <time.h>
 #include <sys/time.h>
 time_t sys_time(time_t *s)
 {
@@ -35,6 +36,28 @@ int sys_gettimeofday(struct timeval *tv, struct timezone *tz)
 			return errno = -EFAULT;
 		tz->tz_minuteswest = 0;
 		tz->tz_dsttime = 0; 
+	}
+	return 0;
+}
+int sys_clock_gettime(clockid_t clk_id, struct timespec *tp)
+{
+	if(vmm_check_pointer(tp, sizeof(struct timespec)) < 0)
+		return -EFAULT;
+
+	switch(clk_id)
+	{
+		case CLOCK_REALTIME:
+		{
+			tp->tv_sec = get_posix_time();
+			break;
+		}
+		case CLOCK_MONOTONIC:
+		{
+			tp->tv_sec = get_tick_count() / 1000;
+			break;
+		}
+		default:
+			return -EINVAL;
 	}
 	return 0;
 }
