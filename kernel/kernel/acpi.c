@@ -14,6 +14,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include <kernel/mutex.h>
 #include <kernel/spinlock.h>
 #include <kernel/acpi.h>
 #include <kernel/log.h>
@@ -188,7 +189,7 @@ int acpi_get_irq_routing_for_dev(uint8_t bus, uint8_t device, uint8_t function)
 }
 int acpi_initialize()
 {
-    ACPI_STATUS st = AcpiInitializeSubsystem();
+	ACPI_STATUS st = AcpiInitializeSubsystem();
 	if(ACPI_FAILURE(st))
 	{
 		printf("Error: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
@@ -212,6 +213,54 @@ int acpi_initialize()
 		panic("AcpiInitializeObjects failed!");
 
 	INFO("acpi", "initialized!\n");
-
 	return 0;
+}
+uint32_t acpi_get_apic_id_lapic(ACPI_SUBTABLE_HEADER *madt)
+{
+	return ((ACPI_MADT_LOCAL_APIC*) madt)->Id;
+}
+static mutex_t cpu_enum_lock;
+static size_t __ndx = 0;
+ACPI_STATUS acpi_enumerate_per_cpu(ACPI_HANDLE object, UINT32 nestingLevel, void *context, void **returnvalue)
+{
+	ACPI_BUFFER buffer = { ACPI_ALLOCATE_BUFFER, NULL};
+	struct acpi_processor *processor = &((struct acpi_processor *) context)[__ndx++];
+	uint32_t apic_id = (uint32_t) -1;
+
+	/* _MAT returns a segment of the MADT table */
+	if(ACPI_FAILURE(AcpiEvaluateObject(object, "_MAT", NULL, &buffer)))
+		return AE_ERROR;
+	/* Get the APIC ID */
+	ACPI_OBJECT *obj = (ACPI_OBJECT*) buffer.Pointer;
+	ACPI_SUBTABLE_HEADER *madt = (ACPI_SUBTABLE_HEADER *) obj->Buffer.Pointer;
+	
+	switch(madt->Type)
+	{
+		case ACPI_MADT_TYPE_LOCAL_APIC:
+			apic_id = acpi_get_apic_id_lapic(madt);
+			break;
+	}
+	processor->object = object;
+	processor->apic_id = apic_id;
+	ACPI_FREE(buffer.Pointer);
+	return AE_OK;
+}
+struct acpi_processor *acpi_enumerate_cpus(void)
+{
+	struct acpi_processor *processors = malloc(sizeof(struct acpi_processor) * get_nr_cpus());
+	if(!processors)
+	{
+		return NULL;
+	}
+	memset(processors, 0, sizeof(struct acpi_processor) * get_nr_cpus());
+
+	mutex_lock(&cpu_enum_lock);
+	__ndx = 0;
+	/* Walk the namespace, looking for ACPI PROCESSOR objects */
+	AcpiWalkNamespace(ACPI_TYPE_PROCESSOR, ACPI_ROOT_OBJECT,
+				    ACPI_UINT32_MAX,
+				    acpi_enumerate_per_cpu,
+				    NULL, processors, NULL);
+	mutex_unlock(&cpu_enum_lock);
+	return processors;
 }

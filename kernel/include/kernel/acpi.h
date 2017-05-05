@@ -10,8 +10,16 @@
  *----------------------------------------------------------------------*/
 #ifndef _ACPI_KERNEL_H
 #define _ACPI_KERNEL_H
-#include <stdint.h>
 
+#include <stdint.h>
+#include <acpi.h>
+struct acpi_processor
+{
+	ACPI_HANDLE object;
+#ifdef __x86_64__
+	uint32_t apic_id;
+#endif
+};
 #define ACPI_PIC_PIC 0
 #define ACPI_PIC_IOAPIC 1
 #define ACPI_PIC_IOSAPIC 1
@@ -21,5 +29,6 @@ uint32_t acpi_shutdown(void *context);
 uint32_t acpi_execute_pic(int value);
 int acpi_get_irq_routing_tables();
 int acpi_get_irq_routing_for_dev(uint8_t bus, uint8_t device, uint8_t function);
+struct acpi_processor *acpi_enumerate_cpus(void);
 
 #endif

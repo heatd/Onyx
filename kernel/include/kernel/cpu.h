@@ -10,8 +10,10 @@
  *----------------------------------------------------------------------*/
 #ifndef _KERNEL_CPU_H
 #define _KERNEL_CPU_H
+
 #include <stdint.h>
 
+#include <kernel/acpi.h>
 #define CPUID_MANUFACTURERID 		0
 #define CPUID_MAXFUNCTIONSUPPORTED 	0x80000000
 #define CPUID_BRAND0			0x80000002
@@ -43,16 +45,17 @@ struct processor
 	int cpu_num;
 	int lapic_id;
 	size_t apic_ticks;
+	struct acpi_processor *acpi_processor;
 #else
 #error "Implement this structure for your architecture"
 #endif
 	size_t sched_quantum;
 };
 
-void cpu_identify();
-void cpu_init_interrupts();
-int cpu_init_mp();
-
+void cpu_identify(void);
+void cpu_init_interrupts(void);
+int cpu_init_mp(void);
+int get_nr_cpus(void);
 __attribute__((always_inline))
 inline struct processor *get_gs_data()
 {

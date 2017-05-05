@@ -150,6 +150,22 @@ int cpu_init_mp()
 	release_spinlock(&ap_entry_spinlock);
 	
 	while(initialized_cpus+1 != booted_cpus);
+	struct acpi_processor *processors = acpi_enumerate_cpus();
+	/* I guess we don't get to have thermal management then... */
+	if(!processors)
+		return booted_cpus;
+	
+	/* Copy the acpi information to a new structure */
+	for(int i = 0; i < booted_cpus; i++)
+	{
+		cpus[i].acpi_processor = malloc(sizeof(struct acpi_processor));
+		if(!cpus[i].acpi_processor)
+			return booted_cpus;
+		memcpy(cpus[i].acpi_processor, &processors[i], sizeof(struct acpi_processor));
+	}
+	
+	/* ... and free the old buffer */
+	free(processors);
 	return booted_cpus;
 }
 void cpu_ap_entry(int cpu_num)
@@ -185,4 +201,8 @@ void cpu_ap_entry(int cpu_num)
 	   preempts the AP
 	*/
 	while(1);
+}
+int get_nr_cpus(void)
+{
+	return booted_cpus;
 }
