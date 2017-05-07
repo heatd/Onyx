@@ -12,6 +12,7 @@
 #include <stdbool.h>
 #include <errno.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include <kernel/paging.h>
 #include <kernel/page.h>
@@ -21,7 +22,7 @@
 #include <kernel/compiler.h>
 #include <kernel/process.h>
 #include <kernel/log.h>
-#include <fcntl.h>
+#include <kernel/dev.h>
 
 #include <sys/mman.h>
 typedef struct avl_node
@@ -557,6 +558,7 @@ inline int validate_fd(int fd)
 }
 void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off)
 {
+	file_desc_t *file_descriptor = NULL;
 	if(length == 0)
 		return (void*)-EINVAL;
 	if(!(flags & MAP_PRIVATE) && !(flags & MAP_SHARED))
@@ -573,7 +575,7 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 			return (void*)-EBADF;
 		ioctx_t *ctx = &get_current_process()->ctx;
 		/* Get the file descriptor */
-		file_desc_t *file_descriptor = ctx->file_desc[fd];
+		file_descriptor = ctx->file_desc[fd];
 		if((file_descriptor->flags != O_WRONLY && file_descriptor->flags != O_RDWR) && prot & PROT_WRITE)
 		{
 			/* You can't do that! */
@@ -608,9 +610,22 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 			area->mapping_type = MAP_SHARED;
 		else
 			area->mapping_type = MAP_PRIVATE;
+
 		area->type = VM_TYPE_FILE_BACKED;
 		area->offset = off;
 		area->fd = fd;
+		if((file_descriptor->vfs_node->type == VFS_TYPE_BLOCK_DEVICE 
+		|| file_descriptor->vfs_node->type == VFS_TYPE_CHAR_DEVICE) && area->mapping_type == MAP_SHARED)
+		{
+			struct minor_device *m = dev_find(file_descriptor->vfs_node->dev);
+			if(!m)
+				return (void*) -ENODEV;
+			if(!m->fops)
+				return (void*) -ENOSYS;
+			if(!m->fops->mmap)
+				return (void*) -ENOSYS;
+			return m->fops->mmap(area, file_descriptor->vfs_node);
+		}
 	}
 	return mapping_addr;
 }

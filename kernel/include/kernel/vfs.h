@@ -52,7 +52,7 @@ struct file_ops
 	__stat stat;
 	__link link;
 	__symlink symlink;
-	int (*mmap)(vmm_entry_t *area, struct vfsnode *node);
+	void *(*mmap)(vmm_entry_t *area, struct vfsnode *node);
 };
 typedef struct vfsnode
 {
