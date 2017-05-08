@@ -27,3 +27,4 @@ ports/*
 packmanager/packmanager*
 ld/ld-onyx.so
 ls/ls
+onyx-vdso*

@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <errno.h>
 
+#include <kernel/vdso.h>
 #include <kernel/compiler.h>
 #include <kernel/elf.h>
 #include <kernel/process.h>
@@ -219,6 +220,8 @@ int sys_execve(char *path, char *argv[], char *envp[])
 
 	vmm_map_range(get_current_process()->brk, 1, VMM_WRITE | VMM_NOEXEC | VMM_USER);
 
+	/* Map the VDSO */
+	get_current_process()->vdso = map_vdso();
 	/* Prepare the auxv */
 	Elf64_auxv_t *auxv = (Elf64_auxv_t *) get_current_process()->threads[0]->user_stack_bottom;
 	unsigned char *scratch_space = (unsigned char *) (auxv + 37);
@@ -241,8 +244,11 @@ int sys_execve(char *path, char *argv[], char *envp[])
 				break;
 			case AT_RANDOM:
 				get_entropy((char*) scratch_space, 16);
-				printf("Random: %x%x\n", *(uint64_t*) scratch_space, *(uint64_t*) scratch_space+1);
 				scratch_space += 16;
+				break;
+			case AT_SYSINFO_EHDR:
+				if(get_current_process()->vdso)
+					auxv[i].a_un.a_val = (uint64_t) get_current_process()->vdso;
 				break;
 		}
 	}

@@ -11,6 +11,7 @@ PREFIX?=/usr/local
 EXEC_PREFIX?=$(PREFIX)
 BOOTDIR?=$(EXEC_PREFIX)/boot
 INCLUDEDIR?=$(PREFIX)/usr/include
+LIBDIR?=$(EXEC_PREFIX)/usr/lib
 
 include ../kversion.config
 CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin -Wall -Wextra -Wno-format -fstack-protector-strong -Wno-unused-parameter -Wno-unused-function -Werror
@@ -30,7 +31,7 @@ OBJS:=\
 $(patsubst %.c,%.o,$(wildcard drivers/*/*.c)) \
 $(patsubst %.c,%.o,$(wildcard kernel/*.c)) \
 $(patsubst %.c,%.o,$(wildcard kernel/*/*.c)) \
-$(patsubst %.c,%.o,$(wildcard $(ARCHDIR)/*.c)) \
+$(filter-out $(ARCHDIR)/__vdso.o, $(patsubst %.c,%.o,$(wildcard $(ARCHDIR)/*.c))) \
 $(filter-out acpica/components/disassembler/%, $(patsubst %.c,%.o,$(wildcard acpica/components/*/*.c))) \
 $(filter-out $(ARCHDIR)/crti.o, $(patsubst %.S,%.o,$(wildcard $(ARCHDIR)/*.S)))
 
@@ -51,7 +52,7 @@ $(OBJS) \
 $(CRTEND_OBJ) \
 $(CRTN_OBJ) \
 
-all: vmonyx
+all: vmonyx onyx-vdso.so.0
 
 .PHONY: all clean install install-headers install-kernel kernel-modules
 
@@ -71,7 +72,12 @@ acpica/%.o: acpica/%.c
 %.o: %.cpp
 	@echo [CXX] $<
 	@$(CXX) -c $< -o $@ -std=c++14 $(CFLAGS) $(CPPFLAGS) $(CXXFLAGS)
-
+$(ARCHDIR)/__vdso.o: $(ARCHDIR)/__vdso.c
+	@echo [CC] $<
+	@$(CC) -c $< -o $@ -shared -fpic
+onyx-vdso.so.0: $(ARCHDIR)/__vdso.o
+	@echo [VDSO]
+	@$(CC) $< -o $@ -shared -fpic -ffreestanding -nostdlib
 clean:
 	rm -f vmonyx $(OBJS) $(ALL_OUR_OBJS) *.o */*.o */*/*.o
 	$(MAKE) -C modules/ clean
@@ -83,7 +89,7 @@ install-headers:
 	cp -RTv include $(DESTDIR)$(INCLUDEDIR)
 	cp -RTv drivers/include $(DESTDIR)$(INCLUDEDIR)/drivers
 
-install-kernel: vmonyx kernel-modules
+install-kernel: vmonyx kernel-modules onyx-vdso.so.0
 	mkdir -p $(DESTDIR)$(BOOTDIR)
 	# Create livefs directories
 	mkdir -p $(DESTDIR)/dev/
@@ -91,7 +97,9 @@ install-kernel: vmonyx kernel-modules
 	mkdir -p $(DESTDIR)/var/
 	mkdir -p $(DESTDIR)/tmp/
 	mkdir -p $(DESTDIR)/sys/
+	mkdir -p $(DESTDIR)$(LIBDIR)
 	cp $<  $(DESTDIR)$(BOOTDIR)
+	cp onyx-vdso.so.0 $(DESTDIR)$(LIBDIR)
 
 kernel-modules:
 	$(MAKE) -C modules/

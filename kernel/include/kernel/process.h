@@ -43,6 +43,7 @@ typedef struct proc
 	registers_t old_regs;
 	sighandler_t sighandlers[27];
 	void *sigreturn;
+	void *vdso;
 	unsigned long personality;
 	struct signal_info sinfo;
 	struct proc *parent;

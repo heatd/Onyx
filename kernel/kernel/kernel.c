@@ -68,6 +68,7 @@
 #include <kernel/fscache.h>
 #include <kernel/page.h>
 #include <kernel/irq.h>
+#include <kernel/vdso.h>
 
 #include <drivers/ps2.h>
 #include <drivers/ata.h>
@@ -451,6 +452,9 @@ void kernel_multitasking(void *arg)
 	null_init(); /* /dev/null */
 	zero_init(); /* /dev/zero */
 
+	/* Initialize the vdso */
+	init_vdso();
+	
 	/* Mount the root partition */
 	char *root_partition = kernel_getopt("--root");
 	if(!root_partition)
