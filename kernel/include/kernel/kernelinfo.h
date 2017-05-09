@@ -15,7 +15,7 @@
 #define stringify(str) #str
 #define OS_NAME "Onyx"
 #define OS_TAGLINE "hey it's me, your unix"
-#define OS_RELEASE "0.2"
+#define OS_RELEASE "0.3"
 #define OS_VERSION "SMP "__DATE__" "__TIME__
 
 #if defined(__x86_64__)

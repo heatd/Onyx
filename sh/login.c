@@ -15,6 +15,8 @@ static _Bool is_login = false;
 void tash_do_login(void)
 {
 	is_login = true;
+	/* The below doesn't work yet */
+	return;
 	char *login_script_path = getenv("HOME");
 	if(!login_script_path)
 		login_script_path = DEFAULT_LOGIN_SCRIPT_PATH; /* If HOME isn't set, set shell_path with a hardcoded and known value */
