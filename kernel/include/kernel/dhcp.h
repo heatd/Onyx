@@ -1,13 +1,8 @@
-/*----------------------------------------------------------------------
- * Copyright (C) 2016, 2017 Pedro Falcato
- *
- * This file is part of Onyx, and is made available under
- * the terms of the GNU General Public License version 2.
- *
- * You can redistribute it and/or modify it under the terms of the GNU
- * General Public License version 2 as published by the Free Software
- * Foundation.
- *----------------------------------------------------------------------*/
+/*
+* Copyright (c) 2016, 2017 Pedro Falcato
+* This file is part of Onyx, and is released under the terms of the MIT License
+* check LICENSE at the root directory for more information
+*/
 // All the structures are ISC copyrighted, the rest is mine
  /*
  * Copyright (c) 2011-2012,2014 by Internet Systems Consortium, Inc. ("ISC")

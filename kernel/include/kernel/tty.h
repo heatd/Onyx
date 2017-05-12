@@ -1,14 +1,11 @@
-/*----------------------------------------------------------------------
- * Copyright (C) 2016, 2017 Pedro Falcato
- *
- * This file is part of Onyx, and is made available under
- * the terms of the GNU General Public License version 2.
- *
- * You can redistribute it and/or modify it under the terms of the GNU
- * General Public License version 2 as published by the Free Software
- * Foundation.
- *----------------------------------------------------------------------*/
-#pragma once
+/*
+* Copyright (c) 2016, 2017 Pedro Falcato
+* This file is part of Onyx, and is released under the terms of the MIT License
+* check LICENSE at the root directory for more information
+*/
+#ifndef _KERNEL_TTY_H
+#define _KERNEL_TTY_H
+
 #include <stddef.h>
 #include <stdint.h>
 
@@ -39,3 +36,4 @@ void tty_create_dev();
 #define TTY_DEFAULT_MAGENTA 0xFF00FF
 #define TTY_DEFAULT_CYAN 0x00FFFF
 #define TTY_RESET_COLOR 0xC0C0C0
+#endif

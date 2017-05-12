@@ -1,13 +1,8 @@
-/*----------------------------------------------------------------------
- * Copyright (C) 2016, 2017 Pedro Falcato
- *
- * This file is part of Onyx, and is made available under
- * the terms of the GNU General Public License version 2.
- *
- * You can redistribute it and/or modify it under the terms of the GNU
- * General Public License version 2 as published by the Free Software
- * Foundation.
- *----------------------------------------------------------------------*/
+/*
+* Copyright (c) 2016, 2017 Pedro Falcato
+* This file is part of Onyx, and is released under the terms of the MIT License
+* check LICENSE at the root directory for more information
+*/
 #include <kernel/crc32.h>
 const uint32_t crc32_table[256] = {
 	0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419,
