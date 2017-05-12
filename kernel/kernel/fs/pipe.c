@@ -11,7 +11,6 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdbool.h>
@@ -50,6 +49,7 @@ struct pipe *get_pipe_from_inode(ino_t ino)
 }
 size_t pipe_write(size_t offset, size_t sizeofwrite, void* buffer, vfsnode_t* file)
 {
+	UNUSED_PARAMETER(offset);
 	_Bool atomic_write = false;
 	struct pipe *pipe = get_pipe_from_inode(file->inode);
 
@@ -71,6 +71,7 @@ size_t pipe_write(size_t offset, size_t sizeofwrite, void* buffer, vfsnode_t* fi
 			sched_yield();
 		}
 		memcpy(pipe->buffer + pipe->curr_size, buffer, sizeofwrite);
+		pipe->curr_size += sizeofwrite;
 	}
 	else
 	{
@@ -86,17 +87,33 @@ size_t pipe_write(size_t offset, size_t sizeofwrite, void* buffer, vfsnode_t* fi
 
 	if(atomic_write)
 		mutex_unlock(&pipe->pipe_lock);
-	return 0;
+	return pipe->curr_size;
+}
+size_t pipe_read(size_t offset, size_t sizeofread, void* buffer, vfsnode_t* file)
+{
+	UNUSED_PARAMETER(offset);
+
+	/* Get the pipe */
+	struct pipe *pipe = get_pipe_from_inode(file->inode);
+
+	/* Lock the pipe */
+	mutex_lock(&pipe->pipe_lock);
+	size_t to_read = pipe->curr_size < sizeofread ? pipe->curr_size : sizeofread;
+	memcpy(buffer, pipe->buffer, to_read);
+	memmove(pipe->buffer, pipe->buffer + pipe->curr_size, pipe->buf_size - pipe->curr_size);
+
+	mutex_unlock(&pipe->pipe_lock);
+	return to_read;
 }
 static struct file_ops pipe_file_ops = 
 {
-	.write = pipe_write
+	.write = pipe_write,
+	.read = pipe_read
 };
 static struct minor_device *pipedev = NULL;
 static spinlock_t pipespl;
 vfsnode_t *pipe_create(void)
 {
-	printk("Creating pipe!\n");
 	acquire_spinlock(&pipespl);
 	/* Create the node */
 	vfsnode_t *node = malloc(sizeof(vfsnode_t));
