@@ -70,15 +70,14 @@ ssize_t sys_read(int fd, const void *buf, size_t count)
 }
 ssize_t sys_write(int fd, const void *buf, size_t count)
 {
-	/*if(vmm_check_pointer((void*) buf, count) < 0)
-		return errno =-EINVAL;*/
+	if(vmm_check_pointer((void*) buf, count) < 0)
+		return -EFAULT;
 	if(validate_fd(fd))
-		return errno =-EBADF;
+		return -EBADF;
 	if(!get_current_process()->ctx.file_desc[fd]->flags & O_WRONLY)
-		return errno =-EROFS;
+		return -EBADF;
 	write_vfs(get_current_process()->ctx.file_desc[fd]->seek, count, (void*) buf, get_current_process()->ctx.file_desc[fd]->vfs_node);
-	if(errno)
-		perror(NULL);
+
 	return count;
 }
 int sys_open(const char *filename, int flags)
