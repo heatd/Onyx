@@ -144,6 +144,7 @@ vfsnode_t *pipe_create(void)
 	pipe->readers = 1;
 	*pipe_next = pipe;
 	node->dev = pipedev->majorminor;
+	node->type = VFS_TYPE_FIFO;
 	release_spinlock(&pipespl);
 	return node;
 }

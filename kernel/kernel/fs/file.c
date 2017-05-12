@@ -333,6 +333,8 @@ off_t sys_lseek(int fd, off_t offset, int whence)
 	{
 		return errno =-EBADF;
 	}
+	if(ioctx->file_desc[fd]->vfs_node->type == VFS_TYPE_FIFO)
+		return -ESPIPE;
 	if(whence == SEEK_CUR)
 		ioctx->file_desc[fd]->seek += offset;
 	else if(whence == SEEK_SET)
