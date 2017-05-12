@@ -8,14 +8,13 @@
 #include <stdint.h>
 #include <kernel/portio.h>
 
-typedef struct PCIDevice
+struct pci_device
 {
 	uint16_t deviceID, vendorID;
-	char* vendor_string, *function_string;
 	uint8_t slot, device, function;
 	uint8_t pciClass, subClass, progIF;
-	struct PCIDevice* next;
-} PCIDevice;
+	struct pci_device* next;
+};
 typedef struct
 {
 	uint32_t address;
@@ -33,8 +32,8 @@ const char* pci_identify_device_type(uint16_t headerType);
 const char* pci_identify_device_function(uint8_t pciClass, uint8_t subClass, uint8_t progIF);
 pcibar_t* pci_get_bar(uint8_t slot, uint8_t device, uint8_t function, uint8_t barindex);
 uint16_t pci_get_intn(uint8_t slot, uint8_t device, uint8_t function);
-PCIDevice *get_pcidev_from_vendor_device(uint16_t deviceid, uint16_t vendorid);
-PCIDevice *get_pcidev_from_classes(uint8_t class, uint8_t subclass, uint8_t progif);
+struct pci_device *get_pcidev_from_vendor_device(uint16_t deviceid, uint16_t vendorid);
+struct pci_device *get_pcidev_from_classes(uint8_t class, uint8_t subclass, uint8_t progif);
 void pci_write_dword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint32_t data);
 void pci_write_word(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint16_t data);
 void pci_set_barx(uint8_t slot, uint8_t device, uint8_t function, uint8_t index, uint32_t address, uint8_t is_io, uint8_t is_prefetch);
@@ -60,7 +59,7 @@ void pci_set_barx(uint8_t slot, uint8_t device, uint8_t function, uint8_t index,
 #define CLASS_ENCRYPTION_DECRYPTION_CONTROLLER 0x10
 #define CLASS_DATA_AND_SIGNAL_CONTROLLER 0x11
 
-typedef void (*pci_callback_t)(PCIDevice *dev);
+typedef void (*pci_callback_t)(struct pci_device *dev);
 #define PCI_DRIVER_GENERIC 0
 #define PCI_DRIVER_SPECIFIC 1
 typedef struct

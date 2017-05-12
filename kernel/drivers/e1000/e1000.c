@@ -18,7 +18,7 @@
 #include <drivers/e1000.h>
 #include <drivers/pci.h>
 
-static PCIDevice *nicdev = NULL;
+static struct pci_device *nicdev = NULL;
 static struct e1000_rx_desc *rx_descs[E1000_NUM_RX_DESC];
 static struct e1000_tx_desc *tx_descs[E1000_NUM_TX_DESC];
 static int rx_cur = 0, tx_cur = 0;
@@ -233,7 +233,7 @@ int e1000_send_packet(const void *data, uint16_t len)
 	while(!(tx_descs[old_cur]->status & 0xff));
 	return 0;
 }
-void e1000_init(PCIDevice *dev)
+void e1000_init(struct pci_device *dev)
 {
 	nicdev = dev;
 	pcibar_t *bar = pci_get_bar(nicdev->slot, nicdev->device, nicdev->function, 0);

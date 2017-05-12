@@ -28,7 +28,7 @@
 
 prdt_entry_t *PRDT;
 void *prdt_base = NULL;
-PCIDevice *idedev = NULL;
+struct pci_device *idedev = NULL;
 uint16_t bar4_base = 0;
 struct ide_drive
 {
@@ -105,7 +105,7 @@ void ata_set_drive(unsigned int channel, unsigned int drive)
 		outb(ATA_DATA2 + ATA_REG_HDDEVSEL, 0x40 | (drive << 4));
 	delay_400ns();
 }
-void ata_enable_pci_ide(PCIDevice *dev)
+void ata_enable_pci_ide(struct pci_device *dev)
 {
 	/* Enable PCI Busmastering and PCI IDE mode by setting the bits 2 and 0 on the command register of the PCI
 	configuration space */
@@ -301,7 +301,7 @@ int ata_initialize_drive(int channel, int drive)
 	INFO("ata", "Created %s for drive %u\n", path, num_drives);
 	return 1;
 }
-void ata_init(PCIDevice *dev)
+void ata_init(struct pci_device *dev)
 {
 	idedev = dev;
 

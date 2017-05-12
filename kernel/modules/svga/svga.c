@@ -92,7 +92,7 @@ int module_init(void)
 	MPRINTF("initializing\n");
 
 	/* Get a handle to the PCI device */
-	PCIDevice *dev = get_pcidev_from_vendor_device(VMWARE_SVGAII_PCI_DEVICE, VMWARE_SVGAII_PCI_VENDOR);
+	struct pci_device *dev = get_pcidev_from_vendor_device(VMWARE_SVGAII_PCI_DEVICE, VMWARE_SVGAII_PCI_VENDOR);
 	if(!dev)
 	{
 		MPRINTF("Couldn't find a valid VMware SVGAII device!\n");

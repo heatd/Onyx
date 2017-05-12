@@ -81,7 +81,7 @@ static struct video_device bga_device =
 };
 int module_init(void)
 {
-	PCIDevice *device = get_pcidev_from_vendor_device(BOCHSVGA_PCI_DEVICEID, BOCHSVGA_PCI_VENDORID);
+	struct pci_device *device = get_pcidev_from_vendor_device(BOCHSVGA_PCI_DEVICEID, BOCHSVGA_PCI_VENDORID);
 	if(!device)
 	{
 		MPRINTF("Couldn't find a valid BGA PCI device!\n");

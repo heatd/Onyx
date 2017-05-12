@@ -21,7 +21,7 @@ MODULE_INSERT_VERSION();
 
 #define MPRINTF(...) printf("ahci: "__VA_ARGS__)
 
-static PCIDevice *ahci_dev = NULL;
+static struct pci_device *ahci_dev = NULL;
 static ahci_hba_memory_regs_t *hba = NULL;
 
 int ahci_check_drive_type(ahci_port_t *port)

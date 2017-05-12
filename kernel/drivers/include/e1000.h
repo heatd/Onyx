@@ -129,6 +129,6 @@ struct e1000_tx_desc {
         volatile uint16_t special;
 } __attribute__((packed));
 
-void e1000_init(PCIDevice *dev);
+void e1000_init(struct pci_device *dev);
 
 #endif
