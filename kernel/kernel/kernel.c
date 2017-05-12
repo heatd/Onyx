@@ -64,7 +64,7 @@
 #include <kernel/page.h>
 #include <kernel/irq.h>
 #include <kernel/vdso.h>
-
+#include <kernel/timer.h>
 #include <drivers/ps2.h>
 #include <drivers/ata.h>
 #include <drivers/ext2.h>
@@ -422,25 +422,8 @@ void kernel_multitasking(void *arg)
 	/* Initialize ICMP */
 	icmp_init();
 
-
-	/* Just a little demo for the recent DNS and ICMP features */
-	//uint32_t ip = dns_resolve_host("www.google.com");
-	//icmp_ping(ip, 10);
-
 	/* Parse the command line string to a more friendly argv-like buffer */
 	kernel_parse_command_line(kernel_cmdline);
-
-	/*vfsnode_t *in = open_vfs(fs_root, "/etc/fstab");
-	if (!in)
-	{
-		printf("%s: %s\n", "/etc/fstab", strerror(errno));
-		return errno = ENOENT;
-	}
-	char *b = malloc(in->size);
-	memset(b, 0, in->size);*/
-	//write_vfs(0, in->size, b, in);
-	//printf("%s\n", b);
-	//sched_create_thread(test, 1, NULL);
 
 	/* Start populating /dev */
 	tty_create_dev(); /* /dev/tty */

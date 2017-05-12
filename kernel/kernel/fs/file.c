@@ -324,17 +324,14 @@ int sys_ftruncate(int fd, off_t length)
 }
 off_t sys_lseek(int fd, off_t offset, int whence)
 {
-	if (fd > UINT16_MAX)
-	{
-		return errno =-EBADF;
-	}
 	ioctx_t *ioctx = &get_current_process()->ctx;
-	if(ioctx->file_desc[fd] == NULL)
-	{
+	if (fd > UINT16_MAX)
 		return errno =-EBADF;
-	}
+	if(ioctx->file_desc[fd] == NULL)
+		return errno =-EBADF;
 	if(ioctx->file_desc[fd]->vfs_node->type == VFS_TYPE_FIFO)
 		return -ESPIPE;
+	
 	if(whence == SEEK_CUR)
 		ioctx->file_desc[fd]->seek += offset;
 	else if(whence == SEEK_SET)
@@ -342,9 +339,8 @@ off_t sys_lseek(int fd, off_t offset, int whence)
 	else if(whence == SEEK_END)
 		ioctx->file_desc[fd]->seek = ioctx->file_desc[fd]->vfs_node->size;
 	else
-	{
 		return errno =-EINVAL;
-	}
+
 	return ioctx->file_desc[fd]->seek;
 }
 int sys_mount(const char *source, const char *target, const char *filesystemtype, unsigned long mountflags, const void *data)
