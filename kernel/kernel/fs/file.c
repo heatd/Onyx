@@ -64,7 +64,11 @@ ssize_t sys_read(int fd, const void *buf, size_t count)
 	}
 	if(!ioctx->file_desc[fd]->flags & O_RDONLY)
 		return errno =-EBADF;
-	ssize_t size = read_vfs(ioctx->file_desc[fd]->seek, count, (char*)buf, ioctx->file_desc[fd]->vfs_node);
+	ssize_t size = (ssize_t) read_vfs(ioctx->file_desc[fd]->seek, count, (char*)buf, ioctx->file_desc[fd]->vfs_node);
+	if(size == -1)
+	{
+		return -errno;
+	}
 	ioctx->file_desc[fd]->seek += size;
 	return size;
 }
@@ -76,9 +80,11 @@ ssize_t sys_write(int fd, const void *buf, size_t count)
 		return -EBADF;
 	if(!get_current_process()->ctx.file_desc[fd]->flags & O_WRONLY)
 		return -EBADF;
-	write_vfs(get_current_process()->ctx.file_desc[fd]->seek, count, (void*) buf, get_current_process()->ctx.file_desc[fd]->vfs_node);
+	size_t written = write_vfs(get_current_process()->ctx.file_desc[fd]->seek, count, (void*) buf, get_current_process()->ctx.file_desc[fd]->vfs_node);
 
-	return count;
+	if(written == (size_t) -1)
+		return -errno;
+	return written;
 }
 int sys_open(const char *filename, int flags)
 {
@@ -230,10 +236,13 @@ ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt)
 	if(veccnt == 0)
 		return 0;
 	if(!ctx->file_desc[fd]->flags & O_WRONLY)
-		return errno =-EROFS;
+		return errno =-EBADF;
 	for(int i = 0; i < veccnt; i++)
 	{
-		write_vfs(ctx->file_desc[fd]->seek, vec[i].iov_len, vec[i].iov_base, ctx->file_desc[fd]->vfs_node);
+		size_t written = write_vfs(ctx->file_desc[fd]->seek, vec[i].iov_len, vec[i].iov_base, ctx->file_desc[fd]->vfs_node);
+		if(written == (size_t) -1)
+			return -errno;
+
 		wrote += vec[i].iov_len;
 		ctx->file_desc[fd]->seek += vec[i].iov_len;
 	}
@@ -264,20 +273,26 @@ ssize_t sys_preadv(int fd, const struct iovec *vec, int veccnt, off_t offset)
 }
 ssize_t sys_pwritev(int fd, const struct iovec *vec, int veccnt, off_t offset)
 {
-	if(vmm_check_pointer((void*) vec, sizeof(struct iovec) * veccnt) < 0)
-		return errno =-EFAULT;
+	if(veccnt == 0) return 0;
 
+	if(vmm_check_pointer((void*) vec, sizeof(struct iovec) * veccnt) < 0)
+		return -EFAULT;
+	
 	if(validate_fd(fd))
-		return -1;
+		return -EBADF;
+	
 	ioctx_t *ctx = &get_current_process()->ctx;
-	if(veccnt == 0)
-		return 0;
+	
 	if(!ctx->file_desc[fd]->flags & O_WRONLY)
-		return errno =-EROFS;
+		return errno =-EBADF;
 	size_t wrote = 0;
 	for(int i = 0; i < veccnt; i++)
 	{
-		write_vfs(offset, vec[i].iov_len, vec[i].iov_base, ctx->file_desc[fd]->vfs_node);
+		size_t written = write_vfs(offset, vec[i].iov_len, vec[i].iov_base, ctx->file_desc[fd]->vfs_node);
+		if(written == (size_t) -1)
+		{
+			return -errno;
+		}
 		wrote += vec[i].iov_len;
 		offset += vec[i].iov_len;
 	}
@@ -422,6 +437,8 @@ int sys_pipe(int pipefd[2])
 		return errno = -ENOMEM;
 	}
 	ioctx->file_desc[rdfd]->vfs_node = ioctx->file_desc[wrfd]->vfs_node;
+	ioctx->file_desc[rdfd]->flags = O_RDONLY;
+	ioctx->file_desc[wrfd]->flags = O_WRONLY;
 
 	pipefd[0] = rdfd;
 	pipefd[1] = wrfd;

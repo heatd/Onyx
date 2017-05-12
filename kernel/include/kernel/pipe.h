@@ -11,6 +11,7 @@
 #ifndef _KERNEL_PIPE_H
 #define _KERNEL_PIPE_H
 
+#include <kernel/mutex.h>
 #include <kernel/vfs.h>
 
 struct pipe
@@ -19,6 +20,8 @@ struct pipe
 	void *buffer;
 	size_t buf_size;
 	size_t curr_size;
+	int readers;
+	mutex_t pipe_lock;
 };
 vfsnode_t *pipe_create(void);
 

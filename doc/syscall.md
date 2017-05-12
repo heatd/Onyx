@@ -3,7 +3,7 @@
 The kernel exposes the system calls to the user-space by the syscall instruction.
 
 ## System Call ABI
-Arguments are passed to the kernel by the x86_64 registers rdi, rsi, rdx, r8, r9 and r10. The return value is passed by the rax register.
+Arguments are passed to the kernel through the x86_64 registers rdi, rsi, rdx, r8, r9 and r10. The return value is passed through the rax register.
 Errno also gets passed through rax, as -errno.
 
 ## Table of System calls
@@ -62,3 +62,4 @@ Errno also gets passed through rax, as -errno.
 | 49 | stat() system call |
 | 50 | fstat() system call |
 | 51 | lstat() system call |
+| 53 | pipe() system call |

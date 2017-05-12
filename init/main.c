@@ -204,7 +204,17 @@ int main(int argc, char **argv, char **envp)
 	char *env[] = {"", NULL};
 	char *shell = copy_until_newline(buf);
 	char *args[] = {shell, "/etc/fstab", NULL};
+
+	int pipefd[2];
+	pipe(pipefd);
+
 	int pid = fork();
+
+	if(pid == 0)
+	{
+		write(pipefd[1], "Hello World!\n", strlen("Hello World!\n"));
+		perror("");
+	}
 	if(pid == 0)
 		execve(shell, args, env);
 	while(1) /* TODO: Implement wait() and replace this */

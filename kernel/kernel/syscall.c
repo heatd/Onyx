@@ -35,7 +35,7 @@
 #include <kernel/power_management.h>
 #include <kernel/cpu.h>
 
-const int SYSCALL_MAX_NUM = 50;
+const int SYSCALL_MAX_NUM = 53;
 
 uint64_t sys_nosys()
 {
@@ -91,6 +91,7 @@ extern int sys_fcntl(int fd, int cmd, ...);
 extern int sys_stat(const char *pathname, struct stat *buf);
 extern int sys_fstat(int fd, struct stat *buf);
 extern int sys_clock_gettime(clockid_t clk_id, struct timespec *tp);
+extern int sys_pipe(int *pipefd);
 void *syscall_list[] =
 {
 	[0] = (void*) sys_write,
@@ -146,5 +147,6 @@ void *syscall_list[] =
 	[50] = (void*) sys_fstat,
 	[51] = (void*) sys_nosys, /* Reserved for lstat */
 	[52] = (void*) sys_nosys, /* Reserved for rt_sigaction */
+	[53] = (void*) sys_pipe,
 	[255] = (void*) sys_nosys
 };
