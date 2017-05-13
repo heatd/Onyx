@@ -109,14 +109,13 @@ void ata_enable_pci_ide(struct pci_device *dev)
 {
 	/* Enable PCI Busmastering and PCI IDE mode by setting the bits 2 and 0 on the command register of the PCI
 	configuration space */
-	uint32_t command_reg = pci_config_read_dword(dev->slot, dev->device, dev->function, PCI_COMMAND);
-	pci_write_dword(dev->slot, dev->device, dev->function, PCI_COMMAND, command_reg | 4);
-	pci_write_word(dev->slot, dev->device, dev->function, PCI_INTN, 14);
-	pci_set_barx(dev->slot, dev->device, dev->function, 0, 0x1F0, 1, 0);
-	pci_set_barx(dev->slot, dev->device, dev->function, 1, 0x3F6, 1, 0);
-	pci_set_barx(dev->slot, dev->device, dev->function, 2, 0x170, 1, 0);
-	pci_set_barx(dev->slot, dev->device, dev->function, 3, 0x376, 1, 0);
-	pcibar_t *bar4 = pci_get_bar(dev->slot, dev->device, dev->function, 4);
+	pci_enable_busmastering(dev);
+	pci_write(dev, 14, PCI_INTN, sizeof(uint16_t));
+	pci_set_barx(dev->bus, dev->device, dev->function, 0, 0x1F0, 1, 0);
+	pci_set_barx(dev->bus, dev->device, dev->function, 1, 0x3F6, 1, 0);
+	pci_set_barx(dev->bus, dev->device, dev->function, 2, 0x170, 1, 0);
+	pci_set_barx(dev->bus, dev->device, dev->function, 3, 0x376, 1, 0);
+	pcibar_t *bar4 = pci_get_bar(dev, 4);
 	bar4_base = bar4->address;
 	irq_install_handler(14, &ata_irq);
 	irq_install_handler(15, &ata_irq);

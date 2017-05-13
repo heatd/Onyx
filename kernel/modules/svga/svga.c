@@ -99,9 +99,9 @@ int module_init(void)
 		return 1;
 	}
 	/* Now, get the needed bars (0, 1 and 2, respectively) */
-	pcibar_t *iospace_bar = pci_get_bar(dev->slot, dev->device, dev->function, SVGAII_IO_SPACE_BAR);
-	pcibar_t *framebuffer_bar = pci_get_bar(dev->slot, dev->device, dev->function, SVGAII_FRAMEBUFFER_BAR);
-	pcibar_t *command_buffer_bar = pci_get_bar(dev->slot, dev->device, dev->function, SVGAII_COMMAND_BUFFER_BAR);
+	pcibar_t *iospace_bar = pci_get_bar(dev, SVGAII_IO_SPACE_BAR);
+	pcibar_t *framebuffer_bar = pci_get_bar(dev, SVGAII_FRAMEBUFFER_BAR);
+	pcibar_t *command_buffer_bar = pci_get_bar(dev, SVGAII_COMMAND_BUFFER_BAR);
 	if(!iospace_bar)
 		return 1;
 	if(!framebuffer_bar)

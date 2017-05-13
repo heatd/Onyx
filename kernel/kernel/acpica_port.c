@@ -6,6 +6,7 @@
 /* File: acpica_port.c. It's here as the OS layer for ACPICA */
 #include <stdio.h>
 #include <acpi.h>
+#include <limits.h>
 
 #include <kernel/vmm.h>
 #include <kernel/irq.h>
@@ -245,57 +246,16 @@ ACPI_STATUS AcpiOsWritePort (ACPI_IO_ADDRESS Address, UINT32 Value, UINT32 Width
 		outl(Address, Value);
 	return AE_OK;
 }
-
-void pci_write_byte(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint8_t data)
-{
-	uint32_t address;
-	uint32_t lbus  = (uint32_t)bus;
-	uint32_t lslot = (uint32_t)slot;
-	uint32_t lfunc = (uint32_t)func;
-
-	/* create configuration address as per Figure 1 */
-	address = (uint32_t)((lbus << 16) | (lslot << 11) |
-		  (lfunc << 8) | (offset & 0xfc) | ((uint32_t)0x80000000));
-
-	/* write out the address */
-	outl (CONFIG_ADDRESS, address);
-	/* read in the data */
-	outb(CONFIG_DATA, data);
-}
-
-void pci_write_qword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint64_t data)
-{
-	uint32_t address;
-	uint32_t lbus  = (uint32_t)bus;
-	uint32_t lslot = (uint32_t)slot;
-	uint32_t lfunc = (uint32_t)func;
-
-	/* create configuration address as per Figure 1 */
-	address = (uint32_t)((lbus << 16) | (lslot << 11) |
-		  (lfunc << 8) | (offset & 0xfc) | ((uint32_t)0x80000000));
-
-	/* write out the address */
-	outl (CONFIG_ADDRESS, address);
-	/* read in the data */
-	outl(CONFIG_DATA, data & 0xFFFFFFFF);
-	address = (uint32_t)((lbus << 16) | (lslot << 11) |
-		  (lfunc << 8) | ((offset+4) & 0xfc) | ((uint32_t)0x80000000));
-
-	/* write out the address */
-	outl (CONFIG_ADDRESS, address);
-	outl(CONFIG_DATA, data & 0xFFFFFFFF00000000);
-}
 ACPI_STATUS AcpiOsWritePciConfiguration (ACPI_PCI_ID *PciId, UINT32 Register, UINT64 Value, UINT32 Width)
 {
 	if(Width == 8)
-		pci_write_byte(PciId->Bus, PciId->Device, PciId->Function, Register, (uint8_t)Value);
+		__pci_write_byte(PciId->Bus, PciId->Device, PciId->Function, Register, (uint8_t)Value);
 	if(Width == 16)
-		pci_write_word(PciId->Bus, PciId->Device, PciId->Function, Register, (uint16_t)Value);
+		__pci_write_word(PciId->Bus, PciId->Device, PciId->Function, Register, (uint16_t)Value);
 	if(Width == 32)
-		pci_write_dword(PciId->Bus, PciId->Device, PciId->Function, Register, (uint32_t)Value);
+		__pci_write_dword(PciId->Bus, PciId->Device, PciId->Function, Register, (uint32_t)Value);
 	if(Width == 64)
-		pci_write_qword(PciId->Bus, PciId->Device, PciId->Function, Register, Value);
-
+		__pci_write_qword(PciId->Bus, PciId->Device, PciId->Function, Register, Value);
 	return AE_OK;
 }
 ACPI_STATUS AcpiOsReadPciConfiguration (ACPI_PCI_ID *PciId, UINT32 Register, UINT64 *Value, UINT32 Width)
@@ -313,7 +273,7 @@ ACPI_STATUS AcpiOsReadPciConfiguration (ACPI_PCI_ID *PciId, UINT32 Register, UIN
 			mask = 0xFFFFFFFFFFFFFFFF;
 			break;
 	}
-	UINT64 val = (UINT64)pci_config_read_dword(PciId->Bus, PciId->Device, PciId->Function, Register) & mask;
+	UINT64 val = (UINT64) __pci_config_read_dword(PciId->Bus, PciId->Device, PciId->Function, Register) & mask;
 	switch(Width)
 	{
 		case 8:

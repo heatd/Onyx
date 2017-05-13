@@ -15,44 +15,14 @@
 
 const uint16_t CONFIG_ADDRESS = 0xCF8;
 const uint16_t CONFIG_DATA = 0xCFC;
-
-
-/* Identify the Device type with the headerType as an argument
-    Possible return values are "PCI Device", "PCI-to-PCI Bridge" or "CardBus Bridge"
-    Returns a pointer to a device type string
-    Returns "Invalid" on error
-*/
-const char* IdentifyDeviceType(uint16_t headerType)
+static spinlock_t pci_lock;
+uint16_t __pci_config_read_word (uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset)
 {
-	if(headerType == 0)
-		return "PCI Device";
-	else if(headerType == 1)
-		return "PCI-to-PCI Bridge";
-	else if(headerType == 2)
-		return "CardBus Bridge";
-
-	return "Invalid";
+        union { uint8_t bytes[4]; uint32_t val;} data;
+	data.val = __pci_config_read_dword(bus, slot, func, offset);
+	return data.bytes[(offset & 0x3)] | (data.bytes[(offset & 3) + 1] << 8);
 }
-uint16_t pci_config_read_word (uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset)
-{
-        uint32_t address;
-	uint32_t lbus  = (uint32_t)bus;
-	uint32_t lslot = (uint32_t)slot;
-	uint32_t lfunc = (uint32_t)func;
-	uint16_t tmp = 0;
-
-	/* create configuration address as per Figure 1 */
-	address = (uint32_t)((lbus << 16) | (lslot << 11) |
-                     (lfunc << 8) | (offset & 0xfc) | ((uint32_t)0x80000000));
-
-	/* write out the address */
-	outl (CONFIG_ADDRESS, address);
-	/* read in the data */
-	/* (offset & 2) * 8) = 0 will choose the first word of the 32 bits register */
-	tmp = (uint16_t)((inl (CONFIG_DATA) >> ((offset & 2) * 8)) & 0xffff);
-	return tmp;
-}
-uint32_t pci_config_read_dword (uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset)
+uint32_t __pci_config_read_dword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset)
 {
 	uint32_t address;
 	uint32_t lbus  = (uint32_t)bus;
@@ -60,17 +30,17 @@ uint32_t pci_config_read_dword (uint8_t bus, uint8_t slot, uint8_t func, uint8_t
 	uint32_t lfunc = (uint32_t)func;
 	uint32_t tmp = 0;
 
-	/* create configuration address as per Figure 1 */
 	address = (uint32_t)((lbus << 16) | (lslot << 11) |
                      (lfunc << 8) | (offset & 0xfc) | ((uint32_t)0x80000000));
-
+	acquire_spinlock(&pci_lock);
 	/* write out the address */
-	outl (CONFIG_ADDRESS, address);
+	outl(CONFIG_ADDRESS, address);
 	/* read in the data */
-	tmp = (uint32_t)((inl (CONFIG_DATA)));
+	tmp = inl(CONFIG_DATA);
+	release_spinlock(&pci_lock);
 	return tmp;
 }
-void pci_write_dword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint32_t data)
+void __pci_write_dword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint32_t data)
 {
 	uint32_t address;
 	uint32_t lbus  = (uint32_t)bus;
@@ -80,13 +50,15 @@ void pci_write_dword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, ui
 	/* create configuration address as per Figure 1 */
 	address = (uint32_t)((lbus << 16) | (lslot << 11) |
 		  (lfunc << 8) | (offset & 0xfc) | ((uint32_t)0x80000000));
-
+	
+	acquire_spinlock(&pci_lock);
 	/* write out the address */
-	outl (CONFIG_ADDRESS, address);
+	outl(CONFIG_ADDRESS, address);
 	/* read in the data */
 	outl(CONFIG_DATA, data);
+	release_spinlock(&pci_lock);
 }
-void pci_write_word(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint16_t data)
+void __pci_write_word(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint16_t data)
 {
 	uint32_t address;
 	uint32_t lbus  = (uint32_t)bus;
@@ -96,34 +68,36 @@ void pci_write_word(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uin
 	/* create configuration address as per Figure 1 */
 	address = (uint32_t)((lbus << 16) | (lslot << 11) |
 		  (lfunc << 8) | (offset & 0xfc) | ((uint32_t)0x80000000));
-
+	
+	acquire_spinlock(&pci_lock);
 	/* write out the address */
 	outl (CONFIG_ADDRESS, address);
 	/* read in the data */
 	outw(CONFIG_DATA, data);
+	release_spinlock(&pci_lock);
 }
 struct pci_device *linked_list = NULL;
 struct pci_device* last = NULL;
 void* pci_check_function(uint8_t bus, uint8_t device, uint8_t function)
 {
 	// Get vendorID
-	uint16_t vendorID = (uint16_t)(pci_config_read_dword(bus, device, function,0) & 0x0000ffff);
+	uint16_t vendorID = (uint16_t)(__pci_config_read_dword(bus, device, function,0) & 0x0000ffff);
 	if(vendorID == 0xFFFF) //Invalid function
 		return NULL;
 	// Get device ID
-	uint16_t deviceID = (pci_config_read_dword(bus, device, function,0) >> 16);
+	uint16_t deviceID = (__pci_config_read_dword(bus, device, function,0) >> 16);
 	// Get Device Class
-	uint8_t pciClass = (uint8_t)(pci_config_read_word(bus, device, function , 0xA)>>8);
+	uint8_t pciClass = (uint8_t)(__pci_config_read_word(bus, device, function , 0xA)>>8);
 	// Get Device SubClass
-	uint8_t subClass = (uint8_t)pci_config_read_word(bus,device, function, 0xB);
+	uint8_t subClass = (uint8_t)__pci_config_read_word(bus,device, function, 0xB);
 	// Get ProgIF
-	uint8_t progIF = (uint8_t)(pci_config_read_word(bus, device, function,0xC)>>8);
+	uint8_t progIF = (uint8_t)(__pci_config_read_word(bus, device, function,0xC)>>8);
 	// Set up the meta-data
 	struct pci_device* dev = malloc(sizeof(struct pci_device));
 	if(!dev)
 		panic("pci: early unrecoverable oom\n");
 	memset(dev, 0 , sizeof(struct pci_device));
-	dev->slot = bus;
+	dev->bus = bus;
 	dev->function = function;
 	dev->device = device;
 	dev->vendorID = vendorID;
@@ -131,6 +105,7 @@ void* pci_check_function(uint8_t bus, uint8_t device, uint8_t function)
 	dev->pciClass = pciClass;
 	dev->subClass = subClass;
 	dev->progIF = progIF;
+
 	// Put it on the linked list
 	last->next = dev;
 	last = dev;
@@ -146,38 +121,32 @@ void pci_check_devices()
 		{
 			//uint8_t function = 0;
 			// Get vendor
-			uint16_t vendor = (uint16_t)(pci_config_read_dword(slot, device, 0,0) & 0x0000ffff);
+			uint16_t vendor = (uint16_t)(__pci_config_read_dword(slot, device, 0,0) & 0x0000ffff);
 
 			if(vendor == 0xFFFF) //Invalid, just skip this device
 				break;
 
-			//INFO("pci", "Found a device at slot %d, device %d, function %d: ",slot,device,0);
-
-			// Check the vendor against a bunch of mainstream hardware developers
-			//printf("Vendor: %s\n", IdentifyCommonVendors(vendor));
-			//printf("DeviceID: %X\n", pci_config_read_dword(slot, device, 0,0) >> 16);
-
 			// Get header type
-			uint16_t header = (uint16_t)(pci_config_read_word(slot, device, 0,0xE));
+			uint16_t header = (uint16_t)(__pci_config_read_word(slot, device, 0,0xE));
 
-			//printf("Device type: %s\n",IdentifyDeviceType(header & 0x7F));
-			uint8_t pciClass = (uint8_t)(pci_config_read_word(slot, device, 0 , 0xA)>>8);
-			uint8_t subClass = (uint8_t)pci_config_read_word(slot,device, 0, 0xB);
-			uint8_t progIF = (uint8_t)(pci_config_read_word(slot, device, 0,0xC)>>8);
+			uint8_t pciClass = (uint8_t)(__pci_config_read_word(slot, device, 0 , 0xA)>>8);
+			uint8_t subClass = (uint8_t)__pci_config_read_word(slot,device, 0, 0xB);
+			uint8_t progIF = (uint8_t)(__pci_config_read_word(slot, device, 0,0xC)>>8);
 
 			// Set up some meta-data
 			struct pci_device* dev = malloc(sizeof(struct pci_device));
 			if(!dev)
 				panic("pci: early unrecoverable oom\n");
 			memset(dev, 0 , sizeof(struct pci_device));
-			dev->slot = slot;
+			dev->bus = slot;
 			dev->function = 0;
 			dev->device = device;
 			dev->vendorID = vendor;
-			dev->deviceID = (pci_config_read_dword(slot, device, 0,0) >> 16);
+			dev->deviceID = (__pci_config_read_dword(slot, device, 0,0) >> 16);
 			dev->pciClass = pciClass;
 			dev->subClass = subClass;
 			dev->progIF = progIF;
+
 			// If last is not NULL (it is at first), set this device as the last node's next
 			if(likely(last))
 				last->next = dev;
@@ -198,10 +167,10 @@ void pci_check_devices()
 		}
 	}
 }
-pcibar_t* pci_get_bar(uint8_t slot, uint8_t device, uint8_t function, uint8_t barindex)
+pcibar_t* pci_get_bar(struct pci_device *dev, uint8_t barindex)
 {
 	uint8_t offset = 0x10 + 0x4 * barindex;
-	uint32_t i = pci_config_read_dword(slot, device,function,offset);
+	uint32_t i = (uint32_t) pci_read(dev, offset, sizeof(uint32_t));
 	pcibar_t* pcibar = malloc(sizeof(pcibar_t));
 	if(!pcibar)
 		return NULL;
@@ -210,10 +179,10 @@ pcibar_t* pci_get_bar(uint8_t slot, uint8_t device, uint8_t function, uint8_t ba
 	if(i & 1)
 		pcibar->address = i & 0xFFFFFFFC;
 	pcibar->isPrefetchable = i & 4;
-	pci_write_dword(slot, device, function, offset, 0xFFFFFFFF);
-	size_t size = (~((pci_config_read_dword(slot, device,function,offset) & 0xFFFFFFF0))) + 1;
+	__pci_write_dword(dev->bus, dev->device, dev->function, offset, 0xFFFFFFFF);
+	size_t size = (~((__pci_config_read_dword(dev->bus, dev->device, dev->function, offset) & 0xFFFFFFF0))) + 1;
 	pcibar->size = size;
-	pci_write_dword(slot, device,function,offset, i);
+	__pci_write_dword(dev->bus, dev->device, dev->function, offset, i);
 	return pcibar;
 }
 uint16_t pci_get_intn(uint8_t slot, uint8_t device, uint8_t function)
@@ -222,8 +191,6 @@ uint16_t pci_get_intn(uint8_t slot, uint8_t device, uint8_t function)
 }
 void pci_init()
 {
-	//LOG("pci", "Initializing the PCI driver\n");
-	//LOG("pci", "Enumerating PCI devices\n");
 	pci_check_devices();
 }
 struct pci_device *get_pcidev_from_vendor_device(uint16_t deviceid, uint16_t vendorid)
@@ -247,7 +214,7 @@ struct pci_device *get_pcidev_from_classes(uint8_t class, uint8_t subclass, uint
 void pci_set_barx(uint8_t slot, uint8_t device, uint8_t function, uint8_t index, uint32_t address, uint8_t is_io, uint8_t is_prefetch)
 {
 	uint32_t bar = address | is_io | (is_prefetch << 2);
-	pci_write_dword(slot, device, function, PCI_BARx(index), bar);
+	__pci_write_dword(slot, device, function, PCI_BARx(index), bar);
 }
 /* All the PCI drivers' headers */
 #include <drivers/e1000.h>
@@ -257,6 +224,7 @@ pci_driver_t pci_drivers[] =
 	{E1000_DEV, INTEL_VEND, CLASS_NETWORK_CONTROLLER, 0, 0, PCI_DRIVER_SPECIFIC, e1000_init},
 	{E1000_I217, INTEL_VEND, CLASS_NETWORK_CONTROLLER, 0, 0, PCI_DRIVER_SPECIFIC, e1000_init},
 	{E1000_82577LM, INTEL_VEND, CLASS_NETWORK_CONTROLLER, 0, 0, PCI_DRIVER_SPECIFIC, e1000_init},
+	{E1000E_DEV, INTEL_VEND, CLASS_NETWORK_CONTROLLER, 0, 0, PCI_DRIVER_SPECIFIC, e1000_init},
 	{0, 0, CLASS_MASS_STORAGE_CONTROLLER, 1, 0, PCI_DRIVER_GENERIC, ata_init},
 };
 
@@ -281,4 +249,139 @@ void pci_initialize_drivers()
 		}
 			
 	}
+}
+struct pci_device *get_pcidev(uint8_t bus, uint8_t device, uint8_t function)
+{
+	for(struct pci_device *i = linked_list; i;i = i->next)
+	{
+		if(i->bus == bus && i->device == device && i->function == function)
+			return i;
+	}
+	return NULL;
+}
+void __pci_write_byte(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint8_t data)
+{
+	uint32_t address;
+	uint32_t lbus  = (uint32_t)bus;
+	uint32_t lslot = (uint32_t)slot;
+	uint32_t lfunc = (uint32_t)func;
+
+	/* create configuration address as per Figure 1 */
+	address = (uint32_t)((lbus << 16) | (lslot << 11) |
+		  (lfunc << 8) | (offset & 0xfc) | ((uint32_t)0x80000000));
+	
+	acquire_spinlock(&pci_lock);
+	/* write out the address */
+	outl(CONFIG_ADDRESS, address);
+	/* read in the data */
+	outb(CONFIG_DATA, data);
+	release_spinlock(&pci_lock);
+}
+uint8_t __pci_read_byte(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset)
+{
+	uint32_t address;
+	uint32_t lbus  = (uint32_t)bus;
+	uint32_t lslot = (uint32_t)slot;
+	uint32_t lfunc = (uint32_t)func;
+
+	/* create configuration address as per Figure 1 */
+	address = (uint32_t)((lbus << 16) | (lslot << 11) |
+		  (lfunc << 8) | (offset & 0xfc) | ((uint32_t)0x80000000));
+	
+	acquire_spinlock(&pci_lock);
+	/* write out the address */
+	outl(CONFIG_ADDRESS, address);
+	/* read in the data */
+	uint8_t ret = inb(CONFIG_DATA);
+	release_spinlock(&pci_lock);
+
+	return ret;
+}
+void __pci_write_qword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint64_t data)
+{
+	uint32_t address;
+	uint32_t lbus  = (uint32_t)bus;
+	uint32_t lslot = (uint32_t)slot;
+	uint32_t lfunc = (uint32_t)func;
+
+	/* create configuration address as per Figure 1 */
+	address = (uint32_t)((lbus << 16) | (lslot << 11) |
+		  (lfunc << 8) | (offset & 0xfc) | ((uint32_t)0x80000000));
+	
+	acquire_spinlock(&pci_lock);
+	/* write out the address */
+	outl(CONFIG_ADDRESS, address);
+	/* read in the data */
+	outl(CONFIG_DATA, data & 0xFFFFFFFF);
+	address = (uint32_t)((lbus << 16) | (lslot << 11) |
+		  (lfunc << 8) | ((offset+4) & 0xfc) | ((uint32_t)0x80000000));
+
+	/* write out the address */
+	outl(CONFIG_ADDRESS, address);
+	outl(CONFIG_DATA, data & 0xFFFFFFFF00000000);
+	release_spinlock(&pci_lock);
+}
+void pci_write(struct pci_device *dev, uint64_t value, uint16_t off, size_t size)
+{
+	if(size == sizeof(uint8_t))
+		__pci_write_byte(dev->bus, dev->device, dev->function, off, (uint8_t) value);
+	if(size == sizeof(uint16_t))
+		__pci_write_word(dev->bus, dev->device, dev->function, off, (uint16_t) value);
+	if(size == sizeof(uint32_t))
+		__pci_write_dword(dev->bus, dev->device, dev->function, off, (uint32_t) value);
+	if(size == sizeof(uint64_t))
+		__pci_write_qword(dev->bus, dev->device, dev->function, off, value);
+}
+uint64_t pci_read(struct pci_device *dev, uint16_t off, size_t size)
+{
+	uint64_t val = 0;
+	switch(size)
+	{
+		case sizeof(uint16_t):
+			val = __pci_config_read_word(dev->bus, dev->device, dev->function, off);
+			break;
+		case sizeof(uint32_t):
+			val = __pci_config_read_dword(dev->bus, dev->device, dev->function, off);
+			break;
+		case sizeof(uint64_t):
+			val = __pci_config_read_dword(dev->bus, dev->device, dev->function, off);
+			break;
+		default:
+			val = __pci_read_byte(dev->bus, dev->device, dev->function, off);
+			break;
+	}
+	return val;
+}
+void pci_enable_busmastering(struct pci_device *dev)
+{
+	uint32_t command_register = (uint32_t) pci_read(dev, PCI_COMMAND, sizeof(uint32_t));
+	pci_write(dev, command_register | PCI_COMMAND_BUS_MASTER, PCI_COMMAND, sizeof(uint32_t));
+}
+uint16_t pci_get_status(struct pci_device *dev)
+{
+	return (uint16_t) pci_read(dev, PCI_REG_STATUS, sizeof(uint16_t));
+}
+off_t pci_find_capability(struct pci_device *dev, uint8_t cap)
+{
+	uint16_t status = pci_get_status(dev);
+	if(!(status & PCI_STATUS_CAP_LIST_SUPPORTED))
+		return -1;
+	
+	uint8_t offset = (uint8_t) pci_read(dev, PCI_REG_CAPABILTIES_POINTER, sizeof(uint8_t)) & ~3;
+
+	while(offset)
+	{
+		uint16_t _cap = pci_read(dev, offset, sizeof(uint16_t));
+		if((_cap & 0xFF) == cap)
+			return offset;
+		offset = ((uint8_t) (_cap & 0xFF00)) & ~3;
+	}
+	return -1;
+}
+int pci_enable_msi(struct pci_device *dev)
+{
+	/*off_t offset = pci_find_capability(dev, PCI_CAP_ID_MSI);
+
+	printk("Offset: %x\n", offset);*/
+	return -1;
 }

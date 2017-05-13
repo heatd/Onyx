@@ -31,8 +31,7 @@ uint32_t e1000_read_command(uint16_t p_address);
 
 static void initialize_e1000_busmastering()
 {
-	uint32_t command_reg = pci_config_read_dword(nicdev->slot, nicdev->device, nicdev->function, PCI_COMMAND);
-	pci_write_dword(nicdev->slot, nicdev->device, nicdev->function, PCI_COMMAND, command_reg | 4);
+	pci_enable_busmastering(nicdev);
 }
 void e1000_handle_recieve()
 {
@@ -210,7 +209,7 @@ int e1000_init_descs()
 }
 void e1000_enable_interrupts()
 {
-	uint16_t int_no = pci_get_intn(nicdev->slot, nicdev->device, nicdev->function);
+	uint16_t int_no = pci_get_intn(nicdev->bus, nicdev->device, nicdev->function);
 	
 	// Get the IRQ number and install its handler
 	INFO("e1000", "using IRQ number %u\n", int_no);
@@ -236,7 +235,7 @@ int e1000_send_packet(const void *data, uint16_t len)
 void e1000_init(struct pci_device *dev)
 {
 	nicdev = dev;
-	pcibar_t *bar = pci_get_bar(nicdev->slot, nicdev->device, nicdev->function, 0);
+	pcibar_t *bar = pci_get_bar(nicdev, 0);
 	char *phys_mem_space = NULL;
 	if(bar->isIO)
 		io_space = (uint16_t)bar->address;

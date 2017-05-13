@@ -75,7 +75,7 @@ int module_init()
 		return 1;
 	}
 
-	pcibar_t *bar = pci_get_bar(ahci_dev->slot, ahci_dev->device, ahci_dev->function, 5);
+	pcibar_t *bar = pci_get_bar(ahci_dev, 5);
 	hba = (ahci_hba_memory_regs_t*)(((uintptr_t) bar->address) + PHYS_BASE);
 
 	MPRINTF("ports implemented: %u\n", count_bits32(hba->ports_implemented));
