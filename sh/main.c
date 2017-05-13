@@ -20,6 +20,7 @@
 #define DEFAULT_PS1	"sh $ "
 
 static char command_buffer[4096];
+int run_command(char *command);
 
 void print_current_ps1(void)
 {
@@ -92,19 +93,15 @@ void parse_command(char *command)
 	int status = handle_builtin_commands(command);
 	if(status == 0) /* If it was a builtin command, return */
 		return;
-	
+	else if(status == 127)
+	{
+		status = run_command(command);
+	}
+	if(status != -1)
+		return;
 	printf("sh: Command not found\n");
 	goto end;
-	/* FIX: Doesn't work yet */
-	char *args = command;
-	while(!isspace(*args))
-		args++;
-	char *argv[] = {command, args, NULL};
-	int pid = fork();
 
-	if(pid == 0)
-		execvpe(command, argv, environ);
-	while(1);
 end:
 	memset(command, 0, strlen(command));
 }
