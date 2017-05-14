@@ -20,6 +20,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
+#include <bits/ioctl.h>
 
 #include <kernel/task_switching.h>
 #include <kernel/portio.h>
@@ -311,6 +312,79 @@ size_t ttydevfs_read(size_t offset, size_t count, void *buffer, vfsnode_t *this)
 	memcpy(kb_buf, kb_buf + len, 2048 - len);
 	return len;
 }
+
+#define VALIDATE_VALIST(args, n_args) \
+if(vmm_check_pointer(args, n_args * sizeof(void*)) < 0) \
+	return -EFAULT; \
+
+unsigned int tty_ioctl(int request, va_list args, vfsnode_t *dev)
+{
+	switch(request)
+	{
+		case TCGETS:
+		{
+			return 0;
+		}
+		case TCSETS:
+		{
+			return 0;
+		}
+		case TCSETSW:
+		{
+			return 0;
+		}
+		case TCSETSF:
+		{
+			return 0;
+		}
+		case TCGETA:
+		case TCSETA:
+		case TCSETAW:
+		case TCSETAF:
+			return 0;
+		case TIOCGLCKTRMIOS:
+		case TIOCSLCKTRMIOS:
+			return 0;
+		case TIOCGWINSZ:
+		{
+			struct winsize *win = va_arg(args, struct winsize *);
+			if(vmm_check_pointer(win, sizeof(struct winsize)) < 0)
+				return -EFAULT;
+			win->ws_row = max_row;
+			win->ws_col = max_column;
+			struct video_mode *vid = video_get_videomode(main_device);
+			win->ws_xpixel = vid->width;
+			win->ws_ypixel = vid->height;
+			return 0;
+		}
+		case TIOCSWINSZ:
+		{
+			/* We don't support this yet */
+			return 0;
+		}
+		case TCSBRK:
+		case TCSBRKP:
+		case TIOCSBRK:
+		case TIOCCBRK:
+			return 0;
+		case TCXONC:
+		{
+			/* TODO */
+			return 0;
+		}
+		case TIOCINQ:
+		{
+			int *arg = va_arg(args, int*);
+			if(vmm_check_pointer(arg, sizeof(int)) < 0)
+				return -EFAULT;
+			*arg = tty_keyboard_pos;
+			return 0;
+		}
+		default:	
+			return -EINVAL;
+	}
+	return -EINVAL;
+}
 void tty_create_dev()
 {
 	vfsnode_t *ttydev = creat_vfs(slashdev, "/dev/tty", 0666);
@@ -330,5 +404,6 @@ void tty_create_dev()
 	ttydev->dev = minor->majorminor;
 	minor->fops->write = ttydevfs_write;
 	minor->fops->read = ttydevfs_read;
+	minor->fops->ioctl = tty_ioctl;
 	ttydev->type = VFS_TYPE_CHAR_DEVICE;
 }

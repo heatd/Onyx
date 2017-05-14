@@ -88,7 +88,8 @@ syscall_ENTRY64:
 	sti
 	; Ah, we've saved the registers, and the user stack is safe - we can continue now(possible to preempt)
 	; Save the old segments, and switch to the kernel ones
-
+	cmp rax, [SYSCALL_MAX_NUM]
+	jg .invalid_syscall
 	mov ecx, ds
 	push rcx
 	mov cx, 0x10
