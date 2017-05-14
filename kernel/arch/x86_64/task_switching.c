@@ -324,7 +324,9 @@ void thread_add(thread_t *add)
 {
 	thread_t *it = run_queue;
 	while(it->next)
+	{
 		it = it->next;
+	}
 	it->next = add;
 }
 thread_t *sched_create_thread(thread_callback_t callback, uint32_t flags, void* args)
@@ -382,14 +384,13 @@ void sched_sleep(unsigned long ms)
 	sched_yield();
 }
 void sched_destroy_thread(thread_t *thread)
-{
+{	
 	thread_t *it = run_queue;
 	for(; it->next; it = it->next)
 	{
 		if(it->next == thread)
 		{
 			it->next = thread->next;
-			free(thread);
 			return;
 		}
 	}
@@ -422,7 +423,7 @@ pid_t sys_set_tid_address(pid_t *tidptr)
 int sys_nanosleep(const struct timespec *req, struct timespec *rem)
 {
 	if(vmm_check_pointer((void*) req, sizeof(struct timespec)) < 0)
-		return errno =-EFAULT;
+		return -EFAULT;
 	time_t ticks = req->tv_sec * 1000;
 	if(req->tv_nsec)
 	{
@@ -431,4 +432,13 @@ int sys_nanosleep(const struct timespec *req, struct timespec *rem)
 	}
 	sched_sleep(ticks);
 	return 0;
+}
+/* Meant to be used on .S files, where structs are hard to access */
+void thread_store_ustack(uintptr_t *ustack)
+{
+	get_current_thread()->user_stack = ustack;
+}
+uintptr_t *thread_get_ustack(void)
+{
+	return get_current_thread()->user_stack;
 }

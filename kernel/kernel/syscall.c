@@ -15,7 +15,7 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/mman.h>
-
+#include <sys/resource.h>
 #include <sys/uio.h>
 #include <sys/utsname.h>
 
@@ -30,19 +30,19 @@
 #include <kernel/power_management.h>
 #include <kernel/cpu.h>
 
-const int SYSCALL_MAX_NUM = 53;
+const int SYSCALL_MAX_NUM = 54;
 
 uint64_t sys_nosys()
 {
 	return (uint64_t) -1;
 }
 
-extern void sys__exit();
+extern void sys_exit();
 extern void sys_fork();
 extern void sys_getppid();
 extern void sys_getpid();
 extern void sys_execve();
-extern void sys_wait();
+extern pid_t sys_wait4(pid_t pid, int *wstatus, int options, struct rusage *rusage);
 extern ssize_t sys_read(int fd, const void *buf, size_t count);
 extern int sys_open(const char *filename, int flags);
 extern int sys_close(int fd);
@@ -97,7 +97,7 @@ void *syscall_list[] =
 	[5] = (void*) sys_dup2,
 	[6] = (void*) sys_getpid,
 	[7] = (void*) sys_lseek,
-	[8] = (void*) sys__exit,
+	[8] = (void*) sys_exit,
 	[9] = (void*) sys_nosys,
 	[10] = (void*) sys_fork,
 	[11] = (void*) sys_mmap,
@@ -108,7 +108,7 @@ void *syscall_list[] =
 	[16] = (void*) sys_brk,
 	[17] = (void*) sys_kill,
 	[18] = (void*) sys_getppid,
-	[19] = (void*) sys_wait,
+	[19] = (void*) sys_wait4,
 	[20] = (void*) sys_time,
 	[21] = (void*) sys_gettimeofday,
 	[22] = (void*) sys_reboot,

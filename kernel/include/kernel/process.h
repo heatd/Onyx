@@ -31,6 +31,7 @@ typedef struct proc
 	PML4 *cr3;
 	void *brk;
 	int has_exited;
+	int exit_code;
 	uid_t uid;
 	gid_t gid;
 	uid_t setuid;

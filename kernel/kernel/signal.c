@@ -11,7 +11,7 @@
 #include <kernel/signal.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
-void sys__exit(int exitcode);
+void sys_exit(int exitcode);
 void kernel_default_signal(struct signal_info *sig)
 {
 	switch(sig->signum)
@@ -25,7 +25,7 @@ void kernel_default_signal(struct signal_info *sig)
 		{
 			printk("Segmentation fault\n");
 			get_current_process()->signal_pending = 0;
-			sys__exit(127);
+			sys_exit(127);
 			break;
 		}
 	}

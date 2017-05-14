@@ -80,7 +80,7 @@ int run_command(char *command)
 
 	/* Get the start of the arguments */
 	char *args = command + prog_name_size + 1;
-	
+
 	int argc;
 	char **argv = get_args(args, program_name, &argc);
 
@@ -97,6 +97,7 @@ int run_command(char *command)
 			exit(127);
 		}
 	}
-	while(1);
+	int wstatus;
+	wait4(pid, &wstatus, 0, 0);
 	return 0;
 }

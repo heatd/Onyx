@@ -31,20 +31,62 @@ section .text
 	pop rcx
 	pop rbx
 %endmacro
+%macro SAVE_SCRATCH_REGS 0
+	push rax
+	push rdi
+	push rsi
+	push rdx
+	push rcx
+	push r8
+	push r9
+	push r10
+	push r11
+%endmacro
+%macro RESTORE_SCRATCH_REGS 0
+	pop r11
+	pop r10
+	pop r9
+	pop r8
+	pop rcx
+	pop rdx
+	pop rsi
+	pop rdi
+	pop rax
+%endmacro
+%macro RESTORE_SCRATCH_REGS_NO_RAX 0
+	pop r11
+	pop r10
+	pop r9
+	pop r8
+	pop rcx
+	pop rdx
+	pop rsi
+	pop rdi
+	add rsp, 8
+%endmacro
 extern syscall_list
 extern syscall_helper
 extern SYSCALL_MAX_NUM
 extern do_irq_work
+extern thread_store_ustack
+extern thread_get_ustack
 global syscall_ENTRY64
 syscall_ENTRY64:
 	cld
 	swapgs
+	; We can't preempt right now(unless we want chaos)!
 	; Get the kernel stack, and save the user-stack
 	mov qword[gs:0x18], rsp
 	mov rsp, qword [gs:0x10]
-	sti
+
 	; Save the registers
 	pushaq
+	SAVE_SCRATCH_REGS
+	mov rdi, qword[gs:0x18]
+	call thread_store_ustack
+	RESTORE_SCRATCH_REGS
+	sti
+	; Ah, we've saved the registers, and the user stack is safe - we can continue now(possible to preempt)
 	; Save the old segments, and switch to the kernel ones
 
 	mov ecx, ds
@@ -70,6 +112,10 @@ syscall_ENTRY64:
 
 	popaq
 	cli
+	SAVE_SCRATCH_REGS
+	call thread_get_ustack
+	mov qword[gs:0x18], rax
+	RESTORE_SCRATCH_REGS
 	mov rsp, qword[gs:0x18]
 	swapgs
 

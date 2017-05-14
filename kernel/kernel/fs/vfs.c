@@ -63,6 +63,7 @@ int vfs_init()
 		return 1;
 	fs_root = mount_list;
 	memset(fs_root, 0 ,sizeof(vfsnode_t));
+	fs_root->refcount++;
 	return 0;
 }
 size_t read_vfs(size_t offset, size_t sizeofread, void* buffer, vfsnode_t* this)

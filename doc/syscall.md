@@ -29,7 +29,7 @@ Errno also gets passed through rax, as -errno.
 | 16 | brk() system call |
 | 17 | kill() system call |
 | 18 | getppid() system call |
-| 19 | wait() system call |
+| 19 | wait4() system call |
 | 20 | time() system call |
 | 21 | gettimeofday() system call |
 | 22 | reboot() system call |

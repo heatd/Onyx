@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <errno.h>
 
+#include <sys/resource.h>
+
 #include <kernel/vdso.h>
 #include <kernel/compiler.h>
 #include <kernel/elf.h>
@@ -167,15 +169,18 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	get_current_process()->cmd_line = strdup(path);
 	paging_load_cr3(get_current_process()->cr3);
 
+	/* TODO: Refractor this */
+	void *entry = elf_load_old((void *) buffer);
+
 	/* Map argv and envp */
-	char **new_args = vmm_allocate_virt_address(0, vmm_align_size_to_pages(sizeof(void*) * nargs), VMM_TYPE_REGULAR, VMM_USER|VMM_WRITE, 0);
-	char **new_envp = vmm_allocate_virt_address(0, vmm_align_size_to_pages(sizeof(void*) * nenvp), VMM_TYPE_REGULAR, VMM_USER|VMM_WRITE, 0);
+	char **new_args = vmm_allocate_virt_address(0, vmm_align_size_to_pages(sizeof(void*) * nargs), VMM_TYPE_SHARED, VMM_USER|VMM_WRITE, 0);
+	char **new_envp = vmm_allocate_virt_address(0, vmm_align_size_to_pages(sizeof(void*) * nenvp), VMM_TYPE_SHARED, VMM_USER|VMM_WRITE, 0);
 	vmm_map_range(new_args, vmm_align_size_to_pages(sizeof(void*) * nargs), VMM_WRITE | VMM_USER | VMM_NOEXEC);
 	vmm_map_range(new_envp, vmm_align_size_to_pages(sizeof(void*) * nenvp), VMM_WRITE | VMM_USER | VMM_NOEXEC);
 	
 	/* Map the actual strings */
-	char *argv_buffer = vmm_allocate_virt_address(0, vmm_align_size_to_pages(arg_string_len), VMM_TYPE_REGULAR, VMM_USER|VMM_WRITE, 0);
-	char *envp_buffer = vmm_allocate_virt_address(0, vmm_align_size_to_pages(envp_string_len), VMM_TYPE_REGULAR, VMM_USER|VMM_WRITE, 0);
+	char *argv_buffer = vmm_allocate_virt_address(0, vmm_align_size_to_pages(arg_string_len), VMM_TYPE_SHARED, VMM_USER|VMM_WRITE, 0);
+	char *envp_buffer = vmm_allocate_virt_address(0, vmm_align_size_to_pages(envp_string_len), VMM_TYPE_SHARED, VMM_USER|VMM_WRITE, 0);
 	vmm_map_range(argv_buffer, vmm_align_size_to_pages(arg_string_len), VMM_WRITE | VMM_USER | VMM_NOEXEC);
 	vmm_map_range(envp_buffer, vmm_align_size_to_pages(envp_string_len), VMM_WRITE | VMM_USER | VMM_NOEXEC);
 	
@@ -194,9 +199,6 @@ int sys_execve(char *path, char *argv[], char *envp[])
 		new_envp[i] = (char*) temp;
 		temp += strlen(new_envp[i]) + 1;
 	}
-
-	/* TODO: Refractor this */
-	void *entry = elf_load_old((void *) buffer);
 
 	thread_t *t = sched_create_main_thread((thread_callback_t) entry, 0, nargs, new_args, new_envp);
 
@@ -268,23 +270,36 @@ pid_t sys_getppid()
 	else
 		return -1;
 }
-int sys_wait(int *exitstatus)
+pid_t sys_wait4(pid_t pid, int *wstatus, int options, struct rusage *usage)
 {
 	process_t *i = (process_t*) get_current_process();
-	_Bool has_one_child = 0;
-loop:
+	process_t *curr_process = i;
+	_Bool found_child = 0;
 	while(i)
 	{
-		if(i->parent == get_current_process())
-			has_one_child = 1;
-		if(i->parent == get_current_process() && i->has_exited == 1)
+		if(i->parent == curr_process)
+		{
+			if(i->pid == pid)
+				found_child = 1;
+		}
+		if(i->parent == curr_process && i->has_exited == 1 && i->pid == pid)
+		{
+			if(wstatus)
+				*wstatus = i->exit_code;
+
+			/* TODO: Destroy the zombie process */
+			i->parent = NULL;
 			return i->pid;
+		}
 		i = i->next;
+		if(!i)
+		{
+			i = get_current_process();
+			if(found_child == 0)
+				return -ECHILD;
+		}
 	}
-	i = first_process;
-	if(has_one_child == 0)
-		return -1;
-	goto loop;
+	return -ECHILD;
 }
 static mutex_t forkmutex;
 pid_t sys_fork(syscall_ctx_t *ctx)
@@ -328,12 +343,11 @@ pid_t sys_fork(syscall_ctx_t *ctx)
 	child->threads[0]->kernel_stack = sched_fork_stack(ctx, child->threads[0]->kernel_stack);
 	
 	child->fs = get_current_process()->fs;
-
 	ENABLE_INTERRUPTS();
 	// Return the pid to the caller
 	return child->pid;
 }
-void sys__exit(int status)
+void sys_exit(int status)
 {
 	DISABLE_INTERRUPTS();
 	if(get_current_process()->pid == 1)
@@ -342,8 +356,10 @@ void sys__exit(int status)
 		ENABLE_INTERRUPTS();
 		for(;;);
 	}
-	get_current_process()->has_exited = status;
+	get_current_process()->has_exited = 1;
+	get_current_process()->exit_code = status;
 	ENABLE_INTERRUPTS();
+	sched_destroy_thread(get_current_thread());
 	while(1) __asm__ __volatile__("hlt");
 }
 uint64_t sys_getpid()
