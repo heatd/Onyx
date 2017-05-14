@@ -1,4 +1,4 @@
-PROG:= cat
+PROG:= dmesg
 OBJS:= main.o
 CFLAGS:=-O2 -g -static
 clean:

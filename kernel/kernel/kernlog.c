@@ -43,8 +43,11 @@ void kernlog_clear(void)
 #define SYSLOG_ACTION_READ 		2
 #define SYSLOG_ACTION_READ_CLEAR 	4
 #define SYSLOG_ACTION_CLEAR		5
+#define SYSLOG_ACTION_SIZE_BUFFER 	10
 int sys_syslog(int type, char *buffer, int len)
 {
+	if(type == SYSLOG_ACTION_SIZE_BUFFER)
+		return (int) log_position;
 	if(vmm_check_pointer(buffer, len) < 0)
 		return -EFAULT;
 	switch(type)
