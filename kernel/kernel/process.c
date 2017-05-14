@@ -168,7 +168,8 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	get_current_process()->tree = tree;
 	get_current_process()->cmd_line = strdup(path);
 	paging_load_cr3(get_current_process()->cr3);
-
+	vmm_set_tree(tree);
+	
 	/* TODO: Refractor this */
 	void *entry = elf_load_old((void *) buffer);
 
@@ -213,7 +214,7 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	get_current_process()->threads[0] = t;
 
 	/* Allocate the program's data break */
-	get_current_process()->brk = vmm_allocate_virt_address(0, 1, VMM_TYPE_HEAP, VMM_WRITE | VMM_NOEXEC | VMM_USER, 0);
+	get_current_process()->brk = vmm_allocate_virt_address(VM_ADDRESS_USER, 1, VMM_TYPE_HEAP, VMM_WRITE | VMM_NOEXEC | VMM_USER, 0);
 
 	vmm_map_range(get_current_process()->brk, 1, VMM_WRITE | VMM_NOEXEC | VMM_USER);
 
