@@ -16,7 +16,7 @@ void *add_to_cache(void *data, vfsnode_t *file)
 	void *pages = vmalloc(16, VM_TYPE_REGULAR, VM_WRITE | VM_NOEXEC);
 	if(!pages)
 		return errno = ENOMEM, NULL;
-	memcpy(pages, data, 64 * 1024);
+	memcpy(pages, data, PAGE_CACHE_SIZE);
 	struct page_cache *c = malloc(sizeof(struct page_cache));
 	if(!c)
 	{

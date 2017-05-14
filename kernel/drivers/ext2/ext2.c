@@ -163,19 +163,16 @@ size_t ext2_read(size_t offset, size_t sizeofreading, void *buffer, vfsnode_t *n
 	if(offset > node->size)
 		return errno = EINVAL, -1;
 	ext2_fs_t *fs = fslist;
-	uint32_t block_index = offset / fs->block_size;
-	if(offset % fs->block_size)
-		block_index++;
 	inode_t *ino = ext2_get_inode_from_number(fs, node->inode);
 	if(!ino)
 		return errno = EINVAL, -1;
 	size_t to_be_read = offset + sizeofreading > node->size ? sizeofreading - offset - sizeofreading + node->size : sizeofreading;
-	size_t size = ext2_read_inode(ino, fs, to_be_read, block_index, buffer);
+	size_t size = ext2_read_inode(ino, fs, to_be_read, offset, buffer);
 	return size;
 }
 unsigned int ext2_detect_block_type(uint32_t block, ext2_fs_t *fs)
 {
-	unsigned int min_singly_block = direct_block_count + 1;
+	unsigned int min_singly_block = direct_block_count;
 	unsigned int min_doubly_block = (fs->block_size / sizeof(uint32_t)) * (fs->block_size / sizeof(uint32_t));
 	unsigned int min_trebly_block = min_doubly_block * (fs->block_size / sizeof(uint32_t));
 
@@ -190,8 +187,8 @@ unsigned int ext2_detect_block_type(uint32_t block, ext2_fs_t *fs)
 ssize_t ext2_read_inode_block(inode_t *ino, uint32_t block, char *buffer, ext2_fs_t *fs)
 {
 	unsigned int type = ext2_detect_block_type(block, fs);
-	
-	unsigned int min_singly_block = direct_block_count + 1;
+
+	unsigned int min_singly_block = direct_block_count;
 	unsigned int min_doubly_block = (fs->block_size / sizeof(uint32_t)) * (fs->block_size / sizeof(uint32_t));
 	unsigned int min_trebly_block = min_doubly_block * (fs->block_size / sizeof(uint32_t));
 
@@ -204,7 +201,7 @@ ssize_t ext2_read_inode_block(inode_t *ino, uint32_t block, char *buffer, ext2_f
 		}
 		case EXT2_TYPE_SINGLY_BLOCK:
 		{
-			char *sbp = malloc(fs->block_size);
+			uint32_t *sbp = malloc(fs->block_size);
 			if(!sbp)
 				return errno = ENOMEM, -1;
 			ext2_read_block_raw(ino->single_indirect_bp, 1, fs, sbp);
@@ -214,10 +211,10 @@ ssize_t ext2_read_inode_block(inode_t *ino, uint32_t block, char *buffer, ext2_f
 		}
 		case EXT2_TYPE_DOUBLY_BLOCK:
 		{
-			char *sbp = malloc(fs->block_size);
+			uint32_t *sbp = malloc(fs->block_size);
 			if(!sbp)
 				return errno = ENOMEM, -1;
-			char *dbp = malloc(fs->block_size);
+			uint32_t *dbp = malloc(fs->block_size);
 			if(!dbp)
 			{
 				free(sbp);
@@ -235,16 +232,16 @@ ssize_t ext2_read_inode_block(inode_t *ino, uint32_t block, char *buffer, ext2_f
 		}
 		case EXT2_TYPE_TREBLY_BLOCK:
 		{
-			char *sbp = malloc(fs->block_size);
+			uint32_t *sbp = malloc(fs->block_size);
 			if(!sbp)
 				return errno = ENOMEM, -1;
-			char *dbp = malloc(fs->block_size);
+			uint32_t *dbp = malloc(fs->block_size);
 			if(!dbp)
 			{
 				free(sbp);
 				return errno = ENOMEM, -1;
 			}
-			char *tbp = malloc(fs->block_size);
+			uint32_t *tbp = malloc(fs->block_size);
 			if(!tbp)
 			{
 				free(dbp);
@@ -384,7 +381,7 @@ ssize_t ext2_read_inode(inode_t *ino, ext2_fs_t *fs, size_t size, off_t off, cha
 		off_t block_off = off % fs->block_size;
 		off_t block_left = fs->block_size - block_off;
 		ext2_read_inode_block(ino, block, scratch, fs);
-		size_t amount = (ssize_t) size - read < block_left ? (ssize_t) size - read : block_left;
+		size_t amount = (ssize_t) (size - read) < block_left ? (ssize_t) size - read : block_left;
 		memcpy(buffer + read, scratch + block_off, amount);
 		read += amount;
 		off += amount;

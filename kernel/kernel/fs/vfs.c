@@ -310,7 +310,8 @@ ssize_t lookup_file_cache(void *buffer, size_t sizeofread, vfsnode_t *file, stru
 		return -1;
 	if((size_t) offset > file->size)
 		return 0;
-	do_file_caching(sizeofread, file, m, offset & PAGE_CACHE_SIZE);
+	off_t off = (offset / PAGE_CACHE_SIZE) * PAGE_CACHE_SIZE;
+	do_file_caching(sizeofread, file, m, off);
 	size_t read = 0;
 	while(read != sizeofread)
 	{
