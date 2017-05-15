@@ -63,9 +63,11 @@ unsigned int drm_ioctl(int request, va_list args, vfsnode_t *self)
 			
 			/* Get the current video mode */
 			struct video_mode *v = video_get_videomode(video_get_main_adapter());
+			if(!v)
+				return -EIO;
 			/* Map the framebuffer */
 			/* TODO: Do this better, without hardcoded variables */
-			void *ptr = dma_map_range(phys_fb, v->width * v->height * v->bpp, VM_USER | VM_WRITE);
+			void *ptr = dma_map_range(phys_fb, v->width * v->height * (v->bpp / 8), VM_USER | VM_WRITE);
 			if(!ptr)
 				return -ENOMEM;
 

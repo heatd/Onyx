@@ -25,6 +25,7 @@ static void *framebuffer = NULL;
 static size_t framebuffer_size = 0;
 static void *command_buffer = NULL;
 static size_t command_buffer_size = 0;
+static struct video_mode video;
 static mutex_t mtx;
 void svga_set_index(uint16_t index)
 {
@@ -66,7 +67,7 @@ int svga_modeset(unsigned int width, unsigned int height, unsigned int bpp, stru
 	svga_write(SVGA_REG_WIDTH, width);
 	svga_write(SVGA_REG_HEIGHT, height);
 	svga_write(SVGA_REG_BITS_PER_PIXEL, bpp);
-
+	/* TODO: update the video mode */
 	return 0;
 }
 void *svga_get_fb(struct video_device *dev)
@@ -74,10 +75,15 @@ void *svga_get_fb(struct video_device *dev)
 	UNUSED(dev);
 	return framebuffer;
 }
+struct video_mode *svga_get_videomode(struct video_device *dev)
+{
+	return &video;
+}
 static struct video_ops svga_ops = 
 {
 	.get_fb = svga_get_fb,
-	.modeset = svga_modeset
+	.modeset = svga_modeset,
+	.get_videomode = svga_get_videomode
 };
 static struct video_device svga_device = 
 {
@@ -148,6 +154,7 @@ int module_init(void)
 
 	/* Note that we need to set the video mode right now, as if we don't, it will fallback to the lowest VGA res */
 	struct video_mode *mode = video_get_videomode(video_get_main_adapter());
+	memcpy(&video, mode, sizeof(struct video_mode));
 	svga_modeset(mode->width, mode->height, mode->bpp, NULL);
 	
 	/* Set this video adapter as the main adapter */

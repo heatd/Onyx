@@ -102,8 +102,10 @@ uintptr_t irq_handler(uint64_t irqn, registers_t *regs)
 	return ret;
 }
 static struct irq_work *queue = NULL;
+static thread_t *irq_worker_thread = NULL;
 int irq_schedule_work(void (*callback)(void *, size_t), size_t payload_size, void *payload)
 {
+	irq_worker_thread->status = THREAD_RUNNABLE;
 	struct irq_work *q = queue;
 	while(q->callback)
 	{
@@ -135,6 +137,7 @@ void irq_worker(void *ctx)
 		/* Do any work needed */
 		if(irq_get_work(worker_buffer) < 0)
 		{
+			irq_worker_thread->status = THREAD_SLEEPING;
 			sched_yield();
 			continue;
 		}
@@ -143,8 +146,9 @@ void irq_worker(void *ctx)
 }
 void irq_init(void)
 {
-	if(!sched_create_thread(irq_worker, 1, NULL))
+	if(!(irq_worker_thread = sched_create_thread(irq_worker, 1, NULL)))
 		panic("irq_init: Could not create the worker thread!\n");
+	irq_worker_thread->status = THREAD_SLEEPING;
 	queue = malloc(IRQ_WORK_QUEUE_SIZE);
 	if(!queue)
 		panic("irq_init: failed to allocate queue!\n");

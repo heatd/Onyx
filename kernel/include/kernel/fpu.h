@@ -18,6 +18,7 @@ extern _Bool avx_supported;
 #error "Implement FPU switching for your arch"
 #endif
 
+void setup_fpu_area(unsigned char *address);
 void save_fpu(void *address);
 void restore_fpu(void *address);
 #endif

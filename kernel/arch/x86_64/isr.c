@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <xmmintrin.h>
 
 #include <signal.h>
 
@@ -232,7 +233,8 @@ r10: %x\nr11: %x\nr12: %x\nr13: %x\nr14: %x\nr15: %x\nrsp: %x\nrflags: %x\nds: %
 	case 18:{
 			break;
 		}
-	case 19:{
+	case 19:{			
+			printk("MXCSR: %x\n", _mm_getcsr());
 			sys_kill(get_current_process()->pid, SIGSEGV);
 			break;
 		}

@@ -99,5 +99,6 @@ int run_command(char *command)
 	}
 	int wstatus;
 	wait4(pid, &wstatus, 0, 0);
+	printf("\nPID %d       [%d]\n", pid, wstatus);
 	return 0;
 }

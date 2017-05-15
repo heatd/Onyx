@@ -29,3 +29,4 @@ ld/ld-onyx.so
 ls/ls
 onyx-vdso*
 dmesg/dmesg
+games/pong

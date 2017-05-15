@@ -57,3 +57,16 @@ int drm_modeset(unsigned int width, unsigned int height, unsigned int bpp)
 	}
 	return 0;
 }
+struct drm_fb *drm_map_fb(void)
+{
+	struct drm_fb *fb = malloc(sizeof(struct drm_fb));
+	if(!fb)
+		return NULL;
+	if(ioctl(drm_fd, DRM_REQUEST_GET_FB, fb) < 0)
+	{
+		printf("libdrm: %s: DRM_REQUEST_GET_FB failed!\n", __func__);
+		free(fb);
+		return NULL;
+	}
+	return fb;
+}

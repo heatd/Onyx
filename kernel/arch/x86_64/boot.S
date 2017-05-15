@@ -116,6 +116,10 @@ initsse:
 	or ax, 3 << 9
 	or eax, 1 << 18
 	mov cr4, rax
+	; Use 0x1F80, because it's the default and it looks reasonable
+	push 0x1F80
+	ldmxcsr [rsp]
+	add rsp, 8
 	ret
 .noSSE:
 	hlt

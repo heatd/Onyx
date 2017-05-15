@@ -70,6 +70,9 @@ BITS 64
 	or ax, 3 << 9
 	or eax, 1 << 18
 	mov cr4, rax
+	push 0x1F80
+	ldmxcsr [rsp]
+	add rsp, 8
 	extern cpu_num
 	mov rdi, [cpu_num]
 	; Say to the BSP that we finished

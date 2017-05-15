@@ -40,7 +40,7 @@ struct drm_fb
 int drm_initialize(struct drm_info **out);
 int drm_request_info(struct drm_info *info);
 int drm_modeset(unsigned int width, unsigned int height, unsigned int bpp);
-
+struct drm_fb* drm_map_fb(void);
 #ifdef __cplusplus
 }
 #endif
