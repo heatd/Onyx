@@ -201,3 +201,15 @@ int get_nr_cpus(void)
 {
 	return booted_cpus;
 }
+static void rep_movsb(void *dst, const void *src, size_t n)
+{
+    __asm__ __volatile__ ( "rep movsb\n\t"
+                         : "+D" (dst), "+S" (src), "+c" (n)
+                         :
+                         : "memory" );
+}
+void *memcpy_fast(void *dst, void *src, size_t n)
+{
+	rep_movsb(dst, src, n);
+	return dst;
+}

@@ -44,11 +44,13 @@ int sys_clock_gettime(clockid_t clk_id, struct timespec *tp)
 		case CLOCK_REALTIME:
 		{
 			tp->tv_sec = get_posix_time();
+			tp->tv_nsec = get_microseconds();
 			break;
 		}
 		case CLOCK_MONOTONIC:
 		{
 			tp->tv_sec = get_tick_count() / 1000;
+			tp->tv_nsec = get_microseconds() * 1000;
 			break;
 		}
 		default:

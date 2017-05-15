@@ -16,6 +16,8 @@
 #include <kernel/panic.h>
 
 #include <drivers/softwarefb.h>
+
+void *memcpy_fast(void *dst, void *src, size_t n);
 volatile unsigned char *framebuffer = NULL;
 static uint32_t framebuffer_pitch = 0;
 static uint32_t framebuffer_height = 0;
@@ -57,7 +59,6 @@ void softfb_draw_cursor(int x, int y, int fgcolor, int bgcolor, void* fb)
 {
 	int cx,cy;
 	int mask[8]={128,64,32,16,8,4,2,1};
-	prefetch((const void *)&mask,1,1);
 	for(cy=0;cy<16;cy++){
 		for(cx=0;cx<8;cx++){
 			put_pixel(x+cx,y+cy-12,(__cursor__bitmap)[cy] & mask[cx] ? fgcolor:bgcolor,fb);
@@ -67,17 +68,14 @@ void softfb_draw_cursor(int x, int y, int fgcolor, int bgcolor, void* fb)
 __attribute__((hot))
 void put_pixel(unsigned int x,unsigned int y, int color, void* fb)
 {
-	if(fb == (uint64_t*) 0xDEADDEAD)
+	if(unlikely(fb == (uint64_t*) 0xDEADDEAD))
 		fb = (void*) framebuffer;
    	/* do not write memory outside the screen buffer, check parameters against the framebuffer info */
-   	if (x > framebuffer_width || y > framebuffer_height) return;
-   	if (x) x = (x * (framebuffer_bpp>>3));
-   	if (y) y = (y * framebuffer_pitch);
-   	volatile unsigned char *cTemp = (volatile unsigned char*)fb;
-   	cTemp = &cTemp[x + y];
-   	cTemp[0] = color & 0xff;
-   	cTemp[1] = (color >> 8) & 0xff;
-   	cTemp[2] = (color >> 16) & 0xff;
+   	x = (x * (framebuffer_bpp>>3));
+   	y = (y * framebuffer_pitch);
+	
+	volatile unsigned int *pixel = (volatile unsigned int *)&((char*)fb)[x + y];
+   	*pixel = color;
 }
 extern struct bitmap_font font;
 __attribute__((cold))
@@ -114,5 +112,5 @@ struct video_mode *softfb_getvideomode(struct video_device *dev)
 void softfb_scroll(void* fb)
 {
 	unsigned char* second_line = ( unsigned char *) fb + framebuffer_pitch * 16;
-	memmove((void *) fb, second_line,(0x400000 - framebuffer_pitch * 16 - framebuffer_pixelwidth * framebuffer_width));
+	memcpy_fast((void *) fb, second_line, (0x400000 - framebuffer_pitch * 16 - framebuffer_pixelwidth * framebuffer_width));
 }
