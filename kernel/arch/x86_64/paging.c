@@ -480,3 +480,12 @@ void paging_change_perms(void *addr, int prot)
 		perms |= (1 << 1);
 	*entry = perms | page;
 }
+int is_invalid_arch_range(void *address, size_t pages)
+{
+	for(uintptr_t addr = (uintptr_t) address, i = 0; i < pages; ++i, addr += PAGE_SIZE)
+	{
+		if(addr > 0x00007fffffffffff && addr < VM_HIGHER_HALF)
+			return -1;
+	}
+	return 0;
+}

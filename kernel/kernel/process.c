@@ -36,7 +36,6 @@ process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent)
 	proc->pid = current_pid;
 	current_pid++;
 	proc->cmd_line = (char*) cmd_line;
-	// TODO: Setup proc->ctx
 	if(ctx)
 		memcpy(&proc->ctx, ctx, sizeof(ioctx_t));
 	if(parent)
@@ -302,47 +301,55 @@ pid_t sys_wait4(pid_t pid, int *wstatus, int options, struct rusage *usage)
 	}
 	return -ECHILD;
 }
-static mutex_t forkmutex;
 pid_t sys_fork(syscall_ctx_t *ctx)
 {
-
 	process_t *proc = (process_t*) get_current_process();
+	
+	/* If we don't get the process, idk what the hell is going on, so just return ENOMEM */
 	if(!proc)
-		return -1;
+		return -ENOMEM;
 	/* Create a new process */
 	process_t *child = process_create(get_current_process()->cmd_line, &proc->ctx, proc); /* Create a process with the current
 							  			  * process's info */
 	if(!child)
-		return -1;
+		return -ENOMEM;
 
 	/* Fork the vmm data and the address space */
 	avl_node_t *areas;
-	mutex_lock(&forkmutex);
 	PML4 *new_pt = vmm_fork_as(&areas); // Fork the address space
-	mutex_unlock(&forkmutex);
+	if(!new_pt)
+	{
+		/* TODO: Destroy the process */
+		vmm_destroy_tree(areas);
+		return -ENOMEM;
+	}
+	if(!areas)
+	{
+		/* TODO: Cleanup the paging structures */
+		return -ENOMEM;
+	}
 	child->tree = areas;
 	child->cr3 = new_pt; // Set the new cr3
 
 	/* We need to disable the interrupts for a moment, because thread_add adds it to the queue, 
 	   and the thread isn't ready yet */
-	
+
 	DISABLE_INTERRUPTS();
 	/* Fork and create the new thread */
 	process_fork_thread(child, proc, 0);
-
 	child->threads[0]->kernel_stack = vmalloc(2, VM_TYPE_STACK, VM_WRITE | VM_NOEXEC | VM_GLOBAL);
 	if(!child->threads[0]->kernel_stack)
 	{
 		free(child->threads[0]);
 		sched_destroy_thread(child->threads[0]);
+		process_destroy_aspace(child);
 		free(child);
 		ENABLE_INTERRUPTS();
-		return errno =-ENOMEM;
+		return -ENOMEM;
 	}
 	child->threads[0]->kernel_stack = (uintptr_t *) ((unsigned char *)child->threads[0]->kernel_stack + 0x2000);
 	child->threads[0]->kernel_stack_top = child->threads[0]->kernel_stack;
 	child->threads[0]->kernel_stack = sched_fork_stack(ctx, child->threads[0]->kernel_stack);
-	
 	child->fs = get_current_process()->fs;
 	ENABLE_INTERRUPTS();
 	// Return the pid to the caller
@@ -384,4 +391,10 @@ int sys_setgid(gid_t gid)
 {
 	get_current_process()->setgid = gid;
 	return 0;
+}
+void process_destroy_aspace(process_t *process)
+{
+	vmm_destroy_tree(process->tree);
+	process->tree = NULL;
+	/* TODO: Destroy the actual address space */
 }

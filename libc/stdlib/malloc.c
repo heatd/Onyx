@@ -8,6 +8,7 @@
 #include <sys/mman.h>
 #include <math.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include "dlmalloc.c"
 #ifdef __is_onyx_kernel
 #include <kernel/vmm.h>
@@ -16,7 +17,15 @@ char *heap = (char*) 0xFFFFFFF890000000;
 void *sbrk(intptr_t increment)
 {
 	void *ret = heap;
-	heap+=increment;
+	heap += increment;
+	if(is_initialized)
+	{
+		if(!vmm_is_mapped(heap))
+		{
+			vmm_reserve_address((void *)((uintptr_t)heap & ~PAGE_SIZE), 512, VM_TYPE_HEAP, VM_WRITE | VM_GLOBAL | VM_NOEXEC);
+			vmm_map_range((void *)((uintptr_t)heap & ~PAGE_SIZE), 512, VM_WRITE | VM_GLOBAL | VM_NOEXEC); 
+		}
+	}
 	return ret;
 }
 void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)

@@ -36,4 +36,5 @@ PML4 *paging_fork_as();
 void paging_stop_spawning();
 void paging_load_cr3(PML4 *pml);
 void paging_change_perms(void *addr, int perms);
+int is_invalid_arch_range(void *address, size_t pages);
 #endif

@@ -302,7 +302,11 @@ int elf_parse_program_headers(void *file, struct binfmt_args *args)
 			size_t pages = phdrs[i].p_memsz / 4096;
 			if (!pages || pages % 4096)
 				pages++;
-			vmm_reserve_address((void *) (phdrs[i].p_vaddr & 0xFFFFFFFFFFFFF000), pages, VM_TYPE_REGULAR, VM_WRITE | VM_USER);
+			/* Sanitize the address first */
+			if(vm_sanitize_address((void*)(phdrs[i].p_vaddr), pages) < 0)
+				return false;
+			if(!vmm_reserve_address((void *) (phdrs[i].p_vaddr & 0xFFFFFFFFFFFFF000), pages, VM_TYPE_REGULAR, VM_WRITE | VM_USER))
+				return false;
 			vmm_map_range((void *) (phdrs[i].p_vaddr & 0xFFFFFFFFFFFFF000), pages, VM_WRITE | VM_USER);
 			memcpy((void*) phdrs[i].p_vaddr, (void *) ((char *) file + phdrs[i].p_offset),  phdrs[i].p_filesz);
 		}

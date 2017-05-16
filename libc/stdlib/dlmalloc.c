@@ -538,9 +538,6 @@ MAX_RELEASE_CHECK_RATE   default: 4095 unless not HAVE_MMAP
 #define LACKS_SYS_PARAM_H 1
 #define NO_MALLOC_STATS 1
 #define HAVE_MMAP 1
-#ifdef __is_onyx_kernel
-#undef HAVE_MMAP
-#endif
 #endif /*__onyx*/
 
 #ifndef WIN32

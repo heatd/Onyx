@@ -28,6 +28,7 @@
 static thread_t *run_queue = NULL;
 static thread_t *idle_thread = NULL; 
 static thread_t *current_thread = NULL;
+static spinlock_t run_queue_lock;
 static _Bool is_initialized = false;
 /* Creates a thread for the scheduler to switch to
    Expects a callback for the code(RIP) and some flags */
@@ -290,7 +291,7 @@ uintptr_t *sched_fork_stack(syscall_ctx_t *ctx, uintptr_t *stack)
 
 	// Set up the stack.
 	*--stack = ds; //SS
-	uintptr_t user_stack = (uintptr_t) get_gs_data()->scratch_rsp_stack;
+	uintptr_t user_stack = (uintptr_t) get_current_thread()->user_stack;
 	*--stack = user_stack; //RSP
 	*--stack = rflags; // RFLAGS
 	*--stack = cs; //CS
@@ -324,12 +325,14 @@ void sched_idle()
 }
 void thread_add(thread_t *add)
 {
+	acquire_spinlock(&run_queue_lock);
 	thread_t *it = run_queue;
 	while(it->next)
 	{
 		it = it->next;
 	}
 	it->next = add;
+	release_spinlock(&run_queue_lock);
 }
 thread_t *sched_create_thread(thread_callback_t callback, uint32_t flags, void* args)
 {
