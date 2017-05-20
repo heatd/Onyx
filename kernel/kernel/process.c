@@ -26,15 +26,16 @@
 extern PML4 *current_pml4;
 process_t *first_process = NULL;
 volatile process_t *current_process = NULL;
-uint64_t current_pid = 1;
+static pid_t current_pid = 1;
+static spinlock_t process_creation_lock;
 process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent)
 {
 	process_t *proc = malloc(sizeof(process_t));
 	if(!proc)
 		return errno = ENOMEM, NULL;
 	memset(proc, 0, sizeof(process_t));
-	proc->pid = current_pid;
-	current_pid++;
+	acquire_spinlock(&process_creation_lock);
+	proc->pid = current_pid++;
 	proc->cmd_line = (char*) cmd_line;
 	// TODO: Setup proc->ctx
 	if(ctx)
@@ -49,6 +50,7 @@ process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent)
 		while(it->next) it = it->next;
 		it->next = proc;
 	}
+	release_spinlock(&process_creation_lock);
 	return proc;
 }
 static int c;
@@ -80,6 +82,7 @@ void process_fork_thread(process_t *dest, process_t *src, int thread_index)
 	if(!dest->threads[thread_index])
 		return errno = ENOMEM, (void) 0;
 	memcpy(dest->threads[thread_index], src->threads[thread_index], sizeof(thread_t));
+	dest->threads[thread_index]->next = NULL;
 	thread_add(dest->threads[thread_index]);
 	dest->threads[thread_index]->id = curr_id++;
 	dest->threads[thread_index]->owner = dest;
@@ -302,7 +305,6 @@ pid_t sys_wait4(pid_t pid, int *wstatus, int options, struct rusage *usage)
 	}
 	return -ECHILD;
 }
-static mutex_t forkmutex;
 pid_t sys_fork(syscall_ctx_t *ctx)
 {
 
@@ -310,16 +312,13 @@ pid_t sys_fork(syscall_ctx_t *ctx)
 	if(!proc)
 		return -1;
 	/* Create a new process */
-	process_t *child = process_create(get_current_process()->cmd_line, &proc->ctx, proc); /* Create a process with the current
-							  			  * process's info */
+	process_t *child = process_create(proc->cmd_line, &proc->ctx, proc); /* Create a process with the current
+			  			  * process's info */
 	if(!child)
 		return -1;
-
 	/* Fork the vmm data and the address space */
 	avl_node_t *areas;
-	mutex_lock(&forkmutex);
 	PML4 *new_pt = vmm_fork_as(&areas); // Fork the address space
-	mutex_unlock(&forkmutex);
 	child->tree = areas;
 	child->cr3 = new_pt; // Set the new cr3
 
