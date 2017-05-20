@@ -137,7 +137,7 @@ void tty_putchar(char c)
 	{
 		for(int i = 0; i < 8; i++)
 		{
-			tty_put_entry_at(0x20, terminal_color, terminal_column, terminal_row);
+			tty_put_entry_at(' ', terminal_color, terminal_column, terminal_row);
 			terminal_column++;
 		}
 		return;

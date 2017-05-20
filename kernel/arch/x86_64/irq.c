@@ -125,8 +125,9 @@ int irq_get_work(struct irq_work *strct)
 		return -1;
 	memcpy(strct, queue, sizeof(struct irq_work) + queue->payload_size);
 	struct irq_work *next_work = (struct irq_work*) (char*) queue + sizeof(struct irq_work) + strct->payload_size;
-	memmove(queue, next_work, IRQ_WORK_QUEUE_SIZE - sizeof(struct irq_work) - strct->payload_size);
-
+	memcpy(queue, next_work, IRQ_WORK_QUEUE_SIZE - sizeof(struct irq_work) - strct->payload_size);
+	memset((char*) queue + sizeof(struct irq_work) + strct->payload_size, 0, 
+	IRQ_WORK_QUEUE_SIZE - sizeof(struct irq_work) - strct->payload_size);
 	return 0;
 }
 struct irq_work *worker_buffer = NULL;

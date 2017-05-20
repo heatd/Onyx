@@ -83,10 +83,8 @@ static struct input_state
 void input_callback(void *payload, size_t payload_size);
 void send_event_to_kernel(uint8_t keycode)
 {
-	if(irq_schedule_work(input_callback, sizeof(uint8_t), &keycode))
-	{
-		ERROR("ps2keyb", "Couldn't schedule IRQ work!\n");
-	}
+	/* TODO: Use an IRQ worker when it's fixed */
+	input_callback(&keycode, 1);
 }
 unsigned int input_process_special_key(unsigned int key, _Bool is_release)
 {
