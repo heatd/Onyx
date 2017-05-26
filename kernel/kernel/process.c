@@ -401,3 +401,27 @@ void process_destroy_aspace(process_t *process)
 	process->tree = NULL;
 	/* TODO: Destroy the actual address space */
 }
+int process_attach(process_t *tracer, process_t *tracee)
+{
+	/* You can't attach to yourself */
+	if(tracer == tracee)
+		return errno = ESRCH, -1;
+	/* TODO: Enforce process permitions */
+	if(list_add(&tracer->tracees, tracee) < 0)
+		return errno = ENOMEM, -1;
+	return 0;
+}
+/* Finds a pid that tracer is tracing */
+process_t *process_find_tracee(process_t *tracer, pid_t pid)
+{
+	struct list_head *list = &tracer->tracees;
+
+	while(list && list->ptr)
+	{
+		process_t *tracee = list->ptr;
+		if(tracee->pid == pid)
+			return tracee;
+		list = list->next;
+	}
+	return NULL;
+}

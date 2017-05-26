@@ -7,6 +7,8 @@
 #define _FPU_H
 
 #include <stdbool.h>
+
+#include <sys/user.h>
 #ifdef __x86_64__
 
 #define FPU_AREA_ALIGNMENT 	64
@@ -21,4 +23,5 @@ extern _Bool avx_supported;
 void setup_fpu_area(unsigned char *address);
 void save_fpu(void *address);
 void restore_fpu(void *address);
+void fpu_ptrace_getfpregs(void *fpregs, struct user_fpregs_struct *regs);
 #endif

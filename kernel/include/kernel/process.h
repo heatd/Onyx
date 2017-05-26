@@ -14,6 +14,7 @@
 #include <kernel/task_switching.h>
 #include <kernel/signal.h>
 #include <kernel/registers.h>
+#include <kernel/list.h>
 #define THREADS_PER_PROCESS 30
 typedef struct proc
 {
@@ -44,12 +45,15 @@ typedef struct proc
 	unsigned long personality;
 	struct signal_info sinfo;
 	struct proc *parent;
+	struct list_head tracees;
 } process_t;
 process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent);
 void process_create_thread(process_t *proc, thread_callback_t callback, uint32_t flags, int argc, char **argv, char **envp);
 void process_fork_thread(process_t *dest, process_t *src, int thread_index);
 process_t *get_process_from_pid(pid_t pid);
 void process_destroy_aspace(process_t *process);
+int process_attach(process_t *tracer, process_t *tracee);
+process_t *process_find_tracee(process_t *tracer, pid_t pid);
 extern volatile process_t *current_process;
 inline process_t *get_current_process()
 {
