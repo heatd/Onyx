@@ -28,7 +28,6 @@ typedef struct proc
 	char *cmd_line;
 	ioctx_t ctx;
 	pid_t pid;
-	uintptr_t fs;
 	PML4 *cr3;
 	void *brk;
 	int has_exited;

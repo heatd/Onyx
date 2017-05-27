@@ -17,6 +17,7 @@ typedef void(*thread_callback_t)(void*);
 struct proc;
 typedef struct thr
 {
+	/* Put arch-independent stuff right here */
 	uintptr_t *user_stack;
 	uintptr_t *kernel_stack;
 	uintptr_t *kernel_stack_top;
@@ -30,6 +31,11 @@ typedef struct thr
 	uint64_t timestamp;
 	unsigned long sleeping_for;
 	unsigned char *fpu_area;
+	/* And arch dependent stuff in this ifdef */
+#ifdef __x86_64__
+	void *fs;
+	void *gs;
+#endif
 } thread_t;
 
 int sched_init(void);

@@ -275,7 +275,8 @@ void* sched_switch_thread(void* last_stack)
 			paging_load_cr3(get_current_process()->cr3);
 		}
 		errno = get_current_process()->errno;
-		wrmsr(FS_BASE_MSR, (uintptr_t)get_current_process()->fs & 0xFFFFFFFF, (uintptr_t)get_current_process()->fs >> 32);
+		wrmsr(FS_BASE_MSR, (uintptr_t) current_thread->fs & 0xFFFFFFFF, (uintptr_t)current_thread->fs >> 32);
+		wrmsr(KERNEL_GS_BASE, (uintptr_t) current_thread->gs & 0xFFFFFFFF, (uintptr_t) current_thread->gs >> 32);
 	}
 	return current_thread->kernel_stack;
 }
@@ -404,20 +405,40 @@ void set_current_thread(thread_t *t)
 {
 	current_thread = t;
 }
+#define ARCH_SET_GS 0x1001
 #define ARCH_SET_FS 0x1002
 #define ARCH_GET_FS 0x1003
+#define ARCH_GET_GS 0x1004
 int sys_arch_prctl(int code, unsigned long *addr)
 {
-	if(code == ARCH_SET_FS)
+	switch(code)
 	{
-		get_current_process()->fs = (unsigned long) addr;
-		wrmsr(FS_BASE_MSR, (uintptr_t)get_current_process()->fs & 0xFFFFFFFF, (uintptr_t)get_current_process()->fs >> 32);
-	}
-	else if(code == ARCH_GET_FS)
-	{
-		if(!vmm_is_mapped(addr))
-			return errno =-EINVAL;
-		*addr = (unsigned long) get_current_process()->fs;
+		case ARCH_SET_FS:
+		{
+			get_current_thread()->fs = (void*) addr;
+			wrmsr(FS_BASE_MSR, (uintptr_t)get_current_thread()->fs & 0xFFFFFFFF, (uintptr_t)get_current_thread()->fs >> 32);
+			break;
+		}
+		case ARCH_GET_FS:
+		{
+			if(vmm_check_pointer(addr, sizeof(unsigned long)) < 0)
+				return errno =-EINVAL;
+			*addr = (unsigned long) get_current_thread()->fs;
+			break;
+		}
+		case ARCH_SET_GS:
+		{
+			get_current_thread()->gs = (void*) addr;
+			wrmsr(KERNEL_GS_BASE, (uintptr_t)get_current_thread()->gs & 0xFFFFFFFF, (uintptr_t)get_current_thread()->gs >> 32);
+			break;
+		}
+		case ARCH_GET_GS:
+		{
+			if(vmm_check_pointer(addr, sizeof(unsigned long)) < 0)
+				return errno =-EINVAL;
+			*addr = (unsigned long) get_current_thread()->gs;
+			break;
+		}
 	}
 	return 0;
 }

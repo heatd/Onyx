@@ -255,9 +255,9 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	registers_t *regs = (registers_t *) get_current_process()->threads[0]->kernel_stack;
 	regs->rcx = (uintptr_t) auxv;
 	
-	get_current_process()->fs = (uintptr_t) vmm_allocate_virt_address(0, 1, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_USER, 0);
-	vmm_map_range((void*) get_current_process()->fs, 1, VMM_WRITE | VMM_NOEXEC | VMM_USER);
-	__pthread_t *p = (struct pthread*) get_current_process()->fs;
+	void *fs = get_current_process()->threads[0]->fs = vmm_allocate_virt_address(0, 1, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_USER, 0);
+	vmm_map_range((void*) fs, 1, VMM_WRITE | VMM_NOEXEC | VMM_USER);
+	__pthread_t *p = (struct pthread*) fs;
 	p->self = (__pthread_t*) p;
 	p->tid = get_current_process()->threads[0]->id;
 	p->pid = get_current_process()->pid;
@@ -353,7 +353,7 @@ pid_t sys_fork(syscall_ctx_t *ctx)
 	child->threads[0]->kernel_stack = (uintptr_t *) ((unsigned char *)child->threads[0]->kernel_stack + 0x2000);
 	child->threads[0]->kernel_stack_top = child->threads[0]->kernel_stack;
 	child->threads[0]->kernel_stack = sched_fork_stack(ctx, child->threads[0]->kernel_stack);
-	child->fs = get_current_process()->fs;
+	child->threads[0]->fs = get_current_process()->threads[0]->fs;
 	ENABLE_INTERRUPTS();
 	// Return the pid to the caller
 	return child->pid;

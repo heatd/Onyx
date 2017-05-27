@@ -106,7 +106,7 @@ int ptrace_getregs(process_t *process, struct user_regs_struct *regs)
 	regs->eflags = r->rflags;
 	regs->rsp = r->rsp;
 	regs->ds = regs->ss = regs->es = regs->fs = regs->gs = r->ss;
-	regs->fs_base = process->fs;
+	regs->fs_base = (uintptr_t) main_thread->fs;
 	return 0;
 }
 int ptrace_getfpregs(process_t *process, struct user_fpregs_struct *regs)
