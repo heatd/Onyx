@@ -18,6 +18,7 @@
 #include <kernel/process.h>
 #include <kernel/log.h>
 #include <kernel/dev.h>
+#include <kernel/random.h>
 
 #include <sys/mman.h>
 typedef struct avl_node
@@ -30,6 +31,7 @@ typedef struct avl_node
 static spinlock_t kernel_vm_spl;
 _Bool is_initialized = false;
 _Bool is_spawning = 0;
+static _Bool enable_aslr = true;
 avl_node_t *old_tree = NULL;
 vmm_entry_t *areas = NULL;
 size_t num_areas = 3;
@@ -414,7 +416,11 @@ void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uin
 		case VM_TYPE_STACK:
 		{
 			if(!(flags & 1))
-				base_address = 0x00007a0000000000;
+			{
+				if(!get_current_process()->mmap_base)
+					panic("mmap_base == 0");
+				base_address = (uintptr_t) get_current_process()->mmap_base;
+			}
 			else
 				base_address = kstacks_offset;
 			break;
@@ -425,7 +431,11 @@ void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uin
 			if(flags & 1)
 				base_address = vmalloc_space;
 			else
-				base_address = low_half_min;
+			{
+				if(!get_current_process()->mmap_base)
+					panic("mmap_base == 0");
+				base_address = (uintptr_t) get_current_process()->mmap_base;
+			}
 			break;
 		}
 	}
@@ -894,4 +904,33 @@ int vm_sanitize_address(void *address, size_t pages)
 	if(is_invalid_arch_range(address, pages) < 0)
 		return -1;
 	return 0;
+}
+/* Generates an mmap base, should be enough for mmap */
+void *vmm_gen_mmap_base()
+{
+	uintptr_t mmap_base;
+#ifdef CONFIG_ASLR
+	if(enable_aslr)
+	{
+		mmap_base = get_random_int() % (1 << 28);
+		mmap_base <<= 12;
+		mmap_base |= 0x0000770000000000;
+		return (void*) mmap_base;
+	}
+#endif
+	mmap_base = 0x0000770000000000;
+	return (void*) mmap_base;
+}
+void *vmm_gen_brk_base()
+{
+	uintptr_t brk_base;
+#ifdef CONFIG_ASLR
+	if(enable_aslr)
+	{
+		brk_base = ((uintptr_t) get_random_int()) & 0xFFFFFFF000;
+		return (void*) brk_base;
+	}
+#endif
+	brk_base = 0x10000000;
+	return (void*) brk_base;
 }

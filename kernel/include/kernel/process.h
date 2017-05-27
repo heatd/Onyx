@@ -45,6 +45,7 @@ typedef struct proc
 	struct signal_info sinfo;
 	struct proc *parent;
 	struct list_head tracees;
+	void *mmap_base;
 } process_t;
 process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent);
 void process_create_thread(process_t *proc, thread_callback_t callback, uint32_t flags, int argc, char **argv, char **envp);

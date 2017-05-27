@@ -354,6 +354,8 @@ int elf_load(struct binfmt_args *args)
 	if(!elf_is_valid(header))
 		return errno = EINVAL, -1;
 	int i;
+	get_current_process()->mmap_base = vmm_gen_mmap_base();
+	get_current_process()->brk = vmm_reserve_address(vmm_gen_brk_base(), vmm_align_size_to_pages(0x2000000), VM_TYPE_REGULAR, VM_WRITE | VM_NOEXEC);
 	if(header->e_type == ET_DYN)
 		i = (int) elf_parse_program_headers_s((void*) header);
 	else

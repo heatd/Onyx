@@ -168,6 +168,9 @@ int sys_execve(char *path, char *argv[], char *envp[])
 
 	get_current_process()->cr3 = cr3;
 	get_current_process()->tree = tree;
+	get_current_process()->mmap_base = vmm_gen_mmap_base();
+	get_current_process()->brk = vmm_reserve_address(vmm_gen_brk_base(), vmm_align_size_to_pages(0x2000000), VM_TYPE_REGULAR, VM_WRITE | VM_NOEXEC);
+	
 	get_current_process()->cmd_line = strdup(path);
 	paging_load_cr3(get_current_process()->cr3);
 	vmm_set_tree(tree);
@@ -180,7 +183,7 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	char **new_envp = vmm_allocate_virt_address(0, vmm_align_size_to_pages(sizeof(void*) * nenvp), VMM_TYPE_SHARED, VMM_USER|VMM_WRITE, 0);
 	vmm_map_range(new_args, vmm_align_size_to_pages(sizeof(void*) * nargs), VMM_WRITE | VMM_USER | VMM_NOEXEC);
 	vmm_map_range(new_envp, vmm_align_size_to_pages(sizeof(void*) * nenvp), VMM_WRITE | VMM_USER | VMM_NOEXEC);
-	
+
 	/* Map the actual strings */
 	char *argv_buffer = vmm_allocate_virt_address(0, vmm_align_size_to_pages(arg_string_len), VMM_TYPE_SHARED, VMM_USER|VMM_WRITE, 0);
 	char *envp_buffer = vmm_allocate_virt_address(0, vmm_align_size_to_pages(envp_string_len), VMM_TYPE_SHARED, VMM_USER|VMM_WRITE, 0);

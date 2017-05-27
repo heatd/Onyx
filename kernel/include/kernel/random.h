@@ -11,6 +11,6 @@
 void add_entropy(void *ent, size_t size);
 void get_entropy(char *buf, size_t s);
 void initialize_entropy();
-
+unsigned int get_random_int(void);
 
 #endif

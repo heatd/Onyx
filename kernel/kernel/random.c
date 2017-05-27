@@ -56,3 +56,9 @@ void initialize_entropy()
 	n->type = VFS_TYPE_BLOCK_DEVICE;
 	n->read = ent_read;*/
 }
+unsigned int get_random_int(void)
+{
+	unsigned int result = rand();
+	result |= (get_tick_count() | get_microseconds()) + rdtsc();
+	return result;
+}

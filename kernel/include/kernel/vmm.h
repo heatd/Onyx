@@ -19,6 +19,8 @@
 	#define KERNEL_VIRTUAL_BASE 0xFFFFFFFF80000000
 #endif
 
+#define CONFIG_ASLR		1
+
 #define VM_TYPE_REGULAR		(0)
 #define VM_TYPE_STACK 		(1)
 #define VM_TYPE_SHARED 		(2)
@@ -92,6 +94,8 @@ void vmm_print_stats(void);
 void *dma_map_range(void *phys, size_t size, size_t flags);
 void vmm_destroy_tree(avl_node_t *tree);
 int vm_sanitize_address(void *address, size_t pages);
+void *vmm_gen_mmap_base(void);
+void *vmm_gen_brk_base(void);
 inline size_t vmm_align_size_to_pages(size_t size)
 {
 	size_t pages = size / PAGE_SIZE;
