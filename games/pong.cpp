@@ -103,7 +103,7 @@ class Game
 		int Run();
 		int SetTerminalMode();
 		int ResetTerminal();
-		void PollKeypresses();
+		char PollKeypresses();
 };
 int Game::SetTerminalMode()
 {
