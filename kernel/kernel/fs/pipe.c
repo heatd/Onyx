@@ -49,9 +49,11 @@ size_t pipe_write(size_t offset, size_t sizeofwrite, void* buffer, vfsnode_t* fi
 	struct pipe *pipe = get_pipe_from_inode(file->inode);
 
 	/* If readers == 0, this is a broken pipe */
-	/* TODO: Send SIGPIPE */
 	if(pipe->readers == 0)
+	{
+		kernel_raise_signal(SIGPIPE, get_current_process());
 		return errno = EPIPE, (size_t) -1;
+	}
 	/* If sizeofwrite <= PIPE_BUF, the write is atomic */
 	if(sizeofwrite <= PIPE_BUF)
 		atomic_write = true;

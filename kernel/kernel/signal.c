@@ -134,6 +134,11 @@ int sys_kill(pid_t pid, int sig)
 	get_current_process()->sinfo.signum = sig;
 	return 0;
 }
+void kernel_raise_signal(int sig, process_t *process)
+{
+	process->signal_pending = 1;
+	process->sinfo.signum = sig;
+}
 extern void __sigret_return(uintptr_t stack);
 void sys_sigreturn(void)
 {

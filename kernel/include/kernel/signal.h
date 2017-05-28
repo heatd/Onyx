@@ -14,6 +14,7 @@ struct signal_info
 	int signum;
 	int type;
 };
+struct proc;
 int sys_kill(pid_t pid, int sig);
-
+void kernel_raise_signal(int sig, struct proc *process);
 #endif
