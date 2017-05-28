@@ -20,6 +20,8 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
+#include <termios.h>
+
 #include <bits/ioctl.h>
 
 #include <kernel/task_switching.h>
@@ -31,6 +33,7 @@
 #include <kernel/panic.h>
 #include <kernel/dev.h>
 
+static struct termios term_io = {.c_lflag = ICANON | ECHO};
 static struct video_device *main_device = NULL;
 unsigned int max_row = 0;
 static const unsigned int max_row_fallback = 1024/16;
@@ -226,13 +229,14 @@ void tty_write(const char *data, size_t size)
 		tty_swap_framebuffers();
 	mutex_unlock(&spl);
 }
-#define TTY_PRINT_IF_ECHO(c, l) if(echo) tty_write(c, l)
+#define TTY_PRINT_IF_ECHO(c, l) if(term_io.c_lflag & ECHO) tty_write(c, l)
 char keyboard_buffer[2048];
 volatile int tty_keyboard_pos = 0;
 volatile _Bool got_line_ready = 0;
-_Bool echo = true;
 void tty_recieved_character(char c)
 {
+	if(!(term_io.c_lflag & ECHO))
+		got_line_ready = 1;
 	if(c == '\n')
 	{
 		got_line_ready = 1;
@@ -323,18 +327,34 @@ unsigned int tty_ioctl(int request, va_list args, vfsnode_t *dev)
 	{
 		case TCGETS:
 		{
+			struct termios *term = va_arg(args, struct termios *);
+			if(vmm_check_pointer(term, sizeof(struct termios)) < 0)
+				return -EFAULT;
+			memcpy(term, &term_io, sizeof(struct termios));
 			return 0;
 		}
 		case TCSETS:
 		{
+			struct termios *term = va_arg(args, struct termios *);
+			if(vmm_check_pointer(term, sizeof(struct termios)) < 0)
+				return -EFAULT;
+			memcpy(&term_io, term, sizeof(struct termios));
 			return 0;
 		}
 		case TCSETSW:
 		{
+			struct termios *term = va_arg(args, struct termios *);
+			if(vmm_check_pointer(term, sizeof(struct termios)) < 0)
+				return -EFAULT;
+			memcpy(&term_io, term, sizeof(struct termios));
 			return 0;
 		}
 		case TCSETSF:
 		{
+			struct termios *term = va_arg(args, struct termios *);
+			if(vmm_check_pointer(term, sizeof(struct termios)) < 0)
+				return -EFAULT;
+			memcpy(&term_io, term, sizeof(struct termios));
 			return 0;
 		}
 		case TCGETA:
