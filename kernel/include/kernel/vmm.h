@@ -103,4 +103,19 @@ inline size_t vmm_align_size_to_pages(size_t size)
 		pages++;
 	return pages;
 }
+inline ssize_t copy_to_user(void *usr, void *data, size_t len)
+{
+	if(vmm_check_pointer(usr, len) < 0)
+		return -len;
+	memcpy(usr, data, len);
+	return len;
+}
+inline ssize_t copy_from_user(void *usr, void *data, size_t len)
+{
+	if(vmm_check_pointer(usr, len) < 0)
+		return -len;
+	memcpy(data, usr, len);
+	return len;
+}
+
 #endif

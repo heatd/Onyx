@@ -87,6 +87,8 @@ extern int sys_stat(const char *pathname, struct stat *buf);
 extern int sys_fstat(int fd, struct stat *buf);
 extern int sys_clock_gettime(clockid_t clk_id, struct timespec *tp);
 extern int sys_pipe(int *pipefd);
+extern int sys_sigaction(int signum, const struct sigaction *act, struct sigaction *oldact);
+
 void *syscall_list[] =
 {
 	[0] = (void*) sys_write,
@@ -125,7 +127,7 @@ void *syscall_list[] =
 	[33] = (void*) sys_setuid,
 	[34] = (void*) sys_setgid,
 	[35] = (void*) sys_isatty,
-	[36] = (void*) sys_signal,
+	[36] = (void*) sys_nosys, /* FREE */
 	[37] = (void*) sys_sigreturn,
 	[38] = (void*) sys_insmod,
 	[39] = (void*) sys_uname,
@@ -141,7 +143,7 @@ void *syscall_list[] =
 	[49] = (void*) sys_stat,
 	[50] = (void*) sys_fstat,
 	[51] = (void*) sys_nosys, /* Reserved for lstat */
-	[52] = (void*) sys_nosys, /* Reserved for rt_sigaction */
+	[52] = (void*) sys_sigaction,
 	[53] = (void*) sys_pipe,
 	[255] = (void*) sys_nosys
 };

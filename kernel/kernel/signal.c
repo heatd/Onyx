@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <errno.h>
 
+#include <kernel/cpu.h>
 #include <kernel/vmm.h>
 #include <kernel/signal.h>
 #include <kernel/panic.h>
@@ -31,50 +32,52 @@ void kernel_default_signal(struct signal_info *sig)
 	}
 }
 #if defined(__x86_64__)
+/* TODO: Support signals per thread */
 void signal_transfer_to_userspace(struct signal_info *sig, registers_t *regs, _Bool is_int)
 {
 	/* Start setting the register state for the register switch */
 	/* Note that we're saving the old ones */
 	uintptr_t *userspace_stack = NULL;
+	process_t *process = get_current_process();
 	if(!is_int)
 	{
-		memcpy((registers_t*) &get_current_process()->old_regs, regs, sizeof(registers_t));
+		memcpy((registers_t*) &process->old_regs, regs, sizeof(registers_t));
 		regs->rdi = sig->signum;
-		regs->rip = (uintptr_t) sig->handler;
+		regs->rip = (uintptr_t) process->sigtable[sig->signum].sa_handler;
 		userspace_stack = (uintptr_t *) regs->rsp;
 	}
 	else
 	{
 		intctx_t *intctx = (intctx_t*) regs;
-		get_current_process()->old_regs.rax = intctx->rax;
-		get_current_process()->old_regs.rbx = intctx->rbx;
-		get_current_process()->old_regs.rcx = intctx->rcx;
-		get_current_process()->old_regs.rdx = intctx->rdx;
-		get_current_process()->old_regs.rdi = intctx->rdi;
-		get_current_process()->old_regs.rsi = intctx->rsi;
-		get_current_process()->old_regs.rbp = intctx->rbp;
-		get_current_process()->old_regs.rsp = intctx->rsp;
-		get_current_process()->old_regs.rip = intctx->rip;
-		get_current_process()->old_regs.r8 = intctx->r8;
-		get_current_process()->old_regs.r9 = intctx->r9;
-		get_current_process()->old_regs.r10 = intctx->r10;
-		get_current_process()->old_regs.r11 = intctx->r11;
-		get_current_process()->old_regs.r12 = intctx->r12;
-		get_current_process()->old_regs.r13 = intctx->r13;
-		get_current_process()->old_regs.r14 = intctx->r14;
-		get_current_process()->old_regs.r15 = intctx->r15;
-		get_current_process()->old_regs.ds = intctx->ds;
-		get_current_process()->old_regs.ss = intctx->ss;
-		get_current_process()->old_regs.cs = intctx->cs;
-		get_current_process()->old_regs.rflags = intctx->rflags;
+		process->old_regs.rax = intctx->rax;
+		process->old_regs.rbx = intctx->rbx;
+		process->old_regs.rcx = intctx->rcx;
+		process->old_regs.rdx = intctx->rdx;
+		process->old_regs.rdi = intctx->rdi;
+		process->old_regs.rsi = intctx->rsi;
+		process->old_regs.rbp = intctx->rbp;
+		process->old_regs.rsp = intctx->rsp;
+		process->old_regs.rip = intctx->rip;
+		process->old_regs.r8 = intctx->r8;
+		process->old_regs.r9 = intctx->r9;
+		process->old_regs.r10 = intctx->r10;
+		process->old_regs.r11 = intctx->r11;
+		process->old_regs.r12 = intctx->r12;
+		process->old_regs.r13 = intctx->r13;
+		process->old_regs.r14 = intctx->r14;
+		process->old_regs.r15 = intctx->r15;
+		process->old_regs.ds = intctx->ds;
+		process->old_regs.ss = intctx->ss;
+		process->old_regs.cs = intctx->cs;
+		process->old_regs.rflags = intctx->rflags;
 		intctx->rdi = sig->signum;
-		intctx->rip = (uintptr_t) sig->handler;
+		intctx->rip = (uintptr_t) process->sigtable[sig->signum].sa_handler;
 		userspace_stack = (uintptr_t *) intctx->rsp;
 	}
 	if(userspace_stack && vmm_is_mapped(userspace_stack))
 	{
-		printf("userspace stack: %p\n", userspace_stack);
-		*userspace_stack = (uintptr_t) get_current_process()->sigreturn;
+		uintptr_t sigreturn = (uintptr_t) process->sigtable[sig->signum].sa_restorer;
+		*userspace_stack = sigreturn;
 	}
 }
 #else
@@ -87,15 +90,17 @@ void handle_signal(registers_t *regs, _Bool is_int)
 		panic("Signal invoked without a process!");
 	if(curr_proc->signal_dispatched == 1)
 		return;
+
 	struct signal_info *sig = &curr_proc->sinfo;
 
-	if(sig->handler == (sighandler_t) SIG_IGN) // Ignore the signal if it's handler is set to SIG_IGN
+	void (*handler)(int) = curr_proc->sigtable[sig->signum].sa_handler;
+	if(handler == (sighandler_t) SIG_IGN) // Ignore the signal if it's handler is set to SIG_IGN
 		return;
-	if(sig->handler != SIG_DFL)
+	if(handler != SIG_DFL)
 	{
-		if(!vmm_is_mapped(sig->handler))
+		if(!vmm_is_mapped(handler))
 			return;
-		signal_transfer_to_userspace(sig,  regs, is_int);
+		signal_transfer_to_userspace(sig, regs, is_int);
 		curr_proc->signal_dispatched = 1;
 		return;
 	}
@@ -127,49 +132,81 @@ int sys_kill(pid_t pid, int sig)
 		return errno =-EINVAL;
 	get_current_process()->signal_pending = 1;
 	get_current_process()->sinfo.signum = sig;
-	get_current_process()->sinfo.handler = get_current_process()->sighandlers[sig];
 	return 0;
 }
-sighandler_t sys_signal(int signum, sighandler_t handler)
+extern void __sigret_return(uintptr_t stack);
+void sys_sigreturn(void)
 {
+	DISABLE_INTERRUPTS();
+	/* Switch the registers again */
+	registers_t *regs = (registers_t *) get_current_thread()->kernel_stack;
+	registers_t *old = (registers_t*) &get_current_process()->old_regs;
+	regs->rax = old->rax;
+	regs->rbx = old->rbx;
+	regs->rcx = old->rcx;
+	regs->rdx = old->rdx;
+	regs->rdi = old->rdi;
+	regs->rsi = old->rsi;
+	regs->rbp = old->rbp;
+	regs->rsp = old->rsp;
+	regs->rip = old->rip;
+	regs->r8 = old->r8;
+	regs->r9 = old->r9;
+	regs->r10 = old->r10;
+	regs->r11 = old->r11;
+	regs->r12 = old->r12;
+	regs->r13 = old->r13;
+	regs->r14 = old->r14;
+	regs->r15 = old->r15;
+	regs->ds = old->ds;
+	regs->ss = old->ss;
+	regs->cs = old->cs;
+	regs->rflags = old->rflags;
+	get_current_process()->signal_pending = 0;
+	get_current_process()->signal_dispatched = 0;
+	__sigret_return((uintptr_t) get_current_thread()->kernel_stack);
+	__builtin_unreachable();
+}
+int sys_sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
+{
+	if(signum > _NSIG)
+		return -EINVAL;
+	if(vmm_check_pointer((struct sigaction*) act, sizeof(struct sigaction)) < 0 && act)
+		return -EFAULT;
+	if(vmm_check_pointer(oldact, sizeof(struct sigaction)) < 0 && oldact)
+		return -EFAULT;
+	/* If both pointers are NULL, just return 0 (We can't do anything) */
+	if(!oldact && !act)
+		return 0;
 	process_t *proc = get_current_process();
-	if(!proc)
-		return (sighandler_t) SIG_ERR;
-	if(signum > 26)
-		return (sighandler_t) SIG_ERR;
-	if(signum < 0)
-		return (sighandler_t) SIG_ERR;
-	if(!vmm_is_mapped(handler))
-		return (sighandler_t) SIG_ERR;
-	if(handler == (sighandler_t) SIG_IGN)
+
+	/* Lock the mutex */
+	mutex_lock(&proc->signal_lock);
+
+	/* If old_act, save the old action */
+	if(oldact)
 	{
-		/* SIGKILL, SIGSEGV and SIGSTOP can't be masked (yes, I'm also enforcing SIGSEGV to be on(non-standard)*/
+		memcpy(oldact, &proc->sigtable[signum], sizeof(struct sigaction));
+	}
+	/* If act, set the new action */
+	if(act)
+	{
+		if(act->sa_handler == SIG_ERR)
+		{
+			mutex_unlock(&proc->signal_lock);
+			return -EINVAL;
+		}
+		/* Check if it's actually possible to set a handler to this signal */
 		switch(signum)
 		{
+			/* If not, return EINVAL */
 			case SIGKILL:
-			case SIGSEGV:
 			case SIGSTOP:
-				return (sighandler_t) SIG_ERR;
+				mutex_unlock(&proc->signal_lock);
+				return -EINVAL;
 		}
+		memcpy(&proc->sigtable[signum], act, sizeof(struct sigaction));
 	}
-	sighandler_t ret = proc->sighandlers[signum];
-	proc->sighandlers[signum] = handler;
-
-	return ret;
-}
-extern void __sigret_return(uintptr_t stack);
-void sys_sigreturn(void *ret)
-{
-	if(ret == (void*) -1 && get_current_process()->signal_pending)
-	{
-		/* Switch the registers again */
-		memcpy(get_current_thread()->kernel_stack, (registers_t*) &get_current_process()->old_regs, sizeof(registers_t));
-		get_current_process()->signal_pending = 0;
-		get_current_process()->signal_dispatched = 0;
-		__sigret_return((uintptr_t) get_current_thread()->kernel_stack);
-		__builtin_unreachable();
-	}
-	if(!vmm_is_mapped(ret))
-		return;
-	get_current_process()->sigreturn = ret;
+	mutex_unlock(&proc->signal_lock);
+	return 0;
 }

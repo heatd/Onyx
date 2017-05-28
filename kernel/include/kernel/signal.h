@@ -13,7 +13,6 @@ struct signal_info
 {
 	int signum;
 	int type;
-	void *handler;
 };
 int sys_kill(pid_t pid, int sig);
 

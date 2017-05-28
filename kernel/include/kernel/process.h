@@ -9,6 +9,7 @@
 #include <sys/types.h>
 
 #include <kernel/vmm.h>
+#include <kernel/mutex.h>
 #include <kernel/ioctx.h>
 #include <kernel/spinlock.h>
 #include <kernel/task_switching.h>
@@ -38,9 +39,10 @@ typedef struct proc
 	gid_t setgid;
 	spinlock_t vm_spl;
 	registers_t old_regs;
-	sighandler_t sighandlers[27];
 	void *sigreturn;
 	void *vdso;
+	mutex_t signal_lock;
+	struct sigaction sigtable[_NSIG];
 	unsigned long personality;
 	struct signal_info sinfo;
 	struct proc *parent;
