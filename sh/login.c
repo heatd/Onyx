@@ -29,14 +29,14 @@ void tash_do_login(void)
 	memset(login_script, 0, buf_size);
 	strcpy(login_script, login_script_path);
 	strcat(login_script, TASH_LOGIN_SCRIPT);
-	printf("Login script: %s\n", login_script);
+	/*printf("Login script: %s\n", login_script);
 	int pid = fork();
 	if(pid == 0)
 	{
 		char *argv[] = {login_script, NULL};
 		if(execvp(login_script, argv) < 0)
 			perror("execvp");
-	}
+	}*/
 }
 _Bool tash_is_login(void)
 {

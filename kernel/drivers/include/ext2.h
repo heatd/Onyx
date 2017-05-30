@@ -7,6 +7,10 @@
 #define _EXT2_H
 
 #include <stdint.h>
+#include <kernel/mutex.h>
+#include <kernel/spinlock.h>
+#include <kernel/block.h>
+
 #include <drivers/ata.h>
 
 #define EXT2_MBR_CODE 0x83
@@ -60,7 +64,7 @@ typedef struct
 	uint32_t total_inodes;
 	uint32_t total_blocks;
 	uint32_t su_blocks;
-	uint32_t unallocated_block;
+	uint32_t unallocated_blocks;
 	uint32_t unallocated_inodes;
 	uint32_t sb_number;
 	uint32_t log2blocksz;
@@ -106,7 +110,7 @@ typedef struct
 	uint32_t inode_usage_addr;
 	uint32_t inode_table_addr;
 	uint16_t unallocated_blocks_in_group;
-	uint16_t unallocated_inode_in_group;
+	uint16_t unallocated_inodes_in_group;
 	uint16_t dirs_in_group;
 } __attribute__((aligned(32))) block_group_desc_t;
 typedef struct
@@ -157,8 +161,23 @@ typedef struct ex
 	block_device_t *blkdevice;
 	uint16_t inode_size;
 	block_group_desc_t *bgdt;
+	spinlock_t sb_lock;
+	mutex_t bgdt_lock;
+	mutex_t ino_alloc_lock;
 	struct ex *next;
 } ext2_fs_t;
 
 #define EXT2_GET_FILE_TYPE(mode) (mode & 0xE000)
+
+void *ext2_read_block(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs);
+void ext2_read_block_raw(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs, void *buffer);
+void ext2_write_block(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs, void *buffer);
+uint32_t ext2_allocate_block(ext2_fs_t *fs);
+void ext2_free_block(uint32_t block, ext2_fs_t *fs);
+inode_t *ext2_allocate_inode(uint32_t *inode_number, ext2_fs_t *fs);
+inode_t *ext2_get_inode_from_number(ext2_fs_t *fs, uint32_t inode);
+uint32_t ext2_allocate_from_block_group(ext2_fs_t *fs, uint32_t block_group);
+inode_t *ext2_allocate_inode_from_block_group(uint32_t *inode_no, uint32_t block_group, ext2_fs_t *fs);
+void ext2_register_superblock_changes(ext2_fs_t *fs);
+void ext2_register_bgdt_changes(ext2_fs_t *fs);
 #endif
