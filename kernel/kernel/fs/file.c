@@ -79,6 +79,7 @@ ssize_t sys_write(int fd, const void *buf, size_t count)
 
 	if(written == (size_t) -1)
 		return -errno;
+	get_current_process()->ctx.file_desc[fd]->seek += written;
 	return written;
 }
 void handle_open_flags(file_desc_t *fd, int flags)
