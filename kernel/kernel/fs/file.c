@@ -81,6 +81,11 @@ ssize_t sys_write(int fd, const void *buf, size_t count)
 		return -errno;
 	return written;
 }
+void handle_open_flags(file_desc_t *fd, int flags)
+{
+	if(flags & O_APPEND)
+		fd->seek = fd->vfs_node->size;
+}
 int sys_open(const char *filename, int flags)
 {
 	ioctx_t *ioctx = &get_current_process()->ctx;
@@ -102,6 +107,7 @@ int sys_open(const char *filename, int flags)
 			ioctx->file_desc[i]->refcount++;
 			ioctx->file_desc[i]->seek = 0;
 			ioctx->file_desc[i]->flags = flags;
+			handle_open_flags(ioctx->file_desc[i], flags);
 			return i;
 		}
 	}

@@ -166,6 +166,12 @@ typedef struct ex
 	mutex_t ino_alloc_lock;
 	struct ex *next;
 } ext2_fs_t;
+#define EXT2_TYPE_DIRECT_BLOCK		0
+#define EXT2_TYPE_SINGLY_BLOCK		1
+#define EXT2_TYPE_DOUBLY_BLOCK		2
+#define EXT2_TYPE_TREBLY_BLOCK		3
+
+#define EXT2_DIRECT_BLOCK_COUNT		12	
 
 #define EXT2_GET_FILE_TYPE(mode) (mode & 0xE000)
 
@@ -180,4 +186,7 @@ uint32_t ext2_allocate_from_block_group(ext2_fs_t *fs, uint32_t block_group);
 inode_t *ext2_allocate_inode_from_block_group(uint32_t *inode_no, uint32_t block_group, ext2_fs_t *fs);
 void ext2_register_superblock_changes(ext2_fs_t *fs);
 void ext2_register_bgdt_changes(ext2_fs_t *fs);
+unsigned int ext2_detect_block_type(uint32_t block, ext2_fs_t *fs);
+int ext2_add_block_to_inode(inode_t *inode, uint32_t block, uint32_t block_index, ext2_fs_t *fs);
+void ext2_set_inode_size(inode_t *inode, size_t size);
 #endif
