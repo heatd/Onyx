@@ -9,7 +9,7 @@
 #include <kernel/binfmt.h>
 
 static struct binfmt *format_list = NULL;
-int load_binary(struct binfmt_args *args)
+void *load_binary(struct binfmt_args *args)
 {
 	struct binfmt *f = format_list;
 	for(; f; f = f->next)
@@ -20,7 +20,7 @@ int load_binary(struct binfmt_args *args)
 			return f->callback(args);
 		}
 	}
-	return 1;
+	return NULL;
 }
 int install_binfmt(struct binfmt *format)
 {

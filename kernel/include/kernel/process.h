@@ -35,8 +35,6 @@ typedef struct proc
 	int exit_code;
 	uid_t uid;
 	gid_t gid;
-	uid_t setuid;
-	gid_t setgid;
 	spinlock_t vm_spl;
 	registers_t old_regs;
 	void *sigreturn;

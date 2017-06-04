@@ -96,137 +96,59 @@ process_t *get_process_from_pid(pid_t pid)
 	}
 	return NULL;
 }
-static spinlock_t execve_spl;
-extern _Bool is_spawning;
-int sys_execve(char *path, char *argv[], char *envp[])
+char **process_copy_envarg(char **envarg, _Bool to_kernel, int *count)
 {
-	if(!vmm_is_mapped(path))
-		return errno =-EINVAL;
-	if(!vmm_is_mapped(argv))
-		return errno =-EINVAL;
-	if(!vmm_is_mapped(envp))
-		return errno =-EINVAL;
-	/* Create a new address space */
-	avl_node_t *tree;
-	PML4 *cr3 = vmm_clone_as(&tree);
-	/* Open the file */
-	vfsnode_t *in = open_vfs(fs_root, path);
-	if (!in)
+	/* Copy the envp/argv to another buffer */
+	/* Each buffer takes up argc * sizeof pointer + string_size + one extra pointer(to NULL terminate) */
+	size_t nr_args = 0;
+	size_t string_size = 0;
+	char **b = envarg;
+	while(*b)
 	{
-		errno = -ENOENT;
-		release_spinlock(&execve_spl);
-		return errno =-ENOENT;
+		string_size += strlen(*b) + 1;
+		nr_args++;
+		b++;
 	}
-	/* Allocate a buffer and read the whole file to it */
-	char *buffer = malloc(in->size);
-	if (!buffer)
-		return errno =-ENOMEM;
-
-	read_vfs(0, in->size, buffer, in);
-
-	int nargs = 0;
-	size_t arg_string_len = strlen(path) + 1;
-	for(; argv[nargs]; nargs++)
-		arg_string_len += strlen(argv[nargs]) + 1;
-	int nenvp = 0;
-	size_t envp_string_len = 0;
-	for(; envp[nenvp]; nenvp++)
-		envp_string_len += strlen(envp[nenvp]) + 1;
-
-	char *intermediary_buffer_args = malloc(arg_string_len);
-	if(!intermediary_buffer_args)
+	size_t buffer_size = (nr_args + 1) * sizeof(void*) + string_size;
+	char *new;
+	if(to_kernel)
 	{
-		/* Free all the past mallocs */
-		free(buffer);
-		close_vfs(in);
-		return errno = -ENOMEM;
+		new = malloc(buffer_size);
+		if(!new)
+			return NULL;
 	}
-	memset(intermediary_buffer_args, 0, arg_string_len);
-	volatile char *temp = intermediary_buffer_args;
-	for(int i = 0; i < nargs; i++)
+	else
 	{
-		strcpy((char *) temp, argv[i]);
-		temp += strlen(argv[i]) + 1;
+		new = vmm_allocate_virt_address(0, vmm_align_size_to_pages(buffer_size), VM_TYPE_SHARED, VM_WRITE | VM_NOEXEC | VM_USER, 0);
+		if(!new)
+			return NULL;
+		if(!vmm_map_range(new, vmm_align_size_to_pages(buffer_size), VM_WRITE | VM_NOEXEC | VM_USER))
+			return NULL;
 	}
-	char *intermediary_buffer_envp = malloc(envp_string_len);
-	if(!intermediary_buffer_envp)
+	memset(new, 0, buffer_size);
+
+	char *strings = (char*) new + (nr_args + 1) * sizeof(void*);
+	char *it = strings;
+	/* Actually copy the buffer */
+	for(size_t i = 0; i < nr_args; i++)
 	{
-		/* Free all the past mallocs */
-		free(buffer);
-		close_vfs(in);
-		free(intermediary_buffer_args);
-		return errno = -ENOMEM;
+		strcpy(it, envarg[i]);
+		it += strlen(envarg[i]) + 1;
 	}
-	memset(intermediary_buffer_envp, 0, envp_string_len);
-	temp = intermediary_buffer_envp;
-	for(int i = 0; i < nenvp; i++)
+	char **new_args = (char**) new;
+	for(size_t i = 0; i < nr_args; i++)
 	{
-		strcpy((char*) temp, envp[i]);
-		temp += strlen(envp[i]) + 1;
+		new_args[i] = (char*) strings;
+		strings += strlen(new_args[i]) + 1;
 	}
-	DISABLE_INTERRUPTS();
-
-	get_current_process()->cr3 = cr3;
-	get_current_process()->tree = tree;
-	get_current_process()->mmap_base = vmm_gen_mmap_base();
-	get_current_process()->brk = vmm_reserve_address(vmm_gen_brk_base(), vmm_align_size_to_pages(0x2000000), VM_TYPE_REGULAR, VM_WRITE | VM_NOEXEC);
-	
-	get_current_process()->cmd_line = strdup(path);
-	paging_load_cr3(get_current_process()->cr3);
-	vmm_set_tree(tree);
-	
-	/* TODO: Refractor this */
-	void *entry = elf_load_old((void *) buffer);
-
-	/* Map argv and envp */
-	char **new_args = vmm_allocate_virt_address(0, vmm_align_size_to_pages(sizeof(void*) * nargs), VMM_TYPE_SHARED, VMM_USER|VMM_WRITE, 0);
-	char **new_envp = vmm_allocate_virt_address(0, vmm_align_size_to_pages(sizeof(void*) * nenvp), VMM_TYPE_SHARED, VMM_USER|VMM_WRITE, 0);
-	vmm_map_range(new_args, vmm_align_size_to_pages(sizeof(void*) * nargs), VMM_WRITE | VMM_USER | VMM_NOEXEC);
-	vmm_map_range(new_envp, vmm_align_size_to_pages(sizeof(void*) * nenvp), VMM_WRITE | VMM_USER | VMM_NOEXEC);
-
-	/* Map the actual strings */
-	char *argv_buffer = vmm_allocate_virt_address(0, vmm_align_size_to_pages(arg_string_len), VMM_TYPE_SHARED, VMM_USER|VMM_WRITE, 0);
-	char *envp_buffer = vmm_allocate_virt_address(0, vmm_align_size_to_pages(envp_string_len), VMM_TYPE_SHARED, VMM_USER|VMM_WRITE, 0);
-	vmm_map_range(argv_buffer, vmm_align_size_to_pages(arg_string_len), VMM_WRITE | VMM_USER | VMM_NOEXEC);
-	vmm_map_range(envp_buffer, vmm_align_size_to_pages(envp_string_len), VMM_WRITE | VMM_USER | VMM_NOEXEC);
-	
-	/* Copy the buffers */
-	memcpy(argv_buffer, intermediary_buffer_args, arg_string_len);
-	memcpy(envp_buffer, intermediary_buffer_envp, envp_string_len);
-	temp = argv_buffer;
-	for(int i = 0; i < nargs; i++)
-	{
-		new_args[i] = (char*) temp;
-		temp += strlen(new_args[i]) + 1;
-	}
-	temp = envp_buffer;
-	for(int i = 0; i < nenvp; i++)
-	{
-		new_envp[i] = (char*) temp;
-		temp += strlen(new_envp[i]) + 1;
-	}
-
-	thread_t *t = sched_create_main_thread((thread_callback_t) entry, 0, nargs, new_args, new_envp);
-
-	/* Set the appropriate uid and gid */
-	if(get_current_process()->setuid != 0)
-		get_current_process()->uid = get_current_process()->setuid;
-	if(get_current_process()->setgid != 0)
-		get_current_process()->gid = get_current_process()->setgid;
-	get_current_process()->setuid = 0;
-	get_current_process()->setgid = 0;
-	t->owner = get_current_process();
-	get_current_process()->threads[0] = t;
-
-	/* Allocate the program's data break */
-	get_current_process()->brk = vmm_allocate_virt_address(VM_ADDRESS_USER, 1, VMM_TYPE_HEAP, VMM_WRITE | VMM_NOEXEC | VMM_USER, 0);
-
-	vmm_map_range(get_current_process()->brk, 1, VMM_WRITE | VMM_NOEXEC | VMM_USER);
-
-	/* Map the VDSO */
-	get_current_process()->vdso = map_vdso();
-	/* Prepare the auxv */
-	Elf64_auxv_t *auxv = (Elf64_auxv_t *) get_current_process()->threads[0]->user_stack_bottom;
+	if(count)
+		*count = nr_args;
+	return new_args;
+}
+void process_setup_auxv(void *buffer, process_t *process)
+{
+	/* Setup the auxv at the stack bottom */
+	Elf64_auxv_t *auxv = (Elf64_auxv_t *) buffer;
 	unsigned char *scratch_space = (unsigned char *) (auxv + 37);
 	for(int i = 0; i < 38; i++)
 	{
@@ -240,32 +162,115 @@ int sys_execve(char *path, char *argv[], char *envp[])
 				auxv[i].a_un.a_val = PAGE_SIZE;
 				break;
 			case AT_UID:
-				auxv[i].a_un.a_val = get_current_process()->uid;
+				auxv[i].a_un.a_val = process->uid;
 				break;
 			case AT_GID:
-				auxv[i].a_un.a_val = get_current_process()->gid;
+				auxv[i].a_un.a_val = process->gid;
 				break;
 			case AT_RANDOM:
 				get_entropy((char*) scratch_space, 16);
 				scratch_space += 16;
 				break;
-			case AT_SYSINFO_EHDR:
-				if(get_current_process()->vdso)
-					auxv[i].a_un.a_val = (uint64_t) get_current_process()->vdso;
-				break;
 		}
 	}
-	registers_t *regs = (registers_t *) get_current_process()->threads[0]->kernel_stack;
+	/* TODO: Do this portably */
+	registers_t *regs = (registers_t *) process->threads[0]->kernel_stack;
 	regs->rcx = (uintptr_t) auxv;
-	
-	void *fs = get_current_process()->threads[0]->fs = vmm_allocate_virt_address(0, 1, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_USER, 0);
-	vmm_map_range((void*) fs, 1, VMM_WRITE | VMM_NOEXEC | VMM_USER);
-	__pthread_t *p = (struct pthread*) fs;
-	p->self = (__pthread_t*) p;
+}
+void process_setup_pthread(thread_t *thread, process_t *process)
+{
+	/* TODO: Do this portably */
+	/* TODO: Return error codes and clean up */
+	uintptr_t *fs = vmm_allocate_virt_address(0, 1, VM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_USER, 0);
+	vmm_map_range(fs, 1, VMM_WRITE | VMM_NOEXEC | VMM_USER);
+	thread->fs = (void*) fs;
+	__pthread_t *p = (__pthread_t*) fs;
+	p->self = (__pthread_t*) fs;
 	p->tid = get_current_process()->threads[0]->id;
 	p->pid = get_current_process()->pid;
+}
+int sys_execve(char *path, char *argv[], char *envp[])
+{
+	if(!vmm_is_mapped(path))
+		return errno =-EINVAL;
+	if(!vmm_is_mapped(argv))
+		return errno =-EINVAL;
+	if(!vmm_is_mapped(envp))
+		return errno =-EINVAL;
+
+	/* Create a new address space */
+	avl_node_t *tree;
+	PML4 *cr3 = vmm_clone_as(&tree);
+	/* Open the file */
+	vfsnode_t *in = open_vfs(fs_root, path);
+	if (!in)
+		return -ENOENT;
 	
-	release_spinlock(&execve_spl);
+	/* TODO: Check file permitions */
+
+	/* Copy argv and envp to the kernel space */
+	int argc;
+	char **karg = process_copy_envarg(argv, true, &argc);
+	/* TODO: Abort process construction */
+	if(!karg)
+		return -ENOMEM;
+	char **kenv = process_copy_envarg(envp, true, NULL);
+	if(!kenv)
+		return -ENOMEM;
+	
+	/* Swap address spaces. Good thing we saved argv and envp before */
+	process_t *current = get_current_process();
+	current->cr3 = cr3;
+	current->tree = tree;
+	current->mmap_base = vmm_gen_mmap_base();
+	current->brk = vmm_reserve_address(vmm_gen_brk_base(), vmm_align_size_to_pages(0x2000000), VM_TYPE_REGULAR, VM_WRITE | VM_NOEXEC);
+	
+	current->cmd_line = strdup(path);
+	paging_load_cr3(current->cr3);
+	vmm_set_tree(tree);
+	
+	/* Setup the binfmt args */
+	uint8_t *file = malloc(100);
+	read_vfs(0, 100, file, in);
+	struct binfmt_args args;
+	args.file_signature = file;
+	args.filename = current->cmd_line;
+	args.argv = karg;
+	args.envp = kenv;
+	args.file = in;
+
+	/* Load the actual binary */
+	void *entry = load_binary(&args);
+	if(!entry)
+	{
+		free(file);
+		return -errno;
+	}
+	free(file);
+
+	/* Copy argv and envp to user space memory */
+	char **uargv = process_copy_envarg(karg, false, NULL);
+	if(!uargv)
+		return -errno;
+	char **uenv = process_copy_envarg(kenv, false, NULL);
+	if(!uenv)
+		return -errno;
+	/* Free karg and kenv, we don't need them anymore  */
+	free(karg);
+	free(kenv);
+
+	/* We need to disable interrupts here, since we're destroying threads and creating new ones
+	(who may not be ready to execute) */
+	DISABLE_INTERRUPTS();
+	memset(current->threads, 0, sizeof(thread_t*) * THREADS_PER_PROCESS);
+	/* Create the main thread */
+	process_create_thread(current, (thread_callback_t) entry, 0, argc, uargv, uenv);
+
+	/* Setup auxv */
+	process_setup_auxv(current->threads[0]->user_stack_bottom, current);
+	/* Setup the pthread structure */
+	process_setup_pthread(current->threads[0], current);
+
 	ENABLE_INTERRUPTS();
 	while(1);
 }
@@ -388,14 +393,12 @@ int sys_personality(unsigned long val)
 }
 int sys_setuid(uid_t uid)
 {
-	if(uid == 0 && get_current_process()->uid != 0)
-		return errno =-EPERM;
-	get_current_process()->setuid = uid;
+	get_current_process()->uid = uid;
 	return 0;
 }
 int sys_setgid(gid_t gid)
 {
-	get_current_process()->setgid = gid;
+	get_current_process()->gid = gid;
 	return 0;
 }
 void process_destroy_aspace(process_t *process)

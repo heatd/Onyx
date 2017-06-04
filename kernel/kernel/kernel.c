@@ -211,9 +211,49 @@ retry:;
 	args.envp = envp;
 
 	/* Finally, load the binary */
-	int status = load_binary(&args);
+	void *entry = load_binary(&args);
 
-	return status;
+	int argc;
+	char **_argv = copy_argv(argv, proc->cmd_line, &argc);
+	char **_env = copy_env_vars(envp);
+	process_create_thread(proc, (thread_callback_t) entry, 0, argc, _argv, _env);
+	process_t *current = get_current_process();
+	/* Setup the auxv at the stack bottom */
+	Elf64_auxv_t *auxv = (Elf64_auxv_t *) current->threads[0]->user_stack_bottom;
+	unsigned char *scratch_space = (unsigned char *) (auxv + 37);
+	for(int i = 0; i < 38; i++)
+	{
+		if(i != 0)
+			auxv[i].a_type = i;
+		if(i == 37)
+			auxv[i].a_type = 0;
+		switch(i)
+		{
+			case AT_PAGESZ:
+				auxv[i].a_un.a_val = PAGE_SIZE;
+				break;
+			case AT_UID:
+				auxv[i].a_un.a_val = current->uid;
+				break;
+			case AT_GID:
+				auxv[i].a_un.a_val = current->gid;
+				break;
+			case AT_RANDOM:
+				get_entropy((char*) scratch_space, 16);
+				scratch_space += 16;
+				break;
+		}
+	}
+	registers_t *regs = (registers_t *) current->threads[0]->kernel_stack;
+	regs->rcx = (uintptr_t) auxv;
+	uintptr_t *fs = vmm_allocate_virt_address(0, 1, VM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_USER, 0);
+	vmm_map_range(fs, 1, VMM_WRITE | VMM_NOEXEC | VMM_USER);
+	current->threads[0]->fs = (void*) fs;
+	__pthread_t *p = (__pthread_t*) fs;
+	p->self = (__pthread_t*) fs;
+	p->tid = get_current_process()->threads[0]->id;
+	p->pid = get_current_process()->pid;
+	return 0;
 }
 void kernel_early(uintptr_t addr, uint32_t magic)
 {

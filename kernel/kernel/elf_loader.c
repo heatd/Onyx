@@ -21,7 +21,7 @@
 #include <kernel/compiler.h>
 #include <pthread_kernel.h>
 
-int elf_load(struct binfmt_args *args);
+void *elf_load(struct binfmt_args *args);
 static Elf64_Shdr *strtab = NULL;
 static Elf64_Shdr *symtab = NULL;
 static Elf64_Shdr *shstrtab = NULL;
@@ -292,10 +292,10 @@ int elf_parse_program_headers(void *file, struct binfmt_args *args)
 				}
 			}
 			/* TODO: Handle argv and envp */
-			int ret = elf_load(args);
+			void *ret = elf_load(args);
 			if(!ret)
 				return ELF_INTERP_MAGIC;
-			return ret;
+			return 0;
 		}
 		if (phdrs[i].p_type == PT_LOAD)
 		{
@@ -342,71 +342,31 @@ void *elf_load_old(void *file)
 	
 	return (void *) ((Elf64_Ehdr *) file)->e_entry;
 }
-int elf_load(struct binfmt_args *args)
+void* elf_load(struct binfmt_args *args)
 {
 	uint8_t *file_buf = malloc(args->file->size);
 	if(!args)
-		return errno = EINVAL, -1;
+		return errno = EINVAL, NULL;
 	/* Read the file */
 	read_vfs(0, args->file->size, file_buf, args->file);
 	Elf64_Ehdr *header = (Elf64_Ehdr *) file_buf;
 	/* Validate the header */
 	if(!elf_is_valid(header))
-		return errno = EINVAL, -1;
+		return errno = EINVAL, NULL;
 	int i;
-	get_current_process()->mmap_base = vmm_gen_mmap_base();
-	get_current_process()->brk = vmm_reserve_address(vmm_gen_brk_base(), vmm_align_size_to_pages(0x2000000), VM_TYPE_REGULAR, VM_WRITE | VM_NOEXEC);
+	process_t *current = get_current_process();
+	current->mmap_base = vmm_gen_mmap_base();
+	current->brk = vmm_reserve_address(vmm_gen_brk_base(), vmm_align_size_to_pages(0x2000000), VM_TYPE_REGULAR, VM_WRITE | VM_NOEXEC);
 	if(header->e_type == ET_DYN)
 		i = (int) elf_parse_program_headers_s((void*) header);
 	else
 		i = elf_parse_program_headers((void*) header, args);
 	if(i == ELF_INTERP_MAGIC)
-		return 0;
-	int argc;
-	char **argv = copy_argv(args->argv, get_current_process()->cmd_line, &argc);
-	char **env = copy_env_vars(args->envp);
-	DISABLE_INTERRUPTS();
-	process_create_thread(get_current_process(), (thread_callback_t) header->e_entry, 0, argc, argv, env);
-	
-	/* Setup the auxv at the stack bottom */
-	Elf64_auxv_t *auxv = (Elf64_auxv_t *) get_current_process()->threads[0]->user_stack_bottom;
-	unsigned char *scratch_space = (unsigned char *) (auxv + 37);
-	for(int i = 0; i < 38; i++)
-	{
-		if(i != 0)
-			auxv[i].a_type = i;
-		if(i == 37)
-			auxv[i].a_type = 0;
-		switch(i)
-		{
-			case AT_PAGESZ:
-				auxv[i].a_un.a_val = PAGE_SIZE;
-				break;
-			case AT_UID:
-				auxv[i].a_un.a_val = get_current_process()->uid;
-				break;
-			case AT_GID:
-				auxv[i].a_un.a_val = get_current_process()->gid;
-				break;
-			case AT_RANDOM:
-				get_entropy((char*) scratch_space, 16);
-				scratch_space += 16;
-				break;
-		}
-	}
-	registers_t *regs = (registers_t *) get_current_process()->threads[0]->kernel_stack;
-	regs->rcx = (uintptr_t) auxv;
-	uintptr_t *fs = vmm_allocate_virt_address(0, 1, VM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_USER, 0);
-	vmm_map_range(fs, 1, VMM_WRITE | VMM_NOEXEC | VMM_USER);
-	get_current_process()->threads[0]->fs = (void*) fs;
-	__pthread_t *p = (__pthread_t*) fs;
-	p->self = (__pthread_t*) fs;
-	p->tid = get_current_process()->threads[0]->id;
-	p->pid = get_current_process()->pid;
+		return NULL; /* TODO: Fix this */
 
 	get_current_process()->brk = vmm_allocate_virt_address(0, 1, VM_TYPE_HEAP, VM_WRITE | VM_NOEXEC | VM_USER, 0);
 	ENABLE_INTERRUPTS();
-	return i;
+	return (void*) header->e_entry;
 }
 void *elf_load_kernel_module(void *file, void **fini_func)
 {

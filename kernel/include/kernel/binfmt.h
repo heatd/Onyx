@@ -10,7 +10,7 @@
 #include <kernel/vfs.h>
 
 struct binfmt_args;
-typedef int (*binfmt_handler_t)(struct binfmt_args *);
+typedef void *(*binfmt_handler_t)(struct binfmt_args *);
 struct binfmt
 {
 	uint8_t *signature;
@@ -26,6 +26,6 @@ struct binfmt_args
 	vfsnode_t *file;
 };
 
-int load_binary(struct binfmt_args *);
+void *load_binary(struct binfmt_args *);
 int install_binfmt(struct binfmt *);
 #endif
