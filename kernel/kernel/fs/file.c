@@ -22,41 +22,51 @@
 
 inline int validate_fd(int fd)
 {
+	ioctx_t *ctx = &get_current_process()->ctx;
+	
 	if(fd < 0)
 		return errno = -EBADF;
 	if(fd > UINT16_MAX)
-		return errno =-EBADF;
-	ioctx_t *ctx = &get_current_process()->ctx;
+		return errno = -EBADF;
 	if(ctx->file_desc[fd] == NULL)
-		return errno =-EBADF;
+		return errno = -EBADF;
+	return 0;
+}
+/* Enlarges the file descriptor table by UINT8_MAX(255) entries */
+int enlarge_file_descriptor_table(process_t *process)
+{
+	process->ctx.file_desc_entries += UINT8_MAX;
+	file_desc_t **table = malloc(process->ctx.file_desc_entries * sizeof(void*));
+	if(!table)
+		return -1;
+	memcpy(table, process->ctx.file_desc, (process->ctx.file_desc_entries - UINT8_MAX) * sizeof(void*));
+	free(process->ctx.file_desc);
+	process->ctx.file_desc = table;
 	return 0;
 }
 inline int find_free_fd()
 {
 	ioctx_t *ioctx = &get_current_process()->ctx;
-	for(int i = 0; i < UINT16_MAX; i++)
+	while(1)
 	{
-		if(ioctx->file_desc[i] == NULL)
+		for(int i = 0; i < ioctx->file_desc_entries; i++)
 		{
-			return i;
+			if(ioctx->file_desc[i] == NULL)
+			{
+				return i;
+			}
 		}
+		if(enlarge_file_descriptor_table(get_current_process()) < 0)
+			return -ENOMEM;
 	}
-	return -EMFILE;
 }
 ssize_t sys_read(int fd, const void *buf, size_t count)
 {
-	/*if(vmm_check_pointer((void*) buf, count) < 0)
-		return errno =-EFAULT;*/
-
+	if(vmm_check_pointer((void*) buf, count) < 0)
+		return errno =-EFAULT;
 	ioctx_t *ioctx = &get_current_process()->ctx;
-	if( fd > UINT16_MAX)
-	{
-		return errno =-EBADF;
-	}
-	if(ioctx->file_desc[fd] == NULL)
-	{
-		return errno =-EBADF;
-	}
+	if(validate_fd(fd) < 0)
+		return -EBADF;
 	if(!ioctx->file_desc[fd]->flags & O_RDONLY)
 		return errno =-EBADF;
 	ssize_t size = (ssize_t) read_vfs(ioctx->file_desc[fd]->seek, count, (char*)buf, ioctx->file_desc[fd]->vfs_node);
@@ -71,7 +81,7 @@ ssize_t sys_write(int fd, const void *buf, size_t count)
 {
 	if(vmm_check_pointer((void*) buf, count) < 0)
 		return -EFAULT;
-	if(validate_fd(fd))
+	if(validate_fd(fd) < 0)
 		return -EBADF;
 	if(!get_current_process()->ctx.file_desc[fd]->flags & O_WRONLY)
 		return -EBADF;
@@ -90,29 +100,35 @@ void handle_open_flags(file_desc_t *fd, int flags)
 int sys_open(const char *filename, int flags)
 {
 	ioctx_t *ioctx = &get_current_process()->ctx;
-	for(int i = 0; i < UINT16_MAX; i++)
+	while(1)
 	{
-		if(ioctx->file_desc[i] == NULL)
+		for(int i = 0; i < ioctx->file_desc_entries; i++)
 		{
-			ioctx->file_desc[i] = malloc(sizeof(file_desc_t));
-			if(!ioctx->file_desc[i])
-				return errno = -ENOMEM;
-			memset(ioctx->file_desc[i], 0, sizeof(file_desc_t));
-			ioctx->file_desc[i]->vfs_node = open_vfs(fs_root, filename);
-			if(!ioctx->file_desc[i]->vfs_node)
+			if(ioctx->file_desc[i] == NULL)
 			{
-				free(ioctx->file_desc[i]);
-				return errno =-ENOENT;
+				ioctx->file_desc[i] = malloc(sizeof(file_desc_t));
+				if(!ioctx->file_desc[i])
+					return errno = -ENOMEM;
+				memset(ioctx->file_desc[i], 0, sizeof(file_desc_t));
+				ioctx->file_desc[i]->vfs_node = open_vfs(fs_root, filename);
+				if(!ioctx->file_desc[i]->vfs_node)
+				{
+					free(ioctx->file_desc[i]);
+					return errno =-ENOENT;
+				}
+				ioctx->file_desc[i]->vfs_node->refcount++;
+				ioctx->file_desc[i]->refcount++;
+				ioctx->file_desc[i]->seek = 0;
+				ioctx->file_desc[i]->flags = flags;
+				handle_open_flags(ioctx->file_desc[i], flags);
+				return i;
 			}
-			ioctx->file_desc[i]->vfs_node->refcount++;
-			ioctx->file_desc[i]->refcount++;
-			ioctx->file_desc[i]->seek = 0;
-			ioctx->file_desc[i]->flags = flags;
-			handle_open_flags(ioctx->file_desc[i], flags);
-			return i;
+		}
+		if(enlarge_file_descriptor_table(get_current_process()) < 0)
+		{
+			return -ENOMEM;
 		}
 	}
-	return errno =-ENFILE;
 }
 inline int decrement_fd_refcount(file_desc_t *fd)
 {
@@ -134,29 +150,22 @@ inline int decrement_fd_refcount(file_desc_t *fd)
 }
 int sys_close(int fd)
 {
-	if(fd > UINT16_MAX) 
-	{
-		return errno =-EBADF;
-	}
 	ioctx_t *ioctx = &get_current_process()->ctx;	
-	if(ioctx->file_desc[fd] == NULL)
-	{
+	if(validate_fd(fd) < 0) 
 		return errno =-EBADF;
-	}
 	/* Decrement the refcount of the file descriptor*/
-	if(decrement_fd_refcount(ioctx->file_desc[fd]))
-	{
-		ioctx->file_desc[fd] = NULL;
-	}
+	decrement_fd_refcount(ioctx->file_desc[fd]);
+	
+	ioctx->file_desc[fd] = NULL;
 	return 0;
 }
 int sys_dup(int fd)
 {
-	if(fd > UINT16_MAX)
+	ioctx_t *ioctx = &get_current_process()->ctx;
+	if(validate_fd(fd) < 0)
 	{
 		return errno =-EBADF;
 	}
-	ioctx_t *ioctx = &get_current_process()->ctx;
 	if(ioctx->file_desc[fd] == NULL)
 	{
 		return errno =-EBADF;
@@ -174,19 +183,16 @@ int sys_dup(int fd)
 }
 int sys_dup2(int oldfd, int newfd)
 {
-	if(oldfd > UINT16_MAX)
-	{
-		return errno =-EBADF;
-	}
-	if(newfd > UINT16_MAX)
-	{
-		return errno =-EBADF;
-	}
 	ioctx_t *ioctx = &get_current_process()->ctx;
-	if(ioctx->file_desc[oldfd] == NULL)
+	if(validate_fd(oldfd) < 0)
+		return -EBADF;
+
+	/* TODO: Handle newfd's larger than the number of entries by extending the table */
+	if(newfd > ioctx->file_desc_entries)
 	{
 		return errno =-EBADF;
 	}
+
 	if(ioctx->file_desc[newfd])
 		sys_close(newfd);
 	ioctx->file_desc[newfd] = ioctx->file_desc[oldfd];
@@ -198,7 +204,7 @@ ssize_t sys_readv(int fd, const struct iovec *vec, int veccnt)
 	if(vmm_check_pointer((void*) vec, sizeof(struct iovec) * veccnt) < 0)
 		return errno =-EINVAL;
 
-	if(validate_fd(fd))
+	if(validate_fd(fd) < 0)
 		return errno =-EBADF;
 	ioctx_t *ctx = &get_current_process()->ctx;
 	if(!vec)
@@ -230,7 +236,7 @@ ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt)
 		return errno =-EINVAL;
 
 	size_t wrote = 0;
-	if(validate_fd(fd))
+	if(validate_fd(fd) < 0)
 		return -EBADF;
 	ioctx_t *ctx = &get_current_process()->ctx;
 	if(!vec)
@@ -255,7 +261,7 @@ ssize_t sys_preadv(int fd, const struct iovec *vec, int veccnt, off_t offset)
 	if(vmm_check_pointer((void*) vec, sizeof(struct iovec) * veccnt) < 0)
 		return errno =-EINVAL;
 
-	if(validate_fd(fd))
+	if(validate_fd(fd) < 0)
 		return errno =-EBADF;
 	ioctx_t *ctx = &get_current_process()->ctx;
 	if(!vec)
@@ -280,7 +286,7 @@ ssize_t sys_pwritev(int fd, const struct iovec *vec, int veccnt, off_t offset)
 	if(vmm_check_pointer((void*) vec, sizeof(struct iovec) * veccnt) < 0)
 		return -EFAULT;
 	
-	if(validate_fd(fd))
+	if(validate_fd(fd) < 0)
 		return -EBADF;
 	
 	ioctx_t *ctx = &get_current_process()->ctx;
@@ -302,7 +308,7 @@ ssize_t sys_pwritev(int fd, const struct iovec *vec, int veccnt, off_t offset)
 }
 int sys_getdents(int fd, struct dirent *dirp, unsigned int count)
 {
-	if(validate_fd(fd))
+	if(validate_fd(fd) < 0)
 		return errno =-EBADF;
 	if(!count)
 		return -EINVAL;
@@ -314,7 +320,7 @@ int sys_getdents(int fd, struct dirent *dirp, unsigned int count)
 }
 int sys_ioctl(int fd, int request, va_list args)
 {
-	if(validate_fd(fd))
+	if(validate_fd(fd) < 0)
 		return errno =-EBADF;
 	ioctx_t *ctx = &get_current_process()->ctx;
 	return ioctl_vfs(request, args, ctx->file_desc[fd]->vfs_node);
@@ -325,20 +331,17 @@ int sys_truncate(const char *path, off_t length)
 }
 int sys_ftruncate(int fd, off_t length)
 {
-	if(validate_fd(fd))
+	if(validate_fd(fd) < 0)
 		return errno =-EBADF;
 	return errno =-ENOSYS; 
 }
 off_t sys_lseek(int fd, off_t offset, int whence)
 {
 	ioctx_t *ioctx = &get_current_process()->ctx;
-	if (fd > UINT16_MAX)
-		return errno =-EBADF;
-	if(ioctx->file_desc[fd] == NULL)
-		return errno =-EBADF;
+	if(validate_fd(fd) < 0)
+		return -EBADF;
 	if(ioctx->file_desc[fd]->vfs_node->type == VFS_TYPE_FIFO)
 		return -ESPIPE;
-	
 	if(whence == SEEK_CUR)
 		ioctx->file_desc[fd]->seek += offset;
 	else if(whence == SEEK_SET)
@@ -386,7 +389,7 @@ exit:
 }
 int sys_isatty(int fd)
 {
-	if(validate_fd(fd))
+	if(validate_fd(fd) < 0)
 		return errno =-EBADF;
 	ioctx_t *ioctx = &get_current_process()->ctx;
 	if(ioctx->file_desc[fd]->vfs_node->type & VFS_TYPE_CHAR_DEVICE)
@@ -468,7 +471,7 @@ int sys_fstat(int fd, struct stat *buf)
 {
 	if(vmm_check_pointer(buf, sizeof(struct stat)) < 0)
 		return errno = -EFAULT;
-	if(validate_fd(fd))
+	if(validate_fd(fd) < 0)
 		return errno = -EBADF;
 	stat_vfs(buf, get_current_process()->ctx.file_desc[fd]->vfs_node);
 	return -errno;

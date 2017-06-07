@@ -28,6 +28,31 @@ process_t *first_process = NULL;
 volatile process_t *current_process = NULL;
 static pid_t current_pid = 1;
 static spinlock_t process_creation_lock;
+int copy_file_descriptors(process_t *process, ioctx_t *ctx)
+{
+	process->ctx.file_desc = malloc(ctx->file_desc_entries * sizeof(void*));
+	process->ctx.file_desc_entries = ctx->file_desc_entries;
+	if(!process->ctx.file_desc)
+		return -1;
+	for(int i = 0; i < process->ctx.file_desc_entries; i++)
+	{
+		process->ctx.file_desc[i] = ctx->file_desc[i];
+		if(ctx->file_desc[i])
+			ctx->file_desc[i]->refcount++;
+	}
+	return 0;
+}
+int allocate_file_descriptor_table(process_t *process)
+{
+	process->ctx.file_desc = malloc(UINT8_MAX * sizeof(void*));
+	if(!process->ctx.file_desc)
+	{
+		return -1;
+	}
+	memset(process->ctx.file_desc, 0, UINT8_MAX * sizeof(void*));
+	process->ctx.file_desc_entries = UINT8_MAX;
+	return 0;
+}
 process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent)
 {
 	process_t *proc = malloc(sizeof(process_t));
@@ -38,7 +63,23 @@ process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent)
 	proc->pid = current_pid++;
 	proc->cmd_line = (char*) cmd_line;
 	if(ctx)
-		memcpy(&proc->ctx, ctx, sizeof(ioctx_t));
+	{
+		if(copy_file_descriptors(proc, ctx) < 0)
+		{
+			free(proc);
+			release_spinlock(&process_creation_lock);
+			return NULL;
+		}
+	}
+	else
+	{
+		if(allocate_file_descriptor_table(proc) < 0)
+		{
+			free(proc);
+			release_spinlock(&process_creation_lock);
+			return NULL;
+		}
+	}
 	if(parent)
 		proc->parent = parent;
 	if(!first_process)
