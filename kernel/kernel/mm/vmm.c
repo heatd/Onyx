@@ -934,3 +934,11 @@ void *vmm_gen_brk_base()
 	brk_base = 0x10000000;
 	return (void*) brk_base;
 }
+
+int sys_memstat(struct memstat *memstat)
+{
+	if(vmm_check_pointer(memstat, sizeof(struct memstat)) < 0)
+		return -EFAULT;
+	page_get_stats(memstat);
+	return 0;
+}

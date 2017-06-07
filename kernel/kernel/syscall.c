@@ -29,6 +29,7 @@
 #include <kernel/panic.h>
 #include <kernel/power_management.h>
 #include <kernel/cpu.h>
+#include <kernel/page.h>
 
 const int SYSCALL_MAX_NUM = 54;
 
@@ -88,7 +89,7 @@ extern int sys_fstat(int fd, struct stat *buf);
 extern int sys_clock_gettime(clockid_t clk_id, struct timespec *tp);
 extern int sys_pipe(int *pipefd);
 extern int sys_sigaction(int signum, const struct sigaction *act, struct sigaction *oldact);
-
+extern int sys_memstat(struct memstat *memstat);
 void *syscall_list[] =
 {
 	[0] = (void*) sys_write,
@@ -145,5 +146,6 @@ void *syscall_list[] =
 	[51] = (void*) sys_nosys, /* Reserved for lstat */
 	[52] = (void*) sys_sigaction,
 	[53] = (void*) sys_pipe,
+	[54] = (void*) sys_memstat,
 	[255] = (void*) sys_nosys
 };

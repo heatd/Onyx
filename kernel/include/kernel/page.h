@@ -7,6 +7,7 @@
 #define _KERNEL_PAGE_H
 
 #include <stddef.h>
+#include <stdint.h>
 
 #include <kernel/spinlock.h>
 #include <kernel/compiler.h>
@@ -68,11 +69,15 @@ typedef struct page_zone
 	size_t allocated_pages, free_pages;
 
 } page_zone_t;
-
+struct memstat
+{
+	size_t free_mem;
+	size_t allocated_mem;
+};
 void *__alloc_page(int opt);
 void *__alloc_page_huge(int opt);
 void __free_page(void *page);
 void __free_pages(void *pages, size_t nr);
-
+void page_get_stats(struct memstat *memstat);
 void page_init(void);
 #endif

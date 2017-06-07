@@ -173,3 +173,8 @@ void __free_page(void *page)
 	}
 	release_spinlock(&z->lock);
 }
+void page_get_stats(struct memstat *memstat)
+{
+	memstat->free_mem = (zones[0].free_pages + zones[1].free_pages + zones[2].free_pages) * PAGE_SIZE;
+	memstat->free_mem = (zones[0].allocated_pages + zones[1].allocated_pages + zones[2].allocated_pages) * PAGE_SIZE;
+}
