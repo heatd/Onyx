@@ -50,4 +50,6 @@ void sched_yield();
 void thread_add(thread_t *add);
 void set_current_thread(thread_t *t);
 void thread_destroy(thread_t *t);
+void thread_set_state(thread_t *thread, int state);
+void thread_wake_up(thread_t *thread);
 #endif

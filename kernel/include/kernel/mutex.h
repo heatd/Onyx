@@ -11,4 +11,6 @@ typedef volatile unsigned long mutex_t;
 void mutex_lock(mutex_t *);
 void mutex_unlock(mutex_t*);
 
+#define MUTEX_INITIALIZER 0
+
 #endif

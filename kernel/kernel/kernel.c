@@ -65,6 +65,9 @@
 #include <kernel/irq.h>
 #include <kernel/vdso.h>
 #include <kernel/timer.h>
+#include <kernel/worker.h>
+#include <kernel/utils.h>
+
 #include <drivers/ps2.h>
 #include <drivers/ata.h>
 #include <drivers/ext2.h>
@@ -473,6 +476,9 @@ void kernel_multitasking(void *arg)
 	/* Initialize the vdso */
 	init_vdso();
 	
+	/* Initialize the worker thread */
+	worker_init();
+
 	/* Mount the root partition */
 	char *root_partition = kernel_getopt("--root");
 	if(!root_partition)

@@ -22,6 +22,7 @@
 #include <kernel/elf.h>
 #include <kernel/fpu.h>
 #include <kernel/apic.h>
+#include <kernel/worker.h>
 #include <kernel/cpu.h>
 
 #include <sys/time.h>
@@ -478,4 +479,12 @@ void thread_destroy(thread_t *thread)
 
 	/* Destroy the user stack */
 	vmm_destroy_mappings(thread->user_stack_bottom, 256);
+}
+void thread_set_state(thread_t *thread, int state)
+{
+	thread->status = state;
+}
+void thread_wake_up(thread_t *thread)
+{
+	thread->status = THREAD_RUNNABLE;
 }
