@@ -468,3 +468,14 @@ uintptr_t *thread_get_ustack(void)
 {
 	return get_current_thread()->user_stack;
 }
+void thread_destroy(thread_t *thread)
+{
+	/* This function should destroy everything that we can destroy right now.
+	 * We can't destroy things like the kernel stack or the FPU area, because we'll eventually 
+	 * need to context switch out of here,
+	 * or you know, we're actually using the kernel stack right now!
+	*/
+
+	/* Destroy the user stack */
+	vmm_destroy_mappings(thread->user_stack_bottom, 256);
+}

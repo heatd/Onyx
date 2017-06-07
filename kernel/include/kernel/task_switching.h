@@ -49,4 +49,5 @@ void sched_sleep(unsigned long ms);
 void sched_yield();
 void thread_add(thread_t *add);
 void set_current_thread(thread_t *t);
+void thread_destroy(thread_t *t);
 #endif

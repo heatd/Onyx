@@ -52,10 +52,8 @@ process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent)
 	release_spinlock(&process_creation_lock);
 	return proc;
 }
-static int c;
 void process_create_thread(process_t *proc, thread_callback_t callback, uint32_t flags, int argc, char **argv, char **envp)
 {
-	c++;
 	thread_t *thread = NULL;
 	if(!argv)
 		thread = sched_create_thread(callback, flags, NULL);
@@ -205,7 +203,6 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	vfsnode_t *in = open_vfs(fs_root, path);
 	if (!in)
 		return -ENOENT;
-	
 	/* TODO: Check file permitions */
 
 	/* Copy argv and envp to the kernel space */
@@ -216,8 +213,10 @@ int sys_execve(char *path, char *argv[], char *envp[])
 		return -ENOMEM;
 	char **kenv = process_copy_envarg(envp, true, NULL);
 	if(!kenv)
+	{
+		free(karg);
 		return -ENOMEM;
-	
+	}	
 	/* Swap address spaces. Good thing we saved argv and envp before */
 	process_t *current = get_current_process();
 	current->cr3 = cr3;
@@ -231,6 +230,13 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	
 	/* Setup the binfmt args */
 	uint8_t *file = malloc(100);
+	if(!file)
+	{
+		free(karg);
+		free(kenv);
+		return -ENOMEM;
+	}
+	/* Read the file signature */
 	read_vfs(0, 100, file, in);
 	struct binfmt_args args;
 	args.file_signature = file;
@@ -243,6 +249,8 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	void *entry = load_binary(&args);
 	if(!entry)
 	{
+		free(karg);
+		free(kenv);
 		free(file);
 		return -errno;
 	}
@@ -368,18 +376,23 @@ pid_t sys_fork(syscall_ctx_t *ctx)
 }
 void sys_exit(int status)
 {
-	DISABLE_INTERRUPTS();
-	if(get_current_process()->pid == 1)
+	process_t *current = get_current_process();
+	if(current->pid == 1)
 	{
 		printf("Panic: %s returned!\n", get_current_process()->cmd_line);
 		ENABLE_INTERRUPTS();
 		for(;;);
 	}
-	get_current_process()->has_exited = 1;
-	get_current_process()->exit_code = status;
-	ENABLE_INTERRUPTS();
-	sched_destroy_thread(get_current_thread());
-	while(1) __asm__ __volatile__("hlt");
+	current->has_exited = 1;
+	current->exit_code = status;
+
+	/* TODO: Support multi-threaded processes */
+	thread_t *current_thread = get_current_thread();
+	sched_destroy_thread(current_thread);
+	/* Destroy everything that can be destroyed now */
+	thread_destroy(current_thread);
+
+	sched_yield();
 }
 uint64_t sys_getpid()
 {
