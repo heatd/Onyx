@@ -9,9 +9,11 @@
 #include <unistd.h>
 #include <signal.h>
 
-#include <sys/time.h>
 #include <time.h>
 #include <ctype.h>
+
+#include <sys/time.h>
+#include <sys/wait.h>
 #include <sys/syscall.h>
 #include <sys/utsname.h>
 
@@ -211,8 +213,8 @@ int main(int argc, char **argv, char **envp)
 
 	if(pid == 0)
 		execve(shell, args, env);
-	while(1) /* TODO: Implement wait() and replace this */
-		sleep((unsigned int) -1);
+	while(1)
+		waitpid(-1, NULL, WEXITED);
 	return 0;
 }
 void load_modules()
