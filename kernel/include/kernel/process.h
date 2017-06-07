@@ -19,32 +19,69 @@
 #define THREADS_PER_PROCESS 30
 typedef struct proc
 {
+	/* Signal specific flags */
 	int signal_pending;
 	int signal_dispatched;
+
+	/* The next process in the linked list */
 	struct proc *next;
+
+	/* The processes' threads */
 	thread_t *threads[30];
-	uint64_t data_area;
+	
+	/* Kernel-side errno of the process */
+	/* TODO: Should this be kept on the thread_t structure? */
 	int errno;
+
+	/* Virtual address space AVL tree */
 	avl_node_t *tree;
+	spinlock_t vm_spl;
+	/* Program name*/
 	char *cmd_line;
+
+	/* IO Context of the process */
 	ioctx_t ctx;
+
+	/* Process ID */
 	pid_t pid;
+	
+	/* Paging specific pointer */
 	PML4 *cr3;
+	
+	/* Process' brk */
 	void *brk;
+	
+	/* exit(2) specific flags */
 	int has_exited;
 	int exit_code;
+	
+	/* Process' UID and GID */
 	uid_t uid;
 	gid_t gid;
-	spinlock_t vm_spl;
+	
+	/* Signal register save */
 	registers_t old_regs;
-	void *sigreturn;
+
+	/* Pointer to the VDSO */
 	void *vdso;
+
+	/* Signal tables */
 	mutex_t signal_lock;
 	struct sigaction sigtable[_NSIG];
-	unsigned long personality;
+
+	/* Information about the current signal */
 	struct signal_info sinfo;
+
+	/* Process personality */
+	unsigned long personality;
+
+	/* This process' parent */
 	struct proc *parent;
+	
+	/* Linked list to the processes being traced */
 	struct list_head tracees;
+	
+	/* mmap(2) base */
 	void *mmap_base;
 } process_t;
 process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent);
