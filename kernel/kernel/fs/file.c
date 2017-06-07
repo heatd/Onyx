@@ -47,28 +47,34 @@ int enlarge_file_descriptor_table(process_t *process)
 inline int find_free_fd()
 {
 	ioctx_t *ioctx = &get_current_process()->ctx;
+	mutex_lock(&ioctx->fdlock);
 	while(1)
 	{
 		for(int i = 0; i < ioctx->file_desc_entries; i++)
 		{
 			if(ioctx->file_desc[i] == NULL)
 			{
+				mutex_unlock(&ioctx->fdlock);
 				return i;
 			}
 		}
 		if(enlarge_file_descriptor_table(get_current_process()) < 0)
+		{
+			mutex_unlock(&ioctx->fdlock);
 			return -ENOMEM;
+		}
 	}
 }
 ssize_t sys_read(int fd, const void *buf, size_t count)
 {
 	if(vmm_check_pointer((void*) buf, count) < 0)
 		return errno =-EFAULT;
+	
 	ioctx_t *ioctx = &get_current_process()->ctx;
 	if(validate_fd(fd) < 0)
 		return -EBADF;
 	if(!ioctx->file_desc[fd]->flags & O_RDONLY)
-		return errno =-EBADF;
+		return -EBADF;
 	ssize_t size = (ssize_t) read_vfs(ioctx->file_desc[fd]->seek, count, (char*)buf, ioctx->file_desc[fd]->vfs_node);
 	if(size == -1)
 	{
@@ -100,6 +106,7 @@ void handle_open_flags(file_desc_t *fd, int flags)
 int sys_open(const char *filename, int flags)
 {
 	ioctx_t *ioctx = &get_current_process()->ctx;
+	mutex_lock(&ioctx->fdlock);
 	while(1)
 	{
 		for(int i = 0; i < ioctx->file_desc_entries; i++)
@@ -108,12 +115,17 @@ int sys_open(const char *filename, int flags)
 			{
 				ioctx->file_desc[i] = malloc(sizeof(file_desc_t));
 				if(!ioctx->file_desc[i])
+				{
+					mutex_unlock(&ioctx->fdlock);
 					return errno = -ENOMEM;
+				}
 				memset(ioctx->file_desc[i], 0, sizeof(file_desc_t));
 				ioctx->file_desc[i]->vfs_node = open_vfs(fs_root, filename);
 				if(!ioctx->file_desc[i]->vfs_node)
 				{
 					free(ioctx->file_desc[i]);
+					ioctx->file_desc[i] = NULL;
+					mutex_unlock(&ioctx->fdlock);
 					return errno =-ENOENT;
 				}
 				ioctx->file_desc[i]->vfs_node->refcount++;
@@ -121,11 +133,13 @@ int sys_open(const char *filename, int flags)
 				ioctx->file_desc[i]->seek = 0;
 				ioctx->file_desc[i]->flags = flags;
 				handle_open_flags(ioctx->file_desc[i], flags);
+				mutex_unlock(&ioctx->fdlock);
 				return i;
 			}
 		}
 		if(enlarge_file_descriptor_table(get_current_process()) < 0)
 		{
+			mutex_unlock(&ioctx->fdlock);
 			return -ENOMEM;
 		}
 	}
@@ -166,20 +180,25 @@ int sys_dup(int fd)
 	{
 		return errno =-EBADF;
 	}
-	if(ioctx->file_desc[fd] == NULL)
+	mutex_lock(&ioctx->fdlock);
+	while(1)
 	{
-		return errno =-EBADF;
-	}
-	for(int i = 0; i < UINT16_MAX; i++)
-	{
-		if(ioctx->file_desc[i] == NULL)
+		for(int i = 0; i < ioctx->file_desc_entries; i++)
 		{
-			ioctx->file_desc[i] = ioctx->file_desc[fd];
-			ioctx->file_desc[fd]->vfs_node->refcount++;
-			return i;
+			if(ioctx->file_desc[i] == NULL)
+			{
+				ioctx->file_desc[i] = ioctx->file_desc[fd];
+				ioctx->file_desc[fd]->vfs_node->refcount++;
+				mutex_unlock(&ioctx->fdlock);
+				return i;
+			}
+		}
+		if(enlarge_file_descriptor_table(get_current_process()) < 0)
+		{
+			mutex_unlock(&ioctx->fdlock);
+			return -ENOMEM;
 		}
 	}
-	return errno =-EMFILE;
 }
 int sys_dup2(int oldfd, int newfd)
 {
@@ -342,6 +361,8 @@ off_t sys_lseek(int fd, off_t offset, int whence)
 		return -EBADF;
 	if(ioctx->file_desc[fd]->vfs_node->type == VFS_TYPE_FIFO)
 		return -ESPIPE;
+
+	mutex_lock(&ioctx->file_desc[fd]->seek_lock);
 	if(whence == SEEK_CUR)
 		ioctx->file_desc[fd]->seek += offset;
 	else if(whence == SEEK_SET)
@@ -349,8 +370,11 @@ off_t sys_lseek(int fd, off_t offset, int whence)
 	else if(whence == SEEK_END)
 		ioctx->file_desc[fd]->seek = ioctx->file_desc[fd]->vfs_node->size;
 	else
-		return errno =-EINVAL;
-
+	{
+		mutex_unlock(&ioctx->file_desc[fd]->seek_lock);
+		return -EINVAL;
+	}
+	mutex_unlock(&ioctx->file_desc[fd]->seek_lock);
 	return ioctx->file_desc[fd]->seek;
 }
 int sys_mount(const char *source, const char *target, const char *filesystemtype, unsigned long mountflags, const void *data)

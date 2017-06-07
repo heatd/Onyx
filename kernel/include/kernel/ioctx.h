@@ -13,12 +13,14 @@ typedef struct
 {
 	_Atomic int refcount;
 	off_t seek;
+	mutex_t seek_lock;
 	vfsnode_t *vfs_node;
 	int flags;
 } file_desc_t;
 typedef struct
 {
 	const char *working_dir;
+	mutex_t fdlock;
 	file_desc_t **file_desc;
 	int file_desc_entries;
 } ioctx_t;
