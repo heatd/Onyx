@@ -11,7 +11,7 @@
 #include <limits.h>
 typedef struct
 {
-	int refcount;
+	_Atomic int refcount;
 	off_t seek;
 	vfsnode_t *vfs_node;
 	int flags;

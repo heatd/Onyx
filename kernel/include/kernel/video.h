@@ -33,7 +33,7 @@ struct video_device
 	char *driver_string;
 	char *card_string;
 	int status;
-	unsigned long refcount;
+	_Atomic unsigned long refcount;
 };
 void *video_get_fb(struct video_device*);
 void *video_create_fb(struct video_device*);
