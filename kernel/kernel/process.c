@@ -70,7 +70,7 @@ void process_create_thread(process_t *proc, thread_callback_t callback, uint32_t
 		}
 	}
 	if(!is_set)
-		sched_destroy_thread(thread);
+		thread_destroy(thread);
 }
 extern int curr_id;
 void process_fork_thread(process_t *dest, process_t *src, int thread_index)
@@ -356,17 +356,17 @@ pid_t sys_fork(syscall_ctx_t *ctx)
 	DISABLE_INTERRUPTS();
 	/* Fork and create the new thread */
 	process_fork_thread(child, proc, 0);
-	child->threads[0]->kernel_stack = vmalloc(2, VM_TYPE_STACK, VM_WRITE | VM_NOEXEC | VM_GLOBAL);
+	child->threads[0]->kernel_stack = vmalloc(4, VM_TYPE_STACK, VM_WRITE | VM_NOEXEC | VM_GLOBAL);
 	if(!child->threads[0]->kernel_stack)
 	{
 		free(child->threads[0]);
-		sched_destroy_thread(child->threads[0]);
+		thread_destroy(child->threads[0]);
 		process_destroy_aspace(child);
 		free(child);
 		ENABLE_INTERRUPTS();
 		return -ENOMEM;
 	}
-	child->threads[0]->kernel_stack = (uintptr_t *) ((unsigned char *)child->threads[0]->kernel_stack + 0x2000);
+	child->threads[0]->kernel_stack = (uintptr_t *) ((unsigned char *)child->threads[0]->kernel_stack + 0x4000);
 	child->threads[0]->kernel_stack_top = child->threads[0]->kernel_stack;
 	child->threads[0]->kernel_stack = sched_fork_stack(ctx, child->threads[0]->kernel_stack);
 	child->threads[0]->fs = get_current_process()->threads[0]->fs;
@@ -388,7 +388,7 @@ void sys_exit(int status)
 
 	/* TODO: Support multi-threaded processes */
 	thread_t *current_thread = get_current_thread();
-	sched_destroy_thread(current_thread);
+	
 	/* Destroy everything that can be destroyed now */
 	thread_destroy(current_thread);
 

@@ -75,7 +75,7 @@ void isr_handler(intctx_t *ctx)
 		if(!entr)
 		{
 		pf0:
-			printk("Program name: %s\n", get_current_process()->cmd_line);
+			//printk("Program name: %s\n", get_current_process()->cmd_line);
 			printk("%s%p at %p\n",exception_msg[int_no], faulting_address, ctx->rip);
 			printk("Registers: rax: %x\nrbx: %x\nrcx: %x\nrdx: %x\nrdi: %x\nrsi: %x\nrbp: %x\nr8:  %x\nr9:  %x\n\
 r10: %x\nr11: %x\nr12: %x\nr13: %x\nr14: %x\nr15: %x\nrsp: %x\nrflags: %x\nds: %x\ncs: %x\n", 

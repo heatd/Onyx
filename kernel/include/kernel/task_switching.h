@@ -41,7 +41,7 @@ typedef struct thr
 int sched_init(void);
 thread_t *sched_create_thread(thread_callback_t callback, uint32_t flags, void* args);
 thread_t* sched_create_main_thread(thread_callback_t callback, uint32_t flags,int argc, char **argv, char **envp);
-void sched_destroy_thread(thread_t *thread);
+void sched_remove_thread(thread_t *thread);
 thread_t *get_current_thread();
 uintptr_t *sched_fork_stack(syscall_ctx_t *ctx, uintptr_t *stack);
 void* sched_switch_thread(void* last_stack);

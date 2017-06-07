@@ -68,10 +68,10 @@ thread_t* task_switching_create_context(thread_callback_t callback, uint32_t fla
 	char** stack = (char**) &new_thread->user_stack;
 
 	if(!(flags & 1))
-		*stack+=0x100000;
+		*stack += 0x100000;
 
 	stack = (char**)&new_thread->kernel_stack;
-	*stack+=0x4000;
+	*stack += 0x4000;
 	}
 	uint64_t* stack = NULL;
 	// Reserve space in the stacks for the registers that are popped during a switch
@@ -141,7 +141,7 @@ thread_t* task_switching_create_main_progcontext(thread_callback_t callback, uin
 			return NULL;
 	}
 	
-	new_thread->kernel_stack = (uintptr_t*)vmm_allocate_virt_address(VM_KERNEL, 2, VMM_TYPE_STACK, VMM_WRITE | VMM_NOEXEC, 0);
+	new_thread->kernel_stack = (uintptr_t*)vmm_allocate_virt_address(VM_KERNEL, 4, VMM_TYPE_STACK, VMM_WRITE | VMM_NOEXEC, 0);
 	
 	if(!new_thread->kernel_stack)
 	{
@@ -155,7 +155,7 @@ thread_t* task_switching_create_main_progcontext(thread_callback_t callback, uin
 	// Map the stacks on the virtual address space
 	if(!(flags & 1))
 		vmm_map_range(new_thread->user_stack, 256, VMM_WRITE | VMM_NOEXEC | VMM_USER);
-	vmm_map_range(new_thread->kernel_stack, 2, VMM_WRITE | VMM_NOEXEC);
+	vmm_map_range(new_thread->kernel_stack, 4, VMM_WRITE | VMM_NOEXEC);
 	new_thread->user_stack_bottom = new_thread->user_stack;
 	
 	if(!(flags & 1))
@@ -163,7 +163,7 @@ thread_t* task_switching_create_main_progcontext(thread_callback_t callback, uin
 		new_thread->user_stack = (uintptr_t*)((uintptr_t) new_thread->user_stack + 0x100000);
 	}
 	
-	new_thread->kernel_stack = (uintptr_t*) ((uintptr_t) new_thread->kernel_stack + 0x2000);
+	new_thread->kernel_stack = (uintptr_t*) ((uintptr_t) new_thread->kernel_stack + 0x4000);
 
 	uint64_t* stack = NULL;
 	// Reserve space in the stacks for the registers that are popped during a switch
@@ -390,7 +390,7 @@ void sched_sleep(unsigned long ms)
 	current_thread->status = THREAD_SLEEPING;
 	sched_yield();
 }
-void sched_destroy_thread(thread_t *thread)
+void sched_remove_thread(thread_t *thread)
 {	
 	thread_t *it = run_queue;
 	for(; it->next; it = it->next)
@@ -469,6 +469,18 @@ uintptr_t *thread_get_ustack(void)
 {
 	return get_current_thread()->user_stack;
 }
+void thread_finish_destruction(void *___thread)
+{
+	thread_t *thread = ___thread;
+	/* Destroy the kernel stack */
+	vmm_destroy_mappings((void*) ((uintptr_t)thread->kernel_stack_top - 0x4000), 2);
+
+	/* Free the fpu area */
+	free(thread->fpu_area);
+
+	/* Free the thread */
+	free(thread);
+}
 void thread_destroy(thread_t *thread)
 {
 	/* This function should destroy everything that we can destroy right now.
@@ -476,9 +488,18 @@ void thread_destroy(thread_t *thread)
 	 * need to context switch out of here,
 	 * or you know, we're actually using the kernel stack right now!
 	*/
+	
+	/* Remove the thread from the queue */
+	sched_remove_thread(thread);
 
 	/* Destroy the user stack */
 	vmm_destroy_mappings(thread->user_stack_bottom, 256);
+	
+	/* Schedule further thread destruction */
+	struct work_request req;
+	req.func = thread_finish_destruction;
+	req.param = thread;
+	worker_schedule(&req, WORKER_PRIO_NORMAL);
 }
 void thread_set_state(thread_t *thread, int state)
 {
