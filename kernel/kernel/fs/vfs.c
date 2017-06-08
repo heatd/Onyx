@@ -15,6 +15,7 @@
 #include <kernel/dev.h>
 #include <kernel/pagecache.h>
 #include <kernel/log.h>
+#include <kernel/mtable.h>
 
 static avl_node_t **avl_search_key(avl_node_t **t, uintptr_t key);
 vfsnode_t *fs_root = NULL;
@@ -123,21 +124,8 @@ void close_vfs(vfsnode_t* this)
 	if(m->fops->close != NULL)
 		m->fops->close(this);
 }
-vfsnode_t *open_vfs(vfsnode_t* this, const char *name)
+vfsnode_t *do_actual_open(vfsnode_t *this, const char *name)
 {
-	vfsnode_t *it = mount_list;
-	while(it != NULL)
-	{
-		if(!strcmp((char*) name, it->name))
-		{
-			return it;
-		}
-		it = it->next;
-	}
-	if(memcmp(name, "/dev", strlen("/dev")) == 0 && slashdev)
-	{
-		this = slashdev;
-	}
 	struct minor_device *minor = dev_find(this->dev);
 	if(!minor)
 		return errno = ENODEV, NULL;
@@ -145,15 +133,43 @@ vfsnode_t *open_vfs(vfsnode_t* this, const char *name)
 		return errno = ENOSYS, NULL;
 	if(this->type & VFS_TYPE_MOUNTPOINT)
 	{
-		size_t s = strlen(this->link->mountpoint);
-		return minor->fops->open(this->link, name + s);
+		return minor->fops->open(this->link, name);
 	}
 	if(minor->fops->open != NULL)
 	{
-		const char *file = name + strlen(this->name);
-		return minor->fops->open(this, file);
+		return minor->fops->open(this, name);
 	}
 	return errno = ENOSYS, NULL;
+}
+vfsnode_t *open_path_segment(char *segm, vfsnode_t *node)
+{
+	vfsnode_t *file = do_actual_open(node, segm);
+	if(!file)
+		return NULL;	
+	vfsnode_t *mountpoint = NULL;
+	if((mountpoint = mtable_lookup(file)))
+		file = mountpoint;
+	return file;
+}
+vfsnode_t *open_vfs(vfsnode_t* this, const char *name)
+{
+	/* Okay, so we need to traverse the path */
+	/* First off, dupe the string */
+	char *path = strdup(name);
+	if(!path)
+		return errno = ENOMEM, NULL;
+	char *saveptr;
+	/* Now, tokenize it using strtok */
+	path = strtok_r(path, "/", &saveptr);
+	vfsnode_t *node = this;
+	while(path)
+	{
+		node = open_path_segment(path, node);
+		if(!node)
+			return errno = ENOENT, NULL;
+		path = strtok_r(NULL, "/", &saveptr);
+	}
+	return node;
 }
 vfsnode_t *creat_vfs(vfsnode_t *this, const char *path, int mode)
 {
@@ -183,18 +199,14 @@ int mount_fs(vfsnode_t *fsroot, const char *path)
 		if(!fs_root->name)
 		{
 			ERROR("mount_fs", "out of memory\n");
+			while(1);
 		}
 		strcpy(fs_root->name, path);
 		fsroot->mountpoint = (char*) path;
 	}
 	else
 	{
-		vfsnode_t *node = mount_list;
-		while(node->next)
-		{
-			node = node->next;
-		}
-		node->next = fsroot;
+		return mtable_mount(do_actual_open(fs_root, path), fsroot);
 	}
 	return 0;
 }

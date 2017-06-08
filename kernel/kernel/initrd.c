@@ -22,6 +22,9 @@ size_t tar_parse(uintptr_t address)
 		tar_header_t *header = (tar_header_t *) address;
 		if (header->filename[0] == '\0')
 			break;
+		/* Remove the trailing slash */
+		if(header->filename[strlen(header->filename)-1] == '/')
+			header->filename[strlen(header->filename)-1] = 0;
 		size_t size = tar_get_size(header->size);
 		headers[i] = header;
 		address += ((size / 512) + 1) * 512;
@@ -98,6 +101,7 @@ unsigned int tar_getdents(unsigned int count, struct dirent* dirp, off_t off, vf
 			l++;
 			dirp[found].d_ino = i;
 			strcpy(dirp[found].d_name, l);
+			
 			/* Fix trailing slashes (TAR specific) */
 			if(dirp[found].d_name[strlen(dirp[found].d_name)-1] == '/')
 				dirp[found].d_name[strlen(dirp[found].d_name)-1] = '\0';
@@ -121,38 +125,49 @@ unsigned int tar_getdents(unsigned int count, struct dirent* dirp, off_t off, vf
 	}
 	return found;
 }
+char *get_complete_tar_path(vfsnode_t *node, const char *name)
+{
+	size_t sizebuf = strlen("sysroot") + strlen(node->name) + strlen(name) + 2;
+	char *buffer = malloc(sizebuf);
+	if(!buffer)
+		return NULL;
+	memset(buffer, 0, sizebuf);
+	strcpy(buffer, "sysroot");
+	strcat(buffer, node->name);
+	if(buffer[strlen(buffer) - 1] != '/') buffer[strlen(buffer)] = '/';
+	strcat(buffer, name);
+	return buffer;
+}
 vfsnode_t *tar_open(vfsnode_t *this, const char *name)
 {
-	char *full_path = malloc(strlen(this->name) + strlen(name) + 1);
+	char *full_path = get_complete_tar_path(this, name);
 
 	if(!full_path)
-		return errno = ENOMEM, NULL;
-
-	strcpy(full_path, this->name);
-	strcpy(full_path + strlen(this->name), name);
-	full_path[strlen(this->name) + strlen(name)] = 0;
-
+		return NULL;
 	tar_header_t **iterator = headers;
 	for(size_t i = 0; i < n_files; i++)
 	{
-		if(!strcmp(full_path, iterator[i]->filename))
+		if(!strcmp(iterator[i]->filename, full_path))
 		{
 			// This part of the code seems broken, needs to be looked at
 			vfsnode_t *node = malloc(sizeof(vfsnode_t));
 			if(!node)
 			{
+				free(full_path);
 				return errno = ENOMEM, NULL;
 			}
 			memset(node, 0, sizeof(*node));
-			node->name = malloc(strlen(this->mountpoint) + strlen(full_path));
+			node->name = malloc(strlen(this->name) + strlen(name) + 3);
 			if(!node->name)
 			{
+				free(full_path);
 				free(node);
 				return errno = ENOMEM, NULL;
 			}
-			strcpy(node->name, this->mountpoint);
-			strcpy(node->name + strlen(this->mountpoint), full_path);
-
+			memset(node->name, 0, strlen(this->name) + strlen(name) + 3);
+			strcpy(node->name, this->name);
+			if(node->name[strlen(node->name) - 1] != '/') node->name[strlen(node->name)] = '/';
+			strcpy(node->name + strlen(node->name), name);
 			node->dev = this->dev;
 			node->inode = i;
 			node->size = tar_get_size(iterator[i]->size);
@@ -160,9 +175,11 @@ vfsnode_t *tar_open(vfsnode_t *this, const char *name)
 				node->type = VFS_TYPE_DIR;
 			else
 				node->type = VFS_TYPE_FILE;
+			free(full_path);
 			return node;
 		}
 	}
+	free(full_path);
 	return errno = ENOENT, NULL;
 }
 void init_initrd(void *initrd)
@@ -176,7 +193,7 @@ void init_initrd(void *initrd)
 		panic("initrd: out of memory\n");
 	}
 	memset(node, 0, sizeof(vfsnode_t));
-	node->name = "sysroot/";
+	node->name = "/";
 	struct minor_device *min_dev = dev_register(0, 0);
 	if(!min_dev)
 		panic("Could not allocate a device id!\n");

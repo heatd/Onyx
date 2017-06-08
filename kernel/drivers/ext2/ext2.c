@@ -127,7 +127,7 @@ void ext2_update_inode(inode_t *ino, ext2_fs_t *fs, uint32_t inode)
 inode_t *ext2_get_inode_from_dir(ext2_fs_t *fs, dir_entry_t *dirent, char *name, uint32_t *inode_number)
 {
 	dir_entry_t *dirs = dirent;
-	while(dirs->inode != 0)
+	while(dirs->inode && dirs->lsbit_namelen)
 	{
 		if(!memcmp(dirs->name, name, dirs->lsbit_namelen))
 		{
@@ -417,11 +417,12 @@ char *ext2_read_symlink(inode_t *inode, ext2_fs_t *fs)
 		return ext2_do_slow_symlink(inode, fs);
 	}
 }
-inode_t *ext2_follow_symlink(inode_t *inode, ext2_fs_t *fs, inode_t *parent)
+inode_t *ext2_follow_symlink(inode_t *inode, ext2_fs_t *fs, inode_t *parent, uint32_t *inode_num, char **symlink)
 {
 	char *path = ext2_read_symlink(inode, fs);
 	if(!path)
 		return NULL;
+	*symlink = strdup(path);
 	char *orig_path = path;
 	char *saveptr = NULL;
 	char *inode_data = malloc(EXT2_CALCULATE_SIZE64(parent));
@@ -437,13 +438,12 @@ inode_t *ext2_follow_symlink(inode_t *inode, ext2_fs_t *fs, inode_t *parent)
 		return NULL;
 	}
 	inode_t *ino = parent;
-	uint32_t inode_num = 0;
 	dir_entry_t *dir = (dir_entry_t*) inode_data;
 	/* Open through the path */
 	path = strtok_r(orig_path, "/", &saveptr);
 	while(path)
 	{
-		ino = ext2_get_inode_from_dir(fs, dir, path, &inode_num);
+		ino = ext2_get_inode_from_dir(fs, dir, path, inode_num);
 		if(!ino)
 			return errno = ENOENT, NULL;
 		inode_data = realloc(inode_data, EXT2_CALCULATE_SIZE64(ino));
@@ -463,24 +463,34 @@ vfsnode_t *ext2_open(vfsnode_t *nd, const char *name)
 	uint32_t inoden = nd->inode;
 	ext2_fs_t *fs = fslist;
 	uint32_t inode_num;
+	size_t node_name_len;
+	inode_t *ino;
+	size_t size;
+	char *inode_data;
+	char *p;
+	dir_entry_t *dir;
+	char *saveptr;
+	char *symlink_path;
+	char *path;
+	vfsnode_t *node;
 	/* Get the inode structure from the number */
-	inode_t *ino = ext2_get_inode_from_number(fs, inoden);	
+	ino = ext2_get_inode_from_number(fs, inoden);	
 	/* Calculate the size of the directory */
-	size_t size = EXT2_CALCULATE_SIZE64(ino);
-	char *p = strdup(name);
+	size = EXT2_CALCULATE_SIZE64(ino);
+	p = strdup(name);
 	if(!p)
 		return errno = ENOMEM, NULL;
-	char *inode_data = malloc(size);
+	inode_data = malloc(size);
 	if(!inode_data)
 	{
 		free(p);
 		return errno = ENOMEM, NULL;
 	}
 	ext2_read_inode(ino, fs, size, 0, inode_data);
-	dir_entry_t *dir = (dir_entry_t*) inode_data;
-	char *saveptr = NULL;
+	dir = (dir_entry_t*) inode_data;
+	symlink_path = NULL;
 	/* Get inodes by path segments */
-	char *path = strtok_r(p, "/", &saveptr);
+	path = strtok_r(p, "/", &saveptr);
 	while(path)
 	{
 		free(ino);
@@ -491,9 +501,10 @@ vfsnode_t *ext2_open(vfsnode_t *nd, const char *name)
 		{
 			uint32_t num;
 			inode_t *parent_dir = ext2_get_inode_from_dir(fs, dir, ".", &num);
-			ino = ext2_follow_symlink(ino, fs, parent_dir);
+			ino = ext2_follow_symlink(ino, fs, parent_dir, &inode_num, &symlink_path);
 			if(!ino)
 				return errno = ENOMEM, NULL;
+			free(parent_dir);
 		}
 		inode_data = realloc(inode_data, EXT2_CALCULATE_SIZE64(ino));
 		if(!inode_data)
@@ -502,18 +513,38 @@ vfsnode_t *ext2_open(vfsnode_t *nd, const char *name)
 		dir = (dir_entry_t*)inode_data;
 		/* Get the next path segment */
 		path = strtok_r(NULL, "/", &saveptr);
+		/* The symlink path is useless if it's not the last token */
+		if(path)
+		{
+			free(symlink_path);
+			symlink_path = NULL;
+		}
 	}
-	vfsnode_t *node = malloc(sizeof(vfsnode_t));
+	node = malloc(sizeof(vfsnode_t));
 	if(!node)
 	{
 		free(ino);
 		return errno = ENOMEM, NULL;
 	}
 	memset(node, 0, sizeof(vfsnode_t));
-	node->name = strdup(name);
+	if(symlink_path)
+		node_name_len = strlen(nd->name) + 1 + strlen(symlink_path) + 1;
+	else
+		node_name_len = strlen(nd->name) + 1 + strlen(name) + 1;
+	node->name = malloc(node_name_len);
+	if(!node->name)
+	{
+		free(node);
+		free(ino);
+		free(p);
+		return errno = ENOMEM, NULL;
+	}
+	memset(node->name, 0, node_name_len);
+	strcpy(node->name, nd->name);
+	strcat(node->name, "/");
+	strcat(node->name, symlink_path != NULL ? symlink_path : name);
 	node->dev = nd->dev;
 	node->inode = inode_num;
-
 	/* Detect the file type */
 	if(EXT2_GET_FILE_TYPE(ino->mode) == EXT2_INO_TYPE_DIR)
 		node->type = VFS_TYPE_DIR;
