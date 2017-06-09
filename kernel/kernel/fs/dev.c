@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <stdio.h>
 
 #include <sys/types.h>
 
@@ -170,19 +171,23 @@ vfsnode_t *devfs_open(vfsnode_t *this, const char *name)
 {
 	if(!children)
 		return errno = ENOENT, NULL;
+	char *path = vfs_get_full_path(this, (char*) name);
+	if(!path)
+		return errno = ENOMEM, NULL;
 	for(size_t i = 0; i < num_child; i++)
 	{
-		if(strcmp((char*) name, (char*) children[i]->name) == 0)
+		if(strcmp(path, (char*) children[i]->name) == 0)
 		{
+			free(path);
 			return children[i];
 		}
 	}
+	free(path);
 	return errno = ENOENT, NULL;
 }
 vfsnode_t *devfs_creat(const char *pathname, int mode, vfsnode_t *self)
 {
 	UNUSED(self);
-	pathname += strlen("/dev/");
 	if(!children)
 	{
 		num_child++;
@@ -203,7 +208,7 @@ vfsnode_t *devfs_creat(const char *pathname, int mode, vfsnode_t *self)
 		}
 		memset(children[0], 0, sizeof(vfsnode_t));
 
-		children[0]->name = (char*) pathname;
+		children[0]->name = vfs_get_full_path(self, (char*)pathname);
 		children[0]->inode = 0;
 		children[0]->type = VFS_TYPE_FILE;
 		return children[0];
@@ -231,7 +236,7 @@ vfsnode_t *devfs_creat(const char *pathname, int mode, vfsnode_t *self)
 		}
 		memset(children[num_child-1], 0, sizeof(vfsnode_t));
 
-		children[num_child-1]->name = (char*) pathname;
+		children[num_child-1]->name = vfs_get_full_path(self, (char*)pathname);
 		children[num_child-1]->inode = num_child-1;
 		children[num_child-1]->type = VFS_TYPE_FILE;
 		return children[num_child-1];
@@ -239,7 +244,7 @@ vfsnode_t *devfs_creat(const char *pathname, int mode, vfsnode_t *self)
 }
 int devfs_init()
 {
-	vfsnode_t *i = open_vfs(fs_root, "/dev/");
+	vfsnode_t *i = open_vfs(fs_root, "/dev");
 	if(unlikely(!i))
 		panic("/dev not found!");
 
@@ -247,9 +252,8 @@ int devfs_init()
 	if(!slashdev)
 		panic("Out-of-memory while creating /dev!");
 	memset(slashdev, 0, sizeof(vfsnode_t));
-	i->link = slashdev;
-	i->type |= VFS_TYPE_MOUNTPOINT;
-	slashdev->name = "/dev/";
+
+	slashdev->name = "/dev";
 	slashdev->type = VFS_TYPE_DIR;
 
 	struct minor_device *minor = dev_register(0, 0);
@@ -266,5 +270,6 @@ int devfs_init()
 	minor->fops->open = devfs_open;
 	minor->fops->getdents = devfs_getdents;
 	minor->fops->creat = devfs_creat;
+	mount_fs(slashdev, "/dev");
 	return 0;
 }

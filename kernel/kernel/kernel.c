@@ -67,6 +67,7 @@
 #include <kernel/timer.h>
 #include <kernel/worker.h>
 #include <kernel/utils.h>
+#include <kernel/sysfs.h>
 
 #include <drivers/ps2.h>
 #include <drivers/ata.h>
@@ -478,6 +479,12 @@ void kernel_multitasking(void *arg)
 	
 	/* Initialize the worker thread */
 	worker_init();
+
+	/* Initialize sysfs */
+	sysfs_init();
+
+	/* Populate /sys */
+	vmm_sysfs_init();
 
 	/* Mount the root partition */
 	char *root_partition = kernel_getopt("--root");

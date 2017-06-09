@@ -79,6 +79,6 @@ int stat_vfs(struct stat *buf, vfsnode_t *node);
 int vfs_init();
 struct minor_device;
 ssize_t lookup_file_cache(void *buffer, size_t sizeofread, vfsnode_t *file, struct minor_device *m, off_t offset);
-
+char *vfs_get_full_path(vfsnode_t *vnode, char *name);
 extern vfsnode_t* fs_root;
 #endif

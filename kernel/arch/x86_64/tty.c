@@ -407,7 +407,7 @@ unsigned int tty_ioctl(int request, va_list args, vfsnode_t *dev)
 }
 void tty_create_dev()
 {
-	vfsnode_t *ttydev = creat_vfs(slashdev, "/dev/tty", 0666);
+	vfsnode_t *ttydev = creat_vfs(slashdev, "tty", 0666);
 	if(!ttydev)
 		panic("Could not allocate /dev/tty!\n");
 

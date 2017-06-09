@@ -98,7 +98,7 @@ int module_init()
 {
 	MPRINTF("initializing DRM\n");
 
-	drm_node = creat_vfs(slashdev, "/dev/drm", 0666);
+	drm_node = creat_vfs(slashdev, "drm", 0666);
 	if(!drm_node)
 	{
 		MPRINTF("error while creating the 'drm' device node: %s\n", strerror(errno));

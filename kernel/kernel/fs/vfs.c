@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <assert.h>
+#include <libgen.h>
 
 #include <kernel/avl.h>
 #include <kernel/panic.h>
@@ -159,6 +160,7 @@ vfsnode_t *open_vfs(vfsnode_t* this, const char *name)
 	if(!path)
 		return errno = ENOMEM, NULL;
 	char *saveptr;
+	char *orig = path;
 	/* Now, tokenize it using strtok */
 	path = strtok_r(path, "/", &saveptr);
 	vfsnode_t *node = this;
@@ -166,27 +168,56 @@ vfsnode_t *open_vfs(vfsnode_t* this, const char *name)
 	{
 		node = open_path_segment(path, node);
 		if(!node)
+		{
+			free(orig);
 			return errno = ENOENT, NULL;
+		}
 		path = strtok_r(NULL, "/", &saveptr);
 	}
+	free(orig);
 	return node;
 }
 vfsnode_t *creat_vfs(vfsnode_t *this, const char *path, int mode)
 {
-	struct minor_device *m = dev_find(this->dev);
-	if(!m)
-		return errno = ENODEV, NULL;
-	if(!m->fops)
-		return errno = ENOSYS, NULL;
-	if(this->type & VFS_TYPE_MOUNTPOINT)
+	char *dup = strdup(path);
+	if(!dup)
+		return errno = ENOMEM, NULL;
+	char *dir = dirname((char*) dup);
+	vfsnode_t *base;
+	if(*dir != '.' && strlen(dir) != 1)
+		base = open_vfs(this, dir);
+	else
+		base = this;
+	
+	/* Reset the string again */
+	strcpy(dup, path);
+	if(!base)
 	{
-		return creat_vfs(this, path, mode);
+		errno = ENOENT;
+		goto error;
+	}
+	struct minor_device *m = dev_find(base->dev);
+	if(!m && !m->fops)
+	{
+		errno = ENODEV;
+		goto error;
+	}
+	if(base->type & VFS_TYPE_MOUNTPOINT)
+	{
+		vfsnode_t *node = creat_vfs(base, basename((char*) dup), mode);
+		free(dup);
+		return node;
 	}
 	if(m->fops->creat != NULL)
 	{
-		return m->fops->creat(path, mode, this);
+		vfsnode_t *ret = m->fops->creat(basename((char*) dup), mode, base);
+		free(dup);
+		return ret;
 	}
-	return errno = ENOSYS, NULL;
+	errno = ENOSYS;
+error:
+	free(dup);
+	return NULL;
 }
 int mount_fs(vfsnode_t *fsroot, const char *path)
 {
@@ -341,4 +372,16 @@ ssize_t lookup_file_cache(void *buffer, size_t sizeofread, vfsnode_t *file, stru
 		read += amount;
 	}
 	return (ssize_t) read;
+}
+char *vfs_get_full_path(vfsnode_t *vnode, char *name)
+{
+	size_t size = strlen(vnode->name) + strlen(name) + (strlen(vnode->name) == 1 ? 0 : 1); 
+	char *string = malloc(size);
+	if(!string)
+		return NULL;
+	memset(string, 0, size);
+	strcpy(string, vnode->name);
+	if(strlen(vnode->name) != 1)	strcat(string, "/");
+	strcat(string, name);
+	return string;
 }

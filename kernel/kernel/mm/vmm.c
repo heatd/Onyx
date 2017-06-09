@@ -19,6 +19,8 @@
 #include <kernel/log.h>
 #include <kernel/dev.h>
 #include <kernel/random.h>
+#include <kernel/sysfs.h>
+#include <kernel/vfs.h>
 
 #include <sys/mman.h>
 typedef struct avl_node
@@ -941,4 +943,69 @@ int sys_memstat(struct memstat *memstat)
 		return -EFAULT;
 	page_get_stats(memstat);
 	return 0;
+}
+/* Reads from vm_aslr - reads enable_aslr */
+ssize_t aslr_read(void *buffer, size_t size, off_t off)
+{
+	UNUSED(size);
+	UNUSED(off);
+	char *buf = buffer;
+	if(enable_aslr)
+	{
+		*buf = '1';
+	}
+	else
+		*buf = '0';
+	return 1;
+}
+/* Writes to vm_aslr - modifies enable_aslr */
+ssize_t aslr_write(void *buffer, size_t size, off_t off)
+{
+	UNUSED(size);
+	UNUSED(off);
+	char *buf = buffer;
+	if(*buf == '1')
+	{
+		enable_aslr = true;
+	}
+	else if(*buf == '0')
+	{
+		enable_aslr = false;
+	}
+	return 1;
+}
+ssize_t vmm_traverse_kmaps(avl_node_t *node, char *address, size_t *size, off_t off)
+{
+	UNUSED(node);
+	UNUSED(size);
+	UNUSED(off);
+	/* First write the lowest addresses, then the middle address, and then the higher addresses */
+	strcpy(address, "unimplemented\n");
+	return strlen(address);
+}
+ssize_t kmaps_read(void *buffer, size_t size, off_t off)
+{
+	UNUSED(off);
+	return vmm_traverse_kmaps(kernel_tree, buffer, &size, 0);
+}
+void vmm_sysfs_init(void)
+{
+	INFO("vmm", "Setting up /sys/vm, /sys/vm_aslr and /sys/kmaps\n");
+	vfsnode_t *sysfs = open_vfs(fs_root, "/sys");
+	if(!sysfs)
+		panic("vmm_sysfs_init: /sys not mounted!\n");
+	struct sysfs_file *vmfile = sysfs_create_entry("vm", 0666, sysfs);
+	if(!vmfile)
+		panic("vmm_sysfs_init: Could not create /sys/vm\n");
+	
+	struct sysfs_file *aslr_control = sysfs_create_entry("vm_aslr", 0666, sysfs);
+	if(!aslr_control)
+		panic("vmm_sysfs_init: Could not create /sys/vm_aslr\n");
+	aslr_control->read = aslr_read;
+	aslr_control->write = aslr_write;
+
+	struct sysfs_file *kmaps = sysfs_create_entry("kmaps", 0400, sysfs);
+	if(!kmaps)
+		panic("vmm_sysfs_init: Could not create /sys/kmaps\n");
+	kmaps->read = kmaps_read;
 }

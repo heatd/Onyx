@@ -121,7 +121,7 @@ void ata_enable_pci_ide(struct pci_device *dev)
 	irq_install_handler(15, &ata_irq);
 }
 static int num_drives = 0;
-static char devname[] = "/dev/hdx";
+static char devname[] = "hdx";
 int ata_flush(struct blkdev *blkd)
 {
 	struct ide_drive *drv = blkd->device_info;
@@ -290,7 +290,13 @@ int ata_initialize_drive(int channel, int drive)
 
 	dev->device_info = &ide_drives[curr];
 	dev->dev = min->majorminor;
-	dev->node_path = path;
+	char *p = malloc(strlen("/dev/") + strlen(path) + 1);
+	if(!p)
+		return errno = ENOMEM;
+	memset(p, 0, strlen("/dev/") + strlen(path) + 1);
+	strcpy(p, "/dev/");
+	strcat(p, path);
+	dev->node_path = p;
 	dev->read = ata_read;
 	dev->write = ata_write;
 	dev->flush = ata_flush;

@@ -12,7 +12,7 @@
 #include <kernel/dev.h>
 #include <assert.h>
 #include <math.h>
-tar_header_t *headers[100] = { 0 };
+tar_header_t *headers[300] = { 0 };
 size_t n_files = 0;
 size_t tar_parse(uintptr_t address)
 {
@@ -127,14 +127,14 @@ unsigned int tar_getdents(unsigned int count, struct dirent* dirp, off_t off, vf
 }
 char *get_complete_tar_path(vfsnode_t *node, const char *name)
 {
-	size_t sizebuf = strlen("sysroot") + strlen(node->name) + strlen(name) + 2;
+	size_t sizebuf = strlen("sysroot") + strlen(node->name) + strlen(name) + 3;
 	char *buffer = malloc(sizebuf);
 	if(!buffer)
 		return NULL;
 	memset(buffer, 0, sizebuf);
 	strcpy(buffer, "sysroot");
-	strcat(buffer, node->name);
-	if(buffer[strlen(buffer) - 1] != '/') buffer[strlen(buffer)] = '/';
+	if(strlen(node->name) != 1) strcat(buffer, node->name);
+	if(name[0] != '/')	strcat(buffer, "/");
 	strcat(buffer, name);
 	return buffer;
 }
@@ -143,7 +143,7 @@ vfsnode_t *tar_open(vfsnode_t *this, const char *name)
 	char *full_path = get_complete_tar_path(this, name);
 
 	if(!full_path)
-		return NULL;
+		return errno = ENOMEM, NULL;
 	tar_header_t **iterator = headers;
 	for(size_t i = 0; i < n_files; i++)
 	{

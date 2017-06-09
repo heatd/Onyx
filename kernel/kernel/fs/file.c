@@ -402,6 +402,8 @@ int sys_mount(const char *source, const char *target, const char *filesystemtype
 	int ret = 0;
 	if(!(node = fs->handler(lba, block)))
 	{
+		printk("Hello\n");
+		perror("");
 		ret = -1;
 		goto exit;
 	}

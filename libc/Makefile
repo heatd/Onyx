@@ -74,7 +74,9 @@ stdio/fclose.o \
 stdio/tmpnam.o \
 string/strcspn.o \
 string/strspn.o \
-string/strchrnul.o
+string/strchrnul.o \
+misc/basename.o \
+misc/dirname.o
 OBJS:=\
 $(FREEOBJS) \
 libc/init.o \

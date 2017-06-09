@@ -20,7 +20,7 @@ size_t zero_read(size_t offset, size_t count, void *buf, vfsnode_t *n)
 }
 void zero_init()
 {
-	vfsnode_t *n = creat_vfs(slashdev, "/dev/zero", 0666);
+	vfsnode_t *n = creat_vfs(slashdev, "zero", 0666);
 	if(!n)
 		panic("Could not create /dev/zero!\n");
 	n->type = VFS_TYPE_BLOCK_DEVICE;
