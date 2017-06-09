@@ -67,3 +67,5 @@ Errno also gets passed through rax, as -errno.
 | 55 | chdir() system call |
 | 56 | fchdir() system call |
 | 57 | getcwd() system call |
+| 58 | getuid() system call |
+| 59 | getgid() system call |

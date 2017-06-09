@@ -31,7 +31,7 @@
 #include <kernel/cpu.h>
 #include <kernel/page.h>
 
-const int SYSCALL_MAX_NUM = 57;
+const int SYSCALL_MAX_NUM = 59;
 
 uint64_t sys_nosys()
 {
@@ -93,6 +93,8 @@ extern int sys_memstat(struct memstat *memstat);
 extern int sys_chdir(const char *path);
 extern int sys_fchdir(int fildes);
 extern int sys_getcwd(char *path, size_t size);
+extern uid_t sys_getuid(void);
+extern gid_t sys_getgid(void);
 void *syscall_list[] =
 {
 	[0] = (void*) sys_write,
@@ -153,6 +155,8 @@ void *syscall_list[] =
 	[55] = (void*) sys_chdir,
 	[56] = (void*) sys_fchdir,
 	[57] = (void*) sys_getcwd,
+	[58] = (void*) sys_getuid,
+	[59] = (void*) sys_getgid,
 	[255] = (void*) sys_nosys
 };
 void syscall_debug(int err)

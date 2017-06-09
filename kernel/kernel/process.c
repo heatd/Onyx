@@ -455,6 +455,14 @@ int sys_setgid(gid_t gid)
 	get_current_process()->gid = gid;
 	return 0;
 }
+uid_t sys_getuid(void)
+{
+	return get_current_process()->uid;
+}
+gid_t sys_getgid(void)
+{
+	return get_current_process()->gid;
+}
 void process_destroy_aspace(process_t *process)
 {
 	vmm_destroy_tree(process->tree);

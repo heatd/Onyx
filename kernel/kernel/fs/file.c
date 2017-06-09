@@ -509,7 +509,7 @@ int sys_chdir(const char *path)
 	
 	vfsnode_t *dir = open_vfs(fs_root, path);
 	if(!dir)
-		return -errno;
+		return -ENOENT;
 	if(!(dir->type & VFS_TYPE_DIR))
 		return -ENOTDIR;
 	get_current_process()->cwd = dir;

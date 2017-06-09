@@ -22,6 +22,10 @@ struct user
 	/* GID and UID */
 	gid_t gid;
 	uid_t uid;
+	/* Home directory */
+	char *home;
+	/* Shell */
+	char *shell;
 };
 
 char *program_name = NULL;
@@ -44,7 +48,7 @@ char *copy_string(char *str)
 	strcpy(ret, str);
 	return ret;
 }
-int insert_user(char *username, char *passwd, gid_t gid, uid_t uid)
+int insert_user(char *username, char *passwd, gid_t gid, uid_t uid, char *home, char *shell)
 {
 	if(!username)
 		return 1;
@@ -62,6 +66,8 @@ int insert_user(char *username, char *passwd, gid_t gid, uid_t uid)
 		users->password = copy_string(passwd);
 		users->gid = gid;
 		users->uid = uid;
+		users->home = copy_string(home);
+		users->shell = copy_string(shell);
 		users->next = NULL;
 
 		return 0;
@@ -99,27 +105,32 @@ int setup_users()
 
 	while(fgets(read_buffer, 1024, fp) != NULL)
 	{
-		if(strlen(read_buffer) == '\0')
-			goto func_exit;
 		char *pos;
 		if((pos = strchr(read_buffer, '\n')))
     			*pos = '\0';
+		if(strlen(read_buffer) == 0)
+			goto func_exit;
+
 		/* Parse the line */
 		char *username = strtok(read_buffer, ":");
+		char *passwd = strtok(NULL, ":");
 		char *uid_s = strtok(NULL, ":");
 		char *gid_s = strtok(NULL, ":");
-		char *passwd = strtok(NULL, ":");
+		char *home_dir = strtok(NULL, ":");
+		char *shell = strtok(NULL, ":");
 
 		if(!uid_s)
 		{
 			fclose(fp);
 			free(read_buffer);
+			printf("login: Invalid UID\n");
 			return 1;
 		}
 		if(!gid_s)
 		{
 			fclose(fp);
 			free(read_buffer);
+			printf("login: Invalid UID\n");
 			return 1;
 		}
 		char *errorptr = NULL;
@@ -140,10 +151,11 @@ int setup_users()
 			free(read_buffer);
 			return 1;
 		}
-		if(insert_user(username, passwd, gid, uid) == 1)
+		if(insert_user(username, passwd, gid, uid, home_dir, shell) == 1)
 		{
 			fclose(fp);
 			free(read_buffer);
+			printf("Failed to insert user!\n");
 			return 1;
 		}
 	}
@@ -175,6 +187,7 @@ int main(int argc, char **argv, char **envp)
 	/* Setup the internal user-password-uid-gid structures */
 	if(setup_users() == 1)
 	{
+		perror("login");
 		return 1;
 	}
 loop:
@@ -207,12 +220,23 @@ loop:
 
 	/* Set $USER */
 	setenv("USER", user->username, 1);
+	/* Set $LOGNAME */
+	setenv("LOGNAME", user->username, 1);
 	/* TODO: Set $HOME */
-	
+	setenv("HOME", user->home, 1);
+
 	/* The first character of argv[0] needs to be -, in order to be a login shell */
-	args[0] = "-/bin/sh";
+	args[0] = malloc(strlen(user->shell) + 2);
+	if(!args[0])
+	{
+		perror("login");
+		return 1;
+	}
+	memset(args[0], 0, strlen(user->shell) + 2);
+	strcat(args[0], "-");
+	strcat(args[0], user->shell);
 	extern char **environ;
-	execve("/bin/sh", args, environ);
+	execve(user->shell, args, environ);
 	while(1)
 		sleep((unsigned int) -1);
 	return 0;

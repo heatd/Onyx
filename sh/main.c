@@ -10,6 +10,9 @@
 #include <ctype.h>
 #include <dirent.h>
 #include <time.h>
+#include <limits.h>
+#include <err.h>
+#include <errno.h>
 
 #include <sys/time.h>
 #include <sys/utsname.h>
@@ -17,20 +20,17 @@
 
 #include <shell.h>
 #include <login.h>
-#define DEFAULT_PS1	"sh $ "
 
 static char command_buffer[4096];
 int run_command(char *command);
 
+char *current_ps1 = "%s@%s %s %s ";
+char *hostname = NULL;
+char *current_dir[PATH_MAX];
+uid_t uid = 0;
 void print_current_ps1(void)
 {
-	char *ps1 = getenv("PS1");
-	if(!ps1)
-	{
-		setenv("PS1", DEFAULT_PS1, 0);
-	}
-print:
-	printf("%s", DEFAULT_PS1);
+	printf(current_ps1, getenv("LOGNAME"), hostname, current_dir, uid == 0 ? "#" : "$");
 	fflush(stdout);
 }
 char *wait_for_command(void)
@@ -85,11 +85,26 @@ int handle_builtin_commands(char *command)
 		fclose(fp);
 		return 0;
 	}
+	else if(!strncmp(command, "cd", strlen("cd")))
+	{
+		command += strlen("cd");
+		while(isspace(*command))
+			++command;
+		if(chdir(command) < 0)
+		{
+			printf("cd: %s: %s\n", command, strerror(errno));
+			return 1;
+		}
+		strcpy(current_dir, command);
+		return 0;
+	}
 	return 127;
 }
 extern char **environ;
 void parse_command(char *command)
 {
+	if(strlen(command) == 0)
+		return;
 	int status = handle_builtin_commands(command);
 	if(status == 0) /* If it was a builtin command, return */
 		return;
@@ -109,6 +124,15 @@ int main(int argc, char **argv)
 {
 	if(argv[0][0] == '-')
 		tash_do_login();
+	hostname = malloc(HOST_NAME_MAX + 1);
+	if(!hostname)
+		err(1, "tash: out of memory\n");
+	memset(hostname, 0, HOST_NAME_MAX + 1);
+	gethostname(hostname, HOST_NAME_MAX + 1);
+
+	getcwd(current_dir, PATH_MAX);
+	uid = syscall(SYS_getuid);
+
 	while(1)
 	{
 		/* Print the shell's PS1 */

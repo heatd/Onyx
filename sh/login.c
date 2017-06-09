@@ -15,6 +15,11 @@ static _Bool is_login = false;
 void tash_do_login(void)
 {
 	is_login = true;
+	if(chdir(getenv("HOME")) < 0)
+	{
+		perror("tash");
+		err(1, "exiting with 1\n");
+	}
 	/* The below doesn't work yet */
 	return;
 	char *login_script_path = getenv("HOME");
