@@ -491,7 +491,7 @@ int sys_stat(const char *pathname, struct stat *buf)
 		return -errno; /* Don't set errno, as we don't know if it was actually a ENOENT */
 	stat_vfs(buf, stat_node);
 	close_vfs(stat_node);
-	return -errno;
+	return 0;
 }
 int sys_fstat(int fd, struct stat *buf)
 {
@@ -500,5 +500,45 @@ int sys_fstat(int fd, struct stat *buf)
 	if(validate_fd(fd) < 0)
 		return errno = -EBADF;
 	stat_vfs(buf, get_current_process()->ctx.file_desc[fd]->vfs_node);
-	return -errno;
+	return 0;
+}
+int sys_chdir(const char *path)
+{
+	if(!vmm_is_mapped((void*) path))
+		return errno = -EFAULT;
+	
+	vfsnode_t *dir = open_vfs(fs_root, path);
+	if(!dir)
+		return -errno;
+	if(!(dir->type & VFS_TYPE_DIR))
+		return -ENOTDIR;
+	get_current_process()->cwd = dir;
+	return 0;
+}
+int sys_fchdir(int fildes)
+{
+	if(validate_fd(fildes) < 0)
+		return errno = -EBADF;
+	vfsnode_t *node = get_current_process()->ctx.file_desc[fildes]->vfs_node;
+	if(!(node->type & VFS_TYPE_DIR))
+		return -ENOTDIR;
+
+	get_current_process()->cwd = node;
+	return 0;
+}
+int sys_getcwd(char *path, size_t size)
+{
+	if(size == 0 && path != NULL)
+		return -EINVAL;
+	if(vmm_check_pointer(path, size) < 0)
+		return -EFAULT;
+	if(!get_current_process()->cwd)
+		return -ENOENT;
+	vfsnode_t *vnode = get_current_process()->cwd;
+
+	if(strlen(vnode->name) + 1 > size)
+		return -ERANGE;
+	strncpy(path, vnode->name, size);
+	
+	return 0;
 }

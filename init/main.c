@@ -205,6 +205,7 @@ int main(int argc, char **argv, char **envp)
 	memset(buf, 0, 1024);
 	fgets(buf, 1024, f);
 	
+	chdir("/");
 	char *env[] = {"", NULL};
 	char *shell = copy_until_newline(buf);
 	char *args[] = {shell, "/etc/fstab", NULL};

@@ -31,7 +31,7 @@
 #include <kernel/cpu.h>
 #include <kernel/page.h>
 
-const int SYSCALL_MAX_NUM = 54;
+const int SYSCALL_MAX_NUM = 57;
 
 uint64_t sys_nosys()
 {
@@ -90,6 +90,9 @@ extern int sys_clock_gettime(clockid_t clk_id, struct timespec *tp);
 extern int sys_pipe(int *pipefd);
 extern int sys_sigaction(int signum, const struct sigaction *act, struct sigaction *oldact);
 extern int sys_memstat(struct memstat *memstat);
+extern int sys_chdir(const char *path);
+extern int sys_fchdir(int fildes);
+extern int sys_getcwd(char *path, size_t size);
 void *syscall_list[] =
 {
 	[0] = (void*) sys_write,
@@ -147,5 +150,13 @@ void *syscall_list[] =
 	[52] = (void*) sys_sigaction,
 	[53] = (void*) sys_pipe,
 	[54] = (void*) sys_memstat,
+	[55] = (void*) sys_chdir,
+	[56] = (void*) sys_fchdir,
+	[57] = (void*) sys_getcwd,
 	[255] = (void*) sys_nosys
 };
+void syscall_debug(int err)
+{
+	if(err < 0)
+		printk("Error: %s\n", strerror(-err));
+}

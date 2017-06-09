@@ -64,3 +64,6 @@ Errno also gets passed through rax, as -errno.
 | 51 | lstat() system call |
 | 53 | pipe() system call |
 | 54 | memstat() system call |
+| 55 | chdir() system call |
+| 56 | fchdir() system call |
+| 57 | getcwd() system call |
