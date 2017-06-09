@@ -33,6 +33,10 @@ vfsnode_t *get_current_directory(void)
 {
 	return get_current_process()->ctx.cwd;
 }
+file_desc_t *get_file_description(int fd)
+{
+	return get_current_process()->ctx.file_desc[fd];
+}
 inline int validate_fd(int fd)
 {
 	ioctx_t *ctx = &get_current_process()->ctx;
@@ -116,10 +120,12 @@ void handle_open_flags(file_desc_t *fd, int flags)
 	if(flags & O_APPEND)
 		fd->seek = fd->vfs_node->size;
 }
-int sys_open(const char *filename, int flags)
+int do_sys_open(const char *filename, int flags, mode_t mode, vfsnode_t *rel)
 {
+	/* This function does all the open() work, open(2) and openat(2) use this */
 	ioctx_t *ioctx = &get_current_process()->ctx;
-	vfsnode_t *base = get_fs_base(filename, get_current_directory());
+	vfsnode_t *base = get_fs_base(filename, rel);
+	
 	mutex_lock(&ioctx->fdlock);
 	while(1)
 	{
@@ -157,6 +163,13 @@ int sys_open(const char *filename, int flags)
 			return -ENOMEM;
 		}
 	}
+}
+int sys_open(const char *filename, int flags, mode_t mode)
+{
+	if(!vmm_is_mapped((char*) filename))
+		return -EFAULT;
+	/* open(2) does relative opens using the current working directory */
+	return do_sys_open(filename, flags, mode, get_current_process()->ctx.cwd);
 }
 inline int decrement_fd_refcount(file_desc_t *fd)
 {
@@ -493,20 +506,23 @@ int sys_fcntl(int fd, int cmd, ...)
 	printk("%s: not implemented yet\n", __func__);
 	return 0;
 }
-int sys_stat(const char *pathname, struct stat *buf)
+int do_sys_stat(const char *pathname, struct stat *buf, int flags, vfsnode_t *rel)
 {
-	if(!vmm_is_mapped((void*) pathname))
-		return errno = -EFAULT;
-	if(vmm_check_pointer(buf, sizeof(struct stat)) < 0)
-		return errno = -EFAULT;
-	
-	vfsnode_t *base = get_fs_base(pathname, get_current_directory());
+	vfsnode_t *base = get_fs_base(pathname, rel);
 	vfsnode_t *stat_node = open_vfs(base, pathname);
 	if(!stat_node)
 		return -errno; /* Don't set errno, as we don't know if it was actually a ENOENT */
 	stat_vfs(buf, stat_node);
 	close_vfs(stat_node);
 	return 0;
+}
+int sys_stat(const char *pathname, struct stat *buf)
+{
+	if(!vmm_is_mapped((void*) pathname))
+		return errno = -EFAULT;
+	if(vmm_check_pointer(buf, sizeof(struct stat)) < 0)
+		return errno = -EFAULT;
+	return do_sys_stat(pathname, buf, 0, get_current_directory());
 }
 int sys_fstat(int fd, struct stat *buf)
 {
@@ -556,4 +572,36 @@ int sys_getcwd(char *path, size_t size)
 	strncpy(path, vnode->name, size);
 	
 	return 0;
+}
+int sys_openat(int dirfd, const char *path, int flags, mode_t mode)
+{
+	if(!vmm_is_mapped((void*) path))
+		return -EFAULT;
+	vfsnode_t *dir;
+	if(validate_fd(dirfd) < 0 && dirfd != AT_FDCWD)
+		return -EBADF;
+	if(dirfd != AT_FDCWD)
+		dir = get_file_description(dirfd)->vfs_node;
+	else
+		dir = get_current_process()->ctx.cwd;
+	if(!(dir->type & VFS_TYPE_DIR))
+		return -ENOTDIR;
+	return do_sys_open(path, flags, mode, dir);
+}
+int sys_fstatat(int dirfd, const char *pathname, struct stat *buf, int flags)
+{
+	if(!vmm_is_mapped((void*) pathname))
+		return errno = -EFAULT;
+	if(vmm_check_pointer(buf, sizeof(struct stat)) < 0)
+		return errno = -EFAULT;
+	vfsnode_t *dir;
+	if(validate_fd(dirfd) < 0 && dirfd != AT_FDCWD)
+		return -EBADF;
+	if(dirfd != AT_FDCWD)
+		dir = get_file_description(dirfd)->vfs_node;
+	else
+		dir = get_current_process()->ctx.cwd;
+	if(!(dir->type & VFS_TYPE_DIR))
+		return -ENOTDIR;
+	return do_sys_stat(pathname, buf, flags, dir);
 }
