@@ -9,6 +9,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 #include <partitions.h>
 
@@ -20,6 +21,18 @@
 
 #include <sys/uio.h>
 
+_Bool is_absolute_filename(const char *file)
+{
+	return *file == '/' ? true : false;
+}
+vfsnode_t *get_fs_base(const char *file, vfsnode_t *rel_base)
+{
+	return is_absolute_filename(file) == true ? fs_root : rel_base;
+}
+vfsnode_t *get_current_directory(void)
+{
+	return get_current_process()->ctx.cwd;
+}
 inline int validate_fd(int fd)
 {
 	ioctx_t *ctx = &get_current_process()->ctx;
@@ -106,6 +119,7 @@ void handle_open_flags(file_desc_t *fd, int flags)
 int sys_open(const char *filename, int flags)
 {
 	ioctx_t *ioctx = &get_current_process()->ctx;
+	vfsnode_t *base = get_fs_base(filename, get_current_directory());
 	mutex_lock(&ioctx->fdlock);
 	while(1)
 	{
@@ -120,7 +134,7 @@ int sys_open(const char *filename, int flags)
 					return errno = -ENOMEM;
 				}
 				memset(ioctx->file_desc[i], 0, sizeof(file_desc_t));
-				ioctx->file_desc[i]->vfs_node = open_vfs(fs_root, filename);
+				ioctx->file_desc[i]->vfs_node = open_vfs(base, filename);
 				if(!ioctx->file_desc[i]->vfs_node)
 				{
 					free(ioctx->file_desc[i]);
@@ -486,7 +500,8 @@ int sys_stat(const char *pathname, struct stat *buf)
 	if(vmm_check_pointer(buf, sizeof(struct stat)) < 0)
 		return errno = -EFAULT;
 	
-	vfsnode_t *stat_node = open_vfs(fs_root, pathname);
+	vfsnode_t *base = get_fs_base(pathname, get_current_directory());
+	vfsnode_t *stat_node = open_vfs(base, pathname);
 	if(!stat_node)
 		return -errno; /* Don't set errno, as we don't know if it was actually a ENOENT */
 	stat_vfs(buf, stat_node);
@@ -506,13 +521,13 @@ int sys_chdir(const char *path)
 {
 	if(!vmm_is_mapped((void*) path))
 		return errno = -EFAULT;
-	
-	vfsnode_t *dir = open_vfs(fs_root, path);
+	vfsnode_t *base = get_fs_base(path, get_current_directory());
+	vfsnode_t *dir = open_vfs(base, path);
 	if(!dir)
 		return -ENOENT;
 	if(!(dir->type & VFS_TYPE_DIR))
 		return -ENOTDIR;
-	get_current_process()->cwd = dir;
+	get_current_process()->ctx.cwd = dir;
 	return 0;
 }
 int sys_fchdir(int fildes)
@@ -523,7 +538,7 @@ int sys_fchdir(int fildes)
 	if(!(node->type & VFS_TYPE_DIR))
 		return -ENOTDIR;
 
-	get_current_process()->cwd = node;
+	get_current_process()->ctx.cwd = node;
 	return 0;
 }
 int sys_getcwd(char *path, size_t size)
@@ -532,9 +547,9 @@ int sys_getcwd(char *path, size_t size)
 		return -EINVAL;
 	if(vmm_check_pointer(path, size) < 0)
 		return -EFAULT;
-	if(!get_current_process()->cwd)
+	if(!get_current_process()->ctx.cwd)
 		return -ENOENT;
-	vfsnode_t *vnode = get_current_process()->cwd;
+	vfsnode_t *vnode = get_current_process()->ctx.cwd;
 
 	if(strlen(vnode->name) + 1 > size)
 		return -ERANGE;

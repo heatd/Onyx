@@ -19,7 +19,8 @@ typedef struct
 } file_desc_t;
 typedef struct
 {
-	const char *working_dir;
+	/* Current working directory */
+	vfsnode_t *cwd;
 	mutex_t fdlock;
 	file_desc_t **file_desc;
 	int file_desc_entries;
