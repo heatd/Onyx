@@ -8,6 +8,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <sys/types.h>
+#include <sys/time.h>
+#include <sys/resource.h>
+#include <sys/wait.h>
 /* Counts the number of chars until a space or newline or \0 */
 size_t strslength(char *string)
 {
@@ -99,6 +103,6 @@ int run_command(char *command)
 	}
 	int wstatus;
 	wait4(pid, &wstatus, 0, 0);
-	printf("\nPID %d       [%d]\n", pid, wstatus);
+	printf("\nPID %d       [%d]\n", pid, WEXITSTATUS(wstatus));
 	return 0;
 }

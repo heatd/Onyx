@@ -23,6 +23,11 @@
 
 #include <pthread_kernel.h>
 
+#define __WCONSTRUCT(nature, exitcode, signal) \
+        (((nature) & 0xFF) << 16 | \
+         ((exitcode) & 0xFF) << 8 | \
+         ((signal) & 0x7F) << 0)
+
 extern PML4 *current_pml4;
 process_t *first_process = NULL;
 volatile process_t *current_process = NULL;
@@ -425,7 +430,7 @@ void sys_exit(int status)
 		for(;;);
 	}
 	current->has_exited = 1;
-	current->exit_code = status;
+	current->exit_code = __WCONSTRUCT(0, status, 0);
 
 	/* TODO: Support multi-threaded processes */
 	thread_t *current_thread = get_current_thread();
