@@ -15,6 +15,7 @@
 #include <kernel/spinlock.h>
 #include <kernel/compiler.h>
 #include <kernel/dev.h>
+#include <kernel/irq.h>
 
 #define PCI_CONFIGURATION_SPACE_SIZE		256
 #define PCI_BAR0 				0x10
@@ -149,7 +150,7 @@ void pci_write(struct pci_device *dev, uint64_t value, uint16_t off, size_t size
 uint64_t pci_read(struct pci_device *dev, uint16_t off, size_t size);
 void pci_enable_busmastering(struct pci_device *dev);
 off_t pci_find_capability(struct pci_device *dev, uint8_t cap);
-int pci_enable_msi(struct pci_device *dev);
+int pci_enable_msi(struct pci_device *dev, irq_t handler);
 
 #ifdef __cplusplus
 }

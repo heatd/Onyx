@@ -12,6 +12,7 @@
 
 #include <kernel/acpi.h>
 #include <kernel/dev.h>
+#include <kernel/log.h>
 
 #include <drivers/pci.h>
 #include <drivers/pcie.h>
@@ -47,6 +48,7 @@ void pcie_append_allocation(struct pcie_allocation *a)
 		l->next = a;
 	}
 }
+__attribute__((no_sanitize_undefined))
 uint64_t pcie_read_device_from_segment(struct pci_device *dev, struct pcie_allocation *alloc, uint16_t off, size_t size)
 {
 	uint64_t val = -1;
@@ -70,13 +72,33 @@ uint64_t pcie_read_device_from_segment(struct pci_device *dev, struct pcie_alloc
 	}
 	return val;
 }
+__attribute__((no_sanitize_undefined))
 void pcie_write_device_from_segment(struct pci_device *dev, struct pcie_allocation *alloc,
 uint64_t value, uint16_t off, size_t size)
 {
 	uintptr_t ptr = (uintptr_t) alloc->address + ((dev->bus - alloc->start_bus) << 20 | dev->device << 15 | 
 			dev->function << 12);
 	volatile uint64_t *data = (volatile uint64_t *) (ptr + off);
-	*data = (*data & ~value) | value;
+	uint64_t mask = 0;
+	switch(size)
+	{
+		case sizeof(uint8_t):
+			mask = 0xff;
+			break;
+		case sizeof(uint16_t):
+			mask = 0xffff;
+			break;
+		case sizeof(uint32_t):
+			mask = 0xffffffff;
+			break;
+		case sizeof(uint64_t):
+			mask = 0xffffffffffffffff;
+			break;
+		default:
+			INFO("pcie", "pcie_write_device_from_segment: Invalid size\n");
+			return;
+	}
+	*data = (*data & ~mask) | value;
 }
 struct pcie_allocation *pcie_get_allocation_from_dev(struct pci_device *dev)
 {
@@ -120,6 +142,9 @@ uint64_t __pcie_read(uint8_t bus, uint8_t device, uint8_t function, struct pcie_
 	dev.function = function;
 	return pcie_read_device_from_segment(&dev, alloc, off, size);
 }
+
+void pci_find_supported_capabilities(struct pci_device *dev);
+
 void pcie_enumerate_device(uint8_t bus, uint8_t device, uint8_t function, struct pcie_allocation *alloc)
 {
 	uint16_t vendor = (uint16_t) __pcie_read(bus, device, function, alloc, 0, sizeof(uint16_t));
@@ -128,9 +153,9 @@ void pcie_enumerate_device(uint8_t bus, uint8_t device, uint8_t function, struct
 		return;
 	uint16_t header = (uint16_t) __pcie_read(bus, device, function, alloc, 0xe, sizeof(uint16_t));
 
-	uint8_t pciClass = (uint8_t)(__pcie_read(bus, device, function, alloc, 0xa, sizeof(uint8_t)) >> 8);
-	uint8_t subClass = (uint8_t) __pcie_read(bus, device, function, alloc, 0xb, sizeof(uint8_t));
-	uint8_t progIF = (uint8_t) (__pcie_read(bus, device, function, alloc, 0xc, sizeof(uint8_t)) >> 8);
+	uint8_t pciClass = (uint8_t)(__pcie_read(bus, device, function, alloc, 0xb, sizeof(uint8_t)));
+	uint8_t subClass = (uint8_t) __pcie_read(bus, device, function, alloc, 0xa, sizeof(uint8_t));
+	uint8_t progIF = (uint8_t) (__pcie_read(bus, device, function, alloc, 0xc, sizeof(uint8_t)));
 
 	// Set up some meta-data
 	struct pci_device* dev = zalloc(sizeof(struct pci_device));
@@ -150,8 +175,32 @@ void pcie_enumerate_device(uint8_t bus, uint8_t device, uint8_t function, struct
 	dev->write = pcie_write;
 	dev->current_power_state = PCI_POWER_STATE_D0;
 	dev->type = header & PCI_TYPE_MASK;
-	printk("Found a device at %x:%x:%x:%x\n", alloc->segment, bus, device, function);
 
+	/* Find supported caps and add them to dev */
+	pci_find_supported_capabilities(dev);
+	/* Set up the pci device's name */
+	char name_buf[200] = {0};
+	snprintf(name_buf, 200, "pci-%x%x", vendor, dev->deviceID);
+	dev->dev.name = strdup(name_buf);
+	assert(dev->dev.name);
+	
+	bus_add_device(&pcie_bus, (struct device*) dev);
+	
+	/* It's pointless to enumerate subfunctions since functions can't have them */
+	/* TODO: Running qemu with -machine q35 returned 0x80 on pci headers with functions != 0
+	   Is this a qemu bug or is it our fault?
+	*/
+	if(function != 0)
+		return;
+	if(header & 0x80)
+	{
+		for(int i = 1; i < 8; i++)
+		{
+			if(__pcie_read(bus, device, i, alloc, 0, sizeof(uint16_t)) == 0xFFFF)
+				continue;
+			pcie_enumerate_device(bus, device, i, alloc);
+		}
+	}
 }
 void pcie_enumerate_devices_in_alloc(struct pcie_allocation *alloc)
 {
@@ -184,8 +233,6 @@ int pcie_init(void)
 	size_t nr_allocs = (mcfg->Header.Length - sizeof(ACPI_TABLE_MCFG)) / sizeof(ACPI_MCFG_ALLOCATION);
 	while(nr_allocs--)
 	{
-		printk("Allocation info - Address %p - Segment %x - buses %x - %x.\n", alloc->Address,
-			alloc->PciSegment, alloc->StartBusNumber, alloc->EndBusNumber);
 		struct pcie_allocation *allocation = zalloc(sizeof(struct pcie_allocation));
 		/* Failing to allocate enough memory here is pretty much a system failure */
 		assert(allocation != NULL);
@@ -202,4 +249,28 @@ int pcie_init(void)
 	/* Finally, enumerate devices */
 	pcie_enumerate_devices();
 	return 0;
+}
+struct pci_device *get_pciedev_from_classes(uint8_t pciclass, uint8_t subclass, uint8_t progif)
+{
+	struct device *d = pcie_bus.devs;
+	while(d)
+	{
+		struct pci_device *pci = (struct pci_device *) d;
+		if(pci->pciClass == pciclass && pci->subClass == subclass && pci->progIF == progif)
+			return pci;
+		d = d->next;
+	}
+	return NULL;
+}
+struct pci_device *get_pciedev_from_vendor_device(uint16_t deviceid, uint16_t vendorid)
+{
+	struct device *d = pcie_bus.devs;
+	while(d)
+	{
+		struct pci_device *pci = (struct pci_device *) d;
+		if(pci->deviceID == deviceid && pci->vendorID == vendorid)
+			return pci;
+		d = d->next;
+	}
+	return NULL;
 }

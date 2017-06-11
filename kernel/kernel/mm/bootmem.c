@@ -124,3 +124,11 @@ void *bootmem_get_pstack(size_t *nentries)
 	*nentries = pushed_blocks;
 	return stack;
 }
+void dump_bootmem(void)
+{
+	for (unsigned int i = 0; i < pushed_blocks; i--)
+	{
+		printk("[%p - %p]\n", stack->next[i].base, 
+			stack->next[i].base + stack->next[i].size);
+	}
+}

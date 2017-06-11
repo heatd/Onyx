@@ -67,7 +67,7 @@ volatile char *ioapic_base = NULL;
 ACPI_TABLE_MADT *madt = NULL;
 uint32_t read_io_apic(uint32_t reg)
 {
-	uint32_t volatile *ioapic = (uint32_t volatile*)ioapic_base;
+	uint32_t volatile *ioapic = (uint32_t volatile*) ioapic_base;
 	ioapic[0] = (reg & 0xFF);
 	return ioapic[4];
 }
@@ -89,10 +89,38 @@ void write_redirection_entry(uint32_t pin, uint64_t value)
 	write_io_apic(0x10 + pin * 2, value & 0x00000000FFFFFFFF);
 	write_io_apic(0x10 + pin * 2 + 1, value >> 32);
 }
+static int irqs;
+void ioapic_set_pin(bool active_high, bool level, uint32_t pin)
+{
+	uint64_t entry = read_redirection_entry(pin);
+	entry |= irqs + pin;
+	if(!active_high)
+	{
+		/* Active low */
+		entry |= IOAPIC_PIN_POLARITY_ACTIVE_LOW;
+	}
+	if(level)
+	{
+		entry |= IOAPIC_PIN_TRIGGER_LEVEL;
+	}
+	write_redirection_entry(pin, entry);
+}
+void ioapic_unmask_pin(uint32_t pin)
+{
+	uint64_t entry = read_redirection_entry(pin);
+	entry &= ~IOAPIC_PIN_MASKED;
+	write_redirection_entry(pin, entry);
+}
+void ioapic_mask_pin(uint32_t pin)
+{
+	uint64_t entry = read_redirection_entry(pin);
+	entry |= IOAPIC_PIN_MASKED;
+	write_redirection_entry(pin, entry);
+}
 void set_pin_handlers()
 {
 	/* Allocate a pool of vectors and reserve them */
-	int irqs = x86_allocate_vectors(24);
+	irqs = x86_allocate_vectors(24);
 	x86_reserve_vector(irqs + 0, irq0);
 	x86_reserve_vector(irqs + 1, irq1);
 	x86_reserve_vector(irqs + 2, irq2);
@@ -135,13 +163,12 @@ void set_pin_handlers()
 			* - Fixed delivery mode
 			* They might be overwriten by the ISO descriptors in the MADT
 			*/
-			uint64_t entry = 0;
+			uint64_t entry = IOAPIC_PIN_MASKED;
 			entry |= irqs + i;
 			write_redirection_entry(i, entry);
 		}
 		if(i > 15 && i <= 19)
 		{
-			// Maybe add a different behavior when we can? (After porting the PCI drivers)
 			uint64_t entry = read_redirection_entry(i);
 			write_redirection_entry(i, entry | (irqs + i));
 		}
@@ -154,7 +181,8 @@ void set_pin_handlers()
 		if(i->Type == ACPI_MADT_TYPE_INTERRUPT_OVERRIDE)
 		{
 			ACPI_MADT_INTERRUPT_OVERRIDE *mio = (ACPI_MADT_INTERRUPT_OVERRIDE*) i;
-			INFO("apic", "Interrupt override for GSI %d\n", mio->SourceIrq);
+			INFO("apic", "Interrupt override for GSI %d to %d\n", mio->SourceIrq,
+									      mio->GlobalIrq);
 			uint64_t red = read_redirection_entry(mio->GlobalIrq);
 			red |= 32 + mio->GlobalIrq;
 			if(mio->IntiFlags & 0x3)
@@ -166,13 +194,16 @@ void set_pin_handlers()
 	}
 	
 }
-void ioapic_init()
+void ioapic_early_init(void)
 {
 	/* Map the I/O APIC base */
 	ioapic_base = (volatile char*) vmm_allocate_virt_address(VM_KERNEL, 1, VMM_TYPE_REGULAR, VMM_TYPE_HW, 0);
 	if(!ioapic_base)
 		panic("Virtual memory allocation for the I/O APIC failed!");
 	paging_map_phys_to_virt((uintptr_t) ioapic_base, IOAPIC_BASE_PHYS, VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC);
+}
+void ioapic_init()
+{
 	/* Execute _PIC */
 	acpi_execute_pic(ACPI_PIC_IOAPIC);
 	if(acpi_get_irq_routing_tables())

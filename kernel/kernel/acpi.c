@@ -21,6 +21,7 @@
 #include <kernel/cpu.h>
 #include <kernel/pnp.h>
 #include <kernel/dev.h>
+#include <kernel/apic.h>
 
 static const ACPI_EXCEPTION_INFO    AcpiGbl_ExceptionNames_Env[] =
 {
@@ -154,7 +155,8 @@ int acpi_get_irq_routing_for_dev(uint8_t bus, uint8_t device, uint8_t function)
 		if(it->Source[0] == 0)
 		{
 			release_spinlock(&irq_rout_lock);
-			return it->SourceIndex+1;
+			ioapic_set_pin(false, true, it->SourceIndex);
+			return it->SourceIndex;
 		}
 		else
 		{
@@ -186,12 +188,18 @@ int acpi_get_irq_routing_for_dev(uint8_t bus, uint8_t device, uint8_t function)
 					case ACPI_RESOURCE_TYPE_IRQ:
 					{
 						release_spinlock(&irq_rout_lock);
-						return res->Data.Irq.Interrupts[0]+1;
+						bool level = res->Data.Irq.Polarity == 0 ? true : false;
+						bool active_high = res->Data.Irq.Triggering == 0 ? true : false;
+						ioapic_set_pin(active_high, level, res->Data.Irq.Interrupts[0]);
+						return res->Data.Irq.Interrupts[0];
 					}
 					case ACPI_RESOURCE_TYPE_EXTENDED_IRQ:
 					{
 						release_spinlock(&irq_rout_lock);
-						return res->Data.ExtendedIrq.Interrupts[0]+1;
+						bool level = res->Data.ExtendedIrq.Polarity == 0 ? true : false;
+						bool active_high = res->Data.ExtendedIrq.Triggering == 0 ? true : false;
+						ioapic_set_pin(active_high, level, res->Data.ExtendedIrq.Interrupts[0]);
+						return res->Data.ExtendedIrq.Interrupts[0];
 					}
 				}
 			}
@@ -270,23 +278,23 @@ int acpi_initialize(void)
 	ACPI_STATUS st = AcpiInitializeSubsystem();
 	if(ACPI_FAILURE(st))
 	{
-		printf("Error: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
+		printk("Error: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
 		panic("ACPI subsystem initialization failed!");
-	}	
+	}
 	st = AcpiInitializeTables(NULL, 32, true);
 	if(ACPI_FAILURE(st))
 	{
-		printf("Error: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
+		printk("Error: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
 		panic("ACPI table subsystem initialization failed!");
 	}
 	st = AcpiLoadTables();
 	if(ACPI_FAILURE(st))
 		panic("AcpiLoadTables failed!");
-	
+	ioapic_early_init();
 	st = AcpiEnableSubsystem(ACPI_FULL_INITIALIZATION);
 	if (ACPI_FAILURE(st))
 	{
-		printf("Error: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
+		printk("Error: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
 		panic("AcpiEnableSubsystem failed!");
 	}
 	st = AcpiInitializeObjects (ACPI_FULL_INITIALIZATION);
@@ -298,6 +306,7 @@ int acpi_initialize(void)
 	bus_register(&acpi_bus);
 	/* Enumerate every device */
 	acpi_enumerate_devices();
+
 	return 0;
 }
 uint32_t acpi_get_apic_id_lapic(ACPI_SUBTABLE_HEADER *madt)

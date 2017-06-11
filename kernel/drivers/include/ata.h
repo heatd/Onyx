@@ -22,7 +22,7 @@ typedef struct
 #define ATA_SR_DSC     0x10    // Drive seek complete
 #define ATA_SR_DRQ     0x08    // Data request ready
 #define ATA_SR_CORR    0x04    // Corrected data
-#define ATA_SR_IDX     0x02    // Inlex
+#define ATA_SR_IDX     0x02    // Index
 #define ATA_SR_ERR     0x01    // Error
 /* ERRORS */
 #define ATA_ER_BBK      0x80    // Bad sector

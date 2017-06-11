@@ -14,13 +14,23 @@
 #define IA32_APIC_BASE_MSR_BSP 0x100 // Processor is a BSP
 #define IA32_APIC_BASE_MSR_ENABLE 0x800
 
+#define IOAPIC_PIN_DESTINATION_MODE		(1 << 11)
+#define IOAPIC_PIN_DELIVERY_STATUS		(1 << 12)
+#define IOAPIC_PIN_POLARITY_ACTIVE_LOW		(1 << 13)
+#define IOAPIC_PIN_TRIGGER_LEVEL		(1 << 15)
+#define IOAPIC_PIN_MASKED			(1 << 16)
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+void ioapic_early_init(void);
 void apic_timer_init();
 void ioapic_init();
 void set_pin_handlers();
+void ioapic_set_pin(bool active_high, bool level, uint32_t pin);
+void ioapic_unmask_pin(uint32_t pin);
+void ioapic_mask_pin(uint32_t pin);
 uint32_t read_io_apic(uint32_t reg);
 void write_io_apic(uint32_t reg, uint32_t value);
 void lapic_init();
@@ -29,6 +39,8 @@ void apic_timer_smp_init(volatile uint32_t *lapic);
 void apic_set_irql(int irql);
 int apic_get_irql(void);
 void send_ipi(uint8_t id, uint32_t type, uint32_t page);
+void lapic_send_eoi(void);
+
 #ifdef __cplusplus
 }
 #endif

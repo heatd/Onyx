@@ -6,6 +6,10 @@
 #ifndef _AHCI_H
 #define _AHCI_H
 
+#include <stdint.h>
+#include <stdbool.h>
+
+#include <kernel/spinlock.h>
 #define	SATA_SIG_ATA	0x00000101	// SATA drive
 #define	SATA_SIG_ATAPI	0xEB140101	// SATAPI drive
 
@@ -43,7 +47,8 @@ typedef struct
 	uint8_t control;
 
 	uint32_t resv1;
-} fis_reg_h2d;
+	uint8_t padding[0x2C];
+} cfis_t;
 
 typedef struct
 {
@@ -103,7 +108,7 @@ typedef struct
 
 	uint16_t transfer_count;
 	uint32_t resv4; 
-} fis_pio_setup;
+} fis_pio_setup_t;
 
 typedef struct
 {
@@ -124,23 +129,54 @@ typedef struct
 	uint32_t dma_buffer_off;
 	uint32_t tranfer_count;
 	uint32_t resv3;
-} fis_dma_setup;
+} fis_dma_setup_t;
 
+typedef struct
+{
+	cfis_t cfis;
+	uint8_t acmd[16];
+	uint8_t reserved[0x30];
+} command_table_t;
 typedef volatile struct
 {
-	uint64_t command_list_base;
-	uint64_t fis_list_base;
-	uint32_t interrupt_status;
-	uint32_t interrupt_enable;
+	uint16_t desc_info;
+	uint16_t prdtl;
+	uint32_t prdbc;
+	uint32_t base_address_lo;
+	uint32_t base_address_hi;
+	uint32_t res[4];
+} command_list_t;
 
-	uint32_t cmd;
+typedef struct
+{
+	uint64_t address;
+	uint32_t res0;
+	uint32_t dw3;
+} prdt_t;
+
+#define AHCI_COMMAND_LIST_ATAPI		(1 << 5)
+#define AHCI_COMMAND_LIST_WRITE		(1 << 6)
+#define AHCI_COMMAND_LIST_PREFETCH	(1 << 7)
+#define AHCI_COMMAND_LIST_RESET		(1 << 8)
+#define AHCI_COMMAND_LIST_BIST		(1 << 9)
+#define AHCI_COMMAND_LIST_CLEAR_BUSY	(1 << 10)
+typedef volatile struct
+{
+	uint32_t command_list_base_low;
+	uint32_t command_list_base_hi;
+	uint32_t fis_list_base_low;
+	uint32_t fis_list_base_hi;
+	uint32_t interrupt_status;
+	uint32_t pxie;
+
+	uint32_t pxcmd;
 	uint32_t resv0;
 	uint32_t tfd;
 	uint32_t sig;
-	uint32_t sata_status;
-	uint32_t sata_control;
-	uint32_t sata_error;
-	uint32_t sata_active;
+	uint32_t status;
+	uint32_t control;
+	uint32_t error;
+	uint32_t active;
 	uint32_t command_issue;
 	uint32_t sata_notification;
 	uint32_t fbs;
@@ -151,7 +187,7 @@ typedef volatile struct
 typedef volatile struct
 {
 	uint32_t host_cap;
-	uint32_t global_host_ctl;
+	uint32_t ghc;
 	uint32_t interrupt_status;
 	uint32_t ports_implemented;
 	uint32_t version;
@@ -169,4 +205,112 @@ typedef volatile struct
 	
 	ahci_port_t ports[32];
 } ahci_hba_memory_regs_t;
+struct command_list
+{
+	volatile bool recieved_interrupt;
+	uint32_t last_interrupt_status;
+};
+struct ahci_port
+{
+	int port_nr;
+	ahci_port_t *port;
+	spinlock_t port_lock;
+	command_table_t *ctable;
+	prdt_t *prdt;
+	struct command_list cmdslots[32];
+	unsigned char identify[512];
+};
+struct ahci_device
+{
+	struct pci_device *pci_dev;
+	ahci_hba_memory_regs_t *hba;
+	struct ahci_port ports[32];
+};
+
+struct ahci_command_ata
+{
+	uint8_t cmd;
+	size_t size;
+	bool write;
+	void *buffer;
+	uint64_t lba;
+};
+/* Bitmasks for the capabilities register of the HBA */
+#define AHCI_CAP_NR_PORTS(val)		(val & 0xF)
+#define AHCI_CAP_SXS			(1 << 5)
+#define AHCI_CAP_EMS			(1 << 6)
+#define AHCI_CAP_CCCS			(1 << 7)
+#define AHCI_CAP_NCS(val)		((val >> 8) & 0xF)
+#define AHCI_CAP_PSC			(1 << 13)
+#define AHCI_CAP_SSC			(1 << 14)
+#define AHCI_CAP_PMD			(1 << 15)
+#define AHCI_CAP_FBSS			(1 << 16)
+#define AHCI_CAP_SPM			(1 << 17)
+#define AHCI_CAP_AHCI_ONLY		(1 << 18)
+#define AHCI_CAP_INTERFACE_SPEED(val)	((val >> 20) & 0xF)
+#define AHCI_CAP_SCLO			(1 << 24)
+#define AHCI_CAP_ACTIVITY_LED		(1 << 25)
+#define AHCI_CAP_SALP			(1 << 26)
+#define AHCI_CAP_STAGGERED_SPINUP	(1 << 27)
+#define AHCI_CAP_SPMS			(1 << 28)
+#define AHCI_CAP_SSNTF			(1 << 29)
+#define AHCI_CAP_SNCQ			(1 << 30)
+#define AHCI_CAP_ADDR64			(1L << 31)
+
+#define AHCI_GHC_AHCI_ENABLE		(1L << 31)
+#define AHCI_GHC_MRSM			(1 << 2)
+#define AHCI_GHC_INTERRUPTS_ENABLE	(1 << 1)
+#define AHCI_GHC_HBA_RESET		(1 << 0)
+
+#define AHCI_PORT_CMD_START		(1 << 0)
+#define AHCI_PORT_CMD_SPIN_UP_DEV	(1 << 1)
+#define AHCI_PORT_CMD_POWER_ON_DEV	(1 << 2)
+#define AHCI_PORT_CMD_CL_OVERRIDE	(1 << 3)
+#define AHCI_PORT_CMD_FRE		(1 << 4)
+#define AHCI_PORT_CMD_CURR_CMD_SLOT(val)	((val & 0xF00) >> 8)		
+#define AHCI_PORT_CMD_MPSS		(1 << 13)
+#define AHCI_PORT_CMD_FR		(1 << 14)
+#define AHCI_PORT_CMD_CR		(1 << 15)
+#define AHCI_PORT_CMD_CPS		(1 << 16)
+#define AHCI_PORT_CMD_PMA		(1 << 17)
+#define AHCI_PORT_CMD_HOTPLUG_PORT	(1 << 18)
+#define AHCI_PORT_CMD_MPSP		(1 << 19)
+#define AHCI_PORT_CMD_CPD		(1 << 20)
+#define AHCI_PORT_CMD_ESP		(1 << 21)
+#define AHCI_PORT_CMD_FBSCP		(1 << 22)
+#define AHCI_PORT_CMD_APSTE		(1 << 23)
+#define AHCI_PORT_CMD_ATAPI		(1 << 24)
+#define AHCI_PORT_CMD_DLAE		(1 << 25)
+#define AHCI_PORT_CMD_ALPE		(1 << 26)
+#define AHCI_PORT_CMD_ASP		(1 << 27)
+#define AHCI_PORT_CMD_ICC(val)		((val & F0000000) >> 28)
+
+#define AHCI_PORT_STATUS_DET(val)	(val & 0xF)
+#define AHCI_PORT_STATUS_SPD(val)	((val & 0xF0) >> 4)
+#define AHCI_PORT_STATUS_IPM(val)	((val & 0xF00) >> 8)
+
+#define AHCI_PORT_INTERRUPT_DHRE		(1 << 0)
+#define AHCI_PORT_INTERRUPT_PSE			(1 << 1)
+#define AHCI_PORT_INTERRUPT_DSE			(1 << 2)
+#define AHCI_PORT_INTERRUPT_SDBE		(1 << 3)
+#define AHCI_PORT_INTERRUPT_UFE			(1 << 4)
+#define AHCI_PORT_INTERRUPT_DPE			(1 << 5)
+#define AHCI_PORT_INTERRUPT_PCE			(1 << 6)
+#define AHCI_PORT_INTERRUPT_DMPE		(1 << 7)
+#define AHCI_PORT_INTERRUPT_PRCE		(1 << 22)
+#define AHCI_PORT_INTERRUPT_IPME		(1 << 23)
+#define AHCI_PORT_INTERRUPT_OFE			(1 << 24)
+#define AHCI_PORT_INTERRUPT_INFE		(1 << 26)
+#define AHCI_PORT_INTERRUPT_IFE			(1 << 27)
+#define AHCI_PORT_INTERRUPT_HBDE		(1 << 28)
+#define AHCI_PORT_INTERRUPT_HBFE		(1 << 29)
+#define AHCI_PORT_INTERRUPT_TFEE		(1 << 30)
+#define AHCI_PORT_INTERRUPT_CPDE		(1L << 31)
+
+#define AHCI_INTST_ERROR	(AHCI_PORT_INTERRUPT_UFE | AHCI_PORT_INTERRUPT_PCE | \
+AHCI_PORT_INTERRUPT_PRCE | AHCI_PORT_INTERRUPT_IPME | AHCI_PORT_INTERRUPT_OFE \
+| AHCI_PORT_INTERRUPT_INFE | AHCI_PORT_INTERRUPT_IFE | AHCI_PORT_INTERRUPT_HBDE | \
+AHCI_PORT_INTERRUPT_HBFE | AHCI_PORT_INTERRUPT_TFEE) 
+uint32_t ahci_get_version(ahci_hba_memory_regs_t *hba);
+char *ahci_stringify_version(uint32_t version);
 #endif

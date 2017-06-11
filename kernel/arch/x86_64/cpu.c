@@ -141,6 +141,7 @@ void cpu_init_interrupts()
 {
 	avx_init();
 	pic_remap();
+	pic_disable();
 	ioapic_init();
 	lapic_init();
 	apic_timer_init();

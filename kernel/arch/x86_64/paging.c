@@ -130,7 +130,7 @@ void paging_init()
 }
 void paging_map_all_phys()
 {
-	_Bool is_1gb_supported = x86_has_cap(X86_FEATURE_PDPE1GB);
+	bool is_1gb_supported = x86_has_cap(X86_FEATURE_PDPE1GB);
 	uintptr_t virt = 0xffffea0000000000;
 	decomposed_addr_t decAddr;
 	memcpy(&decAddr, &virt, sizeof(decomposed_addr_t));
@@ -139,6 +139,7 @@ void paging_map_all_phys()
 	
 	memset(pml3, 0, sizeof(PML3));
 	*entry = make_pml4e((uint64_t)pml3, 0, 0, 0, 0, 1, 1);
+	is_1gb_supported = false;
 	if(is_1gb_supported)
 	{
 		for(size_t i = 0; i < 512; i++)
@@ -536,4 +537,44 @@ int is_invalid_arch_range(void *address, size_t pages)
 			return -1;
 	}
 	return 0;
+}
+void paging_walk(void *addr)
+{
+	decomposed_addr_t dec;
+	memcpy(&dec, &addr, sizeof(decomposed_addr_t));
+	PML4 *pml4;
+	if(!is_spawning)
+		pml4 = (PML4*)((uint64_t)get_current_pml4() + PHYS_BASE);
+	else
+		pml4 = (PML4*)((uint64_t)spawning_pml + PHYS_BASE);
+	uint64_t* entry = &pml4->entries[dec.pml4];
+	if(*entry == 0)
+	{
+		printk("isn't mapped(PML4 %x)\n", pml4);
+		return;
+	}
+	PML3 *pml3 = (PML3*)((*entry & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
+	entry = &pml3->entries[dec.pdpt];
+	if(*entry == 0)
+	{
+		printk("isn't mapped(PML3 %x)\n", pml3);
+		return;
+	}
+	PML2 *pml2 = (PML2*)((*entry & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
+	entry = &pml2->entries[dec.pd];
+	if(*entry == 0)
+	{
+		printk("isn't mapped(PML2 %x)\n", pml2);
+		return;
+	}
+	PML1 *pml1 = (PML1*)((*entry & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
+	entry = &pml1->entries[dec.pt];
+	if(*entry == 0)
+	{
+		printk("isn't mapped(PML1 %x)\n", pml1);
+		return;
+	}
+	uint32_t perms = *entry & 0xF00000000000FFF;
+	uint64_t page = PML_EXTRACT_ADDRESS(*entry);
+	printk("Perms: %x\nPage: %p\n", perms, page);
 }

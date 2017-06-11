@@ -362,9 +362,11 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 
 	/* Initialize the first terminal */
 	tty_init();
-	initrd_addr = (void*) (uintptr_t) initrd_tag->mod_start;
-	page_init();
 
+	mmap = (struct multiboot_mmap_entry *) mmap_tag->entries;
+	initrd_addr = (void*) (uintptr_t) initrd_tag->mod_start;
+
+	page_init();
 	/* Map the first bucket's memory address */
 	void *mem = (void*)0xFFFFFFF890000000;
 	vmm_map_range(mem, 1024, VMM_GLOBAL | VMM_WRITE | VMM_NOEXEC);
@@ -387,7 +389,7 @@ void kernel_main()
 
 	/* Initialize ACPI */
 	acpi_initialize();
-
+	
 	/* Intialize the interrupt part of the CPU (arch dependent) */
 	cpu_init_interrupts();
 

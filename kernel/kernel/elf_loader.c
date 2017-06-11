@@ -317,22 +317,24 @@ int elf_parse_program_headers(void *file, struct binfmt_args *args)
 		}
 		if (phdrs[i].p_type == PT_LOAD)
 		{
-			size_t pages = phdrs[i].p_memsz / 4096;
-			if (!pages || pages % 4096)
+			uintptr_t aligned_address = phdrs[i].p_vaddr & 0xFFFFFFFFFFFFF000;
+			size_t total_size = phdrs[i].p_memsz + (aligned_address - phdrs[i].p_vaddr);
+			size_t pages = total_size / PAGE_SIZE;
+			if(pages % PAGE_SIZE)
 				pages++;
 			/* Sanitize the address first */
-			if(vm_sanitize_address((void*)(phdrs[i].p_vaddr), pages) < 0)
+			if(vm_sanitize_address((void*) aligned_address, pages) < 0)
 				return false;
 			int prot = (VM_USER) |
 				   ((phdrs[i].p_flags & PF_W) ? VM_WRITE : 0) |
 				   ((phdrs[i].p_flags & PF_X) ? 0 : VM_NOEXEC);
-			if(!vmm_reserve_address((void *) (phdrs[i].p_vaddr & 0xFFFFFFFFFFFFF000), pages, VM_TYPE_REGULAR, prot))
+			if(!vmm_reserve_address((void *) aligned_address, pages, VM_TYPE_REGULAR, prot))
 				return false;
 			/* Note that things are mapped VM_WRITE | VM_USER before the memcpy so 
 			 we don't PF ourselves(i.e: writing to RO memory) */
-			vmm_map_range((void *) (phdrs[i].p_vaddr & 0xFFFFFFFFFFFFF000), pages, VM_WRITE | VM_USER);
+			vmm_map_range((void *) aligned_address, pages, VM_WRITE | VM_USER);
 			memcpy((void*) phdrs[i].p_vaddr, (void *) ((char *) file + phdrs[i].p_offset),  phdrs[i].p_filesz);
-			vmm_change_perms((void *) (phdrs[i].p_vaddr & 0xFFFFFFFFFFFFF000), pages, prot);
+			vmm_change_perms((void *) aligned_address, pages, prot);
 		}
 	}
 	return true;

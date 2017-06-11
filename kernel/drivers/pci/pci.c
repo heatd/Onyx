@@ -183,9 +183,10 @@ void pci_enumerate_device(uint16_t bus, uint8_t device, uint8_t function, struct
 
 	uint16_t header = (uint16_t)(__pci_config_read_word(bus, device, function, 0xE));
 
-	uint8_t pciClass = (uint8_t)(__pci_config_read_word(bus, device, function, 0xA)>>8);
-	uint8_t subClass = (uint8_t)__pci_config_read_word(bus, device, function, 0xB);
-	uint8_t progIF = (uint8_t)(__pci_config_read_word(bus, device, function, 0xC)>>8);
+	uint32_t word = __pci_config_read_dword(bus, device, function, 0x08);
+	uint8_t progIF = (word >> 8) & 0xFF;
+	uint8_t subClass = (word >> 16) & 0xFF;
+	uint8_t pciClass = (word >> 24) & 0xFF;
 
 	// Set up some meta-data
 	struct pci_device* dev = malloc(sizeof(struct pci_device));
@@ -291,6 +292,8 @@ void pci_init()
 }
 struct pci_device *get_pcidev_from_vendor_device(uint16_t deviceid, uint16_t vendorid)
 {
+	if(pcie_is_enabled())
+		return get_pciedev_from_vendor_device(deviceid, vendorid);
 	for(struct pci_device *i = linked_list; i;i = i->next)
 	{
 		if(i->deviceID == deviceid && i->vendorID == vendorid)
@@ -300,6 +303,8 @@ struct pci_device *get_pcidev_from_vendor_device(uint16_t deviceid, uint16_t ven
 }
 struct pci_device *get_pcidev_from_classes(uint8_t class, uint8_t subclass, uint8_t progif)
 {
+	if(pcie_is_enabled())
+		return get_pciedev_from_classes(class, subclass, progif);
 	for(struct pci_device *i = linked_list; i;i = i->next)
 	{
 		if(i->pciClass == class && i->subClass == subclass && i->progIF == progif)
@@ -480,12 +485,5 @@ off_t pci_find_capability(struct pci_device *dev, uint8_t cap)
 			return offset;
 		offset = ((uint8_t) (_cap & 0xFF00)) & ~3;
 	}
-	return -1;
-}
-int pci_enable_msi(struct pci_device *dev)
-{
-	/*off_t offset = pci_find_capability(dev, PCI_CAP_ID_MSI);
-
-	printk("Offset: %x\n", offset);*/
 	return -1;
 }

@@ -23,4 +23,6 @@ struct pcie_allocation
 int pcie_get_mcfg(void);
 bool pcie_is_enabled(void);
 int pcie_init(void);
+struct pci_device *get_pciedev_from_classes(uint8_t pciclass, uint8_t subclass, uint8_t progif);
+struct pci_device *get_pciedev_from_vendor_device(uint16_t deviceid, uint16_t vendorid);
 #endif

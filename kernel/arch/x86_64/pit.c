@@ -39,5 +39,5 @@ void pit_deinit()
 }
 uint64_t pit_get_tick_count()
 {
-	return (uint64_t)timer_ticks;
+	return (uint64_t) timer_ticks;
 }

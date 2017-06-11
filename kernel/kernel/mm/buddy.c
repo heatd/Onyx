@@ -117,6 +117,7 @@ void page_initalize_memory(void)
 		/* Set everything as used */
 		memset(free_areas[i].map, 0xff, bitmap_size);
 	}
+	stack = bootmem_get_pstack(&nentries);
 	/* Now, parse through the stack */
 	for(size_t i = 0; i < nentries; i++)
 	{
@@ -241,6 +242,8 @@ void *__alloc_pages(int order)
 	if(mem) memset(PHYS_TO_VIRT(mem), 0, pow2(order) * PAGE_SIZE);
 	/* Exit the critical section */
 	release_spinlock(&buddy_lock);
+	if(mem == (void*) 0x5c000)
+		printk("Returning the shit page!\n");
 	return mem;
 }
 void *__alloc_page(int opt)

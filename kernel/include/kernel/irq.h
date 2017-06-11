@@ -26,12 +26,12 @@ struct irq_work
 	char payload[0];
 };
 #define IRQ_WORK_QUEUE_SIZE (8192)
-extern volatile _Bool is_in_irq;
+extern volatile bool is_in_irq;
 #ifdef __cplusplus
 extern "C" {
 #endif
 int irq_schedule_work(void (*callback)(void *, size_t), size_t payload_size, void *payload);
-_Bool isirq();
+bool isirq();
 void irq_install_handler(int irq, irq_t handler);
 void irq_uninstall_handler(int irq, irq_t handler);
 void irq_init(void);

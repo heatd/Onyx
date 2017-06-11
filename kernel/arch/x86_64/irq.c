@@ -24,21 +24,29 @@
 #include <kernel/panic.h>
 #include <kernel/registers.h>
 #include <kernel/irq.h>
+#include <kernel/platform.h>
+#include <kernel/cpu.h>
+#include <kernel/idt.h>
+#include <kernel/apic.h>
 
 volatile _Bool is_in_irq = false;
-#define NR_IRQ 24
+#define NR_IRQ 221
+#define NUM_IOAPIC_PINS	24
 irq_list_t *irq_routines[NR_IRQ]  =
 {
-	NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-	NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+	NULL
 };
+
 _Bool isirq()
 {
 	return is_in_irq;
 }
+
 void irq_install_handler(int irq, irq_t handler)
 {
 	assert(irq < NR_IRQ);
+	if(irq < NUM_IOAPIC_PINS)
+		ioapic_unmask_pin((uint32_t) irq);
 	irq_list_t *lst = irq_routines[irq];
 	if(!lst)
 	{
@@ -64,6 +72,7 @@ void irq_install_handler(int irq, irq_t handler)
 	lst->next->handler = handler;
 	lst->next->next = NULL;
 }
+
 void irq_uninstall_handler(int irq, irq_t handler)
 {
 	irq_list_t *list = irq_routines[irq];
@@ -82,16 +91,17 @@ void irq_uninstall_handler(int irq, irq_t handler)
 	prev->next = list->next;
 	free(list);
 }
+
 uintptr_t irq_handler(uint64_t irqn, registers_t *regs)
 {
-	if(irqn > 23)
+	if(irqn > NR_IRQ)
 	{
 		return (uintptr_t) regs;
 	}
 	uintptr_t ret = (uintptr_t) regs;
 	irq_list_t *handlers = irq_routines[irqn];
 	if(!handlers)
-		printf("irq: Unhandled interrupt at IRQ %u\n", irqn);
+		printk("irq: Unhandled interrupt at IRQ %u\n", irqn);
 	is_in_irq = true;
 	for(irq_list_t *i = handlers; i != NULL;i = i->next)
 	{
@@ -105,6 +115,7 @@ uintptr_t irq_handler(uint64_t irqn, registers_t *regs)
 	is_in_irq = false;
 	return ret;
 }
+
 static struct irq_work *queue = NULL;
 static thread_t *irq_worker_thread = NULL;
 int irq_schedule_work(void (*callback)(void *, size_t), size_t payload_size, void *payload)
@@ -123,6 +134,7 @@ int irq_schedule_work(void (*callback)(void *, size_t), size_t payload_size, voi
 	memcpy(&q->payload, payload, payload_size);
 	return 0;
 }
+
 int irq_get_work(struct irq_work *strct)
 {
 	if(!queue->callback)
@@ -134,6 +146,7 @@ int irq_get_work(struct irq_work *strct)
 	IRQ_WORK_QUEUE_SIZE - sizeof(struct irq_work) - strct->payload_size);
 	return 0;
 }
+
 struct irq_work *worker_buffer = NULL;
 void irq_worker(void *ctx)
 {
@@ -149,6 +162,7 @@ void irq_worker(void *ctx)
 		worker_buffer->callback(&worker_buffer->payload, worker_buffer->payload_size);
 	}
 }
+
 void irq_init(void)
 {
 	if(!(irq_worker_thread = sched_create_thread(irq_worker, 1, NULL)))
@@ -161,4 +175,41 @@ void irq_init(void)
 	if(!worker_buffer)
 		panic("irq_init: failed to allocate buffer!\n");
 	memset(worker_buffer, 0, IRQ_WORK_QUEUE_SIZE);
+}
+
+#define PCI_MSI_BASE_ADDRESS 0xFEE00000
+#define PCI_MSI_APIC_ID_SHIFT	12
+#define PCI_MSI_REDIRECTION_HINT	(1 << 3)
+int platform_allocate_msi_interrupts(unsigned int num_vectors, bool addr64,
+                                     struct pci_msi_data *data)
+{
+	/* TODO: Balance IRQs between processors, since it's not ok to assume
+	 * the current CPU, since then, IRQs become unbalanced
+	*/
+	/* 
+	 * TODO: Magenta hardcodes some of this stuff. Is it dangerous that things
+	 * are hardcoded like that?
+	*/
+	struct processor *proc = get_processor_data();
+	assert(proc != NULL);
+	int vecs = x86_allocate_vectors(num_vectors);
+	if(vecs < 0)
+		return -1;
+	/* See section 10.11.1 of the intel software developer manuals */
+	uint32_t address = PCI_MSI_BASE_ADDRESS;
+	address |= ((uint32_t) proc->lapic_id) << PCI_MSI_APIC_ID_SHIFT;
+	
+	/* See section 10.11.2 of the intel software developer manuals */
+	uint32_t data_val = vecs;
+
+	data->address = address;
+	data->address_high = 0;
+	data->data = data_val;
+	data->vector_start = vecs;
+	return 0;
+}
+void platform_send_eoi(uint64_t irq)
+{
+	/* Note: MSI interrupts also require EOIs */
+	lapic_send_eoi();
 }
