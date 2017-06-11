@@ -419,10 +419,7 @@ void kernel_main()
 	/* Initialize the IRQ worker thread */
 	irq_init();
 	ENABLE_INTERRUPTS();
-	for (;;)
-	{
-		__asm__ __volatile__("hlt");
-	}
+	for (;;);
 }
 void kernel_multitasking(void *arg)
 {
@@ -513,5 +510,5 @@ void kernel_multitasking(void *arg)
 	find_and_exec_init(args, envp);
 
 	get_current_thread()->status = THREAD_SLEEPING;
-	for (;;) __asm__ __volatile__("hlt");
+	for (;;);
 }

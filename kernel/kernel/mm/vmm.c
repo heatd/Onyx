@@ -296,7 +296,7 @@ void vmm_start_address_bookkeeping(uintptr_t framebuffer_address, uintptr_t heap
 	v->type = VM_TYPE_HW;
 	v->rwx = VM_NOEXEC | VM_WRITE;
 	/* TODO: Support multiple sizes of heap */
-	v = avl_insert_key(&kernel_tree, heap, 0x400000);
+	v = avl_insert_key(&kernel_tree, heap, 0x4000000000);
 	if(!v)
 	{
 		panic("vmm: early boot oom");	

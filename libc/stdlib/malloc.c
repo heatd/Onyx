@@ -14,18 +14,25 @@
 #include <kernel/vmm.h>
 extern _Bool is_initialized;
 char *heap = (char*) 0xFFFFFFF890000000;
+char *heap_limit = (char*) 0xFFFFFFF890400000;
+int heap_expand(void)
+{
+	/* Allocate 256 pages */
+	if(!vmm_map_range(heap_limit, 256, VM_WRITE | VM_GLOBAL | VM_NOEXEC))
+		return -1;
+	heap_limit += 0x100000;
+	return 0;
+}
 void *sbrk(intptr_t increment)
 {
+	if(heap + increment >= heap_limit || heap >= heap_limit)
+	{
+		if(heap_expand() < 0)
+			return NULL;
+	}
 	void *ret = heap;
 	heap += increment;
-	if(is_initialized)
-	{
-		if(!vmm_is_mapped(heap))
-		{
-			vmm_reserve_address((void *)((uintptr_t)heap & ~PAGE_SIZE), 512, VM_TYPE_HEAP, VM_WRITE | VM_GLOBAL | VM_NOEXEC);
-			vmm_map_range((void *)((uintptr_t)heap & ~PAGE_SIZE), 512, VM_WRITE | VM_GLOBAL | VM_NOEXEC); 
-		}
-	}
+
 	return ret;
 }
 void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
