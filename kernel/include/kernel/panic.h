@@ -16,6 +16,6 @@ ARCH_SPECIFIC void get_thread_ctx(registers_t* regs);
  */
 extern __attribute__ ((noreturn,cold,noinline))
 void panic(const char* msg);
-uintptr_t get_kernel_sym_by_name(char *name);
+uintptr_t get_kernel_sym_by_name(const char *name);
 void init_elf_symbols(struct multiboot_tag_elf_sections *restrict secs);
 #endif

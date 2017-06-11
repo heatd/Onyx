@@ -29,4 +29,5 @@ typedef struct
 int load_module(const char *path, const char *name);
 int initialize_module_subsystem();
 void *allocate_module_memory(size_t size);
+void module_dump(void);
 #endif

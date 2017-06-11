@@ -84,8 +84,9 @@ int load_module(const char *path, const char *name)
 		mods_disabled = 1;
 		return errno = ENOMEM;
 	}
-	mod->path = path;
-	mod->name = name;
+	mod->path = strdup(path);
+	mod->name = strdup(name);
+	mod->next = NULL;
 	vfsnode_t *file = open_vfs(fs_root, path);
 	if(!file)
 	{
@@ -130,4 +131,21 @@ int sys_insmod(const char *path, const char *name)
 		return errno =-EFAULT;
 	/* All the work is done by load_module; A return value of 1 means -1 for user-space, while -0 still = 0 */
 	return -load_module(path, name);
+}
+void module_dump(void)
+{
+	module_t **buckets = hashtable->buckets;
+	printk("Loaded modules: ");
+	for(int i = 0; i < DEFAULT_SIZE; i++)
+	{
+		module_t *mod = buckets[i];
+		if(!mod)
+			continue;
+		while(mod)
+		{
+			printk("%s ", mod->name);
+			mod = mod->next;
+		}
+	}
+	printk("\n");
 }

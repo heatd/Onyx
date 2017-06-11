@@ -12,7 +12,7 @@ EXEC_PREFIX?=$(PREFIX)
 INCLUDEDIR?=$(PREFIX)/usr/include
 LIBDIR?=$(EXEC_PREFIX)/usr/lib
 
-CFLAGS:=$(CFLAGS) -Wall -Wextra -mtune=generic
+CFLAGS:=$(CFLAGS) -mtune=generic -Wno-error
 LIBK_CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin
 LIBK_CPPFLAGS:=$(CPPFLAGS) -D__is_onyx_kernel
 

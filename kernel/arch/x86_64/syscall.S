@@ -70,7 +70,7 @@ extern SYSCALL_MAX_NUM
 extern do_irq_work
 extern thread_store_ustack
 extern thread_get_ustack
-global syscall_ENTRY64
+global syscall_ENTRY64:function
 syscall_ENTRY64:
 	cld
 	swapgs
@@ -103,9 +103,17 @@ syscall_ENTRY64:
 	cmp rax, 10
 	je .setup_fork
 .continue_systemcall:
+	; Setup the stack frame(the end of it anyway)
+	push qword 0
+	push rbp
+	mov rbp, rsp
+
 	cmp rax, [SYSCALL_MAX_NUM]
 	jg .invalid_syscall
 	call [syscall_list + rax * 8]
+	
+	pop rbp
+	add rsp, 8
 
 	pop rcx
 	mov ds, cx

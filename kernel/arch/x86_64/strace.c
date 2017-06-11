@@ -100,15 +100,12 @@ char *resolve_sym(void *address)
 	for(size_t i = 1; i < num; i++)
 	{
 		if(syms[i].st_value == (Elf64_Addr)address){
-			size_t len = strlen(elf_get_string(syms[i].st_name)) + 4;
+			size_t len = strlen(elf_get_string(syms[i].st_name)) + 3;
 			char *buf = malloc(len);
 			if(!buf)
 				return NULL;
 			memset(buf, 0, len);
-			*buf = '<';
-			strcpy(buf+1, elf_get_string(syms[i].st_name));
-			char *endofstr = buf + strlen(elf_get_string(syms[i].st_name));
-			*++endofstr = '>';
+			sprintf(buf, "<%s>", elf_get_string(syms[i].st_name));
 			return buf;
 		}
 	}
@@ -117,6 +114,8 @@ char *resolve_sym(void *address)
 	Elf64_Addr addr = (Elf64_Addr) address;
 	for(size_t i = 1; i < num; i++)
 	{
+		if(ELF64_ST_TYPE(syms[i].st_info) != STT_FUNC)
+			continue;
 		long __diff = addr - syms[i].st_value;
 		if(__diff < 0)
 			continue;
@@ -127,24 +126,14 @@ char *resolve_sym(void *address)
 	}
 	if(!closest_sym)
 		return NULL;
-	char buff[120] = {0};
-	memcpy(buff, "0x", 2);
-	itoa((uint64_t)address - closest_sym->st_value, 16, (char*) &buff[2], 1);
-	size_t lenof = strlen(buff);
-	char *ret = malloc(strlen(elf_get_string(closest_sym->st_name) + lenof + 7));
-	if(!ret)
+	/* Allocate a buffer big enough to hold <STRING_NAME> + <0xDEADDEADDEADDEAD> */
+	size_t buf_size = strlen(elf_get_string(closest_sym->st_name)) + 22;
+	char *buf = malloc(buf_size);
+	if(!buf)
 		return NULL;
-	memset(ret, 0, strlen(elf_get_string(closest_sym->st_name) + lenof + 7));
-	*ret = '<';
-	strcpy(ret+1, elf_get_string(closest_sym->st_name));
-	char *endof = ret+1 + strlen(elf_get_string(closest_sym->st_name));
-	*endof++ = ' ';
-	*endof++ = '+';
-	*endof++ = ' ';
-	strcpy(endof, buff);
-	endof +=strlen(buff);
-	*endof = '>';
-	return ret;
+	memset(buf, 0, buf_size);
+	sprintf(buf, "<%s+0x%x>", elf_get_string(closest_sym->st_name), diff);
+	return buf;
 }
 __attribute__((no_sanitize_undefined))
 void init_elf_symbols(struct multiboot_tag_elf_sections *restrict secs)

@@ -49,7 +49,7 @@ void itoa(uint64_t i, unsigned int base, char *buf, _Bool is_upper)
 	}
 	buf[opos] = 0;
 }
-char buffer[500];
+static char buffer[10000];
 int bufferPos = 0;
 void print(const char *data, size_t data_length)
 {
@@ -65,7 +65,7 @@ void flushPrint()
 	#ifdef __is_onyx_kernel
 	kernlog_print(buffer);
 	#endif
-	memset(buffer, 0 ,500);
+	memset(buffer, 0, 10000);
 	bufferPos = 0;
 }
 void flushPrint_screen()
@@ -73,7 +73,7 @@ void flushPrint_screen()
 	#ifdef __is_onyx_kernel
 	tty_write_string(buffer);
 	#endif
-	memset(buffer, 0 ,500);
+	memset(buffer, 0, 10000);
 	bufferPos = 0;
 }
 bool is_init = false;
