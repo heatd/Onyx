@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <multiboot2.h>
+#include <math.h>
 
 #include <kernel/task_switching.h>
 #include <kernel/elf.h>
@@ -17,13 +18,12 @@ void itoa(uint64_t i, unsigned int base, char *buf, _Bool is_upper);
 inline void get_frame_pointer(uint64_t **ptr)
 {
 	/* This piece of code uses something important in the SYSV AMD64 calling convention.
-	 * The frame address of a function is store in the RBP register,
+	 * The frame address of a function is stored in the RBP register,
 	 * which allows us to skip the variables used by the stack_trace function,
 	 * which by turn makes the code slightly faster and less confusing
 	 */
 	__asm__ __volatile__("mov %%rbp, %0":"=m"(*ptr)::"memory");
 }
-extern uintptr_t __stack_chk_guard;
 char *resolve_sym(void *address);
 __attribute__((no_sanitize_undefined))
 void *stack_trace()
@@ -47,10 +47,12 @@ void *stack_trace()
 			if((uint64_t*)*rbp >= thread->kernel_stack_top)
 				break;
 		}
+		if(!(void*)*(rbp+1))
+			break;
 		char *s = resolve_sym((void*)*(rbp+1));
 		if(!s)
 			break;
-		printf("Stack trace #%d: %s\n", i, s);
+		printk("Stack trace #%d: %s\n", i, s);
 		rbp = (uint64_t*)*rbp;
 		if(!rbp)
 			break;
@@ -62,28 +64,21 @@ void *stack_trace()
 		panic("stack trace: oom\n");
 	}
 	memset(retaddrbuf, 0, sizeof(uint64_t) * return_addresses);
-	get_frame_pointer(&rbp);
-	for(size_t i = 0; i < return_addresses; i++)
-	{
-		if((uint64_t*)*rbp >= thread->kernel_stack_top)
-			break;
-		retaddrbuf[i] = *(rbp+1);
-		rbp = (uint64_t*)*rbp;
-		return_addresses++;
-	}
+
 	return retaddrbuf;
 }
 /* Maybe it's better to put this section in another file */
 Elf64_Shdr *strtabs = NULL;
 Elf64_Shdr *symtab = NULL;
 char *strtab = NULL;
+uintptr_t min(uintptr_t x, uintptr_t y);
 __attribute__((no_sanitize_undefined))
 char *elf_get_string(Elf64_Word off)
 {
 	return strtab + off;
 }
 __attribute__((no_sanitize_undefined))
-uintptr_t get_kernel_sym_by_name(char *name)
+uintptr_t get_kernel_sym_by_name(const char *name)
 {
 	size_t num = symtab->sh_size / symtab->sh_entsize;
 	Elf64_Sym *syms = (Elf64_Sym*)(symtab->sh_addr + 0xFFFFFFFF80000000);
@@ -105,10 +100,11 @@ char *resolve_sym(void *address)
 	for(size_t i = 1; i < num; i++)
 	{
 		if(syms[i].st_value == (Elf64_Addr)address){
-			size_t len = strlen(elf_get_string(syms[i].st_name)) + 3;
+			size_t len = strlen(elf_get_string(syms[i].st_name)) + 4;
 			char *buf = malloc(len);
 			if(!buf)
 				return NULL;
+			memset(buf, 0, len);
 			*buf = '<';
 			strcpy(buf+1, elf_get_string(syms[i].st_name));
 			char *endofstr = buf + strlen(elf_get_string(syms[i].st_name));
@@ -117,13 +113,17 @@ char *resolve_sym(void *address)
 		}
 	}
 	Elf64_Sym *closest_sym = NULL;
+	long diff = INT64_MAX;
+	Elf64_Addr addr = (Elf64_Addr) address;
 	for(size_t i = 1; i < num; i++)
 	{
-		if(syms[i].st_value < (Elf64_Addr)address && syms[i].st_value + syms[i].st_size >= (Elf64_Addr)address)
-		{
-			closest_sym = &syms[i];
-			break;
-		}
+		long __diff = addr - syms[i].st_value;
+		if(__diff < 0)
+			continue;
+		diff = min(diff, __diff);
+		if(diff != __diff)
+			continue;
+		closest_sym = &syms[i];
 	}
 	if(!closest_sym)
 		return NULL;
@@ -134,6 +134,7 @@ char *resolve_sym(void *address)
 	char *ret = malloc(strlen(elf_get_string(closest_sym->st_name) + lenof + 7));
 	if(!ret)
 		return NULL;
+	memset(ret, 0, strlen(elf_get_string(closest_sym->st_name) + lenof + 7));
 	*ret = '<';
 	strcpy(ret+1, elf_get_string(closest_sym->st_name));
 	char *endof = ret+1 + strlen(elf_get_string(closest_sym->st_name));

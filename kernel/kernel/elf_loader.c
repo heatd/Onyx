@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <errno.h>
 #include <stdio.h>
+#include <kernel/panic.h>
 
 #include <kernel/vfs.h>
 #include <kernel/elf.h>
