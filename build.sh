@@ -12,6 +12,7 @@ for PACKAGE in $SOURCE_PACKAGES; do
   DESTDIR="$PWD/sysroot" $MAKE -C $PACKAGE install -s
 done
 
+./utils/make_utils.sh install
 ./build_packages.sh
 $NM kernel/vmonyx > Kernel.map
 cp Kernel.map sysroot/boot/Kernel.map

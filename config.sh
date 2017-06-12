@@ -1,7 +1,7 @@
 #!/bin/sh
 SYSTEM_HEADER_PROJECTS="libc libdrm kernel"
 PROJECTS="libc libdrm kernel"
-SOURCE_PACKAGES="musl ld packmanager cat echo init login sh ls dmesg games"
+SOURCE_PACKAGES="musl init games"
 
 export MAKE=${MAKE:-make}
 export HOST=${HOST:-$(./default-host.sh)}
