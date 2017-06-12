@@ -37,6 +37,8 @@ void page_initalize_memory()
 			{
 				zone0 = ptr;
 				zones[0].free_areas = zone0;
+				zones[0].allocated_pages = 0;
+				zones[0].free_pages = 0; 
 			}
 			else
 			/* Link the blocks */
@@ -55,6 +57,8 @@ void page_initalize_memory()
 			{
 				zone1 = ptr;
 				zones[1].free_areas = zone1;
+				zones[1].allocated_pages = 0;
+				zones[1].free_pages = 0;
 			}
 			else
 			/* Link the blocks */
@@ -73,6 +77,8 @@ void page_initalize_memory()
 			{
 				zone2 = ptr;
 				zones[2].free_areas = zone2;
+				zones[2].allocated_pages = 0;
+				zones[2].free_pages = 0; 
 			}
 			else
 			/* Link the blocks */
@@ -133,6 +139,8 @@ void *__alloc_page(int opt)
 	}
 	void *return_address = z->free_areas;
 	z->free_areas = ((page_area_t*) PHYS_TO_VIRT(z->free_areas))->next;
+	z->free_pages--;
+	z->allocated_pages++;
 	release_spinlock(&z->lock);
 	memset(PHYS_TO_VIRT(return_address), 0, PAGE_SIZE);
 	return return_address;
@@ -176,5 +184,5 @@ void __free_page(void *page)
 void page_get_stats(struct memstat *memstat)
 {
 	memstat->free_mem = (zones[0].free_pages + zones[1].free_pages + zones[2].free_pages) * PAGE_SIZE;
-	memstat->free_mem = (zones[0].allocated_pages + zones[1].allocated_pages + zones[2].allocated_pages) * PAGE_SIZE;
+	memstat->allocated_mem = (zones[0].allocated_pages + zones[1].allocated_pages + zones[2].allocated_pages) * PAGE_SIZE;
 }

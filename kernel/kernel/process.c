@@ -20,6 +20,8 @@
 #include <kernel/mutex.h>
 #include <kernel/panic.h>
 #include <kernel/binfmt.h>
+#include <kernel/worker.h>
+#include <kernel/page.h>
 
 #include <pthread_kernel.h>
 
@@ -33,6 +35,7 @@ process_t *first_process = NULL;
 volatile process_t *current_process = NULL;
 static pid_t current_pid = 1;
 static spinlock_t process_creation_lock;
+void process_destroy(void);
 int copy_file_descriptors(process_t *process, ioctx_t *ctx)
 {
 	process->ctx.file_desc = malloc(ctx->file_desc_entries * sizeof(void*));
@@ -385,7 +388,7 @@ pid_t sys_fork(syscall_ctx_t *ctx)
 	if(!new_pt)
 	{
 		/* TODO: Destroy the process */
-		vmm_destroy_tree(areas);
+		vmm_destroy_addr_space(areas);
 		return -ENOMEM;
 	}
 	if(!areas)
@@ -407,7 +410,7 @@ pid_t sys_fork(syscall_ctx_t *ctx)
 	{
 		free(child->threads[0]);
 		thread_destroy(child->threads[0]);
-		process_destroy_aspace(child);
+		//process_destroy_aspace(void);
 		free(child);
 		ENABLE_INTERRUPTS();
 		return -ENOMEM;
@@ -437,6 +440,8 @@ void sys_exit(int status)
 	
 	/* Destroy everything that can be destroyed now */
 	thread_destroy(current_thread);
+
+	process_destroy();
 
 	sched_yield();
 }
@@ -468,11 +473,52 @@ gid_t sys_getgid(void)
 {
 	return get_current_process()->gid;
 }
-void process_destroy_aspace(process_t *process)
+void process_destroy_aspace(void)
 {
-	vmm_destroy_tree(process->tree);
-	process->tree = NULL;
-	/* TODO: Destroy the actual address space */
+	process_t *current = get_current_process();
+	vmm_destroy_addr_space(current->tree);
+	current->tree = NULL;
+}
+void process_destroy_file_descriptors(process_t *process)
+{
+	ioctx_t *ctx = &process->ctx;
+	file_desc_t **table = ctx->file_desc;
+	mutex_lock(&ctx->fdlock);
+	for(int i = 0; i < ctx->file_desc_entries; i++)
+	{
+		/* TODO: Handle vfsnode freeing */
+		if(!table[i])
+			continue;
+		table[i]->refcount--;
+		if(!table[i]->refcount)
+		{
+			free(table[i]);
+		}
+	}
+	free(table);
+	ctx->file_desc = NULL;
+	ctx->file_desc_entries = 0;
+}
+void process_obliterate(void *proc)
+{
+	process_t *process = proc;
+	__free_page(process->cr3);
+}
+void process_destroy(void)
+{
+	process_t *current = get_current_process();
+	/* Firstly, destroy the address space */
+	process_destroy_aspace();
+
+	process_destroy_file_descriptors(current);
+
+	free(current->cmd_line);
+
+	/* Schedule the obliteration of the process */
+	struct work_request req;
+	req.func = process_obliterate;
+	req.param = current;
+	worker_schedule(&req, WORKER_PRIO_NORMAL);
 }
 int process_attach(process_t *tracer, process_t *tracee)
 {

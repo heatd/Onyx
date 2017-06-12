@@ -340,8 +340,19 @@ void* paging_map_phys_to_virt(uint64_t virt, uint64_t phys, uint64_t prot)
 	*entry = make_pml1e( phys, (prot & 4) ? 1 : 0, 0, (prot & 0x2) ? 1 : 0, 0, 0, (prot & 0x80) ? 1 : 0, (prot & 1) ? 1 : 0, 1);
 	return (void*)virt;
 }
+_Bool pml_is_empty(void *_pml)
+{
+	PML1 *pml = _pml;
+	for(int i = 0; i < 512; i++)
+	{
+		if(pml->entries[i])
+			return false;
+	}
+	return true;
+}
 void *paging_unmap(void* memory)
 {
+	//printk("Unmapping %p\n", memory);
 	decomposed_addr_t dec;
 	memcpy(&dec, &memory, sizeof(decomposed_addr_t));
 	PML4 *pml4;
@@ -350,15 +361,49 @@ void *paging_unmap(void* memory)
 	else
 		pml4 = (PML4*)((uint64_t)spawning_pml + PHYS_BASE);
 	uint64_t* entry = &pml4->entries[dec.pml4];
+
+	if(!*entry & 1)
+		return NULL;
 	PML3 *pml3 = (PML3*)((*entry & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
 	entry = &pml3->entries[dec.pdpt];
+	if(!*entry & 1) /* If the entry isn't committed, just return */
+		return NULL;
 	PML2 *pml2 = (PML2*)((*entry & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
 	entry = &pml2->entries[dec.pd];
+	//printk("entry: %p\n", *entry);
+	if(!*entry & 1) /* If the entry isn't committed, just return */
+		return NULL;
 	PML1 *pml1 = (PML1*)((*entry & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
 	entry = &pml1->entries[dec.pt];
+	//printk("entry: %p\n", *entry);
+	if(!*entry & 1) /* If the entry isn't committed, just return */
+		return NULL;
 
 	uintptr_t address = PML_EXTRACT_ADDRESS(*entry);
 	*entry = 0;
+	__native_tlb_invalidate_page(memory);
+	/* Now that we've freed the destination page, work our way upwards to check if the paging structures are empty 
+	   If so, free them as well 
+	*/
+	if(pml_is_empty(pml1))
+	{
+		//printk("Empty!\n");
+		uintptr_t raw_address = pml2->entries[dec.pd] & 0x0FFFFFFFFFFFF000;
+		__free_page((void*) raw_address);
+		pml2->entries[dec.pd] = 0;
+	}
+	if(pml_is_empty(pml2))
+	{
+		uintptr_t raw_address = pml3->entries[dec.pdpt] & 0x0FFFFFFFFFFFF000;
+		__free_page((void*) raw_address);
+		pml3->entries[dec.pdpt] = 0;
+	}
+	if(pml_is_empty(pml3))
+	{
+		uintptr_t raw_address = pml4->entries[dec.pml4] & 0x0FFFFFFFFFFFF000;
+		__free_page((void*) raw_address);
+		pml4->entries[dec.pml4] = 0;
+	}
 	return (void*) address;
 }
 PML4 *paging_clone_as()

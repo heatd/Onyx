@@ -89,7 +89,7 @@ process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent)
 void process_create_thread(process_t *proc, thread_callback_t callback, uint32_t flags, int argc, char **argv, char **envp);
 void process_fork_thread(process_t *dest, process_t *src, int thread_index);
 process_t *get_process_from_pid(pid_t pid);
-void process_destroy_aspace(process_t *process);
+void process_destroy_aspace(void);
 int process_attach(process_t *tracer, process_t *tracee);
 process_t *process_find_tracee(process_t *tracer, pid_t pid);
 extern volatile process_t *current_process;

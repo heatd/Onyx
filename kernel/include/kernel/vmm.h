@@ -92,7 +92,7 @@ int vmm_handle_page_fault(vmm_entry_t *entry, struct fault_info *info);
 void *vmalloc(size_t pages, int type, int perms);
 void vmm_print_stats(void);
 void *dma_map_range(void *phys, size_t size, size_t flags);
-void vmm_destroy_tree(avl_node_t *tree);
+void vmm_destroy_addr_space(avl_node_t *tree);
 int vm_sanitize_address(void *address, size_t pages);
 void *vmm_gen_mmap_base(void);
 void *vmm_gen_brk_base(void);

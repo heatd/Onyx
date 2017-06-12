@@ -247,6 +247,11 @@ void avl_destroy_tree(avl_node_t *node)
 		avl_destroy_tree(node->right);
 		node->right = NULL;
 	}
+	/* First, unmap the range */
+	if(node->data->mapping_type != MAP_SHARED)
+		vmm_unmap_range((void*) node->key, node->data->pages);
+	/* Now, free the node */
+	free(node->data);
 	free(node);
 }
 static inline void __vm_lock(_Bool kernel)
@@ -342,6 +347,7 @@ void *vmm_map_range(void *range, size_t pages, uint64_t flags)
 }
 void vmm_unmap_range(void *range, size_t pages)
 {
+	//printk("Unmaping %p:%p\n", range, (uintptr_t) range + PAGE_SIZE * pages);
 	_Bool kernel = is_higher_half(range);
 
 	__vm_lock(kernel);
@@ -349,8 +355,9 @@ void vmm_unmap_range(void *range, size_t pages)
 	for (size_t i = 0; i < pages; i++)
 	{
 		void *page = paging_unmap((void*) mem);
-		__asm__ __volatile__("invlpg %0"::"m"(mem));
-		__free_page(page);
+		//printk("Freed page %p\n", page);
+		if(page)	
+			__free_page(page);
 		mem += 0x1000;
 	}
 	__vm_unlock(kernel);
@@ -890,7 +897,7 @@ int vmm_handle_page_fault(vmm_entry_t *entry, struct fault_info *info)
 	else 
 		return __vm_handle_anon(entry, info);
 }
-void vmm_destroy_tree(avl_node_t *tree)
+void vmm_destroy_addr_space(avl_node_t *tree)
 {
 	avl_destroy_tree(tree);
 }
