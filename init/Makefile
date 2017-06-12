@@ -15,4 +15,4 @@ install: $(PROG)
 %.o: %.c
 	$(CC) -c $< $(CFLAGS) -o $@
 $(PROG): $(OBJS)
-	$(CC) $(OBJS) $(CFLAGS) -o $@ -ldrm
+	$(CC) $(OBJS) $(CFLAGS) -o $@ -ldrm -lunwind

@@ -84,8 +84,8 @@ inline int find_free_fd()
 }
 ssize_t sys_read(int fd, const void *buf, size_t count)
 {
-	if(vmm_check_pointer((void*) buf, count) < 0)
-		return errno =-EFAULT;
+	/*if(vmm_check_pointer((void*) buf, count) < 0)
+		return errno =-EFAULT; */
 	
 	ioctx_t *ioctx = &get_current_process()->ctx;
 	if(validate_fd(fd) < 0)

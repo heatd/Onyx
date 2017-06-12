@@ -8,6 +8,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <signal.h>
+#include <unwind.h>
 
 #include <time.h>
 #include <ctype.h>
@@ -237,7 +238,6 @@ void load_modules()
 	while(fgets(buf, 1024, file) != NULL)
 	{
 		buf[strlen(buf)-1] = '\0';
-		
 		if(buf[0] == '\0')
 			continue;
 		char *path = malloc(strlen(MODULE_PREFIX) + strlen(buf) + 1 + strlen(MODULE_EXT));
