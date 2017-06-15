@@ -59,6 +59,8 @@ all: vmonyx onyx-vdso.so.0
 vmonyx: BUILD $(OBJ_LINK_LIST) $(ARCHDIR)/linker.ld
 	@echo [LD] $@
 	@$(CC) -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(OBJ_LINK_LIST) $(LDFLAGS) $(LIBS)
+	cp vmonyx vmonyx-unstripped
+	strip -g vmonyx
 acpica/%.o: acpica/%.c
 	@echo [CC] $<
 	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) $(CPPFLAGS)
