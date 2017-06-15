@@ -40,6 +40,7 @@ int socket(int domain, int type, int protocol)
 			return i;
 		}
 	}
+	free(sock);
 	return errno = EADDRNOTAVAIL, -1;
 }
 int bind(int socket, int localport, uint32_t ip, int destport)

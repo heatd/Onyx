@@ -188,6 +188,7 @@ int main(int argc, char **argv, char **envp)
 	if(setup_users() == 1)
 	{
 		perror("login");
+		free(buf);
 		return 1;
 	}
 loop:
@@ -213,7 +214,7 @@ loop:
     		*pos = '\0';
 	if(strcmp(buf, user->password) != 0)
 	{
-		printf("Unknown password! Try again.\n", buf);
+		printf("Unknown password! Try again.\n");
 		goto loop;
 	}
 	switch_users(user->gid, user->uid);

@@ -346,14 +346,17 @@ void *elf_load_old(void *file)
 void* elf_load(struct binfmt_args *args)
 {
 	uint8_t *file_buf = malloc(args->file->size);
-	if(!args)
-		return errno = EINVAL, NULL;
+	if(!file_buf)
+		return errno = ENOMEM, NULL;
 	/* Read the file */
 	read_vfs(0, args->file->size, file_buf, args->file);
 	Elf64_Ehdr *header = (Elf64_Ehdr *) file_buf;
 	/* Validate the header */
 	if(!elf_is_valid(header))
+	{
+		free(file_buf);
 		return errno = EINVAL, NULL;
+	}
 	int i;
 	process_t *current = get_current_process();
 	current->mmap_base = vmm_gen_mmap_base();
@@ -395,18 +398,16 @@ void *elf_load_kernel_module(void *file, void **fini_func)
 
 				char *parse = (char*) file + sections[i].sh_offset;
 				char *kver = NULL;
-				_Bool found_kernel_ver = 0;
 				for(size_t j = 0; j < sections[i].sh_size; j++)
 				{
 					if(*parse != 'k' && *(parse+1) != 'e' && *(parse+2) != 'r' && *(parse+3) != 'n' && *(parse+4) != 'e' && *(parse+5) != 'l' && *(parse+6) != '=')
 					{
-						found_kernel_ver = 1;
 						kver = parse + strlen("kernel=") - 1;
 						break;
 					}
 					parse++;
 				}
-				if(!found_kernel_ver)
+				if(!kver)
 					return NULL;
 				/* Check if the kernel version matches up */
 				if(strcmp(OS_RELEASE, kver))

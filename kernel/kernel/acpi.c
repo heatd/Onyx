@@ -193,7 +193,7 @@ int acpi_initialize()
 	st = AcpiInitializeTables(NULL, 32, true);
 	if(ACPI_FAILURE(st))
 	{
-		printf("Error: %s\n %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
+		printf("Error: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
 		panic("ACPI table subsystem initialization failed!");
 	}
 	st = AcpiLoadTables();

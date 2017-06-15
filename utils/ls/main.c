@@ -101,7 +101,10 @@ int do_ls(char *filename)
 					strcat(full_path, dir->d_name);
 					int ret = 0;
 					if((ret = do_ls(full_path)))
+					{
+						free(full_path);
 						return ret;
+					}
 					free(full_path);
 				}
 				break;

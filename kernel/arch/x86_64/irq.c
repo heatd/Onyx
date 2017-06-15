@@ -75,8 +75,8 @@ void irq_uninstall_handler(int irq, irq_t handler)
 		prev = list;
 		list = list->next;
 	}
-	free(list);
 	prev->next = list->next;
+	free(list);
 }
 uintptr_t irq_handler(uint64_t irqn, registers_t *regs)
 {

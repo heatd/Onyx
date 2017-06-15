@@ -179,9 +179,9 @@ unsigned int ext2_detect_block_type(uint32_t block, ext2_fs_t *fs)
 		return EXT2_TYPE_DOUBLY_BLOCK;
 	return EXT2_TYPE_TREBLY_BLOCK;
 }
-ssize_t ext2_read_inode_block(inode_t *ino, uint32_t block, char *buffer, ext2_fs_t *fs)
+ssize_t ext2_read_inode_block(inode_t *ino, uint32_t blk, char *buffer, ext2_fs_t *fs)
 {
-	unsigned int type = ext2_detect_block_type(block, fs);
+	unsigned int type = ext2_detect_block_type(blk, fs);
 
 	unsigned int min_singly_block = direct_block_count;
 	unsigned int min_doubly_block = (fs->block_size / sizeof(uint32_t)) * (fs->block_size / sizeof(uint32_t));
@@ -191,7 +191,7 @@ ssize_t ext2_read_inode_block(inode_t *ino, uint32_t block, char *buffer, ext2_f
 	{
 		case EXT2_TYPE_DIRECT_BLOCK:
 		{
-			ext2_read_block_raw(ino->dbp[block], 1, fs, buffer);
+			ext2_read_block_raw(ino->dbp[blk], 1, fs, buffer);
 			break;
 		}
 		case EXT2_TYPE_SINGLY_BLOCK:
@@ -200,60 +200,38 @@ ssize_t ext2_read_inode_block(inode_t *ino, uint32_t block, char *buffer, ext2_f
 			if(!sbp)
 				return errno = ENOMEM, -1;
 			ext2_read_block_raw(ino->single_indirect_bp, 1, fs, sbp);
-			ext2_read_block_raw(sbp[block - min_singly_block], 1, fs, buffer);
+			ext2_read_block_raw(sbp[blk - min_singly_block], 1, fs, buffer);
 			free(sbp);
 			break;
 		}
 		case EXT2_TYPE_DOUBLY_BLOCK:
 		{
-			uint32_t *sbp = malloc(fs->block_size);
-			if(!sbp)
+			uint32_t *block = malloc(fs->block_size);
+			if(!block)
 				return errno = ENOMEM, -1;
-			uint32_t *dbp = malloc(fs->block_size);
-			if(!dbp)
-			{
-				free(sbp);
-				return errno = ENOMEM, -1;
-			}
-			uint32_t block_index = block;
-			ext2_read_block_raw(ino->doubly_indirect_bp, 1, fs, dbp);
-			ext2_read_block_raw(dbp[block_index - min_doubly_block], 1, fs, sbp);
+			uint32_t block_index = blk;
+			ext2_read_block_raw(ino->doubly_indirect_bp, 1, fs, block);
+			ext2_read_block_raw(block[block_index - min_doubly_block], 1, fs, block);
 			block_index -= min_doubly_block;
-			free(sbp);
-			ext2_read_block_raw(sbp[block_index - min_singly_block], 1, fs, buffer);
+			ext2_read_block_raw(block[block_index - min_singly_block], 1, fs, buffer);
 
-			free(dbp);
+			free(block);
 			break;
 		}
 		case EXT2_TYPE_TREBLY_BLOCK:
 		{
-			uint32_t *sbp = malloc(fs->block_size);
-			if(!sbp)
+			uint32_t *block = malloc(fs->block_size);
+			if(!block)
 				return errno = ENOMEM, -1;
-			uint32_t *dbp = malloc(fs->block_size);
-			if(!dbp)
-			{
-				free(sbp);
-				return errno = ENOMEM, -1;
-			}
-			uint32_t *tbp = malloc(fs->block_size);
-			if(!tbp)
-			{
-				free(dbp);
-				free(sbp);
-				return errno = ENOMEM, -1;
-			}
-			uint32_t block_index = block - min_trebly_block;
-			ext2_read_block_raw(ino->trebly_indirect_bp, 1, fs, tbp);
-			ext2_read_block_raw(tbp[block_index], 1, fs, dbp);
+			uint32_t block_index = blk - min_trebly_block;
+			ext2_read_block_raw(ino->trebly_indirect_bp, 1, fs, block);
+			ext2_read_block_raw(block[block_index], 1, fs, block);
 			block_index -= min_doubly_block;
-			ext2_read_block_raw(dbp[block_index], 1, fs, sbp);
+			ext2_read_block_raw(block[block_index], 1, fs, block);
 			block_index -= min_doubly_block;
-			ext2_read_block_raw(sbp[block_index - min_singly_block], 1, fs, buffer);
+			ext2_read_block_raw(block[block_index - min_singly_block], 1, fs, buffer);
 
-			free(tbp);
-			free(sbp);
-			free(dbp);
+			free(block);
 			break;
 		}
 	}

@@ -31,7 +31,7 @@
 #include <kernel/cpu.h>
 #include <kernel/page.h>
 
-const int SYSCALL_MAX_NUM = 61;
+const uint64_t SYSCALL_MAX_NUM = 61;
 
 uint64_t sys_nosys()
 {

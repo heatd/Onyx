@@ -323,6 +323,7 @@ if(vmm_check_pointer(args, n_args * sizeof(void*)) < 0) \
 
 unsigned int tty_ioctl(int request, va_list args, vfsnode_t *dev)
 {
+	printk("Request: %p Args: %p\n", request, args);
 	switch(request)
 	{
 		case TCGETS:

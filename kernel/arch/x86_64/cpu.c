@@ -126,6 +126,10 @@ int cpu_init_mp()
 		{
 			ACPI_MADT_LOCAL_APIC *apic = (ACPI_MADT_LOCAL_APIC *) i;
 			cpus = realloc(cpus, booted_cpus * sizeof(struct processor) + sizeof(struct processor));
+			if(!cpus)
+			{
+				panic("Out of memory while allocating the processor structures\n");
+			}
 			cpus[booted_cpus].lapic_id = apic->Id;
 			cpus[booted_cpus].cpu_num = booted_cpus;
 			cpus[booted_cpus].self = &cpus[booted_cpus];

@@ -88,8 +88,6 @@ syscall_ENTRY64:
 	sti
 	; Ah, we've saved the registers, and the user stack is safe - we can continue now(possible to preempt)
 	; Save the old segments, and switch to the kernel ones
-	cmp rax, [SYSCALL_MAX_NUM]
-	jg .invalid_syscall
 	mov ecx, ds
 	push rcx
 	mov cx, 0x10
@@ -98,7 +96,6 @@ syscall_ENTRY64:
 
 	; To conform to the Sys V ABI, we need to move r10 to rcx
 	mov rcx, r10
-	
 	; If the syscall is fork, setup pt_regs first
 	cmp rax, 10
 	je .setup_fork
@@ -107,11 +104,10 @@ syscall_ENTRY64:
 	push qword 0
 	push rbp
 	mov rbp, rsp
-
 	cmp rax, [SYSCALL_MAX_NUM]
-	jg .invalid_syscall
+	ja .invalid_syscall
 	call [syscall_list + rax * 8]
-	
+.ret_from_syscall:
 	pop rbp
 	add rsp, 8
 
@@ -134,5 +130,5 @@ syscall_ENTRY64:
 
 	jmp .continue_systemcall
 .invalid_syscall:
-	cli
-	hlt
+	mov rax, -38
+	jmp .ret_from_syscall

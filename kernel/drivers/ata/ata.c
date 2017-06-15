@@ -292,7 +292,10 @@ int ata_initialize_drive(int channel, int drive)
 	dev->dev = min->majorminor;
 	char *p = malloc(strlen("/dev/") + strlen(path) + 1);
 	if(!p)
+	{
+		free(dev);
 		return errno = ENOMEM;
+	}
 	memset(p, 0, strlen("/dev/") + strlen(path) + 1);
 	strcpy(p, "/dev/");
 	strcat(p, path);

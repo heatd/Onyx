@@ -25,11 +25,11 @@ void arp_await_response()
 		}
 	}
 }
-arp_request_t *reply_to_arp_request(char *source_mac)
+int reply_to_arp_request(char *source_mac)
 {
 	arp_request_t *arp = malloc(sizeof(arp_request_t));
 	if(!arp)
-		return NULL;
+		return -1;
 	memset(arp, 0, sizeof(arp_request_t));
 
 	arp->htype = LITTLE_TO_BIG16(ARP_ETHERNET);
@@ -41,8 +41,7 @@ arp_request_t *reply_to_arp_request(char *source_mac)
 	memcpy(&arp->sender_hw_address, &mac_address, 6);
 	memcpy(&arp->target_hw_address, source_mac, 6);
 	eth_send_packet((char*) &arp->target_hw_address, (char*) arp, sizeof(arp_request_t), PROTO_ARP);
-	free(arp);
-	return arp;
+	return 0;
 }
 arp_request_t* send_arp_request_ipv4(char *requested_ip)
 {
@@ -88,7 +87,6 @@ int arp_handle_packet(arp_request_t *arp, uint16_t len)
 	{
 		// If some machine is querying our IP, respond to it
 		reply_to_arp_request((char*) &arp->sender_hw_address);
-		// This should do the trick, open an issue on the bug tracker if there's any problem with this
 		return 0;
 
 	}

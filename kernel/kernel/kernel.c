@@ -333,15 +333,17 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 	}
 
 	paging_map_all_phys();
-	phys_fb = (void*) tagfb->common.framebuffer_addr;
-	/* Map the FB */
-	for (uintptr_t virt = KERNEL_FB, phys = tagfb->common.framebuffer_addr; virt < KERNEL_FB + 0x400000; virt += 4096, phys += 4096)
+	if(tagfb)
 	{
-		paging_map_phys_to_virt(virt, phys, VMM_GLOBAL | VMM_WRITE | VMM_NOEXEC);
+		phys_fb = (void*) tagfb->common.framebuffer_addr;
+		/* Map the FB */
+		for (uintptr_t virt = KERNEL_FB, phys = tagfb->common.framebuffer_addr; virt < KERNEL_FB + 0x400000; virt += 4096, phys += 4096)
+		{
+			paging_map_phys_to_virt(virt, phys, VMM_GLOBAL | VMM_WRITE | VMM_NOEXEC);
+		}
+		/* Initialize the Software framebuffer */
+		softfb_init(KERNEL_FB, tagfb->common.framebuffer_bpp, tagfb->common.framebuffer_width, tagfb->common.framebuffer_height, tagfb->common.framebuffer_pitch);
 	}
-
-	/* Initialize the Software framebuffer */
-	softfb_init(KERNEL_FB, tagfb->common.framebuffer_bpp, tagfb->common.framebuffer_width, tagfb->common.framebuffer_height, tagfb->common.framebuffer_pitch);
 
 	/* Initialize the first terminal */
 	tty_init();

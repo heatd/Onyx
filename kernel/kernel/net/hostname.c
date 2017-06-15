@@ -25,7 +25,7 @@ int sys_sethostname(const void *name, size_t len)
 		return errno =-EINVAL;
 	/* We need to copy the name, since the user pointer isn't safe */
 	char *hostname = malloc(len+1);
-	if(!name)
+	if(!hostname)
 		return errno =-ENOMEM;
 	memset(hostname, 0, len+1);
 	memcpy(hostname, name, len);

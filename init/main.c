@@ -63,13 +63,14 @@ int get_ring_level()
 	if(!f)
 	{
 		perror("/etc/init.d/init.config");
-		return 1;
+		return -1;
 	}
 	char *buf = malloc(1024);
 	if(!buf)
 	{
 		perror("/sbin/init");
-		return 1;
+		fclose(f);
+		return -1;
 	}
 	memset(buf, 0, 1024);
 	int ringlevel = 0;
@@ -77,21 +78,26 @@ int get_ring_level()
 	fgets(buf, 1024, f);
 	if(memcmp(buf, "defaultrl:", strlen("defaultrl:")) == 0)
 	{
-		/* If the argument after 'defaultrl:' isn't a number, throw a parsing error and return 1*/
-		if(!isnum(*(buf + strlen("defaultrl:"))))
+		/* If the argument after 'defaultrl:' isn't a number, throw a parsing error and return 1 */
+		if(sscanf(buf + strlen("defaultrl:"), "%d", &ringlevel) == 0)
 		{
 			printf("syntax error: at '%c'\n", *(buf + strlen("defaultrl:")));
-			return 1;
+			free(buf);
+			fclose(f);
+			return -1;
 		}
 		else
 		{
+			fclose(f);
+			free(buf);
 			/* It's a number, use tonum(3), as ring levels are from 0-6 */
-			return ringlevel = tonum(*(buf + strlen("defaultrl:")));
+			return ringlevel;
 		}
 	}
 	/* Free up the resources we've just used */
 	fclose(f);
 	free(buf);
+	return -1;
 }
 int mount_filesystems(void)
 {
@@ -180,6 +186,8 @@ int main(int argc, char **argv, char **envp)
 		return 1;
 	/* Read the config files, and find the startup program */
 	int ringlevel = get_ring_level();
+	if(ringlevel < 0)
+		err(1, "Failed to get the ring level!\n");
 	/* Allocate a buffer for the filename */
 	char *filename = malloc(strlen(prefix) + 4);
 	if(!filename)
@@ -231,7 +239,10 @@ void load_modules()
 	}
 	char *buf = malloc(1024);
 	if(!buf)
+	{
+		fclose(file);
 		return;
+	}
 	memset(buf, 0, 1024);
 
 	/* At every line there's a module name. Get it, and insmod it */
@@ -244,6 +255,7 @@ void load_modules()
 		if(!path)
 		{
 			free(buf);
+			fclose(file);
 			return;
 		}
 		strcpy(path, MODULE_PREFIX);
@@ -252,7 +264,6 @@ void load_modules()
 		printf("Loading %s (path %s)\n", buf, path);
 		insmod(path, buf);
 	}
-
 	free(buf);
 	fclose(file);
 }
@@ -271,7 +282,10 @@ void setup_hostname()
 	}
 	char *buf = malloc(1024);
 	if(!buf)
+	{
+		fclose(file);
 		return;
+	}
 	memset(buf, 0, 1024);
 	/* There should only be one line in the file(that contains the hostname itself), so we only need one fgets() */
 	fgets(buf, 1024, file);

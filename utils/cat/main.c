@@ -25,13 +25,21 @@ int main(int argc, char **argv, char **envp)
 		return 1;
 	}
 	if(fseek(file, 0L, SEEK_END) == -1)
+	{
+		fclose(file);
 		return 1;
+	}
 	size_t file_size = ftell(file);
 	rewind(file);
 	char *buf = malloc(file_size);
 	if(!buf)
+	{
+		fclose(file);
 		return 1;
+	}
 	fread(buf, file_size, 1, file);
 	printf("%s", buf);
+	fclose(file);
+	free(buf);
 	return 0;
 }
