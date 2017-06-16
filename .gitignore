@@ -34,3 +34,5 @@ utils/true/true
 utils/yes/yes
 autom4ate.cache
 *.m4
+utils/printenv/printenv
+
