@@ -175,8 +175,6 @@ void switch_users(gid_t gid, uid_t uid)
 char **args;
 int main(int argc, char **argv, char **envp)
 {
-	args = argv;
-
 	program_name = argv[0];
 	printf("%s: ", argv[0]);
 	fflush(stdout);
@@ -226,6 +224,7 @@ loop:
 	/* TODO: Set $HOME */
 	setenv("HOME", user->home, 1);
 
+	char *args[] = {NULL, NULL};
 	/* The first character of argv[0] needs to be -, in order to be a login shell */
 	args[0] = malloc(strlen(user->shell) + 2);
 	if(!args[0])

@@ -9,7 +9,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <unwind.h>
-
+#include <fcntl.h>
 #include <time.h>
 #include <ctype.h>
 
@@ -20,7 +20,7 @@
 
 #define MODULE_PREFIX "/usr/lib/modules/"
 #define MODULE_EXT    ".kmod"
-
+extern char **environ;
 void load_modules();
 void setup_hostname();
 /* x is a placeholder */
@@ -99,6 +99,12 @@ int get_ring_level()
 	free(buf);
 	return -1;
 }
+int fmount(int fd, char *path)
+{
+	if(syscall(SYS_fmount, fd, path))
+		return -1;
+	return 0;
+}
 int mount_filesystems(void)
 {
 	FILE *fp = fopen("/etc/fstab", "r");
@@ -114,6 +120,7 @@ int mount_filesystems(void)
 		return 1;
 	}
 	memset(read_buffer, 0, 1024);
+	int fd = open("/dev", O_RDONLY);
 	while(fgets(read_buffer, 1024, fp) != NULL)
 	{
 		int arg_num = 0;
@@ -163,8 +170,11 @@ int mount_filesystems(void)
 			return 1;
 		}
 	}
+	/* Now, mount /dev on root again */
+	fmount(fd, "/dev");
 func_exit:
 	free(read_buffer);
+	close(fd);
 	fclose(fp);
 	return 0;
 }
@@ -216,14 +226,13 @@ int main(int argc, char **argv, char **envp)
 	
 	chdir("/");
 
-	char *env[] = {"", NULL};
 	char *shell = copy_until_newline(buf);
 	char *args[] = {shell, "/etc/fstab", NULL};
 
 	int pid = fork();
 
 	if(pid == 0)
-		execve(shell, args, env);
+		execve(shell, args, environ);
 	while(1)
 		waitpid(-1, NULL, WEXITED);
 	return 0;
@@ -295,10 +304,12 @@ void setup_hostname()
 	{
 		printf("Hostname not found - using 'localhost'\n");
 		sethostname("localhost", strlen("localhost"));
+		setenv("HOSTNAME", "localhost", 1);
 	}
 	else
 	{
 		sethostname(buf, strlen(buf));
+		setenv("HOSTNAME", buf, 1);
 	}
 	fclose(file);
 	free(buf);

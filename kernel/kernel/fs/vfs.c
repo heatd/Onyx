@@ -100,7 +100,7 @@ size_t write_vfs(size_t offset, size_t sizeofwrite, void* buffer, vfsnode_t* thi
 
 	return errno = ENOSYS;
 }
-int ioctl_vfs(int request, va_list args, vfsnode_t *this)
+int ioctl_vfs(int request, char *argp, vfsnode_t *this)
 {
 	struct minor_device *m = dev_find(this->dev);
 	if(!m)
@@ -108,9 +108,9 @@ int ioctl_vfs(int request, va_list args, vfsnode_t *this)
 	if(!m->fops)
 		return errno = ENOSYS;
 	if(this->type & VFS_TYPE_MOUNTPOINT)
-		return ioctl_vfs(request, args, this->link);
+		return ioctl_vfs(request, argp, this->link);
 	if(m->fops->ioctl != NULL)
-		return m->fops->ioctl(request, args, this);
+		return m->fops->ioctl(request, (void*) argp, this);
 	return errno = ENOSYS, -1;
 }
 void close_vfs(vfsnode_t* this)

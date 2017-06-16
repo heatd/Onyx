@@ -488,7 +488,7 @@ void paging_load_cr3(PML4 *pml)
 			p = p->next;
 		}
 		printf("current process: %p\n Current CR3: %p\n", get_current_process(), get_current_process()->cr3);
-		abort();
+		panic("Invalid pml!");
 	}
 	__asm__ __volatile__("movq %0, %%cr3"::"r"(pml));
 	current_pml4 = pml;

@@ -30,7 +30,7 @@ typedef size_t (*__write)(size_t offset, size_t sizeofwrite, void* buffer, struc
 typedef void (*__close)(struct vfsnode* this);
 typedef struct vfsnode *(*__open)(struct vfsnode* this, const char *name);
 typedef unsigned int (*__getdents)(unsigned int count, struct dirent* dirp, off_t off, struct vfsnode* this);
-typedef unsigned int (*__ioctl)(int request, va_list varg, struct vfsnode* this);
+typedef unsigned int (*__ioctl)(int request, void *argp, struct vfsnode* this);
 typedef struct vfsnode *(*__creat)(const char *pathname, int mode, struct vfsnode *this);
 typedef int (*__stat)(struct stat *buf, struct vfsnode *node);
 typedef int (*__link)(const char *newpath, struct vfsnode *node);
@@ -74,7 +74,7 @@ vfsnode_t *open_vfs(vfsnode_t* this, const char*);
 int mount_fs(vfsnode_t *node, const char *mp);
 vfsnode_t *creat_vfs(vfsnode_t *node, const char *path, int mode);
 unsigned int getdents_vfs(unsigned int count, struct dirent* dirp, off_t off, vfsnode_t *this);
-int ioctl_vfs(int request, va_list args, vfsnode_t *this);
+int ioctl_vfs(int request, char *argp, vfsnode_t *this);
 int stat_vfs(struct stat *buf, vfsnode_t *node);
 int vfs_init();
 struct minor_device;

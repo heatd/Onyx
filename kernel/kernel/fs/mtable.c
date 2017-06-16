@@ -36,7 +36,7 @@ int mtable_mount(vfsnode_t *mountpoint, vfsnode_t *rootfs)
 {
 	mutex_lock(&mtable_lock);
 	nr_mtable_entries++;
-	mountpoint_t *new_mtable = realloc(mtable, nr_mtable_entries * sizeof(void*));
+	mountpoint_t *new_mtable = malloc(nr_mtable_entries * sizeof(void*));
 	if(!new_mtable)
 	{
 		nr_mtable_entries--;
@@ -46,7 +46,12 @@ int mtable_mount(vfsnode_t *mountpoint, vfsnode_t *rootfs)
 	new_mtable[nr_mtable_entries - 1].ino = mountpoint->inode;
 	new_mtable[nr_mtable_entries - 1].dev = mountpoint->dev;
 	new_mtable[nr_mtable_entries - 1].rootfs = rootfs;
+	rootfs->refcount++;
+	mountpoint_t *old = mtable;
 	mtable = new_mtable;
+	/* At some point we're corrupting the stack, introduced by this commit; TOFIX */
+	// free(old);
+	(void) old;
 	mutex_unlock(&mtable_lock);
 	
 	return 1;

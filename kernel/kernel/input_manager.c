@@ -48,7 +48,7 @@ unsigned int default_shift_keymap[200] =
 	'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I',
 	 'O', 'P', '{', '}', '\n', KEYMAP_KEY_LCTRL, 
 	 'A', 'S', 'D', 'F', 'G', 'H',
-	'J', 'K', 'L', ':', '\"', '`', KEYMAP_KEY_LSHIFT, '|', 'Z', 'X', 'C', 'V', 'B',
+	'J', 'K', 'L', ':', '\"', '~', KEYMAP_KEY_LSHIFT, '|', 'Z', 'X', 'C', 'V', 'B',
 	'N', 'M', '<', '>', '?', KEYMAP_KEY_RSHIFT, '*', KEYMAP_KEY_ALT,
 	' ', KEYMAP_KEY_CAPS_LOCK, KEYMAP_KEY_F1, KEYMAP_KEY_F2, KEYMAP_KEY_F3, KEYMAP_KEY_F4, 
 	KEYMAP_KEY_F5, KEYMAP_KEY_F6, KEYMAP_KEY_F7, KEYMAP_KEY_F8, KEYMAP_KEY_F9, 
@@ -121,6 +121,9 @@ unsigned int input_process_special_key(unsigned int key, _Bool is_release)
 			break;
 		case KEYMAP_KEY_RCTRL:
 			input_state.rctrl_pressed = keystate;
+			break;
+		case KEYMAP_KEY_CAPS_LOCK:
+			input_state.caps_enabled = keystate;
 			break;
 		default:
 			if(is_release)

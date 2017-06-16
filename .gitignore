@@ -32,3 +32,5 @@ utils/dmesg/dmesg
 games/pong
 utils/true/true
 utils/yes/yes
+autom4ate.cache
+*.m4

@@ -317,18 +317,13 @@ size_t ttydevfs_read(size_t offset, size_t count, void *buffer, vfsnode_t *this)
 	return len;
 }
 
-#define VALIDATE_VALIST(args, n_args) \
-if(vmm_check_pointer(args, n_args * sizeof(void*)) < 0) \
-	return -EFAULT; \
-
-unsigned int tty_ioctl(int request, va_list args, vfsnode_t *dev)
+unsigned int tty_ioctl(int request, void *argp, vfsnode_t *dev)
 {
-	printk("Request: %p Args: %p\n", request, args);
 	switch(request)
 	{
 		case TCGETS:
 		{
-			struct termios *term = va_arg(args, struct termios *);
+			struct termios *term = argp;
 			if(vmm_check_pointer(term, sizeof(struct termios)) < 0)
 				return -EFAULT;
 			memcpy(term, &term_io, sizeof(struct termios));
@@ -336,7 +331,7 @@ unsigned int tty_ioctl(int request, va_list args, vfsnode_t *dev)
 		}
 		case TCSETS:
 		{
-			struct termios *term = va_arg(args, struct termios *);
+			struct termios *term = argp;
 			if(vmm_check_pointer(term, sizeof(struct termios)) < 0)
 				return -EFAULT;
 			memcpy(&term_io, term, sizeof(struct termios));
@@ -344,7 +339,7 @@ unsigned int tty_ioctl(int request, va_list args, vfsnode_t *dev)
 		}
 		case TCSETSW:
 		{
-			struct termios *term = va_arg(args, struct termios *);
+			struct termios *term = argp;
 			if(vmm_check_pointer(term, sizeof(struct termios)) < 0)
 				return -EFAULT;
 			memcpy(&term_io, term, sizeof(struct termios));
@@ -352,7 +347,7 @@ unsigned int tty_ioctl(int request, va_list args, vfsnode_t *dev)
 		}
 		case TCSETSF:
 		{
-			struct termios *term = va_arg(args, struct termios *);
+			struct termios *term = argp;
 			if(vmm_check_pointer(term, sizeof(struct termios)) < 0)
 				return -EFAULT;
 			memcpy(&term_io, term, sizeof(struct termios));
@@ -368,7 +363,7 @@ unsigned int tty_ioctl(int request, va_list args, vfsnode_t *dev)
 			return 0;
 		case TIOCGWINSZ:
 		{
-			struct winsize *win = va_arg(args, struct winsize *);
+			struct winsize *win = argp;
 			if(vmm_check_pointer(win, sizeof(struct winsize)) < 0)
 				return -EFAULT;
 			win->ws_row = max_row;
@@ -395,7 +390,7 @@ unsigned int tty_ioctl(int request, va_list args, vfsnode_t *dev)
 		}
 		case TIOCINQ:
 		{
-			int *arg = va_arg(args, int*);
+			int *arg = argp;
 			if(vmm_check_pointer(arg, sizeof(int)) < 0)
 				return -EFAULT;
 			*arg = tty_keyboard_pos;

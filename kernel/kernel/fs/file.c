@@ -61,13 +61,13 @@ int enlarge_file_descriptor_table(process_t *process)
 	process->ctx.file_desc = table;
 	return 0;
 }
-inline int find_free_fd()
+inline int find_free_fd(int fdbase)
 {
 	ioctx_t *ioctx = &get_current_process()->ctx;
 	mutex_lock(&ioctx->fdlock);
 	while(1)
 	{
-		for(int i = 0; i < ioctx->file_desc_entries; i++)
+		for(int i = fdbase; i < ioctx->file_desc_entries; i++)
 		{
 			if(ioctx->file_desc[i] == NULL)
 			{
@@ -83,15 +83,19 @@ inline int find_free_fd()
 	}
 }
 ssize_t sys_read(int fd, const void *buf, size_t count)
-{
+{	
 	/*if(vmm_check_pointer((void*) buf, count) < 0)
 		return errno =-EFAULT; */
 	
 	ioctx_t *ioctx = &get_current_process()->ctx;
 	if(validate_fd(fd) < 0)
+	{
 		return -EBADF;
+	}
 	if(!ioctx->file_desc[fd]->flags & O_RDONLY)
+	{
 		return -EBADF;
+	}
 	ssize_t size = (ssize_t) read_vfs(ioctx->file_desc[fd]->seek, count, (char*)buf, ioctx->file_desc[fd]->vfs_node);
 	if(size == -1)
 	{
@@ -364,12 +368,12 @@ int sys_getdents(int fd, struct dirent *dirp, unsigned int count)
 	ctx->file_desc[fd]->seek += read_entries_size;
 	return read_entries_size;
 }
-int sys_ioctl(int fd, int request, va_list args)
+int sys_ioctl(int fd, int request, char *argp)
 {
 	if(validate_fd(fd) < 0)
 		return errno =-EBADF;
 	ioctx_t *ctx = &get_current_process()->ctx;
-	return ioctl_vfs(request, args, ctx->file_desc[fd]->vfs_node);
+	return ioctl_vfs(request, argp, ctx->file_desc[fd]->vfs_node);
 }
 int sys_truncate(const char *path, off_t length)
 {
@@ -429,7 +433,6 @@ int sys_mount(const char *source, const char *target, const char *filesystemtype
 	int ret = 0;
 	if(!(node = fs->handler(lba, block)))
 	{
-		printk("Hello\n");
 		perror("");
 		ret = -1;
 		goto exit;
@@ -457,7 +460,7 @@ int sys_pipe(int pipefd[2])
 
 	ioctx_t *ioctx = &get_current_process()->ctx;
 	/* Find 2 free file descriptors */
-	int wrfd = find_free_fd();
+	int wrfd = find_free_fd(0);
 
 	if(wrfd < 0)
 		return errno = -EMFILE;
@@ -466,7 +469,7 @@ int sys_pipe(int pipefd[2])
 	if(!ioctx->file_desc[wrfd])
 		return errno = -ENOMEM;
 
-	int rdfd = find_free_fd();
+	int rdfd = find_free_fd(0);
 	
 	if(rdfd < 0)
 		return errno = -EMFILE;
@@ -501,9 +504,24 @@ int sys_pipe(int pipefd[2])
 
 	return 0;
 }
-int sys_fcntl(int fd, int cmd, ...)
+int do_dupfd(int fd, int fdbase)
 {
-	printk("%s: not implemented yet\n", __func__);
+	int new_fd = find_free_fd(fdbase);
+	ioctx_t *ioctx = &get_current_process()->ctx;
+	ioctx->file_desc[fdbase] = ioctx->file_desc[fd];
+	ioctx->file_desc[fdbase]->refcount++;
+	return new_fd;
+}
+int sys_fcntl(int fd, int cmd, unsigned long arg)
+{
+	switch(cmd)
+	{
+		case F_DUPFD:
+		{
+			int new = do_dupfd(fd, (int) arg);
+			return new;
+		}
+	}
 	return 0;
 }
 int do_sys_stat(const char *pathname, struct stat *buf, int flags, vfsnode_t *rel)
@@ -604,4 +622,12 @@ int sys_fstatat(int dirfd, const char *pathname, struct stat *buf, int flags)
 	if(!(dir->type & VFS_TYPE_DIR))
 		return -ENOTDIR;
 	return do_sys_stat(pathname, buf, flags, dir);
+}
+int sys_fmount(int fd, const char *path)
+{
+	if(validate_fd(fd) < 0)
+		return -EBADF;
+	if(!vmm_is_mapped((void*) path))
+		return errno = -EFAULT;
+	return mount_fs(get_file_description(fd)->vfs_node, path);
 }

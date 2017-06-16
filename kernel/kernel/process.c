@@ -78,6 +78,7 @@ process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent)
 			release_spinlock(&process_creation_lock);
 			return NULL;
 		}
+		proc->ctx.cwd = ctx->cwd;
 	}
 	else
 	{
@@ -340,34 +341,46 @@ pid_t sys_getppid()
 }
 pid_t sys_wait4(pid_t pid, int *wstatus, int options, struct rusage *usage)
 {
-	process_t *i = (process_t*) get_current_process();
-	process_t *curr_process = i;
-	_Bool found_child = 0;
-	while(i)
+	process_t *it = (process_t*) get_current_process();
+	process_t *curr_process = it;
+	bool found_child = 0;
+	bool looking_for_any_children = false;
+	if(pid < 0)
 	{
-		if(i->parent == curr_process)
+		looking_for_any_children = true;
+	}
+	while(it)
+	{
+		if(it->parent == curr_process)
 		{
-			if(i->pid == pid)
+			if(it->pid == pid || pid < 0)
 				found_child = 1;
 		}
-		if(i->parent == curr_process && i->has_exited == 1 && i->pid == pid)
-		{
-			if(wstatus)
-				*wstatus = i->exit_code;
-
-			/* TODO: Destroy the zombie process */
-			i->parent = NULL;
-			return i->pid;
-		}
-		i = i->next;
-		if(!i)
-		{
-			i = get_current_process();
-			if(found_child == 0)
-				return -ECHILD;
-		}
+		it = it->next;
 	}
-	return -ECHILD;
+	if(!found_child)
+	{
+		return -ECHILD;
+	}
+	it = first_process;
+	while(1)
+	{
+		if(it->parent == curr_process && it->has_exited == 1)
+		{
+			if(looking_for_any_children == true || it->pid == pid)
+			{
+				if(wstatus)
+					*wstatus = it->exit_code;
+
+				/* TODO: Destroy the zombie process */
+				it->parent = NULL;
+				return it->pid;
+			}
+		}
+		it = it->next;
+		if(!it)
+			it = first_process;
+	}
 }
 pid_t sys_fork(syscall_ctx_t *ctx)
 {

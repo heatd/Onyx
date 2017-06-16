@@ -29,19 +29,14 @@ MODULE_INSERT_VERSION();
 
 static vfsnode_t *drm_node = NULL;
 
-#define VALIDATE_VALIST(args) \
-if(!vmm_is_mapped(args)) \
-	return -EFAULT; \
-
 extern void *phys_fb;
-unsigned int drm_ioctl(int request, va_list args, vfsnode_t *self)
+unsigned int drm_ioctl(int request, void *args, vfsnode_t *self)
 {
 	switch(request)
 	{
 		case DRM_REQUEST_DRMINFO:
 		{
-			VALIDATE_VALIST(args);
-			struct drm_info *info = va_arg(args, struct drm_info *);
+			struct drm_info *info = args;
 
 			if(vmm_check_pointer(info, sizeof(struct drm_info)) < 0)
 				return -EFAULT;
@@ -55,8 +50,7 @@ unsigned int drm_ioctl(int request, va_list args, vfsnode_t *self)
 		}
 		case DRM_REQUEST_GET_FB:
 		{
-			VALIDATE_VALIST(args);
-			struct drm_fb *out = va_arg(args, struct drm_fb *);
+			struct drm_fb *out = args;
 
 			if(vmm_check_pointer(out, sizeof(struct drm_fb)) < 0)
 				return -EFAULT;
@@ -81,15 +75,16 @@ unsigned int drm_ioctl(int request, va_list args, vfsnode_t *self)
 		}
 		case DRM_REQUEST_MODESET:
 		{
-			VALIDATE_VALIST(args);
+			/* TODO: Fix this to use the new ioctl interface */
+			/*VALIDATE_VALIST(args);
 			unsigned int width = va_arg(args, unsigned int);
 			unsigned int height = va_arg(args, unsigned int);
 			unsigned int bpp = va_arg(args, unsigned int);
-			
-			struct video_device *device = video_get_main_adapter();
+			*/
+			/*struct video_device *device = video_get_main_adapter();
 			if(!device)
 				return errno = -ENODEV;
-			return video_modeset(width, height, bpp, device);
+			return video_modeset(width, height, bpp, device);*/
 		}
 	}
 	return 0;
