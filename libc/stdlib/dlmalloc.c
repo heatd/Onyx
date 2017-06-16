@@ -536,8 +536,10 @@ MAX_RELEASE_CHECK_RATE   default: 4095 unless not HAVE_MMAP
 #define LACKS_SCHED_H 1
 #define LACKS_TIME_H 1
 #define LACKS_SYS_PARAM_H 1
-#define NO_MALLOC_STATS 1
+#include <stdio.h>
 #define HAVE_MMAP 1
+#define NO_MALLOC_STATS 0
+#define NO_MALLINFO 0
 #ifdef __is_onyx_kernel
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
@@ -742,8 +744,6 @@ MAX_RELEASE_CHECK_RATE   default: 4095 unless not HAVE_MMAP
 #define M_MMAP_THRESHOLD     (-3)
 
 /* ------------------------ Mallinfo declarations ------------------------ */
-
-#if !NO_MALLINFO
 /*
   This version of malloc supports the standard SVID/XPG mallinfo
   routine that returns a struct containing usage properties and
@@ -789,7 +789,6 @@ struct mallinfo {
 };
 #endif /* STRUCT_MALLINFO_DECLARED */
 #endif /* HAVE_USR_INCLUDE_MALLOC_H */
-#endif /* NO_MALLINFO */
 
 /*
   Try to persuade compilers to inline. The most critical functions for
@@ -3564,6 +3563,13 @@ static void internal_malloc_stats(mstate m) {
       }
     }
     POSTACTION(m); /* drop lock */
+    char buffer[200];
+    sprintf(buffer, "max system bytes = %10lu\n", (unsigned long)(maxfp));
+    printk(buffer);
+    sprintf(buffer, "system bytes     = %10lu\n", (unsigned long)(fp));
+    printk(buffer);
+    sprintf(buffer, "in use bytes     = %10lu\n", (unsigned long)(used));
+    printk(buffer);
   }
 }
 #endif /* NO_MALLOC_STATS */
