@@ -20,6 +20,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <termios.h>
 
 #include <bits/ioctl.h>
@@ -256,8 +257,10 @@ void tty_recieved_character(char c)
 	keyboard_buffer[tty_keyboard_pos++] = c;
 	TTY_PRINT_IF_ECHO(&c, 1);
 }
-char *tty_wait_for_line()
+char *tty_wait_for_line(int flags)
 {
+	if(flags & O_NONBLOCK && !got_line_ready)
+		return keyboard_buffer;
 	while(!got_line_ready)
 	{
 		sched_yield();
@@ -307,9 +310,9 @@ size_t strnewlinelen(char *str)
 		++len;
 	return len+1;
 }
-size_t ttydevfs_read(size_t offset, size_t count, void *buffer, vfsnode_t *this)
+size_t ttydevfs_read(int flags, size_t offset, size_t count, void *buffer, vfsnode_t *this)
 {
-	char *kb_buf = tty_wait_for_line();
+	char *kb_buf = tty_wait_for_line(flags);
 	size_t len = strnewlinelen(kb_buf);
 	memcpy(buffer, kb_buf, len);
 	tty_keyboard_pos -= len;

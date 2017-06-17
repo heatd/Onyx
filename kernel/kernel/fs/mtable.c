@@ -43,6 +43,7 @@ int mtable_mount(vfsnode_t *mountpoint, vfsnode_t *rootfs)
 		mutex_unlock(&mtable_lock);
 		return errno = ENOMEM, -1;
 	}
+	memcpy(new_mtable, mtable, (nr_mtable_entries-1) * sizeof(mountpoint_t));
 	new_mtable[nr_mtable_entries - 1].ino = mountpoint->inode;
 	new_mtable[nr_mtable_entries - 1].dev = mountpoint->dev;
 	new_mtable[nr_mtable_entries - 1].rootfs = rootfs;

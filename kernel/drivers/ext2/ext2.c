@@ -153,8 +153,10 @@ size_t ext2_write(size_t offset, size_t sizeofwrite, void *buffer, vfsnode_t *no
 	ext2_update_inode(ino, fs, node->inode);
 	return size;
 }
-size_t ext2_read(size_t offset, size_t sizeofreading, void *buffer, vfsnode_t *node)
+size_t ext2_read(int flags, size_t offset, size_t sizeofreading, void *buffer, vfsnode_t *node)
 {
+	/* We don't use the flags for now, only for things that might block */
+	(void) flags;
 	if(offset > node->size)
 		return errno = EINVAL, -1;
 	ext2_fs_t *fs = fslist;

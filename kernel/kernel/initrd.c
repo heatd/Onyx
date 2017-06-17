@@ -33,8 +33,9 @@ size_t tar_parse(uintptr_t address)
 	}
 	return i;
 }
-size_t tar_read(size_t offset, size_t sizeofreading, void *buffer, vfsnode_t *this)
+size_t tar_read(int flags, size_t offset, size_t sizeofreading, void *buffer, vfsnode_t *this)
 {
+	(void) flags;
 	if(offset > this->size)
 		return 0;
 	size_t to_be_read = offset + sizeofreading > this->size ? sizeofreading - offset - sizeofreading + this->size : sizeofreading;

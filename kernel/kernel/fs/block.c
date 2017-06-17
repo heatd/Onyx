@@ -84,7 +84,7 @@ ssize_t blkdev_write(size_t offset, size_t count, void *buffer, struct blkdev *d
 		return errno = ENOSYS, -1;
 	return dev->write(offset, count, buffer, dev);
 }
-/* 
+/*
  * Function: int blkdev_flush(struct blkdev *dev);
  * Description: Flushes storage device 'dev'
  * Return value: 0 on success, -1 on error. Sets errno properly.

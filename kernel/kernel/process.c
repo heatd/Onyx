@@ -287,7 +287,7 @@ int sys_execve(char *path, char *argv[], char *envp[])
 		return -ENOMEM;
 	}
 	/* Read the file signature */
-	read_vfs(0, 100, file, in);
+	read_vfs(0, 0, 100, file, in);
 	struct binfmt_args args;
 	args.file_signature = file;
 	args.filename = current->cmd_line;

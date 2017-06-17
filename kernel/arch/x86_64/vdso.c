@@ -39,7 +39,7 @@ void init_vdso(void)
 	}
 
 	/* Read the file */
-	if(file->size != read_vfs(0, file->size, vdso_mem, file))
+	if(file->size != read_vfs(0, 0, file->size, vdso_mem, file))
 	{
 		ERROR("vdso", "error while reading the vdso file: %s\n", strerror(errno));
 		vfree(vdso_mem, vmm_align_size_to_pages(file->size));

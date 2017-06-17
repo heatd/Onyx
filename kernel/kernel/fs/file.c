@@ -96,7 +96,8 @@ ssize_t sys_read(int fd, const void *buf, size_t count)
 	{
 		return -EBADF;
 	}
-	ssize_t size = (ssize_t) read_vfs(ioctx->file_desc[fd]->seek, count, (char*)buf, ioctx->file_desc[fd]->vfs_node);
+	ssize_t size = (ssize_t) read_vfs(ioctx->file_desc[fd]->flags, ioctx->file_desc[fd]->seek,
+		count, (char*)buf, ioctx->file_desc[fd]->vfs_node);
 	if(size == -1)
 	{
 		return -errno;
@@ -268,7 +269,8 @@ ssize_t sys_readv(int fd, const struct iovec *vec, int veccnt)
 	{
 		if(vec[i].iov_len == 0)
 			continue;
-		size_t s = read_vfs(ctx->file_desc[fd]->seek, vec[i].iov_len, vec[i].iov_base, ctx->file_desc[fd]->vfs_node);
+		size_t s = read_vfs(ctx->file_desc[fd]->flags, 
+		ctx->file_desc[fd]->seek, vec[i].iov_len, vec[i].iov_base, ctx->file_desc[fd]->vfs_node);
 		if(s != vec[i].iov_len)
 		{
 			read += s;
@@ -323,7 +325,8 @@ ssize_t sys_preadv(int fd, const struct iovec *vec, int veccnt, off_t offset)
 	size_t read = 0;
 	for(int i = 0; i < veccnt; i++)
 	{
-		read_vfs(offset, vec[i].iov_len, vec[i].iov_base, ctx->file_desc[fd]->vfs_node);
+		read_vfs(ctx->file_desc[fd]->flags, 
+			offset, vec[i].iov_len, vec[i].iov_base, ctx->file_desc[fd]->vfs_node);
 		read += vec[i].iov_len;
 		offset += vec[i].iov_len;
 	}

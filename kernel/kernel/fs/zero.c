@@ -10,11 +10,12 @@
 #include <kernel/panic.h>
 #include <kernel/compiler.h>
 
-size_t zero_read(size_t offset, size_t count, void *buf, vfsnode_t *n)
+size_t zero_read(int flags, size_t offset, size_t count, void *buf, vfsnode_t *n)
 {
 	/* While reading from /dev/zero, all you read is zeroes. Just memset the buf. */
 	UNUSED(offset);
 	UNUSED(n);
+	UNUSED(flags);
 	memset(buf, 0, count);
 	return count;
 }

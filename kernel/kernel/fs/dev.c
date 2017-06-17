@@ -211,6 +211,7 @@ vfsnode_t *devfs_creat(const char *pathname, int mode, vfsnode_t *self)
 		children[0]->name = vfs_get_full_path(self, (char*)pathname);
 		children[0]->inode = 0;
 		children[0]->type = VFS_TYPE_FILE;
+		children[0]->refcount++;
 		return children[0];
 	}
 	else
@@ -239,6 +240,7 @@ vfsnode_t *devfs_creat(const char *pathname, int mode, vfsnode_t *self)
 		children[num_child-1]->name = vfs_get_full_path(self, (char*)pathname);
 		children[num_child-1]->inode = num_child-1;
 		children[num_child-1]->type = VFS_TYPE_FILE;
+		children[num_child-1]->refcount++;
 		return children[num_child-1];
 	}
 }
@@ -255,7 +257,7 @@ int devfs_init()
 
 	slashdev->name = "/dev";
 	slashdev->type = VFS_TYPE_DIR;
-
+	slashdev->refcount++;
 	struct minor_device *minor = dev_register(0, 0);
 	if(!minor)
 		panic("Could not allocate a device ID!\n");

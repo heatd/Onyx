@@ -86,8 +86,9 @@ size_t pipe_write(size_t offset, size_t sizeofwrite, void* buffer, vfsnode_t* fi
 		mutex_unlock(&pipe->pipe_lock);
 	return pipe->curr_size;
 }
-size_t pipe_read(size_t offset, size_t sizeofread, void* buffer, vfsnode_t* file)
+size_t pipe_read(int flags, size_t offset, size_t sizeofread, void* buffer, vfsnode_t* file)
 {
+	(void) flags;
 	UNUSED_PARAMETER(offset);
 
 	/* Get the pipe */

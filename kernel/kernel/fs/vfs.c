@@ -37,7 +37,7 @@ ssize_t do_file_caching(size_t sizeofread, vfsnode_t *this, struct minor_device 
 	{
 		if(avl_search_key(&this->cache_tree, offset + PAGE_CACHE_SIZE * i))
 			continue;
-		size_t status = m->fops->read(offset + PAGE_CACHE_SIZE * i, PAGE_CACHE_SIZE, cache, this);
+		size_t status = m->fops->read(0, offset + PAGE_CACHE_SIZE * i, PAGE_CACHE_SIZE, cache, this);
 		if(status == 0)
 		{
 			free(cache);
@@ -68,7 +68,7 @@ int vfs_init()
 	fs_root->refcount++;
 	return 0;
 }
-size_t read_vfs(size_t offset, size_t sizeofread, void* buffer, vfsnode_t* this)
+size_t read_vfs(int flags, size_t offset, size_t sizeofread, void* buffer, vfsnode_t* this)
 {
 	struct minor_device *m = dev_find(this->dev);
 	if(!m)
@@ -76,12 +76,12 @@ size_t read_vfs(size_t offset, size_t sizeofread, void* buffer, vfsnode_t* this)
 	if(!m->fops)
 		return errno = ENOSYS;
 	if(this->type & VFS_TYPE_MOUNTPOINT)
-		return read_vfs(offset, sizeofread, buffer, this->link);
+		return read_vfs(flags, offset, sizeofread, buffer, this->link);
 	if(m->fops->read != NULL)
 	{
 		ssize_t status; 
 		if((status = lookup_file_cache(buffer, sizeofread, this, m, offset)) < 0) /* If caching failed, just do the normal way */
-			return m->fops->read(offset, sizeofread, buffer, this);
+			return m->fops->read(flags, offset, sizeofread, buffer, this);
 		return status;
 	}
 	return errno = ENOSYS;

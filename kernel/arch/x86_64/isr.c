@@ -62,6 +62,14 @@ static inline bool is_recursive_fault()
 {
 	return faulting;
 }
+void dump_stack(uintptr_t *rsp)
+{
+	printk("Stack dump: ");
+	/* Lets dump a comfortable number of bytes */
+	for(int i = 0; i < 20; i++, rsp--)
+		printk("%x ", *rsp);
+	printk("\n");
+}
 void isr_handler(intctx_t *ctx)
 {
 	int int_no = ctx->int_no;
@@ -81,6 +89,7 @@ void isr_handler(intctx_t *ctx)
 r10: %x\nr11: %x\nr12: %x\nr13: %x\nr14: %x\nr15: %x\nrsp: %x\nrflags: %x\nds: %x\ncs: %x\n", 
 			ctx->rax, ctx->rbx, ctx->rcx, ctx->rdx, ctx->rdi, ctx->rsi, ctx->rbp, ctx->r8, ctx->r9, 
 		ctx->r10, ctx->r11, ctx->r12, ctx->r13, ctx->r14, ctx->r15, ctx->rsp, ctx->rflags, ctx->ds, ctx->cs);
+			dump_stack((uintptr_t*)ctx->rsp);
 			while(1);
 			if(err_code & 0x2)
 				printk(" caused by a write\n");

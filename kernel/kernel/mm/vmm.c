@@ -864,7 +864,8 @@ int __vm_handle_private(vmm_entry_t *entry, struct fault_info *info)
 		return -1;
 	vfsnode_t *file = get_current_process()->ctx.file_desc[entry->fd]->vfs_node;
 	size_t to_read = file->size - entry->offset < PAGE_SIZE ? file->size - entry->offset : PAGE_SIZE;
-	if(read_vfs(entry->offset + (aligned_address - entry->base), to_read, ptr, file) != to_read)
+	if(read_vfs(get_current_process()->ctx.file_desc[entry->fd]->flags,
+		entry->offset + (aligned_address - entry->base), to_read, ptr, file) != to_read)
 	{
 		vmm_unmap_range(ptr, 1);
 		return -1;

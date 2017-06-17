@@ -25,7 +25,7 @@
 #define VFS_TYPE_UNIX_SOCK	(1 << 6)
 #define VFS_TYPE_UNK		(1 << 7)
 struct vfsnode;
-typedef size_t (*__read)(size_t offset, size_t sizeofread, void* buffer, struct vfsnode* this);
+typedef size_t (*__read)(int flags, size_t offset, size_t sizeofread, void* buffer, struct vfsnode* this);
 typedef size_t (*__write)(size_t offset, size_t sizeofwrite, void* buffer, struct vfsnode* this);
 typedef void (*__close)(struct vfsnode* this);
 typedef struct vfsnode *(*__open)(struct vfsnode* this, const char *name);
@@ -67,7 +67,7 @@ typedef struct vfsnode
 } vfsnode_t;
 
 void *add_cache_to_node(void *ptr, off_t offset, vfsnode_t *node);
-size_t read_vfs(size_t offset, size_t sizeofread, void* buffer, vfsnode_t* this);
+size_t read_vfs(int flags, size_t offset, size_t sizeofread, void* buffer, vfsnode_t* this);
 size_t write_vfs(size_t offset, size_t sizeofwrite, void* buffer, vfsnode_t* this);
 void close_vfs(vfsnode_t* this);
 vfsnode_t *open_vfs(vfsnode_t* this, const char*);

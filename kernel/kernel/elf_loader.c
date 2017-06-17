@@ -200,7 +200,7 @@ int elf_load_pie(char *path)
 		perror("malloc");
 		return -1;
 	}
-	size_t read = read_vfs(0, f->size, file, f);
+	size_t read = read_vfs(0, 0, f->size, file, f);
 	if(read != f->size)
 	{
 		perror("read_vfs");
@@ -280,7 +280,7 @@ int elf_parse_program_headers(void *file, struct binfmt_args *args)
 				free(args->file);
 				free(args->filename);
 			}
-			read_vfs(0, 100, args->file_signature, args->file);
+			read_vfs(0, 0, 100, args->file_signature, args->file);
 			for (Elf64_Half j = 0; j < hdr->e_phnum; j++)
 			{
 				if (phdrs[j].p_type == PT_LOAD)
@@ -349,7 +349,7 @@ void* elf_load(struct binfmt_args *args)
 	if(!file_buf)
 		return errno = ENOMEM, NULL;
 	/* Read the file */
-	read_vfs(0, args->file->size, file_buf, args->file);
+	read_vfs(0, 0, args->file->size, file_buf, args->file);
 	Elf64_Ehdr *header = (Elf64_Ehdr *) file_buf;
 	/* Validate the header */
 	if(!elf_is_valid(header))

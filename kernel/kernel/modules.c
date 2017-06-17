@@ -98,7 +98,7 @@ int load_module(const char *path, const char *name)
 	if (!buffer)
 		return errno = ENOMEM;
 	memset(buffer, 0, file->size);
-	size_t read = read_vfs(0, file->size, buffer, file);
+	size_t read = read_vfs(0, 0, file->size, buffer, file);
 	if (read != file->size)
 		return errno = EAGAIN;
 	void *fini;

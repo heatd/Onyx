@@ -203,7 +203,7 @@ retry:;
 	unsigned char *buffer = malloc(100);
 	if (!buffer)
 		return errno = ENOMEM;
-	read_vfs(0, 100, buffer, in);
+	read_vfs(0, 0, 100, buffer, in);
 
 	argv[0] = path;
 	/* Prepare the argument struct */
@@ -457,13 +457,13 @@ void kernel_multitasking(void *arg)
 	/* Initialize the network-related subsystems(the ones that need it) */
 	
 	/* Initialize dhcp */
-	dhcp_initialize();
+	//dhcp_initialize();
 
 	/* Initialize DNS */
 	dns_init();
 
 	/* Initialize ICMP */
-	icmp_init();
+	//icmp_init();
 
 	/* Parse the command line string to a more friendly argv-like buffer */
 	kernel_parse_command_line(kernel_cmdline);
