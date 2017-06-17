@@ -42,7 +42,6 @@ unsigned int drm_ioctl(int request, void *args, vfsnode_t *self)
 				return -EFAULT;
 			struct video_device *dev = video_get_main_adapter();
 			strcpy(info->drm_version, DRM_VERSION_STRING);
-			/* TODO: Actually detect this in the future */
 			strcpy(info->video_driver, dev->driver_string);
 			strcpy(info->card, dev->card_string);
 

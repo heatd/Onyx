@@ -524,6 +524,11 @@ int sys_fcntl(int fd, int cmd, unsigned long arg)
 			int new = do_dupfd(fd, (int) arg);
 			return new;
 		}
+		case F_SETFD:
+		{
+			get_file_description(fd)->flags = (int) arg;
+			return 0;
+		}
 	}
 	return 0;
 }

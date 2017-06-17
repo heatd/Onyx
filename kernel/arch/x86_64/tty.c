@@ -236,7 +236,7 @@ volatile int tty_keyboard_pos = 0;
 volatile _Bool got_line_ready = 0;
 void tty_recieved_character(char c)
 {
-	if(!(term_io.c_lflag & ECHO))
+	if(!(term_io.c_lflag & ICANON))
 		got_line_ready = 1;
 	if(c == '\n')
 	{
@@ -313,11 +313,12 @@ size_t strnewlinelen(char *str)
 size_t ttydevfs_read(int flags, size_t offset, size_t count, void *buffer, vfsnode_t *this)
 {
 	char *kb_buf = tty_wait_for_line(flags);
-	size_t len = strnewlinelen(kb_buf);
-	memcpy(buffer, kb_buf, len);
-	tty_keyboard_pos -= len;
-	memcpy(kb_buf, kb_buf + len, 2048 - len);
-	return len;
+	size_t len = term_io.c_lflag & ICANON ? strnewlinelen(kb_buf) : strlen(kb_buf);
+	size_t read = count < len ? count : len;
+	memcpy(buffer, kb_buf, read);
+	tty_keyboard_pos -= read;
+	memcpy(kb_buf, kb_buf + read, 2048 - read);
+	return read;
 }
 
 unsigned int tty_ioctl(int request, void *argp, vfsnode_t *dev)
