@@ -6,9 +6,9 @@
 #ifndef _KERNEL_SIGNAL_H
 #define _KERNEL_SIGNAL_H
 
+#define _GNU_SOURCE
 #include <signal.h>
-
-typedef void * sighandler_t;
+#include <stdbool.h>
 struct signal_info
 {
 	int signum;
@@ -17,4 +17,5 @@ struct signal_info
 struct proc;
 int sys_kill(pid_t pid, int sig);
 void kernel_raise_signal(int sig, struct proc *process);
+bool signal_is_pending(void);
 #endif

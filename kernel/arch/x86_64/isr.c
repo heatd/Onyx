@@ -123,6 +123,7 @@ r10: %x\nr11: %x\nr12: %x\nr13: %x\nr14: %x\nr15: %x\nrsp: %x\nrflags: %x\nds: %
 	}
 	if(ctx->rip > VM_HIGHER_HALF)
 	{
+		printk("Err code: %x\n", err_code);
 		printk("Kernel exception %u at %p\n", int_no, ctx->rip);
 		printk("Registers: rax: %x\nrbx: %x\nrcx: %x\nrdx: %x\nrdi: %x\nrsi: %x\nrbp: %x\nr8:  %x\nr9:  %x\n\
 r10: %x\nr11: %x\nr12: %x\nr13: %x\nr14: %x\nr15: %x\nrsp: %x\nrflags: %x\nds: %x\ncs: %x\n", 
@@ -193,7 +194,8 @@ r10: %x\nr11: %x\nr12: %x\nr13: %x\nr14: %x\nr15: %x\nrsp: %x\nrflags: %x\nds: %
 			break;
 		}
 	case 13:{
-			sys_kill(get_current_process()->pid, SIGSEGV);
+			printk("Segment number: %x\n", err_code);
+			//sys_kill(get_current_process()->pid, SIGSEGV);
 			break;
 		}
 	case 14:{

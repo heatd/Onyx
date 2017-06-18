@@ -315,6 +315,7 @@ syscall_ENTRY64_int:
 	jmp .continue 
 global __sigret_return
 __sigret_return:
+	cli
 	mov rsp, rdi
 	swapgs
 	pop rcx

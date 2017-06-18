@@ -100,7 +100,7 @@ char *resolve_sym(void *address)
 	for(size_t i = 1; i < num; i++)
 	{
 		if(syms[i].st_value == (Elf64_Addr)address){
-			size_t len = strlen(elf_get_string(syms[i].st_name)) + 3;
+			size_t len = strlen(elf_get_string(syms[i].st_name)) + 4;
 			char *buf = malloc(len);
 			if(!buf)
 				return NULL;

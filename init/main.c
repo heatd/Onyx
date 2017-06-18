@@ -225,7 +225,7 @@ int main(int argc, char **argv, char **envp)
 	fgets(buf, 1024, f);
 	
 	chdir("/");
-
+	char *env[] = {"", NULL};
 	char *shell = copy_until_newline(buf);
 	char *args[] = {shell, "/etc/fstab", NULL};
 
@@ -234,7 +234,9 @@ int main(int argc, char **argv, char **envp)
 	if(pid == 0)
 		execve(shell, args, environ);
 	while(1)
+	{
 		waitpid(-1, NULL, WEXITED);
+	}
 	return 0;
 }
 void load_modules()

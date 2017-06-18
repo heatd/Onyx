@@ -85,7 +85,7 @@ thread_t* task_switching_create_context(thread_callback_t callback, uint32_t fla
 
 	uint64_t ds = 0x10, cs = 0x08, rf = 0x202;
 	if(!(flags & 1))
-		ds = 0x2b, cs = 0x33, rf = 0x202;
+		ds = 0x33, cs = 0x2b, rf = 0x202;
 
 	*--stack = ds; //SS
 	*--stack = original_stack; //RSP

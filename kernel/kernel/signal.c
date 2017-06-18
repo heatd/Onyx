@@ -3,6 +3,7 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
+#define _GNU_SOURCE
 #include <signal.h>
 #include <stdio.h>
 #include <errno.h>
@@ -12,20 +13,29 @@
 #include <kernel/signal.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
-void sys_exit(int exitcode);
-void kernel_default_signal(struct signal_info *sig)
+void signal_update_pending(process_t *process);
+#define SST_SIZE (_NSIG/8/sizeof(long))
+void signotset(sigset_t *set)
 {
-	switch(sig->signum)
+	for(size_t i = 0; i < SST_SIZE; i++)
+		set->__bits[i] = ~set->__bits[i];
+}
+void sys_exit(int exitcode);
+void kernel_default_signal(int signum)
+{
+	switch(signum)
 	{
 		case SIGABRT:
 		{
 			printk("sig: Aborting!\n");
+			signal_update_pending(get_current_process());
+			sys_exit(127);
 			break;
 		}
 		case SIGSEGV:
 		{
 			printk("Segmentation fault\n");
-			get_current_process()->signal_pending = 0;
+			signal_update_pending(get_current_process());
 			sys_exit(127);
 			break;
 		}
@@ -33,7 +43,7 @@ void kernel_default_signal(struct signal_info *sig)
 }
 #if defined(__x86_64__)
 /* TODO: Support signals per thread */
-void signal_transfer_to_userspace(struct signal_info *sig, registers_t *regs, _Bool is_int)
+void signal_transfer_to_userspace(int sig, registers_t *regs, _Bool is_int)
 {
 	/* Start setting the register state for the register switch */
 	/* Note that we're saving the old ones */
@@ -42,9 +52,17 @@ void signal_transfer_to_userspace(struct signal_info *sig, registers_t *regs, _B
 	if(!is_int)
 	{
 		memcpy((registers_t*) &process->old_regs, regs, sizeof(registers_t));
-		regs->rdi = sig->signum;
-		regs->rip = (uintptr_t) process->sigtable[sig->signum].sa_handler;
-		userspace_stack = (uintptr_t *) regs->rsp;
+		regs->rdi = sig;
+		regs->rip = (uintptr_t) process->sigtable[sig].sa_handler;
+		regs->cs = 0x2b;
+		regs->ds = regs->ss = 0x33;
+		if(process->old_regs.ds == 0x33)
+			userspace_stack = (uintptr_t *) regs->rsp;
+		else
+		{
+			userspace_stack = get_current_thread()->user_stack;
+			regs->rsp = (uintptr_t) userspace_stack;
+		}
 	}
 	else
 	{
@@ -70,54 +88,115 @@ void signal_transfer_to_userspace(struct signal_info *sig, registers_t *regs, _B
 		process->old_regs.ss = intctx->ss;
 		process->old_regs.cs = intctx->cs;
 		process->old_regs.rflags = intctx->rflags;
-		intctx->rdi = sig->signum;
-		intctx->rip = (uintptr_t) process->sigtable[sig->signum].sa_handler;
-		userspace_stack = (uintptr_t *) intctx->rsp;
+		intctx->rdi = sig;
+		intctx->rip = (uintptr_t) process->sigtable[sig].sa_handler;
+		intctx->cs = 0x33;
+		intctx->ds = intctx->ss = 0x2b;
+		if(process->old_regs.ds == 0x2b)
+			userspace_stack = (uintptr_t *) intctx->rsp;
+		else
+		{
+			userspace_stack = get_current_thread()->user_stack;
+			intctx->rsp = (uintptr_t) userspace_stack;
+		}
 	}
 	if(userspace_stack && vmm_is_mapped(userspace_stack))
 	{
-		uintptr_t sigreturn = (uintptr_t) process->sigtable[sig->signum].sa_restorer;
+		uintptr_t sigreturn = (uintptr_t) process->sigtable[sig].sa_restorer;
 		*userspace_stack = sigreturn;
 	}
 }
 #else
 #error "Implement this in your architecture"
 #endif
+int signal_find(process_t *process)
+{
+	sigset_t *set = &process->pending_set;
+	sigset_t *blocked_set = &process->sigmask;
+	for(int i = 0; i < NSIG; i++)
+	{
+		if(sigismember(set, i) && !sigismember(blocked_set, i))
+		{
+			sigdelset(set, i);
+			return i;
+		}
+	}
+	return 0;
+}
+_Bool signal_is_empty(process_t *process)
+{
+	sigset_t *set = &process->pending_set;
+	sigset_t *blocked_set = &process->sigmask;
+	for(int i = 0; i < NSIG; i++)
+	{
+		if(sigismember(set, i) && !sigismember(blocked_set, i))
+			return true;
+	}
+	return false;
+}
 void handle_signal(registers_t *regs, _Bool is_int)
 {
-	process_t *curr_proc = get_current_process();
-	if(!curr_proc)
-		panic("Signal invoked without a process!");
-	if(curr_proc->signal_dispatched == 1)
+	/* We can't do signals while in kernel space */
+	if(regs->cs == 0x8)
+	{
 		return;
+	}
+	process_t *current = get_current_process();
+	//assert(current);
 
-	struct signal_info *sig = &curr_proc->sinfo;
-
-	void (*handler)(int) = curr_proc->sigtable[sig->signum].sa_handler;
+	/* Find an available signal */
+	int signum = signal_find(current);
+	void (*handler)(int) = current->sigtable[signum].sa_handler;
 	if(handler == (sighandler_t) SIG_IGN) // Ignore the signal if it's handler is set to SIG_IGN
 		return;
 	if(handler != SIG_DFL)
 	{
 		if(!vmm_is_mapped(handler))
 			return;
-		signal_transfer_to_userspace(sig, regs, is_int);
-		curr_proc->signal_dispatched = 1;
+		signal_transfer_to_userspace(signum, regs, is_int);
 		return;
 	}
 	else
 	{
-		kernel_default_signal(sig);
+		kernel_default_signal(signum);
 	}
-	curr_proc->signal_pending = 0;
+	if(signal_is_empty(current))
+		current->signal_pending = 0;
+}
+void signal_update_pending(process_t *process)
+{
+	sigset_t *set = &process->pending_set;
+	sigset_t *blocked_set = &process->sigmask;
+	for(int i = 0; i < NSIG; i++)
+	{
+		if(sigismember(set, i) && !sigismember(blocked_set, i))
+		{
+			process->signal_pending = 1;
+			return;
+		}
+	}
+	process->signal_pending = 0;
+}
+void kernel_raise_signal(int sig, process_t *process)
+{
+	sigaddset(&process->pending_set, sig);
+	if(!sigismember(&process->sigmask, sig))
+		process->signal_pending = 1;
+}
+_Bool signal_is_masked(process_t *process, int sig)
+{
+	sigset_t *set = &process->sigmask;
+	return (_Bool) sigismember(set, sig);
 }
 int sys_kill(pid_t pid, int sig)
 {
 	process_t *p = NULL;
+	process_t *current = get_current_process();
 	if((int)pid > 0)
 	{
-		if(pid == get_current_process()->pid)
+		if(pid == current->pid)
 		{
-			p = get_current_process();
+			p = current;
 		}
 		else
 			p = get_process_from_pid(pid);
@@ -126,50 +205,43 @@ int sys_kill(pid_t pid, int sig)
 	}
 	if(sig == 0)
 		return 0;
-	if(sig > 26)
+	if(sig > NSIG)
 		return errno =-EINVAL;
 	if(sig < 0)
 		return errno =-EINVAL;
-	get_current_process()->signal_pending = 1;
-	get_current_process()->sinfo.signum = sig;
+	kernel_raise_signal(sig, p);
 	return 0;
-}
-void kernel_raise_signal(int sig, process_t *process)
-{
-	process->signal_pending = 1;
-	process->sinfo.signum = sig;
 }
 extern void __sigret_return(uintptr_t stack);
 void sys_sigreturn(void)
 {
 	DISABLE_INTERRUPTS();
+	signal_update_pending(get_current_process());
 	/* Switch the registers again */
-	registers_t *regs = (registers_t *) get_current_thread()->kernel_stack;
+	uintptr_t *regs = (uintptr_t *) get_current_thread()->kernel_stack;
 	registers_t *old = (registers_t*) &get_current_process()->old_regs;
-	regs->rax = old->rax;
-	regs->rbx = old->rbx;
-	regs->rcx = old->rcx;
-	regs->rdx = old->rdx;
-	regs->rdi = old->rdi;
-	regs->rsi = old->rsi;
-	regs->rbp = old->rbp;
-	regs->rsp = old->rsp;
-	regs->rip = old->rip;
-	regs->r8 = old->r8;
-	regs->r9 = old->r9;
-	regs->r10 = old->r10;
-	regs->r11 = old->r11;
-	regs->r12 = old->r12;
-	regs->r13 = old->r13;
-	regs->r14 = old->r14;
-	regs->r15 = old->r15;
-	regs->ds = old->ds;
-	regs->ss = old->ss;
-	regs->cs = old->cs;
-	regs->rflags = old->rflags;
-	get_current_process()->signal_pending = 0;
-	get_current_process()->signal_dispatched = 0;
-	__sigret_return((uintptr_t) get_current_thread()->kernel_stack);
+	*--regs = old->ds; //SS
+	*--regs = old->rsp; //RSP
+	*--regs = old->rflags; // RFLAGS
+	*--regs = old->cs; //CS
+	*--regs = old->rip; //RIP
+	*--regs = old->rax; // RAX
+	*--regs = old->rbx; // RBX
+	*--regs = old->rcx; // RCX
+	*--regs = old->rdx; // RDX
+	*--regs = old->rdi; // RDI
+	*--regs = old->rsi; // RSI
+	*--regs = old->rbp; // RBP
+	*--regs = old->r15; // R15
+	*--regs = old->r14; // R14
+	*--regs = old->r13; // R13
+	*--regs = old->r12; // R12
+	*--regs = old->r11; // R11
+	*--regs = old->r10; // R10
+	*--regs = old->r9; // R9
+	*--regs = old->r8; // R8
+	*--regs = old->ds; // DS
+	__sigret_return((uintptr_t) regs);
 	__builtin_unreachable();
 }
 int sys_sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
@@ -214,4 +286,53 @@ int sys_sigaction(int signum, const struct sigaction *act, struct sigaction *old
 	}
 	mutex_unlock(&proc->signal_lock);
 	return 0;
+}
+int sys_sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
+{
+	process_t *current = get_current_process();
+	if(oldset)
+	{
+		if(vmm_check_pointer(oldset, sizeof(sigset_t)) < 0)
+			return -EFAULT;
+		memcpy(oldset, &current->sigmask, sizeof(sigset_t));
+	}
+	if(set)
+	{
+		if(vmm_check_pointer((void*) set, sizeof(sigset_t)) < 0)
+			return -EFAULT;
+		
+		switch(how)
+		{
+			case SIG_BLOCK:
+			{
+				sigorset(&current->sigmask, &current->sigmask, set);
+				if(sigismember(&current->sigmask, SIGKILL))
+					sigdelset(&current->sigmask, SIGKILL);
+				if(sigismember(&current->sigmask, SIGSTOP))
+					sigdelset(&current->sigmask, SIGSTOP);
+				break;
+			}
+			case SIG_UNBLOCK:
+			{
+				sigset_t s;
+				memcpy(&s, set, sizeof(sigset_t));
+				signotset(&s);
+				sigandset(&current->sigmask, &current->sigmask, &s); 
+				break;
+			}
+			case SIG_SETMASK:
+			{
+				memcpy(&current->sigmask, set, sizeof(sigset_t));
+				break;
+			}
+			default:
+				return -EINVAL;
+		}
+	}
+	signal_update_pending(current);
+	return 0;
+}
+bool signal_is_pending(void)
+{
+	return (bool) get_current_process()->signal_pending;
 }

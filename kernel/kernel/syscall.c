@@ -31,7 +31,7 @@
 #include <kernel/cpu.h>
 #include <kernel/page.h>
 
-const uint64_t SYSCALL_MAX_NUM = 64;
+const uint64_t SYSCALL_MAX_NUM = 65;
 
 uint64_t sys_nosys()
 {
@@ -78,7 +78,6 @@ extern void sys_reboot();
 extern void sys_shutdown();
 extern int sys_insmod(const char *path, const char *name);
 extern void sys_sigreturn(void *ret);
-extern sighandler_t sys_signal(int signum, sighandler_t handler);
 extern int sys_kill(pid_t pid, int sig);
 extern int sys_personality(unsigned long val);
 extern int sys_setuid(uid_t uid);
@@ -100,6 +99,7 @@ extern int sys_fstatat(int dirfd, const char *pathname, struct stat *buf, int fl
 extern int sys_fmount(int fd, const char *path);
 extern int sys_clone(int (*fn)(void *), void *child_stack, int flags, void *arg, pid_t *ptid, void *tls);
 extern void sys_exit_thread(int value);
+extern int sys_sigprocmask(int how, const sigset_t *set, sigset_t *oldset);
 void *syscall_list[] =
 {
 	[0] = (void*) sys_write,
@@ -167,10 +167,6 @@ void *syscall_list[] =
 	[62] = (void*) sys_fmount,
 	[63] = (void*) sys_clone,
 	[64] = (void*) sys_exit_thread,
+	[65] = (void*) sys_sigprocmask,
 	[255] = (void*) sys_nosys
 };
-void syscall_debug(int err)
-{
-	if(err < 0)
-		printk("Error: %s\n", strerror(-err));
-}

@@ -73,3 +73,5 @@ Errno also gets passed through rax, as -errno.
 | 61 | fstatat() system call |
 | 62 | fmount() system call |
 | 63 | clone() system call |
+| 64 | exit_thread() system call |
+| 65 | sigprocmask() system call |

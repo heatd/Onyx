@@ -21,7 +21,6 @@ typedef struct proc
 {
 	/* Signal specific flags */
 	int signal_pending;
-	int signal_dispatched;
 
 	/* The next process in the linked list */
 	struct proc *next;
@@ -69,6 +68,12 @@ typedef struct proc
 	mutex_t signal_lock;
 	struct sigaction sigtable[_NSIG];
 
+	/* Signal mask */
+	sigset_t sigmask;
+	
+	/* Pending signal set */
+	sigset_t pending_set;
+	
 	/* Information about the current signal */
 	struct signal_info sinfo;
 

@@ -370,6 +370,8 @@ pid_t sys_wait4(pid_t pid, int *wstatus, int options, struct rusage *usage)
 	it = first_process;
 	while(1)
 	{
+		if(signal_is_pending())
+			return -EINTR;
 		if(it->parent == curr_process && it->has_exited == 1)
 		{
 			if(looking_for_any_children == true || it->pid == pid)

@@ -76,7 +76,15 @@ string/strcspn.o \
 string/strspn.o \
 string/strchrnul.o \
 misc/basename.o \
-misc/dirname.o
+misc/dirname.o \
+posix/sigaddset.o \
+posix/sigandset.o \
+posix/sigdelset.o \
+posix/sigemptyset.o \
+posix/sigfillset.o \
+posix/sigisemptyset.o \
+posix/sigismember.o \
+posix/sigorset.o
 OBJS:=\
 $(FREEOBJS) \
 libc/init.o \
