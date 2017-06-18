@@ -493,7 +493,7 @@ void thread_destroy(thread_t *thread)
 	sched_remove_thread(thread);
 
 	/* Destroy the user stack */
-	vmm_destroy_mappings(thread->user_stack_bottom, 256);
+	if(thread->user_stack_bottom) vmm_destroy_mappings(thread->user_stack_bottom, 256);
 	
 	/* Schedule further thread destruction */
 	struct work_request req;
@@ -508,4 +508,73 @@ void thread_set_state(thread_t *thread, int state)
 void thread_wake_up(thread_t *thread)
 {
 	thread->status = THREAD_RUNNABLE;
+}
+thread_t *sched_spawn_thread(registers_t *regs, thread_callback_t start, void *arg, void *fs)
+{
+	thread_t* new_thread = malloc(sizeof(thread_t));
+	
+	if(!new_thread)
+		return NULL;
+	
+	memset(new_thread, 0 ,sizeof(thread_t));
+
+	new_thread->id = curr_id++;
+	posix_memalign((void**) &new_thread->fpu_area, FPU_AREA_ALIGNMENT, FPU_AREA_SIZE);
+	if(!new_thread->fpu_area)
+	{
+		free(new_thread->fpu_area);
+		free(new_thread);
+		return NULL;
+	}
+	memset(new_thread->fpu_area, 0, FPU_AREA_SIZE);
+	setup_fpu_area(new_thread->fpu_area);
+
+	new_thread->kernel_stack = (uintptr_t*)vmm_allocate_virt_address(VM_KERNEL, 4, VMM_TYPE_STACK, VMM_WRITE | VMM_NOEXEC, 0);
+	if(!new_thread->kernel_stack)
+	{
+		free(new_thread->fpu_area);
+		free(new_thread);
+		return NULL;
+	}
+	if(!vmm_map_range(new_thread->kernel_stack, 4, VM_WRITE | VM_GLOBAL | VM_NOEXEC))
+	{
+		free(new_thread->fpu_area);
+		free(new_thread);
+		return NULL;
+	}
+	new_thread->kernel_stack = (void*)((char*) new_thread->kernel_stack + 0x4000);
+	new_thread->kernel_stack_top = new_thread->kernel_stack;
+	new_thread->owner = get_current_process();
+
+	uint64_t *stack = new_thread->kernel_stack;
+	uint64_t ds = 0x33, cs = 0x2b, rflags = 0x202;
+
+	new_thread->rip = start;
+	*--stack = ds; //SS
+	*--stack = regs->rsp; //RSP
+	*--stack = rflags; // RFLAGS
+	*--stack = cs; //CS
+	*--stack = (uint64_t) start; //RIP
+	*--stack = regs->rax; // RAX
+	*--stack = regs->rbx; // RBX
+	*--stack = regs->rcx; // RCX
+	*--stack = regs->rdx; // RDX
+	*--stack = (uint64_t) arg; // RDI
+	*--stack = regs->rsi; // RSI
+	*--stack = regs->rbp; // RBP
+	*--stack = regs->r15; // R15
+	*--stack = regs->r14; // R14
+	*--stack = regs->r13; // R13
+	*--stack = regs->r12; // R12
+	*--stack = regs->r11; // R11
+	*--stack = regs->r10; // R10
+	*--stack = regs->r9; // R9
+	*--stack = regs->r8; // R8
+	*--stack = ds; // DS
+	new_thread->kernel_stack = stack;
+	new_thread->fs = fs;
+
+	thread_add(new_thread);
+
+	return new_thread;
 }

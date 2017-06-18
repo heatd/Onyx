@@ -22,6 +22,7 @@
 #include <kernel/binfmt.h>
 #include <kernel/worker.h>
 #include <kernel/page.h>
+#include <kernel/thread.h>
 
 #include <pthread_kernel.h>
 
@@ -441,7 +442,7 @@ void sys_exit(int status)
 	process_t *current = get_current_process();
 	if(current->pid == 1)
 	{
-		printf("Panic: %s returned!\n", get_current_process()->cmd_line);
+		printk("Panic: %s returned!\n", get_current_process()->cmd_line);
 		ENABLE_INTERRUPTS();
 		for(;;);
 	}
@@ -556,4 +557,49 @@ process_t *process_find_tracee(process_t *tracer, pid_t pid)
 		list = list->next;
 	}
 	return NULL;
+}
+void process_add_thread(process_t *process, thread_t *thread)
+{
+	for(int i = 0; i < THREADS_PER_PROCESS; i++)
+	{
+		if(!process->threads[i])
+		{
+			process->threads[i] = thread;
+			return;
+		}
+	}
+}
+#define CLONE_FORK		(1 << 0)
+#define CLONE_SPAWNTHREAD	(1 << 1)
+long valid_flags = CLONE_FORK | CLONE_SPAWNTHREAD;
+int sys_clone(int (*fn)(void *), void *child_stack, int flags, void *arg, pid_t *ptid, void *tls)
+{
+	if(flags & ~valid_flags)
+		return -EINVAL;
+	if(!vmm_is_mapped(fn))
+		return -EINVAL;
+	if(flags & CLONE_FORK)
+		return -EINVAL; /* TODO: Add CLONE_FORK */
+	thread_callback_t start = (thread_callback_t) fn;
+
+	registers_t regs;
+	memset(&regs, 0, sizeof(registers_t));
+	regs.rsp = (uint64_t) child_stack;
+	thread_t *thread = sched_spawn_thread(&regs, start, arg, tls);
+	if(!thread)
+		return -errno;
+	if(vmm_check_pointer(ptid, sizeof(pid_t)) > 0)
+		*ptid = thread->id;
+	process_add_thread(get_current_process(), thread);
+	return 0;
+}
+void sys_exit_thread(int value)
+{
+	thread_t *thr = get_current_thread();
+	/* Okay, so the libc called us. That means we can start destroying the thread */
+	/* NOTE: I'm not really sure if musl destroyed the user stack and fs, and if we should anything to free them */
+	/* Destroy the thread */
+	thread_destroy(thr);
+	/* aaaaand we'll never return back to user-space, so just hang on */
+	while(1);
 }

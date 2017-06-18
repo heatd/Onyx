@@ -79,7 +79,7 @@ void isr_handler(intctx_t *ctx)
 	{
 		__asm__ __volatile__ ("mov %%cr2, %0":"=r"
       				(faulting_address));
-		vmm_entry_t *entr = vmm_is_mapped((void*)faulting_address);
+		vmm_entry_t *entr = vmm_is_mapped((void*) faulting_address);
 		if(!entr)
 		{
 		pf0:

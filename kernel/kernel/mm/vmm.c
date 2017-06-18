@@ -711,7 +711,6 @@ int sys_munmap(void *addr, size_t length)
 	vmm_destroy_mappings(addr, pages);
 	return 0;
 }
-/* TODO: Fix this (key->end is wrong) */
 int sys_mprotect(void *addr, size_t len, int prot)
 {
 	if(is_higher_half(addr))
@@ -758,7 +757,7 @@ int sys_mprotect(void *addr, size_t len, int prot)
 		memcpy(area, &copy, sizeof(vmm_entry_t));
 		area->base += len;
 		area->pages -= pages;
-		vmm_entry_t *new_area = avl_insert_key(&tree, (uintptr_t) addr, (uintptr_t) addr + len);
+		vmm_entry_t *new_area = avl_insert_key(&tree, (uintptr_t) addr, len);
 		if(!new_area)
 		{
 			__vm_unlock(false);
@@ -772,10 +771,10 @@ int sys_mprotect(void *addr, size_t len, int prot)
 	{
 		size_t total_pages = area->pages;
 		avl_node_t *node = *avl_search_key(&tree, area->base);
-		node->end = (uintptr_t) addr;
+		node->end -= (uintptr_t) addr - area->base;
 		area->pages = ((uintptr_t) addr - area->base) / PAGE_SIZE;
 
-		vmm_entry_t *second_area = avl_insert_key(&tree, (uintptr_t) addr, (uintptr_t) addr + len);
+		vmm_entry_t *second_area = avl_insert_key(&tree, (uintptr_t) addr, (uintptr_t) len);
 		if(!second_area)
 		{
 			/* TODO: Unsafe to just return, maybe restore the old area? */
@@ -788,7 +787,7 @@ int sys_mprotect(void *addr, size_t len, int prot)
 		second_area->rwx = vm_prot;
 
 		vmm_entry_t *third_area = avl_insert_key(&tree, (uintptr_t) addr + len, 
-		(uintptr_t) area->base + total_pages * PAGE_SIZE);
+		(uintptr_t) total_pages * PAGE_SIZE);
 		if(!third_area)
 		{
 			/* TODO: Unsafe to just return, maybe restore the old area? */
@@ -803,7 +802,9 @@ int sys_mprotect(void *addr, size_t len, int prot)
 	else if(area->base < (uintptr_t) addr && (uintptr_t) addr + len == area->base + area->pages * PAGE_SIZE)
 	{
 		area->pages -= pages;
-		vmm_entry_t *new_area = avl_insert_key(&tree, (uintptr_t) addr, (uintptr_t) addr + len);
+		avl_node_t *node = *avl_search_key(&tree, (uintptr_t) addr);
+		node->end -= pages * PAGE_SIZE;
+		vmm_entry_t *new_area = avl_insert_key(&tree, (uintptr_t) addr, len);
 		if(!new_area)
 		{
 			area->pages += pages;

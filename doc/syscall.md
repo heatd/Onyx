@@ -69,3 +69,7 @@ Errno also gets passed through rax, as -errno.
 | 57 | getcwd() system call |
 | 58 | getuid() system call |
 | 59 | getgid() system call |
+| 60 | openat() system call |
+| 61 | fstatat() system call |
+| 62 | fmount() system call |
+| 63 | clone() system call |
