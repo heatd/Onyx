@@ -23,6 +23,7 @@
 #include <kernel/worker.h>
 #include <kernel/page.h>
 #include <kernel/thread.h>
+#include <kernel/file.h>
 
 #include <pthread_kernel.h>
 
@@ -317,6 +318,9 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	/* Free karg and kenv, we don't need them anymore  */
 	free(karg);
 	free(kenv);
+
+	/* Close O_CLOEXEC files */
+	file_do_cloexec(&get_current_process()->ctx);
 
 	/* We need to disable interrupts here, since we're destroying threads and creating new ones
 	(who may not be ready to execute) */

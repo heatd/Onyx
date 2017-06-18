@@ -18,6 +18,7 @@
 #include <kernel/vfs.h>
 #include <kernel/process.h>
 #include <kernel/pipe.h>
+#include <kernel/file.h>
 
 #include <sys/uio.h>
 
@@ -541,6 +542,8 @@ int sys_fcntl(int fd, int cmd, unsigned long arg)
 			get_file_description(fd)->flags = (int) arg;
 			return 0;
 		}
+		default:
+			return -EINVAL;
 	}
 	return 0;
 }
@@ -650,4 +653,21 @@ int sys_fmount(int fd, const char *path)
 	if(!vmm_is_mapped((void*) path))
 		return errno = -EFAULT;
 	return mount_fs(get_file_description(fd)->vfs_node, path);
+}
+void file_do_cloexec(ioctx_t *ctx)
+{
+	mutex_lock(&ctx->fdlock);
+	file_desc_t **fd = ctx->file_desc;
+	for(int i = 0; i < ctx->file_desc_entries; i++)
+	{
+		if(!fd[i])
+			continue;
+		if(fd[i]->flags & O_CLOEXEC)
+		{
+			/* Close the file */
+			decrement_fd_refcount(fd[i]);
+			fd[i] = NULL;
+		}
+	}
+	mutex_unlock(&ctx->fdlock);
 }
