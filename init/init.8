@@ -1,0 +1,49 @@
+.Dd $Mdocdate: June 18 2017 $
+.Dt INIT 8
+.Os
+.Sh NAME
+.Nm init
+.Nd system initialization manager
+.Sh SYNOPSIS
+.Nm init
+.Op system-target
+.Sh DESCRIPTION
+The
+.Nm
+program is the first program running inside the system after boot, and is normally
+responsible for further operating system inialization after the boot process finishes.
+.Ss System Targets
+.Nm
+determines which program to run from the system-target argument provided by the kernel,
+usually through the kernel's own command-line(see
+.Xr kernel 7) .
+If no arguments are provided, then
+.Nm
+uses the target stored at /etc/init.d/init.config.
+After that,
+.Nm
+opens /etc/init.d/rcx.d(where x is the ring level) and reads the target's startup binary, executing it.
+.Ss Hostname Settings
+.Nm
+sets the hostname according to /etc/hostname, see
+.Xr sethostname 2 .
+If /etc/hostname doesn't exist,
+.Nm
+sets the hostname to
+.Do
+localhost 
+.Dc .
+.Ss Partition Mounting
+.Nm
+mounts partitions, as found in /etc/fstab. It then re-mounts /dev using
+.Xr fmount 2 .
+.Ss Module Loading
+.Nm
+parses through /etc/modules.load, loading each module present in that file, see
+.Xr insmod 2 .
+.Nm
+does not check for module initialization failure, and that is left out for the user to check.
+.Sh BUGS
+.Nm
+doesn't correctly handle chain-booting, or proper root mounting for that matter. It also doesn't
+support init scripts/daemon launching at the moment.

@@ -12,6 +12,10 @@ install: $(PROG)
 	echo "PATH:=/bin:/usr/bin:/usr/local/bin:" > $(DESTDIR)/etc/init.d/rc3-envvar.d
 	mkdir -p $(DESTDIR)/sbin/
 	cp $(PROG) $(DESTDIR)/sbin/
+	mkdir -p $(DESTDIR)/usr/share
+	mkdir -p $(DESTDIR)/usr/share/man
+	mkdir -p $(DESTDIR)/usr/share/man/man8
+	cp $(PROG).8 $(DESTDIR)/usr/share/man/man8
 %.o: %.c
 	$(CC) -c $< $(CFLAGS) -o $@
 $(PROG): $(OBJS)
