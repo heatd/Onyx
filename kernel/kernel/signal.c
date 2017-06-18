@@ -13,6 +13,51 @@
 #include <kernel/signal.h>
 #include <kernel/panic.h>
 #include <kernel/process.h>
+
+void signal_default_term(int signum)
+{
+	process_exit_from_signal(signum);
+}
+void signal_default_core(int signum)
+{
+	/* TODO: Generate a core dump */
+	signal_default_term(signum);
+}
+void signal_default_ignore(int signum)
+{
+	(void) signum;
+}
+void signal_default_cont(int signum)
+{
+	(void) signum;
+	/* TODO: Handle */
+}
+void signal_default_stop(int signum)
+{
+	(void) signum;
+	/* TODO: Handle */
+}
+sighandler_t dfl_signal_handlers[] = {
+	[SIGHUP] = signal_default_term,
+	[SIGINT] = signal_default_term,
+	[SIGQUIT] = signal_default_core,
+	[SIGILL] = signal_default_core,
+	[SIGABRT] = signal_default_core,
+	[SIGFPE] = signal_default_core,
+	[SIGKILL] = signal_default_term,
+	[SIGSEGV] = signal_default_core,
+	[SIGPIPE] = signal_default_term,
+	[SIGALRM] = signal_default_term,
+	[SIGTERM] = signal_default_term,
+	[SIGUSR1] = signal_default_term,
+	[SIGUSR2] = signal_default_term,
+	[SIGCHLD] = signal_default_ignore,
+	[SIGCONT] = signal_default_cont,
+	[SIGSTOP] = signal_default_stop,
+	[SIGTSTP] = signal_default_stop,
+	[SIGTTIN] = signal_default_stop,
+	[SIGTTOU] = signal_default_stop
+};
 void signal_update_pending(process_t *process);
 #define SST_SIZE (_NSIG/8/sizeof(long))
 void signotset(sigset_t *set)
@@ -23,23 +68,8 @@ void signotset(sigset_t *set)
 void sys_exit(int exitcode);
 void kernel_default_signal(int signum)
 {
-	switch(signum)
-	{
-		case SIGABRT:
-		{
-			printk("sig: Aborting!\n");
-			signal_update_pending(get_current_process());
-			sys_exit(127);
-			break;
-		}
-		case SIGSEGV:
-		{
-			printk("Segmentation fault\n");
-			signal_update_pending(get_current_process());
-			sys_exit(127);
-			break;
-		}
-	}
+	signal_update_pending(get_current_process());
+	dfl_signal_handlers[signum](signum);
 }
 #if defined(__x86_64__)
 /* TODO: Support signals per thread */
@@ -146,9 +176,22 @@ void handle_signal(registers_t *regs, _Bool is_int)
 
 	/* Find an available signal */
 	int signum = signal_find(current);
-	void (*handler)(int) = current->sigtable[signum].sa_handler;
-	if(handler == (sighandler_t) SIG_IGN) // Ignore the signal if it's handler is set to SIG_IGN
-		return;
+	struct sigaction *sigaction = &current->sigtable[signum];
+	void (*handler)(int) = sigaction->sa_handler;
+	bool is_siginfo = (bool) sigaction->sa_flags & SA_SIGINFO;
+	UNUSED(is_siginfo);
+	/* TODO: Handle SA_SIGINFO */
+	/* TODO: Handle SA_RESTART */
+	/* TODO: Handle SA_NODEFER */
+	/* TODO: Handle SA_NOCLDWAIT */
+	/* TODO: Handle SA_ONSTACK */
+	/* TODO: Handle SA_NOCLDSTOP */
+	if(sigaction->sa_flags & SA_RESETHAND)
+	{
+		/* If so, we need to reset the handler to SIG_DFL and clear SA_SIGINFO */
+		sigaction->sa_handler = SIG_DFL;
+		sigaction->sa_flags &= ~SA_SIGINFO;
+	}
 	if(handler != SIG_DFL)
 	{
 		if(!vmm_is_mapped(handler))
@@ -179,6 +222,9 @@ void signal_update_pending(process_t *process)
 }
 void kernel_raise_signal(int sig, process_t *process)
 {
+	/* Don't bother to set it as pending if sig == SIG_IGN */
+	if(process->sigtable[sig].sa_handler == SIG_IGN)
+		return;
 	sigaddset(&process->pending_set, sig);
 	if(!sigismember(&process->sigmask, sig))
 		process->signal_pending = 1;
@@ -335,4 +381,29 @@ int sys_sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
 bool signal_is_pending(void)
 {
 	return (bool) get_current_process()->signal_pending;
+}
+int sys_sigsuspend(const sigset_t *set)
+{
+	if(vmm_check_pointer((void*) set, sizeof(sigset_t)) < 0)
+		return -EFAULT;
+	process_t *current = get_current_process();
+	
+	/* Ok, mask the signals in set */
+	sigset_t old;
+	/* First, save the old sigset */
+	memcpy(&old, &current->sigmask, sizeof(sigset_t));
+	/* Now, set the signal mask */
+	memcpy(&current->sigmask, set, sizeof(sigset_t));
+
+	/* Now, wait for a signal */
+	while(!signal_is_pending())
+		sched_yield();
+	memcpy(&current->sigmask, &old, sizeof(sigset_t));
+	return -EINTR;
+}
+int sys_pause(void)
+{
+	while(!signal_is_pending())
+		sched_yield();
+	return -EINTR;
 }

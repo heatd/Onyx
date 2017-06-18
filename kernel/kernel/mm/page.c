@@ -170,7 +170,7 @@ void __free_page(void *page)
 	if(!pages)
 	{
 		z->free_areas = page;
-		memset(z->free_areas, 0, PAGE_SIZE);
+		memset(ACCESS_ZONE(z->free_areas), 0, PAGE_SIZE);
 	}
 	else
 	{

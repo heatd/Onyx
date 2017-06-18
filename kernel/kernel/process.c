@@ -71,7 +71,7 @@ process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent)
 	memset(proc, 0, sizeof(process_t));
 	acquire_spinlock(&process_creation_lock);
 	proc->pid = current_pid++;
-	proc->cmd_line = (char*) cmd_line;
+	proc->cmd_line = strdup(cmd_line);
 	if(ctx)
 	{
 		if(copy_file_descriptors(proc, ctx) < 0)
@@ -442,6 +442,22 @@ pid_t sys_fork(syscall_ctx_t *ctx)
 	ENABLE_INTERRUPTS();
 	// Return the pid to the caller
 	return child->pid;
+}
+void process_exit_from_signal(int signum)
+{
+	process_t *current = get_current_process();
+	/* TODO: Fix the exit status */
+	current->has_exited = 1;
+	current->exit_code = __WCONSTRUCT(0, (127 + signum), signum);
+	/* TODO: Support multi-threaded processes */
+	thread_t *current_thread = get_current_thread();
+	
+	/* Destroy everything that can be destroyed now */
+	thread_destroy(current_thread);
+
+	process_destroy();
+
+	sched_yield();
 }
 void sys_exit(int status)
 {
