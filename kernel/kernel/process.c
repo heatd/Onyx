@@ -92,6 +92,18 @@ process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent)
 		}
 	}
 	if(parent)
+	{
+		/* Inherit the parent process' properties */
+		proc->personality = parent->personality;
+		proc->vdso = parent->vdso;
+		proc->uid = parent->uid;
+		proc->gid = parent->gid;
+		proc->brk = parent->brk;
+		/* Inherit the signal handlers and signal mask */
+		memcpy(&proc->sigtable, &parent->sigtable, sizeof(struct sigaction) * _NSIG);
+		memcpy(&proc->sigmask, &parent->sigmask, sizeof(sigset_t));
+	}
+	if(parent)
 		proc->parent = parent;
 	if(!first_process)
 		first_process = proc;
