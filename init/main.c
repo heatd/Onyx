@@ -233,6 +233,11 @@ int main(int argc, char **argv, char **envp)
 
 	if(pid == 0)
 		execve(shell, args, environ);
+
+	/* Mask every signal */
+	sigset_t set;
+	sigfillset(&set);
+	sigprocmask(SIG_SETMASK, &set, NULL);
 	while(1)
 	{
 		waitpid(-1, NULL, WEXITED);
