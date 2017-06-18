@@ -1018,3 +1018,11 @@ void vmm_sysfs_init(void)
 		panic("vmm_sysfs_init: Could not create /sys/kmaps\n");
 	kmaps->read = kmaps_read;
 }
+int vmm_mark_cow(vmm_entry_t *area)
+{
+	/* If the area isn't writable, don't mark it as COW */
+	if(!(area->rwx & VM_WRITE))
+		return errno = EINVAL, -1;
+	area->flags |= VM_COW;
+	return 0;
+}

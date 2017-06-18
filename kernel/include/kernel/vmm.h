@@ -33,7 +33,7 @@
 #define VM_NOEXEC 		(0x4)
 #define VM_ADDRESS_USER		(0)
 #define VM_KERNEL 		(1)
-#define VM_UPSIDEDOWN 		(2)
+#define VM_COW			(1 << 1)
 #define KERNEL_FB 		0xFFFFE00000000000
 /* 
  * Deprecated and will be removed in a future date, after all code is ported. 
@@ -60,6 +60,7 @@ typedef struct ventry
 	int mapping_type;
 	int fd;
 	off_t offset;
+	int flags;
 } vmm_entry_t;
 
 struct fault_info
@@ -97,6 +98,7 @@ int vm_sanitize_address(void *address, size_t pages);
 void *vmm_gen_mmap_base(void);
 void *vmm_gen_brk_base(void);
 void vmm_sysfs_init(void);
+int vmm_mark_cow(vmm_entry_t *zone);
 inline size_t vmm_align_size_to_pages(size_t size)
 {
 	size_t pages = size / PAGE_SIZE;
