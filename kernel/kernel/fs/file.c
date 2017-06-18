@@ -517,12 +517,24 @@ int do_dupfd(int fd, int fdbase)
 }
 int sys_fcntl(int fd, int cmd, unsigned long arg)
 {
+	if(validate_fd(fd) < 0)
+		return -EBADF;
 	switch(cmd)
 	{
 		case F_DUPFD:
 		{
 			int new = do_dupfd(fd, (int) arg);
 			return new;
+		}
+		case F_DUPFD_CLOEXEC:
+		{
+			int new = do_dupfd(fd, (int) arg);
+			get_file_description(new)->flags |= O_CLOEXEC;
+			return new;
+		}
+		case F_GETFD:
+		{
+			return get_file_description(fd)->flags;
 		}
 		case F_SETFD:
 		{
