@@ -28,7 +28,6 @@
 extern PML4 *current_pml4;
 static thread_t *run_queue = NULL;
 static thread_t *idle_thread = NULL; 
-static thread_t *current_thread = NULL;
 static spinlock_t run_queue_lock;
 static _Bool is_initialized = false;
 thread_t *sched_find_runnable(void)
@@ -67,15 +66,17 @@ void* sched_switch_thread(void* last_stack)
 		return last_stack;
 	}
 	struct processor *p = get_processor_data();
-	/* TODO: Add multiprocessor support */
+	thread_t *current_thread = p->current_thread;
+
 	if(unlikely(!current_thread))
 	{
 		current_thread = run_queue;
-		set_kernel_stack((uintptr_t)current_thread->kernel_stack_top);
+		set_kernel_stack((uintptr_t) current_thread->kernel_stack_top);
 		p->kernel_stack = current_thread->kernel_stack_top;
+		p->current_thread = current_thread;
 		return current_thread->kernel_stack;
 	}
-	current_thread->kernel_stack = (uintptr_t*)last_stack;
+	current_thread->kernel_stack = (uintptr_t*) last_stack;
 	if(likely(get_current_process()))
 	{
 		get_current_process()->tree = vmm_get_tree();
@@ -105,11 +106,16 @@ void* sched_switch_thread(void* last_stack)
 		wrmsr(FS_BASE_MSR, (uintptr_t) current_thread->fs & 0xFFFFFFFF, (uintptr_t)current_thread->fs >> 32);
 		wrmsr(KERNEL_GS_BASE, (uintptr_t) current_thread->gs & 0xFFFFFFFF, (uintptr_t) current_thread->gs >> 32);
 	}
+
+	p->current_thread = current_thread;
 	return current_thread->kernel_stack;
 }
 thread_t *get_current_thread()
 {
-	return (thread_t*)current_thread;
+	struct processor *p = get_processor_data();
+	if(unlikely(!p))
+		return NULL;
+	return (thread_t*) p->current_thread;
 }
 void sched_idle()
 {
@@ -179,9 +185,9 @@ void sched_yield()
 }
 void sched_sleep(unsigned long ms)
 {
-	current_thread->timestamp = get_tick_count();
-	current_thread->sleeping_for = ms;
-	current_thread->status = THREAD_SLEEPING;
+	get_current_thread()->timestamp = get_tick_count();
+	get_current_thread()->sleeping_for = ms;
+	get_current_thread()->status = THREAD_SLEEPING;
 	sched_yield();
 }
 void sched_remove_thread(thread_t *thread)
@@ -198,7 +204,7 @@ void sched_remove_thread(thread_t *thread)
 }
 void set_current_thread(thread_t *t)
 {
-	current_thread = t;
+	get_processor_data()->current_thread = t;
 }
 pid_t sys_set_tid_address(pid_t *tidptr)
 {

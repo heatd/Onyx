@@ -16,6 +16,7 @@
  **************************************************************************/
 #include <stdlib.h>
 #include <cpuid.h>
+#include <stdbool.h>
 #include <string.h>
 #include <stdio.h>
 #include <acpi.h>
@@ -110,6 +111,7 @@ static spinlock_t ap_entry_spinlock;
 extern volatile uint32_t *bsp_lapic;
 volatile int initialized_cpus = 0;
 extern volatile uint64_t boot_ticks;
+static bool percpu_initialized = false;
 int cpu_init_mp()
 {
 	ACPI_SUBTABLE_HEADER *first = (ACPI_SUBTABLE_HEADER *) (madt+1);
@@ -134,6 +136,7 @@ int cpu_init_mp()
 			cpus[booted_cpus].cpu_num = booted_cpus;
 			cpus[booted_cpus].self = &cpus[booted_cpus];
 			cpus[booted_cpus].sched_quantum = 10;
+			cpus[booted_cpus].current_thread = NULL;
 			booted_cpus++;
 			if(booted_cpus != 1)
 				apic_wake_up_processor(apic->Id);
@@ -145,6 +148,7 @@ int cpu_init_mp()
 	cpus[0].self = &cpus[0];
 	cpus[0].apic_ticks = boot_ticks;
 	cpus[0].sched_quantum = 10;
+	cpus[0].current_thread = NULL;
 	wrmsr(GS_BASE_MSR, (uint64_t) &cpus[0] & 0xFFFFFFFF, (uint64_t) &cpus[0] >> 32);
 	release_spinlock(&ap_entry_spinlock);
 	
@@ -165,6 +169,7 @@ int cpu_init_mp()
 	
 	/* ... and free the old buffer */
 	free(processors);
+	percpu_initialized = true;
 	return booted_cpus;
 }
 void cpu_ap_entry(int cpu_num)
@@ -216,4 +221,12 @@ void *memcpy_fast(void *dst, void *src, size_t n)
 {
 	rep_movsb(dst, src, n);
 	return dst;
+}
+struct processor *get_processor_data(void)
+{
+	if(unlikely(!percpu_initialized))
+		return NULL;
+	struct processor *proc;
+	__asm__ __volatile__("movq %%gs:0x8, %0":"=r"(proc));
+	return proc;
 }

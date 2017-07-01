@@ -9,6 +9,8 @@
 #include <stdint.h>
 
 #include <kernel/acpi.h>
+#include <kernel/scheduler.h>
+
 #define CPUID_MANUFACTURERID 		0
 #define CPUID_MAXFUNCTIONSUPPORTED 	0x80000000
 #define CPUID_BRAND0			0x80000002
@@ -45,21 +47,21 @@ struct processor
 #error "Implement this structure for your architecture"
 #endif
 	size_t sched_quantum;
+	thread_t *current_thread;
 };
 
 void cpu_identify(void);
 void cpu_init_interrupts(void);
 int cpu_init_mp(void);
 int get_nr_cpus(void);
+struct processor *get_processor_data(void);
 #ifdef __x86_64__
-__attribute__((always_inline))
-inline struct processor *get_processor_data()
+inline struct processor *get_processor_data_inl(void)
 {
 	struct processor *proc;
 	__asm__ __volatile__("movq %%gs:0x8, %0":"=r"(proc));
 	return proc;
 }
-
 #define DISABLE_INTERRUPTS() __asm__ __volatile__("cli")
 #define ENABLE_INTERRUPTS() __asm__ __volatile__("sti")
 #endif
