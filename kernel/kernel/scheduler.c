@@ -66,7 +66,7 @@ void* sched_switch_thread(void* last_stack)
 	{
 		return last_stack;
 	}
-	struct processor *p = get_gs_data();
+	struct processor *p = get_processor_data();
 	/* TODO: Add multiprocessor support */
 	if(unlikely(!current_thread))
 	{

@@ -36,7 +36,7 @@ void lapic_send_eoi()
 		lapic_write(bsp_lapic, LAPIC_EOI, 0);
 	else
 	{
-		struct processor *proc = get_gs_data();
+		struct processor *proc = get_processor_data();
 		lapic_write((volatile uint32_t *) proc->lapic, LAPIC_EOI, 0);
 	}
 }
@@ -161,7 +161,7 @@ static uintptr_t apic_timer_irq(registers_t *regs)
 		boot_sched_quantum--;
 		return 0;
 	}
-	struct processor *cpu = get_gs_data();
+	struct processor *cpu = get_processor_data();
 	cpu->apic_ticks++;
 	cpu->sched_quantum--;
 	if(cpu->sched_quantum == 0)
@@ -175,7 +175,7 @@ unsigned long apic_rate = 0;
 unsigned long us_apic_rate = 0;
 uint64_t get_microseconds()
 {
-	struct processor *cpu = get_gs_data();
+	struct processor *cpu = get_processor_data();
 	return (apic_rate - lapic_read((volatile uint32_t *) cpu->lapic, LAPIC_TIMER_CURRCNT)) / us_apic_rate;
 }
 void apic_timer_init()
@@ -241,7 +241,7 @@ uint64_t get_tick_count()
 {
 	if(!is_smp_enabled)
 		return boot_ticks;
-	struct processor *cpu = get_gs_data();
+	struct processor *cpu = get_processor_data();
 	return cpu->apic_ticks;
 }
 void send_ipi(uint8_t id, uint32_t type, uint32_t page)
@@ -292,12 +292,12 @@ void apic_wake_up_processor(uint8_t lapicid)
 void apic_set_irql(int irql)
 {
 	/* Get the current process and use its lapic pointer */
-	struct processor *proc = get_gs_data();
+	struct processor *proc = get_processor_data();
 	lapic_write((volatile uint32_t *) proc->lapic, LAPIC_TSKPRI, irql);
 }
 int apic_get_irql(void)
 {
 	/* Get the current process and use its lapic pointer */
-	struct processor *proc = get_gs_data();
+	struct processor *proc = get_processor_data();
 	return (int) lapic_read((volatile uint32_t *) proc->lapic, LAPIC_TSKPRI);
 }

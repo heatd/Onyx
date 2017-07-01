@@ -53,7 +53,7 @@ int cpu_init_mp(void);
 int get_nr_cpus(void);
 #ifdef __x86_64__
 __attribute__((always_inline))
-inline struct processor *get_gs_data()
+inline struct processor *get_processor_data()
 {
 	struct processor *proc;
 	__asm__ __volatile__("movq %%gs:0x8, %0":"=r"(proc));
