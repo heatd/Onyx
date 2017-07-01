@@ -124,7 +124,7 @@ typedef struct
 	uint32_t dtime;
 	uint16_t gid;
 	uint16_t hard_links;
-	uint32_t disk_sects;
+	uint32_t i_blocks;
 	uint32_t flags;
 	uint32_t os_spec;
 	uint32_t dbp[12];
@@ -164,6 +164,7 @@ typedef struct ex
 	spinlock_t sb_lock;
 	mutex_t bgdt_lock;
 	mutex_t ino_alloc_lock;
+	void *zero_block; /* A pointer to a zero'd block of memory with size 'block_size' */
 	struct ex *next;
 } ext2_fs_t;
 #define EXT2_TYPE_DIRECT_BLOCK		0

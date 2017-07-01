@@ -68,6 +68,7 @@
 #include <kernel/worker.h>
 #include <kernel/utils.h>
 #include <kernel/sysfs.h>
+#include <kernel/pagecache.h>
 
 #include <drivers/ps2.h>
 #include <drivers/ata.h>
@@ -419,6 +420,10 @@ void kernel_main()
 
 	/* Initialize the IRQ worker thread */
 	irq_init();
+
+	/* Initialize the cache sync thread */
+	pagecache_init();
+
 	ENABLE_INTERRUPTS();
 	for (;;);
 }

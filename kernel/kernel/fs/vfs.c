@@ -21,7 +21,10 @@
 static avl_node_t **avl_search_key(avl_node_t **t, uintptr_t key);
 vfsnode_t *fs_root = NULL;
 vfsnode_t *mount_list = NULL;
-ssize_t do_file_caching(size_t sizeofread, vfsnode_t *this, struct minor_device *m, off_t offset)
+ssize_t write_file_cache(void *buffer, size_t sizeofwrite, vfsnode_t *file, struct minor_device *m, off_t offset);
+
+#define FILE_CACHING_WRITE	1
+ssize_t do_file_caching(size_t sizeofread, vfsnode_t *this, struct minor_device *m, off_t offset, int flags)
 {
 	if(this->type != VFS_TYPE_FILE) /* Only VFS_TYPE_FILE files can be cached */
 		return -1;
@@ -38,22 +41,23 @@ ssize_t do_file_caching(size_t sizeofread, vfsnode_t *this, struct minor_device 
 		if(avl_search_key(&this->cache_tree, offset + PAGE_CACHE_SIZE * i))
 			continue;
 		size_t status = m->fops->read(0, offset + PAGE_CACHE_SIZE * i, PAGE_CACHE_SIZE, cache, this);
-		if(status == 0)
+
+		if(status == 0 && !(flags & FILE_CACHING_WRITE))
 		{
 			free(cache);
 			return read;
 		}
-		if(!add_cache_to_node(cache, offset + PAGE_CACHE_SIZE * i, this))
+		if(!add_cache_to_node(cache, status, offset + PAGE_CACHE_SIZE * i, this))
 		{
 			free(cache);
 			return read;
 		}
-		toread -= PAGE_CACHE_SIZE;
+		toread -= status;
 		read += status;
 		memset(cache, 0, PAGE_CACHE_SIZE);
 	}
 	free(cache);
-	return sizeofread;
+	return read;
 }
 int vfs_init()
 {
@@ -96,7 +100,16 @@ size_t write_vfs(size_t offset, size_t sizeofwrite, void* buffer, vfsnode_t* thi
 	if(this->type & VFS_TYPE_MOUNTPOINT)
 		return write_vfs(offset, sizeofwrite, buffer, this->link);
 	if(m->fops->write != NULL)
-		return m->fops->write(offset,sizeofwrite,buffer,this);
+	{
+		ssize_t status; 
+		if((status = write_file_cache(buffer, sizeofwrite, this, m, offset)) < 0) /* If caching failed, just do the normal way */
+			return m->fops->write(offset, sizeofwrite, buffer, this);
+		if(offset + sizeofwrite > this->size)
+		{
+			this->size = offset + sizeofwrite;
+		}
+		return status;
+	}
 
 	return errno = ENOSYS;
 }
@@ -336,9 +349,9 @@ static int avl_delete_node(uintptr_t key, avl_node_t **tree)
 	avl_balance_tree(tree);
 	return 0;
 }
-void *add_cache_to_node(void *ptr, off_t offset, vfsnode_t *node)
+void *add_cache_to_node(void *ptr, size_t size, off_t offset, vfsnode_t *node)
 {
-	void *cache = add_to_cache(ptr, node);
+	struct page_cache *cache = add_to_cache(ptr, size, offset, node);
 	if(!cache)
 		return NULL;
 	avl_node_t *avl = avl_insert_key(&node->cache_tree, (uintptr_t) offset, node);
@@ -355,7 +368,7 @@ ssize_t lookup_file_cache(void *buffer, size_t sizeofread, vfsnode_t *file, stru
 	if((size_t) offset > file->size)
 		return 0;
 	off_t off = (offset / PAGE_CACHE_SIZE) * PAGE_CACHE_SIZE;
-	do_file_caching(sizeofread, file, m, off);
+	do_file_caching(sizeofread, file, m, off, 0);
 	size_t read = 0;
 	while(read != sizeofread)
 	{
@@ -363,11 +376,12 @@ ssize_t lookup_file_cache(void *buffer, size_t sizeofread, vfsnode_t *file, stru
 		if(!(tree_node = avl_search_key(&file->cache_tree, offset)))
 			return read;
 		avl_node_t *nd = *tree_node;
+		struct page_cache *cache = nd->ptr;
 		off_t cache_off = offset % PAGE_CACHE_SIZE;
 		off_t rest = PAGE_CACHE_SIZE - cache_off;
 		if(rest < 0) rest = 0;
 		size_t amount = sizeofread - read < (size_t) rest ? sizeofread - read : (size_t) rest;
-		memcpy((char*) buffer + read, (char*) nd->ptr + cache_off, amount);
+		memcpy((char*) buffer + read,  (char*) cache->page + cache_off, amount);
 		offset += amount;
 		read += amount;
 	}
@@ -384,4 +398,34 @@ char *vfs_get_full_path(vfsnode_t *vnode, char *name)
 	if(strlen(vnode->name) != 1)	strcat(string, "/");
 	strcat(string, name);
 	return string;
+}
+ssize_t write_file_cache(void *buffer, size_t sizeofwrite, vfsnode_t *file, struct minor_device *m, off_t offset)
+{
+	if(file->type != VFS_TYPE_FILE)
+		return -1;
+	if((size_t) offset > file->size)
+		return 0;
+	off_t off = (offset / PAGE_CACHE_SIZE) * PAGE_CACHE_SIZE;
+	do_file_caching(sizeofwrite, file, m, off, FILE_CACHING_WRITE);
+	size_t wrote = 0;
+	while(wrote != sizeofwrite)
+	{
+		avl_node_t **tree_node = NULL;
+		if(!(tree_node = avl_search_key(&file->cache_tree, offset)))
+			return wrote;
+		avl_node_t *nd = *tree_node;
+		off_t cache_off = offset % PAGE_CACHE_SIZE;
+		off_t rest = PAGE_CACHE_SIZE - cache_off;
+		if(rest < 0) rest = 0;
+		size_t amount = sizeofwrite - wrote < (size_t) rest ? sizeofwrite - wrote : (size_t) rest;
+		struct page_cache *cache = nd->ptr;
+		memcpy((char*) cache->page + cache_off, (char*) buffer + wrote, amount);
+		if(cache->size < cache_off + amount)
+			cache->size = cache_off + amount;
+		cache->dirty = 1;
+		wakeup_sync_thread();
+		offset += amount;
+		wrote += amount;
+	}
+	return (ssize_t) wrote;
 }

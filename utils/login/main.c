@@ -171,10 +171,10 @@ void switch_users(gid_t gid, uid_t uid)
 	syscall(SYS_setuid, uid);
 	syscall(SYS_setgid, gid);
 }
-/* TODO: Construct the envp properly */
 char **args;
 int main(int argc, char **argv, char **envp)
 {
+	args = argv;
 	program_name = argv[0];
 	printf("%s: ", argv[0]);
 	fflush(stdout);

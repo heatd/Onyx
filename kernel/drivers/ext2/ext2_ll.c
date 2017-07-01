@@ -76,12 +76,20 @@ inode_t *ext2_get_inode_from_number(ext2_fs_t *fs, uint32_t inode)
 	inode_t *inode_table = NULL;
 	inode_t *inode_block = (inode_t*)((char *) (inode_table = ext2_read_block(bgd->inode_table_addr + block, 1, fs)) + blockind);
 	
-	if(!inode_block)
+	if(!inode_table)
 		return NULL;
 	
 	/* Update the atime field */
 	__ext2_update_atime(inode_block, bgd->inode_table_addr + block, fs, inode_table);
-	return inode_block;
+	inode_t *ino = malloc(fs->inode_size);
+	if(!ino)
+	{
+		free(inode_table);
+		return NULL;
+	}
+	memcpy(ino, inode_block, fs->inode_size);
+	free(inode_table);
+	return ino;
 }
 void ext2_update_inode(inode_t *ino, ext2_fs_t *fs, uint32_t inode)
 {

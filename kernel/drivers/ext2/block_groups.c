@@ -11,6 +11,7 @@
 #include <kernel/compiler.h>
 
 #include <drivers/ext2.h>
+
 uint32_t ext2_allocate_from_block_group(ext2_fs_t *fs, uint32_t block_group)
 {
 	mutex_lock(&fs->bgdt_lock);

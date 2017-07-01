@@ -50,12 +50,13 @@ inode_t *ext2_get_inode_from_dir(ext2_fs_t *fs, dir_entry_t *dirent, char *name,
 }
 size_t ext2_write(size_t offset, size_t sizeofwrite, void *buffer, vfsnode_t *node)
 {
+	printk("Writing to off %u, size %u, name %s\n", offset, sizeofwrite, node->name);
 	ext2_fs_t *fs = fslist;
 	inode_t *ino = ext2_get_inode_from_number(fs, node->inode);
 	if(!ino)
 		return errno = EINVAL, (size_t) -1;
 	size_t size = ext2_write_inode(ino, fs, sizeofwrite, offset, buffer);
-	if(offset + size > node->size)
+	if(offset + size > EXT2_CALCULATE_SIZE64(ino))
 	{
 		ext2_set_inode_size(ino, offset + size);
 		node->size = offset + size;
@@ -158,6 +159,7 @@ vfsnode_t *ext2_mount_partition(uint64_t sector, block_device_t *dev)
 	else
 	{
 		ERROR("ext2", "invalid ext2 signature %x\n", sb->ext2sig);
+		free(sb);
 		return errno = EINVAL, NULL;
 	}
 	ext2_fs_t *fs = malloc(sizeof(ext2_fs_t));
@@ -193,6 +195,13 @@ vfsnode_t *ext2_mount_partition(uint64_t sector, block_device_t *dev)
 	fs->number_of_block_groups = fs->total_blocks / fs->blocks_per_block_group;
 	if (fs->total_blocks % fs->blocks_per_block_group)
 		fs->number_of_block_groups++;
+	/* The driver keeps a block sized zero'd mem chunk for easy and fast overwriting of blocks */
+	fs->zero_block = malloc(fs->block_size);
+	if(!fs->zero_block)
+	{
+		free(sb);
+		return errno = ENOMEM, NULL;
+	}
 	block_group_desc_t *bgdt = NULL;
 	size_t blocks_for_bgdt = (fs->number_of_block_groups * sizeof(block_group_desc_t)) / fs->block_size;
 	if((fs->number_of_block_groups * sizeof(block_group_desc_t)) % fs->block_size)
@@ -327,7 +336,7 @@ int ext2_stat(struct stat *buf, vfsnode_t *node)
 	buf->st_mtime = ino->mtime;
 	buf->st_ctime = ino->ctime;
 	buf->st_blksize = fs->block_size;
-	buf->st_blocks = ino->st_blocks;
+	buf->st_blocks = ino->i_blocks;
 	
 	return 0;
 }

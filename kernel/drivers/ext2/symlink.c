@@ -12,7 +12,7 @@
 bool ext2_is_fast_symlink(inode_t *inode, ext2_fs_t *fs)
 {
 	int ea_blocks = inode->file_acl ? (fs->block_size >> 9) : 0;
-	return (inode->disk_sects - ea_blocks == 0 && EXT2_CALCULATE_SIZE64(inode) <= 60);
+	return (inode->i_blocks - ea_blocks == 0 && EXT2_CALCULATE_SIZE64(inode) <= 60);
 }
 char *ext2_do_fast_symlink(inode_t *inode)
 {

@@ -72,7 +72,11 @@ inline int ext2_add_singly_indirect_block(inode_t *inode, uint32_t block, uint32
 	unsigned int min_singly_block = EXT2_DIRECT_BLOCK_COUNT;
 	/* If the singly indirect bp doesn't exist, create it */
 	if(!inode->single_indirect_bp)
+	{
 		inode->single_indirect_bp = ext2_allocate_block(fs);
+		/* Overwrite the block */
+		ext2_write_block(inode->single_indirect_bp, 1, fs, fs->zero_block);
+	}
 	uint32_t *buffer = malloc(fs->block_size);
 	if(!buffer)
 		return errno = ENOMEM, -1;
@@ -85,16 +89,18 @@ inline int ext2_add_singly_indirect_block(inode_t *inode, uint32_t block, uint32
 }
 int ext2_add_block_to_inode(inode_t *inode, uint32_t block, uint32_t block_index, ext2_fs_t *fs)
 {
-	unsigned int type = ext2_detect_block_type(block, fs);
+	unsigned int type = ext2_detect_block_type(block_index, fs);
 	switch(type)
 	{
 		case EXT2_TYPE_DIRECT_BLOCK:
 		{
 			inode->dbp[block_index] = block;
+			inode->i_blocks += fs->block_size / 512;
 			break;
 		}
 		case EXT2_TYPE_SINGLY_BLOCK:
 		{
+			inode->i_blocks += fs->block_size / 512;
 			return ext2_add_singly_indirect_block(inode, block, block_index, fs);
 		}
 		/* TODO: Add doubly and triply block support */

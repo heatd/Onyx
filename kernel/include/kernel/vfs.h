@@ -66,7 +66,7 @@ typedef struct vfsnode
 	struct vfsnode *link;
 } vfsnode_t;
 
-void *add_cache_to_node(void *ptr, off_t offset, vfsnode_t *node);
+void *add_cache_to_node(void *ptr, size_t size, off_t offset, vfsnode_t *node);
 size_t read_vfs(int flags, size_t offset, size_t sizeofread, void* buffer, vfsnode_t* this);
 size_t write_vfs(size_t offset, size_t sizeofwrite, void* buffer, vfsnode_t* this);
 void close_vfs(vfsnode_t* this);
