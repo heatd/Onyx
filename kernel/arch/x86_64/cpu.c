@@ -23,6 +23,7 @@
 
 #include <kernel/log.h>
 #include <kernel/cpu.h>
+#include <kernel/gdt.h>
 #include <kernel/panic.h>
 #include <kernel/apic.h>
 #include <kernel/pic.h>
@@ -112,6 +113,7 @@ extern volatile uint32_t *bsp_lapic;
 volatile int initialized_cpus = 0;
 extern volatile uint64_t boot_ticks;
 static bool percpu_initialized = false;
+extern tss_entry_t tss;
 int cpu_init_mp()
 {
 	ACPI_SUBTABLE_HEADER *first = (ACPI_SUBTABLE_HEADER *) (madt+1);
@@ -149,6 +151,7 @@ int cpu_init_mp()
 	cpus[0].apic_ticks = boot_ticks;
 	cpus[0].sched_quantum = 10;
 	cpus[0].current_thread = NULL;
+	cpus[0].tss = &tss;
 	wrmsr(GS_BASE_MSR, (uint64_t) &cpus[0] & 0xFFFFFFFF, (uint64_t) &cpus[0] >> 32);
 	release_spinlock(&ap_entry_spinlock);
 	
@@ -196,6 +199,7 @@ void cpu_ap_entry(int cpu_num)
 	/* Fill this core's gs with &cpus[cpu_num] */
 	wrmsr(GS_BASE_MSR, (uint64_t) &cpus[cpu_num] & 0xFFFFFFFF, (uint64_t) &cpus[cpu_num] >> 32);
 
+	gdt_init_percpu();
 	/* Enable interrupts */
 	//__asm__ __volatile__("sti");
 

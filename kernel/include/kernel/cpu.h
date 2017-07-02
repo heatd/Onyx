@@ -10,6 +10,9 @@
 
 #include <kernel/acpi.h>
 #include <kernel/scheduler.h>
+#ifdef __x86_64__
+#include <kernel/tss.h>
+#endif
 
 #define CPUID_MANUFACTURERID 		0
 #define CPUID_MAXFUNCTIONSUPPORTED 	0x80000000
@@ -43,6 +46,7 @@ struct processor
 	int lapic_id;
 	size_t apic_ticks;
 	struct acpi_processor *acpi_processor;
+	tss_entry_t *tss;
 #else
 #error "Implement this structure for your architecture"
 #endif
