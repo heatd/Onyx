@@ -24,6 +24,7 @@
 #include <kernel/page.h>
 #include <kernel/thread.h>
 #include <kernel/file.h>
+#include <kernel/slab.h>
 
 #include <pthread_kernel.h>
 
@@ -37,6 +38,7 @@ process_t *first_process = NULL;
 volatile process_t *current_process = NULL;
 static pid_t current_pid = 1;
 static spinlock_t process_creation_lock;
+slab_cache_t *process_cache = NULL;
 void process_destroy(void);
 int copy_file_descriptors(process_t *process, ioctx_t *ctx)
 {
@@ -65,7 +67,13 @@ int allocate_file_descriptor_table(process_t *process)
 }
 process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent)
 {
-	process_t *proc = malloc(sizeof(process_t));
+	if(unlikely(!process_cache))
+	{
+		process_cache = slab_create("process_t", sizeof(process_t), 16, 0, 0, 0);
+		if(!process_cache)
+			panic("Could not create the process slab cache\n");
+	}
+	process_t *proc = slab_allocate(process_cache);
 	if(!proc)
 		return errno = ENOMEM, NULL;
 	memset(proc, 0, sizeof(process_t));
@@ -76,7 +84,7 @@ process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent)
 	{
 		if(copy_file_descriptors(proc, ctx) < 0)
 		{
-			free(proc);
+			slab_free(process_cache, proc);
 			release_spinlock(&process_creation_lock);
 			return NULL;
 		}
@@ -86,7 +94,7 @@ process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent)
 	{
 		if(allocate_file_descriptor_table(proc) < 0)
 		{
-			free(proc);
+			slab_free(process_cache, proc);
 			release_spinlock(&process_creation_lock);
 			return NULL;
 		}
