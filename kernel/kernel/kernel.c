@@ -394,7 +394,6 @@ void kernel_main()
 
 	init_keyboard();
 
-	/* Initialize the kernel heap */
 	init_tss();
 
 	/* Initialize the VFS */

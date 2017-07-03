@@ -6,97 +6,254 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <errno.h>
 
 #include <kernel/compiler.h>
 #include <kernel/vmm.h>
 #include <kernel/slab.h>
 #include <kernel/log.h>
 
-void slab_setup_caches(void *addr, size_t size_obj, size_t num_objs)
+static slab_cache_t *first_slab;
+static slab_cache_t *last_slab;
+int slab_setup_bufctls(struct slab *slab, slab_cache_t *cache)
 {
-	struct slab_header *hd = addr;
-	//printf("------------------------SLAB INFO-------------------------\n\t\tSize in bytes of each object (%u)\n\t\tNumber of objects (%u)\n----------------------------------------------------------\n", size_obj, num_objs);
-	for(size_t i = 0; i < num_objs; i++)
+	bufctl_t *bufctl = NULL;
+	for(size_t off = 0; off < slab->size; off += cache->size)
 	{
-		hd->next = (struct slab_header *)((char*)&hd->data + size_obj);
-		hd = hd->next;
-	}
-}
-struct cache_info *slab_create(const char *name, size_t size_obj, size_t num_objs, int sprefetch)
-{
-	struct cache_info *cache = vmalloc(vmm_align_size_to_pages((size_obj * num_objs) +
-sizeof(struct cache_info) + num_objs * sizeof(struct slab_header)), VM_TYPE_REGULAR, VM_WRITE | VM_NOEXEC | VM_GLOBAL);
-	cache->name = name;
-	cache->addr = (void*)((uintptr_t)(cache + 2) & ~15);
-	cache->size_bytes = size_obj;
-	cache->num_objs = num_objs;
-	cache->should_prefetch = sprefetch;
-	slab_setup_caches(cache->addr, cache->size_bytes, cache->num_objs);
-	INFO("slab","created cache %s\n", name);
-	return cache;
-}
-void *slab_allocate(struct cache_info *cache)
-{
-	acquire_spinlock(&cache->lock);
-	struct slab_header *hd = (struct slab_header *)(cache+1);
-	_Bool found = false;
-	struct slab_header *ret = NULL;
-	for(size_t i = 0; i < cache->num_objs; i++)
-	{
-		if(hd->next != NULL)
+		void *buf = (void*)((char*) slab->buf + off); 
+		if(!bufctl)
 		{
-			ret = hd;
-			found = true;
-			break;
-		}
-		hd = (struct slab_header *)((char*) &hd->data + cache->size_bytes);
-	}
-	if(!found)
-	{
-		/* If there's a chained cache, try to allocate from it */
-		if(cache->next)
-		{
-			release_spinlock(&cache->lock);
-			return slab_allocate(cache->next);
+			/* Construct the bufctl */
+			slab->bufctls = malloc(sizeof(bufctl_t));
+			/* TODO: Handle this case */
+			if(!slab->bufctls)
+				return errno = ENOMEM, -1;
+			slab->bufctls->prev = NULL;
+			slab->bufctls->next = NULL;
+			slab->bufctls->inuse = BUFCTL_FREE;
+			slab->bufctls->buf = buf;
+			bufctl = slab->bufctls;
 		}
 		else
 		{
-			/* If !cache->next, expand the cache */
-			cache->next = slab_create(cache->name, cache->size_bytes, cache->num_objs, cache->should_prefetch);
-			release_spinlock(&cache->lock);
-			return slab_allocate(cache->next);
+			bufctl_t *bctl = malloc(sizeof(bufctl_t));
+			/* TODO: Handle this case */
+			if(!bctl)
+				return errno = ENOMEM, -1;
+			bufctl->next = bctl;
+			bctl->prev = bufctl;
+			bctl->next = NULL;
+			bctl->inuse = BUFCTL_FREE;
+			bctl->buf = buf;
+			bufctl = bctl;
 		}
+		/* Call the constructor */
+			if(cache->ctor)
+				cache->ctor(buf);
 	}
-	ret->next = NULL;
-	if(cache->should_prefetch) /* If we should prefetch objects from this cache, do so (this is just a neat little optimization) */
-		prefetch(ret+1);
-	release_spinlock(&cache->lock);
-	return ret+1;
+	return 0;
 }
-struct slab_header *slab_find_first_fit(struct cache_info *cache)
+struct slab *slab_create_slab(size_t size_obj, slab_cache_t *cache)
 {
-	struct slab_header *hd = cache->addr;
-	for(size_t i = 0; i < cache->num_objs; i++)
+	size_t slab_size;
+	if(size_obj < PAGE_SIZE / 8)
 	{
-		if(hd->next != NULL)
+		slab_size = PAGE_SIZE;
+	}
+	else
+	{
+		slab_size = 30 * size_obj;
+	}
+	struct slab *slab = malloc(sizeof(struct slab));
+	if(!slab)
+	{
+		return errno = ENOMEM, NULL;
+	}
+	memset(slab, 0, sizeof(struct slab));
+	void *buffer = vmalloc(vmm_align_size_to_pages(slab_size), VM_TYPE_REGULAR, VM_NOEXEC | VM_GLOBAL | VM_WRITE);
+	if(!buffer)
+	{
+		free(slab);
+		return errno = ENOMEM, NULL;
+	}
+
+	slab->size = slab_size;
+	slab->buf = buffer;
+	if(slab_setup_bufctls(slab, cache) < 0)
+	{
+		vfree(buffer, vmm_align_size_to_pages(slab_size));
+		free(slab);
+		return errno = ENOMEM, NULL;
+	}
+	return slab;
+}
+slab_cache_t *slab_create(const char *name, size_t size_obj, size_t alignment, int flags, void (*ctor)(void*), void (*dtor)(void*))
+{
+	slab_cache_t *cache = malloc(sizeof(slab_cache_t));
+	if(!cache)
+		return errno = ENOMEM, NULL;
+	memset(cache, 0, sizeof(slab_cache_t));
+	/* TODO: Detect the correct cache alignment */
+	size_t obj_alignment = alignment == 0 ? 16 : alignment;
+	size_obj = ((size_obj + obj_alignment) & ~obj_alignment);
+	
+	cache->name = name;
+	cache->size = size_obj;
+	cache->ctor = ctor;
+	cache->dtor = dtor;
+	cache->alignment = obj_alignment;
+	cache->slab_list = slab_create_slab(size_obj, cache);
+	if(!cache->slab_list)
+	{
+		free(cache);
+		return errno = ENOMEM, NULL;
+	}
+	if(!first_slab)
+	{
+		first_slab = cache;
+		last_slab = cache;
+	}
+	else
+	{
+		cache->prev = last_slab;
+		last_slab->next = cache;
+	}
+	return cache;
+}
+void *slab_allocate_from_slab(struct slab *slab)
+{
+	bufctl_t *bufctl = slab->bufctls;
+	while(bufctl)
+	{
+		if(bufctl->inuse == BUFCTL_FREE)
 		{
-			return hd;
+			/* Mark the bufctl as in use and return the object */
+			bufctl->inuse = BUFCTL_INUSE;
+			return bufctl->buf;
 		}
-		hd = (struct slab_header *)((char*) &hd->data + cache->size_bytes);
+		bufctl = bufctl->next;
 	}
 	return NULL;
 }
-void slab_free(struct cache_info *cache, void *addr)
+void *slab_allocate(slab_cache_t *cache)
 {
-	if(!addr)
-		return;
-	if(!cache)
-		return;
 	acquire_spinlock(&cache->lock);
-	
-	/* Find the header */
-	struct slab_header *header = (struct slab_header *)((char *) addr - sizeof(struct slab_header));
-	header->next = slab_find_first_fit(cache);
-	
+	struct slab *slab = cache->slab_list;
+	while(slab)
+	{
+		void *obj = slab_allocate_from_slab(slab);
+		if(obj)
+		{
+			release_spinlock(&cache->lock);
+			return obj;
+		}
+		if(!slab->next)
+		{
+			/* Expand the cache by adding a new slab */
+			struct slab *nslab = slab_create_slab(cache->size, cache);
+			if(!nslab)
+			{
+				release_spinlock(&cache->lock);
+				return errno = ENOMEM, NULL;
+			}
+			slab->next = nslab;
+			nslab->prev = slab;
+			printk("Expanded cache successfully!\n");
+		}
+		slab = slab->next;
+	}
 	release_spinlock(&cache->lock);
+	return NULL;
+}
+void slab_free_from_slab(struct slab *slab, void *addr)
+{
+	bufctl_t *bufctl = slab->bufctls;
+	while(bufctl)
+	{
+		if(bufctl->buf == addr)
+		{
+			bufctl->inuse = BUFCTL_UNUSED;
+			return;
+		}
+		bufctl = bufctl->next;
+	}
+}
+void slab_free(slab_cache_t *cache, void *addr)
+{
+	/* I don't need to lock anything here I think */
+	struct slab *slab = cache->slab_list;
+	while(slab)
+	{
+		uintptr_t lower_limit = (uintptr_t) slab->buf;
+		uintptr_t upper_limit = (uintptr_t) slab->buf + slab->size;
+		if((uintptr_t) addr >= lower_limit && (uintptr_t) addr < upper_limit)
+		{
+			/* It's in this slab, free it */
+			slab_free_from_slab(slab, addr);
+			return;
+		}
+		slab = slab->next;
+	}
+}
+void slab_purge_slab(struct slab *slab, slab_cache_t *cache)
+{
+	bufctl_t *bufctl = slab->bufctls;
+	/* Look for BUFCTL_UNUSED bufs, call their dtor, and mark them as free */
+	while(bufctl)
+	{
+		if(bufctl->inuse == BUFCTL_UNUSED)
+		{
+			if(cache->dtor)
+				cache->dtor(bufctl->buf);
+			bufctl->inuse = BUFCTL_FREE;
+		}
+		bufctl = bufctl->next;
+	}
+}
+void slab_purge(slab_cache_t *cache)
+{
+	struct slab *slab = cache->slab_list;
+	while(slab)
+	{
+		slab_purge_slab(slab, cache);
+		slab = slab->next;
+	}
+}
+void slab_destroy_slab(struct slab *slab)
+{
+	/* Free every bufctl */
+	bufctl_t *bufctl = slab->bufctls;
+	while(bufctl)
+	{
+		bufctl_t *this = bufctl;
+		bufctl = bufctl->next;
+		free(this);
+	}
+	vfree(slab->buf, vmm_align_size_to_pages(slab->size));
+}
+void slab_destroy(slab_cache_t *cache)
+{
+	acquire_spinlock(&cache->lock);
+	/* First destroy the slabs */
+	struct slab *slab = cache->slab_list;
+	while(slab)
+	{
+		slab_destroy_slab(slab);
+		struct slab *this = slab;
+		slab = slab->next;
+		free(this);
+	}
+	if(cache->prev)
+		cache->prev->next = cache->next;
+	if(cache->next)
+		cache->next->prev = cache->prev;
+	if(cache == first_slab)
+	{
+		first_slab = cache->next;
+	}
+	if(cache == last_slab)
+	{
+		last_slab = cache->prev;
+	}
+	free(cache);
 }

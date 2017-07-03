@@ -9,24 +9,38 @@
 #include <stddef.h>
 
 #include <kernel/spinlock.h>
-struct cache_info
+#include <kernel/list.h>
+
+#define BUFCTL_FREE	0
+#define BUFCTL_INUSE	1
+#define BUFCTL_UNUSED	2
+typedef struct bufctl
+{
+	struct bufctl *prev, *next;
+	int inuse;
+	void *buf;
+} bufctl_t;
+struct slab
+{
+	bufctl_t *bufctls;
+	void *buf;
+	size_t size;
+	struct slab *prev, *next;
+};
+typedef struct cache
 {
 	const char *name;
-	void *addr;
-	size_t size_bytes;
-	size_t num_objs;
-	size_t should_prefetch; /* Using size_t here so we're sure this aligns nicely */
+	size_t size;
+	size_t alignment;
+	void (*ctor)(void*);
+	void (*dtor)(void*);
+	struct slab *slab_list;
 	spinlock_t lock;
-	struct cache_info *next;
-};
-struct slab_header
-{
-	struct slab_header *next;
-	char data[0];
-}__attribute__((packed));
-struct cache_info *slab_create(const char *name, size_t size_obj, size_t num_objs, int sprefetch);
-void *slab_allocate(struct cache_info *cache);
-void slab_free(struct cache_info *cache, void *addr);
-
-
+	struct cache *prev, *next;
+} slab_cache_t;
+slab_cache_t *slab_create(const char *name, size_t size_obj, size_t alignment, int flags, void (*ctor)(void*), void (*dtor)(void*));
+void *slab_allocate(slab_cache_t *cache);
+void slab_free(slab_cache_t *cache, void *addr);
+void slab_purge(slab_cache_t *cache);
+void slab_destroy(slab_cache_t *cache);
 #endif
