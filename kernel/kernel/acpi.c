@@ -120,7 +120,6 @@ int acpi_get_irq_routing_tables()
 		return 1;
 	}
 	routing_table = (ACPI_PCI_ROUTING_TABLE*) buf.Pointer;
-	
 	return 0;
 }
 static spinlock_t irq_rout_lock;

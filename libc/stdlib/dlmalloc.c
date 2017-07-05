@@ -4702,7 +4702,6 @@ void dlfree(void* mem) {
      free chunks, if they exist, and then place in a bin.  Intermixed
      with special cases for top, dv, mmapped chunks, and usage errors.
   */
-
   if (mem != 0) {
     mchunkptr p  = mem2chunk(mem);
 #if FOOTERS

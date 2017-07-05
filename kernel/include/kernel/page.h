@@ -11,10 +11,14 @@
 
 #include <kernel/spinlock.h>
 #include <kernel/compiler.h>
+#include <kernel/list.h>
+
+/* The default physical allocator is the buddy allocator */
+#define CONFIG_BUDDY_ALLOCATOR		1
 #if defined(__x86_64__)
 
 #define PAGES_PER_AREA 512
-#define MAX_ORDER 17
+#define MAX_ORDER 11
 #define HUGE_PAGE_SIZE 0x200000
 
 #define DMA_UPPER_LIMIT (void*) 0x1000000
@@ -49,17 +53,27 @@ struct page
 	void *phaddr;
 	int area;
 };
-typedef struct page_area
+
+#ifdef CONFIG_BUDDY_ALLOCATOR
+/* A structure describing areas of size 2^order pages */
+typedef struct free_area
 {
-	struct page_area *prev;
-	struct page_area *next;
-} page_area_t;
+	/* Each of them contains a list of free pages */
+	struct list_head free_list;
+	/* And a bitmap of buddies */
+	unsigned long *map;
+	/* Each "sub-zone" has a buddy, and to merge an area into a larger area, 
+	 * we need both buddies to be free; because of that, we use a bitmap of buddies to represent them.
+	 * We use a bit for each buddy, if it's set, the buddy is allocated, if not, it's set to 0.
+	*/
+} free_area_t;
+
+#else
 
 typedef struct page_zone
 {
 	/* We obviously need a lock to protect this page zone */
 	spinlock_t lock __attribute__((aligned(16)));
-	/* Let's keep linked lists pointing to blocks of 2^1 to 2^MAX_ORDER-1(NOT WORKING AS I DO NOT HAVE A BUDDY ALLOCATOR) */
 	page_area_t *free_areas __attribute__((aligned(16)));
 	/* The name of the page zone */
 	char *name;
@@ -69,15 +83,22 @@ typedef struct page_zone
 	size_t allocated_pages, free_pages;
 
 } page_zone_t;
+typedef struct page_area
+{
+	struct page_area *prev;
+	struct page_area *next;
+} page_area_t;
+
+#endif /* CONFIG_BUDDY_ALLOCATOR */
 struct memstat
 {
 	size_t free_mem;
 	size_t allocated_mem;
 };
 void *__alloc_page(int opt);
-void *__alloc_page_huge(int opt);
+void *__alloc_pages(int order);
 void __free_page(void *page);
-void __free_pages(void *pages, size_t nr);
+void __free_pages(void *pages, int order);
 void page_get_stats(struct memstat *memstat);
 void page_init(void);
 #endif

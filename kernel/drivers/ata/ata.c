@@ -21,6 +21,7 @@
 #include <kernel/log.h>
 #include <kernel/fscache.h>
 #include <kernel/compiler.h>
+#include <kernel/page.h>
 
 #include <drivers/ata.h>
 
@@ -314,8 +315,11 @@ void ata_init(struct pci_device *dev)
 	idedev = dev;
 
 	/* Allocate PRDT base */
-	prdt_base = vmm_allocate_virt_address(VM_KERNEL, 16/*64K*/, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL, 0);
-	vmm_map_range(prdt_base, 16, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
+	prdt_base = dma_map_range(__alloc_pages(4), UINT16_MAX, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
+	if(!prdt_base)
+	{
+		ERROR("ata", "Could not allocate a PRDT\n");
+	}
 	INFO("ata", "allocated prdt base %p\n", prdt_base);
 	/* Enable PCI IDE mode, and PCI busmastering DMA*/
 	ata_enable_pci_ide(idedev);

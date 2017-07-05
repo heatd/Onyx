@@ -49,7 +49,7 @@ void lapic_init()
 	addr &= 0xFFFFF000;
 	/* Map the BSP's LAPIC */
 	bsp_lapic = vmm_allocate_virt_address(VM_KERNEL, 1, VMM_TYPE_REGULAR, VMM_TYPE_HW, 0);
-	paging_map_phys_to_virt((uintptr_t)bsp_lapic, addr, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
+	paging_map_phys_to_virt((uintptr_t) bsp_lapic, addr, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
 
 	/* Enable the LAPIC by setting LAPIC_SPUINT to 0x100 OR'd with the default spurious IRQ(15) */
 	lapic_write(bsp_lapic, LAPIC_SPUINT, 0x100 | APIC_DEFAULT_SPURIOUS_IRQ);
@@ -143,7 +143,7 @@ void ioapic_init()
 	ioapic_base = (volatile char*)vmm_allocate_virt_address(VM_KERNEL, 1, VMM_TYPE_REGULAR, VMM_TYPE_HW, 0);
 	if(!ioapic_base)
 		panic("Virtual memory allocation for the I/O APIC failed!");
-	paging_map_phys_to_virt((uintptr_t)ioapic_base, IOAPIC_BASE_PHYS, VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC);
+	paging_map_phys_to_virt((uintptr_t) ioapic_base, IOAPIC_BASE_PHYS, VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC);
 	/* Execute _PIC */
 	acpi_execute_pic(ACPI_PIC_IOAPIC);
 	if(acpi_get_irq_routing_tables())

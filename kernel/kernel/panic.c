@@ -74,6 +74,7 @@ void panic(const char *msg)
 	uintptr_t rbp = (uintptr_t) __builtin_frame_address(0);
 	uintptr_t fs = 0;
 	rdmsr(FS_BASE_MSR, (uint32_t*) &fs, (uint32_t*) ((char*)&fs) + 4);
+
 	/* Construct the buffer using sprintf */
 	sprintf(buffer, "RAX: %016"PRIx64" RBX: %016"PRIx64" RCX: %016"PRIx64" RDX: %016"PRIx64"\nRDI: %016"PRIx64" RSI: %016"PRIx64" RBP: %016"PRIx64" RSP: %016"PRIx64"\n"
 			"R8:  %016"PRIx64" R9:  %016"PRIx64" R10: %016"PRIx64" R11: %016"PRIx64"\nR12: %016"PRIx64" R13: %016"PRIx64" R14: %016"PRIx64" R15: %016"PRIx64"\n"

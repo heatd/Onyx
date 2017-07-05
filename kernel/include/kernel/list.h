@@ -6,6 +6,8 @@
 #ifndef _KERNEL_LIST_H
 #define _KERNEL_LIST_H
 
+#include <stdlib.h>
+
 #include <kernel/compiler.h>
 
 struct list_head

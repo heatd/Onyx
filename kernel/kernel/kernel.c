@@ -351,6 +351,7 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 	tty_init();
 	initrd_addr = (void*) (uintptr_t) initrd_tag->mod_start;
 	page_init();
+
 	/* Identify the CPU it's running on (bootstrap CPU) */
 	cpu_identify();
 

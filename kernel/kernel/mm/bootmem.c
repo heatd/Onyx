@@ -36,6 +36,10 @@ static uintptr_t *pmm_stack_space = NULL;
 extern uint32_t end;
 static uint32_t last_entry = 0;
 stack_t *stack = NULL;
+size_t bootmem_get_memsize(void)
+{
+	return pmm_memory_size;
+}
 void bootmem_push(uintptr_t base, size_t size, size_t kernel_space_size)
 {
 	if(base == 0)
@@ -84,4 +88,9 @@ void *bootmem_alloc(size_t blocks)
 		}
 
 	return NULL;
+}
+void *bootmem_get_pstack(size_t *nentries)
+{
+	*nentries = pushed_blocks;
+	return stack;
 }

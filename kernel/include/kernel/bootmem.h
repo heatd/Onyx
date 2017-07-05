@@ -14,5 +14,6 @@
 void bootmem_push(uintptr_t base, size_t size, size_t kernel_space_size);
 void bootmem_init(size_t memory_size, uintptr_t stack_space);
 void *bootmem_alloc(size_t blocks);
-
+void *bootmem_get_pstack(size_t *);
+size_t bootmem_get_memsize(void);
 #endif
