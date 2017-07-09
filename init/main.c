@@ -232,7 +232,10 @@ int main(int argc, char **argv, char **envp)
 	int pid = fork();
 
 	if(pid == 0)
-		execve(shell, args, environ);
+	{
+		if(execve(shell, args, environ) < 0)
+			perror("init: exec");
+	}
 
 	/* Mask every signal */
 	sigset_t set;

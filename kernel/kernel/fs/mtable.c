@@ -50,9 +50,8 @@ int mtable_mount(vfsnode_t *mountpoint, vfsnode_t *rootfs)
 	rootfs->refcount++;
 	mountpoint_t *old = mtable;
 	mtable = new_mtable;
-	/* At some point we're corrupting the stack, introduced by this commit; TOFIX */
+
 	free(old);
-	(void) old;
 	mutex_unlock(&mtable_lock);
 	
 	return 1;
