@@ -62,4 +62,5 @@ inline int count_bits64(uint64_t num)
 	}
 	return nbits;
 }
+#define add_check_overflow(op1, op2, res) __builtin_add_overflow(op1, op2, res)
 #endif /* COMPILER_H */

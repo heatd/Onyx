@@ -452,9 +452,14 @@ void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uin
 		while(e && *e)
 		{
 			avl_node_t *n = *e;
-			base_address += n->data->pages * PAGE_SIZE;
+			/* Check for overflows while allocating a kernel address */
+			if(add_check_overflow(base_address, n->data->pages * PAGE_SIZE, &base_address))
+				return NULL;
 			if(base_address % alignment)
-				base_address += alignment - (base_address % alignment);
+			{
+				if(add_check_overflow(base_address, alignment - (base_address % alignment), &base_address))
+					return NULL;
+			}
 			e = avl_search_key(&kernel_tree, base_address);
 			if(avl_search_key(&kernel_tree, base_address + pages * PAGE_SIZE) == NULL && !e)
 				break;
@@ -471,6 +476,10 @@ again:
 			base_address += n->data->pages * PAGE_SIZE;
 			if(base_address % alignment)
 				base_address += alignment - (base_address % alignment);
+			/* If the address has surpassed low_half_max, return NULL as we've ran out of 
+			  virtual address space */
+			if(base_address > low_half_max)
+				return NULL;
 			for(uintptr_t base = base_address; base < base_address + pages * PAGE_SIZE; base += PAGE_SIZE)
 			{
 				if((e = avl_search_key(&tree, base)))
