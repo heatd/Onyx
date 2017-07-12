@@ -347,7 +347,6 @@ void *vmm_map_range(void *range, size_t pages, uint64_t flags)
 }
 void vmm_unmap_range(void *range, size_t pages)
 {
-	//printk("Unmaping %p:%p\n", range, (uintptr_t) range + PAGE_SIZE * pages);
 	_Bool kernel = is_higher_half(range);
 
 	__vm_lock(kernel);
@@ -355,7 +354,6 @@ void vmm_unmap_range(void *range, size_t pages)
 	for (size_t i = 0; i < pages; i++)
 	{
 		void *page = paging_unmap((void*) mem);
-		//printk("Freed page %p\n", page);
 		if(page)	
 			__free_page(page);
 		mem += 0x1000;
@@ -655,7 +653,7 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 		      ((prot & PROT_WRITE) ? VM_WRITE : 0) |
 		      ((!(prot & PROT_EXEC)) ? VM_NOEXEC : 0);
 
-	if(is_higher_half(addr)) /* User addresses can't be on the kernel-side  */
+	if(is_higher_half(addr)) /* User addresses can't be on the kernel's address space */
 		addr = NULL;
 
 	if(!addr) /* Specified by POSIX, if addr == NULL, guess an address */
@@ -753,7 +751,7 @@ int sys_mprotect(void *addr, size_t len, int prot)
 		vmm_entry_t copy;
 		memcpy(&copy, area, sizeof(vmm_entry_t));
 		avl_delete_node(area->base);
-		area = avl_insert_key(&tree, copy.base + len, copy.base + len + pages * PAGE_SIZE);
+		area = avl_insert_key(&tree, copy.base + len, pages * PAGE_SIZE);
 		memcpy(area, &copy, sizeof(vmm_entry_t));
 		area->base += len;
 		area->pages -= pages;
