@@ -145,6 +145,7 @@ int cpu_init_mp()
 			cpu_num = booted_cpus;
 		}
 	}
+	DISABLE_INTERRUPTS();
 	/* Fill CPU0's data */
 	cpus[0].lapic = (volatile char*) bsp_lapic;
 	cpus[0].self = &cpus[0];
@@ -173,6 +174,7 @@ int cpu_init_mp()
 	/* ... and free the old buffer */
 	free(processors);
 	percpu_initialized = true;
+	ENABLE_INTERRUPTS();
 	return booted_cpus;
 }
 void cpu_ap_entry(int cpu_num)
