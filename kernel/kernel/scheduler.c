@@ -59,9 +59,23 @@ thread_t *sched_find_runnable(void)
 	}
 	return idle_thread;
 }
+bool sched_is_preemption_disabled(void)
+{
+	struct processor *p = get_processor_data();
+	if(!p)
+		return false;
+	return p->preemption_disabled;
+}
+void sched_change_preemption_state(bool disable)
+{
+	struct processor *p = get_processor_data();
+	if(!p)
+		return;
+	p->preemption_disabled = disable;
+}
 void* sched_switch_thread(void* last_stack)
 {
-	if(is_initialized == 0)
+	if(is_initialized == 0 || sched_is_preemption_disabled())
 	{
 		return last_stack;
 	}

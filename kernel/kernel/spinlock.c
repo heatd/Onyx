@@ -8,16 +8,22 @@
 #include <kernel/spinlock.h>
 #include <kernel/compiler.h>
 #include <kernel/task_switching.h>
+#include <kernel/scheduler.h>
+
 void spinlock_lock(unsigned long *);
 void spinlock_unlock(unsigned long *);
 void acquire_spinlock(spinlock_t *lock)
 {
 	spinlock_lock(&lock->lock);
+	lock->old_preemption_state = sched_is_preemption_disabled();
+	/* Disable preemption after locking, and enable it on release. This means locks get faster */
+	sched_change_preemption_state(true);
 }
 
 void release_spinlock(spinlock_t *lock)
 {
 	spinlock_unlock(&lock->lock);
+	sched_change_preemption_state(lock->old_preemption_state);
 }
 void wait_spinlock(spinlock_t *lock)
 {

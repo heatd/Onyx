@@ -5,11 +5,13 @@
 */
 #ifndef _KERNEL_SPINLOCK_H
 #define _KERNEL_SPINLOCK_H
+#include <stdbool.h>
 
 typedef struct spinlock
 {
 	unsigned long lock;
 	unsigned long waiters;
+	bool old_preemption_state; /* This lets us nest locks */
 } spinlock_t;
 
 extern void acquire_spinlock(spinlock_t*);

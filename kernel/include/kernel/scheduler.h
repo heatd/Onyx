@@ -7,6 +7,7 @@
 #define _KERNEL_SCHEDULER_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 typedef void(*thread_callback_t)(void*);
 struct proc;
@@ -46,5 +47,6 @@ void set_current_thread(thread_t *t);
 void thread_destroy(thread_t *t);
 void thread_set_state(thread_t *thread, int state);
 void thread_wake_up(thread_t *thread);
-
+bool sched_is_preemption_disabled(void);
+void sched_change_preemption_state(bool disable);
 #endif

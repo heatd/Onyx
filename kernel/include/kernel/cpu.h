@@ -52,6 +52,7 @@ struct processor
 #endif
 	size_t sched_quantum;
 	thread_t *current_thread;
+	bool preemption_disabled;
 };
 
 void cpu_identify(void);

@@ -134,6 +134,7 @@ int cpu_init_mp()
 			{
 				panic("Out of memory while allocating the processor structures\n");
 			}
+			memset(&cpus[booted_cpus], 0, sizeof(struct processor));
 			cpus[booted_cpus].lapic_id = apic->Id;
 			cpus[booted_cpus].cpu_num = booted_cpus;
 			cpus[booted_cpus].self = &cpus[booted_cpus];
