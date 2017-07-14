@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2016, Intel Corp.
+ * Copyright (C) 2000 - 2017, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -425,7 +425,7 @@ XfNamespaceLocateBegin (
      * references to other objects within the namespace and the parent objects
      * of name declarations
      */
-    if (Op->Asl.CompileFlags & NODE_IS_NAME_DECLARATION)
+    if (Op->Asl.CompileFlags & OP_IS_NAME_DECLARATION)
     {
         return_ACPI_STATUS (AE_OK);
     }
@@ -451,7 +451,7 @@ XfNamespaceLocateBegin (
         RegisterNumber = Op->Asl.AmlOpcode & 0x0007; /* 0x60 through 0x67 */
         MethodLocals = Node->MethodLocals;
 
-        if (Op->Asl.CompileFlags & NODE_IS_TARGET)
+        if (Op->Asl.CompileFlags & OP_IS_TARGET)
         {
             /* Local is being initialized */
 
@@ -490,20 +490,17 @@ XfNamespaceLocateBegin (
         RegisterNumber = Op->Asl.AmlOpcode - AML_ARG0; /* 0x68 through 0x6F */
         MethodArgs = Node->MethodArgs;
 
-        if (Op->Asl.CompileFlags & NODE_IS_TARGET)
-        {
-            /* Arg is being initialized */
-
-            MethodArgs[RegisterNumber].Flags |= ASL_ARG_INITIALIZED;
-            MethodArgs[RegisterNumber].Op = Op;
-
-            return_ACPI_STATUS (AE_OK);
-        }
-
         /* Mark this Arg as referenced */
 
         MethodArgs[RegisterNumber].Flags |= ASL_ARG_REFERENCED;
         MethodArgs[RegisterNumber].Op = Op;
+
+        if (Op->Asl.CompileFlags & OP_IS_TARGET)
+        {
+            /* Arg is being initialized */
+
+            MethodArgs[RegisterNumber].Flags |= ASL_ARG_INITIALIZED;
+        }
 
         return_ACPI_STATUS (AE_OK);
     }
@@ -516,7 +513,8 @@ XfNamespaceLocateBegin (
         (!(OpInfo->Flags & AML_CREATE)) &&
         (Op->Asl.ParseOpcode != PARSEOP_NAMESTRING) &&
         (Op->Asl.ParseOpcode != PARSEOP_NAMESEG)    &&
-        (Op->Asl.ParseOpcode != PARSEOP_METHODCALL))
+        (Op->Asl.ParseOpcode != PARSEOP_METHODCALL) &&
+        (Op->Asl.ParseOpcode != PARSEOP_EXTERNAL))
     {
         return_ACPI_STATUS (AE_OK);
     }
@@ -539,7 +537,8 @@ XfNamespaceLocateBegin (
     Flags = ACPI_NS_SEARCH_PARENT;
     if ((Op->Asl.ParseOpcode == PARSEOP_NAMESTRING) ||
         (Op->Asl.ParseOpcode == PARSEOP_NAMESEG)    ||
-        (Op->Asl.ParseOpcode == PARSEOP_METHODCALL))
+        (Op->Asl.ParseOpcode == PARSEOP_METHODCALL) ||
+        (Op->Asl.ParseOpcode == PARSEOP_EXTERNAL))
     {
         /*
          * These are name references, do not push the scope stack
@@ -569,7 +568,7 @@ XfNamespaceLocateBegin (
         /* Name must appear as the last parameter */
 
         NextOp = Op->Asl.Child;
-        while (!(NextOp->Asl.CompileFlags & NODE_IS_NAME_DECLARATION))
+        while (!(NextOp->Asl.CompileFlags & OP_IS_NAME_DECLARATION))
         {
             NextOp = NextOp->Asl.Next;
         }
@@ -809,7 +808,7 @@ XfNamespaceLocateBegin (
         Op->Asl.AmlLength = 0;
         Op->Asl.ParseOpcode = PARSEOP_INTEGER;
         Op->Asl.Value.Integer = (UINT64) Offset;
-        Op->Asl.CompileFlags |= NODE_IS_RESOURCE_FIELD;
+        Op->Asl.CompileFlags |= OP_IS_RESOURCE_FIELD;
 
         OpcGenerateAmlOpcode (Op);
     }
@@ -1078,7 +1077,8 @@ XfNamespaceLocateEnd (
 
     if ((Op->Asl.ParseOpcode == PARSEOP_NAMESTRING) ||
         (Op->Asl.ParseOpcode == PARSEOP_NAMESEG)    ||
-        (Op->Asl.ParseOpcode == PARSEOP_METHODCALL))
+        (Op->Asl.ParseOpcode == PARSEOP_METHODCALL) ||
+        (Op->Asl.ParseOpcode == PARSEOP_EXTERNAL))
     {
         return_ACPI_STATUS (AE_OK);
     }

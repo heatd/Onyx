@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2016, Intel Corp.
+ * Copyright (C) 2000 - 2017, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -228,11 +228,11 @@ AcpiTbLoadNamespace (
     {
         Table = &AcpiGbl_RootTableList.Tables[i];
 
-        if (!AcpiGbl_RootTableList.Tables[i].Address ||
+        if (!Table->Address ||
             (!ACPI_COMPARE_NAME (Table->Signature.Ascii, ACPI_SIG_SSDT) &&
              !ACPI_COMPARE_NAME (Table->Signature.Ascii, ACPI_SIG_PSDT) &&
              !ACPI_COMPARE_NAME (Table->Signature.Ascii, ACPI_SIG_OSDT)) ||
-             ACPI_FAILURE (AcpiTbValidateTable (Table)))
+            ACPI_FAILURE (AcpiTbValidateTable (Table)))
         {
             continue;
         }

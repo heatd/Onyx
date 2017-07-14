@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2016, Intel Corp.
+ * Copyright (C) 2000 - 2017, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -356,6 +356,33 @@ AcpiOsPhysicalTableOverride (
 {
 
     return (AE_SUPPORT);
+}
+
+
+/******************************************************************************
+ *
+ * FUNCTION:    AcpiOsEnterSleep
+ *
+ * PARAMETERS:  SleepState          - Which sleep state to enter
+ *              RegaValue           - Register A value
+ *              RegbValue           - Register B value
+ *
+ * RETURN:      Status
+ *
+ * DESCRIPTION: A hook before writing sleep registers to enter the sleep
+ *              state. Return AE_CTRL_TERMINATE to skip further sleep register
+ *              writes.
+ *
+ *****************************************************************************/
+
+ACPI_STATUS
+AcpiOsEnterSleep (
+    UINT8                   SleepState,
+    UINT32                  RegaValue,
+    UINT32                  RegbValue)
+{
+
+    return (AE_OK);
 }
 
 
@@ -849,9 +876,9 @@ AcpiOsWaitSemaphore (
 {
     ACPI_STATUS         Status = AE_OK;
     sem_t               *Sem = (sem_t *) Handle;
+    int                 RetVal;
 #ifndef ACPI_USE_ALTERNATE_TIMEOUT
     struct timespec     Time;
-    int                 RetVal;
 #endif
 
 
@@ -881,11 +908,16 @@ AcpiOsWaitSemaphore (
 
     case ACPI_WAIT_FOREVER:
 
-        if (sem_wait (Sem))
+        while (((RetVal = sem_wait (Sem)) == -1) && (errno == EINTR))
+        {
+            continue;   /* Restart if interrupted */
+        }
+        if (RetVal != 0)
         {
             Status = (AE_TIME);
         }
         break;
+
 
     /* Wait with MsecTimeout */
 
@@ -940,7 +972,8 @@ AcpiOsWaitSemaphore (
 
         while (((RetVal = sem_timedwait (Sem, &Time)) == -1) && (errno == EINTR))
         {
-            continue;
+            continue;   /* Restart if interrupted */
+
         }
 
         if (RetVal != 0)

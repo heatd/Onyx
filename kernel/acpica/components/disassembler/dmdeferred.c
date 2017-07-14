@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2016, Intel Corp.
+ * Copyright (C) 2000 - 2017, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -82,7 +82,7 @@ AcpiDmParseDeferredOps (
     ACPI_STATUS             Status;
 
 
-    ACPI_FUNCTION_ENTRY ();
+    ACPI_FUNCTION_TRACE (DmParseDeferredOps);
 
 
     /* Traverse the entire parse tree */
@@ -103,13 +103,13 @@ AcpiDmParseDeferredOps (
         case AML_METHOD_OP:
         case AML_BUFFER_OP:
         case AML_PACKAGE_OP:
-        case AML_VAR_PACKAGE_OP:
+        case AML_VARIABLE_PACKAGE_OP:
 
             Status = AcpiDmDeferredParse (
                 Op, Op->Named.Data, Op->Named.Length);
             if (ACPI_FAILURE (Status))
             {
-                return (Status);
+                return_ACPI_STATUS (Status);
             }
             break;
 
@@ -137,7 +137,7 @@ AcpiDmParseDeferredOps (
         Op = AcpiPsGetDepthNext (Root, Op);
     }
 
-    return (AE_OK);
+    return_ACPI_STATUS (AE_OK);
 }
 
 
@@ -217,7 +217,7 @@ AcpiDmDeferredParse (
     {
     case AML_BUFFER_OP:
     case AML_PACKAGE_OP:
-    case AML_VAR_PACKAGE_OP:
+    case AML_VARIABLE_PACKAGE_OP:
 
         switch (Op->Common.AmlOpcode)
         {
@@ -228,7 +228,7 @@ AcpiDmDeferredParse (
             ACPI_FREE (ExtraOp);
             break;
 
-        case AML_VAR_PACKAGE_OP:
+        case AML_VARIABLE_PACKAGE_OP:
         case AML_BUFFER_OP:
         default:
 

@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2016, Intel Corp.
+ * Copyright (C) 2000 - 2017, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -558,7 +558,7 @@ ApCheckForSpecialName (
     {
         /* Ignore if actually emitted by the compiler */
 
-        if (Op->Asl.CompileFlags & NODE_COMPILER_EMITTED)
+        if (Op->Asl.CompileFlags & OP_COMPILER_EMITTED)
         {
             return (ACPI_NOT_RESERVED_NAME);
         }

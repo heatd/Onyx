@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2016, Intel Corp.
+ * Copyright (C) 2000 - 2017, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -56,6 +56,40 @@ UtDumpParseOpName (
     ACPI_PARSE_OBJECT       *Op,
     UINT32                  Level,
     UINT32                  DataLength);
+
+
+/*******************************************************************************
+ *
+ * FUNCTION:    CvDbgPrint
+ *
+ * PARAMETERS:  Type                - Type of output
+ *              Fmt                 - Printf format string
+ *              ...                 - variable printf list
+ *
+ * RETURN:      None
+ *
+ * DESCRIPTION: Print statement for debug messages within the converter.
+ *
+ ******************************************************************************/
+
+void
+CvDbgPrint (
+    char                    *Fmt,
+    ...)
+{
+    va_list                 Args;
+
+
+    if (!Gbl_CaptureComments || !AcpiGbl_DebugAslConversion)
+    {
+        return;
+    }
+
+    va_start (Args, Fmt);
+    (void) vfprintf (AcpiGbl_ConvDebugFile, Fmt, Args);
+    va_end (Args);
+    return;
+}
 
 
 /*******************************************************************************

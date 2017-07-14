@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2016, Intel Corp.
+ * Copyright (C) 2000 - 2017, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -301,5 +301,6 @@ AnDumpEntireNamespace (
     Status = AcpiGetHandle (NULL, "\\_GPE", &Handle);
     ACPI_CHECK_OK (AcpiGetHandle, Status);
 
+    AcDeleteTableList (ListHead);
     return (0);
 }

@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2016, Intel Corp.
+ * Copyright (C) 2000 - 2017, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -452,7 +452,7 @@ AnGetBtype (
                 return (ACPI_UINT32_MAX);
             }
 
-            if (ReferencedNode->Asl.CompileFlags & NODE_METHOD_TYPED)
+            if (ReferencedNode->Asl.CompileFlags & OP_METHOD_TYPED)
             {
                 ThisNodeBtype = ReferencedNode->Asl.AcpiBtype;
             }

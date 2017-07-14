@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2016, Intel Corp.
+ * Copyright (C) 2000 - 2017, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -76,7 +76,8 @@
     (defined ACPI_NAMES_APP)    || \
     (defined ACPI_SRC_APP)      || \
     (defined ACPI_XTRACT_APP)   || \
-    (defined ACPI_EXAMPLE_APP)
+    (defined ACPI_EXAMPLE_APP)  || \
+    (defined ACPI_EFI_HELLO)
 #define ACPI_APPLICATION
 #define ACPI_SINGLE_THREADED
 #define USE_NATIVE_ALLOCATE_ZEROED
@@ -226,6 +227,9 @@
 #elif defined(__QNX__)
 #include "acqnx.h"
 
+#elif defined(__onyx__)
+#include "aconyx.h"
+
 /*
  * EFI applications can be built with -nostdlib, in this case, it must be
  * included after including all other host environmental definitions, in
@@ -234,8 +238,6 @@
 #elif defined(_AED_EFI) || defined(_GNU_EFI) || defined(_EDK2_EFI)
 #include "acefi.h"
 
-#elif defined (__onyx__)
-#include "acspartix.h"
 #else
 
 /* Unknown environment */
@@ -289,6 +291,11 @@
 
 #ifndef ACPI_INLINE
 #define ACPI_INLINE
+#endif
+
+/* Use ordered initialization if compiler doesn't support designated. */
+#ifndef ACPI_STRUCT_INIT
+#define ACPI_STRUCT_INIT(field, value)  value
 #endif
 
 /*
@@ -363,7 +370,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
-#ifdef ACPI_APPLICATION
+#if defined (ACPI_APPLICATION) || defined(ACPI_LIBRARY)
 #include <stdio.h>
 #include <fcntl.h>
 #include <errno.h>

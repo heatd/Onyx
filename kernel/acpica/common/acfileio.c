@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2016, Intel Corp.
+ * Copyright (C) 2000 - 2017, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -63,6 +63,36 @@ AcGetOneTableFromFile (
 static ACPI_STATUS
 AcCheckTextModeCorruption (
     ACPI_TABLE_HEADER       *Table);
+
+
+/*******************************************************************************
+ *
+ * FUNCTION:    AcDeleteTableList
+ *
+ * PARAMETERS:  ListHead            - List to delete
+ *
+ * RETURN:      Status
+ *
+ * DESCRIPTION: Delete a list of tables. This is useful for removing memory
+ *              allocated by AcGetAllTablesFromFile
+ *
+ ******************************************************************************/
+
+void
+AcDeleteTableList (
+    ACPI_NEW_TABLE_DESC     *ListHead)
+{
+    ACPI_NEW_TABLE_DESC     *Current = ListHead;
+    ACPI_NEW_TABLE_DESC     *Previous = Current;
+
+
+    while (Current)
+    {
+        Current = Current->Next;
+        AcpiOsFree (Previous);
+        Previous = Current;
+    }
+}
 
 
 /*******************************************************************************
@@ -403,7 +433,7 @@ AcValidateTableHeader (
     UINT32                  i;
 
 
-    ACPI_FUNCTION_TRACE ("AcValidateTableHeader");
+    ACPI_FUNCTION_TRACE (AcValidateTableHeader);
 
 
     /* Read a potential table header */
@@ -423,8 +453,6 @@ AcValidateTableHeader (
 
     if (!AcpiUtValidNameseg (TableHeader.Signature))
     {
-        fprintf (stderr, "Invalid table signature: 0x%8.8X\n",
-            *ACPI_CAST_PTR (UINT32, TableHeader.Signature));
         return (AE_BAD_SIGNATURE);
     }
 

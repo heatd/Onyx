@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2016, Intel Corp.
+ * Copyright (C) 2000 - 2017, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -155,7 +155,7 @@ UtDisplaySupportedTables (
     /* All ACPI tables with the common table header */
 
     printf ("\n  Supported ACPI tables:\n");
-    for (TableData = AcpiSupportedTables, i = 1;
+    for (TableData = Gbl_AcpiSupportedTables, i = 1;
          TableData->Signature; TableData++, i++)
     {
         printf ("%8u) %s    %s\n", i,
@@ -381,8 +381,8 @@ UtDisplaySummary (
     {
         /* Compiler name and version number */
 
-        FlPrintFile (FileId, "%s version %X%s [%s]\n\n",
-            ASL_COMPILER_NAME, (UINT32) ACPI_CA_VERSION, ACPI_WIDTH, __DATE__);
+        FlPrintFile (FileId, "%s version %X [%s]\n\n",
+            ASL_COMPILER_NAME, (UINT32) ACPI_CA_VERSION, __DATE__);
     }
 
     /* Summary of main input and output files */
@@ -527,7 +527,7 @@ UtCheckIntegerRange (
  *
  * PARAMETERS:  Length              - Size of buffer requested
  *
- * RETURN:      Pointer to the buffer. Aborts on allocation failure
+ * RETURN:      Pointer to the buffer. Aborts compiler on allocation failure
  *
  * DESCRIPTION: Allocate a string buffer. Bypass the local
  *              dynamic memory manager for performance reasons (This has a
@@ -725,10 +725,6 @@ UtInternalizeName (
     /* We need a segment to store the internal name */
 
     Info.InternalName = UtStringCacheCalloc (Info.Length);
-    if (!Info.InternalName)
-    {
-        return (AE_NO_MEMORY);
-    }
 
     /* Build the name */
 

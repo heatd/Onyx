@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2016, Intel Corp.
+ * Copyright (C) 2000 - 2017, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -45,6 +45,7 @@
 #include "actables.h"
 #include "acdisasm.h"
 #include "acapps.h"
+#include "acconvert.h"
 
 #define _COMPONENT          ACPI_COMPILER
         ACPI_MODULE_NAME    ("aslstartup")
@@ -123,6 +124,15 @@ AslInitializeGlobals (
         Gbl_Files[i].Handle = NULL;
         Gbl_Files[i].Filename = NULL;
     }
+
+    if (Gbl_CaptureComments)
+    {
+        Gbl_CommentState.SpacesBefore          = 0;
+        Gbl_CommentState.CommentType           = 1;
+        Gbl_CommentState.LatestParseOp          = NULL;
+        Gbl_CommentState.ParsingParenBraceNode = NULL;
+        Gbl_CommentState.CaptureComments       = TRUE;
+    }
 }
 
 
@@ -197,6 +207,11 @@ AslDetectSourceFileType (
 
         Type = ASL_INPUT_TYPE_BINARY_ACPI_TABLE;
         goto Cleanup;
+    }
+    else
+    {
+        fprintf (stderr,
+            "Binary file does not contain a valid ACPI table\n");
     }
 
     Type = ASL_INPUT_TYPE_BINARY;
@@ -338,7 +353,7 @@ AslDoOneFile (
     /*
      * AML Disassembly (Optional)
      */
-    if (Gbl_DisasmFlag)
+    if (AcpiGbl_DisasmFlag)
     {
         Status = AslDoDisassembly ();
         if (Status != AE_CTRL_CONTINUE)
@@ -450,6 +465,28 @@ AslDoOneFile (
 
         AeClearErrorLog ();
         PrTerminatePreprocessor ();
+
+        /* ASL-to-ASL+ conversion - Perform immediate disassembly */
+
+        if (Gbl_DoAslConversion)
+        {
+            /*
+             * New input file is the output AML file from above.
+             * New output is from the input ASL file from above.
+             */
+            Gbl_OutputFilenamePrefix = Gbl_Files[ASL_FILE_INPUT].Filename;
+        CvDbgPrint ("OUTPUTFILENAME: %s\n", Gbl_OutputFilenamePrefix);
+            Gbl_Files[ASL_FILE_INPUT].Filename =
+                Gbl_Files[ASL_FILE_AML_OUTPUT].Filename;
+            AcpiGbl_DisasmFlag = TRUE;
+            fprintf (stderr, "\n");
+            AslDoDisassembly ();
+
+            /* delete the AML file. This AML file should never be utilized by AML interpreters. */
+
+            FlDeleteFile (ASL_FILE_AML_OUTPUT);
+        }
+
         return (AE_OK);
 
     /*
@@ -461,7 +498,7 @@ AslDoOneFile (
 
         FlCloseFile (ASL_FILE_INPUT);
         Gbl_DoCompile = FALSE;
-        Gbl_DisasmFlag = TRUE;
+        AcpiGbl_DisasmFlag = TRUE;
         Status = AslDoDisassembly ();
         return (Status);
 

@@ -6,7 +6,7 @@ NoEcho('
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2016, Intel Corp.
+ * Copyright (C) 2000 - 2017, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -281,6 +281,11 @@ NoEcho('
 %token <i> PARSEOP_PARITYTYPE_NONE
 %token <i> PARSEOP_PARITYTYPE_ODD
 %token <i> PARSEOP_PARITYTYPE_SPACE
+%token <i> PARSEOP_PINCONFIG
+%token <i> PARSEOP_PINFUNCTION
+%token <i> PARSEOP_PINGROUP
+%token <i> PARSEOP_PINGROUPCONFIG
+%token <i> PARSEOP_PINGROUPFUNCTION
 %token <i> PARSEOP_PIN_NOPULL
 %token <i> PARSEOP_PIN_PULLDEFAULT
 %token <i> PARSEOP_PIN_PULLDOWN

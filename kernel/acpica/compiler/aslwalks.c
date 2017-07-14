@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2016, Intel Corp.
+ * Copyright (C) 2000 - 2017, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -87,7 +87,7 @@ AnMethodTypingWalkEnd (
     {
     case PARSEOP_METHOD:
 
-        Op->Asl.CompileFlags |= NODE_METHOD_TYPED;
+        Op->Asl.CompileFlags |= OP_METHOD_TYPED;
         break;
 
     case PARSEOP_RETURN:
@@ -317,7 +317,7 @@ AnOperandTypecheckWalkEnd (
 
     case AML_BUFFER_OP:
     case AML_PACKAGE_OP:
-    case AML_VAR_PACKAGE_OP:
+    case AML_VARIABLE_PACKAGE_OP:
 
             /* If length is a constant, we are done */
 

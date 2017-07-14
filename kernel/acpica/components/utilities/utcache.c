@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2016, Intel Corp.
+ * Copyright (C) 2000 - 2017, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -77,7 +77,7 @@ AcpiOsCreateCache (
     ACPI_FUNCTION_ENTRY ();
 
 
-    if (!CacheName || !ReturnCache || (ObjectSize < 16))
+    if (!CacheName || !ReturnCache || !ObjectSize)
     {
         return (AE_BAD_PARAMETER);
     }
@@ -242,9 +242,7 @@ AcpiOsReleaseObject (
 
         /* Mark the object as cached */
 
-        /* This next line breaks everything. I have no fucking clue why. Might be a GCC bug? */
-        
-        // memset (Object, 0xCA, Cache->ObjectSize);
+        memset (Object, 0xCA, Cache->ObjectSize);
         ACPI_SET_DESCRIPTOR_TYPE (Object, ACPI_DESC_TYPE_CACHED);
 
         /* Put the object at the head of the cache list */

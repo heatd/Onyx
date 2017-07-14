@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2016, Intel Corp.
+ * Copyright (C) 2000 - 2017, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -52,7 +52,7 @@
 /*
  * Table of "known" (ACPI-related) UUIDs
  */
-const AH_UUID  AcpiUuids[] =
+const AH_UUID  Gbl_AcpiUuids[] =
 {
     {"[Controllers]",               NULL},
     {"GPIO Controller",             UUID_GPIO_CONTROLLER},
@@ -77,6 +77,10 @@ const AH_UUID  AcpiUuids[] =
     {"Volatile Virtual CD",         UUID_VOLATILE_VIRTUAL_CD},
     {"Persistent Virtual Disk",     UUID_PERSISTENT_VIRTUAL_DISK},
     {"Persistent Virtual CD",       UUID_PERSISTENT_VIRTUAL_CD},
+
+    {"[Processor Properties]",      NULL},
+    {"Cache Properties",            UUID_CACHE_PROPERTIES},
+    {"Physical Package Property",   UUID_PHYSICAL_PROPERTY},
 
     {"[Miscellaneous]",             NULL},
     {"Platform-wide Capabilities",  UUID_PLATFORM_CAPABILITIES},
@@ -112,7 +116,7 @@ AcpiAhMatchUuid (
 
     /* Walk the table of known ACPI-related UUIDs */
 
-    for (Info = AcpiUuids; Info->Description; Info++)
+    for (Info = Gbl_AcpiUuids; Info->Description; Info++)
     {
         /* Null string means desciption is a UUID class */
 

@@ -6,7 +6,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2016, Intel Corp.
+ * Copyright (C) 2000 - 2017, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -44,6 +44,7 @@
 
 #include "aslcompiler.h"
 #include "aslcompiler.y.h"
+#include "acconvert.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -66,10 +67,10 @@ YYSTYPE AslCompilerlval;
 static void
 AslDoLineDirective (void);
 
-static char
+static BOOLEAN
 AslDoComment (void);
 
-static char
+static BOOLEAN
 AslDoCommentType2 (void);
 
 static char
@@ -346,6 +347,11 @@ NamePathTail                [.]{NameSeg}
 "Memory24"                  { count (1); return (PARSEOP_MEMORY24); }
 "Memory32"                  { count (1); return (PARSEOP_MEMORY32); }
 "Memory32Fixed"             { count (1); return (PARSEOP_MEMORY32FIXED); }
+"PinConfig"                 { count (1); return (PARSEOP_PINCONFIG); }
+"PinFunction"               { count (1); return (PARSEOP_PINFUNCTION); }
+"PinGroup"                  { count (1); return (PARSEOP_PINGROUP); }
+"PinGroupConfig"            { count (1); return (PARSEOP_PINGROUPCONFIG); }
+"PinGroupFunction"          { count (1); return (PARSEOP_PINGROUPFUNCTION); }
 "QWordIO"                   { count (1); return (PARSEOP_QWORDIO); }
 "QWordMemory"               { count (1); return (PARSEOP_QWORDMEMORY); }
 "QWordSpace"                { count (1); return (PARSEOP_QWORDSPACE); }

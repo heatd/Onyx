@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2016, Intel Corp.
+ * Copyright (C) 2000 - 2017, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -91,6 +91,7 @@
 #define ARGP_BUFFER_OP                  ARGP_LIST3 (ARGP_PKGLENGTH,  ARGP_TERMARG,       ARGP_BYTELIST)
 #define ARGP_BYTE_OP                    ARGP_LIST1 (ARGP_BYTEDATA)
 #define ARGP_BYTELIST_OP                ARGP_LIST1 (ARGP_NAMESTRING)
+#define ARGP_COMMENT_OP                 ARGP_LIST2 (ARGP_BYTEDATA,   ARGP_COMMENT)
 #define ARGP_CONCAT_OP                  ARGP_LIST3 (ARGP_TERMARG,    ARGP_TERMARG,       ARGP_TARGET)
 #define ARGP_CONCAT_RES_OP              ARGP_LIST3 (ARGP_TERMARG,    ARGP_TERMARG,       ARGP_TARGET)
 #define ARGP_COND_REF_OF_OP             ARGP_LIST2 (ARGP_SIMPLENAME, ARGP_TARGET)
@@ -112,7 +113,7 @@
 #define ARGP_DWORD_OP                   ARGP_LIST1 (ARGP_DWORDDATA)
 #define ARGP_ELSE_OP                    ARGP_LIST2 (ARGP_PKGLENGTH,  ARGP_TERMLIST)
 #define ARGP_EVENT_OP                   ARGP_LIST1 (ARGP_NAME)
-#define ARGP_EXTERNAL_OP                ARGP_LIST3 (ARGP_NAMESTRING, ARGP_BYTEDATA,      ARGP_BYTEDATA)
+#define ARGP_EXTERNAL_OP                ARGP_LIST3 (ARGP_NAME,       ARGP_BYTEDATA,      ARGP_BYTEDATA)
 #define ARGP_FATAL_OP                   ARGP_LIST3 (ARGP_BYTEDATA,   ARGP_DWORDDATA,     ARGP_TERMARG)
 #define ARGP_FIELD_OP                   ARGP_LIST4 (ARGP_PKGLENGTH,  ARGP_NAMESTRING,    ARGP_BYTEDATA,  ARGP_FIELDLIST)
 #define ARGP_FIND_SET_LEFT_BIT_OP       ARGP_LIST2 (ARGP_TERMARG,    ARGP_TARGET)
@@ -225,6 +226,7 @@
 #define ARGI_BUFFER_OP                  ARGI_LIST1 (ARGI_INTEGER)
 #define ARGI_BYTE_OP                    ARGI_INVALID_OPCODE
 #define ARGI_BYTELIST_OP                ARGI_INVALID_OPCODE
+#define ARGI_COMMENT_OP                 ARGI_INVALID_OPCODE
 #define ARGI_CONCAT_OP                  ARGI_LIST3 (ARGI_ANYTYPE,    ARGI_ANYTYPE,       ARGI_TARGETREF)
 #define ARGI_CONCAT_RES_OP              ARGI_LIST3 (ARGI_BUFFER,     ARGI_BUFFER,        ARGI_TARGETREF)
 #define ARGI_COND_REF_OF_OP             ARGI_LIST2 (ARGI_OBJECT_REF, ARGI_TARGETREF)

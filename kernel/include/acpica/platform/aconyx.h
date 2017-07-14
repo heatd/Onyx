@@ -1,11 +1,11 @@
 /******************************************************************************
  *
- * Name: acspartix.h - OS specific defines, etc. for Spartix
+ * Name: aconyx.h - OS specific defines, etc. for Onyx
  *
  *****************************************************************************/
 
-#ifndef _ACSPARTIX_H
-#define _ACSPARTIX_H
+#ifndef _ACONYX_
+#define _ACONYX_
 #include <stdint.h>
 #include <stdarg.h>
 

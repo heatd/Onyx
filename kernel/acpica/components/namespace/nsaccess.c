@@ -5,7 +5,7 @@
  ******************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2016, Intel Corp.
+ * Copyright (C) 2000 - 2017, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -47,6 +47,9 @@
 #include "acnamesp.h"
 #include "acdispat.h"
 
+#ifdef ACPI_ASL_COMPILER
+    #include "acdisasm.h"
+#endif
 
 #define _COMPONENT          ACPI_NAMESPACE
         ACPI_MODULE_NAME    ("nsaccess")
@@ -505,7 +508,7 @@ AcpiNsLookup (
                 "Dual Pathname (2 segments, Flags=%X)\n", Flags));
             break;
 
-        case AML_MULTI_NAME_PREFIX_OP:
+        case AML_MULTI_NAME_PREFIX:
 
             /* More than one NameSeg, search rules do not apply */
 
@@ -602,6 +605,30 @@ AcpiNsLookup (
                     CurrentNode));
             }
 
+#ifdef ACPI_ASL_COMPILER
+            /*
+             * If this ACPI name already exists within the namespace as an
+             * external declaration, then mark the external as a conflicting
+             * declaration and proceed to process the current node as if it did
+             * not exist in the namespace. If this node is not processed as
+             * normal, then it could cause improper namespace resolution
+             * by failing to open a new scope.
+             */
+            if (AcpiGbl_DisasmFlag &&
+                (Status == AE_ALREADY_EXISTS) &&
+                ((ThisNode->Flags & ANOBJ_IS_EXTERNAL) ||
+                    (WalkState && WalkState->Opcode == AML_EXTERNAL_OP)))
+            {
+                ThisNode->Flags &= ~ANOBJ_IS_EXTERNAL;
+                ThisNode->Type = (UINT8)ThisSearchType;
+                if (WalkState->Opcode != AML_EXTERNAL_OP)
+                {
+                    AcpiDmMarkExternalConflict (ThisNode);
+                }
+                break;
+            }
+#endif
+
             *ReturnNode = ThisNode;
             return_ACPI_STATUS (Status);
         }
@@ -629,6 +656,13 @@ AcpiNsLookup (
                     ThisNode = (ACPI_NAMESPACE_NODE *) ThisNode->Object;
                 }
             }
+#ifdef ACPI_ASL_COMPILER
+            if (!AcpiGbl_DisasmFlag &&
+                (ThisNode->Flags & ANOBJ_IS_EXTERNAL))
+            {
+                ThisNode->Flags |= IMPLICIT_EXTERNAL;
+            }
+#endif
         }
 
         /* Special handling for the last segment (NumSegments == 0) */

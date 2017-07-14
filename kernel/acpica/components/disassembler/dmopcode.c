@@ -5,7 +5,7 @@
  ******************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2016, Intel Corp.
+ * Copyright (C) 2000 - 2017, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -48,6 +48,7 @@
 #include "acinterp.h"
 #include "acnamesp.h"
 #include "acdebug.h"
+#include "acconvert.h"
 
 
 #define _COMPONENT          ACPI_CA_DEBUGGER
@@ -67,7 +68,6 @@ AcpiDmConvertToElseIf (
 static void
 AcpiDmPromoteSubtree (
     ACPI_PARSE_OBJECT       *StartOp);
-
 
 /*******************************************************************************
  *
@@ -420,21 +420,30 @@ AcpiDmFieldPredefinedDescription (
     /* Major cheat: We previously put the Tag ptr in the Node field */
 
     Tag = ACPI_CAST_PTR (char, IndexOp->Common.Node);
-    if (!Tag)
+    if (!Tag || (*Tag == 0))
     {
         return;
     }
 
-    /* Match the name in the info table */
+    /* Is the tag a predefined name? */
 
     Info = AcpiAhMatchPredefinedName (Tag);
-    if (Info)
+    if (!Info)
     {
-        AcpiOsPrintf ("  // %4.4s: %s", Tag,
-            ACPI_CAST_PTR (char, Info->Description));
+        /* Not a predefined name (does not start with underscore) */
+
+        return;
     }
 
+    AcpiOsPrintf ("  // %4.4s: %s", Tag,
+        ACPI_CAST_PTR (char, Info->Description));
+
+    /* String contains the prefix path, free it */
+
+    ACPI_FREE (IndexOp->Common.Value.String);
+    IndexOp->Common.Value.String = NULL;
 #endif
+
     return;
 }
 
@@ -709,15 +718,15 @@ AcpiDmDisassembleOneOp (
         {
             switch (Op->Common.AmlOpcode)
             {
-            case AML_LEQUAL_OP:
+            case AML_LOGICAL_EQUAL_OP:
                 AcpiOsPrintf ("LNotEqual");
                 break;
 
-            case AML_LGREATER_OP:
+            case AML_LOGICAL_GREATER_OP:
                 AcpiOsPrintf ("LLessEqual");
                 break;
 
-            case AML_LLESS_OP:
+            case AML_LOGICAL_LESS_OP:
                 AcpiOsPrintf ("LGreaterEqual");
                 break;
 
@@ -740,12 +749,12 @@ AcpiDmDisassembleOneOp (
 
     switch (Op->Common.AmlOpcode)
     {
-    case AML_LNOT_OP:
+    case AML_LOGICAL_NOT_OP:
 
         Child = Op->Common.Value.Arg;
-        if ((Child->Common.AmlOpcode == AML_LEQUAL_OP) ||
-            (Child->Common.AmlOpcode == AML_LGREATER_OP) ||
-            (Child->Common.AmlOpcode == AML_LLESS_OP))
+        if ((Child->Common.AmlOpcode == AML_LOGICAL_EQUAL_OP) ||
+            (Child->Common.AmlOpcode == AML_LOGICAL_GREATER_OP) ||
+            (Child->Common.AmlOpcode == AML_LOGICAL_LESS_OP))
         {
             Child->Common.DisasmOpcode = ACPI_DASM_LNOT_SUFFIX;
             Op->Common.DisasmOpcode = ACPI_DASM_LNOT_PREFIX;
@@ -874,8 +883,12 @@ AcpiDmDisassembleOneOp (
     case AML_INT_NAMEDFIELD_OP:
 
         Length = AcpiDmDumpName (Op->Named.Name);
-        AcpiOsPrintf (",%*.s  %u", (unsigned) (5 - Length), " ",
+
+        AcpiOsPrintf (",");
+        ASL_CV_PRINT_ONE_COMMENT (Op, AML_NAMECOMMENT, NULL, 0);
+        AcpiOsPrintf ("%*.s  %u", (unsigned) (5 - Length), " ",
             (UINT32) Op->Common.Value.Integer);
+
         AcpiDmCommaIfFieldMember (Op);
 
         Info->BitOffset += (UINT32) Op->Common.Value.Integer;
@@ -916,6 +929,7 @@ AcpiDmDisassembleOneOp (
 
         AcpiOsPrintf (")");
         AcpiDmCommaIfFieldMember (Op);
+        ASL_CV_PRINT_ONE_COMMENT (Op, AML_COMMENT_END_NODE, NULL, 0);
         break;
 
     case AML_INT_CONNECTION_OP:
@@ -949,6 +963,8 @@ AcpiDmDisassembleOneOp (
 
         AcpiOsPrintf (")");
         AcpiDmCommaIfFieldMember (Op);
+        ASL_CV_PRINT_ONE_COMMENT (Op, AML_COMMENT_END_NODE, NULL, 0);
+        ASL_CV_PRINT_ONE_COMMENT (Op, AMLCOMMENT_INLINE, NULL, 0);
         AcpiOsPrintf ("\n");
 
         Op->Common.DisasmFlags |= ACPI_PARSEOP_IGNORE; /* for now, ignore in AcpiDmAscendingOp */
@@ -968,6 +984,28 @@ AcpiDmDisassembleOneOp (
         AcpiDmNamestring (Op->Common.Value.Name);
         break;
 
+    case AML_WHILE_OP:
+
+        if (Op->Common.DisasmOpcode == ACPI_DASM_SWITCH)
+        {
+            AcpiOsPrintf ("%s", "Switch");
+            break;
+        }
+
+        AcpiOsPrintf ("%s", OpInfo->Name);
+        break;
+
+    case AML_IF_OP:
+
+        if (Op->Common.DisasmOpcode == ACPI_DASM_CASE)
+        {
+            AcpiOsPrintf ("%s", "Case");
+            break;
+        }
+
+        AcpiOsPrintf ("%s", OpInfo->Name);
+        break;
+
     case AML_ELSE_OP:
 
         AcpiDmConvertToElseIf (Op);
@@ -977,14 +1015,10 @@ AcpiDmDisassembleOneOp (
 
         if (AcpiGbl_DmEmitExternalOpcodes)
         {
-            AcpiOsPrintf ("/* Opcode 0x15 */ ");
+            AcpiDmEmitExternal (Op, AcpiPsGetArg(Op, 0));
+        }
 
-            /* Fallthrough */
-        }
-        else
-        {
-            break;
-        }
+        break;
 
     default:
 
@@ -1078,6 +1112,12 @@ AcpiDmConvertToElseIf (
     {
         /* Not a proper Else..If sequence, cannot convert to ElseIf */
 
+        if (OriginalElseOp->Common.DisasmOpcode == ACPI_DASM_DEFAULT)
+        {
+            AcpiOsPrintf ("%s", "Default");
+            return;
+        }
+
         AcpiOsPrintf ("%s", "Else");
         return;
     }
@@ -1087,13 +1127,42 @@ AcpiDmConvertToElseIf (
     ElseOp = IfOp->Common.Next;
     if (ElseOp && ElseOp->Common.Next)
     {
+        if (OriginalElseOp->Common.DisasmOpcode == ACPI_DASM_DEFAULT)
+        {
+            AcpiOsPrintf ("%s", "Default");
+            return;
+        }
+
         AcpiOsPrintf ("%s", "Else");
         return;
     }
 
-    /* Emit ElseIf, mark the IF as now an ELSEIF */
+    if (OriginalElseOp->Common.DisasmOpcode == ACPI_DASM_DEFAULT)
+    {
+        /*
+         * There is an ElseIf but in this case the Else is actually
+         * a Default block for a Switch/Case statement. No conversion.
+         */
+        AcpiOsPrintf ("%s", "Default");
+        return;
+    }
 
-    AcpiOsPrintf ("%s", "ElseIf");
+    if (OriginalElseOp->Common.DisasmOpcode == ACPI_DASM_CASE)
+    {
+        /*
+         * This ElseIf is actually a Case block for a Switch/Case
+         * statement. Print Case but do not return so that we can
+         * promote the subtree and keep the indentation level.
+         */
+        AcpiOsPrintf ("%s", "Case");
+    }
+    else
+    {
+       /* Emit ElseIf, mark the IF as now an ELSEIF */
+
+        AcpiOsPrintf ("%s", "ElseIf");
+    }
+
     IfOp->Common.DisasmFlags |= ACPI_PARSEOP_ELSEIF;
 
     /* The IF parent will now be the same as the original ELSE parent */

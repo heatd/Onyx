@@ -5,7 +5,7 @@
  ******************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2016, Intel Corp.
+ * Copyright (C) 2000 - 2017, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -216,10 +216,6 @@ AcpiNsHandleToPathname (
 
     (void) AcpiNsBuildNormalizedPath (Node, Buffer->Pointer,
         RequiredSize, NoTrailing);
-    if (ACPI_FAILURE (Status))
-    {
-        return_ACPI_STATUS (Status);
-    }
 
     ACPI_DEBUG_PRINT ((ACPI_DB_EXEC, "%s [%X]\n",
         (char *) Buffer->Pointer, (UINT32) RequiredSize));

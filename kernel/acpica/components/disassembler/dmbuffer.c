@@ -5,7 +5,7 @@
  ******************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2016, Intel Corp.
+ * Copyright (C) 2000 - 2017, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -153,7 +153,7 @@ AcpiDmDisasmByteList (
 
         /* Dump the ASCII equivalents within a comment */
 
-        AcpiOsPrintf ("  /* ");
+        AcpiOsPrintf ("  // ");
         for (j = 0; j < ACPI_BUFFER_BYTES_PER_LINE; j++)
         {
             CurrentIndex = i + j;
@@ -175,7 +175,7 @@ AcpiDmDisasmByteList (
 
         /* Finished with this line */
 
-        AcpiOsPrintf (" */\n");
+        AcpiOsPrintf ("\n");
     }
 }
 

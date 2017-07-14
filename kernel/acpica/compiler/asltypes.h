@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2016, Intel Corp.
+ * Copyright (C) 2000 - 2017, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -54,27 +54,29 @@
 
 /* Op flags for the ACPI_PARSE_OBJECT */
 
-#define NODE_VISITED                0x00000001
-#define NODE_AML_PACKAGE            0x00000002
-#define NODE_IS_TARGET              0x00000004
-#define NODE_IS_RESOURCE_DESC       0x00000008
-#define NODE_IS_RESOURCE_FIELD      0x00000010
-#define NODE_HAS_NO_EXIT            0x00000020
-#define NODE_IF_HAS_NO_EXIT         0x00000040
-#define NODE_NAME_INTERNALIZED      0x00000080
-#define NODE_METHOD_NO_RETVAL       0x00000100
-#define NODE_METHOD_SOME_NO_RETVAL  0x00000200
-#define NODE_RESULT_NOT_USED        0x00000400
-#define NODE_METHOD_TYPED           0x00000800
-#define NODE_COULD_NOT_REDUCE       0x00001000
-#define NODE_COMPILE_TIME_CONST     0x00002000
-#define NODE_IS_TERM_ARG            0x00004000
-#define NODE_WAS_ONES_OP            0x00008000
-#define NODE_IS_NAME_DECLARATION    0x00010000
-#define NODE_COMPILER_EMITTED       0x00020000
-#define NODE_IS_DUPLICATE           0x00040000
-#define NODE_IS_RESOURCE_DATA       0x00080000
-#define NODE_IS_NULL_RETURN         0x00100000
+#define OP_VISITED                  0x00000001
+#define OP_AML_PACKAGE              0x00000002
+#define OP_IS_TARGET                0x00000004
+#define OP_IS_RESOURCE_DESC         0x00000008
+#define OP_IS_RESOURCE_FIELD        0x00000010
+#define OP_HAS_NO_EXIT              0x00000020
+#define OP_IF_HAS_NO_EXIT           0x00000040
+#define OP_NAME_INTERNALIZED        0x00000080
+#define OP_METHOD_NO_RETVAL         0x00000100
+#define OP_METHOD_SOME_NO_RETVAL    0x00000200
+#define OP_RESULT_NOT_USED          0x00000400
+#define OP_METHOD_TYPED             0x00000800
+#define OP_COULD_NOT_REDUCE         0x00001000
+#define OP_COMPILE_TIME_CONST       0x00002000
+#define OP_IS_TERM_ARG              0x00004000
+#define OP_WAS_ONES_OP              0x00008000
+#define OP_IS_NAME_DECLARATION      0x00010000
+#define OP_COMPILER_EMITTED         0x00020000
+#define OP_IS_DUPLICATE             0x00040000
+#define OP_IS_RESOURCE_DATA         0x00080000
+#define OP_IS_NULL_RETURN           0x00100000
+
+#define ACPI_NUM_OP_FLAGS           0x21
 
 /* Keeps information about individual control methods */
 
@@ -153,6 +155,10 @@ typedef struct asl_file_status
  * Corresponding filename suffixes are in comments
  *
  * NOTE: Don't move the first 4 file types
+ *
+ * .xxx file extension: this is used as a temporary .aml file for
+ * the ASL/ASL+ converter and is deleted after conversion. This file
+ * should never be used in the interpreter.
  */
 typedef enum
 {
@@ -173,12 +179,14 @@ typedef enum
     ASL_FILE_C_INCLUDE_OUTPUT,  /* .h   */
     ASL_FILE_C_OFFSET_OUTPUT,   /* .offset.h */
     ASL_FILE_MAP_OUTPUT,        /* .map */
-    ASL_FILE_XREF_OUTPUT        /* .xrf */
+    ASL_FILE_XREF_OUTPUT,       /* .xrf */
+    ASL_FILE_CONV_DEBUG_OUTPUT, /* .cdb */
+    ASL_FILE_CONV_OUTPUT        /* .xxx */
 
 } ASL_FILE_TYPES;
 
 
-#define ASL_MAX_FILE_TYPE       17
+#define ASL_MAX_FILE_TYPE       18
 #define ASL_NUM_FILES           (ASL_MAX_FILE_TYPE + 1)
 
 /* Name suffixes used to create filenames for output files */
@@ -199,6 +207,8 @@ typedef enum
 #define FILE_SUFFIX_C_OFFSET        "offset.h"
 #define FILE_SUFFIX_MAP             "map"
 #define FILE_SUFFIX_XREF            "xrf"
+#define FILE_SUFFIX_CONVERT_AML     "xxx"
+#define FILE_SUFFIX_CONVERT_DEBUG   "cdb"
 
 
 /* Cache block structure for ParseOps and Strings */
@@ -335,5 +345,15 @@ typedef struct asl_xref_info
 
 } ASL_XREF_INFO;
 
+
+typedef struct asl_file_node
+{
+    FILE                    *File;
+    UINT32                  CurrentLineNumber;
+    void                    *State;
+    char                    *Filename;
+    struct asl_file_node    *Next;
+
+} ASL_FILE_NODE;
 
 #endif  /* __ASLTYPES_H */

@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2016, Intel Corp.
+ * Copyright (C) 2000 - 2017, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -245,10 +245,9 @@ AcpiDsInitBufferField (
         (8 * (UINT32) BufferDesc->Buffer.Length))
     {
         ACPI_ERROR ((AE_INFO,
-            "Field [%4.4s] at %u exceeds Buffer [%4.4s] size %u (bits)",
-            AcpiUtGetNodeName (ResultDesc),
-            BitOffset + BitCount,
-            AcpiUtGetNodeName (BufferDesc->Buffer.Node),
+            "Field [%4.4s] at bit offset/length %u/%u "
+            "exceeds size of target Buffer (%u bits)",
+            AcpiUtGetNodeName (ResultDesc), BitOffset, BitCount,
             8 * (UINT32) BufferDesc->Buffer.Length));
         Status = AE_AML_BUFFER_LIMIT;
         goto Cleanup;
@@ -681,7 +680,7 @@ AcpiDsEvalDataObjectOperands (
         break;
 
     case AML_PACKAGE_OP:
-    case AML_VAR_PACKAGE_OP:
+    case AML_VARIABLE_PACKAGE_OP:
 
         Status = AcpiDsBuildInternalPackageObj (
             WalkState, Op, Length, &ObjDesc);
@@ -701,7 +700,7 @@ AcpiDsEvalDataObjectOperands (
          */
         if ((!Op->Common.Parent) ||
             ((Op->Common.Parent->Common.AmlOpcode != AML_PACKAGE_OP) &&
-             (Op->Common.Parent->Common.AmlOpcode != AML_VAR_PACKAGE_OP) &&
+             (Op->Common.Parent->Common.AmlOpcode != AML_VARIABLE_PACKAGE_OP) &&
              (Op->Common.Parent->Common.AmlOpcode != AML_NAME_OP)))
         {
             WalkState->ResultObj = ObjDesc;

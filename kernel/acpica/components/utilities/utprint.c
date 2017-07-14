@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2016, Intel Corp.
+ * Copyright (C) 2000 - 2017, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -773,9 +773,7 @@ sprintf (
 
     return (Length);
 }
-
-
-#ifdef ACPI_APPLICATION
+char AcpiGbl_PrintBuffer[10000] =  {0};
 /*******************************************************************************
  *
  * FUNCTION:    vprintf
@@ -798,16 +796,14 @@ vprintf (
     int                     Length;
 
 
-    Flags = AcpiOsAcquireLock (AcpiGbl_PrintLock);
     Length = vsnprintf (AcpiGbl_PrintBuffer,
                 sizeof (AcpiGbl_PrintBuffer), Format, Args);
 
-    (void) fwrite (AcpiGbl_PrintBuffer, Length, 1, ACPI_FILE_OUT);
-    AcpiOsReleaseLock (AcpiGbl_PrintLock, Flags);
+    printf("acpi: %s", AcpiGbl_PrintBuffer);
 
     return (Length);
 }
-
+#ifdef ACPI_APPLICATION
 
 /*******************************************************************************
  *

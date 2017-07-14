@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2016, Intel Corp.
+ * Copyright (C) 2000 - 2017, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -48,13 +48,13 @@
 /*
  * Compiler versions and names
  */
-#define ASL_COMPILER_NAME           "ASL+ Optimizing Compiler"
+#define ASL_COMPILER_NAME           "ASL+ Optimizing Compiler/Disassembler"
 #define AML_DISASSEMBLER_NAME       "AML/ASL+ Disassembler"
 #define ASL_INVOCATION_NAME         "iasl"
 #define ASL_CREATOR_ID              "INTL"
 #define ASL_DEFINE                  "__IASL__"
-
-#define ASL_COMPLIANCE              "Supports ACPI Specification Revision 6.1"
+#define ASL_PREFIX                  "iASL: "
+#define ASL_COMPLIANCE              "Supports ACPI Specification Revision 6.2"
 
 
 /* Configuration constants */
@@ -159,7 +159,6 @@
 /*
  * Macros for debug output
  */
-
 #define DEBUG_MAX_LINE_LENGTH       61
 #define DEBUG_SPACES_PER_INDENT     3
 #define DEBUG_FULL_LINE_LENGTH      71
@@ -183,6 +182,13 @@
 
 #define ASL_PARSE_TREE_DEBUG2 \
     " %08X %04X %04X %01X     %04X  %04X %05X  %05X   "\
-    "%08X %08X %08X %08X %08X %08X %04X  %02d  %5d %5d %5d %5d\n"
+    "%08X %08X %08X %08X %08X %08X %04X  %02d  %5d %5d %5d %5d"
+
+/*
+ * Macros for ASL/ASL+ converter
+ */
+#define COMMENT_CAPTURE_ON    Gbl_CommentState.CaptureComments = TRUE;
+#define COMMENT_CAPTURE_OFF   Gbl_CommentState.CaptureComments = FALSE;
+
 
 #endif /* ASLDEFINE.H */
