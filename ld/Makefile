@@ -7,5 +7,6 @@ clean:
 install: $(PROG)
 	mkdir -p $(DESTDIR)/usr/lib
 	cp $(PROG) $(DESTDIR)/usr/lib
+	echo "Installing $(PROG)"
 $(PROG): $(OBJS)
 	$(CC) $(OBJS) $(CFLAGS) -nostdlib -pie -l:libc_ld.a -Wl,-e,_dlstart -o $@

@@ -70,6 +70,7 @@ void dump_stack(uintptr_t *rsp)
 		printk("%x ", *rsp);
 	printk("\n");
 }
+extern void print_vmm_structs(avl_node_t *node);
 void isr_handler(intctx_t *ctx)
 {
 	int int_no = ctx->int_no;
@@ -90,19 +91,8 @@ r10: %x\nr11: %x\nr12: %x\nr13: %x\nr14: %x\nr15: %x\nrsp: %x\nrflags: %x\nds: %
 			ctx->rax, ctx->rbx, ctx->rcx, ctx->rdx, ctx->rdi, ctx->rsi, ctx->rbp, ctx->r8, ctx->r9, 
 		ctx->r10, ctx->r11, ctx->r12, ctx->r13, ctx->r14, ctx->r15, ctx->rsp, ctx->rflags, ctx->ds, ctx->cs);
 			dump_stack((uintptr_t*)ctx->rsp);
-			while(1);
-			if(err_code & 0x2)
-				printk(" caused by a write\n");
-			if(err_code & 0x4)
-			{
-				printk("user-mode\n");
-			}
-			if(err_code & 0x10)
-				printk("Instruction fetch\n");
-			if(err_code & (1 << 3))
-				printk("Reserved bit was set!\n");
-                       sys_kill(get_current_process()->pid, SIGSEGV);
-		       return;
+			sys_kill(get_current_process()->pid, SIGSEGV);
+			return;
 		}
 		else
 		{
@@ -195,7 +185,7 @@ r10: %x\nr11: %x\nr12: %x\nr13: %x\nr14: %x\nr15: %x\nrsp: %x\nrflags: %x\nds: %
 		}
 	case 13:{
 			printk("Segment number: %x\n", err_code);
-			//sys_kill(get_current_process()->pid, SIGSEGV);
+			sys_kill(get_current_process()->pid, SIGSEGV);
 			break;
 		}
 	case 14:{

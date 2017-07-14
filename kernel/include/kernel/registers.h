@@ -39,11 +39,11 @@ typedef struct
 	uint64_t rsp;
 	uint64_t ss;
 } syscall_ctx_t;
-inline void wrmsr(uint32_t msr, uint32_t lo, uint32_t hi)
+static inline void wrmsr(uint32_t msr, uint32_t lo, uint32_t hi)
 {
 	__asm__ __volatile__("wrmsr"::"a"(lo), "d"(hi), "c"(msr));
 }
-inline void rdmsr(uint32_t msr, uint32_t *lo, uint32_t *hi)
+static inline void rdmsr(uint32_t msr, uint32_t *lo, uint32_t *hi)
 {
 	__asm__ __volatile__("rdmsr" : "=a"(*lo), "=d"(*hi) : "c"(msr));
 }

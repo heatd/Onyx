@@ -27,7 +27,7 @@ typedef struct tar_header
 #define TAR_TYPE_BLOCK_SPECIAL	'4'
 #define TAR_TYPE_DIR		'5'
 
-inline size_t tar_get_size(const char *in)
+static inline size_t tar_get_size(const char *in)
 {
     	size_t size = 0;
     	unsigned int j;

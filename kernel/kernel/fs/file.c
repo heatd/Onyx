@@ -38,7 +38,7 @@ file_desc_t *get_file_description(int fd)
 {
 	return get_current_process()->ctx.file_desc[fd];
 }
-inline int validate_fd(int fd)
+static inline int validate_fd(int fd)
 {
 	ioctx_t *ctx = &get_current_process()->ctx;
 	
@@ -62,7 +62,7 @@ int enlarge_file_descriptor_table(process_t *process)
 	process->ctx.file_desc = table;
 	return 0;
 }
-inline int find_free_fd(int fdbase)
+static inline int find_free_fd(int fdbase)
 {
 	ioctx_t *ioctx = &get_current_process()->ctx;
 	mutex_lock(&ioctx->fdlock);
@@ -177,7 +177,7 @@ int sys_open(const char *filename, int flags, mode_t mode)
 	/* open(2) does relative opens using the current working directory */
 	return do_sys_open(filename, flags, mode, get_current_process()->ctx.cwd);
 }
-inline int decrement_fd_refcount(file_desc_t *fd)
+static inline int decrement_fd_refcount(file_desc_t *fd)
 {
 	/* If there's nobody referencing this file descriptor, close the vfs node and free memory */
 	fd->refcount--;

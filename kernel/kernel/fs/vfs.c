@@ -210,7 +210,7 @@ vfsnode_t *creat_vfs(vfsnode_t *this, const char *path, int mode)
 		goto error;
 	}
 	struct minor_device *m = dev_find(base->dev);
-	if(!m && !m->fops)
+	if(!m || !m->fops)
 	{
 		errno = ENODEV;
 		goto error;

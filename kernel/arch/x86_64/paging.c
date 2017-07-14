@@ -15,11 +15,11 @@
 static _Bool is_spawning = 0;
 PML4 *spawning_pml = NULL;
 #define PML_EXTRACT_ADDRESS(n) (n & 0x0FFFFFFFFFFFF000)
-inline void __native_tlb_invalidate_page(void *addr)
+static inline void __native_tlb_invalidate_page(void *addr)
 {
 	__asm__ __volatile__("invlpg %0"::"m"(addr));
 }
-inline uint64_t make_pml4e(uint64_t base,uint64_t avl,uint64_t pcd,uint64_t pwt,uint64_t us,uint64_t rw,uint64_t p)
+static inline uint64_t make_pml4e(uint64_t base,uint64_t avl,uint64_t pcd,uint64_t pwt,uint64_t us,uint64_t rw,uint64_t p)
 {
 	return (uint64_t)( \
   		(base) | \
@@ -30,20 +30,7 @@ inline uint64_t make_pml4e(uint64_t base,uint64_t avl,uint64_t pcd,uint64_t pwt,
   		(rw << 1) | \
   		p);
 }
-inline uint64_t make_pml3e(uint64_t base,uint64_t nx, uint64_t avl,uint64_t glbl, uint64_t pcd,uint64_t pwt,uint64_t us,uint64_t rw,uint64_t p)
-{
-	return (uint64_t)( \
-  		(base) | \
-  		(nx << 63) | \
-  		(avl << 9) | \
-  		(glbl << 8) | \
-  		(pcd << 4) | \
-  		(pwt << 3) | \
-  		(us << 2) | \
-  		(rw << 1) | \
-  		p);
-}
-inline uint64_t make_pml2e(uint64_t base,uint64_t nx, uint64_t avl,uint64_t glbl,uint64_t pcd,uint64_t pwt,uint64_t us,uint64_t rw,uint64_t p)
+static inline uint64_t make_pml3e(uint64_t base,uint64_t nx, uint64_t avl,uint64_t glbl, uint64_t pcd,uint64_t pwt,uint64_t us,uint64_t rw,uint64_t p)
 {
 	return (uint64_t)( \
   		(base) | \
@@ -56,7 +43,20 @@ inline uint64_t make_pml2e(uint64_t base,uint64_t nx, uint64_t avl,uint64_t glbl
   		(rw << 1) | \
   		p);
 }
-inline uint64_t make_pml1e(uint64_t base,uint64_t nx, uint64_t avl,uint64_t glbl,uint64_t pcd,uint64_t pwt,uint64_t us,uint64_t rw,uint64_t p)
+static inline uint64_t make_pml2e(uint64_t base,uint64_t nx, uint64_t avl,uint64_t glbl,uint64_t pcd,uint64_t pwt,uint64_t us,uint64_t rw,uint64_t p)
+{
+	return (uint64_t)( \
+  		(base) | \
+  		(nx << 63) | \
+  		(avl << 9) | \
+  		(glbl << 8) | \
+  		(pcd << 4) | \
+  		(pwt << 3) | \
+  		(us << 2) | \
+  		(rw << 1) | \
+  		p);
+}
+static inline uint64_t make_pml1e(uint64_t base,uint64_t nx, uint64_t avl,uint64_t glbl,uint64_t pcd,uint64_t pwt,uint64_t us,uint64_t rw,uint64_t p)
 {
 	return (uint64_t)( \
   		(base) | \
@@ -420,7 +420,7 @@ PML4 *paging_clone_as()
 	spawning_pml = new_pml;
 	return new_pml;
 }
-inline PML4 *paging_fork_pml(PML4 *pml, int entry)
+static inline PML4 *paging_fork_pml(PML4 *pml, int entry)
 {
 	uint64_t old_address = PML_EXTRACT_ADDRESS(pml->entries[entry]);
 	uint64_t perms = pml->entries[entry] & 0xF000000000000FFF;

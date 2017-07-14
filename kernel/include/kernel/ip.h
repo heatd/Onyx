@@ -34,7 +34,7 @@ typedef struct
 	char options[0];
 } __attribute__((packed)) ip_header_t;
 
-inline uint16_t ipsum(ip_header_t *hdr)
+static inline uint16_t ipsum(ip_header_t *hdr)
 {
 	uint32_t sum = 0;
 	uint32_t ret = 0;
@@ -53,7 +53,7 @@ inline uint16_t ipsum(ip_header_t *hdr)
 	}
 	return ~ret;
 }
-inline uint16_t internetchksum(void *addr, size_t bytes)
+static inline uint16_t internetchksum(void *addr, size_t bytes)
 {
 	uint32_t sum = 0;
 	uint32_t ret = 0;

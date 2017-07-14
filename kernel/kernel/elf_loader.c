@@ -272,6 +272,8 @@ int elf_parse_program_headers(void *file, struct binfmt_args *args)
 			close_vfs(args->file);
 			free(args->file);
 			args->file = open_vfs(fs_root, args->filename);
+			if(!args->file)
+				return -errno;
 			free(args->file_signature);
 			args->file_signature = malloc(100);
 			if(!args->file_signature)
@@ -292,11 +294,25 @@ int elf_parse_program_headers(void *file, struct binfmt_args *args)
 					vmm_reserve_address((void *) (phdrs[j].p_vaddr & 0xFFFFFFFFFFFFF000), pages, VM_TYPE_REGULAR, VM_WRITE | VM_USER);
 				}
 			}
+			free(file);
+
+			/* Read the interpreter */
+			void *buffer = malloc(args->file->size);
+			if(!buffer)
+				return -1;
+			read_vfs(0, 0, args->file->size, buffer, args->file);
 			/* TODO: Handle argv and envp */
-			void *ret = elf_load(args);
-			if(!ret)
-				return ELF_INTERP_MAGIC;
-			return 0;
+			if(!elf_is_valid((Elf64_Ehdr*) buffer))
+			{
+				free(buffer);
+				return -1;
+			}
+			int ret = elf_parse_program_headers_s(buffer);
+			if(ret == 0)
+				ret = ELF_INTERP_MAGIC;
+			free(buffer);
+			((Elf64_Ehdr*) args->file_signature)->e_entry = ((Elf64_Ehdr*) buffer)->e_entry;
+			return ret;
 		}
 		if (phdrs[i].p_type == PT_LOAD)
 		{
@@ -365,11 +381,13 @@ void* elf_load(struct binfmt_args *args)
 		i = (int) elf_parse_program_headers_s((void*) header);
 	else
 		i = elf_parse_program_headers((void*) header, args);
-	if(i == ELF_INTERP_MAGIC)
-		return NULL; /* TODO: Fix this */
 
-	get_current_process()->brk = vmm_allocate_virt_address(0, 1, VM_TYPE_HEAP, VM_WRITE | VM_NOEXEC | VM_USER, 0);
+	current->brk = vmm_allocate_virt_address(0, 1, VM_TYPE_HEAP, VM_WRITE | VM_NOEXEC | VM_USER, 0);
 	ENABLE_INTERRUPTS();
+	if(i == ELF_INTERP_MAGIC)
+	{
+		return (void*) ((Elf64_Ehdr*) args->file_signature)->e_entry;
+	}
 	return (void*) header->e_entry;
 }
 void *elf_load_kernel_module(void *file, void **fini_func)

@@ -61,7 +61,7 @@ void __ext2_update_atime(inode_t *ino, uint32_t block, ext2_fs_t *fs, inode_t *i
 	ino->atime = (uint32_t) get_posix_time();
 	ext2_write_block(block, 1, fs, inode_table);
 }
-inline void __ext2_update_ctime(inode_t *ino)
+static inline void __ext2_update_ctime(inode_t *ino)
 {
 	ino->ctime = (uint32_t) get_posix_time();
 }

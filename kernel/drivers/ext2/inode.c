@@ -67,7 +67,7 @@ found:
 	free(bitmap);
 	return ino;
 }
-inline int ext2_add_singly_indirect_block(inode_t *inode, uint32_t block, uint32_t block_index, ext2_fs_t *fs)
+int ext2_add_singly_indirect_block(inode_t *inode, uint32_t block, uint32_t block_index, ext2_fs_t *fs)
 {
 	unsigned int min_singly_block = EXT2_DIRECT_BLOCK_COUNT;
 	/* If the singly indirect bp doesn't exist, create it */

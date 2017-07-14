@@ -1,6 +1,6 @@
 PROG:= init
 OBJS:= main.o
-CFLAGS:=-O2 -g -std=c99 -static -D_POSIX_C_SOURCE
+CFLAGS:=-O2 -g -std=c99 -D_POSIX_C_SOURCE
 clean:
 	rm -f $(PROG)
 	rm -f $(OBJS)
@@ -19,4 +19,4 @@ install: $(PROG)
 %.o: %.c
 	$(CC) -c $< $(CFLAGS) -o $@
 $(PROG): $(OBJS)
-	$(CC) $(OBJS) $(CFLAGS) -o $@ -ldrm -lunwind
+	$(CC) $(OBJS) $(CFLAGS) -o $@ -ldrm

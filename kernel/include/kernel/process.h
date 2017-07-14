@@ -98,8 +98,9 @@ void process_destroy_aspace(void);
 int process_attach(process_t *tracer, process_t *tracee);
 process_t *process_find_tracee(process_t *tracer, pid_t pid);
 void process_exit_from_signal(int signum);
+char **process_copy_envarg(char **envarg, _Bool to_kernel, int *count);
 extern volatile process_t *current_process;
-inline process_t *get_current_process()
+static inline process_t *get_current_process()
 {
 	return (process_t*) current_process;
 }

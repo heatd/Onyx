@@ -20,7 +20,6 @@
 #include <kernel/cpu.h>
 #include <kernel/pnp.h>
 
-extern uintptr_t rsdp;
 static const ACPI_EXCEPTION_INFO    AcpiGbl_ExceptionNames_Env[] =
 {
     EXCEP_TXT ((char*)"AE_OK",                         (char*)"No error"),
@@ -83,6 +82,8 @@ ACPI_STATUS acpi_walk_irq(ACPI_HANDLE object, UINT32 nestingLevel, void *context
 		root_bridge = object;
 		root_bridge_info = devinfo;
 	}
+	else
+		free(devinfo);
 	return AE_OK;
 }
 uint32_t acpi_execute_pic(int value)
@@ -101,14 +102,12 @@ static ACPI_PCI_ROUTING_TABLE *routing_table = NULL;
 int acpi_get_irq_routing_tables()
 {
 	void* retval;
-	ACPI_STATUS st = AcpiGetDevices("PNP0A03", acpi_walk_irq, NULL, &retval);
+	ACPI_STATUS st = AcpiGetDevices(NULL, acpi_walk_irq, NULL, &retval);
 	if(ACPI_FAILURE(st))
 	{
 		ERROR("acpi", "Error while calling AcpiGetDevices: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
 		return 1;
-	}
-	ACPI_PNP_DEVICE_ID *root_hid = &root_bridge_info->HardwareId;
-	printf("root_hid: %s\n", root_hid->String); 
+	} 
 	ACPI_BUFFER buf;
 	buf.Length = ACPI_ALLOCATE_BUFFER;
 	buf.Pointer = NULL;
@@ -116,6 +115,7 @@ int acpi_get_irq_routing_tables()
 	st = AcpiGetIrqRoutingTable(root_bridge, &buf);
 	if(ACPI_FAILURE(st))
 	{
+		printk("st: %u\n", st & ~AE_CODE_MASK);
 		ERROR("acpi", "Error while calling AcpiGetIrqRoutingTable: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
 		return 1;
 	}
@@ -182,8 +182,30 @@ int acpi_get_irq_routing_for_dev(uint8_t bus, uint8_t device, uint8_t function)
 	release_spinlock(&irq_rout_lock);
 	return -1;
 }
-int acpi_initialize()
+static uintptr_t rsdp = 0;
+uint8_t AcpiTbChecksum(uint8_t *buffer, uint32_t len);
+void acpi_find_rsdp(void)
 {
+	/* Find the RSDP(needed for ACPI and ACPICA) */
+	for(int i = 0; i < 0x100000/16; i++)
+	{
+		if(!memcmp((char*)(PHYS_BASE + 0x000E0000 + i * 16),(char*)"RSD PTR ", 8))
+		{
+			uint8_t *addr = (uint8_t*)(PHYS_BASE + 0x000E0000 + i * 16);
+			if(AcpiTbChecksum(addr, sizeof(ACPI_TABLE_RSDP)))
+				continue;
+			rsdp = addr - (uint8_t*)PHYS_BASE;
+			break;
+		}
+	}
+}
+uintptr_t acpi_get_rsdp(void)
+{
+	return rsdp;
+}
+int acpi_initialize(void)
+{
+	acpi_find_rsdp();
 	ACPI_STATUS st = AcpiInitializeSubsystem();
 	if(ACPI_FAILURE(st))
 	{

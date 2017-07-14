@@ -15,7 +15,7 @@
 #include <kernel/panic.h>
 #define DEFAULT_UNWIND_NUMBER 6
 void itoa(uint64_t i, unsigned int base, char *buf, _Bool is_upper);
-inline void get_frame_pointer(uint64_t **ptr)
+static inline void get_frame_pointer(uint64_t **ptr)
 {
 	/* This piece of code uses something important in the SYSV AMD64 calling convention.
 	 * The frame address of a function is stored in the RBP register,

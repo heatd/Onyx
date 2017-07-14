@@ -15,6 +15,7 @@
 #include <kernel/task_switching.h>
 #include <kernel/timer.h>
 #include <kernel/slab.h>
+#include <kernel/acpi.h>
 
 #include <drivers/pci.h>
 #include <drivers/rtc.h>
@@ -36,10 +37,9 @@ ACPI_STATUS AcpiOsShutdown()
 {
 	return AE_OK;
 }
-extern uintptr_t rsdp;
 ACPI_PHYSICAL_ADDRESS AcpiOsGetRootPointer()
 {
-	return (ACPI_PHYSICAL_ADDRESS)rsdp;
+	return (ACPI_PHYSICAL_ADDRESS) acpi_get_rsdp();
 }
 ACPI_STATUS AcpiOsPredefinedOverride(const ACPI_PREDEFINED_NAMES *PredefinedObject, ACPI_STRING *NewValue)
 {
@@ -303,7 +303,6 @@ UINT32 * NewTableLength)
 void AcpiOsPrintf (
 const char *Format, ...)
 {
-	return;
 	va_list params;
 	va_start(params, Format);
 	vprintf(Format, params);
@@ -341,8 +340,16 @@ int isprint(int ch)
 void
 AcpiOsVprintf(const char *Fmt, va_list Args)
 {
-	//vprintf(Fmt, Args);
+	vprintf(Fmt, Args);
 }
+ACPI_STATUS
+AcpiOsEnterSleep (
+    UINT8                   SleepState,
+    UINT32                  RegaValue,
+    UINT32                  RegbValue)
+    {
+	    return AE_OK;
+    }
 #if 0
 ACPI_STATUS
 AcpiOsCreateCache (

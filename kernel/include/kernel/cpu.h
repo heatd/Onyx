@@ -60,7 +60,7 @@ int cpu_init_mp(void);
 int get_nr_cpus(void);
 struct processor *get_processor_data(void);
 #ifdef __x86_64__
-inline struct processor *get_processor_data_inl(void)
+static inline struct processor *get_processor_data_inl(void)
 {
 	struct processor *proc;
 	__asm__ __volatile__("movq %%gs:0x8, %0":"=r"(proc));
@@ -69,25 +69,25 @@ inline struct processor *get_processor_data_inl(void)
 #define DISABLE_INTERRUPTS() __asm__ __volatile__("cli")
 #define ENABLE_INTERRUPTS() __asm__ __volatile__("sti")
 #endif
-inline uintptr_t cpu_get_cr0(void)
+static inline uintptr_t cpu_get_cr0(void)
 {
 	uintptr_t cr0;
 	__asm__ __volatile__("mov %%cr0, %0":"=r"(cr0));
 	return cr0;
 }
-inline uintptr_t cpu_get_cr2(void)
+static inline uintptr_t cpu_get_cr2(void)
 {
 	uintptr_t cr2;
 	__asm__ __volatile__("mov %%cr2, %0":"=r"(cr2));
 	return cr2;
 }
-inline uintptr_t cpu_get_cr3(void)
+static inline uintptr_t cpu_get_cr3(void)
 {
 	uintptr_t cr3;
 	__asm__ __volatile__("movq %%cr3, %%rax\t\nmovq %%rax, %0":"=r"(cr3));
 	return cr3;
 }
-inline uintptr_t cpu_get_cr4(void)
+static inline uintptr_t cpu_get_cr4(void)
 {
 	uintptr_t cr4;
 	__asm__ __volatile__("mov %%cr4, %0":"=r"(cr4));

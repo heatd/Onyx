@@ -616,7 +616,7 @@ int vmm_check_pointer(void *addr, size_t needed_space)
 	else
 		return -1;
 }
-inline int validate_fd(int fd)
+static inline int validate_fd(int fd)
 {
 	if(fd < 0)
 		return errno = -EBADF;
@@ -718,6 +718,7 @@ int sys_munmap(void *addr, size_t length)
 	vmm_destroy_mappings(addr, pages);
 	return 0;
 }
+void print_vmm_structs(avl_node_t *node);
 int sys_mprotect(void *addr, size_t len, int prot)
 {
 	if(is_higher_half(addr))
@@ -756,23 +757,21 @@ int sys_mprotect(void *addr, size_t len, int prot)
 	}
 	else if(area->base == (uintptr_t) addr && area->pages * PAGE_SIZE > len)
 	{
-		/* Split this into two areas */
-		vmm_entry_t copy;
-		memcpy(&copy, area, sizeof(vmm_entry_t));
-		avl_delete_node(area->base);
-		area = avl_insert_key(&tree, copy.base + len, pages * PAGE_SIZE);
-		memcpy(area, &copy, sizeof(vmm_entry_t));
-		area->base += len;
-		area->pages -= pages;
-		vmm_entry_t *new_area = avl_insert_key(&tree, (uintptr_t) addr, len);
-		if(!new_area)
-		{
-			__vm_unlock(false);
-			return -ENOMEM;
-		}
-		memcpy(new_area, area, sizeof(vmm_entry_t));
+		uintptr_t second_half = (uintptr_t) addr + len;
+		size_t rest_pages = area->pages - pages;
+		int old_rwx = area->rwx;
+		avl_node_t *node = *avl_search_key(&tree, (uintptr_t) addr);
+		node->end -= area->pages * PAGE_SIZE - len;
+		area->pages = pages;
+		area->rwx = vm_prot;
 
-		new_area->pages = pages;
+		vmm_entry_t *new = avl_insert_key(&tree, second_half, rest_pages * PAGE_SIZE);
+		if(!new)
+			return -ENOMEM;
+		new->base = second_half;
+		new->pages = rest_pages;
+		new->rwx = old_rwx;
+		new->type = area->type;
 	}
 	else if(area->base < (uintptr_t) addr && area->base + area->pages * PAGE_SIZE > (uintptr_t) addr + len)
 	{

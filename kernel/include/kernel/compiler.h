@@ -34,13 +34,13 @@
 #define UNUSED_PARAMETER(x) (void)x
 #define UNUSED(x) UNUSED_PARAMETER(x)
 #define __init __attribute__((constructor))
-inline uint64_t rdtsc()
+static inline uint64_t rdtsc()
 {
     	uint64_t ret = 0;
     	__asm__ __volatile__ ( "rdtsc" : "=A"(ret) );
     	return ret;
 }
-inline int count_bits32(uint32_t num)
+static inline int count_bits32(uint32_t num)
 {
 	int nbits = 0;
 	for(int i = 0; i < 32; i++)
@@ -51,7 +51,7 @@ inline int count_bits32(uint32_t num)
 	}
 	return nbits;
 }
-inline int count_bits64(uint64_t num)
+static inline int count_bits64(uint64_t num)
 {
 	int nbits = 0;
 	for(int i = 0; i < 64; i++)

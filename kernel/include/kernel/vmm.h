@@ -99,21 +99,21 @@ void *vmm_gen_mmap_base(void);
 void *vmm_gen_brk_base(void);
 void vmm_sysfs_init(void);
 int vmm_mark_cow(vmm_entry_t *zone);
-inline size_t vmm_align_size_to_pages(size_t size)
+static inline size_t vmm_align_size_to_pages(size_t size)
 {
 	size_t pages = size / PAGE_SIZE;
 	if(size % PAGE_SIZE)
 		pages++;
 	return pages;
 }
-inline ssize_t copy_to_user(void *usr, void *data, size_t len)
+static inline ssize_t copy_to_user(void *usr, void *data, size_t len)
 {
 	if(vmm_check_pointer(usr, len) < 0)
 		return -len;
 	memcpy(usr, data, len);
 	return len;
 }
-inline ssize_t copy_from_user(void *usr, void *data, size_t len)
+static inline ssize_t copy_from_user(void *usr, void *data, size_t len)
 {
 	if(vmm_check_pointer(usr, len) < 0)
 		return -len;

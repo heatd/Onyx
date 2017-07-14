@@ -142,7 +142,6 @@ char *get_complete_tar_path(vfsnode_t *node, const char *name)
 vfsnode_t *tar_open(vfsnode_t *this, const char *name)
 {
 	char *full_path = get_complete_tar_path(this, name);
-
 	if(!full_path)
 		return errno = ENOMEM, NULL;
 	tar_header_t **iterator = headers;

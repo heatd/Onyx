@@ -45,8 +45,10 @@ void bootmem_push(uintptr_t base, size_t size, size_t kernel_space_size)
 	}
 	/* Don't alloc the kernel */
 	if (base == 0x100000)
+	{
 		base += kernel_space_size;
-	
+		size -= kernel_space_size;
+	}
 	for (unsigned int i = 0; i < pushed_blocks + 1; i++)
 		if (stack->next[i].base == 0 && stack->next[i].size == 0)
 		{

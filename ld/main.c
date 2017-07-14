@@ -3,18 +3,21 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <elf.h>
 #include <libgen.h>
-
+#include <limits.h>
 #include <utils.h>
 #include <dynlink.h>
 
 #include <sys/mman.h>
 #include <sys/stat.h>
+
+#define PATH_MAX 4096
 
 static struct dso *objects = NULL;
 inline char *elf_get_string(Elf64_Word off, struct dso* obj)
@@ -77,30 +80,43 @@ int verify_elf(void *file)
 		return -1;
 	return 0;
 }
+char *default_lib_path = "/usr/lib:/lib";
 char *find_library(char *libname)
 {
-	/* Right now we only check for /usr/lib/library, and /lib/library 
-	   TODO: Implement LD_LIBRARY_PATH and similar things
-	*/
-	char *path = malloc(strlen("/usr/lib/") + strlen(libname) + 1);
+	char *saveptr = NULL;
+	/* Get the library path */
+	char *library_path = getenv("LD_LIBRARY_PATH");
+	if(!library_path) library_path = default_lib_path;
+
+	/* strdup it */
+	library_path = strdup(library_path);
+	if(!library_path)
+		return NULL;
+
+	struct stat buf = {0};
+
+	/* Allocate a large enough path */
+	char *path = malloc(PATH_MAX);
 	if(!path)
 		return NULL;
-	memset(path, 0, strlen("/usr/lib") + strlen(libname) + 1);
-	strcpy(path, "/usr/lib/");
-	strcat(path, libname);
-	struct stat buf;
-	if(stat(path, &buf) == 0) /* We found it, return */
-		return path;
-	/* Try again with /lib */
-	memset(path, 0, strlen("/usr/lib") + strlen(libname) + 1);
-	strcpy(path, "/lib/");
-	strcat(path, libname);
+	memset(path, 0, PATH_MAX);
 
-	if(stat(path, &buf) == 0) /* We found it, return */
-		return path;
+	/* Tokenize the string and parse through it */
+	char *p = strtok_r(library_path, ":", &saveptr);
 
-	/* We couldn't find it, return NULL */
-	free(path);
+	while(p)
+	{
+		memset(path, 0, strlen(path));
+		if(snprintf(path, PATH_MAX, "%s/%s", p, libname) > PATH_MAX)
+		{
+			printf("ld: %s/%s: ENAMETOOLONG\n", p, libname);
+			return NULL;
+		}
+
+		if(stat(path, &buf) == 0)
+			return path;
+		p = strtok_r(NULL, ":", &saveptr);
+	}
 	return NULL;
 }
 struct dso *load_library(char *libname)
@@ -164,8 +180,8 @@ struct dso *load_library(char *libname)
 		if (phdrs[i].p_type == PT_LOAD)
 		{
 			phdrs[i].p_vaddr += (uintptr_t) base;
-			
-			memcpy((void*)phdrs[i].p_vaddr, elf_get_pointer(object->file, phdrs[i].p_offset), phdrs[i].p_memsz);
+
+			memcpy((void*) phdrs[i].p_vaddr, elf_get_pointer(object->file, phdrs[i].p_offset), phdrs[i].p_memsz);
 			int prot = ((phdrs[i].p_flags & PF_R) ? PROT_READ : 0) |
 				   ((phdrs[i].p_flags & PF_W) ? PROT_WRITE : 0)|
 				   ((phdrs[i].p_flags & PF_X) ? PROT_EXEC : 0);
@@ -270,10 +286,12 @@ struct dso *load_library(char *libname)
 }
 Elf64_Sym *lookup_symbol(char *name, struct dso *dso)
 {
-	linked_list_t *dependencies = dso->dependencies;
+	/* I think the x86_64-onyx compiler is broken and doesn't add libc.so as a needed shared object on .so's. TOFIX */
+	/* This is a hack */
+	struct dso *dependencies = objects;
 	for(; dependencies; dependencies = dependencies->next)
 	{
-		struct dso *object = dependencies->data;
+		struct dso *object = dependencies;
 		Elf64_Sym *symtab = object->dyntab;
 		for(Elf64_Half i = 0; i < object->nr_dyntab; i++)
 		{
@@ -335,6 +353,9 @@ int resolve_dependencies(struct dso *dso)
 					case R_X86_64_GLOB_DAT:
 						*addr = RELOCATE_R_X86_64_GLOB_DAT(symbol->st_value);
 						break;
+					case R_X86_64_COPY:
+						memcpy(addr, symbol->st_value, symbol->st_size);
+						break;
 					default:
 						printf("Unhandled relocation type %u\n", ELF64_R_TYPE(rela->r_info));
 						return -1;
@@ -352,6 +373,7 @@ int resolve_dependencies(struct dso *dso)
 }
 void do_init(struct dso *dso)
 {
+	printf("Doing init for %s!\n", dso->name);
 	if(dso->init)
 	{
 		fpaddr(dso->init, dso)();
@@ -499,6 +521,7 @@ void *load_prog(const char *filename)
 	/* and load it */
 	return load_elf(file, (char*) filename);
 }
+extern char **environ;
 int main(int argc, char **argv, char **envp, void *auxv)
 {
 	/* In our case, argv[0] is the to-be-loaded program's name*/

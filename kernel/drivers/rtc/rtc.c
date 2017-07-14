@@ -71,7 +71,7 @@ const int months[] =
 	30,
 	31
 };
-uint64_t get_unix_time(const date_t const *udate)
+uint64_t get_unix_time(const date_t * const udate)
 {
 	uint64_t utime = 0;
 	for(int i = 1970; i < udate->year; i++)

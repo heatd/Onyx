@@ -59,7 +59,7 @@ void fscache_cache_sectors(char *sectors, block_device_t *dev, uint64_t lba, siz
 	h->next->cache = s;
 	h->next->next = NULL;
 }
-inline uint64_t count2lba(size_t count)
+static inline uint64_t count2lba(size_t count)
 {
 	uint64_t lba = count / 512;
 	if(count % 512)

@@ -19,7 +19,8 @@ struct acpi_processor
 #define ACPI_PIC_IOAPIC 1
 #define ACPI_PIC_IOSAPIC 1
 
-int acpi_initialize();
+uintptr_t acpi_get_rsdp(void);
+int acpi_initialize(void);
 uint32_t acpi_shutdown(void *context);
 uint32_t acpi_execute_pic(int value);
 int acpi_get_irq_routing_tables();

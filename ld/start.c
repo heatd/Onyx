@@ -7,10 +7,13 @@
 
 extern void _init();
 extern int main(int argc, char **argv, char **envp, void *auxv);
+extern void __init_libc(char **envp, char *pn, size_t *auxv);
 int _dlstart(int argc, char **argv, char **envp, void *auxv)
 {
 	/* Call the global constructors */
 	_init();
+	/* Initialize the standard library */
+	__init_libc(envp, argv[0], (size_t*) auxv);
 	/* Call main and exit */
 	exit(main(argc, argv, envp, auxv));
 	return 0;

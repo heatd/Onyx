@@ -16,7 +16,7 @@ typedef struct udp
 	uint16_t checksum;
 	uint8_t payload[0];
 } udp_header_t;
-inline uint16_t udpsum(udp_header_t *hdr)
+static inline uint16_t udpsum(udp_header_t *hdr)
 {
 	uint32_t sum = 0;
 	uint32_t ret = 0;

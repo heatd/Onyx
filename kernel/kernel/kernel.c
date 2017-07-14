@@ -26,6 +26,8 @@
 #include <partitions.h>
 
 #include <sys/mman.h>
+#include <acpica/acpi.h>
+
 
 #include <kernel/slab.h>
 #include <kernel/vmm.h>
@@ -94,7 +96,6 @@ static void *tramp = NULL;
 void *phys_fb = NULL;
 char kernel_cmdline[256];
 uintptr_t address = 0;
-uintptr_t rsdp;
 
 extern void libc_late_init();
 extern void init_keyboard();
@@ -220,7 +221,7 @@ retry:;
 
 	int argc;
 	char **_argv = copy_argv(argv, proc->cmd_line, &argc);
-	char **_env = copy_env_vars(envp);
+	char **_env = process_copy_envarg(envp, false, NULL);
 	process_create_thread(proc, (thread_callback_t) entry, 0, argc, _argv, _env);
 	process_t *current = get_current_process();
 	/* Setup the auxv at the stack bottom */
@@ -363,17 +364,6 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 	initialize_entropy();
 
 	vmm_start_address_bookkeeping(KERNEL_FB, 0xFFFFFFF890000000);
-
-	/* Find the RSDP(needed for ACPI and ACPICA) */
-	for(int i = 0; i < 0x100000/16; i++)
-	{
-		if(!memcmp((char*)(PHYS_BASE + 0x000E0000 + i * 16),(char*)"RSD PTR ", 8))
-		{
-			char *addr = (char*)(PHYS_BASE + 0x000E0000 + i * 16);
-			rsdp = addr - (char*)PHYS_BASE;
-			break;
-		}
-	}
 }
 void kernel_multitasking(void *);
 void kernel_main()
@@ -385,8 +375,6 @@ void kernel_main()
 
 	/* Intialize the interrupt part of the CPU (arch dependent) */
 	cpu_init_interrupts();
-
-	printf("Trampoline code at: %p\n", tramp);
 
 	memcpy((void*)tramp, &_start_smp, (uintptr_t)&_end_smp - (uintptr_t)&_start_smp);
 
@@ -431,18 +419,19 @@ void kernel_multitasking(void *arg)
 {
 	void *mem = vmm_allocate_virt_address(VM_KERNEL, 1024, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL, 0);
 	vmm_map_range(mem, 1024, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
+
 	/* Create PTY */
 	tty_create_pty_and_switch(mem);
 	LOG("kernel", ANSI_COLOR_GREEN "Onyx kernel %s branch %s build %d for the %s architecture\n" ANSI_COLOR_RESET,
 	     KERNEL_VERSION, KERNEL_BRANCH, &__BUILD_NUMBER, KERNEL_ARCH);
 	LOG("kernel", "Command line: %s\n", kernel_cmdline);
-	
+
 	/* Initialize the SMBIOS subsystem */
 	smbios_init();
 
 	/* Initialize the PCI subsystem */
 	pci_init();
-	
+
 	/* Initialize devfs */
 	devfs_init();
 
@@ -511,7 +500,7 @@ void kernel_multitasking(void *arg)
 
 	/* Pass the root partition to init */
 	char *args[] = {"", root_partition, NULL};
-	char *envp[] = {"", NULL};
+	char *envp[] = {"PATH=/bin:/usr/bin:/sbin:", NULL};
 
 	find_and_exec_init(args, envp);
 

@@ -22,7 +22,10 @@ echo "Generating initrd..."
 echo "Copying the kernel to the isodir"
 cp sysroot/boot/vmonyx isodir/boot/vmonyx
 rm -f sysroot/boot/vmonyx
+mkdir -p $ROOTDIR/sysroot/lib
+cp -rv $ROOTDIR/sysroot/usr/lib $ROOTDIR/sysroot/
 tar -cvf $ROOTDIR/isodir/boot/initrd.tar sysroot
+rm -rf sysroot/lib
 echo "Compressing kernel and initrd images"
 xz -9 -e -f isodir/boot/vmonyx
 xz -9 -e -f isodir/boot/initrd.tar
