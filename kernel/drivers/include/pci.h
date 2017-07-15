@@ -83,6 +83,7 @@
 #define PCI_DRIVER_SPECIFIC 1
 struct pci_device
 {
+	char *device_name;
 	uint16_t deviceID, vendorID;
 	uint8_t bus, device, function;
 	uint8_t pciClass, subClass, progIF;

@@ -5,14 +5,20 @@
 */
 #include <stdio.h>
 #include <string.h>
+#include <assert.h>
 
 #include <kernel/compiler.h>
 #include <kernel/log.h>
 #include <kernel/acpi.h>
 #include <kernel/panic.h>
+#include <kernel/dev.h>
 
 #include <drivers/pci.h>
 
+static struct bus pci_bus = 
+{
+	.name = "pci"
+};
 const uint16_t CONFIG_ADDRESS = 0xCF8;
 const uint16_t CONFIG_DATA = 0xCFC;
 static spinlock_t pci_lock;
@@ -78,20 +84,20 @@ void __pci_write_word(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, u
 }
 struct pci_device *linked_list = NULL;
 struct pci_device* last = NULL;
-void* pci_check_function(uint8_t bus, uint8_t device, uint8_t function)
+void* pci_check_function(uint8_t bus, uint8_t _device, uint8_t function)
 {
 	// Get vendorID
-	uint16_t vendorID = (uint16_t)(__pci_config_read_dword(bus, device, function,0) & 0x0000ffff);
+	uint16_t vendorID = (uint16_t)(__pci_config_read_dword(bus, _device, function,0) & 0x0000ffff);
 	if(vendorID == 0xFFFF) //Invalid function
 		return NULL;
 	// Get device ID
-	uint16_t deviceID = (__pci_config_read_dword(bus, device, function,0) >> 16);
+	uint16_t deviceID = (__pci_config_read_dword(bus, _device, function,0) >> 16);
 	// Get Device Class
-	uint8_t pciClass = (uint8_t)(__pci_config_read_word(bus, device, function , 0xA)>>8);
+	uint8_t pciClass = (uint8_t)(__pci_config_read_word(bus, _device, function , 0xA)>>8);
 	// Get Device SubClass
-	uint8_t subClass = (uint8_t)__pci_config_read_word(bus,device, function, 0xB);
+	uint8_t subClass = (uint8_t)__pci_config_read_word(bus, _device, function, 0xB);
 	// Get ProgIF
-	uint8_t progIF = (uint8_t)(__pci_config_read_word(bus, device, function,0xC)>>8);
+	uint8_t progIF = (uint8_t)(__pci_config_read_word(bus, _device, function,0xC)>>8);
 	// Set up the meta-data
 	struct pci_device* dev = malloc(sizeof(struct pci_device));
 	if(!dev)
@@ -99,13 +105,26 @@ void* pci_check_function(uint8_t bus, uint8_t device, uint8_t function)
 	memset(dev, 0 , sizeof(struct pci_device));
 	dev->bus = bus;
 	dev->function = function;
-	dev->device = device;
+	dev->device = _device;
 	dev->vendorID = vendorID;
 	dev->deviceID = deviceID;
 	dev->pciClass = pciClass;
 	dev->subClass = subClass;
 	dev->progIF = progIF;
 
+	/* Set up the pci device's name */
+	char name_buf[200] = {0};
+	snprintf(name_buf, 200, "pci-%x%x", vendorID, deviceID);
+	dev->device_name = strdup(name_buf);
+	assert(dev->device_name);
+
+	/* Setup struct device */
+	struct device *device = malloc(sizeof(struct device));
+	assert(device);
+	memset(device, 0, sizeof(struct device));
+	device->name = strdup(name_buf);
+	assert(device->name);
+	bus_add_device(&pci_bus, device);
 	// Put it on the linked list
 	last->next = dev;
 	last = dev;
@@ -117,21 +136,21 @@ void pci_check_devices()
 {
 	for(uint16_t slot = 0; slot < 256; slot++)
 	{
-		for(uint16_t device = 0; device < 32; device++)
+		for(uint16_t _device = 0; _device < 32; _device++)
 		{
 			//uint8_t function = 0;
 			// Get vendor
-			uint16_t vendor = (uint16_t)(__pci_config_read_dword(slot, device, 0,0) & 0x0000ffff);
+			uint16_t vendor = (uint16_t)(__pci_config_read_dword(slot, _device, 0,0) & 0x0000ffff);
 
 			if(vendor == 0xFFFF) //Invalid, just skip this device
 				break;
 
 			// Get header type
-			uint16_t header = (uint16_t)(__pci_config_read_word(slot, device, 0,0xE));
+			uint16_t header = (uint16_t)(__pci_config_read_word(slot, _device, 0,0xE));
 
-			uint8_t pciClass = (uint8_t)(__pci_config_read_word(slot, device, 0 , 0xA)>>8);
-			uint8_t subClass = (uint8_t)__pci_config_read_word(slot,device, 0, 0xB);
-			uint8_t progIF = (uint8_t)(__pci_config_read_word(slot, device, 0,0xC)>>8);
+			uint8_t pciClass = (uint8_t)(__pci_config_read_word(slot, _device, 0 , 0xA)>>8);
+			uint8_t subClass = (uint8_t)__pci_config_read_word(slot, _device, 0, 0xB);
+			uint8_t progIF = (uint8_t)(__pci_config_read_word(slot, _device, 0,0xC)>>8);
 
 			// Set up some meta-data
 			struct pci_device* dev = malloc(sizeof(struct pci_device));
@@ -140,13 +159,26 @@ void pci_check_devices()
 			memset(dev, 0 , sizeof(struct pci_device));
 			dev->bus = slot;
 			dev->function = 0;
-			dev->device = device;
+			dev->device = _device;
 			dev->vendorID = vendor;
-			dev->deviceID = (__pci_config_read_dword(slot, device, 0,0) >> 16);
+			dev->deviceID = (__pci_config_read_dword(slot, _device, 0,0) >> 16);
 			dev->pciClass = pciClass;
 			dev->subClass = subClass;
 			dev->progIF = progIF;
 
+			/* Set up the pci device's name */
+			char name_buf[200] = {0};
+			snprintf(name_buf, 200, "pci-%x%x", vendor, dev->deviceID);
+			dev->device_name = strdup(name_buf);
+			assert(dev->device_name);
+
+			/* Setup struct device */
+			struct device *device = malloc(sizeof(struct device));
+			assert(device);
+			memset(device, 0, sizeof(struct device));
+			device->name = strdup(name_buf);
+			assert(device->name);
+			bus_add_device(&pci_bus, device);
 			// If last is not NULL (it is at first), set this device as the last node's next
 			if(likely(last))
 				last->next = dev;
@@ -158,7 +190,7 @@ void pci_check_devices()
 			{
 				for(int i = 1; i < 8;i++)
 				{
-					struct pci_device* dev = pci_check_function(slot, device, i);
+					struct pci_device* dev = pci_check_function(slot, _device, i);
 					if(!dev)
 						continue;
 
@@ -191,6 +223,9 @@ uint16_t pci_get_intn(uint8_t slot, uint8_t device, uint8_t function)
 }
 void pci_init()
 {
+	/* Register the PCI bus */
+	bus_register(&pci_bus);
+	/* Check every pci device and add it onto the bus */
 	pci_check_devices();
 }
 struct pci_device *get_pcidev_from_vendor_device(uint16_t deviceid, uint16_t vendorid)

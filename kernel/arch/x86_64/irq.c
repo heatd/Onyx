@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
+#include <assert.h>
 
 #include <kernel/task_switching.h>
 #include <kernel/panic.h>
@@ -24,7 +25,8 @@
 #include <kernel/irq.h>
 
 volatile _Bool is_in_irq = false;
-irq_list_t *irq_routines[24]  =
+#define NR_IRQ 24
+irq_list_t *irq_routines[NR_IRQ]  =
 {
 	NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
 	NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
@@ -35,6 +37,7 @@ _Bool isirq()
 }
 void irq_install_handler(int irq, irq_t handler)
 {
+	assert(irq < NR_IRQ);
 	irq_list_t *lst = irq_routines[irq];
 	if(!lst)
 	{
