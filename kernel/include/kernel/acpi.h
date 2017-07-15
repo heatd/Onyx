@@ -8,12 +8,20 @@
 
 #include <stdint.h>
 #include <acpi.h>
+
+#include <kernel/dev.h>
 struct acpi_processor
 {
 	ACPI_HANDLE object;
 #ifdef __x86_64__
 	uint32_t apic_id;
 #endif
+};
+struct acpi_device
+{
+	struct device dev; /* Base object(or class if you prefer) */
+	ACPI_HANDLE object;
+	ACPI_DEVICE_INFO *info;
 };
 #define ACPI_PIC_PIC 0
 #define ACPI_PIC_IOAPIC 1

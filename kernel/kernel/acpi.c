@@ -19,6 +19,7 @@
 #include <kernel/log.h>
 #include <kernel/cpu.h>
 #include <kernel/pnp.h>
+#include <kernel/dev.h>
 
 static const ACPI_EXCEPTION_INFO    AcpiGbl_ExceptionNames_Env[] =
 {
@@ -64,19 +65,21 @@ uint32_t acpi_shutdown(void *context)
 }
 static ACPI_HANDLE root_bridge;
 static ACPI_DEVICE_INFO *root_bridge_info;
-
+static struct bus acpi_bus = 
+{
+	.name = "acpi"
+};
 ACPI_STATUS acpi_walk_irq(ACPI_HANDLE object, UINT32 nestingLevel, void *context, void **returnvalue)
 {
 	ACPI_DEVICE_INFO *devinfo;
 	ACPI_STATUS st = AcpiGetObjectInfo(object, &devinfo);
 
-	// TODO: Build a device tree off this information (with PCI as well)
 	if(ACPI_FAILURE(st))
 	{
 		ERROR("acpi", "Error: AcpiGetObjectInfo failed!\n");
 		return AE_ERROR;
 	}
-	//pnp_register_dev_acpi(devinfo);
+
 	if(devinfo->Flags & ACPI_PCI_ROOT_BRIDGE)
 	{
 		root_bridge = object;
@@ -202,6 +205,57 @@ uintptr_t acpi_get_rsdp(void)
 {
 	return rsdp;
 }
+ACPI_STATUS acpi_add_device(ACPI_HANDLE object, UINT32 nestingLevel, void *context, void **returnvalue)
+{
+	ACPI_DEVICE_INFO *info;
+	ACPI_STATUS st;
+	st = AcpiGetObjectInfo(object, &info);
+	if(ACPI_FAILURE(st))
+	{
+		ERROR("acpi", "AcpiGetObjectInfo() Failed\n");
+		return AE_ERROR;
+	}
+	char sname[5] = {0};
+	memcpy(sname, &info->Name, sizeof(UINT32));
+	const char *id = NULL;
+	if(info->Valid & ACPI_VALID_HID)
+		id = info->HardwareId.String;
+	else if (info->Valid & ACPI_VALID_UID)
+		id = info->UniqueId.String;
+	else if(info->Valid & ACPI_VALID_CID)
+		id = info->ClassCode.String;
+	else
+		id = "Unknown";
+	char *name = malloc(200);
+	if(!name)
+		return AE_ERROR;
+	memset(name, 0, 200);
+	snprintf(name, 200, "%s:%s", sname, id);
+
+	struct acpi_device *device = malloc(sizeof(struct acpi_device));
+	if(!device)
+		return AE_ERROR;
+	memset(device, 0, sizeof(struct acpi_device));
+	device->dev.name = name;
+	device->object = object;
+	device->info = info;
+	bus_add_device(&acpi_bus, (struct device*) device);
+
+	return AE_OK;
+}
+void acpi_enumerate_devices(void)
+{
+	ACPI_STATUS st;
+	/* Walk the namespace for devices */
+	st = AcpiWalkNamespace(ACPI_TYPE_DEVICE, ACPI_ROOT_OBJECT,
+				    ACPI_UINT32_MAX,
+				    acpi_add_device,
+				    NULL, NULL, NULL);
+	if(ACPI_FAILURE(st))
+	{
+		ERROR("acpi", "Failed to walk the namespace\n");
+	}
+}
 int acpi_initialize(void)
 {
 	acpi_find_rsdp();
@@ -229,6 +283,10 @@ int acpi_initialize(void)
 		panic("AcpiInitializeObjects failed!");
 
 	INFO("acpi", "initialized!\n");
+	/* Register the acpi bus */
+	bus_register(&acpi_bus);
+	/* Enumerate every device */
+	acpi_enumerate_devices();
 	return 0;
 }
 uint32_t acpi_get_apic_id_lapic(ACPI_SUBTABLE_HEADER *madt)
