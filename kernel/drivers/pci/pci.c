@@ -115,16 +115,11 @@ void* pci_check_function(uint8_t bus, uint8_t _device, uint8_t function)
 	/* Set up the pci device's name */
 	char name_buf[200] = {0};
 	snprintf(name_buf, 200, "pci-%x%x", vendorID, deviceID);
-	dev->device_name = strdup(name_buf);
-	assert(dev->device_name);
 
 	/* Setup struct device */
-	struct device *device = malloc(sizeof(struct device));
-	assert(device);
-	memset(device, 0, sizeof(struct device));
-	device->name = strdup(name_buf);
-	assert(device->name);
-	bus_add_device(&pci_bus, device);
+	dev->dev.name = strdup(name_buf);
+	assert(dev->dev.name);
+	bus_add_device(&pci_bus, (struct device*) dev);
 	// Put it on the linked list
 	last->next = dev;
 	last = dev;
@@ -169,16 +164,10 @@ void pci_check_devices()
 			/* Set up the pci device's name */
 			char name_buf[200] = {0};
 			snprintf(name_buf, 200, "pci-%x%x", vendor, dev->deviceID);
-			dev->device_name = strdup(name_buf);
-			assert(dev->device_name);
+			dev->dev.name = strdup(name_buf);
+			assert(dev->dev.name);
 
-			/* Setup struct device */
-			struct device *device = malloc(sizeof(struct device));
-			assert(device);
-			memset(device, 0, sizeof(struct device));
-			device->name = strdup(name_buf);
-			assert(device->name);
-			bus_add_device(&pci_bus, device);
+			bus_add_device(&pci_bus, (struct device*) dev);
 			// If last is not NULL (it is at first), set this device as the last node's next
 			if(likely(last))
 				last->next = dev;

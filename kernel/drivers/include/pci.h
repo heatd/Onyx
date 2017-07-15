@@ -11,6 +11,7 @@
 #include <kernel/portio.h>
 #include <kernel/spinlock.h>
 #include <kernel/compiler.h>
+#include <kernel/dev.h>
 
 #define PCI_CONFIGURATION_SPACE_SIZE	256
 #define PCI_BAR0 0x10
@@ -83,7 +84,7 @@
 #define PCI_DRIVER_SPECIFIC 1
 struct pci_device
 {
-	char *device_name;
+	struct device dev;
 	uint16_t deviceID, vendorID;
 	uint8_t bus, device, function;
 	uint8_t pciClass, subClass, progIF;
