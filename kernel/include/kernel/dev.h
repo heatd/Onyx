@@ -11,6 +11,7 @@
 
 #include <kernel/majorminor.h>
 #include <kernel/vfs.h>
+#include <kernel/spinlock.h>
 
 #define MAJOR_DEVICE_HASHTABLE 256
 
@@ -31,4 +32,45 @@ void null_init(void);
 void zero_init(void);
 extern vfsnode_t *slashdev;
 
+struct bus;
+struct device;
+
+struct driver
+{
+	const char *name;
+	struct bus *bus;
+	struct device *device;
+	_Atomic int ref;
+};
+struct device
+{
+	const char *name;
+	struct bus *bus;
+	struct driver *driver;
+	int (*suspend)(struct device *);
+	int (*resume)(struct device *);
+
+	int (*shutdown)(struct device *);
+	struct device *prev, *next;
+};
+struct bus
+{
+	const char *name; 	/* Name of the bus */
+	spinlock_t bus_lock;
+	struct device *devs;	/* List of every device connected to this bus */
+
+	int (*shutdown)(struct bus *);
+	struct bus *prev, *next;
+};
+
+/* bus_register - Register a bus */
+void bus_register(struct bus *bus);
+/* bus_unregister - Unregister a bus */
+void bus_unregister(struct bus *bus);
+/* bus_add_device - Add a device to a bus */
+void bus_add_device(struct bus *bus, struct device *device);
+/* bus_find_device - Find a device on the bus */
+struct device *bus_find_device(struct bus *bus, const char *devname);
+/* bus_shutdown - Shutdown every device on the bus */
+void bus_shutdown(struct bus *bus);
 #endif
