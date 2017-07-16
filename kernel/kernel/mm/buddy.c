@@ -9,6 +9,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <limits.h>
+#include <assert.h>
 
 #include <kernel/vmm.h>
 #include <kernel/page.h>
@@ -228,7 +229,7 @@ void *__alloc_pages(int order)
 	if(buddy_is_initialized == false)
 		return bootmem_alloc(pow2(order));
 	/* assert on order >= MAX_ORDER */
-	//assert(order < MAX_ORDER);
+	assert(order < MAX_ORDER);
 	/* Enter the critical section */
 	acquire_spinlock(&buddy_lock);
 	
@@ -246,8 +247,8 @@ void *__alloc_page(int opt)
 }
 void __free_pages(void *pages, int order)
 {
-	// assert(order < MAX_ORDER);
-	
+	assert(order < MAX_ORDER);
+
 	/* Enter the critical section */
 	acquire_spinlock(&buddy_lock);
 	/* Call the backend */
