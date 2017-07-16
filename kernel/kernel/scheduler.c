@@ -266,3 +266,17 @@ void thread_wake_up(thread_t *thread)
 {
 	thread->status = THREAD_RUNNABLE;
 }
+void sched_sleep_until_wake(void)
+{
+	get_current_thread()->status = THREAD_SLEEPING;
+	sched_yield();
+}
+void thread_wake_up_ftx(thread_t *thread)
+{
+	thread_wake_up(thread);
+	thread->woken_up_by_futex = true;
+}
+void thread_reset_futex_state(thread_t *thread)
+{
+	thread->woken_up_by_futex = false;
+}

@@ -16,6 +16,8 @@
 #include <kernel/signal.h>
 #include <kernel/registers.h>
 #include <kernel/list.h>
+
+struct futex;
 #define THREADS_PER_PROCESS 30
 typedef struct proc
 {
@@ -89,6 +91,11 @@ typedef struct proc
 	/* mmap(2) base */
 	void *mmap_base;
 
+	/* Futex queue */
+	struct futex *futex_queue;
+
+	/* Futex queue lock */
+	spinlock_t futex_queue_lock;
 } process_t;
 process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent);
 void process_create_thread(process_t *proc, thread_callback_t callback, uint32_t flags, int argc, char **argv, char **envp);

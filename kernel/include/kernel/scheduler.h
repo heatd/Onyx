@@ -27,6 +27,7 @@ typedef struct thr
 	uint64_t timestamp;
 	unsigned long sleeping_for;
 	unsigned char *fpu_area;
+	bool woken_up_by_futex;
 	/* And arch dependent stuff in this ifdef */
 #ifdef __x86_64__
 	void *fs;
@@ -49,4 +50,7 @@ void thread_set_state(thread_t *thread, int state);
 void thread_wake_up(thread_t *thread);
 bool sched_is_preemption_disabled(void);
 void sched_change_preemption_state(bool disable);
+void sched_sleep_until_wake(void);
+void thread_wake_up_ftx(thread_t *thread);
+void thread_reset_futex_state(thread_t *thread);
 #endif

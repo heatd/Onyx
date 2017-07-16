@@ -31,7 +31,7 @@
 #include <kernel/cpu.h>
 #include <kernel/page.h>
 
-const uint64_t SYSCALL_MAX_NUM = 67;
+const uint64_t SYSCALL_MAX_NUM = 68;
 
 uint64_t sys_nosys()
 {
@@ -102,6 +102,7 @@ extern void sys_exit_thread(int value);
 extern int sys_sigprocmask(int how, const sigset_t *set, sigset_t *oldset);
 extern int sys_sigsuspend(const sigset_t *set);
 extern int sys_pause(void);
+extern int sys_futex(int *uaddr, int futex_op, int val, const struct timespec *timeout, int *uaddr2, int val3);
 void *syscall_list[] =
 {
 	[0] = (void*) sys_write,
@@ -172,5 +173,6 @@ void *syscall_list[] =
 	[65] = (void*) sys_sigprocmask,
 	[66] = (void*) sys_sigsuspend,
 	[67] = (void*) sys_pause,
+	[68] = (void*) sys_futex,
 	[255] = (void*) sys_nosys
 };
