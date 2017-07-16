@@ -262,11 +262,11 @@ void process_setup_pthread(thread_t *thread, process_t *process)
 int sys_execve(char *path, char *argv[], char *envp[])
 {
 	if(!vmm_is_mapped(path))
-		return errno =-EINVAL;
+		return errno =-EFAULT;
 	if(!vmm_is_mapped(argv))
-		return errno =-EINVAL;
+		return errno =-EFAULT;
 	if(!vmm_is_mapped(envp))
-		return errno =-EINVAL;
+		return errno =-EFAULT;
 
 	/* Create a new address space */
 	avl_node_t *tree;

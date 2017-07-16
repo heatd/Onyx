@@ -181,7 +181,7 @@ struct dso *load_library(char *libname)
 		{
 			phdrs[i].p_vaddr += (uintptr_t) base;
 
-			memcpy((void*) phdrs[i].p_vaddr, elf_get_pointer(object->file, phdrs[i].p_offset), phdrs[i].p_memsz);
+			memcpy((void*) phdrs[i].p_vaddr, elf_get_pointer(object->file, phdrs[i].p_offset), phdrs[i].p_filesz);
 			int prot = ((phdrs[i].p_flags & PF_R) ? PROT_READ : 0) |
 				   ((phdrs[i].p_flags & PF_W) ? PROT_WRITE : 0)|
 				   ((phdrs[i].p_flags & PF_X) ? PROT_EXEC : 0);
@@ -286,12 +286,10 @@ struct dso *load_library(char *libname)
 }
 Elf64_Sym *lookup_symbol(char *name, struct dso *dso)
 {
-	/* I think the x86_64-onyx compiler is broken and doesn't add libc.so as a needed shared object on .so's. TOFIX */
-	/* This is a hack */
-	struct dso *dependencies = objects;
+	linked_list_t *dependencies = dso->dependencies;
 	for(; dependencies; dependencies = dependencies->next)
 	{
-		struct dso *object = dependencies;
+		struct dso *object = dependencies->data;
 		Elf64_Sym *symtab = object->dyntab;
 		for(Elf64_Half i = 0; i < object->nr_dyntab; i++)
 		{
@@ -331,6 +329,11 @@ int resolve_dependencies(struct dso *dso)
 						return -1;
 					char *symbol_name = elf_get_dynstring(symbol->st_name, dso);
 					symbol->st_value += dso->base;
+					if(ELF64_ST_BIND(symbol->st_info) & STB_WEAK)
+					{
+						printf("Resolving weak symbol %s\n", symbol_name);
+						symbol = lookup_symbol(symbol_name, dso);
+					}
 					if(symbol->st_shndx == STN_UNDEF) /* symbol is undefined, look for the actual one */
 						symbol = lookup_symbol(symbol_name, dso);
 					if(!symbol)
@@ -338,6 +341,7 @@ int resolve_dependencies(struct dso *dso)
 						printf("Unresolved symbol %s\n", symbol_name);
 						return -1;
 					}
+					printf("Symbol <%s> value: %p\n", symbol_name, symbol->st_value);
 				}
 				switch(ELF64_R_TYPE(rela->r_info))
 				{
@@ -530,7 +534,6 @@ int main(int argc, char **argv, char **envp, void *auxv)
 	{
 		/* Launch the program */
 		prog_entry_t start = (prog_entry_t) retval;
-		printf("entry %p\n", retval);
 		start(argc, argv, envp, auxv); 
 	}
 	return 1;
