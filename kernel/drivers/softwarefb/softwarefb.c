@@ -40,13 +40,25 @@ struct video_device softfb_device =
 	.status = VIDEO_STATUS_INSERTED,
 	.refcount = 0
 };
+static inline void put_pixel(unsigned int x,unsigned int y, int color, void* fb)
+{
+	if(unlikely(fb == (uint64_t*) 0xDEADDEAD))
+		fb = (void*) framebuffer;
+   	/* do not write memory outside the screen buffer, check parameters against the framebuffer info */
+   	x = (x * (framebuffer_bpp>>3));
+   	y = (y * framebuffer_pitch);
+	
+	volatile unsigned int *pixel = (volatile unsigned int *)&((char*)fb)[x + y];
+   	*pixel = color;
+}
 unsigned char *bitmap = NULL;
 __attribute__((hot))
 void softfb_draw_char(unsigned char c, int x, int y, int fgcolor, int bgcolor, void* fb)
 {
 	int cx,cy;
 	int mask[8]={128,64,32,16,8,4,2,1};
-	for(cy=0;cy<16;cy++){
+	for(cy=0;cy<16;cy++)
+	{
 		for(cx=0;cx<8;cx++)
 		{
 			put_pixel(x+cx,y+cy-12,(bitmap+(int)c*16)[cy] & mask[cx] ? fgcolor:bgcolor,fb);
@@ -59,23 +71,13 @@ void softfb_draw_cursor(int x, int y, int fgcolor, int bgcolor, void* fb)
 {
 	int cx,cy;
 	int mask[8]={128,64,32,16,8,4,2,1};
-	for(cy=0;cy<16;cy++){
-		for(cx=0;cx<8;cx++){
+	for(cy=0;cy<16;cy++)
+	{
+		for(cx=0;cx<8;cx++)
+		{
 			put_pixel(x+cx,y+cy-12,(__cursor__bitmap)[cy] & mask[cx] ? fgcolor:bgcolor,fb);
 		}
 	}
-}
-__attribute__((hot))
-void put_pixel(unsigned int x,unsigned int y, int color, void* fb)
-{
-	if(unlikely(fb == (uint64_t*) 0xDEADDEAD))
-		fb = (void*) framebuffer;
-   	/* do not write memory outside the screen buffer, check parameters against the framebuffer info */
-   	x = (x * (framebuffer_bpp>>3));
-   	y = (y * framebuffer_pitch);
-	
-	volatile unsigned int *pixel = (volatile unsigned int *)&((char*)fb)[x + y];
-   	*pixel = color;
 }
 extern struct bitmap_font font;
 __attribute__((cold))

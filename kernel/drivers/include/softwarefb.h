@@ -10,7 +10,6 @@
 #include <multiboot2.h>
 #include <kernel/video.h>
 
-void put_pixel(unsigned int x,unsigned int y, int color, void* fb);
 void softfb_draw_char(unsigned char c, int x, int y, int fgcolor, int bgcolor, void* fb);
 void softfb_init(uintptr_t fb_address, uint32_t bpp, uint32_t width, uint32_t height,uint32_t pitch);
 void *softfb_getfb(struct video_device *dev);

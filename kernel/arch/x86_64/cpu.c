@@ -33,6 +33,43 @@
 #include <kernel/avx.h>
 static cpu_t cpu;
 
+const int bits_per_long = sizeof(unsigned long) * 8;
+__attribute__((hot))
+bool x86_has_cap(int cap)
+{
+	/* Get the index in native word sizes(DWORDS in 32-bit systems and QWORDS in 64-bit ones) */
+	int q_index = cap / bits_per_long;
+	int bit_index = cap % bits_per_long;
+	return cpu.caps[q_index] & (1 << bit_index);
+}
+void __cpu_identify(void)
+{
+	uint32_t eax = 0;
+	uint32_t ebx = 0;
+	uint32_t ecx = 0;
+	uint32_t edx = 0;
+	if(!__get_cpuid(CPUID_FEATURES, &eax, &ebx, &ecx, &edx))
+	{
+		INFO("x86cpu", "CPUID_FEATURES not supported!\n");
+	}
+	cpu.caps[0] = edx | ((uint64_t) ecx << 32);
+
+	eax = CPUID_FEATURES_EXT;
+	ecx = 0;
+	if(!__get_cpuid(CPUID_FEATURES_EXT, &eax, &ebx, &ecx, &edx))
+	{
+		INFO("x86cpu", "CPUID_FEATURES_EXT not supported!\n");
+	}
+	cpu.caps[1] = ebx | ((uint64_t) ecx << 32);
+	cpu.caps[2] = edx;
+	eax = CPUID_EXTENDED_PROC_INFO;
+	if(!__get_cpuid(CPUID_EXTENDED_PROC_INFO, &eax, &ebx, &ecx, &edx))
+	{
+		INFO("x86cpu", "CPUID_EXTENDED_PROC_INFO not supported!\n");
+	}
+	cpu.caps[2] |= ((uint64_t) edx) << 32;
+	cpu.caps[3] = ecx;
+}
 char *cpu_get_name()
 {
 	uint32_t eax,ebx,edx,ecx = 0;
@@ -90,6 +127,7 @@ void cpu_identify()
 		printf("Name: %s\n", cpu.brandstr);
 	cpu_get_sign();
 	INFO("cpu", "Stepping %i, Model %i, Family %i\n", cpu.stepping, cpu.model, cpu.family);
+	__cpu_identify();
 }
 extern void syscall_ENTRY64();
 void cpu_init_interrupts()

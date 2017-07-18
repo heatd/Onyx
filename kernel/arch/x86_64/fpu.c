@@ -13,7 +13,7 @@
 #include <kernel/avx.h>
 
 #include <sys/user.h>
-_Bool avx_supported = false;
+bool avx_supported = false;
 void save_fpu(void *address)
 {
 	if(avx_supported == true)

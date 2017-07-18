@@ -25,10 +25,7 @@ static inline unsigned long xgetbv(unsigned long r)
 }
 void avx_init(void)
 {
-	uint32_t eax, ebx, edx, ecx = 0;
-	__get_cpuid(CPUID_FEATURES, &eax, &ebx, &ecx, &edx);
-
-	if(ecx & CPUID_FEATURE_ECX_AVX && ecx & CPUID_FEATURE_ECX_XSAVE)
+	if(x86_has_cap(X86_FEATURE_AVX) && x86_has_cap(X86_FEATURE_XSAVE))
 	{
 		avx_supported = true;
 		/* If it's supported, set the proper xcr0 bits */

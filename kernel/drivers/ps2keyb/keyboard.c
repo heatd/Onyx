@@ -26,7 +26,7 @@ static uintptr_t irq_keyb_handler(registers_t *regs)
 	}
 	return 0;
 }
-int init_keyboard()
+int init_keyboard(void)
 {
 	if(acpi_get_device(PS2_PNP))
 	{

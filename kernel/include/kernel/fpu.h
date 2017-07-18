@@ -14,7 +14,7 @@
 #define FPU_AREA_ALIGNMENT 	64
 #define FPU_AREA_SIZE		2048
 
-extern _Bool avx_supported;
+extern bool avx_supported;
 
 #else
 #error "Implement FPU switching for your arch"

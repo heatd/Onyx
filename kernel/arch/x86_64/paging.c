@@ -12,6 +12,8 @@
 #include <kernel/process.h>
 #include <kernel/vmm.h>
 #include <kernel/panic.h>
+#include <kernel/cpu.h>
+
 static _Bool is_spawning = 0;
 PML4 *spawning_pml = NULL;
 #define PML_EXTRACT_ADDRESS(n) (n & 0x0FFFFFFFFFFFF000)
@@ -121,12 +123,7 @@ void paging_init()
 }
 void paging_map_all_phys()
 {
-	_Bool is_1gb_supported = false;
-	uint32_t eax = 0,ebx = 0,edx = 0,ecx = 0;
-	__get_cpuid(0x80000001, &eax, &ebx, &ecx, &edx);
-
-	if(edx & (1 << 26))
-		is_1gb_supported = true;
+	_Bool is_1gb_supported = x86_has_cap(X86_FEATURE_PDPE1GB);
 	uintptr_t virt = 0xffffea0000000000;
 	decomposed_addr_t decAddr;
 	memcpy(&decAddr, &virt, sizeof(decomposed_addr_t));
