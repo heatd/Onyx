@@ -18,8 +18,7 @@
 #include <sys/syscall.h>
 #include <sys/utsname.h>
 
-#define MODULE_PREFIX "/usr/lib/modules/"
-#define MODULE_EXT    ".kmod"
+#include "init.h"
 extern char **environ;
 void load_modules();
 void setup_hostname();
@@ -55,49 +54,6 @@ char *copy_until_newline(char *s)
 void insmod(const char *path, const char *name)
 {
 	syscall(SYS_insmod, path, name);
-}
-int get_ring_level()
-{
-	/* Open the config */
-	FILE *f = fopen("/etc/init.d/init.config", "rw");
-	if(!f)
-	{
-		perror("/etc/init.d/init.config");
-		return -1;
-	}
-	char *buf = malloc(1024);
-	if(!buf)
-	{
-		perror("/sbin/init");
-		fclose(f);
-		return -1;
-	}
-	memset(buf, 0, 1024);
-	int ringlevel = 0;
-	/* Now lets loop through the file, and get the default ring level */
-	fgets(buf, 1024, f);
-	if(memcmp(buf, "defaultrl:", strlen("defaultrl:")) == 0)
-	{
-		/* If the argument after 'defaultrl:' isn't a number, throw a parsing error and return 1 */
-		if(sscanf(buf + strlen("defaultrl:"), "%d", &ringlevel) == 0)
-		{
-			printf("syntax error: at '%c'\n", *(buf + strlen("defaultrl:")));
-			free(buf);
-			fclose(f);
-			return -1;
-		}
-		else
-		{
-			fclose(f);
-			free(buf);
-			/* It's a number, use tonum(3), as ring levels are from 0-6 */
-			return ringlevel;
-		}
-	}
-	/* Free up the resources we've just used */
-	fclose(f);
-	free(buf);
-	return -1;
 }
 int fmount(int fd, char *path)
 {
@@ -194,49 +150,12 @@ int main(int argc, char **argv, char **envp)
 	/* Mount filesystems */
 	if(mount_filesystems() == 1)
 		return 1;
-	/* Read the config files, and find the startup program */
-	int ringlevel = get_ring_level();
-	if(ringlevel < 0)
-		err(1, "Failed to get the ring level!\n");
-	/* Allocate a buffer for the filename */
-	char *filename = malloc(strlen(prefix) + 4);
-	if(!filename)
-		return 1;
-	strcpy(filename, prefix);
-	/*  Edit in the ring level */
-	filename[14] = ringlevel + '0';
-	/* Open the script file */
-	FILE *f = fopen(filename, "r");
-	if(!f)
-	{
-		printf("%s: No such file or directory!\n", filename);
-		free(filename);
-		return 1;
-	}
-
-	char *buf = malloc(1024);
-	if(!buf)
-	{
-		fclose(f);
-		free(filename);
-		return 1;
-	}
-	memset(buf, 0, 1024);
-	fgets(buf, 1024, f);
-	
+	/* chdir to /, since the kernel doesn't setup the current directory so we need to set it up 
+	 * ourselves
+	*/
 	chdir("/");
-	char *env[] = {"", NULL};
-	char *shell = copy_until_newline(buf);
-	char *args[] = {shell, "/etc/fstab", NULL};
-
-	int pid = fork();
-
-	if(pid == 0)
-	{
-		if(execve(shell, args, environ) < 0)
-			perror("init: exec");
-	}
-
+	/* Execute daemons */
+	exec_daemons();
 	/* Mask every signal */
 	sigset_t set;
 	sigfillset(&set);

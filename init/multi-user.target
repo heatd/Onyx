@@ -1,0 +1,8 @@
+# Multi-user target for booting into multi-user mode
+
+[Dependencies]
+
+
+[Service]
+Bin=/usr/bin/login
+Type=regular
