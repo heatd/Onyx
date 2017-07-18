@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <assert.h>
 
 #include <kernel/vfs.h>
 #include <kernel/mtable.h>
@@ -34,6 +35,8 @@ vfsnode_t *mtable_lookup(vfsnode_t *mountpoint)
 }
 int mtable_mount(vfsnode_t *mountpoint, vfsnode_t *rootfs)
 {
+	assert(mountpoint);
+	assert(rootfs);
 	mutex_lock(&mtable_lock);
 	nr_mtable_entries++;
 	mountpoint_t *new_mtable = malloc(nr_mtable_entries * sizeof(mountpoint_t));
@@ -54,5 +57,5 @@ int mtable_mount(vfsnode_t *mountpoint, vfsnode_t *rootfs)
 	free(old);
 	mutex_unlock(&mtable_lock);
 	
-	return 1;
+	return 0;
 }

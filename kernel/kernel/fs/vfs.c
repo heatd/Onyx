@@ -183,7 +183,7 @@ vfsnode_t *open_vfs(vfsnode_t* this, const char *name)
 		if(!node)
 		{
 			free(orig);
-			return errno = ENOENT, NULL;
+			return NULL;
 		}
 		path = strtok_r(NULL, "/", &saveptr);
 	}
@@ -234,6 +234,7 @@ error:
 }
 int mount_fs(vfsnode_t *fsroot, const char *path)
 {
+	printf("mount_fs: Mounting on %s\n", path);
 	if(!strcmp((char*)path, "/"))
 	{
 		fs_root->link = fsroot;
@@ -250,7 +251,13 @@ int mount_fs(vfsnode_t *fsroot, const char *path)
 	}
 	else
 	{
-		return mtable_mount(do_actual_open(fs_root, path), fsroot);
+		vfsnode_t *file = open_vfs(fs_root, dirname((char*) path));
+		if(!file)
+			return -ENOENT;
+		file = do_actual_open(file, basename((char*) path));
+		if(!file)
+			return -ENOENT;
+		return mtable_mount(file, fsroot);
 	}
 	return 0;
 }

@@ -8,6 +8,9 @@
 
 #include <stddef.h>
 
+#define ENTROPY_POOL_RANDOM 0
+#define ENTROPY_POOL_URANDOM 1
+void entropy_init_dev(void);
 void add_entropy(void *ent, size_t size);
 void get_entropy(char *buf, size_t s);
 void initialize_entropy();

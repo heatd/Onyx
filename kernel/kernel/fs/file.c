@@ -152,7 +152,7 @@ int do_sys_open(const char *filename, int flags, mode_t mode, vfsnode_t *rel)
 					free(ioctx->file_desc[i]);
 					ioctx->file_desc[i] = NULL;
 					mutex_unlock(&ioctx->fdlock);
-					return errno =-ENOENT;
+					return -errno;
 				}
 				ioctx->file_desc[i]->vfs_node->refcount++;
 				ioctx->file_desc[i]->refcount++;

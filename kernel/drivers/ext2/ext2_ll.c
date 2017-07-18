@@ -125,7 +125,7 @@ inode_t *ext2_open_dir(inode_t *ino, const char *dirname, ext2_fs_t *fs, char **
 	}
 	inode = ext2_get_inode_from_dir(fs, dirent, (char*) dirname, inode_num);
 	if(!inode)
-	{
+	{	
 		free(dirent);
 		return errno = ENOENT, NULL;
 	}
@@ -159,7 +159,9 @@ inode_t *ext2_traverse_fs(inode_t *wd, const char *path, ext2_fs_t *fs, char **s
 	{
 		ino = ext2_open_dir(ino, (const char*) p, fs, symlink_name, inode_num);
 		if(!ino)
-			return NULL;
+		{
+			return errno = ENOENT, NULL;
+		}
 	}
 	free(original_path);
 	return ino;

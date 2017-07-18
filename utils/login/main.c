@@ -236,7 +236,11 @@ loop:
 	strcat(args[0], "-");
 	strcat(args[0], user->shell);
 	extern char **environ;
-	execve(user->shell, args, environ);
+	if(execv(user->shell, args) < 0)
+	{
+		perror("exec");
+		return 1;
+	}
 	while(1)
 		sleep((unsigned int) -1);
 	return 0;
