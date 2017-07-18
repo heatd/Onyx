@@ -38,6 +38,7 @@ file_desc_t *get_file_description(int fd)
 {
 	return get_current_process()->ctx.file_desc[fd];
 }
+
 static inline int validate_fd(int fd)
 {
 	ioctx_t *ctx = &get_current_process()->ctx;
@@ -80,6 +81,27 @@ static inline int find_free_fd(int fdbase)
 		{
 			mutex_unlock(&ioctx->fdlock);
 			return -ENOMEM;
+		}
+	}
+}
+file_desc_t *allocate_file_descriptor_unlocked(int *fd, ioctx_t *ioctx)
+{
+	while(1)
+	{
+		for(int i = 0; i < ioctx->file_desc_entries; i++)
+		{
+			if(ioctx->file_desc[i] == NULL)
+			{
+				ioctx->file_desc[i] = malloc(sizeof(file_desc_t));
+				if(!ioctx->file_desc[i])
+					return NULL;
+				*fd = i;
+				return ioctx->file_desc[i];
+			}
+		}
+		if(enlarge_file_descriptor_table(get_current_process()) < 0)
+		{
+			return NULL;
 		}
 	}
 }
@@ -126,49 +148,46 @@ void handle_open_flags(file_desc_t *fd, int flags)
 	if(flags & O_APPEND)
 		fd->seek = fd->vfs_node->size;
 }
+static vfsnode_t *try_to_open(vfsnode_t *base, const char *filename, int flags, mode_t mode)
+{
+	vfsnode_t *ret = open_vfs(base, filename);
+	if(!ret && flags & O_CREAT)
+		ret = creat_vfs(base, filename, mode);
+	return ret;
+}
 int do_sys_open(const char *filename, int flags, mode_t mode, vfsnode_t *rel)
 {
 	/* This function does all the open() work, open(2) and openat(2) use this */
 	ioctx_t *ioctx = &get_current_process()->ctx;
 	vfsnode_t *base = get_fs_base(filename, rel);
-	
+
 	mutex_lock(&ioctx->fdlock);
-	while(1)
+	int fd_num = -1;
+
+	/* Open/creat the file */
+	vfsnode_t *file = try_to_open(base, filename, flags, mode);
+	if(!file)
 	{
-		for(int i = 0; i < ioctx->file_desc_entries; i++)
-		{
-			if(ioctx->file_desc[i] == NULL)
-			{
-				ioctx->file_desc[i] = malloc(sizeof(file_desc_t));
-				if(!ioctx->file_desc[i])
-				{
-					mutex_unlock(&ioctx->fdlock);
-					return errno = -ENOMEM;
-				}
-				memset(ioctx->file_desc[i], 0, sizeof(file_desc_t));
-				ioctx->file_desc[i]->vfs_node = open_vfs(base, filename);
-				if(!ioctx->file_desc[i]->vfs_node)
-				{
-					free(ioctx->file_desc[i]);
-					ioctx->file_desc[i] = NULL;
-					mutex_unlock(&ioctx->fdlock);
-					return -errno;
-				}
-				ioctx->file_desc[i]->vfs_node->refcount++;
-				ioctx->file_desc[i]->refcount++;
-				ioctx->file_desc[i]->seek = 0;
-				ioctx->file_desc[i]->flags = flags;
-				handle_open_flags(ioctx->file_desc[i], flags);
-				mutex_unlock(&ioctx->fdlock);
-				return i;
-			}
-		}
-		if(enlarge_file_descriptor_table(get_current_process()) < 0)
-		{
-			mutex_unlock(&ioctx->fdlock);
-			return -ENOMEM;
-		}
+		mutex_unlock(&ioctx->fdlock);
+		return -errno;
 	}
+	/* Allocate a file descriptor and a file description for the file */
+	file_desc_t *fd = allocate_file_descriptor_unlocked(&fd_num, ioctx);
+	if(!fd)
+	{
+		mutex_unlock(&ioctx->fdlock);
+		close_vfs(file);
+		return -errno;
+	}
+	memset(fd, 0, sizeof(file_desc_t));
+	fd->vfs_node = file;
+	file->refcount++;
+	fd->refcount++;
+	fd->seek = 0;
+	fd->flags = flags;
+	handle_open_flags(fd, flags);
+	mutex_unlock(&ioctx->fdlock);
+	return fd_num;
 }
 int sys_open(const char *filename, int flags, mode_t mode)
 {
