@@ -215,8 +215,6 @@ ACPI_STATUS acpi_add_device(ACPI_HANDLE object, UINT32 nestingLevel, void *conte
 		ERROR("acpi", "AcpiGetObjectInfo() Failed\n");
 		return AE_ERROR;
 	}
-	char sname[5] = {0};
-	memcpy(sname, &info->Name, sizeof(UINT32));
 	const char *id = NULL;
 	if(info->Valid & ACPI_VALID_HID)
 		id = info->HardwareId.String;
@@ -230,7 +228,7 @@ ACPI_STATUS acpi_add_device(ACPI_HANDLE object, UINT32 nestingLevel, void *conte
 	if(!name)
 		return AE_ERROR;
 	memset(name, 0, 200);
-	snprintf(name, 200, "%s:%s", sname, id);
+	snprintf(name, 200, "%s", id);
 
 	struct acpi_device *device = malloc(sizeof(struct acpi_device));
 	if(!device)
@@ -337,4 +335,8 @@ struct acpi_processor *acpi_enumerate_cpus(void)
 				    NULL, processors, NULL);
 	mutex_unlock(&cpu_enum_lock);
 	return processors;
+}
+struct acpi_device *acpi_get_device(const char *id)
+{
+	return (struct acpi_device*) bus_find_device(&acpi_bus, id);
 }

@@ -34,5 +34,5 @@ uint32_t acpi_execute_pic(int value);
 int acpi_get_irq_routing_tables();
 int acpi_get_irq_routing_for_dev(uint8_t bus, uint8_t device, uint8_t function);
 struct acpi_processor *acpi_enumerate_cpus(void);
-
+struct acpi_device *acpi_get_device(const char *id);
 #endif
