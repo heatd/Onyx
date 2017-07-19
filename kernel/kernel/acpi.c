@@ -93,7 +93,7 @@ uint32_t acpi_execute_pic(int value)
 {
 	ACPI_OBJECT arg;
 	ACPI_OBJECT_LIST list;
-	
+
 	arg.Type = ACPI_TYPE_INTEGER;
 	arg.Integer.Value = value;
 	list.Count = 1;
