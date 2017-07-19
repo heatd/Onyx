@@ -17,9 +17,12 @@
 #include <stdlib.h>
 #include <cpuid.h>
 #include <stdbool.h>
+#define _GNU_SOURCE
 #include <string.h>
 #include <stdio.h>
 #include <acpi.h>
+#include <x86intrin.h>
+#include <xmmintrin.h>
 
 #include <kernel/log.h>
 #include <kernel/cpu.h>
@@ -262,8 +265,29 @@ static void rep_movsb(void *dst, const void *src, size_t n)
                          :
                          : "memory" );
 }
+void *memcpy_non_temporal(void *__dst, void *__src, size_t n)
+{
+	void *original = __dst;
+	__m128i *dst = __dst;
+	__m128i *src = __src;
+	size_t nr = n / sizeof(__m128i);
+	for(size_t i = 0; i < nr; i++)
+	{
+		_mm_stream_si128(dst++, _mm_stream_load_si128(src++));
+	}
+	return original;
+}
 void *memcpy_fast(void *dst, void *src, size_t n)
 {
+	if(x86_has_cap(X86_FEATURE_SSE41))
+	{
+		if((uintptr_t) dst & 0xf || (uintptr_t) src & 0xf || n & 0xf)
+		{
+			rep_movsb(dst, src, n);
+			return dst;
+		}
+		return memcpy_non_temporal(dst, src, n);	
+	}
 	rep_movsb(dst, src, n);
 	return dst;
 }
