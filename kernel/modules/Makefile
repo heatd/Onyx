@@ -6,7 +6,7 @@ mod_svga \
 mod_bga \
 mod_rtl8139
 
-CFLAGS:=$(CFLAGS) -mcmodel=large
+CFLAGS:=$(CFLAGS) -mcmodel=large -D__is_onyx_kernel
 all: $(MODULES)
 
 mod_%: %

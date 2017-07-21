@@ -7,6 +7,7 @@
 #define _IOCTX_H
 
 #include <kernel/vfs.h>
+#include <kernel/mutex.h>
 #include <sys/types.h>
 #include <limits.h>
 typedef struct

@@ -690,3 +690,65 @@ void file_do_cloexec(ioctx_t *ctx)
 	}
 	mutex_unlock(&ctx->fdlock);
 }
+int open_with_vnode(vfsnode_t *node, int flags)
+{
+	/* This function does all the open() work, open(2) and openat(2) use this */
+	ioctx_t *ioctx = &get_current_process()->ctx;
+
+	mutex_lock(&ioctx->fdlock);
+	int fd_num = -1;
+	/* Allocate a file descriptor and a file description for the file */
+	file_desc_t *fd = allocate_file_descriptor_unlocked(&fd_num, ioctx);
+	if(!fd)
+	{
+		mutex_unlock(&ioctx->fdlock);
+		return -errno;
+	}
+	memset(fd, 0, sizeof(file_desc_t));
+	fd->vfs_node = node;
+	node->refcount++;
+	fd->refcount++;
+	fd->seek = 0;
+	fd->flags = flags;
+	handle_open_flags(fd, flags);
+	mutex_unlock(&ioctx->fdlock);
+	return fd_num;
+}
+ssize_t sys_send(int sockfd, const void *buf, size_t len, int flags)
+{
+	if(validate_fd(sockfd) < 0)
+		return -EBADF;
+	file_desc_t *desc = get_file_description(sockfd);
+	if(desc->vfs_node->type != VFS_TYPE_UNIX_SOCK)
+		return -ENOTSOCK;
+	return send_vfs(buf, len, flags, desc->vfs_node);
+}
+int sys_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
+{
+	if(validate_fd(sockfd) < 0)
+		return -EBADF;
+	file_desc_t *desc = get_file_description(sockfd);
+	if(desc->vfs_node->type != VFS_TYPE_UNIX_SOCK)
+		return -ENOTSOCK;
+	return connect_vfs(addr, addrlen, desc->vfs_node);
+}
+int sys_bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
+{
+	if(validate_fd(sockfd) < 0)
+		return -EBADF;
+	file_desc_t *desc = get_file_description(sockfd);
+	if(desc->vfs_node->type != VFS_TYPE_UNIX_SOCK)
+		return -ENOTSOCK;
+	return bind_vfs(addr, addrlen, desc->vfs_node);
+}
+ssize_t sys_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen)
+{
+	if(vmm_check_pointer(buf, len) < 0)
+		return -EFAULT;
+	if(validate_fd(sockfd) < 0)
+		return -EBADF;
+	file_desc_t *desc = get_file_description(sockfd);
+	if(desc->vfs_node->type != VFS_TYPE_UNIX_SOCK)
+		return -ENOTSOCK;
+	return recvfrom_vfs(buf, len, flags, src_addr, addrlen, desc->vfs_node);
+}

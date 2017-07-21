@@ -9,13 +9,18 @@
 #include <stdlib.h>
 #include <errno.h>
 
+#include <netinet/in.h>
+
+#include <sys/socket.h>
+
 #include <kernel/ip.h>
 #include <kernel/ethernet.h>
+#include <kernel/netif.h>
+#include <kernel/network.h>
+#include <kernel/udp.h>
+#include <kernel/arp.h>
 
-uint32_t ip_local_ip = 0;
-uint32_t ip_router_ip = 0;
-
-int send_ipv4_packet(uint32_t senderip, uint32_t destip, unsigned int type, char *payload, size_t payload_size)
+int send_ipv4_packet(uint32_t senderip, uint32_t destip, unsigned int type, char *payload, size_t payload_size, struct netif *netif)
 {
 	ip_header_t *ip_header = malloc(sizeof(ip_header_t) + payload_size);
 	if(!ip_header)
@@ -31,15 +36,43 @@ int send_ipv4_packet(uint32_t senderip, uint32_t destip, unsigned int type, char
 	ip_header->ihl = 5;
 	ip_header->header_checksum = ipsum(ip_header);
 	memcpy(&ip_header->payload, payload, payload_size);
-	eth_send_packet(router_mac, (char*) ip_header, sizeof(ip_header_t) + payload_size, PROTO_IPV4);
+
+	unsigned char destmac[6] = {0};
+	if(destip == INADDR_BROADCAST)
+	{
+		/* INADDR_BROADCAST packets are sent to mac address ff:ff:ff:ff:ff:ff */
+		memset(&destmac, 0xFF, 6);
+	}
+	else if(destip == INADDR_LOOPBACK)
+	{
+		/* INADDR_LOOPBACK packets are sent to the local NIC's mac */
+		memcpy(&destmac, netif->router_mac, 6);
+	}
+	else
+	{
+		/* Else, we need to send it to the router, so get the router's mac address */
+		struct sockaddr_in *in = (struct sockaddr_in*) &netif->router_ip;
+		if(arp_resolve_in(in->sin_addr.s_addr, destmac, netif) < 0)
+			return errno = ENETUNREACH, -1;
+	}
+
+	eth_send_packet((char*) &destmac, (char*) ip_header, sizeof(ip_header_t) + payload_size, 
+		PROTO_IPV4, netif);
 	free(ip_header);
 	return 0;
 }
-void ip_set_local_ip(uint32_t lip)
+struct sock *ipv4_create_socket(int type, int protocol)
 {
-	ip_local_ip = lip;
-}
-void ip_set_router_ip(uint32_t rout_ip)
-{
-	ip_router_ip = rout_ip;
+	switch(type)
+	{
+		case SOCK_DGRAM:
+		{
+			switch(protocol)
+			{
+				case PROTOCOL_UDP:
+					return udp_create_socket(type);
+			}
+		}
+	}
+	return NULL;
 }

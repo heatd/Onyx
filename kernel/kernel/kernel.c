@@ -222,6 +222,7 @@ retry:;
 	int argc;
 	char **_argv = copy_argv(argv, proc->cmd_line, &argc);
 	char **_env = process_copy_envarg(envp, false, NULL);
+	DISABLE_INTERRUPTS();
 	process_create_thread(proc, (thread_callback_t) entry, 0, argc, _argv, _env);
 	process_t *current = get_current_process();
 	/* Setup the auxv at the stack bottom */
@@ -259,6 +260,7 @@ retry:;
 	p->self = (__pthread_t*) fs;
 	p->tid = get_current_process()->threads[0]->id;
 	p->pid = get_current_process()->pid;
+	ENABLE_INTERRUPTS();
 	return 0;
 }
 void kernel_early(uintptr_t addr, uint32_t magic)
@@ -271,7 +273,6 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 
 	struct multiboot_tag_framebuffer *tagfb = NULL;
 	size_t total_mem = 0;
-	size_t initrd_size = 0;
 	for (struct multiboot_tag * tag =
 	     (struct multiboot_tag *)(addr + 8);
 	     tag->type != MULTIBOOT_TAG_TYPE_END;
@@ -299,7 +300,6 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 		case MULTIBOOT_TAG_TYPE_MODULE:
 			{
 				initrd_tag = (struct multiboot_tag_module *) tag;
-				initrd_size = initrd_tag->size;
 				break;
 			}
 		case MULTIBOOT_TAG_TYPE_ELF_SECTIONS:
@@ -320,16 +320,11 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 	size_t entries = mmap_tag->size / mmap_tag->entry_size;
 	struct multiboot_mmap_entry *mmap = (struct multiboot_mmap_entry *) mmap_tag->entries;
 
-	uintptr_t end_kernel = (uintptr_t) &kernel_end;
-	initrd_size += end_kernel - KERNEL_START_VIRT;
-	initrd_size += 0x1000;
-	initrd_size &= 0xFFFFFFFFFFFFF000;
-
 	for (size_t i = 0; i <= entries; i++)
 	{
 		if (mmap->type == MULTIBOOT_MEMORY_AVAILABLE)
 		{
-			bootmem_push(mmap->addr, mmap->len, 0x1000000 + initrd_size);
+			bootmem_push(mmap->addr, mmap->len, initrd_tag);
 		}
 		mmap++;
 	}

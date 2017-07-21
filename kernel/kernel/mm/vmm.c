@@ -237,6 +237,8 @@ void avl_clone(avl_node_t *node)
 /* Destroy a tree recursively */
 void avl_destroy_tree(avl_node_t *node)
 {
+	if(!node)
+		return;
 	if(node->left)
 	{
 		avl_destroy_tree(node->left);

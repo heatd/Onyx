@@ -50,6 +50,11 @@
 #define REG_RERID	0x5E
 #define REG_TSAD	0x60
 
+#define ISR_ROK			(1 << 0)
+#define ISR_RER			(1 << 1)
+#define ISR_TOK			(1 << 2)
+#define ISR_TER			(1 << 3)
+
 #define IMR_ROK			(1 << 0)
 #define IMR_RER			(1 << 1)
 #define IMR_TOK			(1 << 2)

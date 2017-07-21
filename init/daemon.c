@@ -130,7 +130,7 @@ int execute_program(const char *path, const char *type)
 		if(execl(path, path, NULL) < 0)
 		{
 			/* TODO: Syncronize with the parent */
-			fprintf(stderr, "%s: %s: %s\n", __func__, "execl", strerror(errno));
+			fprintf(stderr, "%s: %s: %s: %s\n", __func__, "execl", path, strerror(errno));
 			exit(1);
 		}
 	}

@@ -31,11 +31,11 @@
 #include <kernel/cpu.h>
 #include <kernel/page.h>
 
-const uint64_t SYSCALL_MAX_NUM = 69;
+const uint64_t SYSCALL_MAX_NUM = 73;
 
 uint64_t sys_nosys()
 {
-	return (uint64_t) -1;
+	return (uint64_t)-ENOSYS;
 }
 
 extern void sys_exit();
@@ -104,6 +104,10 @@ extern int sys_sigsuspend(const sigset_t *set);
 extern int sys_pause(void);
 extern int sys_futex(int *uaddr, int futex_op, int val, const struct timespec *timeout, int *uaddr2, int val3);
 extern int sys_getrandom(void *buf, size_t buflen, unsigned int flags);
+extern int sys_socket(int domain, int type, int protocol);
+extern ssize_t sys_send(int sockfd, const void *buf, size_t len, int flags);
+extern int sys_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
+extern int sys_bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
 void *syscall_list[] =
 {
 	[0] = (void*) sys_write,
@@ -176,5 +180,10 @@ void *syscall_list[] =
 	[67] = (void*) sys_pause,
 	[68] = (void*) sys_futex,
 	[69] = (void*) sys_getrandom,
+	[70] = (void*) sys_socket,
+	[71] = (void*) sys_send,
+	[72] = (void*) sys_bind,
+	[73] = (void*) sys_connect,
+	[74] = (void*) sys_nosys, /* sys_recvfrom */
 	[255] = (void*) sys_nosys
 };

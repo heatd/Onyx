@@ -31,6 +31,19 @@ typedef struct
 
 } __attribute__((packed)) arp_request_t;
 
-arp_request_t* send_arp_request_ipv4(char *requested_ip);
+#define ARP_FLAG_RESOLVED		(1 << 0)
+struct arp_cache
+{
+	int flags;
+	uint32_t ip;
+	unsigned char mac[6];
+	struct arp_cache *next;
+};
+struct arp_hashtable
+{
+	struct arp_cache *entries[255];
+};
+struct netif;
+int arp_resolve_in(uint32_t ip, unsigned char *mac, struct netif *netif);
 int arp_handle_packet(arp_request_t *arp, uint16_t len);
 #endif

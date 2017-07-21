@@ -98,6 +98,7 @@ uint32_t e1000_eeprom_read(uint8_t addr)
 	data = (uint16_t)((tmp >> 16) & 0xFFFF);
 	return data;
 }
+unsigned char mac_address[6];
 int e1000_read_mac_address()
 {
 	if(eeprom_exists)
@@ -269,10 +270,10 @@ void e1000_init(struct pci_device *dev)
 	e1000_detect_eeprom();
 	if(e1000_read_mac_address())
 		return;
-	INFO("eth0", "MAC address: %x:%x:%x:%x:%x:%x\n", mac_address[0], mac_address[1], mac_address[2], mac_address[3], mac_address[4], mac_address[5]);
+	//INFO("eth0", "MAC address: %x:%x:%x:%x:%x:%x\n", mac_address[0], mac_address[1], mac_address[2], mac_address[3], mac_address[4], mac_address[5]);
 	if(e1000_init_descs())
 		ERROR("e1000", "failed to initialize!\n");
 	e1000_enable_interrupts();
-	eth_set_dev_send_packet(e1000_send_packet);
+	//eth_set_dev_send_packet(e1000_send_packet);
 	free(bar); // Don't forget to free bar, as we don't want a memory leak
 }

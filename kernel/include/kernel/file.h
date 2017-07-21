@@ -6,6 +6,8 @@
 #ifndef _KERNEL_FILE_H
 #define _KERNEL_FILE_H
 #include <kernel/ioctx.h>
+#include <kernel/vfs.h>
 
 void file_do_cloexec(ioctx_t *ctx);
+int open_with_vnode(vfsnode_t *node, int flags);
 #endif

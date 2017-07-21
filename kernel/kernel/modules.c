@@ -134,6 +134,8 @@ int sys_insmod(const char *path, const char *name)
 }
 void module_dump(void)
 {
+	if(!hashtable)
+		return;
 	module_t **buckets = hashtable->buckets;
 	printk("Loaded modules: ");
 	for(int i = 0; i < DEFAULT_SIZE; i++)

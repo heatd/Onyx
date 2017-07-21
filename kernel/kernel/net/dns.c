@@ -14,9 +14,50 @@
 #include <kernel/crc32.h>
 #include <kernel/panic.h>
 
-static uint32_t server_ip = 0;
-static hostname_hashtable_t *hashtable = NULL;
 #define DEFAULT_SIZE 256
+
+static hostname_hashtable_t *hashtable = NULL;
+
+void dns_init(void)
+{
+	/* Allocate and zero-out a hashtable */
+	hashtable = malloc(sizeof(hostname_hashtable_t));
+	if(!hashtable)
+		panic("Error while allocating the dns hashtable: No memory\n");
+
+	memset(hashtable, 0, sizeof(hostname_hashtable_t));
+	hashtable->size = DEFAULT_SIZE;
+	hashtable->buckets = malloc(DEFAULT_SIZE * sizeof(void*));
+	if(!hashtable->buckets)
+		panic("oom while allocating a hashtable bucket\n");
+	memset(hashtable->buckets, 0, sizeof(void*) * DEFAULT_SIZE);
+}
+int dns_hash_string(const char *name)
+{
+	return crc32_calculate((uint8_t *) name, strlen(name)) % DEFAULT_SIZE;
+}
+void dns_fill_hashtable(int hash, const char *name, uint32_t address)
+{
+	hostname_t *host = hashtable->buckets[hash];
+	
+	hostname_t *prev = NULL;
+	for(; host; host = host->next)
+		prev = host;
+	
+	host = malloc(sizeof(hostname_t));
+	if(!host)
+		return errno = ENOMEM, (void) 0;
+	memset(host, 0, sizeof(hostname_t));
+
+	if(!hashtable->buckets[hash])
+		hashtable->buckets[hash] = host;
+	if(prev)
+		prev->next = host;
+	host->name = name;
+	host->address = address;
+}
+#if 0
+static uint32_t server_ip = 0;
 
 extern void parse_ipnumber_to_char_array(uint32_t, unsigned char *);
 extern uint32_t parse_char_array_to_ip_number(unsigned char*);
@@ -49,31 +90,6 @@ void dns_init()
 	if(!hashtable->buckets)
 		panic("oom while allocating a hashtable bucket\n");
 	memset(hashtable->buckets, 0, sizeof(void*) * DEFAULT_SIZE);
-}
-
-int dns_hash_string(const char *name)
-{
-	return crc32_calculate((uint8_t *) name, strlen(name)) % DEFAULT_SIZE;
-}
-void dns_fill_hashtable(int hash, const char *name, uint32_t address)
-{
-	hostname_t *host = hashtable->buckets[hash];
-	
-	hostname_t *prev = NULL;
-	for(; host; host = host->next)
-		prev = host;
-	
-	host = malloc(sizeof(hostname_t));
-	if(!host)
-		return errno = ENOMEM, (void) 0;
-	memset(host, 0, sizeof(hostname_t));
-
-	if(!hashtable->buckets[hash])
-		hashtable->buckets[hash] = host;
-	if(prev)
-		prev->next = host;
-	host->name = name;
-	host->address = address;
 }
 uint32_t dns_resolve_host(const char *name)
 {
@@ -153,3 +169,4 @@ again:;
 	free(answer);
 	return parse_char_array_to_ip_number(b);
 }
+#endif

@@ -7,84 +7,24 @@
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <assert.h>
 
 #include <kernel/network.h>
+#include <kernel/ip.h>
 #include <kernel/udp.h>
 #include <kernel/icmp.h>
 #include <kernel/compiler.h>
 #include <kernel/dns.h>
+#include <kernel/file.h>
+
 
 static const char *hostname = "";
-socket_t *sock_table[MAX_NETWORK_CONNECTIONS] = {0};
-int socket(int domain, int type, int protocol)
-{
-	if(domain != AF_INET)
-		return errno = ENOSYS, -1;
-	if(type != SOCK_DGRAM && type != SOCK_RAW)
-		return errno = ENOSYS, -1;
 
-	socket_t *sock = malloc(sizeof(socket_t));
-	if(!sock)
-		return errno = ENOMEM, -1;
-	memset(sock, 0, sizeof(socket_t));
-	
-	sock->proto = protocol;
-	sock->mode = SOCK_RDONLY;
-	sock->domain = domain;
-	sock->connection_type = type;
-	for(int i = 0; i < MAX_NETWORK_CONNECTIONS; i++)
-	{
-		if(sock_table[i] == NULL)
-		{
-			sock_table[i] = sock;
-			return i;
-		}
-	}
-	free(sock);
-	return errno = EADDRNOTAVAIL, -1;
-}
-int bind(int socket, int localport, uint32_t ip, int destport)
-{
-	if(socket > MAX_NETWORK_CONNECTIONS)
-		return errno = EINVAL, -1;
-	socket_t *sock = sock_table[socket];
-	if(!sock)
-		return errno = EINVAL, 1;
-	sock->localport = localport;
-	sock->remote_ip = ip;
-	sock->remote_port = destport;
-
-	sock->mode = SOCK_RDWR;
-
-	return 0;
-}
-int recv(int socket, void **bufptr)
-{
-	if(socket > MAX_NETWORK_CONNECTIONS)
-		return errno = EINVAL, -1;
-	socket_t *sock = sock_table[socket];
-	if(!sock)
-		return errno = EINVAL, 1;
-	while(!sock->buffer);
-	*bufptr = sock->buffer;
-	sock->buffer = NULL;
-	return sock->len;
-}
-extern uint32_t local_ip;
-int send(int socket, const void *buffer, size_t len)
-{
-	if(socket > MAX_NETWORK_CONNECTIONS)
-		return errno = EINVAL, -1;
-	socket_t *sock = sock_table[socket];
-	if(!sock)
-		return errno = EINVAL, 1;
-	if(sock->proto)
-		return send_ipv4_packet(ip_local_ip, sock->remote_ip, sock->proto, (char*) buffer, len);
-	return send_udp_packet((char*) buffer, len, sock->localport, sock->remote_port, ip_local_ip, sock->remote_ip);
-}
 void network_handle_packet(ip_header_t *hdr, uint16_t len)
 {
-	hdr->source_ip = LITTLE_TO_BIG32(hdr->source_ip);
+	/*hdr->source_ip = LITTLE_TO_BIG32(hdr->source_ip);
 	int dest_port = 0;
 	int protocol_len = 0;
 	switch(hdr->proto)
@@ -102,9 +42,9 @@ void network_handle_packet(ip_header_t *hdr, uint16_t len)
 			break;
 		default:
 			return;
-	}
+	}*/
 	
-	for(int i = 0; i < MAX_NETWORK_CONNECTIONS; i++)
+	/*for(int i = 0; i < MAX_NETWORK_CONNECTIONS; i++)
 	{
 		if(sock_table[i] == NULL)
 			continue;
@@ -126,7 +66,7 @@ void network_handle_packet(ip_header_t *hdr, uint16_t len)
 			memset(sock_table[i]->buffer, 0, protocol_len);
 			memcpy(sock_table[i]->buffer, &udp_packet->payload, protocol_len);
 		}
-	}
+	}*/
 
 }
 const char *network_gethostname()
@@ -140,4 +80,77 @@ void network_sethostname(const char *name)
 		free((void *) hostname);
 	dns_fill_hashtable(dns_hash_string(name), name, 0x7F00001);
 	hostname = name;
+}
+int check_af_support(int domain)
+{
+	switch(domain)
+	{
+		case AF_INET:
+			return 0;
+		default:
+			return -1;
+	}
+}
+int net_check_type_support(int type)
+{
+	switch(type)
+	{
+		case SOCK_DGRAM:
+		case SOCK_RAW:
+			return 0;
+		default:
+			return -1;
+	}
+}
+int net_autodetect_protocol(int type, int domain)
+{
+	switch(type)
+	{
+		case SOCK_DGRAM:
+			return PROTOCOL_UDP;
+		case SOCK_RAW:
+			return domain == AF_INET ? PROTOCOL_IPV4 : PROTOCOL_IPV6;
+		case SOCK_STREAM:
+			return PROTOCOL_TCP;
+	}
+	return -1;
+}
+socket_t *socket_create(int domain, int type, int protocol)
+{
+	switch(domain)
+	{
+		case AF_INET:
+			return ipv4_create_socket(type, protocol);
+		default:
+			return errno = EAFNOSUPPORT, NULL;
+	}
+}
+int sys_socket(int domain, int type, int protocol)
+{
+	int dflags;
+	dflags = O_RDWR;
+	if(check_af_support(domain) < 0)
+		return -EAFNOSUPPORT;
+	if(net_check_type_support(type) < 0)
+		return -EINVAL;
+
+	if(protocol == 0)
+	{
+		/* If protocol == 0, auto-detect the proto */
+		if((protocol = net_autodetect_protocol(type, domain)) < 0)
+			return -EINVAL;
+	}
+
+	/* Create the socket */
+	socket_t *socket = socket_create(domain, type, protocol);
+	if(!socket)
+	{
+		return -errno;
+	}
+	/* Open a file descriptor with the socket vnode */
+	int fd = open_with_vnode((vfsnode_t*) socket, dflags);
+	/* If we failed, close the socket and return */
+	if(fd < 0)
+		close_vfs((vfsnode_t*) socket);
+	return fd;
 }

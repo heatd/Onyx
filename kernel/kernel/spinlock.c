@@ -14,7 +14,11 @@ void spinlock_lock(unsigned long *);
 void spinlock_unlock(unsigned long *);
 void acquire_spinlock(spinlock_t *lock)
 {
-	spinlock_lock(&lock->lock);
+	while(!__sync_bool_compare_and_swap(&lock->lock, 0, 1))
+	{
+		__asm__ __volatile__("pause");
+	}
+	__sync_synchronize();
 	lock->old_preemption_state = sched_is_preemption_disabled();
 	/* Disable preemption after locking, and enable it on release. This means locks get faster */
 	sched_change_preemption_state(true);
@@ -22,7 +26,8 @@ void acquire_spinlock(spinlock_t *lock)
 
 void release_spinlock(spinlock_t *lock)
 {
-	spinlock_unlock(&lock->lock);
+	__sync_synchronize();
+	lock->lock = 0;
 	sched_change_preemption_state(lock->old_preemption_state);
 }
 void wait_spinlock(spinlock_t *lock)

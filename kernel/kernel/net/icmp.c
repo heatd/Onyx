@@ -13,7 +13,7 @@
 #include <kernel/icmp.h>
 #include <kernel/ip.h>
 #include <kernel/log.h>
-
+#if 0
 int icmp_socket = -1;
 void icmp_init()
 {
@@ -59,3 +59,4 @@ int icmp_ping(uint32_t ip, int times)
 	}
 	return 0;
 }
+#endif

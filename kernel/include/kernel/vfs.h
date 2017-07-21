@@ -14,6 +14,7 @@
 #include <kernel/avl.h>
 #include <kernel/vmm.h>
 
+#include <sys/socket.h>
 #include <sys/stat.h>
 #define VFS_TYPE_FILE 		0
 #define VFS_TYPE_DIR 		1
@@ -48,6 +49,11 @@ struct file_ops
 	__link link;
 	__symlink symlink;
 	void *(*mmap)(vmm_entry_t *area, struct vfsnode *node);
+	int (*bind)(const struct sockaddr *addr, socklen_t addrlen, struct vfsnode *vnode);
+	int (*connect)(const struct sockaddr *addr, socklen_t addrlen, struct vfsnode *vnode);
+	ssize_t (*send)(const void *buf, size_t len, int flags, struct vfsnode *vnode);
+	ssize_t (*recvfrom)(void *buf, size_t len, int flags, struct sockaddr *addr, 
+		socklen_t *slen, struct vfsnode *vnode);
 };
 typedef struct vfsnode
 {
@@ -64,6 +70,7 @@ typedef struct vfsnode
 	avl_node_t *cache_tree;
 	struct vfsnode *next;
 	struct vfsnode *link;
+	void *helper;
 } vfsnode_t;
 
 void *add_cache_to_node(void *ptr, size_t size, off_t offset, vfsnode_t *node);
@@ -76,6 +83,10 @@ vfsnode_t *creat_vfs(vfsnode_t *node, const char *path, int mode);
 unsigned int getdents_vfs(unsigned int count, struct dirent* dirp, off_t off, vfsnode_t *this);
 int ioctl_vfs(int request, char *argp, vfsnode_t *this);
 int stat_vfs(struct stat *buf, vfsnode_t *node);
+ssize_t send_vfs(const void *buf, size_t len, int flags, vfsnode_t *node);
+int connect_vfs(const struct sockaddr *addr, socklen_t addrlen, vfsnode_t *node);
+int bind_vfs(const struct sockaddr *addr, socklen_t addrlen, vfsnode_t *node);
+ssize_t recvfrom_vfs(void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *slen, vfsnode_t *node);
 int vfs_init();
 struct minor_device;
 ssize_t lookup_file_cache(void *buffer, size_t sizeofread, vfsnode_t *file, struct minor_device *m, off_t offset);

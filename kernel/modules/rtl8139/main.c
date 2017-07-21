@@ -19,6 +19,7 @@
 #include <kernel/spinlock.h>
 #include <kernel/ethernet.h>
 #include <kernel/timer.h>
+#include <kernel/netif.h>
 
 #include <drivers/mmio.h>
 #include <drivers/pci.h>
@@ -119,8 +120,14 @@ uint16_t rtl_clear_interrupt(void)
 static volatile bool recieved_irq = false;
 uintptr_t rtl_irq_handler(registers_t *regs)
 {
-	recieved_irq = true;
-	uint16_t status = rtl_clear_interrupt();
+	uint16_t status = rtl_readw(REG_ISR);
+	if(status & ISR_ROK)
+	{
+		//printk("Recieved a packet\n");
+	}
+	else
+		recieved_irq = true;
+	rtl_clear_interrupt();
 	return 0;
 }
 void rtl_software_reset(void)
@@ -181,7 +188,7 @@ int rtl_wait_for_irq(int timeout, int tx)
 	uint64_t curr_stamp = get_tick_count();
 	while(!recieved_irq || !(rtl_readl(REG_TSD0 + tx * 4) & TSD_TOK))
 	{
-		if(curr_stamp + timeout >= get_tick_count())
+		if(curr_stamp + timeout <= get_tick_count())
 			return errno = ETIMEDOUT, -1;
 		/* TODO: Maybe we shouldn't sleep, or should we? */
 		sched_sleep(5);
@@ -204,6 +211,15 @@ int rtl_send_packet(const void *buf, const uint16_t size)
 	release_spinlock(&tx_buffers[tx].lock);
 
 	return status;
+}
+void rtl_fill_mac(struct netif *n)
+{
+	uint8_t port = REG_MAC;
+	for(int i = 0; i < 6; i++)
+	{
+		/* Read the mac address */
+		n->mac_address[i] = rtl_readb(port + i);
+	}
 }
 int module_init()
 {
@@ -238,10 +254,16 @@ int module_init()
 		return -1;
 	int irq = pci_get_intn(device->bus, device->device, device->function);
 	irq_install_handler(irq, rtl_irq_handler);
-	eth_set_dev_send_packet(rtl_send_packet);
-	char dest[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-	char packet[100];
-	eth_send_packet((char*) &dest, packet, 100, PROTO_IPV4);
+
+	struct netif *n = malloc(sizeof(struct netif));
+	if(!n)
+		return -1;
+	memset(n, 0, sizeof(struct netif));
+	n->name = "eth0";
+	n->flags |= NETIF_LINKUP;
+	n->sendpacket = rtl_send_packet;
+	rtl_fill_mac(n);
+	netif_register_if(n);
 	return 0;
 }
 int module_fini(void)

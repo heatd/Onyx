@@ -154,8 +154,8 @@ unsigned int devfs_getdents(unsigned int count, struct dirent* dirp, off_t off, 
 	unsigned int found = 0;
 	for(size_t i = 0; i < num_child; i++)
 	{
-		strcpy(dirp[found].d_name, "/dev/");
-		strcat((char*) &dirp[found].d_name, children[i]->name);
+		strcpy(dirp[found].d_name, children[i]->name);
+		printk("Child %s\n", children[i]->name);
 		dirp[found].d_ino = i;
 		if(children[i]->type & VFS_TYPE_DIR) dirp[found].d_type = DT_DIR;
 		else if(children[i]->type & VFS_TYPE_FILE) dirp[found].d_type = DT_REG;

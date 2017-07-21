@@ -18,8 +18,6 @@
 #include <drivers/pci.h>
 #include <drivers/e1000.h>
 
-char mac_address[6] = {0};
-char router_mac[6] = {0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
 
 uint8_t *packet = NULL;
 uint16_t packet_len = 0;
@@ -31,12 +29,7 @@ void eth_set_packet_len(uint16_t len)
 {
 	packet_len = len;
 }
-static device_send_packet dev_send_packet;
-void eth_set_dev_send_packet(device_send_packet p)
-{
-	dev_send_packet = p;
-}
-int eth_send_packet(char *destmac, char *payload, uint16_t len, uint16_t protocol)
+int eth_send_packet(char *destmac, char *payload, uint16_t len, uint16_t protocol, struct netif *netif)
 {
 	ethernet_header_t *hdr = malloc(len + sizeof(ethernet_header_t));
 	if(!hdr)
@@ -45,10 +38,10 @@ int eth_send_packet(char *destmac, char *payload, uint16_t len, uint16_t protoco
 	memcpy(&hdr->payload, payload, len);
 	hdr->ethertype = LITTLE_TO_BIG16(protocol);
 	memcpy(&hdr->mac_dest, destmac, 6);
-	memcpy(&hdr->mac_source, &mac_address, 6);
-	dev_send_packet((char*)hdr, len + sizeof(ethernet_header_t));
+	memcpy(&hdr->mac_source, &netif->mac_address, 6);
+	int status = netif_send_packet(netif, (char*) hdr, len + sizeof(ethernet_header_t));
 	free(hdr);
-	return 0;
+	return status;
 }
 int ethernet_handle_packet(uint8_t *packet, uint16_t len)
 {
@@ -56,12 +49,8 @@ int ethernet_handle_packet(uint8_t *packet, uint16_t len)
 	hdr->ethertype = LITTLE_TO_BIG16(hdr->ethertype);
 	if(hdr->ethertype == PROTO_IPV4)
 		network_handle_packet((ip_header_t*)(hdr+1), len - sizeof(ethernet_header_t));
-	else if(hdr->ethertype == PROTO_ARP)
-		arp_handle_packet((arp_request_t*)(hdr+1), len - sizeof(ethernet_header_t));
+	/*else if(hdr->ethertype == PROTO_ARP)
+		arp_handle_packet((arp_request_t*)(hdr+1), len - sizeof(ethernet_header_t));*/
 
 	return 0;
-}
-void eth_set_router_mac(char* mac)
-{
-	memcpy(&router_mac, mac, 6);
 }

@@ -13,10 +13,12 @@
 #include <time.h>
 #include <ctype.h>
 
+#include <netinet/in.h>
 #include <sys/time.h>
 #include <sys/wait.h>
 #include <sys/syscall.h>
 #include <sys/utsname.h>
+#include <sys/socket.h>
 
 #include "init.h"
 extern char **environ;

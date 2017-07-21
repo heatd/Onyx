@@ -20,6 +20,7 @@ struct minor_device
 	struct minor_device *next;
 	dev_t majorminor;
 	struct file_ops *fops;
+	void *ptr; /* Helper pointer */
 };
 
 unsigned int __allocate_dynamic_major(void);

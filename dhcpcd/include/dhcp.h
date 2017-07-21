@@ -1,9 +1,3 @@
-/*
-* Copyright (c) 2016, 2017 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
-// All the structures are ISC copyrighted, the rest is mine
  /*
  * Copyright (c) 2011-2012,2014 by Internet Systems Consortium, Inc. ("ISC")
  * Copyright (c) 2004-2009 by Internet Systems Consortium, Inc. ("ISC")
@@ -28,9 +22,10 @@
  *   https://www.isc.org/
  *
  */
-#ifndef _KERNEL_DHCP_H
-#define _KERNEL_DHCP_H
+#ifndef _DHCP_H
+#define _DHCP_H
 
+#include <stdint.h>
 #define DHCP_UDP_OVERHEAD	(20 + /* IP header */			\
 			        8)   /* UDP header */
 #define DHCP_SNAME_LEN		64

@@ -16,8 +16,12 @@
  **************************************************************************/
 #include <stdio.h>
 #include <string.h>
+#include <stdbool.h>
 
+#include <multiboot2.h>
 #include <kernel/bootmem.h>
+#include <kernel/paging.h>
+#include <kernel/vmm.h>
 typedef struct stack_entry
 {
 	uintptr_t base;
@@ -40,29 +44,58 @@ size_t bootmem_get_memsize(void)
 {
 	return pmm_memory_size;
 }
-void bootmem_push(uintptr_t base, size_t size, size_t kernel_space_size)
+void bootmem_push_page(uintptr_t page)
 {
-	if(base == 0)
-	{
-		base += 0x1000;
-		size -= 0x1000;
-	}
-	/* Don't alloc the kernel */
-	if (base == 0x100000)
-	{
-		base += kernel_space_size;
-		size -= kernel_space_size;
-	}
-	for (unsigned int i = 0; i < pushed_blocks + 1; i++)
-		if (stack->next[i].base == 0 && stack->next[i].size == 0)
+	for(unsigned int i = 0; i < pushed_blocks + 1; i++)
+	{	
+		if(page - (stack->next[i].base + stack->next[i].size) == PAGE_SIZE)
 		{
-			stack->next[i].base = base;
-			stack->next[i].size = size;
+			stack->next[i].size += PAGE_SIZE;
+			return;
+		}
+		if(stack->next[i].base == 0 && stack->next[i].size == 0)
+		{
+			stack->next[i].base = page;
+			stack->next[i].size = PAGE_SIZE;
 			stack->next[i].magic = 0xFDFDFDFD;
 			last_entry = i;
 			break;
 		}
+	}
 	pushed_blocks++;
+}
+bool __check_used(uintptr_t page, uintptr_t start, uintptr_t end)
+{
+	if(start == page)
+		return true;
+	if(start < page && end > page)
+		return true;
+	return false;
+}
+extern uintptr_t kernel_end;
+#define KERNEL_START		0x100000
+bool check_used(uintptr_t page, struct multiboot_tag_module *module)
+{
+	if(page == 0)
+		return true;
+	if(__check_used(page, KERNEL_START, module->mod_end) == true)
+		return true;
+	uintptr_t kend = (uintptr_t) &kernel_end;
+	kend -= KERNEL_VIRTUAL_BASE;
+	kend += PAGE_SIZE;
+	/* This part doesn't work, that's why we check for KERNEL_START - module->mod_end */
+	/*if(__check_used(page, KERNEL_START, kend) == true)
+		return true;*/
+	return false;
+}
+void bootmem_push(uintptr_t base, size_t size, struct multiboot_tag_module *module)
+{
+	size &= -PAGE_SIZE;
+	for(uintptr_t p = base; p < base + size; p += PAGE_SIZE)
+	{
+		if(check_used(p, module) == false)
+			bootmem_push_page(p);
+	}
 }
 void bootmem_init(size_t memory_size, uintptr_t stack_space)
 {
@@ -74,6 +107,7 @@ void bootmem_init(size_t memory_size, uintptr_t stack_space)
 }
 void *bootmem_alloc(size_t blocks)
 {
+	printf("Pushed blocks: %u\n", pushed_blocks);
 	uintptr_t ret_addr = 0;
 	for (unsigned int i = pushed_blocks-1; i; i--)
 		if (stack->next[i].base != 0 && stack->next[i].size != 0 && stack->next[i].size >= PMM_BLOCK_SIZE * blocks)

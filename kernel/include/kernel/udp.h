@@ -8,6 +8,7 @@
 
 #include <stdint.h>
 
+#include <kernel/network.h>
 typedef struct udp
 {
 	uint16_t source_port;
@@ -35,7 +36,15 @@ static inline uint16_t udpsum(udp_header_t *hdr)
 	}
 	return ~ret;
 }
-int send_udp_packet(char *payload, size_t payload_size, int source_port, int dest_port, uint32_t srcip, uint32_t destip);
-
-
+typedef struct udp_socket
+{
+	socket_t socket;
+	int type;
+	struct sockaddr src_addr;
+	struct sockaddr dest_addr;
+} udp_socket_t;
+int send_udp_packet(char *payload, size_t payload_size, int source_port, int dest_port, 
+		uint32_t srcip, uint32_t destip, struct netif *netif);
+socket_t *udp_create_socket(int type);
+int udp_init_netif(struct netif *netif);
 #endif

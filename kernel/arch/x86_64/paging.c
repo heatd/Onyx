@@ -286,13 +286,8 @@ void* paging_map_phys_to_virt(uint64_t virt, uint64_t phys, uint64_t prot)
 		return NULL;
 	decomposed_addr_t decAddr;
 	memcpy(&decAddr, &virt, sizeof(decomposed_addr_t));
-	PML4 *pml4;
-	if(!is_spawning)
-		pml4 = (PML4*)((uint64_t)current_pml4 + PHYS_BASE);
-	else
-		{
-		pml4 = (PML4*)((uint64_t)spawning_pml + PHYS_BASE);}
-	
+	PML4 *pml4 = (PML4*)((uint64_t)current_pml4 + PHYS_BASE);
+
 	uint64_t* entry = &pml4->entries[decAddr.pml4];
 	PML3* pml3 = NULL;
 	PML2* pml2 = NULL;
@@ -335,7 +330,7 @@ void* paging_map_phys_to_virt(uint64_t virt, uint64_t phys, uint64_t prot)
 	pml1 = (PML1*)((uint64_t)pml1 + PHYS_BASE);
 	entry = &pml1->entries[decAddr.pt];
 	*entry = make_pml1e( phys, (prot & 4) ? 1 : 0, 0, (prot & 0x2) ? 1 : 0, 0, 0, (prot & 0x80) ? 1 : 0, (prot & 1) ? 1 : 0, 1);
-	return (void*)virt;
+	return (void*) virt;
 }
 _Bool pml_is_empty(void *_pml)
 {

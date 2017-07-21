@@ -17,7 +17,7 @@
 #include <kernel/arp.h>
 #include <kernel/log.h>
 #include <kernel/dns.h>
-
+#if 0
 void parse_ipnumber_to_char_array(uint32_t ip, unsigned char* buffer)
 {
 	buffer[0] = ip & 0xFF;
@@ -104,3 +104,4 @@ int dhcp_initialize()
 
 	return 0;
 }
+#endif

@@ -22,6 +22,7 @@
 #include <kernel/fscache.h>
 #include <kernel/compiler.h>
 #include <kernel/page.h>
+#include <kernel/mutex.h>
 
 #include <drivers/ata.h>
 
@@ -340,8 +341,10 @@ void ata_init(struct pci_device *dev)
 		}
 	}	
 }
+static mutex_t lock = MUTEX_INITIALIZER;
 void ata_read_sectors(unsigned int channel, unsigned int drive, uint32_t buffer, uint16_t bytesoftransfer, uint64_t lba48)
 {
+	mutex_lock(&lock);
 	if(bytesoftransfer == 0) bytesoftransfer = UINT16_MAX;
 	uint16_t num_secs = bytesoftransfer / 512;
 	if(bytesoftransfer % 512)
@@ -380,9 +383,11 @@ void ata_read_sectors(unsigned int channel, unsigned int drive, uint32_t buffer,
 	outb(bar4_base, 9);
 	ata_wait_for_irq(10000);
 	outb(bar4_base, 0);
+	mutex_unlock(&lock);
 }
 void ata_write_sectors(unsigned int channel, unsigned int drive, uint32_t buffer, uint16_t bytesoftransfer, uint64_t lba48)
 {
+	mutex_lock(&lock);
 	if(bytesoftransfer == 0) bytesoftransfer = UINT16_MAX;
 	uint16_t num_secs = bytesoftransfer / 512;
 	if(bytesoftransfer % 512)
@@ -431,4 +436,5 @@ void ata_write_sectors(unsigned int channel, unsigned int drive, uint32_t buffer
 		outl(bar4_base + 0x8 + 0x4, 0);
 		outb(bar4_base + 0x8 + 2, 4);
 	}
+	mutex_unlock(&lock);
 }

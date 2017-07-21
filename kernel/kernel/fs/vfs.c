@@ -436,3 +436,55 @@ ssize_t write_file_cache(void *buffer, size_t sizeofwrite, vfsnode_t *file, stru
 	}
 	return (ssize_t) wrote;
 }
+ssize_t send_vfs(const void *buf, size_t len, int flags, vfsnode_t *node)
+{
+	if(node->type & VFS_TYPE_MOUNTPOINT)
+		return send_vfs(buf, len, flags, node->link);
+	struct minor_device *m = dev_find(node->dev);
+	if(!m)
+		return -ENODEV;
+	if(!m->fops)
+		return -ENOSYS;
+	if(m->fops->send != NULL)
+		return m->fops->send(buf, len, flags, node);
+	return -ENOSYS;
+}
+int connect_vfs(const struct sockaddr *addr, socklen_t addrlen, vfsnode_t *node)
+{
+	if(node->type & VFS_TYPE_MOUNTPOINT)
+		return connect_vfs(addr, addrlen, node->link);
+	struct minor_device *m = dev_find(node->dev);
+	if(!m)
+		return -ENODEV;
+	if(!m->fops)
+		return -ENOSYS;
+	if(m->fops->connect != NULL)
+		return m->fops->connect(addr, addrlen, node);
+	return -ENOSYS;
+}
+int bind_vfs(const struct sockaddr *addr, socklen_t addrlen, vfsnode_t *node)
+{
+	if(node->type & VFS_TYPE_MOUNTPOINT)
+		return connect_vfs(addr, addrlen, node->link);
+	struct minor_device *m = dev_find(node->dev);
+	if(!m)
+		return -ENODEV;
+	if(!m->fops)
+		return -ENOSYS;
+	if(m->fops->bind != NULL)
+		return m->fops->bind(addr, addrlen, node);
+	return -ENOSYS;
+}
+ssize_t recvfrom_vfs(void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *slen, vfsnode_t *node)
+{
+	if(node->type & VFS_TYPE_MOUNTPOINT)
+		return recvfrom_vfs(buf, len, flags, src_addr, slen, node->link);
+	struct minor_device *m = dev_find(node->dev);
+	if(!m)
+		return -ENODEV;
+	if(!m->fops)
+		return -ENOSYS;
+	if(m->fops->recvfrom != NULL)
+		return m->fops->recvfrom(buf, len, flags, src_addr, slen, node);
+	return -ENOSYS;
+}

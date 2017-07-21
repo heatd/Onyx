@@ -1,7 +1,7 @@
 # Multi-user target for booting into multi-user mode
 
 [Dependencies]
-
+Wants=dhcpcd.service
 
 [Service]
 Bin=/usr/bin/login

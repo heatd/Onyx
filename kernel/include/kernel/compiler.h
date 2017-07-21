@@ -34,6 +34,9 @@
 #define UNUSED_PARAMETER(x) (void)x
 #define UNUSED(x) UNUSED_PARAMETER(x)
 #define __init __attribute__((constructor))
+#define weak_alias(name, aliasname) _weak_alias (name, aliasname)
+#define _weak_alias(name, aliasname) \
+extern __typeof (name) aliasname __attribute__ ((weak, alias (#name)));
 static inline uint64_t rdtsc()
 {
     	uint64_t ret = 0;
