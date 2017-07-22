@@ -20,15 +20,12 @@
 
 int ptrace_peek(process_t *process, void *addr, ptrace_word_t *word)
 {
+	int status = 0;
 	/* Save the old VMM tree */
 	avl_node_t *old_tree = vmm_get_tree();
 
 	/* Set the vmm tree before changing CR3, as changing cr3 is very expensive(saves performance on invalid requests) */
 	vmm_set_tree(process->tree);
-	
-	/* Check if it's mapped */
-	if(vmm_check_pointer(addr, sizeof(ptrace_word_t)) < 0)
-		return errno = EFAULT, -1;
 	
 	/* Lock the address space */
 	acquire_spinlock(&process->vm_spl);
@@ -36,7 +33,11 @@ int ptrace_peek(process_t *process, void *addr, ptrace_word_t *word)
 	paging_load_cr3(process->cr3);
 
 	/* Do the actual copy */
-	memcpy(word, addr, sizeof(ptrace_word_t));
+	if(copy_from_user(word, addr, sizeof(ptrace_word_t)) < 0)
+	{
+		status = -1;
+		errno = EFAULT;
+	}
 
 	/* Unlock the address space */
 	release_spinlock(&process->vm_spl);
@@ -45,19 +46,16 @@ int ptrace_peek(process_t *process, void *addr, ptrace_word_t *word)
 	vmm_set_tree(old_tree);
 	paging_load_cr3(get_current_process()->cr3);
 
-	return 0;
+	return status;
 }
 int ptrace_poke(process_t *process, void *addr, ptrace_word_t word)
 {
+	int status = 0;
 	/* Save the old VMM tree */
 	avl_node_t *old_tree = vmm_get_tree();
 
 	/* Set the vmm tree before changing CR3, as changing cr3 is very expensive(saves performance on invalid requests) */
 	vmm_set_tree(process->tree);
-	
-	/* Check if it's mapped */
-	if(vmm_check_pointer(addr, sizeof(ptrace_word_t)) < 0)
-		return errno = EFAULT, -1;
 	
 	/* Lock the address space */
 	acquire_spinlock(&process->vm_spl);
@@ -65,7 +63,11 @@ int ptrace_poke(process_t *process, void *addr, ptrace_word_t word)
 	paging_load_cr3(process->cr3);
 
 	/* Do the actual copy */
-	memcpy(addr, &word, sizeof(ptrace_word_t));
+	if(copy_to_user(addr, &word, sizeof(ptrace_word_t)) < 0)
+	{
+		status = -1;
+		errno = EFAULT;
+	}
 
 	/* Unlock the address space */
 	release_spinlock(&process->vm_spl);
@@ -74,7 +76,7 @@ int ptrace_poke(process_t *process, void *addr, ptrace_word_t word)
 	vmm_set_tree(old_tree);
 	paging_load_cr3(get_current_process()->cr3);
 
-	return 0;
+	return status;
 }
 int ptrace_getregs(process_t *process, struct user_regs_struct *regs)
 {

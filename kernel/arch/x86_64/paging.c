@@ -516,6 +516,7 @@ void paging_change_perms(void *addr, int prot)
 	if(prot & VMM_WRITE)
 		perms |= (1 << 1);
 	*entry = perms | page;
+	__native_tlb_invalidate_page(addr);
 }
 int is_invalid_arch_range(void *address, size_t pages)
 {

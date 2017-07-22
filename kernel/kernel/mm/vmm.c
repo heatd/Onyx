@@ -342,7 +342,6 @@ void *vmm_map_range(void *range, size_t pages, uint64_t flags)
 		__asm__ __volatile__("invlpg %0"::"m"(mem));
 		mem += 0x1000;
 	}
-	memset(range, 0, PAGE_SIZE * pages);
 	
 	__vm_unlock(kernel);
 	return range;
@@ -1033,4 +1032,53 @@ int vmm_mark_cow(vmm_entry_t *area)
 		return errno = EINVAL, -1;
 	area->flags |= VM_COW;
 	return 0;
+}
+vmm_entry_t *vmm_is_mapped_and_writable(void *usr)
+{
+	vmm_entry_t *entry = vmm_is_mapped(usr);
+	if(unlikely(!entry))	return NULL;
+	if(likely(entry->rwx & VM_WRITE))	return entry;
+	return NULL;
+}
+ssize_t copy_to_user(void *usr, const void *data, size_t len)
+{
+	char *usr_ptr = usr;
+	const char *data_ptr = data;
+	while(len)
+	{
+		vmm_entry_t *entry;
+		if((entry = vmm_is_mapped_and_writable(usr_ptr)) == NULL)
+		{
+			printk("Fault at %p\n", usr_ptr);
+			return -EFAULT;
+		}
+		size_t count = (entry->base + entry->pages * PAGE_SIZE) - (size_t) usr_ptr;
+		if(likely(count > len)) count = len;
+		memcpy(usr_ptr, data_ptr, count);
+		usr_ptr += count;
+		data_ptr += count;
+		len -= count;
+	}
+	return len;
+}
+ssize_t copy_from_user(void *data, const void *usr, size_t len)
+{
+	const char *usr_ptr = usr;
+	char *data_ptr = data;
+	while(len)
+	{
+		vmm_entry_t *entry;
+		if((entry = vmm_is_mapped_and_writable((void*) usr_ptr)) == NULL)
+		{
+			printk("Fault at %p\n", usr_ptr);
+			return -EFAULT;
+		}
+		size_t count = (entry->base + entry->pages * PAGE_SIZE) - (size_t) usr_ptr;
+		if(likely(count > len)) count = len;
+		memcpy(data_ptr, usr_ptr, count);
+		usr_ptr += count;
+		data_ptr += count;
+		len -= count;
+	}
+	return len;
 }

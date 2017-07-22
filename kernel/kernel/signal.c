@@ -294,10 +294,6 @@ int sys_sigaction(int signum, const struct sigaction *act, struct sigaction *old
 {
 	if(signum > _NSIG)
 		return -EINVAL;
-	if(vmm_check_pointer((struct sigaction*) act, sizeof(struct sigaction)) < 0 && act)
-		return -EFAULT;
-	if(vmm_check_pointer(oldact, sizeof(struct sigaction)) < 0 && oldact)
-		return -EFAULT;
 	/* If both pointers are NULL, just return 0 (We can't do anything) */
 	if(!oldact && !act)
 		return 0;
@@ -309,7 +305,8 @@ int sys_sigaction(int signum, const struct sigaction *act, struct sigaction *old
 	/* If old_act, save the old action */
 	if(oldact)
 	{
-		memcpy(oldact, &proc->sigtable[signum], sizeof(struct sigaction));
+		if(copy_to_user(oldact, &proc->sigtable[signum], sizeof(struct sigaction)) < 0)
+			return -EFAULT;
 	}
 	/* If act, set the new action */
 	if(act)
@@ -328,7 +325,8 @@ int sys_sigaction(int signum, const struct sigaction *act, struct sigaction *old
 				mutex_unlock(&proc->signal_lock);
 				return -EINVAL;
 		}
-		memcpy(&proc->sigtable[signum], act, sizeof(struct sigaction));
+		if(copy_from_user(&proc->sigtable[signum], act, sizeof(struct sigaction)) < 0)
+			return -EFAULT;
 	}
 	mutex_unlock(&proc->signal_lock);
 	return 0;
@@ -338,20 +336,19 @@ int sys_sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
 	process_t *current = get_current_process();
 	if(oldset)
 	{
-		if(vmm_check_pointer(oldset, sizeof(sigset_t)) < 0)
+		if(copy_to_user(oldset, &current->sigmask, sizeof(sigset_t)) < 0)
 			return -EFAULT;
-		memcpy(oldset, &current->sigmask, sizeof(sigset_t));
 	}
 	if(set)
 	{
-		if(vmm_check_pointer((void*) set, sizeof(sigset_t)) < 0)
-			return -EFAULT;
-		
+		sigset_t kset;
+		if(copy_from_user(&kset, set, sizeof(sigset_t)) < 0)
+			return -EFAULT;	
 		switch(how)
 		{
 			case SIG_BLOCK:
 			{
-				sigorset(&current->sigmask, &current->sigmask, set);
+				sigorset(&current->sigmask, &current->sigmask, &kset);
 				if(sigismember(&current->sigmask, SIGKILL))
 					sigdelset(&current->sigmask, SIGKILL);
 				if(sigismember(&current->sigmask, SIGSTOP))
@@ -360,15 +357,13 @@ int sys_sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
 			}
 			case SIG_UNBLOCK:
 			{
-				sigset_t s;
-				memcpy(&s, set, sizeof(sigset_t));
-				signotset(&s);
-				sigandset(&current->sigmask, &current->sigmask, &s); 
+				signotset(&kset);
+				sigandset(&current->sigmask, &current->sigmask, &kset); 
 				break;
 			}
 			case SIG_SETMASK:
 			{
-				memcpy(&current->sigmask, set, sizeof(sigset_t));
+				memcpy(&current->sigmask, &kset, sizeof(sigset_t));
 				break;
 			}
 			default:
@@ -382,18 +377,19 @@ bool signal_is_pending(void)
 {
 	return (bool) get_current_process()->signal_pending;
 }
-int sys_sigsuspend(const sigset_t *set)
+int sys_sigsuspend(const sigset_t *uset)
 {
-	if(vmm_check_pointer((void*) set, sizeof(sigset_t)) < 0)
-		return -EFAULT;
 	process_t *current = get_current_process();
-	
+
+	sigset_t set;
+	if(copy_from_user(&set, uset, sizeof(sigset_t)) < 0)
+		return -EFAULT;
 	/* Ok, mask the signals in set */
 	sigset_t old;
 	/* First, save the old sigset */
 	memcpy(&old, &current->sigmask, sizeof(sigset_t));
 	/* Now, set the signal mask */
-	memcpy(&current->sigmask, set, sizeof(sigset_t));
+	memcpy(&current->sigmask, &set, sizeof(sigset_t));
 
 	/* Now, wait for a signal */
 	while(!signal_is_pending())

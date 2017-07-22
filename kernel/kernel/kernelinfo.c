@@ -12,15 +12,16 @@
 #include <kernel/kernelinfo.h>
 #include <kernel/vmm.h>
 #include <kernel/network.h>
-int sys_uname(struct utsname *buf)
+int sys_uname(struct utsname *ubuf)
 {
-	if(vmm_check_pointer(buf, sizeof(struct utsname)) < 0)
-		return errno =-EFAULT;
-	strcpy(buf->sysname, OS_NAME);
-	strcpy(buf->release, OS_RELEASE);
-	strcpy(buf->version, OS_VERSION);
-	strcpy(buf->machine, OS_MACHINE);
+	struct utsname buf = {0};
+	strcpy(buf.sysname, OS_NAME);
+	strcpy(buf.release, OS_RELEASE);
+	strcpy(buf.version, OS_VERSION);
+	strcpy(buf.machine, OS_MACHINE);
 
-	strcpy(buf->nodename, network_gethostname());
+	strcpy(buf.nodename, network_gethostname());
+	if(copy_to_user(ubuf, &buf, sizeof(struct utsname)) < 0)
+		return -EFAULT;
 	return 0;
 }

@@ -397,7 +397,7 @@ pid_t sys_wait4(pid_t pid, int *wstatus, int options, struct rusage *usage)
 			if(looking_for_any_children == true || it->pid == pid)
 			{
 				if(wstatus)
-					*wstatus = it->exit_code;
+					copy_to_user(wstatus, &it->exit_code, sizeof(int));
 
 				/* TODO: Destroy the zombie process */
 				it->parent = NULL;

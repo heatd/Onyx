@@ -83,9 +83,11 @@ int futex_enqueue_thread(struct futex *ftx)
 void futex_sleep_until_wake(const struct timespec *timeout)
 {
 	unsigned long waiting_time = 0;
-	if(vmm_check_pointer((void*) timeout, sizeof(struct timespec)) > 0)
+	if(timeout)
 	{
-		waiting_time = timeout->tv_sec * 1000 + timeout->tv_nsec / 1000000;
+		struct timespec t = {0};
+		copy_from_user(&t, timeout, sizeof(struct timespec));
+		waiting_time = t.tv_sec * 1000 + t.tv_nsec / 1000000;
 	}
 	if(waiting_time)
 		sched_sleep(waiting_time);

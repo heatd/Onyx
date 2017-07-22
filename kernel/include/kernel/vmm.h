@@ -99,6 +99,7 @@ void *vmm_gen_mmap_base(void);
 void *vmm_gen_brk_base(void);
 void vmm_sysfs_init(void);
 int vmm_mark_cow(vmm_entry_t *zone);
+vmm_entry_t *vmm_is_mapped_and_writable(void *usr);
 static inline size_t vmm_align_size_to_pages(size_t size)
 {
 	size_t pages = size / PAGE_SIZE;
@@ -106,19 +107,6 @@ static inline size_t vmm_align_size_to_pages(size_t size)
 		pages++;
 	return pages;
 }
-static inline ssize_t copy_to_user(void *usr, void *data, size_t len)
-{
-	if(vmm_check_pointer(usr, len) < 0)
-		return -len;
-	memcpy(usr, data, len);
-	return len;
-}
-static inline ssize_t copy_from_user(void *usr, void *data, size_t len)
-{
-	if(vmm_check_pointer(usr, len) < 0)
-		return -len;
-	memcpy(data, usr, len);
-	return len;
-}
-
+ssize_t copy_to_user(void *usr, const void *data, size_t len);
+ssize_t copy_from_user(void *data, const void *usr, size_t len);
 #endif

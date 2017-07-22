@@ -248,9 +248,8 @@ int sys_arch_prctl(int code, unsigned long *addr)
 		}
 		case ARCH_GET_FS:
 		{
-			if(vmm_check_pointer(addr, sizeof(unsigned long)) < 0)
-				return errno =-EINVAL;
-			*addr = (unsigned long) get_current_thread()->fs;
+			if(copy_to_user(addr, &get_current_thread()->fs, sizeof(unsigned long)) < 0)
+				return -EFAULT;
 			break;
 		}
 		case ARCH_SET_GS:
@@ -261,9 +260,8 @@ int sys_arch_prctl(int code, unsigned long *addr)
 		}
 		case ARCH_GET_GS:
 		{
-			if(vmm_check_pointer(addr, sizeof(unsigned long)) < 0)
-				return errno =-EINVAL;
-			*addr = (unsigned long) get_current_thread()->gs;
+			if(copy_to_user(addr, &get_current_thread()->gs, sizeof(unsigned long)) < 0)
+				return -EFAULT;
 			break;
 		}
 	}

@@ -19,8 +19,6 @@ int sys_sethostname(const void *name, size_t len)
 {
 	if(len > 65)
 		return errno =-EINVAL;
-	if(vmm_check_pointer((void *) name, len) < 0)
-		return errno =-EFAULT;
 	if((ssize_t) len < 0)
 		return errno =-EINVAL;
 	/* We need to copy the name, since the user pointer isn't safe */
@@ -28,22 +26,25 @@ int sys_sethostname(const void *name, size_t len)
 	if(!hostname)
 		return errno =-ENOMEM;
 	memset(hostname, 0, len+1);
-	memcpy(hostname, name, len);
+	if(copy_from_user(hostname, name, len) < 0)
+	{
+		free(hostname);
+		return -EFAULT;
+	}
 	network_sethostname(hostname);
 	
 	return 0;
 }
 int sys_gethostname(char *name, size_t len)
 {
-	if(vmm_check_pointer(name, len) < 0)
-		return errno =-EFAULT;
 	if((ssize_t) len < 0)
 		return errno =-EINVAL;
 	
 	size_t str_len = strlen(network_gethostname());
 	if(len < str_len)
 		return errno =-EINVAL;
-	strcpy(name, network_gethostname());
+	if(copy_to_user(name, network_gethostname(), str_len) < 0)
+		return -EFAULT;
 	
 	return 0;
 }

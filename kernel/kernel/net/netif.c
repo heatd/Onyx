@@ -23,13 +23,14 @@ unsigned int netif_ioctl(int request, void *argp, vfsnode_t* this)
 	{
 		case SIOSETINET4:
 		{
-			if(vmm_check_pointer(argp, sizeof(struct if_config_inet)) < 0)
-				return -EFAULT;
 			struct if_config_inet *c = argp;
+			struct if_config_inet i;
+			if(copy_from_user(&i, c, sizeof(struct if_config_inet)) < 0)
+				return -EFAULT;
 			struct sockaddr_in *local = (struct sockaddr_in*) &netif->local_ip;
-			memcpy(&local->sin_addr, &c->address, sizeof(struct in_addr));
+			memcpy(&local->sin_addr, &i.address, sizeof(struct in_addr));
 			struct sockaddr_in *router = (struct sockaddr_in*) &netif->router_ip;
-			memcpy(&router->sin_addr, &c->router, sizeof(struct in_addr));
+			memcpy(&router->sin_addr, &i.router, sizeof(struct in_addr));
 			return 0;
 		}
 		case SIOGETINET4:

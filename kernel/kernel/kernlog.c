@@ -48,18 +48,18 @@ int sys_syslog(int type, char *buffer, int len)
 {
 	if(type == SYSLOG_ACTION_SIZE_BUFFER)
 		return (int) log_position;
-	if(vmm_check_pointer(buffer, len) < 0)
-		return -EFAULT;
 	switch(type)
 	{
 		case SYSLOG_ACTION_READ:
 		{
-			memcpy(buffer, _log_buf, len);
+			if(copy_to_user(buffer, _log_buf, len) < 0)
+				return -EFAULT;
 			break;
 		}
 		case SYSLOG_ACTION_READ_CLEAR:
 		{
-			memcpy(buffer, _log_buf, len);
+			if(copy_to_user(buffer, _log_buf, len) < 0)
+				return -EFAULT;
 			kernlog_clear();
 			break;
 		}

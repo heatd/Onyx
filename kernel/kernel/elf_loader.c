@@ -322,10 +322,16 @@ int elf_parse_program_headers(void *file, struct binfmt_args *args)
 			/* Sanitize the address first */
 			if(vm_sanitize_address((void*)(phdrs[i].p_vaddr), pages) < 0)
 				return false;
-			if(!vmm_reserve_address((void *) (phdrs[i].p_vaddr & 0xFFFFFFFFFFFFF000), pages, VM_TYPE_REGULAR, VM_WRITE | VM_USER))
+			int prot = (VM_USER) |
+				   ((phdrs[i].p_flags & PF_W) ? VM_WRITE : 0) |
+				   ((phdrs[i].p_flags & PF_X) ? 0 : VM_NOEXEC);
+			if(!vmm_reserve_address((void *) (phdrs[i].p_vaddr & 0xFFFFFFFFFFFFF000), pages, VM_TYPE_REGULAR, prot))
 				return false;
+			/* Note that things are mapped VM_WRITE | VM_USER before the memcpy so 
+			 we don't PF ourselves(i.e: writing to RO memory) */
 			vmm_map_range((void *) (phdrs[i].p_vaddr & 0xFFFFFFFFFFFFF000), pages, VM_WRITE | VM_USER);
 			memcpy((void*) phdrs[i].p_vaddr, (void *) ((char *) file + phdrs[i].p_offset),  phdrs[i].p_filesz);
+			vmm_change_perms((void *) (phdrs[i].p_vaddr & 0xFFFFFFFFFFFFF000), pages, prot);
 		}
 	}
 	return true;

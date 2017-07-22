@@ -226,12 +226,13 @@ pid_t sys_set_tid_address(pid_t *tidptr)
 }
 int sys_nanosleep(const struct timespec *req, struct timespec *rem)
 {
-	if(vmm_check_pointer((void*) req, sizeof(struct timespec)) < 0)
+	struct timespec ts;
+	if(copy_from_user(&ts, req, sizeof(struct timespec)) < 0)
 		return -EFAULT;
-	time_t ticks = req->tv_sec * 1000;
+	time_t ticks = ts.tv_sec * 1000;
 	if(req->tv_nsec)
 	{
-		if(req->tv_nsec < 500)
+		if(ts.tv_nsec < 500)
 			ticks++;
 	}
 	sched_sleep(ticks);

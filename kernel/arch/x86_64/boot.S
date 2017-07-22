@@ -111,6 +111,7 @@ initsse:
 	mov rax, cr0
 	and ax, 0xFFFB
 	or ax, 0x2
+	or eax, (1 << 16) ; Enable WP while we're at it 
 	mov cr0, rax
 	mov rax, cr4
 	or ax, 3 << 9

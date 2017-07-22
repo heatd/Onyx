@@ -328,33 +328,29 @@ unsigned int tty_ioctl(int request, void *argp, vfsnode_t *dev)
 		case TCGETS:
 		{
 			struct termios *term = argp;
-			if(vmm_check_pointer(term, sizeof(struct termios)) < 0)
+			if(copy_to_user(term, &term_io, sizeof(struct termios)) < 0)
 				return -EFAULT;
-			memcpy(term, &term_io, sizeof(struct termios));
 			return 0;
 		}
 		case TCSETS:
 		{
 			struct termios *term = argp;
-			if(vmm_check_pointer(term, sizeof(struct termios)) < 0)
+			if(copy_from_user(&term_io, term, sizeof(struct termios)) < 0)
 				return -EFAULT;
-			memcpy(&term_io, term, sizeof(struct termios));
 			return 0;
 		}
 		case TCSETSW:
 		{
 			struct termios *term = argp;
-			if(vmm_check_pointer(term, sizeof(struct termios)) < 0)
+			if(copy_from_user(&term_io, term, sizeof(struct termios)) < 0)
 				return -EFAULT;
-			memcpy(&term_io, term, sizeof(struct termios));
 			return 0;
 		}
 		case TCSETSF:
 		{
 			struct termios *term = argp;
-			if(vmm_check_pointer(term, sizeof(struct termios)) < 0)
+			if(copy_from_user(&term_io, term, sizeof(struct termios)) < 0)
 				return -EFAULT;
-			memcpy(&term_io, term, sizeof(struct termios));
 			return 0;
 		}
 		case TCGETA:
@@ -368,13 +364,14 @@ unsigned int tty_ioctl(int request, void *argp, vfsnode_t *dev)
 		case TIOCGWINSZ:
 		{
 			struct winsize *win = argp;
-			if(vmm_check_pointer(win, sizeof(struct winsize)) < 0)
-				return -EFAULT;
-			win->ws_row = max_row;
-			win->ws_col = max_column;
+			struct winsize kwin = {0};
+			kwin.ws_row = max_row;
+			kwin.ws_col = max_column;
 			struct video_mode *vid = video_get_videomode(main_device);
-			win->ws_xpixel = vid->width;
-			win->ws_ypixel = vid->height;
+			kwin.ws_xpixel = vid->width;
+			kwin.ws_ypixel = vid->height;
+			if(copy_to_user(win, &kwin, sizeof(struct winsize)) < 0)
+				return -EFAULT;
 			return 0;
 		}
 		case TIOCSWINSZ:
@@ -395,9 +392,8 @@ unsigned int tty_ioctl(int request, void *argp, vfsnode_t *dev)
 		case TIOCINQ:
 		{
 			int *arg = argp;
-			if(vmm_check_pointer(arg, sizeof(int)) < 0)
+			if(copy_to_user(arg, (const void *) &tty_keyboard_pos, sizeof(int)) < 0)
 				return -EFAULT;
-			*arg = tty_keyboard_pos;
 			return 0;
 		}
 		default:	
