@@ -96,6 +96,9 @@ typedef struct proc
 
 	/* Futex queue lock */
 	spinlock_t futex_queue_lock;
+	/* User time and system time consumed by the process */
+	clock_t user_time;
+	clock_t system_time;
 } process_t;
 process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent);
 void process_create_thread(process_t *proc, thread_callback_t callback, uint32_t flags, int argc, char **argv, char **envp);

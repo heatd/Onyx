@@ -18,6 +18,7 @@
 #include <sys/resource.h>
 #include <sys/uio.h>
 #include <sys/utsname.h>
+#include <sys/times.h>
 
 #include <kernel/modules.h>
 #include <kernel/network.h>
@@ -31,7 +32,7 @@
 #include <kernel/cpu.h>
 #include <kernel/page.h>
 
-const uint64_t SYSCALL_MAX_NUM = 73;
+const uint64_t SYSCALL_MAX_NUM = 76;
 
 uint64_t sys_nosys()
 {
@@ -108,6 +109,8 @@ extern int sys_socket(int domain, int type, int protocol);
 extern ssize_t sys_send(int sockfd, const void *buf, size_t len, int flags);
 extern int sys_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
 extern int sys_bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
+extern clock_t sys_times(struct tms *buf);
+extern int sys_getrusage(int who, struct rusage *usage);
 void *syscall_list[] =
 {
 	[0] = (void*) sys_write,
@@ -185,5 +188,7 @@ void *syscall_list[] =
 	[72] = (void*) sys_bind,
 	[73] = (void*) sys_connect,
 	[74] = (void*) sys_nosys, /* sys_recvfrom */
+	[75] = (void*) sys_times,
+	[76] = (void*) sys_getrusage,
 	[255] = (void*) sys_nosys
 };
