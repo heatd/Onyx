@@ -12,6 +12,7 @@
 #include <kernel/majorminor.h>
 #include <kernel/vfs.h>
 #include <kernel/spinlock.h>
+#include <kernel/list.h>
 
 #define MAJOR_DEVICE_HASHTABLE 256
 
@@ -45,13 +46,12 @@ struct driver
 };
 struct device
 {
+	struct device *parent;
 	const char *name;
 	struct bus *bus;
 	struct driver *driver;
-	int (*suspend)(struct device *);
-	int (*resume)(struct device *);
 
-	int (*shutdown)(struct device *);
+	struct list_head children;
 	struct device *prev, *next;
 };
 struct bus
@@ -60,7 +60,13 @@ struct bus
 	spinlock_t bus_lock;
 	struct device *devs;	/* List of every device connected to this bus */
 
-	int (*shutdown)(struct bus *);
+	int (*shutdown)(struct device *);
+	int (*resume)(struct device *);
+	int (*suspend)(struct device *);
+
+	int (*shutdown_bus)(struct bus *);
+	int (*suspend_bus)(struct bus *);
+	int (*resume_bus)(struct bus *);
 	struct bus *prev, *next;
 };
 
@@ -74,4 +80,8 @@ void bus_add_device(struct bus *bus, struct device *device);
 struct device *bus_find_device(struct bus *bus, const char *devname);
 /* bus_shutdown - Shutdown every device on the bus */
 void bus_shutdown(struct bus *bus);
+/* bus_shutdown_every - Shutdown every bus */
+void bus_shutdown_every(void);
+/* bus_suspend_every - Suspend every bus */
+void bus_suspend_every(void);
 #endif

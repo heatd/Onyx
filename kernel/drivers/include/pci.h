@@ -13,30 +13,36 @@
 #include <kernel/compiler.h>
 #include <kernel/dev.h>
 
-#define PCI_CONFIGURATION_SPACE_SIZE	256
-#define PCI_BAR0 0x10
-#define PCI_BARx(index) (PCI_BAR0 + 0x4 * index)
-#define PCI_INTN 0x3C
-#define PCI_COMMAND 0x4
-#define PCI_REG_STATUS			0x6
-#define PCI_REG_CAPABILTIES_POINTER	0x34
-#define CLASS_MASS_STORAGE_CONTROLLER 0x1
-#define CLASS_NETWORK_CONTROLLER 0x2
-#define CLASS_DISPLAY_CONTROLLER 0x3
-#define CLASS_MULTIMEDIA_CONTROLLER 0x4
-#define CLASS_MEMORY_CONTROLLER 0x5
-#define CLASS_BRIDGE_DEVICE 0x6
-#define CLASS_COMMUNICATIONS_CONTROLLER 0x7
-#define CLASS_BASE_SYSTEM_PERIPHERALS 0x8
-#define CLASS_INPUT_DEVICES 0x9
-#define CLASS_DOCKING_STATIONS 0xA
-#define CLASS_PROCESSORS 0xB
-#define CLASS_SERIAL_BUS_CONTROLLER 0xC
-#define CLASS_WIRELESS_CONTROLLER 0xD
-#define CLASS_INTELIGENT_CONTROLLER 0xE
-#define CLASS_SATELLITE_CONTROLLER 0xF
-#define CLASS_ENCRYPTION_DECRYPTION_CONTROLLER 0x10
-#define CLASS_DATA_AND_SIGNAL_CONTROLLER 0x11
+#define PCI_CONFIGURATION_SPACE_SIZE		256
+#define PCI_BAR0 				0x10
+#define PCI_BARx(index) 			(PCI_BAR0 + 0x4 * index)
+#define PCI_INTN 				0x3C
+#define PCI_COMMAND 				0x4
+#define PCI_REG_STATUS				0x6
+#define PCI_REG_CAPABILTIES_POINTER		0x34
+
+#define PCI_TYPE_MASK				0x7f
+#define PCI_TYPE_REGULAR			0
+#define PCI_TYPE_BRIDGE				1
+#define PCI_TYPE_CARDBUS			2
+
+#define CLASS_MASS_STORAGE_CONTROLLER 		1
+#define CLASS_NETWORK_CONTROLLER 		2
+#define CLASS_DISPLAY_CONTROLLER 		3
+#define CLASS_MULTIMEDIA_CONTROLLER 		4
+#define CLASS_MEMORY_CONTROLLER 		5
+#define CLASS_BRIDGE_DEVICE 			6
+#define CLASS_COMMUNICATIONS_CONTROLLER 	7
+#define CLASS_BASE_SYSTEM_PERIPHERALS 		8
+#define CLASS_INPUT_DEVICES 			9
+#define CLASS_DOCKING_STATIONS 			10
+#define CLASS_PROCESSORS 			11
+#define CLASS_SERIAL_BUS_CONTROLLER 		12
+#define CLASS_WIRELESS_CONTROLLER 		13
+#define CLASS_INTELIGENT_CONTROLLER 		14
+#define CLASS_SATELLITE_CONTROLLER 		15
+#define CLASS_ENCRYPTION_DECRYPTION_CONTROLLER 	16
+#define CLASS_DATA_AND_SIGNAL_CONTROLLER 	17
 
 #define PCI_COMMAND_IOSPACE			(1)
 #define PCI_COMMAND_MEMORY_SPACE		(2)
@@ -82,12 +88,26 @@
 
 #define PCI_DRIVER_GENERIC 0
 #define PCI_DRIVER_SPECIFIC 1
+
+#define PCI_PMC_D1_SUPPORT	(1 << 9)
+#define PCI_PMC_D2_SUPPORT	(1 << 10)
+
+#define PCI_POWER_STATE_D0	(1 << 0)
+#define PCI_POWER_STATE_D1	(1 << 1)
+#define PCI_POWER_STATE_D2	(1 << 2)
+#define PCI_POWER_STATE_D3	(1 << 3)
+
 struct pci_device
 {
 	struct device dev;
 	uint16_t deviceID, vendorID;
 	uint8_t bus, device, function;
 	uint8_t pciClass, subClass, progIF;
+	int type;
+	bool has_power_management;
+	uint8_t pm_cap_off;
+	int supported_power_states;	/* Given by PCI, we just cache it here */
+	int current_power_state;
 	struct pci_device* next __align_cache;
 };
 typedef struct

@@ -15,9 +15,11 @@
 
 #include <drivers/pci.h>
 
+int pci_shutdown(struct device *__dev);
 static struct bus pci_bus = 
 {
-	.name = "pci"
+	.name = "pci",
+	.shutdown = pci_shutdown
 };
 const uint16_t CONFIG_ADDRESS = 0xCF8;
 const uint16_t CONFIG_DATA = 0xCFC;
@@ -82,109 +84,157 @@ void __pci_write_word(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, u
 	outw(CONFIG_DATA, data);
 	release_spinlock(&pci_lock);
 }
+int pci_set_power_state(struct pci_device *dev, int power_state)
+{
+	struct pci_device *element = NULL;
+	void *saveptr = NULL; /* Used by list_get_element in a strtok_r kind of way */
+	/* If we can't perform power management on this device, just return 
+	 * success(it wasn't really an error was it?) 
+	*/
+	if(dev->has_power_management == false)
+		return -1;
+	/* I guess we're already there, so just return */
+	if(dev->current_power_state == power_state)
+		return 0;
+	/* TODO: It's unsafe to cut power to the PCI bridge just like that, so we ignore setting it */
+	if(dev->type == PCI_TYPE_BRIDGE)
+		return 0;
+	/* Check if the desired power state is supported */
+	if(dev->supported_power_states & power_state)
+		return -1;	/* If not, just return */
+	/* Set its children's power state as well */
+	while((element = list_get_element(&dev->dev.children, &saveptr)))
+	{
+		pci_set_power_state(element, power_state);
+	}
+	/* Ok, if we can perform power management, get the PMCSR offset */
+	uint16_t pmcsr_off = dev->pm_cap_off + 4;
+
+	uint16_t pmcsr = pci_read(dev, pmcsr_off, sizeof(uint16_t));
+
+	/* Translate the argument into the actual bits */
+	int p;
+	switch(power_state)
+	{
+		case PCI_POWER_STATE_D0:
+			p = 0;
+			break;
+		case PCI_POWER_STATE_D1:
+			p = 1;
+			break;
+		case PCI_POWER_STATE_D2:
+			p = 2;
+			break;
+		case PCI_POWER_STATE_D3:
+			p = 3;
+			break;
+		default:
+			panic("pci: Invalid target power state\n");
+	}
+	/* And set them in PMCSR, writing them back */
+	pmcsr |= p;
+	pci_write(dev, p, pmcsr_off, sizeof(uint16_t));
+	return 0;
+}
+int pci_shutdown(struct device *__dev)
+{
+	/* Okay, we're shutting down and our purpose here is to cut power to the device.
+	 * Hopefully the device driver has already been notified that we're shutting down, so
+	 * we're safe to cut power to the device by setting the power state to D3
+	*/
+	assert(__dev);
+	return pci_set_power_state((struct pci_device*) __dev, PCI_POWER_STATE_D3);
+}
+void pci_find_supported_capabilities(struct pci_device *dev)
+{
+	off_t pm_off = pci_find_capability(dev, PCI_CAP_ID_POWER_MANAGEMENT_INTERFACE);
+	if(pm_off != -1)
+	{
+		/* We found the PM Register block! Great, now we'll cache the offset and the
+		 * fact that the capability exists
+		*/
+		dev->has_power_management = true;
+		dev->pm_cap_off = (uint8_t) pm_off;
+		/* Now, grab the PMC and cache the available power states 
+		 * The PMC is at pm_off + 2, and is 16 bits in size
+		*/
+		uint16_t pmc = pci_read(dev, pm_off + 2, sizeof(uint16_t));
+		/* D0 and D3 are always supported */
+		dev->supported_power_states = PCI_POWER_STATE_D0 | PCI_POWER_STATE_D3;
+		if(pmc & PCI_PMC_D1_SUPPORT)
+			dev->supported_power_states |= PCI_POWER_STATE_D1;
+		if(pmc & PCI_PMC_D2_SUPPORT)
+			dev->supported_power_states |= PCI_POWER_STATE_D2;
+	}
+}
 struct pci_device *linked_list = NULL;
 struct pci_device* last = NULL;
-void* pci_check_function(uint8_t bus, uint8_t _device, uint8_t function)
+void pci_enumerate_device(uint16_t bus, uint8_t device, uint8_t function, struct pci_device *parent)
 {
-	// Get vendorID
-	uint16_t vendorID = (uint16_t)(__pci_config_read_dword(bus, _device, function,0) & 0x0000ffff);
-	if(vendorID == 0xFFFF) //Invalid function
-		return NULL;
-	// Get device ID
-	uint16_t deviceID = (__pci_config_read_dword(bus, _device, function,0) >> 16);
-	// Get Device Class
-	uint8_t pciClass = (uint8_t)(__pci_config_read_word(bus, _device, function , 0xA)>>8);
-	// Get Device SubClass
-	uint8_t subClass = (uint8_t)__pci_config_read_word(bus, _device, function, 0xB);
-	// Get ProgIF
-	uint8_t progIF = (uint8_t)(__pci_config_read_word(bus, _device, function,0xC)>>8);
-	// Set up the meta-data
+	// Get vendor
+	uint16_t vendor = (uint16_t)(__pci_config_read_dword(bus, device, function ,0) & 0x0000ffff);
+
+	if(vendor == 0xFFFF) /* Invalid, just skip this device */
+		return;
+
+	uint16_t header = (uint16_t)(__pci_config_read_word(bus, device, function, 0xE));
+
+	uint8_t pciClass = (uint8_t)(__pci_config_read_word(bus, device, function, 0xA)>>8);
+	uint8_t subClass = (uint8_t)__pci_config_read_word(bus, device, function, 0xB);
+	uint8_t progIF = (uint8_t)(__pci_config_read_word(bus, device, function, 0xC)>>8);
+
+	// Set up some meta-data
 	struct pci_device* dev = malloc(sizeof(struct pci_device));
 	if(!dev)
 		panic("pci: early unrecoverable oom\n");
 	memset(dev, 0 , sizeof(struct pci_device));
+
 	dev->bus = bus;
 	dev->function = function;
-	dev->device = _device;
-	dev->vendorID = vendorID;
-	dev->deviceID = deviceID;
+	dev->device = device;
+	dev->vendorID = vendor;
+	dev->deviceID = (__pci_config_read_dword(bus, device, function, 0) >> 16);
 	dev->pciClass = pciClass;
 	dev->subClass = subClass;
 	dev->progIF = progIF;
-
+	dev->current_power_state = PCI_POWER_STATE_D0;
+	dev->type = header & PCI_TYPE_MASK;
+	/* Find supported caps and add them to dev */
+	pci_find_supported_capabilities(dev);
 	/* Set up the pci device's name */
 	char name_buf[200] = {0};
-	snprintf(name_buf, 200, "pci-%x%x", vendorID, deviceID);
-
-	/* Setup struct device */
+	snprintf(name_buf, 200, "pci-%x%x", vendor, dev->deviceID);
 	dev->dev.name = strdup(name_buf);
 	assert(dev->dev.name);
+	
 	bus_add_device(&pci_bus, (struct device*) dev);
-	// Put it on the linked list
-	last->next = dev;
+	if(likely(last))
+		last->next = dev;
+	else
+		linked_list = dev;
+	if(parent)
+	{
+		dev->dev.parent = (struct device*) parent;
+		/* Failing to enumerate PCI devices is pretty much a failure anyway */
+		assert(list_add(&dev->dev.children, dev) == 0);		
+	}
+
 	last = dev;
-
-	return dev;
-
+	if(header & 0x80)
+	{
+		for(int i = 1; i < 8;i++)
+		{
+			pci_enumerate_device(bus, device, i, dev);
+		}
+	}
 }
-void pci_check_devices()
+void pci_enumerate_devices(void)
 {
 	for(uint16_t slot = 0; slot < 256; slot++)
 	{
-		for(uint16_t _device = 0; _device < 32; _device++)
+		for(uint16_t device = 0; device < 32; device++)
 		{
-			//uint8_t function = 0;
-			// Get vendor
-			uint16_t vendor = (uint16_t)(__pci_config_read_dword(slot, _device, 0,0) & 0x0000ffff);
-
-			if(vendor == 0xFFFF) //Invalid, just skip this device
-				break;
-
-			// Get header type
-			uint16_t header = (uint16_t)(__pci_config_read_word(slot, _device, 0,0xE));
-
-			uint8_t pciClass = (uint8_t)(__pci_config_read_word(slot, _device, 0 , 0xA)>>8);
-			uint8_t subClass = (uint8_t)__pci_config_read_word(slot, _device, 0, 0xB);
-			uint8_t progIF = (uint8_t)(__pci_config_read_word(slot, _device, 0,0xC)>>8);
-
-			// Set up some meta-data
-			struct pci_device* dev = malloc(sizeof(struct pci_device));
-			if(!dev)
-				panic("pci: early unrecoverable oom\n");
-			memset(dev, 0 , sizeof(struct pci_device));
-			dev->bus = slot;
-			dev->function = 0;
-			dev->device = _device;
-			dev->vendorID = vendor;
-			dev->deviceID = (__pci_config_read_dword(slot, _device, 0,0) >> 16);
-			dev->pciClass = pciClass;
-			dev->subClass = subClass;
-			dev->progIF = progIF;
-
-			/* Set up the pci device's name */
-			char name_buf[200] = {0};
-			snprintf(name_buf, 200, "pci-%x%x", vendor, dev->deviceID);
-			dev->dev.name = strdup(name_buf);
-			assert(dev->dev.name);
-
-			bus_add_device(&pci_bus, (struct device*) dev);
-			// If last is not NULL (it is at first), set this device as the last node's next
-			if(likely(last))
-				last->next = dev;
-			else
-				linked_list = dev;
-
-			last = dev;
-			if(header & 0x80)
-			{
-				for(int i = 1; i < 8;i++)
-				{
-					struct pci_device* dev = pci_check_function(slot, _device, i);
-					if(!dev)
-						continue;
-
-				}
-			}
+			pci_enumerate_device(slot, device, 0, NULL);	
 		}
 	}
 }
@@ -215,7 +265,7 @@ void pci_init()
 	/* Register the PCI bus */
 	bus_register(&pci_bus);
 	/* Check every pci device and add it onto the bus */
-	pci_check_devices();
+	pci_enumerate_devices();
 }
 struct pci_device *get_pcidev_from_vendor_device(uint16_t deviceid, uint16_t vendorid)
 {
@@ -328,17 +378,17 @@ void __pci_write_qword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, 
 	uint32_t lslot = (uint32_t)slot;
 	uint32_t lfunc = (uint32_t)func;
 
-	/* create configuration address as per Figure 1 */
+	/* create configuration address */
 	address = (uint32_t)((lbus << 16) | (lslot << 11) |
 		  (lfunc << 8) | (offset & 0xfc) | ((uint32_t)0x80000000));
 	
 	acquire_spinlock(&pci_lock);
 	/* write out the address */
 	outl(CONFIG_ADDRESS, address);
-	/* read in the data */
+	/* Write out the lower half of the data */
 	outl(CONFIG_DATA, data & 0xFFFFFFFF);
 	address = (uint32_t)((lbus << 16) | (lslot << 11) |
-		  (lfunc << 8) | ((offset+4) & 0xfc) | ((uint32_t)0x80000000));
+		  (lfunc << 8) | ((offset+4) & 0xfc) | ((uint32_t) 0x80000000));
 
 	/* write out the address */
 	outl(CONFIG_ADDRESS, address);

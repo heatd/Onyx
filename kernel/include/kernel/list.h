@@ -28,4 +28,21 @@ static inline int list_add(struct list_head *list, void *ptr)
 	list->next = new_item;
 	return 0;
 }
+static inline void *list_get_element(struct list_head *list, void **saveptr)
+{
+	if(!*saveptr)
+	{
+		*saveptr = list;
+		return list->ptr;
+	}
+	else
+	{
+		struct list_head *current = *saveptr;
+		struct list_head *next = current->next;
+		*saveptr = next;
+		if(!next)
+			return NULL;
+		return next->ptr;
+	}
+}
 #endif

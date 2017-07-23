@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <assert.h>
+#include <stdio.h>
 
 #include <kernel/dev.h>
 
@@ -33,7 +34,7 @@ void bus_add_device(struct bus *bus, struct device *device)
 	acquire_spinlock(&bus->bus_lock);
 	assert(bus);
 	assert(device);
-
+	device->bus = bus;
 	if(!bus->devs)
 		bus->devs = device;
 	else
@@ -43,7 +44,6 @@ void bus_add_device(struct bus *bus, struct device *device)
 
 		d->next = device;
 		device->prev = d;
-		device->bus = bus;
 	}
 	release_spinlock(&bus->bus_lock);
 }
@@ -63,17 +63,17 @@ struct device *bus_find_device(struct bus *bus, const char *devname)
 void device_shutdown(struct device *dev)
 {
 	assert(dev);
-	if(dev->shutdown) dev->shutdown(dev);
+	if(dev->bus->shutdown) dev->bus->shutdown(dev);
 }
 void device_suspend(struct device *dev)
 {
 	assert(dev);
-	if(dev->suspend) dev->suspend(dev);
+	if(dev->bus->suspend) dev->bus->suspend(dev);
 }
 void device_resume(struct device *dev)
 {
 	assert(dev);
-	if(dev->resume) dev->resume(dev);
+	if(dev->bus->resume) dev->bus->resume(dev);
 }
 void bus_shutdown(struct bus *bus)
 {
@@ -91,7 +91,7 @@ void bus_shutdown_every(void)
 	for(struct bus *bus = bus_list; bus; bus = bus->next)
 	{
 		bus_shutdown(bus);
-		if(bus->shutdown) bus->shutdown(bus);
+		if(bus->shutdown_bus) bus->shutdown_bus(bus);
 	}
 	release_spinlock(&bus_list_lock);
 }

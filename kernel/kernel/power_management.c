@@ -13,7 +13,7 @@
 #include <kernel/portio.h>
 #include <kernel/acpi.h>
 #include <kernel/panic.h>
-
+#include <kernel/dev.h>
 void pm_reboot()
 {
 	if(ACPI_FAILURE(AcpiReset()))
@@ -24,20 +24,25 @@ void pm_reboot()
 	__asm__ __volatile__("cli; int $0x60");
 	halt();
 }
-void pm_shutdown()
+unsigned int __pm_shutdown(void *context)
 {
-	acpi_shutdown(NULL);
+	bus_shutdown_every();
+	return acpi_shutdown(context);
 }
-void sys_reboot()
+void pm_shutdown(void)
+{
+	__pm_shutdown(NULL);
+}
+void sys_reboot(void)
 {
 	pm_reboot();
 }
-void sys_shutdown()
+void sys_shutdown(void)
 {
 	pm_shutdown();
 }
 void pm_init(void)
 {
 	AcpiEnableEvent(ACPI_EVENT_POWER_BUTTON, 0);
-	AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON, acpi_shutdown, NULL);
+	AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON, __pm_shutdown, NULL);
 }
