@@ -15,6 +15,7 @@
 #include <kernel/cpu.h>
 #include <kernel/registers.h>
 #include <kernel/log.h>
+#include <kernel/idt.h>
 
 volatile uint32_t *bsp_lapic = NULL;
 volatile uint64_t ap_done = 0;
@@ -88,6 +89,32 @@ void write_redirection_entry(uint32_t pin, uint64_t value)
 }
 void set_pin_handlers()
 {
+	/* Allocate a pool of vectors and reserve them */
+	int irqs = x86_allocate_vectors(24);
+	x86_reserve_vector(irqs + 0, irq0);
+	x86_reserve_vector(irqs + 1, irq1);
+	x86_reserve_vector(irqs + 2, irq2);
+	x86_reserve_vector(irqs + 3, irq3);
+	x86_reserve_vector(irqs + 4, irq4);
+	x86_reserve_vector(irqs + 5, irq5);
+	x86_reserve_vector(irqs + 6, irq6);
+	x86_reserve_vector(irqs + 7, irq7);
+	x86_reserve_vector(irqs + 8, irq8);
+	x86_reserve_vector(irqs + 9, irq9);
+	x86_reserve_vector(irqs + 10, irq10);
+	x86_reserve_vector(irqs + 11, irq11);
+	x86_reserve_vector(irqs + 12, irq12);
+	x86_reserve_vector(irqs + 13, irq13);
+	x86_reserve_vector(irqs + 14, irq14);
+	x86_reserve_vector(irqs + 15, irq15);
+	x86_reserve_vector(irqs + 16, irq16);
+	x86_reserve_vector(irqs + 17, irq17);
+	x86_reserve_vector(irqs + 18, irq18);
+	x86_reserve_vector(irqs + 19, irq19);
+	x86_reserve_vector(irqs + 20, irq20);
+	x86_reserve_vector(irqs + 21, irq21);
+	x86_reserve_vector(irqs + 22, irq22);
+	x86_reserve_vector(irqs + 23, irq23);
 	// The MADT's signature is "APIC"
 	ACPI_STATUS st = AcpiGetTable((ACPI_STRING)"APIC", 0, (ACPI_TABLE_HEADER**)&madt);
 	if(ACPI_FAILURE(st))
@@ -107,14 +134,14 @@ void set_pin_handlers()
 			* They might be overwriten by the ISO descriptors in the MADT
 			*/
 			uint64_t entry = 0;
-			entry |= 32 + i;
+			entry |= irqs + i;
 			write_redirection_entry(i, entry);
 		}
 		if(i > 15 && i <= 19)
 		{
 			// Maybe add a different behavior when we can? (After porting the PCI drivers)
 			uint64_t entry = read_redirection_entry(i);
-			write_redirection_entry(i, entry | (32 + i));
+			write_redirection_entry(i, entry | (irqs + i));
 		}
 		uint64_t entry = read_redirection_entry(i);
 		write_redirection_entry(i, entry | (32 + i));

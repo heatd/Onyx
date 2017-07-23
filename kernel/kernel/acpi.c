@@ -69,7 +69,7 @@ unsigned int acpi_suspend(void *context)
 	UNUSED_PARAMETER(context);
 	/* Prepare to enter S3 */
 	ACPI_STATUS st = AcpiEnterSleepStatePrep(2);
-	if(ACPI_FAILED(st))
+	if(ACPI_FAILURE(st))
 		return 1;
 	DISABLE_INTERRUPTS();
 	/* We'll need to enter assembly in order to correctly save and restore registers */

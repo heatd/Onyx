@@ -4,80 +4,100 @@
 * check LICENSE at the root directory for more information
 */
 #include <string.h>
+#include <assert.h>
+
 #include <kernel/idt.h>
+
 idt_ptr_t idt_ptr;
 idt_entry_t idt_entries[256];
-void idt_flush(uint64_t);
+void idt_flush(uint64_t addr);
 extern void _sched_yield();
-void idt_init()
+void x86_reserve_vector(int vector, void (*handler)())
+{
+	assert(vector < 256);
+	idt_create_descriptor(vector, (uintptr_t) handler, 0x08, 0x8E);
+}
+int x86_allocate_vector(void (*handler)())
+{
+	for(int i = 0; i < 256; i++)
+	{
+		if(idt_entries[i].selector == 0)
+		{
+			x86_reserve_vector(i, handler);
+			return i;
+		}
+	}
+	return -1;
+}
+int x86_allocate_vectors(int nr)
+{
+	int int_base = -1;
+	int found_vecs = 0;
+	for(int i = 0; i < 256; i++)
+	{
+		if(idt_entries[i].selector == 0)
+		{
+			if(!found_vecs)
+				int_base = i;
+			found_vecs++;
+			if(found_vecs == nr)
+			{
+				/* Reserve the entries */
+				for(int j = 0; j < nr; j++)
+				{
+					/* We'll use selector to mean if it is reserved */
+					idt_entries[int_base + j].selector = 1;
+				}
+				return int_base;
+			}
+		}
+		else
+		{
+			int_base = -1;
+			found_vecs = 0;
+		}
+	}
+	return -1;
+}
+void idt_init(void)
 {
 	memset(&idt_entries, 0, sizeof(idt_entry_t) * 256);
 
-	idt_create_descriptor(0, (uint64_t) isr0, 0x08, 0x8E);
-	idt_create_descriptor(1, (uint64_t) isr1, 0x08, 0x8E);
-	idt_create_descriptor(2, (uint64_t) isr2, 0x08, 0x8E);
-	idt_create_descriptor(3, (uint64_t) isr3, 0x08, 0x8E);
-	idt_create_descriptor(4, (uint64_t) isr4, 0x08, 0x8E);
-	idt_create_descriptor(5, (uint64_t) isr5, 0x08, 0x8E);
-	idt_create_descriptor(6, (uint64_t) isr6, 0x08, 0x8E);
-	idt_create_descriptor(7, (uint64_t) isr7, 0x08, 0x8E);
-	idt_create_descriptor(8, (uint64_t) isr8, 0x08, 0x8E);
-	idt_create_descriptor(9, (uint64_t) isr9, 0x08, 0x8E);
-	idt_create_descriptor(10, (uint64_t) isr10, 0x08, 0x8E);
-	idt_create_descriptor(11, (uint64_t) isr11, 0x08, 0x8E);
-	idt_create_descriptor(12, (uint64_t) isr12, 0x08, 0x8E);
-	idt_create_descriptor(13, (uint64_t) isr13, 0x08, 0x8E);
-	idt_create_descriptor(14, (uint64_t) isr14, 0x08, 0x8E);
-	idt_create_descriptor(15, (uint64_t) isr15, 0x08, 0x8E);
-	idt_create_descriptor(16, (uint64_t) isr16, 0x08, 0x8E);
-	idt_create_descriptor(17, (uint64_t) isr17, 0x08, 0x8E);
-	idt_create_descriptor(18, (uint64_t) isr18, 0x08, 0x8E);
-	idt_create_descriptor(19, (uint64_t) isr19, 0x08, 0x8E);
-	idt_create_descriptor(20, (uint64_t) isr20, 0x08, 0x8E);
-	idt_create_descriptor(21, (uint64_t) isr21, 0x08, 0x8E);
-	idt_create_descriptor(22, (uint64_t) isr22, 0x08, 0x8E);
-	idt_create_descriptor(23, (uint64_t) isr23, 0x08, 0x8E);
-	idt_create_descriptor(24, (uint64_t) isr24, 0x08, 0x8E);
-	idt_create_descriptor(25, (uint64_t) isr25, 0x08, 0x8E);
-	idt_create_descriptor(26, (uint64_t) isr26, 0x08, 0x8E);
-	idt_create_descriptor(27, (uint64_t) isr27, 0x08, 0x8E);
-	idt_create_descriptor(28, (uint64_t) isr28, 0x08, 0x8E);
-	idt_create_descriptor(29, (uint64_t) isr29, 0x08, 0x8E);
-	idt_create_descriptor(30, (uint64_t) isr30, 0x08, 0x8E);
-	idt_create_descriptor(31, (uint64_t) isr31, 0x08, 0x8E);
-	/* IRQ descriptors */
-	idt_create_descriptor(32, (uint64_t) irq0, 0x08, 0x8E);
-	idt_create_descriptor(33, (uint64_t) irq1, 0x08, 0x8E);
-	idt_create_descriptor(34, (uint64_t) irq2, 0x08, 0x8E);
-	idt_create_descriptor(35, (uint64_t) irq3, 0x08, 0x8E);
-	idt_create_descriptor(36, (uint64_t) irq4, 0x08, 0x8E);
-	idt_create_descriptor(37, (uint64_t) irq5, 0x08, 0x8E);
-	idt_create_descriptor(38, (uint64_t) irq6, 0x08, 0x8E);
-	idt_create_descriptor(39, (uint64_t) irq7, 0x08, 0x8E);
-	idt_create_descriptor(40, (uint64_t) irq8, 0x08, 0x8E);
-	idt_create_descriptor(41, (uint64_t) irq9, 0x08, 0x8E);
-	idt_create_descriptor(42, (uint64_t) irq10, 0x08, 0x8E);
-	idt_create_descriptor(43, (uint64_t) irq11, 0x08, 0x8E);
-	idt_create_descriptor(44, (uint64_t) irq12, 0x08, 0x8E);
-	idt_create_descriptor(45, (uint64_t) irq13, 0x08, 0x8E);
-	idt_create_descriptor(46, (uint64_t) irq14, 0x08, 0x8E);
-	idt_create_descriptor(47, (uint64_t) irq15, 0x08, 0x8E);
-	idt_create_descriptor(48, (uint64_t) irq16, 0x08, 0x8E);
-	idt_create_descriptor(49, (uint64_t) irq17, 0x08, 0x8E);
-	idt_create_descriptor(50, (uint64_t) irq18, 0x08, 0x8E);
-	idt_create_descriptor(51, (uint64_t) irq19, 0x08, 0x8E);
-	idt_create_descriptor(52, (uint64_t) irq20, 0x08, 0x8E);
-	idt_create_descriptor(53, (uint64_t) irq21, 0x08, 0x8E);
-	idt_create_descriptor(54, (uint64_t) irq22, 0x08, 0x8E);
-	idt_create_descriptor(55, (uint64_t) irq23, 0x08, 0x8E);
-	idt_create_descriptor(128, (uint64_t) syscall_ENTRY64_int, 0x08, 0x8E);
-	idt_create_descriptor(129, (uint64_t) _sched_yield, 0x08, 0x8E);
-	idt_create_descriptor(255, (uint64_t) apic_spurious_irq, 0x08, 0x8E);
+	x86_reserve_vector(0, isr0);
+	x86_reserve_vector(1, isr1);
+	x86_reserve_vector(2, isr2);
+	x86_reserve_vector(3, isr3);
+	x86_reserve_vector(4, isr4);
+	x86_reserve_vector(5, isr5);
+	x86_reserve_vector(6, isr6);
+	x86_reserve_vector(7, isr7);
+	x86_reserve_vector(8, isr8);
+	x86_reserve_vector(9, isr9);
+	x86_reserve_vector(10, isr10);
+	x86_reserve_vector(11, isr11);
+	x86_reserve_vector(12, isr12);
+	x86_reserve_vector(13, isr13);
+	x86_reserve_vector(14, isr14);
+	x86_reserve_vector(15, isr15);
+	x86_reserve_vector(16, isr16);
+	x86_reserve_vector(17, isr17);
+	x86_reserve_vector(18, isr18);
+	x86_reserve_vector(19, isr19);
+	x86_reserve_vector(20, isr20);
+	x86_reserve_vector(21, isr21);
+	x86_reserve_vector(22, isr22);
+	x86_reserve_vector(23, isr23);
+	x86_reserve_vector(24, isr24);
+	x86_reserve_vector(25, isr25);
+	x86_reserve_vector(26, isr26);
+	x86_reserve_vector(27, isr27);
+	x86_reserve_vector(28, isr28);
+	x86_reserve_vector(29, isr29);
+	x86_reserve_vector(30, isr30);
+	x86_reserve_vector(31, isr31);
+	x86_reserve_vector(129,  _sched_yield);
+	x86_reserve_vector(255,  apic_spurious_irq);
 	idt_load();
-}
-void setvect(uint8_t entry, uintptr_t address)
-{
-	idt_create_descriptor(entry, address, 0x08, 0x8E);
 }
 void idt_create_descriptor(uint8_t entry, uint64_t offset,
 			   uint16_t selector, uint8_t flags)
@@ -95,6 +115,6 @@ void idt_create_descriptor(uint8_t entry, uint64_t offset,
 void idt_load()
 {
 	idt_ptr.limit = sizeof(idt_entry_t) * 256 - 1;
-	idt_ptr.base = (uint64_t) &idt_entries;
-	idt_flush((uint64_t) &idt_ptr);
+	idt_ptr.base =  (uintptr_t) &idt_entries;
+	idt_flush((uintptr_t) &idt_ptr);
 }
