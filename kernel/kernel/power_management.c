@@ -29,6 +29,11 @@ unsigned int __pm_shutdown(void *context)
 	bus_shutdown_every();
 	return acpi_shutdown(context);
 }
+unsigned int __pm_suspend(void *context)
+{
+	bus_suspend_every();
+	return acpi_suspend(context);
+}
 void pm_shutdown(void)
 {
 	__pm_shutdown(NULL);
@@ -45,4 +50,5 @@ void pm_init(void)
 {
 	AcpiEnableEvent(ACPI_EVENT_POWER_BUTTON, 0);
 	AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON, __pm_shutdown, NULL);
+	AcpiInstallFixedEventHandler(ACPI_EVENT_SLEEP_BUTTON, __pm_suspend, NULL);
 }

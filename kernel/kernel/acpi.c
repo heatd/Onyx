@@ -63,6 +63,20 @@ uint32_t acpi_shutdown(void *context)
 	panic("ACPI: Failed to enter sleep state! Panic'ing!");
 	return 0;
 }
+extern int __enter_sleep_state(uint8_t sleep_state);
+unsigned int acpi_suspend(void *context)
+{
+	UNUSED_PARAMETER(context);
+	/* Prepare to enter S3 */
+	ACPI_STATUS st = AcpiEnterSleepStatePrep(2);
+	if(ACPI_FAILED(st))
+		return 1;
+	DISABLE_INTERRUPTS();
+	/* We'll need to enter assembly in order to correctly save and restore registers */
+	if(__enter_sleep_state(2) < 0)
+		return -1;
+	return 0;
+}
 static ACPI_HANDLE root_bridge;
 static ACPI_DEVICE_INFO *root_bridge_info;
 static struct bus acpi_bus = 

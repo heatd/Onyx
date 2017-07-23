@@ -132,3 +132,28 @@ syscall_ENTRY64:
 .invalid_syscall:
 	mov rax, -38
 	jmp .ret_from_syscall
+extern AcpiEnterSleepState
+global __enter_sleep_state
+__enter_sleep_state:
+	; I'm sure this doesn't work, TODO
+	; Okay, to do this we'll need to save every register
+	; rax doesn't matter since we're using it to return a value anyway
+	pushaq
+	; Make sure to write everything to memory
+	wbinvd
+	; Enter the sleep state via assembly
+	call AcpiEnterSleepState
+	cmp rax, 0			; In C this would be if(ACPI_FAILURE(st)) goto failure;
+	jne .failure
+	; Woah, we're back from sleep
+	; Restore registers and flush caches
+.return:
+	wbinvd
+	popaq
+	; Flush the TLB
+	mov rdi, cr3
+	mov cr3, rdi
+	ret
+.failure:
+	mov rax, -1
+	jmp .return
