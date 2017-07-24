@@ -39,6 +39,7 @@ inode_t *ext2_get_inode_from_dir(ext2_fs_t *fs, dir_entry_t *dirent, char *name,
 	dir_entry_t *dirs = dirent;
 	while(dirs->inode && dirs->lsbit_namelen)
 	{
+		/* TODO: This doesn't work correctly */
 		if(!memcmp(dirs->name, name, strlen(name)))
 		{
 			*inode_number = dirs->inode;

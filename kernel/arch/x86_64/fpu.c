@@ -3,8 +3,11 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
+#include <kernel/compiler.h>		/* For USES_FANCY_* */
+USES_FANCY_START
 #include <immintrin.h>
 #include <x86intrin.h>
+USES_FANCY_END
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
@@ -14,26 +17,44 @@
 
 #include <sys/user.h>
 bool avx_supported = false;
+USES_FANCY_START
+void do_xsave(void *address, long xcr0)
+{
+	_xsave(address, xcr0);
+}
+void do_fxsave(void *address)
+{
+	_fxsave(address);
+}
+void do_xrstor(void *address, long xcr0)
+{
+	_xrstor(address, xcr0);
+}
+void do_fxrstor(void *address)
+{
+	_fxrstor(address);
+}
+USES_FANCY_END
 void save_fpu(void *address)
 {
 	if(avx_supported == true)
 	{
-		_xsave(address, AVX_XCR0_FPU | AVX_XCR0_SSE | AVX_XCR0_AVX);
+		do_xsave(address, AVX_XCR0_FPU | AVX_XCR0_SSE | AVX_XCR0_AVX);
 	}
 	else
 	{
-		_fxsave(address);
+		do_fxsave(address);
 	}
 }
 void restore_fpu(void *address)
 {
 	if(avx_supported == true)
 	{
-		_xrstor(address, AVX_XCR0_FPU | AVX_XCR0_SSE | AVX_XCR0_AVX);
+		do_xrstor(address, AVX_XCR0_FPU | AVX_XCR0_SSE | AVX_XCR0_AVX);
 	}
 	else
 	{
-		_fxrstor(address);
+		do_fxrstor(address);
 	}
 }
 struct fpu_area

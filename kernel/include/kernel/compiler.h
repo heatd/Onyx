@@ -37,6 +37,10 @@
 #define weak_alias(name, aliasname) _weak_alias (name, aliasname)
 #define _weak_alias(name, aliasname) \
 extern __typeof (name) aliasname __attribute__ ((weak, alias (#name)));
+
+#define USES_FANCY_START	_Pragma("GCC push_options") \
+_Pragma("GCC target(\"sse2\", \"3dnow\", \"xsave\")")
+#define USES_FANCY_END _Pragma("GCC pop_options")
 static inline uint64_t rdtsc()
 {
     	uint64_t ret = 0;
@@ -66,4 +70,5 @@ static inline int count_bits64(uint64_t num)
 	return nbits;
 }
 #define add_check_overflow(op1, op2, res) __builtin_add_overflow(op1, op2, res)
+
 #endif /* COMPILER_H */

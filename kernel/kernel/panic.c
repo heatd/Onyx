@@ -15,6 +15,7 @@
  *
  **************************************************************************/
 #include <stdio.h>
+#pragma GCC target("sse2", "3dnow")
 #include <x86intrin.h>
 #include <inttypes.h>
 
@@ -65,7 +66,7 @@ void panic(const char *msg)
 	register uintptr_t r13 __asm__("r13");
 	register uintptr_t r14 __asm__("r14");
 	register uintptr_t r15 __asm__("r15");
-	register uintptr_t rflags = __readeflags();
+	uintptr_t rflags = __readeflags();
 	uintptr_t cr0 = cpu_get_cr0();
 	uintptr_t cr2 = cpu_get_cr2();
 	uintptr_t cr4 = cpu_get_cr4();

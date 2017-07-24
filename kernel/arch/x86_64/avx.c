@@ -6,8 +6,6 @@
 #include <stdint.h>
 #include <cpuid.h>
 #include <stdio.h>
-#include <immintrin.h>
-#include <x86intrin.h>
 
 #include <kernel/avx.h>
 #include <kernel/fpu.h>

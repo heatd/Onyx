@@ -15,6 +15,7 @@
 #include <kernel/task_switching.h>
 #include <kernel/vmm.h>
 #include <kernel/panic.h>
+#include <kernel/compiler.h>
 static uint64_t faulting_address;
 const char* exception_msg[] = {
     "Division by zero exception",
@@ -234,8 +235,7 @@ r10: %x\nr11: %x\nr12: %x\nr13: %x\nr14: %x\nr15: %x\nrsp: %x\nrflags: %x\nds: %
 	case 18:{
 			break;
 		}
-	case 19:{			
-			printk("MXCSR: %x\n", _mm_getcsr());
+	case 19:{
 			sys_kill(get_current_process()->pid, SIGSEGV);
 			break;
 		}
