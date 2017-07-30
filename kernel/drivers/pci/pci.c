@@ -172,7 +172,7 @@ struct pci_device* last = NULL;
 void pci_enumerate_device(uint16_t bus, uint8_t device, uint8_t function, struct pci_device *parent)
 {
 	// Get vendor
-	uint16_t vendor = (uint16_t)(__pci_config_read_dword(bus, device, function ,0) & 0x0000ffff);
+	uint16_t vendor = (uint16_t)(__pci_config_read_dword(bus, device, function, 0) & 0x0000ffff);
 
 	if(vendor == 0xFFFF) /* Invalid, just skip this device */
 		return;
@@ -220,10 +220,18 @@ void pci_enumerate_device(uint16_t bus, uint8_t device, uint8_t function, struct
 	}
 
 	last = dev;
+	/* It's pointless to enumerate subfunctions since functions can't have them */
+	/* TODO: Running qemu with -machine q35 returned 0x80 on pci headers with functions != 0
+	   Is this a qemu bug or is it our fault?
+	*/
+	if(function != 0)
+		return;
 	if(header & 0x80)
 	{
-		for(int i = 1; i < 8;i++)
+		for(int i = 1; i < 8; i++)
 		{
+			if(__pci_config_read_word(bus, device, i, 0) == 0xFFFF)
+				continue;
 			pci_enumerate_device(bus, device, i, dev);
 		}
 	}
