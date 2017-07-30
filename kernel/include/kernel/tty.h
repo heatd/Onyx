@@ -9,6 +9,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 void tty_putchar(char c);
 void tty_write(const char *data, size_t size);
 void tty_write_string(const char *data);
@@ -21,6 +24,9 @@ void tty_put_entry_at(char c, uint32_t color, size_t column, size_t row);
 char *tty_wait_for_line();
 void tty_recieved_character(char c);
 void tty_create_dev();
+#ifdef __cplusplus
+}
+#endif
 #define ANSI_COLOR_RED     "\x1b[31m"
 #define ANSI_COLOR_GREEN   "\x1b[32m"
 #define ANSI_COLOR_YELLOW  "\x1b[33m"

@@ -8,6 +8,12 @@
 #include <kernel/ioctx.h>
 #include <kernel/vfs.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 void file_do_cloexec(ioctx_t *ctx);
 int open_with_vnode(vfsnode_t *node, int flags);
+#ifdef __cplusplus
+}
+#endif
 #endif

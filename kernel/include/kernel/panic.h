@@ -9,6 +9,9 @@
 #include <multiboot2.h>
 #include <kernel/compiler.h>
 #include <kernel/registers.h>
+#ifdef __cplusplus
+extern "C" {
+#endif
 ARCH_SPECIFIC void halt();
 ARCH_SPECIFIC void get_thread_ctx(registers_t* regs);
 /* The functions halt and get_thread_ctx are architecture dependent, as they require manual assembly.
@@ -18,4 +21,7 @@ extern __attribute__ ((noreturn,cold,noinline))
 void panic(const char* msg);
 uintptr_t get_kernel_sym_by_name(const char *name);
 void init_elf_symbols(struct multiboot_tag_elf_sections *restrict secs);
+#ifdef __cplusplus
+}
+#endif
 #endif

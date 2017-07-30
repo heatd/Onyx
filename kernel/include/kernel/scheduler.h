@@ -35,6 +35,9 @@ typedef struct thr
 #endif
 } thread_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 int sched_init(void);
 thread_t *sched_create_thread(thread_callback_t callback, uint32_t flags, void* args);
 thread_t* sched_create_main_thread(thread_callback_t callback, uint32_t flags,int argc, char **argv, char **envp);
@@ -53,4 +56,7 @@ void sched_change_preemption_state(bool disable);
 void sched_sleep_until_wake(void);
 void thread_wake_up_ftx(thread_t *thread);
 void thread_reset_futex_state(thread_t *thread);
+#ifdef __cplusplus
+}
+#endif
 #endif

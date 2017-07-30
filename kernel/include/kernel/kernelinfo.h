@@ -19,9 +19,4 @@
 #error "Define a machine string for your architecture"
 #endif
 
-
-
-
-
-
 #endif

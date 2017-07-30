@@ -38,9 +38,15 @@ typedef struct cache
 	spinlock_t lock;
 	struct cache *prev, *next;
 } slab_cache_t;
+#ifdef __cplusplus
+extern "C" {
+#endif
 slab_cache_t *slab_create(const char *name, size_t size_obj, size_t alignment, int flags, void (*ctor)(void*), void (*dtor)(void*));
 void *slab_allocate(slab_cache_t *cache);
 void slab_free(slab_cache_t *cache, void *addr);
 void slab_purge(slab_cache_t *cache);
 void slab_destroy(slab_cache_t *cache);
+#ifdef __cplusplus
+}
+#endif
 #endif

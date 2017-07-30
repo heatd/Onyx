@@ -95,10 +95,16 @@ struct memstat
 	size_t free_mem;
 	size_t allocated_mem;
 };
+#ifdef __cplusplus
+extern "C" {
+#endif
 void *__alloc_page(int opt);
 void *__alloc_pages(int order);
 void __free_page(void *page);
 void __free_pages(void *pages, int order);
 void page_get_stats(struct memstat *memstat);
 void page_init(void);
+#ifdef __cplusplus
+}
+#endif
 #endif

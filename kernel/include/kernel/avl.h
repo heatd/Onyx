@@ -10,5 +10,11 @@ typedef struct avl_node avl_node_t;
 #define __avl_tree_defined_
 #endif
 
+#ifdef __cplusplus
+extern "C"{
+#endif
 int avl_get_height(avl_node_t *ptr);
 void avl_balance_tree(avl_node_t **t);
+#ifdef __cplusplus
+}
+#endif

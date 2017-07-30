@@ -14,6 +14,10 @@
 #define IA32_APIC_BASE_MSR_BSP 0x100 // Processor is a BSP
 #define IA32_APIC_BASE_MSR_ENABLE 0x800
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void apic_timer_init();
 void ioapic_init();
 void set_pin_handlers();
@@ -25,6 +29,9 @@ void apic_timer_smp_init(volatile uint32_t *lapic);
 void apic_set_irql(int irql);
 int apic_get_irql(void);
 
+#ifdef __cplusplus
+}
+#endif
 #define irq_set_irql	apic_set_irql
 #define irq_get_irql	apic_get_irql
 

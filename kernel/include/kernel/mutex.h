@@ -8,9 +8,15 @@
 
 typedef volatile unsigned long mutex_t;
 
+#define MUTEX_INITIALIZER 0
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 void mutex_lock(mutex_t *);
 void mutex_unlock(mutex_t*);
-
-#define MUTEX_INITIALIZER 0
+#ifdef __cplusplus
+}
+#endif
 
 #endif

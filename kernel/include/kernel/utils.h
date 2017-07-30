@@ -7,5 +7,11 @@
 #define _UTILS_H
 
 #include <stddef.h>
+#ifdef __cplusplus
+extern "C" {
+#endif
 void *memdup(void *ptr, size_t size);
+#ifdef __cplusplus
+}
+#endif
 #endif

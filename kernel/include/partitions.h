@@ -28,8 +28,17 @@ typedef struct fs_mount_strct
 	fs_handler handler;
 } filesystem_mount_t;
 
+#ifdef __cplusplus
+extern "C"{
+#endif
+
 int partition_add_handler(fs_handler handler, char *filesystem, uint8_t mbr_part_code, uuid_t *uuids, size_t num_uuids);
 uint64_t partition_find(int index, block_device_t *dev, filesystem_mount_t *fs);
 filesystem_mount_t *find_filesystem_handler(const char *fsname);
 fs_handler lookup_handler_from_partition_code(enum partition_type_t type, uint8_t part_code);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif

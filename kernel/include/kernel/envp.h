@@ -10,7 +10,12 @@
 #include <stdint.h>
 #include <string.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 char **copy_env_vars(char **envp);
 char **copy_argv(char **argv, const char *path, int *argc);
-
+#ifdef __cplusplus
+}
+#endif
 #endif

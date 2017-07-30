@@ -24,6 +24,9 @@ struct minor_device
 	void *ptr; /* Helper pointer */
 };
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 unsigned int __allocate_dynamic_major(void);
 struct minor_device *dev_register(unsigned int major, unsigned int first_minor);
 void dev_unregister(dev_t dev);
@@ -84,4 +87,7 @@ void bus_shutdown(struct bus *bus);
 void bus_shutdown_every(void);
 /* bus_suspend_every - Suspend every bus */
 void bus_suspend_every(void);
+#ifdef __cplusplus
+}
+#endif
 #endif

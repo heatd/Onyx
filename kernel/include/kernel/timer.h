@@ -8,7 +8,12 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 uint64_t get_tick_count();
 uint64_t get_microseconds();
-
+#ifdef __cplusplus
+}
+#endif
 #endif

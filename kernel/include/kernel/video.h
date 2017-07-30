@@ -35,6 +35,9 @@ struct video_device
 	int status;
 	_Atomic unsigned long refcount;
 };
+#ifdef __cplusplus
+extern "C" {
+#endif
 void *video_get_fb(struct video_device*);
 void *video_create_fb(struct video_device*);
 int video_draw_cursor(int x, int y, int fgcolor, int bgcolor, void *fb, struct video_device*);
@@ -45,5 +48,7 @@ int video_scroll(void *fb, struct video_device *);
 void video_set_main_adapter(struct video_device *dev);
 struct video_device *video_get_main_adapter(void);
 void video_remove(struct video_device *dev);
-
+#ifdef __cplusplus
+}
+#endif
 #endif

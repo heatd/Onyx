@@ -26,6 +26,12 @@ struct binfmt_args
 	vfsnode_t *file;
 };
 
+#ifdef __cplusplus
+extern "C"{
+#endif
 void *load_binary(struct binfmt_args *);
 int install_binfmt(struct binfmt *);
+#ifdef __cplusplus
+}
+#endif
 #endif

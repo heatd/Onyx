@@ -13,8 +13,13 @@ typedef struct spinlock
 	unsigned long waiters;
 	bool old_preemption_state; /* This lets us nest locks */
 } spinlock_t;
-
+#ifdef __cplusplus
+extern "C" {
+#endif
 extern void acquire_spinlock(spinlock_t*);
 extern void release_spinlock(spinlock_t*);
 void wait_spinlock(spinlock_t*);
+#ifdef __cplusplus
+}
+#endif
 #endif

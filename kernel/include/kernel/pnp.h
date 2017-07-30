@@ -17,9 +17,4 @@ typedef struct pnpdev
 void pnp_register_dev_acpi(ACPI_DEVICE_INFO *dev);
 void pnp_find_device(const char *pnpstring);
 
-
-
-
-
-
 #endif

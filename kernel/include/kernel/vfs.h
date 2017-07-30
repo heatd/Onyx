@@ -73,6 +73,9 @@ typedef struct vfsnode
 	void *helper;
 } vfsnode_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 void *add_cache_to_node(void *ptr, size_t size, off_t offset, vfsnode_t *node);
 size_t read_vfs(int flags, size_t offset, size_t sizeofread, void* buffer, vfsnode_t* this);
 size_t write_vfs(size_t offset, size_t sizeofwrite, void* buffer, vfsnode_t* this);
@@ -91,5 +94,8 @@ int vfs_init();
 struct minor_device;
 ssize_t lookup_file_cache(void *buffer, size_t sizeofread, vfsnode_t *file, struct minor_device *m, off_t offset);
 char *vfs_get_full_path(vfsnode_t *vnode, char *name);
+#ifdef __cplusplus
+}
+#endif
 extern vfsnode_t* fs_root;
 #endif

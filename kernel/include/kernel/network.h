@@ -41,6 +41,9 @@ typedef struct sock
 	bool connected;
 } socket_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 int _socket(int domain, int connection_type, int protocol);
 int _bind(int socket, int localport, uint32_t ip, int destport);
 int _recv(int socket, void **bufptr);
@@ -49,4 +52,7 @@ void network_handle_packet(ip_header_t *hdr, uint16_t len);
 const char *network_gethostname();
 void network_sethostname(const char *);
 
+#ifdef __cplusplus
+}
+#endif
 #endif

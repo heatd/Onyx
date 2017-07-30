@@ -22,6 +22,4 @@
 #define MODULE_ALIAS(x) MODULE_INFO("alias", x, alias)
 #define MODULE_INSERT_VERSION() MODULE_INFO("kernel", OS_RELEASE, kver) 
 
-
-
 #endif

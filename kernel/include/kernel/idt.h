@@ -30,13 +30,18 @@ struct IDT_entry
 }__attribute__((packed));
 #endif
 typedef struct IDT_entry idt_entry_t;
-
+#ifdef __cplusplus
+extern "C" {
+#endif
 void idt_create_descriptor(uint8_t entry,uint64_t offset,uint16_t selector,uint8_t flags);
 void idt_load();
 void idt_init();
 void x86_reserve_vector(int vector, void (*handler)());
 int x86_allocate_vector(void (*handler)());
 int x86_allocate_vectors(int nr);
+#ifdef __cplusplus
+}
+#endif
 extern void isr0 ();
 extern void isr1();
 extern void isr2 ();

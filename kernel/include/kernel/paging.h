@@ -22,7 +22,9 @@ typedef struct {uint64_t entries[512];} PML4;
 typedef struct {uint64_t entries[512];} PML3;
 typedef struct {uint64_t entries[512];} PML2;
 typedef struct {uint64_t entries[512];} PML1;
-
+#ifdef __cplusplus
+extern "C" {
+#endif
 void paging_init();
 void *paging_unmap(void* memory);
 void *paging_map_phys_to_virt(uintptr_t virt, uintptr_t phys, uint64_t prot);
@@ -37,4 +39,7 @@ void paging_stop_spawning();
 void paging_load_cr3(PML4 *pml);
 void paging_change_perms(void *addr, int perms);
 int is_invalid_arch_range(void *address, size_t pages);
+#ifdef __cplusplus
+}
+#endif
 #endif

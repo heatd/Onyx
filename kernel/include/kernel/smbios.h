@@ -79,8 +79,13 @@ struct smbios_table_bios_info
 	/* Points to the string table after the formatted part of the struct */
 	char strings[0];
 };
+#ifdef __cplusplus
+extern "C" {
+#endif
 int smbios_init(void);
 char *smbios_get_string(struct smbios_table *t, uint8_t strndx);
 struct smbios_table *smbios_get_table(int type);
-
+#ifdef __cplusplus
+}
+#endif
 #endif

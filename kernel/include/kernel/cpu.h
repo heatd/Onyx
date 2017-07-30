@@ -215,12 +215,17 @@ struct processor
 	thread_t *current_thread;
 	bool preemption_disabled;
 };
-
+#ifdef __cplusplus
+extern "C"{
+#endif
 void cpu_identify(void);
 void cpu_init_interrupts(void);
 int cpu_init_mp(void);
 int get_nr_cpus(void);
 struct processor *get_processor_data(void);
+#ifdef __cplusplus
+}
+#endif
 #ifdef __x86_64__
 static inline struct processor *get_processor_data_inl(void)
 {

@@ -32,10 +32,15 @@ struct netif
 	spinlock_t hashtable_spinlock;
 	struct udp_socket **udp_ports;
 };
-
+#ifdef __cplusplus
+extern "C" {
+#endif
 void netif_register_if(struct netif *netif);
 int netif_unregister_if(struct netif *netif);
 struct netif *netif_choose(void);
 int netif_send_packet(struct netif *netif, const void *buffer, uint16_t size);
 void netif_get_ipv4_addr(struct sockaddr_in *s, struct netif *netif);
+#ifdef __cplusplus
+}
+#endif
 #endif

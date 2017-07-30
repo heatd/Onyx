@@ -33,6 +33,9 @@ typedef struct blkdev
 	struct blkdev *next;
 } block_device_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 /* 
  * Function: block_device_t *blkdev_search(const char *name);
  * Description: Search for 'name' on the linked list
@@ -76,4 +79,7 @@ int blkdev_flush(struct blkdev *dev);
 */
 int blkdev_power(int op, struct blkdev *dev);
 
+#ifdef __cplusplus
+}
+#endif
 #endif

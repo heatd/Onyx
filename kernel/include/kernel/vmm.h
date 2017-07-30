@@ -71,6 +71,9 @@ struct fault_info
 	_Bool exec;
 	_Bool user;
 };
+#ifdef __cplusplus
+extern "C" {
+#endif
 void vmm_init();
 void vmm_start_address_bookkeeping(uintptr_t framebuffer_address, uintptr_t heap);
 void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uint64_t prot, uintptr_t alignment);
@@ -109,4 +112,7 @@ static inline size_t vmm_align_size_to_pages(size_t size)
 }
 ssize_t copy_to_user(void *usr, const void *data, size_t len);
 ssize_t copy_from_user(void *data, const void *usr, size_t len);
+#ifdef __cplusplus
+}
+#endif
 #endif

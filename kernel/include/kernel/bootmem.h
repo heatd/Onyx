@@ -13,9 +13,15 @@
 /* block size (4KiB) */
 #define PMM_BLOCK_SIZE	4096
 
+#ifdef __cplusplus
+extern "C"{
+#endif
 void bootmem_push(uintptr_t base, size_t size, struct multiboot_tag_module *initrd);
 void bootmem_init(size_t memory_size, uintptr_t stack_space);
 void *bootmem_alloc(size_t blocks);
 void *bootmem_get_pstack(size_t *);
 size_t bootmem_get_memsize(void);
+#ifdef __cplusplus
+}
+#endif
 #endif

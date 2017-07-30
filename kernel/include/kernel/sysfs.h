@@ -18,6 +18,12 @@ struct sysfs_file
 	ssize_t (*write)(void *buffer, size_t size, off_t off);
 	ssize_t (*read)(void *buffer, size_t size, off_t off);
 };
+#ifdef __cplusplus
+extern "C" {
+#endif
 void sysfs_init(void);
 struct sysfs_file *sysfs_create_entry(const char *pathname, int mode, vfsnode_t *node);
+#ifdef __cplusplus
+}
+#endif
 #endif

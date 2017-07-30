@@ -29,8 +29,11 @@ ACPICA_CFLAGS:=$(filter-out -fsanitize=undefined -fsanitize=address -Werror, $(C
 
 OBJS:=\
 $(patsubst %.c,%.o,$(wildcard drivers/*/*.c)) \
+$(patsubst %.cpp,%.o,$(wildcard drivers/*/*.cpp)) \
 $(patsubst %.c,%.o,$(wildcard kernel/*.c)) \
+$(patsubst %.cpp,%.o,$(wildcard kernel/*.cpp)) \
 $(patsubst %.c,%.o,$(wildcard kernel/*/*.c)) \
+$(patsubst %.cpp,%.o,$(wildcard kernel/*/*.cpp)) \
 $(filter-out $(ARCHDIR)/__vdso.o, $(patsubst %.c,%.o,$(wildcard $(ARCHDIR)/*.c))) \
 $(filter-out acpica/components/disassembler/%, $(patsubst %.c,%.o,$(wildcard acpica/components/*/*.c))) \
 $(filter-out $(ARCHDIR)/crti.o, $(patsubst %.S,%.o,$(wildcard $(ARCHDIR)/*.S)))
@@ -70,7 +73,6 @@ acpica/%.o: acpica/%.c
 %.o: %.S
 	@echo [AS] $<
 	@nasm -felf$(NASMARCH) $< -o $@
-
 %.o: %.cpp
 	@echo [CXX] $<
 	@$(CXX) -c $< -o $@ -std=c++14 $(CFLAGS) $(CPPFLAGS) $(CXXFLAGS)

@@ -118,6 +118,9 @@ typedef struct
 	size_t size;
 } pcibar_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 void pci_init();
 uint16_t __pci_config_read_word (uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset);
 uint32_t __pci_config_read_dword (uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset);
@@ -141,6 +144,9 @@ uint64_t pci_read(struct pci_device *dev, uint16_t off, size_t size);
 void pci_enable_busmastering(struct pci_device *dev);
 off_t pci_find_capability(struct pci_device *dev, uint8_t cap);
 int pci_enable_msi(struct pci_device *dev);
+#ifdef __cplusplus
+}
+#endif
 typedef void (*pci_callback_t)(struct pci_device *dev);
 typedef struct
 {

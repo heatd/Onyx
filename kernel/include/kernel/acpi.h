@@ -27,6 +27,9 @@ struct acpi_device
 #define ACPI_PIC_IOAPIC 1
 #define ACPI_PIC_IOSAPIC 1
 
+#ifdef __cplusplus
+extern "C"{
+#endif
 uintptr_t acpi_get_rsdp(void);
 int acpi_initialize(void);
 uint32_t acpi_shutdown(void *context);
@@ -36,4 +39,8 @@ int acpi_get_irq_routing_for_dev(uint8_t bus, uint8_t device, uint8_t function);
 struct acpi_processor *acpi_enumerate_cpus(void);
 struct acpi_device *acpi_get_device(const char *id);
 unsigned int acpi_suspend(void *context);
+
+#ifdef __cplusplus
+}
+#endif
 #endif

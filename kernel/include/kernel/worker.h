@@ -20,9 +20,14 @@ struct work_request
 	int priority;
 	struct work_request *next;
 };
-
+#ifdef __cplusplus
+extern "C" {
+#endif
 /* Initializes worker threads */
 void worker_init(void);
 /* Schedule work; the higher the priority, the sooner it will be executed */
 int worker_schedule(struct work_request *work, int priority);
+#ifdef __cplusplus
+}
+#endif
 #endif

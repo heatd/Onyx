@@ -44,6 +44,12 @@ struct arp_hashtable
 	struct arp_cache *entries[255];
 };
 struct netif;
+#ifdef __cplusplus
+extern "C" {
+#endif
 int arp_resolve_in(uint32_t ip, unsigned char *mac, struct netif *netif);
 int arp_handle_packet(arp_request_t *arp, uint16_t len);
+#ifdef __cplusplus
+}
+#endif
 #endif

@@ -15,7 +15,13 @@ struct signal_info
 	int type;
 };
 struct proc;
+#ifdef __cplusplus
+extern "C" {
+#endif
 int sys_kill(pid_t pid, int sig);
 void kernel_raise_signal(int sig, struct proc *process);
 bool signal_is_pending(void);
+#ifdef __cplusplus
+}
+#endif
 #endif
