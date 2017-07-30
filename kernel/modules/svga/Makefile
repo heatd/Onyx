@@ -1,5 +1,5 @@
 MODULE:= svga
-MOD_OBJS:=$(wildcard *.c)
+MOD_OBJS:=$(wildcard *.cpp)
 MODDIR:=/usr/lib/modules
 all: $(MODULE)
 	mkdir -p $(DESTDIR)$(MODDIR)/

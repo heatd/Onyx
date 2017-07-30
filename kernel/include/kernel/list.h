@@ -17,7 +17,7 @@ struct list_head
 };
 static inline int list_add(struct list_head *list, void *ptr)
 {
-	struct list_head *new_item = malloc(sizeof(struct list_head));
+	struct list_head *new_item = (struct list_head*) malloc(sizeof(struct list_head));
 	if(!new_item)
 		return -1;
 	new_item->ptr = ptr;
@@ -37,7 +37,7 @@ static inline void *list_get_element(struct list_head *list, void **saveptr)
 	}
 	else
 	{
-		struct list_head *current = *saveptr;
+		struct list_head *current = (struct list_head*) *saveptr;
 		struct list_head *next = current->next;
 		*saveptr = next;
 		if(!next)

@@ -8,6 +8,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #include <kernel/paging.h>
 #include <kernel/avl.h>
@@ -66,10 +67,10 @@ typedef struct ventry
 struct fault_info
 {
 	uintptr_t fault_address;
-	_Bool write;
-	_Bool read;
-	_Bool exec;
-	_Bool user;
+	bool write;
+	bool read;
+	bool exec;
+	bool user;
 };
 #ifdef __cplusplus
 extern "C" {

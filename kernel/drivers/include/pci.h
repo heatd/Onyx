@@ -136,7 +136,7 @@ pcibar_t* pci_get_bar(struct pci_device *dev, uint8_t barindex);
 uint16_t pci_get_intn(uint8_t slot, uint8_t device, uint8_t function);
 struct pci_device *get_pcidev_from_vendor_device(uint16_t deviceid, uint16_t vendorid);
 struct pci_device *get_pcidev(uint8_t bus, uint8_t device, uint8_t function);
-struct pci_device *get_pcidev_from_classes(uint8_t class, uint8_t subclass, uint8_t progif);
+struct pci_device *get_pcidev_from_classes(uint8_t pciclass, uint8_t subclass, uint8_t progif);
 void pci_set_barx(uint8_t slot, uint8_t device, uint8_t function, uint8_t index, uint32_t address, uint8_t is_io, uint8_t is_prefetch);
 void pci_initialize_drivers();
 void pci_write(struct pci_device *dev, uint64_t value, uint16_t off, size_t size);

@@ -109,7 +109,7 @@ int elf_relocate_addend(Elf64_Ehdr *hdr, Elf64_Rela *rela, Elf64_Shdr *section)
 				*p = RELOCATE_R_X86_64_PC32(sym, rela->r_addend, (uintptr_t) p);
 				break;
 			default:
-				printf("Unsuported relocation!\n");
+				printk("Unsuported relocation!\n");
 				return 1;
 		}
 	}
@@ -449,7 +449,7 @@ void *elf_load_kernel_module(void *file, void **fini_func)
 		if(sections[i].sh_flags & SHF_ALLOC) 
 		{
 			void *mem = allocate_module_memory(sections[i].sh_size);
-			if(i == 1) first_address = (uintptr_t) mem;
+			if(first_address == 0) first_address = (uintptr_t) mem;
 			if(sections[i].sh_type == SHT_NOBITS)
 				memset(mem, 0, sections[i].sh_size);
 			else
@@ -467,7 +467,7 @@ void *elf_load_kernel_module(void *file, void **fini_func)
 				Elf64_Rela *rela = &r[j];
 				if(elf_relocate_addend(header, rela, &sections[i]) == 1)
 				{
-					printf("Couldn't relocate the kernel module!\n");
+					printk("Couldn't relocate the kernel module!\n");
 					return errno = EINVAL, NULL;
 				}
 			}

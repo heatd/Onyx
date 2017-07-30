@@ -108,6 +108,7 @@ int load_module(const char *path, const char *name)
 	if(errno == EINVAL)
 		printf("Invalid ELF file\n");
 	module_init_t *functor = (module_init_t*) entry;
+	printk("module_init: %p\n", functor);
 	functor();
 	mod->fini = (module_fini_t) fini;
 	return add_module_to_hashtable(mod);

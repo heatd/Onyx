@@ -26,13 +26,13 @@
 #define VFS_TYPE_UNIX_SOCK	(1 << 6)
 #define VFS_TYPE_UNK		(1 << 7)
 struct vfsnode;
-typedef size_t (*__read)(int flags, size_t offset, size_t sizeofread, void* buffer, struct vfsnode* this);
-typedef size_t (*__write)(size_t offset, size_t sizeofwrite, void* buffer, struct vfsnode* this);
-typedef void (*__close)(struct vfsnode* this);
-typedef struct vfsnode *(*__open)(struct vfsnode* this, const char *name);
-typedef unsigned int (*__getdents)(unsigned int count, struct dirent* dirp, off_t off, struct vfsnode* this);
-typedef unsigned int (*__ioctl)(int request, void *argp, struct vfsnode* this);
-typedef struct vfsnode *(*__creat)(const char *pathname, int mode, struct vfsnode *this);
+typedef size_t (*__read)(int flags, size_t offset, size_t sizeofread, void* buffer, struct vfsnode* file);
+typedef size_t (*__write)(size_t offset, size_t sizeofwrite, void* buffer, struct vfsnode* file);
+typedef void (*__close)(struct vfsnode* file);
+typedef struct vfsnode *(*__open)(struct vfsnode* file, const char *name);
+typedef unsigned int (*__getdents)(unsigned int count, struct dirent* dirp, off_t off, struct vfsnode* file);
+typedef unsigned int (*__ioctl)(int request, void *argp, struct vfsnode* file);
+typedef struct vfsnode *(*__creat)(const char *pathname, int mode, struct vfsnode *file);
 typedef int (*__stat)(struct stat *buf, struct vfsnode *node);
 typedef int (*__link)(const char *newpath, struct vfsnode *node);
 typedef int (*__symlink)(const char *linkpath, struct vfsnode *node);
@@ -63,7 +63,7 @@ typedef struct vfsnode
 	int permitions;
 	int type;
 	size_t size;
-	_Atomic int refcount;
+	int refcount;
 	char *name;
 	char *mountpoint;
 	dev_t dev;
@@ -77,14 +77,14 @@ typedef struct vfsnode
 extern "C" {
 #endif
 void *add_cache_to_node(void *ptr, size_t size, off_t offset, vfsnode_t *node);
-size_t read_vfs(int flags, size_t offset, size_t sizeofread, void* buffer, vfsnode_t* this);
-size_t write_vfs(size_t offset, size_t sizeofwrite, void* buffer, vfsnode_t* this);
-void close_vfs(vfsnode_t* this);
-vfsnode_t *open_vfs(vfsnode_t* this, const char*);
+size_t read_vfs(int flags, size_t offset, size_t sizeofread, void* buffer, vfsnode_t* file);
+size_t write_vfs(size_t offset, size_t sizeofwrite, void* buffer, vfsnode_t* file);
+void close_vfs(vfsnode_t* file);
+vfsnode_t *open_vfs(vfsnode_t* file, const char*);
 int mount_fs(vfsnode_t *node, const char *mp);
 vfsnode_t *creat_vfs(vfsnode_t *node, const char *path, int mode);
-unsigned int getdents_vfs(unsigned int count, struct dirent* dirp, off_t off, vfsnode_t *this);
-int ioctl_vfs(int request, char *argp, vfsnode_t *this);
+unsigned int getdents_vfs(unsigned int count, struct dirent* dirp, off_t off, vfsnode_t *file);
+int ioctl_vfs(int request, char *argp, vfsnode_t *file);
 int stat_vfs(struct stat *buf, vfsnode_t *node);
 ssize_t send_vfs(const void *buf, size_t len, int flags, vfsnode_t *node);
 int connect_vfs(const struct sockaddr *addr, socklen_t addrlen, vfsnode_t *node);

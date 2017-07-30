@@ -45,7 +45,7 @@ struct driver
 	const char *name;
 	struct bus *bus;
 	struct device *device;
-	_Atomic int ref;
+	unsigned long ref;
 };
 struct device
 {

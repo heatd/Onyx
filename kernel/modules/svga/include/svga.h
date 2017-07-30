@@ -6,6 +6,12 @@
 #ifndef _VMWARE_SVGAII_H
 #define _VMWARE_SVGAII_H
 
+#include <stdint.h>
+
+#include <kernel/mutex.h>
+#include <kernel/video.h>
+#include <drivers/pci.h>
+
 #define VMWARE_SVGAII_PCI_VENDOR 0x15AD
 #define VMWARE_SVGAII_PCI_DEVICE 0x0405
 
@@ -35,4 +41,42 @@
 #define SVGA_REG_FB_OFFSET 	14
 #define SVGA_REG_VRAM_SIZE 	15
 #define SVGA_REG_FB_SIZE 	16
+
+class SvgaDevice
+{
+private:
+	uint16_t io_space;
+	/* The physical address of the framebuffer */
+	void *framebuffer_raw;
+	/* Virtual address mapping of the framebuffer */
+	void *framebuffer;
+	size_t framebuffer_size;
+	void *command_buffer;
+	size_t command_buffer_size;
+	mutex_t mtx;
+	struct video_mode mode;
+	struct pci_device *dev;
+public:
+	void write_index(uint16_t index);
+	void write_value(uint32_t value);
+	void write(uint16_t index, uint32_t value);
+	uint32_t read(uint16_t index);
+	int modeset(unsigned int width, unsigned int height, unsigned int bpp);
+	SvgaDevice(struct pci_device *dev) : mtx(MUTEX_INITIALIZER), dev(dev)
+	{}
+	void enable();
+	int add_bar(pcibar_t *bar, int index);
+	void *get_framebuffer()
+	{
+		return framebuffer;
+	}
+	struct video_mode *get_video_mode(void)
+	{
+		return &mode;
+	}
+	void set_video_mode(struct video_mode *video)
+	{
+		memcpy(&mode, video, sizeof(struct video_mode));
+	}
+};
 #endif

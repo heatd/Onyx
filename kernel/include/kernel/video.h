@@ -8,7 +8,10 @@
 
 #include <stdlib.h>
 #include <stdint.h>
-
+/* We can't include stdatomic.h in c++ */
+#ifndef __cplusplus
+#include <stdatomic.h>
+#endif
 #define VIDEO_STATUS_INSERTED	0
 #define VIDEO_STATUS_REMOVED	1
 
@@ -33,7 +36,11 @@ struct video_device
 	char *driver_string;
 	char *card_string;
 	int status;
-	_Atomic unsigned long refcount;
+	#ifndef __cplusplus
+	atomic_ulong refcount;
+	#else
+	unsigned long refcount;
+	#endif
 };
 #ifdef __cplusplus
 extern "C" {
