@@ -49,7 +49,8 @@ isr%1:
 %endmacro
 extern irq_handler
 extern handle_signal
-extern current_process
+extern signal_is_pending
+extern lapic_send_eoi
 irq_common:
 	cld
 	mov ax, ds
@@ -63,16 +64,12 @@ irq_common:
 	je .skip_swapgs
 	swapgs
 .skip_swapgs:
-	extern lapic_send_eoi
 	call lapic_send_eoi
 	mov rsi, rsp
 	call irq_handler
 	mov rsp, rax
-	mov rax, current_process
-	cmp qword [rax], qword 0
-	je .continue
-	mov rax, [rax]
-	cmp dword [rax], dword 1
+	call signal_is_pending
+	cmp rax, 1
 	je .handle_signal
 .continue:
 	mov rax, [rsp + 136]
@@ -126,11 +123,8 @@ isr_common:
 .skip_swap: 
 	mov rdi, rsp
 	call isr_handler
-	mov rax, current_process
-	cmp qword [rax], qword 0
-	je .isr_continue
-	mov rax, [rax]
-	cmp dword [rax], dword 1
+	call signal_is_pending
+	cmp rax, 1
 	je .isr_handle_signal
 .isr_continue:
 	mov rax, [rsp + 152]

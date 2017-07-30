@@ -22,10 +22,10 @@ int ptrace_peek(process_t *process, void *addr, ptrace_word_t *word)
 {
 	int status = 0;
 	/* Save the old VMM tree */
-	avl_node_t *old_tree = vmm_get_tree();
+	//avl_node_t *old_tree = vmm_get_tree();
 
 	/* Set the vmm tree before changing CR3, as changing cr3 is very expensive(saves performance on invalid requests) */
-	vmm_set_tree(process->tree);
+	//vmm_set_tree(process->tree);
 	
 	/* Lock the address space */
 	acquire_spinlock(&process->vm_spl);
@@ -43,7 +43,7 @@ int ptrace_peek(process_t *process, void *addr, ptrace_word_t *word)
 	release_spinlock(&process->vm_spl);
 	
 	/* Restore the old context */
-	vmm_set_tree(old_tree);
+	//vmm_set_tree(old_tree);
 	paging_load_cr3(get_current_process()->cr3);
 
 	return status;
@@ -52,10 +52,10 @@ int ptrace_poke(process_t *process, void *addr, ptrace_word_t word)
 {
 	int status = 0;
 	/* Save the old VMM tree */
-	avl_node_t *old_tree = vmm_get_tree();
+	//avl_node_t *old_tree = vmm_get_tree();
 
 	/* Set the vmm tree before changing CR3, as changing cr3 is very expensive(saves performance on invalid requests) */
-	vmm_set_tree(process->tree);
+	//vmm_set_tree(process->tree);
 	
 	/* Lock the address space */
 	acquire_spinlock(&process->vm_spl);
@@ -73,7 +73,7 @@ int ptrace_poke(process_t *process, void *addr, ptrace_word_t word)
 	release_spinlock(&process->vm_spl);
 	
 	/* Restore the old context */
-	vmm_set_tree(old_tree);
+	//vmm_set_tree(old_tree);
 	paging_load_cr3(get_current_process()->cr3);
 
 	return status;

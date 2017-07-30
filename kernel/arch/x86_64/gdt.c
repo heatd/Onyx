@@ -24,7 +24,7 @@ void gdt_init_percpu(void)
 	if(!gdtr)
 	{
 		free(gdt);
-		halt();
+		panic("Out of memory while allocating a percpu GDT\n");
 	}
 	/* Copy the gdt */
 	memcpy(gdt, (const void*) gdtr3.ptr, GDT_SIZE);

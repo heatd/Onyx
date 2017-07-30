@@ -153,17 +153,44 @@ void process_create_thread(process_t *proc, thread_callback_t callback, uint32_t
 	if(!is_set)
 		thread_destroy(thread);
 }
-extern int curr_id;
-void process_fork_thread(process_t *dest, process_t *src, int thread_index)
+int process_fork_thread(thread_t *src, process_t *dest, syscall_ctx_t *ctx)
 {
-	dest->threads[thread_index] = malloc(sizeof(thread_t));
-	if(!dest->threads[thread_index])
-		return errno = ENOMEM, (void) 0;
-	memcpy(dest->threads[thread_index], src->threads[thread_index], sizeof(thread_t));
-	dest->threads[thread_index]->next = NULL;
-	thread_add(dest->threads[thread_index]);
-	dest->threads[thread_index]->id = curr_id++;
-	dest->threads[thread_index]->owner = dest;
+	registers_t 	regs;
+	uintptr_t 	rsp;
+	uintptr_t 	rflags;
+	uintptr_t 	ip;
+	
+	/* TODO: Move this to arch/x86_64/process.c */
+	rsp = (uintptr_t) src->user_stack;
+	rflags = ctx->r11;
+	ip = ctx->rcx;
+
+	/* Setup the registers on the stack */
+	regs.rax = 0;
+	regs.rbx = ctx->rbx;
+	regs.rcx = ctx->rcx;
+	regs.rdx = ctx->rdx;
+	regs.rdi = ctx->rdi;
+	regs.rsi = ctx->rsi;
+	regs.rbp = ctx->rbp;
+	regs.rsp = rsp;
+	regs.rip = ip;
+	regs.r8 = ctx->r8;
+	regs.r9 = ctx->r9;
+	regs.r10 = ctx->r10;
+	regs.r11 = ctx->r11;
+	regs.r12 = ctx->r12;
+	regs.r13 = ctx->r13;
+	regs.r14 = ctx->r14;
+	regs.r15 = ctx->r15;
+	regs.rflags = rflags;
+	thread_t *thread = sched_spawn_thread(&regs, (thread_callback_t) regs.rcx,
+					      (void*) regs.rdi, src->fs);
+	if(!thread)
+		return -1;
+	dest->threads[0] = thread;
+	thread->owner = dest;
+	return 0;
 }
 process_t *get_process_from_pid(pid_t pid)
 {
@@ -307,7 +334,7 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	
 	current->cmd_line = strdup(path);
 	paging_load_cr3(current->cr3);
-	vmm_set_tree(tree);
+	current->tree = tree;
 	
 	/* Setup the binfmt args */
 	uint8_t *file = malloc(100);
@@ -351,9 +378,6 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	/* Close O_CLOEXEC files */
 	file_do_cloexec(&get_current_process()->ctx);
 
-	/* We need to disable interrupts here, since we're destroying threads and creating new ones
-	(who may not be ready to execute) */
-	DISABLE_INTERRUPTS();
 	memset(current->threads, 0, sizeof(thread_t*) * THREADS_PER_PROCESS);
 	/* Create the main thread */
 	process_create_thread(current, (thread_callback_t) entry, 0, argc, uargv, uenv);
@@ -363,7 +387,7 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	/* Setup the pthread structure */
 	process_setup_pthread(current->threads[0], current);
 
-	ENABLE_INTERRUPTS();
+	sched_start_thread(current->threads[0]);
 	while(1);
 }
 pid_t sys_getppid()
@@ -420,20 +444,23 @@ pid_t sys_wait4(pid_t pid, int *wstatus, int options, struct rusage *usage)
 }
 pid_t sys_fork(syscall_ctx_t *ctx)
 {
-	process_t *proc = (process_t*) get_current_process();
-	
-	/* If we don't get the process, idk what the hell is going on, so just return ENOMEM */
-	if(!proc)
-		return -ENOMEM;
+	process_t 	*proc;
+	process_t 	*child;
+	avl_node_t 	*areas;
+	PML4 		*new_pt;
+	thread_t 	*to_be_forked;
+
+	areas = NULL;
+	proc = (process_t*) get_current_process();
+	to_be_forked = proc->threads[0];	
 	/* Create a new process */
-	process_t *child = process_create(proc->cmd_line, &proc->ctx, proc); /* Create a process with the current
+	child = process_create(proc->cmd_line, &proc->ctx, proc); /* Create a process with the current
 			  			  * process's info */
 	if(!child)
 		return -ENOMEM;
 
 	/* Fork the vmm data and the address space */
-	avl_node_t *areas;
-	PML4 *new_pt = vmm_fork_as(&areas); // Fork the address space
+	new_pt = vmm_fork_as(&areas); // Fork the address space
 	if(!new_pt)
 	{
 		/* TODO: Destroy the process */
@@ -448,27 +475,9 @@ pid_t sys_fork(syscall_ctx_t *ctx)
 	child->tree = areas;
 	child->cr3 = new_pt; // Set the new cr3
 
-	/* We need to disable the interrupts for a moment, because thread_add adds it to the queue, 
-	   and the thread isn't ready yet */
-
-	DISABLE_INTERRUPTS();
 	/* Fork and create the new thread */
-	process_fork_thread(child, proc, 0);
-	child->threads[0]->kernel_stack = vmalloc(4, VM_TYPE_STACK, VM_WRITE | VM_NOEXEC | VM_GLOBAL);
-	if(!child->threads[0]->kernel_stack)
-	{
-		free(child->threads[0]);
-		thread_destroy(child->threads[0]);
-		//process_destroy_aspace(void);
-		free(child);
-		ENABLE_INTERRUPTS();
-		return -ENOMEM;
-	}
-	child->threads[0]->kernel_stack = (uintptr_t *) ((unsigned char *)child->threads[0]->kernel_stack + 0x4000);
-	child->threads[0]->kernel_stack_top = child->threads[0]->kernel_stack;
-	child->threads[0]->kernel_stack = sched_fork_stack(ctx, child->threads[0]->kernel_stack);
-	child->threads[0]->fs = get_current_process()->threads[0]->fs;
-	ENABLE_INTERRUPTS();
+	process_fork_thread(to_be_forked, child, ctx);
+	sched_start_thread(child->threads[0]);
 	// Return the pid to the caller
 	return child->pid;
 }
@@ -664,4 +673,16 @@ void process_increment_stats(bool is_kernel)
 		process->system_time++;
 	else
 		process->user_time++;
+}
+void process_continue(process_t *p)
+{
+	if(p->threads[0])
+		thread_set_state(p->threads[0], THREAD_RUNNABLE);
+}
+void process_stop(process_t *p)
+{
+	if(p->threads[0])
+		thread_set_state(p->threads[0], THREAD_BLOCKED);
+	if(p == get_current_process())
+		sched_yield();
 }

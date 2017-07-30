@@ -1,7 +1,8 @@
 #!/bin/sh
 SYSTEM_HEADER_PROJECTS="kernel libdrm"
 PROJECTS="libc kernel"
-SOURCE_PACKAGES="musl libdrm libunwind init games ld dhcpcd wserver"
+SOURCE_PACKAGES="musl libdrm libunwind init games ld dhcpcd wserver strace"
+
 
 export MAKE=${MAKE:-make}
 export HOST=${HOST:-$(./default-host.sh)}

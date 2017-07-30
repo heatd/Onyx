@@ -9,9 +9,10 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#define NUM_PRIO 40
 typedef void(*thread_callback_t)(void*);
 struct proc;
-typedef struct thr
+typedef struct thread
 {
 	/* Put arch-independent stuff right here */
 	uintptr_t *user_stack;
@@ -23,7 +24,11 @@ typedef struct thr
 	uint32_t flags;
 	int id;
 	int status;
-	struct thr *next;
+	int priority;
+	int cpu;
+	struct thread *next;
+	struct thread *prev_prio, *next_prio;
+	struct thread *prev_wait, *next_wait;
 	uint64_t timestamp;
 	unsigned long sleeping_for;
 	unsigned char *fpu_area;
@@ -56,6 +61,8 @@ void sched_change_preemption_state(bool disable);
 void sched_sleep_until_wake(void);
 void thread_wake_up_ftx(thread_t *thread);
 void thread_reset_futex_state(thread_t *thread);
+void sched_start_thread(thread_t *thread);
+void sched_wake_up_available_threads(void);
 #ifdef __cplusplus
 }
 #endif

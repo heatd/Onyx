@@ -84,7 +84,7 @@ repeat: ;
 		}
 		list = list->next;
 	}
-	sync_thread->status = THREAD_SLEEPING;
+	thread_set_state(sync_thread, THREAD_BLOCKED);
 	goto repeat;
 }
 void pagecache_init()
@@ -92,7 +92,7 @@ void pagecache_init()
 	sync_thread = sched_create_thread(pagecache_sync, 1, NULL);
 	if(!sync_thread)
 		panic("Could not spawn the sync thread!\n");
-	sync_thread->status = THREAD_SLEEPING;
+	thread_set_state(sync_thread, THREAD_BLOCKED);
 }
 void wakeup_sync_thread()
 {

@@ -326,7 +326,7 @@ thread_t *sched_spawn_thread(registers_t *regs, thread_callback_t start, void *a
 	new_thread->owner = get_current_process();
 
 	uint64_t *stack = new_thread->kernel_stack;
-	uint64_t ds = 0x33, cs = 0x2b, rflags = 0x202;
+	uint64_t ds = 0x33, cs = 0x2b, rflags = regs->rflags;
 
 	new_thread->rip = start;
 	*--stack = ds; //SS
@@ -352,8 +352,6 @@ thread_t *sched_spawn_thread(registers_t *regs, thread_callback_t start, void *a
 	*--stack = ds; // DS
 	new_thread->kernel_stack = stack;
 	new_thread->fs = fs;
-
-	thread_add(new_thread);
 
 	return new_thread;
 }

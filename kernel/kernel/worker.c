@@ -31,7 +31,7 @@ void work_do_work(void* context)
 		}
 		mutex_unlock(&work_queue_mutex);
 		/* Set the thread state to sleeping and yield */
-		thread_set_state(worker, THREAD_SLEEPING);
+		thread_set_state(worker, THREAD_BLOCKED);
 		sched_yield();
 	}
 }
@@ -39,7 +39,7 @@ void worker_init(void)
 {
 	if(!(worker = sched_create_thread(work_do_work, 1, NULL)))
 		panic("worker_init: Could not create the worker thread!\n");
-	thread_set_state(worker, THREAD_SLEEPING);
+	thread_set_state(worker, THREAD_BLOCKED);
 }
 int worker_schedule(struct work_request *work, int priority)
 {

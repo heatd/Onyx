@@ -8,6 +8,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdatomic.h>
 
 #include <kernel/acpi.h>
 #include <kernel/scheduler.h>
@@ -211,6 +212,9 @@ struct processor
 #else
 #error "Implement this structure for your architecture"
 #endif
+	atomic_size_t active_threads;
+	thread_t *thread_queues[NUM_PRIO];
+	spinlock_t queue_locks[NUM_PRIO];
 	size_t sched_quantum;
 	thread_t *current_thread;
 	bool preemption_disabled;
@@ -222,7 +226,10 @@ void cpu_identify(void);
 void cpu_init_interrupts(void);
 int cpu_init_mp(void);
 int get_nr_cpus(void);
+int get_cpu_num(void);
 struct processor *get_processor_data(void);
+struct processor *get_processor_data_for_cpu(int cpu);
+bool is_percpu_initialized(void);
 bool is_kernel_ip(uintptr_t ip);
 #ifdef __cplusplus
 }

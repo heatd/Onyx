@@ -10,8 +10,18 @@
 #include <kernel/task_switching.h>
 #include <kernel/scheduler.h>
 
-void spinlock_lock(unsigned long *);
-void spinlock_unlock(unsigned long *);
+static inline void post_lock_actions(spinlock_t *lock)
+{
+	lock->old_preemption_state = sched_is_preemption_disabled();
+	/* Disable preemption after locking, and enable it on release. This means locks get faster */
+	sched_change_preemption_state(true);
+	lock->holder = (unsigned long) __builtin_return_address(0);
+}
+static inline void post_release_actions(spinlock_t *lock)
+{
+	sched_change_preemption_state(lock->old_preemption_state);
+	lock->holder = 0xDEADBEEFDEADBEEF;
+}
 void acquire_spinlock(spinlock_t *lock)
 {
 	while(!__sync_bool_compare_and_swap(&lock->lock, 0, 1))
@@ -19,31 +29,26 @@ void acquire_spinlock(spinlock_t *lock)
 		__asm__ __volatile__("pause");
 	}
 	__sync_synchronize();
-	lock->old_preemption_state = sched_is_preemption_disabled();
-	/* Disable preemption after locking, and enable it on release. This means locks get faster */
-	sched_change_preemption_state(true);
+	post_lock_actions(lock);
 }
 
 void release_spinlock(spinlock_t *lock)
 {
 	__sync_synchronize();
 	lock->lock = 0;
-	sched_change_preemption_state(lock->old_preemption_state);
+	post_release_actions(lock);
 }
 void wait_spinlock(spinlock_t *lock)
 {
 	while (lock->lock == 1);
 }
-void acquire_critical_lock(spinlock_t *critical_lock)
+int try_and_acquire_spinlock(spinlock_t *lock)
 {
-	unsigned long l = __sync_add_and_fetch(&critical_lock->waiters, 1);
-	if(l > 1)
-		sched_yield();
-	spinlock_lock(&critical_lock->lock);
-	__sync_sub_and_fetch(&critical_lock->waiters, 1);
-}
-void release_critical_lock(spinlock_t *critical_lock)
-{
-	spinlock_unlock(&critical_lock->lock);
-	sched_yield();
+	while(!__sync_bool_compare_and_swap(&lock->lock, 0, 1))
+	{
+		return 1;
+	}
+	__sync_synchronize();
+	post_lock_actions(lock);
+	return 0;
 }

@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <assert.h>
 
 #include <kernel/file.h>
 #include <kernel/paging.h>
@@ -166,7 +167,7 @@ static vmm_entry_t *avl_insert_key(avl_node_t **t, uintptr_t key, uintptr_t end)
 	{
 		vmm_entry_t *ret = avl_insert_key(&ptr->left, key, end);
 		if(key < high_half)
-			avl_balance_tree(&tree);
+			avl_balance_tree(vmm_get_tree());
 		else
 			avl_balance_tree(&kernel_tree);
 		return ret;
@@ -175,7 +176,7 @@ static vmm_entry_t *avl_insert_key(avl_node_t **t, uintptr_t key, uintptr_t end)
 	{
 		vmm_entry_t *ret = avl_insert_key(&ptr->right, key, end);
 		if(key < high_half)
-			avl_balance_tree(&tree);
+			avl_balance_tree(vmm_get_tree());
 		else
 			avl_balance_tree(&kernel_tree);
 		return ret;
@@ -198,7 +199,7 @@ static avl_node_t **avl_search_key(avl_node_t **t, uintptr_t key)
 static int avl_delete_node(uintptr_t key)
 {
 	/* Try to find the node inside the tree */
-	avl_node_t **n = avl_search_key(&tree, key);
+	avl_node_t **n = avl_search_key(vmm_get_tree(), key);
 	if(!n)
 		return errno = ENOENT, -1;
 	avl_node_t *ptr = *n;
@@ -213,6 +214,7 @@ static int avl_delete_node(uintptr_t key)
 avl_node_t *avl_copy(avl_node_t *node)
 {
 	avl_node_t *new = malloc(sizeof(avl_node_t));
+	assert(new != NULL);
 	memcpy(new, node, sizeof(avl_node_t));
 
 	if(new->left) new->left = avl_copy(new->left);
@@ -469,7 +471,7 @@ void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uin
 	}
 	else
 	{
-		avl_node_t **e = avl_search_key(&tree, base_address);
+		avl_node_t **e = avl_search_key(vmm_get_tree(), base_address);
 		while(e && *e)
 		{
 again:
@@ -484,7 +486,7 @@ again:
 				return NULL;
 			for(uintptr_t base = base_address; base < base_address + pages * PAGE_SIZE; base += PAGE_SIZE)
 			{
-				if((e = avl_search_key(&tree, base)))
+				if((e = avl_search_key(vmm_get_tree(), base)))
 					goto again;
 			}
 		}
@@ -494,7 +496,7 @@ again:
 	if(flags & 1)
 		en = avl_insert_key(&kernel_tree, base_address, pages * PAGE_SIZE);
 	else
-		en = avl_insert_key(&tree, base_address, pages * PAGE_SIZE);
+		en = avl_insert_key(vmm_get_tree(), base_address, pages * PAGE_SIZE);
 	if(!en)
 	{
 		base_address = 0;
@@ -525,7 +527,7 @@ void *vmm_reserve_address(void *addr, size_t pages, uint32_t type, uint64_t prot
 	if((uintptr_t) addr >= high_half)
 		v = avl_insert_key(&kernel_tree, (uintptr_t)addr, pages * PAGE_SIZE);
 	else
-		v = avl_insert_key(&tree, (uintptr_t)addr, pages * PAGE_SIZE);
+		v = avl_insert_key(vmm_get_tree(), (uintptr_t)addr, pages * PAGE_SIZE);
 	if(!v)
 	{
 		addr = NULL;
@@ -542,7 +544,7 @@ return_:
 }
 vmm_entry_t *vmm_is_mapped(void *addr)
 {
-	avl_node_t **e = avl_search_key(&tree, (uintptr_t) addr);
+	avl_node_t **e = avl_search_key(vmm_get_tree(), (uintptr_t) addr);
 	if(!e)
 	{
 		e = avl_search_key(&kernel_tree, (uintptr_t) addr);
@@ -566,7 +568,7 @@ PML4 *vmm_fork_as(avl_node_t **vmmstructs)
 {
 	__vm_lock(false);
 	PML4 *pt = paging_fork_as();
-	avl_node_t *new_tree = avl_copy(tree);
+	avl_node_t *new_tree = avl_copy(*vmm_get_tree());
 	*vmmstructs = new_tree;
 	__vm_unlock(false);
 	return pt;
@@ -574,7 +576,6 @@ PML4 *vmm_fork_as(avl_node_t **vmmstructs)
 void vmm_stop_spawning()
 {
 	is_spawning = 0;
-	vmm_set_tree(old_tree);
 	paging_stop_spawning();
 }
 void vmm_change_perms(void *range, size_t pages, int perms)
@@ -600,13 +601,11 @@ void vfree(void *ptr, size_t pages)
 	vmm_destroy_mappings(ptr, pages);
 	vmm_unmap_range(ptr, pages);
 }
-avl_node_t *vmm_get_tree()
+avl_node_t **vmm_get_tree()
 {
-	return tree;
-}
-void vmm_set_tree(avl_node_t *tree_)
-{
-	tree = tree_;
+	process_t *p = get_current_process();
+	assert(p != NULL);
+	return &p->tree;
 }
 int vmm_check_pointer(void *addr, size_t needed_space)
 {
@@ -670,7 +669,7 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 
 	if(!(flags & MAP_ANONYMOUS))
 	{
-		vmm_entry_t *area = (*avl_search_key(&tree, (uintptr_t) mapping_addr))->data;
+		vmm_entry_t *area = (*avl_search_key(vmm_get_tree(), (uintptr_t) mapping_addr))->data;
 		/* Set additional meta-data */
 		if(flags & MAP_SHARED)
 			area->mapping_type = MAP_SHARED;
@@ -753,12 +752,12 @@ int sys_mprotect(void *addr, size_t len, int prot)
 		uintptr_t second_half = (uintptr_t) addr + len;
 		size_t rest_pages = area->pages - pages;
 		int old_rwx = area->rwx;
-		avl_node_t *node = *avl_search_key(&tree, (uintptr_t) addr);
+		avl_node_t *node = *avl_search_key(vmm_get_tree(), (uintptr_t) addr);
 		node->end -= area->pages * PAGE_SIZE - len;
 		area->pages = pages;
 		area->rwx = vm_prot;
 
-		vmm_entry_t *new = avl_insert_key(&tree, second_half, rest_pages * PAGE_SIZE);
+		vmm_entry_t *new = avl_insert_key(vmm_get_tree(), second_half, rest_pages * PAGE_SIZE);
 		if(!new)
 			return -ENOMEM;
 		new->base = second_half;
@@ -769,11 +768,11 @@ int sys_mprotect(void *addr, size_t len, int prot)
 	else if(area->base < (uintptr_t) addr && area->base + area->pages * PAGE_SIZE > (uintptr_t) addr + len)
 	{
 		size_t total_pages = area->pages;
-		avl_node_t *node = *avl_search_key(&tree, area->base);
+		avl_node_t *node = *avl_search_key(vmm_get_tree(), area->base);
 		node->end -= (uintptr_t) addr - area->base;
 		area->pages = ((uintptr_t) addr - area->base) / PAGE_SIZE;
 
-		vmm_entry_t *second_area = avl_insert_key(&tree, (uintptr_t) addr, (uintptr_t) len);
+		vmm_entry_t *second_area = avl_insert_key(vmm_get_tree(), (uintptr_t) addr, (uintptr_t) len);
 		if(!second_area)
 		{
 			/* TODO: Unsafe to just return, maybe restore the old area? */
@@ -785,7 +784,7 @@ int sys_mprotect(void *addr, size_t len, int prot)
 		second_area->type = area->type;
 		second_area->rwx = vm_prot;
 
-		vmm_entry_t *third_area = avl_insert_key(&tree, (uintptr_t) addr + len, 
+		vmm_entry_t *third_area = avl_insert_key(vmm_get_tree(), (uintptr_t) addr + len, 
 		(uintptr_t) total_pages * PAGE_SIZE);
 		if(!third_area)
 		{
@@ -801,9 +800,9 @@ int sys_mprotect(void *addr, size_t len, int prot)
 	else if(area->base < (uintptr_t) addr && (uintptr_t) addr + len == area->base + area->pages * PAGE_SIZE)
 	{
 		area->pages -= pages;
-		avl_node_t *node = *avl_search_key(&tree, (uintptr_t) addr);
+		avl_node_t *node = *avl_search_key(vmm_get_tree(), (uintptr_t) addr);
 		node->end -= pages * PAGE_SIZE;
-		vmm_entry_t *new_area = avl_insert_key(&tree, (uintptr_t) addr, len);
+		vmm_entry_t *new_area = avl_insert_key(vmm_get_tree(), (uintptr_t) addr, len);
 		if(!new_area)
 		{
 			area->pages += pages;

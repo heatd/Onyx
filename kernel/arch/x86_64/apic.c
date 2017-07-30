@@ -4,6 +4,7 @@
 * check LICENSE at the root directory for more information
 */
 #include <acpi.h>
+#include <stdbool.h>
 
 #include <kernel/apic.h>
 #include <kernel/idt.h>
@@ -21,7 +22,7 @@
 volatile uint32_t *bsp_lapic = NULL;
 volatile uint64_t ap_done = 0;
 volatile uint64_t core_stack = 0;
-_Bool is_smp_enabled = 0;
+bool is_smp_enabled = 0;
 void lapic_write(volatile uint32_t *lapic, uint32_t addr, uint32_t val)
 {
 	volatile uint32_t *laddr = (volatile uint32_t *)((volatile char*) lapic + addr);
@@ -34,7 +35,7 @@ uint32_t lapic_read(volatile uint32_t *lapic, uint32_t addr)
 }
 void lapic_send_eoi()
 {
-	if(is_smp_enabled == 0)
+	if(is_percpu_initialized() == false)
 		lapic_write(bsp_lapic, LAPIC_EOI, 0);
 	else
 	{
@@ -168,7 +169,7 @@ void set_pin_handlers()
 void ioapic_init()
 {
 	/* Map the I/O APIC base */
-	ioapic_base = (volatile char*)vmm_allocate_virt_address(VM_KERNEL, 1, VMM_TYPE_REGULAR, VMM_TYPE_HW, 0);
+	ioapic_base = (volatile char*) vmm_allocate_virt_address(VM_KERNEL, 1, VMM_TYPE_REGULAR, VMM_TYPE_HW, 0);
 	if(!ioapic_base)
 		panic("Virtual memory allocation for the I/O APIC failed!");
 	paging_map_phys_to_virt((uintptr_t) ioapic_base, IOAPIC_BASE_PHYS, VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC);
@@ -183,7 +184,7 @@ volatile uint64_t boot_ticks = 0;
 static int boot_sched_quantum = 10;
 static uintptr_t apic_timer_irq(registers_t *regs)
 {
-	if(!is_smp_enabled)
+	if(!is_percpu_initialized())
 	{
 		boot_ticks++;
 		boot_sched_quantum--;

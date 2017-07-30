@@ -80,14 +80,21 @@ typedef struct
 	uint64_t pml4 :9;
 	uint64_t rest :16;
 } decomposed_addr_t;
-PML4 *current_pml4 = NULL;
+PML4 *boot_pml4;
+PML4 *get_current_pml4(void)
+{
+	process_t *p = get_current_process();
+	if(!p)
+		return boot_pml4;
+	return (PML4*) p->cr3;
+}
 void *virtual2phys(void *ptr)
 {
 	decomposed_addr_t dec;
 	memcpy(&dec, &ptr, sizeof(decomposed_addr_t));
 	PML4 *pml4;
 	if(!is_spawning)
-		pml4 = (PML4*)((uint64_t)current_pml4 + PHYS_BASE);
+		pml4 = (PML4*)((uint64_t)get_current_pml4() + PHYS_BASE);
 	else
 		pml4 = (PML4*)((uint64_t)spawning_pml + PHYS_BASE);
 	PML3 *pml3 = (PML3*)((pml4->entries[dec.pml4] & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
@@ -100,12 +107,12 @@ static PML2 pdphysical_map __attribute__((aligned(PAGE_SIZE)));
 void paging_init()
 {
 	/* Get the current PML4 and store it */
-	__asm__ __volatile__("movq %%cr3, %%rax\t\nmovq %%rax, %0":"=r"(current_pml4));
+	__asm__ __volatile__("movq %%cr3, %%rax\t\nmovq %%rax, %0":"=r"(boot_pml4));
 	/* Bootstrap the first 1GB */
 	uintptr_t virt = 0xffffea0000000000;
 	decomposed_addr_t decAddr;
 	memcpy(&decAddr, &virt, sizeof(decomposed_addr_t));
-	uint64_t* entry = &current_pml4->entries[decAddr.pml4];
+	uint64_t* entry = &get_current_pml4()->entries[decAddr.pml4];
 	PML3* pml3 = (PML3*)&pdptphysical_map;
 	
 	memset(pml3, 0, sizeof(PML3));
@@ -127,7 +134,7 @@ void paging_map_all_phys()
 	uintptr_t virt = 0xffffea0000000000;
 	decomposed_addr_t decAddr;
 	memcpy(&decAddr, &virt, sizeof(decomposed_addr_t));
-	uint64_t* entry = &current_pml4->entries[decAddr.pml4];
+	uint64_t* entry = &get_current_pml4()->entries[decAddr.pml4];
 	PML3* pml3 = (PML3*)&pdptphysical_map;
 	
 	memset(pml3, 0, sizeof(PML3));
@@ -163,11 +170,11 @@ void *paging_map_phys_to_virt_huge(uint64_t virt, uint64_t phys, uint64_t prot)
 	_Bool user = 0;
 	if (virt < 0x00007fffffffffff)
 		user = 1;
-	if(!current_pml4)
+	if(!get_current_pml4())
 		return NULL;
 	decomposed_addr_t decAddr;
 	memcpy(&decAddr, &virt, sizeof(decomposed_addr_t));
-	PML4 *pml4 = (PML4*)((uint64_t)current_pml4 + KERNEL_VIRTUAL_BASE);
+	PML4 *pml4 = (PML4*)((uint64_t)get_current_pml4() + KERNEL_VIRTUAL_BASE);
 	uint64_t* entry = &pml4->entries[decAddr.pml4];
 	PML3* pml3 = NULL;
 	if(*entry & 1)
@@ -194,11 +201,11 @@ void* paging_map_phys_to_virt_large_early(uint64_t virt, uint64_t phys, uint64_t
 	_Bool user = 0;
 	if (virt < 0x00007fffffffffff)
 		user = 1;
-	if(!current_pml4)
+	if(!get_current_pml4())
 		return NULL;
 	decomposed_addr_t decAddr;
 	memcpy(&decAddr, &virt, sizeof(decomposed_addr_t));
-	PML4 *pml4 = (PML4*)((uint64_t)current_pml4 + KERNEL_VIRTUAL_BASE);
+	PML4 *pml4 = (PML4*)((uint64_t)get_current_pml4() + KERNEL_VIRTUAL_BASE);
 	
 	uint64_t* entry = &pml4->entries[decAddr.pml4];
 	PML3* pml3 = NULL;
@@ -238,11 +245,11 @@ void* paging_map_phys_to_virt_large(uint64_t virt, uint64_t phys, uint64_t prot)
 	_Bool user = 0;
 	if (virt < 0x00007fffffffffff)
 		user = 1;
-	if(!current_pml4)
+	if(!get_current_pml4())
 		return NULL;
 	decomposed_addr_t decAddr;
 	memcpy(&decAddr, &virt, sizeof(decomposed_addr_t));
-	PML4 *pml4 = (PML4*)((uint64_t)current_pml4 + PHYS_BASE);
+	PML4 *pml4 = (PML4*)((uint64_t)get_current_pml4() + PHYS_BASE);
 	
 	uint64_t* entry = &pml4->entries[decAddr.pml4];
 	PML3* pml3 = NULL;
@@ -282,11 +289,11 @@ void* paging_map_phys_to_virt(uint64_t virt, uint64_t phys, uint64_t prot)
 	_Bool user = 0;
 	if (virt < 0x00007fffffffffff)
 		user = 1;
-	if(!current_pml4)
+	if(!get_current_pml4())
 		return NULL;
 	decomposed_addr_t decAddr;
 	memcpy(&decAddr, &virt, sizeof(decomposed_addr_t));
-	PML4 *pml4 = (PML4*)((uint64_t)current_pml4 + PHYS_BASE);
+	PML4 *pml4 = (PML4*)((uint64_t)get_current_pml4() + PHYS_BASE);
 
 	uint64_t* entry = &pml4->entries[decAddr.pml4];
 	PML3* pml3 = NULL;
@@ -349,7 +356,7 @@ void *paging_unmap(void* memory)
 	memcpy(&dec, &memory, sizeof(decomposed_addr_t));
 	PML4 *pml4;
 	if(!is_spawning)
-		pml4 = (PML4*)((uint64_t)current_pml4 + PHYS_BASE);
+		pml4 = (PML4*)((uint64_t)get_current_pml4() + PHYS_BASE);
 	else
 		pml4 = (PML4*)((uint64_t)spawning_pml + PHYS_BASE);
 	uint64_t* entry = &pml4->entries[dec.pml4];
@@ -405,7 +412,7 @@ PML4 *paging_clone_as()
 		panic("OOM while cloning address space!");
 	PML4 *p = (PML4*)((uint64_t)new_pml + PHYS_BASE);
 	memset(p, 0, sizeof(PML4));
-	PML4 *curr = (PML4*)((uint64_t)current_pml4 + PHYS_BASE);
+	PML4 *curr = (PML4*)((uint64_t)get_current_pml4() + PHYS_BASE);
 	// Clone the kernel-space memory
 	memcpy(&p->entries[256], &curr->entries[256], 256 * sizeof(uint64_t));
 	is_spawning = 1;
@@ -428,7 +435,7 @@ PML4 *paging_fork_as()
 	if(!new_pml)
 		panic("OOM while cloning address space!");
 	PML4 *p = (PML4*)((uint64_t)new_pml + PHYS_BASE);
-	PML4 *curr = (PML4*)((uint64_t)current_pml4 + PHYS_BASE);
+	PML4 *curr = (PML4*)((uint64_t)get_current_pml4() + PHYS_BASE);
 	memcpy(p, curr, sizeof(PML4));
 	PML4 *mod_pml = (PML4*)((char*)new_pml + PHYS_BASE);
 	for(int i = 0; i < 256; i++)
@@ -482,8 +489,11 @@ void paging_load_cr3(PML4 *pml)
 		printf("current process: %p\n Current CR3: %p\n", get_current_process(), get_current_process()->cr3);
 		panic("Invalid pml!");
 	}
+	PML4 *oldpml;
+	__asm__ __volatile__("movq %%cr3, %%rax\t\nmovq %%rax, %0":"=r"(oldpml));
+	if(oldpml == pml)
+		return;
 	__asm__ __volatile__("movq %0, %%cr3"::"r"(pml));
-	current_pml4 = pml;
 }
 void paging_change_perms(void *addr, int prot)
 {
@@ -491,7 +501,7 @@ void paging_change_perms(void *addr, int prot)
 	memcpy(&dec, &addr, sizeof(decomposed_addr_t));
 	PML4 *pml4;
 	if(!is_spawning)
-		pml4 = (PML4*)((uint64_t)current_pml4 + PHYS_BASE);
+		pml4 = (PML4*)((uint64_t)get_current_pml4() + PHYS_BASE);
 	else
 		pml4 = (PML4*)((uint64_t)spawning_pml + PHYS_BASE);
 	uint64_t* entry = &pml4->entries[dec.pml4];

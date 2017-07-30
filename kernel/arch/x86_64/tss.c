@@ -54,11 +54,14 @@ void init_percpu_tss(uint64_t *gdt)
 	uint16_t *tss_gdtw = (uint16_t*) &gdt[7];
 	uint32_t *tss_gdtd = (uint32_t*) &gdt[7];
 	tss_gdtw[1] = (uintptr_t) new_tss & 0xFFFF;
-	tss_gdtb[4] = ((uintptr_t) &new_tss >> 16) & 0xFF;
-	tss_gdtb[6] = ((uintptr_t) &new_tss >> 24) & 0xFF;
-	tss_gdtb[7] = ((uintptr_t) &new_tss >> 24) & 0xFF;
-	tss_gdtd[2] = ((uintptr_t) &new_tss >> 32);
+	tss_gdtb[4] = ((uintptr_t) new_tss >> 16) & 0xFF;
+	tss_gdtb[6] = ((uintptr_t) new_tss >> 24) & 0xFF;
+	tss_gdtb[7] = ((uintptr_t) new_tss >> 24) & 0xFF;
+	tss_gdtd[2] = ((uintptr_t) new_tss >> 32);
 	tss_flush();
 
-	get_processor_data()->tss = new_tss;
+	/* Note that we use get_processor_data_inl() here, because get_processor_data() returns NULL as
+	   percpu_initialized isn't true yet! get_processor_data_inl() makes no such checks!
+	*/
+	get_processor_data_inl()->tss = new_tss;
 }

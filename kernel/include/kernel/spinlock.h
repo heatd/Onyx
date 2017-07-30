@@ -12,12 +12,14 @@ typedef struct spinlock
 	unsigned long lock;
 	unsigned long waiters;
 	bool old_preemption_state; /* This lets us nest locks */
+	unsigned long holder;
 } spinlock_t;
 #ifdef __cplusplus
 extern "C" {
 #endif
-extern void acquire_spinlock(spinlock_t*);
-extern void release_spinlock(spinlock_t*);
+void acquire_spinlock(spinlock_t *lock);
+void release_spinlock(spinlock_t *lock);
+int try_and_acquire_spinlock(spinlock_t *lock);
 void wait_spinlock(spinlock_t*);
 #ifdef __cplusplus
 }

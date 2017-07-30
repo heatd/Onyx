@@ -100,8 +100,10 @@ ACPI_THREAD_ID AcpiOsGetThreadId()
 }
 ACPI_STATUS AcpiOsExecute(ACPI_EXECUTE_TYPE Type, ACPI_OSD_EXEC_CALLBACK Function, void * Context)
 {
-	if(!sched_create_thread((thread_callback_t)Function, 1, Context))
+	thread_t *thread = NULL;
+	if(!(thread = sched_create_thread((thread_callback_t)Function, 1, Context)))
 		return AE_NO_MEMORY;
+	sched_start_thread(thread);
 	return AE_OK;
 }
 void AcpiOsSleep(UINT64 Milliseconds)

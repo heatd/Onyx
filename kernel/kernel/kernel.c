@@ -24,6 +24,7 @@
 #include <fcntl.h>
 #include <pthread_kernel.h>
 #include <partitions.h>
+#include <assert.h>
 
 #include <sys/mman.h>
 #include <acpica/acpi.h>
@@ -164,10 +165,8 @@ retry:;
 	if(!proc)
 		return errno = ENOMEM, -1;
 
-	proc->cr3 = current_pml4;
-	proc->tree = vmm_get_tree();
-
-	current_process = proc;
+	proc->cr3 = get_current_pml4();
+	proc->tree = NULL;
 
 	get_current_thread()->owner = proc;
 	/* Setup stdio */
@@ -222,7 +221,7 @@ retry:;
 	int argc;
 	char **_argv = copy_argv(argv, proc->cmd_line, &argc);
 	char **_env = process_copy_envarg(envp, false, NULL);
-	DISABLE_INTERRUPTS();
+
 	process_create_thread(proc, (thread_callback_t) entry, 0, argc, _argv, _env);
 	process_t *current = get_current_process();
 	/* Setup the auxv at the stack bottom */
@@ -260,7 +259,7 @@ retry:;
 	p->self = (__pthread_t*) fs;
 	p->tid = get_current_process()->threads[0]->id;
 	p->pid = get_current_process()->pid;
-	ENABLE_INTERRUPTS();
+	sched_start_thread(current->threads[0]);
 	return 0;
 }
 uintptr_t grub2_rsdp = 0;
@@ -412,12 +411,15 @@ void kernel_main()
 	init_initrd(initrd_addr);
 
 	DISABLE_INTERRUPTS();
+
 	/* Initialize the scheduler */
 	if(sched_init())
 		panic("sched: failed to initialize!");
 
 	/* Initalize multitasking */
-	sched_create_thread(kernel_multitasking, 1, NULL);
+	thread_t *new_thread = sched_create_thread(kernel_multitasking, 1, NULL);
+
+	assert(new_thread);
 	/* Initialize late libc */
 	libc_late_init();
 
@@ -427,6 +429,9 @@ void kernel_main()
 	/* Initialize the cache sync thread */
 	pagecache_init();
 
+	/* Start the new thread */
+	sched_start_thread(new_thread);
+
 	ENABLE_INTERRUPTS();
 	for (;;);
 }
@@ -434,7 +439,6 @@ void kernel_multitasking(void *arg)
 {
 	void *mem = vmm_allocate_virt_address(VM_KERNEL, 1024, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL, 0);
 	vmm_map_range(mem, 1024, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
-	printf("mem: %p\n", mem);
 	/* Create PTY */
 	tty_create_pty_and_switch(mem);
 	LOG("kernel", ANSI_COLOR_GREEN "Onyx kernel %s branch %s build %d for the %s architecture\n" ANSI_COLOR_RESET,
@@ -463,10 +467,9 @@ void kernel_multitasking(void *arg)
 	pm_init();
 
 	/* Initialize the network-related subsystems(the ones that need it) */
-	
+
 	/* Initialize dhcp */
 	//dhcp_initialize();
-
 	/* Initialize DNS */
 	dns_init();
 
@@ -520,6 +523,6 @@ void kernel_multitasking(void *arg)
 
 	find_and_exec_init(args, envp);
 
-	get_current_thread()->status = THREAD_SLEEPING;
+	thread_set_state(get_current_thread(), THREAD_BLOCKED);
 	for (;;);
 }

@@ -88,7 +88,7 @@ PML4 *vmm_fork_as(avl_node_t **);
 void vmm_stop_spawning();
 void vmm_change_perms(void *range, size_t pages, int perms);
 void vmm_set_tree(avl_node_t *tree_);
-avl_node_t *vmm_get_tree();
+avl_node_t **vmm_get_tree();
 int vmm_check_pointer(void *addr, size_t needed_space);
 void *vmalloc(size_t pages, int type, int perms);
 void vfree(void *ptr, size_t pages);

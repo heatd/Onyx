@@ -105,7 +105,7 @@ extern "C" {
 #endif
 process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent);
 void process_create_thread(process_t *proc, thread_callback_t callback, uint32_t flags, int argc, char **argv, char **envp);
-void process_fork_thread(process_t *dest, process_t *src, int thread_index);
+int process_fork_thread(thread_t *src, process_t *dest, syscall_ctx_t *ctx);
 process_t *get_process_from_pid(pid_t pid);
 void process_destroy_aspace(void);
 int process_attach(process_t *tracer, process_t *tracee);
@@ -113,12 +113,14 @@ process_t *process_find_tracee(process_t *tracer, pid_t pid);
 void process_exit_from_signal(int signum);
 char **process_copy_envarg(char **envarg, _Bool to_kernel, int *count);
 void process_increment_stats(bool is_kernel);
+void process_continue(process_t *p);
+void process_stop(process_t *p);
 #ifdef __cplusplus
 }
 #endif
-extern volatile process_t *current_process;
 static inline process_t *get_current_process()
 {
-	return (process_t*) current_process;
+	thread_t *thread = get_current_thread();
+	return (thread == NULL) ? NULL : (process_t*) thread->owner;
 }
 #endif

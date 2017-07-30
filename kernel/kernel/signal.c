@@ -27,15 +27,21 @@ void signal_default_ignore(int signum)
 {
 	(void) signum;
 }
+void signal_cont(int signum, process_t *p)
+{
+	process_continue(p);
+}
+void signal_stop(int signum, process_t *p)
+{
+	process_stop(p);
+}
 void signal_default_cont(int signum)
 {
-	(void) signum;
-	/* TODO: Handle */
+	signal_cont(signum, get_current_process());
 }
 void signal_default_stop(int signum)
 {
-	(void) signum;
-	/* TODO: Handle */
+	signal_stop(signum, get_current_process());
 }
 sighandler_t dfl_signal_handlers[] = {
 	[SIGHUP] = signal_default_term,
@@ -225,6 +231,13 @@ void kernel_raise_signal(int sig, process_t *process)
 	/* Don't bother to set it as pending if sig == SIG_IGN */
 	if(process->sigtable[sig].sa_handler == SIG_IGN)
 		return;
+	if(sig == SIGCONT || sig == SIGSTOP)
+	{
+		if(sig == SIGCONT)
+			signal_cont(sig, process);
+		else
+			signal_stop(sig, process);
+	}
 	sigaddset(&process->pending_set, sig);
 	if(!sigismember(&process->sigmask, sig))
 		process->signal_pending = 1;
@@ -375,7 +388,10 @@ int sys_sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
 }
 bool signal_is_pending(void)
 {
-	return (bool) get_current_process()->signal_pending;
+	process_t *current = get_current_process();
+	if(!current)
+		return false;
+	return (bool) current->signal_pending;
 }
 int sys_sigsuspend(const sigset_t *uset)
 {

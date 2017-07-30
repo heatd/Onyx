@@ -21,6 +21,8 @@
 #include <string.h>
 #include <stdio.h>
 #include <acpi.h>
+#include <assert.h>
+
 #include <kernel/compiler.h>
 USES_FANCY_START
 #include <x86intrin.h>
@@ -157,6 +159,10 @@ volatile int initialized_cpus = 0;
 extern volatile uint64_t boot_ticks;
 static bool percpu_initialized = false;
 extern tss_entry_t tss;
+bool is_percpu_initialized(void)
+{
+	return percpu_initialized;
+}
 int cpu_init_mp()
 {
 	ACPI_SUBTABLE_HEADER *first = (ACPI_SUBTABLE_HEADER *) (madt+1);
@@ -236,7 +242,8 @@ void cpu_ap_entry(int cpu_num)
 	/* Fill the processor struct with the LAPIC data */
 	cpus[cpu_num].lapic = (void *) _lapic;
 	cpus[cpu_num].lapic_phys = (void*) addr;
-	
+	cpus[cpu_num].self = &cpus[cpu_num];
+
 	/* Initialize AVX */
 	avx_init();
 	/* Initialize the local apic + apic timer */
@@ -244,12 +251,17 @@ void cpu_ap_entry(int cpu_num)
 
 	/* Fill this core's gs with &cpus[cpu_num] */
 	wrmsr(GS_BASE_MSR, (uint64_t) &cpus[cpu_num] & 0xFFFFFFFF, (uint64_t) &cpus[cpu_num] >> 32);
+	/* Initialize syscall */
+	wrmsr(IA32_MSR_STAR, 0, ((0x18 | 3) << 16) | 0x8);
+	wrmsr(IA32_MSR_LSTAR, (unsigned long) syscall_ENTRY64 & 0xFFFFFFFF, (unsigned long) syscall_ENTRY64 >> 32);
+	wrmsr(IA32_MSR_SFMASK, 0b11000000000, 0);
 
-	//gdt_init_percpu();
-	/* Enable interrupts */
-	//__asm__ __volatile__("sti");
-
+	gdt_init_percpu();
 	initialized_cpus++;
+
+	/* Enable interrupts */
+	__asm__ __volatile__("sti");
+
 	release_spinlock(&ap_entry_spinlock);
 	/* cpu_ap_entry() can't return, as there's no valid return address on the stack, so just hlt until the scheduler
 	   preempts the AP
@@ -283,4 +295,16 @@ struct processor *get_processor_data(void)
 bool is_kernel_ip(uintptr_t ip)
 {
 	return ip >= VM_HIGHER_HALF;
+}
+int get_cpu_num(void)
+{
+	struct processor *p = get_processor_data();
+	if(!p)
+		return 0;
+	return p->cpu_num;
+}
+struct processor *get_processor_data_for_cpu(int cpu)
+{
+	assert(cpu <= booted_cpus);
+	return &cpus[cpu];
 }

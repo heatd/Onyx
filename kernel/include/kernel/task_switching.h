@@ -12,7 +12,8 @@
 #include <kernel/registers.h>
 #include <kernel/fpu.h>
 #define THREAD_RUNNABLE 0
-#define THREAD_SLEEPING 1
+#define THREAD_BLOCKED 	1
+#define THREAD_SLEEPING 2
 
 uintptr_t *sched_fork_stack(syscall_ctx_t *ctx, uintptr_t *stack);
 thread_t* task_switching_create_context(thread_callback_t callback, uint32_t flags, void* args);

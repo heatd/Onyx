@@ -32,7 +32,7 @@
 #include <kernel/cpu.h>
 #include <kernel/page.h>
 
-const uint64_t SYSCALL_MAX_NUM = 76;
+const uint64_t SYSCALL_MAX_NUM = 77;
 
 uint64_t sys_nosys()
 {
@@ -111,6 +111,7 @@ extern int sys_connect(int sockfd, const struct sockaddr *addr, socklen_t addrle
 extern int sys_bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
 extern clock_t sys_times(struct tms *buf);
 extern int sys_getrusage(int who, struct rusage *usage);
+extern long sys_ptrace(long request, pid_t pid, void *addr, void *data, void *addr2);
 void *syscall_list[] =
 {
 	[0] = (void*) sys_write,
@@ -190,5 +191,6 @@ void *syscall_list[] =
 	[74] = (void*) sys_nosys, /* sys_recvfrom */
 	[75] = (void*) sys_times,
 	[76] = (void*) sys_getrusage,
+	[77] = (void*) sys_ptrace,
 	[255] = (void*) sys_nosys
 };
