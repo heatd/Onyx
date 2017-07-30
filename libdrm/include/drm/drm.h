@@ -36,7 +36,12 @@ struct drm_fb
 	uint32_t bpp;
 	uint32_t pitch;
 };
-
+struct drm_modeset_args
+{
+	uint32_t width;
+	uint32_t height;
+	uint32_t bpp;
+};
 int drm_initialize(struct drm_info **out);
 int drm_request_info(struct drm_info *info);
 int drm_modeset(unsigned int width, unsigned int height, unsigned int bpp);

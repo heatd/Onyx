@@ -74,16 +74,14 @@ unsigned int drm_ioctl(int request, void *args, vfsnode_t *self)
 		}
 		case DRM_REQUEST_MODESET:
 		{
-			/* TODO: Fix this to use the new ioctl interface */
-			/*VALIDATE_VALIST(args);
-			unsigned int width = va_arg(args, unsigned int);
-			unsigned int height = va_arg(args, unsigned int);
-			unsigned int bpp = va_arg(args, unsigned int);
-			*/
-			/*struct video_device *device = video_get_main_adapter();
+			struct drm_modeset_args arg = {0};
+			struct drm_modeset_args *uargs = args;
+			if(copy_from_user(&arg, uargs, sizeof(struct drm_modeset_args)) < 0)
+				return -EFAULT;
+			struct video_device *device = video_get_main_adapter();
 			if(!device)
 				return errno = -ENODEV;
-			return video_modeset(width, height, bpp, device);*/
+			return video_modeset(arg.width, arg.height, arg.bpp, device);
 		}
 	}
 	return 0;

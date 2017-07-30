@@ -95,8 +95,6 @@ posix/process.o \
 posix/uio.o
 LIBK_OBJS:=$(FREEOBJS:.o=.libk.o) \
 
-LD_SPARTIX_OBJS:=ld/main.o
-
 BINARIES=libc.a libg.a libk.a $(ARCHDIR)/crti.o $(ARCHDIR)/crtn.o $(ARCHDIR)/crt0.o $(ARCHDIR)/Scrt0.o
 
 all: $(BINARIES)
@@ -118,9 +116,6 @@ libc.so: $(OBJS)
 	$(CC) $(OBJS) -shared $(CFLAGS) $(CPPFLAGS) -o $@
 	mkdir -p $(DESTDIR)$(LIBDIR)
 	cp $@ $(DESTDIR)$(LIBDIR)
-ld-onyx.so: $(LD_SPARTIX_OBJS)
-	#$(CC) $(LD_SPARTIX_OBJS) -Wl,-Bstatic -shared -lc $(CFLAGS) $(CPPFLAGS) -o $@
-	mkdir -p $(DESTDIR)/usr/lib
 %.o: %.c
 	echo [CC] $<
 	$(CC) -c $< -o $@ -std=gnu11 -fPIC $(CFLAGS) $(CPPFLAGS)
@@ -145,7 +140,7 @@ ld-onyx.so: $(LD_SPARTIX_OBJS)
 clean:
 	rm -f $(BINARIES) $(OBJS) $(LIBK_OBJS) *.o */*.o */*/*.o
 
-install: install-headers install-libs ld-onyx.so
+install: install-headers install-libs
 
 install-headers:
 	mkdir -p $(DESTDIR)$(INCLUDEDIR)

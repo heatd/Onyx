@@ -50,7 +50,8 @@ int drm_initialize(struct drm_info **out)
 }
 int drm_modeset(unsigned int width, unsigned int height, unsigned int bpp)
 {
-	if(ioctl(drm_fd, DRM_REQUEST_MODESET, width, height, bpp) < 0)
+	struct drm_modeset_args args = {width, height, bpp};
+	if(ioctl(drm_fd, DRM_REQUEST_MODESET, &args) < 0)
 	{
 		printf("libdrm: %s: DRM_REQUEST_DRMINFO failed!\n", __func__);
 		return -1;
