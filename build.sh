@@ -6,10 +6,9 @@ for PROJECT in $PROJECTS; do
   echo Building $PROJECT
   DESTDIR="$PWD/sysroot" $MAKE -C $PROJECT install -s
 done
-
 for PACKAGE in $SOURCE_PACKAGES; do
   echo Building $PACKAGE
-  DESTDIR="$PWD/sysroot" $MAKE -C $PACKAGE install -s
+  DESTDIR="$PWD/sysroot" $MAKE -C $PACKAGE install
 done
 
 ./utils/make_utils.sh install

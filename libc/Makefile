@@ -95,15 +95,11 @@ posix/process.o \
 posix/uio.o
 LIBK_OBJS:=$(FREEOBJS:.o=.libk.o) \
 
-BINARIES=libc.a libg.a libk.a $(ARCHDIR)/crti.o $(ARCHDIR)/crtn.o $(ARCHDIR)/crt0.o $(ARCHDIR)/Scrt0.o
+BINARIES=libg.a libk.a $(ARCHDIR)/crti.o $(ARCHDIR)/crtn.o $(ARCHDIR)/crt0.o $(ARCHDIR)/Scrt0.o
 
 all: $(BINARIES)
 
 .PHONY: all clean install install-headers install-libs
-
-libc.a: $(OBJS)
-	echo [AR] $(LIBC_OBJS)
-	$(AR) rcs $@ $(OBJS)
 
 libg.a:
 	echo [AR] $(LIBG_OBJS)

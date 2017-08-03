@@ -9,7 +9,6 @@ isodir
 sysroot
 .directory
 .vscode
-musl
 init/init
 utils/cat/cat
 utils/echo/echo
