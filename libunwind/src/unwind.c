@@ -38,7 +38,7 @@ Unwind_info *do_raw_unwind(uintptr_t *frame, size_t *size, elf_object_t *elf)
 Unwind_info *Unwind_stack(size_t *size)
 {
 	/* TODO: This doesn't work if argv[0] is a relative path and the program changed 
-	the working directory. Instead, we should try add something like /proc/elf/exe */
+	the working directory. Instead, we should try add something like /proc/self/exe */
 	char *path = program_invocation_name;
 	/* The program state might be chaos, we don't want to invoke too much malloc */
 

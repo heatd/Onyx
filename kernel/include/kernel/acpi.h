@@ -27,6 +27,11 @@ struct acpi_device
 #define ACPI_PIC_IOAPIC 1
 #define ACPI_PIC_IOSAPIC 1
 
+#define ACPI_POWER_STATE_D0	0
+#define ACPI_POWER_STATE_D1	1
+#define ACPI_POWER_STATE_D2	2
+#define ACPI_POWER_STATE_D3	3
+
 #ifdef __cplusplus
 extern "C"{
 #endif

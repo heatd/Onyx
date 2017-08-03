@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <assert.h>
 
 #include <kernel/mutex.h>
 #include <kernel/spinlock.h>
@@ -79,9 +80,11 @@ unsigned int acpi_suspend(void *context)
 }
 static ACPI_HANDLE root_bridge;
 static ACPI_DEVICE_INFO *root_bridge_info;
+int acpi_shutdown_device(struct device *dev);
 static struct bus acpi_bus = 
 {
-	.name = "acpi"
+	.name = "acpi",
+	.shutdown = acpi_shutdown_device
 };
 ACPI_STATUS acpi_walk_irq(ACPI_HANDLE object, UINT32 nestingLevel, void *context, void **returnvalue)
 {
@@ -353,4 +356,25 @@ struct acpi_processor *acpi_enumerate_cpus(void)
 struct acpi_device *acpi_get_device(const char *id)
 {
 	return (struct acpi_device*) bus_find_device(&acpi_bus, id);
+}
+char *power_states[] =
+{
+	"_PS0",
+	"_PS1",
+	"_PS2",
+	"_PS3"
+};
+int acpi_set_device_power_state(struct acpi_device *device, unsigned int power_state)
+{
+	ACPI_STATUS st = AcpiEvaluateObject(device->object, power_states[power_state], NULL, NULL);
+	if(ACPI_FAILURE(st))
+	{
+		return 1;
+	}
+	return 0;
+}
+int acpi_shutdown_device(struct device *dev)
+{
+	assert(dev);
+	return acpi_set_device_power_state((struct acpi_device *) dev, ACPI_POWER_STATE_D3);
 }
