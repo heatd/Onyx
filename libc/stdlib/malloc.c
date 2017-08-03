@@ -59,4 +59,8 @@ int munmap(void *addr, size_t length)
 	(void) length;
 	return 0;
 }
+void *zalloc(size_t size)
+{
+	return calloc(1, size);
+}
 #endif
