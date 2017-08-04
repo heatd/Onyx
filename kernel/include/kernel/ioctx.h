@@ -10,7 +10,7 @@
 #include <kernel/mutex.h>
 #include <sys/types.h>
 #include <limits.h>
-typedef struct
+typedef struct file_description
 {
 	_Atomic int refcount;
 	off_t seek;

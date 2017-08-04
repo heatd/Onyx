@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#include <kernel/file.h>
 #include <kernel/paging.h>
 #include <kernel/page.h>
 #define __need_avl_node_t
@@ -617,17 +618,6 @@ int vmm_check_pointer(void *addr, size_t needed_space)
 	else
 		return -1;
 }
-static inline int validate_fd(int fd)
-{
-	if(fd < 0)
-		return errno = -EBADF;
-	if(fd > UINT16_MAX)
-		return errno =-EBADF;
-	ioctx_t *ctx = &get_current_process()->ctx;
-	if(ctx->file_desc[fd] == NULL)
-		return errno =-EBADF;
-	return 0;
-}
 void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off)
 {
 	file_desc_t *file_descriptor = NULL;
@@ -648,10 +638,11 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 		ioctx_t *ctx = &get_current_process()->ctx;
 		/* Get the file descriptor */
 		file_descriptor = ctx->file_desc[fd];
-		if((file_descriptor->flags != O_WRONLY && file_descriptor->flags != O_RDWR) && prot & PROT_WRITE)
+		if((file_descriptor->flags != O_WRONLY && file_descriptor->flags != O_RDWR) && prot & PROT_WRITE
+		&& flags & MAP_SHARED)
 		{
-			/* You can't do that! */
-			return (void*)-EACCES;
+			/* You can't map for writing on a file without read access with MAP_SHARED! */
+			return (void*) -EACCES;
 		}
 	}
 	void *mapping_addr = NULL;
@@ -688,7 +679,8 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 
 		area->type = VM_TYPE_FILE_BACKED;
 		area->offset = off;
-		area->fd = fd;
+		area->fd = get_file_description(fd);
+		area->fd->refcount++;
 		if((file_descriptor->vfs_node->type == VFS_TYPE_BLOCK_DEVICE 
 		|| file_descriptor->vfs_node->type == VFS_TYPE_CHAR_DEVICE) && area->mapping_type == MAP_SHARED)
 		{
@@ -867,17 +859,19 @@ int __vm_handle_private(vmm_entry_t *entry, struct fault_info *info)
 {
 	/* Map a page */
 	uintptr_t aligned_address = (info->fault_address & 0xFFFFFFFFFFFFF000);
-	void *ptr = vmm_map_range((void*) aligned_address, 1, entry->rwx);
+	/* Map it as VM_WRITE so we can copy the data in */
+	void *ptr = vmm_map_range((void*) aligned_address, 1, entry->rwx | VM_WRITE);
 	if(!ptr)
 		return -1;
-	vfsnode_t *file = get_current_process()->ctx.file_desc[entry->fd]->vfs_node;
+	vfsnode_t *file = entry->fd->vfs_node;
 	size_t to_read = file->size - entry->offset < PAGE_SIZE ? file->size - entry->offset : PAGE_SIZE;
-	if(read_vfs(get_current_process()->ctx.file_desc[entry->fd]->flags,
+	if(read_vfs(0,
 		entry->offset + (aligned_address - entry->base), to_read, ptr, file) != to_read)
 	{
 		vmm_unmap_range(ptr, 1);
 		return -1;
 	}
+	vmm_change_perms((void*) aligned_address, 1, entry->rwx);
 	return 0;
 }
 int __vm_handle_shared(vmm_entry_t *entry, struct fault_info *info)
@@ -890,7 +884,6 @@ int __vm_handle_anon(vmm_entry_t *entry, struct fault_info *info)
 		return -1;
 	return 0;
 }
-
 int vmm_handle_page_fault(vmm_entry_t *entry, struct fault_info *info)
 {
 	if(info->write && !(entry->rwx & VM_WRITE))

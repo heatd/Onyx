@@ -7,6 +7,7 @@
 #define _KERNEL_PCI_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #include <kernel/portio.h>
 #include <kernel/spinlock.h>
@@ -113,8 +114,8 @@ struct pci_device
 typedef struct
 {
 	uint32_t address;
-	_Bool isPrefetchable;
-	_Bool isIO;
+	bool isPrefetchable;
+	bool isIO;
 	size_t size;
 } pcibar_t;
 

@@ -13,6 +13,8 @@ extern "C" {
 #endif
 void file_do_cloexec(ioctx_t *ctx);
 int open_with_vnode(vfsnode_t *node, int flags);
+file_desc_t *get_file_description(int fd);
+int validate_fd(int fd);
 #ifdef __cplusplus
 }
 #endif

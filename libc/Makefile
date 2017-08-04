@@ -21,9 +21,9 @@ ARCHDIR:=arch/$(HOSTARCH)
 include $(ARCHDIR)/make.config
 
 CFLAGS:=$(CFLAGS) $(ARCH_CFLAGS) -fPIC
-CPPFLAGS:=$(CPPFLAGS) $(ARCH_CPPFLAGS) -DPIC
+CPPFLAGS:=$(CPPFLAGS) $(ARCH_CPPFLAGS) -DPIC -Iinclude
 LIBK_CFLAGS:=$(LIBK_CFLAGS) $(KERNEL_ARCH_CFLAGS)
-LIBK_CPPFLAGS:=$(LIBK_CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS)
+LIBK_CPPFLAGS:=$(LIBK_CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS) -Iinclude
 
 FREEOBJS:=\
 $(ARCH_FREEOBJS) \
@@ -137,10 +137,6 @@ clean:
 	rm -f $(BINARIES) $(OBJS) $(LIBK_OBJS) *.o */*.o */*/*.o
 
 install: install-headers install-libs
-
-install-headers:
-	mkdir -p $(DESTDIR)$(INCLUDEDIR)
-	cp -RTv include $(DESTDIR)$(INCLUDEDIR)
 
 install-libs: $(BINARIES)
 	mkdir -p $(DESTDIR)$(LIBDIR)

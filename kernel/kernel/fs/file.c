@@ -39,7 +39,7 @@ file_desc_t *get_file_description(int fd)
 	return get_current_process()->ctx.file_desc[fd];
 }
 
-static inline int validate_fd(int fd)
+int validate_fd(int fd)
 {
 	ioctx_t *ctx = &get_current_process()->ctx;
 	

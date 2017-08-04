@@ -59,7 +59,7 @@ typedef struct ventry
 	int rwx;
 	int type;
 	int mapping_type;
-	int fd;
+	struct file_description *fd;
 	off_t offset;
 	int flags;
 } vmm_entry_t;
