@@ -21,6 +21,9 @@ static struct bus pci_bus =
 	.name = "pci",
 	.shutdown = pci_shutdown
 };
+
+void __pci_write(struct pci_device *dev, uint64_t value, uint16_t off, size_t size);
+uint64_t __pci_read(struct pci_device *dev, uint16_t off, size_t size);
 const uint16_t CONFIG_ADDRESS = 0xCF8;
 const uint16_t CONFIG_DATA = 0xCFC;
 static spinlock_t pci_lock;
@@ -198,6 +201,8 @@ void pci_enumerate_device(uint16_t bus, uint8_t device, uint8_t function, struct
 	dev->subClass = subClass;
 	dev->progIF = progIF;
 	dev->current_power_state = PCI_POWER_STATE_D0;
+	dev->read = __pci_read;
+	dev->write = __pci_write;
 	dev->type = header & PCI_TYPE_MASK;
 	/* Find supported caps and add them to dev */
 	pci_find_supported_capabilities(dev);
@@ -270,10 +275,18 @@ uint16_t pci_get_intn(uint8_t slot, uint8_t device, uint8_t function)
 }
 void pci_init()
 {
-	/* Register the PCI bus */
-	bus_register(&pci_bus);
-	/* Check every pci device and add it onto the bus */
-	pci_enumerate_devices();
+	pcie_get_mcfg();
+	if(pcie_is_enabled())
+	{
+		pcie_init();
+	}
+	else
+	{
+		/* Register the PCI bus */
+		bus_register(&pci_bus);
+		/* Check every pci device and add it onto the bus */
+		pci_enumerate_devices();
+	}
 }
 struct pci_device *get_pcidev_from_vendor_device(uint16_t deviceid, uint16_t vendorid)
 {
@@ -403,7 +416,7 @@ void __pci_write_qword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, 
 	outl(CONFIG_DATA, data & 0xFFFFFFFF00000000);
 	release_spinlock(&pci_lock);
 }
-void pci_write(struct pci_device *dev, uint64_t value, uint16_t off, size_t size)
+void __pci_write(struct pci_device *dev, uint64_t value, uint16_t off, size_t size)
 {
 	if(size == sizeof(uint8_t))
 		__pci_write_byte(dev->bus, dev->device, dev->function, off, (uint8_t) value);
@@ -414,7 +427,11 @@ void pci_write(struct pci_device *dev, uint64_t value, uint16_t off, size_t size
 	if(size == sizeof(uint64_t))
 		__pci_write_qword(dev->bus, dev->device, dev->function, off, value);
 }
-uint64_t pci_read(struct pci_device *dev, uint16_t off, size_t size)
+void pci_write(struct pci_device *dev, uint64_t value, uint16_t off, size_t size)
+{
+	dev->write(dev, value, off, size);
+}
+uint64_t __pci_read(struct pci_device *dev, uint16_t off, size_t size)
 {
 	uint64_t val = 0;
 	switch(size)
@@ -433,6 +450,10 @@ uint64_t pci_read(struct pci_device *dev, uint16_t off, size_t size)
 			break;
 	}
 	return val;
+}
+uint64_t pci_read(struct pci_device *dev, uint16_t off, size_t size)
+{
+	return dev->read(dev, off, size);
 }
 void pci_enable_busmastering(struct pci_device *dev)
 {

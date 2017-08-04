@@ -9,6 +9,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include <drivers/pcie.h>
+
 #include <kernel/portio.h>
 #include <kernel/spinlock.h>
 #include <kernel/compiler.h>
@@ -109,6 +111,9 @@ struct pci_device
 	uint8_t pm_cap_off;
 	int supported_power_states;	/* Given by PCI, we just cache it here */
 	int current_power_state;
+	uint16_t segment;
+	uint64_t (*read)(struct pci_device *dev, uint16_t offset, size_t size);
+	void (*write)(struct pci_device *dev, uint64_t val, uint16_t offset, size_t size);
 	struct pci_device* next __align_cache;
 };
 typedef struct
@@ -145,6 +150,7 @@ uint64_t pci_read(struct pci_device *dev, uint16_t off, size_t size);
 void pci_enable_busmastering(struct pci_device *dev);
 off_t pci_find_capability(struct pci_device *dev, uint8_t cap);
 int pci_enable_msi(struct pci_device *dev);
+
 #ifdef __cplusplus
 }
 #endif
