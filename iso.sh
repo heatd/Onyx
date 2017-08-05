@@ -51,5 +51,4 @@ menuentry "Onyx" {
 	boot
 }
 EOF
-#grub2-file --is-x86-multiboot2 kernel/vmonyx-0.1-gen64
-grub2-mkrescue -o Onyx.iso isodir # Change this acording to your distro/OS.
+grub-mkrescue -o Onyx.iso isodir # Change this acording to your distro/OS.

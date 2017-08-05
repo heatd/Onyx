@@ -202,20 +202,13 @@ int acpi_get_irq_routing_for_dev(uint8_t bus, uint8_t device, uint8_t function)
 	return -1;
 }
 static uintptr_t rsdp = 0;
+uintptr_t get_rdsp_from_grub(void);
 uint8_t AcpiTbChecksum(uint8_t *buffer, uint32_t len);
 void acpi_find_rsdp(void)
 {
-	/* Find the RSDP(needed for ACPI and ACPICA) */
-	for(int i = 0; i < 0x100000/16; i++)
+	if(ACPI_FAILURE(AcpiFindRootPointer(&rsdp)))
 	{
-		if(!memcmp((char*)(PHYS_BASE + 0x000E0000 + i * 16),(char*)"RSD PTR ", 8))
-		{
-			uint8_t *addr = (uint8_t*)(PHYS_BASE + 0x000E0000 + i * 16);
-			if(AcpiTbChecksum(addr, sizeof(ACPI_TABLE_RSDP)))
-				continue;
-			rsdp = addr - (uint8_t*)PHYS_BASE;
-			break;
-		}
+		rsdp = get_rdsp_from_grub();
 	}
 }
 uintptr_t acpi_get_rsdp(void)
@@ -290,9 +283,12 @@ int acpi_initialize(void)
 	if(ACPI_FAILURE(st))
 		panic("AcpiLoadTables failed!");
 	
-	st = AcpiEnableSubsystem (ACPI_FULL_INITIALIZATION);
-	if (ACPI_FAILURE (st))
+	st = AcpiEnableSubsystem(ACPI_FULL_INITIALIZATION);
+	if (ACPI_FAILURE(st))
+	{
+		printf("Error: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
 		panic("AcpiEnableSubsystem failed!");
+	}
 	st = AcpiInitializeObjects (ACPI_FULL_INITIALIZATION);
 	if(ACPI_FAILURE(st))
 		panic("AcpiInitializeObjects failed!");

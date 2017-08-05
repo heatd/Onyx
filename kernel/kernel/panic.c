@@ -67,22 +67,21 @@ void panic(const char *msg)
 	register uintptr_t r14 __asm__("r14");
 	register uintptr_t r15 __asm__("r15");
 	uintptr_t rflags = __readeflags();
-	uintptr_t cr0 = cpu_get_cr0();
-	uintptr_t cr2 = cpu_get_cr2();
-	uintptr_t cr4 = cpu_get_cr4();
-	uintptr_t cr3 = cpu_get_cr3();
+	uintptr_t cr0 = 0;
+	uintptr_t cr2 = 0;
+	uintptr_t cr4 = 0;
+	uintptr_t cr3 = 0;
 	uintptr_t rip = (uintptr_t) __builtin_return_address(0);
 	uintptr_t rbp = (uintptr_t) __builtin_frame_address(0);
 	uintptr_t fs = 0;
-	rdmsr(FS_BASE_MSR, (uint32_t*) &fs, (uint32_t*) ((char*)&fs) + 4);
 
 	/* Construct the buffer using sprintf */
-	sprintf(buffer, "RAX: %016"PRIx64" RBX: %016"PRIx64" RCX: %016"PRIx64" RDX: %016"PRIx64"\nRDI: %016"PRIx64" RSI: %016"PRIx64" RBP: %016"PRIx64" RSP: %016"PRIx64"\n"
+	snprintf(buffer, 1000, "RAX: %016"PRIx64" RBX: %016"PRIx64" RCX: %016"PRIx64" RDX: %016"PRIx64"\nRDI: %016"PRIx64" RSI: %016"PRIx64" RBP: %016"PRIx64" RSP: %016"PRIx64"\n"
 			"R8:  %016"PRIx64" R9:  %016"PRIx64" R10: %016"PRIx64" R11: %016"PRIx64"\nR12: %016"PRIx64" R13: %016"PRIx64" R14: %016"PRIx64" R15: %016"PRIx64"\n"
 			"CR0: %016"PRIx64" CR2: %016"PRIx64" CR3: %016"PRIx64" CR4: %016"PRIx64"\n"
-			"RIP: %016"PRIx64" RFLAGS: %08"PRIx64" GS:  %016"PRIx64" FS:  %016"PRIx64,
+			"RIP: %016"PRIx64" RFLAGS: %08"PRIx64" GS:  %016"PRIx64" FS:  %016"PRIx64"\n",
 		rax, rbx, rcx, rdx, rdi, rsi, rbp, rsp, r8, r9, r10, r11, r12, r13, r14, r15, cr0, cr2, cr3,
-		cr4, rip, rflags, get_processor_data_inl(), fs);
+		cr4, rip, rflags, 0, fs);
 #else
 	#error "Implement thread context printing in your arch"
 #endif

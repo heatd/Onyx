@@ -90,6 +90,7 @@ void list_append(struct list_head *list, void *mem)
 	}
 	while(list->next)
 		list = list->next;
+	assert(!((uintptr_t) mem & 0xFFF));
 	list->next = PHYS_TO_VIRT(mem);
 	list->next->ptr = mem;
 	list->next->next = NULL;
@@ -248,7 +249,7 @@ void *__alloc_page(int opt)
 void __free_pages(void *pages, int order)
 {
 	assert(order < MAX_ORDER);
-
+	assert(!((uintptr_t) pages & 0xFFF));
 	/* Enter the critical section */
 	acquire_spinlock(&buddy_lock);
 	/* Call the backend */

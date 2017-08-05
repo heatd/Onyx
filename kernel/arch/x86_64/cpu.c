@@ -45,7 +45,7 @@ bool x86_has_cap(int cap)
 	/* Get the index in native word sizes(DWORDS in 32-bit systems and QWORDS in 64-bit ones) */
 	int q_index = cap / bits_per_long;
 	int bit_index = cap % bits_per_long;
-	return cpu.caps[q_index] & (1 << bit_index);
+	return cpu.caps[q_index] & (1UL << bit_index);
 }
 void __cpu_identify(void)
 {
@@ -245,7 +245,7 @@ void cpu_ap_entry(int cpu_num)
 	/* Fill this core's gs with &cpus[cpu_num] */
 	wrmsr(GS_BASE_MSR, (uint64_t) &cpus[cpu_num] & 0xFFFFFFFF, (uint64_t) &cpus[cpu_num] >> 32);
 
-	gdt_init_percpu();
+	//gdt_init_percpu();
 	/* Enable interrupts */
 	//__asm__ __volatile__("sti");
 

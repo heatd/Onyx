@@ -148,6 +148,7 @@ vfsnode_t *ext2_creat(const char *path, int mode, vfsnode_t *file)
 	/* Create a file */
 	return NULL;
 }
+__attribute__((no_sanitize_undefined))
 vfsnode_t *ext2_mount_partition(uint64_t sector, block_device_t *dev)
 {
 	LOG("ext2", "mounting ext2 partition at sector %d\n", sector);
@@ -197,7 +198,7 @@ vfsnode_t *ext2_mount_partition(uint64_t sector, block_device_t *dev)
 	if (fs->total_blocks % fs->blocks_per_block_group)
 		fs->number_of_block_groups++;
 	/* The driver keeps a block sized zero'd mem chunk for easy and fast overwriting of blocks */
-	fs->zero_block = malloc(fs->block_size);
+	fs->zero_block = zalloc(fs->block_size);
 	if(!fs->zero_block)
 	{
 		free(sb);

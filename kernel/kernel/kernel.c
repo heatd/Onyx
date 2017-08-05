@@ -263,6 +263,13 @@ retry:;
 	ENABLE_INTERRUPTS();
 	return 0;
 }
+uintptr_t grub2_rsdp = 0;
+uintptr_t get_rdsp_from_grub(void)
+{
+	if(!grub2_rsdp)
+		return 0;
+	return grub2_rsdp - PHYS_BASE;
+}
 void kernel_early(uintptr_t addr, uint32_t magic)
 {
 	addr += PHYS_BASE;
@@ -313,6 +320,18 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 			strcpy(kernel_cmdline, t->string);
 			break;
 		}
+		case MULTIBOOT_TAG_TYPE_ACPI_NEW:
+		{
+			struct multiboot_tag_new_acpi *acpi = (struct multiboot_tag_new_acpi *) tag;
+			grub2_rsdp = (uintptr_t) &acpi->rsdp;
+			break;
+		}
+		case MULTIBOOT_TAG_TYPE_ACPI_OLD:
+		{
+			struct multiboot_tag_old_acpi *acpi = (struct multiboot_tag_old_acpi *) tag;
+			grub2_rsdp = (uintptr_t) &acpi->rsdp;
+			break;
+		}
 		}
 	}
 	bootmem_init(total_mem, (uintptr_t) &kernel_end);
@@ -320,8 +339,9 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 	size_t entries = mmap_tag->size / mmap_tag->entry_size;
 	struct multiboot_mmap_entry *mmap = (struct multiboot_mmap_entry *) mmap_tag->entries;
 
-	for (size_t i = 0; i <= entries; i++)
+	for (size_t i = 0; i < entries; i++)
 	{
+		printf("Memory range %p - %p - type %u\n", mmap->addr, mmap->addr + mmap->len, mmap->type);
 		if (mmap->type == MULTIBOOT_MEMORY_AVAILABLE)
 		{
 			bootmem_push(mmap->addr, mmap->len, initrd_tag);
@@ -330,7 +350,6 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 	}
 	/* Identify the CPU it's running on (bootstrap CPU) */
 	cpu_identify();
-
 	paging_map_all_phys();
 	if(tagfb)
 	{
@@ -361,6 +380,7 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 	vmm_start_address_bookkeeping(KERNEL_FB, 0xFFFFFFF890000000);
 }
 void kernel_multitasking(void *);
+__attribute__((no_sanitize_undefined))
 void kernel_main()
 {
 	init_elf_symbols(secs);
@@ -414,7 +434,7 @@ void kernel_multitasking(void *arg)
 {
 	void *mem = vmm_allocate_virt_address(VM_KERNEL, 1024, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL, 0);
 	vmm_map_range(mem, 1024, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
-
+	printf("mem: %p\n", mem);
 	/* Create PTY */
 	tty_create_pty_and_switch(mem);
 	LOG("kernel", ANSI_COLOR_GREEN "Onyx kernel %s branch %s build %d for the %s architecture\n" ANSI_COLOR_RESET,

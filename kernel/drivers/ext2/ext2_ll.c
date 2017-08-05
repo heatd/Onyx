@@ -32,7 +32,6 @@ void *ext2_read_block(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs)
 	buff = malloc(size); /* Allocate a buffer */
 	if(!buff)
 		return NULL;
-	memset(buff, 0, size);
 	size_t read = blkdev_read(fs->first_sector * 512 + (block_index * fs->block_size), size, buff, fs->blkdevice);
 	if(read == (size_t) -1)
 	{

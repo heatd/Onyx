@@ -27,7 +27,8 @@ uint64_t __pci_read(struct pci_device *dev, uint16_t off, size_t size);
 const uint16_t CONFIG_ADDRESS = 0xCF8;
 const uint16_t CONFIG_DATA = 0xCFC;
 static spinlock_t pci_lock;
-uint16_t __pci_config_read_word (uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset)
+__attribute__((no_sanitize_undefined))
+uint16_t __pci_config_read_word(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset)
 {
         union { uint8_t bytes[4]; uint32_t val;} data;
 	data.val = __pci_config_read_dword(bus, slot, func, offset);

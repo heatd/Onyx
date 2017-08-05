@@ -40,7 +40,7 @@ static int generate_key(const char *path, const char *name)
 	int m = *path + 3;
 	int key = 1;
 	for(int i = 0; i < 8; i++)
-		key *= n + m;
+		key += n + m;
 	key = key % hashtable->size;
 	return key;
 }
@@ -92,6 +92,8 @@ int load_module(const char *path, const char *name)
 	{
 		if(errno == ENOMEM)
 			mods_disabled = 1;
+		free(mod);
+		close_vfs(file);
 		return 1;
 	}
 	char *buffer = malloc(file->size);

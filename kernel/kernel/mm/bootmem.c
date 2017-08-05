@@ -78,14 +78,11 @@ bool check_used(uintptr_t page, struct multiboot_tag_module *module)
 {
 	if(page == 0)
 		return true;
-	if(__check_used(page, KERNEL_START, module->mod_end) == true)
+	if(__check_used(page, module->mod_start, module->mod_end) == true)
 		return true;
-	uintptr_t kend = (uintptr_t) &kernel_end;
-	kend -= KERNEL_VIRTUAL_BASE;
-	kend += PAGE_SIZE;
 	/* This part doesn't work, that's why we check for KERNEL_START - module->mod_end */
-	/*if(__check_used(page, KERNEL_START, kend) == true)
-		return true;*/
+	if(__check_used(page, KERNEL_START, 0x400000) == true)
+		return true;
 	return false;
 }
 void bootmem_push(uintptr_t base, size_t size, struct multiboot_tag_module *module)
@@ -107,7 +104,6 @@ void bootmem_init(size_t memory_size, uintptr_t stack_space)
 }
 void *bootmem_alloc(size_t blocks)
 {
-	printf("Pushed blocks: %u\n", pushed_blocks);
 	uintptr_t ret_addr = 0;
 	for (unsigned int i = pushed_blocks-1; i; i--)
 		if (stack->next[i].base != 0 && stack->next[i].size != 0 && stack->next[i].size >= PMM_BLOCK_SIZE * blocks)
