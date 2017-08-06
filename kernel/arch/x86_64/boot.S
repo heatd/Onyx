@@ -34,6 +34,8 @@ hdr_end:
 [GLOBAL EntryPoint]
 EntryPoint:
 	cli
+	; Clear the direction flag since its state is unspecified by the multiboot spec
+	cld
 	push eax
 	push ebx
 	mov eax, gdtr1
