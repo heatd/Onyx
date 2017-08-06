@@ -9,6 +9,7 @@
 #include <assert.h>
 #include <mbr.h>
 
+#include <kernel/id.h>
 #include <kernel/vmm.h>
 #include <kernel/portio.h>
 #include <kernel/vfs.h>
@@ -43,6 +44,7 @@ struct ide_drive
 	int drive;
 	unsigned char buffer[512];
 } ide_drives[4];
+struct ids *ata_ids = NULL;
 static volatile int irq = 0;
 unsigned int current_drive = (unsigned int)-1;
 unsigned int current_channel = (unsigned int)-1;
@@ -124,7 +126,8 @@ void ata_enable_pci_ide(struct pci_device *dev)
 	irq_install_handler(15, &ata_irq);
 }
 static int num_drives = 0;
-static char devname[] = "hdx";
+static char devname[] = "hdxx";
+static char dev_name[] = "hd";
 int ata_flush(struct blkdev *blkd)
 {
 	struct ide_drive *drv = blkd->device_info;
@@ -321,13 +324,15 @@ int ata_initialize_drive(int channel, int drive)
 	ide_drives[curr].drive = drive;
 	ide_drives[curr].channel = channel;
 
-	char *path = malloc(strlen(devname) + 1);
+	char *path = zalloc(strlen(devname) + 1);
 	if(!path)
 		return 1;
-	strcpy(path, devname);
-	path[strlen(path) - 1] = 'a' + curr;
+	strcpy(path, dev_name);
+	const char *id = idm_get_device_letter(ata_ids);
+	assert(id != NULL);
+	strcat(path, id);
 
-	/* Create /dev/hdx */
+	/* Create /dev/hdxx */
 	vfsnode_t *atadev = creat_vfs(slashdev, path, 0666);
 	if(!atadev)
 	{
@@ -400,8 +405,10 @@ int ata_initialize_drive(int channel, int drive)
 }
 void ata_init(struct pci_device *dev)
 {
+	ata_ids = idm_add("hd", 0, UINTMAX_MAX);
+	if(!ata_ids)
+		return;
 	idedev = dev;
-
 	/* Allocate PRDT base */
 	prdt_base = dma_map_range(__alloc_pages(4), UINT16_MAX, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
 	if(!prdt_base)

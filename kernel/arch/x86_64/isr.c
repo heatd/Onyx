@@ -91,7 +91,7 @@ void isr_handler(intctx_t *ctx)
 r10: %x\nr11: %x\nr12: %x\nr13: %x\nr14: %x\nr15: %x\nrsp: %x\nrflags: %x\nds: %x\ncs: %x\n", 
 			ctx->rax, ctx->rbx, ctx->rcx, ctx->rdx, ctx->rdi, ctx->rsi, ctx->rbp, ctx->r8, ctx->r9, 
 		ctx->r10, ctx->r11, ctx->r12, ctx->r13, ctx->r14, ctx->r15, ctx->rsp, ctx->rflags, ctx->ds, ctx->cs);
-			dump_stack((uintptr_t*)ctx->rsp);
+			dump_stack((uintptr_t*) ctx->rsp);
 			if(get_current_process())
 				sys_kill(get_current_process()->pid, SIGSEGV);
 			else

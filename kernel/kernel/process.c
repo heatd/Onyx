@@ -7,9 +7,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
+#include <assert.h>
 
 #include <sys/resource.h>
 
+#include <kernel/id.h>
 #include <kernel/vdso.h>
 #include <kernel/compiler.h>
 #include <kernel/elf.h>
@@ -34,9 +36,9 @@
          ((signal) & 0x7F) << 0)
 
 extern PML4 *current_pml4;
+struct ids *process_ids = NULL;
 process_t *first_process = NULL;
 volatile process_t *current_process = NULL;
-static pid_t current_pid = 1;
 static spinlock_t process_creation_lock;
 slab_cache_t *process_cache = NULL;
 void process_destroy(void);
@@ -73,12 +75,19 @@ process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent)
 		if(!process_cache)
 			panic("Could not create the process slab cache\n");
 	}
+	if(unlikely(!process_ids))
+	{
+		process_ids = idm_add("pid", 1, UINTMAX_MAX);
+		assert(process_ids != NULL);
+	}
 	process_t *proc = slab_allocate(process_cache);
 	if(!proc)
 		return errno = ENOMEM, NULL;
 	memset(proc, 0, sizeof(process_t));
 	acquire_spinlock(&process_creation_lock);
-	proc->pid = current_pid++;
+	/* TODO: idm_get_id doesn't wrap? POSIX COMPLIANCE */
+	proc->pid = idm_get_id(process_ids);
+	assert(proc->pid != (pid_t) -1);
 	proc->cmd_line = strdup(cmd_line);
 	if(ctx)
 	{
