@@ -223,6 +223,7 @@ void cpu_init_interrupts(void);
 int cpu_init_mp(void);
 int get_nr_cpus(void);
 struct processor *get_processor_data(void);
+bool is_kernel_ip(uintptr_t ip);
 #ifdef __cplusplus
 }
 #endif

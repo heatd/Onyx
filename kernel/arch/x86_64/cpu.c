@@ -280,3 +280,7 @@ struct processor *get_processor_data(void)
 	__asm__ __volatile__("movq %%gs:0x8, %0":"=r"(proc));
 	return proc;
 }
+bool is_kernel_ip(uintptr_t ip)
+{
+	return ip >= VM_HIGHER_HALF;
+}

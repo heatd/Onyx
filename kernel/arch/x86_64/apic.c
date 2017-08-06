@@ -16,6 +16,7 @@
 #include <kernel/registers.h>
 #include <kernel/log.h>
 #include <kernel/idt.h>
+#include <kernel/process.h>
 
 volatile uint32_t *bsp_lapic = NULL;
 volatile uint64_t ap_done = 0;
@@ -191,6 +192,7 @@ static uintptr_t apic_timer_irq(registers_t *regs)
 	struct processor *cpu = get_processor_data();
 	cpu->apic_ticks++;
 	cpu->sched_quantum--;
+	process_increment_stats(is_kernel_ip(regs->rip));
 	if(cpu->sched_quantum == 0)
 	{
 		cpu->sched_quantum = 10;

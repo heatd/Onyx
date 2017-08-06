@@ -645,3 +645,14 @@ void sys_exit_thread(int value)
 	/* aaaaand we'll never return back to user-space, so just hang on */
 	while(1);
 }
+void process_increment_stats(bool is_kernel)
+{
+	process_t *process = get_current_process();
+	/* We're not in a process, return! */
+	if(!process)
+		return;
+	if(is_kernel)
+		process->system_time++;
+	else
+		process->user_time++;
+}

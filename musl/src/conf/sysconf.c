@@ -26,7 +26,7 @@ long sysconf(int name)
 	static const short values[] = {
 		[_SC_ARG_MAX] = JT_ARG_MAX,
 		[_SC_CHILD_MAX] = RLIM(NPROC),
-		[_SC_CLK_TCK] = 100,
+		[_SC_CLK_TCK] = 1000,
 		[_SC_NGROUPS_MAX] = 32,
 		[_SC_OPEN_MAX] = RLIM(NOFILE),
 		[_SC_STREAM_MAX] = -1,
