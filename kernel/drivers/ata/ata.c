@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <assert.h>
 #include <mbr.h>
 
 #include <kernel/vmm.h>
@@ -193,9 +194,94 @@ ssize_t ata_write(size_t offset, size_t count, void* buffer, struct blkdev* blkd
 	{
 		panic("Implement, you lazy ass!");
 	}
-
 	memcpy(buffer, buf, count);
 	return count;
+}
+size_t atadev_read(int flags, size_t offset, size_t count, void *buffer, vfsnode_t *node)
+{
+	struct blkdev		*blk;
+	void 			*buf;
+	void			*phys_buf;
+	size_t			read;
+	size_t			toread;
+	struct ide_drive 	*drv;
+	blk = node->helper;
+	assert(blk != NULL);
+
+	drv = blk->device_info;
+	/* Allocate a 64KiB aligned buffer */
+	errno = posix_memalign(&buf, UINT16_MAX+1, UINT16_MAX);
+	if(!buf)
+		return -1;
+	phys_buf = virtual2phys(buf);
+	read = 0; 
+	toread = count;
+	while(read != toread)
+	{
+		size_t 		block_offset;
+		size_t		sector;
+		size_t		to_read;
+		size_t		block_rest;
+		sector = offset / 512;
+		block_offset = offset % 512;
+		block_rest = 512 - block_offset; 
+		to_read = 512;
+		ata_read_sectors(drv->channel, drv->drive, (uint32_t) (uintptr_t) phys_buf, to_read, sector);
+		size_t amount = count < block_rest ? count : block_rest;
+		memcpy((char*) buffer + read, (char*) buf + block_offset, amount);
+		read += amount;
+		offset += amount;
+		count -= amount;
+	}
+	free(buf);
+	return read;
+}
+size_t atadev_write(size_t offset, size_t count, void *buffer, vfsnode_t *node)
+{
+	struct blkdev		*blk;
+	void 			*buf;
+	void			*phys_buf;
+	size_t			written;
+	size_t			towrite;
+	struct ide_drive 	*drv;
+	blk = node->helper;
+	assert(blk != NULL);
+
+	drv = blk->device_info;
+	/* Allocate a 64KiB aligned buffer */
+	errno = posix_memalign(&buf, UINT16_MAX+1, 512);
+	if(!buf)
+		return -1;
+	phys_buf = virtual2phys(buf);
+	written = 0; 
+	towrite = count;
+	while(written != towrite)
+	{
+		size_t 		block_offset;
+		size_t		sector;
+		size_t		to_write;
+		size_t		block_rest;
+		sector = offset / 512;
+		block_offset = offset % 512;
+		block_rest = 512 - block_offset; 
+		to_write = 512;
+		size_t amount = count < block_rest ? count : block_rest;
+		if(amount != 512)
+		{
+			ata_read_sectors(drv->channel, drv->drive, (uint32_t) (uintptr_t) phys_buf, to_write, sector);
+			memcpy((char*) buf + block_offset, (char*) buffer + written, amount);
+		}
+		else
+		{
+			memcpy(buf, (char*) buffer + written, amount);
+		}
+		ata_write_sectors(drv->channel, drv->drive, (uint32_t) (uintptr_t) phys_buf, to_write, sector);
+		written += amount;
+		offset += amount;
+		count -= amount;
+	}
+	free(buf);
+	return written;
 }
 int ata_initialize_drive(int channel, int drive)
 {
@@ -267,8 +353,8 @@ int ata_initialize_drive(int channel, int drive)
 		return 0;
 	}
 	memset(min->fops, 0, sizeof(struct file_ops));
-	/*min->fops->write = atadevfs_write;
-	min->fops->read = atadevfs_read;*/
+	min->fops->write = atadev_write;
+	min->fops->read = atadev_read;
 	atadev->type = VFS_TYPE_CHAR_DEVICE;
 	atadev->dev = min->majorminor;
 	num_drives++;
@@ -306,6 +392,7 @@ int ata_initialize_drive(int channel, int drive)
 	dev->write = ata_write;
 	dev->flush = ata_flush;
 	dev->power = ata_pm;
+	atadev->helper = dev;
 	blkdev_add_device(dev);
 	
 	INFO("ata", "Created %s for drive %u\n", path, num_drives);
