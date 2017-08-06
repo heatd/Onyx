@@ -75,3 +75,14 @@ Errno also gets passed through rax, as -errno.
 | 63 | clone() system call |
 | 64 | exit_thread() system call |
 | 65 | sigprocmask() system call |
+| 66 | sigsuspend() system call |
+| 67 | pause() system call |
+| 68 | futex() system call |
+| 69 | getrandom() system call |
+| 70 | socket() system call |
+| 71 | send() system call |
+| 72 | bind() system call |
+| 73 | connect() system call |
+| 74 | recv_from() system call |
+| 75 | times() system call |
+| 76 | getrusage() system call |
