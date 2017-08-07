@@ -84,8 +84,6 @@
 #define KERNEL_START_VIRT 0xffffffff80100000
 
 extern uint64_t kernel_end;
-extern char __BUILD_NUMBER;
-extern char __BUILD_DATE;
 extern uintptr_t _start_smp;
 extern uintptr_t _end_smp;
  
@@ -441,8 +439,6 @@ void kernel_multitasking(void *arg)
 	vmm_map_range(mem, 1024, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
 	/* Create PTY */
 	tty_create_pty_and_switch(mem);
-	LOG("kernel", ANSI_COLOR_GREEN "Onyx kernel %s branch %s build %d for the %s architecture\n" ANSI_COLOR_RESET,
-	     KERNEL_VERSION, KERNEL_BRANCH, &__BUILD_NUMBER, KERNEL_ARCH);
 	LOG("kernel", "Command line: %s\n", kernel_cmdline);
 
 	/* Initialize the SMBIOS subsystem */
