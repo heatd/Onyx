@@ -30,7 +30,7 @@ long sys_ptrace(long request, pid_t pid, void *addr, void *data, void *addr2)
 			}
 			if(process_attach(process, tracee) < 0)
 				return -errno;
-			/* TODO: Send SIGSTOP to the tracee */
+			kernel_raise_signal(SIGSTOP, tracee);
 			return 0;
 		}
 		case PTRACE_PEEKTEXT:
@@ -78,15 +78,15 @@ long sys_ptrace(long request, pid_t pid, void *addr, void *data, void *addr2)
 		}
 		case PTRACE_CONT:
 		{
-			printk("ptrace cont\n");
 			process_t *tracee = process_find_tracee(get_current_process(), pid);
 			if(!tracee)
+			{
 				return -ESRCH;
+			}
 			kernel_raise_signal(SIGCONT, tracee);
-			printk("done\n");
 			return 0;
 		}
 		default:
-			return -EIO;
+			return -EINVAL;
 	}
 }

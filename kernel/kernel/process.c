@@ -600,15 +600,21 @@ int process_attach(process_t *tracer, process_t *tracee)
 	if(tracer == tracee)
 		return errno = ESRCH, -1;
 	/* TODO: Enforce process permitions */
-	if(list_add(&tracer->tracees, tracee) < 0)
-		return errno = ENOMEM, -1;
+	if(!tracer->tracees.ptr)
+	{
+		tracer->tracees.ptr = tracee;
+	}
+	else
+	{
+		if(list_add(&tracer->tracees, tracee) < 0)
+			return errno = ENOMEM, -1;
+	}
 	return 0;
 }
 /* Finds a pid that tracer is tracing */
 process_t *process_find_tracee(process_t *tracer, pid_t pid)
 {
 	struct list_head *list = &tracer->tracees;
-
 	while(list && list->ptr)
 	{
 		process_t *tracee = list->ptr;

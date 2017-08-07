@@ -23,7 +23,6 @@ void do_trace(pid_t pid)
 }
 void do_child(int argc, char **argv)
 {
-	raise(SIGSTOP);
 	printf("Being traced!\n");
 	if(execvp(argv[0], argv) < 0)
 		exit(1);
