@@ -12,7 +12,7 @@ struct vdso_info
 static struct vdso_info info =
 {
 	.name = "onyx-vdso",
-	.kernel = "onyx-0.3",
+	.kernel = "onyx-0.4",
 	.architecture = "x86_64"
 };
 static struct vdso_info *__vdso_get_vdso_info(void)
