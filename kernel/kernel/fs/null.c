@@ -37,4 +37,5 @@ void null_init()
 
 	min->fops->write = null_write;
 	n->dev = min->majorminor;
+	memcpy(&n->fops, min->fops, sizeof(struct file_ops));
 }

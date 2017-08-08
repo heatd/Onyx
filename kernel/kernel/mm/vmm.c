@@ -544,9 +544,13 @@ return_:
 }
 vmm_entry_t *vmm_is_mapped(void *addr)
 {
-	avl_node_t **e = avl_search_key(vmm_get_tree(), (uintptr_t) addr);
+	avl_node_t **tree = vmm_get_tree();
+	if(!tree)
+		goto search_kernel;
+	avl_node_t **e = avl_search_key(tree, (uintptr_t) addr);
 	if(!e)
 	{
+search_kernel:
 		e = avl_search_key(&kernel_tree, (uintptr_t) addr);
 		if(!e)
 			return NULL;
@@ -604,7 +608,8 @@ void vfree(void *ptr, size_t pages)
 avl_node_t **vmm_get_tree()
 {
 	process_t *p = get_current_process();
-	assert(p != NULL);
+	if(!p)
+		return NULL;
 	return &p->tree;
 }
 int vmm_check_pointer(void *addr, size_t needed_space)

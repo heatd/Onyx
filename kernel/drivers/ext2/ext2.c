@@ -22,6 +22,19 @@
 #include <drivers/rtc.h>
 #include <drivers/ext2.h>
 
+vfsnode_t *ext2_open(vfsnode_t *nd, const char *name);
+size_t ext2_read(int flags, size_t offset, size_t sizeofreading, void *buffer, vfsnode_t *node);
+size_t ext2_write(size_t offset, size_t sizeofwrite, void *buffer, vfsnode_t *node);
+unsigned int ext2_getdents(unsigned int count, struct dirent* dirp, off_t off, vfsnode_t* this);
+int ext2_stat(struct stat *buf, vfsnode_t *node);
+struct file_ops ext2_ops = 
+{
+	.open = ext2_open,
+	.read = ext2_read,
+	.write = ext2_write,
+	.getdents = ext2_getdents,
+	.stat = ext2_stat
+};
 uuid_t ext2_gpt_uuid[4] = 
 {
 	{0x3DAF, 0x0FC6, 0x8483, 0x4772, 0x798E, 0x693D, 0x47D8, 0xE47D}, /* Linux filesystem data */
@@ -31,9 +44,6 @@ uuid_t ext2_gpt_uuid[4] =
 	{0x8425, 0x3B8F, 0x4F3B, 0x20E0, 0x1A25, 0x907F, 0x98E8, 0xA76F} /* /srv (server data) partition */
 };
 ext2_fs_t *fslist = NULL;
-int ext2_stat(struct stat *buf, vfsnode_t *node);
-unsigned int ext2_getdents(unsigned int count, struct dirent* dirp, off_t off, vfsnode_t* this);
-
 inode_t *ext2_get_inode_from_dir(ext2_fs_t *fs, dir_entry_t *dirent, char *name, uint32_t *inode_number)
 {
 	dir_entry_t *dirs = dirent;
@@ -139,7 +149,7 @@ vfsnode_t *ext2_open(vfsnode_t *nd, const char *name)
 	node->size = EXT2_CALCULATE_SIZE64(ino);
 	node->uid = ino->uid;
 	node->gid = ino->gid;
-	
+	memcpy(&node->fops, &ext2_ops, sizeof(struct file_ops));
 	free(ino);
 	return node;
 }
@@ -222,27 +232,7 @@ vfsnode_t *ext2_mount_partition(uint64_t sector, block_device_t *dev)
 	node->name = "";
 	node->inode = 2;
 	node->type = VFS_TYPE_DIR;
-	struct minor_device *minor = dev_register(MAJOR(dev->dev), 0);
-	if(!minor)
-	{
-		free(node);
-		return NULL;
-	}
-	minor->fops = malloc(sizeof(struct file_ops));
-	if(!minor->fops)
-	{
-		free(node);
-		free(minor);
-		return errno = ENOMEM, NULL;
-	}
-	memset(minor->fops, 0, sizeof(struct file_ops));
-	minor->fops->open = ext2_open;
-	minor->fops->read = ext2_read;
-	minor->fops->write = ext2_write;
-	minor->fops->getdents = ext2_getdents;
-	minor->fops->stat = ext2_stat;
-
-	node->dev = minor->majorminor;
+	memcpy(&node->fops, &ext2_ops, sizeof(struct file_ops));
 	return node;
 }
 __init void init_ext2drv()

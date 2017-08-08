@@ -418,8 +418,8 @@ void tty_create_dev()
 	memset(minor->fops, 0, sizeof(struct file_ops));
 
 	ttydev->dev = minor->majorminor;
-	minor->fops->write = ttydevfs_write;
-	minor->fops->read = ttydevfs_read;
-	minor->fops->ioctl = tty_ioctl;
+	ttydev->fops.write = ttydevfs_write;
+	ttydev->fops.read = ttydevfs_read;
+	ttydev->fops.ioctl = tty_ioctl; 
 	ttydev->type = VFS_TYPE_CHAR_DEVICE;
 }

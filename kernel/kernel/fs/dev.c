@@ -244,6 +244,12 @@ vfsnode_t *devfs_creat(const char *pathname, int mode, vfsnode_t *self)
 		return children[num_child-1];
 	}
 }
+struct file_ops devfs_ops = 
+{
+	.open = devfs_open,
+	.getdents = devfs_getdents,
+	.creat = devfs_creat
+};
 int devfs_init()
 {
 	vfsnode_t *i = open_vfs(fs_root, "/dev");
@@ -258,20 +264,7 @@ int devfs_init()
 	slashdev->name = "/dev";
 	slashdev->type = VFS_TYPE_DIR;
 	slashdev->refcount++;
-	struct minor_device *minor = dev_register(0, 0);
-	if(!minor)
-		panic("Could not allocate a device ID!\n");
-	
-	minor->fops = malloc(sizeof(struct file_ops));
-	if(!minor->fops)
-		panic("Could not allocate a file operation table!\n");
-	
-	memset(minor->fops, 0, sizeof(struct file_ops));
-
-	slashdev->dev = minor->majorminor;
-	minor->fops->open = devfs_open;
-	minor->fops->getdents = devfs_getdents;
-	minor->fops->creat = devfs_creat;
+	memcpy(&slashdev->fops, &devfs_ops, sizeof(struct file_ops));
 	mount_fs(slashdev, "/dev");
 	return 0;
 }

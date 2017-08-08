@@ -21,10 +21,10 @@
 static avl_node_t **avl_search_key(avl_node_t **t, uintptr_t key);
 vfsnode_t *fs_root = NULL;
 vfsnode_t *mount_list = NULL;
-ssize_t write_file_cache(void *buffer, size_t sizeofwrite, vfsnode_t *file, struct minor_device *m, off_t offset);
+ssize_t write_file_cache(void *buffer, size_t sizeofwrite, vfsnode_t *file, off_t offset);
 
 #define FILE_CACHING_WRITE	1
-ssize_t do_file_caching(size_t sizeofread, vfsnode_t *this, struct minor_device *m, off_t offset, int flags)
+ssize_t do_file_caching(size_t sizeofread, vfsnode_t *this, off_t offset, int flags)
 {
 	if(this->type != VFS_TYPE_FILE) /* Only VFS_TYPE_FILE files can be cached */
 		return -1;
@@ -40,7 +40,7 @@ ssize_t do_file_caching(size_t sizeofread, vfsnode_t *this, struct minor_device 
 	{
 		if(avl_search_key(&this->cache_tree, offset + PAGE_CACHE_SIZE * i))
 			continue;
-		size_t status = m->fops->read(0, offset + PAGE_CACHE_SIZE * i, PAGE_CACHE_SIZE, cache, this);
+		size_t status = this->fops.read(0, offset + PAGE_CACHE_SIZE * i, PAGE_CACHE_SIZE, cache, this);
 
 		if(status == 0 && !(flags & FILE_CACHING_WRITE))
 		{
@@ -74,36 +74,26 @@ int vfs_init()
 }
 size_t read_vfs(int flags, size_t offset, size_t sizeofread, void* buffer, vfsnode_t* this)
 {
-	struct minor_device *m = dev_find(this->dev);
-	if(!m)
-		return errno = ENODEV;
-	if(!m->fops)
-		return errno = ENOSYS;
 	if(this->type & VFS_TYPE_MOUNTPOINT)
 		return read_vfs(flags, offset, sizeofread, buffer, this->link);
-	if(m->fops->read != NULL)
+	if(this->fops.read != NULL)
 	{
 		ssize_t status; 
-		if((status = lookup_file_cache(buffer, sizeofread, this, m, offset)) < 0) /* If caching failed, just do the normal way */
-			return m->fops->read(flags, offset, sizeofread, buffer, this);
+		if((status = lookup_file_cache(buffer, sizeofread, this, offset)) < 0) /* If caching failed, just do the normal way */
+			return this->fops.read(flags, offset, sizeofread, buffer, this);
 		return status;
 	}
 	return errno = ENOSYS;
 }
 size_t write_vfs(size_t offset, size_t sizeofwrite, void* buffer, vfsnode_t* this)
 {
-	struct minor_device *m = dev_find(this->dev);
-	if(!m)
-		return errno = ENODEV;
-	if(!m->fops)
-		return errno = ENOSYS;
 	if(this->type & VFS_TYPE_MOUNTPOINT)
 		return write_vfs(offset, sizeofwrite, buffer, this->link);
-	if(m->fops->write != NULL)
+	if(this->fops.write != NULL)
 	{
 		ssize_t status; 
-		if((status = write_file_cache(buffer, sizeofwrite, this, m, offset)) < 0) /* If caching failed, just do the normal way */
-			return m->fops->write(offset, sizeofwrite, buffer, this);
+		if((status = write_file_cache(buffer, sizeofwrite, this, offset)) < 0) /* If caching failed, just do the normal way */
+			return this->fops.write(offset, sizeofwrite, buffer, this);
 		if(offset + sizeofwrite > this->size)
 		{
 			this->size = offset + sizeofwrite;
@@ -115,43 +105,33 @@ size_t write_vfs(size_t offset, size_t sizeofwrite, void* buffer, vfsnode_t* thi
 }
 int ioctl_vfs(int request, char *argp, vfsnode_t *this)
 {
-	struct minor_device *m = dev_find(this->dev);
-	if(!m)
-		return errno = ENODEV;
-	if(!m->fops)
-		return errno = ENOSYS;
 	if(this->type & VFS_TYPE_MOUNTPOINT)
 		return ioctl_vfs(request, argp, this->link);
-	if(m->fops->ioctl != NULL)
-		return m->fops->ioctl(request, (void*) argp, this);
+	if(this->fops.ioctl != NULL)
+		return this->fops.ioctl(request, (void*) argp, this);
 	return errno = ENOSYS, -1;
 }
 void close_vfs(vfsnode_t* this)
 {
-	struct minor_device *m = dev_find(this->dev);
-	if(!m)
-		return;
-	if(!m->fops)
-		return;
 	if(this->type & VFS_TYPE_MOUNTPOINT)
 		close_vfs(this->link);
-	if(m->fops->close != NULL)
-		m->fops->close(this);
+	if(this->fops.close != NULL)
+		this->fops.close(this);
+	__sync_fetch_and_sub(&this->refcount, 1);
+	if(this->refcount == 0)
+	{
+		free(this);
+	}
 }
 vfsnode_t *do_actual_open(vfsnode_t *this, const char *name)
 {
-	struct minor_device *minor = dev_find(this->dev);
-	if(!minor)
-		return errno = ENODEV, NULL;
-	if(!minor->fops)
-		return errno = ENOSYS, NULL;
 	if(this->type & VFS_TYPE_MOUNTPOINT)
 	{
-		return minor->fops->open(this->link, name);
+		return do_actual_open(this->link, name);
 	}
-	if(minor->fops->open != NULL)
+	if(this->fops.open != NULL)
 	{
-		return minor->fops->open(this, name);
+		return this->fops.open(this, name);
 	}
 	return errno = ENOSYS, NULL;
 }
@@ -209,21 +189,15 @@ vfsnode_t *creat_vfs(vfsnode_t *this, const char *path, int mode)
 		errno = ENOENT;
 		goto error;
 	}
-	struct minor_device *m = dev_find(base->dev);
-	if(!m || !m->fops)
-	{
-		errno = ENODEV;
-		goto error;
-	}
 	if(base->type & VFS_TYPE_MOUNTPOINT)
 	{
 		vfsnode_t *node = creat_vfs(base, basename((char*) dup), mode);
 		free(dup);
 		return node;
 	}
-	if(m->fops->creat != NULL)
+	if(this->fops.creat != NULL)
 	{
-		vfsnode_t *ret = m->fops->creat(basename((char*) dup), mode, base);
+		vfsnode_t *ret = this->fops.creat(basename((char*) dup), mode, base);
 		free(dup);
 		return ret;
 	}
@@ -265,29 +239,19 @@ unsigned int getdents_vfs(unsigned int count, struct dirent* dirp, off_t off, vf
 {
 	if(this->type & VFS_TYPE_MOUNTPOINT)
 		return getdents_vfs(count, dirp, off, this->link);
-	struct minor_device *m = dev_find(this->dev);
-	if(!m)
-		return errno = ENODEV;
-	if(!m->fops)
-		return errno = ENOSYS;
 	if(!(this->type & VFS_TYPE_DIR))
 		return errno = ENOTDIR, -1;
-	if(m->fops->getdents != NULL)
-		return m->fops->getdents(count, dirp, off, this);
+	if(this->fops.getdents != NULL)
+		return this->fops.getdents(count, dirp, off, this);
 	
 	return errno = ENOSYS, (unsigned int) -1;
 }
 int stat_vfs(struct stat *buf, vfsnode_t *node)
 {
-	struct minor_device *m = dev_find(node->dev);
-	if(!m)
-		return errno = ENODEV;
-	if(!m->fops)
-		return errno = ENOSYS;
 	if(node->type & VFS_TYPE_MOUNTPOINT)
 		return stat_vfs(buf, node->link);
-	if(m->fops->stat != NULL)
-		return m->fops->stat(buf, node);
+	if(node->fops.stat != NULL)
+		return node->fops.stat(buf, node);
 	
 	return errno = ENOSYS, (unsigned int) -1;
 }
@@ -368,14 +332,14 @@ void *add_cache_to_node(void *ptr, size_t size, off_t offset, vfsnode_t *node)
 
 	return avl->ptr;
 }
-ssize_t lookup_file_cache(void *buffer, size_t sizeofread, vfsnode_t *file, struct minor_device *m, off_t offset)
+ssize_t lookup_file_cache(void *buffer, size_t sizeofread, vfsnode_t *file, off_t offset)
 {
 	if(file->type != VFS_TYPE_FILE)
 		return -1;
 	if((size_t) offset > file->size)
 		return 0;
 	off_t off = (offset / PAGE_CACHE_SIZE) * PAGE_CACHE_SIZE;
-	do_file_caching(sizeofread, file, m, off, 0);
+	do_file_caching(sizeofread, file, off, 0);
 	size_t read = 0;
 	while(read != sizeofread)
 	{
@@ -406,14 +370,14 @@ char *vfs_get_full_path(vfsnode_t *vnode, char *name)
 	strcat(string, name);
 	return string;
 }
-ssize_t write_file_cache(void *buffer, size_t sizeofwrite, vfsnode_t *file, struct minor_device *m, off_t offset)
+ssize_t write_file_cache(void *buffer, size_t sizeofwrite, vfsnode_t *file, off_t offset)
 {
 	if(file->type != VFS_TYPE_FILE)
 		return -1;
 	if((size_t) offset > file->size)
 		return 0;
 	off_t off = (offset / PAGE_CACHE_SIZE) * PAGE_CACHE_SIZE;
-	do_file_caching(sizeofwrite, file, m, off, FILE_CACHING_WRITE);
+	do_file_caching(sizeofwrite, file, off, FILE_CACHING_WRITE);
 	size_t wrote = 0;
 	while(wrote != sizeofwrite)
 	{
@@ -440,51 +404,31 @@ ssize_t send_vfs(const void *buf, size_t len, int flags, vfsnode_t *node)
 {
 	if(node->type & VFS_TYPE_MOUNTPOINT)
 		return send_vfs(buf, len, flags, node->link);
-	struct minor_device *m = dev_find(node->dev);
-	if(!m)
-		return -ENODEV;
-	if(!m->fops)
-		return -ENOSYS;
-	if(m->fops->send != NULL)
-		return m->fops->send(buf, len, flags, node);
+	if(node->fops.send != NULL)
+		return node->fops.send(buf, len, flags, node);
 	return -ENOSYS;
 }
 int connect_vfs(const struct sockaddr *addr, socklen_t addrlen, vfsnode_t *node)
 {
 	if(node->type & VFS_TYPE_MOUNTPOINT)
 		return connect_vfs(addr, addrlen, node->link);
-	struct minor_device *m = dev_find(node->dev);
-	if(!m)
-		return -ENODEV;
-	if(!m->fops)
-		return -ENOSYS;
-	if(m->fops->connect != NULL)
-		return m->fops->connect(addr, addrlen, node);
+	if(node->fops.connect != NULL)
+		return node->fops.connect(addr, addrlen, node);
 	return -ENOSYS;
 }
 int bind_vfs(const struct sockaddr *addr, socklen_t addrlen, vfsnode_t *node)
 {
 	if(node->type & VFS_TYPE_MOUNTPOINT)
 		return connect_vfs(addr, addrlen, node->link);
-	struct minor_device *m = dev_find(node->dev);
-	if(!m)
-		return -ENODEV;
-	if(!m->fops)
-		return -ENOSYS;
-	if(m->fops->bind != NULL)
-		return m->fops->bind(addr, addrlen, node);
+	if(node->fops.bind != NULL)
+		return node->fops.bind(addr, addrlen, node);
 	return -ENOSYS;
 }
 ssize_t recvfrom_vfs(void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *slen, vfsnode_t *node)
 {
 	if(node->type & VFS_TYPE_MOUNTPOINT)
 		return recvfrom_vfs(buf, len, flags, src_addr, slen, node->link);
-	struct minor_device *m = dev_find(node->dev);
-	if(!m)
-		return -ENODEV;
-	if(!m->fops)
-		return -ENOSYS;
-	if(m->fops->recvfrom != NULL)
-		return m->fops->recvfrom(buf, len, flags, src_addr, slen, node);
+	if(node->fops.recvfrom != NULL)
+		return node->fops.recvfrom(buf, len, flags, src_addr, slen, node);
 	return -ENOSYS;
 }

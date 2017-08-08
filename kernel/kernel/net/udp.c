@@ -93,19 +93,14 @@ size_t udp_write(size_t offset, size_t sizeofwrite, void* buffer, vfsnode_t* thi
 {
 	return (size_t) udp_send(buffer, sizeofwrite, 0, this);
 }
-static struct minor_device *dev = NULL;
-__init void udp_init(void)
+static struct file_ops udp_ops = 
 {
-	dev = dev_register(0, 0);
-	assert(dev);
-	dev->fops = malloc(sizeof(struct file_ops));
-	assert(dev->fops);
-	dev->fops->bind = udp_bind;
-	dev->fops->connect = udp_connect;
-	dev->fops->send = udp_send;
-	dev->fops->write = udp_write;
-	dev->fops->recvfrom = udp_recvfrom;
-}
+	.bind = udp_bind,
+	.connect = udp_connect,
+	.send = udp_send,
+	.write = udp_write,
+	.recvfrom = udp_recvfrom
+};
 socket_t *udp_create_socket(int type)
 {
 	udp_socket_t *socket = malloc(sizeof(udp_socket_t));
@@ -113,7 +108,7 @@ socket_t *udp_create_socket(int type)
 		return NULL;
 	memset(socket, 0, sizeof(udp_socket_t));
 	vfsnode_t *vnode = (vfsnode_t*) socket;
-	vnode->dev = dev->majorminor;
+	memcpy(&vnode->fops, &udp_ops, sizeof(struct file_ops));
 	vnode->type = VFS_TYPE_UNIX_SOCK;
 	socket->type = type;
 	return (socket_t*) socket;

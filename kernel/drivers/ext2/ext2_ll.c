@@ -64,6 +64,7 @@ static inline void __ext2_update_ctime(inode_t *ino)
 {
 	ino->ctime = (uint32_t) get_posix_time();
 }
+__attribute__((no_sanitize_undefined))
 inode_t *ext2_get_inode_from_number(ext2_fs_t *fs, uint32_t inode)
 {
 	uint32_t block_size = fs->block_size;

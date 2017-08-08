@@ -171,6 +171,7 @@ vfsnode_t *tar_open(vfsnode_t *this, const char *name)
 			node->dev = this->dev;
 			node->inode = i;
 			node->size = tar_get_size(iterator[i]->size);
+			memcpy(&node->fops, &this->fops, sizeof(struct file_ops));
 			if(iterator[i]->typeflag == TAR_TYPE_DIR)
 				node->type = VFS_TYPE_DIR;
 			else
@@ -194,23 +195,13 @@ void init_initrd(void *initrd)
 	}
 	memset(node, 0, sizeof(vfsnode_t));
 	node->name = "/";
-	struct minor_device *min_dev = dev_register(0, 0);
-	if(!min_dev)
-		panic("Could not allocate a device id!\n");
-	
-	min_dev->fops = malloc(sizeof(struct file_ops));
-	if(!min_dev->fops)
-		panic("Could not allocate a file operation table!\n");
-	memset(min_dev->fops, 0, sizeof(struct file_ops));
 
-	min_dev->fops->open = tar_open;
-	min_dev->fops->close = tar_close;
-	min_dev->fops->read = tar_read;
-	min_dev->fops->write = tar_write;
-	min_dev->fops->getdents = tar_getdents;
-	min_dev->fops->stat = tar_stat;
-
-	node->dev = min_dev->majorminor;
+	node->fops.open = tar_open;
+	node->fops.close = tar_close;
+	node->fops.read = tar_read;
+	node->fops.write = tar_write;
+	node->fops.getdents = tar_getdents;
+	node->fops.stat = tar_stat;
 
 	node->type = VFS_TYPE_DIR;
 	node->inode = 0;

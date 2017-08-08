@@ -79,27 +79,13 @@ void netif_register_if(struct netif *netif)
 {
 	if(udp_init_netif(netif) < 0)
 		return;
-	struct file_ops *fops = malloc(sizeof(struct file_ops));
-	if(!fops)
-		return;
-	memset(fops, 0, sizeof(struct file_ops));
-	struct minor_device *minor = dev_register(0, 0);
-	if(!minor)
-	{
-		free(fops);
-		return;
-	}
 	vfsnode_t *file = creat_vfs(slashdev, netif->name, 0644);
 	if(!file)
 	{
-		free(fops);
-		dev_unregister(minor->majorminor);
 		return;
 	}
-	file->dev = minor->majorminor;
-	minor->fops = fops;
-	fops->ioctl = netif_ioctl;
 	file->helper = netif;
+	file->fops.ioctl = netif_ioctl;
 	netif->device_file = file;
 	acquire_spinlock(&netif_list_lock);
 	if(!netif_list)

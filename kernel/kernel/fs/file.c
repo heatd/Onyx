@@ -203,12 +203,6 @@ static inline int decrement_fd_refcount(file_desc_t *fd)
 	if(fd->refcount == 0)
 	{
 		close_vfs(fd->vfs_node);
-		fd->vfs_node->refcount--;
-		/* TODO: When we implement a VFS hash table, remove this bit of code */
-		if(fd->vfs_node->refcount == 0)
-		{
-			free(fd->vfs_node);
-		}
 		free(fd);
 		return 1;
 	}
