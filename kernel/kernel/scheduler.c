@@ -225,6 +225,7 @@ int sched_init()
 	{
 		idle_threads[i] = task_switching_create_context(sched_idle, 1, NULL);
 		assert(idle_threads[i]);
+		idle_threads[i]->status = THREAD_IDLE;
 	}
 	is_initialized = true;
 	return 0;

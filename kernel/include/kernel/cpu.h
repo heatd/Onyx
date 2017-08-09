@@ -183,6 +183,8 @@
 #define X86_FEATURE_DBX			(218)
 #define X86_FEATURE_PERFTSC		(219)
 #define X86_FEATURE_PCX_L2I		(220)
+
+#define X86_MESSAGE_VECTOR		(130)
 typedef struct cpu
 {
 	char manuid[13];
@@ -218,6 +220,8 @@ struct processor
 	size_t sched_quantum;
 	thread_t *current_thread;
 	bool preemption_disabled;
+	struct cpu_message *message_queue;
+	spinlock_t message_queue_lock;
 };
 #ifdef __cplusplus
 extern "C"{
@@ -231,6 +235,20 @@ struct processor *get_processor_data(void);
 struct processor *get_processor_data_for_cpu(int cpu);
 bool is_percpu_initialized(void);
 bool is_kernel_ip(uintptr_t ip);
+void cpu_kill_other_cpus(void);
+void cpu_kill(int cpu_num);
+void cpu_send_message(int cpu, unsigned long message, void *arg);
+void __cpu_handle_message(void);
+
+struct cpu_message
+{
+	unsigned long message;
+	void *ptr;
+	struct cpu_message *next;
+};
+/* CPU messages */
+#define CPU_KILL	(unsigned long) -1
+
 #ifdef __cplusplus
 }
 #endif

@@ -7,6 +7,7 @@
 #include <assert.h>
 
 #include <kernel/idt.h>
+#include <kernel/cpu.h>
 
 idt_ptr_t idt_ptr;
 idt_entry_t idt_entries[256];
@@ -96,6 +97,7 @@ void idt_init(void)
 	x86_reserve_vector(30, isr30);
 	x86_reserve_vector(31, isr31);
 	x86_reserve_vector(129,  _sched_yield);
+	x86_reserve_vector(X86_MESSAGE_VECTOR, __cpu_handle_message);
 	x86_reserve_vector(255,  apic_spurious_irq);
 	idt_load();
 }

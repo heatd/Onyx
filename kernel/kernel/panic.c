@@ -87,16 +87,12 @@ void panic(const char *msg)
 #endif
 	printk("panic: %s\nThread Context:\n%s", msg, buffer);
 
-	thread_t *thread = get_current_thread();
-	process_t *current = get_current_process();
-	if(thread)
-		printk(" - Thread %p id %d\n", thread, thread->id);
-	if(current)
-		printk("Process %p %s(pid %d)\n", current, current->cmd_line, current->pid);
 	module_dump();
 	printk("Stack dump: \n");
 
-	stack_trace();
+	//stack_trace();
+	printk("Killing cpus\n");
+	cpu_kill_other_cpus();
 	halt();
 	__builtin_unreachable();
 }

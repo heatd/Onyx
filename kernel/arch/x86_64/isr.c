@@ -92,10 +92,11 @@ r10: %x\nr11: %x\nr12: %x\nr13: %x\nr14: %x\nr15: %x\nrsp: %x\nrflags: %x\nds: %
 			ctx->rax, ctx->rbx, ctx->rcx, ctx->rdx, ctx->rdi, ctx->rsi, ctx->rbp, ctx->r8, ctx->r9, 
 		ctx->r10, ctx->r11, ctx->r12, ctx->r13, ctx->r14, ctx->r15, ctx->rsp, ctx->rflags, ctx->ds, ctx->cs);
 
-			dump_stack((uintptr_t*) ctx->rsp);
-			if(get_current_process())
+			__asm__ __volatile__("cli;hlt");
+			//dump_stack((uintptr_t*) ctx->rsp);
+			/*if(get_current_process())
 				kernel_raise_signal(SIGSEGV, get_current_process());
-			else
+			else*/
 			{
 				panic("unable to satisfy paging request!\n");
 			}

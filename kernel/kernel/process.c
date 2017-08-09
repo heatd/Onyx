@@ -251,7 +251,7 @@ char **process_copy_envarg(char **envarg, _Bool to_kernel, int *count)
 		*count = nr_args;
 	return new_args;
 }
-void process_setup_auxv(void *buffer, process_t *process)
+void *process_setup_auxv(void *buffer, process_t *process)
 {
 	/* Setup the auxv at the stack bottom */
 	Elf64_auxv_t *auxv = (Elf64_auxv_t *) buffer;
@@ -279,9 +279,7 @@ void process_setup_auxv(void *buffer, process_t *process)
 				break;
 		}
 	}
-	/* TODO: Do this portably */
-	registers_t *regs = (registers_t *) process->threads[0]->kernel_stack;
-	regs->rcx = (uintptr_t) auxv;
+	return auxv;
 }
 void process_setup_pthread(thread_t *thread, process_t *process)
 {
@@ -295,6 +293,14 @@ void process_setup_pthread(thread_t *thread, process_t *process)
 	p->tid = get_current_process()->threads[0]->id;
 	p->pid = get_current_process()->pid;
 }
+/*
+	return_from_execve(): Return from execve, while loading registers and zero'ing the others.
+	Does not return!
+*/ 
+int return_from_execve(void *entry, int argc, char **argv, char **envp, void *auxv, void *stack);
+/*
+	execve(2): Executes a program with argv and envp, replacing the current process.
+*/
 int sys_execve(char *path, char *argv[], char *envp[])
 {
 	if(!vmm_is_mapped(path))
@@ -378,17 +384,18 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	/* Close O_CLOEXEC files */
 	file_do_cloexec(&get_current_process()->ctx);
 
-	memset(current->threads, 0, sizeof(thread_t*) * THREADS_PER_PROCESS);
-	/* Create the main thread */
-	process_create_thread(current, (thread_callback_t) entry, 0, argc, uargv, uenv);
-
+	void *user_stack = vmm_allocate_virt_address(0, 256, VM_TYPE_SHARED, VM_WRITE | VM_NOEXEC | VM_USER, 0);
+	void *auxv = NULL;
+	if(!user_stack)
+		return -1;
+	vmm_map_range(user_stack, 256, VM_WRITE | VM_NOEXEC | VM_USER);
+	
 	/* Setup auxv */
-	process_setup_auxv(current->threads[0]->user_stack_bottom, current);
-	/* Setup the pthread structure */
-	process_setup_pthread(current->threads[0], current);
+	auxv = process_setup_auxv(user_stack, current);
+	user_stack = (char*) user_stack + 256 * PAGE_SIZE;
+	get_current_thread()->user_stack_bottom = user_stack;
 
-	sched_start_thread(current->threads[0]);
-	while(1);
+	return return_from_execve(entry, argc, uargv, uenv, auxv, user_stack);
 }
 pid_t sys_getppid()
 {

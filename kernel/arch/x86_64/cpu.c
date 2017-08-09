@@ -308,3 +308,58 @@ struct processor *get_processor_data_for_cpu(int cpu)
 	assert(cpu <= booted_cpus);
 	return &cpus[cpu];
 }
+void cpu_notify(struct processor *p)
+{
+	send_ipi(p->lapic_id, 0, X86_MESSAGE_VECTOR);
+}
+void cpu_send_message(int cpu, unsigned long message, void *arg)
+{
+	struct processor 	*p;
+	struct cpu_message	msg;
+	assert(cpu <= booted_cpus);
+	p = get_processor_data_for_cpu(cpu);
+	assert(p != NULL);
+
+	/* CPU_KILL messages don't respect locks */
+	if(unlikely(message != CPU_KILL))
+		acquire_spinlock(&p->message_queue_lock);
+	if(unlikely(message == CPU_KILL))
+	{
+		if(!p->message_queue)
+			p->message_queue = &msg;
+		p->message_queue->message = CPU_KILL;
+		p->message_queue->ptr = NULL;
+		p->message_queue->next = NULL;
+	}
+	else
+	{
+		if(!p->message_queue)
+			p->message_queue = &msg;
+		else
+		{
+			struct cpu_message *m = p->message_queue;
+			while(m->next) m = m->next;
+			m->next = &msg;
+		}
+		msg.message = message;
+		msg.ptr = arg;
+		msg.next = NULL;
+		release_spinlock(&p->message_queue_lock);
+	}
+	cpu_notify(p);
+	//cpu_wait_for_msg_ack();
+}
+void cpu_kill(int cpu_num)
+{
+	printk("Killing cpu %u\n", cpu_num);
+	cpu_send_message(cpu_num, CPU_KILL, NULL);
+}
+void cpu_kill_other_cpus(void)
+{
+	int curr_cpu = get_cpu_num();
+	for(int i = 0; i < booted_cpus; i++)
+	{
+		if(i != curr_cpu)
+			cpu_kill(i);
+	}
+}

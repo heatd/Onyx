@@ -51,6 +51,7 @@ extern irq_handler
 extern handle_signal
 extern signal_is_pending
 extern lapic_send_eoi
+global irq_common:function
 irq_common:
 	cld
 	mov ax, ds
@@ -107,7 +108,7 @@ isr%1:
 %endmacro
 
 extern isr_handler
-global isr_common
+global isr_common:function
 isr_common:
 	cld
 	mov rax, ds
@@ -199,7 +200,7 @@ IRQ 20
 IRQ 21
 IRQ 22
 IRQ 23
-global _sched_yield
+global _sched_yield:function
 extern sched_switch_thread
 _sched_yield:
 	pushaq
@@ -317,6 +318,11 @@ __sigret_return:
 	mov es, cx
 	popaq
 	iretq
-global apic_spurious_irq
+global apic_spurious_irq:function
 apic_spurious_irq:
 	iretq
+global __cpu_handle_message:function
+__cpu_handle_message:
+	cli
+	hlt
+
