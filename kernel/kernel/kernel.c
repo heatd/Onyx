@@ -375,6 +375,9 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 	initialize_entropy();
 
 	vmm_start_address_bookkeeping(KERNEL_FB, 0xFFFFFFF890000000);
+	
+	/* Register pages */
+	page_register_pages();
 }
 void kernel_multitasking(void *);
 __attribute__((no_sanitize_undefined))

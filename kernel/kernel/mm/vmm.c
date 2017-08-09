@@ -340,10 +340,17 @@ void *vmm_map_range(void *range, size_t pages, uint64_t flags)
 	uintptr_t mem = (uintptr_t) range;
 	for (size_t pgs = 0; pgs < pages; pgs++)
 	{
-		if(!paging_map_phys_to_virt(mem, (uintptr_t) __alloc_page(PAGE_AREA_HIGH_MEM), flags))
+		uintptr_t paddr = (uintptr_t) __alloc_page(PAGE_AREA_HIGH_MEM);
+		if(!paddr)
+			return NULL;
+		if(!paging_map_phys_to_virt(mem, paddr, flags))
 			panic("out of memory.");
+		if(pages_are_registered())
+		{
+			page_increment_refcount((void*) paddr);
+		}
 		__asm__ __volatile__("invlpg %0"::"m"(mem));
-		mem += 0x1000;
+		mem += PAGE_SIZE;
 	}
 	
 	__vm_unlock(kernel);
@@ -359,7 +366,10 @@ void vmm_unmap_range(void *range, size_t pages)
 	{
 		void *page = paging_unmap((void*) mem);
 		if(page)	
+		{
 			__free_page(page);
+			page_decrement_refcount(page);
+		}
 		mem += 0x1000;
 	}
 	__vm_unlock(kernel);

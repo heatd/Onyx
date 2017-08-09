@@ -47,13 +47,21 @@
 #define PAGE_AREA_HIGH_MEM_64 	(1 << 2)
 #define PAGE_NO_RETRY		(1 << 3)
 
+/* struct page - Represents every usable page on the system 
+ * Everything is native-word-aligned in order to allow atomic changes
+ * Careful adding fields in - they may increase the memory use exponentially
+*/
 struct page
 {
-	void *vaddr;
-	void *phaddr;
-	int area;
+	void *paddr;
+	unsigned long ref;
+	struct page *next;
 };
-
+#define PAGE_HASHTABLE_ENTRIES 0x4000	
+struct page_hashtable
+{
+	struct page *table[PAGE_HASHTABLE_ENTRIES];
+};
 #ifdef CONFIG_BUDDY_ALLOCATOR
 /* A structure describing areas of size 2^order pages */
 typedef struct free_area
@@ -104,6 +112,12 @@ void __free_page(void *page);
 void __free_pages(void *pages, int order);
 void page_get_stats(struct memstat *memstat);
 void page_init(void);
+unsigned int page_hash(uintptr_t p);
+bool pages_are_registered(void);
+void page_register_pages(void);
+struct page *phys_to_page(uintptr_t phys);
+unsigned long page_increment_refcount(void *paddr);
+unsigned long page_decrement_refcount(void *paddr);
 #ifdef __cplusplus
 }
 #endif

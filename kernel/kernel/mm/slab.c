@@ -158,7 +158,6 @@ void *slab_allocate(slab_cache_t *cache)
 			}
 			slab->next = nslab;
 			nslab->prev = slab;
-			printk("Expanded cache successfully!\n");
 		}
 		slab = slab->next;
 	}

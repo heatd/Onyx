@@ -122,6 +122,8 @@ void page_initalize_memory(void)
 	{
 		if(stack->next[i].base != 0 && stack->next[i].size != 0)
 		{
+			uintptr_t paddr = stack->next[i].base;
+			size_t size =  stack->next[i].size;
 			ssize_t npages = (ssize_t) stack->next[i].size / PAGE_SIZE;
 			size_t rounded_down = align_pow2_down(npages);
 			while(npages > 0)
@@ -132,11 +134,11 @@ void page_initalize_memory(void)
 				if(order >= MAX_ORDER)
 					order = MAX_ORDER - 1;
 				size_t size_order = pow2(order) * PAGE_SIZE;
-				list_append(&free_areas[order].free_list, (void*) stack->next[i].base);
-				buddy_mark_as_free((void*) stack->next[i].base, size_order, 
+				list_append(&free_areas[order].free_list, (void*) paddr);
+				buddy_mark_as_free((void*) paddr, size_order,
 					(uint8_t*) free_areas[order].map);
-				stack->next[i].base += size_order;
-				stack->next[i].size -= size_order;
+				paddr += size_order;
+				size -= size_order;
 				npages -= pow2(order);
 			}
 		}
