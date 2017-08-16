@@ -5,10 +5,13 @@
 */
 #ifndef _ATA_H
 #define _ATA_H
-#include <drivers/pci.h>
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include <drivers/pci.h>
+
 typedef struct
 {
 	uint32_t data_buffer; // the data buffer address
@@ -85,7 +88,6 @@ typedef struct
 #define ATA_IRQ	  14
 #define ATA_TYPE_ATA 1
 #define ATA_TYPE_ATAPI 2
-void ata_init(struct pci_device *dev);
 void ata_read_sectors(unsigned int channel, unsigned int drive, uint32_t buffer, uint16_t bytesoftransfer, uint64_t lba48);
 void ata_write_sectors(unsigned int channel, unsigned int drive, uint32_t buffer, uint16_t bytesoftransfer, uint64_t lba48);
 #endif

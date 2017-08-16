@@ -27,6 +27,7 @@ uint64_t __pci_read(struct pci_device *dev, uint16_t off, size_t size);
 const uint16_t CONFIG_ADDRESS = 0xCF8;
 const uint16_t CONFIG_DATA = 0xCFC;
 static spinlock_t pci_lock;
+
 __attribute__((no_sanitize_undefined))
 uint16_t __pci_config_read_word(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset)
 {
@@ -34,6 +35,7 @@ uint16_t __pci_config_read_word(uint8_t bus, uint8_t slot, uint8_t func, uint8_t
 	data.val = __pci_config_read_dword(bus, slot, func, offset);
 	return data.bytes[(offset & 0x3)] | (data.bytes[(offset & 3) + 1] << 8);
 }
+
 uint32_t __pci_config_read_dword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset)
 {
 	uint32_t address;
@@ -52,6 +54,7 @@ uint32_t __pci_config_read_dword(uint8_t bus, uint8_t slot, uint8_t func, uint8_
 	release_spinlock(&pci_lock);
 	return tmp;
 }
+
 void __pci_write_dword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint32_t data)
 {
 	uint32_t address;
@@ -70,6 +73,7 @@ void __pci_write_dword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, 
 	outl(CONFIG_DATA, data);
 	release_spinlock(&pci_lock);
 }
+
 void __pci_write_word(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint16_t data)
 {
 	uint32_t address;
@@ -88,6 +92,7 @@ void __pci_write_word(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, u
 	outw(CONFIG_DATA, data);
 	release_spinlock(&pci_lock);
 }
+
 int pci_set_power_state(struct pci_device *dev, int power_state)
 {
 	struct pci_device *element = NULL;
@@ -140,6 +145,7 @@ int pci_set_power_state(struct pci_device *dev, int power_state)
 	pci_write(dev, p, pmcsr_off, sizeof(uint16_t));
 	return 0;
 }
+
 int pci_shutdown(struct device *__dev)
 {
 	/* Okay, we're shutting down and our purpose here is to cut power to the device.
@@ -149,6 +155,7 @@ int pci_shutdown(struct device *__dev)
 	assert(__dev);
 	return pci_set_power_state((struct pci_device*) __dev, PCI_POWER_STATE_D3);
 }
+
 void pci_find_supported_capabilities(struct pci_device *dev)
 {
 	off_t pm_off = pci_find_capability(dev, PCI_CAP_ID_POWER_MANAGEMENT_INTERFACE);
@@ -171,8 +178,10 @@ void pci_find_supported_capabilities(struct pci_device *dev)
 			dev->supported_power_states |= PCI_POWER_STATE_D2;
 	}
 }
+
 struct pci_device *linked_list = NULL;
 struct pci_device* last = NULL;
+
 void pci_enumerate_device(uint16_t bus, uint8_t device, uint8_t function, struct pci_device *parent)
 {
 	// Get vendor
@@ -243,6 +252,7 @@ void pci_enumerate_device(uint16_t bus, uint8_t device, uint8_t function, struct
 		}
 	}
 }
+
 void pci_enumerate_devices(void)
 {
 	for(uint16_t slot = 0; slot < 256; slot++)
@@ -253,6 +263,7 @@ void pci_enumerate_devices(void)
 		}
 	}
 }
+
 pcibar_t* pci_get_bar(struct pci_device *dev, uint8_t barindex)
 {
 	uint8_t offset = 0x10 + 0x4 * barindex;
@@ -271,10 +282,12 @@ pcibar_t* pci_get_bar(struct pci_device *dev, uint8_t barindex)
 	__pci_write_dword(dev->bus, dev->device, dev->function, offset, i);
 	return pcibar;
 }
+
 uint16_t pci_get_intn(uint8_t slot, uint8_t device, uint8_t function)
 {
 	return acpi_get_irq_routing_for_dev(slot, device, function);
 }
+
 void pci_init()
 {
 	pcie_get_mcfg();
@@ -290,6 +303,7 @@ void pci_init()
 		pci_enumerate_devices();
 	}
 }
+
 struct pci_device *get_pcidev_from_vendor_device(uint16_t deviceid, uint16_t vendorid)
 {
 	if(pcie_is_enabled())
@@ -301,6 +315,7 @@ struct pci_device *get_pcidev_from_vendor_device(uint16_t deviceid, uint16_t ven
 	}
 	return NULL;
 }
+
 struct pci_device *get_pcidev_from_classes(uint8_t class, uint8_t subclass, uint8_t progif)
 {
 	if(pcie_is_enabled())
@@ -312,11 +327,13 @@ struct pci_device *get_pcidev_from_classes(uint8_t class, uint8_t subclass, uint
 	}
 	return NULL;
 }
+
 void pci_set_barx(uint8_t slot, uint8_t device, uint8_t function, uint8_t index, uint32_t address, uint8_t is_io, uint8_t is_prefetch)
 {
 	uint32_t bar = address | is_io | (is_prefetch << 2);
 	__pci_write_dword(slot, device, function, PCI_BARx(index), bar);
 }
+
 /* All the PCI drivers' headers */
 #include <drivers/e1000.h>
 #include <drivers/ata.h>
@@ -325,8 +342,7 @@ pci_driver_t pci_drivers[] =
 	{E1000_DEV, INTEL_VEND, CLASS_NETWORK_CONTROLLER, 0, 0, PCI_DRIVER_SPECIFIC, e1000_init},
 	{E1000_I217, INTEL_VEND, CLASS_NETWORK_CONTROLLER, 0, 0, PCI_DRIVER_SPECIFIC, e1000_init},
 	{E1000_82577LM, INTEL_VEND, CLASS_NETWORK_CONTROLLER, 0, 0, PCI_DRIVER_SPECIFIC, e1000_init},
-	{E1000E_DEV, INTEL_VEND, CLASS_NETWORK_CONTROLLER, 0, 0, PCI_DRIVER_SPECIFIC, e1000_init},
-	{0, 0, CLASS_MASS_STORAGE_CONTROLLER, 1, 0, PCI_DRIVER_GENERIC, ata_init},
+	{E1000E_DEV, INTEL_VEND, CLASS_NETWORK_CONTROLLER, 0, 0, PCI_DRIVER_SPECIFIC, e1000_init}
 };
 
 const size_t pci_driver_array_entries = sizeof(pci_drivers) / sizeof(pci_driver_t);
@@ -351,6 +367,7 @@ void pci_initialize_drivers()
 			
 	}
 }
+
 struct pci_device *get_pcidev(uint8_t bus, uint8_t device, uint8_t function)
 {
 	for(struct pci_device *i = linked_list; i;i = i->next)
@@ -360,6 +377,7 @@ struct pci_device *get_pcidev(uint8_t bus, uint8_t device, uint8_t function)
 	}
 	return NULL;
 }
+
 void __pci_write_byte(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint8_t data)
 {
 	uint32_t address;
@@ -378,6 +396,7 @@ void __pci_write_byte(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, u
 	outb(CONFIG_DATA, data);
 	release_spinlock(&pci_lock);
 }
+
 uint8_t __pci_read_byte(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset)
 {
 	uint32_t address;
@@ -398,6 +417,7 @@ uint8_t __pci_read_byte(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset)
 
 	return ret;
 }
+
 void __pci_write_qword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint64_t data)
 {
 	uint32_t address;
@@ -422,6 +442,7 @@ void __pci_write_qword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, 
 	outl(CONFIG_DATA, data & 0xFFFFFFFF00000000);
 	release_spinlock(&pci_lock);
 }
+
 void __pci_write(struct pci_device *dev, uint64_t value, uint16_t off, size_t size)
 {
 	if(size == sizeof(uint8_t))
@@ -433,10 +454,12 @@ void __pci_write(struct pci_device *dev, uint64_t value, uint16_t off, size_t si
 	if(size == sizeof(uint64_t))
 		__pci_write_qword(dev->bus, dev->device, dev->function, off, value);
 }
+
 void pci_write(struct pci_device *dev, uint64_t value, uint16_t off, size_t size)
 {
 	dev->write(dev, value, off, size);
 }
+
 uint64_t __pci_read(struct pci_device *dev, uint16_t off, size_t size)
 {
 	uint64_t val = 0;
@@ -457,19 +480,23 @@ uint64_t __pci_read(struct pci_device *dev, uint16_t off, size_t size)
 	}
 	return val;
 }
+
 uint64_t pci_read(struct pci_device *dev, uint16_t off, size_t size)
 {
 	return dev->read(dev, off, size);
 }
+
 void pci_enable_busmastering(struct pci_device *dev)
 {
 	uint32_t command_register = (uint32_t) pci_read(dev, PCI_COMMAND, sizeof(uint32_t));
 	pci_write(dev, command_register | PCI_COMMAND_BUS_MASTER, PCI_COMMAND, sizeof(uint32_t));
 }
+
 uint16_t pci_get_status(struct pci_device *dev)
 {
 	return (uint16_t) pci_read(dev, PCI_REG_STATUS, sizeof(uint16_t));
 }
+
 off_t pci_find_capability(struct pci_device *dev, uint8_t cap)
 {
 	uint16_t status = pci_get_status(dev);
@@ -486,4 +513,16 @@ off_t pci_find_capability(struct pci_device *dev, uint8_t cap)
 		offset = ((uint8_t) (_cap & 0xFF00)) & ~3;
 	}
 	return -1;
+}
+
+bool pci_find_device(bool (*callback)(struct pci_device *), bool stop_on_match)
+{
+	bool found = false;
+	for(struct pci_device *i = linked_list; i;i = i->next)
+	{
+		if(callback(i) == true && stop_on_match)
+			return true;
+		found = true;
+	}
+	return found;
 }

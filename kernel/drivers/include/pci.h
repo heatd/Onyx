@@ -151,6 +151,7 @@ uint64_t pci_read(struct pci_device *dev, uint16_t off, size_t size);
 void pci_enable_busmastering(struct pci_device *dev);
 off_t pci_find_capability(struct pci_device *dev, uint8_t cap);
 int pci_enable_msi(struct pci_device *dev, irq_t handler);
+bool pci_find_device(bool (*callback)(struct pci_device *), bool stop_on_match);
 
 #ifdef __cplusplus
 }

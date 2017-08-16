@@ -50,6 +50,9 @@ SECTIONS
 	{
 		*(.rodata*)
 		*(.gnu.linkonce.r*)
+		_driver_init_start = .;
+		*(.driver.init*)
+		_driver_init_end = .;
 	}
 
 	.bss ALIGN(0x1000) : AT(ADDR(.bss) - VIRT_BASE)

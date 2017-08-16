@@ -10,7 +10,6 @@
 #define MODULE_LICENSE_GPL2 	"GPL2"
 #define MODULE_LICENSE_MIT	"MIT"
 #define MODULE_LICENSE_BSD	"BSD"
-#define MODULE_LICENSE_PROPRIETARY "Proprietary"
 
 #define ___PASTE(a,b) a##b
 #define __PASTE(a,b) ___PASTE(a,b)

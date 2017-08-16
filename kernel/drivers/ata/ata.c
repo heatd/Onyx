@@ -25,6 +25,7 @@
 #include <kernel/compiler.h>
 #include <kernel/page.h>
 #include <kernel/mutex.h>
+#include <kernel/driver.h>
 
 #include <drivers/ata.h>
 
@@ -403,12 +404,23 @@ int ata_initialize_drive(int channel, int drive)
 	INFO("ata", "Created %s for drive %u\n", path, num_drives);
 	return 1;
 }
-void ata_init(struct pci_device *dev)
+bool ata_device_filter(struct pci_device *dev)
 {
+	if(dev->pciClass == CLASS_MASS_STORAGE_CONTROLLER && dev->subClass == 1)
+	{
+		idedev = dev;
+		return true;
+	}
+	return false;
+}
+void ata_init(void)
+{
+	pci_find_device(ata_device_filter, true);
+	if(!idedev)
+		return;
 	ata_ids = idm_add("hd", 0, UINTMAX_MAX);
 	if(!ata_ids)
 		return;
-	idedev = dev;
 	/* Allocate PRDT base */
 	prdt_base = dma_map_range(__alloc_pages(4), UINT16_MAX, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
 	if(!prdt_base)
@@ -532,3 +544,5 @@ void ata_write_sectors(unsigned int channel, unsigned int drive, uint32_t buffer
 	}
 	mutex_unlock(&lock);
 }
+
+DRIVER_INIT(ata_init);

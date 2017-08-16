@@ -72,6 +72,7 @@
 #include <kernel/utils.h>
 #include <kernel/sysfs.h>
 #include <kernel/pagecache.h>
+#include <kernel/driver.h>
 
 #include <drivers/ps2.h>
 #include <drivers/ata.h>
@@ -455,8 +456,8 @@ void kernel_multitasking(void *arg)
 	/* Initialize devfs */
 	devfs_init();
 
-	/* Initialize each PCI device driver, according to the bus */
-	pci_initialize_drivers();
+	/* Initialize each device driver */
+	driver_init();
 
 	/* Initialize the module subsystem */
 	initialize_module_subsystem();
