@@ -14,8 +14,10 @@
 #include <kernel/portio.h>
 #include <kernel/video.h>
 #include <kernel/compiler.h>
+#include <kernel/scheduler.h>
 
 #include <drivers/pci.h>
+
 MODULE_AUTHOR("Pedro Falcato");
 MODULE_LICENSE(MODULE_LICENSE_MIT);
 MODULE_INSERT_VERSION();
@@ -27,10 +29,12 @@ void SvgaDevice::write_index(uint16_t index)
 {
 	outl(io_space + SVGA_INDEX_PORT, index);
 }
+
 void SvgaDevice::write_value(uint32_t value)
 {
 	outl(io_space + SVGA_VALUE_PORT, value);
 }
+
 void SvgaDevice::write(uint16_t index, uint32_t value)
 {
 	/* We need mutexes to protect a race condition 
@@ -40,6 +44,7 @@ void SvgaDevice::write(uint16_t index, uint32_t value)
 	write_value(value);
 	mutex_unlock(&mtx);
 }
+
 uint32_t SvgaDevice::read(uint16_t index)
 {
 	mutex_lock(&mtx);
@@ -48,6 +53,7 @@ uint32_t SvgaDevice::read(uint16_t index)
 	mutex_unlock(&mtx);
 	return ret;
 }
+
 int svga_modeset(unsigned int width, unsigned int height, unsigned int bpp, struct video_device *dev)
 {
 	UNUSED(dev);
@@ -71,15 +77,18 @@ int svga_modeset(unsigned int width, unsigned int height, unsigned int bpp, stru
 	device->set_video_mode(&mode);
 	return 0;
 }
+
 void *svga_get_fb(struct video_device *dev)
 {
 	UNUSED(dev);
 	return device->get_framebuffer();
 }
+
 struct video_mode *svga_get_videomode(struct video_device *dev)
 {
 	return device->get_video_mode();
 }
+
 static struct video_ops svga_ops = 
 {
 	svga_get_fb,
@@ -90,6 +99,7 @@ static struct video_ops svga_ops =
 	svga_get_videomode,
 	NULL
 };
+
 static struct video_device svga_device = 
 {
 	.ops = &svga_ops,
@@ -98,6 +108,7 @@ static struct video_device svga_device =
 	.status = VIDEO_STATUS_INSERTED,
 	.refcount = 0
 };
+
 int SvgaDevice::add_bar(pcibar_t *bar, int index)
 {
 	switch(index)
@@ -118,7 +129,10 @@ int SvgaDevice::add_bar(pcibar_t *bar, int index)
 		}
 		case SVGAII_COMMAND_BUFFER_BAR:
 		{
-			command_buffer = dma_map_range((void*) (uintptr_t) bar->address, bar->size, VM_WRITE | VM_NOEXEC | VM_GLOBAL);
+			command_buffer = (uint32_t*) dma_map_range((void*) 
+						     (uintptr_t) bar->address,
+						     bar->size,
+						     VM_WRITE | VM_NOEXEC | VM_GLOBAL);
 			if(!command_buffer)
 				return -1;
 			command_buffer_size = bar->size;
@@ -127,9 +141,51 @@ int SvgaDevice::add_bar(pcibar_t *bar, int index)
 	}
 	return 0;
 }
+
 void SvgaDevice::enable(void)
 {
+	num_regs = read(SVGA_REG_NUM_REGS);
 	write(SVGA_REG_ENABLE, 1);
+}
+
+void SvgaDevice::setup_fifo(void)
+{
+	/* TODO: Setup the command fifo in a better way, this is too minimal */
+	command_buffer[SVGA_FIFO_MIN] = num_regs * 4;
+	command_buffer[SVGA_FIFO_MAX] = num_regs * 4 + (10 * 1024);
+	command_buffer[SVGA_FIFO_NEXT_CMD] = num_regs * 4;
+	command_buffer[SVGA_FIFO_STOP] = num_regs * 4;
+	
+	/* Now, enable the command FIFO */
+	write(SVGA_REG_CONFIG_DONE, 1);
+}
+
+void SvgaDevice::wait_for_fifo(size_t len)
+{
+	while(1)
+	{
+		if(command_buffer[SVGA_FIFO_STOP] == command_buffer[SVGA_FIFO_NEXT_CMD])
+		{
+			command_buffer[SVGA_FIFO_STOP] = num_regs * 4;
+			command_buffer[SVGA_FIFO_NEXT_CMD] = num_regs * 4;
+			return;
+		}
+		if(command_buffer[SVGA_FIFO_MAX] - command_buffer[SVGA_FIFO_STOP] >= len)
+			return;
+		sched_yield();
+	}
+}
+void SvgaDevice::send_command_fifo(void *command, size_t len)
+{
+	mutex_lock(&fifo_lock);
+
+	/* Firstly, we need to wait for the fifo to have enough space */
+	wait_for_fifo(len);
+
+	/* Now copy the command in and increment the FIFO_STOP */
+	uint32_t *fifo = command_buffer + (command_buffer[SVGA_FIFO_STOP] / sizeof(uint32_t));
+	memcpy(fifo, command, len);
+	command_buffer[SVGA_FIFO_STOP] += len;
 }
 extern "C" int module_init(void)
 {
@@ -191,7 +247,10 @@ extern "C" int module_init(void)
 	/* Note that we need to set the video mode right now, as if we don't, it will fallback to the lowest VGA res */
 	struct video_mode *mode = video_get_videomode(video_get_main_adapter());
 	svga_modeset(mode->width, mode->height, mode->bpp, NULL);
-	
+
+	/* Setup the command FIFO */
+	device->setup_fifo();
+
 	/* Set this video adapter as the main adapter */
 	video_set_main_adapter(&svga_device);
 
@@ -202,6 +261,7 @@ extern "C" int module_init(void)
 	MPRINTF("Successfully initialized the device!\n");
 	return 0;
 }
+
 extern "C" int module_fini(void)
 {
 	return 0;

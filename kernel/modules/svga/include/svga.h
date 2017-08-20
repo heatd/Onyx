@@ -41,6 +41,46 @@
 #define SVGA_REG_FB_OFFSET 	14
 #define SVGA_REG_VRAM_SIZE 	15
 #define SVGA_REG_FB_SIZE 	16
+#define SVGA_REG_CAPABILITIES	17
+#define SVGA_REG_MEM_START	18
+#define SVGA_REG_MEM_END	19
+#define SVGA_REG_CONFIG_DONE	20
+#define SVGA_REG_SYNC		21
+#define SVGA_REG_BUSY		22
+#define SVGA_REG_NUM_REGS	30 
+enum
+{
+	SVGA_FIFO_MIN = 0,
+	SVGA_FIFO_MAX,
+	SVGA_FIFO_NEXT_CMD,
+	SVGA_FIFO_STOP,
+	SVGA_FIFO_CAPABILITIES,
+	SVGA_FIFO_FLAGS,
+	SVGA_FIFO_FENCE,
+};
+
+typedef enum
+{
+	SVGA_CMD_INVALID_CMD           = 0,
+	SVGA_CMD_UPDATE                = 1,
+	SVGA_CMD_RECT_COPY             = 3,
+	SVGA_CMD_DEFINE_CURSOR         = 19,
+	SVGA_CMD_DEFINE_ALPHA_CURSOR   = 22,
+	SVGA_CMD_UPDATE_VERBOSE        = 25,
+	SVGA_CMD_FRONT_ROP_FILL        = 29,
+	SVGA_CMD_FENCE                 = 30,
+	SVGA_CMD_ESCAPE                = 33,
+	SVGA_CMD_DEFINE_SCREEN         = 34,
+	SVGA_CMD_DESTROY_SCREEN        = 35,
+	SVGA_CMD_DEFINE_GMRFB          = 36,
+	SVGA_CMD_BLIT_GMRFB_TO_SCREEN  = 37,
+	SVGA_CMD_BLIT_SCREEN_TO_GMRFB  = 38,
+	SVGA_CMD_ANNOTATION_FILL       = 39,
+	SVGA_CMD_ANNOTATION_COPY       = 40,
+	SVGA_CMD_DEFINE_GMR2           = 41,
+	SVGA_CMD_REMAP_GMR2            = 42,
+	SVGA_CMD_MAX
+} svga_fifo_cmd_id;
 
 class SvgaDevice
 {
@@ -51,9 +91,11 @@ private:
 	/* Virtual address mapping of the framebuffer */
 	void *framebuffer;
 	size_t framebuffer_size;
-	void *command_buffer;
+	uint32_t *command_buffer;
 	size_t command_buffer_size;
+	uint32_t num_regs;
 	mutex_t mtx;
+	mutex_t fifo_lock;
 	struct video_mode mode;
 	struct pci_device *dev;
 public:
@@ -65,6 +107,9 @@ public:
 	SvgaDevice(struct pci_device *dev) : mtx(MUTEX_INITIALIZER), dev(dev)
 	{}
 	void enable();
+	void setup_fifo();
+	void wait_for_fifo(size_t len);
+	void send_command_fifo(void *command, size_t len);
 	int add_bar(pcibar_t *bar, int index);
 	void *get_framebuffer()
 	{

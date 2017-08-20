@@ -40,7 +40,18 @@ USES_FANCY_END
 #include <kernel/avx.h>
 static cpu_t cpu;
 
+static struct processor *cpus = NULL;
+static int booted_cpus = 0;
+extern ACPI_TABLE_MADT *madt;
+int cpu_num = 0;
+static spinlock_t ap_entry_spinlock;
+extern volatile uint32_t *bsp_lapic;
+volatile int initialized_cpus = 0;
+extern volatile uint64_t boot_ticks;
+static bool percpu_initialized = false;
+extern tss_entry_t tss;
 const int bits_per_long = sizeof(unsigned long) * 8;
+
 __attribute__((hot))
 bool x86_has_cap(int cap)
 {
@@ -49,6 +60,7 @@ bool x86_has_cap(int cap)
 	int bit_index = cap % bits_per_long;
 	return cpu.caps[q_index] & (1UL << bit_index);
 }
+
 void __cpu_identify(void)
 {
 	uint32_t eax = 0;
@@ -77,6 +89,7 @@ void __cpu_identify(void)
 	cpu.caps[2] |= ((uint64_t) edx) << 32;
 	cpu.caps[3] = ecx;
 }
+
 char *cpu_get_name()
 {
 	uint32_t eax,ebx,edx,ecx = 0;
@@ -118,6 +131,7 @@ char *cpu_get_name()
 	}
 	return &cpu.manuid[0];
 }
+
 void cpu_get_sign()
 {
 	uint32_t eax = 0,ebx,edx,ecx = 0;
@@ -126,6 +140,7 @@ void cpu_get_sign()
 	cpu.model = (eax >> 4) & 0xF;
 	cpu.family = (eax >> 8) & 0xF;
 }
+
 void cpu_identify()
 {
 	INFO("cpu", "Detected x86_64 CPU\n");
@@ -136,7 +151,9 @@ void cpu_identify()
 	INFO("cpu", "Stepping %i, Model %i, Family %i\n", cpu.stepping, cpu.model, cpu.family);
 	__cpu_identify();
 }
+
 extern void syscall_ENTRY64();
+
 void cpu_init_interrupts()
 {
 	avx_init();
@@ -150,20 +167,12 @@ void cpu_init_interrupts()
 	wrmsr(IA32_MSR_LSTAR, (unsigned long) syscall_ENTRY64 & 0xFFFFFFFF, (unsigned long) syscall_ENTRY64 >> 32);
 	wrmsr(IA32_MSR_SFMASK, 0b11000000000, 0);
 }
-static struct processor *cpus = NULL;
-static int booted_cpus = 0;
-extern ACPI_TABLE_MADT *madt;
-int cpu_num = 0;
-static spinlock_t ap_entry_spinlock;
-extern volatile uint32_t *bsp_lapic;
-volatile int initialized_cpus = 0;
-extern volatile uint64_t boot_ticks;
-static bool percpu_initialized = false;
-extern tss_entry_t tss;
+
 bool is_percpu_initialized(void)
 {
 	return percpu_initialized;
 }
+
 int cpu_init_mp()
 {
 	ACPI_SUBTABLE_HEADER *first = (ACPI_SUBTABLE_HEADER *) (madt+1);
@@ -228,6 +237,7 @@ int cpu_init_mp()
 	ENABLE_INTERRUPTS();
 	return booted_cpus;
 }
+
 void cpu_ap_entry(int cpu_num)
 {
 	acquire_spinlock(&ap_entry_spinlock);
@@ -269,10 +279,12 @@ void cpu_ap_entry(int cpu_num)
 	*/
 	while(1);
 }
+
 int get_nr_cpus(void)
 {
 	return booted_cpus;
 }
+
 static void rep_movsb(void *dst, const void *src, size_t n)
 {
     __asm__ __volatile__ ( "rep movsb\n\t"
@@ -280,11 +292,13 @@ static void rep_movsb(void *dst, const void *src, size_t n)
                          :
                          : "memory" );
 }
+
 void *memcpy_fast(void *dst, void *src, size_t n)
 {
 	rep_movsb(dst, src, n);
 	return dst;
 }
+
 struct processor *get_processor_data(void)
 {
 	if(unlikely(!percpu_initialized))
@@ -293,10 +307,12 @@ struct processor *get_processor_data(void)
 	__asm__ __volatile__("movq %%gs:0x8, %0":"=r"(proc));
 	return proc;
 }
+
 bool is_kernel_ip(uintptr_t ip)
 {
 	return ip >= VM_HIGHER_HALF;
 }
+
 int get_cpu_num(void)
 {
 	struct processor *p = get_processor_data();
@@ -304,15 +320,18 @@ int get_cpu_num(void)
 		return 0;
 	return p->cpu_num;
 }
+
 struct processor *get_processor_data_for_cpu(int cpu)
 {
 	assert(cpu <= booted_cpus);
 	return &cpus[cpu];
 }
+
 void cpu_notify(struct processor *p)
 {
 	send_ipi(p->lapic_id, 0, X86_MESSAGE_VECTOR);
 }
+
 void cpu_send_message(int cpu, unsigned long message, void *arg)
 {
 	struct processor 	*p;
@@ -350,11 +369,13 @@ void cpu_send_message(int cpu, unsigned long message, void *arg)
 	cpu_notify(p);
 	//cpu_wait_for_msg_ack();
 }
+
 void cpu_kill(int cpu_num)
 {
 	printk("Killing cpu %u\n", cpu_num);
 	cpu_send_message(cpu_num, CPU_KILL, NULL);
 }
+
 void cpu_kill_other_cpus(void)
 {
 	int curr_cpu = get_cpu_num();
