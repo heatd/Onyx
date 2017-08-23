@@ -23,6 +23,8 @@
 #include <kernel/dev.h>
 #include <kernel/apic.h>
 
+#include <drivers/pci.h>
+
 static const ACPI_EXCEPTION_INFO    AcpiGbl_ExceptionNames_Env[] =
 {
     EXCEP_TXT ((char*)"AE_OK",                         (char*)"No error"),
@@ -119,96 +121,122 @@ uint32_t acpi_execute_pic(int value)
 
 	return AcpiEvaluateObject(ACPI_ROOT_OBJECT, (char*)"_PIC", &list, NULL);
 }
-static ACPI_PCI_ROUTING_TABLE *routing_table = NULL;
-int acpi_get_irq_routing_tables()
+
+int enumerate_pci_irq_routing(ACPI_PCI_ROUTING_TABLE *table, struct bus *bus, ACPI_HANDLE handle)
 {
-	void* retval;
-	ACPI_STATUS st = AcpiGetDevices(NULL, acpi_walk_irq, NULL, &retval);
-	if(ACPI_FAILURE(st))
-	{
-		ERROR("acpi", "Error while calling AcpiGetDevices: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
-		return 1;
-	} 
-	ACPI_BUFFER buf;
-	buf.Length = ACPI_ALLOCATE_BUFFER;
-	buf.Pointer = NULL;
-	
-	st = AcpiGetIrqRoutingTable(root_bridge, &buf);
-	if(ACPI_FAILURE(st))
-	{
-		printk("st: %u\n", st & ~AE_CODE_MASK);
-		ERROR("acpi", "Error while calling AcpiGetIrqRoutingTable: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
-		return 1;
-	}
-	routing_table = (ACPI_PCI_ROUTING_TABLE*) buf.Pointer;
-	return 0;
-}
-static spinlock_t irq_rout_lock;
-int acpi_get_irq_routing_for_dev(uint8_t bus, uint8_t device, uint8_t function)
-{
-	acquire_spinlock(&irq_rout_lock);
-	ACPI_PCI_ROUTING_TABLE *it = routing_table;
+	ACPI_PCI_ROUTING_TABLE *it = table;
 	for(; it->Length != 0; it = (ACPI_PCI_ROUTING_TABLE*)ACPI_NEXT_RESOURCE(it))
 	{
-		if(device != (it->Address >> 16))
+		uint8_t device = it->Address >> 16;
+		struct pci_device_address addr = {0};
+		addr.device = device;
+		struct pci_device *dev = get_pcidev(&addr);
+		if(!dev)
 			continue;
+		uint32_t pin = it->Pin;
+		uint32_t gsi = -1;
+		bool level = true;
+		bool active_high = false;
+
 		if(it->Source[0] == 0)
 		{
-			release_spinlock(&irq_rout_lock);
-			ioapic_set_pin(false, true, it->SourceIndex);
-			return it->SourceIndex;
+			gsi = it->SourceIndex;
 		}
 		else
 		{
 			ACPI_HANDLE link_obj;
-			ACPI_STATUS st = AcpiGetHandle(root_bridge, it->Source, &link_obj);
+			ACPI_STATUS st = AcpiGetHandle(handle, it->Source, &link_obj);
 
 			if(ACPI_FAILURE(st))
 			{
 				ERROR("acpi", "Error while calling AcpiGetHandle: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
-				release_spinlock(&irq_rout_lock);
 				return -1;
 			}
 			ACPI_BUFFER buf;
 			buf.Length = ACPI_ALLOCATE_BUFFER;
 			buf.Pointer = NULL;
-			
+
 			st = AcpiGetCurrentResources(link_obj, &buf);
 			if(ACPI_FAILURE(st))
 			{
 				ERROR("acpi", "Error while calling AcpiGetCurrentResources: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
-				release_spinlock(&irq_rout_lock);
 				return -1;
 			}
 			
 			for(ACPI_RESOURCE *res = (ACPI_RESOURCE*) buf.Pointer; res->Type != ACPI_RESOURCE_TYPE_END_TAG; res = ACPI_NEXT_RESOURCE(res))
 			{
-				switch(res->Type)
+				if(res->Type == ACPI_RESOURCE_TYPE_IRQ)
 				{
-					case ACPI_RESOURCE_TYPE_IRQ:
-					{
-						release_spinlock(&irq_rout_lock);
-						bool level = res->Data.Irq.Polarity == 0 ? true : false;
-						bool active_high = res->Data.Irq.Triggering == 0 ? true : false;
-						ioapic_set_pin(active_high, level, res->Data.Irq.Interrupts[0]);
-						return res->Data.Irq.Interrupts[0];
-					}
-					case ACPI_RESOURCE_TYPE_EXTENDED_IRQ:
-					{
-						release_spinlock(&irq_rout_lock);
-						bool level = res->Data.ExtendedIrq.Polarity == 0 ? true : false;
-						bool active_high = res->Data.ExtendedIrq.Triggering == 0 ? true : false;
-						ioapic_set_pin(active_high, level, res->Data.ExtendedIrq.Interrupts[0]);
-						return res->Data.ExtendedIrq.Interrupts[0];
-					}
+					level = res->Data.Irq.Polarity == 0 ? true : false;
+					active_high = res->Data.Irq.Triggering == 0 ? true : false;
+					gsi = res->Data.Irq.Interrupts[it->SourceIndex];
+					break;
+				}
+				else if(res->Type == ACPI_RESOURCE_TYPE_EXTENDED_IRQ)
+				{
+					level = res->Data.ExtendedIrq.Polarity == 0 ? true : false;
+					active_high = res->Data.ExtendedIrq.Triggering == 0 ? true : false;
+					gsi = res->Data.ExtendedIrq.Interrupts[it->SourceIndex];
+					break;
 				}
 			}
-			release_spinlock(&irq_rout_lock);
+			free(buf.Pointer);
 		}
+		dev->pin_to_gsi[pin].level = level;
+		dev->pin_to_gsi[pin].active_high = active_high;
+		dev->pin_to_gsi[pin].gsi = gsi;
 	}
-	release_spinlock(&irq_rout_lock);
-	return -1;
+	return 0;
 }
+
+ACPI_STATUS acpi_find_pci_buses(ACPI_HANDLE object, UINT32 nestingLevel, void *context, void **returnvalue)
+{
+	ACPI_DEVICE_INFO *devinfo;
+	ACPI_STATUS st = AcpiGetObjectInfo(object, &devinfo);
+
+	if(ACPI_FAILURE(st))
+	{
+		ERROR("acpi", "Error: AcpiGetObjectInfo failed!\n");
+		return AE_ERROR;
+	}
+
+	if(devinfo->Flags & ACPI_PCI_ROOT_BRIDGE)
+	{
+		ACPI_BUFFER buffer = {0};
+		buffer.Length = ACPI_ALLOCATE_BUFFER;
+		if((st = AcpiGetIrqRoutingTable(object, &buffer)) != AE_OK)
+		{
+			ERROR("acpi", "Error: AcpiGetIrqRoutingTable failed!\n");
+			return st;
+		}
+		ACPI_PCI_ROUTING_TABLE *rout = buffer.Pointer;
+		enumerate_pci_irq_routing(rout, context, object);
+		free(rout);
+	}
+
+	free(devinfo);
+	return AE_OK;
+}
+
+int acpi_get_irq_routing_tables(struct bus *bus)
+{
+	void* retval;
+	ACPI_STATUS st = AcpiGetDevices(NULL, acpi_find_pci_buses, bus, &retval);
+	if(ACPI_FAILURE(st))
+	{
+		ERROR("acpi", "Error while calling AcpiGetDevices: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
+		return 1;
+	}
+	return 0;
+}
+
+int acpi_get_irq_routing_info(struct bus *bus)
+{
+	if(acpi_get_irq_routing_tables(bus))
+		return -1;
+	return 0;
+}
+
 static uintptr_t rsdp = 0;
 uintptr_t get_rdsp_from_grub(void);
 uint8_t AcpiTbChecksum(uint8_t *buffer, uint32_t len);

@@ -76,18 +76,25 @@ ssize_t udp_send(const void *buf, size_t len, int flags, vfsnode_t *vnode)
 		return -errno;
 	return len;
 }
+
+/* udp_get_queued_packet - Gets either a packet that was queued on recieve or waits for one */
+void *udp_get_queued_packet(udp_socket_t *socket)
+{
+	return NULL;
+}
+
 ssize_t udp_recvfrom(void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *slen, vfsnode_t *vnode)
 {
-	//udp_socket_t *socket = (udp_socket_t*) vnode;
+	udp_socket_t *socket = (udp_socket_t*) vnode;
+	struct sockaddr_in *addr = (struct sockaddr_in *) &socket->src_addr;
+	if(!addr->sin_addr.s_addr)
+		return -ENOTCONN;
 	bool storing_src = src_addr ? true : false;
-	if(storing_src)
-	{
-		if(vmm_check_pointer(src_addr, sizeof(struct sockaddr)) < 0)
-			return -EFAULT;
-		if(vmm_check_pointer(slen, sizeof(socklen_t)) < 0)
-			return -EFAULT;
-	}
-	while(1);
+	(void) storing_src;
+	void *kbuf = udp_get_queued_packet(socket);
+	if(!kbuf)
+		return -ENOMEM;
+	return 0;
 }
 size_t udp_write(size_t offset, size_t sizeofwrite, void* buffer, vfsnode_t* this)
 {

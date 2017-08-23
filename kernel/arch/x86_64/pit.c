@@ -20,10 +20,8 @@ void pit_init(uint32_t frequency)
 {
 	int divisor = 1193180 / frequency;
 
-	irq_t handler = &timer_handler;
-
 	// Install the IRQ handler
-	irq_install_handler(2, handler);
+	irq_install_handler(2, timer_handler);
 
 	outb(0x43, 0x34);
 	io_wait();

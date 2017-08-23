@@ -248,8 +248,10 @@ int pcie_init(void)
 	bus_register(&pcie_bus);
 	/* Finally, enumerate devices */
 	pcie_enumerate_devices();
+	assert(acpi_get_irq_routing_info(&pcie_bus) == 0);
 	return 0;
 }
+
 struct pci_device *get_pciedev_from_classes(uint8_t pciclass, uint8_t subclass, uint8_t progif)
 {
 	struct device *d = pcie_bus.devs;
@@ -262,6 +264,7 @@ struct pci_device *get_pciedev_from_classes(uint8_t pciclass, uint8_t subclass, 
 	}
 	return NULL;
 }
+
 struct pci_device *get_pciedev_from_vendor_device(uint16_t deviceid, uint16_t vendorid)
 {
 	struct device *d = pcie_bus.devs;
@@ -269,6 +272,20 @@ struct pci_device *get_pciedev_from_vendor_device(uint16_t deviceid, uint16_t ve
 	{
 		struct pci_device *pci = (struct pci_device *) d;
 		if(pci->deviceID == deviceid && pci->vendorID == vendorid)
+			return pci;
+		d = d->next;
+	}
+	return NULL;
+}
+
+struct pci_device *get_pciedev(struct pci_device_address *addr)
+{
+	struct device *d = pcie_bus.devs;
+	while(d)
+	{
+		struct pci_device *pci = (struct pci_device *) d;
+		if(pci->segment == addr->segment && pci->bus == addr->bus && pci->device == 
+		   addr->device && pci->function == addr->function)
 			return pci;
 		d = d->next;
 	}

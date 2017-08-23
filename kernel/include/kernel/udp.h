@@ -36,6 +36,13 @@ static inline uint16_t udpsum(udp_header_t *hdr)
 	}
 	return ~ret;
 }
+
+struct udp_packet
+{
+	void *payload;
+	struct udp_packet *next;
+};
+
 typedef struct udp_socket
 {
 	socket_t socket;

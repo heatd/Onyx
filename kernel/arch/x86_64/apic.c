@@ -92,8 +92,9 @@ void write_redirection_entry(uint32_t pin, uint64_t value)
 static int irqs;
 void ioapic_set_pin(bool active_high, bool level, uint32_t pin)
 {
-	uint64_t entry = read_redirection_entry(pin);
+	uint64_t entry = 0;
 	entry |= irqs + pin;
+
 	if(!active_high)
 	{
 		/* Active low */
@@ -206,8 +207,6 @@ void ioapic_init()
 {
 	/* Execute _PIC */
 	acpi_execute_pic(ACPI_PIC_IOAPIC);
-	if(acpi_get_irq_routing_tables())
-		panic("Failed to get IRQ routing tables!");
 	/* Set each APIC pin's polarity, flags, and vectors to their defaults */
 	set_pin_handlers();
 }
@@ -244,10 +243,11 @@ void apic_timer_init()
 	/* Set the timer divisor to 16 */
 	lapic_write(bsp_lapic, LAPIC_TIMER_DIV, 3);
 	
-	__asm__ __volatile__("sti");
 	/* Initialize the PIT to 100 hz */
 	pit_init(100);
 
+	__asm__ __volatile__("sti");
+	
 	/* Make sure we're measuring ~1s, so let 1 tick pass */
 	uint64_t t = pit_get_tick_count();
 	while(t == pit_get_tick_count());
@@ -270,6 +270,8 @@ void apic_timer_init()
 	apic_rate = ticks_in_10ms / 10;
 
 	us_apic_rate = apic_rate / 1000;
+
+	DISABLE_INTERRUPTS();
 	lapic_write(bsp_lapic, LAPIC_LVT_TIMER, 34 | LAPIC_LVT_TIMER_MODE_PERIODIC);
 	lapic_write(bsp_lapic, LAPIC_TIMER_INITCNT, ticks_in_10ms / 10);
 
@@ -277,6 +279,7 @@ void apic_timer_init()
 	pit_deinit();
 	/* Install an IRQ handler for IRQ2 */
 	irq_install_handler(2, apic_timer_irq);
+	ENABLE_INTERRUPTS();
 }
 void apic_timer_smp_init(volatile uint32_t *lapic)
 {

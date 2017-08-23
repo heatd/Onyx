@@ -101,6 +101,21 @@
 #define PCI_POWER_STATE_D2	(1 << 2)
 #define PCI_POWER_STATE_D3	(1 << 3)
 
+struct pci_irq
+{
+	bool level;
+	bool active_high;
+	uint32_t gsi;
+};
+
+struct pci_device_address
+{
+	uint16_t segment;
+	uint8_t bus;
+	uint8_t device;
+	uint8_t function;
+};
+
 struct pci_device
 {
 	struct device dev;
@@ -116,7 +131,9 @@ struct pci_device
 	uint64_t (*read)(struct pci_device *dev, uint16_t offset, size_t size);
 	void (*write)(struct pci_device *dev, uint64_t val, uint16_t offset, size_t size);
 	struct pci_device* next __align_cache;
+	struct pci_irq pin_to_gsi[4];
 };
+
 typedef struct
 {
 	uint32_t address;
@@ -140,9 +157,9 @@ const char* pci_identify_common_vendors(uint16_t vendorID);
 const char* pci_identify_device_type(uint16_t headerType);
 const char* pci_identify_device_function(uint8_t pciClass, uint8_t subClass, uint8_t progIF);
 pcibar_t* pci_get_bar(struct pci_device *dev, uint8_t barindex);
-uint16_t pci_get_intn(uint8_t slot, uint8_t device, uint8_t function);
+uint16_t pci_get_intn(struct pci_device *dev);
 struct pci_device *get_pcidev_from_vendor_device(uint16_t deviceid, uint16_t vendorid);
-struct pci_device *get_pcidev(uint8_t bus, uint8_t device, uint8_t function);
+struct pci_device *get_pcidev(struct pci_device_address *addr);
 struct pci_device *get_pcidev_from_classes(uint8_t pciclass, uint8_t subclass, uint8_t progif);
 void pci_set_barx(uint8_t slot, uint8_t device, uint8_t function, uint8_t index, uint32_t address, uint8_t is_io, uint8_t is_prefetch);
 void pci_initialize_drivers();

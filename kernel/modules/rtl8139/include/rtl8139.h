@@ -81,6 +81,7 @@
 #define TSD_OWN			(1 << 13)
 #define TSD_TUN			(1 << 14)
 #define TSD_TOK			(1 << 15)
+
 struct tx_buffer
 {
 	void *buffer;

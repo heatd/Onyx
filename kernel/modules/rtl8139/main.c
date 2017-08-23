@@ -121,9 +121,10 @@ static volatile bool recieved_irq = false;
 uintptr_t rtl_irq_handler(registers_t *regs)
 {
 	uint16_t status = rtl_readw(REG_ISR);
+	printk("status: %x\n", status);
 	if(status & ISR_ROK)
 	{
-		//printk("Recieved a packet\n");
+		printk("Recieved a packet\n");
 	}
 	else
 		recieved_irq = true;
@@ -186,10 +187,10 @@ int rtl_init(void)
 int rtl_wait_for_irq(int timeout, int tx)
 {
 	uint64_t curr_stamp = get_tick_count();
-	while(!recieved_irq || !(rtl_readl(REG_TSD0 + tx * 4) & TSD_TOK))
+	while(!recieved_irq)
 	{
 		if(curr_stamp + timeout <= get_tick_count())
-			return errno = ETIMEDOUT, -1;
+			return -ETIMEDOUT;
 		/* TODO: Maybe we shouldn't sleep, or should we? */
 		sched_sleep(5);
 	}
@@ -252,7 +253,7 @@ int module_init()
 	/* Initialize the actual hardware */
 	if(rtl_init() < 0)
 		return -1;
-	int irq = pci_get_intn(device->bus, device->device, device->function);
+	int irq = pci_get_intn(device);
 	irq_install_handler(irq, rtl_irq_handler);
 
 	struct netif *n = malloc(sizeof(struct netif));

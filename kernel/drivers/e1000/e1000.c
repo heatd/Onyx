@@ -210,7 +210,7 @@ int e1000_init_descs()
 }
 void e1000_enable_interrupts()
 {
-	uint16_t int_no = pci_get_intn(nicdev->bus, nicdev->device, nicdev->function);
+	uint16_t int_no = pci_get_intn(nicdev);
 	
 	// Get the IRQ number and install its handler
 	INFO("e1000", "using IRQ number %u\n", int_no);

@@ -112,6 +112,7 @@ extern int sys_bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
 extern clock_t sys_times(struct tms *buf);
 extern int sys_getrusage(int who, struct rusage *usage);
 extern long sys_ptrace(long request, pid_t pid, void *addr, void *data, void *addr2);
+extern ssize_t sys_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen);
 void *syscall_list[] =
 {
 	[0] = (void*) sys_write,
@@ -188,7 +189,7 @@ void *syscall_list[] =
 	[71] = (void*) sys_send,
 	[72] = (void*) sys_bind,
 	[73] = (void*) sys_connect,
-	[74] = (void*) sys_nosys, /* sys_recvfrom */
+	[74] = (void*) sys_recvfrom,
 	[75] = (void*) sys_times,
 	[76] = (void*) sys_getrusage,
 	[77] = (void*) sys_ptrace,

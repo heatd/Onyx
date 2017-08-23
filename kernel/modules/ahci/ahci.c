@@ -607,7 +607,7 @@ int module_init()
 		/* If we couldn't enable MSI, use normal I/O APIC pins */
 
 		/* Get the interrupt number */
-		irq = pci_get_intn(ahci_dev->bus, ahci_dev->device, ahci_dev->function);
+		irq = pci_get_intn(ahci_dev);
 
 		/* and install a handler */
 		irq_install_handler(irq, ahci_irq);

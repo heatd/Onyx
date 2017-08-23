@@ -44,7 +44,7 @@ int acpi_get_irq_routing_for_dev(uint8_t bus, uint8_t device, uint8_t function);
 struct acpi_processor *acpi_enumerate_cpus(void);
 struct acpi_device *acpi_get_device(const char *id);
 unsigned int acpi_suspend(void *context);
-
+int acpi_get_irq_routing_info(struct bus *bus);
 #ifdef __cplusplus
 }
 #endif

@@ -36,7 +36,8 @@ irq_list_t *irq_routines[NR_IRQ]  =
 {
 	NULL
 };
-
+unsigned long irq_refs[NR_IRQ] = {0};
+unsigned long rogue_irqs = 0;
 _Bool isirq()
 {
 	return is_in_irq;
@@ -98,10 +99,14 @@ uintptr_t irq_handler(uint64_t irqn, registers_t *regs)
 	{
 		return (uintptr_t) regs;
 	}
+	irq_refs[irqn]++;
 	uintptr_t ret = (uintptr_t) regs;
 	irq_list_t *handlers = irq_routines[irqn];
 	if(!handlers)
-		printk("irq: Unhandled interrupt at IRQ %u\n", irqn);
+	{
+		printf("irq: Unhandled interrupt at IRQ %u\n", irqn);
+		rogue_irqs++;
+	}
 	is_in_irq = true;
 	for(irq_list_t *i = handlers; i != NULL;i = i->next)
 	{

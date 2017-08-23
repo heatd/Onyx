@@ -260,37 +260,17 @@ ACPI_STATUS AcpiOsWritePciConfiguration (ACPI_PCI_ID *PciId, UINT32 Register, UI
 		__pci_write_qword(PciId->Bus, PciId->Device, PciId->Function, Register, Value);
 	return AE_OK;
 }
-ACPI_STATUS AcpiOsReadPciConfiguration (ACPI_PCI_ID *PciId, UINT32 Register, UINT64 *Value, UINT32 Width)
+ACPI_STATUS AcpiOsReadPciConfiguration(ACPI_PCI_ID *PciId, UINT32 Register, UINT64 *Value, UINT32 Width)
 {
-	uint64_t mask = 0xFF;
-	switch(Width)
-	{
-		case 16:
-			mask = 0xFFFF;
-			break;
-		case 32:
-			mask = 0xFFFFFFFF;
-			break;
-		case 64:
-			mask = 0xFFFFFFFFFFFFFFFF;
-			break;
-	}
-	UINT64 val = (UINT64) __pci_config_read_dword(PciId->Bus, PciId->Device, PciId->Function, Register) & mask;
-	switch(Width)
-	{
-		case 8:
-			*((UINT8*)Value) = val;
-			break;
-		case 16:
-			*((UINT16*)Value) = val;
-			break;
-		case 32:
-			*((UINT32*)Value) = val;
-			break;
-		case 64:
-			*((UINT64*)Value) = val;
-			break;
-	}
+	struct pci_device_address addr;
+	addr.segment = PciId->Segment;
+	addr.bus = (uint8_t) PciId->Bus;
+	addr.device = (uint8_t) PciId->Device;
+	addr.function = (uint8_t) PciId->Function;
+	struct pci_device *dev = get_pcidev(&addr);
+	if(!dev)
+		return AE_NOT_FOUND;
+	*Value = pci_read(dev, (uint16_t) Register, Width / 8);
 	return AE_OK;
 }
 ACPI_STATUS

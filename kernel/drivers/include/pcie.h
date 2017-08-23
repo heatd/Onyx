@@ -5,6 +5,7 @@
 */
 #ifndef _PCIE_H
 #define _PCIE_H
+
 #include <stdbool.h>
 
 struct pcie_allocation
@@ -20,9 +21,13 @@ struct pcie_allocation
 	struct pcie_allocation *next;
 };
 
+struct pci_device_address;
+
 int pcie_get_mcfg(void);
 bool pcie_is_enabled(void);
 int pcie_init(void);
 struct pci_device *get_pciedev_from_classes(uint8_t pciclass, uint8_t subclass, uint8_t progif);
 struct pci_device *get_pciedev_from_vendor_device(uint16_t deviceid, uint16_t vendorid);
+struct pci_device *get_pciedev(struct pci_device_address *addr);
+
 #endif

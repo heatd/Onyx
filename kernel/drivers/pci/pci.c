@@ -76,21 +76,12 @@ void __pci_write_dword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, 
 
 void __pci_write_word(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint16_t data)
 {
-	uint32_t address;
-	uint32_t lbus  = (uint32_t)bus;
-	uint32_t lslot = (uint32_t)slot;
-	uint32_t lfunc = (uint32_t)func;
-
-	/* create configuration address as per Figure 1 */
-	address = (uint32_t)((lbus << 16) | (lslot << 11) |
-		  (lfunc << 8) | (offset & 0xfc) | ((uint32_t)0x80000000));
-	
-	acquire_spinlock(&pci_lock);
-	/* write out the address */
-	outl (CONFIG_ADDRESS, address);
-	/* read in the data */
-	outw(CONFIG_DATA, data);
-	release_spinlock(&pci_lock);
+	uint8_t aligned_offset = offset & -4;
+	uint8_t bshift = offset - aligned_offset;
+	uint32_t byte_mask = 0xffff << (bshift * 8);
+	uint32_t dword = __pci_config_read_dword(bus, slot, func, aligned_offset);
+	dword = (dword & ~byte_mask) | (data << (bshift * 8));
+	__pci_write_dword(bus, slot, func, aligned_offset, dword);
 }
 
 int pci_set_power_state(struct pci_device *dev, int power_state)
@@ -190,7 +181,7 @@ void pci_enumerate_device(uint16_t bus, uint8_t device, uint8_t function, struct
 	if(vendor == 0xFFFF) /* Invalid, just skip this device */
 		return;
 
-	uint16_t header = (uint16_t)(__pci_config_read_word(bus, device, function, 0xE));
+	uint16_t header = (uint16_t) __pci_config_read_word(bus, device, function, 0xE);
 
 	uint32_t word = __pci_config_read_dword(bus, device, function, 0x08);
 	uint8_t progIF = (word >> 8) & 0xFF;
@@ -207,7 +198,7 @@ void pci_enumerate_device(uint16_t bus, uint8_t device, uint8_t function, struct
 	dev->function = function;
 	dev->device = device;
 	dev->vendorID = vendor;
-	dev->deviceID = (__pci_config_read_dword(bus, device, function, 0) >> 16);
+	dev->deviceID = __pci_config_read_dword(bus, device, function, 0) >> 16;
 	dev->pciClass = pciClass;
 	dev->subClass = subClass;
 	dev->progIF = progIF;
@@ -283,9 +274,12 @@ pcibar_t* pci_get_bar(struct pci_device *dev, uint8_t barindex)
 	return pcibar;
 }
 
-uint16_t pci_get_intn(uint8_t slot, uint8_t device, uint8_t function)
+uint16_t pci_get_intn(struct pci_device *dev)
 {
-	return acpi_get_irq_routing_for_dev(slot, device, function);
+	uint8_t pin = pci_read(dev, 0x3C, sizeof(uint16_t)) >> 8;
+	uint16_t intn = dev->pin_to_gsi[pin].gsi;
+	ioapic_set_pin(dev->pin_to_gsi[pin].active_high, dev->pin_to_gsi[pin].level, intn);
+	return intn;
 }
 
 void pci_init()
@@ -301,6 +295,7 @@ void pci_init()
 		bus_register(&pci_bus);
 		/* Check every pci device and add it onto the bus */
 		pci_enumerate_devices();
+		assert(acpi_get_irq_routing_info(&pci_bus) == 0);
 	}
 }
 
@@ -308,7 +303,7 @@ struct pci_device *get_pcidev_from_vendor_device(uint16_t deviceid, uint16_t ven
 {
 	if(pcie_is_enabled())
 		return get_pciedev_from_vendor_device(deviceid, vendorid);
-	for(struct pci_device *i = linked_list; i;i = i->next)
+	for(struct pci_device *i = linked_list; i; i = i->next)
 	{
 		if(i->deviceID == deviceid && i->vendorID == vendorid)
 			return i;
@@ -368,54 +363,38 @@ void pci_initialize_drivers()
 	}
 }
 
-struct pci_device *get_pcidev(uint8_t bus, uint8_t device, uint8_t function)
+struct pci_device *get_pcidev(struct pci_device_address *addr)
 {
-	for(struct pci_device *i = linked_list; i;i = i->next)
+	if(pcie_is_enabled())
+		return get_pciedev(addr);
+	struct pci_device *dev = (struct pci_device *) pci_bus.devs;
+	while(dev)
 	{
-		if(i->bus == bus && i->device == device && i->function == function)
-			return i;
+		if(dev->bus == addr->bus && dev->device == addr->device 
+                   && dev->function == addr->function)
+			return dev;
+		dev = (struct pci_device *) dev->dev.next;
 	}
 	return NULL;
 }
 
 void __pci_write_byte(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint8_t data)
 {
-	uint32_t address;
-	uint32_t lbus  = (uint32_t)bus;
-	uint32_t lslot = (uint32_t)slot;
-	uint32_t lfunc = (uint32_t)func;
-
-	/* create configuration address as per Figure 1 */
-	address = (uint32_t)((lbus << 16) | (lslot << 11) |
-		  (lfunc << 8) | (offset & 0xfc) | ((uint32_t)0x80000000));
-	
-	acquire_spinlock(&pci_lock);
-	/* write out the address */
-	outl(CONFIG_ADDRESS, address);
-	/* read in the data */
-	outb(CONFIG_DATA, data);
-	release_spinlock(&pci_lock);
+	uint8_t aligned_offset = offset & -4;
+	uint8_t byte_shift = offset - aligned_offset;
+	uint32_t byte_mask = 0xff << (byte_shift * 8);
+	uint32_t dword = __pci_config_read_dword(bus, slot, func, aligned_offset);
+	dword = (dword & ~byte_mask) | (data << (byte_shift * 8));
+	__pci_write_dword(bus, slot, func, aligned_offset, dword);
 }
 
 uint8_t __pci_read_byte(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset)
 {
-	uint32_t address;
-	uint32_t lbus  = (uint32_t)bus;
-	uint32_t lslot = (uint32_t)slot;
-	uint32_t lfunc = (uint32_t)func;
-
-	/* create configuration address as per Figure 1 */
-	address = (uint32_t)((lbus << 16) | (lslot << 11) |
-		  (lfunc << 8) | (offset & 0xfc) | ((uint32_t)0x80000000));
+	uint8_t aligned_offset = offset & -4;
+	uint8_t byte_shift = offset - aligned_offset;
+	uint32_t dword = __pci_config_read_dword(bus, slot, func, aligned_offset);
 	
-	acquire_spinlock(&pci_lock);
-	/* write out the address */
-	outl(CONFIG_ADDRESS, address);
-	/* read in the data */
-	uint8_t ret = inb(CONFIG_DATA);
-	release_spinlock(&pci_lock);
-
-	return ret;
+	return ((dword >> (byte_shift * 8)) & 0xff);
 }
 
 void __pci_write_qword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint64_t data)
