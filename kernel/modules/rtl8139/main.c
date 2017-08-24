@@ -20,6 +20,8 @@
 #include <kernel/ethernet.h>
 #include <kernel/timer.h>
 #include <kernel/netif.h>
+#include <kernel/dpc.h>
+#include <kernel/network.h>
 
 #include <drivers/mmio.h>
 #include <drivers/pci.h>
@@ -28,12 +30,17 @@ MODULE_AUTHOR("Pedro Falcato");
 MODULE_LICENSE(MODULE_LICENSE_MIT);
 MODULE_INSERT_VERSION();
 
+void *rx_buffer = NULL;
 struct tx_buffer tx_buffers[RTL_NR_TX] = {0};
 static spinlock_t tx_lock = {0};
 static int tx = 0;
 static struct pci_device *device = NULL;
 static uint16_t io_base = 0;
 static volatile uint8_t *memory_base = NULL;
+static size_t rx_buf_seek = 0;
+static const size_t rx_buf_size = 4096 * 2;
+static struct netif *nic_netif = NULL;
+
 int get_next_tx(void)
 {
 	acquire_spinlock(&tx_lock);
@@ -117,14 +124,58 @@ uint16_t rtl_clear_interrupt(void)
 	rtl_writew(REG_ISR, status);
 	return status;
 }
+
+struct rtl_rx_header
+{
+	uint16_t status;
+	uint16_t len;
+};
+
+static size_t dropped_packets = 0;
+
+void rtl_dpc(void *ctx)
+{
+	while((rtl_readw(REG_CMD) & 1) == 0)
+	{
+		struct rtl_rx_header *header = rx_buffer + rx_buf_seek;
+		uint8_t *packet = (uint8_t*)(header + 1);
+
+		/* Copy the packet */
+		uint8_t *new_packet = malloc(header->len - 4);
+		if(!new_packet)
+		{
+			printf("rtl8139: OOM while copying packet, dropping it\n");
+			printf("Header len %u\n", header->len);
+			dropped_packets++;
+			break;
+		}
+
+		memcpy(packet, new_packet, header->len - 4);
+
+		/* Send it down the network stack */
+		network_handle_packet(new_packet, header->len - 4, nic_netif);
+
+		free(new_packet);
+		if(rx_buf_seek + header->len <= rx_buf_size)
+			rx_buf_seek = (rx_buf_seek + header->len + 4 + 3) & ~3;
+		else rx_buf_seek = 0;
+		rtl_writew(REG_CAPR, rx_buf_seek);
+	}
+	printf("Done my work!\n");
+
+}
 static volatile bool recieved_irq = false;
 uintptr_t rtl_irq_handler(registers_t *regs)
 {
 	uint16_t status = rtl_readw(REG_ISR);
-	printk("status: %x\n", status);
+
 	if(status & ISR_ROK)
 	{
-		printk("Recieved a packet\n");
+		struct dpc_work work;
+		work.funcptr = rtl_dpc;
+		work.context = NULL;
+		work.next = NULL;
+			dpc_schedule_work(&work, DPC_PRIORITY_HIGH);
 	}
 	else
 		recieved_irq = true;
@@ -174,7 +225,7 @@ int rtl_init(void)
 		return -1;
 	}
 	rtl_writel(REG_RBSTART, (uint32_t) (uintptr_t) ph_rx);
-	rtl_writel(REG_RCR, RCR_AAP | RCR_APM | RCR_AM | RCR_AB); /* Accept every valid packet */
+	rtl_writel(REG_RCR, RCR_WRAP | RCR_AAP | RCR_APM | RCR_AM | RCR_AB); /* Accept every valid packet */
 	/* Enable Transmitter OK, Reciever OK and Timeout interrupts */
 	rtl_writew(REG_IMR, IMR_TOK | IMR_ROK | IMR_TIMEOUT);
 	/* Enable RX and TX */
@@ -182,6 +233,7 @@ int rtl_init(void)
 	/* Initialize the TX buffers */
 	rtl_init_tx();
 
+	rx_buffer = (void*)((uintptr_t) ph_rx + PHYS_BASE);
 	return 0;
 }
 int rtl_wait_for_irq(int timeout, int tx)
@@ -265,6 +317,8 @@ int module_init()
 	n->sendpacket = rtl_send_packet;
 	rtl_fill_mac(n);
 	netif_register_if(n);
+
+	nic_netif = n;
 	return 0;
 }
 int module_fini(void)

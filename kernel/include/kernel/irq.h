@@ -17,14 +17,9 @@ typedef struct irq
 {
 	irq_t handler;
 	struct irq *next;
-}irq_list_t;
 
-struct irq_work
-{
-	void (*callback)(void *, size_t);
-	size_t payload_size;
-	char payload[0];
-};
+} irq_list_t;
+
 #define IRQ_WORK_QUEUE_SIZE (8192)
 extern volatile bool is_in_irq;
 #ifdef __cplusplus

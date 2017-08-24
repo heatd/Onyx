@@ -40,9 +40,12 @@ typedef struct thread
 #endif
 } thread_t;
 
+#define THREAD_KERNEL		(1 << 0)
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 int sched_init(void);
 thread_t *sched_create_thread(thread_callback_t callback, uint32_t flags, void* args);
 thread_t* sched_create_main_thread(thread_callback_t callback, uint32_t flags,int argc, char **argv, char **envp);
@@ -63,6 +66,7 @@ void thread_wake_up_ftx(thread_t *thread);
 void thread_reset_futex_state(thread_t *thread);
 void sched_start_thread(thread_t *thread);
 void sched_wake_up_available_threads(void);
+
 #ifdef __cplusplus
 }
 #endif

@@ -15,6 +15,7 @@
 
 static slab_cache_t *first_slab;
 static slab_cache_t *last_slab;
+
 int slab_setup_bufctls(struct slab *slab, slab_cache_t *cache)
 {
 	bufctl_t *bufctl = NULL;
@@ -53,6 +54,7 @@ int slab_setup_bufctls(struct slab *slab, slab_cache_t *cache)
 	}
 	return 0;
 }
+
 struct slab *slab_create_slab(size_t size_obj, slab_cache_t *cache)
 {
 	size_t slab_size;
@@ -64,12 +66,14 @@ struct slab *slab_create_slab(size_t size_obj, slab_cache_t *cache)
 	{
 		slab_size = 30 * size_obj;
 	}
+
 	struct slab *slab = malloc(sizeof(struct slab));
 	if(!slab)
 	{
 		return errno = ENOMEM, NULL;
 	}
 	memset(slab, 0, sizeof(struct slab));
+
 	void *buffer = vmalloc(vmm_align_size_to_pages(slab_size), VM_TYPE_REGULAR, VM_NOEXEC | VM_GLOBAL | VM_WRITE);
 	if(!buffer)
 	{
@@ -87,6 +91,7 @@ struct slab *slab_create_slab(size_t size_obj, slab_cache_t *cache)
 	}
 	return slab;
 }
+
 slab_cache_t *slab_create(const char *name, size_t size_obj, size_t alignment, int flags, void (*ctor)(void*), void (*dtor)(void*))
 {
 	slab_cache_t *cache = malloc(sizeof(slab_cache_t));
@@ -95,13 +100,14 @@ slab_cache_t *slab_create(const char *name, size_t size_obj, size_t alignment, i
 	memset(cache, 0, sizeof(slab_cache_t));
 	/* TODO: Detect the correct cache alignment */
 	size_t obj_alignment = alignment == 0 ? 16 : alignment;
-	size_obj = ((size_obj + obj_alignment) & ~obj_alignment);
+	size_obj = ((size_obj + obj_alignment) & -obj_alignment);
 	
 	cache->name = name;
 	cache->size = size_obj;
 	cache->ctor = ctor;
 	cache->dtor = dtor;
 	cache->alignment = obj_alignment;
+	cache->flags = flags;
 	cache->slab_list = slab_create_slab(size_obj, cache);
 	if(!cache->slab_list)
 	{
@@ -120,6 +126,7 @@ slab_cache_t *slab_create(const char *name, size_t size_obj, size_t alignment, i
 	}
 	return cache;
 }
+
 void *slab_allocate_from_slab(struct slab *slab)
 {
 	bufctl_t *bufctl = slab->bufctls;
@@ -135,6 +142,7 @@ void *slab_allocate_from_slab(struct slab *slab)
 	}
 	return NULL;
 }
+
 void *slab_allocate(slab_cache_t *cache)
 {
 	acquire_spinlock(&cache->lock);
@@ -164,19 +172,21 @@ void *slab_allocate(slab_cache_t *cache)
 	release_spinlock(&cache->lock);
 	return NULL;
 }
-void slab_free_from_slab(struct slab *slab, void *addr)
+
+void slab_free_from_slab(struct slab *slab, void *addr, bool is_pool)
 {
 	bufctl_t *bufctl = slab->bufctls;
 	while(bufctl)
 	{
 		if(bufctl->buf == addr)
 		{
-			bufctl->inuse = BUFCTL_UNUSED;
+			bufctl->inuse = is_pool ? BUFCTL_FREE : BUFCTL_UNUSED;
 			return;
 		}
 		bufctl = bufctl->next;
 	}
 }
+
 void slab_free(slab_cache_t *cache, void *addr)
 {
 	/* I don't need to lock anything here I think */
@@ -185,18 +195,21 @@ void slab_free(slab_cache_t *cache, void *addr)
 	{
 		uintptr_t lower_limit = (uintptr_t) slab->buf;
 		uintptr_t upper_limit = (uintptr_t) slab->buf + slab->size;
+		
 		if((uintptr_t) addr >= lower_limit && (uintptr_t) addr < upper_limit)
 		{
 			/* It's in this slab, free it */
-			slab_free_from_slab(slab, addr);
+			slab_free_from_slab(slab, addr, cache->flags & SLAB_FLAG_DONT_CACHE);
 			return;
 		}
 		slab = slab->next;
 	}
 }
+
 void slab_purge_slab(struct slab *slab, slab_cache_t *cache)
 {
 	bufctl_t *bufctl = slab->bufctls;
+	
 	/* Look for BUFCTL_UNUSED bufs, call their dtor, and mark them as free */
 	while(bufctl)
 	{
@@ -204,11 +217,13 @@ void slab_purge_slab(struct slab *slab, slab_cache_t *cache)
 		{
 			if(cache->dtor)
 				cache->dtor(bufctl->buf);
+			
 			bufctl->inuse = BUFCTL_FREE;
 		}
 		bufctl = bufctl->next;
 	}
 }
+
 void slab_purge(slab_cache_t *cache)
 {
 	struct slab *slab = cache->slab_list;
@@ -218,6 +233,7 @@ void slab_purge(slab_cache_t *cache)
 		slab = slab->next;
 	}
 }
+
 void slab_destroy_slab(struct slab *slab)
 {
 	/* Free every bufctl */
@@ -230,6 +246,7 @@ void slab_destroy_slab(struct slab *slab)
 	}
 	vfree(slab->buf, vmm_align_size_to_pages(slab->size));
 }
+
 void slab_destroy(slab_cache_t *cache)
 {
 	acquire_spinlock(&cache->lock);
@@ -255,4 +272,49 @@ void slab_destroy(slab_cache_t *cache)
 		last_slab = cache->prev;
 	}
 	free(cache);
+}
+
+static size_t slab_count_objs_in(struct slab *slab)
+{
+	bufctl_t *bufctl = slab->bufctls;
+	size_t nr_objs = 0;
+
+	while(bufctl)
+	{
+		++nr_objs;
+		bufctl = bufctl->next;
+	}
+	
+	return nr_objs;
+}
+
+int slab_populate(slab_cache_t *cache, size_t nr_objs)
+{
+	struct slab *slab = cache->slab_list;
+	while(slab)
+	{
+		nr_objs -= slab_count_objs_in(slab);
+		slab = slab->next;
+	}
+	slab = cache->slab_list;
+	while(slab->next) slab = slab->next;
+
+	while(nr_objs)
+	{
+		struct slab *slb = slab_create_slab(cache->size, cache);
+		
+		if(!slb)
+			return -1;
+
+		slab->next = slb;
+		slab = slab->next;
+
+		size_t nr_objs_in_slab = slab_count_objs_in(slb);
+		if(nr_objs_in_slab > nr_objs)
+			nr_objs = 0;
+		else
+			nr_objs -= nr_objs_in_slab;
+	}
+
+	return 0;
 }

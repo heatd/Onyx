@@ -41,7 +41,7 @@ process_t *first_process = NULL;
 volatile process_t *current_process = NULL;
 static spinlock_t process_creation_lock;
 slab_cache_t *process_cache = NULL;
-void process_destroy(void);
+void process_destroy(thread_t *);
 int copy_file_descriptors(process_t *process, ioctx_t *ctx)
 {
 	process->ctx.file_desc = malloc(ctx->file_desc_entries * sizeof(void*));
@@ -496,11 +496,8 @@ void process_exit_from_signal(int signum)
 	current->exit_code = __WCONSTRUCT(0, (127 + signum), signum);
 	/* TODO: Support multi-threaded processes */
 	thread_t *current_thread = get_current_thread();
-	
-	/* Destroy everything that can be destroyed now */
-	thread_destroy(current_thread);
 
-	process_destroy();
+	process_destroy(current_thread);
 
 	sched_yield();
 }
@@ -518,11 +515,8 @@ void sys_exit(int status)
 
 	/* TODO: Support multi-threaded processes */
 	thread_t *current_thread = get_current_thread();
-	
-	/* Destroy everything that can be destroyed now */
-	thread_destroy(current_thread);
 
-	process_destroy();
+	process_destroy(current_thread);
 
 	sched_yield();
 }
@@ -585,7 +579,7 @@ void process_obliterate(void *proc)
 	process_t *process = proc;
 	__free_page(process->cr3);
 }
-void process_destroy(void)
+void process_destroy(thread_t *current_thread)
 {
 	process_t *current = get_current_process();
 	/* Firstly, destroy the address space */
@@ -594,6 +588,9 @@ void process_destroy(void)
 	process_destroy_file_descriptors(current);
 
 	free(current->cmd_line);
+
+	/* Destroy everything that can be destroyed now */
+	thread_destroy(current_thread);
 
 	/* Schedule the obliteration of the process */
 	struct work_request req;

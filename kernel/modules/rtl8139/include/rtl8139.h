@@ -72,6 +72,7 @@
 #define RCR_APM			(1 << 1)
 #define RCR_AM 			(1 << 2)
 #define RCR_AB			(1 << 3)
+#define RCR_WRAP		(1 << 7)
 
 #define CMD_BUFFER_EMPTY	(1 << 0)
 #define CMD_TRANSMITTER_ENABLE	(1 << 2)

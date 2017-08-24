@@ -43,14 +43,3 @@ int eth_send_packet(char *destmac, char *payload, uint16_t len, uint16_t protoco
 	free(hdr);
 	return status;
 }
-int ethernet_handle_packet(uint8_t *packet, uint16_t len)
-{
-	ethernet_header_t *hdr = (ethernet_header_t*) (packet + PHYS_BASE);
-	hdr->ethertype = LITTLE_TO_BIG16(hdr->ethertype);
-	if(hdr->ethertype == PROTO_IPV4)
-		network_handle_packet((ip_header_t*)(hdr+1), len - sizeof(ethernet_header_t));
-	/*else if(hdr->ethertype == PROTO_ARP)
-		arp_handle_packet((arp_request_t*)(hdr+1), len - sizeof(ethernet_header_t));*/
-
-	return 0;
-}

@@ -438,7 +438,9 @@ void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uin
 		{
 			if(!(flags & 1))
 			{
-				if(!get_current_process()->mmap_base)
+				process_t *p = get_current_process();
+				assert(p != NULL);
+				if(!p->mmap_base)
 					panic("mmap_base == 0");
 				base_address = (uintptr_t) get_current_process()->mmap_base;
 			}

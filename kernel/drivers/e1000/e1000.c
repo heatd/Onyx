@@ -13,6 +13,7 @@
 #include <kernel/pic.h>
 #include <kernel/irq.h>
 #include <kernel/log.h>
+#include <kernel/network.h>
 
 #include <drivers/mmio.h>
 #include <drivers/e1000.h>
@@ -41,7 +42,7 @@ void e1000_handle_recieve()
 		got_packet = true;
 		uint8_t *buf = (uint8_t *)rx_descs[rx_cur]->addr;
 		uint16_t len = rx_descs[rx_cur]->length;
-		ethernet_handle_packet(buf, len);
+		network_handle_packet(buf, len, NULL);
 		eth_set_packet_buf(buf + PHYS_BASE);
 		eth_set_packet_len(len);
 		rx_descs[rx_cur]->status = 0;

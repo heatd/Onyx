@@ -28,6 +28,7 @@
 #include <kernel/cpu.h>
 #include <kernel/idt.h>
 #include <kernel/apic.h>
+#include <kernel/dpc.h>
 
 volatile _Bool is_in_irq = false;
 #define NR_IRQ 221
@@ -121,65 +122,9 @@ uintptr_t irq_handler(uint64_t irqn, registers_t *regs)
 	return ret;
 }
 
-static struct irq_work *queue = NULL;
-static thread_t *irq_worker_thread = NULL;
-int irq_schedule_work(void (*callback)(void *, size_t), size_t payload_size, void *payload)
-{
-	thread_wake_up(irq_worker_thread);
-	struct irq_work *q = queue;
-	while(q->callback)
-	{
-		q = (struct irq_work *) (char*) &q->payload + q->payload_size;
-	}
-	uintptr_t remaining_size = ((uintptr_t) queue + IRQ_WORK_QUEUE_SIZE) - (uintptr_t) q;
-	if(sizeof(struct irq_work) + payload_size > remaining_size)
-		return 1;
-	q->callback = callback;
-	q->payload_size = payload_size;
-	memcpy(&q->payload, payload, payload_size);
-	return 0;
-}
-
-int irq_get_work(struct irq_work *strct)
-{
-	if(!queue->callback)
-		return -1;
-	memcpy(strct, queue, sizeof(struct irq_work) + queue->payload_size);
-	struct irq_work *next_work = (struct irq_work*) (char*) queue + sizeof(struct irq_work) + strct->payload_size;
-	memcpy(queue, next_work, IRQ_WORK_QUEUE_SIZE - sizeof(struct irq_work) - strct->payload_size);
-	memset((char*) queue + sizeof(struct irq_work) + strct->payload_size, 0, 
-	IRQ_WORK_QUEUE_SIZE - sizeof(struct irq_work) - strct->payload_size);
-	return 0;
-}
-
-struct irq_work *worker_buffer = NULL;
-void irq_worker(void *ctx)
-{
-	while(1)
-	{
-		/* Do any work needed */
-		if(irq_get_work(worker_buffer) < 0)
-		{
-			thread_set_state(irq_worker_thread, THREAD_BLOCKED);
-			sched_yield();
-			continue;
-		}
-		worker_buffer->callback(&worker_buffer->payload, worker_buffer->payload_size);
-	}
-}
-
 void irq_init(void)
 {
-	if(!(irq_worker_thread = sched_create_thread(irq_worker, 1, NULL)))
-		panic("irq_init: Could not create the worker thread!\n");
-	queue = malloc(IRQ_WORK_QUEUE_SIZE);
-	if(!queue)
-		panic("irq_init: failed to allocate queue!\n");
-	memset(queue, 0, IRQ_WORK_QUEUE_SIZE);
-	worker_buffer = malloc(IRQ_WORK_QUEUE_SIZE);
-	if(!worker_buffer)
-		panic("irq_init: failed to allocate buffer!\n");
-	memset(worker_buffer, 0, IRQ_WORK_QUEUE_SIZE);
+	dpc_init();
 }
 
 #define PCI_MSI_BASE_ADDRESS 0xFEE00000

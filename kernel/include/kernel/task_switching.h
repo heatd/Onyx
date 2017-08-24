@@ -11,6 +11,7 @@
 #include <kernel/scheduler.h>
 #include <kernel/registers.h>
 #include <kernel/fpu.h>
+
 #define THREAD_RUNNABLE 0
 #define THREAD_BLOCKED 	1
 #define THREAD_SLEEPING 2

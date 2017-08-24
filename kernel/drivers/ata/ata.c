@@ -26,6 +26,7 @@
 #include <kernel/page.h>
 #include <kernel/mutex.h>
 #include <kernel/driver.h>
+#include <kernel/page.h>
 
 #include <drivers/ata.h>
 
@@ -49,6 +50,8 @@ struct ids *ata_ids = NULL;
 static volatile int irq = 0;
 unsigned int current_drive = (unsigned int)-1;
 unsigned int current_channel = (unsigned int)-1;
+void *read_buffer = NULL;
+void *write_buffer = NULL;
 
 void ata_send_command(struct ide_drive* drive, uint8_t command)
 {
@@ -161,12 +164,8 @@ ssize_t ata_read(size_t offset, size_t count, void* buffer, struct blkdev* blkd)
 	if(!drv)
 		return errno = EINVAL, -1;
 	size_t off = offset;
-	void *buf = NULL;
-	errno = posix_memalign(&buf, UINT16_MAX+1, count);
-
-	if(!buf)
-		return -1;
-	if(count < UINT16_MAX) ata_read_sectors(drv->channel, drv->drive, (uint32_t) (uintptr_t)virtual2phys(buf), count, off / 512);
+	void *buf = PHYS_TO_VIRT(read_buffer);
+	if(count < UINT16_MAX) ata_read_sectors(drv->channel, drv->drive, (uint32_t)(uintptr_t) read_buffer, count, off / 512);
 	//fscache_cache_sectors(buffer, blkd, off / 512, count);
 	/* If count > count_max, split this into multiple I/O operations */
 	if(count > UINT16_MAX)
@@ -185,14 +184,10 @@ ssize_t ata_write(size_t offset, size_t count, void* buffer, struct blkdev* blkd
 		return errno = EINVAL, -1;
 	size_t off = offset;
 
-	void *buf = NULL;
-	errno = posix_memalign(&buf, UINT16_MAX+1, count);
-
-	if(!buf)
-		return -1;
+	void *buf = PHYS_TO_VIRT(write_buffer);
 	memcpy(buf, buffer, count);
 
-	if(count < UINT16_MAX) ata_write_sectors(drv->channel, drv->drive, (uint32_t) (uintptr_t)virtual2phys(buf), count, off / 512);
+	if(count < UINT16_MAX) ata_write_sectors(drv->channel, drv->drive, (uint32_t) (uintptr_t) write_buffer, count, off / 512);
 	/* If count > count_max, split this into multiple I/O operations */
 	if(count > UINT16_MAX)
 	{
@@ -438,6 +433,11 @@ void ata_init(void)
 	outb(ATA_CONTROL1, 0);
 	outb(ATA_CONTROL2, 0);
 	
+	read_buffer = __alloc_pages(2);
+	write_buffer = __alloc_pages(2);
+
+	assert(read_buffer != NULL);
+	assert(write_buffer != NULL);
 	for(int channel = 0; channel < 2; channel++)
 	{
 		for(int drive = 0; drive < 2; drive++)

@@ -79,7 +79,7 @@ uintptr_t elf_resolve_symbol(Elf64_Ehdr *hdr, Elf64_Shdr *sections, Elf64_Shdr *
 	else
 	{
 		Elf64_Shdr *tar = &sections[symbol->st_shndx];
-		return (uintptr_t)hdr + symbol->st_value + tar->sh_offset;
+		return (uintptr_t) hdr + symbol->st_value + tar->sh_offset;
 	}
 	return 1;
 }
@@ -320,7 +320,7 @@ int elf_parse_program_headers(void *file, struct binfmt_args *args)
 			uintptr_t aligned_address = phdrs[i].p_vaddr & 0xFFFFFFFFFFFFF000;
 			size_t total_size = phdrs[i].p_memsz + (aligned_address - phdrs[i].p_vaddr);
 			size_t pages = total_size / PAGE_SIZE;
-			if(pages % PAGE_SIZE)
+			if(total_size % PAGE_SIZE)
 				pages++;
 			/* Sanitize the address first */
 			if(vm_sanitize_address((void*) aligned_address, pages) < 0)
@@ -332,6 +332,7 @@ int elf_parse_program_headers(void *file, struct binfmt_args *args)
 				return false;
 			/* Note that things are mapped VM_WRITE | VM_USER before the memcpy so 
 			 we don't PF ourselves(i.e: writing to RO memory) */
+			
 			vmm_map_range((void *) aligned_address, pages, VM_WRITE | VM_USER);
 			memcpy((void*) phdrs[i].p_vaddr, (void *) ((char *) file + phdrs[i].p_offset),  phdrs[i].p_filesz);
 			vmm_change_perms((void *) aligned_address, pages, prot);

@@ -316,6 +316,7 @@ void thread_destroy(thread_t *thread)
 	req.func = thread_finish_destruction;
 	req.param = thread;
 	worker_schedule(&req, WORKER_PRIO_NORMAL);
+	printk("Scheduled destruction: %p\n", thread);
 }
 static void append_to_wait_queue(thread_t *thread)
 {
@@ -379,6 +380,7 @@ void thread_set_state(thread_t *thread, int state)
 		assert(p != NULL);
 		sched_append_to_queue(thread->priority, p,
 				      thread);
+		printk("Appended\n");
 	}
 }
 void thread_wake_up(thread_t *thread)

@@ -3,6 +3,7 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
+#include <stdio.h>
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
@@ -18,61 +19,28 @@
 #include <kernel/compiler.h>
 #include <kernel/dns.h>
 #include <kernel/file.h>
+#include <kernel/ethernet.h>
 
 
 static const char *hostname = "";
 
-void network_handle_packet(ip_header_t *hdr, uint16_t len)
+int network_handle_packet(uint8_t *packet, uint16_t len, struct netif *netif)
 {
-	/*hdr->source_ip = LITTLE_TO_BIG32(hdr->source_ip);
-	int dest_port = 0;
-	int protocol_len = 0;
-	switch(hdr->proto)
-	{
-		case IPV4_UDP:
-		{
-			udp_header_t *udp_packet = (udp_header_t*)&hdr->payload;
-			udp_packet->dest_port = LITTLE_TO_BIG16(udp_packet->dest_port);
-			dest_port = udp_packet->dest_port;
-			udp_packet->len = LITTLE_TO_BIG16(udp_packet->len);
-			protocol_len = udp_packet->len;
-			break;
-		}
-		case IPV4_ICMP:
-			break;
-		default:
-			return;
-	}*/
-	
-	/*for(int i = 0; i < MAX_NETWORK_CONNECTIONS; i++)
-	{
-		if(sock_table[i] == NULL)
-			continue;
-		if(hdr->proto == IPV4_ICMP && sock_table[i]->proto == IPV4_ICMP)
-		{
-			sock_table[i]->buffer = malloc(sizeof(icmp_header_t));
-			if(!sock_table[i]->buffer)
-				return;
-			icmp_header_t *icmp_packet = (icmp_header_t*)(hdr+1);
-			memcpy(sock_table[i]->buffer, icmp_packet, sizeof(icmp_header_t));
-		}
-		else if(sock_table[i]->localport == dest_port && sock_table[i]->connection_type == SOCK_DGRAM)
-		{
-			sock_table[i]->buffer = malloc(protocol_len);
-			if(!sock_table[i]->buffer)
-				return;
-			udp_header_t *udp_packet = (udp_header_t*)(hdr+1);
-			sock_table[i]->len = protocol_len;
-			memset(sock_table[i]->buffer, 0, protocol_len);
-			memcpy(sock_table[i]->buffer, &udp_packet->payload, protocol_len);
-		}
-	}*/
-
+	ethernet_header_t *hdr = (ethernet_header_t*) packet;
+	hdr->ethertype = LITTLE_TO_BIG16(hdr->ethertype);
+	if(hdr->ethertype == PROTO_IPV4)
+		//ipv4_handle_packet((ip_header_t*)(hdr+1), len - sizeof(ethernet_header_t), netif);
+	printf("Hi dad\n");
+	/*else if(hdr->ethertype == PROTO_ARP)
+		arp_handle_packet((arp_request_t*)(hdr+1), len - sizeof(ethernet_header_t));*/
+	return 0;
 }
+
 const char *network_gethostname()
 {
 	return hostname;
 }
+
 void network_sethostname(const char *name)
 {
 	/* TODO: Invalidate the dns cache entry of the last host name */
@@ -81,6 +49,7 @@ void network_sethostname(const char *name)
 	dns_fill_hashtable(dns_hash_string(name), name, 0x7F00001);
 	hostname = name;
 }
+
 int check_af_support(int domain)
 {
 	switch(domain)
@@ -91,6 +60,7 @@ int check_af_support(int domain)
 			return -1;
 	}
 }
+
 int net_check_type_support(int type)
 {
 	switch(type)
@@ -102,6 +72,7 @@ int net_check_type_support(int type)
 			return -1;
 	}
 }
+
 int net_autodetect_protocol(int type, int domain)
 {
 	switch(type)
@@ -115,6 +86,7 @@ int net_autodetect_protocol(int type, int domain)
 	}
 	return -1;
 }
+
 socket_t *socket_create(int domain, int type, int protocol)
 {
 	switch(domain)
@@ -125,6 +97,7 @@ socket_t *socket_create(int domain, int type, int protocol)
 			return errno = EAFNOSUPPORT, NULL;
 	}
 }
+
 int sys_socket(int domain, int type, int protocol)
 {
 	int dflags;

@@ -44,13 +44,7 @@ void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 	(void) fd;
 	(void) offset;
 
-	if(is_initialized == 0)
-	{
-		ret = heap;
-		heap += (length + 4096) & 0xFFFFFFFFFFFFF000; 
-	}
-	else
-		ret = vmalloc(vmm_align_size_to_pages(length), VM_TYPE_HEAP, VM_WRITE | VM_NOEXEC | VM_GLOBAL);
+	ret = vmalloc(vmm_align_size_to_pages(length), VM_TYPE_HEAP, VM_WRITE | VM_NOEXEC | VM_GLOBAL);
 	return ret;
 }
 int munmap(void *addr, size_t length)

@@ -48,7 +48,7 @@ int _socket(int domain, int connection_type, int protocol);
 int _bind(int socket, int localport, uint32_t ip, int destport);
 int _recv(int socket, void **bufptr);
 int _send(int socket, const void *buffer, size_t len);
-void network_handle_packet(ip_header_t *hdr, uint16_t len);
+int network_handle_packet(uint8_t *packet, uint16_t len, struct netif *netif);
 const char *network_gethostname();
 void network_sethostname(const char *);
 

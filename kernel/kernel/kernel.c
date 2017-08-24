@@ -523,6 +523,12 @@ void kernel_multitasking(void *arg)
 	char *args[] = {"", root_partition, NULL};
 	char *envp[] = {"PATH=/bin:/usr/bin:/sbin:", NULL};
 
+	printk("Sleeping for 5 seconds\n");
+	sched_sleep(5000);
+	printk("Now, sleeping for 1 second\n");
+	sched_sleep(1000);
+	printk("Done!\n");
+
 	find_and_exec_init(args, envp);
 
 	thread_set_state(get_current_thread(), THREAD_BLOCKED);
