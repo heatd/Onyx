@@ -278,7 +278,6 @@ uintptr_t *thread_get_ustack(void)
 }
 void thread_finish_destruction(void *___thread)
 {
-	printk("Thread: %p\n", ___thread);
 	thread_t *thread = ___thread;
 	/* Destroy the kernel stack */
 	vmm_destroy_mappings((void*) ((uintptr_t)thread->kernel_stack_top - 0x4000), 2);

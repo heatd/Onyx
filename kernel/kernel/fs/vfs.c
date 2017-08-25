@@ -74,6 +74,8 @@ int vfs_init()
 }
 size_t read_vfs(int flags, size_t offset, size_t sizeofread, void* buffer, vfsnode_t* this)
 {
+	if(this->type & VFS_TYPE_DIR)
+		return errno = EISDIR, -1;
 	if(this->type & VFS_TYPE_MOUNTPOINT)
 		return read_vfs(flags, offset, sizeofread, buffer, this->link);
 	if(this->fops.read != NULL)

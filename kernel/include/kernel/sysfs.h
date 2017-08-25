@@ -18,6 +18,7 @@ struct sysfs_file
 	ssize_t (*write)(void *buffer, size_t size, off_t off);
 	ssize_t (*read)(void *buffer, size_t size, off_t off);
 };
+
 #ifdef __cplusplus
 extern "C" {
 #endif

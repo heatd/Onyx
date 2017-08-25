@@ -33,6 +33,7 @@ static bool is_initialized = false;
 
 void sched_append_to_queue(int priority, struct processor *p, 
 thread_t *thread);
+
 thread_t *__sched_find_next(struct processor *p)
 {
 	thread_t *current_thread = get_current_thread();
@@ -65,11 +66,13 @@ thread_t *__sched_find_next(struct processor *p)
 	}
 	return NULL;
 }
+
 thread_t *sched_find_next(void)
 {
 	struct processor *p = get_processor_data();
 	return __sched_find_next(p);
 }
+
 thread_t *sched_find_runnable(void)
 {
 	thread_t *thread = sched_find_next();
@@ -84,6 +87,7 @@ thread_t *sched_find_runnable(void)
 	}
 	return thread;
 }
+
 bool sched_is_preemption_disabled(void)
 {
 	struct processor *p = get_processor_data();
@@ -98,6 +102,7 @@ void sched_change_preemption_state(bool disable)
 		return;
 	p->preemption_disabled = disable;
 }
+
 void *sched_switch_thread(void *last_stack)
 {
 	if(is_initialized == 0 || sched_is_preemption_disabled())
@@ -141,6 +146,7 @@ void *sched_switch_thread(void *last_stack)
 	}
 	return current_thread->kernel_stack;
 }
+
 thread_t *get_current_thread()
 {
 	struct processor *p = get_processor_data();
@@ -148,6 +154,7 @@ thread_t *get_current_thread()
 		return NULL;
 	return (thread_t*) p->current_thread;
 }
+
 void sched_idle()
 {
 	/* This function will not do work at all, just idle using hlt */
@@ -156,6 +163,7 @@ void sched_idle()
 		__asm__ __volatile__("hlt");
 	}
 }
+
 void sched_append_to_queue(int priority, struct processor *p, 
 thread_t *thread)
 {
@@ -171,6 +179,7 @@ thread_t *thread)
 		thread->prev_prio = queue;
 	}
 }
+
 int sched_allocate_processor(void)
 {
 	int nr_cpus = get_nr_cpus();
@@ -187,6 +196,7 @@ int sched_allocate_processor(void)
 	}
 	return dest_cpu;
 }
+
 void thread_add(thread_t *thread)
 {
 	int cpu_num = sched_allocate_processor();
@@ -200,6 +210,7 @@ void thread_add(thread_t *thread)
 	/* Unlock the queue */
 	release_spinlock(&cpu->queue_locks[thread->priority]);
 }
+
 thread_t *sched_create_thread(thread_callback_t callback, uint32_t flags, void* args)
 {
 	/* Create the thread context (aka the real work) */
@@ -208,6 +219,7 @@ thread_t *sched_create_thread(thread_callback_t callback, uint32_t flags, void* 
 		return NULL;
 	return t;
 }
+
 thread_t* sched_create_main_thread(thread_callback_t callback, uint32_t flags, int argc, char **argv, char **envp)
 {
 	/* Create the thread context (aka the real work) */
@@ -216,6 +228,7 @@ thread_t* sched_create_main_thread(thread_callback_t callback, uint32_t flags, i
 		return NULL;
 	return t;
 }
+
 extern void _sched_yield();
 int sched_init()
 {
@@ -230,10 +243,12 @@ int sched_init()
 	is_initialized = true;
 	return 0;
 }
+
 void sched_yield()
 {
 	__asm__ __volatile__("int $0x81");
 }
+
 void sched_sleep(unsigned long ms)
 {
 	thread_t *current = get_current_thread();
@@ -273,6 +288,7 @@ void sched_remove_thread(thread_t *thread)
 {
 	if(sched_remove_thread_from_execution(thread) < 0)
 		remove_from_wait_queue(thread);
+	thread_set_state(thread, THREAD_DEAD);
 }
 void set_current_thread(thread_t *t)
 {
@@ -296,7 +312,9 @@ int sys_nanosleep(const struct timespec *req, struct timespec *rem)
 	sched_sleep(ticks);
 	return 0;
 }
+
 extern void thread_finish_destruction(void*);
+
 void thread_destroy(thread_t *thread)
 {
 	/* This function should destroy everything that we can destroy right now.
@@ -316,8 +334,8 @@ void thread_destroy(thread_t *thread)
 	req.func = thread_finish_destruction;
 	req.param = thread;
 	worker_schedule(&req, WORKER_PRIO_NORMAL);
-	printk("Scheduled destruction: %p\n", thread);
 }
+
 static void append_to_wait_queue(thread_t *thread)
 {
 	acquire_spinlock(&wait_queue_lock);
@@ -380,8 +398,9 @@ void thread_set_state(thread_t *thread, int state)
 		assert(p != NULL);
 		sched_append_to_queue(thread->priority, p,
 				      thread);
-		printk("Appended\n");
 	}
+	else
+		thread->status = state;
 }
 void thread_wake_up(thread_t *thread)
 {

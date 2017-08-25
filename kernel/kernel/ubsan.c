@@ -84,7 +84,11 @@ void __ubsan_handle_type_mismatch(void* data_raw,
 	if ( !pointer )
 		violation = "null pointer access";
 	else if ( data->alignment && (pointer & (data->alignment - 1)) )
+	{
 		violation = "unaligned access";
+		printf("Unaligned data alignment: %u\n Unaligned pointer: %p\n",
+		data->alignment, pointer);
+	}
 	ubsan_abort(&data->location, violation);
 }
 ABORT_VARIANT_VP_VP(type_mismatch);

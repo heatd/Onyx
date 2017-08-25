@@ -21,7 +21,9 @@ typedef struct stack_entry
 	uintptr_t base;
 	size_t size;
 	size_t magic;
+
 } stack_entry_t;
+
 typedef struct stack
 {
 	stack_entry_t* next;
@@ -31,6 +33,7 @@ inline unsigned long pow2(int exp)
 {
 	return (1UL << (unsigned long) exp);
 }
+
 inline size_t align_pow2_up(size_t i)
 {
 	return pow2(ilog2(i) + 1);
@@ -39,6 +42,7 @@ inline size_t align_pow2_down(size_t i)
 {
 	return pow2(ilog2(i));
 }
+
 inline void __bitmap_mark(size_t bitndx, uint8_t *ptr)
 {
 	size_t byte_ndx = bitndx / CHAR_BIT;
@@ -46,6 +50,7 @@ inline void __bitmap_mark(size_t bitndx, uint8_t *ptr)
 	size_t ndx = bitndx - byte_ndx * CHAR_BIT; 
 	*byte |= (1 << ndx);
 }
+
 inline void __bitmap_unmark(size_t bitndx, uint8_t *ptr)
 {
 	size_t byte_ndx = bitndx / CHAR_BIT;
@@ -53,6 +58,7 @@ inline void __bitmap_unmark(size_t bitndx, uint8_t *ptr)
 	size_t ndx = bitndx - byte_ndx * CHAR_BIT;
 	*byte &= ~(1 << ndx);
 }
+
 inline bool __bitmap_ismarked(size_t bitndx, uint8_t *ptr)
 {
 	size_t byte_ndx = bitndx / CHAR_BIT;
@@ -60,26 +66,32 @@ inline bool __bitmap_ismarked(size_t bitndx, uint8_t *ptr)
 	size_t ndx = bitndx - byte_ndx * CHAR_BIT;
 	return (*byte & (1 << ndx));
 }
+
 inline size_t get_block_index(void *ptr, size_t order_size)
 {
 	return (uintptr_t) ptr / order_size;
 }
+
 inline bool is_even_number(size_t s)
 {
 	return (s & 1) == 0;
 }
+
 void buddy_mark_as_used(void *ptr, size_t order_size, uint8_t *bitmap)
 {
 	__bitmap_mark(get_block_index(ptr, order_size), bitmap);
 }
+
 void buddy_mark_as_free(void *ptr, size_t order_size, uint8_t *bitmap)
 {
 	__bitmap_unmark(get_block_index(ptr, order_size), bitmap);
 }
+
 bool buddy_is_free(void *ptr, size_t order_size, uint8_t *bitmap)
 {
 	return !__bitmap_ismarked(get_block_index(ptr, order_size), bitmap);
 }
+
 void list_append(struct list_head *list, void *mem)
 {
 	if(!list->ptr)
@@ -90,11 +102,12 @@ void list_append(struct list_head *list, void *mem)
 	}
 	while(list->next)
 		list = list->next;
-	assert(!((uintptr_t) mem & 0xFFF));
+
 	list->next = PHYS_TO_VIRT(mem);
 	list->next->ptr = mem;
 	list->next->next = NULL;
 }
+
 free_area_t free_areas[MAX_ORDER] = {0};
 static bool buddy_is_initialized = false;
 static spinlock_t buddy_lock = {0};
@@ -187,6 +200,7 @@ void buddy_split_block(void *area, int target_order)
 }
 void buddy_add_page(void *area, int order)
 {
+	assert((uintptr_t) area <= PHYS_BASE);
 	list_append(&free_areas[order].free_list, area);
 }
 void *buddy_alloc_pages(int order)
@@ -216,7 +230,9 @@ void buddy_free_pages(void *pages, int order)
 	/* If order is the maximum order, return as we can't merge anything */
 	if(order + 1 == MAX_ORDER)
 		return;
-	uintptr_t buddy = is_even_number(get_block_index(pages, order_size)) ? (uintptr_t) pages + order_size : (uintptr_t) pages - order_size;
+	
+	uintptr_t buddy = is_even_number(get_block_index(pages, order_size)) ? 
+                          (uintptr_t) pages + order_size : (uintptr_t) pages - order_size;
 	/* Mark pages as free in the bitmap */
 	buddy_mark_as_free(pages, order_size, (uint8_t*) free_areas[order].map);
 	if(buddy_is_free((void*) buddy, order_size, (uint8_t*) free_areas[order].map))
@@ -242,8 +258,6 @@ void *__alloc_pages(int order)
 	if(mem) memset(PHYS_TO_VIRT(mem), 0, pow2(order) * PAGE_SIZE);
 	/* Exit the critical section */
 	release_spinlock(&buddy_lock);
-	if(mem == (void*) 0x5c000)
-		printk("Returning the shit page!\n");
 	return mem;
 }
 void *__alloc_page(int opt)
@@ -255,6 +269,8 @@ void __free_pages(void *pages, int order)
 {
 	assert(order < MAX_ORDER);
 	assert(!((uintptr_t) pages & 0xFFF));
+
+	memset(PHYS_TO_VIRT(pages), 0, sizeof(struct list_head));
 	/* Enter the critical section */
 	acquire_spinlock(&buddy_lock);
 	/* Call the backend */

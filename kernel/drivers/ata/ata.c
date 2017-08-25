@@ -53,6 +53,8 @@ unsigned int current_channel = (unsigned int)-1;
 void *read_buffer = NULL;
 void *write_buffer = NULL;
 
+static mutex_t lock = MUTEX_INITIALIZER;
+
 void ata_send_command(struct ide_drive* drive, uint8_t command)
 {
 	if(drive->channel > 0)
@@ -164,6 +166,8 @@ ssize_t ata_read(size_t offset, size_t count, void* buffer, struct blkdev* blkd)
 	if(!drv)
 		return errno = EINVAL, -1;
 	size_t off = offset;
+
+	mutex_lock(&lock);
 	void *buf = PHYS_TO_VIRT(read_buffer);
 	if(count < UINT16_MAX) ata_read_sectors(drv->channel, drv->drive, (uint32_t)(uintptr_t) read_buffer, count, off / 512);
 	//fscache_cache_sectors(buffer, blkd, off / 512, count);
@@ -173,8 +177,9 @@ ssize_t ata_read(size_t offset, size_t count, void* buffer, struct blkdev* blkd)
 		panic("Implement, you lazy ass!");
 	}
 	memcpy(buffer, buf, count);
-
-	free(buf);
+	
+	mutex_unlock(&lock);
+	
 	return count;
 }
 ssize_t ata_write(size_t offset, size_t count, void* buffer, struct blkdev* blkd)
@@ -184,6 +189,7 @@ ssize_t ata_write(size_t offset, size_t count, void* buffer, struct blkdev* blkd
 		return errno = EINVAL, -1;
 	size_t off = offset;
 
+	mutex_lock(&lock);
 	void *buf = PHYS_TO_VIRT(write_buffer);
 	memcpy(buf, buffer, count);
 
@@ -194,6 +200,8 @@ ssize_t ata_write(size_t offset, size_t count, void* buffer, struct blkdev* blkd
 		panic("Implement, you lazy ass!");
 	}
 	memcpy(buffer, buf, count);
+
+	mutex_unlock(&lock);
 	return count;
 }
 size_t atadev_read(int flags, size_t offset, size_t count, void *buffer, vfsnode_t *node)
@@ -447,20 +455,23 @@ void ata_init(void)
 		}
 	}	
 }
-static mutex_t lock = MUTEX_INITIALIZER;
+
 void ata_read_sectors(unsigned int channel, unsigned int drive, uint32_t buffer, uint16_t bytesoftransfer, uint64_t lba48)
 {
-	mutex_lock(&lock);
 	if(bytesoftransfer == 0) bytesoftransfer = UINT16_MAX;
 	uint16_t num_secs = bytesoftransfer / 512;
 	if(bytesoftransfer % 512)
 		num_secs++;
+	
 	if(!PRDT)
 		PRDT = prdt_base;
+	
 	PRDT->data_buffer = buffer;
 	PRDT->size = bytesoftransfer;
 	PRDT->res = 0x8000;
+	
 	uint32_t param = (uint32_t)((uint64_t)virtual2phys(PRDT));
+	
 	if(!channel)
 	{
 		outl(bar4_base + 0x4, param);
@@ -471,7 +482,9 @@ void ata_read_sectors(unsigned int channel, unsigned int drive, uint32_t buffer,
 		outl(bar4_base + 0x8 + 0x4, param);
 		outb(bar4_base + 0x8 + 2, 4);
 	}
+	
 	ata_set_drive(channel, drive);
+	
 	outb(0x1F0 + ATA_REG_SECCOUNT0 , num_secs >> 8 & 0xFF);
 	outb(0x1F0 + ATA_REG_LBA0, lba48 >> 24 & 0xFF);
 	outb(0x1F0 + ATA_REG_LBA1, lba48 >> 32 & 0xFF);
@@ -480,30 +493,36 @@ void ata_read_sectors(unsigned int channel, unsigned int drive, uint32_t buffer,
 	outb(0x1F0 + ATA_REG_LBA0, lba48 & 0xFF);
 	outb(0x1F0 + ATA_REG_LBA1, lba48 >> 8 & 0xFF);
 	outb(0x1F0 + ATA_REG_LBA2, lba48 >> 16 & 0xFF);
+	
 	/* Send the read command */
 	outb(bar4_base, 8);
+	
 	if(channel == 0)
 		outb(ATA_DATA1 + ATA_REG_COMMAND, ATA_CMD_READ_DMA_EXT);
 	else
 		outb(ATA_DATA2 + ATA_REG_COMMAND, ATA_CMD_READ_DMA_EXT);
+	
 	outb(bar4_base, 9);
 	ata_wait_for_irq(10000);
 	outb(bar4_base, 0);
-	mutex_unlock(&lock);
 }
+
 void ata_write_sectors(unsigned int channel, unsigned int drive, uint32_t buffer, uint16_t bytesoftransfer, uint64_t lba48)
 {
-	mutex_lock(&lock);
 	if(bytesoftransfer == 0) bytesoftransfer = UINT16_MAX;
 	uint16_t num_secs = bytesoftransfer / 512;
 	if(bytesoftransfer % 512)
 		num_secs++;
+	
 	if(!PRDT)
 		PRDT = prdt_base;
+	
 	PRDT->data_buffer = buffer;
 	PRDT->size = bytesoftransfer;
 	PRDT->res = 0x8000;
+	
 	uint32_t param = (uint32_t)((uint64_t)virtual2phys(PRDT));
+	
 	if(!channel)
 	{
 		outl(bar4_base + 0x4, param);
@@ -514,7 +533,9 @@ void ata_write_sectors(unsigned int channel, unsigned int drive, uint32_t buffer
 		outl(bar4_base + 0x8 + 0x4, param);
 		outb(bar4_base + 0x8 + 2, 4);
 	}
+	
 	ata_set_drive(channel, drive);
+	
 	outb(0x1F0 + ATA_REG_SECCOUNT0 , num_secs >> 8 & 0xFF);
 	outb(0x1F0 + ATA_REG_LBA0, lba48 >> 24 & 0xFF);
 	outb(0x1F0 + ATA_REG_LBA1, lba48 >> 32 & 0xFF);
@@ -523,12 +544,15 @@ void ata_write_sectors(unsigned int channel, unsigned int drive, uint32_t buffer
 	outb(0x1F0 + ATA_REG_LBA0, lba48 & 0xFF);
 	outb(0x1F0 + ATA_REG_LBA1, lba48 >> 8 & 0xFF);
 	outb(0x1F0 + ATA_REG_LBA2, lba48 >> 16 & 0xFF);
+	
 	/* Send the write command */
 	outb(bar4_base, 0);
+	
 	if(channel == 0)
 		outb(ATA_DATA1 + ATA_REG_COMMAND, ATA_CMD_WRITE_DMA_EXT);
 	else
 		outb(ATA_DATA2 + ATA_REG_COMMAND, ATA_CMD_WRITE_DMA_EXT);
+	
 	outb(bar4_base, 1);
 	ata_wait_for_irq(10000);
 	outb(bar4_base, 0);
@@ -542,7 +566,6 @@ void ata_write_sectors(unsigned int channel, unsigned int drive, uint32_t buffer
 		outl(bar4_base + 0x8 + 0x4, 0);
 		outb(bar4_base + 0x8 + 2, 4);
 	}
-	mutex_unlock(&lock);
 }
 
 DRIVER_INIT(ata_init);

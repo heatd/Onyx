@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <cpuid.h>
+#include <assert.h>
 
 #include <kernel/page.h>
 #include <kernel/paging.h>
@@ -477,19 +478,7 @@ void paging_stop_spawning()
 extern process_t *first_process;
 void paging_load_cr3(PML4 *pml)
 {
-	if(!pml)
-	{
-		printf("Trace: %p\n", __builtin_return_address(0));
-		process_t *p = first_process;
-		while(p)
-		{
-			printf("%p: ", p);
-			printf("CR3: %p\n", p->cr3);
-			p = p->next;
-		}
-		printf("current process: %p\n Current CR3: %p\n", get_current_process(), get_current_process()->cr3);
-		panic("Invalid pml!");
-	}
+	assert(pml != NULL);
 	PML4 *oldpml;
 	__asm__ __volatile__("movq %%cr3, %%rax\t\nmovq %%rax, %0":"=r"(oldpml));
 	if(oldpml == pml)

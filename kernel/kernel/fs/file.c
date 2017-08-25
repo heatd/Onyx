@@ -22,18 +22,21 @@
 
 #include <sys/uio.h>
 
-_Bool is_absolute_filename(const char *file)
+bool is_absolute_filename(const char *file)
 {
 	return *file == '/' ? true : false;
 }
+
 vfsnode_t *get_fs_base(const char *file, vfsnode_t *rel_base)
 {
 	return is_absolute_filename(file) == true ? fs_root : rel_base;
 }
+
 vfsnode_t *get_current_directory(void)
 {
 	return get_current_process()->ctx.cwd;
 }
+
 file_desc_t *get_file_description(int fd)
 {
 	return get_current_process()->ctx.file_desc[fd];
@@ -51,6 +54,7 @@ int validate_fd(int fd)
 		return errno = -EBADF;
 	return 0;
 }
+
 /* Enlarges the file descriptor table by UINT8_MAX(255) entries */
 int enlarge_file_descriptor_table(process_t *process)
 {
@@ -63,6 +67,7 @@ int enlarge_file_descriptor_table(process_t *process)
 	process->ctx.file_desc = table;
 	return 0;
 }
+
 static inline int find_free_fd(int fdbase)
 {
 	ioctx_t *ioctx = &get_current_process()->ctx;
@@ -84,6 +89,7 @@ static inline int find_free_fd(int fdbase)
 		}
 	}
 }
+
 file_desc_t *allocate_file_descriptor_unlocked(int *fd, ioctx_t *ioctx)
 {
 	while(1)
@@ -105,6 +111,7 @@ file_desc_t *allocate_file_descriptor_unlocked(int *fd, ioctx_t *ioctx)
 		}
 	}
 }
+
 ssize_t sys_read(int fd, const void *buf, size_t count)
 {	
 	/*if(vmm_check_pointer((void*) buf, count) < 0)
@@ -119,6 +126,7 @@ ssize_t sys_read(int fd, const void *buf, size_t count)
 	{
 		return -EBADF;
 	}
+
 	ssize_t size = (ssize_t) read_vfs(ioctx->file_desc[fd]->flags, ioctx->file_desc[fd]->seek,
 		count, (char*)buf, ioctx->file_desc[fd]->vfs_node);
 	if(size == -1)
@@ -128,6 +136,7 @@ ssize_t sys_read(int fd, const void *buf, size_t count)
 	ioctx->file_desc[fd]->seek += size;
 	return size;
 }
+
 ssize_t sys_write(int fd, const void *buf, size_t count)
 {
 	if(vmm_check_pointer((void*) buf, count) < 0)
@@ -136,18 +145,23 @@ ssize_t sys_write(int fd, const void *buf, size_t count)
 		return -EBADF;
 	if(!get_current_process()->ctx.file_desc[fd]->flags & O_WRONLY)
 		return -EBADF;
-	size_t written = write_vfs(get_current_process()->ctx.file_desc[fd]->seek, count, (void*) buf, get_current_process()->ctx.file_desc[fd]->vfs_node);
+	
+	size_t written = write_vfs(get_current_process()->ctx.file_desc[fd]->seek,
+				   count, (void*) buf, 
+				   get_current_process()->ctx.file_desc[fd]->vfs_node);
 
 	if(written == (size_t) -1)
 		return -errno;
 	get_current_process()->ctx.file_desc[fd]->seek += written;
 	return written;
 }
+
 void handle_open_flags(file_desc_t *fd, int flags)
 {
 	if(flags & O_APPEND)
 		fd->seek = fd->vfs_node->size;
 }
+
 static vfsnode_t *try_to_open(vfsnode_t *base, const char *filename, int flags, mode_t mode)
 {
 	vfsnode_t *ret = open_vfs(base, filename);
@@ -155,6 +169,7 @@ static vfsnode_t *try_to_open(vfsnode_t *base, const char *filename, int flags, 
 		ret = creat_vfs(base, filename, mode);
 	return ret;
 }
+
 int do_sys_open(const char *filename, int flags, mode_t mode, vfsnode_t *rel)
 {
 	/* This function does all the open() work, open(2) and openat(2) use this */
@@ -179,7 +194,9 @@ int do_sys_open(const char *filename, int flags, mode_t mode, vfsnode_t *rel)
 		close_vfs(file);
 		return -errno;
 	}
+	
 	memset(fd, 0, sizeof(file_desc_t));
+	
 	fd->vfs_node = file;
 	file->refcount++;
 	fd->refcount++;
@@ -189,6 +206,7 @@ int do_sys_open(const char *filename, int flags, mode_t mode, vfsnode_t *rel)
 	mutex_unlock(&ioctx->fdlock);
 	return fd_num;
 }
+
 int sys_open(const char *filename, int flags, mode_t mode)
 {
 	if(!vmm_is_mapped((char*) filename))
@@ -196,6 +214,7 @@ int sys_open(const char *filename, int flags, mode_t mode)
 	/* open(2) does relative opens using the current working directory */
 	return do_sys_open(filename, flags, mode, get_current_process()->ctx.cwd);
 }
+
 static inline int decrement_fd_refcount(file_desc_t *fd)
 {
 	/* If there's nobody referencing this file descriptor, close the vfs node and free memory */
@@ -208,6 +227,7 @@ static inline int decrement_fd_refcount(file_desc_t *fd)
 	}
 	return 0;
 }
+
 int sys_close(int fd)
 {
 	ioctx_t *ioctx = &get_current_process()->ctx;	
@@ -219,6 +239,7 @@ int sys_close(int fd)
 	ioctx->file_desc[fd] = NULL;
 	return 0;
 }
+
 int sys_dup(int fd)
 {
 	ioctx_t *ioctx = &get_current_process()->ctx;
@@ -246,6 +267,7 @@ int sys_dup(int fd)
 		}
 	}
 }
+
 int sys_dup2(int oldfd, int newfd)
 {
 	ioctx_t *ioctx = &get_current_process()->ctx;
@@ -264,6 +286,7 @@ int sys_dup2(int oldfd, int newfd)
 	ioctx->file_desc[newfd]->vfs_node->refcount++;
 	return newfd;
 }
+
 ssize_t sys_readv(int fd, const struct iovec *vec, int veccnt)
 {
 	if(vmm_check_pointer((void*) vec, sizeof(struct iovec) * veccnt) < 0)
@@ -296,6 +319,7 @@ ssize_t sys_readv(int fd, const struct iovec *vec, int veccnt)
 	}
 	return read;
 }
+
 ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt)
 {
 	if(vmm_check_pointer((void*) vec, sizeof(struct iovec) * veccnt) < 0)
@@ -322,6 +346,7 @@ ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt)
 	}
 	return wrote;
 }
+
 ssize_t sys_preadv(int fd, const struct iovec *vec, int veccnt, off_t offset)
 {
 	if(vmm_check_pointer((void*) vec, sizeof(struct iovec) * veccnt) < 0)
@@ -346,6 +371,7 @@ ssize_t sys_preadv(int fd, const struct iovec *vec, int veccnt, off_t offset)
 	}
 	return read;
 }
+
 ssize_t sys_pwritev(int fd, const struct iovec *vec, int veccnt, off_t offset)
 {
 	if(veccnt == 0) return 0;
@@ -373,6 +399,7 @@ ssize_t sys_pwritev(int fd, const struct iovec *vec, int veccnt, off_t offset)
 	}
 	return wrote;
 }
+
 int sys_getdents(int fd, struct dirent *dirp, unsigned int count)
 {
 	if(validate_fd(fd) < 0)
@@ -385,6 +412,7 @@ int sys_getdents(int fd, struct dirent *dirp, unsigned int count)
 	ctx->file_desc[fd]->seek += read_entries_size;
 	return read_entries_size;
 }
+
 int sys_ioctl(int fd, int request, char *argp)
 {
 	if(validate_fd(fd) < 0)
@@ -392,16 +420,19 @@ int sys_ioctl(int fd, int request, char *argp)
 	ioctx_t *ctx = &get_current_process()->ctx;
 	return ioctl_vfs(request, argp, ctx->file_desc[fd]->vfs_node);
 }
+
 int sys_truncate(const char *path, off_t length)
 {
 	return errno =-ENOSYS;
 }
+
 int sys_ftruncate(int fd, off_t length)
 {
 	if(validate_fd(fd) < 0)
 		return errno =-EBADF;
 	return errno =-ENOSYS; 
 }
+
 off_t sys_lseek(int fd, off_t offset, int whence)
 {
 	ioctx_t *ioctx = &get_current_process()->ctx;
@@ -411,6 +442,7 @@ off_t sys_lseek(int fd, off_t offset, int whence)
 		return -ESPIPE;
 
 	mutex_lock(&ioctx->file_desc[fd]->seek_lock);
+	
 	if(whence == SEEK_CUR)
 		ioctx->file_desc[fd]->seek += offset;
 	else if(whence == SEEK_SET)
@@ -422,9 +454,11 @@ off_t sys_lseek(int fd, off_t offset, int whence)
 		mutex_unlock(&ioctx->file_desc[fd]->seek_lock);
 		return -EINVAL;
 	}
+	
 	mutex_unlock(&ioctx->file_desc[fd]->seek_lock);
 	return ioctx->file_desc[fd]->seek;
 }
+
 int sys_mount(const char *source, const char *target, const char *filesystemtype, unsigned long mountflags, const void *data)
 {
 	if(!vmm_is_mapped((void*) source))
@@ -460,6 +494,7 @@ exit:
 	free(dev_name);
 	return ret;
 }
+
 int sys_isatty(int fd)
 {
 	if(validate_fd(fd) < 0)
@@ -470,6 +505,7 @@ int sys_isatty(int fd)
 	else
 		return errno =-ENOTTY;
 }
+
 int sys_pipe(int pipefd[2])
 {
 	if(vmm_check_pointer(pipefd, sizeof(int) * 2) < 0)
@@ -521,6 +557,7 @@ int sys_pipe(int pipefd[2])
 
 	return 0;
 }
+
 int do_dupfd(int fd, int fdbase)
 {
 	int new_fd = find_free_fd(fdbase);
@@ -529,6 +566,7 @@ int do_dupfd(int fd, int fdbase)
 	ioctx->file_desc[fdbase]->refcount++;
 	return new_fd;
 }
+
 int sys_fcntl(int fd, int cmd, unsigned long arg)
 {
 	if(validate_fd(fd) < 0)
@@ -560,6 +598,7 @@ int sys_fcntl(int fd, int cmd, unsigned long arg)
 	}
 	return 0;
 }
+
 int do_sys_stat(const char *pathname, struct stat *buf, int flags, vfsnode_t *rel)
 {
 	vfsnode_t *base = get_fs_base(pathname, rel);
@@ -570,6 +609,7 @@ int do_sys_stat(const char *pathname, struct stat *buf, int flags, vfsnode_t *re
 	close_vfs(stat_node);
 	return 0;
 }
+
 int sys_stat(const char *pathname, struct stat *buf)
 {
 	if(!vmm_is_mapped((void*) pathname))
@@ -578,6 +618,7 @@ int sys_stat(const char *pathname, struct stat *buf)
 		return errno = -EFAULT;
 	return do_sys_stat(pathname, buf, 0, get_current_directory());
 }
+
 int sys_fstat(int fd, struct stat *buf)
 {
 	if(vmm_check_pointer(buf, sizeof(struct stat)) < 0)
@@ -587,6 +628,7 @@ int sys_fstat(int fd, struct stat *buf)
 	stat_vfs(buf, get_current_process()->ctx.file_desc[fd]->vfs_node);
 	return 0;
 }
+
 int sys_chdir(const char *path)
 {
 	if(!vmm_is_mapped((void*) path))
@@ -600,6 +642,7 @@ int sys_chdir(const char *path)
 	get_current_process()->ctx.cwd = dir;
 	return 0;
 }
+
 int sys_fchdir(int fildes)
 {
 	if(validate_fd(fildes) < 0)
@@ -611,6 +654,7 @@ int sys_fchdir(int fildes)
 	get_current_process()->ctx.cwd = node;
 	return 0;
 }
+
 int sys_getcwd(char *path, size_t size)
 {
 	if(size == 0 && path != NULL)
@@ -627,6 +671,7 @@ int sys_getcwd(char *path, size_t size)
 	
 	return 0;
 }
+
 int sys_openat(int dirfd, const char *path, int flags, mode_t mode)
 {
 	if(!vmm_is_mapped((void*) path))
@@ -642,6 +687,7 @@ int sys_openat(int dirfd, const char *path, int flags, mode_t mode)
 		return -ENOTDIR;
 	return do_sys_open(path, flags, mode, dir);
 }
+
 int sys_fstatat(int dirfd, const char *pathname, struct stat *buf, int flags)
 {
 	if(!vmm_is_mapped((void*) pathname))
@@ -649,8 +695,10 @@ int sys_fstatat(int dirfd, const char *pathname, struct stat *buf, int flags)
 	if(vmm_check_pointer(buf, sizeof(struct stat)) < 0)
 		return errno = -EFAULT;
 	vfsnode_t *dir;
+	
 	if(validate_fd(dirfd) < 0 && dirfd != AT_FDCWD)
 		return -EBADF;
+	
 	if(dirfd != AT_FDCWD)
 		dir = get_file_description(dirfd)->vfs_node;
 	else
@@ -659,6 +707,7 @@ int sys_fstatat(int dirfd, const char *pathname, struct stat *buf, int flags)
 		return -ENOTDIR;
 	return do_sys_stat(pathname, buf, flags, dir);
 }
+
 int sys_fmount(int fd, const char *path)
 {
 	if(validate_fd(fd) < 0)
@@ -667,10 +716,12 @@ int sys_fmount(int fd, const char *path)
 		return errno = -EFAULT;
 	return mount_fs(get_file_description(fd)->vfs_node, path);
 }
+
 void file_do_cloexec(ioctx_t *ctx)
 {
 	mutex_lock(&ctx->fdlock);
 	file_desc_t **fd = ctx->file_desc;
+	
 	for(int i = 0; i < ctx->file_desc_entries; i++)
 	{
 		if(!fd[i])
@@ -684,6 +735,7 @@ void file_do_cloexec(ioctx_t *ctx)
 	}
 	mutex_unlock(&ctx->fdlock);
 }
+
 int open_with_vnode(vfsnode_t *node, int flags)
 {
 	/* This function does all the open() work, open(2) and openat(2) use this */
@@ -700,6 +752,7 @@ int open_with_vnode(vfsnode_t *node, int flags)
 	}
 	memset(fd, 0, sizeof(file_desc_t));
 	fd->vfs_node = node;
+	
 	node->refcount++;
 	fd->refcount++;
 	fd->seek = 0;
@@ -708,6 +761,7 @@ int open_with_vnode(vfsnode_t *node, int flags)
 	mutex_unlock(&ioctx->fdlock);
 	return fd_num;
 }
+
 ssize_t sys_send(int sockfd, const void *buf, size_t len, int flags)
 {
 	if(validate_fd(sockfd) < 0)
@@ -717,6 +771,7 @@ ssize_t sys_send(int sockfd, const void *buf, size_t len, int flags)
 		return -ENOTSOCK;
 	return send_vfs(buf, len, flags, desc->vfs_node);
 }
+
 int sys_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 {
 	if(validate_fd(sockfd) < 0)
@@ -726,6 +781,7 @@ int sys_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 		return -ENOTSOCK;
 	return connect_vfs(addr, addrlen, desc->vfs_node);
 }
+
 int sys_bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 {
 	if(validate_fd(sockfd) < 0)
@@ -735,6 +791,7 @@ int sys_bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 		return -ENOTSOCK;
 	return bind_vfs(addr, addrlen, desc->vfs_node);
 }
+
 ssize_t sys_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen)
 {
 	if(vmm_check_pointer(buf, len) < 0)

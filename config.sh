@@ -1,7 +1,7 @@
 #!/bin/sh
 SYSTEM_HEADER_PROJECTS="kernel libdrm"
 PROJECTS="libc kernel"
-SOURCE_PACKAGES="musl libdrm libunwind init games ld dhcpcd wserver strace"
+SOURCE_PACKAGES="musl libdrm libunwind init games ld dhcpcd wserver strace libtest test"
 
 
 export MAKE=${MAKE:-make}
