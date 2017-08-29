@@ -10,7 +10,7 @@
 #include <string.h>
 #include <kernel/bootmem.h>
 
-#define PHYS_BASE (0xffffea0000000000)
+#define PHYS_BASE (0xffffd00000000000)
 #define PAGE_WRITABLE 0x1
 #define PAGE_GLOBAL 0x2
 #define PAGE_KERNEL (PAGE_GLOBAL|PAGE_WRITABLE)

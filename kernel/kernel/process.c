@@ -225,7 +225,7 @@ char **process_copy_envarg(char **envarg, _Bool to_kernel, int *count)
 	}
 	else
 	{
-		new = vmm_allocate_virt_address(0, vmm_align_size_to_pages(buffer_size), VM_TYPE_SHARED, VM_WRITE | VM_NOEXEC | VM_USER, 0);
+		new = vmm_allocate_virt_address(VM_ADDRESS_USER, vmm_align_size_to_pages(buffer_size), VM_TYPE_SHARED, VM_WRITE | VM_NOEXEC | VM_USER, 0);
 		if(!new)
 			return NULL;
 		if(!vmm_map_range(new, vmm_align_size_to_pages(buffer_size), VM_WRITE | VM_NOEXEC | VM_USER))
@@ -285,7 +285,7 @@ void process_setup_pthread(thread_t *thread, process_t *process)
 {
 	/* TODO: Do this portably */
 	/* TODO: Return error codes and clean up */
-	uintptr_t *fs = vmm_allocate_virt_address(0, 1, VM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_USER, 0);
+	uintptr_t *fs = vmm_allocate_virt_address(VM_ADDRESS_USER, 1, VM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_USER, 0);
 	vmm_map_range(fs, 1, VMM_WRITE | VMM_NOEXEC | VMM_USER);
 	thread->fs = (void*) fs;
 	__pthread_t *p = (__pthread_t*) fs;
@@ -384,12 +384,12 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	/* Close O_CLOEXEC files */
 	file_do_cloexec(&get_current_process()->ctx);
 
-	void *user_stack = vmm_allocate_virt_address(0, 256, VM_TYPE_SHARED, VM_WRITE | VM_NOEXEC | VM_USER, 0);
+	void *user_stack = vmm_allocate_virt_address(VM_ADDRESS_USER, 256, VM_TYPE_SHARED, VM_WRITE | VM_NOEXEC | VM_USER, 0);
 	void *auxv = NULL;
 	if(!user_stack)
 		return -1;
 	vmm_map_range(user_stack, 256, VM_WRITE | VM_NOEXEC | VM_USER);
-	
+
 	/* Setup auxv */
 	auxv = process_setup_auxv(user_stack, current);
 	user_stack = (char*) user_stack + 256 * PAGE_SIZE;

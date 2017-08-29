@@ -32,10 +32,10 @@
 #define VM_USER 		(0x80)
 #define VM_WRITE 		(0x1)
 #define VM_NOEXEC 		(0x4)
-#define VM_ADDRESS_USER		(0)
 #define VM_KERNEL 		(1)
 #define VM_COW			(1 << 1)
-#define KERNEL_FB 		0xFFFFE00000000000
+#define VM_ADDRESS_USER		(1 << 1)
+
 /* 
  * Deprecated and will be removed in a future date, after all code is ported. 
  * New code should use the new macros
@@ -75,8 +75,9 @@ struct fault_info
 #ifdef __cplusplus
 extern "C" {
 #endif
-void vmm_init();
-void vmm_start_address_bookkeeping(uintptr_t framebuffer_address, uintptr_t heap);
+
+void vmm_init(void);
+void vmm_late_init(void);
 void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uint64_t prot, uintptr_t alignment);
 void *vmm_map_range(void* range, size_t pages, uint64_t flags);
 void vmm_unmap_range(void *range, size_t pages);
@@ -104,6 +105,12 @@ void *vmm_gen_brk_base(void);
 void vmm_sysfs_init(void);
 int vmm_mark_cow(vmm_entry_t *zone);
 vmm_entry_t *vmm_is_mapped_and_writable(void *usr);
+ssize_t copy_to_user(void *usr, const void *data, size_t len);
+ssize_t copy_from_user(void *data, const void *usr, size_t len);
+void arch_vmm_init(void);
+void vm_update_addresses(uintptr_t new_kernel_space_base);
+uintptr_t vm_randomize_address(uintptr_t base, uintptr_t bits);
+
 static inline size_t vmm_align_size_to_pages(size_t size)
 {
 	size_t pages = size / PAGE_SIZE;
@@ -111,8 +118,7 @@ static inline size_t vmm_align_size_to_pages(size_t size)
 		pages++;
 	return pages;
 }
-ssize_t copy_to_user(void *usr, const void *data, size_t len);
-ssize_t copy_from_user(void *data, const void *usr, size_t len);
+
 #ifdef __cplusplus
 }
 #endif

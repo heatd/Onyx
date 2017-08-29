@@ -251,7 +251,7 @@ retry:;
 	}
 	registers_t *regs = (registers_t *) current->threads[0]->kernel_stack;
 	regs->rcx = (uintptr_t) auxv;
-	uintptr_t *fs = vmm_allocate_virt_address(0, 1, VM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_USER, 0);
+	uintptr_t *fs = vmm_allocate_virt_address(VM_ADDRESS_USER, 1, VM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_USER, 0);
 	vmm_map_range(fs, 1, VMM_WRITE | VMM_NOEXEC | VMM_USER);
 	current->threads[0]->fs = (void*) fs;
 	__pthread_t *p = (__pthread_t*) fs;
@@ -349,38 +349,37 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 	/* Identify the CPU it's running on (bootstrap CPU) */
 	cpu_identify();
 	paging_map_all_phys();
-	if(tagfb)
-	{
-		phys_fb = (void*) tagfb->common.framebuffer_addr;
-		/* Map the FB */
-		for (uintptr_t virt = KERNEL_FB, phys = tagfb->common.framebuffer_addr; virt < KERNEL_FB + 0x400000; virt += 4096, phys += 4096)
-		{
-			paging_map_phys_to_virt(virt, phys, VMM_GLOBAL | VMM_WRITE | VMM_NOEXEC);
-		}
-		/* Initialize the Software framebuffer */
-		softfb_init(KERNEL_FB, tagfb->common.framebuffer_bpp, tagfb->common.framebuffer_width, tagfb->common.framebuffer_height, tagfb->common.framebuffer_pitch);
-	}
-
-	/* Initialize the first terminal */
-	tty_init();
 
 	mmap = (struct multiboot_mmap_entry *) mmap_tag->entries;
 	initrd_addr = (void*) (uintptr_t) initrd_tag->mod_start;
 
 	page_init();
-	/* Map the first bucket's memory address */
-	void *mem = (void*)0xFFFFFFF890000000;
-	vmm_map_range(mem, 1024, VMM_GLOBAL | VMM_WRITE | VMM_NOEXEC);
 
-	/* We need to get some early boot rtc data and initialize the entropy, as it's vital to initialize
-	 * some entropy sources for the memory map */
+	/* We need to get some early boot rtc data and initialize the entropy,
+	 * as it's vital to initialize some entropy sources for the memory map
+	*/
 	early_boot_rtc();
 	initialize_entropy();
 
-	vmm_start_address_bookkeeping(KERNEL_FB, 0xFFFFFFF890000000);
+	vmm_late_init();
 	
 	/* Register pages */
 	page_register_pages();
+
+	if(tagfb)
+	{
+		phys_fb = (void*) tagfb->common.framebuffer_addr;
+		size_t framebuffer_size = (tagfb->common.framebuffer_bpp / 8) * 
+			tagfb->common.framebuffer_width * tagfb->common.framebuffer_height;
+		(void) framebuffer_size;
+		void *addr = dma_map_range((void*) (uintptr_t) tagfb->common.framebuffer_addr,
+			0x400000, VM_WRITE | VM_GLOBAL | VM_NOEXEC);
+		/* Initialize the Software framebuffer */
+		softfb_init((uintptr_t) addr, tagfb->common.framebuffer_bpp, tagfb->common.framebuffer_width, tagfb->common.framebuffer_height, tagfb->common.framebuffer_pitch);
+	}
+
+	/* Initialize the first terminal */
+	tty_init();
 }
 void kernel_multitasking(void *);
 __attribute__((no_sanitize_undefined))
@@ -390,7 +389,7 @@ void kernel_main()
 
 	/* Initialize ACPI */
 	acpi_initialize();
-	
+
 	/* Intialize the interrupt part of the CPU (arch dependent) */
 	cpu_init_interrupts();
 

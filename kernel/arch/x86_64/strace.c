@@ -153,3 +153,8 @@ void init_elf_symbols(struct multiboot_tag_elf_sections *restrict secs)
 		}
 	}
 }
+
+void syscall_helper(unsigned int num)
+{
+	printk("Invalid syscall %u\n", num);
+}

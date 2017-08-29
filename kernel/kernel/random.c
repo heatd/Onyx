@@ -21,6 +21,7 @@
 const size_t max_entropy = PAGE_SIZE * 4;
 static char entropy_buffer[PAGE_SIZE * 4] = {0};
 static size_t current_entropy = 0;
+
 void add_entropy(void *ent, size_t size)
 {
 	if(current_entropy == max_entropy || current_entropy + size > max_entropy)
@@ -28,6 +29,7 @@ void add_entropy(void *ent, size_t size)
 	memcpy(&entropy_buffer[current_entropy], ent, size);
 	current_entropy += size;
 }
+
 void get_entropy(char *buf, size_t s)
 {
 	for(size_t i = 0; i < s; i++)
@@ -38,11 +40,13 @@ void get_entropy(char *buf, size_t s)
 		memmove(entropy_buffer, &entropy_buffer[1], current_entropy);
 	}
 }
+
 size_t ent_read(size_t off, size_t count, void *buffer, vfsnode_t *node)
 {
 	get_entropy((char*) buffer, count);
 	return count;
 }
+
 void initialize_entropy(void)
 {
 	/* Use get_posix_time as entropy, together with the TSC and the PIT */
@@ -57,6 +61,7 @@ void initialize_entropy(void)
 		add_entropy(&r, sizeof(int));
 	}
 }
+
 void entropy_refill(void)
 {
 	unsigned int *buf = (unsigned int*) entropy_buffer;
@@ -66,6 +71,7 @@ void entropy_refill(void)
 		*buf++ = get_posix_time() << 28 | get_microseconds() << 24 | rdtsc() << 20 | rand();
 	}
 }
+
 size_t random_get_entropy(size_t size, void *buffer)
 {
 	unsigned char *buf = buffer;
@@ -84,6 +90,7 @@ size_t random_get_entropy(size_t size, void *buffer)
 	}
 	return size;
 }
+
 size_t urandom_get_entropy(size_t size, void *buffer)
 {
 	unsigned char *buf = buffer;
@@ -106,6 +113,7 @@ size_t urandom_get_entropy(size_t size, void *buffer)
 	}
 	return size;
 }
+
 size_t get_entropy_from_pool(int pool, size_t size, void *buffer)
 {
 	assert(pool == ENTROPY_POOL_RANDOM || pool == ENTROPY_POOL_URANDOM);
@@ -122,14 +130,17 @@ size_t get_entropy_from_pool(int pool, size_t size, void *buffer)
 	}
 	return -EINVAL;
 }
+
 size_t random_read(int flags, size_t offset, size_t sizeofreading, void *buffer, vfsnode_t *this)
 {
 	return get_entropy_from_pool(ENTROPY_POOL_RANDOM, sizeofreading, buffer);
 }
+
 size_t urandom_read(int flags, size_t offset, size_t sizeofreading, void *buffer, vfsnode_t *this)
 {
 	return get_entropy_from_pool(ENTROPY_POOL_URANDOM, sizeofreading, buffer);
 }
+
 void init_random_dev(void)
 {
 	struct minor_device *dev = dev_register(0, 0);
@@ -142,6 +153,7 @@ void init_random_dev(void)
 	file->type = VFS_TYPE_CHAR_DEVICE;
 	file->dev = dev->majorminor;
 }
+
 void init_urandom_dev(void)
 {
 	struct minor_device *dev = dev_register(0, 0);
@@ -154,17 +166,20 @@ void init_urandom_dev(void)
 	file->type = VFS_TYPE_CHAR_DEVICE;
 	file->dev = dev->majorminor;
 }
+
 void entropy_init_dev(void)
 {
 	init_random_dev();
 	init_urandom_dev();
 }
+
 unsigned int get_random_int(void)
 {
 	unsigned int result = rand();
 	result |= (get_tick_count() | get_microseconds()) + rdtsc();
 	return result;
 }
+
 int sys_getrandom(void *buf, size_t buflen, unsigned int flags)
 {
 	if(vmm_check_pointer(buf, buflen) < 0)

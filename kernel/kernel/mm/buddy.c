@@ -29,21 +29,21 @@ typedef struct stack
 	stack_entry_t* next;
 } stack_t;
 
-inline unsigned long pow2(int exp)
+static inline unsigned long pow2(int exp)
 {
 	return (1UL << (unsigned long) exp);
 }
 
-inline size_t align_pow2_up(size_t i)
+static inline size_t align_pow2_up(size_t i)
 {
 	return pow2(ilog2(i) + 1);
 }
-inline size_t align_pow2_down(size_t i)
+static inline size_t align_pow2_down(size_t i)
 {
 	return pow2(ilog2(i));
 }
 
-inline void __bitmap_mark(size_t bitndx, uint8_t *ptr)
+static inline void __bitmap_mark(size_t bitndx, uint8_t *ptr)
 {
 	size_t byte_ndx = bitndx / CHAR_BIT;
 	uint8_t *byte = &ptr[byte_ndx];
@@ -51,7 +51,7 @@ inline void __bitmap_mark(size_t bitndx, uint8_t *ptr)
 	*byte |= (1 << ndx);
 }
 
-inline void __bitmap_unmark(size_t bitndx, uint8_t *ptr)
+static inline void __bitmap_unmark(size_t bitndx, uint8_t *ptr)
 {
 	size_t byte_ndx = bitndx / CHAR_BIT;
 	uint8_t *byte = &ptr[byte_ndx];
@@ -59,7 +59,7 @@ inline void __bitmap_unmark(size_t bitndx, uint8_t *ptr)
 	*byte &= ~(1 << ndx);
 }
 
-inline bool __bitmap_ismarked(size_t bitndx, uint8_t *ptr)
+static inline bool __bitmap_ismarked(size_t bitndx, uint8_t *ptr)
 {
 	size_t byte_ndx = bitndx / CHAR_BIT;
 	uint8_t *byte = &ptr[byte_ndx];
@@ -67,12 +67,12 @@ inline bool __bitmap_ismarked(size_t bitndx, uint8_t *ptr)
 	return (*byte & (1 << ndx));
 }
 
-inline size_t get_block_index(void *ptr, size_t order_size)
+static inline size_t get_block_index(void *ptr, size_t order_size)
 {
 	return (uintptr_t) ptr / order_size;
 }
 
-inline bool is_even_number(size_t s)
+static inline bool is_even_number(size_t s)
 {
 	return (s & 1) == 0;
 }

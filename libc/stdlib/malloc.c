@@ -13,8 +13,15 @@
 #ifdef __is_onyx_kernel
 #include <kernel/vmm.h>
 extern _Bool is_initialized;
-char *heap = (char*) 0xFFFFFFF890000000;
-char *heap_limit = (char*) 0xFFFFFFF890400000;
+char *heap = NULL;
+char *heap_limit = NULL;
+
+void heap_set_start(uintptr_t start)
+{
+	heap = (char *) start;
+	heap_limit = heap + 0x400000;
+}
+
 int heap_expand(void)
 {
 	/* Allocate 256 pages */

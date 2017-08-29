@@ -3,6 +3,7 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
+
 #include <stdio.h>
 #include <stdbool.h>
 #include <errno.h>
@@ -24,7 +25,12 @@
 #include <kernel/sysfs.h>
 #include <kernel/vfs.h>
 
+#include <kernel/vm_layout.h>
+
+#include <drivers/rtc.h>
+
 #include <sys/mman.h>
+
 typedef struct avl_node
 {
 	struct avl_node *left, *right;
@@ -32,34 +38,45 @@ typedef struct avl_node
 	uintptr_t end;
 	vmm_entry_t *data;
 } avl_node_t;
+
 static spinlock_t kernel_vm_spl;
-_Bool is_initialized = false;
-_Bool is_spawning = 0;
-static _Bool enable_aslr = true;
+bool is_initialized = false;
+bool is_spawning = 0;
+static bool enable_aslr = true;
 avl_node_t *old_tree = NULL;
 vmm_entry_t *areas = NULL;
 size_t num_areas = 3;
-#ifdef __x86_64__
-const uintptr_t high_half = 0xffffc90000000000;
-const uintptr_t low_half_max = 0x00007fffffffffff;
-const uintptr_t low_half_min = 0x400000;
-#endif
-uintptr_t kstacks_offset = 0xffffff0000000000;
-uintptr_t vmalloc_space = 0xffffc90000000000;
+
+uintptr_t high_half 		= arch_high_half;
+uintptr_t low_half_max 		= arch_low_half_max;
+uintptr_t low_half_min 		= arch_low_half_min;
+
+/* These addresses are either absolute, or offsets, depending on the architecture.
+ * The corresponding arch/ code is responsible for patching these up using
+ * vm_update_addresses.
+*/
+uintptr_t vmalloc_space 	= arch_vmalloc_off;
+uintptr_t kstacks_addr	 	= arch_kstacks_off;
+uintptr_t heap_addr		= arch_heap_off;
+
 static avl_node_t *kernel_tree = NULL;
 static avl_node_t *tree = NULL;
+
 int imax(int x, int y)
 {
 	return x > y ? x : y;
 }
+
 uintptr_t max(uintptr_t x, uintptr_t y)
 {
 	return x > y ? x : y;
 }
+
 uintptr_t min(uintptr_t x, uintptr_t y)
 {
 	return x < y ? x : y;
 }
+
 int avl_get_height(avl_node_t *ptr)
 {
 	int height_left = 0, height_right = 0;
@@ -68,6 +85,7 @@ int avl_get_height(avl_node_t *ptr)
 
 	return imax(height_right, height_left);
 }
+
 void avl_rotate_left_to_right(avl_node_t **t)
 {
 	avl_node_t *a = *t;
@@ -81,6 +99,7 @@ void avl_rotate_left_to_right(avl_node_t **t)
 
 	*t = c;
 }
+
 void avl_rotate_right_to_left(avl_node_t **t)
 {
 	avl_node_t *a = *t;
@@ -92,6 +111,7 @@ void avl_rotate_right_to_left(avl_node_t **t)
 	c->left = a;
 	*t = c;
 }
+
 void avl_rotate_left_to_left(avl_node_t **t)
 {
 	avl_node_t *a = *t;
@@ -101,6 +121,7 @@ void avl_rotate_left_to_left(avl_node_t **t)
 
 	*t = b;
 }
+
 void avl_rotate_right_to_right(avl_node_t **t)
 {
 	avl_node_t *a = *t;
@@ -110,6 +131,7 @@ void avl_rotate_right_to_right(avl_node_t **t)
 
 	*t = b;
 }
+
 void avl_balance_tree(avl_node_t **t)
 {
 	avl_node_t *ptr = *t;
@@ -148,6 +170,7 @@ void avl_balance_tree(avl_node_t **t)
 			avl_rotate_right_to_right(t);
 	}
 }
+
 static vmm_entry_t *avl_insert_key(avl_node_t **t, uintptr_t key, uintptr_t end)
 {
 	avl_node_t *ptr = *t;
@@ -182,6 +205,7 @@ static vmm_entry_t *avl_insert_key(avl_node_t **t, uintptr_t key, uintptr_t end)
 		return ret;
 	}
 }
+
 static avl_node_t **avl_search_key(avl_node_t **t, uintptr_t key)
 {
 	if(!*t)
@@ -196,6 +220,7 @@ static avl_node_t **avl_search_key(avl_node_t **t, uintptr_t key)
 	else
 		return avl_search_key(&ptr->right, key);
 }
+
 static int avl_delete_node(uintptr_t key)
 {
 	/* Try to find the node inside the tree */
@@ -211,6 +236,7 @@ static int avl_delete_node(uintptr_t key)
 
 	return 0;
 }
+
 avl_node_t *avl_copy(avl_node_t *node)
 {
 	avl_node_t *new = malloc(sizeof(avl_node_t));
@@ -222,6 +248,7 @@ avl_node_t *avl_copy(avl_node_t *node)
 
 	return new;
 }
+
 void avl_clone(avl_node_t *node)
 {
 	if(node->left && node->left->key < high_half)
@@ -237,6 +264,7 @@ void avl_clone(avl_node_t *node)
 	if(node->left) avl_clone(node->left);
 	if(node->right) avl_clone(node->right);
 }
+
 /* Destroy a tree recursively */
 void avl_destroy_tree(avl_node_t *node)
 {
@@ -259,28 +287,34 @@ void avl_destroy_tree(avl_node_t *node)
 	free(node->data);
 	free(node);
 }
-static inline void __vm_lock(_Bool kernel)
+
+static inline void __vm_lock(bool kernel)
 {
 	if(kernel)
 		acquire_spinlock(&kernel_vm_spl);
 	else
 		acquire_spinlock((spinlock_t*) &get_current_process()->vm_spl);
 }
-static inline void __vm_unlock(_Bool kernel)
+
+static inline void __vm_unlock(bool kernel)
 {
 	if(kernel)
 		release_spinlock(&kernel_vm_spl);
 	else
 		release_spinlock((spinlock_t*) &get_current_process()->vm_spl);
 }
-static inline _Bool is_higher_half(void *address)
+
+static inline bool is_higher_half(void *address)
 {
 	return (uintptr_t) address > VM_HIGHER_HALF;
 }
+
 void vmm_init()
 {
 	paging_init();
+	arch_vmm_init();
 }
+
 static int vmm_comp(const void *ptr1, const void *ptr2)
 {
 	const vmm_entry_t *a = (const vmm_entry_t*) ptr1;
@@ -292,29 +326,35 @@ static int vmm_comp(const void *ptr1, const void *ptr2)
 		b->pages < a->pages ?  1 :
 	                            0 ;
 }
-void vmm_start_address_bookkeeping(uintptr_t framebuffer_address, uintptr_t heap)
-{
-	/* Start populating the address space */
-	vmm_entry_t *v = avl_insert_key(&kernel_tree, framebuffer_address, 0x400000);
-	if(!v)
-	{
-		panic("vmm: early boot oom");	
-	}
-	v->base = framebuffer_address;
-	/* TODO: Support multiple sizes of framebuffers */
-	v->pages = 0x800000 / PAGE_SIZE;
-	v->type = VM_TYPE_HW;
-	v->rwx = VM_NOEXEC | VM_WRITE;
-	/* TODO: Support multiple sizes of heap */
-	v = avl_insert_key(&kernel_tree, heap, 0x4000000000);
-	if(!v)
-	{
-		panic("vmm: early boot oom");	
-	}
-	v->base = framebuffer_address;
 
-	v->pages = 0x400000 / PAGE_SIZE;
-	v->type = VM_TYPE_HW;
+void heap_set_start(uintptr_t start);
+
+void vmm_late_init(void)
+{
+	uintptr_t heap_addr_no_aslr = heap_addr;
+
+	kstacks_addr = vm_randomize_address(kstacks_addr, KSTACKS_ASLR_BITS);
+	vmalloc_space = vm_randomize_address(vmalloc_space, VMALLOC_ASLR_BITS);
+	heap_addr = vm_randomize_address(heap_addr, HEAP_ASLR_BITS);
+
+	vmm_map_range((void*) heap_addr, vmm_align_size_to_pages(0x400000),
+								   VM_WRITE 
+								   | VM_NOEXEC
+								   | VM_GLOBAL);
+	heap_set_start(heap_addr);
+
+	size_t heap_size = 0x200000000000 - (heap_addr - heap_addr_no_aslr);
+	/* Start populating the address space */
+	vmm_entry_t *v = avl_insert_key(&kernel_tree,
+		heap_addr, heap_size);
+	if(!v)
+	{
+		panic("vmm: early boot oom");	
+	}
+	v->base = heap_addr;
+
+	v->pages = heap_size / PAGE_SIZE;
+	v->type = VM_TYPE_HEAP;
 	v->rwx = VM_NOEXEC | VM_WRITE;
 
 	v = avl_insert_key(&kernel_tree, KERNEL_VIRTUAL_BASE, UINT64_MAX - KERNEL_VIRTUAL_BASE);
@@ -327,14 +367,12 @@ void vmm_start_address_bookkeeping(uintptr_t framebuffer_address, uintptr_t heap
 	v->type = VM_TYPE_SHARED;
 	v->rwx = VM_WRITE;
 
-	kstacks_offset |= (rand() & 0xFFFFFFF000);
-	vmalloc_space |= (rand() & 0xFFFFFFF000);
-
 	is_initialized = true;
 }
+
 void *vmm_map_range(void *range, size_t pages, uint64_t flags)
 {
-	_Bool kernel = is_higher_half(range);
+	bool kernel = is_higher_half(range);
 
 	__vm_lock(kernel);
 	uintptr_t mem = (uintptr_t) range;
@@ -356,9 +394,10 @@ void *vmm_map_range(void *range, size_t pages, uint64_t flags)
 	__vm_unlock(kernel);
 	return range;
 }
+
 void vmm_unmap_range(void *range, size_t pages)
 {
-	_Bool kernel = is_higher_half(range);
+	bool kernel = is_higher_half(range);
 
 	__vm_lock(kernel);
 	uintptr_t mem = (uintptr_t) range;
@@ -374,6 +413,7 @@ void vmm_unmap_range(void *range, size_t pages)
 	}
 	__vm_unlock(kernel);
 }
+
 void vmm_destroy_mappings(void *range, size_t pages)
 {
 #if 0
@@ -421,9 +461,10 @@ void vmm_destroy_mappings(void *range, size_t pages)
 	UNUSED(range);
 	UNUSED(pages);
 }
+
 void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uint64_t prot, uintptr_t alignment)
 {
-	_Bool allocating_kernel = true;
+	bool allocating_kernel = true;
 	if(flags & VM_ADDRESS_USER)
 		allocating_kernel = false;
 	if(alignment == 0)
@@ -445,7 +486,7 @@ void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uin
 				base_address = (uintptr_t) get_current_process()->mmap_base;
 			}
 			else
-				base_address = kstacks_offset;
+				base_address = kstacks_addr;
 			break;
 		}
 		default:
@@ -522,11 +563,12 @@ again:
 	
 ret:
 	__vm_unlock(allocating_kernel);
-	return (void*)base_address;
+	return (void*) base_address;
 }
+
 void *vmm_reserve_address(void *addr, size_t pages, uint32_t type, uint64_t prot)
 {
-	_Bool reserving_kernel = is_higher_half(addr);
+	bool reserving_kernel = is_higher_half(addr);
 	
 	__vm_lock(reserving_kernel);
 	if(vmm_is_mapped(addr))
@@ -554,6 +596,7 @@ return_:
 	__vm_unlock(reserving_kernel);
 	return addr;
 }
+
 vmm_entry_t *vmm_is_mapped(void *addr)
 {
 	avl_node_t **tree = vmm_get_tree();
@@ -570,6 +613,7 @@ search_kernel:
 	avl_node_t *n = *e;
 	return n->data;
 }
+
 PML4 *vmm_clone_as(avl_node_t **treep)
 {
 	__vm_lock(false);
@@ -580,6 +624,7 @@ PML4 *vmm_clone_as(avl_node_t **treep)
 	__vm_unlock(false);
 	return pt;
 }
+
 PML4 *vmm_fork_as(avl_node_t **vmmstructs)
 {
 	__vm_lock(false);
@@ -589,14 +634,16 @@ PML4 *vmm_fork_as(avl_node_t **vmmstructs)
 	__vm_unlock(false);
 	return pt;
 }
+
 void vmm_stop_spawning()
 {
 	is_spawning = 0;
 	paging_stop_spawning();
 }
+
 void vmm_change_perms(void *range, size_t pages, int perms)
 {
-	_Bool kernel = is_higher_half(range);
+	bool kernel = is_higher_half(range);
 
 	__vm_lock(kernel);
 	for(size_t i = 0; i < pages; i++)
@@ -606,17 +653,23 @@ void vmm_change_perms(void *range, size_t pages, int perms)
 	
 	__vm_unlock(kernel);
 }
+
 void *vmalloc(size_t pages, int type, int perms)
 {
 	void *addr = vmm_allocate_virt_address(VM_KERNEL, pages, type, perms, 0);
+	if(!addr)
+		return NULL;
+
 	vmm_map_range(addr, pages, perms);
 	return addr;
 }
+
 void vfree(void *ptr, size_t pages)
 {
 	vmm_destroy_mappings(ptr, pages);
 	vmm_unmap_range(ptr, pages);
 }
+
 avl_node_t **vmm_get_tree()
 {
 	process_t *p = get_current_process();
@@ -624,6 +677,7 @@ avl_node_t **vmm_get_tree()
 		return NULL;
 	return &p->tree;
 }
+
 int vmm_check_pointer(void *addr, size_t needed_space)
 {
 	vmm_entry_t *e = vmm_is_mapped(addr);
@@ -634,6 +688,7 @@ int vmm_check_pointer(void *addr, size_t needed_space)
 	else
 		return -1;
 }
+
 void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off)
 {
 	file_desc_t *file_descriptor = NULL;
@@ -674,12 +729,12 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 		addr = NULL;
 
 	if(!addr) /* Specified by POSIX, if addr == NULL, guess an address */
-		mapping_addr = vmm_allocate_virt_address(0, pages, VM_TYPE_SHARED, vm_prot, 0);
+		mapping_addr = vmm_allocate_virt_address(VM_ADDRESS_USER, pages, VM_TYPE_SHARED, vm_prot, 0);
 	else
 	{
 		mapping_addr = vmm_reserve_address(addr, pages, VM_TYPE_REGULAR, vm_prot);
 		if(!mapping_addr)
-			mapping_addr = vmm_allocate_virt_address(0, pages, VM_TYPE_REGULAR, vm_prot, 0);
+			mapping_addr = vmm_allocate_virt_address(VM_ADDRESS_USER, pages, VM_TYPE_REGULAR, vm_prot, 0);
 	}
 	if(!mapping_addr)
 		return (void*)-ENOMEM;
@@ -710,8 +765,10 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 			return m->fops->mmap(area, file_descriptor->vfs_node);
 		}
 	}
+
 	return mapping_addr;
 }
+
 int sys_munmap(void *addr, size_t length)
 {
 	if (is_higher_half(addr))
@@ -727,6 +784,7 @@ int sys_munmap(void *addr, size_t length)
 	vmm_destroy_mappings(addr, pages);
 	return 0;
 }
+
 void print_vmm_structs(avl_node_t *node);
 int sys_mprotect(void *addr, size_t len, int prot)
 {
@@ -835,6 +893,7 @@ int sys_mprotect(void *addr, size_t len, int prot)
 	vmm_change_perms(addr, pages, vm_prot);
 	return 0;
 }
+
 uint64_t sys_brk(void *addr)
 {
 	if(addr == NULL)
@@ -843,6 +902,7 @@ uint64_t sys_brk(void *addr)
 		get_current_process()->brk = addr;
 	return 0;
 }
+
 void print_vmm_structs(avl_node_t *node)
 {
 	printk("[Base %x Length %x End %x]\n", node->data->base, node->data->pages * PAGE_SIZE, 
@@ -852,10 +912,12 @@ void print_vmm_structs(avl_node_t *node)
 	if(node->right)
 		print_vmm_structs(node->right);
 }
+
 void vmm_print_stats(void)
 {
 	print_vmm_structs(tree);
 }
+
 void *dma_map_range(void *phys, size_t size, size_t flags)
 {
 	size_t pages = vmm_align_size_to_pages(size);
@@ -871,6 +933,7 @@ void *dma_map_range(void *phys, size_t size, size_t flags)
 	}
 	return ptr;
 }
+
 int __vm_handle_private(vmm_entry_t *entry, struct fault_info *info)
 {
 	/* Map a page */
@@ -881,25 +944,33 @@ int __vm_handle_private(vmm_entry_t *entry, struct fault_info *info)
 		return -1;
 	vfsnode_t *file = entry->fd->vfs_node;
 	size_t to_read = file->size - entry->offset < PAGE_SIZE ? file->size - entry->offset : PAGE_SIZE;
+	
 	if(read_vfs(0,
-		entry->offset + (aligned_address - entry->base), to_read, ptr, file) != to_read)
+		    entry->offset + (aligned_address - entry->base),
+		    to_read,
+		    ptr,
+		    file) != to_read)
 	{
 		vmm_unmap_range(ptr, 1);
 		return -1;
 	}
+	
 	vmm_change_perms((void*) aligned_address, 1, entry->rwx);
 	return 0;
 }
+
 int __vm_handle_shared(vmm_entry_t *entry, struct fault_info *info)
 {
 	return -1;
 }
+
 int __vm_handle_anon(vmm_entry_t *entry, struct fault_info *info)
 {
 	if(!vmm_map_range((void*)(info->fault_address & 0xFFFFFFFFFFFFF000), 1, entry->rwx))
 		return -1;
 	return 0;
 }
+
 int vmm_handle_page_fault(vmm_entry_t *entry, struct fault_info *info)
 {
 	if(info->write && !(entry->rwx & VM_WRITE))
@@ -915,10 +986,12 @@ int vmm_handle_page_fault(vmm_entry_t *entry, struct fault_info *info)
 	else 
 		return __vm_handle_anon(entry, info);
 }
+
 void vmm_destroy_addr_space(avl_node_t *tree)
 {
 	avl_destroy_tree(tree);
 }
+
 /* Sanitizes an address. To be used by program loaders */
 int vm_sanitize_address(void *address, size_t pages)
 {
@@ -932,22 +1005,22 @@ int vm_sanitize_address(void *address, size_t pages)
 		return -1;
 	return 0;
 }
+
 /* Generates an mmap base, should be enough for mmap */
 void *vmm_gen_mmap_base()
 {
-	uintptr_t mmap_base;
+	uintptr_t mmap_base = arch_mmap_base;
 #ifdef CONFIG_ASLR
 	if(enable_aslr)
 	{
-		mmap_base = get_random_int() % (1 << 28);
-		mmap_base <<= 12;
-		mmap_base |= 0x0000770000000000;
+		//mmap_base = vm_randomize_address(mmap_base, MMAP_ASLR_BITS);
+
 		return (void*) mmap_base;
 	}
 #endif
-	mmap_base = 0x0000770000000000;
 	return (void*) mmap_base;
 }
+
 void *vmm_gen_brk_base()
 {
 	uintptr_t brk_base;
@@ -969,6 +1042,7 @@ int sys_memstat(struct memstat *memstat)
 	page_get_stats(memstat);
 	return 0;
 }
+
 /* Reads from vm_aslr - reads enable_aslr */
 ssize_t aslr_read(void *buffer, size_t size, off_t off)
 {
@@ -983,6 +1057,7 @@ ssize_t aslr_read(void *buffer, size_t size, off_t off)
 		*buf = '0';
 	return 1;
 }
+
 /* Writes to vm_aslr - modifies enable_aslr */
 ssize_t aslr_write(void *buffer, size_t size, off_t off)
 {
@@ -999,6 +1074,7 @@ ssize_t aslr_write(void *buffer, size_t size, off_t off)
 	}
 	return 1;
 }
+
 ssize_t vmm_traverse_kmaps(avl_node_t *node, char *address, size_t *size, off_t off)
 {
 	UNUSED(node);
@@ -1008,11 +1084,13 @@ ssize_t vmm_traverse_kmaps(avl_node_t *node, char *address, size_t *size, off_t 
 	strcpy(address, "unimplemented\n");
 	return strlen(address);
 }
+
 ssize_t kmaps_read(void *buffer, size_t size, off_t off)
 {
 	UNUSED(off);
 	return vmm_traverse_kmaps(kernel_tree, buffer, &size, 0);
 }
+
 void vmm_sysfs_init(void)
 {
 	INFO("vmm", "Setting up /sys/vm, /sys/vm_aslr and /sys/kmaps\n");
@@ -1034,6 +1112,7 @@ void vmm_sysfs_init(void)
 		panic("vmm_sysfs_init: Could not create /sys/kmaps\n");
 	kmaps->read = kmaps_read;
 }
+
 int vmm_mark_cow(vmm_entry_t *area)
 {
 	/* If the area isn't writable, don't mark it as COW */
@@ -1042,6 +1121,7 @@ int vmm_mark_cow(vmm_entry_t *area)
 	area->flags |= VM_COW;
 	return 0;
 }
+
 vmm_entry_t *vmm_is_mapped_and_writable(void *usr)
 {
 	vmm_entry_t *entry = vmm_is_mapped(usr);
@@ -1049,6 +1129,7 @@ vmm_entry_t *vmm_is_mapped_and_writable(void *usr)
 	if(likely(entry->rwx & VM_WRITE))	return entry;
 	return NULL;
 }
+
 ssize_t copy_to_user(void *usr, const void *data, size_t len)
 {
 	char *usr_ptr = usr;
@@ -1058,7 +1139,6 @@ ssize_t copy_to_user(void *usr, const void *data, size_t len)
 		vmm_entry_t *entry;
 		if((entry = vmm_is_mapped_and_writable(usr_ptr)) == NULL)
 		{
-			printk("Fault at %p\n", usr_ptr);
 			return -EFAULT;
 		}
 		size_t count = (entry->base + entry->pages * PAGE_SIZE) - (size_t) usr_ptr;
@@ -1070,6 +1150,7 @@ ssize_t copy_to_user(void *usr, const void *data, size_t len)
 	}
 	return len;
 }
+
 ssize_t copy_from_user(void *data, const void *usr, size_t len)
 {
 	const char *usr_ptr = usr;
@@ -1079,7 +1160,6 @@ ssize_t copy_from_user(void *data, const void *usr, size_t len)
 		vmm_entry_t *entry;
 		if((entry = vmm_is_mapped_and_writable((void*) usr_ptr)) == NULL)
 		{
-			printk("Fault at %p\n", usr_ptr);
 			return -EFAULT;
 		}
 		size_t count = (entry->base + entry->pages * PAGE_SIZE) - (size_t) usr_ptr;
@@ -1090,4 +1170,26 @@ ssize_t copy_from_user(void *data, const void *usr, size_t len)
 		len -= count;
 	}
 	return len;
+}
+
+void vm_update_addresses(uintptr_t new_kernel_space_base)
+{
+	vmalloc_space 	+= new_kernel_space_base;
+	kstacks_addr 	+= new_kernel_space_base;
+	heap_addr 	+= new_kernel_space_base;
+	high_half 	= new_kernel_space_base;
+}
+uint32_t arc4random(void);
+
+uintptr_t vm_randomize_address(uintptr_t base, uintptr_t bits)
+{
+	if(bits != 0)
+		bits--;
+	uintptr_t mask = UINTPTR_MAX & ~(-(1UL << bits));
+	/* Get entropy from arc4random() */
+	uintptr_t result = ((uintptr_t) arc4random() << 12) & mask;
+	result |= ((uintptr_t) arc4random() << 44) & mask;
+
+	base |= result;
+	return base;
 }

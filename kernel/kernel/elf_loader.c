@@ -139,7 +139,7 @@ _Bool elf_parse_program_headers_s(void *file)
 		}
 	}
 	needed_size += last_size;
-	base = vmm_allocate_virt_address(0, vmm_align_size_to_pages(needed_size), 
+	base = vmm_allocate_virt_address(VM_ADDRESS_USER, vmm_align_size_to_pages(needed_size), 
 				VM_TYPE_SHARED, VM_WRITE | VM_USER, alignment);
 	printk("Allocated [%x - %x]\n", base, (uintptr_t) base + needed_size);
 	hdr->e_entry += (uintptr_t) base;
@@ -392,7 +392,7 @@ void* elf_load(struct binfmt_args *args)
 	else
 		i = elf_parse_program_headers((void*) header, args);
 
-	current->brk = vmm_allocate_virt_address(0, 1, VM_TYPE_HEAP, VM_WRITE | VM_NOEXEC | VM_USER, 0);
+	current->brk = vmm_allocate_virt_address(VM_ADDRESS_USER, 1, VM_TYPE_HEAP, VM_WRITE | VM_NOEXEC | VM_USER, 0);
 	ENABLE_INTERRUPTS();
 	if(i == ELF_INTERP_MAGIC)
 	{

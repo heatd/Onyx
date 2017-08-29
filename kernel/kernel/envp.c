@@ -23,7 +23,7 @@ char **copy_env_vars(char **envp)
 	size_t pages = total_size / PAGE_SIZE;
 	if(total_size % PAGE_SIZE)
 		pages++;
-	uintptr_t *variables = vmm_allocate_virt_address(0, pages, VMM_TYPE_REGULAR, VMM_NOEXEC | VMM_WRITE | VMM_USER, 0);
+	uintptr_t *variables = vmm_allocate_virt_address(VM_ADDRESS_USER, pages, VMM_TYPE_REGULAR, VMM_NOEXEC | VMM_WRITE | VMM_USER, 0);
 	vmm_map_range(variables, pages,  VMM_NOEXEC | VMM_WRITE | VMM_USER);
 
 	char *variable_strings = (char*)variables + num_vars * sizeof(uintptr_t);
@@ -51,7 +51,7 @@ char **copy_argv(char **argv, const char *path, int *argc)
 	size_t pages = total_size / PAGE_SIZE;
 	if(total_size % PAGE_SIZE)
 		pages++;
-	uintptr_t *arguments = vmm_allocate_virt_address(0, pages, VMM_TYPE_REGULAR, VMM_NOEXEC | VMM_WRITE | VMM_USER, 0);
+	uintptr_t *arguments = vmm_allocate_virt_address(VM_ADDRESS_USER, pages, VMM_TYPE_REGULAR, VMM_NOEXEC | VMM_WRITE | VMM_USER, 0);
 	vmm_map_range(arguments, pages,  VMM_NOEXEC | VMM_WRITE | VMM_USER);
 	memset(arguments, 0, PAGE_SIZE * pages);
 	char *argument_strings = (char*)arguments + num_args * sizeof(uintptr_t);

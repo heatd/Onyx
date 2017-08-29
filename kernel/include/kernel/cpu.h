@@ -22,7 +22,7 @@
 #define CPUID_BRAND0			0x80000002
 #define CPUID_BRAND1 			0x80000003
 #define CPUID_BRAND2 			0x80000004
-#define CPUID_ASS			0x80000008 // Address space size (ASS for short :P)
+#define CPUID_ADDR_SPACE_SIZE		0x80000008
 #define CPUID_SIGN   			0x1
 #define CPUID_FEATURES			0x00000001
 #define CPUID_FEATURES_EXT		0x00000007

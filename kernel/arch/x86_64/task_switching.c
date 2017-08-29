@@ -50,7 +50,7 @@ thread_t* task_switching_create_context(thread_callback_t callback, uint32_t fla
 	memset(new_thread->fpu_area, 0, FPU_AREA_SIZE);
 	setup_fpu_area(new_thread->fpu_area);
 	if(!(flags & 1)) // If the thread is user mode, create a user stack
-		new_thread->user_stack = (uintptr_t*)vmm_allocate_virt_address(0, 256, VMM_TYPE_STACK, VMM_WRITE | VMM_NOEXEC | VMM_USER, 0);
+		new_thread->user_stack = (uintptr_t*)vmm_allocate_virt_address(VM_ADDRESS_USER, 256, VMM_TYPE_STACK, VMM_WRITE | VMM_NOEXEC | VMM_USER, 0);
 	new_thread->kernel_stack = (uintptr_t*)vmm_allocate_virt_address(VM_KERNEL, 4, VMM_TYPE_STACK, VMM_WRITE | VMM_NOEXEC, 0);
 
 	// Map the stacks on the virtual address space
@@ -131,7 +131,7 @@ thread_t* task_switching_create_main_progcontext(thread_callback_t callback, uin
 	setup_fpu_area(new_thread->fpu_area);
 	if(!(flags & 1)) // If the thread is user mode, create a user stack
 	{
-		new_thread->user_stack = (uintptr_t*)vmm_allocate_virt_address(0, 256, VMM_TYPE_STACK, VMM_WRITE | VMM_NOEXEC | VMM_USER, 0);
+		new_thread->user_stack = (uintptr_t*)vmm_allocate_virt_address(VM_ADDRESS_USER, 256, VMM_TYPE_STACK, VMM_WRITE | VMM_NOEXEC | VMM_USER, 0);
 		if(!new_thread->user_stack)
 			return NULL;
 	}

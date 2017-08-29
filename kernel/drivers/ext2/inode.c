@@ -119,9 +119,10 @@ void ext2_set_inode_size(inode_t *inode, size_t size)
 }
 unsigned int ext2_detect_block_type(uint32_t block, ext2_fs_t *fs)
 {
+	const unsigned int entries = (fs->block_size / sizeof(uint32_t));
 	unsigned int min_singly_block = direct_block_count;
-	unsigned int min_doubly_block = (fs->block_size / sizeof(uint32_t)) * (fs->block_size / sizeof(uint32_t));
-	unsigned int min_trebly_block = min_doubly_block * (fs->block_size / sizeof(uint32_t));
+	unsigned int min_doubly_block = entries + direct_block_count;
+	unsigned int min_trebly_block = entries * entries + min_singly_block;
 
 	if(block < min_singly_block)
 		return EXT2_TYPE_DIRECT_BLOCK;
@@ -135,9 +136,10 @@ ssize_t ext2_read_inode_block(inode_t *ino, uint32_t blk, char *buffer, ext2_fs_
 {
 	unsigned int type = ext2_detect_block_type(blk, fs);
 
+	const unsigned int entries = (fs->block_size / sizeof(uint32_t));
 	unsigned int min_singly_block = direct_block_count;
-	unsigned int min_doubly_block = (fs->block_size / sizeof(uint32_t)) * (fs->block_size / sizeof(uint32_t));
-	unsigned int min_trebly_block = min_doubly_block * (fs->block_size / sizeof(uint32_t));
+	unsigned int min_doubly_block = entries + direct_block_count;
+	unsigned int min_trebly_block = entries * entries + min_singly_block;
 
 	switch(type)
 	{
@@ -163,9 +165,13 @@ ssize_t ext2_read_inode_block(inode_t *ino, uint32_t blk, char *buffer, ext2_fs_
 				return errno = ENOMEM, -1;
 			uint32_t block_index = blk;
 			ext2_read_block_raw(ino->doubly_indirect_bp, 1, fs, block);
-			ext2_read_block_raw(block[block_index - min_doubly_block], 1, fs, block);
-			block_index -= min_doubly_block;
-			ext2_read_block_raw(block[block_index - min_singly_block], 1, fs, buffer);
+
+			unsigned int doubly_table_index = (block_index - min_doubly_block) / entries;
+			unsigned int singly_table_index = (block_index - min_doubly_block) % entries;
+			ext2_read_block_raw(block[doubly_table_index], 1, fs, block);
+
+			block_index = singly_table_index;
+			ext2_read_block_raw(block[block_index], 1, fs, buffer);
 
 			free(block);
 			break;

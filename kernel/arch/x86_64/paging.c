@@ -110,7 +110,7 @@ void paging_init()
 	/* Get the current PML4 and store it */
 	__asm__ __volatile__("movq %%cr3, %%rax\t\nmovq %%rax, %0":"=r"(boot_pml4));
 	/* Bootstrap the first 1GB */
-	uintptr_t virt = 0xffffea0000000000;
+	uintptr_t virt = PHYS_BASE;
 	decomposed_addr_t decAddr;
 	memcpy(&decAddr, &virt, sizeof(decomposed_addr_t));
 	uint64_t* entry = &get_current_pml4()->entries[decAddr.pml4];
@@ -132,7 +132,7 @@ void paging_init()
 void paging_map_all_phys()
 {
 	bool is_1gb_supported = x86_has_cap(X86_FEATURE_PDPE1GB);
-	uintptr_t virt = 0xffffea0000000000;
+	uintptr_t virt = PHYS_BASE;
 	decomposed_addr_t decAddr;
 	memcpy(&decAddr, &virt, sizeof(decomposed_addr_t));
 	uint64_t* entry = &get_current_pml4()->entries[decAddr.pml4];
