@@ -91,6 +91,7 @@ typedef struct page_zone
 	size_t allocated_pages, free_pages;
 
 } page_zone_t;
+
 typedef struct page_area
 {
 	struct page_area *prev;
@@ -98,14 +99,17 @@ typedef struct page_area
 } page_area_t;
 
 #endif /* CONFIG_BUDDY_ALLOCATOR */
+
 struct memstat
 {
 	size_t free_mem;
 	size_t allocated_mem;
 };
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 void *__alloc_page(int opt);
 void *__alloc_pages(int order);
 void __free_page(void *page);
@@ -118,6 +122,7 @@ void page_register_pages(void);
 struct page *phys_to_page(uintptr_t phys);
 unsigned long page_increment_refcount(void *paddr);
 unsigned long page_decrement_refcount(void *paddr);
+
 #ifdef __cplusplus
 }
 #endif

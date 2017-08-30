@@ -42,6 +42,7 @@ volatile process_t *current_process = NULL;
 static spinlock_t process_creation_lock;
 slab_cache_t *process_cache = NULL;
 void process_destroy(thread_t *);
+
 int copy_file_descriptors(process_t *process, ioctx_t *ctx)
 {
 	process->ctx.file_desc = malloc(ctx->file_desc_entries * sizeof(void*));
@@ -56,6 +57,7 @@ int copy_file_descriptors(process_t *process, ioctx_t *ctx)
 	}
 	return 0;
 }
+
 int allocate_file_descriptor_table(process_t *process)
 {
 	process->ctx.file_desc = malloc(UINT8_MAX * sizeof(void*));
@@ -67,6 +69,7 @@ int allocate_file_descriptor_table(process_t *process)
 	process->ctx.file_desc_entries = UINT8_MAX;
 	return 0;
 }
+
 process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent)
 {
 	if(unlikely(!process_cache))
@@ -75,11 +78,13 @@ process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent)
 		if(!process_cache)
 			panic("Could not create the process slab cache\n");
 	}
+	
 	if(unlikely(!process_ids))
 	{
 		process_ids = idm_add("pid", 1, UINTMAX_MAX);
 		assert(process_ids != NULL);
 	}
+
 	process_t *proc = slab_allocate(process_cache);
 	if(!proc)
 		return errno = ENOMEM, NULL;
@@ -133,6 +138,7 @@ process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent)
 	release_spinlock(&process_creation_lock);
 	return proc;
 }
+
 void process_create_thread(process_t *proc, thread_callback_t callback, uint32_t flags, int argc, char **argv, char **envp)
 {
 	thread_t *thread = NULL;
@@ -153,6 +159,7 @@ void process_create_thread(process_t *proc, thread_callback_t callback, uint32_t
 	if(!is_set)
 		thread_destroy(thread);
 }
+
 int process_fork_thread(thread_t *src, process_t *dest, syscall_ctx_t *ctx)
 {
 	registers_t 	regs;
@@ -188,10 +195,15 @@ int process_fork_thread(thread_t *src, process_t *dest, syscall_ctx_t *ctx)
 					      (void*) regs.rdi, src->fs);
 	if(!thread)
 		return -1;
+
+	/* Don't forget saving the FPU registers! */
+	save_fpu(thread->fpu_area);
+
 	dest->threads[0] = thread;
 	thread->owner = dest;
 	return 0;
 }
+
 process_t *get_process_from_pid(pid_t pid)
 {
 	process_t *p = first_process;
@@ -202,6 +214,7 @@ process_t *get_process_from_pid(pid_t pid)
 	}
 	return NULL;
 }
+
 char **process_copy_envarg(char **envarg, _Bool to_kernel, int *count)
 {
 	/* Copy the envp/argv to another buffer */
@@ -251,6 +264,7 @@ char **process_copy_envarg(char **envarg, _Bool to_kernel, int *count)
 		*count = nr_args;
 	return new_args;
 }
+
 void *process_setup_auxv(void *buffer, process_t *process)
 {
 	/* Setup the auxv at the stack bottom */
@@ -281,6 +295,7 @@ void *process_setup_auxv(void *buffer, process_t *process)
 	}
 	return auxv;
 }
+
 void process_setup_pthread(thread_t *thread, process_t *process)
 {
 	/* TODO: Do this portably */
@@ -293,6 +308,7 @@ void process_setup_pthread(thread_t *thread, process_t *process)
 	p->tid = get_current_process()->threads[0]->id;
 	p->pid = get_current_process()->pid;
 }
+
 /*
 	return_from_execve(): Return from execve, while loading registers and zero'ing the others.
 	Does not return!
@@ -335,9 +351,10 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	process_t *current = get_current_process();
 	current->cr3 = cr3;
 	current->tree = tree;
+	current->brk = vmm_reserve_address(vmm_gen_brk_base(), 0x20000000, VM_TYPE_HEAP,
+		VM_WRITE | VM_NOEXEC | VM_USER);
 	current->mmap_base = vmm_gen_mmap_base();
-	current->brk = vmm_reserve_address(vmm_gen_brk_base(), vmm_align_size_to_pages(0x2000000), VM_TYPE_REGULAR, VM_WRITE | VM_NOEXEC);
-	
+
 	current->cmd_line = strdup(path);
 	paging_load_cr3(current->cr3);
 	current->tree = tree;
@@ -397,6 +414,7 @@ int sys_execve(char *path, char *argv[], char *envp[])
 
 	return return_from_execve(entry, argc, uargv, uenv, auxv, user_stack);
 }
+
 pid_t sys_getppid()
 {
 	if(get_current_process()->parent)
@@ -404,6 +422,7 @@ pid_t sys_getppid()
 	else
 		return -1;
 }
+
 pid_t sys_wait4(pid_t pid, int *wstatus, int options, struct rusage *usage)
 {
 	process_t *it = (process_t*) get_current_process();
@@ -449,6 +468,7 @@ pid_t sys_wait4(pid_t pid, int *wstatus, int options, struct rusage *usage)
 			it = first_process;
 	}
 }
+
 pid_t sys_fork(syscall_ctx_t *ctx)
 {
 	process_t 	*proc;
@@ -488,6 +508,7 @@ pid_t sys_fork(syscall_ctx_t *ctx)
 	// Return the pid to the caller
 	return child->pid;
 }
+
 void process_exit_from_signal(int signum)
 {
 	process_t *current = get_current_process();
@@ -501,6 +522,7 @@ void process_exit_from_signal(int signum)
 
 	sched_yield();
 }
+
 void sys_exit(int status)
 {
 	process_t *current = get_current_process();
@@ -520,40 +542,48 @@ void sys_exit(int status)
 
 	sched_yield();
 }
+
 uint64_t sys_getpid()
 {
 	return get_current_process()->pid;
 }
+
 int sys_personality(unsigned long val)
 {
 	// TODO: Use this syscall for something. This might be potentially very useful
 	get_current_process()->personality = val;
 	return 0;
 }
+
 int sys_setuid(uid_t uid)
 {
 	get_current_process()->uid = uid;
 	return 0;
 }
+
 int sys_setgid(gid_t gid)
 {
 	get_current_process()->gid = gid;
 	return 0;
 }
+
 uid_t sys_getuid(void)
 {
 	return get_current_process()->uid;
 }
+
 gid_t sys_getgid(void)
 {
 	return get_current_process()->gid;
 }
+
 void process_destroy_aspace(void)
 {
 	process_t *current = get_current_process();
 	vmm_destroy_addr_space(current->tree);
 	current->tree = NULL;
 }
+
 void process_destroy_file_descriptors(process_t *process)
 {
 	ioctx_t *ctx = &process->ctx;
@@ -574,11 +604,13 @@ void process_destroy_file_descriptors(process_t *process)
 	ctx->file_desc = NULL;
 	ctx->file_desc_entries = 0;
 }
+
 void process_obliterate(void *proc)
 {
 	process_t *process = proc;
 	__free_page(process->cr3);
 }
+
 void process_destroy(thread_t *current_thread)
 {
 	process_t *current = get_current_process();
@@ -598,6 +630,7 @@ void process_destroy(thread_t *current_thread)
 	req.param = current;
 	worker_schedule(&req, WORKER_PRIO_NORMAL);
 }
+
 int process_attach(process_t *tracer, process_t *tracee)
 {
 	/* You can't attach to yourself */
@@ -615,6 +648,7 @@ int process_attach(process_t *tracer, process_t *tracee)
 	}
 	return 0;
 }
+
 /* Finds a pid that tracer is tracing */
 process_t *process_find_tracee(process_t *tracer, pid_t pid)
 {
@@ -628,6 +662,7 @@ process_t *process_find_tracee(process_t *tracer, pid_t pid)
 	}
 	return NULL;
 }
+
 void process_add_thread(process_t *process, thread_t *thread)
 {
 	for(int i = 0; i < THREADS_PER_PROCESS; i++)
@@ -639,9 +674,11 @@ void process_add_thread(process_t *process, thread_t *thread)
 		}
 	}
 }
+
 #define CLONE_FORK		(1 << 0)
 #define CLONE_SPAWNTHREAD	(1 << 1)
 long valid_flags = CLONE_FORK | CLONE_SPAWNTHREAD;
+
 int sys_clone(int (*fn)(void *), void *child_stack, int flags, void *arg, pid_t *ptid, void *tls)
 {
 	if(flags & ~valid_flags)
@@ -663,6 +700,7 @@ int sys_clone(int (*fn)(void *), void *child_stack, int flags, void *arg, pid_t 
 	process_add_thread(get_current_process(), thread);
 	return 0;
 }
+
 void sys_exit_thread(int value)
 {
 	thread_t *thr = get_current_thread();
@@ -673,6 +711,7 @@ void sys_exit_thread(int value)
 	/* aaaaand we'll never return back to user-space, so just hang on */
 	while(1);
 }
+
 void process_increment_stats(bool is_kernel)
 {
 	process_t *process = get_current_process();
@@ -684,11 +723,13 @@ void process_increment_stats(bool is_kernel)
 	else
 		process->user_time++;
 }
+
 void process_continue(process_t *p)
 {
 	if(p->threads[0])
 		thread_set_state(p->threads[0], THREAD_RUNNABLE);
 }
+
 void process_stop(process_t *p)
 {
 	if(p->threads[0])

@@ -14,7 +14,8 @@
 typedef enum
 {
 	arch_low_half_min  	= 0x400000,
-	arch_mmap_base		= 0x0000770000000000,
+	arch_brk_base		= 0x80000000,
+	arch_mmap_base		= 0x0000550000000000,
 	arch_low_half_max  	= 0x00007fffffffffff,
 	arch_high_half		= 0xffff800000000000,	/* Default to this, but don't assume it */
 	arch_vmalloc_off 	= 0x000000000000,
@@ -26,5 +27,6 @@ typedef enum
 #define KSTACKS_ASLR_BITS	40
 #define HEAP_ASLR_BITS		40
 #define MMAP_ASLR_BITS		42
+#define BRK_ASLR_BITS		30
 
 #endif

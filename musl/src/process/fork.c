@@ -14,9 +14,9 @@ weak_alias(dummy, __fork_handler);
 pid_t fork(void)
 {
 	pid_t ret;
-	/*sigset_t set;
+	sigset_t set;
 	__fork_handler(-1);
-	__block_all_sigs(&set);*/
+	__block_all_sigs(&set);
 #ifdef SYS_fork
 	ret = syscall(SYS_fork);
 #else
@@ -29,7 +29,7 @@ pid_t fork(void)
 		self->robust_list.pending = 0;
 		libc.threads_minus_1 = 0;
 	}
-	/*__restore_sigs(&set);
-	__fork_handler(!ret);*/
+	__restore_sigs(&set);
+	__fork_handler(!ret);
 	return ret;
 }

@@ -147,6 +147,7 @@ char *kernel_getopt(char *opt)
 	ERROR("kernel", "%s: no such argument\n", opt);
 	return NULL;
 }
+
 extern PML4 *current_pml4;
 int find_and_exec_init(char **argv, char **envp)
 {
@@ -223,6 +224,11 @@ retry:;
 
 	process_create_thread(proc, (thread_callback_t) entry, 0, argc, _argv, _env);
 	process_t *current = get_current_process();
+
+	current->brk = vmm_reserve_address(vmm_gen_brk_base(), 0x20000000, VM_TYPE_HEAP,
+		VM_WRITE | VM_NOEXEC | VM_USER);
+	current->mmap_base = vmm_gen_mmap_base();
+
 	/* Setup the auxv at the stack bottom */
 	Elf64_auxv_t *auxv = (Elf64_auxv_t *) current->threads[0]->user_stack_bottom;
 	unsigned char *scratch_space = (unsigned char *) (auxv + 37);
@@ -261,6 +267,7 @@ retry:;
 	sched_start_thread(current->threads[0]);
 	return 0;
 }
+
 uintptr_t grub2_rsdp = 0;
 uintptr_t get_rdsp_from_grub(void)
 {

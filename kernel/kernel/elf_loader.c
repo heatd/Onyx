@@ -318,10 +318,11 @@ int elf_parse_program_headers(void *file, struct binfmt_args *args)
 		if (phdrs[i].p_type == PT_LOAD)
 		{
 			uintptr_t aligned_address = phdrs[i].p_vaddr & 0xFFFFFFFFFFFFF000;
-			size_t total_size = phdrs[i].p_memsz + (aligned_address - phdrs[i].p_vaddr);
+			size_t total_size = phdrs[i].p_memsz + (phdrs[i].p_vaddr - aligned_address);
 			size_t pages = total_size / PAGE_SIZE;
 			if(total_size % PAGE_SIZE)
 				pages++;
+
 			/* Sanitize the address first */
 			if(vm_sanitize_address((void*) aligned_address, pages) < 0)
 				return false;
@@ -386,14 +387,11 @@ void* elf_load(struct binfmt_args *args)
 	int i;
 	process_t *current = get_current_process();
 	current->mmap_base = vmm_gen_mmap_base();
-	current->brk = vmm_reserve_address(vmm_gen_brk_base(), vmm_align_size_to_pages(0x2000000), VM_TYPE_REGULAR, VM_WRITE | VM_NOEXEC);
 	if(header->e_type == ET_DYN)
 		i = (int) elf_parse_program_headers_s((void*) header);
 	else
 		i = elf_parse_program_headers((void*) header, args);
 
-	current->brk = vmm_allocate_virt_address(VM_ADDRESS_USER, 1, VM_TYPE_HEAP, VM_WRITE | VM_NOEXEC | VM_USER, 0);
-	ENABLE_INTERRUPTS();
 	if(i == ELF_INTERP_MAGIC)
 	{
 		return (void*) ((Elf64_Ehdr*) args->file_signature)->e_entry;

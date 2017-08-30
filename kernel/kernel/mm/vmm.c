@@ -894,12 +894,40 @@ int sys_mprotect(void *addr, size_t len, int prot)
 	return 0;
 }
 
-uint64_t sys_brk(void *addr)
+int do_inc_brk(void *oldbrk, void *newbrk)
 {
-	if(addr == NULL)
-		return (uint64_t) get_current_process()->brk;
+	void *oldpage = page_align_up(oldbrk);
+	void *newpage = page_align_up(newbrk);
+
+	size_t pages = ((uintptr_t) newpage - (uintptr_t) oldpage) / PAGE_SIZE;
+
+	if(vmm_map_range(oldpage, pages, VM_WRITE | VM_USER | VM_NOEXEC) == NULL)
+		return -1;
+	return 0;
+}
+
+uint64_t sys_brk(void *newbrk)
+{
+	process_t *p = get_current_process();
+	if(newbrk == NULL)
+		return (uint64_t) p->brk;
+
+	void *old_brk = p->brk;
+	ptrdiff_t diff = (ptrdiff_t) newbrk - (ptrdiff_t) old_brk;
+
+	if(diff < 0)
+	{
+		/* TODO: Implement freeing memory with brk(2) */
+		p->brk = newbrk;
+	}
 	else
-		get_current_process()->brk = addr;
+	{
+		/* Increment the program brk */
+		if(do_inc_brk(old_brk, newbrk) < 0)
+			return -ENOMEM;
+
+		p->brk = newbrk;
+	}
 	return 0;
 }
 
@@ -1013,7 +1041,7 @@ void *vmm_gen_mmap_base()
 #ifdef CONFIG_ASLR
 	if(enable_aslr)
 	{
-		//mmap_base = vm_randomize_address(mmap_base, MMAP_ASLR_BITS);
+		mmap_base = vm_randomize_address(mmap_base, MMAP_ASLR_BITS);
 
 		return (void*) mmap_base;
 	}
@@ -1021,17 +1049,16 @@ void *vmm_gen_mmap_base()
 	return (void*) mmap_base;
 }
 
-void *vmm_gen_brk_base()
+void *vmm_gen_brk_base(void)
 {
-	uintptr_t brk_base;
+	uintptr_t brk_base = arch_brk_base;
 #ifdef CONFIG_ASLR
 	if(enable_aslr)
 	{
-		brk_base = ((uintptr_t) get_random_int()) & 0xFFFFFFF000;
+		brk_base = vm_randomize_address(arch_brk_base, BRK_ASLR_BITS);
 		return (void*) brk_base;
 	}
 #endif
-	brk_base = 0x10000000;
 	return (void*) brk_base;
 }
 

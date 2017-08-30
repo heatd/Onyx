@@ -192,6 +192,7 @@ padvance(const char **path, const char *name)
 
 	if (*path == NULL)
 		return NULL;
+
 	start = *path;
 	for (p = start ; *p && *p != ':' && *p != '%' ; p++);
 	len = p - start + strlen(name) + 2;	/* "2" is for '/' and '\0' */

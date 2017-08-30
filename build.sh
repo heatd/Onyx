@@ -16,6 +16,5 @@ DESTDIR="$PWD/sysroot" ./build_dash.sh
 ./build_packages.sh
 $NM kernel/vmonyx > Kernel.map
 cp Kernel.map sysroot/boot/Kernel.map
-sha256sum kernel/vmonyx > vmonyx.sha256
 mkdir -p $PWD/sysroot/sbin
 cp vmonyx.sha256 $PWD/sysroot/sbin/vmonyx.checksum

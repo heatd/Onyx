@@ -113,6 +113,7 @@ extern clock_t sys_times(struct tms *buf);
 extern int sys_getrusage(int who, struct rusage *usage);
 extern long sys_ptrace(long request, pid_t pid, void *addr, void *data, void *addr2);
 extern ssize_t sys_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen);
+
 void *syscall_list[] =
 {
 	[0] = (void*) sys_write,

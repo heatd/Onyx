@@ -50,8 +50,9 @@
 #define VMM_WRITE VM_WRITE
 #define VMM_NOEXEC VM_NOEXEC
 
-#define VM_HIGHER_HALF 0xFFFF800000000000
+#define VM_HIGHER_HALF 0xffff800000000000
 #define PHYS_TO_VIRT(x) (void*)((uintptr_t) x + PHYS_BASE)
+
 typedef struct ventry
 {
 	uintptr_t base;
@@ -72,13 +73,15 @@ struct fault_info
 	bool exec;
 	bool user;
 };
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 void vmm_init(void);
 void vmm_late_init(void);
-void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uint64_t prot, uintptr_t alignment);
+void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uint64_t prot,
+	uintptr_t alignment);
 void *vmm_map_range(void* range, size_t pages, uint64_t flags);
 void vmm_unmap_range(void *range, size_t pages);
 void vmm_destroy_mappings(void *range, size_t pages);
@@ -110,6 +113,13 @@ ssize_t copy_from_user(void *data, const void *usr, size_t len);
 void arch_vmm_init(void);
 void vm_update_addresses(uintptr_t new_kernel_space_base);
 uintptr_t vm_randomize_address(uintptr_t base, uintptr_t bits);
+
+static inline void *page_align_up(void *ptr)
+{
+	uintptr_t i = (uintptr_t) ptr;
+	i = (i + PAGE_SIZE-1) & -PAGE_SIZE;
+	return (void *) i;
+}
 
 static inline size_t vmm_align_size_to_pages(size_t size)
 {

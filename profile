@@ -1,1 +1,1 @@
-export PS1='[$USER@$HOSTNAME $PWD]/\$ ' 
+export PS1='[$USER@$HOSTNAME $PWD] $ ' 
