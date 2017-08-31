@@ -44,12 +44,12 @@ static inline void put_pixel(unsigned int x,unsigned int y, int color, void* fb)
 {
 	if(unlikely(fb == (uint64_t*) 0xDEADDEAD))
 		fb = (void*) framebuffer;
-   	/* do not write memory outside the screen buffer, check parameters against the framebuffer info */
-   	x = (x * (framebuffer_bpp>>3));
-   	y = (y * framebuffer_pitch);
+	/* do not write memory outside the screen buffer, check parameters against the framebuffer info */
+	x = (x * (framebuffer_bpp>>3));
+	y = (y * framebuffer_pitch);
 	
 	volatile unsigned int *pixel = (volatile unsigned int *)&((char*)fb)[x + y];
-   	*pixel = color;
+	*pixel = color;
 }
 unsigned char *bitmap = NULL;
 __attribute__((hot))

@@ -37,8 +37,8 @@ sem_t *sem_open(const char *name, int flags, ...)
 	struct stat st;
 	char buf[NAME_MAX+10];
 
-	if (!(name = __shm_mapname(name, buf)))
-		return SEM_FAILED;
+	/*if (!(name = __shm_mapname(name, buf))) */
+	return SEM_FAILED;
 
 	LOCK(lock);
 	/* Allocate table if we don't have one yet */

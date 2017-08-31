@@ -111,7 +111,7 @@ int ioctl_vfs(int request, char *argp, vfsnode_t *this)
 		return ioctl_vfs(request, argp, this->link);
 	if(this->fops.ioctl != NULL)
 		return this->fops.ioctl(request, (void*) argp, this);
-	return errno = ENOSYS, -1;
+	return -ENOSYS;
 }
 void close_vfs(vfsnode_t* this)
 {
@@ -432,5 +432,14 @@ ssize_t recvfrom_vfs(void *buf, size_t len, int flags, struct sockaddr *src_addr
 		return recvfrom_vfs(buf, len, flags, src_addr, slen, node->link);
 	if(node->fops.recvfrom != NULL)
 		return node->fops.recvfrom(buf, len, flags, src_addr, slen, node);
+	return -ENOSYS;
+}
+
+int ftruncate_vfs(off_t length, vfsnode_t *vnode)
+{
+	if(vnode->type & VFS_TYPE_MOUNTPOINT)
+		return ftruncate_vfs(length, vnode);
+	if(vnode->fops.ftruncate != NULL)
+		return vnode->fops.ftruncate(length, vnode);
 	return -ENOSYS;
 }

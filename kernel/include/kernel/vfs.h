@@ -37,6 +37,7 @@ typedef struct vfsnode *(*__creat)(const char *pathname, int mode, struct vfsnod
 typedef int (*__stat)(struct stat *buf, struct vfsnode *node);
 typedef int (*__link)(const char *newpath, struct vfsnode *node);
 typedef int (*__symlink)(const char *linkpath, struct vfsnode *node);
+
 struct file_ops
 {
 	__read read;
@@ -55,7 +56,9 @@ struct file_ops
 	ssize_t (*send)(const void *buf, size_t len, int flags, struct vfsnode *vnode);
 	ssize_t (*recvfrom)(void *buf, size_t len, int flags, struct sockaddr *addr, 
 		socklen_t *slen, struct vfsnode *vnode);
+	int (*ftruncate)(off_t length, struct vfsnode *node);
 };
+
 typedef struct vfsnode
 {
 	ino_t inode;
@@ -95,6 +98,8 @@ ssize_t 	recvfrom_vfs(void *buf, size_t len, int flags, struct sockaddr *src_add
 int 		vfs_init(void);
 ssize_t 	lookup_file_cache(void *buffer, size_t sizeofread, vfsnode_t *file, off_t offset);
 char 		*vfs_get_full_path(vfsnode_t *vnode, char *name);
+int		ftruncate_vfs(off_t length, vfsnode_t *vnode);
+
 #ifdef __cplusplus
 }
 #endif

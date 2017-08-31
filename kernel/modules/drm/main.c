@@ -37,14 +37,15 @@ unsigned int drm_ioctl(int request, void *args, vfsnode_t *self)
 		case DRM_REQUEST_DRMINFO:
 		{
 			struct drm_info *info = args;
-
-			if(vmm_check_pointer(info, sizeof(struct drm_info)) < 0)
-				return -EFAULT;
 			struct video_device *dev = video_get_main_adapter();
-			strcpy(info->drm_version, DRM_VERSION_STRING);
-			strcpy(info->video_driver, dev->driver_string);
-			strcpy(info->card, dev->card_string);
+			
+			struct drm_info kinfo = {0};
+			strcpy(kinfo.drm_version, DRM_VERSION_STRING);
+			strcpy(kinfo.video_driver, dev->driver_string);
+			strcpy(kinfo.card, dev->card_string);
 
+			if(copy_to_user(info, &kinfo, sizeof(struct drm_info)) < 0)
+				return -EFAULT;
 			break;
 		}
 		case DRM_REQUEST_GET_FB:
@@ -96,22 +97,9 @@ int module_init()
 		MPRINTF("error while creating the 'drm' device node: %s\n", strerror(errno));
 		return 1;
 	}
-	struct minor_device *min = dev_register(0, 0);
-	if(!min)
-	{
-		FATAL("drm", "could not create a device ID for /dev/drm: %s\n", strerror(errno));
-		return 1;
-	}
-	min->fops = malloc(sizeof(struct file_ops));
-	if(!min->fops)
-	{
-		dev_unregister(min->majorminor);
-		FATAL("drm", "could not create a file operation table for /dev/drm: %s\n", strerror(errno));
-		return 1;
-	}
-	memset(min->fops, 0, sizeof(struct file_ops));
-	min->fops->ioctl = drm_ioctl;
-	drm_node->dev = min->majorminor;
+
+	drm_node->fops.ioctl = drm_ioctl;
+	drm_node->dev = 0;
 
 	MPRINTF("created /dev/drm\n");
 

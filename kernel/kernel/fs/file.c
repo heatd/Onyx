@@ -423,14 +423,14 @@ int sys_ioctl(int fd, int request, char *argp)
 
 int sys_truncate(const char *path, off_t length)
 {
-	return errno =-ENOSYS;
+	return -ENOSYS;
 }
 
 int sys_ftruncate(int fd, off_t length)
 {
 	if(validate_fd(fd) < 0)
-		return errno =-EBADF;
-	return errno =-ENOSYS; 
+		return -EBADF;
+	return ftruncate_vfs(length, get_file_description(fd)->vfs_node);
 }
 
 off_t sys_lseek(int fd, off_t offset, int whence)

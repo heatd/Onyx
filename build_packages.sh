@@ -1,4 +1,4 @@
-PACKAGES="lua ed"
+PACKAGES=""
 
 if [ -d ports ]; then
 echo "Building packages"

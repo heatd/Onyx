@@ -709,7 +709,9 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 		ioctx_t *ctx = &get_current_process()->ctx;
 		/* Get the file descriptor */
 		file_descriptor = ctx->file_desc[fd];
-		if((file_descriptor->flags != O_WRONLY && file_descriptor->flags != O_RDWR) && prot & PROT_WRITE
+		bool fd_has_write = !(file_descriptor->flags & O_WRONLY) &&
+				    !(file_descriptor->flags & O_RDWR);
+		if(fd_has_write && prot & PROT_WRITE
 		&& flags & MAP_SHARED)
 		{
 			/* You can't map for writing on a file without read access with MAP_SHARED! */
@@ -755,14 +757,18 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 		if((file_descriptor->vfs_node->type == VFS_TYPE_BLOCK_DEVICE 
 		|| file_descriptor->vfs_node->type == VFS_TYPE_CHAR_DEVICE) && area->mapping_type == MAP_SHARED)
 		{
-			struct minor_device *m = dev_find(file_descriptor->vfs_node->dev);
+			/*struct minor_device *m = dev_find(file_descriptor->vfs_node->dev);
 			if(!m)
 				return (void*) -ENODEV;
 			if(!m->fops)
 				return (void*) -ENOSYS;
 			if(!m->fops->mmap)
 				return (void*) -ENOSYS;
-			return m->fops->mmap(area, file_descriptor->vfs_node);
+			return m->fops->mmap(area, file_descriptor->vfs_node);*/
+			vfsnode_t *vnode = file_descriptor->vfs_node;
+			if(!vnode->fops.mmap)
+				return (void*) -ENOSYS;
+			return vnode->fops.mmap(area, vnode);
 		}
 	}
 
@@ -1154,7 +1160,15 @@ vmm_entry_t *vmm_is_mapped_and_writable(void *usr)
 	vmm_entry_t *entry = vmm_is_mapped(usr);
 	if(unlikely(!entry))	return NULL;
 	if(likely(entry->rwx & VM_WRITE))	return entry;
+
 	return NULL;
+}
+
+vmm_entry_t *vmm_is_mapped_and_readable(void *usr)
+{
+	vmm_entry_t *entry = vmm_is_mapped(usr);
+	if(unlikely(!entry))	return NULL;
+	return entry;
 }
 
 ssize_t copy_to_user(void *usr, const void *data, size_t len)
@@ -1185,7 +1199,7 @@ ssize_t copy_from_user(void *data, const void *usr, size_t len)
 	while(len)
 	{
 		vmm_entry_t *entry;
-		if((entry = vmm_is_mapped_and_writable((void*) usr_ptr)) == NULL)
+		if((entry = vmm_is_mapped_and_readable((void*) usr_ptr)) == NULL)
 		{
 			return -EFAULT;
 		}
@@ -1197,6 +1211,49 @@ ssize_t copy_from_user(void *data, const void *usr, size_t len)
 		len -= count;
 	}
 	return len;
+}
+
+char *strcpy_from_user(const char *usr_ptr)
+{
+	char *buf = zalloc(PATH_MAX + 1);
+	if(!buf)
+		return NULL;
+	size_t used_buf = 0;
+	size_t size_buf = PATH_MAX;
+	
+	while(true)
+	{
+		vmm_entry_t *entry;
+		if((entry = vmm_is_mapped_and_readable((void*) usr_ptr)) == NULL)
+		{
+			return errno = EFAULT, NULL;
+		}
+
+		size_t count = (entry->base + entry->pages * PAGE_SIZE) - (size_t) usr_ptr;
+		for(size_t i = 0; i < count; i++, used_buf++)
+		{
+			if(used_buf == size_buf)
+			{
+				/* If we reach the limit of the buffer, realloc
+				 *  a new one */
+				char *old_buf = buf;
+				size_buf += PATH_MAX;
+				
+				if(!(buf = realloc(buf, size_buf + 1)))
+				{
+					free(old_buf);
+					return errno = ENOMEM, NULL;
+				}
+				
+				memset(buf + used_buf, 0, (size_buf - used_buf) + 1);
+			}
+
+			buf[used_buf] = *usr_ptr++;
+			if(buf[used_buf] == '\0')
+				return buf;
+		}
+	}
+
 }
 
 void vm_update_addresses(uintptr_t new_kernel_space_base)
