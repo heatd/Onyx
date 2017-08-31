@@ -66,8 +66,11 @@ weak_alias(libc_start_init, __libc_start_init);
 
 int __libc_start_main(int (*main)(int,char **,char **), int argc, char **argv, char **envp, size_t *auxv)
 {
-	__init_libc(envp, argv[0], auxv);	
+	__init_libc(envp, argv[0], auxv);
 
+#ifndef SHARED
+	__libc_start_init();
+#endif
 	/* Pass control to the application */
 	exit(main(argc, argv, envp));
 	return 0;

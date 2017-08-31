@@ -3,11 +3,13 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <kernel/compiler.h>
 
 #include <drivers/ext2.h>
+
 /* TODO: Add a way to prefer block groups */
 /* Allocates a block */
 uint32_t ext2_allocate_block(ext2_fs_t *fs)
@@ -23,6 +25,7 @@ uint32_t ext2_allocate_block(ext2_fs_t *fs)
 	}
 	return 0;
 }
+
 /* Frees a block */
 void ext2_free_block(uint32_t block, ext2_fs_t *fs)
 {
@@ -30,6 +33,7 @@ void ext2_free_block(uint32_t block, ext2_fs_t *fs)
 	fs->sb->unallocated_blocks++;
 	release_spinlock(&fs->sb_lock);
 }
+
 /* Returns an inode_t from disk, and sets *inode_number to the inode number */
 inode_t *ext2_allocate_inode(uint32_t *inode_number, ext2_fs_t *fs)
 {

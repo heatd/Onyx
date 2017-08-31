@@ -40,17 +40,20 @@ void *ext2_read_block(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs)
 	}
 	return buff;
 }
+
 void ext2_read_block_raw(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs, void *buffer)
 {
 	size_t size = blocks * fs->block_size; /* size = nblocks * block size */
 
 	blkdev_read(fs->first_sector * 512 + (block_index * fs->block_size), size, buffer, fs->blkdevice);
 }
+
 void ext2_write_block(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs, void *buffer)
 {
 	size_t size = blocks * fs->block_size; /* size = nblocks * block size */
 	blkdev_write(fs->first_sector * 512 + (block_index * fs->block_size), size, buffer, fs->blkdevice);
 }
+
 void __ext2_update_atime(inode_t *ino, uint32_t block, ext2_fs_t *fs, inode_t *inode_table)
 {
 	/* Skip atime updating if the inode doesn't want to */
@@ -60,10 +63,12 @@ void __ext2_update_atime(inode_t *ino, uint32_t block, ext2_fs_t *fs, inode_t *i
 	ino->atime = (uint32_t) get_posix_time();
 	ext2_write_block(block, 1, fs, inode_table);
 }
+
 static inline void __ext2_update_ctime(inode_t *ino)
 {
 	ino->ctime = (uint32_t) get_posix_time();
 }
+
 __attribute__((no_sanitize_undefined))
 inode_t *ext2_get_inode_from_number(ext2_fs_t *fs, uint32_t inode)
 {
@@ -91,6 +96,8 @@ inode_t *ext2_get_inode_from_number(ext2_fs_t *fs, uint32_t inode)
 	free(inode_table);
 	return ino;
 }
+
+__attribute__((no_sanitize_undefined))
 void ext2_update_inode(inode_t *ino, ext2_fs_t *fs, uint32_t inode)
 {
 	uint32_t block_size = fs->block_size;
@@ -108,6 +115,7 @@ void ext2_update_inode(inode_t *ino, ext2_fs_t *fs, uint32_t inode)
 	ext2_write_block(bgd->inode_table_addr + block, 1, fs, inode_table);
 	free(inode_table);
 }
+
 /* Open child file dirname of the directory 'ino', following symlinks */
 inode_t *ext2_open_dir(inode_t *ino, const char *dirname, ext2_fs_t *fs, char **symlink, uint32_t *inode_num)
 {
@@ -142,6 +150,7 @@ inode_t *ext2_open_dir(inode_t *ino, const char *dirname, ext2_fs_t *fs, char **
 
 	return inode;
 }
+
 inode_t *ext2_traverse_fs(inode_t *wd, const char *path, ext2_fs_t *fs, char **symlink_name, uint32_t *inode_num)
 {
 	char *saveptr;
@@ -166,10 +175,12 @@ inode_t *ext2_traverse_fs(inode_t *wd, const char *path, ext2_fs_t *fs, char **s
 	free(original_path);
 	return ino;
 }
+
 void ext2_register_superblock_changes(ext2_fs_t *fs)
 {
 	blkdev_write((fs->first_sector + 2) * 512, 1024, fs->sb, fs->blkdevice);
 }
+
 void ext2_register_bgdt_changes(ext2_fs_t *fs)
 {
 	size_t blocks_for_bgdt = (fs->number_of_block_groups * sizeof(block_group_desc_t)) / fs->block_size;

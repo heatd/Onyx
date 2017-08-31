@@ -3,6 +3,7 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
+
 #include <mbr.h>
 #include <partitions.h>
 #include <stdio.h>
@@ -27,6 +28,7 @@ size_t ext2_read(int flags, size_t offset, size_t sizeofreading, void *buffer, v
 size_t ext2_write(size_t offset, size_t sizeofwrite, void *buffer, vfsnode_t *node);
 unsigned int ext2_getdents(unsigned int count, struct dirent* dirp, off_t off, vfsnode_t* this);
 int ext2_stat(struct stat *buf, vfsnode_t *node);
+
 struct file_ops ext2_ops = 
 {
 	.open = ext2_open,
@@ -35,6 +37,7 @@ struct file_ops ext2_ops =
 	.getdents = ext2_getdents,
 	.stat = ext2_stat
 };
+
 uuid_t ext2_gpt_uuid[4] = 
 {
 	{0x3DAF, 0x0FC6, 0x8483, 0x4772, 0x798E, 0x693D, 0x47D8, 0xE47D}, /* Linux filesystem data */
@@ -43,7 +46,9 @@ uuid_t ext2_gpt_uuid[4] =
 	{0xC7E1, 0x933A, 0x4F13, 0x2EB4, 0x0E14, 0xB844, 0xF915, 0xE2AE}, /* /home partition */
 	{0x8425, 0x3B8F, 0x4F3B, 0x20E0, 0x1A25, 0x907F, 0x98E8, 0xA76F} /* /srv (server data) partition */
 };
+
 ext2_fs_t *fslist = NULL;
+
 inode_t *ext2_get_inode_from_dir(ext2_fs_t *fs, dir_entry_t *dirent, char *name, uint32_t *inode_number)
 {
 	dir_entry_t *dirs = dirent;
@@ -58,9 +63,9 @@ inode_t *ext2_get_inode_from_dir(ext2_fs_t *fs, dir_entry_t *dirent, char *name,
 	}
 	return NULL;
 }
+
 size_t ext2_write(size_t offset, size_t sizeofwrite, void *buffer, vfsnode_t *node)
 {
-	printk("Writing to off %u, size %u, name %s\n", offset, sizeofwrite, node->name);
 	ext2_fs_t *fs = fslist;
 	inode_t *ino = ext2_get_inode_from_number(fs, node->inode);
 	if(!ino)
@@ -74,6 +79,7 @@ size_t ext2_write(size_t offset, size_t sizeofwrite, void *buffer, vfsnode_t *no
 	ext2_update_inode(ino, fs, node->inode);
 	return size;
 }
+
 size_t ext2_read(int flags, size_t offset, size_t sizeofreading, void *buffer, vfsnode_t *node)
 {
 	/* We don't use the flags for now, only for things that might block */
@@ -88,6 +94,7 @@ size_t ext2_read(int flags, size_t offset, size_t sizeofreading, void *buffer, v
 	size_t size = ext2_read_inode(ino, fs, to_be_read, offset, buffer);
 	return size;
 }
+
 vfsnode_t *ext2_open(vfsnode_t *nd, const char *name)
 {
 	uint32_t inoden = nd->inode;
@@ -152,11 +159,13 @@ vfsnode_t *ext2_open(vfsnode_t *nd, const char *name)
 	free(ino);
 	return node;
 }
+
 vfsnode_t *ext2_creat(const char *path, int mode, vfsnode_t *file)
 {
 	/* Create a file */
 	return NULL;
 }
+
 __attribute__((no_sanitize_undefined))
 vfsnode_t *ext2_mount_partition(uint64_t sector, block_device_t *dev)
 {
@@ -234,11 +243,13 @@ vfsnode_t *ext2_mount_partition(uint64_t sector, block_device_t *dev)
 	memcpy(&node->fops, &ext2_ops, sizeof(struct file_ops));
 	return node;
 }
+
 __init void init_ext2drv()
 {
 	if(partition_add_handler(ext2_mount_partition, "ext2", EXT2_MBR_CODE, ext2_gpt_uuid, 4) == 1)
 		FATAL("ext2", "error initializing the handler data\n");
 }
+
 unsigned int ext2_getdents(unsigned int count, struct dirent* dirp, off_t off, vfsnode_t* this)
 {
 	size_t read = 0;
@@ -306,6 +317,7 @@ unsigned int ext2_getdents(unsigned int count, struct dirent* dirp, off_t off, v
 	}
 	return read;
 }
+
 int ext2_stat(struct stat *buf, vfsnode_t *node)
 {
 	uint32_t inoden = node->inode;

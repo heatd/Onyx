@@ -3,7 +3,9 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
+
 #define _GNU_SOURCE
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -139,8 +141,23 @@ func_exit:
 	fclose(fp);
 	return 0;
 }
+
+bool fail_on_mount_error = false;
+
 int main(int argc, char **argv, char **envp)
 {
+	int c;
+	while((c = getopt(argc, argv, "m")) != -1)
+	{
+		switch(c)
+		{
+			case 'm':
+			{
+				fail_on_mount_error = true;
+				break;
+			}
+		}
+	}
 	/* Check if we're actually the first process */
 	pid_t p = getpid();
 	if(p != 1)
@@ -154,7 +171,12 @@ int main(int argc, char **argv, char **envp)
 
 	/* Mount filesystems */
 	if(mount_filesystems() == 1)
-		return 1;
+	{
+		if(fail_on_mount_error)
+			return 1;
+		else
+			printf("mount errors: proceeding carefully.\n");
+	}
 	/* chdir to /, since the kernel doesn't setup the current directory so we need to set it up 
 	 * ourselves
 	*/

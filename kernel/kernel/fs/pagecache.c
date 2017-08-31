@@ -57,15 +57,10 @@ struct page_cache *add_to_cache(void *data, size_t size, off_t offset, vfsnode_t
 }
 size_t __do_vfs_write(void *buf, size_t size, off_t off, vfsnode_t *this)
 {
-	struct minor_device *m = dev_find(this->dev);
-	if(!m)
-		return errno = ENODEV;
-	if(!m->fops)
-		return errno = ENOSYS;
 	if(this->type & VFS_TYPE_MOUNTPOINT)
 		return __do_vfs_write(buf, size, off, this->link);
-	if(m->fops->write != NULL)
-		return m->fops->write(off, size, buf, this);
+	if(this->fops.write != NULL)
+		return this->fops.write(off, size, buf, this);
 
 	return errno = ENOSYS;
 }
@@ -74,7 +69,7 @@ void pagecache_sync()
 {
 repeat: ;
 	struct list_head *list = &page_list;
-	while(list->next && list->ptr)
+	while(list && list->ptr)
 	{
 		struct page_cache *c = list->ptr;
 		if(c->dirty)
@@ -96,5 +91,5 @@ void pagecache_init()
 }
 void wakeup_sync_thread()
 {
-	sync_thread->status = THREAD_RUNNABLE;
+	thread_wake_up(sync_thread);
 }

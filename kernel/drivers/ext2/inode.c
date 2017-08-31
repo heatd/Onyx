@@ -3,6 +3,7 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
+
 #include <limits.h>
 #include <stdio.h>
 #include <errno.h>
@@ -67,6 +68,7 @@ found:
 	free(bitmap);
 	return ino;
 }
+
 int ext2_add_singly_indirect_block(inode_t *inode, uint32_t block, uint32_t block_index, ext2_fs_t *fs)
 {
 	unsigned int min_singly_block = EXT2_DIRECT_BLOCK_COUNT;
@@ -87,6 +89,7 @@ int ext2_add_singly_indirect_block(inode_t *inode, uint32_t block, uint32_t bloc
 	free(buffer);
 	return 0;
 }
+
 int ext2_add_block_to_inode(inode_t *inode, uint32_t block, uint32_t block_index, ext2_fs_t *fs)
 {
 	unsigned int type = ext2_detect_block_type(block_index, fs);
@@ -112,11 +115,13 @@ int ext2_add_block_to_inode(inode_t *inode, uint32_t block, uint32_t block_index
 	}
 	return 0;
 }
+
 void ext2_set_inode_size(inode_t *inode, size_t size)
 {
 	inode->size_hi = size >> 32;
 	inode->size_lo = size & 0xFFFFFFFF;
 }
+
 unsigned int ext2_detect_block_type(uint32_t block, ext2_fs_t *fs)
 {
 	const unsigned int entries = (fs->block_size / sizeof(uint32_t));
@@ -132,6 +137,7 @@ unsigned int ext2_detect_block_type(uint32_t block, ext2_fs_t *fs)
 		return EXT2_TYPE_DOUBLY_BLOCK;
 	return EXT2_TYPE_TREBLY_BLOCK;
 }
+
 ssize_t ext2_read_inode_block(inode_t *ino, uint32_t blk, char *buffer, ext2_fs_t *fs)
 {
 	unsigned int type = ext2_detect_block_type(blk, fs);
@@ -195,6 +201,7 @@ ssize_t ext2_read_inode_block(inode_t *ino, uint32_t blk, char *buffer, ext2_fs_
 	}
 	return fs->block_size;
 }
+
 ssize_t ext2_get_block_from_inode(inode_t *ino, uint32_t block, ext2_fs_t *fs)
 {
 	unsigned int type = ext2_detect_block_type(block, fs);
@@ -252,6 +259,7 @@ ssize_t ext2_get_block_from_inode(inode_t *ino, uint32_t block, ext2_fs_t *fs)
 	}
 	return ret;
 }
+
 uint32_t ext2_get_inode_block(inode_t *ino, uint32_t block, ext2_fs_t *fs)
 {
 	size_t total_size = EXT2_CALCULATE_SIZE64(ino);
@@ -267,6 +275,7 @@ uint32_t ext2_get_inode_block(inode_t *ino, uint32_t block, ext2_fs_t *fs)
 		return ext2_get_block_from_inode(ino, block, fs);
 	return -1;
 }
+
 ssize_t ext2_write_inode_block(inode_t *ino, uint32_t block, char *buffer, ext2_fs_t *fs)
 {
 	uint32_t blk = ext2_get_inode_block(ino, block, fs);
@@ -275,6 +284,7 @@ ssize_t ext2_write_inode_block(inode_t *ino, uint32_t block, char *buffer, ext2_
 	ext2_write_block(blk, 1, fs, buffer);
 	return fs->block_size;
 }
+
 ssize_t ext2_write_inode(inode_t *ino, ext2_fs_t *fs, size_t size, off_t off, char *buffer)
 {
 	char *scratch = malloc(fs->block_size);
@@ -297,6 +307,7 @@ ssize_t ext2_write_inode(inode_t *ino, ext2_fs_t *fs, size_t size, off_t off, ch
 	free(scratch);
 	return written;
 }
+
 /* Reads off an inode */
 ssize_t ext2_read_inode(inode_t *ino, ext2_fs_t *fs, size_t size, off_t off, char *buffer)
 {
@@ -319,4 +330,32 @@ ssize_t ext2_read_inode(inode_t *ino, ext2_fs_t *fs, size_t size, off_t off, cha
 	}
 	free(scratch);
 	return read;
+}
+
+int ext2_add_dirent(inode_t *inode, ext2_fs_t *fs, dir_entry_t *dirent, size_t dirent_size)
+{
+	size_t block_size = fs->block_size;
+	
+	/* Allocate a buffer large enough */
+	/* Note that we account for a new block in the buffer's size */
+	dir_entry_t *buf = zalloc(EXT2_CALCULATE_SIZE64(inode) + block_size);
+	if(!buf)
+		return errno = ENOMEM, -1;
+	ext2_read_inode(inode, fs, EXT2_CALCULATE_SIZE64(inode), 0, (char*) buf);
+
+	while(buf->inode && buf->lsbit_namelen)
+	{
+		size_t size = buf->lsbit_namelen + sizeof(dir_entry_t *) - 255;
+		if(buf->size > size)
+		{
+			if(buf->size - size >= dirent_size)
+			{
+
+			}
+			printk("Can insert\n");	
+		}
+		buf = (dir_entry_t*)((char*)buf + buf->size);
+	}
+
+	return 0;
 }

@@ -137,6 +137,7 @@ typedef struct
 	uint32_t block_address_frag;
 	uint32_t os_spec_val[3];
 } inode_t;
+
 typedef struct
 {
 	uint32_t inode;
@@ -145,6 +146,7 @@ typedef struct
 	uint8_t type_indic;
 	char name[255];
 } dir_entry_t;
+
 typedef struct ex
 {
 	superblock_t *sb;

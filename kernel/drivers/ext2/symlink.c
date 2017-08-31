@@ -3,17 +3,20 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <errno.h>
 
 #include <drivers/ext2.h>
+
 /* According to Linux and e2fs, this is how you detect fast symlinks */
 bool ext2_is_fast_symlink(inode_t *inode, ext2_fs_t *fs)
 {
 	int ea_blocks = inode->file_acl ? (fs->block_size >> 9) : 0;
 	return (inode->i_blocks - ea_blocks == 0 && EXT2_CALCULATE_SIZE64(inode) <= 60);
 }
+
 char *ext2_do_fast_symlink(inode_t *inode)
 {
 	char *buf = malloc(60);
@@ -22,6 +25,7 @@ char *ext2_do_fast_symlink(inode_t *inode)
 	memcpy(buf, &inode->dbp, 60);
 	return buf;
 }
+
 char *ext2_do_slow_symlink(inode_t *inode, ext2_fs_t *fs)
 {
 	char *buf = malloc(EXT2_CALCULATE_SIZE64(inode));
@@ -30,6 +34,7 @@ char *ext2_do_slow_symlink(inode_t *inode, ext2_fs_t *fs)
 	ext2_read_inode(inode, fs, EXT2_CALCULATE_SIZE64(inode), 0, buf);
 	return buf;
 }
+
 char *ext2_read_symlink(inode_t *inode, ext2_fs_t *fs)
 {
 	if(ext2_is_fast_symlink(inode, fs))
@@ -41,6 +46,7 @@ char *ext2_read_symlink(inode_t *inode, ext2_fs_t *fs)
 		return ext2_do_slow_symlink(inode, fs);
 	}
 }
+
 inode_t *ext2_follow_symlink(inode_t *inode, ext2_fs_t *fs, inode_t *parent, uint32_t *inode_num, char **symlink)
 {
 	char *path = ext2_read_symlink(inode, fs);
