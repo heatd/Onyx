@@ -22,6 +22,7 @@ void heap_set_start(uintptr_t start)
 	heap_limit = heap + 0x400000;
 }
 
+
 int heap_expand(void)
 {
 	/* Allocate 256 pages */
@@ -30,18 +31,26 @@ int heap_expand(void)
 	heap_limit += 0x100000;
 	return 0;
 }
+
 void *sbrk(intptr_t increment)
 {
 	if(heap + increment >= heap_limit || heap >= heap_limit)
 	{
-		if(heap_expand() < 0)
-			return NULL;
+		size_t times = increment / 0x100000;
+		if(increment % 0x100000)
+			times++;
+		for(size_t i = 0; i < times; i++)
+		{
+			if(heap_expand() < 0)
+				return NULL;
+		}
 	}
 	void *ret = heap;
 	heap += increment;
 
 	return ret;
 }
+
 void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
 	void *ret;
@@ -50,16 +59,18 @@ void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 	(void) flags;
 	(void) fd;
 	(void) offset;
-
+	printk("fak mmap\n");
 	ret = vmalloc(vmm_align_size_to_pages(length), VM_TYPE_HEAP, VM_WRITE | VM_NOEXEC | VM_GLOBAL);
 	return ret;
 }
+
 int munmap(void *addr, size_t length)
 {
 	(void) addr;
 	(void) length;
 	return 0;
 }
+
 void *zalloc(size_t size)
 {
 	return calloc(1, size);

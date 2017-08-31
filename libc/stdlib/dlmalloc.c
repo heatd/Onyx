@@ -538,6 +538,7 @@ MAX_RELEASE_CHECK_RATE   default: 4095 unless not HAVE_MMAP
 #define LACKS_SYS_PARAM_H 1
 #include <stdio.h>
 #define HAVE_MMAP 1
+#define HAVE_MORECORE 1
 #define NO_MALLOC_STATS 0
 #define NO_MALLINFO 0
 #ifdef __is_onyx_kernel
