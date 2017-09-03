@@ -1029,10 +1029,6 @@ void vmm_destroy_addr_space(avl_node_t *tree)
 /* Sanitizes an address. To be used by program loaders */
 int vm_sanitize_address(void *address, size_t pages)
 {
-	if(vmm_is_mapped(address))
-		return -1;
-	if(vmm_check_pointer(address, pages * PAGE_SIZE) == 0)
-		return -1;
 	if(is_higher_half(address))
 		return -1;
 	if(is_invalid_arch_range(address, pages) < 0)

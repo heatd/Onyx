@@ -409,11 +409,6 @@ void *load_elf(void *file, char *path)
 	{
 		if (phdrs[i].p_type == PT_NULL)
 			continue;
-		if (phdrs[i].p_type == PT_LOAD)
-		{
-			/* The main elf program's memory is already mmap'd, so just memcpy it */
-			memcpy((void*) phdrs[i].p_vaddr, elf_get_pointer(file, phdrs[i].p_offset), phdrs[i].p_filesz);
-		}
 		if(phdrs[i].p_type == PT_DYNAMIC)
 		{
 			dyn = elf_get_pointer(file, phdrs[i].p_offset);

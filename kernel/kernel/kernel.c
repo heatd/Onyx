@@ -211,7 +211,7 @@ retry:;
 
 	argv[0] = path;
 	/* Prepare the argument struct */
-	struct binfmt_args args;
+	struct binfmt_args args = {0};
 	args.file_signature = buffer;
 	args.filename = path;
 	args.file = in;

@@ -126,149 +126,6 @@ int elf_relocate_addend(Elf64_Ehdr *hdr, Elf64_Rela *rela, Elf64_Shdr *section)
 	return 0;
 }
 
-/* Shared version of elf_parse_program_headers*/
-_Bool elf_parse_program_headers_s(void *file)
-{
-	Elf64_Ehdr *hdr = (Elf64_Ehdr *) file;
-	Elf64_Phdr *phdrs = (Elf64_Phdr *) ((char *) file + hdr->e_phoff);
-	Elf64_Shdr *sections = (Elf64_Shdr *) ((char *) file + hdr->e_shoff);
-	void *base = NULL;
-	size_t needed_size = 0;
-	size_t last_size = 0;
-	uintptr_t alignment = (uintptr_t) -1;
-	for(Elf64_Half i = 0; i < hdr->e_phnum; i++)
-	{
-		if(phdrs[i].p_type == PT_NULL)
-			continue;
-		if(phdrs[i].p_type == PT_LOAD)
-		{
-			needed_size += phdrs[i].p_vaddr;
-			last_size = phdrs[i].p_memsz;
-			if(alignment == (uintptr_t) -1)
-				alignment = phdrs[i].p_align;
-		}
-	}
-	needed_size += last_size;
-	base = vmm_allocate_virt_address(VM_ADDRESS_USER, vmm_align_size_to_pages(needed_size), 
-				VM_TYPE_SHARED, VM_WRITE | VM_USER, alignment);
-	printk("Allocated [%x - %x]\n", base, (uintptr_t) base + needed_size);
-	hdr->e_entry += (uintptr_t) base;
-	for(Elf64_Half i = 0; i < hdr->e_phnum; i++)
-	{
-		if(phdrs[i].p_type == PT_NULL)
-			continue;
-		if(phdrs[i].p_type == PT_LOAD)
-		{
-			phdrs[i].p_vaddr += (uintptr_t) base;
-			uint64_t prot = VM_NOEXEC | VM_USER;
-			if(phdrs[i].p_flags & PF_X)
-				prot &= ~VM_NOEXEC;
-			if(phdrs[i].p_flags & PF_W)
-				prot |= VM_WRITE;
-			vmm_map_range((void*) (phdrs[i].p_vaddr & 0xFFFFFFFFFFFFF000), 
-				vmm_align_size_to_pages(phdrs[i].p_memsz + (phdrs[i].p_vaddr & 0xFFF)), prot);
-			memcpy((void*) phdrs[i].p_vaddr, (const void*)((char*) file + phdrs[i].p_offset), 
-			phdrs[i].p_filesz);
-		}
-	}
-	for(size_t i = 0; i < hdr->e_shnum; i++)
-	{
-		if(sections[i].sh_type == SHT_RELA)
-		{
-			Elf64_Rela *r = (Elf64_Rela *)((char *) file + sections[i].sh_offset);
-			for(size_t j = 0; j < sections[i].sh_size / sections[i].sh_entsize; j++)
-			{
-				Elf64_Rela *rela = &r[j];
-				rela->r_offset += (uintptr_t) base;
-				uintptr_t *addr = (uintptr_t*) rela->r_offset;
-				printk("Applying relocation to %x\n", addr);
-				switch(ELF64_R_TYPE(rela->r_info))
-				{
-					case R_X86_64_RELATIVE:
-						*addr = RELOCATE_R_X86_64_RELATIVE((uintptr_t) base, rela->r_addend);
-				}
-			}
-		}
-	}
-	return 0;
-}
-
-int elf_load_pie(char *path)
-{
-	printk("elf: loading interp %s\n", path);
-	if(!path)
-		return errno = EINVAL, 1;
-	if(*path == '\0')
-		return errno = EINVAL, 1;
-	vfsnode_t *f = open_vfs(fs_root, path);
-	if(!f)
-	{
-		perror("open_vfs");
-		return -1;
-	}
-	char *file = malloc(f->size);
-	if(!file)
-	{
-		perror("malloc");
-		return -1;
-	}
-	size_t read = read_vfs(0, 0, f->size, file, f);
-	if(read != f->size)
-	{
-		perror("read_vfs");
-		free(file);
-		close_vfs(f);
-		free(f);
-		return -1;
-	}
-	Elf64_Ehdr *header = (Elf64_Ehdr*) file;
-	if(elf_is_valid(header) == false)
-	{
-		printf("elf: invalid interpreter!\n");
-		free(file);
-		close_vfs(f);
-		free(f);
-		return errno = EINVAL, -1;
-	}
-	elf_parse_program_headers_s(file);
-	process_t *proc = get_current_process();
-	char *kargv[] = {path, proc->cmd_line, NULL};
-	int argc;
-	char **argv = copy_argv(kargv, path, &argc);
-	DISABLE_INTERRUPTS();
-	process_create_thread((process_t*) proc, (thread_callback_t) header->e_entry, 0, argc, argv, NULL);
-	Elf64_auxv_t *auxv = (Elf64_auxv_t *) proc->threads[0]->user_stack_bottom;
-	unsigned char *scratch_space = (unsigned char *) (auxv + 37);
-	for(int i = 0; i < 38; i++)
-	{
-		if(i != 0)
-			auxv[i].a_type = i;
-		if(i == 37)
-			auxv[i].a_type = 0;
-		switch(i)
-		{
-			case AT_PAGESZ:
-				auxv[i].a_un.a_val = PAGE_SIZE;
-				break;
-			case AT_UID:
-				auxv[i].a_un.a_val = proc->uid;
-				break;
-			case AT_GID:
-				auxv[i].a_un.a_val = proc->gid;
-				break;
-			case AT_RANDOM:
-				get_entropy((char*) scratch_space, 16);
-				scratch_space += 16;
-				break;
-		}
-	}
-	registers_t *regs = (registers_t *) proc->threads[0]->kernel_stack;
-	regs->rcx = (uintptr_t) auxv;
-	ENABLE_INTERRUPTS();
-	while(1);
-	return 0;
-}
-
 bool elf_is_valid(Elf64_Ehdr *header)
 {
 	if (header->e_ident[EI_MAG0] != 0x7F || header->e_ident[EI_MAG1] != 'E' || header->e_ident[EI_MAG2] != 'L' || header->e_ident[EI_MAG3] != 'F')
@@ -304,8 +161,11 @@ void* elf_load(struct binfmt_args *args)
 			entry = elf64_load(args, header);
 			break;
 	}
-
+	
 	free(header);
+	
+	if(args->needs_interp)
+		entry = bin_do_interp(args);
 	return entry;
 }
 

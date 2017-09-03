@@ -27,13 +27,18 @@ struct binfmt_args
 	char *filename;
 	char **argv, **envp;
 	vfsnode_t *file;
+	char *interp_path;
+	bool needs_interp;
 };
 
 #ifdef __cplusplus
 extern "C"{
 #endif
+
+void *bin_do_interp(struct binfmt_args *args);
 void *load_binary(struct binfmt_args *);
 int install_binfmt(struct binfmt *);
+
 #ifdef __cplusplus
 }
 #endif

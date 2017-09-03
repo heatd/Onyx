@@ -36,3 +36,23 @@ int install_binfmt(struct binfmt *format)
 	}
 	return 0;
 }
+
+void *bin_do_interp(struct binfmt_args *_args)
+{
+	printk("Doing interp\n");
+	struct binfmt_args args;
+	memcpy(&args, _args, sizeof(struct binfmt_args));
+
+	vfsnode_t *file = open_vfs(fs_root, args.interp_path);
+	if(!file)
+		return NULL;
+
+	read_vfs(0, 0, 100, args.file_signature, file);
+
+	args.filename = args.interp_path;
+	args.interp_path = NULL;
+	args.needs_interp = false;
+	args.file = file;
+
+	return load_binary(&args);
+}
