@@ -11,13 +11,16 @@
 
 struct binfmt_args;
 typedef void *(*binfmt_handler_t)(struct binfmt_args *);
+
 struct binfmt
 {
 	uint8_t *signature;
 	size_t size_signature;
+	bool (*is_valid_exec)(uint8_t *signature);
 	binfmt_handler_t callback;
 	struct binfmt *next;
 };
+
 struct binfmt_args
 {
 	uint8_t *file_signature;

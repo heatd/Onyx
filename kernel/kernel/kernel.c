@@ -218,19 +218,21 @@ retry:;
 	args.argv = argv;
 	args.envp = envp;
 
+	process_t *current = get_current_process();
+	current->brk = vmm_reserve_address(vmm_gen_brk_base(), 0x20000000, VM_TYPE_HEAP,
+	VM_WRITE | VM_NOEXEC | VM_USER);
+	current->mmap_base = vmm_gen_mmap_base();
+
 	/* Finally, load the binary */
 	void *entry = load_binary(&args);
+
+	assert(entry != NULL);
 
 	int argc;
 	char **_argv = copy_argv(argv, proc->cmd_line, &argc);
 	char **_env = process_copy_envarg(envp, false, NULL);
 
 	process_create_thread(proc, (thread_callback_t) entry, 0, argc, _argv, _env);
-	process_t *current = get_current_process();
-
-	current->brk = vmm_reserve_address(vmm_gen_brk_base(), 0x20000000, VM_TYPE_HEAP,
-		VM_WRITE | VM_NOEXEC | VM_USER);
-	current->mmap_base = vmm_gen_mmap_base();
 
 	/* Setup the auxv at the stack bottom */
 	Elf64_auxv_t *auxv = (Elf64_auxv_t *) current->threads[0]->user_stack_bottom;

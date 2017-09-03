@@ -3,6 +3,7 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
+
 #include <stdbool.h>
 #include <errno.h>
 #include <stdio.h>
@@ -20,20 +21,25 @@
 #include <kernel/envp.h>
 #include <kernel/binfmt.h>
 #include <kernel/compiler.h>
+#include <kernel/binfmt/elf64.h>
+
 #include <pthread_kernel.h>
 
 void *elf_load(struct binfmt_args *args);
 static Elf64_Shdr *strtab = NULL;
 static Elf64_Shdr *symtab = NULL;
 static Elf64_Shdr *shstrtab = NULL;
+
 static inline char *elf_get_string(Elf64_Ehdr *hdr, Elf64_Word off)
 {
 	return (char*)hdr + strtab->sh_offset + off;
 }
+
 static inline char *elf_get_shstring(Elf64_Ehdr *hdr, Elf64_Word off)
 {
 	return (char*)hdr + shstrtab->sh_offset + off;
 }
+
 static inline Elf64_Sym *elf_get_sym(Elf64_Ehdr *hdr, char *symbolname)
 {
 	Elf64_Sym *syms = (Elf64_Sym*) ((char*) hdr + symtab->sh_offset);
@@ -47,10 +53,12 @@ static inline Elf64_Sym *elf_get_sym(Elf64_Ehdr *hdr, char *symbolname)
 	}
 	return NULL;
 }
+
 static inline char *elf_get_reloc_str(Elf64_Ehdr *hdr, Elf64_Shdr *strsec, Elf64_Off off)
 {
 	return (char*)hdr + strsec->sh_offset + off;
 }
+
 uintptr_t get_kernel_sym_by_name(const char* name);
 uintptr_t elf_resolve_symbol(Elf64_Ehdr *hdr, Elf64_Shdr *sections, Elf64_Shdr *target, size_t sym_idx)
 {
@@ -83,6 +91,7 @@ uintptr_t elf_resolve_symbol(Elf64_Ehdr *hdr, Elf64_Shdr *sections, Elf64_Shdr *
 	}
 	return 1;
 }
+
 __attribute__((no_sanitize_undefined))
 int elf_relocate_addend(Elf64_Ehdr *hdr, Elf64_Rela *rela, Elf64_Shdr *section)
 {
@@ -116,6 +125,7 @@ int elf_relocate_addend(Elf64_Ehdr *hdr, Elf64_Rela *rela, Elf64_Shdr *section)
 	}
 	return 0;
 }
+
 /* Shared version of elf_parse_program_headers*/
 _Bool elf_parse_program_headers_s(void *file)
 {
@@ -182,6 +192,7 @@ _Bool elf_parse_program_headers_s(void *file)
 	}
 	return 0;
 }
+
 int elf_load_pie(char *path)
 {
 	printk("elf: loading interp %s\n", path);
@@ -257,92 +268,8 @@ int elf_load_pie(char *path)
 	while(1);
 	return 0;
 }
-int elf_parse_program_headers(void *file, struct binfmt_args *args)
-{
-	Elf64_Ehdr *hdr = (Elf64_Ehdr *) file;
-	Elf64_Phdr *phdrs = (Elf64_Phdr *) ((char *) file + hdr->e_phoff);
-	for (Elf64_Half i = 0; i < hdr->e_phnum; i++)
-	{
-		if (phdrs[i].p_type == PT_NULL)
-			continue;
-		if(phdrs[i].p_type == PT_INTERP)
-		{
-			printk("This program needs an interpreter!\n");
-			printk("Interpreter: %s\n", (char*)file + phdrs[i].p_offset);
-			args->filename = strdup((char*)file + phdrs[i].p_offset);
-			close_vfs(args->file);
-			free(args->file);
-			args->file = open_vfs(fs_root, args->filename);
-			if(!args->file)
-				return -errno;
-			free(args->file_signature);
-			args->file_signature = malloc(100);
-			if(!args->file_signature)
-			{
-				close_vfs(args->file);
-				free(args->file);
-				free(args->filename);
-			}
-			read_vfs(0, 0, 100, args->file_signature, args->file);
-			for (Elf64_Half j = 0; j < hdr->e_phnum; j++)
-			{
-				if (phdrs[j].p_type == PT_LOAD)
-				{
-					size_t pages = phdrs[j].p_memsz / 4096;
-					if (!pages || pages % 4096)
-						pages++;
-					printk("[%p - %u]\n", phdrs[j].p_vaddr & 0xFFFFFFFFFFFFF000, pages);
-					vmm_reserve_address((void *) (phdrs[j].p_vaddr & 0xFFFFFFFFFFFFF000), pages, VM_TYPE_REGULAR, VM_WRITE | VM_USER);
-				}
-			}
-			free(file);
 
-			/* Read the interpreter */
-			void *buffer = malloc(args->file->size);
-			if(!buffer)
-				return -1;
-			read_vfs(0, 0, args->file->size, buffer, args->file);
-			/* TODO: Handle argv and envp */
-			if(!elf_is_valid((Elf64_Ehdr*) buffer))
-			{
-				free(buffer);
-				return -1;
-			}
-			int ret = elf_parse_program_headers_s(buffer);
-			if(ret == 0)
-				ret = ELF_INTERP_MAGIC;
-			free(buffer);
-			((Elf64_Ehdr*) args->file_signature)->e_entry = ((Elf64_Ehdr*) buffer)->e_entry;
-			return ret;
-		}
-		if (phdrs[i].p_type == PT_LOAD)
-		{
-			uintptr_t aligned_address = phdrs[i].p_vaddr & 0xFFFFFFFFFFFFF000;
-			size_t total_size = phdrs[i].p_memsz + (phdrs[i].p_vaddr - aligned_address);
-			size_t pages = total_size / PAGE_SIZE;
-			if(total_size % PAGE_SIZE)
-				pages++;
-
-			/* Sanitize the address first */
-			if(vm_sanitize_address((void*) aligned_address, pages) < 0)
-				return false;
-			int prot = (VM_USER) |
-				   ((phdrs[i].p_flags & PF_W) ? VM_WRITE : 0) |
-				   ((phdrs[i].p_flags & PF_X) ? 0 : VM_NOEXEC);
-			if(!vmm_reserve_address((void *) aligned_address, pages, VM_TYPE_REGULAR, prot))
-				return false;
-			/* Note that things are mapped VM_WRITE | VM_USER before the memcpy so 
-			 we don't PF ourselves(i.e: writing to RO memory) */
-			
-			vmm_map_range((void *) aligned_address, pages, VM_WRITE | VM_USER);
-			memcpy((void*) phdrs[i].p_vaddr, (void *) ((char *) file + phdrs[i].p_offset),  phdrs[i].p_filesz);
-			vmm_change_perms((void *) aligned_address, pages, prot);
-		}
-	}
-	return true;
-}
-
-_Bool elf_is_valid(Elf64_Ehdr *header)
+bool elf_is_valid(Elf64_Ehdr *header)
 {
 	if (header->e_ident[EI_MAG0] != 0x7F || header->e_ident[EI_MAG1] != 'E' || header->e_ident[EI_MAG2] != 'L' || header->e_ident[EI_MAG3] != 'F')
 		return false;
@@ -359,45 +286,29 @@ _Bool elf_is_valid(Elf64_Ehdr *header)
 	return true;
 }
 
-void *elf_load_old(void *file)
-{
-	if (!file)
-		return errno = EINVAL, NULL;
-	/* Check if its elf64 file is invalid */
-	if (!elf_is_valid((Elf64_Ehdr *) file))
-		return errno = EINVAL, NULL;
-	elf_parse_program_headers(file, NULL);
-	
-	return (void *) ((Elf64_Ehdr *) file)->e_entry;
-}
 void* elf_load(struct binfmt_args *args)
 {
-	uint8_t *file_buf = malloc(args->file->size);
-	if(!file_buf)
-		return errno = ENOMEM, NULL;
-	/* Read the file */
-	read_vfs(0, 0, args->file->size, file_buf, args->file);
-	Elf64_Ehdr *header = (Elf64_Ehdr *) file_buf;
-	/* Validate the header */
-	if(!elf_is_valid(header))
-	{
-		free(file_buf);
+	Elf64_Ehdr *header = malloc(sizeof(Elf64_Ehdr));
+	if(!header)
 		return errno = EINVAL, NULL;
-	}
-	int i;
-	process_t *current = get_current_process();
-	current->mmap_base = vmm_gen_mmap_base();
-	if(header->e_type == ET_DYN)
-		i = (int) elf_parse_program_headers_s((void*) header);
-	else
-		i = elf_parse_program_headers((void*) header, args);
+	read_vfs(0, 0, sizeof(Elf64_Ehdr), header, args->file);
 
-	if(i == ELF_INTERP_MAGIC)
+	void *entry = NULL;
+	switch(header->e_ident[EI_CLASS])
 	{
-		return (void*) ((Elf64_Ehdr*) args->file_signature)->e_entry;
+		case ELFCLASS32:
+			free(header);
+			/* TODO: Add an elf32 loader */
+			return errno = EINVAL, NULL;
+		case ELFCLASS64:
+			entry = elf64_load(args, header);
+			break;
 	}
-	return (void*) header->e_entry;
+
+	free(header);
+	return entry;
 }
+
 void *elf_load_kernel_module(void *file, void **fini_func)
 {
 	if (!file)
@@ -482,12 +393,20 @@ void *elf_load_kernel_module(void *file, void **fini_func)
 	*fini_func = fini;
 	return sym;
 }
+
+bool elf_is_valid_exec(uint8_t *file)
+{
+	return elf_is_valid((Elf64_Ehdr*) file);
+}
+
 struct binfmt elf_binfmt = {
 	.signature = (unsigned char *)"\x7f""ELF",
 	.size_signature = 4,
 	.callback = elf_load,
+	.is_valid_exec = elf_is_valid_exec,
 	.next = NULL
 };
+
 __init void __elf_init()
 {
 	install_binfmt(&elf_binfmt);
