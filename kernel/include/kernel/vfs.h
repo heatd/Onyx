@@ -16,6 +16,7 @@
 
 #include <sys/socket.h>
 #include <sys/stat.h>
+
 #define VFS_TYPE_FILE 		0
 #define VFS_TYPE_DIR 		1
 #define VFS_TYPE_SYMLINK 	(1 << 1)
@@ -25,8 +26,10 @@
 #define VFS_TYPE_FIFO		(1 << 5)
 #define VFS_TYPE_UNIX_SOCK	(1 << 6)
 #define VFS_TYPE_UNK		(1 << 7)
+
 struct vfsnode;
 struct minor_device;
+
 typedef size_t (*__read)(int flags, size_t offset, size_t sizeofread, void* buffer, struct vfsnode* file);
 typedef size_t (*__write)(size_t offset, size_t sizeofwrite, void* buffer, struct vfsnode* file);
 typedef void (*__close)(struct vfsnode* file);
@@ -57,6 +60,7 @@ struct file_ops
 	ssize_t (*recvfrom)(void *buf, size_t len, int flags, struct sockaddr *addr, 
 		socklen_t *slen, struct vfsnode *vnode);
 	int (*ftruncate)(off_t length, struct vfsnode *node);
+	struct vfsnode *(*mkdir)(const char *name, mode_t mode, struct vfsnode *node);
 };
 
 typedef struct vfsnode
@@ -99,7 +103,7 @@ int 		vfs_init(void);
 ssize_t 	lookup_file_cache(void *buffer, size_t sizeofread, vfsnode_t *file, off_t offset);
 char 		*vfs_get_full_path(vfsnode_t *vnode, char *name);
 int		ftruncate_vfs(off_t length, vfsnode_t *vnode);
-
+vfsnode_t 	*mkdir_vfs(const char *path, mode_t mode, vfsnode_t *node);
 #ifdef __cplusplus
 }
 #endif

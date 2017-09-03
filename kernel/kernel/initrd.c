@@ -3,15 +3,21 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
-#include <kernel/initrd.h>
-#include <kernel/vfs.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
-#include <kernel/panic.h>
-#include <kernel/dev.h>
 #include <assert.h>
 #include <math.h>
+
+#include <kernel/panic.h>
+#include <kernel/dev.h>
+#include <kernel/tmpfs.h>
+#include <kernel/initrd.h>
+#include <kernel/vfs.h>
+
+#include <libgen.h>
+
 tar_header_t *headers[300] = { 0 };
 size_t n_files = 0;
 size_t tar_parse(uintptr_t address)
@@ -183,28 +189,72 @@ vfsnode_t *tar_open(vfsnode_t *this, const char *name)
 	free(full_path);
 	return errno = ENOENT, NULL;
 }
+
+void initrd_mount(void)
+{
+	tar_header_t **iter = headers;
+	for(size_t i = 0; i < n_files; i++)
+	{
+		char *saveptr;
+		char *filename = strdup(iter[i]->filename);
+		char *old = filename;
+
+		assert(filename != NULL);
+
+		filename = dirname(filename);
+		
+		filename = strtok_r(filename, "/", &saveptr);
+
+		vfsnode_t *node = fs_root;
+		if(*filename != '.' && strlen(filename) != 1)
+		{
+
+			while(filename)
+			{
+				vfsnode_t *last = node;
+				if(!(node = open_vfs(node, filename)))
+				{
+					node = last;
+					if(!(node = mkdir_vfs(filename, 0777, node)))
+					{
+						perror("mkdir");
+						panic("Error loading initrd");
+					}
+				}
+				filename = strtok_r(NULL, "/", &saveptr);
+			}
+		}
+		/* After creat/opening the directories, create it and populate it */
+		strcpy(old, iter[i]->filename);
+		filename = old;
+		filename = basename(filename);
+
+		if(iter[i]->typeflag == TAR_TYPE_FILE)
+		{
+			vfsnode_t *file = creat_vfs(node, filename, 0666);
+			assert(file != NULL);
+	
+			char *buffer = (char *) iter[i] + 512;
+			size_t size = tar_get_size(iter[i]->size);
+			assert(tmpfs_fill_with_data(file, buffer, size) != -1);
+		}
+		else if(iter[i]->typeflag == TAR_TYPE_DIR)
+		{
+			vfsnode_t *file = mkdir_vfs(filename, 0666, node);
+			
+			assert(file != NULL);
+		}
+	}
+}
+
 void init_initrd(void *initrd)
 {
 	printf("Found an Initrd at %p\n", initrd);
 	n_files = tar_parse((uintptr_t) initrd);
 	printf("Found %d files in the Initrd\n", n_files);
-	vfsnode_t *node = malloc(sizeof(vfsnode_t));
-	if(!node)
-	{
-		panic("initrd: out of memory\n");
-	}
-	memset(node, 0, sizeof(vfsnode_t));
-	node->name = "/";
-
-	node->fops.open = tar_open;
-	node->fops.close = tar_close;
-	node->fops.read = tar_read;
-	node->fops.write = tar_write;
-	node->fops.getdents = tar_getdents;
-	node->fops.stat = tar_stat;
-
-	node->type = VFS_TYPE_DIR;
-	node->inode = 0;
-	mount_fs(node, "/");
-	printf("Mounted initrd on /\n");
+	
+	/* Mount a new instance of a tmpfs at / */
+	tmpfs_mount("/");
+	
+	initrd_mount();
 }

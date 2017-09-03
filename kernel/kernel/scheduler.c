@@ -380,6 +380,7 @@ static void remove_from_wait_queue(thread_t *thread)
 }
 void thread_set_state(thread_t *thread, int state)
 {
+	assert(thread != NULL);
 	if(thread->status == state)
 		return;
 	if(state == THREAD_BLOCKED)

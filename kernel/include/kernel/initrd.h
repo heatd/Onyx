@@ -18,9 +18,9 @@ typedef struct tar_header
     	char mtime[12];
     	char chksum[8];
     	char typeflag;
-}tar_header_t;
+} __attribute__((packed)) tar_header_t;
 
-#define TAR_TYPE_FILE		'\0'
+#define TAR_TYPE_FILE		'0'
 #define TAR_TYPE_HARD_LNK 	'1'
 #define TAR_TYPE_SYMLNK		'2'
 #define TAR_TYPE_CHAR_SPECIAL	'3'

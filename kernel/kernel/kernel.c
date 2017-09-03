@@ -157,7 +157,10 @@ retry:;
 	if(!in)
 	{
 		if(!strcmp(path, "/bin/init"))
+		{
+			perror("open");
 			panic("No init program found!\n");
+		}
 		path = "/bin/init";
 		goto retry;
 	}

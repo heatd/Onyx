@@ -14,18 +14,21 @@
 #define SUBPROP_WANTS "Wants"
 #define SUBPROP_BIN "Bin"
 #define SUBPROP_TYPE "Type"
+
 struct subproperty
 {
 	char *name;
 	char *value;
 	struct subproperty *next; 
 };
+
 struct property
 {
 	char *prop_name;
 	struct subproperty *props;
 	struct property *next;
 };
+
 typedef struct target
 {
 	struct property *properties;
@@ -38,5 +41,8 @@ struct daemon
 	const char *name;
 	struct daemon *next;
 };
+
 int exec_target(int fd);
+int exec_daemons(void);
+
 #endif

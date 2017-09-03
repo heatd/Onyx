@@ -24,7 +24,9 @@ cp sysroot/boot/vmonyx isodir/boot/vmonyx
 rm -f sysroot/boot/vmonyx
 mkdir -p $ROOTDIR/sysroot/lib
 cp -rv $ROOTDIR/sysroot/usr/lib $ROOTDIR/sysroot/
-tar -cvf $ROOTDIR/isodir/boot/initrd.tar sysroot
+cd sysroot
+tar -cvf $ROOTDIR/isodir/boot/initrd.tar *
+cd ..
 rm -rf sysroot/lib
 echo "Compressing kernel and initrd images"
 xz -9 -e -f isodir/boot/vmonyx

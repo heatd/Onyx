@@ -127,6 +127,8 @@ void close_vfs(vfsnode_t* this)
 }
 vfsnode_t *do_actual_open(vfsnode_t *this, const char *name)
 {
+	assert(this != NULL);
+
 	if(this->type & VFS_TYPE_MOUNTPOINT)
 	{
 		return do_actual_open(this->link, name);
@@ -141,7 +143,7 @@ vfsnode_t *open_path_segment(char *segm, vfsnode_t *node)
 {
 	vfsnode_t *file = do_actual_open(node, segm);
 	if(!file)
-		return NULL;	
+		return NULL;
 	vfsnode_t *mountpoint = NULL;
 	if((mountpoint = mtable_lookup(file)))
 		file = mountpoint;
@@ -159,6 +161,7 @@ vfsnode_t *open_vfs(vfsnode_t* this, const char *name)
 	/* Now, tokenize it using strtok */
 	path = strtok_r(path, "/", &saveptr);
 	vfsnode_t *node = this;
+	
 	while(path)
 	{
 		node = open_path_segment(path, node);
@@ -169,6 +172,7 @@ vfsnode_t *open_vfs(vfsnode_t* this, const char *name)
 		}
 		path = strtok_r(NULL, "/", &saveptr);
 	}
+
 	free(orig);
 	return node;
 }
@@ -177,13 +181,15 @@ vfsnode_t *creat_vfs(vfsnode_t *this, const char *path, int mode)
 	char *dup = strdup(path);
 	if(!dup)
 		return errno = ENOMEM, NULL;
+
 	char *dir = dirname((char*) dup);
+
 	vfsnode_t *base;
 	if(*dir != '.' && strlen(dir) != 1)
 		base = open_vfs(this, dir);
 	else
 		base = this;
-	
+
 	/* Reset the string again */
 	strcpy(dup, path);
 	if(!base)
@@ -191,25 +197,73 @@ vfsnode_t *creat_vfs(vfsnode_t *this, const char *path, int mode)
 		errno = ENOENT;
 		goto error;
 	}
+
 	if(base->type & VFS_TYPE_MOUNTPOINT)
 	{
-		vfsnode_t *node = creat_vfs(base, basename((char*) dup), mode);
+		vfsnode_t *node = creat_vfs(base->link, basename((char*) dup), mode);
 		free(dup);
 		return node;
 	}
+
 	if(this->fops.creat != NULL)
 	{
 		vfsnode_t *ret = this->fops.creat(basename((char*) dup), mode, base);
 		free(dup);
 		return ret;
 	}
+
 	errno = ENOSYS;
+
+error:
+	free(dup);
+	return NULL;
+}
+
+vfsnode_t *mkdir_vfs(const char *path, mode_t mode, vfsnode_t *this)
+{
+	char *dup = strdup(path);
+	if(!dup)
+		return errno = ENOMEM, NULL;
+
+	char *dir = dirname((char*) dup);
+	vfsnode_t *base;
+	if(*dir != '.' && strlen(dir) != 1)
+		base = open_vfs(this, dir);
+	else
+		base = this;
+
+	/* Reset the string again */
+	strcpy(dup, path);
+	if(!base)
+	{
+		errno = ENOENT;
+		goto error;
+	}
+
+	if(base->type & VFS_TYPE_MOUNTPOINT)
+	{
+		vfsnode_t *node = mkdir_vfs(basename((char*) dup), mode, base->link);
+		free(dup);
+		return node;
+	}
+
+	if(this->fops.mkdir != NULL)
+	{
+		vfsnode_t *ret = this->fops.mkdir(basename((char*) dup), mode, base);
+		free(dup);
+		return ret;
+	}
+
+	errno = ENOSYS;
+
 error:
 	free(dup);
 	return NULL;
 }
 int mount_fs(vfsnode_t *fsroot, const char *path)
 {
+	assert(fsroot != NULL);
+
 	printf("mount_fs: Mounting on %s\n", path);
 	if(!strcmp((char*)path, "/"))
 	{
@@ -354,7 +408,14 @@ ssize_t lookup_file_cache(void *buffer, size_t sizeofread, vfsnode_t *file, off_
 		off_t rest = PAGE_CACHE_SIZE - cache_off;
 		if(rest < 0) rest = 0;
 		size_t amount = sizeofread - read < (size_t) rest ? sizeofread - read : (size_t) rest;
-		memcpy((char*) buffer + read,  (char*) cache->page + cache_off, amount);
+		if(offset + amount > file->size)
+		{
+			amount = file->size - offset;
+			memcpy((char*) buffer + read,  (char*) cache->page + cache_off, amount);
+			return read + amount;
+		}
+		else
+			memcpy((char*) buffer + read,  (char*) cache->page + cache_off, amount);
 		offset += amount;
 		read += amount;
 	}

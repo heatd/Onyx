@@ -59,7 +59,6 @@ void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 	(void) flags;
 	(void) fd;
 	(void) offset;
-	printk("fak mmap\n");
 	ret = vmalloc(vmm_align_size_to_pages(length), VM_TYPE_HEAP, VM_WRITE | VM_NOEXEC | VM_GLOBAL);
 	return ret;
 }
