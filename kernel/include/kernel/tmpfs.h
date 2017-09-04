@@ -44,6 +44,6 @@ typedef struct tmpfs_filesystem
 } tmpfs_filesystem_t;
 
 int tmpfs_mount(const char *mountpoint);
-int tmpfs_fill_with_data(vfsnode_t *vnode, const void *buf, size_t size);
+int tmpfs_fill_with_data(struct inode *vnode, const void *buf, size_t size);
 
 #endif

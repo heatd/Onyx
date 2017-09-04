@@ -10,7 +10,7 @@
 #include <kernel/compiler.h>
 #include <kernel/panic.h>
 
-size_t null_write(size_t offset, size_t count, void *buf, vfsnode_t *n)
+size_t null_write(size_t offset, size_t count, void *buf, struct inode *n)
 {
 	/* While writing to /dev/null, everything gets discarded. It's basically a no-op. */
 	UNUSED(offset);
@@ -21,7 +21,7 @@ size_t null_write(size_t offset, size_t count, void *buf, vfsnode_t *n)
 }
 void null_init()
 {
-	vfsnode_t *n = creat_vfs(slashdev, "null", 0666);
+	struct inode *n = creat_vfs(slashdev, "null", 0666);
 	if(!n)
 		panic("Could not create /dev/null!\n");
 	n->type = VFS_TYPE_BLOCK_DEVICE;

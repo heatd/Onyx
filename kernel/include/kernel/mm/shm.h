@@ -22,7 +22,7 @@ struct shm_region
 	atomic_size_t refcount;
 	int flags;
 	mode_t mode;
-	vfsnode_t *vnode;
+	struct inode *vnode;
 
 	struct shm_region *next;
 };

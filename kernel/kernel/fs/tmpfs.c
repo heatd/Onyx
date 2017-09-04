@@ -19,7 +19,7 @@ static mutex_t tmpfs_list_lock;
 static tmpfs_filesystem_t *filesystems = NULL;
 static const size_t block_size = PAGE_SIZE; 
 
-static void tmpfs_set_node_fileops(vfsnode_t *node);
+static void tmpfs_set_node_fileops(struct inode *node);
 
 static void tmpfs_append(tmpfs_filesystem_t *fs)
 {
@@ -71,9 +71,9 @@ error:
 	return NULL;
 }
 
-static vfsnode_t *tmpfs_file_to_vfs(tmpfs_file_t *file, vfsnode_t *parent)
+static struct inode *tmpfs_file_to_vfs(tmpfs_file_t *file, struct inode *parent)
 {
-	vfsnode_t *f = zalloc(sizeof(vfsnode_t));
+	struct inode *f = zalloc(sizeof(struct inode));
 	if(!f)
 		return NULL;
 	switch(file->type)
@@ -106,7 +106,7 @@ error:
 	return NULL;
 }
 
-vfsnode_t *tmpfs_creat(const char *pathname, int mode, vfsnode_t *vnode)
+struct inode *tmpfs_creat(const char *pathname, int mode, struct inode *vnode)
 {
 	tmpfs_file_t *file = (tmpfs_file_t *) vnode->inode;
 
@@ -139,7 +139,7 @@ ssize_t tmpfs_read_block(tmpfs_file_t *file, size_t block, char *buf)
 	return block_size;
 }
 
-size_t tmpfs_read(int flags, size_t offset, size_t size, void *buffer, vfsnode_t *vnode)
+size_t tmpfs_read(int flags, size_t offset, size_t size, void *buffer, struct inode *vnode)
 {
 	tmpfs_file_t *file = (tmpfs_file_t *) vnode->inode;
 
@@ -172,7 +172,7 @@ size_t tmpfs_read(int flags, size_t offset, size_t size, void *buffer, vfsnode_t
 	return read;
 }
 
-size_t tmpfs_write(size_t offset, size_t size, void *buffer, vfsnode_t *vnode)
+size_t tmpfs_write(size_t offset, size_t size, void *buffer, struct inode *vnode)
 {
 	/* We don't write anything since it should be cached anyway */
 	return size;
@@ -203,7 +203,7 @@ static int tmpfs_add_block(const char *buf, size_t size, tmpfs_file_t *file)
 	return 0;
 }
 
-int tmpfs_fill_with_data(vfsnode_t *vnode, const void *_buf, size_t size)
+int tmpfs_fill_with_data(struct inode *vnode, const void *_buf, size_t size)
 {
 	tmpfs_file_t *file = (tmpfs_file_t *) vnode->inode;
 	
@@ -249,7 +249,7 @@ tmpfs_file_t *tmpfs_open_file(tmpfs_file_t *dir, const char *name)
 	return errno = ENOENT, NULL;
 }
 
-vfsnode_t *tmpfs_mkdir(const char *name, mode_t mode, vfsnode_t *vnode)
+struct inode *tmpfs_mkdir(const char *name, mode_t mode, struct inode *vnode)
 {
 	tmpfs_file_t *file = (tmpfs_file_t *) vnode->inode;
 	
@@ -268,7 +268,7 @@ vfsnode_t *tmpfs_mkdir(const char *name, mode_t mode, vfsnode_t *vnode)
 	return tmpfs_file_to_vfs(new_file, vnode);
 }
 
-vfsnode_t *tmpfs_open(vfsnode_t *vnode, const char *name)
+struct inode *tmpfs_open(struct inode *vnode, const char *name)
 {
 	tmpfs_file_t *dir = (tmpfs_file_t *) vnode->inode;
 	
@@ -281,7 +281,7 @@ vfsnode_t *tmpfs_open(vfsnode_t *vnode, const char *name)
 	return tmpfs_file_to_vfs(file, vnode);
 }
 
-static void tmpfs_set_node_fileops(vfsnode_t *node)
+static void tmpfs_set_node_fileops(struct inode *node)
 {
 	node->fops.creat = tmpfs_creat;
 	node->fops.read = tmpfs_read;
@@ -316,10 +316,10 @@ int tmpfs_mount(const char *mountpoint)
 
 	tmpfs_filesystem_t *fs = __tmpfs_allocate_fs();
 
-	vfsnode_t *node = malloc(sizeof(vfsnode_t));
+	struct inode *node = malloc(sizeof(struct inode));
 	if(!node)
 		return -1;
-	memset(node, 0, sizeof(vfsnode_t));
+	memset(node, 0, sizeof(struct inode));
 
 	node->name = "";
 	node->mountpoint = (char*) mountpoint;

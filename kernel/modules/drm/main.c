@@ -27,10 +27,10 @@ MODULE_INSERT_VERSION();
 
 #define MPRINTF(...) printf("drm: "__VA_ARGS__)
 
-static vfsnode_t *drm_node = NULL;
+static struct inode *drm_node = NULL;
 
 extern void *phys_fb;
-unsigned int drm_ioctl(int request, void *args, vfsnode_t *self)
+unsigned int drm_ioctl(int request, void *args, struct inode *self)
 {
 	switch(request)
 	{

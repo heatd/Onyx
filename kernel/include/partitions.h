@@ -12,7 +12,7 @@
 
 #include <kernel/block.h>
 #include <kernel/vfs.h>
-typedef vfsnode_t *(*fs_handler)(uint64_t sector, block_device_t *dev);
+typedef struct inode *(*fs_handler)(uint64_t sector, block_device_t *dev);
 enum partition_type_t
 {
 	PARTITION_TYPE_MBR,

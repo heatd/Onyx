@@ -42,7 +42,7 @@ struct pipe *get_pipe_from_inode(ino_t ino)
 	}
 	return pipe;
 }
-size_t pipe_write(size_t offset, size_t sizeofwrite, void* buffer, vfsnode_t* file)
+size_t pipe_write(size_t offset, size_t sizeofwrite, void* buffer, struct inode* file)
 {
 	UNUSED_PARAMETER(offset);
 	_Bool atomic_write = false;
@@ -86,7 +86,7 @@ size_t pipe_write(size_t offset, size_t sizeofwrite, void* buffer, vfsnode_t* fi
 		mutex_unlock(&pipe->pipe_lock);
 	return pipe->curr_size;
 }
-size_t pipe_read(int flags, size_t offset, size_t sizeofread, void* buffer, vfsnode_t* file)
+size_t pipe_read(int flags, size_t offset, size_t sizeofread, void* buffer, struct inode* file)
 {
 	(void) flags;
 	UNUSED_PARAMETER(offset);
@@ -110,17 +110,17 @@ static struct file_ops pipe_file_ops =
 };
 static struct minor_device *pipedev = NULL;
 static spinlock_t pipespl;
-vfsnode_t *pipe_create(void)
+struct inode *pipe_create(void)
 {
 	acquire_spinlock(&pipespl);
 	/* Create the node */
-	vfsnode_t *node = malloc(sizeof(vfsnode_t));
+	struct inode *node = malloc(sizeof(struct inode));
 	if(!node)
 	{
 		release_spinlock(&pipespl);
 		return NULL;
 	}
-	memset(node, 0, sizeof(vfsnode_t));
+	memset(node, 0, sizeof(struct inode));
 	node->name = "";
 	struct pipe **pipe_next = __allocate_pipe_inode(&node->inode);
 	struct pipe *pipe = malloc(sizeof(struct pipe));

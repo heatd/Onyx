@@ -13,7 +13,7 @@
 struct sysfs_file
 {
 	char *name;
-	vfsnode_t *vnode;
+	struct inode *vnode;
 	struct list_head children;
 	ssize_t (*write)(void *buffer, size_t size, off_t off);
 	ssize_t (*read)(void *buffer, size_t size, off_t off);
@@ -23,7 +23,7 @@ struct sysfs_file
 extern "C" {
 #endif
 void sysfs_init(void);
-struct sysfs_file *sysfs_create_entry(const char *pathname, int mode, vfsnode_t *node);
+struct sysfs_file *sysfs_create_entry(const char *pathname, int mode, struct inode *node);
 #ifdef __cplusplus
 }
 #endif

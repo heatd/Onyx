@@ -18,7 +18,7 @@ struct pipe
 	int readers;
 	mutex_t pipe_lock;
 };
-vfsnode_t *pipe_create(void);
+struct inode *pipe_create(void);
 
 
 

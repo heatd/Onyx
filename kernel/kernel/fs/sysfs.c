@@ -46,7 +46,7 @@ struct sysfs_file *sysfs_create_file(char *name, char *abs)
 		errno = ENOMEM;
 		goto error;
 	}
-	file->vnode = malloc(sizeof(vfsnode_t));
+	file->vnode = malloc(sizeof(struct inode));
 	if(!file->vnode)
 	{
 		errno = ENOMEM;
@@ -67,7 +67,7 @@ error:
 	free(file);
 	return NULL;
 }
-vfsnode_t *sysfs_creat(const char *pathname, int mode, vfsnode_t *node)
+struct inode *sysfs_creat(const char *pathname, int mode, struct inode *node)
 {
 	char *path = NULL;
 	char *segm;
@@ -127,7 +127,7 @@ error:
 	free(f);
 	return NULL;
 }
-struct sysfs_file *sysfs_create_entry(const char *pathname, int mode, vfsnode_t *node)
+struct sysfs_file *sysfs_create_entry(const char *pathname, int mode, struct inode *node)
 {
 	char *path = NULL;
 	char *segm;
@@ -187,7 +187,7 @@ error:
 	free(f);
 	return NULL;
 }
-vfsnode_t *sysfs_open(vfsnode_t *node, const char *name)
+struct inode *sysfs_open(struct inode *node, const char *name)
 {
 	char *segm;
 	char *saveptr;
@@ -215,7 +215,7 @@ vfsnode_t *sysfs_open(vfsnode_t *node, const char *name)
 	free(path);
 	return file->vnode;
 }
-size_t sysfs_read(off_t offset, size_t sizeofread, void *buffer, vfsnode_t *this)
+size_t sysfs_read(off_t offset, size_t sizeofread, void *buffer, struct inode *this)
 {
 	struct sysfs_file *file = (struct sysfs_file*) this->inode;
 	if(!file)
@@ -224,7 +224,7 @@ size_t sysfs_read(off_t offset, size_t sizeofread, void *buffer, vfsnode_t *this
 	else
 		return errno = ENOSYS, (size_t) -1;
 }
-size_t sysfs_write(off_t offset, size_t sizeofwrite, void *buffer, vfsnode_t *this)
+size_t sysfs_write(off_t offset, size_t sizeofwrite, void *buffer, struct inode *this)
 {
 	struct sysfs_file *file = (struct sysfs_file*) this->inode;
 	if(!file)
@@ -236,10 +236,10 @@ size_t sysfs_write(off_t offset, size_t sizeofwrite, void *buffer, vfsnode_t *th
 void sysfs_init(void)
 {
 	/* If this function fails, just panic. sysfs is crucial */
-	vfsnode_t *root = malloc(sizeof(vfsnode_t));
+	struct inode *root = malloc(sizeof(struct inode));
 	if(!root)
 		panic("sysfs_init: Could not allocate enough memory!\n");
-	memset(root, 0, sizeof(vfsnode_t));
+	memset(root, 0, sizeof(struct inode));
 
 	root->name = "/sys";
 	root->type = VFS_TYPE_DIR;

@@ -19,7 +19,7 @@ static size_t vdso_size = 0;
 void init_vdso(void)
 {
 	/* Try to find the VDSO */
-	vfsnode_t *file = open_vfs(fs_root, VDSO_NAME);
+	struct inode *file = open_vfs(fs_root, VDSO_NAME);
 	/* If we can't find it, assume we don't have one */
 	if(file)
 	{

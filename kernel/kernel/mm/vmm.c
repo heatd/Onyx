@@ -765,7 +765,7 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 			if(!m->fops->mmap)
 				return (void*) -ENOSYS;
 			return m->fops->mmap(area, file_descriptor->vfs_node);*/
-			vfsnode_t *vnode = file_descriptor->vfs_node;
+			struct inode *vnode = file_descriptor->vfs_node;
 			if(!vnode->fops.mmap)
 				return (void*) -ENOSYS;
 			return vnode->fops.mmap(area, vnode);
@@ -976,7 +976,7 @@ int __vm_handle_private(vmm_entry_t *entry, struct fault_info *info)
 	void *ptr = vmm_map_range((void*) aligned_address, 1, entry->rwx | VM_WRITE);
 	if(!ptr)
 		return -1;
-	vfsnode_t *file = entry->fd->vfs_node;
+	struct inode *file = entry->fd->vfs_node;
 	size_t to_read = file->size - entry->offset < PAGE_SIZE ? file->size - entry->offset : PAGE_SIZE;
 	
 	if(read_vfs(0,
@@ -1123,7 +1123,7 @@ ssize_t kmaps_read(void *buffer, size_t size, off_t off)
 void vmm_sysfs_init(void)
 {
 	INFO("vmm", "Setting up /sys/vm, /sys/vm_aslr and /sys/kmaps\n");
-	vfsnode_t *sysfs = open_vfs(fs_root, "/sys");
+	struct inode *sysfs = open_vfs(fs_root, "/sys");
 	if(!sysfs)
 		panic("vmm_sysfs_init: /sys not mounted!\n");
 	struct sysfs_file *vmfile = sysfs_create_entry("vm", 0666, sysfs);

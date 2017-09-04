@@ -330,7 +330,7 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	avl_node_t *tree;
 	PML4 *cr3 = vmm_clone_as(&tree);
 	/* Open the file */
-	vfsnode_t *in = open_vfs(fs_root, path);
+	struct inode *in = open_vfs(fs_root, path);
 	if (!in)
 		return -ENOENT;
 	/* TODO: Check file permitions */

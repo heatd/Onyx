@@ -15,7 +15,7 @@
 
 static spinlock_t netif_list_lock = {0};
 struct netif *netif_list = NULL;
-unsigned int netif_ioctl(int request, void *argp, vfsnode_t* this)
+unsigned int netif_ioctl(int request, void *argp, struct inode* this)
 {
 	struct netif *netif = this->helper;
 	assert(netif);
@@ -79,7 +79,7 @@ void netif_register_if(struct netif *netif)
 {
 	if(udp_init_netif(netif) < 0)
 		return;
-	vfsnode_t *file = creat_vfs(slashdev, netif->name, 0644);
+	struct inode *file = creat_vfs(slashdev, netif->name, 0644);
 	if(!file)
 	{
 		return;

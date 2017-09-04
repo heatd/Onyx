@@ -35,7 +35,7 @@ int send_udp_packet(char *payload, size_t payload_size, int source_port, int des
 	free(udp_header);
 	return ret;
 }
-int udp_bind(const struct sockaddr *addr, socklen_t addrlen, vfsnode_t *vnode)
+int udp_bind(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode)
 {
 	udp_socket_t *socket = (udp_socket_t*) vnode;
 	if(socket->socket.bound)
@@ -50,7 +50,7 @@ int udp_bind(const struct sockaddr *addr, socklen_t addrlen, vfsnode_t *vnode)
 	socket->socket.bound = true;
 	return 0;
 }
-int udp_connect(const struct sockaddr *addr, socklen_t addrlen, vfsnode_t *vnode)
+int udp_connect(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode)
 {
 	udp_socket_t *socket = (udp_socket_t*) vnode;
 	memcpy(&socket->dest_addr, addr, sizeof(struct sockaddr));
@@ -59,7 +59,7 @@ int udp_connect(const struct sockaddr *addr, socklen_t addrlen, vfsnode_t *vnode
 	socket->socket.connected = true;
 	return 0;
 }
-ssize_t udp_send(const void *buf, size_t len, int flags, vfsnode_t *vnode)
+ssize_t udp_send(const void *buf, size_t len, int flags, struct inode *vnode)
 {
 	udp_socket_t *socket = (udp_socket_t*) vnode;
 	if(!socket->socket.connected)
@@ -83,7 +83,7 @@ void *udp_get_queued_packet(udp_socket_t *socket)
 	return NULL;
 }
 
-ssize_t udp_recvfrom(void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *slen, vfsnode_t *vnode)
+ssize_t udp_recvfrom(void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *slen, struct inode *vnode)
 {
 	udp_socket_t *socket = (udp_socket_t*) vnode;
 	struct sockaddr_in *addr = (struct sockaddr_in *) &socket->src_addr;
@@ -96,7 +96,7 @@ ssize_t udp_recvfrom(void *buf, size_t len, int flags, struct sockaddr *src_addr
 		return -ENOMEM;
 	return 0;
 }
-size_t udp_write(size_t offset, size_t sizeofwrite, void* buffer, vfsnode_t* this)
+size_t udp_write(size_t offset, size_t sizeofwrite, void* buffer, struct inode* this)
 {
 	return (size_t) udp_send(buffer, sizeofwrite, 0, this);
 }
@@ -114,7 +114,7 @@ socket_t *udp_create_socket(int type)
 	if(!socket)
 		return NULL;
 	memset(socket, 0, sizeof(udp_socket_t));
-	vfsnode_t *vnode = (vfsnode_t*) socket;
+	struct inode *vnode = (struct inode*) socket;
 	memcpy(&vnode->fops, &udp_ops, sizeof(struct file_ops));
 	vnode->type = VFS_TYPE_UNIX_SOCK;
 	socket->type = type;

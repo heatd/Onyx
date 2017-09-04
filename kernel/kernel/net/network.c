@@ -121,9 +121,9 @@ int sys_socket(int domain, int type, int protocol)
 		return -errno;
 	}
 	/* Open a file descriptor with the socket vnode */
-	int fd = open_with_vnode((vfsnode_t*) socket, dflags);
+	int fd = open_with_vnode((struct inode*) socket, dflags);
 	/* If we failed, close the socket and return */
 	if(fd < 0)
-		close_vfs((vfsnode_t*) socket);
+		close_vfs((struct inode*) socket);
 	return fd;
 }

@@ -522,7 +522,7 @@ int ahci_initialize(void)
 			strcpy(buf, "sd");
 			buf[strlen(buf)] = device_letter++;
 
-			vfsnode_t *node = creat_vfs(slashdev, strdup(buf), 0644);
+			struct inode *node = creat_vfs(slashdev, strdup(buf), 0644);
 			if(!node)
 				continue;	/* Fail silently - maybe we shouldn't do this? */
 			/* Allocate a major-minor pair for a device */

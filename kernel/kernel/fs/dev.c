@@ -15,8 +15,8 @@
 #include <kernel/compiler.h>
 #include <kernel/panic.h>
 
-vfsnode_t *slashdev = NULL;
-vfsnode_t **children = NULL;
+struct inode *slashdev = NULL;
+struct inode **children = NULL;
 size_t num_child = 0;
 static struct char_dev
 {
@@ -149,7 +149,7 @@ struct minor_device *dev_find(dev_t dev)
 	}
 	return NULL;
 }
-unsigned int devfs_getdents(unsigned int count, struct dirent* dirp, off_t off, vfsnode_t* this)
+unsigned int devfs_getdents(unsigned int count, struct dirent* dirp, off_t off, struct inode* this)
 {
 	unsigned int found = 0;
 	for(size_t i = 0; i < num_child; i++)
@@ -167,7 +167,7 @@ unsigned int devfs_getdents(unsigned int count, struct dirent* dirp, off_t off, 
 	}
 	return found;
 }
-vfsnode_t *devfs_open(vfsnode_t *this, const char *name)
+struct inode *devfs_open(struct inode *this, const char *name)
 {
 	if(!children)
 		return errno = ENOENT, NULL;
@@ -185,7 +185,7 @@ vfsnode_t *devfs_open(vfsnode_t *this, const char *name)
 	free(path);
 	return errno = ENOENT, NULL;
 }
-vfsnode_t *devfs_creat(const char *pathname, int mode, vfsnode_t *self)
+struct inode *devfs_creat(const char *pathname, int mode, struct inode *self)
 {
 	UNUSED(self);
 	if(!children)
@@ -198,7 +198,7 @@ vfsnode_t *devfs_creat(const char *pathname, int mode, vfsnode_t *self)
 			return errno = ENOMEM, NULL;
 		}
 
-		children[0] = malloc(sizeof(vfsnode_t));
+		children[0] = malloc(sizeof(struct inode));
 		if(!children[0])
 		{
 			free(children);
@@ -206,7 +206,7 @@ vfsnode_t *devfs_creat(const char *pathname, int mode, vfsnode_t *self)
 			num_child--;
 			return errno = ENOMEM, NULL;
 		}
-		memset(children[0], 0, sizeof(vfsnode_t));
+		memset(children[0], 0, sizeof(struct inode));
 
 		children[0]->name = vfs_get_full_path(self, (char*)pathname);
 		children[0]->inode = 0;
@@ -218,7 +218,7 @@ vfsnode_t *devfs_creat(const char *pathname, int mode, vfsnode_t *self)
 	{
 		num_child++;
 		/* Save the pointer in case realloc fails, so the whole /dev tree doesn't crash */
-		vfsnode_t **old_children = children;
+		struct inode **old_children = children;
 
 		children = realloc(children, sizeof(void*) * num_child);
 		if(!children)
@@ -228,14 +228,14 @@ vfsnode_t *devfs_creat(const char *pathname, int mode, vfsnode_t *self)
 			children = old_children;
 			return errno = ENOMEM, NULL;
 		}
-		children[num_child-1] = malloc(sizeof(vfsnode_t));
+		children[num_child-1] = malloc(sizeof(struct inode));
 		if(!children[num_child-1])
 		{
 			/* Restore the old data */
 			num_child--;
 			return errno = ENOMEM, NULL;
 		}
-		memset(children[num_child-1], 0, sizeof(vfsnode_t));
+		memset(children[num_child-1], 0, sizeof(struct inode));
 
 		children[num_child-1]->name = vfs_get_full_path(self, (char*)pathname);
 		children[num_child-1]->inode = num_child-1;
@@ -252,14 +252,14 @@ struct file_ops devfs_ops =
 };
 int devfs_init()
 {
-	vfsnode_t *i = open_vfs(fs_root, "/dev");
+	struct inode *i = open_vfs(fs_root, "/dev");
 	if(unlikely(!i))
 		panic("/dev not found!");
 
-	slashdev = malloc(sizeof(vfsnode_t));
+	slashdev = malloc(sizeof(struct inode));
 	if(!slashdev)
 		panic("Out-of-memory while creating /dev!");
-	memset(slashdev, 0, sizeof(vfsnode_t));
+	memset(slashdev, 0, sizeof(struct inode));
 
 	slashdev->name = "/dev";
 	slashdev->type = VFS_TYPE_DIR;

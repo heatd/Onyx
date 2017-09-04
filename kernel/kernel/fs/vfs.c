@@ -19,15 +19,16 @@
 #include <kernel/mtable.h>
 
 static avl_node_t **avl_search_key(avl_node_t **t, uintptr_t key);
-vfsnode_t *fs_root = NULL;
-vfsnode_t *mount_list = NULL;
-ssize_t write_file_cache(void *buffer, size_t sizeofwrite, vfsnode_t *file, off_t offset);
+struct inode *fs_root = NULL;
+struct inode *mount_list = NULL;
+ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *file, off_t offset);
 
 #define FILE_CACHING_WRITE	1
-ssize_t do_file_caching(size_t sizeofread, vfsnode_t *this, off_t offset, int flags)
+ssize_t do_file_caching(size_t sizeofread, struct inode *this, off_t offset, int flags)
 {
 	if(this->type != VFS_TYPE_FILE) /* Only VFS_TYPE_FILE files can be cached */
 		return -1;
+
 	void *cache = malloc(PAGE_CACHE_SIZE);
 	if(!cache)
 		return -1;
@@ -61,18 +62,18 @@ ssize_t do_file_caching(size_t sizeofread, vfsnode_t *this, off_t offset, int fl
 }
 int vfs_init()
 {
-	mount_list = malloc(sizeof(vfsnode_t));
+	mount_list = malloc(sizeof(struct inode));
 	if(!mount_list)
 		panic("Error while allocating the mount list!\n");
-	memset(mount_list, 0 ,sizeof(vfsnode_t));
+	memset(mount_list, 0, sizeof(struct inode));
 	if(!mount_list)
 		return 1;
 	fs_root = mount_list;
-	memset(fs_root, 0 ,sizeof(vfsnode_t));
+	memset(fs_root, 0, sizeof(struct inode));
 	fs_root->refcount++;
 	return 0;
 }
-size_t read_vfs(int flags, size_t offset, size_t sizeofread, void* buffer, vfsnode_t* this)
+size_t read_vfs(int flags, size_t offset, size_t sizeofread, void* buffer, struct inode* this)
 {
 	if(this->type & VFS_TYPE_DIR)
 		return errno = EISDIR, -1;
@@ -87,7 +88,7 @@ size_t read_vfs(int flags, size_t offset, size_t sizeofread, void* buffer, vfsno
 	}
 	return errno = ENOSYS;
 }
-size_t write_vfs(size_t offset, size_t sizeofwrite, void* buffer, vfsnode_t* this)
+size_t write_vfs(size_t offset, size_t sizeofwrite, void* buffer, struct inode* this)
 {
 	if(this->type & VFS_TYPE_MOUNTPOINT)
 		return write_vfs(offset, sizeofwrite, buffer, this->link);
@@ -105,7 +106,7 @@ size_t write_vfs(size_t offset, size_t sizeofwrite, void* buffer, vfsnode_t* thi
 
 	return errno = ENOSYS;
 }
-int ioctl_vfs(int request, char *argp, vfsnode_t *this)
+int ioctl_vfs(int request, char *argp, struct inode *this)
 {
 	if(this->type & VFS_TYPE_MOUNTPOINT)
 		return ioctl_vfs(request, argp, this->link);
@@ -113,7 +114,7 @@ int ioctl_vfs(int request, char *argp, vfsnode_t *this)
 		return this->fops.ioctl(request, (void*) argp, this);
 	return -ENOSYS;
 }
-void close_vfs(vfsnode_t* this)
+void close_vfs(struct inode* this)
 {
 	if(this->type & VFS_TYPE_MOUNTPOINT)
 		close_vfs(this->link);
@@ -125,7 +126,7 @@ void close_vfs(vfsnode_t* this)
 		free(this);
 	}
 }
-vfsnode_t *do_actual_open(vfsnode_t *this, const char *name)
+struct inode *do_actual_open(struct inode *this, const char *name)
 {
 	assert(this != NULL);
 
@@ -139,17 +140,17 @@ vfsnode_t *do_actual_open(vfsnode_t *this, const char *name)
 	}
 	return errno = ENOSYS, NULL;
 }
-vfsnode_t *open_path_segment(char *segm, vfsnode_t *node)
+struct inode *open_path_segment(char *segm, struct inode *node)
 {
-	vfsnode_t *file = do_actual_open(node, segm);
+	struct inode *file = do_actual_open(node, segm);
 	if(!file)
 		return NULL;
-	vfsnode_t *mountpoint = NULL;
+	struct inode *mountpoint = NULL;
 	if((mountpoint = mtable_lookup(file)))
 		file = mountpoint;
 	return file;
 }
-vfsnode_t *open_vfs(vfsnode_t* this, const char *name)
+struct inode *open_vfs(struct inode* this, const char *name)
 {
 	/* Okay, so we need to traverse the path */
 	/* First off, dupe the string */
@@ -160,7 +161,7 @@ vfsnode_t *open_vfs(vfsnode_t* this, const char *name)
 	char *orig = path;
 	/* Now, tokenize it using strtok */
 	path = strtok_r(path, "/", &saveptr);
-	vfsnode_t *node = this;
+	struct inode *node = this;
 	
 	while(path)
 	{
@@ -176,7 +177,7 @@ vfsnode_t *open_vfs(vfsnode_t* this, const char *name)
 	free(orig);
 	return node;
 }
-vfsnode_t *creat_vfs(vfsnode_t *this, const char *path, int mode)
+struct inode *creat_vfs(struct inode *this, const char *path, int mode)
 {
 	char *dup = strdup(path);
 	if(!dup)
@@ -184,7 +185,7 @@ vfsnode_t *creat_vfs(vfsnode_t *this, const char *path, int mode)
 
 	char *dir = dirname((char*) dup);
 
-	vfsnode_t *base;
+	struct inode *base;
 	if(*dir != '.' && strlen(dir) != 1)
 		base = open_vfs(this, dir);
 	else
@@ -200,14 +201,14 @@ vfsnode_t *creat_vfs(vfsnode_t *this, const char *path, int mode)
 
 	if(base->type & VFS_TYPE_MOUNTPOINT)
 	{
-		vfsnode_t *node = creat_vfs(base->link, basename((char*) dup), mode);
+		struct inode *node = creat_vfs(base->link, basename((char*) dup), mode);
 		free(dup);
 		return node;
 	}
 
 	if(this->fops.creat != NULL)
 	{
-		vfsnode_t *ret = this->fops.creat(basename((char*) dup), mode, base);
+		struct inode *ret = this->fops.creat(basename((char*) dup), mode, base);
 		free(dup);
 		return ret;
 	}
@@ -219,14 +220,14 @@ error:
 	return NULL;
 }
 
-vfsnode_t *mkdir_vfs(const char *path, mode_t mode, vfsnode_t *this)
+struct inode *mkdir_vfs(const char *path, mode_t mode, struct inode *this)
 {
 	char *dup = strdup(path);
 	if(!dup)
 		return errno = ENOMEM, NULL;
 
 	char *dir = dirname((char*) dup);
-	vfsnode_t *base;
+	struct inode *base;
 	if(*dir != '.' && strlen(dir) != 1)
 		base = open_vfs(this, dir);
 	else
@@ -242,14 +243,14 @@ vfsnode_t *mkdir_vfs(const char *path, mode_t mode, vfsnode_t *this)
 
 	if(base->type & VFS_TYPE_MOUNTPOINT)
 	{
-		vfsnode_t *node = mkdir_vfs(basename((char*) dup), mode, base->link);
+		struct inode *node = mkdir_vfs(basename((char*) dup), mode, base->link);
 		free(dup);
 		return node;
 	}
 
 	if(this->fops.mkdir != NULL)
 	{
-		vfsnode_t *ret = this->fops.mkdir(basename((char*) dup), mode, base);
+		struct inode *ret = this->fops.mkdir(basename((char*) dup), mode, base);
 		free(dup);
 		return ret;
 	}
@@ -260,7 +261,7 @@ error:
 	free(dup);
 	return NULL;
 }
-int mount_fs(vfsnode_t *fsroot, const char *path)
+int mount_fs(struct inode *fsroot, const char *path)
 {
 	assert(fsroot != NULL);
 
@@ -281,7 +282,7 @@ int mount_fs(vfsnode_t *fsroot, const char *path)
 	}
 	else
 	{
-		vfsnode_t *file = open_vfs(fs_root, dirname((char*) path));
+		struct inode *file = open_vfs(fs_root, dirname((char*) path));
 		if(!file)
 			return -ENOENT;
 		file = do_actual_open(file, basename((char*) path));
@@ -291,7 +292,7 @@ int mount_fs(vfsnode_t *fsroot, const char *path)
 	}
 	return 0;
 }
-unsigned int getdents_vfs(unsigned int count, struct dirent* dirp, off_t off, vfsnode_t *this)
+unsigned int getdents_vfs(unsigned int count, struct dirent* dirp, off_t off, struct inode *this)
 {
 	if(this->type & VFS_TYPE_MOUNTPOINT)
 		return getdents_vfs(count, dirp, off, this->link);
@@ -302,7 +303,7 @@ unsigned int getdents_vfs(unsigned int count, struct dirent* dirp, off_t off, vf
 	
 	return errno = ENOSYS, (unsigned int) -1;
 }
-int stat_vfs(struct stat *buf, vfsnode_t *node)
+int stat_vfs(struct stat *buf, struct inode *node)
 {
 	if(node->type & VFS_TYPE_MOUNTPOINT)
 		return stat_vfs(buf, node->link);
@@ -317,7 +318,7 @@ typedef struct avl_node
 	uintptr_t key; /* In this case, key == offset */
 	void *ptr;
 } avl_node_t;
-static avl_node_t *avl_insert_key(avl_node_t **t, uintptr_t key, vfsnode_t *vfs)
+static avl_node_t *avl_insert_key(avl_node_t **t, uintptr_t key, struct inode *vfs)
 {
 	avl_node_t *ptr = *t;
 	if(!*t)
@@ -354,7 +355,7 @@ static avl_node_t **avl_search_key(avl_node_t **t, uintptr_t key)
 	avl_node_t *ptr = *t;
 	if(key == ptr->key)
 		return t;
-	if(key > ptr->key && key < ptr->key + 64 * 1024)
+	if(key > ptr->key && key < ptr->key + PAGE_CACHE_SIZE)
 		return t;
 	if(key < ptr->key)
 		return avl_search_key(&ptr->left, key);
@@ -370,13 +371,13 @@ static int avl_delete_node(uintptr_t key, avl_node_t **tree)
 	avl_node_t *ptr = *n;
 
 	/* Free up all used memory and set *n to NULL */
-	vfree(ptr->ptr, 64 * 1024);
+	vfree(ptr->ptr, PAGE_CACHE_SIZE / PAGE_SIZE);
 	free(ptr);
 	*n = NULL;
 	avl_balance_tree(tree);
 	return 0;
 }
-void *add_cache_to_node(void *ptr, size_t size, off_t offset, vfsnode_t *node)
+void *add_cache_to_node(void *ptr, size_t size, off_t offset, struct inode *node)
 {
 	struct page_cache *cache = add_to_cache(ptr, size, offset, node);
 	if(!cache)
@@ -388,7 +389,7 @@ void *add_cache_to_node(void *ptr, size_t size, off_t offset, vfsnode_t *node)
 
 	return avl->ptr;
 }
-ssize_t lookup_file_cache(void *buffer, size_t sizeofread, vfsnode_t *file, off_t offset)
+ssize_t lookup_file_cache(void *buffer, size_t sizeofread, struct inode *file, off_t offset)
 {
 	if(file->type != VFS_TYPE_FILE)
 		return -1;
@@ -421,7 +422,7 @@ ssize_t lookup_file_cache(void *buffer, size_t sizeofread, vfsnode_t *file, off_
 	}
 	return (ssize_t) read;
 }
-char *vfs_get_full_path(vfsnode_t *vnode, char *name)
+char *vfs_get_full_path(struct inode *vnode, char *name)
 {
 	size_t size = strlen(vnode->name) + strlen(name) + (strlen(vnode->name) == 1 ? 0 : 1); 
 	char *string = malloc(size);
@@ -433,7 +434,7 @@ char *vfs_get_full_path(vfsnode_t *vnode, char *name)
 	strcat(string, name);
 	return string;
 }
-ssize_t write_file_cache(void *buffer, size_t sizeofwrite, vfsnode_t *file, off_t offset)
+ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *file, off_t offset)
 {
 	if(file->type != VFS_TYPE_FILE)
 		return -1;
@@ -463,7 +464,7 @@ ssize_t write_file_cache(void *buffer, size_t sizeofwrite, vfsnode_t *file, off_
 	}
 	return (ssize_t) wrote;
 }
-ssize_t send_vfs(const void *buf, size_t len, int flags, vfsnode_t *node)
+ssize_t send_vfs(const void *buf, size_t len, int flags, struct inode *node)
 {
 	if(node->type & VFS_TYPE_MOUNTPOINT)
 		return send_vfs(buf, len, flags, node->link);
@@ -471,7 +472,7 @@ ssize_t send_vfs(const void *buf, size_t len, int flags, vfsnode_t *node)
 		return node->fops.send(buf, len, flags, node);
 	return -ENOSYS;
 }
-int connect_vfs(const struct sockaddr *addr, socklen_t addrlen, vfsnode_t *node)
+int connect_vfs(const struct sockaddr *addr, socklen_t addrlen, struct inode *node)
 {
 	if(node->type & VFS_TYPE_MOUNTPOINT)
 		return connect_vfs(addr, addrlen, node->link);
@@ -479,7 +480,7 @@ int connect_vfs(const struct sockaddr *addr, socklen_t addrlen, vfsnode_t *node)
 		return node->fops.connect(addr, addrlen, node);
 	return -ENOSYS;
 }
-int bind_vfs(const struct sockaddr *addr, socklen_t addrlen, vfsnode_t *node)
+int bind_vfs(const struct sockaddr *addr, socklen_t addrlen, struct inode *node)
 {
 	if(node->type & VFS_TYPE_MOUNTPOINT)
 		return connect_vfs(addr, addrlen, node->link);
@@ -487,7 +488,7 @@ int bind_vfs(const struct sockaddr *addr, socklen_t addrlen, vfsnode_t *node)
 		return node->fops.bind(addr, addrlen, node);
 	return -ENOSYS;
 }
-ssize_t recvfrom_vfs(void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *slen, vfsnode_t *node)
+ssize_t recvfrom_vfs(void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *slen, struct inode *node)
 {
 	if(node->type & VFS_TYPE_MOUNTPOINT)
 		return recvfrom_vfs(buf, len, flags, src_addr, slen, node->link);
@@ -496,7 +497,7 @@ ssize_t recvfrom_vfs(void *buf, size_t len, int flags, struct sockaddr *src_addr
 	return -ENOSYS;
 }
 
-int ftruncate_vfs(off_t length, vfsnode_t *vnode)
+int ftruncate_vfs(off_t length, struct inode *vnode)
 {
 	if(vnode->type & VFS_TYPE_MOUNTPOINT)
 		return ftruncate_vfs(length, vnode);

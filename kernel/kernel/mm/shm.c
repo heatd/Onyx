@@ -26,7 +26,7 @@
 static mutex_t shm_lock;
 static struct shm_region *shms = NULL;
 
-void *shm_mmap(vmm_entry_t *area, vfsnode_t *node)
+void *shm_mmap(vmm_entry_t *area, struct inode *node)
 {
 	struct shm_region *shm = node->helper;
 	off_t offset = area->offset;
@@ -74,7 +74,7 @@ int shm_add_pages(size_t nr_pages, struct shm_region *shm)
 	return 0;
 }
 
-int shm_ftruncate(off_t len, vfsnode_t *vnode)
+int shm_ftruncate(off_t len, struct inode *vnode)
 {
 	/* TODO: This isn't very correct, tofix. */
 	off_t diff = len - vnode->size;
@@ -155,7 +155,7 @@ int create_shm_fd(struct shm_region *reg, int flags)
 {
 	if(!reg->vnode)
 	{
-		vfsnode_t *node = zalloc(sizeof(vfsnode_t));
+		struct inode *node = zalloc(sizeof(struct inode));
 		if(!node)
 			return errno = ENOMEM, -1;
 		node->type = VFS_TYPE_CHAR_DEVICE;

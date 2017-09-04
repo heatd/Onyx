@@ -16,7 +16,7 @@
 static mountpoint_t *mtable = NULL;
 static size_t nr_mtable_entries = 0;
 static mutex_t mtable_lock = MUTEX_INITIALIZER;
-vfsnode_t *mtable_lookup(vfsnode_t *mountpoint)
+struct inode *mtable_lookup(struct inode *mountpoint)
 {
 	if(!mtable)
 		return errno = ENOENT, NULL;
@@ -33,7 +33,7 @@ vfsnode_t *mtable_lookup(vfsnode_t *mountpoint)
 	mutex_unlock(&mtable_lock);
 	return errno = ENOENT, NULL;
 }
-int mtable_mount(vfsnode_t *mountpoint, vfsnode_t *rootfs)
+int mtable_mount(struct inode *mountpoint, struct inode *rootfs)
 {
 	assert(mountpoint);
 	assert(rootfs);

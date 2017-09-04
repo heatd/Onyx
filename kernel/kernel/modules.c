@@ -87,7 +87,7 @@ int load_module(const char *path, const char *name)
 	mod->path = strdup(path);
 	mod->name = strdup(name);
 	mod->next = NULL;
-	vfsnode_t *file = open_vfs(fs_root, path);
+	struct inode *file = open_vfs(fs_root, path);
 	if(!file)
 	{
 		if(errno == ENOMEM)

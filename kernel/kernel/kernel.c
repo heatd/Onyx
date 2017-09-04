@@ -153,7 +153,7 @@ int find_and_exec_init(char **argv, char **envp)
 {
 	char *path = "/sbin/init";
 retry:;
-	vfsnode_t *in = open_vfs(fs_root, path);
+	struct inode *in = open_vfs(fs_root, path);
 	if(!in)
 	{
 		if(!strcmp(path, "/bin/init"))

@@ -298,7 +298,7 @@ int tty_create_pty_and_switch(void* address)
 	tty_swap_framebuffers();
 	return 0;
 }
-size_t ttydevfs_write(size_t offset, size_t sizeofwrite, void* buffer, struct vfsnode* this)
+size_t ttydevfs_write(size_t offset, size_t sizeofwrite, void* buffer, struct inode* this)
 {
 	tty_write(buffer, sizeofwrite);
 	return sizeofwrite;
@@ -310,7 +310,7 @@ size_t strnewlinelen(char *str)
 		++len;
 	return len+1;
 }
-size_t ttydevfs_read(int flags, size_t offset, size_t count, void *buffer, vfsnode_t *this)
+size_t ttydevfs_read(int flags, size_t offset, size_t count, void *buffer, struct inode *this)
 {
 	char *kb_buf = tty_wait_for_line(flags);
 	size_t len = term_io.c_lflag & ICANON ? strnewlinelen(kb_buf) : strlen(kb_buf);
@@ -321,7 +321,7 @@ size_t ttydevfs_read(int flags, size_t offset, size_t count, void *buffer, vfsno
 	return read;
 }
 
-unsigned int tty_ioctl(int request, void *argp, vfsnode_t *dev)
+unsigned int tty_ioctl(int request, void *argp, struct inode *dev)
 {
 	switch(request)
 	{
@@ -403,7 +403,7 @@ unsigned int tty_ioctl(int request, void *argp, vfsnode_t *dev)
 }
 void tty_create_dev()
 {
-	vfsnode_t *ttydev = creat_vfs(slashdev, "tty", 0666);
+	struct inode *ttydev = creat_vfs(slashdev, "tty", 0666);
 	if(!ttydev)
 		panic("Could not allocate /dev/tty!\n");
 

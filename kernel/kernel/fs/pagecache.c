@@ -15,16 +15,17 @@
 
 static struct list_head page_list = {0};
 
-struct page_cache *add_to_cache(void *data, size_t size, off_t offset, vfsnode_t *file)
+struct page_cache *add_to_cache(void *data, size_t size, off_t offset, struct inode *file)
 {
-	void *pages = vmalloc(16, VM_TYPE_REGULAR, VM_WRITE | VM_NOEXEC | VM_GLOBAL);
+	void *pages = vmalloc(PAGE_CACHE_SIZE / PAGE_SIZE,
+		              VM_TYPE_REGULAR, VM_WRITE | VM_NOEXEC | VM_GLOBAL);
 	if(!pages)
 		return errno = ENOMEM, NULL;
 	memcpy(pages, data, PAGE_CACHE_SIZE);
 	struct page_cache *c = malloc(sizeof(struct page_cache));
 	if(!c)
 	{
-		vfree(pages, 16);
+		vfree(pages, PAGE_CACHE_SIZE / PAGE_SIZE);
 		return errno = ENOMEM, NULL;
 	}
 	c->page = pages;
@@ -47,7 +48,7 @@ struct page_cache *add_to_cache(void *data, size_t size, off_t offset, vfsnode_t
 		if(!it->next)
 		{
 			free(c);
-			vfree(pages, 16);
+			vfree(pages, PAGE_CACHE_SIZE / PAGE_SIZE);
 			return errno = ENOMEM, NULL;
 		}
 		it->next->ptr = c;
@@ -55,7 +56,7 @@ struct page_cache *add_to_cache(void *data, size_t size, off_t offset, vfsnode_t
 	}
 	return c;
 }
-size_t __do_vfs_write(void *buf, size_t size, off_t off, vfsnode_t *this)
+size_t __do_vfs_write(void *buf, size_t size, off_t off, struct inode *this)
 {
 	if(this->type & VFS_TYPE_MOUNTPOINT)
 		return __do_vfs_write(buf, size, off, this->link);

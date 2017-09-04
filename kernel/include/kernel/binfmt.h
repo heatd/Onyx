@@ -26,7 +26,7 @@ struct binfmt_args
 	uint8_t *file_signature;
 	char *filename;
 	char **argv, **envp;
-	vfsnode_t *file;
+	struct inode *file;
 	char *interp_path;
 	bool needs_interp;
 };

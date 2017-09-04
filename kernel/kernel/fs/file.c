@@ -27,12 +27,12 @@ bool is_absolute_filename(const char *file)
 	return *file == '/' ? true : false;
 }
 
-vfsnode_t *get_fs_base(const char *file, vfsnode_t *rel_base)
+struct inode *get_fs_base(const char *file, struct inode *rel_base)
 {
 	return is_absolute_filename(file) == true ? fs_root : rel_base;
 }
 
-vfsnode_t *get_current_directory(void)
+struct inode *get_current_directory(void)
 {
 	return get_current_process()->ctx.cwd;
 }
@@ -162,25 +162,25 @@ void handle_open_flags(file_desc_t *fd, int flags)
 		fd->seek = fd->vfs_node->size;
 }
 
-static vfsnode_t *try_to_open(vfsnode_t *base, const char *filename, int flags, mode_t mode)
+static struct inode *try_to_open(struct inode *base, const char *filename, int flags, mode_t mode)
 {
-	vfsnode_t *ret = open_vfs(base, filename);
+	struct inode *ret = open_vfs(base, filename);
 	if(!ret && flags & O_CREAT)
 		ret = creat_vfs(base, filename, mode);
 	return ret;
 }
 
-int do_sys_open(const char *filename, int flags, mode_t mode, vfsnode_t *rel)
+int do_sys_open(const char *filename, int flags, mode_t mode, struct inode *rel)
 {
 	/* This function does all the open() work, open(2) and openat(2) use this */
 	ioctx_t *ioctx = &get_current_process()->ctx;
-	vfsnode_t *base = get_fs_base(filename, rel);
+	struct inode *base = get_fs_base(filename, rel);
 
 	mutex_lock(&ioctx->fdlock);
 	int fd_num = -1;
 
 	/* Open/creat the file */
-	vfsnode_t *file = try_to_open(base, filename, flags, mode);
+	struct inode *file = try_to_open(base, filename, flags, mode);
 	if(!file)
 	{
 		mutex_unlock(&ioctx->fdlock);
@@ -480,7 +480,7 @@ int sys_mount(const char *source, const char *target, const char *filesystemtype
 	int part_index = source[strlen(source)-1] - '1';
 
 	uint64_t lba = partition_find(part_index, block, fs);
-	vfsnode_t *node = NULL;
+	struct inode *node = NULL;
 	int ret = 0;
 	if(!(node = fs->handler(lba, block)))
 	{
@@ -599,10 +599,10 @@ int sys_fcntl(int fd, int cmd, unsigned long arg)
 	return 0;
 }
 
-int do_sys_stat(const char *pathname, struct stat *buf, int flags, vfsnode_t *rel)
+int do_sys_stat(const char *pathname, struct stat *buf, int flags, struct inode *rel)
 {
-	vfsnode_t *base = get_fs_base(pathname, rel);
-	vfsnode_t *stat_node = open_vfs(base, pathname);
+	struct inode *base = get_fs_base(pathname, rel);
+	struct inode *stat_node = open_vfs(base, pathname);
 	if(!stat_node)
 		return -errno; /* Don't set errno, as we don't know if it was actually a ENOENT */
 	stat_vfs(buf, stat_node);
@@ -633,8 +633,8 @@ int sys_chdir(const char *path)
 {
 	if(!vmm_is_mapped((void*) path))
 		return errno = -EFAULT;
-	vfsnode_t *base = get_fs_base(path, get_current_directory());
-	vfsnode_t *dir = open_vfs(base, path);
+	struct inode *base = get_fs_base(path, get_current_directory());
+	struct inode *dir = open_vfs(base, path);
 	if(!dir)
 		return -ENOENT;
 	if(!(dir->type & VFS_TYPE_DIR))
@@ -647,7 +647,7 @@ int sys_fchdir(int fildes)
 {
 	if(validate_fd(fildes) < 0)
 		return errno = -EBADF;
-	vfsnode_t *node = get_current_process()->ctx.file_desc[fildes]->vfs_node;
+	struct inode *node = get_current_process()->ctx.file_desc[fildes]->vfs_node;
 	if(!(node->type & VFS_TYPE_DIR))
 		return -ENOTDIR;
 
@@ -663,7 +663,7 @@ int sys_getcwd(char *path, size_t size)
 		return -EFAULT;
 	if(!get_current_process()->ctx.cwd)
 		return -ENOENT;
-	vfsnode_t *vnode = get_current_process()->ctx.cwd;
+	struct inode *vnode = get_current_process()->ctx.cwd;
 
 	if(strlen(vnode->name) + 1 > size)
 		return -ERANGE;
@@ -676,7 +676,7 @@ int sys_openat(int dirfd, const char *path, int flags, mode_t mode)
 {
 	if(!vmm_is_mapped((void*) path))
 		return -EFAULT;
-	vfsnode_t *dir;
+	struct inode *dir;
 	if(validate_fd(dirfd) < 0 && dirfd != AT_FDCWD)
 		return -EBADF;
 	if(dirfd != AT_FDCWD)
@@ -694,7 +694,7 @@ int sys_fstatat(int dirfd, const char *pathname, struct stat *buf, int flags)
 		return errno = -EFAULT;
 	if(vmm_check_pointer(buf, sizeof(struct stat)) < 0)
 		return errno = -EFAULT;
-	vfsnode_t *dir;
+	struct inode *dir;
 	
 	if(validate_fd(dirfd) < 0 && dirfd != AT_FDCWD)
 		return -EBADF;
@@ -736,7 +736,7 @@ void file_do_cloexec(ioctx_t *ctx)
 	mutex_unlock(&ctx->fdlock);
 }
 
-int open_with_vnode(vfsnode_t *node, int flags)
+int open_with_vnode(struct inode *node, int flags)
 {
 	/* This function does all the open() work, open(2) and openat(2) use this */
 	ioctx_t *ioctx = &get_current_process()->ctx;

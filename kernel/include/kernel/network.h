@@ -26,7 +26,7 @@
 #define MAX_NETWORK_CONNECTIONS 200
 typedef struct sock
 {
-	vfsnode_t node;
+	struct inode node;
 	int mode;
 	int proto;
 	int connection_type;

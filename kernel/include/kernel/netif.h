@@ -20,7 +20,7 @@ struct udp_socket;
 struct netif
 {
 	const char *name;
-	vfsnode_t *device_file;
+	struct inode *device_file;
 	unsigned int flags;
 	unsigned char mac_address[6];
 	unsigned char router_mac[6];

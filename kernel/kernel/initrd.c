@@ -39,7 +39,7 @@ size_t tar_parse(uintptr_t address)
 	}
 	return i;
 }
-size_t tar_read(int flags, size_t offset, size_t sizeofreading, void *buffer, vfsnode_t *this)
+size_t tar_read(int flags, size_t offset, size_t sizeofreading, void *buffer, struct inode *this)
 {
 	(void) flags;
 	if(offset > this->size)
@@ -50,7 +50,7 @@ size_t tar_read(int flags, size_t offset, size_t sizeofreading, void *buffer, vf
 	return to_be_read;
 }
 
-size_t tar_write(size_t offset, size_t sizeOfWriting, void *buffer, vfsnode_t *this)
+size_t tar_write(size_t offset, size_t sizeOfWriting, void *buffer, struct inode *this)
 {
 	(void) offset;
 	(void) sizeOfWriting;
@@ -59,12 +59,12 @@ size_t tar_write(size_t offset, size_t sizeOfWriting, void *buffer, vfsnode_t *t
 	/* You can not write to a tar file (usually results in corruption) */
 	return errno = EROFS, 0;
 }
-void tar_close(vfsnode_t *this)
+void tar_close(struct inode *this)
 {
 	(void) this;
 	return;
 }
-int tar_stat(struct stat *buf, struct vfsnode *node)
+int tar_stat(struct stat *buf, struct inode *node)
 {
 	buf->st_dev = node->dev;
 	buf->st_ino = node->inode;
@@ -74,7 +74,7 @@ int tar_stat(struct stat *buf, struct vfsnode *node)
 
 	return 0;
 }
-unsigned int tar_getdents(unsigned int count, struct dirent* dirp, off_t off, vfsnode_t* this)
+unsigned int tar_getdents(unsigned int count, struct dirent* dirp, off_t off, struct inode* this)
 {
 	char *full_path = this->name;
 	tar_header_t **iterator = headers;
@@ -132,7 +132,7 @@ unsigned int tar_getdents(unsigned int count, struct dirent* dirp, off_t off, vf
 	}
 	return found;
 }
-char *get_complete_tar_path(vfsnode_t *node, const char *name)
+char *get_complete_tar_path(struct inode *node, const char *name)
 {
 	size_t sizebuf = strlen("sysroot") + strlen(node->name) + strlen(name) + 3;
 	char *buffer = malloc(sizebuf);
@@ -145,7 +145,7 @@ char *get_complete_tar_path(vfsnode_t *node, const char *name)
 	strcat(buffer, name);
 	return buffer;
 }
-vfsnode_t *tar_open(vfsnode_t *this, const char *name)
+struct inode *tar_open(struct inode *this, const char *name)
 {
 	char *full_path = get_complete_tar_path(this, name);
 	if(!full_path)
@@ -156,7 +156,7 @@ vfsnode_t *tar_open(vfsnode_t *this, const char *name)
 		if(!strcmp(iterator[i]->filename, full_path))
 		{
 			// This part of the code seems broken, needs to be looked at
-			vfsnode_t *node = malloc(sizeof(vfsnode_t));
+			struct inode *node = malloc(sizeof(struct inode));
 			if(!node)
 			{
 				free(full_path);
@@ -205,13 +205,13 @@ void initrd_mount(void)
 		
 		filename = strtok_r(filename, "/", &saveptr);
 
-		vfsnode_t *node = fs_root;
+		struct inode *node = fs_root;
 		if(*filename != '.' && strlen(filename) != 1)
 		{
 
 			while(filename)
 			{
-				vfsnode_t *last = node;
+				struct inode *last = node;
 				if(!(node = open_vfs(node, filename)))
 				{
 					node = last;
@@ -231,7 +231,7 @@ void initrd_mount(void)
 
 		if(iter[i]->typeflag == TAR_TYPE_FILE)
 		{
-			vfsnode_t *file = creat_vfs(node, filename, 0666);
+			struct inode *file = creat_vfs(node, filename, 0666);
 			assert(file != NULL);
 	
 			char *buffer = (char *) iter[i] + 512;
@@ -240,7 +240,7 @@ void initrd_mount(void)
 		}
 		else if(iter[i]->typeflag == TAR_TYPE_DIR)
 		{
-			vfsnode_t *file = mkdir_vfs(filename, 0666, node);
+			struct inode *file = mkdir_vfs(filename, 0666, node);
 			
 			assert(file != NULL);
 		}

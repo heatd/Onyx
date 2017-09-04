@@ -204,7 +204,7 @@ ssize_t ata_write(size_t offset, size_t count, void* buffer, struct blkdev* blkd
 	mutex_unlock(&lock);
 	return count;
 }
-size_t atadev_read(int flags, size_t offset, size_t count, void *buffer, vfsnode_t *node)
+size_t atadev_read(int flags, size_t offset, size_t count, void *buffer, struct inode *node)
 {
 	struct blkdev		*blk;
 	void 			*buf;
@@ -243,7 +243,7 @@ size_t atadev_read(int flags, size_t offset, size_t count, void *buffer, vfsnode
 	free(buf);
 	return read;
 }
-size_t atadev_write(size_t offset, size_t count, void *buffer, vfsnode_t *node)
+size_t atadev_write(size_t offset, size_t count, void *buffer, struct inode *node)
 {
 	struct blkdev		*blk;
 	void 			*buf;
@@ -337,7 +337,7 @@ int ata_initialize_drive(int channel, int drive)
 	strcat(path, id);
 
 	/* Create /dev/hdxx */
-	vfsnode_t *atadev = creat_vfs(slashdev, path, 0666);
+	struct inode *atadev = creat_vfs(slashdev, path, 0666);
 	if(!atadev)
 	{
 		free(path);

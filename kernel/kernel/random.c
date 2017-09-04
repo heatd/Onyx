@@ -41,7 +41,7 @@ void get_entropy(char *buf, size_t s)
 	}
 }
 
-size_t ent_read(size_t off, size_t count, void *buffer, vfsnode_t *node)
+size_t ent_read(size_t off, size_t count, void *buffer, struct inode *node)
 {
 	get_entropy((char*) buffer, count);
 	return count;
@@ -131,12 +131,12 @@ size_t get_entropy_from_pool(int pool, size_t size, void *buffer)
 	return -EINVAL;
 }
 
-size_t random_read(int flags, size_t offset, size_t sizeofreading, void *buffer, vfsnode_t *this)
+size_t random_read(int flags, size_t offset, size_t sizeofreading, void *buffer, struct inode *this)
 {
 	return get_entropy_from_pool(ENTROPY_POOL_RANDOM, sizeofreading, buffer);
 }
 
-size_t urandom_read(int flags, size_t offset, size_t sizeofreading, void *buffer, vfsnode_t *this)
+size_t urandom_read(int flags, size_t offset, size_t sizeofreading, void *buffer, struct inode *this)
 {
 	return get_entropy_from_pool(ENTROPY_POOL_URANDOM, sizeofreading, buffer);
 }
@@ -148,7 +148,7 @@ void init_random_dev(void)
 	dev->fops = malloc(sizeof(struct file_ops));
 	assert(dev->fops);
 	dev->fops->read = random_read;
-	vfsnode_t *file = creat_vfs(slashdev, "random", 0666);
+	struct inode *file = creat_vfs(slashdev, "random", 0666);
 	assert(file);
 	file->type = VFS_TYPE_CHAR_DEVICE;
 	file->dev = dev->majorminor;
@@ -161,7 +161,7 @@ void init_urandom_dev(void)
 	dev->fops = malloc(sizeof(struct file_ops));
 	assert(dev->fops);
 	dev->fops->read = urandom_read;
-	vfsnode_t *file = creat_vfs(slashdev, "urandom", 0666);
+	struct inode *file = creat_vfs(slashdev, "urandom", 0666);
 	assert(file);
 	file->type = VFS_TYPE_CHAR_DEVICE;
 	file->dev = dev->majorminor;

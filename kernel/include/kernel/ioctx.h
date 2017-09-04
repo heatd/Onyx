@@ -15,13 +15,13 @@ typedef struct file_description
 	_Atomic int refcount;
 	off_t seek;
 	mutex_t seek_lock;
-	vfsnode_t *vfs_node;
+	struct inode *vfs_node;
 	int flags;
 } file_desc_t;
 typedef struct
 {
 	/* Current working directory */
-	vfsnode_t *cwd;
+	struct inode *cwd;
 	mutex_t fdlock;
 	file_desc_t **file_desc;
 	int file_desc_entries;

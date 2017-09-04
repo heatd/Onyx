@@ -10,7 +10,7 @@
 #include <kernel/panic.h>
 #include <kernel/compiler.h>
 
-size_t zero_read(int flags, size_t offset, size_t count, void *buf, vfsnode_t *n)
+size_t zero_read(int flags, size_t offset, size_t count, void *buf, struct inode *n)
 {
 	/* While reading from /dev/zero, all you read is zeroes. Just memset the buf. */
 	UNUSED(offset);
@@ -21,7 +21,7 @@ size_t zero_read(int flags, size_t offset, size_t count, void *buf, vfsnode_t *n
 }
 void zero_init()
 {
-	vfsnode_t *n = creat_vfs(slashdev, "zero", 0666);
+	struct inode *n = creat_vfs(slashdev, "zero", 0666);
 	if(!n)
 		panic("Could not create /dev/zero!\n");
 	n->type = VFS_TYPE_BLOCK_DEVICE;

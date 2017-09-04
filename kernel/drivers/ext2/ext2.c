@@ -23,11 +23,11 @@
 #include <drivers/rtc.h>
 #include <drivers/ext2.h>
 
-vfsnode_t *ext2_open(vfsnode_t *nd, const char *name);
-size_t ext2_read(int flags, size_t offset, size_t sizeofreading, void *buffer, vfsnode_t *node);
-size_t ext2_write(size_t offset, size_t sizeofwrite, void *buffer, vfsnode_t *node);
-unsigned int ext2_getdents(unsigned int count, struct dirent* dirp, off_t off, vfsnode_t* this);
-int ext2_stat(struct stat *buf, vfsnode_t *node);
+struct inode *ext2_open(struct inode *nd, const char *name);
+size_t ext2_read(int flags, size_t offset, size_t sizeofreading, void *buffer, struct inode *node);
+size_t ext2_write(size_t offset, size_t sizeofwrite, void *buffer, struct inode *node);
+unsigned int ext2_getdents(unsigned int count, struct dirent* dirp, off_t off, struct inode* this);
+int ext2_stat(struct stat *buf, struct inode *node);
 
 struct file_ops ext2_ops = 
 {
@@ -64,7 +64,7 @@ inode_t *ext2_get_inode_from_dir(ext2_fs_t *fs, dir_entry_t *dirent, char *name,
 	return NULL;
 }
 
-size_t ext2_write(size_t offset, size_t sizeofwrite, void *buffer, vfsnode_t *node)
+size_t ext2_write(size_t offset, size_t sizeofwrite, void *buffer, struct inode *node)
 {
 	ext2_fs_t *fs = fslist;
 	inode_t *ino = ext2_get_inode_from_number(fs, node->inode);
@@ -80,7 +80,7 @@ size_t ext2_write(size_t offset, size_t sizeofwrite, void *buffer, vfsnode_t *no
 	return size;
 }
 
-size_t ext2_read(int flags, size_t offset, size_t sizeofreading, void *buffer, vfsnode_t *node)
+size_t ext2_read(int flags, size_t offset, size_t sizeofreading, void *buffer, struct inode *node)
 {
 	/* We don't use the flags for now, only for things that might block */
 	(void) flags;
@@ -95,7 +95,7 @@ size_t ext2_read(int flags, size_t offset, size_t sizeofreading, void *buffer, v
 	return size;
 }
 
-vfsnode_t *ext2_open(vfsnode_t *nd, const char *name)
+struct inode *ext2_open(struct inode *nd, const char *name)
 {
 	uint32_t inoden = nd->inode;
 	ext2_fs_t *fs = fslist;
@@ -103,7 +103,7 @@ vfsnode_t *ext2_open(vfsnode_t *nd, const char *name)
 	size_t node_name_len;
 	inode_t *ino;
 	char *symlink_path = NULL;
-	vfsnode_t *node;
+	struct inode *node;
 	/* Get the inode structure from the number */
 	ino = ext2_get_inode_from_number(fs, inoden);	
 	if(!ino)
@@ -111,13 +111,13 @@ vfsnode_t *ext2_open(vfsnode_t *nd, const char *name)
 	ino = ext2_traverse_fs(ino, name, fs, &symlink_path, &inode_num);
 	if(!ino)
 		return NULL;
-	node = malloc(sizeof(vfsnode_t));
+	node = malloc(sizeof(struct inode));
 	if(!node)
 	{
 		free(ino);
 		return errno = ENOMEM, NULL;
 	}
-	memset(node, 0, sizeof(vfsnode_t));
+	memset(node, 0, sizeof(struct inode));
 	if(symlink_path)
 		node_name_len = strlen(nd->name) + 1 + strlen(symlink_path) + 1;
 	else
@@ -160,14 +160,14 @@ vfsnode_t *ext2_open(vfsnode_t *nd, const char *name)
 	return node;
 }
 
-vfsnode_t *ext2_creat(const char *path, int mode, vfsnode_t *file)
+struct inode *ext2_creat(const char *path, int mode, struct inode *file)
 {
 	/* Create a file */
 	return NULL;
 }
 
 __attribute__((no_sanitize_undefined))
-vfsnode_t *ext2_mount_partition(uint64_t sector, block_device_t *dev)
+struct inode *ext2_mount_partition(uint64_t sector, block_device_t *dev)
 {
 	LOG("ext2", "mounting ext2 partition at sector %d\n", sector);
 	superblock_t *sb = malloc(sizeof(superblock_t));
@@ -231,7 +231,7 @@ vfsnode_t *ext2_mount_partition(uint64_t sector, block_device_t *dev)
 	else
 		bgdt = ext2_read_block(1, (uint16_t)blocks_for_bgdt, fs);
 	fs->bgdt = bgdt;
-	vfsnode_t *node = malloc(sizeof(vfsnode_t));
+	struct inode *node = malloc(sizeof(struct inode));
 	if(!node)
 	{
 		free(sb);
@@ -250,7 +250,7 @@ __init void init_ext2drv()
 		FATAL("ext2", "error initializing the handler data\n");
 }
 
-unsigned int ext2_getdents(unsigned int count, struct dirent* dirp, off_t off, vfsnode_t* this)
+unsigned int ext2_getdents(unsigned int count, struct dirent* dirp, off_t off, struct inode* this)
 {
 	size_t read = 0;
 	uint32_t inoden = this->inode;
@@ -318,7 +318,7 @@ unsigned int ext2_getdents(unsigned int count, struct dirent* dirp, off_t off, v
 	return read;
 }
 
-int ext2_stat(struct stat *buf, vfsnode_t *node)
+int ext2_stat(struct stat *buf, struct inode *node)
 {
 	uint32_t inoden = node->inode;
 	ext2_fs_t *fs = fslist;

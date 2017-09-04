@@ -35,7 +35,7 @@ struct minor_device *dev_find(dev_t dev);
 int devfs_init(void);
 void null_init(void);
 void zero_init(void);
-extern vfsnode_t *slashdev;
+extern struct inode *slashdev;
 
 struct bus;
 struct device;
