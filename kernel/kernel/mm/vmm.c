@@ -635,12 +635,6 @@ PML4 *vmm_fork_as(avl_node_t **vmmstructs)
 	return pt;
 }
 
-void vmm_stop_spawning()
-{
-	is_spawning = 0;
-	paging_stop_spawning();
-}
-
 void vmm_change_perms(void *range, size_t pages, int perms)
 {
 	bool kernel = is_higher_half(range);

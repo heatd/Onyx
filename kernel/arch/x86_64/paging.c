@@ -15,14 +15,22 @@
 #include <kernel/panic.h>
 #include <kernel/cpu.h>
 
-static _Bool is_spawning = 0;
+bool is_spawning;
 PML4 *spawning_pml = NULL;
 #define PML_EXTRACT_ADDRESS(n) (n & 0x0FFFFFFFFFFFF000)
+
 static inline void __native_tlb_invalidate_page(void *addr)
 {
 	__asm__ __volatile__("invlpg %0"::"m"(addr));
 }
-static inline uint64_t make_pml4e(uint64_t base,uint64_t avl,uint64_t pcd,uint64_t pwt,uint64_t us,uint64_t rw,uint64_t p)
+
+static inline uint64_t make_pml4e(uint64_t base,
+				  uint64_t avl,
+				  uint64_t pcd,
+				  uint64_t pwt,
+				  uint64_t us,
+				  uint64_t rw,
+				  uint64_t p)
 {
 	return (uint64_t)( \
   		(base) | \
@@ -33,33 +41,16 @@ static inline uint64_t make_pml4e(uint64_t base,uint64_t avl,uint64_t pcd,uint64
   		(rw << 1) | \
   		p);
 }
-static inline uint64_t make_pml3e(uint64_t base,uint64_t nx, uint64_t avl,uint64_t glbl, uint64_t pcd,uint64_t pwt,uint64_t us,uint64_t rw,uint64_t p)
-{
-	return (uint64_t)( \
-  		(base) | \
-  		(nx << 63) | \
-  		(avl << 9) | \
-  		(glbl << 8) | \
-  		(pcd << 4) | \
-  		(pwt << 3) | \
-  		(us << 2) | \
-  		(rw << 1) | \
-  		p);
-}
-static inline uint64_t make_pml2e(uint64_t base,uint64_t nx, uint64_t avl,uint64_t glbl,uint64_t pcd,uint64_t pwt,uint64_t us,uint64_t rw,uint64_t p)
-{
-	return (uint64_t)( \
-  		(base) | \
-  		(nx << 63) | \
-  		(avl << 9) | \
-  		(glbl << 8) | \
-  		(pcd << 4) | \
-  		(pwt << 3) | \
-  		(us << 2) | \
-  		(rw << 1) | \
-  		p);
-}
-static inline uint64_t make_pml1e(uint64_t base,uint64_t nx, uint64_t avl,uint64_t glbl,uint64_t pcd,uint64_t pwt,uint64_t us,uint64_t rw,uint64_t p)
+
+static inline uint64_t make_pml3e(uint64_t base,
+				  uint64_t nx,
+				  uint64_t avl,
+				  uint64_t glbl,
+				  uint64_t pcd,
+				  uint64_t pwt,
+				  uint64_t us,
+				  uint64_t rw,
+				  uint64_t p)
 {
 	return (uint64_t)( \
   		(base) | \
@@ -72,16 +63,63 @@ static inline uint64_t make_pml1e(uint64_t base,uint64_t nx, uint64_t avl,uint64
   		(rw << 1) | \
   		p);
 }
+
+static inline uint64_t make_pml2e(uint64_t base,
+				  uint64_t nx,
+				  uint64_t avl,
+				  uint64_t glbl,
+				  uint64_t pcd,
+				  uint64_t pwt,
+				  uint64_t us,
+				  uint64_t rw,
+				  uint64_t p)
+{
+	return (uint64_t)( \
+  		(base) | \
+  		(nx << 63) | \
+  		(avl << 9) | \
+  		(glbl << 8) | \
+  		(pcd << 4) | \
+  		(pwt << 3) | \
+  		(us << 2) | \
+  		(rw << 1) | \
+  		p);
+}
+
+static inline uint64_t make_pml1e(uint64_t base,
+				  uint64_t nx,
+				  uint64_t avl,
+				  uint64_t glbl,
+				  uint64_t pcd,
+				  uint64_t pwt,
+				  uint64_t us,
+				  uint64_t rw,
+				  uint64_t p)
+{
+	return (uint64_t)( \
+  		(base) | \
+  		(nx << 63) | \
+  		(avl << 9) | \
+  		(glbl << 8) | \
+  		(pcd << 4) | \
+  		(pwt << 3) | \
+  		(us << 2) | \
+  		(rw << 1) | \
+  		p);
+}
+
 typedef struct 
 {
-	uint64_t offsetFromPage :12;
-	uint64_t pt :9;
-	uint64_t pd :9;
+	uint64_t offsetFromPage : 12;
+	uint64_t pt : 9;
+	uint64_t pd : 9;
 	uint64_t pdpt :9;
 	uint64_t pml4 :9;
 	uint64_t rest :16;
 } decomposed_addr_t;
-PML4 *boot_pml4;
+
+static PML4 *boot_pml4;
+
 PML4 *get_current_pml4(void)
 {
 	process_t *p = get_current_process();
@@ -89,6 +127,7 @@ PML4 *get_current_pml4(void)
 		return boot_pml4;
 	return (PML4*) p->cr3;
 }
+
 void *virtual2phys(void *ptr)
 {
 	decomposed_addr_t dec;
@@ -103,9 +142,10 @@ void *virtual2phys(void *ptr)
 	PML1 *pml1 = (PML1*)((pml2->entries[dec.pd] & 0x0FFFFFFFFFFFF000)+ PHYS_BASE);
 	return (void *)((pml1->entries[dec.pt] & 0x0FFFFFFFFFFFF000) + dec.offsetFromPage);
 }
+
 extern PML3 pdptphysical_map;
 static PML2 pdphysical_map __attribute__((aligned(PAGE_SIZE)));
-void paging_init()
+void paging_init(void)
 {
 	/* Get the current PML4 and store it */
 	__asm__ __volatile__("movq %%cr3, %%rax\t\nmovq %%rax, %0":"=r"(boot_pml4));
@@ -129,6 +169,7 @@ void paging_init()
 	}
 
 }
+
 void paging_map_all_phys()
 {
 	bool is_1gb_supported = x86_has_cap(X86_FEATURE_PDPE1GB);
@@ -167,6 +208,7 @@ void paging_map_all_phys()
 		}
 	}
 }
+
 void *paging_map_phys_to_virt_huge(uint64_t virt, uint64_t phys, uint64_t prot)
 {
 	_Bool user = 0;
@@ -198,6 +240,7 @@ void *paging_map_phys_to_virt_huge(uint64_t virt, uint64_t phys, uint64_t prot)
 	__native_tlb_invalidate_page((void*) virt);
 	return (void*) virt;
 }
+
 void* paging_map_phys_to_virt_large_early(uint64_t virt, uint64_t phys, uint64_t prot)
 {
 	_Bool user = 0;
@@ -242,6 +285,7 @@ void* paging_map_phys_to_virt_large_early(uint64_t virt, uint64_t phys, uint64_t
 	*entry |= (1 << 7);
 	return (void*) virt;
 }
+
 void* paging_map_phys_to_virt_large(uint64_t virt, uint64_t phys, uint64_t prot)
 {
 	_Bool user = 0;
@@ -286,62 +330,56 @@ void* paging_map_phys_to_virt_large(uint64_t virt, uint64_t phys, uint64_t prot)
 	*entry |= (1 << 7);
 	return (void*) virt;
 } 
+
 void* paging_map_phys_to_virt(uint64_t virt, uint64_t phys, uint64_t prot)
 {
-	_Bool user = 0;
+	bool user = 0;
 	if (virt < 0x00007fffffffffff)
 		user = 1;
 	if(!get_current_pml4())
 		return NULL;
-	decomposed_addr_t decAddr;
-	memcpy(&decAddr, &virt, sizeof(decomposed_addr_t));
-	PML4 *pml4 = (PML4*)((uint64_t)get_current_pml4() + PHYS_BASE);
 
-	uint64_t* entry = &pml4->entries[decAddr.pml4];
-	PML3* pml3 = NULL;
-	PML2* pml2 = NULL;
-	PML1* pml1 = NULL;
-	/* If its present, use that pml3 */
-	if(*entry & 1) {
-		pml3 = (PML3*)(*entry & 0x0FFFFFFFFFFFF000);
+	const unsigned int paging_levels = 4;
+	unsigned int indices[paging_levels];
+
+	for(unsigned int i = 0; i < paging_levels; i++)
+	{
+		indices[i] = (virt >> 12) >> (i * 9) & 0x1ff;
 	}
-	else { /* Else create one */
-		pml3 = (PML3*)__alloc_page(PAGE_AREA_HIGH_MEM);
-		if(!pml3)
-			return NULL;
-		memset((void*)((uint64_t)pml3 + PHYS_BASE), 0, sizeof(PML3));
-		*entry = make_pml4e((uint64_t)pml3, 0, 0, 0, user ? 1 : 0, 1, 1);
+
+	PML4 *pml = (PML4*)((uint64_t)get_current_pml4() + PHYS_BASE);
+	
+	for(unsigned int i = paging_levels; i != 1; i--)
+	{
+		uint64_t entry = pml->entries[indices[i - 1]];
+		if(entry & 1)
+		{
+			void *page = (void*) PML_EXTRACT_ADDRESS(entry);
+			pml = PHYS_TO_VIRT(page);
+		}
+		else
+		{
+			void *page = __alloc_page(0);
+			if(!page)
+				return NULL;
+			memset(PHYS_TO_VIRT(page), 0, PAGE_SIZE);
+			if(i == 3)
+				pml->entries[indices[i - 1]] =
+				make_pml4e((uint64_t) page, 0, 0, 0, user ? 1 : 0, 1, 1);
+			else
+				pml->entries[indices[i - 1]] =
+				make_pml3e((uint64_t) page, 0, 0, 0, 0, 0, user ? 1 : 0,
+						    1, 1);
+			pml = PHYS_TO_VIRT(page);
+		}
 	}
-	pml3 = (PML3*)((uint64_t)pml3 + PHYS_BASE);
-	entry = &pml3->entries[decAddr.pdpt];
-	if(*entry & 1) {
-		pml2 = (PML2*)(*entry & 0x0FFFFFFFFFFFF000);
-	}
-	else {
-		pml2 = (PML2*)__alloc_page(PAGE_AREA_HIGH_MEM);
-		if(!pml2 )
-			return NULL;
-		memset((void*)((uint64_t)pml2 + PHYS_BASE), 0, sizeof(PML2));
-		*entry = make_pml3e( (uint64_t)pml2, 0, 0, 0, 0, 0, user ? 1 : 0, 1, 1);
-	}
-	pml2 = (PML2*)((uint64_t)pml2 + PHYS_BASE);
-	entry = &pml2->entries[decAddr.pd];
-	if(*entry & 1) {
-		pml1 = (PML1*)(*entry & 0x0FFFFFFFFFFFF000);
-	}
-	else {
-		pml1 = (PML1*)__alloc_page(PAGE_AREA_HIGH_MEM);
-		if(!pml1)
-			return NULL;
-		memset((void*)((uint64_t)pml1 + PHYS_BASE), 0, sizeof(PML1));
-		*entry = make_pml2e( (uint64_t)pml1, 0, 0, (prot & 2) ? 1 : 0, 0, 0, (prot & 0x80) ? 1 : 0, 1, 1);
-	}
-	pml1 = (PML1*)((uint64_t)pml1 + PHYS_BASE);
-	entry = &pml1->entries[decAddr.pt];
-	*entry = make_pml1e( phys, (prot & 4) ? 1 : 0, 0, (prot & 0x2) ? 1 : 0, 0, 0, (prot & 0x80) ? 1 : 0, (prot & 1) ? 1 : 0, 1);
+	
+	pml->entries[indices[0]] = make_pml1e(phys, (prot & 4) ? 1 : 0, 0,
+	(prot & 0x2) ? 1 : 0, 0, 0, (prot & 0x80) ? 1 : 0, (prot & 1) ? 1 : 0, 1);
 	return (void*) virt;
 }
-_Bool pml_is_empty(void *_pml)
+
+bool pml_is_empty(void *_pml)
 {
 	PML1 *pml = _pml;
 	for(int i = 0; i < 512; i++)
@@ -351,6 +389,7 @@ _Bool pml_is_empty(void *_pml)
 	}
 	return true;
 }
+
 void *paging_unmap(void* memory)
 {
 	//printk("Unmapping %p\n", memory);
@@ -407,6 +446,7 @@ void *paging_unmap(void* memory)
 	}
 	return (void*) address;
 }
+
 PML4 *paging_clone_as()
 {
 	PML4 *new_pml = __alloc_page(PAGE_AREA_HIGH_MEM);
@@ -421,6 +461,7 @@ PML4 *paging_clone_as()
 	spawning_pml = new_pml;
 	return new_pml;
 }
+
 static inline PML4 *paging_fork_pml(PML4 *pml, int entry)
 {
 	uint64_t old_address = PML_EXTRACT_ADDRESS(pml->entries[entry]);
@@ -431,6 +472,7 @@ static inline PML4 *paging_fork_pml(PML4 *pml, int entry)
 	memcpy(new_pml, old_pml, sizeof(PML4));
 	return new_pml;
 }
+
 PML4 *paging_fork_as()
 {
 	PML4 *new_pml = __alloc_page(PAGE_AREA_HIGH_MEM);
@@ -470,12 +512,7 @@ PML4 *paging_fork_as()
 	}
 	return new_pml;
 }
-void paging_stop_spawning()
-{
-	is_spawning = 0;
-	spawning_pml = NULL;
-}
-extern process_t *first_process;
+
 void paging_load_cr3(PML4 *pml)
 {
 	assert(pml != NULL);
@@ -485,6 +522,7 @@ void paging_load_cr3(PML4 *pml)
 		return;
 	__asm__ __volatile__("movq %0, %%cr3"::"r"(pml));
 }
+
 void paging_change_perms(void *addr, int prot)
 {
 	decomposed_addr_t dec;
@@ -518,6 +556,7 @@ void paging_change_perms(void *addr, int prot)
 	*entry = perms | page;
 	__native_tlb_invalidate_page(addr);
 }
+
 int is_invalid_arch_range(void *address, size_t pages)
 {
 	for(uintptr_t addr = (uintptr_t) address, i = 0; i < pages; ++i, addr += PAGE_SIZE)
@@ -527,6 +566,7 @@ int is_invalid_arch_range(void *address, size_t pages)
 	}
 	return 0;
 }
+
 void paging_walk(void *addr)
 {
 	decomposed_addr_t dec;
