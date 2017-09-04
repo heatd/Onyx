@@ -11,7 +11,7 @@
 
 #define NUM_PRIO 40
 typedef void(*thread_callback_t)(void*);
-struct proc;
+struct process;
 typedef struct thread
 {
 	/* Put arch-independent stuff right here */
@@ -19,7 +19,7 @@ typedef struct thread
 	uintptr_t *kernel_stack;
 	uintptr_t *kernel_stack_top;
 	uintptr_t *user_stack_bottom;
-	volatile struct proc *owner;
+	volatile struct process *owner;
 	thread_callback_t rip;
 	uint32_t flags;
 	int id;

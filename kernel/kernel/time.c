@@ -64,7 +64,7 @@ int sys_clock_gettime(clockid_t clk_id, struct timespec *tp)
 }
 clock_t sys_times(struct tms *buf)
 {
-	process_t *current = get_current_process();
+	struct process *current = get_current_process();
 	struct tms b = {0};
 	b.tms_stime = current->system_time;
 	b.tms_utime = current->user_time;

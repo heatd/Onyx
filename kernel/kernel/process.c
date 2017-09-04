@@ -37,13 +37,13 @@
 
 extern PML4 *current_pml4;
 struct ids *process_ids = NULL;
-process_t *first_process = NULL;
-volatile process_t *current_process = NULL;
+struct process *first_process = NULL;
+volatile struct process *current_process = NULL;
 static spinlock_t process_creation_lock;
 slab_cache_t *process_cache = NULL;
 void process_destroy(thread_t *);
 
-int copy_file_descriptors(process_t *process, ioctx_t *ctx)
+int copy_file_descriptors(struct process *process, ioctx_t *ctx)
 {
 	process->ctx.file_desc = malloc(ctx->file_desc_entries * sizeof(void*));
 	process->ctx.file_desc_entries = ctx->file_desc_entries;
@@ -58,7 +58,7 @@ int copy_file_descriptors(process_t *process, ioctx_t *ctx)
 	return 0;
 }
 
-int allocate_file_descriptor_table(process_t *process)
+int allocate_file_descriptor_table(struct process *process)
 {
 	process->ctx.file_desc = malloc(UINT8_MAX * sizeof(void*));
 	if(!process->ctx.file_desc)
@@ -70,11 +70,11 @@ int allocate_file_descriptor_table(process_t *process)
 	return 0;
 }
 
-process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent)
+struct process *process_create(const char *cmd_line, ioctx_t *ctx, struct process *parent)
 {
 	if(unlikely(!process_cache))
 	{
-		process_cache = slab_create("process_t", sizeof(process_t), 16, 0, 0, 0);
+		process_cache = slab_create("struct process", sizeof(struct process), 16, 0, 0, 0);
 		if(!process_cache)
 			panic("Could not create the process slab cache\n");
 	}
@@ -85,10 +85,10 @@ process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent)
 		assert(process_ids != NULL);
 	}
 
-	process_t *proc = slab_allocate(process_cache);
+	struct process *proc = slab_allocate(process_cache);
 	if(!proc)
 		return errno = ENOMEM, NULL;
-	memset(proc, 0, sizeof(process_t));
+	memset(proc, 0, sizeof(struct process));
 	acquire_spinlock(&process_creation_lock);
 	/* TODO: idm_get_id doesn't wrap? POSIX COMPLIANCE */
 	proc->pid = idm_get_id(process_ids);
@@ -131,7 +131,7 @@ process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent)
 		first_process = proc;
 	else
 	{
-		process_t *it = (process_t*) get_current_process();
+		struct process *it = (struct process*) get_current_process();
 		while(it->next) it = it->next;
 		it->next = proc;
 	}
@@ -139,7 +139,7 @@ process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent)
 	return proc;
 }
 
-void process_create_thread(process_t *proc, thread_callback_t callback, uint32_t flags, int argc, char **argv, char **envp)
+void process_create_thread(struct process *proc, thread_callback_t callback, uint32_t flags, int argc, char **argv, char **envp)
 {
 	thread_t *thread = NULL;
 	if(!argv)
@@ -160,7 +160,7 @@ void process_create_thread(process_t *proc, thread_callback_t callback, uint32_t
 		thread_destroy(thread);
 }
 
-int process_fork_thread(thread_t *src, process_t *dest, syscall_ctx_t *ctx)
+int process_fork_thread(thread_t *src, struct process *dest, syscall_ctx_t *ctx)
 {
 	registers_t 	regs;
 	uintptr_t 	rsp;
@@ -204,9 +204,9 @@ int process_fork_thread(thread_t *src, process_t *dest, syscall_ctx_t *ctx)
 	return 0;
 }
 
-process_t *get_process_from_pid(pid_t pid)
+struct process *get_process_from_pid(pid_t pid)
 {
-	process_t *p = first_process;
+	struct process *p = first_process;
 	for(;p;p = p->next)
 	{
 		if(p->pid == pid)
@@ -265,7 +265,7 @@ char **process_copy_envarg(char **envarg, _Bool to_kernel, int *count)
 	return new_args;
 }
 
-void *process_setup_auxv(void *buffer, process_t *process)
+void *process_setup_auxv(void *buffer, struct process *process)
 {
 	/* Setup the auxv at the stack bottom */
 	Elf64_auxv_t *auxv = (Elf64_auxv_t *) buffer;
@@ -296,7 +296,7 @@ void *process_setup_auxv(void *buffer, process_t *process)
 	return auxv;
 }
 
-void process_setup_pthread(thread_t *thread, process_t *process)
+void process_setup_pthread(thread_t *thread, struct process *process)
 {
 	/* TODO: Do this portably */
 	/* TODO: Return error codes and clean up */
@@ -348,7 +348,7 @@ int sys_execve(char *path, char *argv[], char *envp[])
 		return -ENOMEM;
 	}	
 	/* Swap address spaces. Good thing we saved argv and envp before */
-	process_t *current = get_current_process();
+	struct process *current = get_current_process();
 	current->cr3 = cr3;
 	current->tree = tree;
 	current->brk = vmm_reserve_address(vmm_gen_brk_base(), 0x20000000, VM_TYPE_HEAP,
@@ -425,8 +425,8 @@ pid_t sys_getppid()
 
 pid_t sys_wait4(pid_t pid, int *wstatus, int options, struct rusage *usage)
 {
-	process_t *it = (process_t*) get_current_process();
-	process_t *curr_process = it;
+	struct process *it = (struct process*) get_current_process();
+	struct process *curr_process = it;
 	bool found_child = 0;
 	bool looking_for_any_children = false;
 	if(pid < 0)
@@ -471,14 +471,14 @@ pid_t sys_wait4(pid_t pid, int *wstatus, int options, struct rusage *usage)
 
 pid_t sys_fork(syscall_ctx_t *ctx)
 {
-	process_t 	*proc;
-	process_t 	*child;
+	struct process 	*proc;
+	struct process 	*child;
 	avl_node_t 	*areas;
 	PML4 		*new_pt;
 	thread_t 	*to_be_forked;
 
 	areas = NULL;
-	proc = (process_t*) get_current_process();
+	proc = (struct process*) get_current_process();
 	to_be_forked = proc->threads[0];	
 	/* Create a new process */
 	child = process_create(proc->cmd_line, &proc->ctx, proc); /* Create a process with the current
@@ -511,7 +511,7 @@ pid_t sys_fork(syscall_ctx_t *ctx)
 
 void process_exit_from_signal(int signum)
 {
-	process_t *current = get_current_process();
+	struct process *current = get_current_process();
 	/* TODO: Fix the exit status */
 	current->has_exited = 1;
 	current->exit_code = __WCONSTRUCT(0, (127 + signum), signum);
@@ -525,7 +525,7 @@ void process_exit_from_signal(int signum)
 
 void sys_exit(int status)
 {
-	process_t *current = get_current_process();
+	struct process *current = get_current_process();
 	if(current->pid == 1)
 	{
 		printk("Panic: %s returned!\n", get_current_process()->cmd_line);
@@ -579,12 +579,12 @@ gid_t sys_getgid(void)
 
 void process_destroy_aspace(void)
 {
-	process_t *current = get_current_process();
+	struct process *current = get_current_process();
 	vmm_destroy_addr_space(current->tree);
 	current->tree = NULL;
 }
 
-void process_destroy_file_descriptors(process_t *process)
+void process_destroy_file_descriptors(struct process *process)
 {
 	ioctx_t *ctx = &process->ctx;
 	file_desc_t **table = ctx->file_desc;
@@ -607,13 +607,13 @@ void process_destroy_file_descriptors(process_t *process)
 
 void process_obliterate(void *proc)
 {
-	process_t *process = proc;
+	struct process *process = proc;
 	__free_page(process->cr3);
 }
 
 void process_destroy(thread_t *current_thread)
 {
-	process_t *current = get_current_process();
+	struct process *current = get_current_process();
 	/* Firstly, destroy the address space */
 	process_destroy_aspace();
 
@@ -631,7 +631,7 @@ void process_destroy(thread_t *current_thread)
 	worker_schedule(&req, WORKER_PRIO_NORMAL);
 }
 
-int process_attach(process_t *tracer, process_t *tracee)
+int process_attach(struct process *tracer, struct process *tracee)
 {
 	/* You can't attach to yourself */
 	if(tracer == tracee)
@@ -650,12 +650,12 @@ int process_attach(process_t *tracer, process_t *tracee)
 }
 
 /* Finds a pid that tracer is tracing */
-process_t *process_find_tracee(process_t *tracer, pid_t pid)
+struct process *process_find_tracee(struct process *tracer, pid_t pid)
 {
 	struct list_head *list = &tracer->tracees;
 	while(list && list->ptr)
 	{
-		process_t *tracee = list->ptr;
+		struct process *tracee = list->ptr;
 		if(tracee->pid == pid)
 			return tracee;
 		list = list->next;
@@ -663,7 +663,7 @@ process_t *process_find_tracee(process_t *tracer, pid_t pid)
 	return NULL;
 }
 
-void process_add_thread(process_t *process, thread_t *thread)
+void process_add_thread(struct process *process, thread_t *thread)
 {
 	for(int i = 0; i < THREADS_PER_PROCESS; i++)
 	{
@@ -714,7 +714,7 @@ void sys_exit_thread(int value)
 
 void process_increment_stats(bool is_kernel)
 {
-	process_t *process = get_current_process();
+	struct process *process = get_current_process();
 	/* We're not in a process, return! */
 	if(!process)
 		return;
@@ -724,13 +724,13 @@ void process_increment_stats(bool is_kernel)
 		process->user_time++;
 }
 
-void process_continue(process_t *p)
+void process_continue(struct process *p)
 {
 	if(p->threads[0])
 		thread_set_state(p->threads[0], THREAD_RUNNABLE);
 }
 
-void process_stop(process_t *p)
+void process_stop(struct process *p)
 {
 	if(p->threads[0])
 		thread_set_state(p->threads[0], THREAD_BLOCKED);

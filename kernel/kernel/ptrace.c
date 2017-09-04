@@ -18,12 +18,12 @@
 
 long sys_ptrace(long request, pid_t pid, void *addr, void *data, void *addr2)
 {
-	process_t *process = get_current_process();
+	struct process *process = get_current_process();
 	switch(request)
 	{
 		case PTRACE_ATTACH:
 		{
-			process_t *tracee = get_process_from_pid(pid);
+			struct process *tracee = get_process_from_pid(pid);
 			if(!tracee)
 			{
 				return -ESRCH;
@@ -36,7 +36,7 @@ long sys_ptrace(long request, pid_t pid, void *addr, void *data, void *addr2)
 		case PTRACE_PEEKTEXT:
 		case PTRACE_PEEKDATA:
 		{
-			process_t *tracee = process_find_tracee(get_current_process(), pid);
+			struct process *tracee = process_find_tracee(get_current_process(), pid);
 			if(!tracee)
 				return -ESRCH;
 			ptrace_word_t word;
@@ -47,7 +47,7 @@ long sys_ptrace(long request, pid_t pid, void *addr, void *data, void *addr2)
 		case PTRACE_POKETEXT:
 		case PTRACE_POKEDATA:
 		{
-			process_t *tracee = process_find_tracee(get_current_process(), pid);
+			struct process *tracee = process_find_tracee(get_current_process(), pid);
 			if(!tracee)
 				return -ESRCH;
 			if(ptrace_poke(tracee, addr, (ptrace_word_t) data) < 0)
@@ -56,7 +56,7 @@ long sys_ptrace(long request, pid_t pid, void *addr, void *data, void *addr2)
 		}
 		case PTRACE_GETREGS:
 		{
-			process_t *tracee = process_find_tracee(get_current_process(), pid);
+			struct process *tracee = process_find_tracee(get_current_process(), pid);
 			if(!tracee)
 				return -ESRCH;
 			if(vmm_check_pointer(data, sizeof(struct user_regs_struct)) < 0)
@@ -67,7 +67,7 @@ long sys_ptrace(long request, pid_t pid, void *addr, void *data, void *addr2)
 		}
 		case PTRACE_GETFPREGS:
 		{
-			process_t *tracee = process_find_tracee(get_current_process(), pid);
+			struct process *tracee = process_find_tracee(get_current_process(), pid);
 			if(!tracee)
 				return -ESRCH;
 			if(vmm_check_pointer(data, sizeof(struct user_fpregs_struct)) < 0)
@@ -78,7 +78,7 @@ long sys_ptrace(long request, pid_t pid, void *addr, void *data, void *addr2)
 		}
 		case PTRACE_CONT:
 		{
-			process_t *tracee = process_find_tracee(get_current_process(), pid);
+			struct process *tracee = process_find_tracee(get_current_process(), pid);
 			if(!tracee)
 			{
 				return -ESRCH;

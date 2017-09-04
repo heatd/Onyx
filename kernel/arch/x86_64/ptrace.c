@@ -18,7 +18,7 @@
 
 #include <sys/ptrace.h>
 
-int ptrace_peek(process_t *process, void *addr, ptrace_word_t *word)
+int ptrace_peek(struct process *process, void *addr, ptrace_word_t *word)
 {
 	int status = 0;
 	/* Save the old VMM tree */
@@ -48,7 +48,7 @@ int ptrace_peek(process_t *process, void *addr, ptrace_word_t *word)
 
 	return status;
 }
-int ptrace_poke(process_t *process, void *addr, ptrace_word_t word)
+int ptrace_poke(struct process *process, void *addr, ptrace_word_t word)
 {
 	int status = 0;
 	/* Save the old VMM tree */
@@ -78,7 +78,7 @@ int ptrace_poke(process_t *process, void *addr, ptrace_word_t word)
 
 	return status;
 }
-int ptrace_getregs(process_t *process, struct user_regs_struct *regs)
+int ptrace_getregs(struct process *process, struct user_regs_struct *regs)
 {
 	/* TODO: We currently don't support multi-threaded ptracing, since in Onyx processes have threads
 	 * (instead of linux's threads each have a process hack) */
@@ -111,7 +111,7 @@ int ptrace_getregs(process_t *process, struct user_regs_struct *regs)
 	regs->fs_base = (uintptr_t) main_thread->fs;
 	return 0;
 }
-int ptrace_getfpregs(process_t *process, struct user_fpregs_struct *regs)
+int ptrace_getfpregs(struct process *process, struct user_fpregs_struct *regs)
 {
 	fpu_ptrace_getfpregs((void*) process->threads[0]->fpu_area, regs);
 	return 0;

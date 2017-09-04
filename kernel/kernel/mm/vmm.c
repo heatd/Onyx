@@ -479,7 +479,7 @@ void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uin
 		{
 			if(!(flags & 1))
 			{
-				process_t *p = get_current_process();
+				struct process *p = get_current_process();
 				assert(p != NULL);
 				if(!p->mmap_base)
 					panic("mmap_base == 0");
@@ -666,7 +666,7 @@ void vfree(void *ptr, size_t pages)
 
 avl_node_t **vmm_get_tree()
 {
-	process_t *p = get_current_process();
+	struct process *p = get_current_process();
 	if(!p)
 		return NULL;
 	return &p->tree;
@@ -908,7 +908,7 @@ int do_inc_brk(void *oldbrk, void *newbrk)
 
 uint64_t sys_brk(void *newbrk)
 {
-	process_t *p = get_current_process();
+	struct process *p = get_current_process();
 	if(newbrk == NULL)
 		return (uint64_t) p->brk;
 

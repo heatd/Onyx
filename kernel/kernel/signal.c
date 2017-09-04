@@ -27,11 +27,11 @@ void signal_default_ignore(int signum)
 {
 	(void) signum;
 }
-void signal_cont(int signum, process_t *p)
+void signal_cont(int signum, struct process *p)
 {
 	process_continue(p);
 }
-void signal_stop(int signum, process_t *p)
+void signal_stop(int signum, struct process *p)
 {
 	process_stop(p);
 }
@@ -64,7 +64,7 @@ sighandler_t dfl_signal_handlers[] = {
 	[SIGTTIN] = signal_default_stop,
 	[SIGTTOU] = signal_default_stop
 };
-void signal_update_pending(process_t *process);
+void signal_update_pending(struct process *process);
 #define SST_SIZE (_NSIG/8/sizeof(long))
 void signotset(sigset_t *set)
 {
@@ -84,7 +84,7 @@ void signal_transfer_to_userspace(int sig, registers_t *regs, _Bool is_int)
 	/* Start setting the register state for the register switch */
 	/* Note that we're saving the old ones */
 	uintptr_t *userspace_stack = NULL;
-	process_t *process = get_current_process();
+	struct process *process = get_current_process();
 	if(!is_int)
 	{
 		memcpy((registers_t*) &process->old_regs, regs, sizeof(registers_t));
@@ -145,7 +145,7 @@ void signal_transfer_to_userspace(int sig, registers_t *regs, _Bool is_int)
 #else
 #error "Implement this in your architecture"
 #endif
-int signal_find(process_t *process)
+int signal_find(struct process *process)
 {
 	sigset_t *set = &process->pending_set;
 	sigset_t *blocked_set = &process->sigmask;
@@ -159,7 +159,7 @@ int signal_find(process_t *process)
 	}
 	return 0;
 }
-_Bool signal_is_empty(process_t *process)
+_Bool signal_is_empty(struct process *process)
 {
 	sigset_t *set = &process->pending_set;
 	sigset_t *blocked_set = &process->sigmask;
@@ -177,7 +177,7 @@ void handle_signal(registers_t *regs, _Bool is_int)
 	{
 		return;
 	}
-	process_t *current = get_current_process();
+	struct process *current = get_current_process();
 	//assert(current);
 
 	/* Find an available signal */
@@ -212,7 +212,7 @@ void handle_signal(registers_t *regs, _Bool is_int)
 	if(signal_is_empty(current))
 		current->signal_pending = 0;
 }
-void signal_update_pending(process_t *process)
+void signal_update_pending(struct process *process)
 {
 	sigset_t *set = &process->pending_set;
 	sigset_t *blocked_set = &process->sigmask;
@@ -226,7 +226,7 @@ void signal_update_pending(process_t *process)
 	}
 	process->signal_pending = 0;
 }
-void kernel_raise_signal(int sig, process_t *process)
+void kernel_raise_signal(int sig, struct process *process)
 {
 	/* Don't bother to set it as pending if sig == SIG_IGN */
 	if(process->sigtable[sig].sa_handler == SIG_IGN)
@@ -242,15 +242,15 @@ void kernel_raise_signal(int sig, process_t *process)
 	if(!sigismember(&process->sigmask, sig))
 		process->signal_pending = 1;
 }
-_Bool signal_is_masked(process_t *process, int sig)
+_Bool signal_is_masked(struct process *process, int sig)
 {
 	sigset_t *set = &process->sigmask;
 	return (_Bool) sigismember(set, sig);
 }
 int sys_kill(pid_t pid, int sig)
 {
-	process_t *p = NULL;
-	process_t *current = get_current_process();
+	struct process *p = NULL;
+	struct process *current = get_current_process();
 	if((int)pid > 0)
 	{
 		if(pid == current->pid)
@@ -310,7 +310,7 @@ int sys_sigaction(int signum, const struct sigaction *act, struct sigaction *old
 	/* If both pointers are NULL, just return 0 (We can't do anything) */
 	if(!oldact && !act)
 		return 0;
-	process_t *proc = get_current_process();
+	struct process *proc = get_current_process();
 
 	/* Lock the mutex */
 	mutex_lock(&proc->signal_lock);
@@ -346,7 +346,7 @@ int sys_sigaction(int signum, const struct sigaction *act, struct sigaction *old
 }
 int sys_sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
 {
-	process_t *current = get_current_process();
+	struct process *current = get_current_process();
 	if(oldset)
 	{
 		if(copy_to_user(oldset, &current->sigmask, sizeof(sigset_t)) < 0)
@@ -388,14 +388,14 @@ int sys_sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
 }
 bool signal_is_pending(void)
 {
-	process_t *current = get_current_process();
+	struct process *current = get_current_process();
 	if(!current)
 		return false;
 	return (bool) current->signal_pending;
 }
 int sys_sigsuspend(const sigset_t *uset)
 {
-	process_t *current = get_current_process();
+	struct process *current = get_current_process();
 
 	sigset_t set;
 	if(copy_from_user(&set, uset, sizeof(sigset_t)) < 0)

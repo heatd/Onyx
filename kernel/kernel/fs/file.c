@@ -56,7 +56,7 @@ int validate_fd(int fd)
 }
 
 /* Enlarges the file descriptor table by UINT8_MAX(255) entries */
-int enlarge_file_descriptor_table(process_t *process)
+int enlarge_file_descriptor_table(struct process *process)
 {
 	process->ctx.file_desc_entries += UINT8_MAX;
 	file_desc_t **table = malloc(process->ctx.file_desc_entries * sizeof(void*));

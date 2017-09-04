@@ -26,7 +26,7 @@ struct futex *__get_futex(int *uaddr)
 }
 void __futex_insert(struct futex *futex)
 {
-	process_t *current = get_current_process();
+	struct process *current = get_current_process();
 	acquire_spinlock(&current->futex_queue_lock);
 	if(!current->futex_queue)
 		current->futex_queue = futex;

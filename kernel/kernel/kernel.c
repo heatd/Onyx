@@ -164,7 +164,7 @@ retry:;
 		path = "/bin/init";
 		goto retry;
 	}
-	process_t *proc = process_create(path, NULL, NULL);
+	struct process *proc = process_create(path, NULL, NULL);
 	if(!proc)
 		return errno = ENOMEM, -1;
 
@@ -218,7 +218,7 @@ retry:;
 	args.argv = argv;
 	args.envp = envp;
 
-	process_t *current = get_current_process();
+	struct process *current = get_current_process();
 	current->brk = vmm_reserve_address(vmm_gen_brk_base(), 0x20000000, VM_TYPE_HEAP,
 	VM_WRITE | VM_NOEXEC | VM_USER);
 	current->mmap_base = vmm_gen_mmap_base();

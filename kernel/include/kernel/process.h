@@ -19,13 +19,14 @@
 
 struct futex;
 #define THREADS_PER_PROCESS 30
-typedef struct proc
+
+struct process
 {
 	/* Signal specific flags */
 	int signal_pending;
 
 	/* The next process in the linked list */
-	struct proc *next;
+	struct process *next;
 
 	/* The processes' threads */
 	thread_t *threads[30];
@@ -59,6 +60,8 @@ typedef struct proc
 	/* Process' UID and GID */
 	uid_t uid;
 	gid_t gid;
+	uid_t euid;
+	gid_t egid; 
 	
 	/* Signal register save */
 	registers_t old_regs;
@@ -83,7 +86,7 @@ typedef struct proc
 	unsigned long personality;
 
 	/* This process' parent */
-	struct proc *parent;
+	struct process *parent;
 	
 	/* Linked list to the processes being traced */
 	struct list_head tracees;
@@ -99,28 +102,33 @@ typedef struct proc
 	/* User time and system time consumed by the process */
 	clock_t user_time;
 	clock_t system_time;
-} process_t;
+};
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-process_t *process_create(const char *cmd_line, ioctx_t *ctx, process_t *parent);
-void process_create_thread(process_t *proc, thread_callback_t callback, uint32_t flags, int argc, char **argv, char **envp);
-int process_fork_thread(thread_t *src, process_t *dest, syscall_ctx_t *ctx);
-process_t *get_process_from_pid(pid_t pid);
+
+struct process *process_create(const char *cmd_line, ioctx_t *ctx, struct process *parent);
+void process_create_thread(struct process *proc, thread_callback_t callback, uint32_t flags, int argc, char **argv, char **envp);
+int process_fork_thread(thread_t *src, struct process *dest, syscall_ctx_t *ctx);
+struct process *get_process_from_pid(pid_t pid);
 void process_destroy_aspace(void);
-int process_attach(process_t *tracer, process_t *tracee);
-process_t *process_find_tracee(process_t *tracer, pid_t pid);
+int process_attach(struct process *tracer, struct process *tracee);
+struct process *process_find_tracee(struct process *tracer, pid_t pid);
 void process_exit_from_signal(int signum);
 char **process_copy_envarg(char **envarg, _Bool to_kernel, int *count);
 void process_increment_stats(bool is_kernel);
-void process_continue(process_t *p);
-void process_stop(process_t *p);
+void process_continue(struct process *p);
+void process_stop(struct process *p);
+
 #ifdef __cplusplus
 }
 #endif
-static inline process_t *get_current_process()
+
+static inline struct process *get_current_process()
 {
 	thread_t *thread = get_current_thread();
-	return (thread == NULL) ? NULL : (process_t*) thread->owner;
+	return (thread == NULL) ? NULL : (struct process*) thread->owner;
 }
+
 #endif

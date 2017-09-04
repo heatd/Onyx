@@ -122,7 +122,7 @@ static PML4 *boot_pml4;
 
 PML4 *get_current_pml4(void)
 {
-	process_t *p = get_current_process();
+	struct process *p = get_current_process();
 	if(!p)
 		return boot_pml4;
 	return (PML4*) p->cr3;
