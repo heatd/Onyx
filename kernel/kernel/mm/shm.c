@@ -11,13 +11,13 @@
 #include <unistd.h>
 #include <errno.h>
 
-#include <kernel/user.h>
-#include <kernel/mm/shm.h>
-#include <kernel/vmm.h>
-#include <kernel/mutex.h>
-#include <kernel/file.h>
-#include <kernel/list.h>
-#include <kernel/page.h>
+#include <onyx/user.h>
+#include <onyx/mm/shm.h>
+#include <onyx/vmm.h>
+#include <onyx/mutex.h>
+#include <onyx/file.h>
+#include <onyx/list.h>
+#include <onyx/page.h>
 
 #include <fcntl.h>
 

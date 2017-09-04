@@ -10,12 +10,12 @@
 #include <fcntl.h>
 #include <stdbool.h>
 
-#include <kernel/pipe.h>
-#include <kernel/spinlock.h>
-#include <kernel/process.h>
-#include <kernel/compiler.h>
-#include <kernel/dev.h>
-#include <kernel/panic.h>
+#include <onyx/pipe.h>
+#include <onyx/spinlock.h>
+#include <onyx/process.h>
+#include <onyx/compiler.h>
+#include <onyx/dev.h>
+#include <onyx/panic.h>
 static struct pipe *pipe_list = NULL;
 struct pipe **__allocate_pipe_inode(ino_t *inode)
 {

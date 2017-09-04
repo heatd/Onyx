@@ -8,12 +8,12 @@
 #include <cpuid.h>
 #include <assert.h>
 
-#include <kernel/page.h>
-#include <kernel/paging.h>
-#include <kernel/process.h>
-#include <kernel/vmm.h>
-#include <kernel/panic.h>
-#include <kernel/cpu.h>
+#include <onyx/page.h>
+#include <onyx/paging.h>
+#include <onyx/process.h>
+#include <onyx/vmm.h>
+#include <onyx/panic.h>
+#include <onyx/cpu.h>
 
 bool is_spawning;
 PML4 *spawning_pml = NULL;

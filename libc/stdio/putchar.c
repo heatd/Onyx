@@ -6,7 +6,7 @@
 #include <stdio.h>
 
 #if defined(__is_onyx_kernel)
-#include <kernel/tty.h>
+#include <onyx/tty.h>
 #endif
 int putchar(int ic)
 {

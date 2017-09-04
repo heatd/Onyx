@@ -8,11 +8,11 @@
 #include <stdio.h>
 #include <errno.h>
 
-#include <kernel/cpu.h>
-#include <kernel/vmm.h>
-#include <kernel/signal.h>
-#include <kernel/panic.h>
-#include <kernel/process.h>
+#include <onyx/cpu.h>
+#include <onyx/vmm.h>
+#include <onyx/signal.h>
+#include <onyx/panic.h>
+#include <onyx/process.h>
 
 void signal_default_term(int signum)
 {

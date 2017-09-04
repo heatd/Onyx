@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#include <kernel/binfmt.h>
+#include <onyx/binfmt.h>
 
 static struct binfmt *format_list = NULL;
 void *load_binary(struct binfmt_args *args)

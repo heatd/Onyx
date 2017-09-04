@@ -8,12 +8,12 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-#include <kernel/vmm.h>
-#include <kernel/ethernet.h>
-#include <kernel/pic.h>
-#include <kernel/irq.h>
-#include <kernel/log.h>
-#include <kernel/network.h>
+#include <onyx/vmm.h>
+#include <onyx/ethernet.h>
+#include <onyx/pic.h>
+#include <onyx/irq.h>
+#include <onyx/log.h>
+#include <onyx/network.h>
 
 #include <drivers/mmio.h>
 #include <drivers/e1000.h>

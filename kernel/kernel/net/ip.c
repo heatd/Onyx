@@ -13,12 +13,12 @@
 
 #include <sys/socket.h>
 
-#include <kernel/ip.h>
-#include <kernel/ethernet.h>
-#include <kernel/netif.h>
-#include <kernel/network.h>
-#include <kernel/udp.h>
-#include <kernel/arp.h>
+#include <onyx/ip.h>
+#include <onyx/ethernet.h>
+#include <onyx/netif.h>
+#include <onyx/network.h>
+#include <onyx/udp.h>
+#include <onyx/arp.h>
 
 int send_ipv4_packet(uint32_t senderip, uint32_t destip, unsigned int type, char *payload, size_t payload_size, struct netif *netif)
 {

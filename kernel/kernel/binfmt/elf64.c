@@ -7,8 +7,8 @@
 #include <errno.h>
 #include <stdio.h>
 
-#include <kernel/binfmt/elf64.h>
-#include <kernel/vmm.h>
+#include <onyx/binfmt/elf64.h>
+#include <onyx/vmm.h>
 
 static bool elf64_is_valid(Elf64_Ehdr *header)
 {

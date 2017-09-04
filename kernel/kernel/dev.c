@@ -9,7 +9,7 @@
 #include <assert.h>
 #include <stdio.h>
 
-#include <kernel/dev.h>
+#include <onyx/dev.h>
 
 static spinlock_t bus_list_lock;
 static struct bus *bus_list = NULL;

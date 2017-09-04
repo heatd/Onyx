@@ -10,9 +10,9 @@
 #include <assert.h>
 #include <stdio.h>
 
-#include <kernel/compiler.h>
-#include <kernel/vmm.h>
-#include <kernel/cpu.h>
+#include <onyx/compiler.h>
+#include <onyx/vmm.h>
+#include <onyx/cpu.h>
 
 static uintptr_t vm_calculate_virtual_address(uintptr_t bits)
 {

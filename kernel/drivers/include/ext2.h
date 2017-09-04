@@ -7,9 +7,9 @@
 #define _EXT2_H
 
 #include <stdint.h>
-#include <kernel/mutex.h>
-#include <kernel/spinlock.h>
-#include <kernel/block.h>
+#include <onyx/mutex.h>
+#include <onyx/spinlock.h>
+#include <onyx/block.h>
 
 #include <drivers/ata.h>
 

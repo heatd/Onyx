@@ -9,9 +9,9 @@
 #include <errno.h>
 #include <assert.h>
 
-#include <kernel/vfs.h>
-#include <kernel/mtable.h>
-#include <kernel/mutex.h>
+#include <onyx/vfs.h>
+#include <onyx/mtable.h>
+#include <onyx/mutex.h>
 
 static mountpoint_t *mtable = NULL;
 static size_t nr_mtable_entries = 0;

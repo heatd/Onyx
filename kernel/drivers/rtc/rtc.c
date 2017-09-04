@@ -6,11 +6,11 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#include <kernel/portio.h>
-#include <kernel/irq.h>
-#include <kernel/pic.h>
-#include <kernel/log.h>
-#include <kernel/cpu.h>
+#include <onyx/portio.h>
+#include <onyx/irq.h>
+#include <onyx/pic.h>
+#include <onyx/log.h>
+#include <onyx/cpu.h>
 
 #include <drivers/nmi.h>
 #include <drivers/rtc.h>

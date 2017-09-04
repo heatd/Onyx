@@ -11,17 +11,17 @@
 #include <errno.h>
 #include <assert.h>
 
-#include <kernel/timer.h>
-#include <kernel/page.h>
-#include <kernel/log.h>
-#include <kernel/compiler.h>
-#include <kernel/module.h>
-#include <kernel/vmm.h>
-#include <kernel/task_switching.h>
-#include <kernel/irq.h>
-#include <kernel/block.h>
-#include <kernel/vfs.h>
-#include <kernel/dev.h>
+#include <onyx/timer.h>
+#include <onyx/page.h>
+#include <onyx/log.h>
+#include <onyx/compiler.h>
+#include <onyx/module.h>
+#include <onyx/vmm.h>
+#include <onyx/task_switching.h>
+#include <onyx/irq.h>
+#include <onyx/block.h>
+#include <onyx/vfs.h>
+#include <onyx/dev.h>
 
 #include <drivers/pci.h>
 #include <drivers/ata.h>

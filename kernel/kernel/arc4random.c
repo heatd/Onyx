@@ -36,8 +36,8 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <kernel/spinlock.h>
-#include <kernel/random.h>
+#include <onyx/spinlock.h>
+#include <onyx/random.h>
 
 void explicit_bzero(void *ptr, size_t size)
 {

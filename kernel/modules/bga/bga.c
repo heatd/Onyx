@@ -8,9 +8,9 @@
 
 #include <bga.h>
 
-#include <kernel/mutex.h>
-#include <kernel/compiler.h>
-#include <kernel/video.h>
+#include <onyx/mutex.h>
+#include <onyx/compiler.h>
+#include <onyx/video.h>
 
 #define MPRINTF(...) printf("bga: "__VA_ARGS__)
 

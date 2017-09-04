@@ -7,11 +7,11 @@
 #include <errno.h>
 #include <stdio.h>
 
-#include <kernel/panic.h>
-#include <kernel/dev.h>
-#include <kernel/task_switching.h>
-#include <kernel/vmm.h>
-#include <kernel/pagecache.h>
+#include <onyx/panic.h>
+#include <onyx/dev.h>
+#include <onyx/task_switching.h>
+#include <onyx/vmm.h>
+#include <onyx/pagecache.h>
 
 static struct list_head page_list = {0};
 

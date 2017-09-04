@@ -10,8 +10,8 @@
 
 #include <sys/types.h>
 
-#include <kernel/block.h>
-#include <kernel/vfs.h>
+#include <onyx/block.h>
+#include <onyx/vfs.h>
 typedef struct inode *(*fs_handler)(uint64_t sector, block_device_t *dev);
 enum partition_type_t
 {

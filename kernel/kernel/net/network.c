@@ -12,14 +12,14 @@
 #include <fcntl.h>
 #include <assert.h>
 
-#include <kernel/network.h>
-#include <kernel/ip.h>
-#include <kernel/udp.h>
-#include <kernel/icmp.h>
-#include <kernel/compiler.h>
-#include <kernel/dns.h>
-#include <kernel/file.h>
-#include <kernel/ethernet.h>
+#include <onyx/network.h>
+#include <onyx/ip.h>
+#include <onyx/udp.h>
+#include <onyx/icmp.h>
+#include <onyx/compiler.h>
+#include <onyx/dns.h>
+#include <onyx/file.h>
+#include <onyx/ethernet.h>
 
 
 static const char *hostname = "";

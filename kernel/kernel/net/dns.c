@@ -8,11 +8,11 @@
 #include <string.h>
 #include <errno.h>
 
-#include <kernel/log.h>
-#include <kernel/dns.h>
-#include <kernel/network.h>
-#include <kernel/crc32.h>
-#include <kernel/panic.h>
+#include <onyx/log.h>
+#include <onyx/dns.h>
+#include <onyx/network.h>
+#include <onyx/crc32.h>
+#include <onyx/panic.h>
 
 #define DEFAULT_SIZE 256
 

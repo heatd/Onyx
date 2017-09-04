@@ -20,17 +20,17 @@
 #include <sys/utsname.h>
 #include <sys/times.h>
 
-#include <kernel/modules.h>
-#include <kernel/network.h>
-#include <kernel/kernelinfo.h>
-#include <kernel/tty.h>
-#include <kernel/process.h>
-#include <kernel/vmm.h>
-#include <kernel/elf.h>
-#include <kernel/panic.h>
-#include <kernel/power_management.h>
-#include <kernel/cpu.h>
-#include <kernel/page.h>
+#include <onyx/modules.h>
+#include <onyx/network.h>
+#include <onyx/kernelinfo.h>
+#include <onyx/tty.h>
+#include <onyx/process.h>
+#include <onyx/vmm.h>
+#include <onyx/elf.h>
+#include <onyx/panic.h>
+#include <onyx/power_management.h>
+#include <onyx/cpu.h>
+#include <onyx/page.h>
 
 const uint64_t SYSCALL_MAX_NUM = 79;
 

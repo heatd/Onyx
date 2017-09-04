@@ -11,7 +11,7 @@
 #include <stdio.h>
 #include "dlmalloc.c"
 #ifdef __is_onyx_kernel
-#include <kernel/vmm.h>
+#include <onyx/vmm.h>
 extern _Bool is_initialized;
 char *heap = NULL;
 char *heap_limit = NULL;

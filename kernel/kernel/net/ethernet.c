@@ -8,12 +8,12 @@
 #include <string.h>
 #include <errno.h>
 
-#include <kernel/ethernet.h>
-#include <kernel/ip.h>
-#include <kernel/arp.h>
-#include <kernel/network.h>
-#include <kernel/vmm.h>
-#include <kernel/crc32.h>
+#include <onyx/ethernet.h>
+#include <onyx/ip.h>
+#include <onyx/arp.h>
+#include <onyx/network.h>
+#include <onyx/vmm.h>
+#include <onyx/crc32.h>
 
 #include <drivers/pci.h>
 #include <drivers/e1000.h>

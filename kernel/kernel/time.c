@@ -10,9 +10,9 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 
-#include <kernel/timer.h>
-#include <kernel/vmm.h>
-#include <kernel/process.h>
+#include <onyx/timer.h>
+#include <onyx/vmm.h>
+#include <onyx/process.h>
 
 #include <drivers/rtc.h>
 

@@ -19,9 +19,9 @@
 #include <stdbool.h>
 
 #include <multiboot2.h>
-#include <kernel/bootmem.h>
-#include <kernel/paging.h>
-#include <kernel/vmm.h>
+#include <onyx/bootmem.h>
+#include <onyx/paging.h>
+#include <onyx/vmm.h>
 typedef struct stack_entry
 {
 	uintptr_t base;

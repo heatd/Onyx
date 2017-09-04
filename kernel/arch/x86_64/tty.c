@@ -25,14 +25,14 @@
 
 #include <bits/ioctl.h>
 
-#include <kernel/task_switching.h>
-#include <kernel/portio.h>
-#include <kernel/tty.h>
-#include <kernel/video.h>
-#include <kernel/mutex.h>
+#include <onyx/task_switching.h>
+#include <onyx/portio.h>
+#include <onyx/tty.h>
+#include <onyx/video.h>
+#include <onyx/mutex.h>
 
-#include <kernel/panic.h>
-#include <kernel/dev.h>
+#include <onyx/panic.h>
+#include <onyx/dev.h>
 
 static struct termios term_io = {.c_lflag = ICANON | ECHO};
 static struct video_device *main_device = NULL;

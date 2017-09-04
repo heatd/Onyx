@@ -11,10 +11,10 @@
 #include <limits.h>
 #include <assert.h>
 
-#include <kernel/vmm.h>
-#include <kernel/page.h>
-#include <kernel/bootmem.h>
-#include <kernel/panic.h>
+#include <onyx/vmm.h>
+#include <onyx/page.h>
+#include <onyx/bootmem.h>
+#include <onyx/panic.h>
 
 typedef struct stack_entry
 {

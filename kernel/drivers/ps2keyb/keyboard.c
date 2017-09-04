@@ -3,12 +3,12 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
-#include <kernel/irq.h>
-#include <kernel/pic.h>
-#include <kernel/portio.h>
-#include <kernel/panic.h>
-#include <kernel/acpi.h>
-#include <kernel/log.h>
+#include <onyx/irq.h>
+#include <onyx/pic.h>
+#include <onyx/portio.h>
+#include <onyx/panic.h>
+#include <onyx/acpi.h>
+#include <onyx/log.h>
 
 #include <drivers/ps2.h>
 

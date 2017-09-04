@@ -7,10 +7,10 @@
 #include <stdint.h>
 #include <errno.h>
 
-#include <kernel/log.h>
-#include <kernel/vfs.h>
-#include <kernel/vmm.h>
-#include <kernel/vdso.h>
+#include <onyx/log.h>
+#include <onyx/vfs.h>
+#include <onyx/vmm.h>
+#include <onyx/vdso.h>
 
 #define VDSO_NAME "/usr/lib/onyx-vdso.so.0"
 static _Bool has_vdso = false;

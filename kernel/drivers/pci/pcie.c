@@ -10,9 +10,9 @@
 
 #include <acpi.h>
 
-#include <kernel/acpi.h>
-#include <kernel/dev.h>
-#include <kernel/log.h>
+#include <onyx/acpi.h>
+#include <onyx/dev.h>
+#include <onyx/log.h>
 
 #include <drivers/pci.h>
 #include <drivers/pcie.h>

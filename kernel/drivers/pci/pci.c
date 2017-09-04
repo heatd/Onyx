@@ -7,11 +7,11 @@
 #include <string.h>
 #include <assert.h>
 
-#include <kernel/compiler.h>
-#include <kernel/log.h>
-#include <kernel/acpi.h>
-#include <kernel/panic.h>
-#include <kernel/dev.h>
+#include <onyx/compiler.h>
+#include <onyx/log.h>
+#include <onyx/acpi.h>
+#include <onyx/panic.h>
+#include <onyx/dev.h>
 
 #include <drivers/pci.h>
 

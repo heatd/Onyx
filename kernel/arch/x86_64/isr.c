@@ -10,12 +10,12 @@
 
 #include <signal.h>
 
-#include <kernel/process.h>
-#include <kernel/signal.h>
-#include <kernel/task_switching.h>
-#include <kernel/vmm.h>
-#include <kernel/panic.h>
-#include <kernel/compiler.h>
+#include <onyx/process.h>
+#include <onyx/signal.h>
+#include <onyx/task_switching.h>
+#include <onyx/vmm.h>
+#include <onyx/panic.h>
+#include <onyx/compiler.h>
 static uint64_t faulting_address;
 const char* exception_msg[] = {
     "Division by zero exception",

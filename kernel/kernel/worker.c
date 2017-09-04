@@ -7,11 +7,11 @@
 #include <string.h>
 #include <errno.h>
 
-#include <kernel/worker.h>
-#include <kernel/task_switching.h>
-#include <kernel/mutex.h>
-#include <kernel/panic.h>
-#include <kernel/utils.h>
+#include <onyx/worker.h>
+#include <onyx/task_switching.h>
+#include <onyx/mutex.h>
+#include <onyx/panic.h>
+#include <onyx/utils.h>
 
 static thread_t *worker = NULL;
 static mutex_t work_queue_mutex = MUTEX_INITIALIZER;

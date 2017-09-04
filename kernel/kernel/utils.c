@@ -6,7 +6,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include <kernel/utils.h>
+#include <onyx/utils.h>
 void *memdup(void *ptr, size_t size)
 {
 	void *new_ptr = malloc(size);

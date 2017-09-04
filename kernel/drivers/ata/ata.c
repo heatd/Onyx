@@ -9,24 +9,24 @@
 #include <assert.h>
 #include <mbr.h>
 
-#include <kernel/id.h>
-#include <kernel/vmm.h>
-#include <kernel/portio.h>
-#include <kernel/vfs.h>
-#include <kernel/pic.h>
-#include <kernel/irq.h>
-#include <kernel/pit.h>
-#include <kernel/panic.h>
-#include <kernel/timer.h>
-#include <kernel/dev.h>
-#include <kernel/block.h>
-#include <kernel/log.h>
-#include <kernel/fscache.h>
-#include <kernel/compiler.h>
-#include <kernel/page.h>
-#include <kernel/mutex.h>
-#include <kernel/driver.h>
-#include <kernel/page.h>
+#include <onyx/id.h>
+#include <onyx/vmm.h>
+#include <onyx/portio.h>
+#include <onyx/vfs.h>
+#include <onyx/pic.h>
+#include <onyx/irq.h>
+#include <onyx/pit.h>
+#include <onyx/panic.h>
+#include <onyx/timer.h>
+#include <onyx/dev.h>
+#include <onyx/block.h>
+#include <onyx/log.h>
+#include <onyx/fscache.h>
+#include <onyx/compiler.h>
+#include <onyx/page.h>
+#include <onyx/mutex.h>
+#include <onyx/driver.h>
+#include <onyx/page.h>
 
 #include <drivers/ata.h>
 

@@ -10,18 +10,18 @@
 #include <stdbool.h>
 #include <assert.h>
 
-#include <kernel/mutex.h>
-#include <kernel/spinlock.h>
-#include <kernel/acpi.h>
-#include <kernel/log.h>
-#include <kernel/compiler.h>
-#include <kernel/vmm.h>
-#include <kernel/panic.h>
-#include <kernel/log.h>
-#include <kernel/cpu.h>
-#include <kernel/pnp.h>
-#include <kernel/dev.h>
-#include <kernel/apic.h>
+#include <onyx/mutex.h>
+#include <onyx/spinlock.h>
+#include <onyx/acpi.h>
+#include <onyx/log.h>
+#include <onyx/compiler.h>
+#include <onyx/vmm.h>
+#include <onyx/panic.h>
+#include <onyx/log.h>
+#include <onyx/cpu.h>
+#include <onyx/pnp.h>
+#include <onyx/dev.h>
+#include <onyx/apic.h>
 
 #include <drivers/pci.h>
 

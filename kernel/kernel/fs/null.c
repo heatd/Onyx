@@ -6,9 +6,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <kernel/dev.h>
-#include <kernel/compiler.h>
-#include <kernel/panic.h>
+#include <onyx/dev.h>
+#include <onyx/compiler.h>
+#include <onyx/panic.h>
 
 size_t null_write(size_t offset, size_t count, void *buf, struct inode *n)
 {

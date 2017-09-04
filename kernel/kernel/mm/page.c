@@ -9,12 +9,12 @@
 #include <stdbool.h>
 #include <assert.h>
 
-#include <kernel/log.h>
-#include <kernel/bootmem.h>
-#include <kernel/page.h>
-#include <kernel/vmm.h>
-#include <kernel/slab.h>
-#include <kernel/crc32.h>
+#include <onyx/log.h>
+#include <onyx/bootmem.h>
+#include <onyx/page.h>
+#include <onyx/vmm.h>
+#include <onyx/slab.h>
+#include <onyx/crc32.h>
 
 typedef struct stack_entry
 {

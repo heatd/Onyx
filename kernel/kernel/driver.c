@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#include <kernel/driver.h>
+#include <onyx/driver.h>
 
 extern uintptr_t _driver_init_start;
 extern uintptr_t _driver_init_end;

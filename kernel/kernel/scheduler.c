@@ -11,20 +11,20 @@
 #include <errno.h>
 #include <assert.h>
 
-#include <kernel/timer.h>
-#include <kernel/data_structures.h>
-#include <kernel/task_switching.h>
-#include <kernel/vmm.h>
-#include <kernel/spinlock.h>
-#include <kernel/panic.h>
-#include <kernel/tss.h>
-#include <kernel/process.h>
-#include <kernel/idt.h>
-#include <kernel/elf.h>
-#include <kernel/fpu.h>
-#include <kernel/apic.h>
-#include <kernel/worker.h>
-#include <kernel/cpu.h>
+#include <onyx/timer.h>
+#include <onyx/data_structures.h>
+#include <onyx/task_switching.h>
+#include <onyx/vmm.h>
+#include <onyx/spinlock.h>
+#include <onyx/panic.h>
+#include <onyx/tss.h>
+#include <onyx/process.h>
+#include <onyx/idt.h>
+#include <onyx/elf.h>
+#include <onyx/fpu.h>
+#include <onyx/apic.h>
+#include <onyx/worker.h>
+#include <onyx/cpu.h>
 
 static thread_t **idle_threads;
 static spinlock_t wait_queue_lock;

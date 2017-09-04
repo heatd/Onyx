@@ -9,11 +9,11 @@
 
 #include <acpi.h>
 
-#include <kernel/power_management.h>
-#include <kernel/portio.h>
-#include <kernel/acpi.h>
-#include <kernel/panic.h>
-#include <kernel/dev.h>
+#include <onyx/power_management.h>
+#include <onyx/portio.h>
+#include <onyx/acpi.h>
+#include <onyx/panic.h>
+#include <onyx/dev.h>
 void pm_reboot()
 {
 	if(ACPI_FAILURE(AcpiReset()))

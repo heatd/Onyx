@@ -9,9 +9,9 @@
 
 #include <sys/utsname.h>
 
-#include <kernel/kernelinfo.h>
-#include <kernel/vmm.h>
-#include <kernel/network.h>
+#include <onyx/kernelinfo.h>
+#include <onyx/vmm.h>
+#include <onyx/network.h>
 int sys_uname(struct utsname *ubuf)
 {
 	struct utsname buf = {0};

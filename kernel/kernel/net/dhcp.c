@@ -10,13 +10,13 @@
 #include <stdio.h>
 #include <errno.h>
 
-#include <kernel/udp.h>
-#include <kernel/dhcp.h>
-#include <kernel/network.h>
-#include <kernel/panic.h>
-#include <kernel/arp.h>
-#include <kernel/log.h>
-#include <kernel/dns.h>
+#include <onyx/udp.h>
+#include <onyx/dhcp.h>
+#include <onyx/network.h>
+#include <onyx/panic.h>
+#include <onyx/arp.h>
+#include <onyx/log.h>
+#include <onyx/dns.h>
 #if 0
 void parse_ipnumber_to_char_array(uint32_t ip, unsigned char* buffer)
 {

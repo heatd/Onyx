@@ -10,7 +10,7 @@
 #include <stdint.h>
 #include <errno.h>
 
-#include <kernel/block.h>
+#include <onyx/block.h>
 
 static block_device_t *dev_list = NULL;
 /* 

@@ -23,21 +23,21 @@
 #include <acpi.h>
 #include <assert.h>
 
-#include <kernel/compiler.h>
+#include <onyx/compiler.h>
 USES_FANCY_START
 #include <x86intrin.h>
 #include <xmmintrin.h>
 USES_FANCY_END
-#include <kernel/log.h>
-#include <kernel/cpu.h>
-#include <kernel/gdt.h>
-#include <kernel/panic.h>
-#include <kernel/apic.h>
-#include <kernel/pic.h>
-#include <kernel/acpi.h>
-#include <kernel/spinlock.h>
-#include <kernel/registers.h>
-#include <kernel/avx.h>
+#include <onyx/log.h>
+#include <onyx/cpu.h>
+#include <onyx/gdt.h>
+#include <onyx/panic.h>
+#include <onyx/apic.h>
+#include <onyx/pic.h>
+#include <onyx/acpi.h>
+#include <onyx/spinlock.h>
+#include <onyx/registers.h>
+#include <onyx/avx.h>
 static cpu_t cpu;
 
 static struct processor *cpus = NULL;

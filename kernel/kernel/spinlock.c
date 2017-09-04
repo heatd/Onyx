@@ -5,10 +5,10 @@
 */
 #include <stdio.h>
 
-#include <kernel/spinlock.h>
-#include <kernel/compiler.h>
-#include <kernel/task_switching.h>
-#include <kernel/scheduler.h>
+#include <onyx/spinlock.h>
+#include <onyx/compiler.h>
+#include <onyx/task_switching.h>
+#include <onyx/scheduler.h>
 
 static inline void post_lock_actions(spinlock_t *lock)
 {

@@ -8,11 +8,11 @@
 #include <string.h>
 #include <errno.h>
 
-#include <kernel/panic.h>
-#include <kernel/dev.h>
-#include <kernel/sysfs.h>
-#include <kernel/vfs.h>
-#include <kernel/list.h>
+#include <onyx/panic.h>
+#include <onyx/dev.h>
+#include <onyx/sysfs.h>
+#include <onyx/vfs.h>
+#include <onyx/list.h>
 
 /* TODO: Add mkdir support(requires VFS support) */
 struct sysfs_file sysfs_root = {0};

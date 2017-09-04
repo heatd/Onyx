@@ -10,8 +10,8 @@
 #include <assert.h>
 #include <errno.h>
 
-#include <kernel/id.h>
-#include <kernel/spinlock.h>
+#include <onyx/id.h>
+#include <onyx/spinlock.h>
 
 #define NAME_MAX 256
 struct ids *list;

@@ -11,21 +11,21 @@
 #include <fcntl.h>
 #include <assert.h>
 
-#include <kernel/file.h>
-#include <kernel/paging.h>
-#include <kernel/page.h>
+#include <onyx/file.h>
+#include <onyx/paging.h>
+#include <onyx/page.h>
 #define __need_avl_node_t
-#include <kernel/vmm.h>
-#include <kernel/panic.h>
-#include <kernel/compiler.h>
-#include <kernel/process.h>
-#include <kernel/log.h>
-#include <kernel/dev.h>
-#include <kernel/random.h>
-#include <kernel/sysfs.h>
-#include <kernel/vfs.h>
+#include <onyx/vmm.h>
+#include <onyx/panic.h>
+#include <onyx/compiler.h>
+#include <onyx/process.h>
+#include <onyx/log.h>
+#include <onyx/dev.h>
+#include <onyx/random.h>
+#include <onyx/sysfs.h>
+#include <onyx/vfs.h>
 
-#include <kernel/vm_layout.h>
+#include <onyx/vm_layout.h>
 
 #include <drivers/rtc.h>
 

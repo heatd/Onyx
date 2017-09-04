@@ -4,7 +4,7 @@
 * check LICENSE at the root directory for more information
 */
 #ifdef __is_onyx_kernel
-#include <kernel/panic.h>
+#include <onyx/panic.h>
 #endif
 __attribute__ ((__noreturn__))
 void abort(void)

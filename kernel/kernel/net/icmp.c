@@ -9,10 +9,10 @@
 #include <stdlib.h>
 #include <errno.h>
 
-#include <kernel/network.h>
-#include <kernel/icmp.h>
-#include <kernel/ip.h>
-#include <kernel/log.h>
+#include <onyx/network.h>
+#include <onyx/icmp.h>
+#include <onyx/ip.h>
+#include <onyx/log.h>
 #if 0
 int icmp_socket = -1;
 void icmp_init()

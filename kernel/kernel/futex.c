@@ -11,9 +11,9 @@
 #include <errno.h>
 #include <stdio.h>
 
-#include <kernel/list.h>
-#include <kernel/futex.h>
-#include <kernel/process.h>
+#include <onyx/list.h>
+#include <onyx/futex.h>
+#include <onyx/process.h>
 
 struct futex *__get_futex(int *uaddr)
 {

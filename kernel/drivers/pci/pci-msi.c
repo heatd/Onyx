@@ -7,9 +7,9 @@
 #include <stddef.h>
 #include <stdio.h>
 
-#include <kernel/platform.h>
-#include <kernel/idt.h>
-#include <kernel/page.h>
+#include <onyx/platform.h>
+#include <onyx/idt.h>
+#include <onyx/page.h>
 
 #include <drivers/pci.h>
 #include <drivers/pci-msi.h>

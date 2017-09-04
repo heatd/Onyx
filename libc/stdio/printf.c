@@ -10,7 +10,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #ifdef __is_onyx_kernel
-#include <kernel/log.h>
+#include <onyx/log.h>
 #endif
 char tbuf[32];
 char bchars[] =

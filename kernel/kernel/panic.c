@@ -19,15 +19,15 @@
 #include <x86intrin.h>
 #include <inttypes.h>
 
-#include <kernel/cpu.h>
-#include <kernel/registers.h>
-#include <kernel/compiler.h>
-#include <kernel/paging.h>
-#include <kernel/vmm.h>
-#include <kernel/task_switching.h>
-#include <kernel/process.h>
-#include <kernel/panic.h>
-#include <kernel/modules.h>
+#include <onyx/cpu.h>
+#include <onyx/registers.h>
+#include <onyx/compiler.h>
+#include <onyx/paging.h>
+#include <onyx/vmm.h>
+#include <onyx/task_switching.h>
+#include <onyx/process.h>
+#include <onyx/panic.h>
+#include <onyx/modules.h>
 const char *skull = "            _,,,,,,,_\n\
           ,88888888888,\n\
         ,888\'       \\`888,\n\

@@ -10,11 +10,11 @@
 #include <assert.h>
 #include <stdio.h>
 
-#include <kernel/dev.h>
-#include <kernel/ip.h>
-#include <kernel/udp.h>
-#include <kernel/netif.h>
-#include <kernel/compiler.h>
+#include <onyx/dev.h>
+#include <onyx/ip.h>
+#include <onyx/udp.h>
+#include <onyx/netif.h>
+#include <onyx/compiler.h>
 
 #include <netinet/in.h>
 

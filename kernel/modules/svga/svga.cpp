@@ -7,14 +7,14 @@
 #include <svga.h>
 #include <limits.h>
 
-#include <kernel/smart.h>
-#include <kernel/mutex.h>
-#include <kernel/vmm.h>
-#include <kernel/module.h>
-#include <kernel/portio.h>
-#include <kernel/video.h>
-#include <kernel/compiler.h>
-#include <kernel/scheduler.h>
+#include <onyx/smart.h>
+#include <onyx/mutex.h>
+#include <onyx/vmm.h>
+#include <onyx/module.h>
+#include <onyx/portio.h>
+#include <onyx/video.h>
+#include <onyx/compiler.h>
+#include <onyx/scheduler.h>
 
 #include <drivers/pci.h>
 

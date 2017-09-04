@@ -13,12 +13,12 @@
 
 #include <partitions.h>
 
-#include <kernel/compiler.h>
-#include <kernel/vmm.h>
-#include <kernel/vfs.h>
-#include <kernel/process.h>
-#include <kernel/pipe.h>
-#include <kernel/file.h>
+#include <onyx/compiler.h>
+#include <onyx/vmm.h>
+#include <onyx/vfs.h>
+#include <onyx/process.h>
+#include <onyx/pipe.h>
+#include <onyx/file.h>
 
 #include <sys/uio.h>
 

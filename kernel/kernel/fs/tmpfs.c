@@ -9,11 +9,11 @@
 #include <assert.h>
 #include <errno.h>
 
-#include <kernel/tmpfs.h>
-#include <kernel/log.h>
-#include <kernel/vfs.h>
-#include <kernel/mutex.h>
-#include <kernel/page.h>
+#include <onyx/tmpfs.h>
+#include <onyx/log.h>
+#include <onyx/vfs.h>
+#include <onyx/mutex.h>
+#include <onyx/page.h>
 
 static mutex_t tmpfs_list_lock;
 static tmpfs_filesystem_t *filesystems = NULL;

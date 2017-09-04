@@ -6,10 +6,10 @@
 #include <assert.h>
 #include <errno.h>
 
-#include <kernel/netif.h>
-#include <kernel/spinlock.h>
-#include <kernel/dev.h>
-#include <kernel/udp.h>
+#include <onyx/netif.h>
+#include <onyx/spinlock.h>
+#include <onyx/dev.h>
+#include <onyx/udp.h>
 
 #include <sys/ioctl.h>
 

@@ -6,7 +6,7 @@
 #ifndef _RTL8139_H
 #define _RTL8139_H
 
-#include <kernel/spinlock.h>
+#include <onyx/spinlock.h>
 
 #define RTL8139_DEVICEID 0x8139
 #define RTL8139_VENDORID 0x10EC

@@ -10,11 +10,11 @@
 #include <assert.h>
 #include <math.h>
 
-#include <kernel/panic.h>
-#include <kernel/dev.h>
-#include <kernel/tmpfs.h>
-#include <kernel/initrd.h>
-#include <kernel/vfs.h>
+#include <onyx/panic.h>
+#include <onyx/dev.h>
+#include <onyx/tmpfs.h>
+#include <onyx/initrd.h>
+#include <onyx/vfs.h>
 
 #include <libgen.h>
 

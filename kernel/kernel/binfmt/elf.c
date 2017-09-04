@@ -7,21 +7,21 @@
 #include <stdbool.h>
 #include <errno.h>
 #include <stdio.h>
-#include <kernel/panic.h>
+#include <onyx/panic.h>
 
-#include <kernel/vfs.h>
-#include <kernel/elf.h>
-#include <kernel/kernelinfo.h>
-#include <kernel/vmm.h>
-#include <kernel/modules.h>
-#include <kernel/process.h>
-#include <kernel/cpu.h>
-#include <kernel/random.h>
-#include <kernel/log.h>
-#include <kernel/envp.h>
-#include <kernel/binfmt.h>
-#include <kernel/compiler.h>
-#include <kernel/binfmt/elf64.h>
+#include <onyx/vfs.h>
+#include <onyx/elf.h>
+#include <onyx/kernelinfo.h>
+#include <onyx/vmm.h>
+#include <onyx/modules.h>
+#include <onyx/process.h>
+#include <onyx/cpu.h>
+#include <onyx/random.h>
+#include <onyx/log.h>
+#include <onyx/envp.h>
+#include <onyx/binfmt.h>
+#include <onyx/compiler.h>
+#include <onyx/binfmt/elf64.h>
 
 #include <pthread_kernel.h>
 

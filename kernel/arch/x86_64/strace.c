@@ -10,9 +10,9 @@
 #include <multiboot2.h>
 #include <math.h>
 
-#include <kernel/task_switching.h>
-#include <kernel/elf.h>
-#include <kernel/panic.h>
+#include <onyx/task_switching.h>
+#include <onyx/elf.h>
+#include <onyx/panic.h>
 #define DEFAULT_UNWIND_NUMBER 6
 void itoa(uint64_t i, unsigned int base, char *buf, _Bool is_upper);
 static inline void get_frame_pointer(uint64_t **ptr)

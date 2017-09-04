@@ -8,10 +8,10 @@
 #include <stdbool.h>
 #include <errno.h>
 
-#include <kernel/compiler.h>
-#include <kernel/vmm.h>
-#include <kernel/slab.h>
-#include <kernel/log.h>
+#include <onyx/compiler.h>
+#include <onyx/vmm.h>
+#include <onyx/slab.h>
+#include <onyx/log.h>
 
 static slab_cache_t *first_slab;
 static slab_cache_t *last_slab;

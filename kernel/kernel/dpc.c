@@ -6,13 +6,13 @@
 #include <stdatomic.h>
 #include <assert.h>
 
-#include <kernel/dpc.h>
-#include <kernel/vmm.h>
-#include <kernel/irq.h>
-#include <kernel/spinlock.h>
-#include <kernel/scheduler.h>
-#include <kernel/task_switching.h>
-#include <kernel/slab.h>
+#include <onyx/dpc.h>
+#include <onyx/vmm.h>
+#include <onyx/irq.h>
+#include <onyx/spinlock.h>
+#include <onyx/scheduler.h>
+#include <onyx/task_switching.h>
+#include <onyx/slab.h>
 
 /* The work queue does need locks for insertion, because another CPU might try to 
  * queue work at the same time as us */

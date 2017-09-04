@@ -10,13 +10,13 @@
 #include <assert.h>
 #include <libgen.h>
 
-#include <kernel/avl.h>
-#include <kernel/panic.h>
-#include <kernel/vfs.h>
-#include <kernel/dev.h>
-#include <kernel/pagecache.h>
-#include <kernel/log.h>
-#include <kernel/mtable.h>
+#include <onyx/avl.h>
+#include <onyx/panic.h>
+#include <onyx/vfs.h>
+#include <onyx/dev.h>
+#include <onyx/pagecache.h>
+#include <onyx/log.h>
+#include <onyx/mtable.h>
 
 static avl_node_t **avl_search_key(avl_node_t **t, uintptr_t key);
 struct inode *fs_root = NULL;

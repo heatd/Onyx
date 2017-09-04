@@ -8,13 +8,13 @@
 #include <errno.h>
 
 /* Don't change the include order! Maybe TOFIX?*/
-#include <kernel/ethernet.h>
-#include <kernel/netif.h>
-#include <kernel/spinlock.h>
-#include <kernel/arp.h>
-#include <kernel/compiler.h>
-#include <kernel/ip.h>
-#include <kernel/log.h>
+#include <onyx/ethernet.h>
+#include <onyx/netif.h>
+#include <onyx/spinlock.h>
+#include <onyx/arp.h>
+#include <onyx/compiler.h>
+#include <onyx/ip.h>
+#include <onyx/log.h>
 
 static volatile int arp_response_arrived = 0;
 int arp_hash(uint32_t ip)

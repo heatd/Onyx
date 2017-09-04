@@ -3,13 +3,13 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
-#include <kernel/modules.h>
+#include <onyx/modules.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <kernel/vfs.h>
-#include <kernel/elf.h>
-#include <kernel/vmm.h>
+#include <onyx/vfs.h>
+#include <onyx/elf.h>
+#include <onyx/vmm.h>
 static module_hashtable_t *hashtable;
 _Bool mods_disabled = 0;
 #define DEFAULT_SIZE 100

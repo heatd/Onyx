@@ -8,14 +8,14 @@
 #include <acpi.h>
 #include <limits.h>
 
-#include <kernel/vmm.h>
-#include <kernel/irq.h>
-#include <kernel/portio.h>
-#include <kernel/panic.h>
-#include <kernel/task_switching.h>
-#include <kernel/timer.h>
-#include <kernel/slab.h>
-#include <kernel/acpi.h>
+#include <onyx/vmm.h>
+#include <onyx/irq.h>
+#include <onyx/portio.h>
+#include <onyx/panic.h>
+#include <onyx/task_switching.h>
+#include <onyx/timer.h>
+#include <onyx/slab.h>
+#include <onyx/acpi.h>
 
 #include <drivers/pci.h>
 #include <drivers/rtc.h>

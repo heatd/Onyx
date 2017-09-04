@@ -9,7 +9,7 @@
 #include <errno.h>
 #include <stdatomic.h>
 
-#include <kernel/video.h>
+#include <onyx/video.h>
 #include <drivers/softwarefb.h>
 
 static struct video_device *main_adapter = NULL;

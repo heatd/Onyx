@@ -18,7 +18,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #ifdef __is_onyx_kernel
-#include <kernel/panic.h>
+#include <onyx/panic.h>
 #endif
 #include <math.h>
 #include <fcntl.h>

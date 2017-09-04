@@ -6,18 +6,18 @@
 #include <acpi.h>
 #include <stdbool.h>
 
-#include <kernel/apic.h>
-#include <kernel/idt.h>
-#include <kernel/panic.h>
-#include <kernel/pit.h>
-#include <kernel/irq.h>
-#include <kernel/task_switching.h>
-#include <kernel/acpi.h>
-#include <kernel/cpu.h>
-#include <kernel/registers.h>
-#include <kernel/log.h>
-#include <kernel/idt.h>
-#include <kernel/process.h>
+#include <onyx/apic.h>
+#include <onyx/idt.h>
+#include <onyx/panic.h>
+#include <onyx/pit.h>
+#include <onyx/irq.h>
+#include <onyx/task_switching.h>
+#include <onyx/acpi.h>
+#include <onyx/cpu.h>
+#include <onyx/registers.h>
+#include <onyx/log.h>
+#include <onyx/idt.h>
+#include <onyx/process.h>
 
 volatile uint32_t *bsp_lapic = NULL;
 volatile uint64_t ap_done = 0;

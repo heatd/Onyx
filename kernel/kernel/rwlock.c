@@ -3,7 +3,7 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
-#include <kernel/rwlock.h>
+#include <onyx/rwlock.h>
 /* TODO: Implement this properly*/
 void rw_lock_read(struct rwlock *lock)
 {

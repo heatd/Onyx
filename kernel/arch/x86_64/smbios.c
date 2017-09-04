@@ -6,10 +6,10 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <kernel/log.h>
-#include <kernel/smbios.h>
-#include <kernel/vmm.h>
-#include <kernel/compiler.h>
+#include <onyx/log.h>
+#include <onyx/smbios.h>
+#include <onyx/vmm.h>
+#include <onyx/compiler.h>
 
 static struct smbios_table *tables = NULL;
 static size_t nr_structs = 0;

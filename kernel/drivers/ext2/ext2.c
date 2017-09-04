@@ -13,12 +13,12 @@
 
 #include <sys/types.h>
 
-#include <kernel/vmm.h>
-#include <kernel/vfs.h>
-#include <kernel/compiler.h>
-#include <kernel/dev.h>
-#include <kernel/log.h>
-#include <kernel/fscache.h>
+#include <onyx/vmm.h>
+#include <onyx/vfs.h>
+#include <onyx/compiler.h>
+#include <onyx/dev.h>
+#include <onyx/log.h>
+#include <onyx/fscache.h>
 
 #include <drivers/rtc.h>
 #include <drivers/ext2.h>

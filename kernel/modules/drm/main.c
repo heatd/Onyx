@@ -8,12 +8,12 @@
 #include <stdio.h>
 #include <errno.h>
 
-#include <kernel/vfs.h>
-#include <kernel/dev.h>
-#include <kernel/vmm.h>
-#include <kernel/module.h>
-#include <kernel/log.h>
-#include <kernel/video.h>
+#include <onyx/vfs.h>
+#include <onyx/dev.h>
+#include <onyx/vmm.h>
+#include <onyx/module.h>
+#include <onyx/log.h>
+#include <onyx/video.h>
 
 #include <drivers/softwarefb.h>
 

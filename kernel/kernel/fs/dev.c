@@ -10,10 +10,10 @@
 
 #include <sys/types.h>
 
-#include <kernel/dev.h>
-#include <kernel/majorminor.h>
-#include <kernel/compiler.h>
-#include <kernel/panic.h>
+#include <onyx/dev.h>
+#include <onyx/majorminor.h>
+#include <onyx/compiler.h>
+#include <onyx/panic.h>
 
 struct inode *slashdev = NULL;
 struct inode **children = NULL;

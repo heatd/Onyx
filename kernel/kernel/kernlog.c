@@ -8,10 +8,10 @@
 #include <stdio.h>
 #include <errno.h>
 
-#include <kernel/log.h>
-#include <kernel/timer.h>
-#include <kernel/vmm.h>
-#include <kernel/panic.h>
+#include <onyx/log.h>
+#include <onyx/timer.h>
+#include <onyx/vmm.h>
+#include <onyx/panic.h>
 #include <drivers/rtc.h>
 
 static char _log_buf[LOG_BUF_SIZE];

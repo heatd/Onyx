@@ -6,9 +6,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <kernel/panic.h>
-#include <kernel/gdt.h>
-#include <kernel/tss.h>
+#include <onyx/panic.h>
+#include <onyx/gdt.h>
+#include <onyx/tss.h>
 
 #define GDT_SIZE 77
 extern gdtr_t gdtr3;

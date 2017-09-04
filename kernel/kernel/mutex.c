@@ -5,9 +5,9 @@
 */
 #include <stdio.h>
 
-#include <kernel/irq.h>
-#include <kernel/mutex.h>
-#include <kernel/task_switching.h>
+#include <onyx/irq.h>
+#include <onyx/mutex.h>
+#include <onyx/task_switching.h>
 
 void mutex_lock(mutex_t *mutex)
 {

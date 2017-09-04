@@ -9,7 +9,7 @@
 #include <stdio.h> //remove
 #include <limits.h>
 
-#include <kernel/compiler.h>
+#include <onyx/compiler.h>
 
 #include <drivers/ext2.h>
 

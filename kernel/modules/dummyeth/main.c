@@ -6,8 +6,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#include <kernel/ethernet.h>
-#include <kernel/module.h>
+#include <onyx/ethernet.h>
+#include <onyx/module.h>
 
 MODULE_AUTHOR("Pedro Falcato");
 MODULE_LICENSE(MODULE_LICENSE_MIT);

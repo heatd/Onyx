@@ -3,9 +3,9 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
-#include <kernel/pic.h>
+#include <onyx/pic.h>
 #include <stdint.h>
-#include <kernel/portio.h>
+#include <onyx/portio.h>
 static uint16_t __pic_get_irq_reg(int ocw3)
 {
 	/* OCW3 to PIC CMD to get the register values.  PIC2 is chained, and

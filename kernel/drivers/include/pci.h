@@ -11,11 +11,11 @@
 
 #include <drivers/pcie.h>
 
-#include <kernel/portio.h>
-#include <kernel/spinlock.h>
-#include <kernel/compiler.h>
-#include <kernel/dev.h>
-#include <kernel/irq.h>
+#include <onyx/portio.h>
+#include <onyx/spinlock.h>
+#include <onyx/compiler.h>
+#include <onyx/dev.h>
+#include <onyx/irq.h>
 
 #define PCI_CONFIGURATION_SPACE_SIZE		256
 #define PCI_BAR0 				0x10

@@ -7,9 +7,9 @@
 #include <cpuid.h>
 #include <stdio.h>
 
-#include <kernel/avx.h>
-#include <kernel/fpu.h>
-#include <kernel/cpu.h>
+#include <onyx/avx.h>
+#include <onyx/fpu.h>
+#include <onyx/cpu.h>
 
 static inline void xsetbv(unsigned long r, unsigned long xcr0)
 {

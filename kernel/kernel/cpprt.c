@@ -14,7 +14,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-#include <kernel/panic.h>
+#include <onyx/panic.h>
 /* Gets called when a virtual function isn't found */
 void __cxa_pure_virtual(void)
 {

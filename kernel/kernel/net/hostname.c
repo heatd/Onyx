@@ -11,9 +11,9 @@
 #include <sys/types.h>
 #include <sys/utsname.h>
 
-#include <kernel/vmm.h>
-#include <kernel/dns.h>
-#include <kernel/network.h>
+#include <onyx/vmm.h>
+#include <onyx/dns.h>
+#include <onyx/network.h>
 
 int sys_sethostname(const void *name, size_t len)
 {

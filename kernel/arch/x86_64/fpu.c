@@ -3,7 +3,7 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
-#include <kernel/compiler.h>		/* For USES_FANCY_* */
+#include <onyx/compiler.h>		/* For USES_FANCY_* */
 USES_FANCY_START
 #include <immintrin.h>
 #include <x86intrin.h>
@@ -12,8 +12,8 @@ USES_FANCY_END
 #include <stdint.h>
 #include <string.h>
 
-#include <kernel/fpu.h>
-#include <kernel/avx.h>
+#include <onyx/fpu.h>
+#include <onyx/avx.h>
 
 #include <sys/user.h>
 bool avx_supported = false;

@@ -10,18 +10,18 @@
 
 #include <rtl8139.h>
 
-#include <kernel/log.h>
-#include <kernel/irq.h>
-#include <kernel/portio.h>
-#include <kernel/module.h>
-#include <kernel/scheduler.h>
-#include <kernel/page.h>
-#include <kernel/spinlock.h>
-#include <kernel/ethernet.h>
-#include <kernel/timer.h>
-#include <kernel/netif.h>
-#include <kernel/dpc.h>
-#include <kernel/network.h>
+#include <onyx/log.h>
+#include <onyx/irq.h>
+#include <onyx/portio.h>
+#include <onyx/module.h>
+#include <onyx/scheduler.h>
+#include <onyx/page.h>
+#include <onyx/spinlock.h>
+#include <onyx/ethernet.h>
+#include <onyx/timer.h>
+#include <onyx/netif.h>
+#include <onyx/dpc.h>
+#include <onyx/network.h>
 
 #include <drivers/mmio.h>
 #include <drivers/pci.h>

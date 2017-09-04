@@ -19,16 +19,16 @@
 #include <errno.h>
 #include <assert.h>
 
-#include <kernel/scheduler.h>
-#include <kernel/task_switching.h>
-#include <kernel/panic.h>
-#include <kernel/registers.h>
-#include <kernel/irq.h>
-#include <kernel/platform.h>
-#include <kernel/cpu.h>
-#include <kernel/idt.h>
-#include <kernel/apic.h>
-#include <kernel/dpc.h>
+#include <onyx/scheduler.h>
+#include <onyx/task_switching.h>
+#include <onyx/panic.h>
+#include <onyx/registers.h>
+#include <onyx/irq.h>
+#include <onyx/platform.h>
+#include <onyx/cpu.h>
+#include <onyx/idt.h>
+#include <onyx/apic.h>
+#include <onyx/dpc.h>
 
 volatile _Bool is_in_irq = false;
 #define NR_IRQ 221

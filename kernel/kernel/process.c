@@ -11,22 +11,22 @@
 
 #include <sys/resource.h>
 
-#include <kernel/id.h>
-#include <kernel/vdso.h>
-#include <kernel/compiler.h>
-#include <kernel/elf.h>
-#include <kernel/process.h>
-#include <kernel/task_switching.h>
-#include <kernel/cpu.h>
-#include <kernel/random.h>
-#include <kernel/mutex.h>
-#include <kernel/panic.h>
-#include <kernel/binfmt.h>
-#include <kernel/worker.h>
-#include <kernel/page.h>
-#include <kernel/thread.h>
-#include <kernel/file.h>
-#include <kernel/slab.h>
+#include <onyx/id.h>
+#include <onyx/vdso.h>
+#include <onyx/compiler.h>
+#include <onyx/elf.h>
+#include <onyx/process.h>
+#include <onyx/task_switching.h>
+#include <onyx/cpu.h>
+#include <onyx/random.h>
+#include <onyx/mutex.h>
+#include <onyx/panic.h>
+#include <onyx/binfmt.h>
+#include <onyx/worker.h>
+#include <onyx/page.h>
+#include <onyx/thread.h>
+#include <onyx/file.h>
+#include <onyx/slab.h>
 
 #include <pthread_kernel.h>
 

@@ -19,11 +19,11 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-#include <kernel/compiler.h>
-#include <kernel/log.h>
-#include <kernel/tty.h>
-#include <kernel/irq.h>
-#include <kernel/keys.h>
+#include <onyx/compiler.h>
+#include <onyx/log.h>
+#include <onyx/tty.h>
+#include <onyx/irq.h>
+#include <onyx/keys.h>
 unsigned int default_keymap[200] =
 { 
 	KEYMAP_KEY_ESC, '1', '2', '3', '4', '5',

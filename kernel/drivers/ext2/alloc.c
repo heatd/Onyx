@@ -6,7 +6,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
-#include <kernel/compiler.h>
+#include <onyx/compiler.h>
 
 #include <drivers/ext2.h>
 

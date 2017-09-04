@@ -10,8 +10,8 @@
 #include <stdbool.h>
 #include <errno.h>
 
-#include <kernel/process.h>
-#include <kernel/ptrace.h>
+#include <onyx/process.h>
+#include <onyx/ptrace.h>
 
 #include <sys/ptrace.h>
 #include <sys/user.h>

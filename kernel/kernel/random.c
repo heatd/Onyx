@@ -9,12 +9,12 @@
 #include <assert.h>
 #include <errno.h>
 
-#include <kernel/compiler.h>
-#include <kernel/pit.h>
-#include <kernel/timer.h>
-#include <kernel/dev.h>
-#include <kernel/random.h>
-#include <kernel/process.h>
+#include <onyx/compiler.h>
+#include <onyx/pit.h>
+#include <onyx/timer.h>
+#include <onyx/dev.h>
+#include <onyx/random.h>
+#include <onyx/process.h>
 
 #include <drivers/rtc.h>
 

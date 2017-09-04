@@ -9,11 +9,11 @@
 
 #include <fonts.h>
 
-#include <kernel/compiler.h>
-#include <kernel/video.h>
-#include <kernel/vmm.h>
-#include <kernel/kernelinfo.h>
-#include <kernel/panic.h>
+#include <onyx/compiler.h>
+#include <onyx/video.h>
+#include <onyx/vmm.h>
+#include <onyx/kernelinfo.h>
+#include <onyx/panic.h>
 
 #include <drivers/softwarefb.h>
 

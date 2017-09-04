@@ -6,11 +6,11 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <kernel/tss.h>
-#include <kernel/vmm.h>
-#include <kernel/cpu.h>
-#include <kernel/compiler.h>
-#include <kernel/panic.h>
+#include <onyx/tss.h>
+#include <onyx/vmm.h>
+#include <onyx/cpu.h>
+#include <onyx/compiler.h>
+#include <onyx/panic.h>
 extern tss_entry_t tss;
 extern void tss_flush();
 extern int tss_gdt;

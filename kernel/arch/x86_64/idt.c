@@ -6,8 +6,8 @@
 #include <string.h>
 #include <assert.h>
 
-#include <kernel/idt.h>
-#include <kernel/cpu.h>
+#include <onyx/idt.h>
+#include <onyx/cpu.h>
 
 idt_ptr_t idt_ptr;
 idt_entry_t idt_entries[256];

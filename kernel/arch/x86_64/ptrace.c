@@ -10,11 +10,11 @@
 #include <stdbool.h>
 #include <errno.h>
 
-#include <kernel/process.h>
-#include <kernel/paging.h>
-#include <kernel/ptrace.h>
-#include <kernel/vmm.h>
-#include <kernel/fpu.h>
+#include <onyx/process.h>
+#include <onyx/paging.h>
+#include <onyx/ptrace.h>
+#include <onyx/vmm.h>
+#include <onyx/fpu.h>
 
 #include <sys/ptrace.h>
 

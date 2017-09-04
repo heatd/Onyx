@@ -8,8 +8,8 @@
 
 #include <stdint.h>
 
-#include <kernel/mutex.h>
-#include <kernel/video.h>
+#include <onyx/mutex.h>
+#include <onyx/video.h>
 #include <drivers/pci.h>
 
 #define VMWARE_SVGAII_PCI_VENDOR 0x15AD
