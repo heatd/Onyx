@@ -11,6 +11,7 @@
 #include <onyx/pic.h>
 #include <onyx/log.h>
 #include <onyx/cpu.h>
+#include <onyx/clock.h>
 
 #include <drivers/nmi.h>
 #include <drivers/rtc.h>
@@ -19,11 +20,14 @@ void nmi_enable()
 {
 	outb(0x70, inb(0x70) & 0x7F);
 }
+
 void nmi_disable()
 {
 	outb(0x70, inb(0x70) | 0x80);
 }
-_Bool enabled24_hour = false, binary_mode_enabled = false;
+
+bool enabled24_hour = false, binary_mode_enabled = false;
+
 int rtc_get_date_reg(uint8_t reg)
 {
 	nmi_disable();
@@ -41,6 +45,7 @@ int rtc_get_date_reg(uint8_t reg)
 	else
 		return ret;
 }
+
 int rtc_get_date_reg_early(uint8_t reg)
 {
 	nmi_disable();
@@ -56,6 +61,7 @@ int rtc_get_date_reg_early(uint8_t reg)
 	else
 		return ret;
 }
+
 const int months[] = 
 {
 	31,
@@ -71,6 +77,7 @@ const int months[] =
 	30,
 	31
 };
+
 uint64_t get_unix_time(const date_t * const udate)
 {
 	uint64_t utime = 0;
@@ -115,6 +122,7 @@ uint64_t get_unix_time(const date_t * const udate)
 
 	return utime;
 }
+
 static date_t date;
 void early_boot_rtc()
 {
@@ -126,6 +134,11 @@ void early_boot_rtc()
 	date.year = rtc_get_date_reg_early(RTC_REG_CENTURY) * 100 + rtc_get_date_reg_early(RTC_REG_YEAR);
 	date.unixtime = get_unix_time(&date);
 }
+
+time_t get_posix_time(void);
+
+struct clock_source rtc_clock = {.clock_source = "x86 rtc", .get_posix_time = get_posix_time};
+
 void init_rtc()
 {
 	INFO("rtc", "initializing\n");
@@ -153,8 +166,11 @@ void init_rtc()
 	date.unixtime = get_unix_time(&date);
 
 	ENABLE_INTERRUPTS();
+
+	register_clock_source(&rtc_clock);
 }
-uint64_t get_posix_time()
+
+time_t get_posix_time()
 {
 	date.seconds = rtc_get_date_reg(RTC_REG_SECONDS);
 	date.minutes = rtc_get_date_reg(RTC_REG_MINUTES);
@@ -165,6 +181,7 @@ uint64_t get_posix_time()
 	date.unixtime = get_unix_time((const date_t *const) &date);
 	return date.unixtime;
 }
+
 uint64_t get_posix_time_early()
 {
 	return date.unixtime;

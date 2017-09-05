@@ -3,8 +3,10 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
+
 #include <errno.h>
 #include <time.h>
+#include <assert.h>
 
 #include <sys/times.h>
 #include <sys/time.h>
@@ -13,31 +15,41 @@
 #include <onyx/timer.h>
 #include <onyx/vmm.h>
 #include <onyx/process.h>
+#include <onyx/clock.h>
 
-#include <drivers/rtc.h>
+struct clock_source *main_clock;
+
+void register_clock_source(struct clock_source *clk)
+{
+	assert(clk->get_posix_time != NULL);
+
+	main_clock = clk;
+}
 
 time_t sys_time(time_t *s)
 {
 	if(s)
 	{
-		uint64_t posix = get_posix_time();
+		uint64_t posix = main_clock->get_posix_time();
 		if(copy_to_user(s, &posix, sizeof(time_t)) < 0)
 			return -EFAULT;
 	}
-	return get_posix_time();
+	return main_clock->get_posix_time();
 }
+
 int sys_gettimeofday(struct timeval *tv, struct timezone *tz)
 {
 	if(tv)
 	{
 		struct timeval t;
-		t.tv_sec = get_posix_time();
-		t.tv_usec = get_posix_time() * 1000 + get_microseconds();
+		t.tv_sec = main_clock->get_posix_time();
+		t.tv_usec = main_clock->get_posix_time() * 1000 + get_microseconds();
 		if(copy_to_user(tv, &t, sizeof(struct timeval)) < 0)
 			return -EFAULT;
 	}
 	return 0;
 }
+
 int sys_clock_gettime(clockid_t clk_id, struct timespec *tp)
 {
 	struct timespec t;
@@ -45,7 +57,7 @@ int sys_clock_gettime(clockid_t clk_id, struct timespec *tp)
 	{
 		case CLOCK_REALTIME:
 		{
-			t.tv_sec = get_posix_time();
+			t.tv_sec = main_clock->get_posix_time();
 			t.tv_nsec = get_microseconds();
 			break;
 		}
@@ -62,6 +74,7 @@ int sys_clock_gettime(clockid_t clk_id, struct timespec *tp)
 		return -EFAULT;
 	return 0;
 }
+
 clock_t sys_times(struct tms *buf)
 {
 	struct process *current = get_current_process();
@@ -72,6 +85,7 @@ clock_t sys_times(struct tms *buf)
 		return -EFAULT;
 	return get_tick_count();
 }
+
 int sys_getrusage(int who, struct rusage *usage)
 {
 	return -ENOSYS;
