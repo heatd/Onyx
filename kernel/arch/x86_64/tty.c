@@ -47,11 +47,12 @@ uint32_t last_y = 0;
 int terminal_color = 0;
 int currentPty = 0;
 void* fbs[5] ={(void*) 0xDEADDEAD/*Vid mem*/,NULL};
+
 void tty_init(void)
 {
 	terminal_row = 1;
 	terminal_column = 0;
-	terminal_color = 0xC0C0C0;
+	terminal_color = 0xaaaaaa;
 	main_device = video_get_main_adapter();
 	struct video_mode *vid = video_get_videomode(main_device);
 	if( vid->width == 0 ) {
@@ -67,6 +68,7 @@ void tty_set_color(int color)
 {
 	terminal_color = color;
 }
+
 void tty_draw_cursor(int x, int y, int fgcolor, int bgcolor, void *fb)
 {
 retry:;
@@ -77,6 +79,7 @@ retry:;
 		goto retry;
 	}
 }
+
 void tty_draw_char(unsigned char c, int x, int y, int fgcolor, int bgcolor, void* fb)
 {
 retry:;
@@ -87,6 +90,7 @@ retry:;
 		goto retry;
 	}
 }
+
 void __tty_scroll(void *fb)
 {
 retry:;
@@ -97,6 +101,7 @@ retry:;
 		goto retry;
 	}
 }
+
 void *tty_get_fb()
 {
 retry:;
@@ -108,6 +113,7 @@ retry:;
 	}
 	return err;
 }
+
 void tty_put_entry_at(char c, uint32_t color, size_t column, size_t row)
 {
 	
@@ -116,8 +122,9 @@ void tty_put_entry_at(char c, uint32_t color, size_t column, size_t row)
 	last_x = x + 9;
 	last_y = y;
 	tty_draw_char(c, x, y, color, 0, fbs[currentPty]);
-	tty_draw_cursor(x + 9, y, 0, 0xC0C0C0, fbs[currentPty]);
+	tty_draw_cursor(x + 9, y, 0, 0xaaaaaa, fbs[currentPty]);
 }
+
 void tty_putchar(char c)
 {
 	if(c == '\n')
@@ -132,7 +139,7 @@ void tty_putchar(char c)
 		}
 		tty_draw_cursor(last_x, last_y, 0, 0, fbs[currentPty]);
 		tty_draw_cursor(terminal_column * 8, terminal_row * 16, 0,
-			  0xC0C0C0, fbs[currentPty]);
+			0xaaaaaa, fbs[currentPty]);
 		last_x = terminal_column * 8;
 		last_y = terminal_row * 16;
 		return;
@@ -158,7 +165,7 @@ void tty_putchar(char c)
 		}
 		tty_draw_cursor(terminal_column * 8, terminal_row * 16, 0, 0, fbs[currentPty]);
 		tty_draw_cursor(column * 8, row * 16, 0, 0, fbs[currentPty]);
-		tty_draw_cursor(column * 8, row * 16, 0, 0xC0C0C0, fbs[currentPty]);
+		tty_draw_cursor(column * 8, row * 16, 0, 0xaaaaaa, fbs[currentPty]);
 		int y = row * 16;
 		int x = column * 8;
 		last_x = x;
@@ -175,7 +182,9 @@ void tty_putchar(char c)
 			    terminal_row);
 	terminal_column++;
 }
+
 static mutex_t ttylock = MUTEX_INITIALIZER;
+
 void tty_write(const char *data, size_t size)
 {
 	mutex_lock(&ttylock);
@@ -230,10 +239,12 @@ void tty_write(const char *data, size_t size)
 		tty_swap_framebuffers();
 	mutex_unlock(&ttylock);
 }
+
 #define TTY_PRINT_IF_ECHO(c, l) if(term_io.c_lflag & ECHO) tty_write(c, l)
 char keyboard_buffer[2048];
 volatile int tty_keyboard_pos = 0;
 volatile _Bool got_line_ready = 0;
+
 void tty_recieved_character(char c)
 {
 	if(!(term_io.c_lflag & ICANON))
@@ -257,6 +268,7 @@ void tty_recieved_character(char c)
 	keyboard_buffer[tty_keyboard_pos++] = c;
 	TTY_PRINT_IF_ECHO(&c, 1);
 }
+
 char *tty_wait_for_line(int flags)
 {
 	if(flags & O_NONBLOCK && !got_line_ready)
@@ -268,14 +280,17 @@ char *tty_wait_for_line(int flags)
 	got_line_ready = 0;
 	return keyboard_buffer;
 }
+
 void tty_swap_framebuffers()
 {
 	memcpy(tty_get_fb(), fbs[currentPty], 0x400000);
 }
+
 void tty_write_string(const char *data)
 {
 	tty_write(data, strlen(data));
 }
+
 void tty_scroll()
 {
 	__tty_scroll(fbs[currentPty]);
@@ -283,6 +298,7 @@ void tty_scroll()
 	terminal_column = 0;
 	tty_swap_framebuffers();
 }
+
 int tty_create_pty_and_switch(void* address)
 {
 	currentPty++;
@@ -292,17 +308,19 @@ int tty_create_pty_and_switch(void* address)
 	terminal_row = 1;
 	terminal_column = 0;
 	tty_draw_char('\0', terminal_column * 9, terminal_row * 16, 0,
-		  0xC0C0C0, fbs[currentPty]);
+		0xaaaaaa, fbs[currentPty]);
 	last_x = terminal_column * 9;
 	last_y = terminal_row * 16;
 	tty_swap_framebuffers();
 	return 0;
 }
+
 size_t ttydevfs_write(size_t offset, size_t sizeofwrite, void* buffer, struct inode* this)
 {
 	tty_write(buffer, sizeofwrite);
 	return sizeofwrite;
 }
+
 size_t strnewlinelen(char *str)
 {
 	size_t len = 0;
@@ -310,6 +328,7 @@ size_t strnewlinelen(char *str)
 		++len;
 	return len+1;
 }
+
 size_t ttydevfs_read(int flags, size_t offset, size_t count, void *buffer, struct inode *this)
 {
 	char *kb_buf = tty_wait_for_line(flags);
@@ -401,6 +420,7 @@ unsigned int tty_ioctl(int request, void *argp, struct inode *dev)
 	}
 	return -EINVAL;
 }
+
 void tty_create_dev()
 {
 	struct inode *ttydev = creat_vfs(slashdev, "tty", 0666);

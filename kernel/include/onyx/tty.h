@@ -41,5 +41,5 @@ void tty_create_dev();
 #define TTY_DEFAULT_YELLOW 0xFFFF00
 #define TTY_DEFAULT_MAGENTA 0xFF00FF
 #define TTY_DEFAULT_CYAN 0x00FFFF
-#define TTY_RESET_COLOR 0xC0C0C0
+#define TTY_RESET_COLOR 0xaaaaaaaa
 #endif

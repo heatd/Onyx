@@ -79,6 +79,7 @@ void softfb_draw_cursor(int x, int y, int fgcolor, int bgcolor, void* fb)
 		}
 	}
 }
+
 extern struct bitmap_font font;
 __attribute__((cold))
 void softfb_init(uintptr_t fb_address, uint32_t bpp, uint32_t width, uint32_t height,uint32_t pitch)

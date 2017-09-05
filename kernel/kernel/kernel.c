@@ -156,6 +156,7 @@ retry:;
 	struct inode *in = open_vfs(fs_root, path);
 	if(!in)
 	{
+		printk("%s: Not found\n", path);
 		if(!strcmp(path, "/bin/init"))
 		{
 			perror("open");
