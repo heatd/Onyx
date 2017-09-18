@@ -55,7 +55,7 @@ $(OBJS) \
 $(CRTEND_OBJ) \
 $(CRTN_OBJ) \
 
-all: vmonyx onyx-vdso.so.0
+all: onyx-vdso.so.0 vmonyx
 
 .PHONY: all clean install install-headers install-kernel kernel-modules
 
@@ -81,7 +81,7 @@ $(ARCHDIR)/__vdso.o: $(ARCHDIR)/__vdso.c
 	@$(CC) -c $< -o $@ -shared -fpic
 onyx-vdso.so.0: $(ARCHDIR)/__vdso.o
 	@echo [VDSO]
-	@$(CC) $< -o $@ -shared -fpic -ffreestanding -nostdlib
+	@$(CC) $< -o $@ -shared -fpic -ffreestanding -nostdlib $(CFLAGS) -z max-page-size=0x1000
 clean:
 	rm -f vmonyx $(OBJS) $(ALL_OUR_OBJS) *.o */*.o */*/*.o
 	$(MAKE) -C modules/ clean

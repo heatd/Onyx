@@ -1,6 +1,6 @@
 ENTRY(EntryPoint)
 
-VIRT_BASE = 0xFFFFFFFF80000000;
+VIRT_BASE = 0xffffffff80000000;
 
 SECTIONS
 {
@@ -38,6 +38,7 @@ SECTIONS
 		*(.jcr)
 		*(.dtors)
 		*(.ctors)
+		*vdso_helper.o(*.vdso)
 	}
 
 	.data ALIGN(0x1000) : AT(ADDR(.data) - VIRT_BASE)

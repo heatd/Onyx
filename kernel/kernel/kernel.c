@@ -498,9 +498,6 @@ void kernel_multitasking(void *arg)
 	null_init(); /* /dev/null */
 	zero_init(); /* /dev/zero */
 	entropy_init_dev(); /* /dev/random and /dev/urandom */
-
-	/* Initialize the vdso */
-	init_vdso();
 	
 	/* Initialize the worker thread */
 	worker_init();
