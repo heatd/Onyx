@@ -16,6 +16,7 @@
 #include <onyx/timer.h>
 #include <onyx/slab.h>
 #include <onyx/acpi.h>
+#include <onyx/cpu.h>
 
 #include <drivers/pci.h>
 #include <drivers/rtc.h>
@@ -117,7 +118,7 @@ void AcpiOsStall(UINT32 Microseconds)
 	uint64_t orig_us = get_microseconds();
 
 	while(get_microseconds() != orig_us + Microseconds)
-		__asm__ __volatile__("pause");
+		cpu_pause();
 }
 ACPI_STATUS AcpiOsCreateMutex(ACPI_MUTEX *OutHandle)
 {
