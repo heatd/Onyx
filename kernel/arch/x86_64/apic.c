@@ -23,16 +23,19 @@ volatile uint32_t *bsp_lapic = NULL;
 volatile uint64_t ap_done = 0;
 volatile uint64_t core_stack = 0;
 bool is_smp_enabled = 0;
+
 void lapic_write(volatile uint32_t *lapic, uint32_t addr, uint32_t val)
 {
 	volatile uint32_t *laddr = (volatile uint32_t *)((volatile char*) lapic + addr);
 	*laddr = val;
 }
+
 uint32_t lapic_read(volatile uint32_t *lapic, uint32_t addr)
 {
 	volatile uint32_t *laddr = (volatile uint32_t *)((volatile char*) lapic + addr);
 	return *laddr;
 }
+
 void lapic_send_eoi()
 {
 	if(is_percpu_initialized() == false)
@@ -43,6 +46,7 @@ void lapic_send_eoi()
 		lapic_write((volatile uint32_t *) proc->lapic, LAPIC_EOI, 0);
 	}
 }
+
 void lapic_init()
 {
 	/* Get the BSP's LAPIC base address from the msr's */
@@ -63,20 +67,24 @@ void lapic_init()
 	/* Set the task pri to 0 */
 	lapic_write(bsp_lapic, LAPIC_TSKPRI, 0);
 }
+
 volatile char *ioapic_base = NULL;
 ACPI_TABLE_MADT *madt = NULL;
+
 uint32_t read_io_apic(uint32_t reg)
 {
 	uint32_t volatile *ioapic = (uint32_t volatile*) ioapic_base;
 	ioapic[0] = (reg & 0xFF);
 	return ioapic[4];
 }
+
 void write_io_apic(uint32_t reg, uint32_t value)
 {
 	uint32_t volatile *ioapic = (uint32_t volatile*)ioapic_base;
 	ioapic[0] = (reg & 0xFF);
 	ioapic[4] = value;
 }
+
 uint64_t read_redirection_entry(uint32_t pin)
 {
 	uint64_t ret;
@@ -84,12 +92,15 @@ uint64_t read_redirection_entry(uint32_t pin)
 	ret |= (uint64_t) read_io_apic(0x10 + pin * 2 + 1) << 32;
 	return ret;
 }
+
 void write_redirection_entry(uint32_t pin, uint64_t value)
 {
 	write_io_apic(0x10 + pin * 2, value & 0x00000000FFFFFFFF);
 	write_io_apic(0x10 + pin * 2 + 1, value >> 32);
 }
+
 static int irqs;
+
 void ioapic_set_pin(bool active_high, bool level, uint32_t pin)
 {
 	uint64_t entry = 0;
@@ -106,18 +117,21 @@ void ioapic_set_pin(bool active_high, bool level, uint32_t pin)
 	}
 	write_redirection_entry(pin, entry);
 }
+
 void ioapic_unmask_pin(uint32_t pin)
 {
 	uint64_t entry = read_redirection_entry(pin);
 	entry &= ~IOAPIC_PIN_MASKED;
 	write_redirection_entry(pin, entry);
 }
+
 void ioapic_mask_pin(uint32_t pin)
 {
 	uint64_t entry = read_redirection_entry(pin);
 	entry |= IOAPIC_PIN_MASKED;
 	write_redirection_entry(pin, entry);
 }
+
 void set_pin_handlers()
 {
 	/* Allocate a pool of vectors and reserve them */
@@ -195,6 +209,7 @@ void set_pin_handlers()
 	}
 	
 }
+
 void ioapic_early_init(void)
 {
 	/* Map the I/O APIC base */
@@ -203,6 +218,7 @@ void ioapic_early_init(void)
 		panic("Virtual memory allocation for the I/O APIC failed!");
 	paging_map_phys_to_virt((uintptr_t) ioapic_base, IOAPIC_BASE_PHYS, VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC);
 }
+
 void ioapic_init()
 {
 	/* Execute _PIC */
@@ -210,8 +226,10 @@ void ioapic_init()
 	/* Set each APIC pin's polarity, flags, and vectors to their defaults */
 	set_pin_handlers();
 }
+
 volatile uint64_t boot_ticks = 0;
 static int boot_sched_quantum = 10;
+
 static uintptr_t apic_timer_irq(registers_t *regs)
 {
 	if(!is_percpu_initialized())
@@ -231,13 +249,16 @@ static uintptr_t apic_timer_irq(registers_t *regs)
 	}
 	return 0;
 }
+
 unsigned long apic_rate = 0;
 unsigned long us_apic_rate = 0;
+
 uint64_t get_microseconds()
 {
 	struct processor *cpu = get_processor_data();
 	return (apic_rate - lapic_read((volatile uint32_t *) cpu->lapic, LAPIC_TIMER_CURRCNT)) / us_apic_rate;
 }
+
 void apic_timer_init()
 {
 	/* Set the timer divisor to 16 */
@@ -281,6 +302,7 @@ void apic_timer_init()
 	irq_install_handler(2, apic_timer_irq);
 	ENABLE_INTERRUPTS();
 }
+
 void apic_timer_smp_init(volatile uint32_t *lapic)
 {
 	/* Enable the local apic */
@@ -301,6 +323,7 @@ void apic_timer_smp_init(volatile uint32_t *lapic)
 	/* If this is called, that means we've enabled SMP and can use struct processor/%%gs*/
 	is_smp_enabled = 1;
 }
+
 uint64_t get_tick_count()
 {
 	if(!is_smp_enabled)
@@ -308,6 +331,7 @@ uint64_t get_tick_count()
 	struct processor *cpu = get_processor_data();
 	return cpu->apic_ticks;
 }
+
 void send_ipi(uint8_t id, uint32_t type, uint32_t page)
 {
 	lapic_write(bsp_lapic, LAPIC_IPIID, (uint32_t)id << 24);
@@ -315,6 +339,7 @@ void send_ipi(uint8_t id, uint32_t type, uint32_t page)
 	icr |= (1 << 14);
 	lapic_write(bsp_lapic, LAPIC_ICR, (uint32_t) icr);
 }
+
 void apic_wake_up_processor(uint8_t lapicid)
 {
 	ap_done = 0;
@@ -353,12 +378,14 @@ void apic_wake_up_processor(uint8_t lapicid)
 	}
 	ap_done = 0;
 }
+
 void apic_set_irql(int irql)
 {
 	/* Get the current process and use its lapic pointer */
 	struct processor *proc = get_processor_data();
 	lapic_write((volatile uint32_t *) proc->lapic, LAPIC_TSKPRI, irql);
 }
+
 int apic_get_irql(void)
 {
 	/* Get the current process and use its lapic pointer */

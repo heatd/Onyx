@@ -5,8 +5,10 @@
 */
 #ifndef _KERNEL_REGISTERS_H
 #define _KERNEL_REGISTERS_H
+
 #include <stdint.h>
 #ifdef __x86_64__
+
 typedef struct registers
 {
 	uint64_t ds;
@@ -17,6 +19,7 @@ typedef struct registers
 	uint64_t rsp;
 	uint64_t ss;
 } registers_t;
+
 typedef struct
 {
 	uint64_t ds;
@@ -29,6 +32,7 @@ typedef struct
 	uint64_t rsp;
 	uint64_t ss;
 } intctx_t;
+
 typedef struct
 {
 	uint64_t ds;
@@ -39,14 +43,17 @@ typedef struct
 	uint64_t rsp;
 	uint64_t ss;
 } syscall_ctx_t;
+
 static inline void wrmsr(uint32_t msr, uint32_t lo, uint32_t hi)
 {
 	__asm__ __volatile__("wrmsr"::"a"(lo), "d"(hi), "c"(msr));
 }
+
 static inline void rdmsr(uint32_t msr, uint32_t *lo, uint32_t *hi)
 {
 	__asm__ __volatile__("rdmsr" : "=a"(*lo), "=d"(*hi) : "c"(msr));
 }
+
 #define FS_BASE_MSR 0xC0000100
 #define GS_BASE_MSR 0xC0000101
 #define KERNEL_GS_BASE 0xC0000102
@@ -54,6 +61,7 @@ static inline void rdmsr(uint32_t msr, uint32_t *lo, uint32_t *hi)
 #define IA32_MSR_LSTAR 0xC0000082
 #define IA32_MSR_CSTAR 0xC0000083
 #define IA32_MSR_SFMASK 0xC0000084
+
 #else
 
 typedef struct registers

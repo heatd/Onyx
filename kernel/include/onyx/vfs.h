@@ -3,6 +3,7 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
+
 #ifndef _VFS_H
 #define _VFS_H
 
@@ -13,6 +14,7 @@
 
 #include <onyx/avl.h>
 #include <onyx/vmm.h>
+#include <onyx/superblock.h>
 
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -75,6 +77,7 @@ struct inode
 	char *name;
 	char *mountpoint;
 	dev_t dev;
+	struct superblock *i_sb;
 	struct file_ops fops;
 	avl_node_t *cache_tree;
 	struct inode *next;

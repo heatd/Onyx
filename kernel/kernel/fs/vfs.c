@@ -17,6 +17,7 @@
 #include <onyx/pagecache.h>
 #include <onyx/log.h>
 #include <onyx/mtable.h>
+#include <onyx/atomic.h>
 
 static avl_node_t **avl_search_key(avl_node_t **t, uintptr_t key);
 struct inode *fs_root = NULL;
@@ -60,6 +61,7 @@ ssize_t do_file_caching(size_t sizeofread, struct inode *this, off_t offset, int
 	free(cache);
 	return read;
 }
+
 int vfs_init()
 {
 	mount_list = malloc(sizeof(struct inode));
@@ -73,6 +75,7 @@ int vfs_init()
 	fs_root->refcount++;
 	return 0;
 }
+
 size_t read_vfs(int flags, size_t offset, size_t sizeofread, void* buffer, struct inode* this)
 {
 	if(this->type & VFS_TYPE_DIR)
@@ -88,6 +91,7 @@ size_t read_vfs(int flags, size_t offset, size_t sizeofread, void* buffer, struc
 	}
 	return errno = ENOSYS;
 }
+
 size_t write_vfs(size_t offset, size_t sizeofwrite, void* buffer, struct inode* this)
 {
 	if(this->type & VFS_TYPE_MOUNTPOINT)
@@ -106,6 +110,7 @@ size_t write_vfs(size_t offset, size_t sizeofwrite, void* buffer, struct inode* 
 
 	return errno = ENOSYS;
 }
+
 int ioctl_vfs(int request, char *argp, struct inode *this)
 {
 	if(this->type & VFS_TYPE_MOUNTPOINT)
@@ -114,18 +119,22 @@ int ioctl_vfs(int request, char *argp, struct inode *this)
 		return this->fops.ioctl(request, (void*) argp, this);
 	return -ENOSYS;
 }
+
 void close_vfs(struct inode* this)
 {
 	if(this->type & VFS_TYPE_MOUNTPOINT)
 		close_vfs(this->link);
 	if(this->fops.close != NULL)
 		this->fops.close(this);
-	__sync_fetch_and_sub(&this->refcount, 1);
-	if(this->refcount == 0)
+
+	if(atomic_dec(&this->refcount, 1) == 0)
 	{
+		if(this->i_sb)
+			superblock_remove_inode(this->i_sb, this);
 		free(this);
 	}
 }
+
 struct inode *do_actual_open(struct inode *this, const char *name)
 {
 	assert(this != NULL);
@@ -140,6 +149,7 @@ struct inode *do_actual_open(struct inode *this, const char *name)
 	}
 	return errno = ENOSYS, NULL;
 }
+
 struct inode *open_path_segment(char *segm, struct inode *node)
 {
 	struct inode *file = do_actual_open(node, segm);
@@ -150,6 +160,7 @@ struct inode *open_path_segment(char *segm, struct inode *node)
 		file = mountpoint;
 	return file;
 }
+
 struct inode *open_vfs(struct inode* this, const char *name)
 {
 	/* Okay, so we need to traverse the path */
@@ -177,6 +188,7 @@ struct inode *open_vfs(struct inode* this, const char *name)
 	free(orig);
 	return node;
 }
+
 struct inode *creat_vfs(struct inode *this, const char *path, int mode)
 {
 	char *dup = strdup(path);
@@ -261,6 +273,7 @@ error:
 	free(dup);
 	return NULL;
 }
+
 int mount_fs(struct inode *fsroot, const char *path)
 {
 	assert(fsroot != NULL);
@@ -292,6 +305,7 @@ int mount_fs(struct inode *fsroot, const char *path)
 	}
 	return 0;
 }
+
 unsigned int getdents_vfs(unsigned int count, struct dirent* dirp, off_t off, struct inode *this)
 {
 	if(this->type & VFS_TYPE_MOUNTPOINT)
@@ -303,6 +317,7 @@ unsigned int getdents_vfs(unsigned int count, struct dirent* dirp, off_t off, st
 	
 	return errno = ENOSYS, (unsigned int) -1;
 }
+
 int stat_vfs(struct stat *buf, struct inode *node)
 {
 	if(node->type & VFS_TYPE_MOUNTPOINT)
@@ -312,12 +327,14 @@ int stat_vfs(struct stat *buf, struct inode *node)
 	
 	return errno = ENOSYS, (unsigned int) -1;
 }
+
 typedef struct avl_node
 {
 	struct avl_node *left, *right;
 	uintptr_t key; /* In this case, key == offset */
 	void *ptr;
 } avl_node_t;
+
 static avl_node_t *avl_insert_key(avl_node_t **t, uintptr_t key, struct inode *vfs)
 {
 	avl_node_t *ptr = *t;
@@ -348,6 +365,7 @@ static avl_node_t *avl_insert_key(avl_node_t **t, uintptr_t key, struct inode *v
 		return ret;
 	}
 }
+
 static avl_node_t **avl_search_key(avl_node_t **t, uintptr_t key)
 {
 	if(!*t)
@@ -362,6 +380,7 @@ static avl_node_t **avl_search_key(avl_node_t **t, uintptr_t key)
 	else
 		return avl_search_key(&ptr->right, key);
 }
+
 static int avl_delete_node(uintptr_t key, avl_node_t **tree)
 {
 	/* Try to find the node inside the tree */
@@ -377,6 +396,7 @@ static int avl_delete_node(uintptr_t key, avl_node_t **tree)
 	avl_balance_tree(tree);
 	return 0;
 }
+
 void *add_cache_to_node(void *ptr, size_t size, off_t offset, struct inode *node)
 {
 	struct page_cache *cache = add_to_cache(ptr, size, offset, node);
@@ -389,6 +409,7 @@ void *add_cache_to_node(void *ptr, size_t size, off_t offset, struct inode *node
 
 	return avl->ptr;
 }
+
 ssize_t lookup_file_cache(void *buffer, size_t sizeofread, struct inode *file, off_t offset)
 {
 	if(file->type != VFS_TYPE_FILE)
@@ -422,6 +443,7 @@ ssize_t lookup_file_cache(void *buffer, size_t sizeofread, struct inode *file, o
 	}
 	return (ssize_t) read;
 }
+
 char *vfs_get_full_path(struct inode *vnode, char *name)
 {
 	size_t size = strlen(vnode->name) + strlen(name) + (strlen(vnode->name) == 1 ? 0 : 1); 
@@ -434,6 +456,7 @@ char *vfs_get_full_path(struct inode *vnode, char *name)
 	strcat(string, name);
 	return string;
 }
+
 ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *file, off_t offset)
 {
 	if(file->type != VFS_TYPE_FILE)
@@ -464,6 +487,7 @@ ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *file, o
 	}
 	return (ssize_t) wrote;
 }
+
 ssize_t send_vfs(const void *buf, size_t len, int flags, struct inode *node)
 {
 	if(node->type & VFS_TYPE_MOUNTPOINT)
@@ -472,6 +496,7 @@ ssize_t send_vfs(const void *buf, size_t len, int flags, struct inode *node)
 		return node->fops.send(buf, len, flags, node);
 	return -ENOSYS;
 }
+
 int connect_vfs(const struct sockaddr *addr, socklen_t addrlen, struct inode *node)
 {
 	if(node->type & VFS_TYPE_MOUNTPOINT)
@@ -480,6 +505,7 @@ int connect_vfs(const struct sockaddr *addr, socklen_t addrlen, struct inode *no
 		return node->fops.connect(addr, addrlen, node);
 	return -ENOSYS;
 }
+
 int bind_vfs(const struct sockaddr *addr, socklen_t addrlen, struct inode *node)
 {
 	if(node->type & VFS_TYPE_MOUNTPOINT)
@@ -488,6 +514,7 @@ int bind_vfs(const struct sockaddr *addr, socklen_t addrlen, struct inode *node)
 		return node->fops.bind(addr, addrlen, node);
 	return -ENOSYS;
 }
+
 ssize_t recvfrom_vfs(void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *slen, struct inode *node)
 {
 	if(node->type & VFS_TYPE_MOUNTPOINT)

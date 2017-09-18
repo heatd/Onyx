@@ -150,6 +150,8 @@ void SvgaDevice::enable(void)
 
 void SvgaDevice::setup_fifo(void)
 {
+	/* TODO: Broken, freezes the GPU */
+#if 0
 	/* TODO: Setup the command fifo in a better way, this is too minimal */
 	command_buffer[SVGA_FIFO_MIN] = num_regs * 4;
 	command_buffer[SVGA_FIFO_MAX] = num_regs * 4 + (10 * 1024);
@@ -158,6 +160,7 @@ void SvgaDevice::setup_fifo(void)
 	
 	/* Now, enable the command FIFO */
 	write(SVGA_REG_CONFIG_DONE, 1);
+#endif
 }
 
 void SvgaDevice::wait_for_fifo(size_t len)

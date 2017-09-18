@@ -175,7 +175,7 @@ uintptr_t rtl_irq_handler(registers_t *regs)
 		work.funcptr = rtl_dpc;
 		work.context = NULL;
 		work.next = NULL;
-			dpc_schedule_work(&work, DPC_PRIORITY_HIGH);
+		dpc_schedule_work(&work, DPC_PRIORITY_HIGH);
 	}
 	else
 		recieved_irq = true;

@@ -385,3 +385,8 @@ void cpu_kill_other_cpus(void)
 			cpu_kill(i);
 	}
 }
+
+void cpu_pause(void)
+{
+	__asm__ __volatile__("pause");
+}

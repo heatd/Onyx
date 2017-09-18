@@ -9,6 +9,8 @@
 #include <onyx/compiler.h>
 #include <onyx/task_switching.h>
 #include <onyx/scheduler.h>
+#include <onyx/atomic.h>
+#include <onyx/cpu.h>
 
 static inline void post_lock_actions(spinlock_t *lock)
 {
@@ -17,16 +19,18 @@ static inline void post_lock_actions(spinlock_t *lock)
 	sched_change_preemption_state(true);
 	lock->holder = (unsigned long) __builtin_return_address(0);
 }
+
 static inline void post_release_actions(spinlock_t *lock)
 {
 	sched_change_preemption_state(lock->old_preemption_state);
 	lock->holder = 0xDEADBEEFDEADBEEF;
 }
+
 void acquire_spinlock(spinlock_t *lock)
 {
 	while(!__sync_bool_compare_and_swap(&lock->lock, 0, 1))
 	{
-		__asm__ __volatile__("pause");
+		cpu_pause();
 	}
 	__sync_synchronize();
 	post_lock_actions(lock);
@@ -35,13 +39,10 @@ void acquire_spinlock(spinlock_t *lock)
 void release_spinlock(spinlock_t *lock)
 {
 	__sync_synchronize();
-	lock->lock = 0;
+	atomic_dec(&lock->lock, 1);
 	post_release_actions(lock);
 }
-void wait_spinlock(spinlock_t *lock)
-{
-	while (lock->lock == 1);
-}
+
 int try_and_acquire_spinlock(spinlock_t *lock)
 {
 	while(!__sync_bool_compare_and_swap(&lock->lock, 0, 1))

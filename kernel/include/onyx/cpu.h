@@ -226,6 +226,7 @@ struct processor
 #ifdef __cplusplus
 extern "C"{
 #endif
+
 void cpu_identify(void);
 void cpu_init_interrupts(void);
 int cpu_init_mp(void);
@@ -239,6 +240,7 @@ void cpu_kill_other_cpus(void);
 void cpu_kill(int cpu_num);
 void cpu_send_message(int cpu, unsigned long message, void *arg);
 void __cpu_handle_message(void);
+void cpu_pause(void);
 
 struct cpu_message
 {

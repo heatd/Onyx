@@ -66,7 +66,7 @@ inode_t *ext2_get_inode_from_dir(ext2_fs_t *fs, dir_entry_t *dirent, char *name,
 
 size_t ext2_write(size_t offset, size_t sizeofwrite, void *buffer, struct inode *node)
 {
-	ext2_fs_t *fs = fslist;
+	ext2_fs_t *fs = node->i_sb->s_helper;
 	inode_t *ino = ext2_get_inode_from_number(fs, node->inode);
 	if(!ino)
 		return errno = EINVAL, (size_t) -1;
@@ -86,7 +86,7 @@ size_t ext2_read(int flags, size_t offset, size_t sizeofreading, void *buffer, s
 	(void) flags;
 	if(offset > node->size)
 		return errno = EINVAL, -1;
-	ext2_fs_t *fs = fslist;
+	ext2_fs_t *fs = node->i_sb->s_helper;
 	inode_t *ino = ext2_get_inode_from_number(fs, node->inode);
 	if(!ino)
 		return errno = EINVAL, -1;
@@ -98,12 +98,12 @@ size_t ext2_read(int flags, size_t offset, size_t sizeofreading, void *buffer, s
 struct inode *ext2_open(struct inode *nd, const char *name)
 {
 	uint32_t inoden = nd->inode;
-	ext2_fs_t *fs = fslist;
+	ext2_fs_t *fs = nd->i_sb->s_helper;
 	uint32_t inode_num;
 	size_t node_name_len;
 	inode_t *ino;
 	char *symlink_path = NULL;
-	struct inode *node;
+	struct inode *node = NULL;
 	/* Get the inode structure from the number */
 	ino = ext2_get_inode_from_number(fs, inoden);	
 	if(!ino)
@@ -111,13 +111,17 @@ struct inode *ext2_open(struct inode *nd, const char *name)
 	ino = ext2_traverse_fs(ino, name, fs, &symlink_path, &inode_num);
 	if(!ino)
 		return NULL;
-	node = malloc(sizeof(struct inode));
+
+	/* See if we have the inode cached in the 	 */
+	node = superblock_find_inode(nd->i_sb, inode_num);
+	if(node)
+		return node;
+	node = zalloc(sizeof(struct inode));
 	if(!node)
 	{
 		free(ino);
 		return errno = ENOMEM, NULL;
 	}
-	memset(node, 0, sizeof(struct inode));
 	if(symlink_path)
 		node_name_len = strlen(nd->name) + 1 + strlen(symlink_path) + 1;
 	else
@@ -155,8 +159,13 @@ struct inode *ext2_open(struct inode *nd, const char *name)
 	node->size = EXT2_CALCULATE_SIZE64(ino);
 	node->uid = ino->uid;
 	node->gid = ino->gid;
+	node->i_sb = nd->i_sb;
 	memcpy(&node->fops, &ext2_ops, sizeof(struct file_ops));
 	free(ino);
+
+	/* Cache the inode */
+	superblock_add_inode(nd->i_sb, node);
+
 	return node;
 }
 
@@ -172,7 +181,7 @@ struct inode *ext2_mount_partition(uint64_t sector, block_device_t *dev)
 	LOG("ext2", "mounting ext2 partition at sector %d\n", sector);
 	superblock_t *sb = malloc(sizeof(superblock_t));
 	if(!sb)
-		return errno = ENOMEM, NULL;
+		return NULL;
 	blkdev_read((sector + 2) * 512, 1024, sb, dev);
 	if(sb->ext2sig == 0xef53)
 		LOG("ext2", "valid ext2 signature detected!\n");
@@ -182,22 +191,12 @@ struct inode *ext2_mount_partition(uint64_t sector, block_device_t *dev)
 		free(sb);
 		return errno = EINVAL, NULL;
 	}
-	ext2_fs_t *fs = malloc(sizeof(ext2_fs_t));
+
+	ext2_fs_t *fs = zalloc(sizeof(*fs));
 	if(!fs)
 	{
 		free(sb);
-		return errno = ENOMEM, NULL;
-	}
-	memset(fs, 0, sizeof(ext2_fs_t));
-	if(!fslist) fslist = fs;
-	else
-	{
-		ext2_fs_t *s = fslist;
-		while(s->next)
-		{
-			s = s->next;
-		}
-		s->next = fs;
+		return NULL;
 	}
 
 	fs->sb = sb;
@@ -220,8 +219,10 @@ struct inode *ext2_mount_partition(uint64_t sector, block_device_t *dev)
 	if(!fs->zero_block)
 	{
 		free(sb);
+		free(fs);
 		return errno = ENOMEM, NULL;
 	}
+
 	block_group_desc_t *bgdt = NULL;
 	size_t blocks_for_bgdt = (fs->number_of_block_groups * sizeof(block_group_desc_t)) / fs->block_size;
 	if((fs->number_of_block_groups * sizeof(block_group_desc_t)) % fs->block_size)
@@ -231,15 +232,34 @@ struct inode *ext2_mount_partition(uint64_t sector, block_device_t *dev)
 	else
 		bgdt = ext2_read_block(1, (uint16_t)blocks_for_bgdt, fs);
 	fs->bgdt = bgdt;
-	struct inode *node = malloc(sizeof(struct inode));
+
+	struct superblock *new_super = zalloc(sizeof(*new_super));
+	if(!sb)
+	{
+		free(sb);
+		free(fs->zero_block);
+		free(fs);
+		return NULL;
+	}
+
+	struct inode *node = zalloc(sizeof(struct inode));
 	if(!node)
 	{
 		free(sb);
+		free(new_super);
+		free(fs->zero_block);
+		free(fs);
 		return errno = ENOMEM, NULL;
 	}
+
 	node->name = "";
 	node->inode = 2;
 	node->type = VFS_TYPE_DIR;
+	node->i_sb = new_super;
+
+	new_super->s_inodes = node;
+	new_super->s_helper = fs;
+
 	memcpy(&node->fops, &ext2_ops, sizeof(struct file_ops));
 	return node;
 }
@@ -254,7 +274,7 @@ unsigned int ext2_getdents(unsigned int count, struct dirent* dirp, off_t off, s
 {
 	size_t read = 0;
 	uint32_t inoden = this->inode;
-	ext2_fs_t *fs = fslist;
+	ext2_fs_t *fs = this->i_sb->s_helper;
 	/* Get the inode structure */
 	inode_t *ino = ext2_get_inode_from_number(fs, inoden);	
 
@@ -321,7 +341,7 @@ unsigned int ext2_getdents(unsigned int count, struct dirent* dirp, off_t off, s
 int ext2_stat(struct stat *buf, struct inode *node)
 {
 	uint32_t inoden = node->inode;
-	ext2_fs_t *fs = fslist;
+	ext2_fs_t *fs = node->i_sb->s_helper;
 	/* Get the inode structure */
 	inode_t *ino = ext2_get_inode_from_number(fs, inoden);	
 
