@@ -1,0 +1,65 @@
+.Dd $Mdocdate: Sept 19 2017 $
+.Dt ONYX 9
+.Os
+.Sh NAME
+.Nm Onyx kernel
+.Nd Onyx kernel
+.Sh SYNOPSIS
+.Nm vmonyx
+.Op root partition
+.Sh DESCRIPTION
+The
+.Nm kernel
+is responsible for managing system resources in an effective and secure way.
+.Nm
+initializes and controls hardware, while providing
+.Pa /dev
+and
+.Pa /sys
+for user-space hardware access.
+.Nm
+extracts the
+.Xr initrd 9
+onto
+.Pa / ,
+and starts
+.Xr init 8 .
+From there on, the kernel is no longer in full control of the execution environment.
+.Ss System bootup
+.Nm
+boots up through a Multiboot 2 compatible bootloader.
+.Nm
+expects the initrd loaded as a Multiboot 2 module, on which it depends on to
+chainload the real system. See
+.Pa arch/x86/boot.S
+and
+.Pa kernel/kernel/kernel.c
+for more information on early boot procedures.
+It then boots up the rest of the base system, drivers, and sets up the environment for the
+first process,
+.Xr init 8 ,
+to run.
+.Ss Personalities
+.Nm
+currently does not have any implemented system emulations, but it is extendable with the
+.Xr personality 2
+system call.
+.Ss System calls
+.Nm
+implements a fair amount of system calls, growing by the day. The x86_64 version, as of the date of
+this man page, has 77 system calls. On x86_64, these system calls are all invoked through
+.Sy syscall.
+Full
+.Xr vdso 9 support is in the works, and will be available any time soon in the future.
+.Ss 32-bit support
+.Nm
+abandons legacy x86 32-bit CPUs, focusing on modern CPUs. For legacy reasons, Onyx will provide
+32-bit compatibility support in the future.
+.Sh STANDARDS
+.St -p1003.1-2008
+.Sh SEE ALSO
+.Xr personality 2 ,
+.Xr multiboot2 7 ,
+.Xr init 8 ,
+.Xr syscalls 9 ,
+.Xr vdso 9

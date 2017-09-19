@@ -16,7 +16,7 @@ responsible for further operating system inialization after the boot process fin
 .Nm
 determines which program to run from the system-target argument provided by the kernel,
 usually through the kernel's own command-line(see
-.Xr kernel 7) .
+.Xr kernel 9) .
 If no arguments are provided, then
 .Nm
 uses the target stored at /etc/init.d/init.config.
@@ -46,3 +46,8 @@ does not check for module initialization failure, and that is left out for the u
 .Sh BUGS
 .Nm
 doesn't correctly handle chain-booting, or proper root mounting for that matter.
+.Sh SEE ALSO
+.Xr fmount 2 ,
+.Xr insmod 2 ,
+.Xr sethostname 2 ,
+.Xr kernel 9

@@ -104,6 +104,9 @@ install-kernel: vmonyx kernel-modules onyx-vdso.so.0
 	mkdir -p $(DESTDIR)$(LIBDIR)
 	cp $<  $(DESTDIR)$(BOOTDIR)
 	cp onyx-vdso.so.0 $(DESTDIR)$(LIBDIR)
-
+	mkdir -p $(DESTDIR)/usr/share
+	mkdir -p $(DESTDIR)/usr/share/man
+	mkdir -p $(DESTDIR)/usr/share/man/man9
+	cp onyx.9 $(DESTDIR)/usr/share/man/man9
 kernel-modules:
 	$(MAKE) -C modules/
