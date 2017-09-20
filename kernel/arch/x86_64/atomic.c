@@ -40,3 +40,17 @@ unsigned long atomic_xor(unsigned long *word, unsigned long operand)
 	__sync_synchronize();
 	return val;
 }
+
+bool atomic_cmp_and_swap(unsigned long *word, unsigned long val, unsigned long oldval)
+{
+	bool b = __sync_bool_compare_and_swap(word, oldval, val);
+	__sync_synchronize();
+	return b;
+}
+
+unsigned long atomic_set(unsigned long *word, unsigned long operand)
+{
+	unsigned long val = __sync_lock_test_and_set(word, operand);
+	__sync_synchronize();
+	return val;
+}

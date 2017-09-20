@@ -7,14 +7,16 @@
 #define _KERNEL_RWLOCK_H
 
 #include <onyx/compiler.h>
-struct rwlock	
+#include <onyx/spinlock.h>
+
+#define RDWR_LOCK_WRITE			0x7fffffff
+
+struct rwlock
 {
 	unsigned long lock;
-	unsigned long rw;
-	unsigned long readers __align_cache; /* We're aligning these four, to minimize cache line bouncing */
-	unsigned long writers __align_cache;
 };
 
+bool rw_lock_tryread(struct rwlock *lock);
 void rw_lock_read(struct rwlock *lock);
 void rw_lock_write(struct rwlock *lock);
 void rw_unlock_read(struct rwlock *lock);

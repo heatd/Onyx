@@ -5,6 +5,7 @@
 */
 #ifndef _KERNEL_SPINLOCK_H
 #define _KERNEL_SPINLOCK_H
+
 #include <stdbool.h>
 
 typedef struct spinlock
@@ -14,6 +15,7 @@ typedef struct spinlock
 	bool old_preemption_state; /* This lets us nest locks */
 	unsigned long holder;
 } spinlock_t;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
