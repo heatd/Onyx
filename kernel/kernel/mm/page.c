@@ -9,6 +9,7 @@
 #include <stdbool.h>
 #include <assert.h>
 
+#include <onyx/atomic.h>
 #include <onyx/log.h>
 #include <onyx/bootmem.h>
 #include <onyx/page.h>
@@ -100,11 +101,11 @@ unsigned long page_increment_refcount(void *paddr)
 {
 	struct page *page = phys_to_page((uintptr_t) paddr);
 	assert(page != NULL);
-	return __sync_fetch_and_add(&page->ref, 1);
+	return atomic_inc(&page->ref, 1);
 }
 unsigned long page_decrement_refcount(void *paddr)
 {
 	struct page *page = phys_to_page((uintptr_t) paddr);
 	assert(page != NULL);
-	return __sync_fetch_and_sub(&page->ref, 1);
+	return atomic_dec(&page->ref, 1);
 }
