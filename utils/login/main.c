@@ -3,14 +3,17 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <unistd.h>
 #include <string.h>
 #include <fcntl.h>
+#include <termios.h>
 
 #include <sys/syscall.h>
+
 struct user
 {
 	/* Next member of the user structure */
@@ -40,6 +43,7 @@ struct user *find_user_by_name(char *username)
 	}
 	return NULL;
 }
+
 char *copy_string(char *str)
 {
 	char *ret = malloc(strlen(str) + 1);
@@ -48,6 +52,7 @@ char *copy_string(char *str)
 	strcpy(ret, str);
 	return ret;
 }
+
 int insert_user(char *username, char *passwd, gid_t gid, uid_t uid, char *home, char *shell)
 {
 	if(!username)
@@ -84,7 +89,8 @@ int insert_user(char *username, char *passwd, gid_t gid, uid_t uid, char *home, 
 	u->next->next = NULL;
 	return 0;
 }
-int setup_users()
+
+int setup_users(void)
 {
 	/* Open /etc/passwd */
 	FILE *fp = fopen("/etc/passwd", "r");
@@ -165,12 +171,33 @@ func_exit:
 	free(read_buffer);
 	return 0;
 }
+
 /* Set the uid and gid */
 void switch_users(gid_t gid, uid_t uid)
 {
 	syscall(SYS_setuid, uid);
 	syscall(SYS_setgid, gid);
 }
+
+static struct termios old_termios;
+
+int hide_stdin(void)
+{
+	struct termios attr;
+	tcgetattr(STDIN_FILENO, &attr);
+	memcpy(&old_termios, &attr, sizeof(struct termios));
+	attr.c_lflag &= ~ECHO; /* Clear ECHO */
+	tcsetattr(STDIN_FILENO, TCSAFLUSH, &attr);
+
+	return 0;
+}
+
+int reset_terminal(void)
+{
+	tcsetattr(STDIN_FILENO, TCSAFLUSH, &old_termios);
+	return 0;
+}
+
 char **args;
 int main(int argc, char **argv, char **envp)
 {
@@ -206,13 +233,17 @@ loop:
 	}
 	printf("password:");
 	fflush(stdout);
+
+	hide_stdin();
+
 	memset(buf, 0, 1024);
 	fgets(buf, 1024, stdin);
 	if((pos = strchr(buf, '\n')))
     		*pos = '\0';
 	if(strcmp(buf, user->password) != 0)
 	{
-		printf("Unknown password! Try again.\n");
+		printf("\nUnknown password! Try again.\n");
+		reset_terminal();
 		goto loop;
 	}
 	switch_users(user->gid, user->uid);
@@ -235,7 +266,11 @@ loop:
 	memset(args[0], 0, strlen(user->shell) + 2);
 	strcat(args[0], "-");
 	strcat(args[0], user->shell);
-	extern char **environ;
+	
+	reset_terminal();
+
+	printf("\n");
+
 	if(execv(user->shell, args) < 0)
 	{
 		perror("exec");

@@ -27,20 +27,25 @@
 
 #include "init.h"
 extern char **environ;
-void load_modules();
-void setup_hostname();
+
+void load_modules(void);
+void setup_hostname(void);
+
 /* x is a placeholder */
 char *prefix = "/etc/init.d/rcx.d";
+
 int tonum(int c)
 {
 	return c - '0';
 }
+
 int isnum(int c)
 {
 	if(c >= 48 && c <= 57)
 		return 1;
 	return 0;
 }
+
 char *copy_until_newline(char *s)
 {
 	char *str = s;
@@ -58,16 +63,19 @@ char *copy_until_newline(char *s)
 		*buffer++ = *str++;
 	return ret;
 }
+
 void insmod(const char *path, const char *name)
 {
 	syscall(SYS_insmod, path, name);
 }
+
 int fmount(int fd, char *path)
 {
 	if(syscall(SYS_fmount, fd, path))
 		return -1;
 	return 0;
 }
+
 int mount_filesystems(void)
 {
 	FILE *fp = fopen("/etc/fstab", "r");
@@ -193,6 +201,7 @@ int main(int argc, char **argv, char **envp)
 	}
 	return 0;
 }
+
 void load_modules()
 {
 	/* Open the modules file */
@@ -232,6 +241,7 @@ void load_modules()
 	free(buf);
 	fclose(file);
 }
+
 void setup_hostname()
 {
 	/* Open the /etc/hostname file */
