@@ -10,6 +10,7 @@
 #include <onyx/vfs.h>
 #include <onyx/elf.h>
 #include <onyx/vmm.h>
+
 static module_hashtable_t *hashtable;
 _Bool mods_disabled = 0;
 #define DEFAULT_SIZE 100

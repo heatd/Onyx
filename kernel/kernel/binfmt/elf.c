@@ -98,8 +98,11 @@ int elf_relocate_addend(Elf64_Ehdr *hdr, Elf64_Rela *rela, Elf64_Shdr *section)
 	Elf64_Shdr *sections = (Elf64_Shdr*)((char*)hdr + hdr->e_shoff); 
 	Elf64_Shdr *target_section = &sections[section->sh_info];
 	uintptr_t addr = (uintptr_t)hdr + target_section->sh_offset;
-	uintptr_t *p = (uintptr_t*)(addr + rela->r_offset);
+	uintptr_t *p = (uintptr_t*) (addr + rela->r_offset);
 	size_t sym_idx = ELF64_R_SYM(rela->r_info);
+
+	int32_t *ptr32s = (int32_t*) p;
+	uint32_t *ptr32u = (uint32_t *) p;
 	if(sym_idx != SHN_UNDEF)
 	{
 		uintptr_t sym = elf_resolve_symbol(hdr, sections, target_section, sym_idx);
@@ -110,13 +113,13 @@ int elf_relocate_addend(Elf64_Ehdr *hdr, Elf64_Rela *rela, Elf64_Shdr *section)
 				*p = RELOCATE_R_X86_64_64(sym, rela->r_addend);
 				break;
 			case R_X86_64_32S:
-				*p = RELOCATE_R_X86_64_32S(sym, rela->r_addend);
+				*ptr32s = RELOCATE_R_X86_64_32S(sym, rela->r_addend);
 				break;
 			case R_X86_64_32:
 				*p = RELOCATE_R_X86_64_32(sym, rela->r_addend);
 				break;
 			case R_X86_64_PC32:
-				*p = RELOCATE_R_X86_64_PC32(sym, rela->r_addend, (uintptr_t) p);
+				*ptr32u = RELOCATE_R_X86_64_PC32(sym, rela->r_addend, (uintptr_t) p);
 				break;
 			default:
 				printk("Unsuported relocation!\n");
