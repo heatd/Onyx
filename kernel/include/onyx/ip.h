@@ -81,4 +81,6 @@ int send_ipv4_packet(uint32_t senderip, uint32_t destip, unsigned int type, char
 void ip_set_local_ip(uint32_t lip);
 void ip_set_router_ip(uint32_t rout_ip);
 struct sock *ipv4_create_socket(int type, int protocol);
+void ipv4_handle_packet(ip_header_t *header, size_t size, struct netif *netif);
+
 #endif

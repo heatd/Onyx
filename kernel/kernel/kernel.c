@@ -83,8 +83,6 @@
 #include <drivers/softwarefb.h>
 #include <drivers/pci.h>
 
-#define KERNEL_START_VIRT 0xffffffff80100000
-
 extern uint64_t kernel_end;
 extern uintptr_t _start_smp;
 extern uintptr_t _end_smp;
@@ -231,7 +229,7 @@ retry:;
 	assert(entry != NULL);
 
 	int argc;
-	char **_argv = copy_argv(argv, proc->cmd_line, &argc);
+	char **_argv = process_copy_envarg(argv, false, &argc);
 	char **_env = process_copy_envarg(envp, false, NULL);
 
 	process_create_thread(proc, (thread_callback_t) entry, 0, argc, _argv, _env);
@@ -395,19 +393,20 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 	/* Initialize the first terminal */
 	tty_init();
 }
+
 void kernel_multitasking(void *);
 __attribute__((no_sanitize_undefined))
 void kernel_main()
 {
 	init_elf_symbols(secs);
-
+	
 	/* Initialize ACPI */
 	acpi_initialize();
 
-	/* Intialize the interrupt part of the CPU (arch dependent) */
+	/* Initialize the interrupt part of the CPU (arch dependent) */
 	cpu_init_interrupts();
 
-	memcpy((void*)tramp, &_start_smp, (uintptr_t)&_end_smp - (uintptr_t)&_start_smp);
+	memcpy((void*) tramp, &_start_smp, (uintptr_t)&_end_smp - (uintptr_t)&_start_smp);
 
 	/* Initialize multi-processors */
 	cpu_init_mp();
@@ -415,7 +414,6 @@ void kernel_main()
 	init_keyboard();
 
 	init_tss();
-
 	/* Initialize the VFS */
 	vfs_init();
 	if (!initrd_tag)

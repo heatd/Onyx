@@ -26,10 +26,18 @@ void nmi_disable()
 	outb(0x70, inb(0x70) | 0x80);
 }
 
+static bool update_is_pending(void)
+{
+	outb(0x70, RTC_STATUS_REG_A);
+	uint8_t b = inb(0x71);
+	return b & 0x80;
+}
+
 bool enabled24_hour = false, binary_mode_enabled = false;
 
 int rtc_get_date_reg(uint8_t reg)
 {
+	while(update_is_pending());
 	nmi_disable();
 	DISABLE_INTERRUPTS();
 	outb(0x70, reg);
@@ -48,6 +56,7 @@ int rtc_get_date_reg(uint8_t reg)
 
 int rtc_get_date_reg_early(uint8_t reg)
 {
+	while(update_is_pending());
 	nmi_disable();
 	outb(0x70, reg);
 	uint8_t datereg = inb(0x71);

@@ -3,6 +3,7 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -14,6 +15,8 @@
 #include <onyx/irq.h>
 #include <onyx/log.h>
 #include <onyx/network.h>
+#include <onyx/driver.h>
+#include <onyx/netif.h>
 
 #include <drivers/mmio.h>
 #include <drivers/e1000.h>
@@ -22,11 +25,12 @@
 static struct pci_device *nicdev = NULL;
 static struct e1000_rx_desc *rx_descs[E1000_NUM_RX_DESC];
 static struct e1000_tx_desc *tx_descs[E1000_NUM_TX_DESC];
-static int rx_cur = 0, tx_cur = 0;
-_Bool eeprom_exists = false;
-_Bool got_packet = false;
+static spinlock_t tx_cur_lock;
+static unsigned long rx_cur = 0, tx_cur = 0;
+bool eeprom_exists = false;
 static char *mem_space = NULL;
 static uint16_t io_space = 0;
+struct netif *nic_netif = NULL;
 void e1000_write_command(uint16_t addr, uint32_t val);
 uint32_t e1000_read_command(uint16_t p_address);
 
@@ -34,23 +38,26 @@ static void initialize_e1000_busmastering()
 {
 	pci_enable_busmastering(nicdev);
 }
+
 void e1000_handle_recieve()
 {
 	uint16_t old_cur = 0;
 	while((rx_descs[rx_cur]->status & 0x1))
 	{
-		got_packet = true;
 		uint8_t *buf = (uint8_t *)rx_descs[rx_cur]->addr;
 		uint16_t len = rx_descs[rx_cur]->length;
-		network_handle_packet(buf, len, NULL);
-		eth_set_packet_buf(buf + PHYS_BASE);
-		eth_set_packet_len(len);
+
+		network_dispatch_recieve(buf + PHYS_BASE, len, nic_netif);
+
 		rx_descs[rx_cur]->status = 0;
 		old_cur = rx_cur;
+
 		rx_cur = (rx_cur + 1) % E1000_NUM_RX_DESC;
+
 		e1000_write_command(REG_RXDESCTAIL, old_cur);
+	}
 }
-}
+
 static uintptr_t e1000_irq(registers_t *regs)
 {
 	volatile uint32_t status = e1000_read_command(0xc0);
@@ -60,15 +67,18 @@ static uintptr_t e1000_irq(registers_t *regs)
 	}
 	return 0;
 }
+
 void e1000_write_command(uint16_t addr, uint32_t val)
 {
 	mmio_writel((uintptr_t) (mem_space + addr), val);
 }
+
 uint32_t e1000_read_command(uint16_t addr)
 {
 	return mmio_readl((uintptr_t) (mem_space + addr));
 }
-void e1000_detect_eeprom()
+
+void e1000_detect_eeprom(void)
 {
 	e1000_write_command(REG_EEPROM, 0x1);
 	for(int i = 0; i < 1000000; i++)
@@ -82,6 +92,7 @@ void e1000_detect_eeprom()
 		}
 	}
 }
+
 uint32_t e1000_eeprom_read(uint8_t addr)
 {
 	uint16_t data = 0;
@@ -99,49 +110,51 @@ uint32_t e1000_eeprom_read(uint8_t addr)
 	data = (uint16_t)((tmp >> 16) & 0xFFFF);
 	return data;
 }
-unsigned char mac_address[6];
-int e1000_read_mac_address()
+
+static unsigned char e1000_internal_mac_address[6];
+
+int e1000_read_mac_address(void)
 {
 	if(eeprom_exists)
 	{
 		uint32_t temp;
 		temp = e1000_eeprom_read(0);
-		mac_address[0] = temp &0xff;
-		mac_address[1] = temp >> 8;
+		e1000_internal_mac_address[0] = temp & 0xff;
+		e1000_internal_mac_address[1] = temp >> 8;
 		temp = e1000_eeprom_read(1);
-		mac_address[2] = temp &0xff;
-		mac_address[3] = temp >> 8;
+		e1000_internal_mac_address[2] = temp & 0xff;
+		e1000_internal_mac_address[3] = temp >> 8;
 		temp = e1000_eeprom_read(2);
-		mac_address[4] = temp &0xff;
-		mac_address[5] = temp >> 8;
+		e1000_internal_mac_address[4] = temp & 0xff;
+		e1000_internal_mac_address[5] = temp >> 8;
 		return 0;
 	}
 	else
 	{
 		uint8_t *mem_base_mac_8 = (uint8_t *) (mem_space+0x5400);
 		uint32_t *mem_base_mac_32 = (uint32_t *) (mem_space+0x5400);
-		if ( mem_base_mac_32[0] != 0 )
+		if (mem_base_mac_32[0] != 0)
 		{
 			for(int i = 0; i < 6; i++)
 			{
-				mac_address[i] = mem_base_mac_8[i];
+				e1000_internal_mac_address[i] = mem_base_mac_8[i];
 			}
 			return 0;
 		}
    	}
 	return 1;
 }
-int e1000_init_descs()
+
+int e1000_init_descs(void)
 {
 	uint8_t *ptr = NULL;
 	struct e1000_rx_desc *rxdescs = NULL;
-	size_t needed_pages = (sizeof(struct e1000_rx_desc) * E1000_NUM_RX_DESC + 16) / 4096;
-	if((sizeof(struct e1000_rx_desc) * E1000_NUM_RX_DESC + 16) % 4096)
-		needed_pages++;
-	ptr = vmm_allocate_virt_address(VM_KERNEL, needed_pages, VM_TYPE_HW, VM_WRITE | VM_GLOBAL | VM_NOEXEC, 0);
+	size_t needed_pages = vmm_align_size_to_pages(sizeof(struct e1000_rx_desc) * E1000_NUM_RX_DESC + 16);
+	ptr = vmm_allocate_virt_address(VM_KERNEL, needed_pages, VM_TYPE_HW,
+		VM_WRITE | VM_GLOBAL | VM_NOEXEC, 0);
 	if(!ptr)
 		return 1;
-	vmm_map_range(ptr, needed_pages, VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC);
+	vmm_map_range(ptr, needed_pages, VM_WRITE | VM_GLOBAL | VM_NOEXEC);
 	rxdescs = (struct e1000_rx_desc *) ptr;
 	for(int i = 0; i < E1000_NUM_RX_DESC; i++)
 	{
@@ -195,8 +208,8 @@ int e1000_init_descs()
 
 	e1000_write_command(REG_TXDESCLEN, E1000_NUM_TX_DESC * 16);
 
-	e1000_write_command( REG_TXDESCHEAD, 0);
-	e1000_write_command( REG_TXDESCTAIL, 0);
+	e1000_write_command(REG_TXDESCHEAD, 0);
+	e1000_write_command(REG_TXDESCTAIL, 0);
 	tx_cur = 0;
 	/*e1000_write_command(REG_TCTRL,  TCTL_EN
         | TCTL_PSP
@@ -209,6 +222,7 @@ int e1000_init_descs()
 
 	return 0;
 }
+
 void e1000_enable_interrupts()
 {
 	uint16_t int_no = pci_get_intn(nicdev);
@@ -222,21 +236,123 @@ void e1000_enable_interrupts()
 	e1000_write_command(REG_IMASK ,0xff & ~4);
 	e1000_read_command(0xC0);
 }
+
 int e1000_send_packet(const void *data, uint16_t len)
 {
-	tx_descs[tx_cur]->addr = (uint64_t)virtual2phys((void*) data);
+	acquire_spinlock(&tx_cur_lock);
+	
+	tx_descs[tx_cur]->addr = (uint64_t) virtual2phys((void*) data);
 	tx_descs[tx_cur]->length = len;
 	tx_descs[tx_cur]->cmd = CMD_EOP | CMD_IFCS | CMD_RS | CMD_RPS | CMD_IC;
 	tx_descs[tx_cur]->status = 0;
 	uint8_t old_cur = tx_cur;
 	tx_cur = (tx_cur + 1) % E1000_NUM_TX_DESC;
 	e1000_write_command(REG_TXDESCTAIL, tx_cur);
+	release_spinlock(&tx_cur_lock);
+
 	while(!(tx_descs[old_cur]->status & 0xff));
 	return 0;
 }
-void e1000_init(struct pci_device *dev)
+
+void e1000_disable_rxtx(void)
 {
-	nicdev = dev;
+	e1000_write_command(REG_RCTRL, 0);
+	e1000_write_command(REG_TCTRL, 0);
+}
+
+void e1000_setup_flow_control(void)
+{
+	/* Setup the standard flow control addresses */
+	e1000_write_command(REG_FCAL, 0x00c28001);
+	e1000_write_command(REG_FCAH, 0x0100);
+	e1000_write_command(REG_FCT, 0x8808);
+	e1000_write_command(REG_FCTTV, 0);
+}
+
+void e1000_clear_stats(void)
+{
+	for(uint32_t x = 0; x < 256; x += 4)
+		e1000_read_command(REG_CRCERRS + x);
+}
+
+void e1000_reset_device(void)
+{
+	/* Disable busmastering and interrupts before resetting the NIC */
+	pci_disable_busmastering(nicdev);
+	pci_disable_irq(nicdev);
+
+	/* Also disable rx/tx */
+	e1000_disable_rxtx();
+
+	/* And disable interrupts in the NIC itself */
+	e1000_write_command(REG_IMC, UINT32_MAX);
+
+	/* Reset the NIC by setting the correct bit */
+	uint32_t ctrl = e1000_read_command(REG_CTRL);
+	e1000_write_command(REG_CTRL, ctrl | CTRL_RST);
+
+	for(;;)
+	{
+		/*
+		 * Sortix does it, maybe we should too.
+		 * On some hardware, this loop would hang without this.
+		 * Read all the statisics registers (which we do later anyway).
+		*/
+		e1000_clear_stats();
+		ctrl = e1000_read_command(REG_CTRL);
+		if(!(ctrl & CTRL_PHY_RST))
+			break;
+	}
+
+	/* Disable interrupts again */
+	e1000_write_command(REG_IMC, UINT32_MAX);
+
+	initialize_e1000_busmastering();
+
+	ctrl = e1000_read_command(REG_CTRL);
+
+	ctrl |= CTRL_SLU;
+	/* TODO: The docs say that ASDE should be set to 0 on 82574's */
+	ctrl |= CTRL_ASDE;
+	ctrl &= ~CTRL_FORCE_SPEED;
+	ctrl &= ~CTRL_FRCDPLX;
+
+	e1000_write_command(REG_CTRL, ctrl);
+
+	/* Setup flow control */
+	e1000_setup_flow_control();
+
+	/* Clear statistical registers */
+	e1000_clear_stats();
+
+	pci_enable_irq(nicdev);
+}
+
+bool e1000_filter(struct pci_device *dev)
+{
+	if(dev->vendorID != INTEL_VENDOR)
+		return false;
+	switch(dev->deviceID)
+	{
+		case E1000_DEV:
+		case E1000_I217:
+		case E1000E_DEV:
+		case E1000_82577LM:
+			nicdev = dev;
+			return true;
+		default:
+			return false;
+	}
+}
+
+void e1000_init(void)
+{
+
+	pci_find_device(e1000_filter, true);
+	
+	if(!nicdev)
+		return;
+
 	pcibar_t *bar = pci_get_bar(nicdev, 0);
 	char *phys_mem_space = NULL;
 	if(bar->isIO)
@@ -247,34 +363,36 @@ void e1000_init(struct pci_device *dev)
 		INFO("e1000", "mmio mode\n");
 	else
 	{
-		free(dev);
 		free(bar);
-		ERROR("e1000", "Sorry! This driver only supports e1000 register access through MMIO, and sadly your card needs the legacy I/O port method of accessing registers\n");
+		ERROR("e1000", "Sorry! This driver only supports e1000 register access through MMIO, "
+		"and sadly your card needs the legacy I/O port method of accessing registers\n");
 		return;
 	}
-	INFO("e1000", "physical mem %p\n", phys_mem_space);
-	size_t needed_pages = bar->size / PAGE_SIZE;
-	if(bar->size % PAGE_SIZE)
-		needed_pages++;
-	mem_space = vmm_allocate_virt_address(VM_KERNEL, needed_pages, VMM_TYPE_HW, VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC, 0);
-	if(!mem_space)
-		return;
-	uintptr_t virt = (uintptr_t) mem_space;
-	for(size_t i = 0; i < needed_pages; i++)
-	{
-		paging_map_phys_to_virt(virt, (uintptr_t) phys_mem_space, VMM_GLOBAL | VMM_WRITE | VMM_NOEXEC);
-		phys_mem_space += 0x1000;
-		virt += 0x1000;
-	}
-	// Initialize PCI Busmastering (needed for DMA)
-	initialize_e1000_busmastering();
+
+	mem_space = dma_map_range(phys_mem_space, bar->size, VM_WRITE | VM_NOEXEC | VM_GLOBAL);
+	
+	e1000_reset_device();
+
 	e1000_detect_eeprom();
+
 	if(e1000_read_mac_address())
 		return;
-	//INFO("eth0", "MAC address: %x:%x:%x:%x:%x:%x\n", mac_address[0], mac_address[1], mac_address[2], mac_address[3], mac_address[4], mac_address[5]);
+	
 	if(e1000_init_descs())
 		ERROR("e1000", "failed to initialize!\n");
+
 	e1000_enable_interrupts();
-	//eth_set_dev_send_packet(e1000_send_packet);
-	free(bar); // Don't forget to free bar, as we don't want a memory leak
+	struct netif *n = zalloc(sizeof(struct netif));
+	if(!n)
+		return;
+	n->name = "eth0";
+	n->flags |= NETIF_LINKUP;
+	n->sendpacket = e1000_send_packet;
+	memcpy(n->mac_address, e1000_internal_mac_address, 6);
+	netif_register_if(n);
+
+	nic_netif = n;
+	free(bar);
 }
+
+DRIVER_INIT(e1000_init);

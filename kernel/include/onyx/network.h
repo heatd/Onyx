@@ -41,13 +41,23 @@ typedef struct sock
 	bool connected;
 } socket_t;
 
+
+struct network_args
+{
+	uint8_t *buffer;
+	uint16_t size;
+	struct netif *netif;
+};
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 int _socket(int domain, int connection_type, int protocol);
 int _bind(int socket, int localport, uint32_t ip, int destport);
 int _recv(int socket, void **bufptr);
 int _send(int socket, const void *buffer, size_t len);
+void network_dispatch_recieve(uint8_t *packet, uint16_t len, struct netif *netif);
 int network_handle_packet(uint8_t *packet, uint16_t len, struct netif *netif);
 const char *network_gethostname();
 void network_sethostname(const char *);

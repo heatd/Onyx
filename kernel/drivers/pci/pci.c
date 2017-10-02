@@ -334,10 +334,6 @@ void pci_set_barx(uint8_t slot, uint8_t device, uint8_t function, uint8_t index,
 #include <drivers/ata.h>
 pci_driver_t pci_drivers[] =
 {
-	{E1000_DEV, INTEL_VEND, CLASS_NETWORK_CONTROLLER, 0, 0, PCI_DRIVER_SPECIFIC, e1000_init},
-	{E1000_I217, INTEL_VEND, CLASS_NETWORK_CONTROLLER, 0, 0, PCI_DRIVER_SPECIFIC, e1000_init},
-	{E1000_82577LM, INTEL_VEND, CLASS_NETWORK_CONTROLLER, 0, 0, PCI_DRIVER_SPECIFIC, e1000_init},
-	{E1000E_DEV, INTEL_VEND, CLASS_NETWORK_CONTROLLER, 0, 0, PCI_DRIVER_SPECIFIC, e1000_init}
 };
 
 const size_t pci_driver_array_entries = sizeof(pci_drivers) / sizeof(pci_driver_t);
@@ -504,4 +500,22 @@ bool pci_find_device(bool (*callback)(struct pci_device *), bool stop_on_match)
 		found = true;
 	}
 	return found;
+}
+
+void pci_disable_busmastering(struct pci_device *dev)
+{
+	uint32_t command_register = (uint32_t) pci_read(dev, PCI_COMMAND, sizeof(uint32_t));
+	pci_write(dev, command_register & ~PCI_COMMAND_BUS_MASTER, PCI_COMMAND, sizeof(uint32_t));
+}
+
+void pci_disable_irq(struct pci_device *dev)
+{
+	uint32_t command_register = (uint32_t) pci_read(dev, PCI_COMMAND, sizeof(uint32_t));
+	pci_write(dev, command_register | PCI_COMMAND_INTR_DISABLE, PCI_COMMAND, sizeof(uint32_t));
+}
+
+void pci_enable_irq(struct pci_device *dev)
+{
+	uint32_t command_register = (uint32_t) pci_read(dev, PCI_COMMAND, sizeof(uint32_t));
+	pci_write(dev, command_register & ~PCI_COMMAND_INTR_DISABLE, PCI_COMMAND, sizeof(uint32_t));
 }

@@ -35,6 +35,7 @@ int send_udp_packet(char *payload, size_t payload_size, int source_port, int des
 	free(udp_header);
 	return ret;
 }
+
 int udp_bind(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode)
 {
 	udp_socket_t *socket = (udp_socket_t*) vnode;
@@ -50,6 +51,7 @@ int udp_bind(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode
 	socket->socket.bound = true;
 	return 0;
 }
+
 int udp_connect(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode)
 {
 	udp_socket_t *socket = (udp_socket_t*) vnode;
@@ -59,6 +61,7 @@ int udp_connect(const struct sockaddr *addr, socklen_t addrlen, struct inode *vn
 	socket->socket.connected = true;
 	return 0;
 }
+
 ssize_t udp_send(const void *buf, size_t len, int flags, struct inode *vnode)
 {
 	udp_socket_t *socket = (udp_socket_t*) vnode;
@@ -96,10 +99,12 @@ ssize_t udp_recvfrom(void *buf, size_t len, int flags, struct sockaddr *src_addr
 		return -ENOMEM;
 	return 0;
 }
+
 size_t udp_write(size_t offset, size_t sizeofwrite, void* buffer, struct inode* this)
 {
 	return (size_t) udp_send(buffer, sizeofwrite, 0, this);
 }
+
 static struct file_ops udp_ops = 
 {
 	.bind = udp_bind,
@@ -108,6 +113,7 @@ static struct file_ops udp_ops =
 	.write = udp_write,
 	.recvfrom = udp_recvfrom
 };
+
 socket_t *udp_create_socket(int type)
 {
 	udp_socket_t *socket = malloc(sizeof(udp_socket_t));
@@ -120,6 +126,7 @@ socket_t *udp_create_socket(int type)
 	socket->type = type;
 	return (socket_t*) socket;
 }
+
 int udp_init_netif(struct netif *netif)
 {
 	/* TODO: Add IPv6 support */

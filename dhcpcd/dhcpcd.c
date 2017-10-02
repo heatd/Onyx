@@ -112,7 +112,10 @@ int main(int argc, char **argv, char **envp)
 	//printf("%s: Daemon initialized\n", argv[0]);
 	int fd = open("/dev/eth0", O_RDWR);
 	if(fd < 0)
+	{
+		perror("/dev/eth0");
 		return 1;
+	}
 	printf("Opened %s\n", "/dev/eth0");
 	int sock = socket(AF_INET, SOCK_DGRAM, 0);
 	if(sock < 0)

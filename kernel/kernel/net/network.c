@@ -12,6 +12,7 @@
 #include <fcntl.h>
 #include <assert.h>
 
+#include <onyx/log.h>
 #include <onyx/network.h>
 #include <onyx/ip.h>
 #include <onyx/udp.h>
@@ -20,7 +21,9 @@
 #include <onyx/dns.h>
 #include <onyx/file.h>
 #include <onyx/ethernet.h>
-
+#include <onyx/dpc.h>
+#include <onyx/network.h>
+#include <onyx/slab.h>
 
 static const char *hostname = "";
 
@@ -29,8 +32,7 @@ int network_handle_packet(uint8_t *packet, uint16_t len, struct netif *netif)
 	ethernet_header_t *hdr = (ethernet_header_t*) packet;
 	hdr->ethertype = LITTLE_TO_BIG16(hdr->ethertype);
 	if(hdr->ethertype == PROTO_IPV4)
-		//ipv4_handle_packet((ip_header_t*)(hdr+1), len - sizeof(ethernet_header_t), netif);
-	printf("Hi dad\n");
+		ipv4_handle_packet((ip_header_t*)(hdr+1), len - sizeof(ethernet_header_t), netif);
 	/*else if(hdr->ethertype == PROTO_ARP)
 		arp_handle_packet((arp_request_t*)(hdr+1), len - sizeof(ethernet_header_t));*/
 	return 0;
@@ -126,4 +128,44 @@ int sys_socket(int domain, int type, int protocol)
 	if(fd < 0)
 		close_vfs((struct inode*) socket);
 	return fd;
+}
+
+static slab_cache_t *network_slab;
+
+void network_do_dispatch(void *__args)
+{
+	struct network_args *args = __args;
+	network_handle_packet(args->buffer, args->size, args->netif);
+	slab_free(network_slab, __args);
+}
+
+#ifndef NET_POOL_NUM_OBJS
+#define NET_POOL_NUM_OBJS	512
+#endif
+
+void __init network_init(void)
+{
+	network_slab = slab_create("net", sizeof(struct network_args), 0,
+			SLAB_FLAG_DONT_CACHE, NULL, NULL);
+	assert(network_slab != NULL);
+
+	assert(slab_populate(network_slab, NET_POOL_NUM_OBJS) != -1);
+}
+
+void network_dispatch_recieve(uint8_t *packet, uint16_t len, struct netif *netif)
+{
+	struct network_args *args = slab_allocate(network_slab);
+	if(!args)
+	{
+		ERROR("net", "Could not recieve packet: Out of memory inside IRQ\n");
+		return;
+	}
+	args->buffer = packet;
+	args->size = len;
+	args->netif = netif;
+
+	struct dpc_work work = {0};
+	work.funcptr = network_do_dispatch;
+	work.context = &args;
+	dpc_schedule_work(&work, DPC_PRIORITY_HIGH);
 }
