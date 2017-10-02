@@ -116,7 +116,7 @@ int elf_relocate_addend(Elf64_Ehdr *hdr, Elf64_Rela *rela, Elf64_Shdr *section)
 				*ptr32s = RELOCATE_R_X86_64_32S(sym, rela->r_addend);
 				break;
 			case R_X86_64_32:
-				*p = RELOCATE_R_X86_64_32(sym, rela->r_addend);
+				*ptr32u = RELOCATE_R_X86_64_32(sym, rela->r_addend);
 				break;
 			case R_X86_64_PC32:
 				*ptr32u = RELOCATE_R_X86_64_PC32(sym, rela->r_addend, (uintptr_t) p);

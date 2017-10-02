@@ -31,6 +31,7 @@ OBJS:=\
 $(patsubst %.c,%.o,$(wildcard drivers/*/*.c)) \
 $(patsubst %.cpp,%.o,$(wildcard drivers/*/*.cpp)) \
 $(patsubst %.c,%.o,$(wildcard kernel/*.c)) \
+$(patsubst %.c,%.o,$(wildcard crypt/*.c)) \
 $(patsubst %.cpp,%.o,$(wildcard kernel/*.cpp)) \
 $(patsubst %.c,%.o,$(wildcard kernel/*/*.c)) \
 $(patsubst %.cpp,%.o,$(wildcard kernel/*/*.cpp)) \
