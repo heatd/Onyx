@@ -20,8 +20,6 @@
 	#define KERNEL_VIRTUAL_BASE 0xFFFFFFFF80000000
 #endif
 
-#define CONFIG_ASLR		1
-
 #define VM_TYPE_REGULAR		(0)
 #define VM_TYPE_STACK 		(1)
 #define VM_TYPE_SHARED 		(2)

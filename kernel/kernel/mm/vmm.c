@@ -374,7 +374,7 @@ void *vmm_map_range(void *range, size_t pages, uint64_t flags)
 {
 	bool kernel = is_higher_half(range);
 
-	__vm_lock(kernel);
+	if(!kernel) __vm_lock(kernel);
 	uintptr_t mem = (uintptr_t) range;
 	for (size_t pgs = 0; pgs < pages; pgs++)
 	{
@@ -391,7 +391,7 @@ void *vmm_map_range(void *range, size_t pages, uint64_t flags)
 		mem += PAGE_SIZE;
 	}
 	
-	__vm_unlock(kernel);
+	if(!kernel) __vm_unlock(kernel);
 	return range;
 }
 
