@@ -933,8 +933,8 @@ uint64_t sys_brk(void *newbrk)
 
 void print_vmm_structs(avl_node_t *node)
 {
-	printk("[Base %x Length %x End %x]\n", node->data->base, node->data->pages * PAGE_SIZE, 
-	(uintptr_t) node->data->base + node->data->pages * PAGE_SIZE);
+	printk("[Base %016lx Length %lx End %016lx]\n", node->data->base, node->data->pages
+		* PAGE_SIZE, (uintptr_t) node->data->base + node->data->pages * PAGE_SIZE);
 	if(node->left)
 		print_vmm_structs(node->left);
 	if(node->right)

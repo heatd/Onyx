@@ -52,7 +52,7 @@ void *stack_trace()
 		char *s = resolve_sym((void*)*(rbp+1));
 		if(!s)
 			break;
-		printk("Stack trace #%d: %s\n", i, s);
+		printk("Stack trace #%lu: %s\n", i, s);
 		rbp = (uint64_t*)*rbp;
 		if(!rbp)
 			break;

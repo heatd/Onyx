@@ -128,7 +128,7 @@ void dump_bootmem(void)
 {
 	for (unsigned int i = 0; i < pushed_blocks; i--)
 	{
-		printk("[%p - %p]\n", stack->next[i].base, 
+		printk("[%016lx - %016lx]\n", stack->next[i].base, 
 			stack->next[i].base + stack->next[i].size);
 	}
 }

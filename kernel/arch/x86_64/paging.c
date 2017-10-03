@@ -579,31 +579,31 @@ void paging_walk(void *addr)
 	uint64_t* entry = &pml4->entries[dec.pml4];
 	if(*entry == 0)
 	{
-		printk("isn't mapped(PML4 %x)\n", pml4);
+		printk("isn't mapped(PML4 %p)\n", pml4);
 		return;
 	}
 	PML3 *pml3 = (PML3*)((*entry & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
 	entry = &pml3->entries[dec.pdpt];
 	if(*entry == 0)
 	{
-		printk("isn't mapped(PML3 %x)\n", pml3);
+		printk("isn't mapped(PML3 %p)\n", pml3);
 		return;
 	}
 	PML2 *pml2 = (PML2*)((*entry & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
 	entry = &pml2->entries[dec.pd];
 	if(*entry == 0)
 	{
-		printk("isn't mapped(PML2 %x)\n", pml2);
+		printk("isn't mapped(PML2 %p)\n", pml2);
 		return;
 	}
 	PML1 *pml1 = (PML1*)((*entry & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
 	entry = &pml1->entries[dec.pt];
 	if(*entry == 0)
 	{
-		printk("isn't mapped(PML1 %x)\n", pml1);
+		printk("isn't mapped(PML1 %p)\n", pml1);
 		return;
 	}
 	uint32_t perms = *entry & 0xF00000000000FFF;
 	uint64_t page = PML_EXTRACT_ADDRESS(*entry);
-	printk("Perms: %x\nPage: %p\n", perms, page);
+	printk("Perms: %08x\nPage: %016lx\n", perms, page);
 }

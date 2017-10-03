@@ -190,7 +190,7 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 				Elf64_Rela *rela = &r[j];
 				rela->r_offset += (uintptr_t) base;
 				uintptr_t *addr = (uintptr_t*) rela->r_offset;
-				printk("Applying relocation to %x\n", addr);
+				printk("Applying relocation to %p\n", addr);
 				switch(ELF64_R_TYPE(rela->r_info))
 				{
 					case R_X86_64_RELATIVE:

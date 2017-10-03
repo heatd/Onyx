@@ -68,7 +68,7 @@ void dump_stack(uintptr_t *rsp)
 	printk("Stack dump: ");
 	/* Lets dump a comfortable number of bytes */
 	for(int i = 0; i < 20; i++, rsp--)
-		printk("%x ", *rsp);
+		printk("%016lx ", *rsp);
 	printk("\n");
 }
 extern void print_vmm_structs(avl_node_t *node);
@@ -86,9 +86,11 @@ void isr_handler(intctx_t *ctx)
 		{
 		pf0:
 			//printk("Program name: %s\n", get_current_process()->cmd_line);
-			printk("%s%p at %p\n",exception_msg[int_no], faulting_address, ctx->rip);
-			printk("Registers: rax: %x\nrbx: %x\nrcx: %x\nrdx: %x\nrdi: %x\nrsi: %x\nrbp: %x\nr8:  %x\nr9:  %x\n\
-r10: %x\nr11: %x\nr12: %x\nr13: %x\nr14: %x\nr15: %x\nrsp: %x\nrflags: %x\nds: %x\ncs: %x\n", 
+			printk("%s%016lx at %016lx\n",exception_msg[int_no], faulting_address, ctx->rip);
+			printk("Registers: rax: %016lx\nrbx: %016lx\nrcx: %016lx\nrdx: %016lx\n"
+			       "rdi: %016lx\nrsi: %016lx\nrbp: %016lx\nr8:  %016lx\nr9:  %016lx\n"
+			       "r10: %016lx\nr11: %016lx\nr12: %016lx\nr13: %016lx\nr14: %016lx\nr15: %016lx\n"
+			       "rsp: %016lx\nrflags: %016lx\nds: %016lx\ncs: %016lx\n", 
 			ctx->rax, ctx->rbx, ctx->rcx, ctx->rdx, ctx->rdi, ctx->rsi, ctx->rbp, ctx->r8, ctx->r9, 
 		ctx->r10, ctx->r11, ctx->r12, ctx->r13, ctx->r14, ctx->r15, ctx->rsp, ctx->rflags, ctx->ds, ctx->cs);
 			void paging_walk(void *address);
@@ -122,21 +124,16 @@ r10: %x\nr11: %x\nr12: %x\nr13: %x\nr14: %x\nr15: %x\nrsp: %x\nrflags: %x\nds: %
 	}
 	if(ctx->rip > VM_HIGHER_HALF)
 	{
-		printk("Err code: %x\n", err_code);
-		printk("Kernel exception %u at %p\n", int_no, ctx->rip);
-		printk("Registers: rax: %x\nrbx: %x\nrcx: %x\nrdx: %x\nrdi: %x\nrsi: %x\nrbp: %x\nr8:  %x\nr9:  %x\n\
-r10: %x\nr11: %x\nr12: %x\nr13: %x\nr14: %x\nr15: %x\nrsp: %x\nrflags: %x\nds: %x\ncs: %x\n", 
-			ctx->rax, ctx->rbx, ctx->rcx, ctx->rdx, ctx->rdi, ctx->rsi, ctx->rbp, ctx->r8, ctx->r9, 
-		ctx->r10, ctx->r11, ctx->r12, ctx->r13, ctx->r14, ctx->r15, ctx->rsp, ctx->rflags, ctx->ds, ctx->cs);
-		printk("Halting!\n");
-		halt();
+		panic("Kernel exception!\n");
 
 	}
-	printk("Exception %u at %p\n", int_no, ctx->rip);
-	printk("Registers: rax: %x\nrbx: %x\nrcx: %x\nrdx: %x\nrdi: %x\nrsi: %x\nrbp: %x\nr8:  %x\nr9:  %x\n\
-r10: %x\nr11: %x\nr12: %x\nr13: %x\nr14: %x\nr15: %x\nrsp: %x\nrflags: %x\nds: %x\ncs: %x\n", 
-			ctx->rax, ctx->rbx, ctx->rcx, ctx->rdx, ctx->rdi, ctx->rsi, ctx->rbp, ctx->r8, ctx->r9, 
-		ctx->r10, ctx->r11, ctx->r12, ctx->r13, ctx->r14, ctx->r15, ctx->rsp, ctx->rflags, ctx->ds, ctx->cs);
+	printk("%s%016lx at %016lx\n",exception_msg[int_no], faulting_address, ctx->rip);
+	printk("Registers: rax: %016lx\nrbx: %016lx\nrcx: %016lx\nrdx: %016lx\n"
+	       "rdi: %016lx\nrsi: %016lx\nrbp: %016lx\nr8:  %016lx\nr9:  %016lx\n"
+	       "r10: %016lx\nr11: %016lx\nr12: %016lx\nr13: %016lx\nr14: %016lx\nr15: %016lx\n"
+	       "rsp: %016lx\nrflags: %016lx\nds: %016lx\ncs: %016lx\n", 
+	ctx->rax, ctx->rbx, ctx->rcx, ctx->rdx, ctx->rdi, ctx->rsi, ctx->rbp, ctx->r8, ctx->r9, 
+ctx->r10, ctx->r11, ctx->r12, ctx->r13, ctx->r14, ctx->r15, ctx->rsp, ctx->rflags, ctx->ds, ctx->cs);
 	printk("Current process: %s\n", get_current_process() ? get_current_process()->cmd_line : "kernel");
 	// Enter the isr handler
 	enter_isr_handler();
@@ -193,7 +190,7 @@ r10: %x\nr11: %x\nr12: %x\nr13: %x\nr14: %x\nr15: %x\nrsp: %x\nrflags: %x\nds: %
 			break;
 		}
 	case 13:{
-			printk("Segment number: %x\n", err_code);
+			printk("Segment number: %08lx\n", err_code);
 			sys_kill(get_current_process()->pid, SIGSEGV);
 			break;
 		}
@@ -207,7 +204,7 @@ r10: %x\nr11: %x\nr12: %x\nr13: %x\nr14: %x\nr15: %x\nrsp: %x\nrflags: %x\nds: %
 		{
 		pf:
 			printk("\n");
-			printk("%s0x%X\n",exception_msg[int_no],faulting_address);
+			printk("%s%016lx\n",exception_msg[int_no],faulting_address);
 			if(err_code & 0x2)
 				printk(" caused by a write\n");
 			if(err_code & 0x4)
