@@ -83,7 +83,8 @@ void page_register_pages(void)
 		}
 	}
 	are_pages_registered = true;
-	INFO("page", "%u pages registered, aprox. %u bytes used\n", num_pages, num_pages * sizeof(struct page));
+	INFO("page", "%lu pages registered, aprox. %lu bytes used\n", num_pages,
+	          num_pages * sizeof(struct page));
 }
 struct page *phys_to_page(uintptr_t phys)
 {
@@ -94,7 +95,7 @@ struct page *phys_to_page(uintptr_t phys)
 		if(p->paddr == (void*) phys)
 			return p;
 	}
-	ERROR("page", "%p queried for %p, but it doesn't exist!\n", __builtin_return_address(0), phys);
+	ERROR("page", "%p queried for %lx, but it doesn't exist!\n", __builtin_return_address(0), phys);
 	return NULL;
 }
 unsigned long page_increment_refcount(void *paddr)

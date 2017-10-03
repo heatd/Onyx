@@ -81,7 +81,7 @@ void panic(const char *msg)
 			"CR0: %016"PRIx64" CR2: %016"PRIx64" CR3: %016"PRIx64" CR4: %016"PRIx64"\n"
 			"RIP: %016"PRIx64" RFLAGS: %08"PRIx64" GS:  %016"PRIx64" FS:  %016"PRIx64"\n",
 		rax, rbx, rcx, rdx, rdi, rsi, rbp, rsp, r8, r9, r10, r11, r12, r13, r14, r15, cr0, cr2, cr3,
-		cr4, rip, rflags, 0, fs);
+		cr4, rip, rflags, 0ul, fs);
 #else
 	#error "Implement thread context printing in your arch"
 #endif

@@ -24,14 +24,14 @@ void kernlog_print(const char *msg)
 		/* If there's clearly enough space, it's straight forward to do */
 		/* Compose a message containing a timestamp */
 		memset(&_log_buf[log_position], 0, strlen(msg) + 13 + 2);
-		snprintf(&_log_buf[log_position], strlen(msg) + 13 + 2, "[%05u.%05u] %s", get_tick_count() / 1000, get_tick_count() % 1000, msg);
+		snprintf(&_log_buf[log_position], strlen(msg) + 13 + 2, "[%05lu.%05lu] %s", get_tick_count() / 1000, get_tick_count() % 1000, msg);
 		log_position += strlen(msg) + 13 + 1;
 	}
 	else
 	{
 		/* else start overwriting the buffer head */
 		log_position = 0;
-		snprintf(&_log_buf[log_position], strlen(msg) + 13 + 2, "[%u.%u] %s", get_tick_count() / 1000, get_tick_count() % 1000, msg);
+		snprintf(&_log_buf[log_position], strlen(msg) + 13 + 2, "[%lu.%lu] %s", get_tick_count() / 1000, get_tick_count() % 1000, msg);
 		log_position += strlen(msg) + 13 + 1;
 	}
 }

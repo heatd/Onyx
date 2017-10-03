@@ -178,7 +178,7 @@ struct inode *ext2_creat(const char *path, int mode, struct inode *file)
 __attribute__((no_sanitize_undefined))
 struct inode *ext2_mount_partition(uint64_t sector, block_device_t *dev)
 {
-	LOG("ext2", "mounting ext2 partition at sector %d\n", sector);
+	LOG("ext2", "mounting ext2 partition at sector %lu\n", sector);
 	superblock_t *sb = malloc(sizeof(superblock_t));
 	if(!sb)
 		return NULL;

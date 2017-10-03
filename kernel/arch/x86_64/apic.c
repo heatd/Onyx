@@ -355,7 +355,7 @@ void apic_wake_up_processor(uint8_t lapicid)
 	{
 		if(ap_done == 1)
 		{
-			printf("AP core woke up! LAPICID %d at tick %d\n", lapicid, get_tick_count());
+			printf("AP core woke up! LAPICID %u at tick %lu\n", lapicid, get_tick_count());
 			break;
 		}
 	}
@@ -367,7 +367,7 @@ void apic_wake_up_processor(uint8_t lapicid)
 		{
 			if(ap_done == 1)
 			{
-				printf("AP core woke up! LAPICID %d at tick %d\n", lapicid, get_tick_count());
+				printf("AP core woke up! LAPICID %u at tick %lu\n", lapicid, get_tick_count());
 				break;
 			}
 		}

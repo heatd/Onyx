@@ -92,7 +92,7 @@ static struct multiboot_tag_module *initrd_tag = NULL;
 struct multiboot_tag_elf_sections *secs;
 struct multiboot_tag_mmap *mmap_tag = NULL;
 void *initrd_addr = NULL;
-static void *tramp = NULL;
+void *tramp = NULL;
 void *phys_fb = NULL;
 char kernel_cmdline[256];
 uintptr_t address = 0;
@@ -352,7 +352,8 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 
 	for (size_t i = 0; i < entries; i++)
 	{
-		printf("Memory range %p - %p - type %u\n", mmap->addr, mmap->addr + mmap->len, mmap->type);
+		printf("Memory range %016llx - %016llx - type %u\n", mmap->addr,
+		        mmap->addr + mmap->len, mmap->type);
 		if (mmap->type == MULTIBOOT_MEMORY_AVAILABLE)
 		{
 			bootmem_push(mmap->addr, mmap->len, initrd_tag);

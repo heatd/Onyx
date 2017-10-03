@@ -132,7 +132,7 @@ char *resolve_sym(void *address)
 	if(!buf)
 		return NULL;
 	memset(buf, 0, buf_size);
-	sprintf(buf, "<%s+0x%x>", elf_get_string(closest_sym->st_name), diff);
+	sprintf(buf, "<%s+0x%lx>", elf_get_string(closest_sym->st_name), diff);
 	return buf;
 }
 __attribute__((no_sanitize_undefined))

@@ -75,7 +75,7 @@ void *AcpiOsAllocate(ACPI_SIZE Size)
 {	
 	void *ptr = malloc(Size);
 	if(!ptr)
-		printf("Allocation failed with size %d\n", Size);
+		printf("Allocation failed with size %lu\n", Size);
 	return ptr;
 }
 void AcpiOsFree(void *Memory)
@@ -261,6 +261,9 @@ ACPI_STATUS AcpiOsWritePciConfiguration (ACPI_PCI_ID *PciId, UINT32 Register, UI
 		__pci_write_qword(PciId->Bus, PciId->Device, PciId->Function, Register, Value);
 	return AE_OK;
 }
+
+uint64_t __pci_read(struct pci_device *dev, uint16_t off, size_t size);
+
 ACPI_STATUS AcpiOsReadPciConfiguration(ACPI_PCI_ID *PciId, UINT32 Register, UINT64 *Value, UINT32 Width)
 {
 	struct pci_device_address addr;
@@ -270,7 +273,17 @@ ACPI_STATUS AcpiOsReadPciConfiguration(ACPI_PCI_ID *PciId, UINT32 Register, UINT
 	addr.function = (uint8_t) PciId->Function;
 	struct pci_device *dev = get_pcidev(&addr);
 	if(!dev)
-		return AE_NOT_FOUND;
+	{
+		struct pci_device fake_dev;
+		fake_dev.segment = addr.segment;
+		fake_dev.bus = addr.bus;
+		fake_dev.device = addr.device;
+		fake_dev.function = addr.function;
+		fake_dev.read = __pci_read;
+		*Value = pci_read(&fake_dev, (uint16_t) Register, Width / 8);
+
+		return AE_OK;
+	}
 	*Value = pci_read(dev, (uint16_t) Register, Width / 8);
 	return AE_OK;
 }

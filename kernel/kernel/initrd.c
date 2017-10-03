@@ -251,7 +251,7 @@ void init_initrd(void *initrd)
 {
 	printf("Found an Initrd at %p\n", initrd);
 	n_files = tar_parse((uintptr_t) initrd);
-	printf("Found %d files in the Initrd\n", n_files);
+	printf("Found %lu files in the Initrd\n", n_files);
 	
 	/* Mount a new instance of a tmpfs at / */
 	tmpfs_mount("/");
