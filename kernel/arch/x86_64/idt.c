@@ -13,11 +13,13 @@ idt_ptr_t idt_ptr;
 idt_entry_t idt_entries[256];
 void idt_flush(uint64_t addr);
 extern void _sched_yield();
+
 void x86_reserve_vector(int vector, void (*handler)())
 {
 	assert(vector < 256);
 	idt_create_descriptor(vector, (uintptr_t) handler, 0x08, 0x8E);
 }
+
 int x86_allocate_vector(void (*handler)())
 {
 	for(int i = 0; i < 256; i++)
@@ -30,6 +32,7 @@ int x86_allocate_vector(void (*handler)())
 	}
 	return -1;
 }
+
 int x86_allocate_vectors(int nr)
 {
 	int int_base = -1;
@@ -60,6 +63,7 @@ int x86_allocate_vectors(int nr)
 	}
 	return -1;
 }
+
 void idt_init(void)
 {
 	memset(&idt_entries, 0, sizeof(idt_entry_t) * 256);
@@ -96,7 +100,7 @@ void idt_init(void)
 	x86_reserve_vector(29, isr29);
 	x86_reserve_vector(30, isr30);
 	x86_reserve_vector(31, isr31);
-	x86_reserve_vector(129,  _sched_yield);
+	idt_set_system_gate(129,  (uint64_t) _sched_yield, 0x08, 0x8e);
 	x86_reserve_vector(X86_MESSAGE_VECTOR, __cpu_handle_message);
 	x86_reserve_vector(255,  apic_spurious_irq);
 	idt_load();
@@ -110,8 +114,19 @@ void idt_create_descriptor(uint8_t entry, uint64_t offset,
 	idt_entries[entry].selector = selector;
 
 	idt_entries[entry].zero = 0;
-	idt_entries[entry].type_attr = flags | 0x60;
+	idt_entries[entry].type_attr = flags;
+}
 
+void idt_set_system_gate(uint8_t entry, uint64_t offset,
+	uint16_t selector, uint8_t flags)
+{
+	idt_entries[entry].offset_low = offset & 0xFFFF;
+	idt_entries[entry].offset_high = (offset >> 16) & 0xFFFF;
+	idt_entries[entry].offset_top = (offset >> 32);
+	idt_entries[entry].selector = selector;
+
+	idt_entries[entry].zero = 0;
+	idt_entries[entry].type_attr = flags | 0x60;
 }
 
 void idt_load()

@@ -33,7 +33,8 @@ typedef struct IDT_entry idt_entry_t;
 #ifdef __cplusplus
 extern "C" {
 #endif
-void idt_create_descriptor(uint8_t entry,uint64_t offset,uint16_t selector,uint8_t flags);
+void idt_create_descriptor(uint8_t entry, uint64_t offset, uint16_t selector, uint8_t flags);
+void idt_set_system_gate(uint8_t entry, uint64_t offset, uint16_t selector, uint8_t flags);
 void idt_load();
 void idt_init();
 void x86_reserve_vector(int vector, void (*handler)());

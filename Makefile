@@ -65,7 +65,7 @@ build-srcpackages: $(SOURCE_PACKAGES)
 dash: build-srcpackages
 	cd dash && ./configure --prefix=/ --bindir=/usr/bin \
 	--host=x86_64-onyx --enable-static && $(MAKE) install && \
-	$(MAKE) distclean clean 
+	$(MAKE) distclean
 
 build-cleanup: dash 
 	cp kernel/kernel.config sysroot/boot

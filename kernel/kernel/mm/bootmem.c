@@ -38,40 +38,42 @@ static uintptr_t pmm_memory_size = 0;
 /* Kernel addresses reserved for pmm stack */
 static uintptr_t *pmm_stack_space = NULL;
 extern uint32_t end;
-static uint32_t last_entry = 0;
 stack_t *stack = NULL;
+
 size_t bootmem_get_memsize(void)
 {
 	return pmm_memory_size;
 }
+
 void bootmem_push_page(uintptr_t page)
 {
 	for(unsigned int i = 0; i < pushed_blocks + 1; i++)
 	{	
-		if(page - (stack->next[i].base + stack->next[i].size) == PAGE_SIZE)
-		{
-			stack->next[i].size += PAGE_SIZE;
-			return;
-		}
 		if(stack->next[i].base == 0 && stack->next[i].size == 0)
 		{
 			stack->next[i].base = page;
 			stack->next[i].size = PAGE_SIZE;
 			stack->next[i].magic = 0xFDFDFDFD;
-			last_entry = i;
 			break;
+		}
+		if(stack->next[i].base + stack->next[i].size == page)
+		{
+			stack->next[i].size += PAGE_SIZE;
+			return;
 		}
 	}
 	pushed_blocks++;
 }
+
 bool __check_used(uintptr_t page, uintptr_t start, uintptr_t end)
 {
 	if(start == page)
 		return true;
-	if(start < page && end > page)
+	if(start <= page && end > page)
 		return true;
 	return false;
 }
+
 extern uintptr_t kernel_end;
 #define KERNEL_START		0x100000
 bool check_used(uintptr_t page, struct multiboot_tag_module *module)
@@ -85,15 +87,18 @@ bool check_used(uintptr_t page, struct multiboot_tag_module *module)
 		return true;
 	return false;
 }
+
 void bootmem_push(uintptr_t base, size_t size, struct multiboot_tag_module *module)
 {
 	size &= -PAGE_SIZE;
+	base = (uintptr_t) page_align_up((void*) base);
 	for(uintptr_t p = base; p < base + size; p += PAGE_SIZE)
 	{
 		if(check_used(p, module) == false)
 			bootmem_push_page(p);
 	}
 }
+
 void bootmem_init(size_t memory_size, uintptr_t stack_space)
 {
 	pmm_memory_size = memory_size * 1024;
@@ -102,6 +107,7 @@ void bootmem_init(size_t memory_size, uintptr_t stack_space)
 	memset(stack, 0, 4096);
 	stack->next = (stack_entry_t *) (stack_space + sizeof(stack_t));
 }
+
 void *bootmem_alloc(size_t blocks)
 {
 	uintptr_t ret_addr = 0;
@@ -119,16 +125,18 @@ void *bootmem_alloc(size_t blocks)
 
 	return NULL;
 }
+
 void *bootmem_get_pstack(size_t *nentries)
 {
 	*nentries = pushed_blocks;
 	return stack;
 }
+
 void dump_bootmem(void)
 {
-	for (unsigned int i = 0; i < pushed_blocks; i--)
+	for (unsigned int i = 0; i < pushed_blocks; i++)
 	{
-		printk("[%016lx - %016lx]\n", stack->next[i].base, 
+		printf("[%016lx - %016lx]\n", stack->next[i].base, 
 			stack->next[i].base + stack->next[i].size);
 	}
 }

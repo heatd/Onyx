@@ -29,7 +29,7 @@
 #include <sys/mman.h>
 #include <acpica/acpi.h>
 
-
+#include <onyx/debug.h>
 #include <onyx/slab.h>
 #include <onyx/vmm.h>
 #include <onyx/paging.h>
@@ -281,6 +281,7 @@ uintptr_t get_rdsp_from_grub(void)
 		return 0;
 	return grub2_rsdp - PHYS_BASE;
 }
+
 void kernel_early(uintptr_t addr, uint32_t magic)
 {
 	addr += PHYS_BASE;
@@ -360,6 +361,7 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 		}
 		mmap++;
 	}
+
 	/* Identify the CPU it's running on (bootstrap CPU) */
 	cpu_identify();
 	paging_map_all_phys();

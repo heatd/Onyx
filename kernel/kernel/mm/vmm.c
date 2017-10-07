@@ -999,8 +999,11 @@ int __vm_handle_anon(vmm_entry_t *entry, struct fault_info *info)
 	return 0;
 }
 
-int vmm_handle_page_fault(vmm_entry_t *entry, struct fault_info *info)
+int vmm_handle_page_fault(struct fault_info *info)
 {
+	vmm_entry_t *entry = vmm_is_mapped((void*) info->fault_address);
+	if(!entry)
+		return -1;
 	if(info->write && !(entry->rwx & VM_WRITE))
 		return -1;
 	if(info->exec && entry->rwx & VM_NOEXEC)
@@ -1266,4 +1269,16 @@ uintptr_t vm_randomize_address(uintptr_t base, uintptr_t bits)
 
 	base |= result;
 	return base;
+}
+
+void vm_do_fatal_page_fault(struct fault_info *info)
+{
+	bool is_user_mode = info->user;
+
+	if(is_user_mode)
+	{
+		kernel_raise_signal(SIGSEGV, get_current_process());
+	}
+	else
+		panic("Unable to satisfy paging request");
 }

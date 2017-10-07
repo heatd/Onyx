@@ -7,12 +7,11 @@
 #define _KERNEL_MODULE_H_INCLUDED
 
 #include <onyx/kernelinfo.h>
+#include <onyx/compiler.h>
+
 #define MODULE_LICENSE_GPL2 	"GPL2"
 #define MODULE_LICENSE_MIT	"MIT"
 #define MODULE_LICENSE_BSD	"BSD"
-
-#define ___PASTE(a,b) a##b
-#define __PASTE(a,b) ___PASTE(a,b)
 
 #define MODULE_INFO(tag, x, name) __attribute__((section(".modinfo"), used, aligned(1))) const char __PASTE(name, __COUNTER__) [] = tag "=" x
 

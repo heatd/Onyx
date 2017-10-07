@@ -54,21 +54,7 @@ static inline void rdmsr(uint32_t msr, uint32_t *lo, uint32_t *hi)
 	__asm__ __volatile__("rdmsr" : "=a"(*lo), "=d"(*hi) : "c"(msr));
 }
 
-#define FS_BASE_MSR 0xC0000100
-#define GS_BASE_MSR 0xC0000101
-#define KERNEL_GS_BASE 0xC0000102
-#define IA32_MSR_STAR 0xC0000081
-#define IA32_MSR_LSTAR 0xC0000082
-#define IA32_MSR_CSTAR 0xC0000083
-#define IA32_MSR_SFMASK 0xC0000084
+#include <onyx/x86/msr.h>
 
-#else
-
-typedef struct registers
-{
-   uint32_t eax,ebx,ecx,edx,edi,esi,esp,ebp,eip,eflags,cr3;
-   uint16_t ss,cs;
-} __attribute__((packed)) registers_t;
-
-#endif /* __x86_64__ */
+#endif
 #endif

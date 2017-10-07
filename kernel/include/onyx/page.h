@@ -17,6 +17,8 @@
 #define CONFIG_BUDDY_ALLOCATOR		1
 #if defined(__x86_64__)
 
+#include <onyx/x86/page.h>
+
 #define PAGES_PER_AREA 512
 #define MAX_ORDER 11
 #define HUGE_PAGE_SIZE 0x200000
@@ -57,11 +59,13 @@ struct page
 	unsigned long ref;
 	struct page *next;
 };
+
 #define PAGE_HASHTABLE_ENTRIES 0x4000	
 struct page_hashtable
 {
 	struct page *table[PAGE_HASHTABLE_ENTRIES];
 };
+
 #ifdef CONFIG_BUDDY_ALLOCATOR
 /* A structure describing areas of size 2^order pages */
 typedef struct free_area

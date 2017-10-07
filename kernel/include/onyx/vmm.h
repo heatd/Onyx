@@ -13,6 +13,10 @@
 #include <onyx/paging.h>
 #include <onyx/avl.h>
 
+#ifdef __x86_64__
+#include <onyx/x86/page.h>
+#endif
+
 #include <sys/types.h>
 #if defined (__i386__)
 	#define KERNEL_VIRTUAL_BASE 0xC0000000
@@ -95,7 +99,8 @@ int vmm_check_pointer(void *addr, size_t needed_space);
 void *vmalloc(size_t pages, int type, int perms);
 void vfree(void *ptr, size_t pages);
 void vmm_print_stats(void);
-int vmm_handle_page_fault(vmm_entry_t *entry, struct fault_info *info);
+int vmm_handle_page_fault(struct fault_info *info);
+void vm_do_fatal_page_fault(struct fault_info *info);
 void *vmalloc(size_t pages, int type, int perms);
 void vmm_print_stats(void);
 void *dma_map_range(void *phys, size_t size, size_t flags);
@@ -121,8 +126,8 @@ static inline void *page_align_up(void *ptr)
 
 static inline size_t vmm_align_size_to_pages(size_t size)
 {
-	size_t pages = size / PAGE_SIZE;
-	if(size % PAGE_SIZE)
+	size_t pages = size >> PAGE_SHIFT;
+	if(size & (PAGE_SIZE-1))
 		pages++;
 	return pages;
 }

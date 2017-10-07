@@ -38,6 +38,7 @@ bool enabled24_hour = false, binary_mode_enabled = false;
 int rtc_get_date_reg(uint8_t reg)
 {
 	while(update_is_pending());
+
 	nmi_disable();
 	DISABLE_INTERRUPTS();
 	outb(0x70, reg);
@@ -133,7 +134,7 @@ uint64_t get_unix_time(const date_t * const udate)
 }
 
 static date_t date;
-void early_boot_rtc()
+void early_boot_rtc(void)
 {
 	date.seconds = rtc_get_date_reg_early(RTC_REG_SECONDS);
 	date.minutes = rtc_get_date_reg_early(RTC_REG_MINUTES);

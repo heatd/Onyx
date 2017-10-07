@@ -71,4 +71,7 @@ static inline int count_bits64(uint64_t num)
 }
 #define add_check_overflow(op1, op2, res) __builtin_add_overflow(op1, op2, res)
 
+#define ___PASTE(a,b) a##b
+#define __PASTE(a,b) ___PASTE(a,b)
+
 #endif /* COMPILER_H */
