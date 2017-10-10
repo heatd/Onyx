@@ -12,3 +12,8 @@ void *memset(void *bufptr, int value, size_t size)
 		*b++ = value;
 	return bufptr;
 }
+
+void *memset_s(void *s, int c, size_t n)
+{
+	return memset(s, c, n);
+}

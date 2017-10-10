@@ -218,39 +218,6 @@ memcpy (
 }
 
 
-/*******************************************************************************
- *
- * FUNCTION:    memset
- *
- * PARAMETERS:  Dest        - Buffer to set
- *              Value       - Value to set each byte of memory
- *              Count       - Number of bytes to set
- *
- * RETURN:      Dest
- *
- * DESCRIPTION: Initialize a buffer to a known value.
- *
- ******************************************************************************/
-
-void *
-memset (
-    void                    *Dest,
-    int                     Value,
-    ACPI_SIZE               Count)
-{
-    char                    *New = (char *) Dest;
-
-
-    while (Count)
-    {
-        *New = (char) Value;
-        New++;
-        Count--;
-    }
-
-    return (Dest);
-}
-
 
 /*******************************************************************************
  *

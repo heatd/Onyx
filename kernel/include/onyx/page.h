@@ -127,6 +127,10 @@ struct page *phys_to_page(uintptr_t phys);
 unsigned long page_increment_refcount(void *paddr);
 unsigned long page_decrement_refcount(void *paddr);
 
+__attribute__((malloc))
+void *__ksbrk(long inc);
+void __kbrk(void *break_);
+
 #ifdef __cplusplus
 }
 #endif

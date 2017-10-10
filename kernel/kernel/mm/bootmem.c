@@ -22,16 +22,20 @@
 #include <onyx/bootmem.h>
 #include <onyx/paging.h>
 #include <onyx/vmm.h>
+#include <onyx/page.h>
+
 typedef struct stack_entry
 {
 	uintptr_t base;
 	size_t size;
 	size_t magic;
 } stack_entry_t;
+
 typedef struct stack
 {
 	stack_entry_t* next;
 } stack_t;
+
 /* size of physical memory */
 static uint32_t pushed_blocks = 0;
 static uintptr_t pmm_memory_size = 0;
@@ -74,6 +78,7 @@ bool __check_used(uintptr_t page, uintptr_t start, uintptr_t end)
 	return false;
 }
 
+bool was_said = false;
 extern uintptr_t kernel_end;
 #define KERNEL_START		0x100000
 bool check_used(uintptr_t page, struct multiboot_tag_module *module)
@@ -90,6 +95,11 @@ bool check_used(uintptr_t page, struct multiboot_tag_module *module)
 
 void bootmem_push(uintptr_t base, size_t size, struct multiboot_tag_module *module)
 {
+	if(!was_said)
+	{
+		was_said = true;
+		printf("Module: %016x-%016x\n", module->mod_start, module->mod_end);
+	}
 	size &= -PAGE_SIZE;
 	base = (uintptr_t) page_align_up((void*) base);
 	for(uintptr_t p = base; p < base + size; p += PAGE_SIZE)
@@ -105,6 +115,7 @@ void bootmem_init(size_t memory_size, uintptr_t stack_space)
 	pmm_stack_space = (uintptr_t *) stack_space;
 	stack = (stack_t *) stack_space;
 	memset(stack, 0, 4096);
+	__ksbrk(4096);
 	stack->next = (stack_entry_t *) (stack_space + sizeof(stack_t));
 }
 
