@@ -20,6 +20,8 @@
 struct futex;
 #define THREADS_PER_PROCESS 30
 
+struct proc_event_sub;
+
 struct process
 {
 	/* Signal specific flags */
@@ -102,6 +104,12 @@ struct process
 	/* User time and system time consumed by the process */
 	clock_t user_time;
 	clock_t system_time;
+
+	/* proc_event queue */
+	spinlock_t sub_queue_lock;
+	struct proc_event_sub *sub_queue;
+	unsigned long nr_subs;
+	unsigned long nr_acks;
 };
 
 #ifdef __cplusplus

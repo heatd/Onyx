@@ -67,9 +67,9 @@ section .text
 extern syscall_list
 extern syscall_helper
 extern SYSCALL_MAX_NUM
-extern do_irq_work
 extern thread_store_ustack
 extern thread_get_ustack
+extern proc_event_enter_syscall
 global syscall_ENTRY64:function
 syscall_ENTRY64:
 	cld
@@ -96,6 +96,11 @@ syscall_ENTRY64:
 
 	; To conform to the Sys V ABI, we need to move r10 to rcx
 	mov rcx, r10
+	SAVE_SCRATCH_REGS 
+	mov rdi, rsp
+	mov rsi, rax
+	call proc_event_enter_syscall
+	RESTORE_SCRATCH_REGS
 	; If the syscall is fork, setup pt_regs first
 	cmp rax, 10
 	je .setup_fork

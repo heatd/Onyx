@@ -7,19 +7,41 @@
 #include <stdlib.h>
 #include <signal.h>
 
-#include <sys/ptrace.h>
+#define _GNU_SOURCE
+#include <unistd.h>
 
+#include <sys/syscall.h>
+#include <sys/ioctl.h>
+
+#include <proc_event.h>
+
+int proc_event_attach(pid_t pid, unsigned long flags)
+{
+	return (int) syscall(SYS_proc_event_attach, pid, flags);
+}
 void do_trace(pid_t pid)
 {
-	if(ptrace(PTRACE_ATTACH, pid) < 0)
+	int fd = proc_event_attach(pid, PROC_EVENT_LISTEN_SYSCALLS);
+	if(fd < 0)
 	{
-		perror("strace: ptrace");
-		kill(pid, SIGKILL);
-		exit(1);
+		perror("proc_event_attach");
 	}
-	printf("Tracing %d\n", pid);
-	ptrace(PTRACE_CONT, pid);
-	while(1);
+	printf("FD: %u\n", fd);
+	
+	struct proc_event event = {0};
+	while(read(fd, &event, sizeof(struct proc_event)))
+	{
+		printf("Event type %d\n", event.type);
+		if(event.type == PROC_EVENT_SYSCALL_ENTER)
+		{
+			printf("Syscall number: %lu\n", event.e_un.syscall.rax);
+		}
+		else if(event.type == PROC_EVENT_SYSCALL_EXIT)
+		{
+			printf("Syscall result: %lu\n", event.e_un.syscall.rax);
+		}
+		ioctl(fd, 0);
+	}
 }
 void do_child(int argc, char **argv)
 {

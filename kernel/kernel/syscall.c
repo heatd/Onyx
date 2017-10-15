@@ -32,7 +32,7 @@
 #include <onyx/cpu.h>
 #include <onyx/page.h>
 
-const uint64_t SYSCALL_MAX_NUM = 79;
+const uint64_t SYSCALL_MAX_NUM = 80;
 
 uint64_t sys_nosys()
 {
@@ -115,6 +115,7 @@ extern long sys_ptrace(long request, pid_t pid, void *addr, void *data, void *ad
 extern ssize_t sys_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen);
 extern int sys_shm_open(const char *name, int flags, mode_t mode);
 extern int sys_shm_unlink(const char *name);
+extern int sys_proc_event_attach(pid_t pid, unsigned long flags);
 
 void *syscall_list[] =
 {
@@ -198,5 +199,11 @@ void *syscall_list[] =
 	[77] = (void*) sys_ptrace,
 	[78] = (void*) sys_shm_open,
 	[79] = (void*) sys_shm_unlink,
+	[80] = (void*) sys_proc_event_attach,
 	[255] = (void*) sys_nosys
 };
+
+void syscall_helper(uintptr_t syscall_num)
+{
+	printk("SYSCALL %lu not available\n", syscall_num);
+}

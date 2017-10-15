@@ -28,6 +28,7 @@ size_t ext2_read(int flags, size_t offset, size_t sizeofreading, void *buffer, s
 size_t ext2_write(size_t offset, size_t sizeofwrite, void *buffer, struct inode *node);
 unsigned int ext2_getdents(unsigned int count, struct dirent* dirp, off_t off, struct inode* this);
 int ext2_stat(struct stat *buf, struct inode *node);
+struct inode *ext2_creat(const char *path, int mode, struct inode *file);
 
 struct file_ops ext2_ops = 
 {
@@ -35,7 +36,8 @@ struct file_ops ext2_ops =
 	.read = ext2_read,
 	.write = ext2_write,
 	.getdents = ext2_getdents,
-	.stat = ext2_stat
+	.stat = ext2_stat,
+	.creat = ext2_creat
 };
 
 uuid_t ext2_gpt_uuid[4] = 
@@ -171,6 +173,8 @@ struct inode *ext2_open(struct inode *nd, const char *name)
 
 struct inode *ext2_creat(const char *path, int mode, struct inode *file)
 {
+	printk("Creating %s\n", path);
+	while(1);
 	/* Create a file */
 	return NULL;
 }

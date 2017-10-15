@@ -1277,6 +1277,7 @@ void vm_do_fatal_page_fault(struct fault_info *info)
 
 	if(is_user_mode)
 	{
+		printk("SEGV at %016lx\n", info->fault_address);
 		kernel_raise_signal(SIGSEGV, get_current_process());
 	}
 	else

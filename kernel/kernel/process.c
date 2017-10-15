@@ -3,6 +3,7 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -27,6 +28,7 @@
 #include <onyx/thread.h>
 #include <onyx/file.h>
 #include <onyx/slab.h>
+#include <onyx/proc_event.h>
 
 #include <pthread_kernel.h>
 
@@ -620,6 +622,11 @@ void process_destroy(thread_t *current_thread)
 	process_destroy_file_descriptors(current);
 
 	free(current->cmd_line);
+
+	for(struct proc_event_sub *s = current->sub_queue; s; s = s->next)
+	{
+		s->valid_sub = false;
+	}
 
 	/* Destroy everything that can be destroyed now */
 	thread_destroy(current_thread);

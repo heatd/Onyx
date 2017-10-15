@@ -73,6 +73,7 @@
 #define __NR_ptrace				77
 #define __NR_shm_open				78
 #define __NR_shm_unlink				79
+#define __NR_proc_event_attach			80
 #define __NR_rename				82
 #define __NR_mkdir				83
 #define __NR_rmdir				84
@@ -411,6 +412,7 @@
 #define SYS_ptrace				77
 #define SYS_shm_open				78
 #define SYS_shm_unlink				79
+#define SYS_proc_event_attach			80
 #define SYS_rename				82
 #define SYS_mkdir				83
 #define SYS_rmdir				84
