@@ -393,6 +393,9 @@ void thread_set_state(thread_t *thread, int state)
 		sched_remove_thread_from_execution(thread);
 		append_to_wait_queue(thread);
 		ENABLE_INTERRUPTS();
+
+		if(get_current_thread() == thread)
+			sched_yield();
 	}
 	else if(state == THREAD_RUNNABLE)
 	{

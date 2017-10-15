@@ -253,7 +253,7 @@ int process_target(target_t *target)
 				dep = strtok_r(string, " ", &saveptr);
 				while(dep)
 				{
-					int fd = openat(dirfd, dep, O_RDONLY);
+					int fd = openat(dirfd, dep, O_RDONLY | O_CLOEXEC);
 					if(fd < 0)
 					{
 						fprintf(stderr, "process_target: Could not open %s: %s\n", dep, strerror(errno));
@@ -261,6 +261,7 @@ int process_target(target_t *target)
 					}
 					if(exec_target(fd) < 0)
 						return -1;
+					close(fd);
 					dep = strtok_r(NULL, " ", &saveptr);
 				}
 			}
@@ -342,14 +343,14 @@ int find_targets(const char *dir)
 	int status;
 	int fd;
 	/* First, open the directory */
-	dirfd = open(dir, O_DIRECTORY | O_RDONLY);
+	dirfd = open(dir, O_DIRECTORY | O_RDONLY | O_CLOEXEC);
 	if(dirfd < 0)
 	{
 		fprintf(stderr, "%s: %s: %s\n", __func__, dir, strerror(errno));
 		return -1;
 	}
 	/* Now, use dirfd with openat in order to open the default.target file */
-	fd = openat(dirfd, "default.target", O_RDONLY);
+	fd = openat(dirfd, "default.target", O_RDONLY | O_CLOEXEC);
 	if(fd < 0)
 	{
 		perror("find_targets");

@@ -24,6 +24,7 @@ struct futex *__get_futex(int *uaddr)
 	}
 	return NULL;
 }
+
 void __futex_insert(struct futex *futex)
 {
 	struct process *current = get_current_process();
@@ -38,6 +39,7 @@ void __futex_insert(struct futex *futex)
 	}
 	release_spinlock(&current->futex_queue_lock);
 }
+
 struct futex *futex_insert(int *uaddr)
 {
 	struct futex *futex = malloc(sizeof(struct futex));
@@ -48,6 +50,7 @@ struct futex *futex_insert(int *uaddr)
 	__futex_insert(futex);
 	return futex;
 }
+
 struct futex *get_futex(int *uaddr)
 {
 	struct futex *futex = __get_futex(uaddr);
@@ -55,6 +58,7 @@ struct futex *get_futex(int *uaddr)
 		futex = futex_insert(uaddr);
 	return futex;
 }
+
 int futex_enqueue_thread(struct futex *ftx)
 {
 	acquire_spinlock(&ftx->block_thread_lock);
@@ -80,6 +84,7 @@ int futex_enqueue_thread(struct futex *ftx)
 	release_spinlock(&ftx->block_thread_lock);
 	return 0;
 }
+
 void futex_sleep_until_wake(const struct timespec *timeout)
 {
 	unsigned long waiting_time = 0;
@@ -89,11 +94,13 @@ void futex_sleep_until_wake(const struct timespec *timeout)
 		copy_from_user(&t, timeout, sizeof(struct timespec));
 		waiting_time = t.tv_sec * 1000 + t.tv_nsec / 1000000;
 	}
+
 	if(waiting_time)
 		sched_sleep(waiting_time);
 	else
 		sched_sleep_until_wake();
 }
+
 int futex_wait(int *uaddr, int val, struct futex *ftx, const struct timespec *timeout)
 {
 	if(__sync_bool_compare_and_swap(uaddr, val, val) == true)
@@ -107,8 +114,10 @@ int futex_wait(int *uaddr, int val, struct futex *ftx, const struct timespec *ti
 	}
 	else
 		return -EAGAIN;
+
 	return 0;
 }
+
 int futex_wake(struct futex *ftx, int val)
 {
 	int woken_up = 0;
@@ -122,20 +131,25 @@ int futex_wake(struct futex *ftx, int val)
 		free(l);
 		woken_up++;
 	}
+
 	ftx->waiting_threads = thr_list;
 	release_spinlock(&ftx->block_thread_lock);
 	return woken_up;
 }
+
 int sys_futex(int *uaddr, int futex_op, int val, const struct timespec *timeout, int *uaddr2, int val3)
 {
 	if(vmm_check_pointer(uaddr, sizeof(int)) < 0)
 		return -EFAULT;
+
 	/* The pointer needs to be 4-byte aligned */
 	if((uintptr_t) uaddr & 0xF)
 		return -EINVAL;
+
 	struct futex *futex = get_futex(uaddr);	
 	if(!futex)
 		return -ENOMEM;
+
 	switch(futex_op & FUTEX_OP_MASK)
 	{
 		case FUTEX_WAIT:
@@ -145,4 +159,5 @@ int sys_futex(int *uaddr, int futex_op, int val, const struct timespec *timeout,
 		default:
 			return -ENOSYS;
 	}
+
 }
