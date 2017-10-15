@@ -429,10 +429,11 @@ void sched_start_thread(thread_t *thread)
 	assert(thread != NULL);
 	thread_add(thread);
 }
+
 void sched_wake_up_available_threads(void)
 {
 	/* Multiple cpus processing this list is a waste of time.
-	 * Also, timer interrupts are more that likely to happen at the same time,
+	 * Also, timer interrupts are more than likely to happen at the same time,
 	 * as they're all configured for the same rate.
 	*/
 	if(try_and_acquire_spinlock(&wait_queue_lock) == 1)
