@@ -24,6 +24,8 @@
 #include <onyx/tty.h>
 #include <onyx/irq.h>
 #include <onyx/keys.h>
+#include <onyx/dpc.h>
+
 unsigned int default_keymap[200] =
 { 
 	KEYMAP_KEY_ESC, '1', '2', '3', '4', '5',
@@ -41,6 +43,7 @@ unsigned int default_keymap[200] =
 	'1', '2', '3', '0',
 	'.', 0, 0, 0, KEYMAP_KEY_F11, KEYMAP_KEY_F12
 };
+
 unsigned int default_shift_keymap[200] =
 { 
 	KEYMAP_KEY_ESC, '!', '@', '#', '$', '%',
@@ -64,6 +67,7 @@ struct keymap keymap =
 	.keymap = default_keymap,
 	.shift_keymap = default_shift_keymap
 };
+
 static struct input_state
 {
 	_Bool lshift_pressed;
@@ -80,12 +84,17 @@ static struct input_state
 	unsigned int key_pressed;
 } input_state = {0};
 
-void input_callback(void *payload, size_t payload_size);
+void input_callback(void *payload);
 void send_event_to_kernel(uint8_t keycode)
 {
-	/* TODO: Use an IRQ worker when it's fixed */
-	input_callback(&keycode, 1);
+	struct dpc_work work;
+	work.context = (void*) (uintptr_t) keycode;
+	work.funcptr = input_callback;
+	work.next = NULL;
+
+	dpc_schedule_work(&work, DPC_PRIORITY_HIGH);
 }
+
 unsigned int input_process_special_key(unsigned int key, _Bool is_release)
 {
 	/* Simple way to shorten the code instead of a huge if statement */
@@ -132,10 +141,11 @@ unsigned int input_process_special_key(unsigned int key, _Bool is_release)
 	}
 	return (unsigned int) -1;
 }
+
 /* Process the keypress and return -1 if it's a non-printable key */
 unsigned int input_process_keypress(uint8_t keycode)
 {
-	_Bool is_release = false;
+	bool is_release = false;
 	if(keycode & 0x80)
 		is_release = true;
 	keycode &= 0x7F;
@@ -148,13 +158,15 @@ unsigned int input_process_keypress(uint8_t keycode)
 
 	return input_process_special_key(key, is_release);
 }
-void input_callback(void *payload, size_t payload_size)
+
+void input_callback(void *payload)
 {
-	uint8_t keycode = *(uint8_t*) payload;
+	uint8_t keycode = (uint8_t) (uintptr_t) payload;
 	unsigned int key = input_process_keypress(keycode);
 	if(key != (unsigned int) -1)
 		tty_recieved_character((char) key);
 }
+
 __init void init_input_state(void)
 {
 	memset(&input_state, 0, sizeof(struct input_state));

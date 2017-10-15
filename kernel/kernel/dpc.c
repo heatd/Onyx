@@ -22,13 +22,13 @@ static volatile atomic_bool dpc_queue_is_empty = true;
 static thread_t *dpc_thread = NULL;
 static slab_cache_t *dpc_pool = NULL;
 
-void dpc_do_work_on_workqueue(struct dpc_work *wq)
+void dpc_do_work_on_workqueue(struct dpc_work **wq)
 {
-	while(wq)
+	while(*wq)
 	{
-		wq->funcptr(wq->context);
-		struct dpc_work *to_be_freed = wq;
-		wq = wq->next;
+		(*wq)->funcptr((*wq)->context);
+		struct dpc_work *to_be_freed = *wq;
+		*wq = (*wq)->next;
 
 		slab_free(dpc_pool, to_be_freed);
 	}
@@ -41,15 +41,8 @@ void dpc_do_work(void *context)
 		/* Process work */
 		for(int i = 0; i < 3; i++)
 		{
-			acquire_spinlock(&work_queue_locks[i]);
-
 			/* Let's process DPC work */
-			dpc_do_work_on_workqueue(work_queues[i]);
-			
-			/* Reset this queue */
-			work_queues[i] = NULL;
-
-			release_spinlock(&work_queue_locks[i]);
+			dpc_do_work_on_workqueue(&work_queues[i]);
 		}
 		/* Now block if the queue is empty until another IRQ occurs */
 		if(!work_queues[0] && !work_queues[1] && !work_queues[2])

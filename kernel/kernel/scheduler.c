@@ -277,6 +277,7 @@ int sched_remove_thread_from_execution(thread_t *thread)
 				t->next_prio->prev_prio = t->prev_prio;
 			t->prev_prio = NULL;
 			t->next_prio = NULL;
+			release_spinlock(&p->queue_locks[thread->priority]);
 			return 0;
 		}
 	}
@@ -357,6 +358,8 @@ static void append_to_wait_queue(thread_t *thread)
 }
 static void remove_from_wait_queue(thread_t *thread)
 {
+	assert(thread != NULL);
+
 	acquire_spinlock(&wait_queue_lock);
 	if(wait_queue == thread)
 	{
