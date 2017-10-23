@@ -85,7 +85,6 @@ void *elf64_load_static(struct binfmt_args *args, Elf64_Ehdr *header)
 			/* Read the program segment to memory */
 			read_vfs(0, phdrs[i].p_offset, phdrs[i].p_filesz, 
 				(void*) phdrs[i].p_vaddr, args->file);
-
 			vmm_change_perms((void *) aligned_address, pages, prot);
 		}
 	}

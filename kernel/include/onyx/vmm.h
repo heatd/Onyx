@@ -74,6 +74,7 @@ struct fault_info
 	bool read;
 	bool exec;
 	bool user;
+	uintptr_t ip;
 };
 
 #ifdef __cplusplus

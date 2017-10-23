@@ -212,8 +212,11 @@ void page_fault_handler(intctx_t *ctx)
 	info.read = info.write ? 0 : 1;
 	info.exec = error_code & 0x10;
 	info.user = error_code & 0x4;
+	info.ip = ctx->rip;
 	if(vmm_handle_page_fault(&info) < 0)
+	{
 		vm_do_fatal_page_fault(&info);
+	}
 }
 
 void x87_fpu_exception(intctx_t *ctx)
