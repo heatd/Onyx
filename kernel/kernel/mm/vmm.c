@@ -24,6 +24,7 @@
 #include <onyx/random.h>
 #include <onyx/sysfs.h>
 #include <onyx/vfs.h>
+#include <onyx/spinlock.h>
 
 #include <onyx/vm_layout.h>
 
