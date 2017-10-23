@@ -55,7 +55,7 @@
 #define VM_HIGHER_HALF 0xffff800000000000
 #define PHYS_TO_VIRT(x) (void*)((uintptr_t) x + PHYS_BASE)
 
-typedef struct ventry
+struct vm_entry
 {
 	uintptr_t base;
 	size_t pages;
@@ -65,7 +65,7 @@ typedef struct ventry
 	struct file_description *fd;
 	off_t offset;
 	int flags;
-} vmm_entry_t;
+};
 
 struct fault_info
 {
@@ -89,7 +89,7 @@ void *vmm_map_range(void* range, size_t pages, uint64_t flags);
 void vmm_unmap_range(void *range, size_t pages);
 void vmm_destroy_mappings(void *range, size_t pages);
 void *vmm_reserve_address(void *addr, size_t pages, uint32_t type, uint64_t prot);
-vmm_entry_t *vmm_is_mapped(void *addr);
+struct vm_entry *vmm_is_mapped(void *addr);
 PML4 *vmm_clone_as(avl_node_t **);
 PML4 *vmm_fork_as(avl_node_t **);
 void vmm_stop_spawning();
@@ -110,8 +110,8 @@ int vm_sanitize_address(void *address, size_t pages);
 void *vmm_gen_mmap_base(void);
 void *vmm_gen_brk_base(void);
 void vmm_sysfs_init(void);
-int vmm_mark_cow(vmm_entry_t *zone);
-vmm_entry_t *vmm_is_mapped_and_writable(void *usr);
+int vmm_mark_cow(struct vm_entry *zone);
+struct vm_entry *vmm_is_mapped_and_writable(void *usr);
 ssize_t copy_to_user(void *usr, const void *data, size_t len);
 ssize_t copy_from_user(void *data, const void *usr, size_t len);
 void arch_vmm_init(void);

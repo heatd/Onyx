@@ -26,7 +26,7 @@
 static mutex_t shm_lock;
 static struct shm_region *shms = NULL;
 
-void *shm_mmap(vmm_entry_t *area, struct inode *node)
+void *shm_mmap(struct vm_entry *area, struct inode *node)
 {
 	struct shm_region *shm = node->helper;
 	off_t offset = area->offset;

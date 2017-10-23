@@ -36,7 +36,7 @@ typedef struct avl_node
 	struct avl_node *left, *right;
 	uintptr_t key;
 	uintptr_t end;
-	vmm_entry_t *data;
+	struct vm_entry *data;
 } avl_node_t;
 
 static spinlock_t kernel_vm_spl;
@@ -44,7 +44,7 @@ bool is_initialized = false;
 bool is_spawning = 0;
 static bool enable_aslr = true;
 avl_node_t *old_tree = NULL;
-vmm_entry_t *areas = NULL;
+struct vm_entry *areas = NULL;
 size_t num_areas = 3;
 
 uintptr_t high_half 		= arch_high_half;
@@ -171,7 +171,7 @@ void avl_balance_tree(avl_node_t **t)
 	}
 }
 
-static vmm_entry_t *avl_insert_key(avl_node_t **t, uintptr_t key, uintptr_t end)
+static struct vm_entry *avl_insert_key(avl_node_t **t, uintptr_t key, uintptr_t end)
 {
 	avl_node_t *ptr = *t;
 	if(!*t)
@@ -183,12 +183,12 @@ static vmm_entry_t *avl_insert_key(avl_node_t **t, uintptr_t key, uintptr_t end)
 		ptr = *t;
 		ptr->key = key;
 		ptr->end = end;
-		ptr->data = malloc(sizeof(vmm_entry_t));
+		ptr->data = malloc(sizeof(struct vm_entry));
 		return ptr->data;
 	}
 	else if (key < ptr->key)
 	{
-		vmm_entry_t *ret = avl_insert_key(&ptr->left, key, end);
+		struct vm_entry *ret = avl_insert_key(&ptr->left, key, end);
 		if(key < high_half)
 			avl_balance_tree(vmm_get_tree());
 		else
@@ -197,7 +197,7 @@ static vmm_entry_t *avl_insert_key(avl_node_t **t, uintptr_t key, uintptr_t end)
 	}
 	else
 	{
-		vmm_entry_t *ret = avl_insert_key(&ptr->right, key, end);
+		struct vm_entry *ret = avl_insert_key(&ptr->right, key, end);
 		if(key < high_half)
 			avl_balance_tree(vmm_get_tree());
 		else
@@ -317,8 +317,8 @@ void vmm_init()
 
 static int vmm_comp(const void *ptr1, const void *ptr2)
 {
-	const vmm_entry_t *a = (const vmm_entry_t*) ptr1;
-	const vmm_entry_t *b = (const vmm_entry_t*) ptr2;
+	const struct vm_entry *a = (const struct vm_entry*) ptr1;
+	const struct vm_entry *b = (const struct vm_entry*) ptr2;
 
 	return a->base < b->base ? -1 :
 		b->base < a->base ?  1 :
@@ -345,7 +345,7 @@ void vmm_late_init(void)
 
 	size_t heap_size = 0x200000000000 - (heap_addr - heap_addr_no_aslr);
 	/* Start populating the address space */
-	vmm_entry_t *v = avl_insert_key(&kernel_tree,
+	struct vm_entry *v = avl_insert_key(&kernel_tree,
 		heap_addr, heap_size);
 	if(!v)
 	{
@@ -436,10 +436,10 @@ void vmm_destroy_mappings(void *range, size_t pages)
 				areas[i].pages -= ((uintptr_t) range - areas[i].base / 4096);
 				size_t second_half_pages = old_pages - pages - areas[i].pages;
 				num_areas++;
-				areas = realloc(areas, sizeof(vmm_entry_t) * num_areas);
+				areas = realloc(areas, sizeof(struct vm_entry) * num_areas);
 				areas[num_areas-1].base = (uintptr_t)range + pages * PAGE_SIZE;
 				areas[num_areas-1].pages = second_half_pages;
-				qsort(areas,num_areas,sizeof(vmm_entry_t),vmm_comp);
+				qsort(areas,num_areas,sizeof(struct vm_entry),vmm_comp);
 				if(likely(get_current_process()))
 					release_spinlock((spinlock_t*) &get_current_process()->vm_spl);
 				return;
@@ -453,8 +453,8 @@ void vmm_destroy_mappings(void *range, size_t pages)
 			}
 		}
 	}
-	areas = realloc(areas, sizeof(vmm_entry_t) * num_areas);
-	qsort(areas,num_areas,sizeof(vmm_entry_t),vmm_comp);
+	areas = realloc(areas, sizeof(struct vm_entry) * num_areas);
+	qsort(areas,num_areas,sizeof(struct vm_entry),vmm_comp);
 	if(likely(get_current_process()))
 		release_spinlock((spinlock_t*) &get_current_process()->vm_spl);
 #endif
@@ -544,7 +544,7 @@ again:
 			}
 		}
 	}
-	vmm_entry_t *en;
+	struct vm_entry *en;
 	
 	if(flags & 1)
 		en = avl_insert_key(&kernel_tree, base_address, pages * PAGE_SIZE);
@@ -577,7 +577,7 @@ void *vmm_reserve_address(void *addr, size_t pages, uint32_t type, uint64_t prot
 		errno = EINVAL;
 		return NULL;
 	}
-	vmm_entry_t *v;
+	struct vm_entry *v;
 	if((uintptr_t) addr >= high_half)
 		v = avl_insert_key(&kernel_tree, (uintptr_t)addr, pages * PAGE_SIZE);
 	else
@@ -597,7 +597,7 @@ return_:
 	return addr;
 }
 
-vmm_entry_t *vmm_is_mapped(void *addr)
+struct vm_entry *vmm_is_mapped(void *addr)
 {
 	avl_node_t **tree = vmm_get_tree();
 	if(!tree)
@@ -674,7 +674,7 @@ avl_node_t **vmm_get_tree()
 
 int vmm_check_pointer(void *addr, size_t needed_space)
 {
-	vmm_entry_t *e = vmm_is_mapped(addr);
+	struct vm_entry *e = vmm_is_mapped(addr);
 	if(!e)
 		return -1;
 	if((uintptr_t) addr + needed_space <= e->base + e->pages * PAGE_SIZE)
@@ -737,7 +737,7 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 
 	if(!(flags & MAP_ANONYMOUS))
 	{
-		vmm_entry_t *area = (*avl_search_key(vmm_get_tree(), (uintptr_t) mapping_addr))->data;
+		struct vm_entry *area = (*avl_search_key(vmm_get_tree(), (uintptr_t) mapping_addr))->data;
 		/* Set additional meta-data */
 		if(flags & MAP_SHARED)
 			area->mapping_type = MAP_SHARED;
@@ -790,7 +790,7 @@ int sys_mprotect(void *addr, size_t len, int prot)
 {
 	if(is_higher_half(addr))
 		return -EINVAL;
-	vmm_entry_t *area = NULL;
+	struct vm_entry *area = NULL;
 
 	if(!(area = vmm_is_mapped(addr)))
 	{
@@ -832,7 +832,7 @@ int sys_mprotect(void *addr, size_t len, int prot)
 		area->pages = pages;
 		area->rwx = vm_prot;
 
-		vmm_entry_t *new = avl_insert_key(vmm_get_tree(), second_half, rest_pages * PAGE_SIZE);
+		struct vm_entry *new = avl_insert_key(vmm_get_tree(), second_half, rest_pages * PAGE_SIZE);
 		if(!new)
 			return -ENOMEM;
 		new->base = second_half;
@@ -847,7 +847,7 @@ int sys_mprotect(void *addr, size_t len, int prot)
 		node->end -= (uintptr_t) addr - area->base;
 		area->pages = ((uintptr_t) addr - area->base) / PAGE_SIZE;
 
-		vmm_entry_t *second_area = avl_insert_key(vmm_get_tree(), (uintptr_t) addr, (uintptr_t) len);
+		struct vm_entry *second_area = avl_insert_key(vmm_get_tree(), (uintptr_t) addr, (uintptr_t) len);
 		if(!second_area)
 		{
 			/* TODO: Unsafe to just return, maybe restore the old area? */
@@ -859,7 +859,7 @@ int sys_mprotect(void *addr, size_t len, int prot)
 		second_area->type = area->type;
 		second_area->rwx = vm_prot;
 
-		vmm_entry_t *third_area = avl_insert_key(vmm_get_tree(), (uintptr_t) addr + len, 
+		struct vm_entry *third_area = avl_insert_key(vmm_get_tree(), (uintptr_t) addr + len, 
 		(uintptr_t) total_pages * PAGE_SIZE);
 		if(!third_area)
 		{
@@ -877,7 +877,7 @@ int sys_mprotect(void *addr, size_t len, int prot)
 		area->pages -= pages;
 		avl_node_t *node = *avl_search_key(vmm_get_tree(), (uintptr_t) addr);
 		node->end -= pages * PAGE_SIZE;
-		vmm_entry_t *new_area = avl_insert_key(vmm_get_tree(), (uintptr_t) addr, len);
+		struct vm_entry *new_area = avl_insert_key(vmm_get_tree(), (uintptr_t) addr, len);
 		if(!new_area)
 		{
 			area->pages += pages;
@@ -962,7 +962,7 @@ void *dma_map_range(void *phys, size_t size, size_t flags)
 	return ptr;
 }
 
-int __vm_handle_private(vmm_entry_t *entry, struct fault_info *info)
+int __vm_handle_private(struct vm_entry *entry, struct fault_info *info)
 {
 	/* Map a page */
 	uintptr_t aligned_address = (info->fault_address & 0xFFFFFFFFFFFFF000);
@@ -987,12 +987,12 @@ int __vm_handle_private(vmm_entry_t *entry, struct fault_info *info)
 	return 0;
 }
 
-int __vm_handle_shared(vmm_entry_t *entry, struct fault_info *info)
+int __vm_handle_shared(struct vm_entry *entry, struct fault_info *info)
 {
 	return -1;
 }
 
-int __vm_handle_anon(vmm_entry_t *entry, struct fault_info *info)
+int __vm_handle_anon(struct vm_entry *entry, struct fault_info *info)
 {
 	if(!vmm_map_range((void*)(info->fault_address & 0xFFFFFFFFFFFFF000), 1, entry->rwx))
 		return -1;
@@ -1001,7 +1001,7 @@ int __vm_handle_anon(vmm_entry_t *entry, struct fault_info *info)
 
 int vmm_handle_page_fault(struct fault_info *info)
 {
-	vmm_entry_t *entry = vmm_is_mapped((void*) info->fault_address);
+	struct vm_entry *entry = vmm_is_mapped((void*) info->fault_address);
 	if(!entry)
 		return -1;
 	if(info->write && !(entry->rwx & VM_WRITE))
@@ -1139,7 +1139,7 @@ void vmm_sysfs_init(void)
 	kmaps->read = kmaps_read;
 }
 
-int vmm_mark_cow(vmm_entry_t *area)
+int vmm_mark_cow(struct vm_entry *area)
 {
 	/* If the area isn't writable, don't mark it as COW */
 	if(!(area->rwx & VM_WRITE))
@@ -1148,18 +1148,18 @@ int vmm_mark_cow(vmm_entry_t *area)
 	return 0;
 }
 
-vmm_entry_t *vmm_is_mapped_and_writable(void *usr)
+struct vm_entry *vmm_is_mapped_and_writable(void *usr)
 {
-	vmm_entry_t *entry = vmm_is_mapped(usr);
+	struct vm_entry *entry = vmm_is_mapped(usr);
 	if(unlikely(!entry))	return NULL;
 	if(likely(entry->rwx & VM_WRITE))	return entry;
 
 	return NULL;
 }
 
-vmm_entry_t *vmm_is_mapped_and_readable(void *usr)
+struct vm_entry *vmm_is_mapped_and_readable(void *usr)
 {
-	vmm_entry_t *entry = vmm_is_mapped(usr);
+	struct vm_entry *entry = vmm_is_mapped(usr);
 	if(unlikely(!entry))	return NULL;
 	return entry;
 }
@@ -1170,7 +1170,7 @@ ssize_t copy_to_user(void *usr, const void *data, size_t len)
 	const char *data_ptr = data;
 	while(len)
 	{
-		vmm_entry_t *entry;
+		struct vm_entry *entry;
 		if((entry = vmm_is_mapped_and_writable(usr_ptr)) == NULL)
 		{
 			return -EFAULT;
@@ -1191,7 +1191,7 @@ ssize_t copy_from_user(void *data, const void *usr, size_t len)
 	char *data_ptr = data;
 	while(len)
 	{
-		vmm_entry_t *entry;
+		struct vm_entry *entry;
 		if((entry = vmm_is_mapped_and_readable((void*) usr_ptr)) == NULL)
 		{
 			return -EFAULT;
@@ -1216,7 +1216,7 @@ char *strcpy_from_user(const char *usr_ptr)
 	
 	while(true)
 	{
-		vmm_entry_t *entry;
+		struct vm_entry *entry;
 		if((entry = vmm_is_mapped_and_readable((void*) usr_ptr)) == NULL)
 		{
 			return errno = EFAULT, NULL;
