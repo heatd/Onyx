@@ -770,18 +770,33 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 		      ((!(prot & PROT_EXEC)) ? VM_NOEXEC : 0);
 
 	if(is_higher_half(addr)) /* User addresses can't be on the kernel's address space */
+	{
+		if(flags & MAP_FIXED)
+			return (void *) -ENOMEM;
 		addr = NULL;
+	}
 
-	if(!addr) /* Specified by POSIX, if addr == NULL, guess an address */
-		mapping_addr = vmm_allocate_virt_address(VM_ADDRESS_USER, pages, VM_TYPE_SHARED, vm_prot, 0);
+	if(!addr)
+	{
+		if(flags & MAP_FIXED)
+			return (void *) -ENOMEM;
+		 /* Specified by POSIX, if addr == NULL, guess an address */
+		mapping_addr = vmm_allocate_virt_address(VM_ADDRESS_USER, pages,
+			VM_TYPE_SHARED, vm_prot, 0);
+	}
 	else
 	{
 		mapping_addr = vmm_reserve_address(addr, pages, VM_TYPE_REGULAR, vm_prot);
 		if(!mapping_addr)
+		{
+			if(flags & MAP_FIXED)
+				return (void*) -ENOMEM;
 			mapping_addr = vmm_allocate_virt_address(VM_ADDRESS_USER, pages, VM_TYPE_REGULAR, vm_prot, 0);
+		}
 	}
+
 	if(!mapping_addr)
-		return (void*)-ENOMEM;
+		return (void*) -ENOMEM;
 
 	if(!(flags & MAP_ANONYMOUS))
 	{
@@ -799,14 +814,6 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 		if((file_descriptor->vfs_node->type == VFS_TYPE_BLOCK_DEVICE 
 		|| file_descriptor->vfs_node->type == VFS_TYPE_CHAR_DEVICE) && area->mapping_type == MAP_SHARED)
 		{
-			/*struct minor_device *m = dev_find(file_descriptor->vfs_node->dev);
-			if(!m)
-				return (void*) -ENODEV;
-			if(!m->fops)
-				return (void*) -ENOSYS;
-			if(!m->fops->mmap)
-				return (void*) -ENOSYS;
-			return m->fops->mmap(area, file_descriptor->vfs_node);*/
 			struct inode *vnode = file_descriptor->vfs_node;
 			if(!vnode->fops.mmap)
 				return (void*) -ENOSYS;
