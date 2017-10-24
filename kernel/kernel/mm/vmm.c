@@ -42,11 +42,7 @@ typedef struct avl_node
 
 static spinlock_t kernel_vm_spl;
 bool is_initialized = false;
-bool is_spawning = 0;
 static bool enable_aslr = true;
-avl_node_t *old_tree = NULL;
-struct vm_entry *areas = NULL;
-size_t num_areas = 3;
 
 uintptr_t high_half 		= arch_high_half;
 uintptr_t low_half_max 		= arch_low_half_max;
@@ -61,7 +57,6 @@ uintptr_t kstacks_addr	 	= arch_kstacks_off;
 uintptr_t heap_addr		= arch_heap_off;
 
 static avl_node_t *kernel_tree = NULL;
-static avl_node_t *tree = NULL;
 
 int imax(int x, int y)
 {
@@ -289,6 +284,52 @@ void avl_destroy_tree(avl_node_t *node)
 	free(node);
 }
 
+static avl_node_t **avl_min_value(avl_node_t *n)
+{
+	avl_node_t **pp = &n;
+	while((*pp)->left)	pp = &(*pp)->left;
+
+	return pp;
+}
+
+static avl_node_t *__avl_remove_node(avl_node_t **pp)
+{
+	avl_node_t *p = *pp;
+	bool has_left = p->left != NULL;
+	bool has_right = p->right != NULL;
+
+	if(has_left && !has_right)
+	{
+		*pp = p->left;
+		return p;
+	}
+	else if(has_right && !has_left)
+	{
+		*pp = p->right;
+		return p;
+	}
+
+	/* Two children, find the inorder successor */
+
+	avl_node_t **successor = avl_min_value(p->right);
+
+	*pp = *successor;
+
+	__avl_remove_node(successor);
+
+	return p;
+}
+
+static avl_node_t *avl_remove_node(avl_node_t **tree, uintptr_t key)
+{
+	avl_node_t **pp = avl_search_key(tree, key);
+	if(!pp)
+		return NULL;
+	avl_node_t *p = __avl_remove_node(pp);
+	avl_balance_tree(tree);
+	return p;
+}
+
 static inline void __vm_lock(bool kernel)
 {
 	if(kernel)
@@ -316,22 +357,11 @@ void vmm_init()
 	arch_vmm_init();
 }
 
-static int vmm_comp(const void *ptr1, const void *ptr2)
-{
-	const struct vm_entry *a = (const struct vm_entry*) ptr1;
-	const struct vm_entry *b = (const struct vm_entry*) ptr2;
-
-	return a->base < b->base ? -1 :
-		b->base < a->base ?  1 :
-		a->pages < b->pages ? -1 :
-		b->pages < a->pages ?  1 :
-	                            0 ;
-}
-
 void heap_set_start(uintptr_t start);
 
 void vmm_late_init(void)
 {
+	/* TODO: This should be arch specific stuff, move this to arch/ */
 	uintptr_t heap_addr_no_aslr = heap_addr;
 
 	kstacks_addr = vm_randomize_address(kstacks_addr, KSTACKS_ASLR_BITS);
@@ -405,7 +435,7 @@ void vmm_unmap_range(void *range, size_t pages)
 	for (size_t i = 0; i < pages; i++)
 	{
 		void *page = paging_unmap((void*) mem);
-		if(page)	
+		if(page)
 		{
 			__free_page(page);
 			page_decrement_refcount(page);
@@ -417,50 +447,53 @@ void vmm_unmap_range(void *range, size_t pages)
 
 void vmm_destroy_mappings(void *range, size_t pages)
 {
-#if 0
-	if(!vmm_is_mapped(range))
-		return;
-	for(size_t i = 0; i < num_areas; i++)
+	uintptr_t p = (uintptr_t) range;
+	uintptr_t end = p + (pages << PAGE_SHIFT);
+
+	while(p != end)
 	{
-		if(areas[i].base == (uintptr_t)range && areas[i].pages == pages)
+		avl_node_t **e = avl_search_key(vmm_get_tree(), p);
+		assert(e != NULL);
+		avl_node_t *node = *e;
+		assert(node != NULL);
+
+		struct vm_entry *area = node->data;
+
+		if(area->base == p && area->pages <= pages)
 		{
-			areas[i].base = 0xFFFFFFFFFFFFFFFF;
-			areas[i].pages = 0xFFFFFFF;
-			num_areas--;
-			break;
+			__avl_remove_node(e);
+			avl_balance_tree(vmm_get_tree());
+			p += node->end;
+			pages -= area->pages;
+			free(node->data);
+			free(node);
 		}
-		if(areas[i].base + areas[i].pages * PAGE_SIZE > (uintptr_t) range && areas[i].base < (uintptr_t) range)
+		else if(area->base < p && area->base + node->end == end)
 		{
-			if((uintptr_t) (range + pages * PAGE_SIZE) != areas[i].base + areas[i].pages * PAGE_SIZE)
-			{
-				size_t old_pages = areas[i].pages;
-				areas[i].pages -= ((uintptr_t) range - areas[i].base / 4096);
-				size_t second_half_pages = old_pages - pages - areas[i].pages;
-				num_areas++;
-				areas = realloc(areas, sizeof(struct vm_entry) * num_areas);
-				areas[num_areas-1].base = (uintptr_t)range + pages * PAGE_SIZE;
-				areas[num_areas-1].pages = second_half_pages;
-				qsort(areas,num_areas,sizeof(struct vm_entry),vmm_comp);
-				if(likely(get_current_process()))
-					release_spinlock((spinlock_t*) &get_current_process()->vm_spl);
-				return;
-			}
-			else
-			{
-				areas[i].pages -= pages;
-				if(likely(get_current_process()))
-					release_spinlock((spinlock_t*) &get_current_process()->vm_spl);
-				return;
-			}
+			area->pages -= (end - p) >> PAGE_SHIFT;
+			node->end -= (end - p);
+			p += (end - p);
+			pages -= (end - p) >> PAGE_SHIFT;
+			free(node->data);
+			free(node);
+		}
+		else if(area->base < p && end < area->base + node->end)
+		{
+			uintptr_t new_area_end = area->base + node->end;
+			uintptr_t new_area_start = end;
+			node->end = p - area->base;
+			area->pages = node->end >> PAGE_SHIFT;
+
+			struct vm_entry *entry = avl_insert_key(vmm_get_tree(),
+				new_area_start, new_area_end - new_area_start);
+			assert(entry != NULL);
+			
+			memcpy(entry, area, sizeof(struct vm_entry));
+			entry->base = new_area_start;
+			entry->pages = (new_area_end - new_area_start) >> PAGE_SHIFT;
+			return;
 		}
 	}
-	areas = realloc(areas, sizeof(struct vm_entry) * num_areas);
-	qsort(areas,num_areas,sizeof(struct vm_entry),vmm_comp);
-	if(likely(get_current_process()))
-		release_spinlock((spinlock_t*) &get_current_process()->vm_spl);
-#endif
-	UNUSED(range);
-	UNUSED(pages);
 }
 
 void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uint64_t prot, uintptr_t alignment)
@@ -611,6 +644,20 @@ search_kernel:
 		if(!e)
 			return NULL;
 	}
+	avl_node_t *n = *e;
+	return n->data;
+}
+
+struct vm_entry *vm_find_region(void *addr)
+{
+	avl_node_t **tree = vmm_get_tree();
+	if(!tree)
+		return NULL;
+
+	avl_node_t **e = avl_search_key(tree, (uintptr_t) addr);
+	if(!e)
+		return NULL;
+
 	avl_node_t *n = *e;
 	return n->data;
 }
@@ -777,12 +824,18 @@ int sys_munmap(void *addr, size_t length)
 	size_t pages = length / PAGE_SIZE;
 	if(length % PAGE_SIZE)
 		pages++;
+	
 	if(!((uintptr_t) addr & 0xFFFFFFFFFFFFF000))
 		return errno =-EINVAL;
+	
 	if(!vmm_is_mapped(addr))
 		return errno =-EINVAL;
+	
 	vmm_unmap_range(addr, pages);
+	__vm_lock(false);	
 	vmm_destroy_mappings(addr, pages);
+	__vm_unlock(false);
+
 	return 0;
 }
 
@@ -815,8 +868,10 @@ int sys_mprotect(void *addr, size_t len, int prot)
 	int vm_prot = VM_USER |
 		      ((prot & PROT_WRITE) ? VM_WRITE : 0) |
 		      ((!(prot & PROT_EXEC)) ? VM_NOEXEC : 0);
-	
+
 	size_t pages = vmm_align_size_to_pages(len);
+
+	/* TODO: Doesn't support mprotects that span multiple regions */
 
 	len = pages * PAGE_SIZE; /* Align len on a page boundary */
 	if(area->base == (uintptr_t) addr && area->pages * PAGE_SIZE == len)
@@ -836,10 +891,11 @@ int sys_mprotect(void *addr, size_t len, int prot)
 		struct vm_entry *new = avl_insert_key(vmm_get_tree(), second_half, rest_pages * PAGE_SIZE);
 		if(!new)
 			return -ENOMEM;
+		
+		memcpy(new, area, sizeof(struct vm_entry));
 		new->base = second_half;
 		new->pages = rest_pages;
 		new->rwx = old_rwx;
-		new->type = area->type;
 	}
 	else if(area->base < (uintptr_t) addr && area->base + area->pages * PAGE_SIZE > (uintptr_t) addr + len)
 	{
@@ -855,6 +911,8 @@ int sys_mprotect(void *addr, size_t len, int prot)
 			__vm_unlock(false);
 			return errno = -ENOMEM;
 		}
+		memcpy(second_area, area, sizeof(struct vm_entry));
+
 		second_area->base = (uintptr_t) addr;
 		second_area->pages = pages;
 		second_area->type = area->type;
@@ -868,6 +926,7 @@ int sys_mprotect(void *addr, size_t len, int prot)
 			__vm_unlock(false);
 			return errno = -ENOMEM;
 		}
+		memcpy(third_area, area, sizeof(struct vm_entry));
 		third_area->base = (uintptr_t) addr + len;
 		third_area->pages = total_pages - pages - area->pages;
 		third_area->type = area->type;
@@ -885,6 +944,7 @@ int sys_mprotect(void *addr, size_t len, int prot)
 			__vm_unlock(false);
 			return errno = -ENOMEM;
 		}
+		memcpy(new_area, area, sizeof(struct vm_entry));
 		new_area->base = (uintptr_t) addr;
 		new_area->pages = pages;
 		new_area->type = area->type;
@@ -892,6 +952,7 @@ int sys_mprotect(void *addr, size_t len, int prot)
 	}
 	__vm_unlock(false);
 	vmm_change_perms(addr, pages, vm_prot);
+
 	return 0;
 }
 
@@ -934,17 +995,17 @@ uint64_t sys_brk(void *newbrk)
 
 void print_vmm_structs(avl_node_t *node)
 {
-	printk("[Base %016lx Length %lx End %016lx]\n", node->data->base, node->data->pages
-		* PAGE_SIZE, (uintptr_t) node->data->base + node->data->pages * PAGE_SIZE);
 	if(node->left)
 		print_vmm_structs(node->left);
+	printk("[Base %016lx Length %016lx End %016lx]\n", node->data->base, node->data->pages
+		* PAGE_SIZE, (uintptr_t) node->data->base + node->data->pages * PAGE_SIZE);
 	if(node->right)
 		print_vmm_structs(node->right);
 }
 
 void vmm_print_stats(void)
 {
-	print_vmm_structs(tree);
+	print_vmm_structs(*vmm_get_tree());
 }
 
 void *dma_map_range(void *phys, size_t size, size_t flags)
