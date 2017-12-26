@@ -149,24 +149,26 @@ struct minor_device *dev_find(dev_t dev)
 	}
 	return NULL;
 }
-unsigned int devfs_getdents(unsigned int count, struct dirent* dirp, off_t off, struct inode* this)
+
+off_t devfs_getdirent(struct dirent *buf, off_t off, struct inode *inode)
 {
-	unsigned int found = 0;
-	for(size_t i = 0; i < num_child; i++)
-	{
-		strcpy(dirp[found].d_name, children[i]->name);
-		printk("Child %s\n", children[i]->name);
-		dirp[found].d_ino = i;
-		if(children[i]->type & VFS_TYPE_DIR) dirp[found].d_type = DT_DIR;
-		else if(children[i]->type & VFS_TYPE_FILE) dirp[found].d_type = DT_REG;
-		else if(children[i]->type & VFS_TYPE_CHAR_DEVICE) dirp[found].d_type = DT_CHR;
-		else if(children[i]->type & VFS_TYPE_BLOCK_DEVICE) dirp[found].d_type = DT_BLK;
-		else dirp[found].d_type = DT_UNKNOWN;
-		if(++found == count)
-			break;
-	}
-	return found;
+	off_t new_off = off + 1;
+	if((size_t) off > num_child)
+		return 0;
+
+	buf->d_ino = children[off]->inode;
+	strcpy(buf->d_name, children[off]->name);
+	if(children[off]->type & VFS_TYPE_DIR) buf->d_type = DT_DIR;
+	else if(children[off]->type & VFS_TYPE_FILE) buf->d_type = DT_REG;
+	else if(children[off]->type & VFS_TYPE_CHAR_DEVICE) buf->d_type = DT_CHR;
+	else if(children[off]->type & VFS_TYPE_BLOCK_DEVICE) buf->d_type = DT_BLK;
+	else buf->d_type = DT_UNKNOWN;
+	buf->d_off = off;
+
+	buf->d_reclen = sizeof(struct dirent) - (256 - (strlen(buf->d_name) + 1));
+	return new_off;
 }
+
 struct inode *devfs_open(struct inode *this, const char *name)
 {
 	if(!children)
@@ -244,12 +246,14 @@ struct inode *devfs_creat(const char *pathname, int mode, struct inode *self)
 		return children[num_child-1];
 	}
 }
+
 struct file_ops devfs_ops = 
 {
 	.open = devfs_open,
-	.getdents = devfs_getdents,
+	.getdirent = devfs_getdirent,
 	.creat = devfs_creat
 };
+
 int devfs_init()
 {
 	struct inode *i = open_vfs(fs_root, "/dev");

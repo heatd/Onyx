@@ -4,7 +4,7 @@ SOURCE_PACKAGES:= libdrm libunwind init games ld dhcpcd wserver strace
 ALL_MODULES:=$(PROJECTS) $(SOURCE_PACKAGES)
 
 .PHONY: all iso clean build-prep geninitrd $(SYSTEM_HEADER_PROJECTS) $(PROJECTS) \
-$(SOURCE_PACKAGES) build-cleanup dash
+$(SOURCE_PACKAGES) build-cleanup dash musl
 
 export DESTDIR:=$(PWD)/sysroot
 export HOST?=$(shell ./default-host.sh)

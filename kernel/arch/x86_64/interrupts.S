@@ -69,6 +69,8 @@ irq_common:
 	call platform_send_eoi
 	pop rdi
 	mov rsi, rsp
+	; End the stack frame list so we stop here
+	xor rbp, rbp
 	call irq_handler
 	mov rsp, rax
 	call signal_is_pending

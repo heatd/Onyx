@@ -26,7 +26,7 @@
 struct inode *ext2_open(struct inode *nd, const char *name);
 size_t ext2_read(int flags, size_t offset, size_t sizeofreading, void *buffer, struct inode *node);
 size_t ext2_write(size_t offset, size_t sizeofwrite, void *buffer, struct inode *node);
-unsigned int ext2_getdents(unsigned int count, struct dirent* dirp, off_t off, struct inode* this);
+off_t ext2_getdirent(struct dirent *buf, off_t off, struct inode* this);
 int ext2_stat(struct stat *buf, struct inode *node);
 struct inode *ext2_creat(const char *path, int mode, struct inode *file);
 
@@ -35,7 +35,7 @@ struct file_ops ext2_ops =
 	.open = ext2_open,
 	.read = ext2_read,
 	.write = ext2_write,
-	.getdents = ext2_getdents,
+	.getdirent = ext2_getdirent,
 	.stat = ext2_stat,
 	.creat = ext2_creat
 };
@@ -274,72 +274,33 @@ __init void init_ext2drv()
 		FATAL("ext2", "error initializing the handler data\n");
 }
 
-unsigned int ext2_getdents(unsigned int count, struct dirent* dirp, off_t off, struct inode* this)
+off_t ext2_getdirent(struct dirent *buf, off_t off, struct inode* this)
 {
-	size_t read = 0;
-	uint32_t inoden = this->inode;
-	ext2_fs_t *fs = this->i_sb->s_helper;
-	/* Get the inode structure */
-	inode_t *ino = ext2_get_inode_from_number(fs, inoden);	
+	off_t new_off;
+	dir_entry_t entry;
+	size_t read;
 
-	size_t inode_size = EXT2_CALCULATE_SIZE64(ino); 
-	dir_entry_t *dir_entries = malloc(inode_size);
-	if(!dir_entries)
-	{
-		free(ino);
-		return errno = ENOMEM, (unsigned int) -1;
-	}
-	if(ext2_read_inode(ino, fs, inode_size, 0, (char*) dir_entries) != (ssize_t) inode_size)
-	{
-		free(ino);
-		free(dir_entries);
-		return (unsigned int) -1;
-	}
-	while(read < count)
-	{
-		if(dir_entries->inode == 0 && (ssize_t) read == off)
-			return 0;
-		if(dir_entries->inode == 0)
-			return read;
-		if(read + dir_entries->lsbit_namelen + 1 + sizeof(ino_t) + sizeof(off_t) + sizeof(unsigned short) + sizeof(unsigned char) > count)
-			return read;
-		dirp->d_ino = dir_entries->inode;
-		/* Set the dirent type */
-		switch(dir_entries->type_indic)
-		{
-			case 1:
-				dirp->d_type = DT_REG;
-				break;
-			case 4:
-				dirp->d_type = DT_BLK;
-				break;
-			case 2:
-				dirp->d_type = DT_DIR;
-				break;
-			case 3:
-				dirp->d_type = DT_CHR;
-				break;
-			case 5:
-				dirp->d_type = DT_FIFO;
-				break;
-			case 7:
-				dirp->d_type = DT_LNK;
-				break;
-			case 6:
-				dirp->d_type = DT_SOCK;
-				break;
-			default:
-				dirp->d_type = DT_UNKNOWN;
-				break;
-		}
-		memcpy(dirp->d_name, dir_entries->name, dir_entries->lsbit_namelen);
-		dirp->d_name[strlen(dirp->d_name)] = '\0';
-		dirp->d_reclen = dir_entries->lsbit_namelen + 1 + sizeof(ino_t) + sizeof(off_t) + sizeof(unsigned short) + sizeof(unsigned char);
-		read += dirp->d_reclen;
-		dirp = (struct dirent *)((char*) dirp + dirp->d_reclen);
-		dir_entries = (dir_entry_t*)((char*)dir_entries + dir_entries->size);
-	}
-	return read;
+	/* Read a dir entry from the offset */
+	read = ext2_read(0, off, sizeof(dir_entry_t), &entry, this);
+
+	/* If we reached the end of the directory buffer, return 0 */
+	if(read == 0)
+		return 0;
+
+	/* If we reached the end of the directory list, return 0 */
+	if(!entry.inode && !entry.lsbit_namelen)
+		return 0;
+
+	memcpy(buf->d_name, entry.name, entry.lsbit_namelen);
+	buf->d_name[entry.lsbit_namelen] = '\0';
+	buf->d_ino = entry.inode;
+	buf->d_off = off;
+	buf->d_reclen = sizeof(struct dirent) - (256 - (entry.lsbit_namelen + 1));
+	buf->d_type = entry.type_indic;
+
+	new_off = off + entry.size;
+
+	return new_off;
 }
 
 int ext2_stat(struct stat *buf, struct inode *node)

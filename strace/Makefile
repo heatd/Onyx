@@ -1,5 +1,5 @@
 PROG:= strace
-OBJS:= main.o
+OBJS:= main.o syscalls.o
 CFLAGS:=-O2 -g -std=c99 -D_POSIX_C_SOURCE -static
 clean:
 	rm -f $(PROG)

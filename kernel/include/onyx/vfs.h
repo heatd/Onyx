@@ -36,12 +36,13 @@ typedef size_t (*__read)(int flags, size_t offset, size_t sizeofread, void* buff
 typedef size_t (*__write)(size_t offset, size_t sizeofwrite, void* buffer, struct inode* file);
 typedef void (*__close)(struct inode* file);
 typedef struct inode *(*__open)(struct inode* file, const char *name);
-typedef unsigned int (*__getdents)(unsigned int count, struct dirent* dirp, off_t off, struct inode* file);
+typedef off_t (*__getdirent)(struct dirent *buf, off_t off, struct inode* file);
 typedef unsigned int (*__ioctl)(int request, void *argp, struct inode* file);
 typedef struct inode *(*__creat)(const char *pathname, int mode, struct inode *file);
 typedef int (*__stat)(struct stat *buf, struct inode *node);
 typedef int (*__link)(const char *newpath, struct inode *node);
 typedef int (*__symlink)(const char *linkpath, struct inode *node);
+typedef unsigned int (*putdir_t)(struct dirent *, struct dirent *ubuf, unsigned int count);
 
 struct file_ops
 {
@@ -49,7 +50,7 @@ struct file_ops
 	__write write;
 	__open open;
 	__close close;
-	__getdents getdents;
+	__getdirent getdirent;
 	__ioctl ioctl;
 	__creat creat;
 	__stat stat;
@@ -95,7 +96,7 @@ void 		close_vfs(struct inode* file);
 struct inode 	*open_vfs(struct inode* file, const char*);
 int 		mount_fs(struct inode *node, const char *mp);
 struct inode 	*creat_vfs(struct inode *node, const char *path, int mode);
-unsigned int 	getdents_vfs(unsigned int count, struct dirent* dirp, off_t off, struct inode *file);
+off_t 		getdents_vfs(unsigned int count, putdir_t putdir, struct dirent* dirp, off_t off, struct inode *file);
 int 		ioctl_vfs(int request, char *argp, struct inode *file);
 int 		stat_vfs(struct stat *buf, struct inode *node);
 ssize_t 	send_vfs(const void *buf, size_t len, int flags, struct inode *node);

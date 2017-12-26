@@ -135,6 +135,7 @@ const char *errno_table[] =
 "Owner died",
 "State not recoverable"
 };
+
 char *strerror(int errnum)
 {
 	if(errnum < 0)

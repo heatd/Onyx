@@ -341,7 +341,7 @@ void cpu_send_message(int cpu, unsigned long message, void *arg)
 	assert(p != NULL);
 
 	/* CPU_KILL messages don't respect locks */
-	if(unlikely(message != CPU_KILL))
+	if(likely(message != CPU_KILL))
 		acquire_spinlock(&p->message_queue_lock);
 	if(unlikely(message == CPU_KILL))
 	{

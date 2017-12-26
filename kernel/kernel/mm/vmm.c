@@ -308,6 +308,11 @@ static avl_node_t *__avl_remove_node(avl_node_t **pp)
 		*pp = p->right;
 		return p;
 	}
+	else if(!has_left && !has_right)
+	{
+		*pp = NULL;
+		return p;
+	}
 
 	/* Two children, find the inorder successor */
 
@@ -447,12 +452,16 @@ void vmm_unmap_range(void *range, size_t pages)
 
 void vmm_destroy_mappings(void *range, size_t pages)
 {
+	avl_node_t **tree = vmm_get_tree();
 	uintptr_t p = (uintptr_t) range;
 	uintptr_t end = p + (pages << PAGE_SHIFT);
 
+	if(is_higher_half(range))
+		tree = &kernel_tree;
+
 	while(p != end)
 	{
-		avl_node_t **e = avl_search_key(vmm_get_tree(), p);
+		avl_node_t **e = avl_search_key(tree, p);
 		assert(e != NULL);
 		avl_node_t *node = *e;
 		assert(node != NULL);
@@ -462,7 +471,7 @@ void vmm_destroy_mappings(void *range, size_t pages)
 		if(area->base == p && area->pages <= pages)
 		{
 			__avl_remove_node(e);
-			avl_balance_tree(vmm_get_tree());
+			avl_balance_tree(tree);
 			p += node->end;
 			pages -= area->pages;
 			free(node->data);
@@ -484,7 +493,7 @@ void vmm_destroy_mappings(void *range, size_t pages)
 			node->end = p - area->base;
 			area->pages = node->end >> PAGE_SHIFT;
 
-			struct vm_entry *entry = avl_insert_key(vmm_get_tree(),
+			struct vm_entry *entry = avl_insert_key(tree,
 				new_area_start, new_area_end - new_area_start);
 			assert(entry != NULL);
 			
@@ -1004,7 +1013,7 @@ void print_vmm_structs(avl_node_t *node)
 {
 	if(node->left)
 		print_vmm_structs(node->left);
-	printk("[Base %016lx Length %016lx End %016lx]\n", node->data->base, node->data->pages
+	printf("[Base %016lx Length %016lx End %016lx]\n", node->data->base, node->data->pages
 		* PAGE_SIZE, (uintptr_t) node->data->base + node->data->pages * PAGE_SIZE);
 	if(node->right)
 		print_vmm_structs(node->right);
@@ -1012,7 +1021,7 @@ void print_vmm_structs(avl_node_t *node)
 
 void vmm_print_stats(void)
 {
-	print_vmm_structs(*vmm_get_tree());
+	print_vmm_structs(kernel_tree);
 }
 
 void *dma_map_range(void *phys, size_t size, size_t flags)

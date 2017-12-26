@@ -15,10 +15,13 @@
 
 #include <proc_event.h>
 
+void strace_print_event(struct proc_event *event);
+
 int proc_event_attach(pid_t pid, unsigned long flags)
 {
 	return (int) syscall(SYS_proc_event_attach, pid, flags);
 }
+
 void do_trace(pid_t pid)
 {
 	int fd = proc_event_attach(pid, PROC_EVENT_LISTEN_SYSCALLS);
@@ -26,20 +29,12 @@ void do_trace(pid_t pid)
 	{
 		perror("proc_event_attach");
 	}
-	printf("FD: %u\n", fd);
 	
 	struct proc_event event = {0};
 	while(read(fd, &event, sizeof(struct proc_event)))
 	{
-		printf("Event type %d\n", event.type);
-		if(event.type == PROC_EVENT_SYSCALL_ENTER)
-		{
-			printf("Syscall number: %lu\n", event.e_un.syscall.rax);
-		}
-		else if(event.type == PROC_EVENT_SYSCALL_EXIT)
-		{
-			printf("Syscall result: %lu\n", event.e_un.syscall.rax);
-		}
+		/* Print the event and send an ACK */
+		strace_print_event(&event);
 		ioctl(fd, 0);
 	}
 }

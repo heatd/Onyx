@@ -93,6 +93,7 @@ void panic(const char *msg)
 	stack_trace();
 	printk("Killing cpus\n");
 	cpu_kill_other_cpus();
+	vmm_print_stats();
 	halt();
 	__builtin_unreachable();
 }

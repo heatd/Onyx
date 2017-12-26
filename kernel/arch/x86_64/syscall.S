@@ -81,6 +81,8 @@ syscall_ENTRY64:
 
 	; Save the registers
 	pushaq
+	; End the stack frame list
+	xor rbp, rbp
 	SAVE_SCRATCH_REGS
 	mov rdi, qword[gs:0x18]
 	call thread_store_ustack

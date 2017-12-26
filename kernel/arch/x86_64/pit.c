@@ -3,13 +3,16 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
+
+#include <stdint.h>
+#include <stdio.h>
+
 #include <onyx/irq.h>
 #include <onyx/portio.h>
 #include <onyx/pit.h>
 #include <onyx/pic.h>
-#include <stdint.h>
 #include <onyx/compiler.h>
-#include <stdio.h>
+
 static volatile uint64_t timer_ticks = 0;
 uintptr_t timer_handler(registers_t *regs)
 {

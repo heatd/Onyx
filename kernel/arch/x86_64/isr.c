@@ -63,6 +63,8 @@ void dump_interrupt_context(intctx_t *ctx)
 	ctx->rax, ctx->rbx, ctx->rcx, ctx->rdx, ctx->rdi, ctx->rsi, ctx->rbp, 
 	ctx->r8, ctx->r9, ctx->r10, ctx->r11, ctx->r12, ctx->r13, ctx->r14, 
 	ctx->r15, ctx->rsp, ctx->rflags, ctx->ds, ctx->cs);
+
+	stack_trace_ex((uint64_t *) ctx->rbp);
 }
 
 static bool is_kernel_exception(intctx_t *ctx)

@@ -390,6 +390,7 @@ struct acpi_device *acpi_get_device(const char *id)
 {
 	return (struct acpi_device*) bus_find_device(&acpi_bus, id);
 }
+
 char *power_states[] =
 {
 	"_PS0",
@@ -397,6 +398,7 @@ char *power_states[] =
 	"_PS2",
 	"_PS3"
 };
+
 int acpi_set_device_power_state(struct acpi_device *device, unsigned int power_state)
 {
 	ACPI_STATUS st = AcpiEvaluateObject(device->object, power_states[power_state], NULL, NULL);

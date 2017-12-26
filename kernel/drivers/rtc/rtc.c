@@ -5,6 +5,7 @@
 */
 #include <stdbool.h>
 #include <stdio.h>
+#include <assert.h>
 
 #include <onyx/portio.h>
 #include <onyx/irq.h>
@@ -112,7 +113,9 @@ uint64_t get_unix_time(const date_t * const udate)
 	}
 	// Calculate this year's POSIX time
 	int total_day = 0;
-	for(int m = 0; m < udate->month-1; m++)
+	int month = udate->month - 1;
+	assert(month < 12);
+	for(int m = 0; m < month; m++)
 	{
 		total_day += months[m];
 	}
@@ -136,12 +139,17 @@ uint64_t get_unix_time(const date_t * const udate)
 static date_t date;
 void early_boot_rtc(void)
 {
+retry:
 	date.seconds = rtc_get_date_reg_early(RTC_REG_SECONDS);
 	date.minutes = rtc_get_date_reg_early(RTC_REG_MINUTES);
 	date.hours = rtc_get_date_reg_early(RTC_REG_HOURS);
 	date.day = rtc_get_date_reg_early(RTC_REG_MONTH_DAY);
 	date.month = rtc_get_date_reg_early(RTC_REG_MONTH);
 	date.year = rtc_get_date_reg_early(RTC_REG_CENTURY) * 100 + rtc_get_date_reg_early(RTC_REG_YEAR);
+	
+	if(date.seconds >= 60 || date.minutes >= 60 || date.hours >= 24
+		|| date.day > 31 || date.month > 12)
+		goto retry;	
 	date.unixtime = get_unix_time(&date);
 }
 
@@ -167,13 +175,8 @@ void init_rtc()
 		INFO("rtc", "24 hour mode set\n");
 	if(binary_mode_enabled)
 		INFO("rtc", "binary mode enabled\n");
-	date.seconds = rtc_get_date_reg(RTC_REG_SECONDS);
-	date.minutes = rtc_get_date_reg(RTC_REG_MINUTES);
-	date.hours = rtc_get_date_reg(RTC_REG_HOURS);
-	date.day = rtc_get_date_reg(RTC_REG_MONTH_DAY);
-	date.month = rtc_get_date_reg(RTC_REG_MONTH);
-	date.year = rtc_get_date_reg(RTC_REG_CENTURY) * 100 + rtc_get_date_reg(RTC_REG_YEAR);
-	date.unixtime = get_unix_time(&date);
+	
+	get_posix_time();
 
 	ENABLE_INTERRUPTS();
 
@@ -182,12 +185,16 @@ void init_rtc()
 
 time_t get_posix_time()
 {
+retry:
 	date.seconds = rtc_get_date_reg(RTC_REG_SECONDS);
 	date.minutes = rtc_get_date_reg(RTC_REG_MINUTES);
 	date.hours = rtc_get_date_reg(RTC_REG_HOURS);
 	date.day = rtc_get_date_reg(RTC_REG_MONTH_DAY);
 	date.month = rtc_get_date_reg(RTC_REG_MONTH);
 	date.year = rtc_get_date_reg(RTC_REG_CENTURY) * 100 + rtc_get_date_reg(RTC_REG_YEAR);
+	if(date.seconds >= 60 || date.minutes >= 60 || date.hours >= 24
+		|| date.day > 31 || date.month > 12)
+		goto retry;
 	date.unixtime = get_unix_time((const date_t *const) &date);
 	return date.unixtime;
 }

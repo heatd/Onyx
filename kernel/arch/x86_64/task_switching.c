@@ -29,6 +29,7 @@
 /* Creates a thread for the scheduler to switch to
    Expects a callback for the code(RIP) and some flags */
 int curr_id = 1;
+
 thread_t* task_switching_create_context(thread_callback_t callback, uint32_t flags, void* args)
 {
 	thread_t* new_thread = malloc(sizeof(thread_t));
@@ -108,6 +109,7 @@ thread_t* task_switching_create_context(thread_callback_t callback, uint32_t fla
 	
 	return new_thread;
 }
+
 extern PML4 *current_pml4;
 thread_t* task_switching_create_main_progcontext(thread_callback_t callback, uint32_t flags, int argc, char **argv, char **envp)
 {
@@ -200,6 +202,7 @@ thread_t* task_switching_create_main_progcontext(thread_callback_t callback, uin
 	
 	return new_thread;
 }
+
 uintptr_t *sched_fork_stack(syscall_ctx_t *ctx, uintptr_t *stack)
 {
 	uint64_t rflags = ctx->r11; // Get the RFLAGS, CS and SS
@@ -232,6 +235,7 @@ uintptr_t *sched_fork_stack(syscall_ctx_t *ctx, uintptr_t *stack)
 
 	return stack; 
 }
+
 #define ARCH_SET_GS 0x1001
 #define ARCH_SET_FS 0x1002
 #define ARCH_GET_FS 0x1003
@@ -267,27 +271,31 @@ int sys_arch_prctl(int code, unsigned long *addr)
 	}
 	return 0;
 }
+
 /* Meant to be used on .S files, where structs are hard to access */
 void thread_store_ustack(uintptr_t *ustack)
 {
 	get_current_thread()->user_stack = ustack;
 }
+
 uintptr_t *thread_get_ustack(void)
 {
 	return get_current_thread()->user_stack;
 }
+
 void thread_finish_destruction(void *___thread)
 {
 	thread_t *thread = ___thread;
 	/* Destroy the kernel stack */
-	vmm_destroy_mappings((void*) ((uintptr_t)thread->kernel_stack_top - 0x4000), 2);
-
+	vfree((void*) ((uintptr_t)thread->kernel_stack_top - 0x4000), 4);
+	
 	/* Free the fpu area */
 	free(thread->fpu_area);
 
 	/* Free the thread */
 	free(thread);
 }
+
 thread_t *sched_spawn_thread(registers_t *regs, thread_callback_t start, void *arg, void *fs)
 {
 	thread_t* new_thread = malloc(sizeof(thread_t));
@@ -321,8 +329,10 @@ thread_t *sched_spawn_thread(registers_t *regs, thread_callback_t start, void *a
 		free(new_thread);
 		return NULL;
 	}
+
 	new_thread->kernel_stack = (void*)((char*) new_thread->kernel_stack + 0x4000);
 	new_thread->kernel_stack_top = new_thread->kernel_stack;
+
 	new_thread->owner = get_current_process();
 
 	uint64_t *stack = new_thread->kernel_stack;

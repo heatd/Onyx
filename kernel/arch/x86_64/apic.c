@@ -267,16 +267,18 @@ void apic_timer_init()
 	/* Initialize the PIT to 100 hz */
 	pit_init(100);
 
+	uint64_t t = pit_get_tick_count();
+
 	__asm__ __volatile__("sti");
 	
 	/* Make sure we're measuring ~1s, so let 1 tick pass */
-	uint64_t t = pit_get_tick_count();
+
 	while(t == pit_get_tick_count());
 	
 	/* 0xFFFFFFFF shouldn't overflow in 10ms */
 	lapic_write(bsp_lapic, LAPIC_TIMER_INITCNT, 0xFFFFFFFF);
 
-	/* Wait for the 10 ms*/
+	/* Wait for the 10 ms */
 	t = pit_get_tick_count();
 	while(t == pit_get_tick_count());
 
@@ -335,7 +337,7 @@ uint64_t get_tick_count()
 void send_ipi(uint8_t id, uint32_t type, uint32_t page)
 {
 	lapic_write(bsp_lapic, LAPIC_IPIID, (uint32_t)id << 24);
-	uint64_t icr = type << 8;
+	uint64_t icr = type << 8 | (page & 0xff);
 	icr |= (1 << 14);
 	lapic_write(bsp_lapic, LAPIC_ICR, (uint32_t) icr);
 }

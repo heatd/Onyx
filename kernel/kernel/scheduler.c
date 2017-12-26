@@ -167,6 +167,7 @@ void sched_idle()
 void sched_append_to_queue(int priority, struct processor *p, 
 thread_t *thread)
 {
+	acquire_spinlock(&p->queue_locks[priority]);
 	thread_t *queue = p->thread_queues[priority];
 	if(!queue)
 	{
@@ -174,10 +175,16 @@ thread_t *thread)
 	}
 	else
 	{
-		while(queue->next_prio) queue = queue->next_prio;
+		while(queue->next_prio)
+		{
+			assert(queue != thread);
+			assert(queue != queue->next_prio);
+			queue = queue->next_prio;
+		}
 		queue->next_prio = thread;
 		thread->prev_prio = queue;
 	}
+	release_spinlock(&p->queue_locks[priority]);
 }
 
 int sched_allocate_processor(void)
@@ -201,14 +208,11 @@ void thread_add(thread_t *thread)
 {
 	int cpu_num = sched_allocate_processor();
 	struct processor *cpu = get_processor_data_for_cpu(cpu_num);
-	/* Lock the queue */
-	acquire_spinlock(&cpu->queue_locks[thread->priority]);
+
 	thread->cpu = cpu_num;
 	cpu->active_threads++;
 	/* Append the thread to the queue */
 	sched_append_to_queue(thread->priority, cpu, thread);
-	/* Unlock the queue */
-	release_spinlock(&cpu->queue_locks[thread->priority]);
 }
 
 thread_t *sched_create_thread(thread_callback_t callback, uint32_t flags, void* args)
@@ -327,8 +331,7 @@ void thread_destroy(thread_t *thread)
 	/* Remove the thread from the queue */
 	sched_remove_thread(thread);
 
-	/* Destroy the user stack */
-	if(thread->user_stack_bottom) vmm_destroy_mappings(thread->user_stack_bottom, 256);
+	/* We can't actually destroy the user stack because the vm regions are already destroyed */
 	
 	/* Schedule further thread destruction */
 	struct work_request req;

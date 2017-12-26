@@ -306,16 +306,56 @@ int mount_fs(struct inode *fsroot, const char *path)
 	return 0;
 }
 
-unsigned int getdents_vfs(unsigned int count, struct dirent* dirp, off_t off, struct inode *this)
+off_t do_getdirent(struct dirent *buf, off_t off, struct inode *file)
 {
-	if(this->type & VFS_TYPE_MOUNTPOINT)
-		return getdents_vfs(count, dirp, off, this->link);
+	if(file->type & VFS_TYPE_MOUNTPOINT)
+		return do_getdirent(buf, off, file->link);
+	if(file->fops.getdirent != NULL)
+		return file->fops.getdirent(buf, off, file);
+	return -ENOSYS;
+}
+
+unsigned int putdir(struct dirent *buf, struct dirent *ubuf, unsigned int count)
+{
+	unsigned int reclen = buf->d_reclen;
+	
+	if(reclen > count)
+		return errno = EINVAL, -1;
+	/* TODO: Use copy_to_user() */
+	memcpy(ubuf, buf, reclen);
+
+	return reclen > count ? count : reclen;
+}
+
+off_t getdents_vfs(unsigned int count, putdir_t putdir,
+	struct dirent* dirp, off_t off, struct inode *this)
+{
 	if(!(this->type & VFS_TYPE_DIR))
 		return errno = ENOTDIR, -1;
-	if(this->fops.getdents != NULL)
-		return this->fops.getdents(count, dirp, off, this);
 	
-	return errno = ENOSYS, (unsigned int) -1;
+	struct dirent buf;
+	unsigned int pos = 0;
+	
+	while(pos < count)
+	{
+		off_t of = do_getdirent(&buf, off, this);
+		
+		if(of == 0)
+			return 0; /* EOF, return EOF */
+		if(of < 0)
+			return errno = -of, -1; /* Error, return -1 with errno set */
+
+		/* Put the dirent in the user-space buffer */
+		unsigned int written = putdir(&buf, dirp, count);
+		if(written == (unsigned int ) -1)
+			return -1; /* Error, most likely out of buffer space */
+
+		pos += written;
+		dirp = (void*) (char *) dirp + written;
+		off += of;
+	}
+	
+	return off; 
 }
 
 int stat_vfs(struct stat *buf, struct inode *node)

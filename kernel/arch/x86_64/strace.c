@@ -13,6 +13,7 @@
 #include <onyx/task_switching.h>
 #include <onyx/elf.h>
 #include <onyx/panic.h>
+
 #define DEFAULT_UNWIND_NUMBER 6
 void itoa(uint64_t i, unsigned int base, char *buf, _Bool is_upper);
 static inline void get_frame_pointer(uint64_t **ptr)
@@ -24,12 +25,11 @@ static inline void get_frame_pointer(uint64_t **ptr)
 	 */
 	__asm__ __volatile__("mov %%rbp, %0":"=m"(*ptr)::"memory");
 }
+
 char *resolve_sym(void *address);
 __attribute__((no_sanitize_undefined))
-void *stack_trace()
+void *stack_trace_ex(uint64_t *stack)
 {
-	uint64_t *stack = NULL;
-	get_frame_pointer(&stack);
 	size_t return_addresses = 0;
 	// Get all the unwinds possible using threading structures
 	thread_t *thread = get_current_thread();
@@ -67,6 +67,14 @@ void *stack_trace()
 
 	return retaddrbuf;
 }
+
+void *stack_trace(void)
+{
+	uint64_t *stack = NULL;
+	get_frame_pointer(&stack);
+	return stack_trace_ex(stack);
+}
+
 /* Maybe it's better to put this section in another file */
 Elf64_Shdr *strtabs = NULL;
 Elf64_Shdr *symtab = NULL;
