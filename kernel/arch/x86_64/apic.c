@@ -18,6 +18,7 @@
 #include <onyx/log.h>
 #include <onyx/idt.h>
 #include <onyx/process.h>
+#include <onyx/clock.h>
 
 volatile uint32_t *bsp_lapic = NULL;
 volatile uint64_t ap_done = 0;
@@ -278,10 +279,13 @@ void apic_timer_init()
 	/* 0xFFFFFFFF shouldn't overflow in 10ms */
 	lapic_write(bsp_lapic, LAPIC_TIMER_INITCNT, 0xFFFFFFFF);
 
+	/* Use this moment to calculate the approx. tsc frequency too */
+	uint64_t tsc = rdtsc();
 	/* Wait for the 10 ms */
 	t = pit_get_tick_count();
 	while(t == pit_get_tick_count());
 
+	uint64_t end = rdtsc();
 	/* Get the ticks that passed in 10ms */
 	uint32_t ticks_in_10ms = 0xFFFFFFFF - lapic_read(bsp_lapic, LAPIC_TIMER_CURRCNT); 
 	
@@ -298,6 +302,7 @@ void apic_timer_init()
 	lapic_write(bsp_lapic, LAPIC_LVT_TIMER, 34 | LAPIC_LVT_TIMER_MODE_PERIODIC);
 	lapic_write(bsp_lapic, LAPIC_TIMER_INITCNT, ticks_in_10ms / 10);
 
+	x86_set_tsc_rate(clock_delta_calc(tsc, end) * 100);
 	/* De-initialize the PIT's used resources */	
 	pit_deinit();
 	/* Install an IRQ handler for IRQ2 */

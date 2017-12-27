@@ -155,9 +155,9 @@ retry:
 
 time_t get_posix_time(void);
 
-struct clock_source rtc_clock = {.clock_source = "x86 rtc", .get_posix_time = get_posix_time};
+struct wallclock_source rtc_clock = {.clock_source = "x86 rtc", .get_posix_time = get_posix_time};
 
-void init_rtc()
+void init_rtc(void)
 {
 	INFO("rtc", "initializing\n");
 	// Disable NMI's so we can access the CMOS without any risk of corruption
@@ -180,7 +180,7 @@ void init_rtc()
 
 	ENABLE_INTERRUPTS();
 
-	register_clock_source(&rtc_clock);
+	register_wallclock_source(&rtc_clock);
 }
 
 time_t get_posix_time()

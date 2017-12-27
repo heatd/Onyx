@@ -61,6 +61,21 @@ bool x86_has_cap(int cap)
 	return cpu.caps[q_index] & (1UL << bit_index);
 }
 
+bool x86_check_invariant_tsc(void)
+{
+	return cpu.invariant_tsc;
+}
+
+void x86_set_tsc_rate(uint64_t rate)
+{
+	cpu.tsc_rate = rate;
+}
+
+uint64_t x86_get_tsc_rate(void)
+{
+	return cpu.tsc_rate;
+}
+
 void __cpu_identify(void)
 {
 	uint32_t eax = 0;
@@ -88,6 +103,14 @@ void __cpu_identify(void)
 	}
 	cpu.caps[2] |= ((uint64_t) edx) << 32;
 	cpu.caps[3] = ecx;
+
+	if(!__get_cpuid(CPUID_ADVANCED_PM, &eax, &ebx, &ecx, &edx))
+	{
+		INFO("x86cpu", "CPUID_ADVANCED_PM not supported!\n");
+	}
+
+	cpu.invariant_tsc = (bool) (edx & (1 << 8));
+
 }
 
 char *cpu_get_name()
@@ -153,6 +176,7 @@ void cpu_identify()
 }
 
 extern void syscall_ENTRY64();
+void tsc_init(void);
 
 void cpu_init_interrupts()
 {
@@ -162,6 +186,7 @@ void cpu_init_interrupts()
 	ioapic_init();
 	lapic_init();
 	apic_timer_init();
+	tsc_init();
 
 	wrmsr(IA32_MSR_STAR, 0, ((0x18 | 3) << 16) | 0x8);
 	wrmsr(IA32_MSR_LSTAR, (unsigned long) syscall_ENTRY64 & 0xFFFFFFFF, (unsigned long) syscall_ENTRY64 >> 32);

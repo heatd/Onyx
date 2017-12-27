@@ -75,6 +75,7 @@
 #include <onyx/driver.h>
 #include <onyx/rwlock.h>
 #include <onyx/crypt/sha256.h>
+#include <onyx/clock.h>
 
 #include <drivers/ps2.h>
 #include <drivers/ata.h>

@@ -22,8 +22,11 @@
 #include <onyx/pnp.h>
 #include <onyx/dev.h>
 #include <onyx/apic.h>
+#include <onyx/clock.h>
 
 #include <drivers/pci.h>
+
+int acpi_init_timer(void);
 
 static const ACPI_EXCEPTION_INFO    AcpiGbl_ExceptionNames_Env[] =
 {
@@ -240,6 +243,7 @@ int acpi_get_irq_routing_info(struct bus *bus)
 static uintptr_t rsdp = 0;
 uintptr_t get_rdsp_from_grub(void);
 uint8_t AcpiTbChecksum(uint8_t *buffer, uint32_t len);
+
 void acpi_find_rsdp(void)
 {
 	if(ACPI_FAILURE(AcpiFindRootPointer(&rsdp)))
@@ -247,10 +251,12 @@ void acpi_find_rsdp(void)
 		rsdp = get_rdsp_from_grub();
 	}
 }
+
 uintptr_t acpi_get_rsdp(void)
 {
 	return rsdp;
 }
+
 ACPI_STATUS acpi_add_device(ACPI_HANDLE object, UINT32 nestingLevel, void *context, void **returnvalue)
 {
 	ACPI_DEVICE_INFO *info;
@@ -287,6 +293,7 @@ ACPI_STATUS acpi_add_device(ACPI_HANDLE object, UINT32 nestingLevel, void *conte
 
 	return AE_OK;
 }
+
 void acpi_enumerate_devices(void)
 {
 	ACPI_STATUS st;
@@ -300,6 +307,7 @@ void acpi_enumerate_devices(void)
 		ERROR("acpi", "Failed to walk the namespace\n");
 	}
 }
+
 int acpi_initialize(void)
 {
 	acpi_find_rsdp();
@@ -335,12 +343,15 @@ int acpi_initialize(void)
 	/* Enumerate every device */
 	acpi_enumerate_devices();
 
+	acpi_init_timer();
 	return 0;
 }
+
 uint32_t acpi_get_apic_id_lapic(ACPI_SUBTABLE_HEADER *madt)
 {
 	return ((ACPI_MADT_LOCAL_APIC*) madt)->Id;
 }
+
 static mutex_t cpu_enum_lock;
 static size_t __ndx = 0;
 ACPI_STATUS acpi_enumerate_per_cpu(ACPI_HANDLE object, UINT32 nestingLevel, void *context, void **returnvalue)
@@ -367,6 +378,7 @@ ACPI_STATUS acpi_enumerate_per_cpu(ACPI_HANDLE object, UINT32 nestingLevel, void
 	ACPI_FREE(buffer.Pointer);
 	return AE_OK;
 }
+
 struct acpi_processor *acpi_enumerate_cpus(void)
 {
 	struct acpi_processor *processors = malloc(sizeof(struct acpi_processor) * get_nr_cpus());
@@ -386,6 +398,7 @@ struct acpi_processor *acpi_enumerate_cpus(void)
 	mutex_unlock(&cpu_enum_lock);
 	return processors;
 }
+
 struct acpi_device *acpi_get_device(const char *id)
 {
 	return (struct acpi_device*) bus_find_device(&acpi_bus, id);
@@ -408,8 +421,87 @@ int acpi_set_device_power_state(struct acpi_device *device, unsigned int power_s
 	}
 	return 0;
 }
+
 int acpi_shutdown_device(struct device *dev)
 {
 	assert(dev);
 	return acpi_set_device_power_state((struct acpi_device *) dev, ACPI_POWER_STATE_D3);
+}
+
+uint64_t acpi_timer_get_ticks(void);
+unsigned int acpi_timer_get_elapsed_ns(uint64_t _old_ticks, uint64_t _new_ticks);
+
+struct clocksource acpi_timer_source = 
+{
+	.name = "acpi_pm_timer",
+	.rating = 200,
+	.rate = ACPI_PM_TIMER_FREQUENCY,
+	.get_ticks = acpi_timer_get_ticks,
+	.elapsed_ns = acpi_timer_get_elapsed_ns
+};
+
+int acpi_init_timer(void)
+{
+	uint32_t ticks;
+	ACPI_STATUS st = AcpiGetTimer(&ticks);
+
+	if(ACPI_FAILURE(st))
+	{
+		ERROR("acpi_pm_timer", "Couldn't get current ticks - there may be something "
+		"wrong with the ACPI PM Timer!\n");
+		return -1;
+	}
+
+	register_clock_source(&acpi_timer_source);
+	return 0;
+}
+
+uint64_t acpi_timer_get_ticks(void)
+{
+	uint32_t ticks;
+	AcpiGetTimer(&ticks);
+	return ticks;
+}
+
+unsigned int acpi_timer_get_elapsed_ns(uint64_t _old_ticks, uint64_t _new_ticks)
+{
+
+	/* Forced to rewrite this because AcpiGetTimerDuration works with 
+	 * microseconds instead of nanoseconds like we want
+	*/
+	uint32_t delta = 0;
+
+	/* Convert these to uint32_t's since the timer's resolution is 32-bit max. */
+	uint32_t old_ticks = (uint32_t) _old_ticks;
+	uint32_t new_ticks = (uint32_t) _new_ticks;
+
+	if(old_ticks < new_ticks)
+	{
+		delta = new_ticks - old_ticks;
+	}
+	else if(old_ticks == new_ticks)
+	{
+		return 0;
+	}
+	else
+	{
+		unsigned int res;
+		AcpiGetTimerResolution(&res);
+		
+		if(res == 24)
+		{
+			delta = ((0x00ffffff - old_ticks) + new_ticks) & 0x00ffffff;
+		}
+		else if(res == 32)
+		{
+			delta = (0xffffffff - old_ticks) + new_ticks;
+		}
+		else
+		{
+			ERROR("acpi_pm_timer", "Unknown timer resolution\n");
+		}
+	}
+
+	unsigned int delta_time = delta * NS_PER_SEC / ACPI_PM_TIMER_FREQUENCY;
+	return delta_time;
 }

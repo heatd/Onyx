@@ -22,6 +22,7 @@
 #define CPUID_BRAND0			0x80000002
 #define CPUID_BRAND1 			0x80000003
 #define CPUID_BRAND2 			0x80000004
+#define CPUID_ADVANCED_PM		0x80000007
 #define CPUID_ADDR_SPACE_SIZE		0x80000008
 #define CPUID_SIGN   			0x00000001
 #define CPUID_FEATURES			0x00000001
@@ -191,12 +192,18 @@ typedef struct cpu
 	char brandstr[48];
 	uint32_t max_function;
 	uint32_t stepping, family, model, extended_model, extended_family;
+	bool invariant_tsc;
+	uint64_t tsc_rate;
 	int virtualAddressSpace, physicalAddressSpace;
 	/* Add more as needed */
 	uint64_t caps[8];
 } cpu_t;
 __attribute__((hot))
 bool x86_has_cap(int cap);
+bool x86_check_invariant_tsc(void);
+void x86_set_tsc_rate(uint64_t rate);
+uint64_t x86_get_tsc_rate(void);
+
 #endif
 struct processor
 {

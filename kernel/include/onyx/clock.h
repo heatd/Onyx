@@ -9,12 +9,27 @@
 
 #include <time.h>
 
-struct clock_source
+#define NS_PER_SEC 	1000000000UL
+
+struct wallclock_source
 {
 	const char *clock_source;
 	time_t (*get_posix_time)(void);
 };
 
-void register_clock_source(struct clock_source *clk);
+struct clocksource
+{
+	const char *name;
+	long rating;
+	unsigned long rate;
+	unsigned int resolution;
+	uint64_t (*get_ticks)(void);
+	unsigned int (*elapsed_ns)(uint64_t old_ticks, uint64_t new_ticks);
+};
+
+void register_wallclock_source(struct wallclock_source *clk);
+void register_clock_source(struct clocksource *clk);
+struct clocksource *get_main_clock(void);
+uint64_t clock_delta_calc(uint64_t start, uint64_t end);
 
 #endif

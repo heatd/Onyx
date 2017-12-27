@@ -17,24 +17,42 @@
 #include <onyx/process.h>
 #include <onyx/clock.h>
 
-struct clock_source *main_clock;
+struct wallclock_source *main_wallclock;
+struct clocksource *main_clock;
 
-void register_clock_source(struct clock_source *clk)
+void register_wallclock_source(struct wallclock_source *clk)
 {
 	assert(clk->get_posix_time != NULL);
 
-	main_clock = clk;
+	main_wallclock = clk;
+}
+
+void register_clock_source(struct clocksource *clk)
+{
+	if(main_clock)
+	{
+		if(main_clock->rating < clk->rating)
+			main_clock = clk;
+	}
+	else
+		main_clock = clk;
+}
+
+struct clocksource *get_main_clock(void)
+{
+	assert(main_clock != NULL);
+	return main_clock;
 }
 
 time_t sys_time(time_t *s)
 {
 	if(s)
 	{
-		uint64_t posix = main_clock->get_posix_time();
+		uint64_t posix = main_wallclock->get_posix_time();
 		if(copy_to_user(s, &posix, sizeof(time_t)) < 0)
 			return -EFAULT;
 	}
-	return main_clock->get_posix_time();
+	return main_wallclock->get_posix_time();
 }
 
 int sys_gettimeofday(struct timeval *tv, struct timezone *tz)
@@ -42,8 +60,8 @@ int sys_gettimeofday(struct timeval *tv, struct timezone *tz)
 	if(tv)
 	{
 		struct timeval t;
-		t.tv_sec = main_clock->get_posix_time();
-		t.tv_usec = main_clock->get_posix_time() * 1000 + get_microseconds();
+		t.tv_sec = main_wallclock->get_posix_time();
+		t.tv_usec = main_wallclock->get_posix_time() * 1000 + get_microseconds();
 		if(copy_to_user(tv, &t, sizeof(struct timeval)) < 0)
 			return -EFAULT;
 	}
@@ -57,7 +75,7 @@ int sys_clock_gettime(clockid_t clk_id, struct timespec *tp)
 	{
 		case CLOCK_REALTIME:
 		{
-			t.tv_sec = main_clock->get_posix_time();
+			t.tv_sec = main_wallclock->get_posix_time();
 			t.tv_nsec = get_microseconds();
 			break;
 		}
@@ -89,4 +107,9 @@ clock_t sys_times(struct tms *buf)
 int sys_getrusage(int who, struct rusage *usage)
 {
 	return -ENOSYS;
+}
+
+uint64_t clock_delta_calc(uint64_t start, uint64_t end)
+{
+	return end - start;
 }
