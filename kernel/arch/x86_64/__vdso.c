@@ -20,5 +20,5 @@ static const struct vdso_info info =
 
 static struct vdso_info *__vdso_get_vdso_info(void)
 {
-	return &info;
+	return (struct vdso_info *) &info;
 }

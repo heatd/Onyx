@@ -27,9 +27,18 @@ struct clocksource
 	unsigned int (*elapsed_ns)(uint64_t old_ticks, uint64_t new_ticks);
 };
 
+struct clock_time
+{
+	time_t epoch;
+	uint64_t tick;
+	struct clocksource *source;
+};
+
 void register_wallclock_source(struct wallclock_source *clk);
 void register_clock_source(struct clocksource *clk);
 struct clocksource *get_main_clock(void);
 uint64_t clock_delta_calc(uint64_t start, uint64_t end);
+void time_set(clockid_t clock, struct clock_time *val);
+int clock_gettime_kernel(clockid_t clk_id, struct timespec *tp);
 
 #endif

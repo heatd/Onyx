@@ -17,6 +17,9 @@
 #include <drivers/nmi.h>
 #include <drivers/rtc.h>
 
+#define RTC_STATUS_B_UEI           (1 << 4)
+#define RTC_STATUS_B_PI            (1 << 6)
+
 void nmi_enable()
 {
 	outb(0x70, inb(0x70) & 0x7F);
@@ -157,6 +160,31 @@ time_t get_posix_time(void);
 
 struct wallclock_source rtc_clock = {.clock_source = "x86 rtc", .get_posix_time = get_posix_time};
 
+#define RTC_IRQ		8
+
+void rtc_eoi(void)
+{
+	outb(0x70, RTC_STATUS_REG_C);
+	inb(0x71);
+}
+
+uintptr_t rtc_irq(registers_t *regs)
+{
+	outb(0x70, RTC_STATUS_REG_C);
+	uint8_t irq_reason = inb(0x71);
+
+	if(irq_reason & RTC_STATUS_B_UEI)
+	{
+		struct clock_time clk;
+		clk.epoch = get_posix_time();
+		clk.source = get_main_clock();
+		clk.tick = clk.source->get_ticks();
+		time_set(CLOCK_REALTIME, &clk);
+	}
+	
+	return (uintptr_t) regs;
+}
+
 void init_rtc(void)
 {
 	INFO("rtc", "initializing\n");
@@ -165,6 +193,24 @@ void init_rtc(void)
 	DISABLE_INTERRUPTS();
 	outb(0x70, RTC_STATUS_REG_B);
 	uint8_t b = inb(0x71);
+
+	b |= RTC_STATUS_B_UEI;
+	b &= ~RTC_STATUS_B_PI;
+
+	outb(0x70, RTC_STATUS_REG_B);
+	outb(0x71, b);
+
+	irq_install_handler(RTC_IRQ, rtc_irq);
+	/* Setup a frequency of 2hz by setting the divisor to 15 */
+	outb(0x70, RTC_STATUS_REG_A);
+	uint8_t st = inb(0x71);
+
+	outb(0x70, RTC_STATUS_REG_A);
+	outb(0x71, (st & 0xf0) | 15);
+	outb(0x70, RTC_STATUS_REG_A);
+
+	rtc_eoi();
+
 	ENABLE_INTERRUPTS();
 	nmi_enable();
 	if(b & 2)
@@ -175,10 +221,12 @@ void init_rtc(void)
 		INFO("rtc", "24 hour mode set\n");
 	if(binary_mode_enabled)
 		INFO("rtc", "binary mode enabled\n");
-	
-	get_posix_time();
 
-	ENABLE_INTERRUPTS();
+	struct clock_time clk;
+	clk.epoch = get_posix_time();
+	clk.source = get_main_clock();
+	clk.tick = clk.source->get_ticks();
+	time_set(CLOCK_REALTIME, &clk);
 
 	register_wallclock_source(&rtc_clock);
 }

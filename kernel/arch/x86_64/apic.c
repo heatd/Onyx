@@ -231,17 +231,43 @@ void ioapic_init()
 volatile uint64_t boot_ticks = 0;
 static int boot_sched_quantum = 10;
 
+void apic_update_clock_monotonic(void)
+{
+	struct clock_time time;
+	time.epoch = boot_ticks / 1000;
+		
+	/* It's actually possible that no clocksource exists this early on */
+	struct clocksource *source = get_main_clock();
+	if(source)
+	{
+		time.source = source;
+		time.tick = source->get_ticks();
+	}
+
+	time_set(CLOCK_MONOTONIC, &time);
+}
+
 static uintptr_t apic_timer_irq(registers_t *regs)
 {
 	if(!is_percpu_initialized())
 	{
 		boot_ticks++;
+		apic_update_clock_monotonic();
 		boot_sched_quantum--;
 		return 0;
 	}
 	struct processor *cpu = get_processor_data();
 	cpu->apic_ticks++;
 	cpu->sched_quantum--;
+
+	/* Let cpu 0 update the boot ticks and the monotonic clock */
+	if(get_cpu_num() == 0)
+	{
+		boot_ticks++;
+		apic_update_clock_monotonic();
+
+	}
+
 	process_increment_stats(is_kernel_ip(regs->rip));
 	if(cpu->sched_quantum == 0)
 	{
@@ -333,10 +359,7 @@ void apic_timer_smp_init(volatile uint32_t *lapic)
 
 uint64_t get_tick_count()
 {
-	if(!is_smp_enabled)
-		return boot_ticks;
-	struct processor *cpu = get_processor_data();
-	return cpu->apic_ticks;
+	return boot_ticks;
 }
 
 void send_ipi(uint8_t id, uint32_t type, uint32_t page)
