@@ -181,6 +181,8 @@ uintptr_t rtc_irq(registers_t *regs)
 		clk.tick = clk.source->get_ticks();
 		time_set(CLOCK_REALTIME, &clk);
 	}
+
+	rtc_eoi();
 	
 	return (uintptr_t) regs;
 }
