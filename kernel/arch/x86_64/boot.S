@@ -88,6 +88,7 @@ stack_top:
 section .text
 extern kernel_early
 extern kernel_main
+extern randomize_stack_canary
 extern _init
 _start:
 	push 0
@@ -95,6 +96,7 @@ _start:
 	call initsse
 	call kernel_early
 	call _init
+	call randomize_stack_canary
 	call kernel_main
 	cli
 .Lhang:

@@ -48,6 +48,16 @@ void __initialize_ssp()
 	#endif
 
 }
+
+void arc4random_buf(void* buffer_ptr, size_t size);
+
+void randomize_stack_canary(void)
+{
+	uintptr_t new_guard = 0;
+	arc4random_buf(&new_guard, sizeof(uintptr_t));
+	__stack_chk_guard = new_guard;
+}
+
 __attribute__((noreturn))
 void __stack_chk_fail()
 {
