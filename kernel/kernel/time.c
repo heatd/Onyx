@@ -12,6 +12,7 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 
+#include <onyx/vdso.h>
 #include <onyx/timer.h>
 #include <onyx/vmm.h>
 #include <onyx/process.h>
@@ -138,4 +139,10 @@ uint64_t clock_delta_calc(uint64_t start, uint64_t end)
 void time_set(clockid_t clock, struct clock_time *val)
 {
 	clocks[clock] = *val;
+	vdso_update_time(clock, val);
+}
+
+struct clock_time *get_raw_clock_time(clockid_t clkid)
+{
+	return &clocks[clkid];
 }

@@ -38,6 +38,9 @@ USES_FANCY_END
 #include <onyx/spinlock.h>
 #include <onyx/registers.h>
 #include <onyx/avx.h>
+
+#include <onyx/x86/tsc.h>
+
 static cpu_t cpu;
 
 static struct processor *cpus = NULL;
@@ -176,7 +179,6 @@ void cpu_identify()
 }
 
 extern void syscall_ENTRY64();
-void tsc_init(void);
 
 void cpu_init_interrupts()
 {
@@ -187,6 +189,7 @@ void cpu_init_interrupts()
 	lapic_init();
 	apic_timer_init();
 	tsc_init();
+	vdso_init();
 
 	wrmsr(IA32_MSR_STAR, 0, ((0x18 | 3) << 16) | 0x8);
 	wrmsr(IA32_MSR_LSTAR, (unsigned long) syscall_ENTRY64 & 0xFFFFFFFF, (unsigned long) syscall_ENTRY64 >> 32);
@@ -262,6 +265,8 @@ int cpu_init_mp()
 	ENABLE_INTERRUPTS();
 	return booted_cpus;
 }
+
+extern PML4 *boot_pml4;
 
 void cpu_ap_entry(int cpu_num)
 {

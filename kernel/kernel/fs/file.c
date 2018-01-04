@@ -399,6 +399,7 @@ ssize_t sys_pwritev(int fd, const struct iovec *vec, int veccnt, off_t offset)
 	}
 	return wrote;
 }
+unsigned int putdir(struct dirent *buf, struct dirent *ubuf, unsigned int count);
 
 int sys_getdents(int fd, struct dirent *dirp, unsigned int count)
 {
@@ -408,7 +409,8 @@ int sys_getdents(int fd, struct dirent *dirp, unsigned int count)
 		return -EINVAL;
 
 	ioctx_t *ctx = &get_current_process()->ctx;
-	int read_entries_size = getdents_vfs(count, dirp, ctx->file_desc[fd]->seek, ctx->file_desc[fd]->vfs_node);
+	int read_entries_size = getdents_vfs(count, putdir, dirp, ctx->file_desc[fd]->seek,
+		ctx->file_desc[fd]->vfs_node);
 	ctx->file_desc[fd]->seek += read_entries_size;
 	return read_entries_size;
 }

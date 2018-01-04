@@ -11,6 +11,8 @@
 #include <onyx/cpu.h>
 #include <onyx/log.h>
 
+#include <onyx/x86/tsc.h>
+
 static unsigned int ticks_per_ns;
 
 uint64_t tsc_get_ticks(void);
@@ -46,4 +48,10 @@ unsigned int tsc_elapsed_ns(uint64_t start, uint64_t end)
 {
 	uint64_t delta = clock_delta_calc(start, end);
 	return delta / ticks_per_ns;
+}
+
+void tsc_setup_vdso(struct vdso_time *time)
+{
+	time->ticks_per_ns = ticks_per_ns;
+	time->using_tsc = x86_check_invariant_tsc();
 }

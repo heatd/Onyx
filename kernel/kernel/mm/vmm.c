@@ -401,7 +401,7 @@ void vmm_late_init(void)
 	v->base = KERNEL_VIRTUAL_BASE;
 	v->pages = 0x80000000 / PAGE_SIZE;
 	v->type = VM_TYPE_SHARED;
-	v->rwx = VM_WRITE;
+	v->rwx = 0;
 
 	is_initialized = true;
 }
@@ -409,7 +409,8 @@ void vmm_late_init(void)
 void *vmm_map_range(void *range, size_t pages, uint64_t flags)
 {
 	bool kernel = is_higher_half(range);
-
+	if(kernel)	printf("VMM_MAP_RANGE: %p CALLED BY %p\n", range,
+		__builtin_return_address(0));
 	if(!kernel) __vm_lock(kernel);
 	uintptr_t mem = (uintptr_t) range;
 	for (size_t pgs = 0; pgs < pages; pgs++)
@@ -1024,13 +1025,11 @@ void vmm_print_stats(void)
 	print_vmm_structs(kernel_tree);
 }
 
-void *dma_map_range(void *phys, size_t size, size_t flags)
+void *map_pages_to_vaddr(void *virt, void *phys, size_t size, size_t flags)
 {
 	size_t pages = vmm_align_size_to_pages(size);
 
-	void *ptr = vmm_allocate_virt_address(flags & VM_USER ? VM_ADDRESS_USER : VM_KERNEL, pages, VM_TYPE_REGULAR, flags, 0);
-	if(!ptr)
-		return NULL;
+	void *ptr = virt;
 	for(uintptr_t virt = (uintptr_t) ptr, _phys = (uintptr_t) phys, i = 0; i < pages; virt += PAGE_SIZE, 
 		_phys += PAGE_SIZE, ++i)
 	{
@@ -1038,6 +1037,16 @@ void *dma_map_range(void *phys, size_t size, size_t flags)
 			return NULL;
 	}
 	return ptr;
+}
+
+void *dma_map_range(void *phys, size_t size, size_t flags)
+{
+	size_t pages = vmm_align_size_to_pages(size);
+	void *ptr = vmm_allocate_virt_address(flags & VM_USER ? VM_ADDRESS_USER : VM_KERNEL, pages, VM_TYPE_REGULAR, flags, 0);
+	if(!ptr)
+		return NULL;
+	/* TODO: Clean up if something goes wrong */
+	return map_pages_to_vaddr(ptr, phys, size, flags);
 }
 
 int __vm_handle_private(struct vm_entry *entry, struct fault_info *info)

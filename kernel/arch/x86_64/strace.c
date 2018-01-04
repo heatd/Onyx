@@ -13,6 +13,7 @@
 #include <onyx/task_switching.h>
 #include <onyx/elf.h>
 #include <onyx/panic.h>
+#include <onyx/vmm.h>
 
 #define DEFAULT_UNWIND_NUMBER 6
 void itoa(uint64_t i, unsigned int base, char *buf, _Bool is_upper);
@@ -89,7 +90,7 @@ __attribute__((no_sanitize_undefined))
 uintptr_t get_kernel_sym_by_name(const char *name)
 {
 	size_t num = symtab->sh_size / symtab->sh_entsize;
-	Elf64_Sym *syms = (Elf64_Sym*)(symtab->sh_addr + 0xFFFFFFFF80000000);
+	Elf64_Sym *syms = (Elf64_Sym*)(symtab->sh_addr + PHYS_BASE);
 	for(size_t i = 1; i < num; i++)
 	{
 		if(!strcmp(elf_get_string(syms[i].st_name), name))
@@ -104,7 +105,7 @@ __attribute__((no_sanitize_undefined))
 char *resolve_sym(void *address)
 {
 	size_t num = symtab->sh_size / symtab->sh_entsize;
-	Elf64_Sym *syms = (Elf64_Sym*)(symtab->sh_addr + 0xFFFFFFFF80000000);
+	Elf64_Sym *syms = (Elf64_Sym*)(symtab->sh_addr + PHYS_BASE);
 	for(size_t i = 1; i < num; i++)
 	{
 		if(syms[i].st_value == (Elf64_Addr)address){
@@ -148,7 +149,7 @@ void init_elf_symbols(struct multiboot_tag_elf_sections *restrict secs)
 {
 	Elf64_Shdr *sections = (Elf64_Shdr*)(secs->sections);
 	strtabs = &sections[secs->shndx];
-	strtab = (char*)(strtabs->sh_addr + 0xFFFFFFFF80000000);
+	strtab = (char*)(strtabs->sh_addr + PHYS_BASE);
 	for(unsigned int i = 0; i < secs->num; i++)
 	{
 		if(!strcmp(".symtab",elf_get_string(sections[i].sh_name)))
@@ -157,7 +158,7 @@ void init_elf_symbols(struct multiboot_tag_elf_sections *restrict secs)
 		}
 		if(!strcmp(".strtab",elf_get_string(sections[i].sh_name)))
 		{
-			strtab = (char*)(sections[i].sh_addr + 0xFFFFFFFF80000000);
+			strtab = (char*)(sections[i].sh_addr + PHYS_BASE);
 		}
 	}
 }

@@ -166,6 +166,6 @@ void network_dispatch_recieve(uint8_t *packet, uint16_t len, struct netif *netif
 
 	struct dpc_work work = {0};
 	work.funcptr = network_do_dispatch;
-	work.context = &args;
+	work.context = args;
 	dpc_schedule_work(&work, DPC_PRIORITY_HIGH);
 }

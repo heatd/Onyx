@@ -45,6 +45,14 @@ __long_mode_enter:
 	retf
 _long_mode:
 BITS 64
+	extern boot_pml4
+	mov rax, [boot_pml4]
+	mov rbx, .higher_half
+	jmp rbx
+.higher_half:
+	extern gdtr3
+	lgdt [gdtr3]
+	mov cr3, rax
 	mov rax, 0x10
 	mov ds, ax
 	mov es, ax
@@ -53,8 +61,6 @@ BITS 64
 	mov fs, ax
 	extern ap_done
 	; Load the common gdt between all cores
-	extern gdtr3
-	lgdt [gdtr3]
 	extern idt_ptr
 	lidt [idt_ptr]
 	extern core_stack

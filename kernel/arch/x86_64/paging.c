@@ -118,7 +118,7 @@ typedef struct
 	uint64_t rest :16;
 } decomposed_addr_t;
 
-static PML4 *boot_pml4;
+PML4 *boot_pml4;
 
 PML4 *get_current_pml4(void)
 {
@@ -606,4 +606,43 @@ void paging_walk(void *addr)
 	uint32_t perms = *entry & 0xF00000000000FFF;
 	uint64_t page = PML_EXTRACT_ADDRESS(*entry);
 	printk("Perms: %08x\nPage: %016lx\n", perms, page);
+}
+
+extern char _text_start;
+extern char _text_end;
+extern char _data_start;
+extern char _data_end;
+extern char _vdso_sect_start;
+extern char _vdso_sect_end;
+extern char VIRT_BASE;
+
+void paging_protect_kernel(void)
+{
+	PML4 *original_pml = boot_pml4;
+	PML4 *pml = __alloc_page(0);
+	boot_pml4 = pml;
+
+	uintptr_t text_start = (uintptr_t) &_text_start;
+	uintptr_t data_start = (uintptr_t) &_data_start;
+	uintptr_t vdso_start = (uintptr_t) &_vdso_sect_start;
+
+	memcpy((PML4*)((uintptr_t) pml + PHYS_BASE), (PML4*)((uintptr_t) original_pml + PHYS_BASE),
+		sizeof(PML4));
+	PML4 *p = (PML4*)((uintptr_t) pml + PHYS_BASE);
+	p->entries[511] = 0UL;
+	p->entries[0] = 0UL;
+	map_pages_to_vaddr((void *) &VIRT_BASE, NULL, 0x100000, VM_GLOBAL | VM_WRITE | VM_NOEXEC);
+	size_t size = (uintptr_t) &_text_end - text_start;
+	map_pages_to_vaddr((void *) text_start, (void *) (text_start - KERNEL_VIRTUAL_BASE),
+		size, VM_GLOBAL);
+
+	size = (uintptr_t) &_data_end - data_start;
+	map_pages_to_vaddr((void *) data_start, (void *) (data_start - KERNEL_VIRTUAL_BASE),
+		size, VM_GLOBAL | VM_WRITE | VM_NOEXEC);
+	
+	size = (uintptr_t) &_vdso_sect_end - vdso_start;
+	map_pages_to_vaddr((void *) vdso_start, (void *) (vdso_start - KERNEL_VIRTUAL_BASE),
+		size, VM_GLOBAL | VM_WRITE);
+
+	__asm__ __volatile__("movq %0, %%cr3"::"r"(pml));
 }

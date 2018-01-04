@@ -89,6 +89,8 @@ void __ubsan_handle_type_mismatch(void* data_raw,
 		printf("Unaligned data alignment: %lu\n Unaligned pointer: %016lx\n",
 		data->alignment, pointer);
 	}
+	printk("ubsan: address %p with insufficient space for object of type %s\n", 
+		pointer_raw, data->type->type_name);
 	ubsan_abort(&data->location, violation);
 }
 ABORT_VARIANT_VP_VP(type_mismatch);

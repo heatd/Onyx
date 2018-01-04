@@ -64,7 +64,6 @@ int send_ipv4_packet(uint32_t senderip, uint32_t destip, unsigned int type, char
 
 void ipv4_handle_packet(ip_header_t *header, size_t size, struct netif *netif)
 {
-	printk("Recieved packet\n");
 }
 
 struct sock *ipv4_create_socket(int type, int protocol)

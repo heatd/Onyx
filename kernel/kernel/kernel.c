@@ -383,6 +383,7 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 	/* Register pages */
 	page_register_pages();
 
+	paging_protect_kernel();
 	if(tagfb)
 	{
 		phys_fb = (void*) tagfb->common.framebuffer_addr;
@@ -404,14 +405,15 @@ __attribute__((no_sanitize_undefined))
 void kernel_main()
 {
 	init_elf_symbols(secs);
-	
+
 	/* Initialize ACPI */
 	acpi_initialize();
 
 	/* Initialize the interrupt part of the CPU (arch dependent) */
 	cpu_init_interrupts();
 
-	memcpy((void*) tramp, &_start_smp, (uintptr_t)&_end_smp - (uintptr_t)&_start_smp);
+	memcpy((void*) (PHYS_BASE + (uintptr_t) tramp), &_start_smp,
+		(uintptr_t) &_end_smp - (uintptr_t)&_start_smp);
 
 	/* Initialize multi-processors */
 	cpu_init_mp();
@@ -425,8 +427,6 @@ void kernel_main()
 		panic("Initrd not found\n");
 	initrd_addr = (void*)((char*) initrd_addr + PHYS_BASE);
 
-	/* Invalidate and unmap the lower memory zones (0x0 to 0x400000) */
-	__asm__ __volatile__("movq $0, pdlower; movq $0, pdlower + 8;invlpg 0x0;invlpg 0x200000");
 	/* Initialize the initrd */
 	init_initrd(initrd_addr);
 

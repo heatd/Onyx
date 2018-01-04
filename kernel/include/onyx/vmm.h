@@ -117,6 +117,7 @@ ssize_t copy_from_user(void *data, const void *usr, size_t len);
 void arch_vmm_init(void);
 void vm_update_addresses(uintptr_t new_kernel_space_base);
 uintptr_t vm_randomize_address(uintptr_t base, uintptr_t bits);
+void *map_pages_to_vaddr(void *virt, void *phys, size_t size, size_t flags);
 
 static inline void *page_align_up(void *ptr)
 {

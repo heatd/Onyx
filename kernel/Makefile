@@ -42,7 +42,7 @@ $(patsubst %.c,%.o,$(wildcard kernel/*/*.c)) \
 $(patsubst %.cpp,%.o,$(wildcard kernel/*/*.cpp)) \
 $(filter-out $(ARCHDIR)/__vdso.o, $(patsubst %.c,%.o,$(wildcard $(ARCHDIR)/*.c))) \
 $(filter-out acpica/components/disassembler/%, $(patsubst %.c,%.o,$(wildcard acpica/components/*/*.c))) \
-$(filter-out $(ARCHDIR)/crti.o, $(patsubst %.S,%.o,$(wildcard $(ARCHDIR)/*.S)))
+$(filter-out $(ARCHDIR)/crti.o $(ARCHDIR)/__vdso_asm.S, $(patsubst %.S,%.o,$(wildcard $(ARCHDIR)/*.S)))
 
 CRTI_OBJ:=../sysroot/usr/lib/crti.o
 CRTBEGIN_OBJ:=$(shell $(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=crtbegin.o)
@@ -60,6 +60,11 @@ $(CRTBEGIN_OBJ) \
 $(OBJS) \
 $(CRTEND_OBJ) \
 $(CRTN_OBJ) \
+
+VDSO_LDFLAGS:= -Wl,-Bsymbolic -shared \
+-Wl,-soname=onyx-vdso.so.0 -fpic \
+-T $(ARCHDIR)/vdso.ld -z max-page-size=0x1000 \
+-z common-page-size=0x1000
 
 all: onyx-vdso.so.0 vmonyx
 
@@ -84,10 +89,11 @@ acpica/%.o: acpica/%.c
 	@$(CXX) -c $< -o $@ -std=c++14 $(CFLAGS) $(CPPFLAGS) $(CXXFLAGS)
 $(ARCHDIR)/__vdso.o: $(ARCHDIR)/__vdso.c
 	@echo [CC] $<
-	@$(CC) -c $< -o $@ -shared -fpic
-onyx-vdso.so.0: $(ARCHDIR)/__vdso.o
+	@$(CC) -c $< -o $@ -fpic -Iinclude/acpica -Iinclude -isystem ../libc/include
+onyx-vdso.so.0: $(ARCHDIR)/__vdso_asm.o $(ARCHDIR)/__vdso.o
 	@echo [VDSO]
-	@$(CC) $< -o $@ -shared -fpic -ffreestanding -nostdlib $(CFLAGS) -z max-page-size=0x1000
+	$(CC) $(VDSO_LDFLAGS) $(ARCHDIR)/__vdso_asm.o $(ARCHDIR)/__vdso.o -o $@ -ffreestanding \
+	 -nostdlib -Iinclude -I../libc/include
 clean:
 	rm -f vmonyx $(OBJS) $(ALL_OUR_OBJS) *.o */*.o */*/*.o
 	$(MAKE) -C modules/ clean

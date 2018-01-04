@@ -7,6 +7,7 @@
 #ifndef _KERNEL_CLOCK_H
 #define _KERNEL_CLOCK_H
 
+#include <stdint.h>
 #include <time.h>
 
 #define NS_PER_SEC 	1000000000UL
@@ -40,5 +41,6 @@ struct clocksource *get_main_clock(void);
 uint64_t clock_delta_calc(uint64_t start, uint64_t end);
 void time_set(clockid_t clock, struct clock_time *val);
 int clock_gettime_kernel(clockid_t clk_id, struct timespec *tp);
+struct clock_time *get_raw_clock_time(clockid_t clkid);
 
 #endif

@@ -106,6 +106,7 @@ int elf_relocate_addend(Elf64_Ehdr *hdr, Elf64_Rela *rela, Elf64_Shdr *section)
 	if(sym_idx != SHN_UNDEF)
 	{
 		uintptr_t sym = elf_resolve_symbol(hdr, sections, target_section, sym_idx);
+
 		switch (ELF64_R_TYPE(rela->r_info))
 		{
 			case R_X86_64_NONE: break;

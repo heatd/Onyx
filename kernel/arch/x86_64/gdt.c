@@ -9,6 +9,7 @@
 #include <onyx/panic.h>
 #include <onyx/gdt.h>
 #include <onyx/tss.h>
+#include <onyx/vmm.h>
 
 #define GDT_SIZE 77
 extern gdtr_t gdtr3;
@@ -26,8 +27,9 @@ void gdt_init_percpu(void)
 		free(gdt);
 		panic("Out of memory while allocating a percpu GDT\n");
 	}
+	gdtr_t *g = (gdtr_t *)((uintptr_t) &gdtr3 + PHYS_BASE);
 	/* Copy the gdt */
-	memcpy(gdt, (const void*) gdtr3.ptr, GDT_SIZE);
+	memcpy(gdt, (const void*) g->ptr, GDT_SIZE);
 
 	/* Setup the GDTR */
 	gdtr->size = GDT_SIZE - 1;
