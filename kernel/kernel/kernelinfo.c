@@ -20,7 +20,7 @@ int sys_uname(struct utsname *ubuf)
 	strcpy(buf.version, OS_VERSION);
 	strcpy(buf.machine, OS_MACHINE);
 
-	strcpy(buf.nodename, network_gethostname());
+	strncpy(buf.nodename, network_gethostname(), sizeof(buf.nodename));
 	if(copy_to_user(ubuf, &buf, sizeof(struct utsname)) < 0)
 		return -EFAULT;
 	return 0;
