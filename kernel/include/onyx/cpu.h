@@ -229,7 +229,9 @@ struct processor
 	bool preemption_disabled;
 	struct cpu_message *message_queue;
 	spinlock_t message_queue_lock;
+	unsigned char *percpu_copy;
 };
+
 #ifdef __cplusplus
 extern "C"{
 #endif

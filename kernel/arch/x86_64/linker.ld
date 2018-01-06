@@ -55,6 +55,9 @@ SECTIONS
 	.data ALIGN(0x1000) : AT(ADDR(.data) - VIRT_BASE)
 	{
 		*(.data)
+		__percpu_start = .;
+		*(.percpu*)
+		__percpu_end = .;
 		*(.gnu.linkonce.d*)
 	}
 

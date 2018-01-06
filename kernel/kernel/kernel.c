@@ -76,6 +76,7 @@
 #include <onyx/rwlock.h>
 #include <onyx/crypt/sha256.h>
 #include <onyx/clock.h>
+#include <onyx/percpu.h>
 
 #include <drivers/ps2.h>
 #include <drivers/ata.h>
@@ -417,6 +418,9 @@ void kernel_main()
 
 	/* Initialize multi-processors */
 	cpu_init_mp();
+
+	/* Initialize percpu vars */
+	setup_percpu();
 
 	init_keyboard();
 
