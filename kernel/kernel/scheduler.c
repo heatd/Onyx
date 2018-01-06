@@ -309,7 +309,7 @@ int sys_nanosleep(const struct timespec *req, struct timespec *rem)
 	if(copy_from_user(&ts, req, sizeof(struct timespec)) < 0)
 		return -EFAULT;
 	time_t ticks = ts.tv_sec * 1000;
-	if(req->tv_nsec)
+	if(ts.tv_nsec)
 	{
 		if(ts.tv_nsec < 500)
 			ticks++;
