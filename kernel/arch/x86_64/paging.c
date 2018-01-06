@@ -125,7 +125,7 @@ PML4 *get_current_pml4(void)
 	struct process *p = get_current_process();
 	if(!p)
 		return boot_pml4;
-	return (PML4*) p->cr3;
+	return (PML4*) p->address_space.cr3;
 }
 
 void *virtual2phys(void *ptr)
@@ -645,4 +645,14 @@ void paging_protect_kernel(void)
 		size, VM_GLOBAL | VM_WRITE);
 
 	__asm__ __volatile__("movq %0, %%cr3"::"r"(pml));
+}
+
+void paging_invalidate(void *page, size_t pages)
+{
+	uintptr_t p = (uintptr_t) page;
+
+	for(size_t i = 0; i < pages; i++, p += 4096)
+	{
+		__native_tlb_invalidate_page((void *) p);
+	}
 }

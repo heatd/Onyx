@@ -28,9 +28,9 @@ int ptrace_peek(struct process *process, void *addr, ptrace_word_t *word)
 	//vmm_set_tree(process->tree);
 	
 	/* Lock the address space */
-	acquire_spinlock(&process->vm_spl);
+	acquire_spinlock(&process->address_space.vm_spl);
 	/* Load the actual address space */
-	paging_load_cr3(process->cr3);
+	paging_load_cr3(process->address_space.cr3);
 
 	/* Do the actual copy */
 	if(copy_from_user(word, addr, sizeof(ptrace_word_t)) < 0)
@@ -40,11 +40,11 @@ int ptrace_peek(struct process *process, void *addr, ptrace_word_t *word)
 	}
 
 	/* Unlock the address space */
-	release_spinlock(&process->vm_spl);
+	release_spinlock(&process->address_space.vm_spl);
 	
 	/* Restore the old context */
 	//vmm_set_tree(old_tree);
-	paging_load_cr3(get_current_process()->cr3);
+	paging_load_cr3(get_current_process()->address_space.cr3);
 
 	return status;
 }
@@ -58,9 +58,9 @@ int ptrace_poke(struct process *process, void *addr, ptrace_word_t word)
 	//vmm_set_tree(process->tree);
 	
 	/* Lock the address space */
-	acquire_spinlock(&process->vm_spl);
+	acquire_spinlock(&process->address_space.vm_spl);
 	/* Load the actual address space */
-	paging_load_cr3(process->cr3);
+	paging_load_cr3(process->address_space.cr3);
 
 	/* Do the actual copy */
 	if(copy_to_user(addr, &word, sizeof(ptrace_word_t)) < 0)
@@ -70,11 +70,11 @@ int ptrace_poke(struct process *process, void *addr, ptrace_word_t word)
 	}
 
 	/* Unlock the address space */
-	release_spinlock(&process->vm_spl);
+	release_spinlock(&process->address_space.vm_spl);
 	
 	/* Restore the old context */
 	//vmm_set_tree(old_tree);
-	paging_load_cr3(get_current_process()->cr3);
+	paging_load_cr3(get_current_process()->address_space.cr3);
 
 	return status;
 }

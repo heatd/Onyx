@@ -326,3 +326,34 @@ void __kbrk(void *break_)
 {
 	kernel_break = break_;
 }
+
+struct page *get_phys_pages(int order)
+{
+	void *addr = __alloc_pages(order);
+	
+	size_t nr_pages = pow2(order);
+	if(!addr)
+		return NULL;
+	
+	uintptr_t paddr = (uintptr_t) addr;
+
+	struct page *ret = phys_to_page(paddr);
+
+	for(; nr_pages; nr_pages--)
+	{
+		page_increment_refcount((void*) paddr);
+	}
+	return ret;
+}
+
+struct page *get_phys_page(void)
+{
+	void *addr = __alloc_page(0);
+
+	if(!addr)
+		return NULL;
+
+	struct page *p = phys_to_page((uintptr_t) addr);
+	p->ref++;
+	return p;
+}

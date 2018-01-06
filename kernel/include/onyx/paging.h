@@ -40,6 +40,7 @@ void paging_load_cr3(PML4 *pml);
 void paging_change_perms(void *addr, int perms);
 int is_invalid_arch_range(void *address, size_t pages);
 void paging_protect_kernel(void);
+void paging_invalidate(void *page, size_t pages);
 
 PML4 *get_current_pml4(void);
 #ifdef __cplusplus

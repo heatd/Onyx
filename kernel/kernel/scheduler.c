@@ -139,7 +139,7 @@ void *sched_switch_thread(void *last_stack)
 	restore_fpu(current_thread->fpu_area);
 	if(get_current_process())
 	{
-		paging_load_cr3(get_current_process()->cr3);
+		paging_load_cr3(get_current_process()->address_space.cr3);
 		errno = get_current_process()->errno;
 		wrmsr(FS_BASE_MSR, (uintptr_t) current_thread->fs & 0xFFFFFFFF, (uintptr_t)current_thread->fs >> 32);
 		wrmsr(KERNEL_GS_BASE, (uintptr_t) current_thread->gs & 0xFFFFFFFF, (uintptr_t) current_thread->gs >> 32);

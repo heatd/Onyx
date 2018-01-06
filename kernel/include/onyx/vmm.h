@@ -12,6 +12,7 @@
 
 #include <onyx/paging.h>
 #include <onyx/avl.h>
+#include <onyx/spinlock.h>
 
 #ifdef __x86_64__
 #include <onyx/x86/page.h>
@@ -77,6 +78,22 @@ struct fault_info
 	uintptr_t ip;
 };
 
+struct mm_address_space
+{
+	/* Virtual address space AVL tree */
+	avl_node_t *tree;
+	spinlock_t vm_spl;
+
+	/* mmap(2) base */
+	void *mmap_base;
+
+	/* Process' brk */
+	void *brk;
+#ifdef __x86_64__
+	PML4* cr3;
+#endif
+};
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -85,7 +102,7 @@ void vmm_init(void);
 void vmm_late_init(void);
 void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uint64_t prot,
 	uintptr_t alignment);
-void *vmm_map_range(void* range, size_t pages, uint64_t flags);
+struct page *vmm_map_range(void *range, size_t pages, uint64_t flags);
 void vmm_unmap_range(void *range, size_t pages);
 void vmm_destroy_mappings(void *range, size_t pages);
 void *vmm_reserve_address(void *addr, size_t pages, uint32_t type, uint64_t prot);
@@ -118,6 +135,8 @@ void arch_vmm_init(void);
 void vm_update_addresses(uintptr_t new_kernel_space_base);
 uintptr_t vm_randomize_address(uintptr_t base, uintptr_t bits);
 void *map_pages_to_vaddr(void *virt, void *phys, size_t size, size_t flags);
+void *get_user_pages(uint32_t type, size_t pages, size_t prot);
+
 
 static inline void *page_align_up(void *ptr)
 {

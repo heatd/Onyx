@@ -28,8 +28,6 @@
 
 #include <onyx/vm_layout.h>
 
-#include <drivers/rtc.h>
-
 #include <sys/mman.h>
 
 typedef struct avl_node
@@ -340,7 +338,7 @@ static inline void __vm_lock(bool kernel)
 	if(kernel)
 		acquire_spinlock(&kernel_vm_spl);
 	else
-		acquire_spinlock((spinlock_t*) &get_current_process()->vm_spl);
+		acquire_spinlock((spinlock_t*) &get_current_process()->address_space.vm_spl);
 }
 
 static inline void __vm_unlock(bool kernel)
@@ -348,7 +346,7 @@ static inline void __vm_unlock(bool kernel)
 	if(kernel)
 		release_spinlock(&kernel_vm_spl);
 	else
-		release_spinlock((spinlock_t*) &get_current_process()->vm_spl);
+		release_spinlock((spinlock_t*) &get_current_process()->address_space.vm_spl);
 }
 
 static inline bool is_higher_half(void *address)
@@ -406,30 +404,68 @@ void vmm_late_init(void)
 	is_initialized = true;
 }
 
-void *vmm_map_range(void *range, size_t pages, uint64_t flags)
+
+struct page *vm_allocate_page(int opt, uintptr_t *page)
+{
+	if(pages_are_registered())
+		return get_phys_page();
+	else
+	{
+		*page = (uintptr_t) __alloc_page(opt);
+		return NULL;
+	}
+}
+
+struct page *vmm_map_range(void *range, size_t pages, uint64_t flags)
 {
 	bool kernel = is_higher_half(range);
-	if(kernel)	printf("VMM_MAP_RANGE: %p CALLED BY %p\n", range,
-		__builtin_return_address(0));
+
 	if(!kernel) __vm_lock(kernel);
 	uintptr_t mem = (uintptr_t) range;
+	struct page *page = NULL;
+	struct page *ret = NULL;
+
 	for (size_t pgs = 0; pgs < pages; pgs++)
 	{
-		uintptr_t paddr = (uintptr_t) __alloc_page(PAGE_AREA_HIGH_MEM);
-		if(!paddr)
-			return NULL;
-		if(!paging_map_phys_to_virt(mem, paddr, flags))
-			panic("out of memory.");
-		if(pages_are_registered())
+		uintptr_t raw_addr = 0;
+		struct page *p = vm_allocate_page(0, &raw_addr);
+		if(!pages_are_registered())
 		{
-			page_increment_refcount((void*) paddr);
+			if(!raw_addr)
+				goto out_of_mem;
 		}
-		__asm__ __volatile__("invlpg %0"::"m"(mem));
+		else
+		{
+			if(!p)
+				goto out_of_mem;
+			if(!page)
+				page = ret = p;
+			else
+			{
+				page->next_un.next_virtual_region = p;
+				page = p;
+			}
+			raw_addr = (uintptr_t) p->paddr;
+			p->vaddr = (void *) mem;
+		}
+
+		if(!paging_map_phys_to_virt(mem, raw_addr, flags))
+			goto out_of_mem;
 		mem += PAGE_SIZE;
 	}
 	
+	paging_invalidate(range, pages);
 	if(!kernel) __vm_unlock(kernel);
-	return range;
+
+	/* If pages aren't registered yet, retain the old
+	 * behavior of returning the virtual address
+	*/
+	return pages_are_registered() ? ret : range;
+
+	/* TODO: Free every page that was allocated */
+out_of_mem:
+	__vm_unlock(kernel);
+	return NULL;
 }
 
 void vmm_unmap_range(void *range, size_t pages)
@@ -525,9 +561,10 @@ void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uin
 			{
 				struct process *p = get_current_process();
 				assert(p != NULL);
-				if(!p->mmap_base)
+				if(!p->address_space.mmap_base)
 					panic("mmap_base == 0");
-				base_address = (uintptr_t) get_current_process()->mmap_base;
+				base_address = (uintptr_t) get_current_process()->
+					address_space.mmap_base;
 			}
 			else
 				base_address = kstacks_addr;
@@ -540,9 +577,12 @@ void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uin
 				base_address = vmalloc_space;
 			else
 			{
-				if(!get_current_process()->mmap_base)
+				struct process *p = get_current_process();
+				assert(p != NULL);
+				if(!p->address_space.mmap_base)
 					panic("mmap_base == 0");
-				base_address = (uintptr_t) get_current_process()->mmap_base;
+				base_address = (uintptr_t) p->
+					address_space.mmap_base;
 			}
 			break;
 		}
@@ -727,7 +767,7 @@ avl_node_t **vmm_get_tree()
 	struct process *p = get_current_process();
 	if(!p)
 		return NULL;
-	return &p->tree;
+	return &p->address_space.tree;
 }
 
 int vmm_check_pointer(void *addr, size_t needed_space)
@@ -989,15 +1029,15 @@ uint64_t sys_brk(void *newbrk)
 {
 	struct process *p = get_current_process();
 	if(newbrk == NULL)
-		return (uint64_t) p->brk;
+		return (uint64_t) p->address_space.brk;
 
-	void *old_brk = p->brk;
+	void *old_brk = p->address_space.brk;
 	ptrdiff_t diff = (ptrdiff_t) newbrk - (ptrdiff_t) old_brk;
 
 	if(diff < 0)
 	{
 		/* TODO: Implement freeing memory with brk(2) */
-		p->brk = newbrk;
+		p->address_space.brk = newbrk;
 	}
 	else
 	{
@@ -1005,7 +1045,7 @@ uint64_t sys_brk(void *newbrk)
 		if(do_inc_brk(old_brk, newbrk) < 0)
 			return -ENOMEM;
 
-		p->brk = newbrk;
+		p->address_space.brk = newbrk;
 	}
 	return 0;
 }
@@ -1371,4 +1411,26 @@ void vm_do_fatal_page_fault(struct fault_info *info)
 	}
 	else
 		panic("Unable to satisfy paging request");
+}
+
+void *get_pages(size_t flags, uint32_t type, size_t pages, size_t prot, uintptr_t alignment)
+{
+	void *va = vmm_allocate_virt_address(flags, pages, type, prot, alignment);
+	if(!va)
+		return NULL;
+	if(!(flags & VM_ADDRESS_USER))
+	{
+		struct page *p = vmm_map_range(va, pages, prot);
+		if(!p)
+		{
+			/* TODO: Destroy the address space region */
+			return NULL;
+		}
+	}
+	return va;
+}
+
+void *get_user_pages(uint32_t type, size_t pages, size_t prot)
+{
+	return get_pages(VM_ADDRESS_USER, type, pages, prot, 0);
 }

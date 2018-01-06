@@ -37,9 +37,7 @@ struct process
 	/* TODO: Should this be kept on the thread_t structure? */
 	int errno;
 
-	/* Virtual address space AVL tree */
-	avl_node_t *tree;
-	spinlock_t vm_spl;
+	struct mm_address_space address_space;
 	/* Program name*/
 	char *cmd_line;
 
@@ -48,12 +46,6 @@ struct process
 
 	/* Process ID */
 	pid_t pid;
-	
-	/* Paging specific pointer */
-	PML4 *cr3;
-	
-	/* Process' brk */
-	void *brk;
 	
 	/* exit(2) specific flags */
 	int has_exited;
@@ -92,9 +84,6 @@ struct process
 	
 	/* Linked list to the processes being traced */
 	struct list_head tracees;
-	
-	/* mmap(2) base */
-	void *mmap_base;
 
 	/* Futex queue */
 	struct futex *futex_queue;

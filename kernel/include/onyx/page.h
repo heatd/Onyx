@@ -58,6 +58,14 @@ struct page
 	void *paddr;
 	unsigned long ref;
 	struct page *next;
+
+	void *vaddr;
+
+	union
+	{
+		struct page *next_allocation;
+		struct page *next_virtual_region;
+	} next_un;
 };
 
 #define PAGE_HASHTABLE_ENTRIES 0x4000	
@@ -126,6 +134,10 @@ void page_register_pages(void);
 struct page *phys_to_page(uintptr_t phys);
 unsigned long page_increment_refcount(void *paddr);
 unsigned long page_decrement_refcount(void *paddr);
+
+struct page *get_phys_pages(int order);
+struct page *get_phys_page(void);
+
 
 __attribute__((malloc))
 void *__ksbrk(long inc);

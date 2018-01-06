@@ -122,7 +122,7 @@ struct process *process_create(const char *cmd_line, ioctx_t *ctx, struct proces
 		proc->vdso = parent->vdso;
 		proc->uid = parent->uid;
 		proc->gid = parent->gid;
-		proc->brk = parent->brk;
+		proc->address_space.brk = parent->address_space.brk;
 		/* Inherit the signal handlers and signal mask */
 		memcpy(&proc->sigtable, &parent->sigtable, sizeof(struct sigaction) * _NSIG);
 		memcpy(&proc->sigmask, &parent->sigmask, sizeof(sigset_t));
@@ -351,15 +351,15 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	}	
 	/* Swap address spaces. Good thing we saved argv and envp before */
 	struct process *current = get_current_process();
-	current->cr3 = cr3;
-	current->tree = tree;
-	current->brk = vmm_reserve_address(vmm_gen_brk_base(), 0x20000000, VM_TYPE_HEAP,
+	current->address_space.cr3 = cr3;
+	current->address_space.tree = tree;
+	current->address_space.brk = vmm_reserve_address(vmm_gen_brk_base(), 0x20000000, VM_TYPE_HEAP,
 		VM_WRITE | VM_NOEXEC | VM_USER);
-	current->mmap_base = vmm_gen_mmap_base();
+	current->address_space.mmap_base = vmm_gen_mmap_base();
 
 	current->cmd_line = strdup(path);
-	paging_load_cr3(current->cr3);
-	current->tree = tree;
+	paging_load_cr3(current->address_space.cr3);
+	current->address_space.tree = tree;
 	
 	/* Setup the binfmt args */
 	uint8_t *file = malloc(100);
@@ -501,8 +501,8 @@ pid_t sys_fork(syscall_ctx_t *ctx)
 		/* TODO: Cleanup the paging structures */
 		return -ENOMEM;
 	}
-	child->tree = areas;
-	child->cr3 = new_pt; // Set the new cr3
+	child->address_space.tree = areas;
+	child->address_space.cr3 = new_pt; // Set the new cr3
 
 	/* Fork and create the new thread */
 	process_fork_thread(to_be_forked, child, ctx);
@@ -582,8 +582,8 @@ gid_t sys_getgid(void)
 void process_destroy_aspace(void)
 {
 	struct process *current = get_current_process();
-	vmm_destroy_addr_space(current->tree);
-	current->tree = NULL;
+	vmm_destroy_addr_space(current->address_space.tree);
+	current->address_space.tree = NULL;
 }
 
 void process_destroy_file_descriptors(struct process *process)
@@ -610,7 +610,7 @@ void process_destroy_file_descriptors(struct process *process)
 void process_obliterate(void *proc)
 {
 	struct process *process = proc;
-	__free_page(process->cr3);
+	__free_page(process->address_space.cr3);
 }
 
 void process_destroy(thread_t *current_thread)

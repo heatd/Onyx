@@ -170,8 +170,8 @@ retry:;
 	if(!proc)
 		return errno = ENOMEM, -1;
 
-	proc->cr3 = get_current_pml4();
-	proc->tree = NULL;
+	proc->address_space.cr3 = get_current_pml4();
+	proc->address_space.tree = NULL;
 
 	get_current_thread()->owner = proc;
 	/* Setup stdio */
@@ -221,9 +221,9 @@ retry:;
 	args.envp = envp;
 
 	struct process *current = get_current_process();
-	current->brk = vmm_reserve_address(vmm_gen_brk_base(), 0x20000000, VM_TYPE_HEAP,
+	current->address_space.brk = vmm_reserve_address(vmm_gen_brk_base(), 0x20000000, VM_TYPE_HEAP,
 	VM_WRITE | VM_NOEXEC | VM_USER);
-	current->mmap_base = vmm_gen_mmap_base();
+	current->address_space.mmap_base = vmm_gen_mmap_base();
 
 	/* Finally, load the binary */
 	void *entry = load_binary(&args);
