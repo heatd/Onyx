@@ -13,8 +13,6 @@
 
 unsigned char *percpu_master_copy = (unsigned char *) &__percpu_start;
 
-PER_CPU_VAR(size_t *test);
-
 void setup_percpu(void)
 {
 	int nr_cpus = get_nr_cpus();

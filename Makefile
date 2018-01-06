@@ -50,10 +50,13 @@ kernel: libc install-headers
 musl: install-packages
 	$(MAKE) -C $@ install
 
+libssp: install-packages musl
+	$(MAKE) -C $@ install
+
 test: libtest musl install-packages
 	$(MAKE) -C $@ install
 
-$(SOURCE_PACKAGES): musl install-packages
+$(SOURCE_PACKAGES): musl libssp install-packages
 	$(MAKE) -C $@ install
 
 install-headers: build-prep
