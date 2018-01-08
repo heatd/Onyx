@@ -29,6 +29,7 @@ typedef struct tmpfs_file
 	gid_t st_gid;
 	mode_t mode;
 	unsigned int type;
+	const char *symlink;
 	tmpfs_data_block_t *data;
 	mutex_t dirent_lock;
 	mutex_t data_lock;

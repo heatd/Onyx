@@ -269,6 +269,7 @@ char **process_copy_envarg(char **envarg, _Bool to_kernel, int *count)
 
 void *process_setup_auxv(void *buffer, struct process *process)
 {
+	process->vdso = map_vdso();
 	/* Setup the auxv at the stack bottom */
 	Elf64_auxv_t *auxv = (Elf64_auxv_t *) buffer;
 	unsigned char *scratch_space = (unsigned char *) (auxv + 37);
@@ -276,6 +277,8 @@ void *process_setup_auxv(void *buffer, struct process *process)
 	{
 		if(i != 0)
 			auxv[i].a_type = i;
+		else
+			auxv[i].a_type = 0xffff;
 		if(i == 37)
 			auxv[i].a_type = 0;
 		switch(i)
@@ -292,6 +295,26 @@ void *process_setup_auxv(void *buffer, struct process *process)
 			case AT_RANDOM:
 				get_entropy((char*) scratch_space, 16);
 				scratch_space += 16;
+				break;
+			case AT_BASE:
+				auxv[i].a_un.a_val = (uintptr_t) process->image_base;
+				break;
+			case AT_PHENT:
+				auxv[i].a_un.a_val = process->info.phent;
+				break;
+			case AT_PHNUM:
+				auxv[i].a_un.a_val = process->info.phnum;
+				break;
+			case AT_PHDR:
+				auxv[i].a_un.a_val = (uintptr_t) process->info.phdr;
+				break;
+			case AT_EXECFN:
+				auxv[i].a_un.a_val = (uintptr_t) scratch_space;
+				strcpy((char*) scratch_space, process->cmd_line);
+				scratch_space += strlen((const char*) scratch_space) + 1;
+				break;
+			case AT_SYSINFO_EHDR:
+				auxv[i].a_un.a_val = (uintptr_t) process->vdso;
 				break;
 		}
 	}

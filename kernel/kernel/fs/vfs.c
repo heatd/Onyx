@@ -572,3 +572,12 @@ int ftruncate_vfs(off_t length, struct inode *vnode)
 		return vnode->fops.ftruncate(length, vnode);
 	return -ENOSYS;
 }
+
+int symlink_vfs(const char *dest, struct inode *inode)
+{
+	if(inode->type & VFS_TYPE_MOUNTPOINT)
+		return symlink_vfs(dest, inode);
+	if(inode->fops.symlink != NULL)
+		return inode->fops.symlink(dest, inode);
+	return -ENOSYS;
+}

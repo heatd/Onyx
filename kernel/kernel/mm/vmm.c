@@ -1406,7 +1406,8 @@ void vm_do_fatal_page_fault(struct fault_info *info)
 	{
 		struct process *current = get_current_process();
 		printk("SEGV at %016lx at ip %lx in process %u(%s)\n", 
-			info->fault_address, info->ip, current->pid, current->cmd_line);
+			info->fault_address, info->ip - (uintptr_t) current->image_base,
+			current->pid, current->cmd_line);
 		kernel_raise_signal(SIGSEGV, get_current_process());
 	}
 	else
@@ -1432,5 +1433,5 @@ void *get_pages(size_t flags, uint32_t type, size_t pages, size_t prot, uintptr_
 
 void *get_user_pages(uint32_t type, size_t pages, size_t prot)
 {
-	return get_pages(VM_ADDRESS_USER, type, pages, prot, 0);
+	return get_pages(VM_ADDRESS_USER, type, pages, prot | VM_USER, 0);
 }

@@ -7,6 +7,7 @@
 #include <errno.h>
 #include <stdio.h>
 
+#include <onyx/process.h>
 #include <onyx/binfmt/elf64.h>
 #include <onyx/vmm.h>
 
@@ -95,6 +96,7 @@ void *elf64_load_static(struct binfmt_args *args, Elf64_Ehdr *header)
 
 void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 {
+	struct process *current = get_current_process();
 	size_t program_headers_size = header->e_phnum * header->e_phentsize;
 	Elf64_Phdr *phdrs = malloc(program_headers_size);
 	if(!phdrs)
@@ -163,6 +165,12 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 		}
 	}
 
+	void *ptr = get_user_pages(VM_TYPE_REGULAR,
+			vmm_align_size_to_pages(program_headers_size), VM_WRITE | VM_NOEXEC);
+	if(!ptr)
+		return NULL;
+	
+	memcpy(ptr, phdrs, program_headers_size);
 	free(phdrs);
 	size_t sections_size = header->e_shnum * header->e_shentsize;
 	Elf64_Shdr *sections = malloc(sections_size);
@@ -189,7 +197,6 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 				Elf64_Rela *rela = &r[j];
 				rela->r_offset += (uintptr_t) base;
 				uintptr_t *addr = (uintptr_t*) rela->r_offset;
-				printk("Applying relocation to %p\n", addr);
 				switch(ELF64_R_TYPE(rela->r_info))
 				{
 					case R_X86_64_RELATIVE:
@@ -200,6 +207,25 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 		}
 	}
 
+	current->image_base = (void*) base;
+	current->info.phent = header->e_phentsize;
+	current->info.phnum = header->e_phnum;
+	current->info.phdr = ptr;
+
+	for(size_t i = 0; i < header->e_phnum; i++)
+	{
+		if(current->info.phdr[i].p_type == PT_DYNAMIC)
+		{
+			void *dyn = get_user_pages(VM_TYPE_REGULAR,
+				vmm_align_size_to_pages(current->info.phdr[i].p_filesz),
+				VM_WRITE | VM_NOEXEC);
+			if(!dyn)
+				return NULL;
+			read_vfs(0, current->info.phdr[i].p_offset,
+				current->info.phdr[i].p_filesz, dyn, args->file);
+			current->info.phdr[i].p_vaddr = (uintptr_t) dyn;
+		}
+	}
 	free(sections);
 	return (void*) header->e_entry;
 }

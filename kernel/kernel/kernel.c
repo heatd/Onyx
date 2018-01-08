@@ -150,6 +150,8 @@ char *kernel_getopt(char *opt)
 	return NULL;
 }
 
+void *process_setup_auxv(void *buffer, struct process *process);
+
 extern PML4 *current_pml4;
 int find_and_exec_init(char **argv, char **envp)
 {
@@ -237,32 +239,7 @@ retry:;
 
 	process_create_thread(proc, (thread_callback_t) entry, 0, argc, _argv, _env);
 
-	/* Setup the auxv at the stack bottom */
-	Elf64_auxv_t *auxv = (Elf64_auxv_t *) current->threads[0]->user_stack_bottom;
-	unsigned char *scratch_space = (unsigned char *) (auxv + 37);
-	for(int i = 0; i < 38; i++)
-	{
-		if(i != 0)
-			auxv[i].a_type = i;
-		if(i == 37)
-			auxv[i].a_type = 0;
-		switch(i)
-		{
-			case AT_PAGESZ:
-				auxv[i].a_un.a_val = PAGE_SIZE;
-				break;
-			case AT_UID:
-				auxv[i].a_un.a_val = current->uid;
-				break;
-			case AT_GID:
-				auxv[i].a_un.a_val = current->gid;
-				break;
-			case AT_RANDOM:
-				get_entropy((char*) scratch_space, 16);
-				scratch_space += 16;
-				break;
-		}
-	}
+	Elf64_auxv_t *auxv = process_setup_auxv(current->threads[0]->user_stack_bottom, current);
 	registers_t *regs = (registers_t *) current->threads[0]->kernel_stack;
 	regs->rcx = (uintptr_t) auxv;
 	uintptr_t *fs = vmm_allocate_virt_address(VM_ADDRESS_USER, 1, VM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_USER, 0);

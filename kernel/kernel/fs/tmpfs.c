@@ -37,6 +37,20 @@ static void tmpfs_append(tmpfs_filesystem_t *fs)
 	mutex_unlock(&tmpfs_list_lock);
 }
 
+int tmpfs_symlink(const char *dest, struct inode *inode)
+{
+	tmpfs_file_t *file = (tmpfs_file_t *) inode->inode;
+
+	char *str = strdup(dest);
+	if(!str)
+		return -1;
+	file->symlink = (const char *) str;
+	file->type = TMPFS_FILE_TYPE_SYM;
+	inode->type = VFS_TYPE_SYMLINK;
+
+	return 0;
+}
+
 static void tmpfs_append_file(tmpfs_file_t *dir, tmpfs_file_t *file)
 {
 	mutex_lock(&dir->dirent_lock);
@@ -278,6 +292,11 @@ struct inode *tmpfs_open(struct inode *vnode, const char *name)
 	if(!file)
 		return NULL;
 
+	if(file->type == TMPFS_FILE_TYPE_SYM)
+	{
+		return open_vfs(*file->symlink == '/' ? fs_root : vnode, file->symlink);
+	}
+
 	return tmpfs_file_to_vfs(file, vnode);
 }
 
@@ -288,6 +307,7 @@ static void tmpfs_set_node_fileops(struct inode *node)
 	node->fops.write = tmpfs_write;
 	node->fops.mkdir = tmpfs_mkdir;
 	node->fops.open = tmpfs_open;
+	node->fops.symlink = tmpfs_symlink;
 }
 
 tmpfs_filesystem_t *__tmpfs_allocate_fs(void)

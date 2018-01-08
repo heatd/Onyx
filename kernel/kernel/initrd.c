@@ -241,8 +241,16 @@ void initrd_mount(void)
 		else if(iter[i]->typeflag == TAR_TYPE_DIR)
 		{
 			struct inode *file = mkdir_vfs(filename, 0666, node);
-			
+
 			assert(file != NULL);
+		}
+		else if(iter[i]->typeflag == TAR_TYPE_SYMLNK)
+		{
+			char *buffer = (char *) iter[i]->linkname;
+			struct inode *file = creat_vfs(node, filename, 0666);
+			assert(file != NULL);
+
+			assert(symlink_vfs(buffer, file) == 0);
 		}
 	}
 }

@@ -480,7 +480,6 @@ static void reclaim_gaps(struct dso *dso)
 	Phdr *ph = dso->phdr;
 	size_t phcnt = dso->phnum;
 
-	if (DL_FDPIC) return; // FIXME
 	for (; phcnt--; ph=(void *)((char *)ph+dso->phentsize)) {
 		if (ph->p_type!=PT_LOAD) continue;
 		if ((ph->p_flags&(PF_R|PF_W))!=(PF_R|PF_W)) continue;
@@ -1171,7 +1170,7 @@ static void kernel_mapped_dso(struct dso *p)
 	Phdr *ph = p->phdr;
 	for (cnt = p->phnum; cnt--; ph = (void *)((char *)ph + p->phentsize)) {
 		if (ph->p_type == PT_DYNAMIC) {
-			p->dynv = laddr(p, ph->p_vaddr);
+			p->dynv = (size_t *) (p->base + ph->p_vaddr);
 		} else if (ph->p_type == PT_GNU_RELRO) {
 			p->relro_start = ph->p_vaddr & -PAGE_SIZE;
 			p->relro_end = (ph->p_vaddr + ph->p_memsz) & -PAGE_SIZE;
@@ -1326,34 +1325,22 @@ static void update_tls_size()
  * replaced later due to copy relocations in the main program. */
 
 __attribute__((__visibility__("hidden")))
-void __dls2(unsigned char *base, size_t *sp)
+void __dls2(unsigned char *base, int argc, char **argv, char **envp, size_t *auxv)
 {
-	if (DL_FDPIC) {
-		void *p1 = (void *)sp[-2];
-		void *p2 = (void *)sp[-1];
-		if (!p1) {
-			size_t *auxv, aux[AUX_CNT];
-			for (auxv=sp+1+*sp+1; *auxv; auxv++); auxv++;
-			decode_vec(auxv, aux, AUX_CNT);
-			if (aux[AT_BASE]) ldso.base = (void *)aux[AT_BASE];
-			else ldso.base = (void *)(aux[AT_PHDR] & -4096);
-		}
-		app_loadmap = p2 ? p1 : 0;
-		ldso.loadmap = p2 ? p2 : p1;
-		ldso.base = laddr(&ldso, 0);
-	} else {
-		ldso.base = base;
-	}
-	Ehdr *ehdr = (void *)ldso.base;
+	size_t aux[AUX_CNT];
+	for(size_t i = 0; i<AUX_CNT; i++) aux[i] = 0;
+	for(size_t i = 0; auxv[i]; i+=2) if (auxv[i]<AUX_CNT)
+		aux[auxv[i]] = auxv[i+1];
+
+	ldso.base = base;
+	Ehdr *ehdr = (void *) ldso.base;
 	ldso.name = ldso.shortname = "libc.so";
 	ldso.global = 1;
-	ldso.phnum = ehdr->e_phnum;
-	ldso.phdr = laddr(&ldso, ehdr->e_phoff);
-	ldso.phentsize = ehdr->e_phentsize;
+	ldso.phnum = aux[AT_PHNUM];
+	ldso.phdr = (void*) aux[AT_PHDR];
+	ldso.phentsize = aux[AT_PHENT];
 	kernel_mapped_dso(&ldso);
 	decode_dyn(&ldso);
-
-	if (DL_FDPIC) makefuncdescs(&ldso);
 
 	/* Prepare storage for to save clobbered REL addends so they
 	 * can be reused in stage 3. There should be very few. If
@@ -1380,8 +1367,7 @@ void __dls2(unsigned char *base, size_t *sp)
 	 * symbolically as a barrier against moving the address
 	 * load across the above relocation processing. */
 	struct symdef dls3_def = find_sym(&ldso, "__dls3", 0);
-	if (DL_FDPIC) ((stage3_func)&ldso.funcdescs[dls3_def.sym-ldso.syms])(sp);
-	else ((stage3_func)laddr(&ldso, dls3_def.sym->st_value))(sp);
+	((stage3_func) laddr(&ldso, dls3_def.sym->st_value))(argc, argv, envp, auxv);
 }
 
 /* Stage 3 of the dynamic linker is called with the dynamic linker/libc
@@ -1389,24 +1375,24 @@ void __dls2(unsigned char *base, size_t *sp)
  * process dependencies and relocations for the main application and
  * transfer control to its entry point. */
 
-_Noreturn void __dls3(size_t *sp)
+_Noreturn void __dls3(int argc, char **argv, char **envp, size_t *auxv)
 {
 	static struct dso app, vdso;
-	size_t aux[AUX_CNT], *auxv;
+	size_t aux[AUX_CNT];
 	size_t i;
 	char *env_preload=0;
 	size_t vdso_base;
-	int argc = *sp;
-	char **argv = (void *)(sp+1);
+
 	char **argv_orig = argv;
-	char **envp = argv+argc+1;
+
 
 	/* Find aux vector just past environ[] and use it to initialize
 	 * global data that may be needed before we can make syscalls. */
 	__environ = envp;
-	for (i=argc+1; argv[i]; i++);
-	libc.auxv = auxv = (void *)(argv+i+1);
+	libc.auxv = auxv;
 	decode_vec(auxv, aux, AUX_CNT);
+	vdso_base = aux[AT_SYSINFO_EHDR];
+
 	__hwcap = aux[AT_HWCAP];
 	libc.page_size = aux[AT_PAGESZ];
 	libc.secure = ((aux[0]&0x7800)!=0x7800 || aux[AT_UID]!=aux[AT_EUID]
@@ -1417,9 +1403,11 @@ _Noreturn void __dls3(size_t *sp)
 	 * thread pointer at runtime. */
 	libc.tls_size = sizeof builtin_tls;
 	libc.tls_align = tls_align;
+
 	if (__init_tp(__copy_tls((void *)builtin_tls)) < 0) {
 		a_crash();
 	}
+
 
 	/* Only trust user/env if kernel says we're not suid/sgid */
 	if (!libc.secure) {
@@ -1430,17 +1418,47 @@ _Noreturn void __dls3(size_t *sp)
 	/* If the main program was already loaded by the kernel,
 	 * AT_PHDR will point to some location other than the dynamic
 	 * linker's program headers. */
-	if (aux[AT_PHDR] != (size_t)ldso.phdr) {
-		size_t interp_off = 0;
-		size_t tls_image = 0;
-		/* Find load address of the main program, via AT_PHDR vs PT_PHDR. */
-		Phdr *phdr = app.phdr = (void *)aux[AT_PHDR];
-		app.phnum = aux[AT_PHNUM];
-		app.phentsize = aux[AT_PHENT];
-		for (i=aux[AT_PHNUM]; i; i--, phdr=(void *)((char *)phdr + aux[AT_PHENT])) {
-			if (phdr->p_type == PT_PHDR)
-				app.base = (void *)(aux[AT_PHDR] - phdr->p_vaddr);
-			else if (phdr->p_type == PT_INTERP)
+	/* For now, assume that we were invoked by the kernel as an interpreter, 
+	 * TODO: Find a clever way to detect if we were invoked as a normal program
+	*/
+	if(1) {
+		size_t tls_image, interp_off;
+		const char *app_name = (char *) aux[AT_EXECFN];
+		int fd = open(app_name, O_RDONLY);
+		if(fd < 0)
+		{
+			error("open: Could not open %s: %s\n", app_name, strerror(errno));
+			a_crash();
+		}
+		
+		Ehdr *hdr = malloc(sizeof(Ehdr));
+		if(!hdr)
+		{
+			perror("malloc");
+			a_crash();
+		}
+		if(read(fd, hdr, sizeof(Ehdr)) != sizeof(Ehdr))
+			error("read: Failure reading: %s", strerror(errno));
+
+		aux[AT_ENTRY] = hdr->e_entry;
+
+		size_t program_header_size = hdr->e_phnum * hdr->e_phentsize;
+		Phdr *phdr = malloc(program_header_size);
+		if(!phdr)
+			error("malloc: Could not allocate memory: %s", strerror(errno));
+		if(lseek(fd, hdr->e_phoff, SEEK_SET) < 0)
+			error("lseek: Failure seeking: %s", strerror(errno));
+		if(read(fd, phdr, program_header_size) != program_header_size)
+			error("read: Failure reading: %s", strerror(errno));
+		app.phdr = phdr;
+		app.phnum = hdr->e_phnum;
+		app.phentsize = hdr->e_phentsize;
+
+		/* TODO: Don't assume the base is 0 */
+		app.base = NULL;
+		for(i = hdr->e_phnum; i; i--, phdr = (void *)((char *)phdr + hdr->e_phentsize))
+		{
+			if (phdr->p_type == PT_INTERP)
 				interp_off = (size_t)phdr->p_vaddr;
 			else if (phdr->p_type == PT_TLS) {
 				tls_image = phdr->p_vaddr;
@@ -1449,15 +1467,15 @@ _Noreturn void __dls3(size_t *sp)
 				app.tls.align = phdr->p_align;
 			}
 		}
-		if (DL_FDPIC) app.loadmap = app_loadmap;
-		if (app.tls.size) app.tls.image = laddr(&app, tls_image);
-		if (interp_off) ldso.name = laddr(&app, interp_off);
-		if ((aux[0] & (1UL<<AT_EXECFN))
-		    && strncmp((char *)aux[AT_EXECFN], "/proc/", 6))
-			app.name = (char *)aux[AT_EXECFN];
-		else
-			app.name = argv[0];
+
+		if(app.tls.size) app.tls.image = laddr(&app, tls_image);
+		if(interp_off) ldso.name = laddr(&app, interp_off);
+		app.name = (char *) app_name;
+
 		kernel_mapped_dso(&app);
+
+		free(hdr);
+		close(fd);
 	} else {
 		int fd;
 		char *ldname = argv[0];
@@ -1536,21 +1554,9 @@ _Noreturn void __dls3(size_t *sp)
 	}
 	app.global = 1;
 	decode_dyn(&app);
-	if (DL_FDPIC) {
-		makefuncdescs(&app);
-		if (!app.loadmap) {
-			app.loadmap = (void *)&app_dummy_loadmap;
-			app.loadmap->nsegs = 1;
-			app.loadmap->segs[0].addr = (size_t)app.map;
-			app.loadmap->segs[0].p_vaddr = (size_t)app.map
-				- (size_t)app.base;
-			app.loadmap->segs[0].p_memsz = app.map_len;
-		}
-		argv[-3] = (void *)app.loadmap;
-	}
 
 	/* Attach to vdso, if provided by the kernel */
-	if (search_vec(auxv, &vdso_base, AT_SYSINFO_EHDR) && vdso_base) {
+	if(search_vec(auxv, &vdso_base, AT_SYSINFO_EHDR) && vdso_base) {
 		Ehdr *ehdr = (void *)vdso_base;
 		Phdr *phdr = vdso.phdr = (void *)(vdso_base + ehdr->e_phoff);
 		vdso.phnum = ehdr->e_phnum;
@@ -1562,7 +1568,7 @@ _Noreturn void __dls3(size_t *sp)
 				vdso.base = (void *)(vdso_base - phdr->p_vaddr + phdr->p_offset);
 		}
 		vdso.name = "";
-		vdso.shortname = "linux-gate.so.1";
+		vdso.shortname = "onyx-vdso.so.0";
 		vdso.global = 1;
 		vdso.relocated = 1;
 		decode_dyn(&vdso);
@@ -1582,7 +1588,6 @@ _Noreturn void __dls3(size_t *sp)
 	if (env_preload) load_preload(env_preload);
 	load_deps(&app);
 	make_global(&app);
-
 	for (i=0; app.dynv[i]; i+=2) {
 		if (!DT_DEBUG_INDIRECT && app.dynv[i]==DT_DEBUG)
 			app.dynv[i+1] = (size_t)&debug;
@@ -1591,7 +1596,6 @@ _Noreturn void __dls3(size_t *sp)
 			*ptr = (size_t)&debug;
 		}
 	}
-
 	/* The main program must be relocated LAST since it may contin
 	 * copy relocations which depend on libraries' relocations. */
 	reloc_all(app.next);
@@ -1636,8 +1640,8 @@ _Noreturn void __dls3(size_t *sp)
 	_dl_debug_state();
 
 	errno = 0;
-
-	CRTJMP((void *)aux[AT_ENTRY], argv-1);
+	main_func m = (main_func) aux[AT_ENTRY];
+	m(argc, argv, envp, auxv);
 	for(;;);
 }
 
@@ -1795,11 +1799,13 @@ static void *do_dlsym(struct dso *p, const char *s, void *ra)
 		return 0;
 	if ((ght = p->ghashtab)) {
 		gh = gnu_hash(s);
+		printf("Hey? Hash: %x\n", h);
 		sym = gnu_lookup(gh, ght, p, s);
 	} else {
 		h = sysv_hash(s);
 		sym = sysv_lookup(s, h, p);
 	}
+	printf("Sym: %p\n", sym);
 	if (sym && (sym->st_info&0xf) == STT_TLS)
 		return __tls_get_addr((size_t []){p->tls_id, sym->st_value});
 	if (DL_FDPIC && sym && sym->st_shndx && (sym->st_info&0xf) == STT_FUNC)

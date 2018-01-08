@@ -20,24 +20,23 @@
 #include <sys/time.h>
 
 extern Elf64_Ehdr __vdso_start;
-extern size_t __vdso_size;
+extern size_t __vdso_end;
 
 void *map_vdso(void)
 {
 	uintptr_t vdso = (uintptr_t) &__vdso_start;
-	size_t vdso_size = (size_t) &__vdso_size;
+	size_t vdso_size = (uintptr_t) &__vdso_end - vdso;
 #ifdef CONFIG_NO_VDSO
 	return NULL;
 #else
-	void *vdso_address = vmm_allocate_virt_address(VM_ADDRESS_USER, vdso_size / PAGE_SIZE,
-			     VM_TYPE_SHARED, VM_WRITE | VM_USER, 0);
-	if(!vdso_address)
+	void *pages = get_user_pages(VM_TYPE_SHARED, vmm_align_size_to_pages(vdso_size),
+		VM_WRITE | VM_USER);
+	if(!pages)
 		return NULL;
-	for(size_t i = 0; i < vdso_size; i += PAGE_SIZE)
-	{
-		paging_map_phys_to_virt((uint64_t) vdso_address + i, vdso + i, VM_WRITE);
-	}
-	return vdso_address;
+	if(!map_pages_to_vaddr(pages, (void *)(vdso - KERNEL_VIRTUAL_BASE),
+		vdso_size, VM_WRITE | VM_USER))
+		return NULL;
+	return pages;
 #endif
 }
 

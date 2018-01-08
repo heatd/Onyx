@@ -39,7 +39,6 @@ int install_binfmt(struct binfmt *format)
 
 void *bin_do_interp(struct binfmt_args *_args)
 {
-	printk("Doing interp\n");
 	struct binfmt_args args;
 	memcpy(&args, _args, sizeof(struct binfmt_args));
 

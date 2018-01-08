@@ -8,16 +8,27 @@
 #include <stdint.h>
 #include <string.h>
 #include <onyx/vfs.h>
-typedef struct tar_header
+
+typedef struct star_header
 {
-    	char filename[100];
-    	char mode[8];
-    	char uid[8];
-    	char gid[8];
-    	char size[12];
-    	char mtime[12];
-    	char chksum[8];
-    	char typeflag;
+	char filename[100];
+	char mode[8];
+	char uid[8];
+	char gid[8];
+	char size[12];
+	char mtime[12];
+	char chksum[8];
+	char typeflag;
+	char linkname[100];
+	char magic[6];
+	char version[2];
+	char uname[32];
+	char gname[32];
+	char devmajor[8];
+	char devminor[8];
+	char prefix[131];
+	char atime[12];
+	char ctime[12];
 } __attribute__((packed)) tar_header_t;
 
 #define TAR_TYPE_FILE		'0'

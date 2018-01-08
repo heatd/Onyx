@@ -199,7 +199,8 @@ void general_protection_fault(intctx_t *ctx)
 	}
 
 	struct process *current = get_current_process();
-
+	dump_interrupt_context(ctx);
+	printk("GPF error code: %04x\n", (uint16_t) ctx->err_code);
 	kernel_raise_signal(SIGSEGV, current);
 }
 

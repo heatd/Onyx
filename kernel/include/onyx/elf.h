@@ -3026,6 +3026,17 @@ typedef int (*module_fini_t)(void);
 void *elf_load_kernel_module(void *file, void **);
 _Bool elf_is_valid(Elf64_Ehdr* header);
 __attribute__((deprecated)) void *elf_load_old(void *file);
+
+#define DYN_CNT 32
+
+struct elf_info
+{
+	size_t phent;
+	size_t phnum;
+	Elf64_Phdr *phdr;
+	Elf64_Dyn *dyn;
+};
+
 #ifdef __cplusplus
 }
 #endif

@@ -17,6 +17,8 @@
 #include <onyx/registers.h>
 #include <onyx/list.h>
 
+#include <onyx/elf.h>
+
 struct futex;
 #define THREADS_PER_PROCESS 30
 
@@ -99,6 +101,10 @@ struct process
 	struct proc_event_sub *sub_queue;
 	unsigned long nr_subs;
 	unsigned long nr_acks;
+
+	void *image_base;
+
+	struct elf_info info;
 };
 
 #ifdef __cplusplus

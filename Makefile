@@ -1,5 +1,5 @@
 PROJECTS:=libc kernel
-SOURCE_PACKAGES:= libdrm libunwind init games ld dhcpcd wserver strace
+SOURCE_PACKAGES:= libdrm libunwind init games dhcpcd wserver strace
 
 ALL_MODULES:=$(PROJECTS) $(SOURCE_PACKAGES)
 

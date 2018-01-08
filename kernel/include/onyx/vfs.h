@@ -108,6 +108,7 @@ ssize_t 	lookup_file_cache(void *buffer, size_t sizeofread, struct inode *file, 
 char 		*vfs_get_full_path(struct inode *vnode, char *name);
 int		ftruncate_vfs(off_t length, struct inode *vnode);
 struct inode 	*mkdir_vfs(const char *path, mode_t mode, struct inode *node);
+int		symlink_vfs(const char *dest, struct inode *inode);
 #ifdef __cplusplus
 }
 #endif
