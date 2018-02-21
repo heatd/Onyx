@@ -253,7 +253,7 @@ void RenderDevice::DrawLine(int x0, int y0, int x1, int y1, unsigned int color)
 		{ 
 			y += (y1 > y0 ? 1 : -1); 
 			error2 -= dx * 2; 
-        	} 
+        	}
 	}
 }
 void RenderDevice::DrawRectangule(int x, int y, int width, int height, unsigned int color)

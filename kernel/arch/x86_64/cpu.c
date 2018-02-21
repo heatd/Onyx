@@ -193,7 +193,7 @@ void cpu_init_interrupts()
 
 	wrmsr(IA32_MSR_STAR, 0, ((0x18 | 3) << 16) | 0x8);
 	wrmsr(IA32_MSR_LSTAR, (unsigned long) syscall_ENTRY64 & 0xFFFFFFFF, (unsigned long) syscall_ENTRY64 >> 32);
-	wrmsr(IA32_MSR_SFMASK, 0b11000000000, 0);
+	wrmsr(IA32_MSR_SFMASK, 0b11000000000 | 0x100, 0);
 }
 
 bool is_percpu_initialized(void)
@@ -277,8 +277,9 @@ void cpu_ap_entry(int cpu_num)
 	uint64_t addr = low | ((uint64_t)high << 32);
 	addr &= 0xFFFFF000;
 	/* Map the BSP's LAPIC */
-	uintptr_t _lapic = (uintptr_t) vmm_allocate_virt_address(VM_KERNEL, 1, VMM_TYPE_REGULAR, VMM_TYPE_HW, 0);
-	paging_map_phys_to_virt((uintptr_t)_lapic, addr, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
+	uintptr_t _lapic = (uintptr_t) dma_map_range((void*) addr, PAGE_SIZE,
+		VM_WRITE | VM_NOEXEC | VM_GLOBAL);
+	assert(_lapic != 0);
 	
 	/* Fill the processor struct with the LAPIC data */
 	cpus[cpu_num].lapic = (void *) _lapic;
@@ -295,7 +296,7 @@ void cpu_ap_entry(int cpu_num)
 	/* Initialize syscall */
 	wrmsr(IA32_MSR_STAR, 0, ((0x18 | 3) << 16) | 0x8);
 	wrmsr(IA32_MSR_LSTAR, (unsigned long) syscall_ENTRY64 & 0xFFFFFFFF, (unsigned long) syscall_ENTRY64 >> 32);
-	wrmsr(IA32_MSR_SFMASK, 0b11000000000, 0);
+	wrmsr(IA32_MSR_SFMASK, 0b11000000000 | 0x100, 0);
 
 	gdt_init_percpu();
 	initialized_cpus++;

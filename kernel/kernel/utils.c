@@ -7,6 +7,8 @@
 #include <stdlib.h>
 
 #include <onyx/utils.h>
+#include <onyx/vmm.h>
+
 void *memdup(void *ptr, size_t size)
 {
 	void *new_ptr = malloc(size);
@@ -14,4 +16,14 @@ void *memdup(void *ptr, size_t size)
 		return NULL;
 	memcpy(new_ptr, ptr, size);
 	return new_ptr;
+}
+
+void *copy_page_to_page(void *p1, void *p2)
+{
+	return copy_page(PHYS_TO_VIRT(p1), p2);
+}
+
+void *copy_page(void *vaddr, void *p2)
+{
+	return memcpy(vaddr, PHYS_TO_VIRT(p2), PAGE_SIZE);
 }

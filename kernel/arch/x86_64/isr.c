@@ -10,6 +10,7 @@
 
 #include <signal.h>
 
+#include <onyx/disassembler.h>
 #include <onyx/process.h>
 #include <onyx/signal.h>
 #include <onyx/task_switching.h>
@@ -19,6 +20,7 @@
 #include <onyx/x86/mce.h>
 #include <onyx/cpu.h>
 #include <onyx/atomic.h>
+#include <onyx/percpu.h>
 
 const char* exception_msg[] = {
     "Division by zero exception",
@@ -97,6 +99,10 @@ void debug_trap(intctx_t *ctx)
 		panic("Debug trap");
 	}
 
+	printk("Trap at %lx rsp %lx!\n", ctx->rip, ctx->rsp);
+	//debug_opcode((uint8_t *) ctx->rip, ctx);
+
+	return;
 	struct process *current = get_current_process();
 
 	kernel_raise_signal(SIGTRAP, current);
@@ -216,8 +222,10 @@ void page_fault_handler(intctx_t *ctx)
 	info.exec = error_code & 0x10;
 	info.user = error_code & 0x4;
 	info.ip = ctx->rip;
+	
 	if(vmm_handle_page_fault(&info) < 0)
 	{
+		printk("Dumping %lx\n", *(uintptr_t *)ctx->rsp);
 		vm_do_fatal_page_fault(&info);
 	}
 }
@@ -366,16 +374,16 @@ void (* const int_handlers[])(intctx_t *ctx) =
 	exception_panic
 };
 
-static spinlock_t isr_lock;
+PER_CPU_VAR(spinlock_t isr_lock);
 
 static void exit_isr_handler(void)
 {
-	release_spinlock(&isr_lock);
+	//release_spinlock(&GET_PER_CPU(isr_lock, spinlock_t));
 }
 
 static void enter_isr_handler(void)
 {
-	acquire_spinlock(&isr_lock);
+	//acquire_spinlock(&GET_PER_CPU(isr_lock, spinlock_t));
 }
 
 void dump_stack(uintptr_t *__rsp)

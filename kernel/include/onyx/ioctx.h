@@ -10,6 +10,7 @@
 #include <onyx/mutex.h>
 #include <sys/types.h>
 #include <limits.h>
+
 typedef struct file_description
 {
 	_Atomic int refcount;
@@ -18,6 +19,7 @@ typedef struct file_description
 	struct inode *vfs_node;
 	int flags;
 } file_desc_t;
+
 typedef struct
 {
 	/* Current working directory */
@@ -26,5 +28,7 @@ typedef struct
 	file_desc_t **file_desc;
 	int file_desc_entries;
 } ioctx_t;
+
+struct file_description *create_file_description(struct inode *inode, off_t seek);
 
 #endif

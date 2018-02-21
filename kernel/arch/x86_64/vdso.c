@@ -22,6 +22,19 @@
 extern Elf64_Ehdr __vdso_start;
 extern size_t __vdso_end;
 
+void increment_vdso_pages(void)
+{
+	uintptr_t vdso = (uintptr_t) &__vdso_start;
+	size_t vdso_size = (uintptr_t) &__vdso_end - vdso;
+	size_t pages = vmm_align_size_to_pages(vdso_size);
+
+	vdso -= KERNEL_VIRTUAL_BASE;
+	for(size_t i = 0; i < pages; i++, vdso += PAGE_SIZE)
+	{
+		page_increment_refcount((void *) vdso);
+	}
+}
+
 void *map_vdso(void)
 {
 	uintptr_t vdso = (uintptr_t) &__vdso_start;
@@ -36,6 +49,7 @@ void *map_vdso(void)
 	if(!map_pages_to_vaddr(pages, (void *)(vdso - KERNEL_VIRTUAL_BASE),
 		vdso_size, VM_WRITE | VM_USER))
 		return NULL;
+	increment_vdso_pages();
 	return pages;
 #endif
 }
@@ -89,6 +103,15 @@ int vdso_update_time(clockid_t id, struct clock_time *time)
 __attribute__((no_sanitize_undefined))
 void vdso_init(void)
 {
+	uintptr_t page = (uintptr_t) &__vdso_start;
+	size_t vdso_size = (uintptr_t) &__vdso_end - page;
+	size_t vdso_pages = vmm_align_size_to_pages(vdso_size);
+
+	page -= KERNEL_VIRTUAL_BASE;
+	for(size_t i = 0; i < vdso_pages; i++, page += PAGE_SIZE)
+		page_add_page((void *) page);
+
+	increment_vdso_pages();
 	char *file = (char *) &__vdso_start;
 	Elf64_Ehdr *header = (Elf64_Ehdr *) &__vdso_start;
 	Elf64_Shdr *s = (Elf64_Shdr*)(file + header->e_shoff);

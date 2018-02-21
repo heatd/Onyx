@@ -11,6 +11,9 @@
 extern "C" {
 #endif
 void *memdup(void *ptr, size_t size);
+void *copy_page(void *vaddr, void *p2);
+void *copy_page_to_page(void *p1, void *p2);
+
 #ifdef __cplusplus
 }
 #endif

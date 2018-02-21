@@ -109,6 +109,9 @@ char 		*vfs_get_full_path(struct inode *vnode, char *name);
 int		ftruncate_vfs(off_t length, struct inode *vnode);
 struct inode 	*mkdir_vfs(const char *path, mode_t mode, struct inode *node);
 int		symlink_vfs(const char *dest, struct inode *inode);
+ssize_t 	do_file_caching(size_t sizeofread, struct inode *ino, off_t offset, int flags);
+struct page     *file_get_page(struct inode *ino, off_t off);
+
 #ifdef __cplusplus
 }
 #endif

@@ -30,10 +30,10 @@ ssize_t do_file_caching(size_t sizeofread, struct inode *this, off_t offset, int
 	if(this->type != VFS_TYPE_FILE) /* Only VFS_TYPE_FILE files can be cached */
 		return -1;
 
-	void *cache = malloc(PAGE_CACHE_SIZE);
+	void *cache = zalloc(PAGE_CACHE_SIZE);
 	if(!cache)
 		return -1;
-	memset(cache, 0, PAGE_CACHE_SIZE);
+
 	ssize_t read = 0;
 	size_t max_reads = sizeofread % PAGE_CACHE_SIZE ? (sizeofread / PAGE_CACHE_SIZE) + 1 : sizeofread / PAGE_CACHE_SIZE;
 	size_t toread = offset + sizeofread > this->size ? sizeofread - offset - sizeofread + this->size : sizeofread;
@@ -62,7 +62,7 @@ ssize_t do_file_caching(size_t sizeofread, struct inode *this, off_t offset, int
 	return read;
 }
 
-int vfs_init()
+int vfs_init(void)
 {
 	mount_list = malloc(sizeof(struct inode));
 	if(!mount_list)
@@ -580,4 +580,19 @@ int symlink_vfs(const char *dest, struct inode *inode)
 	if(inode->fops.symlink != NULL)
 		return inode->fops.symlink(dest, inode);
 	return -ENOSYS;
+}
+
+struct page *file_get_page(struct inode *ino, off_t offset)
+{
+	off_t off = (offset / PAGE_CACHE_SIZE) * PAGE_CACHE_SIZE;
+	do_file_caching(PAGE_CACHE_SIZE, ino, off, 0);
+
+	avl_node_t **tree_node = NULL;
+	if(!(tree_node = avl_search_key(&ino->cache_tree, off)))
+		return NULL;
+	avl_node_t *nd = *tree_node;
+	struct page_cache *cache = nd->ptr;
+	off_t off_from_cache = offset - off;
+	
+	return phys_to_page((uintptr_t) virtual2phys(cache->page) + off_from_cache);
 }

@@ -334,7 +334,7 @@ struct page *get_phys_pages(int order)
 	size_t nr_pages = pow2(order);
 	if(!addr)
 		return NULL;
-	
+
 	uintptr_t paddr = (uintptr_t) addr;
 
 	struct page *ret = phys_to_page(paddr);

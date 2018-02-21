@@ -9,6 +9,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <sys/types.h>
+
 #include <onyx/spinlock.h>
 #include <onyx/compiler.h>
 #include <onyx/list.h>
@@ -59,7 +61,7 @@ struct page
 	unsigned long ref;
 	struct page *next;
 
-	void *vaddr;
+	off_t off;		/* Offset in vmo */
 
 	union
 	{
@@ -134,6 +136,7 @@ void page_register_pages(void);
 struct page *phys_to_page(uintptr_t phys);
 unsigned long page_increment_refcount(void *paddr);
 unsigned long page_decrement_refcount(void *paddr);
+void page_add_page(void *paddr);
 
 struct page *get_phys_pages(int order);
 struct page *get_phys_page(void);

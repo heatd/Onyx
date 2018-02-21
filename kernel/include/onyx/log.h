@@ -20,5 +20,14 @@
 #define LOG_BUF_SHIFT 	18
 #define LOG_BUF_SIZE	(1 << LOG_BUF_SHIFT)
 
+
+#define LOG_LEVEL_VERBOSE (1 << 0)
+#define LOG_LEVEL_WARNING (1 << 1)
+#define LOG_LEVEL_ERROR	  (1 << 2)
+#define LOG_LEVEL_FATAL   (1 << 3)
+
+void kernlog_set_log_level(unsigned int level);
+void kernlog_send(unsigned int level, const char *msg, ...);
 void kernlog_print(const char *msg);
+
 #endif

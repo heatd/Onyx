@@ -25,6 +25,10 @@
 #include <onyx/sysfs.h>
 #include <onyx/vfs.h>
 #include <onyx/spinlock.h>
+#include <onyx/atomic.h>
+#include <onyx/utils.h>
+
+#include <onyx/mm/vm_object.h>
 
 #include <onyx/vm_layout.h>
 
@@ -55,6 +59,10 @@ uintptr_t kstacks_addr	 	= arch_kstacks_off;
 uintptr_t heap_addr		= arch_heap_off;
 
 static avl_node_t *kernel_tree = NULL;
+
+int setup_vmregion_backing(void *vaddr, size_t pages, bool is_file_backed);
+int populate_shared_mapping(void *page, struct file_description *fd,
+	struct vm_entry *entry, size_t nr_pages);
 
 int imax(int x, int y)
 {
@@ -165,6 +173,25 @@ void avl_balance_tree(avl_node_t **t)
 	}
 }
 
+bool avl_traverse(avl_node_t *tree, bool (*callback)(avl_node_t *node))
+{
+	if(tree->left)
+	{
+		/* return on true */
+		if(avl_traverse(tree->left, callback) == true)
+			return true;
+	}
+
+	if(tree->right)
+	{
+		/* return on true */
+		if(avl_traverse(tree->right, callback) == true)
+			return true;
+	}
+
+	return callback(tree);
+}
+
 static struct vm_entry *avl_insert_key(avl_node_t **t, uintptr_t key, uintptr_t end)
 {
 	avl_node_t *ptr = *t;
@@ -178,6 +205,17 @@ static struct vm_entry *avl_insert_key(avl_node_t **t, uintptr_t key, uintptr_t 
 		ptr->key = key;
 		ptr->end = end;
 		ptr->data = malloc(sizeof(struct vm_entry));
+		if(!ptr->data)
+		{
+			free(*t);
+			*t = NULL;
+			return NULL;
+		}
+
+		memset(ptr->data, 0, sizeof(struct vm_entry));
+		struct process *p = get_current_process();
+		ptr->data->mm = p ? &p->address_space : NULL;
+
 		return ptr->data;
 	}
 	else if (key < ptr->key)
@@ -231,14 +269,42 @@ static int avl_delete_node(uintptr_t key)
 	return 0;
 }
 
-avl_node_t *avl_copy(avl_node_t *node)
+avl_node_t *avl_copy(avl_node_t *node, struct process *proc)
 {
 	avl_node_t *new = malloc(sizeof(avl_node_t));
-	assert(new != NULL);
+	if(!new)
+		return NULL;
 	memcpy(new, node, sizeof(avl_node_t));
 
-	if(new->left) new->left = avl_copy(new->left);
-	if(new->right) new->right = avl_copy(new->right);
+	new->data = memdup(new->data, sizeof(struct vm_entry));
+	if(!new->data)
+	{
+		free(new);
+		return NULL;
+	}
+
+	new->data->mm = proc ? &proc->address_space : NULL;
+
+	if(new->left)
+	{
+		if(!(new->left = avl_copy(new->left, proc)))
+		{
+			free(new->data);
+			free(new);
+			return NULL;
+		}
+	}
+	if(new->right)
+	{
+		if(!(new->right = avl_copy(new->right, proc)))
+		{
+			free(new->left->data);
+			free(new->left);
+			free(new->data);
+			free(new);
+			return NULL;
+		}
+	}
 
 	return new;
 }
@@ -372,9 +438,7 @@ void vmm_late_init(void)
 	heap_addr = vm_randomize_address(heap_addr, HEAP_ASLR_BITS);
 
 	vmm_map_range((void*) heap_addr, vmm_align_size_to_pages(0x400000),
-								   VM_WRITE 
-								   | VM_NOEXEC
-								   | VM_GLOBAL);
+			VM_WRITE | VM_NOEXEC | VM_GLOBAL);
 	heap_set_start(heap_addr);
 
 	size_t heap_size = 0x200000000000 - (heap_addr - heap_addr_no_aslr);
@@ -446,10 +510,9 @@ struct page *vmm_map_range(void *range, size_t pages, uint64_t flags)
 				page = p;
 			}
 			raw_addr = (uintptr_t) p->paddr;
-			p->vaddr = (void *) mem;
 		}
 
-		if(!paging_map_phys_to_virt(mem, raw_addr, flags))
+		if(!vm_map_page(NULL, mem, raw_addr, flags))
 			goto out_of_mem;
 		mem += PAGE_SIZE;
 	}
@@ -468,22 +531,54 @@ out_of_mem:
 	return NULL;
 }
 
-void vmm_unmap_range(void *range, size_t pages)
+void vm_unmap_user(void *range, size_t pages)
 {
-	bool kernel = is_higher_half(range);
+	struct vm_entry *entry = vmm_is_mapped(range);
+	assert(entry != NULL);
+	uintptr_t mem = (uintptr_t) range;
+	for (size_t i = 0; i < pages; i++)
+	{
+		struct vm_object *vmo = entry->vmo;
+		assert(vmo != NULL);
 
-	__vm_lock(kernel);
+		off_t off = mem - entry->base;
+		struct page *page = vmo_get(vmo, off, false);
+
+		if(page)
+		{
+			paging_unmap((void *) mem);
+			if(page_decrement_refcount(page->paddr) == 0)
+				__free_page(page->paddr);
+		}
+		mem += 0x1000;
+	}
+}
+
+void vm_unmap_kernel(void *range, size_t pages)
+{
 	uintptr_t mem = (uintptr_t) range;
 	for (size_t i = 0; i < pages; i++)
 	{
 		void *page = paging_unmap((void*) mem);
 		if(page)
 		{
-			__free_page(page);
 			page_decrement_refcount(page);
+			__free_page(page);
 		}
 		mem += 0x1000;
 	}
+}
+
+void vmm_unmap_range(void *range, size_t pages)
+{
+	bool kernel = is_higher_half(range);
+
+	__vm_lock(kernel);
+
+	if(!kernel)
+		vm_unmap_user(range, pages);
+	else
+		vm_unmap_kernel(range, pages);
 	__vm_unlock(kernel);
 }
 
@@ -629,7 +724,7 @@ again:
 		}
 	}
 	struct vm_entry *en;
-	
+
 	if(flags & 1)
 		en = avl_insert_key(&kernel_tree, base_address, pages * PAGE_SIZE);
 	else
@@ -712,25 +807,104 @@ struct vm_entry *vm_find_region(void *addr)
 	return n->data;
 }
 
-PML4 *vmm_clone_as(avl_node_t **treep)
+int vm_clone_as(struct mm_address_space *addr_space)
 {
 	__vm_lock(false);
 	/* Create a new address space */
-	PML4 *pt = paging_clone_as();
+	if(paging_clone_as(addr_space) < 0)
+	{
+		__vm_unlock(false);
+		return -1;
+	}
 
-	*treep = NULL;
+	addr_space->tree = NULL;
+
 	__vm_unlock(false);
-	return pt;
+	return 0;
 }
 
-PML4 *vmm_fork_as(avl_node_t **vmmstructs)
+void append_mapping(struct vm_object *vmo, struct vm_entry *region)
+{
+	acquire_spinlock(&vmo->mapping_lock);
+
+	struct vm_entry **pp = &vmo->mappings;
+
+	while(*pp)
+		pp = &(*pp)->next_mapping;
+	*pp = region;
+
+	release_spinlock(&vmo->mapping_lock);
+}
+
+int vm_flush_mapping(struct vm_entry *mapping, struct process *proc)
+{
+	struct vm_object *vmo = mapping->vmo;
+	
+	assert(vmo != NULL);
+
+	acquire_spinlock(&vmo->page_lock);
+
+	for(struct page *p = vmo->page_list; p; p = p->next_un.next_virtual_region)
+	{
+		if(!__map_pages_to_vaddr(proc, (void *) (mapping->base + p->off), p->paddr,
+			PAGE_SIZE, mapping->rwx))
+		{
+			release_spinlock(&vmo->page_lock);
+			return -1;
+		}
+	}
+
+	release_spinlock(&vmo->page_lock);
+
+	return 0;
+}
+
+static bool fork_vm_region(avl_node_t *node)
+{
+	struct vm_entry *region = node->data;
+	
+	/* Do this with COW: append_mapping(region->vmo, region); */
+
+	struct vm_object *new_object = vmo_fork(region->vmo);
+
+	if(!new_object)
+	{
+		return true;
+	}
+	
+	new_object->mappings = region;
+	region->vmo = new_object;
+
+	vm_flush_mapping(region, region->mm->process);
+	return false;
+}
+
+int vm_fork_as(struct mm_address_space *addr_space)
 {
 	__vm_lock(false);
-	PML4 *pt = paging_fork_as();
-	avl_node_t *new_tree = avl_copy(*vmm_get_tree());
-	*vmmstructs = new_tree;
+	if(paging_fork_tables(addr_space) < 0)
+	{
+		__vm_unlock(false);
+		return -1;
+	}
+
+	avl_node_t *new_tree = avl_copy(*vmm_get_tree(), addr_space->process);
+	if(!new_tree)
+	{
+		/* TODO: Do something to clean up the new page tables */
+		__vm_unlock(false);
+		return -1;
+	}
+
+	if(avl_traverse(new_tree, fork_vm_region) == true)
+	{
+		__vm_unlock(false);
+		return -1;
+	}
+	addr_space->tree = new_tree;
+
 	__vm_unlock(false);
-	return pt;
+	return 0;
 }
 
 void vmm_change_perms(void *range, size_t pages, int perms)
@@ -785,11 +959,11 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 {
 	file_desc_t *file_descriptor = NULL;
 	if(length == 0)
-		return (void*)-EINVAL;
+		return (void*) -EINVAL;
 	if(!(flags & MAP_PRIVATE) && !(flags & MAP_SHARED))
-		return (void*)-EINVAL;
+		return (void*) -EINVAL;
 	if(flags & MAP_PRIVATE && flags & MAP_SHARED)
-		return (void*)-EINVAL;
+		return (void*) -EINVAL;
 	/* If we don't like the offset, return EINVAL */
 	if(off % PAGE_SIZE)
 		return (void*) -EINVAL;
@@ -861,6 +1035,7 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 		area->offset = off;
 		area->fd = get_file_description(fd);
 		area->fd->refcount++;
+
 		if((file_descriptor->vfs_node->type == VFS_TYPE_BLOCK_DEVICE 
 		|| file_descriptor->vfs_node->type == VFS_TYPE_CHAR_DEVICE) && area->mapping_type == MAP_SHARED)
 		{
@@ -870,12 +1045,15 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 			return vnode->fops.mmap(area, vnode);
 		}
 	}
-
+	
+	if(setup_vmregion_backing(mapping_addr, pages, !(flags & MAP_ANONYMOUS)) < 0)
+			return (void *) -ENOMEM;
 	return mapping_addr;
 }
 
 int sys_munmap(void *addr, size_t length)
 {
+	printk("munmap %p %lu\n", addr, length);
 	if (is_higher_half(addr))
 		return -EINVAL;
 	size_t pages = length / PAGE_SIZE;
@@ -899,6 +1077,7 @@ int sys_munmap(void *addr, size_t length)
 void print_vmm_structs(avl_node_t *node);
 int sys_mprotect(void *addr, size_t len, int prot)
 {
+	printk("mprotect %p\n", addr);
 	if(is_higher_half(addr))
 		return -EINVAL;
 	struct vm_entry *area = NULL;
@@ -1062,10 +1241,14 @@ void print_vmm_structs(avl_node_t *node)
 
 void vmm_print_stats(void)
 {
+	struct process *current = get_current_process();
+	if(current)
+		print_vmm_structs(current->address_space.tree);
 	print_vmm_structs(kernel_tree);
 }
 
-void *map_pages_to_vaddr(void *virt, void *phys, size_t size, size_t flags)
+void *__map_pages_to_vaddr(struct process *process, void *virt, void *phys,
+		size_t size, size_t flags)
 {
 	size_t pages = vmm_align_size_to_pages(size);
 
@@ -1073,10 +1256,17 @@ void *map_pages_to_vaddr(void *virt, void *phys, size_t size, size_t flags)
 	for(uintptr_t virt = (uintptr_t) ptr, _phys = (uintptr_t) phys, i = 0; i < pages; virt += PAGE_SIZE, 
 		_phys += PAGE_SIZE, ++i)
 	{
-		if(!paging_map_phys_to_virt(virt, _phys, flags))
+		if(!vm_map_page(process, virt, _phys, flags))
 			return NULL;
 	}
+
+	paging_invalidate(virt, pages);
 	return ptr;
+}
+
+void *map_pages_to_vaddr(void *virt, void *phys, size_t size, size_t flags)
+{
+	return __map_pages_to_vaddr(NULL, virt, phys, size, flags);
 }
 
 void *dma_map_range(void *phys, size_t size, size_t flags)
@@ -1089,40 +1279,27 @@ void *dma_map_range(void *phys, size_t size, size_t flags)
 	return map_pages_to_vaddr(ptr, phys, size, flags);
 }
 
-int __vm_handle_private(struct vm_entry *entry, struct fault_info *info)
+int __vm_handle_pf(struct vm_entry *entry, struct fault_info *info)
 {
-	/* Map a page */
-	uintptr_t aligned_address = (info->fault_address & 0xFFFFFFFFFFFFF000);
-	/* Map it as VM_WRITE so we can copy the data in */
-	void *ptr = vmm_map_range((void*) aligned_address, 1, entry->rwx | VM_WRITE);
-	if(!ptr)
-		return -1;
-	struct inode *file = entry->fd->vfs_node;
-	size_t to_read = file->size - entry->offset < PAGE_SIZE ? file->size - entry->offset : PAGE_SIZE;
-	
-	if(read_vfs(0,
-		    entry->offset + (aligned_address - entry->base),
-		    to_read,
-		    ptr,
-		    file) != to_read)
+	assert(entry->vmo != NULL);
+	uintptr_t vpage = info->fault_address & -PAGE_SIZE;
+	struct page *page = NULL;
+
+	if(!(page = vmo_get(entry->vmo, vpage - entry->base, true)))
 	{
-		vmm_unmap_range(ptr, 1);
+		info->error = VM_SIGSEGV;
+		printk("Error getting page\n");
 		return -1;
 	}
-	
-	vmm_change_perms((void*) aligned_address, 1, entry->rwx);
-	return 0;
-}
 
-int __vm_handle_shared(struct vm_entry *entry, struct fault_info *info)
-{
-	return -1;
-}
-
-int __vm_handle_anon(struct vm_entry *entry, struct fault_info *info)
-{
-	if(!vmm_map_range((void*)(info->fault_address & 0xFFFFFFFFFFFFF000), 1, entry->rwx))
+	//printk("Mapping %p to %lx\n", page->paddr, vpage);
+	if(!map_pages_to_vaddr((void *) vpage, page->paddr, PAGE_SIZE, entry->rwx))
+	{
+		/* TODO: Properly destroy this */
+		info->error = VM_SIGSEGV;
 		return -1;
+	}
+
 	return 0;
 }
 
@@ -1130,19 +1307,17 @@ int vmm_handle_page_fault(struct fault_info *info)
 {
 	struct vm_entry *entry = vmm_is_mapped((void*) info->fault_address);
 	if(!entry)
+	{
+		info->error = VM_SIGSEGV;
 		return -1;
+	}
 	if(info->write && !(entry->rwx & VM_WRITE))
 		return -1;
 	if(info->exec && entry->rwx & VM_NOEXEC)
 		return -1;
 	if(info->user && !(entry->rwx & VM_USER))
 		return -1;
-	if(entry->mapping_type == MAP_PRIVATE && entry->type == VM_TYPE_FILE_BACKED)
-		return __vm_handle_private(entry, info);
-	else if(entry->mapping_type == MAP_SHARED && entry->type == VM_TYPE_FILE_BACKED)
-		return __vm_handle_shared(entry, info);
-	else 
-		return __vm_handle_anon(entry, info);
+	return __vm_handle_pf(entry, info);
 }
 
 void vmm_destroy_addr_space(avl_node_t *tree)
@@ -1161,7 +1336,7 @@ int vm_sanitize_address(void *address, size_t pages)
 }
 
 /* Generates an mmap base, should be enough for mmap */
-void *vmm_gen_mmap_base()
+void *vmm_gen_mmap_base(void)
 {
 	uintptr_t mmap_base = arch_mmap_base;
 #ifdef CONFIG_ASLR
@@ -1406,8 +1581,9 @@ void vm_do_fatal_page_fault(struct fault_info *info)
 	{
 		struct process *current = get_current_process();
 		printk("SEGV at %016lx at ip %lx in process %u(%s)\n", 
-			info->fault_address, info->ip - (uintptr_t) current->image_base,
+			info->fault_address, info->ip,
 			current->pid, current->cmd_line);
+		__asm__ __volatile__("hlt");
 		kernel_raise_signal(SIGSEGV, get_current_process());
 	}
 	else
@@ -1428,10 +1604,147 @@ void *get_pages(size_t flags, uint32_t type, size_t pages, size_t prot, uintptr_
 			return NULL;
 		}
 	}
+	else
+	{
+		if(setup_vmregion_backing(va, pages, false) < 0)
+			return NULL;
+	}
+
 	return va;
 }
 
 void *get_user_pages(uint32_t type, size_t pages, size_t prot)
 {
 	return get_pages(VM_ADDRESS_USER, type, pages, prot | VM_USER, 0);
+}
+
+struct page *vmo_commit_file(size_t off, struct vm_object *vmo)
+{
+	struct page *page = get_phys_page();
+	if(!page)
+		return NULL;
+	page->off = off;
+	void *ptr = PHYS_TO_VIRT(page->paddr);
+	off_t eff_off = off + vmo->u_info.fmap.off;
+	struct inode *file = vmo->u_info.fmap.fd->vfs_node;
+	size_t to_read = file->size - eff_off < PAGE_SIZE ? file->size - eff_off : PAGE_SIZE;
+
+	size_t read = read_vfs(0,
+		    eff_off,
+		    to_read,
+		    ptr,
+		    file);
+	if(read != to_read)
+	{
+		printk("Error file read %lx bytes out of %lx, off %lx\n", read, to_read, eff_off);
+		perror("file");
+		/* TODO: clean up */
+		return NULL;
+	}
+	//printk("Got page %p for off %lu\n", page->paddr, off);
+	return page;
+}
+
+struct page *vmo_commit_shared(size_t off, struct vm_object *vmo)
+{
+	struct file_description *fd = vmo->u_info.fmap.fd;
+	
+	struct page *p = file_get_page(fd->vfs_node, off + vmo->u_info.fmap.off);
+	if(!p)
+		return NULL;
+	p->off = off;
+	atomic_inc(&p->ref, 1);
+	return p;
+}
+
+int setup_vmregion_backing(void *vaddr, size_t pages, bool is_file_backed)
+{
+	struct vm_entry *region = vmm_is_mapped(vaddr);
+	if(!region)
+		return 0;
+
+	struct vm_object *vmo;
+	if(is_file_backed)
+	{
+		vmo = vmo_create(pages * PAGE_SIZE, NULL);
+		if(!vmo)
+			return -1;
+		vmo->commit = (region->mapping_type == MAP_PRIVATE) ? vmo_commit_file
+			 : vmo_commit_shared;
+		vmo->u_info.fmap.fd = region->fd;
+		vmo->u_info.fmap.off = region->offset;
+		vmo->mappings = region;
+	}
+	else
+		vmo = vmo_create_phys(pages * PAGE_SIZE);
+
+	if(!vmo)
+		return -1;
+	vmo->mappings = region;
+
+	/* Get rid of any previous vmos that might have existed */
+	/* TODO: Clean up the structure and find any pages that might've been mapped */
+	if(region->vmo)
+		free(region->vmo);
+	region->vmo = vmo;
+	return 0;
+}
+
+bool is_mapping_shared(struct vm_entry *region)
+{
+	return region->mapping_type == MAP_SHARED;
+}
+
+bool is_file_backed(struct vm_entry *region)
+{
+	return region->type == VM_TYPE_FILE_BACKED;
+}
+
+void *create_file_mapping(void *addr, size_t pages, int flags,
+	int prot, struct file_description *fd, off_t off)
+{
+	if(!addr)
+	{
+		if(!(addr = get_user_pages(VM_TYPE_REGULAR, pages, prot)))
+		{
+			return NULL;
+		}
+	}
+	else
+	{
+		if(!vmm_reserve_address(addr, pages, VM_TYPE_REGULAR, prot))
+		{
+			if(flags & VM_MMAP_FIXED)
+				return NULL;
+			if(!(addr = get_user_pages(VM_TYPE_REGULAR, pages, prot)))
+			{
+				return NULL;
+			}
+		}
+	}
+
+	struct vm_entry *entry = vm_find_region(addr);
+	assert(entry != NULL);
+
+	/* TODO: Maybe we shouldn't use MMAP flags and use these new ones instead? */
+	int mmap_like_type =  flags & VM_MMAP_PRIVATE ? MAP_PRIVATE : MAP_SHARED;
+	entry->mapping_type = mmap_like_type;
+	entry->type = VM_TYPE_FILE_BACKED;
+	entry->offset = off;
+	//printk("Created file mapping at %lx for off %lu\n", entry->base, off);
+	entry->fd = fd;
+	fd->refcount++;
+	if(setup_vmregion_backing(addr, pages, true) < 0)
+		return NULL;
+	return addr;
+}
+
+void *map_user(void *addr, size_t pages, uint32_t type, uint64_t prot)
+{
+	addr = vmm_reserve_address(addr, pages, type, prot);
+	if(!addr)
+		return NULL;
+	if(setup_vmregion_backing(addr, pages, false) < 0)
+		return NULL;
+	return addr;
 }

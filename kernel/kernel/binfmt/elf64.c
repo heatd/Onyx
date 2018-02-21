@@ -39,6 +39,13 @@ void *elf64_load_static(struct binfmt_args *args, Elf64_Ehdr *header)
 
 	read_vfs(0, header->e_phoff, program_headers_size, phdrs, args->file);
 
+	struct file_description *fd = create_file_description(args->file, 0);
+	if(!fd)
+	{
+		free(phdrs);
+		return NULL;
+	}
+
 	for(Elf64_Half i = 0; i < header->e_phnum; i++)
 	{
 		if(phdrs[i].p_type == PT_NULL)
@@ -71,22 +78,29 @@ void *elf64_load_static(struct binfmt_args *args, Elf64_Ehdr *header)
 			int prot = (VM_USER) |
 				   ((phdrs[i].p_flags & PF_W) ? VM_WRITE : 0) |
 				   ((phdrs[i].p_flags & PF_X) ? 0 : VM_NOEXEC);
-
-			if(!vmm_reserve_address((void *) aligned_address, pages, VM_TYPE_REGULAR, prot))
+			if(phdrs[i].p_memsz > phdrs[i].p_filesz)
 			{
-				free(phdrs);
-				return errno = EINVAL, NULL;
+				if(!map_user((void *) aligned_address, pages,
+					VM_TYPE_REGULAR, prot))
+				{
+					free(phdrs);
+					return errno = ENOMEM, NULL;
+				}
+				read_vfs(0, phdrs[i].p_offset, phdrs[i].p_filesz,
+					(void *) phdrs[i].p_vaddr, fd->vfs_node);
 			}
+			else
+			{
+				int flags = VM_MMAP_PRIVATE | VM_MMAP_FIXED;
 
-			/* Note that things are mapped VM_WRITE | VM_USER before the memcpy so 
-			 we don't PF ourselves(i.e: writing to RO memory) */
-			
-			vmm_map_range((void *) aligned_address, pages, VM_WRITE | VM_USER);
-			
-			/* Read the program segment to memory */
-			read_vfs(0, phdrs[i].p_offset, phdrs[i].p_filesz, 
-				(void*) phdrs[i].p_vaddr, args->file);
-			vmm_change_perms((void *) aligned_address, pages, prot);
+				void *mem = create_file_mapping((void *) aligned_address,
+					pages, flags, prot, fd, phdrs[i].p_offset & -PAGE_SIZE);
+				if(!mem)
+				{
+					free(phdrs);
+					return errno = EINVAL, NULL;
+				}
+			}
 		}
 	}
 
@@ -123,8 +137,8 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 		}
 	}
 	needed_size += last_size;
-	base = vmm_allocate_virt_address(0, vmm_align_size_to_pages(needed_size), 
-				VM_TYPE_SHARED, VM_WRITE | VM_USER, alignment);
+	base = get_pages(VM_ADDRESS_USER, VM_TYPE_SHARED, vmm_align_size_to_pages(needed_size), 
+				VM_WRITE | VM_USER, alignment);
 	if(!base)
 		return NULL;
 	header->e_entry += (uintptr_t) base;

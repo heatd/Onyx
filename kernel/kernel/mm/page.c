@@ -23,6 +23,7 @@ typedef struct stack_entry
 	size_t size;
 	size_t magic;
 } stack_entry_t;
+
 typedef struct stack
 {
 	stack_entry_t* next;
@@ -31,15 +32,18 @@ typedef struct stack
 static struct page_hashtable hashtable = {0};
 static size_t num_pages = 0;
 static bool are_pages_registered = false;
+
 bool pages_are_registered(void)
 {
 	return are_pages_registered;
 }
+
 unsigned int page_hash(uintptr_t p)
 {
 	unsigned int hash = crc32_calculate((uint8_t*) &p, sizeof(uintptr_t));
 	return hash % PAGE_HASHTABLE_ENTRIES;
 }
+
 static void append_to_hash(unsigned int hash, struct page *page)
 {
 	if(!hashtable.table[hash])
@@ -53,6 +57,7 @@ static void append_to_hash(unsigned int hash, struct page *page)
 		p->next = page;
 	}
 }
+
 void page_add_page(void *paddr)
 {
 	unsigned int hash = page_hash((uintptr_t) paddr);
@@ -64,6 +69,7 @@ void page_add_page(void *paddr)
 	append_to_hash(hash, page);
 	++num_pages;
 }
+
 void page_register_pages(void)
 {
 	INFO("page", "Registering pages!\n");
@@ -86,6 +92,7 @@ void page_register_pages(void)
 	INFO("page", "%lu pages registered, aprox. %lu bytes used\n", num_pages,
 	          num_pages * sizeof(struct page));
 }
+
 struct page *phys_to_page(uintptr_t phys)
 {
 	unsigned int hash = page_hash(phys);
@@ -98,12 +105,14 @@ struct page *phys_to_page(uintptr_t phys)
 	ERROR("page", "%p queried for %lx, but it doesn't exist!\n", __builtin_return_address(0), phys);
 	return NULL;
 }
+
 unsigned long page_increment_refcount(void *paddr)
 {
 	struct page *page = phys_to_page((uintptr_t) paddr);
 	assert(page != NULL);
 	return atomic_inc(&page->ref, 1);
 }
+
 unsigned long page_decrement_refcount(void *paddr)
 {
 	struct page *page = phys_to_page((uintptr_t) paddr);

@@ -224,7 +224,7 @@ retry:;
 	args.envp = envp;
 
 	struct process *current = get_current_process();
-	current->address_space.brk = vmm_reserve_address(vmm_gen_brk_base(), 0x20000000, VM_TYPE_HEAP,
+	current->address_space.brk = map_user(vmm_gen_brk_base(), 0x20000000, VM_TYPE_HEAP,
 	VM_WRITE | VM_NOEXEC | VM_USER);
 	current->address_space.mmap_base = vmm_gen_mmap_base();
 
@@ -242,8 +242,7 @@ retry:;
 	Elf64_auxv_t *auxv = process_setup_auxv(current->threads[0]->user_stack_bottom, current);
 	registers_t *regs = (registers_t *) current->threads[0]->kernel_stack;
 	regs->rcx = (uintptr_t) auxv;
-	uintptr_t *fs = vmm_allocate_virt_address(VM_ADDRESS_USER, 1, VM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_USER, 0);
-	vmm_map_range(fs, 1, VMM_WRITE | VMM_NOEXEC | VMM_USER);
+	uintptr_t *fs = get_user_pages(VM_TYPE_REGULAR, 1, VM_WRITE | VM_NOEXEC | VM_USER);
 	current->threads[0]->fs = (void*) fs;
 	__pthread_t *p = (__pthread_t*) fs;
 	p->self = (__pthread_t*) fs;

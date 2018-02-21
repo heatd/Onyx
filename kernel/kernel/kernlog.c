@@ -7,6 +7,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
+#include <stdarg.h>
 
 #include <onyx/log.h>
 #include <onyx/timer.h>
@@ -74,4 +75,23 @@ int sys_syslog(int type, char *buffer, int len)
 void kernlog_dump(void)
 {
 	printk("%s\n", _log_buf);
+}
+
+static unsigned int log_level = LOG_LEVEL_ERROR | LOG_LEVEL_WARNING |
+				LOG_LEVEL_FATAL;
+
+void kernlog_set_log_level(unsigned int level)
+{
+	log_level = level;
+}
+
+void kernlog_send(unsigned int level, const char *msg, ...)
+{
+	if(log_level & level)
+	{
+		va_list va;
+		va_start(va, msg);
+		vprintf(msg, va);
+		va_end(va);
+	}
 }

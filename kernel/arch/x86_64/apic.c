@@ -5,6 +5,7 @@
 */
 #include <acpi.h>
 #include <stdbool.h>
+#include <assert.h>
 
 #include <onyx/apic.h>
 #include <onyx/idt.h>
@@ -19,6 +20,7 @@
 #include <onyx/idt.h>
 #include <onyx/process.h>
 #include <onyx/clock.h>
+#include <onyx/vmm.h>
 
 volatile uint32_t *bsp_lapic = NULL;
 volatile uint64_t ap_done = 0;
@@ -56,8 +58,9 @@ void lapic_init()
 	uint64_t addr = low | ((uint64_t)high << 32);
 	addr &= 0xFFFFF000;
 	/* Map the BSP's LAPIC */
-	bsp_lapic = vmm_allocate_virt_address(VM_KERNEL, 1, VMM_TYPE_REGULAR, VMM_TYPE_HW, 0);
-	paging_map_phys_to_virt((uintptr_t) bsp_lapic, addr, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
+	bsp_lapic = dma_map_range((void*) addr, PAGE_SIZE, VM_WRITE | VM_GLOBAL | VM_NOEXEC);
+	
+	assert(bsp_lapic != NULL);
 
 	/* Enable the LAPIC by setting LAPIC_SPUINT to 0x100 OR'd with the default spurious IRQ(15) */
 	lapic_write(bsp_lapic, LAPIC_SPUINT, 0x100 | APIC_DEFAULT_SPURIOUS_IRQ);
@@ -214,10 +217,9 @@ void set_pin_handlers()
 void ioapic_early_init(void)
 {
 	/* Map the I/O APIC base */
-	ioapic_base = (volatile char*) vmm_allocate_virt_address(VM_KERNEL, 1, VMM_TYPE_REGULAR, VMM_TYPE_HW, 0);
-	if(!ioapic_base)
-		panic("Virtual memory allocation for the I/O APIC failed!");
-	paging_map_phys_to_virt((uintptr_t) ioapic_base, IOAPIC_BASE_PHYS, VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC);
+	ioapic_base = dma_map_range((void*) IOAPIC_BASE_PHYS, PAGE_SIZE,
+		VM_WRITE | VM_NOEXEC | VM_GLOBAL);
+	assert(ioapic_base != NULL);
 }
 
 void ioapic_init()
@@ -377,8 +379,12 @@ void apic_wake_up_processor(uint8_t lapicid)
 	uint64_t tick = get_tick_count();
 	while(get_tick_count() - tick < 200)
 		__asm__ __volatile__("hlt");
-	core_stack = (volatile uint64_t)vmm_allocate_virt_address(1, 2, VMM_TYPE_STACK, VMM_WRITE, 0) + 0x2000;
-	vmm_map_range((void*)(core_stack - 0x2000), 2, VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC);
+	
+	/* Allocate a stack for the core */
+	core_stack = (volatile uint64_t) get_pages(VM_KERNEL, VM_TYPE_STACK, 2,
+		VM_WRITE | VM_NOEXEC | VM_GLOBAL, 0) + 0x2000;
+	assert(core_stack != 0x2000);
+
 	send_ipi(lapicid, 6, 0);
 	tick = get_tick_count();
 	while(get_tick_count() - tick < 1000)

@@ -33,6 +33,7 @@ struct daemon *add_daemon(void)
 	}
 	return d;
 }
+
 void destroy_property_struct(struct property *prop)
 {
 	for(struct subproperty *p = prop->props; p; p = p->next)
@@ -44,6 +45,7 @@ void destroy_property_struct(struct property *prop)
 	free(prop->prop_name);
 	free(prop);
 }
+
 void destroy_target_struct(target_t *target)
 {
 	for(struct property *prop = target->properties; prop; prop = prop->next)
@@ -52,6 +54,7 @@ void destroy_target_struct(target_t *target)
 	}
 	free(target);
 }
+
 struct property *target_add_property(target_t *target)
 {
 	struct property *prop = malloc(sizeof(struct property));
@@ -70,6 +73,7 @@ struct property *target_add_property(target_t *target)
 	}
 	return prop;
 }
+
 struct subproperty *target_add_subproperty(target_t *target)
 {
 	struct subproperty *prop = malloc(sizeof(struct subproperty));
@@ -89,6 +93,7 @@ struct subproperty *target_add_subproperty(target_t *target)
 	}
 	return prop;
 }
+
 struct subproperty *get_subproperty(struct property *p, const char *name)
 {
 	for(struct subproperty *prop = p->props; prop; prop = prop->next)
@@ -98,6 +103,7 @@ struct subproperty *get_subproperty(struct property *p, const char *name)
 	}
 	return NULL;
 }
+
 int execute_program(const char *path, const char *type)
 {
 	bool do_daemon_things = false;
@@ -150,6 +156,7 @@ int execute_program(const char *path, const char *type)
 	}
 	return 0;
 }
+
 int process_line(char *line, target_t *target)
 {
 	if(*line == '#')
@@ -218,6 +225,7 @@ int process_line(char *line, target_t *target)
 	}
 	return -1;
 }
+
 int process_target(target_t *target)
 {
 	char *saveptr;
@@ -285,6 +293,7 @@ int process_target(target_t *target)
 	}
 	return 0;
 }
+
 int exec_target(int fd)
 {
 	FILE *fp = fdopen(fd, "r");
@@ -338,6 +347,7 @@ ret:
 	if(target) destroy_target_struct(target);
 	return status;
 }
+
 int find_targets(const char *dir)
 {
 	int status;
@@ -362,6 +372,7 @@ int find_targets(const char *dir)
 	/* We don't close fd here because it might've been closed by fclose, maybe we can handle this better? */
 	return status;
 }
+
 int exec_daemons(void)
 {
 	int status = 0;

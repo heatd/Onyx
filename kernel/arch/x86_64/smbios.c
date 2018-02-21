@@ -57,7 +57,7 @@ void *smbios_find_tables()
 		/* And map them */
 		for(size_t i = 0; i < vmm_align_size_to_pages(total_tables); i++)
 		{
-			paging_map_phys_to_virt(((uintptr_t) vaddr + i * 0x1000), 
+			vm_map_page(NULL, ((uintptr_t) vaddr + i * 0x1000), 
 				((uintptr_t) address + i * 0x1000), VM_WRITE | VM_NOEXEC | VM_GLOBAL);
 		}
 		return (void*)((uintptr_t) vaddr + ((uintptr_t) address & 0xFFF));
@@ -81,7 +81,7 @@ void *smbios_find_tables()
 		/* And map them */
 		for(size_t i = 0; i < vmm_align_size_to_pages(total_tables); i++)
 		{
-			paging_map_phys_to_virt(((uintptr_t) vaddr + i * 0x1000), 
+			vm_map_page(NULL, ((uintptr_t) vaddr + i * 0x1000), 
 				((uintptr_t) address + i * 0x1000), VM_WRITE | VM_NOEXEC | VM_GLOBAL);
 		}
 		return (void*)((uintptr_t) vaddr + ((uintptr_t) address & 0xFFF));

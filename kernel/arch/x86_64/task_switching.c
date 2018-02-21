@@ -51,13 +51,24 @@ thread_t* task_switching_create_context(thread_callback_t callback, uint32_t fla
 	memset(new_thread->fpu_area, 0, FPU_AREA_SIZE);
 	setup_fpu_area(new_thread->fpu_area);
 	if(!(flags & 1)) // If the thread is user mode, create a user stack
-		new_thread->user_stack = (uintptr_t*)vmm_allocate_virt_address(VM_ADDRESS_USER, 256, VMM_TYPE_STACK, VMM_WRITE | VMM_NOEXEC | VMM_USER, 0);
-	new_thread->kernel_stack = (uintptr_t*)vmm_allocate_virt_address(VM_KERNEL, 4, VMM_TYPE_STACK, VMM_WRITE | VMM_NOEXEC, 0);
+	{
+		new_thread->user_stack = get_user_pages(VM_TYPE_STACK, 256, VM_WRITE | VM_NOEXEC | VM_USER);
+		if(!new_thread->user_stack)
+		{
+			free(new_thread->fpu_area);
+			free(new_thread);
+			return NULL;
+		}
+	}
+	new_thread->kernel_stack = get_pages(VM_KERNEL, VM_TYPE_STACK, 4, VM_WRITE | VM_NOEXEC, 0);
 
-	// Map the stacks on the virtual address space
-	if(!(flags & 1))
-		vmm_map_range(new_thread->user_stack, 256, VMM_WRITE | VMM_NOEXEC | VMM_USER);
-	vmm_map_range(new_thread->kernel_stack, 4, VMM_WRITE | VMM_NOEXEC);
+	if(!new_thread->kernel_stack)
+	{
+		/* TODO: Undo the user stack allocation */
+		free(new_thread->fpu_area);
+		free(new_thread);
+		return NULL;
+	}
 	new_thread->user_stack_bottom = new_thread->user_stack;
 	// Increment the stacks by 8 KiB
 	{
@@ -133,26 +144,19 @@ thread_t* task_switching_create_main_progcontext(thread_callback_t callback, uin
 	setup_fpu_area(new_thread->fpu_area);
 	if(!(flags & 1)) // If the thread is user mode, create a user stack
 	{
-		new_thread->user_stack = (uintptr_t*)vmm_allocate_virt_address(VM_ADDRESS_USER, 256, VMM_TYPE_STACK, VMM_WRITE | VMM_NOEXEC | VMM_USER, 0);
+		new_thread->user_stack = (uintptr_t*) get_user_pages(VM_TYPE_STACK, 256, VM_WRITE | VM_NOEXEC);
 		if(!new_thread->user_stack)
 			return NULL;
 	}
 	
-	new_thread->kernel_stack = (uintptr_t*)vmm_allocate_virt_address(VM_KERNEL, 4, VMM_TYPE_STACK, VMM_WRITE | VMM_NOEXEC, 0);
+	new_thread->kernel_stack = (uintptr_t*) get_pages(VM_KERNEL, VM_TYPE_STACK, 4,
+		VM_WRITE | VM_NOEXEC | VM_GLOBAL, 0);
 	
 	if(!new_thread->kernel_stack)
 	{
-		if(new_thread->user_stack)
-		{
-			vmm_destroy_mappings(new_thread->user_stack, 256);
-		}
 		return NULL;
 	}
-	
-	// Map the stacks on the virtual address space
-	if(!(flags & 1))
-		vmm_map_range(new_thread->user_stack, 256, VMM_WRITE | VMM_NOEXEC | VMM_USER);
-	vmm_map_range(new_thread->kernel_stack, 4, VMM_WRITE | VMM_NOEXEC);
+
 	new_thread->user_stack_bottom = new_thread->user_stack;
 	
 	if(!(flags & 1))
@@ -303,7 +307,7 @@ thread_t *sched_spawn_thread(registers_t *regs, thread_callback_t start, void *a
 	if(!new_thread)
 		return NULL;
 	
-	memset(new_thread, 0 ,sizeof(thread_t));
+	memset(new_thread, 0, sizeof(thread_t));
 
 	new_thread->id = curr_id++;
 	posix_memalign((void**) &new_thread->fpu_area, FPU_AREA_ALIGNMENT, FPU_AREA_SIZE);

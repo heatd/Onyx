@@ -49,7 +49,7 @@ void *shm_mmap(struct vm_entry *area, struct inode *node)
 	for(size_t i = 0; i < nr_pages; i++)
 	{
 		struct page *p = l->ptr;
-		if(!paging_map_phys_to_virt(vaddr, (uintptr_t) p->paddr, area->rwx))
+		if(!vm_map_page(NULL, vaddr, (uintptr_t) p->paddr, area->rwx))
 			return (void*) -ENOMEM;
 		vaddr += PAGE_SIZE;
 		l = l->next;

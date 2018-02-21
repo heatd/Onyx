@@ -56,6 +56,7 @@ struct page_cache *add_to_cache(void *data, size_t size, off_t offset, struct in
 	}
 	return c;
 }
+
 size_t __do_vfs_write(void *buf, size_t size, off_t off, struct inode *this)
 {
 	if(this->type & VFS_TYPE_MOUNTPOINT)
@@ -65,9 +66,12 @@ size_t __do_vfs_write(void *buf, size_t size, off_t off, struct inode *this)
 
 	return errno = ENOSYS;
 }
+
 static thread_t *sync_thread;
-void pagecache_sync()
+
+void pagecache_sync(void *arg)
 {
+	(void) arg;
 repeat: ;
 	struct list_head *list = &page_list;
 	while(list && list->ptr)
@@ -83,13 +87,15 @@ repeat: ;
 	thread_set_state(sync_thread, THREAD_BLOCKED);
 	goto repeat;
 }
-void pagecache_init()
+
+void pagecache_init(void)
 {
 	sync_thread = sched_create_thread(pagecache_sync, 1, NULL);
 	if(!sync_thread)
 		panic("Could not spawn the sync thread!\n");
 	thread_set_state(sync_thread, THREAD_BLOCKED);
 }
+
 void wakeup_sync_thread()
 {
 	thread_wake_up(sync_thread);

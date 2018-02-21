@@ -19,6 +19,7 @@
 #include <onyx/process.h>
 #include <onyx/pipe.h>
 #include <onyx/file.h>
+#include <onyx/atomic.h>
 
 #include <sys/uio.h>
 
@@ -804,4 +805,16 @@ ssize_t sys_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockad
 	if(desc->vfs_node->type != VFS_TYPE_UNIX_SOCK)
 		return -ENOTSOCK;
 	return recvfrom_vfs(buf, len, flags, src_addr, addrlen, desc->vfs_node);
+}
+
+struct file_description *create_file_description(struct inode *inode, off_t seek)
+{
+	struct file_description *fd = zalloc(sizeof(*fd));
+	if(!fd)
+		return NULL;
+	fd->vfs_node = inode;
+	fd->seek = seek;
+	fd->refcount = 1;
+	atomic_inc(&inode->refcount, 1);
+	return fd;
 }

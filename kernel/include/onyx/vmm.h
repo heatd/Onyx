@@ -13,6 +13,7 @@
 #include <onyx/paging.h>
 #include <onyx/avl.h>
 #include <onyx/spinlock.h>
+#include <onyx/mm/vm_object.h>
 
 #ifdef __x86_64__
 #include <onyx/x86/page.h>
@@ -54,7 +55,7 @@
 #define VMM_NOEXEC VM_NOEXEC
 
 #define VM_HIGHER_HALF 0xffff800000000000
-#define PHYS_TO_VIRT(x) (void*)((uintptr_t) x + PHYS_BASE)
+#define PHYS_TO_VIRT(x) (void*)((uintptr_t) (x) + PHYS_BASE)
 
 struct vm_entry
 {
@@ -66,7 +67,15 @@ struct vm_entry
 	struct file_description *fd;
 	off_t offset;
 	int flags;
+	struct vm_object *vmo;
+	struct mm_address_space *mm;
+
+	struct vm_entry *next_mapping;
 };
+
+#define VM_OK			0x0
+#define VM_SIGBUS		0x1
+#define VM_SIGSEGV		0x2
 
 struct fault_info
 {
@@ -76,10 +85,12 @@ struct fault_info
 	bool exec;
 	bool user;
 	uintptr_t ip;
+	int error;
 };
 
 struct mm_address_space
 {
+	struct process *process;
 	/* Virtual address space AVL tree */
 	avl_node_t *tree;
 	spinlock_t vm_spl;
@@ -107,8 +118,8 @@ void vmm_unmap_range(void *range, size_t pages);
 void vmm_destroy_mappings(void *range, size_t pages);
 void *vmm_reserve_address(void *addr, size_t pages, uint32_t type, uint64_t prot);
 struct vm_entry *vmm_is_mapped(void *addr);
-PML4 *vmm_clone_as(avl_node_t **);
-PML4 *vmm_fork_as(avl_node_t **);
+int vm_clone_as(struct mm_address_space *addr_space);
+int vm_fork_as(struct mm_address_space *addr_space);
 void vmm_stop_spawning();
 void vmm_change_perms(void *range, size_t pages, int perms);
 void vmm_set_tree(avl_node_t *tree_);
@@ -136,7 +147,24 @@ void vm_update_addresses(uintptr_t new_kernel_space_base);
 uintptr_t vm_randomize_address(uintptr_t base, uintptr_t bits);
 void *map_pages_to_vaddr(void *virt, void *phys, size_t size, size_t flags);
 void *get_user_pages(uint32_t type, size_t pages, size_t prot);
+void *get_pages(size_t flags, uint32_t type, size_t pages, size_t prot, uintptr_t alignment);
+bool is_mapping_shared(struct vm_entry *);
+bool is_file_backed(struct vm_entry *);
 
+#define VM_MMAP_PRIVATE		(1 << 0)
+#define VM_MMAP_SHARED		(1 << 1)
+#define VM_MMAP_FIXED		(1 << 2)
+
+void *create_file_mapping(void *addr, size_t pages, int flags,
+	int prot, struct file_description *fd, off_t off);
+
+void *map_user(void *addr, size_t pages, uint32_t type, uint64_t prot);
+
+struct process;
+
+void *vm_map_page(struct process *proc, uint64_t virt, uint64_t phys, uint64_t prot);
+void *__map_pages_to_vaddr(struct process *process, void *virt, void *phys,
+		size_t size, size_t flags);
 
 static inline void *page_align_up(void *ptr)
 {

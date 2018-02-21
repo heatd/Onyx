@@ -12,6 +12,7 @@
 
 #include <sys/resource.h>
 
+#include <onyx/user.h>
 #include <onyx/id.h>
 #include <onyx/vdso.h>
 #include <onyx/compiler.h>
@@ -127,6 +128,8 @@ struct process *process_create(const char *cmd_line, ioctx_t *ctx, struct proces
 		memcpy(&proc->sigtable, &parent->sigtable, sizeof(struct sigaction) * _NSIG);
 		memcpy(&proc->sigmask, &parent->sigmask, sizeof(sigset_t));
 	}
+
+	proc->address_space.process = proc;
 	if(parent)
 		proc->parent = parent;
 	if(!first_process)
@@ -234,19 +237,17 @@ char **process_copy_envarg(char **envarg, _Bool to_kernel, int *count)
 	char *new;
 	if(to_kernel)
 	{
-		new = malloc(buffer_size);
+		new = zalloc(buffer_size);
 		if(!new)
 			return NULL;
 	}
 	else
 	{
-		new = vmm_allocate_virt_address(VM_ADDRESS_USER, vmm_align_size_to_pages(buffer_size), VM_TYPE_SHARED, VM_WRITE | VM_NOEXEC | VM_USER, 0);
+		new = get_user_pages(VM_TYPE_SHARED,
+			vmm_align_size_to_pages(buffer_size), VM_WRITE | VM_NOEXEC | VM_USER);
 		if(!new)
 			return NULL;
-		if(!vmm_map_range(new, vmm_align_size_to_pages(buffer_size), VM_WRITE | VM_NOEXEC | VM_USER))
-			return NULL;
 	}
-	memset(new, 0, buffer_size);
 
 	char *strings = (char*) new + (nr_args + 1) * sizeof(void*);
 	char *it = strings;
@@ -325,7 +326,7 @@ void process_setup_pthread(thread_t *thread, struct process *process)
 {
 	/* TODO: Do this portably */
 	/* TODO: Return error codes and clean up */
-	uintptr_t *fs = vmm_allocate_virt_address(VM_ADDRESS_USER, 1, VM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_USER, 0);
+	uintptr_t *fs = get_user_pages(VM_TYPE_REGULAR, 1, VM_WRITE | VM_NOEXEC | VM_USER);
 	vmm_map_range(fs, 1, VMM_WRITE | VMM_NOEXEC | VMM_USER);
 	thread->fs = (void*) fs;
 	__pthread_t *p = (__pthread_t*) fs;
@@ -342,47 +343,61 @@ int return_from_execve(void *entry, int argc, char **argv, char **envp, void *au
 /*
 	execve(2): Executes a program with argv and envp, replacing the current process.
 */
-int sys_execve(char *path, char *argv[], char *envp[])
+int sys_execve(char *p, char *argv[], char *envp[])
 {
-	if(!vmm_is_mapped(path))
-		return errno =-EFAULT;
 	if(!vmm_is_mapped(argv))
 		return errno =-EFAULT;
 	if(!vmm_is_mapped(envp))
 		return errno =-EFAULT;
 
-	/* Create a new address space */
-	avl_node_t *tree;
-	PML4 *cr3 = vmm_clone_as(&tree);
-	/* Open the file */
-	struct inode *in = open_vfs(fs_root, path);
-	if (!in)
-		return -ENOENT;
-	/* TODO: Check file permitions */
+	char *path = strcpy_from_user(p);
+	if(!path)
+		return -ENOMEM;
+	struct process *current = get_current_process();
 
 	/* Copy argv and envp to the kernel space */
 	int argc;
 	char **karg = process_copy_envarg(argv, true, &argc);
 	/* TODO: Abort process construction */
 	if(!karg)
+	{
+		free(path);
 		return -ENOMEM;
+	}
 	char **kenv = process_copy_envarg(envp, true, NULL);
 	if(!kenv)
 	{
 		free(karg);
+		free(path);
 		return -ENOMEM;
-	}	
+	}
+
+	/* Open the file */
+	struct inode *in = open_vfs(fs_root, path);
+	if (!in)
+	{
+		free(path);
+		free(karg);
+		free(kenv);
+		return -ENOENT;
+	}
+
+	if(vm_clone_as(&current->address_space) < 0)
+	{
+		free(path);
+		free(karg);
+		free(kenv);
+		close_vfs(in);
+		return -1;
+	}
+	/* TODO: Check file permitions */
 	/* Swap address spaces. Good thing we saved argv and envp before */
-	struct process *current = get_current_process();
-	current->address_space.cr3 = cr3;
-	current->address_space.tree = tree;
-	current->address_space.brk = vmm_reserve_address(vmm_gen_brk_base(), 0x20000000, VM_TYPE_HEAP,
+	current->address_space.brk = map_user(vmm_gen_brk_base(), 0x20000000, VM_TYPE_HEAP,
 		VM_WRITE | VM_NOEXEC | VM_USER);
 	current->address_space.mmap_base = vmm_gen_mmap_base();
 
 	current->cmd_line = strdup(path);
 	paging_load_cr3(current->address_space.cr3);
-	current->address_space.tree = tree;
 	
 	/* Setup the binfmt args */
 	uint8_t *file = malloc(100);
@@ -390,6 +405,7 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	{
 		free(karg);
 		free(kenv);
+		close_vfs(in);
 		return -ENOMEM;
 	}
 	/* Read the file signature */
@@ -408,6 +424,7 @@ int sys_execve(char *path, char *argv[], char *envp[])
 		free(karg);
 		free(kenv);
 		free(file);
+		close_vfs(in);
 		return -errno;
 	}
 	free(file);
@@ -426,11 +443,10 @@ int sys_execve(char *path, char *argv[], char *envp[])
 	/* Close O_CLOEXEC files */
 	file_do_cloexec(&get_current_process()->ctx);
 
-	void *user_stack = vmm_allocate_virt_address(VM_ADDRESS_USER, 256, VM_TYPE_SHARED, VM_WRITE | VM_NOEXEC | VM_USER, 0);
+	void *user_stack = get_user_pages(VM_TYPE_SHARED, 256, VM_WRITE | VM_NOEXEC | VM_USER);
 	void *auxv = NULL;
 	if(!user_stack)
 		return -1;
-	vmm_map_range(user_stack, 256, VM_WRITE | VM_NOEXEC | VM_USER);
 
 	/* Setup auxv */
 	auxv = process_setup_auxv(user_stack, current);
@@ -498,11 +514,8 @@ pid_t sys_fork(syscall_ctx_t *ctx)
 {
 	struct process 	*proc;
 	struct process 	*child;
-	avl_node_t 	*areas;
-	PML4 		*new_pt;
 	thread_t 	*to_be_forked;
 
-	areas = NULL;
 	proc = (struct process*) get_current_process();
 	to_be_forked = proc->threads[0];	
 	/* Create a new process */
@@ -512,24 +525,14 @@ pid_t sys_fork(syscall_ctx_t *ctx)
 		return -ENOMEM;
 
 	/* Fork the vmm data and the address space */
-	new_pt = vmm_fork_as(&areas); // Fork the address space
-	if(!new_pt)
-	{
-		/* TODO: Destroy the process */
-		vmm_destroy_addr_space(areas);
+	if(vm_fork_as(&child->address_space) < 0)
 		return -ENOMEM;
-	}
-	if(!areas)
-	{
-		/* TODO: Cleanup the paging structures */
-		return -ENOMEM;
-	}
-	child->address_space.tree = areas;
-	child->address_space.cr3 = new_pt; // Set the new cr3
 
 	/* Fork and create the new thread */
 	process_fork_thread(to_be_forked, child, ctx);
+
 	sched_start_thread(child->threads[0]);
+
 	// Return the pid to the caller
 	return child->pid;
 }

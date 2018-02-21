@@ -15,8 +15,6 @@
 #include <onyx/panic.h>
 #include <onyx/cpu.h>
 
-bool is_spawning;
-PML4 *spawning_pml = NULL;
 #define PML_EXTRACT_ADDRESS(n) (n & 0x0FFFFFFFFFFFF000)
 
 static inline void __native_tlb_invalidate_page(void *addr)
@@ -128,19 +126,21 @@ PML4 *get_current_pml4(void)
 	return (PML4*) p->address_space.cr3;
 }
 
-void *virtual2phys(void *ptr)
+void *__virtual2phys(struct process *process, void *ptr)
 {
 	decomposed_addr_t dec;
 	memcpy(&dec, &ptr, sizeof(decomposed_addr_t));
-	PML4 *pml4;
-	if(!is_spawning)
-		pml4 = (PML4*)((uint64_t)get_current_pml4() + PHYS_BASE);
-	else
-		pml4 = (PML4*)((uint64_t)spawning_pml + PHYS_BASE);
+	PML4 *pml4 = PHYS_TO_VIRT(process ? process->address_space.cr3 : get_current_pml4());
+
 	PML3 *pml3 = (PML3*)((pml4->entries[dec.pml4] & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
 	PML2 *pml2 = (PML2*)((pml3->entries[dec.pdpt] & 0x0FFFFFFFFFFFF000)+ PHYS_BASE);
 	PML1 *pml1 = (PML1*)((pml2->entries[dec.pd] & 0x0FFFFFFFFFFFF000)+ PHYS_BASE);
 	return (void *)((pml1->entries[dec.pt] & 0x0FFFFFFFFFFFF000) + dec.offsetFromPage);
+}
+
+void *virtual2phys(void *ptr)
+{
+	return __virtual2phys(NULL, ptr);
 }
 
 extern PML3 pdptphysical_map;
@@ -170,7 +170,7 @@ void paging_init(void)
 
 }
 
-void paging_map_all_phys()
+void paging_map_all_phys(void)
 {
 	bool is_1gb_supported = x86_has_cap(X86_FEATURE_PDPE1GB);
 	uintptr_t virt = PHYS_BASE;
@@ -331,13 +331,11 @@ void* paging_map_phys_to_virt_large(uint64_t virt, uint64_t phys, uint64_t prot)
 	return (void*) virt;
 } 
 
-void* paging_map_phys_to_virt(uint64_t virt, uint64_t phys, uint64_t prot)
+void* paging_map_phys_to_virt(PML4 *__pml, uint64_t virt, uint64_t phys, uint64_t prot)
 {
 	bool user = 0;
 	if (virt < 0x00007fffffffffff)
 		user = 1;
-	if(!get_current_pml4())
-		return NULL;
 
 	const unsigned int paging_levels = 4;
 	unsigned int indices[paging_levels];
@@ -347,7 +345,7 @@ void* paging_map_phys_to_virt(uint64_t virt, uint64_t phys, uint64_t prot)
 		indices[i] = (virt >> 12) >> (i * 9) & 0x1ff;
 	}
 
-	PML4 *pml = (PML4*)((uint64_t)get_current_pml4() + PHYS_BASE);
+	PML4 *pml = (PML4*)((uint64_t) __pml + PHYS_BASE);
 	
 	for(unsigned int i = paging_levels; i != 1; i--)
 	{
@@ -395,11 +393,8 @@ void *paging_unmap(void* memory)
 	//printk("Unmapping %p\n", memory);
 	decomposed_addr_t dec;
 	memcpy(&dec, &memory, sizeof(decomposed_addr_t));
-	PML4 *pml4;
-	if(!is_spawning)
-		pml4 = (PML4*)((uint64_t)get_current_pml4() + PHYS_BASE);
-	else
-		pml4 = (PML4*)((uint64_t)spawning_pml + PHYS_BASE);
+	PML4 *pml4 = (PML4*)((uint64_t) get_current_pml4() + PHYS_BASE);
+	
 	uint64_t* entry = &pml4->entries[dec.pml4];
 
 	if(!*entry & 1)
@@ -447,19 +442,22 @@ void *paging_unmap(void* memory)
 	return (void*) address;
 }
 
-PML4 *paging_clone_as()
+int paging_clone_as(struct mm_address_space *addr_space)
 {
 	PML4 *new_pml = __alloc_page(PAGE_AREA_HIGH_MEM);
 	if(!new_pml)
-		panic("OOM while cloning address space!");
+		return -1;
 	PML4 *p = (PML4*)((uint64_t)new_pml + PHYS_BASE);
 	memset(p, 0, sizeof(PML4));
 	PML4 *curr = (PML4*)((uint64_t)get_current_pml4() + PHYS_BASE);
-	// Clone the kernel-space memory
+	/* Copy the upper 256 entries of the PML4 in order to map
+	 * the kernel in the process's address space
+	*/
+
 	memcpy(&p->entries[256], &curr->entries[256], 256 * sizeof(uint64_t));
-	is_spawning = 1;
-	spawning_pml = new_pml;
-	return new_pml;
+
+	addr_space->cr3 = new_pml;
+	return 0;
 }
 
 static inline PML4 *paging_fork_pml(PML4 *pml, int entry)
@@ -473,44 +471,57 @@ static inline PML4 *paging_fork_pml(PML4 *pml, int entry)
 	return new_pml;
 }
 
-PML4 *paging_fork_as()
+int paging_fork_tables(struct mm_address_space *addr_space)
 {
-	PML4 *new_pml = __alloc_page(PAGE_AREA_HIGH_MEM);
-	if(!new_pml)
-		panic("OOM while cloning address space!");
-	PML4 *p = (PML4*)((uint64_t)new_pml + PHYS_BASE);
-	PML4 *curr = (PML4*)((uint64_t)get_current_pml4() + PHYS_BASE);
+	struct page *page = get_phys_page();
+	if(!page)
+		return -1;
+	PML4 *new_pml = page->paddr;
+	PML4 *p = PHYS_TO_VIRT(new_pml);
+	PML4 *curr = PHYS_TO_VIRT(get_current_pml4());
 	memcpy(p, curr, sizeof(PML4));
+
 	PML4 *mod_pml = (PML4*)((char*)new_pml + PHYS_BASE);
+	/* TODO: Destroy the page tables on failure */
 	for(int i = 0; i < 256; i++)
 	{
 		if(mod_pml->entries[i] & 1)
 		{
-			PML3 *pml3 = (PML3*)paging_fork_pml(mod_pml, i);
+			PML3 *pml3 = (PML3*) paging_fork_pml(mod_pml, i);
+			if(!pml3)
+			{
+				return -1;
+			}
+
 			for(int j = 0; j < PAGE_TABLE_ENTRIES; j++)
 			{
 				if(pml3->entries[j] & 1)
 				{
-					PML2 *pml2 = (PML2*)paging_fork_pml((PML4*) pml3, j);
+					PML2 *pml2 = (PML2*) paging_fork_pml((PML4*) pml3, j);
+					if(!pml2)
+					{
+						return -1;
+					}
+
 					for(int k = 0; k < PAGE_TABLE_ENTRIES; k++)
 					{
 						if(pml2->entries[k] & 1 && !(pml2->entries[k] & (1<<7)))
 						{
-							PML1 *pml1 = (PML1*)paging_fork_pml((PML4*)pml2, k);
-							for(int l = 0; l < PAGE_TABLE_ENTRIES; l++)
+							PML1 *pml1 = (PML1*) paging_fork_pml((PML4*)pml2, k);
+							if(!pml1)
 							{
-								if(pml1->entries[l] & 1)
-								{
-									paging_fork_pml((PML4*)pml1, l);
-								}
+								return -1;
 							}
+
 						}
 					}
 				}
 			}
 		}
 	}
-	return new_pml;
+	
+	addr_space->cr3 = new_pml;
+	return 0;
 }
 
 void paging_load_cr3(PML4 *pml)
@@ -527,11 +538,8 @@ void paging_change_perms(void *addr, int prot)
 {
 	decomposed_addr_t dec;
 	memcpy(&dec, &addr, sizeof(decomposed_addr_t));
-	PML4 *pml4;
-	if(!is_spawning)
-		pml4 = (PML4*)((uint64_t)get_current_pml4() + PHYS_BASE);
-	else
-		pml4 = (PML4*)((uint64_t)spawning_pml + PHYS_BASE);
+	PML4 *pml4 = (PML4*)((uint64_t)get_current_pml4() + PHYS_BASE);
+	
 	uint64_t* entry = &pml4->entries[dec.pml4];
 	if(*entry == 0)
 		return;
@@ -571,11 +579,8 @@ void paging_walk(void *addr)
 {
 	decomposed_addr_t dec;
 	memcpy(&dec, &addr, sizeof(decomposed_addr_t));
-	PML4 *pml4;
-	if(!is_spawning)
-		pml4 = (PML4*)((uint64_t)get_current_pml4() + PHYS_BASE);
-	else
-		pml4 = (PML4*)((uint64_t)spawning_pml + PHYS_BASE);
+	PML4 *pml4 = (PML4*)((uint64_t)get_current_pml4() + PHYS_BASE);
+	
 	uint64_t* entry = &pml4->entries[dec.pml4];
 	if(*entry == 0)
 	{
@@ -655,4 +660,13 @@ void paging_invalidate(void *page, size_t pages)
 	{
 		__native_tlb_invalidate_page((void *) p);
 	}
+}
+
+void *vm_map_page(struct process *proc, uint64_t virt, uint64_t phys, uint64_t prot)
+{
+	PML4 *pml = proc ? proc->address_space.cr3 : get_current_pml4();
+	
+	assert(pml != NULL);
+
+	return paging_map_phys_to_virt(pml, virt, phys, prot);
 }
