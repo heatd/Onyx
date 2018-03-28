@@ -1198,7 +1198,6 @@ int do_inc_brk(void *oldbrk, void *newbrk)
 	void *newpage = page_align_up(newbrk);
 
 	size_t pages = ((uintptr_t) newpage - (uintptr_t) oldpage) / PAGE_SIZE;
-
 	if(vmm_map_range(oldpage, pages, VM_WRITE | VM_USER | VM_NOEXEC) == NULL)
 		return -1;
 	return 0;
@@ -1226,7 +1225,7 @@ uint64_t sys_brk(void *newbrk)
 
 		p->address_space.brk = newbrk;
 	}
-	return 0;
+	return (uint64_t) p->address_space.brk;
 }
 
 void print_vmm_structs(avl_node_t *node)

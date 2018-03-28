@@ -165,12 +165,6 @@ bool ahci_command_dma_ata(struct ahci_port *ahci_port, struct ahci_command_ata *
 ret:
 	prdt[0].address = 0;
 	prdt[0].dw3 = 0;
-	printk("Byte count: %u\n", list->prdbc);
-	printk("Port status: %x\n", port->status);
-	printk("Interrupt status: %x\n", port->interrupt_status);
-	uint8_t status_reg = port->tfd & 0xFF;
-	uint8_t error = port->tfd >> 8;
-	printk("Status:error: %x:%x\n", status_reg, error);
 	list->prdtl = 0;
 	return status;
 }
@@ -410,15 +404,9 @@ int ahci_do_identify(struct ahci_port *port)
 		case SATA_SIG_ATA:
 		{
 			struct ahci_command_ata command = {0};
-			command.size = 512;
+			command.size = 0;
 			command.write = false;
-			char buf[512];
-			command.cmd = ATA_CMD_READ_DMA_EXT;
-			command.buffer = (void*) &buf;
-			command.lba = 1;
-			if(!ahci_command_dma_ata(port, &command))
-				printk("fuck\n");
-	
+			command.lba = 0;	
 			command.cmd = ATA_CMD_IDENTIFY;
 			command.buffer = &port->identify; 
 			if(!ahci_command_dma_ata(port, &command))
@@ -426,8 +414,6 @@ int ahci_do_identify(struct ahci_port *port)
 				printk("ATA_CMD_IDENTIFY failed!\n");
 				return -1;
 			}
-			printk("Buf: %p\n", buf);
-			while(1);
 			break;
 		}
 		default:
@@ -627,7 +613,6 @@ ret:
 		irq_uninstall_handler(irq, ahci_irq);
 		device = 0;
 	}
-	while(1);
 	return status;
 }
 int module_fini()

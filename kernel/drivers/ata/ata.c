@@ -414,6 +414,17 @@ bool ata_device_filter(struct pci_device *dev)
 		idedev = dev;
 		return true;
 	}
+	else if(dev->pciClass == CLASS_MASS_STORAGE_CONTROLLER && dev->subClass == 6)
+	{
+		pcibar_t *bar4 = pci_get_bar(dev, 4);
+		if(bar4->isIO && bar4->address)
+		{
+			idedev = dev;
+			free(bar4);
+			return true;
+		}
+		free(bar4);
+	}
 	return false;
 }
 void ata_init(void)

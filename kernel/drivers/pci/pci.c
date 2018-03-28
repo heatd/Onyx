@@ -210,7 +210,7 @@ void pci_enumerate_device(uint16_t bus, uint8_t device, uint8_t function, struct
 	pci_find_supported_capabilities(dev);
 	/* Set up the pci device's name */
 	char name_buf[200] = {0};
-	snprintf(name_buf, 200, "pci-%x%x", vendor, dev->deviceID);
+	snprintf(name_buf, 200, "pci-%04x%04x", vendor, dev->deviceID);
 	dev->dev.name = strdup(name_buf);
 	assert(dev->dev.name);
 	
@@ -490,14 +490,28 @@ off_t pci_find_capability(struct pci_device *dev, uint8_t cap)
 	return -1;
 }
 
+extern struct bus pcie_bus;
+
 bool pci_find_device(bool (*callback)(struct pci_device *), bool stop_on_match)
 {
 	bool found = false;
-	for(struct pci_device *i = linked_list; i;i = i->next)
+	for(struct device *i = pci_bus.devs; i;i = i->next)
 	{
-		if(callback(i) == true && stop_on_match)
-			return true;
-		found = true;
+		if(callback((struct pci_device *) i) == true)
+		{
+			found = true;
+			if(stop_on_match)
+				return true;
+		}
+	}
+	for(struct device *i = pcie_bus.devs; i;i = i->next)
+	{
+		if(callback((struct pci_device *) i) == true)
+		{
+			found = true;
+			if(stop_on_match)
+				return true;
+		}
 	}
 	return found;
 }

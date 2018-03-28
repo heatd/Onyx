@@ -1,5 +1,5 @@
 PROJECTS:=libc kernel
-SOURCE_PACKAGES:= libdrm libunwind init games dhcpcd wserver strace
+SOURCE_PACKAGES:= libdrm libunwind init games dhcpcd wserver strace devmgr
 
 ALL_MODULES:=$(PROJECTS) $(SOURCE_PACKAGES)
 
@@ -87,4 +87,8 @@ qemu: iso
 	qemu-system-$(shell ./target-triplet-to-arch.sh $(HOST)) \
 	-s -cdrom Onyx.iso -drive file=hdd.img,format=raw,media=disk -m 512M \
 	-monitor stdio -boot d -net nic,model=e1000 -net dump,file=net.pcap -net user \
-	--enable-kvm -smp 2 -cpu host,migratable=no,+invtsc -d int -vga vmware
+	--enable-kvm -smp 2 -cpu host,migratable=no,+invtsc -d int -vga vmware \
+	-usb
+virtualbox: iso
+	virtualbox --startvm Onyx --dbg
+

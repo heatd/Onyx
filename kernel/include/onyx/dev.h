@@ -87,6 +87,9 @@ void bus_shutdown(struct bus *bus);
 void bus_shutdown_every(void);
 /* bus_suspend_every - Suspend every bus */
 void bus_suspend_every(void);
+
+void dev_create_sysfs(void);
+
 #ifdef __cplusplus
 }
 #endif

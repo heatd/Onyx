@@ -136,7 +136,8 @@ typedef struct
 	cfis_t cfis;
 	uint8_t acmd[16];
 	uint8_t reserved[0x30];
-} command_table_t;
+} __attribute__((packed)) command_table_t;
+
 typedef volatile struct
 {
 	uint16_t desc_info;
@@ -145,14 +146,14 @@ typedef volatile struct
 	uint32_t base_address_lo;
 	uint32_t base_address_hi;
 	uint32_t res[4];
-} command_list_t;
+} __attribute__((packed)) command_list_t;
 
 typedef struct
 {
 	uint64_t address;
 	uint32_t res0;
 	uint32_t dw3;
-} prdt_t;
+} __attribute__((packed)) prdt_t;
 
 #define AHCI_COMMAND_LIST_ATAPI		(1 << 5)
 #define AHCI_COMMAND_LIST_WRITE		(1 << 6)
@@ -160,6 +161,7 @@ typedef struct
 #define AHCI_COMMAND_LIST_RESET		(1 << 8)
 #define AHCI_COMMAND_LIST_BIST		(1 << 9)
 #define AHCI_COMMAND_LIST_CLEAR_BUSY	(1 << 10)
+
 typedef volatile struct
 {
 	uint32_t command_list_base_low;
@@ -184,6 +186,7 @@ typedef volatile struct
 	uint32_t resv1[11];
 	uint32_t vendor[4];
 } ahci_port_t;
+
 typedef volatile struct
 {
 	uint32_t host_cap;
@@ -205,11 +208,13 @@ typedef volatile struct
 	
 	ahci_port_t ports[32];
 } ahci_hba_memory_regs_t;
+
 struct command_list
 {
 	volatile bool recieved_interrupt;
 	uint32_t last_interrupt_status;
 };
+
 struct ahci_port
 {
 	int port_nr;
@@ -220,6 +225,7 @@ struct ahci_port
 	struct command_list cmdslots[32];
 	unsigned char identify[512];
 };
+
 struct ahci_device
 {
 	struct pci_device *pci_dev;

@@ -10,9 +10,11 @@
 #include <stdio.h>
 
 #include <onyx/dev.h>
+#include <onyx/sysfs.h>
 
 static spinlock_t bus_list_lock;
 static struct bus *bus_list = NULL;
+
 void bus_register(struct bus *bus)
 {
 	acquire_spinlock(&bus_list_lock);
@@ -29,6 +31,7 @@ void bus_register(struct bus *bus)
 	}
 	release_spinlock(&bus_list_lock);
 }
+
 void bus_add_device(struct bus *bus, struct device *device)
 {
 	acquire_spinlock(&bus->bus_lock);
@@ -47,6 +50,7 @@ void bus_add_device(struct bus *bus, struct device *device)
 	}
 	release_spinlock(&bus->bus_lock);
 }
+
 struct device *bus_find_device(struct bus *bus, const char *devname)
 {
 	assert(bus);
@@ -60,21 +64,25 @@ struct device *bus_find_device(struct bus *bus, const char *devname)
 	}
 	return NULL;
 }
+
 void device_shutdown(struct device *dev)
 {
 	assert(dev);
 	if(dev->bus->shutdown) dev->bus->shutdown(dev);
 }
+
 void device_suspend(struct device *dev)
 {
 	assert(dev);
 	if(dev->bus->suspend) dev->bus->suspend(dev);
 }
+
 void device_resume(struct device *dev)
 {
 	assert(dev);
 	if(dev->bus->resume) dev->bus->resume(dev);
 }
+
 void bus_shutdown(struct bus *bus)
 {
 	assert(bus);
@@ -85,6 +93,7 @@ void bus_shutdown(struct bus *bus)
 	}
 	release_spinlock(&bus->bus_lock);
 }
+
 void bus_shutdown_every(void)
 {
 	acquire_spinlock(&bus_list_lock);
@@ -95,6 +104,7 @@ void bus_shutdown_every(void)
 	}
 	release_spinlock(&bus_list_lock);
 }
+
 void bus_suspend(struct bus *bus)
 {
 	assert(bus);
@@ -105,6 +115,7 @@ void bus_suspend(struct bus *bus)
 	}
 	release_spinlock(&bus->bus_lock);
 }
+
 void bus_resume(struct bus *bus)
 {
 	assert(bus);
@@ -115,6 +126,7 @@ void bus_resume(struct bus *bus)
 	}
 	release_spinlock(&bus->bus_lock);
 }
+
 void bus_suspend_every(void)
 {
 	acquire_spinlock(&bus_list_lock);
@@ -124,6 +136,7 @@ void bus_suspend_every(void)
 	}
 	release_spinlock(&bus_list_lock);
 }
+
 void bus_resume_every(void)
 {
 	acquire_spinlock(&bus_list_lock);
@@ -133,6 +146,7 @@ void bus_resume_every(void)
 	}
 	release_spinlock(&bus_list_lock);
 }
+
 void bus_unregister(struct bus *bus)
 {
 	acquire_spinlock(&bus_list_lock);
@@ -147,4 +161,27 @@ void bus_unregister(struct bus *bus)
 		bus->next->prev = bus->prev;
 	}
 	release_spinlock(&bus_list_lock);
+}
+
+static void dev_add_files(void)
+{
+	for(struct bus *b = bus_list; b != NULL; b = b->next)
+	{
+		assert(sysfs_add_bus(b) != NULL);
+		for(struct device *d = b->devs; d != NULL; d = d->next)
+		{
+			assert(sysfs_add_device(d) != NULL);
+		}
+	}
+}
+
+void dev_create_sysfs(void)
+{
+	struct inode *root = open_vfs(fs_root, "/sys");
+	struct sysfs_file *devices = NULL;
+	struct sysfs_file *buses = NULL;
+	assert((devices = sysfs_create_dir("devices", 0666, root)) != NULL);
+	assert((buses = sysfs_create_dir("buses", 0666, root)) != NULL);
+
+	dev_add_files();
 }

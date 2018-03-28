@@ -19,15 +19,15 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 
-#define VFS_TYPE_FILE 		0
-#define VFS_TYPE_DIR 		1
-#define VFS_TYPE_SYMLINK 	(1 << 1)
-#define VFS_TYPE_MOUNTPOINT 	(1 << 2)
-#define VFS_TYPE_CHAR_DEVICE 	(1 << 3)
-#define VFS_TYPE_BLOCK_DEVICE 	(1 << 4)
-#define VFS_TYPE_FIFO		(1 << 5)
-#define VFS_TYPE_UNIX_SOCK	(1 << 6)
-#define VFS_TYPE_UNK		(1 << 7)
+#define VFS_TYPE_FILE 		(1 << 0)
+#define VFS_TYPE_DIR 		(1 << 1)
+#define VFS_TYPE_SYMLINK 	(1 << 2)
+#define VFS_TYPE_MOUNTPOINT 	(1 << 3)
+#define VFS_TYPE_CHAR_DEVICE 	(1 << 4)
+#define VFS_TYPE_BLOCK_DEVICE 	(1 << 5)
+#define VFS_TYPE_FIFO		(1 << 6)
+#define VFS_TYPE_UNIX_SOCK	(1 << 7)
+#define VFS_TYPE_UNK		(1 << 8)
 
 struct inode;
 struct minor_device;
@@ -66,6 +66,12 @@ struct file_ops
 	struct inode *(*mkdir)(const char *name, mode_t mode, struct inode *node);
 };
 
+struct getdents_ret
+{
+	int read;
+	off_t new_off;
+};
+
 struct inode
 {
 	ino_t inode;
@@ -96,7 +102,8 @@ void 		close_vfs(struct inode* file);
 struct inode 	*open_vfs(struct inode* file, const char*);
 int 		mount_fs(struct inode *node, const char *mp);
 struct inode 	*creat_vfs(struct inode *node, const char *path, int mode);
-off_t 		getdents_vfs(unsigned int count, putdir_t putdir, struct dirent* dirp, off_t off, struct inode *file);
+int 		getdents_vfs(unsigned int count, putdir_t putdir, struct dirent* dirp, off_t off,
+	struct getdents_ret *ret, struct inode *file);
 int 		ioctl_vfs(int request, char *argp, struct inode *file);
 int 		stat_vfs(struct stat *buf, struct inode *node);
 ssize_t 	send_vfs(const void *buf, size_t len, int flags, struct inode *node);

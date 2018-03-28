@@ -34,9 +34,14 @@
 
 const uint64_t SYSCALL_MAX_NUM = 80;
 
+void syscall_helper(uintptr_t syscall_num)
+{
+	printk("SYSCALL %lu not available\n", syscall_num);
+}
+
 uint64_t sys_nosys()
 {
-	return (uint64_t)-ENOSYS;
+	return (uint64_t) -ENOSYS;
 }
 
 extern void sys_exit();
@@ -202,8 +207,3 @@ void *syscall_list[] =
 	[80] = (void*) sys_proc_event_attach,
 	[255] = (void*) sys_nosys
 };
-
-void syscall_helper(uintptr_t syscall_num)
-{
-	printk("SYSCALL %lu not available\n", syscall_num);
-}

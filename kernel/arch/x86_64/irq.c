@@ -46,6 +46,7 @@ _Bool isirq()
 
 void irq_install_handler(int irq, irq_t handler)
 {
+	printf("Installing irq handler (%p) for IRQ%u\n", handler, irq);
 	assert(irq < NR_IRQ);
 	if(irq < NUM_IOAPIC_PINS)
 		ioapic_unmask_pin((uint32_t) irq);

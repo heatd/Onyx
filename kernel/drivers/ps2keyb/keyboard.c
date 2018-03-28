@@ -12,7 +12,7 @@
 
 #include <drivers/ps2.h>
 
-#define PS2_PNP "PNP0303"
+#define PS2_PNP "acpi-PNP0303"
 
 extern void send_event_to_kernel(unsigned char keycode);
 static uintptr_t irq_keyb_handler(registers_t *regs)

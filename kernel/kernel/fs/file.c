@@ -410,10 +410,14 @@ int sys_getdents(int fd, struct dirent *dirp, unsigned int count)
 		return -EINVAL;
 
 	ioctx_t *ctx = &get_current_process()->ctx;
-	int read_entries_size = getdents_vfs(count, putdir, dirp, ctx->file_desc[fd]->seek,
-		ctx->file_desc[fd]->vfs_node);
-	ctx->file_desc[fd]->seek += read_entries_size;
-	return read_entries_size;
+	struct getdents_ret ret_buf = {0};
+	int ret = getdents_vfs(count, putdir, dirp, ctx->file_desc[fd]->seek,
+		&ret_buf, ctx->file_desc[fd]->vfs_node);
+	if(ret < 0)
+		return -errno;
+	ctx->file_desc[fd]->seek = ret_buf.new_off;
+
+	return ret_buf.read;
 }
 
 int sys_ioctl(int fd, int request, char *argp)
@@ -506,7 +510,7 @@ int sys_isatty(int fd)
 	if(ioctx->file_desc[fd]->vfs_node->type & VFS_TYPE_CHAR_DEVICE)
 		return 1;
 	else
-		return errno =-ENOTTY;
+		return -ENOTTY;
 }
 
 int sys_pipe(int pipefd[2])
@@ -608,9 +612,9 @@ int do_sys_stat(const char *pathname, struct stat *buf, int flags, struct inode 
 	struct inode *stat_node = open_vfs(base, pathname);
 	if(!stat_node)
 		return -errno; /* Don't set errno, as we don't know if it was actually a ENOENT */
-	stat_vfs(buf, stat_node);
+	int st = stat_vfs(buf, stat_node);
 	close_vfs(stat_node);
-	return 0;
+	return st < 0 ? -errno : st;
 }
 
 int sys_stat(const char *pathname, struct stat *buf)
@@ -628,7 +632,8 @@ int sys_fstat(int fd, struct stat *buf)
 		return errno = -EFAULT;
 	if(validate_fd(fd) < 0)
 		return errno = -EBADF;
-	stat_vfs(buf, get_current_process()->ctx.file_desc[fd]->vfs_node);
+	if(stat_vfs(buf, get_current_process()->ctx.file_desc[fd]->vfs_node) < 0)
+		return -errno;
 	return 0;
 }
 

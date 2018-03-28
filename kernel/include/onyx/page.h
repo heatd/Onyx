@@ -137,6 +137,7 @@ struct page *phys_to_page(uintptr_t phys);
 unsigned long page_increment_refcount(void *paddr);
 unsigned long page_decrement_refcount(void *paddr);
 void page_add_page(void *paddr);
+void *__alloc_pages_nozero(int order);
 
 struct page *get_phys_pages(int order);
 struct page *get_phys_page(void);

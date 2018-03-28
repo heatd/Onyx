@@ -126,9 +126,10 @@ void *page_alloc(size_t nr_pages, unsigned long flags)
 	void *pages = NULL;
 	for_every_arena(&main_cpu)
 	{
+		if(arena->free_pages == 0)
+			continue;
 		if((pages = page_alloc_from_arena(nr_pages, flags, arena)) != NULL)
 		{
-			memset(PHYS_TO_VIRT(pages), 0, nr_pages << PAGE_SHIFT);
 			return pages;
 		}
 	}
@@ -284,15 +285,29 @@ void page_init(void)
 	page_is_initialized = true;
 }
 
-void *__alloc_pages(int order)
+void *__alloc_pages_nozero(int order)
 {
 	if(page_is_initialized == false)
 		return bootmem_alloc(1);
 	size_t nr_pages = pow2(order);
 
-	return page_alloc(nr_pages, 0);
+	void *p = page_alloc(nr_pages, 0);
+	
+	return p;
 }
 
+void *__alloc_pages(int order)
+{
+	void *p = __alloc_pages_nozero(order);
+
+	size_t nr_pages = pow2(order);
+
+	if(p)
+	{
+		memset(PHYS_TO_VIRT(p), 0, nr_pages << PAGE_SHIFT);
+	}
+	return p;
+}
 void *__alloc_page(int opt)
 {
 	return __alloc_pages(0);

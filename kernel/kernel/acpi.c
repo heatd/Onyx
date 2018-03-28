@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <assert.h>
+#include <limits.h>
 
 #include <onyx/mutex.h>
 #include <onyx/spinlock.h>
@@ -276,11 +277,11 @@ ACPI_STATUS acpi_add_device(ACPI_HANDLE object, UINT32 nestingLevel, void *conte
 		id = info->ClassCode.String;
 	else
 		id = "Unknown";
-	char *name = malloc(200);
+	char *name = malloc(PATH_MAX);
 	if(!name)
 		return AE_ERROR;
-	memset(name, 0, 200);
-	snprintf(name, 200, "%s", id);
+	memset(name, 0, PATH_MAX);
+	snprintf(name, PATH_MAX, "acpi-%s", id);
 
 	struct acpi_device *device = malloc(sizeof(struct acpi_device));
 	if(!device)

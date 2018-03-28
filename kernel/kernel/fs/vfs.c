@@ -18,6 +18,7 @@
 #include <onyx/log.h>
 #include <onyx/mtable.h>
 #include <onyx/atomic.h>
+#include <onyx/sysfs.h>
 
 static avl_node_t **avl_search_key(avl_node_t **t, uintptr_t key);
 struct inode *fs_root = NULL;
@@ -292,6 +293,7 @@ int mount_fs(struct inode *fsroot, const char *path)
 		}
 		strcpy(fs_root->name, path);
 		fsroot->mountpoint = (char*) path;
+		sysfs_mount();
 	}
 	else
 	{
@@ -327,12 +329,11 @@ unsigned int putdir(struct dirent *buf, struct dirent *ubuf, unsigned int count)
 	return reclen > count ? count : reclen;
 }
 
-off_t getdents_vfs(unsigned int count, putdir_t putdir,
-	struct dirent* dirp, off_t off, struct inode *this)
+int getdents_vfs(unsigned int count, putdir_t putdir,
+	struct dirent* dirp, off_t off, struct getdents_ret *ret, struct inode *this)
 {
 	if(!(this->type & VFS_TYPE_DIR))
 		return errno = ENOTDIR, -1;
-	
 	struct dirent buf;
 	unsigned int pos = 0;
 	
@@ -341,21 +342,34 @@ off_t getdents_vfs(unsigned int count, putdir_t putdir,
 		off_t of = do_getdirent(&buf, off, this);
 		
 		if(of == 0)
-			return 0; /* EOF, return EOF */
+		{
+			if(pos)
+				return pos;
+			return 0;
+		}
+
+		/* Error, return -1 with errno set */
 		if(of < 0)
-			return errno = -of, -1; /* Error, return -1 with errno set */
+			return errno = -of, -1;
 
 		/* Put the dirent in the user-space buffer */
 		unsigned int written = putdir(&buf, dirp, count);
+		/* Error, most likely out of buffer space */
 		if(written == (unsigned int ) -1)
-			return -1; /* Error, most likely out of buffer space */
+		{
+			if(!pos) return errno = EINVAL, -1;
+			else
+				return pos;
+		}
 
 		pos += written;
 		dirp = (void*) (char *) dirp + written;
-		off += of;
+		off++;
+		ret->read = pos;
+		ret->new_off = off;
 	}
-	
-	return off; 
+
+	return pos; 
 }
 
 int stat_vfs(struct stat *buf, struct inode *node)

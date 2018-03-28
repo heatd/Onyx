@@ -1,0 +1,5 @@
+# devmgr service
+
+[Service]
+Bin=/sbin/devmgr
+Type=regular
