@@ -18,17 +18,6 @@
 #include <drivers/pci.h>
 #include <drivers/e1000.h>
 
-
-uint8_t *packet = NULL;
-uint16_t packet_len = 0;
-void eth_set_packet_buf(uint8_t *buf)
-{
-	packet = buf;
-}
-void eth_set_packet_len(uint16_t len)
-{
-	packet_len = len;
-}
 int eth_send_packet(char *destmac, char *payload, uint16_t len, uint16_t protocol, struct netif *netif)
 {
 	ethernet_header_t *hdr = malloc(len + sizeof(ethernet_header_t));

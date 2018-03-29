@@ -49,8 +49,8 @@ int slab_setup_bufctls(struct slab *slab, slab_cache_t *cache)
 			bufctl = bctl;
 		}
 		/* Call the constructor */
-			if(cache->ctor)
-				cache->ctor(buf);
+		if(cache->ctor)
+			cache->ctor(buf);
 	}
 	return 0;
 }

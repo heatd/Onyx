@@ -1622,6 +1622,7 @@ struct page *vmo_commit_file(size_t off, struct vm_object *vmo)
 	struct page *page = get_phys_page();
 	if(!page)
 		return NULL;
+
 	page->off = off;
 	void *ptr = PHYS_TO_VIRT(page->paddr);
 	off_t eff_off = off + vmo->u_info.fmap.off;

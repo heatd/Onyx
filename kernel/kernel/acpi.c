@@ -260,6 +260,7 @@ uintptr_t acpi_get_rsdp(void)
 
 ACPI_STATUS acpi_add_device(ACPI_HANDLE object, UINT32 nestingLevel, void *context, void **returnvalue)
 {
+	bool free_id = false;
 	ACPI_DEVICE_INFO *info;
 	ACPI_STATUS st;
 	st = AcpiGetObjectInfo(object, &info);
@@ -276,7 +277,21 @@ ACPI_STATUS acpi_add_device(ACPI_HANDLE object, UINT32 nestingLevel, void *conte
 	else if(info->Valid & ACPI_VALID_CID)
 		id = info->ClassCode.String;
 	else
-		id = "Unknown";
+	{
+		ACPI_BUFFER buf;
+		buf.Length = ACPI_ALLOCATE_BUFFER;
+		buf.Pointer = NULL;
+
+		st = AcpiGetName(object, ACPI_FULL_PATHNAME, &buf);
+		if(ACPI_FAILURE(st))
+		{
+			ERROR("acpi", "AcpiGetName() failed: error %x\n", st);
+			return AE_ERROR;
+		}
+		free_id = true;
+
+		id = buf.Pointer;
+	}
 	char *name = malloc(PATH_MAX);
 	if(!name)
 		return AE_ERROR;
@@ -292,6 +307,8 @@ ACPI_STATUS acpi_add_device(ACPI_HANDLE object, UINT32 nestingLevel, void *conte
 	device->info = info;
 	bus_add_device(&acpi_bus, (struct device*) device);
 
+	if(free_id)
+		free((void*) id);
 	return AE_OK;
 }
 

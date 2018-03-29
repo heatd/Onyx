@@ -73,7 +73,7 @@ int main(int argc, char **argv, char **envp)
 	{
 		perror("fstat");
 	}
-	DIR *dir = opendir("/sys");
+	DIR *dir = fdopendir(fd);
 
 	struct dirent *d;
 	while((d = readdir(dir)) != NULL)
