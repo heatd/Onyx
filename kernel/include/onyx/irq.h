@@ -3,33 +3,63 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
+
 #ifndef _IRQ_H
 #define _IRQ_H
+
 #include <stdbool.h>
+#include <stdint.h>
 
 #include <onyx/registers.h>
+
 #ifdef __x86_64__
 #include <onyx/apic.h>
+#include <onyx/x86/irq.h>
 #endif
-typedef uintptr_t(*irq_t)(registers_t *);
 
-typedef struct irq
+
+#define IRQ_HANDLED	0
+#define IRQ_UNHANDLED	-1
+
+#define IRQ_FLAG_REGULAR	0
+
+typedef int irqstatus_t;
+typedef irqstatus_t (*irq_t)(struct irq_context *context, void *cookie);
+
+struct interrupt_handler
 {
 	irq_t handler;
-	struct irq *next;
+	struct device *device;
+	void *cookie;
+	unsigned long handled_irqs;
+	unsigned int flags;
+	struct interrupt_handler *next;
+};
 
-} irq_list_t;
+struct irqstats
+{
+	unsigned long handled_irqs;
+	unsigned long spurious;
+};
 
-#define IRQ_WORK_QUEUE_SIZE (8192)
-extern volatile bool is_in_irq;
+struct irq_line
+{
+	struct interrupt_handler *irq_handlers;
+	/* Here to stop race conditions with uninstalling and installing irq handlers */
+	spinlock_t list_lock;
+	struct irqstats stats;
+};
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-int irq_schedule_work(void (*callback)(void *, size_t), size_t payload_size, void *payload);
-bool isirq();
-void irq_install_handler(int irq, irq_t handler);
-void irq_uninstall_handler(int irq, irq_t handler);
+
+void dispatch_irq(unsigned int irq, struct irq_context *context);
+int install_irq(unsigned int irq, irq_t handler, struct device *device,
+	unsigned int flags, void *cookie);
+void free_irq(unsigned int irq, struct device *device);
 void irq_init(void);
+
 #ifdef __cplusplus
 }
 #endif

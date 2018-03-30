@@ -36,6 +36,7 @@ prdt_entry_t *PRDT;
 void *prdt_base = NULL;
 struct pci_device *idedev = NULL;
 uint16_t bar4_base = 0;
+
 struct ide_drive
 {
 	_Bool exists;
@@ -46,14 +47,20 @@ struct ide_drive
 	int drive;
 	unsigned char buffer[512];
 } ide_drives[4];
+
 struct ids *ata_ids = NULL;
 static volatile int irq = 0;
-unsigned int current_drive = (unsigned int)-1;
-unsigned int current_channel = (unsigned int)-1;
+unsigned int current_drive = (unsigned int) -1;
+unsigned int current_channel = (unsigned int) -1;
 void *read_buffer = NULL;
 void *write_buffer = NULL;
 
 static mutex_t lock = MUTEX_INITIALIZER;
+
+struct driver ata_driver = 
+{
+	.name = "ata"
+};
 
 void ata_send_command(struct ide_drive* drive, uint8_t command)
 {
@@ -62,6 +69,7 @@ void ata_send_command(struct ide_drive* drive, uint8_t command)
 	else
 		outb(ATA_DATA1 + ATA_REG_COMMAND, command);
 }
+
 int ata_wait_for_irq(uint64_t timeout)
 {
 	uint64_t time = get_tick_count();
@@ -84,28 +92,26 @@ int ata_wait_for_irq(uint64_t timeout)
 	irq = 0;
 	return 0;
 }
-static uintptr_t ata_irq(registers_t *regs)
+
+irqstatus_t ata_irq(struct irq_context *ctx, void *cookie)
 {
 	uint8_t status = inb((current_channel ? ATA_DATA2 : ATA_DATA1) + ATA_REG_STATUS);
 	UNUSED(status);
-	/*if(!(status & 0x4))
-	{
-		// If this bit isn't set, then the ATA device didn't trigger an IRQ, so just return
-		return 0;
-	}*/
+	
 	irq = 1;
 	inb(bar4_base + 2);
-	//status &= ~0x4;
-	//outb((current_channel ? ATA_DATA2 : ATA_DATA1) + ATA_REG_STATUS, status);
-	return 0;
+	
+	return IRQ_HANDLED;
 }
-uint8_t delay_400ns()
+
+uint8_t delay_400ns(void)
 {
 	for(int i = 0; i < 4; i++) /* Waste 400 ns reading ports*/
 		inb(current_channel ? ATA_CONTROL2 : ATA_CONTROL1);
 
 	return inb(current_channel ? ATA_CONTROL2 : ATA_CONTROL1);
 }
+
 void ata_set_drive(unsigned int channel, unsigned int drive)
 {
 	current_channel = channel;
@@ -116,6 +122,7 @@ void ata_set_drive(unsigned int channel, unsigned int drive)
 		outb(ATA_DATA2 + ATA_REG_HDDEVSEL, 0x40 | (drive << 4));
 	delay_400ns();
 }
+
 void ata_enable_pci_ide(struct pci_device *dev)
 {
 	/* Enable PCI Busmastering and PCI IDE mode by setting the bits 2 and 0 on the command register of the PCI
@@ -128,12 +135,17 @@ void ata_enable_pci_ide(struct pci_device *dev)
 	pci_set_barx(dev->bus, dev->device, dev->function, 3, 0x376, 1, 0);
 	pcibar_t *bar4 = pci_get_bar(dev, 4);
 	bar4_base = bar4->address;
-	irq_install_handler(14, &ata_irq);
-	irq_install_handler(15, &ata_irq);
+	
+	assert(install_irq(14, ata_irq, (struct device *) idedev,
+		IRQ_FLAG_REGULAR, NULL) == 0);
+	assert(install_irq(15, ata_irq, (struct device *) idedev,
+		IRQ_FLAG_REGULAR, NULL) == 0);
 }
+
 static int num_drives = 0;
 static char devname[] = "hdxx";
 static char dev_name[] = "hd";
+
 int ata_flush(struct blkdev *blkd)
 {
 	struct ide_drive *drv = blkd->device_info;
@@ -142,6 +154,7 @@ int ata_flush(struct blkdev *blkd)
 	ata_send_command(drv, ATA_CMD_CACHE_FLUSH_EXT);
 	return 0;
 }
+
 int ata_pm(int op, struct blkdev *blkd)
 {
 	/* Flush all data before entering any power mode */
@@ -158,6 +171,7 @@ int ata_pm(int op, struct blkdev *blkd)
 	else
 		return errno = ENOSYS, -1;
 }
+
 ssize_t ata_read(size_t offset, size_t count, void* buffer, struct blkdev* blkd)
 {
 	struct ide_drive *drv = blkd->device_info;
@@ -182,6 +196,7 @@ ssize_t ata_read(size_t offset, size_t count, void* buffer, struct blkdev* blkd)
 	
 	return count;
 }
+
 ssize_t ata_write(size_t offset, size_t count, void* buffer, struct blkdev* blkd)
 {
 	struct ide_drive *drv = blkd->device_info;
@@ -204,6 +219,7 @@ ssize_t ata_write(size_t offset, size_t count, void* buffer, struct blkdev* blkd
 	mutex_unlock(&lock);
 	return count;
 }
+
 size_t atadev_read(int flags, size_t offset, size_t count, void *buffer, struct inode *node)
 {
 	struct blkdev		*blk;
@@ -243,6 +259,7 @@ size_t atadev_read(int flags, size_t offset, size_t count, void *buffer, struct 
 	free(buf);
 	return read;
 }
+
 size_t atadev_write(size_t offset, size_t count, void *buffer, struct inode *node)
 {
 	struct blkdev		*blk;
@@ -290,6 +307,7 @@ size_t atadev_write(size_t offset, size_t count, void *buffer, struct inode *nod
 	free(buf);
 	return written;
 }
+
 int ata_initialize_drive(int channel, int drive)
 {
 	ata_set_drive(channel, drive);
@@ -407,6 +425,7 @@ int ata_initialize_drive(int channel, int drive)
 	INFO("ata", "Created %s for drive %u\n", path, num_drives);
 	return 1;
 }
+
 bool ata_device_filter(struct pci_device *dev)
 {
 	if(dev->pciClass == CLASS_MASS_STORAGE_CONTROLLER && dev->subClass == 1)
@@ -427,11 +446,15 @@ bool ata_device_filter(struct pci_device *dev)
 	}
 	return false;
 }
+
 void ata_init(void)
 {
 	pci_find_device(ata_device_filter, true);
 	if(!idedev)
 		return;
+
+	driver_register_device(&ata_driver, (struct device *) idedev);
+
 	ata_ids = idm_add("hd", 0, UINTMAX_MAX);
 	if(!ata_ids)
 		return;
@@ -441,6 +464,7 @@ void ata_init(void)
 	{
 		ERROR("ata", "Could not allocate a PRDT\n");
 	}
+
 	INFO("ata", "allocated prdt base %p\n", prdt_base);
 	/* Enable PCI IDE mode, and PCI busmastering DMA*/
 	ata_enable_pci_ide(idedev);

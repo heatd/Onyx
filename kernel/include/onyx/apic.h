@@ -9,6 +9,7 @@
 #include <stdio.h>
 
 #include <onyx/vmm.h>
+
 #define IOAPIC_BASE_PHYS 0xFEC00000
 #define IA32_APIC_BASE_MSR 0x1B
 #define IA32_APIC_BASE_MSR_BSP 0x100 // Processor is a BSP
@@ -44,6 +45,7 @@ void lapic_send_eoi(void);
 #ifdef __cplusplus
 }
 #endif
+
 #define irq_set_irql	apic_set_irql
 #define irq_get_irql	apic_get_irql
 
@@ -63,4 +65,6 @@ void lapic_send_eoi(void);
 #define LAPIC_TIMER_IVT_MASK 0x10000
 #define LAPIC_LVT_TIMER_MODE_PERIODIC 0x20000
 #define APIC_DEFAULT_SPURIOUS_IRQ 15
+#define NUM_IOAPIC_PINS	24
+
 #endif

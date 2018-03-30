@@ -1004,7 +1004,7 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 	{
 		if(flags & MAP_FIXED)
 			return (void *) -ENOMEM;
-		 /* Specified by POSIX, if addr == NULL, guess an address */
+		/* Specified by POSIX, if addr == NULL, guess an address */
 		mapping_addr = vmm_allocate_virt_address(VM_ADDRESS_USER, pages,
 			VM_TYPE_SHARED, vm_prot, 0);
 	}

@@ -3,6 +3,7 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
+
 #include <acpi.h>
 #include <stdbool.h>
 #include <assert.h>
@@ -249,15 +250,16 @@ void apic_update_clock_monotonic(void)
 	time_set(CLOCK_MONOTONIC, &time);
 }
 
-static uintptr_t apic_timer_irq(registers_t *regs)
+irqstatus_t apic_timer_irq(struct irq_context *ctx, void *cookie)
 {
 	if(!is_percpu_initialized())
 	{
 		boot_ticks++;
 		apic_update_clock_monotonic();
 		boot_sched_quantum--;
-		return 0;
+		return IRQ_HANDLED;
 	}
+
 	struct processor *cpu = get_processor_data();
 	cpu->apic_ticks++;
 	cpu->sched_quantum--;
@@ -270,26 +272,39 @@ static uintptr_t apic_timer_irq(registers_t *regs)
 
 	}
 
-	process_increment_stats(is_kernel_ip(regs->rip));
+	process_increment_stats(is_kernel_ip(ctx->registers->rip));
 	if(cpu->sched_quantum == 0)
 	{
 		cpu->sched_quantum = 10;
-		return (uintptr_t) sched_switch_thread((void *)regs);
+		ctx->registers = sched_switch_thread((void *) ctx->registers);
 	}
-	return 0;
+
+	return IRQ_HANDLED;
 }
 
 unsigned long apic_rate = 0;
 unsigned long us_apic_rate = 0;
 
-uint64_t get_microseconds()
+uint64_t get_microseconds(void)
 {
 	struct processor *cpu = get_processor_data();
 	return (apic_rate - lapic_read((volatile uint32_t *) cpu->lapic, LAPIC_TIMER_CURRCNT)) / us_apic_rate;
 }
 
+struct driver apic_driver =
+{
+	.name = "apic-timer"
+};
+
+struct device apic_timer_dev = 
+{
+	.name = "apic-timer"
+};
+
 void apic_timer_init()
 {
+	driver_register_device(&apic_driver, &apic_timer_dev);
+
 	/* Set the timer divisor to 16 */
 	lapic_write(bsp_lapic, LAPIC_TIMER_DIV, 3);
 	
@@ -334,7 +349,10 @@ void apic_timer_init()
 	/* De-initialize the PIT's used resources */	
 	pit_deinit();
 	/* Install an IRQ handler for IRQ2 */
-	irq_install_handler(2, apic_timer_irq);
+	
+	assert(install_irq(2, apic_timer_irq, &apic_timer_dev, IRQ_FLAG_REGULAR,
+		NULL) == 0);
+	
 	ENABLE_INTERRUPTS();
 }
 

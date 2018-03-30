@@ -4,9 +4,11 @@
 * check LICENSE at the root directory for more information
 */
 /* File: acpica_port.c. It's here as the OS layer for ACPICA */
+
 #include <stdio.h>
 #include <acpi.h>
 #include <limits.h>
+#include <assert.h>
 
 #include <onyx/vmm.h>
 #include <onyx/irq.h>
@@ -181,26 +183,42 @@ void AcpiOsReleaseLock(ACPI_SPINLOCK Handle, ACPI_CPU_FLAGS Flags)
 {
 	spinlock_unlock((unsigned long*)Handle);
 }
+
 ACPI_OSD_HANDLER ServiceRout;
-void *ctx;
-static uintptr_t acpi_irq(registers_t *regs)
+
+irqstatus_t acpi_sci_irq(struct irq_context *ctx, void *cookie)
 {
-	ServiceRout(ctx);
-	return 0;
+	ServiceRout(cookie);
+	return IRQ_HANDLED;
 }
+
+struct driver acpi_driver =
+{
+	.name = "acpi"
+};
+
+static struct device dev =
+{
+	.name = "acpi_sci",
+	.driver = &acpi_driver
+};
+
 ACPI_STATUS AcpiOsInstallInterruptHandler(UINT32 InterruptLevel, ACPI_OSD_HANDLER Handler, void *Context)
 {
-	irq_install_handler(InterruptLevel, acpi_irq);
+	assert(install_irq(InterruptLevel, acpi_sci_irq, &dev,
+		IRQ_FLAG_REGULAR, Context) == 0);
 	ServiceRout = Handler;
-	ctx = Context;
+
 	return AE_OK;
 }
+
 ACPI_STATUS AcpiOsRemoveInterruptHandler(UINT32 InterruptNumber, ACPI_OSD_HANDLER Handler)
 {
-	irq_uninstall_handler(InterruptNumber, acpi_irq);
+	free_irq(InterruptNumber, &dev);
 	ServiceRout = NULL;
 	return AE_OK;
 }
+
 ACPI_STATUS AcpiOsReadMemory ( ACPI_PHYSICAL_ADDRESS Address, UINT64 *Value, UINT32 Width)
 {
 	void *ptr;
@@ -215,6 +233,7 @@ ACPI_STATUS AcpiOsReadMemory ( ACPI_PHYSICAL_ADDRESS Address, UINT64 *Value, UIN
 	AcpiOsUnmapMemory(ptr, 4096);
 	return AE_OK;
 }
+
 ACPI_STATUS AcpiOsWriteMemory ( ACPI_PHYSICAL_ADDRESS Address, UINT64 Value, UINT32 Width )
 {
 	UINT64 *ptr;
@@ -229,6 +248,7 @@ ACPI_STATUS AcpiOsWriteMemory ( ACPI_PHYSICAL_ADDRESS Address, UINT64 Value, UIN
 		*ptr = Value;
 	return AE_OK;
 }
+
 ACPI_STATUS AcpiOsReadPort (ACPI_IO_ADDRESS Address, UINT32 *Value, UINT32 Width)
 {
 	if(Width == 8)
@@ -239,6 +259,7 @@ ACPI_STATUS AcpiOsReadPort (ACPI_IO_ADDRESS Address, UINT32 *Value, UINT32 Width
 		*Value = inl(Address);
 	return AE_OK;
 }
+
 ACPI_STATUS AcpiOsWritePort (ACPI_IO_ADDRESS Address, UINT32 Value, UINT32 Width)
 {
 	if(Width == 8)
@@ -249,6 +270,7 @@ ACPI_STATUS AcpiOsWritePort (ACPI_IO_ADDRESS Address, UINT32 Value, UINT32 Width
 		outl(Address, Value);
 	return AE_OK;
 }
+
 ACPI_STATUS AcpiOsWritePciConfiguration (ACPI_PCI_ID *PciId, UINT32 Register, UINT64 Value, UINT32 Width)
 {
 	if(Width == 8)
@@ -284,9 +306,11 @@ ACPI_STATUS AcpiOsReadPciConfiguration(ACPI_PCI_ID *PciId, UINT32 Register, UINT
 
 		return AE_OK;
 	}
+	
 	*Value = pci_read(dev, (uint16_t) Register, Width / 8);
 	return AE_OK;
 }
+
 ACPI_STATUS
 AcpiOsPhysicalTableOverride (
 ACPI_TABLE_HEADER * ExistingTable,
@@ -296,6 +320,7 @@ UINT32 * NewTableLength)
 	*NewAddress = 0;
 	return AE_OK;
 }
+
 void AcpiOsPrintf (
 const char *Format, ...)
 {
@@ -304,12 +329,14 @@ const char *Format, ...)
 	vprintf(Format, params);
 	va_end(params);
 }
+
 void
 AcpiOsWaitEventsComplete (
 void)
 {
 	return;
 }
+
 ACPI_STATUS
 AcpiOsSignal (
 UINT32 Function,
@@ -318,26 +345,31 @@ void *Info)
 	panic("Acpi Signal called!");
 	return AE_OK;
 }
+
 UINT64
 AcpiOsGetTimer (
 void)
 {
 	return get_tick_count();
 }
+
 ACPI_STATUS
 AcpiOsTerminate()
 {
 	return AE_OK;
 }
+
 int isprint(int ch)
 {
 	return 1;
 }
+
 void
 AcpiOsVprintf(const char *Fmt, va_list Args)
 {
 	vprintf(Fmt, Args);
 }
+
 ACPI_STATUS
 AcpiOsEnterSleep (
     UINT8                   SleepState,
@@ -346,7 +378,9 @@ AcpiOsEnterSleep (
     {
 	    return AE_OK;
     }
+
 #if 0
+
 ACPI_STATUS
 AcpiOsCreateCache (
     char                    *CacheName,
@@ -357,12 +391,14 @@ AcpiOsCreateCache (
 	*ReturnCache = slab_create(CacheName, ObjectSize, MaxDepth, 0);
 	return AE_OK;
 }
+
 ACPI_STATUS
 AcpiOsPurgeCache (
     ACPI_CACHE_T        *Cache)
 {
 	return AE_OK;
 }
+
 ACPI_STATUS
 AcpiOsDeleteCache (
     ACPI_CACHE_T        *Cache)
@@ -370,6 +406,7 @@ AcpiOsDeleteCache (
 	return AE_OK;
 
 }
+
 ACPI_STATUS
 AcpiOsReleaseObject (
     ACPI_CACHE_T        *Cache,
@@ -378,6 +415,7 @@ AcpiOsReleaseObject (
 	slab_free(Cache, Object);
     	return AE_OK;
     }
+
 void *
 AcpiOsAcquireObject (
     ACPI_CACHE_T        *Cache)

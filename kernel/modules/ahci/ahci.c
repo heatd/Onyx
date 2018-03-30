@@ -39,12 +39,14 @@ struct ahci_device *device = NULL;
 static struct pci_device *ahci_dev = NULL;
 static ahci_hba_memory_regs_t *hba = NULL;
 
-uintptr_t ahci_irq(registers_t *regs)
+irqstatus_t ahci_irq(struct irq_context *ctx, void *cookie)
 {
-	UNUSED(regs);
+	UNUSED(ctx);
+	UNUSED(cookie);
+
 	uint32_t ports = device->hba->interrupt_status;
 	if(!ports)
-		return 0;
+		return IRQ_UNHANDLED;
 	for(int i = 0; i < 32; i++)
 	{
 		if(ports & (1L << i))
@@ -59,7 +61,8 @@ uintptr_t ahci_irq(registers_t *regs)
 			device->ports[i].cmdslots[current_list].last_interrupt_status = port_is;
 		}
 	}
-	return 0;
+
+	return IRQ_HANDLED;
 }
 ssize_t ahci_read(size_t offset, size_t count, void* buffer, struct blkdev* blkd)
 {
@@ -547,6 +550,12 @@ int ahci_initialize(void)
 	}
 	return 0;
 }
+
+struct driver ahci_driver =
+{
+
+};
+
 int module_init()
 {
 	int status = 0;
@@ -562,6 +571,7 @@ int module_init()
 		MPRINTF("could not find a valid SATA device!\n");
 		return 1;
 	}
+	driver_register_device(&ahci_driver, (struct device *) ahci_dev);
 
 	/* Get BAR5 of the device BARs */
 	pcibar_t *bar = pci_get_bar(ahci_dev, 5);
@@ -588,6 +598,7 @@ int module_init()
 		status = -1;
 		goto ret;
 	}
+	
 	if(pci_enable_msi(ahci_dev, ahci_irq) < 0)
 	{
 		/* If we couldn't enable MSI, use normal I/O APIC pins */
@@ -596,7 +607,8 @@ int module_init()
 		irq = pci_get_intn(ahci_dev);
 
 		/* and install a handler */
-		irq_install_handler(irq, ahci_irq);
+		assert(install_irq(irq, ahci_irq, (struct device *) ahci_dev,
+			IRQ_FLAG_REGULAR, NULL) == 0);
 	}
 	/* Initialize AHCI */
 	if(ahci_initialize() < 0)
@@ -610,7 +622,7 @@ ret:
 	if(status != 0)
 	{
 		free(device);
-		irq_uninstall_handler(irq, ahci_irq);
+		free_irq(irq, (struct device *) ahci_dev);
 		device = 0;
 	}
 	return status;

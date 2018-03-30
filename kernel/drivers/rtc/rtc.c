@@ -13,6 +13,7 @@
 #include <onyx/log.h>
 #include <onyx/cpu.h>
 #include <onyx/clock.h>
+#include <onyx/panic.h>
 
 #include <drivers/nmi.h>
 #include <drivers/rtc.h>
@@ -168,7 +169,7 @@ void rtc_eoi(void)
 	inb(0x71);
 }
 
-uintptr_t rtc_irq(registers_t *regs)
+irqstatus_t rtc_irq(struct irq_context *ctx, void *cookie)
 {
 	outb(0x70, RTC_STATUS_REG_C);
 	uint8_t irq_reason = inb(0x71);
@@ -184,11 +185,26 @@ uintptr_t rtc_irq(registers_t *regs)
 
 	rtc_eoi();
 	
-	return (uintptr_t) regs;
+	return IRQ_HANDLED;
 }
+
+struct driver rtc_driver = 
+{
+	.name = "rtc"
+};
+
+#define RTC_PNP_STRING "acpi-PNP0B00"
+struct device *rtc_dev = NULL;
 
 void init_rtc(void)
 {
+	if((rtc_dev = (struct device *) acpi_get_device(RTC_PNP_STRING)) == NULL)
+	{
+		panic("No RTC detected\n");
+	}
+
+	driver_register_device(&rtc_driver, rtc_dev);
+
 	INFO("rtc", "initializing\n");
 	// Disable NMI's so we can access the CMOS without any risk of corruption
 	nmi_disable();
@@ -202,7 +218,7 @@ void init_rtc(void)
 	outb(0x70, RTC_STATUS_REG_B);
 	outb(0x71, b);
 
-	irq_install_handler(RTC_IRQ, rtc_irq);
+	assert(install_irq(RTC_IRQ, rtc_irq, rtc_dev, IRQ_FLAG_REGULAR, NULL) == 0);
 	/* Setup a frequency of 2hz by setting the divisor to 15 */
 	outb(0x70, RTC_STATUS_REG_A);
 	uint8_t st = inb(0x71);

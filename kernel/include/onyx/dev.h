@@ -44,9 +44,15 @@ struct driver
 {
 	const char *name;
 	struct bus *bus;
-	struct device *device;
+	spinlock_t device_list_lock;
+	struct list_head devices;
 	unsigned long ref;
+
+	void (*shutdown)(struct device *dev);
+	void (*resume)(struct device *dev);
+	void (*suspend)(struct device *dev);
 };
+
 struct device
 {
 	struct device *parent;
@@ -57,6 +63,7 @@ struct device
 	struct list_head children;
 	struct device *prev, *next;
 };
+
 struct bus
 {
 	const char *name; 	/* Name of the bus */
@@ -89,6 +96,10 @@ void bus_shutdown_every(void);
 void bus_suspend_every(void);
 
 void dev_create_sysfs(void);
+
+void driver_register_device(struct driver *driver, struct device *dev);
+
+void driver_deregister_device(struct driver *driver, struct device *dev);
 
 #ifdef __cplusplus
 }

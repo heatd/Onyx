@@ -10,11 +10,16 @@
 
 #include <onyx/compiler.h>
 
+/* 
+ * TODO: This code is weird, inconsistent, and needs to be rewritten
+ * and re-thought.
+*/
 struct list_head
 {
 	void *ptr __align_cache;
 	struct list_head *next __align_cache;
 };
+
 static inline int list_add(struct list_head *list, void *ptr)
 {
 	struct list_head *new_item = (struct list_head*) malloc(sizeof(struct list_head));
@@ -28,6 +33,7 @@ static inline int list_add(struct list_head *list, void *ptr)
 	list->next = new_item;
 	return 0;
 }
+
 static inline void *list_get_element(struct list_head *list, void **saveptr)
 {
 	if(!*saveptr)
@@ -45,4 +51,25 @@ static inline void *list_get_element(struct list_head *list, void **saveptr)
 		return next->ptr;
 	}
 }
+
+static inline void list_remove(struct list_head *list, void *ptr)
+{
+	if(list->ptr == ptr)
+	{
+		list->ptr = NULL;
+		return;
+	}
+
+	for(struct list_head *l = list; l->next; l = l->next)
+	{
+		if(l->next->ptr == ptr)
+		{
+			struct list_head *a = l->next;
+			l->next = a->next;
+			free(a);
+			return;
+		}
+	}
+}
+
 #endif

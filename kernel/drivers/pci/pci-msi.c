@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <assert.h>
 
 #include <onyx/platform.h>
 #include <onyx/idt.h>
@@ -56,10 +57,13 @@ int pci_enable_msi(struct pci_device *dev, irq_t handler)
 		                            (irq_offset + i));
 		x86_reserve_vector(vector, irq_stub_handler);
 	}
+	
 	for(unsigned int i = 0; i < num_vecs; i++)
 	{
-		irq_install_handler(irq_offset + i, handler);
+		assert(install_irq(irq_offset + i, handler,
+			(struct device *) dev, IRQ_FLAG_REGULAR, NULL) == 0);
 	}
+
 	message_control |= ilog2(num_vecs) << 4;
 	message_control |= PCI_MSI_MSGCTRL_ENABLE;
 	uint32_t message_addr = data.address;

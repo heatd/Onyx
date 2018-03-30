@@ -7,6 +7,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
+#include <assert.h>
 
 #include <rtl8139.h>
 
@@ -164,8 +165,9 @@ void rtl_dpc(void *ctx)
 	printf("Done my work!\n");
 
 }
+
 static volatile bool recieved_irq = false;
-uintptr_t rtl_irq_handler(registers_t *regs)
+irqstatus_t rtl_irq_handler(struct irq_context *ctx, void *cookie)
 {
 	uint16_t status = rtl_readw(REG_ISR);
 
@@ -182,6 +184,7 @@ uintptr_t rtl_irq_handler(registers_t *regs)
 	rtl_clear_interrupt();
 	return 0;
 }
+
 void rtl_software_reset(void)
 {
 	INFO("rtl8139", "Doing a software reset of the card...\n");
@@ -198,6 +201,7 @@ void rtl_destroy_tx(void)
 		tx_buffers[i].buffer = NULL;
 	}
 }
+
 void rtl_init_tx(void)
 {
 	for(int i = 0; i < RTL_NR_TX; i++)
@@ -209,6 +213,7 @@ void rtl_init_tx(void)
 		}
 	}
 }
+
 int rtl_init(void)
 {
 	/* Turn on the RTL8139 */
@@ -236,6 +241,7 @@ int rtl_init(void)
 	rx_buffer = (void*)((uintptr_t) ph_rx + PHYS_BASE);
 	return 0;
 }
+
 int rtl_wait_for_irq(int timeout, int tx)
 {
 	uint64_t curr_stamp = get_tick_count();
@@ -249,6 +255,7 @@ int rtl_wait_for_irq(int timeout, int tx)
 	recieved_irq = false;
 	return 0;
 }
+
 int rtl_send_packet(const void *buf, const uint16_t size)
 {
 	int status;
@@ -265,6 +272,7 @@ int rtl_send_packet(const void *buf, const uint16_t size)
 
 	return status;
 }
+
 void rtl_fill_mac(struct netif *n)
 {
 	uint8_t port = REG_MAC;
@@ -274,11 +282,19 @@ void rtl_fill_mac(struct netif *n)
 		n->mac_address[i] = rtl_readb(port + i);
 	}
 }
+
+struct driver rtl_driver = 
+{
+	.name = "rtl"
+};
+
 int module_init()
 {
 	device = get_pcidev_from_vendor_device(RTL8139_DEVICEID, RTL8139_VENDORID);
 	if(!device)
 		return -1;
+	driver_register_device(&rtl_driver, (struct device *) device);
+
 	/* Enable PCI busmastering */
 	pci_enable_busmastering(device);
 	pcibar_t *bar = pci_get_bar(device, RTL8139_PCI_MMIO_BAR);
@@ -306,7 +322,8 @@ int module_init()
 	if(rtl_init() < 0)
 		return -1;
 	int irq = pci_get_intn(device);
-	irq_install_handler(irq, rtl_irq_handler);
+	assert(install_irq(irq, rtl_irq_handler, (struct device *) device,
+		IRQ_FLAG_REGULAR, NULL) == 0);
 
 	struct netif *n = malloc(sizeof(struct netif));
 	if(!n)
@@ -321,6 +338,7 @@ int module_init()
 	nic_netif = n;
 	return 0;
 }
+
 int module_fini(void)
 {
 	rtl_destroy_tx();

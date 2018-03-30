@@ -4,6 +4,7 @@
 * check LICENSE at the root directory for more information
 */
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -17,6 +18,8 @@
 #include <onyx/network.h>
 #include <onyx/driver.h>
 #include <onyx/netif.h>
+#include <onyx/dev.h>
+#include <onyx/panic.h>
 
 #include <drivers/mmio.h>
 #include <drivers/e1000.h>
@@ -58,14 +61,15 @@ void e1000_handle_recieve()
 	}
 }
 
-static uintptr_t e1000_irq(registers_t *regs)
+irqstatus_t e1000_irq(struct irq_context *ctx, void *cookie)
 {
 	volatile uint32_t status = e1000_read_command(0xc0);
 	if(status & 0x80)
 	{
 		e1000_handle_recieve();
 	}
-	return 0;
+	
+	return IRQ_HANDLED;
 }
 
 void e1000_write_command(uint16_t addr, uint32_t val)
@@ -223,6 +227,11 @@ int e1000_init_descs(void)
 	return 0;
 }
 
+struct driver e1000_driver = 
+{
+	.name = "e1000"
+};
+
 void e1000_enable_interrupts()
 {
 	uint16_t int_no = pci_get_intn(nicdev);
@@ -230,7 +239,8 @@ void e1000_enable_interrupts()
 	// Get the IRQ number and install its handler
 	INFO("e1000", "using IRQ number %u\n", int_no);
 
-	irq_install_handler(int_no, e1000_irq);
+	assert(install_irq(int_no, e1000_irq, (struct device *) nicdev,
+		IRQ_FLAG_REGULAR, NULL) == 0);
 	
 	e1000_write_command(REG_IMASK, 0x1F6DC);
 	e1000_write_command(REG_IMASK ,0xff & ~4);
@@ -352,6 +362,8 @@ void e1000_init(void)
 	
 	if(!nicdev)
 		return;
+
+	driver_register_device(&e1000_driver, (struct device *) nicdev);
 
 	pcibar_t *bar = pci_get_bar(nicdev, 0);
 	char *phys_mem_space = NULL;

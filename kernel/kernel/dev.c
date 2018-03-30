@@ -9,6 +9,8 @@
 #include <assert.h>
 #include <stdio.h>
 
+#include <onyx/atomic.h>
+#include <onyx/panic.h>
 #include <onyx/dev.h>
 #include <onyx/sysfs.h>
 
@@ -65,21 +67,54 @@ struct device *bus_find_device(struct bus *bus, const char *devname)
 	return NULL;
 }
 
+void driver_shutdown(struct driver *drv, struct device *d)
+{
+	if(drv->shutdown)
+		drv->shutdown(d);
+}
+
+void driver_suspend(struct driver *drv, struct device *d)
+{
+	if(drv->suspend)
+		drv->suspend(d);
+}
+
+void driver_resume(struct driver *drv, struct device *d)
+{
+	if(drv->resume)
+		drv->resume(d);
+}
+
 void device_shutdown(struct device *dev)
 {
 	assert(dev);
+	if(dev->driver)
+	{
+		driver_shutdown(dev->driver, dev);
+	}
+
 	if(dev->bus->shutdown) dev->bus->shutdown(dev);
 }
 
 void device_suspend(struct device *dev)
 {
 	assert(dev);
+	if(dev->driver)
+	{
+		driver_suspend(dev->driver, dev);
+	}
+
 	if(dev->bus->suspend) dev->bus->suspend(dev);
 }
 
 void device_resume(struct device *dev)
 {
 	assert(dev);
+	if(dev->driver)
+	{
+		driver_resume(dev->driver, dev);
+	}
+
 	if(dev->bus->resume) dev->bus->resume(dev);
 }
 
@@ -184,4 +219,25 @@ void dev_create_sysfs(void)
 	assert((buses = sysfs_create_dir("buses", 0666, root)) != NULL);
 
 	dev_add_files();
+}
+
+void driver_register_device(struct driver *driver, struct device *dev)
+{
+	dev->driver = driver;
+	atomic_inc(&driver->ref, 1);
+	
+	acquire_spinlock(&driver->device_list_lock);
+	if(list_add(&driver->devices, dev) < 0)
+		panic("Failed to register device\n");
+
+	release_spinlock(&driver->device_list_lock);
+}
+
+void driver_deregister_device(struct driver *driver, struct device *dev)
+{
+	acquire_spinlock(&driver->device_list_lock);
+
+	list_remove(&driver->devices, dev);
+
+	release_spinlock(&driver->device_list_lock);
 }

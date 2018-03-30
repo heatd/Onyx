@@ -12,6 +12,7 @@ typedef uint32_t fnv_hash_t;
 
 #define FNV_PRIME 		16777619
 #define FNV_OFFSET_BASIS 	2166136261
+
 static inline fnv_hash_t __fnv_hash(uint8_t *data, size_t size)
 {
 	fnv_hash_t hash = FNV_OFFSET_BASIS;
