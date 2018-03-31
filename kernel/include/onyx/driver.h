@@ -9,7 +9,7 @@
 #include <onyx/module.h>
 
 #define DRIVER_INIT(x) __attribute__((section(".driver.init"), used, aligned(1))) \
-static void(*__module_init)(void) = x
+static int (*__module_init)(void) = x
 
 void driver_init(void);
 

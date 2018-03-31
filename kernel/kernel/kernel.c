@@ -100,7 +100,6 @@ char kernel_cmdline[256];
 uintptr_t address = 0;
 
 extern void libc_late_init();
-extern void init_keyboard();
 
 char *kernel_arguments[200];
 int kernel_argc = 0;
@@ -398,8 +397,6 @@ void kernel_main()
 	/* Initialize percpu vars */
 	setup_percpu();
 
-	init_keyboard();
-
 	init_tss();
 	/* Initialize the VFS */
 	vfs_init();
@@ -457,9 +454,6 @@ void kernel_multitasking(void *arg)
 
 	/* Initialize the module subsystem */
 	initialize_module_subsystem();
-
-	/* Initialize the RTC(TODO: Move this bit over to ACPI initialization, so it gets automated) */
-	init_rtc();
 
 	/* Initialize power management */
 	pm_init();

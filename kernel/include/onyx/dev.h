@@ -47,10 +47,14 @@ struct driver
 	spinlock_t device_list_lock;
 	struct list_head devices;
 	unsigned long ref;
+	void *devids;
 
+	void (*probe)(struct device *dev);
 	void (*shutdown)(struct device *dev);
 	void (*resume)(struct device *dev);
 	void (*suspend)(struct device *dev);
+
+	struct driver *next_bus;
 };
 
 struct device
@@ -69,6 +73,7 @@ struct bus
 	const char *name; 	/* Name of the bus */
 	spinlock_t bus_lock;
 	struct device *devs;	/* List of every device connected to this bus */
+	struct driver *registered_drivers;
 
 	int (*shutdown)(struct device *);
 	int (*resume)(struct device *);

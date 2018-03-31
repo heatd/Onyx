@@ -523,3 +523,48 @@ unsigned int acpi_timer_get_elapsed_ns(uint64_t _old_ticks, uint64_t _new_ticks)
 	unsigned int delta_time = delta * NS_PER_SEC / ACPI_PM_TIMER_FREQUENCY;
 	return delta_time;
 }
+
+bool acpi_driver_supports_device(struct driver *driver, struct device *device)
+{
+	struct acpi_dev_id *dev_table = driver->devids;
+
+	for(; dev_table->devid != NULL; dev_table++)
+	{
+		if(!strcmp(device->name, dev_table->devid))
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+void acpi_bus_register_driver(struct driver *driver)
+{
+	acquire_spinlock(&acpi_bus.bus_lock);
+
+	if(!acpi_bus.registered_drivers)
+	{
+		acpi_bus.registered_drivers = driver;
+	}
+	else
+	{
+		struct driver *d;
+		for(d = acpi_bus.registered_drivers; d->next_bus;
+			d = d->next_bus);
+		d->next_bus = driver;
+	}
+
+	driver->next_bus = NULL;
+
+	release_spinlock(&acpi_bus.bus_lock);
+
+	for(struct device *dev = acpi_bus.devs; dev != NULL; dev = dev->next)
+	{
+		if(acpi_driver_supports_device(driver, dev))
+		{
+			driver_register_device(driver, dev);
+			driver->probe(dev);
+		}
+	}
+}

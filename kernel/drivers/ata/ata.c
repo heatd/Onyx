@@ -447,17 +447,17 @@ bool ata_device_filter(struct pci_device *dev)
 	return false;
 }
 
-void ata_init(void)
+int ata_init(void)
 {
 	pci_find_device(ata_device_filter, true);
 	if(!idedev)
-		return;
+		return -1;
 
 	driver_register_device(&ata_driver, (struct device *) idedev);
 
 	ata_ids = idm_add("hd", 0, UINTMAX_MAX);
 	if(!ata_ids)
-		return;
+		return -1;
 	/* Allocate PRDT base */
 	prdt_base = dma_map_range(__alloc_pages(4), UINT16_MAX, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
 	if(!prdt_base)
@@ -488,7 +488,8 @@ void ata_init(void)
 			if(ata_initialize_drive(channel, drive))
 				INFO("ata", "Found ATA drive at %d:%d\n", channel, drive);
 		}
-	}	
+	}
+	return 0;
 }
 
 void ata_read_sectors(unsigned int channel, unsigned int drive, uint32_t buffer, uint16_t bytesoftransfer, uint64_t lba48)

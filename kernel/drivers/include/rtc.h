@@ -31,8 +31,8 @@ typedef struct date
 	time_t unixtime;
 } date_t;
 
-void init_rtc(void);
 void early_boot_rtc(void);
 time_t get_posix_time(void);
 uint64_t get_posix_time_early(void);
+
 #endif

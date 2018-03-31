@@ -355,13 +355,13 @@ bool e1000_filter(struct pci_device *dev)
 	}
 }
 
-void e1000_init(void)
+int e1000_init(void)
 {
 
 	pci_find_device(e1000_filter, true);
 	
 	if(!nicdev)
-		return;
+		return -1;
 
 	driver_register_device(&e1000_driver, (struct device *) nicdev);
 
@@ -378,7 +378,7 @@ void e1000_init(void)
 		free(bar);
 		ERROR("e1000", "Sorry! This driver only supports e1000 register access through MMIO, "
 		"and sadly your card needs the legacy I/O port method of accessing registers\n");
-		return;
+		return -1;
 	}
 
 	mem_space = dma_map_range(phys_mem_space, bar->size, VM_WRITE | VM_NOEXEC | VM_GLOBAL);
@@ -388,15 +388,19 @@ void e1000_init(void)
 	e1000_detect_eeprom();
 
 	if(e1000_read_mac_address())
-		return;
+		return -1;
 	
 	if(e1000_init_descs())
+	{
 		ERROR("e1000", "failed to initialize!\n");
+		return -1;
+	}
 
 	e1000_enable_interrupts();
 	struct netif *n = zalloc(sizeof(struct netif));
 	if(!n)
-		return;
+		return -1;
+
 	n->name = "eth0";
 	n->flags |= NETIF_LINKUP;
 	n->sendpacket = e1000_send_packet;
@@ -405,6 +409,7 @@ void e1000_init(void)
 
 	nic_netif = n;
 	free(bar);
+	return 0;
 }
 
 DRIVER_INIT(e1000_init);

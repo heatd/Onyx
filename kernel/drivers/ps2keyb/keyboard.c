@@ -9,16 +9,11 @@
 #include <onyx/panic.h>
 #include <onyx/acpi.h>
 #include <onyx/log.h>
+#include <onyx/driver.h>
 
 #include <drivers/ps2.h>
 
 #define PS2_PNP "PNP0303"
-static struct device *ps2_device = NULL;
-
-struct driver ps2_driver = 
-{
-	.name = "ps2keyb"
-};
 
 extern void send_event_to_kernel(unsigned char keycode);
 irqstatus_t irq_keyb_handler(struct irq_context *ctx, void *cookie)
@@ -35,22 +30,30 @@ irqstatus_t irq_keyb_handler(struct irq_context *ctx, void *cookie)
 	return IRQ_HANDLED;
 }
 
+struct acpi_dev_id ps2_devids[] =
+{
+	{PS2_PNP},
+	{NULL}
+};
+
+void ps2_probe(struct device *device)
+{
+	if(install_irq(KEYBOARD_IRQ, irq_keyb_handler, device,
+			IRQ_FLAG_REGULAR, NULL) < 0)
+		return;
+}
+
+struct driver ps2_driver = 
+{
+	.name = "ps2keyb",
+	.devids = &ps2_devids,
+	.probe = ps2_probe
+};
+
 int init_keyboard(void)
 {
-	if((ps2_device = (struct device *) acpi_get_device(PS2_PNP)) != NULL)
-	{
-		INFO("ps2", "Found PS/2 device in the ACPI bus\n");
-	}
-	else	return 0;
-
-	ps2_device->name = strdup("ps2");
-	if(!ps2_device->name)
-		return -1;
-	driver_register_device(&ps2_driver, ps2_device);
-
-	irq_t handler = &irq_keyb_handler;
-	if(install_irq(KEYBOARD_IRQ, handler, ps2_device, IRQ_FLAG_REGULAR, NULL) < 0)
-		return -1;
-
+	acpi_bus_register_driver(&ps2_driver);
 	return 0;
 }
+
+DRIVER_INIT(init_keyboard);

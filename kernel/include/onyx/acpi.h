@@ -10,6 +10,7 @@
 #include <acpi.h>
 
 #include <onyx/dev.h>
+
 struct acpi_processor
 {
 	ACPI_HANDLE object;
@@ -17,12 +18,19 @@ struct acpi_processor
 	uint32_t apic_id;
 #endif
 };
+
 struct acpi_device
 {
-	struct device dev; /* Base object(or class if you prefer) */
+	struct device dev; /* Base object (or class if you prefer) */
 	ACPI_HANDLE object;
 	ACPI_DEVICE_INFO *info;
 };
+
+struct acpi_dev_id
+{
+	const char *devid;
+};
+
 #define ACPI_PIC_PIC 0
 #define ACPI_PIC_IOAPIC 1
 #define ACPI_PIC_IOSAPIC 1
@@ -35,6 +43,7 @@ struct acpi_device
 #ifdef __cplusplus
 extern "C"{
 #endif
+
 uintptr_t acpi_get_rsdp(void);
 int acpi_initialize(void);
 uint32_t acpi_shutdown(void *context);
@@ -45,7 +54,10 @@ struct acpi_processor *acpi_enumerate_cpus(void);
 struct acpi_device *acpi_get_device(const char *id);
 unsigned int acpi_suspend(void *context);
 int acpi_get_irq_routing_info(struct bus *bus);
+void acpi_bus_register_driver(struct driver *driver);
+
 #ifdef __cplusplus
 }
 #endif
+
 #endif

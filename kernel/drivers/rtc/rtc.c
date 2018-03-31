@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <assert.h>
 
+#include <onyx/driver.h>
 #include <onyx/portio.h>
 #include <onyx/irq.h>
 #include <onyx/pic.h>
@@ -188,23 +189,16 @@ irqstatus_t rtc_irq(struct irq_context *ctx, void *cookie)
 	return IRQ_HANDLED;
 }
 
-struct driver rtc_driver = 
+#define RTC_PNP_STRING "PNP0B00"
+
+struct acpi_dev_id rtc_dev_table[] = 
 {
-	.name = "rtc"
+	{RTC_PNP_STRING},
+	{NULL}
 };
 
-#define RTC_PNP_STRING "PNP0B00"
-struct device *rtc_dev = NULL;
-
-void init_rtc(void)
+void rtc_probe(struct device *device)
 {
-	if((rtc_dev = (struct device *) acpi_get_device(RTC_PNP_STRING)) == NULL)
-	{
-		panic("No RTC detected\n");
-	}
-
-	driver_register_device(&rtc_driver, rtc_dev);
-
 	INFO("rtc", "initializing\n");
 	// Disable NMI's so we can access the CMOS without any risk of corruption
 	nmi_disable();
@@ -218,7 +212,7 @@ void init_rtc(void)
 	outb(0x70, RTC_STATUS_REG_B);
 	outb(0x71, b);
 
-	assert(install_irq(RTC_IRQ, rtc_irq, rtc_dev, IRQ_FLAG_REGULAR, NULL) == 0);
+	assert(install_irq(RTC_IRQ, rtc_irq, device, IRQ_FLAG_REGULAR, NULL) == 0);
 	/* Setup a frequency of 2hz by setting the divisor to 15 */
 	outb(0x70, RTC_STATUS_REG_A);
 	uint8_t st = inb(0x71);
@@ -249,6 +243,19 @@ void init_rtc(void)
 	register_wallclock_source(&rtc_clock);
 }
 
+struct driver rtc_driver = 
+{
+	.name = "rtc",
+	.devids = &rtc_dev_table,
+	.probe = rtc_probe
+};
+
+int init_rtc(void)
+{
+	acpi_bus_register_driver(&rtc_driver);
+	return 0;
+}
+
 time_t get_posix_time()
 {
 retry:
@@ -269,3 +276,5 @@ uint64_t get_posix_time_early()
 {
 	return date.unixtime;
 }
+
+DRIVER_INIT(init_rtc);
