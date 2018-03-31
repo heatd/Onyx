@@ -305,10 +305,17 @@ struct sysfs_file *sysfs_add_device(struct device *dev)
 	struct inode *inode = open_vfs(sysfs_root_ino, "devices");
 	if(!inode)
 		return NULL;
-	struct sysfs_file *i = sysfs_create_entry(dev->name, 0666, inode);
+	/* Allocate enough space for a busname-devicename\0 */
+	char *name = zalloc(strlen(dev->bus->name) + 2 + strlen(dev->name));
+	if(!name)
+		return NULL;
+	sprintf(name, "%s-%s", dev->bus->name, dev->name);
+	struct sysfs_file *i = sysfs_create_entry(name, 0666, inode);
 	if(!i)
 		return NULL;
 	i->priv = dev;
+	free(name);
+
 	return i;
 }
 

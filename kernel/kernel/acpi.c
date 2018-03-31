@@ -296,7 +296,7 @@ ACPI_STATUS acpi_add_device(ACPI_HANDLE object, UINT32 nestingLevel, void *conte
 	if(!name)
 		return AE_ERROR;
 	memset(name, 0, PATH_MAX);
-	snprintf(name, PATH_MAX, "acpi-%s", id);
+	snprintf(name, PATH_MAX, "%s", id);
 
 	struct acpi_device *device = malloc(sizeof(struct acpi_device));
 	if(!device)

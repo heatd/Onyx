@@ -210,10 +210,10 @@ void pci_enumerate_device(uint16_t bus, uint8_t device, uint8_t function, struct
 	pci_find_supported_capabilities(dev);
 	/* Set up the pci device's name */
 	char name_buf[200] = {0};
-	snprintf(name_buf, 200, "pci-%04x%04x", vendor, dev->deviceID);
+	snprintf(name_buf, 200, "%04x%04x", vendor, dev->deviceID);
 	dev->dev.name = strdup(name_buf);
 	assert(dev->dev.name);
-	
+
 	bus_add_device(&pci_bus, (struct device*) dev);
 	if(likely(last))
 		last->next = dev;

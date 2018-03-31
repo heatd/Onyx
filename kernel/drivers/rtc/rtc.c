@@ -193,7 +193,7 @@ struct driver rtc_driver =
 	.name = "rtc"
 };
 
-#define RTC_PNP_STRING "acpi-PNP0B00"
+#define RTC_PNP_STRING "PNP0B00"
 struct device *rtc_dev = NULL;
 
 void init_rtc(void)

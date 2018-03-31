@@ -12,7 +12,7 @@
 
 #include <drivers/ps2.h>
 
-#define PS2_PNP "acpi-PNP0303"
+#define PS2_PNP "PNP0303"
 static struct device *ps2_device = NULL;
 
 struct driver ps2_driver = 
