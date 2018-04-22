@@ -7,53 +7,82 @@
 #include <errno.h>
 #include <stdio.h>
 
+#include <onyx/compiler.h>
 #include <onyx/panic.h>
 #include <onyx/dev.h>
 #include <onyx/task_switching.h>
 #include <onyx/vmm.h>
 #include <onyx/pagecache.h>
+#include <onyx/utils.h>
 
-static struct list_head page_list = {0};
+static spinlock_t block_list_lock = {0};
+static struct page_cache_block *block_list = NULL;
 
-struct page_cache *add_to_cache(void *data, size_t size, off_t offset, struct inode *file)
+struct page *allocate_cache_block(void)
 {
-	void *pages = vmalloc(PAGE_CACHE_SIZE / PAGE_SIZE,
-		              VM_TYPE_REGULAR, VM_WRITE | VM_NOEXEC | VM_GLOBAL);
-	if(!pages)
-		return errno = ENOMEM, NULL;
-	memcpy(pages, data, PAGE_CACHE_SIZE);
-	struct page_cache *c = malloc(sizeof(struct page_cache));
-	if(!c)
-	{
-		vfree(pages, PAGE_CACHE_SIZE / PAGE_SIZE);
-		return errno = ENOMEM, NULL;
-	}
-	c->page = pages;
-	c->node = file;
-	c->size = size;
-	c->offset = offset;
-	c->lock = 0;
-	c->dirty = 0;
+	struct page *p = get_phys_page();
+	return p;
+}
+
+void __add_to_list(struct page_cache_block *b)
+{
+	acquire_spinlock(&block_list_lock);
+
+	struct page_cache_block **pp = &block_list;
+
+	while(*pp)
+		pp = &((*pp)->next);
+	*pp = b;
 	
-	struct list_head *it = &page_list;
-	if(!page_list.ptr)
+	if(unlikely(pp == &block_list))
 	{
-		page_list.ptr = (void*) c;
+		b->prev = NULL;
 	}
 	else
 	{
-		while(it->next) it = it->next;
-
-		it->next = malloc(sizeof(struct list_head));
-		if(!it->next)
-		{
-			free(c);
-			vfree(pages, PAGE_CACHE_SIZE / PAGE_SIZE);
-			return errno = ENOMEM, NULL;
-		}
-		it->next->ptr = c;
-		it->next->next = NULL;
+		struct page_cache_block *p = container_of(pp,
+			struct page_cache_block, next);
+		b->prev = p;
 	}
+
+	release_spinlock(&block_list_lock);
+}
+struct page_cache_block *add_to_cache(void *data, size_t size, off_t offset, struct inode *file)
+{
+	/* Allocate a block/page for the cache */
+	struct page *page = allocate_cache_block();
+	if(!page)
+		return errno = ENOMEM, NULL;
+	
+	/* Get a mapping for the physical page */
+	void *buffer = PHYS_TO_VIRT(page->paddr);
+
+	/* 
+	 * Do note that currently, PHYS_TO_VIRT cannot return NULL as it cannot
+	 * fail, so this is effectively dead code that might be needed in some
+	 * future architecture that the kernel may run on. 
+	*/
+	if(!buffer)
+	{
+		free_page(page);
+		return NULL;
+	}
+
+	memcpy(buffer, data, size);
+	struct page_cache_block *c = zalloc(sizeof(struct page_cache_block));
+	if(!c)
+	{
+		free_page(page);
+		return errno = ENOMEM, NULL;
+	}
+
+	c->buffer = buffer;
+	c->page = page;
+	c->node = file;
+	c->size = size;
+	c->offset = offset;
+
+	__add_to_list(c);
 	return c;
 }
 
@@ -69,23 +98,35 @@ size_t __do_vfs_write(void *buf, size_t size, off_t off, struct inode *this)
 
 static thread_t *sync_thread;
 
-void pagecache_sync(void *arg)
+void pagecache_do_run(void)
 {
-	(void) arg;
-repeat: ;
-	struct list_head *list = &page_list;
-	while(list && list->ptr)
+	struct page_cache_block *c = block_list;
+
+	/* Go through every block and check if it's dirty */
+	for(; c != NULL; c = c->next)
 	{
-		struct page_cache *c = list->ptr;
 		if(c->dirty)
 		{
-			__do_vfs_write(c->page, c->size, c->offset, c->node);
+			/* If so, write to the underlying fs */
+			__do_vfs_write(c->buffer, c->size, c->offset, c->node);
 			c->dirty = 0;
 		}
-		list = list->next;
 	}
-	thread_set_state(sync_thread, THREAD_BLOCKED);
-	goto repeat;
+}
+void pagecache_sync(void *arg)
+{
+	UNUSED(arg);
+
+	/* 
+	 * The pagecache daemon thread needs to loop forever and complete a run
+	 * when it is woken up, or in other words, when a block has been
+	 * written to and is marked dirty 
+	*/
+	for(;;)
+	{
+		pagecache_do_run();
+		thread_set_state(sync_thread, THREAD_BLOCKED);
+	}
 }
 
 void pagecache_init(void)

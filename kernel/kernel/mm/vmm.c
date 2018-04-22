@@ -14,7 +14,6 @@
 #include <onyx/file.h>
 #include <onyx/paging.h>
 #include <onyx/page.h>
-#define __need_avl_node_t
 #include <onyx/vmm.h>
 #include <onyx/panic.h>
 #include <onyx/compiler.h>
@@ -34,11 +33,13 @@
 
 #include <sys/mman.h>
 
+#define VM_COOKIE_INTACT		0xDEADBEEFDEADBEEF
 typedef struct avl_node
 {
 	struct avl_node *left, *right;
 	uintptr_t key;
 	uintptr_t end;
+	uintptr_t cookie;
 	struct vm_entry *data;
 } avl_node_t;
 
@@ -194,48 +195,46 @@ bool avl_traverse(avl_node_t *tree, bool (*callback)(avl_node_t *node))
 
 static struct vm_entry *avl_insert_key(avl_node_t **t, uintptr_t key, uintptr_t end)
 {
-	avl_node_t *ptr = *t;
-	if(!*t)
+	avl_node_t **pp = t;
+	while(*pp != NULL)
 	{
-		*t = malloc(sizeof(avl_node_t));
-		if(!*t)
-			return NULL;
-		memset(*t, 0, sizeof(avl_node_t));
-		ptr = *t;
-		ptr->key = key;
-		ptr->end = end;
-		ptr->data = malloc(sizeof(struct vm_entry));
-		if(!ptr->data)
+		avl_node_t *ptr = *pp;
+		if(key < ptr->key)
 		{
-			free(*t);
-			*t = NULL;
-			return NULL;
+			pp = &ptr->left;
 		}
-
-		memset(ptr->data, 0, sizeof(struct vm_entry));
-		struct process *p = get_current_process();
-		ptr->data->mm = p ? &p->address_space : NULL;
-
-		return ptr->data;
-	}
-	else if (key < ptr->key)
-	{
-		struct vm_entry *ret = avl_insert_key(&ptr->left, key, end);
-		if(key < high_half)
-			avl_balance_tree(vmm_get_tree());
 		else
-			avl_balance_tree(&kernel_tree);
-		return ret;
+		{
+			pp = &ptr->right;
+		}
 	}
+	
+	*pp = malloc(sizeof(avl_node_t));
+	if(!*pp)
+		return NULL;
+	memset(*pp, 0, sizeof(avl_node_t));
+	avl_node_t *ptr = *pp;
+	ptr->key = key;
+	ptr->end = end;
+	ptr->cookie = VM_COOKIE_INTACT;
+	ptr->data = malloc(sizeof(struct vm_entry));
+	if(!ptr->data)
+	{
+		free(*pp);
+		*pp = NULL;
+		return NULL;
+	}
+	memset(ptr->data, 0, sizeof(struct vm_entry));
+	struct process *p = get_current_process();
+	ptr->data->mm = p ? &p->address_space : NULL;
+	
+	
+	if(key < high_half)
+		avl_balance_tree(vmm_get_tree());
 	else
-	{
-		struct vm_entry *ret = avl_insert_key(&ptr->right, key, end);
-		if(key < high_half)
-			avl_balance_tree(vmm_get_tree());
-		else
-			avl_balance_tree(&kernel_tree);
-		return ret;
-	}
+		avl_balance_tree(&kernel_tree);
+	return ptr->data;
+
 }
 
 static avl_node_t **avl_search_key(avl_node_t **t, uintptr_t key)
@@ -637,16 +636,14 @@ void vmm_destroy_mappings(void *range, size_t pages)
 	}
 }
 
-void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uint64_t prot, uintptr_t alignment)
+void *__allocate_virt_address(uint64_t flags, size_t pages, uint32_t type,
+	uint64_t prot, uintptr_t alignment)
 {
-	bool allocating_kernel = true;
-	if(flags & VM_ADDRESS_USER)
-		allocating_kernel = false;
 	if(alignment == 0)
 		alignment = 1;
 
-	__vm_lock(allocating_kernel);
 	uintptr_t base_address = 0;
+	/* TODO: Clean this up */
 	switch(type)
 	{
 		case VM_TYPE_SHARED:
@@ -682,6 +679,8 @@ void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uin
 			break;
 		}
 	}
+	
+	/* TODO: Clean this up too */
 	if(flags & 1)
 	{
 		avl_node_t **e = avl_search_key(&kernel_tree, base_address);
@@ -723,12 +722,37 @@ again:
 			}
 		}
 	}
+
+	return (void *) base_address;
+}
+
+void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type,
+	uint64_t prot, uintptr_t alignment)
+{
+	/* Lock everything before allocating anything */
+	bool allocating_kernel = true;
+	if(flags & VM_ADDRESS_USER)
+		allocating_kernel = false;
+	__vm_lock(allocating_kernel);
+
+	avl_node_t **tree = NULL;
+	if(flags & 1)
+		tree = &kernel_tree;
+	else
+		tree = vmm_get_tree();
+	
+	assert(tree != NULL);
+	
+	void *base_address = __allocate_virt_address(flags, pages, type, prot,
+		alignment);
+	if(!base_address)
+		goto ret;
+
 	struct vm_entry *en;
 
-	if(flags & 1)
-		en = avl_insert_key(&kernel_tree, base_address, pages * PAGE_SIZE);
-	else
-		en = avl_insert_key(vmm_get_tree(), base_address, pages * PAGE_SIZE);
+	/* TODO: Clean this up too */
+	en = avl_insert_key(tree, (uintptr_t) base_address,
+		pages * PAGE_SIZE);
 	if(!en)
 	{
 		base_address = 0;
@@ -738,9 +762,11 @@ again:
 	en->rwx = (int) prot;
 	en->type = type;
 	en->pages = pages;
-	en->base = base_address;
-	
+	en->base = (uintptr_t) base_address;
+
 ret:
+
+	/* Unlock and return */
 	__vm_unlock(allocating_kernel);
 	return (void*) base_address;
 }
@@ -750,6 +776,9 @@ void *vmm_reserve_address(void *addr, size_t pages, uint32_t type, uint64_t prot
 	bool reserving_kernel = is_higher_half(addr);
 	
 	__vm_lock(reserving_kernel);
+	/* BUG!: There's a bug right here, 
+	 * vmm_is_mapped() is most likely not enough 
+	*/
 	if(vmm_is_mapped(addr))
 	{
 		__vm_unlock(reserving_kernel);

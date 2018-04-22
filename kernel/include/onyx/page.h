@@ -141,7 +141,7 @@ void *__alloc_pages_nozero(int order);
 
 struct page *get_phys_pages(int order);
 struct page *get_phys_page(void);
-
+void free_page(struct page *p);
 
 __attribute__((malloc))
 void *__ksbrk(long inc);

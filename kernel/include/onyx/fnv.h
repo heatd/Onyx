@@ -24,4 +24,6 @@ static inline fnv_hash_t __fnv_hash(uint8_t *data, size_t size)
 	return hash;
 }
 
+#define fnv_hash(data, size)	__fnv_hash((uint8_t *) data, size)
+
 #endif

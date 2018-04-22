@@ -29,6 +29,8 @@
 #define VFS_TYPE_UNIX_SOCK	(1 << 7)
 #define VFS_TYPE_UNK		(1 << 8)
 
+#define VFS_PAGE_HASHTABLE_ENTRIES	(PAGE_SIZE / sizeof(uintptr_t))
+
 struct inode;
 struct minor_device;
 
@@ -86,7 +88,10 @@ struct inode
 	dev_t dev;
 	struct superblock *i_sb;
 	struct file_ops fops;
-	avl_node_t *cache_tree;
+
+	spinlock_t pages_lock;
+	struct page_cache_block *pages[VFS_PAGE_HASHTABLE_ENTRIES];
+	
 	struct inode *next;
 	struct inode *link;
 	void *helper;

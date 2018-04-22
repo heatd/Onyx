@@ -372,3 +372,9 @@ struct page *get_phys_page(void)
 	p->ref++;
 	return p;
 }
+
+void free_page(struct page *p)
+{
+	if(page_decrement_refcount(p) == 0)
+		__free_page(p->paddr);
+}

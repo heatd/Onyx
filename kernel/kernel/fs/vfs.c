@@ -10,7 +10,6 @@
 #include <assert.h>
 #include <libgen.h>
 
-#include <onyx/avl.h>
 #include <onyx/panic.h>
 #include <onyx/vfs.h>
 #include <onyx/dev.h>
@@ -19,13 +18,47 @@
 #include <onyx/mtable.h>
 #include <onyx/atomic.h>
 #include <onyx/sysfs.h>
+#include <onyx/fnv.h>
 
-static avl_node_t **avl_search_key(avl_node_t **t, uintptr_t key);
 struct inode *fs_root = NULL;
 struct inode *mount_list = NULL;
 ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *file, off_t offset);
 
 #define FILE_CACHING_WRITE	1
+
+struct page_cache_block *__inode_get_page(struct inode *inode, off_t offset)
+{
+	off_t aligned_off = (offset / PAGE_CACHE_SIZE) * PAGE_CACHE_SIZE;
+	fnv_hash_t hash = fnv_hash(&aligned_off, sizeof(offset));
+
+	struct page_cache_block *b = inode->pages[hash % VFS_PAGE_HASHTABLE_ENTRIES];
+
+	/* Note: This should run with the pages_lock held */
+	for(; b; b = b->next_inode)
+	{
+		if(b->offset == offset ||
+		  (b->offset < offset && b->offset + (off_t) PAGE_CACHE_SIZE > offset))
+			return b;
+	}
+
+	/* We don't release the lock if we didn't find anything on purpose.
+	 * That job is left to inode_get_page, which does that work for non-inode
+	 * code callers.
+	*/
+	return NULL;
+}
+
+struct page_cache_block *inode_get_page(struct inode *inode, off_t offset)
+{
+	acquire_spinlock(&inode->pages_lock);
+
+	struct page_cache_block *b = __inode_get_page(inode, offset);
+
+	if(!b)
+		release_spinlock(&inode->pages_lock);
+	return b;
+}
+
 ssize_t do_file_caching(size_t sizeofread, struct inode *this, off_t offset, int flags)
 {
 	if(this->type != VFS_TYPE_FILE) /* Only VFS_TYPE_FILE files can be cached */
@@ -39,27 +72,37 @@ ssize_t do_file_caching(size_t sizeofread, struct inode *this, off_t offset, int
 	size_t max_reads = sizeofread % PAGE_CACHE_SIZE ? (sizeofread / PAGE_CACHE_SIZE) + 1 : sizeofread / PAGE_CACHE_SIZE;
 	size_t toread = offset + sizeofread > this->size ? sizeofread - offset - sizeofread + this->size : sizeofread;
 	sizeofread = toread;
+
+	acquire_spinlock(&this->pages_lock);
+
 	for(size_t i = 0; i < max_reads; i++)
 	{
-		if(avl_search_key(&this->cache_tree, offset + PAGE_CACHE_SIZE * i))
+		if(__inode_get_page(this, offset + PAGE_CACHE_SIZE * i))
 			continue;
+
 		size_t status = this->fops.read(0, offset + PAGE_CACHE_SIZE * i, PAGE_CACHE_SIZE, cache, this);
 
 		if(status == 0 && !(flags & FILE_CACHING_WRITE))
 		{
 			free(cache);
+			release_spinlock(&this->pages_lock);
 			return read;
 		}
+		
 		if(!add_cache_to_node(cache, status, offset + PAGE_CACHE_SIZE * i, this))
 		{
 			free(cache);
+			release_spinlock(&this->pages_lock);
 			return read;
 		}
+
 		toread -= status;
 		read += status;
 		memset(cache, 0, PAGE_CACHE_SIZE);
 	}
+
 	free(cache);
+	release_spinlock(&this->pages_lock);
 	return read;
 }
 
@@ -317,7 +360,8 @@ off_t do_getdirent(struct dirent *buf, off_t off, struct inode *file)
 	return -ENOSYS;
 }
 
-unsigned int putdir(struct dirent *buf, struct dirent *ubuf, unsigned int count)
+unsigned int putdir(struct dirent *buf, struct dirent *ubuf,
+	unsigned int count)
 {
 	unsigned int reclen = buf->d_reclen;
 	
@@ -330,7 +374,8 @@ unsigned int putdir(struct dirent *buf, struct dirent *ubuf, unsigned int count)
 }
 
 int getdents_vfs(unsigned int count, putdir_t putdir,
-	struct dirent* dirp, off_t off, struct getdents_ret *ret, struct inode *this)
+	struct dirent* dirp, off_t off, struct getdents_ret *ret,
+	struct inode *this)
 {
 	if(!(this->type & VFS_TYPE_DIR))
 		return errno = ENOTDIR, -1;
@@ -382,125 +427,80 @@ int stat_vfs(struct stat *buf, struct inode *node)
 	return errno = ENOSYS, (unsigned int) -1;
 }
 
-typedef struct avl_node
-{
-	struct avl_node *left, *right;
-	uintptr_t key; /* In this case, key == offset */
-	void *ptr;
-} avl_node_t;
 
-static avl_node_t *avl_insert_key(avl_node_t **t, uintptr_t key, struct inode *vfs)
+void add_to_page_hashtable(struct page_cache_block *cache, struct inode *node)
 {
-	avl_node_t *ptr = *t;
-	if(!*t)
-	{
-		*t = malloc(sizeof(avl_node_t));
-		if(!*t)
-			return NULL;
-		memset(*t, 0, sizeof(avl_node_t));
-		ptr = *t;
-		ptr->key = key;
-		return ptr;
-	}
-	else if (key < ptr->key)
-	{
-		avl_node_t *ret = avl_insert_key(&ptr->left, key, vfs);
-		avl_balance_tree(&vfs->cache_tree);
-		return ret;
-	}
-	else if(key == ptr->key)
-	{
-		return NULL;
-	}
-	else
-	{
-		avl_node_t *ret = avl_insert_key(&ptr->right, key, vfs);
-		avl_balance_tree(&vfs->cache_tree);
-		return ret;
-	}
+	fnv_hash_t hash = fnv_hash(&cache->offset, sizeof(cache->offset));
+
+	struct page_cache_block **pp = &node->pages[hash % VFS_PAGE_HASHTABLE_ENTRIES];
+
+	while(*pp)
+		pp = &(*pp)->next_inode;
+	*pp = cache;
 }
 
-static avl_node_t **avl_search_key(avl_node_t **t, uintptr_t key)
+void *add_cache_to_node(void *ptr, size_t size, off_t offset,
+	struct inode *node)
 {
-	if(!*t)
-		return NULL;
-	avl_node_t *ptr = *t;
-	if(key == ptr->key)
-		return t;
-	if(key > ptr->key && key < ptr->key + PAGE_CACHE_SIZE)
-		return t;
-	if(key < ptr->key)
-		return avl_search_key(&ptr->left, key);
-	else
-		return avl_search_key(&ptr->right, key);
-}
-
-static int avl_delete_node(uintptr_t key, avl_node_t **tree)
-{
-	/* Try to find the node inside the tree */
-	avl_node_t **n = avl_search_key(tree, key);
-	if(!n)
-		return errno = ENOENT, -1;
-	avl_node_t *ptr = *n;
-
-	/* Free up all used memory and set *n to NULL */
-	vfree(ptr->ptr, PAGE_CACHE_SIZE / PAGE_SIZE);
-	free(ptr);
-	*n = NULL;
-	avl_balance_tree(tree);
-	return 0;
-}
-
-void *add_cache_to_node(void *ptr, size_t size, off_t offset, struct inode *node)
-{
-	struct page_cache *cache = add_to_cache(ptr, size, offset, node);
+	struct page_cache_block *cache = add_to_cache(ptr, size, offset, node);
 	if(!cache)
 		return NULL;
-	avl_node_t *avl = avl_insert_key(&node->cache_tree, (uintptr_t) offset, node);
-	if(!avl)
-		return NULL;
-	avl->ptr = cache;
-
-	return avl->ptr;
+	
+	add_to_page_hashtable(cache, node);
+	return cache;
 }
 
-ssize_t lookup_file_cache(void *buffer, size_t sizeofread, struct inode *file, off_t offset)
+ssize_t lookup_file_cache(void *buffer, size_t sizeofread, struct inode *file,
+	off_t offset)
 {
 	if(file->type != VFS_TYPE_FILE)
 		return -1;
 	if((size_t) offset > file->size)
 		return 0;
 	off_t off = (offset / PAGE_CACHE_SIZE) * PAGE_CACHE_SIZE;
-	do_file_caching(sizeofread, file, off, 0);
 	size_t read = 0;
+
+	do_file_caching(sizeofread, file, off, 0);
+
 	while(read != sizeofread)
 	{
-		avl_node_t **tree_node = NULL;
-		if(!(tree_node = avl_search_key(&file->cache_tree, offset)))
-			return read;
-		avl_node_t *nd = *tree_node;
-		struct page_cache *cache = nd->ptr;
+		struct page_cache_block *cache = inode_get_page(file, offset);
+
+		if(!cache)
+		{
+			/* TODO: Recover */
+			assert(cache != NULL);
+		}
+
 		off_t cache_off = offset % PAGE_CACHE_SIZE;
 		off_t rest = PAGE_CACHE_SIZE - cache_off;
 		if(rest < 0) rest = 0;
-		size_t amount = sizeofread - read < (size_t) rest ? sizeofread - read : (size_t) rest;
+		size_t amount = sizeofread - read < (size_t) rest ?
+			sizeofread - read : (size_t) rest;
 		if(offset + amount > file->size)
 		{
 			amount = file->size - offset;
-			memcpy((char*) buffer + read,  (char*) cache->page + cache_off, amount);
+			memcpy((char*) buffer + read,  (char*) cache->buffer +
+				cache_off, amount);
+			release_spinlock(&file->pages_lock);
 			return read + amount;
 		}
 		else
-			memcpy((char*) buffer + read,  (char*) cache->page + cache_off, amount);
+			memcpy((char*) buffer + read,  (char*) cache->buffer +
+				cache_off, amount);
 		offset += amount;
 		read += amount;
+
+		release_spinlock(&file->pages_lock);
+
 	}
 	return (ssize_t) read;
 }
 
 char *vfs_get_full_path(struct inode *vnode, char *name)
 {
-	size_t size = strlen(vnode->name) + strlen(name) + (strlen(vnode->name) == 1 ? 0 : 1); 
+	size_t size = strlen(vnode->name) + strlen(name) + (strlen(vnode->name)
+		== 1 ? 0 : 1); 
 	char *string = malloc(size);
 	if(!string)
 		return NULL;
@@ -511,34 +511,42 @@ char *vfs_get_full_path(struct inode *vnode, char *name)
 	return string;
 }
 
-ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *file, off_t offset)
+ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *file,
+	off_t offset)
 {
 	if(file->type != VFS_TYPE_FILE)
 		return -1;
 	if((size_t) offset > file->size)
 		return 0;
 	off_t off = (offset / PAGE_CACHE_SIZE) * PAGE_CACHE_SIZE;
+	
 	do_file_caching(sizeofwrite, file, off, FILE_CACHING_WRITE);
 	size_t wrote = 0;
 	while(wrote != sizeofwrite)
 	{
-		avl_node_t **tree_node = NULL;
-		if(!(tree_node = avl_search_key(&file->cache_tree, offset)))
-			return wrote;
-		avl_node_t *nd = *tree_node;
+		
+		struct page_cache_block *cache = __inode_get_page(file, offset);
+
+		/* TODO: Recover */
+		assert(cache != NULL);
+
 		off_t cache_off = offset % PAGE_CACHE_SIZE;
 		off_t rest = PAGE_CACHE_SIZE - cache_off;
 		if(rest < 0) rest = 0;
-		size_t amount = sizeofwrite - wrote < (size_t) rest ? sizeofwrite - wrote : (size_t) rest;
-		struct page_cache *cache = nd->ptr;
-		memcpy((char*) cache->page + cache_off, (char*) buffer + wrote, amount);
+		size_t amount = sizeofwrite - wrote < (size_t) rest ?
+			sizeofwrite - wrote : (size_t) rest;
+		memcpy((char*) cache->buffer + cache_off, (char*) buffer +
+			wrote, amount);
 		if(cache->size < cache_off + amount)
 			cache->size = cache_off + amount;
 		cache->dirty = 1;
 		wakeup_sync_thread();
 		offset += amount;
 		wrote += amount;
+
+		release_spinlock(&file->pages_lock);
 	}
+
 	return (ssize_t) wrote;
 }
 
@@ -569,12 +577,15 @@ int bind_vfs(const struct sockaddr *addr, socklen_t addrlen, struct inode *node)
 	return -ENOSYS;
 }
 
-ssize_t recvfrom_vfs(void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *slen, struct inode *node)
+ssize_t recvfrom_vfs(void *buf, size_t len, int flags,
+	struct sockaddr *src_addr, socklen_t *slen, struct inode *node)
 {
 	if(node->type & VFS_TYPE_MOUNTPOINT)
-		return recvfrom_vfs(buf, len, flags, src_addr, slen, node->link);
+		return recvfrom_vfs(buf, len, flags, src_addr, slen,
+			node->link);
 	if(node->fops.recvfrom != NULL)
-		return node->fops.recvfrom(buf, len, flags, src_addr, slen, node);
+		return node->fops.recvfrom(buf, len, flags, src_addr, slen,
+			node);
 	return -ENOSYS;
 }
 
@@ -601,12 +612,10 @@ struct page *file_get_page(struct inode *ino, off_t offset)
 	off_t off = (offset / PAGE_CACHE_SIZE) * PAGE_CACHE_SIZE;
 	do_file_caching(PAGE_CACHE_SIZE, ino, off, 0);
 
-	avl_node_t **tree_node = NULL;
-	if(!(tree_node = avl_search_key(&ino->cache_tree, off)))
-		return NULL;
-	avl_node_t *nd = *tree_node;
-	struct page_cache *cache = nd->ptr;
-	off_t off_from_cache = offset - off;
-	
-	return phys_to_page((uintptr_t) virtual2phys(cache->page) + off_from_cache);
+	struct page_cache_block *cache = inode_get_page(ino, off);
+
+	/* TODO: questionablecode.jpeg */
+	release_spinlock(&ino->pages_lock);
+
+	return cache != NULL ? cache->page : NULL;
 }

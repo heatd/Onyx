@@ -23,6 +23,7 @@ uint32_t ext2_allocate_block(ext2_fs_t *fs)
 			continue;
 		return ext2_allocate_from_block_group(fs, i);
 	}
+
 	return 0;
 }
 

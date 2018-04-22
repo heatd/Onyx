@@ -4,6 +4,7 @@
 * check LICENSE at the root directory for more information
 */
 #include <stdio.h>
+#include <assert.h>
 
 #include <onyx/spinlock.h>
 #include <onyx/compiler.h>
@@ -39,6 +40,10 @@ void acquire_spinlock(spinlock_t *lock)
 void release_spinlock(spinlock_t *lock)
 {
 	__sync_synchronize();
+
+#ifdef CONFIG_SPINLOCK_DEBUG
+	assert(lock->lock > 0);
+#endif
 	atomic_dec(&lock->lock, 1);
 	post_release_actions(lock);
 }
