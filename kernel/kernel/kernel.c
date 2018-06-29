@@ -160,6 +160,7 @@ retry:;
 	if(!in)
 	{
 		printk("%s: Not found\n", path);
+		perror("open_vfs");
 		if(!strcmp(path, "/bin/init"))
 		{
 			perror("open");
@@ -174,7 +175,7 @@ retry:;
 
 	proc->address_space.cr3 = get_current_pml4();
 	proc->address_space.tree = NULL;
-
+ 
 	get_current_thread()->owner = proc;
 	/* Setup stdio */
 	proc->ctx.file_desc[0] = malloc(sizeof(file_desc_t));
@@ -285,7 +286,6 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 			}
 		case MULTIBOOT_TAG_TYPE_MMAP:
 			{
-				/* Initialize the PMM stack KERNEL_VIRTUAL_BASE + 1MB. TODO: detect size of modules and calculate size from that */
 				mmap_tag = (struct multiboot_tag_mmap *) tag;
 				break;
 			}

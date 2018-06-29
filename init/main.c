@@ -181,9 +181,6 @@ int main(int argc, char **argv, char **envp)
 	/* Load the needed kernel modules */
 	load_modules();
 
-	/* Setup the hostname */
-	setup_hostname();
-
 	/* Mount filesystems */
 	if(mount_filesystems() == 1)
 	{
@@ -195,6 +192,10 @@ int main(int argc, char **argv, char **envp)
 	/* chdir to /, since the kernel doesn't setup the current directory so we need to set it up 
 	 * ourselves
 	*/
+
+	/* Setup the hostname */
+	setup_hostname();
+
 	chdir("/");
 	/* Execute daemons */
 	exec_daemons();

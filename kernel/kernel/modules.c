@@ -94,7 +94,6 @@ int load_module(const char *path, const char *name)
 		if(errno == ENOMEM)
 			mods_disabled = 1;
 		free(mod);
-		close_vfs(file);
 		return 1;
 	}
 	char *buffer = malloc(file->size);

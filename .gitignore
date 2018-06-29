@@ -36,3 +36,4 @@ autom4ate.cache
 utils/printenv/printenv
 dhcpcd/dhcpcd
 
+*.tar*

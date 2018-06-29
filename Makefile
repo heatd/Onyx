@@ -3,7 +3,7 @@ SOURCE_PACKAGES:= libdrm libunwind init games dhcpcd wserver strace devmgr
 
 ALL_MODULES:=$(PROJECTS) $(SOURCE_PACKAGES)
 
-.PHONY: all iso clean build-prep geninitrd $(SYSTEM_HEADER_PROJECTS) $(PROJECTS) \
+.PHONY: all iso clean build-prep $(SYSTEM_HEADER_PROJECTS) $(PROJECTS) \
 $(SOURCE_PACKAGES) build-cleanup dash musl
 
 export DESTDIR:=$(PWD)/sysroot
@@ -35,6 +35,8 @@ all: iso
 clean:
 	for module in $(ALL_MODULES); do $(MAKE) -C $$module clean; done
 	./utils/make_utils.sh clean
+	rm -rf sysroot
+	rm -rf initrd.tar.*
 build-prep:
 	mkdir -p sysroot
 	cd kernel && ../scripts/config_to_header.py include/onyx/config.h
