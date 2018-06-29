@@ -66,7 +66,7 @@ void dump_interrupt_context(intctx_t *ctx)
 	ctx->r8, ctx->r9, ctx->r10, ctx->r11, ctx->r12, ctx->r13, ctx->r14, 
 	ctx->r15, ctx->rsp, ctx->rflags, ctx->ds, ctx->cs);
 
-	stack_trace_ex((uint64_t *) ctx->rbp);
+	if(ctx->cs == 0x08) stack_trace_ex((uint64_t *) ctx->rbp);
 }
 
 static bool is_kernel_exception(intctx_t *ctx)
@@ -208,6 +208,7 @@ void general_protection_fault(intctx_t *ctx)
 	dump_interrupt_context(ctx);
 	printk("GPF error code: %04x\n", (uint16_t) ctx->err_code);
 	kernel_raise_signal(SIGSEGV, current);
+	while(1);
 }
 
 void page_fault_handler(intctx_t *ctx)

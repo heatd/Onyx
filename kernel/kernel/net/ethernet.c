@@ -15,7 +15,7 @@
 #include <onyx/vmm.h>
 #include <onyx/crc32.h>
 
-#include <drivers/pci.h>
+#include <pci/pci.h>
 #include <drivers/e1000.h>
 
 int eth_send_packet(char *destmac, char *payload, uint16_t len, uint16_t protocol, struct netif *netif)

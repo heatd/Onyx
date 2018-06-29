@@ -30,6 +30,7 @@ void error(char *msg, ...)
 	vfprintf(stderr, msg, ap);
 	va_end(ap);
 }
+
 void errorx(char *msg, ...)
 {
 	va_list ap;
@@ -39,10 +40,12 @@ void errorx(char *msg, ...)
 	va_end(ap);
 	exit(1);
 }
+
 uint32_t dhcp_get_random_xid(void)
 {
 	return (uint32_t) random();
 }
+
 void init_entropy(void)
 {
 	unsigned int seed = 0;
@@ -52,6 +55,7 @@ void init_entropy(void)
 	clock_gettime(CLOCK_REALTIME, &t);
 	srandom(seed ^ t.tv_nsec | t.tv_sec);
 }
+
 off_t dhcp_add_option(dhcp_packet_t *pkt, off_t off, unsigned char len, const void *buf, size_t size_buf, unsigned char opt)
 {
 	pkt->options[off++] = opt;
@@ -59,6 +63,7 @@ off_t dhcp_add_option(dhcp_packet_t *pkt, off_t off, unsigned char len, const vo
 	memcpy(&pkt->options[off], buf, size_buf);
 	return off + size_buf;
 }
+
 void dhcp_close_options(dhcp_packet_t *pkt, off_t off)
 {
 	/* Add the needed padding */
@@ -66,6 +71,7 @@ void dhcp_close_options(dhcp_packet_t *pkt, off_t off)
 	off += 3;
 	pkt->options[off] = DHO_END;
 }
+
 int dhcp_setup_netif(int fd, int sock)
 {
 	unsigned char mac[6];
@@ -95,11 +101,13 @@ int dhcp_setup_netif(int fd, int sock)
 	unsigned char opts[3] = {DHO_SUBNET_MASK, DHO_ROUTERS, DHO_DOMAIN_NAME_SERVERS};
 	off = dhcp_add_option(boot_packet, off, 3, &opts, sizeof(opts), DHO_DHCP_PARAMETER_REQUEST_LIST);
 	dhcp_close_options(boot_packet, off);
+
 	if(send(sock, boot_packet, sizeof(dhcp_packet_t), 0) < 0)
 	{
 		error("send: Error sending the boot packet: %s\n", strerror(errno));
 		return -1;
 	}
+
 	memset(boot_packet, sizeof(dhcp_packet_t), 0);
 	if(recv(sock, boot_packet, sizeof(dhcp_packet_t), 0) < 0)
 	{
@@ -107,6 +115,7 @@ int dhcp_setup_netif(int fd, int sock)
 		return -1;
 	}
 }
+
 int main(int argc, char **argv, char **envp)
 {
 	//printf("%s: Daemon initialized\n", argv[0]);
@@ -116,6 +125,7 @@ int main(int argc, char **argv, char **envp)
 		perror("/dev/eth0");
 		return 1;
 	}
+
 	printf("Opened %s\n", "/dev/eth0");
 	int sock = socket(AF_INET, SOCK_DGRAM, 0);
 	if(sock < 0)
@@ -124,12 +134,14 @@ int main(int argc, char **argv, char **envp)
 		close(fd);
 		return 1;
 	}
+
 	struct sockaddr_in sockaddr = {0};
 	sockaddr.sin_port = 68;
 	bind(sock, &sockaddr, sizeof(struct sockaddr));
 	sockaddr.sin_port = 67;
 	sockaddr.sin_addr.s_addr = 0xFFFFFFFF;
 	connect(sock, &sockaddr, sizeof(struct sockaddr));
+
 	/* After doing some work, initialize entropy */
 	init_entropy();
 	dhcp_setup_netif(fd, sock);

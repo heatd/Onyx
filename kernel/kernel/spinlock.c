@@ -41,9 +41,8 @@ void release_spinlock(spinlock_t *lock)
 {
 	__sync_synchronize();
 
-#ifdef CONFIG_SPINLOCK_DEBUG
 	assert(lock->lock > 0);
-#endif
+
 	atomic_dec(&lock->lock, 1);
 	post_release_actions(lock);
 }

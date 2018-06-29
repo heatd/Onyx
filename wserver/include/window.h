@@ -9,6 +9,9 @@
 
 struct window
 {
+	size_t window_id;
+	int window_shm_fd;
+	char *window_shm_name;
 	void *window_backbuffer;
 	size_t backbuffer_size;
 	unsigned int client_width;

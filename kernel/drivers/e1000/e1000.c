@@ -23,7 +23,7 @@
 
 #include <drivers/mmio.h>
 #include <drivers/e1000.h>
-#include <drivers/pci.h>
+#include <pci/pci.h>
 
 static struct pci_device *nicdev = NULL;
 static struct e1000_rx_desc *rx_descs[E1000_NUM_RX_DESC];

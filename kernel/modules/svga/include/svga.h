@@ -10,7 +10,7 @@
 
 #include <onyx/mutex.h>
 #include <onyx/video.h>
-#include <drivers/pci.h>
+#include <pci/pci.h>
 
 #define VMWARE_SVGAII_PCI_VENDOR 0x15AD
 #define VMWARE_SVGAII_PCI_DEVICE 0x0405

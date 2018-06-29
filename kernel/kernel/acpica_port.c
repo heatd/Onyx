@@ -20,11 +20,9 @@
 #include <onyx/acpi.h>
 #include <onyx/cpu.h>
 
-#include <drivers/pci.h>
+#include <pci/pci.h>
 #include <drivers/rtc.h>
 
-void mutex_lock(unsigned long*);
-void mutex_unlock(unsigned long*);
 void spinlock_lock(unsigned long*);
 void spinlock_unlock(unsigned long*);
 int printf(const char *, ...);

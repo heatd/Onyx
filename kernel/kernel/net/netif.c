@@ -75,18 +75,20 @@ unsigned int netif_ioctl(int request, void *argp, struct inode* this)
 	}
 	return -ENOTTY;
 }
+
 void netif_register_if(struct netif *netif)
 {
 	if(udp_init_netif(netif) < 0)
 		return;
-	struct inode *file = creat_vfs(slashdev, netif->name, 0644);
-	if(!file)
-	{
+	struct dev *d = dev_register(0, 0, (char*) netif->name);
+	if(!d)
 		return;
-	}
-	file->helper = netif;
-	file->fops.ioctl = netif_ioctl;
-	netif->device_file = file;
+
+	d->priv = netif;
+
+	d->fops.ioctl = netif_ioctl;
+
+	device_show(d);
 	acquire_spinlock(&netif_list_lock);
 	if(!netif_list)
 	{
@@ -100,6 +102,7 @@ void netif_register_if(struct netif *netif)
 	}
 	release_spinlock(&netif_list_lock);
 }
+
 int netif_unregister_if(struct netif *netif)
 {
 	acquire_spinlock(&netif_list_lock);
@@ -125,6 +128,7 @@ int netif_unregister_if(struct netif *netif)
 	}
 	return -1;
 }
+
 struct netif *netif_choose(void)
 {
 	for(struct netif *n = netif_list; n; n = n->next)
@@ -134,6 +138,7 @@ struct netif *netif_choose(void)
 	}
 	return NULL;
 }
+
 int netif_send_packet(struct netif *netif, const void *buffer, uint16_t size)
 {
 	assert(netif);
@@ -141,6 +146,7 @@ int netif_send_packet(struct netif *netif, const void *buffer, uint16_t size)
 		return netif->sendpacket(buffer, size);
 	return errno = ENODEV, -1;
 }
+
 void netif_get_ipv4_addr(struct sockaddr_in *s, struct netif *netif)
 {
 	memcpy(&s, &netif->local_ip, sizeof(struct sockaddr));

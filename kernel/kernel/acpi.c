@@ -25,7 +25,7 @@
 #include <onyx/apic.h>
 #include <onyx/clock.h>
 
-#include <drivers/pci.h>
+#include <pci/pci.h>
 
 int acpi_init_timer(void);
 

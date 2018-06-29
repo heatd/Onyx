@@ -8,7 +8,7 @@
 #define _DRIVERS_E1000_H
 
 #include <stdint.h>
-#include <drivers/pci.h>
+#include <pci/pci.h>
 
 #define INTEL_VENDOR		0x8086 
 #define E1000_DEV		0x100E

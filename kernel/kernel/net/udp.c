@@ -44,8 +44,18 @@ int udp_bind(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode
 	if(!socket->socket.netif)
 		socket->socket.netif = netif_choose();
 	struct sockaddr_in *in = (struct sockaddr_in *) addr;
+
 	if(socket->socket.netif->udp_ports[in->sin_port])
 		return -EADDRINUSE;
+	
+
+	if(in->sin_port == 0){}
+	/* TODO: Add port allocation */
+
+	/* TODO: This may not be correct behavior. */
+	if(in->sin_addr.s_addr == INADDR_ANY)
+		in->sin_addr.s_addr = INADDR_LOOPBACK;
+
 	memcpy(&socket->src_addr, addr, sizeof(struct sockaddr));
 	socket->socket.netif->udp_ports[in->sin_port] = socket;
 	socket->socket.bound = true;
@@ -116,14 +126,16 @@ static struct file_ops udp_ops =
 
 socket_t *udp_create_socket(int type)
 {
-	udp_socket_t *socket = malloc(sizeof(udp_socket_t));
+	udp_socket_t *socket = zalloc(sizeof(udp_socket_t));
 	if(!socket)
 		return NULL;
-	memset(socket, 0, sizeof(udp_socket_t));
+
 	struct inode *vnode = (struct inode*) socket;
 	memcpy(&vnode->fops, &udp_ops, sizeof(struct file_ops));
+	
 	vnode->type = VFS_TYPE_UNIX_SOCK;
 	socket->type = type;
+	
 	return (socket_t*) socket;
 }
 

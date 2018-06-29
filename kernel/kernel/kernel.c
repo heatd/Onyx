@@ -84,7 +84,7 @@
 #include <drivers/rtc.h>
 #include <drivers/e1000.h>
 #include <drivers/softwarefb.h>
-#include <drivers/pci.h>
+#include <pci/pci.h>
 
 extern uint64_t kernel_end;
 extern uintptr_t _start_smp;
@@ -182,7 +182,8 @@ retry:;
 	{
 		panic("kernel: out of memory while loading init(file descriptor 0)!\n");
 	}
-	proc->ctx.file_desc[0]->vfs_node = open_vfs(slashdev, "tty");
+	
+	proc->ctx.file_desc[0]->vfs_node = open_vfs(fs_root, "/dev/tty");
 	if(!proc->ctx.file_desc[0]->vfs_node)
 	{
 		perror("kernel: ");
@@ -195,7 +196,7 @@ retry:;
 	{
 		panic("kernel: out of memory while loading init(file descriptor 1)!\n");
 	}
-	proc->ctx.file_desc[1]->vfs_node = open_vfs(slashdev, "tty");
+	proc->ctx.file_desc[1]->vfs_node = open_vfs(fs_root, "/dev/tty");
 	proc->ctx.file_desc[1]->seek = 0;
 	proc->ctx.file_desc[1]->flags = O_WRONLY;
 	proc->ctx.file_desc[2] = malloc(sizeof(file_desc_t));
@@ -203,7 +204,7 @@ retry:;
 	{
 		panic("kernel: out of memory while loading init(file descriptor 2)!\n");
 	}
-	proc->ctx.file_desc[2]->vfs_node = open_vfs(slashdev, "tty");
+	proc->ctx.file_desc[2]->vfs_node = open_vfs(fs_root, "/dev/tty");
 	proc->ctx.file_desc[2]->seek = 0;
 	proc->ctx.file_desc[2]->flags = O_WRONLY;
 

@@ -230,8 +230,14 @@ void sysfs_init(void)
 	root->name = "/sys";
 	root->type = VFS_TYPE_DIR;
 	root->inode = (ino_t) &sysfs_root;
+	
+	sysfs_root.name = "";
+	sysfs_root.perms = 0555 | S_IFDIR;
+	sysfs_root.type = VFS_TYPE_DIR;
+	sysfs_root.inode = root->inode;
+
 	sysfs_root_ino = root;
-	struct minor_device *minor = dev_register(0, 0);
+	struct dev *minor = dev_register(0, 0, "sysfs");
 	
 	assert(minor != NULL);
 
@@ -337,6 +343,7 @@ int sysfs_stat(struct stat *buf, struct inode *node)
 
 	struct sysfs_file *file = (struct sysfs_file *) node->inode;
 	buf->st_mode = file->perms;
+
 	buf->st_ino = node->inode;
 	buf->st_dev = node->dev;
 

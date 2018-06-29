@@ -68,12 +68,22 @@ int main(int argc, char **argv, char **envp)
 	if(fd < 0)
 	{
 		perror("Could not mount /sys");
+		return 1;
 	}
+
 	if(fstat(fd, &buf) < 0)
 	{
 		perror("fstat");
+		return 1;
 	}
+
 	DIR *dir = fdopendir(fd);
+
+	if(!dir)
+	{
+		perror("Could not open /sys");
+		return 1;
+	}
 
 	struct dirent *d;
 	while((d = readdir(dir)) != NULL)

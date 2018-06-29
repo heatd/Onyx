@@ -111,7 +111,9 @@ int execute_program(const char *path, const char *type)
 	{
 		do_daemon_things = true;
 	}
+	
 	pid_t pid = fork();
+	
 	if(pid < 0)
 	{
 		fprintf(stderr, "%s: %s: %s\n", __func__, "fork", strerror(errno));
@@ -137,6 +139,8 @@ int execute_program(const char *path, const char *type)
 		{
 			/* TODO: Syncronize with the parent */
 			fprintf(stderr, "%s: %s: %s: %s\n", __func__, "execl", path, strerror(errno));
+			fprintf(stderr, "Address: %p\n", path);
+			while(1);
 			exit(1);
 		}
 	}
@@ -287,6 +291,7 @@ int process_target(target_t *target)
 				struct subproperty *type = get_subproperty(service, SUBPROP_TYPE);
 				if(type)
 					type_ = type->value;
+				printf("debug: executing %s\n", p->value);
 				execute_program(p->value, type_);
 			}
 		}

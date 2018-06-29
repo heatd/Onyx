@@ -32,7 +32,7 @@
 #define VFS_PAGE_HASHTABLE_ENTRIES	(PAGE_SIZE / sizeof(uintptr_t))
 
 struct inode;
-struct minor_device;
+struct dev;
 
 typedef size_t (*__read)(int flags, size_t offset, size_t sizeofread, void* buffer, struct inode* file);
 typedef size_t (*__write)(size_t offset, size_t sizeofwrite, void* buffer, struct inode* file);
@@ -86,6 +86,7 @@ struct inode
 	char *name;
 	char *mountpoint;
 	dev_t dev;
+	dev_t rdev;
 	struct superblock *i_sb;
 	struct file_ops fops;
 
@@ -100,7 +101,7 @@ struct inode
 #ifdef __cplusplus
 extern "C" {
 #endif
-void 		*add_cache_to_node(void *ptr, size_t size, off_t offset, struct inode *node);
+struct page_cache_block *add_cache_to_node(void *ptr, size_t size, off_t offset, struct inode *node);
 size_t 		read_vfs(int flags, size_t offset, size_t sizeofread, void* buffer, struct inode* file);
 size_t 		write_vfs(size_t offset, size_t sizeofwrite, void* buffer, struct inode* file);
 void 		close_vfs(struct inode* file);

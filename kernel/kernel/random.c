@@ -143,28 +143,23 @@ size_t urandom_read(int flags, size_t offset, size_t sizeofreading, void *buffer
 
 void init_random_dev(void)
 {
-	struct minor_device *dev = dev_register(0, 0);
+	struct dev *dev = dev_register(0, 0, "random");
 	assert(dev);
-	dev->fops = malloc(sizeof(struct file_ops));
-	assert(dev->fops);
-	dev->fops->read = random_read;
-	struct inode *file = creat_vfs(slashdev, "random", 0666);
-	assert(file);
-	file->type = VFS_TYPE_CHAR_DEVICE;
-	file->dev = dev->majorminor;
+
+	dev->fops.read = random_read;
+	
+	device_show(dev);
 }
 
 void init_urandom_dev(void)
 {
-	struct minor_device *dev = dev_register(0, 0);
+	struct dev *dev = dev_register(0, 0, "urandom");
 	assert(dev);
-	dev->fops = malloc(sizeof(struct file_ops));
-	assert(dev->fops);
-	dev->fops->read = urandom_read;
-	struct inode *file = creat_vfs(slashdev, "urandom", 0666);
-	assert(file);
-	file->type = VFS_TYPE_CHAR_DEVICE;
-	file->dev = dev->majorminor;
+	
+
+	dev->fops.read = urandom_read;
+	
+	device_show(dev);
 }
 
 void entropy_init_dev(void)

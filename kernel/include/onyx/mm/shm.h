@@ -14,17 +14,4 @@
 #include <onyx/page.h>
 #include <onyx/vfs.h>
 
-struct shm_region
-{
-	char *name;
-	struct list_head pages;
-	size_t size;
-	atomic_size_t refcount;
-	int flags;
-	mode_t mode;
-	struct inode *vnode;
-
-	struct shm_region *next;
-};
-
 #endif

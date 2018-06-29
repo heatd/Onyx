@@ -7,7 +7,7 @@
 #define _DRIVERS_BOCHSVGA_H
 #include <stdint.h>
 #include <stddef.h>
-#include <drivers/pci.h>
+#include <pci/pci.h>
 
 /* Bochs VGA I/O ports */
 #define VBE_DISPI_IOPORT_INDEX		0x01CE

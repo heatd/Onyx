@@ -16,7 +16,9 @@
 #include <onyx/compiler.h>
 #include <onyx/dev.h>
 #include <onyx/panic.h>
+
 static struct pipe *pipe_list = NULL;
+
 struct pipe **__allocate_pipe_inode(ino_t *inode)
 {
 	if(!pipe_list)
@@ -33,6 +35,7 @@ struct pipe **__allocate_pipe_inode(ino_t *inode)
 	*inode = ino;
 	return pipe;
 }
+
 struct pipe *get_pipe_from_inode(ino_t ino)
 {
 	struct pipe *pipe = pipe_list;
@@ -42,6 +45,7 @@ struct pipe *get_pipe_from_inode(ino_t ino)
 	}
 	return pipe;
 }
+
 size_t pipe_write(size_t offset, size_t sizeofwrite, void* buffer, struct inode* file)
 {
 	UNUSED_PARAMETER(offset);
@@ -86,6 +90,7 @@ size_t pipe_write(size_t offset, size_t sizeofwrite, void* buffer, struct inode*
 		mutex_unlock(&pipe->pipe_lock);
 	return pipe->curr_size;
 }
+
 size_t pipe_read(int flags, size_t offset, size_t sizeofread, void* buffer, struct inode* file)
 {
 	(void) flags;
@@ -103,13 +108,16 @@ size_t pipe_read(int flags, size_t offset, size_t sizeofread, void* buffer, stru
 	mutex_unlock(&pipe->pipe_lock);
 	return to_read;
 }
+
 static struct file_ops pipe_file_ops = 
 {
 	.write = pipe_write,
 	.read = pipe_read
 };
-static struct minor_device *pipedev = NULL;
+
+static struct dev *pipedev = NULL;
 static spinlock_t pipespl;
+
 struct inode *pipe_create(void)
 {
 	acquire_spinlock(&pipespl);
@@ -130,6 +138,7 @@ struct inode *pipe_create(void)
 		release_spinlock(&pipespl);
 		return NULL;
 	}
+
 	memset(pipe, 0, sizeof(struct pipe));
 
 	/* Allocate the pipe buffer */
@@ -143,19 +152,22 @@ struct inode *pipe_create(void)
 	}
 	/* Zero it out */
 	memset(pipe->buffer, 0, UINT16_MAX);
+
 	pipe->buf_size = UINT16_MAX;
 	pipe->readers = 1;
 	*pipe_next = pipe;
 	node->dev = pipedev->majorminor;
 	node->type = VFS_TYPE_FIFO;
+
 	release_spinlock(&pipespl);
 	return node;
 }
+
 __init void pipe_register_device(void)
 {
-	pipedev = dev_register(0, 0);
+	pipedev = dev_register(0, 0, "pipe");
 	if(!pipedev)
 		panic("could not allocate pipedev!\n");
 
-	pipedev->fops = &pipe_file_ops;
+	memcpy(&pipedev->fops, &pipe_file_ops, sizeof(struct file_ops));
 }

@@ -3,7 +3,7 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
-
+#include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
@@ -26,8 +26,6 @@ MODULE_LICENSE(MODULE_LICENSE_MIT);
 MODULE_INSERT_VERSION();
 
 #define MPRINTF(...) printf("drm: "__VA_ARGS__)
-
-static struct inode *drm_node = NULL;
 
 extern void *phys_fb;
 unsigned int drm_ioctl(int request, void *args, struct inode *self)
@@ -87,27 +85,29 @@ unsigned int drm_ioctl(int request, void *args, struct inode *self)
 	}
 	return 0;
 }
-int module_init()
+
+struct dev *drm_dev;
+
+int module_init(void)
 {
 	MPRINTF("initializing DRM\n");
 
-	drm_node = creat_vfs(slashdev, "drm", 0666);
-	if(!drm_node)
-	{
-		MPRINTF("error while creating the 'drm' device node: %s\n", strerror(errno));
-		return 1;
-	}
+	drm_dev = dev_register(0, 0, "drm");
+	
+	assert(drm_dev != NULL);
 
-	drm_node->fops.ioctl = drm_ioctl;
-	drm_node->dev = 0;
+	drm_dev->fops.ioctl = drm_ioctl;
 
+	device_show(drm_dev);
 	MPRINTF("created /dev/drm\n");
 
 	return 0;
 }
-int module_fini()
+
+int module_fini(void)
 {
 	MPRINTF("de-initializing DRM\n");
-	free(drm_node);
+
+	dev_unregister(drm_dev->majorminor);
 	return 0;
 }

@@ -34,12 +34,13 @@ int main(int argc, char **argv, char **envp)
 
 	struct window *win = window_create(40, 40, 640, 480);
 	assert(win != NULL);
+
 	display_fill_rect(win->window_backbuffer, 0, 0, win->window_width, win->window_height,
 		0x808080);
 	int fd = shm_open("wserver-00", O_RDWR | O_CREAT, 0666);
-	
+
 	ftruncate(fd, 4096);
-	
+
 	while(true)
 	{
 		draw_windows();

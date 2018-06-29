@@ -12,8 +12,8 @@
 #include <onyx/idt.h>
 #include <onyx/page.h>
 
-#include <drivers/pci.h>
-#include <drivers/pci-msi.h>
+#include <pci/pci.h>
+#include <pci/pci-msi.h>
 
 /* pci vector codes to number of vectors table */
 unsigned int pci_to_num_vecs[] =

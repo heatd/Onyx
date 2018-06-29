@@ -25,7 +25,7 @@
 #include <onyx/network.h>
 
 #include <drivers/mmio.h>
-#include <drivers/pci.h>
+#include <pci/pci.h>
 
 MODULE_AUTHOR("Pedro Falcato");
 MODULE_LICENSE(MODULE_LICENSE_MIT);

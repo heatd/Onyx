@@ -2793,11 +2793,11 @@ static void reset_on_error(mstate m);
 #else /* PROCEED_ON_ERROR */
 
 #ifndef CORRUPTION_ERROR_ACTION
-#define CORRUPTION_ERROR_ACTION(m) ABORT
+#define CORRUPTION_ERROR_ACTION(m) do { printf("malloc: Corruption at %p\n", m); while(1);} while(0);
 #endif /* CORRUPTION_ERROR_ACTION */
 
 #ifndef USAGE_ERROR_ACTION
-#define USAGE_ERROR_ACTION(m,p) ABORT
+#define USAGE_ERROR_ACTION(m,p) do { printf("malloc: Bad address %p\n", p); while(1);} while(0);
 #endif /* USAGE_ERROR_ACTION */
 
 #endif /* PROCEED_ON_ERROR */
@@ -4742,7 +4742,12 @@ void dlfree(void* mem) {
               }
             }
             else
+            {
+              printf("Malloc info: ok_address failed!\n");
+              printf("prev: %p\nleast address: %p\n", prev, fm->least_addr);
+              printf("fm: %p\n", fm);
               goto erroraction;
+            }
           }
         }
 

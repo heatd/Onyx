@@ -348,42 +348,30 @@ int ata_initialize_drive(int channel, int drive)
 
 	char *path = zalloc(strlen(devname) + 1);
 	if(!path)
-		return 1;
+		return 0;
+
 	strcpy(path, dev_name);
 	const char *id = idm_get_device_letter(ata_ids);
 	assert(id != NULL);
 	strcat(path, id);
 
 	/* Create /dev/hdxx */
-	struct inode *atadev = creat_vfs(slashdev, path, 0666);
-	if(!atadev)
-	{
-		free(path);
-		FATAL("ata", "could not create a device node!\n");
-		return 0;
-	}
+
 	/* Allocate a major-minor pair for a device */
-	struct minor_device *min = dev_register(0, 0);
+	struct dev *min = dev_register(0, 0, path);
 	if(!min)
 	{
 		free(path);
 		FATAL("ata", "could not create a device ID for %s\n", path);
 		return 0;
 	}
-	
-	min->fops = malloc(sizeof(struct file_ops));
-	if(!min->fops)
-	{
-		free(path);
-		dev_unregister(min->majorminor);
-		FATAL("ata", "could not create a file operation table for %s\n", path);
-		return 0;
-	}
-	memset(min->fops, 0, sizeof(struct file_ops));
-	min->fops->write = atadev_write;
-	min->fops->read = atadev_read;
-	atadev->type = VFS_TYPE_CHAR_DEVICE;
-	atadev->dev = min->majorminor;
+
+	memset(&min->fops, 0, sizeof(struct file_ops));
+	min->fops.write = atadev_write;
+	min->fops.read = atadev_read;
+
+	device_show(min);
+
 	num_drives++;
 
 	if(ide_drives[curr].buffer[0] == 0)
@@ -397,7 +385,6 @@ int ata_initialize_drive(int channel, int drive)
 	if(!dev)
 	{
 		FATAL("ata", "could not create a block device\n");
-		free(min->fops);
 		dev_unregister(min->majorminor);
 		return 1;	
 	}
@@ -419,7 +406,8 @@ int ata_initialize_drive(int channel, int drive)
 	dev->write = ata_write;
 	dev->flush = ata_flush;
 	dev->power = ata_pm;
-	atadev->helper = dev;
+	min->priv = dev;
+
 	blkdev_add_device(dev);
 	
 	INFO("ata", "Created %s for drive %u\n", path, num_drives);

@@ -6,6 +6,7 @@
 #ifndef _KERNEL_DEV_H
 #define _KERNEL_DEV_H
 #include <stdint.h>
+#include <stdbool.h>
 
 #include <sys/types.h>
 
@@ -13,28 +14,35 @@
 #include <onyx/vfs.h>
 #include <onyx/spinlock.h>
 #include <onyx/list.h>
+#include <onyx/tmpfs.h>
 
-#define MAJOR_DEVICE_HASHTABLE 256
+#define MAJOR_DEVICE_HASHTABLE 65536
 
-struct minor_device
+struct dev
 {
-	struct minor_device *next;
+	struct dev *next;
 	dev_t majorminor;
-	struct file_ops *fops;
-	void *ptr; /* Helper pointer */
+	struct file_ops fops;
+	char *name;
+	void *priv;
+	bool is_block;
+	tmpfs_file_t *file;
 };
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-unsigned int __allocate_dynamic_major(void);
-struct minor_device *dev_register(unsigned int major, unsigned int first_minor);
-void dev_unregister(dev_t dev);
-struct minor_device *dev_find(dev_t dev);
 
-int devfs_init(void);
+unsigned int __allocate_dynamic_major(void);
+struct dev *dev_register(unsigned int major, unsigned int minor, char *name);
+void dev_unregister(dev_t dev);
+struct dev *dev_find(dev_t dev);
+int device_show(struct dev *d);
+
+void devfs_init(void);
 void null_init(void);
 void zero_init(void);
+
 extern struct inode *slashdev;
 
 struct bus;

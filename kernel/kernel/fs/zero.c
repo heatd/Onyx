@@ -19,23 +19,15 @@ size_t zero_read(int flags, size_t offset, size_t count, void *buf, struct inode
 	memset(buf, 0, count);
 	return count;
 }
-void zero_init()
-{
-	struct inode *n = creat_vfs(slashdev, "zero", 0666);
-	if(!n)
-		panic("Could not create /dev/zero!\n");
-	n->type = VFS_TYPE_BLOCK_DEVICE;
-	
-	struct minor_device *min = dev_register(1, 0);
+void zero_init(void)
+{	
+	struct dev *min = dev_register(0, 0, "zero");
 	if(!min)
 		panic("Could not create a device ID for /dev/zero!\n");
 	
-	min->fops = malloc(sizeof(struct file_ops));
-	if(!min->fops)
-		panic("Could not create a file operation table for /dev/zero!\n");
-	memset(min->fops, 0, sizeof(struct file_ops));
+	memset(&min->fops, 0, sizeof(struct file_ops));
 
-	min->fops->read = zero_read;
-	n->dev = min->majorminor;
-	memcpy(&n->fops, min->fops, sizeof(struct file_ops));
+	min->fops.read = zero_read;
+	
+	device_show(min);
 }

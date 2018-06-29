@@ -1,5 +1,5 @@
 PROG:= wserver
-OBJS:= main.o display.o window.o
+OBJS:= main.o display.o window.o server.o
 CFLAGS:=-O2 -g -std=c99 -static -march=sandybridge -fstack-protector-strong
 CPPFLAGS:=-Iinclude -D_POSIX_C_SOURCE
 

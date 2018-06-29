@@ -23,7 +23,7 @@
 #include <onyx/vfs.h>
 #include <onyx/dev.h>
 
-#include <drivers/pci.h>
+#include <pci/pci.h>
 #include <drivers/ata.h>
 
 #define NUM_PRDT_PER_TABLE	64
@@ -511,25 +511,15 @@ int ahci_initialize(void)
 			strcpy(buf, "sd");
 			buf[strlen(buf)] = device_letter++;
 
-			struct inode *node = creat_vfs(slashdev, strdup(buf), 0644);
-			if(!node)
-				continue;	/* Fail silently - maybe we shouldn't do this? */
 			/* Allocate a major-minor pair for a device */
-			struct minor_device *min = dev_register(0, 0);
+			struct dev *min = dev_register(0, 0, strdup(buf));
 			if(!min)
 			{
 				/* Again, should we be doing this? */
 				continue;
 			}
-			min->fops = malloc(sizeof(struct file_ops));
-			if(!min->fops)
-			{
-				dev_unregister(min->majorminor);
-				continue;
-			}
-			memset(min->fops, 0, sizeof(struct file_ops));
-			node->type = VFS_TYPE_CHAR_DEVICE;
-			node->dev = min->majorminor;
+			
+			device_show(min);
 
 			block_device_t *dev = malloc(sizeof(block_device_t));
 			if(!dev)

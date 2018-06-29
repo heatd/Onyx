@@ -9,7 +9,7 @@
 
 #include <onyx/irq.h>
 
-#include <drivers/pci-msi.h>
+#include <pci/pci-msi.h>
 
 int platform_allocate_msi_interrupts(unsigned int num_vectors, bool addr64, 
                                      struct pci_msi_data *data);

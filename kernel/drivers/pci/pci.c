@@ -13,7 +13,7 @@
 #include <onyx/panic.h>
 #include <onyx/dev.h>
 
-#include <drivers/pci.h>
+#include <pci/pci.h>
 
 int pci_shutdown(struct device *__dev);
 static struct bus pci_bus = 

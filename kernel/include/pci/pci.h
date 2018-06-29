@@ -9,7 +9,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include <drivers/pcie.h>
+#include <pci/pcie.h>
 
 #include <onyx/portio.h>
 #include <onyx/spinlock.h>

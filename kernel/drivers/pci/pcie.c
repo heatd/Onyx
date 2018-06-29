@@ -14,8 +14,8 @@
 #include <onyx/dev.h>
 #include <onyx/log.h>
 
-#include <drivers/pci.h>
-#include <drivers/pcie.h>
+#include <pci/pci.h>
+#include <pci/pcie.h>
 ACPI_TABLE_MCFG *mcfg = NULL;
 struct pcie_allocation *allocations = NULL;
 

@@ -14,6 +14,7 @@
 #include <onyx/vfs.h>
 #include <onyx/mutex.h>
 #include <onyx/page.h>
+#include <onyx/dev.h>
 
 static mutex_t tmpfs_list_lock;
 static tmpfs_filesystem_t *filesystems = NULL;
@@ -66,7 +67,7 @@ static void tmpfs_append_file(tmpfs_file_t *dir, tmpfs_file_t *file)
 	mutex_unlock(&dir->dirent_lock);
 }
 
-static tmpfs_file_t *tmpfs_create_file(tmpfs_file_t *dir, const char *name)
+tmpfs_file_t *tmpfs_create_file(tmpfs_file_t *dir, const char *name)
 {
 	/* Create the file structure */
 	tmpfs_file_t *file = zalloc(sizeof(tmpfs_file_t));
@@ -85,7 +86,7 @@ error:
 	return NULL;
 }
 
-static struct inode *tmpfs_file_to_vfs(tmpfs_file_t *file, struct inode *parent)
+struct inode *tmpfs_file_to_vfs(tmpfs_file_t *file, struct inode *parent)
 {
 	struct inode *f = zalloc(sizeof(struct inode));
 	if(!f)
@@ -101,6 +102,12 @@ static struct inode *tmpfs_file_to_vfs(tmpfs_file_t *file, struct inode *parent)
 		case TMPFS_FILE_TYPE_SYM:
 			f->type = VFS_TYPE_SYMLINK;
 			break;
+		case TMPFS_FILE_TYPE_CHAR:
+			f->type = VFS_TYPE_CHAR_DEVICE;
+			break;
+		case TMPFS_FILE_TYPE_BLOCK:
+			f->type = VFS_TYPE_BLOCK_DEVICE;
+			break;
 	}
 
 	//f->mode = mode;
@@ -109,10 +116,23 @@ static struct inode *tmpfs_file_to_vfs(tmpfs_file_t *file, struct inode *parent)
 	f->name = vfs_get_full_path(parent, (char*) file->name);
 	if(!f->name)
 		goto error;
-	tmpfs_set_node_fileops(f);
+
+	f->rdev = file->rdev;
+
+	if(f->rdev)
+	{
+		struct dev *d = dev_find(f->rdev);
+		assert(d != NULL);
+		memcpy(&f->fops, &d->fops, sizeof(struct file_ops));
+		f->helper = d->priv;
+	}
+	else
+		tmpfs_set_node_fileops(f);
+
 	f->inode = (ino_t) file;
 	f->refcount = 1;
 	f->size = file->size;
+	f->helper = parent->helper;
 
 	return f;
 error:
@@ -282,10 +302,33 @@ struct inode *tmpfs_mkdir(const char *name, mode_t mode, struct inode *vnode)
 	return tmpfs_file_to_vfs(new_file, vnode);
 }
 
+struct inode *tmpfs_find_inode_in_cache(struct inode *vnode, tmpfs_file_t *file)
+{
+	tmpfs_filesystem_t *fs = tmpfs_get_root(vnode);
+	
+	assert(fs != NULL);
+
+	/* Try to find the inode */
+	struct inode *inode = superblock_find_inode(fs->superblock, (ino_t) file);
+
+	if(inode)
+		return inode;
+	
+	/* If we found it, great, else, create a new struct inode and add it to
+	 * the cache */
+	inode = tmpfs_file_to_vfs(file, vnode);
+
+	if(!inode)
+		return NULL;
+	
+	superblock_add_inode(fs->superblock, inode);
+	return inode;
+}
+
 struct inode *tmpfs_open(struct inode *vnode, const char *name)
 {
 	tmpfs_file_t *dir = (tmpfs_file_t *) vnode->inode;
-	
+
 	assert(dir != NULL);
 
 	tmpfs_file_t *file = tmpfs_open_file(dir, name);
@@ -297,7 +340,7 @@ struct inode *tmpfs_open(struct inode *vnode, const char *name)
 		return open_vfs(*file->symlink == '/' ? fs_root : vnode, file->symlink);
 	}
 
-	return tmpfs_file_to_vfs(file, vnode);
+	return tmpfs_find_inode_in_cache(vnode, file);
 }
 
 static void tmpfs_set_node_fileops(struct inode *node)
@@ -330,16 +373,32 @@ tmpfs_filesystem_t *__tmpfs_allocate_fs(void)
 	return new_fs;
 }
 
+static void tmpfs_destroy_early(tmpfs_filesystem_t *fs)
+{
+	if(fs->superblock) free(fs->superblock);
+	if(fs->root) free(fs->root);
+	free(fs);
+}
+
 int tmpfs_mount(const char *mountpoint)
 {
 	LOG("tmpfs", "Mounting on %s\n", mountpoint);
 
 	tmpfs_filesystem_t *fs = __tmpfs_allocate_fs();
 
-	struct inode *node = malloc(sizeof(struct inode));
-	if(!node)
+	fs->superblock = zalloc(sizeof(struct superblock));
+	if(!fs->superblock)
+	{
+		tmpfs_destroy_early(fs);
 		return -1;
-	memset(node, 0, sizeof(struct inode));
+	}
+
+	struct inode *node = zalloc(sizeof(struct inode));
+	if(!node)
+	{
+		tmpfs_destroy_early(fs);
+		return -1;
+	}
 
 	node->name = "";
 	node->mountpoint = (char*) mountpoint;
@@ -349,6 +408,17 @@ int tmpfs_mount(const char *mountpoint)
 
 	tmpfs_set_node_fileops(node);
 
-	mount_fs(node, mountpoint);
+	if(mount_fs(node, mountpoint) < 0)
+	{
+		tmpfs_destroy_early(fs);
+		free(node);
+		return -1;
+	}
+
 	return 0;
+}
+
+tmpfs_filesystem_t *tmpfs_get_root(struct inode *inode)
+{
+	return inode->helper;
 }

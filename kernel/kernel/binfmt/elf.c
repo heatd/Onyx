@@ -3,7 +3,7 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
-
+#include <assert.h>
 #include <stdbool.h>
 #include <errno.h>
 #include <stdio.h>
@@ -59,10 +59,12 @@ static inline char *elf_get_reloc_str(Elf64_Ehdr *hdr, Elf64_Shdr *strsec, Elf64
 	return (char*)hdr + strsec->sh_offset + off;
 }
 
+uintptr_t get_common_block(const char *name, size_t size);
+
 uintptr_t get_kernel_sym_by_name(const char* name);
 uintptr_t elf_resolve_symbol(Elf64_Ehdr *hdr, Elf64_Shdr *sections, Elf64_Shdr *target, size_t sym_idx)
 {
-	Elf64_Sym *symbol = (Elf64_Sym*)((char*)hdr + symtab->sh_offset);
+	Elf64_Sym *symbol = (Elf64_Sym*)((char*) hdr + symtab->sh_offset);
 	symbol = &symbol[sym_idx];
 	Elf64_Shdr *stringtab = &sections[symtab->sh_link];
 
@@ -84,6 +86,12 @@ uintptr_t elf_resolve_symbol(Elf64_Ehdr *hdr, Elf64_Shdr *sections, Elf64_Shdr *
 	}
 	else if(symbol->st_shndx == SHN_ABS)
 		return symbol->st_value;
+	else if(symbol->st_shndx == SHN_COMMON)
+	{
+		const char *name = elf_get_reloc_str(hdr, stringtab, symbol->st_name);
+		assert(symbol->st_value <= PAGE_SIZE);
+		return get_common_block(name, symbol->st_size);
+	}
 	else
 	{
 		Elf64_Shdr *tar = &sections[symbol->st_shndx];

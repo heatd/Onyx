@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <drivers/pci.h>
+#include <pci/pci.h>
 
 typedef struct
 {

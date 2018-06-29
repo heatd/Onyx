@@ -117,6 +117,7 @@ extern isr_handler
 global isr_common:function
 isr_common:
 	cld
+	xor rbp, rbp
 	mov rax, ds
 	push rax
 	mov ax, 0x10

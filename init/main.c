@@ -16,6 +16,7 @@
 #include <time.h>
 #include <ctype.h>
 
+#include <sys/stat.h>
 #include <netinet/in.h>
 #include <sys/time.h>
 #include <sys/wait.h>
@@ -84,12 +85,14 @@ int mount_filesystems(void)
 		perror("/etc/fstab");
 		return 1;
 	}
+
 	char *read_buffer = malloc(1024);
 	if(!read_buffer)
 	{
 		perror(__func__);
 		return 1;
 	}
+
 	memset(read_buffer, 0, 1024);
 	int fd = open("/dev", O_RDONLY);
 	while(fgets(read_buffer, 1024, fp) != NULL)
@@ -143,6 +146,9 @@ int mount_filesystems(void)
 	}
 	/* Now, mount /dev on root again */
 	fmount(fd, "/dev");
+
+	/* Create /dev/shm */
+	mkdir("/dev/shm", 0666);
 func_exit:
 	free(read_buffer);
 	close(fd);

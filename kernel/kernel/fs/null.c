@@ -19,23 +19,14 @@ size_t null_write(size_t offset, size_t count, void *buf, struct inode *n)
 	UNUSED(n);
 	return count;
 }
-void null_init()
-{
-	struct inode *n = creat_vfs(slashdev, "null", 0666);
-	if(!n)
-		panic("Could not create /dev/null!\n");
-	n->type = VFS_TYPE_BLOCK_DEVICE;
-	
-	struct minor_device *min = dev_register(1, 0);
+
+void null_init(void)
+{	
+	struct dev *min = dev_register(0, 0, "null");
 	if(!min)
 		panic("Could not create a device ID for /dev/null!\n");
-	
-	min->fops = malloc(sizeof(struct file_ops));
-	if(!min->fops)
-		panic("Could not create a file operation table for /dev/null!\n");
-	memset(min->fops, 0, sizeof(struct file_ops));
 
-	min->fops->write = null_write;
-	n->dev = min->majorminor;
-	memcpy(&n->fops, min->fops, sizeof(struct file_ops));
+	min->fops.write = null_write;
+	
+	device_show(min);
 }

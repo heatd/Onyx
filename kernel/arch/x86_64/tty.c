@@ -421,25 +421,15 @@ unsigned int tty_ioctl(int request, void *argp, struct inode *dev)
 	return -EINVAL;
 }
 
-void tty_create_dev()
+void tty_create_dev(void)
 {
-	struct inode *ttydev = creat_vfs(slashdev, "tty", 0666);
-	if(!ttydev)
-		panic("Could not allocate /dev/tty!\n");
-
-	struct minor_device *minor = dev_register(0, 0);
+	struct dev *minor = dev_register(0, 0, "tty");
 	if(!minor)
-		panic("Could not allocate a device ID!\n");
-	
-	minor->fops = malloc(sizeof(struct file_ops));
-	if(!minor->fops)
-		panic("Could not allocate a file operation table!\n");
-	
-	memset(minor->fops, 0, sizeof(struct file_ops));
+		panic("Could not allocate a device ID!\n");	
 
-	ttydev->dev = minor->majorminor;
-	ttydev->fops.write = ttydevfs_write;
-	ttydev->fops.read = ttydevfs_read;
-	ttydev->fops.ioctl = tty_ioctl; 
-	ttydev->type = VFS_TYPE_CHAR_DEVICE;
+	minor->fops.write = ttydevfs_write;
+	minor->fops.read = ttydevfs_read;
+	minor->fops.ioctl = tty_ioctl;
+
+	device_show(minor);
 }
