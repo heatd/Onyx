@@ -11,8 +11,6 @@
 #include <onyx/spinlock.h>
 #include <onyx/block.h>
 
-#include <drivers/ata.h>
-
 #define EXT2_MBR_CODE 0x83
 #define EXT2_FS_CLEAN 1
 #define EXT2_FS_ERROR 2

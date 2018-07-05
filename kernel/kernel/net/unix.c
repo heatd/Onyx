@@ -141,11 +141,11 @@ int un_do_bind(const struct sockaddr_un *un, socklen_t addrlen, struct un_socket
 	if(!is_abstract)
 	{
 		/* TODO: This doesn't work! */
-		struct inode *inode = creat_vfs(fs_root, address, 0666);
+		struct inode *inode = creat_vfs(get_fs_root(), address, 0666);
 		if(!inode)
 			return -errno;
 
-		inode->rdev = (dev_t) socket;
+		inode->i_rdev = (dev_t) socket;
 
 		return 0;
 	}
@@ -230,8 +230,8 @@ socket_t *unix_create_socket(int type)
 		return NULL;
 
 	struct inode *vnode = (struct inode*) socket;
-	memcpy(&vnode->fops, &un_ops, sizeof(struct file_ops));
-	vnode->type = VFS_TYPE_UNIX_SOCK;
+	memcpy(&vnode->i_fops, &un_ops, sizeof(struct file_ops));
+	vnode->i_type = VFS_TYPE_UNIX_SOCK;
 	socket->type = type;
 	
 	return (socket_t*) socket;

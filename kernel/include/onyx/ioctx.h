@@ -24,6 +24,7 @@ typedef struct
 {
 	/* Current working directory */
 	struct inode *cwd;
+	const char *name;
 	mutex_t fdlock;
 	file_desc_t **file_desc;
 	int file_desc_entries;

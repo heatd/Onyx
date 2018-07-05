@@ -41,5 +41,6 @@ struct page_cache_block
 struct page_cache_block *add_to_cache(void *data, size_t size, off_t off, struct inode *node);
 void pagecache_init(void);
 void wakeup_sync_thread(void);
+void page_cache_destroy(struct page_cache_block *block);
 
 #endif

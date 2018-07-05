@@ -19,6 +19,9 @@
 #include <onyx/atomic.h>
 #include <onyx/sysfs.h>
 #include <onyx/fnv.h>
+#include <onyx/object.h>
+#include <onyx/process.h>
+#include <onyx/dentry.h>
 
 struct inode *fs_root = NULL;
 struct inode *mount_list = NULL;
@@ -27,6 +30,38 @@ ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *file, o
 #define FILE_CACHING_READ	(0 << 0)
 #define FILE_CACHING_WRITE	(1 << 0)
 
+struct filesystem_root
+{
+	struct object object;
+	struct inode *inode;
+	struct dentry *root_dentry;
+};
+
+struct filesystem_root boot_root = {0};
+
+int vfs_init(void)
+{
+	object_init(&boot_root.object, NULL);
+	//dentry_init();
+
+	return 0;
+}
+
+struct filesystem_root *get_filesystem_root(void)
+{
+	struct process *p = get_current_process();
+	if(!p)
+		return &boot_root;
+
+	return &boot_root;
+}
+
+struct inode *get_fs_root(void)
+{
+	struct filesystem_root *root = get_filesystem_root();
+
+	return root->inode;
+}
 
 struct page_cache_block *inode_do_caching(struct inode *inode, off_t offset, long flags)
 {
@@ -38,7 +73,7 @@ struct page_cache_block *inode_do_caching(struct inode *inode, off_t offset, lon
 	
 	/* The size may be lesser than PAGE_SIZE, because we may reach EOF
 	 * before reading a page */
-	ssize_t size = inode->fops.read(0, offset, PAGE_SIZE, cache, inode);
+	ssize_t size = inode->i_fops.read(0, offset, PAGE_SIZE, cache, inode);
 	
 	if(size <= 0 && !(flags & FILE_CACHING_WRITE))
 		return NULL;
@@ -64,7 +99,7 @@ struct page_cache_block *__inode_get_page_internal(struct inode *inode, off_t of
 	off_t aligned_off = (offset / PAGE_CACHE_SIZE) * PAGE_CACHE_SIZE;
 	fnv_hash_t hash = fnv_hash(&aligned_off, sizeof(offset));
 
-	struct page_cache_block *b = inode->pages[hash % VFS_PAGE_HASHTABLE_ENTRIES];
+	struct page_cache_block *b = inode->i_pages[hash % VFS_PAGE_HASHTABLE_ENTRIES];
 
 	/* Note: This should run with the pages_lock held */
 	for(; b; b = b->next_inode)
@@ -92,7 +127,7 @@ struct page_cache_block *__inode_get_page(struct inode *inode, off_t offset)
 
 struct page_cache_block *inode_get_page(struct inode *inode, off_t offset)
 {
-	acquire_spinlock(&inode->pages_lock);
+	acquire_spinlock(&inode->i_pages_lock);
 
 	struct page_cache_block *b = __inode_get_page(inode, offset);
 
@@ -101,40 +136,24 @@ struct page_cache_block *inode_get_page(struct inode *inode, off_t offset)
 		off_t aligned_off = (offset / PAGE_CACHE_SIZE) * PAGE_CACHE_SIZE;
 		fnv_hash_t hash = fnv_hash(&aligned_off, sizeof(offset));
 		unsigned int idx = hash % VFS_PAGE_HASHTABLE_ENTRIES;
-		printk("idx[]: %p\n", inode->pages[idx]);
+		printk("idx[]: %p\n", inode->i_pages[idx]);
 		printk("Aligned off %ld\nHash %u\n", aligned_off, idx);
 		while(1);
-		release_spinlock(&inode->pages_lock);
+		release_spinlock(&inode->i_pages_lock);
 	}
 	return b;
 }
 
-int vfs_init(void)
-{
-	mount_list = malloc(sizeof(struct inode));
-	if(!mount_list)
-		panic("Error while allocating the mount list!\n");
-	memset(mount_list, 0, sizeof(struct inode));
-	if(!mount_list)
-		return 1;
-	fs_root = mount_list;
-	memset(fs_root, 0, sizeof(struct inode));
-	fs_root->refcount++;
-	return 0;
-}
-
 size_t read_vfs(int flags, size_t offset, size_t sizeofread, void* buffer, struct inode* this)
 {
-	if(this->type & VFS_TYPE_DIR)
+	if(this->i_type & VFS_TYPE_DIR)
 		return errno = EISDIR, -1;
-	if(this->type & VFS_TYPE_MOUNTPOINT)
-		return read_vfs(flags, offset, sizeofread, buffer, this->link);
-	if(this->fops.read != NULL)
+	if(this->i_fops.read != NULL)
 	{
 		ssize_t status;
 		/* If caching failed, just do the normal way */
 		if((status = lookup_file_cache(buffer, sizeofread, this, offset)) < 0)
-			return this->fops.read(flags, offset, sizeofread, buffer, this);
+			return this->i_fops.read(flags, offset, sizeofread, buffer, this);
 		return status;
 	}
 	return errno = ENOSYS;
@@ -142,17 +161,15 @@ size_t read_vfs(int flags, size_t offset, size_t sizeofread, void* buffer, struc
 
 size_t write_vfs(size_t offset, size_t sizeofwrite, void* buffer, struct inode* this)
 {
-	if(this->type & VFS_TYPE_MOUNTPOINT)
-		return write_vfs(offset, sizeofwrite, buffer, this->link);
-	if(this->fops.write != NULL)
+	if(this->i_fops.write != NULL)
 	{
 		ssize_t status;
 		/* If caching failed, just do the normal way */
 		if((status = write_file_cache(buffer, sizeofwrite, this, offset)) < 0)
-			return this->fops.write(offset, sizeofwrite, buffer, this);
-		if(offset + sizeofwrite > this->size)
+			return this->i_fops.write(offset, sizeofwrite, buffer, this);
+		if(offset + sizeofwrite > this->i_size)
 		{
-			this->size = offset + sizeofwrite;
+			this->i_size = offset + sizeofwrite;
 		}
 
 		return status;
@@ -163,39 +180,23 @@ size_t write_vfs(size_t offset, size_t sizeofwrite, void* buffer, struct inode* 
 
 int ioctl_vfs(int request, char *argp, struct inode *this)
 {
-	if(this->type & VFS_TYPE_MOUNTPOINT)
-		return ioctl_vfs(request, argp, this->link);
-	if(this->fops.ioctl != NULL)
-		return this->fops.ioctl(request, (void*) argp, this);
+	if(this->i_fops.ioctl != NULL)
+		return this->i_fops.ioctl(request, (void*) argp, this);
 	return -ENOSYS;
 }
 
 void close_vfs(struct inode* this)
 {
-	if(this->type & VFS_TYPE_MOUNTPOINT)
-		close_vfs(this->link);
-	if(this->fops.close != NULL)
-		this->fops.close(this);
-
-	if(atomic_dec(&this->refcount, 1) == 0)
-	{
-		if(this->i_sb)
-			superblock_remove_inode(this->i_sb, this);
-		free(this);
-	}
+	object_unref(&this->i_object);
 }
 
 struct inode *do_actual_open(struct inode *this, const char *name)
 {
 	assert(this != NULL);
 
-	if(this->type & VFS_TYPE_MOUNTPOINT)
+	if(this->i_fops.open != NULL)
 	{
-		return do_actual_open(this->link, name);
-	}
-	if(this->fops.open != NULL)
-	{
-		return this->fops.open(this, name);
+		return this->i_fops.open(this, name);
 	}
 	return errno = ENOSYS, NULL;
 }
@@ -220,10 +221,11 @@ struct inode *open_vfs(struct inode* this, const char *name)
 		return errno = ENOMEM, NULL;
 	char *saveptr;
 	char *orig = path;
+
 	/* Now, tokenize it using strtok */
 	path = strtok_r(path, "/", &saveptr);
 	struct inode *node = this;
-	
+
 	while(path)
 	{
 		node = open_path_segment(path, node);
@@ -232,6 +234,7 @@ struct inode *open_vfs(struct inode* this, const char *name)
 			free(orig);
 			return NULL;
 		}
+
 		path = strtok_r(NULL, "/", &saveptr);
 	}
 
@@ -261,16 +264,9 @@ struct inode *creat_vfs(struct inode *this, const char *path, int mode)
 		goto error;
 	}
 
-	if(base->type & VFS_TYPE_MOUNTPOINT)
+	if(base->i_fops.creat != NULL)
 	{
-		struct inode *node = creat_vfs(base->link, basename((char*) dup), mode);
-		free(dup);
-		return node;
-	}
-
-	if(base->fops.creat != NULL)
-	{
-		struct inode *ret = base->fops.creat(basename((char*) dup), mode, base);
+		struct inode *ret = base->i_fops.creat(basename((char*) dup), mode, base);
 		free(dup);
 		return ret;
 	}
@@ -303,16 +299,9 @@ struct inode *mkdir_vfs(const char *path, mode_t mode, struct inode *this)
 		goto error;
 	}
 
-	if(base->type & VFS_TYPE_MOUNTPOINT)
+	if(this->i_fops.mkdir != NULL)
 	{
-		struct inode *node = mkdir_vfs(basename((char*) dup), mode, base->link);
-		free(dup);
-		return node;
-	}
-
-	if(this->fops.mkdir != NULL)
-	{
-		struct inode *ret = this->fops.mkdir(basename((char*) dup), mode, base);
+		struct inode *ret = this->i_fops.mkdir(basename((char*) dup), mode, base);
 		free(dup);
 		return ret;
 	}
@@ -329,24 +318,19 @@ int mount_fs(struct inode *fsroot, const char *path)
 	assert(fsroot != NULL);
 
 	printf("mount_fs: Mounting on %s\n", path);
-	if(!strcmp((char*)path, "/"))
+	
+	if(strcmp((char*) path, "/") == 0)
 	{
-		fs_root->link = fsroot;
-		fs_root->dev = fsroot->dev;
-		fs_root->type = VFS_TYPE_MOUNTPOINT | VFS_TYPE_DIR;
-		if(!fs_root->name) fs_root->name = malloc(2);
-		if(!fs_root->name)
+		if(boot_root.inode)
 		{
-			ERROR("mount_fs", "out of memory\n");
-			while(1);
+			object_unref(&boot_root.inode->i_object);
 		}
-		strcpy(fs_root->name, path);
-		fsroot->mountpoint = (char*) path;
-		sysfs_mount();
+
+		boot_root.inode = fsroot;
 	}
 	else
 	{
-		struct inode *file = open_vfs(fs_root, dirname((char*) path));
+		struct inode *file = open_vfs(get_fs_root(), dirname((char*) path));
 		if(!file)
 			return -ENOENT;
 		file = do_actual_open(file, basename((char*) path));
@@ -359,10 +343,8 @@ int mount_fs(struct inode *fsroot, const char *path)
 
 off_t do_getdirent(struct dirent *buf, off_t off, struct inode *file)
 {
-	if(file->type & VFS_TYPE_MOUNTPOINT)
-		return do_getdirent(buf, off, file->link);
-	if(file->fops.getdirent != NULL)
-		return file->fops.getdirent(buf, off, file);
+	if(file->i_fops.getdirent != NULL)
+		return file->i_fops.getdirent(buf, off, file);
 	return -ENOSYS;
 }
 
@@ -383,7 +365,7 @@ int getdents_vfs(unsigned int count, putdir_t putdir,
 	struct dirent* dirp, off_t off, struct getdents_ret *ret,
 	struct inode *this)
 {
-	if(!(this->type & VFS_TYPE_DIR))
+	if(!(this->i_type & VFS_TYPE_DIR))
 		return errno = ENOTDIR, -1;
 	struct dirent buf;
 	unsigned int pos = 0;
@@ -425,10 +407,8 @@ int getdents_vfs(unsigned int count, putdir_t putdir,
 
 int stat_vfs(struct stat *buf, struct inode *node)
 {
-	if(node->type & VFS_TYPE_MOUNTPOINT)
-		return stat_vfs(buf, node->link);
-	if(node->fops.stat != NULL)
-		return node->fops.stat(buf, node);
+	if(node->i_fops.stat != NULL)
+		return node->i_fops.stat(buf, node);
 	
 	return errno = ENOSYS, (unsigned int) -1;
 }
@@ -438,7 +418,7 @@ void add_to_page_hashtable(struct page_cache_block *cache, struct inode *node)
 {
 	fnv_hash_t hash = fnv_hash(&cache->offset, sizeof(cache->offset));
 
-	struct page_cache_block **pp = &node->pages[hash % VFS_PAGE_HASHTABLE_ENTRIES];
+	struct page_cache_block **pp = &node->i_pages[hash % VFS_PAGE_HASHTABLE_ENTRIES];
 
 	while(*pp)
 		pp = &(*pp)->next_inode;
@@ -459,9 +439,9 @@ struct page_cache_block *add_cache_to_node(void *ptr, size_t size, off_t offset,
 ssize_t lookup_file_cache(void *buffer, size_t sizeofread, struct inode *file,
 	off_t offset)
 {
-	if(file->type != VFS_TYPE_FILE)
+	if(file->i_type != VFS_TYPE_FILE)
 		return -1;
-	if((size_t) offset > file->size)
+	if((size_t) offset > file->i_size)
 		return 0;
 	size_t read = 0;
 
@@ -482,12 +462,12 @@ ssize_t lookup_file_cache(void *buffer, size_t sizeofread, struct inode *file,
 		if(rest < 0) rest = 0;
 		size_t amount = sizeofread - read < (size_t) rest ?
 			sizeofread - read : (size_t) rest;
-		if(offset + amount > file->size)
+		if(offset + amount > file->i_size)
 		{
-			amount = file->size - offset;
+			amount = file->i_size - offset;
 			memcpy((char*) buffer + read,  (char*) cache->buffer +
 				cache_off, amount);
-			release_spinlock(&file->pages_lock);
+			release_spinlock(&file->i_pages_lock);
 			return read + amount;
 		}
 		else
@@ -496,39 +476,25 @@ ssize_t lookup_file_cache(void *buffer, size_t sizeofread, struct inode *file,
 		offset += amount;
 		read += amount;
 
-		release_spinlock(&file->pages_lock);
+		release_spinlock(&file->i_pages_lock);
 
 	}
 	return (ssize_t) read;
 }
 
-char *vfs_get_full_path(struct inode *vnode, char *name)
-{
-	size_t size = strlen(vnode->name) + strlen(name) + (strlen(vnode->name)
-		== 1 ? 0 : 1); 
-	char *string = malloc(size);
-	if(!string)
-		return NULL;
-	memset(string, 0, size);
-	strcpy(string, vnode->name);
-	if(strlen(vnode->name) != 1)	strcat(string, "/");
-	strcat(string, name);
-	return string;
-}
-
 ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *file,
 	off_t offset)
 {
-	if(file->type != VFS_TYPE_FILE)
+	if(file->i_type != VFS_TYPE_FILE)
 		return -1;
-	if((size_t) offset > file->size)
+	if((size_t) offset > file->i_size)
 		return 0;
 	
 	size_t wrote = 0;
 	while(wrote != sizeofwrite)
 	{
 		
-		acquire_spinlock(&file->pages_lock);
+		acquire_spinlock(&file->i_pages_lock);
 		struct page_cache_block *cache =
 			__inode_get_page_internal(file, offset,
 						  FILE_CACHING_WRITE);
@@ -550,7 +516,7 @@ ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *file,
 		offset += amount;
 		wrote += amount;
 
-		release_spinlock(&file->pages_lock);
+		release_spinlock(&file->i_pages_lock);
 	}
 
 	return (ssize_t) wrote;
@@ -558,39 +524,30 @@ ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *file,
 
 ssize_t send_vfs(const void *buf, size_t len, int flags, struct inode *node)
 {
-	if(node->type & VFS_TYPE_MOUNTPOINT)
-		return send_vfs(buf, len, flags, node->link);
-	if(node->fops.send != NULL)
-		return node->fops.send(buf, len, flags, node);
+	if(node->i_fops.send != NULL)
+		return node->i_fops.send(buf, len, flags, node);
 	return -ENOSYS;
 }
 
 int connect_vfs(const struct sockaddr *addr, socklen_t addrlen, struct inode *node)
 {
-	if(node->type & VFS_TYPE_MOUNTPOINT)
-		return connect_vfs(addr, addrlen, node->link);
-	if(node->fops.connect != NULL)
-		return node->fops.connect(addr, addrlen, node);
+	if(node->i_fops.connect != NULL)
+		return node->i_fops.connect(addr, addrlen, node);
 	return -ENOSYS;
 }
 
 int bind_vfs(const struct sockaddr *addr, socklen_t addrlen, struct inode *node)
 {
-	if(node->type & VFS_TYPE_MOUNTPOINT)
-		return connect_vfs(addr, addrlen, node->link);
-	if(node->fops.bind != NULL)
-		return node->fops.bind(addr, addrlen, node);
+	if(node->i_fops.bind != NULL)
+		return node->i_fops.bind(addr, addrlen, node);
 	return -ENOSYS;
 }
 
 ssize_t recvfrom_vfs(void *buf, size_t len, int flags,
 	struct sockaddr *src_addr, socklen_t *slen, struct inode *node)
 {
-	if(node->type & VFS_TYPE_MOUNTPOINT)
-		return recvfrom_vfs(buf, len, flags, src_addr, slen,
-			node->link);
-	if(node->fops.recvfrom != NULL)
-		return node->fops.recvfrom(buf, len, flags, src_addr, slen,
+	if(node->i_fops.recvfrom != NULL)
+		return node->i_fops.recvfrom(buf, len, flags, src_addr, slen,
 			node);
 	return -ENOSYS;
 }
@@ -601,10 +558,10 @@ int default_ftruncate(off_t length, struct inode *vnode)
 	if(length < 0)
 		return -EINVAL;
 	
-	if((size_t) length <= vnode->size)
+	if((size_t) length <= vnode->i_size)
 	{
 		/* Possible memory/disk leak, but filesystems should handle it */
-		vnode->size = (size_t) length;
+		vnode->i_size = (size_t) length;
 		return 0;
 	}
 
@@ -614,8 +571,8 @@ int default_ftruncate(off_t length, struct inode *vnode)
 		return -ENOMEM;
 	}
 
-	size_t length_diff = (size_t) length - vnode->size;
-	size_t off = vnode->size;
+	size_t length_diff = (size_t) length - vnode->i_size;
+	size_t off = vnode->i_size;
 	while(length_diff != 0)
 	{
 		size_t to_write = length_diff >= PAGE_SIZE ? PAGE_SIZE : length_diff;
@@ -636,10 +593,8 @@ int default_ftruncate(off_t length, struct inode *vnode)
 
 int ftruncate_vfs(off_t length, struct inode *vnode)
 {
-	if(vnode->type & VFS_TYPE_MOUNTPOINT)
-		return ftruncate_vfs(length, vnode);
-	if(vnode->fops.ftruncate != NULL)
-		return vnode->fops.ftruncate(length, vnode);
+	if(vnode->i_fops.ftruncate != NULL)
+		return vnode->i_fops.ftruncate(length, vnode);
 	else
 	{
 		return default_ftruncate(length, vnode);
@@ -650,10 +605,8 @@ int ftruncate_vfs(off_t length, struct inode *vnode)
 
 int symlink_vfs(const char *dest, struct inode *inode)
 {
-	if(inode->type & VFS_TYPE_MOUNTPOINT)
-		return symlink_vfs(dest, inode);
-	if(inode->fops.symlink != NULL)
-		return inode->fops.symlink(dest, inode);
+	if(inode->i_fops.symlink != NULL)
+		return inode->i_fops.symlink(dest, inode);
 	return -ENOSYS;
 }
 
@@ -664,7 +617,55 @@ struct page *file_get_page(struct inode *ino, off_t offset)
 	struct page_cache_block *cache = inode_get_page(ino, off);
 
 	/* TODO: questionablecode.jpeg */
-	release_spinlock(&ino->pages_lock);
+	release_spinlock(&ino->i_pages_lock);
 
 	return cache != NULL ? cache->page : NULL;
+}
+
+void inode_destroy_page_caches(struct inode *inode)
+{
+	for(size_t i = 0; i < VFS_PAGE_HASHTABLE_ENTRIES; i++)
+	{
+		if(!inode->i_pages[i])
+			continue;
+		
+		struct page_cache_block *block = inode->i_pages[i];
+
+		while(block)
+		{
+			struct page_cache_block *old = block;
+			block = block->next_inode;
+			
+			page_cache_destroy(old);
+		}
+	}
+}
+
+void inode_release(struct object *object)
+{
+	struct inode *inode = (struct inode *) object;
+
+	assert(inode->i_sb != NULL);
+
+	if(inode->i_fops.close != NULL)
+		inode->i_fops.close(inode);
+
+	/* Remove the inode from its superblock */
+	superblock_remove_inode(inode->i_sb, inode);
+
+	inode_destroy_page_caches(inode);
+
+	free(inode);
+}
+
+struct inode *inode_create(void)
+{
+	struct inode *inode = zalloc(sizeof(*inode));
+
+	if(!inode)
+		return NULL;
+
+	object_init(&inode->i_object, inode_release);
+
+	return inode;
 }

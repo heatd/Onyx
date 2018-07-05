@@ -34,27 +34,18 @@ struct sysfs_file *lookup_in_sysfs_dirent(struct sysfs_file *file, char *segm)
 
 struct inode *sysfs_create_inode_for_file(struct sysfs_file *f)
 {
-	struct inode *ino = zalloc(sizeof(*ino));
+	struct inode *ino = inode_create();
 	if(!ino)
 		return NULL;
-	ino->name = strdup(f->name);
-	if(!ino)
-		goto fail;
-	ino->type = f->type;
-	ino->permitions = f->perms;
+
+	ino->i_type = f->type;
+	ino->i_permitions = f->perms;
 	ino->i_sb = sysfs_root_ino->i_sb;
-	ino->dev = sysfs_root_ino->dev;
-	ino->inode = (ino_t) f;
+	ino->i_dev = sysfs_root_ino->i_dev;
+	ino->i_inode = (ino_t) f;
 	
 	sysfs_setup_fops(ino);
 	
-	return ino;
-fail:
-	if(ino)
-	{
-		free(ino->name);
-		free(ino);
-	}
 	return ino;
 }
 struct sysfs_file *sysfs_create_file(char *name)
@@ -100,7 +91,7 @@ struct inode *sysfs_creat(const char *pathname, int mode, struct inode *node)
 	struct sysfs_file *file;
 	struct sysfs_file *f = NULL;
 
-	file = (struct sysfs_file*) node->inode;
+	file = (struct sysfs_file*) node->i_inode;
 
 	f = sysfs_create_file((char *) pathname);
 	if(!f)
@@ -129,7 +120,7 @@ struct sysfs_file *sysfs_create_entry(const char *pathname, int mode, struct ino
 	path = strdup(pathname);
 	if(!path) return errno = ENOMEM, NULL;
 	segm = strtok_r(path, "/", &saveptr);
-	file = (struct sysfs_file*) node->inode;
+	file = (struct sysfs_file*) node->i_inode;
 	if(!file)
 	{
 		errno = EBADFD;
@@ -155,6 +146,8 @@ struct sysfs_file *sysfs_create_entry(const char *pathname, int mode, struct ino
 
 	f->perms = mode;
 
+	free(path);
+
 	sysfs_add(file, f);
 	return f;
 error:
@@ -171,10 +164,10 @@ struct inode *sysfs_open(struct inode *node, const char *name)
 	char *path = strdup(name);
 	if(!path)
 		return NULL;
-	struct sysfs_file *file = (struct sysfs_file*) node->inode;
+	struct sysfs_file *file = (struct sysfs_file*) node->i_inode;
 	if(!file)
 		return NULL; /* This should never happen, maybe in corruption? */
-	if(!(node->type & VFS_TYPE_DIR))
+	if(!(node->i_type & VFS_TYPE_DIR))
 		return errno = ENOTDIR, NULL;
 	segm = strtok_r(path, "/", &saveptr);
 	 
@@ -196,7 +189,7 @@ struct inode *sysfs_open(struct inode *node, const char *name)
 
 size_t sysfs_read(int flags, size_t offset, size_t sizeofread, void *buffer, struct inode *this)
 {
-	struct sysfs_file *file = (struct sysfs_file*) this->inode;
+	struct sysfs_file *file = (struct sysfs_file*) this->i_inode;
 	assert(file != NULL);
 
 	if(file->read) return file->read(buffer, sizeofread, offset);
@@ -206,7 +199,7 @@ size_t sysfs_read(int flags, size_t offset, size_t sizeofread, void *buffer, str
 
 size_t sysfs_write(size_t offset, size_t sizeofwrite, void *buffer, struct inode *this)
 {
-	struct sysfs_file *file = (struct sysfs_file*) this->inode;
+	struct sysfs_file *file = (struct sysfs_file*) this->i_inode;
 	assert(file != NULL);
 
 	if(file->write) return file->write(buffer, sizeofwrite, offset);
@@ -217,7 +210,7 @@ size_t sysfs_write(size_t offset, size_t sizeofwrite, void *buffer, struct inode
 void sysfs_init(void)
 {
 	/* If this function fails, just panic. sysfs is crucial */
-	struct inode *root = zalloc(sizeof(struct inode));
+	struct inode *root = inode_create();
 	assert(root != NULL);
 
 	struct superblock *sb = zalloc(sizeof(*sb));
@@ -227,21 +220,20 @@ void sysfs_init(void)
 	sb->s_ref = 1;
 
 	root->i_sb = sb;
-	root->name = "/sys";
-	root->type = VFS_TYPE_DIR;
-	root->inode = (ino_t) &sysfs_root;
+	root->i_type = VFS_TYPE_DIR;
+	root->i_inode = (ino_t) &sysfs_root;
 	
 	sysfs_root.name = "";
 	sysfs_root.perms = 0555 | S_IFDIR;
 	sysfs_root.type = VFS_TYPE_DIR;
-	sysfs_root.inode = root->inode;
+	sysfs_root.inode = root->i_inode;
 
 	sysfs_root_ino = root;
 	struct dev *minor = dev_register(0, 0, "sysfs");
 	
 	assert(minor != NULL);
 
-	root->dev = minor->majorminor;
+	root->i_dev = minor->majorminor;
 	sysfs_setup_fops(root);
 	
 	if(mount_fs(root, "/sys") < 0)
@@ -262,7 +254,7 @@ void sysfs_mount(void)
 
 off_t sysfs_getdirent(struct dirent *buf, off_t off, struct inode *ino)
 {
-	struct sysfs_file *file = (struct sysfs_file*) ino->inode;
+	struct sysfs_file *file = (struct sysfs_file*) ino->i_inode;
 	assert(file != NULL);
 
 	struct sysfs_file *f = file->children;
@@ -341,21 +333,21 @@ int sysfs_stat(struct stat *buf, struct inode *node)
 {
 	memset(buf, 0, sizeof(struct stat));
 
-	struct sysfs_file *file = (struct sysfs_file *) node->inode;
+	struct sysfs_file *file = (struct sysfs_file *) node->i_inode;
 	buf->st_mode = file->perms;
 
-	buf->st_ino = node->inode;
-	buf->st_dev = node->dev;
+	buf->st_ino = node->i_inode;
+	buf->st_dev = node->i_dev;
 
 	return 0;
 }
 
 void sysfs_setup_fops(struct inode *ino)
 {
-	ino->fops.open = sysfs_open;
-	ino->fops.creat = sysfs_creat;
-	ino->fops.read = sysfs_read;
-	ino->fops.write = sysfs_write;
-	ino->fops.getdirent = sysfs_getdirent;
-	ino->fops.stat = sysfs_stat;
+	ino->i_fops.open = sysfs_open;
+	ino->i_fops.creat = sysfs_creat;
+	ino->i_fops.read = sysfs_read;
+	ino->i_fops.write = sysfs_write;
+	ino->i_fops.getdirent = sysfs_getdirent;
+	ino->i_fops.stat = sysfs_stat;
 }

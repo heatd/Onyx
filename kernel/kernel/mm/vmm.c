@@ -535,21 +535,19 @@ void vm_unmap_user(void *range, size_t pages)
 	struct vm_entry *entry = vmm_is_mapped(range);
 	assert(entry != NULL);
 	uintptr_t mem = (uintptr_t) range;
-	for (size_t i = 0; i < pages; i++)
+
+	struct vm_object *vmo = entry->vmo;
+	assert(vmo != NULL);
+
+	acquire_spinlock(&vmo->page_lock);
+
+	for(struct page *p = vmo->page_list; p != NULL;
+		p = p->next_un.next_virtual_region)
 	{
-		struct vm_object *vmo = entry->vmo;
-		assert(vmo != NULL);
 
-		off_t off = mem - entry->base;
-		struct page *page = vmo_get(vmo, off, false);
-
-		if(page)
-		{
-			paging_unmap((void *) mem);
-			if(page_decrement_refcount(page->paddr) == 0)
-				__free_page(page->paddr);
-		}
-		mem += 0x1000;
+		paging_unmap((void *) (mem + p->off));
+		if(page_decrement_refcount(p->paddr) == 0)
+			__free_page(p->paddr);
 	}
 }
 
@@ -1065,13 +1063,13 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 		area->fd = get_file_description(fd);
 		area->fd->refcount++;
 
-		if((file_descriptor->vfs_node->type == VFS_TYPE_BLOCK_DEVICE 
-		|| file_descriptor->vfs_node->type == VFS_TYPE_CHAR_DEVICE) && area->mapping_type == MAP_SHARED)
+		if((file_descriptor->vfs_node->i_type == VFS_TYPE_BLOCK_DEVICE 
+		|| file_descriptor->vfs_node->i_type == VFS_TYPE_CHAR_DEVICE) && area->mapping_type == MAP_SHARED)
 		{
 			struct inode *vnode = file_descriptor->vfs_node;
-			if(!vnode->fops.mmap)
+			if(!vnode->i_fops.mmap)
 				return (void*) -ENOSYS;
-			return vnode->fops.mmap(area, vnode);
+			return vnode->i_fops.mmap(area, vnode);
 		}
 	}
 	
@@ -1450,7 +1448,7 @@ ssize_t kmaps_read(void *buffer, size_t size, off_t off)
 void vmm_sysfs_init(void)
 {
 	INFO("vmm", "Setting up /sys/vm, /sys/vm_aslr and /sys/kmaps\n");
-	struct inode *sysfs = open_vfs(fs_root, "/sys");
+	struct inode *sysfs = open_vfs(get_fs_root(), "/sys");
 	if(!sysfs)
 		panic("vmm_sysfs_init: /sys not mounted!\n");
 	struct sysfs_file *vmfile = sysfs_create_entry("vm", 0666, sysfs);
@@ -1656,7 +1654,7 @@ struct page *vmo_commit_file(size_t off, struct vm_object *vmo)
 	void *ptr = PHYS_TO_VIRT(page->paddr);
 	off_t eff_off = off + vmo->u_info.fmap.off;
 	struct inode *file = vmo->u_info.fmap.fd->vfs_node;
-	size_t to_read = file->size - eff_off < PAGE_SIZE ? file->size - eff_off : PAGE_SIZE;
+	size_t to_read = file->i_size - eff_off < PAGE_SIZE ? file->i_size - eff_off : PAGE_SIZE;
 
 	size_t read = read_vfs(0,
 		    eff_off,

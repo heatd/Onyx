@@ -42,9 +42,14 @@ void *bin_do_interp(struct binfmt_args *_args)
 	struct binfmt_args args;
 	memcpy(&args, _args, sizeof(struct binfmt_args));
 
-	struct inode *file = open_vfs(fs_root, args.interp_path);
+	struct inode *file = open_vfs(get_fs_root(), args.interp_path);
 	if(!file)
+	{
+		printk("Could not open %s\n", args.interp_path);
+		perror("open_vfs");
+		while(1);
 		return NULL;
+	}
 
 	read_vfs(0, 0, 100, args.file_signature, file);
 

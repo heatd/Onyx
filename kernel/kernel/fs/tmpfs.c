@@ -40,14 +40,14 @@ static void tmpfs_append(tmpfs_filesystem_t *fs)
 
 int tmpfs_symlink(const char *dest, struct inode *inode)
 {
-	tmpfs_file_t *file = (tmpfs_file_t *) inode->inode;
+	tmpfs_file_t *file = (tmpfs_file_t *) inode->i_inode;
 
 	char *str = strdup(dest);
 	if(!str)
 		return -1;
 	file->symlink = (const char *) str;
 	file->type = TMPFS_FILE_TYPE_SYM;
-	inode->type = VFS_TYPE_SYMLINK;
+	inode->i_type = VFS_TYPE_SYMLINK;
 
 	return 0;
 }
@@ -88,61 +88,55 @@ error:
 
 struct inode *tmpfs_file_to_vfs(tmpfs_file_t *file, struct inode *parent)
 {
-	struct inode *f = zalloc(sizeof(struct inode));
+	struct inode *f = inode_create();
 	if(!f)
 		return NULL;
 	switch(file->type)
 	{
 		case TMPFS_FILE_TYPE_DIR:
-			f->type = VFS_TYPE_DIR;
+			f->i_type = VFS_TYPE_DIR;
 			break;
 		case TMPFS_FILE_TYPE_REG:
-			f->type = VFS_TYPE_FILE;
+			f->i_type = VFS_TYPE_FILE;
 			break;
 		case TMPFS_FILE_TYPE_SYM:
-			f->type = VFS_TYPE_SYMLINK;
+			f->i_type = VFS_TYPE_SYMLINK;
 			break;
 		case TMPFS_FILE_TYPE_CHAR:
-			f->type = VFS_TYPE_CHAR_DEVICE;
+			f->i_type = VFS_TYPE_CHAR_DEVICE;
 			break;
 		case TMPFS_FILE_TYPE_BLOCK:
-			f->type = VFS_TYPE_BLOCK_DEVICE;
+			f->i_type = VFS_TYPE_BLOCK_DEVICE;
 			break;
 	}
 
 	//f->mode = mode;
-	f->uid = file->st_uid;
-	f->gid = file->st_gid;
-	f->name = vfs_get_full_path(parent, (char*) file->name);
-	if(!f->name)
-		goto error;
+	f->i_uid = file->st_uid;
+	f->i_gid = file->st_gid;
 
-	f->rdev = file->rdev;
+	f->i_rdev = file->rdev;
 
-	if(f->rdev)
+	if(f->i_rdev)
 	{
-		struct dev *d = dev_find(f->rdev);
+		struct dev *d = dev_find(f->i_rdev);
 		assert(d != NULL);
-		memcpy(&f->fops, &d->fops, sizeof(struct file_ops));
-		f->helper = d->priv;
+		memcpy(&f->i_fops, &d->fops, sizeof(struct file_ops));
+		f->i_helper = d->priv;
 	}
 	else
 		tmpfs_set_node_fileops(f);
 
-	f->inode = (ino_t) file;
-	f->refcount = 1;
-	f->size = file->size;
-	f->helper = parent->helper;
+	f->i_inode = (ino_t) file;
+	f->i_size = file->size;
+	f->i_helper = parent->i_helper;
+	f->i_sb = tmpfs_get_root(parent)->superblock;
 
 	return f;
-error:
-	free(f);
-	return NULL;
 }
 
 struct inode *tmpfs_creat(const char *pathname, int mode, struct inode *vnode)
 {
-	tmpfs_file_t *file = (tmpfs_file_t *) vnode->inode;
+	tmpfs_file_t *file = (tmpfs_file_t *) vnode->i_inode;
 
 	assert(file != NULL);
 
@@ -175,7 +169,7 @@ ssize_t tmpfs_read_block(tmpfs_file_t *file, size_t block, char *buf)
 
 size_t tmpfs_read(int flags, size_t offset, size_t size, void *buffer, struct inode *vnode)
 {
-	tmpfs_file_t *file = (tmpfs_file_t *) vnode->inode;
+	tmpfs_file_t *file = (tmpfs_file_t *) vnode->i_inode;
 
 	char *scratch = __alloc_page(0);
 	if(!scratch)
@@ -190,9 +184,9 @@ size_t tmpfs_read(int flags, size_t offset, size_t size, void *buffer, struct in
 		if(!tmpfs_read_block(file, block, scratch))
 			return read;
 		size_t amount = (ssize_t) (size - read) < block_left ? (ssize_t) size - read : block_left;
-		if(offset + amount > vnode->size)
+		if(offset + amount > vnode->i_size)
 		{
-			amount = vnode->size - offset;
+			amount = vnode->i_size - offset;
 			memcpy(buffer + read, scratch + block_off, amount);
 			read += amount;
 			return read;
@@ -239,7 +233,7 @@ static int tmpfs_add_block(const char *buf, size_t size, tmpfs_file_t *file)
 
 int tmpfs_fill_with_data(struct inode *vnode, const void *_buf, size_t size)
 {
-	tmpfs_file_t *file = (tmpfs_file_t *) vnode->inode;
+	tmpfs_file_t *file = (tmpfs_file_t *) vnode->i_inode;
 	
 	const char *buf = _buf;
 	size_t nr_reads = vmm_align_size_to_pages(size);
@@ -251,7 +245,7 @@ int tmpfs_fill_with_data(struct inode *vnode, const void *_buf, size_t size)
 		if(tmpfs_add_block(buf, sz, file) < 0)
 			return errno = ENOSPC, -1;
 		file->size += sz;
-		vnode->size += sz;
+		vnode->i_size += sz;
 		buf += sz;
 		off += block_size;
 	}
@@ -280,12 +274,13 @@ tmpfs_file_t *tmpfs_open_file(tmpfs_file_t *dir, const char *name)
 			return file;
 		f = &file->sibblings;
 	}
+
 	return errno = ENOENT, NULL;
 }
 
 struct inode *tmpfs_mkdir(const char *name, mode_t mode, struct inode *vnode)
 {
-	tmpfs_file_t *file = (tmpfs_file_t *) vnode->inode;
+	tmpfs_file_t *file = (tmpfs_file_t *) vnode->i_inode;
 	
 	assert(file != NULL);
 	
@@ -327,7 +322,7 @@ struct inode *tmpfs_find_inode_in_cache(struct inode *vnode, tmpfs_file_t *file)
 
 struct inode *tmpfs_open(struct inode *vnode, const char *name)
 {
-	tmpfs_file_t *dir = (tmpfs_file_t *) vnode->inode;
+	tmpfs_file_t *dir = (tmpfs_file_t *) vnode->i_inode;
 
 	assert(dir != NULL);
 
@@ -335,9 +330,10 @@ struct inode *tmpfs_open(struct inode *vnode, const char *name)
 	if(!file)
 		return NULL;
 
-	if(file->type == TMPFS_FILE_TYPE_SYM)
+	if(file->type & VFS_TYPE_SYMLINK)
 	{
-		return open_vfs(*file->symlink == '/' ? fs_root : vnode, file->symlink);
+		printk("Symlink: %s\n", file->symlink);
+		return open_vfs(get_fs_root(), file->symlink);
 	}
 
 	return tmpfs_find_inode_in_cache(vnode, file);
@@ -345,12 +341,12 @@ struct inode *tmpfs_open(struct inode *vnode, const char *name)
 
 static void tmpfs_set_node_fileops(struct inode *node)
 {
-	node->fops.creat = tmpfs_creat;
-	node->fops.read = tmpfs_read;
-	node->fops.write = tmpfs_write;
-	node->fops.mkdir = tmpfs_mkdir;
-	node->fops.open = tmpfs_open;
-	node->fops.symlink = tmpfs_symlink;
+	node->i_fops.creat = tmpfs_creat;
+	node->i_fops.read = tmpfs_read;
+	node->i_fops.write = tmpfs_write;
+	node->i_fops.mkdir = tmpfs_mkdir;
+	node->i_fops.open = tmpfs_open;
+	node->i_fops.symlink = tmpfs_symlink;
 }
 
 tmpfs_filesystem_t *__tmpfs_allocate_fs(void)
@@ -393,18 +389,17 @@ int tmpfs_mount(const char *mountpoint)
 		return -1;
 	}
 
-	struct inode *node = zalloc(sizeof(struct inode));
+	struct inode *node = inode_create();
 	if(!node)
 	{
 		tmpfs_destroy_early(fs);
 		return -1;
 	}
 
-	node->name = "";
-	node->mountpoint = (char*) mountpoint;
-	node->type = VFS_TYPE_DIR;
-	node->helper = fs;
-	node->inode = (ino_t) fs->root;
+	node->i_type = VFS_TYPE_DIR;
+	node->i_helper = fs;
+	node->i_inode = (ino_t) fs->root;
+	node->i_sb = fs->superblock;
 
 	tmpfs_set_node_fileops(node);
 
@@ -420,5 +415,5 @@ int tmpfs_mount(const char *mountpoint)
 
 tmpfs_filesystem_t *tmpfs_get_root(struct inode *inode)
 {
-	return inode->helper;
+	return inode->i_helper;
 }

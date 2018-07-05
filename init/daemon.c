@@ -232,7 +232,7 @@ int process_line(char *line, target_t *target)
 
 int process_target(target_t *target)
 {
-	char *saveptr;
+	char *saveptr = NULL;
 	struct property *dependencies = NULL;
 	struct property *service = NULL;
 	/* Process each property */
@@ -271,6 +271,7 @@ int process_target(target_t *target)
 						fprintf(stderr, "process_target: Could not open %s: %s\n", dep, strerror(errno));
 						return -1;
 					}
+					//printf("Exec'ing %s\n", dep);
 					if(exec_target(fd) < 0)
 						return -1;
 					close(fd);
@@ -339,7 +340,7 @@ int exec_target(int fd)
 			status = -1;
 			goto ret;
 		}
-		memset(buffer, strlen(buffer), 0);
+		memset(buffer, 0, strlen(buffer));
 	}
 	/* Process the target now that we're finished */
 	process_target(target);

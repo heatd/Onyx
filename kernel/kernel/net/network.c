@@ -94,7 +94,8 @@ socket_t *socket_create(int domain, int type, int protocol)
 	switch(domain)
 	{
 		case AF_INET:
-			return ipv4_create_socket(type, protocol);
+			/*return ipv4_create_socket(type, protocol); */
+			return errno = EAFNOSUPPORT, NULL;
 		default:
 			return errno = EAFNOSUPPORT, NULL;
 	}

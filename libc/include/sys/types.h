@@ -80,10 +80,9 @@ typedef unsigned long long u_quad_t;
 #define off64_t off_t
 #endif
 
-#if defined(__is_onyx_kernel) && !defined(__uuid_t_defined)
 #define __uuid_t_defined
 typedef unsigned short uuid_t[8];
-#endif
+
 
 #ifdef __cplusplus
 }

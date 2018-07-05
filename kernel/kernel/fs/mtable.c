@@ -16,6 +16,7 @@
 static mountpoint_t *mtable = NULL;
 static size_t nr_mtable_entries = 0;
 static mutex_t mtable_lock = MUTEX_INITIALIZER;
+
 struct inode *mtable_lookup(struct inode *mountpoint)
 {
 	if(!mtable)
@@ -24,7 +25,7 @@ struct inode *mtable_lookup(struct inode *mountpoint)
 	for(size_t i = 0; i < nr_mtable_entries; i++)
 	{
 		/* Found a mountpoint, return its target */
-		if(mtable[i].ino == mountpoint->inode && mtable[i].dev == mountpoint->dev)
+		if(mtable[i].ino == mountpoint->i_inode && mtable[i].dev == mountpoint->i_dev)
 		{
 			mutex_unlock(&mtable_lock);
 			return mtable[i].rootfs;
@@ -33,6 +34,7 @@ struct inode *mtable_lookup(struct inode *mountpoint)
 	mutex_unlock(&mtable_lock);
 	return errno = ENOENT, NULL;
 }
+
 int mtable_mount(struct inode *mountpoint, struct inode *rootfs)
 {
 	assert(mountpoint);
@@ -48,10 +50,12 @@ int mtable_mount(struct inode *mountpoint, struct inode *rootfs)
 	}
 	if(mtable)
 		memcpy(new_mtable, mtable, (nr_mtable_entries-1) * sizeof(mountpoint_t));
-	new_mtable[nr_mtable_entries - 1].ino = mountpoint->inode;
-	new_mtable[nr_mtable_entries - 1].dev = mountpoint->dev;
+	new_mtable[nr_mtable_entries - 1].ino = mountpoint->i_inode;
+	new_mtable[nr_mtable_entries - 1].dev = mountpoint->i_dev;
 	new_mtable[nr_mtable_entries - 1].rootfs = rootfs;
-	rootfs->refcount++;
+	
+	object_ref(&rootfs->i_object);
+
 	mountpoint_t *old = mtable;
 	mtable = new_mtable;
 

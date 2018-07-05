@@ -228,7 +228,7 @@ size_t atadev_read(int flags, size_t offset, size_t count, void *buffer, struct 
 	size_t			read;
 	size_t			toread;
 	struct ide_drive 	*drv;
-	blk = node->helper;
+	blk = node->i_helper;
 	assert(blk != NULL);
 
 	drv = blk->device_info;
@@ -268,7 +268,7 @@ size_t atadev_write(size_t offset, size_t count, void *buffer, struct inode *nod
 	size_t			written;
 	size_t			towrite;
 	struct ide_drive 	*drv;
-	blk = node->helper;
+	blk = node->i_helper;
 	assert(blk != NULL);
 
 	drv = blk->device_info;

@@ -11,12 +11,11 @@
 struct inode *superblock_find_inode(struct superblock *sb, ino_t inode)
 {
 	acquire_spinlock(&sb->s_ilock);
-	for(struct inode *ino = sb->s_inodes; ino; ino = ino->next)
+	for(struct inode *ino = sb->s_inodes; ino; ino = ino->i_next)
 	{
-		if(ino->inode == inode)
+		if(ino->i_inode == inode)
 		{
-			atomic_inc(&sb->s_ref, 1);
-			atomic_inc(&ino->refcount, 1);
+			object_ref(&ino->i_object);
 			release_spinlock(&sb->s_ilock);
 			return ino;
 		}
@@ -34,7 +33,7 @@ void superblock_add_inode(struct superblock *sb, struct inode *inode)
 
 	while(*ino)
 	{
-		ino = &(*ino)->next;
+		ino = &(*ino)->i_next;
 	}
 	*ino = inode;
 	atomic_inc(&sb->s_ref, 1);
@@ -48,15 +47,15 @@ void superblock_remove_inode(struct superblock *sb, struct inode *inode)
 
 	if(sb->s_inodes == inode)
 	{
-		sb->s_inodes = inode->next;
+		sb->s_inodes = inode->i_next;
 		goto getout;
 	}
 
-	for(struct inode *ino = sb->s_inodes; ino->next; ino = ino->next)
+	for(struct inode *ino = sb->s_inodes; ino->i_next; ino = ino->i_next)
 	{
-		if(ino->next == inode)
+		if(ino->i_next == inode)
 		{
-			ino->next = inode->next;
+			ino->i_next = inode->i_next;
 			goto getout;
 		}
 	}

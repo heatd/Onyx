@@ -50,7 +50,7 @@ size_t pipe_write(size_t offset, size_t sizeofwrite, void* buffer, struct inode*
 {
 	UNUSED_PARAMETER(offset);
 	_Bool atomic_write = false;
-	struct pipe *pipe = get_pipe_from_inode(file->inode);
+	struct pipe *pipe = get_pipe_from_inode(file->i_inode);
 
 	/* If readers == 0, this is a broken pipe */
 	if(pipe->readers == 0)
@@ -97,7 +97,7 @@ size_t pipe_read(int flags, size_t offset, size_t sizeofread, void* buffer, stru
 	UNUSED_PARAMETER(offset);
 
 	/* Get the pipe */
-	struct pipe *pipe = get_pipe_from_inode(file->inode);
+	struct pipe *pipe = get_pipe_from_inode(file->i_inode);
 
 	/* Lock the pipe */
 	mutex_lock(&pipe->pipe_lock);
@@ -122,15 +122,14 @@ struct inode *pipe_create(void)
 {
 	acquire_spinlock(&pipespl);
 	/* Create the node */
-	struct inode *node = malloc(sizeof(struct inode));
+	struct inode *node = inode_create();
 	if(!node)
 	{
 		release_spinlock(&pipespl);
 		return NULL;
 	}
-	memset(node, 0, sizeof(struct inode));
-	node->name = "";
-	struct pipe **pipe_next = __allocate_pipe_inode(&node->inode);
+
+	struct pipe **pipe_next = __allocate_pipe_inode(&node->i_inode);
 	struct pipe *pipe = malloc(sizeof(struct pipe));
 	if(!pipe)
 	{
@@ -156,8 +155,8 @@ struct inode *pipe_create(void)
 	pipe->buf_size = UINT16_MAX;
 	pipe->readers = 1;
 	*pipe_next = pipe;
-	node->dev = pipedev->majorminor;
-	node->type = VFS_TYPE_FIFO;
+	node->i_dev = pipedev->majorminor;
+	node->i_type = VFS_TYPE_FIFO;
 
 	release_spinlock(&pipespl);
 	return node;

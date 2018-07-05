@@ -212,7 +212,7 @@ static void dev_add_files(void)
 
 void dev_create_sysfs(void)
 {
-	struct inode *root = open_vfs(fs_root, "/sys");
+	struct inode *root = open_vfs(get_fs_root(), "/sys");
 	struct sysfs_file *devices = NULL;
 	struct sysfs_file *buses = NULL;
 	assert((devices = sysfs_create_dir("devices", 0666, root)) != NULL);

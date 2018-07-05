@@ -7,8 +7,9 @@
 #include <limits.h>
 #include <stdio.h>
 #include <errno.h>
+#include <string.h>
 
-#include <drivers/ext2.h>
+#include "../include/ext2.h"
 
 inode_t *ext2_allocate_inode_from_block_group(uint32_t *inode_no, uint32_t block_group, ext2_fs_t *fs)
 {

@@ -66,7 +66,7 @@ static void __remove_from_list(struct process *p, struct proc_event_sub *s)
 size_t proc_event_read(int flags, size_t offset, size_t sizeofread, void* buffer,
 	struct inode* file)
 {
-	struct proc_event_sub *sub = file->helper;
+	struct proc_event_sub *sub = file->i_helper;
 
 	if(sub->valid_sub == false)
 	{
@@ -99,7 +99,7 @@ size_t proc_event_read(int flags, size_t offset, size_t sizeofread, void* buffer
 
 void proc_event_close(struct inode *ino)
 {
-	struct proc_event_sub *sub = ino->helper;
+	struct proc_event_sub *sub = ino->i_helper;
 
 	if(sub->valid_sub == false)
 	{
@@ -116,7 +116,7 @@ unsigned int proc_event_ioctl(int request, void *argp, struct inode* ino)
 	{
 		case PROCEVENT_ACK:
 		{
-			struct proc_event_sub *sub = ino->helper;
+			struct proc_event_sub *sub = ino->i_helper;
 			
 			if(sub->valid_sub)
 			{
@@ -141,18 +141,18 @@ int sys_proc_event_attach(pid_t pid, unsigned long flags)
 	new_sub->valid_sub = true;
 	new_sub->has_new_event = false;
 
-	struct inode *ino = zalloc(sizeof(*ino));
+	struct inode *ino = inode_create();
 	if(!ino)
 	{
 		free(new_sub);
 		return -ENOMEM;
 	}
 	
-	ino->helper = new_sub;
-	ino->fops.read = proc_event_read;
-	ino->fops.close = proc_event_close;
-	ino->fops.ioctl = proc_event_ioctl;
-	ino->type = VFS_TYPE_UNIX_SOCK;
+	ino->i_helper = new_sub;
+	ino->i_fops.read = proc_event_read;
+	ino->i_fops.close = proc_event_close;
+	ino->i_fops.ioctl = proc_event_ioctl;
+	ino->i_type = VFS_TYPE_UNIX_SOCK;
 
 	struct process *p = get_process_from_pid(pid);
 	if(!p)

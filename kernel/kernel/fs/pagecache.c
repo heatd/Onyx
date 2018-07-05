@@ -18,6 +18,8 @@
 static spinlock_t block_list_lock = {0};
 static struct page_cache_block *block_list = NULL;
 
+size_t __do_vfs_write(void *buf, size_t size, off_t off, struct inode *this);
+
 struct page *allocate_cache_block(void)
 {
 	struct page *p = get_phys_page();
@@ -47,6 +49,33 @@ void __add_to_list(struct page_cache_block *b)
 
 	release_spinlock(&block_list_lock);
 }
+
+static void remove_from_list(struct page_cache_block *b)
+{
+	acquire_spinlock(&block_list_lock);
+
+	/* Do a last flush in case it's dirty */
+	if(b->dirty)
+	{
+		__do_vfs_write(b->buffer, b->size, b->offset, b->node);
+	}
+
+	/* Adjust the list */
+
+	if(b->prev)
+	{
+		b->prev->next = b->next;
+		b->next->prev = b->prev;
+	}
+	else
+	{
+		block_list = b->next;
+		b->next->prev = NULL;
+	}
+
+	release_spinlock(&block_list_lock);
+}
+
 struct page_cache_block *add_to_cache(void *data, size_t size, off_t offset, struct inode *file)
 {
 	/* Allocate a block/page for the cache */
@@ -88,10 +117,8 @@ struct page_cache_block *add_to_cache(void *data, size_t size, off_t offset, str
 
 size_t __do_vfs_write(void *buf, size_t size, off_t off, struct inode *this)
 {
-	if(this->type & VFS_TYPE_MOUNTPOINT)
-		return __do_vfs_write(buf, size, off, this->link);
-	if(this->fops.write != NULL)
-		return this->fops.write(off, size, buf, this);
+	if(this->i_fops.write != NULL)
+		return this->i_fops.write(off, size, buf, this);
 
 	return errno = ENOSYS;
 }
@@ -137,7 +164,16 @@ void pagecache_init(void)
 	thread_set_state(sync_thread, THREAD_BLOCKED);
 }
 
-void wakeup_sync_thread()
+void wakeup_sync_thread(void)
 {
 	thread_wake_up(sync_thread);
+}
+
+void page_cache_destroy(struct page_cache_block *block)
+{
+	remove_from_list(block);
+
+	free_page(block->page);
+
+	free(block);
 }

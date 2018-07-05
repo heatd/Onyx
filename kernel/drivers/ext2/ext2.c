@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <dirent.h>
+#include <string.h>
 
 #include <sys/types.h>
 
@@ -20,8 +21,7 @@
 #include <onyx/log.h>
 #include <onyx/fscache.h>
 
-#include <drivers/rtc.h>
-#include <drivers/ext2.h>
+#include "../include/ext2.h"
 
 struct inode *ext2_open(struct inode *nd, const char *name);
 size_t ext2_read(int flags, size_t offset, size_t sizeofreading, void *buffer, struct inode *node);
@@ -69,16 +69,16 @@ inode_t *ext2_get_inode_from_dir(ext2_fs_t *fs, dir_entry_t *dirent, char *name,
 size_t ext2_write(size_t offset, size_t sizeofwrite, void *buffer, struct inode *node)
 {
 	ext2_fs_t *fs = node->i_sb->s_helper;
-	inode_t *ino = ext2_get_inode_from_number(fs, node->inode);
+	inode_t *ino = ext2_get_inode_from_number(fs, node->i_inode);
 	if(!ino)
 		return errno = EINVAL, (size_t) -1;
 	size_t size = ext2_write_inode(ino, fs, sizeofwrite, offset, buffer);
 	if(offset + size > EXT2_CALCULATE_SIZE64(ino))
 	{
 		ext2_set_inode_size(ino, offset + size);
-		node->size = offset + size;
+		node->i_size = offset + size;
 	}
-	ext2_update_inode(ino, fs, node->inode);
+	ext2_update_inode(ino, fs, node->i_inode);
 	return size;
 }
 
@@ -86,23 +86,23 @@ size_t ext2_read(int flags, size_t offset, size_t sizeofreading, void *buffer, s
 {
 	/* We don't use the flags for now, only for things that might block */
 	(void) flags;
-	if(offset > node->size)
+	if(offset > node->i_size)
 		return errno = EINVAL, -1;
 	ext2_fs_t *fs = node->i_sb->s_helper;
-	inode_t *ino = ext2_get_inode_from_number(fs, node->inode);
+	inode_t *ino = ext2_get_inode_from_number(fs, node->i_inode);
 	if(!ino)
 		return errno = EINVAL, -1;
-	size_t to_be_read = offset + sizeofreading > node->size ? sizeofreading - offset - sizeofreading + node->size : sizeofreading;
+	size_t to_be_read = offset + sizeofreading > node->i_size ? sizeofreading
+		- offset - sizeofreading + node->i_size : sizeofreading;
 	size_t size = ext2_read_inode(ino, fs, to_be_read, offset, buffer);
 	return size;
 }
 
 struct inode *ext2_open(struct inode *nd, const char *name)
 {
-	uint32_t inoden = nd->inode;
+	uint32_t inoden = nd->i_inode;
 	ext2_fs_t *fs = nd->i_sb->s_helper;
 	uint32_t inode_num;
-	size_t node_name_len;
 	inode_t *ino;
 	char *symlink_path = NULL;
 	struct inode *node = NULL;
@@ -118,51 +118,37 @@ struct inode *ext2_open(struct inode *nd, const char *name)
 	node = superblock_find_inode(nd->i_sb, inode_num);
 	if(node)
 		return node;
-	node = zalloc(sizeof(struct inode));
+	node = inode_create();
 	if(!node)
 	{
 		free(ino);
 		return errno = ENOMEM, NULL;
 	}
-	if(symlink_path)
-		node_name_len = strlen(nd->name) + 1 + strlen(symlink_path) + 1;
-	else
-		node_name_len = strlen(nd->name) + 1 + strlen(name) + 1;
-	node->name = malloc(node_name_len);
-	if(!node->name)
-	{
-		free(node);
-		free(ino);
-		return errno = ENOMEM, NULL;
-	}
-	memset(node->name, 0, node_name_len);
-	strcpy(node->name, nd->name);
-	strcat(node->name, "/");
-	strcat(node->name, symlink_path != NULL ? symlink_path : name);
-	node->dev = nd->dev;
-	node->inode = inode_num;
+
+	node->i_dev = nd->i_dev;
+	node->i_inode = inode_num;
 	/* Detect the file type */
 	if(EXT2_GET_FILE_TYPE(ino->mode) == EXT2_INO_TYPE_DIR)
-		node->type = VFS_TYPE_DIR;
+		node->i_type = VFS_TYPE_DIR;
 	else if(EXT2_GET_FILE_TYPE(ino->mode) == EXT2_INO_TYPE_REGFILE)
-		node->type = VFS_TYPE_FILE;
+		node->i_type = VFS_TYPE_FILE;
 	else if(EXT2_GET_FILE_TYPE(ino->mode) == EXT2_INO_TYPE_BLOCKDEV)
-		node->type = VFS_TYPE_BLOCK_DEVICE;
+		node->i_type = VFS_TYPE_BLOCK_DEVICE;
 	else if(EXT2_GET_FILE_TYPE(ino->mode) == EXT2_INO_TYPE_CHARDEV)
-		node->type = VFS_TYPE_CHAR_DEVICE;
+		node->i_type = VFS_TYPE_CHAR_DEVICE;
 	else if(EXT2_GET_FILE_TYPE(ino->mode) == EXT2_INO_TYPE_SYMLINK)
-		node->type = VFS_TYPE_SYMLINK;
+		node->i_type = VFS_TYPE_SYMLINK;
 	else if(EXT2_GET_FILE_TYPE(ino->mode) == EXT2_INO_TYPE_FIFO)
-		node->type = VFS_TYPE_FIFO;
+		node->i_type = VFS_TYPE_FIFO;
 	else if(EXT2_GET_FILE_TYPE(ino->mode) == EXT2_INO_TYPE_UNIX_SOCK)
-		node->type = VFS_TYPE_UNIX_SOCK;
+		node->i_type = VFS_TYPE_UNIX_SOCK;
 	else
-		node->type = VFS_TYPE_UNK;
-	node->size = EXT2_CALCULATE_SIZE64(ino);
-	node->uid = ino->uid;
-	node->gid = ino->gid;
+		node->i_type = VFS_TYPE_UNK;
+	node->i_size = EXT2_CALCULATE_SIZE64(ino);
+	node->i_uid = ino->uid;
+	node->i_gid = ino->gid;
 	node->i_sb = nd->i_sb;
-	memcpy(&node->fops, &ext2_ops, sizeof(struct file_ops));
+	memcpy(&node->i_fops, &ext2_ops, sizeof(struct file_ops));
 	free(ino);
 
 	/* Cache the inode */
@@ -228,7 +214,9 @@ struct inode *ext2_mount_partition(uint64_t sector, block_device_t *dev)
 	}
 
 	block_group_desc_t *bgdt = NULL;
-	size_t blocks_for_bgdt = (fs->number_of_block_groups * sizeof(block_group_desc_t)) / fs->block_size;
+	size_t blocks_for_bgdt = (fs->number_of_block_groups *
+		sizeof(block_group_desc_t)) / fs->block_size;
+
 	if((fs->number_of_block_groups * sizeof(block_group_desc_t)) % fs->block_size)
 		blocks_for_bgdt++;
 	if(fs->block_size == 1024)
@@ -246,7 +234,7 @@ struct inode *ext2_mount_partition(uint64_t sector, block_device_t *dev)
 		return NULL;
 	}
 
-	struct inode *node = zalloc(sizeof(struct inode));
+	struct inode *node = inode_create();
 	if(!node)
 	{
 		free(sb);
@@ -256,21 +244,21 @@ struct inode *ext2_mount_partition(uint64_t sector, block_device_t *dev)
 		return errno = ENOMEM, NULL;
 	}
 
-	node->name = "";
-	node->inode = 2;
-	node->type = VFS_TYPE_DIR;
+	node->i_inode = 2;
+	node->i_type = VFS_TYPE_DIR;
 	node->i_sb = new_super;
 
 	new_super->s_inodes = node;
 	new_super->s_helper = fs;
 
-	memcpy(&node->fops, &ext2_ops, sizeof(struct file_ops));
+	memcpy(&node->i_fops, &ext2_ops, sizeof(struct file_ops));
 	return node;
 }
 
 __init void init_ext2drv()
 {
-	if(partition_add_handler(ext2_mount_partition, "ext2", EXT2_MBR_CODE, ext2_gpt_uuid, 4) == 1)
+	if(partition_add_handler(ext2_mount_partition, "ext2", EXT2_MBR_CODE,
+		ext2_gpt_uuid, 4) == 1)
 		FATAL("ext2", "error initializing the handler data\n");
 }
 
@@ -305,7 +293,7 @@ off_t ext2_getdirent(struct dirent *buf, off_t off, struct inode* this)
 
 int ext2_stat(struct stat *buf, struct inode *node)
 {
-	uint32_t inoden = node->inode;
+	uint32_t inoden = node->i_inode;
 	ext2_fs_t *fs = node->i_sb->s_helper;
 	/* Get the inode structure */
 	inode_t *ino = ext2_get_inode_from_number(fs, inoden);	
@@ -313,12 +301,12 @@ int ext2_stat(struct stat *buf, struct inode *node)
 	if(!ino)
 		return 1;
 	/* Start filling the structure */
-	buf->st_dev = node->dev;
-	buf->st_ino = node->inode;
+	buf->st_dev = node->i_dev;
+	buf->st_ino = node->i_inode;
 	buf->st_nlink = ino->hard_links;
 	buf->st_mode = ino->mode;
-	buf->st_uid = node->uid;
-	buf->st_gid = node->gid;
+	buf->st_uid = node->i_uid;
+	buf->st_gid = node->i_gid;
 	buf->st_size = EXT2_CALCULATE_SIZE64(ino);
 	buf->st_atime = ino->atime;
 	buf->st_mtime = ino->mtime;

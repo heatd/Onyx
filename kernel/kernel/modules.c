@@ -88,7 +88,7 @@ int load_module(const char *path, const char *name)
 	mod->path = strdup(path);
 	mod->name = strdup(name);
 	mod->next = NULL;
-	struct inode *file = open_vfs(fs_root, path);
+	struct inode *file = open_vfs(get_fs_root(), path);
 	if(!file)
 	{
 		if(errno == ENOMEM)
@@ -96,12 +96,12 @@ int load_module(const char *path, const char *name)
 		free(mod);
 		return 1;
 	}
-	char *buffer = malloc(file->size);
+	char *buffer = malloc(file->i_size);
 	if (!buffer)
 		return errno = ENOMEM;
-	memset(buffer, 0, file->size);
-	size_t read = read_vfs(0, 0, file->size, buffer, file);
-	if (read != file->size)
+	memset(buffer, 0, file->i_size);
+	size_t read = read_vfs(0, 0, file->i_size, buffer, file);
+	if (read != file->i_size)
 		return errno = EAGAIN;
 	void *fini;
 	void *entry = elf_load_kernel_module(buffer, &fini);

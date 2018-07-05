@@ -106,6 +106,7 @@ struct process *process_create(const char *cmd_line, ioctx_t *ctx, struct proces
 			return NULL;
 		}
 		proc->ctx.cwd = ctx->cwd;
+		proc->ctx.name = ctx->name;
 	}
 	else
 	{
@@ -373,7 +374,7 @@ int sys_execve(char *p, char *argv[], char *envp[])
 	}
 
 	/* Open the file */
-	struct inode *in = open_vfs(fs_root, path);
+	struct inode *in = open_vfs(get_fs_root(), path);
 	if (!in)
 	{
 		free(path);
@@ -427,6 +428,7 @@ int sys_execve(char *p, char *argv[], char *envp[])
 		close_vfs(in);
 		return -errno;
 	}
+
 	free(file);
 
 	/* Copy argv and envp to user space memory */
@@ -608,6 +610,7 @@ gid_t sys_getgid(void)
 void process_destroy_aspace(void)
 {
 	struct process *current = get_current_process();
+
 	vmm_destroy_addr_space(current->address_space.tree);
 	current->address_space.tree = NULL;
 }

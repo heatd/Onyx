@@ -7,8 +7,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <errno.h>
+#include <string.h>
 
-#include <drivers/ext2.h>
+#include "../include/ext2.h"
 
 /* According to Linux and e2fs, this is how you detect fast symlinks */
 bool ext2_is_fast_symlink(inode_t *inode, ext2_fs_t *fs)

@@ -136,7 +136,7 @@ void devfs_init(void)
 	/* Mount tmpfs on /dev */
 	assert(tmpfs_mount("/dev") == 0);
 
-	struct inode *dev = open_vfs(fs_root, "/dev");
+	struct inode *dev = open_vfs(get_fs_root(), "/dev");
 
 	assert(dev != NULL);
 

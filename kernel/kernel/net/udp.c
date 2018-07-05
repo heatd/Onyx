@@ -131,9 +131,9 @@ socket_t *udp_create_socket(int type)
 		return NULL;
 
 	struct inode *vnode = (struct inode*) socket;
-	memcpy(&vnode->fops, &udp_ops, sizeof(struct file_ops));
+	memcpy(&vnode->i_fops, &udp_ops, sizeof(struct file_ops));
 	
-	vnode->type = VFS_TYPE_UNIX_SOCK;
+	vnode->i_type = VFS_TYPE_UNIX_SOCK;
 	socket->type = type;
 	
 	return (socket_t*) socket;

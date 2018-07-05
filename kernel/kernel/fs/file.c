@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <assert.h>
 
 #include <partitions.h>
 
@@ -30,7 +31,7 @@ bool is_absolute_filename(const char *file)
 
 struct inode *get_fs_base(const char *file, struct inode *rel_base)
 {
-	return is_absolute_filename(file) == true ? fs_root : rel_base;
+	return is_absolute_filename(file) == true ? get_fs_root() : rel_base;
 }
 
 struct inode *get_current_directory(void)
@@ -160,7 +161,7 @@ ssize_t sys_write(int fd, const void *buf, size_t count)
 void handle_open_flags(file_desc_t *fd, int flags)
 {
 	if(flags & O_APPEND)
-		fd->seek = fd->vfs_node->size;
+		fd->seek = fd->vfs_node->i_size;
 }
 
 static struct inode *try_to_open(struct inode *base, const char *filename, int flags, mode_t mode)
@@ -199,7 +200,7 @@ int do_sys_open(const char *filename, int flags, mode_t mode, struct inode *rel)
 	memset(fd, 0, sizeof(file_desc_t));
 	
 	fd->vfs_node = file;
-	file->refcount++;
+	object_ref(&file->i_object);
 	fd->refcount++;
 	fd->seek = 0;
 	fd->flags = flags;
@@ -226,6 +227,7 @@ static inline int decrement_fd_refcount(file_desc_t *fd)
 		free(fd);
 		return 1;
 	}
+
 	return 0;
 }
 
@@ -256,7 +258,7 @@ int sys_dup(int fd)
 			if(ioctx->file_desc[i] == NULL)
 			{
 				ioctx->file_desc[i] = ioctx->file_desc[fd];
-				ioctx->file_desc[fd]->vfs_node->refcount++;
+				object_ref(&ioctx->file_desc[fd]->vfs_node->i_object);
 				mutex_unlock(&ioctx->fdlock);
 				return i;
 			}
@@ -284,7 +286,8 @@ int sys_dup2(int oldfd, int newfd)
 	if(ioctx->file_desc[newfd])
 		sys_close(newfd);
 	ioctx->file_desc[newfd] = ioctx->file_desc[oldfd];
-	ioctx->file_desc[newfd]->vfs_node->refcount++;
+	object_ref(&ioctx->file_desc[newfd]->vfs_node->i_object);
+
 	return newfd;
 }
 
@@ -445,7 +448,7 @@ off_t sys_lseek(int fd, off_t offset, int whence)
 	ioctx_t *ioctx = &get_current_process()->ctx;
 	if(validate_fd(fd) < 0)
 		return -EBADF;
-	if(ioctx->file_desc[fd]->vfs_node->type == VFS_TYPE_FIFO)
+	if(ioctx->file_desc[fd]->vfs_node->i_type == VFS_TYPE_FIFO)
 		return -ESPIPE;
 
 	mutex_lock(&ioctx->file_desc[fd]->seek_lock);
@@ -455,7 +458,7 @@ off_t sys_lseek(int fd, off_t offset, int whence)
 	else if(whence == SEEK_SET)
 		ioctx->file_desc[fd]->seek = offset;
 	else if(whence == SEEK_END)
-		ioctx->file_desc[fd]->seek = ioctx->file_desc[fd]->vfs_node->size;
+		ioctx->file_desc[fd]->seek = ioctx->file_desc[fd]->vfs_node->i_size;
 	else
 	{
 		mutex_unlock(&ioctx->file_desc[fd]->seek_lock);
@@ -507,7 +510,7 @@ int sys_isatty(int fd)
 	if(validate_fd(fd) < 0)
 		return errno =-EBADF;
 	ioctx_t *ioctx = &get_current_process()->ctx;
-	if(ioctx->file_desc[fd]->vfs_node->type & VFS_TYPE_CHAR_DEVICE)
+	if(ioctx->file_desc[fd]->vfs_node->i_type & VFS_TYPE_CHAR_DEVICE)
 		return 1;
 	else
 		return -ENOTTY;
@@ -645,9 +648,12 @@ int sys_chdir(const char *path)
 	struct inode *dir = open_vfs(base, path);
 	if(!dir)
 		return -ENOENT;
-	if(!(dir->type & VFS_TYPE_DIR))
+	if(!(dir->i_type & VFS_TYPE_DIR))
 		return -ENOTDIR;
 	get_current_process()->ctx.cwd = dir;
+	get_current_process()->ctx.name = strdup(path);
+
+	printk("Chdir: %s\n", get_current_process()->ctx.name);
 	return 0;
 }
 
@@ -656,10 +662,11 @@ int sys_fchdir(int fildes)
 	if(validate_fd(fildes) < 0)
 		return errno = -EBADF;
 	struct inode *node = get_current_process()->ctx.file_desc[fildes]->vfs_node;
-	if(!(node->type & VFS_TYPE_DIR))
+	if(!(node->i_type & VFS_TYPE_DIR))
 		return -ENOTDIR;
 
 	get_current_process()->ctx.cwd = node;
+	get_current_process()->ctx.name = "TODO";
 	return 0;
 }
 
@@ -671,12 +678,11 @@ int sys_getcwd(char *path, size_t size)
 		return -EFAULT;
 	if(!get_current_process()->ctx.cwd)
 		return -ENOENT;
-	struct inode *vnode = get_current_process()->ctx.cwd;
 
-	if(strlen(vnode->name) + 1 > size)
+	if(strlen(get_current_process()->ctx.name) + 1 > size)
 		return -ERANGE;
-	strncpy(path, vnode->name, size);
-	
+
+	strncpy(path, get_current_process()->ctx.name, size);
 	return 0;
 }
 
@@ -691,7 +697,7 @@ int sys_openat(int dirfd, const char *path, int flags, mode_t mode)
 		dir = get_file_description(dirfd)->vfs_node;
 	else
 		dir = get_current_process()->ctx.cwd;
-	if(!(dir->type & VFS_TYPE_DIR))
+	if(!(dir->i_type & VFS_TYPE_DIR))
 		return -ENOTDIR;
 	return do_sys_open(path, flags, mode, dir);
 }
@@ -711,7 +717,7 @@ int sys_fstatat(int dirfd, const char *pathname, struct stat *buf, int flags)
 		dir = get_file_description(dirfd)->vfs_node;
 	else
 		dir = get_current_process()->ctx.cwd;
-	if(!(dir->type & VFS_TYPE_DIR))
+	if(!(dir->i_type & VFS_TYPE_DIR))
 		return -ENOTDIR;
 	return do_sys_stat(pathname, buf, flags, dir);
 }
@@ -758,10 +764,12 @@ int open_with_vnode(struct inode *node, int flags)
 		mutex_unlock(&ioctx->fdlock);
 		return -errno;
 	}
+
 	memset(fd, 0, sizeof(file_desc_t));
 	fd->vfs_node = node;
 	
-	node->refcount++;
+	object_ref(&node->i_object);
+
 	fd->refcount++;
 	fd->seek = 0;
 	fd->flags = flags;
@@ -775,7 +783,7 @@ ssize_t sys_send(int sockfd, const void *buf, size_t len, int flags)
 	if(validate_fd(sockfd) < 0)
 		return -EBADF;
 	file_desc_t *desc = get_file_description(sockfd);
-	if(desc->vfs_node->type != VFS_TYPE_UNIX_SOCK)
+	if(desc->vfs_node->i_type != VFS_TYPE_UNIX_SOCK)
 		return -ENOTSOCK;
 	return send_vfs(buf, len, flags, desc->vfs_node);
 }
@@ -785,7 +793,7 @@ int sys_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 	if(validate_fd(sockfd) < 0)
 		return -EBADF;
 	file_desc_t *desc = get_file_description(sockfd);
-	if(desc->vfs_node->type != VFS_TYPE_UNIX_SOCK)
+	if(desc->vfs_node->i_type != VFS_TYPE_UNIX_SOCK)
 		return -ENOTSOCK;
 	return connect_vfs(addr, addrlen, desc->vfs_node);
 }
@@ -795,7 +803,7 @@ int sys_bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 	if(validate_fd(sockfd) < 0)
 		return -EBADF;
 	file_desc_t *desc = get_file_description(sockfd);
-	if(desc->vfs_node->type != VFS_TYPE_UNIX_SOCK)
+	if(desc->vfs_node->i_type != VFS_TYPE_UNIX_SOCK)
 		return -ENOTSOCK;
 	return bind_vfs(addr, addrlen, desc->vfs_node);
 }
@@ -807,7 +815,7 @@ ssize_t sys_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockad
 	if(validate_fd(sockfd) < 0)
 		return -EBADF;
 	file_desc_t *desc = get_file_description(sockfd);
-	if(desc->vfs_node->type != VFS_TYPE_UNIX_SOCK)
+	if(desc->vfs_node->i_type != VFS_TYPE_UNIX_SOCK)
 		return -ENOTSOCK;
 	return recvfrom_vfs(buf, len, flags, src_addr, addrlen, desc->vfs_node);
 }
@@ -820,6 +828,8 @@ struct file_description *create_file_description(struct inode *inode, off_t seek
 	fd->vfs_node = inode;
 	fd->seek = seek;
 	fd->refcount = 1;
-	atomic_inc(&inode->refcount, 1);
+	
+	object_ref(&inode->i_object);
+
 	return fd;
 }
