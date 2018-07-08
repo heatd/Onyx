@@ -370,8 +370,10 @@ uint32_t acpi_get_apic_id_lapic(ACPI_SUBTABLE_HEADER *madt)
 	return ((ACPI_MADT_LOCAL_APIC*) madt)->Id;
 }
 
-static mutex_t cpu_enum_lock;
+static struct mutex cpu_enum_lock = {0};
+
 static size_t __ndx = 0;
+
 ACPI_STATUS acpi_enumerate_per_cpu(ACPI_HANDLE object, UINT32 nestingLevel, void *context, void **returnvalue)
 {
 	ACPI_BUFFER buffer = { ACPI_ALLOCATE_BUFFER, NULL};
@@ -541,7 +543,7 @@ bool acpi_driver_supports_device(struct driver *driver, struct device *device)
 
 void acpi_bus_register_driver(struct driver *driver)
 {
-	acquire_spinlock(&acpi_bus.bus_lock);
+	spin_lock(&acpi_bus.bus_lock);
 
 	if(!acpi_bus.registered_drivers)
 	{
@@ -557,7 +559,7 @@ void acpi_bus_register_driver(struct driver *driver)
 
 	driver->next_bus = NULL;
 
-	release_spinlock(&acpi_bus.bus_lock);
+	spin_unlock(&acpi_bus.bus_lock);
 
 	for(struct device *dev = acpi_bus.devs; dev != NULL; dev = dev->next)
 	{

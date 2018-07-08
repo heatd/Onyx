@@ -43,7 +43,7 @@ typedef struct avl_node
 	struct vm_entry *data;
 } avl_node_t;
 
-static spinlock_t kernel_vm_spl;
+static struct spinlock kernel_vm_spl;
 bool is_initialized = false;
 static bool enable_aslr = true;
 
@@ -212,6 +212,7 @@ static struct vm_entry *avl_insert_key(avl_node_t **t, uintptr_t key, uintptr_t 
 	*pp = malloc(sizeof(avl_node_t));
 	if(!*pp)
 		return NULL;
+
 	memset(*pp, 0, sizeof(avl_node_t));
 	avl_node_t *ptr = *pp;
 	ptr->key = key;
@@ -224,6 +225,7 @@ static struct vm_entry *avl_insert_key(avl_node_t **t, uintptr_t key, uintptr_t 
 		*pp = NULL;
 		return NULL;
 	}
+
 	memset(ptr->data, 0, sizeof(struct vm_entry));
 	struct process *p = get_current_process();
 	ptr->data->mm = p ? &p->address_space : NULL;
@@ -293,6 +295,7 @@ avl_node_t *avl_copy(avl_node_t *node, struct process *proc)
 			return NULL;
 		}
 	}
+
 	if(new->right)
 	{
 		if(!(new->right = avl_copy(new->right, proc)))
@@ -401,17 +404,17 @@ static avl_node_t *avl_remove_node(avl_node_t **tree, uintptr_t key)
 static inline void __vm_lock(bool kernel)
 {
 	if(kernel)
-		acquire_spinlock(&kernel_vm_spl);
+		spin_lock(&kernel_vm_spl);
 	else
-		acquire_spinlock((spinlock_t*) &get_current_process()->address_space.vm_spl);
+		spin_lock((struct spinlock*) &get_current_process()->address_space.vm_spl);
 }
 
 static inline void __vm_unlock(bool kernel)
 {
 	if(kernel)
-		release_spinlock(&kernel_vm_spl);
+		spin_unlock(&kernel_vm_spl);
 	else
-		release_spinlock((spinlock_t*) &get_current_process()->address_space.vm_spl);
+		spin_unlock((struct spinlock*) &get_current_process()->address_space.vm_spl);
 }
 
 static inline bool is_higher_half(void *address)
@@ -539,7 +542,7 @@ void vm_unmap_user(void *range, size_t pages)
 	struct vm_object *vmo = entry->vmo;
 	assert(vmo != NULL);
 
-	acquire_spinlock(&vmo->page_lock);
+	spin_lock(&vmo->page_lock);
 
 	for(struct page *p = vmo->page_list; p != NULL;
 		p = p->next_un.next_virtual_region)
@@ -549,6 +552,8 @@ void vm_unmap_user(void *range, size_t pages)
 		if(page_decrement_refcount(p->paddr) == 0)
 			__free_page(p->paddr);
 	}
+
+	spin_unlock(&vmo->page_lock);
 }
 
 void vm_unmap_kernel(void *range, size_t pages)
@@ -852,7 +857,7 @@ int vm_clone_as(struct mm_address_space *addr_space)
 
 void append_mapping(struct vm_object *vmo, struct vm_entry *region)
 {
-	acquire_spinlock(&vmo->mapping_lock);
+	spin_lock(&vmo->mapping_lock);
 
 	struct vm_entry **pp = &vmo->mappings;
 
@@ -860,7 +865,7 @@ void append_mapping(struct vm_object *vmo, struct vm_entry *region)
 		pp = &(*pp)->next_mapping;
 	*pp = region;
 
-	release_spinlock(&vmo->mapping_lock);
+	spin_unlock(&vmo->mapping_lock);
 }
 
 int vm_flush_mapping(struct vm_entry *mapping, struct process *proc)
@@ -869,19 +874,19 @@ int vm_flush_mapping(struct vm_entry *mapping, struct process *proc)
 	
 	assert(vmo != NULL);
 
-	acquire_spinlock(&vmo->page_lock);
+	spin_lock(&vmo->page_lock);
 
 	for(struct page *p = vmo->page_list; p; p = p->next_un.next_virtual_region)
 	{
 		if(!__map_pages_to_vaddr(proc, (void *) (mapping->base + p->off), p->paddr,
 			PAGE_SIZE, mapping->rwx))
 		{
-			release_spinlock(&vmo->page_lock);
+			spin_unlock(&vmo->page_lock);
 			return -1;
 		}
 	}
 
-	release_spinlock(&vmo->page_lock);
+	spin_unlock(&vmo->page_lock);
 
 	return 0;
 }

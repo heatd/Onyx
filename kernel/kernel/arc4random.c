@@ -158,14 +158,14 @@ static size_t rs_have = 0;
 static size_t rs_count = 0;
 static struct chacha rs_chacha;
 static unsigned char rs_buf[16 * 64];
-static spinlock_t random_lock;
+static struct spinlock random_lock;
 
 void arc4random_buf(void* buffer_ptr, size_t size)
 {
 	unsigned char entropy[KEYSZ + IVSZ];
 	unsigned char* buffer = (unsigned char*) buffer_ptr;
 
-	acquire_spinlock(&random_lock);
+	spin_lock(&random_lock);
 
 	while ( 0 < size )
 	{
@@ -220,7 +220,7 @@ void arc4random_buf(void* buffer_ptr, size_t size)
 		}
 	}
 
-	release_spinlock(&random_lock);
+	spin_unlock(&random_lock);
 }
 
 uint32_t arc4random(void)

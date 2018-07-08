@@ -55,7 +55,7 @@ unsigned int current_channel = (unsigned int) -1;
 void *read_buffer = NULL;
 void *write_buffer = NULL;
 
-static mutex_t lock = MUTEX_INITIALIZER;
+static struct mutex lock = MUTEX_INITIALIZER;
 
 struct driver ata_driver = 
 {

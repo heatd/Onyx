@@ -93,7 +93,7 @@ struct mm_address_space
 	struct process *process;
 	/* Virtual address space AVL tree */
 	avl_node_t *tree;
-	spinlock_t vm_spl;
+	struct spinlock vm_spl;
 
 	/* mmap(2) base */
 	void *mmap_base;

@@ -42,7 +42,7 @@ extern PML4 *current_pml4;
 struct ids *process_ids = NULL;
 struct process *first_process = NULL;
 volatile struct process *current_process = NULL;
-static spinlock_t process_creation_lock;
+static struct spinlock process_creation_lock;
 slab_cache_t *process_cache = NULL;
 void process_destroy(thread_t *);
 
@@ -92,7 +92,7 @@ struct process *process_create(const char *cmd_line, ioctx_t *ctx, struct proces
 	if(!proc)
 		return errno = ENOMEM, NULL;
 	memset(proc, 0, sizeof(struct process));
-	acquire_spinlock(&process_creation_lock);
+	spin_lock(&process_creation_lock);
 	/* TODO: idm_get_id doesn't wrap? POSIX COMPLIANCE */
 	proc->pid = idm_get_id(process_ids);
 	assert(proc->pid != (pid_t) -1);
@@ -102,7 +102,7 @@ struct process *process_create(const char *cmd_line, ioctx_t *ctx, struct proces
 		if(copy_file_descriptors(proc, ctx) < 0)
 		{
 			slab_free(process_cache, proc);
-			release_spinlock(&process_creation_lock);
+			spin_unlock(&process_creation_lock);
 			return NULL;
 		}
 		proc->ctx.cwd = ctx->cwd;
@@ -113,7 +113,7 @@ struct process *process_create(const char *cmd_line, ioctx_t *ctx, struct proces
 		if(allocate_file_descriptor_table(proc) < 0)
 		{
 			slab_free(process_cache, proc);
-			release_spinlock(&process_creation_lock);
+			spin_unlock(&process_creation_lock);
 			return NULL;
 		}
 	}
@@ -141,7 +141,7 @@ struct process *process_create(const char *cmd_line, ioctx_t *ctx, struct proces
 		while(it->next) it = it->next;
 		it->next = proc;
 	}
-	release_spinlock(&process_creation_lock);
+	spin_unlock(&process_creation_lock);
 	return proc;
 }
 
@@ -620,6 +620,7 @@ void process_destroy_file_descriptors(struct process *process)
 	ioctx_t *ctx = &process->ctx;
 	file_desc_t **table = ctx->file_desc;
 	mutex_lock(&ctx->fdlock);
+
 	for(int i = 0; i < ctx->file_desc_entries; i++)
 	{
 		/* TODO: Handle vfsnode freeing */
@@ -645,6 +646,7 @@ void process_obliterate(void *proc)
 void process_destroy(thread_t *current_thread)
 {
 	struct process *current = get_current_process();
+
 	/* Firstly, destroy the address space */
 	process_destroy_aspace();
 

@@ -90,7 +90,7 @@ struct inode
 	struct superblock *i_sb;
 	struct file_ops i_fops;
 
-	spinlock_t i_pages_lock;
+	struct spinlock i_pages_lock;
 	struct page_cache_block *i_pages[VFS_PAGE_HASHTABLE_ENTRIES];
 	
 	struct inode *i_next;

@@ -28,7 +28,7 @@ struct page_cache_block
 
 	volatile _Atomic long dirty;
 
-	mutex_t lock;
+	struct mutex lock;
 
 	struct page_cache_block *prev;
 	struct page_cache_block *next;

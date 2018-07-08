@@ -13,31 +13,27 @@
 #include <onyx/atomic.h>
 #include <onyx/cpu.h>
 
-static inline void post_lock_actions(spinlock_t *lock)
+static inline void post_lock_actions(struct spinlock *lock)
 {
-	lock->old_preemption_state = sched_is_preemption_disabled();
-	/* Disable preemption after locking, and enable it on release. This means locks get faster */
-	sched_change_preemption_state(true);
 	lock->holder = (unsigned long) __builtin_return_address(0);
 }
 
-static inline void post_release_actions(spinlock_t *lock)
+static inline void post_release_actions(struct spinlock *lock)
 {
-	sched_change_preemption_state(lock->old_preemption_state);
 	lock->holder = 0xDEADBEEFDEADBEEF;
 }
 
-void acquire_spinlock(spinlock_t *lock)
+
+void spin_lock_preempt(struct spinlock *lock)
 {
 	while(!__sync_bool_compare_and_swap(&lock->lock, 0, 1))
 	{
 		cpu_pause();
 	}
 	__sync_synchronize();
-	post_lock_actions(lock);
 }
 
-void release_spinlock(spinlock_t *lock)
+void spin_unlock_preempt(struct spinlock *lock)
 {
 	__sync_synchronize();
 
@@ -47,12 +43,37 @@ void release_spinlock(spinlock_t *lock)
 	post_release_actions(lock);
 }
 
-int try_and_acquire_spinlock(spinlock_t *lock)
+void spin_lock(struct spinlock *lock)
 {
+	spin_lock_preempt(lock);
+	post_lock_actions(lock);
+
+	/* Disable preemption before locking, and enable it on release.
+	 * This means locks get faster
+	*/
+	sched_disable_preempt();
+}
+
+void spin_unlock(struct spinlock *lock)
+{
+	spin_unlock_preempt(lock);
+	sched_enable_preempt();
+}
+
+int try_and_spin_lock(struct spinlock *lock)
+{
+
+	/* Disable preemption before locking, and enable it on release.
+	 * This means locks get faster
+	*/
+	sched_disable_preempt();
+
 	while(!__sync_bool_compare_and_swap(&lock->lock, 0, 1))
 	{
+		sched_enable_preempt();
 		return 1;
 	}
+
 	__sync_synchronize();
 	post_lock_actions(lock);
 	return 0;

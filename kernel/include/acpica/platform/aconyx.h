@@ -23,8 +23,10 @@
 #undef ACPI_DEBUGGER
 #undef ACPI_DISASSEMBLER
 
+struct mutex;
+
 #define ACPI_MUTEX_TYPE             ACPI_OSL_MUTEX
-#define ACPI_MUTEX                  unsigned long*
+#define ACPI_MUTEX                  struct mutex *
 #undef ACPI_USE_SYSTEM_CLIBRARY
 #undef ACPI_USE_STANDARD_HEADERS
 //#undef ACPI_USE_NATIVE_DIVIDE

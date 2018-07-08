@@ -292,6 +292,8 @@ int process_target(target_t *target)
 				struct subproperty *type = get_subproperty(service, SUBPROP_TYPE);
 				if(type)
 					type_ = type->value;
+				
+				/* TODO: We probably have a race condition here, fix it */
 				printf("debug: executing %s\n", p->value);
 				execute_program(p->value, type_);
 			}

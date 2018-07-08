@@ -95,7 +95,7 @@ typedef struct free_area
 typedef struct page_zone
 {
 	/* We obviously need a lock to protect this page zone */
-	spinlock_t lock __attribute__((aligned(16)));
+	struct spinlock lock __attribute__((aligned(16)));
 	page_area_t *free_areas __attribute__((aligned(16)));
 	/* The name of the page zone */
 	char *name;

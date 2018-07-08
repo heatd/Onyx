@@ -8,21 +8,22 @@
 
 #include <stdbool.h>
 
-typedef struct spinlock
+struct spinlock
 {
 	unsigned long lock;
 	unsigned long waiters;
-	bool old_preemption_state; /* This lets us nest locks */
 	unsigned long holder;
-} spinlock_t;
+};
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-void acquire_spinlock(spinlock_t *lock);
-void release_spinlock(spinlock_t *lock);
-int try_and_acquire_spinlock(spinlock_t *lock);
-void wait_spinlock(spinlock_t*);
+void spin_lock(struct spinlock *lock);
+void spin_unlock(struct spinlock *lock);
+void spin_lock_preempt(struct spinlock *lock);
+void spin_unlock_preempt(struct spinlock *lock);
+int try_and_spin_lock(struct spinlock *lock);
+void wait_spinlock(struct spinlock*);
 #ifdef __cplusplus
 }
 #endif

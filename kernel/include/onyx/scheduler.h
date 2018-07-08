@@ -9,9 +9,13 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include <onyx/spinlock.h>
+
 #define NUM_PRIO 40
 typedef void(*thread_callback_t)(void*);
 struct process;
+struct processor;
+
 typedef struct thread
 {
 	/* Put arch-independent stuff right here */
@@ -33,6 +37,10 @@ typedef struct thread
 	unsigned long sleeping_for;
 	unsigned char *fpu_area;
 	bool woken_up_by_futex;
+	struct thread *sem_prev;
+	struct thread *sem_next;
+	struct spinlock lock;
+	struct spinlock *to_release;
 	/* And arch dependent stuff in this ifdef */
 #ifdef __x86_64__
 	void *fs;
@@ -47,25 +55,50 @@ extern "C" {
 #endif
 
 int sched_init(void);
+
 thread_t *sched_create_thread(thread_callback_t callback, uint32_t flags, void* args);
+
 thread_t* sched_create_main_thread(thread_callback_t callback, uint32_t flags,int argc, char **argv, char **envp);
+
 void sched_remove_thread(thread_t *thread);
+
 thread_t *get_current_thread(void);
+
 void* sched_switch_thread(void* last_stack);
+
 void sched_sleep(unsigned long ms);
+
 void sched_yield(void);
+
 void thread_add(thread_t *add);
+
 void set_current_thread(thread_t *t);
+
 void thread_destroy(thread_t *t);
+
 void thread_set_state(thread_t *thread, int state);
+
 void thread_wake_up(thread_t *thread);
+
 bool sched_is_preemption_disabled(void);
-void sched_change_preemption_state(bool disable);
+
 void sched_sleep_until_wake(void);
+
 void thread_wake_up_ftx(thread_t *thread);
+
 void thread_reset_futex_state(thread_t *thread);
+
 void sched_start_thread(thread_t *thread);
+
 void sched_wake_up_available_threads(void);
+
+void sched_enable_preempt(void);
+
+void sched_disable_preempt(void);
+
+void sched_enable_preempt_for_cpu(struct processor *cpu);
+
+void sched_disable_preempt_for_cpu(struct processor *cpu);
 
 #ifdef __cplusplus
 }

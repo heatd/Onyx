@@ -223,12 +223,17 @@ struct processor
 #endif
 	atomic_size_t active_threads;
 	thread_t *thread_queues[NUM_PRIO];
-	spinlock_t queue_locks[NUM_PRIO];
+	struct spinlock queue_locks[NUM_PRIO];
 	size_t sched_quantum;
 	thread_t *current_thread;
-	bool preemption_disabled;
+#ifdef __cplusplus
+	unsigned long preemption_counter;
+#else
+	atomic_ulong preemption_counter;
+#endif
+
 	struct cpu_message *message_queue;
-	spinlock_t message_queue_lock;
+	struct spinlock message_queue_lock;
 	unsigned char *percpu_copy;
 };
 
@@ -264,37 +269,44 @@ struct cpu_message
 }
 #endif
 #ifdef __x86_64__
+
 static inline struct processor *get_processor_data_inl(void)
 {
 	struct processor *proc;
 	__asm__ __volatile__("movq %%gs:0x8, %0":"=r"(proc));
 	return proc;
 }
+
 #define DISABLE_INTERRUPTS() __asm__ __volatile__("cli")
 #define ENABLE_INTERRUPTS() __asm__ __volatile__("sti")
 #endif
+
 static inline uintptr_t cpu_get_cr0(void)
 {
 	uintptr_t cr0;
 	__asm__ __volatile__("mov %%cr0, %0":"=r"(cr0));
 	return cr0;
 }
+
 static inline uintptr_t cpu_get_cr2(void)
 {
 	uintptr_t cr2;
 	__asm__ __volatile__("mov %%cr2, %0":"=r"(cr2));
 	return cr2;
 }
+
 static inline uintptr_t cpu_get_cr3(void)
 {
 	uintptr_t cr3;
 	__asm__ __volatile__("movq %%cr3, %%rax\t\nmovq %%rax, %0":"=r"(cr3));
 	return cr3;
 }
+
 static inline uintptr_t cpu_get_cr4(void)
 {
 	uintptr_t cr4;
 	__asm__ __volatile__("mov %%cr4, %0":"=r"(cr4));
 	return cr4;
 }
+
 #endif

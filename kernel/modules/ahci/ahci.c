@@ -116,7 +116,7 @@ bool ahci_command_dma_ata(struct ahci_port *ahci_port, struct ahci_command_ata *
 				| port->command_list_base_low));
 
 	/* Allocate a command list */
-	acquire_spinlock(&ahci_port->port_lock);
+	spin_lock(&ahci_port->port_lock);
 	size_t num;
 	command_list_t *list = ahci_find_free_command_list(clist, AHCI_CAP_NCS(device->hba->host_cap), &num);
 	list->desc_info = fis_len | (buf->write ? AHCI_COMMAND_LIST_WRITE : 0);
@@ -150,7 +150,7 @@ bool ahci_command_dma_ata(struct ahci_port *ahci_port, struct ahci_command_ata *
 	table->cfis.count = (uint16_t) num_sectors;
 	table->cfis.command = buf->cmd;
 	
-	release_spinlock(&ahci_port->port_lock);
+	spin_unlock(&ahci_port->port_lock);
 
 	port->command_issue = (1 << num);
 	bool status = true;

@@ -86,6 +86,6 @@
 struct tx_buffer
 {
 	void *buffer;
-	spinlock_t lock;
+	struct spinlock lock;
 };
 #endif

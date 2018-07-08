@@ -46,7 +46,7 @@ struct irq_line
 {
 	struct interrupt_handler *irq_handlers;
 	/* Here to stop race conditions with uninstalling and installing irq handlers */
-	spinlock_t list_lock;
+	struct spinlock list_lock;
 	struct irqstats stats;
 };
 

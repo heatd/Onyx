@@ -14,12 +14,12 @@
 #include <onyx/dev.h>
 #include <onyx/sysfs.h>
 
-static spinlock_t bus_list_lock;
+static struct spinlock bus_list_lock;
 static struct bus *bus_list = NULL;
 
 void bus_register(struct bus *bus)
 {
-	acquire_spinlock(&bus_list_lock);
+	spin_lock(&bus_list_lock);
 	assert(bus);
 	if(!bus_list)
 		bus_list = bus;
@@ -31,12 +31,12 @@ void bus_register(struct bus *bus)
 		b->next = bus;
 		bus->prev = b;
 	}
-	release_spinlock(&bus_list_lock);
+	spin_unlock(&bus_list_lock);
 }
 
 void bus_add_device(struct bus *bus, struct device *device)
 {
-	acquire_spinlock(&bus->bus_lock);
+	spin_lock(&bus->bus_lock);
 	assert(bus);
 	assert(device);
 	device->bus = bus;
@@ -50,7 +50,7 @@ void bus_add_device(struct bus *bus, struct device *device)
 		d->next = device;
 		device->prev = d;
 	}
-	release_spinlock(&bus->bus_lock);
+	spin_unlock(&bus->bus_lock);
 }
 
 struct device *bus_find_device(struct bus *bus, const char *devname)
@@ -121,70 +121,70 @@ void device_resume(struct device *dev)
 void bus_shutdown(struct bus *bus)
 {
 	assert(bus);
-	acquire_spinlock(&bus->bus_lock);
+	spin_lock(&bus->bus_lock);
 	for(struct device *dev = bus->devs; dev; dev = dev->next)
 	{
 		device_shutdown(dev);
 	}
-	release_spinlock(&bus->bus_lock);
+	spin_unlock(&bus->bus_lock);
 }
 
 void bus_shutdown_every(void)
 {
-	acquire_spinlock(&bus_list_lock);
+	spin_lock(&bus_list_lock);
 	for(struct bus *bus = bus_list; bus; bus = bus->next)
 	{
 		bus_shutdown(bus);
 		if(bus->shutdown_bus) bus->shutdown_bus(bus);
 	}
-	release_spinlock(&bus_list_lock);
+	spin_unlock(&bus_list_lock);
 }
 
 void bus_suspend(struct bus *bus)
 {
 	assert(bus);
-	acquire_spinlock(&bus->bus_lock);
+	spin_lock(&bus->bus_lock);
 	for(struct device *dev = bus->devs; dev; dev = dev->next)
 	{
 		device_suspend(dev);
 	}
-	release_spinlock(&bus->bus_lock);
+	spin_unlock(&bus->bus_lock);
 }
 
 void bus_resume(struct bus *bus)
 {
 	assert(bus);
-	acquire_spinlock(&bus->bus_lock);
+	spin_lock(&bus->bus_lock);
 	for(struct device *dev = bus->devs; dev; dev = dev->next)
 	{
 		device_resume(dev);
 	}
-	release_spinlock(&bus->bus_lock);
+	spin_unlock(&bus->bus_lock);
 }
 
 void bus_suspend_every(void)
 {
-	acquire_spinlock(&bus_list_lock);
+	spin_lock(&bus_list_lock);
 	for(struct bus *bus = bus_list; bus; bus = bus->next)
 	{
 		bus_suspend(bus);
 	}
-	release_spinlock(&bus_list_lock);
+	spin_unlock(&bus_list_lock);
 }
 
 void bus_resume_every(void)
 {
-	acquire_spinlock(&bus_list_lock);
+	spin_lock(&bus_list_lock);
 	for(struct bus *bus = bus_list; bus; bus = bus->next)
 	{
 		bus_resume(bus);
 	}
-	release_spinlock(&bus_list_lock);
+	spin_unlock(&bus_list_lock);
 }
 
 void bus_unregister(struct bus *bus)
 {
-	acquire_spinlock(&bus_list_lock);
+	spin_lock(&bus_list_lock);
 	if(bus == bus_list)
 	{
 		bus_list = bus->next;
@@ -195,7 +195,7 @@ void bus_unregister(struct bus *bus)
 		bus->prev->next = bus->next;
 		bus->next->prev = bus->prev;
 	}
-	release_spinlock(&bus_list_lock);
+	spin_unlock(&bus_list_lock);
 }
 
 static void dev_add_files(void)
@@ -226,18 +226,18 @@ void driver_register_device(struct driver *driver, struct device *dev)
 	dev->driver = driver;
 	atomic_inc(&driver->ref, 1);
 	
-	acquire_spinlock(&driver->device_list_lock);
+	spin_lock(&driver->device_list_lock);
 	if(list_add(&driver->devices, dev) < 0)
 		panic("Failed to register device\n");
 
-	release_spinlock(&driver->device_list_lock);
+	spin_unlock(&driver->device_list_lock);
 }
 
 void driver_deregister_device(struct driver *driver, struct device *dev)
 {
-	acquire_spinlock(&driver->device_list_lock);
+	spin_lock(&driver->device_list_lock);
 
 	list_remove(&driver->devices, dev);
 
-	release_spinlock(&driver->device_list_lock);
+	spin_unlock(&driver->device_list_lock);
 }

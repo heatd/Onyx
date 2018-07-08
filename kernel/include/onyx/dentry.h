@@ -26,7 +26,7 @@ struct dentry
 	struct dentry *d_parent;
 	struct dentry *d_next;
 
-	spinlock_t d_lock;
+	struct spinlock d_lock;
 	struct dentry *child, *last_child;
 };
 

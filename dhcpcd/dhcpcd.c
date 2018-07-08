@@ -130,7 +130,7 @@ int main(int argc, char **argv, char **envp)
 	int sock = socket(AF_INET, SOCK_DGRAM, 0);
 	if(sock < 0)
 	{
-		perror("Error creating a socket!\n");
+		perror("Error creating a socket");
 		close(fd);
 		return 1;
 	}

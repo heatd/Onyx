@@ -33,7 +33,7 @@ MODULE_INSERT_VERSION();
 
 void *rx_buffer = NULL;
 struct tx_buffer tx_buffers[RTL_NR_TX] = {0};
-static spinlock_t tx_lock = {0};
+static struct spinlock tx_lock = {0};
 static int tx = 0;
 static struct pci_device *device = NULL;
 static uint16_t io_base = 0;
@@ -44,12 +44,12 @@ static struct netif *nic_netif = NULL;
 
 int get_next_tx(void)
 {
-	acquire_spinlock(&tx_lock);
+	spin_lock(&tx_lock);
 	int next_tx = tx;
 	tx++;
 	if(tx == RTL_NR_TX)
 		tx = 0;
-	release_spinlock(&tx_lock);
+	spin_unlock(&tx_lock);
 	return next_tx;
 }
 uint8_t rtl_readb(uint8_t reg)
@@ -261,14 +261,14 @@ int rtl_send_packet(const void *buf, const uint16_t size)
 	int status;
 	int tx = get_next_tx();
 
-	acquire_spinlock(&tx_buffers[tx].lock);
+	spin_lock(&tx_buffers[tx].lock);
 	memcpy((void*)((uintptr_t) tx_buffers[tx].buffer + PHYS_BASE), buf, size);
 	/* Setup the tx buffer */
 	rtl_writel(REG_TSAD0 + tx * 4, (uint32_t)(uintptr_t) tx_buffers[tx].buffer);
 	rtl_writel(REG_TSD0 + tx * 4, size);
 
 	status = rtl_wait_for_irq(10000, tx);
-	release_spinlock(&tx_buffers[tx].lock);
+	spin_unlock(&tx_buffers[tx].lock);
 
 	return status;
 }

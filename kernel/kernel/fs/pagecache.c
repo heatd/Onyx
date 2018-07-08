@@ -15,7 +15,7 @@
 #include <onyx/pagecache.h>
 #include <onyx/utils.h>
 
-static spinlock_t block_list_lock = {0};
+static struct spinlock block_list_lock = {0};
 static struct page_cache_block *block_list = NULL;
 
 size_t __do_vfs_write(void *buf, size_t size, off_t off, struct inode *this);
@@ -28,7 +28,7 @@ struct page *allocate_cache_block(void)
 
 void __add_to_list(struct page_cache_block *b)
 {
-	acquire_spinlock(&block_list_lock);
+	spin_lock_preempt(&block_list_lock);
 
 	struct page_cache_block **pp = &block_list;
 
@@ -47,12 +47,12 @@ void __add_to_list(struct page_cache_block *b)
 		b->prev = p;
 	}
 
-	release_spinlock(&block_list_lock);
+	spin_unlock_preempt(&block_list_lock);
 }
 
 static void remove_from_list(struct page_cache_block *b)
 {
-	acquire_spinlock(&block_list_lock);
+	spin_lock(&block_list_lock);
 
 	/* Do a last flush in case it's dirty */
 	if(b->dirty)
@@ -73,7 +73,7 @@ static void remove_from_list(struct page_cache_block *b)
 		b->next->prev = NULL;
 	}
 
-	release_spinlock(&block_list_lock);
+	spin_unlock(&block_list_lock);
 }
 
 struct page_cache_block *add_to_cache(void *data, size_t size, off_t offset, struct inode *file)

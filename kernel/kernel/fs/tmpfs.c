@@ -16,7 +16,7 @@
 #include <onyx/page.h>
 #include <onyx/dev.h>
 
-static mutex_t tmpfs_list_lock;
+static struct mutex tmpfs_list_lock;
 static tmpfs_filesystem_t *filesystems = NULL;
 static const size_t block_size = PAGE_SIZE; 
 
@@ -332,7 +332,6 @@ struct inode *tmpfs_open(struct inode *vnode, const char *name)
 
 	if(file->type & VFS_TYPE_SYMLINK)
 	{
-		printk("Symlink: %s\n", file->symlink);
 		return open_vfs(get_fs_root(), file->symlink);
 	}
 

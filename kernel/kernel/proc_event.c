@@ -27,7 +27,7 @@ static void __append_to_list(struct proc_event_sub *s, struct process *p)
 {
 	atomic_inc(&p->nr_subs, 1);
 
-	acquire_spinlock(&p->sub_queue_lock);
+	spin_lock(&p->sub_queue_lock);
 	
 	struct proc_event_sub **sp = &p->sub_queue;
 
@@ -37,16 +37,16 @@ static void __append_to_list(struct proc_event_sub *s, struct process *p)
 	}
 	*sp = s;
 
-	release_spinlock(&p->sub_queue_lock);
+	spin_unlock(&p->sub_queue_lock);
 }
 
 static void __remove_from_list(struct process *p, struct proc_event_sub *s)
 {
-	acquire_spinlock(&p->sub_queue_lock);
+	spin_lock(&p->sub_queue_lock);
 	if(p->sub_queue == s)
 	{
 		p->sub_queue = s->next;
-		release_spinlock(&p->sub_queue_lock);
+		spin_unlock(&p->sub_queue_lock);
 		return;
 	}
 	
@@ -60,7 +60,7 @@ static void __remove_from_list(struct process *p, struct proc_event_sub *s)
 	}
 
 	atomic_dec(&p->nr_subs, 1);
-	release_spinlock(&p->sub_queue_lock);
+	spin_unlock(&p->sub_queue_lock);
 }
 
 size_t proc_event_read(int flags, size_t offset, size_t sizeofread, void* buffer,
@@ -76,18 +76,7 @@ size_t proc_event_read(int flags, size_t offset, size_t sizeofread, void* buffer
 
 	if(!sub->has_new_event && flags & O_NONBLOCK)	return 0;
 
-	while(!sub->has_new_event)
-	{
-		if(sub->valid_sub == false)
-		{
-			free(sub);
-			return errno = ESRCH, (size_t) -1;
-		}
-
-		if(signal_is_pending())
-			return errno = EINTR, (size_t) -1;
-		thread_set_state(get_current_thread(), THREAD_BLOCKED);
-	}
+	sem_wait(&sub->event_semaphore);
 
 	memcpy(buffer, &sub->event_buf, sizeofread);
 
@@ -128,9 +117,10 @@ unsigned int proc_event_ioctl(int request, void *argp, struct inode* ino)
 			return -EINVAL;
 	}
 }
+
 int sys_proc_event_attach(pid_t pid, unsigned long flags)
 {	
-	struct proc_event_sub *new_sub = malloc(sizeof(*new_sub));
+	struct proc_event_sub *new_sub = zalloc(sizeof(*new_sub));
 
 	if(!new_sub)
 		return -ENOMEM;
@@ -208,12 +198,33 @@ void proc_event_enter_syscall(syscall_ctx_t *regs, uintptr_t rax)
 		s->event_buf.e_un.syscall.rsp = (unsigned long) get_current_thread()->user_stack;
 		s->event_buf.e_un.syscall.rbx = regs->rbx;
 		s->event_buf.e_un.syscall.rbp = regs->rbp;
-		s->event_buf.e_un.syscall.rcx = regs->rcx;
+		s->event_buf.e_un.syscall.rcx = regs->r10;
 		s->event_buf.e_un.syscall.rdx = regs->rdx;
 		s->event_buf.e_un.syscall.rdi = regs->rdi;
 		s->event_buf.e_un.syscall.rip = regs->rcx;
 		s->has_new_event = true;
-		thread_wake_up(s->waiting_thread);
+
+		sem_signal(&s->event_semaphore);
+	}
+
+	while(current->nr_acks != current->nr_subs);
+	current->nr_acks = 0;
+}
+
+void proc_event_exit_syscall(long retval, long syscall_nr)
+{
+	struct process *current = get_current_process();
+
+	for(struct proc_event_sub *s = current->sub_queue; s; s = s->next)
+	{
+		s->event_buf.type = PROC_EVENT_SYSCALL_EXIT;
+		s->event_buf.pid = current->pid;
+		s->event_buf.e_un.syscall_exit.retval = retval;
+		s->event_buf.e_un.syscall_exit.syscall_nr = syscall_nr;
+		s->event_buf.thread = get_current_thread()->id;
+		s->has_new_event = true;
+
+		sem_signal(&s->event_semaphore);
 	}
 
 	while(current->nr_acks != current->nr_subs);

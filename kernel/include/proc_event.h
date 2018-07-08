@@ -17,6 +17,12 @@
 #define PROC_EVENT_SYSCALL_ENTER	0
 #define PROC_EVENT_SYSCALL_EXIT		1
 
+struct syscall_exit
+{
+	long retval;
+	long syscall_nr;
+};
+
 struct proc_event
 {
 	int type;
@@ -26,6 +32,7 @@ struct proc_event
 	union
 	{
 		struct user_regs_struct syscall;
+		struct syscall_exit syscall_exit;
 	} e_un;
 };
 

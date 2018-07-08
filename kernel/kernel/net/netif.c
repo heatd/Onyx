@@ -13,7 +13,7 @@
 
 #include <sys/ioctl.h>
 
-static spinlock_t netif_list_lock = {0};
+static struct spinlock netif_list_lock = {0};
 struct netif *netif_list = NULL;
 unsigned int netif_ioctl(int request, void *argp, struct inode* this)
 {
@@ -89,7 +89,7 @@ void netif_register_if(struct netif *netif)
 	d->fops.ioctl = netif_ioctl;
 
 	device_show(d);
-	acquire_spinlock(&netif_list_lock);
+	spin_lock(&netif_list_lock);
 	if(!netif_list)
 	{
 		netif_list = netif;
@@ -100,16 +100,16 @@ void netif_register_if(struct netif *netif)
 		while(n->next) n = n->next;
 		n->next = netif;
 	}
-	release_spinlock(&netif_list_lock);
+	spin_unlock(&netif_list_lock);
 }
 
 int netif_unregister_if(struct netif *netif)
 {
-	acquire_spinlock(&netif_list_lock);
+	spin_lock(&netif_list_lock);
 	if(netif_list == netif)
 	{
 		netif_list = netif->next;
-		release_spinlock(&netif_list_lock);
+		spin_unlock(&netif_list_lock);
 		return 0;
 	}
 	else
@@ -120,7 +120,7 @@ int netif_unregister_if(struct netif *netif)
 			if(n->next == netif)
 			{
 				n->next = netif->next;
-				release_spinlock(&netif_list_lock);
+				spin_unlock(&netif_list_lock);
 				return 0;
 			}
 			n = n->next;

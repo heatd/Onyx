@@ -116,16 +116,16 @@ static struct file_ops pipe_file_ops =
 };
 
 static struct dev *pipedev = NULL;
-static spinlock_t pipespl;
+static struct spinlock pipespl;
 
 struct inode *pipe_create(void)
 {
-	acquire_spinlock(&pipespl);
+	spin_lock(&pipespl);
 	/* Create the node */
 	struct inode *node = inode_create();
 	if(!node)
 	{
-		release_spinlock(&pipespl);
+		spin_unlock(&pipespl);
 		return NULL;
 	}
 
@@ -134,7 +134,7 @@ struct inode *pipe_create(void)
 	if(!pipe)
 	{
 		free(node);
-		release_spinlock(&pipespl);
+		spin_unlock(&pipespl);
 		return NULL;
 	}
 
@@ -146,7 +146,7 @@ struct inode *pipe_create(void)
 	{
 		free(node);
 		free(pipe);
-		release_spinlock(&pipespl);
+		spin_unlock(&pipespl);
 		return NULL;
 	}
 	/* Zero it out */
@@ -158,7 +158,7 @@ struct inode *pipe_create(void)
 	node->i_dev = pipedev->majorminor;
 	node->i_type = VFS_TYPE_FIFO;
 
-	release_spinlock(&pipespl);
+	spin_unlock(&pipespl);
 	return node;
 }
 

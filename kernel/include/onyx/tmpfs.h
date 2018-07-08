@@ -34,8 +34,8 @@ typedef struct tmpfs_file
 	unsigned int type;
 	const char *symlink;
 	tmpfs_data_block_t *data;
-	mutex_t dirent_lock;
-	mutex_t data_lock;
+	struct mutex dirent_lock;
+	struct mutex data_lock;
 	struct tmpfs_file *sibblings;
 	struct tmpfs_file *parent;
 	struct tmpfs_file *child;

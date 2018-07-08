@@ -28,7 +28,7 @@ struct futex *__get_futex(int *uaddr)
 void __futex_insert(struct futex *futex)
 {
 	struct process *current = get_current_process();
-	acquire_spinlock(&current->futex_queue_lock);
+	spin_lock(&current->futex_queue_lock);
 	if(!current->futex_queue)
 		current->futex_queue = futex;
 	else
@@ -37,7 +37,7 @@ void __futex_insert(struct futex *futex)
 		while(f->next) f = f->next;
 		f->next = futex;
 	}
-	release_spinlock(&current->futex_queue_lock);
+	spin_unlock(&current->futex_queue_lock);
 }
 
 struct futex *futex_insert(int *uaddr)
@@ -61,13 +61,13 @@ struct futex *get_futex(int *uaddr)
 
 int futex_enqueue_thread(struct futex *ftx)
 {
-	acquire_spinlock(&ftx->block_thread_lock);
+	spin_lock(&ftx->block_thread_lock);
 	if(!ftx->waiting_threads)
 	{
 		ftx->waiting_threads = malloc(sizeof(struct list_head));
 		if(!ftx->waiting_threads)
 		{
-			release_spinlock(&ftx->block_thread_lock);
+			spin_unlock(&ftx->block_thread_lock);
 			return -1;
 		}
 		ftx->waiting_threads->ptr = get_current_thread();
@@ -77,11 +77,11 @@ int futex_enqueue_thread(struct futex *ftx)
 	{
 		if(list_add(ftx->waiting_threads, get_current_thread()) < 0)
 		{
-			release_spinlock(&ftx->block_thread_lock);
+			spin_unlock(&ftx->block_thread_lock);
 			return -1;
 		}
 	}
-	release_spinlock(&ftx->block_thread_lock);
+	spin_unlock(&ftx->block_thread_lock);
 	return 0;
 }
 
@@ -121,7 +121,7 @@ int futex_wait(int *uaddr, int val, struct futex *ftx, const struct timespec *ti
 int futex_wake(struct futex *ftx, int val)
 {
 	int woken_up = 0;
-	acquire_spinlock(&ftx->block_thread_lock);
+	spin_lock(&ftx->block_thread_lock);
 	struct list_head *thr_list = ftx->waiting_threads;
 	while(val-- && thr_list)
 	{
@@ -133,7 +133,7 @@ int futex_wake(struct futex *ftx, int val)
 	}
 
 	ftx->waiting_threads = thr_list;
-	release_spinlock(&ftx->block_thread_lock);
+	spin_unlock(&ftx->block_thread_lock);
 	return woken_up;
 }
 

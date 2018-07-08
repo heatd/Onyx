@@ -7,6 +7,7 @@
 
 #include <onyx/scheduler.h>
 #include <onyx/process.h>
+#include <onyx/semaphore.h>
 
 #include <proc_event.h>
 
@@ -16,6 +17,7 @@ struct proc_event_sub
 	unsigned long flags;
 	bool valid_sub;
 	unsigned long has_new_event;
+	struct semaphore event_semaphore;
 	struct process *target_process;
 	struct proc_event event_buf;
 	struct proc_event_sub *next;

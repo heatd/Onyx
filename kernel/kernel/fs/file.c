@@ -653,7 +653,6 @@ int sys_chdir(const char *path)
 	get_current_process()->ctx.cwd = dir;
 	get_current_process()->ctx.name = strdup(path);
 
-	printk("Chdir: %s\n", get_current_process()->ctx.name);
 	return 0;
 }
 

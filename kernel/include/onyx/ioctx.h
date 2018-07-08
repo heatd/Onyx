@@ -15,7 +15,7 @@ typedef struct file_description
 {
 	_Atomic int refcount;
 	off_t seek;
-	mutex_t seek_lock;
+	struct mutex seek_lock;
 	struct inode *vfs_node;
 	int flags;
 } file_desc_t;
@@ -25,7 +25,7 @@ typedef struct
 	/* Current working directory */
 	struct inode *cwd;
 	const char *name;
-	mutex_t fdlock;
+	struct mutex fdlock;
 	file_desc_t **file_desc;
 	int file_desc_entries;
 } ioctx_t;

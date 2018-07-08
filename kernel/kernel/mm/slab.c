@@ -145,14 +145,14 @@ void *slab_allocate_from_slab(struct slab *slab)
 
 void *slab_allocate(slab_cache_t *cache)
 {
-	acquire_spinlock(&cache->lock);
+	spin_lock(&cache->lock);
 	struct slab *slab = cache->slab_list;
 	while(slab)
 	{
 		void *obj = slab_allocate_from_slab(slab);
 		if(obj)
 		{
-			release_spinlock(&cache->lock);
+			spin_unlock(&cache->lock);
 			return obj;
 		}
 		if(!slab->next)
@@ -161,7 +161,7 @@ void *slab_allocate(slab_cache_t *cache)
 			struct slab *nslab = slab_create_slab(cache->size, cache);
 			if(!nslab)
 			{
-				release_spinlock(&cache->lock);
+				spin_unlock(&cache->lock);
 				return errno = ENOMEM, NULL;
 			}
 			slab->next = nslab;
@@ -169,7 +169,7 @@ void *slab_allocate(slab_cache_t *cache)
 		}
 		slab = slab->next;
 	}
-	release_spinlock(&cache->lock);
+	spin_unlock(&cache->lock);
 	return NULL;
 }
 
@@ -249,7 +249,7 @@ void slab_destroy_slab(struct slab *slab)
 
 void slab_destroy(slab_cache_t *cache)
 {
-	acquire_spinlock(&cache->lock);
+	spin_lock(&cache->lock);
 	/* First destroy the slabs */
 	struct slab *slab = cache->slab_list;
 	while(slab)

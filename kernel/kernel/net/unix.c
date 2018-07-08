@@ -34,7 +34,7 @@ struct un_socket
 {
 	socket_t socket;
 	struct unix_packet *packets;
-	spinlock_t packet_list_lock;
+	struct spinlock packet_list_lock;
 	int type;
 	struct un_name *abstr_name;
 
@@ -53,7 +53,7 @@ struct un_name
 };
 
 struct un_name *un_namespace_list = NULL;
-spinlock_t un_namespace_list_lock;
+struct spinlock un_namespace_list_lock;
 
 struct un_name *add_to_namespace(char *address, size_t namelen,
 	struct un_socket *bound_socket)
@@ -74,7 +74,7 @@ struct un_name *add_to_namespace(char *address, size_t namelen,
 	name->namelen = namelen;
 	
 	
-	acquire_spinlock(&un_namespace_list_lock);
+	spin_lock(&un_namespace_list_lock);
 
 	struct un_name **pp = &un_namespace_list;
 

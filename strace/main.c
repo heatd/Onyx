@@ -38,16 +38,19 @@ void do_trace(pid_t pid)
 		ioctl(fd, 0);
 	}
 }
+
 void do_child(int argc, char **argv)
 {
 	printf("Being traced!\n");
 	if(execvp(argv[0], argv) < 0)
 		exit(1);
 }
+
 void print_usage(char *prog)
 {
 	printf("%s - system call tracer\nUsage: %s [program] [args] ...\n", prog, prog);
 }
+
 int main(int argc, char **argv, char **envp)
 {
 	if(argc < 2)

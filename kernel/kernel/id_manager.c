@@ -15,10 +15,10 @@
 
 #define NAME_MAX 256
 struct ids *list;
-static spinlock_t list_lock;
+static struct spinlock list_lock;
 static void append_to_list(struct ids *p)
 {
-	acquire_spinlock(&list_lock);
+	spin_lock(&list_lock);
 	if(!list)
 		list = p;
 	else
@@ -27,7 +27,7 @@ static void append_to_list(struct ids *p)
 		while(list->next) list = list->next;
 		l->next = p;
 	}
-	release_spinlock(&list_lock);
+	spin_unlock(&list_lock);
 }
 struct ids *get_ids_from_name(const char *name)
 {

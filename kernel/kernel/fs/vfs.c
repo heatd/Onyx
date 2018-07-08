@@ -127,7 +127,7 @@ struct page_cache_block *__inode_get_page(struct inode *inode, off_t offset)
 
 struct page_cache_block *inode_get_page(struct inode *inode, off_t offset)
 {
-	acquire_spinlock(&inode->i_pages_lock);
+	spin_lock_preempt(&inode->i_pages_lock);
 
 	struct page_cache_block *b = __inode_get_page(inode, offset);
 
@@ -139,7 +139,7 @@ struct page_cache_block *inode_get_page(struct inode *inode, off_t offset)
 		printk("idx[]: %p\n", inode->i_pages[idx]);
 		printk("Aligned off %ld\nHash %u\n", aligned_off, idx);
 		while(1);
-		release_spinlock(&inode->i_pages_lock);
+		spin_unlock_preempt(&inode->i_pages_lock);
 	}
 	return b;
 }
@@ -467,7 +467,7 @@ ssize_t lookup_file_cache(void *buffer, size_t sizeofread, struct inode *file,
 			amount = file->i_size - offset;
 			memcpy((char*) buffer + read,  (char*) cache->buffer +
 				cache_off, amount);
-			release_spinlock(&file->i_pages_lock);
+			spin_unlock_preempt(&file->i_pages_lock);
 			return read + amount;
 		}
 		else
@@ -476,7 +476,7 @@ ssize_t lookup_file_cache(void *buffer, size_t sizeofread, struct inode *file,
 		offset += amount;
 		read += amount;
 
-		release_spinlock(&file->i_pages_lock);
+		spin_unlock_preempt(&file->i_pages_lock);
 
 	}
 	return (ssize_t) read;
@@ -494,7 +494,7 @@ ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *file,
 	while(wrote != sizeofwrite)
 	{
 		
-		acquire_spinlock(&file->i_pages_lock);
+		spin_lock(&file->i_pages_lock);
 		struct page_cache_block *cache =
 			__inode_get_page_internal(file, offset,
 						  FILE_CACHING_WRITE);
@@ -516,7 +516,7 @@ ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *file,
 		offset += amount;
 		wrote += amount;
 
-		release_spinlock(&file->i_pages_lock);
+		spin_unlock(&file->i_pages_lock);
 	}
 
 	return (ssize_t) wrote;
@@ -617,7 +617,7 @@ struct page *file_get_page(struct inode *ino, off_t offset)
 	struct page_cache_block *cache = inode_get_page(ino, off);
 
 	/* TODO: questionablecode.jpeg */
-	release_spinlock(&ino->i_pages_lock);
+	spin_unlock_preempt(&ino->i_pages_lock);
 
 	return cache != NULL ? cache->page : NULL;
 }

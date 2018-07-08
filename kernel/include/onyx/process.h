@@ -66,7 +66,7 @@ struct process
 	void *vdso;
 
 	/* Signal tables */
-	mutex_t signal_lock;
+	struct mutex signal_lock;
 	struct sigaction sigtable[_NSIG];
 
 	/* Signal mask */
@@ -91,13 +91,13 @@ struct process
 	struct futex *futex_queue;
 
 	/* Futex queue lock */
-	spinlock_t futex_queue_lock;
+	struct spinlock futex_queue_lock;
 	/* User time and system time consumed by the process */
 	clock_t user_time;
 	clock_t system_time;
 
 	/* proc_event queue */
-	spinlock_t sub_queue_lock;
+	struct spinlock sub_queue_lock;
 	struct proc_event_sub *sub_queue;
 	unsigned long nr_subs;
 	unsigned long nr_acks;

@@ -375,16 +375,16 @@ void (* const int_handlers[])(intctx_t *ctx) =
 	exception_panic
 };
 
-PER_CPU_VAR(spinlock_t isr_lock);
+PER_CPU_VAR(struct spinlock isr_lock);
 
 static void exit_isr_handler(void)
 {
-	//release_spinlock(&GET_PER_CPU(isr_lock, spinlock_t));
+	//spin_unlock(&GET_PER_CPU(isr_lock, struct spinlock));
 }
 
 static void enter_isr_handler(void)
 {
-	//acquire_spinlock(&GET_PER_CPU(isr_lock, spinlock_t));
+	//spin_lock(&GET_PER_CPU(isr_lock, struct spinlock));
 }
 
 void dump_stack(uintptr_t *__rsp)

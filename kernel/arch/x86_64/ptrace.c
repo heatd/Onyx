@@ -28,7 +28,7 @@ int ptrace_peek(struct process *process, void *addr, ptrace_word_t *word)
 	//vmm_set_tree(process->tree);
 	
 	/* Lock the address space */
-	acquire_spinlock(&process->address_space.vm_spl);
+	spin_lock(&process->address_space.vm_spl);
 	/* Load the actual address space */
 	paging_load_cr3(process->address_space.cr3);
 
@@ -40,7 +40,7 @@ int ptrace_peek(struct process *process, void *addr, ptrace_word_t *word)
 	}
 
 	/* Unlock the address space */
-	release_spinlock(&process->address_space.vm_spl);
+	spin_unlock(&process->address_space.vm_spl);
 	
 	/* Restore the old context */
 	//vmm_set_tree(old_tree);
@@ -58,7 +58,7 @@ int ptrace_poke(struct process *process, void *addr, ptrace_word_t word)
 	//vmm_set_tree(process->tree);
 	
 	/* Lock the address space */
-	acquire_spinlock(&process->address_space.vm_spl);
+	spin_lock(&process->address_space.vm_spl);
 	/* Load the actual address space */
 	paging_load_cr3(process->address_space.cr3);
 
@@ -70,7 +70,7 @@ int ptrace_poke(struct process *process, void *addr, ptrace_word_t word)
 	}
 
 	/* Unlock the address space */
-	release_spinlock(&process->address_space.vm_spl);
+	spin_unlock(&process->address_space.vm_spl);
 	
 	/* Restore the old context */
 	//vmm_set_tree(old_tree);

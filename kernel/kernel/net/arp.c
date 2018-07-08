@@ -55,13 +55,13 @@ struct arp_cache *arp_create(struct arp_hashtable *table, int hash, uint32_t ip)
 }
 struct arp_cache *arp_find(struct netif *netif, uint32_t ip)
 {
-	acquire_spinlock(&netif->hashtable_spinlock);
+	spin_lock(&netif->hashtable_spinlock);
 	struct arp_hashtable *table = &netif->arp_hashtable;
 	int hash = arp_hash(ip);
 	struct arp_cache *arp = arp_get(table, hash, ip);
 	if(!arp)
 		arp = arp_create(table, hash, ip);
-	release_spinlock(&netif->hashtable_spinlock);
+	spin_unlock(&netif->hashtable_spinlock);
 	return arp;
 }
 int arp_submit_request(struct arp_cache *c, struct netif *netif)

@@ -407,6 +407,7 @@ IRQ 221
 global _sched_yield:function
 extern sched_switch_thread
 _sched_yield:
+	cli
 	pushaq
 	mov ax, ds
 	push rax

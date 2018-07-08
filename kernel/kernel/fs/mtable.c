@@ -15,7 +15,7 @@
 
 static mountpoint_t *mtable = NULL;
 static size_t nr_mtable_entries = 0;
-static mutex_t mtable_lock = MUTEX_INITIALIZER;
+static struct mutex mtable_lock = MUTEX_INITIALIZER;
 
 struct inode *mtable_lookup(struct inode *mountpoint)
 {

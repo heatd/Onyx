@@ -26,7 +26,7 @@ void dentry_dtor(void *ptr)
 {
 	struct dentry *dentry = ptr;
 
-	acquire_spinlock(&dentry->d_lock);
+	spin_lock(&dentry->d_lock);
 
 	object_unref(&dentry->d_inode->i_object);
 
@@ -35,20 +35,20 @@ void dentry_dtor(void *ptr)
 	
 	free(dentry->d_name);
 
-	release_spinlock(&dentry->d_lock);
+	spin_unlock(&dentry->d_lock);
 }
 
 struct dentry *dentry_open(struct dentry *dir, const char *name)
 {
 	printk("Looking up %s\n", name);
 
-	acquire_spinlock(&dir->d_lock);
+	spin_lock(&dir->d_lock);
 
 	for(struct dentry *d = dir->child; d != NULL; d = d->d_next)
 	{
 		if(strcmp(d->d_name, name) == 0)
 		{
-			release_spinlock(&dir->d_lock);
+			spin_unlock(&dir->d_lock);
 			return d;
 		}
 	}
@@ -57,7 +57,7 @@ struct dentry *dentry_open(struct dentry *dir, const char *name)
 
 	if(!inode)
 	{
-		release_spinlock(&dir->d_lock);
+		spin_unlock(&dir->d_lock);
 	
 		return errno = ENOENT, NULL;
 	}
@@ -70,7 +70,7 @@ struct dentry *dentry_open(struct dentry *dir, const char *name)
 	dir->last_child->d_next = new_d;
 	dir->last_child = new_d;
 
-	release_spinlock(&dir->d_lock);
+	spin_unlock(&dir->d_lock);
 	return new_d;
 }
 

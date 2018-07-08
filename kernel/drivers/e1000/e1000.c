@@ -28,7 +28,7 @@
 static struct pci_device *nicdev = NULL;
 static struct e1000_rx_desc *rx_descs[E1000_NUM_RX_DESC];
 static struct e1000_tx_desc *tx_descs[E1000_NUM_TX_DESC];
-static spinlock_t tx_cur_lock;
+static struct spinlock tx_cur_lock;
 static unsigned long rx_cur = 0, tx_cur = 0;
 bool eeprom_exists = false;
 static char *mem_space = NULL;
@@ -249,7 +249,7 @@ void e1000_enable_interrupts()
 
 int e1000_send_packet(const void *data, uint16_t len)
 {
-	acquire_spinlock(&tx_cur_lock);
+	spin_lock(&tx_cur_lock);
 	
 	tx_descs[tx_cur]->addr = (uint64_t) virtual2phys((void*) data);
 	tx_descs[tx_cur]->length = len;
@@ -258,7 +258,7 @@ int e1000_send_packet(const void *data, uint16_t len)
 	uint8_t old_cur = tx_cur;
 	tx_cur = (tx_cur + 1) % E1000_NUM_TX_DESC;
 	e1000_write_command(REG_TXDESCTAIL, tx_cur);
-	release_spinlock(&tx_cur_lock);
+	spin_unlock(&tx_cur_lock);
 
 	while(!(tx_descs[old_cur]->status & 0xff));
 	return 0;

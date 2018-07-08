@@ -26,7 +26,7 @@ void __pci_write(struct pci_device *dev, uint64_t value, uint16_t off, size_t si
 uint64_t __pci_read(struct pci_device *dev, uint16_t off, size_t size);
 const uint16_t CONFIG_ADDRESS = 0xCF8;
 const uint16_t CONFIG_DATA = 0xCFC;
-static spinlock_t pci_lock;
+static struct spinlock pci_lock;
 
 __attribute__((no_sanitize_undefined))
 uint16_t __pci_config_read_word(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset)
@@ -46,12 +46,12 @@ uint32_t __pci_config_read_dword(uint8_t bus, uint8_t slot, uint8_t func, uint8_
 
 	address = (uint32_t)((lbus << 16) | (lslot << 11) |
                      (lfunc << 8) | (offset & 0xfc) | ((uint32_t)0x80000000));
-	acquire_spinlock(&pci_lock);
+	spin_lock(&pci_lock);
 	/* write out the address */
 	outl(CONFIG_ADDRESS, address);
 	/* read in the data */
 	tmp = inl(CONFIG_DATA);
-	release_spinlock(&pci_lock);
+	spin_unlock(&pci_lock);
 	return tmp;
 }
 
@@ -66,12 +66,12 @@ void __pci_write_dword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, 
 	address = (uint32_t)((lbus << 16) | (lslot << 11) |
 		  (lfunc << 8) | (offset & 0xfc) | ((uint32_t)0x80000000));
 	
-	acquire_spinlock(&pci_lock);
+	spin_lock(&pci_lock);
 	/* write out the address */
 	outl(CONFIG_ADDRESS, address);
 	/* read in the data */
 	outl(CONFIG_DATA, data);
-	release_spinlock(&pci_lock);
+	spin_unlock(&pci_lock);
 }
 
 void __pci_write_word(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint16_t data)
@@ -404,7 +404,7 @@ void __pci_write_qword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, 
 	address = (uint32_t)((lbus << 16) | (lslot << 11) |
 		  (lfunc << 8) | (offset & 0xfc) | ((uint32_t)0x80000000));
 	
-	acquire_spinlock(&pci_lock);
+	spin_lock(&pci_lock);
 	/* write out the address */
 	outl(CONFIG_ADDRESS, address);
 	/* Write out the lower half of the data */
@@ -415,7 +415,7 @@ void __pci_write_qword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, 
 	/* write out the address */
 	outl(CONFIG_ADDRESS, address);
 	outl(CONFIG_DATA, data & 0xFFFFFFFF00000000);
-	release_spinlock(&pci_lock);
+	spin_unlock(&pci_lock);
 }
 
 void __pci_write(struct pci_device *dev, uint64_t value, uint16_t off, size_t size)

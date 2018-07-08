@@ -6,15 +6,25 @@
 #ifndef _KERNEL_MUTEX_H
 #define _KERNEL_MUTEX_H
 
-typedef volatile unsigned long mutex_t;
+#include <onyx/scheduler.h>
 
-#define MUTEX_INITIALIZER 0
+struct mutex
+{
+	struct spinlock llock;
+	thread_t *head;
+	thread_t *tail;
+	unsigned long counter;
+};
+
+#define MUTEX_INITIALIZER {0}
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-void mutex_lock(mutex_t *);
-void mutex_unlock(mutex_t*);
+
+void mutex_lock(struct mutex *m);
+void mutex_unlock(struct mutex *m);
+
 #ifdef __cplusplus
 }
 #endif

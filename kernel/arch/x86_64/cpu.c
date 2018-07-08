@@ -47,7 +47,7 @@ static struct processor *cpus = NULL;
 static int booted_cpus = 0;
 extern ACPI_TABLE_MADT *madt;
 int cpu_num = 0;
-static spinlock_t ap_entry_spinlock;
+static struct spinlock ap_entry_spinlock;
 extern volatile uint32_t *bsp_lapic;
 volatile int initialized_cpus = 0;
 extern volatile uint64_t boot_ticks;
@@ -208,7 +208,7 @@ int cpu_init_mp()
 	 * Each LAPIC = 1 core */
 	
 	/* APs can't access ´cpus´ before we've finished, as it's subject to memory address changes */
-	acquire_spinlock(&ap_entry_spinlock);
+	spin_lock(&ap_entry_spinlock);
 	
 	for(ACPI_SUBTABLE_HEADER *i = first; i < (ACPI_SUBTABLE_HEADER*)((char*)madt + madt->Header.Length); i = 
 	(ACPI_SUBTABLE_HEADER*)((uint64_t)i + (uint64_t)i->Length))
@@ -242,7 +242,7 @@ int cpu_init_mp()
 	cpus[0].current_thread = NULL;
 	cpus[0].tss = &tss;
 	wrmsr(GS_BASE_MSR, (uint64_t) &cpus[0] & 0xFFFFFFFF, (uint64_t) &cpus[0] >> 32);
-	release_spinlock(&ap_entry_spinlock);
+	spin_unlock(&ap_entry_spinlock);
 	
 	while(initialized_cpus+1 != booted_cpus);
 	struct acpi_processor *processors = acpi_enumerate_cpus();
@@ -270,7 +270,7 @@ extern PML4 *boot_pml4;
 
 void cpu_ap_entry(int cpu_num)
 {
-	acquire_spinlock(&ap_entry_spinlock);
+	spin_lock(&ap_entry_spinlock);
 
 	uint32_t high, low;
 	rdmsr(0x1b, &low, &high);
@@ -304,7 +304,7 @@ void cpu_ap_entry(int cpu_num)
 	/* Enable interrupts */
 	__asm__ __volatile__("sti");
 
-	release_spinlock(&ap_entry_spinlock);
+	spin_unlock(&ap_entry_spinlock);
 	/* cpu_ap_entry() can't return, as there's no valid return address on the stack, so just hlt until the scheduler
 	   preempts the AP
 	*/
@@ -373,7 +373,7 @@ void cpu_send_message(int cpu, unsigned long message, void *arg)
 
 	/* CPU_KILL messages don't respect locks */
 	if(likely(message != CPU_KILL))
-		acquire_spinlock(&p->message_queue_lock);
+		spin_lock(&p->message_queue_lock);
 	if(unlikely(message == CPU_KILL))
 	{
 		if(!p->message_queue)
@@ -395,7 +395,7 @@ void cpu_send_message(int cpu, unsigned long message, void *arg)
 		msg.message = message;
 		msg.ptr = arg;
 		msg.next = NULL;
-		release_spinlock(&p->message_queue_lock);
+		spin_unlock(&p->message_queue_lock);
 	}
 	cpu_notify(p);
 	//cpu_wait_for_msg_ack();

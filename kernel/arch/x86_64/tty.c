@@ -183,7 +183,7 @@ void tty_putchar(char c)
 	terminal_column++;
 }
 
-static mutex_t ttylock = MUTEX_INITIALIZER;
+static struct mutex ttylock = MUTEX_INITIALIZER;
 
 void tty_write(const char *data, size_t size)
 {

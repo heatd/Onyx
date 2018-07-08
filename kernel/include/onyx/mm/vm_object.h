@@ -41,9 +41,9 @@ struct vm_object
 		struct vmo_file_mapping fmap;
 	} u_info;
 
-	spinlock_t page_lock;
+	struct spinlock page_lock;
 
-	spinlock_t mapping_lock;
+	struct spinlock mapping_lock;
 };
 
 struct vm_object *vmo_create(size_t size, void *priv);

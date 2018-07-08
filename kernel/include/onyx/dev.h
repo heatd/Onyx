@@ -52,7 +52,7 @@ struct driver
 {
 	const char *name;
 	struct bus *bus;
-	spinlock_t device_list_lock;
+	struct spinlock device_list_lock;
 	struct list_head devices;
 	unsigned long ref;
 	void *devids;
@@ -79,7 +79,7 @@ struct device
 struct bus
 {
 	const char *name; 	/* Name of the bus */
-	spinlock_t bus_lock;
+	struct spinlock bus_lock;
 	struct device *devs;	/* List of every device connected to this bus */
 	struct driver *registered_drivers;
 

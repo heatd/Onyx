@@ -29,7 +29,7 @@
 struct futex
 {
 	int *address;
-	spinlock_t block_thread_lock;
+	struct spinlock block_thread_lock;
 	struct list_head *waiting_threads;
 	struct futex *next;
 };

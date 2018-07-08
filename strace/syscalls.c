@@ -219,6 +219,7 @@ void do_mmap(struct syscall_args *args, struct proc_event *event)
 	/* TODO: Add flags as needed */
 	printf(", %d, %ld", fildes, off);
 }
+
 struct system_call system_calls[MAX_SYS] = 
 {
 	{"write", do_write, do_long_exit},
@@ -257,15 +258,27 @@ void print_syscall(struct proc_event *event)
 	}
 }
 
+void print_syscall_exit(struct proc_event *event)
+{
+	size_t nr = event->e_un.syscall_exit.syscall_nr;
+	if((nr < MAX_SYS && !system_calls[nr].exit) || nr >= MAX_SYS)
+	{
+		do_integer_exit((size_t) event->e_un.syscall_exit.retval, event);
+	}
+	else
+		system_calls[nr].exit((size_t) event->e_un.syscall_exit.retval, event);
+
+	printf("\n");
+}
+
 void strace_print_event(struct proc_event *event)
 {
 	if(event->type == PROC_EVENT_SYSCALL_ENTER)
 	{
-		printf("syscall\n");
 		print_syscall(event);
 	}
 	else if(event->type == PROC_EVENT_SYSCALL_EXIT)
 	{
-		//print_syscall_exit(event);
+		print_syscall_exit(event);
 	}
 }

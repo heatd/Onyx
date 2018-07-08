@@ -70,6 +70,7 @@ extern SYSCALL_MAX_NUM
 extern thread_store_ustack
 extern thread_get_ustack
 extern proc_event_enter_syscall
+extern proc_event_exit_syscall
 global syscall_ENTRY64:function
 syscall_ENTRY64:
 	cld
@@ -101,12 +102,14 @@ syscall_ENTRY64:
 	SAVE_SCRATCH_REGS 
 	mov rdi, rsp
 	mov rsi, rax
+	add rdi, 72
 	call proc_event_enter_syscall
 	RESTORE_SCRATCH_REGS
 	; If the syscall is fork, setup pt_regs first
 	cmp rax, 10
 	je .setup_fork
 .continue_systemcall:
+	push rax
 	; Setup the stack frame(the end of it anyway)
 	push qword 0
 	push rbp
@@ -116,6 +119,16 @@ syscall_ENTRY64:
 	call [syscall_list + rax * 8]
 .ret_from_syscall:
 	pop rbp
+	add rsp, 8
+
+	SAVE_SCRATCH_REGS
+	add rsp, 72
+	mov rsi, [rsp]
+	mov rdi, rax
+	sub rsp, 72
+	call proc_event_exit_syscall
+	RESTORE_SCRATCH_REGS
+
 	add rsp, 8
 
 	pop rcx

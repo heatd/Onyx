@@ -60,7 +60,7 @@ struct page *vmo_populate(struct vm_object *vmo, off_t off)
 		return NULL;
 
 	page->off = off;
-	acquire_spinlock(&vmo->page_lock);
+	spin_lock(&vmo->page_lock);
 
 	if(!vmo->page_list)
 		vmo->page_list = page;
@@ -72,7 +72,7 @@ struct page *vmo_populate(struct vm_object *vmo, off_t off)
 		p->next_un.next_virtual_region = page;
 	}
 
-	release_spinlock(&vmo->page_lock);
+	spin_unlock(&vmo->page_lock);
 
 	return page;
 }
@@ -80,7 +80,7 @@ struct page *vmo_populate(struct vm_object *vmo, off_t off)
 struct page *vmo_get(struct vm_object *vmo, off_t off, bool may_populate)
 {
 	struct page *p = NULL;
-	acquire_spinlock(&vmo->page_lock);
+	spin_lock(&vmo->page_lock);
 
 	struct page *l = vmo->page_list;
 
@@ -93,7 +93,7 @@ struct page *vmo_get(struct vm_object *vmo, off_t off, bool may_populate)
 		}
 		l = l->next_un.next_virtual_region;
 	}
-	release_spinlock(&vmo->page_lock);
+	spin_unlock(&vmo->page_lock);
 
 	if(!p && may_populate)
 		p = vmo_populate(vmo, off);
@@ -106,7 +106,7 @@ int vmo_fork_pages(struct vm_object *vmo)
 	if(!pages)
 		return 0;
 	
-	acquire_spinlock(&vmo->page_lock);
+	spin_lock(&vmo->page_lock);
 
 	struct page *list = NULL;
 	struct page *last = NULL;
@@ -119,7 +119,7 @@ int vmo_fork_pages(struct vm_object *vmo)
 		/* TODO: Free */
 		if(!p)
 		{
-			release_spinlock(&vmo->page_lock);
+			spin_unlock(&vmo->page_lock);
 			return -1;
 		}
 
@@ -135,7 +135,7 @@ int vmo_fork_pages(struct vm_object *vmo)
 	}
 
 	atomic_set((unsigned long *) &vmo->page_list, (unsigned long) list);
-	release_spinlock(&vmo->page_lock);
+	spin_unlock(&vmo->page_lock);
 
 	return 0;
 }
@@ -152,14 +152,14 @@ struct vm_object *vmo_fork(struct vm_object *vmo)
 	file = is_file_backed(new_vmo->mappings);
 	if(!shared)
 	{
-		acquire_spinlock(&vmo->page_lock);
+		spin_lock(&vmo->page_lock);
 		if(vmo_fork_pages(new_vmo) < 0)
 		{
 			free(new_vmo);
-			release_spinlock(&vmo->page_lock);
+			spin_unlock(&vmo->page_lock);
 			return NULL;
 		}
-		release_spinlock(&vmo->page_lock);
+		spin_unlock(&vmo->page_lock);
 	}
 
 	if(file)

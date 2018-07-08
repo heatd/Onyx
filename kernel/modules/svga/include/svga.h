@@ -94,8 +94,8 @@ private:
 	uint32_t *command_buffer;
 	size_t command_buffer_size;
 	uint32_t num_regs;
-	mutex_t mtx;
-	mutex_t fifo_lock;
+	struct mutex mtx;
+	struct mutex fifo_lock;
 	struct video_mode mode;
 	struct pci_device *dev;
 public:
@@ -104,7 +104,7 @@ public:
 	void write(uint16_t index, uint32_t value);
 	uint32_t read(uint16_t index);
 	int modeset(unsigned int width, unsigned int height, unsigned int bpp);
-	SvgaDevice(struct pci_device *dev) : mtx(MUTEX_INITIALIZER), dev(dev)
+	SvgaDevice(struct pci_device *dev) : dev(dev)
 	{}
 	void enable();
 	void setup_fifo();

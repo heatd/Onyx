@@ -219,7 +219,7 @@ struct ahci_port
 {
 	int port_nr;
 	ahci_port_t *port;
-	spinlock_t port_lock;
+	struct spinlock port_lock;
 	command_table_t *ctable;
 	prdt_t *prdt;
 	struct command_list cmdslots[32];

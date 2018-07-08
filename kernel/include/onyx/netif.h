@@ -29,7 +29,7 @@ struct netif
 	int (*sendpacket)(const void *buffer, uint16_t size);
 	struct netif *next;
 	struct arp_hashtable arp_hashtable;
-	spinlock_t hashtable_spinlock;
+	struct spinlock hashtable_spinlock;
 	struct udp_socket **udp_ports;
 };
 #ifdef __cplusplus

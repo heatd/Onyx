@@ -39,7 +39,7 @@ typedef struct cache
 	void (*ctor)(void*);
 	void (*dtor)(void*);
 	struct slab *slab_list;
-	spinlock_t lock;
+	struct spinlock lock;
 	struct cache *prev, *next;
 } slab_cache_t;
 

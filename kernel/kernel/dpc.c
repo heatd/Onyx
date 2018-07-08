@@ -16,7 +16,7 @@
 
 /* The work queue does need locks for insertion, because another CPU might try to 
  * queue work at the same time as us */
-static spinlock_t work_queue_locks[3];
+static struct spinlock work_queue_locks[3];
 static struct dpc_work *work_queues[3] = {0};
 static volatile atomic_bool dpc_queue_is_empty = true;
 static thread_t *dpc_thread = NULL;
@@ -73,7 +73,7 @@ int dpc_schedule_work(struct dpc_work *_work, dpc_priority prio)
 		return -1;
 
 	memcpy(work, _work, sizeof(struct dpc_work));
-	acquire_spinlock(&work_queue_locks[prio]);
+	spin_lock(&work_queue_locks[prio]);
 
 	if(!work_queues[prio])
 		work_queues[prio] = work;
@@ -85,7 +85,7 @@ int dpc_schedule_work(struct dpc_work *_work, dpc_priority prio)
 	}
 
 	thread_set_state(dpc_thread, THREAD_RUNNABLE);
-	release_spinlock(&work_queue_locks[prio]);
+	spin_unlock(&work_queue_locks[prio]);
 
 	return 0;
 }

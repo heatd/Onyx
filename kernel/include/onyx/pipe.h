@@ -16,7 +16,7 @@ struct pipe
 	size_t buf_size;
 	size_t curr_size;
 	int readers;
-	mutex_t pipe_lock;
+	struct mutex pipe_lock;
 };
 struct inode *pipe_create(void);
 

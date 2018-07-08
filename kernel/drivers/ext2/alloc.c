@@ -30,9 +30,9 @@ uint32_t ext2_allocate_block(ext2_fs_t *fs)
 /* Frees a block */
 void ext2_free_block(uint32_t block, ext2_fs_t *fs)
 {
-	acquire_spinlock(&fs->sb_lock);
+	spin_lock(&fs->sb_lock);
 	fs->sb->unallocated_blocks++;
-	release_spinlock(&fs->sb_lock);
+	spin_unlock(&fs->sb_lock);
 }
 
 /* Returns an inode_t from disk, and sets *inode_number to the inode number */

@@ -22,7 +22,7 @@ static struct interrupt_handler *add_to_list(struct irq_line *line)
 	struct interrupt_handler *handler = zalloc(sizeof(*handler));
 	if(!handler)
 		return NULL;
-	acquire_spinlock(&line->list_lock);
+	spin_lock(&line->list_lock);
 
 	if(!line->irq_handlers)
 	{
@@ -35,7 +35,7 @@ static struct interrupt_handler *add_to_list(struct irq_line *line)
 		h->next = handler;
 	}
 
-	release_spinlock(&line->list_lock);
+	spin_unlock(&line->list_lock);
 
 	return handler;
 }
@@ -71,7 +71,7 @@ void free_irq(unsigned int irq, struct device *device)
 	struct irq_line *line = &irq_lines[irq];
 	struct interrupt_handler *handler = NULL;
 
-	acquire_spinlock(&line->list_lock);
+	spin_lock(&line->list_lock);
 
 	assert(line->irq_handlers != NULL);
 
@@ -103,7 +103,7 @@ void free_irq(unsigned int irq, struct device *device)
 	if(line->irq_handlers == NULL)
 		platform_mask_irq(irq);
 	
-	release_spinlock(&line->list_lock);
+	spin_unlock(&line->list_lock);
 }
 
 void dispatch_irq(unsigned int irq, struct irq_context *context)

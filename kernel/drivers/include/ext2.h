@@ -161,9 +161,9 @@ typedef struct ex
 	block_device_t *blkdevice;
 	uint16_t inode_size;
 	block_group_desc_t *bgdt;
-	spinlock_t sb_lock;
-	mutex_t bgdt_lock;
-	mutex_t ino_alloc_lock;
+	struct spinlock sb_lock;
+	struct mutex bgdt_lock;
+	struct mutex ino_alloc_lock;
 	void *zero_block; /* A pointer to a zero'd block of memory with size 'block_size' */
 	struct ex *next;
 } ext2_fs_t;
