@@ -99,6 +99,8 @@ void proc_event_close(struct inode *ino)
 	__remove_from_list(sub->target_process, sub);
 }
 
+void proc_event_do_ack(struct process *process);
+
 unsigned int proc_event_ioctl(int request, void *argp, struct inode* ino)
 {
 	switch(request)
@@ -109,7 +111,7 @@ unsigned int proc_event_ioctl(int request, void *argp, struct inode* ino)
 			
 			if(sub->valid_sub)
 			{
-				sub->target_process->nr_acks++;
+				proc_event_do_ack(sub->target_process);
 			}
 			return 0;
 		}
@@ -167,6 +169,16 @@ int sys_proc_event_attach(pid_t pid, unsigned long flags)
 	return fd;
 }
 
+void proc_event_do_ack(struct process *process)
+{
+	if(__sync_add_and_fetch(&process->nr_acks, 1) == process->nr_subs)
+	{
+		mutex_lock(&process->condvar_mutex);
+		condvar_signal(&process->syscall_cond);
+		mutex_unlock(&process->condvar_mutex);
+	}
+}
+
 void proc_event_enter_syscall(syscall_ctx_t *regs, uintptr_t rax)
 {
 	struct process *current = get_current_process();
@@ -207,8 +219,13 @@ void proc_event_enter_syscall(syscall_ctx_t *regs, uintptr_t rax)
 		sem_signal(&s->event_semaphore);
 	}
 
-	while(current->nr_acks != current->nr_subs);
+	if(current->nr_subs == 0)
+		return;
+	mutex_lock(&current->condvar_mutex);
+	condvar_wait(&current->syscall_cond, &current->condvar_mutex);
+
 	current->nr_acks = 0;
+	mutex_unlock(&current->condvar_mutex);
 }
 
 void proc_event_exit_syscall(long retval, long syscall_nr)
@@ -227,6 +244,12 @@ void proc_event_exit_syscall(long retval, long syscall_nr)
 		sem_signal(&s->event_semaphore);
 	}
 
-	while(current->nr_acks != current->nr_subs);
+	if(current->nr_subs == 0)
+		return;
+	mutex_lock(&current->condvar_mutex);
+	condvar_wait(&current->syscall_cond, &current->condvar_mutex);
+
 	current->nr_acks = 0;
+	mutex_unlock(&current->condvar_mutex);
+
 }

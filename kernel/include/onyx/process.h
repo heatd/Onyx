@@ -12,11 +12,12 @@
 #include <onyx/mutex.h>
 #include <onyx/ioctx.h>
 #include <onyx/spinlock.h>
-#include <onyx/task_switching.h>
 #include <onyx/signal.h>
 #include <onyx/registers.h>
 #include <onyx/list.h>
-
+#include <onyx/scheduler.h>
+#include <onyx/condvar.h>
+#include <onyx/semaphore.h>
 #include <onyx/elf.h>
 
 struct futex;
@@ -51,6 +52,8 @@ struct process
 	
 	/* exit(2) specific flags */
 	int has_exited;
+
+	struct semaphore wait_sem;
 	int exit_code;
 	
 	/* Process' UID and GID */
@@ -105,6 +108,9 @@ struct process
 	void *image_base;
 
 	struct elf_info info;
+
+	struct cond syscall_cond;
+	struct mutex condvar_mutex;
 };
 
 #ifdef __cplusplus

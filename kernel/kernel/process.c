@@ -469,47 +469,57 @@ pid_t sys_getppid()
 pid_t sys_wait4(pid_t pid, int *wstatus, int options, struct rusage *usage)
 {
 	struct process *it = (struct process*) get_current_process();
-	struct process *curr_process = it;
+	struct process *current = get_current_process();
 	bool found_child = 0;
 	bool looking_for_any_children = false;
+
+
 	if(pid < 0)
 	{
 		looking_for_any_children = true;
 	}
+
 	while(it)
 	{
-		if(it->parent == curr_process)
+		if(it->parent == current)
 		{
 			if(it->pid == pid || pid < 0)
 				found_child = 1;
 		}
 		it = it->next;
 	}
+
 	if(!found_child)
 	{
 		return -ECHILD;
 	}
+
 	it = first_process;
-	while(1)
+	while(true)
 	{
 		if(signal_is_pending())
 			return -EINTR;
-		if(it->parent == curr_process && it->has_exited == 1)
-		{
-			if(looking_for_any_children == true || it->pid == pid)
-			{
-				if(wstatus)
-					copy_to_user(wstatus, &it->exit_code, sizeof(int));
 
-				/* TODO: Destroy the zombie process */
-				it->parent = NULL;
-				return it->pid;
+		spin_lock(&process_creation_lock);
+		for(struct process *p = first_process; p != NULL; p = p->next)
+		{
+			if(p->parent == current && p->has_exited == 1 &&
+			 (looking_for_any_children == true || p->pid == pid))
+			{
+				copy_to_user(wstatus, &p->exit_code, sizeof(int));
+				
+				p->parent = NULL;
+				spin_unlock(&process_creation_lock);
+				/* TODO: Destroy */
+				return p->pid;
 			}
 		}
-		it = it->next;
-		if(!it)
-			it = first_process;
+
+		spin_unlock(&process_creation_lock);
+		sem_wait(&current->wait_sem);
 	}
+
+	return 0;
 }
 
 pid_t sys_fork(syscall_ctx_t *ctx)
@@ -539,14 +549,47 @@ pid_t sys_fork(syscall_ctx_t *ctx)
 	return child->pid;
 }
 
+int make_wait4_wstatus(int signum, bool core_dumped, int exit_code)
+{
+	int wstatus = 0;
+
+	wstatus = ((int) core_dumped << 7);
+
+	if(signum == 0)
+	{
+		wstatus = exit_code << 8;
+		return wstatus;
+	}
+	else
+	{
+		switch(signum)
+		{
+			case SIGCONT:
+			case SIGSTOP:
+				wstatus |= (0177 << 0);
+				break;
+			default:
+				wstatus |= (signum << 0); 
+		}
+
+		wstatus |= (signum << 8);
+
+		return wstatus;
+
+	}
+}
+
 void process_exit_from_signal(int signum)
 {
 	struct process *current = get_current_process();
-	/* TODO: Fix the exit status */
+
 	current->has_exited = 1;
-	current->exit_code = __WCONSTRUCT(0, (127 + signum), signum);
+	current->exit_code = make_wait4_wstatus(signum, false, 0);
+	sem_signal(&current->parent->wait_sem);
+	
 	/* TODO: Support multi-threaded processes */
 	thread_t *current_thread = get_current_thread();
+
 
 	process_destroy(current_thread);
 
@@ -563,7 +606,8 @@ void sys_exit(int status)
 		for(;;);
 	}
 	current->has_exited = 1;
-	current->exit_code = __WCONSTRUCT(0, status, 0);
+	current->exit_code = make_wait4_wstatus(0, false, status);
+	sem_signal(&current->parent->wait_sem);
 
 	/* TODO: Support multi-threaded processes */
 	thread_t *current_thread = get_current_thread();

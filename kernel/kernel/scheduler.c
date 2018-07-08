@@ -393,7 +393,12 @@ static void append_to_wait_queue(thread_t *thread)
 	else
 	{
 		thread_t *t = wait_queue;
-		while(t->next_wait) t = t->next_wait;
+		while(t->next_wait)
+		{
+			assert(t != thread);
+			t = t->next_wait;
+		}
+			
 		t->next_wait = thread;
 		thread->prev_wait = t;
 		thread->next_wait = NULL;
@@ -410,17 +415,17 @@ static void remove_from_wait_queue(thread_t *thread)
 	if(wait_queue == thread)
 	{
 		wait_queue = wait_queue->next_wait;
-		wait_queue->prev_wait = NULL;
+		if(wait_queue) wait_queue->prev_wait = NULL;
 		thread->prev_wait = thread->next_wait = NULL;
 	}
 	else
 	{
-		for(thread_t *t = wait_queue; t->next; t = t->next)
+		for(thread_t *t = wait_queue; t != NULL && t->next_wait != NULL; t = t->next_wait)
 		{
-			if(t->next == thread)
+			if(t->next_wait == thread)
 			{
 				t->next_wait = thread->next_wait;
-				t->next_wait->prev_wait = t;
+				if(t->next_wait) t->next_wait->prev_wait = t;
 				thread->prev_wait = thread->next_wait = NULL;
 			}
 		}
@@ -639,6 +644,7 @@ void condvar_wait(struct cond *var, struct mutex *mutex)
 	sched_disable_preempt();
 	enqueue_thread_condvar(var, current);
 	thread_suspend_and_release(current, &var->llock);
+
 	mutex_lock(mutex);
 }
 
@@ -751,6 +757,7 @@ void mutex_lock(struct mutex *mutex)
 
 	while(!__sync_bool_compare_and_swap(&mutex->counter, 0, 1))
 	{
+		assert(thread != NULL);
 		sched_disable_preempt();
 		enqueue_thread_mutex(mutex, thread);
 		thread_suspend_and_release(thread, &mutex->llock);

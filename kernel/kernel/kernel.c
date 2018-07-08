@@ -243,6 +243,7 @@ retry:;
 	Elf64_auxv_t *auxv = process_setup_auxv(current->threads[0]->user_stack_bottom, current);
 	registers_t *regs = (registers_t *) current->threads[0]->kernel_stack;
 	regs->rcx = (uintptr_t) auxv;
+	
 	uintptr_t *fs = get_user_pages(VM_TYPE_REGULAR, 1, VM_WRITE | VM_NOEXEC | VM_USER);
 	current->threads[0]->fs = (void*) fs;
 	__pthread_t *p = (__pthread_t*) fs;
@@ -250,6 +251,7 @@ retry:;
 	p->tid = get_current_process()->threads[0]->id;
 	p->pid = get_current_process()->pid;
 	sched_start_thread(current->threads[0]);
+
 	return 0;
 }
 
@@ -511,7 +513,7 @@ void kernel_multitasking(void *arg)
 	char *args[] = {"", root_partition, NULL};
 	char *envp[] = {"PATH=/bin:/usr/bin:/sbin:", NULL};
 
-	find_and_exec_init(args, envp);
+	assert(find_and_exec_init(args, envp) == 0);
 
 	thread_set_state(get_current_thread(), THREAD_BLOCKED);
 	for (;;);

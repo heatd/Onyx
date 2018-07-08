@@ -204,6 +204,7 @@ int process_line(char *line, target_t *target)
 				perror("process_line");
 				return -1;
 			}
+
 			char *value = strdup(strtok_r(NULL, "=", &saveptr));
 			if(!value)
 			{
@@ -252,6 +253,7 @@ int process_target(target_t *target)
 				"this may be unwanted behavior\n", prop->prop_name);
 		}
 	}
+
 	if(dependencies)
 	{
 		struct subproperty *p = dependencies->props;
@@ -280,6 +282,7 @@ int process_target(target_t *target)
 			}
 		}
 	}
+
 	if(service)
 	{
 		struct subproperty *p = service->props;
@@ -294,8 +297,12 @@ int process_target(target_t *target)
 					type_ = type->value;
 				
 				/* TODO: We probably have a race condition here, fix it */
-				printf("debug: executing %s\n", p->value);
-				execute_program(p->value, type_);
+				//printf("debug: executing %s\n", p->value);
+				if(execute_program(p->value, type_) < 0)
+				{
+					printf("Error exec'ing %s\n", p->value);
+					return -1;
+				}
 			}
 		}
 	}
