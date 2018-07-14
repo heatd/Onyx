@@ -27,6 +27,45 @@ static inline void get_frame_pointer(uint64_t **ptr)
 	__asm__ __volatile__("mov %%rbp, %0":"=m"(*ptr)::"memory");
 }
 
+unsigned long get_ulong_user(void *ptr, bool *error)
+{
+	unsigned long l = 0;
+	if(copy_from_user(&l, ptr, sizeof(unsigned long)) < 0)
+	{
+		*error = true;
+		return 0xffffffffffffffff;
+	}
+
+	*error = false;
+	return l;
+}
+
+void stack_trace_user(uintptr_t *stack)
+{
+	uint64_t *rbp = stack;
+	bool error = false;
+
+	printk("User stack trace:\n");
+	int i = 0;
+	while(get_ulong_user(rbp, &error) != 0 && error == false)
+	{
+		uintptr_t rip = get_ulong_user((rbp + 1), &error);
+
+		if(error == true)
+			return;
+		if(rip == 0)
+			return;
+		
+		printk("<%d> %016lx\n", i++, rip);
+
+		rbp = (uintptr_t *) get_ulong_user(rbp, &error);
+
+		if(error == true)
+			return;
+	}
+	printk("Stack trace ended.\n");
+}
+
 char *resolve_sym(void *address);
 __attribute__((no_sanitize_undefined))
 void *stack_trace_ex(uint64_t *stack)
@@ -108,7 +147,8 @@ char *resolve_sym(void *address)
 	Elf64_Sym *syms = (Elf64_Sym*)(symtab->sh_addr + PHYS_BASE);
 	for(size_t i = 1; i < num; i++)
 	{
-		if(syms[i].st_value == (Elf64_Addr)address){
+		if(syms[i].st_value == (Elf64_Addr)address)
+		{
 			size_t len = strlen(elf_get_string(syms[i].st_name)) + 4;
 			char *buf = malloc(len);
 			if(!buf)

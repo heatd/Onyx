@@ -14,7 +14,7 @@ return_from_execve:
 	mov rsi, rdx
 	mov rdx, rcx
 	mov rcx, r8
-	pop rcx
+	pop r8
 	; Reload unused registers to avoid leaks
 	xor rbx, rbx
 	xor rbp, rbp
@@ -23,12 +23,21 @@ return_from_execve:
 	xor r13, r13
 	xor r14, r14
 	xor r15, r15
-	; Load rsp
-	mov rsp, r9
-	xor r9, r9
+	
+	cli
 	swapgs
+
 	mov ax, 0x33
 	mov ds, ax
 	mov es, ax
+
+	push 0x33
+	push r9
+	xor r9, r9
+	push 0x202
+	push 0x2b
+	push r8
+
 	xor rax, rax
-	o64 sysret
+	xor r8, r8
+	iretq

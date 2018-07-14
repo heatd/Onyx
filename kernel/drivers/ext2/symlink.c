@@ -32,19 +32,20 @@ char *ext2_do_slow_symlink(inode_t *inode, ext2_fs_t *fs)
 	char *buf = malloc(EXT2_CALCULATE_SIZE64(inode));
 	if(!buf)
 		return NULL;
+	
 	ext2_read_inode(inode, fs, EXT2_CALCULATE_SIZE64(inode), 0, buf);
 	return buf;
 }
 
-char *ext2_read_symlink(inode_t *inode, ext2_fs_t *fs)
+char *ext2_read_symlink(inode_t *ino, ext2_fs_t *fs)
 {
-	if(ext2_is_fast_symlink(inode, fs))
+	if(ext2_is_fast_symlink(ino, fs))
 	{
-		return ext2_do_fast_symlink(inode);
+		return ext2_do_fast_symlink(ino);
 	}
 	else
 	{
-		return ext2_do_slow_symlink(inode, fs);
+		return ext2_do_slow_symlink(ino, fs);
 	}
 }
 

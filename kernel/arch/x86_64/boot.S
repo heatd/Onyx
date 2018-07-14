@@ -30,6 +30,7 @@ hdr_start:
 	dw 0
 	dd 8
 hdr_end:
+
 [SECTION .boot]
 [GLOBAL EntryPoint]
 EntryPoint:
@@ -180,6 +181,7 @@ setup_paging_and_longm:
 	or eax, 1 ; enable syscall/sysret
 	or eax, 1 << 8 ; enable long mode
 	or eax, 1 << 11 ; enable NX
+	xor edx, edx
 	wrmsr
 
 	; Enable Paging

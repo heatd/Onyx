@@ -39,6 +39,7 @@ void _dlstart_c(int argc, char **argv, char **envp, size_t *auxv)
 		/* Fixup the phdrs */
 		ph->p_vaddr -= aux[AT_BASE];
 	}
+
 	if(!dynv)
 		return;
 

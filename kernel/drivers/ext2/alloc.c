@@ -6,7 +6,9 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+
 #include <onyx/compiler.h>
+#include <onyx/panic.h>
 
 #include <drivers/ext2.h>
 
@@ -48,4 +50,9 @@ inode_t *ext2_allocate_inode(uint32_t *inode_number, ext2_fs_t *fs)
 		return ext2_allocate_inode_from_block_group(inode_number, i, fs);
 	}
 	return 0;
+}
+
+void ext2_free_inode(uint32_t inode, ext2_fs_t *fs)
+{
+	panic("free_inode_impl");
 }

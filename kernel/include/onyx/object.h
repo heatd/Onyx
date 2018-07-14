@@ -9,6 +9,8 @@
 
 #include <onyx/ref.h>
 
+struct ref;
+
 struct object
 {
 	const char *name;

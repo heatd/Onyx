@@ -455,6 +455,7 @@ int sys_execve(char *p, char *argv[], char *envp[])
 	user_stack = (char*) user_stack + 256 * PAGE_SIZE;
 	get_current_thread()->user_stack_bottom = user_stack;
 
+	free(path);
 	return return_from_execve(entry, argc, uargv, uenv, auxv, user_stack);
 }
 

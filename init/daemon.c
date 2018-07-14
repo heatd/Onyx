@@ -378,7 +378,7 @@ int find_targets(const char *dir)
 	fd = openat(dirfd, "default.target", O_RDONLY | O_CLOEXEC);
 	if(fd < 0)
 	{
-		perror("find_targets");
+		perror("default.target");
 		close(dirfd);
 		return -1;
 	}

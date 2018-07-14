@@ -211,6 +211,8 @@ void general_protection_fault(intctx_t *ctx)
 	while(1);
 }
 
+void stack_trace_user(uintptr_t *stack);
+
 void page_fault_handler(intctx_t *ctx)
 {
 	uintptr_t fault_address = cpu_get_cr2();
@@ -226,7 +228,9 @@ void page_fault_handler(intctx_t *ctx)
 	
 	if(vmm_handle_page_fault(&info) < 0)
 	{
-		printk("Dumping %lx\n", *(uintptr_t *)ctx->rsp);
+		vmm_print_stats();
+		printk("Image base: %p\n", get_current_process()->image_base);
+		//printk("Dumping %lx\n", *(uintptr_t *)ctx->rsp);
 		vm_do_fatal_page_fault(&info);
 	}
 }

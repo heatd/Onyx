@@ -28,24 +28,22 @@
 #include <onyx/task_switching.h>
 #include <onyx/portio.h>
 #include <onyx/tty.h>
-#include <onyx/video.h>
+#include <onyx/framebuffer.h>
 #include <onyx/mutex.h>
 
 #include <onyx/panic.h>
 #include <onyx/dev.h>
 
 static struct termios term_io = {.c_lflag = ICANON | ECHO};
-static struct video_device *main_device = NULL;
 unsigned int max_row = 0;
-static const unsigned int max_row_fallback = 1024/16;
 unsigned int max_column = 0;
-static const unsigned int max_column_fallback = 768/8;
 size_t terminal_row = 0;
 size_t terminal_column = 0;
 uint32_t last_x = 0;
 uint32_t last_y = 0;
 int terminal_color = 0;
 int currentPty = 0;
+
 void* fbs[5] ={(void*) 0xDEADDEAD/*Vid mem*/,NULL};
 
 void tty_init(void)
@@ -53,15 +51,10 @@ void tty_init(void)
 	terminal_row = 1;
 	terminal_column = 0;
 	terminal_color = 0xaaaaaa;
-	main_device = video_get_main_adapter();
-	struct video_mode *vid = video_get_videomode(main_device);
-	if( vid->width == 0 ) {
-		max_row = max_row_fallback;
-		max_column = max_column_fallback;
-	} else {
-		max_row = vid->height / 16;
-		max_column = vid->width / 8;
-	}
+	struct framebuffer *fb = get_primary_framebuffer();
+
+	max_row = fb->height / 16;
+	max_column = fb->width / 8;
 }
 
 void tty_set_color(int color)
@@ -80,14 +73,48 @@ retry:;
 	}
 }
 
-void tty_draw_char(unsigned char c, int x, int y, int fgcolor, int bgcolor, void* fb)
+static struct color fg = {.r = 0xaa, .g = 0xaa, .b = 0xaa};
+static struct color bg = {0};
+
+void tty_draw_char(char c, unsigned int x, unsigned int y, struct framebuffer *fb)
 {
-retry:;
-	int err = video_draw_char(c, x, y, fgcolor, bgcolor, fb, main_device);
-	if(errno == ENODEV && err < 0)
+	struct font *font = get_font_data();
+	volatile char *buffer = (volatile char *) fb->framebuffer;
+
+	buffer += y * fb->pitch + x * (fb->bpp / 8);
+
+	for(int i = 0; i < 16; i++)
 	{
-		main_device = video_get_main_adapter();
-		goto retry;
+		for(int j = 0; j < 8; j++)
+		{
+			struct color color;
+			unsigned char f = font->font_bitmap[c * font->height + i];
+
+			if(f & font->mask[j])
+				color = fg;
+			else
+				color = bg;
+			
+			uint32_t c = unpack_rgba(color, fb);
+			volatile uint32_t *b = (volatile uint32_t *) ((uint32_t *) buffer + j);
+			
+			/* If the bpp is 32 bits, we can just blit it out */
+			if(fb->bpp == 32)
+				*b = c;
+			else
+			{
+				volatile unsigned char *buf =
+					(volatile unsigned char *)(buffer + j);
+				int bytes = fb->bpp / 8;
+				for(int i = 0; i < bytes; i++)
+				{
+					buf[i] = c;
+					c >>= 8;
+				}
+			}
+		}
+
+		buffer = (void*) (((char *) buffer) + fb->pitch);
 	}
 }
 
@@ -121,7 +148,7 @@ void tty_put_entry_at(char c, uint32_t color, size_t column, size_t row)
 	int x = column * 8;
 	last_x = x + 9;
 	last_y = y;
-	tty_draw_char(c, x, y, color, 0, fbs[currentPty]);
+	tty_draw_char(c, x, y, fbs[currentPty]);
 	tty_draw_cursor(x + 9, y, 0, 0xaaaaaa, fbs[currentPty]);
 }
 

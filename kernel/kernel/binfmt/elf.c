@@ -178,6 +178,7 @@ void* elf_load(struct binfmt_args *args)
 	
 	if(args->needs_interp)
 		entry = bin_do_interp(args);
+
 	return entry;
 }
 

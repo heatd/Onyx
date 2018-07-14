@@ -57,6 +57,7 @@
 #define EXT2_INO_FLAG_HASH_INDEXED_DIR 0x10000
 #define EXT2_INO_FLAG_AFS_DIR 0x20000
 #define EXT2_INO_FLAG_JOURNAL_FILE_DATA 0x40000
+
 typedef struct
 {
 	uint32_t total_inodes;
@@ -102,6 +103,7 @@ typedef struct
 	uint32_t journal_device;
 	uint32_t head_orphan_inode_list;
 } __attribute__((aligned(1024))) superblock_t;
+
 typedef struct
 {
 	uint32_t block_usage_addr;
@@ -111,6 +113,7 @@ typedef struct
 	uint16_t unallocated_inodes_in_group;
 	uint16_t dirs_in_group;
 } __attribute__((aligned(32))) block_group_desc_t;
+
 typedef struct
 {
 	uint16_t mode;
@@ -167,6 +170,13 @@ typedef struct ex
 	void *zero_block; /* A pointer to a zero'd block of memory with size 'block_size' */
 	struct ex *next;
 } ext2_fs_t;
+
+struct ext2_inode_info
+{
+	inode_t *inode;
+	uint32_t inum;
+};
+
 #define EXT2_TYPE_DIRECT_BLOCK		0
 #define EXT2_TYPE_SINGLY_BLOCK		1
 #define EXT2_TYPE_DOUBLY_BLOCK		2
@@ -174,29 +184,46 @@ typedef struct ex
 
 #define EXT2_DIRECT_BLOCK_COUNT		12	
 
+#define EXT2_ERR_INV_BLOCK		0
+
 #define EXT2_GET_FILE_TYPE(mode) (mode & 0xE000)
 #define EXT2_CALCULATE_SIZE64(ino) (((uint64_t)ino->size_hi << 32) | ino->size_lo)
 
 extern const unsigned int direct_block_count;
+
 void *ext2_read_block(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs);
-void ext2_read_block_raw(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs, void *buffer);
-void ext2_write_block(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs, void *buffer);
+void ext2_read_block_raw(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs,
+	void *buffer);
+void ext2_write_block(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs,
+	void *buffer);
 uint32_t ext2_allocate_block(ext2_fs_t *fs);
 void ext2_free_block(uint32_t block, ext2_fs_t *fs);
-ssize_t ext2_read_inode(inode_t *ino, ext2_fs_t *fs, size_t size, off_t off, char *buffer);
-ssize_t ext2_write_inode(inode_t *ino, ext2_fs_t *fs, size_t size, off_t off, char *buffer);
+ssize_t ext2_read_inode(inode_t *ino, ext2_fs_t *fs,
+	size_t size, off_t off, char *buffer);
+ssize_t ext2_write_inode(inode_t *ino, ext2_fs_t *fs,
+	size_t size, off_t off, char *buffer);
 inode_t *ext2_allocate_inode(uint32_t *inode_number, ext2_fs_t *fs);
 inode_t *ext2_get_inode_from_number(ext2_fs_t *fs, uint32_t inode);
 uint32_t ext2_allocate_from_block_group(ext2_fs_t *fs, uint32_t block_group);
-inode_t *ext2_allocate_inode_from_block_group(uint32_t *inode_no, uint32_t block_group, ext2_fs_t *fs);
+inode_t *ext2_allocate_inode_from_block_group(uint32_t *inode_no,
+	uint32_t block_group, ext2_fs_t *fs);
 void ext2_register_superblock_changes(ext2_fs_t *fs);
 void ext2_register_bgdt_changes(ext2_fs_t *fs);
 unsigned int ext2_detect_block_type(uint32_t block, ext2_fs_t *fs);
-int ext2_add_block_to_inode(inode_t *inode, uint32_t block, uint32_t block_index, ext2_fs_t *fs);
+int ext2_add_block_to_inode(inode_t *inode, uint32_t block,
+	uint32_t block_index, ext2_fs_t *fs);
 void ext2_set_inode_size(inode_t *inode, size_t size);
 void ext2_update_inode(inode_t *ino, ext2_fs_t *fs, uint32_t inode);
-char *ext2_read_symlink(inode_t *inode, ext2_fs_t *fs);
-inode_t *ext2_traverse_fs(inode_t *wd, const char *path, ext2_fs_t *fs, char **symlink_name, uint32_t *inode_num);
-inode_t *ext2_get_inode_from_dir(ext2_fs_t *fs, dir_entry_t *dirent, char *name, uint32_t *inode_number);
-inode_t *ext2_follow_symlink(inode_t *inode, ext2_fs_t *fs, inode_t *parent, uint32_t *inode_num, char **symlink);
+char *ext2_read_symlink(inode_t *ino, ext2_fs_t *fs);
+inode_t *ext2_traverse_fs(inode_t *wd, const char *path, ext2_fs_t *fs,
+	char **symlink_name, uint32_t *inode_num);
+inode_t *ext2_get_inode_from_dir(ext2_fs_t *fs, dir_entry_t *dirent,
+	char *name, uint32_t *inode_number);
+inode_t *ext2_follow_symlink(inode_t *inode, ext2_fs_t *fs,
+	inode_t *ino, uint32_t *inode_num, char **symlink);
+int ext2_add_direntry(const char *name, uint32_t inum, inode_t *inode,
+	inode_t *dir, ext2_fs_t *fs);
+void ext2_free_inode(uint32_t inode, ext2_fs_t *fs);
+void ext2_update_inode(inode_t *ino, ext2_fs_t *fs, uint32_t inode);
+
 #endif

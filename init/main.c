@@ -270,13 +270,14 @@ void setup_hostname()
 		return;
 	}
 	memset(buf, 0, 1024);
-	/* There should only be one line in the file(that contains the hostname itself), so we only need one fgets() */
+	/* There should only be one line in the file(that contains the hostname itself),
+		so we only need one fgets() */
 	fgets(buf, 1024, file);
 
 	buf[strlen(buf)-1] = '\0';	
 	if(buf[0] == '\0')
 	{
-		printf("Hostname not found - using 'localhost'\n");
+		printf("Bad /etc/localhost - using 'localhost'\n");
 		sethostname("localhost", strlen("localhost"));
 		setenv("HOSTNAME", "localhost", 1);
 	}

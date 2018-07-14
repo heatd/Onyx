@@ -1614,7 +1614,9 @@ void vm_do_fatal_page_fault(struct fault_info *info)
 		printk("SEGV at %016lx at ip %lx in process %u(%s)\n", 
 			info->fault_address, info->ip,
 			current->pid, current->cmd_line);
-		__asm__ __volatile__("hlt");
+
+		__asm__ __volatile__("cli; hlt");
+		while(1);
 		kernel_raise_signal(SIGSEGV, get_current_process());
 	}
 	else

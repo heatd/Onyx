@@ -16,7 +16,7 @@ install: $(PROG)
 	cp $(PROG).8 $(DESTDIR)/usr/share/man/man8
 	cp multi-user.target $(DESTDIR)/etc/init.d/targets
 	rm -f $(DESTDIR)/etc/init.d/targets/default.target
-	ln -s $(DESTDIR)/etc/init.d/targets/multi-user.target $(DESTDIR)/etc/init.d/targets/default.target
+	ln -s multi-user.target $(DESTDIR)/etc/init.d/targets/default.target
 %.o: %.c
 	$(CC) -c $< $(CFLAGS) -o $@
 $(PROG): $(OBJS)

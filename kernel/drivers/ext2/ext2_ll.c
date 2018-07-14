@@ -18,9 +18,11 @@
 #include <onyx/dev.h>
 #include <onyx/log.h>
 #include <onyx/fscache.h>
+#include <onyx/panic.h>
 
-#include <drivers/rtc.h>
-#include <drivers/ext2.h>
+#include "../include/ext2.h"
+
+time_t get_posix_time(void);
 
 const unsigned int direct_block_count = 12;
 
@@ -79,19 +81,23 @@ inode_t *ext2_get_inode_from_number(ext2_fs_t *fs, uint32_t inode)
 	uint32_t blockind = (index * fs->inode_size) % block_size;
 	block_group_desc_t *bgd = &fs->bgdt[bg];
 	inode_t *inode_table = NULL;
-	inode_t *inode_block = (inode_t*)((char *) (inode_table = ext2_read_block(bgd->inode_table_addr + block, 1, fs)) + blockind);
+	inode_t *inode_block = (inode_t*)((char *) (inode_table =
+		ext2_read_block(bgd->inode_table_addr + block, 1, fs)) + blockind);
 	
 	if(!inode_table)
 		return NULL;
 	
 	/* Update the atime field */
 	__ext2_update_atime(inode_block, bgd->inode_table_addr + block, fs, inode_table);
+
 	inode_t *ino = malloc(fs->inode_size);
+
 	if(!ino)
 	{
 		free(inode_table);
 		return NULL;
 	}
+
 	memcpy(ino, inode_block, fs->inode_size);
 	free(inode_table);
 	return ino;
@@ -110,6 +116,7 @@ void ext2_update_inode(inode_t *ino, ext2_fs_t *fs, uint32_t inode)
 	inode_t *inode_block = (inode_t*)((char *) (inode_table = ext2_read_block(bgd->inode_table_addr + block, 1, fs)) + blockind);
 	if(!inode_block)
 		return;
+
 	__ext2_update_ctime(ino);
 	memcpy(inode_block, ino, fs->inode_size);
 	ext2_write_block(bgd->inode_table_addr + block, 1, fs, inode_table);
@@ -117,26 +124,31 @@ void ext2_update_inode(inode_t *ino, ext2_fs_t *fs, uint32_t inode)
 }
 
 /* Open child file dirname of the directory 'ino', following symlinks */
-inode_t *ext2_open_dir(inode_t *ino, const char *dirname, ext2_fs_t *fs, char **symlink, uint32_t *inode_num)
+inode_t *ext2_open_dir(inode_t *ino, const char *dirname,
+	ext2_fs_t *fs, char **symlink, uint32_t *inode_num)
 {
 	inode_t *inode = NULL;
-	
+
 	if(EXT2_GET_FILE_TYPE(ino->mode) != EXT2_INO_TYPE_DIR)
 		return errno = ENOTDIR, NULL;
 	dir_entry_t *dirent = malloc(EXT2_CALCULATE_SIZE64(ino));
 	if(!dirent)
 		return errno = ENOMEM, NULL;
+
 	if(ext2_read_inode(ino, fs, EXT2_CALCULATE_SIZE64(ino), 0, (char*) dirent) != (ssize_t) EXT2_CALCULATE_SIZE64(ino))
 	{
 		free(dirent);
 		return errno = EIO, NULL;
 	}
+
 	inode = ext2_get_inode_from_dir(fs, dirent, (char*) dirname, inode_num);
+	
 	if(!inode)
 	{	
 		free(dirent);
 		return errno = ENOENT, NULL;
 	}
+
 	if(EXT2_GET_FILE_TYPE(inode->mode) == EXT2_INO_TYPE_SYMLINK)
 	{
 		inode = ext2_follow_symlink(inode, fs, ino, inode_num, symlink);
@@ -146,6 +158,7 @@ inode_t *ext2_open_dir(inode_t *ino, const char *dirname, ext2_fs_t *fs, char **
 			return NULL;
 		}
 	}
+	
 	free(dirent);
 
 	return inode;
@@ -190,4 +203,97 @@ void ext2_register_bgdt_changes(ext2_fs_t *fs)
 		ext2_write_block(2, (uint16_t)blocks_for_bgdt, fs, fs->bgdt);
 	else
 		ext2_write_block(1, (uint16_t)blocks_for_bgdt, fs, fs->bgdt);
+}
+
+size_t ext2_calculate_dirent_size(size_t len_name)
+{
+	size_t dirent_size = sizeof(dir_entry_t) - (255 - len_name);
+
+	/* Dirent sizes need to be 4-byte aligned */
+
+	if(dirent_size % 4)
+		dirent_size += 4 - dirent_size % 4;
+
+	return dirent_size;
+}
+
+int ext2_add_direntry(const char *name, uint32_t inum, inode_t *inode, inode_t *dir, ext2_fs_t *fs)
+{
+	uint8_t *buffer;
+	uint8_t *buf = buffer = zalloc(fs->block_size);
+	if(!buf)
+		return errno = ENOMEM, -1;
+	
+	size_t off = 0;
+
+	dir_entry_t entry;
+	
+	size_t dirent_size = ext2_calculate_dirent_size(strlen(name));
+
+	entry.inode = inum;
+	entry.lsbit_namelen = strlen(name);
+	entry.type_indic = 0;
+
+	strcpy(entry.name, name);
+
+	while(true)
+	{
+		if(off < EXT2_CALCULATE_SIZE64(dir))
+		{
+			ext2_read_inode(dir, fs, fs->block_size, (size_t) off, (char*) buf);
+
+			for(size_t i = 0; i < fs->block_size;)
+			{
+				dir_entry_t *e = (dir_entry_t *) buf;
+
+				size_t actual_size = ext2_calculate_dirent_size(e->lsbit_namelen);
+
+				if(e->size > actual_size && 
+				   e->size - actual_size >= dirent_size)
+				{
+					printk("Available entry!\n");
+					dir_entry_t *d = (dir_entry_t *) (buf + actual_size);
+					entry.size = e->size - actual_size;
+					e->size = actual_size;
+					memcpy(d, &entry, dirent_size);
+					
+					if(ext2_write_inode(dir, fs,
+						fs->block_size, (size_t) off,
+						(char*) buffer) < 0)
+					{
+						panic("ext2_write_inode failed\n");
+						return -1;
+					}
+	
+					free(buffer);
+
+					return 0;
+				}
+
+				buf += e->size;
+				i += e->size;
+			}
+		}
+		else
+		{
+			ext2_set_inode_size(dir, EXT2_CALCULATE_SIZE64(dir) + fs->block_size);
+
+			entry.size = fs->block_size;
+			memcpy(buf, &entry, dirent_size);
+
+			if(ext2_write_inode(dir, fs, dirent_size, (size_t) off, (char*) buf) < 0)
+			{
+				panic("ext2_write_inode failed\n");
+				return -1;
+			}
+
+			break;
+		}
+
+		off += fs->block_size;
+		buf = buffer;
+	}
+
+	free(buffer);
+	return 0;
 }

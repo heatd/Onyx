@@ -19,7 +19,6 @@
 #include <onyx/compiler.h>
 #include <onyx/dev.h>
 #include <onyx/log.h>
-#include <onyx/fscache.h>
 
 #include "../include/ext2.h"
 
@@ -72,6 +71,7 @@ size_t ext2_write(size_t offset, size_t sizeofwrite, void *buffer, struct inode 
 	inode_t *ino = ext2_get_inode_from_number(fs, node->i_inode);
 	if(!ino)
 		return errno = EINVAL, (size_t) -1;
+
 	size_t size = ext2_write_inode(ino, fs, sizeofwrite, offset, buffer);
 	if(offset + size > EXT2_CALCULATE_SIZE64(ino))
 	{
@@ -79,6 +79,8 @@ size_t ext2_write(size_t offset, size_t sizeofwrite, void *buffer, struct inode 
 		node->i_size = offset + size;
 	}
 	ext2_update_inode(ino, fs, node->i_inode);
+
+	free(ino);
 	return size;
 }
 
@@ -94,7 +96,10 @@ size_t ext2_read(int flags, size_t offset, size_t sizeofreading, void *buffer, s
 		return errno = EINVAL, -1;
 	size_t to_be_read = offset + sizeofreading > node->i_size ? sizeofreading
 		- offset - sizeofreading + node->i_size : sizeofreading;
+
 	size_t size = ext2_read_inode(ino, fs, to_be_read, offset, buffer);
+
+	free(ino);
 	return size;
 }
 
@@ -118,6 +123,7 @@ struct inode *ext2_open(struct inode *nd, const char *name)
 	node = superblock_find_inode(nd->i_sb, inode_num);
 	if(node)
 		return node;
+
 	node = inode_create();
 	if(!node)
 	{
@@ -157,12 +163,86 @@ struct inode *ext2_open(struct inode *nd, const char *name)
 	return node;
 }
 
-struct inode *ext2_creat(const char *path, int mode, struct inode *file)
+time_t get_posix_time(void);
+
+struct inode *ext2_creat(const char *name, int mode, struct inode *file)
 {
-	printk("Creating %s\n", path);
-	while(1);
+	printk("Creating %s\n", name);
+	ext2_fs_t *fs = file->i_sb->s_helper;
+	uint32_t inumber = 0;
+
+	inode_t *inode = ext2_allocate_inode(&inumber, fs);
+	inode_t *dir_inode = ext2_get_inode_from_number(fs, file->i_inode);
+	if(!dir_inode)
+		return NULL;
+	if(!inode)
+	{
+		free(dir_inode);
+		return NULL;
+	}
+
+	memset(inode, 0, sizeof(inode_t));
+	inode->ctime = inode->atime = inode->mtime = (uint32_t) get_posix_time();
+	inode->hard_links = 1;
+	inode->mode = EXT2_INO_TYPE_REGFILE | mode;
+
+	ext2_update_inode(inode, fs, inumber);
+	ext2_update_inode(dir_inode, fs, file->i_inode);
+	
+	if(ext2_add_direntry(name, inumber, inode, dir_inode, fs) < 0)
+	{
+		free(inode);
+		free(dir_inode);
+		ext2_free_inode(inumber, fs);
+		return NULL;
+	}
+
 	/* Create a file */
-	return NULL;
+	struct inode *ino = inode_create();
+
+	if(!ino)
+	{
+		/* TODO: Remove the direntry from the directory */
+		free(inode);
+		free(dir_inode);
+		ext2_free_inode(inumber, fs);
+		return NULL;
+	}
+
+	ino->i_dev = file->i_dev;
+	ino->i_inode = inumber;
+	/* Detect the file type */
+	if(EXT2_GET_FILE_TYPE(inode->mode) == EXT2_INO_TYPE_DIR)
+		ino->i_type = VFS_TYPE_DIR;
+	else if(EXT2_GET_FILE_TYPE(inode->mode) == EXT2_INO_TYPE_REGFILE)
+		ino->i_type = VFS_TYPE_FILE;
+	else if(EXT2_GET_FILE_TYPE(inode->mode) == EXT2_INO_TYPE_BLOCKDEV)
+		ino->i_type = VFS_TYPE_BLOCK_DEVICE;
+	else if(EXT2_GET_FILE_TYPE(inode->mode) == EXT2_INO_TYPE_CHARDEV)
+		ino->i_type = VFS_TYPE_CHAR_DEVICE;
+	else if(EXT2_GET_FILE_TYPE(inode->mode) == EXT2_INO_TYPE_SYMLINK)
+		ino->i_type = VFS_TYPE_SYMLINK;
+	else if(EXT2_GET_FILE_TYPE(inode->mode) == EXT2_INO_TYPE_FIFO)
+		ino->i_type = VFS_TYPE_FIFO;
+	else if(EXT2_GET_FILE_TYPE(inode->mode) == EXT2_INO_TYPE_UNIX_SOCK)
+		ino->i_type = VFS_TYPE_UNIX_SOCK;
+	else
+		ino->i_type = VFS_TYPE_UNK;
+
+	ino->i_size = EXT2_CALCULATE_SIZE64(inode);
+	ino->i_uid = inode->uid;
+	ino->i_gid = inode->gid;
+	ino->i_sb = file->i_sb;
+
+	memcpy(&ino->i_fops, &ext2_ops, sizeof(struct file_ops));
+	
+	superblock_add_inode(ino->i_sb, ino);
+
+	free(inode);
+	free(dir_inode);
+
+	printk("heya\n");
+	return ino;
 }
 
 __attribute__((no_sanitize_undefined))
