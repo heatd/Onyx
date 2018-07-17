@@ -70,17 +70,17 @@ struct keymap keymap =
 
 static struct input_state
 {
-	_Bool lshift_pressed;
-	_Bool caps_enabled;
-	_Bool lctrl_pressed;
-	_Bool fn_pressed;
-	_Bool winkey_pressed;
-	_Bool lalt_pressed;
-	_Bool altgr_pressed;
-	_Bool menukey_pressed;
-	_Bool rctrl_pressed;
-	_Bool rshift_pressed;
-	_Bool shift_pressed;
+	bool lshift_pressed;
+	bool caps_enabled;
+	bool lctrl_pressed;
+	bool fn_pressed;
+	bool winkey_pressed;
+	bool lalt_pressed;
+	bool altgr_pressed;
+	bool menukey_pressed;
+	bool rctrl_pressed;
+	bool rshift_pressed;
+	bool shift_pressed;
 	unsigned int key_pressed;
 } input_state = {0};
 
@@ -159,12 +159,14 @@ unsigned int input_process_keypress(uint8_t keycode)
 	return input_process_special_key(key, is_release);
 }
 
+int vterm_recieve_input(char c);
+
 void input_callback(void *payload)
 {
 	uint8_t keycode = (uint8_t) (uintptr_t) payload;
 	unsigned int key = input_process_keypress(keycode);
 	if(key != (unsigned int) -1)
-		tty_recieved_character((char) key);
+		vterm_recieve_input((char) key);
 }
 
 __init void init_input_state(void)

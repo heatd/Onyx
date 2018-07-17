@@ -39,6 +39,7 @@ void do_machine_check(intctx_t *ctx)
 	uint32_t ebx = 0;
 	uint32_t ecx = 0;
 	uint32_t edx = 0;
+
 	if(!__get_cpuid(CPUID_SIGN, &eax, &ebx, &ecx, &edx))
 	{
 		panic("Couldn't get CPU signature through cpuid\n");

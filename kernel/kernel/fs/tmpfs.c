@@ -115,6 +115,7 @@ struct inode *tmpfs_file_to_vfs(tmpfs_file_t *file, struct inode *parent)
 	f->i_gid = file->st_gid;
 
 	f->i_rdev = file->rdev;
+	f->i_helper = parent->i_helper;
 
 	if(f->i_rdev)
 	{
@@ -128,7 +129,6 @@ struct inode *tmpfs_file_to_vfs(tmpfs_file_t *file, struct inode *parent)
 
 	f->i_inode = (ino_t) file;
 	f->i_size = file->size;
-	f->i_helper = parent->i_helper;
 	f->i_sb = tmpfs_get_root(parent)->superblock;
 
 	return f;

@@ -2,6 +2,7 @@
 //	License AGPLv3: GNU Affero General Public License version 3
 
 #include <fonts.h>
+#include <onyx/font.h>
 
 const unsigned char __cursor__bitmap[] = {
 	XXXXXXXX,
@@ -4634,7 +4635,7 @@ static const unsigned char __font_bitmap__[] = {
 };
 
 	/*/ character width for each encoding */
-static const unsigned char __font_widths__[] = {
+const unsigned char __font_widths__[] = {
 	8,
 	8,
 	8,
@@ -4894,7 +4895,7 @@ static const unsigned char __font_widths__[] = {
 };
 
 	/*/ character encoding for each index entry */
-static const unsigned short __font_index__[] = {
+const unsigned short __font_index__[] = {
 	0,
 	1,
 	2,
@@ -5153,11 +5154,12 @@ static const unsigned short __font_index__[] = {
 	255,
 };
 
-	/*/ bitmap font structure */
-const struct bitmap_font font = {
-	.Width = 8, .Height = 16,
-	.Chars = 256,
-	.Widths = __font_widths__,
-	.Index = __font_index__,
-	.Bitmap = __font_bitmap__,
+static unsigned int font_mask[8] = {128, 64, 32, 16, 8, 4, 2, 1};
+/* bitmap font structure */
+struct font boot_font = {
+	.width = 8, .height = 16,
+	.chars = 256,
+	.font_bitmap = (void *) __font_bitmap__,
+	.mask = font_mask,
+	.cursor_bitmap = (void *) __cursor__bitmap
 };

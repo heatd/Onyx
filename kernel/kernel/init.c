@@ -6,14 +6,15 @@
 /**************************************************************************
  *
  *
- * File: kernel.c
+ * File: init.c
  *
- * Description: Main kernel file, contains the entry point and initialization
+ * Description: Main init file, contains the entry point and initialization
  *
  * Date: 30/1/2016
  *
  *
  **************************************************************************/
+
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -81,7 +82,6 @@
 #include <drivers/ps2.h>
 #include <drivers/ata.h>
 #include <drivers/ext2.h>
-#include <drivers/rtc.h>
 #include <drivers/e1000.h>
 #include <drivers/softwarefb.h>
 #include <pci/pci.h>
@@ -89,10 +89,7 @@
 extern uint64_t kernel_end;
 extern uintptr_t _start_smp;
 extern uintptr_t _end_smp;
- 
-static struct multiboot_tag_module *initrd_tag = NULL;
-struct multiboot_tag_elf_sections *secs;
-struct multiboot_tag_mmap *mmap_tag = NULL;
+
 void *initrd_addr = NULL;
 void *tramp = NULL;
 void *phys_fb = NULL;
@@ -103,6 +100,7 @@ extern void libc_late_init();
 
 char *kernel_arguments[200];
 int kernel_argc = 0;
+
 void kernel_parse_command_line(char *cmd)
 {
 	char *original_string = cmd;
@@ -128,6 +126,17 @@ void kernel_parse_command_line(char *cmd)
 		cmd++;
 	}
 }
+
+char *get_kernel_cmdline(void)
+{
+	return kernel_cmdline;
+}
+
+void set_initrd_address(void *initrd_address)
+{
+	initrd_addr = initrd_address;
+}
+
 char *kernel_getopt(char *opt)
 {
 	for(int i = 0; i < kernel_argc; i++)
@@ -148,6 +157,7 @@ char *kernel_getopt(char *opt)
 	ERROR("kernel", "%s: no such argument\n", opt);
 	return NULL;
 }
+
 
 void *process_setup_auxv(void *buffer, struct process *process);
 
@@ -243,6 +253,7 @@ retry:;
 	Elf64_auxv_t *auxv = process_setup_auxv(current->threads[0]->user_stack_bottom, current);
 	registers_t *regs = (registers_t *) current->threads[0]->kernel_stack;
 	regs->rcx = (uintptr_t) auxv;
+	
 	uintptr_t *fs = get_user_pages(VM_TYPE_REGULAR, 1, VM_WRITE | VM_NOEXEC | VM_USER);
 	current->threads[0]->fs = (void*) fs;
 	__pthread_t *p = (__pthread_t*) fs;
@@ -250,138 +261,14 @@ retry:;
 	p->tid = get_current_process()->threads[0]->id;
 	p->pid = get_current_process()->pid;
 	sched_start_thread(current->threads[0]);
+
 	return 0;
-}
-
-uintptr_t grub2_rsdp = 0;
-uintptr_t get_rdsp_from_grub(void)
-{
-	if(!grub2_rsdp)
-		return 0;
-	return grub2_rsdp - PHYS_BASE;
-}
-
-void kernel_early(uintptr_t addr, uint32_t magic)
-{
-	addr += PHYS_BASE;
-	if (magic != MULTIBOOT2_BOOTLOADER_MAGIC)
-		return;
-	idt_init();
-	vmm_init();
-
-	struct multiboot_tag_framebuffer *tagfb = NULL;
-	size_t total_mem = 0;
-	for (struct multiboot_tag * tag =
-	     (struct multiboot_tag *)(addr + 8);
-	     tag->type != MULTIBOOT_TAG_TYPE_END;
-	     tag =
-	     (struct multiboot_tag *) ((multiboot_uint8_t *) tag +
-				       ((tag->size + 7) & ~7))) {
-		switch (tag->type) {
-		case MULTIBOOT_TAG_TYPE_BASIC_MEMINFO:
-			{
-				struct multiboot_tag_basic_meminfo *memInfo = (struct multiboot_tag_basic_meminfo *) tag;
-				total_mem = memInfo->mem_lower + memInfo->mem_upper;
-				break;
-			}
-		case MULTIBOOT_TAG_TYPE_MMAP:
-			{
-				mmap_tag = (struct multiboot_tag_mmap *) tag;
-				break;
-			}
-		case MULTIBOOT_TAG_TYPE_FRAMEBUFFER:
-			{
-				tagfb = (struct multiboot_tag_framebuffer *) tag;
-				break;
-			}
-		case MULTIBOOT_TAG_TYPE_MODULE:
-			{
-				initrd_tag = (struct multiboot_tag_module *) tag;
-				break;
-			}
-		case MULTIBOOT_TAG_TYPE_ELF_SECTIONS:
-		{
-			secs = (struct multiboot_tag_elf_sections *) tag;
-			break;
-		}
-		case MULTIBOOT_TAG_TYPE_CMDLINE:
-		{
-			struct multiboot_tag_string *t = (struct multiboot_tag_string *) tag;
-			strcpy(kernel_cmdline, t->string);
-			break;
-		}
-		case MULTIBOOT_TAG_TYPE_ACPI_NEW:
-		{
-			struct multiboot_tag_new_acpi *acpi = (struct multiboot_tag_new_acpi *) tag;
-			grub2_rsdp = (uintptr_t) &acpi->rsdp;
-			break;
-		}
-		case MULTIBOOT_TAG_TYPE_ACPI_OLD:
-		{
-			struct multiboot_tag_old_acpi *acpi = (struct multiboot_tag_old_acpi *) tag;
-			grub2_rsdp = (uintptr_t) &acpi->rsdp;
-			break;
-		}
-		}
-	}
-	bootmem_init(total_mem, (uintptr_t) &kernel_end);
-
-	size_t entries = mmap_tag->size / mmap_tag->entry_size;
-	struct multiboot_mmap_entry *mmap = (struct multiboot_mmap_entry *) mmap_tag->entries;
-
-	for (size_t i = 0; i < entries; i++)
-	{
-		printf("Memory range %016llx - %016llx - type %u\n", mmap->addr,
-		        mmap->addr + mmap->len, mmap->type);
-		if (mmap->type == MULTIBOOT_MEMORY_AVAILABLE)
-		{
-			bootmem_push(mmap->addr, mmap->len, initrd_tag);
-		}
-		mmap++;
-	}
-
-	/* Identify the CPU it's running on (bootstrap CPU) */
-	cpu_identify();
-	paging_map_all_phys();
-
-	mmap = (struct multiboot_mmap_entry *) mmap_tag->entries;
-	initrd_addr = (void*) (uintptr_t) initrd_tag->mod_start;
-
-	page_init();
-
-	/* We need to get some early boot rtc data and initialize the entropy,
-	 * as it's vital to initialize some entropy sources for the memory map
-	*/
-	early_boot_rtc();
-	initialize_entropy();
-
-	vmm_late_init();
-	
-	/* Register pages */
-	page_register_pages();
-
-	paging_protect_kernel();
-	if(tagfb)
-	{
-		phys_fb = (void*) tagfb->common.framebuffer_addr;
-		size_t framebuffer_size = (tagfb->common.framebuffer_bpp / 8) * 
-			tagfb->common.framebuffer_width * tagfb->common.framebuffer_height;
-		(void) framebuffer_size;
-		void *addr = dma_map_range((void*) (uintptr_t) tagfb->common.framebuffer_addr,
-			0x400000, VM_WRITE | VM_GLOBAL | VM_NOEXEC);
-		/* Initialize the Software framebuffer */
-		softfb_init((uintptr_t) addr, tagfb->common.framebuffer_bpp, tagfb->common.framebuffer_width, tagfb->common.framebuffer_height, tagfb->common.framebuffer_pitch);
-	}
-
-	/* Initialize the first terminal */
-	tty_init();
 }
 
 void kernel_multitasking(void *);
 __attribute__((no_sanitize_undefined))
 void kernel_main()
 {
-	init_elf_symbols(secs);
 
 	/* Initialize ACPI */
 	acpi_initialize();
@@ -401,8 +288,9 @@ void kernel_main()
 	init_tss();
 	/* Initialize the VFS */
 	vfs_init();
-	if (!initrd_tag)
-		panic("Initrd not found\n");
+
+	if(!initrd_addr)
+		panic("Initrd not found");
 	initrd_addr = (void*)((char*) initrd_addr + PHYS_BASE);
 
 	/* Initialize the initrd */
@@ -435,10 +323,6 @@ void kernel_main()
 }
 void kernel_multitasking(void *arg)
 {
-	void *mem = vmm_allocate_virt_address(VM_KERNEL, 1024, VMM_TYPE_REGULAR, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL, 0);
-	vmm_map_range(mem, 1024, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
-	/* Create PTY */
-	tty_create_pty_and_switch(mem);
 	LOG("kernel", "Command line: %s\n", kernel_cmdline);
 
 	/* Initialize the SMBIOS subsystem */
@@ -511,7 +395,7 @@ void kernel_multitasking(void *arg)
 	char *args[] = {"", root_partition, NULL};
 	char *envp[] = {"PATH=/bin:/usr/bin:/sbin:", NULL};
 
-	find_and_exec_init(args, envp);
+	assert(find_and_exec_init(args, envp) == 0);
 
 	thread_set_state(get_current_thread(), THREAD_BLOCKED);
 	for (;;);

@@ -15,7 +15,7 @@
 #include <onyx/log.h>
 #include <onyx/video.h>
 
-#include <drivers/softwarefb.h>
+#include <onyx/framebuffer.h>
 
 #include <drm-kernel.h>
 
@@ -35,12 +35,11 @@ unsigned int drm_ioctl(int request, void *args, struct inode *self)
 		case DRM_REQUEST_DRMINFO:
 		{
 			struct drm_info *info = args;
-			struct video_device *dev = video_get_main_adapter();
 			
 			struct drm_info kinfo = {0};
 			strcpy(kinfo.drm_version, DRM_VERSION_STRING);
-			strcpy(kinfo.video_driver, dev->driver_string);
-			strcpy(kinfo.card, dev->card_string);
+			strcpy(kinfo.video_driver, "placeholder");
+			strcpy(kinfo.card, "placeholder");
 
 			if(copy_to_user(info, &kinfo, sizeof(struct drm_info)) < 0)
 				return -EFAULT;
@@ -54,20 +53,23 @@ unsigned int drm_ioctl(int request, void *args, struct inode *self)
 				return -EFAULT;
 			
 			/* Get the current video mode */
-			struct video_mode *v = video_get_videomode(video_get_main_adapter());
-			if(!v)
+			struct framebuffer *fb = get_primary_framebuffer();
+			if(!fb)
 				return -EIO;
 			/* Map the framebuffer */
 			/* TODO: Do this better, without hardcoded variables */
-			void *ptr = dma_map_range(phys_fb, v->width * v->height * (v->bpp / 8), VM_USER | VM_WRITE);
+			void *ptr =
+				dma_map_range((void*) fb->framebuffer_phys,
+				fb->width * fb->height * (fb->bpp / 8),
+				VM_USER | VM_WRITE);
 			if(!ptr)
 				return -ENOMEM;
 
 			out->framebuffer = ptr;
-			out->width = v->width;
-			out->height = v->height;
-			out->bpp = v->bpp;
-			out->pitch = v->pitch;
+			out->width = fb->width;
+			out->height = fb->height;
+			out->bpp = fb->bpp;
+			out->pitch = fb->pitch;
 
 			break;
 		}
@@ -77,10 +79,11 @@ unsigned int drm_ioctl(int request, void *args, struct inode *self)
 			struct drm_modeset_args *uargs = args;
 			if(copy_from_user(&arg, uargs, sizeof(struct drm_modeset_args)) < 0)
 				return -EFAULT;
-			struct video_device *device = video_get_main_adapter();
+			/*struct video_device *device = video_get_main_adapter();
 			if(!device)
 				return errno = -ENODEV;
-			return video_modeset(arg.width, arg.height, arg.bpp, device);
+			return video_modeset(arg.width, arg.height, arg.bpp, device);*/
+			return -ENODEV;
 		}
 	}
 	return 0;

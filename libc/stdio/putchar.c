@@ -12,7 +12,7 @@ int putchar(int ic)
 {
 	char c = (char) ic;
 #if defined(__is_onyx_kernel)
-	tty_write(&c, sizeof(c));
+	tty_write_kernel(&c, sizeof(c));
 #else
 	(void)c;
 #endif

@@ -29,6 +29,7 @@ static void append_to_list(struct ids *p)
 	}
 	spin_unlock(&list_lock);
 }
+
 struct ids *get_ids_from_name(const char *name)
 {
 	for(struct ids *l = list; l; l = l->next)
@@ -38,6 +39,7 @@ struct ids *get_ids_from_name(const char *name)
 	}
 	return NULL;
 }
+
 struct ids *idm_add(const char *name, uintmax_t min_id, uintmax_t upper_limit)
 {
 	struct ids 	*id;
@@ -53,6 +55,7 @@ struct ids *idm_add(const char *name, uintmax_t min_id, uintmax_t upper_limit)
 	id->upper_limit = upper_limit;
 	append_to_list(id);
 	return id;
+
 cleanup_and_error:
 	if(id)
 	{
@@ -61,6 +64,7 @@ cleanup_and_error:
 	free(id);
 	return NULL;
 }
+
 uintmax_t idm_get_id(struct ids *ids)
 {
 	assert(ids != NULL);
@@ -69,6 +73,7 @@ uintmax_t idm_get_id(struct ids *ids)
 		return errno = ERANGE, -1;
 	return id;
 }
+
 uintmax_t idm_get_id_from_name(const char *name)
 {
 	assert(name != NULL);
@@ -77,6 +82,7 @@ uintmax_t idm_get_id_from_name(const char *name)
 		return errno = ENOENT, -1;
 	return idm_get_id(id);
 }
+
 const char *idm_get_device_letter(struct ids *ids)
 {
 	/* Max name is Zz + 1 char for \0 */

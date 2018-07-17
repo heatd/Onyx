@@ -3,38 +3,46 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
-#include <onyx/modules.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
+
+#include <onyx/modules.h>
 #include <onyx/vfs.h>
 #include <onyx/elf.h>
 #include <onyx/vmm.h>
 
 static module_hashtable_t *hashtable;
-_Bool mods_disabled = 0;
+bool mods_disabled = 0;
 #define DEFAULT_SIZE 100
+
 int initialize_module_subsystem(void)
 {
 	hashtable = malloc(sizeof(module_hashtable_t));
+	
 	if(!hashtable)
 	{
 		printf("Kernel modules disabled. Not enough memory.\n");
 		mods_disabled = 1;
 		return errno = ENOMEM;
 	}
+	
 	memset(hashtable, 0, sizeof(module_hashtable_t));
 	hashtable->size = DEFAULT_SIZE;
 	hashtable->buckets = malloc(DEFAULT_SIZE * sizeof(void*));
+	
 	if(!hashtable->buckets)
 	{
 		printf("Kernel modules disabled. Not enough memory.\n");
 		mods_disabled = 1;
 		return errno = ENOMEM;
 	}
+	
 	memset(hashtable->buckets, 0, DEFAULT_SIZE * sizeof(void*));
 	return 0;
 }
+
 static int generate_key(const char *path, const char *name)
 {
 	int n = *name;
@@ -45,6 +53,7 @@ static int generate_key(const char *path, const char *name)
 	key = key % hashtable->size;
 	return key;
 }
+
 int add_module_to_hashtable(module_t *mod)
 {
 	int key = generate_key(mod->path, mod->name);
@@ -63,12 +72,14 @@ int add_module_to_hashtable(module_t *mod)
 	mod->next = NULL;
 	return 0;
 }
+
 module_t *get_module_from_key(int key, char *name)
 {
 	if(key > DEFAULT_SIZE)
 		return errno = EINVAL, NULL;
 	if(hashtable->buckets[key] == NULL)
 		return errno = EINVAL, NULL;
+	
 	for(module_t *i = hashtable->buckets[key]; i != NULL; i = i->next)
 	{
 		if(strcmp((char*)i->name, name)==0)
@@ -76,6 +87,7 @@ module_t *get_module_from_key(int key, char *name)
 	}
 	return errno = EINVAL, NULL;
 }
+
 int load_module(const char *path, const char *name)
 {	
 	module_t *mod = malloc(sizeof(module_t));
@@ -85,9 +97,11 @@ int load_module(const char *path, const char *name)
 		mods_disabled = 1;
 		return errno = ENOMEM;
 	}
+	
 	mod->path = strdup(path);
 	mod->name = strdup(name);
 	mod->next = NULL;
+	
 	struct inode *file = open_vfs(get_fs_root(), path);
 	if(!file)
 	{
@@ -96,21 +110,30 @@ int load_module(const char *path, const char *name)
 		free(mod);
 		return 1;
 	}
+	
 	char *buffer = malloc(file->i_size);
+	
 	if (!buffer)
 		return errno = ENOMEM;
 	memset(buffer, 0, file->i_size);
+	
 	size_t read = read_vfs(0, 0, file->i_size, buffer, file);
 	if (read != file->i_size)
 		return errno = EAGAIN;
+	
 	void *fini;
+	
 	void *entry = elf_load_kernel_module(buffer, &fini);
 	if(!entry)
 		return 1;
+	
 	if(errno == EINVAL)
 		printf("Invalid ELF file\n");
+	
 	module_init_t *functor = (module_init_t*) entry;
+	
 	functor();
+	
 	mod->fini = (module_fini_t) fini;
 	return add_module_to_hashtable(mod);
 }
@@ -177,6 +200,7 @@ int sys_insmod(const char *path, const char *name)
 		for user-space, while -0 still = 0 */
 	return -load_module(path, name);
 }
+
 void module_dump(void)
 {
 	if(!hashtable)
@@ -194,5 +218,6 @@ void module_dump(void)
 			mod = mod->next;
 		}
 	}
+
 	printk("\n");
 }

@@ -16,6 +16,10 @@
 #include <onyx/compiler.h>
 #include <onyx/scheduler.h>
 
+extern "C" {
+#include <onyx/framebuffer.h>
+}
+
 #include <pci/pci.h>
 
 MODULE_AUTHOR("Pedro Falcato");
@@ -69,6 +73,7 @@ int svga_modeset(unsigned int width, unsigned int height, unsigned int bpp, stru
 	device->write(SVGA_REG_WIDTH, width);
 	device->write(SVGA_REG_HEIGHT, height);
 	device->write(SVGA_REG_BITS_PER_PIXEL, bpp);
+	
 	struct video_mode mode;
 	mode.width = width;
 	mode.height = height;
@@ -77,37 +82,6 @@ int svga_modeset(unsigned int width, unsigned int height, unsigned int bpp, stru
 	device->set_video_mode(&mode);
 	return 0;
 }
-
-void *svga_get_fb(struct video_device *dev)
-{
-	UNUSED(dev);
-	return device->get_framebuffer();
-}
-
-struct video_mode *svga_get_videomode(struct video_device *dev)
-{
-	return device->get_video_mode();
-}
-
-static struct video_ops svga_ops = 
-{
-	svga_get_fb,
-	NULL,
-	NULL,
-	NULL,
-	svga_modeset,
-	svga_get_videomode,
-	NULL
-};
-
-static struct video_device svga_device = 
-{
-	.ops = &svga_ops,
-	.driver_string = (char*) "svga",
-	.card_string = (char*) "VMWare SVGAII",
-	.status = VIDEO_STATUS_INSERTED,
-	.refcount = 0
-};
 
 int SvgaDevice::add_bar(pcibar_t *bar, int index)
 {
@@ -121,7 +95,10 @@ int SvgaDevice::add_bar(pcibar_t *bar, int index)
 		case SVGAII_FRAMEBUFFER_BAR:
 		{
 			framebuffer_raw = (void*)(uintptr_t) bar->address;
-			framebuffer = dma_map_range(framebuffer_raw, bar->size, VM_WRITE | VM_NOEXEC | VM_GLOBAL);
+			framebuffer = dma_map_range(
+				framebuffer_raw,
+				bar->size,
+				VM_WRITE | VM_NOEXEC | VM_GLOBAL);
 			if(!framebuffer)
 				return -1;
 			framebuffer_size = bar->size;
@@ -178,6 +155,7 @@ void SvgaDevice::wait_for_fifo(size_t len)
 		sched_yield();
 	}
 }
+
 void SvgaDevice::send_command_fifo(void *command, size_t len)
 {
 	mutex_lock(&fifo_lock);
@@ -190,6 +168,7 @@ void SvgaDevice::send_command_fifo(void *command, size_t len)
 	memcpy(fifo, command, len);
 	command_buffer[SVGA_FIFO_STOP] += len;
 }
+
 extern "C" int module_init(void)
 {
 	MPRINTF("initializing\n");
@@ -200,6 +179,7 @@ extern "C" int module_init(void)
 	{
 		return 1;
 	}
+
 	device = smartptr::make<SvgaDevice>(dev);
 	if(!device.get_data())
 		return 1;
@@ -207,21 +187,25 @@ extern "C" int module_init(void)
 	pcibar_t *iospace_bar = pci_get_bar(dev, SVGAII_IO_SPACE_BAR);
 	pcibar_t *framebuffer_bar = pci_get_bar(dev, SVGAII_FRAMEBUFFER_BAR);
 	pcibar_t *command_buffer_bar = pci_get_bar(dev, SVGAII_COMMAND_BUFFER_BAR);
+	
 	if(!iospace_bar)
 	{
 		return 1;
 	}
+	
 	if(!framebuffer_bar)
 	{
 		free(iospace_bar);
 		return 1;
 	}
+	
 	if(!command_buffer_bar)
 	{
 		free(iospace_bar);
 		free(framebuffer_bar);
 		return 1;
 	}
+	
 	if(device->add_bar(iospace_bar, SVGAII_IO_SPACE_BAR) < 0)
 	{
 		free(iospace_bar);
@@ -247,15 +231,16 @@ extern "C" int module_init(void)
 	/* Finally, enable SVGA */
 	device->enable();
 
-	/* Note that we need to set the video mode right now, as if we don't, it will fallback to the lowest VGA res */
-	struct video_mode *mode = video_get_videomode(video_get_main_adapter());
-	svga_modeset(mode->width, mode->height, mode->bpp, NULL);
+	/* Note that we need to set the video mode right now, as if we don't,
+	 it will fallback to the lowest VGA res */
+	struct framebuffer *fb = get_primary_framebuffer();
+	svga_modeset(fb->width, fb->height, fb->bpp, NULL);
 
 	/* Setup the command FIFO */
 	device->setup_fifo();
 
 	/* Set this video adapter as the main adapter */
-	video_set_main_adapter(&svga_device);
+	//video_set_main_adapter(&svga_device);
 
 	/* Free memory and return */
 	free(iospace_bar);
