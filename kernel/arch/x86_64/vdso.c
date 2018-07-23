@@ -108,8 +108,9 @@ void vdso_init(void)
 	size_t vdso_pages = vmm_align_size_to_pages(vdso_size);
 
 	page -= KERNEL_VIRTUAL_BASE;
+
 	for(size_t i = 0; i < vdso_pages; i++, page += PAGE_SIZE)
-		page_add_page((void *) page);
+		page_add_page_late((void *) page);
 
 	increment_vdso_pages();
 	char *file = (char *) &__vdso_start;

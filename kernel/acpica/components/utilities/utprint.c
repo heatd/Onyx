@@ -799,7 +799,7 @@ vprintf (
     Length = vsnprintf (AcpiGbl_PrintBuffer,
                 sizeof (AcpiGbl_PrintBuffer), Format, Args);
 
-    printf("acpi: %s", AcpiGbl_PrintBuffer);
+    printf("%s", AcpiGbl_PrintBuffer);
 
     return (Length);
 }

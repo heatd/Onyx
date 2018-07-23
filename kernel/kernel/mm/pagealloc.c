@@ -17,6 +17,10 @@
 #include <onyx/spinlock.h>
 #include <onyx/page.h>
 #include <onyx/vmm.h>
+#include <onyx/panic.h>
+
+size_t page_memory_size;
+size_t nr_global_pages;
 
 static inline unsigned long pow2(int exp)
 {
@@ -43,6 +47,7 @@ struct page_arena
 	void *start_arena;
 	void *end_arena;
 	struct page_list *page_list;
+	struct page_list *tail;
 	struct spinlock lock;
 	struct page_arena *next;
 };
@@ -137,6 +142,23 @@ void *page_alloc(size_t nr_pages, unsigned long flags)
 	return NULL;
 }
 
+static void append_page(struct page_arena *arena, struct page_list *page)
+{
+	if(!arena->page_list)
+	{
+		arena->page_list = arena->tail = page;
+		page->next = NULL;
+		page->prev = NULL;
+	}
+	else
+	{
+		arena->tail->next = page;
+		page->prev = arena->tail;
+		arena->tail = page;
+		page->next = NULL;
+	}
+}
+
 void page_free_pages(struct page_arena *arena, void *addr, size_t nr_pages)
 {
 	spin_lock(&arena->lock);
@@ -195,34 +217,23 @@ void page_free(size_t nr_pages, void *addr)
 	}
 }
 
-typedef struct stack_entry
-{
-	uintptr_t base;
-	size_t size;
-	size_t magic;
-} stack_entry_t;
+bool page_is_used(void *__page, struct bootmodule *modules);
+size_t page_add_counter = 0;
 
-typedef struct stack
+static int page_add(struct page_arena *arena, void *__page,
+	struct bootmodule *modules)
 {
-	stack_entry_t* next;
+	if(page_is_used(__page, modules))
+		return -1;
+	page_add_counter++;
 
-} stack_t;
-
-static void page_add(struct page_list **list, void *__page)
-{
 	struct page_list *page = PHYS_TO_VIRT(__page);
 	page->next = NULL;
 
-	if(*list)
-	{
-		while(*list)
-			list = &(*list)->next;
-		page->prev = (struct page_list *) ((char*) list - 
-			offsetof(struct page_list, next));
-	}
-	else
-		page->prev = NULL;
-	*list = page;
+	append_page(arena, page);
+	page_add_page(__page);
+
+	return 0;
 }
 
 static void append_arena(struct page_cpu *cpu, struct page_arena *arena)
@@ -236,10 +247,8 @@ static void append_arena(struct page_cpu *cpu, struct page_arena *arena)
 
 uintptr_t min(uintptr_t x, uintptr_t y);
 
-static void page_add_region(stack_entry_t *entry)
+static void page_add_region(uintptr_t base, size_t size, struct bootmodule *module)
 {
-	size_t size = entry->size;
-	uintptr_t base = entry->base;
 	while(size)
 	{
 		size_t area_size = min(size, 0x200000);
@@ -253,7 +262,9 @@ static void page_add_region(stack_entry_t *entry)
 
 		for(size_t i = 0; i < area_size; i += PAGE_SIZE)
 		{
-			page_add(&arena->page_list, (void*) (base + i));
+			/* If the page is being used, decrement the free_pages counter */
+			if(page_add(arena, (void*) (base + i), module) < 0)
+				arena->free_pages--;
 		}
 
 		append_arena(&main_cpu, arena);
@@ -263,23 +274,49 @@ static void page_add_region(stack_entry_t *entry)
 	}
 }
 
-void page_init(void)
+void page_init(size_t memory_size, void *(*get_phys_mem_region)(uintptr_t *base,
+	uintptr_t *size, void *context), struct bootmodule *modules)
 {
-	size_t nentries = 0;
-	size_t mem_size = bootmem_get_memsize();
-	size_t nr_arenas = mem_size / 0x200000;
-	void *ptr = bootmem_alloc(vmm_align_size_to_pages(nr_arenas * sizeof(struct page_arena)));
-	__kbrk(PHYS_TO_VIRT(ptr));
-	stack_t *stack = bootmem_get_pstack(&nentries);
+	uintptr_t region_base;
+	uintptr_t region_size;
+	void *context_cookie = NULL;
 
-	for(size_t i = 0; i < nentries; i++)
+	printf("page: Memory size: %lu\n", memory_size);
+	page_memory_size = memory_size;
+	nr_global_pages = vmm_align_size_to_pages(memory_size);
+
+	size_t nr_arenas = page_memory_size / 0x200000;
+	if(page_memory_size % 0x200000)
+		nr_arenas++;
+
+	size_t needed_memory = nr_arenas *
+		sizeof(struct page_arena) + 
+		nr_global_pages * sizeof(struct page);
+	void *ptr = alloc_boot_page(vmm_align_size_to_pages(needed_memory), 0);
+	if(!ptr)
 	{
-		if(stack->next[i].base != 0 && stack->next[i].size != 0)
-		{
-			printf("Region %lu: %016lx-%016lx\n", i, stack->next[i].base,
-			stack->next[i].base + stack->next[i].size);
-			page_add_region(&stack->next[i]);
-		}
+		halt();
+	}
+
+	__kbrk(PHYS_TO_VIRT(ptr));
+
+
+	/* The context cookie is supposed to be used as a way for the
+	 * get_phys_mem_region implementation to keep track of where it's at,
+	 * without needing ugly global variables.
+	*/
+
+	/* Loop this call until the context cookie is NULL
+	* (we must have reached the end)
+	*/
+
+	while((context_cookie = get_phys_mem_region(&region_base,
+		&region_size, context_cookie)) != NULL)
+	{
+		/* page_add_region can't return an error value since it halts
+		 * on failure
+		*/
+		page_add_region(region_base, region_size, modules);
 	}
 
 	page_is_initialized = true;
@@ -288,7 +325,7 @@ void page_init(void)
 void *__alloc_pages_nozero(int order)
 {
 	if(page_is_initialized == false)
-		return bootmem_alloc(1);
+		return alloc_boot_page(1, BOOTMEM_FLAG_LOW_MEM);
 	size_t nr_pages = pow2(order);
 
 	void *p = page_alloc(nr_pages, 0);
@@ -308,6 +345,7 @@ void *__alloc_pages(int order)
 	}
 	return p;
 }
+
 void *__alloc_page(int opt)
 {
 	return __alloc_pages(0);

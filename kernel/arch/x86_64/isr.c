@@ -229,7 +229,7 @@ void page_fault_handler(intctx_t *ctx)
 	if(vmm_handle_page_fault(&info) < 0)
 	{
 		vmm_print_stats();
-		printk("Image base: %p\n", get_current_process()->image_base);
+		//printk("Image base: %p\n", get_current_process()->image_base);
 		//printk("Dumping %lx\n", *(uintptr_t *)ctx->rsp);
 		vm_do_fatal_page_fault(&info);
 	}

@@ -173,6 +173,7 @@ void paging_init(void)
 void paging_map_all_phys(void)
 {
 	bool is_1gb_supported = x86_has_cap(X86_FEATURE_PDPE1GB);
+
 	uintptr_t virt = PHYS_BASE;
 	decomposed_addr_t decAddr;
 	memcpy(&decAddr, &virt, sizeof(decomposed_addr_t));
@@ -181,7 +182,7 @@ void paging_map_all_phys(void)
 	
 	memset(pml3, 0, sizeof(PML3));
 	*entry = make_pml4e((uint64_t)pml3, 0, 0, 0, 0, 1, 1);
-	is_1gb_supported = false;
+
 	if(is_1gb_supported)
 	{
 		for(size_t i = 0; i < 512; i++)
@@ -288,7 +289,7 @@ void* paging_map_phys_to_virt_large_early(uint64_t virt, uint64_t phys, uint64_t
 
 void* paging_map_phys_to_virt_large(uint64_t virt, uint64_t phys, uint64_t prot)
 {
-	_Bool user = 0;
+	bool user = 0;
 	if (virt < 0x00007fffffffffff)
 		user = 1;
 	if(!get_current_pml4())
@@ -301,28 +302,36 @@ void* paging_map_phys_to_virt_large(uint64_t virt, uint64_t phys, uint64_t prot)
 	PML3* pml3 = NULL;
 	PML2* pml2 = NULL;
 	/* If its present, use that pml3 */
-	if(*entry & 1) {
+	if(*entry & 1)
+	{
 		pml3 = (PML3*)(*entry & 0x0FFFFFFFFFFFF000);
 	}
-	else { /* Else create one */
-		pml3 = (PML3*)__alloc_page(PAGE_AREA_HIGH_MEM);
+	else
+	{
+		/* Else create one */
+		pml3 = (PML3*) __alloc_page(PAGE_AREA_HIGH_MEM);
 		if(!pml3)
 			return NULL;
 		memset((void*)((uint64_t)pml3 + PHYS_BASE), 0, sizeof(PML3));
 		*entry = make_pml4e((uint64_t)pml3, 0, 0, 0, user ? 1 : 0, 1, 1);
 	}
+	
 	pml3 = (PML3*)((uint64_t)pml3 + PHYS_BASE);
 	entry = &pml3->entries[decAddr.pdpt];
-	if(*entry & 1) {
+	
+	if(*entry & 1)
+	{
 		pml2 = (PML2*)(*entry & 0x0FFFFFFFFFFFF000);
 	}
-	else {
+	else
+	{
 		pml2 = (PML2*)__alloc_page(PAGE_AREA_HIGH_MEM);
 		if(!pml2 )
 			return NULL;
 		memset((void*)((uint64_t)pml2 + PHYS_BASE), 0, sizeof(PML2));
 		*entry = make_pml3e( (uint64_t)pml2, 0, 0, 0, 0, 0, user ? 1 : 0, 1, 1);
 	}
+
 	pml2 = (PML2*)((uint64_t)pml2 + PHYS_BASE);
 	entry = &pml2->entries[decAddr.pd];
 	

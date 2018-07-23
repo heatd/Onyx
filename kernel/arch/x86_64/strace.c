@@ -119,12 +119,15 @@ void *stack_trace(void)
 Elf64_Shdr *strtabs = NULL;
 Elf64_Shdr *symtab = NULL;
 char *strtab = NULL;
+
 uintptr_t min(uintptr_t x, uintptr_t y);
+
 __attribute__((no_sanitize_undefined))
 char *elf_get_string(Elf64_Word off)
 {
 	return strtab + off;
 }
+
 __attribute__((no_sanitize_undefined))
 uintptr_t get_kernel_sym_by_name(const char *name)
 {
@@ -140,6 +143,7 @@ uintptr_t get_kernel_sym_by_name(const char *name)
 	return 0;
 
 }
+
 __attribute__((no_sanitize_undefined))
 char *resolve_sym(void *address)
 {
@@ -184,6 +188,7 @@ char *resolve_sym(void *address)
 	sprintf(buf, "<%s+0x%lx>", elf_get_string(closest_sym->st_name), diff);
 	return buf;
 }
+
 __attribute__((no_sanitize_undefined))
 void init_elf_symbols(struct multiboot_tag_elf_sections *restrict secs)
 {
@@ -192,13 +197,40 @@ void init_elf_symbols(struct multiboot_tag_elf_sections *restrict secs)
 	strtab = (char*)(strtabs->sh_addr + PHYS_BASE);
 	for(unsigned int i = 0; i < secs->num; i++)
 	{
-		if(!strcmp(".symtab",elf_get_string(sections[i].sh_name)))
+		if(!strcmp(".symtab", elf_get_string(sections[i].sh_name)))
 		{
 			symtab = &sections[i];
 		}
-		if(!strcmp(".strtab",elf_get_string(sections[i].sh_name)))
+		if(!strcmp(".strtab", elf_get_string(sections[i].sh_name)))
 		{
 			strtab = (char*)(sections[i].sh_addr + PHYS_BASE);
+		}
+	}
+}
+
+struct used_pages symtab_pages;
+struct used_pages strtab_pages;
+
+void elf_sections_reserve(struct multiboot_tag_elf_sections *restrict secs)
+{
+	Elf64_Shdr *sections = (Elf64_Shdr*)(secs->sections);
+	strtabs = &sections[secs->shndx];
+	strtab = (char*)(strtabs->sh_addr + PHYS_BASE);
+	for(unsigned int i = 0; i < secs->num; i++)
+	{
+		if(!strcmp(".symtab", elf_get_string(sections[i].sh_name)))
+		{
+			symtab_pages.start = sections[i].sh_addr;
+			symtab_pages.end = sections[i].sh_size + symtab_pages.start;
+			symtab_pages.next = NULL;
+			page_add_used_pages(&symtab_pages);
+		}
+		if(!strcmp(".strtab", elf_get_string(sections[i].sh_name)))
+		{
+			strtab_pages.start = sections[i].sh_addr;
+			strtab_pages.end = sections[i].sh_size + strtab_pages.start;
+			strtab_pages.next = NULL;
+			page_add_used_pages(&strtab_pages);
 		}
 	}
 }

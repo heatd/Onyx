@@ -51,7 +51,7 @@ void lapic_send_eoi()
 	}
 }
 
-void lapic_init()
+void lapic_init(void)
 {
 	/* Get the BSP's LAPIC base address from the msr's */
 	uint32_t high, low;

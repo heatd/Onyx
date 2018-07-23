@@ -73,13 +73,11 @@
 static struct multiboot_tag_module *initrd_tag = NULL;
 struct multiboot_tag_elf_sections *secs;
 struct multiboot_tag_mmap *mmap_tag = NULL;
-uintptr_t grub2_rsdp = 0;
+ACPI_TABLE_RSDP grub2_rsdp = {0};
 
 uintptr_t get_rdsp_from_grub(void)
 {
-	if(!grub2_rsdp)
-		return 0;
-	return grub2_rsdp - PHYS_BASE;
+	return (uintptr_t) &grub2_rsdp - KERNEL_VIRTUAL_BASE;
 }
 
 extern uintptr_t kernel_end;
@@ -127,7 +125,165 @@ void init_multiboot2_framebuffer(struct multiboot_tag_framebuffer *tagfb)
 
 }
 
+#define BITMAP_SIZE (0x1000000 / PAGE_SIZE / sizeof(unsigned long) / CHAR_BIT)
+#define PAGES_PER_ENTRY (sizeof(unsigned long) * CHAR_BIT)
+
+#define min(x, y) (x < y ? x : y)
+
+unsigned long dma_mem_bitmap[BITMAP_SIZE];
+
+void *multiboot2_alloc_boot_page_low(size_t nr_pages)
+{
+	for(size_t i = 0; i < BITMAP_SIZE; ++i)
+	{
+		if(dma_mem_bitmap[i] == 0xffffffffffffffff)
+			continue;
+		for(size_t j = 0; j < PAGES_PER_ENTRY; j++)
+		{
+			if(!(dma_mem_bitmap[i] & (1UL << j)))
+			{
+				dma_mem_bitmap[i] |= (1UL << j);
+				return (void *) (i * PAGES_PER_ENTRY * PAGE_SIZE + j * PAGE_SIZE);
+			}
+		}
+	}
+
+	return NULL;
+}
+
+void *multiboot2_alloc_boot_page_high(size_t nr_pages)
+{
+	size_t entries = mmap_tag->size / mmap_tag->entry_size;
+	struct multiboot_mmap_entry *mmap = (struct multiboot_mmap_entry *) mmap_tag->entries + entries-1;
+	size_t i = 0;
+
+	for(; i < entries; i++, mmap--)
+	{
+		if(mmap->type != MULTIBOOT_MEMORY_AVAILABLE)
+			continue;
+		if(mmap->len >> PAGE_SHIFT >= nr_pages)
+		{
+			uintptr_t ret = mmap->addr;
+			mmap->addr += nr_pages << PAGE_SHIFT;
+			mmap->len -= nr_pages << PAGE_SHIFT;
+
+			return (void *) ret;
+		}
+	}
+
+	return NULL;
+}
+
+void *multiboot2_alloc_boot_page(size_t nr_pages, long flags)
+{
+	if(flags & BOOTMEM_FLAG_LOW_MEM)
+		return multiboot2_alloc_boot_page_low(nr_pages);
+	else
+		return multiboot2_alloc_boot_page_high(nr_pages);
+}
+
+void *multiboot2_get_phys_mem_region(uintptr_t *base,
+	uintptr_t *size, void *context)
+{
+	/* Context holds an array index */
+
+	struct multiboot_tag_mmap *tag = mmap_tag;
+	size_t entries = mmap_tag->size / mmap_tag->entry_size;
+	size_t curr_entry = (size_t) context;
+
+	if(curr_entry == entries)
+		return (void *) 0;
+
+	struct multiboot_mmap_entry *entry = &tag->entries[curr_entry];
+
+	printf("Adding physical memory region %llx - %llx\n", entry->addr, entry->addr + entry->len);
+	*base = entry->addr;
+	*size = entry->len;
+
+	curr_entry++;
+
+	for(; curr_entry != entries; ++curr_entry)
+	{
+		if(tag->entries[curr_entry].type == MULTIBOOT_MEMORY_AVAILABLE)
+			break;
+	}
+
+	return (void *) curr_entry;
+	
+}
+
+void low_mem_allocator_clear(uintptr_t page)
+{
+	page >>= PAGE_SHIFT;
+	size_t i_idx = page / PAGES_PER_ENTRY;
+
+	size_t bit_index = page % PAGES_PER_ENTRY;
+
+	dma_mem_bitmap[i_idx] &= ~(1UL << bit_index);
+}
+
+bool page_is_used(void *__page, struct bootmodule *modules);
+
+void start_low_mem_allocator(struct bootmodule *initrd_module)
+{
+	for(size_t i = 0; i < BITMAP_SIZE; ++i)
+	{
+		dma_mem_bitmap[i] = 0xffffffffffffffff;
+	}
+
+	size_t entries = mmap_tag->size / mmap_tag->entry_size;
+	struct multiboot_mmap_entry *mmap = (struct multiboot_mmap_entry *) mmap_tag->entries;
+	size_t i = 0;
+
+	for(; i < entries; i++, mmap++)
+	{
+		if(mmap->type != MULTIBOOT_MEMORY_AVAILABLE)
+			continue;
+		if(mmap->addr >= 0x1000000)
+			break;
+
+		if(mmap->addr == 0)
+		{
+			/* Page zero is reserved by the kernel */
+			mmap->addr += PAGE_SIZE;
+			mmap->len -= PAGE_SIZE;
+		}
+
+		size_t len = min(0x1000000 - mmap->addr, mmap->len);
+		size_t pgs = len / PAGE_SIZE;
+		mmap->len -= len;
+
+		for(size_t i = 0; i < pgs; i++)
+		{
+			if(page_is_used((void *) (mmap->addr + i * PAGE_SIZE), initrd_module))
+				continue;
+			low_mem_allocator_clear(mmap->addr + i * PAGE_SIZE);
+		}
+
+		mmap->addr += len;
+	}
+}
+
+size_t count_mem(void)
+{
+	size_t entries = mmap_tag->size / mmap_tag->entry_size;
+	struct multiboot_mmap_entry *mmap = (struct multiboot_mmap_entry *) mmap_tag->entries;
+
+	size_t memory = 0;
+
+	for(size_t i = 0; i < entries; i++, mmap++)
+	{
+		if(mmap->type != MULTIBOOT_MEMORY_AVAILABLE)
+			continue;
+		memory += mmap->len;
+	}
+
+	return memory;
+}
+
 void vterm_do_init(void);
+
+struct used_pages multiboot_struct_used;
 
 void kernel_early(uintptr_t addr, uint32_t magic)
 {
@@ -139,7 +295,8 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 
 	struct multiboot_tag_framebuffer *tagfb = NULL;
 	size_t total_mem = 0;
-	for (struct multiboot_tag * tag =
+	struct multiboot_tag * tag;
+	for (tag =
 	     (struct multiboot_tag *)(addr + 8);
 	     tag->type != MULTIBOOT_TAG_TYPE_END;
 	     tag =
@@ -148,15 +305,10 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 		{
 		switch (tag->type)
 		{
-		case MULTIBOOT_TAG_TYPE_BASIC_MEMINFO:
-		{
-			struct multiboot_tag_basic_meminfo *memInfo = (struct multiboot_tag_basic_meminfo *) tag;
-			total_mem = memInfo->mem_lower + memInfo->mem_upper;
-			break;
-		}
 		case MULTIBOOT_TAG_TYPE_MMAP:
 		{
 			mmap_tag = (struct multiboot_tag_mmap *) tag;
+			total_mem = count_mem();
 			break;
 		}
 		case MULTIBOOT_TAG_TYPE_FRAMEBUFFER:
@@ -165,10 +317,10 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 			break;
 		}
 		case MULTIBOOT_TAG_TYPE_MODULE:
-			{
-				initrd_tag = (struct multiboot_tag_module *) tag;
-				break;
-			}
+		{
+			initrd_tag = (struct multiboot_tag_module *) tag;
+			break;
+		}
 		case MULTIBOOT_TAG_TYPE_ELF_SECTIONS:
 		{
 			secs = (struct multiboot_tag_elf_sections *) tag;
@@ -183,42 +335,40 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 		case MULTIBOOT_TAG_TYPE_ACPI_NEW:
 		{
 			struct multiboot_tag_new_acpi *acpi = (struct multiboot_tag_new_acpi *) tag;
-			grub2_rsdp = (uintptr_t) &acpi->rsdp;
+			memcpy(&grub2_rsdp, &acpi->rsdp, sizeof(ACPI_TABLE_RSDP));
 			break;
 		}
 		case MULTIBOOT_TAG_TYPE_ACPI_OLD:
 		{
 			struct multiboot_tag_old_acpi *acpi = (struct multiboot_tag_old_acpi *) tag;
-			grub2_rsdp = (uintptr_t) &acpi->rsdp;
+			memcpy(&grub2_rsdp, &acpi->rsdp, sizeof(ACPI_TABLE_RSDP));
 			break;
 		}
 		}
 	}
 
-	bootmem_init(total_mem, (uintptr_t) &kernel_end);
+	multiboot_struct_used.start = (uintptr_t) addr - PHYS_BASE;
+	multiboot_struct_used.end = (uintptr_t) tag - PHYS_BASE;
+	multiboot_struct_used.next = NULL;
+	page_add_used_pages(&multiboot_struct_used);
 
-	size_t entries = mmap_tag->size / mmap_tag->entry_size;
-	struct multiboot_mmap_entry *mmap = (struct multiboot_mmap_entry *) mmap_tag->entries;
+	elf_sections_reserve(secs);
 
-	for (size_t i = 0; i < entries; i++)
-	{
-		printf("Memory range %016llx - %016llx - type %u\n", mmap->addr,
-		        mmap->addr + mmap->len, mmap->type);
-		if (mmap->type == MULTIBOOT_MEMORY_AVAILABLE)
-		{
-			bootmem_push(mmap->addr, mmap->len, initrd_tag);
-		}
-		mmap++;
-	}
+	struct bootmodule module;
+	module.base = initrd_tag->mod_start;
+	module.size = initrd_tag->mod_end - initrd_tag->mod_start;
+	module.next = NULL;
+
+	start_low_mem_allocator(&module);
+	set_alloc_boot_page(multiboot2_alloc_boot_page);
 
 	/* Identify the CPU it's running on (bootstrap CPU) */
 	cpu_identify();
 	paging_map_all_phys();
 
-	mmap = (struct multiboot_mmap_entry *) mmap_tag->entries;
 	set_initrd_address((void*) (uintptr_t) initrd_tag->mod_start);
 
-	page_init();
+	page_init(total_mem, multiboot2_get_phys_mem_region, &module);
 
 	/* We need to get some early boot rtc data and initialize the entropy,
 	 * as it's vital to initialize some entropy sources for the memory map
@@ -227,7 +377,7 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 	initialize_entropy();
 
 	vmm_late_init();
-	
+
 	/* Register pages */
 	page_register_pages();
 

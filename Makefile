@@ -91,7 +91,6 @@ qemu: iso
 	-monitor stdio -boot d -netdev user,id=u1 -device e1000,netdev=u1 \
 	-object filter-dump,id=f1,netdev=u1,file=net.pcap \
 	--enable-kvm -smp 2 -cpu host,migratable=no,+invtsc -d int -vga vmware \
-	-usb
+	-usb -no-reboot -no-shutdown
 virtualbox: iso
 	virtualbox --startvm Onyx --dbg
-

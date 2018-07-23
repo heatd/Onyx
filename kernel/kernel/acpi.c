@@ -344,6 +344,7 @@ int acpi_initialize(void)
 	st = AcpiLoadTables();
 	if(ACPI_FAILURE(st))
 		panic("AcpiLoadTables failed!");
+
 	ioapic_early_init();
 	st = AcpiEnableSubsystem(ACPI_FULL_INITIALIZATION);
 	if (ACPI_FAILURE(st))
@@ -393,6 +394,7 @@ ACPI_STATUS acpi_enumerate_per_cpu(ACPI_HANDLE object, UINT32 nestingLevel, void
 			apic_id = acpi_get_apic_id_lapic(madt);
 			break;
 	}
+
 	processor->object = object;
 	processor->apic_id = apic_id;
 	ACPI_FREE(buffer.Pointer);

@@ -15,12 +15,14 @@ static inline void xsetbv(unsigned long r, unsigned long xcr0)
 {
 	__asm__ __volatile__("xsetbv"::"c"(r), "A"(xcr0));
 }
+
 static inline unsigned long xgetbv(unsigned long r)
 {
 	unsigned long ret = 0;
 	__asm__ __volatile__("xgetbv":"=A"(ret):"c"(r));
 	return ret;
 }
+
 void avx_init(void)
 {
 	if(x86_has_cap(X86_FEATURE_AVX) && x86_has_cap(X86_FEATURE_XSAVE))

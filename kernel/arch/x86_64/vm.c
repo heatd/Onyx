@@ -32,3 +32,11 @@ void arch_vmm_init(void)
 
 	vm_update_addresses(vm_calculate_virtual_address(vm_bits));
 }
+
+/* Dummy function to keep the kernel happy, since x86 reports every platform
+ * memory region as far as I know
+*/
+bool platform_page_is_used(void *page)
+{
+	return false;
+}

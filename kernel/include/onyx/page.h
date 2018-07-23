@@ -129,7 +129,19 @@ void *__alloc_pages(int order);
 void __free_page(void *page);
 void __free_pages(void *pages, int order);
 void page_get_stats(struct memstat *memstat);
-void page_init(void);
+
+
+struct bootmodule
+{
+	uintptr_t base;
+	size_t size;
+	struct bootmodule *next;
+};
+
+void page_init(size_t memory_size, void *(*get_phys_mem_region)
+	(uintptr_t *base, uintptr_t *size, void *context),
+	struct bootmodule *modules);
+
 unsigned int page_hash(uintptr_t p);
 bool pages_are_registered(void);
 void page_register_pages(void);
@@ -137,6 +149,7 @@ struct page *phys_to_page(uintptr_t phys);
 unsigned long page_increment_refcount(void *paddr);
 unsigned long page_decrement_refcount(void *paddr);
 void page_add_page(void *paddr);
+void page_add_page_late(void *paddr);
 void *__alloc_pages_nozero(int order);
 
 struct page *get_phys_pages(int order);
@@ -146,6 +159,15 @@ void free_page(struct page *p);
 __attribute__((malloc))
 void *__ksbrk(long inc);
 void __kbrk(void *break_);
+
+struct used_pages
+{
+	uintptr_t start;
+	uintptr_t end;
+	struct used_pages *next;
+};
+
+void page_add_used_pages(struct used_pages *pages);
 
 #ifdef __cplusplus
 }
