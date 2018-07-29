@@ -26,6 +26,7 @@
 #include <onyx/spinlock.h>
 #include <onyx/atomic.h>
 #include <onyx/utils.h>
+#include <onyx/cpu.h>
 
 #include <onyx/mm/vm_object.h>
 
@@ -350,9 +351,8 @@ void avl_destroy_tree(avl_node_t *node)
 	free(node);
 }
 
-static avl_node_t **avl_min_value(avl_node_t *n)
+static avl_node_t **avl_min_value(avl_node_t **pp)
 {
-	avl_node_t **pp = &n;
 	while((*pp)->left)	pp = &(*pp)->left;
 
 	return pp;
@@ -382,7 +382,7 @@ static avl_node_t *__avl_remove_node(avl_node_t **pp)
 
 	/* Two children, find the inorder successor */
 
-	avl_node_t **successor = avl_min_value(p->right);
+	avl_node_t **successor = avl_min_value(&p->right);
 
 	*pp = *successor;
 
@@ -1305,13 +1305,25 @@ void *dma_map_range(void *phys, size_t size, size_t flags)
 	size_t pages = vmm_align_size_to_pages(size);
 	void *ptr = vmm_allocate_virt_address(flags & VM_USER ? VM_ADDRESS_USER : VM_KERNEL, pages, VM_TYPE_REGULAR, flags, 0);
 	if(!ptr)
+	{
+		printf("dma_map_range: Could not allocate virtual range\n");
 		return NULL;
+	}
+
 	/* TODO: Clean up if something goes wrong */
-	return map_pages_to_vaddr(ptr, phys, size, flags);
+	void *p = map_pages_to_vaddr(ptr, phys, size, flags);
+	if(!p)
+	{
+		printf("map_pages_to_vaddr: Could not map pages\n");
+		return NULL;
+	}
+
+	return p;
 }
 
 int __vm_handle_pf(struct vm_entry *entry, struct fault_info *info)
 {
+	ENABLE_INTERRUPTS();
 	assert(entry->vmo != NULL);
 	uintptr_t vpage = info->fault_address & -PAGE_SIZE;
 	struct page *page = NULL;
@@ -1781,4 +1793,27 @@ void *map_user(void *addr, size_t pages, uint32_t type, uint64_t prot)
 	if(setup_vmregion_backing(addr, pages, false) < 0)
 		return NULL;
 	return addr;
+}
+
+void *map_page_list(struct page *pl, size_t size, uint64_t prot)
+{
+	void *vaddr = vmm_allocate_virt_address(VM_KERNEL,
+		vmm_align_size_to_pages(size), VM_TYPE_REGULAR, prot, 0);
+	if(!vaddr)
+		return NULL;
+	
+	uintptr_t u = (uintptr_t) vaddr;
+	while(pl != NULL)
+	{
+		if(!map_pages_to_vaddr((void *) u, pl->paddr, PAGE_SIZE, prot))
+		{
+			vmm_destroy_mappings(vaddr, vmm_align_size_to_pages(size));
+			return NULL;
+		}
+
+		pl = pl->next_un.next_allocation;
+		u += PAGE_SIZE;
+	}
+
+	return vaddr;
 }

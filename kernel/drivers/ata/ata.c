@@ -75,11 +75,12 @@ int ata_wait_for_irq(uint64_t timeout)
 	uint64_t time = get_tick_count();
 	while(!irq)
 	{
-		if(get_tick_count() - time <= timeout)
+		if(get_tick_count() - time >= timeout)
 		{
 			irq = 0;
 			return 2;
 		}
+
 		uint16_t altstatus = inb(current_channel ? ATA_CONTROL1 : ATA_CONTROL2);
 		if(altstatus & 1)
 		{
@@ -127,14 +128,18 @@ void ata_enable_pci_ide(struct pci_device *dev)
 {
 	/* Enable PCI Busmastering and PCI IDE mode by setting the bits 2 and 0 on the command register of the PCI
 	configuration space */
+	pci_enable_device(dev);
 	pci_enable_busmastering(dev);
 	pci_write(dev, 14, PCI_INTN, sizeof(uint16_t));
 	pci_set_barx(dev->bus, dev->device, dev->function, 0, 0x1F0, 1, 0);
 	pci_set_barx(dev->bus, dev->device, dev->function, 1, 0x3F6, 1, 0);
 	pci_set_barx(dev->bus, dev->device, dev->function, 2, 0x170, 1, 0);
 	pci_set_barx(dev->bus, dev->device, dev->function, 3, 0x376, 1, 0);
-	pcibar_t *bar4 = pci_get_bar(dev, 4);
-	bar4_base = bar4->address;
+
+	struct pci_bar bar;
+
+	assert(pci_get_bar(dev, 4, &bar) == 0);
+	bar4_base = bar.address;
 	
 	assert(install_irq(14, ata_irq, (struct device *) idedev,
 		IRQ_FLAG_REGULAR, NULL) == 0);
@@ -323,16 +328,18 @@ int ata_initialize_drive(int channel, int drive)
 	{
 		return 0;
 	}
+
 	if(channel == 0)
 		outb(ATA_DATA1 + ATA_REG_COMMAND, ATA_CMD_IDENTIFY);
 	else
-		outb(ATA_DATA1 + ATA_REG_COMMAND, ATA_CMD_IDENTIFY);
+		outb(ATA_DATA2 + ATA_REG_COMMAND, ATA_CMD_IDENTIFY);
 	delay_400ns();
-	if(ata_wait_for_irq(100))
+	if(ata_wait_for_irq(1000))
 	{
 		ERROR("ata", "IDENTIFY error\n");
 		return 0;
 	}
+
 	for(int i = 0; i < 256; i++)
 	{
 		uint16_t data;
@@ -370,7 +377,7 @@ int ata_initialize_drive(int channel, int drive)
 	min->fops.write = atadev_write;
 	min->fops.read = atadev_read;
 
-	device_show(min);
+	device_show(min, DEVICE_NO_PATH);
 
 	num_drives++;
 
@@ -423,14 +430,16 @@ bool ata_device_filter(struct pci_device *dev)
 	}
 	else if(dev->pciClass == CLASS_MASS_STORAGE_CONTROLLER && dev->subClass == 6)
 	{
-		pcibar_t *bar4 = pci_get_bar(dev, 4);
-		if(bar4->isIO && bar4->address)
+		struct pci_bar bar4;
+		if(pci_get_bar(dev, 4, &bar4) < 0)
+			return false;
+
+		if(bar4.is_iorange && bar4.address)
 		{
 			idedev = dev;
-			free(bar4);
 			return true;
 		}
-		free(bar4);
+
 	}
 	return false;
 }

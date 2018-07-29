@@ -98,7 +98,7 @@ void send_event_to_kernel(uint8_t keycode)
 unsigned int input_process_special_key(unsigned int key, _Bool is_release)
 {
 	/* Simple way to shorten the code instead of a huge if statement */
-	_Bool keystate = is_release ? false : true;
+	bool keystate = is_release ? false : true;
 	input_state.key_pressed = is_release ? 0 : key;
 	switch(key)
 	{

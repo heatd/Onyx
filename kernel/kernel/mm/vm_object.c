@@ -3,6 +3,7 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
+#include <assert.h>
 
 #include <onyx/mm/vm_object.h>
 #include <onyx/page.h>
@@ -55,6 +56,8 @@ struct vm_object *vmo_create_phys(size_t size)
 
 struct page *vmo_populate(struct vm_object *vmo, off_t off)
 {
+	assert(vmo->commit != NULL);
+
 	struct page *page = vmo->commit(off, vmo);
 	if(!page)
 		return NULL;
@@ -91,6 +94,7 @@ struct page *vmo_get(struct vm_object *vmo, off_t off, bool may_populate)
 			p = l;
 			break;
 		}
+
 		l = l->next_un.next_virtual_region;
 	}
 	spin_unlock(&vmo->page_lock);

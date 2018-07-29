@@ -113,7 +113,7 @@ public:
 	void setup_fifo();
 	void wait_for_fifo(size_t len);
 	void send_command_fifo(void *command, size_t len);
-	int add_bar(pcibar_t *bar, int index);
+	int add_bar(struct pci_bar bar, int index);
 	void *get_framebuffer()
 	{
 		return framebuffer;

@@ -152,9 +152,12 @@ void page_add_page(void *paddr);
 void page_add_page_late(void *paddr);
 void *__alloc_pages_nozero(int order);
 
-struct page *get_phys_pages(int order);
+#define PAGE_ALLOC_CONTIGUOUS	(1 << 0)
+struct page *get_phys_pages(size_t nr_pgs, unsigned long flags);
 struct page *get_phys_page(void);
+
 void free_page(struct page *p);
+void free_pages(struct page *p);
 
 __attribute__((malloc))
 void *__ksbrk(long inc);

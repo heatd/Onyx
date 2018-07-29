@@ -519,7 +519,7 @@ int ahci_initialize(void)
 				continue;
 			}
 			
-			device_show(min);
+			device_show(min, DEVICE_NO_PATH);
 
 			block_device_t *dev = malloc(sizeof(block_device_t));
 			if(!dev)
@@ -561,14 +561,18 @@ int module_init()
 		MPRINTF("could not find a valid SATA device!\n");
 		return 1;
 	}
+
+	if(pci_enable_device(ahci_dev) < 0)
+		return -1;
 	driver_register_device(&ahci_driver, (struct device *) ahci_dev);
 
 	/* Get BAR5 of the device BARs */
-	pcibar_t *bar = pci_get_bar(ahci_dev, 5);
-	if(!bar)
+	struct pci_bar bar;
+	if(pci_get_bar(ahci_dev, 5, &bar) < 0)
 		return -1;
-	hba = (ahci_hba_memory_regs_t*)(((uintptr_t) bar->address) + PHYS_BASE);
-	free(bar);
+
+	/* TODO: Map the MMIO range instead of using PHYS_BASE */
+	hba = (ahci_hba_memory_regs_t*)(bar.address + PHYS_BASE);
 
 	/* Allocate a struct ahci_device and fill it */
 	device = malloc(sizeof(struct ahci_device));

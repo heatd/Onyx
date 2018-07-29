@@ -9,7 +9,6 @@
 
 #include <drm/drm.h>
 
-void display_set_framebuffer(struct drm_fb *);
 void display_fill_rect(void *fb, unsigned int x, unsigned int y, unsigned int width,
 	unsigned int height, uint32_t color);
 void display_copy_rect(unsigned int x, unsigned int y, unsigned int width, unsigned int height,

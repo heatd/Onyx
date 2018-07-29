@@ -272,5 +272,5 @@ void tty_create_dev(void)
 	minor->fops.read = ttydevfs_read;
 	minor->fops.ioctl = tty_ioctl;
 	minor->priv = main_tty;
-	device_show(minor);
+	device_show(minor, DEVICE_NO_PATH);
 }

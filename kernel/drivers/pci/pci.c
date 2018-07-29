@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
+#include <errno.h>
 
 #include <onyx/compiler.h>
 #include <onyx/log.h>
@@ -62,9 +63,8 @@ void __pci_write_dword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, 
 	uint32_t lslot = (uint32_t)slot;
 	uint32_t lfunc = (uint32_t)func;
 
-	/* create configuration address as per Figure 1 */
 	address = (uint32_t)((lbus << 16) | (lslot << 11) |
-		  (lfunc << 8) | (offset & 0xfc) | ((uint32_t)0x80000000));
+		  (lfunc << 8) | (offset & 0xfc) | ((uint32_t) 0x80000000));
 	
 	spin_lock(&pci_lock);
 	/* write out the address */
@@ -92,16 +92,19 @@ int pci_set_power_state(struct pci_device *dev, int power_state)
 	 * success(it wasn't really an error was it?) 
 	*/
 	if(dev->has_power_management == false)
-		return -1;
+		return -ENOSYS;
 	/* I guess we're already there, so just return */
 	if(dev->current_power_state == power_state)
 		return 0;
+	
 	/* TODO: It's unsafe to cut power to the PCI bridge just like that, so we ignore setting it */
 	if(dev->type == PCI_TYPE_BRIDGE)
 		return 0;
+	
 	/* Check if the desired power state is supported */
 	if(dev->supported_power_states & power_state)
-		return -1;	/* If not, just return */
+		return -EINVAL;	/* If not, just return */
+
 	/* Set its children's power state as well */
 	while((element = list_get_element(&dev->dev.children, &saveptr)))
 	{
@@ -255,30 +258,82 @@ void pci_enumerate_devices(void)
 	}
 }
 
-pcibar_t* pci_get_bar(struct pci_device *dev, uint8_t barindex)
+#define PCI_MAX_BAR		5
+#define PCI_BAR_GET_TYPE(x)	((x >> 1) & 0x3)
+#define PCI_BAR_TYPE_32		0
+#define PCI_BAR_TYPE_64		0x2
+
+#define PCI_BAR_IO_RANGE	(1 << 0)
+#define PCI_BAR_PREFETCHABLE	(1 << 3)
+
+int pci_get_bar(struct pci_device *dev, int index, struct pci_bar *bar)
 {
-	uint8_t offset = 0x10 + 0x4 * barindex;
-	uint32_t i = (uint32_t) pci_read(dev, offset, sizeof(uint32_t));
-	pcibar_t* pcibar = malloc(sizeof(pcibar_t));
-	if(!pcibar)
+	assert(index <= PCI_MAX_BAR);
+
+	uint16_t offset = PCI_BARx(index);
+
+	uint32_t word = (uint32_t) pci_read(dev, offset, sizeof(word));
+	uint32_t upper_half = 0;
+
+	bar->is_iorange = word & PCI_BAR_IO_RANGE;
+	bar->may_prefetch = word & PCI_BAR_PREFETCHABLE;
+	
+	bool is_64 = PCI_BAR_GET_TYPE(word) == PCI_BAR_TYPE_64;
+
+	if(is_64)
+	{
+		upper_half = pci_read(dev, PCI_BARx((index + 1)), sizeof(uint32_t));
+	}
+
+	uint32_t mask = 0xfffffff0;
+	if(bar->is_iorange)
+	{
+		mask = 0xfffffffc;
+	}
+
+	bar->address = word & mask;
+	bar->address |= ((uint64_t) upper_half << 32);
+
+	/* Get the size */
+	pci_write(dev, 0xffffffff, offset, sizeof(uint32_t));
+
+	uint32_t size = (~((pci_read(dev, offset, sizeof(uint32_t)) & 0xfffffff0))) + 1;
+	bar->size = size;
+
+	pci_write(dev, word, offset, sizeof(uint32_t));
+
+	return 0;
+}
+
+void *pci_map_bar(struct pci_device *device, int index)
+{
+	struct pci_bar bar;
+
+	if(pci_get_bar(device, index, &bar) < 0)
 		return NULL;
-	pcibar->address = i & 0xFFFFFFF0;
-	pcibar->isIO = i & 1;
-	if(i & 1)
-		pcibar->address = i & 0xFFFFFFFC;
-	pcibar->isPrefetchable = i & 4;
-	__pci_write_dword(dev->bus, dev->device, dev->function, offset, 0xFFFFFFFF);
-	size_t size = (~((__pci_config_read_dword(dev->bus, dev->device, dev->function, offset) & 0xFFFFFFF0))) + 1;
-	pcibar->size = size;
-	__pci_write_dword(dev->bus, dev->device, dev->function, offset, i);
-	return pcibar;
+	
+	if(bar.is_iorange)
+	{
+		printf("pci: warning: trying to map io range\n");
+		return NULL;
+	}
+
+#if 0
+	printf("Mapping bar%d %lx %lx\n", index, bar.address, bar.size);
+#endif
+
+	return dma_map_range((void *) bar.address, bar.size, VM_WRITE | VM_NOEXEC | VM_GLOBAL);
 }
 
 uint16_t pci_get_intn(struct pci_device *dev)
 {
 	uint8_t pin = pci_read(dev, 0x3C, sizeof(uint16_t)) >> 8;
+	if(pin == 0xff)
+		return UINT16_MAX;
+
 	uint16_t intn = dev->pin_to_gsi[pin].gsi;
 	ioapic_set_pin(dev->pin_to_gsi[pin].active_high, dev->pin_to_gsi[pin].level, intn);
+
 	return intn;
 }
 
@@ -532,4 +587,103 @@ void pci_enable_irq(struct pci_device *dev)
 {
 	uint32_t command_register = (uint32_t) pci_read(dev, PCI_COMMAND, sizeof(uint32_t));
 	pci_write(dev, command_register & ~PCI_COMMAND_INTR_DISABLE, PCI_COMMAND, sizeof(uint32_t));
+}
+
+bool pci_driver_supports_device(struct driver *driver, struct device *device)
+{
+	struct pci_id *dev_table = driver->devids;
+
+	struct pci_device *dev = (struct pci_device *) device;
+
+	for(; dev_table->vendor_id != 0; dev_table++)
+	{
+		if(dev_table->vendor_id != PCI_ANY_ID)
+		{
+			if(dev_table->vendor_id != dev->vendorID)
+				continue;
+		}
+
+		if(dev_table->device_id != PCI_ANY_ID)
+		{
+			if(dev_table->device_id != dev->deviceID)
+				continue;
+		}
+
+		if(dev_table->pci_class != PCI_ANY_ID)
+		{
+			if(dev_table->pci_class != dev->pciClass)
+				continue;
+		}
+
+		if(dev_table->subclass != PCI_ANY_ID)
+		{
+			if(dev_table->subclass != dev->subClass)
+				continue;
+		}
+
+		if(dev_table->progif != PCI_ANY_ID)
+		{
+			if(dev_table->progif != dev->progIF)
+				continue;
+		}
+
+		return true;
+	}
+
+	return false;
+}
+
+void pci_bus_register_driver(struct driver *driver)
+{
+	spin_lock(&pci_bus.bus_lock);
+
+	if(!pci_bus.registered_drivers)
+	{
+		pci_bus.registered_drivers = driver;
+	}
+	else
+	{
+		struct driver *d;
+		for(d = pci_bus.registered_drivers; d->next_bus;
+			d = d->next_bus);
+		d->next_bus = driver;
+	}
+
+	driver->next_bus = NULL;
+
+	spin_unlock(&pci_bus.bus_lock);
+
+	for(struct device *dev = pci_bus.devs; dev != NULL; dev = dev->next)
+	{
+		if(pci_driver_supports_device(driver, dev))
+		{
+			driver_register_device(driver, dev);
+			if(driver->probe(dev) < 0)
+				driver_deregister_device(driver, dev);
+		}
+	}
+}
+
+int pci_enable_device(struct pci_device *device)
+{
+	int st = pci_set_power_state(device, PCI_POWER_STATE_D0);
+
+	if(st < 0)
+	{
+		/* Check if the device could actually change power states */
+		if(st != -ENOSYS)
+			return -1;
+		/* if it failed purely because we can't change it, proceed
+		 * since the device is already in D0
+		*/
+	}
+
+	/* Enable the IO and MMIO of the device */
+	uint16_t command = (uint16_t) pci_read(device, PCI_COMMAND, sizeof(uint16_t));
+
+	command |= PCI_COMMAND_MEMORY_SPACE | PCI_COMMAND_IOSPACE;
+
+	pci_write(device, command, PCI_COMMAND, sizeof(uint16_t));
+
+	return 0;
 }

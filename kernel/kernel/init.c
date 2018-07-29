@@ -78,6 +78,7 @@
 #include <onyx/crypt/sha256.h>
 #include <onyx/clock.h>
 #include <onyx/percpu.h>
+#include <onyx/drm.h>
 
 #include <drivers/ps2.h>
 #include <drivers/ata.h>
@@ -117,6 +118,7 @@ void kernel_parse_command_line(char *cmd)
 			{
 				ERROR("kernel", "failed parsing: out of memory\n");
 			}
+
 			memset(new_string, 0, size_token + 1);
 			memcpy(new_string, cmd, size_token);
 			kernel_arguments[kernel_argc] = new_string;
@@ -198,8 +200,9 @@ retry:;
 	if(!proc->ctx.file_desc[0]->vfs_node)
 	{
 		perror("kernel: ");
-		panic("");
+		panic("Could not open tty\n");
 	}
+
 	proc->ctx.file_desc[0]->seek = 0;
 	proc->ctx.file_desc[0]->flags = O_RDONLY;
 	proc->ctx.file_desc[1] = malloc(sizeof(file_desc_t));
@@ -333,6 +336,9 @@ void kernel_multitasking(void *arg)
 
 	/* Initialize devfs */
 	devfs_init();
+
+	/* Initialize drm */
+	drm_init();
 
 	/* Initialize each device driver */
 	driver_init();

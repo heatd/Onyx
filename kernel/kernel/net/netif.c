@@ -88,7 +88,7 @@ void netif_register_if(struct netif *netif)
 
 	d->fops.ioctl = netif_ioctl;
 
-	device_show(d);
+	device_show(d, DEVICE_NO_PATH);
 	spin_lock(&netif_list_lock);
 	if(!netif_list)
 	{

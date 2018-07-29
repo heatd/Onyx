@@ -18,6 +18,7 @@
 #include <onyx/irq.h>
 
 #define PCI_CONFIGURATION_SPACE_SIZE		256
+
 #define PCI_BAR0 				0x10
 #define PCI_BARx(index) 			(PCI_BAR0 + 0x4 * index)
 #define PCI_INTN 				0x3C
@@ -134,13 +135,31 @@ struct pci_device
 	struct pci_irq pin_to_gsi[4];
 };
 
-typedef struct
+struct pci_bar
 {
-	uint32_t address;
-	bool isPrefetchable;
-	bool isIO;
+	uint64_t address;
+	bool is_iorange;
+	bool may_prefetch;
 	size_t size;
-} pcibar_t;
+};
+
+#define PCI_ID_BY_CLASS		0
+#define PCI_ID_BY_ID		1
+
+#define PCI_ANY_ID	0xff
+
+struct pci_id
+{
+	uint16_t device_id;
+	uint16_t vendor_id;
+	uint8_t pci_class;
+	uint8_t subclass;
+	uint8_t progif;
+};
+
+#define PCI_ID_DEVICE(vendor, dev) \
+.device_id = dev, .vendor_id = vendor, .pci_class = PCI_ANY_ID, \
+.subclass = PCI_ANY_ID, .progif = PCI_ANY_ID
 
 #ifdef __cplusplus
 extern "C" {
@@ -156,7 +175,6 @@ void pci_check_devices();
 const char* pci_identify_common_vendors(uint16_t vendorID);
 const char* pci_identify_device_type(uint16_t headerType);
 const char* pci_identify_device_function(uint8_t pciClass, uint8_t subClass, uint8_t progIF);
-pcibar_t* pci_get_bar(struct pci_device *dev, uint8_t barindex);
 uint16_t pci_get_intn(struct pci_device *dev);
 struct pci_device *get_pcidev_from_vendor_device(uint16_t deviceid, uint16_t vendorid);
 struct pci_device *get_pcidev(struct pci_device_address *addr);
@@ -172,10 +190,16 @@ void pci_enable_irq(struct pci_device *dev);
 off_t pci_find_capability(struct pci_device *dev, uint8_t cap);
 int pci_enable_msi(struct pci_device *dev, irq_t handler);
 bool pci_find_device(bool (*callback)(struct pci_device *), bool stop_on_match);
+void pci_bus_register_driver(struct driver *driver);
+int pci_get_bar(struct pci_device *dev, int index, struct pci_bar *bar);
+void *pci_map_bar(struct pci_device *device, int index);
+
+int pci_enable_device(struct pci_device *device);
 
 #ifdef __cplusplus
 }
 #endif
+
 typedef void (*pci_callback_t)(struct pci_device *dev);
 typedef struct
 {

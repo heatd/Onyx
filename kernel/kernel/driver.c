@@ -10,6 +10,7 @@
 
 extern uintptr_t _driver_init_start;
 extern uintptr_t _driver_init_end;
+
 void driver_init(void)
 {	
 	uintptr_t *ptr = &_driver_init_start;

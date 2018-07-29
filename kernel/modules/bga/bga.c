@@ -94,6 +94,9 @@ int module_init(void)
 		MPRINTF("Couldn't find a valid BGA PCI device!\n");
 		return 1;
 	}
+
+	if(pci_enable_device(device) < 0)
+		return -1;
 	//video_set_main_adapter(&bga_device);
 	return 0;
 }

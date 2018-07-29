@@ -196,7 +196,21 @@ struct inode *do_actual_open(struct inode *this, const char *name)
 
 	if(this->i_fops.open != NULL)
 	{
-		return this->i_fops.open(this, name);
+		struct inode *i = this->i_fops.open(this, name);
+		
+		if(i)
+		{
+			if(i->i_fops.on_open)
+			{
+				if(i->i_fops.on_open(i) < 0)
+				{
+					close_vfs(i);
+					return NULL;
+				}
+			}
+		}
+
+		return i;
 	}
 	return errno = ENOSYS, NULL;
 }

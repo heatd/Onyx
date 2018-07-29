@@ -125,6 +125,7 @@ void ioapic_set_pin(bool active_high, bool level, uint32_t pin)
 
 void ioapic_unmask_pin(uint32_t pin)
 {
+	/*printk("Unmasking pin %u\n", pin);*/
 	uint64_t entry = read_redirection_entry(pin);
 	entry &= ~IOAPIC_PIN_MASKED;
 	write_redirection_entry(pin, entry);
@@ -132,12 +133,13 @@ void ioapic_unmask_pin(uint32_t pin)
 
 void ioapic_mask_pin(uint32_t pin)
 {
+	/*printk("Masking pin %u\n", pin);*/
 	uint64_t entry = read_redirection_entry(pin);
 	entry |= IOAPIC_PIN_MASKED;
 	write_redirection_entry(pin, entry);
 }
 
-void set_pin_handlers()
+void set_pin_handlers(void)
 {
 	/* Allocate a pool of vectors and reserve them */
 	irqs = x86_allocate_vectors(24);
@@ -169,11 +171,11 @@ void set_pin_handlers()
 	ACPI_STATUS st = AcpiGetTable((ACPI_STRING)"APIC", 0, (ACPI_TABLE_HEADER**)&madt);
 	if(ACPI_FAILURE(st))
 		panic("Failed to get the MADT");
-	printf("MADT: %p\n", madt);
+
 	ACPI_SUBTABLE_HEADER *first = (ACPI_SUBTABLE_HEADER *)(madt+1);
 	for(int i = 0; i < 24; i++)
 	{
-		if(i <= 15)
+		if(i <= 19)
 		{
 			// ISA Interrupt, set it like a standard ISA interrupt
 			/*
@@ -183,18 +185,15 @@ void set_pin_handlers()
 			* - Fixed delivery mode
 			* They might be overwriten by the ISO descriptors in the MADT
 			*/
-			uint64_t entry = IOAPIC_PIN_MASKED;
+			uint64_t entry = read_redirection_entry(i);
 			entry |= irqs + i;
 			write_redirection_entry(i, entry);
 		}
-		if(i > 15 && i <= 19)
-		{
-			uint64_t entry = read_redirection_entry(i);
-			write_redirection_entry(i, entry | (irqs + i));
-		}
+
 		uint64_t entry = read_redirection_entry(i);
 		write_redirection_entry(i, entry | (32 + i));
 	}
+
 	for(ACPI_SUBTABLE_HEADER *i = first; i < (ACPI_SUBTABLE_HEADER*)((char*)madt + madt->Header.Length); i = 
 	(ACPI_SUBTABLE_HEADER*)((uint64_t)i + (uint64_t)i->Length))
 	{

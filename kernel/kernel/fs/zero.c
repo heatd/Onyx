@@ -29,5 +29,5 @@ void zero_init(void)
 
 	min->fops.read = zero_read;
 	
-	device_show(min);
+	device_show(min, DEVICE_NO_PATH);
 }

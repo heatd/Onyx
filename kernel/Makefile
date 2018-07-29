@@ -26,6 +26,8 @@ LIBS:=$(LIBS) -nostdlib -lk -lgcc
 ARCHDIR:=arch/$(HOSTARCH)
 
 include $(ARCHDIR)/make.config
+
+# TODO: Add -finstrument-functions support
 CFLAGS:=$(CFLAGS) $(KERNEL_ARCH_CFLAGS)
 CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS) -D ACPI_LIBRARY -D ACPI_DEBUG_OUTPUT=1
 LDFLAGS:=$(LDFLAGS) $(KERNEL_ARCH_LDFLAGS)

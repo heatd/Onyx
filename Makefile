@@ -1,5 +1,5 @@
 PROJECTS:=libc kernel
-SOURCE_PACKAGES:= libdrm libunwind init games dhcpcd wserver strace devmgr
+SOURCE_PACKAGES:= libdrm libunwind init dhcpcd wserver strace devmgr
 
 ALL_MODULES:=$(PROJECTS) $(SOURCE_PACKAGES)
 
@@ -90,7 +90,17 @@ qemu: iso
 	-s -cdrom Onyx.iso -drive file=hdd.img,format=raw,media=disk -m 512M \
 	-monitor stdio -boot d -netdev user,id=u1 -device e1000,netdev=u1 \
 	-object filter-dump,id=f1,netdev=u1,file=net.pcap \
-	--enable-kvm -smp 2 -cpu host,migratable=no,+invtsc -d int -vga vmware \
-	-usb -no-reboot -no-shutdown
+	--enable-kvm -smp 2 -cpu host,migratable=no,+invtsc -d int -vga qxl \
+	-usb
+intel-passthrough-qemu: iso
+	sudo qemu-system-x86_64 -vga none -display gtk,gl=on \
+	-device vfio-pci,sysfsdev=/sys/devices/pci0000\:00/0000\:00\:02.0/d507ce65-255a-4b85-88b5-0090410c0b5c,x-igd-opregion=on \
+	--enable-kvm -s -cdrom Onyx.iso \
+	-drive file=hdd.img,format=raw,media=disk -m 2G \
+	-monitor stdio -boot d -netdev user,id=u1 -device e1000,netdev=u1 \
+	-object filter-dump,id=f1,netdev=u1,file=net.pcap \
+	--enable-kvm -smp 2 -cpu host,migratable=no,+invtsc \
+	-usb
+
 virtualbox: iso
 	virtualbox --startvm Onyx --dbg

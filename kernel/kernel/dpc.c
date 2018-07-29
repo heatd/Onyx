@@ -13,12 +13,13 @@
 #include <onyx/scheduler.h>
 #include <onyx/task_switching.h>
 #include <onyx/slab.h>
+#include <onyx/semaphore.h>
 
 /* The work queue does need locks for insertion, because another CPU might try to 
  * queue work at the same time as us */
 static struct spinlock work_queue_locks[3];
 static struct dpc_work *work_queues[3] = {0};
-static volatile atomic_bool dpc_queue_is_empty = true;
+static struct semaphore dpc_work_semaphore = {0};
 static thread_t *dpc_thread = NULL;
 static slab_cache_t *dpc_pool = NULL;
 
@@ -38,29 +39,31 @@ void dpc_do_work(void *context)
 {
 	while(1)
 	{
+		sem_wait(&dpc_work_semaphore);
+
 		/* Process work */
 		for(int i = 0; i < 3; i++)
 		{
 			/* Let's process DPC work */
 			dpc_do_work_on_workqueue(&work_queues[i]);
 		}
-		/* Now block if the queue is empty until another IRQ occurs */
-		if(!work_queues[0] && !work_queues[1] && !work_queues[2])
-			thread_set_state(dpc_thread, THREAD_BLOCKED);
 	}
 }
 
 void dpc_init(void)
 {
+	sem_init(&dpc_work_semaphore, 0);
+
 	dpc_thread = sched_create_thread(dpc_do_work, THREAD_KERNEL, NULL);
 	assert(dpc_thread != NULL);
 	dpc_thread->priority = 20;
-	thread_set_state(dpc_thread, THREAD_BLOCKED);
-
+	
 	dpc_pool = slab_create("dpc", sizeof(struct dpc_work), 0, SLAB_FLAG_DONT_CACHE, NULL, NULL);
 	assert(dpc_pool != NULL);
 
 	assert(slab_populate(dpc_pool, DPC_POOL_NR_OBJS) != -1);
+
+	sched_start_thread(dpc_thread);
 }
 
 int dpc_schedule_work(struct dpc_work *_work, dpc_priority prio)
@@ -76,7 +79,9 @@ int dpc_schedule_work(struct dpc_work *_work, dpc_priority prio)
 	spin_lock(&work_queue_locks[prio]);
 
 	if(!work_queues[prio])
+	{
 		work_queues[prio] = work;
+	}
 	else
 	{
 		struct dpc_work *w = work_queues[prio];
@@ -84,8 +89,8 @@ int dpc_schedule_work(struct dpc_work *_work, dpc_priority prio)
 		w->next = work;
 	}
 
-	thread_set_state(dpc_thread, THREAD_RUNNABLE);
 	spin_unlock(&work_queue_locks[prio]);
 
+	sem_signal(&dpc_work_semaphore);
 	return 0;
 }

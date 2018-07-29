@@ -47,7 +47,6 @@ void *bin_do_interp(struct binfmt_args *_args)
 	{
 		printk("Could not open %s\n", args.interp_path);
 		perror("open_vfs");
-		while(1);
 		return NULL;
 	}
 

@@ -68,6 +68,8 @@ struct file_ops
 		socklen_t *slen, struct inode *vnode);
 	int (*ftruncate)(off_t length, struct inode *node);
 	struct inode *(*mkdir)(const char *name, mode_t mode, struct inode *node);
+	struct inode *(*mknod)(const char *name, dev_t dev, struct inode *node);
+	int (*on_open)(struct inode *node);
 };
 
 struct getdents_ret

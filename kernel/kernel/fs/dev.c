@@ -16,6 +16,7 @@
 #include <onyx/compiler.h>
 #include <onyx/panic.h>
 #include <onyx/tmpfs.h>
+#include <onyx/vfs.h>
 
 static struct dev *devices[MAJOR_DEVICE_HASHTABLE];
 
@@ -131,31 +132,39 @@ struct dev *dev_find(dev_t dev)
 	return NULL;
 }
 
+struct inode *dev_root = NULL;
 void devfs_init(void)
 {
 	/* Mount tmpfs on /dev */
 	assert(tmpfs_mount("/dev") == 0);
 
-	struct inode *dev = open_vfs(get_fs_root(), "/dev");
+	struct inode *dev = dev_root = open_vfs(get_fs_root(), "/dev");
 
 	assert(dev != NULL);
-
-	tmpfs_root = tmpfs_get_root(dev);
-	tmpfs_root->root->name = strdup("/dev");
 }
 
-int device_show(struct dev *d)
+int device_mknod(struct dev *d, const char *path, const char *name)
 {
-	tmpfs_file_t *file = tmpfs_create_file(tmpfs_root->root, d->name);
+	struct inode *root = dev_root;
 
-	if(!file)
-		return -1;
-	d->file = file;
+	if(strcmp(path, DEVICE_NO_PATH) != 0)
+	{
+		root = open_vfs(root, path);
+		if(!root)
+			return -1;
+	}
 
-	file->st_uid = 0;
-	file->st_gid = 0;
-	file->rdev = d->majorminor;
-	file->type = d->is_block ? TMPFS_FILE_TYPE_BLOCK : TMPFS_FILE_TYPE_CHAR;
+	return root->i_fops.mknod(name, d->majorminor, root) == NULL;
+}
 
-	return 0;
+int device_show(struct dev *d, const char *path)
+{
+	return device_mknod(d, path, d->name);	
+}
+
+int device_create_dir(const char *path)
+{
+	struct inode *i = mkdir_vfs(path, 0666, dev_root);
+
+	return i == NULL ? -1 : 0;
 }

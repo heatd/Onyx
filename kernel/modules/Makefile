@@ -1,6 +1,5 @@
 MODULES:=mod_example \
 mod_dummyeth \
-mod_drm \
 mod_ahci \
 mod_svga \
 mod_bga \

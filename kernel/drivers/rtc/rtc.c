@@ -197,7 +197,7 @@ struct acpi_dev_id rtc_dev_table[] =
 	{NULL}
 };
 
-void rtc_probe(struct device *device)
+int rtc_probe(struct device *device)
 {
 	INFO("rtc", "initializing\n");
 	// Disable NMI's so we can access the CMOS without any risk of corruption
@@ -241,6 +241,8 @@ void rtc_probe(struct device *device)
 	time_set(CLOCK_REALTIME, &clk);
 
 	register_wallclock_source(&rtc_clock);
+
+	return 0;
 }
 
 struct driver rtc_driver = 

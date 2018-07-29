@@ -11,19 +11,12 @@
 
 #include <drm/drm.h>
 
-static struct drm_fb *main_fb = NULL;
-
-void display_set_framebuffer(struct drm_fb *fb)
-{
-	main_fb = fb;
-}
-
 void display_fill_rect(void *_fb, unsigned int x, unsigned int y, unsigned int width, unsigned int height,
 	uint32_t color)
 {
-	size_t bits_per_row = _fb == main_fb->framebuffer ? main_fb->pitch : width * (display_get_bpp() / 8);
+	size_t bits_per_row = width * (32/8);
 	volatile unsigned char *__fb = (volatile unsigned char *) _fb;
-	__fb += (y * bits_per_row) + x * (main_fb->bpp/8);
+	__fb += (y * bits_per_row) + x * (32/8);
 	volatile uint32_t *fb = (volatile uint32_t *) __fb;
 
 	for(size_t i = 0; i < height; i++)
@@ -34,6 +27,7 @@ void display_fill_rect(void *_fb, unsigned int x, unsigned int y, unsigned int w
 	}
 }
 
+/*
 void display_copy_rect(unsigned int x, unsigned int y, unsigned int width, unsigned int height,
 	void *bb)
 {
@@ -54,3 +48,8 @@ unsigned int display_get_bpp(void)
 {
 	return main_fb->bpp;
 }
+*/
+
+unsigned int display_get_bpp(void) {return 32;}
+void display_copy_rect(unsigned int x, unsigned int y, unsigned int width, unsigned int height,
+	void *bb){}

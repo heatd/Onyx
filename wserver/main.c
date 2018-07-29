@@ -19,20 +19,42 @@
 
 int main(int argc, char **argv, char **envp)
 {
-	struct drm_info *info;
 	printf("wserver - window server\n");
 
-	if(drm_initialize(&info) < 0)
-		err(1, "Could not initialize DRM\n");
+	if(drm_initialize() < 0)
+		err(1, "Could not initialize DRM");
 
-	struct drm_fb *fb = drm_map_fb();
-	if(!fb)
-		err(1, "Could not map the framebuffer\n");
+	struct drm_videomode mode;
 
-	display_set_framebuffer(fb);
-	display_fill_rect((void*) fb->framebuffer, 0, 0, fb->width, fb->height, 0);
+	if(drm_get_videomode(&mode) < 0)
+		err(1, "Could not get video mode");
 
-	struct window *win = window_create(40, 40, 640, 480);
+	struct drm_dumb_buffer_info *buffer = malloc(sizeof(*buffer));
+
+	if(!buffer)
+		err(1, "Could not allocate buffer struct");
+
+	buffer->width = mode.width;
+	buffer->height = mode.height;
+	buffer->bpp = mode.bpp;
+
+	if(drm_create_dumb_buffer(buffer) < 0)
+		err(1, "Could not create dumb buffer");
+
+	struct drm_create_buf_map_args args;
+	args.handle = buffer->handle;
+	args.offset = 0;
+
+	if(drm_create_buffer_map(&args) < 0)
+		err(1, "Could not setup mapping");
+	
+	void *pointer = mmap(NULL, buffer->size, PROT_READ | PROT_WRITE, MAP_SHARED, drm_get_fd(), 0);
+	if(!pointer)
+		err(1, "mmap: Could not mmap dumb buffer");
+
+	display_fill_rect(pointer, 0, 0, buffer->width, buffer->height, 0xaaaaaa);
+
+	/*struct window *win = window_create(40, 40, 640, 480);
 	assert(win != NULL);
 
 	display_fill_rect(win->window_backbuffer, 0, 0, win->window_width, win->window_height,
@@ -44,6 +66,12 @@ int main(int argc, char **argv, char **envp)
 	while(true)
 	{
 		draw_windows();
+	}*/
+
+	while(1)
+	{
+		if(drm_swap_buffers(buffer->handle) < 0)
+			err(1, "drm_swap_buffers");
 	}
 
 	return 0;

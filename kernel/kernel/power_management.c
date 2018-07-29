@@ -48,7 +48,18 @@ void sys_shutdown(void)
 }
 void pm_init(void)
 {
-	AcpiEnableEvent(ACPI_EVENT_POWER_BUTTON, 0);
-	AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON, __pm_shutdown, NULL);
-	AcpiInstallFixedEventHandler(ACPI_EVENT_SLEEP_BUTTON, __pm_suspend, NULL);
+	ACPI_STATUS st;
+	
+	if(ACPI_FAILURE((st = AcpiEnableEvent(ACPI_EVENT_POWER_BUTTON, 0))))
+	{
+		printf("AcpiEnableEvent failed!\n");
+	}
+
+	if(ACPI_FAILURE((st = AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON, __pm_shutdown, NULL))))
+	{
+		printf("AcpiInstallFixedEventHandler failed!\n");
+	}
+
+	if(ACPI_FAILURE((st = AcpiInstallFixedEventHandler(ACPI_EVENT_SLEEP_BUTTON, __pm_suspend, NULL))))
+		printf("AcpiInstallFixedEventHandler failed!\n");
 }

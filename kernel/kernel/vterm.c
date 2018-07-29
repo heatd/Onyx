@@ -140,7 +140,7 @@ void vterm_scroll(struct framebuffer *fb, struct vterm *vt)
 		c->fg = default_fg;
 	}
 
-	vterm_flush_all(vt);
+	//vterm_flush_all(vt);
 }
 
 void vterm_set_char(char c, unsigned int x, unsigned int y, struct color fg,
@@ -153,12 +153,18 @@ void vterm_set_char(char c, unsigned int x, unsigned int y, struct color fg,
 	cell->dirty = 1;
 }
 
-void vterm_putc(char c, struct vterm *vt)
+bool vterm_putc(char c, struct vterm *vt)
 {
 	if(c == '\t')
 	{
-		for(int i = 0; i < 8; i++) vterm_putc(' ', vt);
-		return;
+		bool did_scroll = false;
+		for(int i = 0; i < 8; i++)
+		{
+			if(vterm_putc(' ', vt) == true)
+				did_scroll = true;
+		}
+
+		return did_scroll;
 	}
 
 	struct framebuffer *fb = vt->fb;
@@ -172,7 +178,7 @@ void vterm_putc(char c, struct vterm *vt)
 	else if(c == '\b')
 	{
 		if(vt->cursor_x == 0)
-			return;
+			return false;
 		
 		vterm_set_char(' ', vt->cursor_x, vt->cursor_y, vt->fg, vt->bg, vt);
 		vt->cursor_x--;
@@ -195,7 +201,11 @@ void vterm_putc(char c, struct vterm *vt)
 	{
 		vterm_scroll(fb, vt);
 		vt->cursor_y--;
+
+		return true;
 	}
+
+	return false;
 }
 
 void draw_cursor(int x, int y, struct framebuffer *fb)
@@ -326,6 +336,7 @@ ssize_t vterm_write_tty(void *buffer, size_t size, struct tty *tty)
 
 	size_t i = 0;
 	char *data = buffer;
+	bool did_scroll = false;
 
 	for (; i < size; i++)
 	{
@@ -379,11 +390,15 @@ ssize_t vterm_write_tty(void *buffer, size_t size, struct tty *tty)
 			if(i >= size) break;
 		}
 
-		vterm_putc(data[i], vt);
+		if(vterm_putc(data[i], vt))
+			did_scroll = true;
 	
 	}
 	
-	vterm_flush(vt);
+	if(!did_scroll)
+		vterm_flush(vt);
+	else
+		vterm_flush_all(vt);
 	update_cursor(vt);
 
 	return i;

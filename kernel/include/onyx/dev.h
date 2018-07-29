@@ -37,7 +37,12 @@ unsigned int __allocate_dynamic_major(void);
 struct dev *dev_register(unsigned int major, unsigned int minor, char *name);
 void dev_unregister(dev_t dev);
 struct dev *dev_find(dev_t dev);
-int device_show(struct dev *d);
+
+#define DEVICE_NO_PATH			""
+
+int device_create_dir(const char *path);
+int device_mknod(struct dev *d, const char *path, const char *name);
+int device_show(struct dev *d, const char *path);
 
 void devfs_init(void);
 void null_init(void);
@@ -57,7 +62,7 @@ struct driver
 	unsigned long ref;
 	void *devids;
 
-	void (*probe)(struct device *dev);
+	int (*probe)(struct device *dev);
 	void (*shutdown)(struct device *dev);
 	void (*resume)(struct device *dev);
 	void (*suspend)(struct device *dev);
@@ -71,6 +76,7 @@ struct device
 	const char *name;
 	struct bus *bus;
 	struct driver *driver;
+	void *priv;
 
 	struct list_head children;
 	struct device *prev, *next;

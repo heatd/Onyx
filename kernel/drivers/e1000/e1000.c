@@ -32,7 +32,6 @@ static struct spinlock tx_cur_lock;
 static unsigned long rx_cur = 0, tx_cur = 0;
 bool eeprom_exists = false;
 static char *mem_space = NULL;
-static uint16_t io_space = 0;
 struct netif *nic_netif = NULL;
 void e1000_write_command(uint16_t addr, uint32_t val);
 uint32_t e1000_read_command(uint16_t p_address);
@@ -349,6 +348,8 @@ bool e1000_filter(struct pci_device *dev)
 		case E1000E_DEV:
 		case E1000_82577LM:
 			nicdev = dev;
+			if(pci_enable_device(nicdev) < 0)
+				return false;
 			return true;
 		default:
 			return false;
@@ -365,23 +366,15 @@ int e1000_init(void)
 
 	driver_register_device(&e1000_driver, (struct device *) nicdev);
 
-	pcibar_t *bar = pci_get_bar(nicdev, 0);
-	char *phys_mem_space = NULL;
-	if(bar->isIO)
-		io_space = (uint16_t)bar->address;
-	else
-		phys_mem_space = (char *)(uint64_t)bar->address;
-	if(phys_mem_space)
-		INFO("e1000", "mmio mode\n");
-	else
+	mem_space = pci_map_bar(nicdev, 0);
+	if(!mem_space)
 	{
-		free(bar);
 		ERROR("e1000", "Sorry! This driver only supports e1000 register access through MMIO, "
 		"and sadly your card needs the legacy I/O port method of accessing registers\n");
 		return -1;
 	}
-
-	mem_space = dma_map_range(phys_mem_space, bar->size, VM_WRITE | VM_NOEXEC | VM_GLOBAL);
+	
+	INFO("e1000", "mmio mode\n");
 	
 	e1000_reset_device();
 
@@ -408,7 +401,6 @@ int e1000_init(void)
 	netif_register_if(n);
 
 	nic_netif = n;
-	free(bar);
 	return 0;
 }
 

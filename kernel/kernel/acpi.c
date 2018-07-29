@@ -62,6 +62,7 @@ static const ACPI_EXCEPTION_INFO    AcpiGbl_ExceptionNames_Env[] =
     EXCEP_TXT ((char*)"AE_NOT_CONFIGURED",             (char*)"The interface is not part of the current subsystem configuration"),
     EXCEP_TXT ((char*)"AE_ACCESS",                     (char*)"Permission denied for the requested operation")
 };
+
 uint32_t acpi_shutdown(void *context)
 {
 	UNUSED_PARAMETER(context);
@@ -71,6 +72,7 @@ uint32_t acpi_shutdown(void *context)
 	panic("ACPI: Failed to enter sleep state! Panic'ing!");
 	return 0;
 }
+
 extern int __enter_sleep_state(uint8_t sleep_state);
 unsigned int acpi_suspend(void *context)
 {
@@ -568,7 +570,8 @@ void acpi_bus_register_driver(struct driver *driver)
 		if(acpi_driver_supports_device(driver, dev))
 		{
 			driver_register_device(driver, dev);
-			driver->probe(dev);
+			if(driver->probe(dev) < 0)
+				driver_deregister_device(driver, dev);
 		}
 	}
 }

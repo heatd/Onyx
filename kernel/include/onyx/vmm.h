@@ -165,6 +165,7 @@ struct process;
 void *vm_map_page(struct process *proc, uint64_t virt, uint64_t phys, uint64_t prot);
 void *__map_pages_to_vaddr(struct process *process, void *virt, void *phys,
 		size_t size, size_t flags);
+void *map_page_list(struct page *pl, size_t size, uint64_t prot);
 
 static inline void *page_align_up(void *ptr)
 {

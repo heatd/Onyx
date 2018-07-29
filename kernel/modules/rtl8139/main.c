@@ -297,19 +297,22 @@ int module_init()
 
 	/* Enable PCI busmastering */
 	pci_enable_busmastering(device);
-	pcibar_t *bar = pci_get_bar(device, RTL8139_PCI_MMIO_BAR);
-	/* If there is no MMIO BAR, use the port I/O BAR*/
-	if(!bar || !bar->address)
-		bar = pci_get_bar(device, RTL8139_PCI_PIO_BAR);
-	if(bar->isIO)
+	struct pci_bar bar;
+	if(pci_get_bar(device, RTL8139_PCI_MMIO_BAR, &bar) < 0)
+	{
+		if(pci_get_bar(device, RTL8139_PCI_PIO_BAR, &bar) < 0)
+			return -1;
+	}
+
+	if(bar.is_iorange)
 	{
 		INFO("rtl8139", "Using Port I/O for hardware access\n");
-		io_base = (uint16_t) bar->address;
+		io_base = (uint16_t) bar.address;
 	}
 	else
 	{
 		INFO("rtl8139", "Using MMIO for hardware access\n");
-		memory_base = dma_map_range((void*) (uintptr_t) bar->address, bar->size, 
+		memory_base = dma_map_range((void*) bar.address, bar.size, 
 			VM_WRITE | VM_NOEXEC | VM_GLOBAL);
 		if(!memory_base)
 		{
@@ -317,7 +320,7 @@ int module_init()
 			return -1;
 		}
 	}
-	free(bar);
+
 	/* Initialize the actual hardware */
 	if(rtl_init() < 0)
 		return -1;

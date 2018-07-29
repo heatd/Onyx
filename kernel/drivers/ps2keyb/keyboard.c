@@ -36,11 +36,13 @@ struct acpi_dev_id ps2_devids[] =
 	{NULL}
 };
 
-void ps2_probe(struct device *device)
+int ps2_probe(struct device *device)
 {
 	if(install_irq(KEYBOARD_IRQ, irq_keyb_handler, device,
 			IRQ_FLAG_REGULAR, NULL) < 0)
-		return;
+		return -1;
+
+	return 0;
 }
 
 struct driver ps2_driver = 

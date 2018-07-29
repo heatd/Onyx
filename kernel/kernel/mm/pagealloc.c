@@ -380,9 +380,9 @@ void __kbrk(void *break_)
 	kernel_break = break_;
 }
 
-struct page *get_phys_pages(int order)
+struct page *get_phys_pages_contig(size_t nr_pgs)
 {
-	void *addr = __alloc_pages(order);
+	/*void *addr = __alloc_pages(order);
 	
 	size_t nr_pages = pow2(order);
 	if(!addr)
@@ -395,8 +395,56 @@ struct page *get_phys_pages(int order)
 	for(; nr_pages; nr_pages--)
 	{
 		page_increment_refcount((void*) paddr);
+	} */
+	return NULL;
+}
+
+void free_pages(struct page *pages)
+{
+	struct page *next = NULL;
+
+	for(struct page *p = pages; p != NULL; p = next)
+	{
+		next = p->next_un.next_allocation;
+		free_page(p);
 	}
-	return ret;
+}
+
+struct page *__get_phys_pages(size_t nr_pgs, unsigned long flags)
+{
+	struct page *plist = NULL;
+
+	for(size_t i = 0; i < nr_pgs; i++)
+	{
+		struct page *p = get_phys_page();
+
+		if(!p)
+		{
+			if(plist)
+				free_pages(plist);
+		}
+
+		if(!plist)
+		{
+			plist = p;
+		}
+		else
+		{
+			struct page *i = plist;
+			for(; i->next_un.next_allocation != NULL; i = i->next_un.next_allocation);
+			i->next_un.next_allocation = p;
+		}
+	}
+
+	return plist;
+}
+
+struct page *get_phys_pages(size_t nr_pgs, unsigned long flags)
+{
+	if(flags & PAGE_ALLOC_CONTIGUOUS)
+		return get_phys_pages_contig(nr_pgs);
+	else
+		return __get_phys_pages(nr_pgs, flags);
 }
 
 struct page *get_phys_page(void)

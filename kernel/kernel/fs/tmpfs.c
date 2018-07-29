@@ -338,6 +338,32 @@ struct inode *tmpfs_open(struct inode *vnode, const char *name)
 	return tmpfs_find_inode_in_cache(vnode, file);
 }
 
+struct inode *tmpfs_mknod(const char *name, dev_t dev, struct inode *root)
+{
+	tmpfs_file_t *dir = (tmpfs_file_t *) root->i_inode;
+
+	tmpfs_file_t *file = tmpfs_create_file(dir, name);
+
+	if(!file)
+		return NULL;
+	
+	file->st_uid = 0;
+	file->st_gid = 0;
+	file->rdev = dev;
+
+	struct dev *d = dev_find(dev);
+
+	file->type = TMPFS_FILE_TYPE_CHAR;
+
+	if(d)
+	{
+		file->type = d->is_block ? TMPFS_FILE_TYPE_BLOCK : TMPFS_FILE_TYPE_CHAR;
+		d->file = file;
+	}
+
+	return tmpfs_file_to_vfs(file, root);
+}
+
 static void tmpfs_set_node_fileops(struct inode *node)
 {
 	node->i_fops.creat = tmpfs_creat;
@@ -346,6 +372,7 @@ static void tmpfs_set_node_fileops(struct inode *node)
 	node->i_fops.mkdir = tmpfs_mkdir;
 	node->i_fops.open = tmpfs_open;
 	node->i_fops.symlink = tmpfs_symlink;
+	node->i_fops.mknod = tmpfs_mknod;
 }
 
 tmpfs_filesystem_t *__tmpfs_allocate_fs(void)
@@ -415,4 +442,9 @@ int tmpfs_mount(const char *mountpoint)
 tmpfs_filesystem_t *tmpfs_get_root(struct inode *inode)
 {
 	return inode->i_helper;
+}
+
+tmpfs_file_t *tmpfs_get_raw_file(struct inode *inode)
+{
+	return (void *) inode->i_inode;
 }

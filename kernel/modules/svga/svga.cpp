@@ -83,36 +83,36 @@ int svga_modeset(unsigned int width, unsigned int height, unsigned int bpp, stru
 	return 0;
 }
 
-int SvgaDevice::add_bar(pcibar_t *bar, int index)
+int SvgaDevice::add_bar(struct pci_bar bar, int index)
 {
 	switch(index)
 	{
 		case SVGAII_IO_SPACE_BAR:
 		{
-			io_space = bar->address;
+			io_space = bar.address;
 			return 0;
 		}
 		case SVGAII_FRAMEBUFFER_BAR:
 		{
-			framebuffer_raw = (void*)(uintptr_t) bar->address;
+			framebuffer_raw = (void*) bar.address;
 			framebuffer = dma_map_range(
 				framebuffer_raw,
-				bar->size,
+				bar.size,
 				VM_WRITE | VM_NOEXEC | VM_GLOBAL);
 			if(!framebuffer)
 				return -1;
-			framebuffer_size = bar->size;
+			framebuffer_size = bar.size;
 			return 0;
 		}
 		case SVGAII_COMMAND_BUFFER_BAR:
 		{
 			command_buffer = (uint32_t*) dma_map_range((void*) 
-						     (uintptr_t) bar->address,
-						     bar->size,
+						     (uintptr_t) bar.address,
+						     bar.size,
 						     VM_WRITE | VM_NOEXEC | VM_GLOBAL);
 			if(!command_buffer)
 				return -1;
-			command_buffer_size = bar->size;
+			command_buffer_size = bar.size;
 			return 0; 
 		}
 	}
@@ -184,47 +184,28 @@ extern "C" int module_init(void)
 	if(!device.get_data())
 		return 1;
 	/* Now, get the needed bars (0, 1 and 2, respectively) */
-	pcibar_t *iospace_bar = pci_get_bar(dev, SVGAII_IO_SPACE_BAR);
-	pcibar_t *framebuffer_bar = pci_get_bar(dev, SVGAII_FRAMEBUFFER_BAR);
-	pcibar_t *command_buffer_bar = pci_get_bar(dev, SVGAII_COMMAND_BUFFER_BAR);
-	
-	if(!iospace_bar)
-	{
-		return 1;
-	}
-	
-	if(!framebuffer_bar)
-	{
-		free(iospace_bar);
-		return 1;
-	}
-	
-	if(!command_buffer_bar)
-	{
-		free(iospace_bar);
-		free(framebuffer_bar);
-		return 1;
-	}
+	struct pci_bar iospace_bar, framebuffer_bar, command_buffer_bar;
+
+	if(pci_get_bar(dev, SVGAII_IO_SPACE_BAR, &iospace_bar) < 0)
+		return -1;
+	if(pci_get_bar(dev, SVGAII_FRAMEBUFFER_BAR, &framebuffer_bar) < 0)
+		return -1;
+	if(pci_get_bar(dev, SVGAII_COMMAND_BUFFER_BAR, &command_buffer_bar) < 0)
+		return -1;
+
 	
 	if(device->add_bar(iospace_bar, SVGAII_IO_SPACE_BAR) < 0)
 	{
-		free(iospace_bar);
-		free(framebuffer_bar);
-		free(command_buffer_bar);
 		return 1;
 	}
+
 	if(device->add_bar(framebuffer_bar, SVGAII_FRAMEBUFFER_BAR) < 0)
 	{
-		free(iospace_bar);
-		free(framebuffer_bar);
-		free(command_buffer_bar);
 		return 1;
 	}
+
 	if(device->add_bar(command_buffer_bar, SVGAII_COMMAND_BUFFER_BAR) < 0)
 	{
-		free(iospace_bar);
-		free(framebuffer_bar);
-		free(command_buffer_bar);
 		return 1;
 	}
 
@@ -242,10 +223,6 @@ extern "C" int module_init(void)
 	/* Set this video adapter as the main adapter */
 	//video_set_main_adapter(&svga_device);
 
-	/* Free memory and return */
-	free(iospace_bar);
-	free(framebuffer_bar);
-	free(command_buffer_bar);
 	MPRINTF("Successfully initialized the device!\n");
 	return 0;
 }
