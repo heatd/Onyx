@@ -16,8 +16,9 @@
 
 #include <onyx/spinlock.h>
 #include <onyx/page.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/panic.h>
+#include <onyx/copy.h>
 
 size_t page_memory_size;
 size_t nr_global_pages;
@@ -30,6 +31,7 @@ static inline unsigned long pow2(int exp)
 struct page_list 
 {
 	struct page_list *prev;
+	struct page *page;
 	struct page_list *next;
 };
 
@@ -60,7 +62,7 @@ struct page_cpu main_cpu = {0};
 	arena = arena->next)
 
 
-void *page_alloc_from_arena(size_t nr_pages, unsigned long flags, struct page_arena *arena)
+struct page *page_alloc_from_arena(size_t nr_pages, unsigned long flags, struct page_arena *arena)
 {
 	struct page_list *p = arena->page_list;
 	size_t found_pages = 0;
@@ -122,13 +124,33 @@ void *page_alloc_from_arena(size_t nr_pages, unsigned long flags, struct page_ar
 
 		spin_unlock(&arena->lock);
 
-		return (void*) base - PHYS_BASE;
+		struct page *plist = NULL;
+		struct page_list *pl = base_pg;
+	
+		for(size_t i = 0; i < nr_pages; i++)
+		{
+			page_ref(pl->page);
+
+			if(!plist)
+			{
+				plist = pl->page;
+			}
+			else
+			{
+				plist->next_un.next_allocation = pl->page;
+				plist = pl->page;
+			}
+
+			pl = pl->next;
+		}
+
+		return base_pg->page;
 	}
 }
 
-void *page_alloc(size_t nr_pages, unsigned long flags)
+struct page *page_alloc(size_t nr_pages, unsigned long flags)
 {
-	void *pages = NULL;
+	struct page *pages = NULL;
 	for_every_arena(&main_cpu)
 	{
 		if(arena->free_pages == 0)
@@ -170,6 +192,7 @@ void page_free_pages(struct page_arena *arena, void *addr, size_t nr_pages)
 		for(size_t i = 0; i < nr_pages; i++, b += PAGE_SIZE)
 		{
 			struct page_list *l = PHYS_TO_VIRT(b);
+			l->page = phys_to_page(b);
 			l->next = NULL;
 			if(!list)
 			{
@@ -195,6 +218,7 @@ void page_free_pages(struct page_arena *arena, void *addr, size_t nr_pages)
 		for(size_t i = 0; i < nr_pages; i++, b += PAGE_SIZE)
 		{
 			struct page_list *l = PHYS_TO_VIRT(b);
+			l->page = phys_to_page(b);
 			l->next = NULL;
 			list->next = l;
 			l->prev = list;
@@ -207,6 +231,7 @@ void page_free_pages(struct page_arena *arena, void *addr, size_t nr_pages)
 
 void page_free(size_t nr_pages, void *addr)
 {
+	/* printk("Freeing %p\n", addr); */
 	for_every_arena(&main_cpu)
 	{
 		if((uintptr_t) arena->start_arena <= (uintptr_t) addr && 
@@ -231,7 +256,7 @@ static int page_add(struct page_arena *arena, void *__page,
 	page->next = NULL;
 
 	append_page(arena, page);
-	page_add_page(__page);
+	page->page = page_add_page(__page);
 
 	return 0;
 }
@@ -283,7 +308,7 @@ void page_init(size_t memory_size, void *(*get_phys_mem_region)(uintptr_t *base,
 
 	printf("page: Memory size: %lu\n", memory_size);
 	page_memory_size = memory_size;
-	nr_global_pages = vmm_align_size_to_pages(memory_size);
+	nr_global_pages = vm_align_size_to_pages(memory_size);
 
 	size_t nr_arenas = page_memory_size / 0x200000;
 	if(page_memory_size % 0x200000)
@@ -292,7 +317,7 @@ void page_init(size_t memory_size, void *(*get_phys_mem_region)(uintptr_t *base,
 	size_t needed_memory = nr_arenas *
 		sizeof(struct page_arena) + 
 		nr_global_pages * sizeof(struct page);
-	void *ptr = alloc_boot_page(vmm_align_size_to_pages(needed_memory), 0);
+	void *ptr = alloc_boot_page(vm_align_size_to_pages(needed_memory), 0);
 	if(!ptr)
 	{
 		halt();
@@ -322,45 +347,6 @@ void page_init(size_t memory_size, void *(*get_phys_mem_region)(uintptr_t *base,
 	page_is_initialized = true;
 }
 
-void *__alloc_pages_nozero(int order)
-{
-	if(page_is_initialized == false)
-		return alloc_boot_page(1, BOOTMEM_FLAG_LOW_MEM);
-	size_t nr_pages = pow2(order);
-
-	void *p = page_alloc(nr_pages, 0);
-	
-	return p;
-}
-
-void *__alloc_pages(int order)
-{
-	void *p = __alloc_pages_nozero(order);
-
-	size_t nr_pages = pow2(order);
-
-	if(p)
-	{
-		memset(PHYS_TO_VIRT(p), 0, nr_pages << PAGE_SHIFT);
-	}
-	return p;
-}
-
-void *__alloc_page(int opt)
-{
-	return __alloc_pages(0);
-}
-
-void __free_pages(void *pages, int order)
-{
-	page_free(pow2(order), pages);
-}
-
-void __free_page(void *page)
-{
-	__free_pages(page, 0);
-}
-
 void page_get_stats(struct memstat *m){}
 
 extern unsigned char kernel_end;
@@ -380,25 +366,6 @@ void __kbrk(void *break_)
 	kernel_break = break_;
 }
 
-struct page *get_phys_pages_contig(size_t nr_pgs)
-{
-	/*void *addr = __alloc_pages(order);
-	
-	size_t nr_pages = pow2(order);
-	if(!addr)
-		return NULL;
-
-	uintptr_t paddr = (uintptr_t) addr;
-
-	struct page *ret = phys_to_page(paddr);
-
-	for(; nr_pages; nr_pages--)
-	{
-		page_increment_refcount((void*) paddr);
-	} */
-	return NULL;
-}
-
 void free_pages(struct page *pages)
 {
 	struct page *next = NULL;
@@ -410,18 +377,45 @@ void free_pages(struct page *pages)
 	}
 }
 
+void free_page(struct page *p)
+{
+	assert(p != NULL);
+	assert(p->ref != 0);
+
+	if(page_unref(p) == 0)
+	{
+		p->next_un.next_allocation = NULL;
+		page_free(1, p->paddr);
+	}
+}
+
+inline struct page *alloc_pages_nozero(size_t nr_pgs, unsigned long flags)
+{
+	return page_alloc(nr_pgs, flags);
+}
+
 struct page *__get_phys_pages(size_t nr_pgs, unsigned long flags)
 {
 	struct page *plist = NULL;
+	off_t off = 0;
 
-	for(size_t i = 0; i < nr_pgs; i++)
+	for(size_t i = 0; i < nr_pgs; i++, off += PAGE_SIZE)
 	{
-		struct page *p = get_phys_page();
+		struct page *p = alloc_pages_nozero(1, flags);
 
 		if(!p)
 		{
 			if(plist)
 				free_pages(plist);
+
+			return NULL;
+		}
+
+		p->off = off;
+
+		if(page_should_zero(flags))
+		{
+			set_non_temporal(PHYS_TO_VIRT(p->paddr), 0, PAGE_SIZE);
 		}
 
 		if(!plist)
@@ -439,28 +433,24 @@ struct page *__get_phys_pages(size_t nr_pgs, unsigned long flags)
 	return plist;
 }
 
-struct page *get_phys_pages(size_t nr_pgs, unsigned long flags)
+struct page *do_alloc_pages_contiguous(size_t nr_pgs, unsigned long flags)
 {
-	if(flags & PAGE_ALLOC_CONTIGUOUS)
-		return get_phys_pages_contig(nr_pgs);
-	else
-		return __get_phys_pages(nr_pgs, flags);
-}
-
-struct page *get_phys_page(void)
-{
-	void *addr = __alloc_page(0);
-
-	if(!addr)
+	struct page *p = alloc_pages_nozero(nr_pgs, flags);
+	if(!p)
 		return NULL;
+	
+	if(page_should_zero(flags))
+	{
+		set_non_temporal(PHYS_TO_VIRT(p->paddr), 0, nr_pgs << PAGE_SHIFT);
+	}
 
-	struct page *p = phys_to_page((uintptr_t) addr);
-	p->ref++;
 	return p;
 }
 
-void free_page(struct page *p)
+struct page *alloc_pages(size_t nr_pgs, unsigned long flags)
 {
-	if(page_decrement_refcount(p) == 0)
-		__free_page(p->paddr);
+	if(unlikely(flags & PAGE_ALLOC_CONTIGUOUS))
+		return do_alloc_pages_contiguous(nr_pgs, flags);
+	else
+		return __get_phys_pages(nr_pgs, flags);
 }

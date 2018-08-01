@@ -2793,11 +2793,11 @@ static void reset_on_error(mstate m);
 #else /* PROCEED_ON_ERROR */
 
 #ifndef CORRUPTION_ERROR_ACTION
-#define CORRUPTION_ERROR_ACTION(m) do { printf("malloc: Corruption at %p\n", m); while(1);} while(0);
+#define CORRUPTION_ERROR_ACTION(m) do { printk("malloc: Corruption at %p\n", m); while(1);} while(0);
 #endif /* CORRUPTION_ERROR_ACTION */
 
 #ifndef USAGE_ERROR_ACTION
-#define USAGE_ERROR_ACTION(m,p) do { printf("malloc: Bad address %p\n", p); while(1);} while(0);
+#define USAGE_ERROR_ACTION(m,p) do { printk("malloc: Bad address %p\n", p); while(1);} while(0);
 #endif /* USAGE_ERROR_ACTION */
 
 #endif /* PROCEED_ON_ERROR */
@@ -3643,6 +3643,8 @@ static void internal_malloc_stats(mstate m) {
     B->fd = F;\
   }\
   else {\
+    printk("Top address: %p\n", M->top); \
+    printk("Least address: %p\n", M->least_addr); \
     CORRUPTION_ERROR_ACTION(M);\
   }\
 }

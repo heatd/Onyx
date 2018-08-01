@@ -20,7 +20,7 @@
 
 #include <onyx/debug.h>
 #include <onyx/slab.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/paging.h>
 #include <onyx/pmm.h>
 #include <onyx/idt.h>
@@ -48,7 +48,6 @@
 #include <onyx/dns.h>
 #include <onyx/icmp.h>
 #include <onyx/process.h>
-#include <onyx/envp.h>
 #include <onyx/block.h>
 #include <onyx/elf.h>
 #include <onyx/smbios.h>
@@ -291,7 +290,7 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 	if (magic != MULTIBOOT2_BOOTLOADER_MAGIC)
 		return;
 	idt_init();
-	vmm_init();
+	vm_init();
 
 	struct multiboot_tag_framebuffer *tagfb = NULL;
 	size_t total_mem = 0;
@@ -376,10 +375,7 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 	early_boot_rtc();
 	initialize_entropy();
 
-	vmm_late_init();
-
-	/* Register pages */
-	page_register_pages();
+	vm_late_init();
 
 	paging_protect_kernel();
 	

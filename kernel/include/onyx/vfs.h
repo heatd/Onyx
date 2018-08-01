@@ -14,7 +14,7 @@
 
 #include <onyx/object.h>
 #include <onyx/avl.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/superblock.h>
 
 #include <sys/socket.h>

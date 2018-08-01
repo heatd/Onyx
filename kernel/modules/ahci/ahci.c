@@ -16,7 +16,7 @@
 #include <onyx/log.h>
 #include <onyx/compiler.h>
 #include <onyx/module.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/task_switching.h>
 #include <onyx/irq.h>
 #include <onyx/block.h>
@@ -359,7 +359,10 @@ int ahci_allocate_port_lists(ahci_hba_memory_regs_t *hba, ahci_port_t *port)
 	void *fisb = NULL;
 	void *virtual_fisb = NULL;
 	/* The command list is 4k in size, with 4k in alignment */
-	void *command_list = __alloc_page(PAGE_AREA_HIGH_MEM);
+	struct page *command_list_page = alloc_page(0);
+	if(!command_list_page)
+		goto error;
+	void *command_list = command_list_page->paddr;
 	if(!command_list)
 		goto error;
 
@@ -382,7 +385,7 @@ int ahci_allocate_port_lists(ahci_hba_memory_regs_t *hba, ahci_port_t *port)
 	port->fis_list_base_hi = (uintptr_t) fisb & 0xFFFFFFFF00000000;
 	return 0;
 error:
-	if(command_list)	__free_page(command_list);
+	if(command_list_page)	free_page(command_list_page);
 	if(fisb)		free(virtual_fisb);
 	return -1;
 }

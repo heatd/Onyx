@@ -8,7 +8,7 @@
 
 #include <sys/types.h>
 
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/mutex.h>
 #include <onyx/ioctx.h>
 #include <onyx/spinlock.h>

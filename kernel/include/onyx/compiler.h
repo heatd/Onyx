@@ -24,6 +24,7 @@
 #ifndef __onyx__
 #error "Onyx needs to be compiled using a Onyx Cross Compiler"
 #endif /* __onyx__ */
+
 #define align(x) __attribute__((aligned(x)))
 #define __align_cache align(16)
 #define likely(x)      __builtin_expect(!!(x), 1)
@@ -41,12 +42,14 @@ extern __typeof (name) aliasname __attribute__ ((weak, alias (#name)));
 #define USES_FANCY_START	_Pragma("GCC push_options") \
 _Pragma("GCC target(\"sse2\", \"3dnow\", \"xsave\")")
 #define USES_FANCY_END _Pragma("GCC pop_options")
-static inline uint64_t rdtsc()
+
+static inline uint64_t rdtsc(void)
 {
     	uint64_t ret = 0;
     	__asm__ __volatile__ ( "rdtsc" : "=A"(ret) );
     	return ret;
 }
+
 static inline int count_bits32(uint32_t num)
 {
 	int nbits = 0;
@@ -58,6 +61,7 @@ static inline int count_bits32(uint32_t num)
 	}
 	return nbits;
 }
+
 static inline int count_bits64(uint64_t num)
 {
 	int nbits = 0;
@@ -69,6 +73,7 @@ static inline int count_bits64(uint64_t num)
 	}
 	return nbits;
 }
+
 #define add_check_overflow(op1, op2, res) __builtin_add_overflow(op1, op2, res)
 
 #define ___PASTE(a,b) a##b

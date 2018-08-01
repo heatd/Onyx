@@ -11,7 +11,7 @@
 #include <onyx/panic.h>
 #include <onyx/dev.h>
 #include <onyx/task_switching.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/pagecache.h>
 #include <onyx/utils.h>
 
@@ -22,7 +22,7 @@ size_t __do_vfs_write(void *buf, size_t size, off_t off, struct inode *this);
 
 struct page *allocate_cache_block(void)
 {
-	struct page *p = get_phys_page();
+	struct page *p = alloc_page(0);
 	return p;
 }
 

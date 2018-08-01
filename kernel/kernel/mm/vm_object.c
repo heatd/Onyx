@@ -3,14 +3,16 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
+#include <stdio.h>
 #include <assert.h>
 
 #include <onyx/mm/vm_object.h>
 #include <onyx/page.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/utils.h>
 #include <onyx/atomic.h>
 #include <onyx/ioctx.h>
+#include <onyx/file.h>
 
 #include <sys/mman.h>
 
@@ -30,7 +32,7 @@ struct vm_object *vmo_create(size_t size, void *priv)
 */
 struct page *vmo_commit_phys_page(size_t off, struct vm_object *vmo)
 {
-	struct page *p = get_phys_page();
+	struct page *p = alloc_page(0);
 	if(!p)
 		return NULL;
 	p->off = off;
@@ -106,7 +108,7 @@ struct page *vmo_get(struct vm_object *vmo, off_t off, bool may_populate)
 
 int vmo_fork_pages(struct vm_object *vmo)
 {
-	size_t pages = vmm_align_size_to_pages(vmo->size);
+	size_t pages = vm_align_size_to_pages(vmo->size);
 	if(!pages)
 		return 0;
 	
@@ -118,7 +120,8 @@ int vmo_fork_pages(struct vm_object *vmo)
 
 	while(old_entry)
 	{
-		struct page *p = get_phys_page();
+		/* No need to zero since it's being overwritten anyway */
+		struct page *p = alloc_page(0);
 		
 		/* TODO: Free */
 		if(!p)
@@ -170,4 +173,64 @@ struct vm_object *vmo_fork(struct vm_object *vmo)
 		new_vmo->u_info.fmap.fd->refcount++;
 	
 	return new_vmo;
+}
+
+int vmo_prefault(struct vm_object *vmo, size_t size, off_t offset)
+{
+	size_t pages = vm_align_size_to_pages(size);
+
+	struct page *p = alloc_pages(pages, 0);
+	if(!p)
+	{
+		printk("alloc_pages failed: could not allocate %lu pages!\n", pages);
+		return -1;
+	}
+
+	struct page *_p = p;
+	for(size_t i = 0; i < pages; i++, offset += PAGE_SIZE)
+	{
+		_p->off = offset;
+		_p = _p->next_un.next_allocation;
+	}
+
+	if(vm_flush(vmo->mappings) < 0)
+		return -1;
+	return 0;
+}
+
+void __vmo_unmap(struct vm_object *vmo)
+{	
+	for(struct page *p = vmo->page_list; p != NULL;
+		p = p->next_un.next_virtual_region)
+	{
+		paging_unmap((void *) (vmo->mappings->base + p->off));
+	}
+}
+
+void vmo_destroy(struct vm_object *vmo)
+{
+	spin_lock(&vmo->page_lock);
+
+	/* Unmap the mapped pages */
+	__vmo_unmap(vmo);
+
+	free_pages(vmo->page_list);
+	vmo->page_list = NULL;
+
+	if(is_file_backed(vmo->mappings))
+	{
+		fd_unref(vmo->u_info.fmap.fd);
+	}
+
+	spin_unlock(&vmo->page_lock);
+
+	free(vmo);
+}
+
+void vmo_unref(struct vm_object *vmo)
+{
+	/* For now, unref just destroys the object since vmo sharing is not
+	 * implemented yet.
+	*/
+	vmo_destroy(vmo);
 }

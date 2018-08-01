@@ -8,12 +8,14 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdatomic.h>
 
 #include <sys/types.h>
 
 #include <onyx/spinlock.h>
 #include <onyx/compiler.h>
 #include <onyx/list.h>
+#include <onyx/ref.h>
 
 /* The default physical allocator is the buddy allocator */
 #define CONFIG_BUDDY_ALLOCATOR		1
@@ -45,10 +47,8 @@
 #define ilog2(X) ((unsigned) (8*sizeof (unsigned long long) - __builtin_clzll((X)) - 1))
 
 
-/* Passed to __alloc_page() */
-#define PAGE_AREA_DMA (1 << 0)
-#define PAGE_AREA_HIGH_MEM 	(1 << 1)
-#define PAGE_AREA_HIGH_MEM_64 	(1 << 2)
+/* Passed to alloc_page() */
+
 #define PAGE_NO_RETRY		(1 << 3)
 
 /* struct page - Represents every usable page on the system 
@@ -58,8 +58,8 @@
 struct page
 {
 	void *paddr;
-	unsigned long ref;
 	struct page *next;
+	unsigned long ref;
 
 	off_t off;		/* Offset in vmo */
 
@@ -70,6 +70,7 @@ struct page
 	} next_un;
 };
 
+#define PAGE_TO_VIRT(page)	((struct page *)((unsigned long) page->paddr + PHYS_BASE))
 #define PAGE_HASHTABLE_ENTRIES 0x4000	
 struct page_hashtable
 {
@@ -96,7 +97,7 @@ typedef struct page_zone
 {
 	/* We obviously need a lock to protect this page zone */
 	struct spinlock lock __attribute__((aligned(16)));
-	page_area_t *free_areas __attribute__((aligned(16)));
+	0t *free_areas __attribute__((aligned(16)));
 	/* The name of the page zone */
 	char *name;
 	/* The size of the page zone */
@@ -106,11 +107,11 @@ typedef struct page_zone
 
 } page_zone_t;
 
-typedef struct page_area
+typedef struct 0
 {
-	struct page_area *prev;
-	struct page_area *next;
-} page_area_t;
+	struct 0 *prev;
+	struct 0 *next;
+} 0t;
 
 #endif /* CONFIG_BUDDY_ALLOCATOR */
 
@@ -124,10 +125,6 @@ struct memstat
 extern "C" {
 #endif
 
-void *__alloc_page(int opt);
-void *__alloc_pages(int order);
-void __free_page(void *page);
-void __free_pages(void *pages, int order);
 void page_get_stats(struct memstat *memstat);
 
 
@@ -143,18 +140,26 @@ void page_init(size_t memory_size, void *(*get_phys_mem_region)
 	struct bootmodule *modules);
 
 unsigned int page_hash(uintptr_t p);
-bool pages_are_registered(void);
-void page_register_pages(void);
 struct page *phys_to_page(uintptr_t phys);
-unsigned long page_increment_refcount(void *paddr);
-unsigned long page_decrement_refcount(void *paddr);
-void page_add_page(void *paddr);
+struct page *page_add_page(void *paddr);
 void page_add_page_late(void *paddr);
-void *__alloc_pages_nozero(int order);
 
 #define PAGE_ALLOC_CONTIGUOUS	(1 << 0)
-struct page *get_phys_pages(size_t nr_pgs, unsigned long flags);
-struct page *get_phys_page(void);
+#define PAGE_ALLOC_NO_ZERO	(1 << 1)
+
+static inline bool __page_should_zero(unsigned long flags)
+{
+	return !(flags & PAGE_ALLOC_NO_ZERO);
+}
+
+#define page_should_zero(x)		likely(__page_should_zero(x))
+
+struct page *alloc_pages(size_t nr_pages, unsigned long flags);
+
+static inline struct page *alloc_page(unsigned long flags)
+{
+	return alloc_pages(1, flags);
+}
 
 void free_page(struct page *p);
 void free_pages(struct page *p);
@@ -171,6 +176,16 @@ struct used_pages
 };
 
 void page_add_used_pages(struct used_pages *pages);
+
+static inline unsigned long page_ref(struct page *p)
+{
+	return __atomic_add_fetch(&p->ref, 1, memory_order_acquire);
+}
+
+static inline unsigned long page_unref(struct page *p)
+{
+	return __atomic_sub_fetch(&p->ref, 1, memory_order_release);
+}
 
 #ifdef __cplusplus
 }

@@ -11,7 +11,7 @@
 #include <stdio.h>
 
 #include <onyx/compiler.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/cpu.h>
 
 static uintptr_t vm_calculate_virtual_address(uintptr_t bits)
@@ -20,7 +20,7 @@ static uintptr_t vm_calculate_virtual_address(uintptr_t bits)
 	return -((uintptr_t) 1 << (bits - 1));
 }
 
-void arch_vmm_init(void)
+void arch_vm_init(void)
 {
 	unsigned int eax = 0, ebx = 0, ecx = 0, edx = 0;
 	assert(__get_cpuid(CPUID_ADDR_SPACE_SIZE, &eax, &ebx, &ecx, &edx) == 1);

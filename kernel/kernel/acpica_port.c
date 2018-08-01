@@ -10,7 +10,7 @@
 #include <limits.h>
 #include <assert.h>
 
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/irq.h>
 #include <onyx/portio.h>
 #include <onyx/panic.h>

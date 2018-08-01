@@ -32,7 +32,7 @@
 
 #include <onyx/debug.h>
 #include <onyx/slab.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/paging.h>
 #include <onyx/pmm.h>
 #include <onyx/idt.h>
@@ -60,7 +60,6 @@
 #include <onyx/dns.h>
 #include <onyx/icmp.h>
 #include <onyx/process.h>
-#include <onyx/envp.h>
 #include <onyx/block.h>
 #include <onyx/elf.h>
 #include <onyx/smbios.h>
@@ -238,9 +237,9 @@ retry:;
 	args.envp = envp;
 
 	struct process *current = get_current_process();
-	current->address_space.brk = map_user(vmm_gen_brk_base(), 0x20000000, VM_TYPE_HEAP,
+	current->address_space.brk = map_user(vm_gen_brk_base(), 0x20000000, VM_TYPE_HEAP,
 	VM_WRITE | VM_NOEXEC | VM_USER);
-	current->address_space.mmap_base = vmm_gen_mmap_base();
+	current->address_space.mmap_base = vm_gen_mmap_base();
 
 	/* Finally, load the binary */
 	void *entry = load_binary(&args);
@@ -263,6 +262,7 @@ retry:;
 	p->self = (__pthread_t*) fs;
 	p->tid = get_current_process()->threads[0]->id;
 	p->pid = get_current_process()->pid;
+
 	sched_start_thread(current->threads[0]);
 
 	return 0;
@@ -375,7 +375,7 @@ void kernel_multitasking(void *arg)
 	sysfs_init();
 
 	/* Populate /sys */
-	vmm_sysfs_init();
+	vm_sysfs_init();
 
 	/* Mount the root partition */
 	char *root_partition = kernel_getopt("--root");

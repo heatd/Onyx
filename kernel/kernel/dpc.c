@@ -7,7 +7,7 @@
 #include <assert.h>
 
 #include <onyx/dpc.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/irq.h>
 #include <onyx/spinlock.h>
 #include <onyx/scheduler.h>
@@ -61,7 +61,7 @@ void dpc_init(void)
 	dpc_pool = slab_create("dpc", sizeof(struct dpc_work), 0, SLAB_FLAG_DONT_CACHE, NULL, NULL);
 	assert(dpc_pool != NULL);
 
-	assert(slab_populate(dpc_pool, DPC_POOL_NR_OBJS) != -1);
+	assert(slab_populate(dpc_pool, 200) != -1);
 
 	sched_start_thread(dpc_thread);
 }

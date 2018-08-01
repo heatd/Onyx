@@ -90,7 +90,7 @@ qemu: iso
 	-s -cdrom Onyx.iso -drive file=hdd.img,format=raw,media=disk -m 512M \
 	-monitor stdio -boot d -netdev user,id=u1 -device e1000,netdev=u1 \
 	-object filter-dump,id=f1,netdev=u1,file=net.pcap \
-	--enable-kvm -smp 2 -cpu host,migratable=no,+invtsc -d int -vga qxl \
+	-enable-kvm -smp 2 -cpu host,migratable=no,+invtsc -d int -vga qxl \
 	-usb
 intel-passthrough-qemu: iso
 	sudo qemu-system-x86_64 -vga none -display gtk,gl=on \

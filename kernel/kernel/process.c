@@ -234,6 +234,7 @@ char **process_copy_envarg(char **envarg, _Bool to_kernel, int *count)
 		nr_args++;
 		b++;
 	}
+
 	size_t buffer_size = (nr_args + 1) * sizeof(void*) + string_size;
 	char *new;
 	if(to_kernel)
@@ -245,7 +246,7 @@ char **process_copy_envarg(char **envarg, _Bool to_kernel, int *count)
 	else
 	{
 		new = get_user_pages(VM_TYPE_SHARED,
-			vmm_align_size_to_pages(buffer_size), VM_WRITE | VM_NOEXEC | VM_USER);
+			vm_align_size_to_pages(buffer_size), VM_WRITE | VM_NOEXEC | VM_USER);
 		if(!new)
 			return NULL;
 	}
@@ -328,7 +329,7 @@ void process_setup_pthread(thread_t *thread, struct process *process)
 	/* TODO: Do this portably */
 	/* TODO: Return error codes and clean up */
 	uintptr_t *fs = get_user_pages(VM_TYPE_REGULAR, 1, VM_WRITE | VM_NOEXEC | VM_USER);
-	vmm_map_range(fs, 1, VMM_WRITE | VMM_NOEXEC | VMM_USER);
+	vm_map_range(fs, 1, VM_WRITE | VM_NOEXEC | VM_USER);
 	thread->fs = (void*) fs;
 	__pthread_t *p = (__pthread_t*) fs;
 	p->self = (__pthread_t*) fs;
@@ -346,9 +347,9 @@ int return_from_execve(void *entry, int argc, char **argv, char **envp, void *au
 */
 int sys_execve(char *p, char *argv[], char *envp[])
 {
-	if(!vmm_is_mapped(argv))
+	if(!vm_is_mapped(argv))
 		return errno =-EFAULT;
-	if(!vmm_is_mapped(envp))
+	if(!vm_is_mapped(envp))
 		return errno =-EFAULT;
 
 	char *path = strcpy_from_user(p);
@@ -393,9 +394,9 @@ int sys_execve(char *p, char *argv[], char *envp[])
 	}
 	/* TODO: Check file permitions */
 	/* Swap address spaces. Good thing we saved argv and envp before */
-	current->address_space.brk = map_user(vmm_gen_brk_base(), 0x20000000, VM_TYPE_HEAP,
+	current->address_space.brk = map_user(vm_gen_brk_base(), 0x20000000, VM_TYPE_HEAP,
 		VM_WRITE | VM_NOEXEC | VM_USER);
-	current->address_space.mmap_base = vmm_gen_mmap_base();
+	current->address_space.mmap_base = vm_gen_mmap_base();
 
 	current->cmd_line = strdup(path);
 	paging_load_cr3(current->address_space.cr3);
@@ -606,6 +607,7 @@ void sys_exit(int status)
 		ENABLE_INTERRUPTS();
 		for(;;);
 	}
+
 	current->has_exited = 1;
 	current->exit_code = make_wait4_wstatus(0, false, status);
 	sem_signal(&current->parent->wait_sem);
@@ -656,7 +658,7 @@ void process_destroy_aspace(void)
 {
 	struct process *current = get_current_process();
 
-	vmm_destroy_addr_space(current->address_space.tree);
+	vm_destroy_addr_space(current->address_space.tree);
 	current->address_space.tree = NULL;
 }
 
@@ -685,7 +687,8 @@ void process_destroy_file_descriptors(struct process *process)
 void process_obliterate(void *proc)
 {
 	struct process *process = proc;
-	__free_page(process->address_space.cr3);
+	struct page *p = phys_to_page((uintptr_t) process->address_space.cr3);
+	free_page(p);
 }
 
 void process_destroy(thread_t *current_thread)
@@ -766,7 +769,7 @@ int sys_clone(int (*fn)(void *), void *child_stack, int flags, void *arg, pid_t 
 {
 	if(flags & ~valid_flags)
 		return -EINVAL;
-	if(!vmm_is_mapped(fn))
+	if(!vm_is_mapped(fn))
 		return -EINVAL;
 	if(flags & CLONE_FORK)
 		return -EINVAL; /* TODO: Add CLONE_FORK */
@@ -778,7 +781,7 @@ int sys_clone(int (*fn)(void *), void *child_stack, int flags, void *arg, pid_t 
 	thread_t *thread = sched_spawn_thread(&regs, start, arg, tls);
 	if(!thread)
 		return -errno;
-	if(vmm_check_pointer(ptid, sizeof(pid_t)) > 0)
+	if(vm_check_pointer(ptid, sizeof(pid_t)) > 0)
 		*ptid = thread->id;
 	process_add_thread(get_current_process(), thread);
 	return 0;

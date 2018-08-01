@@ -12,13 +12,12 @@
 #include <onyx/vfs.h>
 #include <onyx/elf.h>
 #include <onyx/kernelinfo.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/modules.h>
 #include <onyx/process.h>
 #include <onyx/cpu.h>
 #include <onyx/random.h>
 #include <onyx/log.h>
-#include <onyx/envp.h>
 #include <onyx/binfmt.h>
 #include <onyx/compiler.h>
 #include <onyx/binfmt/elf64.h>

@@ -171,10 +171,11 @@ size_t tmpfs_read(int flags, size_t offset, size_t size, void *buffer, struct in
 {
 	tmpfs_file_t *file = (tmpfs_file_t *) vnode->i_inode;
 
-	char *scratch = __alloc_page(0);
-	if(!scratch)
+	struct page *p = alloc_page(0);
+	if(!p)
 		return errno = ENOMEM, (size_t) -1;
-	scratch = PHYS_TO_VIRT(scratch);
+
+	char *scratch = PHYS_TO_VIRT(p->paddr);
 	ssize_t read = 0;
 	while(read != (ssize_t) size)
 	{
@@ -182,13 +183,18 @@ size_t tmpfs_read(int flags, size_t offset, size_t size, void *buffer, struct in
 		off_t block_off = offset % block_size;
 		off_t block_left = block_size - block_off;
 		if(!tmpfs_read_block(file, block, scratch))
+		{
+			free_page(p);
 			return read;
+		}
+
 		size_t amount = (ssize_t) (size - read) < block_left ? (ssize_t) size - read : block_left;
 		if(offset + amount > vnode->i_size)
 		{
 			amount = vnode->i_size - offset;
 			memcpy(buffer + read, scratch + block_off, amount);
 			read += amount;
+			free_page(p);
 			return read;
 		}
 		else
@@ -196,7 +202,8 @@ size_t tmpfs_read(int flags, size_t offset, size_t size, void *buffer, struct in
 		read += amount;
 		offset += amount;
 	}
-	__free_page(scratch - PHYS_BASE);
+
+	free_page(p);
 	return read;
 }
 
@@ -236,7 +243,7 @@ int tmpfs_fill_with_data(struct inode *vnode, const void *_buf, size_t size)
 	tmpfs_file_t *file = (tmpfs_file_t *) vnode->i_inode;
 	
 	const char *buf = _buf;
-	size_t nr_reads = vmm_align_size_to_pages(size);
+	size_t nr_reads = vm_align_size_to_pages(size);
 	off_t off = 0;
 
 	for(size_t i = 0; i < nr_reads; i++)

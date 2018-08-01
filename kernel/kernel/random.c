@@ -177,7 +177,7 @@ unsigned int get_random_int(void)
 
 int sys_getrandom(void *buf, size_t buflen, unsigned int flags)
 {
-	if(vmm_check_pointer(buf, buflen) < 0)
+	if(vm_check_pointer(buf, buflen) < 0)
 		return -EFAULT;
 	return (int) get_entropy_from_pool(ENTROPY_POOL_URANDOM, buflen, buf);
 }

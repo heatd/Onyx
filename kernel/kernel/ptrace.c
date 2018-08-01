@@ -59,7 +59,7 @@ long sys_ptrace(long request, pid_t pid, void *addr, void *data, void *addr2)
 			struct process *tracee = process_find_tracee(get_current_process(), pid);
 			if(!tracee)
 				return -ESRCH;
-			if(vmm_check_pointer(data, sizeof(struct user_regs_struct)) < 0)
+			if(vm_check_pointer(data, sizeof(struct user_regs_struct)) < 0)
 				return -EFAULT;
 			if(ptrace_getregs(tracee, data) < 0)
 				return -errno;
@@ -70,7 +70,7 @@ long sys_ptrace(long request, pid_t pid, void *addr, void *data, void *addr2)
 			struct process *tracee = process_find_tracee(get_current_process(), pid);
 			if(!tracee)
 				return -ESRCH;
-			if(vmm_check_pointer(data, sizeof(struct user_fpregs_struct)) < 0)
+			if(vm_check_pointer(data, sizeof(struct user_fpregs_struct)) < 0)
 				return -EFAULT;
 			if(ptrace_getfpregs(tracee, data) < 0)
 				return -errno;

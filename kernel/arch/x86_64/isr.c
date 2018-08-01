@@ -14,7 +14,7 @@
 #include <onyx/process.h>
 #include <onyx/signal.h>
 #include <onyx/task_switching.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/panic.h>
 #include <onyx/compiler.h>
 #include <onyx/x86/mce.h>
@@ -226,11 +226,8 @@ void page_fault_handler(intctx_t *ctx)
 	info.user = error_code & 0x4;
 	info.ip = ctx->rip;
 	
-	if(vmm_handle_page_fault(&info) < 0)
+	if(vm_handle_page_fault(&info) < 0)
 	{
-		vmm_print_stats();
-		//printk("Image base: %p\n", get_current_process()->image_base);
-		//printk("Dumping %lx\n", *(uintptr_t *)ctx->rsp);
 		vm_do_fatal_page_fault(&info);
 	}
 }

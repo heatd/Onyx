@@ -7,7 +7,7 @@
 #include <stdlib.h>
 
 #include <onyx/utils.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 
 void *memdup(void *ptr, size_t size)
 {

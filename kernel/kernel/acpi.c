@@ -16,7 +16,7 @@
 #include <onyx/acpi.h>
 #include <onyx/log.h>
 #include <onyx/compiler.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/panic.h>
 #include <onyx/log.h>
 #include <onyx/cpu.h>

@@ -8,7 +8,7 @@
 
 #include <stdio.h>
 
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 
 #define IOAPIC_BASE_PHYS 0xFEC00000
 #define IA32_APIC_BASE_MSR 0x1B

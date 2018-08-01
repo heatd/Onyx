@@ -11,7 +11,6 @@ install: $(PROG)
 	mkdir -p $(DESTDIR)/etc/init.d/
 	mkdir -p $(DESTDIR)/etc/init.d/targets
 	mkdir -p $(DESTDIR)/usr/bin/
-	strip $(PROG)
 	cp $(PROG) $(DESTDIR)/usr/bin/
 	cp graphical.target $(DESTDIR)/etc/init.d/targets/
 %.o: %.c

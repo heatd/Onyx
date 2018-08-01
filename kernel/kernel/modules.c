@@ -11,7 +11,7 @@
 #include <onyx/modules.h>
 #include <onyx/vfs.h>
 #include <onyx/elf.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 
 static module_hashtable_t *hashtable;
 bool mods_disabled = 0;
@@ -145,7 +145,7 @@ void *allocate_module_memory(size_t size)
 	if(size % PAGE_SIZE)
 		pages++;
 	void *ret = (void*) last_kernel_address;
-	vmm_map_range(ret, pages, VM_WRITE | VM_GLOBAL);
+	vm_map_range(ret, pages, VM_WRITE | VM_GLOBAL);
 	last_kernel_address += pages * PAGE_SIZE;
 	return ret;
 }
@@ -192,9 +192,9 @@ uintptr_t get_common_block(const char *name, size_t size)
 
 int sys_insmod(const char *path, const char *name)
 {
-	if(!vmm_is_mapped((void*) path))
+	if(!vm_is_mapped((void*) path))
 		return errno =-EFAULT;
-	if(!vmm_is_mapped((void*) name))
+	if(!vm_is_mapped((void*) name))
 		return errno =-EFAULT;
 	/* All the work is done by load_module; A return value of 1 means -1
 		for user-space, while -0 still = 0 */

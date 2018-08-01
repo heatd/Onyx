@@ -14,7 +14,7 @@
 
 #include <onyx/vdso.h>
 #include <onyx/timer.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/process.h>
 #include <onyx/clock.h>
 

@@ -13,7 +13,7 @@
 #include <onyx/tty.h>
 #include <onyx/framebuffer.h>
 #include <onyx/font.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 
 #include <sys/ioctl.h>
 

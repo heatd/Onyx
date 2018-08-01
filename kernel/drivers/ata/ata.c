@@ -10,7 +10,7 @@
 #include <mbr.h>
 
 #include <onyx/id.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/portio.h>
 #include <onyx/vfs.h>
 #include <onyx/pic.h>
@@ -455,8 +455,14 @@ int ata_init(void)
 	ata_ids = idm_add("hd", 0, UINTMAX_MAX);
 	if(!ata_ids)
 		return -1;
+
+	struct page *p = alloc_pages(4, PAGE_ALLOC_CONTIGUOUS);
+	if(!p)
+		return -1;
+
 	/* Allocate PRDT base */
-	prdt_base = dma_map_range(__alloc_pages(4), UINT16_MAX, VMM_WRITE | VMM_NOEXEC | VMM_GLOBAL);
+	prdt_base = dma_map_range(p->paddr,
+		UINT16_MAX, VM_WRITE | VM_NOEXEC | VM_GLOBAL);
 	if(!prdt_base)
 	{
 		ERROR("ata", "Could not allocate a PRDT\n");
@@ -473,11 +479,15 @@ int ata_init(void)
 	outb(ATA_CONTROL1, 0);
 	outb(ATA_CONTROL2, 0);
 	
-	read_buffer = __alloc_pages(2);
-	write_buffer = __alloc_pages(2);
+	struct page *read_buffer_pgs = alloc_pages(2, PAGE_ALLOC_CONTIGUOUS);
+	struct page *write_buffer_pgs = alloc_pages(2, PAGE_ALLOC_CONTIGUOUS);
 
-	assert(read_buffer != NULL);
-	assert(write_buffer != NULL);
+	assert(read_buffer_pgs != NULL);
+	assert(write_buffer_pgs != NULL);
+
+	read_buffer = read_buffer_pgs->paddr;
+	write_buffer = write_buffer_pgs->paddr;
+
 	for(int channel = 0; channel < 2; channel++)
 	{
 		for(int drive = 0; drive < 2; drive++)

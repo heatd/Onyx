@@ -9,7 +9,7 @@
 #include <onyx/panic.h>
 #include <onyx/gdt.h>
 #include <onyx/tss.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 
 #define GDT_SIZE 77
 extern gdtr_t gdtr3;

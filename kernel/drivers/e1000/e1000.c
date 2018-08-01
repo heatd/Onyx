@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/ethernet.h>
 #include <onyx/pic.h>
 #include <onyx/irq.h>
@@ -152,12 +152,12 @@ int e1000_init_descs(void)
 {
 	uint8_t *ptr = NULL;
 	struct e1000_rx_desc *rxdescs = NULL;
-	size_t needed_pages = vmm_align_size_to_pages(sizeof(struct e1000_rx_desc) * E1000_NUM_RX_DESC + 16);
-	ptr = vmm_allocate_virt_address(VM_KERNEL, needed_pages, VM_TYPE_HW,
-		VM_WRITE | VM_GLOBAL | VM_NOEXEC, 0);
+	size_t needed_pages = vm_align_size_to_pages(sizeof(struct e1000_rx_desc) * E1000_NUM_RX_DESC + 16);
+	ptr = vmalloc(needed_pages, VM_TYPE_REGULAR, VM_WRITE | VM_NOEXEC | VM_GLOBAL);
+
 	if(!ptr)
 		return 1;
-	vmm_map_range(ptr, needed_pages, VM_WRITE | VM_GLOBAL | VM_NOEXEC);
+
 	rxdescs = (struct e1000_rx_desc *) ptr;
 	for(int i = 0; i < E1000_NUM_RX_DESC; i++)
 	{
@@ -170,12 +170,14 @@ int e1000_init_descs(void)
 			{
 				free(rx_descs[j]);
 			}
-			vmm_unmap_range(ptr, needed_pages);
+			vm_unmap_range(ptr, needed_pages);
 			return 1;
 		}
 		rx_descs[i]->addr = (uint64_t) virtual2phys((void*) rx_descs[i]->addr);
 		rx_descs[i]->status = 0;
 	}
+
+	/* TODO: This shouldn't work because vmalloc returns non-contiguous memory, FIXME */
 	ptr = virtual2phys(ptr);
 	e1000_write_command(REG_RXDESCLO, (uint32_t)((uint64_t)ptr & 0xFFFFFFFF));
 	e1000_write_command(REG_RXDESCHI, (uint32_t)((uint64_t)ptr >> 32));
@@ -192,10 +194,10 @@ int e1000_init_descs(void)
 	needed_pages = (sizeof(struct e1000_tx_desc) * E1000_NUM_TX_DESC + 16) / 4096;
 	if((sizeof(struct e1000_tx_desc) * E1000_NUM_TX_DESC + 16) % 4096)
 		needed_pages++;
-	ptr = vmm_allocate_virt_address(VM_KERNEL, needed_pages, VMM_TYPE_HW, VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC, 0);
+	ptr = vmalloc(needed_pages, VM_TYPE_HW, VM_WRITE | VM_GLOBAL | VM_NOEXEC);
 	if(!ptr)
 		return 1;
-	vmm_map_range(ptr, needed_pages, VMM_WRITE | VMM_GLOBAL | VMM_NOEXEC);
+
 	txdescs = (struct e1000_tx_desc *) ptr;
 
 	for(int i = 0; i < E1000_NUM_TX_DESC; i++)
@@ -205,6 +207,8 @@ int e1000_init_descs(void)
 		tx_descs[i]->cmd = 0;
 		tx_descs[i]->status = TSTA_DD;
 	}
+
+	/* FIXME: Same as above */
 	ptr = virtual2phys(ptr);
 	e1000_write_command(REG_TXDESCLO, (uint32_t)((uint64_t)ptr & 0xFFFFFFFF));
 	e1000_write_command(REG_TXDESCHI, (uint32_t)((uint64_t)ptr >> 32));

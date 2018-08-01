@@ -16,7 +16,7 @@
 #include <onyx/timer.h>
 #include <onyx/data_structures.h>
 #include <onyx/task_switching.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/spinlock.h>
 #include <onyx/panic.h>
 #include <onyx/tss.h>

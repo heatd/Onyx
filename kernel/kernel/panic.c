@@ -23,7 +23,7 @@
 #include <onyx/registers.h>
 #include <onyx/compiler.h>
 #include <onyx/paging.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/task_switching.h>
 #include <onyx/process.h>
 #include <onyx/panic.h>
@@ -44,6 +44,8 @@ int panicing = 0;
 
 extern void *stack_trace(void);
 
+void page_print_shared(void);
+
 __attribute__ ((noreturn, cold, noinline))
 void panic(const char *msg)
 {
@@ -62,10 +64,11 @@ void panic(const char *msg)
 	module_dump();
 	printk("Stack dump: \n");
 
-	stack_trace();
+	//stack_trace();
 	printk("Killing cpus\n");
 	cpu_kill_other_cpus();
-	vmm_print_stats();
+	page_print_shared();
+	vm_print_stats();
 	halt();
 	__builtin_unreachable();
 }

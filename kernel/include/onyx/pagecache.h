@@ -11,7 +11,7 @@
 #include <onyx/paging.h>
 #include <onyx/list.h>
 #include <onyx/vfs.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 
 struct page_cache_block
 {

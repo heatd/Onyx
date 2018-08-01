@@ -9,7 +9,7 @@
 
 #include <onyx/process.h>
 #include <onyx/binfmt/elf64.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 
 static bool elf64_is_valid(Elf64_Ehdr *header)
 {
@@ -137,7 +137,7 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 		}
 	}
 	needed_size += last_size;
-	base = get_pages(VM_ADDRESS_USER, VM_TYPE_SHARED, vmm_align_size_to_pages(needed_size), 
+	base = get_pages(VM_ADDRESS_USER, VM_TYPE_SHARED, vm_align_size_to_pages(needed_size), 
 				VM_WRITE | VM_USER, alignment);
 	if(!base)
 		return NULL;
@@ -169,18 +169,18 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 			/* Note that things are mapped VM_WRITE | VM_USER before the memcpy so 
 			 we don't PF ourselves(i.e: writing to RO memory) */
 			
-			vmm_map_range((void *) aligned_address, pages, VM_WRITE | VM_USER);
+			vm_map_range((void *) aligned_address, pages, VM_WRITE | VM_USER);
 			
 			/* Read the program segment to memory */
 			read_vfs(0, phdrs[i].p_offset, phdrs[i].p_filesz, 
 				(void*) phdrs[i].p_vaddr, args->file);
 
-			vmm_change_perms((void *) aligned_address, pages, prot);
+			vm_change_perms((void *) aligned_address, pages, prot);
 		}
 	}
 
 	void *ptr = get_user_pages(VM_TYPE_REGULAR,
-			vmm_align_size_to_pages(program_headers_size), VM_WRITE | VM_NOEXEC);
+			vm_align_size_to_pages(program_headers_size), VM_WRITE | VM_NOEXEC);
 	if(!ptr)
 		return NULL;
 	
@@ -231,7 +231,7 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 		if(current->info.phdr[i].p_type == PT_DYNAMIC)
 		{
 			void *dyn = get_user_pages(VM_TYPE_REGULAR,
-				vmm_align_size_to_pages(current->info.phdr[i].p_filesz),
+				vm_align_size_to_pages(current->info.phdr[i].p_filesz),
 				VM_WRITE | VM_NOEXEC);
 			if(!dyn)
 				return NULL;

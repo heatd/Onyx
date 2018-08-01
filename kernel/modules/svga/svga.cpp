@@ -9,7 +9,7 @@
 
 #include <onyx/smart.h>
 #include <onyx/mutex.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/module.h>
 #include <onyx/portio.h>
 #include <onyx/video.h>

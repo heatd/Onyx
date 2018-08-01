@@ -10,7 +10,7 @@
 
 #include <onyx/vfs.h>
 #include <onyx/dev.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/module.h>
 #include <onyx/log.h>
 #include <onyx/drm.h>
@@ -34,7 +34,7 @@ struct drm_dumb_buffer *drm_soft_dumb_create(struct drm_dumb_buffer_info *info, 
 	size_t size = info->width * info->height * info->bpp/8;
 	
 	/* Allocate the fb in pages so it can be mapped */
-	struct page *page_list = get_phys_pages(vmm_align_size_to_pages(size), 0);
+	struct page *page_list = alloc_pages(vm_align_size_to_pages(size), 0);
 
 	if(!page_list)
 		return NULL;
@@ -56,12 +56,6 @@ struct drm_dumb_buffer *drm_soft_dumb_create(struct drm_dumb_buffer_info *info, 
 		free_pages(page_list);
 		free(buffer);
 		return NULL;
-	}
-
-	off_t curr_off = 0;
-	for(struct page *p = page_list; p != NULL; p = p->next_un.next_allocation, curr_off += PAGE_SIZE)
-	{
-		p->off = curr_off;
 	}
 
 	buffer->pages = page_list;

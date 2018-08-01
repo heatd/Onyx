@@ -11,7 +11,7 @@
 #include <sys/types.h>
 #include <sys/utsname.h>
 
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/dns.h>
 #include <onyx/network.h>
 

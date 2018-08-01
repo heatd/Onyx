@@ -25,7 +25,7 @@
 #include <onyx/kernelinfo.h>
 #include <onyx/tty.h>
 #include <onyx/process.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/elf.h>
 #include <onyx/panic.h>
 #include <onyx/power_management.h>

@@ -12,7 +12,7 @@
 
 #include <sys/types.h>
 
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/vfs.h>
 #include <onyx/compiler.h>
 #include <onyx/dev.h>

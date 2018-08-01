@@ -139,7 +139,7 @@ int futex_wake(struct futex *ftx, int val)
 
 int sys_futex(int *uaddr, int futex_op, int val, const struct timespec *timeout, int *uaddr2, int val3)
 {
-	if(vmm_check_pointer(uaddr, sizeof(int)) < 0)
+	if(vm_check_pointer(uaddr, sizeof(int)) < 0)
 		return -EFAULT;
 
 	/* The pointer needs to be 4-byte aligned */

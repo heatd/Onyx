@@ -11,7 +11,7 @@
 
 #include <onyx/log.h>
 #include <onyx/vfs.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/vdso.h>
 #include <onyx/compiler.h>
 #include <onyx/clock.h>
@@ -26,12 +26,12 @@ void increment_vdso_pages(void)
 {
 	uintptr_t vdso = (uintptr_t) &__vdso_start;
 	size_t vdso_size = (uintptr_t) &__vdso_end - vdso;
-	size_t pages = vmm_align_size_to_pages(vdso_size);
+	size_t pages = vm_align_size_to_pages(vdso_size);
 
 	vdso -= KERNEL_VIRTUAL_BASE;
 	for(size_t i = 0; i < pages; i++, vdso += PAGE_SIZE)
 	{
-		page_increment_refcount((void *) vdso);
+		page_ref(phys_to_page(vdso));
 	}
 }
 
@@ -42,7 +42,7 @@ void *map_vdso(void)
 #ifdef CONFIG_NO_VDSO
 	return NULL;
 #else
-	void *pages = get_user_pages(VM_TYPE_SHARED, vmm_align_size_to_pages(vdso_size),
+	void *pages = get_user_pages(VM_TYPE_SHARED, vm_align_size_to_pages(vdso_size),
 		VM_WRITE | VM_USER);
 	if(!pages)
 		return NULL;
@@ -105,7 +105,7 @@ void vdso_init(void)
 {
 	uintptr_t page = (uintptr_t) &__vdso_start;
 	size_t vdso_size = (uintptr_t) &__vdso_end - page;
-	size_t vdso_pages = vmm_align_size_to_pages(vdso_size);
+	size_t vdso_pages = vm_align_size_to_pages(vdso_size);
 
 	page -= KERNEL_VIRTUAL_BASE;
 

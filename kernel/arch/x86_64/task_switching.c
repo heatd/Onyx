@@ -13,7 +13,7 @@
 #include <onyx/timer.h>
 #include <onyx/data_structures.h>
 #include <onyx/task_switching.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/spinlock.h>
 #include <onyx/panic.h>
 #include <onyx/tss.h>
@@ -313,21 +313,15 @@ thread_t *sched_spawn_thread(registers_t *regs, thread_callback_t start, void *a
 	posix_memalign((void**) &new_thread->fpu_area, FPU_AREA_ALIGNMENT, FPU_AREA_SIZE);
 	if(!new_thread->fpu_area)
 	{
-		free(new_thread->fpu_area);
 		free(new_thread);
 		return NULL;
 	}
 	memset(new_thread->fpu_area, 0, FPU_AREA_SIZE);
 	setup_fpu_area(new_thread->fpu_area);
 
-	new_thread->kernel_stack = (uintptr_t*)vmm_allocate_virt_address(VM_KERNEL, 4, VMM_TYPE_STACK, VMM_WRITE | VMM_NOEXEC, 0);
+	new_thread->kernel_stack = vmalloc(4, VM_TYPE_STACK, VM_WRITE | VM_GLOBAL | VM_NOEXEC);
+
 	if(!new_thread->kernel_stack)
-	{
-		free(new_thread->fpu_area);
-		free(new_thread);
-		return NULL;
-	}
-	if(!vmm_map_range(new_thread->kernel_stack, 4, VM_WRITE | VM_GLOBAL | VM_NOEXEC))
 	{
 		free(new_thread->fpu_area);
 		free(new_thread);

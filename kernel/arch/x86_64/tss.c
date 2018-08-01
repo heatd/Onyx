@@ -7,7 +7,7 @@
 #include <string.h>
 
 #include <onyx/tss.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/cpu.h>
 #include <onyx/compiler.h>
 #include <onyx/panic.h>

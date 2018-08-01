@@ -15,7 +15,7 @@
 #include <partitions.h>
 
 #include <onyx/compiler.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/vfs.h>
 #include <onyx/process.h>
 #include <onyx/pipe.h>
@@ -116,7 +116,7 @@ file_desc_t *allocate_file_descriptor_unlocked(int *fd, ioctx_t *ioctx)
 
 ssize_t sys_read(int fd, const void *buf, size_t count)
 {	
-	/*if(vmm_check_pointer((void*) buf, count) < 0)
+	/*if(vm_check_pointer((void*) buf, count) < 0)
 		return errno =-EFAULT; */
 	
 	ioctx_t *ioctx = &get_current_process()->ctx;
@@ -141,7 +141,7 @@ ssize_t sys_read(int fd, const void *buf, size_t count)
 
 ssize_t sys_write(int fd, const void *buf, size_t count)
 {
-	if(vmm_check_pointer((void*) buf, count) < 0)
+	if(vm_check_pointer((void*) buf, count) < 0)
 		return -EFAULT;
 	if(validate_fd(fd) < 0)
 		return -EBADF;
@@ -211,13 +211,13 @@ int do_sys_open(const char *filename, int flags, mode_t mode, struct inode *rel)
 
 int sys_open(const char *filename, int flags, mode_t mode)
 {
-	if(!vmm_is_mapped((char*) filename))
+	if(!vm_is_mapped((char*) filename))
 		return -EFAULT;
 	/* open(2) does relative opens using the current working directory */
 	return do_sys_open(filename, flags, mode, get_current_process()->ctx.cwd);
 }
 
-static inline int decrement_fd_refcount(file_desc_t *fd)
+int fd_unref(file_desc_t *fd)
 {
 	/* If there's nobody referencing this file descriptor, close the vfs node and free memory */
 	fd->refcount--;
@@ -237,7 +237,7 @@ int sys_close(int fd)
 	if(validate_fd(fd) < 0) 
 		return errno =-EBADF;
 	/* Decrement the refcount of the file descriptor*/
-	decrement_fd_refcount(ioctx->file_desc[fd]);
+	fd_unref(ioctx->file_desc[fd]);
 	
 	ioctx->file_desc[fd] = NULL;
 	return 0;
@@ -293,7 +293,7 @@ int sys_dup2(int oldfd, int newfd)
 
 ssize_t sys_readv(int fd, const struct iovec *vec, int veccnt)
 {
-	if(vmm_check_pointer((void*) vec, sizeof(struct iovec) * veccnt) < 0)
+	if(vm_check_pointer((void*) vec, sizeof(struct iovec) * veccnt) < 0)
 		return errno =-EINVAL;
 
 	if(validate_fd(fd) < 0)
@@ -326,7 +326,7 @@ ssize_t sys_readv(int fd, const struct iovec *vec, int veccnt)
 
 ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt)
 {
-	if(vmm_check_pointer((void*) vec, sizeof(struct iovec) * veccnt) < 0)
+	if(vm_check_pointer((void*) vec, sizeof(struct iovec) * veccnt) < 0)
 		return errno =-EINVAL;
 
 	size_t wrote = 0;
@@ -353,7 +353,7 @@ ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt)
 
 ssize_t sys_preadv(int fd, const struct iovec *vec, int veccnt, off_t offset)
 {
-	if(vmm_check_pointer((void*) vec, sizeof(struct iovec) * veccnt) < 0)
+	if(vm_check_pointer((void*) vec, sizeof(struct iovec) * veccnt) < 0)
 		return errno =-EINVAL;
 
 	if(validate_fd(fd) < 0)
@@ -380,7 +380,7 @@ ssize_t sys_pwritev(int fd, const struct iovec *vec, int veccnt, off_t offset)
 {
 	if(veccnt == 0) return 0;
 
-	if(vmm_check_pointer((void*) vec, sizeof(struct iovec) * veccnt) < 0)
+	if(vm_check_pointer((void*) vec, sizeof(struct iovec) * veccnt) < 0)
 		return -EFAULT;
 	
 	if(validate_fd(fd) < 0)
@@ -471,11 +471,11 @@ off_t sys_lseek(int fd, off_t offset, int whence)
 
 int sys_mount(const char *source, const char *target, const char *filesystemtype, unsigned long mountflags, const void *data)
 {
-	if(!vmm_is_mapped((void*) source))
+	if(!vm_is_mapped((void*) source))
 		return errno =-EINVAL;
-	if(!vmm_is_mapped((void*) target))
+	if(!vm_is_mapped((void*) target))
 		return errno =-EINVAL;
-	if(!vmm_is_mapped((void*) filesystemtype))
+	if(!vm_is_mapped((void*) filesystemtype))
 		return errno =-EINVAL;
 	/* Find the 'filesystemtype's handler */
 	filesystem_mount_t *fs = find_filesystem_handler(filesystemtype);
@@ -518,7 +518,7 @@ int sys_isatty(int fd)
 
 int sys_pipe(int pipefd[2])
 {
-	if(vmm_check_pointer(pipefd, sizeof(int) * 2) < 0)
+	if(vm_check_pointer(pipefd, sizeof(int) * 2) < 0)
 		return errno = -EFAULT;
 
 	ioctx_t *ioctx = &get_current_process()->ctx;
@@ -622,16 +622,16 @@ int do_sys_stat(const char *pathname, struct stat *buf, int flags, struct inode 
 
 int sys_stat(const char *pathname, struct stat *buf)
 {
-	if(!vmm_is_mapped((void*) pathname))
+	if(!vm_is_mapped((void*) pathname))
 		return errno = -EFAULT;
-	if(vmm_check_pointer(buf, sizeof(struct stat)) < 0)
+	if(vm_check_pointer(buf, sizeof(struct stat)) < 0)
 		return errno = -EFAULT;
 	return do_sys_stat(pathname, buf, 0, get_current_directory());
 }
 
 int sys_fstat(int fd, struct stat *buf)
 {
-	if(vmm_check_pointer(buf, sizeof(struct stat)) < 0)
+	if(vm_check_pointer(buf, sizeof(struct stat)) < 0)
 		return errno = -EFAULT;
 	if(validate_fd(fd) < 0)
 		return errno = -EBADF;
@@ -642,7 +642,7 @@ int sys_fstat(int fd, struct stat *buf)
 
 int sys_chdir(const char *path)
 {
-	if(!vmm_is_mapped((void*) path))
+	if(!vm_is_mapped((void*) path))
 		return errno = -EFAULT;
 	struct inode *base = get_fs_base(path, get_current_directory());
 	struct inode *dir = open_vfs(base, path);
@@ -673,7 +673,7 @@ int sys_getcwd(char *path, size_t size)
 {
 	if(size == 0 && path != NULL)
 		return -EINVAL;
-	if(vmm_check_pointer(path, size) < 0)
+	if(vm_check_pointer(path, size) < 0)
 		return -EFAULT;
 	if(!get_current_process()->ctx.cwd)
 		return -ENOENT;
@@ -687,7 +687,7 @@ int sys_getcwd(char *path, size_t size)
 
 int sys_openat(int dirfd, const char *path, int flags, mode_t mode)
 {
-	if(!vmm_is_mapped((void*) path))
+	if(!vm_is_mapped((void*) path))
 		return -EFAULT;
 	struct inode *dir;
 	if(validate_fd(dirfd) < 0 && dirfd != AT_FDCWD)
@@ -703,9 +703,9 @@ int sys_openat(int dirfd, const char *path, int flags, mode_t mode)
 
 int sys_fstatat(int dirfd, const char *pathname, struct stat *buf, int flags)
 {
-	if(!vmm_is_mapped((void*) pathname))
+	if(!vm_is_mapped((void*) pathname))
 		return errno = -EFAULT;
-	if(vmm_check_pointer(buf, sizeof(struct stat)) < 0)
+	if(vm_check_pointer(buf, sizeof(struct stat)) < 0)
 		return errno = -EFAULT;
 	struct inode *dir;
 	
@@ -725,7 +725,7 @@ int sys_fmount(int fd, const char *path)
 {
 	if(validate_fd(fd) < 0)
 		return -EBADF;
-	if(!vmm_is_mapped((void*) path))
+	if(!vm_is_mapped((void*) path))
 		return errno = -EFAULT;
 	return mount_fs(get_file_description(fd)->vfs_node, path);
 }
@@ -742,7 +742,7 @@ void file_do_cloexec(ioctx_t *ctx)
 		if(fd[i]->flags & O_CLOEXEC)
 		{
 			/* Close the file */
-			decrement_fd_refcount(fd[i]);
+			fd_unref(fd[i]);
 			fd[i] = NULL;
 		}
 	}
@@ -809,7 +809,7 @@ int sys_bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 
 ssize_t sys_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen)
 {
-	if(vmm_check_pointer(buf, len) < 0)
+	if(vm_check_pointer(buf, len) < 0)
 		return -EFAULT;
 	if(validate_fd(sockfd) < 0)
 		return -EBADF;

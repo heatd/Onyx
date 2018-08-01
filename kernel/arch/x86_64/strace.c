@@ -13,7 +13,7 @@
 #include <onyx/task_switching.h>
 #include <onyx/elf.h>
 #include <onyx/panic.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 
 #define DEFAULT_UNWIND_NUMBER 6
 void itoa(uint64_t i, unsigned int base, char *buf, _Bool is_upper);

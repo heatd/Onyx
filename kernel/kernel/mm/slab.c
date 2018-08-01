@@ -9,7 +9,7 @@
 #include <errno.h>
 
 #include <onyx/compiler.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/slab.h>
 #include <onyx/log.h>
 
@@ -74,7 +74,7 @@ struct slab *slab_create_slab(size_t size_obj, slab_cache_t *cache)
 	}
 	memset(slab, 0, sizeof(struct slab));
 
-	void *buffer = vmalloc(vmm_align_size_to_pages(slab_size),
+	void *buffer = vmalloc(vm_align_size_to_pages(slab_size),
 		VM_TYPE_REGULAR, VM_NOEXEC | VM_GLOBAL | VM_WRITE);
 	if(!buffer)
 	{
@@ -86,7 +86,7 @@ struct slab *slab_create_slab(size_t size_obj, slab_cache_t *cache)
 	slab->buf = buffer;
 	if(slab_setup_bufctls(slab, cache) < 0)
 	{
-		vfree(buffer, vmm_align_size_to_pages(slab_size));
+		vfree(buffer, vm_align_size_to_pages(slab_size));
 		free(slab);
 		return errno = ENOMEM, NULL;
 	}
@@ -245,7 +245,7 @@ void slab_destroy_slab(struct slab *slab)
 		bufctl = bufctl->next;
 		free(this);
 	}
-	vfree(slab->buf, vmm_align_size_to_pages(slab->size));
+	vfree(slab->buf, vm_align_size_to_pages(slab->size));
 }
 
 void slab_destroy(slab_cache_t *cache)

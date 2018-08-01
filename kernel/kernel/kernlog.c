@@ -11,7 +11,7 @@
 
 #include <onyx/log.h>
 #include <onyx/timer.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/panic.h>
 #include <drivers/rtc.h>
 

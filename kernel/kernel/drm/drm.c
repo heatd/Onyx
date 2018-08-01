@@ -10,7 +10,7 @@
 
 #include <onyx/vfs.h>
 #include <onyx/dev.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/module.h>
 #include <onyx/log.h>
 #include <onyx/drm.h>

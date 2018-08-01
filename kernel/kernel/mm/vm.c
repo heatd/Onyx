@@ -14,7 +14,7 @@
 #include <onyx/file.h>
 #include <onyx/paging.h>
 #include <onyx/page.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/panic.h>
 #include <onyx/compiler.h>
 #include <onyx/process.h>
@@ -62,7 +62,7 @@ uintptr_t heap_addr		= arch_heap_off;
 
 static avl_node_t *kernel_tree = NULL;
 
-int setup_vmregion_backing(void *vaddr, size_t pages, bool is_file_backed);
+int setup_vmregion_backing(struct vm_entry *region, size_t pages, bool is_file_backed);
 int populate_shared_mapping(void *page, struct file_description *fd,
 	struct vm_entry *entry, size_t nr_pages);
 
@@ -233,7 +233,7 @@ static struct vm_entry *avl_insert_key(avl_node_t **t, uintptr_t key, uintptr_t 
 	
 	
 	if(key < high_half)
-		avl_balance_tree(vmm_get_tree());
+		avl_balance_tree(vm_get_tree());
 	else
 		avl_balance_tree(&kernel_tree);
 	return ptr->data;
@@ -258,7 +258,7 @@ static avl_node_t **avl_search_key(avl_node_t **t, uintptr_t key)
 static int avl_delete_node(uintptr_t key)
 {
 	/* Try to find the node inside the tree */
-	avl_node_t **n = avl_search_key(vmm_get_tree(), key);
+	avl_node_t **n = avl_search_key(vm_get_tree(), key);
 	if(!n)
 		return errno = ENOENT, -1;
 	avl_node_t *ptr = *n;
@@ -345,7 +345,7 @@ void avl_destroy_tree(avl_node_t *node)
 	}
 	/* First, unmap the range */
 	if(node->data->mapping_type != MAP_SHARED)
-		vmm_unmap_range((void*) node->key, node->data->pages);
+		vm_unmap_range((void*) node->key, node->data->pages);
 	/* Now, free the node */
 	free(node->data);
 	free(node);
@@ -406,7 +406,7 @@ static inline void __vm_lock(bool kernel)
 	if(kernel)
 		spin_lock(&kernel_vm_spl);
 	else
-		spin_lock((struct spinlock*) &get_current_process()->address_space.vm_spl);
+		spin_lock(&get_current_process()->address_space.vm_spl);
 }
 
 static inline void __vm_unlock(bool kernel)
@@ -414,7 +414,7 @@ static inline void __vm_unlock(bool kernel)
 	if(kernel)
 		spin_unlock(&kernel_vm_spl);
 	else
-		spin_unlock((struct spinlock*) &get_current_process()->address_space.vm_spl);
+		spin_unlock(&get_current_process()->address_space.vm_spl);
 }
 
 static inline bool is_higher_half(void *address)
@@ -422,15 +422,15 @@ static inline bool is_higher_half(void *address)
 	return (uintptr_t) address > VM_HIGHER_HALF;
 }
 
-void vmm_init()
+void vm_init()
 {
 	paging_init();
-	arch_vmm_init();
+	arch_vm_init();
 }
 
 void heap_set_start(uintptr_t start);
 
-void vmm_late_init(void)
+void vm_late_init(void)
 {
 	/* TODO: This should be arch specific stuff, move this to arch/ */
 	uintptr_t heap_addr_no_aslr = heap_addr;
@@ -439,7 +439,7 @@ void vmm_late_init(void)
 	vmalloc_space = vm_randomize_address(vmalloc_space, VMALLOC_ASLR_BITS);
 	heap_addr = vm_randomize_address(heap_addr, HEAP_ASLR_BITS);
 
-	vmm_map_range((void*) heap_addr, vmm_align_size_to_pages(0x400000),
+	vm_map_range((void*) heap_addr, vm_align_size_to_pages(0x400000),
 			VM_WRITE | VM_NOEXEC | VM_GLOBAL);
 	heap_set_start(heap_addr);
 
@@ -470,72 +470,38 @@ void vmm_late_init(void)
 	is_initialized = true;
 }
 
-
-struct page *vm_allocate_page(int opt, uintptr_t *page)
-{
-	if(pages_are_registered())
-		return get_phys_page();
-	else
-	{
-		*page = (uintptr_t) __alloc_page(opt);
-		return NULL;
-	}
-}
-
-struct page *vmm_map_range(void *range, size_t pages, uint64_t flags)
+struct page *vm_map_range(void *range, size_t nr_pages, uint64_t flags)
 {
 	bool kernel = is_higher_half(range);
 
-	if(!kernel) __vm_lock(kernel);
+	__vm_lock(kernel);
+
 	uintptr_t mem = (uintptr_t) range;
-	struct page *page = NULL;
-	struct page *ret = NULL;
-
-	for (size_t pgs = 0; pgs < pages; pgs++)
-	{
-		uintptr_t raw_addr = 0;
-		struct page *p = vm_allocate_page(0, &raw_addr);
-		if(!pages_are_registered())
-		{
-			if(!raw_addr)
-				goto out_of_mem;
-		}
-		else
-		{
-			if(!p)
-				goto out_of_mem;
-			if(!page)
-				page = ret = p;
-			else
-			{
-				page->next_un.next_virtual_region = p;
-				page = p;
-			}
-			raw_addr = (uintptr_t) p->paddr;
-		}
-
-		if(!vm_map_page(NULL, mem, raw_addr, flags))
-			goto out_of_mem;
-		mem += PAGE_SIZE;
-	}
+	struct page *pages = alloc_pages(nr_pages, 0);
+	struct page *p = pages;
+	if(!pages)
+		goto out_of_mem;
 	
-	paging_invalidate(range, pages);
-	if(!kernel) __vm_unlock(kernel);
+	for(size_t i = 0; i < nr_pages; i++)
+	{
+		if(!vm_map_page(NULL, mem + (i << PAGE_SHIFT), (uintptr_t) p->paddr, flags))
+			goto out_of_mem;
+		p = p->next_un.next_allocation;
+	}
 
-	/* If pages aren't registered yet, retain the old
-	 * behavior of returning the virtual address
-	*/
-	return pages_are_registered() ? ret : range;
+	__vm_unlock(kernel);
 
-	/* TODO: Free every page that was allocated */
+	return pages;
+
 out_of_mem:
+	if(pages)	free_pages(pages);
 	__vm_unlock(kernel);
 	return NULL;
 }
 
-void vm_unmap_user(void *range, size_t pages)
+void do_vm_unmap(void *range, size_t pages)
 {
-	struct vm_entry *entry = vmm_is_mapped(range);
+	struct vm_entry *entry = vm_is_mapped(range);
 	assert(entry != NULL);
 	uintptr_t mem = (uintptr_t) range;
 
@@ -549,44 +515,35 @@ void vm_unmap_user(void *range, size_t pages)
 	{
 
 		paging_unmap((void *) (mem + p->off));
-		if(page_decrement_refcount(p->paddr) == 0)
-			__free_page(p->paddr);
+		free_page(p);
 	}
 
 	spin_unlock(&vmo->page_lock);
 }
 
-void vm_unmap_kernel(void *range, size_t pages)
-{
-	uintptr_t mem = (uintptr_t) range;
-	for (size_t i = 0; i < pages; i++)
-	{
-		void *page = paging_unmap((void*) mem);
-		if(page)
-		{
-			page_decrement_refcount(page);
-			__free_page(page);
-		}
-		mem += 0x1000;
-	}
-}
-
-void vmm_unmap_range(void *range, size_t pages)
+void vm_unmap_range(void *range, size_t pages)
 {
 	bool kernel = is_higher_half(range);
 
 	__vm_lock(kernel);
 
-	if(!kernel)
-		vm_unmap_user(range, pages);
-	else
-		vm_unmap_kernel(range, pages);
+	do_vm_unmap(range, pages);
 	__vm_unlock(kernel);
 }
 
-void vmm_destroy_mappings(void *range, size_t pages)
+void vm_region_destroy(struct vm_entry *region)
 {
-	avl_node_t **tree = vmm_get_tree();
+	/* First, unref things */
+	if(region->fd)	fd_unref(region->fd);
+
+	if(region->vmo)	vmo_unref(region->vmo);
+
+	free(region);
+}
+
+void vm_destroy_mappings(void *range, size_t pages)
+{
+	avl_node_t **tree = vm_get_tree();
 	uintptr_t p = (uintptr_t) range;
 	uintptr_t end = p + (pages << PAGE_SHIFT);
 
@@ -602,13 +559,14 @@ void vmm_destroy_mappings(void *range, size_t pages)
 
 		struct vm_entry *area = node->data;
 
+		/* Case 1: We need to unmap the whole region */
 		if(area->base == p && area->pages <= pages)
 		{
 			__avl_remove_node(e);
 			avl_balance_tree(tree);
 			p += node->end;
 			pages -= area->pages;
-			free(node->data);
+			vm_region_destroy(area);
 			free(node);
 		}
 		else if(area->base < p && area->base + node->end == end)
@@ -705,7 +663,7 @@ void *__allocate_virt_address(uint64_t flags, size_t pages, uint32_t type,
 	}
 	else
 	{
-		avl_node_t **e = avl_search_key(vmm_get_tree(), base_address);
+		avl_node_t **e = avl_search_key(vm_get_tree(), base_address);
 		while(e && *e)
 		{
 again:
@@ -720,7 +678,7 @@ again:
 				return NULL;
 			for(uintptr_t base = base_address; base < base_address + pages * PAGE_SIZE; base += PAGE_SIZE)
 			{
-				if((e = avl_search_key(vmm_get_tree(), base)))
+				if((e = avl_search_key(vm_get_tree(), base)))
 					goto again;
 			}
 		}
@@ -729,20 +687,22 @@ again:
 	return (void *) base_address;
 }
 
-void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type,
+struct vm_entry *vm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type,
 	uint64_t prot, uintptr_t alignment)
 {
+	struct vm_entry *en = NULL;
 	/* Lock everything before allocating anything */
 	bool allocating_kernel = true;
 	if(flags & VM_ADDRESS_USER)
 		allocating_kernel = false;
+
 	__vm_lock(allocating_kernel);
 
 	avl_node_t **tree = NULL;
 	if(flags & 1)
 		tree = &kernel_tree;
 	else
-		tree = vmm_get_tree();
+		tree = vm_get_tree();
 	
 	assert(tree != NULL);
 	
@@ -750,8 +710,6 @@ void *vmm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type,
 		alignment);
 	if(!base_address)
 		goto ret;
-
-	struct vm_entry *en;
 
 	/* TODO: Clean this up too */
 	en = avl_insert_key(tree, (uintptr_t) base_address,
@@ -771,28 +729,29 @@ ret:
 
 	/* Unlock and return */
 	__vm_unlock(allocating_kernel);
-	return (void*) base_address;
+	return en;
 }
 
-void *vmm_reserve_address(void *addr, size_t pages, uint32_t type, uint64_t prot)
+struct vm_entry *vm_reserve_address(void *addr, size_t pages, uint32_t type, uint64_t prot)
 {
 	bool reserving_kernel = is_higher_half(addr);
-	
+	struct vm_entry *v = NULL;
+
 	__vm_lock(reserving_kernel);
 	/* BUG!: There's a bug right here, 
-	 * vmm_is_mapped() is most likely not enough 
+	 * vm_is_mapped() is most likely not enough 
 	*/
-	if(vmm_is_mapped(addr))
+	if(vm_is_mapped(addr))
 	{
 		__vm_unlock(reserving_kernel);
 		errno = EINVAL;
 		return NULL;
 	}
-	struct vm_entry *v;
+
 	if((uintptr_t) addr >= high_half)
 		v = avl_insert_key(&kernel_tree, (uintptr_t)addr, pages * PAGE_SIZE);
 	else
-		v = avl_insert_key(vmm_get_tree(), (uintptr_t)addr, pages * PAGE_SIZE);
+		v = avl_insert_key(vm_get_tree(), (uintptr_t)addr, pages * PAGE_SIZE);
 	if(!v)
 	{
 		addr = NULL;
@@ -805,12 +764,12 @@ void *vmm_reserve_address(void *addr, size_t pages, uint32_t type, uint64_t prot
 	v->rwx = prot;
 return_:
 	__vm_unlock(reserving_kernel);
-	return addr;
+	return v;
 }
 
-struct vm_entry *vmm_is_mapped(void *addr)
+struct vm_entry *vm_is_mapped(void *addr)
 {
-	avl_node_t **tree = vmm_get_tree();
+	avl_node_t **tree = vm_get_tree();
 	if(!tree)
 		goto search_kernel;
 	avl_node_t **e = avl_search_key(tree, (uintptr_t) addr);
@@ -827,7 +786,7 @@ search_kernel:
 
 struct vm_entry *vm_find_region(void *addr)
 {
-	avl_node_t **tree = vmm_get_tree();
+	avl_node_t **tree = vm_get_tree();
 	if(!tree)
 		return NULL;
 
@@ -891,6 +850,12 @@ int vm_flush_mapping(struct vm_entry *mapping, struct process *proc)
 	return 0;
 }
 
+int vm_flush(struct vm_entry *entry)
+{
+	struct process *p = entry->mm ? entry->mm->process : NULL;
+	return vm_flush_mapping(entry, p);
+}
+
 static bool fork_vm_region(avl_node_t *node)
 {
 	struct vm_entry *region = node->data;
@@ -907,7 +872,8 @@ static bool fork_vm_region(avl_node_t *node)
 	new_object->mappings = region;
 	region->vmo = new_object;
 
-	vm_flush_mapping(region, region->mm->process);
+	if(vm_flush(region) < 0)
+		return true;
 	return false;
 }
 
@@ -920,7 +886,7 @@ int vm_fork_as(struct mm_address_space *addr_space)
 		return -1;
 	}
 
-	avl_node_t *new_tree = avl_copy(*vmm_get_tree(), addr_space->process);
+	avl_node_t *new_tree = avl_copy(*vm_get_tree(), addr_space->process);
 	if(!new_tree)
 	{
 		/* TODO: Do something to clean up the new page tables */
@@ -939,7 +905,7 @@ int vm_fork_as(struct mm_address_space *addr_space)
 	return 0;
 }
 
-void vmm_change_perms(void *range, size_t pages, int perms)
+void vm_change_perms(void *range, size_t pages, int perms)
 {
 	bool kernel = is_higher_half(range);
 
@@ -954,21 +920,36 @@ void vmm_change_perms(void *range, size_t pages, int perms)
 
 void *vmalloc(size_t pages, int type, int perms)
 {
-	void *addr = vmm_allocate_virt_address(VM_KERNEL, pages, type, perms, 0);
-	if(!addr)
+	struct vm_entry *vm =
+		vm_allocate_virt_address(VM_KERNEL, pages, type, perms, 0);
+	if(!vm)
 		return NULL;
 
-	vmm_map_range(addr, pages, perms);
-	return addr;
+	vm->caller = (uintptr_t) __builtin_return_address(0);
+	struct vm_object *vmo = vmo_create_phys(pages << PAGE_SHIFT);
+	if(!vmo)
+	{
+		vm_destroy_mappings((void *) vm->base, pages);
+	}
+
+	vmo->mappings = vm;
+	vm->vmo = vmo;
+
+	if(vmo_prefault(vmo, pages << PAGE_SHIFT, 0) < 0)
+	{
+		vm_destroy_mappings(vm, pages);
+		return NULL;	
+	}
+
+	return (void *) vm->base;
 }
 
 void vfree(void *ptr, size_t pages)
 {
-	vmm_destroy_mappings(ptr, pages);
-	vmm_unmap_range(ptr, pages);
+	vm_destroy_mappings(ptr, pages);
 }
 
-avl_node_t **vmm_get_tree()
+avl_node_t **vm_get_tree()
 {
 	struct process *p = get_current_process();
 	if(!p)
@@ -976,9 +957,9 @@ avl_node_t **vmm_get_tree()
 	return &p->address_space.tree;
 }
 
-int vmm_check_pointer(void *addr, size_t needed_space)
+int vm_check_pointer(void *addr, size_t needed_space)
 {
-	struct vm_entry *e = vmm_is_mapped(addr);
+	struct vm_entry *e = vm_is_mapped(addr);
 	if(!e)
 		return -1;
 	if((uintptr_t) addr + needed_space <= e->base + e->pages * PAGE_SIZE)
@@ -989,6 +970,7 @@ int vmm_check_pointer(void *addr, size_t needed_space)
 
 void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off)
 {
+	struct vm_entry *area = NULL;
 	file_desc_t *file_descriptor = NULL;
 	if(length == 0)
 		return (void*) -EINVAL;
@@ -1016,7 +998,7 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 			return (void*) -EACCES;
 		}
 	}
-	void *mapping_addr = NULL;
+
 	/* Calculate the pages needed for the overall size */
 	size_t pages = length / PAGE_SIZE;
 	if(length % PAGE_SIZE)
@@ -1037,26 +1019,25 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 		if(flags & MAP_FIXED)
 			return (void *) -ENOMEM;
 		/* Specified by POSIX, if addr == NULL, guess an address */
-		mapping_addr = vmm_allocate_virt_address(VM_ADDRESS_USER, pages,
+		area = vm_allocate_virt_address(VM_ADDRESS_USER, pages,
 			VM_TYPE_SHARED, vm_prot, 0);
 	}
 	else
 	{
-		mapping_addr = vmm_reserve_address(addr, pages, VM_TYPE_REGULAR, vm_prot);
-		if(!mapping_addr)
+		area = vm_reserve_address(addr, pages, VM_TYPE_REGULAR, vm_prot);
+		if(!area)
 		{
 			if(flags & MAP_FIXED)
 				return (void*) -ENOMEM;
-			mapping_addr = vmm_allocate_virt_address(VM_ADDRESS_USER, pages, VM_TYPE_REGULAR, vm_prot, 0);
+			area = vm_allocate_virt_address(VM_ADDRESS_USER, pages, VM_TYPE_REGULAR, vm_prot, 0);
 		}
 	}
 
-	if(!mapping_addr)
+	if(!area)
 		return (void*) -ENOMEM;
 
 	if(!(flags & MAP_ANONYMOUS))
 	{
-		struct vm_entry *area = (*avl_search_key(vmm_get_tree(), (uintptr_t) mapping_addr))->data;
 		/* Set additional meta-data */
 		if(flags & MAP_SHARED)
 			area->mapping_type = MAP_SHARED;
@@ -1077,36 +1058,36 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 			return vnode->i_fops.mmap(area, vnode);
 		}
 	}
-	
-	if(setup_vmregion_backing(mapping_addr, pages, !(flags & MAP_ANONYMOUS)) < 0)
+
+	if(setup_vmregion_backing(area, pages, !(flags & MAP_ANONYMOUS)) < 0)
 			return (void *) -ENOMEM;
-	return mapping_addr;
+
+	return (void *) area->base;
 }
+
 
 int sys_munmap(void *addr, size_t length)
 {
 	printk("munmap %p %lu\n", addr, length);
 	if (is_higher_half(addr))
 		return -EINVAL;
+
 	size_t pages = length / PAGE_SIZE;
 	if(length % PAGE_SIZE)
 		pages++;
 	
-	if(!((uintptr_t) addr & 0xFFFFFFFFFFFFF000))
-		return errno =-EINVAL;
-	
-	if(!vmm_is_mapped(addr))
-		return errno =-EINVAL;
-	
-	vmm_unmap_range(addr, pages);
+	if((unsigned long) addr & (PAGE_SIZE - 1))
+		return -EINVAL;
+
 	__vm_lock(false);	
-	vmm_destroy_mappings(addr, pages);
+	
+	vm_destroy_mappings(addr, length);
 	__vm_unlock(false);
 
 	return 0;
 }
 
-void print_vmm_structs(avl_node_t *node);
+void print_vm_structs(avl_node_t *node);
 int sys_mprotect(void *addr, size_t len, int prot)
 {
 	printk("mprotect %p\n", addr);
@@ -1114,7 +1095,7 @@ int sys_mprotect(void *addr, size_t len, int prot)
 		return -EINVAL;
 	struct vm_entry *area = NULL;
 
-	if(!(area = vmm_is_mapped(addr)))
+	if(!(area = vm_is_mapped(addr)))
 	{
 		return -EINVAL;
 	}
@@ -1137,7 +1118,7 @@ int sys_mprotect(void *addr, size_t len, int prot)
 		      ((prot & PROT_WRITE) ? VM_WRITE : 0) |
 		      ((!(prot & PROT_EXEC)) ? VM_NOEXEC : 0);
 
-	size_t pages = vmm_align_size_to_pages(len);
+	size_t pages = vm_align_size_to_pages(len);
 
 	/* TODO: Doesn't support mprotects that span multiple regions */
 
@@ -1151,12 +1132,12 @@ int sys_mprotect(void *addr, size_t len, int prot)
 		uintptr_t second_half = (uintptr_t) addr + len;
 		size_t rest_pages = area->pages - pages;
 		int old_rwx = area->rwx;
-		avl_node_t *node = *avl_search_key(vmm_get_tree(), (uintptr_t) addr);
+		avl_node_t *node = *avl_search_key(vm_get_tree(), (uintptr_t) addr);
 		node->end -= area->pages * PAGE_SIZE - len;
 		area->pages = pages;
 		area->rwx = vm_prot;
 
-		struct vm_entry *new = avl_insert_key(vmm_get_tree(), second_half, rest_pages * PAGE_SIZE);
+		struct vm_entry *new = avl_insert_key(vm_get_tree(), second_half, rest_pages * PAGE_SIZE);
 		if(!new)
 			return -ENOMEM;
 		
@@ -1168,11 +1149,11 @@ int sys_mprotect(void *addr, size_t len, int prot)
 	else if(area->base < (uintptr_t) addr && area->base + area->pages * PAGE_SIZE > (uintptr_t) addr + len)
 	{
 		size_t total_pages = area->pages;
-		avl_node_t *node = *avl_search_key(vmm_get_tree(), area->base);
+		avl_node_t *node = *avl_search_key(vm_get_tree(), area->base);
 		node->end -= (uintptr_t) addr - area->base;
 		area->pages = ((uintptr_t) addr - area->base) / PAGE_SIZE;
 
-		struct vm_entry *second_area = avl_insert_key(vmm_get_tree(), (uintptr_t) addr, (uintptr_t) len);
+		struct vm_entry *second_area = avl_insert_key(vm_get_tree(), (uintptr_t) addr, (uintptr_t) len);
 		if(!second_area)
 		{
 			/* TODO: Unsafe to just return, maybe restore the old area? */
@@ -1186,7 +1167,7 @@ int sys_mprotect(void *addr, size_t len, int prot)
 		second_area->type = area->type;
 		second_area->rwx = vm_prot;
 
-		struct vm_entry *third_area = avl_insert_key(vmm_get_tree(), (uintptr_t) addr + len, 
+		struct vm_entry *third_area = avl_insert_key(vm_get_tree(), (uintptr_t) addr + len, 
 		(uintptr_t) total_pages * PAGE_SIZE);
 		if(!third_area)
 		{
@@ -1203,9 +1184,9 @@ int sys_mprotect(void *addr, size_t len, int prot)
 	else if(area->base < (uintptr_t) addr && (uintptr_t) addr + len == area->base + area->pages * PAGE_SIZE)
 	{
 		area->pages -= pages;
-		avl_node_t *node = *avl_search_key(vmm_get_tree(), (uintptr_t) addr);
+		avl_node_t *node = *avl_search_key(vm_get_tree(), (uintptr_t) addr);
 		node->end -= pages * PAGE_SIZE;
-		struct vm_entry *new_area = avl_insert_key(vmm_get_tree(), (uintptr_t) addr, len);
+		struct vm_entry *new_area = avl_insert_key(vm_get_tree(), (uintptr_t) addr, len);
 		if(!new_area)
 		{
 			area->pages += pages;
@@ -1219,7 +1200,7 @@ int sys_mprotect(void *addr, size_t len, int prot)
 		new_area->rwx = vm_prot;
 	}
 	__vm_unlock(false);
-	vmm_change_perms(addr, pages, vm_prot);
+	vm_change_perms(addr, pages, vm_prot);
 
 	return 0;
 }
@@ -1230,7 +1211,7 @@ int do_inc_brk(void *oldbrk, void *newbrk)
 	void *newpage = page_align_up(newbrk);
 
 	size_t pages = ((uintptr_t) newpage - (uintptr_t) oldpage) / PAGE_SIZE;
-	if(vmm_map_range(oldpage, pages, VM_WRITE | VM_USER | VM_NOEXEC) == NULL)
+	if(vm_map_range(oldpage, pages, VM_WRITE | VM_USER | VM_NOEXEC) == NULL)
 		return -1;
 	return 0;
 }
@@ -1260,28 +1241,39 @@ uint64_t sys_brk(void *newbrk)
 	return (uint64_t) p->address_space.brk;
 }
 
-void print_vmm_structs(avl_node_t *node)
+void print_vm_structs(avl_node_t *node)
 {
 	if(node->left)
-		print_vmm_structs(node->left);
-	printf("[Base %016lx Length %016lx End %016lx]\n", node->data->base, node->data->pages
+		print_vm_structs(node->left);
+	if(!node->data)
+	{
+		printk("Found corrupted node at %p\n", node);
+		void *phys = virtual2phys(node);
+		struct page *p = phys_to_page((uintptr_t) phys & ~(PAGE_SIZE - 1));
+		printk("phys %p\n", phys);
+		printk("Bad page %p, refcount %lu, next %p\n", p->paddr, p->ref,
+			p->next_un.next_virtual_region);
+		while(1);
+	}
+
+	printk("[Base %016lx Length %016lx End %016lx]\n", node->data->base, node->data->pages
 		* PAGE_SIZE, (uintptr_t) node->data->base + node->data->pages * PAGE_SIZE);
 	if(node->right)
-		print_vmm_structs(node->right);
+		print_vm_structs(node->right);
 }
 
-void vmm_print_stats(void)
+void vm_print_stats(void)
 {
 	struct process *current = get_current_process();
 	if(current)
-		print_vmm_structs(current->address_space.tree);
-	print_vmm_structs(kernel_tree);
+		print_vm_structs(current->address_space.tree);
+	print_vm_structs(kernel_tree);
 }
 
 void *__map_pages_to_vaddr(struct process *process, void *virt, void *phys,
 		size_t size, size_t flags)
 {
-	size_t pages = vmm_align_size_to_pages(size);
+	size_t pages = vm_align_size_to_pages(size);
 
 	void *ptr = virt;
 	for(uintptr_t virt = (uintptr_t) ptr, _phys = (uintptr_t) phys, i = 0; i < pages; virt += PAGE_SIZE, 
@@ -1302,16 +1294,18 @@ void *map_pages_to_vaddr(void *virt, void *phys, size_t size, size_t flags)
 
 void *dma_map_range(void *phys, size_t size, size_t flags)
 {
-	size_t pages = vmm_align_size_to_pages(size);
-	void *ptr = vmm_allocate_virt_address(flags & VM_USER ? VM_ADDRESS_USER : VM_KERNEL, pages, VM_TYPE_REGULAR, flags, 0);
-	if(!ptr)
+	size_t pages = vm_align_size_to_pages(size);
+	struct vm_entry *entry = vm_allocate_virt_address(
+		flags & VM_USER ? VM_ADDRESS_USER : VM_KERNEL,
+		 pages, VM_TYPE_REGULAR, flags, 0);
+	if(!entry)
 	{
 		printf("dma_map_range: Could not allocate virtual range\n");
 		return NULL;
 	}
 
 	/* TODO: Clean up if something goes wrong */
-	void *p = map_pages_to_vaddr(ptr, phys, size, flags);
+	void *p = map_pages_to_vaddr((void *) entry->base, phys, size, flags);
 	if(!p)
 	{
 		printf("map_pages_to_vaddr: Could not map pages\n");
@@ -1346,9 +1340,9 @@ int __vm_handle_pf(struct vm_entry *entry, struct fault_info *info)
 	return 0;
 }
 
-int vmm_handle_page_fault(struct fault_info *info)
+int vm_handle_page_fault(struct fault_info *info)
 {
-	struct vm_entry *entry = vmm_is_mapped((void*) info->fault_address);
+	struct vm_entry *entry = vm_is_mapped((void*) info->fault_address);
 	if(!entry)
 	{
 		info->error = VM_SIGSEGV;
@@ -1363,7 +1357,7 @@ int vmm_handle_page_fault(struct fault_info *info)
 	return __vm_handle_pf(entry, info);
 }
 
-void vmm_destroy_addr_space(avl_node_t *tree)
+void vm_destroy_addr_space(avl_node_t *tree)
 {
 	avl_destroy_tree(tree);
 }
@@ -1379,7 +1373,7 @@ int vm_sanitize_address(void *address, size_t pages)
 }
 
 /* Generates an mmap base, should be enough for mmap */
-void *vmm_gen_mmap_base(void)
+void *vm_gen_mmap_base(void)
 {
 	uintptr_t mmap_base = arch_mmap_base;
 #ifdef CONFIG_ASLR
@@ -1393,7 +1387,7 @@ void *vmm_gen_mmap_base(void)
 	return (void*) mmap_base;
 }
 
-void *vmm_gen_brk_base(void)
+void *vm_gen_brk_base(void)
 {
 	uintptr_t brk_base = arch_brk_base;
 #ifdef CONFIG_ASLR
@@ -1408,7 +1402,7 @@ void *vmm_gen_brk_base(void)
 
 int sys_memstat(struct memstat *memstat)
 {
-	if(vmm_check_pointer(memstat, sizeof(struct memstat)) < 0)
+	if(vm_check_pointer(memstat, sizeof(struct memstat)) < 0)
 		return -EFAULT;
 	page_get_stats(memstat);
 	return 0;
@@ -1446,7 +1440,7 @@ ssize_t aslr_write(void *buffer, size_t size, off_t off)
 	return 1;
 }
 
-ssize_t vmm_traverse_kmaps(avl_node_t *node, char *address, size_t *size, off_t off)
+ssize_t vm_traverse_kmaps(avl_node_t *node, char *address, size_t *size, off_t off)
 {
 	UNUSED(node);
 	UNUSED(size);
@@ -1459,32 +1453,32 @@ ssize_t vmm_traverse_kmaps(avl_node_t *node, char *address, size_t *size, off_t 
 ssize_t kmaps_read(void *buffer, size_t size, off_t off)
 {
 	UNUSED(off);
-	return vmm_traverse_kmaps(kernel_tree, buffer, &size, 0);
+	return vm_traverse_kmaps(kernel_tree, buffer, &size, 0);
 }
 
-void vmm_sysfs_init(void)
+void vm_sysfs_init(void)
 {
 	INFO("vmm", "Setting up /sys/vm, /sys/vm_aslr and /sys/kmaps\n");
 	struct inode *sysfs = open_vfs(get_fs_root(), "/sys");
 	if(!sysfs)
-		panic("vmm_sysfs_init: /sys not mounted!\n");
+		panic("vm_sysfs_init: /sys not mounted!\n");
 	struct sysfs_file *vmfile = sysfs_create_entry("vm", 0666, sysfs);
 	if(!vmfile)
-		panic("vmm_sysfs_init: Could not create /sys/vm\n");
+		panic("vm_sysfs_init: Could not create /sys/vm\n");
 	
 	struct sysfs_file *aslr_control = sysfs_create_entry("vm_aslr", 0666, sysfs);
 	if(!aslr_control)
-		panic("vmm_sysfs_init: Could not create /sys/vm_aslr\n");
+		panic("vm_sysfs_init: Could not create /sys/vm_aslr\n");
 	aslr_control->read = aslr_read;
 	aslr_control->write = aslr_write;
 
 	struct sysfs_file *kmaps = sysfs_create_entry("kmaps", 0400, sysfs);
 	if(!kmaps)
-		panic("vmm_sysfs_init: Could not create /sys/kmaps\n");
+		panic("vm_sysfs_init: Could not create /sys/kmaps\n");
 	kmaps->read = kmaps_read;
 }
 
-int vmm_mark_cow(struct vm_entry *area)
+int vm_mark_cow(struct vm_entry *area)
 {
 	/* If the area isn't writable, don't mark it as COW */
 	if(!(area->rwx & VM_WRITE))
@@ -1493,18 +1487,18 @@ int vmm_mark_cow(struct vm_entry *area)
 	return 0;
 }
 
-struct vm_entry *vmm_is_mapped_and_writable(void *usr)
+struct vm_entry *vm_is_mapped_and_writable(void *usr)
 {
-	struct vm_entry *entry = vmm_is_mapped(usr);
+	struct vm_entry *entry = vm_is_mapped(usr);
 	if(unlikely(!entry))	return NULL;
 	if(likely(entry->rwx & VM_WRITE))	return entry;
 
 	return NULL;
 }
 
-struct vm_entry *vmm_is_mapped_and_readable(void *usr)
+struct vm_entry *vm_is_mapped_and_readable(void *usr)
 {
-	struct vm_entry *entry = vmm_is_mapped(usr);
+	struct vm_entry *entry = vm_is_mapped(usr);
 	if(unlikely(!entry))	return NULL;
 	return entry;
 }
@@ -1516,7 +1510,7 @@ ssize_t copy_to_user(void *usr, const void *data, size_t len)
 	while(len)
 	{
 		struct vm_entry *entry;
-		if((entry = vmm_is_mapped_and_writable(usr_ptr)) == NULL)
+		if((entry = vm_is_mapped_and_writable(usr_ptr)) == NULL)
 		{
 			return -EFAULT;
 		}
@@ -1537,7 +1531,7 @@ ssize_t copy_from_user(void *data, const void *usr, size_t len)
 	while(len)
 	{
 		struct vm_entry *entry;
-		if((entry = vmm_is_mapped_and_readable((void*) usr_ptr)) == NULL)
+		if((entry = vm_is_mapped_and_readable((void*) usr_ptr)) == NULL)
 		{
 			return -EFAULT;
 		}
@@ -1562,7 +1556,7 @@ char *strcpy_from_user(const char *usr_ptr)
 	while(true)
 	{
 		struct vm_entry *entry;
-		if((entry = vmm_is_mapped_and_readable((void*) usr_ptr)) == NULL)
+		if((entry = vm_is_mapped_and_readable((void*) usr_ptr)) == NULL)
 		{
 			return errno = EFAULT, NULL;
 		}
@@ -1626,8 +1620,7 @@ void vm_do_fatal_page_fault(struct fault_info *info)
 		printk("SEGV at %016lx at ip %lx in process %u(%s)\n", 
 			info->fault_address, info->ip,
 			current->pid, current->cmd_line);
-
-		__asm__ __volatile__("cli; hlt");
+		ENABLE_INTERRUPTS();
 		while(1);
 		kernel_raise_signal(SIGSEGV, get_current_process());
 	}
@@ -1637,12 +1630,14 @@ void vm_do_fatal_page_fault(struct fault_info *info)
 
 void *get_pages(size_t flags, uint32_t type, size_t pages, size_t prot, uintptr_t alignment)
 {
-	void *va = vmm_allocate_virt_address(flags, pages, type, prot, alignment);
+	struct vm_entry *va = vm_allocate_virt_address(flags, pages, type, prot, alignment);
 	if(!va)
 		return NULL;
+
+	void *address = (void *) va->base;
 	if(!(flags & VM_ADDRESS_USER))
 	{
-		struct page *p = vmm_map_range(va, pages, prot);
+		struct page *p = vm_map_range(address, pages, prot);
 		if(!p)
 		{
 			/* TODO: Destroy the address space region */
@@ -1655,7 +1650,7 @@ void *get_pages(size_t flags, uint32_t type, size_t pages, size_t prot, uintptr_
 			return NULL;
 	}
 
-	return va;
+	return address;
 }
 
 void *get_user_pages(uint32_t type, size_t pages, size_t prot)
@@ -1665,7 +1660,7 @@ void *get_user_pages(uint32_t type, size_t pages, size_t prot)
 
 struct page *vmo_commit_file(size_t off, struct vm_object *vmo)
 {
-	struct page *page = get_phys_page();
+	struct page *page = alloc_page(0);
 	if(!page)
 		return NULL;
 
@@ -1703,12 +1698,8 @@ struct page *vmo_commit_shared(size_t off, struct vm_object *vmo)
 	return p;
 }
 
-int setup_vmregion_backing(void *vaddr, size_t pages, bool is_file_backed)
+int setup_vmregion_backing(struct vm_entry *region, size_t pages, bool is_file_backed)
 {
-	struct vm_entry *region = vmm_is_mapped(vaddr);
-	if(!region)
-		return 0;
-
 	struct vm_object *vmo;
 	if(is_file_backed)
 	{
@@ -1758,7 +1749,7 @@ void *create_file_mapping(void *addr, size_t pages, int flags,
 	}
 	else
 	{
-		if(!vmm_reserve_address(addr, pages, VM_TYPE_REGULAR, prot))
+		if(!vm_reserve_address(addr, pages, VM_TYPE_REGULAR, prot))
 		{
 			if(flags & VM_MMAP_FIXED)
 				return NULL;
@@ -1780,34 +1771,36 @@ void *create_file_mapping(void *addr, size_t pages, int flags,
 	//printk("Created file mapping at %lx for off %lu\n", entry->base, off);
 	entry->fd = fd;
 	fd->refcount++;
-	if(setup_vmregion_backing(addr, pages, true) < 0)
+
+	if(setup_vmregion_backing(entry, pages, true) < 0)
 		return NULL;
 	return addr;
 }
 
 void *map_user(void *addr, size_t pages, uint32_t type, uint64_t prot)
 {
-	addr = vmm_reserve_address(addr, pages, type, prot);
-	if(!addr)
+	struct vm_entry *en = vm_reserve_address(addr, pages, type, prot);
+	if(!en)
 		return NULL;
-	if(setup_vmregion_backing(addr, pages, false) < 0)
+	if(setup_vmregion_backing(en, pages, false) < 0)
 		return NULL;
 	return addr;
 }
 
 void *map_page_list(struct page *pl, size_t size, uint64_t prot)
 {
-	void *vaddr = vmm_allocate_virt_address(VM_KERNEL,
-		vmm_align_size_to_pages(size), VM_TYPE_REGULAR, prot, 0);
-	if(!vaddr)
+	struct vm_entry *entry = vm_allocate_virt_address(VM_KERNEL,
+		vm_align_size_to_pages(size), VM_TYPE_REGULAR, prot, 0);
+	if(!entry)
 		return NULL;
-	
+	void *vaddr = (void *) entry->base;
+
 	uintptr_t u = (uintptr_t) vaddr;
 	while(pl != NULL)
 	{
 		if(!map_pages_to_vaddr((void *) u, pl->paddr, PAGE_SIZE, prot))
 		{
-			vmm_destroy_mappings(vaddr, vmm_align_size_to_pages(size));
+			vm_destroy_mappings(vaddr, vm_align_size_to_pages(size));
 			return NULL;
 		}
 

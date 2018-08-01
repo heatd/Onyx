@@ -9,7 +9,7 @@
 #include <errno.h>
 
 #include <onyx/cpu.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/signal.h>
 #include <onyx/panic.h>
 #include <onyx/process.h>
@@ -136,7 +136,7 @@ void signal_transfer_to_userspace(int sig, registers_t *regs, _Bool is_int)
 			intctx->rsp = (uintptr_t) userspace_stack;
 		}
 	}
-	if(userspace_stack && vmm_is_mapped(userspace_stack))
+	if(userspace_stack && vm_is_mapped(userspace_stack))
 	{
 		uintptr_t sigreturn = (uintptr_t) process->sigtable[sig].sa_restorer;
 		*userspace_stack = sigreturn;
@@ -200,7 +200,7 @@ void handle_signal(registers_t *regs, _Bool is_int)
 	}
 	if(handler != SIG_DFL)
 	{
-		if(!vmm_is_mapped(handler))
+		if(!vm_is_mapped(handler))
 			return;
 		signal_transfer_to_userspace(signum, regs, is_int);
 		return;

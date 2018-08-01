@@ -51,5 +51,7 @@ struct page *vmo_populate(struct vm_object *vmo, off_t off);
 struct vm_object *vmo_create_phys(size_t size);
 struct page *vmo_get(struct vm_object *vmo, off_t off, bool may_populate);
 struct vm_object *vmo_fork(struct vm_object *vmo);
+int vmo_prefault(struct vm_object *vmo, size_t size, off_t offset);
+void vmo_unref(struct vm_object *vmo);
 
 #endif

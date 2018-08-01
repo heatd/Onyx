@@ -17,9 +17,9 @@
 /* Tests the page allocator by dumping every page */
 void test_page_alloc(void)
 {
-	void *ptr = __alloc_page(0);
+	void *ptr = alloc_page(0);
 
-	for(; ptr; ptr = __alloc_page(0))
+	for(; ptr; ptr = alloc_page(0))
 	{
 		printf("Page: %p\n", ptr);
 	}

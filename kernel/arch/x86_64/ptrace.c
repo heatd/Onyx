@@ -13,7 +13,7 @@
 #include <onyx/process.h>
 #include <onyx/paging.h>
 #include <onyx/ptrace.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/fpu.h>
 
 #include <sys/ptrace.h>
@@ -22,10 +22,10 @@ int ptrace_peek(struct process *process, void *addr, ptrace_word_t *word)
 {
 	int status = 0;
 	/* Save the old VMM tree */
-	//avl_node_t *old_tree = vmm_get_tree();
+	//avl_node_t *old_tree = vm_get_tree();
 
 	/* Set the vmm tree before changing CR3, as changing cr3 is very expensive(saves performance on invalid requests) */
-	//vmm_set_tree(process->tree);
+	//vm_set_tree(process->tree);
 	
 	/* Lock the address space */
 	spin_lock(&process->address_space.vm_spl);
@@ -43,7 +43,7 @@ int ptrace_peek(struct process *process, void *addr, ptrace_word_t *word)
 	spin_unlock(&process->address_space.vm_spl);
 	
 	/* Restore the old context */
-	//vmm_set_tree(old_tree);
+	//vm_set_tree(old_tree);
 	paging_load_cr3(get_current_process()->address_space.cr3);
 
 	return status;
@@ -52,10 +52,10 @@ int ptrace_poke(struct process *process, void *addr, ptrace_word_t word)
 {
 	int status = 0;
 	/* Save the old VMM tree */
-	//avl_node_t *old_tree = vmm_get_tree();
+	//avl_node_t *old_tree = vm_get_tree();
 
 	/* Set the vmm tree before changing CR3, as changing cr3 is very expensive(saves performance on invalid requests) */
-	//vmm_set_tree(process->tree);
+	//vm_set_tree(process->tree);
 	
 	/* Lock the address space */
 	spin_lock(&process->address_space.vm_spl);
@@ -73,7 +73,7 @@ int ptrace_poke(struct process *process, void *addr, ptrace_word_t word)
 	spin_unlock(&process->address_space.vm_spl);
 	
 	/* Restore the old context */
-	//vmm_set_tree(old_tree);
+	//vm_set_tree(old_tree);
 	paging_load_cr3(get_current_process()->address_space.cr3);
 
 	return status;

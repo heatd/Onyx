@@ -197,7 +197,7 @@ void rtl_destroy_tx(void)
 {
 	for(int i = 0; i < RTL_NR_TX; i++)
 	{
-		if(tx_buffers[i].buffer)	__free_pages(tx_buffers[i].buffer, 0);
+		if(tx_buffers[i].buffer)	free_page(phys_to_page((uintptr_t) tx_buffers[i].buffer));
 		tx_buffers[i].buffer = NULL;
 	}
 }
@@ -206,11 +206,15 @@ void rtl_init_tx(void)
 {
 	for(int i = 0; i < RTL_NR_TX; i++)
 	{
-		tx_buffers[i].buffer = __alloc_pages(0);
-		if(!tx_buffers[i].buffer)
+		struct page *p = alloc_page(0);
+		if(!p)
 		{
 			ERROR("rtl8139", "Couldn't allocate enough pages for the tx buffers\n");
+			return;
 		}
+
+		tx_buffers[i].buffer = p->paddr;
+
 	}
 }
 
@@ -223,7 +227,7 @@ int rtl_init(void)
 
 	/* Allocate 2 contiguous pages */
 	/* Sadly we'll have to waste 2 pages because the RTL8139 requires 8k/16k/32K/64k + 16 bytes */
-	void *ph_rx = __alloc_pages(2);
+	void *ph_rx = alloc_pages(2, PAGE_ALLOC_CONTIGUOUS)->paddr;
 	if(!ph_rx)
 	{
 		ERROR("rtl8139", "Couldn't allocate enough contiguous memory for the rx buffer\n");

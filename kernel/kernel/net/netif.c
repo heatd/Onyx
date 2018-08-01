@@ -35,7 +35,7 @@ unsigned int netif_ioctl(int request, void *argp, struct inode* this)
 		}
 		case SIOGETINET4:
 		{
-			if(vmm_check_pointer(argp, sizeof(struct if_config_inet)) < 0)
+			if(vm_check_pointer(argp, sizeof(struct if_config_inet)) < 0)
 				return -EFAULT;
 			struct if_config_inet *c = argp;
 			struct sockaddr_in *local = (struct sockaddr_in*) &netif->local_ip;
@@ -46,7 +46,7 @@ unsigned int netif_ioctl(int request, void *argp, struct inode* this)
 		}
 		case SIOSETINET6:
 		{
-			if(vmm_check_pointer(argp, sizeof(struct if_config_inet6)) < 0)
+			if(vm_check_pointer(argp, sizeof(struct if_config_inet6)) < 0)
 				return -EFAULT;
 			struct if_config_inet *c = argp;
 			struct sockaddr_in *local = (struct sockaddr_in*) &netif->local_ip;
@@ -57,7 +57,7 @@ unsigned int netif_ioctl(int request, void *argp, struct inode* this)
 		}
 		case SIOGETINET6:
 		{
-			if(vmm_check_pointer(argp, sizeof(struct if_config_inet6)) < 0)
+			if(vm_check_pointer(argp, sizeof(struct if_config_inet6)) < 0)
 				return -EFAULT;
 			struct if_config_inet6 *c = argp;
 			struct sockaddr_in6 *local = (struct sockaddr_in6*) &netif->local_ip;

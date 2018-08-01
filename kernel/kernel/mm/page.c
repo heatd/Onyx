@@ -13,18 +13,12 @@
 #include <onyx/log.h>
 #include <onyx/bootmem.h>
 #include <onyx/page.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/slab.h>
 #include <onyx/crc32.h>
 
 static struct page_hashtable hashtable = {0};
 static size_t num_pages = 0;
-static bool are_pages_registered = false;
-
-bool pages_are_registered(void)
-{
-	return are_pages_registered;
-}
 
 unsigned int page_hash(uintptr_t p)
 {
@@ -46,7 +40,7 @@ static void append_to_hash(unsigned int hash, struct page *page)
 	}
 }
 
-void page_add_page(void *paddr)
+struct page *page_add_page(void *paddr)
 {
 	static size_t counter = 0;
 	counter++;
@@ -58,8 +52,11 @@ void page_add_page(void *paddr)
 	page->paddr = paddr;
 	page->ref = 0;
 	page->next = NULL;
+	page->next_un.next_allocation = NULL;
 	append_to_hash(hash, page);
 	++num_pages;
+
+	return page;
 }
 
 void page_add_page_late(void *paddr)
@@ -78,29 +75,6 @@ void page_add_page_late(void *paddr)
 	++num_pages;
 }
 
-void page_register_pages(void)
-{
-	INFO("page", "Registering pages!\n");
-	/*size_t nentries = 0;
-	stack_t *stack = bootmem_get_pstack(&nentries);
-	for(size_t i = 0; i < nentries; i++)
-	{
-		if(stack->next[i].base != 0 && stack->next[i].size != 0)
-		{
-			uintptr_t base = stack->next[i].base;
-			size_t pages = stack->next[i].size / PAGE_SIZE;
-			while(pages--)
-			{
-				page_add_page((void*) base);
-				base += PAGE_SIZE;
-			}
-		}
-	}*/
-	are_pages_registered = true;
-	INFO("page", "%lu pages registered, aprox. %lu bytes used\n", num_pages,
-	          num_pages * sizeof(struct page));
-}
-
 struct page *phys_to_page(uintptr_t phys)
 {
 	unsigned int hash = page_hash(phys);
@@ -110,22 +84,9 @@ struct page *phys_to_page(uintptr_t phys)
 		if(p->paddr == (void*) phys)
 			return p;
 	}
+
 	ERROR("page", "%p queried for %lx, but it doesn't exist!\n", __builtin_return_address(0), phys);
 	return NULL;
-}
-
-unsigned long page_increment_refcount(void *paddr)
-{
-	struct page *page = phys_to_page((uintptr_t) paddr);
-	assert(page != NULL);
-	return atomic_inc(&page->ref, 1);
-}
-
-unsigned long page_decrement_refcount(void *paddr)
-{
-	struct page *page = phys_to_page((uintptr_t) paddr);
-	assert(page != NULL);
-	return atomic_dec(&page->ref, 1);
 }
 
 extern char kernel_start[0];
@@ -204,4 +165,16 @@ bool page_is_used(void *__page, struct bootmodule *modules)
 		return true;
 
 	return platform_page_is_used(__page);
+}
+
+void page_print_shared(void)
+{
+	for(unsigned int i = 0; i < PAGE_HASHTABLE_ENTRIES; i++)
+	{
+		for(struct page *p = hashtable.table[i]; p != NULL; p = p->next)
+		{
+			if(p->ref != 1 && p->ref != 0)
+				printk("Page %p has ref %lu\n", p->paddr, p->ref);
+		}
+	}
 }

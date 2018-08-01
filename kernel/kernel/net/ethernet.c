@@ -12,7 +12,7 @@
 #include <onyx/ip.h>
 #include <onyx/arp.h>
 #include <onyx/network.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 #include <onyx/crc32.h>
 
 #include <pci/pci.h>

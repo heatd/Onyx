@@ -21,7 +21,7 @@
 #include <onyx/idt.h>
 #include <onyx/process.h>
 #include <onyx/clock.h>
-#include <onyx/vmm.h>
+#include <onyx/vm.h>
 
 volatile uint32_t *bsp_lapic = NULL;
 volatile uint64_t ap_done = 0;
