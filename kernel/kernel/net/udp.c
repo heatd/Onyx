@@ -38,7 +38,7 @@ int send_udp_packet(char *payload, size_t payload_size, int source_port, int des
 
 int udp_bind(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode)
 {
-	udp_socket_t *socket = (udp_socket_t*) vnode;
+	struct udp_socket *socket = (struct udp_socket*) vnode;
 	if(socket->socket.bound)
 		return -EINVAL;
 	if(!socket->socket.netif)
@@ -64,7 +64,7 @@ int udp_bind(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode
 
 int udp_connect(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode)
 {
-	udp_socket_t *socket = (udp_socket_t*) vnode;
+	struct udp_socket *socket = (struct udp_socket*) vnode;
 	memcpy(&socket->dest_addr, addr, sizeof(struct sockaddr));
 	if(!socket->socket.netif)
 		socket->socket.netif = netif_choose();
@@ -74,7 +74,7 @@ int udp_connect(const struct sockaddr *addr, socklen_t addrlen, struct inode *vn
 
 ssize_t udp_send(const void *buf, size_t len, int flags, struct inode *vnode)
 {
-	udp_socket_t *socket = (udp_socket_t*) vnode;
+	struct udp_socket *socket = (struct udp_socket*) vnode;
 	if(!socket->socket.connected)
 		return -ENOTCONN;
 	struct sockaddr_in *to = (struct sockaddr_in*) &socket->dest_addr;
@@ -91,14 +91,14 @@ ssize_t udp_send(const void *buf, size_t len, int flags, struct inode *vnode)
 }
 
 /* udp_get_queued_packet - Gets either a packet that was queued on recieve or waits for one */
-void *udp_get_queued_packet(udp_socket_t *socket)
+void *udp_get_queued_packet(struct udp_socket *socket)
 {
 	return NULL;
 }
 
 ssize_t udp_recvfrom(void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *slen, struct inode *vnode)
 {
-	udp_socket_t *socket = (udp_socket_t*) vnode;
+	struct udp_socket *socket = (struct udp_socket*) vnode;
 	struct sockaddr_in *addr = (struct sockaddr_in *) &socket->src_addr;
 	if(!addr->sin_addr.s_addr)
 		return -ENOTCONN;
@@ -124,9 +124,9 @@ static struct file_ops udp_ops =
 	.recvfrom = udp_recvfrom
 };
 
-socket_t *udp_create_socket(int type)
+struct socket *udp_create_socket(int type)
 {
-	udp_socket_t *socket = zalloc(sizeof(udp_socket_t));
+	struct udp_socket *socket = zalloc(sizeof(struct udp_socket));
 	if(!socket)
 		return NULL;
 
@@ -136,15 +136,15 @@ socket_t *udp_create_socket(int type)
 	vnode->i_type = VFS_TYPE_UNIX_SOCK;
 	socket->type = type;
 	
-	return (socket_t*) socket;
+	return (struct socket*) socket;
 }
 
 int udp_init_netif(struct netif *netif)
 {
 	/* TODO: Add IPv6 support */
-	netif->udp_ports = malloc(65536 * sizeof(udp_socket_t*));
+	netif->udp_ports = malloc(65536 * sizeof(struct udp_socket *));
 	if(!netif->udp_ports)
 		return -1;
-	memset(netif->udp_ports, 0, 65536 * sizeof(udp_socket_t*));
+	memset(netif->udp_ports, 0, 65536 * sizeof(struct udp_socket *));
 	return 0;
 }

@@ -461,8 +461,8 @@ int ata_init(void)
 		return -1;
 
 	/* Allocate PRDT base */
-	prdt_base = dma_map_range(p->paddr,
-		UINT16_MAX, VM_WRITE | VM_NOEXEC | VM_GLOBAL);
+	prdt_base = mmiomap(p->paddr,
+		UINT16_MAX, VM_WRITE | VM_NOEXEC);
 	if(!prdt_base)
 	{
 		ERROR("ata", "Could not allocate a PRDT\n");

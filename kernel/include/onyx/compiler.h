@@ -46,7 +46,7 @@ _Pragma("GCC target(\"sse2\", \"3dnow\", \"xsave\")")
 static inline uint64_t rdtsc(void)
 {
     	uint64_t ret = 0;
-    	__asm__ __volatile__ ( "rdtsc" : "=A"(ret) );
+    	__asm__ __volatile__ ( "rdtsc" : "=A"(ret));
     	return ret;
 }
 

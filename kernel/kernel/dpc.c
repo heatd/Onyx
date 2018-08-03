@@ -73,7 +73,10 @@ int dpc_schedule_work(struct dpc_work *_work, dpc_priority prio)
 	*/
 	struct dpc_work *work = slab_allocate(dpc_pool);
 	if(!work)
+	{
+		printf("slab_allocate failed: dpc work request being discarded!\n");
 		return -1;
+	}
 
 	memcpy(work, _work, sizeof(struct dpc_work));
 	spin_lock(&work_queue_locks[prio]);

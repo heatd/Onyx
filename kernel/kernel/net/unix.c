@@ -27,24 +27,24 @@ struct unix_packet
 {
 	const void *buffer;
 	size_t size;
+	size_t read;
 	struct unix_packet *next;
 };
 
 struct un_socket
 {
-	socket_t socket;
+	struct socket socket;
 	struct unix_packet *packets;
 	struct spinlock packet_list_lock;
 	int type;
 	struct un_name *abstr_name;
 
-	char *dest_address;
-	size_t namelen;
-	bool dest_is_abstract;
+	struct un_socket *dest;
 };
 
 struct un_name
 {
+	struct object object;
 	char *address;
 	size_t namelen;
 
@@ -83,6 +83,8 @@ struct un_name *add_to_namespace(char *address, size_t namelen,
 
 	*pp = name;
 
+	spin_unlock(&un_namespace_list_lock);
+
 	return name;
 cleanup_and_die:
 	if(name)
@@ -90,6 +92,23 @@ cleanup_and_die:
 		if(newbuffer)	free(newbuffer);
 		free(name);
 	}
+
+	return NULL;
+}
+
+struct un_name *un_find_name(char *address, size_t namelen)
+{
+	spin_lock(&un_namespace_list_lock);
+
+	for(struct un_name *name = un_namespace_list; name != NULL; name = name->next)
+	{
+		if(namelen != name->namelen)
+			continue;
+		if(!memcmp(name->address, address, namelen))
+			return name;
+	}
+
+	spin_unlock(&un_namespace_list_lock);
 
 	return NULL;
 }
@@ -160,7 +179,7 @@ int un_do_bind(const struct sockaddr_un *un, socklen_t addrlen, struct un_socket
 
 int un_bind(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode)
 {
-	struct un_socket *socket = (struct un_socket*) vnode;
+	struct un_socket *socket = (struct un_socket*) vnode->i_helper;
 	if(socket->socket.bound)
 		return -EINVAL;
 
@@ -175,7 +194,7 @@ int un_bind(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode)
 
 int un_connect(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode)
 {
-	//struct un_socket *socket = (struct un_socket*) vnode;
+	struct un_socket *socket = vnode->i_helper;
 
 	const struct sockaddr_un *un = (const struct sockaddr_un *) addr;
 	char *address;
@@ -188,15 +207,17 @@ int un_connect(const struct sockaddr *addr, socklen_t addrlen, struct inode *vno
 	{
 		return status;
 	}
-
-	char *new_name = memdup(address, namelen);
-
-	if(!new_name)
-		return -ENOMEM;
 	
 	if(is_abstract)
 	{
-		assert(0);
+		struct un_name *name = un_find_name(address, namelen);
+		if(!name)
+			return -EADDRNOTAVAIL;
+
+		socket_ref(&name->bound_socket->socket);
+		spin_unlock(&un_namespace_list_lock);
+
+		socket->dest = name->bound_socket;
 	}
 	else
 	{
@@ -212,6 +233,10 @@ ssize_t un_send(const void *buf, size_t len, int flags, struct inode *vnode)
 ssize_t un_recvfrom(void *buf, size_t len, int flags, struct sockaddr *addr, 
 		socklen_t *slen, struct inode *vnode)
 {
+	/*struct un_socket *socket = vnode->i_helper;
+	struct sockaddr kaddr = {0};*/
+
+
 	return 0;
 }
 
@@ -223,16 +248,21 @@ static struct file_ops un_ops =
 	.recvfrom = un_recvfrom
 };
 
-socket_t *unix_create_socket(int type)
+void unix_socket_dtor(struct socket *socket)
+{
+	struct un_socket *un = (struct un_socket *) socket;
+	if(un->abstr_name)	un->abstr_name->bound_socket = NULL;
+}
+
+struct socket *unix_create_socket(int type, int protocol)
 {
 	struct un_socket *socket = zalloc(sizeof(struct un_socket));
 	if(!socket)
 		return NULL;
 
-	struct inode *vnode = (struct inode*) socket;
-	memcpy(&vnode->i_fops, &un_ops, sizeof(struct file_ops));
-	vnode->i_type = VFS_TYPE_UNIX_SOCK;
+	socket->socket.ops = &un_ops;
 	socket->type = type;
-	
-	return (socket_t*) socket;
+	socket->socket.dtor = unix_socket_dtor;
+
+	return (struct socket *) socket;
 }

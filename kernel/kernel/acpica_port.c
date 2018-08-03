@@ -232,7 +232,7 @@ ACPI_STATUS AcpiOsReadMemory ( ACPI_PHYSICAL_ADDRESS Address, UINT64 *Value, UIN
 	return AE_OK;
 }
 
-ACPI_STATUS AcpiOsWriteMemory ( ACPI_PHYSICAL_ADDRESS Address, UINT64 Value, UINT32 Width )
+ACPI_STATUS AcpiOsWriteMemory ( ACPI_PHYSICAL_ADDRESS Address, UINT64 Value, UINT32 Width)
 {
 	UINT64 *ptr;
 	ptr = (UINT64*)AcpiOsMapMemory(Address, 4096);

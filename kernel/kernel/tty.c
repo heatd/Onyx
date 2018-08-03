@@ -144,14 +144,14 @@ void tty_write_string(const char *data, struct tty *tty)
 void tty_write_kernel(const char *data, size_t size)
 {
 	if(!main_tty)
-		while(1);
+		return;
 	tty_write(data, size, main_tty);
 }
 
 void tty_write_string_kernel(const char *data)
 {
 	if(!main_tty)
-		while(1);
+		return;
 	tty_write_string(data, main_tty);
 }
 

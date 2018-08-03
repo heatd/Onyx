@@ -365,6 +365,7 @@ void *drm_mmap(struct vm_entry *area, struct inode *inode)
 		return NULL;
 
 	vmo->page_list = dbuf->pages;
+	vmo->mappings = area;
 
 	area->vmo = vmo;
 

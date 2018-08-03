@@ -23,25 +23,25 @@ static inline void outl(uint16_t port,uint32_t val)
 static inline uint8_t inb(uint16_t port)
 {
 	uint8_t ret;
-	__asm__ __volatile__ ( "inb %1, %0" : "=a"(ret) : "Nd"(port) );
+	__asm__ __volatile__ ( "inb %1, %0" : "=a"(ret) : "Nd"(port));
 	return ret;
 }
 static inline uint16_t inw(uint16_t port)
 {
 	uint16_t ret;
-	__asm__ __volatile__ ( "inw %1, %0" : "=a"(ret) : "Nd"(port) );
+	__asm__ __volatile__ ( "inw %1, %0" : "=a"(ret) : "Nd"(port));
 	return ret;
 }
 static inline uint32_t inl(uint16_t port)
 {
 	uint32_t ret;
-	__asm__ __volatile__ ( "inl %1, %0" : "=a"(ret) : "Nd"(port) );
+	__asm__ __volatile__ ( "inl %1, %0" : "=a"(ret) : "Nd"(port));
 	return ret;
 }
 static inline void io_wait(void)
 {
         /* Port 0x80 is used for 'checkpoints' during POST. */
         /* The Linux kernel seems to think it is free for use :-/ */
-        __asm__ __volatile__ ( "outb %%al, $0x80" : : "a"(0) );
+        __asm__ __volatile__ ( "outb %%al, $0x80" : : "a"(0));
 }
 #endif

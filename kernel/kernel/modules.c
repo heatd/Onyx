@@ -145,7 +145,7 @@ void *allocate_module_memory(size_t size)
 	if(size % PAGE_SIZE)
 		pages++;
 	void *ret = (void*) last_kernel_address;
-	vm_map_range(ret, pages, VM_WRITE | VM_GLOBAL);
+	vm_map_range(ret, pages, VM_WRITE);
 	last_kernel_address += pages * PAGE_SIZE;
 	return ret;
 }

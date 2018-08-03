@@ -40,10 +40,14 @@ int pci_enable_msi(struct pci_device *dev, irq_t handler)
 		if((offset = pci_find_capability(dev, PCI_CAP_ID_MSI)) < 0)
 			return -1; 
 	}
-	uint16_t message_control = pci_read(dev, offset + PCI_MSI_MESSAGE_CONTROL_OFF,
-                                            sizeof(uint16_t));
+
+	uint16_t message_control = pci_read(dev,
+		offset + PCI_MSI_MESSAGE_CONTROL_OFF, sizeof(uint16_t));
+
 	bool addr64 = message_control & PCI_MSI_MSGCTRL_64BIT;
+
 	unsigned int num_vecs = pci_to_num_vecs[PCI_MSI_MSGCTRL_MMC(message_control)];
+
 	struct pci_msi_data data;
 	if(platform_allocate_msi_interrupts(num_vecs, addr64, &data) < 0)
 		return -1;
@@ -78,5 +82,6 @@ int pci_enable_msi(struct pci_device *dev, irq_t handler)
 	                          PCI_MSI_MESSAGE_ADDRESS_OFF + 4, sizeof(uint32_t));
 	pci_write(dev, message_data, message_data_off, sizeof(uint16_t));
 	pci_write(dev, message_control, offset + PCI_MSI_MESSAGE_CONTROL_OFF, sizeof(uint16_t));
+
 	return 0;
 }

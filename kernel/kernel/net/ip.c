@@ -66,7 +66,7 @@ void ipv4_handle_packet(ip_header_t *header, size_t size, struct netif *netif)
 {
 }
 
-struct sock *ipv4_create_socket(int type, int protocol)
+/*struct sock *ipv4_create_socket(int type, int protocol)
 {
 	switch(type)
 	{
@@ -81,3 +81,4 @@ struct sock *ipv4_create_socket(int type, int protocol)
 	}
 	return NULL;
 }
+*/

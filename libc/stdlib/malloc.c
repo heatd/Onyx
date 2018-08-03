@@ -28,7 +28,7 @@ void heap_set_start(uintptr_t start)
 int heap_expand(void)
 {
 	/* Allocate 256 pages */
-	if(!vm_map_range(heap_limit, 256, VM_WRITE | VM_GLOBAL | VM_NOEXEC))
+	if(!vm_map_range(heap_limit, 256, VM_WRITE | VM_NOEXEC))
 		return -1;
 	heap_limit += 0x100000;
 	return 0;
@@ -67,7 +67,7 @@ void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 	(void) flags;
 	(void) fd;
 	(void) offset;
-	ret = vmalloc(vm_align_size_to_pages(length), VM_TYPE_HEAP, VM_WRITE | VM_NOEXEC | VM_GLOBAL);
+	ret = vmalloc(vm_align_size_to_pages(length), VM_TYPE_HEAP, VM_WRITE | VM_NOEXEC );
 	return ret;
 }
 

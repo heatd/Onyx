@@ -17,6 +17,7 @@ typedef struct udp
 	uint16_t checksum;
 	uint8_t payload[0];
 } udp_header_t;
+
 static inline uint16_t udpsum(udp_header_t *hdr)
 {
 	uint32_t sum = 0;
@@ -43,15 +44,16 @@ struct udp_packet
 	struct udp_packet *next;
 };
 
-typedef struct udp_socket
+struct udp_socket
 {
-	socket_t socket;
+	struct socket socket;
 	int type;
 	struct sockaddr src_addr;
 	struct sockaddr dest_addr;
-} udp_socket_t;
+};
+
 int send_udp_packet(char *payload, size_t payload_size, int source_port, int dest_port, 
 		uint32_t srcip, uint32_t destip, struct netif *netif);
-socket_t *udp_create_socket(int type);
+struct socket *udp_create_socket(int type);
 int udp_init_netif(struct netif *netif);
 #endif

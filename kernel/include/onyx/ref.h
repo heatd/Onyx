@@ -12,7 +12,6 @@
 
 struct ref
 {
-	struct spinlock lock;
 	unsigned long refcount;
 	void (*release)(struct ref *ref);
 };

@@ -322,7 +322,8 @@ void *pci_map_bar(struct pci_device *device, int index)
 	printf("Mapping bar%d %lx %lx\n", index, bar.address, bar.size);
 #endif
 
-	return dma_map_range((void *) bar.address, bar.size, VM_WRITE | VM_NOEXEC | VM_GLOBAL);
+	return mmiomap((void *) bar.address, bar.size, VM_WRITE | VM_NOEXEC
+		| VM_NOCACHE);
 }
 
 uint16_t pci_get_intn(struct pci_device *dev)
@@ -654,6 +655,16 @@ void pci_bus_register_driver(struct driver *driver)
 	spin_unlock(&pci_bus.bus_lock);
 
 	for(struct device *dev = pci_bus.devs; dev != NULL; dev = dev->next)
+	{
+		if(pci_driver_supports_device(driver, dev))
+		{
+			driver_register_device(driver, dev);
+			if(driver->probe(dev) < 0)
+				driver_deregister_device(driver, dev);
+		}
+	}
+
+	for(struct device *dev = pcie_bus.devs; dev != NULL; dev = dev->next)
 	{
 		if(pci_driver_supports_device(driver, dev))
 		{

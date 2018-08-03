@@ -316,8 +316,8 @@ int module_init()
 	else
 	{
 		INFO("rtl8139", "Using MMIO for hardware access\n");
-		memory_base = dma_map_range((void*) bar.address, bar.size, 
-			VM_WRITE | VM_NOEXEC | VM_GLOBAL);
+		memory_base = mmiomap((void*) bar.address, bar.size, 
+			VM_WRITE | VM_NOEXEC | VM_NOCACHE);
 		if(!memory_base)
 		{
 			ERROR("rtl8139", "Could not allocate enough memory\n");

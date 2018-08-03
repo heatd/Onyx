@@ -58,6 +58,8 @@ int check_af_support(int domain)
 	{
 		case AF_INET:
 			return 0;
+		case AF_UNIX:
+			return 0;
 		default:
 			return -1;
 	}
@@ -80,25 +82,55 @@ int net_autodetect_protocol(int type, int domain)
 	switch(type)
 	{
 		case SOCK_DGRAM:
-			return PROTOCOL_UDP;
+			if(domain == AF_UNIX)
+				return PROTOCOL_UNIX;
+			else if(domain == AF_INET)
+				return PROTOCOL_UDP;
+			else
+				return -1;
 		case SOCK_RAW:
-			return domain == AF_INET ? PROTOCOL_IPV4 : PROTOCOL_IPV6;
+			if(domain == AF_INET)
+				return PROTOCOL_IPV4;
+			else if(domain == AF_UNIX)
+				return PROTOCOL_UNIX;
+			return -1;
 		case SOCK_STREAM:
 			return PROTOCOL_TCP;
 	}
 	return -1;
 }
 
-socket_t *socket_create(int domain, int type, int protocol)
+struct socket *unix_create_socket(int type, int protocol);
+
+struct socket *socket_create(int domain, int type, int protocol)
 {
 	switch(domain)
 	{
 		case AF_INET:
 			/*return ipv4_create_socket(type, protocol); */
 			return errno = EAFNOSUPPORT, NULL;
+		case AF_UNIX:
+			return unix_create_socket(type, protocol);
 		default:
 			return errno = EAFNOSUPPORT, NULL;
 	}
+}
+
+struct inode *socket_create_inode(struct socket *socket)
+{
+	struct inode *inode = inode_create();
+
+	if(!inode)
+		return NULL;
+	
+	assert(socket->ops != NULL);
+
+	memcpy(&inode->i_fops, socket->ops, sizeof(struct file_ops));
+
+	inode->i_type = VFS_TYPE_UNIX_SOCK;
+	inode->i_helper = socket;
+
+	return inode;
 }
 
 int sys_socket(int domain, int type, int protocol)
@@ -118,13 +150,15 @@ int sys_socket(int domain, int type, int protocol)
 	}
 
 	/* Create the socket */
-	socket_t *socket = socket_create(domain, type, protocol);
+	struct socket *socket = socket_create(domain, type, protocol);
 	if(!socket)
-	{
 		return -errno;
-	}
+	
+	struct inode *inode = socket_create_inode(socket);
+	if(!inode)
+		return -errno;
 	/* Open a file descriptor with the socket vnode */
-	int fd = open_with_vnode((struct inode*) socket, dflags);
+	int fd = open_with_vnode(inode, dflags);
 	/* If we failed, close the socket and return */
 	if(fd < 0)
 		close_vfs((struct inode*) socket);

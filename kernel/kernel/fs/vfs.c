@@ -402,7 +402,7 @@ int getdents_vfs(unsigned int count, putdir_t putdir,
 		/* Put the dirent in the user-space buffer */
 		unsigned int written = putdir(&buf, dirp, count);
 		/* Error, most likely out of buffer space */
-		if(written == (unsigned int ) -1)
+		if(written == (unsigned int) -1)
 		{
 			if(!pos) return errno = EINVAL, -1;
 			else

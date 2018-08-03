@@ -32,10 +32,38 @@
 #define VM_TYPE_HEAP 		(3)
 #define VM_TYPE_HW 		(4)
 #define VM_TYPE_FILE_BACKED	(5)
-#define VM_GLOBAL 		(0x2)
-#define VM_USER 		(0x80)
-#define VM_WRITE 		(0x1)
-#define VM_NOEXEC 		(0x4)
+
+#define VM_WRITE 		(1 << 0)
+#define VM_NOEXEC 		(1 << 1)
+#define VM_USER 		(1 << 2)
+#define VM_NOCACHE		(1 << 3)
+#define VM_WRITETHROUGH		(1 << 4)
+#define VM_WC			(1 << 5)
+#define VM_WP			(1 << 6)
+
+/* Internal flags used by the mm code */
+#define __VM_CACHE_TYPE_REGULAR 	0
+#define __VM_CACHE_TYPE_UNCACHED	1
+#define __VM_CACHE_TYPE_WT		2
+#define __VM_CACHE_TYPE_WC		3
+#define __VM_CACHE_TYPE_WP		4
+#define __VM_CACHE_TYPE_UNCACHEABLE 	5
+
+
+static inline unsigned long vm_prot_to_cache_type(uint64_t prot)
+{
+	if(prot & VM_NOCACHE)
+		return __VM_CACHE_TYPE_UNCACHEABLE;
+	else if(prot & VM_WRITETHROUGH)
+		return __VM_CACHE_TYPE_WT;
+	else if(prot & VM_WC)
+		return __VM_CACHE_TYPE_WC;
+	else if(prot & VM_WP)
+		return __VM_CACHE_TYPE_WP;
+	else
+		return __VM_CACHE_TYPE_REGULAR;
+}
+
 #define VM_KERNEL 		(1)
 #define VM_COW			(1 << 1)
 #define VM_ADDRESS_USER		(1 << 1)
@@ -119,7 +147,7 @@ int vm_handle_page_fault(struct fault_info *info);
 void vm_do_fatal_page_fault(struct fault_info *info);
 void *vmalloc(size_t pages, int type, int perms);
 void vm_print_stats(void);
-void *dma_map_range(void *phys, size_t size, size_t flags);
+void *mmiomap(void *phys, size_t size, size_t flags);
 void vm_destroy_addr_space(avl_node_t *tree);
 int vm_sanitize_address(void *address, size_t pages);
 void *vm_gen_mmap_base(void);

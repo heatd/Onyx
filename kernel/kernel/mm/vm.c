@@ -440,7 +440,7 @@ void vm_late_init(void)
 	heap_addr = vm_randomize_address(heap_addr, HEAP_ASLR_BITS);
 
 	vm_map_range((void*) heap_addr, vm_align_size_to_pages(0x400000),
-			VM_WRITE | VM_NOEXEC | VM_GLOBAL);
+			VM_WRITE | VM_NOEXEC);
 	heap_set_start(heap_addr);
 
 	size_t heap_size = 0x200000000000 - (heap_addr - heap_addr_no_aslr);
@@ -1292,7 +1292,7 @@ void *map_pages_to_vaddr(void *virt, void *phys, size_t size, size_t flags)
 	return __map_pages_to_vaddr(NULL, virt, phys, size, flags);
 }
 
-void *dma_map_range(void *phys, size_t size, size_t flags)
+void *mmiomap(void *phys, size_t size, size_t flags)
 {
 	size_t pages = vm_align_size_to_pages(size);
 	struct vm_entry *entry = vm_allocate_virt_address(
@@ -1300,7 +1300,7 @@ void *dma_map_range(void *phys, size_t size, size_t flags)
 		 pages, VM_TYPE_REGULAR, flags, 0);
 	if(!entry)
 	{
-		printf("dma_map_range: Could not allocate virtual range\n");
+		printf("mmiomap: Could not allocate virtual range\n");
 		return NULL;
 	}
 

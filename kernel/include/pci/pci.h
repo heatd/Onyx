@@ -161,6 +161,10 @@ struct pci_id
 .device_id = dev, .vendor_id = vendor, .pci_class = PCI_ANY_ID, \
 .subclass = PCI_ANY_ID, .progif = PCI_ANY_ID
 
+#define PCI_ID_CLASS(c, s, p) \
+.pci_class = c, .subclass = s, .progif = p, \
+.device_id = PCI_ANY_ID, .vendor_id = PCI_ANY_ID
+
 #ifdef __cplusplus
 extern "C" {
 #endif

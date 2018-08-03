@@ -153,7 +153,7 @@ int e1000_init_descs(void)
 	uint8_t *ptr = NULL;
 	struct e1000_rx_desc *rxdescs = NULL;
 	size_t needed_pages = vm_align_size_to_pages(sizeof(struct e1000_rx_desc) * E1000_NUM_RX_DESC + 16);
-	ptr = vmalloc(needed_pages, VM_TYPE_REGULAR, VM_WRITE | VM_NOEXEC | VM_GLOBAL);
+	ptr = vmalloc(needed_pages, VM_TYPE_REGULAR, VM_WRITE | VM_NOEXEC);
 
 	if(!ptr)
 		return 1;
@@ -194,7 +194,7 @@ int e1000_init_descs(void)
 	needed_pages = (sizeof(struct e1000_tx_desc) * E1000_NUM_TX_DESC + 16) / 4096;
 	if((sizeof(struct e1000_tx_desc) * E1000_NUM_TX_DESC + 16) % 4096)
 		needed_pages++;
-	ptr = vmalloc(needed_pages, VM_TYPE_HW, VM_WRITE | VM_GLOBAL | VM_NOEXEC);
+	ptr = vmalloc(needed_pages, VM_TYPE_HW, VM_WRITE  | VM_NOEXEC);
 	if(!ptr)
 		return 1;
 

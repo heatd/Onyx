@@ -15,6 +15,8 @@
 #include <onyx/panic.h>
 #include <onyx/cpu.h>
 
+#include <onyx/x86/pat.h>
+
 #define PML_EXTRACT_ADDRESS(n) (n & 0x0FFFFFFFFFFFF000)
 
 static inline void __native_tlb_invalidate_page(void *addr)
@@ -88,21 +90,19 @@ static inline uint64_t make_pml1e(uint64_t base,
 				  uint64_t nx,
 				  uint64_t avl,
 				  uint64_t glbl,
-				  uint64_t pcd,
-				  uint64_t pwt,
+				  uint64_t caching_bits,
 				  uint64_t us,
 				  uint64_t rw,
 				  uint64_t p)
 {
-	return (uint64_t)( \
-  		(base) | \
-  		(nx << 63) | \
-  		(avl << 9) | \
-  		(glbl << 8) | \
-  		(pcd << 4) | \
-  		(pwt << 3) | \
-  		(us << 2) | \
-  		(rw << 1) | \
+	return (uint64_t)(
+  		(base) |
+  		(nx << 63) |
+  		(avl << 9) |
+  		(glbl << 8) |
+  		((caching_bits << 3) & 0x3) |
+  		(us << 2) |
+  		(rw << 1) |
   		p);
 }
 
@@ -170,7 +170,7 @@ void paging_init(void)
 	for(size_t j = 0; j < 512; j++)
 	{
 		if(!paging_map_phys_to_virt_large_early(virt + j * 0x200000, 
-		j * 0x200000, VM_NOEXEC | VM_GLOBAL | VM_WRITE))
+		j * 0x200000, VM_NOEXEC  | VM_WRITE))
 			while(1);
 	}
 
@@ -209,7 +209,7 @@ void paging_map_all_phys(void)
 			for(size_t j = 0; j < 512; j++)
 			{
 				if(!paging_map_phys_to_virt_large(virt + i * 0x40000000 + j * 0x200000, 
-				i * 0x40000000 + j * 0x200000, VM_NOEXEC | VM_GLOBAL | VM_WRITE))
+				i * 0x40000000 + j * 0x200000, VM_NOEXEC  | VM_WRITE))
 					return;
 			}
 		}
@@ -280,7 +280,7 @@ void* paging_map_phys_to_virt_large_early(uint64_t virt, uint64_t phys, uint64_t
 	}
 	else {
 		pml2 = (PML2*) alloc_pt();
-		if(!pml2 )
+		if(!pml2)
 			return NULL;
 		memset((void*)((uint64_t)pml2 + KERNEL_VIRTUAL_BASE), 0, sizeof(PML2));
 		*entry = make_pml3e( (uint64_t)pml2, 0, 0, 0, 0, 0, user ? 1 : 0, 1, 1);
@@ -288,7 +288,7 @@ void* paging_map_phys_to_virt_large_early(uint64_t virt, uint64_t phys, uint64_t
 	pml2 = (PML2*)((uint64_t)pml2 + KERNEL_VIRTUAL_BASE);
 	entry = &pml2->entries[decAddr.pd];
 	
-	*entry = make_pml2e(phys, (prot & 4), 0, (prot & 2)? 1 : 0, 0, 0, (prot & 0x80) ? 1 : 0, (prot & 1)? 1 : 0, 1);
+	*entry = make_pml2e(phys, (prot & 4), 0, (prot & 2) ? 1 : 0, 0, 0, (prot & 0x80) ? 1 : 0, (prot & 1)? 1 : 0, 1);
 	*entry |= (1 << 7);
 	return (void*) virt;
 }
@@ -332,7 +332,7 @@ void* paging_map_phys_to_virt_large(uint64_t virt, uint64_t phys, uint64_t prot)
 	else
 	{
 		pml2 = (PML2*) alloc_pt();
-		if(!pml2 )
+		if(!pml2)
 			return NULL;
 		memset((void*)((uint64_t)pml2 + PHYS_BASE), 0, sizeof(PML2));
 		*entry = make_pml3e( (uint64_t)pml2, 0, 0, 0, 0, 0, user ? 1 : 0, 1, 1);
@@ -345,6 +345,8 @@ void* paging_map_phys_to_virt_large(uint64_t virt, uint64_t phys, uint64_t prot)
 	*entry |= (1 << 7);
 	return (void*) virt;
 } 
+
+volatile int test = 0;
 
 void* paging_map_phys_to_virt(PML4 *__pml, uint64_t virt, uint64_t phys, uint64_t prot)
 {
@@ -385,8 +387,17 @@ void* paging_map_phys_to_virt(PML4 *__pml, uint64_t virt, uint64_t phys, uint64_
 		}
 	}
 	
-	pml->entries[indices[0]] = make_pml1e(phys, (prot & 4) ? 1 : 0, 0,
-	(prot & 0x2) ? 1 : 0, 0, 0, (prot & 0x80) ? 1 : 0, (prot & 1) ? 1 : 0, 1);
+	bool noexec = prot & VM_NOEXEC ? true : false;
+	bool global = prot & VM_USER ? false : true;
+	user = prot & VM_USER ? true : false;
+	bool write = prot & VM_WRITE ? true : false;
+	
+	unsigned int cache_type = vm_prot_to_cache_type(prot);
+	uint8_t caching_bits = cache_to_paging_bits(cache_type);
+
+	pml->entries[indices[0]] = make_pml1e(phys, noexec, 0,
+	global, caching_bits, user, write, 1);
+
 	return (void*) virt;
 }
 
@@ -652,18 +663,18 @@ void paging_protect_kernel(void)
 	PML4 *p = (PML4*)((uintptr_t) pml + PHYS_BASE);
 	p->entries[511] = 0UL;
 	p->entries[0] = 0UL;
-	map_pages_to_vaddr((void *) &VIRT_BASE, NULL, 0x100000, VM_GLOBAL | VM_WRITE | VM_NOEXEC);
+	map_pages_to_vaddr((void *) &VIRT_BASE, NULL, 0x100000, VM_WRITE | VM_NOEXEC);
 	size_t size = (uintptr_t) &_text_end - text_start;
 	map_pages_to_vaddr((void *) text_start, (void *) (text_start - KERNEL_VIRTUAL_BASE),
-		size, VM_GLOBAL);
+		size, 0);
 
 	size = (uintptr_t) &_data_end - data_start;
 	map_pages_to_vaddr((void *) data_start, (void *) (data_start - KERNEL_VIRTUAL_BASE),
-		size, VM_GLOBAL | VM_WRITE | VM_NOEXEC);
+		size, VM_WRITE | VM_NOEXEC);
 	
 	size = (uintptr_t) &_vdso_sect_end - vdso_start;
 	map_pages_to_vaddr((void *) vdso_start, (void *) (vdso_start - KERNEL_VIRTUAL_BASE),
-		size, VM_GLOBAL | VM_WRITE);
+		size, VM_WRITE);
 
 	__asm__ __volatile__("movq %0, %%cr3"::"r"(pml));
 }

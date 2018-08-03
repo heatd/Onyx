@@ -50,7 +50,7 @@ struct drm_dumb_buffer *drm_soft_dumb_create(struct drm_dumb_buffer_info *info, 
 	drm_object_init(&buffer->object, soft_dumb_buffer_die,
 		dev, DRM_COOKIE_DUMB_BUFFER);
 
-	buffer->buffer = map_page_list(page_list, size, VM_WRITE | VM_GLOBAL | VM_NOEXEC);
+	buffer->buffer = map_page_list(page_list, size, VM_WRITE  | VM_NOEXEC);
 	if(!buffer->buffer)
 	{
 		free_pages(page_list);

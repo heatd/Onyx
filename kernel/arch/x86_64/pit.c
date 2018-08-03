@@ -42,12 +42,13 @@ void pit_init(uint32_t frequency)
 	/* Install the IRQ handler */
 	assert(install_irq(2, pit_irq, &pit_dev, IRQ_FLAG_REGULAR, NULL) == 0);
 
-	outb(0x43, 0x34);
-	io_wait();
+	outb(0x43, 0x36);
+	//io_wait();
 	outb(0x40, divisor & 0xFF);   // Set low byte of divisor
-	io_wait();
+	//io_wait();
 	outb(0x40, divisor >> 8);     // Set high byte of divisor
-	io_wait();
+	//io_wait();
+	printf("pit: initialized!\n");
 }
 
 void pit_deinit()

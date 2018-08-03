@@ -13,8 +13,6 @@
 
 #include <drivers/ps2.h>
 
-#define PS2_PNP "PNP0303"
-
 extern void send_event_to_kernel(unsigned char keycode);
 irqstatus_t irq_keyb_handler(struct irq_context *ctx, void *cookie)
 {
@@ -30,12 +28,6 @@ irqstatus_t irq_keyb_handler(struct irq_context *ctx, void *cookie)
 	return IRQ_HANDLED;
 }
 
-struct acpi_dev_id ps2_devids[] =
-{
-	{PS2_PNP},
-	{NULL}
-};
-
 int ps2_probe(struct device *device)
 {
 	if(install_irq(KEYBOARD_IRQ, irq_keyb_handler, device,
@@ -48,13 +40,16 @@ int ps2_probe(struct device *device)
 struct driver ps2_driver = 
 {
 	.name = "ps2keyb",
-	.devids = &ps2_devids,
 	.probe = ps2_probe
 };
 
+struct device ps2dev = {.name = "ps2"};
+
 int init_keyboard(void)
 {
-	acpi_bus_register_driver(&ps2_driver);
+	ps2dev.driver = &ps2_driver;
+
+	ps2_probe(&ps2dev);
 	return 0;
 }
 

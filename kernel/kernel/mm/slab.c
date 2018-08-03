@@ -75,7 +75,7 @@ struct slab *slab_create_slab(size_t size_obj, slab_cache_t *cache)
 	memset(slab, 0, sizeof(struct slab));
 
 	void *buffer = vmalloc(vm_align_size_to_pages(slab_size),
-		VM_TYPE_REGULAR, VM_NOEXEC | VM_GLOBAL | VM_WRITE);
+		VM_TYPE_REGULAR, VM_NOEXEC  | VM_WRITE);
 	if(!buffer)
 	{
 		free(slab);

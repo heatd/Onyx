@@ -23,6 +23,7 @@
 #include <acpi.h>
 #include <assert.h>
 
+#include <onyx/x86/pat.h>
 #include <onyx/compiler.h>
 USES_FANCY_START
 #include <x86intrin.h>
@@ -130,7 +131,8 @@ char *cpu_get_name()
 	cpu.manuid[12] = '\0';
 	__get_cpuid(CPUID_MAXFUNCTIONSUPPORTED,&eax,&ebx,&ecx,&edx);
 	cpu.max_function = eax;
-	if( cpu.max_function >= 0x8000004 ) {
+	if(cpu.max_function >= 0x8000004)
+	{
 		__get_cpuid(CPUID_BRAND0,&eax,&ebx,&ecx,&edx);
 		cpuid[0] = eax;
 		cpuid[1] = ebx;
@@ -190,6 +192,7 @@ void cpu_init_interrupts()
 	apic_timer_init();
 	tsc_init();
 	vdso_init();
+	pat_init();
 
 	wrmsr(IA32_MSR_STAR, 0, ((0x18 | 3) << 16) | 0x8);
 	wrmsr(IA32_MSR_LSTAR, (unsigned long) syscall_ENTRY64 & 0xFFFFFFFF, (unsigned long) syscall_ENTRY64 >> 32);
@@ -201,7 +204,7 @@ bool is_percpu_initialized(void)
 	return percpu_initialized;
 }
 
-int cpu_init_mp()
+int cpu_init_mp(void)
 {
 	ACPI_SUBTABLE_HEADER *first = (ACPI_SUBTABLE_HEADER *) (madt+1);
 	/* Lets parse through the MADT to get the number of cores.
@@ -277,8 +280,8 @@ void cpu_ap_entry(int cpu_num)
 	uint64_t addr = low | ((uint64_t)high << 32);
 	addr &= 0xFFFFF000;
 	/* Map the BSP's LAPIC */
-	uintptr_t _lapic = (uintptr_t) dma_map_range((void*) addr, PAGE_SIZE,
-		VM_WRITE | VM_NOEXEC | VM_GLOBAL);
+	uintptr_t _lapic = (uintptr_t) mmiomap((void*) addr, PAGE_SIZE,
+		VM_WRITE | VM_NOEXEC | VM_NOCACHE);
 	assert(_lapic != 0);
 	
 	/* Fill the processor struct with the LAPIC data */
@@ -299,6 +302,9 @@ void cpu_ap_entry(int cpu_num)
 	wrmsr(IA32_MSR_SFMASK, 0b11000000000 | 0x100, 0);
 
 	gdt_init_percpu();
+
+	pat_init();
+
 	initialized_cpus++;
 
 	/* Enable interrupts */
@@ -318,10 +324,10 @@ int get_nr_cpus(void)
 
 static void rep_movsb(void *dst, const void *src, size_t n)
 {
-    __asm__ __volatile__ ( "rep movsb\n\t"
+    __asm__ __volatile__ ("rep movsb\n\t"
                          : "+D" (dst), "+S" (src), "+c" (n)
                          :
-                         : "memory" );
+                         : "memory");
 }
 
 void *memcpy_fast(void *dst, void *src, size_t n)

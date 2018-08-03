@@ -108,16 +108,16 @@ void chacha_keystream(struct chacha* ctx,
 {
 	uint32_t work[16];
 
-	for ( size_t offset = 0; offset < size; )
+	for ( size_t offset = 0; offset < size;)
 	{
 		size_t left = size - offset;
 
-		for ( size_t i = 0; i < 16; i++ )
+		for ( size_t i = 0; i < 16; i++)
 			work[i] = ctx->input[i];
 
 		/* NOTE: This is 20 in the OpenBSD version, but 8 in Bernstein's. */
 		/* TODO: Why decrement by 2 instead of 1? */
-		for ( int i = 20; 0 < i; i -= 2 )
+		for ( int i = 20; 0 < i; i -= 2)
 		{
 			chacha_quarter_round(&work[0], &work[4], &work[8], &work[12]);
 			chacha_quarter_round(&work[1], &work[5], &work[9], &work[13]);
@@ -129,17 +129,17 @@ void chacha_keystream(struct chacha* ctx,
 			chacha_quarter_round(&work[3], &work[4], &work[9], &work[14]);
 		}
 
-		for ( size_t i = 0; i < 16; i++ )
+		for ( size_t i = 0; i < 16; i++)
 			work[i] += ctx->input[i];
 
 		ctx->input[12] += 1;
-		if ( ctx->input[12] == 0 )
+		if ( ctx->input[12] == 0)
 		{
 			ctx->input[13] += 1;
 			/* Stopping at 2^70 bytes per nonce is user's responsibility. */
 		}
 
-		for ( size_t i = 0; i < 16; i++ )
+		for ( size_t i = 0; i < 16; i++)
 			work[i] = htole32(work[i]);
 
 		size_t amount = left < 64 ? left : 64;
@@ -167,15 +167,15 @@ void arc4random_buf(void* buffer_ptr, size_t size)
 
 	spin_lock(&random_lock);
 
-	while ( 0 < size )
+	while ( 0 < size)
 	{
 		size_t available = rs_have;
-		if ( size < available )
+		if ( size < available)
 			available = size;
-		if ( rs_count < available )
+		if ( rs_count < available)
 			available = rs_count;
 
-		if ( 0 < available )
+		if ( 0 < available)
 		{
 			unsigned char* randomness = rs_buf + sizeof(rs_buf) - rs_have;
 			memcpy(buffer, randomness, available);
@@ -186,15 +186,15 @@ void arc4random_buf(void* buffer_ptr, size_t size)
 			size -= available;
 		}
 
-		if ( rs_count == 0 )
+		if ( rs_count == 0)
 		{
 			get_entropy((char*) entropy, sizeof(entropy));
 
-			if ( rs_initialized )
+			if ( rs_initialized)
 			{
 				unsigned char old_entropy[sizeof(entropy)];
 				chacha_keystream(&rs_chacha, old_entropy, sizeof(old_entropy));
-				for ( size_t i = 0; i < sizeof(entropy); i++ )
+				for ( size_t i = 0; i < sizeof(entropy); i++)
 					entropy[i] ^= old_entropy[i];
 				explicit_bzero(old_entropy, sizeof(old_entropy));
 			}
@@ -211,7 +211,7 @@ void arc4random_buf(void* buffer_ptr, size_t size)
 			rs_count = 1600000;
 		}
 
-		if ( rs_have == 0 )
+		if ( rs_have == 0)
 		{
 			chacha_keystream(&rs_chacha, rs_buf, sizeof(rs_buf));
 			chacha_keysetup(&rs_chacha, rs_buf);

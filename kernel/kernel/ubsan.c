@@ -47,7 +47,7 @@ static void ubsan_abort(const struct ubsan_source_location* location,
 	{
 		printk("WARNING: %s at %s:%u:%u\n", violation, location->filename, location->line, location->column);
 	}
-	if ( !location || !location->filename )
+	if ( !location || !location->filename)
 		location = &unknown_location;
 	printk("Violating %s at %s:%u:%u\n", violation, location->filename, location->line, location->column);
 	while(1) __asm__ __volatile__("cli;hlt");
@@ -81,9 +81,9 @@ void __ubsan_handle_type_mismatch(void* data_raw,
 		(struct ubsan_type_mismatch_data*) data_raw;
 	ubsan_value_handle_t pointer = (ubsan_value_handle_t) pointer_raw;
 	const char* violation = "type mismatch";
-	if ( !pointer )
+	if ( !pointer)
 		violation = "null pointer access";
-	else if ( data->alignment && (pointer & (data->alignment - 1)) )
+	else if ( data->alignment && (pointer & (data->alignment - 1)))
 	{
 		violation = "unaligned access";
 		printf("Unaligned data alignment: %lu\n Unaligned pointer: %016lx\n",

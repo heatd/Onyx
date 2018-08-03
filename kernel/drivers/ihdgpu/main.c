@@ -38,6 +38,7 @@ struct pci_id ihdgpu_pci_ids[] =
 	{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x191e) },
 	{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x1921) },
 	{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x591d) },
+	{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x0a16) },
 	{0}
 };
 
@@ -70,6 +71,7 @@ int ihdgpu_probe(struct device *dev)
 		return -1;
 	}
 
+	printk("Done mapping\n");
 	return 0;
 
 }
@@ -83,6 +85,7 @@ struct driver ihdgpu_driver =
 
 int ihdgpu_init(void)
 {
+	printk("Registering ihdgpu driver!\n");
 	pci_bus_register_driver(&ihdgpu_driver);
 	return 0;
 }

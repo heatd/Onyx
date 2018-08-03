@@ -150,7 +150,7 @@ thread_t* task_switching_create_main_progcontext(thread_callback_t callback, uin
 	}
 	
 	new_thread->kernel_stack = (uintptr_t*) get_pages(VM_KERNEL, VM_TYPE_STACK, 4,
-		VM_WRITE | VM_NOEXEC | VM_GLOBAL, 0);
+		VM_WRITE | VM_NOEXEC , 0);
 	
 	if(!new_thread->kernel_stack)
 	{
@@ -319,7 +319,7 @@ thread_t *sched_spawn_thread(registers_t *regs, thread_callback_t start, void *a
 	memset(new_thread->fpu_area, 0, FPU_AREA_SIZE);
 	setup_fpu_area(new_thread->fpu_area);
 
-	new_thread->kernel_stack = vmalloc(4, VM_TYPE_STACK, VM_WRITE | VM_GLOBAL | VM_NOEXEC);
+	new_thread->kernel_stack = vmalloc(4, VM_TYPE_STACK, VM_WRITE  | VM_NOEXEC);
 
 	if(!new_thread->kernel_stack)
 	{

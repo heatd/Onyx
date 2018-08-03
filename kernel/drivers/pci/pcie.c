@@ -23,6 +23,7 @@ struct bus pcie_bus =
 {
 	.name = "pcie",
 };
+
 int pcie_get_mcfg(void)
 {
 	ACPI_STATUS st;
@@ -33,10 +34,12 @@ int pcie_get_mcfg(void)
 	}
 	return 0;
 }
+
 bool pcie_is_enabled(void)
 {
 	return mcfg ? true : false;
 }
+
 void pcie_append_allocation(struct pcie_allocation *a)
 {
 	if(!allocations)
@@ -48,58 +51,149 @@ void pcie_append_allocation(struct pcie_allocation *a)
 		l->next = a;
 	}
 }
-__attribute__((no_sanitize_undefined))
+
+struct pcie_address
+{
+	uint8_t bus;
+	uint8_t device;
+	uint8_t function;
+	struct pcie_allocation *alloc;
+	uint16_t offset;
+};
+
+static inline uint32_t __pcie_config_read_dword(struct pcie_address addr)
+{
+	uintptr_t ptr = (uintptr_t) addr.alloc->address +
+		((addr.bus - addr.alloc->start_bus) << 20 | addr.device << 15 | 
+			addr.function << 12);
+	volatile uint32_t *data = (volatile uint32_t *) (ptr + addr.offset);
+
+	return *data;
+}
+
+static inline void __pcie_config_write_dword(struct pcie_address addr, uint32_t data)
+{
+	uintptr_t ptr = (uintptr_t) addr.alloc->address +
+		((addr.bus - addr.alloc->start_bus) << 20 | addr.device << 15 | 
+			addr.function << 12);
+	volatile uint32_t *uptr = (volatile uint32_t *) (ptr + addr.offset);
+
+	*uptr = data;
+}
+
+void __pcie_config_write_byte(struct pcie_address addr, uint8_t data)
+{
+	uint16_t aligned_offset = addr.offset & -4;
+	uint16_t write_offset = addr.offset - aligned_offset;
+	uint16_t write_mask = 0xff << (write_offset * 8);
+	addr.offset = aligned_offset;
+	uint32_t dword = __pcie_config_read_dword(addr);
+
+	dword = (dword & ~write_mask) | (uint32_t) data << (write_offset * 8);
+
+	__pcie_config_write_dword(addr, dword);
+}
+
+uint8_t __pcie_config_read_byte(struct pcie_address addr)
+{
+	uint16_t aligned_offset = addr.offset & -4;
+	uint16_t byte_shift = addr.offset - aligned_offset;
+	addr.offset = aligned_offset;
+	uint32_t dword = __pcie_config_read_dword(addr);
+
+	return ((dword >> (byte_shift * 8)) & 0xff);
+}
+
+uint16_t __pcie_config_read_word(struct pcie_address addr)
+{
+	uint16_t ret = 0;
+        uint16_t aligned_off = addr.offset & -4;
+	uint16_t byte_shift = addr.offset - aligned_off;
+
+	addr.offset = aligned_off;
+
+	uint32_t dword = __pcie_config_read_dword(addr);
+
+	ret = (dword >> (byte_shift * 8));
+
+	return ret;
+}
+
+void __pcie_config_write_word(struct pcie_address addr, uint16_t data)
+{
+	uint8_t aligned_offset = addr.offset & -4;
+	uint8_t bshift = addr.offset - aligned_offset;
+
+	uint32_t byte_mask = (uint32_t) 0xffff << (bshift * 8);
+	addr.offset = aligned_offset;
+	uint32_t dword = __pcie_config_read_dword(addr);
+	dword = (dword & ~byte_mask) | (data << (bshift * 8));
+	__pcie_config_write_dword(addr, dword);
+}
+
 uint64_t pcie_read_device_from_segment(struct pci_device *dev, struct pcie_allocation *alloc, uint16_t off, size_t size)
 {
 	uint64_t val = -1;
-	uintptr_t ptr = (uintptr_t) alloc->address + ((dev->bus - alloc->start_bus) << 20 | dev->device << 15 | 
-			dev->function << 12);
-	volatile uint64_t *data = (volatile uint64_t *) (ptr + off);
+
+	struct pcie_address addr;
+	addr.alloc = alloc;
+	addr.bus = dev->bus;
+	addr.device = dev->device;
+	addr.function = dev->function;
+	addr.offset = off;
+
 	switch(size)
 	{
 		case sizeof(uint8_t):
-			val = *data & 0xff;
+			val = __pcie_config_read_byte(addr);
 			break;
 		case sizeof(uint16_t):
-			val = *data & 0xffff;
+			val = __pcie_config_read_word(addr);
 			break;
 		case sizeof(uint32_t):
-			val = *data & 0xffffffff;
+			val = __pcie_config_read_dword(addr);
 			break;
 		case sizeof(uint64_t):
-			val = *data; 
+			val = __pcie_config_read_dword(addr);
+			addr.offset += 4;
+			val |= (uint64_t) __pcie_config_read_dword(addr) << 32;
 			break;
 	}
 	return val;
 }
-__attribute__((no_sanitize_undefined))
+
 void pcie_write_device_from_segment(struct pci_device *dev, struct pcie_allocation *alloc,
 uint64_t value, uint16_t off, size_t size)
 {
-	uintptr_t ptr = (uintptr_t) alloc->address + ((dev->bus - alloc->start_bus) << 20 | dev->device << 15 | 
-			dev->function << 12);
-	volatile uint64_t *data = (volatile uint64_t *) (ptr + off);
-	uint64_t mask = 0;
+	struct pcie_address addr;
+	addr.alloc = alloc;
+	addr.bus = dev->bus;
+	addr.device = dev->device;
+	addr.function = dev->function;
+	addr.offset = off;
+
 	switch(size)
 	{
 		case sizeof(uint8_t):
-			mask = 0xff;
+			__pcie_config_write_byte(addr, (uint8_t) value);
 			break;
 		case sizeof(uint16_t):
-			mask = 0xffff;
+			__pcie_config_write_word(addr, (uint16_t) value);
 			break;
 		case sizeof(uint32_t):
-			mask = 0xffffffff;
+			__pcie_config_write_dword(addr, (uint32_t) value);
 			break;
 		case sizeof(uint64_t):
-			mask = 0xffffffffffffffff;
+			__pcie_config_write_byte(addr, (uint32_t) value);
+			addr.offset += 4;
+			__pcie_config_write_dword(addr, (uint32_t) (value >> 32));
 			break;
 		default:
 			INFO("pcie", "pcie_write_device_from_segment: Invalid size\n");
 			return;
 	}
-	*data = (*data & ~mask) | value;
 }
+
 struct pcie_allocation *pcie_get_allocation_from_dev(struct pci_device *dev)
 {
 	for(struct pcie_allocation *a = allocations; a; a = a->next)
@@ -114,6 +208,7 @@ struct pcie_allocation *pcie_get_allocation_from_dev(struct pci_device *dev)
 	}
 	return NULL;
 }
+
 uint64_t pcie_read(struct pci_device *dev, uint16_t off, size_t size)
 {
 	struct pcie_allocation *alloc = pcie_get_allocation_from_dev(dev);
@@ -121,6 +216,7 @@ uint64_t pcie_read(struct pci_device *dev, uint16_t off, size_t size)
 		return errno = EIO, (uint64_t) -1;
 	return pcie_read_device_from_segment(dev, alloc, off, size);
 }
+
 void pcie_write(struct pci_device *dev, uint64_t value, uint16_t off, size_t size)
 {
 	struct pcie_allocation *alloc = pcie_get_allocation_from_dev(dev);
@@ -128,6 +224,7 @@ void pcie_write(struct pci_device *dev, uint64_t value, uint16_t off, size_t siz
 		return;
 	pcie_write_device_from_segment(dev, alloc,value, off, size);
 }
+
 uint64_t __pcie_read(uint8_t bus, uint8_t device, uint8_t function, struct pcie_allocation *alloc, 
 		    uint16_t off, size_t size)
 {
@@ -151,6 +248,7 @@ void pcie_enumerate_device(uint8_t bus, uint8_t device, uint8_t function, struct
 
 	if(vendor == 0xffff) /* Invalid, just skip this device */
 		return;
+
 	uint16_t header = (uint16_t) __pcie_read(bus, device, function, alloc, 0xe, sizeof(uint16_t));
 
 	uint8_t pciClass = (uint8_t)(__pcie_read(bus, device, function, alloc, 0xb, sizeof(uint8_t)));
@@ -192,14 +290,11 @@ void pcie_enumerate_device(uint8_t bus, uint8_t device, uint8_t function, struct
 	*/
 	if(function != 0)
 		return;
-	if(header & 0x80)
+	for(int i = 1; i < 8; i++)
 	{
-		for(int i = 1; i < 8; i++)
-		{
-			if(__pcie_read(bus, device, i, alloc, 0, sizeof(uint16_t)) == 0xFFFF)
-				continue;
-			pcie_enumerate_device(bus, device, i, alloc);
-		}
+		if(__pcie_read(bus, device, i, alloc, 0, sizeof(uint16_t)) == 0xFFFF)
+			continue;
+		pcie_enumerate_device(bus, device, i, alloc);
 	}
 }
 void pcie_enumerate_devices_in_alloc(struct pcie_allocation *alloc)
@@ -236,11 +331,19 @@ int pcie_init(void)
 		struct pcie_allocation *allocation = zalloc(sizeof(struct pcie_allocation));
 		/* Failing to allocate enough memory here is pretty much a system failure */
 		assert(allocation != NULL);
-		allocation->address = (volatile void*) alloc->Address + PHYS_BASE;
+
+		unsigned int nr_buses = alloc->EndBusNumber - alloc->StartBusNumber;
+		size_t size = nr_buses << 20;
+	
+		allocation->address = mmiomap((void *) alloc->Address, size,
+			VM_WRITE | VM_NOEXEC | VM_NOCACHE);
+		
+		assert(allocation->address != NULL);
+
 		allocation->segment = alloc->PciSegment;
 		allocation->start_bus = alloc->StartBusNumber;
 		allocation->end_bus = alloc->EndBusNumber;
-
+		
 		pcie_append_allocation(allocation);
 		++alloc;
 	}

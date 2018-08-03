@@ -1,6 +1,6 @@
 PROG:= wserver
-OBJS:= main.o display.o window.o server.o
-CFLAGS:=-O2 -g -std=c99 -static -march=sandybridge -fstack-protector-strong
+OBJS:= main.o display.o buffer.o server.o window.o
+CFLAGS:=-O2 -g -std=c++17 -march=sandybridge -fstack-protector-strong
 CPPFLAGS:=-Iinclude -D_POSIX_C_SOURCE
 
 clean:
@@ -15,5 +15,7 @@ install: $(PROG)
 	cp graphical.target $(DESTDIR)/etc/init.d/targets/
 %.o: %.c
 	$(CC) -c $< $(CFLAGS) $(CPPFLAGS) -o $@
+%.o: %.cpp
+	$(CXX) -c $< $(CFLAGS) $(CPPFLAGS) -o $@
 $(PROG): $(OBJS)
-	$(CC) $(OBJS) $(CFLAGS) -o $@ -ldrm
+	$(CXX) $(OBJS) $(CFLAGS) -o $@ -ldrm

@@ -544,9 +544,16 @@ int ahci_initialize(void)
 	return 0;
 }
 
+struct pci_id pci_ahci_devids[] = 
+{
+	{ PCI_ID_CLASS(CLASS_MASS_STORAGE_CONTROLLER, 6, PCI_ANY_ID) },
+	{ 0 }
+};
+
 struct driver ahci_driver =
 {
-
+	.name = "ahci",
+	.devids = &pci_ahci_devids
 };
 
 int module_init()

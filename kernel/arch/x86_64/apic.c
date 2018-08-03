@@ -59,7 +59,8 @@ void lapic_init(void)
 	uint64_t addr = low | ((uint64_t)high << 32);
 	addr &= 0xFFFFF000;
 	/* Map the BSP's LAPIC */
-	bsp_lapic = dma_map_range((void*) addr, PAGE_SIZE, VM_WRITE | VM_GLOBAL | VM_NOEXEC);
+	bsp_lapic = mmiomap((void*) addr, PAGE_SIZE, VM_WRITE | VM_NOEXEC
+		| VM_NOCACHE);
 	
 	assert(bsp_lapic != NULL);
 
@@ -168,7 +169,7 @@ void set_pin_handlers(void)
 	x86_reserve_vector(irqs + 22, irq22);
 	x86_reserve_vector(irqs + 23, irq23);
 	// The MADT's signature is "APIC"
-	ACPI_STATUS st = AcpiGetTable((ACPI_STRING)"APIC", 0, (ACPI_TABLE_HEADER**)&madt);
+	ACPI_STATUS st = AcpiGetTable((ACPI_STRING) "APIC", 0, (ACPI_TABLE_HEADER**) &madt);
 	if(ACPI_FAILURE(st))
 		panic("Failed to get the MADT");
 
@@ -185,8 +186,8 @@ void set_pin_handlers(void)
 			* - Fixed delivery mode
 			* They might be overwriten by the ISO descriptors in the MADT
 			*/
-			uint64_t entry = read_redirection_entry(i);
-			entry |= irqs + i;
+			uint64_t entry;
+			entry = IOAPIC_PIN_MASKED | (irqs + i);
 			write_redirection_entry(i, entry);
 		}
 
@@ -204,10 +205,21 @@ void set_pin_handlers(void)
 									      mio->GlobalIrq);
 			uint64_t red = read_redirection_entry(mio->GlobalIrq);
 			red |= 32 + mio->GlobalIrq;
-			if(mio->IntiFlags & 0x3)
+			if((mio->IntiFlags & ACPI_MADT_POLARITY_MASK)
+				== ACPI_MADT_POLARITY_ACTIVE_LOW)
 				red |= (1 << 13);
-			if(mio->IntiFlags & 0b1100)
+			else
+				red &= ~(1 << 13);
+		
+			if((mio->IntiFlags & ACPI_MADT_TRIGGER_LEVEL)
+				== ACPI_MADT_TRIGGER_LEVEL)
 				red |= (1 << 15);
+			else
+				red &= ~(1 << 15);
+
+			printf("GSI %d %s:%s\n", mio->GlobalIrq, 
+				red & (1 << 13) ? "low" : "high",
+				red & (1 << 15) ? "level" : "edge");
 			write_redirection_entry(mio->GlobalIrq, red);
 		}
 	}
@@ -217,8 +229,8 @@ void set_pin_handlers(void)
 void ioapic_early_init(void)
 {
 	/* Map the I/O APIC base */
-	ioapic_base = dma_map_range((void*) IOAPIC_BASE_PHYS, PAGE_SIZE,
-		VM_WRITE | VM_NOEXEC | VM_GLOBAL);
+	ioapic_base = mmiomap((void*) IOAPIC_BASE_PHYS, PAGE_SIZE,
+		VM_WRITE | VM_NOEXEC | VM_NOCACHE);
 	assert(ioapic_base != NULL);
 }
 
@@ -312,6 +324,7 @@ void apic_timer_init()
 
 	uint64_t t = pit_get_tick_count();
 
+	printf("apic: calculating APIC timer frequency\n");
 	__asm__ __volatile__("sti");
 	
 	/* Make sure we're measuring ~1s, so let 1 tick pass */
@@ -338,6 +351,7 @@ void apic_timer_init()
 
 	apic_rate = ticks_in_10ms / 10;
 
+	printf("apic: apic timer rate: %lx\n", apic_rate);
 	us_apic_rate = apic_rate / 1000;
 
 	DISABLE_INTERRUPTS();
@@ -399,7 +413,7 @@ void apic_wake_up_processor(uint8_t lapicid)
 	
 	/* Allocate a stack for the core */
 	core_stack = (volatile uint64_t) get_pages(VM_KERNEL, VM_TYPE_STACK, 2,
-		VM_WRITE | VM_NOEXEC | VM_GLOBAL, 0) + 0x2000;
+		VM_WRITE | VM_NOEXEC , 0) + 0x2000;
 	assert(core_stack != 0x2000);
 
 	send_ipi(lapicid, 6, 0);
