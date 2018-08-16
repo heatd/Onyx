@@ -13,7 +13,7 @@
 
 static inline void xsetbv(unsigned long r, unsigned long xcr0)
 {
-	__asm__ __volatile__("xsetbv"::"c"(r), "A"(xcr0));
+	__asm__ __volatile__("xsetbv"::"c"(r), "a"(xcr0 & 0xffffffff), "d"(xcr0 >> 32));
 }
 
 static inline unsigned long xgetbv(unsigned long r)
@@ -29,7 +29,7 @@ void avx_init(void)
 	{
 		avx_supported = true;
 		/* If it's supported, set the proper xcr0 bits */
-		int64_t xcr0 = xgetbv(0);
+		int64_t xcr0 = 0;
 
 		xcr0 |= AVX_XCR0_AVX | AVX_XCR0_FPU | AVX_XCR0_SSE;
 
