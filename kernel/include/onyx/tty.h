@@ -55,6 +55,42 @@ void tty_create_dev();
 }
 #endif
 
+#define ANSI_ESCAPE_CODE   		'\x1b'
+#define ANSI_CSI	   		'['
+#define ANSI_CURSOR_UP	   		'A'
+#define ANSI_CURSOR_DOWN		'B'
+#define ANSI_CURSOR_FORWARD		'C'
+#define ANSI_CURSOR_BACK		'D'
+#define ANSI_CURSOR_NEXT_LINE		'E'
+#define ANSI_CURSOR_PREVIOUS		'F'
+#define ANSI_CURSOR_HORIZONTAL_ABS 	'G'
+#define ANSI_CURSOR_POS			'H'
+#define ANSI_ERASE_IN_DISPLAY		'J'
+#define ANSI_ERASE_IN_LINE		'K'
+#define ANSI_SCROLL_UP			'S'
+#define ANSI_SCROLL_DOWN		'T'
+#define ANSI_HVP			'f'
+#define ANSI_SGR			'm'
+#define ANSI_SAVE_CURSOR		's'
+#define ANSI_RESTORE_CURSOR		'u'
+
+
+#define ANSI_SGR_RESET		0
+#define ANSI_SGR_BOLD		1
+#define ANSI_SGR_FAINT		2
+#define ANSI_SGR_ITALIC		3
+#define ANSI_SGR_UNDERLINE	4
+#define ANSI_SGR_SLOWBLINK	5
+#define ANSI_SGR_RAPIDBLINK	6
+#define ANSI_SGR_REVERSE	7
+#define ANSI_SGR_BLINKOFF	25
+#define ANSI_SGR_SETFGMIN	30
+#define ANSI_SGR_SETFGMAX	37
+#define ANSI_SGR_DEFAULTFG	39
+#define ANSI_SGR_SETBGMIN	40
+#define ANSI_SGR_SETBGMAX	47
+#define ANSI_SGR_DEFAULTBG	49
+
 #define ANSI_COLOR_RED     "\x1b[31m"
 #define ANSI_COLOR_GREEN   "\x1b[32m"
 #define ANSI_COLOR_YELLOW  "\x1b[33m"

@@ -92,7 +92,7 @@ void tty_write(const char *data, size_t size, struct tty *tty)
 
 void tty_recieved_character(struct tty *tty, char c)
 {
-	
+
 	if(!(tty->term_io.c_lflag & ICANON))
 	{
 		tty->line_ready = true;
@@ -111,7 +111,9 @@ void tty_recieved_character(struct tty *tty, char c)
 			tty->keyboard_pos = 0;
 			return;
 		}
-		TTY_PRINT_IF_ECHO(&c, 1, tty);
+
+		TTY_PRINT_IF_ECHO("\b \b", 3, tty);
+
 		tty->keyboard_buffer[tty->keyboard_pos] = 0;
 		tty->keyboard_pos--;
 		return;

@@ -18,9 +18,9 @@ const unsigned char __cursor__bitmap[] = {
 	XXXXXXXX,
 	XXXXXXXX,
 	XXXXXXXX,
-	_______X,
-	_______X,
-	_______X,
+	XXXXXXXX,
+	________,
+	________,
 };
 
 static const unsigned char __font_bitmap__[] = {

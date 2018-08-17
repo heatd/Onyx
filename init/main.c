@@ -189,8 +189,8 @@ int main(int argc, char **argv, char **envp)
 		else
 			printf("mount errors: proceeding carefully.\n");
 	}
-	/* chdir to /, since the kernel doesn't setup the current directory so we need to set it up 
-	 * ourselves
+	/* chdir to /, since the kernel doesn't setup the current directory
+	 * so we need to set it up ourselves.
 	*/
 
 	/* Setup the hostname */
@@ -203,6 +203,7 @@ int main(int argc, char **argv, char **envp)
 	sigset_t set;
 	sigfillset(&set);
 	sigprocmask(SIG_SETMASK, &set, NULL);
+
 	while(1)
 	{
 		waitpid(-1, NULL, WEXITED);

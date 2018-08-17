@@ -9,11 +9,14 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <errno.h>
+#include <ctype.h>
 
 #include <onyx/tty.h>
 #include <onyx/framebuffer.h>
 #include <onyx/font.h>
 #include <onyx/vm.h>
+#include <onyx/scheduler.h>
+#include <onyx/thread.h>
 
 #include <sys/ioctl.h>
 
@@ -38,6 +41,18 @@ const struct color vterm_default_cyan = {.b = 0xff, .g = 0xff};
 static struct color default_fg = {.r = 0xaa, .g = 0xaa, .b = 0xaa};
 static struct color default_bg = {0};
 
+const struct color color_table[] = 
+{
+	{.r = 0, .g = 0, .b = 0}, 		/* Black */
+	{.r = 0xff},				/* Red */
+	{.g = 0xff},				/* Green */
+	{.r = 0xff, .g = 0xff},			/* Yellow */
+	{.b = 0xff},				/* Blue */
+	{.r = 0xff, .b = 0xff},			/* Magenta */
+	{.g = 0xff, .b = 0xff},			/* Cyan */
+	{.r = 0xaa, .g = 0xaa, .b = 0xaa}	/* White */
+};
+
 struct console_cell
 {
 	uint32_t codepoint;
@@ -48,6 +63,7 @@ struct console_cell
 
 struct vterm
 {
+	struct mutex vt_lock;
 	unsigned int columns;
 	unsigned int rows;
 	unsigned int cursor_x, cursor_y;
@@ -57,6 +73,9 @@ struct vterm
 	struct color bg;
 	char keyboard_buffer[2048];
 	unsigned int keyboard_pos;
+	struct thread *blink_thread;
+	bool blink_status;	/* true = visible, false = not */
+	unsigned int saved_x, saved_y;	/* Used by ANSI_SAVE/RESTORE_CURSOR */
 	struct tty *tty;
 };
 
@@ -136,13 +155,26 @@ void vterm_scroll(struct framebuffer *fb, struct vterm *vt)
 	{
 		struct console_cell *c = &vt->cells[(vt->rows-1) * vt->columns + i];
 		c->codepoint = ' ';
-		c->bg = default_bg;
-		c->fg = default_fg;
+		c->bg = vt->bg;
+		c->fg = vt->fg;
 	}
 
-	//vterm_flush_all(vt);
 }
 
+void vterm_scroll_down(struct framebuffer *fb, struct vterm *vt)
+{
+	memmove(vt->cells + vt->columns, vt->cells, sizeof(struct console_cell)
+		* (vt->rows-1) * vt->columns);
+
+	for(unsigned int i = 0; i < vt->columns; i++)
+	{
+		struct console_cell *c = &vt->cells[i];
+		c->codepoint = ' ';
+		c->bg = vt->bg;
+		c->fg = vt->fg;
+	}
+
+}
 void vterm_set_char(char c, unsigned int x, unsigned int y, struct color fg,
 	struct color bg, struct vterm *vterm)
 {
@@ -150,6 +182,13 @@ void vterm_set_char(char c, unsigned int x, unsigned int y, struct color fg,
 	cell->codepoint = c;
 	cell->fg = fg;
 	cell->bg = bg;
+	cell->dirty = 1;
+}
+
+void vterm_dirty_cell(unsigned int x, unsigned int y, struct vterm *vt)
+{
+	struct console_cell *cell = &vt->cells[y *
+			vt->columns + x];
 	cell->dirty = 1;
 }
 
@@ -171,7 +210,7 @@ bool vterm_putc(char c, struct vterm *vt)
 
 	if(c == '\n')
 	{
-		vterm_set_char(' ', vt->cursor_x, vt->cursor_y, vt->fg, vt->bg, vt);
+		vterm_dirty_cell(vt->cursor_x, vt->cursor_y, vt);
 		vt->cursor_x = 0;
 		vt->cursor_y++;
 	}
@@ -179,10 +218,9 @@ bool vterm_putc(char c, struct vterm *vt)
 	{
 		if(vt->cursor_x == 0)
 			return false;
-		
-		vterm_set_char(' ', vt->cursor_x, vt->cursor_y, vt->fg, vt->bg, vt);
+
+		vterm_dirty_cell(vt->cursor_x, vt->cursor_y, vt);
 		vt->cursor_x--;
-		vterm_set_char(' ', vt->cursor_x, vt->cursor_y, vt->fg, vt->bg, vt);
 	}
 	else
 	{
@@ -208,7 +246,7 @@ bool vterm_putc(char c, struct vterm *vt)
 	return false;
 }
 
-void draw_cursor(int x, int y, struct framebuffer *fb)
+void draw_cursor(int x, int y, struct framebuffer *fb, struct color fg)
 {
 	struct font *font = get_font_data();
 	volatile char *buffer = (volatile char *) fb->framebuffer;
@@ -223,9 +261,9 @@ void draw_cursor(int x, int y, struct framebuffer *fb)
 			unsigned char f = font->cursor_bitmap[i];
 
 			if(f & font->mask[j])
-				color = default_bg;
+				continue;
 			else
-				color = default_fg;
+				color = fg;
 			
 			uint32_t c = unpack_rgba(color, fb);
 			volatile uint32_t *b = (volatile uint32_t *) ((uint32_t *) buffer + j);
@@ -255,7 +293,7 @@ void update_cursor(struct vterm *vt)
 	struct framebuffer *fb = vt->fb;
 	struct font *f = get_font_data();
 
-	draw_cursor(vt->cursor_x * f->width, vt->cursor_y * f->height, fb);
+	draw_cursor(vt->cursor_x * f->width, vt->cursor_y * f->height, fb, vt->fg);
 }
 
 void vterm_flush(struct vterm *vterm);
@@ -307,8 +345,6 @@ void vterm_fill_screen(struct vterm *vterm, uint32_t character,
 			cell->dirty = 1;
 		}
 	}
-
-	vterm_flush(vterm);
 }
 
 struct vterm primary_vterm = {0};
@@ -330,10 +366,457 @@ void vterm_set_fgcolor(struct color c, struct vterm *vt)
 	vt->fg = c;
 }
 
+char *get_decimal_num(char *buf, unsigned long *num, unsigned long len)
+{
+	unsigned long i = 0;
+
+	while(isdigit(*buf) && len)
+	{
+		len--;
+		i *= 10;
+		i += *buf - '0';
+		buf++;
+		len--;
+	}
+
+	*num = i;
+
+	return buf;
+}
+
+void vterm_ansi_adjust_cursor(char code, unsigned long relative, struct vterm *vt)
+{
+	vterm_dirty_cell(vt->cursor_x, vt->cursor_y, vt);
+	if(relative == 0)
+		relative = 1;
+
+	switch(code)
+	{
+		case ANSI_CURSOR_UP:
+		{
+			unsigned int cy = vt->cursor_y;
+			unsigned int result = cy - relative;
+
+			/* Clamp the result */
+			if(cy < result)
+			{
+				vt->cursor_y = 0;
+			}
+			else
+				vt->cursor_y = result;
+			break;
+		}
+		case ANSI_CURSOR_DOWN:
+		{
+			unsigned int cy = vt->cursor_y;
+			unsigned int result = cy + relative;
+
+			if(result > vt->rows - 1)
+				result = vt->rows - 1;
+			vt->cursor_y = result;
+			break;
+		}
+		case ANSI_CURSOR_FORWARD:
+		{
+			unsigned int cx = vt->cursor_x;
+			unsigned int result = cx + relative;
+
+			if(result > vt->columns - 1)
+				result = vt->columns - 1;
+			vt->cursor_x = result;
+			break;
+		}
+		case ANSI_CURSOR_BACK:
+		{
+			unsigned int cx = vt->cursor_x;
+			unsigned int result = cx - relative;
+
+			/* Clamp the result */
+			if(cx < result)
+			{
+				vt->cursor_x = 0;
+			}
+			else
+				vt->cursor_x = result;
+			break;
+		}
+	}
+}
+
+void vterm_ansi_do_cup(unsigned long x, unsigned long y, struct vterm *vt)
+{
+	vterm_dirty_cell(vt->cursor_x, vt->cursor_y, vt);
+	/* Transform x and y into 0-based values */
+
+	x--;
+	y--;
+
+	if(x > vt->columns - 1)
+		x = vt->columns - 1;
+	if(y > vt->rows - 1)
+		y = vt->rows - 1;
+
+	vt->cursor_x = x;
+	vt->cursor_y = y;
+}
+
+void vterm_blink_thread(void *ctx)
+{
+	struct vterm *vt = ctx;
+
+	while(true)
+	{
+		struct font *f = get_font_data();
+		mutex_lock(&vt->vt_lock);
+
+		struct color c = vt->fg;
+		if(vt->blink_status == true)
+		{
+			vt->blink_status = false;
+			c = vt->bg;
+		}
+		else
+			vt->blink_status = true;
+
+		draw_cursor(vt->cursor_x * f->width, vt->cursor_y * f->height,
+			    vt->fb, c);
+
+		mutex_unlock(&vt->vt_lock);
+		sched_sleep(500);
+	}
+}
+
+void vterm_ansi_do_sgr(unsigned long n, struct vterm *vt)
+{
+	switch(n)
+	{
+		case ANSI_SGR_RESET:
+		{
+			vt->bg = default_bg;
+			vt->fg = default_fg;
+			break;
+		}
+		
+		case ANSI_SGR_REVERSE:
+		{
+			struct color temp = vt->bg;
+			vt->bg = vt->fg;
+			vt->fg = temp;
+			break;
+		}
+
+		case ANSI_SGR_DEFAULTBG:
+		{
+			vt->bg = default_bg;
+			break;
+		}
+		
+		case ANSI_SGR_DEFAULTFG:
+		{
+			vt->fg = default_fg;
+			break;
+		}
+
+		case ANSI_SGR_SLOWBLINK:
+		case ANSI_SGR_RAPIDBLINK:
+		{
+			/* NOTE: We only support one blink speed, which is
+			 * 2 times/s, 120 times per minute
+			*/
+			/*if(!vt->blink_thread)
+			{
+				vt->blink_status = false;
+				vt->blink_thread =
+					sched_create_thread(vterm_blink_thread,
+							    THREAD_KERNEL, vt);
+				if(vt->blink_thread) sched_start_thread(vt->blink_thread);
+			}*/
+	
+			/* TODO: We need a blink for text, fix */
+			break;
+		}
+
+		case ANSI_SGR_BLINKOFF:
+		{
+			if(vt->blink_thread)
+				thread_destroy(vt->blink_thread);
+			break;
+		}
+
+		default:
+		{
+			if(n >= ANSI_SGR_SETBGMIN && n <= ANSI_SGR_SETBGMAX)
+			{
+				int index = n - ANSI_SGR_SETBGMIN;
+				vt->bg = color_table[index];
+			}
+			else if(n >= ANSI_SGR_SETFGMIN && n <= ANSI_SGR_SETFGMAX)
+			{
+				int index = n - ANSI_SGR_SETFGMIN;
+				vt->fg = color_table[index];
+			}
+		}
+	}
+}
+
+void vterm_ansi_erase_in_line(unsigned long n, struct vterm *vt)
+{
+	switch(n)
+	{
+		/* Clear from cursor to end */
+		case 0:
+		{
+			for(unsigned int i = vt->cursor_x; i < vt->columns; i++)
+			{
+				struct console_cell *c = &vt->cells[vt->cursor_y * vt->columns + i];
+				c->codepoint = ' ';
+				c->dirty = 1;
+			}
+			break;
+		}
+
+		/* Clear from cursor to beginning */
+		case 1:
+		{
+			unsigned int x = vt->cursor_x;
+
+			for(unsigned int i = 0; i <= x; i++)
+			{
+				struct console_cell *c = &vt->cells[vt->cursor_y * vt->columns + i];
+				c->codepoint = ' ';
+				c->dirty = 1;
+			}
+			break;
+		}
+
+		/* Clear entire line */
+		case 2:
+		{
+			for(unsigned int i = 0; i < vt->columns; i++)
+			{
+				struct console_cell *c = &vt->cells[vt->cursor_y * vt->columns + i];
+				c->codepoint = ' ';
+				c->dirty = 1;
+			}
+			break;
+		}
+	}
+}
+
+void vterm_ansi_erase_in_display(unsigned long n, struct vterm *vt)
+{
+	switch(n)
+	{
+		/* Cursor to end of display */
+		case 0:
+		{
+			/* Calculate the cidx, then loop through until the end of the array */
+			unsigned int cidx = vt->cursor_y * vt->columns + vt->cursor_x;
+			unsigned int max = vt->rows * vt->columns;
+			if(cidx + 1 < cidx)
+				break;
+
+			unsigned int iters = max - cidx;
+
+			for(unsigned int i = 0; i < iters; i++)
+			{
+				struct console_cell *c = &vt->cells[cidx + i];
+				c->codepoint = ' ';
+				c->dirty = 1;
+			}
+
+			break;
+		}
+
+		/* Cursor to start of display */
+		case 1:
+		{
+			unsigned int cidx = vt->cursor_y * vt->columns + vt->cursor_x;
+
+			for(unsigned int i = 0; i <= cidx; i++)
+			{
+				struct console_cell *c = &vt->cells[i];
+				c->codepoint = ' ';
+				c->dirty = 1;
+			}
+
+			break;
+		}
+
+		/* Whole screen */
+		case 2:
+		{
+			vterm_fill_screen(vt, ' ', vt->fg, vt->bg);
+			break;
+		}
+	}
+}
+
+#define ARGS_NR_ELEMS		2
+
+size_t vterm_parse_ansi(char *buffer, size_t len, struct vterm *vt)
+{
+	/* len is the distance from the pointer to the end of the buffer
+	 * (so we don't read past it).
+	*/
+	buffer++;
+	size_t args_nr = 0;
+	size_t args_buf_nr = ARGS_NR_ELEMS;
+	char *orig = buffer;
+	/* Go to the start of the escape code, while ignoring the ESC (0x1b) */
+
+	if(buffer[0] == ANSI_CSI)
+	{
+		buffer++;
+		unsigned long *args = zalloc(sizeof(unsigned long) * args_buf_nr);
+
+		buffer = get_decimal_num(buffer, &args[0], len - (buffer - orig));
+
+		args_nr++;
+	
+		while(*buffer == ';' && (unsigned long) (buffer - orig) < len)
+		{
+			/* We have an argument */
+			buffer++;
+
+			if(args_nr == args_buf_nr)
+			{
+				args_buf_nr += ARGS_NR_ELEMS;
+				unsigned long *old = args;
+				args = realloc(args, sizeof(unsigned long) * args_buf_nr);
+
+				if(!args)
+				{
+					free(old);
+					/* uh oh, no memory, return 1 so we
+					 * don't fall into the escape code again.
+					 * It'll just print garbage the next
+					 * time the loop runs
+					*/
+					return 1;
+				}
+			}
+
+			buffer = get_decimal_num(buffer, &args[args_nr], len - (buffer - orig));
+			args_nr++;
+
+		}
+
+		if((unsigned long) (buffer - orig) == len)
+		{
+			free(args);
+			return len;
+		}
+	
+		switch(*buffer)
+		{
+			case ANSI_CURSOR_UP:
+			case ANSI_CURSOR_DOWN:
+			case ANSI_CURSOR_FORWARD:
+			case ANSI_CURSOR_BACK:
+			{
+				vterm_ansi_adjust_cursor(*buffer, args[0], vt);
+				break;
+			}
+
+			case ANSI_CURSOR_PREVIOUS:
+			{
+				/* Do a ANSI_CURSOR_UP and set x to 0 (beginning of line) */
+				vterm_ansi_adjust_cursor(ANSI_CURSOR_UP, args[0], vt);
+				vt->cursor_x = 0;
+				break;
+			}
+
+			case ANSI_CURSOR_NEXT_LINE:
+			{
+				/* Do a ANSI_CURSOR_DOWN and set x to 0 (beginning of line) */
+				vterm_ansi_adjust_cursor(ANSI_CURSOR_DOWN, args[0], vt);
+				vt->cursor_x = 0;
+				break;
+			}
+
+			case ANSI_CURSOR_HORIZONTAL_ABS:
+			{
+				if(args[0] > vt->columns - 1)
+					args[0] = vt->columns - 1;
+				vt->cursor_x = args[0];
+				break;
+			}
+
+			case ANSI_CURSOR_POS:
+			case ANSI_HVP:
+			{
+				if(args[0] == 0)
+					args[0] = 1;
+				if(args[1] == 1)
+					args[1] = 1;
+
+				vterm_ansi_do_cup(args[1], args[0], vt);
+				break;
+			}
+
+			case ANSI_SCROLL_UP:
+			{
+				for(unsigned long i = 0; i < args[0]; i++)
+					vterm_scroll(vt->fb, vt);
+				vterm_flush_all(vt);
+				break;
+			}
+
+			case ANSI_SCROLL_DOWN:
+			{
+				for(unsigned long i = 0; i < args[0]; i++)
+					vterm_scroll_down(vt->fb, vt);
+				vterm_flush_all(vt);
+				break;
+			}
+
+			case ANSI_SGR:
+			{
+				for(size_t i = 0; i < args_nr; i++)
+					vterm_ansi_do_sgr(args[i], vt);
+				break;
+			}
+			
+			case ANSI_ERASE_IN_LINE:
+			{
+				vterm_ansi_erase_in_line(args[0], vt);
+				break;
+			}
+
+			case ANSI_ERASE_IN_DISPLAY:
+			{
+				vterm_ansi_erase_in_display(args[0], vt);
+				break;
+			}
+
+			case ANSI_SAVE_CURSOR:
+			{
+				vt->saved_x = vt->cursor_x;
+				vt->saved_y = vt->cursor_y;
+				break;
+			}
+
+			case ANSI_RESTORE_CURSOR:
+			{
+				vt->cursor_x = vt->saved_x;
+				vt->cursor_y = vt->saved_y;
+				break;
+			}
+		}
+		buffer++;
+
+		free(args);
+	}
+
+	return (buffer - orig) + 1;
+}
+
 ssize_t vterm_write_tty(void *buffer, size_t size, struct tty *tty)
 {
 	struct vterm *vt = tty->priv;
 
+	mutex_lock(&vt->vt_lock);
 	size_t i = 0;
 	char *data = buffer;
 	bool did_scroll = false;
@@ -341,57 +824,12 @@ ssize_t vterm_write_tty(void *buffer, size_t size, struct tty *tty)
 	for (; i < size; i++)
 	{
 		/* Parse ANSI terminal escape codes */
-		if(!memcmp(&data[i], ANSI_COLOR_RED, strlen(ANSI_COLOR_RED)))
-		{
-			vterm_set_fgcolor(vterm_default_red, vt);
-			i += strlen(ANSI_COLOR_RED);
-			if(i >= size) break;
-		}
-		
-		if(!memcmp(&data[i], ANSI_COLOR_GREEN, strlen(ANSI_COLOR_GREEN)))
-		{
-			vterm_set_fgcolor(vterm_default_green, vt);
-			i += strlen(ANSI_COLOR_GREEN);
-			if(i >= size) break;			
-		}
-		
-		if(!memcmp(&data[i], ANSI_COLOR_YELLOW, strlen(ANSI_COLOR_YELLOW)))
-		{
-			vterm_set_fgcolor(vterm_default_yellow, vt);
-			i += strlen(ANSI_COLOR_YELLOW);
-			if(i >= size) break;
-		
-		}
-		if(!memcmp(&data[i], ANSI_COLOR_BLUE, strlen(ANSI_COLOR_BLUE)))
-		{
-			vterm_set_fgcolor(vterm_default_blue, vt);
-			i += strlen(ANSI_COLOR_BLUE);
-			if(i >= size) break;
-		}
-		
-		if(!memcmp(&data[i], ANSI_COLOR_MAGENTA, strlen(ANSI_COLOR_MAGENTA)))
-		{
-			vterm_set_fgcolor(vterm_default_magenta, vt);
-			i += strlen(ANSI_COLOR_MAGENTA);
-			if(i >= size) break;
-		}
-		
-		if(!memcmp(&data[i], ANSI_COLOR_CYAN, strlen(ANSI_COLOR_CYAN)))
-		{
-			vterm_set_fgcolor(vterm_default_cyan, vt);
-			i += strlen(ANSI_COLOR_CYAN);
-			if(i >= size) break;
-		}
-		
-		if(!memcmp(&data[i], ANSI_COLOR_RESET, strlen(ANSI_COLOR_RESET)))
-		{
-			vterm_set_fgcolor(default_fg, vt);
-			i += strlen(ANSI_COLOR_RESET);
-			if(i >= size) break;
-		}
-
-		if(vterm_putc(data[i], vt))
-			did_scroll = true;
+		if(data[i] == ANSI_ESCAPE_CODE)
+			/* Note the -1 because of the i++ in the for loop */
+			i += vterm_parse_ansi(&data[i], size - i, vt) - 1;
+		else
+			if(vterm_putc(data[i], vt))
+				did_scroll = true;
 	
 	}
 	
@@ -401,6 +839,7 @@ ssize_t vterm_write_tty(void *buffer, size_t size, struct tty *tty)
 		vterm_flush_all(vt);
 	update_cursor(vt);
 
+	mutex_unlock(&vt->vt_lock);
 	return i;
 }
 
@@ -445,6 +884,8 @@ void vterm_init(struct tty *tty)
 
 	vterm_fill_screen(vt, ' ', vt->fg, vt->bg);
 
+	vterm_flush(vt);
+
 	update_cursor(vt);
 
 	tty->read = NULL;
@@ -473,4 +914,17 @@ int vterm_recieve_input(char c)
 	tty_recieved_character(vt->tty, c);
 
 	return 0;
+}
+
+void vt_init_blink(void)
+{
+	struct vterm *vt = &primary_vterm;
+	if(!vt->blink_thread)
+	{
+		vt->blink_status = false;
+		vt->blink_thread =
+			sched_create_thread(vterm_blink_thread,
+					    THREAD_KERNEL, vt);
+		if(vt->blink_thread) sched_start_thread(vt->blink_thread);
+	}
 }

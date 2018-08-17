@@ -90,6 +90,7 @@ extern uint64_t kernel_end;
 extern uintptr_t _start_smp;
 extern uintptr_t _end_smp;
 
+void vt_init_blink(void);
 void *initrd_addr = NULL;
 void *tramp = NULL;
 void *phys_fb = NULL;
@@ -309,6 +310,9 @@ void kernel_main()
 	thread_t *new_thread = sched_create_thread(kernel_multitasking, 1, NULL);
 
 	assert(new_thread);
+
+	vt_init_blink();
+
 	/* Initialize late libc */
 	libc_late_init();
 
