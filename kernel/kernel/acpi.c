@@ -74,6 +74,7 @@ uint32_t acpi_shutdown(void *context)
 }
 
 extern int __enter_sleep_state(uint8_t sleep_state);
+
 unsigned int acpi_suspend(void *context)
 {
 	UNUSED_PARAMETER(context);
@@ -87,6 +88,7 @@ unsigned int acpi_suspend(void *context)
 		return -1;
 	return 0;
 }
+
 static ACPI_HANDLE root_bridge;
 static ACPI_DEVICE_INFO *root_bridge_info;
 int acpi_shutdown_device(struct device *dev);
@@ -95,6 +97,7 @@ static struct bus acpi_bus =
 	.name = "acpi",
 	.shutdown = acpi_shutdown_device
 };
+
 ACPI_STATUS acpi_walk_irq(ACPI_HANDLE object, UINT32 nestingLevel, void *context, void **returnvalue)
 {
 	ACPI_DEVICE_INFO *devinfo;
@@ -115,6 +118,7 @@ ACPI_STATUS acpi_walk_irq(ACPI_HANDLE object, UINT32 nestingLevel, void *context
 		free(devinfo);
 	return AE_OK;
 }
+
 uint32_t acpi_execute_pic(int value)
 {
 	ACPI_OBJECT arg;
@@ -413,12 +417,14 @@ struct acpi_processor *acpi_enumerate_cpus(void)
 	memset(processors, 0, sizeof(struct acpi_processor) * get_nr_cpus());
 
 	mutex_lock(&cpu_enum_lock);
+
 	__ndx = 0;
 	/* Walk the namespace, looking for ACPI PROCESSOR objects */
 	AcpiWalkNamespace(ACPI_TYPE_PROCESSOR, ACPI_ROOT_OBJECT,
 				    ACPI_UINT32_MAX,
 				    acpi_enumerate_per_cpu,
 				    NULL, processors, NULL);
+
 	mutex_unlock(&cpu_enum_lock);
 	return processors;
 }
