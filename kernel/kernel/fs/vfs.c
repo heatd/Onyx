@@ -381,6 +381,9 @@ int getdents_vfs(unsigned int count, putdir_t putdir,
 {
 	if(!(this->i_type & VFS_TYPE_DIR))
 		return errno = ENOTDIR, -1;
+	
+	/*printk("Seek: %lu\n", off);
+	printk("Count: %u\n", count);*/
 	struct dirent buf;
 	unsigned int pos = 0;
 	
@@ -388,6 +391,7 @@ int getdents_vfs(unsigned int count, putdir_t putdir,
 	{
 		off_t of = do_getdirent(&buf, off, this);
 		
+		//printk("Dirent: %s\n", buf.d_name);
 		if(of == 0)
 		{
 			if(pos)
@@ -411,7 +415,7 @@ int getdents_vfs(unsigned int count, putdir_t putdir,
 
 		pos += written;
 		dirp = (void*) (char *) dirp + written;
-		off++;
+		off = of;
 		ret->read = pos;
 		ret->new_off = off;
 	}

@@ -95,6 +95,8 @@ int mount_filesystems(void)
 
 	memset(read_buffer, 0, 1024);
 	int fd = open("/dev", O_RDONLY);
+	int sysfs_fd = open("/sys", O_RDONLY);
+
 	while(fgets(read_buffer, 1024, fp) != NULL)
 	{
 		int arg_num = 0;
@@ -146,12 +148,15 @@ int mount_filesystems(void)
 	}
 	/* Now, mount /dev on root again */
 	fmount(fd, "/dev");
+	/* Remount /sys too */
+	fmount(sysfs_fd, "/sys");
 
 	/* Create /dev/shm */
 	mkdir("/dev/shm", 0666);
 func_exit:
 	free(read_buffer);
 	close(fd);
+	close(sysfs_fd);
 	fclose(fp);
 	return 0;
 }

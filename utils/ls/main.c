@@ -37,11 +37,16 @@ void parse_args(int argc, char * const *argv)
 		}
 	}
 }
+
 int do_ls(char *filename)
 {
 	DIR *dirct = opendir(filename);
 	if(!dirct)
+	{
+		printf("ls: cannot open %s: %s\n", filename, strerror(errno));
 		return 1;
+	}
+
 	struct dirent *dir = NULL;
 	while((dir = readdir(dirct)))
 	{
@@ -57,7 +62,8 @@ int do_ls(char *filename)
 					continue;
 			}
 		}
-		printf("%s ", dir->d_name);
+
+		printf("%s \n", dir->d_name);
 		switch(dir->d_type)
 		{
 			case DT_UNKNOWN:
@@ -125,6 +131,7 @@ int do_ls(char *filename)
 	closedir(dirct);
 	return 0;
 }
+
 int main(int argc, char **argv)
 {
 	parse_args(argc, argv);

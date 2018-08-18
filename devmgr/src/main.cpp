@@ -67,7 +67,7 @@ int main(int argc, char **argv, char **envp)
 	int fd = open("/sys", O_RDONLY | O_DIRECTORY);
 	if(fd < 0)
 	{
-		perror("Could not mount /sys");
+		perror("Could not open /sys");
 		return 1;
 	}
 

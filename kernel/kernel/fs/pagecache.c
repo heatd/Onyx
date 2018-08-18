@@ -65,12 +65,14 @@ static void remove_from_list(struct page_cache_block *b)
 	if(b->prev)
 	{
 		b->prev->next = b->next;
-		b->next->prev = b->prev;
+		if(b->next)
+			b->next->prev = b->prev;
 	}
 	else
 	{
 		block_list = b->next;
-		b->next->prev = NULL;
+		if(b->next)
+			b->next->prev = NULL;
 	}
 
 	spin_unlock(&block_list_lock);

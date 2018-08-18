@@ -87,16 +87,24 @@ size_t ext2_write(size_t offset, size_t sizeofwrite, void *buffer, struct inode 
 
 size_t ext2_read(int flags, size_t offset, size_t sizeofreading, void *buffer, struct inode *node)
 {
-	/* We don't use the flags for now, only for things that might block */
-	(void) flags;
-	if(offset > node->i_size)
-		return errno = EINVAL, -1;
 	ext2_fs_t *fs = node->i_sb->s_helper;
+
 	inode_t *ino = ext2_get_inode_from_number(fs, node->i_inode);
 	if(!ino)
 		return errno = EINVAL, -1;
-	size_t to_be_read = offset + sizeofreading > node->i_size ? sizeofreading
-		- offset - sizeofreading + node->i_size : sizeofreading;
+
+	/* We don't use the flags for now, only for things that might block */
+	(void) flags;
+	if(node->i_type == VFS_TYPE_DIR)
+	{
+		node->i_size = EXT2_CALCULATE_SIZE64(ino);
+	}
+
+	if(offset > node->i_size)
+		return errno = EINVAL, -1;
+
+	size_t to_be_read = offset + sizeofreading > node->i_size ?
+		(offset + sizeofreading) - node->i_size  : sizeofreading;
 
 	size_t size = ext2_read_inode(ino, fs, to_be_read, offset, buffer);
 
