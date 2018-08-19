@@ -118,7 +118,7 @@ void AcpiOsStall(UINT32 Microseconds)
 	uint64_t orig_us = get_microseconds();
 
 	while(get_microseconds() != orig_us + Microseconds)
-		cpu_pause();
+		cpu_relax();
 }
 ACPI_STATUS AcpiOsCreateMutex(ACPI_MUTEX *OutHandle)
 {

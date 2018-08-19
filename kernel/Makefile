@@ -43,6 +43,7 @@ $(patsubst %.cpp,%.o,$(wildcard kernel/*.cpp)) \
 $(patsubst %.c,%.o,$(wildcard kernel/*/*.c)) \
 $(patsubst %.cpp,%.o,$(wildcard kernel/*/*.cpp)) \
 $(filter-out $(ARCHDIR)/__vdso.o, $(patsubst %.c,%.o,$(wildcard $(ARCHDIR)/*.c))) \
+$(patsubst %.c,%.o,$(wildcard $(ARCHDIR)/*/*.c)) \
 $(filter-out acpica/components/disassembler/%, $(patsubst %.c,%.o,$(wildcard acpica/components/*/*.c))) \
 $(filter-out $(ARCHDIR)/crti.o $(ARCHDIR)/__vdso_asm.S, $(patsubst %.S,%.o,$(wildcard $(ARCHDIR)/*.S)))
 

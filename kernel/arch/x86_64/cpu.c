@@ -40,6 +40,7 @@ USES_FANCY_END
 #include <onyx/registers.h>
 #include <onyx/avx.h>
 
+#include <onyx/x86/platform_info.h>
 #include <onyx/x86/tsc.h>
 
 static cpu_t cpu;
@@ -55,6 +56,8 @@ extern volatile uint64_t boot_ticks;
 static bool percpu_initialized = false;
 extern tss_entry_t tss;
 const int bits_per_long = sizeof(unsigned long) * 8;
+
+struct x86_platform_info x86_platform = {0};
 
 __attribute__((hot))
 bool x86_has_cap(int cap)
@@ -117,7 +120,7 @@ void __cpu_identify(void)
 
 }
 
-char *cpu_get_name()
+char *cpu_get_name(void)
 {
 	uint32_t eax,ebx,edx,ecx = 0;
 	__get_cpuid(0,&eax,&ebx,&ecx,&edx);
@@ -160,7 +163,7 @@ char *cpu_get_name()
 	return &cpu.manuid[0];
 }
 
-void cpu_get_sign()
+void cpu_get_sign(void)
 {
 	uint32_t eax = 0,ebx,edx,ecx = 0;
 	__get_cpuid(CPUID_SIGN,&eax,&ebx,&ecx,&edx);
@@ -169,7 +172,7 @@ void cpu_get_sign()
 	cpu.family = (eax >> 8) & 0xF;
 }
 
-void cpu_identify()
+void cpu_identify(void)
 {
 	INFO("cpu", "Detected x86_64 CPU\n");
 	INFO("cpu", "Manufacturer ID: %s\n", cpu_get_name());
@@ -180,9 +183,9 @@ void cpu_identify()
 	__cpu_identify();
 }
 
-extern void syscall_ENTRY64();
+extern void syscall_ENTRY64(void);
 
-void cpu_init_interrupts()
+void cpu_init_interrupts(void)
 {
 	avx_init();
 	pic_remap();
@@ -197,6 +200,14 @@ void cpu_init_interrupts()
 	wrmsr(IA32_MSR_STAR, 0, ((0x18 | 3) << 16) | 0x8);
 	wrmsr(IA32_MSR_LSTAR, (unsigned long) syscall_ENTRY64 & 0xFFFFFFFF, (unsigned long) syscall_ENTRY64 >> 32);
 	wrmsr(IA32_MSR_SFMASK, 0b11000000000 | 0x100, 0);
+
+
+	/* Setup the x86 platform defaults */
+	x86_platform.has_legacy_devices = true;
+	x86_platform.i8042 = I8042_EXPECTED_PRESENT;
+	x86_platform.has_msi = true;
+	x86_platform.has_rtc = true;
+	x86_platform.has_vga = true;
 }
 
 bool is_percpu_initialized(void)
@@ -421,9 +432,4 @@ void cpu_kill_other_cpus(void)
 		if(i != curr_cpu)
 			cpu_kill(i);
 	}
-}
-
-void cpu_pause(void)
-{
-	__asm__ __volatile__("pause");
 }

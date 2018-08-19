@@ -15,11 +15,26 @@
 #include <onyx/panic.h>
 #include <drivers/rtc.h>
 
+//#define VBOX_DEBUG
+
+#ifdef VBOX_DEBUG
+#include <onyx/portio.h>
+#endif
+
 static char _log_buf[LOG_BUF_SIZE];
 static size_t log_position = 0;
 
 void kernlog_print(const char *msg)
 {
+
+#ifdef VBOX_DEBUG
+	const char *m = msg;
+	while(*m)
+	{
+		outb(0x504, *m);
+		m++;
+	}
+#endif
 	if(log_position + strlen(msg) + 13 + 1 <= LOG_BUF_SIZE)
 	{
 		/* If there's clearly enough space, it's straight forward to do */

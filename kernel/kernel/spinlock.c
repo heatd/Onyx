@@ -27,9 +27,8 @@ static inline void post_release_actions(struct spinlock *lock)
 void spin_lock_preempt(struct spinlock *lock)
 {
 	while(!__sync_bool_compare_and_swap(&lock->lock, 0, 1))
-	{
-		cpu_pause();
-	}
+		cpu_relax();
+
 	__sync_synchronize();
 }
 

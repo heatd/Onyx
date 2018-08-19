@@ -8,7 +8,8 @@
 
 #include <stdint.h>
 
-void pit_init(uint32_t hz);
-uint64_t pit_get_tick_count();
-void pit_deinit();
+void pit_init_oneshot(uint32_t hz);
+void pit_wait_for_oneshot(void);
+uint16_t __pit_get_counter(void);
+
 #endif

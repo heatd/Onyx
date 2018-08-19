@@ -103,8 +103,11 @@ int smbios_init(void)
 	
 	struct smbios_table_bios_info *info = (struct smbios_table_bios_info*) smbios_get_table(SMBIOS_TYPE_BIOS_INFO);
 	
-	INFO("smbios", "BIOS Vendor: %s\n", smbios_get_string(&info->header, info->vendor));
-	INFO("smbios", "BIOS Date: %s\n", smbios_get_string(&info->header, info->bios_release_date));
-	
+	if(info)
+	{
+		INFO("smbios", "BIOS Vendor: %s\n", smbios_get_string(&info->header, info->vendor));
+		INFO("smbios", "BIOS Date: %s\n", smbios_get_string(&info->header, info->bios_release_date));
+	}
+
 	return 0;
 }

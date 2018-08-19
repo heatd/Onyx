@@ -218,7 +218,7 @@ char *ext2_read_symlink(inode_t *ino, ext2_fs_t *fs);
 inode_t *ext2_traverse_fs(inode_t *wd, const char *path, ext2_fs_t *fs,
 	char **symlink_name, uint32_t *inode_num);
 inode_t *ext2_get_inode_from_dir(ext2_fs_t *fs, dir_entry_t *dirent,
-	char *name, uint32_t *inode_number);
+	char *name, uint32_t *inode_number, size_t size);
 inode_t *ext2_follow_symlink(inode_t *inode, ext2_fs_t *fs,
 	inode_t *ino, uint32_t *inode_num, char **symlink);
 int ext2_add_direntry(const char *name, uint32_t inum, inode_t *inode,

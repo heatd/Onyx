@@ -17,6 +17,7 @@
 #endif
 
 #ifdef __x86_64__
+
 #define CPUID_MANUFACTURERID 		0x00000000
 #define CPUID_MAXFUNCTIONSUPPORTED 	0x80000000
 #define CPUID_BRAND0			0x80000002
@@ -129,8 +130,12 @@
 #define X86_FEATURE_AVX512vpopcntdq	(110)
 #define X86_FEATURE_RDPID		(118)
 #define X86_FEATURE_SGXLC		(126)
-#define X86_FEATURE_AVX512vnniw		(130)
-#define X86_FEATURE_AVX512fmaps		(131)
+#define X86_FEATURE_AVX5124vnniw	(130)
+#define X86_FEATURE_AVX5124fmaps	(131)
+#define X86_FEATURE_PCONFIG		(146)
+#define x86_FEATURE_SPEC_CTRL		(154)
+#define X86_FEATURE_STIBP		(155)
+#define X86_FEATURE_SSBD		(159)
 #define X86_FEATURE_AMD_FPU		(160)
 #define X86_FEATURE_AMD_VME		(161)
 #define X86_FEATURE_AMD_DE		(162)
@@ -204,6 +209,12 @@ bool x86_check_invariant_tsc(void);
 void x86_set_tsc_rate(uint64_t rate);
 uint64_t x86_get_tsc_rate(void);
 
+/* Linux kernel-like cpu_relax, does a pause instruction */
+static inline void cpu_relax(void)
+{
+	__asm__ __volatile__("pause" ::: "memory");
+}
+
 #endif
 struct processor
 {
@@ -254,7 +265,6 @@ void cpu_kill_other_cpus(void);
 void cpu_kill(int cpu_num);
 void cpu_send_message(int cpu, unsigned long message, void *arg);
 void __cpu_handle_message(void);
-void cpu_pause(void);
 
 struct cpu_message
 {

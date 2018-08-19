@@ -17,4 +17,6 @@ int platform_allocate_msi_interrupts(unsigned int num_vectors, bool addr64,
 int platform_install_irq(unsigned int irqn, struct interrupt_handler *h);
 void platform_mask_irq(unsigned int irq);
 
+void platform_init_acpi(void);
+
 #endif

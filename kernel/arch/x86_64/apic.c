@@ -312,33 +312,26 @@ struct device apic_timer_dev =
 	.name = "apic-timer"
 };
 
-void apic_timer_init()
+void apic_timer_init(void)
 {
 	driver_register_device(&apic_driver, &apic_timer_dev);
 
 	/* Set the timer divisor to 16 */
 	lapic_write(bsp_lapic, LAPIC_TIMER_DIV, 3);
-	
-	/* Initialize the PIT to 100 hz */
-	pit_init(100);
-
-	uint64_t t = pit_get_tick_count();
 
 	printf("apic: calculating APIC timer frequency\n");
-	__asm__ __volatile__("sti");
 	
-	/* Make sure we're measuring ~1s, so let 1 tick pass */
+	/* Initialize the PIT to 100 hz oneshot */
+	pit_init_oneshot(100);
 
-	while(t == pit_get_tick_count());
-	
 	/* 0xFFFFFFFF shouldn't overflow in 10ms */
 	lapic_write(bsp_lapic, LAPIC_TIMER_INITCNT, 0xFFFFFFFF);
 
 	/* Use this moment to calculate the approx. tsc frequency too */
 	uint64_t tsc = rdtsc();
+
 	/* Wait for the 10 ms */
-	t = pit_get_tick_count();
-	while(t == pit_get_tick_count());
+	pit_wait_for_oneshot();
 
 	uint64_t end = rdtsc();
 	/* Get the ticks that passed in 10ms */
@@ -351,7 +344,7 @@ void apic_timer_init()
 
 	apic_rate = ticks_in_10ms / 10;
 
-	printf("apic: apic timer rate: %lx\n", apic_rate);
+	printf("apic: apic timer rate: %lu\n", apic_rate);
 	us_apic_rate = apic_rate / 1000;
 
 	DISABLE_INTERRUPTS();
@@ -359,8 +352,7 @@ void apic_timer_init()
 	lapic_write(bsp_lapic, LAPIC_TIMER_INITCNT, ticks_in_10ms / 10);
 
 	x86_set_tsc_rate(clock_delta_calc(tsc, end) * 100);
-	/* De-initialize the PIT's used resources */	
-	pit_deinit();
+
 	/* Install an IRQ handler for IRQ2 */
 	
 	assert(install_irq(2, apic_timer_irq, &apic_timer_dev, IRQ_FLAG_REGULAR,

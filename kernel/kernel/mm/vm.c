@@ -553,7 +553,9 @@ void vm_destroy_mappings(void *range, size_t pages)
 	while(p != end)
 	{
 		avl_node_t **e = avl_search_key(tree, p);
-		assert(e != NULL);
+		if(e != NULL)
+			return;
+
 		avl_node_t *node = *e;
 		assert(node != NULL);
 
@@ -1264,10 +1266,10 @@ void print_vm_structs(avl_node_t *node)
 
 void vm_print_stats(void)
 {
-	struct process *current = get_current_process();
-	if(current)
+	//struct process *current = get_current_process();
+	/*if(current)
 		print_vm_structs(current->address_space.tree);
-	print_vm_structs(kernel_tree);
+	print_vm_structs(kernel_tree);*/
 }
 
 void *__map_pages_to_vaddr(struct process *process, void *virt, void *phys,

@@ -276,6 +276,7 @@ uint32_t ext2_get_inode_block(inode_t *ino, uint32_t block, ext2_fs_t *fs)
 		(total_size / fs->block_size) + 1 : total_size / fs->block_size;
 	if(max_blocks < block)
 	{
+		printk("Allocating block\n");
 		/* We'll have to allocate a new block and add it in */
 		uint32_t new_block = ext2_allocate_block(fs);
 		ext2_add_block_to_inode(ino, new_block, block, fs);
@@ -289,7 +290,7 @@ uint32_t ext2_get_inode_block(inode_t *ino, uint32_t block, ext2_fs_t *fs)
 ssize_t ext2_write_inode_block(inode_t *ino, uint32_t block, char *buffer, ext2_fs_t *fs)
 {
 	uint32_t blk = ext2_get_inode_block(ino, block, fs);
-	if(blk == 0)
+	if(blk == EXT2_ERR_INV_BLOCK)
 		return -1;
 	ext2_write_block(blk, 1, fs, buffer);
 

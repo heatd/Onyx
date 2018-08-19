@@ -331,7 +331,7 @@ void* paging_map_phys_to_virt_large(uint64_t virt, uint64_t phys, uint64_t prot)
 	}
 	else
 	{
-		pml2 = (PML2*) alloc_pt();
+		pml2 = (PML2*) alloc_boot_page(1, 0);
 		if(!pml2)
 			return NULL;
 		memset((void*)((uint64_t)pml2 + PHYS_BASE), 0, sizeof(PML2));

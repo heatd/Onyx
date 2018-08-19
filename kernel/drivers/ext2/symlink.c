@@ -77,7 +77,7 @@ inode_t *ext2_follow_symlink(inode_t *inode, ext2_fs_t *fs, inode_t *parent, uin
 	{
 		if(!dir)
 			return errno = ENOENT, NULL;
-		ino = ext2_get_inode_from_dir(fs, dir, path, inode_num);
+		ino = ext2_get_inode_from_dir(fs, dir, path, inode_num, EXT2_CALCULATE_SIZE64(ino));
 		if(!ino)
 			return errno = ENOENT, NULL;
 		//assert(EXT2_CALCULATE_SIZE64(ino));

@@ -16,7 +16,6 @@
 #include <onyx/pagecache.h>
 #include <onyx/log.h>
 #include <onyx/mtable.h>
-#include <onyx/atomic.h>
 #include <onyx/sysfs.h>
 #include <onyx/fnv.h>
 #include <onyx/object.h>

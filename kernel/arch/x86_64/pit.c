@@ -15,6 +15,32 @@
 #include <onyx/compiler.h>
 #include <onyx/dev.h>
 
+#define PIT_CHANNEL0_DATA	0x40
+#define PIT_CHANNEL1_DATA	0x41
+#define PIT_CHANNEL2_DATA	0x42
+#define PIT_COMMAND_REG		0x43
+
+#define PIT_COMMAND_CHANNEL(x)		(x << 6)
+#define PIT_COMMAND_ACCESS_LATCH_COUNT	(0)
+#define PIT_COMMAND_ACCESS_LOBYTE_ONLY	(1 << 4)
+#define PIT_COMMAND_ACCESS_HIBYTE_ONLY	(1 << 5)
+#define PIT_COMMAND_ACCESS_LOHIBYTE	(PIT_COMMAND_ACCESS_LOBYTE_ONLY | \
+					 PIT_COMMAND_ACCESS_HIBYTE_ONLY)
+#define PIT_COMMAND_MODE(x)		(x << 1)
+#define PIT_COMMAND_BINARY_MODE		(0 << 0)
+#define PIT_COMMAND_BCD_MODE		(1 << 0)
+
+#define PIT_READBACK_MUST_ONE		(1 << 7) | (1 << 6)
+#define PIT_READBACK_DONT_LATCH_COUNT	(1 << 5)
+#define PIT_READBACK_DONT_LATCH_STATUS	(1 << 4)
+#define PIT_READBACK_CHANNEL2		(1 << 3)
+#define PIT_READBACK_CHANNEL1		(1 << 2)
+#define PIT_READBACK_CHANNEL0		(1 << 1)
+
+#define PIT_FREQUENCY			1193180
+
+#define PIT_STATUS_OUTPUT_HIGH		(1 << 7)
+
 static volatile uint64_t timer_ticks = 0;
 
 struct driver pit_driver = 
@@ -33,31 +59,59 @@ irqstatus_t pit_irq(struct irq_context *ctx, void *cookie)
 	return IRQ_HANDLED;
 }
 
-void pit_init(uint32_t frequency)
+void pit_init_oneshot(uint32_t frequency)
 {
 	driver_register_device(&pit_driver, &pit_dev);
 
-	int divisor = 1193180 / frequency;
+	int divisor = PIT_FREQUENCY / frequency;
 
-	/* Install the IRQ handler */
-	assert(install_irq(2, pit_irq, &pit_dev, IRQ_FLAG_REGULAR, NULL) == 0);
+	uint8_t command = 0;
+	command = PIT_COMMAND_CHANNEL(0) | PIT_COMMAND_ACCESS_LOHIBYTE |
+		  PIT_COMMAND_MODE(0) | PIT_COMMAND_BINARY_MODE;
 
-	outb(0x43, 0x36);
-	//io_wait();
-	outb(0x40, divisor & 0xFF);   // Set low byte of divisor
-	//io_wait();
-	outb(0x40, divisor >> 8);     // Set high byte of divisor
-	//io_wait();
-	printf("pit: initialized!\n");
+	/* Send the command */
+	outb(PIT_COMMAND_REG, command);
+	io_wait();
+
+	/* Set the divisor */
+	outb(PIT_CHANNEL0_DATA, divisor & 0xFF);
+	io_wait();
+
+	outb(PIT_CHANNEL0_DATA, divisor >> 8);
+	io_wait();
+
+	assert(install_irq(0, pit_irq, &pit_dev, 0, NULL) == 0);
 }
 
-void pit_deinit()
+void pit_send_readback(uint8_t channels, bool count, bool status)
 {
-	outb(0x42, 0x34);
-	free_irq(2, &pit_dev);
+	uint8_t command = 0;
+	command |= PIT_READBACK_MUST_ONE;
+	if(!count)
+		command |= PIT_READBACK_DONT_LATCH_COUNT;
+	if(!status)
+		command |= PIT_READBACK_DONT_LATCH_STATUS;
+	
+	/* Mask the channels and OR them in */
+	command |= (channels & 0x3);
+
+	outb(PIT_COMMAND_REG, command);
 }
 
-uint64_t pit_get_tick_count()
+void pit_wait_for_oneshot(void)
+{
+	uint8_t status = 0;
+	do
+	{
+		/* Send a readback command to read the status of channel 0 */
+		pit_send_readback(PIT_READBACK_CHANNEL0, false, true);
+		status = inb(PIT_CHANNEL0_DATA);
+	} while(!(status & PIT_STATUS_OUTPUT_HIGH));
+
+	free_irq(0, &pit_dev);
+}
+
+uint64_t pit_get_tick_count(void)
 {
 	return (uint64_t) timer_ticks;
 }

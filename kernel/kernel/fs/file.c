@@ -120,10 +120,12 @@ ssize_t sys_read(int fd, const void *buf, size_t count)
 		return errno =-EFAULT; */
 	
 	ioctx_t *ioctx = &get_current_process()->ctx;
+
 	if(validate_fd(fd) < 0)
 	{
 		return -EBADF;
 	}
+
 	if(!ioctx->file_desc[fd]->flags & O_RDONLY)
 	{
 		return -EBADF;
@@ -135,6 +137,8 @@ ssize_t sys_read(int fd, const void *buf, size_t count)
 	{
 		return -errno;
 	}
+
+	/* TODO: Seek adjustments are required to be atomic */
 	ioctx->file_desc[fd]->seek += size;
 	return size;
 }

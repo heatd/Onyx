@@ -50,10 +50,11 @@ uuid_t ext2_gpt_uuid[4] =
 
 ext2_fs_t *fslist = NULL;
 
-inode_t *ext2_get_inode_from_dir(ext2_fs_t *fs, dir_entry_t *dirent, char *name, uint32_t *inode_number)
+inode_t *ext2_get_inode_from_dir(ext2_fs_t *fs, dir_entry_t *dirent, char *name, uint32_t *inode_number,
+	size_t size)
 {
 	dir_entry_t *dirs = dirent;
-	while(dirs->inode && dirs->lsbit_namelen)
+	while((uintptr_t) dirs < (uintptr_t) dirent + size)
 	{
 		if(dirs->lsbit_namelen == strlen(name) && 
 		   !memcmp(dirs->name, name, dirs->lsbit_namelen))
@@ -61,7 +62,7 @@ inode_t *ext2_get_inode_from_dir(ext2_fs_t *fs, dir_entry_t *dirent, char *name,
 			*inode_number = dirs->inode;
 			return ext2_get_inode_from_number(fs, dirs->inode);
 		}
-		dirs = (dir_entry_t*)((char*)dirs + dirs->size);
+		dirs = (dir_entry_t*)((char*) dirs + dirs->size);
 	}
 	return NULL;
 }
@@ -76,9 +77,11 @@ size_t ext2_write(size_t offset, size_t sizeofwrite, void *buffer, struct inode 
 	size_t size = ext2_write_inode(ino, fs, sizeofwrite, offset, buffer);
 	if(offset + size > EXT2_CALCULATE_SIZE64(ino))
 	{
+		printk("Setting inode size to %lu\n", offset + size);
 		ext2_set_inode_size(ino, offset + size);
 		node->i_size = offset + size;
 	}
+
 	ext2_update_inode(ino, fs, node->i_inode);
 
 	free(ino);

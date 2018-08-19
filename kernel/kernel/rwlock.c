@@ -28,13 +28,13 @@ bool rw_lock_tryread(struct rwlock *lock)
 void rw_lock_read(struct rwlock *lock)
 {
 	while(!rw_lock_tryread(lock))
-		cpu_pause();
+		cpu_relax();
 }
 
 void rw_lock_write(struct rwlock *lock)
 {
 	while(atomic_cmp_and_swap(&lock->lock, RDWR_LOCK_WRITE, 0) == false)
-		cpu_pause();
+		cpu_relax();
 }
 
 void rw_unlock_read(struct rwlock *lock)

@@ -136,6 +136,7 @@ void pagecache_do_run(void)
 	{
 		if(c->dirty)
 		{
+			printk("VFS write to inode %lu\n", c->node->i_inode);
 			/* If so, write to the underlying fs */
 			__do_vfs_write(c->buffer, c->size, c->offset, c->node);
 			c->dirty = 0;

@@ -24,6 +24,7 @@ struct acpi_device
 	struct device dev; /* Base object (or class if you prefer) */
 	ACPI_HANDLE object;
 	ACPI_DEVICE_INFO *info;
+	ACPI_RESOURCE *resources;
 };
 
 struct acpi_dev_id
@@ -45,16 +46,30 @@ extern "C"{
 #endif
 
 uintptr_t acpi_get_rsdp(void);
+
 int acpi_initialize(void);
+
 uint32_t acpi_shutdown(void *context);
+
 uint32_t acpi_execute_pic(int value);
+
 int acpi_get_irq_routing_tables();
-int acpi_get_irq_routing_for_dev(uint8_t bus, uint8_t device, uint8_t function);
+
+int acpi_get_irq_routing_for_dev(uint8_t bus, uint8_t device,
+	uint8_t function);
+
 struct acpi_processor *acpi_enumerate_cpus(void);
+
 struct acpi_device *acpi_get_device(const char *id);
+
 unsigned int acpi_suspend(void *context);
+
 int acpi_get_irq_routing_info(struct bus *bus);
+
 void acpi_bus_register_driver(struct driver *driver);
+
+ACPI_RESOURCE *acpi_get_resource(struct acpi_device *device, uint32_t type,
+	unsigned int index);
 
 #ifdef __cplusplus
 }

@@ -64,14 +64,17 @@ irqstatus_t ahci_irq(struct irq_context *ctx, void *cookie)
 
 	return IRQ_HANDLED;
 }
+
 ssize_t ahci_read(size_t offset, size_t count, void* buffer, struct blkdev* blkd)
 {
 	return -1;
 }
+
 ssize_t ahci_write(size_t offset, size_t count, void* buffer, struct blkdev* blkd)
 {
 	return -1;
 }
+
 int ahci_await_interrupt(unsigned long timeout, struct ahci_port *port, unsigned int command_slot)
 {
 	uint64_t ticks = get_tick_count();
@@ -154,7 +157,7 @@ bool ahci_command_dma_ata(struct ahci_port *ahci_port, struct ahci_command_ata *
 
 	port->command_issue = (1 << num);
 	bool status = true;
-	if(ahci_await_interrupt(500, ahci_port, num) < 0)
+	if(ahci_await_interrupt(1000, ahci_port, num) < 0)
 	{
 		errno = ETIMEDOUT;
 		status = false;
@@ -409,8 +412,9 @@ int ahci_do_identify(struct ahci_port *port)
 	{
 		case SATA_SIG_ATA:
 		{
+			return 0;
 			struct ahci_command_ata command = {0};
-			command.size = 0;
+			command.size = 512;
 			command.write = false;
 			command.lba = 0;	
 			command.cmd = ATA_CMD_IDENTIFY;
@@ -603,16 +607,16 @@ int module_init()
 		goto ret;
 	}
 	
-	if(pci_enable_msi(ahci_dev, ahci_irq) < 0)
+	if(1)
 	{
 		/* If we couldn't enable MSI, use normal I/O APIC pins */
 
 		/* Get the interrupt number */
 		irq = pci_get_intn(ahci_dev);
-
+		printk("IRQ: %u\n", irq);
 		/* and install a handler */
-		assert(install_irq(irq, ahci_irq, (struct device *) ahci_dev,
-			IRQ_FLAG_REGULAR, NULL) == 0);
+		/*assert(install_irq(irq, ahci_irq, (struct device *) ahci_dev,
+			IRQ_FLAG_REGULAR, NULL) == 0);*/
 	}
 	/* Initialize AHCI */
 	if(ahci_initialize() < 0)

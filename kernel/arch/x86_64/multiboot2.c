@@ -100,7 +100,6 @@ void init_multiboot2_framebuffer(struct multiboot_tag_framebuffer *tagfb)
 	size_t framebuffer_size = fb.width * fb.height * (fb.bpp/CHAR_BIT);
 	fb.framebuffer_size = framebuffer_size;
 
-	/* TODO: Add VM_WC */
 	fb.framebuffer = mmiomap((void *) fb.framebuffer_phys,
 		framebuffer_size, VM_WRITE | VM_NOEXEC | VM_WC);
 	

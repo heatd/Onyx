@@ -146,7 +146,7 @@ int qxl_init_device(struct qxl_device *device)
 
 	qxl_reset(device);
 
-	qxl_init_irq(device);
+	//qxl_init_irq(device);
 
 	qxl_list_modes(device);
 	return 0;

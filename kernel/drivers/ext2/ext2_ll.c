@@ -141,7 +141,7 @@ inode_t *ext2_open_dir(inode_t *ino, const char *dirname,
 		return errno = EIO, NULL;
 	}
 
-	inode = ext2_get_inode_from_dir(fs, dirent, (char*) dirname, inode_num);
+	inode = ext2_get_inode_from_dir(fs, dirent, (char*) dirname, inode_num, EXT2_CALCULATE_SIZE64(ino));
 	
 	if(!inode)
 	{	

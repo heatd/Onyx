@@ -24,6 +24,7 @@
 #include <onyx/dev.h>
 #include <onyx/apic.h>
 #include <onyx/clock.h>
+#include <onyx/platform.h>
 
 #include <pci/pci.h>
 
@@ -69,6 +70,7 @@ uint32_t acpi_shutdown(void *context)
 	AcpiEnterSleepStatePrep(5);
 	DISABLE_INTERRUPTS();
 	AcpiEnterSleepState(5);
+
 	panic("ACPI: Failed to enter sleep state! Panic'ing!");
 	return 0;
 }
@@ -83,7 +85,9 @@ unsigned int acpi_suspend(void *context)
 	if(ACPI_FAILURE(st))
 		return 1;
 	DISABLE_INTERRUPTS();
-	/* We'll need to enter assembly in order to correctly save and restore registers */
+	/* We'll need to enter assembly in order to correctly save and restore
+	 * registers
+	*/
 	if(__enter_sleep_state(2) < 0)
 		return -1;
 	return 0;
@@ -98,7 +102,8 @@ static struct bus acpi_bus =
 	.shutdown = acpi_shutdown_device
 };
 
-ACPI_STATUS acpi_walk_irq(ACPI_HANDLE object, UINT32 nestingLevel, void *context, void **returnvalue)
+ACPI_STATUS acpi_walk_irq(ACPI_HANDLE object, UINT32 nestingLevel,
+	void *context, void **returnvalue)
 {
 	ACPI_DEVICE_INFO *devinfo;
 	ACPI_STATUS st = AcpiGetObjectInfo(object, &devinfo);
@@ -132,10 +137,12 @@ uint32_t acpi_execute_pic(int value)
 	return AcpiEvaluateObject(ACPI_ROOT_OBJECT, (char*)"_PIC", &list, NULL);
 }
 
-int enumerate_pci_irq_routing(ACPI_PCI_ROUTING_TABLE *table, struct bus *bus, ACPI_HANDLE handle)
+int enumerate_pci_irq_routing(ACPI_PCI_ROUTING_TABLE *table, struct bus *bus,
+	ACPI_HANDLE handle)
 {
+	/* TODO: Refactor and improve this */
 	ACPI_PCI_ROUTING_TABLE *it = table;
-	for(; it->Length != 0; it = (ACPI_PCI_ROUTING_TABLE*)ACPI_NEXT_RESOURCE(it))
+	for(; it->Length != 0; it = (ACPI_PCI_ROUTING_TABLE*) ACPI_NEXT_RESOURCE(it))
 	{
 		uint8_t device = it->Address >> 16;
 		struct pci_device_address addr = {0};
@@ -155,11 +162,13 @@ int enumerate_pci_irq_routing(ACPI_PCI_ROUTING_TABLE *table, struct bus *bus, AC
 		else
 		{
 			ACPI_HANDLE link_obj;
-			ACPI_STATUS st = AcpiGetHandle(handle, it->Source, &link_obj);
+			ACPI_STATUS st = AcpiGetHandle(handle, it->Source,
+				&link_obj);
 
 			if(ACPI_FAILURE(st))
 			{
-				ERROR("acpi", "Error while calling AcpiGetHandle: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
+				ERROR("acpi", "Error while calling "
+				"AcpiGetHandle: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
 				return -1;
 			}
 			ACPI_BUFFER buf;
@@ -169,11 +178,14 @@ int enumerate_pci_irq_routing(ACPI_PCI_ROUTING_TABLE *table, struct bus *bus, AC
 			st = AcpiGetCurrentResources(link_obj, &buf);
 			if(ACPI_FAILURE(st))
 			{
-				ERROR("acpi", "Error while calling AcpiGetCurrentResources: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
+				ERROR("acpi", "Error while calling "
+				"AcpiGetCurrentResources: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
 				return -1;
 			}
 			
-			for(ACPI_RESOURCE *res = (ACPI_RESOURCE*) buf.Pointer; res->Type != ACPI_RESOURCE_TYPE_END_TAG; res = ACPI_NEXT_RESOURCE(res))
+			for(ACPI_RESOURCE *res = (ACPI_RESOURCE*) buf.Pointer;
+				res->Type != ACPI_RESOURCE_TYPE_END_TAG; res =
+				ACPI_NEXT_RESOURCE(res))
 			{
 				if(res->Type == ACPI_RESOURCE_TYPE_IRQ)
 				{
@@ -199,7 +211,9 @@ int enumerate_pci_irq_routing(ACPI_PCI_ROUTING_TABLE *table, struct bus *bus, AC
 	return 0;
 }
 
-ACPI_STATUS acpi_find_pci_buses(ACPI_HANDLE object, UINT32 nestingLevel, void *context, void **returnvalue)
+
+ACPI_STATUS acpi_find_pci_buses(ACPI_HANDLE object, UINT32 nestingLevel,
+	void *context, void **returnvalue)
 {
 	ACPI_DEVICE_INFO *devinfo;
 	ACPI_STATUS st = AcpiGetObjectInfo(object, &devinfo);
@@ -264,6 +278,36 @@ uintptr_t acpi_get_rsdp(void)
 	return rsdp;
 }
 
+ACPI_RESOURCE *acpi_get_resource(struct acpi_device *device, uint32_t type,
+	unsigned int index)
+{
+	ACPI_RESOURCE *res = device->resources;
+
+	for(; res->Type != ACPI_RESOURCE_TYPE_END_TAG; res =
+		ACPI_NEXT_RESOURCE(res))
+	{
+		if(res->Type == type && index-- == 0)
+			return res;
+	}
+
+	return NULL;
+}
+
+ACPI_RESOURCE *acpi_get_resources(ACPI_HANDLE object)
+{
+	ACPI_STATUS st = 0;
+	ACPI_BUFFER buf;
+	buf.Length = ACPI_ALLOCATE_BUFFER;
+	buf.Pointer = NULL;
+
+	if(ACPI_FAILURE((st = AcpiGetCurrentResources(object, &buf))))
+	{
+		return NULL;
+	}
+
+	return buf.Pointer;
+}
+
 ACPI_STATUS acpi_add_device(ACPI_HANDLE object, UINT32 nestingLevel, void *context, void **returnvalue)
 {
 	bool free_id = false;
@@ -275,6 +319,7 @@ ACPI_STATUS acpi_add_device(ACPI_HANDLE object, UINT32 nestingLevel, void *conte
 		ERROR("acpi", "AcpiGetObjectInfo() Failed\n");
 		return AE_ERROR;
 	}
+
 	const char *id = NULL;
 	if(info->Valid & ACPI_VALID_HID)
 		id = info->HardwareId.String;
@@ -298,19 +343,26 @@ ACPI_STATUS acpi_add_device(ACPI_HANDLE object, UINT32 nestingLevel, void *conte
 
 		id = buf.Pointer;
 	}
+
 	char *name = malloc(PATH_MAX);
 	if(!name)
 		return AE_ERROR;
 	memset(name, 0, PATH_MAX);
 	snprintf(name, PATH_MAX, "%s", id);
 
+	ACPI_RESOURCE *resources = acpi_get_resources(object);
+
 	struct acpi_device *device = malloc(sizeof(struct acpi_device));
 	if(!device)
 		return AE_ERROR;
 	memset(device, 0, sizeof(struct acpi_device));
+
+
 	device->dev.name = name;
 	device->object = object;
 	device->info = info;
+	device->resources = resources;
+	
 	bus_add_device(&acpi_bus, (struct device*) device);
 
 	if(free_id)
@@ -369,6 +421,9 @@ int acpi_initialize(void)
 	acpi_enumerate_devices();
 
 	acpi_init_timer();
+
+	platform_init_acpi();
+
 	return 0;
 }
 

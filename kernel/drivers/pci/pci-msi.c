@@ -3,6 +3,8 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
+
+#include <errno.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -11,6 +13,8 @@
 #include <onyx/platform.h>
 #include <onyx/idt.h>
 #include <onyx/page.h>
+#include <onyx/acpi.h>
+#include <onyx/x86/platform_info.h>
 
 #include <pci/pci.h>
 #include <pci/pci-msi.h>
@@ -28,8 +32,16 @@ unsigned int pci_to_num_vecs[] =
 
 extern char irq0_end;
 
+bool can_use_msi(void)
+{
+	return x86_platform.has_msi;
+}
+
 int pci_enable_msi(struct pci_device *dev, irq_t handler)
 {
+	if(!can_use_msi())
+		return errno = EIO, -1;
+
 	bool msix = false;
 	(void) msix;
 	/* TODO: Try to prioritize finding MSI-X capabiltiies */
@@ -61,7 +73,7 @@ int pci_enable_msi(struct pci_device *dev, irq_t handler)
 		                            (irq_offset + i));
 		x86_reserve_vector(vector, irq_stub_handler);
 	}
-	
+
 	for(unsigned int i = 0; i < num_vecs; i++)
 	{
 		assert(install_irq(irq_offset + i, handler,
