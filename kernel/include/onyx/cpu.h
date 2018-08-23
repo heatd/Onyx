@@ -215,7 +215,10 @@ static inline void cpu_relax(void)
 	__asm__ __volatile__("pause" ::: "memory");
 }
 
+#include <onyx/x86/irq.h>
+
 #endif
+
 struct processor
 {
 #if defined (__x86_64__)

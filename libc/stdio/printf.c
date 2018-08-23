@@ -89,7 +89,11 @@ extern int panicing;
 
 int putchar(int c)
 {
-	tty_write_kernel(&c, 1);
+	char buf[2];
+	buf[0] = (char) c;
+	buf[1] = 0;
+
+	kernlog_print(&buf);
 	return c;
 }
 #endif

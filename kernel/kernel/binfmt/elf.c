@@ -243,7 +243,6 @@ void *elf_load_kernel_module(void *file, void **fini_func)
 		}
 	}
 
-	printk("Base: %lx\n", first_address);
 	for(size_t i = 0; i < header->e_shnum; i++)
 	{
 		if(sections[i].sh_type == SHT_RELA)

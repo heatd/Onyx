@@ -468,6 +468,7 @@ void cpu_handle_message(struct cpu_message *msg)
 	switch(msg->message)
 	{
 		case CPU_KILL:
+			msg->ack = true;
 			cpu_handle_kill();
 			break;
 		case CPU_TRY_RESCHED:

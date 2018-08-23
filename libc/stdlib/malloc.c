@@ -38,7 +38,7 @@ static struct spinlock heap_lock;
 void *sbrk(intptr_t increment)
 {
 	spin_lock_preempt(&heap_lock);
-	if(heap + increment >= heap_limit)
+	if(heap + increment >= heap_limit || heap >= heap_limit)
 	{
 		size_t times = increment / 0x100000;
 		if(increment % 0x100000)

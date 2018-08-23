@@ -8,22 +8,42 @@
 
 #include <stdbool.h>
 
+#include <onyx/x86/irq.h>
+
 struct spinlock
 {
 	unsigned long lock;
 	unsigned long waiters;
 	unsigned long holder;
+	unsigned long old_flags;
 };
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+
 void spin_lock(struct spinlock *lock);
 void spin_unlock(struct spinlock *lock);
 void spin_lock_preempt(struct spinlock *lock);
 void spin_unlock_preempt(struct spinlock *lock);
 int try_and_spin_lock(struct spinlock *lock);
 void wait_spinlock(struct spinlock*);
+
+
+static inline void spin_lock_irqsave(struct spinlock *lock)
+{
+	unsigned long flags = irq_save_and_disable();
+	spin_lock(lock);
+	lock->old_flags = flags;
+}
+
+static inline void spin_unlock_irqrestore(struct spinlock *lock)
+{
+	spin_unlock(lock);
+	irq_restore(lock->old_flags);
+}
+
 #ifdef __cplusplus
 }
 #endif

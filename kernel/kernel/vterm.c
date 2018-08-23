@@ -11,6 +11,7 @@
 #include <errno.h>
 #include <ctype.h>
 
+#include <onyx/semaphore.h>
 #include <onyx/tty.h>
 #include <onyx/framebuffer.h>
 #include <onyx/font.h>
@@ -61,6 +62,16 @@ struct console_cell
 	unsigned long dirty;	
 };
 
+#define VTERM_MESSAGE_FLUSH		1
+#define VTERM_MESSAGE_FLUSH_ALL		2
+
+struct vterm_message
+{
+	unsigned long message;
+	void *ctx;
+	struct vterm_message *next;
+};
+
 struct vterm
 {
 	struct mutex vt_lock;
@@ -77,7 +88,44 @@ struct vterm
 	bool blink_status;	/* true = visible, false = not */
 	unsigned int saved_x, saved_y;	/* Used by ANSI_SAVE/RESTORE_CURSOR */
 	struct tty *tty;
+	bool multithread_enabled;
+	struct thread *render_thread;
+	struct cond condvar;
+	struct mutex condvar_mutex;
+	struct vterm_message *msgs;
 };
+
+void vterm_append_msg(struct vterm *vterm, struct vterm_message *msg)
+{
+	mutex_lock(&vterm->condvar_mutex);
+
+	struct vterm_message **pp = &vterm->msgs;
+
+	while(*pp)
+	{
+		pp = &(*pp)->next;
+	}
+
+	*pp = msg;
+}
+
+void vterm_send_message(struct vterm *vterm, unsigned long message, void *ctx)
+{
+	struct vterm_message *msg = zalloc(sizeof(*msg));
+
+	/* TODO: Maybe don't crash here? */
+	assert(msg != NULL);
+
+	msg->message = message;
+	msg->ctx = ctx;
+	msg->next = NULL;
+
+	vterm_append_msg(vterm, msg);
+
+	condvar_signal(&vterm->condvar);
+
+	mutex_unlock(&vterm->condvar_mutex);
+}
 
 static inline uint32_t unpack_rgba(struct color color, struct framebuffer *fb)
 {
@@ -131,7 +179,7 @@ static void draw_char(uint32_t c, unsigned int x, unsigned int y,
 	}
 }
 
-void vterm_flush_all(struct vterm *vterm)
+void do_vterm_flush_all(struct vterm *vterm)
 {
 	struct font *f = get_font_data();
 	for(unsigned int i = 0; i < vterm->columns; i++)
@@ -144,6 +192,14 @@ void vterm_flush_all(struct vterm *vterm)
 			cell->dirty = 0;
 		}
 	}
+}
+
+void vterm_flush_all(struct vterm *vterm)
+{
+	if(vterm->multithread_enabled)
+		vterm_send_message(vterm, VTERM_MESSAGE_FLUSH_ALL, NULL);
+	else
+		do_vterm_flush_all(vterm);	
 }
 
 void vterm_scroll(struct framebuffer *fb, struct vterm *vt)
@@ -312,7 +368,7 @@ void vterm_flush(struct vterm *vterm);
 	return written;
 }*/
 
-void vterm_flush(struct vterm *vterm)
+void do_vterm_flush(struct vterm *vterm)
 {
 	struct font *f = get_font_data();
 	for(unsigned int i = 0; i < vterm->columns; i++)
@@ -329,6 +385,14 @@ void vterm_flush(struct vterm *vterm)
 			}
 		}
 	}
+}
+
+void vterm_flush(struct vterm *vterm)
+{
+	if(vterm->multithread_enabled)
+		vterm_send_message(vterm, VTERM_MESSAGE_FLUSH, NULL);
+	else
+		do_vterm_flush(vterm);	
 }
 
 void vterm_fill_screen(struct vterm *vterm, uint32_t character,
@@ -916,6 +980,61 @@ int vterm_recieve_input(char c)
 	return 0;
 }
 
+void vterm_handle_message(struct vterm_message *msg, struct vterm *vt)
+{
+	switch(msg->message)
+	{
+		case VTERM_MESSAGE_FLUSH:
+			do_vterm_flush(vt);
+			break;
+		case VTERM_MESSAGE_FLUSH_ALL:
+			do_vterm_flush_all(vt);
+			break;
+	}
+}
+
+void vterm_handle_messages(struct vterm *vt)
+{
+	struct vterm_message *msg = vt->msgs;
+	while(msg != NULL)
+	{
+		struct vterm_message *old = msg;
+		vterm_handle_message(msg, vt);
+		msg = msg->next;
+
+		free(old);
+	}
+
+	vt->msgs = NULL;
+}
+
+void vterm_render_thread(void *arg)
+{
+	struct vterm *vt = arg;
+
+	while(true)
+	{
+		condvar_wait(&vt->condvar, &vt->condvar_mutex);
+
+		vterm_handle_messages(vt);
+		mutex_unlock(&vt->condvar_mutex);
+
+	}
+}
+
+void vterm_switch_to_multithread(struct vterm *vt)
+{
+	vt->render_thread = sched_create_thread(vterm_render_thread, THREAD_KERNEL, vt);
+
+	assert(vt->render_thread != NULL);
+
+	vt->multithread_enabled = true;
+
+	vt->render_thread->priority = 5;
+
+	sched_start_thread(vt->render_thread);
+}
+
 void vt_init_blink(void)
 {
 	struct vterm *vt = &primary_vterm;
@@ -927,4 +1046,11 @@ void vt_init_blink(void)
 					    THREAD_KERNEL, vt);
 		if(vt->blink_thread) sched_start_thread(vt->blink_thread);
 	}
+
+	vterm_switch_to_multithread(vt);
+}
+
+void vterm_panic(void)
+{
+	primary_vterm.multithread_enabled = false;
 }

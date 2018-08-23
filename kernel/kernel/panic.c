@@ -46,6 +46,8 @@ extern void *stack_trace(void);
 
 void page_print_shared(void);
 
+void vterm_panic(void);
+
 __attribute__ ((noreturn, cold, noinline))
 void panic(const char *msg)
 {
@@ -54,6 +56,10 @@ void panic(const char *msg)
 	char buffer[1000];
 	panicing = 1;
 	memset(buffer, 0, 1000);
+
+	/* Turn off vterm multthreading */
+	vterm_panic();
+
 	/* And dump the context to it */
 #ifdef __x86_64__
 #else

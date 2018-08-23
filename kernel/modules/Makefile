@@ -4,7 +4,8 @@ mod_ahci \
 mod_bga \
 mod_rtl8139
 
-CFLAGS:=$(CFLAGS) -isystem $(realpath ../../libc/include) -I $(realpath ../../sysroot/usr/include) -mcmodel=kernel -D__is_onyx_kernel
+CFLAGS:=$(CFLAGS) -isystem $(realpath ../../libc/include) -I $(realpath ../../sysroot/usr/include) \
+-mcmodel=kernel -D__is_onyx_kernel -I $(realpath ../include/acpica)
 
 all: $(MODULES)
 

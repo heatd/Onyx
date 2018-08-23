@@ -15,8 +15,9 @@
 #include <onyx/slab.h>
 #include <onyx/semaphore.h>
 
-/* The work queue does need locks for insertion, because another CPU might try to 
- * queue work at the same time as us */
+/* The work queue does need locks for insertion, because another CPU might try
+ * to queue work in at the same time as us
+*/
 static struct spinlock work_queue_locks[3];
 static struct dpc_work *work_queues[3] = {0};
 static struct semaphore dpc_work_semaphore = {0};
@@ -37,7 +38,7 @@ void dpc_do_work_on_workqueue(struct dpc_work **wq)
 
 void dpc_do_work(void *context)
 {
-	while(1)
+	while(true)
 	{
 		sem_wait(&dpc_work_semaphore);
 
@@ -79,6 +80,7 @@ int dpc_schedule_work(struct dpc_work *_work, dpc_priority prio)
 	}
 
 	memcpy(work, _work, sizeof(struct dpc_work));
+
 	spin_lock(&work_queue_locks[prio]);
 
 	if(!work_queues[prio])
@@ -95,5 +97,6 @@ int dpc_schedule_work(struct dpc_work *_work, dpc_priority prio)
 	spin_unlock(&work_queue_locks[prio]);
 
 	sem_signal(&dpc_work_semaphore);
+
 	return 0;
 }

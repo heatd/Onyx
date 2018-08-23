@@ -461,11 +461,11 @@ void thread_set_state(thread_t *thread, int state)
 
 	sched_disable_preempt_for_cpu(targ_cpu);
 	
-	spin_lock(&thread->lock);
+	spin_lock_irqsave(&thread->lock);
 
 	if(thread->status == state)
 	{
-		spin_unlock(&thread->lock);
+		spin_unlock_irqrestore(&thread->lock);
 		sched_enable_preempt_for_cpu(targ_cpu);
 		return;
 	}
@@ -482,6 +482,8 @@ void thread_set_state(thread_t *thread, int state)
 			sched_enable_preempt_for_cpu(targ_cpu);
 			sched_yield();
 
+			irq_restore(thread->lock.old_flags);
+		
 			return;
 		}
 		else
@@ -505,7 +507,7 @@ void thread_set_state(thread_t *thread, int state)
 	else
 		thread->status = state;
 
-	spin_unlock(&thread->lock);
+	spin_unlock_irqrestore(&thread->lock);
 	sched_enable_preempt_for_cpu(targ_cpu);
 }
 

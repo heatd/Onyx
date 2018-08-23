@@ -8,11 +8,10 @@
 
 #include <stdio.h>
 
-#include <onyx/tty.h>
-#define INFO(x, ...) printf("["ANSI_COLOR_GREEN"INFO"ANSI_COLOR_RESET"] "x": "__VA_ARGS__)
-#define WARN(x, ...) printf("["ANSI_COLOR_YELLOW"WARNING"ANSI_COLOR_RESET"] "x": "__VA_ARGS__)
-#define ERROR(x, ...) printf("["ANSI_COLOR_RED"ERROR"ANSI_COLOR_RESET"] "x": "__VA_ARGS__)
-#define FATAL(x, ...) printf("["ANSI_COLOR_RED"FATAL"ANSI_COLOR_RESET"] "x": "__VA_ARGS__)
+#define INFO(x, ...) printf("[""INFO""] "x": "__VA_ARGS__)
+#define WARN(x, ...) printf("[""WARNING""] "x": "__VA_ARGS__)
+#define ERROR(x, ...) printf("[""ERROR""] "x": "__VA_ARGS__)
+#define FATAL(x, ...) printf("[""FATAL""] "x": "__VA_ARGS__)
 
 #define LOG INFO
 #define SUBMIT_BUG_REPORT(x) printf("If you want this bug/feature to be fixed, open an issue at the repo's issue tracker(https://github.com/heatd/Onyx/issues) with a title along the lines of \"%s: Fix x bug\". Thanks!\n", x);

@@ -26,6 +26,7 @@
 #include <onyx/panic.h>
 #include <onyx/async_io.h>
 #include <onyx/dpc.h>
+#include <onyx/cpu.h>
 
 #include <pci/pci.h>
 #include <drivers/ata.h>
@@ -49,7 +50,6 @@ void ahci_wake_io(void *ctx)
 {
 	struct aio_req *req = ctx;
 	sem_signal(&req->wake_sem);
-	sched_should_resched();
 }
 
 void ahci_deal_aio(struct command_list *list)
@@ -63,17 +63,21 @@ void ahci_deal_aio(struct command_list *list)
 	work.funcptr = ahci_wake_io;
 	work.next = NULL;
 
+	(void) work;
+
 	if(list->last_interrupt_status & AHCI_INTST_ERROR)
 	{
 		req->status = AIO_STATUS_EIO;
 		req->req_end = get_main_clock()->get_ticks();
-		dpc_schedule_work(&work, DPC_PRIORITY_HIGH);
+		ahci_wake_io(req);
+		//dpc_schedule_work(&work, DPC_PRIORITY_HIGH);
 	}
 	else if(list->last_interrupt_status & AHCI_PORT_INTERRUPT_DHRE)
 	{
 		req->status = AIO_STATUS_OK;
 		req->req_end = get_main_clock()->get_ticks();
-		dpc_schedule_work(&work, DPC_PRIORITY_HIGH);
+		ahci_wake_io(req);
+		//dpc_schedule_work(&work, DPC_PRIORITY_HIGH);
 	}
 }
 
@@ -89,8 +93,6 @@ void ahci_do_clist_irq(struct ahci_port *port, int j)
 
 void ahci_do_port_irqs(struct ahci_port *port)
 {
-	spin_lock(&port->port_lock);
-
 	uint32_t cmd_done = port->issued ^ port->port->command_issue;
 
 	for(unsigned int j = 0; j < 32; j++)
@@ -99,8 +101,6 @@ void ahci_do_port_irqs(struct ahci_port *port)
 			ahci_do_clist_irq(port, j);
 		port->issued &= ~(1UL << j);
 	}
-
-	spin_unlock(&port->port_lock);
 }
 
 irqstatus_t ahci_irq(struct irq_context *ctx, void *cookie)
@@ -254,12 +254,12 @@ command_list_t *ahci_allocate_command_list(struct ahci_port *ahci_port, size_t *
 {
 	command_list_t *clist = ahci_port->clist;
 
-	spin_lock(&ahci_port->port_lock);
+	spin_lock_irqsave(&ahci_port->port_lock);
 
 	command_list_t *list = ahci_find_free_command_list(clist,
 		AHCI_CAP_NCS(device->hba->host_cap), index);
 
-	spin_unlock(&ahci_port->port_lock);
+	spin_unlock_irqrestore(&ahci_port->port_lock);
 
 	return list;
 }
@@ -350,13 +350,13 @@ bool ahci_do_command_async(struct ahci_port *ahci_port,
 	l->req = ioreq;
 	ioreq->cookie = (void *) list_index;
 
-	spin_lock(&ahci_port->port_lock);
+	spin_lock_irqsave(&ahci_port->port_lock);
 
 	ahci_port->issued |= (1 << list_index);
 
 	ahci_issue_command(ahci_port, list_index);
 
-	spin_unlock(&ahci_port->port_lock);
+	spin_unlock_irqrestore(&ahci_port->port_lock);
 
 	return true;
 }
@@ -368,8 +368,9 @@ bool ahci_do_command(struct ahci_port *ahci_port, struct ahci_command_ata *buf)
 	
 	if(!ahci_do_command_async(ahci_port, buf, &req))
 		return false;
-	
+
 	while(!req.wake_sem.counter);
+
 	//sem_wait(&req.wake_sem);
 
 	if(req.status == AIO_STATUS_OK)
@@ -650,8 +651,6 @@ void ahci_free_list(struct ahci_port *port, size_t idx)
 
 	port->cmdslots[idx].req = NULL;
 
-	port->port->command_issue &= ~(1 << idx);
-
 	list->prdtl = 0;
 
 	spin_unlock(&port->port_lock);
@@ -682,7 +681,6 @@ int ahci_do_identify(struct ahci_port *port)
 				return -1;
 			}
 
-			printf("Done!\n");
 			break;
 		}
 		default:
