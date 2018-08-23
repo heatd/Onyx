@@ -526,8 +526,38 @@ __sigret_return:
 global apic_spurious_irq:function
 apic_spurious_irq:
 	iretq
+
+extern lapic_send_eoi
+extern cpu_handle_messages
 global __cpu_handle_message:function
 __cpu_handle_message:
 	cli
-	hlt
-
+	pushaq
+	mov ax, ds
+	push rax
+	mov ax, 0x10
+	mov ss, ax
+	mov ds, ax
+	mov es, ax
+	mov rax, [rsp + 136]
+	cmp rax, 0x8
+	je .skip_swapgs
+	swapgs
+.skip_swapgs:
+	; End the stack frame list so we stop here
+	xor rbp, rbp
+	mov rdi, rsp
+	call cpu_handle_messages
+	mov rsp, rax
+	call lapic_send_eoi
+.continue:
+	mov rax, [rsp + 136]
+	cmp rax, 0x8
+	je .skip_swapgs2
+	swapgs
+.skip_swapgs2:
+	pop rax
+	mov ds, ax
+	mov es, ax
+	popaq
+	iretq

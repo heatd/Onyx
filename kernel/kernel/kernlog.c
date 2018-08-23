@@ -15,7 +15,7 @@
 #include <onyx/panic.h>
 #include <drivers/rtc.h>
 
-//#define VBOX_DEBUG
+#define VBOX_DEBUG
 
 #ifdef VBOX_DEBUG
 #include <onyx/portio.h>

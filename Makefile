@@ -92,6 +92,7 @@ qemu: iso
 	-object filter-dump,id=f1,netdev=u1,file=net.pcap \
 	-enable-kvm -smp 2 -cpu host,migratable=no,+invtsc -d int -vga qxl \
 	-usb
+	#-machine q35
 intel-passthrough-qemu: iso
 	sudo qemu-system-x86_64 -vga none -display gtk,gl=on \
 	-device vfio-pci,sysfsdev=/sys/devices/pci0000\:00/0000\:00\:02.0/d507ce65-255a-4b85-88b5-0090410c0b5c,x-igd-opregion=on \

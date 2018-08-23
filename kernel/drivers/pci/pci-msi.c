@@ -80,6 +80,7 @@ int pci_enable_msi(struct pci_device *dev, irq_t handler)
 			(struct device *) dev, IRQ_FLAG_REGULAR, NULL) == 0);
 	}
 
+
 	message_control |= ilog2(num_vecs) << 4;
 	message_control |= PCI_MSI_MSGCTRL_ENABLE;
 	uint32_t message_addr = data.address;
@@ -89,7 +90,7 @@ int pci_enable_msi(struct pci_device *dev, irq_t handler)
 	off_t message_data_off = addr64 ? offset + PCI_MSI_MESSAGE_ADDRESS_OFF + 8 
                                  : offset + PCI_MSI_MESSAGE_ADDRESS_OFF + 4;
 	/* Now write everything back */
-	pci_write(dev, message_addr, offset + PCI_MSI_MESSAGE_ADDRESS_OFF, sizeof(uint16_t));
+	pci_write(dev, message_addr, offset + PCI_MSI_MESSAGE_ADDRESS_OFF, sizeof(uint32_t));
 	if(addr64)	pci_write(dev, message_addr_hi, offset + 
 	                          PCI_MSI_MESSAGE_ADDRESS_OFF + 4, sizeof(uint32_t));
 	pci_write(dev, message_data, message_data_off, sizeof(uint16_t));

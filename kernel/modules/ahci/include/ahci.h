@@ -10,6 +10,8 @@
 #include <stdbool.h>
 
 #include <onyx/spinlock.h>
+#include <onyx/async_io.h>
+
 #define	SATA_SIG_ATA	0x00000101	// SATA drive
 #define	SATA_SIG_ATAPI	0xEB140101	// SATAPI drive
 
@@ -213,17 +215,26 @@ struct command_list
 {
 	volatile bool recieved_interrupt;
 	uint32_t last_interrupt_status;
+	uint32_t status;
+	uint32_t tfd;
+	struct aio_req *req;
 };
+
+struct ahci_device;
 
 struct ahci_port
 {
+	struct ahci_device *dev;
 	int port_nr;
 	ahci_port_t *port;
 	struct spinlock port_lock;
-	command_table_t *ctable;
+	command_table_t **ctables;
 	prdt_t *prdt;
+	command_list_t *clist;
+	void *fisb;
 	struct command_list cmdslots[32];
 	unsigned char identify[512];
+	uint32_t issued;
 };
 
 struct ahci_device
@@ -241,6 +252,7 @@ struct ahci_command_ata
 	void *buffer;
 	uint64_t lba;
 };
+
 /* Bitmasks for the capabilities register of the HBA */
 #define AHCI_CAP_NR_PORTS(val)		(val & 0xF)
 #define AHCI_CAP_SXS			(1 << 5)
@@ -317,6 +329,15 @@ struct ahci_command_ata
 AHCI_PORT_INTERRUPT_PRCE | AHCI_PORT_INTERRUPT_IPME | AHCI_PORT_INTERRUPT_OFE \
 | AHCI_PORT_INTERRUPT_INFE | AHCI_PORT_INTERRUPT_IFE | AHCI_PORT_INTERRUPT_HBDE | \
 AHCI_PORT_INTERRUPT_HBFE | AHCI_PORT_INTERRUPT_TFEE) 
+
 uint32_t ahci_get_version(ahci_hba_memory_regs_t *hba);
 char *ahci_stringify_version(uint32_t version);
+bool ahci_do_command_async(struct ahci_port *ahci_port,
+	struct ahci_command_ata *buf,
+	struct aio_req *ioreq);
+
+bool ahci_do_command(struct ahci_port *ahci_port, struct ahci_command_ata *buf);
+
+#define PRDT_MAX_SIZE		0x400000
+
 #endif

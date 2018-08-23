@@ -334,7 +334,7 @@ int ata_initialize_drive(int channel, int drive)
 	else
 		outb(ATA_DATA2 + ATA_REG_COMMAND, ATA_CMD_IDENTIFY);
 	delay_400ns();
-	if(ata_wait_for_irq(1000))
+	if(ata_wait_for_irq(100))
 	{
 		ERROR("ata", "IDENTIFY error\n");
 		return 0;
@@ -546,7 +546,7 @@ void ata_read_sectors(unsigned int channel, unsigned int drive, uint32_t buffer,
 		outb(ATA_DATA2 + ATA_REG_COMMAND, ATA_CMD_READ_DMA_EXT);
 	
 	outb(bar4_base, 9);
-	ata_wait_for_irq(10000);
+	ata_wait_for_irq(100);
 	outb(bar4_base, 0);
 }
 
@@ -597,7 +597,7 @@ void ata_write_sectors(unsigned int channel, unsigned int drive, uint32_t buffer
 		outb(ATA_DATA2 + ATA_REG_COMMAND, ATA_CMD_WRITE_DMA_EXT);
 	
 	outb(bar4_base, 1);
-	ata_wait_for_irq(10000);
+	ata_wait_for_irq(100);
 	outb(bar4_base, 0);
 	if(!channel)
 	{

@@ -242,6 +242,8 @@ void *elf_load_kernel_module(void *file, void **fini_func)
 			sections[i].sh_offset = (Elf64_Off) mem - (Elf64_Off) header;
 		}
 	}
+
+	printk("Base: %lx\n", first_address);
 	for(size_t i = 0; i < header->e_shnum; i++)
 	{
 		if(sections[i].sh_type == SHT_RELA)

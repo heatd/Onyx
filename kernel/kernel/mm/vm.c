@@ -489,6 +489,7 @@ struct page *vm_map_range(void *range, size_t nr_pages, uint64_t flags)
 		p = p->next_un.next_allocation;
 	}
 
+	paging_invalidate(range, nr_pages);
 	__vm_unlock(kernel);
 
 	return pages;
@@ -932,6 +933,7 @@ void *vmalloc(size_t pages, int type, int perms)
 	if(!vmo)
 	{
 		vm_destroy_mappings((void *) vm->base, pages);
+		return NULL;
 	}
 
 	vmo->mappings = vm;

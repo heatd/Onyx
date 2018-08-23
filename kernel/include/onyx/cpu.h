@@ -270,10 +270,13 @@ struct cpu_message
 {
 	unsigned long message;
 	void *ptr;
+	volatile bool ack;
 	struct cpu_message *next;
 };
 /* CPU messages */
 #define CPU_KILL	(unsigned long) -1
+#define CPU_TRY_RESCHED	(unsigned long)  0
+#define CPU_FLUSH_TLB	(unsigned long)  1
 
 #ifdef __cplusplus
 }

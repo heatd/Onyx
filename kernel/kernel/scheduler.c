@@ -433,6 +433,27 @@ static void remove_from_wait_queue(thread_t *thread)
 	spin_unlock(&wait_queue_lock);
 }
 
+void sched_try_to_resched(struct thread *thread)
+{
+	struct thread *current = get_current_thread();
+
+	if(thread->cpu == current->cpu && thread->priority > current->priority)
+	{
+		/* Just yield, we'll get to execute the thread eventually */
+		sched_yield();
+	}
+	else
+	{
+		struct processor *cpu = get_processor_data_for_cpu(thread->cpu);
+
+		if(cpu->current_thread->priority < thread->priority)
+		{
+			/* Send a CPU message asking for a resched */
+			cpu_send_message(thread->cpu, CPU_TRY_RESCHED, thread);
+		}
+	}
+}
+
 void thread_set_state(thread_t *thread, int state)
 {
 	assert(thread != NULL);
@@ -479,6 +500,7 @@ void thread_set_state(thread_t *thread, int state)
 		assert(p != NULL);
 		sched_append_to_queue(thread->priority, p,
 					thread);
+		sched_try_to_resched(thread);
 	}
 	else
 		thread->status = state;
@@ -640,7 +662,7 @@ void condvar_wait(struct cond *var, struct mutex *mutex)
 	thread_t *current = get_current_thread();
 
 	mutex_unlock(mutex);
-	
+
 	sched_disable_preempt();
 	enqueue_thread_condvar(var, current);
 	thread_suspend_and_release(current, &var->llock);

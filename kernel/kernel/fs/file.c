@@ -490,6 +490,7 @@ int sys_mount(const char *source, const char *target, const char *filesystemtype
 	if(!dev_name)
 		return errno = -ENOMEM;
 	dev_name[strlen(dev_name)-1] = '\0';
+
 	block_device_t *block = blkdev_search((const char *) dev_name);
 	int part_index = source[strlen(source)-1] - '1';
 
@@ -499,7 +500,7 @@ int sys_mount(const char *source, const char *target, const char *filesystemtype
 	if(!(node = fs->handler(lba, block)))
 	{
 		perror("");
-		ret = -1;
+		ret = -EINVAL;
 		goto exit;
 	}
 	char *str = strdup(target);

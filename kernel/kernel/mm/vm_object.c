@@ -193,6 +193,8 @@ int vmo_prefault(struct vm_object *vmo, size_t size, off_t offset)
 		_p = _p->next_un.next_allocation;
 	}
 
+	vmo->page_list = p;
+
 	if(vm_flush(vmo->mappings) < 0)
 		return -1;
 	return 0;

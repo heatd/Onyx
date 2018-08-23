@@ -49,6 +49,7 @@ typedef struct thread
 } thread_t;
 
 #define THREAD_KERNEL		(1 << 0)
+#define THREAD_NEEDS_RESCHED	(1 << 1)
 
 #ifdef __cplusplus
 extern "C" {
@@ -99,6 +100,17 @@ void sched_disable_preempt(void);
 void sched_enable_preempt_for_cpu(struct processor *cpu);
 
 void sched_disable_preempt_for_cpu(struct processor *cpu);
+
+static inline bool sched_needs_resched(struct thread *thread)
+{
+	return thread->flags & THREAD_NEEDS_RESCHED;
+}
+
+static inline void sched_should_resched(void)
+{
+	struct thread *t = get_current_thread();
+	if(t) t->flags |= THREAD_NEEDS_RESCHED;
+}
 
 #ifdef __cplusplus
 }

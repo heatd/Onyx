@@ -332,8 +332,12 @@ uint16_t pci_get_intn(struct pci_device *dev)
 	if(pin == 0xff)
 		return UINT16_MAX;
 
+	/* Make the pin a 0-based int so it fits nicely with the array */
+	pin--;
+
 	uint16_t intn = dev->pin_to_gsi[pin].gsi;
-	ioapic_set_pin(dev->pin_to_gsi[pin].active_high, dev->pin_to_gsi[pin].level, intn);
+	ioapic_set_pin(dev->pin_to_gsi[pin].active_high,
+		       dev->pin_to_gsi[pin].level, intn);
 
 	return intn;
 }

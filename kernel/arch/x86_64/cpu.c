@@ -380,10 +380,17 @@ void cpu_notify(struct processor *p)
 	send_ipi(p->lapic_id, 0, X86_MESSAGE_VECTOR);
 }
 
+void cpu_wait_for_msg_ack(struct cpu_message *msg)
+{
+	while(!msg->ack)
+		cpu_relax();
+}
+
 void cpu_send_message(int cpu, unsigned long message, void *arg)
 {
 	struct processor 	*p;
 	struct cpu_message	msg;
+	msg.ack = false;
 	assert(cpu <= booted_cpus);
 	p = get_processor_data_for_cpu(cpu);
 	assert(p != NULL);
@@ -409,13 +416,16 @@ void cpu_send_message(int cpu, unsigned long message, void *arg)
 			while(m->next) m = m->next;
 			m->next = &msg;
 		}
+
 		msg.message = message;
 		msg.ptr = arg;
 		msg.next = NULL;
 		spin_unlock(&p->message_queue_lock);
 	}
+
 	cpu_notify(p);
-	//cpu_wait_for_msg_ack();
+
+	cpu_wait_for_msg_ack(&msg);
 }
 
 void cpu_kill(int cpu_num)
@@ -432,4 +442,61 @@ void cpu_kill_other_cpus(void)
 		if(i != curr_cpu)
 			cpu_kill(i);
 	}
+}
+
+void cpu_handle_kill(void)
+{
+	halt();
+}
+
+void cpu_try_resched(void *ptr)
+{
+	struct thread *thread = ptr;
+
+	struct thread *current = get_current_thread();
+
+	/* If the scheduled thread's prio is > than ours, resched! */
+	if(thread->priority > current->priority)
+	{
+		sched_should_resched();
+		return;
+	}
+}
+
+void cpu_handle_message(struct cpu_message *msg)
+{
+	switch(msg->message)
+	{
+		case CPU_KILL:
+			cpu_handle_kill();
+			break;
+		case CPU_TRY_RESCHED:
+			cpu_try_resched(msg->ptr);
+			break;
+	}
+
+	msg->ack = true;
+}
+
+void *cpu_handle_messages(void *stack)
+{
+	struct processor *cpu = get_processor_data();
+
+	spin_lock(&cpu->message_queue_lock);
+
+	for(struct cpu_message *msg = cpu->message_queue; msg; msg = msg->next)
+	{
+		cpu_handle_message(msg);
+	}
+
+	cpu->message_queue = NULL;
+
+	spin_unlock(&cpu->message_queue_lock);
+
+	if(sched_needs_resched(get_current_thread()))
+	{
+		return sched_switch_thread(stack);
+	}
+
+	return stack;
 }

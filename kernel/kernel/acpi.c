@@ -150,7 +150,9 @@ int enumerate_pci_irq_routing(ACPI_PCI_ROUTING_TABLE *table, struct bus *bus,
 		struct pci_device *dev = get_pcidev(&addr);
 		if(!dev)
 			continue;
+
 		uint32_t pin = it->Pin;
+		printk("00:%02x:00: pin INT%c --->", device, 'A' + pin);
 		uint32_t gsi = -1;
 		bool level = true;
 		bool active_high = false;
@@ -204,6 +206,8 @@ int enumerate_pci_irq_routing(ACPI_PCI_ROUTING_TABLE *table, struct bus *bus,
 			}
 			free(buf.Pointer);
 		}
+
+		printk("GSI %u\n", gsi);
 		dev->pin_to_gsi[pin].level = level;
 		dev->pin_to_gsi[pin].active_high = active_high;
 		dev->pin_to_gsi[pin].gsi = gsi;

@@ -62,7 +62,7 @@ int platform_allocate_msi_interrupts(unsigned int num_vectors, bool addr64,
 	/* See section 10.11.1 of the intel software developer manuals */
 	uint32_t address = PCI_MSI_BASE_ADDRESS;
 	address |= ((uint32_t) proc->lapic_id) << PCI_MSI_APIC_ID_SHIFT;
-	
+
 	/* See section 10.11.2 of the intel software developer manuals */
 	uint32_t data_val = vecs;
 

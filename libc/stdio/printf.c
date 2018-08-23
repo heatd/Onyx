@@ -86,6 +86,12 @@ void libc_late_init()
 }
 #ifdef __is_onyx_kernel
 extern int panicing;
+
+int putchar(int c)
+{
+	tty_write_kernel(&c, 1);
+	return c;
+}
 #endif
 
 int printf(const char *__restrict__ format, ...)

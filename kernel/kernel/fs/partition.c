@@ -28,6 +28,7 @@ void insert_filesystem_mount(filesystem_mount_t *m)
 		mounts->next = m;
 	}
 }
+
 filesystem_mount_t *find_filesystem_handler(const char *fsname)
 {
 	if(!filesystems)
@@ -39,6 +40,7 @@ filesystem_mount_t *find_filesystem_handler(const char *fsname)
 	}
 	return NULL;
 }
+
 int partition_add_handler(fs_handler handler, char *filesystem, uint8_t mbr_part_code, uuid_t *uuids, size_t num_uuids)
 {
 	mbr_code_handlers[mbr_part_code] = handler;
@@ -57,12 +59,14 @@ int partition_add_handler(fs_handler handler, char *filesystem, uint8_t mbr_part
 
 	return 0;
 }
+
 fs_handler lookup_handler_from_partition_code(enum partition_type_t type, uint8_t part_code)
 {
 	if(type == PARTITION_TYPE_MBR)
 		return mbr_code_handlers[part_code];
 	return NULL;
 }
+
 uint64_t partition_find_gpt(int index, block_device_t *dev, filesystem_mount_t *fs)
 {
 	gpt_header_t *gpt_header = malloc(512);
@@ -89,7 +93,7 @@ uint64_t partition_find_gpt(int index, block_device_t *dev, filesystem_mount_t *
 	{
 		if(i == (unsigned int) index)
 		{
-			_Bool is_correct = false;
+			bool is_correct = false;
 			for(size_t j = 0; j < fs->uuids_len; j++)
 			{
 				if(!memcmp(part_table[i].partition_type, fs->uuids[j], 16))
@@ -105,6 +109,7 @@ uint64_t partition_find_gpt(int index, block_device_t *dev, filesystem_mount_t *
 	}
 	return errno = EINVAL, 0;
 }
+
 uint64_t partition_find(int index, block_device_t *dev, filesystem_mount_t *fs)
 {
 	/* Firstly, try to use GPT */

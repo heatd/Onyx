@@ -31,6 +31,7 @@ block_device_t *blkdev_search(const char *name)
 			break;
 		dev = dev->next;
 	}
+
 	return dev;
 }
 /* 
