@@ -21,5 +21,6 @@ void *__do_get_per_cpu(uintptr_t offset);
 void setup_percpu(void);
 
 #define GET_PER_CPU(var, type)	*(type*) __do_get_per_cpu(CPU_OFFSET(var))
+#define GET_PER_CPU_ADDR(var)		__do_get_per_cpu(CPU_OFFSET(var))
 
 #endif

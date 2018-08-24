@@ -58,26 +58,17 @@ void ahci_deal_aio(struct command_list *list)
 	
 	struct aio_req *req = list->req;
 
-	struct dpc_work work;
-	work.context = req;
-	work.funcptr = ahci_wake_io;
-	work.next = NULL;
-
-	(void) work;
-
 	if(list->last_interrupt_status & AHCI_INTST_ERROR)
 	{
 		req->status = AIO_STATUS_EIO;
 		req->req_end = get_main_clock()->get_ticks();
 		ahci_wake_io(req);
-		//dpc_schedule_work(&work, DPC_PRIORITY_HIGH);
 	}
 	else if(list->last_interrupt_status & AHCI_PORT_INTERRUPT_DHRE)
 	{
 		req->status = AIO_STATUS_OK;
 		req->req_end = get_main_clock()->get_ticks();
 		ahci_wake_io(req);
-		//dpc_schedule_work(&work, DPC_PRIORITY_HIGH);
 	}
 }
 
@@ -93,6 +84,7 @@ void ahci_do_clist_irq(struct ahci_port *port, int j)
 
 void ahci_do_port_irqs(struct ahci_port *port)
 {
+	spin_lock_irqsave(&port->port_lock);
 	uint32_t cmd_done = port->issued ^ port->port->command_issue;
 
 	for(unsigned int j = 0; j < 32; j++)
@@ -101,6 +93,8 @@ void ahci_do_port_irqs(struct ahci_port *port)
 			ahci_do_clist_irq(port, j);
 		port->issued &= ~(1UL << j);
 	}
+
+	spin_unlock_irqrestore(&port->port_lock);
 }
 
 irqstatus_t ahci_irq(struct irq_context *ctx, void *cookie)

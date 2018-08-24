@@ -31,6 +31,8 @@ void setup_percpu(void)
 void *__do_get_per_cpu(uintptr_t offset)
 {
 	struct processor *p = get_processor_data();
+	if(!p)
+		return percpu_master_copy + offset;
 
 	return p->percpu_copy + offset;
 }

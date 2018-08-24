@@ -35,10 +35,6 @@ struct process
 
 	/* The processes' threads */
 	thread_t *threads[30];
-	
-	/* Kernel-side errno of the process */
-	/* TODO: Should this be kept on the thread_t structure? */
-	int errno;
 
 	struct mm_address_space address_space;
 	/* Program name*/

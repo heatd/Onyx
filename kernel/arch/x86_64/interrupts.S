@@ -459,60 +459,7 @@ _sched_yield:
 	pop rcx
 	pop rbx
 %endmacro
-global syscall_ENTRY64_int
-extern syscall_list
-extern SYSCALL_MAX_NUM
-extern errno
-section .data
-global syscalls
-syscalls: dq 0
-section .text
-syscall_ENTRY64_int:
-	sti
-	inc qword [syscalls]
-	
-	syscallsaveregs
-	; load the kernel's segments
-	mov cx, ds
-	
-	push rcx
-	mov cx, 0x10
-	mov ds, cx
-	mov ss, cx
-	mov es, cx
 
-	mov rcx, [rsp + 136]
-	cmp rcx, 0x8
-	je .skip_swapgs_syscall
-	swapgs 
-.skip_swapgs_syscall:
-	cmp rax, SYSCALL_MAX_NUM
-	jl .syscall_exit_sig
-	cmp rax, 10 ; If syscallnum == 10, it's a fork system call
-	je .fork
-.continue:
-	call [syscall_list + rax * 8]
-.syscall_exit:
-	mov r11, [errno]
-	mov rcx, [rsp + 136]
-	cmp rcx, 0x8
-	je .skip_swapgs_syscall2
-	swapgs 
-.skip_swapgs_syscall2:
-	pop rcx
-	mov ds, cx
-	mov es, cx
-	syscallpopregs
-	iretq
-.syscall_exit_sig:
-	cli
-	hlt
-.fork:
-	; Store relevant arguments to sys_fork and pass them in
-	
-	mov rdi, rsp
-
-	jmp .continue 
 global __sigret_return
 __sigret_return:
 	cli

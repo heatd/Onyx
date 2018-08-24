@@ -23,7 +23,7 @@ typedef struct thread
 	uintptr_t *kernel_stack;
 	uintptr_t *kernel_stack_top;
 	uintptr_t *user_stack_bottom;
-	volatile struct process *owner;
+	struct process *owner;
 	thread_callback_t rip;
 	uint32_t flags;
 	int id;
@@ -41,6 +41,7 @@ typedef struct thread
 	struct thread *sem_next;
 	struct spinlock lock;
 	struct spinlock *to_release;
+	int errno_val;
 	/* And arch dependent stuff in this ifdef */
 #ifdef __x86_64__
 	void *fs;

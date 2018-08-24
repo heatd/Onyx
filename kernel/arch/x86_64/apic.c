@@ -263,7 +263,7 @@ void apic_update_clock_monotonic(void)
 
 irqstatus_t apic_timer_irq(struct irq_context *ctx, void *cookie)
 {
-	if(!is_percpu_initialized())
+	if(unlikely(!is_percpu_initialized()))
 	{
 		boot_ticks++;
 		apic_update_clock_monotonic();
@@ -280,14 +280,17 @@ irqstatus_t apic_timer_irq(struct irq_context *ctx, void *cookie)
 	{
 		boot_ticks++;
 		apic_update_clock_monotonic();
-
 	}
 
 	process_increment_stats(is_kernel_ip(ctx->registers->rip));
+
 	if(cpu->sched_quantum == 0)
 	{
-		cpu->sched_quantum = 10;
-		ctx->registers = sched_switch_thread((void *) ctx->registers);
+		/* If we don't have a current thread, do it the old way */
+		if(likely(cpu->current_thread))
+			cpu->current_thread->flags |= THREAD_NEEDS_RESCHED;
+		else
+			ctx->registers = sched_switch_thread(ctx->registers);
 	}
 
 	return IRQ_HANDLED;

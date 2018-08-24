@@ -26,9 +26,11 @@
 #include <onyx/cpu.h>
 
 #include <sys/time.h>
+
 /* Creates a thread for the scheduler to switch to
-   Expects a callback for the code(RIP) and some flags */
-int curr_id = 1;
+   Expects a callback for the code(RIP) and some flags
+*/
+atomic_int curr_id = 1;
 
 thread_t* task_switching_create_context(thread_callback_t callback, uint32_t flags, void* args)
 {
@@ -37,20 +39,27 @@ thread_t* task_switching_create_context(thread_callback_t callback, uint32_t fla
 	if(!new_thread)
 		return NULL;
 	
-	memset(new_thread, 0 ,sizeof(thread_t));
+	memset(new_thread, 0, sizeof(thread_t));
 
 	new_thread->rip = callback;
 	new_thread->flags = flags;
 	new_thread->id = curr_id++;
-	posix_memalign((void**) &new_thread->fpu_area, FPU_AREA_ALIGNMENT, FPU_AREA_SIZE);
-	if(!new_thread->fpu_area)
+
+	if(!(flags & THREAD_KERNEL))
 	{
-		free(new_thread);
-		return NULL;
+		posix_memalign((void**) &new_thread->fpu_area, FPU_AREA_ALIGNMENT, FPU_AREA_SIZE);
+		if(!new_thread->fpu_area)
+		{
+			free(new_thread);
+			return NULL;
+		}
+
+		memset(new_thread->fpu_area, 0, FPU_AREA_SIZE);
+		setup_fpu_area(new_thread->fpu_area);
 	}
-	memset(new_thread->fpu_area, 0, FPU_AREA_SIZE);
-	setup_fpu_area(new_thread->fpu_area);
-	if(!(flags & 1)) // If the thread is user mode, create a user stack
+
+	// If the thread is user mode, create a user stack
+	if(!(flags & THREAD_KERNEL))
 	{
 		new_thread->user_stack = get_user_pages(VM_TYPE_STACK, 256, VM_WRITE | VM_NOEXEC | VM_USER);
 		if(!new_thread->user_stack)
@@ -60,6 +69,7 @@ thread_t* task_switching_create_context(thread_callback_t callback, uint32_t fla
 			return NULL;
 		}
 	}
+
 	new_thread->kernel_stack = get_pages(VM_KERNEL, VM_TYPE_STACK, 4, VM_WRITE | VM_NOEXEC, 0);
 
 	if(!new_thread->kernel_stack)
@@ -87,11 +97,11 @@ thread_t* task_switching_create_context(thread_callback_t callback, uint32_t fla
 	new_thread->kernel_stack_top = stack;
 
 	uintptr_t original_stack = (uintptr_t)stack;
-	if(!(flags & 1))
-		original_stack = (uintptr_t)new_thread->user_stack;
+	if(!(flags & THREAD_KERNEL))
+		original_stack = (uintptr_t) new_thread->user_stack;
 
 	uint64_t ds = 0x10, cs = 0x08, rf = 0x202;
-	if(!(flags & 1))
+	if(!(flags & THREAD_KERNEL))
 		ds = 0x33, cs = 0x2b, rf = 0x202;
 
 	*--stack = ds; //SS
@@ -122,7 +132,8 @@ thread_t* task_switching_create_context(thread_callback_t callback, uint32_t fla
 }
 
 extern PML4 *current_pml4;
-thread_t* task_switching_create_main_progcontext(thread_callback_t callback, uint32_t flags, int argc, char **argv, char **envp)
+thread_t* task_switching_create_main_progcontext(thread_callback_t callback,
+	uint32_t flags, int argc, char **argv, char **envp)
 {
 	thread_t* new_thread = malloc(sizeof(thread_t));
 	
@@ -134,6 +145,7 @@ thread_t* task_switching_create_main_progcontext(thread_callback_t callback, uin
 	new_thread->rip = callback;
 	new_thread->flags = flags;
 	new_thread->id = curr_id++;
+
 	posix_memalign((void**) &new_thread->fpu_area, FPU_AREA_ALIGNMENT, FPU_AREA_SIZE);
 	if(!new_thread->fpu_area)
 	{
@@ -310,13 +322,17 @@ thread_t *sched_spawn_thread(registers_t *regs, thread_callback_t start, void *a
 	memset(new_thread, 0, sizeof(thread_t));
 
 	new_thread->id = curr_id++;
+	
 	posix_memalign((void**) &new_thread->fpu_area, FPU_AREA_ALIGNMENT, FPU_AREA_SIZE);
+	
 	if(!new_thread->fpu_area)
 	{
 		free(new_thread);
 		return NULL;
 	}
+	
 	memset(new_thread->fpu_area, 0, FPU_AREA_SIZE);
+	
 	setup_fpu_area(new_thread->fpu_area);
 
 	new_thread->kernel_stack = vmalloc(4, VM_TYPE_STACK, VM_WRITE  | VM_NOEXEC);
@@ -362,4 +378,34 @@ thread_t *sched_spawn_thread(registers_t *regs, thread_callback_t start, void *a
 	new_thread->fs = fs;
 
 	return new_thread;
+}
+
+void arch_save_thread(struct thread *thread, void *stack)
+{
+	/* No need to save the fpu context if we're a kernel thread! */
+	if(!(thread->flags & THREAD_KERNEL))
+		save_fpu(thread->fpu_area);
+}
+
+void arch_load_thread(struct thread *thread, struct processor *p)
+{
+	p->kernel_stack = thread->kernel_stack_top;
+	/* Fill the TSS with a kernel stack */
+	set_kernel_stack((uintptr_t) thread->kernel_stack_top);
+
+	if(!(thread->flags & THREAD_KERNEL))
+		restore_fpu(thread->fpu_area);
+}
+
+void arch_load_process(struct process *process, struct thread *thread,
+                       struct processor *p)
+{
+	paging_load_cr3(process->address_space.cr3);
+
+	wrmsr(FS_BASE_MSR, (uintptr_t) thread->fs & 0xFFFFFFFF,
+		(uintptr_t) thread->fs >> 32);
+
+	wrmsr(KERNEL_GS_BASE,
+		(uintptr_t) thread->gs & 0xFFFFFFFF,
+		(uintptr_t) thread->gs >> 32);
 }

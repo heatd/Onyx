@@ -111,54 +111,55 @@ bool sched_is_preemption_disabled(void)
 	return p->preemption_counter > 0;
 }
 
+void arch_save_thread(struct thread *thread, void *stack);
+void arch_load_thread(struct thread *thread);
+void arch_load_process(struct process *process, struct thread *thread,
+                       struct processor *p);
+
+void sched_save_thread(struct thread *thread, void *stack)
+{
+	thread->kernel_stack = stack;
+	thread->errno_val = errno;
+
+	arch_save_thread(thread, stack);
+}
+
+#define SCHED_QUANTUM		10
+
+void sched_load_thread(struct thread *thread, struct processor *p)
+{
+	p->current_thread = thread;
+
+	errno = thread->errno_val;
+
+	arch_load_thread(thread);
+
+	if(thread->owner)
+		arch_load_process(thread->owner, thread, p);
+
+	p->sched_quantum = SCHED_QUANTUM;
+}
+
 void *sched_switch_thread(void *last_stack)
 {
+	struct processor *p = get_processor_data();
+
 	if(is_initialized == 0 || sched_is_preemption_disabled())
 	{
+		p->sched_quantum = SCHED_QUANTUM;
 		return last_stack;
 	}
 
 	sched_wake_up_available_threads();
-	struct processor *p = get_processor_data();
 	thread_t *current_thread = p->current_thread;
 
-	if(unlikely(!current_thread))
-	{
-		current_thread = sched_find_runnable();
-		set_kernel_stack((uintptr_t) current_thread->kernel_stack_top);
-		p->kernel_stack = current_thread->kernel_stack_top;
-		p->current_thread = current_thread;
-		return current_thread->kernel_stack;
-	}
-
-	current_thread->kernel_stack = (uintptr_t*) last_stack;
-	if(likely(get_current_process()))
-	{
-		get_current_process()->errno = errno;
-	}
-
-	/* Save the FPU state */
-	save_fpu(current_thread->fpu_area);
+	if(likely(current_thread))
+		sched_save_thread(current_thread, last_stack);
 
 	current_thread = sched_find_runnable();
-	p->kernel_stack = current_thread->kernel_stack_top;
-	/* Fill the TSS with a kernel stack*/
-	set_kernel_stack((uintptr_t) current_thread->kernel_stack_top);
-	p->current_thread = current_thread;
-	/* Restore the FPU state */
-	restore_fpu(current_thread->fpu_area);
-	
-	if(get_current_process())
-	{
-		paging_load_cr3(get_current_process()->address_space.cr3);
-		errno = get_current_process()->errno;
-		wrmsr(FS_BASE_MSR, (uintptr_t) current_thread->fs & 0xFFFFFFFF,
-			(uintptr_t)current_thread->fs >> 32);
-		wrmsr(KERNEL_GS_BASE,
-			(uintptr_t) current_thread->gs & 0xFFFFFFFF,
-			(uintptr_t) current_thread->gs >> 32);
-	}
 
+	sched_load_thread(current_thread, p);
+	
 	return current_thread->kernel_stack;
 }
 

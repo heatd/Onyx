@@ -10,14 +10,15 @@
 #include <onyx/dev.h>
 #include <onyx/acpi.h>
 #include <onyx/log.h>
+#include <onyx/video/edid.h>
 
 #include <pci/pci.h>
-
 
 #define MPRINTF(...)	printk("ihdgpu: " __VA_ARGS__)
 
 #define INTEL_VENDOR_ID	0x8086
 
+//static_assert(sizeof(struct edid_data) == 128, "bad edid data");
 
 struct pci_id ihdgpu_pci_ids[] = 
 {
@@ -71,7 +72,11 @@ int ihdgpu_probe(struct device *dev)
 		return -1;
 	}
 
-	printk("Done mapping\n");
+	if(pci_reset_device(device) < 0)
+	{
+		printk("Could not reset device\n");
+	}
+
 	return 0;
 
 }

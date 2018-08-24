@@ -10,7 +10,17 @@ extern "C" {
 #include <bits/errno.h>
 
 #ifdef __is_onyx_kernel
-extern int errno;
+
+#include <onyx/percpu.h>
+
+extern int __true_errno;
+
+static int *__get_errno(void)
+{
+	return GET_PER_CPU_ADDR(__true_errno);
+}
+
+#define errno *__get_errno()
 #else
 int *__errno_location(void);
 #define errno (*__errno_location())

@@ -90,6 +90,7 @@
 #define PCI_CAP_ID_SECURE_DEVICE			(0xF)
 #define PCI_CAP_ID_PCI_EXPRESS				(0x10)
 #define PCI_CAP_ID_MSI_X				(0x11)
+#define PCI_CAP_ID_AF					(0x13)
 
 #define PCI_DRIVER_GENERIC 0
 #define PCI_DRIVER_SPECIFIC 1
@@ -199,6 +200,7 @@ int pci_get_bar(struct pci_device *dev, int index, struct pci_bar *bar);
 void *pci_map_bar(struct pci_device *device, int index);
 
 int pci_enable_device(struct pci_device *device);
+int pci_reset_device(struct pci_device *device);
 
 #ifdef __cplusplus
 }

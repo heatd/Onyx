@@ -702,3 +702,48 @@ int pci_enable_device(struct pci_device *device)
 
 	return 0;
 }
+
+#define PCI_AF_REG_LENGTH		2
+#define PCI_AF_REG_AF_CAPS		3
+#define PCI_AF_REG_CONTROL		4
+#define PCI_AF_REG_STATUS		5
+
+#define PCI_AF_CAP_TP			(1 << 0)
+#define PCI_AF_CAP_FLR			(1 << 1)
+
+#define PCI_AF_INTIATE_FLR		(1 << 0)
+
+#define PCI_AF_STATUS_TP		(1 << 0)
+
+int pci_wait_for_tp(struct pci_device *device, off_t cap_start)
+{
+	while(!(pci_read(device, cap_start + PCI_AF_REG_STATUS, sizeof(uint16_t))
+	      & PCI_AF_STATUS_TP));
+
+	return 0;
+}
+
+int pci_reset_device(struct pci_device *device)
+{
+	off_t off = pci_find_capability(device, PCI_CAP_ID_AF);
+	if(off < 0)
+		return errno = EIO, -1;
+	
+	if(pci_read(device, off + PCI_AF_REG_LENGTH, sizeof(uint8_t)) != 6)
+	{
+		INFO("pci", "pci device at %04x:%02x:%02x:%02x has an invalid AF\n",
+			device->segment, device->bus, device->device,
+			device->function);
+		return errno = EIO, -1;
+	}
+
+	uint8_t caps = pci_read(device, off + PCI_AF_REG_AF_CAPS, sizeof(uint8_t));
+
+	/* Check for TP and FLR */
+	if(!(caps & PCI_AF_CAP_TP) || !(caps & PCI_AF_CAP_FLR))
+		return errno = EIO, -1;
+	
+	pci_write(device, PCI_AF_INTIATE_FLR, off + PCI_AF_REG_CONTROL, sizeof(uint8_t));
+
+	return pci_wait_for_tp(device, off);
+}
