@@ -1,21 +1,21 @@
-section .text
-global spinlock_lock
+.section .text
+.global spinlock_lock
 spinlock_lock:
-	push rbp
-	mov rbp, rsp
-.retry:
+	push %rbp
+	mov %rsp, %rbp
+.L0:
 	pause
-	mov rax, 1
-	xchg [rdi], rax
-	cmp rax, 1
-	je .retry
-	pop rbp
+	mov $1, %rax
+	xchg %rax, (%rdi)
+	cmp $1, %rax
+	je .L0
+	pop %rbp
 	ret
-global spinlock_unlock
+.global spinlock_unlock
 spinlock_unlock:
-	push rbp
-	mov rbp, rsp
-	xor rax, rax
-	xchg [rdi], rax
-	pop rbp
+	push %rbp
+	mov %rsp, %rbp
+	xor %rax, %rax
+	xchg %rax, (%rdi)
+	pop %rbp
 	ret

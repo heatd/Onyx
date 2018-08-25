@@ -1,227 +1,224 @@
-;
-; Copyright (c) 2016, 2017 Pedro Falcato
-; This file is part of Onyx, and is released under the terms of the MIT License
-; check LICENSE at the root directory for more information
-;
-bits 32
-section .multiboot
-align 4
-hdr_start:
-	dd 0xe85250d6
-	dd 0
-	dd hdr_end - hdr_start
-	dd 0x100000000 - (0xe85250d6 + 0 + (hdr_end - hdr_start))
-	align 8 ;All tags need to be 8 byte aligned
-	;Framebuffer tag
-	dw 5
-	dw 0
-	dd 20
-	dd 1024
-	dd 768
-	dd 32
-	align 8
-	; Module alignment tag
-	dw 6
-	dw 0
-	dd 8
-	align 8
-	;Finish tag
-	dw 0
-	dw 0
-	dd 8
-hdr_end:
+#
+# Copyright (c) 2016, 2017 Pedro Falcato
+# This file is part of Onyx, and is released under the terms of the MIT License
+# check LICENSE at the root directory for more information
+#
 
-[SECTION .boot]
-[GLOBAL EntryPoint]
-EntryPoint:
-	cli
-	; Clear the direction flag since its state is unspecified by the multiboot spec
-	cld
-	push eax
-	push ebx
-	mov eax, gdtr1
-	lgdt [eax]
+.section .boot
+.align 4
+hdr_start: 
+        .long 0xe85250d6
+        .long 0
+        .long hdr_end - hdr_start
+        .long 0x100000000 - (0xe85250d6 + 0 + (hdr_end - hdr_start))
+        .align 8 #All tags need to be 8 byte aligned
+        #Framebuffer tag
+        .word 5
+        .word 0
+        .long 20
+        .long 1024
+        .long 768
+        .long 32
+        .align 8
+        # Module alignment tag
+        .word 6
+        .word 0
+        .long 8
+        .align 8
+        #Finish tag
+        .word 0
+        .word 0
+        .long 8
+hdr_end: 
 
-	push 0x08
-	push .gdtrdy
-	retf
-
-.gdtrdy:
-	mov eax, 0x10
-	mov ds, ax
-	mov ss, ax
-
-	call setup_paging_and_longm
-
-	mov eax, gdtr2
-	lgdt [gdtr2]
-
-	push 0x08
-	push .gdt2rdy
-	retf
-
-[BITS 64]
-.gdt2rdy:
-	mov eax, 0x10
-	mov ds, ax
-	mov es, ax
-	mov ss, ax
-
-	; If you later decide to unmap the lower zone, you will have an invalid GDT if you're still using gdtr2
-	mov rax, gdtr3
-	lgdt [rax]
-	pop rbx
-	xor rsi,rsi
-	mov rsi, rbx
-	shr rsi, 32
-
-	mov r8,rbx
-	xor rdi,rdi
-	mov edi,r8d
-	mov rax, _start
-	jmp rax
-section .bootstrap_stack, nobits
-align 4
+.section .bootstrap_stack
+.align 4
 stack_bottom:
-	resb 16384
+.skip 16384
 stack_top:
 
-section .text
-extern kernel_early
-extern kernel_main
-extern randomize_stack_canary
-extern _init
-_start:
-	push 0
-	mov rsp, stack_top
-	call initsse
-	call kernel_early
-	call _init
-	call randomize_stack_canary
-	call kernel_main
-	cli
-.Lhang:
-	hlt
-	jmp .Lhang
+.section .text
+_start: 
+        push $0
+        movq $stack_top, %rsp
+        call initsse
+        call kernel_early
+        call _init
+        call randomize_stack_canary
+        call kernel_main
+        cli
+_start.Lhang: 
+        hlt
+        jmp _start.Lhang
 
-section .data
-	error_msg db 'Onyx needs SSE to be supported!', 0
-section .text
-global initsse
-initsse:
-	mov rax, 0x1
-	cpuid
-	test edx, 1<<25
-	jz .noSSE
-	mov rax, cr0
-	and ax, 0xFFFB
-	or ax, 0x2
-	or eax, (1 << 16) ; Enable WP while we're at it 
-	mov cr0, rax
-	mov rax, cr4
-	or ax, 3 << 9
-	or eax, 1 << 18
-	mov cr4, rax
-	; Use 0x1F80, because it's the default and it looks reasonable
-	push 0x1F80
-	ldmxcsr [rsp]
-	add rsp, 8
-	ret
-.noSSE:
-	hlt
-section .boot
-[BITS 32]
-extern pml4
-extern pdpt
-extern pd
-extern pdlower
-setup_paging_and_longm:
-	mov eax, pdpt
-	or eax, 3
-	or eax, 1 << 2
-	mov [pml4], eax
-	mov [pml4 + 0xFF8], eax
-	mov eax, pdlower
-	or eax, 3
-	or eax, 1 << 8
-	or eax, 1 << 2
-	mov [pdpt], eax
-	mov eax, pd
-	or eax, 3
-	or eax, 1 << 8
-	or eax, 1 << 2
-	mov [pdpt + 0xFF0], eax
+.data
+.text
+.global initsse
+initsse: 
+        movq $0x1,%rax
+        cpuid
+        testl $1<<25, %edx
+        jz initsse.noSSE
+        movq %cr0, %rax
+        andw $0xFFFB,%ax
+        orw $0x2,%ax
+        or $1 << 16, %eax
+        movq %rax, %cr0
+        movq %cr4, %rax
+        or $3 << 9, %ax
+        or $1 << 18, %eax
+        movq %rax, %cr4
+        # Use 0x1F80, because it's the default and it looks reasonable
+        push $0x1F80
+        ldmxcsr (%rsp)
+        addq $8, %rsp
+        ret
+initsse.noSSE: 
+        hlt
 
-	mov dword [pd], 0x000083
-	or dword [pd], 1 << 8
-	mov dword [pd + 8], 0x200083
-	or dword [pd + 8], 1 << 8
-	mov dword [pd + 16], 0x400083
-	or dword [pd + 16], 1 << 8
+.section .boot
+.code32
+.global EntryPoint
+EntryPoint: 
+        cli
+        # Clear the direction flag since its state is unspecified by the multiboot spec
+        cld
+        pushl %eax
+        pushl %ebx
+        movl $gdtr1, %eax
+        lgdt (%eax)
 
-	mov dword [pdlower], 0x000083
-	or dword [pdlower], 1 << 8
-	mov dword [pdlower + 8], 0x200083
-	or dword [pdlower + 8], 1 << 8
+        pushl $0x08
+        push $.gdtrdy
+        lret
 
-	; Load CR3 with PML4
-	mov eax, pml4
-	mov cr3, eax
+.gdtrdy: 
+        movl $0x10,%eax
+        movw %ax,%ds
+        movw %ax,%ss
 
-	; Enable PAE
-	mov eax, cr4
-	or eax, 1 << 5
-	mov cr4, eax
+        call setup_paging_and_longm
 
-	; Enable Long Mode in the MSR
-	; Use this to perform some initialization of features
-	; we might need
-	mov ecx, 0xC0000080
-	rdmsr
-	or eax, 1 ; enable syscall/sysret
-	or eax, 1 << 8 ; enable long mode
-	or eax, 1 << 11 ; enable NX
-	xor edx, edx
-	wrmsr
+        movl $gdtr2, %eax
+        lgdt (gdtr2)
 
-	; Enable Paging
-	mov eax, cr0
-	or eax, 1 << 31
-	mov cr0, eax
+        pushl $0x08
+        push $.gdt2rdy
+        lret
 
-	ret
-gdt:
-	DQ	0x0000000000000000
-	DQ	0x00CF9A000000FFFF
-	DQ	0x00CF92000000FFFF
-gdt_begin:
-	DQ	0x0000000000000000 ; 0x0  - NULL segment
-	DQ	0x00A09A0000000000 ; 0x8  - KERNEL CS
-	DQ	0x00A0920000000000 ; 0x10 - KERNEL DS
-	DQ	0x00CFFA000000FFFF ; 0x18 - 32-bit user CS
-	DQ	0x00CFF2000000FFFF ; 0x20 - 32-bit user DS
-	DQ	0x00A0FA0000000000 ; 0x28 - USER CS
-	DQ	0x00A0F20000000000 ; 0x30 - USER DS
-global tss_gdt			   ; 0x38 - TSS
-tss_gdt:
-	DW	0x67,0
-	DB	0, 0xE9, 0
-	DB	0
-	DD	0
-gdt_end:
-gdtr1:
-	DW	40
-	DD	gdt
+.code64
+.gdt2rdy: 
+        movl $0x10,%eax
+        movw %ax,%ds
+        movw %ax,%es
+        movw %ax,%ss
 
-gdtr2:
-	DW	76
-	DD	gdt_begin
-	DD	0
-global gdtr3
-gdtr3:
-	DW	76
-	DQ	gdt_begin + 0xFFFFFFFF80000000
-section .bss
-global tss
-tss:
-	resb 4096
+        # If you later decide to unmap the lower zone, you will have an invalid GDT if you're still using gdtr2
+        movq $gdtr3, %rax
+        lgdt (%rax)
+        popq %rbx
+        xorq %rsi,%rsi
+        movq %rbx,%rsi
+        shrq $32,%rsi
+
+        movq %rbx, %r8
+        xorq %rdi,%rdi
+        movl %r8d, %edi
+        movq $_start, %rax
+        jmp *%rax
+
+.code32
+setup_paging_and_longm: 
+        movl $pdpt, %eax
+        orl $3,%eax
+        or $1 << 2, %eax
+        movl %eax,pml4
+        mov %eax, pml4 + 0xFF8
+        movl $pdlower, %eax
+        orl $3, %eax
+        or $1 << 8, %eax
+        or $1 << 2, %eax
+        movl %eax, pdpt
+        movl $pd, %eax
+        orl $3, %eax
+        or $1 << 8, %eax
+        or $1 << 2, %eax
+        mov %eax, pdpt + 0xFF0
+
+        movl $0x000083, pd
+        orl $1 << 8, pd
+        movl $0x200083, pd + 8
+        orl $1 << 8, pd + 8
+        movl $0x400083, pd + 16
+        orl $1 << 8, pd + 16
+
+        movl $0x000083, pdlower
+        orl  $1 << 8, pdlower
+        movl $0x200083, pdlower + 8
+        orl $1 << 8, pdlower + 8
+
+        # Load CR3 with PML4
+        movl $pml4, %eax
+        movl %eax, %cr3
+
+        # Enable PAE
+        movl %cr4, %eax
+        or $1 << 5, %eax
+        movl %eax, %cr4
+
+        # Enable Long Mode in the MSR
+        # Use this to perform some initialization of features
+        # we might need
+        movl $0xC0000080, %ecx
+        rdmsr
+        # enable syscall/sysret
+        orl $1, %eax
+        or $1 << 8, %eax
+        or $1 << 11, %eax
+        xorl %edx,%edx
+        wrmsr
+
+        # Enable Paging
+        movl %cr0, %eax
+        or $1 << 31, %eax
+        movl %eax, %cr0
+
+        ret
+gdt: 
+        .quad 0x0000000000000000
+        .quad 0x00CF9A000000FFFF
+        .quad 0x00CF92000000FFFF
+gdt_begin: 
+        .quad 0x0000000000000000   # 0x0  - NULL segment
+        .quad 0x00A09A0000000000   # 0x8  - KERNEL CS
+        .quad 0x00A0920000000000   # 0x10 - KERNEL DS
+        .quad 0x00CFFA000000FFFF   # 0x18 - 32-bit user CS
+        .quad 0x00CFF2000000FFFF   # 0x20 - 32-bit user DS
+        .quad 0x00A0FA0000000000   # 0x28 - USER CS
+        .quad 0x00A0F20000000000   # 0x30 - USER DS
+.global tss_gdt                    # 0x38 - TSS
+tss_gdt: 
+        .word 0x67,0
+        .byte 0,0xE9,0
+        .byte 0
+        .long 0
+gdt_end: 
+gdtr1: 
+        .word 40
+        .long gdt
+
+gdtr2: 
+        .word 76
+        .long gdt_begin
+        .long 0
+
+.global gdtr3
+gdtr3: 
+        .word 76
+        .quad gdt_begin + 0xFFFFFFFF80000000
+
+.bss
+.global tss
+tss: 
+.skip 4096
+

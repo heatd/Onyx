@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <elf.h>
 #include <time.h>
+#include <assert.h>
 
 #include <onyx/log.h>
 #include <onyx/vfs.h>
@@ -113,12 +114,17 @@ void vdso_init(void)
 		page_add_page_late((void *) page);
 
 	increment_vdso_pages();
+
 	char *file = (char *) &__vdso_start;
 	Elf64_Ehdr *header = (Elf64_Ehdr *) &__vdso_start;
+
+	assert(header->e_ident[EI_MAG0] == '\x7f');
+
 	Elf64_Shdr *s = (Elf64_Shdr*)(file + header->e_shoff);
 	Elf64_Shdr *shname = &s[header->e_shstrndx];
 	Elf64_Phdr *ph = (Elf64_Phdr*)(file + header->e_phoff);
 	vdso_base = (uintptr_t) file + ph->p_offset;
+
 	char *shname_buf = (char*)(file + shname->sh_offset);
 	for(Elf64_Half i = 0; i < header->e_shnum; i++)
 	{

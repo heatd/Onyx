@@ -451,12 +451,12 @@ ACPI_STATUS acpi_enumerate_per_cpu(ACPI_HANDLE object, UINT32 nestingLevel, void
 		return AE_ERROR;
 	/* Get the APIC ID */
 	ACPI_OBJECT *obj = (ACPI_OBJECT*) buffer.Pointer;
-	ACPI_SUBTABLE_HEADER *madt = (ACPI_SUBTABLE_HEADER *) obj->Buffer.Pointer;
+	ACPI_SUBTABLE_HEADER *madt_table = (ACPI_SUBTABLE_HEADER *) obj->Buffer.Pointer;
 	
-	switch(madt->Type)
+	switch(madt_table->Type)
 	{
 		case ACPI_MADT_TYPE_LOCAL_APIC:
-			apic_id = acpi_get_apic_id_lapic(madt);
+			apic_id = acpi_get_apic_id_lapic(madt_table);
 			break;
 	}
 

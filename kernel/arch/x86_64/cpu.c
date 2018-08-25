@@ -224,8 +224,9 @@ int cpu_init_mp(void)
 	/* APs can't access ´cpus´ before we've finished, as it's subject to memory address changes */
 	spin_lock(&ap_entry_spinlock);
 	
-	for(ACPI_SUBTABLE_HEADER *i = first; i < (ACPI_SUBTABLE_HEADER*)((char*)madt + madt->Header.Length); i = 
-	(ACPI_SUBTABLE_HEADER*)((uint64_t)i + (uint64_t)i->Length))
+	for(ACPI_SUBTABLE_HEADER *i = first;
+	i < (ACPI_SUBTABLE_HEADER*) ((char*)madt + madt->Header.Length);
+	i = (ACPI_SUBTABLE_HEADER*)((uint64_t) i + (uint64_t) i->Length))
 	{
 		if(i->Type == ACPI_MADT_TYPE_LOCAL_APIC)
 		{
@@ -235,6 +236,7 @@ int cpu_init_mp(void)
 			{
 				panic("Out of memory while allocating the processor structures\n");
 			}
+
 			memset(&cpus[booted_cpus], 0, sizeof(struct processor));
 			cpus[booted_cpus].lapic_id = apic->Id;
 			cpus[booted_cpus].cpu_num = booted_cpus;
@@ -247,6 +249,7 @@ int cpu_init_mp(void)
 			cpu_num = booted_cpus;
 		}
 	}
+
 	DISABLE_INTERRUPTS();
 	/* Fill CPU0's data */
 	cpus[0].lapic = (volatile char*) bsp_lapic;

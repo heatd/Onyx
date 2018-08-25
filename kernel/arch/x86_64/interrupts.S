@@ -1,156 +1,173 @@
-;
-; Copyright (c) 2016, 2017 Pedro Falcato
-; This file is part of Onyx, and is released under the terms of the MIT License
-; check LICENSE at the root directory for more information
-;
-section .text
-%macro pushaq 0
-	push rax
-	push rbx
-	push rcx
-	push rdx
-	push rdi
-	push rsi
-	push rbp
-	push r8
-	push r9
-	push r10
-	push r11
-	push r12
-	push r13
-	push r14
-	push r15
-%endmacro
-%macro popaq 0
-	pop r15
-	pop r14
-	pop r13
-	pop r12
-	pop r11
-	pop r10
-	pop r9
-	pop r8
-	pop rbp
-	pop rsi
-	pop rdi
-	pop rdx
-	pop rcx
-	pop rbx
-	pop rax
-%endmacro
-%macro ISR_NOERRCODE 1
-global isr%1
-isr%1:
+/*
+ Copyright (c) 2016, 2017 Pedro Falcato
+ This file is part of Onyx, and is released under the terms of the MIT License
+ check LICENSE at the root directory for more information
+*/
+
+.section .text
+
+.macro pushaq
+	push %rax
+	push %rbx
+	push %rcx
+	push %rdx
+	push %rdi
+	push %rsi
+	push %rbp
+	push %r8
+	push %r9
+	push %r10
+	push %r11
+	push %r12
+	push %r13
+	push %r14
+	push %r15
+.endm
+
+.macro popaq
+	pop %r15
+	pop %r14
+	pop %r13
+	pop %r12
+	pop %r11
+	pop %r10
+	pop %r9
+	pop %r8
+	pop %rbp
+	pop %rsi
+	pop %rdi
+	pop %rdx
+	pop %rcx
+	pop %rbx
+	pop %rax
+.endm
+
+.macro ISR_NOERRCODE num
+.global isr\num
+isr\num:
 	cli
-	push 0 ;push dummy err code
-	push %1 ;push the interrupt number
+	push $0 # Push a dummy error code to align the stack
+	push $\num # Push the interrupt number
 	pushaq
-	jmp isr_common ;Go to the handler
-%endmacro
-extern irq_handler
-extern handle_signal
-extern signal_is_pending
-extern platform_send_eoi
-global irq_common:function
+	jmp isr_common # Go to the handler
+.endm
+
+
+#define IRQ_STACK_OFF_CS		136
+#define KERNEL_CS			0x08
+.global irq_common
 irq_common:
 	cld
-	mov ax, ds
-	push rax
-	mov ax, 0x10
-	mov ss, ax
-	mov ds, ax
-	mov es, ax
-	mov rax, [rsp + 136]
-	cmp rax, 0x8
-	je .skip_swapgs
+	mov %ds, %ax
+	push %rax
+	mov $0x10, %ax
+	mov %ax, %ss
+	mov %ax, %ds
+	mov %ax, %es
+
+	mov IRQ_STACK_OFF_CS(%rsp), %rax
+	cmp $KERNEL_CS, %rax
+	je .L3
 	swapgs
-.skip_swapgs:
-	push rdi
+.L3:
+	push %rdi
 	call platform_send_eoi
-	pop rdi
-	mov rsi, rsp
-	; End the stack frame list so we stop here
-	xor rbp, rbp
+	pop %rdi
+	mov %rsp, %rsi
+	# End the stack frame list so we stop here
+	xor %rbp, %rbp
 	call irq_handler
-	mov rsp, rax
+	mov %rax, %rsp
 	call signal_is_pending
-	cmp rax, 1
-	je .handle_signal
-.continue:
-	mov rax, [rsp + 136]
-	cmp rax, 0x8
-	je .skip_swapgs2
+	cmp $1, %rax
+	je .L4
+.L5:
+	mov IRQ_STACK_OFF_CS(%rsp), %rax
+	cmp $KERNEL_CS, %rax
+	je .L6
 	swapgs
-.skip_swapgs2:
-	pop rax
-	mov ds, ax
-	mov es, ax
+.L6:
+	pop %rax
+	mov %ax, %ds
+	mov %ax, %es
+
 	popaq
 	iretq
-.handle_signal:
-	mov rdi, rsp
-	mov rsi, 0
+
+.L4:
+	mov %rsp, %rdi
+	mov $0, %rsi
 	call handle_signal
-	jmp .continue
-%macro IRQ 1
-global irq%1
-irq%1:
-cli
-pushaq
-mov rdi, %1
-jmp irq_common
-global irq%1_end
-irq%1_end:
-%endmacro
+	jmp .L5
 
-
-%macro ISR_ERRCODE 1
-global isr%1
-isr%1:
+.macro IRQ irq_num
+.global irq\irq_num
+irq\irq_num:
 	cli
-	push %1 ;push the interrupt number to the intctx
 	pushaq
-	jmp isr_common ;Go to the handler
-%endmacro
+	mov $\irq_num, %rdi
+	jmp irq_common
 
-extern isr_handler
-global isr_common:function
+.global irq\irq_num\()_end
+irq\irq_num\()_end:
+
+.endm
+
+
+.macro ISR_ERRCODE num
+.global isr\num
+isr\num:
+	cli
+	push $\num # Push the interrupt number to the intctx
+	pushaq
+	jmp isr_common # Go to the handler
+.endm
+
+#define ISR_STACK_FRAME_CS_OFF		152
+
+.global isr_common
 isr_common:
 	cld
-	xor rbp, rbp
-	mov rax, ds
-	push rax
-	mov ax, 0x10
-	mov ds, ax
-	mov es, ax
-	mov ss, ax
-	mov rax, [rsp + 152]
-	cmp rax, 0x8
-	je .skip_swap
+	xor %rbp, %rbp
+
+	mov %ds, %rax
+	push %rax
+	mov $0x10, %ax
+	mov %ax, %ss
+	mov %ax, %ds
+	mov %ax, %es
+
+	mov ISR_STACK_FRAME_CS_OFF(%rsp), %rax
+	cmp $KERNEL_CS, %rax
+	je .L0
 	swapgs
-.skip_swap: 
-	mov rdi, rsp
+.L0:
+	mov %rsp, %rdi
 	call isr_handler
+
 	call signal_is_pending
-	cmp rax, 1
-	je .isr_handle_signal
-.isr_continue:
-	mov rax, [rsp + 152]
-	cmp rax, 0x8
-	je .skip_swap2
+	cmp $1, %rax
+	je .Lisr_handle_signal
+.L1:
+	mov ISR_STACK_FRAME_CS_OFF(%rsp), %rax
+	cmp $KERNEL_CS, %rax
+	je .L2
 	swapgs
-.skip_swap2:
-	pop rax
-	mov ds, ax
-	mov es, ax
+.L2:
+	pop %rax
+	mov %ax, %ds
+	mov %ax, %es
+
 	popaq
-	add rsp, 16
+	add $16, %rsp
 	iretq
-.isr_handle_signal:
-	mov rdi, rsp
-	mov rsi, 1
+
+.Lisr_handle_signal:
+	mov %rsp, %rdi
+	mov $1, %rsi
 	call handle_signal
-	jmp .isr_continue
+	jmp .L1
+
 ISR_NOERRCODE 0
 ISR_NOERRCODE 1
 ISR_NOERRCODE 2
@@ -404,107 +421,83 @@ IRQ 219
 IRQ 220
 IRQ 221
 
-global _sched_yield:function
-extern sched_switch_thread
+.global _sched_yield
 _sched_yield:
 	cli
 	pushaq
-	mov ax, ds
-	push rax
-	mov rdi, rsp
-	mov rax, [rsp + 136]
-	cmp rax, 0x8
-	je .skip_swap_yield
+	mov %ds, %ax
+	push %rax
+	mov $0x10, %ax
+	mov %ax, %ds
+	mov %ax, %es
+
+	mov %rsp, %rdi
+	mov IRQ_STACK_OFF_CS(%rsp), %rax
+	cmp $KERNEL_CS, %rax
+	je .L7
 	swapgs
-.skip_swap_yield:
+.L7:
 	call sched_switch_thread
-	mov rsp, rax
-	mov rax, [rsp + 136]
-	cmp rax, 0x8
-	je .skip_swap_yield2
+	mov %rax, %rsp
+	mov IRQ_STACK_OFF_CS(%rsp), %rax
+	cmp $KERNEL_CS, %rax
+	je .L8
 	swapgs
-.skip_swap_yield2:
-	pop rax
-	mov ds, ax
-	mov es, ax
+.L8:
+	pop %rax
+	mov %ax, %ds
+	mov %ax, %es
+
 	popaq
 	iretq
-%macro syscallsaveregs 0
-	push rbx
-	push rcx
-	push rdx
-	push rdi
-	push rsi
-	push rbp
-	push r8
-	push r9
-	push r10
-	push r12
-	push r13
-	push r14
-	push r15
-%endmacro
-%macro syscallpopregs 0
-	pop r15
-	pop r14
-	pop r13
-	pop r12
-	pop r10
-	pop r9
-	pop r8
-	pop rbp
-	pop rsi
-	pop rdi
-	pop rdx
-	pop rcx
-	pop rbx
-%endmacro
 
-global __sigret_return
+.global __sigret_return
 __sigret_return:
 	cli
-	mov rsp, rdi
+	mov %rdi, %rsp
 	swapgs
-	pop rcx
-	mov ds, cx
-	mov es, cx
+	pop %rcx
+	mov %cx, %ds
+	mov %cx, %es
 	popaq
 	iretq
-global apic_spurious_irq:function
+
+.global apic_spurious_irq
 apic_spurious_irq:
 	iretq
 
-extern lapic_send_eoi
-extern cpu_handle_messages
-global __cpu_handle_message:function
+.global __cpu_handle_message
 __cpu_handle_message:
 	cli
 	pushaq
-	mov ax, ds
-	push rax
-	mov ax, 0x10
-	mov ss, ax
-	mov ds, ax
-	mov es, ax
-	mov rax, [rsp + 136]
-	cmp rax, 0x8
-	je .skip_swapgs
+	mov %ds, %ax
+	push %rax
+	mov $0x10, %ax
+	mov %ax, %ss
+	mov %ax, %ds
+	mov %ax, %es
+
+	mov IRQ_STACK_OFF_CS(%rsp), %rax
+	cmp $KERNEL_CS, %rax
+	je .L9
 	swapgs
-.skip_swapgs:
-	; End the stack frame list so we stop here
-	xor rbp, rbp
-	mov rdi, rsp
+.L9:
+	# End the stack frame list so we stop here
+	xor %rbp, %rbp
+	mov %rsp, %rdi
 	call cpu_handle_messages
-	mov rsp, rax
+
+	mov %rax, %rsp
 	call lapic_send_eoi
-.continue:
-	mov rax, [rsp + 136]
-	cmp rax, 0x8
-	je .skip_swapgs2
+
+	mov IRQ_STACK_OFF_CS(%rsp), %rax
+	cmp $KERNEL_CS, %rax
+	je .L10
 	swapgs
-.skip_swapgs2:
-	pop rax
-	mov ds, ax
-	mov es, ax
+.L10:
+	pop %rax
+	mov %ax, %ds
+	mov %ax, %es
+
 	popaq
 	iretq

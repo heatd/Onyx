@@ -1,11 +1,11 @@
-bits 64
+.code64
 
-section .vdso
+.section .vdso, "aw"
 
-global __vdso_start
-global __vdso_end
+.global __vdso_start
+.global __vdso_end
 
-align 0x1000
-__vdso_start:	incbin "onyx-vdso.so.0"
-align 0x1000
-__vdso_end: dq 0xffffffffffffff00		; Somewhy, we need to pad this
+.balign 0x1000
+__vdso_start:	.incbin "onyx-vdso.so.0"
+.balign 0x1000
+__vdso_end: .quad 0xffffffffffffff00		# Somewhy, we need to pad this

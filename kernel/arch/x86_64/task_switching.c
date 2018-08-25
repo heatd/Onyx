@@ -374,6 +374,7 @@ thread_t *sched_spawn_thread(registers_t *regs, thread_callback_t start, void *a
 	*--stack = regs->r9; // R9
 	*--stack = regs->r8; // R8
 	*--stack = ds; // DS
+
 	new_thread->kernel_stack = stack;
 	new_thread->fs = fs;
 

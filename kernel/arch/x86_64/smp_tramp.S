@@ -1,129 +1,146 @@
-section .text
-BITS 16
-global _start_smp
-extern smp_done
+#define SMP_TRAMPOLINE_BASE	0x0
+.section .text
+.code16
+.global _start_smp
+.extern smp_done
 _start_smp:
-	cli ;ensure that interrupts are disabled
-	xor ax, ax
-	mov ds, ax
-	mov gs, ax
-	mov fs, ax
-	mov es, ax
-	mov ss, ax
-	mov cr0, eax
-	lgdt [0x0 + (_gdtr_begin - _start_smp)]
-	mov eax, cr0
-	or al, 1
-	mov cr0, eax
+	# ensure that interrupts are disabled
+	cli
+	xor %ax, %ax
+	mov %ax, %ds
+	mov %ax, %gs
+	mov %ax, %fs
+	mov %ax, %es
+	mov %ax, %ss
+	mov %eax, %cr0
+	mov $SMP_TRAMPOLINE_BASE + _gdtr_begin - _start_smp, %eax
+	lgdt (%eax)
+	mov %cr0, %eax
+	or $1, %al
+	mov %eax, %cr0
+	jmp $0x08, $SMP_TRAMPOLINE_BASE + __long_mode_enter - _start_smp
+.code32
 __long_mode_enter:
-	extern pml4
-	;Load the kernel's pml4
-	mov eax, pml4
-	mov cr3, eax
-	;Enable PAE
-	mov eax, cr4
-	or eax, 1 << 5
-	mov cr4, eax
-	; Enable Long Mode in the MSR
-	; Use this to perform some initialization of features
-	; we might need
-	mov ecx, 0xC0000080
+	mov $0x10, %ax
+	mov %ax, %ds
+	mov %ax, %gs
+	mov %ax, %fs
+	mov %ax, %es
+	mov %ax, %ss
+	.extern pml4
+	# Load the kernel's pml4
+	mov $pml4, %eax
+	mov %eax, %cr3
+	# Enable PAE
+	mov %cr4, %eax
+	or $1 << 5, %eax
+	mov %eax, %cr4
+	/* Enable Long Mode in the MSR
+	 * Use this to perform some initialization of features
+	 * we might need
+	*/
+
+	mov $0xC0000080, %ecx
 	rdmsr
-	or eax, 1 ; enable syscall/sysret
-	or eax, 1 << 8 ; enable long mode
-	or eax, 1 << 11 ; enable NX
+	or $1, %eax # enable syscall/sysret
+	or $1 << 8, %eax # enable long mode
+	or $1 << 11, %eax # enable NX
 	wrmsr
 
-	; Enable Paging
-	mov eax, cr0
-	or eax, 1 << 31
-	mov cr0, eax
-	lgdt [0x0 + (_gdtr2_begin - _start_smp)]
-	mov esp, (stack - _start_smp)
-	push 0x08
-	push 0x0 + (_long_mode - _start_smp)
-	retf
-_long_mode:
-BITS 64
-	extern boot_pml4
-	mov rax, [boot_pml4]
-	mov rbx, .higher_half
-	jmp rbx
-.higher_half:
-	extern gdtr3
-	lgdt [gdtr3]
-	mov cr3, rax
-	mov rax, 0x10
-	mov ds, ax
-	mov es, ax
-	mov ss, ax
-	mov gs, ax
-	mov fs, ax
-	extern ap_done
-	; Load the common gdt between all cores
-	extern idt_ptr
-	lidt [idt_ptr]
-	extern core_stack
-	mov rsp, [core_stack]
-	mov rax, cr3
-	mov cr3, rax
+	# Enable Paging
+	mov %cr0, %eax
+	or $1 << 31, %eax
+	mov %eax, %cr0
+	mov $SMP_TRAMPOLINE_BASE + _gdtr2_begin - _start_smp, %eax
+	lgdt (%eax)
 
-	mov rax, cr0
-	and ax, 0xFFFB
-	or ax, 0x2
-	mov cr0, rax
-	mov rax, cr4
-	or ax, 3 << 9
-	or eax, 1 << 18
-	mov cr4, rax
-	push 0x1F80
-	ldmxcsr [rsp]
-	add rsp, 8
-	extern cpu_num
-	mov rdi, [cpu_num]
-	; Say to the BSP that we finished
-	extern ap_done
-	lock inc byte [ap_done]
-	push 0
-	extern cpu_ap_entry
-	push cpu_ap_entry
+	mov $stack - _start_smp, %esp
+	push $0x08
+	push $0x0 + _long_mode - _start_smp
+	lret
+_long_mode:
+.code64
+	.extern boot_pml4
+	mov boot_pml4, %rax
+	mov  $.higher_half, %rbx
+	jmp *%rbx
+.higher_half:
+	.extern gdtr3
+	lgdt (gdtr3)
+	mov %rax, %cr3
+	mov $0x10, %rax
+	mov %ax, %ds
+	mov %ax, %gs
+	mov %ax, %fs
+	mov %ax, %es
+	mov %ax, %ss
+
+	.extern ap_done
+	# Load the shared IDT
+	.extern idt_ptr
+	lidt (idt_ptr)
+	.extern core_stack
+	mov (core_stack), %rsp
+	mov %cr3, %rax
+	mov %rax, %cr3
+
+	mov %cr0, %rax
+	and $0xFFFB, %ax
+	or $0x2, %ax
+	mov %rax, %cr0
+	mov %cr4, %rax
+	or $3 << 9, %ax
+	or $1 << 18, %eax
+	mov %rax, %cr4
+	push $0x1F80
+	ldmxcsr (%rsp)
+	add $8, %rsp
+	.extern cpu_num
+	mov cpu_num, %rdi
+	# Say to the BSP that we finished
+	.extern ap_done
+	lock incb ap_done
+	push $0
+	.extern cpu_ap_entry
+	push $cpu_ap_entry
 	ret
 halt:
 	hlt
 	jmp halt
-align 16
+
+.align 16
 stack:
-times 256 dq 0
-global _smp_func_end
+.skip 2048
+.global _smp_func_end
 _smp_func_end:
 gdt:
-	DQ	0x0000000000000000
-	DQ	0x00CF9A000000FFFF
-	DQ	0x00CF92000000FFFF
+	.quad	0x0000000000000000
+	.quad	0x00CF9A000000FFFF
+	.quad	0x00CF92000000FFFF
 gdtl:
-	DQ 	0x0000000000000000
-	DQ	0x00A09A0000000000
-	DQ	0x00A0920000000000
-	DQ	0x00A0FA0000000000
-	DQ	0x00A0F20000000000
+	.quad 	0x0000000000000000
+	.quad	0x00A09A0000000000
+	.quad	0x00A0920000000000
+	.quad	0x00A0FA0000000000
+	.quad	0x00A0F20000000000
 tss_gdt:
-	DW	0x67,0
-	DB	0, 0xE9, 0
-	DB	0
-	DD	0
+	.word	0x67,0
+	.byte	0, 0xE9, 0
+	.byte	0
+	.long	0
 
 _gdtr_begin:
 gdtr:
-	DW	40
-	DD	0x0 + (_smp_func_end - _start_smp)
+	.word	40
+	.long	0x0 + _smp_func_end - _start_smp
 _gdtr2_begin:
 gdtr2:
-	DW 40
-	DD 0x0 + (gdtl - _start_smp)
-global _end_smp
+	.word 40
+	.long 0x0 + gdtl - _start_smp
+.global _end_smp
 _end_smp:
-section .text
-global __idle
+.section .text
+.global __idle
 __idle:
 	cli
 	hlt
