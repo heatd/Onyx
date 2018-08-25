@@ -127,11 +127,20 @@ isr\num:
 
 .global isr_common
 isr_common:
+	.cfi_startproc
+	.cfi_signal_frame
+	.cfi_def_cfa rsp, 0
+	.cfi_offset rip, 17 * 8
+	.cfi_offset cs, 18 * 8
+	.cfi_offset rsp, 20 * 8
+	.cfi_offset ss, 21 * 8
+
 	cld
 	xor %rbp, %rbp
 
 	mov %ds, %rax
 	push %rax
+	.cfi_adjust_cfa_offset 8
 	mov $0x10, %ax
 	mov %ax, %ss
 	mov %ax, %ds
@@ -143,9 +152,15 @@ isr_common:
 	swapgs
 .L0:
 	mov %rsp, %rdi
+	push %rsp
+	.cfi_adjust_cfa_offset 8
+	add $15, %rsp
+	and $-16, %rsp
+	.cfi_adjust_cfa_offset 8
 	call isr_handler
 
 	call signal_is_pending
+	pop %rsp
 	cmp $1, %rax
 	je .Lisr_handle_signal
 .L1:
@@ -167,6 +182,8 @@ isr_common:
 	mov $1, %rsi
 	call handle_signal
 	jmp .L1
+
+.cfi_endproc
 
 ISR_NOERRCODE 0
 ISR_NOERRCODE 1

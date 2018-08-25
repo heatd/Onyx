@@ -126,12 +126,13 @@ extern "C" {
 
 void vm_init(void);
 void vm_late_init(void);
-struct vm_entry *vm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type, uint64_t prot,
-	uintptr_t alignment);
+struct vm_entry *vm_allocate_virt_address(uint64_t flags, size_t pages,
+	uint32_t type, uint64_t prot, uintptr_t alignment);
 struct page *vm_map_range(void *range, size_t pages, uint64_t flags);
 void vm_unmap_range(void *range, size_t pages);
 void vm_destroy_mappings(void *range, size_t pages);
-struct vm_entry *vm_reserve_address(void *addr, size_t pages, uint32_t type, uint64_t prot);
+struct vm_entry *vm_reserve_address(void *addr, size_t pages, uint32_t type,
+	uint64_t prot);
 struct vm_entry *vm_is_mapped(void *addr);
 int vm_clone_as(struct mm_address_space *addr_space);
 int vm_fork_as(struct mm_address_space *addr_space);
@@ -162,7 +163,8 @@ void vm_update_addresses(uintptr_t new_kernel_space_base);
 uintptr_t vm_randomize_address(uintptr_t base, uintptr_t bits);
 void *map_pages_to_vaddr(void *virt, void *phys, size_t size, size_t flags);
 void *get_user_pages(uint32_t type, size_t pages, size_t prot);
-void *get_pages(size_t flags, uint32_t type, size_t pages, size_t prot, uintptr_t alignment);
+void *get_pages(size_t flags, uint32_t type, size_t pages, size_t prot,
+	uintptr_t alignment);
 bool is_mapping_shared(struct vm_entry *);
 bool is_file_backed(struct vm_entry *);
 int vm_flush(struct vm_entry *entry);
@@ -178,7 +180,8 @@ void *map_user(void *addr, size_t pages, uint32_t type, uint64_t prot);
 
 struct process;
 
-void *vm_map_page(struct process *proc, uint64_t virt, uint64_t phys, uint64_t prot);
+void *vm_map_page(struct process *proc, uint64_t virt, uint64_t phys,
+	uint64_t prot);
 void *__map_pages_to_vaddr(struct process *process, void *virt, void *phys,
 		size_t size, size_t flags);
 void *map_page_list(struct page *pl, size_t size, uint64_t prot);

@@ -27,10 +27,12 @@ struct inode *mtable_lookup(struct inode *mountpoint)
 		/* Found a mountpoint, return its target */
 		if(mtable[i].ino == mountpoint->i_inode && mtable[i].dev == mountpoint->i_dev)
 		{
+			object_ref(&mtable[i].rootfs->i_object);
 			mutex_unlock(&mtable_lock);
 			return mtable[i].rootfs;
 		}
 	}
+
 	mutex_unlock(&mtable_lock);
 	return errno = ENOENT, NULL;
 }

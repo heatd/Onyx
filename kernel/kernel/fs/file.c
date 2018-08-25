@@ -620,6 +620,7 @@ int do_sys_stat(const char *pathname, struct stat *buf, int flags, struct inode 
 	struct inode *stat_node = open_vfs(base, pathname);
 	if(!stat_node)
 		return -errno; /* Don't set errno, as we don't know if it was actually a ENOENT */
+
 	int st = stat_vfs(buf, stat_node);
 	close_vfs(stat_node);
 	return st < 0 ? -errno : st;

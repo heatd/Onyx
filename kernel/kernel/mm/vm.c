@@ -1625,7 +1625,6 @@ void vm_do_fatal_page_fault(struct fault_info *info)
 			info->fault_address, info->ip,
 			current->pid, current->cmd_line);
 		ENABLE_INTERRUPTS();
-		while(1);
 		kernel_raise_signal(SIGSEGV, get_current_process());
 	}
 	else

@@ -36,6 +36,7 @@ void superblock_add_inode(struct superblock *sb, struct inode *inode)
 		ino = &(*ino)->i_next;
 	}
 	*ino = inode;
+
 	atomic_inc(&sb->s_ref, 1);
 
 	spin_unlock(&sb->s_ilock);

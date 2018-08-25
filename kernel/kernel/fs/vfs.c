@@ -252,6 +252,10 @@ struct inode *open_vfs(struct inode* this, const char *name)
 	}
 
 	free(orig);
+
+	/* Get a new ref to the node */
+	if(node == this)
+		object_ref(&node->i_object);
 	return node;
 }
 
@@ -664,13 +668,16 @@ void inode_release(struct object *object)
 
 	assert(inode->i_sb != NULL);
 
-	if(inode->i_fops.close != NULL)
-		inode->i_fops.close(inode);
-
 	/* Remove the inode from its superblock */
 	superblock_remove_inode(inode->i_sb, inode);
 
+	if(inode->i_fops.close != NULL)
+		inode->i_fops.close(inode);
+
 	inode_destroy_page_caches(inode);
+
+	/*printk("Inode %p destroyed\n", inode);
+	printk("Refcount %lu\n", inode->i_object.ref.refcount);*/
 
 	free(inode);
 }

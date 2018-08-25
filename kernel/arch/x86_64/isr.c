@@ -228,6 +228,7 @@ void page_fault_handler(intctx_t *ctx)
 	
 	if(vm_handle_page_fault(&info) < 0)
 	{
+		stack_trace_ex((uint64_t *) ctx->rbp);
 		vm_do_fatal_page_fault(&info);
 	}
 }

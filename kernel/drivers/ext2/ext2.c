@@ -162,10 +162,12 @@ struct inode *ext2_open(struct inode *nd, const char *name)
 		node->i_type = VFS_TYPE_UNIX_SOCK;
 	else
 		node->i_type = VFS_TYPE_UNK;
+
 	node->i_size = EXT2_CALCULATE_SIZE64(ino);
 	node->i_uid = ino->uid;
 	node->i_gid = ino->gid;
 	node->i_sb = nd->i_sb;
+
 	memcpy(&node->i_fops, &ext2_ops, sizeof(struct file_ops));
 	free(ino);
 

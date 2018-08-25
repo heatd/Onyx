@@ -90,6 +90,7 @@ int ext2_add_singly_indirect_block(inode_t *inode, uint32_t block, uint32_t bloc
 	ext2_read_block_raw(inode->single_indirect_bp, 1, fs, buffer);
 	buffer[block_index - min_singly_block] = block;
 	ext2_write_block(inode->single_indirect_bp, 1, fs, buffer);
+
 	free(buffer);
 
 	return 0;
