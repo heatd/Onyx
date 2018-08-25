@@ -79,7 +79,7 @@ void kernel_default_signal(int signum)
 }
 #if defined(__x86_64__)
 /* TODO: Support signals per thread */
-void signal_transfer_to_userspace(int sig, registers_t *regs, _Bool is_int)
+void signal_transfer_to_userspace(int sig, registers_t *regs, bool is_int)
 {
 	/* Start setting the register state for the register switch */
 	/* Note that we're saving the old ones */

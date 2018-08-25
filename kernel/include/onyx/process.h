@@ -19,6 +19,7 @@
 #include <onyx/condvar.h>
 #include <onyx/semaphore.h>
 #include <onyx/elf.h>
+#include <onyx/syscall.h>
 
 struct futex;
 #define THREADS_PER_PROCESS 30
@@ -115,7 +116,7 @@ extern "C" {
 
 struct process *process_create(const char *cmd_line, ioctx_t *ctx, struct process *parent);
 void process_create_thread(struct process *proc, thread_callback_t callback, uint32_t flags, int argc, char **argv, char **envp);
-int process_fork_thread(thread_t *src, struct process *dest, syscall_ctx_t *ctx);
+int process_fork_thread(thread_t *src, struct process *dest, struct syscall_frame *ctx);
 struct process *get_process_from_pid(pid_t pid);
 void process_destroy_aspace(void);
 int process_attach(struct process *tracer, struct process *tracee);

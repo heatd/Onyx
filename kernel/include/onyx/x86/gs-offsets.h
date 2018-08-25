@@ -4,14 +4,10 @@
 * check LICENSE at the root directory for more information
 */
 
-#ifndef _ONYX_SYSCALL_H
-#define _ONYX_SYSCALL_H
+#ifndef _ONYX_X86_GS_OFFSETS_H
+#define _ONYX_X86_GS_OFFSETS_H
 
-#ifdef __x86_64__
-
-#include <onyx/x86/syscall.h>
-
-#endif
-
+#define GS_OFF_USER_RSP		0x18
+#define GS_OFF_KERNEL_RSP	0x10
 
 #endif

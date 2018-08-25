@@ -179,7 +179,7 @@ void proc_event_do_ack(struct process *process)
 	}
 }
 
-void proc_event_enter_syscall(syscall_ctx_t *regs, uintptr_t rax)
+void proc_event_enter_syscall(struct syscall_frame *regs, uintptr_t rax)
 {
 	struct process *current = get_current_process();
 
@@ -190,7 +190,7 @@ void proc_event_enter_syscall(syscall_ctx_t *regs, uintptr_t rax)
 		s->event_buf.thread = get_current_thread()->id;
 		s->event_buf.e_un.syscall.cs = 0x2b;
 		s->event_buf.e_un.syscall.ds = regs->ds;
-		s->event_buf.e_un.syscall.eflags = regs->r11;
+		s->event_buf.e_un.syscall.eflags = regs->rflags;
 		s->event_buf.e_un.syscall.es = regs->ds;
 		s->event_buf.e_un.syscall.fs = regs->ds;
 		s->event_buf.e_un.syscall.fs_base = (unsigned long) get_current_thread()->fs;
@@ -199,7 +199,7 @@ void proc_event_enter_syscall(syscall_ctx_t *regs, uintptr_t rax)
 		s->event_buf.e_un.syscall.orig_rax = rax;
 		s->event_buf.e_un.syscall.ss = regs->ds;
 		s->event_buf.e_un.syscall.r10 = regs->r10;
-		s->event_buf.e_un.syscall.r11 = regs->r11;
+		s->event_buf.e_un.syscall.r11 = 0;
 		s->event_buf.e_un.syscall.r12 = regs->r12;
 		s->event_buf.e_un.syscall.r13 = regs->r13;
 		s->event_buf.e_un.syscall.r14 = regs->r14;
@@ -207,13 +207,13 @@ void proc_event_enter_syscall(syscall_ctx_t *regs, uintptr_t rax)
 		s->event_buf.e_un.syscall.rax = rax;
 		s->event_buf.e_un.syscall.r8 = regs->r8;
 		s->event_buf.e_un.syscall.r9 = regs->r9;
-		s->event_buf.e_un.syscall.rsp = (unsigned long) get_current_thread()->user_stack;
+		s->event_buf.e_un.syscall.rsp = (unsigned long) regs->user_rsp;
 		s->event_buf.e_un.syscall.rbx = regs->rbx;
 		s->event_buf.e_un.syscall.rbp = regs->rbp;
 		s->event_buf.e_un.syscall.rcx = regs->r10;
 		s->event_buf.e_un.syscall.rdx = regs->rdx;
 		s->event_buf.e_un.syscall.rdi = regs->rdi;
-		s->event_buf.e_un.syscall.rip = regs->rcx;
+		s->event_buf.e_un.syscall.rip = regs->rip;
 		s->has_new_event = true;
 
 		sem_signal(&s->event_semaphore);

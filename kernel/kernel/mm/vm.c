@@ -46,7 +46,7 @@ typedef struct avl_node
 
 static struct spinlock kernel_vm_spl;
 bool is_initialized = false;
-static bool enable_aslr = true;
+static bool enable_aslr = false;
 
 uintptr_t high_half 		= arch_high_half;
 uintptr_t low_half_max 		= arch_low_half_max;

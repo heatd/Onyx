@@ -30,6 +30,7 @@
 #include <onyx/file.h>
 #include <onyx/slab.h>
 #include <onyx/proc_event.h>
+#include <onyx/syscall.h>
 
 #include <pthread_kernel.h>
 
@@ -166,22 +167,22 @@ void process_create_thread(struct process *proc, thread_callback_t callback, uin
 		thread_destroy(thread);
 }
 
-int process_fork_thread(thread_t *src, struct process *dest, syscall_ctx_t *ctx)
+int process_fork_thread(thread_t *src, struct process *dest, struct syscall_frame *ctx)
 {
 	registers_t 	regs;
 	uintptr_t 	rsp;
 	uintptr_t 	rflags;
 	uintptr_t 	ip;
-	
+
 	/* TODO: Move this to arch/x86_64/process.c */
-	rsp = (uintptr_t) src->user_stack;
-	rflags = ctx->r11;
-	ip = ctx->rcx;
+	rsp = ctx->user_rsp;
+	rflags = ctx->rflags;
+	ip = ctx->rip;
 
 	/* Setup the registers on the stack */
 	regs.rax = 0;
 	regs.rbx = ctx->rbx;
-	regs.rcx = ctx->rcx;
+	regs.rcx = 0;
 	regs.rdx = ctx->rdx;
 	regs.rdi = ctx->rdi;
 	regs.rsi = ctx->rsi;
@@ -191,19 +192,16 @@ int process_fork_thread(thread_t *src, struct process *dest, syscall_ctx_t *ctx)
 	regs.r8 = ctx->r8;
 	regs.r9 = ctx->r9;
 	regs.r10 = ctx->r10;
-	regs.r11 = ctx->r11;
+	regs.r11 = 0;
 	regs.r12 = ctx->r12;
 	regs.r13 = ctx->r13;
 	regs.r14 = ctx->r14;
 	regs.r15 = ctx->r15;
 	regs.rflags = rflags;
-	thread_t *thread = sched_spawn_thread(&regs, (thread_callback_t) regs.rcx,
+	thread_t *thread = sched_spawn_thread(&regs, (thread_callback_t) regs.rip,
 					      (void*) regs.rdi, src->fs);
 	if(!thread)
 		return -1;
-
-	/* Don't forget saving the FPU registers! */
-	save_fpu(thread->fpu_area);
 
 	dest->threads[0] = thread;
 	thread->owner = dest;
@@ -524,7 +522,7 @@ pid_t sys_wait4(pid_t pid, int *wstatus, int options, struct rusage *usage)
 	return 0;
 }
 
-pid_t sys_fork(syscall_ctx_t *ctx)
+pid_t sys_fork(struct syscall_frame *ctx)
 {
 	struct process 	*proc;
 	struct process 	*child;

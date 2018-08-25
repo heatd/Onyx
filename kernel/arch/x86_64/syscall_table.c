@@ -3,6 +3,7 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
+
 #include <dirent.h>
 #include <mbr.h>
 #include <signal.h>
@@ -32,14 +33,8 @@
 #include <onyx/cpu.h>
 #include <onyx/page.h>
 
-const uint64_t SYSCALL_MAX_NUM = 80;
 
-void syscall_helper(uintptr_t syscall_num)
-{
-	printk("SYSCALL %lu not available\n", syscall_num);
-}
-
-uint64_t sys_nosys()
+uint64_t sys_nosys(void)
 {
 	return (uint64_t) -ENOSYS;
 }
@@ -49,7 +44,8 @@ extern void sys_fork();
 extern void sys_getppid();
 extern void sys_getpid();
 extern void sys_execve();
-extern pid_t sys_wait4(pid_t pid, int *wstatus, int options, struct rusage *rusage);
+extern pid_t sys_wait4(pid_t pid, int *wstatus, int options,
+struct rusage *rusage);
 extern ssize_t sys_read(int fd, const void *buf, size_t count);
 extern int sys_open(const char *filename, int flags);
 extern int sys_close(int fd);
@@ -57,18 +53,22 @@ extern int sys_dup(int fd);
 extern int sys_dup2(int oldfd, int newfd);
 extern ssize_t sys_readv(int fd, const struct iovec *vec, int veccnt);
 extern ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt);
-extern ssize_t sys_preadv(int fd, const struct iovec *vec, int veccnt, off_t offset);
-extern ssize_t sys_pwritev(int fd, const struct iovec *vec, int veccnt, off_t offset);
+extern ssize_t sys_preadv(int fd, const struct iovec *vec, int veccnt,
+off_t offset);
+extern ssize_t sys_pwritev(int fd, const struct iovec *vec, int veccnt,
+off_t offset);
 extern int sys_getdents(int fd, struct dirent *dirp, unsigned int count);
 extern int sys_ioctl(int fd, int request, va_list args);
 extern int sys_truncate(const char *path, off_t length);
 extern int sys_ftruncate(int fd, off_t length);
 extern off_t sys_lseek(int fd, off_t offset, int whence);
-extern int sys_mount(const char *source, const char *target, const char *filesystemtype, unsigned long mountflags, const void *data);
+extern int sys_mount(const char *source, const char *target,
+const char *filesystemtype, unsigned long mountflags, const void *data);
 extern ssize_t sys_write(int fd, const void *buf, size_t count);
 extern int sys_isatty(int fd);
 extern int sys_syslog(int type, char *buffer, int len);
-extern void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset);
+extern void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd,
+ off_t offset);
 extern int sys_munmap(void *addr, size_t length);
 extern int sys_mprotect(void *addr, size_t len, int prot);
 extern uint64_t sys_brk(void *addr);
@@ -93,7 +93,8 @@ extern int sys_stat(const char *pathname, struct stat *buf);
 extern int sys_fstat(int fd, struct stat *buf);
 extern int sys_clock_gettime(clockid_t clk_id, struct timespec *tp);
 extern int sys_pipe(int *pipefd);
-extern int sys_sigaction(int signum, const struct sigaction *act, struct sigaction *oldact);
+extern int sys_sigaction(int signum, const struct sigaction *act,
+struct sigaction *oldact);
 extern int sys_memstat(struct memstat *memstat);
 extern int sys_chdir(const char *path);
 extern int sys_fchdir(int fildes);
@@ -101,26 +102,33 @@ extern int sys_getcwd(char *path, size_t size);
 extern uid_t sys_getuid(void);
 extern gid_t sys_getgid(void);
 extern int sys_openat(int dirfd, const char *path, int flags, mode_t mode);
-extern int sys_fstatat(int dirfd, const char *pathname, struct stat *buf, int flags);
+extern int sys_fstatat(int dirfd, const char *pathname, struct stat *buf,
+int flags);
 extern int sys_fmount(int fd, const char *path);
-extern int sys_clone(int (*fn)(void *), void *child_stack, int flags, void *arg, pid_t *ptid, void *tls);
+extern int sys_clone(int (*fn)(void *), void *child_stack, int flags,
+void *arg, pid_t *ptid, void *tls);
 extern void sys_exit_thread(int value);
 extern int sys_sigprocmask(int how, const sigset_t *set, sigset_t *oldset);
 extern int sys_sigsuspend(const sigset_t *set);
 extern int sys_pause(void);
-extern int sys_futex(int *uaddr, int futex_op, int val, const struct timespec *timeout, int *uaddr2, int val3);
+extern int sys_futex(int *uaddr, int futex_op, int val,
+const struct timespec *timeout, int *uaddr2, int val3);
 extern int sys_getrandom(void *buf, size_t buflen, unsigned int flags);
 extern int sys_socket(int domain, int type, int protocol);
 extern ssize_t sys_send(int sockfd, const void *buf, size_t len, int flags);
-extern int sys_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
-extern int sys_bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
+extern int sys_connect(int sockfd, const struct sockaddr *addr,
+socklen_t addrlen);
+extern int sys_bind(int sockfd, const struct sockaddr *addr,
+socklen_t addrlen);
 extern clock_t sys_times(struct tms *buf);
 extern int sys_getrusage(int who, struct rusage *usage);
-extern long sys_ptrace(long request, pid_t pid, void *addr, void *data, void *addr2);
-extern ssize_t sys_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen);
+extern long sys_ptrace(long request, pid_t pid, void *addr, void *data,
+void *addr2);
+extern ssize_t sys_recvfrom(int sockfd, void *buf, size_t len, int flags,
+struct sockaddr *src_addr, socklen_t *addrlen);
 extern int sys_proc_event_attach(pid_t pid, unsigned long flags);
 
-void *syscall_list[] =
+void *syscall_table_64[] =
 {
 	[0] = (void*) sys_write,
 	[1] = (void*) sys_read,
@@ -202,6 +210,5 @@ void *syscall_list[] =
 	[77] = (void*) sys_ptrace,
 	[78] = (void*) sys_nosys,
 	[79] = (void*) sys_nosys,
-	[80] = (void*) sys_proc_event_attach,
-	[255] = (void*) sys_nosys
+	[80] = (void*) sys_proc_event_attach
 };

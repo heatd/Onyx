@@ -24,6 +24,8 @@
 #include <onyx/apic.h>
 #include <onyx/worker.h>
 #include <onyx/cpu.h>
+#include <onyx/syscall.h>
+#include <onyx/syscall.h>
 
 #include <sys/time.h>
 
@@ -131,7 +133,6 @@ thread_t* task_switching_create_context(thread_callback_t callback, uint32_t fla
 	return new_thread;
 }
 
-extern PML4 *current_pml4;
 thread_t* task_switching_create_main_progcontext(thread_callback_t callback,
 	uint32_t flags, int argc, char **argv, char **envp)
 {
@@ -186,7 +187,7 @@ thread_t* task_switching_create_main_progcontext(thread_callback_t callback,
 	
 	uintptr_t original_stack = (uintptr_t)stack;
 	if(!(flags & 1))
-		original_stack = (uintptr_t)new_thread->user_stack;
+		original_stack = (uintptr_t) new_thread->user_stack;
 	
 	uint64_t ds = 0x10, cs = 0x08, rf = 0x202;
 	if(!(flags & 1))
@@ -217,39 +218,6 @@ thread_t* task_switching_create_main_progcontext(thread_callback_t callback,
 	new_thread->kernel_stack = stack;
 	
 	return new_thread;
-}
-
-uintptr_t *sched_fork_stack(syscall_ctx_t *ctx, uintptr_t *stack)
-{
-	uint64_t rflags = ctx->r11; // Get the RFLAGS, CS and SS
-	uint64_t ds = ctx->ds;
-	uint64_t cs = ds - 8;
-
-	// Set up the stack.
-	*--stack = ds; //SS
-	uintptr_t user_stack = (uintptr_t) get_current_thread()->user_stack;
-	*--stack = user_stack; //RSP
-	*--stack = rflags; // RFLAGS
-	*--stack = cs; //CS
-	*--stack = ctx->rcx; //RIP
-	*--stack = 0; // RAX
-	*--stack = ctx->rbx; // RBX
-	*--stack = ctx->rcx; // RCX
-	*--stack = ctx->rdx; // RDX
-	*--stack = ctx->rdi; // RDI
-	*--stack = ctx->rsi; // RSI
-	*--stack = ctx->rbp; // RBP
-	*--stack = ctx->r15; // R15
-	*--stack = ctx->r14; // R14
-	*--stack = ctx->r13; // R13
-	*--stack = ctx->r12; // R12
-	*--stack = ctx->r11; // R11
-	*--stack = ctx->r10; // R10
-	*--stack = ctx->r9; // R9
-	*--stack = ctx->r8; // R8
-	*--stack = ds; // DS
-
-	return stack; 
 }
 
 #define ARCH_SET_GS 0x1001
@@ -286,17 +254,6 @@ int sys_arch_prctl(int code, unsigned long *addr)
 		}
 	}
 	return 0;
-}
-
-/* Meant to be used on .S files, where structs are hard to access */
-void thread_store_ustack(uintptr_t *ustack)
-{
-	get_current_thread()->user_stack = ustack;
-}
-
-uintptr_t *thread_get_ustack(void)
-{
-	return get_current_thread()->user_stack;
 }
 
 void thread_finish_destruction(void *___thread)

@@ -276,7 +276,7 @@ int sched_init(void)
 	return 0;
 }
 
-void sched_yield()
+void sched_yield(void)
 {
 	__asm__ __volatile__("int $0x81");
 }

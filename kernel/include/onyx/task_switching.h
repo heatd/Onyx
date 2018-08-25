@@ -18,7 +18,10 @@
 #define THREAD_IDLE	3
 #define THREAD_DEAD	4
 
-uintptr_t *sched_fork_stack(syscall_ctx_t *ctx, uintptr_t *stack);
-thread_t* task_switching_create_context(thread_callback_t callback, uint32_t flags, void* args);
-thread_t* task_switching_create_main_progcontext(thread_callback_t callback, uint32_t flags, int argc, char **argv, char **envp);
+thread_t* task_switching_create_context(thread_callback_t callback,
+uint32_t flags, void* args);
+
+thread_t* task_switching_create_main_progcontext(thread_callback_t callback,
+uint32_t flags, int argc, char **argv, char **envp);
+
 #endif
