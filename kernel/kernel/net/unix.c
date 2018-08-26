@@ -28,18 +28,22 @@ struct unix_packet
 	const void *buffer;
 	size_t size;
 	size_t read;
+	struct un_name *source;
 	struct unix_packet *next;
 };
 
 struct un_socket
 {
 	struct socket socket;
-	struct unix_packet *packets;
+	struct spinlock socket_lock;
+	struct unix_packet *packet_list;
 	struct spinlock packet_list_lock;
 	int type;
 	struct un_name *abstr_name;
 
 	struct un_socket *dest;
+
+	bool conn_reset;
 };
 
 struct un_name
@@ -72,8 +76,7 @@ struct un_name *add_to_namespace(char *address, size_t namelen,
 	bound_socket->abstr_name = name;
 
 	name->namelen = namelen;
-	
-	
+
 	spin_lock(&un_namespace_list_lock);
 
 	struct un_name **pp = &un_namespace_list;
@@ -226,18 +229,155 @@ int un_connect(const struct sockaddr *addr, socklen_t addrlen, struct inode *vno
 
 	return 0;
 }
+
+ssize_t un_do_send(const void *buf, size_t len, struct un_socket *socket)
+{
+	struct un_socket *dest = socket->dest;
+
+	assert(dest != NULL);
+
+	struct unix_packet *packet = malloc(sizeof(*packet));
+	if(!packet)
+		return -ENOMEM;
+
+	packet->buffer = memdup((void *) buf, len);
+	if(!packet->buffer)
+	{
+		free(packet);
+		return -ENOMEM;
+	}
+
+	packet->read = 0;
+	packet->size = len;
+	packet->next = NULL;
+	packet->source = socket->abstr_name;
+
+	spin_lock(&dest->packet_list_lock);
+	struct unix_packet **pp = &dest->packet_list;
+
+	while(*pp)
+		pp = &(*pp)->next;
+
+	*pp = packet;
+
+	spin_unlock(&dest->packet_list_lock);
+	spin_unlock(&dest->socket_lock);
+
+	return len;
+}
+
 ssize_t un_send(const void *buf, size_t len, int flags, struct inode *vnode)
 {
-	return 0;
+	struct un_socket *socket = vnode->i_helper;
+
+	if(!socket->dest)
+	{
+		return -ENOTCONN;
+	}
+
+	spin_lock(&socket->dest->socket_lock);
+
+	if(socket->dest->conn_reset)
+	{
+		spin_unlock(&socket->dest->socket_lock);
+		socket_unref(&socket->socket);
+		return -ECONNRESET;
+	}
+
+	return un_do_send(buf, len, socket);
 }
+
+void un_dispose_packet(struct unix_packet *packet)
+{	
+	free((void *) packet->buffer);
+	free(packet);
+}
+
+#define min(x, y)	(x < y ? x : y)
+ssize_t un_do_recvfrom(struct un_socket *socket, void *buf, size_t len,
+		       int flags, struct sockaddr_un *addr)
+{
+	spin_lock(&socket->packet_list_lock);
+
+	struct unix_packet *packet = socket->packet_list;
+	if(!packet)
+		return 0;
+
+	size_t to_read = min(len, packet->size);
+	if(copy_to_user(buf, packet->buffer, to_read) < 0)
+	{
+		spin_unlock(&socket->packet_list_lock);
+		return errno = EFAULT, -1;
+	}
+
+	if(socket->type == SOCK_DGRAM)
+		packet->read = packet->size;
+	else
+		packet->read += to_read;
+
+	if(packet->source)
+	{
+		struct sockaddr_un un;
+		un.sun_family = AF_UNIX;
+		un.sun_path[0] = '\0';
+		memcpy(&un.sun_path[1], packet->source->address, packet->source->namelen);
+
+		memcpy(addr, &un, sizeof(struct sockaddr_un));
+	}
+
+	if(packet->read == packet->size)
+	{
+		socket->packet_list = packet->next;
+		un_dispose_packet(packet);
+	}
+
+	spin_unlock(&socket->packet_list_lock);
+
+	return (ssize_t) to_read;
+}
+
 ssize_t un_recvfrom(void *buf, size_t len, int flags, struct sockaddr *addr, 
 		socklen_t *slen, struct inode *vnode)
 {
-	/*struct un_socket *socket = vnode->i_helper;
-	struct sockaddr kaddr = {0};*/
+	struct un_socket *socket = vnode->i_helper;
+	struct sockaddr_un kaddr = {0};
+	socklen_t addrlen = sizeof(struct sockaddr_un);
 
+	if(addr != NULL && slen == NULL)
+		return errno = EINVAL, -1;
+	
+	if(addr == NULL && slen != NULL)
+		return errno = EINVAL, -1;
 
-	return 0;
+	if(slen)
+	{
+		if(copy_from_user(&addrlen, slen, sizeof(socklen_t)) < 0)
+			return errno = EFAULT, -1;
+	}
+
+	ssize_t st = un_do_recvfrom(socket, buf, len, flags, &kaddr);
+
+	if(st < 0)
+		return errno = -st, -1;
+
+	addrlen = min(addrlen, sizeof(struct sockaddr_un));
+
+	if(kaddr.sun_family != AF_UNIX)
+		return st;
+
+	if(addr)
+	{
+		if(copy_to_user(addr, &kaddr, addrlen) < 0)
+		return errno = EFAULT, -1;
+	}
+
+	if(slen)
+	{
+		if(copy_to_user(slen, &addrlen, sizeof(socklen_t)) < 0)
+			return errno = EFAULT, -1;
+	}
+
+	return st;
 }
 
 static struct file_ops un_ops = 
@@ -245,7 +385,7 @@ static struct file_ops un_ops =
 	.bind = un_bind,
 	.connect = un_connect,
 	.send = un_send,
-	.recvfrom = un_recvfrom
+	.recvfrom = un_recvfrom,
 };
 
 void unix_socket_dtor(struct socket *socket)

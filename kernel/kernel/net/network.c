@@ -70,6 +70,7 @@ int net_check_type_support(int type)
 	switch(type)
 	{
 		case SOCK_DGRAM:
+		case SOCK_STREAM:
 		case SOCK_RAW:
 			return 0;
 		default:

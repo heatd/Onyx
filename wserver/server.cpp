@@ -42,6 +42,28 @@ Server::Server(std::shared_ptr<Display> display) : display(display),
 		throw std::runtime_error("bind failed");
 	}
 
+	/*int client = socket(AF_UNIX, SOCK_DGRAM, 0);
+
+	if(connect(client, (struct sockaddr *) &addr, sizeof(sa_family_t) +
+		sizeof(SERVER_SOCKET_PATH)) < 0)
+	{
+		throw std::runtime_error("connect failed");
+	}
+	unsigned char bytes[5] = {0xff, 0xfa, 0xfe, 0xfc, 0xaa};
+
+	if(send(client, &bytes, 5, 0) < 0)
+	{
+		throw std::runtime_error("send failed");
+	}
+
+	unsigned char new_bytes[5] = {0};
+
+	if(recvfrom(socket_fd, &new_bytes, 5, 0, NULL, NULL) < 0)
+	{
+		throw std::runtime_error("recvfrom failed");
+	}
+
+	assert(memcmp(&new_bytes, &bytes, 5) == 0);*/
 }
 
 size_t Server::allocate_id()

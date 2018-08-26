@@ -310,21 +310,26 @@ ssize_t sys_readv(int fd, const struct iovec *vec, int veccnt)
 	if(!ctx->file_desc[fd]->flags & O_RDONLY)
 		return errno =-EBADF;
 	size_t read = 0;
+
 	for(int i = 0; i < veccnt; i++)
 	{
 		if(vec[i].iov_len == 0)
 			continue;
 		size_t s = read_vfs(ctx->file_desc[fd]->flags, 
-		ctx->file_desc[fd]->seek, vec[i].iov_len, vec[i].iov_base, ctx->file_desc[fd]->vfs_node);
+		ctx->file_desc[fd]->seek, vec[i].iov_len, vec[i].iov_base,
+		ctx->file_desc[fd]->vfs_node);
+		
 		if(s != vec[i].iov_len)
 		{
 			read += s;
 			ctx->file_desc[fd]->seek += s;
 			return read;
 		}
+
 		read += s;
 		ctx->file_desc[fd]->seek += vec[i].iov_len;
 	}
+
 	return read;
 }
 
@@ -813,10 +818,9 @@ int sys_bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 	return bind_vfs(addr, addrlen, desc->vfs_node);
 }
 
-ssize_t sys_recvfrom(int sockfd, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen)
+ssize_t sys_recvfrom(int sockfd, void *buf, size_t len, int flags,
+struct sockaddr *src_addr, socklen_t *addrlen)
 {
-	if(vm_check_pointer(buf, len) < 0)
-		return -EFAULT;
 	if(validate_fd(sockfd) < 0)
 		return -EBADF;
 	file_desc_t *desc = get_file_description(sockfd);

@@ -480,9 +480,12 @@ ssize_t lookup_file_cache(void *buffer, size_t sizeofread, struct inode *file,
 
 		off_t cache_off = offset % PAGE_CACHE_SIZE;
 		off_t rest = PAGE_CACHE_SIZE - cache_off;
-		if(rest < 0) rest = 0;
+
+		assert(rest > 0);
+	
 		size_t amount = sizeofread - read < (size_t) rest ?
 			sizeofread - read : (size_t) rest;
+
 		if(offset + amount > file->i_size)
 		{
 			amount = file->i_size - offset;

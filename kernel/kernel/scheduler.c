@@ -52,6 +52,7 @@ thread_t *__sched_find_next(struct processor *p)
 				spin_unlock_preempt(current_thread->to_release);
 				current_thread->to_release = NULL;
 			}
+
 			spin_unlock_preempt(&current_thread->lock);
 		}
 		else if(current_thread->status == THREAD_RUNNABLE)
@@ -664,10 +665,10 @@ void condvar_wait(struct cond *var, struct mutex *mutex)
 {
 	thread_t *current = get_current_thread();
 
-	mutex_unlock(mutex);
-
 	sched_disable_preempt();
+
 	enqueue_thread_condvar(var, current);
+	mutex_unlock(mutex);
 	thread_suspend_and_release(current, &var->llock);
 
 	mutex_lock(mutex);

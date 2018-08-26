@@ -221,6 +221,7 @@ void proc_event_enter_syscall(struct syscall_frame *regs, uintptr_t rax)
 
 	if(current->nr_subs == 0)
 		return;
+
 	mutex_lock(&current->condvar_mutex);
 	condvar_wait(&current->syscall_cond, &current->condvar_mutex);
 
@@ -246,6 +247,7 @@ void proc_event_exit_syscall(long retval, long syscall_nr)
 
 	if(current->nr_subs == 0)
 		return;
+
 	mutex_lock(&current->condvar_mutex);
 	condvar_wait(&current->syscall_cond, &current->condvar_mutex);
 

@@ -115,7 +115,6 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 	Elf64_Phdr *phdrs = malloc(program_headers_size);
 	if(!phdrs)
 		return errno = ENOMEM, NULL;
-
 	/* Read the program header */
 
 	read_vfs(0, header->e_phoff, program_headers_size, phdrs, args->file);

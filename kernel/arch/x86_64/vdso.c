@@ -38,11 +38,11 @@ void increment_vdso_pages(void)
 
 void *map_vdso(void)
 {
-	uintptr_t vdso = (uintptr_t) &__vdso_start;
-	size_t vdso_size = (uintptr_t) &__vdso_end - vdso;
 #ifdef CONFIG_NO_VDSO
 	return NULL;
 #else
+	uintptr_t vdso = (uintptr_t) &__vdso_start;
+	size_t vdso_size = (uintptr_t) &__vdso_end - vdso;
 	void *pages = get_user_pages(VM_TYPE_SHARED, vm_align_size_to_pages(vdso_size),
 		VM_WRITE | VM_USER);
 	if(!pages)

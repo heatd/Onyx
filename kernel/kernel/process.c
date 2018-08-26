@@ -106,8 +106,11 @@ struct process *process_create(const char *cmd_line, ioctx_t *ctx, struct proces
 			spin_unlock(&process_creation_lock);
 			return NULL;
 		}
+		
+		object_ref(&ctx->cwd->i_object);
+
 		proc->ctx.cwd = ctx->cwd;
-		proc->ctx.name = ctx->name;
+		proc->ctx.name = strdup(ctx->name);
 	}
 	else
 	{
@@ -118,6 +121,7 @@ struct process *process_create(const char *cmd_line, ioctx_t *ctx, struct proces
 			return NULL;
 		}
 	}
+
 	if(parent)
 	{
 		/* Inherit the parent process' properties */
@@ -142,6 +146,7 @@ struct process *process_create(const char *cmd_line, ioctx_t *ctx, struct proces
 		while(it->next) it = it->next;
 		it->next = proc;
 	}
+
 	spin_unlock(&process_creation_lock);
 	return proc;
 }

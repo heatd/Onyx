@@ -211,7 +211,8 @@ int main(int argc, char **argv, char **envp)
 
 	while(1)
 	{
-		waitpid(-1, NULL, WEXITED);
+		if(waitpid(-1, NULL, WEXITED) < 0)
+			perror("waitpid");
 	}
 	return 0;
 }
@@ -252,6 +253,7 @@ void load_modules()
 		printf("Loading %s (path %s)\n", buf, path);
 		insmod(path, buf);
 	}
+
 	free(buf);
 	fclose(file);
 }
