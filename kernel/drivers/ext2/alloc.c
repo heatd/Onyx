@@ -6,6 +6,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <assert.h>
 
 #include <onyx/compiler.h>
 #include <onyx/panic.h>
@@ -32,8 +33,16 @@ uint32_t ext2_allocate_block(ext2_fs_t *fs)
 /* Frees a block */
 void ext2_free_block(uint32_t block, ext2_fs_t *fs)
 {
+	assert(block != EXT2_ERR_INV_BLOCK);
+
 	spin_lock(&fs->sb_lock);
+	
+	
 	fs->sb->unallocated_blocks++;
+
+	/* TODO: Free the block */
+	
+	
 	spin_unlock(&fs->sb_lock);
 }
 

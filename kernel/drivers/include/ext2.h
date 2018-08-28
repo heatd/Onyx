@@ -168,6 +168,7 @@ typedef struct ex
 	struct mutex bgdt_lock;
 	struct mutex ino_alloc_lock;
 	void *zero_block; /* A pointer to a zero'd block of memory with size 'block_size' */
+	unsigned int entry_shift;
 	struct ex *next;
 } ext2_fs_t;
 

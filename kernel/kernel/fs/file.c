@@ -350,6 +350,8 @@ ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt)
 		return errno =-EBADF;
 	for(int i = 0; i < veccnt; i++)
 	{
+		if(vec[i].iov_len == 0)
+			continue;
 		size_t written = write_vfs(ctx->file_desc[fd]->seek, vec[i].iov_len, vec[i].iov_base, ctx->file_desc[fd]->vfs_node);
 		if(written == (size_t) -1)
 			return -errno;
@@ -467,7 +469,7 @@ off_t sys_lseek(int fd, off_t offset, int whence)
 	else if(whence == SEEK_SET)
 		ioctx->file_desc[fd]->seek = offset;
 	else if(whence == SEEK_END)
-		ioctx->file_desc[fd]->seek = ioctx->file_desc[fd]->vfs_node->i_size;
+		ioctx->file_desc[fd]->seek = ioctx->file_desc[fd]->vfs_node->i_size + offset;
 	else
 	{
 		mutex_unlock(&ioctx->file_desc[fd]->seek_lock);

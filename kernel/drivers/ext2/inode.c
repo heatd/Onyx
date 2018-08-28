@@ -4,10 +4,12 @@
 * check LICENSE at the root directory for more information
 */
 
+#include <assert.h>
 #include <limits.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
+#include <assert.h>
 
 #include "../include/ext2.h"
 
@@ -27,6 +29,7 @@ inode_t *ext2_allocate_inode_from_block_group(uint32_t *inode_no, uint32_t block
 		mutex_unlock(&fs->ino_alloc_lock);
 		return 0;
 	}
+
 	for(uint32_t i = 0; i < total_size; i++)
 	{
 		if(bitmap[i] == 0xFF)
@@ -37,17 +40,22 @@ inode_t *ext2_allocate_inode_from_block_group(uint32_t *inode_no, uint32_t block
 			{
 				/* Set the corresponding bit */
 				bitmap[i] |= (1 << j);
-				/* Change the block group and superblock structures in order to reflect it */
+				/* Change the block group and superblock
+				 structures in order to reflect it */
 				_block_group->unallocated_inodes_in_group--;
 				fs->sb->unallocated_inodes--;
 				/* Actually register the changes on disk */
-				/* We give the bitmap priority here, since there can be a disk failure or a shutdown at any time,
-				   and this is the most important part */
-				ext2_write_block(_block_group->inode_usage_addr, total_blocks, fs, bitmap);
+				/* We give the bitmap priority here,
+				 * since there can be a disk failure or a
+				 * shutdown at any time,
+				 * and this is the most important part */
+				ext2_write_block(_block_group->inode_usage_addr,
+						 total_blocks, fs, bitmap);
 				ext2_register_superblock_changes(fs);
 				ext2_register_bgdt_changes(fs);
 				mutex_unlock(&fs->ino_alloc_lock);
-				inode = fs->inodes_per_block_group * block_group + i * CHAR_BIT + j + 1;
+				inode = fs->inodes_per_block_group * block_group
+					+ i * CHAR_BIT + j + 1;
 				goto found;
 			}
 		}
@@ -72,26 +80,211 @@ found:
 	return ino;
 }
 
-int ext2_add_singly_indirect_block(inode_t *inode, uint32_t block, uint32_t block_index, ext2_fs_t *fs)
+int ext2_add_singly_indirect_block(inode_t *inode, uint32_t block,
+	uint32_t block_index, ext2_fs_t *fs)
 {
+	bool allocated_single = false;
+
 	unsigned int min_singly_block = EXT2_DIRECT_BLOCK_COUNT;
 	/* If the singly indirect bp doesn't exist, create it */
 	if(!inode->single_indirect_bp)
 	{
 		inode->single_indirect_bp = ext2_allocate_block(fs);
+		allocated_single = true;
+
+		if(inode->single_indirect_bp == EXT2_ERR_INV_BLOCK)
+		{
+			inode->single_indirect_bp = 0;
+			return -1;
+		}
 		/* Overwrite the block */
 		ext2_write_block(inode->single_indirect_bp, 1, fs, fs->zero_block);
 	}
 
 	uint32_t *buffer = malloc(fs->block_size);
 	if(!buffer)
-		return errno = ENOMEM, -1;
-	memset(buffer, 0, fs->block_size);
+	{
+		if(allocated_single)
+		{
+			ext2_free_block(inode->single_indirect_bp, fs);
+			inode->single_indirect_bp = 0;
+		}
+		return -1;
+	}
+
 	ext2_read_block_raw(inode->single_indirect_bp, 1, fs, buffer);
 	buffer[block_index - min_singly_block] = block;
 	ext2_write_block(inode->single_indirect_bp, 1, fs, buffer);
 
+	inode->i_blocks += fs->block_size / 512;
+
 	free(buffer);
+
+	return 0;
+}
+
+int ext2_add_doubly_indirect_block(inode_t *inode, uint32_t block,
+	uint32_t block_index, ext2_fs_t *fs)
+{
+	const unsigned int entries = (fs->block_size / sizeof(uint32_t));
+	unsigned int min_doubly_block = entries + direct_block_count;
+	block_index -= min_doubly_block;
+	unsigned int doubly_table_index = block_index >> fs->entry_shift;
+	unsigned int singly_table_index = block_index & (entries - 1);
+
+	
+	uint32_t *buf = zalloc(fs->block_size);
+	if(!buf)
+		return -1;
+
+	uint32_t dp;
+
+	/* We use these bools do know if we need to free a block */
+	bool allocated_doubly = false;
+
+	if((dp = inode->doubly_indirect_bp) != 0)
+		ext2_read_block_raw(inode->doubly_indirect_bp, 1, fs, buf);
+	else
+	{
+		dp = ext2_allocate_block(fs);
+		allocated_doubly = true;
+
+		if(dp == EXT2_ERR_INV_BLOCK)
+		{
+			free(buf);
+			return -1;
+		}
+
+		inode->doubly_indirect_bp = dp;
+		ext2_write_block(inode->doubly_indirect_bp, 1, fs, fs->zero_block);
+	}
+
+	uint32_t singly_bp = buf[doubly_table_index];
+
+	if(!singly_bp)
+	{
+		singly_bp = ext2_allocate_block(fs);
+
+		if(singly_bp == EXT2_ERR_INV_BLOCK)
+		{
+			if(allocated_doubly)
+			{
+				ext2_free_block(dp, fs);
+				inode->doubly_indirect_bp = 0;
+			}
+
+			free(buf);
+			return -1;
+		}
+
+		buf[doubly_table_index] = singly_bp;
+		ext2_write_block(dp, 1, fs, buf);
+		memset(buf, 0, fs->block_size);
+	}
+	else
+		ext2_read_block_raw(singly_bp, 1, fs, buf);
+
+	
+	buf[singly_table_index] = block;
+
+	/* Always flush the singly indirect block */
+	ext2_write_block(singly_bp, 1, fs, buf);
+
+	inode->i_blocks += fs->block_size / 512;
+
+	free(buf);
+
+	return 0;
+}
+
+int ext2_add_trebly_indirect_block(inode_t *inode, uint32_t block,
+	uint32_t block_index, ext2_fs_t *fs)
+{
+	const unsigned int entries = (fs->block_size / sizeof(uint32_t));
+	unsigned int min_trebly_block = entries * entries + entries + direct_block_count;
+
+	block_index -= min_trebly_block;
+
+	unsigned int trebly_table_index = block_index >> (fs->entry_shift * 2);
+	unsigned int doubly_table_index = (block_index >> fs->entry_shift)
+			                  & (entries - 1);
+	unsigned int singly_table_index = block_index & (entries - 1);
+	bool allocated_trebly = false;
+	bool allocated_doubly = false;
+
+	uint32_t *buf = malloc(fs->block_size);
+
+	uint32_t tbp;
+	uint32_t dbp;
+	uint32_t sbp;
+
+	if(!(tbp = inode->trebly_indirect_bp))
+	{
+		uint32_t n = tbp = ext2_allocate_block(fs);
+		if(n == EXT2_ERR_INV_BLOCK)
+		{
+			free(buf);
+			return -1;
+		}
+
+		allocated_trebly = true;
+
+		inode->trebly_indirect_bp = n;
+		memset(buf, 0, fs->block_size);
+		ext2_write_block(n, 1, fs, fs->zero_block);
+	}
+	else
+		ext2_read_block_raw(inode->trebly_indirect_bp, 1, fs, buf);
+	
+	if(!(dbp = buf[trebly_table_index]))
+	{
+		uint32_t n = dbp = ext2_allocate_block(fs);
+
+		if(n == EXT2_ERR_INV_BLOCK)
+		{
+			if(allocated_trebly)
+			{
+				ext2_free_block(tbp, fs);
+				inode->trebly_indirect_bp = 0;
+			}
+
+			free(buf);
+			return -1;
+		}
+
+		buf[trebly_table_index] = n;
+		ext2_write_block(n, 1, fs, fs->zero_block);
+		ext2_write_block(tbp, 1, fs, buf);
+		memset(buf, 0, fs->block_size);
+	}
+	else
+		ext2_read_block_raw(dbp, 1, fs, buf);
+	
+	if(!(sbp = buf[doubly_table_index]))
+	{
+		uint32_t n = sbp = ext2_allocate_block(fs);
+
+		if(n == EXT2_ERR_INV_BLOCK)
+		{
+			(void) allocated_doubly;
+			/* TODO: Do this error path */
+			free(buf);
+			return -1;
+		}
+
+		buf[doubly_table_index] = n;
+		ext2_write_block(dbp, 1, fs, buf);
+		memset(buf, 0, fs->block_size);
+	}
+	else
+		ext2_read_block_raw(sbp, 1, fs, buf);
+
+	buf[singly_table_index] = block;
+	ext2_write_block(sbp, 1, fs, buf);
+
+	inode->i_blocks += fs->block_size / 512;
+
+	free(buf);
 
 	return 0;
 }
@@ -109,18 +302,19 @@ int ext2_add_block_to_inode(inode_t *inode, uint32_t block, uint32_t block_index
 		}
 		case EXT2_TYPE_SINGLY_BLOCK:
 		{
-			inode->i_blocks += fs->block_size / 512;
 			return ext2_add_singly_indirect_block(inode, block, block_index, fs);
 		}
-		/* TODO: Add doubly and triply block support */
-		default:
+		case EXT2_TYPE_DOUBLY_BLOCK:
 		{
-			printk("ext2: Double and trebly block support not implemented!");
-			while(1);
+			return ext2_add_doubly_indirect_block(inode, block, block_index, fs);
+		}
+		case EXT2_TYPE_TREBLY_BLOCK:
+		{
+			return ext2_add_trebly_indirect_block(inode, block, block_index, fs);
 		}
 	}
 
-	return 0;
+	return errno = ENOSPC, EXT2_ERR_INV_BLOCK;
 }
 
 void ext2_set_inode_size(inode_t *inode, size_t size)
@@ -134,7 +328,7 @@ unsigned int ext2_detect_block_type(uint32_t block, ext2_fs_t *fs)
 	const unsigned int entries = (fs->block_size / sizeof(uint32_t));
 	unsigned int min_singly_block = direct_block_count;
 	unsigned int min_doubly_block = entries + direct_block_count;
-	unsigned int min_trebly_block = entries * entries + min_singly_block;
+	unsigned int min_trebly_block = entries * entries + entries + direct_block_count;
 
 	if(block < min_singly_block)
 		return EXT2_TYPE_DIRECT_BLOCK;
@@ -164,7 +358,7 @@ uint32_t ext2_get_block_from_inode(inode_t *ino, uint32_t block, ext2_fs_t *fs)
 	const unsigned int entries = (fs->block_size / sizeof(uint32_t));
 	unsigned int min_singly_block = direct_block_count;
 	unsigned int min_doubly_block = entries + direct_block_count;
-	unsigned int min_trebly_block = entries * entries + min_singly_block;
+	unsigned int min_trebly_block = entries * entries + entries + direct_block_count;
 
 	uint32_t ret = 0;
 	switch(type)
@@ -174,11 +368,12 @@ uint32_t ext2_get_block_from_inode(inode_t *ino, uint32_t block, ext2_fs_t *fs)
 			ret = ino->dbp[block];
 			break;
 		}
+	
 		case EXT2_TYPE_SINGLY_BLOCK:
 		{
 			uint32_t *scratch = malloc(fs->block_size);
 			if(!scratch)
-				return errno = ENOMEM, -1;
+				return EXT2_ERR_INV_BLOCK;
 
 			if(!ino->single_indirect_bp)
 			{
@@ -193,11 +388,12 @@ uint32_t ext2_get_block_from_inode(inode_t *ino, uint32_t block, ext2_fs_t *fs)
 			free(scratch);
 			break;
 		}
+	
 		case EXT2_TYPE_DOUBLY_BLOCK:
 		{
 			uint32_t *scratch = malloc(fs->block_size);
 			if(!scratch)
-				return errno = ENOMEM, -1;
+				return EXT2_ERR_INV_BLOCK;
 
 			uint32_t block_index = block;
 			if(!ino->doubly_indirect_bp)
@@ -207,8 +403,10 @@ uint32_t ext2_get_block_from_inode(inode_t *ino, uint32_t block, ext2_fs_t *fs)
 				break;
 			}
 
-			unsigned int doubly_table_index = (block_index - min_doubly_block) / entries;
-			unsigned int singly_table_index = (block_index - min_doubly_block) % entries;
+			block_index -= min_doubly_block;
+
+			unsigned int doubly_table_index = block_index >> fs->entry_shift;
+			unsigned int singly_table_index = block_index & (entries - 1);
 			
 			ext2_read_block_raw(ino->doubly_indirect_bp, 1, fs, scratch);
 
@@ -225,59 +423,68 @@ uint32_t ext2_get_block_from_inode(inode_t *ino, uint32_t block, ext2_fs_t *fs)
 			free(scratch);
 			break;
 		}
+	
 		case EXT2_TYPE_TREBLY_BLOCK:
 		{
 			uint32_t *scratch = malloc(fs->block_size);
 			if(!scratch)
-				return errno = ENOMEM, -1;
-	
-			uint32_t block_index = block - min_trebly_block;
-			
+				return EXT2_ERR_INV_BLOCK;
 			if(!ino->trebly_indirect_bp)
 			{
-				ret = 0;
 				free(scratch);
+				ret = 0;
 				break;
 			}
-	
+
+			uint32_t block_index = block;
+			block_index -= min_trebly_block;
+
+			unsigned int trebly_table_index = block_index >> (fs->entry_shift * 2);
+			unsigned int doubly_table_index = (block_index >> fs->entry_shift)
+				& (entries - 1);
+			unsigned int singly_table_index = block_index & (entries - 1);
+
+
 			ext2_read_block_raw(ino->trebly_indirect_bp, 1, fs, scratch);
+
+			uint32_t dbp = scratch[trebly_table_index];
 			
-			if(!scratch[block_index])
+			if(!dbp)
 			{
-				ret = 0;
 				free(scratch);
+				ret = 0;
 				break;
 			}
 
-			ext2_read_block_raw(scratch[block_index], 1, fs, scratch);
-			block_index -= min_doubly_block;
-			if(!scratch[block_index])
+			ext2_read_block_raw(dbp, 1, fs, scratch);
+
+			uint32_t sbp = scratch[doubly_table_index];
+
+			if(!sbp)
 			{
-				ret = 0;
 				free(scratch);
+				ret = 0;
 				break;
 			}
 
-			ext2_read_block_raw(scratch[block_index], 1, fs, scratch);
+			ext2_read_block_raw(sbp, 1, fs, scratch);
 
-			block_index -= min_doubly_block;
-			ret = scratch[block_index - min_singly_block];
+			ret = scratch[singly_table_index];
 			free(scratch);
 			break;
 		}
 	}
 
+	if(ret == 0)
+		ret = EXT2_ERR_INV_BLOCK;
 	return ret;
 }
 
 uint32_t ext2_get_inode_block(inode_t *ino, uint32_t block, ext2_fs_t *fs)
 {
-	size_t total_size = EXT2_CALCULATE_SIZE64(ino);
-	uint32_t max_blocks = total_size % fs->block_size ?
-		(total_size / fs->block_size) + 1 : total_size / fs->block_size;
-	if(max_blocks < block)
+	uint32_t b = ext2_get_block_from_inode(ino, block, fs);
+	if(b == EXT2_ERR_INV_BLOCK)
 	{
-		printk("Allocating block\n");
 		/* We'll have to allocate a new block and add it in */
 		uint32_t new_block = ext2_allocate_block(fs);
 		ext2_add_block_to_inode(ino, new_block, block, fs);
@@ -285,7 +492,7 @@ uint32_t ext2_get_inode_block(inode_t *ino, uint32_t block, ext2_fs_t *fs)
 		return new_block;
 	}
 	else
-		return ext2_get_block_from_inode(ino, block, fs);
+		return b;
 }
 
 ssize_t ext2_write_inode_block(inode_t *ino, uint32_t block, char *buffer, ext2_fs_t *fs)
@@ -318,13 +525,12 @@ ssize_t ext2_write_inode(inode_t *ino, ext2_fs_t *fs, size_t size, off_t off, ch
 		
 		memcpy(scratch + block_off, buffer + written, amount);
 		
-		ext2_write_inode_block(ino, block, scratch, fs);
+		assert(ext2_write_inode_block(ino, block, scratch, fs) != -1);
 		
 		written += amount;
 		off += amount;
 	}
 
-	//ext2_update_inode(ino, fs, info->inum);
 	free(scratch);
 	return written;
 }

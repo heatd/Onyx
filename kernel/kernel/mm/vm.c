@@ -1072,6 +1072,7 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 
 int sys_munmap(void *addr, size_t length)
 {
+	return 0;
 	printk("munmap %p %lu\n", addr, length);
 	if (is_higher_half(addr))
 		return -EINVAL;

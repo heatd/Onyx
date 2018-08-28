@@ -76,15 +76,12 @@ struct page_cache_block *inode_do_caching(struct inode *inode, off_t offset, lon
 	 * before reading a whole page */
 
 	ssize_t size = inode->i_fops.read(0, offset, PAGE_SIZE, virt, inode);
-	
+
 	if(size <= 0 && !(flags & FILE_CACHING_WRITE))
 	{
 		free_page(p);
 		return NULL;
 	}
-
-	if(flags & FILE_CACHING_WRITE)
-		size = PAGE_CACHE_SIZE;
 
 	/* Add the cache block */
 	block = add_cache_to_node(p, (size_t) size, offset, inode);
@@ -111,7 +108,7 @@ struct page_cache_block *__inode_get_page_internal(struct inode *inode, off_t of
 	/* Note: This should run with the pages_lock held */
 	for(; b; b = b->next_inode)
 	{
-		if(b->offset <= offset && b->offset + (off_t) b->size > offset)
+		if(b->offset <= offset && b->offset + (off_t) PAGE_CACHE_SIZE > offset)
 		{
 			#ifdef CONFIG_CHECK_PAGE_CACHE_INTEGRITY
 			assert(b->integrity == crc32_calculate(b->buffer, b->size));
@@ -144,14 +141,9 @@ struct page_cache_block *inode_get_page(struct inode *inode, off_t offset)
 
 	if(!b)
 	{
-		off_t aligned_off = (offset / PAGE_CACHE_SIZE) * PAGE_CACHE_SIZE;
-		fnv_hash_t hash = fnv_hash(&aligned_off, sizeof(offset));
-		unsigned int idx = hash % VFS_PAGE_HASHTABLE_ENTRIES;
-		printk("idx[]: %p\n", inode->i_pages[idx]);
-		printk("Aligned off %ld\nHash %u\n", aligned_off, idx);
-		while(1);
 		spin_unlock_preempt(&inode->i_pages_lock);
 	}
+
 	return b;
 }
 
@@ -523,11 +515,9 @@ ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *file,
 {
 	if(file->i_type != VFS_TYPE_FILE)
 		return -1;
-	if((size_t) offset > file->i_size)
-		return 0;
-	
+
 	size_t wrote = 0;
-	while(wrote != sizeofwrite)
+	do
 	{
 		
 		spin_lock(&file->i_pages_lock);
@@ -535,25 +525,41 @@ ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *file,
 			__inode_get_page_internal(file, offset,
 						  FILE_CACHING_WRITE);
 
-		/* TODO: Recover */
-		assert(cache != NULL);
+		if(cache == NULL)
+		{
+			spin_unlock(&file->i_pages_lock);
+			if(wrote)
+			{
+				wakeup_sync_thread();
+				return wrote;
+			}
+			else
+				return -ENOMEM;
+		}
 
 		off_t cache_off = offset % PAGE_CACHE_SIZE;
 		off_t rest = PAGE_CACHE_SIZE - cache_off;
-		if(rest < 0) rest = 0;
+
 		size_t amount = sizeofwrite - wrote < (size_t) rest ?
 			sizeofwrite - wrote : (size_t) rest;
+
 		memcpy((char*) cache->buffer + cache_off, (char*) buffer +
 			wrote, amount);
+	
 		if(cache->size < cache_off + amount)
+		{
 			cache->size = cache_off + amount;
+		}
+	
 		cache->dirty = 1;
-		wakeup_sync_thread();
+
 		offset += amount;
 		wrote += amount;
 
 		spin_unlock(&file->i_pages_lock);
-	}
+	} while(wrote != sizeofwrite);
+
+	wakeup_sync_thread();
 
 	return (ssize_t) wrote;
 }
@@ -590,7 +596,6 @@ ssize_t recvfrom_vfs(void *buf, size_t len, int flags,
 
 int default_ftruncate(off_t length, struct inode *vnode)
 {
-	
 	if(length < 0)
 		return -EINVAL;
 	
@@ -617,12 +622,15 @@ int default_ftruncate(off_t length, struct inode *vnode)
 
 		if(written != to_write)
 		{
+			free(page);
 			return (int) written;
 		}
 
 		off += to_write;
 		length_diff -= to_write;
 	}
+
+	free(page);
 
 	return 0;
 }

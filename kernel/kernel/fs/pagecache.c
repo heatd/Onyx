@@ -14,6 +14,8 @@
 #include <onyx/vm.h>
 #include <onyx/pagecache.h>
 #include <onyx/utils.h>
+#include <onyx/condvar.h>
+#include <onyx/mutex.h>
 
 static struct spinlock block_list_lock = {0};
 static struct page_cache_block *block_list = NULL;
@@ -126,14 +128,17 @@ void pagecache_do_run(void)
 	{
 		if(c->dirty)
 		{
-			printk("VFS write to inode %lu\n", c->node->i_inode);
 			/* If so, write to the underlying fs */
 			__do_vfs_write(c->buffer, c->size, c->offset, c->node);
 			c->dirty = 0;
 		}
 	}
 }
-void pagecache_sync(void *arg)
+
+static struct cond pagecache_condvar = {0};
+static struct mutex pagecache_mutex = {0};
+
+static void pagecache_sync(void *arg)
 {
 	UNUSED(arg);
 
@@ -142,10 +147,11 @@ void pagecache_sync(void *arg)
 	 * when it is woken up, or in other words, when a block has been
 	 * written to and is marked dirty 
 	*/
+	mutex_lock(&pagecache_mutex);
 	for(;;)
 	{
+		condvar_wait(&pagecache_condvar, &pagecache_mutex);
 		pagecache_do_run();
-		thread_set_state(sync_thread, THREAD_BLOCKED);
 	}
 }
 
@@ -154,12 +160,14 @@ void pagecache_init(void)
 	sync_thread = sched_create_thread(pagecache_sync, 1, NULL);
 	if(!sync_thread)
 		panic("Could not spawn the sync thread!\n");
-	thread_set_state(sync_thread, THREAD_BLOCKED);
+	sched_start_thread(sync_thread);
 }
 
 void wakeup_sync_thread(void)
 {
-	thread_wake_up(sync_thread);
+	mutex_lock(&pagecache_mutex);
+	condvar_signal(&pagecache_condvar);
+	mutex_unlock(&pagecache_mutex);
 }
 
 void page_cache_destroy(struct page_cache_block *block)

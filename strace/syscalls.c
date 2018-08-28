@@ -249,7 +249,7 @@ void print_syscall(struct proc_event *event)
 		args.args[0] = event->e_un.syscall.rdi;
 		args.args[1] = event->e_un.syscall.rsi;
 		args.args[2] = event->e_un.syscall.rdx;
-		args.args[3] = event->e_un.syscall.rcx;
+		args.args[3] = event->e_un.syscall.r10;
 		args.args[4] = event->e_un.syscall.r8;
 		args.args[5] = event->e_un.syscall.r9;
 		printf("%s(", system_calls[nr].name);

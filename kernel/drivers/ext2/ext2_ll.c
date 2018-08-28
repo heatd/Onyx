@@ -234,7 +234,7 @@ int ext2_add_direntry(const char *name, uint32_t inum, inode_t *inode, inode_t *
 
 	entry.inode = inum;
 	entry.lsbit_namelen = strlen(name);
-	entry.type_indic = 0;
+	entry.type_indic = 1;
 
 	strlcpy(entry.name, name, sizeof(entry.name));
 
@@ -253,7 +253,6 @@ int ext2_add_direntry(const char *name, uint32_t inum, inode_t *inode, inode_t *
 				if(e->size > actual_size && 
 				   e->size - actual_size >= dirent_size)
 				{
-					printk("Available entry!\n");
 					dir_entry_t *d = (dir_entry_t *) (buf + actual_size);
 					entry.size = e->size - actual_size;
 					e->size = actual_size;

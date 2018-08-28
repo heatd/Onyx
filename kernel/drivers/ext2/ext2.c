@@ -75,9 +75,9 @@ size_t ext2_write(size_t offset, size_t sizeofwrite, void *buffer, struct inode 
 		return errno = EINVAL, (size_t) -1;
 
 	size_t size = ext2_write_inode(ino, fs, sizeofwrite, offset, buffer);
+
 	if(offset + size > EXT2_CALCULATE_SIZE64(ino))
 	{
-		printk("Setting inode size to %lu\n", offset + size);
 		ext2_set_inode_size(ino, offset + size);
 		node->i_size = offset + size;
 	}
@@ -181,7 +181,6 @@ time_t get_posix_time(void);
 
 struct inode *ext2_creat(const char *name, int mode, struct inode *file)
 {
-	printk("Creating %s\n", name);
 	ext2_fs_t *fs = file->i_sb->s_helper;
 	uint32_t inumber = 0;
 
@@ -255,7 +254,6 @@ struct inode *ext2_creat(const char *name, int mode, struct inode *file)
 	free(inode);
 	free(dir_inode);
 
-	printk("heya\n");
 	return ino;
 }
 
@@ -296,6 +294,9 @@ struct inode *ext2_mount_partition(uint64_t sector, block_device_t *dev)
 	fs->blocks_per_block_group = sb->blockgroupblocks;
 	fs->inodes_per_block_group = sb->blockgroupinodes;
 	fs->number_of_block_groups = fs->total_blocks / fs->blocks_per_block_group;
+	unsigned long entries = fs->block_size / sizeof(uint32_t);
+	fs->entry_shift = 31 - __builtin_clz(entries);
+
 	if (fs->total_blocks % fs->blocks_per_block_group)
 		fs->number_of_block_groups++;
 	/* The driver keeps a block sized zero'd mem chunk for easy and fast overwriting of blocks */
@@ -314,9 +315,9 @@ struct inode *ext2_mount_partition(uint64_t sector, block_device_t *dev)
 	if((fs->number_of_block_groups * sizeof(block_group_desc_t)) % fs->block_size)
 		blocks_for_bgdt++;
 	if(fs->block_size == 1024)
-		bgdt = ext2_read_block(2, (uint16_t)blocks_for_bgdt, fs);
+		bgdt = ext2_read_block(2, (uint16_t) blocks_for_bgdt, fs);
 	else
-		bgdt = ext2_read_block(1, (uint16_t)blocks_for_bgdt, fs);
+		bgdt = ext2_read_block(1, (uint16_t) blocks_for_bgdt, fs);
 	fs->bgdt = bgdt;
 
 	struct superblock *new_super = zalloc(sizeof(*new_super));
