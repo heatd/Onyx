@@ -357,7 +357,7 @@ int sys_execve(char *p, char *argv[], char *envp[])
 
 	char *path = strcpy_from_user(p);
 	if(!path)
-		return -ENOMEM;
+		return -errno;
 	struct process *current = get_current_process();
 
 	/* Copy argv and envp to the kernel space */
@@ -369,6 +369,7 @@ int sys_execve(char *p, char *argv[], char *envp[])
 		free(path);
 		return -ENOMEM;
 	}
+
 	char **kenv = process_copy_envarg(envp, true, NULL);
 	if(!kenv)
 	{

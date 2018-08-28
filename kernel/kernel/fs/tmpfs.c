@@ -371,6 +371,53 @@ struct inode *tmpfs_mknod(const char *name, dev_t dev, struct inode *root)
 	return tmpfs_file_to_vfs(file, root);
 }
 
+off_t tmpfs_getdirent(struct dirent *buf, off_t off, struct inode* file)
+{
+	tmpfs_file_t *dir = (tmpfs_file_t *) file->i_inode;
+	off_t orig_off = off;
+
+	mutex_lock(&dir->dirent_lock);
+
+	tmpfs_file_t *f = dir->child;
+
+	while(off != 0)
+	{
+		if(!f)
+		{
+			mutex_unlock(&dir->dirent_lock);
+			return 0;
+		}
+		f = f->sibblings;
+		off--;
+	}
+
+	if(!f)
+	{
+		mutex_unlock(&dir->dirent_lock);
+		return 0;
+	}
+
+	strlcpy(buf->d_name, f->name, 255);
+	buf->d_ino = (ino_t) f;
+	buf->d_off = orig_off;
+	buf->d_reclen = sizeof(struct dirent) - (256 - (strlen(buf->d_name) + 1));
+
+	if(file->i_type & VFS_TYPE_DIR)
+		buf->d_type = DT_DIR;
+	else if(file->i_type & VFS_TYPE_BLOCK_DEVICE)
+		buf->d_type = DT_BLK;
+	else if(file->i_type & VFS_TYPE_CHAR_DEVICE)
+		buf->d_type = DT_CHR;
+	else if(file->i_type & VFS_TYPE_SYMLINK)
+		buf->d_type = DT_LNK;
+	else if(file->i_type & VFS_TYPE_FILE)
+		buf->d_type = DT_REG;
+
+	mutex_unlock(&dir->dirent_lock);
+
+	return orig_off + 1;
+}
+
 static void tmpfs_set_node_fileops(struct inode *node)
 {
 	node->i_fops.creat = tmpfs_creat;
@@ -380,6 +427,7 @@ static void tmpfs_set_node_fileops(struct inode *node)
 	node->i_fops.open = tmpfs_open;
 	node->i_fops.symlink = tmpfs_symlink;
 	node->i_fops.mknod = tmpfs_mknod;
+	node->i_fops.getdirent = tmpfs_getdirent;
 }
 
 tmpfs_filesystem_t *__tmpfs_allocate_fs(void)
