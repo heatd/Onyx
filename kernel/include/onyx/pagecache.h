@@ -25,6 +25,10 @@ struct page_cache_block
 	size_t size;
 
 	off_t offset;
+	
+#ifdef CONFIG_CHECK_PAGE_CACHE_INTEGRITY
+	uint32_t integrity;
+#endif
 
 	volatile _Atomic long dirty;
 

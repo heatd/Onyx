@@ -182,9 +182,11 @@ inode_t *ext2_traverse_fs(inode_t *wd, const char *path, ext2_fs_t *fs, char **s
 		ino = ext2_open_dir(ino, (const char*) p, fs, symlink_name, inode_num);
 		if(!ino)
 		{
+			free(p);
 			return errno = ENOENT, NULL;
 		}
 	}
+
 	free(original_path);
 	return ino;
 }
@@ -234,7 +236,7 @@ int ext2_add_direntry(const char *name, uint32_t inum, inode_t *inode, inode_t *
 	entry.lsbit_namelen = strlen(name);
 	entry.type_indic = 0;
 
-	strcpy(entry.name, name);
+	strlcpy(entry.name, name, sizeof(entry.name));
 
 	while(true)
 	{

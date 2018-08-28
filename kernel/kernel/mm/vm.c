@@ -1699,7 +1699,8 @@ struct page *vmo_commit_shared(size_t off, struct vm_object *vmo)
 	if(!p)
 		return NULL;
 	p->off = off;
-	atomic_inc(&p->ref, 1);
+
+	page_ref(p);
 	return p;
 }
 

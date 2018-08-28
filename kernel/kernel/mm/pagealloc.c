@@ -129,6 +129,7 @@ struct page *page_alloc_from_arena(size_t nr_pages, unsigned long flags, struct 
 	
 		for(size_t i = 0; i < nr_pages; i++)
 		{
+			assert(pl->page->ref == 0);
 			page_ref(pl->page);
 
 			if(!plist)

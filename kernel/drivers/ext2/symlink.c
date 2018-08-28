@@ -77,9 +77,13 @@ inode_t *ext2_follow_symlink(inode_t *inode, ext2_fs_t *fs, inode_t *parent, uin
 	{
 		if(!dir)
 			return errno = ENOENT, NULL;
+		inode_t *old_ino = ino;
 		ino = ext2_get_inode_from_dir(fs, dir, path, inode_num, EXT2_CALCULATE_SIZE64(ino));
 		if(!ino)
 			return errno = ENOENT, NULL;
+
+		free(old_ino);
+
 		//assert(EXT2_CALCULATE_SIZE64(ino));
 		inode_data = realloc(inode_data, EXT2_CALCULATE_SIZE64(ino));
 		if(!inode_data)
@@ -93,8 +97,6 @@ inode_t *ext2_follow_symlink(inode_t *inode, ext2_fs_t *fs, inode_t *parent, uin
 			dir = NULL;
 		/* Get the next path segment */
 		path = strtok_r(NULL, "/", &saveptr);
-		if(path)
-			free(ino);
 	}
 	free(inode_data);
 	return ino;

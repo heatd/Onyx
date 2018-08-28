@@ -18,6 +18,7 @@ typedef struct unwind_info
 	uintptr_t address;
 	char *name;
 } Unwind_info;
+
 /* Unwinds the stack. Returns the unwind info in a malloc'd Unwind_info. 
    Returns the number of entries of the structure in nr_info */
 Unwind_info *Unwind_unwind(size_t *nr_info);

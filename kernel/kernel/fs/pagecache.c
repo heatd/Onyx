@@ -78,28 +78,15 @@ static void remove_from_list(struct page_cache_block *b)
 	spin_unlock(&block_list_lock);
 }
 
+#ifdef CONFIG_CHECK_PAGE_CACHE_INTEGRITY
+uint32_t crc32_calculate(uint8_t *ptr, size_t len);
+#endif
+
 struct page_cache_block *add_to_cache(void *data, size_t size, off_t offset, struct inode *file)
 {
 	/* Allocate a block/page for the cache */
-	struct page *page = allocate_cache_block();
-	if(!page)
-		return errno = ENOMEM, NULL;
-	
-	/* Get a mapping for the physical page */
-	void *buffer = PHYS_TO_VIRT(page->paddr);
+	struct page *page = data;
 
-	/* 
-	 * Do note that currently, PHYS_TO_VIRT cannot return NULL as it cannot
-	 * fail, so this is effectively dead code that might be needed in some
-	 * future architecture that the kernel may run on. 
-	*/
-	if(!buffer)
-	{
-		free_page(page);
-		return NULL;
-	}
-
-	memcpy(buffer, data, size);
 	struct page_cache_block *c = zalloc(sizeof(struct page_cache_block));
 	if(!c)
 	{
@@ -107,11 +94,14 @@ struct page_cache_block *add_to_cache(void *data, size_t size, off_t offset, str
 		return errno = ENOMEM, NULL;
 	}
 
-	c->buffer = buffer;
+	c->buffer = PHYS_TO_VIRT(page->paddr);
 	c->page = page;
 	c->node = file;
 	c->size = size;
 	c->offset = offset;
+	#ifdef CONFIG_CHECK_PAGE_CACHE_INTEGRITY
+	c->integrity = crc32_calculate(c->buffer, c->size);
+	#endif
 
 	__add_to_list(c);
 	return c;

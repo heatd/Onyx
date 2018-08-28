@@ -328,6 +328,7 @@ void kernel_main()
 	ENABLE_INTERRUPTS();
 	for (;;);
 }
+
 void kernel_multitasking(void *arg)
 {
 	LOG("kernel", "Command line: %s\n", kernel_cmdline);

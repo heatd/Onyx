@@ -107,7 +107,7 @@ size_t ext2_read(int flags, size_t offset, size_t sizeofreading, void *buffer, s
 		return errno = EINVAL, -1;
 
 	size_t to_be_read = offset + sizeofreading > node->i_size ?
-		(offset + sizeofreading) - node->i_size  : sizeofreading;
+		node->i_size - offset : sizeofreading;
 
 	size_t size = ext2_read_inode(ino, fs, to_be_read, offset, buffer);
 

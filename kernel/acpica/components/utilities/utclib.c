@@ -337,7 +337,6 @@ strtok (
     }
 }
 
-#endif
 /*******************************************************************************
  *
  * FUNCTION:    strcpy
@@ -389,6 +388,7 @@ strcpy (
  * DESCRIPTION: Copy a null terminated string, with a maximum length
  *
  ******************************************************************************/
+#endif
 
 char *
 strncpy (

@@ -66,32 +66,40 @@ struct page_cache_block *inode_do_caching(struct inode *inode, off_t offset, lon
 {
 	struct page_cache_block *block = NULL;
 	/* Allocate a cache buffer */
-	void *cache = zalloc(PAGE_SIZE);
-	if(!cache)
+	struct page *p = alloc_page(0);
+	if(!p)
 		return NULL;
 	
+	void *virt = PHYS_TO_VIRT(p->paddr);
+
 	/* The size may be lesser than PAGE_SIZE, because we may reach EOF
-	 * before reading a page */
-	ssize_t size = inode->i_fops.read(0, offset, PAGE_SIZE, cache, inode);
+	 * before reading a whole page */
+
+	ssize_t size = inode->i_fops.read(0, offset, PAGE_SIZE, virt, inode);
 	
 	if(size <= 0 && !(flags & FILE_CACHING_WRITE))
+	{
+		free_page(p);
 		return NULL;
+	}
 
 	if(flags & FILE_CACHING_WRITE)
 		size = PAGE_CACHE_SIZE;
 
 	/* Add the cache block */
-	block = add_cache_to_node(cache, (size_t) size, offset, inode);
+	block = add_cache_to_node(p, (size_t) size, offset, inode);
 
 	/* Now the block might be added, return. We don't need to check for
 	 * null
 	*/
 
-	/* Free the buffer before returning */
-	free(cache);
-
 	return block;
 }
+
+#ifdef CONFIG_CHECK_PAGE_CACHE_INTEGRITY
+uint32_t crc32_calculate(uint8_t *ptr, size_t len);
+
+#endif
 
 struct page_cache_block *__inode_get_page_internal(struct inode *inode, off_t offset, long flags)
 {
@@ -103,9 +111,13 @@ struct page_cache_block *__inode_get_page_internal(struct inode *inode, off_t of
 	/* Note: This should run with the pages_lock held */
 	for(; b; b = b->next_inode)
 	{
-		if(b->offset == offset ||
-		  (b->offset < offset && b->offset + (off_t) b->size > offset))
+		if(b->offset <= offset && b->offset + (off_t) b->size > offset)
+		{
+			#ifdef CONFIG_CHECK_PAGE_CACHE_INTEGRITY
+			assert(b->integrity == crc32_calculate(b->buffer, b->size));
+			#endif
 			return b;
+		}
 	}
 
 	/* We don't release the lock if we didn't find anything on purpose.
@@ -472,10 +484,10 @@ ssize_t lookup_file_cache(void *buffer, size_t sizeofread, struct inode *file,
 
 		if(!cache)
 		{
-			printf("Bad offset %ld\n", offset);
-
-			/* TODO: Recover */
-			assert(cache != NULL);
+			if(read)
+				return read;
+			else
+				return -ENOMEM;
 		}
 
 		off_t cache_off = offset % PAGE_CACHE_SIZE;

@@ -35,6 +35,7 @@ Unwind_info *do_raw_unwind(uintptr_t *frame, size_t *size, elf_object_t *elf)
 	*size = sz;
 	return buffer;
 }
+
 Unwind_info *Unwind_stack(size_t *size)
 {
 	/* TODO: This doesn't work if argv[0] is a relative path and the program changed 
