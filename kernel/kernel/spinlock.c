@@ -40,11 +40,12 @@ void spin_lock_preempt(struct spinlock *lock)
 
 void spin_unlock_preempt(struct spinlock *lock)
 {
-	__sync_synchronize();
-
 	assert(lock->lock > 0);
 
-	atomic_dec(&lock->lock, 1);
+	lock->lock = 0;
+
+	__sync_synchronize();
+
 	post_release_actions(lock);
 }
 
