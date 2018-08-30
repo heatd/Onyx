@@ -104,6 +104,17 @@ void *elf64_load_static(struct binfmt_args *args, Elf64_Ehdr *header)
 		}
 	}
 
+	void *map = get_user_pages(VM_TYPE_REGULAR,
+		vm_align_size_to_pages(program_headers_size), VM_WRITE | VM_NOEXEC);
+	if(!map)
+		return NULL;
+	
+	memcpy(map, phdrs, program_headers_size);
+	struct process *p = get_current_process();
+	p->info.phdr = map;
+	p->info.phent = header->e_phentsize;
+	p->info.phnum = header->e_phnum;
+
 	free(phdrs);
 	return (void*) header->e_entry;
 }
@@ -182,7 +193,7 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 			vm_align_size_to_pages(program_headers_size), VM_WRITE | VM_NOEXEC);
 	if(!ptr)
 		return NULL;
-	
+
 	memcpy(ptr, phdrs, program_headers_size);
 	free(phdrs);
 	size_t sections_size = header->e_shnum * header->e_shentsize;
@@ -213,7 +224,10 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 				switch(ELF64_R_TYPE(rela->r_info))
 				{
 					case R_X86_64_RELATIVE:
-						*addr = RELOCATE_R_X86_64_RELATIVE((uintptr_t) base, rela->r_addend);
+						*addr =
+						RELOCATE_R_X86_64_RELATIVE(
+							(uintptr_t) base,
+							rela->r_addend);
 				}
 			}
 			free(r);

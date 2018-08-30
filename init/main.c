@@ -137,6 +137,7 @@ int mount_filesystems(void)
 			arg_num++;
 			str = strtok(NULL, " \t");
 		}
+
 		if(mount(source, target, filesystem_type, 0, NULL) < 0)
 		{
 			printf("init: failed to mount %s\n", source);
@@ -161,7 +162,7 @@ func_exit:
 	return 0;
 }
 
-bool fail_on_mount_error = false;
+bool fail_on_mount_error = true;
 
 int main(int argc, char **argv, char **envp)
 {
@@ -172,7 +173,7 @@ int main(int argc, char **argv, char **envp)
 		{
 			case 'm':
 			{
-				fail_on_mount_error = true;
+				fail_on_mount_error = false;
 				break;
 			}
 		}
@@ -190,18 +191,27 @@ int main(int argc, char **argv, char **envp)
 	if(mount_filesystems() == 1)
 	{
 		if(fail_on_mount_error)
-			return 1;
+		{
+			printf("init: Failed to mount filesystems - dumping into dash shell\n");
+			chdir("/");
+			if(execl("/bin/dash", "-/bin/dash", NULL) < 0)
+			{
+				perror("exec error");
+				return 1;
+			}
+		}
 		else
 			printf("mount errors: proceeding carefully.\n");
 	}
-	/* chdir to /, since the kernel doesn't setup the current directory
-	 * so we need to set it up ourselves.
-	*/
 
 	/* Setup the hostname */
 	setup_hostname();
 
+	/* chdir to /, since the kernel doesn't setup the current directory
+	 * so we need to set it up ourselves.
+	*/
 	chdir("/");
+
 	/* Execute daemons */
 	exec_daemons();
 	/* Mask every signal */
