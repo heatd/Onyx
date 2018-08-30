@@ -712,7 +712,8 @@ struct inode *inode_create(void)
 	if(!inode)
 		return NULL;
 
-	object_init(&inode->i_object, inode_release);
+	/* Don't release inodes immediately */
+	object_init(&inode->i_object, NULL);
 
 	return inode;
 }

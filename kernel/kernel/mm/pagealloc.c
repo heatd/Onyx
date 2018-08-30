@@ -22,6 +22,7 @@
 
 size_t page_memory_size;
 size_t nr_global_pages;
+static atomic_size_t used_pages = 0;
 
 static inline unsigned long pow2(int exp)
 {
@@ -158,6 +159,7 @@ struct page *page_alloc(size_t nr_pages, unsigned long flags)
 			continue;
 		if((pages = page_alloc_from_arena(nr_pages, flags, arena)) != NULL)
 		{
+			used_pages += nr_pages;
 			return pages;
 		}
 	}
@@ -239,6 +241,7 @@ void page_free(size_t nr_pages, void *addr)
 			(uintptr_t) arena->end_arena > (uintptr_t) addr)
 		{
 			page_free_pages(arena, addr, nr_pages);
+			used_pages -= nr_pages;
 		}
 	}
 }
@@ -348,7 +351,11 @@ void page_init(size_t memory_size, void *(*get_phys_mem_region)(uintptr_t *base,
 	page_is_initialized = true;
 }
 
-void page_get_stats(struct memstat *m){}
+void page_get_stats(struct memstat *m)
+{
+	m->free_mem = nr_global_pages * PAGE_SIZE;
+	m->allocated_mem = used_pages * PAGE_SIZE;
+}
 
 extern unsigned char kernel_end;
 

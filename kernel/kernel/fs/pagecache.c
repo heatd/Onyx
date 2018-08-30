@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <stdio.h>
+#include <stdatomic.h>
 
 #include <onyx/compiler.h>
 #include <onyx/panic.h>
@@ -19,14 +20,9 @@
 
 static struct spinlock block_list_lock = {0};
 static struct page_cache_block *block_list = NULL;
+static atomic_size_t used_cache_pages = 0;
 
 size_t __do_vfs_write(void *buf, size_t size, off_t off, struct inode *this);
-
-struct page *allocate_cache_block(void)
-{
-	struct page *p = alloc_page(0);
-	return p;
-}
 
 void __add_to_list(struct page_cache_block *b)
 {
@@ -101,6 +97,8 @@ struct page_cache_block *add_to_cache(void *data, size_t size, off_t offset, str
 	c->node = file;
 	c->size = size;
 	c->offset = offset;
+	used_cache_pages++;
+
 	#ifdef CONFIG_CHECK_PAGE_CACHE_INTEGRITY
 	c->integrity = crc32_calculate(c->buffer, c->size);
 	#endif
@@ -175,6 +173,12 @@ void page_cache_destroy(struct page_cache_block *block)
 	remove_from_list(block);
 
 	free_page(block->page);
+	used_cache_pages--;
 
 	free(block);
+}
+
+size_t pagecache_get_used_pages(void)
+{
+	return used_cache_pages;
 }
