@@ -78,8 +78,12 @@ void panic(const char *msg)
 	halt();
 	__builtin_unreachable();
 }
+
 void __assert_fail(const char * assertion, const char * file, unsigned int line, const char * function)
 {
+	/* Turn off vterm multthreading */
+	vterm_panic();
+
 	char buf[200] = {0};
 	snprintf(buf, 200, "Assertion %s failed in %s:%u, in function %s\n", assertion, file, line, function);
 	printk(buf);

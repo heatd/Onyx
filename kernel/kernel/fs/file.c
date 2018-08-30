@@ -21,6 +21,7 @@
 #include <onyx/pipe.h>
 #include <onyx/file.h>
 #include <onyx/atomic.h>
+#include <onyx/user.h>
 
 #include <sys/uio.h>
 
@@ -843,4 +844,18 @@ struct file_description *create_file_description(struct inode *inode, off_t seek
 	object_ref(&inode->i_object);
 
 	return fd;
+}
+
+/* Simple stub sys_access */
+int sys_access(const char *path, int amode)
+{
+	const char *p = strcpy_from_user(path);
+	if(!p)
+		return -errno;
+
+	struct inode *ino = open_vfs(get_fs_base(p, get_current_directory()), p);
+	if(!ino)
+		return -ENOENT;
+	
+	return 0;
 }

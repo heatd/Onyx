@@ -329,6 +329,8 @@ void kernel_main()
 	for (;;);
 }
 
+void do_ktests(void);
+
 void kernel_multitasking(void *arg)
 {
 	LOG("kernel", "Command line: %s\n", kernel_cmdline);
@@ -382,6 +384,11 @@ void kernel_multitasking(void *arg)
 	/* Populate /sys */
 	vm_sysfs_init();
 
+#ifdef CONFIG_DO_TESTS
+	/* Execute ktests */
+	do_ktests();
+#endif
+
 	/* Mount the root partition */
 	char *root_partition = kernel_getopt("--root");
 	if(!root_partition)
@@ -408,6 +415,6 @@ void kernel_multitasking(void *arg)
 
 	assert(find_and_exec_init(args, envp) == 0);
 
-	thread_set_state(get_current_thread(), THREAD_BLOCKED);
+	set_current_state(THREAD_BLOCKED);
 	for (;;);
 }

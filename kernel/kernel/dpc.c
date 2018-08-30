@@ -57,7 +57,7 @@ void dpc_init(void)
 
 	dpc_thread = sched_create_thread(dpc_do_work, THREAD_KERNEL, NULL);
 	assert(dpc_thread != NULL);
-	dpc_thread->priority = 20;
+	dpc_thread->priority = SCHED_PRIO_VERY_HIGH;
 	
 	dpc_pool = slab_create("dpc", sizeof(struct dpc_work), 0, SLAB_FLAG_DONT_CACHE, NULL, NULL);
 	assert(dpc_pool != NULL);

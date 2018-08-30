@@ -39,6 +39,7 @@ USES_FANCY_END
 #include <onyx/spinlock.h>
 #include <onyx/registers.h>
 #include <onyx/avx.h>
+#include <onyx/irq.h>
 
 #include <onyx/x86/platform_info.h>
 #include <onyx/x86/tsc.h>
@@ -380,7 +381,7 @@ struct processor *get_processor_data_for_cpu(int cpu)
 
 void cpu_notify(struct processor *p)
 {
-	send_ipi(p->lapic_id, 0, X86_MESSAGE_VECTOR);
+	apic_send_ipi(p->lapic_id, 0, X86_MESSAGE_VECTOR);
 }
 
 void cpu_wait_for_msg_ack(struct cpu_message *msg)
@@ -389,11 +390,70 @@ void cpu_wait_for_msg_ack(struct cpu_message *msg)
 		cpu_relax();
 }
 
+struct cpu_message *cpu_alloc_msg_slot_irq(void)
+{
+	/* Like the next function, but for irqs */
+	struct processor *p = get_processor_data();
+
+	unsigned long spins = 5;
+	/* Try spinning 5 times for a message slot */
+	while(spins--)
+	{
+		spin_lock_irqsave(&p->outgoing_msg_lock);
+		for(int i = 0; i < CPU_OUTGOING_MAX; i++)
+		{
+			if(p->outgoing_msg[i].sent == false)
+			{
+				spin_unlock_irqrestore(&p->outgoing_msg_lock);
+				return &p->outgoing_msg[i];
+			}
+		}
+
+		spin_unlock_irqrestore(&p->outgoing_msg_lock);
+
+		cpu_relax();
+	}
+
+	return NULL;
+}
+
+struct cpu_message *cpu_alloc_msg_slot(void)
+{
+	/* Try and alloc a message slot */
+
+	if(is_in_interrupt())
+		return cpu_alloc_msg_slot_irq();
+
+	struct processor *p = get_processor_data();
+
+	while(true)
+	{
+		spin_lock_irqsave(&p->outgoing_msg_lock);
+		for(int i = 0; i < CPU_OUTGOING_MAX; i++)
+		{
+			if(p->outgoing_msg[i].sent == false)
+			{
+				p->outgoing_msg[i].sent = false;
+				spin_unlock_irqrestore(&p->outgoing_msg_lock);
+				return &p->outgoing_msg[i];
+			}
+		}
+
+		spin_unlock_irqrestore(&p->outgoing_msg_lock);
+
+		cpu_relax();
+	}
+	
+}
+
 void cpu_send_message(int cpu, unsigned long message, void *arg)
 {
 	struct processor 	*p;
-	struct cpu_message	msg;
-	msg.ack = false;
+	struct cpu_message	*msg = cpu_alloc_msg_slot();
+	if(!msg)
+		return;
+
+	msg->ack = false;
 	assert(cpu <= booted_cpus);
 	p = get_processor_data_for_cpu(cpu);
 	assert(p != NULL);
@@ -404,7 +464,7 @@ void cpu_send_message(int cpu, unsigned long message, void *arg)
 	if(unlikely(message == CPU_KILL))
 	{
 		if(!p->message_queue)
-			p->message_queue = &msg;
+			p->message_queue = msg;
 		p->message_queue->message = CPU_KILL;
 		p->message_queue->ptr = NULL;
 		p->message_queue->next = NULL;
@@ -412,23 +472,26 @@ void cpu_send_message(int cpu, unsigned long message, void *arg)
 	else
 	{
 		if(!p->message_queue)
-			p->message_queue = &msg;
+			p->message_queue = msg;
 		else
 		{
 			struct cpu_message *m = p->message_queue;
 			while(m->next) m = m->next;
-			m->next = &msg;
+			m->next = msg;
 		}
 
-		msg.message = message;
-		msg.ptr = arg;
-		msg.next = NULL;
+		msg->message = message;
+		msg->ptr = arg;
+		msg->next = NULL;
 		spin_unlock(&p->message_queue_lock);
 	}
 
+	msg->sent = true;
+
 	cpu_notify(p);
 
-	cpu_wait_for_msg_ack(&msg);
+	if(message == CPU_TRY_RESCHED)
+		return;
 }
 
 void cpu_kill(int cpu_num)
@@ -472,14 +535,15 @@ void cpu_handle_message(struct cpu_message *msg)
 	{
 		case CPU_KILL:
 			msg->ack = true;
+			msg->sent = false;
 			cpu_handle_kill();
 			break;
 		case CPU_TRY_RESCHED:
+			msg->ack = true;
+			msg->sent = false;
 			cpu_try_resched(msg->ptr);
 			break;
 	}
-
-	msg->ack = true;
 }
 
 void *cpu_handle_messages(void *stack)

@@ -363,9 +363,10 @@ bool ahci_do_command(struct ahci_port *ahci_port, struct ahci_command_ata *buf)
 	if(!ahci_do_command_async(ahci_port, buf, &req))
 		return false;
 
-	while(!req.wake_sem.counter);
-
-	//sem_wait(&req.wake_sem);
+	/* Sleeping here is a big waste, reads take less than a ms */
+	/* TODO: Maybe do it on large reads? */
+	while(!req.wake_sem.counter)
+		cpu_relax();
 
 	if(req.status == AIO_STATUS_OK)
 	{

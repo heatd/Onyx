@@ -54,6 +54,7 @@ struct irq_line
 extern "C" {
 #endif
 
+bool is_in_interrupt(void);
 void dispatch_irq(unsigned int irq, struct irq_context *context);
 int install_irq(unsigned int irq, irq_t handler, struct device *device,
 	unsigned int flags, void *cookie);

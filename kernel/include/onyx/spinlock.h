@@ -34,13 +34,13 @@ void wait_spinlock(struct spinlock*);
 static inline void spin_lock_irqsave(struct spinlock *lock)
 {
 	unsigned long flags = irq_save_and_disable();
-	spin_lock(lock);
+	spin_lock_preempt(lock);
 	lock->old_flags = flags;
 }
 
 static inline void spin_unlock_irqrestore(struct spinlock *lock)
 {
-	spin_unlock(lock);
+	spin_unlock_preempt(lock);
 	irq_restore(lock->old_flags);
 }
 

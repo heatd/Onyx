@@ -74,6 +74,7 @@
 #define __NR_shm_open				78
 #define __NR_shm_unlink				79
 #define __NR_proc_event_attach			80
+#define __NR_access				81
 #define __NR_rename				82
 #define __NR_mkdir				83
 #define __NR_rmdir				84
@@ -226,7 +227,6 @@
 #define __NR_inotify_init			253
 #define __NR_inotify_add_watch			254
 #define __NR_accept				255
-#define __NR_access				255
 #define __NR_alarm				255
 #define __NR_getitimer				255
 #define __NR_getpeername			255
@@ -413,6 +413,7 @@
 #define SYS_shm_open				78
 #define SYS_shm_unlink				79
 #define SYS_proc_event_attach			80
+#define SYS_access				81
 #define SYS_rename				82
 #define SYS_mkdir				83
 #define SYS_rmdir				84
@@ -565,7 +566,6 @@
 #define SYS_inotify_init			253
 #define SYS_inotify_add_watch			254
 #define SYS_accept				255
-#define SYS_access				255
 #define SYS_alarm				255
 #define SYS_getitimer				255
 #define SYS_getpeername			255

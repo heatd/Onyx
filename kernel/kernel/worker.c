@@ -8,7 +8,8 @@
 #include <errno.h>
 
 #include <onyx/worker.h>
-#include <onyx/task_switching.h>
+#include <onyx/scheduler.h>
+#include <onyx/thread.h>
 #include <onyx/mutex.h>
 #include <onyx/panic.h>
 #include <onyx/utils.h>
@@ -16,6 +17,7 @@
 static thread_t *worker = NULL;
 static struct mutex work_queue_mutex = MUTEX_INITIALIZER;
 static struct work_request *work_queue = NULL;
+
 void work_do_work(void* context)
 {
 	while(1)
@@ -31,10 +33,11 @@ void work_do_work(void* context)
 		}
 		mutex_unlock(&work_queue_mutex);
 		/* Set the thread state to sleeping and yield */
-		thread_set_state(worker, THREAD_BLOCKED);
+		set_current_state(THREAD_BLOCKED);
 		sched_yield();
 	}
 }
+
 void worker_init(void)
 {
 	if(!(worker = sched_create_thread(work_do_work, 1, NULL)))
@@ -42,6 +45,7 @@ void worker_init(void)
 	worker->priority = 20;
 	thread_set_state(worker, THREAD_BLOCKED);
 }
+
 int worker_schedule(struct work_request *work, int priority)
 {
 	/* Create a duplicate of work(so we're able to easily free things) */

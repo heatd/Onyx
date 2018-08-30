@@ -20,6 +20,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <onyx/panic.h>
+
 struct ubsan_source_location
 {
 	const char* filename;
@@ -50,6 +52,7 @@ static void ubsan_abort(const struct ubsan_source_location* location,
 	if ( !location || !location->filename)
 		location = &unknown_location;
 	printk("Violating %s at %s:%u:%u\n", violation, location->filename, location->line, location->column);
+	panic("ubsan");
 	while(1) __asm__ __volatile__("cli;hlt");
 }
 #define ABORT_VARIANT(name, params, call) \

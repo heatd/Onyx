@@ -145,6 +145,7 @@ int main(int argc, char **argv, char **envp)
 	/* After doing some work, initialize entropy */
 	init_entropy();
 	dhcp_setup_netif(fd, sock);
-	while(1);
+	while(1)
+		sleep(100000);
 	return 0;
 }

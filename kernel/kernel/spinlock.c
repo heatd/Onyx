@@ -13,9 +13,10 @@
 #include <onyx/atomic.h>
 #include <onyx/cpu.h>
 
+__attribute__((always_inline))
 static inline void post_lock_actions(struct spinlock *lock)
 {
-	lock->holder = (unsigned long) __builtin_return_address(0);
+	lock->holder = (unsigned long) __builtin_return_address(1);
 }
 
 static inline void post_release_actions(struct spinlock *lock)
@@ -36,6 +37,8 @@ void spin_lock_preempt(struct spinlock *lock)
 	}
 
 	__sync_synchronize();
+
+	post_lock_actions(lock);
 }
 
 void spin_unlock_preempt(struct spinlock *lock)

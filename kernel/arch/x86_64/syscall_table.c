@@ -127,6 +127,7 @@ void *addr2);
 extern ssize_t sys_recvfrom(int sockfd, void *buf, size_t len, int flags,
 struct sockaddr *src_addr, socklen_t *addrlen);
 extern int sys_proc_event_attach(pid_t pid, unsigned long flags);
+extern int sys_access(const char *path, int amode);
 
 void *syscall_table_64[] =
 {
@@ -210,5 +211,6 @@ void *syscall_table_64[] =
 	[77] = (void*) sys_ptrace,
 	[78] = (void*) sys_nosys,
 	[79] = (void*) sys_nosys,
-	[80] = (void*) sys_proc_event_attach
+	[80] = (void*) sys_proc_event_attach,
+	[81] = (void*) sys_access
 };

@@ -390,7 +390,8 @@ uint64_t get_tick_count()
 	return boot_ticks;
 }
 
-void send_ipi(uint8_t id, uint32_t type, uint32_t page)
+/* TODO: Does this work well? */
+void boot_send_ipi(uint8_t id, uint32_t type, uint32_t page)
 {
 	lapic_write(bsp_lapic, LAPIC_IPIID, (uint32_t)id << 24);
 	uint64_t icr = type << 8 | (page & 0xff);
@@ -398,10 +399,25 @@ void send_ipi(uint8_t id, uint32_t type, uint32_t page)
 	lapic_write(bsp_lapic, LAPIC_ICR, (uint32_t) icr);
 }
 
+void apic_send_ipi(uint8_t id, uint32_t type, uint32_t page)
+{
+	struct processor *p = get_processor_data();
+
+	assert(p != NULL);
+
+	while(lapic_read((volatile uint32_t *) p->lapic, LAPIC_ICR) & (1 << 12))
+		cpu_relax();
+
+	lapic_write((volatile uint32_t *) p->lapic, LAPIC_IPIID, (uint32_t) id << 24);
+	uint64_t icr = type << 8 | (page & 0xff);
+	icr |= (1 << 14);
+	lapic_write((volatile uint32_t *) p->lapic, LAPIC_ICR, (uint32_t) icr);
+}
+
 void apic_wake_up_processor(uint8_t lapicid)
 {
 	ap_done = 0;
-	send_ipi(lapicid, 5, 0);
+	boot_send_ipi(lapicid, 5, 0);
 	uint64_t tick = get_tick_count();
 	while(get_tick_count() - tick < 200)
 		__asm__ __volatile__("hlt");
@@ -411,7 +427,7 @@ void apic_wake_up_processor(uint8_t lapicid)
 		VM_WRITE | VM_NOEXEC , 0) + 0x2000;
 	assert(core_stack != 0x2000);
 
-	send_ipi(lapicid, 6, 0);
+	boot_send_ipi(lapicid, 6, 0);
 	tick = get_tick_count();
 	while(get_tick_count() - tick < 1000)
 	{
@@ -423,7 +439,7 @@ void apic_wake_up_processor(uint8_t lapicid)
 	}
 	if(ap_done == 0)
 	{
-		send_ipi(lapicid, 6, 0);
+		boot_send_ipi(lapicid, 6, 0);
 		tick = get_tick_count();
 		while(get_tick_count() - tick < 1000)
 		{

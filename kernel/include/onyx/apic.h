@@ -39,7 +39,7 @@ void apic_wake_up_processor(uint8_t);
 void apic_timer_smp_init(volatile uint32_t *lapic);
 void apic_set_irql(int irql);
 int apic_get_irql(void);
-void send_ipi(uint8_t id, uint32_t type, uint32_t page);
+void apic_send_ipi(uint8_t id, uint32_t type, uint32_t page);
 void lapic_send_eoi(void);
 
 #ifdef __cplusplus

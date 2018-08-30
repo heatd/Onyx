@@ -7,10 +7,13 @@
 #define _KERNEL_THREAD_H
 
 #include <onyx/task_switching.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 thread_t *sched_spawn_thread(registers_t *regs, thread_callback_t start, void *arg, void *fs);
+
 #ifdef __cplusplus
 }
 #endif

@@ -219,6 +219,17 @@ static inline void cpu_relax(void)
 
 #endif
 
+#define CPU_OUTGOING_MAX	5
+
+struct cpu_message
+{
+	unsigned long message;
+	void *ptr;
+	volatile bool ack;
+	volatile bool sent;
+	struct cpu_message *next;
+};
+
 struct processor
 {
 #if defined (__x86_64__)
@@ -240,6 +251,8 @@ struct processor
 	struct spinlock queue_locks[NUM_PRIO];
 	size_t sched_quantum;
 	thread_t *current_thread;
+	struct spinlock outgoing_msg_lock;
+	struct cpu_message outgoing_msg[CPU_OUTGOING_MAX];
 #ifdef __cplusplus
 	unsigned long preemption_counter;
 #else
@@ -269,13 +282,6 @@ void cpu_kill(int cpu_num);
 void cpu_send_message(int cpu, unsigned long message, void *arg);
 void __cpu_handle_message(void);
 
-struct cpu_message
-{
-	unsigned long message;
-	void *ptr;
-	volatile bool ack;
-	struct cpu_message *next;
-};
 /* CPU messages */
 #define CPU_KILL	(unsigned long) -1
 #define CPU_TRY_RESCHED	(unsigned long)  0

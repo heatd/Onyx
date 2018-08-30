@@ -45,6 +45,11 @@ static inline unsigned long irq_save_and_disable(void)
 	return old;
 }
 
+static inline bool irq_is_disabled(void)
+{
+	return x86_save_flags() & 0x200;
+}
+
 static inline void irq_restore(unsigned long flags)
 {
 	if(flags & 0x200)

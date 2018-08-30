@@ -8,10 +8,18 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <assert.h>
 
 #include <onyx/spinlock.h>
 
 #define NUM_PRIO 40
+
+#define SCHED_PRIO_VERY_LOW	0
+#define SCHED_PRIO_LOW		10
+#define SCHED_PRIO_NORMAL	20
+#define SCHED_PRIO_HIGH		30
+#define SCHED_PRIO_VERY_HIGH	39
+
 typedef void(*thread_callback_t)(void*);
 struct process;
 struct processor;
@@ -112,6 +120,14 @@ static inline void sched_should_resched(void)
 	struct thread *t = get_current_thread();
 	if(t) t->flags |= THREAD_NEEDS_RESCHED;
 }
+
+#define set_current_state(state) 			\
+do							\
+{							\
+	struct thread *__t = get_current_thread();	\
+	assert(__t != NULL);				\
+	__t->status = state;				\
+} while(0);
 
 #ifdef __cplusplus
 }

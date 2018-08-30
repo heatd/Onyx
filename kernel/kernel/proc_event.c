@@ -79,7 +79,8 @@ size_t proc_event_read(int flags, size_t offset, size_t sizeofread, void* buffer
 	sem_wait(&sub->event_semaphore);
 
 	memcpy(buffer, &sub->event_buf, sizeofread);
-
+	sub->event_semaphore.counter = 0;
+	
 	atomic_set(&sub->has_new_event, 0);
 
 	return sizeofread;

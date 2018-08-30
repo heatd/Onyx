@@ -13,6 +13,7 @@
 #include <onyx/dev.h>
 #include <onyx/platform.h>
 #include <onyx/dpc.h>
+#include <onyx/percpu.h>
 
 struct irq_line irq_lines[NR_IRQ] = {0};
 unsigned long rogue_irqs = 0;
@@ -116,10 +117,19 @@ void check_for_resched(struct irq_context *context)
 	}
 }
 
+PER_CPU_VAR(bool in_irq) = false;
+
+bool is_in_interrupt(void)
+{
+	return GET_PER_CPU(in_irq, bool);
+}
+
 void dispatch_irq(unsigned int irq, struct irq_context *context)
 {
 	struct irq_line *line = &irq_lines[irq];
 	
+	in_irq = true;
+
 	for(struct interrupt_handler *h = line->irq_handlers; h; h = h->next)
 	{
 		irqstatus_t st = h->handler(context, h->cookie);
@@ -129,6 +139,7 @@ void dispatch_irq(unsigned int irq, struct irq_context *context)
 			check_for_resched(context);
 			line->stats.handled_irqs++;
 			h->handled_irqs++;
+			in_irq = false;
 			return;
 		}
 	}
@@ -136,6 +147,7 @@ void dispatch_irq(unsigned int irq, struct irq_context *context)
 	printf("Rogue IRQ %u\n", irq);
 	rogue_irqs++;
 	line->stats.spurious++;
+	in_irq = false;
 
 }
 

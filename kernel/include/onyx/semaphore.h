@@ -14,8 +14,7 @@ struct semaphore
 {
 	thread_t *head;
 	thread_t *tail;
-	struct spinlock llock;
-	struct spinlock bin_sem;
+	struct spinlock lock;
 #ifndef __cplusplus
 	atomic_long counter;
 #else

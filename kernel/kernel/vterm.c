@@ -1012,13 +1012,12 @@ void vterm_render_thread(void *arg)
 {
 	struct vterm *vt = arg;
 
+	mutex_lock(&vt->condvar_mutex);
+
 	while(true)
 	{
 		condvar_wait(&vt->condvar, &vt->condvar_mutex);
-
 		vterm_handle_messages(vt);
-		mutex_unlock(&vt->condvar_mutex);
-
 	}
 }
 
@@ -1030,7 +1029,7 @@ void vterm_switch_to_multithread(struct vterm *vt)
 
 	vt->multithread_enabled = true;
 
-	vt->render_thread->priority = 5;
+	vt->render_thread->priority = SCHED_PRIO_HIGH;
 
 	sched_start_thread(vt->render_thread);
 }

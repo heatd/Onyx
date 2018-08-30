@@ -29,6 +29,7 @@
 #include <onyx/cpu.h>
 #include <onyx/semaphore.h>
 #include <onyx/condvar.h>
+#include <onyx/irq.h>
 
 static thread_t **idle_threads;
 static struct spinlock wait_queue_lock;
@@ -42,8 +43,11 @@ static void append_to_wait_queue(thread_t *thread);
 thread_t *__sched_find_next(struct processor *p)
 {
 	thread_t *current_thread = get_current_thread();
+	
 	if(current_thread)
 	{
+		spin_lock_irqsave(&current_thread->lock);
+
 		if(current_thread->status == THREAD_BLOCKED)
 		{
 			append_to_wait_queue(current_thread);
@@ -52,8 +56,6 @@ thread_t *__sched_find_next(struct processor *p)
 				spin_unlock_preempt(current_thread->to_release);
 				current_thread->to_release = NULL;
 			}
-
-			spin_unlock_preempt(&current_thread->lock);
 		}
 		else if(current_thread->status == THREAD_RUNNABLE)
 		{
@@ -62,7 +64,10 @@ thread_t *__sched_find_next(struct processor *p)
 			p,
 			current_thread);
 		}
+	
+		spin_unlock_irqrestore(&current_thread->lock);
 	}
+
 	/* Go through the different queues, from the highest to lowest */
 	for(int i = NUM_PRIO-1; i >= 0; i--)
 	{
@@ -250,6 +255,7 @@ thread_t *sched_create_thread(thread_callback_t callback, uint32_t flags, void* 
 	thread_t *t = task_switching_create_context(callback, flags, args);
 	if(!t)
 		return NULL;
+	t->priority = SCHED_PRIO_NORMAL;
 	return t;
 }
 
@@ -259,10 +265,11 @@ thread_t* sched_create_main_thread(thread_callback_t callback, uint32_t flags, i
 	thread_t *t = task_switching_create_main_progcontext(callback, flags, argc, argv, envp);
 	if(!t)
 		return NULL;
+	t->priority = SCHED_PRIO_NORMAL;
 	return t;
 }
 
-extern void _sched_yield();
+extern void _sched_yield(void);
 int sched_init(void)
 {
 	idle_threads = malloc(sizeof(void*) * get_nr_cpus());
@@ -272,7 +279,9 @@ int sched_init(void)
 		idle_threads[i] = task_switching_create_context(sched_idle, 1, NULL);
 		assert(idle_threads[i]);
 		idle_threads[i]->status = THREAD_IDLE;
+		idle_threads[i]->priority = SCHED_PRIO_VERY_LOW;
 	}
+
 	is_initialized = true;
 	return 0;
 }
@@ -287,7 +296,7 @@ void sched_sleep(unsigned long ms)
 	thread_t *current = get_current_thread();
 	current->timestamp = get_tick_count();
 	current->sleeping_for = ms;
-	thread_set_state(current, THREAD_BLOCKED);
+	set_current_state(THREAD_BLOCKED);
 	sched_yield();
 }
 
@@ -432,15 +441,27 @@ static void remove_from_wait_queue(thread_t *thread)
 			}
 		}
 	}
+
 	spin_unlock(&wait_queue_lock);
 }
 
 void sched_try_to_resched(struct thread *thread)
 {
 	struct thread *current = get_current_thread();
+	if(!current)
+		return;
+
+	if(current == thread)
+		return;
 
 	if(thread->cpu == current->cpu && thread->priority > current->priority)
 	{
+		if(is_in_interrupt() || irq_is_disabled())
+		{
+			current->flags |= THREAD_NEEDS_RESCHED;
+			return;
+		}
+
 		/* Just yield, we'll get to execute the thread eventually */
 		sched_yield();
 	}
@@ -458,17 +479,14 @@ void sched_try_to_resched(struct thread *thread)
 
 void thread_set_state(thread_t *thread, int state)
 {
+	bool try_resched = false;
 	assert(thread != NULL);
-	struct processor *targ_cpu = get_processor_data_for_cpu(thread->cpu);
-
-	sched_disable_preempt_for_cpu(targ_cpu);
 	
 	spin_lock_irqsave(&thread->lock);
 
 	if(thread->status == state)
 	{
 		spin_unlock_irqrestore(&thread->lock);
-		sched_enable_preempt_for_cpu(targ_cpu);
 		return;
 	}
 
@@ -477,24 +495,11 @@ void thread_set_state(thread_t *thread, int state)
 		thread_t *this_thread = get_current_thread();
 		bool is_self = this_thread == thread;
 
-		if(is_self)
-		{
-			thread->status = state;
-			sched_enable_preempt();
-			sched_enable_preempt_for_cpu(targ_cpu);
-			sched_yield();
+		assert(is_self == false);
 
-			irq_restore(thread->lock.old_flags);
-		
-			return;
-		}
-		else
-		{
-			sched_remove_thread_from_execution(thread);
-			append_to_wait_queue(thread);
-			thread->status = state;
-		}
-
+		sched_remove_thread_from_execution(thread);
+		append_to_wait_queue(thread);
+		thread->status = state;
 	}
 	else if(state == THREAD_RUNNABLE)
 	{
@@ -502,15 +507,24 @@ void thread_set_state(thread_t *thread, int state)
 		thread->status = state;
 		struct processor *p = get_processor_data_for_cpu(thread->cpu);
 		assert(p != NULL);
+		
+		/* This may break? */
+		sched_disable_preempt_for_cpu(p);
+		if(p->current_thread == thread)
+			return;
+
 		sched_append_to_queue(thread->priority, p,
 					thread);
-		sched_try_to_resched(thread);
+		sched_enable_preempt_for_cpu(p);
+		try_resched = true;
 	}
 	else
 		thread->status = state;
 
 	spin_unlock_irqrestore(&thread->lock);
-	sched_enable_preempt_for_cpu(targ_cpu);
+
+	if(try_resched)
+		sched_try_to_resched(thread);
 }
 
 void thread_wake_up(thread_t *thread)
@@ -520,7 +534,7 @@ void thread_wake_up(thread_t *thread)
 
 void sched_sleep_until_wake(void)
 {
-	thread_set_state(get_current_thread(), THREAD_BLOCKED);
+	set_current_state(THREAD_BLOCKED);
 	sched_yield();
 }
 
@@ -583,30 +597,9 @@ void sched_wake_up_available_threads(void)
 	spin_unlock(&wait_queue_lock);
 }
 
-void thread_suspend_and_release(thread_t *thread, struct spinlock *lock)
-{
-	spin_lock(&thread->lock);
-
-	assert(__sync_bool_compare_and_swap(&thread->status, THREAD_RUNNABLE, THREAD_BLOCKED));
-	
-	thread->to_release = lock;
-
-	/* Enable preemption 3 times: 
-	 * - Once for the thread->lock
-	 * - Another for the lock
-	 * - Finallly, the last one, for the sched_disable_preempt that was called
-	*/
-	sched_enable_preempt();
-	sched_enable_preempt();
-	sched_enable_preempt();
-
-	sched_yield();
-}
-
 #define enqueue_thread_generic(primitive_name, primitive_struct) 			\
 static void enqueue_thread_##primitive_name(primitive_struct *s, thread_t *thread) 	\
-{ 											\
-	spin_lock(&s->llock); 							\
+{											\
 											\
 	if(!s->head)									\
 	{										\
@@ -665,21 +658,29 @@ void condvar_wait(struct cond *var, struct mutex *mutex)
 {
 	thread_t *current = get_current_thread();
 
+	spin_lock_irqsave(&var->llock);
 	sched_disable_preempt();
 
 	enqueue_thread_condvar(var, current);
+	set_current_state(THREAD_BLOCKED);
 	mutex_unlock(mutex);
-	thread_suspend_and_release(current, &var->llock);
+
+	sched_enable_preempt();
+	spin_unlock_irqrestore(&var->llock);
+
+	sched_yield();
+
+	set_current_state(THREAD_RUNNABLE);
 
 	mutex_lock(mutex);
 }
 
 void condvar_signal(struct cond *var)
 {
-	spin_lock(&var->llock);
-	
+	spin_lock_irqsave(&var->llock);
+
 	thread_t *thread = var->head;
-	
+
 	if(var->head)
 	{
 		dequeue_thread_condvar(var, var->head);
@@ -687,7 +688,7 @@ void condvar_signal(struct cond *var)
 		thread_wake_up(thread);
 	}
 
-	spin_unlock(&var->llock);
+	spin_unlock_irqrestore(&var->llock);
 }
 
 void condvar_broadcast(struct cond *var)
@@ -703,23 +704,32 @@ void sem_init(struct semaphore *sem, long counter)
 	sem->counter = (atomic_long) counter;
 }
 
-void sem_wait(struct semaphore *sem)
+void sem_do_slow_path(struct semaphore *sem)
 {
-	thread_t *current = get_current_thread();
-	while(true)
-	{
-		while(atomic_load_explicit(&sem->counter, memory_order_acquire) < 1)
-		{
-			sched_disable_preempt();
-			enqueue_thread_sem(sem, current);
-			thread_suspend_and_release(current, &sem->llock);
-		}
+	set_current_state(THREAD_BLOCKED);
 
-		if(atomic_fetch_add_explicit(&sem->counter, -1, memory_order_acq_rel) >= 1)
-			break;
-		else
-			atomic_fetch_add_explicit(&sem->counter, 1, memory_order_release);
+	while(sem->counter == 0)
+	{
+		enqueue_thread_sem(sem, get_current_thread());
+		spin_unlock_irqrestore(&sem->lock);
+		sched_yield();
+		spin_lock_irqsave(&sem->lock);
+		set_current_state(THREAD_BLOCKED);
 	}
+
+	set_current_state(THREAD_RUNNABLE);
+}
+
+void sem_wait(struct semaphore *sem)
+{	
+	spin_lock_irqsave(&sem->lock);
+
+	if(sem->counter > 0)
+		sem->counter--;
+	else
+		sem_do_slow_path(sem);
+	
+	spin_unlock_irqrestore(&sem->lock);
 }
 
 static void wake_up(struct semaphore *sem)
@@ -735,11 +745,11 @@ void sem_signal(struct semaphore *sem)
 {
 	atomic_fetch_add_explicit(&sem->counter, 1, memory_order_release);
 
-	spin_lock(&sem->llock);
+	spin_lock_irqsave(&sem->lock);
 	if(sem->head)
 		wake_up(sem);
 
-	spin_unlock(&sem->llock);
+	spin_unlock_irqrestore(&sem->lock);
 }
 
 void sched_enable_preempt_for_cpu(struct processor *cpu)
@@ -777,35 +787,50 @@ void sched_disable_preempt(void)
 enqueue_thread_generic(mutex, struct mutex);
 dequeue_thread_generic(mutex, struct mutex);
 
-void mutex_lock(struct mutex *mutex)
+void mutex_lock_slow_path(struct mutex *mutex)
 {
-	thread_t *thread = get_current_thread();
+	unsigned long irqs = irq_save_and_disable();
 
 	while(!__sync_bool_compare_and_swap(&mutex->counter, 0, 1))
 	{
-		assert(thread != NULL);
-		sched_disable_preempt();
-		enqueue_thread_mutex(mutex, thread);
-		thread_suspend_and_release(thread, &mutex->llock);
+		enqueue_thread_mutex(mutex, get_current_thread());
+		set_current_state(THREAD_BLOCKED);
+		irq_restore(irqs);
+		sched_yield();
+		irqs = irq_save_and_disable();
 	}
+
+	set_current_state(THREAD_RUNNABLE);
+
+	irq_restore(irqs);
+}
+
+void mutex_lock(struct mutex *mutex)
+{
+	if(__sync_bool_compare_and_swap(&mutex->counter, 0, 1))
+		return;
+	else
+		mutex_lock_slow_path(mutex);
 
 	__sync_synchronize();
 }
 
 void mutex_unlock(struct mutex *mutex)
 {
-	__sync_lock_release(&mutex->counter);
+	mutex->counter = 0;
 	__sync_synchronize();
 
-	spin_lock(&mutex->llock);
+	spin_lock_irqsave(&mutex->llock);
 
 	if(mutex->head)
 	{
+		sched_disable_preempt();
 		struct thread *t = mutex->head;
 		dequeue_thread_mutex(mutex, mutex->head);
 
 		thread_wake_up(t);
+		sched_enable_preempt();
 	}
 
-	spin_unlock(&mutex->llock);
+	spin_unlock_irqrestore(&mutex->llock);
 }

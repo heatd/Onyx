@@ -5,10 +5,15 @@
 */
 
 #include <stdio.h>
+#include <assert.h>
 
 #include <onyx/compiler.h>
 #include <onyx/page.h>
 #include <onyx/panic.h>
+#include <onyx/scheduler.h>
+#include <onyx/thread.h>
+#include <onyx/semaphore.h>
+#include <onyx/mutex.h>
 
 #ifdef CONFIG_DO_TESTS
 
@@ -25,17 +30,51 @@ void test_page_alloc(void)
 	}
 	halt();
 }
-
 #endif
 
+#ifdef CONFIG_KTEST_SEM
+static struct mutex mtx = {0};
+
+void sem_test_signal(void *ctx)
+{
+	while(true)
+	{
+		mutex_lock(&mtx);
+		sched_sleep(1);
+		mutex_unlock(&mtx);
+	}
+}
+
+void sem_test(void)
+{
+	struct thread *t = sched_create_thread(sem_test_signal, THREAD_KERNEL, NULL);
+	assert(t != NULL);
+	sched_start_thread(t);
+
+	while(true)
+	{
+		mutex_lock(&mtx);
+		sched_sleep(1);
+		mutex_unlock(&mtx);
+	}
+
+}
+
+#endif
 void (*tests[])(void) = {
 #ifdef CONFIG_KTEST_PAGE_ALLOC
 	test_page_alloc,
 #endif
+#ifdef CONFIG_KTEST_SEM
+	sem_test,
+#endif
+#ifdef CONFIG_KTEST_MUTEX
+	mutex_test,
+#endif
 };
 
 
-__init void do_ktests(void)
+void do_ktests(void)
 {
 	size_t nr_tests = sizeof(tests) / sizeof(uintptr_t);
 

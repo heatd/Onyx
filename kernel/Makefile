@@ -14,7 +14,7 @@ INCLUDEDIR?=$(PREFIX)/usr/include
 LIBDIR?=$(EXEC_PREFIX)/usr/lib
 
 CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-strong \
--Wno-unused-parameter -Wno-unused-function -Werror -fsanitize=undefined -fno-sanitize=alignment
+-Wno-unused-parameter -Wno-unused-function -fsanitize=undefined -fno-sanitize=alignment
 
 CPPFLAGS:=$(CPPFLAGS) -D__is_onyx_kernel -D_POSIX_C_SOURCE -D_BSD_SOURCE -Iinclude \
 -Iinclude/acpica -isystem ../libc/include -DKERNEL_VERSION='"$(KERNEL_VERSION)"' \
