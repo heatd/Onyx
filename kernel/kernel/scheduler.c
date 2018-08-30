@@ -511,7 +511,11 @@ void thread_set_state(thread_t *thread, int state)
 		/* This may break? */
 		sched_disable_preempt_for_cpu(p);
 		if(p->current_thread == thread)
+		{
+			spin_unlock_irqrestore(&thread->lock);
+			sched_enable_preempt_for_cpu(p);
 			return;
+		}
 
 		sched_append_to_queue(thread->priority, p,
 					thread);
@@ -659,18 +663,15 @@ void condvar_wait(struct cond *var, struct mutex *mutex)
 	thread_t *current = get_current_thread();
 
 	spin_lock_irqsave(&var->llock);
-	sched_disable_preempt();
 
 	enqueue_thread_condvar(var, current);
+
 	set_current_state(THREAD_BLOCKED);
 	mutex_unlock(mutex);
 
-	sched_enable_preempt();
 	spin_unlock_irqrestore(&var->llock);
 
 	sched_yield();
-
-	set_current_state(THREAD_RUNNABLE);
 
 	mutex_lock(mutex);
 }
@@ -684,7 +685,6 @@ void condvar_signal(struct cond *var)
 	if(var->head)
 	{
 		dequeue_thread_condvar(var, var->head);
-
 		thread_wake_up(thread);
 	}
 
@@ -746,6 +746,7 @@ void sem_signal(struct semaphore *sem)
 	atomic_fetch_add_explicit(&sem->counter, 1, memory_order_release);
 
 	spin_lock_irqsave(&sem->lock);
+
 	if(sem->head)
 		wake_up(sem);
 
@@ -830,6 +831,7 @@ void mutex_unlock(struct mutex *mutex)
 
 		thread_wake_up(t);
 		sched_enable_preempt();
+
 	}
 
 	spin_unlock_irqrestore(&mutex->llock);
