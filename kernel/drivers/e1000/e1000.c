@@ -46,7 +46,7 @@ void e1000_handle_recieve()
 	uint16_t old_cur = 0;
 	while((rx_descs[rx_cur]->status & 0x1))
 	{
-		uint8_t *buf = (uint8_t *)rx_descs[rx_cur]->addr;
+		uint8_t *buf = (uint8_t *) rx_descs[rx_cur]->addr;
 		uint16_t len = rx_descs[rx_cur]->length;
 
 		network_dispatch_recieve(buf + PHYS_BASE, len, nic_netif);
@@ -170,6 +170,7 @@ int e1000_init_descs(void)
 			{
 				free(rx_descs[j]);
 			}
+
 			vm_unmap_range(ptr, needed_pages);
 			return 1;
 		}
@@ -362,7 +363,6 @@ bool e1000_filter(struct pci_device *dev)
 
 int e1000_init(void)
 {
-
 	pci_find_device(e1000_filter, true);
 	
 	if(!nicdev)

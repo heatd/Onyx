@@ -66,6 +66,7 @@
 #include <onyx/clock.h>
 #include <onyx/percpu.h>
 #include <onyx/framebuffer.h>
+#include <onyx/utils.h>
 
 #include <drivers/rtc.h>
 
@@ -126,8 +127,6 @@ void init_multiboot2_framebuffer(struct multiboot_tag_framebuffer *tagfb)
 
 #define BITMAP_SIZE (0x1000000 / PAGE_SIZE / sizeof(unsigned long) / CHAR_BIT)
 #define PAGES_PER_ENTRY (sizeof(unsigned long) * CHAR_BIT)
-
-#define min(x, y) (x < y ? x : y)
 
 unsigned long dma_mem_bitmap[BITMAP_SIZE];
 

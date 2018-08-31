@@ -293,7 +293,6 @@ void un_dispose_packet(struct unix_packet *packet)
 	free(packet);
 }
 
-#define min(x, y)	(x < y ? x : y)
 ssize_t un_do_recvfrom(struct un_socket *socket, void *buf, size_t len,
 		       int flags, struct sockaddr_un *addr)
 {

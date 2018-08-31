@@ -356,16 +356,6 @@ void kernel_multitasking(void *arg)
 	/* Initialize power management */
 	pm_init();
 
-	/* Initialize the network-related subsystems(the ones that need it) */
-
-	/* Initialize dhcp */
-	//dhcp_initialize();
-	/* Initialize DNS */
-	dns_init();
-
-	/* Initialize ICMP */
-	//icmp_init();
-
 	/* Parse the command line string to a more friendly argv-like buffer */
 	kernel_parse_command_line(kernel_cmdline);
 

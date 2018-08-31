@@ -5,10 +5,10 @@
 */
 #include <stdbool.h>
 #include <stdio.h>
+
 #include <onyx/dma.h>
 #include <onyx/vm.h>
-
-#define min(x, y)	(x < y ? x : y)
+#include <onyx/utils.h>
 
 static void *expand_array(void *old, size_t new_size)
 {

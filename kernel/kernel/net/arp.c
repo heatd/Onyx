@@ -17,10 +17,12 @@
 #include <onyx/log.h>
 
 static volatile int arp_response_arrived = 0;
+
 int arp_hash(uint32_t ip)
 {
 	return ip % 255;
 }
+
 struct arp_cache *arp_get(struct arp_hashtable *table, int hash, uint32_t ip)
 {
 	if(!table->entries[hash])
@@ -34,6 +36,7 @@ struct arp_cache *arp_get(struct arp_hashtable *table, int hash, uint32_t ip)
 	}
 	return NULL;
 }
+
 struct arp_cache *arp_create(struct arp_hashtable *table, int hash, uint32_t ip)
 {
 	struct arp_cache *c = malloc(sizeof(struct arp_cache));
@@ -53,6 +56,7 @@ struct arp_cache *arp_create(struct arp_hashtable *table, int hash, uint32_t ip)
 	}
 	return c;
 }
+
 struct arp_cache *arp_find(struct netif *netif, uint32_t ip)
 {
 	spin_lock(&netif->hashtable_spinlock);
@@ -64,6 +68,7 @@ struct arp_cache *arp_find(struct netif *netif, uint32_t ip)
 	spin_unlock(&netif->hashtable_spinlock);
 	return arp;
 }
+
 int arp_submit_request(struct arp_cache *c, struct netif *netif)
 {
 	arp_request_t *arp = malloc(sizeof(arp_request_t));
@@ -93,6 +98,7 @@ int arp_submit_request(struct arp_cache *c, struct netif *netif)
 		return -1;
 	while(1);
 }
+
 int arp_resolve_in(uint32_t ip, unsigned char *mac, struct netif *netif)
 {
 	struct arp_cache *arp = arp_find(netif, ip);

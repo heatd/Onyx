@@ -20,6 +20,7 @@
 #include <sys/ioctl.h>
 
 #include <dhcp.h>
+
 #define DHCP_MIN_OPT_OFFSET	4
 extern char *program_invocation_short_name;
 void error(char *msg, ...)
@@ -56,7 +57,8 @@ void init_entropy(void)
 	srandom(seed ^ t.tv_nsec | t.tv_sec);
 }
 
-off_t dhcp_add_option(dhcp_packet_t *pkt, off_t off, unsigned char len, const void *buf, size_t size_buf, unsigned char opt)
+off_t dhcp_add_option(dhcp_packet_t *pkt, off_t off, unsigned char len,
+		      const void *buf, size_t size_buf, unsigned char opt)
 {
 	pkt->options[off++] = opt;
 	pkt->options[off++] = len;
@@ -72,6 +74,72 @@ void dhcp_close_options(dhcp_packet_t *pkt, off_t off)
 	pkt->options[off] = DHO_END;
 }
 
+void dhcp_decode_boot_packet(int fd, dhcp_packet_t *packet)
+{
+	uint32_t router_ip;
+	uint32_t assigned_ip;
+	uint32_t subnet_mask;
+	uint32_t dns_server;
+	uint32_t lease_time;
+
+	uint32_t our_ip = htonl(packet->yiaddr);
+	printf("Assigned IP: %x\n", our_ip);
+	unsigned char *opt = &packet->options;
+
+	if(memcmp(opt, DHCP_OPTIONS_COOKIE, 4) == 1)
+	{
+		printf("dhcpcd: Bad cookie\n");
+		return;
+	}
+
+	opt += 4;
+	while(*opt != DHO_END)
+	{
+		switch(*opt)
+		{
+			case DHO_ROUTERS:
+			{
+				opt++;
+				router_ip = htonl(*(uint32_t *) opt);
+				printf("Router ip: %x\n", router_ip);
+				opt += 4;
+				break;
+			}
+			case DHO_SUBNET_MASK:
+			{
+				opt++;
+				subnet_mask = htonl(*(uint32_t *) opt);
+				printf("Subnet mask: %x\n", router_ip);
+				opt += 4;
+				break;
+			}
+			case DHO_DOMAIN_NAME_SERVERS:
+			{
+				unsigned char *future = opt + *opt;
+				dns_server = htonl(*(uint32_t *) opt);
+				printf("DNS server: %x\n", dns_server);
+				opt = future;
+				break;
+			}
+			case DHO_DHCP_LEASE_TIME:
+			{
+				opt++;
+				lease_time = htonl(*(uint32_t *) opt);
+				printf("DHCP lease time: %us\n", lease_time);
+				opt += 4;
+				break;
+			}
+			default:
+			{
+				opt++;
+				unsigned char length = *opt;
+				opt = opt + length + 1;
+				break;
+			}
+		}
+	}	
+}
+
 int dhcp_setup_netif(int fd, int sock)
 {
 	unsigned char mac[6];
@@ -79,12 +147,14 @@ int dhcp_setup_netif(int fd, int sock)
 	{
 		errorx("ioctl: Could not get the local mac address: %s\n", strerror(errno));
 	}
+
 	dhcp_packet_t *boot_packet = malloc(sizeof(dhcp_packet_t));
 	if(!boot_packet)
 	{
 		errorx("%s: %s\n", "Error allocating the boot packet", 
 			strerror(errno));
 	}
+	
 	memset(boot_packet, 0, sizeof(dhcp_packet_t));
 	memcpy(&boot_packet->chaddr, &mac, 6);
 	boot_packet->xid = dhcp_get_random_xid();
@@ -97,28 +167,57 @@ int dhcp_setup_netif(int fd, int sock)
 	memcpy(&boot_packet->options, DHCP_OPTIONS_COOKIE, 4);
 
 	unsigned char message_type = DHCPDISCOVER;
-	off = dhcp_add_option(boot_packet, off, 1, &message_type, sizeof(message_type), DHO_DHCP_MESSAGE_TYPE);
-	unsigned char opts[3] = {DHO_SUBNET_MASK, DHO_ROUTERS, DHO_DOMAIN_NAME_SERVERS};
-	off = dhcp_add_option(boot_packet, off, 3, &opts, sizeof(opts), DHO_DHCP_PARAMETER_REQUEST_LIST);
+	off = dhcp_add_option(boot_packet, off, 1, &message_type,
+			      sizeof(message_type), DHO_DHCP_MESSAGE_TYPE);
+	unsigned char opts[3] = {DHO_SUBNET_MASK, DHO_ROUTERS,
+				 DHO_DOMAIN_NAME_SERVERS};
+	off = dhcp_add_option(boot_packet, off, 3, &opts, sizeof(opts),
+			      DHO_DHCP_PARAMETER_REQUEST_LIST);
 	dhcp_close_options(boot_packet, off);
 
+	return;
+	/* TODO: The e1000 driver's memory allocation is sketchy so after this,
+	 * things get badly corrupted
+	*/
 	if(send(sock, boot_packet, sizeof(dhcp_packet_t), 0) < 0)
 	{
-		error("send: Error sending the boot packet: %s\n", strerror(errno));
+		error("send: Error sending the boot packet: %s\n",
+		      strerror(errno));
 		return -1;
 	}
 
-	memset(boot_packet, sizeof(dhcp_packet_t), 0);
+	printf("Sent packet\n");
+
+	memset(boot_packet, 0, sizeof(dhcp_packet_t));
 	if(recv(sock, boot_packet, sizeof(dhcp_packet_t), 0) < 0)
 	{
-		error("recv: Error recieving the response packet: %s\n", strerror(errno));
+		error("recv: Error recieving the response packet: %s\n",
+		      strerror(errno));
 		return -1;
 	}
+
+	printf("Decoding boot packet\n");
+	dhcp_decode_boot_packet(fd, boot_packet);
+
 }
 
 int main(int argc, char **argv, char **envp)
 {
-	//printf("%s: Daemon initialized\n", argv[0]);
+	int logfd = open("/dev/null", O_RDWR);
+	if(logfd < 0)
+	{
+		perror("could not create logfd");
+		return 0;
+	}
+
+	dup2(logfd, 0);
+	dup2(logfd, 1);
+	dup2(logfd, 2);
+
+	close(logfd);
+
+	printf("%s: Daemon initialized\n", argv[0]);
+
 	int fd = open("/dev/eth0", O_RDWR);
 	if(fd < 0)
 	{
@@ -126,7 +225,6 @@ int main(int argc, char **argv, char **envp)
 		return 1;
 	}
 
-	printf("Opened %s\n", "/dev/eth0");
 	int sock = socket(AF_INET, SOCK_DGRAM, 0);
 	if(sock < 0)
 	{
@@ -137,13 +235,24 @@ int main(int argc, char **argv, char **envp)
 
 	struct sockaddr_in sockaddr = {0};
 	sockaddr.sin_port = 68;
-	bind(sock, &sockaddr, sizeof(struct sockaddr));
+	if(bind(sock, &sockaddr, sizeof(struct sockaddr)) < 0)
+	{
+		perror("dhcpcd: bind");
+		return 1;
+	}
+
 	sockaddr.sin_port = 67;
 	sockaddr.sin_addr.s_addr = 0xFFFFFFFF;
-	connect(sock, &sockaddr, sizeof(struct sockaddr));
+	
+	if(connect(sock, &sockaddr, sizeof(struct sockaddr)) < 0)
+	{
+		perror("dhcpcd: connect");
+		return 1;
+	}
 
 	/* After doing some work, initialize entropy */
 	init_entropy();
+
 	dhcp_setup_netif(fd, sock);
 	while(1)
 		sleep(100000);

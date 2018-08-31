@@ -48,7 +48,6 @@ void network_sethostname(const char *name)
 	/* TODO: Invalidate the dns cache entry of the last host name */
 	if(strcmp((char*) hostname, ""))
 		free((void *) hostname);
-	dns_fill_hashtable(dns_hash_string(name), name, 0x7F00001);
 	hostname = name;
 }
 
@@ -108,7 +107,7 @@ struct socket *socket_create(int domain, int type, int protocol)
 	switch(domain)
 	{
 		case AF_INET:
-			/*return ipv4_create_socket(type, protocol); */
+			return ipv4_create_socket(type, protocol);
 			return errno = EAFNOSUPPORT, NULL;
 		case AF_UNIX:
 			return unix_create_socket(type, protocol);
@@ -182,7 +181,7 @@ void network_do_dispatch(void *__args)
 void __init network_init(void)
 {
 	network_slab = slab_create("net", sizeof(struct network_args), 0,
-			SLAB_FLAG_DONT_CACHE, NULL, NULL);
+			SLAB_FLAG_POOL, NULL, NULL);
 	assert(network_slab != NULL);
 
 	assert(slab_populate(network_slab, NET_POOL_NUM_OBJS) != -1);
@@ -196,6 +195,7 @@ void network_dispatch_recieve(uint8_t *packet, uint16_t len, struct netif *netif
 		ERROR("net", "Could not recieve packet: Out of memory inside IRQ\n");
 		return;
 	}
+
 	args->buffer = packet;
 	args->size = len;
 	args->netif = netif;

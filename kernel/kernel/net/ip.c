@@ -13,6 +13,7 @@
 
 #include <sys/socket.h>
 
+#include <onyx/utils.h>
 #include <onyx/ip.h>
 #include <onyx/ethernet.h>
 #include <onyx/netif.h>
@@ -64,9 +65,15 @@ int send_ipv4_packet(uint32_t senderip, uint32_t destip, unsigned int type, char
 
 void ipv4_handle_packet(ip_header_t *header, size_t size, struct netif *netif)
 {
+	ip_header_t *usable_header = memdup(header, size);
+
+	if(header->proto == IPV4_UDP)
+		udp_handle_packet(usable_header, size, netif);
+
+	free(usable_header);
 }
 
-/*struct sock *ipv4_create_socket(int type, int protocol)
+struct socket *ipv4_create_socket(int type, int protocol)
 {
 	switch(type)
 	{
@@ -81,4 +88,3 @@ void ipv4_handle_packet(ip_header_t *header, size_t size, struct netif *netif)
 	}
 	return NULL;
 }
-*/

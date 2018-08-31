@@ -59,7 +59,7 @@ void dpc_init(void)
 	assert(dpc_thread != NULL);
 	dpc_thread->priority = SCHED_PRIO_VERY_HIGH;
 	
-	dpc_pool = slab_create("dpc", sizeof(struct dpc_work), 0, SLAB_FLAG_DONT_CACHE, NULL, NULL);
+	dpc_pool = slab_create("dpc", sizeof(struct dpc_work), 0, SLAB_FLAG_POOL, NULL, NULL);
 	assert(dpc_pool != NULL);
 
 	assert(slab_populate(dpc_pool, 200) != -1);

@@ -17,7 +17,9 @@
 #define IPV4_ENCAP 41
 #define IPV4_OSPF 89
 #define IPV4_SCTP 132
+
 struct sock;
+
 typedef struct
 {
 	unsigned int ihl : 4;
@@ -55,6 +57,7 @@ static inline uint16_t ipsum(ip_header_t *hdr)
 	}
 	return ~ret;
 }
+
 static inline uint16_t internetchksum(void *addr, size_t bytes)
 {
 	uint32_t sum = 0;
@@ -75,12 +78,10 @@ static inline uint16_t internetchksum(void *addr, size_t bytes)
 	}
 	return ~ret;
 }
-extern uint32_t ip_local_ip;
-extern uint32_t ip_router_ip;
-int send_ipv4_packet(uint32_t senderip, uint32_t destip, unsigned int type, char *payload, size_t payload_size, struct netif *netif);
-void ip_set_local_ip(uint32_t lip);
-void ip_set_router_ip(uint32_t rout_ip);
-struct sock *ipv4_create_socket(int type, int protocol);
+
+int send_ipv4_packet(uint32_t senderip, uint32_t destip, unsigned int type,
+		     char *payload, size_t payload_size, struct netif *netif);
+struct socket *ipv4_create_socket(int type, int protocol);
 void ipv4_handle_packet(ip_header_t *header, size_t size, struct netif *netif);
 
 #endif

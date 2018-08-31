@@ -200,7 +200,7 @@ void slab_free(slab_cache_t *cache, void *addr)
 		if((uintptr_t) addr >= lower_limit && (uintptr_t) addr < upper_limit)
 		{
 			/* It's in this slab, free it */
-			slab_free_from_slab(slab, addr, cache->flags & SLAB_FLAG_DONT_CACHE);
+			slab_free_from_slab(slab, addr, cache->flags & SLAB_FLAG_POOL);
 			return;
 		}
 		slab = slab->next;

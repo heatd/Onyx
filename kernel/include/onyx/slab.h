@@ -43,7 +43,7 @@ typedef struct cache
 	struct cache *prev, *next;
 } slab_cache_t;
 
-#define SLAB_FLAG_DONT_CACHE (1 << 0)
+#define SLAB_FLAG_POOL (1 << 0)
 
 #ifdef __cplusplus
 extern "C" {

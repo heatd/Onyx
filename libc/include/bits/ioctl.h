@@ -132,18 +132,21 @@ struct winsize {
 #define N_HCI           15
 
 #include <netinet/in.h>
+
 struct if_config_inet
 { 
 	struct in_addr address; 
 	struct in_addr router; 
 	struct in_addr subnet; 
 };
+
 struct if_config_inet6
 { 
 	struct in6_addr address; 
 	struct in6_addr router; 
 	struct in6_addr subnet; 
 };
+
 #define SIOSETINET4	0x9000
 #define SIOSETINET6	0x9001
 #define SIOGETINET4	0x9002
@@ -151,4 +154,5 @@ struct if_config_inet6
 #define SIOGETMAC	0x9004
 #define SIOGETIFNAME	0x9005
 #define SIOGETINDEX	0x9006
+
 #include <bits/ioctl_fix.h>

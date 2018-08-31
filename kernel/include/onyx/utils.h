@@ -18,6 +18,8 @@ void *copy_page_to_page(void *p1, void *p2);
 #define container_of(ptr, type, member)	\
 ((type *) ((char*) ptr - offsetof(type, member)))
 
+#define min(x, y) (x < y ? x : y)
+
 #ifdef __cplusplus
 }
 #endif

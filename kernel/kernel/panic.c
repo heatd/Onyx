@@ -79,7 +79,7 @@ void panic(const char *msg)
 	__builtin_unreachable();
 }
 
-void __assert_fail(const char * assertion, const char * file, unsigned int line, const char * function)
+void __assert_fail(const char * assertion, const char * file, int line, const char * function)
 {
 	/* Turn off vterm multthreading */
 	vterm_panic();

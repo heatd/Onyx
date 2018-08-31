@@ -79,6 +79,9 @@ inode_t *ext2_get_inode_from_number(ext2_fs_t *fs, uint32_t inode)
 	uint32_t index = (inode - 1) % fs->inodes_per_block_group;
 	uint32_t block = (index * fs->inode_size) / block_size;
 	uint32_t blockind = (index * fs->inode_size) % block_size;
+
+	assert(bg < fs->number_of_block_groups);
+
 	block_group_desc_t *bgd = &fs->bgdt[bg];
 	inode_t *inode_table = NULL;
 	inode_t *inode_block = (inode_t*)((char *) (inode_table =

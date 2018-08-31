@@ -9,6 +9,8 @@
 #include <stdint.h>
 
 #include <onyx/network.h>
+#include <onyx/semaphore.h>
+
 typedef struct udp
 {
 	uint16_t source_port;
@@ -40,7 +42,9 @@ static inline uint16_t udpsum(udp_header_t *hdr)
 
 struct udp_packet
 {
+	struct sockaddr_in addr;
 	void *payload;
+	size_t size;
 	struct udp_packet *next;
 };
 
@@ -50,10 +54,15 @@ struct udp_socket
 	int type;
 	struct sockaddr src_addr;
 	struct sockaddr dest_addr;
+	struct semaphore packet_semaphore;
+	struct udp_packet *packet_list;
+	struct spinlock packet_lock;
 };
 
 int send_udp_packet(char *payload, size_t payload_size, int source_port, int dest_port, 
 		uint32_t srcip, uint32_t destip, struct netif *netif);
 struct socket *udp_create_socket(int type);
 int udp_init_netif(struct netif *netif);
+void udp_handle_packet(ip_header_t *header, size_t length, struct netif *netif);
+
 #endif
