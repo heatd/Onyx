@@ -14,6 +14,9 @@ struct mutex
 	thread_t *head;
 	thread_t *tail;
 	unsigned long counter;
+#ifdef CONFIG_MUTEX_DEBUG
+	unsigned long ip;
+#endif
 };
 
 #define MUTEX_INITIALIZER {0}

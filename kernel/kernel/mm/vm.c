@@ -76,11 +76,6 @@ uintptr_t max(uintptr_t x, uintptr_t y)
 	return x > y ? x : y;
 }
 
-uintptr_t min(uintptr_t x, uintptr_t y)
-{
-	return x < y ? x : y;
-}
-
 int avl_get_height(avl_node_t *ptr)
 {
 	int height_left = 0, height_right = 0;
@@ -645,6 +640,7 @@ void *__allocate_virt_address(uint64_t flags, size_t pages, uint32_t type,
 	}
 	
 	/* TODO: Clean this up too */
+again_kern:
 	if(flags & 1)
 	{
 		avl_node_t **e = avl_search_key(&kernel_tree, base_address);
@@ -659,9 +655,12 @@ void *__allocate_virt_address(uint64_t flags, size_t pages, uint32_t type,
 				if(add_check_overflow(base_address, alignment - (base_address % alignment), &base_address))
 					return NULL;
 			}
-			e = avl_search_key(&kernel_tree, base_address);
-			if(avl_search_key(&kernel_tree, base_address + pages * PAGE_SIZE) == NULL && !e)
-				break;
+
+			for(uintptr_t base = base_address; base < base_address + pages * PAGE_SIZE; base += PAGE_SIZE)
+			{
+				if((e = avl_search_key(&kernel_tree, base)))
+					goto again_kern;
+			}
 		}
 	}
 	else
@@ -693,6 +692,9 @@ again:
 struct vm_entry *vm_allocate_virt_address(uint64_t flags, size_t pages, uint32_t type,
 	uint64_t prot, uintptr_t alignment)
 {
+	if(pages == 0)
+		return NULL;
+
 	struct vm_entry *en = NULL;
 	/* Lock everything before allocating anything */
 	bool allocating_kernel = true;

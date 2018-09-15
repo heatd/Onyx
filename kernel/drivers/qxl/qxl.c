@@ -23,7 +23,7 @@
 
 struct pci_id qxl_pci_ids[] = 
 {
-	{ PCI_ID_DEVICE(QXL_VENDOR_ID, QXL_DEVICE_ID_STABLE) },
+	{ PCI_ID_DEVICE(QXL_VENDOR_ID, QXL_DEVICE_ID_STABLE, NULL) },
 	{0}
 };
 

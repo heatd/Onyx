@@ -90,17 +90,16 @@ qemu: iso
 	-s -cdrom Onyx.iso -drive file=hdd.img,format=raw,media=disk -m 512M \
 	-monitor stdio -boot d -netdev user,id=u1 -device e1000,netdev=u1 \
 	-object filter-dump,id=f1,netdev=u1,file=net.pcap \
-	-enable-kvm -smp 3 -cpu host,migratable=no,+invtsc -d int -vga qxl \
+	-enable-kvm -cpu host,migratable=on,+invtsc -smp 3 -vga qxl \
 	-usb -machine q35
 intel-passthrough-qemu: iso
 	sudo qemu-system-x86_64 -vga qxl -display gtk,gl=on \
 	-device vfio-pci,sysfsdev=/sys/devices/pci0000\:00/0000\:00\:02.0/d507ce65-255a-4b85-88b5-0090410c0b5c,display=on,x-igd-opregion=on  \
-	--enable-kvm -s -cdrom Onyx.iso \
+	-enable-kvm -s -cdrom Onyx.iso \
 	-drive file=hdd.img,format=raw,media=disk -m 2G \
-	-monitor stdio -boot d -netdev user,id=u1 -device e1000,netdev=u1 \
+	-boot d -netdev user,id=u1 -device e1000,netdev=u1 \
 	-object filter-dump,id=f1,netdev=u1,file=net.pcap \
-	--enable-kvm -smp 2 -cpu host,migratable=no,+invtsc \
-	-usb
+	-smp 2 -cpu host,migratable=on,+invtsc
 
 virtualbox: iso
 	virtualbox --startvm Onyx --dbg

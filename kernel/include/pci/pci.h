@@ -49,8 +49,8 @@
 #define CLASS_ENCRYPTION_DECRYPTION_CONTROLLER 	16
 #define CLASS_DATA_AND_SIGNAL_CONTROLLER 	17
 
-#define PCI_COMMAND_IOSPACE			(1)
-#define PCI_COMMAND_MEMORY_SPACE		(2)
+#define PCI_COMMAND_IOSPACE			(1 << 0)
+#define PCI_COMMAND_MEMORY_SPACE		(1 << 1)
 #define PCI_COMMAND_BUS_MASTER			(1 << 2)
 #define PCI_COMMAND_SPECIAL_CYCLES		(1 << 3)
 #define PCI_COMMAND_MEMORY_WRITE_AND_INV	(1 << 4)
@@ -127,13 +127,15 @@ struct pci_device
 	int type;
 	bool has_power_management;
 	uint8_t pm_cap_off;
-	int supported_power_states;	/* Given by PCI, we just cache it here */
+	/* Given by PCI, we just cache it here */
+	int supported_power_states;
 	int current_power_state;
 	uint16_t segment;
 	uint64_t (*read)(struct pci_device *dev, uint16_t offset, size_t size);
 	void (*write)(struct pci_device *dev, uint64_t val, uint16_t offset, size_t size);
-	struct pci_device* next __align_cache;
+	struct pci_device *next __align_cache;
 	struct pci_irq pin_to_gsi[4];
+	void *driver_data;
 };
 
 struct pci_bar
@@ -156,15 +158,16 @@ struct pci_id
 	uint8_t pci_class;
 	uint8_t subclass;
 	uint8_t progif;
+	void *driver_data;
 };
 
-#define PCI_ID_DEVICE(vendor, dev) \
+#define PCI_ID_DEVICE(vendor, dev, drv_data) \
 .device_id = dev, .vendor_id = vendor, .pci_class = PCI_ANY_ID, \
-.subclass = PCI_ANY_ID, .progif = PCI_ANY_ID
+.subclass = PCI_ANY_ID, .progif = PCI_ANY_ID, .driver_data = drv_data
 
-#define PCI_ID_CLASS(c, s, p) \
+#define PCI_ID_CLASS(c, s, p, drv_data) \
 .pci_class = c, .subclass = s, .progif = p, \
-.device_id = PCI_ANY_ID, .vendor_id = PCI_ANY_ID
+.device_id = PCI_ANY_ID, .vendor_id = PCI_ANY_ID, .driver_data = drv_data
 
 #ifdef __cplusplus
 extern "C" {

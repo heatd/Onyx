@@ -161,3 +161,16 @@ int sys_futex(int *uaddr, int futex_op, int val, const struct timespec *timeout,
 	}
 
 }
+
+void futex_free_queue(struct process *process)
+{
+	struct futex *ftx = process->futex_queue;
+
+	while(ftx)
+	{
+		struct futex *to_free = ftx;
+		ftx = ftx->next;
+
+		free(to_free);
+	}
+}

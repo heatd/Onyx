@@ -8,6 +8,7 @@
 
 #include <onyx/list.h>
 #include <onyx/spinlock.h>
+#include <onyx/process.h>
 
 #define FUTEX_WAIT		0
 #define FUTEX_WAKE		1
@@ -26,6 +27,7 @@
 #define FUTEX_PRIVATE_FLAG	128
 #define FUTEX_CLOCK_REALTIME	256
 #define FUTEX_OP_MASK		~(FUTEX_PRIVATE_FLAG | FUTEX_CLOCK_REALTIME)
+
 struct futex
 {
 	int *address;
@@ -33,4 +35,7 @@ struct futex
 	struct list_head *waiting_threads;
 	struct futex *next;
 };
+
+void futex_free_queue(struct process *process);
+
 #endif

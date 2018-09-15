@@ -14,6 +14,7 @@
 #include <onyx/elf.h>
 #include <onyx/panic.h>
 #include <onyx/vm.h>
+#include <onyx/utils.h>
 
 #define DEFAULT_UNWIND_NUMBER 6
 void itoa(uint64_t i, unsigned int base, char *buf, _Bool is_upper);
@@ -119,8 +120,6 @@ void *stack_trace(void)
 Elf64_Shdr *strtabs = NULL;
 Elf64_Shdr *symtab = NULL;
 char *strtab = NULL;
-
-uintptr_t min(uintptr_t x, uintptr_t y);
 
 __attribute__((no_sanitize_undefined))
 char *elf_get_string(Elf64_Word off)

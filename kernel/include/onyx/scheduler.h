@@ -127,6 +127,7 @@ do							\
 	struct thread *__t = get_current_thread();	\
 	assert(__t != NULL);				\
 	__t->status = state;				\
+	__sync_synchronize();				\
 } while(0);
 
 #ifdef __cplusplus

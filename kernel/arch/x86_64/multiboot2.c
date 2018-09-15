@@ -106,8 +106,8 @@ void init_multiboot2_framebuffer(struct multiboot_tag_framebuffer *tagfb)
 	
 	if(!fb.framebuffer)
 	{
-		/* Err, I guess that we have no console, so just hlt */
-		__asm__ __volatile__("hlt");
+		/* Err, I guess that we have no fb, so just ret */
+		return;
 	}
 
 	fb.color.blue_shift = tagfb->framebuffer_blue_field_position;
@@ -381,9 +381,10 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 	if(tagfb)
 	{
 		init_multiboot2_framebuffer(tagfb);
-
-		vterm_do_init();
 	}
+
+	vterm_do_init();
+
 
 	init_elf_symbols(secs);
 }

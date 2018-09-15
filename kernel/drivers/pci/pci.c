@@ -74,9 +74,38 @@ void __pci_write_dword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, 
 	spin_unlock(&pci_lock);
 }
 
+void __pci_write_word_aligned(uint8_t bus, uint8_t slot, uint8_t func,
+			      uint8_t offset, uint16_t data)
+{
+	uint32_t address;
+	uint32_t lbus  = (uint32_t)bus;
+	uint32_t lslot = (uint32_t)slot;
+	uint32_t lfunc = (uint32_t)func;
+
+	address = (uint32_t)((lbus << 16) | (lslot << 11) |
+		  (lfunc << 8) | (offset & 0xfc) | ((uint32_t) 0x80000000));
+	
+	spin_lock(&pci_lock);
+	/* write out the address */
+	outl(CONFIG_ADDRESS, address);
+	/* read in the data */
+	outw(CONFIG_DATA, data);
+	spin_unlock(&pci_lock);
+}
+
 void __pci_write_word(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint16_t data)
 {
 	uint8_t aligned_offset = offset & -4;
+
+	if(aligned_offset == offset)
+	{
+		/* NOTE: Check pcie.c's __pcie_config_write_word
+		 * commentary on why this is needed
+		*/
+		__pci_write_word_aligned(bus, slot, func, offset, data);
+		return;
+	}
+
 	uint8_t bshift = offset - aligned_offset;
 	uint32_t byte_mask = 0xffff << (bshift * 8);
 	uint32_t dword = __pci_config_read_dword(bus, slot, func, aligned_offset);
@@ -594,7 +623,7 @@ void pci_enable_irq(struct pci_device *dev)
 	pci_write(dev, command_register & ~PCI_COMMAND_INTR_DISABLE, PCI_COMMAND, sizeof(uint32_t));
 }
 
-bool pci_driver_supports_device(struct driver *driver, struct device *device)
+struct pci_id *pci_driver_supports_device(struct driver *driver, struct device *device)
 {
 	struct pci_id *dev_table = driver->devids;
 
@@ -632,10 +661,10 @@ bool pci_driver_supports_device(struct driver *driver, struct device *device)
 				continue;
 		}
 
-		return true;
+		return dev_table;
 	}
 
-	return false;
+	return NULL;
 }
 
 void pci_bus_register_driver(struct driver *driver)
@@ -660,8 +689,11 @@ void pci_bus_register_driver(struct driver *driver)
 
 	for(struct device *dev = pci_bus.devs; dev != NULL; dev = dev->next)
 	{
-		if(pci_driver_supports_device(driver, dev))
+		struct pci_id *id;
+		if((id = pci_driver_supports_device(driver, dev)))
 		{
+			struct pci_device *d = (void *) dev;
+			d->driver_data = id->driver_data;
 			driver_register_device(driver, dev);
 			if(driver->probe(dev) < 0)
 				driver_deregister_device(driver, dev);
@@ -670,8 +702,11 @@ void pci_bus_register_driver(struct driver *driver)
 
 	for(struct device *dev = pcie_bus.devs; dev != NULL; dev = dev->next)
 	{
-		if(pci_driver_supports_device(driver, dev))
+		struct pci_id *id;
+		if((id = pci_driver_supports_device(driver, dev)))
 		{
+			struct pci_device *d = (void *) dev;
+			d->driver_data = id->driver_data;
 			driver_register_device(driver, dev);
 			if(driver->probe(dev) < 0)
 				driver_deregister_device(driver, dev);
@@ -695,7 +730,6 @@ int pci_enable_device(struct pci_device *device)
 
 	/* Enable the IO and MMIO of the device */
 	uint16_t command = (uint16_t) pci_read(device, PCI_COMMAND, sizeof(uint16_t));
-
 	command |= PCI_COMMAND_MEMORY_SPACE | PCI_COMMAND_IOSPACE;
 
 	pci_write(device, command, PCI_COMMAND, sizeof(uint16_t));

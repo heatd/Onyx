@@ -42,11 +42,13 @@ struct edid_data
 	uint8_t timing_bitmap0;
 	uint8_t timing_bitmap1;
 	uint8_t timing_bitmap2;
+
 	struct
 	{
 		uint8_t resolution;
 		uint8_t frequency;
-	} standard_timings[8];
+	} __attribute__((packed)) standard_timings[8];
+
 	struct
 	{
 		uint16_t pixel_clock;
@@ -66,7 +68,11 @@ struct edid_data
 		uint8_t horz_border;
 		uint8_t vert_border;
 		uint8_t features;
-	} detailed_timings[4];
+	} __attribute__((packed)) detailed_timings[4];
+	
+	uint8_t num_ext;
+	uint8_t checksum;
+
 } __attribute__((packed));
 
 #endif

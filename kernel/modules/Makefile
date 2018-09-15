@@ -5,7 +5,8 @@ mod_bga \
 mod_rtl8139
 
 CFLAGS:=$(CFLAGS) -isystem $(realpath ../../libc/include) -I $(realpath ../../sysroot/usr/include) \
--mcmodel=kernel -D__is_onyx_kernel -I $(realpath ../include/acpica)
+-mcmodel=kernel -D__is_onyx_kernel -I $(realpath ../include/acpica) -imacros \
+../include/onyx/config.h
 
 all: $(MODULES)
 

@@ -19,6 +19,7 @@
 #include <onyx/vm.h>
 #include <onyx/panic.h>
 #include <onyx/copy.h>
+#include <onyx/utils.h>
 
 size_t page_memory_size;
 size_t nr_global_pages;
@@ -273,8 +274,6 @@ static void append_arena(struct page_cpu *cpu, struct page_arena *arena)
 		a = &(*a)->next;
 	*a = arena;
 }
-
-uintptr_t min(uintptr_t x, uintptr_t y);
 
 static void page_add_region(uintptr_t base, size_t size, struct bootmodule *module)
 {

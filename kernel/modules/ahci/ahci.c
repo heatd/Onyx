@@ -207,6 +207,7 @@ int ahci_await_interrupt(unsigned long timeout, struct ahci_port *port, unsigned
 			port->cmdslots[command_slot].recieved_interrupt = false;
 			return 0;
 		}
+
 		sched_yield();
 	}
 	return -1;
@@ -252,7 +253,6 @@ command_list_t *ahci_allocate_command_list(struct ahci_port *ahci_port, size_t *
 
 	command_list_t *list = ahci_find_free_command_list(clist,
 		AHCI_CAP_NCS(device->hba->host_cap), index);
-
 	spin_unlock_irqrestore(&ahci_port->port_lock);
 
 	return list;
@@ -856,7 +856,7 @@ int ahci_initialize(void)
 
 struct pci_id pci_ahci_devids[] = 
 {
-	{ PCI_ID_CLASS(CLASS_MASS_STORAGE_CONTROLLER, 6, PCI_ANY_ID) },
+	{ PCI_ID_CLASS(CLASS_MASS_STORAGE_CONTROLLER, 6, PCI_ANY_ID, NULL) },
 	{ 0 }
 };
 

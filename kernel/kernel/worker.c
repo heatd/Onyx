@@ -31,6 +31,7 @@ void work_do_work(void* context)
 			work_queue = work_queue->next;
 			free(work);
 		}
+	
 		mutex_unlock(&work_queue_mutex);
 		/* Set the thread state to sleeping and yield */
 		set_current_state(THREAD_BLOCKED);
@@ -52,7 +53,9 @@ int worker_schedule(struct work_request *work, int priority)
 	work = memdup(work, sizeof(struct work_request));
 	if(!work)
 		return errno = ENOMEM, -1;
+	
 	mutex_lock(&work_queue_mutex);
+
 	if(!work_queue)
 	{
 		work_queue = work;
@@ -71,6 +74,7 @@ int worker_schedule(struct work_request *work, int priority)
 		work->next = next;
 		work->priority = priority;
 	}
+
 	mutex_unlock(&work_queue_mutex);
 	thread_wake_up(worker);
 	return 0;

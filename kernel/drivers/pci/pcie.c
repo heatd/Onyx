@@ -119,10 +119,30 @@ uint16_t __pcie_config_read_word(struct pcie_address addr)
 	return ret;
 }
 
+void __pcie_config_write_word_aligned(struct pcie_address addr, uint16_t data)
+{
+	uintptr_t ptr = (uintptr_t) addr.alloc->address +
+		((addr.bus - addr.alloc->start_bus) << 20 | addr.device << 15 | 
+			addr.function << 12);
+	volatile uint16_t *uptr = (volatile uint16_t *) (ptr + addr.offset);
+
+	*uptr = data;
+}
+
 void __pcie_config_write_word(struct pcie_address addr, uint16_t data)
 {
 	uint8_t aligned_offset = addr.offset & -4;
 	uint8_t bshift = addr.offset - aligned_offset;
+
+	if(aligned_offset == addr.offset)
+	{
+		/* For some reason, we need to do this for linux's
+		 * i915 driver's GVT to accept PCI config space writes
+		 * I guess this is an optimization too
+		*/
+		__pcie_config_write_word_aligned(addr, data);
+		return;
+	}
 
 	uint32_t byte_mask = (uint32_t) 0xffff << (bshift * 8);
 	addr.offset = aligned_offset;

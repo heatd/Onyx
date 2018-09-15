@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <signal.h>
 
+#include <pthread.h>
 #define _GNU_SOURCE
 #include <unistd.h>
 
@@ -22,6 +23,25 @@ int proc_event_attach(pid_t pid, unsigned long flags)
 	return (int) syscall(SYS_proc_event_attach, pid, flags);
 }
 
+void do_trace(pid_t p);
+
+void *do_pt_trace(void *arg)
+{
+	do_trace((pid_t) arg);
+
+	return (void *) 0;
+}
+
+void do_child_trace(pid_t pid)
+{
+	pthread_t thread;
+	if(pthread_create(&thread, NULL, do_pt_trace, (void *) pid) < 0)
+	{
+		perror("pthread_create");
+		return;
+	}
+}
+
 void do_trace(pid_t pid)
 {
 	int fd = proc_event_attach(pid, PROC_EVENT_LISTEN_SYSCALLS);
@@ -31,10 +51,15 @@ void do_trace(pid_t pid)
 	}
 	
 	struct proc_event event = {0};
+
 	while(read(fd, &event, sizeof(struct proc_event)))
 	{
 		/* Print the event and send an ACK */
 		strace_print_event(&event);
+
+		if(event.type == PROC_EVENT_SYSCALL_EXIT &&
+		   event.e_un.syscall_exit.syscall_nr == SYS_execve)
+			do_child_trace(event.e_un.syscall_exit.retval);
 		ioctl(fd, 0);
 	}
 }

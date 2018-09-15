@@ -31,6 +31,7 @@
 #include <onyx/slab.h>
 #include <onyx/proc_event.h>
 #include <onyx/syscall.h>
+#include <onyx/futex.h>
 
 #include <pthread_kernel.h>
 
@@ -46,6 +47,7 @@ volatile struct process *current_process = NULL;
 static struct spinlock process_creation_lock;
 slab_cache_t *process_cache = NULL;
 void process_destroy(thread_t *);
+void process_end(struct process *process);
 
 int copy_file_descriptors(struct process *process, ioctx_t *ctx)
 {
@@ -93,11 +95,14 @@ struct process *process_create(const char *cmd_line, ioctx_t *ctx, struct proces
 	if(!proc)
 		return errno = ENOMEM, NULL;
 	memset(proc, 0, sizeof(struct process));
+
 	spin_lock(&process_creation_lock);
+	
 	/* TODO: idm_get_id doesn't wrap? POSIX COMPLIANCE */
 	proc->pid = idm_get_id(process_ids);
 	assert(proc->pid != (pid_t) -1);
 	proc->cmd_line = strdup(cmd_line);
+
 	if(ctx)
 	{
 		if(copy_file_descriptors(proc, ctx) < 0)
@@ -516,8 +521,11 @@ pid_t sys_wait4(pid_t pid, int *wstatus, int options, struct rusage *usage)
 				
 				p->parent = NULL;
 				spin_unlock(&process_creation_lock);
-				/* TODO: Destroy */
-				return p->pid;
+				pid_t ret = p->pid;
+
+				process_end(p);
+
+				return ret;
 			}
 		}
 
@@ -624,7 +632,7 @@ void sys_exit(int status)
 	sched_yield();
 }
 
-uint64_t sys_getpid()
+uint64_t sys_getpid(void)
 {
 	return get_current_process()->pid;
 }
@@ -688,11 +696,35 @@ void process_destroy_file_descriptors(struct process *process)
 	ctx->file_desc_entries = 0;
 }
 
+void process_remove_from_list(struct process *process)
+{
+	if(first_process == process)
+		first_process = first_process->next;
+	else
+	{
+		struct process *p;
+		for(p = first_process; p->next != process && p->next; p = p->next);
+		
+		assert(p->next != NULL);
+
+		p->next = process->next;
+	}
+}
+
 void process_obliterate(void *proc)
 {
 	struct process *process = proc;
 	struct page *p = phys_to_page((uintptr_t) process->address_space.cr3);
 	free_page(p);
+}
+
+void process_end(struct process *process)
+{
+	process_remove_from_list(process);
+	
+	free(process->cmd_line);
+	futex_free_queue(process);
+	slab_free(process_cache, process);
 }
 
 void process_destroy(thread_t *current_thread)
@@ -703,8 +735,6 @@ void process_destroy(thread_t *current_thread)
 	process_destroy_aspace();
 
 	process_destroy_file_descriptors(current);
-
-	free(current->cmd_line);
 
 	for(struct proc_event_sub *s = current->sub_queue; s; s = s->next)
 	{

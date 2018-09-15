@@ -70,7 +70,7 @@ void panic(const char *msg)
 	module_dump();
 	printk("Stack dump: \n");
 
-	stack_trace();
+	//stack_trace();
 	printk("Killing cpus\n");
 	cpu_kill_other_cpus();
 	page_print_shared();

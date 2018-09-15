@@ -92,7 +92,6 @@ void tty_write(const char *data, size_t size, struct tty *tty)
 
 void tty_recieved_character(struct tty *tty, char c)
 {
-
 	if(!(tty->term_io.c_lflag & ICANON))
 	{
 		tty->line_ready = true;
