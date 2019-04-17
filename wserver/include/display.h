@@ -31,6 +31,9 @@ public:
 	std::shared_ptr <Buffer> create_buffer(unsigned int height, unsigned int width);
 	void swap();
 	void copy(std::shared_ptr<Buffer> buffer, unsigned int x, unsigned int y);
+	void GetOwnershipOfDisplay();
+	void ReleaseOwnershipOfDisplay();
+	void Clear(uint32_t color);
 };
 
 #endif

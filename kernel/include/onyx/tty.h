@@ -34,6 +34,7 @@ struct tty
 	struct tty *next;
 	char keyboard_buffer[2048];
 	unsigned int keyboard_pos;
+	bool is_vterm;
 };
 
 void tty_putchar(char c);

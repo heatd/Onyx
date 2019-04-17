@@ -385,7 +385,7 @@ void apic_timer_smp_init(volatile uint32_t *lapic)
 	is_smp_enabled = 1;
 }
 
-uint64_t get_tick_count()
+uint64_t get_tick_count(void)
 {
 	return boot_ticks;
 }

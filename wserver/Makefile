@@ -1,6 +1,6 @@
 PROG:= wserver
-OBJS:= main.o display.o buffer.o server.o window.o
-CFLAGS:=-O2 -g -std=c++17 -march=sandybridge -fstack-protector-strong
+OBJS:= main.o display.o buffer.o server.o window.o client.o
+CFLAGS:=-O2 -g -std=c++17 -march=sandybridge -fstack-protector-strong -lpthread
 CPPFLAGS:=-Iinclude -D_POSIX_C_SOURCE
 
 clean:

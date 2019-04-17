@@ -564,10 +564,11 @@ ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *file,
 	return (ssize_t) wrote;
 }
 
-ssize_t send_vfs(const void *buf, size_t len, int flags, struct inode *node)
+ssize_t sendto_vfs(const void *buf, size_t len, int flags, struct sockaddr *addr,
+ socklen_t addrlen, struct inode *node)
 {
-	if(node->i_fops.send != NULL)
-		return node->i_fops.send(buf, len, flags, node);
+	if(node->i_fops.sendto != NULL)
+		return node->i_fops.sendto(buf, len, flags, addr, addrlen, node);
 	return -ENOSYS;
 }
 

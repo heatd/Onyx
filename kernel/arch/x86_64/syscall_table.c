@@ -115,7 +115,8 @@ extern int sys_futex(int *uaddr, int futex_op, int val,
 const struct timespec *timeout, int *uaddr2, int val3);
 extern int sys_getrandom(void *buf, size_t buflen, unsigned int flags);
 extern int sys_socket(int domain, int type, int protocol);
-extern ssize_t sys_send(int sockfd, const void *buf, size_t len, int flags);
+extern ssize_t sys_sendto(int sockfd, const void *buf, size_t len, int flags,
+	struct sockaddr *addr, socklen_t addrlen);
 extern int sys_connect(int sockfd, const struct sockaddr *addr,
 socklen_t addrlen);
 extern int sys_bind(int sockfd, const struct sockaddr *addr,
@@ -202,7 +203,7 @@ void *syscall_table_64[] =
 	[68] = (void*) sys_futex,
 	[69] = (void*) sys_getrandom,
 	[70] = (void*) sys_socket,
-	[71] = (void*) sys_send,
+	[71] = (void*) sys_sendto,
 	[72] = (void*) sys_bind,
 	[73] = (void*) sys_connect,
 	[74] = (void*) sys_recvfrom,

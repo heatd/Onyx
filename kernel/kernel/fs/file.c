@@ -791,14 +791,16 @@ int open_with_vnode(struct inode *node, int flags)
 	return fd_num;
 }
 
-ssize_t sys_send(int sockfd, const void *buf, size_t len, int flags)
+ssize_t sys_sendto(int sockfd, const void *buf, size_t len, int flags,
+	struct sockaddr *addr, socklen_t addrlen)
 {
 	if(validate_fd(sockfd) < 0)
 		return -EBADF;
 	file_desc_t *desc = get_file_description(sockfd);
 	if(desc->vfs_node->i_type != VFS_TYPE_UNIX_SOCK)
 		return -ENOTSOCK;
-	return send_vfs(buf, len, flags, desc->vfs_node);
+
+	return sendto_vfs(buf, len, flags, addr, addrlen, desc->vfs_node);
 }
 
 int sys_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
@@ -818,6 +820,7 @@ int sys_bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 	file_desc_t *desc = get_file_description(sockfd);
 	if(desc->vfs_node->i_type != VFS_TYPE_UNIX_SOCK)
 		return -ENOTSOCK;
+
 	return bind_vfs(addr, addrlen, desc->vfs_node);
 }
 

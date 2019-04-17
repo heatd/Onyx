@@ -37,6 +37,9 @@
 #include <onyx/dev.h>
 #include <onyx/condvar.h>
 
+void vterm_release_video(void *vterm);
+void vterm_get_video(void *vt);
+
 struct tty *main_tty = NULL;
 
 struct ids *tty_ids;
@@ -257,6 +260,34 @@ unsigned int tty_ioctl(int request, void *argp, struct inode *dev)
 				return -EFAULT;
 			return 0;
 		}
+		case TIOONYXCTL:
+		{
+			int arg = (int) argp;
+
+			switch(arg)
+			{
+				case TIO_ONYX_GET_OWNERSHIP_OF_TTY:
+					/* Disable canon and echo */
+					tty->term_io.c_lflag &= ~(ICANON | ECHO);
+					if(tty->is_vterm)
+					{
+						vterm_release_video(tty->priv);
+					}
+					return 0;
+				case TIO_ONYX_RELEASE_OWNERSHIP_OF_TTY:
+				{
+					tty->term_io.c_lflag |= ICANON | ECHO;
+					if(tty->is_vterm)
+					{
+						vterm_get_video(tty->priv);
+					}
+					return 0;
+				}
+				default:
+					return -EINVAL;
+			}		
+		}
+
 		default:	
 			return -EINVAL;
 	}

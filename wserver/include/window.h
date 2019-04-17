@@ -13,7 +13,6 @@
 class Window
 {
 private:
-	size_t window_id;
 	unsigned int x;
 	unsigned int y;
 	unsigned int width;
@@ -22,6 +21,8 @@ private:
 	std::weak_ptr<Display> display;
 	std::shared_ptr<Buffer> window_buffer;
 public:
+	size_t window_id;
+
 	Window(size_t window_id, unsigned int width, 
 		unsigned int height, unsigned int x, unsigned int y,
 		std::weak_ptr <Display> display);

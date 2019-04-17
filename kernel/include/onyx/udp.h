@@ -52,8 +52,8 @@ struct udp_socket
 {
 	struct socket socket;
 	int type;
-	struct sockaddr src_addr;
-	struct sockaddr dest_addr;
+	struct sockaddr_in src_addr;
+	struct sockaddr_in dest_addr;
 	struct semaphore packet_semaphore;
 	struct udp_packet *packet_list;
 	struct spinlock packet_lock;

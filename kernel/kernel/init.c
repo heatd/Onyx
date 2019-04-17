@@ -121,10 +121,17 @@ void kernel_parse_command_line(char *cmd)
 
 			memset(new_string, 0, size_token + 1);
 			memcpy(new_string, cmd, size_token);
+			
+			if(kernel_argc == 200)
+			{
+				panic("kernel: too many arguments passed to the kernel");
+			}
+
 			kernel_arguments[kernel_argc] = new_string;
 			kernel_argc++;
 			cmd += size_token -1;
 		}
+
 		cmd++;
 	}
 }

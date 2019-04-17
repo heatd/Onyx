@@ -1,2 +1,2 @@
 # Filesystem source	# Filesystem mount point  # Filesystem name
-/dev/sda1               /                         ext2
+/dev/hda1               /                         ext2

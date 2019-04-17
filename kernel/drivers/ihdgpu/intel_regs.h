@@ -7,6 +7,31 @@
 #ifndef _INTEL_REGS_H
 #define _INTEL_REGS_H
 
+#define PWR_WELL_CTL2			0x45404
+#define PWR_WELL_CTL_MISC_IO_STATE	(1 << 0)
+#define PWR_WELL_CTL_MISC_IO_PWREQ	(1 << 1)
+#define PWR_WELL_CTL_DDIA_E_STATE	(1 << 2)
+#define PWR_WELL_CTL_DDIA_E_PWREQ	(1 << 3)
+#define PWR_WELL_CTL_DDIB_STATE		(1 << 4)
+#define PWR_WELL_CTL_DDIB_PWREQ		(1 << 5)
+#define PWR_WELL_CTL_DDIC_STATE		(1 << 6)
+#define PWR_WELL_CTL_DDIC_PWREQ		(1 << 7)
+#define PWR_WELL_CTL_DDID_STATE		(1 << 8)
+#define PWR_WELL_CTL_DDID_PWREQ		(1 << 9)
+#define PWR_WELL_CTL_PW1_STATE		(1 << 28)
+#define PWR_WELL_CTL_PW1_REQ		(1 << 29)
+#define PWR_WELL_CTL_PW2_STATE		(1 << 30)
+#define PWR_WELL_CTL_PW2_REQ		(1U << 31)
+
+#define FUSE_STATUS			0x42000
+#define FUSE_STATUS_DOWNLOAD_STATUS	(1U << 31)
+#define FUSE_STATUS_PG0_DISTRIB_STATUS	(1 << 27)
+#define FUSE_STATUS_PG1_DISTRIB_STATUS	(1 << 26)
+#define FUSE_STATUS_PG2_DISTRIB_STATUS	(1 << 25)
+
+#define NDE_RSTWRN_OPT			0x46408
+#define NDE_RST_PCH_HANDSHAKE_ENABLE	(1 << 4)
+
 #define GPIO_PCH_BASE	0xc0000
 
 #define GMBUS_BASE 0x5100
@@ -38,7 +63,7 @@
 #define GMBUS_PIN_DPB		5 /* HDMIB */
 #define GMBUS_PIN_DPD		6 /* HDMID */
 
-#define GMBUS1_ASSERT_HWRDY		(1U << 31)
+#define GMBUS1_SW_CLR_INT		(1U << 31)
 #define GMBUS1_ASSERT_SWRDY		(1U << 30)
 #define GMBUS1_ENABLE_TIMEOUT		(1U << 29)
 
@@ -72,5 +97,28 @@
 
 #define GMBUS5_2BYTE_IDX_EN		(1U << 31)
 #define GMBUS5_2BYTE_SLAVE_IDX(x)	(x & 0xff)
+
+
+#define DDI_AUX_CTL_BASE		0x64010
+#define DDI_AUX_DATA_BASE		0x64014
+#define DDI_AUX_OFFSET			0x000100
+
+#define DDI_GET_REG(base, port)		(base + DDI_AUX_OFFSET * port) 
+
+
+#define DDI_AUX_CTL_SEND_BUSY		(1U << 31)
+#define DDI_AUX_CTL_DONE		(1 << 30)
+#define DDI_AUX_CTL_IRQ_ON_DONE		(1 << 29)
+#define DDI_AUX_CTL_TIMEOUT_ERROR	(1 << 28)
+#define DDI_AUX_CTL_TIMEOUT_600US	(1 << 26)
+#define DDI_AUX_CTL_TIMEOUT_800US	(1 << 27)
+#define DDI_AUX_CTL_TIMEOUT_1600US	(1 << 26 | 1 << 27)
+#define DDI_AUX_CTL_RECIEVE_ERROR	(1 << 25)
+
+#define DDI_AUX_CTL_MESSAGE_SIZE(size)	(size << 20)
+
+#define DP_AUX_I2C_WRITE		0x0
+#define DP_AUX_I2C_READ			0x1
+
 
 #endif

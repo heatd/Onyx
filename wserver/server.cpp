@@ -21,7 +21,9 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
-#define SERVER_SOCKET_PATH	"\0wserver.message_queue"
+#include <client.h>
+
+#include <wserver_public_api.h>
 
 Server::Server(std::shared_ptr<Display> display) : display(display),
 	window_list()
@@ -35,38 +37,35 @@ Server::Server(std::shared_ptr<Display> display) : display(display),
 
 	struct sockaddr_un addr;
 	addr.sun_family = AF_UNIX;
-	strncpy(addr.sun_path, SERVER_SOCKET_PATH, sizeof(addr.sun_path));
+	memcpy(addr.sun_path, SERVER_SOCKET_PATH, sizeof(addr.sun_path));
 	
 	if(bind(socket_fd, (struct sockaddr *) &addr, sizeof(sa_family_t) + sizeof(SERVER_SOCKET_PATH)) < 0)
 	{
 		throw std::runtime_error("bind failed");
 	}
 
-	/*int client = socket(AF_UNIX, SOCK_DGRAM, 0);
+	int client = socket(AF_UNIX, SOCK_DGRAM, 0);
 
 	if(connect(client, (struct sockaddr *) &addr, sizeof(sa_family_t) +
 		sizeof(SERVER_SOCKET_PATH)) < 0)
 	{
 		throw std::runtime_error("connect failed");
 	}
-	unsigned char bytes[5] = {0xff, 0xfa, 0xfe, 0xfc, 0xaa};
 
-	if(send(client, &bytes, 5, 0) < 0)
-	{
-		throw std::runtime_error("send failed");
-	}
+	memcpy(addr.sun_path, "\0oldtownroads", sizeof(addr.sun_path));
+	if(bind(client, (struct sockaddr *) &addr, sizeof(sa_family_t) + sizeof("\0oldtownroads")) < 0)
+		perror("bind");
 
-	unsigned char new_bytes[5] = {0};
+	struct server_message msg;
+	msg.client_id = -1;
+	msg.msg_type = SERVER_MESSAGE_CLIENT_HANDSHAKE;
+	
+	ssize_t s = send(client, &msg, sizeof(msg), 0);
 
-	if(recvfrom(socket_fd, &new_bytes, 5, 0, NULL, NULL) < 0)
-	{
-		throw std::runtime_error("recvfrom failed");
-	}
-
-	assert(memcmp(&new_bytes, &bytes, 5) == 0);*/
+	assert(s > 0);
 }
 
-size_t Server::allocate_id()
+size_t Server::allocate_wid()
 {
 	return next_wid.fetch_add(1, std::memory_order_acq_rel);
 }
@@ -74,7 +73,7 @@ size_t Server::allocate_id()
 std::shared_ptr<Window> Server::create_window(unsigned int width,
 	unsigned int height, unsigned int x, unsigned int y)
 {
-	auto id = allocate_id();
+	auto id = allocate_wid();
 	std::weak_ptr<Display> weak(display);
 	auto window = std::make_shared<Window>(id, height, width, x, y, weak);
 	window_list.push_back(window);
@@ -82,13 +81,81 @@ std::shared_ptr<Window> Server::create_window(unsigned int width,
 	return window;
 }
 
-void Server::draw_windows()
+unsigned int Server::allocate_cid()
 {
-	std::for_each(window_list.begin(), window_list.end(), [] (std::shared_ptr<Window> window)
+	return next_cid.fetch_add(1, std::memory_order_acq_rel);
+}
+
+unsigned int Server::create_client()
+{
+	auto cid = allocate_cid();
+	clients[cid] = std::make_shared<Client>(cid);
+
+	return cid;
+}
+
+class ServerReply
+{
+public:
+	struct server_reply reply;
+	struct sockaddr *addr;
+	socklen_t len;
+	int socket_fd;
+	ServerReply(struct sockaddr *addr, socklen_t len, int socket_fd) : addr(addr),
+		len(len), socket_fd(socket_fd)
 	{
-		if(window->is_dirty())
+		memset(&reply, 0, sizeof(struct server_reply));
+	}
+
+	void set_status_code(enum server_status st)
+	{
+		reply.status = st;
+	}
+
+	void set_handshake_reply(struct server_message_handshake_reply& hreply)
+	{
+		reply.args.hrply.new_cid = hreply.new_cid;
+	}
+
+	void send()
+	{
+		if(sendto(socket_fd, &reply, sizeof(struct server_reply), 0, addr, len) < 0)
 		{
-			window->draw();
+			/* TODO: Write to a log file */
+			perror("sendto");
 		}
-	});
+	}
+};
+
+void Server::handle_message(struct server_message *msg, struct sockaddr *addr, socklen_t len)
+{
+	switch(msg->msg_type)
+	{
+		case SERVER_MESSAGE_CLIENT_HANDSHAKE:
+		{
+			std::cout << "Handling a client handshake\n";
+			auto cid = create_client();
+			struct server_message_handshake_reply hreply;
+			hreply.new_cid = cid;
+			/* Craft a reply containing the return cid */
+			ServerReply reply(addr, len, socket_fd);
+			reply.set_status_code(STATUS_OK);
+			reply.set_handshake_reply(hreply);
+			reply.send();
+			break;
+		}
+	}
+}
+
+void Server::handle_events()
+{
+	struct server_message msg;
+	struct sockaddr_un client_addr;
+	socklen_t len = sizeof(client_addr);
+
+	while(recvfrom(socket_fd, &msg, sizeof(struct server_message), 0,
+	      (struct sockaddr *) &client_addr, &len))
+	{
+		handle_message(&msg, (struct sockaddr *) &client_addr, len);
+	}
 }

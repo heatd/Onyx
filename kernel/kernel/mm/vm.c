@@ -1302,7 +1302,16 @@ void *map_pages_to_vaddr(void *virt, void *phys, size_t size, size_t flags)
 
 void *mmiomap(void *phys, size_t size, size_t flags)
 {
+	uintptr_t u = (uintptr_t) phys;
+	uintptr_t p_off = u & (PAGE_SIZE - 1);
+
 	size_t pages = vm_align_size_to_pages(size);
+	if(p_off)
+	{
+		pages++;
+		size += p_off;
+	}
+
 	struct vm_entry *entry = vm_allocate_virt_address(
 		flags & VM_USER ? VM_ADDRESS_USER : VM_KERNEL,
 		 pages, VM_TYPE_REGULAR, flags, 0);
@@ -1312,15 +1321,18 @@ void *mmiomap(void *phys, size_t size, size_t flags)
 		return NULL;
 	}
 
+	u &= ~(PAGE_SIZE - 1);
+
 	/* TODO: Clean up if something goes wrong */
-	void *p = map_pages_to_vaddr((void *) entry->base, phys, size, flags);
+	void *p = map_pages_to_vaddr((void *) entry->base, (void *) u,
+				     size, flags);
 	if(!p)
 	{
 		printf("map_pages_to_vaddr: Could not map pages\n");
 		return NULL;
 	}
 
-	return p;
+	return (void *) ((uintptr_t) p + p_off);
 }
 
 int __vm_handle_pf(struct vm_entry *entry, struct fault_info *info)

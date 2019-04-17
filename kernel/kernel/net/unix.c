@@ -107,6 +107,7 @@ struct un_name *un_find_name(char *address, size_t namelen)
 	{
 		if(namelen != name->namelen)
 			continue;
+		printk("Testing %s\n", name->address);
 		if(!memcmp(name->address, address, namelen))
 			return name;
 	}
@@ -186,7 +187,15 @@ int un_bind(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode)
 	if(socket->socket.bound)
 		return -EINVAL;
 
-	const struct sockaddr_un *un = (const struct sockaddr_un *) addr;
+	struct sockaddr_un kaddr;
+
+	if(addrlen > sizeof(struct sockaddr_un))
+		return -EINVAL;
+	
+	if(copy_from_user(&kaddr, addr, addrlen) < 0)
+		return -EFAULT;
+
+	const struct sockaddr_un *un = (const struct sockaddr_un *) &kaddr;
 
 	int st = un_do_bind(un, addrlen, socket);
 
@@ -230,20 +239,22 @@ int un_connect(const struct sockaddr *addr, socklen_t addrlen, struct inode *vno
 	return 0;
 }
 
-ssize_t un_do_send(const void *buf, size_t len, struct un_socket *socket)
+ssize_t un_do_sendto(const void *buf, size_t len, struct un_socket *dest, struct un_socket *socket)
 {
-	struct un_socket *dest = socket->dest;
-
 	assert(dest != NULL);
 
 	struct unix_packet *packet = malloc(sizeof(*packet));
 	if(!packet)
+	{
+		spin_unlock(&dest->socket_lock);
 		return -ENOMEM;
+	}
 
 	packet->buffer = memdup((void *) buf, len);
 	if(!packet->buffer)
 	{
 		free(packet);
+		spin_unlock(&dest->socket_lock);
 		return -ENOMEM;
 	}
 
@@ -266,25 +277,75 @@ ssize_t un_do_send(const void *buf, size_t len, struct un_socket *socket)
 	return len;
 }
 
-ssize_t un_send(const void *buf, size_t len, int flags, struct inode *vnode)
+ssize_t un_sendto(const void *buf, size_t len, int flags,
+	struct sockaddr *_addr, socklen_t addrlen, struct inode *vnode)
 {
-	struct un_socket *socket = vnode->i_helper;
-
-	if(!socket->dest)
+	struct sockaddr_un a = {};
+	if(_addr)
 	{
-		return -ENOTCONN;
+		if(addrlen > sizeof(struct sockaddr_un))
+			return -EINVAL;
+		if(copy_from_user(&a, _addr, addrlen) < 0)
+			return -EFAULT;
 	}
 
-	spin_lock(&socket->dest->socket_lock);
+	struct sockaddr *addr = &a;
+	struct un_socket *socket = vnode->i_helper;
+	
+	spin_lock(&socket->socket_lock);
 
-	if(socket->dest->conn_reset)
+	bool not_conn = !socket->dest;
+	struct un_socket *dest = socket->dest;
+
+	char *address;
+	size_t namelen;
+	bool is_abstract;
+
+	if(not_conn && !addr)
+	{
+		spin_unlock(&socket->socket_lock);
+		return -ENOTCONN;
+	}
+	else if(not_conn)
+	{
+		int status = 0;
+		if((status = un_get_address((struct sockaddr_un *) addr, addrlen, &address, &namelen,
+			&is_abstract)) < 0)
+		{
+			spin_unlock(&socket->socket_lock);
+			return status;
+		}
+
+		struct un_name *name = un_find_name(address, namelen);
+		if(!name)
+		{
+			spin_unlock(&socket->socket_lock);
+			return -EDESTADDRREQ;
+		}
+
+		dest = name->bound_socket;
+	}
+	
+	if(!dest)
+	{
+		spin_unlock(&socket->socket_lock);
+		return -EDESTADDRREQ;
+	}
+
+	spin_lock(&dest->socket_lock);
+
+	if(dest->conn_reset)
 	{
 		spin_unlock(&socket->dest->socket_lock);
 		socket_unref(&socket->socket);
+		spin_unlock(&socket->socket_lock);
 		return -ECONNRESET;
 	}
 
-	return un_do_send(buf, len, socket);
+	ssize_t st = un_do_sendto(buf, len, dest, socket);
+	spin_unlock(&socket->socket_lock);
+
+	return st;
 }
 
 void un_dispose_packet(struct unix_packet *packet)
@@ -294,7 +355,7 @@ void un_dispose_packet(struct unix_packet *packet)
 }
 
 ssize_t un_do_recvfrom(struct un_socket *socket, void *buf, size_t len,
-		       int flags, struct sockaddr_un *addr)
+		       int flags, struct sockaddr_un *addr, socklen_t *slen)
 {
 	spin_lock(&socket->packet_list_lock);
 
@@ -320,6 +381,7 @@ ssize_t un_do_recvfrom(struct un_socket *socket, void *buf, size_t len,
 		un.sun_family = AF_UNIX;
 		un.sun_path[0] = '\0';
 		memcpy(&un.sun_path[1], packet->source->address, packet->source->namelen);
+		*slen = sizeof(sa_family_t) + 1 + packet->source->namelen;
 
 		memcpy(addr, &un, sizeof(struct sockaddr_un));
 	}
@@ -341,6 +403,7 @@ ssize_t un_recvfrom(void *buf, size_t len, int flags, struct sockaddr *addr,
 	struct un_socket *socket = vnode->i_helper;
 	struct sockaddr_un kaddr = {0};
 	socklen_t addrlen = sizeof(struct sockaddr_un);
+	socklen_t kaddrlen;
 
 	if(addr != NULL && slen == NULL)
 		return errno = EINVAL, -1;
@@ -354,12 +417,12 @@ ssize_t un_recvfrom(void *buf, size_t len, int flags, struct sockaddr *addr,
 			return errno = EFAULT, -1;
 	}
 
-	ssize_t st = un_do_recvfrom(socket, buf, len, flags, &kaddr);
+	ssize_t st = un_do_recvfrom(socket, buf, len, flags, &kaddr, &kaddrlen);
 
 	if(st < 0)
 		return errno = -st, -1;
 
-	addrlen = min(addrlen, sizeof(struct sockaddr_un));
+	addrlen = min(addrlen, kaddrlen);
 
 	if(kaddr.sun_family != AF_UNIX)
 		return st;
@@ -367,7 +430,7 @@ ssize_t un_recvfrom(void *buf, size_t len, int flags, struct sockaddr *addr,
 	if(addr)
 	{
 		if(copy_to_user(addr, &kaddr, addrlen) < 0)
-		return errno = EFAULT, -1;
+			return errno = EFAULT, -1;
 	}
 
 	if(slen)
@@ -383,7 +446,7 @@ static struct file_ops un_ops =
 {
 	.bind = un_bind,
 	.connect = un_connect,
-	.send = un_send,
+	.sendto = un_sendto,
 	.recvfrom = un_recvfrom,
 };
 

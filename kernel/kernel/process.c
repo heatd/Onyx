@@ -571,7 +571,7 @@ int make_wait4_wstatus(int signum, bool core_dumped, int exit_code)
 
 	if(signum == 0)
 	{
-		wstatus = exit_code << 8;
+		wstatus |= ((exit_code & 0xff) << 8);
 		return wstatus;
 	}
 	else
@@ -812,12 +812,18 @@ int sys_clone(int (*fn)(void *), void *child_stack, int flags, void *arg, pid_t 
 	registers_t regs;
 	memset(&regs, 0, sizeof(registers_t));
 	regs.rsp = (uint64_t) child_stack;
+	regs.rflags = 0x202;
+
 	thread_t *thread = sched_spawn_thread(&regs, start, arg, tls);
 	if(!thread)
 		return -errno;
+
 	if(vm_check_pointer(ptid, sizeof(pid_t)) > 0)
 		*ptid = thread->id;
+
 	process_add_thread(get_current_process(), thread);
+	sched_start_thread(thread);
+
 	return 0;
 }
 

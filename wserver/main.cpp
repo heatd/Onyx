@@ -10,6 +10,9 @@
 #include <err.h>
 #include <stdbool.h>
 #include <fcntl.h>
+#include <unistd.h>
+#include <pthread.h>
+
 #include <memory>
 #include <iostream>
 
@@ -19,16 +22,32 @@
 
 #include <drm/drm.h>
 
+#include <sys/wait.h>
 #include <sys/mman.h>
+
+
+#define COLOR_BLACK	0x00000000
+
+#define DESKTOP_ENVIRONMENT_NAME	"/usr/bin/singularity"
+#define ERR_EXEC_FAILED			126
+
+void *ServerThread(void *ptr)
+{
+	Server *sv = (Server *) ptr;
+
+	sv->handle_events();
+
+	return nullptr;
+}
 
 int main(int argc, char **argv, char **envp)
 {
-	printf("wserver - window server\n");
-	
+	std::cout << "wserver - window server\n";
+	std::shared_ptr<Display> disp;
+
 	try
 	{
-		std::shared_ptr<Display> disp = std::make_shared<Display>();
-		Server server(disp);	
+		disp = std::make_shared<Display>();
 	}
 	catch(const std::exception& e)
 	{
@@ -37,10 +56,36 @@ int main(int argc, char **argv, char **envp)
 		return 1;
 	}
 
-	while(true)
+	Server server(disp);
+
+	disp->Clear(COLOR_BLACK);
+
+	/* Fork and execute the desktop environment */
+	pid_t child_pid = fork();
+
+	if(child_pid < 0)
 	{
+		perror("fork");
+	}
+	else if(child_pid == 0)
+	{
+		if(execl(DESKTOP_ENVIRONMENT_NAME, DESKTOP_ENVIRONMENT_NAME) < 0)
+			exit(ERR_EXEC_FAILED);
 	}
 
+	pthread_t thread;
+	if(pthread_create(&thread, nullptr, ServerThread, &server) < 0)
+		perror("pthread_create");
+	int status;
+
+	waitpid(-1, &status, 0);
+
+	if(WEXITSTATUS(status) == ERR_EXEC_FAILED)
+	{
+		std::cout << "waitpid: execl failed\n";
+		while(1);
+		return 1;
+	}
 
 	return 0;
 }

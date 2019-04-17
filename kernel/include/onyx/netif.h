@@ -24,8 +24,8 @@ struct netif
 	unsigned int flags;
 	unsigned char mac_address[6];
 	unsigned char router_mac[6];
-	struct sockaddr local_ip;
-	struct sockaddr router_ip;
+	struct sockaddr_in local_ip;
+	struct sockaddr_in router_ip;
 	int (*sendpacket)(const void *buffer, uint16_t size);
 	struct netif *next;
 	struct arp_hashtable arp_hashtable;

@@ -248,6 +248,8 @@ int __pthread_create(pthread_t *restrict res, const pthread_attr_t *restrict att
 		tsd = map + size - __pthread_tsd_size;
 		if (!stack) {
 			stack = tsd - libc.tls_size;
+			stack = ((unsigned long) stack & -0x10);
+			stack -= 8;
 			stack_limit = map + guard;
 		}
 	}
@@ -274,7 +276,9 @@ int __pthread_create(pthread_t *restrict res, const pthread_attr_t *restrict att
 	new->CANARY = self->CANARY;
 
 	a_inc(&libc.threads_minus_1);
-	ret = syscall(SYS_clone, (c11 ? start_c11 : start), new->stack, CLONE_SPAWNTHREAD, new, &new->tid, TP_ADJ(new));
+
+	ret = syscall(SYS_clone, (c11 ? start_c11 : start), new->stack,
+		      CLONE_SPAWNTHREAD, new, &new->tid, TP_ADJ(new));
 
 	__release_ptc();
 

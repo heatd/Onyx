@@ -130,6 +130,7 @@ void init_multiboot2_framebuffer(struct multiboot_tag_framebuffer *tagfb)
 
 unsigned long dma_mem_bitmap[BITMAP_SIZE];
 
+/* TODO: This doesn't work bcs it doesn't take into account the number of pages */
 void *multiboot2_alloc_boot_page_low(size_t nr_pages)
 {
 	for(size_t i = 0; i < BITMAP_SIZE; ++i)

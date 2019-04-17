@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <errno.h>
 
+#include <onyx/timer.h>
 #include <onyx/driver.h>
 #include <onyx/dev.h>
 #include <onyx/acpi.h>
@@ -17,6 +18,7 @@
 
 #include "intel_regs.h"
 #include "igpu_drv.h"
+#include "igd_opregion.h"
 
 #define INTEL_VENDOR_ID	0x8086
 
@@ -35,6 +37,33 @@ void igpu_mmio_write(struct igpu_device *dev, uint32_t offset, uint32_t data)
 	volatile uint32_t *mmio_regs = (volatile uint32_t *) dev->mmio_regs;
 
 	mmio_regs[offset / 4] = data;
+}
+
+int igpu_wait_bit(struct igpu_device *dev, uint32_t reg, uint32_t mask,
+		  unsigned long timeout, bool clear)
+{
+	uint64_t last = get_tick_count();
+	
+	while(true)
+	{
+		/* If the time is up, return a timeout */
+		if(last + timeout < get_tick_count())
+			return -ETIMEDOUT;
+		if(clear)
+		{
+			if((igpu_mmio_read(dev, reg) & mask) == 0)
+				return 0;
+		}
+		else
+		{
+			if((igpu_mmio_read(dev, reg) & mask) == mask)
+				return 0;
+		}
+
+		sched_yield();
+	}
+
+	return -ETIMEDOUT;
 }
 
 struct igpu_driver_data igpu_default_priv = {
@@ -117,9 +146,30 @@ int ihdgpu_probe(struct device *dev)
 	d->mmio_regs = (volatile void *) device_registers;
 	d->gpu_memory = (volatile void *) gpu_memory;
 
+	if(igd_enable_power(d) < 0)
+	{
+		printk("igd_enable_power failed\n");
+		free(d);
+		return -1;
+	}
+
 	if(igpu_i2c_init(d) < 0)
 	{
 		perror("igpu_i2c_init failed");
+		free(d);
+		return -1;
+	}
+
+	if(igd_opregion_init(d) < 0)
+	{
+		printk("igpu: igd_opregion_init failed.\n");
+		free(d);
+		return -1;
+	}
+
+	if(igd_init_displayport(d) < 0)
+	{
+		printk("igd: igd_init_displayport failed\n");
 		free(d);
 		return -1;
 	}

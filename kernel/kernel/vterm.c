@@ -65,6 +65,7 @@ struct console_cell
 
 #define VTERM_MESSAGE_FLUSH		1
 #define VTERM_MESSAGE_FLUSH_ALL		2
+#define VTERM_MESSAGE_DIE		3
 
 struct vterm_message
 {
@@ -88,6 +89,7 @@ struct vterm
 	struct thread *blink_thread;
 	bool blink_status;	/* true = visible, false = not */
 	unsigned int saved_x, saved_y;	/* Used by ANSI_SAVE/RESTORE_CURSOR */
+	bool blink_die;
 	struct tty *tty;
 	bool multithread_enabled;
 	struct thread *render_thread;
@@ -534,6 +536,13 @@ void vterm_blink_thread(void *ctx)
 		struct font *f = get_font_data();
 		mutex_lock(&vt->vt_lock);
 
+		if(vt->blink_die)
+		{
+			mutex_unlock(&vt->vt_lock);
+			sched_sleep_until_wake();
+			mutex_lock(&vt->vt_lock);
+		}
+
 		struct color c = vt->fg;
 		if(vt->blink_status == true)
 		{
@@ -877,8 +886,18 @@ size_t vterm_parse_ansi(char *buffer, size_t len, struct vterm *vt)
 	return (buffer - orig) + 1;
 }
 
+struct serial_port
+{
+	uint16_t io_port;
+	int com_nr;
+};
+
+extern struct serial_port com1;
+static void serial_write(const char *s, size_t size, struct serial_port *port);
+
 ssize_t vterm_write_tty(void *buffer, size_t size, struct tty *tty)
 {
+	serial_write(buffer, size, &com1);
 	struct vterm *vt = tty->priv;
 
 	mutex_lock(&vt->vt_lock);
@@ -934,6 +953,7 @@ unsigned int vterm_ioctl_tty(int request, void *argp, struct tty *tty)
 void vterm_init(struct tty *tty)
 {
 	struct vterm *vt = tty->priv;
+	tty->is_vterm = true;
 	struct framebuffer *fb = get_primary_framebuffer();
 	struct font *font = get_font_data();
 	vt->columns = fb->width / font->width;
@@ -959,12 +979,6 @@ void vterm_init(struct tty *tty)
 
 	vt->tty = tty;
 }
-
-struct serial_port
-{
-	uint16_t io_port;
-	int com_nr;
-};
 
 bool serial_is_transmit_empty(struct serial_port *port)
 {
@@ -1033,6 +1047,7 @@ void x86serial_init(struct tty *tty)
 
 void vterm_do_init(void)
 {
+	serial_port_init(&com1);
 	struct framebuffer *fb = get_primary_framebuffer();
 	if(fb)
 		tty_init(&primary_vterm, vterm_init);
@@ -1064,6 +1079,10 @@ void vterm_handle_message(struct vterm_message *msg, struct vterm *vt)
 			do_vterm_flush(vt);
 			break;
 		case VTERM_MESSAGE_FLUSH_ALL:
+			do_vterm_flush_all(vt);
+			break;
+		case VTERM_MESSAGE_DIE:
+			sched_sleep_until_wake();
 			do_vterm_flush_all(vt);
 			break;
 	}
@@ -1128,4 +1147,38 @@ void vt_init_blink(void)
 void vterm_panic(void)
 {
 	primary_vterm.multithread_enabled = false;
+}
+
+void vterm_release_video(struct vterm *vt)
+{
+	mutex_lock(&vt->vt_lock);
+	
+	vt->blink_die = true;
+	vt->blink_status = true;
+
+	struct font *f = get_font_data();
+	draw_cursor(vt->cursor_x * f->width, vt->cursor_y * f->height,
+			    vt->fb, vt->fg);
+
+	vterm_send_message(vt, VTERM_MESSAGE_DIE, NULL);
+
+	/* Wait 10ms for the render thread to stop */
+	sched_sleep(10);
+
+	mutex_unlock(&vt->vt_lock);
+
+}
+
+void vterm_get_video(struct vterm *vt)
+{
+	mutex_lock(&vt->vt_lock);
+
+	vt->blink_die = false;
+
+	thread_set_state(vt->blink_thread, THREAD_RUNNABLE);
+
+	thread_set_state(vt->render_thread, THREAD_RUNNABLE);
+
+	mutex_unlock(&vt->vt_lock);
+
 }

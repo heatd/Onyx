@@ -80,12 +80,18 @@ int udp_connect(const struct sockaddr *addr, socklen_t addrlen, struct inode *vn
 	return 0;
 }
 
-ssize_t udp_send(const void *buf, size_t len, int flags, struct inode *vnode)
+ssize_t udp_sendto(const void *buf, size_t len, int flags, struct sockaddr *addr,
+	socklen_t addrlen, struct inode *vnode)
 {
 	struct udp_socket *socket = (struct udp_socket*) vnode->i_helper;
-	if(!socket->socket.connected)
-		return -ENOTCONN;
+	bool not_conn = !socket->socket.connected;
+
 	struct sockaddr_in *to = (struct sockaddr_in*) &socket->dest_addr;
+
+	if(!not_conn && addr == NULL)
+		return -ENOTCONN;
+	else
+		to = (struct sockaddr_in *) addr;
 
 	struct sockaddr_in from = {0};
 	if(!socket->socket.bound)
@@ -159,14 +165,14 @@ struct sockaddr *src_addr, socklen_t *slen, struct inode *vnode)
 
 size_t udp_write(size_t offset, size_t sizeofwrite, void* buffer, struct inode* this)
 {
-	return (size_t) udp_send(buffer, sizeofwrite, 0, this);
+	return (size_t) udp_sendto(buffer, sizeofwrite, 0, NULL, 0, this);
 }
 
 static struct file_ops udp_ops = 
 {
 	.bind = udp_bind,
 	.connect = udp_connect,
-	.send = udp_send,
+	.sendto = udp_sendto,
 	.write = udp_write,
 	.recvfrom = udp_recvfrom
 };

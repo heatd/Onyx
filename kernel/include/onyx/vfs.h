@@ -63,7 +63,8 @@ struct file_ops
 	void *(*mmap)(struct vm_entry *area, struct inode *node);
 	int (*bind)(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode);
 	int (*connect)(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode);
-	ssize_t (*send)(const void *buf, size_t len, int flags, struct inode *vnode);
+	ssize_t (*sendto)(const void *buf, size_t len, int flags,
+		struct sockaddr *addr, socklen_t addrlen, struct inode *vnode);
 	ssize_t (*recvfrom)(void *buf, size_t len, int flags, struct sockaddr *addr, 
 		socklen_t *slen, struct inode *vnode);
 	int (*ftruncate)(off_t length, struct inode *node);
@@ -137,7 +138,8 @@ int ioctl_vfs(int request, char *argp, struct inode *file);
 
 int stat_vfs(struct stat *buf, struct inode *node);
 
-ssize_t send_vfs(const void *buf, size_t len, int flags, struct inode *node);
+ssize_t sendto_vfs(const void *buf, size_t len, int flags, struct sockaddr *addr,
+ socklen_t addrlen, struct inode *node);
 
 int connect_vfs(const struct sockaddr *addr, socklen_t addrlen,
 	struct inode *node);

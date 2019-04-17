@@ -29,7 +29,8 @@ typedef struct
 } __attribute__((packed)) ethernet_footer_t;
 
 #define LITTLE_TO_BIG16(n) ((n >> 8) | (n << 8))
-#define LITTLE_TO_BIG32(n) ((n >> 24) & 0xFF) | ((n << 8) & 0xFF0000) | ((n >> 8) & 0xFF00) | ((n << 24) & 0xFF000000)
+#define LITTLE_TO_BIG32(n) ((n >> 24) & 0xFF) | ((n << 8) & 0xFF0000) | \
+			   ((n >> 8) & 0xFF00) | ((n << 24) & 0xFF000000)
 
 typedef int (*device_send_packet)(const void*, uint16_t);
 

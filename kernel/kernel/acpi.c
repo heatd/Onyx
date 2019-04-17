@@ -473,6 +473,7 @@ struct acpi_processor *acpi_enumerate_cpus(void)
 	{
 		return NULL;
 	}
+
 	memset(processors, 0, sizeof(struct acpi_processor) * get_nr_cpus());
 
 	mutex_lock(&cpu_enum_lock);

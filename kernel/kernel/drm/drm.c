@@ -358,6 +358,14 @@ void *drm_mmap(struct vm_entry *area, struct inode *inode)
 	if(!mapping)
 		return NULL;
 
+	struct file_description *fd = zalloc(sizeof(*fd));
+
+	if(!fd)
+		return NULL;
+	
+	fd->vfs_node = inode;
+	fd->seek = area->offset;
+	
 	struct drm_dumb_buffer *dbuf = (struct drm_dumb_buffer *) mapping->buffer;
 	struct vm_object *vmo = vmo_create(dbuf->size, dbuf);
 
@@ -366,7 +374,8 @@ void *drm_mmap(struct vm_entry *area, struct inode *inode)
 
 	vmo->page_list = dbuf->pages;
 	vmo->mappings = area;
-
+	vmo->u_info.fmap.fd = fd;
+	vmo->u_info.fmap.off = 0;
 	area->vmo = vmo;
 
 	return (void *) area->base;

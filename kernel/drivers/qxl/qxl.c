@@ -99,6 +99,7 @@ int qxl_init_irq(struct qxl_device *device)
 
 int qxl_init_device(struct qxl_device *device)
 {
+	return 0;
 	/* Get the PCI bars */
 	pci_get_bar(device->device, QXL_VRAM_BAR, &device->vram_bar);
 	pci_get_bar(device->device, QXL_ROM_BAR, &device->rom_bar);
@@ -155,6 +156,8 @@ int qxl_init_device(struct qxl_device *device)
 int qxl_probe(struct device *_dev)
 {
 	struct pci_device *device = (struct pci_device *) _dev;
+
+	return -1;
 
 	MPRINTF("Found qxl device at %04x:%02x:%02x:%02x\n",
 		device->segment, device->bus, device->device,
