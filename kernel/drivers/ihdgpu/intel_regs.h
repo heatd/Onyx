@@ -7,7 +7,14 @@
 #ifndef _INTEL_REGS_H
 #define _INTEL_REGS_H
 
+/* Haswell PWR_WELL_CTL */
+#define PWR_WELL_CTL_PW_REQ		(1U << 31)
+#define PWR_WELL_CTL_PW_STATE		(1U << 30)
+
+#define PWR_WELL_CTL1			0x45404
 #define PWR_WELL_CTL2			0x45404
+
+/* Skylake PWR_WELL_CTL */
 #define PWR_WELL_CTL_MISC_IO_STATE	(1 << 0)
 #define PWR_WELL_CTL_MISC_IO_PWREQ	(1 << 1)
 #define PWR_WELL_CTL_DDIA_E_STATE	(1 << 2)
@@ -120,5 +127,74 @@
 #define DP_AUX_I2C_WRITE		0x0
 #define DP_AUX_I2C_READ			0x1
 
+#define LCPLL_CTL			0x130040
+
+#define LCPLL_CTL_HSW_PLL_DISABLE		(1U << 31)
+#define LCPLL_CTL_HSW_PLL_LOCK			(1 << 30)
+#define LCPLL_CTL_HSW_NON_SSC			(0 << 28)
+#define LCPLL_CTL_HSW_CDCLK_450MHZ		(00 << 26)
+#define LCPLL_CTL_HSW_CDCLK_ALTERNATE		(01 << 26)
+#define LCPLL_CTL_HSW_CDCLK_DISABLE		(1 << 25)
+#define LCPLL_CTL_HSW_ROOT_CD2X_CLK_DISABLE	(1 << 24)
+#define LCPLL_CTL_HSW_CD2X_CLK_DISABLE		(1 << 23)
+#define LCPLL_CTL_HSW_DISPLAY_PWR_DWN_ALLOW	(1 << 22)
+#define LCPLL_CTL_HSW_CD_SOURCE_SELECT_FCLK	(1 << 21)
+#define LCPLL_CTL_HSW_CD_SOURCE_SWITCHING	(1 << 20)
+#define LCPLL_CTL_HSW_CD_SOURCE_FCLK		(1 << 19)
+#define LCPLL_CTL_HSW_WRITE_ONCE_DEV3_SID	(1 << 5)
+#define LCPLL_CTL_HSW_WRITE_ONCE_DEV3_SVID	(1 << 4)
+#define LCPLL_CTL_HSW_WRITE_ONCE_DEV3_NEXT	(1 << 3)
+#define LCPLL_CTL_HSW_WRITE_ONCE_DEV2_SUBID	(1 << 2)
+#define LCPLL_CTL_HSW_WRITE_ONCE_DEV2_SUBVID	(1 << 1)
+#define LCPLL_CTL_HSW_WRITE_ONCE_DEV2_SMISCISEL	(1 << 0)
+
+#define PP_STATUS				0xC7200
+#define PP_STATUS_HSW_PANEL_PWRON_STATUS	(1U << 31)
+#define PP_STATUS_HSW_POWERING_UP		(1 << 28)
+#define PP_STATUS_HSW_POWERING_DOWN		(1 << 29)
+#define PP_STATUS_HSW_NONE			0
+#define PP_STATUS_HSW_POWER_SEQUENCE_MASK	(1 << 29) | (1 << 28)
+#define PP_STATUS_HSW_POWER_CYCLE_DELAY_ACTIVE	(1 << 27)
+
+#define PP_STATUS				0xC7204
+
+#define PP_STATUS_HSW_VDD_OVERRIDE		(1 << 3)
+#define PP_STATUS_HSW_BACKLIGHT_ENABLE		(1 << 2)
+#define PP_STATUS_HSW_POWER_DOWN_ON_RESET	(1 << 1)
+#define PP_STATUS_HSW_POWER_STATE_TARGET_ON	(1 << 0)
+
+
+/* Reminder: The below regs are named TRANS_* in Gen > HSW */
+#define PIPE_HTOTAL				0x60000
+#define PIPE_HBLANK				0x60004
+#define PIPE_HSYNC				0x60008
+#define PIPE_VTOTAL				0x6000C
+#define PIPE_VBLANK				0x60010
+#define PIPE_VSYNC				0x60014
+/* TRANS_* ends here */
+
+#define PIPE_SRCSZ				0x6001C
+/* Values to help determine specific pipe regs (add pipe_idx * offset
+ * to the above register values
+*/
+#define PIPE_OFFSET_PER_PIPE			0x01000
+/* PIPE_EDP has completely separate registers */
+#define PIPE_OFFSET_EDP				0x0f000
+
+
+#define PIPE_HTOTAL_HACTIVE_MASK		(0xfff)
+#define PIPE_HTOTAL_HTOTAL_SHIFT		16
+#define PIPE_HBLANK_START_MASK			(0xfff)
+#define PIPE_HBLANK_END_SHIFT			16
+#define PIPE_HSYNC_START_MASK			(0xfff)
+#define PIPE_HSYNC_END_SHIFT			16
+#define PIPE_VTOTAL_VACTIVE_MASK		(0xfff)
+#define PIPE_VTOTAL_VTOTAL_SHIFT		16
+#define PIPE_VBLANK_START_MASK			(0xfff)
+#define PIPE_VBLANK_END_SHIFT			16
+#define PIPE_VSYNC_START_MASK			(0xfff)
+#define PIPE_VSYNC_END_SHIFT			16
+#define PIPE_SRCSZ_VERT_MASK			(0xfff)
+#define PIPE_SRCSZ_HORIZ_SHIFT			16
 
 #endif

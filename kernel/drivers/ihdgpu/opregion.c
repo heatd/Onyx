@@ -52,6 +52,8 @@ int igd_validate_opregion(struct igpu_device *dev)
 	return 0;
 }
 
+int igd_parse_vbt(struct igpu_device *dev);
+
 int igd_opregion_init(struct igpu_device *dev)
 {
 	if(igd_get_opregion(dev) < 0)
@@ -71,6 +73,12 @@ int igd_opregion_init(struct igpu_device *dev)
 	if(igd_is_valid_vbt(dev, header) < 0)
 	{
 		printk("igd: Invalid VBT.\n");
+		return -1;
+	}
+
+	if(igd_parse_vbt(dev) < 0)
+	{
+		printk("igd_parse_vbt failed\n");
 		return -1;
 	}
 

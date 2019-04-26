@@ -67,7 +67,16 @@ int igpu_wait_bit(struct igpu_device *dev, uint32_t reg, uint32_t mask,
 }
 
 struct igpu_driver_data igpu_default_priv = {
-	.has_gmch_display = false
+	.has_gmch_display = false,
+	.enable_power = igd_enable_power_skylake,
+	.architecture = INTEL_ARCH_SKYLAKE
+};
+
+struct igpu_driver_data igpu_haswell_priv = 
+{
+	.has_gmch_display = false,
+	.enable_power = igd_enable_power_haswell,
+	.architecture = INTEL_ARCH_HASWELL
 };
 
 struct pci_id ihdgpu_pci_ids[] = 
@@ -89,7 +98,7 @@ struct pci_id ihdgpu_pci_ids[] =
 	{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x191e, &igpu_default_priv) },
 	{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x1921, &igpu_default_priv) },
 	{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x591d, &igpu_default_priv) },
-	{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x0a16, &igpu_default_priv) },
+	{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x0a16, &igpu_haswell_priv) },
 	{0}
 };
 
@@ -172,6 +181,31 @@ int ihdgpu_probe(struct device *dev)
 		printk("igd: igd_init_displayport failed\n");
 		free(d);
 		return -1;
+	}
+
+	if(igd_init_pipes(d) < 0)
+	{
+		printk("igd: igd_init_pipes failed\n");
+		free(d);
+		return -1;
+	}
+
+	if(igd_init_transcoders(d) < 0)
+	{
+		printk("igd: igd_init_transcoders failed\n");
+		free(d);
+		return -1;
+	}
+
+	if(d->lfp_data)
+	{
+		/* If eDP/LVDS is present, connect DDI_A to PIPE_A to TRANS_eDP */
+		struct igd_displayport *ddia = d->dports[DDI_A];
+		
+		ddia->pipe = d->pipes[PIPE_A];
+		ddia->pipe->transcoder = d->transcoders[TRANS_EDP];
+
+		igd_update_pipe_mode(ddia->pipe, d);
 	}
 
 	return 0;

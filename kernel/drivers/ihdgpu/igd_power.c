@@ -9,7 +9,7 @@
 #include "intel_regs.h"
 #include "igpu_drv.h"
 
-int igd_enable_power_well1(struct igpu_device *dev)
+int igd_enable_power_well1_skylake(struct igpu_device *dev)
 {
 	uint32_t pwr_well_ctl = igpu_mmio_read(dev, PWR_WELL_CTL2);
 
@@ -20,11 +20,36 @@ int igd_enable_power_well1(struct igpu_device *dev)
 
 	if(igpu_wait_bit(dev, FUSE_STATUS, FUSE_STATUS_PG1_DISTRIB_STATUS, 1, false) < 0)
 		return -ETIMEDOUT;
-	
+
 	return 0;
 }
 
-int igd_enable_power_well2(struct igpu_device *dev)
+int igd_enable_power_well1_haswell(struct igpu_device *dev)
+{
+	uint32_t pwr_well_ctl = igpu_mmio_read(dev, PWR_WELL_CTL1);
+
+	igpu_mmio_write(dev, PWR_WELL_CTL1, pwr_well_ctl | PWR_WELL_CTL_PW_REQ);
+
+	if(igpu_wait_bit(dev, PWR_WELL_CTL1, PWR_WELL_CTL_PW_STATE, 10, false) < 0)
+		return -ETIMEDOUT;
+
+	return 0;
+}
+
+int igd_enable_power_well2_haswell(struct igpu_device *dev)
+{
+	uint32_t pwr_well_ctl = igpu_mmio_read(dev, PWR_WELL_CTL2);
+
+	igpu_mmio_write(dev, PWR_WELL_CTL2, pwr_well_ctl | PWR_WELL_CTL_PW_REQ);
+
+	if(igpu_wait_bit(dev, PWR_WELL_CTL2, PWR_WELL_CTL_PW_STATE, 10, false) < 0)
+		return -ETIMEDOUT;
+
+	return 0;
+}
+
+
+int igd_enable_power_well2_skylake(struct igpu_device *dev)
 {
 	uint32_t pwr_well_ctl = igpu_mmio_read(dev, PWR_WELL_CTL2);
 
@@ -33,9 +58,12 @@ int igd_enable_power_well2(struct igpu_device *dev)
 	if(igpu_wait_bit(dev, PWR_WELL_CTL2, PWR_WELL_CTL_PW2_STATE, 1, false) < 0)
 		return -ETIMEDOUT;
 
-	printk("Working til here, fuse status %x\n", igpu_mmio_read(dev, FUSE_STATUS));
-	if(igpu_wait_bit(dev, FUSE_STATUS, FUSE_STATUS_PG2_DISTRIB_STATUS, 1, false) < 0)
-		return -ETIMEDOUT;
+	if(igd_get_arch(dev) == INTEL_ARCH_SKYLAKE)
+	{
+		printk("Working til here, fuse status %x\n", igpu_mmio_read(dev, FUSE_STATUS));
+		if(igpu_wait_bit(dev, FUSE_STATUS, FUSE_STATUS_PG2_DISTRIB_STATUS, 1, false) < 0)
+			return -ETIMEDOUT;
+	}
 	
 	return 0;
 }
@@ -63,7 +91,7 @@ int igd_enable_ddi(struct igpu_device *dev)
 	return 0;
 }
 
-int igd_enable_power(struct igpu_device *dev)
+int igd_enable_power_skylake(struct igpu_device *dev)
 {
 	/* TODO: Fuse status + most power wells under this only apply to
 	 * skylake, add haswell support. */
@@ -77,14 +105,14 @@ int igd_enable_power(struct igpu_device *dev)
 		return -ETIMEDOUT;
 	}
 
-	st = igd_enable_power_well1(dev);
+	st = igd_enable_power_well1_skylake(dev);
 	if(st < 0)
 	{
 		printk("PG1 timeout\n");
 		return st;
 	}
 
-	st = igd_enable_power_well2(dev);
+	st = igd_enable_power_well2_skylake(dev);
 
 	if(st < 0)
 	{
@@ -101,4 +129,34 @@ int igd_enable_power(struct igpu_device *dev)
 	}
 
 	return 0;
+}
+
+int igd_enable_power_haswell(struct igpu_device *dev)
+{
+	igpu_mmio_write(dev, NDE_RSTWRN_OPT, NDE_RST_PCH_HANDSHAKE_ENABLE);
+	int st;
+
+	st = igd_enable_power_well1_haswell(dev);
+	if(st < 0)
+	{
+		printk("PG1 timeout\n");
+		return st;
+	}
+
+	st = igd_enable_power_well2_haswell(dev);
+
+	if(st < 0)
+	{
+		printk("PG2 timeout\n");
+		return st;
+	}
+}
+
+int igd_enable_power(struct igpu_device *dev)
+{
+	struct igpu_driver_data *data = dev->device->driver_data;
+
+	assert(data->enable_power != NULL);
+
+	return data->enable_power(dev);
 }

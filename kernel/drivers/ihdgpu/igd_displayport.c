@@ -51,34 +51,48 @@ int ddaux_do_transfer(struct i2c_adapter *adapter,
 	}
 
 	uint32_t ddaux_ctl = 0;
-	printk("Size: %u\n", size);
 
 	ddaux_ctl |= DDI_AUX_CTL_MESSAGE_SIZE(size);
 	ddaux_ctl |= DDI_AUX_CTL_TIMEOUT_1600US;
 	ddaux_ctl |= DDI_AUX_CTL_DONE;
 	ddaux_ctl |= DDI_AUX_CTL_RECIEVE_ERROR;
+	ddaux_ctl |= DDI_AUX_CTL_TIMEOUT_ERROR;
 	ddaux_ctl |= DDI_AUX_CTL_SEND_BUSY;
 	ddaux_ctl |= DDI_AUX_CTL_IRQ_ON_DONE; /* 1 means disabled */
-	ddaux_ctl |= 0b1111;
+	ddaux_ctl |= 225;
+
+	printk("Writing ddaux %x\n", ddaux_ctl);
 
 	igpu_mmio_write(port->device, port->ctl_reg, ddaux_ctl);
 
-	sched_sleep(1);
-
-	ddaux_ctl = igpu_mmio_read(port->device, port->ctl_reg);
-
-	if(ddaux_ctl & DDI_AUX_CTL_TIMEOUT_ERROR)
+	for(int i = 0; i < 1000; i++)
 	{
-		printk("Timed out\n");
-		return 0;
+		ddaux_ctl = igpu_mmio_read(port->device, port->ctl_reg);
+
+		if(!(ddaux_ctl & DDI_AUX_CTL_SEND_BUSY))
+		{
+			if(ddaux_ctl & DDI_AUX_CTL_TIMEOUT_ERROR)
+			{
+				printk("Timed out\n");
+				printk("DDAUX_CTL: %x\n", ddaux_ctl);
+				return 0;
+			}
+
+			if(ddaux_ctl & DDI_AUX_CTL_RECIEVE_ERROR)
+			{
+				printk("Recieve error\n");
+				return 0;
+			}
+
+			if(!(ddaux_ctl & DDI_AUX_CTL_DONE))
+				continue;
+
+			break;
+		}
+
+		sched_sleep(1);	
 	}
 
-	if(ddaux_ctl & DDI_AUX_CTL_RECIEVE_ERROR)
-	{
-		printk("Recieve error\n");
-		return 0;
-
-	}
 	printk("DDAUX status: %x\n", igpu_mmio_read(port->device, port->ctl_reg));
 
 	uint16_t msg_size = igpu_mmio_read(port->device, port->ctl_reg) >> 20;
@@ -159,6 +173,7 @@ int igd_init_displayport(struct igpu_device *dev)
 		struct i2c_message message;
 		message.addr = 0x50;
 		message.buffer = (uint8_t *) &edid;
+		message.length = sizeof(struct i2c_message);
 		message.transfered = 0;
 		message.write = false;
 	

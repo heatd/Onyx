@@ -1,0 +1,52 @@
+syntax.o: syntax.c ../config.h shell.h \
+ /home/pfalcato/Onyx/sysroot/usr/include/sys/param.h \
+ /home/pfalcato/Onyx/sysroot/usr/include/sys/resource.h \
+ /home/pfalcato/Onyx/sysroot/usr/include/features.h \
+ /home/pfalcato/Onyx/sysroot/usr/include/sys/time.h \
+ /home/pfalcato/Onyx/sysroot/usr/include/sys/select.h \
+ /home/pfalcato/Onyx/sysroot/usr/include/bits/alltypes.h \
+ /home/pfalcato/Onyx/sysroot/usr/include/bits/resource.h \
+ /home/pfalcato/Onyx/sysroot/usr/include/endian.h \
+ /home/pfalcato/Onyx/sysroot/usr/include/stdint.h \
+ /home/pfalcato/Onyx/sysroot/usr/include/bits/stdint.h \
+ /home/pfalcato/opt/x86_64-onyx/lib/gcc/x86_64-onyx/7.1.0/include-fixed/limits.h \
+ /home/pfalcato/opt/x86_64-onyx/lib/gcc/x86_64-onyx/7.1.0/include-fixed/syslimits.h \
+ /home/pfalcato/Onyx/sysroot/usr/include/limits.h \
+ /home/pfalcato/Onyx/sysroot/usr/include/bits/limits.h syntax.h \
+ /home/pfalcato/Onyx/sysroot/usr/include/ctype.h
+
+../config.h:
+
+shell.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/sys/param.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/sys/resource.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/features.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/sys/time.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/sys/select.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/bits/alltypes.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/bits/resource.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/endian.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/stdint.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/bits/stdint.h:
+
+/home/pfalcato/opt/x86_64-onyx/lib/gcc/x86_64-onyx/7.1.0/include-fixed/limits.h:
+
+/home/pfalcato/opt/x86_64-onyx/lib/gcc/x86_64-onyx/7.1.0/include-fixed/syslimits.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/limits.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/bits/limits.h:
+
+syntax.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/ctype.h:
