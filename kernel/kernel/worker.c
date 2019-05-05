@@ -44,7 +44,8 @@ void worker_init(void)
 	if(!(worker = sched_create_thread(work_do_work, 1, NULL)))
 		panic("worker_init: Could not create the worker thread!\n");
 	worker->priority = 20;
-	thread_set_state(worker, THREAD_BLOCKED);
+
+	sched_block(worker);
 }
 
 int worker_schedule(struct work_request *work, int priority)

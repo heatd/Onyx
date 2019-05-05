@@ -3621,11 +3621,11 @@ static void internal_malloc_stats(mstate m) {
       B->fd = F;\
     }\
     else {\
-      CORRUPTION_ERROR_ACTION(M);\
+      CORRUPTION_ERROR_ACTION(B);\
     }\
   }\
   else {\
-    CORRUPTION_ERROR_ACTION(M);\
+    CORRUPTION_ERROR_ACTION(F);\
   }\
 }
 

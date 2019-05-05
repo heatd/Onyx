@@ -110,6 +110,12 @@ void sched_enable_preempt_for_cpu(struct processor *cpu);
 
 void sched_disable_preempt_for_cpu(struct processor *cpu);
 
+void sched_block(struct thread *thread);
+
+void __sched_block(struct thread *thread);
+
+void sched_lock(struct thread *thread);
+
 static inline bool sched_needs_resched(struct thread *thread)
 {
 	return thread->flags & THREAD_NEEDS_RESCHED;
@@ -126,8 +132,10 @@ do							\
 {							\
 	struct thread *__t = get_current_thread();	\
 	assert(__t != NULL);				\
+	spin_lock_irqsave(&__t->lock);			\
 	__t->status = state;				\
 	__sync_synchronize();				\
+	spin_unlock_irqrestore(&__t->lock);		\
 } while(0);
 
 #ifdef __cplusplus

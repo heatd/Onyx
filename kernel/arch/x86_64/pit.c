@@ -71,16 +71,11 @@ void pit_init_oneshot(uint32_t frequency)
 
 	/* Send the command */
 	outb(PIT_COMMAND_REG, command);
-	io_wait();
 
 	/* Set the divisor */
 	outb(PIT_CHANNEL0_DATA, divisor & 0xFF);
-	io_wait();
 
 	outb(PIT_CHANNEL0_DATA, divisor >> 8);
-	io_wait();
-
-	assert(install_irq(0, pit_irq, &pit_dev, 0, NULL) == 0);
 }
 
 void pit_send_readback(uint8_t channels, bool count, bool status)
@@ -107,8 +102,6 @@ void pit_wait_for_oneshot(void)
 		pit_send_readback(PIT_READBACK_CHANNEL0, false, true);
 		status = inb(PIT_CHANNEL0_DATA);
 	} while(!(status & PIT_STATUS_OUTPUT_HIGH));
-
-	free_irq(0, &pit_dev);
 }
 
 uint64_t pit_get_tick_count(void)

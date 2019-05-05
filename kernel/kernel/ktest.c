@@ -39,7 +39,9 @@ void sem_test_mtx(void *ctx)
 {
 	while(true)
 	{
-		printk("B");
+		mutex_lock(&mtx);
+		//printk("B");
+		mutex_unlock(&mtx);
 	}
 }
 
@@ -51,7 +53,10 @@ void mutex_test(void)
 
 	while(true)
 	{
-		printk("A");
+		mutex_lock(&mtx);
+		//printk("A");
+		mutex_unlock(&mtx);
+		printk("ping");
 	}
 
 }

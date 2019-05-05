@@ -22,6 +22,7 @@
 #include <onyx/process.h>
 #include <onyx/clock.h>
 #include <onyx/vm.h>
+#include <onyx/clock.h>
 
 volatile uint32_t *bsp_lapic = NULL;
 volatile uint64_t ap_done = 0;
@@ -315,6 +316,78 @@ struct device apic_timer_dev =
 	.name = "apic-timer"
 };
 
+struct calibration_context
+{
+	uint64_t init_tsc;
+	uint64_t end_tsc;
+	uint32_t ticks_in_10ms;
+};
+
+struct calibration_context calib = {0};
+
+void apic_calibration_setup_count(void)
+{
+	/* 0xFFFFFFFF shouldn't overflow in 10ms */
+	lapic_write(bsp_lapic, LAPIC_TIMER_INITCNT, 0xFFFFFFFF);
+
+	calib.init_tsc = rdtsc();
+}
+
+void apic_calibration_end(void)
+{
+	calib.end_tsc = rdtsc();
+	/* Get the ticks that passed in 10ms */
+	uint32_t ticks_in_10ms = 0xFFFFFFFF - lapic_read(bsp_lapic, LAPIC_TIMER_CURRCNT);
+	calib.ticks_in_10ms = ticks_in_10ms;
+}
+
+bool apic_calibrate_acpi(void)
+{
+	UINT32 u;
+	ACPI_STATUS st = AcpiGetTimer(&u);
+
+	/* Test if the timer exists first */
+	if(ACPI_FAILURE(st))
+		return false;
+
+	INFO("apic", "using the ACPI PM timer for timer calibration\n");
+
+	struct clocksource *timer = &acpi_timer_source;
+
+	uint64_t start = timer->get_ticks();
+	apic_calibration_setup_count();
+
+	/* 10ms in ns */
+	const unsigned int needed_interval = 10000000;
+
+	/* Do a busy loop to minimize latency */
+	while(timer->elapsed_ns(start, timer->get_ticks()) < needed_interval)
+	{
+	}
+
+	apic_calibration_end();
+
+	return true;
+}
+
+void apic_calibrate_pit(void)
+{
+	INFO("apic", "using the PIT timer for timer calibration\n");
+	pit_init_oneshot(100);
+
+	apic_calibration_setup_count();
+
+	pit_wait_for_oneshot();
+
+	apic_calibration_end();
+}
+
+void apic_calibrate(void)
+{
+	if(apic_calibrate_acpi() == false)
+		apic_calibrate_pit();
+}
+
 void apic_timer_init(void)
 {
 	driver_register_device(&apic_driver, &apic_timer_dev);
@@ -323,38 +396,26 @@ void apic_timer_init(void)
 	lapic_write(bsp_lapic, LAPIC_TIMER_DIV, 3);
 
 	printf("apic: calculating APIC timer frequency\n");
-	
-	/* Initialize the PIT to 100 hz oneshot */
-	pit_init_oneshot(100);
 
-	/* 0xFFFFFFFF shouldn't overflow in 10ms */
-	lapic_write(bsp_lapic, LAPIC_TIMER_INITCNT, 0xFFFFFFFF);
+	apic_calibrate();
 
-	/* Use this moment to calculate the approx. tsc frequency too */
-	uint64_t tsc = rdtsc();
-
-	/* Wait for the 10 ms */
-	pit_wait_for_oneshot();
-
-	uint64_t end = rdtsc();
-	/* Get the ticks that passed in 10ms */
-	uint32_t ticks_in_10ms = 0xFFFFFFFF - lapic_read(bsp_lapic, LAPIC_TIMER_CURRCNT); 
-	
 	lapic_write(bsp_lapic, LAPIC_LVT_TIMER, LAPIC_TIMER_IVT_MASK);
 	
-	/* Initialize the APIC timer with IRQ2, periodic mode and an init count of ticks_in_10ms/10(so we get a rate of 1000hz)*/
+	/* Initialize the APIC timer with IRQ2, periodic mode and an init count of
+	 * ticks_in_10ms/10(so we get a rate of 1000hz)
+	*/
 	lapic_write(bsp_lapic, LAPIC_TIMER_DIV, 3);
 
-	apic_rate = ticks_in_10ms / 10;
+	apic_rate = calib.ticks_in_10ms / 10;
 
 	printf("apic: apic timer rate: %lu\n", apic_rate);
 	us_apic_rate = apic_rate / 1000;
 
 	DISABLE_INTERRUPTS();
 	lapic_write(bsp_lapic, LAPIC_LVT_TIMER, 34 | LAPIC_LVT_TIMER_MODE_PERIODIC);
-	lapic_write(bsp_lapic, LAPIC_TIMER_INITCNT, ticks_in_10ms / 10);
+	lapic_write(bsp_lapic, LAPIC_TIMER_INITCNT, calib.ticks_in_10ms / 10);
 
-	x86_set_tsc_rate(clock_delta_calc(tsc, end) * 100);
+	x86_set_tsc_rate(clock_delta_calc(calib.init_tsc, calib.end_tsc) * 100);
 
 	/* Install an IRQ handler for IRQ2 */
 	

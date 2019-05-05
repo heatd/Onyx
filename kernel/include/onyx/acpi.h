@@ -71,6 +71,8 @@ void acpi_bus_register_driver(struct driver *driver);
 ACPI_RESOURCE *acpi_get_resource(struct acpi_device *device, uint32_t type,
 	unsigned int index);
 
+extern struct clocksource acpi_timer_source;
+
 #ifdef __cplusplus
 }
 #endif

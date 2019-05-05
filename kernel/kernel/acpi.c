@@ -555,7 +555,6 @@ uint64_t acpi_timer_get_ticks(void)
 
 unsigned int acpi_timer_get_elapsed_ns(uint64_t _old_ticks, uint64_t _new_ticks)
 {
-
 	/* Forced to rewrite this because AcpiGetTimerDuration works with 
 	 * microseconds instead of nanoseconds like we want
 	*/

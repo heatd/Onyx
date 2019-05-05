@@ -276,6 +276,8 @@ retry:;
 	return 0;
 }
 
+static thread_t *new_thread;
+
 void kernel_multitasking(void *);
 __attribute__((no_sanitize_undefined))
 void kernel_main()
@@ -314,7 +316,7 @@ void kernel_main()
 		panic("sched: failed to initialize!");
 
 	/* Initalize multitasking */
-	thread_t *new_thread = sched_create_thread(kernel_multitasking, 1, NULL);
+	new_thread = sched_create_thread(kernel_multitasking, 1, NULL);
 
 	assert(new_thread);
 

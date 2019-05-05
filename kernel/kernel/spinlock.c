@@ -17,11 +17,13 @@ __attribute__((always_inline))
 static inline void post_lock_actions(struct spinlock *lock)
 {
 	lock->holder = (unsigned long) __builtin_return_address(1);
+	lock->owner_cpu = get_cpu_num();
 }
 
 static inline void post_release_actions(struct spinlock *lock)
 {
 	lock->holder = 0xDEADBEEFDEADBEEF;
+	lock->owner_cpu = (unsigned long) -1;
 }
 
 
@@ -36,20 +38,19 @@ void spin_lock_preempt(struct spinlock *lock)
 			break;
 	}
 
-	__sync_synchronize();
-
 	post_lock_actions(lock);
+	__sync_synchronize();
 }
 
 void spin_unlock_preempt(struct spinlock *lock)
 {
 	assert(lock->lock > 0);
 
-	lock->lock = 0;
+	post_release_actions(lock);
+
+	__sync_bool_compare_and_swap(&lock->lock, 1, 0);
 
 	__sync_synchronize();
-
-	post_release_actions(lock);
 }
 
 void spin_lock(struct spinlock *lock)

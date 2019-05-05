@@ -248,7 +248,7 @@ struct processor
 #endif
 	atomic_size_t active_threads;
 	thread_t *thread_queues[NUM_PRIO];
-	struct spinlock queue_locks[NUM_PRIO];
+	struct spinlock scheduler_lock;
 	size_t sched_quantum;
 	thread_t *current_thread;
 	struct spinlock outgoing_msg_lock;

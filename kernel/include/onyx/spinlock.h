@@ -7,6 +7,7 @@
 #define _KERNEL_SPINLOCK_H
 
 #include <stdbool.h>
+#include <assert.h>
 
 #include <onyx/x86/irq.h>
 
@@ -15,6 +16,7 @@ struct spinlock
 	unsigned long lock;
 	unsigned long waiters;
 	unsigned long holder;
+	unsigned long owner_cpu;
 	unsigned long old_flags;
 };
 
@@ -43,6 +45,15 @@ static inline void spin_unlock_irqrestore(struct spinlock *lock)
 	spin_unlock_preempt(lock);
 	irq_restore(lock->old_flags);
 }
+
+int get_cpu_num(void);
+
+static inline bool spin_lock_held(struct spinlock *lock)
+{
+	return lock->lock == 1 && lock->owner_cpu == (unsigned long) get_cpu_num();
+}
+
+#define MUST_HOLD_LOCK(lock)		assert(spin_lock_held(lock) != false)
 
 #ifdef __cplusplus
 }
