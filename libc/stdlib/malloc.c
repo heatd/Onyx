@@ -24,7 +24,6 @@ void heap_set_start(uintptr_t start)
 	heap_limit = heap + 0x400000;
 }
 
-
 int heap_expand(void)
 {
 	/* Allocate 256 pages */
@@ -52,6 +51,13 @@ void *sbrk(intptr_t increment)
 			}
 		}
 	}
+
+	if(increment < 0)
+	{
+		size_t decrement = -increment;
+		memset((char *) heap - decrement, 0, decrement);
+	}
+
 	void *ret = heap;
 	heap += increment;
 

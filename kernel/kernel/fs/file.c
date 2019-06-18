@@ -179,6 +179,7 @@ static struct inode *try_to_open(struct inode *base, const char *filename, int f
 
 int do_sys_open(const char *filename, int flags, mode_t mode, struct inode *rel)
 {
+	//printk("Open(%s)\n", filename);
 	/* This function does all the open() work, open(2) and openat(2) use this */
 	ioctx_t *ioctx = &get_current_process()->ctx;
 	struct inode *base = get_fs_base(filename, rel);
@@ -216,7 +217,7 @@ int do_sys_open(const char *filename, int flags, mode_t mode, struct inode *rel)
 
 int sys_open(const char *filename, int flags, mode_t mode)
 {
-	if(!vm_is_mapped((char*) filename))
+	if(!vm_find_region((char*) filename))
 		return -EFAULT;
 	/* open(2) does relative opens using the current working directory */
 	return do_sys_open(filename, flags, mode, get_current_process()->ctx.cwd);
@@ -290,9 +291,16 @@ int sys_dup2(int oldfd, int newfd)
 
 	if(ioctx->file_desc[newfd])
 		sys_close(newfd);
+
+	mutex_lock(&ioctx->fdlock);
+
 	ioctx->file_desc[newfd] = ioctx->file_desc[oldfd];
+	file_desc_t *desc = ioctx->file_desc[newfd];
+
+	desc->refcount++;
 	object_ref(&ioctx->file_desc[newfd]->vfs_node->i_object);
 
+	mutex_unlock(&ioctx->fdlock);
 	return newfd;
 }
 
@@ -349,11 +357,14 @@ ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt)
 		return 0;
 	if(!ctx->file_desc[fd]->flags & O_WRONLY)
 		return errno =-EBADF;
+	
+	
 	for(int i = 0; i < veccnt; i++)
 	{
 		if(vec[i].iov_len == 0)
 			continue;
-		size_t written = write_vfs(ctx->file_desc[fd]->seek, vec[i].iov_len, vec[i].iov_base, ctx->file_desc[fd]->vfs_node);
+		size_t written = write_vfs(ctx->file_desc[fd]->seek,
+			vec[i].iov_len, vec[i].iov_base, ctx->file_desc[fd]->vfs_node);
 		if(written == (size_t) -1)
 			return -errno;
 
@@ -483,11 +494,11 @@ off_t sys_lseek(int fd, off_t offset, int whence)
 
 int sys_mount(const char *source, const char *target, const char *filesystemtype, unsigned long mountflags, const void *data)
 {
-	if(!vm_is_mapped((void*) source))
+	if(!vm_find_region((void*) source))
 		return errno =-EINVAL;
-	if(!vm_is_mapped((void*) target))
+	if(!vm_find_region((void*) target))
 		return errno =-EINVAL;
-	if(!vm_is_mapped((void*) filesystemtype))
+	if(!vm_find_region((void*) filesystemtype))
 		return errno =-EINVAL;
 	/* Find the 'filesystemtype's handler */
 	filesystem_mount_t *fs = find_filesystem_handler(filesystemtype);
@@ -636,7 +647,7 @@ int do_sys_stat(const char *pathname, struct stat *buf, int flags, struct inode 
 
 int sys_stat(const char *pathname, struct stat *buf)
 {
-	if(!vm_is_mapped((void*) pathname))
+	if(!vm_find_region((void*) pathname))
 		return errno = -EFAULT;
 	if(vm_check_pointer(buf, sizeof(struct stat)) < 0)
 		return errno = -EFAULT;
@@ -656,7 +667,7 @@ int sys_fstat(int fd, struct stat *buf)
 
 int sys_chdir(const char *path)
 {
-	if(!vm_is_mapped((void*) path))
+	if(!vm_find_region((void*) path))
 		return errno = -EFAULT;
 	struct inode *base = get_fs_base(path, get_current_directory());
 	struct inode *dir = open_vfs(base, path);
@@ -701,7 +712,7 @@ int sys_getcwd(char *path, size_t size)
 
 int sys_openat(int dirfd, const char *path, int flags, mode_t mode)
 {
-	if(!vm_is_mapped((void*) path))
+	if(!vm_find_region((void*) path))
 		return -EFAULT;
 	struct inode *dir;
 	if(validate_fd(dirfd) < 0 && dirfd != AT_FDCWD)
@@ -717,7 +728,7 @@ int sys_openat(int dirfd, const char *path, int flags, mode_t mode)
 
 int sys_fstatat(int dirfd, const char *pathname, struct stat *buf, int flags)
 {
-	if(!vm_is_mapped((void*) pathname))
+	if(!vm_find_region((void*) pathname))
 		return errno = -EFAULT;
 	if(vm_check_pointer(buf, sizeof(struct stat)) < 0)
 		return errno = -EFAULT;
@@ -739,7 +750,7 @@ int sys_fmount(int fd, const char *path)
 {
 	if(validate_fd(fd) < 0)
 		return -EBADF;
-	if(!vm_is_mapped((void*) path))
+	if(!vm_find_region((void*) path))
 		return errno = -EFAULT;
 	return mount_fs(get_file_description(fd)->vfs_node, path);
 }

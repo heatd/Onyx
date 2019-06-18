@@ -31,7 +31,7 @@ struct vm_object
 	struct page * (*commit)(size_t off, struct vm_object *vmo);
 
 	/* VM objects hold a pointer to their mapping(s) */
-	struct vm_entry *mappings;
+	struct vm_region *mappings;
 
 	/* We also hold a pointer to their COW clones */
 	struct vm_object *cow_clone_parent, *cow_clone_child;

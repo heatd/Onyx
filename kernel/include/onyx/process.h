@@ -108,6 +108,9 @@ struct process
 
 	struct cond syscall_cond;
 	struct mutex condvar_mutex;
+
+	struct spinlock children_lock;
+	struct process *children, *prev_sibbling, *next_sibbling;
 };
 
 #ifdef __cplusplus

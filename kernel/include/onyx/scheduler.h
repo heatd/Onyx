@@ -59,6 +59,7 @@ typedef struct thread
 
 #define THREAD_KERNEL		(1 << 0)
 #define THREAD_NEEDS_RESCHED	(1 << 1)
+#define THREAD_IS_DYING		(1 << 2)
 
 #ifdef __cplusplus
 extern "C" {

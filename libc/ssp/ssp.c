@@ -19,6 +19,8 @@
 #include <stdlib.h>
 #ifdef __is_onyx_kernel
 #include <onyx/panic.h>
+#include <onyx/random.h>
+
 #endif
 #include <math.h>
 #include <fcntl.h>
@@ -48,8 +50,6 @@ void __initialize_ssp()
 	#endif
 
 }
-
-void arc4random_buf(void* buffer_ptr, size_t size);
 
 void randomize_stack_canary(void)
 {

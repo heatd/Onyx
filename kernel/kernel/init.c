@@ -173,7 +173,8 @@ void *process_setup_auxv(void *buffer, struct process *process);
 extern PML4 *current_pml4;
 int find_and_exec_init(char **argv, char **envp)
 {
-	char *path = "/sbin/init";
+	char *path = strdup("/sbin/init");
+	assert(path != NULL);
 retry:;
 	struct inode *in = open_vfs(get_fs_root(), path);
 	if(!in)
@@ -193,9 +194,7 @@ retry:;
 		return errno = ENOMEM, -1;
 
 	proc->address_space.cr3 = get_current_pml4();
-	proc->address_space.tree = NULL;
  
-	get_current_thread()->owner = proc;
 	/* Setup stdio */
 	proc->ctx.file_desc[0] = malloc(sizeof(file_desc_t));
 	if(!proc->ctx.file_desc[0])
@@ -244,10 +243,12 @@ retry:;
 	args.argv = argv;
 	args.envp = envp;
 
+	get_current_thread()->owner = proc;
+
+
+	assert(vm_create_address_space(proc, proc->address_space.cr3) == 0);
+
 	struct process *current = get_current_process();
-	current->address_space.brk = map_user(vm_gen_brk_base(), 0x20000000, VM_TYPE_HEAP,
-	VM_WRITE | VM_NOEXEC | VM_USER);
-	current->address_space.mmap_base = vm_gen_mmap_base();
 
 	/* Finally, load the binary */
 	void *entry = load_binary(&args);
@@ -265,6 +266,7 @@ retry:;
 	regs->rcx = (uintptr_t) auxv;
 	
 	uintptr_t *fs = get_user_pages(VM_TYPE_REGULAR, 1, VM_WRITE | VM_NOEXEC | VM_USER);
+	assert(fs != NULL);
 	current->threads[0]->fs = (void*) fs;
 	__pthread_t *p = (__pthread_t*) fs;
 	p->self = (__pthread_t*) fs;

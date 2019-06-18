@@ -98,6 +98,8 @@ inode_t *ext2_follow_symlink(inode_t *inode, ext2_fs_t *fs, inode_t *parent, uin
 		/* Get the next path segment */
 		path = strtok_r(NULL, "/", &saveptr);
 	}
+
+	free(orig_path);
 	free(inode_data);
 	return ino;
 }

@@ -164,6 +164,8 @@ size_t read_vfs(int flags, size_t offset, size_t sizeofread, void* buffer, struc
 
 size_t write_vfs(size_t offset, size_t sizeofwrite, void* buffer, struct inode* this)
 {
+	assert((unsigned long) this > VM_HIGHER_HALF);
+	
 	if(this->i_fops.write != NULL)
 	{
 		ssize_t status;

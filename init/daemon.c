@@ -11,6 +11,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <stdbool.h>
+#include <assert.h>
 
 #include "init.h"
 
@@ -79,6 +80,7 @@ struct subproperty *target_add_subproperty(target_t *target)
 	struct subproperty *prop = malloc(sizeof(struct subproperty));
 	if(!prop)
 		return NULL;
+
 	memset(prop, 0, sizeof(struct subproperty));
 	struct property *curr = target->current_property;
 	if(!curr->props)
@@ -111,7 +113,7 @@ int execute_program(const char *path, const char *type)
 	{
 		do_daemon_things = true;
 	}
-	
+
 	pid_t pid = fork();
 	
 	if(pid < 0)
@@ -158,6 +160,7 @@ int execute_program(const char *path, const char *type)
 		daemon->name = strdup((const char*) basename((char*) path));
 		daemon->pid = pid;
 	}
+
 	return 0;
 }
 
@@ -184,6 +187,7 @@ int process_line(char *line, target_t *target)
 			}
 			char *name = strtok_r(line, "]", &saveptr);
 			prop->prop_name = strdup(name);
+
 			if(!prop->prop_name)
 			{
 				perror("process_line");
@@ -223,6 +227,7 @@ int process_line(char *line, target_t *target)
 				perror("process_line");
 				return -1;
 			}
+
 			subprop->name = subproperty;
 			subprop->value = value;
 			return 0;
@@ -264,6 +269,7 @@ int process_target(target_t *target)
 			{
 				char *string = p->value;
 				char *dep = NULL;
+
 				dep = strtok_r(string, " ", &saveptr);
 				while(dep)
 				{
@@ -273,10 +279,12 @@ int process_target(target_t *target)
 						fprintf(stderr, "process_target: Could not open %s: %s\n", dep, strerror(errno));
 						return -1;
 					}
-					//printf("Exec'ing %s\n", dep);
+
 					if(exec_target(fd) < 0)
 						return -1;
+
 					close(fd);
+
 					dep = strtok_r(NULL, " ", &saveptr);
 				}
 			}
@@ -327,6 +335,7 @@ int exec_target(int fd)
 		status = -1;
 		goto ret;
 	}
+
 	memset(buffer, 0, 1024);
 	
 	target = malloc(sizeof(target_t));
@@ -335,6 +344,9 @@ int exec_target(int fd)
 		status = -1;
 		goto ret;
 	}
+
+
+	target->current_property = NULL;
 	target->properties = NULL;
 	/* Read the target file */
 	while(fgets(buffer, 1024, fp) != NULL)

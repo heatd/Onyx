@@ -531,12 +531,18 @@ MAX_RELEASE_CHECK_RATE   default: 4095 unless not HAVE_MMAP
 #endif
 
 #ifdef __onyx__
+#define DEBUG 1
+#define FOOTERS 1
 #define LACKS_FCNTL_H 1
 #define LACKS_STRINGS_H 1
 #define LACKS_SCHED_H 1
 #define LACKS_TIME_H 1
 #define LACKS_SYS_PARAM_H 1
 #include <stdio.h>
+#include <onyx/random.h>
+#include <onyx/spinlock.h>
+
+#define USE_LOCKS 2
 #define HAVE_MMAP 0
 #define HAVE_MORECORE 1
 #define NO_MALLOC_STATS 0
@@ -1836,6 +1842,25 @@ static FORCEINLINE int win32munmap(void* ptr, size_t size) {
 /* #define TRY_LOCK(lk) ... */
 /* static MLOCK_T malloc_global_mutex = ... */
 
+static inline int spin_lock_wrapper(struct spinlock *spl)
+{
+  spin_lock(spl);
+  return 0;
+}
+
+static inline int spin_unlock_wrapper(struct spinlock *spl)
+{
+  spin_unlock(spl);
+  return 0;
+}
+
+#define MLOCK_T   struct spinlock
+#define INITIAL_LOCK(lk)  ((lk)->lock = 0)
+#define DESTROY_LOCK(lk)  (0)
+#define ACQUIRE_LOCK(lk)  spin_lock_wrapper(lk)
+#define RELEASE_LOCK(lk)  spin_unlock_wrapper(lk)
+static MLOCK_T malloc_global_mutex = {0};
+
 #elif USE_SPIN_LOCKS
 
 /* First, define CAS_LOCK and CLEAR_LOCK on ints */
@@ -1887,9 +1912,11 @@ static FORCEINLINE void x86_clear_lock(int* sl) {
 #elif !defined(LACKS_SCHED_H)
 #define SPIN_LOCK_YIELD   sched_yield();
 #else
-#define SPIN_LOCK_YIELD
+#define SPIN_LOCK_YIELD __asm__ __volatile__("pause")
 #endif /* ... yield ... */
 
+void *get_current_thread();
+void *thread_who_has = NULL;
 #if !defined(USE_RECURSIVE_LOCKS) || USE_RECURSIVE_LOCKS == 0
 /* Plain spin locks use single word (embedded in malloc_states) */
 static int spin_acquire_lock(int *sl) {
@@ -1899,6 +1926,7 @@ static int spin_acquire_lock(int *sl) {
       SPIN_LOCK_YIELD;
     }
   }
+  thread_who_has = get_current_thread();
   return 0;
 }
 
@@ -2793,11 +2821,11 @@ static void reset_on_error(mstate m);
 #else /* PROCEED_ON_ERROR */
 
 #ifndef CORRUPTION_ERROR_ACTION
-#define CORRUPTION_ERROR_ACTION(m) do { printk("malloc: Corruption at %p\n", m); while(1);} while(0);
+#define CORRUPTION_ERROR_ACTION(m) do { panic("malloc corrupted", m);} while(0);
 #endif /* CORRUPTION_ERROR_ACTION */
 
 #ifndef USAGE_ERROR_ACTION
-#define USAGE_ERROR_ACTION(m,p) do { printk("malloc: Bad address %p\n", p); while(1);} while(0);
+#define USAGE_ERROR_ACTION(m,p) do { panic("malloc: Bad address\n"); while(1);} while(0);
 #endif /* USAGE_ERROR_ACTION */
 
 #endif /* PROCEED_ON_ERROR */
@@ -3173,18 +3201,10 @@ static int init_mparams(void) {
 #endif
 
     {
-#if USE_DEV_RANDOM
-      int fd;
-      unsigned char buf[sizeof(size_t)];
-      /* Try to use /dev/urandom, else fall back on using time */
-      if ((fd = open("/dev/urandom", O_RDONLY)) >= 0 &&
-          read(fd, buf, sizeof(buf)) == sizeof(buf)) {
-        magic = *((size_t *) buf);
-        close(fd);
-      }
-      else
-#endif /* USE_DEV_RANDOM */
-#ifdef WIN32
+#if __onyx__
+      magic = arc4random();
+/* __onyx__ */
+#elif defined(WIN32)
       magic = (size_t)(GetTickCount() ^ (size_t)0x55555555U);
 #elif defined(LACKS_TIME_H)
       magic = (size_t)&magic ^ (size_t)0x55555555U;
@@ -3628,6 +3648,33 @@ static void internal_malloc_stats(mstate m) {
     CORRUPTION_ERROR_ACTION(F);\
   }\
 }
+void vterm_panic(void);
+
+void show_heap(void *a)
+{
+  unsigned long least = (unsigned long) a - 100;
+  unsigned long most = (unsigned long) a + 100;
+  unsigned int nr_bytestotal = 200;
+  unsigned int nr_bytes_per_line = 0xf;
+  unsigned int nr_lines = (nr_bytestotal/nr_bytes_per_line) + 1;
+  
+  printk("Dumping heap [addr - 100, addr + 100]:\n");
+  unsigned long addr = least;
+  for(size_t i = 0; i < nr_lines; i++)
+  {
+    if(addr > most)
+      break;
+    printk("%016lx: ", addr);
+    unsigned char *p = (unsigned char *) addr;
+    for(unsigned int i = 0; i < nr_bytes_per_line; i++)
+    {
+      printk("%02x ", (unsigned int) p[i]);
+    }
+
+    printk("\n");
+    addr += nr_bytes_per_line;
+  }
+}
 
 /* Unlink the first chunk from a smallbin */
 #define unlink_first_small_chunk(M, B, P, I) {\
@@ -3643,8 +3690,11 @@ static void internal_malloc_stats(mstate m) {
     B->fd = F;\
   }\
   else {\
+    vterm_panic();                      \
+    printk("F: %p\n", F);               \
     printk("Top address: %p\n", M->top); \
     printk("Least address: %p\n", M->least_addr); \
+    show_heap(F);                     \
     CORRUPTION_ERROR_ACTION(M);\
   }\
 }
@@ -3775,8 +3825,10 @@ static void internal_malloc_stats(mstate m) {
       else \
         XP->child[1] = R;\
     }\
-    else\
-      CORRUPTION_ERROR_ACTION(M);\
+    else \
+    {\
+      CORRUPTION_ERROR_ACTION(M); \
+    }\
     if (R != 0) {\
       if (RTCHECK(ok_address(M, R))) {\
         tchunkptr C0, C1;\
@@ -3786,8 +3838,9 @@ static void internal_malloc_stats(mstate m) {
             R->child[0] = C0;\
             C0->parent = R;\
           }\
-          else\
-            CORRUPTION_ERROR_ACTION(M);\
+          else{\
+            show_heap(C0);            \
+            CORRUPTION_ERROR_ACTION(M);}\
         }\
         if ((C1 = X->child[1]) != 0) {\
           if (RTCHECK(ok_address(M, C1))) {\
@@ -3795,6 +3848,7 @@ static void internal_malloc_stats(mstate m) {
             C1->parent = R;\
           }\
           else\
+            show_heap(C1);              \
             CORRUPTION_ERROR_ACTION(M);\
         }\
       }\
@@ -4405,6 +4459,7 @@ static void dispose_chunk(mstate m, mchunkptr p, size_t psize) {
       }
     }
     else {
+      show_heap(prev);
       CORRUPTION_ERROR_ACTION(m);
       return;
     }
@@ -4444,6 +4499,7 @@ static void dispose_chunk(mstate m, mchunkptr p, size_t psize) {
     insert_chunk(m, p, psize);
   }
   else {
+    show_heap(next);
     CORRUPTION_ERROR_ACTION(m);
   }
 }
@@ -4516,6 +4572,7 @@ static void* tmalloc_large(mstate m, size_t nb) {
         return chunk2mem(v);
       }
     }
+    show_heap(v);
     CORRUPTION_ERROR_ACTION(m);
   }
   return 0;
@@ -4554,7 +4611,7 @@ static void* tmalloc_small(mstate m, size_t nb) {
       return chunk2mem(v);
     }
   }
-
+  show_heap(v);
   CORRUPTION_ERROR_ACTION(m);
   return 0;
 }
@@ -4699,13 +4756,16 @@ void* dlmalloc(size_t bytes) {
 
 /* ---------------------------- free --------------------------- */
 
+void validate_free(void *ptr);
+
 void dlfree(void* mem) {
   /*
      Consolidate freed chunks with preceeding or succeeding bordering
      free chunks, if they exist, and then place in a bin.  Intermixed
      with special cases for top, dv, mmapped chunks, and usage errors.
   */
-  if (mem != 0) {
+  if (mem != 0) {      
+    validate_free(mem);
     mchunkptr p  = mem2chunk(mem);
 #if FOOTERS
     mstate fm = get_mstate_for(p);
@@ -5148,6 +5208,7 @@ static size_t internal_bulk_free(mstate m, void* array[], size_t nelem) {
             dispose_chunk(m, p, psize);
         }
         else {
+          show_heap(p);
           CORRUPTION_ERROR_ACTION(m);
           break;
         }

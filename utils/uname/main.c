@@ -82,5 +82,7 @@ int main(int argc, char **argv, char **envp)
 		printf("%s ", info.version);
 	if(hardware_type)
 		printf("%s ", info.machine);
+	printf("\n");
+
 	return 0;
 }

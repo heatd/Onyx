@@ -9,10 +9,12 @@ clean:
 install: $(PROG)
 	mkdir -p $(DESTDIR)/usr/bin/
 	cp $(PROG) $(DESTDIR)/usr/bin/
-	cp graphical.target $(DESTDIR)/etc/init.d/targets/
+
 %.o: %.c
 	$(CC) -c $< $(CFLAGS) $(CPPFLAGS) -o $@
+
 %.o: %.cpp
 	$(CXX) -c $< $(CFLAGS) $(CPPFLAGS) -o $@
+
 $(PROG): $(OBJS)
-	$(CXX) $(OBJS) $(CFLAGS) -o $@
+	$(CXX) $(OBJS) $(CFLAGS) -o $@ -lwserver

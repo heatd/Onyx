@@ -337,7 +337,6 @@ bool ahci_do_command_async(struct ahci_port *ahci_port,
 	size_t num_sectors = buf->size / 512;
 	table->cfis.count = (uint16_t) num_sectors;
 	table->cfis.command = buf->cmd;
-
 	
 	struct command_list *l = &ahci_port->cmdslots[list_index];
 

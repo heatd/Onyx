@@ -90,6 +90,7 @@ size_t ext2_write(size_t offset, size_t sizeofwrite, void *buffer, struct inode 
 
 size_t ext2_read(int flags, size_t offset, size_t sizeofreading, void *buffer, struct inode *node)
 {
+	//printk("Inode read: %lu, off %lu, size %lu\n", node->i_inode, offset, sizeofreading);
 	ext2_fs_t *fs = node->i_sb->s_helper;
 
 	inode_t *ino = ext2_get_inode_from_number(fs, node->i_inode);
@@ -111,6 +112,11 @@ size_t ext2_read(int flags, size_t offset, size_t sizeofreading, void *buffer, s
 
 	size_t size = ext2_read_inode(ino, fs, to_be_read, offset, buffer);
 
+	/*if(node->i_inode == 32520)
+	{
+		printk("Data: %s\n", buffer);
+		while(1);
+	}*/
 	free(ino);
 	return size;
 }

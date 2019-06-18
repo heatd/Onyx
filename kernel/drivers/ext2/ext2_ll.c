@@ -185,7 +185,7 @@ inode_t *ext2_traverse_fs(inode_t *wd, const char *path, ext2_fs_t *fs, char **s
 		ino = ext2_open_dir(ino, (const char*) p, fs, symlink_name, inode_num);
 		if(!ino)
 		{
-			free(p);
+			free(original_path);
 			return errno = ENOENT, NULL;
 		}
 	}

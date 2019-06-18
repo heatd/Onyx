@@ -18,6 +18,12 @@
 #include <onyx/x86/pat.h>
 
 #define PML_EXTRACT_ADDRESS(n) (n & 0x0FFFFFFFFFFFF000)
+#define X86_PAGING_PRESENT		(1 << 0)
+#define X86_PAGING_WRITE		(1 << 1)
+#define X86_PAGING_SUPERVISOR		(1 << 2)
+#define X86_PAGING_HUGE			(1 << 7)
+#define X86_PAGING_GLOBAL		(1 << 8)
+#define X86_PAGING_NX			(1UL << 63)
 
 static inline void __native_tlb_invalidate_page(void *addr)
 {
@@ -195,7 +201,7 @@ void paging_map_all_phys(void)
 		{
 			entry = &pml3->entries[i];
 			*entry = make_pml3e(i * 0x40000000, 0, 0, 1, 0, 0, 0, 1, 1);
-			*entry |= (1 << 7);
+			*entry |= X86_PAGING_HUGE;
 			__native_tlb_invalidate_page((void*)(virt + i * 0x40000000));
 		}
 	}
@@ -228,7 +234,7 @@ void *paging_map_phys_to_virt_huge(uint64_t virt, uint64_t phys, uint64_t prot)
 	PML4 *pml4 = (PML4*)((uint64_t)get_current_pml4() + KERNEL_VIRTUAL_BASE);
 	uint64_t* entry = &pml4->entries[decAddr.pml4];
 	PML3* pml3 = NULL;
-	if(*entry & 1)
+	if(*entry & X86_PAGING_PRESENT)
 	{
 		pml3 = (PML3*)(*entry & 0x0FFFFFFFFFFFF000);
 	}
@@ -241,8 +247,10 @@ void *paging_map_phys_to_virt_huge(uint64_t virt, uint64_t phys, uint64_t prot)
 		*entry = make_pml4e((uint64_t)pml3, 0, 0, 0, user ? 1 : 0, 1, 1);
 	}
 	pml3 = (PML3*)((char*) pml3 + KERNEL_VIRTUAL_BASE);
-	pml3->entries[decAddr.pdpt] = make_pml3e((phys & 0x000fffffc0000000UL), (prot & VM_NOEXEC) ? 1 : 0, 0, 0, 0, 0, user ? 1 : 0, (prot & VM_WRITE) ? 1 : 0, 1);
-	pml3->entries[decAddr.pdpt] |= (1 << 7);
+	pml3->entries[decAddr.pdpt] = make_pml3e((phys & 0x000fffffc0000000UL),
+					(prot & VM_NOEXEC) ? 1 : 0, 0, 0, 0, 0,
+					user ? 1 : 0, (prot & VM_WRITE) ? 1 : 0, 1);
+	pml3->entries[decAddr.pdpt] |= X86_PAGING_HUGE;
 
 	__native_tlb_invalidate_page((void*) virt);
 	return (void*) virt;
@@ -263,7 +271,7 @@ void* paging_map_phys_to_virt_large_early(uint64_t virt, uint64_t phys, uint64_t
 	PML3* pml3 = NULL;
 	PML2* pml2 = NULL;
 	/* If its present, use that pml3 */
-	if(*entry & 1) {
+	if(*entry & X86_PAGING_PRESENT) {
 		pml3 = (PML3*)(*entry & 0x0FFFFFFFFFFFF000);
 	}
 	else { /* Else create one */
@@ -275,7 +283,7 @@ void* paging_map_phys_to_virt_large_early(uint64_t virt, uint64_t phys, uint64_t
 	}
 	pml3 = (PML3*)((uint64_t)pml3 + KERNEL_VIRTUAL_BASE);
 	entry = &pml3->entries[decAddr.pdpt];
-	if(*entry & 1) {
+	if(*entry & X86_PAGING_PRESENT) {
 		pml2 = (PML2*)(*entry & 0x0FFFFFFFFFFFF000);
 	}
 	else {
@@ -288,8 +296,10 @@ void* paging_map_phys_to_virt_large_early(uint64_t virt, uint64_t phys, uint64_t
 	pml2 = (PML2*)((uint64_t)pml2 + KERNEL_VIRTUAL_BASE);
 	entry = &pml2->entries[decAddr.pd];
 	
-	*entry = make_pml2e(phys, (prot & 4), 0, (prot & 2) ? 1 : 0, 0, 0, (prot & 0x80) ? 1 : 0, (prot & 1)? 1 : 0, 1);
-	*entry |= (1 << 7);
+	*entry = make_pml2e(phys, (prot & 4), 0,
+		 (prot & 2) ? 1 : 0, 0, 0, (prot & 0x80) ? 1 : 0,
+		 (prot & 1)? 1 : 0, 1);
+	*entry |= X86_PAGING_HUGE;
 	return (void*) virt;
 }
 
@@ -308,7 +318,7 @@ void* paging_map_phys_to_virt_large(uint64_t virt, uint64_t phys, uint64_t prot)
 	PML3* pml3 = NULL;
 	PML2* pml2 = NULL;
 	/* If its present, use that pml3 */
-	if(*entry & 1)
+	if(*entry & X86_PAGING_PRESENT)
 	{
 		pml3 = (PML3*)(*entry & 0x0FFFFFFFFFFFF000);
 	}
@@ -325,7 +335,7 @@ void* paging_map_phys_to_virt_large(uint64_t virt, uint64_t phys, uint64_t prot)
 	pml3 = (PML3*)((uint64_t)pml3 + PHYS_BASE);
 	entry = &pml3->entries[decAddr.pdpt];
 	
-	if(*entry & 1)
+	if(*entry & X86_PAGING_PRESENT)
 	{
 		pml2 = (PML2*)(*entry & 0x0FFFFFFFFFFFF000);
 	}
@@ -341,8 +351,8 @@ void* paging_map_phys_to_virt_large(uint64_t virt, uint64_t phys, uint64_t prot)
 	pml2 = (PML2*)((uint64_t)pml2 + PHYS_BASE);
 	entry = &pml2->entries[decAddr.pd];
 	
-	*entry = make_pml2e(phys, (prot & 4), 0, (prot & 2)? 1 : 0, 0, 0, (prot & 0x80) ? 1 : 0, (prot & 1)? 1 : 0, 1);
-	*entry |= (1 << 7);
+	*entry = make_pml2e(phys, (prot & 4), 0, (prot & 2)? 1 : 0, 0, 0, (prot & 0x80) ? 1 : 0, (prot & X86_PAGING_PRESENT)? 1 : 0, 1);
+	*entry |= X86_PAGING_HUGE;
 	return (void*) virt;
 } 
 
@@ -367,7 +377,7 @@ void* paging_map_phys_to_virt(PML4 *__pml, uint64_t virt, uint64_t phys, uint64_
 	for(unsigned int i = paging_levels; i != 1; i--)
 	{
 		uint64_t entry = pml->entries[indices[i - 1]];
-		if(entry & 1)
+		if(entry & X86_PAGING_PRESENT)
 		{
 			void *page = (void*) PML_EXTRACT_ADDRESS(entry);
 			pml = PHYS_TO_VIRT(page);
@@ -420,21 +430,21 @@ void *paging_unmap(void* memory)
 	
 	uint64_t* entry = &pml4->entries[dec.pml4];
 
-	if(!*entry & 1)
+	if(!*entry & X86_PAGING_PRESENT)
 		return NULL;
 	PML3 *pml3 = (PML3*)((*entry & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
 	entry = &pml3->entries[dec.pdpt];
-	if(!*entry & 1) /* If the entry isn't committed, just return */
+	if(!*entry & X86_PAGING_PRESENT) /* If the entry isn't committed, just return */
 		return NULL;
 	PML2 *pml2 = (PML2*)((*entry & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
 	entry = &pml2->entries[dec.pd];
 
-	if(!*entry & 1) /* If the entry isn't committed, just return */
+	if(!*entry & X86_PAGING_PRESENT) /* If the entry isn't committed, just return */
 		return NULL;
 	PML1 *pml1 = (PML1*)((*entry & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
 	entry = &pml1->entries[dec.pt];
 
-	if(!*entry & 1) /* If the entry isn't committed, just return */
+	if(!*entry & X86_PAGING_PRESENT) /* If the entry isn't committed, just return */
 		return NULL;
 
 	uintptr_t address = PML_EXTRACT_ADDRESS(*entry);
@@ -512,7 +522,7 @@ int paging_fork_tables(struct mm_address_space *addr_space)
 	/* TODO: Destroy the page tables on failure */
 	for(int i = 0; i < 256; i++)
 	{
-		if(mod_pml->entries[i] & 1)
+		if(mod_pml->entries[i] & X86_PAGING_PRESENT)
 		{
 			PML3 *pml3 = (PML3*) paging_fork_pml(mod_pml, i);
 			if(!pml3)
@@ -522,7 +532,7 @@ int paging_fork_tables(struct mm_address_space *addr_space)
 
 			for(int j = 0; j < PAGE_TABLE_ENTRIES; j++)
 			{
-				if(pml3->entries[j] & 1)
+				if(pml3->entries[j] & X86_PAGING_PRESENT)
 				{
 					PML2 *pml2 = (PML2*) paging_fork_pml((PML4*) pml3, j);
 					if(!pml2)
@@ -532,7 +542,7 @@ int paging_fork_tables(struct mm_address_space *addr_space)
 
 					for(int k = 0; k < PAGE_TABLE_ENTRIES; k++)
 					{
-						if(pml2->entries[k] & 1 && !(pml2->entries[k] & (1<<7)))
+						if(pml2->entries[k] & X86_PAGING_PRESENT && !(pml2->entries[k] & (1<<7)))
 						{
 							PML1 *pml1 = (PML1*) paging_fork_pml((PML4*)pml2, k);
 							if(!pml1)
@@ -585,9 +595,9 @@ void paging_change_perms(void *addr, int prot)
 	uint32_t perms = *entry & 0xF00000000000FFF;
 	uint64_t page = PML_EXTRACT_ADDRESS(*entry);
 	if(prot & VM_NOEXEC)
-		perms |= 0xF00000000000000;
+		perms |= X86_PAGING_NX;
 	if(prot & VM_WRITE)
-		perms |= (1 << 1);
+		perms |= X86_PAGING_WRITE;
 	*entry = perms | page;
 	__native_tlb_invalidate_page(addr);
 }
@@ -647,6 +657,7 @@ extern char _data_end;
 extern char _vdso_sect_start;
 extern char _vdso_sect_end;
 extern char VIRT_BASE;
+extern struct mm_address_space kernel_address_space;
 
 void paging_protect_kernel(void)
 {
@@ -677,6 +688,8 @@ void paging_protect_kernel(void)
 		size, VM_WRITE);
 
 	__asm__ __volatile__("movq %0, %%cr3"::"r"(pml));
+
+	kernel_address_space.cr3 = pml;
 }
 
 void paging_invalidate(void *page, size_t pages)
@@ -698,3 +711,52 @@ void *vm_map_page(struct process *proc, uint64_t virt, uint64_t phys, uint64_t p
 	return paging_map_phys_to_virt(pml, virt, phys, prot);
 }
 
+void paging_free_pml2(PML2 *pml)
+{
+	for(int i = 0; i < 512; i++)
+	{
+		if(pml->entries[i] & X86_PAGING_PRESENT && !(pml->entries[i] & X86_PAGING_HUGE))
+		{
+			/* We don't need to free pages since these functions
+			 * are supposed to only tear down paging tables */
+			unsigned long phys_addr = PML_EXTRACT_ADDRESS(pml->entries[i]);
+
+			free_page(phys_to_page(phys_addr));
+		}
+	}
+}
+
+void paging_free_pml3(PML3 *pml)
+{
+	for(int i = 0; i < 512; i++)
+	{
+		if(pml->entries[i] & X86_PAGING_PRESENT)
+		{
+			unsigned long phys_addr = PML_EXTRACT_ADDRESS(pml->entries[i]);
+			PML2 *pml2 = PHYS_TO_VIRT(phys_addr);
+			paging_free_pml2(pml2);
+
+			free_page(phys_to_page(phys_addr));
+		}
+	}
+}
+
+void paging_free_page_tables(struct mm_address_space *mm)
+{
+	PML4 *pml = PHYS_TO_VIRT(mm->cr3);
+
+	for(int i = 0; i < 256; i++)
+	{
+		if(pml->entries[i] & X86_PAGING_PRESENT)
+		{
+			unsigned long phys_addr = PML_EXTRACT_ADDRESS(pml->entries[i]);
+			PML3 *pml3 = PHYS_TO_VIRT(phys_addr);
+			paging_free_pml3(pml3);
+
+			free_page(phys_to_page(phys_addr));
+			pml->entries[i] = 0;
+		}
+	}
+
+	free_page(phys_to_page(mm->cr3));
+}

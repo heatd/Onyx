@@ -3,15 +3,14 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
-#ifndef _vm_H
-#define _vm_H
+#ifndef _VM_H
+#define _VM_H
 
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdbool.h>
 
 #include <onyx/paging.h>
-#include <onyx/avl.h>
 #include <onyx/spinlock.h>
 #include <onyx/mm/vm_object.h>
 
@@ -71,7 +70,7 @@ static inline unsigned long vm_prot_to_cache_type(uint64_t prot)
 #define VM_HIGHER_HALF 0xffff800000000000
 #define PHYS_TO_VIRT(x) (void*)((uintptr_t) (x) + PHYS_BASE)
 
-struct vm_entry
+struct vm_region
 {
 	uintptr_t base;
 	size_t pages;
@@ -84,7 +83,7 @@ struct vm_entry
 	struct vm_object *vmo;
 	struct mm_address_space *mm;
 
-	struct vm_entry *next_mapping;
+	struct vm_region *next_mapping;
 	uintptr_t caller;
 };
 
@@ -103,11 +102,15 @@ struct fault_info
 	int error;
 };
 
+struct rb_tree;
+
 struct mm_address_space
 {
 	struct process *process;
 	/* Virtual address space AVL tree */
-	avl_node_t *tree;
+	struct rb_tree *area_tree;
+	unsigned long start;
+	unsigned long end;
 	struct spinlock vm_spl;
 
 	/* mmap(2) base */
@@ -126,20 +129,18 @@ extern "C" {
 
 void vm_init(void);
 void vm_late_init(void);
-struct vm_entry *vm_allocate_virt_address(uint64_t flags, size_t pages,
-	uint32_t type, uint64_t prot, uintptr_t alignment);
+struct vm_region *vm_allocate_virt_region(uint64_t flags, size_t pages,
+	uint32_t type, uint64_t prot);
 struct page *vm_map_range(void *range, size_t pages, uint64_t flags);
 void vm_unmap_range(void *range, size_t pages);
 void vm_destroy_mappings(void *range, size_t pages);
-struct vm_entry *vm_reserve_address(void *addr, size_t pages, uint32_t type,
+struct vm_region *vm_reserve_address(void *addr, size_t pages, uint32_t type,
 	uint64_t prot);
-struct vm_entry *vm_is_mapped(void *addr);
+struct vm_region *vm_find_region(void *addr);
 int vm_clone_as(struct mm_address_space *addr_space);
 int vm_fork_as(struct mm_address_space *addr_space);
-void vm_stop_spawning();
 void vm_change_perms(void *range, size_t pages, int perms);
-void vm_set_tree(avl_node_t *tree_);
-avl_node_t **vm_get_tree();
+void *vm_get_fallback_cr3(void);
 int vm_check_pointer(void *addr, size_t needed_space);
 void *vmalloc(size_t pages, int type, int perms);
 void vfree(void *ptr, size_t pages);
@@ -149,13 +150,13 @@ void vm_do_fatal_page_fault(struct fault_info *info);
 void *vmalloc(size_t pages, int type, int perms);
 void vm_print_stats(void);
 void *mmiomap(void *phys, size_t size, size_t flags);
-void vm_destroy_addr_space(avl_node_t *tree);
+void vm_destroy_addr_space(struct mm_address_space *mm);
 int vm_sanitize_address(void *address, size_t pages);
 void *vm_gen_mmap_base(void);
 void *vm_gen_brk_base(void);
 void vm_sysfs_init(void);
-int vm_mark_cow(struct vm_entry *zone);
-struct vm_entry *vm_is_mapped_and_writable(void *usr);
+int vm_mark_cow(struct vm_region *zone);
+struct vm_region *vm_find_region_and_writable(void *usr);
 ssize_t copy_to_user(void *usr, const void *data, size_t len);
 ssize_t copy_from_user(void *data, const void *usr, size_t len);
 void arch_vm_init(void);
@@ -165,9 +166,9 @@ void *map_pages_to_vaddr(void *virt, void *phys, size_t size, size_t flags);
 void *get_user_pages(uint32_t type, size_t pages, size_t prot);
 void *get_pages(size_t flags, uint32_t type, size_t pages, size_t prot,
 	uintptr_t alignment);
-bool is_mapping_shared(struct vm_entry *);
-bool is_file_backed(struct vm_entry *);
-int vm_flush(struct vm_entry *entry);
+bool is_mapping_shared(struct vm_region *);
+bool is_file_backed(struct vm_region *);
+int vm_flush(struct vm_region *entry);
 
 #define VM_MMAP_PRIVATE		(1 << 0)
 #define VM_MMAP_SHARED		(1 << 1)
@@ -185,6 +186,8 @@ void *vm_map_page(struct process *proc, uint64_t virt, uint64_t phys,
 void *__map_pages_to_vaddr(struct process *process, void *virt, void *phys,
 		size_t size, size_t flags);
 void *map_page_list(struct page *pl, size_t size, uint64_t prot);
+
+int vm_create_address_space(struct process *process, void *cr3);
 
 static inline void *page_align_up(void *ptr)
 {

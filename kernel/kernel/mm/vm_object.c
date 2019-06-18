@@ -216,7 +216,7 @@ void vmo_destroy(struct vm_object *vmo)
 	/* Unmap the mapped pages */
 	__vmo_unmap(vmo);
 
-	free_pages(vmo->page_list);
+	if(vmo->page_list) free_pages(vmo->page_list);
 	vmo->page_list = NULL;
 
 	if(is_file_backed(vmo->mappings))

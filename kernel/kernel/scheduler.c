@@ -200,10 +200,19 @@ void *sched_switch_thread(void *last_stack)
 	if(likely(current_thread))
 		sched_save_thread(current_thread, last_stack);
 
+	struct thread *source_thread = current_thread;
+
 	current_thread = sched_find_runnable();
 
 	sched_load_thread(current_thread, p);
 	
+	if(source_thread && source_thread->status == THREAD_DEAD
+	   && source_thread->flags & THREAD_IS_DYING)
+	{
+		/* Finally, kill the thread for good */
+		source_thread->flags &= ~THREAD_IS_DYING; 
+	}
+
 	return current_thread->kernel_stack;
 }
 

@@ -352,7 +352,7 @@ unsigned int drm_ioctl(int request, void *argp, struct inode* file)
 
 void drm_init_software_dev(void);
 
-void *drm_mmap(struct vm_entry *area, struct inode *inode)
+void *drm_mmap(struct vm_region *area, struct inode *inode)
 {
 	struct drm_mapping *mapping = drm_get_mapping(area->offset, main_device);
 	if(!mapping)

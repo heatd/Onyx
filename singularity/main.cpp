@@ -6,8 +6,17 @@
 
 #include <iostream>
 
+#include <sys/socket.h>
+#include <wserver_public_api.h>
+
 int main(int argc, char **argv, char **envp)
 {
-	std::cout << "hello\n";
+	int status = wserver_connect();
+
+	if(status < 0)
+	{
+		std::cout << "Error: wserver_connect() failed\n";
+	}
+
 	return 0;
 }

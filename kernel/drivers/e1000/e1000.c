@@ -150,6 +150,7 @@ int e1000_read_mac_address(void)
 
 int e1000_init_descs(void)
 {
+	return 1;
 	uint8_t *ptr = NULL;
 	struct e1000_rx_desc *rxdescs = NULL;
 	size_t needed_pages = vm_align_size_to_pages(sizeof(struct e1000_rx_desc) * E1000_NUM_RX_DESC + 16);

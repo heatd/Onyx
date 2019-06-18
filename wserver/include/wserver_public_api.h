@@ -7,6 +7,9 @@
 #ifndef WSERVER_PUBLIC_API
 #define WSERVER_PUBLIC_API
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 enum server_message_type
 {
@@ -70,5 +73,26 @@ struct server_reply
 
 #define SERVER_SOCKET_PATH	"\0wserver.message_queue"
 
+typedef void * WINDOW;
+typedef void * CLIENT_ID;
+
+/* Connects to the window server and does a handshake */
+int wserver_connect(void);
+
+/* Creates a window */
+WINDOW wserver_create_window(struct server_message_create_window *params);
+
+/* Dirties a window buffer */
+int wserver_dirty_window(WINDOW window);
+
+/* Destroys a window */
+int wserver_destroy_window(WINDOW window);
+
+/* Deletes the connection */
+int wserver_goodbye(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

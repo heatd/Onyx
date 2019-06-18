@@ -32,6 +32,7 @@
 #include <onyx/proc_event.h>
 #include <onyx/syscall.h>
 #include <onyx/futex.h>
+#include <onyx/utils.h>
 
 #include <pthread_kernel.h>
 
@@ -42,10 +43,13 @@
 
 extern PML4 *current_pml4;
 struct ids *process_ids = NULL;
+
 struct process *first_process = NULL;
+static struct process *process_tail = NULL;
+static struct spinlock process_list_lock;
 volatile struct process *current_process = NULL;
-static struct spinlock process_creation_lock;
 slab_cache_t *process_cache = NULL;
+
 void process_destroy(thread_t *);
 void process_end(struct process *process);
 
@@ -76,6 +80,41 @@ int allocate_file_descriptor_table(struct process *process)
 	return 0;
 }
 
+void process_append_children(struct process *parent, struct process *children)
+{
+	spin_lock(&parent->children_lock);
+
+	struct process **pp = &parent->children;
+
+	while(*pp)
+		pp = &(*pp)->next_sibbling;
+	
+	*pp = children;
+
+	children->prev_sibbling = container_of(pp, struct process, next_sibbling);
+
+	spin_unlock(&parent->children_lock);
+}
+
+void process_append_to_global_list(struct process *p)
+{
+	spin_lock(&process_list_lock);
+	
+	if(process_tail)
+	{
+		process_tail->next = p;
+		process_tail = p;
+	}
+	else
+	{
+		first_process = process_tail = p;
+	}
+
+	p->next = NULL;
+
+	spin_unlock(&process_list_lock);
+}
+
 struct process *process_create(const char *cmd_line, ioctx_t *ctx, struct process *parent)
 {
 	if(unlikely(!process_cache))
@@ -95,34 +134,47 @@ struct process *process_create(const char *cmd_line, ioctx_t *ctx, struct proces
 	if(!proc)
 		return errno = ENOMEM, NULL;
 	memset(proc, 0, sizeof(struct process));
-
-	spin_lock(&process_creation_lock);
 	
 	/* TODO: idm_get_id doesn't wrap? POSIX COMPLIANCE */
 	proc->pid = idm_get_id(process_ids);
 	assert(proc->pid != (pid_t) -1);
 	proc->cmd_line = strdup(cmd_line);
 
+	if(!proc->cmd_line)
+	{
+		slab_free(process_cache, proc);
+		return NULL;
+	}
+
 	if(ctx)
 	{
-		if(copy_file_descriptors(proc, ctx) < 0)
-		{
-			slab_free(process_cache, proc);
-			spin_unlock(&process_creation_lock);
-			return NULL;
-		}
-		
 		object_ref(&ctx->cwd->i_object);
 
 		proc->ctx.cwd = ctx->cwd;
 		proc->ctx.name = strdup(ctx->name);
+
+		if(!proc->ctx.name)
+		{
+			object_unref(&ctx->cwd->i_object);
+			free(proc->cmd_line);
+			slab_free(process_cache, proc);
+			return NULL;
+		}
+		
+		if(copy_file_descriptors(proc, ctx) < 0)
+		{
+			free(proc->ctx.name);
+			object_unref(&ctx->cwd->i_object);
+			free(proc->cmd_line);
+			slab_free(process_cache, proc);
+			return NULL;
+		}
 	}
 	else
 	{
 		if(allocate_file_descriptor_table(proc) < 0)
 		{
 			slab_free(process_cache, proc);
-			spin_unlock(&process_creation_lock);
 			return NULL;
 		}
 	}
@@ -138,31 +190,29 @@ struct process *process_create(const char *cmd_line, ioctx_t *ctx, struct proces
 		/* Inherit the signal handlers and signal mask */
 		memcpy(&proc->sigtable, &parent->sigtable, sizeof(struct sigaction) * _NSIG);
 		memcpy(&proc->sigmask, &parent->sigmask, sizeof(sigset_t));
+
+		process_append_children(parent, proc);
+
+		proc->parent = parent;
 	}
 
 	proc->address_space.process = proc;
-	if(parent)
-		proc->parent = parent;
-	if(!first_process)
-		first_process = proc;
-	else
-	{
-		struct process *it = (struct process*) get_current_process();
-		while(it->next) it = it->next;
-		it->next = proc;
-	}
 
-	spin_unlock(&process_creation_lock);
+	process_append_to_global_list(proc);
+
 	return proc;
 }
 
-void process_create_thread(struct process *proc, thread_callback_t callback, uint32_t flags, int argc, char **argv, char **envp)
+void process_create_thread(struct process *proc, thread_callback_t callback,
+	uint32_t flags, int argc, char **argv, char **envp)
 {
 	thread_t *thread = NULL;
 	if(!argv)
 		thread = sched_create_thread(callback, flags, NULL);
 	else
-		thread = sched_create_main_thread(callback, flags, argc, argv, envp);
+		thread = sched_create_main_thread(callback, flags,
+						  argc, argv, envp);
+
 	int is_set = 0;
 	for(int i = 0; i < THREADS_PER_PROCESS; i++)
 	{
@@ -171,6 +221,7 @@ void process_create_thread(struct process *proc, thread_callback_t callback, uin
 			proc->threads[i] = thread;
 			thread->owner = proc;
 			is_set = 1;
+			break;
 		}
 	}
 	if(!is_set)
@@ -220,12 +271,19 @@ int process_fork_thread(thread_t *src, struct process *dest, struct syscall_fram
 
 struct process *get_process_from_pid(pid_t pid)
 {
-	struct process *p = first_process;
-	for(;p;p = p->next)
+
+	spin_lock(&process_list_lock);
+
+	for(struct process *p = first_process; p != NULL; p = p->next)
 	{
 		if(p->pid == pid)
+		{
+			spin_unlock(&process_list_lock);
 			return p;
+		}
 	}
+
+	spin_unlock(&process_list_lock);
 	return NULL;
 }
 
@@ -355,9 +413,9 @@ int return_from_execve(void *entry, int argc, char **argv, char **envp, void *au
 */
 int sys_execve(char *p, char *argv[], char *envp[])
 {
-	if(!vm_is_mapped(argv))
+	if(!vm_find_region(argv))
 		return errno =-EFAULT;
-	if(!vm_is_mapped(envp))
+	if(!vm_find_region(envp))
 		return errno =-EFAULT;
 
 	char *path = strcpy_from_user(p);
@@ -401,11 +459,18 @@ int sys_execve(char *p, char *argv[], char *envp[])
 		close_vfs(in);
 		return -1;
 	}
+
 	/* TODO: Check file permitions */
 	/* Swap address spaces. Good thing we saved argv and envp before */
-	current->address_space.brk = map_user(vm_gen_brk_base(), 0x20000000, VM_TYPE_HEAP,
-		VM_WRITE | VM_NOEXEC | VM_USER);
-	current->address_space.mmap_base = vm_gen_mmap_base();
+	if(vm_create_address_space(current, current->address_space.cr3) < 0)
+	{
+		/* TODO: Failure in sys_execve seems fragile. Test and fix. */
+		free(path);
+		free(karg);
+		free(kenv);
+		close_vfs(in);
+		return -1;
+	}
 
 	current->cmd_line = strdup(path);
 	paging_load_cr3(current->address_space.cr3);
@@ -477,59 +542,75 @@ pid_t sys_getppid()
 		return -1;
 }
 
+bool process_found_children(pid_t pid, struct process *process)
+{
+	spin_lock(&process->children_lock);
+
+	if(process->children)
+	{
+		/* if we have children, return true */
+		spin_unlock(&process->children_lock);
+		return true;
+	}
+
+	for(struct process *p = process->children; p != NULL; p = p->next_sibbling)
+	{
+		if(p->pid == pid)
+		{
+			spin_unlock(&process->children_lock);
+			return true;
+		}
+	}
+
+	spin_unlock(&process->children_lock);
+	return false;
+}
+
+bool wait4_find_dead_process(struct process *process, pid_t pid, int *wstatus, pid_t *ret)
+{
+	bool looking_for_any = pid < 0;
+
+	for(struct process *p = process->children; p != NULL; p = p->next_sibbling)
+	{
+		if((p->pid == pid || looking_for_any) && p->has_exited)
+		{
+			copy_to_user(wstatus, &p->exit_code, sizeof(int));
+			*ret = p->pid;
+
+			spin_unlock(&process->children_lock);
+			process_end(p);
+
+			return true;
+		}
+	}
+
+	return false;
+}
+
 pid_t sys_wait4(pid_t pid, int *wstatus, int options, struct rusage *usage)
 {
-	struct process *it = (struct process*) get_current_process();
 	struct process *current = get_current_process();
-	bool found_child = 0;
-	bool looking_for_any_children = false;
 
-
-	if(pid < 0)
-	{
-		looking_for_any_children = true;
-	}
-
-	while(it)
-	{
-		if(it->parent == current)
-		{
-			if(it->pid == pid || pid < 0)
-				found_child = 1;
-		}
-		it = it->next;
-	}
-
-	if(!found_child)
+	if(!process_found_children(pid, current))
 	{
 		return -ECHILD;
 	}
 
-	it = first_process;
 	while(true)
 	{
 		if(signal_is_pending())
 			return -EINTR;
 
-		spin_lock(&process_creation_lock);
-		for(struct process *p = first_process; p != NULL; p = p->next)
+		spin_lock(&current->children_lock);
+
+		pid_t ret;
+		if(wait4_find_dead_process(current, pid, wstatus, &ret))
 		{
-			if(p->parent == current && p->has_exited == 1 &&
-			 (looking_for_any_children == true || p->pid == pid))
-			{
-				copy_to_user(wstatus, &p->exit_code, sizeof(int));
-				
-				p->parent = NULL;
-				spin_unlock(&process_creation_lock);
-				pid_t ret = p->pid;
-
-				process_end(p);
-
-				return ret;
-			}
+			return ret;
 		}
 
-		spin_unlock(&process_creation_lock);
+		spin_unlock(&current->children_lock);
+
 		sem_wait(&current->wait_sem);
 	}
 
@@ -545,7 +626,7 @@ pid_t sys_fork(struct syscall_frame *ctx)
 	proc = (struct process*) get_current_process();
 	to_be_forked = proc->threads[0];	
 	/* Create a new process */
-	child = process_create(proc->cmd_line, &proc->ctx, proc); /* Create a process with the current
+	child = process_create(strdup(proc->cmd_line), &proc->ctx, proc); /* Create a process with the current
 			  			  * process's info */
 	if(!child)
 		return -ENOMEM;
@@ -599,15 +680,11 @@ void process_exit_from_signal(int signum)
 
 	current->has_exited = 1;
 	current->exit_code = make_wait4_wstatus(signum, false, 0);
-	sem_signal(&current->parent->wait_sem);
-	
+
 	/* TODO: Support multi-threaded processes */
 	thread_t *current_thread = get_current_thread();
 
-
 	process_destroy(current_thread);
-
-	sched_yield();
 }
 
 void sys_exit(int status)
@@ -622,14 +699,11 @@ void sys_exit(int status)
 
 	current->has_exited = 1;
 	current->exit_code = make_wait4_wstatus(0, false, status);
-	sem_signal(&current->parent->wait_sem);
 
 	/* TODO: Support multi-threaded processes */
 	thread_t *current_thread = get_current_thread();
 
 	process_destroy(current_thread);
-
-	sched_yield();
 }
 
 uint64_t sys_getpid(void)
@@ -670,8 +744,7 @@ void process_destroy_aspace(void)
 {
 	struct process *current = get_current_process();
 
-	vm_destroy_addr_space(current->address_space.tree);
-	current->address_space.tree = NULL;
+	vm_destroy_addr_space(&current->address_space);
 }
 
 void process_destroy_file_descriptors(struct process *process)
@@ -688,18 +761,27 @@ void process_destroy_file_descriptors(struct process *process)
 		table[i]->refcount--;
 		if(!table[i]->refcount)
 		{
+			object_unref(&table[i]->vfs_node->i_object);
 			free(table[i]);
 		}
 	}
+
 	free(table);
+
 	ctx->file_desc = NULL;
 	ctx->file_desc_entries = 0;
 }
 
 void process_remove_from_list(struct process *process)
 {
+	spin_lock(&process_list_lock);
+	/* TODO: Make the list a doubly-linked one, so we're able to tear it down more easily */
 	if(first_process == process)
+	{
 		first_process = first_process->next;
+		if(process_tail == process)
+			process_tail = first_process;
+	}
 	else
 	{
 		struct process *p;
@@ -708,23 +790,101 @@ void process_remove_from_list(struct process *process)
 		assert(p->next != NULL);
 
 		p->next = process->next;
+
+		if(process_tail == process)
+			process_tail = p;
 	}
+
+	spin_unlock(&process_list_lock);
+
+	/* Remove from the sibblings list */
+
+	spin_lock(&process->parent->children_lock);
+
+	if(process->prev_sibbling)
+		process->prev_sibbling->next_sibbling = process->next_sibbling;
+	else
+		process->parent->children = process->next_sibbling;
+
+	if(process->next_sibbling)
+		process->next_sibbling->prev_sibbling = process->prev_sibbling;
+
+	spin_unlock(&process->parent->children_lock);
 }
 
-void process_obliterate(void *proc)
+void process_wait_for_dead_threads(struct process *process)
 {
-	struct process *process = proc;
-	struct page *p = phys_to_page((uintptr_t) process->address_space.cr3);
-	free_page(p);
+	bool goaway = false;
+
+	while(!goaway)
+	{
+		goaway = true;
+
+		for(int i = 0; i < THREADS_PER_PROCESS; i++)
+		{
+			if(!process->threads[i])
+				continue;
+			struct thread *t = process->threads[i];
+			if(t->status != THREAD_DEAD)
+			{
+				goaway = false;
+				continue;
+			}
+			else
+			{
+				if(t->flags & THREAD_IS_DYING)
+					goaway = false;
+			}
+		}
+
+		cpu_relax();
+	}
 }
 
 void process_end(struct process *process)
 {
 	process_remove_from_list(process);
 	
+	process_wait_for_dead_threads(process);
+
 	free(process->cmd_line);
+	process->cmd_line = NULL;
+
+	if(process->ctx.name)
+		free(process->ctx.name);
+	
+	if(process->ctx.cwd)
+		object_unref(&process->ctx.cwd->i_object);
+
+	for(int i = 0; i < THREADS_PER_PROCESS; i++)
+	{
+		if(process->threads[i]) thread_destroy(process->threads[i]);
+	}
+
 	futex_free_queue(process);
 	slab_free(process_cache, process);
+
+}
+
+void process_reparent_children(struct process *process)
+{
+	spin_lock(&process->children_lock);
+
+	/* In POSIX, reparented children get to be children of PID 1 */
+	struct process *new_parent = first_process;
+
+	if(!process->children)
+	{
+		spin_unlock(&process->children_lock);
+		return;
+	}
+
+	for(struct process *c = process->children; c != NULL; c = c->next_sibbling)
+		c->parent = new_parent; 
+	
+	process_append_children(new_parent, process->children);
+
+	spin_unlock(&process->children_lock);
 }
 
 void process_destroy(thread_t *current_thread)
@@ -736,19 +896,27 @@ void process_destroy(thread_t *current_thread)
 
 	process_destroy_file_descriptors(current);
 
+	process_reparent_children(current);
+
 	for(struct proc_event_sub *s = current->sub_queue; s; s = s->next)
 	{
 		s->valid_sub = false;
 	}
 
-	/* Destroy everything that can be destroyed now */
-	thread_destroy(current_thread);
+	/* Enter critical section */
+	sched_disable_preempt();
 
-	/* Schedule the obliteration of the process */
-	struct work_request req;
-	req.func = process_obliterate;
-	req.param = current;
-	worker_schedule(&req, WORKER_PRIO_NORMAL);
+	/* Set this in this order exactly */
+	current_thread->flags = THREAD_IS_DYING;
+	current_thread->status = THREAD_DEAD;
+
+	/* Finally, wake up any possible concerned (waiting :D) parents */
+	sem_signal(&current->parent->wait_sem);
+
+	sched_enable_preempt();
+
+	sched_yield();
+
 }
 
 int process_attach(struct process *tracer, struct process *tracee)
@@ -803,7 +971,7 @@ int sys_clone(int (*fn)(void *), void *child_stack, int flags, void *arg, pid_t 
 {
 	if(flags & ~valid_flags)
 		return -EINVAL;
-	if(!vm_is_mapped(fn))
+	if(!vm_find_region(fn))
 		return -EINVAL;
 	if(flags & CLONE_FORK)
 		return -EINVAL; /* TODO: Add CLONE_FORK */

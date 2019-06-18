@@ -17,6 +17,7 @@
 #include <onyx/netif.h>
 #include <onyx/compiler.h>
 #include <onyx/utils.h>
+#include <onyx/random.h>
 
 #include <netinet/in.h>
 
@@ -59,9 +60,13 @@ struct un_name
 struct un_name *un_namespace_list = NULL;
 struct spinlock un_namespace_list_lock;
 
+struct un_name *un_find_name(char *address, size_t namelen);
+
 struct un_name *add_to_namespace(char *address, size_t namelen,
 	struct un_socket *bound_socket)
 {
+	if(un_find_name(address, namelen))
+		return errno = EADDRINUSE, NULL;
 	struct un_name *name = zalloc(sizeof(*name));
 	if(!name)
 		goto cleanup_and_die;
@@ -107,7 +112,6 @@ struct un_name *un_find_name(char *address, size_t namelen)
 	{
 		if(namelen != name->namelen)
 			continue;
-		printk("Testing %s\n", name->address);
 		if(!memcmp(name->address, address, namelen))
 			return name;
 	}
@@ -175,7 +179,7 @@ int un_do_bind(const struct sockaddr_un *un, socklen_t addrlen, struct un_socket
 	else
 	{
 		if(!add_to_namespace(address, namelen, socket))
-			return -ENOMEM;
+			return -errno;
 	}
 	
 	return 0;
@@ -183,10 +187,11 @@ int un_do_bind(const struct sockaddr_un *un, socklen_t addrlen, struct un_socket
 
 int un_bind(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode)
 {
+	printk("Here\n");
 	struct un_socket *socket = (struct un_socket*) vnode->i_helper;
 	if(socket->socket.bound)
 		return -EINVAL;
-
+	printk("here\n");
 	struct sockaddr_un kaddr;
 
 	if(addrlen > sizeof(struct sockaddr_un))
@@ -194,14 +199,40 @@ int un_bind(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode)
 	
 	if(copy_from_user(&kaddr, addr, addrlen) < 0)
 		return -EFAULT;
-
+	printk("here\n");
 	const struct sockaddr_un *un = (const struct sockaddr_un *) &kaddr;
 
 	int st = un_do_bind(un, addrlen, socket);
-
+	printk("here\n");
 	if(st == 0)
 		socket->socket.bound = true;
 	return st;
+}
+
+int un_bind_ephemeral(struct inode *vnode)
+{
+	struct sockaddr_un bind_addr = {0};
+	socklen_t addrlen = sizeof(sa_family_t) + 20;
+	bool failed = false;
+	struct un_socket *socket = (struct un_socket*) vnode->i_helper;
+
+	do
+	{
+		char buffer[20];
+		buffer[0] = '\0';
+		arc4random_buf(buffer + 1, 19);
+		bind_addr.sun_family = AF_UNIX;
+		memcpy(buffer, bind_addr.sun_path, 20);
+
+	} while((failed = un_do_bind(&bind_addr, addrlen, socket) < 0) && errno == EADDRINUSE);
+
+	if(failed)
+		return -errno;
+	else
+	{
+		socket->socket.bound = true;
+		return 0;
+	}
 }
 
 int un_connect(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode)
@@ -214,6 +245,14 @@ int un_connect(const struct sockaddr *addr, socklen_t addrlen, struct inode *vno
 	bool is_abstract;
 
 	int status = 0;
+
+	if(!socket->socket.bound)
+	{
+		int st = un_bind_ephemeral(vnode);
+		if(st < 0)
+			return st;
+	}
+
 	if((status = un_get_address(un, addrlen, &address, &namelen,
 		&is_abstract)) < 0)
 	{
@@ -289,7 +328,7 @@ ssize_t un_sendto(const void *buf, size_t len, int flags,
 			return -EFAULT;
 	}
 
-	struct sockaddr *addr = &a;
+	struct sockaddr *addr = (struct sockaddr *) &a;
 	struct un_socket *socket = vnode->i_helper;
 	
 	spin_lock(&socket->socket_lock);

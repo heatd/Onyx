@@ -235,7 +235,6 @@ void page_free_pages(struct page_arena *arena, void *addr, size_t nr_pages)
 
 void page_free(size_t nr_pages, void *addr)
 {
-	/* printk("Freeing %p\n", addr); */
 	for_every_arena(&main_cpu)
 	{
 		if((uintptr_t) arena->start_arena <= (uintptr_t) addr && 
@@ -375,6 +374,7 @@ void __kbrk(void *break_)
 
 void free_pages(struct page *pages)
 {
+	assert(pages != NULL);
 	struct page *next = NULL;
 
 	for(struct page *p = pages; p != NULL; p = next)

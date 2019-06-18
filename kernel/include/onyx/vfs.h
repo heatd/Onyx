@@ -13,7 +13,6 @@
 #include <stdarg.h>
 
 #include <onyx/object.h>
-#include <onyx/avl.h>
 #include <onyx/vm.h>
 #include <onyx/superblock.h>
 
@@ -60,7 +59,7 @@ struct file_ops
 	__stat stat;
 	__link link;
 	__symlink symlink;
-	void *(*mmap)(struct vm_entry *area, struct inode *node);
+	void *(*mmap)(struct vm_region *area, struct inode *node);
 	int (*bind)(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode);
 	int (*connect)(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode);
 	ssize_t (*sendto)(const void *buf, size_t len, int flags,

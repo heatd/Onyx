@@ -43,26 +43,6 @@ Server::Server(std::shared_ptr<Display> display) : display(display),
 	{
 		throw std::runtime_error("bind failed");
 	}
-
-	int client = socket(AF_UNIX, SOCK_DGRAM, 0);
-
-	if(connect(client, (struct sockaddr *) &addr, sizeof(sa_family_t) +
-		sizeof(SERVER_SOCKET_PATH)) < 0)
-	{
-		throw std::runtime_error("connect failed");
-	}
-
-	memcpy(addr.sun_path, "\0oldtownroads", sizeof(addr.sun_path));
-	if(bind(client, (struct sockaddr *) &addr, sizeof(sa_family_t) + sizeof("\0oldtownroads")) < 0)
-		perror("bind");
-
-	struct server_message msg;
-	msg.client_id = -1;
-	msg.msg_type = SERVER_MESSAGE_CLIENT_HANDSHAKE;
-	
-	ssize_t s = send(client, &msg, sizeof(msg), 0);
-
-	assert(s > 0);
 }
 
 size_t Server::allocate_wid()
@@ -141,6 +121,14 @@ void Server::handle_message(struct server_message *msg, struct sockaddr *addr, s
 			ServerReply reply(addr, len, socket_fd);
 			reply.set_status_code(STATUS_OK);
 			reply.set_handshake_reply(hreply);
+			reply.send();
+			break;
+		}
+		default:
+		{
+			std::cout << "Unhandled message type " << msg->msg_type << "\n";
+			ServerReply reply(addr, len, socket_fd);
+			reply.set_status_code(STATUS_FAILURE);
 			reply.send();
 			break;
 		}

@@ -46,6 +46,7 @@ void paging_change_perms(void *addr, int perms);
 int is_invalid_arch_range(void *address, size_t pages);
 void paging_protect_kernel(void);
 void paging_invalidate(void *page, size_t pages);
+void paging_free_page_tables(struct mm_address_space *mm);
 
 PML4 *get_current_pml4(void);
 #ifdef __cplusplus
