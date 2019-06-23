@@ -335,7 +335,7 @@ void vm_destroy_mappings(void *range, size_t pages)
 
 	vm_unmap_range(range, pages);
 
-	rb_tree_remove(mm->area_tree, (unsigned long) reg->base);
+	rb_tree_remove(mm->area_tree, (const void *) reg->base);
 	
 	vm_region_destroy(reg);
 }
@@ -571,7 +571,7 @@ static bool fork_vm_region(const void *key, void *datum, void *user_data)
 	printk("Forking %p, size %lx\n", key, region->pages << PAGE_SHIFT);
 #endif
 	/* Do this with COW: append_mapping(region->vmo, region); */
-	dict_insert_result res = rb_tree_insert(it->target_mm->area_tree, key);
+	dict_insert_result res = rb_tree_insert(it->target_mm->area_tree, (void *) key);
 
 	if(!res.inserted)
 	{
@@ -585,6 +585,7 @@ static bool fork_vm_region(const void *key, void *datum, void *user_data)
 	if(!new_object)
 	{
 		dict_remove_result res = rb_tree_remove(it->target_mm->area_tree, key);
+		assert(res.removed == true);
 		free(new_region);
 		goto ohno;
 	}
@@ -677,11 +678,8 @@ void vm_change_perms(void *range, size_t pages, int perms)
 	__vm_unlock(kernel);
 }
 
-void *stack_trace(void);
-
 void *vmalloc(size_t pages, int type, int perms)
 {
-	//stack_trace();
 	struct vm_region *vm =
 		vm_allocate_virt_region(VM_KERNEL, pages, type, perms);
 	if(!vm)
@@ -1429,27 +1427,28 @@ void vm_do_fatal_page_fault(struct fault_info *info)
 
 void *get_pages(size_t flags, uint32_t type, size_t pages, size_t prot, uintptr_t alignment)
 {
+	bool kernel = !(flags & VM_ADDRESS_USER);
+
 	struct vm_region *va = vm_allocate_virt_region(flags, pages, type, prot);
 	if(!va)
 		return NULL;
-
-	void *address = (void *) va->base;
-	if(!(flags & VM_ADDRESS_USER))
+	
+	if(setup_vmregion_backing(va, pages, false) < 0)
 	{
-		struct page *p = vm_map_range(address, pages, prot);
-		if(!p)
+		vm_munmap(va->mm, (void *) va->base, pages << PAGE_SHIFT);
+		return NULL;
+	}
+
+	if(kernel)
+	{
+		if(vmo_prefault(va->vmo, pages << PAGE_SHIFT, 0) < 0)
 		{
-			/* TODO: Destroy the address space region */
+			vm_munmap(&kernel_address_space, (void *) va->base, pages << PAGE_SHIFT);
 			return NULL;
 		}
 	}
-	else
-	{
-		if(setup_vmregion_backing(va, pages, false) < 0)
-			return NULL;
-	}
 
-	return address;
+	return (void *) va->base;
 }
 
 void *get_user_pages(uint32_t type, size_t pages, size_t prot)
@@ -1474,6 +1473,7 @@ struct page *vmo_commit_file(size_t off, struct vm_object *vmo)
 		    to_read,
 		    ptr,
 		    file);
+
 	if(read != to_read)
 	{
 		printk("Error file read %lx bytes out of %lx, off %lx\n", read, to_read, eff_off);
