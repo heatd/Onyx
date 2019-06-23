@@ -53,5 +53,10 @@ struct page *vmo_get(struct vm_object *vmo, off_t off, bool may_populate);
 struct vm_object *vmo_fork(struct vm_object *vmo);
 int vmo_prefault(struct vm_object *vmo, size_t size, off_t offset);
 void vmo_unref(struct vm_object *vmo);
+int vmo_resize(size_t new_size, struct vm_object *vmo);
+void vmo_update_offsets(size_t off, struct vm_object *vmo);
+struct vm_object *vmo_split(size_t split_point, size_t hole_size, struct vm_object *vmo);
+void vmo_truncate_beginning_and_resize(size_t off, struct vm_object *vmo);
+void vmo_sanity_check(struct vm_object *vmo);
 
 #endif

@@ -72,9 +72,9 @@ static void __flush_print()
 
 void __flush_print_screen()
 {
-	#ifdef __is_onyx_kernel
+#ifdef __is_onyx_kernel
 	tty_write_string_kernel(buffer);
-	#endif
+#endif
 	memset(buffer, 0, 10000);
 	bufferPos = 0;
 }

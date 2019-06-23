@@ -41,6 +41,7 @@ public:
 		__sync_fetch_and_add(&ref, 1);
 	}
 };
+
 template <typename T>
 class smart_ptr
 {
@@ -52,14 +53,17 @@ public:
 	{
 		ref = new refcount<T>(data);
 	}
+	
 	smart_ptr(smart_ptr& ptr)
 	{
 		ref = ptr.ref;
 	}
+	
 	~smart_ptr(void)
 	{
 		if(ref) ref->release();
 	}
+	
 	smart_ptr& operator=(const smart_ptr &p)
 	{
 		if(ref == p.ref)
@@ -74,21 +78,26 @@ public:
 	ret:
 		return *this;
 	}
+	
 	T& operator*()
 	{
 		return *ref->get_data();
 	}
+	
 	T* operator->()
 	{
 		return ref->get_data();
 	}
+	
 	T* get_data()
 	{
 		return ref->get_data();
 	}
 };
+
 namespace smartptr
 {
+
 template<class T, class ... Args>
 smart_ptr<T> make(Args && ... args)
 {
@@ -96,5 +105,6 @@ smart_ptr<T> make(Args && ... args)
 	smart_ptr<T> p(data);
 	return p;
 }
+
 };
 #endif

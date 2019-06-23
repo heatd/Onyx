@@ -683,10 +683,10 @@ static void *map_library(int fd, struct dso *dso)
 		prot = (((ph->p_flags&PF_R) ? PROT_READ : 0) |
 			((ph->p_flags&PF_W) ? PROT_WRITE: 0) |
 			((ph->p_flags&PF_X) ? PROT_EXEC : 0));
-		printf("map fixed %p\n", base + this_min);
+
 		if (mmap_fixed(base+this_min, this_max-this_min, prot, MAP_PRIVATE|MAP_FIXED, fd, off_start) == MAP_FAILED)
 			goto error;
-		printf("not here\n");
+		
 		if (ph->p_memsz > ph->p_filesz) {
 			size_t brk = (size_t)base+ph->p_vaddr+ph->p_filesz;
 			size_t pgbrk = brk+PAGE_SIZE-1 & -PAGE_SIZE;

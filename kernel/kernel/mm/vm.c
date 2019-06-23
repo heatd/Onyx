@@ -779,6 +779,12 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 	}
 	else
 	{
+		if(flags & MAP_FIXED)
+		{
+			struct mm_address_space *mm = &get_current_process()->address_space;
+			vm_munmap(mm, addr, pages << PAGE_SHIFT);
+		}
+
 		area = vm_reserve_address(addr, pages, VM_TYPE_REGULAR, vm_prot);
 		if(!area)
 		{
@@ -823,24 +829,19 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 
 int sys_munmap(void *addr, size_t length)
 {
-	return 0;
-	printk("munmap %p %lu\n", addr, length);
-	if (is_higher_half(addr))
+	if(is_higher_half(addr))
 		return -EINVAL;
 
-	size_t pages = length / PAGE_SIZE;
-	if(length % PAGE_SIZE)
-		pages++;
+	size_t pages = vm_align_size_to_pages(length);
 	
 	if((unsigned long) addr & (PAGE_SIZE - 1))
 		return -EINVAL;
-
-	__vm_lock(false);	
 	
-	vm_destroy_mappings(addr, length);
-	__vm_unlock(false);
+	struct mm_address_space *mm = &get_current_process()->address_space;
 
-	return 0;
+	int ret = vm_munmap(mm, addr, pages << PAGE_SHIFT);
+
+	return ret;
 }
 
 int sys_mprotect(void *addr, size_t len, int prot)
@@ -1001,35 +1002,22 @@ uint64_t sys_brk(void *newbrk)
 	return (uint64_t) p->address_space.brk;
 }
 
-void print_vm_structs(void *node)
+static bool vm_print(const void *key, void *datum, void *user_data)
 {
-	#if 0
-	if(node->left)
-		print_vm_structs(node->left);
-	if(!node->data)
-	{
-		printk("Found corrupted node at %p\n", node);
-		void *phys = virtual2phys(node);
-		struct page *p = phys_to_page((uintptr_t) phys & ~(PAGE_SIZE - 1));
-		printk("phys %p\n", phys);
-		printk("Bad page %p, refcount %lu, next %p\n", p->paddr, p->ref,
-			p->next_un.next_virtual_region);
-		while(1);
-	}
+	struct vm_region *region = datum;
+	bool x = !(region->rwx & VM_NOEXEC);
+	bool w = region->rwx & VM_WRITE;
+	
+	printk("[%016lx - %016lx] : %s%s%s\n", region->base,
+					       region->base + (region->pages << PAGE_SHIFT),
+					       "R", w ? "W" : "-", x ? "X" : "-");
 
-	printk("[Base %016lx Length %016lx End %016lx]\n", node->data->base, node->data->pages
-		* PAGE_SIZE, (uintptr_t) node->data->base + node->data->pages * PAGE_SIZE);
-	if(node->right)
-		print_vm_structs(node->right);
-	#endif
+	return true;
 }
 
-void vm_print_stats(void)
+void vm_print_map(void)
 {
-	//struct process *current = get_current_process();
-	/*if(current)
-		print_vm_structs(current->address_space.tree);
-	print_vm_structs(kernel_tree);*/
+	rb_tree_traverse(kernel_address_space.area_tree, vm_print, NULL);
 }
 
 void *__map_pages_to_vaddr(struct process *process, void *virt, void *phys,
@@ -1122,11 +1110,15 @@ int vm_handle_page_fault(struct fault_info *info)
 	struct vm_region *entry = vm_find_region((void*) info->fault_address);
 	if(!entry)
 	{
-		struct process *current = get_current_process();
 		struct thread *ct = get_current_thread();
-		printk("Curr thread: %p\n", ct);
-		printk("Could not find %lx, ip %lx, process name %s\n", info->fault_address,
-			info->ip, current->cmd_line);
+		if(ct)
+		{
+			struct process *current = get_current_process();
+			printk("Curr thread: %p\n", ct);
+			printk("Could not find %lx, ip %lx, process name %s\n", info->fault_address,
+				info->ip, current->cmd_line);
+		}
+		
 		info->error = VM_SIGSEGV;
 		return -1;
 	}
@@ -1655,4 +1647,149 @@ void validate_free(void *p)
 void *vm_get_fallback_cr3(void)
 {
 	return kernel_address_space.cr3;
+}
+
+void vm_remove_region(struct mm_address_space *as, struct vm_region *region)
+{
+	dict_remove_result res = rb_tree_remove(as->area_tree,
+						 (const void *) region->base);
+	assert(res.removed == true);
+}
+
+int vm_add_region(struct mm_address_space *as, struct vm_region *region)
+{
+	dict_insert_result res = rb_tree_insert(as->area_tree, (void *) region->base);
+
+	if(!res.inserted)
+		return -1;
+	*res.datum_ptr = (void *) region;
+
+	return 0;
+}
+
+void vm_unmap_range_raw(void *range, size_t size)
+{
+	unsigned long addr = (unsigned long) range;
+	unsigned long end = addr + size;
+	while(addr < end)
+	{
+		paging_unmap((void *) addr);
+
+		addr += PAGE_SIZE;
+	}
+}
+
+int vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
+{
+	unsigned long addr = (unsigned long) __addr;
+	unsigned long limit = addr + size;
+
+	spin_lock(&as->vm_spl);
+
+	while(addr < limit)
+	{
+		struct vm_region *region = vm_find_region_in_tree((void *) addr, as->area_tree);
+		if(!region)
+		{
+			spin_unlock(&as->vm_spl);
+			return -EINVAL;
+		}
+
+		size_t region_size = region->pages << PAGE_SHIFT;
+		
+		size_t to_shave_off = 0;
+		if(region->base == addr)
+		{
+			to_shave_off = size < region_size ? size : region_size;
+
+			if(to_shave_off != region_size)
+			{
+				vm_remove_region(as, region);
+
+				region->base += to_shave_off;
+				region->pages -= to_shave_off >> PAGE_SHIFT;
+
+				if(vm_add_region(as, region) < 0)
+				{
+					spin_unlock(&as->vm_spl);
+					return -ENOMEM;
+				}
+
+				vmo_truncate_beginning_and_resize(to_shave_off, region->vmo);
+				vmo_sanity_check(region->vmo);
+			}
+			else
+			{
+				vm_region_destroy(region);
+			}
+		}
+		else if(region->base < addr)
+		{
+			unsigned long offset = addr - region->base;
+			unsigned long remainder = region_size - offset;
+			to_shave_off = size < remainder ? size : remainder;
+
+			if(to_shave_off != remainder)
+			{
+				unsigned long second_region_start = addr + to_shave_off;
+				unsigned long second_region_size = remainder - to_shave_off;
+
+				struct vm_region *new_region = vm_reserve_region(as,
+						second_region_start,
+						second_region_size);
+
+				if(!new_region)
+				{
+					spin_unlock(&as->vm_spl);
+					return -ENOMEM;
+				}
+
+				new_region->rwx = region->rwx;
+				
+				if(region->fd)
+				{
+					region->fd->refcount++;
+					new_region->fd = region->fd;
+				}
+
+				new_region->mapping_type = region->mapping_type;
+				new_region->offset = offset + to_shave_off;
+				new_region->mm = region->mm;
+				new_region->flags = region->flags;
+
+				vm_remove_region(as, region);
+
+				struct vm_object *second = vmo_split(offset, to_shave_off, region->vmo);
+				if(!second)
+				{
+					vm_remove_region(as, new_region);
+					/* TODO: Undo new_region stuff and free it */
+					spin_unlock(&as->vm_spl);
+					return -ENOMEM;
+				}
+
+				new_region->vmo = second;
+
+				/* The original region's size is offset */
+				region->pages = offset >> PAGE_SHIFT;
+
+				vm_add_region(as, region);
+	
+			}
+			else
+			{
+				vmo_resize(region_size - to_shave_off, region->vmo);
+				region->pages -= to_shave_off >> PAGE_SHIFT;
+			}
+		}
+
+		vm_unmap_range_raw((void *) addr, to_shave_off);
+
+		addr += to_shave_off;
+		size -= to_shave_off;
+	}
+
+	spin_unlock(&as->vm_spl);
+
+	return 0;
 }

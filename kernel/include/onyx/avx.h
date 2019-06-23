@@ -9,6 +9,7 @@
 #define AVX_XCR0_FPU	(1 << 0)
 #define AVX_XCR0_SSE	(1 << 1)
 #define AVX_XCR0_AVX	(1 << 2)
+
 void avx_init(void);
 
 

@@ -123,7 +123,7 @@ uint64_t partition_find(int index, block_device_t *dev, filesystem_mount_t *fs)
 	memset(mbrbuf, 0, 512);
 	/* Read the mbr from the disk */
 	blkdev_read(0, 512, mbrbuf, dev);
-	mbrpart_t *part = (mbrpart_t*)((char *)mbrbuf + 0x1BE);
+	mbrpart_t *part = (mbrpart_t*) ((char *) mbrbuf + 0x1BE);
 	/* Cycle through all the partitions */
 	for(int i = 0; i < 4; i++)
 	{

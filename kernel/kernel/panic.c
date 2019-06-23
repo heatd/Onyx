@@ -74,7 +74,6 @@ void panic(const char *msg)
 	printk("Killing cpus\n");
 	cpu_kill_other_cpus();
 	page_print_shared();
-	vm_print_stats();
 	halt();
 	__builtin_unreachable();
 }

@@ -189,6 +189,9 @@ void *map_page_list(struct page *pl, size_t size, uint64_t prot);
 
 int vm_create_address_space(struct process *process, void *cr3);
 
+int vm_munmap(struct mm_address_space *as, void *__addr, size_t size);
+
+
 static inline void *page_align_up(void *ptr)
 {
 	uintptr_t i = (uintptr_t) ptr;
@@ -203,6 +206,8 @@ static inline size_t vm_align_size_to_pages(size_t size)
 		pages++;
 	return pages;
 }
+
+extern struct mm_address_space kernel_address_space;
 
 #ifdef __cplusplus
 }

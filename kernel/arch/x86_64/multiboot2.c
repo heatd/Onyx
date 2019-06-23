@@ -281,6 +281,7 @@ size_t count_mem(void)
 }
 
 void vterm_do_init(void);
+void vm_print_map(void);
 
 struct used_pages multiboot_struct_used;
 
@@ -385,7 +386,6 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 	}
 
 	vterm_do_init();
-
 
 	init_elf_symbols(secs);
 }

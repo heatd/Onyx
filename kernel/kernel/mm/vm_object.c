@@ -13,6 +13,7 @@
 #include <onyx/atomic.h>
 #include <onyx/ioctx.h>
 #include <onyx/file.h>
+#include <onyx/panic.h>
 
 #include <sys/mman.h>
 
@@ -47,6 +48,7 @@ struct vm_object *vmo_create_phys(size_t size)
 	struct vm_object *vmo = vmo_create(size, NULL);
 	if(!vmo)
 		return NULL;
+
 	vmo->commit = vmo_commit_phys_page;
 
 	return vmo;
@@ -155,6 +157,7 @@ struct vm_object *vmo_fork(struct vm_object *vmo)
 		return NULL;
 	memcpy(new_vmo, vmo, sizeof(*new_vmo));
 
+	/* TODO: Fix shared vmo forks */
 	shared = is_mapping_shared(new_vmo->mappings);
 	file = is_file_backed(new_vmo->mappings);
 	if(!shared)
@@ -166,6 +169,7 @@ struct vm_object *vmo_fork(struct vm_object *vmo)
 			spin_unlock(&vmo->page_lock);
 			return NULL;
 		}
+
 		spin_unlock(&vmo->page_lock);
 	}
 
@@ -229,10 +233,193 @@ void vmo_destroy(struct vm_object *vmo)
 	free(vmo);
 }
 
+void vmo_add_page(off_t off, struct page *p, struct vm_object *vmo)
+{
+	spin_lock(&vmo->page_lock);
+
+	p->off = off;
+
+	struct page **pp = &vmo->page_list;
+	while(*pp)
+		pp = &(*pp)->next_un.next_virtual_region;
+
+	*pp = p;
+
+	spin_unlock(&vmo->page_lock);
+}
+
 void vmo_unref(struct vm_object *vmo)
 {
 	/* For now, unref just destroys the object since vmo sharing is not
 	 * implemented yet.
 	*/
 	vmo_destroy(vmo);
+}
+
+static inline bool is_included(size_t lower, size_t upper, size_t x)
+{
+	if(x >= lower && x < upper)
+		return true;
+	return false;
+}
+
+static inline bool is_excluded(size_t lower, size_t upper, size_t x)
+{
+	if(x < lower || x > upper)
+		return true;
+	return false;
+}
+
+
+#define PURGE_SHOULD_FREE	(1 << 0)
+#define	PURGE_EXCLUDE		(1 << 1)
+
+
+void vmo_purge_pages(size_t lower_bound, size_t upper_bound, unsigned int flags,
+			  struct vm_object *second, struct vm_object *vmo)
+{
+	spin_lock(&vmo->page_lock);
+
+	struct page *before = NULL;
+	struct page *p = vmo->page_list;
+
+	bool should_free = flags & PURGE_SHOULD_FREE;
+	bool exclusive = flags & PURGE_EXCLUDE;
+
+	assert(!(should_free && second != NULL));
+
+	bool (*compare_function)(size_t, size_t, size_t) = is_included;
+
+	if(exclusive)
+		compare_function = is_excluded;
+
+	while(p != NULL)
+	{
+		if(compare_function(lower_bound, upper_bound, p->off))
+		{
+			if(!before)
+			{
+				vmo->page_list = p->next_un.next_virtual_region;
+			}
+			else
+			{
+				before->next_un.next_virtual_region = p->next_un.next_virtual_region;
+			}
+
+			struct page *old_p = p;
+			p = p->next_un.next_virtual_region;
+
+			old_p->next_un.next_virtual_region = NULL;
+
+			/* TODO: Add a virtual function to do this */
+			if(should_free)
+			{
+				free_page(old_p);
+			}
+
+			if(second)
+				vmo_add_page(old_p->off, old_p, second);
+		}
+		else
+		{
+			before = p;
+			p = p->next_un.next_virtual_region;
+		}
+	}
+
+	spin_unlock(&vmo->page_lock);
+}
+
+int vmo_resize(size_t new_size, struct vm_object *vmo)
+{
+	vmo->size = new_size;
+	vmo_purge_pages(0, new_size, PURGE_SHOULD_FREE | PURGE_EXCLUDE, NULL, vmo);
+
+	return 0;
+}
+
+void vmo_update_offsets(size_t off, struct vm_object *vmo)
+{
+	spin_lock(&vmo->page_lock);
+
+	for(struct page *p = vmo->page_list; p != NULL; p = p->next_un.next_virtual_region)
+	{
+		p->off -= off;
+	}
+
+	spin_unlock(&vmo->page_lock);
+}
+
+struct vm_object *vmo_create_copy(struct vm_object *vmo)
+{
+	struct vm_object *copy = memdup(vmo, sizeof(*vmo));
+
+	if(!copy)
+		return NULL;
+	
+	bool file = is_file_backed(vmo->mappings);
+	
+	if(file)
+		copy->u_info.fmap.fd->refcount++;
+	
+	return copy;
+}
+
+struct vm_object *vmo_split(size_t split_point, size_t hole_size, struct vm_object *vmo)
+{
+	struct vm_object *second_vmo = vmo_create_copy(vmo);
+
+	if(!second_vmo)
+		return NULL;
+
+	second_vmo->size -= split_point + hole_size;
+	second_vmo->page_list = NULL;
+	if(is_file_backed(second_vmo->mappings))
+		second_vmo->u_info.fmap.off += split_point + hole_size;
+
+	unsigned long max = hole_size + split_point;
+
+	vmo_purge_pages(split_point, max, PURGE_SHOULD_FREE, NULL, vmo);
+	vmo_purge_pages(max, vmo->size, 0, second_vmo, vmo);
+	vmo_update_offsets(split_point + hole_size, second_vmo);
+
+	vmo->size -= hole_size + second_vmo->size;
+
+	return second_vmo;
+}
+
+void vmo_sanity_check(struct vm_object *vmo)
+{
+	spin_lock(&vmo->page_lock);
+
+	for(struct page *p = vmo->page_list; p != NULL; p = p->next_un.next_virtual_region)
+	{
+		if(p->off > vmo->size)
+		{
+			printk("Bad vmobject: p->off > nr_pages << PAGE_SHIFT.\n");
+			printk("struct page: %p\n", p);
+			printk("Offset: %lx\n", p->off);
+			printk("Size: %lx\n", vmo->size);
+			panic("bad vmobject");
+		}
+
+		if(p->ref == 0)
+		{
+			printk("Bad vmobject:: p->ref == 0.\n");
+			printk("struct page: %p\n", p);
+			panic("bad vmobject");
+		}
+	}	
+
+	spin_unlock(&vmo->page_lock);
+}
+
+void vmo_truncate_beginning_and_resize(size_t off, struct vm_object *vmo)
+{
+	vmo_purge_pages(0, off, PURGE_SHOULD_FREE, NULL, vmo);
+	vmo_update_offsets(off, vmo);
+
+	if(is_file_backed(vmo->mappings))
+		vmo->u_info.fmap.off += off;
+	vmo->size -= off;
 }
