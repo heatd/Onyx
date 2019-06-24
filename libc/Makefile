@@ -23,7 +23,8 @@ include $(ARCHDIR)/make.config
 CFLAGS:=$(CFLAGS) $(ARCH_CFLAGS) -fPIC
 CPPFLAGS:=$(CPPFLAGS) $(ARCH_CPPFLAGS) -DPIC -Iinclude
 LIBK_CFLAGS:=$(LIBK_CFLAGS) $(KERNEL_ARCH_CFLAGS)
-LIBK_CPPFLAGS:=$(LIBK_CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS) -Iinclude -I $(realpath ../kernel/include/acpica)
+LIBK_CPPFLAGS:=$(LIBK_CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS) -Iinclude -I $(realpath ../kernel/include/acpica) \
+-imacros ../kernel/include/onyx/config.h
 
 FREEOBJS:=\
 $(ARCH_FREEOBJS) \
@@ -112,25 +113,25 @@ libc.so: $(OBJS)
 	$(CC) $(OBJS) -shared $(CFLAGS) $(CPPFLAGS) -o $@
 	mkdir -p $(DESTDIR)$(LIBDIR)
 	cp $@ $(DESTDIR)$(LIBDIR)
-%.o: %.c
+%.o: %.c ../kernel/kernel.config
 	echo [CC] $<
 	$(CC) -c $< -o $@ -std=gnu11 -fPIC $(CFLAGS) $(CPPFLAGS)
-%.o: %.cpp
+%.o: %.cpp ../kernel/kernel.config
 	echo [CXX] $<
 	$(CXX) -c $< -o $@ -std=c++14 $(CFLAGS) $(CPPFLAGS)
 
-%.libk.o: %.c
+%.libk.o: %.c ../kernel/kernel.config
 	echo [CC] $<.libk
 	$(CC) -c $< -o $@ -std=gnu11 -mcmodel=kernel $(LIBK_CFLAGS) $(LIBK_CPPFLAGS)
 
-%.libk.o: %.cpp
+%.libk.o: %.cpp ../kernel/kernel.config
 	echo [CXX] $<.libk
 	$(CXX) -c $< -o $@ -std=c++14 -mcmode=kernel $(LIBK_CFLAGS) $(LIBK_CPPFLAGS)
 
-%.libk.o: %.S
+%.libk.o: %.S ../kernel/kernel.config
 	echo [AS] $<.libk
 	$(CC) -c $(CFLAGS) $(CPPFLAGS) $< -o $@
-%.o: %.S
+%.o: %.S ../kernel/kernel.config
 	echo [AS] $<
 	$(CC) -c $(CFLAGS) $(CPPFLAGS) $< -o $@
 clean:

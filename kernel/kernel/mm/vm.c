@@ -30,6 +30,7 @@
 #include <libdict/dict.h>
 
 #include <onyx/mm/vm_object.h>
+#include <onyx/mm/kasan.h>
 
 #include <onyx/vm_layout.h>
 
@@ -222,6 +223,9 @@ void vm_late_init(void)
 
 	vm_map_range((void*) heap_addr, vm_align_size_to_pages(0x400000),
 			VM_WRITE | VM_NOEXEC);
+#ifdef CONFIG_KASAN
+	kasan_alloc_shadow(heap_addr, 0x400000, false);
+#endif
 	heap_set_start(heap_addr);
 
 	vm_addr_init();
@@ -245,7 +249,9 @@ void vm_late_init(void)
 		panic("vmm: early boot oom");	
 	}
 	v->base = KERNEL_VIRTUAL_BASE;
-	v->pages = 0x80000000 / PAGE_SIZE;
+
+	/* Subtract one so we don't overflow */
+	v->pages = (0x80000000 / PAGE_SIZE) - 1;
 	v->type = VM_TYPE_SHARED;
 	v->rwx = 0;
 
@@ -701,6 +707,9 @@ void *vmalloc(size_t pages, int type, int perms)
 		vm_destroy_mappings(vm, pages);
 		return NULL;	
 	}
+#ifdef CONFIG_KASAN
+	kasan_alloc_shadow(vm->base, pages << PAGE_SHIFT, true);
+#endif
 
 	return (void *) vm->base;
 }
@@ -1074,7 +1083,9 @@ void *mmiomap(void *phys, size_t size, size_t flags)
 		printf("map_pages_to_vaddr: Could not map pages\n");
 		return NULL;
 	}
-
+#ifdef CONFIG_KASAN
+	kasan_alloc_shadow(entry->base, size, true);
+#endif
 	return (void *) ((uintptr_t) p + p_off);
 }
 
@@ -1114,7 +1125,7 @@ int vm_handle_page_fault(struct fault_info *info)
 			struct process *current = get_current_process();
 			printk("Curr thread: %p\n", ct);
 			printk("Could not find %lx, ip %lx, process name %s\n", info->fault_address,
-				info->ip, current->cmd_line);
+				info->ip, current ? current->cmd_line : "(kernel)");
 		}
 		
 		info->error = VM_SIGSEGV;
@@ -1446,6 +1457,9 @@ void *get_pages(size_t flags, uint32_t type, size_t pages, size_t prot, uintptr_
 			vm_munmap(&kernel_address_space, (void *) va->base, pages << PAGE_SHIFT);
 			return NULL;
 		}
+#ifdef CONFIG_KASAN
+		kasan_alloc_shadow(va->base, pages << PAGE_SHIFT, true);
+#endif
 	}
 
 	return (void *) va->base;
@@ -1792,4 +1806,15 @@ int vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
 	spin_unlock(&as->vm_spl);
 
 	return 0;
+}
+
+static bool for_every_region_visit(const void *key, void *region, void *caller_data)
+{
+	bool (*func)(struct vm_region *) = (bool(*) (struct vm_region *)) caller_data;
+	return func((struct vm_region *) region);
+}
+
+void vm_for_every_region(struct mm_address_space *as, bool (*func)(struct vm_region *region))
+{
+	rb_tree_traverse(as->area_tree, for_every_region_visit, (void *) func);
 }

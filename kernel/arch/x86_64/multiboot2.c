@@ -67,6 +67,7 @@
 #include <onyx/percpu.h>
 #include <onyx/framebuffer.h>
 #include <onyx/utils.h>
+#include <onyx/mm/kasan.h>
 
 #include <drivers/rtc.h>
 
@@ -388,4 +389,8 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 	vterm_do_init();
 
 	init_elf_symbols(secs);
+
+#ifdef CONFIG_KASAN
+	kasan_init();
+#endif
 }

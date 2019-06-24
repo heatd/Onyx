@@ -542,6 +542,10 @@ MAX_RELEASE_CHECK_RATE   default: 4095 unless not HAVE_MMAP
 #include <onyx/random.h>
 #include <onyx/spinlock.h>
 
+#if CONFIG_KASAN
+#include <onyx/mm/kasan.h>
+#endif
+
 #define USE_LOCKS 2
 #define HAVE_MMAP 0
 #define HAVE_MORECORE 1
@@ -4748,6 +4752,10 @@ void* dlmalloc(size_t bytes) {
 
   postaction:
     POSTACTION(gm);
+
+#ifdef CONFIG_KASAN
+    kasan_set_state(mem, bytes, 0);
+#endif
     return mem;
   }
 
@@ -4767,6 +4775,10 @@ void dlfree(void* mem) {
   if (mem != 0) {      
     validate_free(mem);
     mchunkptr p  = mem2chunk(mem);
+#ifdef CONFIG_KASAN
+    kasan_set_state(mem, chunksize(p), 1);
+#endif
+
 #if FOOTERS
     mstate fm = get_mstate_for(p);
     if (!ok_magic(fm)) {
@@ -5298,6 +5310,9 @@ void* dlrealloc(void* oldmem, size_t bytes) {
       if (newp != 0) {
         check_inuse_chunk(m, newp);
         mem = chunk2mem(newp);
+#ifdef CONFIG_KASAN
+        kasan_set_state(mem, bytes, 0);
+#endif
       }
       else {
         mem = internal_malloc(m, bytes);

@@ -20,9 +20,11 @@ void init_tss()
 {
 	gdt_init_percpu();
 }
+
 void set_kernel_stack(uintptr_t stack0)
 {
 	struct processor *proc = get_processor_data();
+
 	if(unlikely(!proc))
 	{
 		tss.stack0 = stack0;
@@ -35,6 +37,7 @@ void set_kernel_stack(uintptr_t stack0)
 		entry->ist[0] = stack0;
 	}
 }
+
 void init_percpu_tss(uint64_t *gdt)
 {
 	tss_entry_t *new_tss = malloc(sizeof(tss_entry_t));

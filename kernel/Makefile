@@ -26,13 +26,19 @@ LIBS:=$(LIBS) -nostdlib -lk -lgcc
 ARCHDIR:=arch/$(HOSTARCH)
 
 include $(ARCHDIR)/make.config
+include kernel.config
 
 # TODO: Add -finstrument-functions support
 CFLAGS:=$(CFLAGS) $(KERNEL_ARCH_CFLAGS)
+
+ifeq ($(CONFIG_KASAN), y)
+CFLAGS+=-fsanitize=kernel-address
+endif
+
 CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS) -D ACPI_LIBRARY -D ACPI_DEBUG_OUTPUT=1
 LDFLAGS:=$(LDFLAGS) $(KERNEL_ARCH_LDFLAGS)
 LIBS:=$(LIBS) $(KERNEL_ARCH_LIBS)
-ACPICA_CFLAGS:=$(filter-out -fsanitize=undefined -fsanitize=address -Werror, $(CFLAGS))
+ACPICA_CFLAGS:=$(filter-out -fsanitize=undefined -fsanitize=kernel-address -Werror, $(CFLAGS))
 
 OBJS:=\
 $(patsubst %.c,%.o,$(wildcard drivers/*/*.c)) \
@@ -81,6 +87,11 @@ vmonyx: $(OBJ_LINK_LIST) $(ARCHDIR)/linker.ld
 acpica/%.o: acpica/%.c kernel.config
 	@echo [CC] $<
 	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) $(CPPFLAGS)
+
+kernel/mm/kasan.o: kernel/mm/kasan.c
+	@echo [CC] NOKASAN $<
+	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) $(CPPFLAGS)
+
 %.o: %.c kernel.config
 	@echo [CC] $<
 	@$(CC) -c $< -o $@ -std=c11 $(CFLAGS) $(CPPFLAGS) -Wno-error=deprecated-declarations

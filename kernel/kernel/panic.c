@@ -65,12 +65,12 @@ void panic(const char *msg)
 #else
 	#error "Implement thread context printing in your arch"
 #endif
-	printk("panic: %s\nThread Context:\n%s", msg, buffer);
+	printk("panic: %s\n", msg);
 
 	module_dump();
 	printk("Stack dump: \n");
 
-	//stack_trace();
+	stack_trace();
 	printk("Killing cpus\n");
 	cpu_kill_other_cpus();
 	page_print_shared();

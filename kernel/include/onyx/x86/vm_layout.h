@@ -21,7 +21,7 @@ typedef enum
 	arch_vmalloc_off 	= 0x000000000000,
 	arch_kstacks_off  	= 0x100000000000,
 	arch_heap_off		= 0x200000000000,
-	arch_kasan_off		= 0x300000000000,
+	arch_kasan_off		= 0x400000000000,
 } vas_areas;
 
 #define VMALLOC_ASLR_BITS	40

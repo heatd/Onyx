@@ -893,7 +893,7 @@ struct serial_port
 };
 
 extern struct serial_port com1;
-static void serial_write(const char *s, size_t size, struct serial_port *port);
+void serial_write(const char *s, size_t size, struct serial_port *port);
 
 ssize_t vterm_write_tty(void *buffer, size_t size, struct tty *tty)
 {
@@ -999,7 +999,7 @@ static void write_byte(char c, struct serial_port *port)
 		write_byte('\r', port);
 }
 
-static void serial_write(const char *s, size_t size, struct serial_port *port)
+void serial_write(const char *s, size_t size, struct serial_port *port)
 {
 	for(size_t i = 0; i < size; i++)
 	{

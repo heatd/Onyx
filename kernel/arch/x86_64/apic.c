@@ -57,7 +57,7 @@ void lapic_init(void)
 	/* Get the BSP's LAPIC base address from the msr's */
 	uint32_t high, low;
 	rdmsr(0x1b, &low, &high);
-	uint64_t addr = low | ((uint64_t)high << 32);
+	uint64_t addr = low | ((uint64_t) high << 32);
 	addr &= 0xFFFFF000;
 	/* Map the BSP's LAPIC */
 	bsp_lapic = mmiomap((void*) addr, PAGE_SIZE, VM_WRITE | VM_NOEXEC
@@ -87,7 +87,7 @@ uint32_t read_io_apic(uint32_t reg)
 
 void write_io_apic(uint32_t reg, uint32_t value)
 {
-	uint32_t volatile *ioapic = (uint32_t volatile*)ioapic_base;
+	uint32_t volatile *ioapic = (uint32_t volatile*) ioapic_base;
 	ioapic[0] = (reg & 0xFF);
 	ioapic[4] = value;
 }

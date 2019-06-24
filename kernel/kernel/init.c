@@ -281,10 +281,11 @@ retry:;
 static thread_t *new_thread;
 
 void kernel_multitasking(void *);
+void vdbg();
+
 __attribute__((no_sanitize_undefined))
 void kernel_main()
 {
-
 	/* Initialize ACPI */
 	acpi_initialize();
 

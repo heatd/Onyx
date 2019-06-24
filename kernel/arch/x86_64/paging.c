@@ -405,6 +405,9 @@ void* paging_map_phys_to_virt(PML4 *__pml, uint64_t virt, uint64_t phys, uint64_
 	unsigned int cache_type = vm_prot_to_cache_type(prot);
 	uint8_t caching_bits = cache_to_paging_bits(cache_type);
 
+	if(prot & VM_DONT_MAP_OVER && pml->entries[indices[0]] & X86_PAGING_PRESENT)
+		return (void *) virt;
+	
 	pml->entries[indices[0]] = make_pml1e(phys, noexec, 0,
 	global, caching_bits, user, write, 1);
 

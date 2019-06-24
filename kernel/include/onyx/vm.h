@@ -39,6 +39,7 @@
 #define VM_WRITETHROUGH		(1 << 4)
 #define VM_WC			(1 << 5)
 #define VM_WP			(1 << 6)
+#define VM_DONT_MAP_OVER	(1 << 7)
 
 /* Internal flags used by the mm code */
 #define __VM_CACHE_TYPE_REGULAR 	0
@@ -208,6 +209,7 @@ static inline size_t vm_align_size_to_pages(size_t size)
 }
 
 extern struct mm_address_space kernel_address_space;
+void vm_for_every_region(struct mm_address_space *as, bool (*func)(struct vm_region *region));
 
 #ifdef __cplusplus
 }

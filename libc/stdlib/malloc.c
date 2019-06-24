@@ -14,6 +14,7 @@
 #ifdef __is_onyx_kernel
 #include <onyx/vm.h>
 #include <onyx/spinlock.h>
+#include <onyx/mm/kasan.h>
 extern bool is_initialized;
 char *heap = NULL;
 char *heap_limit = NULL;
@@ -29,6 +30,9 @@ int heap_expand(void)
 	/* Allocate 256 pages */
 	if(!vm_map_range(heap_limit, 256, VM_WRITE | VM_NOEXEC))
 		return -1;
+#ifdef CONFIG_KASAN
+	kasan_alloc_shadow((unsigned long) heap_limit, 256 << PAGE_SHIFT, false);
+#endif
 	heap_limit += 0x100000;
 	return 0;
 }

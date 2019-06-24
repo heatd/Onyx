@@ -149,8 +149,8 @@ void vdso_init(void)
 	clock_realtime = vdso_lookup_symbol("clock_realtime");
 	
 	vdso_setup = true;
+
 	/* Update the vdso for the first time */
 	vdso_update_time(CLOCK_MONOTONIC, get_raw_clock_time(CLOCK_MONOTONIC));
 	vdso_update_time(CLOCK_REALTIME, get_raw_clock_time(CLOCK_REALTIME));
 }
-

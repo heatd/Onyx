@@ -153,7 +153,7 @@ bool sched_is_preemption_disabled(void)
 }
 
 void arch_save_thread(struct thread *thread, void *stack);
-void arch_load_thread(struct thread *thread);
+void arch_load_thread(struct thread *thread, struct processor *p);
 void arch_load_process(struct process *process, struct thread *thread,
                        struct processor *p);
 
@@ -173,7 +173,7 @@ void sched_load_thread(struct thread *thread, struct processor *p)
 
 	errno = thread->errno_val;
 
-	arch_load_thread(thread);
+	arch_load_thread(thread, p);
 
 	if(thread->owner)
 		arch_load_process(thread->owner, thread, p);

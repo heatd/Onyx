@@ -404,6 +404,7 @@ inline struct page *alloc_pages_nozero(size_t nr_pgs, unsigned long flags)
 struct page *__get_phys_pages(size_t nr_pgs, unsigned long flags)
 {
 	struct page *plist = NULL;
+	struct page *ptail = NULL;
 	off_t off = 0;
 
 	for(size_t i = 0; i < nr_pgs; i++, off += PAGE_SIZE)
@@ -427,13 +428,12 @@ struct page *__get_phys_pages(size_t nr_pgs, unsigned long flags)
 
 		if(!plist)
 		{
-			plist = p;
+			plist = ptail = p;
 		}
 		else
 		{
-			struct page *i = plist;
-			for(; i->next_un.next_allocation != NULL; i = i->next_un.next_allocation);
-			i->next_un.next_allocation = p;
+			ptail->next_un.next_allocation = p;
+			ptail = p;
 		}
 	}
 
