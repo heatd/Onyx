@@ -51,11 +51,13 @@ void kernlog_print(const char *msg)
 		log_position += strlen(msg) + 13 + 1;
 	}
 }
+
 void kernlog_clear(void)
 {
 	memset(_log_buf, 0, LOG_BUF_SIZE);
 	log_position = 0;
 }
+
 #define SYSLOG_ACTION_READ 		2
 #define SYSLOG_ACTION_READ_CLEAR 	4
 #define SYSLOG_ACTION_CLEAR		5

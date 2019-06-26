@@ -359,15 +359,17 @@ void elf_sections_reserve(struct multiboot_tag_elf_sections *restrict secs)
 	{
 		if(!strcmp(".symtab", elf_get_string(sections[i].sh_name)))
 		{
-			symtab_pages.start = sections[i].sh_addr;
-			symtab_pages.end = sections[i].sh_size + symtab_pages.start;
+			symtab_pages.start = sections[i].sh_addr & ~(PAGE_SIZE - 1);
+			symtab_pages.end = (uintptr_t) page_align_up((void *)(sections[i].sh_size +
+					   sections[i].sh_addr));
 			symtab_pages.next = NULL;
 			page_add_used_pages(&symtab_pages);
 		}
 		if(!strcmp(".strtab", elf_get_string(sections[i].sh_name)))
 		{
-			strtab_pages.start = sections[i].sh_addr;
-			strtab_pages.end = sections[i].sh_size + strtab_pages.start;
+			strtab_pages.start = sections[i].sh_addr & ~(PAGE_SIZE - 1);
+			strtab_pages.end = (uintptr_t) page_align_up((void *)(sections[i].sh_size
+					   + sections[i].sh_addr));
 			strtab_pages.next = NULL;
 			page_add_used_pages(&strtab_pages);
 		}

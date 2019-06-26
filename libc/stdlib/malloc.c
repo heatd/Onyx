@@ -28,7 +28,7 @@ void heap_set_start(uintptr_t start)
 int heap_expand(void)
 {
 	/* Allocate 256 pages */
-	if(!vm_map_range(heap_limit, 256, VM_WRITE | VM_NOEXEC))
+	if(!vm_map_range(heap_limit, 256, VM_WRITE | VM_NOEXEC | VM_DONT_MAP_OVER))
 		return -1;
 #ifdef CONFIG_KASAN
 	kasan_alloc_shadow((unsigned long) heap_limit, 256 << PAGE_SHIFT, false);
@@ -40,7 +40,9 @@ int heap_expand(void)
 static struct spinlock heap_lock;
 void *sbrk(intptr_t increment)
 {
+	//printf("sbrk %ld\n", increment);
 	spin_lock_preempt(&heap_lock);
+
 	if(heap + increment >= heap_limit || heap >= heap_limit)
 	{
 		size_t times = increment / 0x100000;

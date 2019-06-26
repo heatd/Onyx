@@ -348,8 +348,9 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 		}
 	}
 
-	multiboot_struct_used.start = (uintptr_t) addr - PHYS_BASE;
-	multiboot_struct_used.end = (uintptr_t) tag - PHYS_BASE;
+	multiboot_struct_used.start = ((uintptr_t) addr - PHYS_BASE) & ~(PAGE_SIZE - 1);
+	
+	multiboot_struct_used.end = (uintptr_t) page_align_up((void *)((uintptr_t) tag - PHYS_BASE));
 	multiboot_struct_used.next = NULL;
 	page_add_used_pages(&multiboot_struct_used);
 

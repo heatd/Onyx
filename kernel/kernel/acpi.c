@@ -348,10 +348,10 @@ ACPI_STATUS acpi_add_device(ACPI_HANDLE object, UINT32 nestingLevel, void *conte
 		id = buf.Pointer;
 	}
 
-	char *name = malloc(PATH_MAX);
+	char *name = zalloc(PATH_MAX);
 	if(!name)
 		return AE_ERROR;
-	memset(name, 0, PATH_MAX);
+
 	snprintf(name, PATH_MAX, "%s", id);
 
 	ACPI_RESOURCE *resources = acpi_get_resources(object);
@@ -360,7 +360,6 @@ ACPI_STATUS acpi_add_device(ACPI_HANDLE object, UINT32 nestingLevel, void *conte
 	if(!device)
 		return AE_ERROR;
 	memset(device, 0, sizeof(struct acpi_device));
-
 
 	device->dev.name = name;
 	device->object = object;
@@ -397,12 +396,14 @@ int acpi_initialize(void)
 		printk("Error: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
 		panic("ACPI subsystem initialization failed!");
 	}
+
 	st = AcpiInitializeTables(NULL, 32, true);
 	if(ACPI_FAILURE(st))
 	{
 		printk("Error: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
 		panic("ACPI table subsystem initialization failed!");
 	}
+
 	st = AcpiLoadTables();
 	if(ACPI_FAILURE(st))
 		panic("AcpiLoadTables failed!");
@@ -414,13 +415,16 @@ int acpi_initialize(void)
 		printk("Error: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
 		panic("AcpiEnableSubsystem failed!");
 	}
-	st = AcpiInitializeObjects (ACPI_FULL_INITIALIZATION);
+
+	st = AcpiInitializeObjects(ACPI_FULL_INITIALIZATION);
 	if(ACPI_FAILURE(st))
 		panic("AcpiInitializeObjects failed!");
 
 	INFO("acpi", "initialized!\n");
+
 	/* Register the acpi bus */
 	bus_register(&acpi_bus);
+	
 	/* Enumerate every device */
 	acpi_enumerate_devices();
 

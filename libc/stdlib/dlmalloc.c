@@ -542,7 +542,7 @@ MAX_RELEASE_CHECK_RATE   default: 4095 unless not HAVE_MMAP
 #include <onyx/random.h>
 #include <onyx/spinlock.h>
 
-#if CONFIG_KASAN
+#ifdef CONFIG_KASAN
 #include <onyx/mm/kasan.h>
 #endif
 
@@ -3055,7 +3055,7 @@ static size_t traverse_and_check(mstate m);
 
 #if !INSECURE
 /* Check if address a is at least as high as any from MORECORE or MMAP */
-#define ok_address(M, a) ((char*)(a) >= (M)->least_addr)
+#define ok_address(M, a) ((char*)(a) >= (M)->least_addr ? true : printk("bad address %p\n", a))
 /* Check if address of next chunk n is higher than base chunk p */
 #define ok_next(p, n)    ((char*)(p) < (char*)(n))
 /* Check if p has inuse status */
@@ -3588,13 +3588,9 @@ static void internal_malloc_stats(mstate m) {
       }
     }
     POSTACTION(m); /* drop lock */
-    char buffer[200];
-    sprintf(buffer, "max system bytes = %10lu\n", (unsigned long)(maxfp));
-    printk(buffer);
-    sprintf(buffer, "system bytes     = %10lu\n", (unsigned long)(fp));
-    printk(buffer);
-    sprintf(buffer, "in use bytes     = %10lu\n", (unsigned long)(used));
-    printk(buffer);
+    printk("max system bytes = %10lu\n", (unsigned long)(maxfp));
+    printk("system bytes     = %10lu\n", (unsigned long)(fp));
+    printk("in use bytes     = %10lu\n", (unsigned long)(used));
   }
 }
 #endif /* NO_MALLOC_STATS */
@@ -3798,6 +3794,7 @@ void show_heap(void *a)
       R->fd = F;\
     }\
     else {\
+      printk("X: %p\nF: %p\n", X, F); \
       CORRUPTION_ERROR_ACTION(M);\
     }\
   }\
@@ -3813,6 +3810,7 @@ void show_heap(void *a)
       if (RTCHECK(ok_address(M, RP)))\
         *RP = 0;\
       else {\
+        printk("Rp: %p\n", RP); \
         CORRUPTION_ERROR_ACTION(M);\
       }\
     }\
@@ -3831,6 +3829,7 @@ void show_heap(void *a)
     }\
     else \
     {\
+      printf("XP: %p\n", XP); \
       CORRUPTION_ERROR_ACTION(M); \
     }\
     if (R != 0) {\
@@ -3857,7 +3856,8 @@ void show_heap(void *a)
         }\
       }\
       else\
-        CORRUPTION_ERROR_ACTION(M);\
+      { printk("Bad address R: %p\n", R); \
+        CORRUPTION_ERROR_ACTION(M);}\
     }\
   }\
 }

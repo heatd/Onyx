@@ -34,29 +34,38 @@ ACPI_STATUS AcpiOsInitialize()
 	printf("ACPI initializing!\n");
 	return AE_OK;
 }
+
 ACPI_STATUS AcpiOsShutdown()
 {
 	return AE_OK;
 }
+
 ACPI_PHYSICAL_ADDRESS AcpiOsGetRootPointer()
 {
 	return (ACPI_PHYSICAL_ADDRESS) acpi_get_rsdp();
 }
+
 ACPI_STATUS AcpiOsPredefinedOverride(const ACPI_PREDEFINED_NAMES *PredefinedObject, ACPI_STRING *NewValue)
 {
 	*NewValue = NULL;
 	return AE_OK;
 }
+
 ACPI_STATUS AcpiOsTableOverride(ACPI_TABLE_HEADER *ExistingTable, ACPI_TABLE_HEADER **NewTable)
 {
 	*NewTable = NULL;
 	return AE_OK;
 }
+
 void *AcpiOsMapMemory(ACPI_PHYSICAL_ADDRESS PhysicalAddress, ACPI_SIZE Length)
 {
+#ifdef DEBUG_ACPICA
+	printf("map %p", PhysicalAddress);
+#endif
 	void *addrl = (void*)(PhysicalAddress + PHYS_BASE);
 	return addrl;
 }
+
 void AcpiOsUnmapMemory(void *where, ACPI_SIZE Length)
 {
 	size_t pages = Length / 4096;
@@ -66,11 +75,14 @@ void AcpiOsUnmapMemory(void *where, ACPI_SIZE Length)
 	//Memory::Unmap(where, pages);
 	//Memory::ReleaseLockedPages(where);
 }
+
 ACPI_STATUS AcpiOsGetPhysicalAddress(void *LogicalAddress, ACPI_PHYSICAL_ADDRESS *PhysicalAddress)
 {
 	*PhysicalAddress = (ACPI_PHYSICAL_ADDRESS)virtual2phys(LogicalAddress);
+	printk("Return: %p\n", *PhysicalAddress);
 	return AE_OK;
 }
+
 void *AcpiOsAllocate(ACPI_SIZE Size)
 {	
 	void *ptr = malloc(Size);
@@ -78,6 +90,7 @@ void *AcpiOsAllocate(ACPI_SIZE Size)
 		printf("Allocation failed with size %lu\n", Size);
 	return ptr;
 }
+
 void AcpiOsFree(void *Memory)
 {
 	free(Memory);
@@ -101,18 +114,21 @@ ACPI_THREAD_ID AcpiOsGetThreadId()
 }
 ACPI_STATUS AcpiOsExecute(ACPI_EXECUTE_TYPE Type, ACPI_OSD_EXEC_CALLBACK Function, void * Context)
 {
+	printk("Hello");
 	thread_t *thread = NULL;
-	if(!(thread = sched_create_thread((thread_callback_t)Function, 1, Context)))
+	if(!(thread = sched_create_thread((thread_callback_t) Function, 1, Context)))
 		return AE_NO_MEMORY;
 	sched_start_thread(thread);
 	return AE_OK;
 }
+
 void AcpiOsSleep(UINT64 Milliseconds)
 {
 	/* Without this check, the kernel might crash at early boot, when we don't have a thread */
 	if(get_current_thread())
 		sched_sleep(Milliseconds);
 }
+
 void AcpiOsStall(UINT32 Microseconds)
 {
 	uint64_t orig_us = get_microseconds();
@@ -120,63 +136,73 @@ void AcpiOsStall(UINT32 Microseconds)
 	while(get_microseconds() != orig_us + Microseconds)
 		cpu_relax();
 }
+
 ACPI_STATUS AcpiOsCreateMutex(ACPI_MUTEX *OutHandle)
 {
-	*OutHandle = AcpiOsAllocate(sizeof(ACPI_MUTEX));
+	*OutHandle = AcpiOsAllocateZeroed(sizeof(ACPI_MUTEX));
 	if(*OutHandle == NULL)	return AE_NO_MEMORY;
 	return AE_OK;
 }
+
 void AcpiOsDeleteMutex(ACPI_MUTEX Handle)
 {
 	free(Handle);
 }
+
 // TODO: Implement Timeout
 ACPI_STATUS AcpiOsAcquireMutex(ACPI_MUTEX Handle, UINT16 Timeout)
 {
 	spinlock_lock((unsigned long*) Handle);
 	return AE_OK;
 }
+
 void AcpiOsReleaseMutex(ACPI_MUTEX Handle)
 {
 	spinlock_unlock((unsigned long*) Handle);
 }
+
 // TODO: Implement Semaphores (should be pretty simple)
 ACPI_STATUS AcpiOsCreateSemaphore(UINT32 MaxUnits, UINT32 InitialUnits, ACPI_SEMAPHORE * OutHandle)
 {
-	*OutHandle = AcpiOsAllocate(sizeof(ACPI_MUTEX));
+	*OutHandle = AcpiOsAllocateZeroed(sizeof(ACPI_MUTEX));
 	if(*OutHandle == NULL) return AE_NO_MEMORY;
-	memset(*OutHandle, 0, sizeof(ACPI_MUTEX));
 	return AE_OK;
 }
+
 ACPI_STATUS AcpiOsDeleteSemaphore(ACPI_SEMAPHORE Handle)
 {
 	free(Handle);
 	return AE_OK;
 }
+
 ACPI_STATUS AcpiOsWaitSemaphore(ACPI_SEMAPHORE Handle, UINT32 Units, UINT16 Timeout)
 {
 	return AE_OK;
 }
+
 ACPI_STATUS AcpiOsSignalSemaphore(ACPI_SEMAPHORE Handle, UINT32 Units)
 {
 	return AE_OK;
 }
+
 ACPI_STATUS AcpiOsCreateLock(ACPI_SPINLOCK *OutHandle)
 {
-	*OutHandle = AcpiOsAllocate(sizeof(ACPI_SPINLOCK));
+	*OutHandle = AcpiOsAllocateZeroed(sizeof(ACPI_SPINLOCK));
 	if(*OutHandle == NULL) return AE_NO_MEMORY;
-	memset(*OutHandle, 0, sizeof(ACPI_SPINLOCK));
 	return AE_OK;
 }
+
 void AcpiOsDeleteLock(ACPI_HANDLE Handle)
 {
 	free(Handle);
 }
+
 ACPI_CPU_FLAGS AcpiOsAcquireLock(ACPI_SPINLOCK Handle)
 {
 	spinlock_lock((unsigned long*)Handle);
 	return 0;
 }
+
 void AcpiOsReleaseLock(ACPI_SPINLOCK Handle, ACPI_CPU_FLAGS Flags)
 {
 	spinlock_unlock((unsigned long*)Handle);

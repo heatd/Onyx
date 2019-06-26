@@ -13,7 +13,8 @@
 #define MODULE_LICENSE_MIT	"MIT"
 #define MODULE_LICENSE_BSD	"BSD"
 
-#define MODULE_INFO(tag, x, name) __attribute__((section(".modinfo"), used, aligned(1))) const char __PASTE(name, __COUNTER__) [] = tag "=" x
+#define MODULE_INFO(tag, x, name) __attribute__((section(".modinfo"), used, aligned(1)))  \
+static const char __PASTE(name, __COUNTER__) [] = tag "=" x
 
 #define MODULE_AUTHOR(x) MODULE_INFO("author", x, author)
 #define MODULE_LICENSE(x) MODULE_INFO("license", x, license)
