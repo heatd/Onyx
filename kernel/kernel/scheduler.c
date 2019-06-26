@@ -30,6 +30,7 @@
 #include <onyx/semaphore.h>
 #include <onyx/condvar.h>
 #include <onyx/irq.h>
+#include <onyx/arch.h>
 
 static thread_t **idle_threads;
 
@@ -151,11 +152,6 @@ bool sched_is_preemption_disabled(void)
 		return false;
 	return p->preemption_counter > 0;
 }
-
-void arch_save_thread(struct thread *thread, void *stack);
-void arch_load_thread(struct thread *thread, struct processor *p);
-void arch_load_process(struct process *process, struct thread *thread,
-                       struct processor *p);
 
 void sched_save_thread(struct thread *thread, void *stack)
 {

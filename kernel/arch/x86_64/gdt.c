@@ -11,7 +11,8 @@
 #include <onyx/tss.h>
 #include <onyx/vm.h>
 
-#define GDT_SIZE 77
+#define GDT_SIZE 76
+
 extern gdtr_t gdtr3;
 extern void gdt_flush(gdtr_t *gdtr);
 void gdt_init_percpu(void)

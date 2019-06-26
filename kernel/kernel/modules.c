@@ -12,142 +12,253 @@
 #include <onyx/vfs.h>
 #include <onyx/elf.h>
 #include <onyx/vm.h>
+#include <onyx/symbol.h>
+#include <onyx/user.h>
 
-static module_hashtable_t *hashtable;
 bool mods_disabled = 0;
 #define DEFAULT_SIZE 100
 
-int initialize_module_subsystem(void)
+extern char _text_start;
+extern char _text_end;
+extern char _data_start;
+extern char _data_end;
+extern char _ro_start;
+extern char _ro_end;
+
+struct module core_kernel;
+
+static struct spinlock module_list_lock;
+static struct module *module_list = NULL;
+static struct module *tail = NULL;
+
+void for_each_module(bool (*foreach_callback)(struct module *m, void *ctx), void *ctx)
 {
-	hashtable = malloc(sizeof(module_hashtable_t));
-	
-	if(!hashtable)
+	spin_lock(&module_list_lock);
+
+	struct module *m = module_list;
+
+	while(m)
 	{
-		printf("Kernel modules disabled. Not enough memory.\n");
-		mods_disabled = 1;
-		return errno = ENOMEM;
+		if(!foreach_callback(m, ctx))
+			break;
+		m = m->next;
 	}
-	
-	memset(hashtable, 0, sizeof(module_hashtable_t));
-	hashtable->size = DEFAULT_SIZE;
-	hashtable->buckets = malloc(DEFAULT_SIZE * sizeof(void*));
-	
-	if(!hashtable->buckets)
-	{
-		printf("Kernel modules disabled. Not enough memory.\n");
-		mods_disabled = 1;
-		return errno = ENOMEM;
-	}
-	
-	memset(hashtable->buckets, 0, DEFAULT_SIZE * sizeof(void*));
-	return 0;
+
+	spin_unlock(&module_list_lock);
 }
 
-static int generate_key(const char *path, const char *name)
+void module_add(struct module *mod)
 {
-	int n = *name;
-	int m = *path + 3;
-	int key = 1;
-	for(int i = 0; i < 8; i++)
-		key += n + m;
-	key = key % hashtable->size;
-	return key;
-}
+	spin_lock(&module_list_lock);
 
-int add_module_to_hashtable(module_t *mod)
-{
-	int key = generate_key(mod->path, mod->name);
-
-	if(hashtable->buckets[key] == NULL)
+	if(!module_list)
 	{
-		hashtable->buckets[key] = mod;
+		module_list = tail = mod;
 	}
 	else
 	{
-		module_t *i = hashtable->buckets[key];
-		for(; i->next != NULL; i = i->next);
-
-		i->next = mod;
+		tail->next = mod;
+		mod->prev = tail;
+		tail = mod;
 	}
-	mod->next = NULL;
+
+	spin_unlock(&module_list_lock);
+}
+
+void module_remove_from_list(struct module *mod)
+{
+	spin_lock(&module_list_lock);
+
+	if(mod->prev)
+		mod->prev->next = mod->next;
+	else
+		module_list = mod->next;
+
+	if(mod->next)
+		mod->next->prev = mod->prev;
+	else
+		tail = mod->prev;
+
+	spin_unlock(&module_list_lock);
+}
+
+void setup_core_kernel_module(void)
+{
+	core_kernel.name = "<kernel>";
+	core_kernel.layout.start_text = (unsigned long) &_text_start;
+	core_kernel.layout.start_data = (unsigned long) &_data_start;
+	core_kernel.layout.start_ro = (unsigned long) &_ro_start;
+	core_kernel.layout.text_size = (uintptr_t) &_text_end - (uintptr_t) &_text_start;
+	core_kernel.layout.data_size = (uintptr_t) &_data_end - (uintptr_t) &_data_start;
+	core_kernel.layout.ro_size = (uintptr_t) &_ro_end - (uintptr_t) &_ro_start;
+	core_kernel.layout.base = KERNEL_VIRTUAL_BASE;
+	core_kernel.path = "/vmonyx";
+
+	setup_kernel_symbols(&core_kernel);
+
+	module_add(&core_kernel);
+}
+
+bool symbol_is_exported(struct symbol *s)
+{
+	if(!(s->visibility & SYMBOL_VIS_GLOBAL))
+		return false;
+	return true;
+}
+
+bool module_try_resolve(struct module *m, void *ctx)
+{
+	struct module_resolve_ctx *c = ctx;
+
+	fnv_hash_t hash = fnv_hash(c->sym_name, strlen(c->sym_name));
+
+	for(size_t i = 0; i < m->nr_symtable_entries; i++)
+	{
+		struct symbol *s = &m->symtable[i];
+
+		if(s->name_hash == hash)
+		{
+			if(!symbol_is_exported(s))
+				return true;
+			bool is_weak = s->visibility & SYMBOL_VIS_WEAK;
+
+			c->retval = s->value;
+			c->weak_sym = is_weak;
+			c->success = true;
+
+			return true;
+		}
+	}
+
+	return true;
+}
+
+unsigned long module_resolve_sym(const char *name)
+{
+	struct module_resolve_ctx ctx = {};
+	ctx.sym_name = name;
+	ctx.success = false;
+	ctx.retval = 0;
+
+	for_each_module(module_try_resolve, &ctx);
+
+	if(ctx.success)
+		return ctx.retval;
 	return 0;
 }
 
-module_t *get_module_from_key(int key, char *name)
+void module_unmap(struct module *module)
 {
-	if(key > DEFAULT_SIZE)
-		return errno = EINVAL, NULL;
-	if(hashtable->buckets[key] == NULL)
-		return errno = EINVAL, NULL;
-	
-	for(module_t *i = hashtable->buckets[key]; i != NULL; i = i->next)
+	if(module->layout.start_text)
 	{
-		if(strcmp((char*)i->name, name)==0)
-			return i;
+		vm_munmap(&kernel_address_space, (void *) module->layout.start_text,
+		  	  module->layout.text_size);
 	}
-	return errno = EINVAL, NULL;
+	
+	if(module->layout.start_ro)
+	{
+		vm_munmap(&kernel_address_space, (void *) module->layout.start_ro,
+		  	  module->layout.ro_size);
+	}
+
+	if(module->layout.start_data)
+	{
+		vm_munmap(&kernel_address_space, (void *) module->layout.start_data,
+		  	  module->layout.data_size);
+	}
+}
+
+void module_remove(struct module *m, bool unmap_sections)
+{
+	if(m->symtable)
+		free(m->symtable);
+	if(m->path)
+		free((char *) m->path);
+	if(m->name)
+		free((char *) m->name);
+
+	if(unmap_sections)
+		module_unmap(m);
+
+	module_remove_from_list(m);
+
+	free(m);
 }
 
 int load_module(const char *path, const char *name)
 {	
-	module_t *mod = malloc(sizeof(module_t));
+	struct inode *file = NULL;
+	struct module *mod = zalloc(sizeof(struct module));
+	char *buffer = NULL;
 	if(!mod)
-	{
-		printf("Kernel modules disabled. Not enough memory.\n");
-		mods_disabled = 1;
-		return errno = ENOMEM;
-	}
+		return -1;
 	
-	mod->path = strdup(path);
-	mod->name = strdup(name);
-	mod->next = NULL;
+	if(!(mod->path = strdup(path)))
+		goto error_path;
 	
-	struct inode *file = open_vfs(get_fs_root(), path);
+	if(!(mod->name = strdup(name)))
+		goto error_path;
+
+	module_add(mod);
+
+	file = open_vfs(get_fs_root(), path);
 	if(!file)
 	{
-		if(errno == ENOMEM)
-			mods_disabled = 1;
-		free(mod);
-		return 1;
+		errno = ENOENT;
+		goto error_path;
 	}
-	
-	char *buffer = malloc(file->i_size);
-	
-	if (!buffer)
-		return errno = ENOMEM;
-	memset(buffer, 0, file->i_size);
+
+	buffer = malloc(file->i_size);
+
+	if(!buffer)
+	{
+		goto error_path;
+	}
 	
 	size_t read = read_vfs(0, 0, file->i_size, buffer, file);
 	if (read != file->i_size)
-		return errno = EAGAIN;
+	{
+		errno = EIO;
+		goto error_path;
+	}
 	
-	void *fini;
 	
-	void *entry = elf_load_kernel_module(buffer, &fini);
+	void *entry = elf_load_kernel_module(buffer, mod);
 	if(!entry)
-		return 1;
-	
-	if(errno == EINVAL)
-		printf("Invalid ELF file\n");
-	
-	module_init_t *functor = (module_init_t*) entry;
-	
-	functor();
-	
-	mod->fini = (module_fini_t) fini;
-	return add_module_to_hashtable(mod);
+	{
+		goto error_path;
+	}
+
+	module_init_t init = (module_init_t) entry;
+
+	/* TODO: Should we remove the module if init() < 0? */
+	init();
+
+	/* Release used resources */
+	free(buffer);
+	close_vfs(file);
+
+	return 0;
+
+error_path:
+
+	if(buffer)
+		free(buffer);
+
+	if(file)
+		close_vfs(file);
+	module_remove(mod, true);
+
+	return -1;
 }
 
-uintptr_t last_kernel_address = KERNEL_VIRTUAL_BASE + 0x600000;
-void *allocate_module_memory(size_t size)
+void *module_allocate_pages(size_t size, int prot)
 {
-	size_t pages = size / PAGE_SIZE;
-	if(size % PAGE_SIZE)
-		pages++;
-	void *ret = (void*) last_kernel_address;
-	vm_map_range(ret, pages, VM_WRITE);
-	last_kernel_address += pages * PAGE_SIZE;
-	return ret;
+	size_t pages = vm_align_size_to_pages(size);
+
+	void *p = vmalloc(pages, VM_TYPE_MODULE, prot);
+
+	return p;
 }
 
 struct common_block
@@ -160,6 +271,10 @@ struct common_block
 
 struct common_block *blocks = NULL;
 
+/* TODO: Common blocks are badly implemented and they leak because the
+ * struct module never owns them
+*/
+
 uintptr_t get_common_block(const char *name, size_t size)
 {
 	struct common_block *h = blocks;
@@ -169,16 +284,13 @@ uintptr_t get_common_block(const char *name, size_t size)
 		if(!strcmp(h->symbol, name))
 			return (uintptr_t) h->buf;
 	}
-
-	size_t pages = size / PAGE_SIZE;
-	if(size % PAGE_SIZE)
-		pages++;
 	
 	struct common_block *b = zalloc(sizeof(struct common_block));
 	if(!b)
 		return 0;
+
 	b->symbol = strdup(name);
-	b->buf = allocate_module_memory(size);
+	b->buf = module_allocate_pages(size, VM_WRITE);
 	b->size = size;
 
 	struct common_block **i = &blocks;
@@ -192,32 +304,44 @@ uintptr_t get_common_block(const char *name, size_t size)
 
 int sys_insmod(const char *path, const char *name)
 {
-	if(!vm_find_region((void*) path))
-		return errno =-EFAULT;
-	if(!vm_find_region((void*) name))
-		return errno =-EFAULT;
-	/* All the work is done by load_module; A return value of 1 means -1
-		for user-space, while -0 still = 0 */
-	return -load_module(path, name);
+	const char *kpath = strcpy_from_user(path);
+	if(!kpath)
+		return -errno;
+
+	const char *kname = strcpy_from_user(name);
+	if(!kname)
+	{
+		free((char *) kpath);
+		return -errno;
+	}
+
+	int st = load_module(kpath, kname);
+
+	if(st < 0)
+		st = -errno;
+	
+	free((char *) kpath);
+	free((char *) kname);
+	return st;
+}
+
+static bool module_dump_each(struct module *m, void *ctx)
+{
+	const char *name = m->name;
+	unsigned long start_text = m->layout.start_text;
+	unsigned long start_ro = m->layout.start_ro;
+	unsigned long start_data = m->layout.start_data;
+	unsigned long end_text = start_text + m->layout.text_size;
+	unsigned long end_ro = start_ro + m->layout.ro_size;
+	unsigned long end_data = start_data + m->layout.data_size;
+
+	printk("Module %s - .text (%lx - %lx), .rodata (%lx - %lx), .data(%lx - %lx)\n",
+	       name, start_text, end_text, start_ro, end_ro, start_data, end_data);
+
+	return true;
 }
 
 void module_dump(void)
 {
-	if(!hashtable)
-		return;
-	module_t **buckets = hashtable->buckets;
-	printk("Loaded modules: ");
-	for(int i = 0; i < DEFAULT_SIZE; i++)
-	{
-		module_t *mod = buckets[i];
-		if(!mod)
-			continue;
-		while(mod)
-		{
-			printk("%s ", mod->name);
-			mod = mod->next;
-		}
-	}
-
-	printk("\n");
+	for_each_module(module_dump_each, NULL);
 }

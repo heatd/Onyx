@@ -281,11 +281,13 @@ retry:;
 static thread_t *new_thread;
 
 void kernel_multitasking(void *);
-void vdbg();
 
 __attribute__((no_sanitize_undefined))
-void kernel_main()
-{
+void kernel_main(void)
+{	
+	/* Set up symbols and the core kernel 'module' */
+	setup_core_kernel_module();
+
 	/* Initialize ACPI */
 	acpi_initialize();
 
@@ -361,9 +363,6 @@ void kernel_multitasking(void *arg)
 
 	/* Initialize each device driver */
 	driver_init();
-
-	/* Initialize the module subsystem */
-	initialize_module_subsystem();
 
 	/* Initialize power management */
 	pm_init();

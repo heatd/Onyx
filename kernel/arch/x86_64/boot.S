@@ -60,8 +60,8 @@ initsse:
         testl $1<<25, %edx
         jz initsse.noSSE
         movq %cr0, %rax
-        andw $0xFFFB,%ax
-        orw $0x2,%ax
+        andw $0xFFFB, %ax
+        orw $0x2, %ax
         or $1 << 16, %eax
         movq %rax, %cr0
         movq %cr4, %rax

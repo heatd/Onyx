@@ -90,6 +90,7 @@ int mount_filesystems(void)
 	if(!read_buffer)
 	{
 		perror(__func__);
+		fclose(fp);
 		return 1;
 	}
 
@@ -141,9 +142,11 @@ int mount_filesystems(void)
 		if(mount(source, target, filesystem_type, 0, NULL) < 0)
 		{
 			printf("init: failed to mount %s\n", source);
-			perror("");
+			perror("mount");
 			free(read_buffer);
 			fclose(fp);
+			close(sysfs_fd);
+			close(fd);
 			return 1;
 		}
 	}
@@ -227,7 +230,7 @@ int main(int argc, char **argv, char **envp)
 	return 0;
 }
 
-void load_modules()
+void load_modules(void)
 {
 	/* Open the modules file */
 	FILE *file = fopen("/etc/modules.load", "r");

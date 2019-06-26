@@ -140,4 +140,9 @@ static inline struct process *get_current_process()
 	return (thread == NULL) ? NULL : (struct process*) thread->owner;
 }
 
+static inline struct mm_address_space *get_current_address_space()
+{
+	return &get_current_process()->address_space;
+}
+
 #endif

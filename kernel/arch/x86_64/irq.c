@@ -33,7 +33,7 @@ int platform_install_irq(unsigned int irqn, struct interrupt_handler *h)
 uintptr_t irq_handler(uint64_t irqn, registers_t *regs)
 {
 	/* Just return on the odd occasion that irqn > NR_IRQ */
-	/* TODO: Maybe asssert'ing would be better */
+	/* TODO: Maybe assert'ing would be better */
 	if(irqn > NR_IRQ)
 		return (uintptr_t) regs;
 

@@ -304,7 +304,6 @@ int process_target(target_t *target)
 				if(type)
 					type_ = type->value;
 				
-				/* TODO: We probably have a race condition here, fix it */
 				//printf("debug: executing %s\n", p->value);
 				if(execute_program(p->value, type_) < 0)
 				{

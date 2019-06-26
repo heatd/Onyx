@@ -92,6 +92,7 @@ _long_mode:
 	mov %cr0, %rax
 	and $0xFFFB, %ax
 	or $0x2, %ax
+	or $1 << 16, %eax
 	mov %rax, %cr0
 	mov %cr4, %rax
 	or $3 << 9, %ax

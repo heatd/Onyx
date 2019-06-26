@@ -29,6 +29,7 @@ struct mutex;
 #define ACPI_MUTEX                  struct mutex *
 #undef ACPI_USE_SYSTEM_CLIBRARY
 #undef ACPI_USE_STANDARD_HEADERS
+//#undef ACPI_USE_LOCAL_CACHE
 //#undef ACPI_USE_NATIVE_DIVIDE
 
 #include "acgcc.h"

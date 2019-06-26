@@ -92,12 +92,6 @@ struct page *phys_to_page(uintptr_t phys)
 extern char kernel_start[0];
 extern char kernel_end[0];
 
-struct kernel_limits
-{
-	uintptr_t start_phys, start_virt;
-	uintptr_t end_phys, end_virt;
-};
-
 void get_kernel_limits(struct kernel_limits *l)
 {
 	uintptr_t start_virt = (uintptr_t) &kernel_start;

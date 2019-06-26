@@ -24,11 +24,10 @@ int send_udp_packet(char *payload, size_t payload_size, int source_port,
 	            int dest_port, uint32_t srcip, uint32_t destip,
 		    struct netif *netif)
 {
-	udp_header_t *udp_header = malloc(sizeof(udp_header_t) + payload_size);
+	udp_header_t *udp_header = zalloc(sizeof(udp_header_t) + payload_size);
 	if(!udp_header)
 		return errno = ENOMEM, 1;
 	
-	memset(udp_header, 0, sizeof(udp_header_t) + payload_size);
 	udp_header->source_port = LITTLE_TO_BIG16(source_port);
 	udp_header->dest_port = LITTLE_TO_BIG16(dest_port);
 	udp_header->len = LITTLE_TO_BIG16((uint16_t)(sizeof(udp_header_t) +

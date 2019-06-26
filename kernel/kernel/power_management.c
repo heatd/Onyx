@@ -26,10 +26,18 @@ void pm_reboot(void)
 	halt();
 }
 
+void pm_do_shutdown(void)
+{	
+	bus_shutdown_every();
+
+	return acpi_shutdown(NULL);
+}
+
 unsigned int __pm_shutdown(void *context)
 {
-	bus_shutdown_every();
-	return acpi_shutdown(context);
+	pm_do_shutdown();
+
+	return 0;
 }
 
 unsigned int __pm_suspend(void *context)

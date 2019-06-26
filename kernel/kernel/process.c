@@ -395,7 +395,6 @@ void process_setup_pthread(thread_t *thread, struct process *process)
 	/* TODO: Do this portably */
 	/* TODO: Return error codes and clean up */
 	uintptr_t *fs = get_user_pages(VM_TYPE_REGULAR, 1, VM_WRITE | VM_NOEXEC | VM_USER);
-	vm_map_range(fs, 1, VM_WRITE | VM_NOEXEC | VM_USER);
 	thread->fs = (void*) fs;
 	__pthread_t *p = (__pthread_t*) fs;
 	p->self = (__pthread_t*) fs;
@@ -755,10 +754,11 @@ void process_destroy_file_descriptors(struct process *process)
 
 	for(int i = 0; i < ctx->file_desc_entries; i++)
 	{
-		/* TODO: Handle vfsnode freeing */
 		if(!table[i])
 			continue;
+
 		table[i]->refcount--;
+
 		if(!table[i]->refcount)
 		{
 			object_unref(&table[i]->vfs_node->i_object);

@@ -13,6 +13,7 @@
 #include <onyx/compiler.h>
 #include <onyx/vm.h>
 #include <onyx/cpu.h>
+#include <onyx/arch.h>
 
 static uintptr_t vm_calculate_virtual_address(uintptr_t bits)
 {
@@ -39,4 +40,14 @@ void arch_vm_init(void)
 bool platform_page_is_used(void *page)
 {
 	return false;
+}
+
+size_t arch_heap_get_size(void)
+{
+	return 0x200000000000;
+}
+
+size_t arch_get_initial_heap_size(void)
+{
+	return 0x400000;
 }

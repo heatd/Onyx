@@ -18,28 +18,39 @@ int main(int argc, char **argv, char **envp)
 		print_usage(argv[0]);
 		return 1;
 	}
+
 	FILE *file = fopen(argv[1], "r");
 	if(!file)
 	{
 		perror(argv[1]);
 		return 1;
 	}
+
 	if(fseek(file, 0L, SEEK_END) == -1)
 	{
 		fclose(file);
 		return 1;
 	}
+
 	size_t file_size = ftell(file);
 	rewind(file);
+
 	char *buf = malloc(file_size);
 	if(!buf)
 	{
 		fclose(file);
 		return 1;
 	}
-	fread(buf, file_size, 1, file);
+
+	if(fread(buf, file_size, 1, file) != file_size)
+	{
+		perror("cat");
+		return 1;
+	}
+
 	printf("%s", buf);
 	fclose(file);
 	free(buf);
+
 	return 0;
 }

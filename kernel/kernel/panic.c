@@ -42,7 +42,7 @@ const char *skull = "            _,,,,,,,_\n\
             \\`\\`\\`\\`\\`\\`\\`\\`\n";
 int panicing = 0;
 
-extern void *stack_trace(void);
+void stack_trace(void);
 
 void page_print_shared(void);
 

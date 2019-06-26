@@ -76,11 +76,14 @@ thread_t* task_switching_create_context(thread_callback_t callback, uint32_t fla
 
 	if(!new_thread->kernel_stack)
 	{
-		/* TODO: Undo the user stack allocation */
+		vm_munmap(get_current_address_space(),
+			  new_thread->user_stack,
+			  256 << PAGE_SHIFT);
 		free(new_thread->fpu_area);
 		free(new_thread);
 		return NULL;
 	}
+
 	new_thread->user_stack_bottom = new_thread->user_stack;
 	// Increment the stacks by 8 KiB
 	{

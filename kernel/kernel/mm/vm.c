@@ -27,6 +27,8 @@
 #include <onyx/atomic.h>
 #include <onyx/utils.h>
 #include <onyx/cpu.h>
+#include <onyx/arch.h>
+
 #include <libdict/dict.h>
 
 #include <onyx/mm/vm_object.h>
@@ -221,39 +223,39 @@ void vm_late_init(void)
 	vmalloc_space = vm_randomize_address(vmalloc_space, VMALLOC_ASLR_BITS);
 	heap_addr = vm_randomize_address(heap_addr, HEAP_ASLR_BITS);
 
-	vm_map_range((void*) heap_addr, vm_align_size_to_pages(0x400000),
-			VM_WRITE | VM_NOEXEC);
+	vm_map_range((void*) heap_addr,
+		     vm_align_size_to_pages(arch_get_initial_heap_size()),
+		     VM_WRITE | VM_NOEXEC);
 #ifdef CONFIG_KASAN
-	kasan_alloc_shadow(heap_addr, 0x400000, false);
+	kasan_alloc_shadow(heap_addr, arch_get_initial_heap_size(), false);
 #endif
 	heap_set_start(heap_addr);
 
 	vm_addr_init();
 
-	heap_size = 0x200000000000 - (heap_addr - heap_addr_no_aslr);
+	heap_size = arch_heap_get_size() - (heap_addr - heap_addr_no_aslr);
 	/* Start populating the address space */
 	struct vm_region *v = vm_reserve_region(&kernel_address_space, heap_addr, heap_size);
 	if(!v)
 	{
 		panic("vmm: early boot oom");	
 	}
-	v->base = heap_addr;
 
-	v->pages = heap_size / PAGE_SIZE;
 	v->type = VM_TYPE_HEAP;
 	v->rwx = VM_NOEXEC | VM_WRITE;
 
-	v = vm_reserve_region(&kernel_address_space, KERNEL_VIRTUAL_BASE, UINT64_MAX - KERNEL_VIRTUAL_BASE);
+	struct kernel_limits l;
+	get_kernel_limits(&l);
+	size_t kernel_size = l.end_virt - l.start_virt;
+
+	v = vm_reserve_region(&kernel_address_space, l.start_virt, kernel_size);
 	if(!v)
 	{
 		panic("vmm: early boot oom");	
 	}
-	v->base = KERNEL_VIRTUAL_BASE;
 
-	/* Subtract one so we don't overflow */
-	v->pages = (0x80000000 / PAGE_SIZE) - 1;
-	v->type = VM_TYPE_SHARED;
-	v->rwx = 0;
+	v->type = VM_TYPE_REGULAR;
+	v->rwx = VM_WRITE;
 
 	is_initialized = true;
 }
@@ -348,45 +350,45 @@ void vm_destroy_mappings(void *range, size_t pages)
 
 unsigned long vm_get_base_address(uint64_t flags, uint32_t type)
 {
-	uintptr_t base_address = 0;
-	/* TODO: Clean this up */
+	bool is_kernel_map = flags & VM_KERNEL;
+	struct process *current;
+	struct mm_address_space *mm = NULL;
+	
+	if(!is_kernel_map)
+	{
+		current = get_current_process();
+		assert(current != NULL);
+		assert(current->address_space.mmap_base != NULL);
+		mm = &current->address_space;
+	}
+
 	switch(type)
 	{
 		case VM_TYPE_SHARED:
 		case VM_TYPE_STACK:
 		{
-			if(!(flags & 1))
-			{
-				struct process *p = get_current_process();
-				assert(p != NULL);
-				if(!p->address_space.mmap_base)
-					panic("mmap_base == 0");
-				base_address = (uintptr_t) get_current_process()->
-					address_space.mmap_base;
-			}
-			else
-				base_address = kstacks_addr;
-			break;
+			if(is_kernel_map)
+				return kstacks_addr;
+			else				
+				return (uintptr_t) mm->mmap_base;
 		}
+
+		case VM_TYPE_MODULE:
+		{
+			assert(is_kernel_map == true);
+
+			return KERNEL_VIRTUAL_BASE;
+		}
+
 		default:
 		case VM_TYPE_REGULAR:
 		{
-			if(flags & 1)
-				base_address = vmalloc_space;
+			if(is_kernel_map)
+				return vmalloc_space;
 			else
-			{
-				struct process *p = get_current_process();
-				assert(p != NULL);
-				if(!p->address_space.mmap_base)
-					panic("mmap_base == 0");
-				base_address = (uintptr_t) p->
-					address_space.mmap_base;
-			}
-			break;
+				return (uintptr_t) mm->mmap_base;
 		}
 	}
-	
-	return base_address;
 }
 
 struct vm_region *vm_allocate_virt_region(uint64_t flags, size_t pages, uint32_t type,
@@ -408,14 +410,14 @@ struct vm_region *vm_allocate_virt_region(uint64_t flags, size_t pages, uint32_t
 
 	struct vm_region *region = vm_allocate_region(as, base_addr, pages << PAGE_SHIFT);
 
-	/* Unlock and return */
-	__vm_unlock(allocating_kernel);
-	
 	if(region)
 	{
 		region->rwx = prot;
 		region->type = type;
 	}
+
+	/* Unlock and return */
+	__vm_unlock(allocating_kernel);
 
 	return region;
 }
@@ -679,6 +681,8 @@ void vm_change_perms(void *range, size_t pages, int perms)
 	for(size_t i = 0; i < pages; i++)
 	{
 		paging_change_perms(range, perms);
+
+		range = (void *)((unsigned long) range + PAGE_SIZE);
 	}
 	
 	__vm_unlock(kernel);

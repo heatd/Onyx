@@ -378,7 +378,6 @@ AcpiOsEnterSleep (
     }
 
 #if 0
-
 ACPI_STATUS
 AcpiOsCreateCache (
     char                    *CacheName,
@@ -386,7 +385,7 @@ AcpiOsCreateCache (
     UINT16                  MaxDepth,
     ACPI_CACHE_T        **ReturnCache)
 {
-	*ReturnCache = slab_create(CacheName, ObjectSize, MaxDepth, 0);
+	*ReturnCache = slab_create(CacheName, ObjectSize, 0, 0, NULL, NULL);
 	return AE_OK;
 }
 
@@ -394,6 +393,7 @@ ACPI_STATUS
 AcpiOsPurgeCache (
     ACPI_CACHE_T        *Cache)
 {
+	slab_purge(Cache);
 	return AE_OK;
 }
 
@@ -401,6 +401,7 @@ ACPI_STATUS
 AcpiOsDeleteCache (
     ACPI_CACHE_T        *Cache)
 {
+	slab_destroy(Cache);
 	return AE_OK;
 
 }

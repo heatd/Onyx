@@ -7,6 +7,8 @@ extern "C" {
 
 #include <stdint.h>
 
+#include <onyx/modules.h>
+
 typedef uint16_t Elf32_Half;
 typedef uint16_t Elf64_Half;
 
@@ -3021,11 +3023,8 @@ enum
 #define RELOCATE_R_X86_64_32S(S, A) (S + A)
 #define RELOCATE_R_X86_64_PC32(S, A, P) (S + A - P)
 #define RELOCATE_R_X86_64_RELATIVE(B, A) (B + A)
-typedef int (module_init_t)(void);
-typedef int (*module_fini_t)(void);
-void *elf_load_kernel_module(void *file, void **);
-_Bool elf_is_valid(Elf64_Ehdr* header);
-__attribute__((deprecated)) void *elf_load_old(void *file);
+
+bool elf_is_valid(Elf64_Ehdr* header);
 
 #define DYN_CNT 32
 

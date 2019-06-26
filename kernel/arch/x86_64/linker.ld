@@ -40,6 +40,8 @@ SECTIONS
 		*(.ctors)
 	}
 	
+	_ro_start = .;
+
 	.rodata ALIGN(0x1000) : AT(ADDR(.rodata) - VIRT_BASE)
 	{
 		*(.rodata*)
@@ -48,6 +50,8 @@ SECTIONS
 		*(.driver.init*)
 		_driver_init_end = .;
 	}
+
+	_ro_end = .;
 	. = ALIGN(0x1000);
 
 	_text_end = .;

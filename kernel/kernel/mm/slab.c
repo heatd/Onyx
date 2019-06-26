@@ -90,6 +90,7 @@ struct slab *slab_create_slab(size_t size_obj, slab_cache_t *cache)
 		free(slab);
 		return errno = ENOMEM, NULL;
 	}
+
 	return slab;
 }
 
@@ -115,6 +116,7 @@ slab_cache_t *slab_create(const char *name, size_t size_obj, size_t alignment, i
 		free(cache);
 		return errno = ENOMEM, NULL;
 	}
+
 	if(!first_slab)
 	{
 		first_slab = cache;
@@ -125,6 +127,7 @@ slab_cache_t *slab_create(const char *name, size_t size_obj, size_t alignment, i
 		cache->prev = last_slab;
 		last_slab->next = cache;
 	}
+
 	return cache;
 }
 
@@ -153,6 +156,9 @@ void *slab_allocate(slab_cache_t *cache)
 		void *obj = slab_allocate_from_slab(slab);
 		if(obj)
 		{
+#if DEBUG_SLAB
+			printk("cache %s returning %p\n", cache->name, obj);
+#endif
 			spin_unlock(&cache->lock);
 			return obj;
 		}

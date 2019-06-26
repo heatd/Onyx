@@ -31,6 +31,7 @@
 #define VM_TYPE_HEAP 		(3)
 #define VM_TYPE_HW 		(4)
 #define VM_TYPE_FILE_BACKED	(5)
+#define VM_TYPE_MODULE		(6)
 
 #define VM_WRITE 		(1 << 0)
 #define VM_NOEXEC 		(1 << 1)
@@ -160,7 +161,6 @@ int vm_mark_cow(struct vm_region *zone);
 struct vm_region *vm_find_region_and_writable(void *usr);
 ssize_t copy_to_user(void *usr, const void *data, size_t len);
 ssize_t copy_from_user(void *data, const void *usr, size_t len);
-void arch_vm_init(void);
 void vm_update_addresses(uintptr_t new_kernel_space_base);
 uintptr_t vm_randomize_address(uintptr_t base, uintptr_t bits);
 void *map_pages_to_vaddr(void *virt, void *phys, size_t size, size_t flags);
@@ -210,6 +210,15 @@ static inline size_t vm_align_size_to_pages(size_t size)
 
 extern struct mm_address_space kernel_address_space;
 void vm_for_every_region(struct mm_address_space *as, bool (*func)(struct vm_region *region));
+
+struct kernel_limits
+{
+	uintptr_t start_phys, start_virt;
+	uintptr_t end_phys, end_virt;
+};
+
+void get_kernel_limits(struct kernel_limits *l);
+
 
 #ifdef __cplusplus
 }

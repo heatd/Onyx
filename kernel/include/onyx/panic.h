@@ -26,7 +26,7 @@ void panic(const char* msg);
 uintptr_t get_kernel_sym_by_name(const char *name);
 void init_elf_symbols(struct multiboot_tag_elf_sections *restrict secs);
 void elf_sections_reserve(struct multiboot_tag_elf_sections *restrict secs);
-void *stack_trace_ex(uint64_t *stack);
+void stack_trace_ex(uint64_t *stack);
 
 #ifdef __cplusplus
 }

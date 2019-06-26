@@ -595,7 +595,7 @@ void paging_change_perms(void *addr, int prot)
 	entry = &pml1->entries[dec.pt];
 	if(*entry == 0)
 		return;
-	uint32_t perms = *entry & 0xF00000000000FFF;
+	uint64_t perms = *entry & (X86_PAGING_GLOBAL | X86_PAGING_HUGE | X86_PAGING_SUPERVISOR | X86_PAGING_PRESENT);
 	uint64_t page = PML_EXTRACT_ADDRESS(*entry);
 	if(prot & VM_NOEXEC)
 		perms |= X86_PAGING_NX;
@@ -677,7 +677,7 @@ void paging_protect_kernel(void)
 	PML4 *p = (PML4*)((uintptr_t) pml + PHYS_BASE);
 	p->entries[511] = 0UL;
 	p->entries[0] = 0UL;
-	map_pages_to_vaddr((void *) &VIRT_BASE, NULL, 0x100000, VM_WRITE | VM_NOEXEC);
+
 	size_t size = (uintptr_t) &_text_end - text_start;
 	map_pages_to_vaddr((void *) text_start, (void *) (text_start - KERNEL_VIRTUAL_BASE),
 		size, 0);
@@ -761,5 +761,5 @@ void paging_free_page_tables(struct mm_address_space *mm)
 		}
 	}
 
-	free_page(phys_to_page(mm->cr3));
+	free_page(phys_to_page((unsigned long) mm->cr3));
 }
