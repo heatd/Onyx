@@ -4,90 +4,86 @@
 * check LICENSE at the root directory for more information
 */
 #include <string.h>
+#include <assert.h>
 #include <unistd.h>
 #include <sys/mman.h>
-#include <math.h>
 #include <stdbool.h>
 #include <stdio.h>
-#include "dlmalloc.c"
+#include <errno.h>
 
 #ifdef __is_onyx_kernel
 #include <onyx/vm.h>
 #include <onyx/spinlock.h>
 #include <onyx/mm/kasan.h>
 extern bool is_initialized;
-char *heap = NULL;
-char *heap_limit = NULL;
 
-void heap_set_start(uintptr_t start)
+static struct heap
 {
-	heap = (char *) start;
-	heap_limit = heap + 0x400000;
+	void *starting_address;
+	void *brk;
+	unsigned long size;
+} heap = {};
+
+uintptr_t starting_address = 0;
+
+struct heap *heap_get()
+{
+	return &heap;
 }
 
-int heap_expand(void)
+void heap_set_start(uintptr_t heap_start)
 {
-	/* Allocate 256 pages */
-	if(!vm_map_range(heap_limit, 256, VM_WRITE | VM_NOEXEC | VM_DONT_MAP_OVER))
-		return -1;
-#ifdef CONFIG_KASAN
-	kasan_alloc_shadow((unsigned long) heap_limit, 256 << PAGE_SHIFT, false);
-#endif
-	heap_limit += 0x100000;
-	return 0;
+	starting_address = heap_start;
+	heap.starting_address = (void *) heap_start;
+	heap.brk = heap.starting_address;
+	heap.size = 0;
 }
+
+#include <stdio.h>
 
 static struct spinlock heap_lock;
-void *sbrk(intptr_t increment)
+void *expand_heap(size_t size)
 {
-	//printf("sbrk %ld\n", increment);
-	spin_lock_preempt(&heap_lock);
+	size_t nr_pages = (size >> PAGE_SHIFT) + 3;
 
-	if(heap + increment >= heap_limit || heap >= heap_limit)
-	{
-		size_t times = increment / 0x100000;
-		if(increment % 0x100000)
-			times++;
-		for(size_t i = 0; i < times; i++)
-		{
-			if(heap_expand() < 0)
-			{
-				spin_unlock_preempt(&heap_lock);
-				return NULL;
-			}
-		}
-	}
+	void *alloc_start = (void *) ((char *) heap.starting_address + heap.size);
 
-	if(increment < 0)
-	{
-		size_t decrement = -increment;
-		memset((char *) heap - decrement, 0, decrement);
-	}
+	//printk("Expanding heap from %p to %lx\n", alloc_start, (unsigned long) alloc_start + (nr_pages << PAGE_SHIFT));
+	if(!vm_map_range(alloc_start, nr_pages, VM_WRITE | VM_NOEXEC | VM_DONT_MAP_OVER))
+		return NULL;
 
-	void *ret = heap;
-	heap += increment;
-
-	spin_unlock_preempt(&heap_lock);
-	return ret;
+	heap.size += nr_pages << PAGE_SHIFT;
+#ifdef CONFIG_KASAN
+	kasan_alloc_shadow((unsigned long) alloc_start, nr_pages << PAGE_SHIFT, -1);
+#endif
+	return alloc_start;
 }
 
-void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
+void *do_brk_change(intptr_t inc)
 {
-	void *ret;
-	(void) addr;
-	(void) prot;
-	(void) flags;
-	(void) fd;
-	(void) offset;
-	ret = vmalloc(vm_align_size_to_pages(length), VM_TYPE_HEAP, VM_WRITE | VM_NOEXEC );
-	return ret;
+	assert(heap.brk != NULL);
+	void *old_brk = heap.brk;
+	
+	uintptr_t new_brk = (uintptr_t) heap.brk + inc;
+	uintptr_t starting_address = (uintptr_t) heap.starting_address;
+	unsigned long heap_limit = starting_address + heap.size;
+	if(new_brk >= heap_limit)
+	{
+		size_t size = new_brk - heap_limit;
+
+		void *ptr = expand_heap(size);
+		if(!ptr)
+			return errno = ENOMEM, (void *) -1;
+	}
+
+	heap.brk = (void*) new_brk;
+
+	return old_brk;
 }
 
-int munmap(void *addr, size_t length)
+void *sbrk(intptr_t inc)
 {
-	(void) addr;
-	(void) length;
-	return 0;
+	return do_brk_change(inc);
 }
 
 void *zalloc(size_t size)

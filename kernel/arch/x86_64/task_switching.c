@@ -150,13 +150,15 @@ thread_t* task_switching_create_main_progcontext(thread_callback_t callback,
 	new_thread->flags = flags;
 	new_thread->id = curr_id++;
 
-	posix_memalign((void**) &new_thread->fpu_area, FPU_AREA_ALIGNMENT, FPU_AREA_SIZE);
+	new_thread->fpu_area = aligned_alloc(FPU_AREA_ALIGNMENT, FPU_AREA_SIZE);
 	if(!new_thread->fpu_area)
 	{
 		free(new_thread);
 		return NULL;
 	}
+
 	memset(new_thread->fpu_area, 0, FPU_AREA_SIZE);
+
 	setup_fpu_area(new_thread->fpu_area);
 	if(!(flags & 1)) // If the thread is user mode, create a user stack
 	{

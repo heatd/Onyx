@@ -85,11 +85,11 @@ inode_t *ext2_follow_symlink(inode_t *inode, ext2_fs_t *fs, inode_t *parent, uin
 		free(old_ino);
 
 		//assert(EXT2_CALCULATE_SIZE64(ino));
-		inode_data = realloc(inode_data, EXT2_CALCULATE_SIZE64(ino));
-		if(!inode_data)
-			return errno = ENOMEM, NULL;
 		if(ino->mode & EXT2_INO_TYPE_DIR)
 		{
+			inode_data = realloc(inode_data, EXT2_CALCULATE_SIZE64(ino));
+			if(!inode_data)
+				return errno = ENOMEM, NULL;
 			ext2_read_inode(ino, fs, EXT2_CALCULATE_SIZE64(ino), 0, inode_data);
 			dir = (dir_entry_t*) inode_data;
 		}

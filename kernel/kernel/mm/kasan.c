@@ -40,7 +40,7 @@ const unsigned long kasan_space = arch_high_half + arch_kasan_off;
 
 bool kasan_is_cleared_access(unsigned long addr, size_t size)
 {
-	if(addr >= 0 && addr + size <= arch_low_half_max)
+	if(addr + size <= arch_low_half_max && addr < arch_low_half_max)
 		return true;
 	if(addr >= PHYS_BASE && addr + size <= PHYS_BASE + 0x80000000000)
 		return true;
@@ -49,7 +49,7 @@ bool kasan_is_cleared_access(unsigned long addr, size_t size)
 	return false;
 }
 
-inline char *kasan_get_ptr(unsigned long addr)
+static inline char *kasan_get_ptr(unsigned long addr)
 {
 	return (char *) (kasan_space + ((addr - arch_high_half) >> KASAN_SHIFT));
 }
@@ -106,7 +106,7 @@ void kasan_check_memory_fast(unsigned long addr, size_t size, bool write)
 
 	unsigned int first_n_accessible = b;
 
-	if(n >= first_n_accessible)
+	if(n > first_n_accessible || n + size > first_n_accessible)
 		kasan_fail(addr, size, write, b);
 }
 
@@ -118,9 +118,11 @@ void kasan_check_memory(unsigned long addr, size_t size, bool write)
 	size_t n = KASAN_MISALIGNMENT(addr);
 
 	if(kasan_is_cleared_access(addr, size))
+	{
 		return;
+	}
 
-	if(n + size <= 8)
+	if(n + size <= 8 && n == 0)
 	{
 		kasan_check_memory_fast(addr, size, write);
 		return;
@@ -144,13 +146,15 @@ void kasan_check_memory(unsigned long addr, size_t size, bool write)
 				kasan_fail(addr, size, write, b);
 			unsigned int first_n_accessible = b;
 
-			if(n >= first_n_accessible)
+			if(n > first_n_accessible || n + to_set > first_n_accessible)
 				kasan_fail(addr, size, write, b);
 			
 			addr += to_set;
 			size -= to_set;
 		}
 	}
+
+	kasan_is_init = true;
 }
 
 #define KASAN_LOAD(size) \

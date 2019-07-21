@@ -66,16 +66,18 @@ static void __flush_print()
 	#ifdef __is_onyx_kernel
 	kernlog_print(buffer);
 	#endif
-	memset(buffer, 0, 10000);
+	memset(buffer, 0, sizeof(buffer));
 	bufferPos = 0;
 }
+
+void tty_write_string_kernel(const char *s);
 
 void __flush_print_screen()
 {
 #ifdef __is_onyx_kernel
 	tty_write_string_kernel(buffer);
 #endif
-	memset(buffer, 0, 10000);
+	memset(buffer, 0, sizeof(buffer));
 	bufferPos = 0;
 }
 

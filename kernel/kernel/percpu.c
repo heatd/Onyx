@@ -25,6 +25,7 @@ void setup_percpu(void)
 		assert(p != NULL);
 		p->percpu_copy = zalloc(percpu_master_copy_size);
 		assert(p != NULL);
+		memcpy(p->percpu_copy, &__percpu_start, percpu_master_copy_size);
 	}
 }
 

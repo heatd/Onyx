@@ -67,15 +67,14 @@ struct slab *slab_create_slab(size_t size_obj, slab_cache_t *cache)
 		slab_size = 30 * size_obj;
 	}
 
-	struct slab *slab = malloc(sizeof(struct slab));
+	struct slab *slab = zalloc(sizeof(struct slab));
 	if(!slab)
 	{
 		return errno = ENOMEM, NULL;
 	}
-	memset(slab, 0, sizeof(struct slab));
 
 	void *buffer = vmalloc(vm_align_size_to_pages(slab_size),
-		VM_TYPE_REGULAR, VM_NOEXEC  | VM_WRITE);
+		VM_TYPE_REGULAR, VM_NOEXEC | VM_WRITE);
 	if(!buffer)
 	{
 		free(slab);
@@ -96,10 +95,10 @@ struct slab *slab_create_slab(size_t size_obj, slab_cache_t *cache)
 
 slab_cache_t *slab_create(const char *name, size_t size_obj, size_t alignment, int flags, void (*ctor)(void*), void (*dtor)(void*))
 {
-	slab_cache_t *cache = malloc(sizeof(slab_cache_t));
+	slab_cache_t *cache = zalloc(sizeof(slab_cache_t));
 	if(!cache)
 		return errno = ENOMEM, NULL;
-	memset(cache, 0, sizeof(slab_cache_t));
+
 	/* TODO: Detect the correct cache alignment */
 	size_t obj_alignment = alignment == 0 ? 16 : alignment;
 	size_obj = ((size_obj + obj_alignment) & -obj_alignment);

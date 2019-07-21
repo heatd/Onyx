@@ -38,9 +38,8 @@
 
 #include <sys/mman.h>
 
-static struct spinlock kernel_vm_spl;
 bool is_initialized = false;
-static bool enable_aslr = false;
+static bool enable_aslr = true;
 
 uintptr_t high_half 		= arch_high_half;
 uintptr_t low_half_max 		= arch_low_half_max;
@@ -85,7 +84,7 @@ int vm_cmp(const void* k1, const void* k2)
 struct vm_region *vm_reserve_region(struct mm_address_space *as,
 				    unsigned long start, size_t size)
 {
-	struct vm_region *region = (struct vm_region *) zalloc(sizeof(*region));
+	struct vm_region *region = zalloc(sizeof(struct vm_region));
 	if(!region)
 		return NULL;
 
@@ -98,6 +97,8 @@ struct vm_region *vm_reserve_region(struct mm_address_space *as,
 
 	if(res.inserted == false)
 	{
+		if(res.datum_ptr)
+			panic("oopsie");
 		free(region);
 		return NULL;
 	}
@@ -109,10 +110,14 @@ struct vm_region *vm_reserve_region(struct mm_address_space *as,
 
 	return region; 
 }
+
+#define DEBUG_VM_1 0
+#define DEBUG_VM_2 0
 #define DEBUG_VM_3 0
 struct vm_region *vm_allocate_region(struct mm_address_space *as,
 				     unsigned long min, size_t size)
 {
+	unsigned long fl = irq_save_and_disable();
 	if(min < as->start)
 		min = as->start;
 
@@ -121,6 +126,7 @@ struct vm_region *vm_allocate_region(struct mm_address_space *as,
 	unsigned long last_end = min;
 	struct vm_region *f = NULL;
 
+	MUST_HOLD_LOCK(&as->vm_spl);
 	if(min != as->start)
 		node_valid = rb_itor_search_ge(it, (const void *) min);
 	else
@@ -153,7 +159,7 @@ struct vm_region *vm_allocate_region(struct mm_address_space *as,
 	{
 		struct vm_region *f = (struct vm_region *) *rb_itor_datum(it);
 		last_end = f->base + (f->pages << PAGE_SHIFT);
- 
+
 		node_valid = rb_itor_next(it);
 		if(!node_valid)
 			break;
@@ -166,12 +172,16 @@ struct vm_region *vm_allocate_region(struct mm_address_space *as,
 
 done:
 	rb_itor_free(it);
-
-	last_end = last_end < min ? min : last_end;
-
 #if DEBUG_VM_3
+	if(as == &kernel_address_space && min == kstacks_addr)
 	printk("Ptr: %lx\nSize: %lx\n", last_end, size);
 #endif
+	last_end = last_end < min ? min : last_end;
+#if DEBUG_VM_3
+	if(as == &kernel_address_space && min == kstacks_addr)
+	printk("Ptr: %lx\nSize: %lx\n", last_end, size);
+#endif
+	irq_restore(fl);
 	return vm_reserve_region(as, last_end, size);
 }
 
@@ -188,7 +198,7 @@ void vm_addr_init(void)
 static inline void __vm_lock(bool kernel)
 {
 	if(kernel)
-		spin_lock(&kernel_vm_spl);
+		spin_lock(&kernel_address_space.vm_spl);
 	else
 		spin_lock(&get_current_process()->address_space.vm_spl);
 }
@@ -196,7 +206,7 @@ static inline void __vm_lock(bool kernel)
 static inline void __vm_unlock(bool kernel)
 {
 	if(kernel)
-		spin_unlock(&kernel_vm_spl);
+		spin_unlock(&kernel_address_space.vm_spl);
 	else
 		spin_unlock(&get_current_process()->address_space.vm_spl);
 }
@@ -262,10 +272,6 @@ void vm_late_init(void)
 
 struct page *vm_map_range(void *range, size_t nr_pages, uint64_t flags)
 {
-	bool kernel = is_higher_half(range);
-
-	__vm_lock(kernel);
-
 	uintptr_t mem = (uintptr_t) range;
 	struct page *pages = alloc_pages(nr_pages, 0);
 	struct page *p = pages;
@@ -278,19 +284,18 @@ struct page *vm_map_range(void *range, size_t nr_pages, uint64_t flags)
 
 	for(size_t i = 0; i < nr_pages; i++)
 	{
+		//printf("Mapping %p\n", p->paddr);
 		if(!vm_map_page(NULL, mem + (i << PAGE_SHIFT), (uintptr_t) p->paddr, flags))
 			goto out_of_mem;
 		p = p->next_un.next_allocation;
 	}
 
 	paging_invalidate(range, nr_pages);
-	__vm_unlock(kernel);
 
 	return pages;
 
 out_of_mem:
 	if(pages)	free_pages(pages);
-	__vm_unlock(kernel);
 	return NULL;
 }
 
@@ -343,9 +348,13 @@ void vm_destroy_mappings(void *range, size_t pages)
 
 	vm_unmap_range(range, pages);
 
+	spin_lock(&mm->vm_spl);
+
 	rb_tree_remove(mm->area_tree, (const void *) reg->base);
 	
 	vm_region_destroy(reg);
+
+	spin_unlock(&mm->vm_spl);
 }
 
 unsigned long vm_get_base_address(uint64_t flags, uint32_t type)
@@ -406,6 +415,7 @@ struct vm_region *vm_allocate_virt_region(uint64_t flags, size_t pages, uint32_t
 
 	struct mm_address_space *as = allocating_kernel ? &kernel_address_space :
 		&get_current_process()->address_space;
+
 	unsigned long base_addr = vm_get_base_address(flags, type);
 
 	struct vm_region *region = vm_allocate_region(as, base_addr, pages << PAGE_SHIFT);
@@ -536,6 +546,7 @@ int vm_flush_mapping(struct vm_region *mapping, struct process *proc)
 
 	for(struct page *p = vmo->page_list; p; p = p->next_un.next_virtual_region)
 	{
+		//printk("mapping %p\n", p->paddr);
 		if(!__map_pages_to_vaddr(proc, (void *) (mapping->base + p->off), p->paddr,
 			PAGE_SIZE, mapping->rwx))
 		{
@@ -695,7 +706,6 @@ void *vmalloc(size_t pages, int type, int perms)
 	if(!vm)
 		return NULL;
 
-	vm->caller = (uintptr_t) __builtin_return_address(0);
 	struct vm_object *vmo = vmo_create_phys(pages << PAGE_SHIFT);
 	if(!vmo)
 	{
@@ -709,18 +719,18 @@ void *vmalloc(size_t pages, int type, int perms)
 	if(vmo_prefault(vmo, pages << PAGE_SHIFT, 0) < 0)
 	{
 		vm_destroy_mappings(vm, pages);
-		return NULL;	
+		return NULL;
 	}
-#ifdef CONFIG_KASAN
+ 
+ #ifdef CONFIG_KASAN
 	kasan_alloc_shadow(vm->base, pages << PAGE_SHIFT, true);
 #endif
-
 	return (void *) vm->base;
 }
 
 void vfree(void *ptr, size_t pages)
 {
-	vm_destroy_mappings(ptr, pages);
+	vm_munmap(&kernel_address_space, ptr, pages << PAGE_SHIFT);
 }
 
 int vm_check_pointer(void *addr, size_t needed_space)
@@ -1158,8 +1168,9 @@ void vm_destroy_addr_space(struct mm_address_space *mm)
 	struct process *current = mm->process;
 
 	/* First, iterate through the rb tree and free/unmap stuff */
-
+	spin_lock(&mm->vm_spl);
 	rb_tree_free(mm->area_tree, vm_destroy_area);
+	spin_lock_held(&mm->vm_spl);
 
 	/* We're going to swap our address space to init's, and free our own */
 	
@@ -1170,6 +1181,7 @@ void vm_destroy_addr_space(struct mm_address_space *mm)
 	paging_load_cr3(mm->cr3);
 
 	free_page(phys_to_page((uintptr_t) own_addrspace));
+	spin_unlock(&mm->vm_spl);
 }
 
 /* Sanitizes an address. To be used by program loaders */
@@ -1411,6 +1423,7 @@ void vm_update_addresses(uintptr_t new_kernel_space_base)
 
 uintptr_t vm_randomize_address(uintptr_t base, uintptr_t bits)
 {
+#ifdef CONFIG_KASLR
 	if(bits != 0)
 		bits--;
 	uintptr_t mask = UINTPTR_MAX & ~(-(1UL << bits));
@@ -1419,6 +1432,7 @@ uintptr_t vm_randomize_address(uintptr_t base, uintptr_t bits)
 	result |= ((uintptr_t) arc4random() << 44) & mask;
 
 	base |= result;
+#endif
 	return base;
 }
 
@@ -1625,6 +1639,9 @@ void *map_page_list(struct page *pl, size_t size, uint64_t prot)
 		pl = pl->next_un.next_allocation;
 		u += PAGE_SIZE;
 	}
+#ifdef CONFIG_KASAN
+	kasan_alloc_shadow(vaddr, size, true);
+#endif
 
 	return vaddr;
 }
@@ -1738,6 +1755,7 @@ int vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
 			}
 			else
 			{
+				vm_remove_region(as, region);
 				vm_region_destroy(region);
 			}
 		}

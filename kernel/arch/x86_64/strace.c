@@ -189,6 +189,8 @@ static struct symbol *iterate_symbols_struct_syms(struct symbol_walk_context *c)
 
 static struct symbol *iterate_symbols_elf_tables(struct symbol_walk_context *c)
 {
+	if(!symtab)
+		return NULL;
 	const size_t num = symtab->sh_size / symtab->sh_entsize;
 	Elf64_Sym *syms = (Elf64_Sym*)(symtab->sh_addr + PHYS_BASE);
 

@@ -91,17 +91,20 @@ void div0_exception(intctx_t *ctx)
 	kernel_raise_signal(SIGFPE, current);
 }
 
+unsigned long *pppp = (void *) 0xffffa000009d88f0;
+int i = 0;
 void debug_trap(intctx_t *ctx)
 {
-	if(is_kernel_exception(ctx))
+	/* if(is_kernel_exception(ctx))
 	{
 		dump_interrupt_context(ctx);
 		panic("Debug trap");
-	}
+	}*/
 
-	printk("Trap at %lx rsp %lx!\n", ctx->rip, ctx->rsp);
+	printk("Trap at %lx rbp %lx!\n", ctx->rip, ctx->rbp);
+	//printk("Val: %lx\n", *pppp);
 	//debug_opcode((uint8_t *) ctx->rip, ctx);
-
+	++i;
 	return;
 	struct process *current = get_current_process();
 

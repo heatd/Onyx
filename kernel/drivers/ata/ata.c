@@ -187,6 +187,7 @@ ssize_t ata_read(size_t offset, size_t count, void* buffer, struct blkdev* blkd)
 	size_t off = offset;
 
 	mutex_lock(&lock);
+	printf("hello ata here\n");
 	void *buf = PHYS_TO_VIRT(read_buffer);
 	if(count < UINT16_MAX) ata_read_sectors(drv->channel, drv->drive, (uint32_t)(uintptr_t) read_buffer, count, off / 512);
 	//fscache_cache_sectors(buffer, blkd, off / 512, count);

@@ -71,9 +71,7 @@ install-headers: build-prep
 build-srcpackages: $(SOURCE_PACKAGES)
 
 dash: build-srcpackages
-	cd dash && ./configure --prefix=/ --bindir=/usr/bin \
-	--host=x86_64-onyx --enable-static && $(MAKE) install && \
-	$(MAKE) distclean
+	cd dash && $(MAKE) install
 
 build-cleanup: dash 
 	cp kernel/kernel.config sysroot/boot

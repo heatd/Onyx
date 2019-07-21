@@ -325,6 +325,7 @@ void page_init(size_t memory_size, void *(*get_phys_mem_region)(uintptr_t *base,
 		halt();
 	}
 
+	memset(PHYS_TO_VIRT(ptr), 0, needed_memory);
 	__kbrk(PHYS_TO_VIRT(ptr));
 
 

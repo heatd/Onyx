@@ -224,7 +224,7 @@ void pci_enumerate_device(uint16_t bus, uint8_t device, uint8_t function, struct
 	struct pci_device* dev = malloc(sizeof(struct pci_device));
 	if(!dev)
 		panic("pci: early unrecoverable oom\n");
-	memset(dev, 0 , sizeof(struct pci_device));
+	memset(dev, 0, sizeof(struct pci_device));
 
 	dev->bus = bus;
 	dev->function = function;

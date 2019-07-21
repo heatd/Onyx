@@ -57,6 +57,8 @@ ACPI_STATUS AcpiOsTableOverride(ACPI_TABLE_HEADER *ExistingTable, ACPI_TABLE_HEA
 	return AE_OK;
 }
 
+#define DEBUG_ACPICA 1
+
 void *AcpiOsMapMemory(ACPI_PHYSICAL_ADDRESS PhysicalAddress, ACPI_SIZE Length)
 {
 #ifdef DEBUG_ACPICA
@@ -82,6 +84,8 @@ ACPI_STATUS AcpiOsGetPhysicalAddress(void *LogicalAddress, ACPI_PHYSICAL_ADDRESS
 	printk("Return: %p\n", *PhysicalAddress);
 	return AE_OK;
 }
+
+#include <onyx/mm/kasan.h>
 
 void *AcpiOsAllocate(ACPI_SIZE Size)
 {	

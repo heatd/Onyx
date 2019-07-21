@@ -234,6 +234,7 @@ static int tmpfs_add_block(const char *buf, size_t size, tmpfs_file_t *file)
 	if(!block)
 		return -1;
 	tmpfs_append_data(block, file);
+	assert(size <= block_size);
 	memcpy(&block->data, buf, size);
 	return 0;
 }

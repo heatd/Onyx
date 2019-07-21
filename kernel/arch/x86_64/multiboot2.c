@@ -78,7 +78,7 @@ ACPI_TABLE_RSDP grub2_rsdp = {0};
 
 uintptr_t get_rdsp_from_grub(void)
 {
-	return (uintptr_t) &grub2_rsdp - KERNEL_VIRTUAL_BASE;
+	return ((uintptr_t) &grub2_rsdp) - KERNEL_VIRTUAL_BASE;
 }
 
 extern uintptr_t kernel_end;

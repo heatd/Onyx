@@ -325,8 +325,6 @@ void kernel_main(void)
 
 	assert(new_thread);
 
-	vt_init_blink();
-
 	/* Initialize late libc */
 	libc_late_init();
 
@@ -347,6 +345,8 @@ void do_ktests(void);
 
 void kernel_multitasking(void *arg)
 {
+	vt_init_blink();
+
 	LOG("kernel", "Command line: %s\n", kernel_cmdline);
 
 	/* Initialize the SMBIOS subsystem */

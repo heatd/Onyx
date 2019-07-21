@@ -1,0 +1,3 @@
+Every file under kernel/mm/malloc is a part of musl and licensed under the MIT license,
+except for some tiny modifications made by me.
+For license details check musl/COPYRIGHT, in the project's root.

@@ -770,6 +770,8 @@ void process_destroy_file_descriptors(struct process *process)
 
 	ctx->file_desc = NULL;
 	ctx->file_desc_entries = 0;
+
+	mutex_unlock(&ctx->fdlock);
 }
 
 void process_remove_from_list(struct process *process)
@@ -851,7 +853,7 @@ void process_end(struct process *process)
 	process->cmd_line = NULL;
 
 	if(process->ctx.name)
-		free(process->ctx.name);
+		free((void *) process->ctx.name);
 	
 	if(process->ctx.cwd)
 		object_unref(&process->ctx.cwd->i_object);
@@ -863,7 +865,6 @@ void process_end(struct process *process)
 
 	futex_free_queue(process);
 	slab_free(process_cache, process);
-
 }
 
 void process_reparent_children(struct process *process)
@@ -917,6 +918,7 @@ void process_destroy(thread_t *current_thread)
 
 	sched_yield();
 
+	while(true);
 }
 
 int process_attach(struct process *tracer, struct process *tracee)

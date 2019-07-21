@@ -38,7 +38,7 @@ endif
 CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS) -D ACPI_LIBRARY -D ACPI_DEBUG_OUTPUT=1
 LDFLAGS:=$(LDFLAGS) $(KERNEL_ARCH_LDFLAGS)
 LIBS:=$(LIBS) $(KERNEL_ARCH_LIBS)
-ACPICA_CFLAGS:=$(filter-out -fsanitize=undefined -fsanitize=kernel-address -Werror, $(CFLAGS))
+ACPICA_CFLAGS:=$(filter-out -fsanitize=undefined -Werror, $(CFLAGS))
 
 OBJS:=\
 $(patsubst %.c,%.o,$(wildcard drivers/*/*.c)) \
@@ -47,6 +47,7 @@ $(patsubst %.c,%.o,$(wildcard kernel/*.c)) \
 $(patsubst %.c,%.o,$(wildcard crypt/*.c)) \
 $(patsubst %.cpp,%.o,$(wildcard kernel/*.cpp)) \
 $(patsubst %.c,%.o,$(wildcard kernel/*/*.c)) \
+$(patsubst %.c,%.o,$(wildcard kernel/*/*/*.c)) \
 $(patsubst %.cpp,%.o,$(wildcard kernel/*/*.cpp)) \
 $(filter-out $(ARCHDIR)/__vdso.o, $(patsubst %.c,%.o,$(wildcard $(ARCHDIR)/*.c))) \
 $(patsubst %.c,%.o,$(wildcard $(ARCHDIR)/*/*.c)) \
@@ -90,7 +91,11 @@ acpica/%.o: acpica/%.c kernel.config
 
 kernel/mm/kasan.o: kernel/mm/kasan.c
 	@echo [CC] NOKASAN $<
-	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) $(CPPFLAGS)
+	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) -fno-sanitize=kernel-address $(CPPFLAGS)
+
+kernel/mm/malloc/%.o: kernel/mm/malloc/%.c
+	@echo [CC] NOKASAN $<
+	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) -fno-sanitize=kernel-address $(CPPFLAGS)
 
 %.o: %.c kernel.config
 	@echo [CC] $<

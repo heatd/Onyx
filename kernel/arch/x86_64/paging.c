@@ -186,14 +186,15 @@ void paging_map_all_phys(void)
 {
 	bool is_1gb_supported = x86_has_cap(X86_FEATURE_PDPE1GB);
 
+	printf("Is 1gb supported? %s\n", is_1gb_supported ? "yes" : "no");
 	uintptr_t virt = PHYS_BASE;
 	decomposed_addr_t decAddr;
 	memcpy(&decAddr, &virt, sizeof(decomposed_addr_t));
 	uint64_t* entry = &get_current_pml4()->entries[decAddr.pml4];
-	PML3* pml3 = (PML3*)&pdptphysical_map;
-	
+	PML3* pml3 = (PML3*) &pdptphysical_map;
+	printf("Entry: %p\n", entry);
 	memset(pml3, 0, sizeof(PML3));
-	*entry = make_pml4e((uint64_t)pml3, 0, 0, 0, 0, 1, 1);
+	*entry = make_pml4e((uint64_t) pml3, 0, 0, 0, 0, 1, 1);
 
 	if(is_1gb_supported)
 	{
@@ -202,7 +203,6 @@ void paging_map_all_phys(void)
 			entry = &pml3->entries[i];
 			*entry = make_pml3e(i * 0x40000000, 0, 0, 1, 0, 0, 0, 1, 1);
 			*entry |= X86_PAGING_HUGE;
-			__native_tlb_invalidate_page((void*)(virt + i * 0x40000000));
 		}
 	}
 	else
@@ -210,7 +210,7 @@ void paging_map_all_phys(void)
 		/* Use 2MiB pages instead */
 		entry = &pml3->entries[decAddr.pdpt];
 		*entry = make_pml3e(((uint64_t) &pdphysical_map - KERNEL_VIRTUAL_BASE), 0, 0, 1, 0, 0, 0, 1, 1);
-		for(size_t i = 0; i < 512; i++)
+		for(size_t i = 1; i < 512; i++)
 		{
 			for(size_t j = 0; j < 512; j++)
 			{
@@ -220,6 +220,9 @@ void paging_map_all_phys(void)
 			}
 		}
 	}
+
+	for(size_t i = 0; i < 512; i++)
+		__native_tlb_invalidate_page((void*)(virt + i * 0x40000000));
 }
 
 void *paging_map_phys_to_virt_huge(uint64_t virt, uint64_t phys, uint64_t prot)
@@ -258,7 +261,8 @@ void *paging_map_phys_to_virt_huge(uint64_t virt, uint64_t phys, uint64_t prot)
 
 void* paging_map_phys_to_virt_large_early(uint64_t virt, uint64_t phys, uint64_t prot)
 {
-	_Bool user = 0;
+	printf("Mapping %lx to %lx\n", phys, virt);
+	bool user = 0;
 	if (virt < 0x00007fffffffffff)
 		user = 1;
 	if(!get_current_pml4())
@@ -278,7 +282,9 @@ void* paging_map_phys_to_virt_large_early(uint64_t virt, uint64_t phys, uint64_t
 		pml3 = (PML3*) alloc_pt();
 		if(!pml3)
 			return NULL;
-		memset((void*)((uint64_t)pml3 + KERNEL_VIRTUAL_BASE), 0, sizeof(PML3));
+		printf("PML3: %p\n", pml3);
+		while(1);
+		memset((void*)((uint64_t) pml3 + KERNEL_VIRTUAL_BASE), 0, sizeof(PML3));
 		*entry = make_pml4e((uint64_t)pml3, 0, 0, 0, user ? 1 : 0, 1, 1);
 	}
 	pml3 = (PML3*)((uint64_t)pml3 + KERNEL_VIRTUAL_BASE);
@@ -290,6 +296,8 @@ void* paging_map_phys_to_virt_large_early(uint64_t virt, uint64_t phys, uint64_t
 		pml2 = (PML2*) alloc_pt();
 		if(!pml2)
 			return NULL;
+		printf("PML2: %p\n", pml2);
+		while(1);
 		memset((void*)((uint64_t)pml2 + KERNEL_VIRTUAL_BASE), 0, sizeof(PML2));
 		*entry = make_pml3e( (uint64_t)pml2, 0, 0, 0, 0, 0, user ? 1 : 0, 1, 1);
 	}
@@ -328,8 +336,9 @@ void* paging_map_phys_to_virt_large(uint64_t virt, uint64_t phys, uint64_t prot)
 		pml3 = (PML3*) alloc_boot_page(1, 0);
 		if(!pml3)
 			return NULL;
+		printf("pml3: %p\n", pml3);
 		memset((void*)((uint64_t)pml3 + PHYS_BASE), 0, sizeof(PML3));
-		*entry = make_pml4e((uint64_t)pml3, 0, 0, 0, user ? 1 : 0, 1, 1);
+		*entry = make_pml4e((uint64_t) pml3, 0, 0, 0, user ? 1 : 0, 1, 1);
 	}
 	
 	pml3 = (PML3*)((uint64_t)pml3 + PHYS_BASE);
@@ -344,7 +353,8 @@ void* paging_map_phys_to_virt_large(uint64_t virt, uint64_t phys, uint64_t prot)
 		pml2 = (PML2*) alloc_boot_page(1, 0);
 		if(!pml2)
 			return NULL;
-		memset((void*)((uint64_t)pml2 + PHYS_BASE), 0, sizeof(PML2));
+		printf("pml2: %p\n", pml2);
+		memset((void*)((uint64_t) pml2 + PHYS_BASE), 0, sizeof(PML2));
 		*entry = make_pml3e( (uint64_t)pml2, 0, 0, 0, 0, 0, user ? 1 : 0, 1, 1);
 	}
 
@@ -355,8 +365,6 @@ void* paging_map_phys_to_virt_large(uint64_t virt, uint64_t phys, uint64_t prot)
 	*entry |= X86_PAGING_HUGE;
 	return (void*) virt;
 } 
-
-volatile int test = 0;
 
 void* paging_map_phys_to_virt(PML4 *__pml, uint64_t virt, uint64_t phys, uint64_t prot)
 {

@@ -235,6 +235,7 @@ thread_t *thread)
 {
 	MUST_HOLD_LOCK(&p->scheduler_lock);
 
+	assert(thread->status == THREAD_RUNNABLE);
 	thread_t *queue = p->thread_queues[priority];
 	if(!queue)
 	{
