@@ -11,18 +11,21 @@
 #include <stddef.h>
 
 #include <onyx/page.h>
+#include <onyx/list.h>
+#include <libdict/rb_tree.h>
 
-struct vmo_file_mapping
+enum vmo_type
 {
-	struct file_description *fd;
-	off_t off;
+	VMO_ANON = 0,
+	VMO_BACKED = 1
 };
 
 struct vm_object
 {
+	enum vmo_type type;
 	size_t size;
 
-	struct page *page_list;
+	rb_tree *pages;
 
 	/* Points to private data that may be needed by the backer of this VM */
 	void *priv;
@@ -31,32 +34,44 @@ struct vm_object
 	struct page * (*commit)(size_t off, struct vm_object *vmo);
 
 	/* VM objects hold a pointer to their mapping(s) */
-	struct vm_region *mappings;
+	struct list mappings;
 
 	/* We also hold a pointer to their COW clones */
 	struct vm_object *cow_clone_parent, *cow_clone_child;
 
-	union
-	{
-		struct vmo_file_mapping fmap;
-	} u_info;
-
+	struct inode *ino;
 	struct spinlock page_lock;
 
 	struct spinlock mapping_lock;
+
+	unsigned long refcount;
 };
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+struct vm_region;
+
+int vmo_assign_mapping(struct vm_object *vmo, struct vm_region *region);
 struct vm_object *vmo_create(size_t size, void *priv);
-struct page *vmo_populate(struct vm_object *vmo, off_t off);
+struct page *vmo_populate(struct vm_object *vmo, size_t off);
 struct vm_object *vmo_create_phys(size_t size);
-struct page *vmo_get(struct vm_object *vmo, off_t off, bool may_populate);
-struct vm_object *vmo_fork(struct vm_object *vmo);
-int vmo_prefault(struct vm_object *vmo, size_t size, off_t offset);
+struct page *vmo_get(struct vm_object *vmo, size_t off, bool may_populate);
+struct vm_object *vmo_fork(struct vm_object *vmo, bool shared, struct vm_region *reg);
+int vmo_prefault(struct vm_object *vmo, size_t size, size_t offset);
 void vmo_unref(struct vm_object *vmo);
 int vmo_resize(size_t new_size, struct vm_object *vmo);
 void vmo_update_offsets(size_t off, struct vm_object *vmo);
 struct vm_object *vmo_split(size_t split_point, size_t hole_size, struct vm_object *vmo);
 void vmo_truncate_beginning_and_resize(size_t off, struct vm_object *vmo);
 void vmo_sanity_check(struct vm_object *vmo);
+void vmo_destroy(struct vm_object *vmo);
+int vmo_add_page(size_t off, struct page *p, struct vm_object *vmo);
+void vmo_ref(struct vm_object *vmo);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

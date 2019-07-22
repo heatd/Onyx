@@ -8,7 +8,6 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <stdatomic.h>
 
 #include <sys/types.h>
 
@@ -61,7 +60,13 @@ struct page
 	struct page *next;
 	unsigned long ref;
 
-	off_t off;		/* Offset in vmo */
+	union
+	{
+		unsigned long flags;
+		struct page_cache_block *cache;
+	};
+
+	size_t off;		/* Offset in vmo */
 
 	union
 	{
@@ -179,12 +184,12 @@ void page_add_used_pages(struct used_pages *pages);
 
 static inline unsigned long page_ref(struct page *p)
 {
-	return __atomic_add_fetch(&p->ref, 1, memory_order_acquire);
+	return __atomic_add_fetch(&p->ref, 1, __ATOMIC_ACQUIRE);
 }
 
 static inline unsigned long page_unref(struct page *p)
 {
-	return __atomic_sub_fetch(&p->ref, 1, memory_order_release);
+	return __atomic_sub_fetch(&p->ref, 1, __ATOMIC_RELEASE);
 }
 
 #ifdef __cplusplus

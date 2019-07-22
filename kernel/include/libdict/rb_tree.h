@@ -30,9 +30,36 @@
 
 #include "dict.h"
 
+#include <libdict/tree_common.h>
+
 BEGIN_DECL
 
-typedef struct rb_tree rb_tree;
+typedef struct rb_node rb_node;
+struct rb_node {
+    void*	    key;
+    void*	    datum;
+    intptr_t	    color;
+    rb_node*	    llink;
+    rb_node*	    rlink;
+};
+
+#define RB_RED		    0
+#define RB_BLACK	    1
+
+#define PARENT(node)	    ((rb_node*)((node)->color & ~RB_BLACK))
+#define COLOR(node)	    ((node)->color & RB_BLACK)
+
+#define SET_RED(node)	    (node)->color &= (~(intptr_t)RB_BLACK)
+#define SET_BLACK(node)	    (node)->color |= ((intptr_t)RB_BLACK)
+#define SET_PARENT(node,p)  (node)->color = COLOR(node) | (intptr_t)(p)
+
+typedef struct rb_tree {
+    TREE_FIELDS(rb_node);
+} rb_tree;
+
+struct rb_itor {
+    TREE_ITERATOR_FIELDS(rb_tree, rb_node);
+};
 
 rb_tree*	rb_tree_new(dict_compare_func cmp_func);
 dict*		rb_dict_new(dict_compare_func cmp_func);

@@ -246,7 +246,11 @@ struct processor
 #else
 #error "Implement this structure for your architecture"
 #endif
+#ifdef __cplusplus
+	size_t active_threads;
+#else
 	atomic_size_t active_threads;
+#endif
 	thread_t *thread_queues[NUM_PRIO];
 	struct spinlock scheduler_lock;
 	size_t sched_quantum;

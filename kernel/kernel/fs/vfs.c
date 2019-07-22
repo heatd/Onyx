@@ -62,7 +62,7 @@ struct inode *get_fs_root(void)
 	return root->inode;
 }
 
-struct page_cache_block *inode_do_caching(struct inode *inode, off_t offset, long flags)
+struct page_cache_block *inode_do_caching(struct inode *inode, size_t offset, long flags)
 {
 	struct page_cache_block *block = NULL;
 	/* Allocate a cache buffer */
@@ -98,37 +98,83 @@ uint32_t crc32_calculate(uint8_t *ptr, size_t len);
 
 #endif
 
-struct page_cache_block *__inode_get_page_internal(struct inode *inode, off_t offset, long flags)
+struct page *vmo_inode_commit(size_t off, struct vm_object *vmo)
 {
-	off_t aligned_off = (offset / PAGE_CACHE_SIZE) * PAGE_CACHE_SIZE;
-	fnv_hash_t hash = fnv_hash(&aligned_off, sizeof(offset));
+	struct inode *i = vmo->ino;
 
-	struct page_cache_block *b = inode->i_pages[hash % VFS_PAGE_HASHTABLE_ENTRIES];
+	struct page *page = alloc_page(0);
+	if(!page)
+		return NULL;
 
-	/* Note: This should run with the pages_lock held */
-	for(; b; b = b->next_inode)
+	page->off = off;
+	void *ptr = PHYS_TO_VIRT(page->paddr);
+	size_t to_read = i->i_size - off < PAGE_SIZE ? i->i_size - off : PAGE_SIZE;
+
+	size_t read = read_vfs(
+		READ_VFS_FLAG_IS_PAGE_CACHE,
+		off,
+		to_read,
+		ptr,
+		i);
+
+	if(read != to_read)
 	{
-		if(b->offset <= offset && b->offset + (off_t) PAGE_CACHE_SIZE > offset)
-		{
-			#ifdef CONFIG_CHECK_PAGE_CACHE_INTEGRITY
-			assert(b->integrity == crc32_calculate(b->buffer, b->size));
-			#endif
-			return b;
-		}
+		printk("Error file read %lx bytes out of %lx, off %lx\n", read, to_read, off);
+		perror("file");
+		/* TODO: clean up */
+		free_page(page);
+		return NULL;
 	}
 
-	/* We don't release the lock if we didn't find anything on purpose.
-	 * That job is left to inode_get_page, which does that work for non-inode
-	 * code callers.
-	*/
-	
-	/* Try to add it to the cache if it didn't exist before. */
-	struct page_cache_block *block = inode_do_caching(inode, aligned_off, flags);
+	if(!add_cache_to_node(page, read, off, i))
+	{
+		free_page(page);
+		return NULL;
+	}
 
-	return block;
+	return page;
 }
 
-struct page_cache_block *__inode_get_page(struct inode *inode, off_t offset)
+int inode_create_vmo(struct inode *ino)
+{
+	ino->i_pages = vmo_create(ino->i_size, NULL);
+	if(!ino->i_pages)
+		return -1;
+	ino->i_pages->commit = vmo_inode_commit;
+	ino->i_pages->ino = ino;
+	return 0;
+}
+
+struct page_cache_block *inode_get_cache_block(struct inode *ino, size_t off)
+{
+	if(!ino->i_pages)
+	{
+		if(inode_create_vmo(ino) < 0)
+			return NULL;
+	}
+
+	if(off >= ino->i_pages->size)
+	{
+		ino->i_pages->size += (off - ino->i_pages->size) + PAGE_SIZE;
+	}
+
+	struct page *p = vmo_get(ino->i_pages, off, true);
+	if(!p)
+		return NULL;
+	return p->cache;
+}
+
+struct page_cache_block *__inode_get_page_internal(struct inode *inode, size_t offset, long flags)
+{
+	off_t aligned_off = (offset / PAGE_CACHE_SIZE) * PAGE_CACHE_SIZE;
+
+	MUST_HOLD_LOCK(&inode->i_pages_lock);
+	struct page_cache_block *b = inode_get_cache_block(inode, aligned_off);
+	
+	return b;
+}
+
+struct page_cache_block *__inode_get_page(struct inode *inode, size_t offset)
 {
 	return __inode_get_page_internal(inode, offset, FILE_CACHING_READ);
 }
@@ -155,7 +201,8 @@ size_t read_vfs(int flags, size_t offset, size_t sizeofread, void* buffer, struc
 	{
 		ssize_t status;
 		/* If caching failed, just do the normal way */
-		if((status = lookup_file_cache(buffer, sizeofread, this, offset)) < 0)
+		if(flags & READ_VFS_FLAG_IS_PAGE_CACHE ||
+		  (status = lookup_file_cache(buffer, sizeofread, this, offset)) < 0)
 			return this->i_fops.read(flags, offset, sizeofread, buffer, this);
 		return status;
 	}
@@ -440,18 +487,6 @@ int stat_vfs(struct stat *buf, struct inode *node)
 	return errno = ENOSYS, (unsigned int) -1;
 }
 
-
-void add_to_page_hashtable(struct page_cache_block *cache, struct inode *node)
-{
-	fnv_hash_t hash = fnv_hash(&cache->offset, sizeof(cache->offset));
-
-	struct page_cache_block **pp = &node->i_pages[hash % VFS_PAGE_HASHTABLE_ENTRIES];
-
-	while(*pp)
-		pp = &(*pp)->next_inode;
-	*pp = cache;
-}
-
 struct page_cache_block *add_cache_to_node(void *ptr, size_t size, off_t offset,
 	struct inode *node)
 {
@@ -459,7 +494,6 @@ struct page_cache_block *add_cache_to_node(void *ptr, size_t size, off_t offset,
 	if(!cache)
 		return NULL;
 	
-	add_to_page_hashtable(cache, node);
 	return cache;
 }
 
@@ -479,9 +513,13 @@ ssize_t lookup_file_cache(void *buffer, size_t sizeofread, struct inode *file,
 		if(!cache)
 		{
 			if(read)
+			{
 				return read;
+			}
 			else
+			{
 				return -ENOMEM;
+			}
 		}
 
 		off_t cache_off = offset % PAGE_CACHE_SIZE;
@@ -657,7 +695,7 @@ int symlink_vfs(const char *dest, struct inode *inode)
 	return -ENOSYS;
 }
 
-struct page *file_get_page(struct inode *ino, off_t offset)
+struct page *file_get_page(struct inode *ino, size_t offset)
 {
 	off_t off = (offset / PAGE_CACHE_SIZE) * PAGE_CACHE_SIZE;
 
@@ -671,21 +709,7 @@ struct page *file_get_page(struct inode *ino, off_t offset)
 
 void inode_destroy_page_caches(struct inode *inode)
 {
-	for(size_t i = 0; i < VFS_PAGE_HASHTABLE_ENTRIES; i++)
-	{
-		if(!inode->i_pages[i])
-			continue;
-		
-		struct page_cache_block *block = inode->i_pages[i];
-
-		while(block)
-		{
-			struct page_cache_block *old = block;
-			block = block->next_inode;
-			
-			page_cache_destroy(old);
-		}
-	}
+	vmo_unref(inode->i_pages);
 }
 
 void inode_release(struct object *object)

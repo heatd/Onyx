@@ -93,7 +93,7 @@ struct inode
 	struct file_ops i_fops;
 
 	struct spinlock i_pages_lock;
-	struct page_cache_block *i_pages[VFS_PAGE_HASHTABLE_ENTRIES];
+	struct vm_object *i_pages;
 	
 	struct inode *i_next;
 	struct inode *i_link;
@@ -116,9 +116,13 @@ struct file
 extern "C" {
 #endif
 
+int inode_create_vmo(struct inode *ino);
+
 struct page_cache_block *add_cache_to_node(void *ptr, size_t size, off_t offset, struct inode *node);
 
 struct inode *open_vfs(struct inode *dir, const char *path);
+
+#define READ_VFS_FLAG_IS_PAGE_CACHE		(1 << 20)
 
 size_t read_vfs(int flags, size_t offset, size_t sizeofread, void* buffer,
 	struct inode* file);
@@ -165,7 +169,7 @@ ssize_t lookup_file_cache(void *buffer, size_t sizeofread, struct inode *file,
 ssize_t do_file_caching(size_t sizeofread, struct inode *ino, off_t offset,
 	int flags);
 
-struct page *file_get_page(struct inode *ino, off_t off);
+struct page *file_get_page(struct inode *ino, size_t off);
 
 struct inode *inode_create(void);
 

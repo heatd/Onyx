@@ -57,7 +57,7 @@ ACPI_STATUS AcpiOsTableOverride(ACPI_TABLE_HEADER *ExistingTable, ACPI_TABLE_HEA
 	return AE_OK;
 }
 
-#define DEBUG_ACPICA 1
+#define DEBUG_ACPICA 0
 
 void *AcpiOsMapMemory(ACPI_PHYSICAL_ADDRESS PhysicalAddress, ACPI_SIZE Length)
 {

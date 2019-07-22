@@ -261,7 +261,6 @@ void *paging_map_phys_to_virt_huge(uint64_t virt, uint64_t phys, uint64_t prot)
 
 void* paging_map_phys_to_virt_large_early(uint64_t virt, uint64_t phys, uint64_t prot)
 {
-	printf("Mapping %lx to %lx\n", phys, virt);
 	bool user = 0;
 	if (virt < 0x00007fffffffffff)
 		user = 1;

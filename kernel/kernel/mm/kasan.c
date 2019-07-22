@@ -251,7 +251,7 @@ int kasan_alloc_shadow(unsigned long addr, size_t size, bool accessible)
 	/*printf("Kasan start: %lx\n", kasan_start);
 	printf("Kasan end: %lx\n", kasan_end);
 	printf("Actual start: %lx\nActual end: %lx\n", actual_start, actual_end);*/
-
+	/* TODO: This is a huge memory leak right now. */
 	assert(vm_map_range((void *) kasan_start, (kasan_end - kasan_start) >> PAGE_SHIFT,
 		VM_WRITE | VM_NOEXEC | VM_DONT_MAP_OVER) != NULL);
 	/* Mask excess bytes as redzones */

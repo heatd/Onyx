@@ -13,7 +13,10 @@
 
 typedef struct file_description
 {
-	_Atomic int refcount;
+#ifndef __cplusplus
+	_Atomic
+#endif	
+	int refcount;
 	off_t seek;
 	struct mutex seek_lock;
 	struct inode *vfs_node;

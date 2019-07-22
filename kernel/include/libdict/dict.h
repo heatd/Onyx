@@ -205,7 +205,4 @@ unsigned dict_str_hash(const void* str);
 
 END_DECL
 
-#include "wb_tree.h"
-#include "rb_tree.h"
-
 #endif /* !LIBDICT_DICT_H__ */

@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <assert.h>
+#include <stdatomic.h>
 
 #include <onyx/spinlock.h>
 #include <onyx/page.h>
@@ -229,6 +230,8 @@ void page_free_pages(struct page_arena *arena, void *addr, size_t nr_pages)
 			list = l;
 		}
 	}
+
+	arena->free_pages++;
 
 	spin_unlock(&arena->lock);
 }

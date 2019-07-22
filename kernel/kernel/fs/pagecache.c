@@ -80,7 +80,7 @@ static void remove_from_list(struct page_cache_block *b)
 uint32_t crc32_calculate(uint8_t *ptr, size_t len);
 #endif
 
-struct page_cache_block *add_to_cache(void *data, size_t size, off_t offset, struct inode *file)
+struct page_cache_block *add_to_cache(void *data, size_t size, size_t offset, struct inode *file)
 {
 	/* Allocate a block/page for the cache */
 	struct page *page = data;
@@ -99,9 +99,9 @@ struct page_cache_block *add_to_cache(void *data, size_t size, off_t offset, str
 	c->offset = offset;
 	used_cache_pages++;
 
-	#ifdef CONFIG_CHECK_PAGE_CACHE_INTEGRITY
+#ifdef CONFIG_CHECK_PAGE_CACHE_INTEGRITY
 	c->integrity = crc32_calculate(c->buffer, c->size);
-	#endif
+#endif
 
 	__add_to_list(c);
 	return c;

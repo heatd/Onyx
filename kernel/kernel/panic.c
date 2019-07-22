@@ -73,7 +73,7 @@ void panic(const char *msg)
 	stack_trace();
 	printk("Killing cpus\n");
 	cpu_kill_other_cpus();
-	page_print_shared();
+	//page_print_shared();
 	halt();
 	__builtin_unreachable();
 }

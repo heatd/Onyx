@@ -35,33 +35,6 @@
 #include "dict_private.h"
 #include <libdict/tree_common.h>
 
-typedef struct rb_node rb_node;
-struct rb_node {
-    void*	    key;
-    void*	    datum;
-    intptr_t	    color;
-    rb_node*	    llink;
-    rb_node*	    rlink;
-};
-
-#define RB_RED		    0
-#define RB_BLACK	    1
-
-#define PARENT(node)	    ((rb_node*)((node)->color & ~RB_BLACK))
-#define COLOR(node)	    ((node)->color & RB_BLACK)
-
-#define SET_RED(node)	    (node)->color &= (~(intptr_t)RB_BLACK)
-#define SET_BLACK(node)	    (node)->color |= ((intptr_t)RB_BLACK)
-#define SET_PARENT(node,p)  (node)->color = COLOR(node) | (intptr_t)(p)
-
-struct rb_tree {
-    TREE_FIELDS(rb_node);
-};
-
-struct rb_itor {
-    TREE_ITERATOR_FIELDS(rb_tree, rb_node);
-};
-
 static const dict_vtable rb_tree_vtable = {
     true,
     (dict_inew_func)	    rb_dict_itor_new,

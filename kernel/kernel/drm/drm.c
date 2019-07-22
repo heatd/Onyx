@@ -371,11 +371,27 @@ void *drm_mmap(struct vm_region *area, struct inode *inode)
 
 	if(!vmo)
 		return NULL;
+	size_t nr_pages = vm_align_size_to_pages(dbuf->size);
+	struct page *p = dbuf->pages;
+	while(nr_pages--)
+	{
+		if(vmo_add_page(p->off, p, vmo) < 0)
+		{
+			vmo_destroy(vmo);
+			return NULL;
+		}
 
-	vmo->page_list = dbuf->pages;
-	vmo->mappings = area;
-	vmo->u_info.fmap.fd = fd;
-	vmo->u_info.fmap.off = 0;
+		p = p->next_un.next_allocation;
+	}
+
+	if(vmo_assign_mapping(vmo, area) < 0)
+	{
+		vmo_unref(vmo);
+		return NULL;
+	}
+
+	vmo->ino = inode;
+
 	area->vmo = vmo;
 
 	return (void *) area->base;
