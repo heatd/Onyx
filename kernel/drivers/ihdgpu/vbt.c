@@ -63,7 +63,7 @@ uint32_t get_blk_size(struct bdb_block_header *blk)
 		unsigned char revision = blk->data[0];
 		if(revision >= 3)
 		{
-			uint32_t *ptr = &blk->data[1];
+			uint32_t *ptr = (uint32_t *) &blk->data[1];
 			return *ptr;
 		}
 	}
@@ -103,7 +103,7 @@ int igd_get_integrated_panel_settings(struct igpu_device *dev)
 	if(!block)
 		return 0;
 	
-	struct bdb_lvds_options *opt = &block->data;
+	struct bdb_lvds_options *opt = (struct bdb_lvds_options *) &block->data;
 
 	uint8_t panel_type = opt->panel_type;
 
@@ -123,7 +123,7 @@ int igd_get_integrated_panel_settings(struct igpu_device *dev)
 	uint32_t lfp_data_size =
 	    ptrs->ptr[1].fp_timing_offset - ptrs->ptr[0].fp_timing_offset;
 
-	struct bdb_lvds_lfp_data *data = &block->data;
+	struct bdb_lvds_lfp_data *data = (struct bdb_lvds_lfp_data *) &block->data;
 
 	struct bdb_lvds_lfp_data_entry *entry = (void *)((uint8_t *) data->data +
 					lfp_data_size * panel_type);
@@ -139,6 +139,7 @@ int igd_parse_vbt(struct igpu_device *dev)
 		return 0;
 	
 	struct bdb_general_definitions *defs = (void *) &block->data;
+	(void) defs;
 
 	return igd_get_integrated_panel_settings(dev);
 }

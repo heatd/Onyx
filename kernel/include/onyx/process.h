@@ -34,6 +34,7 @@ struct process
 	/* The next process in the linked list */
 	struct process *next;
 
+	unsigned long nr_threads;
 	/* The processes' threads */
 	thread_t *threads[30];
 
@@ -125,7 +126,7 @@ void process_destroy_aspace(void);
 int process_attach(struct process *tracer, struct process *tracee);
 struct process *process_find_tracee(struct process *tracer, pid_t pid);
 void process_exit_from_signal(int signum);
-char **process_copy_envarg(char **envarg, _Bool to_kernel, int *count);
+char **process_copy_envarg(char **envarg, bool to_kernel, int *count);
 void process_increment_stats(bool is_kernel);
 void process_continue(struct process *p);
 void process_stop(struct process *p);

@@ -209,6 +209,8 @@ struct vm_object *vmo_fork(struct vm_object *vmo, bool shared, struct vm_region 
 		memcpy(new_vmo, vmo, sizeof(*new_vmo));
 		new_vmo->refcount = 1;
 		new_vmo->mappings.head = new_vmo->mappings.tail = NULL;
+		new_vmo->prev_private = new_vmo->next_private = NULL;
+		new_vmo->forked_from = vmo;
 
 		spin_lock(&vmo->page_lock);
 		if(vmo_fork_pages(new_vmo) < 0)
@@ -308,13 +310,18 @@ int vmo_add_page(size_t off, struct page *p, struct vm_object *vmo)
 	return 0;
 }
 
-void vmo_unref(struct vm_object *vmo)
+bool vmo_unref(struct vm_object *vmo)
 {
 	/* For now, unref just destroys the object since vmo sharing is not
 	 * implemented yet.
 	*/
 	if(__sync_sub_and_fetch(&vmo->refcount, 1) == 0)
+	{
 		vmo_destroy(vmo);
+		return true;
+	}
+
+	return false;
 }
 
 static inline bool is_included(size_t lower, size_t upper, size_t x)
@@ -512,4 +519,9 @@ int vmo_assign_mapping(struct vm_object *vmo, struct vm_region *region)
 	spin_unlock(&vmo->mapping_lock);
 	
 	return ret;
+}
+
+bool vmo_is_shared(struct vm_object *vmo)
+{
+	return vmo->refcount != 1;
 }

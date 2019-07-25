@@ -29,6 +29,7 @@ int igd_do_modeset_hsw(struct igd_displayport *port,
 		       struct video_timings *mode, struct igpu_device *dev)
 {
 	bool is_edp = port->index == DDI_A;
+	(void) is_edp;
 
 	return 0;
 	//igd_change_pipe_config(port->pipe, mode, dev);

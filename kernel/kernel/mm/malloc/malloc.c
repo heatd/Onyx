@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <onyx/spinlock.h>
 #include <onyx/mm/kasan.h>
+#include <onyx/panic.h>
 
 #include "malloc_impl.h"
 
@@ -277,8 +278,8 @@ static void trim(struct chunk *self, size_t n)
 	split = (void *)((char *)self + n);
 
 	split->psize = n | C_INUSE;
-	split->csize = n1-n | C_INUSE;
-	next->psize = n1-n | C_INUSE;
+	split->csize = (n1-n) | C_INUSE;
+	next->psize = (n1-n) | C_INUSE;
 	self->csize = n | C_INUSE;
 
 	free(CHUNK_TO_MEM(split));
@@ -442,14 +443,14 @@ void __bin_chunk(struct chunk *self)
 			self = PREV_CHUNK(self);
 			size = CHUNK_SIZE(self);
 			final_size += size;
-			if (new_size+size > RECLAIM && (new_size+size^size) > size)
+			if (new_size+size > RECLAIM && ((new_size+size)^size) > size)
 				reclaim = 1;
 		}
 
 		if (alloc_fwd(next)) {
 			size = CHUNK_SIZE(next);
 			final_size += size;
-			if (new_size+size > RECLAIM && (new_size+size^size) > size)
+			if (new_size+size > RECLAIM && ((new_size+size)^size) > size)
 				reclaim = 1;
 			next = NEXT_CHUNK(next);
 		}
@@ -469,8 +470,8 @@ void __bin_chunk(struct chunk *self)
 
 	/* Replace middle of large chunks with fresh zero pages */
 	if (reclaim) {
-		uintptr_t a = (uintptr_t)self + SIZE_ALIGN+PAGE_SIZE-1 & -PAGE_SIZE;
-		uintptr_t b = (uintptr_t)next - SIZE_ALIGN & -PAGE_SIZE;
+		uintptr_t a = ((uintptr_t)self + SIZE_ALIGN+PAGE_SIZE-1) & -PAGE_SIZE;
+		uintptr_t b = ((uintptr_t)next - SIZE_ALIGN) & -PAGE_SIZE;
 		memset((void *) a, 0, b - a);
 	}
 #ifdef CONFIG_KASAN

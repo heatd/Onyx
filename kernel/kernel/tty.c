@@ -262,7 +262,7 @@ unsigned int tty_ioctl(int request, void *argp, struct inode *dev)
 		}
 		case TIOONYXCTL:
 		{
-			int arg = (int) argp;
+			int arg = (int) (unsigned long) argp;
 
 			switch(arg)
 			{

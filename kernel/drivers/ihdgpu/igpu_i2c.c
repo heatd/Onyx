@@ -100,8 +100,6 @@ int igpu_i2c_write(struct igpu_device *dev, uint8_t addr, uint8_t *buf, uint8_t 
 			return -ENXIO;
 		}
 
-		uint32_t *ptr = (uint32_t *) buf;
-
 		buf += 4;
 		count -= 4;
 	}

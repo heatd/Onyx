@@ -30,7 +30,7 @@ void pm_do_shutdown(void)
 {	
 	bus_shutdown_every();
 
-	return acpi_shutdown(NULL);
+	acpi_shutdown(NULL);
 }
 
 unsigned int __pm_shutdown(void *context)

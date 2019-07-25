@@ -150,6 +150,8 @@ int igd_enable_power_haswell(struct igpu_device *dev)
 		printk("PG2 timeout\n");
 		return st;
 	}
+
+	return 0;
 }
 
 int igd_enable_power(struct igpu_device *dev)

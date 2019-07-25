@@ -163,7 +163,7 @@ struct process *process_create(const char *cmd_line, ioctx_t *ctx, struct proces
 		
 		if(copy_file_descriptors(proc, ctx) < 0)
 		{
-			free(proc->ctx.name);
+			free((void *) proc->ctx.name);
 			object_unref(&ctx->cwd->i_object);
 			free(proc->cmd_line);
 			slab_free(process_cache, proc);
@@ -287,7 +287,7 @@ struct process *get_process_from_pid(pid_t pid)
 	return NULL;
 }
 
-char **process_copy_envarg(char **envarg, _Bool to_kernel, int *count)
+char **process_copy_envarg(char **envarg, bool to_kernel, int *count)
 {
 	/* Copy the envp/argv to another buffer */
 	/* Each buffer takes up argc * sizeof pointer + string_size + one extra pointer(to NULL terminate) */
@@ -888,9 +888,47 @@ void process_reparent_children(struct process *process)
 	spin_unlock(&process->children_lock);
 }
 
-void process_destroy(thread_t *current_thread)
+void process_kill_other_threads()
 {
 	struct process *current = get_current_process();
+	struct thread *current_thread = get_current_thread();
+	unsigned long threads_to_wait_for = 0;
+	/* TODO: Fix thread killing */
+	for(int i = 0; i < THREADS_PER_PROCESS; i++)
+	{
+		struct thread *t = current->threads[i];
+		if(!t || t == current_thread)
+			continue;
+		t->flags |= THREAD_SHOULD_DIE;
+		threads_to_wait_for++;
+	}
+
+	while(threads_to_wait_for != 0)
+	{
+		for(int i = 0; i < THREADS_PER_PROCESS; i++)
+		{
+			struct thread *t = current->threads[i];
+
+			if(t && t->status == THREAD_DEAD &&
+				(t->flags & THREAD_SHOULD_DIE) &&
+				!(t->flags & THREAD_IS_DYING))
+			{
+				threads_to_wait_for--;
+				current->nr_threads--;
+				t->flags &= ~THREAD_SHOULD_DIE;	
+				current->threads[i] = NULL;
+			}
+		}
+	}
+}
+
+void process_destroy(thread_t *current_thread)
+{
+	/* Enter critical section */
+	sched_disable_preempt();
+
+	struct process *current = get_current_process();
+	process_kill_other_threads();
 
 	/* Firstly, destroy the address space */
 	process_destroy_aspace();
@@ -903,9 +941,6 @@ void process_destroy(thread_t *current_thread)
 	{
 		s->valid_sub = false;
 	}
-
-	/* Enter critical section */
-	sched_disable_preempt();
 
 	/* Set this in this order exactly */
 	current_thread->flags = THREAD_IS_DYING;
@@ -960,6 +995,7 @@ void process_add_thread(struct process *process, thread_t *thread)
 		if(!process->threads[i])
 		{
 			process->threads[i] = thread;
+			process->nr_threads++;
 			return;
 		}
 	}
@@ -999,13 +1035,13 @@ int sys_clone(int (*fn)(void *), void *child_stack, int flags, void *arg, pid_t 
 
 void sys_exit_thread(int value)
 {
-	thread_t *thr = get_current_thread();
 	/* Okay, so the libc called us. That means we can start destroying the thread */
-	/* NOTE: I'm not really sure if musl destroyed the user stack and fs, and if we should anything to free them */
+	/* NOTE: I'm not really sure if musl destroyed the user stack and fs,
+	 * and if we should anything to free them */
 	/* Destroy the thread */
-	thread_destroy(thr);
+	sched_die();
 	/* aaaaand we'll never return back to user-space, so just hang on */
-	while(1);
+	sched_yield();
 }
 
 void process_increment_stats(bool is_kernel)

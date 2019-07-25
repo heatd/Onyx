@@ -105,6 +105,7 @@ struct fault_info
 };
 
 struct rb_tree;
+struct vm_object;
 
 struct mm_address_space
 {
@@ -120,6 +121,9 @@ struct mm_address_space
 
 	/* Process' brk */
 	void *brk;
+
+	struct spinlock private_vmo_lock;
+	struct vm_object *vmo_head, *vmo_tail;
 #ifdef __x86_64__
 	PML4* cr3;
 #endif
@@ -146,11 +150,9 @@ void *vm_get_fallback_cr3(void);
 int vm_check_pointer(void *addr, size_t needed_space);
 void *vmalloc(size_t pages, int type, int perms);
 void vfree(void *ptr, size_t pages);
-void vm_print_stats(void);
 int vm_handle_page_fault(struct fault_info *info);
 void vm_do_fatal_page_fault(struct fault_info *info);
 void *vmalloc(size_t pages, int type, int perms);
-void vm_print_stats(void);
 void *mmiomap(void *phys, size_t size, size_t flags);
 void vm_destroy_addr_space(struct mm_address_space *mm);
 int vm_sanitize_address(void *address, size_t pages);
@@ -170,6 +172,18 @@ void *get_pages(size_t flags, uint32_t type, size_t pages, size_t prot,
 bool is_mapping_shared(struct vm_region *);
 bool is_file_backed(struct vm_region *);
 int vm_flush(struct vm_region *entry);
+void vm_print_map(void);
+void vm_print_umap();
+int vm_mprotect(struct mm_address_space *as, void *__addr, size_t size, int prot);
+
+struct tlb_shootdown
+{
+	unsigned long addr;
+	size_t pages;
+};
+
+void vm_do_shootdown(struct tlb_shootdown *inv_data);
+void vm_invalidate_range(unsigned long addr, size_t pages);
 
 #define VM_MMAP_PRIVATE		(1 << 0)
 #define VM_MMAP_SHARED		(1 << 1)

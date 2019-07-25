@@ -141,10 +141,11 @@ int elf_relocate_addend(struct elf_loader_context *ctx, Elf64_Rela *rela, Elf64_
 				*ptr32u = RELOCATE_R_X86_64_32(sym, rela->r_addend);
 				break;
 			case R_X86_64_PC32:
+			case R_X86_64_PLT32:
 				*ptr32u = RELOCATE_R_X86_64_PC32(sym, rela->r_addend, (uintptr_t) p);
 				break;
 			default:
-				printk("Unsuported relocation!\n");
+				printk("Unsuported relocation %lu!\n", ELF64_R_TYPE(rela->r_info));
 				return 1;
 		}
 	}

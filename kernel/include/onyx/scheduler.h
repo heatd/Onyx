@@ -60,6 +60,7 @@ typedef struct thread
 #define THREAD_KERNEL		(1 << 0)
 #define THREAD_NEEDS_RESCHED	(1 << 1)
 #define THREAD_IS_DYING		(1 << 2)
+#define THREAD_SHOULD_DIE	(1 << 3)
 
 #ifdef __cplusplus
 extern "C" {
@@ -116,6 +117,10 @@ void sched_block(struct thread *thread);
 void __sched_block(struct thread *thread);
 
 void sched_lock(struct thread *thread);
+
+void sched_die();
+
+void scheduler_kill(struct thread *thread);
 
 static inline bool sched_needs_resched(struct thread *thread)
 {

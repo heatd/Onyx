@@ -14,7 +14,8 @@ INCLUDEDIR?=$(PREFIX)/usr/include
 LIBDIR?=$(EXEC_PREFIX)/usr/lib
 
 CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-strong \
--Wno-unused-parameter -Wno-unused-function -fsanitize=undefined -fno-sanitize=alignment
+-Wno-unused-parameter -Wno-unused-function -fsanitize=undefined -fno-sanitize=alignment \
+-Werror -Wno-error=frame-address
 
 CPPFLAGS:=$(CPPFLAGS) -D__is_onyx_kernel -D_POSIX_C_SOURCE -D_BSD_SOURCE -Iinclude \
 -Iinclude/acpica -isystem ../libc/include -DKERNEL_VERSION='"$(KERNEL_VERSION)"' \
@@ -82,7 +83,9 @@ all: onyx-vdso.so.0 vmonyx
 
 vmonyx: $(OBJ_LINK_LIST) $(ARCHDIR)/linker.ld
 	@echo [LD] $@
-	@$(CC) -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(OBJ_LINK_LIST) $(LDFLAGS) $(LIBS)
+	# Very important to note that right now, the kernel can only link using
+	# ld.bfd due to linker script weirdness. Because of that, we pass -fuse-ld=bfd
+	@$(CC) -fuse-ld=bfd -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(OBJ_LINK_LIST) $(LDFLAGS) $(LIBS)
 	cp vmonyx vmonyx-unstripped
 	strip -g vmonyx
 acpica/%.o: acpica/%.c kernel.config

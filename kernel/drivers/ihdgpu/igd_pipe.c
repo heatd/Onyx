@@ -43,6 +43,9 @@ void igd_update_pipe_mode(struct igd_pipe *pipe, struct igpu_device *dev)
 	uint32_t vblank_reg;
 	uint32_t hblank_reg;
 
+	(void) hblank_reg;
+	(void) vblank_reg;
+
 	htotal_reg = igpu_mmio_read(dev, pipe->transcoder->htotal_reg);
 	vtotal_reg = igpu_mmio_read(dev, pipe->transcoder->vtotal_reg);
 	hsync_reg = igpu_mmio_read(dev, pipe->transcoder->hsync_reg);

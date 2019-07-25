@@ -227,7 +227,7 @@ void paging_map_all_phys(void)
 
 void *paging_map_phys_to_virt_huge(uint64_t virt, uint64_t phys, uint64_t prot)
 {
-	_Bool user = 0;
+	bool user = 0;
 	if (virt < 0x00007fffffffffff)
 		user = 1;
 	if(!get_current_pml4())
@@ -460,7 +460,6 @@ void *paging_unmap(void* memory)
 	uintptr_t address = PML_EXTRACT_ADDRESS(*entry);
 	*entry = 0;
 
-	__native_tlb_invalidate_page(memory);
 	/* Now that we've freed the destination page, work our way upwards to check if the paging structures are empty 
 	   If so, free them as well 
 	*/
@@ -609,7 +608,6 @@ void paging_change_perms(void *addr, int prot)
 	if(prot & VM_WRITE)
 		perms |= X86_PAGING_WRITE;
 	*entry = perms | page;
-	__native_tlb_invalidate_page(addr);
 }
 
 int is_invalid_arch_range(void *address, size_t pages)

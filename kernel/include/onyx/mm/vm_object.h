@@ -45,6 +45,9 @@ struct vm_object
 	struct spinlock mapping_lock;
 
 	unsigned long refcount;
+	struct vm_object *forked_from;
+
+	struct vm_object *prev_private, *next_private;
 };
 
 #ifdef __cplusplus
@@ -60,7 +63,7 @@ struct vm_object *vmo_create_phys(size_t size);
 struct page *vmo_get(struct vm_object *vmo, size_t off, bool may_populate);
 struct vm_object *vmo_fork(struct vm_object *vmo, bool shared, struct vm_region *reg);
 int vmo_prefault(struct vm_object *vmo, size_t size, size_t offset);
-void vmo_unref(struct vm_object *vmo);
+bool vmo_unref(struct vm_object *vmo);
 int vmo_resize(size_t new_size, struct vm_object *vmo);
 void vmo_update_offsets(size_t off, struct vm_object *vmo);
 struct vm_object *vmo_split(size_t split_point, size_t hole_size, struct vm_object *vmo);
@@ -69,6 +72,7 @@ void vmo_sanity_check(struct vm_object *vmo);
 void vmo_destroy(struct vm_object *vmo);
 int vmo_add_page(size_t off, struct page *p, struct vm_object *vmo);
 void vmo_ref(struct vm_object *vmo);
+bool vmo_is_shared(struct vm_object *vmo);
 
 #ifdef __cplusplus
 }

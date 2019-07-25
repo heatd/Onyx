@@ -41,7 +41,7 @@ int igd_get_opregion(struct igpu_device *dev)
 
 int igd_validate_opregion(struct igpu_device *dev)
 {
-	if(memcmp(&dev->opregion->header.signature, OPREGION_SIGNATURE,
+	if(memcmp((const void *) &dev->opregion->header.signature, OPREGION_SIGNATURE,
 		 OPREGION_SIGNATURE_LEN))
 	{
 		printk("igd: Invalid OpRegion Signature %.16s\n",

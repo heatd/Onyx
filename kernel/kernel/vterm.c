@@ -164,7 +164,7 @@ static void draw_char(uint32_t c, unsigned int x, unsigned int y,
 			
 			/* If the bpp is 32 bits, we can just blit it out */
 			if(fb->bpp == 32)
-				*b = c;
+				__asm__ __volatile__("movnti %1, %0" : "=m" (*b) : "r" (c) : "memory");
 			else
 			{
 				volatile unsigned char *buf =
@@ -1031,7 +1031,7 @@ struct serial_port com1 =
 	.com_nr = 0
 };
 
-ssize_t serial_console_write(const void *buffer, size_t len, struct tty *c)
+ssize_t serial_console_write(void *buffer, size_t len, struct tty *c)
 {
 	struct serial_port *p = c->priv;
 	serial_write(buffer, len, p);

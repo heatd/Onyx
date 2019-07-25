@@ -39,7 +39,7 @@ uint16_t bar4_base = 0;
 
 struct ide_drive
 {
-	_Bool exists;
+	bool exists;
 	uint32_t lba28;
 	uint64_t lba48;
 	int type; /* Can be ATA_TYPE_ATA or ATA_TYPE_ATAPI */

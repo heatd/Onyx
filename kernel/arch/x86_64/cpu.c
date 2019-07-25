@@ -384,7 +384,7 @@ void cpu_notify(struct processor *p)
 	apic_send_ipi(p->lapic_id, 0, X86_MESSAGE_VECTOR);
 }
 
-void cpu_wait_for_msg_ack(struct cpu_message *msg)
+void cpu_wait_for_msg_ack(volatile struct cpu_message *msg)
 {
 	while(!msg->ack)
 		cpu_relax();
@@ -404,6 +404,7 @@ struct cpu_message *cpu_alloc_msg_slot_irq(void)
 		{
 			if(p->outgoing_msg[i].sent == false)
 			{
+				p->outgoing_msg[i].sent = true;
 				spin_unlock_irqrestore(&p->outgoing_msg_lock);
 				return &p->outgoing_msg[i];
 			}
@@ -433,7 +434,7 @@ struct cpu_message *cpu_alloc_msg_slot(void)
 		{
 			if(p->outgoing_msg[i].sent == false)
 			{
-				p->outgoing_msg[i].sent = false;
+				p->outgoing_msg[i].sent = true;
 				spin_unlock_irqrestore(&p->outgoing_msg_lock);
 				return &p->outgoing_msg[i];
 			}
@@ -446,7 +447,10 @@ struct cpu_message *cpu_alloc_msg_slot(void)
 	
 }
 
-void cpu_send_message(int cpu, unsigned long message, void *arg)
+extern struct serial_port com1;
+void serial_write(const char *s, size_t size, struct serial_port *port);
+
+void cpu_send_message(int cpu, unsigned long message, void *arg, bool should_wait)
 {
 	struct processor 	*p;
 	struct cpu_message	*msg = cpu_alloc_msg_slot();
@@ -486,18 +490,18 @@ void cpu_send_message(int cpu, unsigned long message, void *arg)
 		spin_unlock(&p->message_queue_lock);
 	}
 
-	msg->sent = true;
-
 	cpu_notify(p);
 
-	if(message == CPU_TRY_RESCHED)
-		return;
+	if(message != CPU_KILL && should_wait)
+		cpu_wait_for_msg_ack((volatile struct cpu_message *) msg);
+
+	msg->sent = false;
 }
 
 void cpu_kill(int cpu_num)
 {
 	printk("Killing cpu %u\n", cpu_num);
-	cpu_send_message(cpu_num, CPU_KILL, NULL);
+	cpu_send_message(cpu_num, CPU_KILL, NULL, false);
 }
 
 void cpu_kill_other_cpus(void)
@@ -531,19 +535,32 @@ void cpu_try_resched(void *ptr)
 
 void cpu_handle_message(struct cpu_message *msg)
 {
+	unsigned int this_cpu = get_cpu_num();
+	const char *str = "";
 	switch(msg->message)
 	{
 		case CPU_KILL:
+			str = "CPU_KILL";
 			msg->ack = true;
-			msg->sent = false;
 			cpu_handle_kill();
 			break;
 		case CPU_TRY_RESCHED:
-			msg->ack = true;
-			msg->sent = false;
+			str = "CPU_TRY_RESCHED";
 			cpu_try_resched(msg->ptr);
+			msg->ack = true;
+			break;
+		case CPU_FLUSH_TLB:
+			str = "CPU_FLUSH_TLB";
+			/* The order of the ack is important here! */
+			vm_do_shootdown(msg->ptr);
+			msg->ack = true;
 			break;
 	}
+
+	(void) this_cpu;
+	(void) str;
+	//printf("cpu#%u handling %p, message type %s\n", this_cpu, msg, str);
+
 }
 
 void *cpu_handle_messages(void *stack)

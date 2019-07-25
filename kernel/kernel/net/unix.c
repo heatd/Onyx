@@ -400,7 +400,10 @@ ssize_t un_do_recvfrom(struct un_socket *socket, void *buf, size_t len,
 
 	struct unix_packet *packet = socket->packet_list;
 	if(!packet)
+	{
+		spin_unlock(&socket->packet_list_lock);
 		return 0;
+	}
 
 	size_t to_read = min(len, packet->size);
 	if(copy_to_user(buf, packet->buffer, to_read) < 0)

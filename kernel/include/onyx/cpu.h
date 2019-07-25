@@ -283,13 +283,14 @@ bool is_percpu_initialized(void);
 bool is_kernel_ip(uintptr_t ip);
 void cpu_kill_other_cpus(void);
 void cpu_kill(int cpu_num);
-void cpu_send_message(int cpu, unsigned long message, void *arg);
+void cpu_send_message(int cpu, unsigned long message, void *arg, bool should_wait);
 void __cpu_handle_message(void);
 
 /* CPU messages */
 #define CPU_KILL	(unsigned long) -1
 #define CPU_TRY_RESCHED	(unsigned long)  0
 #define CPU_FLUSH_TLB	(unsigned long)  1
+#define CPU_KILL_THREAD (unsigned long) 2
 
 #ifdef __cplusplus
 }

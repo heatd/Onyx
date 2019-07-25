@@ -18,31 +18,38 @@ void signal_default_term(int signum)
 {
 	process_exit_from_signal(signum);
 }
+
 void signal_default_core(int signum)
 {
 	/* TODO: Generate a core dump */
 	signal_default_term(signum);
 }
+
 void signal_default_ignore(int signum)
 {
 	(void) signum;
 }
+
 void signal_cont(int signum, struct process *p)
 {
 	process_continue(p);
 }
+
 void signal_stop(int signum, struct process *p)
 {
 	process_stop(p);
 }
+
 void signal_default_cont(int signum)
 {
 	signal_cont(signum, get_current_process());
 }
+
 void signal_default_stop(int signum)
 {
 	signal_stop(signum, get_current_process());
 }
+
 sighandler_t dfl_signal_handlers[] = {
 	[SIGHUP] = signal_default_term,
 	[SIGINT] = signal_default_term,
@@ -64,6 +71,7 @@ sighandler_t dfl_signal_handlers[] = {
 	[SIGTTIN] = signal_default_stop,
 	[SIGTTOU] = signal_default_stop
 };
+
 void signal_update_pending(struct process *process);
 #define SST_SIZE (_NSIG/8/sizeof(long))
 void signotset(sigset_t *set)
@@ -71,12 +79,15 @@ void signotset(sigset_t *set)
 	for(size_t i = 0; i < SST_SIZE; i++)
 		set->__bits[i] = ~set->__bits[i];
 }
+
 void sys_exit(int exitcode);
+
 void kernel_default_signal(int signum)
 {
 	signal_update_pending(get_current_process());
 	dfl_signal_handlers[signum](signum);
 }
+
 #if defined(__x86_64__)
 /* TODO: Support signals per thread */
 void signal_transfer_to_userspace(int sig, registers_t *regs, bool is_int)
@@ -136,15 +147,17 @@ void signal_transfer_to_userspace(int sig, registers_t *regs, bool is_int)
 			intctx->rsp = (uintptr_t) userspace_stack;
 		}
 	}
-	if(userspace_stack && vm_find_region(userspace_stack))
+
+	if(userspace_stack)
 	{
 		uintptr_t sigreturn = (uintptr_t) process->sigtable[sig].sa_restorer;
-		*userspace_stack = sigreturn;
+		copy_to_user(userspace_stack, &sigreturn, sizeof(sigreturn));
 	}
 }
 #else
 #error "Implement this in your architecture"
 #endif
+
 int signal_find(struct process *process)
 {
 	sigset_t *set = &process->pending_set;
@@ -159,7 +172,8 @@ int signal_find(struct process *process)
 	}
 	return 0;
 }
-_Bool signal_is_empty(struct process *process)
+
+bool signal_is_empty(struct process *process)
 {
 	sigset_t *set = &process->pending_set;
 	sigset_t *blocked_set = &process->sigmask;
@@ -170,13 +184,19 @@ _Bool signal_is_empty(struct process *process)
 	}
 	return false;
 }
-void handle_signal(registers_t *regs, _Bool is_int)
+
+void handle_signal(registers_t *regs, bool is_int)
 {
 	/* We can't do signals while in kernel space */
 	if(regs->cs == 0x8)
 	{
 		return;
 	}
+
+	struct thread *t = get_current_thread();
+	if(t->flags & THREAD_SHOULD_DIE)
+		sched_die();
+
 	struct process *current = get_current_process();
 	//assert(current);
 
@@ -212,6 +232,7 @@ void handle_signal(registers_t *regs, _Bool is_int)
 	if(signal_is_empty(current))
 		current->signal_pending = 0;
 }
+
 void signal_update_pending(struct process *process)
 {
 	sigset_t *set = &process->pending_set;
@@ -226,6 +247,7 @@ void signal_update_pending(struct process *process)
 	}
 	process->signal_pending = 0;
 }
+
 void kernel_raise_signal(int sig, struct process *process)
 {
 	/* Don't bother to set it as pending if sig == SIG_IGN */
@@ -242,11 +264,13 @@ void kernel_raise_signal(int sig, struct process *process)
 	if(!sigismember(&process->sigmask, sig))
 		process->signal_pending = 1;
 }
-_Bool signal_is_masked(struct process *process, int sig)
+
+bool signal_is_masked(struct process *process, int sig)
 {
 	sigset_t *set = &process->sigmask;
-	return (_Bool) sigismember(set, sig);
+	return (bool) sigismember(set, sig);
 }
+
 int sys_kill(pid_t pid, int sig)
 {
 	struct process *p = NULL;
@@ -271,6 +295,7 @@ int sys_kill(pid_t pid, int sig)
 	kernel_raise_signal(sig, p);
 	return 0;
 }
+
 extern void __sigret_return(uintptr_t stack);
 void sys_sigreturn(void)
 {
@@ -303,6 +328,7 @@ void sys_sigreturn(void)
 	__sigret_return((uintptr_t) regs);
 	__builtin_unreachable();
 }
+
 int sys_sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
 {
 	if(signum > _NSIG)
@@ -344,6 +370,7 @@ int sys_sigaction(int signum, const struct sigaction *act, struct sigaction *old
 	mutex_unlock(&proc->signal_lock);
 	return 0;
 }
+
 int sys_sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
 {
 	struct process *current = get_current_process();
@@ -386,13 +413,15 @@ int sys_sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
 	signal_update_pending(current);
 	return 0;
 }
+
 bool signal_is_pending(void)
 {
 	struct process *current = get_current_process();
 	if(!current)
 		return false;
-	return (bool) current->signal_pending;
+	return (bool) current->signal_pending || get_current_thread()->flags & THREAD_SHOULD_DIE;
 }
+
 int sys_sigsuspend(const sigset_t *uset)
 {
 	struct process *current = get_current_process();
@@ -413,6 +442,7 @@ int sys_sigsuspend(const sigset_t *uset)
 	memcpy(&current->sigmask, &old, sizeof(sigset_t));
 	return -EINTR;
 }
+
 int sys_pause(void)
 {
 	while(!signal_is_pending())

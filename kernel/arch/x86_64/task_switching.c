@@ -276,12 +276,10 @@ void thread_finish_destruction(void *___thread)
 
 thread_t *sched_spawn_thread(registers_t *regs, thread_callback_t start, void *arg, void *fs)
 {
-	thread_t* new_thread = malloc(sizeof(thread_t));
+	thread_t* new_thread = zalloc(sizeof(thread_t));
 	
 	if(!new_thread)
 		return NULL;
-	
-	memset(new_thread, 0, sizeof(thread_t));
 
 	new_thread->id = curr_id++;
 	

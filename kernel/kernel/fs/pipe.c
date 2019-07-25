@@ -49,7 +49,7 @@ struct pipe *get_pipe_from_inode(ino_t ino)
 size_t pipe_write(size_t offset, size_t sizeofwrite, void* buffer, struct inode* file)
 {
 	UNUSED_PARAMETER(offset);
-	_Bool atomic_write = false;
+	bool atomic_write = false;
 	struct pipe *pipe = get_pipe_from_inode(file->i_inode);
 
 	/* If readers == 0, this is a broken pipe */

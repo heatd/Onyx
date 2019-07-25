@@ -32,21 +32,20 @@ void *sbrk(intptr_t);
 void *__expand_heap(size_t *pn)
 {
 	static uintptr_t brk;
-	static unsigned mmap_step;
 	size_t n = *pn;
 
 	if (n > SIZE_MAX/2 - PAGE_SIZE) {
 		errno = ENOMEM;
 		return 0;
 	}
-	n += -n & PAGE_SIZE-1;
+	n += -n & (PAGE_SIZE-1);
 
 	if (!brk) {
 		brk = get_brk();
-		brk += -brk & PAGE_SIZE-1;
+		brk += -brk & (PAGE_SIZE-1);
 	}
 
-	if (n < SIZE_MAX-brk && sbrk(n) != -1) {
+	if (n < SIZE_MAX-brk && sbrk(n) != (void *) -1) {
 		*pn = n;
 		brk += n;
 		return (void *)(brk-n);

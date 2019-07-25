@@ -78,8 +78,8 @@ initsse.noSSE:
 
 .section .boot
 .code32
-.global EntryPoint
-EntryPoint: 
+.global entry_point
+entry_point: 
         cli
         # Clear the direction flag since its state is unspecified by the multiboot spec
         cld

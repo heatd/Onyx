@@ -1,17 +1,22 @@
-ENTRY(EntryPoint)
+ENTRY(entry_point)
 
 VIRT_BASE = 0xffffffff80000000;
+PHYS_BASE = 0x100000;
+
+PHDRS
+{
+	boot PT_LOAD FLAGS(7);
+	text PT_LOAD FLAGS(5);
+	data PT_LOAD FLAGS(6);
+	vdso PT_LOAD FLAGS(7);
+}
 
 SECTIONS
 {
-	.multiboot : ALIGN(4k)
-	{
-		*(.multiboot)
-	}
-	. = 0x100000;
+	. = PHYS_BASE;
 	kernel_start = VIRT_BASE + .;
 	_text_start = . + VIRT_BASE;
-	.boot :
+	.boot ALIGN(0x1000) : AT(PHYS_BASE)
 	{
 		*(.boot)
 		. = ALIGN(4096);
@@ -26,19 +31,19 @@ SECTIONS
 		pdptphysical_map = .;
 		. += 0x1000;
 		. += 0x8000;
-	}
+	} : boot
 
 	. += VIRT_BASE;
 	.text ALIGN(0x1000) : AT(ADDR(.text) - VIRT_BASE)
 	{
-		*(.text)
+		*(.text*)
 		*(.gnu.linkonce.t*)
 		*(.init)
 		*(.fini)
 		*(.jcr)
 		*(.dtors)
 		*(.ctors)
-	}
+	} : text
 	
 	_ro_start = .;
 
@@ -49,7 +54,7 @@ SECTIONS
 		_driver_init_start = .;
 		*(.driver.init*)
 		_driver_init_end = .;
-	}
+	} : text
 
 	_ro_end = .;
 	. = ALIGN(0x1000);
@@ -63,7 +68,7 @@ SECTIONS
 		*(.percpu*)
 		__percpu_end = .;
 		*(.gnu.linkonce.d*)
-	}
+	} : data
 
 	.bss ALIGN(0x1000) : AT(ADDR(.bss) - VIRT_BASE)
 	{
@@ -72,7 +77,7 @@ SECTIONS
 		*(.gnu.linkonce.b*)
 		. = ALIGN(16);
 		*(.bootstrap_stack*)
-	}
+	} : data
 
 	. = ALIGN(0x1000);
 	_data_end = .;
@@ -80,7 +85,7 @@ SECTIONS
 	.vdso ALIGN(0x1000) : AT(ADDR(.vdso) - VIRT_BASE)
 	{
 		*vdso_helper.o(*.vdso)
-	}
+	} : vdso
 
 	. = ALIGN(0x1000);
 	_vdso_sect_end = .;

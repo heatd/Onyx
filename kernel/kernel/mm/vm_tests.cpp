@@ -242,11 +242,52 @@ bool vm_unmap_tests::execute()
 	return true;
 }
 
+class vm_protect_tests : public test
+{
+private:
+
+public:
+	bool execute() override;
+	bool execute_loads_of_times() override
+	{
+		return false;
+	}
+
+	const char *get_name() override
+	{
+		return "vm_protect_tests";
+	}
+};
+
+bool vm_protect_tests::execute()
+{
+	void *ptr = vmalloc(1024, VM_TYPE_SHARED, VM_NOEXEC);
+	assert(ptr != nullptr);
+
+	struct vm_region *vm = vm_find_region(ptr);
+	if(!vm)
+	{
+		printk("could not find vm!\n");
+		return false;
+	}
+
+	vm_print_map();
+
+	auto p = (unsigned long) ptr + 0x4000;
+	vm_mprotect(&kernel_address_space, (void *) p, 10 << PAGE_SHIFT, VM_WRITE);
+	printk("mprotecting from %lx to %lx\n", p, (unsigned long) p + (10 << PAGE_SHIFT));
+	vm_print_map();
+
+	return true;
+}
+
 vm_unmap_tests unmap_test{};
+vm_protect_tests protect_test{};
 
 static test *tests[] = 
 {
-	&unmap_test
+	&unmap_test,
+	&protect_test
 };
 
 bool execute_multiple_times(test *test)

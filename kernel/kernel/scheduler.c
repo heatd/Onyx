@@ -427,7 +427,7 @@ int sys_nanosleep(const struct timespec *req, struct timespec *rem)
 
 extern void thread_finish_destruction(void*);
 
-void thread_destroy(thread_t *thread)
+void thread_destroy(struct thread *thread)
 {
 	/* This function should destroy everything that we can destroy right now.
 	 * We can't destroy things like the kernel stack or the FPU area, because we'll eventually 
@@ -444,6 +444,19 @@ void thread_destroy(thread_t *thread)
 	struct work_request req;
 	req.func = thread_finish_destruction;
 	req.param = thread;
+	worker_schedule(&req, WORKER_PRIO_NORMAL);
+}
+
+void sched_die()
+{
+	struct thread *current = get_current_thread();
+
+	current->status = THREAD_DEAD;
+	current->flags |= THREAD_IS_DYING;
+
+	struct work_request req;
+	req.func = thread_finish_destruction;
+	req.param = current;
 	worker_schedule(&req, WORKER_PRIO_NORMAL);
 }
 
@@ -538,7 +551,7 @@ void sched_try_to_resched(struct thread *thread)
 		if(cpu->current_thread->priority < thread->priority)
 		{
 			/* Send a CPU message asking for a resched */
-			cpu_send_message(thread->cpu, CPU_TRY_RESCHED, thread);
+			cpu_send_message(thread->cpu, CPU_TRY_RESCHED, thread, false);
 		}
 	}
 }
@@ -1033,4 +1046,30 @@ void mutex_unlock(struct mutex *mutex)
 	}
 
 	spin_unlock_irqrestore(&mutex->llock);
+}
+
+void __sched_kill_other(struct thread *thread, struct processor *p)
+{
+	MUST_HOLD_LOCK(&p->scheduler_lock);
+
+	cpu_send_message(p->cpu_num, CPU_KILL_THREAD, NULL, false);
+}
+
+void scheduler_kill(struct thread *thread)
+{
+	int cpu = thread->cpu;
+	struct processor *p = get_processor_data_for_cpu(cpu);
+
+	if(cpu == get_cpu_num())
+	{
+		if(p->current_thread == thread)
+			sched_die();
+		else
+			thread_destroy(thread);
+	}
+	else
+	{
+		spin_lock_irqsave(&p->scheduler_lock);
+		__sched_kill_other(thread, p);
+	}
 }

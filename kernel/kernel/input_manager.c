@@ -95,7 +95,7 @@ void send_event_to_kernel(uint8_t keycode)
 	dpc_schedule_work(&work, DPC_PRIORITY_HIGH);
 }
 
-unsigned int input_process_special_key(unsigned int key, _Bool is_release)
+unsigned int input_process_special_key(unsigned int key, bool is_release)
 {
 	/* Simple way to shorten the code instead of a huge if statement */
 	bool keystate = is_release ? false : true;

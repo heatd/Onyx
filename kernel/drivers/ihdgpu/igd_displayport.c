@@ -109,6 +109,7 @@ int ddaux_do_transfer(struct i2c_adapter *adapter,
 	}
 
 	uint8_t *ptr = data + 4;
+	(void) ptr;
 
 	return 0;
 }

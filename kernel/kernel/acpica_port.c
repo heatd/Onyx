@@ -61,8 +61,8 @@ ACPI_STATUS AcpiOsTableOverride(ACPI_TABLE_HEADER *ExistingTable, ACPI_TABLE_HEA
 
 void *AcpiOsMapMemory(ACPI_PHYSICAL_ADDRESS PhysicalAddress, ACPI_SIZE Length)
 {
-#ifdef DEBUG_ACPICA
-	printf("map %p", PhysicalAddress);
+#if DEBUG_ACPICA
+	printf("map %lx", PhysicalAddress);
 #endif
 	void *addrl = (void*)(PhysicalAddress + PHYS_BASE);
 	return addrl;
@@ -81,7 +81,6 @@ void AcpiOsUnmapMemory(void *where, ACPI_SIZE Length)
 ACPI_STATUS AcpiOsGetPhysicalAddress(void *LogicalAddress, ACPI_PHYSICAL_ADDRESS *PhysicalAddress)
 {
 	*PhysicalAddress = (ACPI_PHYSICAL_ADDRESS)virtual2phys(LogicalAddress);
-	printk("Return: %p\n", *PhysicalAddress);
 	return AE_OK;
 }
 

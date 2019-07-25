@@ -26,7 +26,7 @@ void *__memalign(size_t align, size_t len)
 	if (!(mem = malloc(len + align-1)))
 		return 0;
 
-	new = (void *)((uintptr_t)mem + align-1 & -align);
+	new = (void *)(((uintptr_t)mem + align-1) & -align);
 	if (new == mem) return mem;
 
 	struct chunk *c = MEM_TO_CHUNK(mem);
