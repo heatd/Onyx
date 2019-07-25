@@ -15,7 +15,10 @@ LIBDIR?=$(EXEC_PREFIX)/usr/lib
 
 CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-strong \
 -Wno-unused-parameter -Wno-unused-function -fsanitize=undefined -fno-sanitize=alignment \
--Werror -Wno-error=frame-address
+-Werror -Wno-error=frame-address -Wno-address-of-packed-member -Wno-cast-function-type \
+-fno-sanitize=pointer-overflow
+
+# NOTE: I don't think pointer-overflow works with kernel pointers
 
 CPPFLAGS:=$(CPPFLAGS) -D__is_onyx_kernel -D_POSIX_C_SOURCE -D_BSD_SOURCE -Iinclude \
 -Iinclude/acpica -isystem ../libc/include -DKERNEL_VERSION='"$(KERNEL_VERSION)"' \

@@ -264,6 +264,8 @@ int process_fork_thread(thread_t *src, struct process *dest, struct syscall_fram
 	if(!thread)
 		return -1;
 
+	save_fpu(thread->fpu_area);
+
 	dest->threads[0] = thread;
 	thread->owner = dest;
 	return 0;

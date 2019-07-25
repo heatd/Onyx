@@ -99,5 +99,5 @@ void fpu_ptrace_getfpregs(void *__fpregs, struct user_fpregs_struct *regs)
 	regs->rdp = fpregs->fpu_dp;
 	regs->mxcsr = fpregs->mxcsr;
 	regs->mxcr_mask = fpregs->mxcsr_mask;
-	memcpy(regs->st_space, &regs->st_space, sizeof(regs->st_space) + sizeof(regs->xmm_space));
+	memcpy(regs->st_space, &fpregs->registers, sizeof(regs->st_space) + sizeof(regs->xmm_space));
 }

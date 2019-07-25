@@ -77,6 +77,15 @@ struct ubsan_type_mismatch_data
 	uintptr_t alignment;
 	unsigned char type_check_kind;
 };
+
+struct ubsan_type_mismatch_data_v1
+{
+	struct ubsan_source_location location;
+	struct ubsan_type_descriptor *type;
+	unsigned char log_alignment;
+	unsigned char type_check_kind;
+};
+
 void __ubsan_handle_type_mismatch(void* data_raw,
                                   void* pointer_raw)
 {
@@ -96,7 +105,50 @@ void __ubsan_handle_type_mismatch(void* data_raw,
 		pointer_raw, data->type->type_name);
 	ubsan_abort(&data->location, violation);
 }
+
 ABORT_VARIANT_VP_VP(type_mismatch);
+
+void __ubsan_handle_type_mismatch_v1(struct ubsan_type_mismatch_data_v1 *data,
+				void *ptr)
+{
+	struct ubsan_type_mismatch_data d;
+	d.location = data->location;
+	d.type = data->type;
+	d.alignment = 1UL << data->log_alignment;
+	d.type_check_kind = data->type_check_kind;
+
+	return __ubsan_handle_type_mismatch(&d, ptr);
+}
+
+ABORT_VARIANT_VP_VP(type_mismatch_v1);
+
+struct pointer_overflow_data
+{
+	struct ubsan_source_location location;
+};
+
+void __ubsan_handle_pointer_overflow(struct pointer_overflow_data *data,
+				     void *base,
+				     void *result)
+{
+	ubsan_abort(&data->location, "pointer_overflow");
+}
+
+ABORT_VARIANT_VP_VP_VP(pointer_overflow);
+
+struct inv_builtin_data
+{
+	struct ubsan_source_location location;
+	uint8_t kind;
+};
+
+void __ubsan_handle_invalid_builtin(struct inv_builtin_data *data)
+{
+	ubsan_abort(&data->location, "invalid builtin");
+}
+
+ABORT_VARIANT_VP(invalid_builtin);
+
 struct ubsan_overflow_data
 {
 	struct ubsan_source_location location;

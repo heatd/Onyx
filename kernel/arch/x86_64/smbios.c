@@ -45,7 +45,7 @@ void *smbios_find_tables(void)
 		LOG("smbios", "64-bit table: %p\n", entry64);
 
 		entry64 = (struct smbios_entrypoint64*)((char*) entry64 + PHYS_BASE);
-
+		
 		return PHYS_TO_VIRT(entry64->addr);
 	}
 

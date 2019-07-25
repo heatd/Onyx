@@ -113,7 +113,6 @@ int execute_program(const char *path, const char *type)
 	{
 		do_daemon_things = true;
 	}
-
 	pid_t pid = fork();
 	
 	if(pid < 0)

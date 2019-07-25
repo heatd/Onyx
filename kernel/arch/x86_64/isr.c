@@ -104,6 +104,7 @@ void debug_trap(intctx_t *ctx)
 	printk("Trap at %lx rbp %lx!\n", ctx->rip, ctx->rbp);
 	//printk("Val: %lx\n", *pppp);
 	//debug_opcode((uint8_t *) ctx->rip, ctx);
+	printk("r13: %lx\n", ctx->r13);
 	++i;
 	return;
 	struct process *current = get_current_process();

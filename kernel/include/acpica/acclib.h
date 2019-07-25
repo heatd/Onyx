@@ -147,8 +147,8 @@ strncpy (
 
 char *
 strstr (
-    char                    *String1,
-    char                    *String2);
+    const char                    *String1,
+    const char                    *String2);
 
 
 /* Conversion */
@@ -164,8 +164,8 @@ strtoul (
 
 int
 memcmp (
-    void                    *Buffer1,
-    void                    *Buffer2,
+    const void                    *Buffer1,
+    const void                    *Buffer2,
     ACPI_SIZE               Count);
 
 void *

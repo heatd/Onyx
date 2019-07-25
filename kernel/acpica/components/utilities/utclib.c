@@ -110,8 +110,8 @@
 
 int
 memcmp (
-    void                    *VBuffer1,
-    void                    *VBuffer2,
+    const void                    *VBuffer1,
+    const void                    *VBuffer2,
     ACPI_SIZE               Count)
 {
     char                    *Buffer1 = (char *) VBuffer1;
@@ -618,8 +618,8 @@ strncat (
 
 char *
 strstr (
-    char                    *String1,
-    char                    *String2)
+    const char                    *String1,
+    const char                    *String2)
 {
     UINT32                  Length;
 
@@ -627,14 +627,14 @@ strstr (
     Length = strlen (String2);
     if (!Length)
     {
-        return (String1);
+        return (char *) (String1);
     }
 
     while (strlen (String1) >= Length)
     {
         if (memcmp (String1, String2, Length) == 0)
         {
-            return (String1);
+            return (char *) (String1);
         }
         String1++;
     }

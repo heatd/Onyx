@@ -722,6 +722,7 @@ int vm_fork_private_vmos(struct mm_address_space *mm)
 			return -1;
 		}
 
+		new_vmo->refcount = 0;
 		add_vmo_to_private_list(mm, new_vmo);
 
 		vmo = vmo->next_private;
@@ -1634,6 +1635,7 @@ void vm_do_fatal_page_fault(struct fault_info *info)
 			info->fault_address, info->ip,
 			current->pid, current->cmd_line);
 		ENABLE_INTERRUPTS();
+		while(true){}
 		kernel_raise_signal(SIGSEGV, get_current_process());
 	}
 	else
@@ -1753,7 +1755,6 @@ void remove_vmo_from_private_list(struct mm_address_space *mm, struct vm_object 
 
 int setup_vmregion_backing(struct vm_region *region, size_t pages, bool is_file_backed)
 {
-	struct mm_address_space *mm = &get_current_process()->address_space;
 	bool is_shared = is_mapping_shared(region);
 	bool is_kernel = is_higher_half((void *) region->base);
 	struct vm_object *vmo;
@@ -1799,7 +1800,11 @@ int setup_vmregion_backing(struct vm_region *region, size_t pages, bool is_file_
 	}
 
 	if(!is_shared && !is_kernel)
+	{
+		struct mm_address_space *mm = &get_current_process()->address_space;
+
 		add_vmo_to_private_list(mm, vmo);
+	}
 
 	assert(region->vmo == NULL);
 	region->vmo = vmo;

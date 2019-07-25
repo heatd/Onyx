@@ -325,14 +325,14 @@ thread_t *sched_spawn_thread(registers_t *regs, thread_callback_t start, void *a
 	*--stack = (uint64_t) arg; // RDI
 	*--stack = regs->rsi; // RSI
 	*--stack = regs->rbp; // RBP
-	*--stack = regs->r15; // R15
-	*--stack = regs->r14; // R14
-	*--stack = regs->r13; // R13
-	*--stack = regs->r12; // R12
+	*--stack = regs->r8; // r8
+	*--stack = regs->r9; // r9
+	*--stack = regs->r10; // r10
 	*--stack = regs->r11; // R11
-	*--stack = regs->r10; // R10
-	*--stack = regs->r9; // R9
-	*--stack = regs->r8; // R8
+	*--stack = regs->r12; // R12
+	*--stack = regs->r13; // R13
+	*--stack = regs->r14; // R14
+	*--stack = regs->r15; // R15
 	*--stack = ds; // DS
 
 	new_thread->kernel_stack = stack;
