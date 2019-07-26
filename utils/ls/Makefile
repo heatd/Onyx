@@ -1,6 +1,6 @@
 PROG:= ls
 OBJS:= main.o
-CFLAGS:=-O2 -g -static -fstack-protector-strong
+CFLAGS:=-O2 -g -fstack-protector-strong
 clean:
 	rm -f $(PROG)
 install: $(PROG)

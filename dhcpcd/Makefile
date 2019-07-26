@@ -1,6 +1,6 @@
 PROG:= dhcpcd
 OBJS:= dhcpcd.o
-CFLAGS:=-O2 -g -std=c99 -D_POSIX_C_SOURCE -static -fstack-protector-strong
+CFLAGS:=-O2 -g -std=c99 -D_POSIX_C_SOURCE -fstack-protector-strong
 clean:
 	rm -f $(PROG)
 	rm -f $(OBJS)

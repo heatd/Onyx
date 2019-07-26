@@ -1,6 +1,6 @@
 PROG:= devmgr
 OBJS:= src/main.o
-CFLAGS:=-O2 -g -D_POSIX_C_SOURCE -static -fstack-protector-strong
+CFLAGS:=-O2 -g -D_POSIX_C_SOURCE -fstack-protector-strong
 clean:
 	rm -f $(PROG)
 	rm -f $(OBJS)

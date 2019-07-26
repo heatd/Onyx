@@ -22,12 +22,12 @@
 #include <dhcp.h>
 
 #define DHCP_MIN_OPT_OFFSET	4
-extern char *program_invocation_short_name;
+char *program_name;
 void error(char *msg, ...)
 {
 	va_list ap;
 	va_start(ap, msg);
-	fprintf(stderr, "%s: error: ", program_invocation_short_name);
+	fprintf(stderr, "%s: error: ", program_name);
 	vfprintf(stderr, msg, ap);
 	va_end(ap);
 }
@@ -36,7 +36,7 @@ void errorx(char *msg, ...)
 {
 	va_list ap;
 	va_start(ap, msg);
-	fprintf(stderr, "%s: error: ", program_invocation_short_name);
+	fprintf(stderr, "%s: error: ", program_name);
 	vfprintf(stderr, msg, ap);
 	va_end(ap);
 	exit(1);
@@ -203,6 +203,7 @@ int dhcp_setup_netif(int fd, int sock)
 
 int main(int argc, char **argv, char **envp)
 {
+	program_name = argv[0];
 	int logfd = open("/dev/null", O_RDWR);
 	if(logfd < 0)
 	{

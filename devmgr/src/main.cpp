@@ -56,6 +56,8 @@ int Enumerate(int fd)
 
 		device_list.push_back(dev);
 	}
+
+	return 0;
 }
 
 
