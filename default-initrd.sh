@@ -23,6 +23,7 @@ cp $SYSTEM_ROOT/usr/lib/modules/* $DESTDIR/usr/lib/modules
 cp $SYSTEM_ROOT/usr/lib/ld-onyx.so   $DESTDIR/usr/lib
 
 toolchain=$(dirname `which $HOST-gcc`)/..
-echo $toolchain
 
 ./scripts/install_gcc_slibs.sh $toolchain $DESTDIR
+# libstdc++ is very big and bloated and doesn't have a place in the initrd
+rm -f $DESTDIR/usr/lib/libstdc++*
