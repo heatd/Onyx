@@ -66,11 +66,13 @@ static inline unsigned long vm_prot_to_cache_type(uint64_t prot)
 }
 
 #define VM_KERNEL 		(1)
-#define VM_COW			(1 << 1)
 #define VM_ADDRESS_USER		(1 << 1)
 
 #define VM_HIGHER_HALF 0xffff800000000000
 #define PHYS_TO_VIRT(x) (void*)((uintptr_t) (x) + PHYS_BASE)
+
+#define VM_COW				(1 << 1)
+#define VM_USING_MAP_SHARED_OPT		(1 << 2)
 
 struct vm_region
 {

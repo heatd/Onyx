@@ -81,25 +81,27 @@ struct vm_object *vmo_create_phys(size_t size)
 
 struct page *vmo_populate(struct vm_object *vmo, size_t off)
 {
+	MUST_HOLD_LOCK(&vmo->page_lock);
 	assert(vmo->commit != NULL);
 
 	struct page *page = vmo->commit(off, vmo);
 	if(!page)
+	{
+		printk("vmo commit failed\n");
 		return NULL;
+	}
 
 	page->off = off;
-	spin_lock(&vmo->page_lock);
 
 	dict_insert_result res = rb_tree_insert(vmo->pages, (void *) page->off);
 	if(!res.inserted)
 	{
+		printk("rb_tree_insert failed\n");
 		free_page(page);
 		return NULL;
 	}
 
 	*res.datum_ptr = page;
-
-	spin_unlock(&vmo->page_lock);
 
 	return page;
 }
@@ -107,6 +109,8 @@ struct page *vmo_populate(struct vm_object *vmo, size_t off)
 struct page *vmo_get(struct vm_object *vmo, size_t off, bool may_populate)
 {
 	struct page *p = NULL;
+	assert(off < vmo->size);
+
 	spin_lock(&vmo->page_lock);
 
 	void **pp = rb_tree_search(vmo->pages, (const void *) off);
@@ -116,10 +120,10 @@ struct page *vmo_get(struct vm_object *vmo, size_t off, bool may_populate)
 		p = *pp;
 	}
 
-	spin_unlock(&vmo->page_lock);
-
 	if(!p && may_populate)
 		p = vmo_populate(vmo, off);
+	spin_unlock(&vmo->page_lock);
+
 	return p;
 }
 
@@ -445,6 +449,9 @@ struct vm_object *vmo_split(size_t split_point, size_t hole_size, struct vm_obje
 
 	second_vmo->size -= split_point + hole_size;
 	second_vmo->pages = rb_tree_new(page_cmp);
+	second_vmo->mappings.head = second_vmo->mappings.tail = NULL;
+	if(second_vmo->ino) object_ref(&second_vmo->ino->i_object);
+
 	if(!second_vmo->pages)
 	{
 		free(second_vmo);
@@ -456,8 +463,11 @@ struct vm_object *vmo_split(size_t split_point, size_t hole_size, struct vm_obje
 	if(vmo_purge_pages(split_point, max, PURGE_SHOULD_FREE, NULL, vmo) < 0 ||
 	   vmo_purge_pages(max, vmo->size, 0, second_vmo, vmo) < 0)
 	{
+		if(second_vmo->ino)
+			object_unref(&second_vmo->ino->i_object);
 		rb_tree_free(second_vmo->pages, vmo_rb_delete_func);
 		free(second_vmo);
+		return NULL;
 	}
 
 	vmo_update_offsets(split_point + hole_size, second_vmo);

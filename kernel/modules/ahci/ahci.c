@@ -40,7 +40,6 @@ MODULE_INSERT_VERSION();
 void ahci_destroy_aio(struct ahci_port *port, struct aio_req *req);
 
 #define MPRINTF(...) printf("ahci: "__VA_ARGS__)
-#define ACCESS_PHYS(x) (PHYS_TO_VIRT((uintptr_t) x))
 
 struct ahci_device *device = NULL;
 static struct pci_device *ahci_dev = NULL;

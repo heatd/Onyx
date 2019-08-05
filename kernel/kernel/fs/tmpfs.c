@@ -340,6 +340,8 @@ struct inode *tmpfs_open(struct inode *vnode, const char *name)
 
 	if(file->type & VFS_TYPE_SYMLINK)
 	{
+		if(file->symlink[0] != '/')
+			return open_vfs(vnode, file->symlink);
 		return open_vfs(get_fs_root(), file->symlink);
 	}
 
@@ -419,6 +421,19 @@ off_t tmpfs_getdirent(struct dirent *buf, off_t off, struct inode* file)
 	return orig_off + 1;
 }
 
+int tmpfs_stat(struct stat *buf, struct inode *node)
+{
+	tmpfs_file_t *file = (tmpfs_file_t *) node->i_inode;
+	buf->st_ino = (ino_t) file;
+	buf->st_size = file->size;
+	buf->st_mode = file->mode;
+	buf->st_gid = file->st_gid;
+	buf->st_uid = file->st_uid;
+	buf->st_rdev = file->rdev;
+
+	return 0;
+}
+
 static void tmpfs_set_node_fileops(struct inode *node)
 {
 	node->i_fops.creat = tmpfs_creat;
@@ -429,6 +444,7 @@ static void tmpfs_set_node_fileops(struct inode *node)
 	node->i_fops.symlink = tmpfs_symlink;
 	node->i_fops.mknod = tmpfs_mknod;
 	node->i_fops.getdirent = tmpfs_getdirent;
+	node->i_fops.stat = tmpfs_stat;
 }
 
 tmpfs_filesystem_t *__tmpfs_allocate_fs(void)

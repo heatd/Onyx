@@ -110,6 +110,7 @@ struct page *vmo_inode_commit(size_t off, struct vm_object *vmo)
 	void *ptr = PHYS_TO_VIRT(page->paddr);
 	size_t to_read = i->i_size - off < PAGE_SIZE ? i->i_size - off : PAGE_SIZE;
 
+	assert(to_read <= PAGE_SIZE);
 	size_t read = read_vfs(
 		READ_VFS_FLAG_IS_PAGE_CACHE,
 		off,
@@ -128,6 +129,7 @@ struct page *vmo_inode_commit(size_t off, struct vm_object *vmo)
 
 	if(!add_cache_to_node(page, read, off, i))
 	{
+		printk("error add cache to node\n");
 		free_page(page);
 		return NULL;
 	}
@@ -695,18 +697,6 @@ int symlink_vfs(const char *dest, struct inode *inode)
 	return -ENOSYS;
 }
 
-struct page *file_get_page(struct inode *ino, size_t offset)
-{
-	off_t off = (offset / PAGE_CACHE_SIZE) * PAGE_CACHE_SIZE;
-
-	struct page_cache_block *cache = inode_get_page(ino, off);
-
-	/* TODO: questionablecode.jpeg */
-	spin_unlock_preempt(&ino->i_pages_lock);
-
-	return cache != NULL ? cache->page : NULL;
-}
-
 void inode_destroy_page_caches(struct inode *inode)
 {
 	vmo_unref(inode->i_pages);
@@ -726,8 +716,8 @@ void inode_release(struct object *object)
 
 	inode_destroy_page_caches(inode);
 
-	/*printk("Inode %p destroyed\n", inode);
-	printk("Refcount %lu\n", inode->i_object.ref.refcount);*/
+	printk("Inode %p destroyed\n", inode);
+	printk("Refcount %lu\n", inode->i_object.ref.refcount);
 
 	free(inode);
 }

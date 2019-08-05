@@ -25,16 +25,19 @@ static inline void *__find_phys_mem(void *lower_boundary, void *upper_boundary, 
 	}
 	return NULL;
 }
+
 /* Finds the 32-bit entry point */
 struct smbios_entrypoint32 *smbios_find_entry32()
 {
 	return __find_phys_mem((void*) 0xF0000, (void*) 0xFFFFF, 16, "_SM_");
 }
+
 /* Finds the 64-bit entrypoint */
 struct smbios_entrypoint64 *smbios_find_entry64()
 {
 	return __find_phys_mem((void*) 0xF0000, (void*) 0xFFFFF, 16, "_SM3_");	
 }
+
 /* Finds the SMBIOS tables, independently of the entry point */
 void *smbios_find_tables(void)
 {
@@ -61,6 +64,7 @@ void *smbios_find_tables(void)
 	}
 	return NULL;
 }
+
 struct smbios_table *smbios_get_table(int type)
 {
 	if(!tables)
@@ -81,6 +85,7 @@ struct smbios_table *smbios_get_table(int type)
 	}
 	return NULL;
 }
+
 char *smbios_get_string(struct smbios_table *t, uint8_t strndx)
 {
 	char *strtab = ((char*) t + t->len);

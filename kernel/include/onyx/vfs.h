@@ -169,8 +169,6 @@ ssize_t lookup_file_cache(void *buffer, size_t sizeofread, struct inode *file,
 ssize_t do_file_caching(size_t sizeofread, struct inode *ino, off_t offset,
 	int flags);
 
-struct page *file_get_page(struct inode *ino, size_t off);
-
 struct inode *inode_create(void);
 
 struct inode *get_fs_root(void);

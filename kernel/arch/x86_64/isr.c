@@ -91,22 +91,18 @@ void div0_exception(intctx_t *ctx)
 	kernel_raise_signal(SIGFPE, current);
 }
 
-unsigned long *pppp = (void *) 0xffffa000009d88f0;
-int i = 0;
+void setup_debug_register(unsigned long addr, unsigned int size, unsigned int condition);
+
 void debug_trap(intctx_t *ctx)
 {
-	/* if(is_kernel_exception(ctx))
+	if(is_kernel_exception(ctx))
 	{
 		dump_interrupt_context(ctx);
 		panic("Debug trap");
-	}*/
+	}
 
-	printk("Trap at %lx rbp %lx!\n", ctx->rip, ctx->rbp);
-	//printk("Val: %lx\n", *pppp);
-	//debug_opcode((uint8_t *) ctx->rip, ctx);
-	printk("r13: %lx\n", ctx->r13);
-	++i;
-	return;
+	//printk("Trap at %lx rbp %lx!\n", ctx->rip, ctx->rbp);
+
 	struct process *current = get_current_process();
 
 	kernel_raise_signal(SIGTRAP, current);
@@ -209,9 +205,10 @@ void general_protection_fault(intctx_t *ctx)
 	}
 
 	struct process *current = get_current_process();
+	(void) current;
 	dump_interrupt_context(ctx);
 	printk("GPF error code: %04x\n", (uint16_t) ctx->err_code);
-	kernel_raise_signal(SIGSEGV, current);
+	//kernel_raise_signal(SIGSEGV, current);
 	while(1);
 }
 

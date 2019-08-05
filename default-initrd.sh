@@ -21,3 +21,8 @@ cp $SYSTEM_ROOT/sbin/init     $DESTDIR/sbin
 cp $SYSTEM_ROOT/usr/lib/libc.so   $DESTDIR/usr/lib
 cp $SYSTEM_ROOT/usr/lib/modules/* $DESTDIR/usr/lib/modules
 cp $SYSTEM_ROOT/usr/lib/ld-onyx.so   $DESTDIR/usr/lib
+
+toolchain=$(dirname `which $HOST-gcc`)/..
+echo $toolchain
+
+./scripts/install_gcc_slibs.sh $toolchain $DESTDIR

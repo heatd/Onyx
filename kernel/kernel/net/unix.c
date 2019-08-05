@@ -18,6 +18,7 @@
 #include <onyx/compiler.h>
 #include <onyx/utils.h>
 #include <onyx/random.h>
+#include <onyx/condvar.h>
 
 #include <netinet/in.h>
 
@@ -38,7 +39,8 @@ struct un_socket
 	struct socket socket;
 	struct spinlock socket_lock;
 	struct unix_packet *packet_list;
-	struct spinlock packet_list_lock;
+	struct mutex packet_list_lock;
+	struct cond packet_condvar;
 	int type;
 	struct un_name *abstr_name;
 
@@ -187,11 +189,10 @@ int un_do_bind(const struct sockaddr_un *un, socklen_t addrlen, struct un_socket
 
 int un_bind(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode)
 {
-	printk("Here\n");
 	struct un_socket *socket = (struct un_socket*) vnode->i_helper;
 	if(socket->socket.bound)
 		return -EINVAL;
-	printk("here\n");
+
 	struct sockaddr_un kaddr;
 
 	if(addrlen > sizeof(struct sockaddr_un))
@@ -199,11 +200,9 @@ int un_bind(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode)
 	
 	if(copy_from_user(&kaddr, addr, addrlen) < 0)
 		return -EFAULT;
-	printk("here\n");
 	const struct sockaddr_un *un = (const struct sockaddr_un *) &kaddr;
 
 	int st = un_do_bind(un, addrlen, socket);
-	printk("here\n");
 	if(st == 0)
 		socket->socket.bound = true;
 	return st;
@@ -302,7 +301,7 @@ ssize_t un_do_sendto(const void *buf, size_t len, struct un_socket *dest, struct
 	packet->next = NULL;
 	packet->source = socket->abstr_name;
 
-	spin_lock(&dest->packet_list_lock);
+	mutex_lock(&dest->packet_list_lock);
 	struct unix_packet **pp = &dest->packet_list;
 
 	while(*pp)
@@ -310,7 +309,9 @@ ssize_t un_do_sendto(const void *buf, size_t len, struct un_socket *dest, struct
 
 	*pp = packet;
 
-	spin_unlock(&dest->packet_list_lock);
+	condvar_signal(&dest->packet_condvar);
+
+	mutex_unlock(&dest->packet_list_lock);
 	spin_unlock(&dest->socket_lock);
 
 	return len;
@@ -396,19 +397,19 @@ void un_dispose_packet(struct unix_packet *packet)
 ssize_t un_do_recvfrom(struct un_socket *socket, void *buf, size_t len,
 		       int flags, struct sockaddr_un *addr, socklen_t *slen)
 {
-	spin_lock(&socket->packet_list_lock);
+	mutex_lock(&socket->packet_list_lock);
 
-	struct unix_packet *packet = socket->packet_list;
-	if(!packet)
+	while(!socket->packet_list)
 	{
-		spin_unlock(&socket->packet_list_lock);
-		return 0;
+		condvar_wait(&socket->packet_condvar, &socket->packet_list_lock);
 	}
 
+	struct unix_packet *packet = socket->packet_list;
+
 	size_t to_read = min(len, packet->size);
-	if(copy_to_user(buf, packet->buffer, to_read) < 0)
+	if(copy_to_user(buf, packet->buffer + packet->read, to_read) < 0)
 	{
-		spin_unlock(&socket->packet_list_lock);
+		mutex_unlock(&socket->packet_list_lock);
 		return errno = EFAULT, -1;
 	}
 
@@ -434,7 +435,7 @@ ssize_t un_do_recvfrom(struct un_socket *socket, void *buf, size_t len,
 		un_dispose_packet(packet);
 	}
 
-	spin_unlock(&socket->packet_list_lock);
+	mutex_unlock(&socket->packet_list_lock);
 
 	return (ssize_t) to_read;
 }

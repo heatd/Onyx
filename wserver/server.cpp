@@ -37,7 +37,7 @@ Server::Server(std::shared_ptr<Display> display) : display(display),
 
 	struct sockaddr_un addr;
 	addr.sun_family = AF_UNIX;
-	memcpy(addr.sun_path, SERVER_SOCKET_PATH, sizeof(addr.sun_path));
+	strncpy(addr.sun_path, SERVER_SOCKET_PATH, sizeof(SERVER_SOCKET_PATH));
 	
 	if(bind(socket_fd, (struct sockaddr *) &addr, sizeof(sa_family_t) + sizeof(SERVER_SOCKET_PATH)) < 0)
 	{
@@ -94,7 +94,7 @@ public:
 
 	void set_handshake_reply(struct server_message_handshake_reply& hreply)
 	{
-		reply.args.hrply.new_cid = hreply.new_cid;
+		reply.reply.hrply.new_cid = hreply.new_cid;
 	}
 
 	void send()
@@ -123,6 +123,23 @@ void Server::handle_message(struct server_message *msg, struct sockaddr *addr, s
 			reply.set_handshake_reply(hreply);
 			reply.send();
 			break;
+		}
+		case SERVER_MESSAGE_CREATE_WINDOW:
+		{
+			std::cout << "Creating window\n";
+			auto& cwargs = msg->args.cwargs;
+			auto window = create_window(cwargs.width, cwargs.height, cwargs.x, cwargs.y);
+			ServerReply reply(addr, len, socket_fd);
+			
+			if(!window)
+			{
+				reply.set_status_code(STATUS_FAILURE);
+				reply.send();
+				break;
+			}
+
+			//WINDOW window_handle = 
+			
 		}
 		default:
 		{

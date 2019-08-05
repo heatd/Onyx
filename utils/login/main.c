@@ -108,7 +108,6 @@ int setup_users(void)
 		return 1;
 	}
 	memset(read_buffer, 0, 1024);
-
 	while(fgets(read_buffer, 1024, fp) != NULL)
 	{
 		char *pos;

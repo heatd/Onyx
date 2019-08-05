@@ -388,6 +388,7 @@ void cpu_wait_for_msg_ack(volatile struct cpu_message *msg)
 {
 	while(!msg->ack)
 		cpu_relax();
+	msg->ack = false;
 }
 
 struct cpu_message *cpu_alloc_msg_slot_irq(void)
@@ -495,7 +496,7 @@ void cpu_send_message(int cpu, unsigned long message, void *arg, bool should_wai
 	if(message != CPU_KILL && should_wait)
 		cpu_wait_for_msg_ack((volatile struct cpu_message *) msg);
 
-	msg->sent = false;
+	((volatile struct cpu_message *) msg)->sent = false;
 }
 
 void cpu_kill(int cpu_num)

@@ -27,7 +27,7 @@ struct vm_object
 
 	rb_tree *pages;
 
-	/* Points to private data that may be needed by the backer of this VM */
+	/* Points to (or is) private data that may be needed by the backer of this VM */
 	void *priv;
 
 	/* Commits a page */

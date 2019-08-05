@@ -10,6 +10,9 @@
 #include <vector>
 #include <window.h>
 #include <memory>
+#include <mutex>
+
+#include <wserver_public_api.h>
 
 class Client
 {
@@ -21,6 +24,8 @@ public:
 	~Client();
 	void AddWindow(std::shared_ptr<Window> window);
 	void DeleteWindow(size_t wid);
+	std::shared_ptr<Window> get_window(WINDOW handle);
+	WINDOW create_window(struct server_message_create_window& args);
 };
 
 #endif

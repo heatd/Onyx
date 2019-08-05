@@ -28,14 +28,17 @@ struct server_message_create_window
 	unsigned int y;
 };
 
+typedef void * WINDOW;
+typedef void * CLIENT_ID;
+
 struct server_message_dirty_window
 {
-	unsigned int window_id;
+	WINDOW window_handle;
 };
 
 struct server_message_destroy_window
 {
-	unsigned int window_id;
+	WINDOW window_handle;
 };
 
 
@@ -62,20 +65,23 @@ struct server_message_handshake_reply
 	unsigned int new_cid;
 };
 
+struct server_message_create_window_reply
+{
+	WINDOW window_handle;
+};
+
 struct server_reply
 {
 	enum server_status status;
 	union
 	{
 		struct server_message_handshake_reply hrply;
-	} args;
+	} reply;
 };
 
 #define SERVER_SOCKET_PATH	"\0wserver.message_queue"
 
-typedef void * WINDOW;
-typedef void * CLIENT_ID;
-
+#define BAD_WINDOW		(WINDOW) -1
 /* Connects to the window server and does a handshake */
 int wserver_connect(void);
 

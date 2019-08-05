@@ -10,6 +10,7 @@
 #include <onyx/process.h>
 #include <onyx/binfmt/elf64.h>
 #include <onyx/vm.h>
+#include <onyx/vfs.h>
 
 static bool elf64_is_valid(Elf64_Ehdr *header)
 {
@@ -123,12 +124,23 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 {
 	struct process *current = get_current_process();
 	size_t program_headers_size = header->e_phnum * header->e_phentsize;
+	struct file_description *fd = create_file_description(args->file, 0);
+	if(!fd)
+		return NULL;
+
 	Elf64_Phdr *phdrs = malloc(program_headers_size);
 	if(!phdrs)
-		return errno = ENOMEM, NULL;
-	/* Read the program header */
+	{
+		errno = ENOMEM;
+		goto error0;
+	}
 
-	read_vfs(0, header->e_phoff, program_headers_size, phdrs, args->file);
+	/* Read the program headers */
+	if(read_vfs(0, header->e_phoff, program_headers_size, phdrs, args->file) != program_headers_size)
+	{
+		errno = EIO;
+		goto error1;
+	}
 
 	void *base = NULL;
 	size_t needed_size = 0;
@@ -146,11 +158,18 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 				alignment = phdrs[i].p_align;
 		}
 	}
+
+	/* TODO: Rework this */
+
 	needed_size += last_size;
 	base = get_pages(VM_ADDRESS_USER, VM_TYPE_SHARED, vm_align_size_to_pages(needed_size), 
 				VM_WRITE | VM_USER, alignment);
 	if(!base)
-		return NULL;
+	{
+		errno = ENOMEM;
+		goto error1;
+	}
+
 	header->e_entry += (uintptr_t) base;
 	for(Elf64_Half i = 0; i < header->e_phnum; i++)
 	{
@@ -159,17 +178,16 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 		if(phdrs[i].p_type == PT_LOAD)
 		{
 			phdrs[i].p_vaddr += (uintptr_t) base;
-			uintptr_t aligned_address = phdrs[i].p_vaddr & 0xFFFFFFFFFFFFF000;
+			uintptr_t aligned_address = phdrs[i].p_vaddr & ~(PAGE_SIZE - 1);
 			size_t total_size = phdrs[i].p_memsz + (phdrs[i].p_vaddr - aligned_address);
-			size_t pages = total_size / PAGE_SIZE;
-			if(total_size % PAGE_SIZE)
-				pages++;
-
+			size_t pages = vm_align_size_to_pages(total_size);
+			size_t misalignment = phdrs[i].p_vaddr - aligned_address;
+		
 			/* Sanitize the address first */
 			if(vm_sanitize_address((void*) aligned_address, pages) < 0)
 			{
-				free(phdrs);
-				return errno = EINVAL, NULL;
+				errno = EINVAL;
+				goto error2;
 			}
 
 			int prot = (VM_USER) |
@@ -179,27 +197,43 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 			/* Note that things are mapped VM_WRITE | VM_USER before the memcpy so 
 			 we don't PF ourselves(i.e: writing to RO memory) */
 			
-			vm_map_range((void *) aligned_address, pages, VM_WRITE | VM_USER);
-			
-			/* Read the program segment to memory */
-			read_vfs(0, phdrs[i].p_offset, phdrs[i].p_filesz, 
-				(void*) phdrs[i].p_vaddr, args->file);
+			if(!create_file_mapping((void *) aligned_address,
+				pages, VM_MMAP_PRIVATE | VM_MMAP_FIXED,
+				prot, fd, phdrs[i].p_offset - misalignment))
+			{
+				errno = ENOMEM;
+				goto error2;
+			}
 
-			vm_change_perms((void *) aligned_address, pages, prot);
+			if(phdrs[i].p_filesz != phdrs[i].p_memsz)
+			{
+				/* This program header has the .bss, zero it out */
+				uint8_t *bss_base = (uint8_t *) (phdrs[i].p_vaddr + phdrs[i].p_filesz);
+				size_t bss_size = phdrs[i].p_memsz - phdrs[i].p_filesz;
+				memset(bss_base, 0, bss_size);
+			}
 		}
 	}
 
 	void *ptr = get_user_pages(VM_TYPE_REGULAR,
 			vm_align_size_to_pages(program_headers_size), VM_WRITE | VM_NOEXEC);
 	if(!ptr)
-		return NULL;
+	{
+		errno = ENOMEM;
+		goto error2;
+	}
 
 	memcpy(ptr, phdrs, program_headers_size);
 	free(phdrs);
+	phdrs = NULL;
+
 	size_t sections_size = header->e_shnum * header->e_shentsize;
 	Elf64_Shdr *sections = malloc(sections_size);
 	if(!sections)
-		return NULL;
+	{
+		errno = ENOMEM;
+		goto error2;
+	}
 	
 	read_vfs(0, header->e_shoff, sections_size, sections, args->file);
 
@@ -210,8 +244,8 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 			Elf64_Rela *r = malloc(sections[i].sh_size);
 			if(!r)
 			{
-				free(sections);
-				return NULL;
+				errno = ENOMEM;
+				goto error2;
 			}
 
 			read_vfs(0, sections[i].sh_offset, sections[i].sh_size, r, args->file);
@@ -230,6 +264,7 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 							rela->r_addend);
 				}
 			}
+
 			free(r);
 		}
 	}
@@ -247,14 +282,30 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 				vm_align_size_to_pages(current->info.phdr[i].p_filesz),
 				VM_WRITE | VM_NOEXEC);
 			if(!dyn)
-				return NULL;
+			{
+				errno = ENOMEM;
+				goto error2;
+			}
+
 			read_vfs(0, current->info.phdr[i].p_offset,
 				current->info.phdr[i].p_filesz, dyn, args->file);
 			current->info.phdr[i].p_vaddr = (uintptr_t) dyn;
 		}
 	}
+
+	/* TODO: Unmap holes */
 	free(sections);
+	close_file_description(fd);
+
 	return (void*) header->e_entry;
+error2:
+	vm_munmap(get_current_address_space(), base, needed_size);
+error1:
+	free(phdrs);
+error0:
+	close_file_description(fd);
+
+	return NULL;
 }
 
 void *elf64_load(struct binfmt_args *args, Elf64_Ehdr *header)

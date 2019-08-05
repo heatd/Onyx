@@ -34,5 +34,6 @@ typedef struct
 } ioctx_t;
 
 struct file_description *create_file_description(struct inode *inode, off_t seek);
+void close_file_description(struct file_description *fd);
 
 #endif

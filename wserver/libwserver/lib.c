@@ -55,7 +55,7 @@ int wserver_connect(void)
 		return -1;
 	}
 
-	client_id = reply.args.hrply.new_cid;
+	client_id = reply.reply.hrply.new_cid;
 	return 0;
 }
 
@@ -70,10 +70,17 @@ WINDOW wserver_create_window(struct server_message_create_window *params)
 
 	if(send(client_fd, &msg, sizeof(msg), 0) < 0)
 	{
-		return (WINDOW) -1;
+		return BAD_WINDOW;
 	}
 
-	/* TODO: Add when implemented */
+	struct server_reply reply = {};
+
+	if(recv(client_fd, &reply, sizeof(reply), 0) < 0)
+		return BAD_WINDOW;
+
+	if(reply.status != STATUS_OK)
+		return BAD_WINDOW;
+	
 	return NULL;
 }
 

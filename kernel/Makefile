@@ -26,7 +26,7 @@ CPPFLAGS:=$(CPPFLAGS) -D__is_onyx_kernel -D_POSIX_C_SOURCE -D_BSD_SOURCE -Iinclu
 include/onyx/config.h
 
 LDFLAGS:=$(LDFLAGS) -fwhole-program -fkeep-inline-functions -flto
-LIBS:=$(LIBS) -nostdlib -lk -lgcc
+LIBS:=$(LIBS) -nostdlib -lk $(LIBGCC_PATH)
 ARCHDIR:=arch/$(HOSTARCH)
 
 include $(ARCHDIR)/make.config
@@ -59,8 +59,9 @@ $(filter-out acpica/components/disassembler/%, $(patsubst %.c,%.o,$(wildcard acp
 $(filter-out $(ARCHDIR)/crti.o $(ARCHDIR)/__vdso_asm.S, $(patsubst %.S,%.o,$(wildcard $(ARCHDIR)/*.S)))
 
 CRTI_OBJ:=../sysroot/usr/lib/crti.o
-CRTBEGIN_OBJ:=$(shell $(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=crtbegin.o)
-CRTEND_OBJ:=$(shell $(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=crtend.o)
+CRTBEGIN_OBJ:=$(shell $(CC) $(CFLAGS) -mcmodel=large $(LDFLAGS) -print-file-name=crtbegin.o)
+CRTEND_OBJ:=$(shell $(CC) $(CFLAGS) -mcmodel=large $(LDFLAGS) -print-file-name=crtend.o)
+LIBGCC_PATH:=$(shell $(CC) $(CFLAGS) -mcmodel=large $(LDFLAGS) -print-libgcc-file-name)
 CRTN_OBJ:=../sysroot/usr/lib/crtn.o
 
 ALL_OUR_OBJS:=\

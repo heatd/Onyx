@@ -1801,13 +1801,11 @@ static void *do_dlsym(struct dso *p, const char *s, void *ra)
 		return 0;
 	if ((ght = p->ghashtab)) {
 		gh = gnu_hash(s);
-		printf("Hey? Hash: %x\n", h);
 		sym = gnu_lookup(gh, ght, p, s);
 	} else {
 		h = sysv_hash(s);
 		sym = sysv_lookup(s, h, p);
 	}
-	printf("Sym: %p\n", sym);
 	if (sym && (sym->st_info&0xf) == STT_TLS)
 		return __tls_get_addr((size_t []){p->tls_id, sym->st_value});
 	if (DL_FDPIC && sym && sym->st_shndx && (sym->st_info&0xf) == STT_FUNC)

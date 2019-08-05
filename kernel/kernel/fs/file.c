@@ -215,12 +215,15 @@ int do_sys_open(const char *filename, int flags, mode_t mode, struct inode *rel)
 	return fd_num;
 }
 
-int sys_open(const char *filename, int flags, mode_t mode)
+int sys_open(const char *ufilename, int flags, mode_t mode)
 {
-	if(!vm_find_region((char*) filename))
-		return -EFAULT;
+	const char *filename = strcpy_from_user(ufilename);
+	if(!filename)
+		return -errno;
 	/* open(2) does relative opens using the current working directory */
-	return do_sys_open(filename, flags, mode, get_current_process()->ctx.cwd);
+	int fd = do_sys_open(filename, flags, mode, get_current_process()->ctx.cwd);
+	free((char *) filename);
+	return fd;
 }
 
 int fd_unref(file_desc_t *fd)
@@ -492,22 +495,51 @@ off_t sys_lseek(int fd, off_t offset, int whence)
 	return ioctx->file_desc[fd]->seek;
 }
 
-int sys_mount(const char *source, const char *target, const char *filesystemtype, unsigned long mountflags, const void *data)
+int sys_mount(const char *usource, const char *utarget, const char *ufilesystemtype,
+	      unsigned long mountflags, const void *data)
 {
-	if(!vm_find_region((void*) source))
-		return errno =-EINVAL;
-	if(!vm_find_region((void*) target))
-		return errno =-EINVAL;
-	if(!vm_find_region((void*) filesystemtype))
-		return errno =-EINVAL;
+	const char *source = NULL;
+	const char *target = NULL;
+	const char *filesystemtype = NULL;
+	char *dev_name = NULL;
+	int ret = 0;
+
+	source = strcpy_from_user(usource);
+	if(!source)
+	{
+		ret = -errno;
+		goto out;
+	}
+	 
+	target = strcpy_from_user(utarget);
+	if(!target)
+	{
+		ret = -errno;
+		goto out;
+	}
+
+	filesystemtype = strcpy_from_user(ufilesystemtype);
+	if(!filesystemtype)
+	{
+		ret = -errno;
+		goto out;
+	}
 	/* Find the 'filesystemtype's handler */
 	filesystem_mount_t *fs = find_filesystem_handler(filesystemtype);
 	if(!fs)
-		return errno = -ENODEV;
+	{
+		ret = -ENODEV;
+		goto out;
+	}
+
 	/* Get the device name */
-	char *dev_name = strdup(source);
+	dev_name = strdup(source);
 	if(!dev_name)
-		return errno = -ENOMEM;
+	{
+		ret = -ENOMEM;
+		goto out;
+	}
+
 	dev_name[strlen(dev_name)-1] = '\0';
 
 	block_device_t *block = blkdev_search((const char *) dev_name);
@@ -515,17 +547,20 @@ int sys_mount(const char *source, const char *target, const char *filesystemtype
 
 	uint64_t lba = partition_find(part_index, block, fs);
 	struct inode *node = NULL;
-	int ret = 0;
 	if(!(node = fs->handler(lba, block)))
 	{
 		perror("");
 		ret = -EINVAL;
-		goto exit;
+		goto out;
 	}
+
 	char *str = strdup(target);
 	mount_fs(node, str);
-exit:
-	free(dev_name);
+out:
+	if(source)   free((void *) source);
+	if(target)   free((void *) target);
+	if(filesystemtype) free((void *) filesystemtype);
+	if(dev_name) free(dev_name);
 	return ret;
 }
 
@@ -540,10 +575,9 @@ int sys_isatty(int fd)
 		return -ENOTTY;
 }
 
-int sys_pipe(int pipefd[2])
+int sys_pipe(int upipefd[2])
 {
-	if(vm_check_pointer(pipefd, sizeof(int) * 2) < 0)
-		return errno = -EFAULT;
+	int pipefd[2] = {-1, -1};
 
 	ioctx_t *ioctx = &get_current_process()->ctx;
 	/* Find 2 free file descriptors */
@@ -583,11 +617,16 @@ int sys_pipe(int pipefd[2])
 		return errno = -ENOMEM;
 	}
 	ioctx->file_desc[rdfd]->vfs_node = ioctx->file_desc[wrfd]->vfs_node;
+	object_ref(&ioctx->file_desc[wrfd]->vfs_node->i_object);
+
 	ioctx->file_desc[rdfd]->flags = O_RDONLY;
 	ioctx->file_desc[wrfd]->flags = O_WRONLY;
 
 	pipefd[0] = rdfd;
 	pipefd[1] = wrfd;
+
+	if(copy_to_user(upipefd, pipefd, sizeof(int) * 2) < 0)
+		return -EFAULT;
 
 	return 0;
 }
@@ -645,40 +684,68 @@ int do_sys_stat(const char *pathname, struct stat *buf, int flags, struct inode 
 	return st < 0 ? -errno : st;
 }
 
-int sys_stat(const char *pathname, struct stat *buf)
+int sys_stat(const char *upathname, struct stat *ubuf)
 {
-	if(!vm_find_region((void*) pathname))
-		return errno = -EFAULT;
-	if(vm_check_pointer(buf, sizeof(struct stat)) < 0)
-		return errno = -EFAULT;
-	return do_sys_stat(pathname, buf, 0, get_current_directory());
+	const char *pathname = strcpy_from_user(upathname);
+	if(!pathname)
+		return -errno;
+	
+	struct stat buf = {0};
+
+	int st = do_sys_stat(pathname, &buf, 0, get_current_directory());
+
+	if(copy_to_user(ubuf, &buf, sizeof(buf)) < 0)
+	{
+		st = -errno;
+	}
+
+	free((void *) pathname);
+	return st;
 }
 
-int sys_fstat(int fd, struct stat *buf)
+int sys_fstat(int fd, struct stat *ubuf)
 {
-	if(vm_check_pointer(buf, sizeof(struct stat)) < 0)
-		return errno = -EFAULT;
 	if(validate_fd(fd) < 0)
 		return errno = -EBADF;
-	if(stat_vfs(buf, get_current_process()->ctx.file_desc[fd]->vfs_node) < 0)
+	struct stat buf = {0};
+
+	if(stat_vfs(&buf, get_current_process()->ctx.file_desc[fd]->vfs_node) < 0)
+		return -errno;
+
+	if(copy_to_user(ubuf, &buf, sizeof(buf)) < 0)
 		return -errno;
 	return 0;
 }
 
-int sys_chdir(const char *path)
+int sys_chdir(const char *upath)
 {
-	if(!vm_find_region((void*) path))
-		return errno = -EFAULT;
+	const char *path = strcpy_from_user(upath);
+	if(!path)
+		return -errno;
+
+	int st = 0;
 	struct inode *base = get_fs_base(path, get_current_directory());
 	struct inode *dir = open_vfs(base, path);
 	if(!dir)
-		return -ENOENT;
-	if(!(dir->i_type & VFS_TYPE_DIR))
-		return -ENOTDIR;
-	get_current_process()->ctx.cwd = dir;
-	get_current_process()->ctx.name = strdup(path);
+	{
+		st = -ENOENT;
+		goto out;
+	}
 
-	return 0;
+	if(!(dir->i_type & VFS_TYPE_DIR))
+	{
+		st = -ENOTDIR;
+		close_vfs(dir);
+		goto out;
+	}
+
+	get_current_process()->ctx.cwd = dir;
+	get_current_process()->ctx.name = path;
+	path = NULL;
+
+out:
+	if(path)	free((void *) path);
+	return st;
 }
 
 int sys_fchdir(int fildes)
@@ -698,22 +765,22 @@ int sys_getcwd(char *path, size_t size)
 {
 	if(size == 0 && path != NULL)
 		return -EINVAL;
-	if(vm_check_pointer(path, size) < 0)
-		return -EFAULT;
-	if(!get_current_process()->ctx.cwd)
+
+	struct process *current = get_current_process();
+
+	if(!current->ctx.cwd)
 		return -ENOENT;
 
-	if(strlen(get_current_process()->ctx.name) + 1 > size)
+	if(strlen(current->ctx.name) + 1 > size)
 		return -ERANGE;
 
-	strncpy(path, get_current_process()->ctx.name, size);
+	if(copy_to_user(path, current->ctx.name, strlen(current->ctx.name) + 1) < 0)
+		return -errno;
 	return 0;
 }
 
-int sys_openat(int dirfd, const char *path, int flags, mode_t mode)
+int sys_openat(int dirfd, const char *upath, int flags, mode_t mode)
 {
-	if(!vm_find_region((void*) path))
-		return -EFAULT;
 	struct inode *dir;
 	if(validate_fd(dirfd) < 0 && dirfd != AT_FDCWD)
 		return -EBADF;
@@ -723,36 +790,65 @@ int sys_openat(int dirfd, const char *path, int flags, mode_t mode)
 		dir = get_current_process()->ctx.cwd;
 	if(!(dir->i_type & VFS_TYPE_DIR))
 		return -ENOTDIR;
-	return do_sys_open(path, flags, mode, dir);
+	
+	const char *path = strcpy_from_user(upath);
+	if(!path)
+		return -errno;
+	
+	int fd = do_sys_open(path, flags, mode, dir);
+
+	free((char *) path);
+	return fd;
 }
 
-int sys_fstatat(int dirfd, const char *pathname, struct stat *buf, int flags)
+int sys_fstatat(int dirfd, const char *upathname, struct stat *ubuf, int flags)
 {
-	if(!vm_find_region((void*) pathname))
-		return errno = -EFAULT;
-	if(vm_check_pointer(buf, sizeof(struct stat)) < 0)
-		return errno = -EFAULT;
+	const char *pathname = strcpy_from_user(upathname);
+	if(!pathname)
+		return -errno;
+	struct stat buf = {0};
 	struct inode *dir;
-	
+	int st = 0;
 	if(validate_fd(dirfd) < 0 && dirfd != AT_FDCWD)
-		return -EBADF;
+	{
+		st = -EBADF;
+		goto out;
+	}
 	
 	if(dirfd != AT_FDCWD)
 		dir = get_file_description(dirfd)->vfs_node;
 	else
 		dir = get_current_process()->ctx.cwd;
 	if(!(dir->i_type & VFS_TYPE_DIR))
-		return -ENOTDIR;
-	return do_sys_stat(pathname, buf, flags, dir);
+	{
+		st = -ENOTDIR;
+		goto out;
+	}
+
+	st = do_sys_stat(pathname, &buf, flags, dir);
+
+	if(copy_to_user(ubuf, &buf, sizeof(buf)) < 0)
+	{
+		st = -errno;
+		goto out;
+	}
+out:
+	free((void *) pathname);
+	return st;
 }
 
-int sys_fmount(int fd, const char *path)
+int sys_fmount(int fd, const char *upath)
 {
 	if(validate_fd(fd) < 0)
 		return -EBADF;
-	if(!vm_find_region((void*) path))
-		return errno = -EFAULT;
-	return mount_fs(get_file_description(fd)->vfs_node, path);
+
+	const char *path = strcpy_from_user(upath);
+	if(!path)
+		return -errno;
+	int st = mount_fs(get_file_description(fd)->vfs_node, path);
+
+	free((void *) path);
+	return st;
 }
 
 void file_do_cloexec(ioctx_t *ctx)
@@ -858,6 +954,14 @@ struct file_description *create_file_description(struct inode *inode, off_t seek
 	object_ref(&inode->i_object);
 
 	return fd;
+}
+
+void close_file_description(struct file_description *fd)
+{
+	object_unref(&fd->vfs_node->i_object);
+	
+	if(fd->refcount-- == 0)
+		free(fd);
 }
 
 /* Simple stub sys_access */

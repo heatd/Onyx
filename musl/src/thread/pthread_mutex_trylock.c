@@ -52,7 +52,7 @@ int __pthread_mutex_trylock(pthread_mutex_t *m)
 {
 	if ((m->_m_type&15) == PTHREAD_MUTEX_NORMAL)
 		return a_cas(&m->_m_lock, 0, EBUSY) & EBUSY;
-	return 0;
+	return __pthread_mutex_trylock_owner(m);
 }
 
 weak_alias(__pthread_mutex_trylock, pthread_mutex_trylock);

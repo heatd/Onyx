@@ -1026,8 +1026,11 @@ int sys_clone(int (*fn)(void *), void *child_stack, int flags, void *arg, pid_t 
 	if(!thread)
 		return -errno;
 
-	if(vm_check_pointer(ptid, sizeof(pid_t)) > 0)
-		*ptid = thread->id;
+	if(copy_to_user(ptid, &thread->id, sizeof(pid_t)) < 0)
+	{
+		thread_destroy(thread);
+		return -errno;
+	}
 
 	process_add_thread(get_current_process(), thread);
 	sched_start_thread(thread);

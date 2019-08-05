@@ -16,10 +16,13 @@
 #include <sys/dir.h>
 #include <dirent.h>
 
+#include <mutex>
+#include <ext/concurrence.h>
 class Device
 {
 private:
 	std::string name;
+	std::mutex mtx;
 public:
 	Device(std::string name) : name(name)
 	{

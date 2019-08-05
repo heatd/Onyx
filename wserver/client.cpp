@@ -22,7 +22,7 @@ void Client::DeleteWindow(size_t wid)
 	std::ptrdiff_t idx = -1;
 	for(auto it = client_windows.begin(); it != client_windows.end(); ++it)
 	{
-		std::shared_ptr<Window> window = *it;
+		auto window = *it;
 
 		if(window->window_id == wid)
 		{
@@ -34,4 +34,19 @@ void Client::DeleteWindow(size_t wid)
 	assert(idx != -1);
 
 	client_windows.erase(client_windows.begin() + idx);
+}
+
+std::shared_ptr<Window> Client::get_window(WINDOW handle)
+{
+	size_t index = (size_t) handle;
+
+	if(index >= client_windows.size())
+		return nullptr;
+	
+	return client_windows[index];
+}
+
+WINDOW Client::create_window(struct server_message_create_window& args)
+{
+	
 }
