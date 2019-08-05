@@ -147,36 +147,56 @@ PML *get_current_pml4(void)
 	return (PML*) p->address_space.cr3;
 }
 
-volatile int virt_debug = 0;
-void *__virtual2phys(struct process *process, void *ptr)
-{
-	decomposed_addr_t dec;
-	memcpy(&dec, &ptr, sizeof(decomposed_addr_t));
-	PML *pml4 = PHYS_TO_VIRT(process ? process->address_space.cr3 : get_current_pml4());
+#define HUGE1GB_SHIFT		30
+#define HUGE1GB_SIZE		0x40000000
+#define LARGE2MB_SHIFT		21
+#define LARGE2MB_SIZE		0x200000
 
-	if(virt_debug)
-		printk("pml4: %p\n", pml4);
-	PML *pml3 = (PML*)((pml4->entries[dec.pml4] & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
-	if(virt_debug)
-		printk("pml3: %p\n", pml3);
-	if(pml3 == (void *) PHYS_BASE)
-		return NULL;
-	PML *pml2 = (PML*)((pml3->entries[dec.pdpt] & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
-	if(virt_debug)
-		printk("pml2: %p\n", pml2);
-	if(pml2 == (void *) PHYS_BASE)
-		return NULL;
-	PML *pml1 = (PML*)((pml2->entries[dec.pd] & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
-	if(virt_debug)
-		printk("pml1: %p\n", pml1);
-	if(pml1 == (void *) PHYS_BASE)
-		return NULL;
-	return (void *)((pml1->entries[dec.pt] & 0x0FFFFFFFFFFFF000) + dec.offsetFromPage);
+void *__virtual2phys(PML *__pml, void *ptr)
+{
+	unsigned long virt = (unsigned long ) ptr;
+	const unsigned int paging_levels = 4;
+	unsigned int indices[paging_levels];
+	
+	for(unsigned int i = 0; i < paging_levels; i++)
+	{
+		indices[i] = (virt >> 12) >> (i * 9) & 0x1ff;
+	}
+
+	PML *pml = (PML*)((uint64_t) __pml + PHYS_BASE);
+	
+	for(unsigned int i = paging_levels; i != 1; i--)
+	{
+		uint64_t entry = pml->entries[indices[i - 1]];
+		
+		if(!(entry & X86_PAGING_PRESENT))
+			return NULL;
+		
+		if(entry & X86_PAGING_HUGE)
+		{
+			/* Is huge page, check if it's a 1gb or 2mb */
+			/* 1GB pages reside in PML3, 2MB pages reside in PML2 */
+			bool is_1gb = i == 3;
+			unsigned long size = is_1gb ? HUGE1GB_SIZE : LARGE2MB_SIZE;
+			unsigned long page_base = PML_EXTRACT_ADDRESS(entry);
+			unsigned long page_off = virt & (size - 1);
+
+			return (void *) (page_base + page_off);
+		}
+
+
+		pml = PHYS_TO_VIRT(PML_EXTRACT_ADDRESS(entry));
+	}
+
+	unsigned long phys = PML_EXTRACT_ADDRESS(pml->entries[indices[0]]);
+	unsigned long page_off = virt & (PAGE_SIZE - 1);
+
+	return (void *) (phys + page_off);
 }
 
 void *virtual2phys(void *ptr)
 {
-	return __virtual2phys(NULL, ptr);
+	return __virtual2phys(get_current_pml4(), ptr);
 }
 
 extern PML pdptphysical_map;

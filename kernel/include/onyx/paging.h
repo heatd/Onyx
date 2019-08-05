@@ -37,7 +37,6 @@ void *paging_unmap(void* memory);
 void *paging_map_phys_to_virt_large(uintptr_t virt, uintptr_t phys, uint64_t prot);
 void *paging_map_phys_to_virt_large_early(uintptr_t virt, uintptr_t phys, uint64_t prot);
 void paging_map_all_phys(void);
-void *__virtual2phys(struct process *process, void *ptr);
 void *virtual2phys(void *ptr);
 int paging_clone_as(struct mm_address_space *addr_space);
 int paging_fork_tables(struct mm_address_space *addr_space);
