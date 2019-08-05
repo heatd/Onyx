@@ -284,7 +284,7 @@ int cpu_init_mp(void)
 	return booted_cpus;
 }
 
-extern PML4 *boot_pml4;
+extern PML *boot_pml4;
 
 void cpu_ap_entry(int cpu_num)
 {

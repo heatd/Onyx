@@ -170,7 +170,7 @@ char *kernel_getopt(char *opt)
 
 void *process_setup_auxv(void *buffer, struct process *process);
 
-extern PML4 *current_pml4;
+extern PML *current_pml4;
 int find_and_exec_init(char **argv, char **envp)
 {
 	char *path = strdup("/sbin/init");

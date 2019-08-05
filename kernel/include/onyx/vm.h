@@ -127,7 +127,7 @@ struct mm_address_space
 	struct spinlock private_vmo_lock;
 	struct vm_object *vmo_head, *vmo_tail;
 #ifdef __x86_64__
-	PML4* cr3;
+	PML* cr3;
 #endif
 };
 

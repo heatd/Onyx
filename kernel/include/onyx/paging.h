@@ -19,10 +19,12 @@
 #define PAGE_SIZE 4096UL
 
 
-typedef struct {uint64_t entries[512];} PML4;
-typedef struct {uint64_t entries[512];} PML3;
-typedef struct {uint64_t entries[512];} PML2;
-typedef struct {uint64_t entries[512];} PML1;
+typedef struct
+{
+	uint64_t entries[512];
+} PML;
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -34,21 +36,20 @@ void paging_init();
 void *paging_unmap(void* memory);
 void *paging_map_phys_to_virt_large(uintptr_t virt, uintptr_t phys, uint64_t prot);
 void *paging_map_phys_to_virt_large_early(uintptr_t virt, uintptr_t phys, uint64_t prot);
-void *paging_map_phys_to_virt_huge(uint64_t virt, uint64_t phys, uint64_t prot);
 void paging_map_all_phys(void);
 void *__virtual2phys(struct process *process, void *ptr);
 void *virtual2phys(void *ptr);
 int paging_clone_as(struct mm_address_space *addr_space);
 int paging_fork_tables(struct mm_address_space *addr_space);
 void paging_stop_spawning();
-void paging_load_cr3(PML4 *pml);
+void paging_load_cr3(PML *pml);
 void paging_change_perms(void *addr, int perms);
 int is_invalid_arch_range(void *address, size_t pages);
 void paging_protect_kernel(void);
 void paging_invalidate(void *page, size_t pages);
 void paging_free_page_tables(struct mm_address_space *mm);
 
-PML4 *get_current_pml4(void);
+PML *get_current_pml4(void);
 #ifdef __cplusplus
 }
 #endif

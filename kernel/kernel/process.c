@@ -41,7 +41,7 @@
          ((exitcode) & 0xFF) << 8 | \
          ((signal) & 0x7F) << 0)
 
-extern PML4 *current_pml4;
+extern PML *current_pml4;
 struct ids *process_ids = NULL;
 
 struct process *first_process = NULL;
