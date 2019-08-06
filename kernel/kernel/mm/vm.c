@@ -1205,22 +1205,35 @@ int sys_mprotect(void *addr, size_t len, int prot)
 	return st;
 }
 
+int vm_expand_brk(size_t nr_pages);
+
 int do_inc_brk(void *oldbrk, void *newbrk)
 {
 	void *oldpage = page_align_up(oldbrk);
 	void *newpage = page_align_up(newbrk);
 
 	size_t pages = ((uintptr_t) newpage - (uintptr_t) oldpage) / PAGE_SIZE;
-	if(vm_map_range(oldpage, pages, VM_WRITE | VM_USER | VM_NOEXEC) == NULL)
-		return -1;
+	
+	if(pages > 0)
+	{
+		return vm_expand_brk(pages);
+	}
+
 	return 0;
 }
 
 uint64_t sys_brk(void *newbrk)
 {
 	struct process *p = get_current_process();
+
+	spin_lock(&p->address_space.vm_spl);
+
 	if(newbrk == NULL)
-		return (uint64_t) p->address_space.brk;
+	{
+		uint64_t ret = (uint64_t) p->address_space.brk;
+		spin_unlock(&p->address_space.vm_spl);
+		return ret;
+	}
 
 	void *old_brk = p->address_space.brk;
 	ptrdiff_t diff = (ptrdiff_t) newbrk - (ptrdiff_t) old_brk;
@@ -1234,12 +1247,17 @@ uint64_t sys_brk(void *newbrk)
 	{
 		/* Increment the program brk */
 		if(do_inc_brk(old_brk, newbrk) < 0)
+		{
+			spin_unlock(&p->address_space.vm_spl); 
 			return -ENOMEM;
+		}
 
 		p->address_space.brk = newbrk;
 	}
 
-	return (uint64_t) p->address_space.brk;
+	uint64_t ret = (uint64_t) p->address_space.brk;
+	spin_unlock(&p->address_space.vm_spl); 
+	return ret;
 }
 
 static bool vm_print(const void *key, void *datum, void *user_data)
@@ -1997,9 +2015,9 @@ int vm_create_address_space(struct process *process, void *cr3)
 		return -1;
 	}
 
-	mm->brk = map_user(vm_gen_brk_base(), 0x20000000, VM_TYPE_HEAP,
+	mm->brk = map_user(vm_gen_brk_base(), 1, VM_TYPE_HEAP,
 		VM_WRITE | VM_NOEXEC | VM_USER);
-	
+
 	if(!mm->brk)
 		return -1;
 
@@ -2249,4 +2267,52 @@ void vm_invalidate_range(unsigned long addr, size_t pages)
 			spin_unlock(&p->scheduler_lock);
 		}
 	}
+}
+
+bool vm_can_expand(struct mm_address_space *as, struct vm_region *region, size_t new_size)
+{
+	struct rb_itor it;
+	it.node = NULL;
+	it.tree = as->area_tree;
+
+	assert(rb_itor_search(&it, (const void *) region->base) != false);
+
+	/* If there's no region whose address > region->base, we know we can expand freely */
+	bool node_valid = rb_itor_next(&it);
+	if(!node_valid)
+		return true;
+	
+	struct vm_region *second_region = *rb_itor_datum(&it);
+	/* Calculate the hole size, and if >= new_size, we're good */
+	size_t hole_size = second_region->base - region->base;
+
+	if(hole_size >= new_size)
+		return true;
+	
+	return false;
+}
+
+int vm_expand_mapping(struct mm_address_space *as, struct vm_region *region, size_t new_size)
+{
+	MUST_HOLD_LOCK(&as->vm_spl);
+
+	if(!vm_can_expand(as, region, new_size))
+	{
+		return -1;
+	}
+
+	region->pages = new_size >> PAGE_SHIFT;
+	vmo_resize(new_size, region->vmo);
+
+	return 0;
+}
+
+int vm_expand_brk(size_t nr_pages)
+{
+	struct process *p = get_current_process();
+	struct vm_region *brk_region = vm_find_region(p->address_space.brk);
+	assert(brk_region != NULL);
+	size_t new_size = (brk_region->pages + nr_pages) << PAGE_SHIFT; 
+
+	return vm_expand_mapping(&p->address_space, brk_region, new_size);
 }

@@ -403,8 +403,10 @@ int vmo_purge_pages(size_t lower_bound, size_t upper_bound, unsigned int flags,
 
 int vmo_resize(size_t new_size, struct vm_object *vmo)
 {
+	bool needs_to_purge = new_size < vmo->size;
 	vmo->size = new_size;
-	vmo_purge_pages(0, new_size, PURGE_SHOULD_FREE | PURGE_EXCLUDE, NULL, vmo);
+	if(needs_to_purge)
+		vmo_purge_pages(0, new_size, PURGE_SHOULD_FREE | PURGE_EXCLUDE, NULL, vmo);
 
 	return 0;
 }

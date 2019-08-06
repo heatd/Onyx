@@ -112,7 +112,7 @@ struct vm_object;
 struct mm_address_space
 {
 	struct process *process;
-	/* Virtual address space AVL tree */
+	/* Virtual address space Red-black tree */
 	struct rb_tree *area_tree;
 	unsigned long start;
 	unsigned long end;
