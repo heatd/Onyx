@@ -575,7 +575,12 @@ bool wait4_find_dead_process(struct process *process, pid_t pid, int *wstatus, p
 	{
 		if((p->pid == pid || looking_for_any) && p->has_exited)
 		{
-			copy_to_user(wstatus, &p->exit_code, sizeof(int));
+			if(wstatus)
+			{
+				errno = EFAULT;
+				if(copy_to_user(wstatus, &p->exit_code, sizeof(int) < 0))
+					return false;
+			}
 			*ret = p->pid;
 
 			spin_unlock(&process->children_lock);
@@ -605,9 +610,19 @@ pid_t sys_wait4(pid_t pid, int *wstatus, int options, struct rusage *usage)
 		spin_lock(&current->children_lock);
 
 		pid_t ret;
+		errno = 0;
+
 		if(wait4_find_dead_process(current, pid, wstatus, &ret))
 		{
 			return ret;
+		}
+		else
+		{
+			if(errno == EFAULT)
+			{
+				spin_unlock(&current->children_lock);
+				return -EFAULT;
+			}
 		}
 
 		spin_unlock(&current->children_lock);

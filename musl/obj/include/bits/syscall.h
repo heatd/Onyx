@@ -32,6 +32,7 @@
 #define __NR_personality			32
 #define __NR_setuid				33
 #define __NR_setgid				34
+#define __NR_mremap				36
 #define __NR_rt_sigreturn			37
 #define __NR_insmod				38
 #define __NR_uname				39
@@ -236,7 +237,6 @@
 #define __NR_listen				255
 #define __NR_madvise				255
 #define __NR_mincore				255
-#define __NR_mremap				255
 #define __NR_msgctl				255
 #define __NR_msgget				255
 #define __NR_msgrcv				255
@@ -371,6 +371,7 @@
 #define SYS_personality			32
 #define SYS_setuid				33
 #define SYS_setgid				34
+#define SYS_mremap				36
 #define SYS_rt_sigreturn			37
 #define SYS_insmod				38
 #define SYS_uname				39
@@ -575,7 +576,6 @@
 #define SYS_listen				255
 #define SYS_madvise				255
 #define SYS_mincore				255
-#define SYS_mremap				255
 #define SYS_msgctl				255
 #define SYS_msgget				255
 #define SYS_msgrcv				255

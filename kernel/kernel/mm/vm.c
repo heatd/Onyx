@@ -119,8 +119,8 @@ struct vm_region *vm_reserve_region(struct mm_address_space *as,
 #define DEBUG_VM_1 0
 #define DEBUG_VM_2 0
 #define DEBUG_VM_3 0
-struct vm_region *vm_allocate_region(struct mm_address_space *as,
-				     unsigned long min, size_t size)
+
+unsigned long vm_allocate_base(struct mm_address_space *as, unsigned long min, size_t size)
 {
 	if(min < as->start)
 		min = as->start;
@@ -186,7 +186,15 @@ done:
 	printk("Ptr: %lx\nSize: %lx\n", last_end, size);
 #endif
 
-	return vm_reserve_region(as, last_end, size);
+	return last_end;
+}
+
+struct vm_region *vm_allocate_region(struct mm_address_space *as,
+				     unsigned long min, size_t size)
+{
+	unsigned long new_base = vm_allocate_base(as, min, size);
+
+	return vm_reserve_region(as, new_base, size);
 }
 
 void vm_addr_init(void)
@@ -303,7 +311,6 @@ out_of_mem:
 
 void do_vm_unmap(void *range, size_t pages)
 {
-	printk("Unmapping %p\n", range);
 	struct vm_region *entry = vm_find_region(range);
 	assert(entry != NULL);
 
@@ -338,13 +345,18 @@ void do_vm_unmap(void *range, size_t pages)
 	vm_invalidate_range((unsigned long) range, pages);
 }
 
+void __vm_unmap_range(void *range, size_t pages)
+{
+	do_vm_unmap(range, pages);
+}
+
 void vm_unmap_range(void *range, size_t pages)
 {
 	bool kernel = is_higher_half(range);
 
 	__vm_lock(kernel);
 
-	do_vm_unmap(range, pages);
+	__vm_unmap_range(range, pages);
 	__vm_unlock(kernel);
 }
 
@@ -944,15 +956,16 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 	if(!area)
 		return (void*) -ENOMEM;
 
+	if(flags & MAP_SHARED)
+		area->mapping_type = MAP_SHARED;
+	else
+		area->mapping_type = MAP_PRIVATE;
+
 	if(!(flags & MAP_ANONYMOUS))
 	{
 		//printk("Mapping off %lx, size %lx, prots %x\n", off, length, prot);
 
 		/* Set additional meta-data */
-		if(flags & MAP_SHARED)
-			area->mapping_type = MAP_SHARED;
-		else
-			area->mapping_type = MAP_PRIVATE;
 
 		area->type = VM_TYPE_FILE_BACKED;
 
@@ -1009,6 +1022,120 @@ void vm_copy_region(const struct vm_region *source, struct vm_region *dest)
 	dest->type = source->type;
 }
 
+struct vm_region *vm_split_region(struct mm_address_space *as, struct vm_region *region,
+				  unsigned long addr,
+				  size_t size, size_t *pto_shave_off)
+{
+	size_t region_size = region->pages << PAGE_SHIFT;
+		
+	size_t to_shave_off = 0;
+	if(region->base == addr)
+	{
+		to_shave_off = size < region_size ? size : region_size;
+		*pto_shave_off = to_shave_off;
+
+		if(to_shave_off != region_size)
+		{
+			vm_remove_region(as, region);
+
+			off_t old_off = region->offset;
+
+			region->base += to_shave_off;
+			region->pages -= to_shave_off >> PAGE_SHIFT;
+			region->offset += to_shave_off;
+			if(vm_add_region(as, region) < 0)
+			{
+				return errno = ENOMEM, NULL;
+			}
+
+			struct vm_region *reg = vm_reserve_region(as, addr, to_shave_off);
+
+			if(!reg)
+			{
+				return errno = ENOMEM, NULL;
+			}
+
+			/* Essentially, we create a carbon
+			 * copy of the region and increment/decrement some values */
+			vm_copy_region(region, reg);
+			reg->base = addr;
+			reg->pages = to_shave_off >> PAGE_SHIFT;
+
+			/* Also, set the offset of the old region */
+			reg->offset = old_off;
+			return reg;
+		}
+		else
+		{
+			return region;
+		}
+	}
+	else if(region->base < addr)
+	{
+		unsigned long offset = addr - region->base;
+		unsigned long remainder = region_size - offset;
+		to_shave_off = size < remainder ? size : remainder;
+		*pto_shave_off = to_shave_off;
+
+		if(to_shave_off != remainder)
+		{
+			unsigned long second_region_start = addr + to_shave_off;
+			unsigned long second_region_size = remainder - to_shave_off;
+
+			struct vm_region *new_region = vm_reserve_region(as,
+					second_region_start,
+					second_region_size);
+
+			if(!new_region)
+			{
+				return errno = ENOMEM, NULL;
+			}
+
+			vm_copy_region(region, new_region);
+			new_region->offset += offset + to_shave_off;
+
+			struct vm_region *to_ret =
+					vm_reserve_region(as, addr, to_shave_off);
+			if(!to_ret)
+			{
+				vm_remove_region(as, new_region);
+				return errno = ENOMEM, NULL;
+			}
+
+			vm_copy_region(region, to_ret);
+			to_ret->offset += offset;
+				
+			vm_remove_region(as, region);
+
+			/* The original region's size is offset */
+			region->pages = offset >> PAGE_SHIFT;
+
+			/* TODO: it's not clear what we should do on OOM cases
+			* This code and munmap's code is riddled with these things. */
+			(void) vm_add_region(as, region);
+
+			return to_ret;
+		}
+		else
+		{
+			struct vm_region *to_ret =
+				vm_reserve_region(as, addr, to_shave_off);
+			if(!to_ret)
+			{
+				return errno = ENOMEM, NULL;
+			}
+
+			vm_copy_region(region, to_ret);
+			to_ret->offset += offset;
+
+			region->pages -= to_shave_off >> PAGE_SHIFT;
+			return to_ret;
+		}
+	}
+
+	__builtin_unreachable();
+}
+
 int vm_mprotect_in_region(struct mm_address_space *as, struct vm_region *region,
 			  unsigned long addr, size_t size, int prot, size_t *pto_shave_off)
 {
@@ -1025,112 +1152,12 @@ int vm_mprotect_in_region(struct mm_address_space *as, struct vm_region *region,
 		panic("implement\n");
 	}
 
-	size_t region_size = region->pages << PAGE_SHIFT;
-		
-	size_t to_shave_off = 0;
-	if(region->base == addr)
-	{
-		to_shave_off = size < region_size ? size : region_size;
-		if(to_shave_off != region_size)
-		{
-			vm_remove_region(as, region);
+	struct vm_region *new_region = vm_split_region(as, region, addr, size, pto_shave_off);
+	if(!new_region)
+		return -1;
 
-			off_t old_off = region->offset;
+	new_region->rwx = prot;
 
-			region->base += to_shave_off;
-			region->pages -= to_shave_off >> PAGE_SHIFT;
-			region->offset += to_shave_off;
-			if(vm_add_region(as, region) < 0)
-			{
-				return -ENOMEM;
-			}
-
-			struct vm_region *reg = vm_reserve_region(as, addr, to_shave_off);
-
-			if(!reg)
-			{
-				return -ENOMEM;
-			}
-
-			/* Essentially, we create a carbon
-			 * copy of the region and increment/decrement some values */
-			vm_copy_region(region, reg);
-			reg->base = addr;
-			reg->pages = to_shave_off >> PAGE_SHIFT;
-			reg->rwx = prot;
-
-			/* Also, set the offset of the old region */
-			reg->offset = old_off;
-		}
-		else
-		{
-			region->rwx = prot;
-		}
-	}
-	else if(region->base < addr)
-	{
-		unsigned long offset = addr - region->base;
-		unsigned long remainder = region_size - offset;
-		to_shave_off = size < remainder ? size : remainder;
-
-		if(to_shave_off != remainder)
-		{
-			unsigned long second_region_start = addr + to_shave_off;
-			unsigned long second_region_size = remainder - to_shave_off;
-
-			struct vm_region *new_region = vm_reserve_region(as,
-					second_region_start,
-					second_region_size);
-
-			if(!new_region)
-			{
-				return -ENOMEM;
-			}
-
-			vm_copy_region(region, new_region);
-			new_region->offset += offset + to_shave_off;
-
-			struct vm_region *new_prot_region =
-					vm_reserve_region(as, addr, to_shave_off);
-			if(!new_prot_region)
-			{
-				vm_remove_region(as, new_region);
-				return -ENOMEM;
-			}
-
-			vm_copy_region(region, new_prot_region);
-			new_prot_region->offset += offset;
-			new_prot_region->rwx = prot;
-				
-			vm_remove_region(as, region);
-
-			/* The original region's size is offset */
-			region->pages = offset >> PAGE_SHIFT;
-
-			/* TODO: it's not clear what we should do on OOM cases
-			* This code and munmap's code is riddled with these things. */
-			(void) vm_add_region(as, region);
-		}
-		else
-		{
-			struct vm_region *new_prot_region =
-				vm_reserve_region(as, addr, to_shave_off);
-			if(!new_prot_region)
-			{
-				return -ENOMEM;
-			}
-
-			vm_copy_region(region, new_prot_region);
-			new_prot_region->rwx = prot;
-			new_prot_region->offset += offset;
-
-			region->pages -= to_shave_off >> PAGE_SHIFT;
-		}
-	
-	
-	}
-
-	*pto_shave_off = to_shave_off;
 	return 0;
 }
 
@@ -2078,8 +2105,6 @@ int vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
 
 	spin_lock(&as->vm_spl);
 
-	vm_unmap_range_raw((void *) addr, size);
-
 	//printk("munmap %lx, %lx\n", addr, limit);
 
 	while(addr < limit)
@@ -2090,6 +2115,8 @@ int vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
 			spin_unlock(&as->vm_spl);
 			return -EINVAL;
 		}
+
+		__vm_unmap_range((void *) addr, (limit - addr) >> PAGE_SHIFT);
 
 		size_t region_size = region->pages << PAGE_SHIFT;
 		
@@ -2271,6 +2298,9 @@ void vm_invalidate_range(unsigned long addr, size_t pages)
 
 bool vm_can_expand(struct mm_address_space *as, struct vm_region *region, size_t new_size)
 {
+	/* Can always shrink the mapping */
+	if(new_size < region->pages << PAGE_SHIFT)
+		return true;
 	struct rb_itor it;
 	it.node = NULL;
 	it.tree = as->area_tree;
@@ -2292,6 +2322,12 @@ bool vm_can_expand(struct mm_address_space *as, struct vm_region *region, size_t
 	return false;
 }
 
+void __vm_expand_mapping(struct vm_region *region, size_t new_size)
+{
+	region->pages = new_size >> PAGE_SHIFT;
+	vmo_resize(new_size, region->vmo);
+}
+
 int vm_expand_mapping(struct mm_address_space *as, struct vm_region *region, size_t new_size)
 {
 	MUST_HOLD_LOCK(&as->vm_spl);
@@ -2301,8 +2337,7 @@ int vm_expand_mapping(struct mm_address_space *as, struct vm_region *region, siz
 		return -1;
 	}
 
-	region->pages = new_size >> PAGE_SHIFT;
-	vmo_resize(new_size, region->vmo);
+	__vm_expand_mapping(region, new_size);
 
 	return 0;
 }
@@ -2315,4 +2350,232 @@ int vm_expand_brk(size_t nr_pages)
 	size_t new_size = (brk_region->pages + nr_pages) << PAGE_SHIFT; 
 
 	return vm_expand_mapping(&p->address_space, brk_region, new_size);
+}
+
+int mremap_check_for_overlap(void *__old_address, size_t old_size, void *__new_address, size_t new_size)
+{
+	unsigned long old_address = (unsigned long) __old_address;
+	unsigned long new_address = (unsigned long) __new_address;
+
+	/* Written at 03:00, but the logic looks good? */
+	if(old_address <= (unsigned long) new_address
+			&& old_address + old_size > (unsigned long) new_address)
+		return -1;
+	if(old_address <= (unsigned long) new_address + new_size
+			&& old_address + old_size > (unsigned long) new_address + new_size)
+		return -1;
+	return 0;
+}
+
+void *vm_remap_create_new_mapping_of_shared_pages(void *new_address, size_t new_size,
+	int flags, void *old_address)
+{
+	struct process *current = get_current_process();
+	void *ret = MAP_FAILED;
+	bool fixed = flags & MREMAP_FIXED;
+	struct vm_region *new_mapping = NULL;
+
+	
+	struct vm_region *old_region = vm_find_region(old_address);
+	if(!old_region)
+	{
+		ret = (void *) -EFAULT;
+		goto out;
+	}
+
+	if(old_region->mapping_type != MAP_SHARED)
+	{
+		ret = (void *) -EINVAL;
+		goto out;
+	}
+
+	if(fixed)
+	{
+		if(vm_sanitize_address(new_address, new_size >> PAGE_SHIFT) < 0)
+		{
+			ret = (void *) -EINVAL;
+			goto out;
+		}
+
+		if(mremap_check_for_overlap(old_address, new_size, new_address, new_size) < 0)
+		{
+			ret = (void *) -EINVAL;
+			goto out;
+		}
+
+		new_mapping = vm_reserve_address(new_address, new_size >> PAGE_SHIFT,
+			VM_TYPE_REGULAR, old_region->rwx);
+	}
+	else
+	{
+		new_mapping = vm_allocate_region(&current->address_space,
+						 (unsigned long) current->address_space.mmap_base,
+						 new_size);
+		if(new_mapping)
+		{
+			new_mapping->type = VM_TYPE_REGULAR;
+			new_mapping->rwx = old_region->rwx;
+		}
+	}
+
+	if(!new_mapping)
+	{
+		ret = (void *) -ENOMEM;
+		goto out;
+	}
+
+	vm_copy_region(old_region, new_mapping);
+	ret = (void *) new_mapping->base;
+out:
+	spin_unlock(&current->address_space.vm_spl);
+	return ret;
+}
+
+void *vm_try_move(struct vm_region *old_region, unsigned long new_base, size_t new_size)
+{
+	struct process *current = get_current_process();
+	
+	vm_remove_region(&current->address_space, old_region);
+
+	old_region->base = new_base;
+	__vm_expand_mapping(old_region, new_size);
+	/* TODO: What to do in case of a failure? */
+	vm_add_region(&current->address_space, old_region);
+	
+	/* TODO: Maybe unmapping isn't the best option on a move and we should copy mappings */
+	__vm_unmap_range((void *) old_region->base, old_region->pages);
+
+	vm_print_umap();
+	return (void *) old_region->base;
+}
+
+void *vm_remap_try(void *old_address, size_t old_size, void *new_address, size_t new_size, int flags)
+{
+	size_t n;
+	struct process *current = get_current_process();
+	struct vm_region *reg = vm_find_region(old_address);
+	if(!reg)
+		return (void *) -EFAULT;
+
+	struct vm_region *old_reg = vm_split_region(&current->address_space, reg,
+						    (unsigned long) old_address, old_size, &n);
+	if(!old_reg)
+		return (void *) -ENOMEM;
+
+	if(vm_expand_mapping(&current->address_space, old_reg, new_size) < 0)
+	{
+		if(flags & MREMAP_MAYMOVE)
+		{
+			unsigned long new_base = vm_allocate_base(&current->address_space,
+						  (unsigned long) current->address_space.mmap_base, new_size);
+			return vm_try_move(old_reg, new_base, new_size);
+		}
+
+		return (void *) -ENOMEM;
+	}
+
+	return (void *) old_reg->base;
+}
+
+void vm_unmap_every_region_in_range(struct mm_address_space *as, unsigned long start,
+				    unsigned long length)
+{
+	unsigned long limit = start + length;
+	while(true)
+	{
+		void **pp = rb_tree_search_ge(as->area_tree, (void *) start);
+		if(!pp)
+			return;
+
+		struct vm_region *reg = *pp;
+		if(reg->base >= start + length)
+			return;
+		unsigned long reg_len = reg->pages << PAGE_SHIFT;
+		unsigned long to_unmap = limit - reg->base < reg_len
+			? limit - reg->base : reg_len;
+		vm_munmap(as, (void *) reg->base, to_unmap);
+	}
+}
+
+/* TODO: Test things */
+void *sys_mremap(void *old_address, size_t old_size, size_t new_size, int flags, void *new_address)
+{
+	/* Check http://man7.org/linux/man-pages/man2/mremap.2.html for documentation */
+	struct process *current = get_current_process();
+	bool may_move = flags & MREMAP_MAYMOVE;
+	bool fixed = flags & MREMAP_FIXED;
+	bool wants_create_new_mapping_of_pages = old_size == 0 && may_move;
+	void *ret = MAP_FAILED;
+	spin_lock(&current->address_space.vm_spl);
+
+	/* TODO: Unsure on what to do if new_size > old_size */
+	
+	if(vm_sanitize_address(old_address, old_size >> PAGE_SHIFT) < 0)
+	{
+		ret = (void *) -EFAULT;
+		goto out;
+	}
+
+	if(wants_create_new_mapping_of_pages)
+		return vm_remap_create_new_mapping_of_shared_pages(new_address, new_size, flags, old_address);
+
+	if(old_size == 0)
+	{
+		ret = (void *) -EINVAL;
+		goto out;
+	}
+
+	if(new_size == 0)
+	{
+		ret = (void *) -EINVAL;
+		goto out;
+	}
+
+	if(!fixed)
+	{
+		ret = vm_remap_try(old_address, old_size, new_address, new_size, flags);
+		goto out;
+	}
+	else
+	{
+
+		if(vm_sanitize_address(new_address, new_size >> PAGE_SHIFT) < 0)
+		{
+			ret = (void *) -EINVAL;
+			goto out;
+		}
+
+		if(mremap_check_for_overlap(old_address, old_size, new_address, new_size) < 0)
+		{
+			ret = (void *) -EINVAL;
+			goto out;
+		}
+
+		struct vm_region *reg = vm_find_region(old_address);
+		if(!reg)
+		{
+			ret = (void *) -EFAULT;
+			goto out;
+		}
+		size_t n;
+
+		struct vm_region *old_reg = vm_split_region(&current->address_space, reg,
+							    (unsigned long) old_address, old_size, &n);
+		if(!old_reg)
+		{
+			ret = (void *) -ENOMEM;
+			goto out;
+		}
+
+		vm_unmap_every_region_in_range(&current->address_space,
+					       (unsigned long) new_address,
+					       new_size);
+
+		ret = vm_try_move(old_reg, (unsigned long) new_address, new_size);
+	}
+
+
+out:
+	spin_unlock(&current->address_space.vm_spl);
+	return ret;
 }

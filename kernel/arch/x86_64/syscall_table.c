@@ -129,6 +129,7 @@ extern ssize_t sys_recvfrom(int sockfd, void *buf, size_t len, int flags,
 struct sockaddr *src_addr, socklen_t *addrlen);
 extern int sys_proc_event_attach(pid_t pid, unsigned long flags);
 extern int sys_access(const char *path, int amode);
+extern void *sys_mremap(void *old_address, size_t old_size, size_t new_size, int flags, void *new_address);
 
 void *syscall_table_64[] =
 {
@@ -168,7 +169,7 @@ void *syscall_table_64[] =
 	[33] = (void*) sys_setuid,
 	[34] = (void*) sys_setgid,
 	[35] = (void*) sys_isatty,
-	[36] = (void*) sys_nosys, /* FREE */
+	[36] = (void*) sys_mremap, /* FREE */
 	[37] = (void*) sys_sigreturn,
 	[38] = (void*) sys_insmod,
 	[39] = (void*) sys_uname,
