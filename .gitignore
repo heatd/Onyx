@@ -34,6 +34,7 @@ utils/yes/yes
 autom4ate.cache
 *.m4
 utils/printenv/printenv
+utils/sleep/sleep
 dhcpcd/dhcpcd
 
 *.tar*

@@ -1,5 +1,5 @@
 #!/bin/sh
-UTILS="cat dmesg echo login ls packmanager true yes printenv uname"
+UTILS="cat dmesg echo login ls packmanager true yes printenv uname sleep"
 cd utils
 for UTIL in $UTILS; do
 	echo "Building $UTIL"

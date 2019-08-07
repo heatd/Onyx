@@ -19,6 +19,7 @@ void invalid_flag()
 {
 	printf("Usage: uname  [-amnsv]\n");
 }
+
 int main(int argc, char **argv, char **envp)
 {
 	if(argc < 2)
@@ -72,6 +73,7 @@ int main(int argc, char **argv, char **envp)
 		perror("uname");
 		return 1;
 	}
+
 	if(print_os_name)
 		printf("%s ", info.sysname);
 	if(node)
