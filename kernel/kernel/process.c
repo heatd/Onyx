@@ -578,7 +578,7 @@ bool wait4_find_dead_process(struct process *process, pid_t pid, int *wstatus, p
 			if(wstatus)
 			{
 				errno = EFAULT;
-				if(copy_to_user(wstatus, &p->exit_code, sizeof(int) < 0))
+				if(copy_to_user(wstatus, &p->exit_code, sizeof(int)) < 0)
 					return false;
 			}
 			*ret = p->pid;
