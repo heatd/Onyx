@@ -651,16 +651,19 @@ int sys_fcntl(int fd, int cmd, unsigned long arg)
 			int new = do_dupfd(fd, (int) arg);
 			return new;
 		}
+
 		case F_DUPFD_CLOEXEC:
 		{
 			int new = do_dupfd(fd, (int) arg);
 			get_file_description(new)->flags |= O_CLOEXEC;
 			return new;
 		}
+
 		case F_GETFD:
 		{
 			return get_file_description(fd)->flags;
 		}
+
 		case F_SETFD:
 		{
 			get_file_description(fd)->flags = (int) arg;

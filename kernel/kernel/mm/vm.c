@@ -1509,9 +1509,11 @@ void *vm_gen_brk_base(void)
 
 int sys_memstat(struct memstat *memstat)
 {
-	if(vm_check_pointer(memstat, sizeof(struct memstat)) < 0)
+	struct memstat buf;
+	page_get_stats(&buf);
+
+	if(copy_to_user(memstat, &buf, sizeof(buf)) < 0)
 		return -EFAULT;
-	page_get_stats(memstat);
 	return 0;
 }
 

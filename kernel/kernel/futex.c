@@ -142,7 +142,7 @@ int sys_futex(int *uaddr, int futex_op, int val, const struct timespec *timeout,
 	if(vm_check_pointer(uaddr, sizeof(int)) < 0)
 		return -EFAULT;
 	/* The pointer needs to be 4-byte aligned */
-	if((uintptr_t) uaddr & 0x3)
+	if((uintptr_t) uaddr & (4 - 1))
 		return -EINVAL;
 
 	struct futex *futex = get_futex(uaddr);	

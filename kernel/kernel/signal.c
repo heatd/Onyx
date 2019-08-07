@@ -374,11 +374,13 @@ int sys_sigaction(int signum, const struct sigaction *act, struct sigaction *old
 int sys_sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
 {
 	struct process *current = get_current_process();
+
 	if(oldset)
 	{
 		if(copy_to_user(oldset, &current->sigmask, sizeof(sigset_t)) < 0)
 			return -EFAULT;
 	}
+	
 	if(set)
 	{
 		sigset_t kset;
@@ -410,6 +412,7 @@ int sys_sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
 				return -EINVAL;
 		}
 	}
+
 	signal_update_pending(current);
 	return 0;
 }

@@ -27,7 +27,7 @@ void do_trace(pid_t p);
 
 void *do_pt_trace(void *arg)
 {
-	do_trace((pid_t) arg);
+	do_trace((pid_t) (unsigned long) arg);
 
 	return (void *) 0;
 }
@@ -35,7 +35,7 @@ void *do_pt_trace(void *arg)
 void do_child_trace(pid_t pid)
 {
 	pthread_t thread;
-	if(pthread_create(&thread, NULL, do_pt_trace, (void *) pid) < 0)
+	if(pthread_create(&thread, NULL, do_pt_trace, (void *) (unsigned long) pid) < 0)
 	{
 		perror("pthread_create");
 		return;
@@ -83,6 +83,7 @@ int main(int argc, char **argv, char **envp)
 		print_usage(argv[0]);
 		return 1;
 	}
+
 	pid_t pid = fork();
 	if(pid < 0)
 	{
@@ -97,5 +98,6 @@ int main(int argc, char **argv, char **envp)
 	{
 		do_child(argc - 1, argv + 1);
 	}
+
 	return 0;
 }
