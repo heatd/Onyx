@@ -52,6 +52,7 @@ int get_next_tx(void)
 	spin_unlock(&tx_lock);
 	return next_tx;
 }
+
 uint8_t rtl_readb(uint8_t reg)
 {
 	if(io_base)
@@ -63,6 +64,7 @@ uint8_t rtl_readb(uint8_t reg)
 		return mmio_readb((uint64_t) memory_base + reg);
 	}
 }
+
 uint16_t rtl_readw(uint8_t reg)
 {
 	if(io_base)
@@ -74,6 +76,7 @@ uint16_t rtl_readw(uint8_t reg)
 		return mmio_readw((uint64_t) memory_base + reg);
 	}
 }
+
 uint32_t rtl_readl(uint8_t reg)
 {
 	if(io_base)
@@ -85,6 +88,7 @@ uint32_t rtl_readl(uint8_t reg)
 		return mmio_readl((uint64_t) memory_base + reg);
 	}
 }
+
 void rtl_writeb(uint8_t reg, uint8_t value)
 {
 	if(io_base)
@@ -96,6 +100,7 @@ void rtl_writeb(uint8_t reg, uint8_t value)
 		mmio_writeb((uint64_t) memory_base + reg, value);
 	}
 }
+
 void rtl_writew(uint8_t reg, uint16_t value)
 {
 	if(io_base)
@@ -107,6 +112,7 @@ void rtl_writew(uint8_t reg, uint16_t value)
 		mmio_writew((uint64_t) memory_base + reg, value);
 	}
 }
+
 void rtl_writel(uint8_t reg, uint32_t value)
 {
 	if(io_base)
@@ -118,6 +124,7 @@ void rtl_writel(uint8_t reg, uint32_t value)
 		mmio_writel((uint64_t) memory_base + reg, value);
 	}
 }
+
 uint16_t rtl_clear_interrupt(void)
 {
 	/* Clear interrupts by writing to the ISR register */

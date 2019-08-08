@@ -25,132 +25,140 @@
 #include <drivers/e1000.h>
 #include <pci/pci.h>
 
-static struct pci_device *nicdev = NULL;
-static struct e1000_rx_desc *rx_descs[E1000_NUM_RX_DESC];
-static struct e1000_tx_desc *tx_descs[E1000_NUM_TX_DESC];
-static struct spinlock tx_cur_lock;
-static unsigned long rx_cur = 0, tx_cur = 0;
-bool eeprom_exists = false;
-static char *mem_space = NULL;
-struct netif *nic_netif = NULL;
-void e1000_write_command(uint16_t addr, uint32_t val);
-uint32_t e1000_read_command(uint16_t p_address);
-
-static void initialize_e1000_busmastering()
+struct e1000_device
 {
-	pci_enable_busmastering(nicdev);
+	char *mmio_space;
+	bool eeprom_exists;
+	unsigned long rx_cur;
+	unsigned long tx_cur;
+	struct spinlock tx_cur_lock;
+	struct e1000_rx_desc *rx_descs[E1000_NUM_RX_DESC];
+	struct e1000_tx_desc *tx_descs[E1000_NUM_TX_DESC];
+	struct pci_device *nicdev;
+	struct netif *nic_netif;
+	unsigned char e1000_internal_mac_address[6];
+	unsigned int irq_nr;
+};
+
+void e1000_write_command(uint16_t addr, uint32_t val, struct e1000_device *dev);
+uint32_t e1000_read_command(uint16_t addr, struct e1000_device *dev);
+
+static void e1000_init_busmastering(struct e1000_device *dev)
+{
+	pci_enable_busmastering(dev->nicdev);
 }
 
-void e1000_handle_recieve()
+void e1000_handle_recieve(struct e1000_device *dev)
 {
 	uint16_t old_cur = 0;
-	while((rx_descs[rx_cur]->status & 0x1))
+	while((dev->rx_descs[dev->rx_cur]->status & 0x1))
 	{
-		uint8_t *buf = (uint8_t *) rx_descs[rx_cur]->addr;
-		uint16_t len = rx_descs[rx_cur]->length;
+		uint8_t *buf = (uint8_t *) dev->rx_descs[dev->rx_cur]->addr;
+		uint16_t len = dev->rx_descs[dev->rx_cur]->length;
 
-		network_dispatch_recieve(buf + PHYS_BASE, len, nic_netif);
+		network_dispatch_recieve(buf + PHYS_BASE, len, dev->nic_netif);
 
-		rx_descs[rx_cur]->status = 0;
-		old_cur = rx_cur;
+		dev->rx_descs[dev->rx_cur]->status = 0;
+		old_cur = dev->rx_cur;
 
-		rx_cur = (rx_cur + 1) % E1000_NUM_RX_DESC;
+		dev->rx_cur = (dev->rx_cur + 1) % E1000_NUM_RX_DESC;
 
-		e1000_write_command(REG_RXDESCTAIL, old_cur);
+		e1000_write_command(REG_RXDESCTAIL, old_cur, dev);
 	}
 }
 
 irqstatus_t e1000_irq(struct irq_context *ctx, void *cookie)
 {
-	volatile uint32_t status = e1000_read_command(0xc0);
+	volatile uint32_t status = e1000_read_command(REG_ICR, cookie);
 	if(status & 0x80)
 	{
-		e1000_handle_recieve();
+		e1000_handle_recieve(cookie);
 	}
 	
 	return IRQ_HANDLED;
 }
 
-void e1000_write_command(uint16_t addr, uint32_t val)
+void e1000_write_command(uint16_t addr, uint32_t val, struct e1000_device *dev)
 {
-	mmio_writel((uintptr_t) (mem_space + addr), val);
+	mmio_writel((uintptr_t) (dev->mmio_space + addr), val);
 }
 
-uint32_t e1000_read_command(uint16_t addr)
+uint32_t e1000_read_command(uint16_t addr, struct e1000_device *dev)
 {
-	return mmio_readl((uintptr_t) (mem_space + addr));
+	return mmio_readl((uintptr_t) (dev->mmio_space + addr));
 }
 
-void e1000_detect_eeprom(void)
+void e1000_detect_eeprom(struct e1000_device *dev)
 {
-	e1000_write_command(REG_EEPROM, 0x1);
+	e1000_write_command(REG_EEPROM, 0x1, dev);
 	for(int i = 0; i < 1000000; i++)
 	{
-		uint32_t test = e1000_read_command(REG_EEPROM);
+		uint32_t test = e1000_read_command(REG_EEPROM, dev);
 		if(test & 0x10)
 		{
 			INFO("e1000", "confirmed eeprom exists at spin %d\n", i);
-			eeprom_exists = true;
+			dev->eeprom_exists = true;
 			break;
 		}
 	}
 }
 
-uint32_t e1000_eeprom_read(uint8_t addr)
+uint32_t e1000_eeprom_read(uint8_t addr, struct e1000_device *dev)
 {
 	uint16_t data = 0;
 	uint32_t tmp = 0;
-        if (eeprom_exists)
+        if(dev->eeprom_exists)
         {
-            	e1000_write_command(REG_EEPROM, (1) | ((uint32_t)(addr) << 8));
-        	while(!((tmp = e1000_read_command(REG_EEPROM)) & (1 << 4)));
+            	e1000_write_command(REG_EEPROM, (1) | ((uint32_t)(addr) << 8), dev);
+        	while(!((tmp = e1000_read_command(REG_EEPROM, dev)) & (1 << 4)));
         }
         else
         {
-            e1000_write_command(REG_EEPROM, (1) | ((uint32_t)(addr) << 2));
-            while(!((tmp = e1000_read_command(REG_EEPROM)) & (1 << 1)));
+		e1000_write_command(REG_EEPROM, (1) | ((uint32_t)(addr) << 2), dev);
+		while(!((tmp = e1000_read_command(REG_EEPROM, dev)) & (1 << 1)));
         }
+
 	data = (uint16_t)((tmp >> 16) & 0xFFFF);
 	return data;
 }
 
-static unsigned char e1000_internal_mac_address[6];
-
-int e1000_read_mac_address(void)
+int e1000_read_mac_address(struct e1000_device *dev)
 {
-	if(eeprom_exists)
+	if(dev->eeprom_exists)
 	{
 		uint32_t temp;
-		temp = e1000_eeprom_read(0);
-		e1000_internal_mac_address[0] = temp & 0xff;
-		e1000_internal_mac_address[1] = temp >> 8;
-		temp = e1000_eeprom_read(1);
-		e1000_internal_mac_address[2] = temp & 0xff;
-		e1000_internal_mac_address[3] = temp >> 8;
-		temp = e1000_eeprom_read(2);
-		e1000_internal_mac_address[4] = temp & 0xff;
-		e1000_internal_mac_address[5] = temp >> 8;
+		temp = e1000_eeprom_read(0, dev);
+		dev->e1000_internal_mac_address[0] = temp & 0xff;
+		dev->e1000_internal_mac_address[1] = temp >> 8;
+		temp = e1000_eeprom_read(1, dev);
+		dev->e1000_internal_mac_address[2] = temp & 0xff;
+		dev->e1000_internal_mac_address[3] = temp >> 8;
+		temp = e1000_eeprom_read(2, dev);
+		dev->e1000_internal_mac_address[4] = temp & 0xff;
+		dev->e1000_internal_mac_address[5] = temp >> 8;
 		return 0;
 	}
 	else
 	{
-		uint8_t *mem_base_mac_8 = (uint8_t *) (mem_space+0x5400);
-		uint32_t *mem_base_mac_32 = (uint32_t *) (mem_space+0x5400);
+		uint8_t *mem_base_mac_8 = (uint8_t *) (dev->mmio_space + 0x5400);
+		uint32_t *mem_base_mac_32 = (uint32_t *) (dev->mmio_space + 0x5400);
 		if (mem_base_mac_32[0] != 0)
 		{
 			for(int i = 0; i < 6; i++)
 			{
-				e1000_internal_mac_address[i] = mem_base_mac_8[i];
+				dev->e1000_internal_mac_address[i] = mem_base_mac_8[i];
 			}
 			return 0;
 		}
    	}
+	
 	return 1;
 }
 
-int e1000_init_descs(void)
+int e1000_init_descs(struct e1000_device *dev)
 {
-	return 1;
+	return 0;
+#if 0
 	uint8_t *ptr = NULL;
 	struct e1000_rx_desc *rxdescs = NULL;
 	size_t needed_pages = vm_align_size_to_pages(sizeof(struct e1000_rx_desc) * E1000_NUM_RX_DESC + 16);
@@ -230,33 +238,30 @@ int e1000_init_descs(void)
 	e1000_write_command(REG_TIPG,  0x0060200A);
 
 	return 0;
+#endif
 }
 
-struct driver e1000_driver = 
+void e1000_enable_interrupts(struct e1000_device *dev)
 {
-	.name = "e1000"
-};
-
-void e1000_enable_interrupts()
-{
-	uint16_t int_no = pci_get_intn(nicdev);
+	dev->irq_nr = pci_get_intn(dev->nicdev);
 	
 	// Get the IRQ number and install its handler
-	INFO("e1000", "using IRQ number %u\n", int_no);
+	INFO("e1000", "using IRQ number %u\n", dev->irq_nr);
 
-	assert(install_irq(int_no, e1000_irq, (struct device *) nicdev,
-		IRQ_FLAG_REGULAR, NULL) == 0);
+	assert(install_irq(dev->irq_nr, e1000_irq, (struct device *) dev->nicdev,
+		IRQ_FLAG_REGULAR, dev) == 0);
 	
-	e1000_write_command(REG_IMASK, 0x1F6DC);
-	e1000_write_command(REG_IMASK ,0xff & ~4);
-	e1000_read_command(0xC0);
+	e1000_write_command(REG_IMC, 0x1F6DC, dev);
+	e1000_write_command(REG_IMC ,0xff & ~4, dev);
+	e1000_read_command(REG_ICR, dev);
 }
 
 int e1000_send_packet(const void *data, uint16_t len)
 {
-	spin_lock(&tx_cur_lock);
+#if 0
+	spin_lock(&dev->tx_cur_lock);
 	
-	tx_descs[tx_cur]->addr = (uint64_t) virtual2phys((void*) data);
+	dev->tx_descs[dev->tx_cur]->addr = (uint64_t) virtual2phys((void*) data);
 	tx_descs[tx_cur]->length = len;
 	tx_descs[tx_cur]->cmd = CMD_EOP | CMD_IFCS | CMD_RS | CMD_RPS | CMD_IC;
 	tx_descs[tx_cur]->status = 0;
@@ -266,45 +271,47 @@ int e1000_send_packet(const void *data, uint16_t len)
 	spin_unlock(&tx_cur_lock);
 
 	while(!(tx_descs[old_cur]->status & 0xff));
+#endif
+	panic("implement");
 	return 0;
 }
 
-void e1000_disable_rxtx(void)
+void e1000_disable_rxtx(struct e1000_device *dev)
 {
-	e1000_write_command(REG_RCTRL, 0);
-	e1000_write_command(REG_TCTRL, 0);
+	e1000_write_command(REG_RCTL, 0, dev);
+	e1000_write_command(REG_TCTRL, 0, dev);
 }
 
-void e1000_setup_flow_control(void)
+void e1000_setup_flow_control(struct e1000_device *dev)
 {
 	/* Setup the standard flow control addresses */
-	e1000_write_command(REG_FCAL, 0x00c28001);
-	e1000_write_command(REG_FCAH, 0x0100);
-	e1000_write_command(REG_FCT, 0x8808);
-	e1000_write_command(REG_FCTTV, 0);
+	e1000_write_command(REG_FCAL, 0x00c28001, dev);
+	e1000_write_command(REG_FCAH, 0x0100, dev);
+	e1000_write_command(REG_FCT, 0x8808, dev);
+	e1000_write_command(REG_FCTTV, 0, dev);
 }
 
-void e1000_clear_stats(void)
+void e1000_clear_stats(struct e1000_device *dev)
 {
 	for(uint32_t x = 0; x < 256; x += 4)
-		e1000_read_command(REG_CRCERRS + x);
+		e1000_read_command(REG_CRCERRS + x, dev);
 }
 
-void e1000_reset_device(void)
+void e1000_reset_device(struct e1000_device *dev)
 {
 	/* Disable busmastering and interrupts before resetting the NIC */
-	pci_disable_busmastering(nicdev);
-	pci_disable_irq(nicdev);
+	pci_disable_busmastering(dev->nicdev);
+	pci_disable_irq(dev->nicdev);
 
 	/* Also disable rx/tx */
-	e1000_disable_rxtx();
+	e1000_disable_rxtx(dev);
 
 	/* And disable interrupts in the NIC itself */
-	e1000_write_command(REG_IMC, UINT32_MAX);
+	e1000_write_command(REG_IMC, UINT32_MAX, dev);
 
 	/* Reset the NIC by setting the correct bit */
-	uint32_t ctrl = e1000_read_command(REG_CTRL);
-	e1000_write_command(REG_CTRL, ctrl | CTRL_RST);
+	uint32_t ctrl = e1000_read_command(REG_CTRL, dev);
+	e1000_write_command(REG_CTRL, ctrl | CTRL_RST, dev);
 
 	for(;;)
 	{
@@ -313,18 +320,18 @@ void e1000_reset_device(void)
 		 * On some hardware, this loop would hang without this.
 		 * Read all the statisics registers (which we do later anyway).
 		*/
-		e1000_clear_stats();
-		ctrl = e1000_read_command(REG_CTRL);
+		e1000_clear_stats(dev);
+		ctrl = e1000_read_command(REG_CTRL, dev);
 		if(!(ctrl & CTRL_PHY_RST))
 			break;
 	}
 
 	/* Disable interrupts again */
-	e1000_write_command(REG_IMC, UINT32_MAX);
+	e1000_write_command(REG_IMC, UINT32_MAX, dev);
 
-	initialize_e1000_busmastering();
+	e1000_init_busmastering(dev);
 
-	ctrl = e1000_read_command(REG_CTRL);
+	ctrl = e1000_read_command(REG_CTRL, dev);
 
 	ctrl |= CTRL_SLU;
 	/* TODO: The docs say that ASDE should be set to 0 on 82574's */
@@ -332,80 +339,90 @@ void e1000_reset_device(void)
 	ctrl &= ~CTRL_FORCE_SPEED;
 	ctrl &= ~CTRL_FRCDPLX;
 
-	e1000_write_command(REG_CTRL, ctrl);
+	e1000_write_command(REG_CTRL, ctrl, dev);
 
 	/* Setup flow control */
-	e1000_setup_flow_control();
+	e1000_setup_flow_control(dev);
 
 	/* Clear statistical registers */
-	e1000_clear_stats();
+	e1000_clear_stats(dev);
 
-	pci_enable_irq(nicdev);
+	pci_enable_irq(dev->nicdev);
 }
 
-bool e1000_filter(struct pci_device *dev)
+struct pci_id e1000_pci_ids[] = 
 {
-	if(dev->vendorID != INTEL_VENDOR)
-		return false;
-	switch(dev->deviceID)
-	{
-		case E1000_DEV:
-		case E1000_I217:
-		case E1000E_DEV:
-		case E1000_82577LM:
-			nicdev = dev;
-			if(pci_enable_device(nicdev) < 0)
-				return false;
-			return true;
-		default:
-			return false;
-	}
-}
+	{ PCI_ID_DEVICE(INTEL_VENDOR, E1000_DEV, NULL) },
+	{ PCI_ID_DEVICE(INTEL_VENDOR, E1000_I217, NULL) },
+	{ PCI_ID_DEVICE(INTEL_VENDOR, E1000_82577LM, NULL) }
+};
 
-int e1000_init(void)
+int e1000_probe(struct device *__dev)
 {
-	pci_find_device(e1000_filter, true);
+	struct pci_device *dev = (struct pci_device *) __dev;
+
+	INFO("e1000", "Found suitable e1000 device at %04x:%02x:%02x:%02x\n"
+		"ID %04x:%04x\n", dev->segment, dev->bus, dev->device,
+		dev->function, dev->vendorID, dev->deviceID);
 	
-	if(!nicdev)
-		return -1;
-
-	driver_register_device(&e1000_driver, (struct device *) nicdev);
-
-	mem_space = pci_map_bar(nicdev, 0);
+	char *mem_space = pci_map_bar(dev, 0);
 	if(!mem_space)
 	{
 		ERROR("e1000", "Sorry! This driver only supports e1000 register access through MMIO, "
 		"and sadly your card needs the legacy I/O port method of accessing registers\n");
 		return -1;
 	}
+
+	struct e1000_device *nicdev = zalloc(sizeof(*nicdev));
+	if(!nicdev)
+	{
+		/* TODO: Unmap mem_space */
+		return -1;
+	}
+
+	nicdev->mmio_space = mem_space;
+	nicdev->nicdev = dev;
 	
 	INFO("e1000", "mmio mode\n");
 	
-	e1000_reset_device();
+	e1000_reset_device(nicdev);
 
-	e1000_detect_eeprom();
+	e1000_detect_eeprom(nicdev);
 
-	if(e1000_read_mac_address())
+	if(e1000_read_mac_address(nicdev))
 		return -1;
 	
-	if(e1000_init_descs())
+	if(e1000_init_descs(nicdev))
 	{
 		ERROR("e1000", "failed to initialize!\n");
 		return -1;
 	}
 
-	e1000_enable_interrupts();
+	e1000_enable_interrupts(nicdev);
 	struct netif *n = zalloc(sizeof(struct netif));
 	if(!n)
 		return -1;
 
+	/* TODO: Allocate device names */
 	n->name = "eth0";
 	n->flags |= NETIF_LINKUP;
 	n->sendpacket = e1000_send_packet;
-	memcpy(n->mac_address, e1000_internal_mac_address, 6);
+	memcpy(n->mac_address, nicdev->e1000_internal_mac_address, 6);
 	netif_register_if(n);
 
-	nic_netif = n;
+	return 0;
+}
+
+struct driver e1000_driver = 
+{
+	.name = "e1000",
+	.devids = &e1000_pci_ids,
+	.probe = e1000_probe
+};
+
+int e1000_init(void)
+{
+	pci_bus_register_driver(&e1000_driver);
 	return 0;
 }
 

@@ -16,16 +16,24 @@
 #define E1000E_DEV		0x10D3
 #define E1000_82577LM		0x10EA
  
+/* Register values look up in linux/drivers/net/ethernet/intel/e1000e/regs.h */
 #define REG_CTRL		0x0000
 #define REG_STATUS		0x0008
+#define REG_EECD		0x0010
 #define REG_EEPROM		0x0014
 #define REG_CTRL_EXT		0x0018
+#define REG_FLA			0x001c
+#define REG_MDIC		0x0020
+#define REG_SCTL		0x0024
 #define REG_FCAL		0x0028
 #define REG_FCAH		0x002c
+#define REG_FEXT		0x002c
 #define REG_FCT			0x0030
-#define REG_IMASK		0x00d0
+#define REG_ICR			0x00c0
+#define REG_IMS			0x00d0
 #define REG_IMC			0x00d8
-#define REG_RCTRL		0x0100
+#define REG_IVAR		0x00e4
+#define REG_RCTL		0x0100
 #define REG_FCTTV		0x0170
 #define REG_RXDESCLO		0x2800
 #define REG_RXDESCHI		0x2804
