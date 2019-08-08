@@ -12,7 +12,7 @@ hdr_start:
         .long hdr_end - hdr_start
         .long 0x100000000 - (0xe85250d6 + 0 + (hdr_end - hdr_start))
         .align 8 #All tags need to be 8 byte aligned
-        #Framebuffer tag
+        # Framebuffer tag
         .word 5
         .word 0
         .long 20
@@ -25,7 +25,7 @@ hdr_start:
         .word 0
         .long 8
         .align 8
-        #Finish tag
+        # Finish tag
         .word 0
         .word 0
         .long 8

@@ -26,7 +26,7 @@ struct vdso_info
 static const struct vdso_info info =
 {
 	.name = "onyx-vdso",
-	.kernel = "onyx-0.4",
+	.kernel = "onyx-rolling",
 	.architecture = "x86_64"
 };
 

@@ -13,13 +13,13 @@
 
 static inline void xsetbv(unsigned long r, unsigned long xcr0)
 {
-	__asm__ __volatile__("xsetbv"::"c"(r), "a"(xcr0 & 0xffffffff), "d"(xcr0 >> 32));
+	__asm__ __volatile__("xsetbv" :: "c"(r), "a"(xcr0 & 0xffffffff), "d"(xcr0 >> 32));
 }
 
 static inline unsigned long xgetbv(unsigned long r)
 {
 	unsigned long ret = 0;
-	__asm__ __volatile__("xgetbv":"=A"(ret):"c"(r));
+	__asm__ __volatile__("xgetbv" : "=A"(ret) : "c"(r));
 	return ret;
 }
 
