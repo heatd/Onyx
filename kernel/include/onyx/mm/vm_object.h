@@ -20,10 +20,13 @@ enum vmo_type
 	VMO_BACKED = 1
 };
 
+#define VMO_FLAG_LOCK_FUTURE_PAGES		(1 << 0)
+
 struct vm_object
 {
 	enum vmo_type type;
 	size_t size;
+	unsigned long flags;
 
 	rb_tree *pages;
 

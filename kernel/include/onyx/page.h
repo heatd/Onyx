@@ -49,7 +49,7 @@
 /* Passed to alloc_page() */
 
 #define PAGE_NO_RETRY		(1 << 3)
-
+#define PAGE_FLAG_LOCKED	(1 << 0)
 /* struct page - Represents every usable page on the system 
  * Everything is native-word-aligned in order to allow atomic changes
  * Careful adding fields in - they may increase the memory use exponentially
@@ -59,12 +59,8 @@ struct page
 	void *paddr;
 	struct page *next;
 	unsigned long ref;
-
-	union
-	{
-		unsigned long flags;
-		struct page_cache_block *cache;
-	};
+	unsigned long flags;
+	struct page_cache_block *cache;
 
 	size_t off;		/* Offset in vmo */
 

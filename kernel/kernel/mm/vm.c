@@ -2601,3 +2601,89 @@ struct page *vm_commit_page(void *page)
 		return NULL;
 	return p;
 }
+
+int vm_change_locks_range_in_region(struct vm_region *region,
+	unsigned long addr, unsigned long len, unsigned long flags)
+{
+	assert(region->vmo != NULL);
+
+	spin_lock(&region->vmo->page_lock);
+
+	struct rb_itor it;
+	it.node = NULL;
+	it.tree = region->mm->area_tree;
+	unsigned long starting_off = region->offset + (addr - region->base); 
+	unsigned long end_off = starting_off + len;
+	bool node_valid = rb_itor_search_ge(&it, (void *) starting_off);
+
+	while(node_valid)
+	{
+		struct page *p = *rb_itor_datum(&it);
+		if(p->off >= end_off)
+			return 0;
+		if(flags & VM_LOCK)
+			p->flags |= PAGE_FLAG_LOCKED;
+		else
+			p->flags &= ~(PAGE_FLAG_LOCKED);
+
+		node_valid = rb_itor_next(&it);
+	}
+
+	spin_unlock(&region->vmo->page_lock);
+	return 0;
+}
+
+int vm_change_region_locks(void *__start, unsigned long length, unsigned long flags)
+{
+	struct mm_address_space *as = &get_current_process()->address_space;
+
+	unsigned long limit = (unsigned long) __start + length;
+	unsigned long addr = (unsigned long) __start;
+	
+	/* We don't need to do this with kernel addresses */
+	if(is_higher_half(__start))
+		return 0;
+
+	spin_lock(&as->vm_spl);
+
+	while(addr < limit)
+	{
+		struct vm_region *region = vm_find_region((void *) addr);
+		if(!region)
+		{
+			spin_unlock(&as->vm_spl);
+			return errno = ENOENT, -1;
+		}
+
+		size_t len = min(length, region->pages << PAGE_SHIFT);
+		if(vm_change_locks_range_in_region(region, addr, len, flags) < 0)
+		{
+			spin_unlock(&as->vm_spl);
+			return -1;
+		}
+
+		if(flags & VM_FUTURE_PAGES)
+		{
+			if(flags & VM_LOCK)
+				region->vmo->flags |= VMO_FLAG_LOCK_FUTURE_PAGES;
+			else
+				region->vmo->flags &= ~VMO_FLAG_LOCK_FUTURE_PAGES;
+		}
+	
+		addr += len;
+		length -= len;
+	}
+
+	spin_lock(&as->vm_spl);
+	return 0;
+}
+
+int vm_lock_range(void *start, unsigned long length, unsigned long flags)
+{
+	return vm_change_region_locks(start, length, flags | VM_LOCK);
+}
+
+int vm_unlock_range(void *start, unsigned long length, unsigned long flags)
+{
+	return vm_change_region_locks(start, length, flags | VM_LOCK);
+}

@@ -101,6 +101,9 @@ struct page *vmo_populate(struct vm_object *vmo, size_t off)
 		return NULL;
 	}
 
+	if(vmo->flags & VMO_FLAG_LOCK_FUTURE_PAGES)
+		page->flags |= PAGE_FLAG_LOCKED;
+
 	*res.datum_ptr = page;
 
 	return page;
@@ -211,6 +214,8 @@ struct vm_object *vmo_fork(struct vm_object *vmo, bool shared, struct vm_region 
 		if(!new_vmo)
 			return NULL;
 		memcpy(new_vmo, vmo, sizeof(*new_vmo));
+		/* Locks are not inherited */
+		new_vmo->flags &= ~(VMO_FLAG_LOCK_FUTURE_PAGES);
 		new_vmo->refcount = 1;
 		new_vmo->mappings.head = new_vmo->mappings.tail = NULL;
 		new_vmo->prev_private = new_vmo->next_private = NULL;
@@ -433,6 +438,7 @@ struct vm_object *vmo_create_copy(struct vm_object *vmo)
 
 	if(!copy)
 		return NULL;
+	copy->flags &= ~(VMO_FLAG_LOCK_FUTURE_PAGES);
 	
 	bool file = copy->type == VMO_BACKED && copy->ino;
 	

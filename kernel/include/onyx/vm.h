@@ -236,6 +236,12 @@ struct kernel_limits
 void get_kernel_limits(struct kernel_limits *l);
 struct page *vm_commit_page(void *page);
 
+#define VM_FUTURE_PAGES			(1 << 0)
+#define VM_LOCK				(1 << 1)
+#define VM_UNLOCK			(1 << 2)
+int vm_lock_range(void *start, unsigned long length, unsigned long flags);
+int vm_unlock_range(void *start, unsigned long length, unsigned long flags);
+
 #ifdef __cplusplus
 }
 #endif

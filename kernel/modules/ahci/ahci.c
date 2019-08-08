@@ -302,6 +302,8 @@ bool ahci_do_command_async(struct ahci_port *ahci_port,
 
 	struct phys_ranges ranges;
 	
+	vm_lock_range(buf->buffer, buf->size, VM_FUTURE_PAGES);
+
 	if(dma_get_ranges(buf->buffer, buf->size, PRDT_MAX_SIZE, &ranges) < 0)
 	{
 		list->prdtl = 0;
@@ -365,6 +367,8 @@ bool ahci_do_command(struct ahci_port *ahci_port, struct ahci_command_ata *buf)
 	/* TODO: Maybe do it on large reads? */
 	while(!req.wake_sem.counter)
 		cpu_relax();
+
+	vm_unlock_range(buf->buffer, buf->size, VM_FUTURE_PAGES);
 
 	if(req.status == AIO_STATUS_OK)
 	{
