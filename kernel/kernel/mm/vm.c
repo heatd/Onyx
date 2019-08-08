@@ -2581,3 +2581,23 @@ out:
 	spin_unlock(&current->address_space.vm_spl);
 	return ret;
 }
+
+struct page *vm_commit_page(void *page)
+{
+	struct vm_region *reg = vm_find_region(page);
+	if(!reg)
+		return NULL;
+	
+	if(!reg->vmo)
+		return NULL;
+
+	struct vm_object *vmo = reg->vmo;
+
+	unsigned long off = reg->offset + ((unsigned long) page - reg->base);
+	struct page *p = vmo_get(vmo, off, true);
+	if(!p)
+		return NULL;
+	if(!map_pages_to_vaddr(page, p->paddr, PAGE_SIZE, reg->rwx))
+		return NULL;
+	return p;
+}

@@ -42,23 +42,39 @@ static bool try_to_merge(uintptr_t buf, size_t size, size_t max_size,
 	return false;
 }
 
+
+uintptr_t dma_commit_page(uintptr_t virtual_buf, size_t size)
+{
+	uintptr_t page = virtual_buf & ~(PAGE_SIZE - 1);
+	struct page *p = vm_commit_page((void *) page);
+
+	if(!p)
+		return -1;
+	
+	return (uintptr_t) p->paddr + (virtual_buf & (PAGE_SIZE - 1));
+}
+
 int __dma_add_range(uintptr_t virtual_buf, size_t size, size_t max_size,
 	struct phys_ranges *ranges)
 {
 	uintptr_t phys_buf = (uintptr_t) virtual2phys((void *) virtual_buf);
+	if(phys_buf == (uintptr_t) -1)
+	{
+		if((phys_buf = dma_commit_page(virtual_buf, size)) == (uintptr_t) -1)
+			return -1;
+	}
 
 	if(try_to_merge(phys_buf, size, max_size, ranges) == true)
 		return 0;
 
-	ranges->nr_ranges++;
-	size_t idx = ranges->nr_ranges - 1;
+	size_t idx = ranges->nr_ranges;
 
-	void *n = expand_array(ranges->ranges, ranges->nr_ranges *
+	void *n = expand_array(ranges->ranges, (ranges->nr_ranges + 1) *
 			       sizeof(struct phys_range *));
 
 	if(!n)
 		return -1;
-	
+
 	ranges->ranges = (struct phys_range **) n;
 
 	ranges->ranges[idx] = malloc(sizeof(struct phys_range));
@@ -68,6 +84,8 @@ int __dma_add_range(uintptr_t virtual_buf, size_t size, size_t max_size,
 
 	ranges->ranges[idx]->addr = phys_buf;
 	ranges->ranges[idx]->size = size;
+	ranges->nr_ranges++;
+
 
 	return 0;
 }
@@ -88,8 +106,7 @@ int dma_get_ranges(void *vbuf, size_t buf_size, size_t max_range,
 
 		if(__dma_add_range(buf, s, max_range, ranges) < 0)
 		{
-			if(ranges->ranges)
-				free(ranges->ranges);
+			dma_destroy_ranges(ranges);
 			return -1;
 		}
 

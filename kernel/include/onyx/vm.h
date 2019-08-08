@@ -234,7 +234,7 @@ struct kernel_limits
 };
 
 void get_kernel_limits(struct kernel_limits *l);
-
+struct page *vm_commit_page(void *page);
 
 #ifdef __cplusplus
 }

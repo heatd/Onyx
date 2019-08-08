@@ -170,7 +170,7 @@ void *__virtual2phys(PML *__pml, void *ptr)
 		uint64_t entry = pml->entries[indices[i - 1]];
 		
 		if(!(entry & X86_PAGING_PRESENT))
-			return NULL;
+			return (void *) -1;
 		
 		if(entry & X86_PAGING_HUGE)
 		{
