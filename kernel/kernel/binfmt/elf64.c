@@ -63,7 +63,8 @@ void *elf64_load_static(struct binfmt_args *args, Elf64_Ehdr *header)
 
 		if(phdrs[i].p_type == PT_LOAD)
 		{
-			uintptr_t aligned_address = phdrs[i].p_vaddr & 0xFFFFFFFFFFFFF000;
+			uintptr_t aligned_address = phdrs[i].p_vaddr & ~(PAGE_SIZE - 1);
+			size_t misalignment = phdrs[i].p_vaddr - aligned_address;
 			size_t total_size = phdrs[i].p_memsz + (phdrs[i].p_vaddr - aligned_address);
 			size_t pages = total_size / PAGE_SIZE;
 			if(total_size % PAGE_SIZE)
@@ -79,28 +80,20 @@ void *elf64_load_static(struct binfmt_args *args, Elf64_Ehdr *header)
 			int prot = (VM_USER) |
 				   ((phdrs[i].p_flags & PF_W) ? VM_WRITE : 0) |
 				   ((phdrs[i].p_flags & PF_X) ? 0 : VM_NOEXEC);
-			if(phdrs[i].p_memsz > phdrs[i].p_filesz)
+			if(!create_file_mapping((void *) aligned_address,
+				pages, VM_MMAP_PRIVATE | VM_MMAP_FIXED,
+				prot, fd, phdrs[i].p_offset - misalignment))
 			{
-				if(!map_user((void *) aligned_address, pages,
-					VM_TYPE_REGULAR, prot))
-				{
-					free(phdrs);
-					return errno = ENOMEM, NULL;
-				}
-				read_vfs(0, phdrs[i].p_offset, phdrs[i].p_filesz,
-					(void *) phdrs[i].p_vaddr, fd->vfs_node);
+				errno = ENOMEM;
+				return NULL;
 			}
-			else
-			{
-				int flags = VM_MMAP_PRIVATE | VM_MMAP_FIXED;
 
-				void *mem = create_file_mapping((void *) aligned_address,
-					pages, flags, prot, fd, phdrs[i].p_offset & -PAGE_SIZE);
-				if(!mem)
-				{
-					free(phdrs);
-					return errno = EINVAL, NULL;
-				}
+			if(phdrs[i].p_filesz != phdrs[i].p_memsz)
+			{
+				/* This program header has the .bss, zero it out */
+				uint8_t *bss_base = (uint8_t *) (phdrs[i].p_vaddr + phdrs[i].p_filesz);
+				size_t bss_size = phdrs[i].p_memsz - phdrs[i].p_filesz;
+				memset(bss_base, 0, bss_size);
 			}
 		}
 	}

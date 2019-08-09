@@ -1042,7 +1042,6 @@ void mutex_unlock(struct mutex *mutex)
 
 		thread_wake_up(t);
 		sched_enable_preempt();
-
 	}
 
 	spin_unlock_irqrestore(&mutex->llock);

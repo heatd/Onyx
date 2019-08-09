@@ -95,6 +95,7 @@ std::shared_ptr<Buffer> Display::create_buffer(unsigned int height, unsigned int
 {
 	auto buf = std::make_shared<Buffer>(height, width, weak_from_this());
 	buffer_list.push_back(buf);
+	return buf;
 }
 
 void Display::swap()

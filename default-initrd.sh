@@ -15,6 +15,7 @@ cp modules.load $DESTDIR/etc/modules.load
 cp hostname $DESTDIR/etc/hostname
 cp passwd $DESTDIR/etc/passwd
 cp fstab $DESTDIR/etc/fstab
+cp shadow $DESTDIR/etc/shadow
 
 cp $SYSTEM_ROOT/usr/bin/dash  $DESTDIR/usr/bin
 cp $SYSTEM_ROOT/sbin/init     $DESTDIR/sbin

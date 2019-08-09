@@ -37,7 +37,7 @@ Server::Server(std::shared_ptr<Display> display) : display(display),
 
 	struct sockaddr_un addr;
 	addr.sun_family = AF_UNIX;
-	strncpy(addr.sun_path, SERVER_SOCKET_PATH, sizeof(SERVER_SOCKET_PATH));
+	memcpy(addr.sun_path, SERVER_SOCKET_PATH, sizeof(SERVER_SOCKET_PATH));
 	
 	if(bind(socket_fd, (struct sockaddr *) &addr, sizeof(sa_family_t) + sizeof(SERVER_SOCKET_PATH)) < 0)
 	{
@@ -163,4 +163,6 @@ void Server::handle_events()
 	{
 		handle_message(&msg, (struct sockaddr *) &client_addr, len);
 	}
+
+	perror("recvfrom");
 }

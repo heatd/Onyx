@@ -38,3 +38,4 @@ utils/sleep/sleep
 dhcpcd/dhcpcd
 
 *.tar*
+gen_password_hash

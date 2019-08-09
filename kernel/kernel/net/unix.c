@@ -68,7 +68,11 @@ struct un_name *add_to_namespace(char *address, size_t namelen,
 	struct un_socket *bound_socket)
 {
 	if(un_find_name(address, namelen))
+	{
+		spin_unlock(&un_namespace_list_lock);
 		return errno = EADDRINUSE, NULL;
+	}
+
 	struct un_name *name = zalloc(sizeof(*name));
 	if(!name)
 		goto cleanup_and_die;
@@ -106,6 +110,7 @@ cleanup_and_die:
 	return NULL;
 }
 
+/* Note: Leaves un_namespace_list_lock locked */
 struct un_name *un_find_name(char *address, size_t namelen)
 {
 	spin_lock(&un_namespace_list_lock);
@@ -115,7 +120,9 @@ struct un_name *un_find_name(char *address, size_t namelen)
 		if(namelen != name->namelen)
 			continue;
 		if(!memcmp(name->address, address, namelen))
+		{
 			return name;
+		}
 	}
 
 	spin_unlock(&un_namespace_list_lock);
@@ -284,7 +291,6 @@ ssize_t un_do_sendto(const void *buf, size_t len, struct un_socket *dest, struct
 	struct unix_packet *packet = malloc(sizeof(*packet));
 	if(!packet)
 	{
-		spin_unlock(&dest->socket_lock);
 		return -ENOMEM;
 	}
 
@@ -292,7 +298,6 @@ ssize_t un_do_sendto(const void *buf, size_t len, struct un_socket *dest, struct
 	if(!packet->buffer)
 	{
 		free(packet);
-		spin_unlock(&dest->socket_lock);
 		return -ENOMEM;
 	}
 
@@ -300,6 +305,8 @@ ssize_t un_do_sendto(const void *buf, size_t len, struct un_socket *dest, struct
 	packet->size = len;
 	packet->next = NULL;
 	packet->source = socket->abstr_name;
+
+	spin_lock(&dest->socket_lock);
 
 	mutex_lock(&dest->packet_list_lock);
 	struct unix_packet **pp = &dest->packet_list;
@@ -340,6 +347,7 @@ ssize_t un_sendto(const void *buf, size_t len, int flags,
 	char *address;
 	size_t namelen;
 	bool is_abstract;
+	bool has_to_unref = false;
 
 	if(not_conn && !addr)
 	{
@@ -364,6 +372,9 @@ ssize_t un_sendto(const void *buf, size_t len, int flags,
 		}
 
 		dest = name->bound_socket;
+		socket_ref(&dest->socket);
+		has_to_unref = true;
+		spin_unlock(&un_namespace_list_lock);
 	}
 	
 	if(!dest)
@@ -372,18 +383,19 @@ ssize_t un_sendto(const void *buf, size_t len, int flags,
 		return -EDESTADDRREQ;
 	}
 
-	spin_lock(&dest->socket_lock);
-
 	if(dest->conn_reset)
 	{
-		spin_unlock(&socket->dest->socket_lock);
 		socket_unref(&socket->socket);
 		spin_unlock(&socket->socket_lock);
 		return -ECONNRESET;
 	}
 
+
 	ssize_t st = un_do_sendto(buf, len, dest, socket);
 	spin_unlock(&socket->socket_lock);
+
+	if(has_to_unref)
+		socket_unref(&dest->socket);
 
 	return st;
 }
@@ -463,7 +475,9 @@ ssize_t un_recvfrom(void *buf, size_t len, int flags, struct sockaddr *addr,
 	ssize_t st = un_do_recvfrom(socket, buf, len, flags, &kaddr, &kaddrlen);
 
 	if(st < 0)
+	{
 		return errno = -st, -1;
+	}
 
 	addrlen = min(addrlen, kaddrlen);
 

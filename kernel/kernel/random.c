@@ -30,11 +30,22 @@ void add_entropy(void *ent, size_t size)
 	current_entropy += size;
 }
 
+void entropy_refill(void)
+{
+	unsigned int *buf = (unsigned int*) entropy_buffer;
+	size_t nr_refills = max_entropy / sizeof(unsigned int);
+	for(size_t i = 0; i < nr_refills; i++)
+	{
+		*buf++ = get_posix_time() << 28 | get_microseconds() << 24 | (rdtsc() << 20 ^ rand());
+	}
+}
+
 void get_entropy(char *buf, size_t s)
 {
 	for(size_t i = 0; i < s; i++)
 	{
-		while(current_entropy == 0);
+		if(current_entropy == 0)
+			entropy_refill();
 		*buf++ = entropy_buffer[0];
 		current_entropy--;
 		memmove(entropy_buffer, &entropy_buffer[1], current_entropy);
@@ -59,16 +70,6 @@ void initialize_entropy(void)
 	{
 		int r = rand();
 		add_entropy(&r, sizeof(int));
-	}
-}
-
-void entropy_refill(void)
-{
-	unsigned int *buf = (unsigned int*) entropy_buffer;
-	size_t nr_refills = max_entropy / sizeof(unsigned int);
-	for(size_t i = 0; i < nr_refills; i++)
-	{
-		*buf++ = get_posix_time() << 28 | get_microseconds() << 24 | rdtsc() << 20 | rand();
 	}
 }
 
