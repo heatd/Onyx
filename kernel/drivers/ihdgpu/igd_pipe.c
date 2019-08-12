@@ -7,6 +7,8 @@
 #include <errno.h>
 #include <stdlib.h>
 
+#include <onyx/framebuffer.h>
+
 #include "intel_regs.h"
 #include "igpu_drv.h"
 
@@ -63,8 +65,23 @@ void igd_update_pipe_mode(struct igd_pipe *pipe, struct igpu_device *dev)
 
 	igd_print_pipe_mode(mode);
 
+	
 	uint32_t srcsz = igpu_mmio_read(dev, pipe->srcsz_reg);
 
+	/*srcsz = 1365 << PIPE_SRCSZ_HORIZ_SHIFT | 767;
+	igpu_mmio_write(dev, pipe->srcsz_reg, srcsz);
+	uint16_t stride = 1366 * 32/8;
+	if(stride & (64 - 1))
+	{
+		stride = (stride & ~(64 - 1)) + 64;
+	}
+
+	igpu_mmio_write(dev, pipe->plane->pri_stride_reg, stride);
+	igpu_mmio_write(dev, 0x00068080, 0);
+	igpu_mmio_write(dev, 0x68074, 0);
+	igpu_mmio_write(dev, 0x68070, 0); */
+	printk("PIPE_CONF: %x\n", igpu_mmio_read(dev, 0x7f008));
 	printk("VERT: %u\nHORIZONTAL: %u\n", srcsz & PIPE_SRCSZ_VERT_MASK,
 					    srcsz >> PIPE_SRCSZ_HORIZ_SHIFT);
 }
+ 

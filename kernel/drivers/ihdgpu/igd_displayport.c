@@ -11,12 +11,20 @@
 #include "igpu_drv.h"
 
 #include <onyx/i2c.h>
+#include <onyx/timer.h>
 
 int ddaux_do_transfers(struct i2c_adapter *adapter,
 				     struct i2c_message *messages, size_t nr);
 
 #define LITTLE_TO_BIG32(n) ((n >> 24) & 0xFF) | ((n << 8) & 0xFF0000) | \
 			   ((n >> 8) & 0xFF00) | ((n << 24) & 0xFF000000)
+
+
+#define DDI_AUX_REPLY_AUX_ACK 0
+#define DDI_AUX_REPLY_AUX_NACK 1
+#define DDI_AUX_REPLY_AUX_DEFER 2
+#define DDI_AUX_REPLY_I2C_NACK 4
+#define DDI_AUX_REPLY_I2C_DEFER 8
 
 int ddaux_do_transfer(struct i2c_adapter *adapter,
 				     struct i2c_message *message)
@@ -25,17 +33,17 @@ int ddaux_do_transfer(struct i2c_adapter *adapter,
 
 	uint8_t data[20];
 	uint8_t cmd;
-	uint16_t size = 4;
+	uint8_t size = 4;
 
 	if(message->write)
 		cmd = DP_AUX_I2C_WRITE;
 	else
 		cmd = DP_AUX_I2C_READ;
 
-	data[0] = (uint8_t) ((cmd << 4));
+	data[0] = (uint8_t) ((cmd << 4) | ((message->addr >> 16) & 0xf));
 	data[1] = (uint8_t) ((message->addr >> 8));
 	data[2] = (uint8_t) ((message->addr)); 
-	data[3] = (message->length - 1);
+	data[3] = (size - 1);
 
 	if(message->write)
 	{
@@ -45,7 +53,7 @@ int ddaux_do_transfer(struct i2c_adapter *adapter,
 
 	for(unsigned int i = 0; i < size; i += 4)
 	{
-		uint32_t *ptr = (uint32_t *) &data[i];
+		uint32_t *ptr = (uint32_t *) (&data[i]);
 		igpu_mmio_write(port->device, port->data_base_reg + i,
 				LITTLE_TO_BIG32(*ptr));
 	}
@@ -60,12 +68,13 @@ int ddaux_do_transfer(struct i2c_adapter *adapter,
 	ddaux_ctl |= DDI_AUX_CTL_SEND_BUSY;
 	ddaux_ctl |= DDI_AUX_CTL_IRQ_ON_DONE; /* 1 means disabled */
 	ddaux_ctl |= 225;
+	ddaux_ctl |= (0x3 << 16);		/* Default precharge time and bit clock divider */
 
 	printk("Writing ddaux %x\n", ddaux_ctl);
 
 	igpu_mmio_write(port->device, port->ctl_reg, ddaux_ctl);
 
-	for(int i = 0; i < 1000; i++)
+	for(int i = 0; i < 10000; i++)
 	{
 		ddaux_ctl = igpu_mmio_read(port->device, port->ctl_reg);
 
@@ -90,7 +99,7 @@ int ddaux_do_transfer(struct i2c_adapter *adapter,
 			break;
 		}
 
-		sched_sleep(1);	
+		udelay(1);
 	}
 
 	printk("DDAUX status: %x\n", igpu_mmio_read(port->device, port->ctl_reg));
@@ -99,19 +108,21 @@ int ddaux_do_transfer(struct i2c_adapter *adapter,
 	msg_size &= 0x1f;
 
 	printk("msg_size: %u\n", msg_size);
-
+	printk("%x\n", igpu_mmio_read(port->device, port->ctl_reg)); 
 	for(unsigned int i = 0; i < msg_size; i += 4)
 	{
 		uint32_t *ptr = (uint32_t *) &data[i];
-
 		*ptr = LITTLE_TO_BIG32(igpu_mmio_read(port->device,
 				       port->data_base_reg + i));
+		printk("data[%u]: %x\n", i, *ptr);
 	}
 
-	uint8_t *ptr = data + 4;
-	(void) ptr;
+	uint8_t st = data[0] >> 4;
 
-	return 0;
+	int ret = 0;
+	if(st == DDI_AUX_REPLY_AUX_DEFER)
+		ret = -EAGAIN;
+	return ret;
 }
 
 int ddaux_do_transfers(struct i2c_adapter *adapter,
@@ -119,10 +130,17 @@ int ddaux_do_transfers(struct i2c_adapter *adapter,
 {
 	while(nr--)
 	{
-		int st = ddaux_do_transfer(adapter, messages);
+		int st = 0;
+		
+		for(int i = 0; i < 80; i++)
+		{do
+		{
+			st = ddaux_do_transfer(adapter, messages);
+		} while(st < 0 && st == -EAGAIN);
 
 		if(st < 0)
 			return st;
+		}
 
 		messages++;
 	}
@@ -155,7 +173,7 @@ int igd_init_displayport(struct igpu_device *dev)
 		dev->dports[i]->index = i;
 		dev->dports[i]->device = dev;
 
-		/* Allocate a buffer with size for DDIX\0 */
+		/* Allocate a buffer (size for DDIX + '\0' = 5) */
 		char *buf = malloc(5);
 		if(!buf)
 		{
@@ -174,10 +192,10 @@ int igd_init_displayport(struct igpu_device *dev)
 		struct i2c_message message;
 		message.addr = 0x50;
 		message.buffer = (uint8_t *) &edid;
-		message.length = sizeof(struct i2c_message);
+		message.length = sizeof(edid);
 		message.transfered = 0;
 		message.write = false;
-	
+
 		i2c_transaction(&dev->dports[i]->ddaux, &message, 1);
 	}
 

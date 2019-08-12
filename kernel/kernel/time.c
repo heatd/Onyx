@@ -146,3 +146,16 @@ struct clock_time *get_raw_clock_time(clockid_t clkid)
 {
 	return &clocks[clkid];
 }
+
+void ndelay(unsigned int ns)
+{
+	struct clocksource *c = get_main_clock();
+	uint64_t start = c->get_ticks();
+
+	while(c->elapsed_ns(start, c->get_ticks()) < ns);
+}
+
+void udelay(unsigned int us)
+{
+	ndelay(us * 1000);
+}

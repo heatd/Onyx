@@ -60,7 +60,6 @@ int igd_enable_power_well2_skylake(struct igpu_device *dev)
 
 	if(igd_get_arch(dev) == INTEL_ARCH_SKYLAKE)
 	{
-		printk("Working til here, fuse status %x\n", igpu_mmio_read(dev, FUSE_STATUS));
 		if(igpu_wait_bit(dev, FUSE_STATUS, FUSE_STATUS_PG2_DISTRIB_STATUS, 1, false) < 0)
 			return -ETIMEDOUT;
 	}

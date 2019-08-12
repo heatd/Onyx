@@ -35,7 +35,6 @@ int igd_get_opregion(struct igpu_device *dev)
 
 	dev->opregion = (volatile struct igd_opregion *) opregion_map;
 
-	printk("OpRegion: %p\nOpregion Phys: %lx\n", dev->opregion, opregion);
 	return 0;
 }
 

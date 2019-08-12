@@ -15,7 +15,7 @@
 
 struct i2c_message
 {
-	uint16_t addr;
+	uint32_t addr;
 	bool write;
 	uint8_t *buffer;
 	uint32_t length;

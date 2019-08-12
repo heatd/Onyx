@@ -112,6 +112,7 @@ int igpu_read_edid(struct igpu_device *dev)
 
 int ihdgpu_probe(struct device *dev)
 {
+	/* TODO: Replace free(d) with actual device destruction */
 	struct pci_device *device = (struct pci_device *) dev;
 	MPRINTF("Found suitable Intel HD Graphics GPU at %04x:%02x:%02x:%02x\n"
 		"ID %04x:%04x\n", device->segment, device->bus, device->device,
@@ -193,6 +194,13 @@ int ihdgpu_probe(struct device *dev)
 	if(igd_init_transcoders(d) < 0)
 	{
 		printk("igd: igd_init_transcoders failed\n");
+		free(d);
+		return -1;
+	}
+
+	if(igd_init_primary_planes(d) < 0)
+	{
+		printk("igd: igd_init_primary_planes failed\n");
 		free(d);
 		return -1;
 	}

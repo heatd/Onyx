@@ -180,7 +180,6 @@ int igpu_i2c_init(struct igpu_device *dev)
 	memset(&dev->i2c_adapter.mtx, 0, sizeof(struct mutex));
 	dev->i2c_adapter.name = "igpu-i2c";
 	dev->i2c_adapter.do_batch_transfer = igpu_transaction;
-
 	return 0;
 	
 }

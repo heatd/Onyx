@@ -175,7 +175,7 @@
 
 #define PIPE_SRCSZ				0x6001C
 /* Values to help determine specific pipe regs (add pipe_idx * offset
- * to the above register values
+ * to the above register values).
 */
 #define PIPE_OFFSET_PER_PIPE			0x01000
 /* PIPE_EDP has completely separate registers */
@@ -196,5 +196,36 @@
 #define PIPE_VSYNC_END_SHIFT			16
 #define PIPE_SRCSZ_VERT_MASK			(0xfff)
 #define PIPE_SRCSZ_HORIZ_SHIFT			16
+
+#define PRI_CTL_BASE				0x70180
+#define PRI_OFF_PER_PLANE			0x01000
+
+#define PRI_CTL_PRIMARY_PLANE_ENABLE		(1U << 31)
+#define PRI_CTL_GAMMA_ENABLE			(1 << 30)
+#define PRI_CTL_SOURCE_PIXEL_FORMAT(x)		((x & 0xf) << 26)
+#define SOURCE_PIXEL_FORMAT_8BIT_INDEXED		0x2
+#define SOURCE_PIXEL_FORMAT_16BIT_BGRX			0x5
+#define SOURCE_PIXEL_FORMAT_32BIT_BGRX			0x6
+#define SOURCE_PIXEL_FORMAT_32BIT_RGBX_10_10_10		0x8
+#define SOURCE_PIXEL_FORMAT_32BIT_XR_BIAS_RGBX		0xa
+#define SOURCE_PIXEL_FORMAT_64BIT_RGBX_FP		0xc
+#define SOURCE_PIXEL_FORMAT_32BIT_RGBX_8_8_8		0xd
+#define PRI_CTL_CSC_ENABLE			(1 << 24)
+#define PRI_CTL_180_DISPLAY_ROTATION		(1 << 15)
+/* The manual says to not program this(TRICKLE_FEED_DISABLE) to 1b */
+#define PRI_CTL_TRICKLE_FEED_DISABLE		(1 << 14)
+#define PRI_CTL_TILED_SURFACE			(1 << 10)
+#define PRI_CTL_ASYNC_ADDR_UPDATE_ENABLE	(1 << 9)
+
+#define PRI_STRIDE_BASE				0x70188
+
+#define PRI_SURF_BASE				0x7019C
+
+#define PRI_SURF_RING_FLIP_SRC_BCS		(1 << 3)
+
+#define PRI_OFFSET_BASE				0x701A4
+
+#define PRI_OFFSET_START_Y(y)			(y << 16)
+#define PRI_OFFSET_START_X(x)			(x << 0)
 
 #endif

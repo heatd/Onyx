@@ -11,8 +11,14 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 uint64_t get_tick_count();
 uint64_t get_microseconds();
+
+
+void udelay(unsigned int us);
+void ndelay(unsigned int ns);
+
 #ifdef __cplusplus
 }
 #endif

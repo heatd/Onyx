@@ -85,7 +85,7 @@ enum TRANSCODER_NAME
  * to TRANS_*_A/B/C/EDP. Because of this, we should technically keep the
  * register addresses in igd_transcoder for Gen > HSW and igd_pipe for <= HSW.
  * But since that would be complicated and completely stupid to do, we'll just
- * keep them inigd_transcoder and pretend they're part of the transcoder,
+ * keep them igd_transcoder and pretend they're part of the transcoder,
  * since the reg layout is the same. Because of this, keep in mind that how
  * things are layed out in the driver structures doesn't completely represent
  * how things are layed out on hardware.
@@ -102,18 +102,36 @@ struct igd_transcoder
 	uint32_t hblank_reg;
 };
 
+enum PRI_PLANE_NAME
+{
+	PLANE_A = 0,
+	PLANE_B = 1,
+	PLANE_C = 2
+};
+
+struct igd_primary_plane
+{
+	enum PRI_PLANE_NAME name;
+	uint32_t pri_ctl_reg;
+	uint32_t pri_stride_reg;
+	uint32_t pri_surf_reg;
+	uint32_t pri_offset_reg;
+};
+
 struct igd_pipe
 {
 	enum PIPE_NAME name;
 	struct video_timings current_mode;
 	struct igd_transcoder *transcoder;
 	uint32_t srcsz_reg;
+	struct igd_primary_plane *plane;
 };
 
 #define IGPU_NR_GMBUS		6
 #define NR_DISPLAY_PORTS	4
 #define NR_TRANSCODERS		4
 #define NR_PIPES		4
+#define NR_PRI_PLANES		3
 
 struct igd_opregion;
 struct vbt_header;
@@ -137,6 +155,7 @@ struct igpu_device
 	struct bdb_lvds_lfp_data_entry *lfp_data;
 	struct igd_pipe *pipes[NR_PIPES];
 	struct igd_transcoder *transcoders[NR_TRANSCODERS];
+	struct igd_primary_plane *planes[NR_PRI_PLANES];
 };
 
 struct igd_displayport
@@ -169,6 +188,7 @@ int igd_enable_power(struct igpu_device *dev);
 
 int igd_init_pipes(struct igpu_device *device);
 int igd_init_transcoders(struct igpu_device *device);
+int igd_init_primary_planes(struct igpu_device *device);
 
 #include "igd_pipe.h"
 
