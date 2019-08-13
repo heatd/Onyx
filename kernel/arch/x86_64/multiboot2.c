@@ -151,6 +151,26 @@ void *multiboot2_alloc_boot_page_low(size_t nr_pages)
 	return NULL;
 }
 
+bool page_is_used(void *__page, struct bootmodule *modules);
+
+struct bootmodule initrd;
+
+bool range_is_used(unsigned long addr, size_t nr_pages)
+{
+	unsigned long l = addr;
+	for(size_t j = 0; j < nr_pages; j++)
+	{
+		if(page_is_used((void *) (l), &initrd))
+		{
+			return true;
+		}
+
+		l += PAGE_SIZE;
+	}
+
+	return false;
+}
+
 void *multiboot2_alloc_boot_page_high(size_t nr_pages)
 {
 	size_t entries = mmap_tag->size / mmap_tag->entry_size;
@@ -161,7 +181,7 @@ void *multiboot2_alloc_boot_page_high(size_t nr_pages)
 	{
 		if(mmap->type != MULTIBOOT_MEMORY_AVAILABLE)
 			continue;
-		if(mmap->len >> PAGE_SHIFT >= nr_pages)
+		if(mmap->len >> PAGE_SHIFT >= nr_pages && !range_is_used(mmap->addr, nr_pages))
 		{
 			uintptr_t ret = mmap->addr;
 			mmap->addr += nr_pages << PAGE_SHIFT;
@@ -221,8 +241,6 @@ void low_mem_allocator_clear(uintptr_t page)
 
 	dma_mem_bitmap[i_idx] &= ~(1UL << bit_index);
 }
-
-bool page_is_used(void *__page, struct bootmodule *modules);
 
 void start_low_mem_allocator(struct bootmodule *initrd_module)
 {
@@ -356,12 +374,11 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 
 	elf_sections_reserve(secs);
 
-	struct bootmodule module;
-	module.base = initrd_tag->mod_start;
-	module.size = initrd_tag->mod_end - initrd_tag->mod_start;
-	module.next = NULL;
+	initrd.base = initrd_tag->mod_start;
+	initrd.size = initrd_tag->mod_end - initrd_tag->mod_start;
+	initrd.next = NULL;
 
-	start_low_mem_allocator(&module);
+	start_low_mem_allocator(&initrd);
 	set_alloc_boot_page(multiboot2_alloc_boot_page);
 
 	/* Identify the CPU it's running on (bootstrap CPU) */
@@ -370,7 +387,7 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 
 	set_initrd_address((void*) (uintptr_t) initrd_tag->mod_start);
 
-	page_init(total_mem, multiboot2_get_phys_mem_region, &module);
+	page_init(total_mem, multiboot2_get_phys_mem_region, &initrd);
 
 	/* We need to get some early boot rtc data and initialize the entropy,
 	 * as it's vital to initialize some entropy sources for the memory map

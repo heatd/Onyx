@@ -11,7 +11,7 @@ hdr_start:
         .long 0
         .long hdr_end - hdr_start
         .long 0x100000000 - (0xe85250d6 + 0 + (hdr_end - hdr_start))
-        .align 8 #All tags need to be 8 byte aligned
+        .align 8 # All tags need to be 8 byte aligned
         # Framebuffer tag
         .word 5
         .word 0
@@ -55,10 +55,10 @@ _start.Lhang:
 .text
 .global initsse
 initsse: 
-        movq $0x1,%rax
+        movq $0x1, %rax
         cpuid
         testl $1<<25, %edx
-        jz initsse.noSSE
+        jz initsse.no_sse
         movq %cr0, %rax
         andw $0xFFFB, %ax
         orw $0x2, %ax
@@ -73,16 +73,21 @@ initsse:
         ldmxcsr (%rsp)
         addq $8, %rsp
         ret
-initsse.noSSE: 
-        hlt
+initsse.no_sse: 
+        ud2
 
 .section .boot
+protectedmode_stack:
+        .skip 32
+protectedmode_stack_top:
+
 .code32
 .global entry_point
 entry_point: 
         cli
         # Clear the direction flag since its state is unspecified by the multiboot spec
         cld
+        mov $protectedmode_stack_top, %esp
         pushl %eax
         pushl %ebx
         movl $gdtr1, %eax
@@ -96,7 +101,6 @@ entry_point:
         movl $0x10,%eax
         movw %ax,%ds
         movw %ax,%ss
-
         call setup_paging_and_longm
 
         movl $gdtr2, %eax
@@ -113,7 +117,6 @@ entry_point:
         movw %ax,%es
         movw %ax,%ss
 
-        # If you later decide to unmap the lower zone, you will have an invalid GDT if you're still using gdtr2
         movq $gdtr3, %rax
         lgdt (%rax)
         popq %rbx
@@ -152,8 +155,15 @@ setup_paging_and_longm:
         movl $0x400083, pd + 16
         orl $1 << 8, pd + 16
 
-        movl $0x000083, pdlower
-        orl  $1 << 8, pdlower
+        /*movl $0x1000083, pd + 64
+        orl $1 << 8, pd + 64
+        movl $0x1200083, pd + 72
+        orl $1 << 8, pd + 72
+        movl $0x1400083, pd + 80
+        orl $1 << 8, pd + 80*/
+
+        movl $0x000083, pdlower + 0
+        orl $1 << 8, pdlower + 0
         movl $0x200083, pdlower + 8
         orl $1 << 8, pdlower + 8
 
