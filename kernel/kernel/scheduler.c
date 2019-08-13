@@ -34,18 +34,13 @@
 
 static thread_t **idle_threads;
 
-/* TODO: Having a wait queue sounds like a bad idea */
-static struct spinlock wait_queue_lock;
-static thread_t *wait_queue;
 static bool is_initialized = false;
 
 void sched_append_to_queue(int priority, struct processor *p, 
 				thread_t *thread);
-static void append_to_wait_queue(thread_t *thread);
 void sched_block(struct thread *thread);
 void __sched_append_to_queue(int priority, struct processor *p, 
 				thread_t *thread);
-static void __append_to_wait_queue(thread_t *thread);
 
 void sched_lock(struct thread *thread)
 {
@@ -56,7 +51,6 @@ void sched_lock(struct thread *thread)
 	/* 3rd - Lock the thread */
 	
 	struct processor *cpu = get_processor_data_for_cpu(thread->cpu);
-	spin_lock_irqsave(&wait_queue_lock);
 
 	spin_lock_irqsave(&cpu->scheduler_lock);
 	spin_lock_irqsave(&thread->lock);
@@ -70,7 +64,6 @@ void sched_unlock(struct thread *thread)
 
 	spin_unlock_irqrestore(&thread->lock);
 	spin_unlock_irqrestore(&cpu->scheduler_lock);
-	spin_unlock_irqrestore(&wait_queue_lock);
 }
 
 thread_t *__sched_find_next(struct processor *p)
@@ -81,18 +74,13 @@ thread_t *__sched_find_next(struct processor *p)
 		assert(spin_lock_held(&current_thread->lock) == false);
 
 	/* Note: These locks are unlocked in sched_load_thread, after loading the thread */
-	spin_lock_irqsave(&wait_queue_lock);
 	spin_lock_irqsave(&p->scheduler_lock);
 
 	if(current_thread)
 	{
 		spin_lock_irqsave(&current_thread->lock);
 
-		if(current_thread->status == THREAD_BLOCKED)
-		{
-			__append_to_wait_queue(current_thread);
-		}
-		else if(current_thread->status == THREAD_RUNNABLE)
+		if(current_thread->status == THREAD_RUNNABLE)
 		{
 			/* Re-append the last thread to the queue */
 			__sched_append_to_queue(current_thread->priority,
@@ -177,7 +165,6 @@ void sched_load_thread(struct thread *thread, struct processor *p)
 	p->sched_quantum = SCHED_QUANTUM;
 
 	spin_unlock_irqrestore(&p->scheduler_lock);
-	spin_unlock_irqrestore(&wait_queue_lock);
 }
 
 void *sched_switch_thread(void *last_stack)
@@ -190,7 +177,6 @@ void *sched_switch_thread(void *last_stack)
 		return last_stack;
 	}
 
-	sched_wake_up_available_threads();
 	thread_t *current_thread = p->current_thread;
 
 	if(likely(current_thread))
@@ -344,12 +330,23 @@ void sched_yield(void)
 	__asm__ __volatile__("int $0x81");
 }
 
+void sched_sleep_unblock(void *ctx)
+{
+	struct thread *t = ctx;
+	thread_wake_up(t);
+}
+
 void sched_sleep(unsigned long ms)
 {
 	thread_t *current = get_current_thread();
-	current->timestamp = get_tick_count();
-	current->sleeping_for = ms;
-	
+
+	struct timer_event ev;
+	ev.callback = sched_sleep_unblock;
+	ev.context = current;
+	ev.can_run_in_irq = true;
+	ev.future_timestamp = timer_in_future(ms);
+	assert(add_timer_event(&ev) != false);
+
 	sched_block(current);
 }
 
@@ -392,11 +389,9 @@ int sched_remove_thread_from_execution(thread_t *thread)
 	return st;
 }
 
-static void remove_from_wait_queue(thread_t *thread);
 void sched_remove_thread(thread_t *thread)
 {
-	if(sched_remove_thread_from_execution(thread) < 0)
-		remove_from_wait_queue(thread);
+	sched_remove_thread_from_execution(thread);
 	thread_set_state(thread, THREAD_DEAD);
 }
 
@@ -460,70 +455,6 @@ void sched_die()
 	worker_schedule(&req, WORKER_PRIO_NORMAL);
 }
 
-static void __append_to_wait_queue(thread_t *thread)
-{
-	if(!wait_queue)
-	{
-		wait_queue = thread;
-		thread->prev_wait = NULL;
-		thread->next_wait = NULL;
-	}
-	else
-	{
-		thread_t *t = wait_queue;
-		while(t->next_wait)
-		{
-			assert(t != thread);
-			t = t->next_wait;
-		}
-			
-		t->next_wait = thread;
-		thread->prev_wait = t;
-		thread->next_wait = NULL;
-	}
-}
-
-static void append_to_wait_queue(thread_t *thread)
-{
-	spin_lock_irqsave(&wait_queue_lock);
-
-	__append_to_wait_queue(thread);
-	spin_unlock_irqrestore(&wait_queue_lock);
-}
-
-static void __remove_from_wait_queue(thread_t *thread)
-{
-	assert(thread != NULL);
-
-	if(wait_queue == thread)
-	{
-		wait_queue = wait_queue->next_wait;
-		if(wait_queue) wait_queue->prev_wait = NULL;
-		thread->prev_wait = thread->next_wait = NULL;
-	}
-	else
-	{
-		for(thread_t *t = wait_queue; t != NULL && t->next_wait != NULL; t = t->next_wait)
-		{
-			if(t->next_wait == thread)
-			{
-				t->next_wait = thread->next_wait;
-				if(t->next_wait) t->next_wait->prev_wait = t;
-				thread->prev_wait = thread->next_wait = NULL;
-			}
-		}
-	}
-}
-
-static void remove_from_wait_queue(thread_t *thread)
-{
-	spin_lock_irqsave(&wait_queue_lock);
-
-	__remove_from_wait_queue(thread);
-	
-	spin_unlock_irqrestore(&wait_queue_lock);
-}
-
 void sched_try_to_resched(struct thread *thread)
 {
 	struct thread *current = get_current_thread();
@@ -583,7 +514,6 @@ void thread_set_state(thread_t *thread, int state)
 		assert(is_self == false);
 
 		sched_remove_thread_from_execution(thread);
-		append_to_wait_queue(thread);
 
 		thread->status = state;
 
@@ -597,7 +527,6 @@ void thread_set_state(thread_t *thread, int state)
 		/* This may break? */
 		sched_disable_preempt_for_cpu(p);
 
-		remove_from_wait_queue(thread);
 		thread->status = state;
 
 		if(p->current_thread == thread)
@@ -623,7 +552,6 @@ void thread_set_state(thread_t *thread, int state)
 
 void __thread_wake_up(struct thread *thread, struct processor *cpu)
 {
-	MUST_HOLD_LOCK(&wait_queue_lock);
 	MUST_HOLD_LOCK(&thread->lock);
 	MUST_HOLD_LOCK(&cpu->scheduler_lock);
 
@@ -641,7 +569,6 @@ void __thread_wake_up(struct thread *thread, struct processor *cpu)
 		return;
 
 	thread->status = THREAD_RUNNABLE;
-	__remove_from_wait_queue(thread);
 	__sched_append_to_queue(thread->priority, cpu, thread);
 }
 
@@ -669,7 +596,6 @@ void sched_block_self(struct thread *thread)
 
 	spin_unlock_irqrestore(&thread->lock);
 	spin_unlock_irqrestore(&cpu->scheduler_lock);
-	spin_unlock_irqrestore(&wait_queue_lock);
 
 	sched_yield();
 }
@@ -690,12 +616,10 @@ void sched_block_other(struct thread *thread)
 	else
 	{
 		__sched_remove_thread_from_execution(thread, cpu);
-		__append_to_wait_queue(thread);
 	}
 
 	spin_unlock_irqrestore(&thread->lock);
 	spin_unlock_irqrestore(&cpu->scheduler_lock);
-	spin_unlock_irqrestore(&wait_queue_lock);
 }
 
 /* Note: __sched_block returns with everything unlocked */
@@ -743,48 +667,6 @@ void sched_start_thread(thread_t *thread)
 {
 	assert(thread != NULL);
 	thread_add(thread);
-}
-
-void sched_wake_up_available_threads(void)
-{
-	/* Multiple cpus processing this list is a waste of time.
-	 * Also, timer interrupts are more than likely to happen at the same time,
-	 * as they're all configured for the same rate.
-	*/
-	if(try_and_spin_lock(&wait_queue_lock) == 1)
-		return;
-	for(thread_t *thread = wait_queue; thread; thread = thread->next_wait)
-	{
-		if(thread->timestamp + thread->sleeping_for <= get_tick_count() && 
-			thread->sleeping_for != 0)
-		{
-			/* Remove it from the queue */
-			if(thread->prev_wait)
-			{
-				thread->prev_wait->next_wait = thread->next_wait;
-				if(thread->next_wait)
-				{
-					thread->next_wait->prev_wait = thread->prev_wait;
-				}
-			}
-			else
-			{
-				wait_queue = thread->next_wait;
-				if(wait_queue) wait_queue->prev_wait = NULL;
-			}
-
-			thread->timestamp = 0;
-			thread->sleeping_for = 0;
-			thread->prev_wait = NULL;
-			thread->status = THREAD_RUNNABLE;
-
-			struct processor *p = get_processor_data_for_cpu(thread->cpu);
-			assert(p != NULL);
-			sched_append_to_queue(thread->priority, p,
-					      thread);
-		}
-	}
-	spin_unlock(&wait_queue_lock);
 }
 
 #define enqueue_thread_generic(primitive_name, primitive_struct) 			\

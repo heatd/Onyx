@@ -41,8 +41,6 @@ typedef struct thread
 	struct thread *next;
 	struct thread *prev_prio, *next_prio;
 	struct thread *prev_wait, *next_wait;
-	uint64_t timestamp;
-	unsigned long sleeping_for;
 	unsigned char *fpu_area;
 	bool woken_up_by_futex;
 	struct thread *sem_prev;

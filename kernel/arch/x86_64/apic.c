@@ -23,6 +23,7 @@
 #include <onyx/clock.h>
 #include <onyx/vm.h>
 #include <onyx/clock.h>
+#include <onyx/timer.h>
 
 volatile uint32_t *bsp_lapic = NULL;
 volatile uint64_t ap_done = 0;
@@ -284,6 +285,7 @@ irqstatus_t apic_timer_irq(struct irq_context *ctx, void *cookie)
 	}
 
 	process_increment_stats(is_kernel_ip(ctx->registers->rip));
+	timer_handle_pending_events();
 
 	if(cpu->sched_quantum == 0)
 	{
