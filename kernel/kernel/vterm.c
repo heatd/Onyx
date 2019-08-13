@@ -959,8 +959,9 @@ void vterm_init(struct tty *tty)
 	vt->columns = fb->width / font->width;
 	vt->rows = fb->height / font->height;
 	vt->fb = fb;
-	vt->cells = zalloc(vt->columns * vt->rows
-		* sizeof(*vt->cells));
+	vt->cells = vmalloc(vm_align_size_to_pages(vt->columns * vt->rows
+		* sizeof(*vt->cells)), VM_TYPE_REGULAR, VM_WRITE | VM_NOEXEC);
+	assert(vt->cells != NULL);
 
 	vt->fg = default_fg;
 	vt->bg = default_bg;
