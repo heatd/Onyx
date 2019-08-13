@@ -9,6 +9,10 @@
 #include <onyx/mutex.h>
 #include <onyx/scheduler.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct cond
 {
 	struct spinlock llock;
@@ -19,5 +23,9 @@ struct cond
 void condvar_wait(struct cond *c, struct mutex *mutex);
 void condvar_signal(struct cond *c);
 void condvar_broadcast(struct cond *c);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

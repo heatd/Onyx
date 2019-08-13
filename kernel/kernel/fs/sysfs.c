@@ -48,6 +48,7 @@ struct inode *sysfs_create_inode_for_file(struct sysfs_file *f)
 	
 	return ino;
 }
+
 struct sysfs_file *sysfs_create_file(char *name)
 {
 	struct sysfs_file *file = malloc(sizeof(struct sysfs_file));

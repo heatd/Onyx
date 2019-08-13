@@ -17,7 +17,8 @@ extern int __true_errno;
 
 static int *__get_errno(void)
 {
-	return GET_PER_CPU_ADDR(__true_errno);
+	/* The cast is needed to support C++ programs */
+	return (int *) GET_PER_CPU_ADDR(__true_errno);
 }
 
 #define errno *__get_errno()

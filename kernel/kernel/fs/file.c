@@ -229,8 +229,8 @@ int sys_open(const char *ufilename, int flags, mode_t mode)
 int fd_unref(file_desc_t *fd)
 {
 	/* If there's nobody referencing this file descriptor, close the vfs node and free memory */
-	fd->refcount--;
-	if(fd->refcount == 0)
+
+	if(--fd->refcount == 0)
 	{
 		close_vfs(fd->vfs_node);
 		free(fd);
@@ -586,7 +586,7 @@ int sys_pipe(int upipefd[2])
 	if(wrfd < 0)
 		return errno = -EMFILE;
 	/* and allocate each of them */
-	ioctx->file_desc[wrfd] = malloc(sizeof(file_desc_t));
+	ioctx->file_desc[wrfd] = zalloc(sizeof(file_desc_t));
 	if(!ioctx->file_desc[wrfd])
 		return errno = -ENOMEM;
 
@@ -594,20 +594,19 @@ int sys_pipe(int upipefd[2])
 	
 	if(rdfd < 0)
 		return errno = -EMFILE;
-	ioctx->file_desc[rdfd] = malloc(sizeof(file_desc_t));
+	ioctx->file_desc[rdfd] = zalloc(sizeof(file_desc_t));
 	if(!ioctx->file_desc[rdfd])
 	{
 		free(ioctx->file_desc[wrfd]);
 		ioctx->file_desc[wrfd] = NULL;
 		return errno = -ENOMEM;
 	}
-	
-	memset(ioctx->file_desc[rdfd], 0, sizeof(file_desc_t));
-	memset(ioctx->file_desc[wrfd], 0, sizeof(file_desc_t));
-	/* Create the pipe */
 
-	ioctx->file_desc[wrfd]->vfs_node = pipe_create();
-	if(!ioctx->file_desc[wrfd]->vfs_node)
+	/* Create the pipe */
+	struct inode *read_end, *write_end;
+
+	/* TODO: Free the file descriptor number on failure */
+	if(pipe_create(&read_end, &write_end) < 0)
 	{
 		free(ioctx->file_desc[wrfd]);
 		ioctx->file_desc[wrfd] = NULL;
@@ -616,8 +615,10 @@ int sys_pipe(int upipefd[2])
 
 		return errno = -ENOMEM;
 	}
-	ioctx->file_desc[rdfd]->vfs_node = ioctx->file_desc[wrfd]->vfs_node;
-	object_ref(&ioctx->file_desc[wrfd]->vfs_node->i_object);
+	ioctx->file_desc[rdfd]->refcount = 1;
+	ioctx->file_desc[wrfd]->refcount = 1;
+	ioctx->file_desc[rdfd]->vfs_node = read_end;
+	ioctx->file_desc[wrfd]->vfs_node = write_end;
 
 	ioctx->file_desc[rdfd]->flags = O_RDONLY;
 	ioctx->file_desc[wrfd]->flags = O_WRONLY;
@@ -963,7 +964,7 @@ void close_file_description(struct file_description *fd)
 {
 	object_unref(&fd->vfs_node->i_object);
 	
-	if(fd->refcount-- == 0)
+	if(--fd->refcount == 0)
 		free(fd);
 }
 

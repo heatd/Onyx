@@ -112,7 +112,7 @@ kernel/mm/malloc/%.o: kernel/mm/malloc/%.c
 	@$(CC) -c $(CPPFLAGS) -o $@ $<
 %.o: %.cpp kernel.config
 	@echo [CXX] $<
-	@$(CXX) -c $< -o $@ -std=c++14 $(CFLAGS) $(CPPFLAGS) $(CXXFLAGS)
+	@$(CXX) -c $< -o $@ -std=c++17 $(CFLAGS) $(CPPFLAGS) $(CXXFLAGS)
 $(ARCHDIR)/__vdso.o: $(ARCHDIR)/__vdso.c kernel.config
 	@echo [CC] $<
 	@$(CC) -c $< -o $@ -fpic -Iinclude/acpica -Iinclude -isystem ../libc/include

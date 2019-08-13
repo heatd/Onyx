@@ -6,19 +6,46 @@
 #ifndef _KERNEL_PIPE_H
 #define _KERNEL_PIPE_H
 
-#include <onyx/mutex.h>
 #include <onyx/vfs.h>
 
-struct pipe
+#ifdef __cplusplus
+
+#include <onyx/refcount.h>
+#include <onyx/atomic.hpp>
+#include <onyx/condvar.h>
+#include <onyx/mutex.h>
+
+constexpr unsigned long default_pipe_size = UINT16_MAX;
+
+class pipe : public refcountable
 {
-	struct pipe *next;
+private:
 	void *buffer;
 	size_t buf_size;
-	size_t curr_size;
-	int readers;
+	size_t pos;
 	struct mutex pipe_lock;
+	/* Is signaled when space is available in the buffer */
+	struct cond write_cond;
+	/* Is signaled when the buffer has data in it */
+	struct cond read_cond;
+public:
+	atomic<size_t> reader_count;
+	atomic<size_t> writer_count;
+	constexpr pipe();
+	~pipe();
+	bool allocate_pipe_buffer(unsigned long buffer_size = default_pipe_size);
+	ssize_t read(int flags, size_t len, void *buffer);
+	ssize_t write(int flags, size_t len, const void *buffer);
+	bool is_full() const;
+	size_t available_space() const;
+	void close_read_end();
+	void close_write_end();
 };
-struct inode *pipe_create(void);
+
+extern "C"
+#endif
+
+int pipe_create(struct inode **pipe_readable, struct inode **pipe_writeable);
 
 
 

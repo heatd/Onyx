@@ -5,7 +5,10 @@
 */
 #ifndef _ONYX_SEM_H
 #define _ONYX_SEM_H
+
+#ifndef __cplusplus
 #include <stdatomic.h>
+#endif
 
 #include <onyx/scheduler.h>
 #include <onyx/spinlock.h>

@@ -699,13 +699,12 @@ int symlink_vfs(const char *dest, struct inode *inode)
 
 void inode_destroy_page_caches(struct inode *inode)
 {
-	vmo_unref(inode->i_pages);
+	if(inode->i_pages)
+		vmo_unref(inode->i_pages);
 }
 
-void inode_release(struct object *object)
+void inode_release_file(struct inode *inode)
 {
-	struct inode *inode = (struct inode *) object;
-
 	assert(inode->i_sb != NULL);
 
 	/* Remove the inode from its superblock */
@@ -722,6 +721,24 @@ void inode_release(struct object *object)
 	free(inode);
 }
 
+void inode_release_generic(struct inode *inode)
+{
+	if(inode->i_fops.close != NULL)
+		inode->i_fops.close(inode);
+
+	free(inode);
+}
+
+void inode_release(struct object *object)
+{
+	struct inode *inode = (struct inode *) object;
+
+	if(inode->i_type == VFS_TYPE_FILE || inode->i_type == VFS_TYPE_DIR)
+		inode_release_file(inode);
+	else
+		inode_release_generic(inode);
+}
+
 struct inode *inode_create(void)
 {
 	struct inode *inode = zalloc(sizeof(*inode));
@@ -730,7 +747,7 @@ struct inode *inode_create(void)
 		return NULL;
 
 	/* Don't release inodes immediately */
-	object_init(&inode->i_object, NULL);
+	object_init(&inode->i_object, inode_release);
 
 	return inode;
 }
