@@ -37,7 +37,7 @@ bool can_use_msi(void)
 	return x86_platform.has_msi;
 }
 
-int pci_enable_msi(struct pci_device *dev, irq_t handler)
+int pci_enable_msi(struct pci_device *dev, irq_t handler, void *cookie)
 {
 	if(!can_use_msi())
 		return errno = EIO, -1;
@@ -77,7 +77,7 @@ int pci_enable_msi(struct pci_device *dev, irq_t handler)
 	for(unsigned int i = 0; i < num_vecs; i++)
 	{
 		assert(install_irq(irq_offset + i, handler,
-			(struct device *) dev, IRQ_FLAG_REGULAR, NULL) == 0);
+			(struct device *) dev, IRQ_FLAG_REGULAR, cookie) == 0);
 	}
 
 

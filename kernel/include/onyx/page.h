@@ -49,6 +49,9 @@
 /* Passed to alloc_page() */
 
 #define PAGE_NO_RETRY		(1 << 3)
+
+
+
 #define PAGE_FLAG_LOCKED	(1 << 0)
 /* struct page - Represents every usable page on the system 
  * Everything is native-word-aligned in order to allow atomic changes

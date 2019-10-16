@@ -196,7 +196,7 @@ void pci_disable_busmastering(struct pci_device *dev);
 void pci_disable_irq(struct pci_device *dev);
 void pci_enable_irq(struct pci_device *dev);
 off_t pci_find_capability(struct pci_device *dev, uint8_t cap);
-int pci_enable_msi(struct pci_device *dev, irq_t handler);
+int pci_enable_msi(struct pci_device *dev, irq_t handler, void *cookie);
 bool pci_find_device(bool (*callback)(struct pci_device *), bool stop_on_match);
 void pci_bus_register_driver(struct driver *driver);
 int pci_get_bar(struct pci_device *dev, int index, struct pci_bar *bar);

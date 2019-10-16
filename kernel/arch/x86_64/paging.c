@@ -180,7 +180,6 @@ void *__virtual2phys(PML *__pml, void *ptr)
 			unsigned long size = is_1gb ? HUGE1GB_SIZE : LARGE2MB_SIZE;
 			unsigned long page_base = PML_EXTRACT_ADDRESS(entry);
 			unsigned long page_off = virt & (size - 1);
-
 			return (void *) (page_base + page_off);
 		}
 

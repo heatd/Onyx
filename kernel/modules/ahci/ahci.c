@@ -60,15 +60,14 @@ void ahci_deal_aio(struct command_list *list)
 	if(list->last_interrupt_status & AHCI_INTST_ERROR)
 	{
 		req->status = AIO_STATUS_EIO;
-		req->req_end = get_main_clock()->get_ticks();
-		ahci_wake_io(req);
 	}
 	else if(list->last_interrupt_status & AHCI_PORT_INTERRUPT_DHRE)
 	{
 		req->status = AIO_STATUS_OK;
-		req->req_end = get_main_clock()->get_ticks();
-		ahci_wake_io(req);
 	}
+
+	req->req_end = get_main_clock()->get_ticks();
+	ahci_wake_io(req);
 }
 
 void ahci_do_clist_irq(struct ahci_port *port, int j)
@@ -83,7 +82,6 @@ void ahci_do_clist_irq(struct ahci_port *port, int j)
 
 void ahci_do_port_irqs(struct ahci_port *port)
 {
-	spin_lock_irqsave(&port->port_lock);
 	uint32_t cmd_done = port->issued ^ port->port->command_issue;
 
 	for(unsigned int j = 0; j < 32; j++)
@@ -92,35 +90,34 @@ void ahci_do_port_irqs(struct ahci_port *port)
 			ahci_do_clist_irq(port, j);
 		port->issued &= ~(1UL << j);
 	}
-
-	spin_unlock_irqrestore(&port->port_lock);
 }
 
 irqstatus_t ahci_irq(struct irq_context *ctx, void *cookie)
 {
 	UNUSED(ctx);
-	UNUSED(cookie);
+	struct ahci_device *dev = cookie;
 
-	uint32_t ports = device->hba->interrupt_status;
+	uint32_t ports = dev->hba->interrupt_status;
+	assert(ports != 0);
 	if(!ports)
 		return IRQ_UNHANDLED;
 
 	for(int i = 0; i < 32; i++)
 	{
-		struct ahci_port *port = &device->ports[i];
+		struct ahci_port *port = &dev->ports[i];
+		spin_lock_irqsave(&port->port_lock);
+
 		if(ports & (1L << i))
 		{
-			uint32_t port_is = device->ports[i].port->interrupt_status;
-			/* Check if we have any pending interrupts, continue otherwise */
-			if(!port_is)
-				continue;
-
+			uint32_t port_is = dev->ports[i].port->interrupt_status;
+			dev->hba->interrupt_status = (1U << i);
 			ahci_do_port_irqs(port);
-			port->port->interrupt_status = UINT32_MAX;
+			port->port->interrupt_status = port_is;
 		}
-	}
 
-	device->hba->interrupt_status = UINT32_MAX;
+		spin_unlock_irqrestore(&port->port_lock);
+
+	}
 
 	return IRQ_HANDLED;
 }
@@ -136,6 +133,8 @@ ssize_t ahci_read(size_t offset, size_t count, void* buffer, struct blkdev* blkd
 	size_t to_read = count;
 
 	uint64_t lba = offset / 512;
+	assert(offset % 512 == 0);
+	assert(count % 512 == 0);
 	uint8_t *buf = buffer;
 	mutex_lock(&ahci_spl);
 
@@ -171,6 +170,9 @@ ssize_t ahci_write(size_t offset, size_t count, void* buffer, struct blkdev* blk
 
 	uint64_t lba = offset / 512;
 	uint8_t *buf = buffer;
+	assert(offset % 512 == 0);
+	assert(count % 512 == 0);
+
 	mutex_lock(&ahci_spl);
 	while(count != 0)
 	{
@@ -194,22 +196,6 @@ ssize_t ahci_write(size_t offset, size_t count, void* buffer, struct blkdev* blk
 
 	mutex_unlock(&ahci_spl);
 	return to_read;
-}
-
-int ahci_await_interrupt(unsigned long timeout, struct ahci_port *port, unsigned int command_slot)
-{
-	uint64_t ticks = get_tick_count();
-	while(ticks + timeout > get_tick_count())
-	{
-		if(port->cmdslots[command_slot].recieved_interrupt)
-		{
-			port->cmdslots[command_slot].recieved_interrupt = false;
-			return 0;
-		}
-
-		sched_yield();
-	}
-	return -1;
 }
 
 bool ahci_command_error(struct ahci_port *port, unsigned int cmdslot)
@@ -270,11 +256,11 @@ size_t ahci_setup_prdt(prdt_t *table, struct phys_ranges *ranges)
 		 * is fully mature, shall we?
 		*/
 		assert(r->size <= PRDT_MAX_SIZE);
-		
 		table[i].dw3 = r->size - 1;
 		table[i].res0 = 0;
 	}
 
+	assert(ranges->nr_ranges != 0);
 	return ranges->nr_ranges;
 }
 
@@ -640,7 +626,7 @@ void ahci_enable_interrupts_for_port(ahci_port_t *port)
 
 void ahci_free_list(struct ahci_port *port, size_t idx)
 {
-	spin_lock(&port->port_lock);
+	spin_lock_irqsave(&port->port_lock);
 
 	command_list_t *list = port->clist + idx;
 
@@ -650,7 +636,7 @@ void ahci_free_list(struct ahci_port *port, size_t idx)
 
 	list->prdtl = 0;
 
-	spin_unlock(&port->port_lock);
+	spin_unlock_irqrestore(&port->port_lock);
 }
 
 void ahci_destroy_aio(struct ahci_port *port, struct aio_req *req)
@@ -899,12 +885,10 @@ int module_init()
 	assert(hba != NULL);
 
 	/* Allocate a struct ahci_device and fill it */
-	device = malloc(sizeof(struct ahci_device));
+	device = zalloc(sizeof(struct ahci_device));
 	if(!device)
-	{
 		return -1;
-	}
-	memset(device, 0, sizeof(struct ahci_device));
+
 	device->pci_dev = ahci_dev;
 	device->hba = hba;
 
@@ -919,7 +903,7 @@ int module_init()
 		goto ret;
 	}
 	
-	if(pci_enable_msi(ahci_dev, ahci_irq))
+	if(pci_enable_msi(ahci_dev, ahci_irq, device))
 	{
 		/* If we couldn't enable MSI, use normal I/O APIC pins */
 
@@ -928,7 +912,7 @@ int module_init()
 		printf("IRQ: %u\n", irq);
 		/* and install a handler */
 		assert(install_irq(irq, ahci_irq, (struct device *) ahci_dev,
-			IRQ_FLAG_REGULAR, NULL) == 0);
+			IRQ_FLAG_REGULAR, device) == 0);
 	}
 	/* Initialize AHCI */
 	if(ahci_initialize() < 0)
@@ -943,8 +927,9 @@ ret:
 	{
 		free(device);
 		free_irq(irq, (struct device *) ahci_dev);
-		device = 0;
+		device = NULL;
 	}
+
 	return status;
 }
 

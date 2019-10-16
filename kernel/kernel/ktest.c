@@ -14,21 +14,35 @@
 #include <onyx/thread.h>
 #include <onyx/semaphore.h>
 #include <onyx/mutex.h>
+#include <onyx/cpu.h>
 
 #ifdef CONFIG_DO_TESTS
 
 #ifdef CONFIG_KTEST_PAGE_ALLOC
 
+void __test_page_alloc(void *arg)
+{
+	(void) arg;
+	void *ptr = alloc_page(0);
+
+	for(; ptr; ptr = alloc_page(0));
+}
 /* Tests the page allocator by dumping every page */
 void test_page_alloc(void)
 {
-	void *ptr = alloc_page(0);
-
-	for(; ptr; ptr = alloc_page(0))
+	struct thread *threads[get_nr_cpus()];
+	for(int i = 0; i < get_nr_cpus(); ++i)
 	{
-		printf("Page: %p\n", ptr);
+		threads[i] = sched_create_thread(__test_page_alloc, THREAD_KERNEL, NULL);
+		assert(threads[i] != NULL);
 	}
-	halt();
+
+	for(int i = 0; i < get_nr_cpus(); ++i)
+	{
+		sched_start_thread(threads[i]);
+	}
+
+	sched_sleep(10000000);
 }
 #endif
 

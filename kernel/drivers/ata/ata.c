@@ -148,8 +148,8 @@ void ata_enable_pci_ide(struct pci_device *dev)
 }
 
 static int num_drives = 0;
-static char devname[] = "hdxx";
-static char dev_name[] = "hd";
+static char devname[] = "sdxx";
+static char dev_name[] = "sd";
 
 int ata_flush(struct blkdev *blkd)
 {
@@ -187,10 +187,9 @@ ssize_t ata_read(size_t offset, size_t count, void* buffer, struct blkdev* blkd)
 	size_t off = offset;
 
 	mutex_lock(&lock);
-	printf("hello ata here\n");
 	void *buf = PHYS_TO_VIRT(read_buffer);
 	if(count < UINT16_MAX) ata_read_sectors(drv->channel, drv->drive, (uint32_t)(uintptr_t) read_buffer, count, off / 512);
-	//fscache_cache_sectors(buffer, blkd, off / 512, count);
+
 	/* If count > count_max, split this into multiple I/O operations */
 	if(count > UINT16_MAX)
 	{
@@ -363,7 +362,7 @@ int ata_initialize_drive(int channel, int drive)
 	assert(id != NULL);
 	strcat(path, id);
 
-	/* Create /dev/hdxx */
+	/* Create /dev/sdxx */
 
 	/* Allocate a major-minor pair for a device */
 	struct dev *min = dev_register(0, 0, path);
@@ -453,7 +452,7 @@ int ata_init(void)
 
 	driver_register_device(&ata_driver, (struct device *) idedev);
 
-	ata_ids = idm_add("hd", 0, UINTMAX_MAX);
+	ata_ids = idm_add("sd", 0, UINTMAX_MAX);
 	if(!ata_ids)
 		return -1;
 

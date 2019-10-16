@@ -85,7 +85,7 @@ struct page *phys_to_page(uintptr_t phys)
 			return p;
 	}
 
-	ERROR("page", "%p queried for %lx, but it doesn't exist!\n", __builtin_return_address(0), phys);
+	printk("page: %p queried for %lx, but it doesn't exist!\n", __builtin_return_address(0), phys);
 	return NULL;
 }
 

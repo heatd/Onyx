@@ -2685,5 +2685,5 @@ int vm_lock_range(void *start, unsigned long length, unsigned long flags)
 
 int vm_unlock_range(void *start, unsigned long length, unsigned long flags)
 {
-	return vm_change_region_locks(start, length, flags | VM_LOCK);
+	return vm_change_region_locks(start, length, flags);
 }

@@ -67,13 +67,15 @@ struct page_cpu main_cpu = {0};
 
 struct page *page_alloc_from_arena(size_t nr_pages, unsigned long flags, struct page_arena *arena)
 {
-	struct page_list *p = arena->page_list;
+	spin_lock(&arena->lock);
+
 	size_t found_pages = 0;
 	uintptr_t base = 0;
 	struct page_list *base_pg = NULL;
 	bool found_base = false;
 
-	spin_lock(&arena->lock);
+	struct page_list *p = arena->page_list;
+
 	if(arena->free_pages < nr_pages)
 	{
 		spin_unlock(&arena->lock);
@@ -87,7 +89,7 @@ struct page *page_alloc_from_arena(size_t nr_pages, unsigned long flags, struct 
 		{
 			found_pages = 0;
 			found_base = false;
-			break;
+			continue;
 		}
 		else
 		{
@@ -114,7 +116,7 @@ struct page *page_alloc_from_arena(size_t nr_pages, unsigned long flags, struct 
 
 		arena->free_pages -= found_pages;
 
-		while(found_pages--)
+		for(size_t i = 0; i < found_pages; i++)
 			tail = tail->next;
 
 		if(head)
@@ -124,6 +126,8 @@ struct page *page_alloc_from_arena(size_t nr_pages, unsigned long flags, struct 
 		
 		if(tail)
 			tail->prev = head;
+		else
+			arena->tail = head;
 
 		spin_unlock(&arena->lock);
 
@@ -132,7 +136,16 @@ struct page *page_alloc_from_arena(size_t nr_pages, unsigned long flags, struct 
 	
 		for(size_t i = 0; i < nr_pages; i++)
 		{
+#ifdef PAGEALLOC_DEBUG
+			if(pl->page == NULL)
+			{
+				struct page *p = phys_to_page((uintptr_t) pl - PHYS_BASE);
+				printk("pl(%p)->ref: %lu\n", p->paddr, p->ref);
+				panic("fark\n");
+			}
+
 			assert(pl->page->ref == 0);
+#endif
 			page_ref(pl->page);
 
 			if(!plist)
@@ -157,7 +170,7 @@ struct page *page_alloc(size_t nr_pages, unsigned long flags)
 	struct page *pages = NULL;
 	for_every_arena(&main_cpu)
 	{
-		if(arena->free_pages == 0)
+		if(arena->free_pages < nr_pages)
 			continue;
 		if((pages = page_alloc_from_arena(nr_pages, flags, arena)) != NULL)
 		{
@@ -192,6 +205,7 @@ void page_free_pages(struct page_arena *arena, void *addr, size_t nr_pages)
 
 	if(!arena->page_list)
 	{
+		assert(arena->tail == NULL);
 		struct page_list *list = NULL;
 		uintptr_t b = (uintptr_t) addr;
 		for(size_t i = 0; i < nr_pages; i++, b += PAGE_SIZE)
@@ -213,11 +227,12 @@ void page_free_pages(struct page_arena *arena, void *addr, size_t nr_pages)
 			}
 
 		}
+
+		arena->tail = list;
 	}
 	else
 	{
-		struct page_list *list = arena->page_list;
-		while(list->next) list = list->next;
+		struct page_list *list = arena->tail;
 		
 		uintptr_t b = (uintptr_t) addr;
 		for(size_t i = 0; i < nr_pages; i++, b += PAGE_SIZE)
@@ -229,6 +244,8 @@ void page_free_pages(struct page_arena *arena, void *addr, size_t nr_pages)
 			l->prev = list;
 			list = l;
 		}
+
+		arena->tail = list;
 	}
 
 	arena->free_pages++;

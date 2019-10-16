@@ -114,7 +114,7 @@ struct page *vmo_get(struct vm_object *vmo, size_t off, bool may_populate)
 	struct page *p = NULL;
 	assert(off < vmo->size);
 
-	spin_lock(&vmo->page_lock);
+	spin_lock_preempt(&vmo->page_lock);
 
 	void **pp = rb_tree_search(vmo->pages, (const void *) off);
 	
@@ -125,7 +125,7 @@ struct page *vmo_get(struct vm_object *vmo, size_t off, bool may_populate)
 
 	if(!p && may_populate)
 		p = vmo_populate(vmo, off);
-	spin_unlock(&vmo->page_lock);
+	spin_unlock_preempt(&vmo->page_lock);
 
 	return p;
 }

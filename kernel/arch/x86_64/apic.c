@@ -500,6 +500,7 @@ void apic_wake_up_processor(uint8_t lapicid)
 			break;
 		}
 	}
+
 	if(ap_done == 0)
 	{
 		boot_send_ipi(lapicid, 6, 0);

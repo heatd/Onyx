@@ -48,7 +48,7 @@ void spin_unlock_preempt(struct spinlock *lock)
 
 	post_release_actions(lock);
 
-	__sync_bool_compare_and_swap(&lock->lock, 1, 0);
+	__sync_lock_release(&lock->lock);
 
 	__sync_synchronize();
 }
