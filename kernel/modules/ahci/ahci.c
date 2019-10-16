@@ -98,9 +98,12 @@ irqstatus_t ahci_irq(struct irq_context *ctx, void *cookie)
 	struct ahci_device *dev = cookie;
 
 	uint32_t ports = dev->hba->interrupt_status;
-	assert(ports != 0);
+
+	/* TODO: Figure this out - AHCI is sending an extra interrupt and the
+	 * IRQ code is flagging it as SPURIOUS, which isn't actually true.
+	*/
 	if(!ports)
-		return IRQ_UNHANDLED;
+		return IRQ_HANDLED;
 
 	for(int i = 0; i < 32; i++)
 	{
