@@ -119,10 +119,12 @@ void ioapic_set_pin(bool active_high, bool level, uint32_t pin)
 		/* Active low */
 		entry |= IOAPIC_PIN_POLARITY_ACTIVE_LOW;
 	}
+
 	if(level)
 	{
 		entry |= IOAPIC_PIN_TRIGGER_LEVEL;
 	}
+
 	write_redirection_entry(pin, entry);
 }
 
@@ -188,8 +190,8 @@ void set_pin_handlers(void)
 			* - Fixed delivery mode
 			* They might be overwriten by the ISO descriptors in the MADT
 			*/
-			uint64_t entry;
-			entry = IOAPIC_PIN_MASKED | (irqs + i);
+			uint64_t entry = read_redirection_entry(i);
+			entry = entry | (irqs + i);
 			write_redirection_entry(i, entry);
 		}
 
