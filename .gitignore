@@ -36,6 +36,6 @@ autom4ate.cache
 utils/printenv/printenv
 utils/sleep/sleep
 dhcpcd/dhcpcd
-
+utils/memstat/memstat
 *.tar*
 gen_password_hash

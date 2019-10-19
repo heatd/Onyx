@@ -15,6 +15,7 @@
 #include <onyx/compiler.h>
 #include <onyx/list.h>
 #include <onyx/ref.h>
+#include <onyx/public/memstat.h>
 
 /* The default physical allocator is the buddy allocator */
 #define CONFIG_BUDDY_ALLOCATOR		1
@@ -118,14 +119,6 @@ typedef struct 0
 } 0t;
 
 #endif /* CONFIG_BUDDY_ALLOCATOR */
-
-struct memstat
-{
-	size_t total_pages;
-	size_t allocated_pages;
-	size_t page_cache_pages;
-	size_t kernel_heap_pages;
-};
 
 #ifdef __cplusplus
 extern "C" {
