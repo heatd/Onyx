@@ -1125,7 +1125,7 @@ void vterm_switch_to_multithread(struct vterm *vt)
 
 	vt->multithread_enabled = true;
 
-	vt->render_thread->priority = SCHED_PRIO_HIGH;
+	vt->render_thread->priority = SCHED_PRIO_NORMAL;
 
 	sched_start_thread(vt->render_thread);
 }

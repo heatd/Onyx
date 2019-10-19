@@ -272,6 +272,7 @@ int sys_dup(int fd)
 				return i;
 			}
 		}
+
 		if(enlarge_file_descriptor_table(get_current_process()) < 0)
 		{
 			mutex_unlock(&ioctx->fdlock);
@@ -282,6 +283,7 @@ int sys_dup(int fd)
 
 int sys_dup2(int oldfd, int newfd)
 {
+	printk("dup2(old %d, new %d)\n", oldfd, newfd);
 	ioctx_t *ioctx = &get_current_process()->ctx;
 	if(validate_fd(oldfd) < 0)
 		return -EBADF;
@@ -301,7 +303,7 @@ int sys_dup2(int oldfd, int newfd)
 	file_desc_t *desc = ioctx->file_desc[newfd];
 
 	desc->refcount++;
-	object_ref(&ioctx->file_desc[newfd]->vfs_node->i_object);
+	printk("Ref: %u\n", desc->refcount);
 
 	mutex_unlock(&ioctx->fdlock);
 	return newfd;
@@ -638,6 +640,7 @@ int do_dupfd(int fd, int fdbase)
 	ioctx_t *ioctx = &get_current_process()->ctx;
 	ioctx->file_desc[fdbase] = ioctx->file_desc[fd];
 	ioctx->file_desc[fdbase]->refcount++;
+	printk("doing dupfd\n");
 	return new_fd;
 }
 

@@ -44,6 +44,7 @@ public:
 		unsigned int width, unsigned int x, unsigned int y);
 	size_t allocate_wid();
 	void handle_events();
+	std::shared_ptr<Client> get_client(unsigned int cid);
 };
 
 #endif

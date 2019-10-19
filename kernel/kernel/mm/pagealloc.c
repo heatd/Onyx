@@ -477,6 +477,7 @@ struct page *do_alloc_pages_contiguous(size_t nr_pgs, unsigned long flags)
 
 struct page *alloc_pages(size_t nr_pgs, unsigned long flags)
 {
+	//printf("alloc pages %lu %p\n", nr_pgs, __builtin_return_address(1));
 	if(unlikely(flags & PAGE_ALLOC_CONTIGUOUS))
 		return do_alloc_pages_contiguous(nr_pgs, flags);
 	else

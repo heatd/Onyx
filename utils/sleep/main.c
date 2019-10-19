@@ -79,6 +79,12 @@ int main(int argc, char **argv)
 			print_version();
 		else if(arg[1] == 'h')
 			print_help();
+		else
+		{
+			printf("Unrecognized option %c\n", arg[1]);
+		}
+
+		return 1;
 	}
 	else
 		do_sleep(arg);

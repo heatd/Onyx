@@ -12,13 +12,10 @@ Client::~Client()
 {
 }
 
-void Client::AddWindow(std::shared_ptr<Window> window)
-{
-	client_windows.push_back(window);
-}
-
 void Client::DeleteWindow(size_t wid)
 {
+	std::scoped_lock guard{client_windows_lock};
+
 	std::ptrdiff_t idx = -1;
 	for(auto it = client_windows.begin(); it != client_windows.end(); ++it)
 	{
@@ -38,6 +35,7 @@ void Client::DeleteWindow(size_t wid)
 
 std::shared_ptr<Window> Client::get_window(WINDOW handle)
 {
+	std::scoped_lock guard{client_windows_lock};
 	size_t index = (size_t) handle;
 
 	if(index >= client_windows.size())
@@ -46,7 +44,9 @@ std::shared_ptr<Window> Client::get_window(WINDOW handle)
 	return client_windows[index];
 }
 
-WINDOW Client::create_window(struct server_message_create_window& args)
+WINDOW Client::create_window(std::shared_ptr<Window> window)
 {
-	
+	std::scoped_lock guard{client_windows_lock};
+	client_windows.push_back(window);
+	return (void *) (client_windows.size() - 1);
 }

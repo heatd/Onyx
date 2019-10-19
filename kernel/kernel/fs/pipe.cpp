@@ -63,14 +63,14 @@ ssize_t pipe::read(int flags, size_t len, void *buf)
 
 	while(been_read != (ssize_t) len)
 	{
-		if(writer_count == 0)
-		{
-			mutex_unlock(&pipe_lock);
-			return 0;
-		}
-
 		if(pos == 0)
 		{
+			if(writer_count == 0)
+			{
+				mutex_unlock(&pipe_lock);
+				return 0;
+			}
+
 			/* buffer empty */
 			if(flags & O_NONBLOCK)
 			{

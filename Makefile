@@ -37,6 +37,8 @@ clean:
 	./utils/make_utils.sh clean
 	rm -rf sysroot
 	rm -rf initrd.tar.*
+	$(MAKE) -C musl clean
+	$(MAKE) -C libssp clean
 build-prep:
 	mkdir -p sysroot
 	cd kernel && ../scripts/config_to_header.py include/onyx/config.h

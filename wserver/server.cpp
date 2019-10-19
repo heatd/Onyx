@@ -69,9 +69,18 @@ unsigned int Server::allocate_cid()
 unsigned int Server::create_client()
 {
 	auto cid = allocate_cid();
-	clients[cid] = std::make_shared<Client>(cid);
+	clients[cid] = std::move(std::make_shared<Client>(cid));
 
 	return cid;
+}
+
+std::shared_ptr<Client> Server::get_client(unsigned int cid)
+{
+	auto cptr = clients[cid];
+
+	if(!cptr)
+		return nullptr;
+	return cptr;
 }
 
 class ServerReply
@@ -95,6 +104,11 @@ public:
 	void set_handshake_reply(struct server_message_handshake_reply& hreply)
 	{
 		reply.reply.hrply.new_cid = hreply.new_cid;
+	}
+
+	void set_create_window_reply(struct server_message_create_window_reply& cwreply)
+	{
+		reply.reply.cwreply.window_handle = cwreply.window_handle;
 	}
 
 	void send()
@@ -128,9 +142,18 @@ void Server::handle_message(struct server_message *msg, struct sockaddr *addr, s
 		{
 			std::cout << "Creating window\n";
 			auto& cwargs = msg->args.cwargs;
-			auto window = create_window(cwargs.width, cwargs.height, cwargs.x, cwargs.y);
 			ServerReply reply(addr, len, socket_fd);
-			
+
+			auto client = get_client(msg->client_id);
+			if(!client)
+			{
+				reply.set_status_code(STATUS_FAILURE);
+				reply.send();
+				break;	
+			}
+
+			auto window = create_window(cwargs.width, cwargs.height, cwargs.x, cwargs.y);
+
 			if(!window)
 			{
 				reply.set_status_code(STATUS_FAILURE);
@@ -138,8 +161,16 @@ void Server::handle_message(struct server_message *msg, struct sockaddr *addr, s
 				break;
 			}
 
-			//WINDOW window_handle = 
-			
+			WINDOW window_handle = client->create_window(window);
+			/* TODO: Delete window on client->create_window() failure */
+		
+			server_message_create_window_reply r;
+			r.window_handle = window_handle;
+
+			reply.set_status_code(STATUS_OK);
+			reply.set_create_window_reply(r);
+			reply.send();
+			break;
 		}
 		default:
 		{

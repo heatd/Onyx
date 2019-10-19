@@ -67,6 +67,7 @@ int main(int argc, char **argv, char **envp)
 				invalid_flag();
 		}
 	}
+
 	struct utsname info;
 	if(uname(&info) < 0)
 	{

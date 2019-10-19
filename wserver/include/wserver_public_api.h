@@ -76,6 +76,7 @@ struct server_reply
 	union
 	{
 		struct server_message_handshake_reply hrply;
+		struct server_message_create_window_reply cwreply;
 	} reply;
 };
 
