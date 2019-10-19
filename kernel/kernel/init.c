@@ -34,7 +34,6 @@
 #include <onyx/slab.h>
 #include <onyx/vm.h>
 #include <onyx/paging.h>
-#include <onyx/pmm.h>
 #include <onyx/idt.h>
 #include <onyx/tty.h>
 #include <onyx/panic.h>
