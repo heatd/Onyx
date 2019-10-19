@@ -11,17 +11,16 @@
 #include <sys/types.h>
 #include <limits.h>
 
-typedef struct file_description
+struct file
 {
 #ifndef __cplusplus
 	_Atomic
 #endif	
-	int refcount;
+	unsigned long refcount;
 	off_t seek;
-	struct mutex seek_lock;
 	struct inode *vfs_node;
 	int flags;
-} file_desc_t;
+};
 
 typedef struct
 {
@@ -29,11 +28,11 @@ typedef struct
 	struct inode *cwd;
 	const char *name;
 	struct mutex fdlock;
-	file_desc_t **file_desc;
+	struct file **file_desc;
 	int file_desc_entries;
 } ioctx_t;
 
-struct file_description *create_file_description(struct inode *inode, off_t seek);
-void close_file_description(struct file_description *fd);
+struct file *create_file_description(struct inode *inode, off_t seek);
+void close_file_description(struct file *fd);
 
 #endif

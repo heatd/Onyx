@@ -15,14 +15,14 @@
 #include <onyx/page.h>
 #include <onyx/vm.h>
 #include <onyx/slab.h>
-#include <onyx/crc32.h>
+#include <onyx/fnv.h>
 
 static struct page_hashtable hashtable = {0};
 static size_t num_pages = 0;
 
-unsigned int page_hash(uintptr_t p)
+fnv_hash_t page_hash(uintptr_t p)
 {
-	unsigned int hash = crc32_calculate((uint8_t*) &p, sizeof(uintptr_t));
+	fnv_hash_t hash = fnv_hash((uint8_t*) &p, sizeof(uintptr_t));
 	return hash % PAGE_HASHTABLE_ENTRIES;
 }
 

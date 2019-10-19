@@ -55,7 +55,7 @@ uintptr_t heap_addr		= arch_heap_off;
 size_t heap_size = 0;
 
 int setup_vmregion_backing(struct vm_region *region, size_t pages, bool is_file_backed);
-int populate_shared_mapping(void *page, struct file_description *fd,
+int populate_shared_mapping(void *page, struct file *fd,
 	struct vm_region *entry, size_t nr_pages);
 void vm_remove_region(struct mm_address_space *as, struct vm_region *region);
 int vm_add_region(struct mm_address_space *as, struct vm_region *region);
@@ -363,7 +363,7 @@ void vm_unmap_range(void *range, size_t pages)
 void vm_region_destroy(struct vm_region *region)
 {
 	/* First, unref things */
-	if(region->fd)	fd_unref(region->fd);
+	if(region->fd)	fd_put(region->fd);
 
 	if(region->vmo)
 	{
@@ -661,7 +661,7 @@ static bool fork_vm_region(const void *key, void *datum, void *user_data)
 		goto ohno;
 	}
 
-	if(new_region->fd) new_region->fd->refcount++;
+	if(new_region->fd) fd_get(new_region->fd);
 
 	*res.datum_ptr = new_region;
 	bool vmo_failure = false;
@@ -886,8 +886,11 @@ int vm_check_pointer(void *addr, size_t needed_space)
 
 void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off)
 {
+	/* TODO: Lots of this code needs correct error paths */
+	int error = 0;
+
 	struct vm_region *area = NULL;
-	file_desc_t *file_descriptor = NULL;
+	struct file *file_descriptor = NULL;
 	if(length == 0)
 		return (void*) -EINVAL;
 	if(!(flags & MAP_PRIVATE) && !(flags & MAP_SHARED))
@@ -900,18 +903,18 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 
 	if(!(flags & MAP_ANONYMOUS)) /* This is a file-backed mapping */
 	{
-		if(validate_fd(fd) < 0)
-			return (void*)-EBADF;
-		ioctx_t *ctx = &get_current_process()->ctx;
-		/* Get the file descriptor */
-		file_descriptor = ctx->file_desc[fd];
+		file_descriptor = get_file_description(fd);
+		if(!file_descriptor)
+			return (void *) (unsigned long) -errno;
+
 		bool fd_has_write = !(file_descriptor->flags & O_WRONLY) &&
 				    !(file_descriptor->flags & O_RDWR);
 		if(fd_has_write && prot & PROT_WRITE
 		&& flags & MAP_SHARED)
 		{
 			/* You can't map for writing on a file without read access with MAP_SHARED! */
-			return (void*) -EACCES;
+			error = -EACCES;
+			goto out_error;
 		}
 	}
 
@@ -924,14 +927,21 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 	if(is_higher_half(addr)) /* User addresses can't be on the kernel's address space */
 	{
 		if(flags & MAP_FIXED)
-			return (void *) -ENOMEM;
+		{
+			error = -ENOMEM;
+			goto out_error;
+		}
+		
 		addr = NULL;
 	}
 
 	if(!addr)
 	{
 		if(flags & MAP_FIXED)
-			return (void *) -ENOMEM;
+		{
+			error = -ENOMEM;
+			goto out_error;
+		}
 		/* Specified by POSIX, if addr == NULL, guess an address */
 		area = vm_allocate_virt_region(VM_ADDRESS_USER, pages,
 			VM_TYPE_SHARED, vm_prot);
@@ -948,13 +958,20 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 		if(!area)
 		{
 			if(flags & MAP_FIXED)
-				return (void*) -ENOMEM;
+			{
+				error = -ENOMEM;
+				goto out_error;
+			}
+
 			area = vm_allocate_virt_region(VM_ADDRESS_USER, pages, VM_TYPE_REGULAR, vm_prot);
 		}
 	}
 
 	if(!area)
-		return (void*) -ENOMEM;
+	{
+		error = -ENOMEM;
+		goto out_error;
+	}
 
 	if(flags & MAP_SHARED)
 		area->mapping_type = MAP_SHARED;
@@ -970,8 +987,10 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 		area->type = VM_TYPE_FILE_BACKED;
 
 		area->offset = off;
-		area->fd = get_file_description(fd);
-		area->fd->refcount++;
+		area->fd = file_descriptor;
+		/* No need to fd_get here since we already have a reference and we're not
+		 * dropping it on success
+		*/
 
 		if((file_descriptor->vfs_node->i_type == VFS_TYPE_BLOCK_DEVICE 
 		   || file_descriptor->vfs_node->i_type == VFS_TYPE_CHAR_DEVICE)
@@ -979,7 +998,10 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 		{
 			struct inode *vnode = file_descriptor->vfs_node;
 			if(!vnode->i_fops.mmap)
-				return (void*) -ENOSYS;
+			{
+				return (void *) -ENOSYS;
+			}
+
 			return vnode->i_fops.mmap(area, vnode);
 		}
 	}
@@ -988,6 +1010,10 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 			return (void *) -ENOMEM;
 
 	return (void *) area->base;
+
+out_error:
+	if(file_descriptor)	fd_put(file_descriptor);
+	return (void *) (unsigned long) error;
 }
 
 
@@ -1011,7 +1037,7 @@ int sys_munmap(void *addr, size_t length)
 void vm_copy_region(const struct vm_region *source, struct vm_region *dest)
 {
 	dest->fd = source->fd;
-	if(dest->fd) dest->fd->refcount++;
+	if(dest->fd) fd_get(dest->fd);
 	dest->flags = source->flags;
 	dest->rwx = source->rwx;
 	dest->mapping_type = source->mapping_type;
@@ -1293,7 +1319,7 @@ static bool vm_print(const void *key, void *datum, void *user_data)
 	bool x = !(region->rwx & VM_NOEXEC);
 	bool w = region->rwx & VM_WRITE;
 	bool file_backed = is_file_backed(region);
-	struct file_description *fd = region->fd;
+	struct file *fd = region->fd;
 
 	printk("[%016lx - %016lx] : %s%s%s\n", region->base,
 					       region->base + (region->pages << PAGE_SHIFT),
@@ -1949,7 +1975,7 @@ bool is_file_backed(struct vm_region *region)
 }
 
 void *create_file_mapping(void *addr, size_t pages, int flags,
-	int prot, struct file_description *fd, off_t off)
+	int prot, struct file *fd, off_t off)
 {
 	if(!addr)
 	{
@@ -1985,7 +2011,7 @@ good: ;
 	entry->offset = off;
 	//printk("Created file mapping at %lx for off %lu\n", entry->base, off);
 	entry->fd = fd;
-	fd->refcount++;
+	fd_get(fd);
 
 	if(setup_vmregion_backing(entry, pages, true) < 0)
 		return NULL;
@@ -2177,7 +2203,7 @@ int vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
 				
 				if(region->fd)
 				{
-					region->fd->refcount++;
+					fd_get(region->fd);
 					new_region->fd = region->fd;
 				}
 

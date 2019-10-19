@@ -14,9 +14,9 @@ extern "C" {
 
 void file_do_cloexec(ioctx_t *ctx);
 int open_with_vnode(struct inode *node, int flags);
-file_desc_t *get_file_description(int fd);
-int validate_fd(int fd);
-int fd_unref(file_desc_t *fd);
+struct file *get_file_description(int fd);
+void fd_get(struct file *fd);
+void fd_put(struct file *fd);
 
 #ifdef __cplusplus
 }

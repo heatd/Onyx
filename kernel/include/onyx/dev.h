@@ -16,7 +16,7 @@
 #include <onyx/list.h>
 #include <onyx/tmpfs.h>
 
-#define MAJOR_DEVICE_HASHTABLE 65536
+#define MAJOR_DEVICE_HASHTABLE 255
 
 struct dev
 {

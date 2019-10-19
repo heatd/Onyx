@@ -358,7 +358,7 @@ void *drm_mmap(struct vm_region *area, struct inode *inode)
 	if(!mapping)
 		return NULL;
 
-	struct file_description *fd = zalloc(sizeof(*fd));
+	struct file *fd = zalloc(sizeof(*fd));
 
 	if(!fd)
 		return NULL;

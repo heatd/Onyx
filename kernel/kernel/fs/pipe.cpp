@@ -244,7 +244,7 @@ int pipe_create(struct inode **pipe_readable, struct inode **pipe_writeable)
 	*pipe_readable = node0;
 	*pipe_writeable = node1;
 
-	/* since malloc returns 16-byte aligned memory we can use the lower bits for stuff like this */
+	/* Since malloc returns 16-byte aligned memory we can use the lower bits for stuff like this */
 	node1->i_helper = (void *)((unsigned long) new_pipe | PIPE_WRITEABLE);
 	return 0;
 err1:

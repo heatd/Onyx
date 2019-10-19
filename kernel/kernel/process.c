@@ -55,16 +55,24 @@ void process_end(struct process *process);
 
 int copy_file_descriptors(struct process *process, ioctx_t *ctx)
 {
+	mutex_lock(&ctx->fdlock);
+
 	process->ctx.file_desc = malloc(ctx->file_desc_entries * sizeof(void*));
 	process->ctx.file_desc_entries = ctx->file_desc_entries;
 	if(!process->ctx.file_desc)
+	{
+		mutex_unlock(&ctx->fdlock);
 		return -1;
+	}
+
 	for(int i = 0; i < process->ctx.file_desc_entries; i++)
 	{
 		process->ctx.file_desc[i] = ctx->file_desc[i];
 		if(ctx->file_desc[i])
-			ctx->file_desc[i]->refcount++;
+			fd_get(ctx->file_desc[i]);
 	}
+
+	mutex_unlock(&ctx->fdlock);
 	return 0;
 }
 
@@ -766,7 +774,7 @@ void process_destroy_aspace(void)
 void process_destroy_file_descriptors(struct process *process)
 {
 	ioctx_t *ctx = &process->ctx;
-	file_desc_t **table = ctx->file_desc;
+	struct file **table = ctx->file_desc;
 	mutex_lock(&ctx->fdlock);
 
 	for(int i = 0; i < ctx->file_desc_entries; i++)

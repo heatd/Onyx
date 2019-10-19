@@ -81,7 +81,7 @@ struct vm_region
 	int rwx;
 	int type;
 	int mapping_type;
-	struct file_description *fd;
+	struct file *fd;
 	off_t offset;
 	int flags;
 	struct vm_object *vmo;
@@ -192,7 +192,7 @@ void vm_invalidate_range(unsigned long addr, size_t pages);
 #define VM_MMAP_FIXED		(1 << 2)
 
 void *create_file_mapping(void *addr, size_t pages, int flags,
-	int prot, struct file_description *fd, off_t off);
+	int prot, struct file *fd, off_t off);
 
 void *map_user(void *addr, size_t pages, uint32_t type, uint64_t prot);
 

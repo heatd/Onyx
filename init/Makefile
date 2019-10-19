@@ -20,4 +20,4 @@ install: $(PROG)
 %.o: %.c
 	$(CC) -c $< $(CFLAGS) -o $@
 $(PROG): $(OBJS)
-	$(CC) -Wl,--warn-execstack $(OBJS) $(CFLAGS) -o $@ -ldrm
+	$(CC) -Wl,--warn-execstack $(OBJS) $(CFLAGS) -o $@

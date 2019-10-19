@@ -196,7 +196,7 @@ retry:;
 	proc->address_space.cr3 = get_current_pml4();
  
 	/* Setup stdio */
-	proc->ctx.file_desc[0] = malloc(sizeof(file_desc_t));
+	proc->ctx.file_desc[0] = zalloc(sizeof(struct file));
 	if(!proc->ctx.file_desc[0])
 	{
 		panic("kernel: out of memory while loading init(file descriptor 0)!\n");
@@ -210,22 +210,25 @@ retry:;
 	}
 
 	proc->ctx.file_desc[0]->seek = 0;
+	proc->ctx.file_desc[0]->refcount = 1;
 	proc->ctx.file_desc[0]->flags = O_RDONLY;
-	proc->ctx.file_desc[1] = malloc(sizeof(file_desc_t));
+	proc->ctx.file_desc[1] = zalloc(sizeof(struct file));
 	if(!proc->ctx.file_desc[1])
 	{
 		panic("kernel: out of memory while loading init(file descriptor 1)!\n");
 	}
 	proc->ctx.file_desc[1]->vfs_node = open_vfs(get_fs_root(), "/dev/tty");
 	proc->ctx.file_desc[1]->seek = 0;
+	proc->ctx.file_desc[1]->refcount = 1;
 	proc->ctx.file_desc[1]->flags = O_WRONLY;
-	proc->ctx.file_desc[2] = malloc(sizeof(file_desc_t));
+	proc->ctx.file_desc[2] = zalloc(sizeof(struct file));
 	if(!proc->ctx.file_desc[2])
 	{
 		panic("kernel: out of memory while loading init(file descriptor 2)!\n");
 	}
 	proc->ctx.file_desc[2]->vfs_node = open_vfs(get_fs_root(), "/dev/tty");
 	proc->ctx.file_desc[2]->seek = 0;
+	proc->ctx.file_desc[2]->refcount = 1;
 	proc->ctx.file_desc[2]->flags = O_WRONLY;
 
 	/* Read the file signature */

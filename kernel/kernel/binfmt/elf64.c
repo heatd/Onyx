@@ -40,7 +40,7 @@ void *elf64_load_static(struct binfmt_args *args, Elf64_Ehdr *header)
 
 	read_vfs(0, header->e_phoff, program_headers_size, phdrs, args->file);
 
-	struct file_description *fd = create_file_description(args->file, 0);
+	struct file *fd = create_file_description(args->file, 0);
 	if(!fd)
 	{
 		free(phdrs);
@@ -117,7 +117,7 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 {
 	struct process *current = get_current_process();
 	size_t program_headers_size = header->e_phnum * header->e_phentsize;
-	struct file_description *fd = create_file_description(args->file, 0);
+	struct file *fd = create_file_description(args->file, 0);
 	if(!fd)
 		return NULL;
 
