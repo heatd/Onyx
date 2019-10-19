@@ -3,7 +3,7 @@
 #include <errno.h>
 #include <sys/mman.h>
 #include "syscall.h"
-
+#include <onyx/heap.h>
 
 /* Expand the heap in-place if brk can be used, or otherwise via mmap,
  * using an exponential lower bound on growth by mmap to make
@@ -13,14 +13,6 @@
  * and mmap minimum size rules. The caller is responsible for locking
  * to prevent concurrent calls. */
 
-struct heap
-{
-	void *starting_address;
-	void *brk;
-	unsigned long size;
-};
-
-struct heap *heap_get();
 
 unsigned long get_brk()
 {

@@ -193,6 +193,7 @@ struct socket *udp_create_socket(int type)
 int udp_init_netif(struct netif *netif)
 {
 	/* TODO: Add IPv6 support */
+	/* TODO: This is NOT a good idea */
 	netif->udp_ports = vmalloc(vm_align_size_to_pages(65536 * sizeof(struct udp_socket *)), VM_TYPE_REGULAR,
 		VM_WRITE | VM_NOEXEC);
 	if(!netif->udp_ports)

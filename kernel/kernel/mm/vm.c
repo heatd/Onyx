@@ -245,9 +245,6 @@ void vm_late_init(void)
 	vmalloc_space = vm_randomize_address(vmalloc_space, VMALLOC_ASLR_BITS);
 	heap_addr = vm_randomize_address(heap_addr, HEAP_ASLR_BITS);
 
-	vm_map_range((void*) heap_addr,
-		     vm_align_size_to_pages(arch_get_initial_heap_size()),
-		     VM_WRITE | VM_NOEXEC);
 #ifdef CONFIG_KASAN
 	kasan_alloc_shadow(heap_addr, arch_get_initial_heap_size(), false);
 #endif
@@ -1977,8 +1974,10 @@ bool is_file_backed(struct vm_region *region)
 void *create_file_mapping(void *addr, size_t pages, int flags,
 	int prot, struct file *fd, off_t off)
 {
+	struct vm_region *entry = NULL;
 	if(!addr)
 	{
+		panic("todo");
 		if(!(addr = get_user_pages(VM_TYPE_REGULAR, pages, prot)))
 		{
 			return NULL;
@@ -1986,14 +1985,15 @@ void *create_file_mapping(void *addr, size_t pages, int flags,
 	}
 	else
 	{
-		if(!vm_reserve_address(addr, pages, VM_TYPE_REGULAR, prot))
+		if(!(entry = vm_reserve_address(addr, pages, VM_TYPE_REGULAR, prot)))
 		{
 			vm_munmap(get_current_address_space(), addr, pages << PAGE_SHIFT);
-			if(vm_reserve_address(addr, pages, VM_TYPE_REGULAR, prot))
+			if((entry = vm_reserve_address(addr, pages, VM_TYPE_REGULAR, prot)))
 				goto good;
 
 			if(flags & VM_MMAP_FIXED)
 				return NULL;
+			panic("todo");
 			if(!(addr = get_user_pages(VM_TYPE_REGULAR, pages, prot)))
 			{
 				return NULL;
@@ -2001,7 +2001,6 @@ void *create_file_mapping(void *addr, size_t pages, int flags,
 		}
 	}
 good: ;
-	struct vm_region *entry = vm_find_region(addr);
 	assert(entry != NULL);
 
 	/* TODO: Maybe we shouldn't use MMAP flags and use these new ones instead? */

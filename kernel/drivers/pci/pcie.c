@@ -354,7 +354,7 @@ int pcie_init(void)
 
 		unsigned int nr_buses = alloc->EndBusNumber - alloc->StartBusNumber;
 		size_t size = nr_buses << 20;
-	
+
 		allocation->address = mmiomap((void *) alloc->Address, size,
 			VM_WRITE | VM_NOEXEC | VM_NOCACHE);
 		

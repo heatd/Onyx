@@ -180,13 +180,24 @@ void *multiboot2_alloc_boot_page_high(size_t nr_pages)
 	{
 		if(mmap->type != MULTIBOOT_MEMORY_AVAILABLE)
 			continue;
-		if(mmap->len >> PAGE_SHIFT >= nr_pages && !range_is_used(mmap->addr, nr_pages))
+	
+		if(mmap->len >> PAGE_SHIFT >= nr_pages)
 		{
-			uintptr_t ret = mmap->addr;
-			mmap->addr += nr_pages << PAGE_SHIFT;
-			mmap->len -= nr_pages << PAGE_SHIFT;
+			if(!range_is_used(mmap->addr, nr_pages))
+			{
+				uintptr_t ret = mmap->addr;
+				mmap->addr += nr_pages << PAGE_SHIFT;
+				mmap->len -= nr_pages << PAGE_SHIFT;
+				return (void *) ret;
+			}
+			else if(!range_is_used(mmap->addr + mmap->len -
+				(nr_pages << PAGE_SHIFT), nr_pages))
+			{
+				unsigned long ret = mmap->addr + mmap->len - (nr_pages << PAGE_SHIFT);
+				mmap->len -= nr_pages << PAGE_SHIFT;
+				return (void *) ret;
+			}
 
-			return (void *) ret;
 		}
 	}
 
@@ -293,6 +304,13 @@ size_t count_mem(void)
 		if(mmap->type != MULTIBOOT_MEMORY_AVAILABLE)
 			continue;
 		memory += mmap->len;
+		if(mmap->addr == 0)
+		{
+			mmap->addr += PAGE_SIZE;
+			mmap->len -= PAGE_SIZE;
+		}
+	
+		printf("MEMMAP [%llx - %llx]\n", mmap->addr, mmap->addr + mmap->len);
 	}
 
 	return memory;
@@ -302,6 +320,7 @@ void vterm_do_init(void);
 void vm_print_map(void);
 
 struct used_pages multiboot_struct_used;
+
 
 void kernel_early(uintptr_t addr, uint32_t magic)
 {
@@ -377,7 +396,6 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 	initrd.size = initrd_tag->mod_end - initrd_tag->mod_start;
 	initrd.next = NULL;
 
-	start_low_mem_allocator(&initrd);
 	set_alloc_boot_page(multiboot2_alloc_boot_page);
 
 	/* Identify the CPU it's running on (bootstrap CPU) */
@@ -410,4 +428,9 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 #ifdef CONFIG_KASAN
 	kasan_init();
 #endif
+}
+
+void reclaim_initrd(void)
+{
+	reclaim_pages(initrd.base, initrd.base + initrd.size);
 }

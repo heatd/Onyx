@@ -255,6 +255,7 @@ void page_free_pages(struct page_arena *arena, void *addr, size_t nr_pages)
 
 void page_free(size_t nr_pages, void *addr)
 {
+	bool freed = false;
 	for_every_arena(&main_cpu)
 	{
 		if((uintptr_t) arena->start_arena <= (uintptr_t) addr && 
@@ -262,19 +263,22 @@ void page_free(size_t nr_pages, void *addr)
 		{
 			page_free_pages(arena, addr, nr_pages);
 			used_pages -= nr_pages;
+			freed = true;
+			break;
 		}
 	}
+
+	assert(freed != false);
 }
 
 bool page_is_used(void *__page, struct bootmodule *modules);
-size_t page_add_counter = 0;
 
 static int page_add(struct page_arena *arena, void *__page,
 	struct bootmodule *modules)
 {
 	if(page_is_used(__page, modules))
 		return -1;
-	page_add_counter++;
+	nr_global_pages++;
 
 	struct page_list *page = PHYS_TO_VIRT(__page);
 	page->next = NULL;
@@ -330,7 +334,7 @@ void page_init(size_t memory_size, void *(*get_phys_mem_region)(uintptr_t *base,
 
 	printf("page: Memory size: %lu\n", memory_size);
 	page_memory_size = memory_size;
-	nr_global_pages = vm_align_size_to_pages(memory_size);
+	//nr_global_pages = vm_align_size_to_pages(memory_size);
 
 	size_t nr_arenas = page_memory_size / 0x200000;
 	if(page_memory_size % 0x200000)
@@ -338,7 +342,7 @@ void page_init(size_t memory_size, void *(*get_phys_mem_region)(uintptr_t *base,
 
 	size_t needed_memory = nr_arenas *
 		sizeof(struct page_arena) + 
-		nr_global_pages * sizeof(struct page);
+		vm_align_size_to_pages(memory_size) * sizeof(struct page);
 	void *ptr = alloc_boot_page(vm_align_size_to_pages(needed_memory), 0);
 	if(!ptr)
 	{
@@ -370,10 +374,15 @@ void page_init(size_t memory_size, void *(*get_phys_mem_region)(uintptr_t *base,
 	page_is_initialized = true;
 }
 
+#include <onyx/pagecache.h>
+#include <onyx/heap.h>
+
 void page_get_stats(struct memstat *m)
 {
-	m->free_mem = nr_global_pages * PAGE_SIZE;
-	m->allocated_mem = used_pages * PAGE_SIZE;
+	m->total_pages = nr_global_pages;
+	m->allocated_pages = used_pages;
+	m->page_cache_pages = pagecache_get_used_pages();
+	m->kernel_heap_pages = heap_get_used_pages();
 }
 
 extern unsigned char kernel_end;
@@ -482,4 +491,16 @@ struct page *alloc_pages(size_t nr_pgs, unsigned long flags)
 		return do_alloc_pages_contiguous(nr_pgs, flags);
 	else
 		return __get_phys_pages(nr_pgs, flags);
+}
+
+void __reclaim_page(struct page *new_page)
+{
+	__sync_add_and_fetch(&used_pages, 1);
+	__sync_add_and_fetch(&nr_global_pages, 1);
+
+	/* We need to set new_page->ref to 1 as free_page will decrement the ref as to
+	 * free it
+	*/
+	new_page->ref = 1;
+	free_page(new_page);
 }

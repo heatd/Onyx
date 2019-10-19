@@ -312,6 +312,8 @@ void init_elf_symbols(struct multiboot_tag_elf_sections *restrict secs)
 	}
 }
 
+void reclaim_elf_sections_memory(void);
+
 void setup_kernel_symbols(struct module *m)
 {
 	const size_t num = symtab->sh_size / symtab->sh_entsize;
@@ -347,10 +349,14 @@ void setup_kernel_symbols(struct module *m)
 
 	m->symtable = symtab;
 	m->nr_symtable_entries = useful_syms;
+
+	reclaim_elf_sections_memory();
 }
 
 struct used_pages symtab_pages;
 struct used_pages strtab_pages;
+static unsigned long strtab_start, strtab_end = 0;
+static unsigned long symtab_start, symtab_end = 0;
 
 void elf_sections_reserve(struct multiboot_tag_elf_sections *restrict secs)
 {
@@ -364,6 +370,9 @@ void elf_sections_reserve(struct multiboot_tag_elf_sections *restrict secs)
 			symtab_pages.start = sections[i].sh_addr & ~(PAGE_SIZE - 1);
 			symtab_pages.end = (uintptr_t) page_align_up((void *)(sections[i].sh_size +
 					   sections[i].sh_addr));
+			symtab_start = sections[i].sh_addr;
+			symtab_end = sections[i].sh_addr + sections[i].sh_size;
+
 			symtab_pages.next = NULL;
 			page_add_used_pages(&symtab_pages);
 		}
@@ -372,8 +381,23 @@ void elf_sections_reserve(struct multiboot_tag_elf_sections *restrict secs)
 			strtab_pages.start = sections[i].sh_addr & ~(PAGE_SIZE - 1);
 			strtab_pages.end = (uintptr_t) page_align_up((void *)(sections[i].sh_size
 					   + sections[i].sh_addr));
+			strtab_start = sections[i].sh_addr;
+			strtab_end = sections[i].sh_addr + sections[i].sh_size;
 			strtab_pages.next = NULL;
 			page_add_used_pages(&strtab_pages);
 		}
+	}
+}
+
+void reclaim_elf_sections_memory(void)
+{
+	if(strtab_start && strtab_end)
+	{
+		reclaim_pages(strtab_start, strtab_end);
+	}
+
+	if(symtab_start && symtab_end)
+	{
+		reclaim_pages(symtab_start, symtab_end);
 	}
 }

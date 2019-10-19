@@ -125,20 +125,22 @@ void process_append_to_global_list(struct process *p)
 
 struct process *process_create(const char *cmd_line, ioctx_t *ctx, struct process *parent)
 {
+	#if 0
 	if(unlikely(!process_cache))
 	{
 		process_cache = slab_create("struct process", sizeof(struct process), 16, 0, 0, 0);
 		if(!process_cache)
 			panic("Could not create the process slab cache\n");
 	}
-	
+	#endif
+
 	if(unlikely(!process_ids))
 	{
 		process_ids = idm_add("pid", 1, UINTMAX_MAX);
 		assert(process_ids != NULL);
 	}
 
-	struct process *proc = slab_allocate(process_cache);
+	struct process *proc = malloc(sizeof(struct process));
 	if(!proc)
 		return errno = ENOMEM, NULL;
 	memset(proc, 0, sizeof(struct process));
@@ -150,7 +152,7 @@ struct process *process_create(const char *cmd_line, ioctx_t *ctx, struct proces
 
 	if(!proc->cmd_line)
 	{
-		slab_free(process_cache, proc);
+		free(proc);
 		return NULL;
 	}
 
@@ -165,7 +167,7 @@ struct process *process_create(const char *cmd_line, ioctx_t *ctx, struct proces
 		{
 			object_unref(&ctx->cwd->i_object);
 			free(proc->cmd_line);
-			slab_free(process_cache, proc);
+			free(proc);
 			return NULL;
 		}
 		
@@ -174,7 +176,7 @@ struct process *process_create(const char *cmd_line, ioctx_t *ctx, struct proces
 			free((void *) proc->ctx.name);
 			object_unref(&ctx->cwd->i_object);
 			free(proc->cmd_line);
-			slab_free(process_cache, proc);
+			free(proc);
 			return NULL;
 		}
 	}
@@ -182,7 +184,7 @@ struct process *process_create(const char *cmd_line, ioctx_t *ctx, struct proces
 	{
 		if(allocate_file_descriptor_table(proc) < 0)
 		{
-			slab_free(process_cache, proc);
+			free(proc);
 			return NULL;
 		}
 	}
@@ -889,7 +891,7 @@ void process_end(struct process *process)
 	}
 
 	futex_free_queue(process);
-	slab_free(process_cache, process);
+	free(process);
 }
 
 void process_reparent_children(struct process *process)

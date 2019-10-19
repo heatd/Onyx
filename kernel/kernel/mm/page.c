@@ -42,8 +42,6 @@ static void append_to_hash(unsigned int hash, struct page *page)
 
 struct page *page_add_page(void *paddr)
 {
-	static size_t counter = 0;
-	counter++;
 	unsigned int hash = page_hash((uintptr_t) paddr);
 	struct page *page = __ksbrk(sizeof(struct page));
 
@@ -59,10 +57,8 @@ struct page *page_add_page(void *paddr)
 	return page;
 }
 
-void page_add_page_late(void *paddr)
+struct page *page_add_page_late(void *paddr)
 {
-	static size_t counter = 0;
-	counter++;
 	unsigned int hash = page_hash((uintptr_t) paddr);
 	struct page *page = zalloc(sizeof(struct page));
 
@@ -73,6 +69,8 @@ void page_add_page_late(void *paddr)
 	page->next = NULL;
 	append_to_hash(hash, page);
 	++num_pages;
+
+	return page;
 }
 
 struct page *phys_to_page(uintptr_t phys)
@@ -171,4 +169,20 @@ void page_print_shared(void)
 				printk("Page %p has ref %lu\n", p->paddr, p->ref);
 		}
 	}
+}
+
+void reclaim_pages(unsigned long start, unsigned long end)
+{
+	unsigned long page_start = (unsigned long) page_align_up((void *) start);
+	
+	end &= ~(PAGE_SIZE - 1);
+	size_t nr_pages = (end - page_start) / PAGE_SIZE;
+	for(size_t i = 0; i < nr_pages; i++)
+	{
+		struct page *p = page_add_page((void *) page_start);
+
+		__reclaim_page(p);
+		page_start += PAGE_SIZE;
+	}
+	
 }

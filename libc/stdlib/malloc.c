@@ -15,20 +15,22 @@
 #include <onyx/vm.h>
 #include <onyx/spinlock.h>
 #include <onyx/mm/kasan.h>
+#include <onyx/heap.h>
+
 extern bool is_initialized;
 
-static struct heap
-{
-	void *starting_address;
-	void *brk;
-	unsigned long size;
-} heap = {};
+static struct heap heap = {};
 
 uintptr_t starting_address = 0;
 
 struct heap *heap_get()
 {
 	return &heap;
+}
+
+size_t heap_get_used_pages(void)
+{
+	return heap.size / PAGE_SIZE;
 }
 
 void heap_set_start(uintptr_t heap_start)

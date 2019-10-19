@@ -121,8 +121,10 @@ typedef struct 0
 
 struct memstat
 {
-	size_t free_mem;
-	size_t allocated_mem;
+	size_t total_pages;
+	size_t allocated_pages;
+	size_t page_cache_pages;
+	size_t kernel_heap_pages;
 };
 
 #ifdef __cplusplus
@@ -146,7 +148,7 @@ void page_init(size_t memory_size, void *(*get_phys_mem_region)
 unsigned int page_hash(uintptr_t p);
 struct page *phys_to_page(uintptr_t phys);
 struct page *page_add_page(void *paddr);
-void page_add_page_late(void *paddr);
+struct page *page_add_page_late(void *paddr);
 
 #define PAGE_ALLOC_CONTIGUOUS	(1 << 0)
 #define PAGE_ALLOC_NO_ZERO	(1 << 1)
@@ -190,6 +192,9 @@ static inline unsigned long page_unref(struct page *p)
 {
 	return __atomic_sub_fetch(&p->ref, 1, __ATOMIC_RELEASE);
 }
+
+void __reclaim_page(struct page *new_page);
+void reclaim_pages(unsigned long start, unsigned long end);
 
 #ifdef __cplusplus
 }

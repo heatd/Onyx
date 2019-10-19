@@ -53,9 +53,12 @@ void *elf64_load_static(struct binfmt_args *args, Elf64_Ehdr *header)
 			continue;
 		if(phdrs[i].p_type == PT_INTERP)
 		{
-			args->interp_path = malloc(phdrs[i].p_filesz);
+			/* We allocate one more byte for the null byte so we don't get buffer overflow'd */
+			args->interp_path = malloc(phdrs[i].p_filesz + 1);
 			if(!args->interp_path)
 				return errno = ENOMEM, NULL;
+			args->interp_path[phdrs[i].p_filesz] = '\0';
+
 			read_vfs(0, phdrs[i].p_offset, phdrs[i].p_filesz,
 				 args->interp_path, args->file);
 			args->needs_interp = true;

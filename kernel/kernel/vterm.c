@@ -1133,6 +1133,8 @@ void vterm_switch_to_multithread(struct vterm *vt)
 void vt_init_blink(void)
 {
 	struct vterm *vt = &primary_vterm;
+	if(!vt->fb)
+		return;
 	if(!vt->blink_thread)
 	{
 		vt->blink_status = false;

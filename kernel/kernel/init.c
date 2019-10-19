@@ -168,7 +168,7 @@ char *kernel_getopt(char *opt)
 
 
 void *process_setup_auxv(void *buffer, struct process *process);
-
+void dump_used_mem(void);
 extern PML *current_pml4;
 int find_and_exec_init(char **argv, char **envp)
 {
@@ -280,13 +280,29 @@ retry:;
 	return 0;
 }
 
+#if 0
+void dump_used_mem(void)
+{
+	struct memstat ps;
+	page_get_stats(&ps);
+	printk("Used total: %lu - Page cache %lu, kernel heap %lu\n", ps.allocated_pages,
+		ps.page_cache_pages, ps.kernel_heap_pages);
+
+	unsigned long memory_pressure = (ps.allocated_pages * 1000000) / (ps.total_pages);
+	printk("Global %lu\n", ps.total_pages);
+	printk("Memory pressure: 0.%06lu\n", memory_pressure);
+}
+
+#endif
+
 static thread_t *new_thread;
 
 void kernel_multitasking(void *);
+void reclaim_initrd(void);
 
 __attribute__((no_sanitize_undefined))
 void kernel_main(void)
-{	
+{
 	/* Set up symbols and the core kernel 'module' */
 	setup_core_kernel_module();
 
@@ -311,11 +327,13 @@ void kernel_main(void)
 
 	if(!initrd_addr)
 		panic("Initrd not found");
+
 	initrd_addr = (void*)((char*) initrd_addr + PHYS_BASE);
 
 	/* Initialize the initrd */
 	init_initrd(initrd_addr);
 
+	reclaim_initrd();
 	DISABLE_INTERRUPTS();
 
 	/* Initialize the scheduler */
