@@ -316,6 +316,26 @@ size_t count_mem(void)
 	return memory;
 }
 
+unsigned long mb2_get_maxpfn(void)
+{
+	size_t entries = mmap_tag->size / mmap_tag->entry_size;
+	struct multiboot_mmap_entry *mmap = (struct multiboot_mmap_entry *) mmap_tag->entries;
+
+	size_t maxpfn = 0;
+
+	for(size_t i = 0; i < entries; i++, mmap++)
+	{
+		if(mmap->type == MULTIBOOT_MEMORY_BADRAM || mmap->type == MULTIBOOT_MEMORY_RESERVED)
+			continue;
+		if(mmap->addr + mmap->len > maxpfn)
+			maxpfn = mmap->addr + mmap->len;
+	}
+
+	printf("MAXPFN: %lx\n", maxpfn);
+	return maxpfn >> PAGE_SHIFT;
+}
+
+
 void vterm_do_init(void);
 void vm_print_map(void);
 
@@ -332,8 +352,10 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 
 	struct multiboot_tag_framebuffer *tagfb = NULL;
 	size_t total_mem = 0;
+	unsigned long max_pfn = 0;
+
 	struct multiboot_tag * tag;
-	for (tag =
+	for(tag =
 	     (struct multiboot_tag *)(addr + 8);
 	     tag->type != MULTIBOOT_TAG_TYPE_END;
 	     tag =
@@ -346,6 +368,7 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 		{
 			mmap_tag = (struct multiboot_tag_mmap *) tag;
 			total_mem = count_mem();
+			max_pfn = mb2_get_maxpfn();
 			break;
 		}
 		case MULTIBOOT_TAG_TYPE_FRAMEBUFFER:
@@ -404,7 +427,7 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 
 	set_initrd_address((void*) (uintptr_t) initrd_tag->mod_start);
 
-	page_init(total_mem, multiboot2_get_phys_mem_region, &initrd);
+	page_init(total_mem, max_pfn, multiboot2_get_phys_mem_region, &initrd);
 
 	/* We need to get some early boot rtc data and initialize the entropy,
 	 * as it's vital to initialize some entropy sources for the memory map

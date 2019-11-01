@@ -220,7 +220,7 @@ void rtl_init_tx(void)
 			return;
 		}
 
-		tx_buffers[i].buffer = p->paddr;
+		tx_buffers[i].buffer = page_to_phys(p);
 
 	}
 }
@@ -234,7 +234,7 @@ int rtl_init(void)
 
 	/* Allocate 2 contiguous pages */
 	/* Sadly we'll have to waste 2 pages because the RTL8139 requires 8k/16k/32K/64k + 16 bytes */
-	void *ph_rx = alloc_pages(2, PAGE_ALLOC_CONTIGUOUS)->paddr;
+	void *ph_rx = page_to_phys(alloc_pages(2, PAGE_ALLOC_CONTIGUOUS));
 	if(!ph_rx)
 	{
 		ERROR("rtl8139", "Couldn't allocate enough contiguous memory for the rx buffer\n");

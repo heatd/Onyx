@@ -175,7 +175,7 @@ size_t tmpfs_read(int flags, size_t offset, size_t size, void *buffer, struct in
 	if(!p)
 		return errno = ENOMEM, (size_t) -1;
 
-	char *scratch = PHYS_TO_VIRT(p->paddr);
+	char *scratch = PAGE_TO_VIRT(p);
 	ssize_t read = 0;
 	while(read != (ssize_t) size)
 	{

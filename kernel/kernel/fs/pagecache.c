@@ -92,7 +92,7 @@ struct page_cache_block *add_to_cache(void *data, size_t size, size_t offset, st
 		return errno = ENOMEM, NULL;
 	}
 
-	c->buffer = PHYS_TO_VIRT(page->paddr);
+	c->buffer = PAGE_TO_VIRT(page);
 	c->page = page;
 	c->node = file;
 	c->size = size;

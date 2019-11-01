@@ -327,6 +327,8 @@ int sched_init(void)
 
 void sched_yield(void)
 {
+	if(sched_is_preemption_disabled())
+		panic("Thread tried to sleep with preemption disabled");
 	__asm__ __volatile__("int $0x81");
 }
 

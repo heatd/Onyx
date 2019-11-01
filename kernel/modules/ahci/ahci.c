@@ -574,7 +574,7 @@ struct ahci_port *_port)
 	struct page *command_list_page = alloc_page(0);
 	if(!command_list_page)
 		goto error;
-	void *command_list = command_list_page->paddr;
+	void *command_list = page_to_phys(command_list_page);
 	if(!command_list)
 		goto error;
 
@@ -708,7 +708,7 @@ int ahci_configure_port_dma(struct ahci_port *port, unsigned int ncs)
 			if(!current_buf_page)
 				return -1;
 			
-			buf = current_buf_page->paddr;
+			buf = page_to_phys(current_buf_page);
 			curr = 0;
 		}
 

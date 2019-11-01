@@ -173,7 +173,7 @@ int vmo_fork_pages(struct vm_object *vmo)
 		}
 	
 		p->off = old_p->off;
-		copy_page_to_page(p->paddr, old_p->paddr);
+		copy_page_to_page(page_to_phys(p), page_to_phys(old_p));
 
 		dict_insert_result res = rb_tree_insert(new_tree, (void *) p->off);
 		if(!res.inserted)
@@ -321,13 +321,15 @@ int vmo_add_page(size_t off, struct page *p, struct vm_object *vmo)
 
 bool vmo_unref(struct vm_object *vmo)
 {
-	/* For now, unref just destroys the object since vmo sharing is not
-	 * implemented yet.
-	*/
 	if(__sync_sub_and_fetch(&vmo->refcount, 1) == 0)
 	{
+		//printk("Deleting vmo %p with size %lx\n", vmo, vmo->size);
 		vmo_destroy(vmo);
 		return true;
+	}
+	else
+	{
+		//printk("Unrefed vmo %p with size %lx\n", vmo, vmo->size);
 	}
 
 	return false;

@@ -124,6 +124,10 @@ struct mm_address_space
 	/* Process' brk */
 	void *brk;
 
+	size_t virtual_memory_size;
+	size_t resident_set_size;
+	size_t shared_set_size;
+
 	struct spinlock private_vmo_lock;
 	struct vm_object *vmo_head, *vmo_tail;
 #ifdef __x86_64__
@@ -134,6 +138,9 @@ struct mm_address_space
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define increment_vm_stat(as, name, amount)	__sync_add_and_fetch(&as->name, amount)
+#define decrement_vm_stat(as, name, amount)	__sync_sub_and_fetch(&as->name, amount)
 
 void vm_init(void);
 void vm_late_init(void);

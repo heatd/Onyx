@@ -460,8 +460,9 @@ int ata_init(void)
 	if(!p)
 		return -1;
 
+	void *prdt_phys = (void *) pfn_to_paddr(page_to_pfn(p)); 
 	/* Allocate PRDT base */
-	prdt_base = mmiomap(p->paddr,
+	prdt_base = mmiomap(prdt_phys,
 		UINT16_MAX, VM_WRITE | VM_NOEXEC);
 	if(!prdt_base)
 	{
@@ -485,8 +486,8 @@ int ata_init(void)
 	assert(read_buffer_pgs != NULL);
 	assert(write_buffer_pgs != NULL);
 
-	read_buffer = read_buffer_pgs->paddr;
-	write_buffer = write_buffer_pgs->paddr;
+	read_buffer = (void *) pfn_to_paddr(page_to_pfn(read_buffer_pgs));
+	write_buffer = (void *) pfn_to_paddr(page_to_pfn(write_buffer_pgs));
 
 	for(int channel = 0; channel < 2; channel++)
 	{

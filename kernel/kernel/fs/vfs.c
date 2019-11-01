@@ -70,7 +70,7 @@ struct page_cache_block *inode_do_caching(struct inode *inode, size_t offset, lo
 	if(!p)
 		return NULL;
 	
-	void *virt = PHYS_TO_VIRT(p->paddr);
+	void *virt = PAGE_TO_VIRT(p);
 
 	/* The size may be lesser than PAGE_SIZE, because we may reach EOF
 	 * before reading a whole page */
@@ -107,7 +107,7 @@ struct page *vmo_inode_commit(size_t off, struct vm_object *vmo)
 		return NULL;
 
 	page->off = off;
-	void *ptr = PHYS_TO_VIRT(page->paddr);
+	void *ptr = PAGE_TO_VIRT(page);
 	size_t to_read = i->i_size - off < PAGE_SIZE ? i->i_size - off : PAGE_SIZE;
 
 	assert(to_read <= PAGE_SIZE);

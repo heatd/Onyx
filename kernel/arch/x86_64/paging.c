@@ -134,7 +134,7 @@ typedef struct
 void *alloc_pt(void)
 {
 	struct page *p = alloc_page(0);
-	return p != NULL ? p->paddr : NULL;
+	return p != NULL ? (void *) pfn_to_paddr(page_to_pfn(p)) : NULL;
 }
 
 PML *boot_pml4;
@@ -370,7 +370,14 @@ void* paging_map_phys_to_virt(PML *__pml, uint64_t virt, uint64_t phys, uint64_t
 {
 	bool user = 0;
 	if (virt < 0x00007fffffffffff)
-		user = 1;
+		user = true;
+
+	struct mm_address_space *as = NULL;
+	if(!user)
+		as = &kernel_address_space;
+	else
+		as = get_current_address_space();
+
 
 	const unsigned int paging_levels = 4;
 	unsigned int indices[paging_levels];
@@ -426,6 +433,8 @@ void* paging_map_phys_to_virt(PML *__pml, uint64_t virt, uint64_t phys, uint64_t
 	
 	pml->entries[indices[0]] = phys | page_prots;
 
+	increment_vm_stat(as, resident_set_size, PAGE_SIZE);
+
 	return (void*) virt;
 }
 
@@ -442,6 +451,16 @@ bool pml_is_empty(void *_pml)
 
 void *paging_unmap(void* memory)
 {
+	bool user = 0;
+	if ((unsigned long) memory < 0x00007fffffffffff)
+		user = true;
+
+	struct mm_address_space *as = NULL;
+	if(!user)
+		as = &kernel_address_space;
+	else
+		as = get_current_address_space();
+
 	decomposed_addr_t dec;
 	memcpy(&dec, &memory, sizeof(decomposed_addr_t));
 	PML *pml4 = (PML*)((uint64_t) get_current_pml4() + PHYS_BASE);
@@ -492,6 +511,8 @@ void *paging_unmap(void* memory)
 		pml4->entries[dec.pml4] = 0;
 	}
 
+	decrement_vm_stat(as, resident_set_size, PAGE_SIZE);
+
 	return (void*) address;
 }
 
@@ -501,7 +522,7 @@ int paging_clone_as(struct mm_address_space *addr_space)
 	if(!new_pml)
 		return -1;
 	PML *p = PHYS_TO_VIRT(new_pml);
-	PML *curr = (PML*)((uint64_t)get_current_pml4() + PHYS_BASE);
+	PML *curr = (PML*)((uint64_t) get_current_pml4() + PHYS_BASE);
 	/* Copy the upper 256 entries of the PML in order to map
 	 * the kernel in the process's address space
 	*/
@@ -533,7 +554,7 @@ int paging_fork_tables(struct mm_address_space *addr_space)
 	struct page *page = alloc_page(0);
 	if(!page)
 		return -1;
-	PML *new_pml = page->paddr;
+	unsigned long new_pml = pfn_to_paddr(page_to_pfn(page));
 	PML *p = PHYS_TO_VIRT(new_pml);
 	PML *curr = PHYS_TO_VIRT(get_current_pml4());
 	memcpy(p, curr, sizeof(PML));
@@ -577,7 +598,7 @@ int paging_fork_tables(struct mm_address_space *addr_space)
 		}
 	}
 	
-	addr_space->cr3 = new_pml;
+	addr_space->cr3 = (void *) new_pml;
 	return 0;
 }
 

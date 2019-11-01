@@ -111,7 +111,7 @@ void vdso_init(void)
 	page -= KERNEL_VIRTUAL_BASE;
 
 	for(size_t i = 0; i < vdso_pages; i++, page += PAGE_SIZE)
-		page_add_page_late((void *) page);
+		page_add_page((void *) page);
 
 	increment_vdso_pages();
 

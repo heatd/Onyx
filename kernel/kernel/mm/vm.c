@@ -108,10 +108,11 @@ struct vm_region *vm_reserve_region(struct mm_address_space *as,
 		return NULL;
 	}
 
-	if(as != &kernel_address_space)
-		region->mm = &get_current_process()->address_space;
+	region->mm = as;
 
 	*res.datum_ptr = region;
+
+	increment_vm_stat(region->mm, virtual_memory_size, size);
 
 	return region; 
 }
@@ -294,7 +295,7 @@ struct page *vm_map_range(void *range, size_t nr_pages, uint64_t flags)
 	for(size_t i = 0; i < nr_pages; i++)
 	{
 		//printf("Mapping %p\n", p->paddr);
-		if(!vm_map_page(NULL, mem + (i << PAGE_SHIFT), (uintptr_t) p->paddr, flags))
+		if(!vm_map_page(NULL, mem + (i << PAGE_SHIFT), (uintptr_t) page_to_phys(p), flags))
 			goto out_of_mem;
 		p = p->next_un.next_allocation;
 	}
@@ -391,6 +392,8 @@ void vm_destroy_mappings(void *range, size_t pages)
 	vm_region_destroy(reg);
 
 	spin_unlock(&mm->vm_spl);
+
+	decrement_vm_stat(mm, virtual_memory_size, pages << PAGE_SHIFT);
 }
 
 unsigned long vm_get_base_address(uint64_t flags, uint32_t type)
@@ -583,7 +586,7 @@ int vm_flush_mapping(struct vm_region *mapping, struct process *proc)
 		if(p->off >= off + (nr_pages << PAGE_SHIFT))
 			break;
 		unsigned long reg_off = p->off - off;
-		if(!__map_pages_to_vaddr(proc, (void *) (mapping->base + reg_off), p->paddr,
+		if(!__map_pages_to_vaddr(proc, (void *) (mapping->base + reg_off), page_to_phys(p),
 			PAGE_SIZE, mapping->rwx))
 		{
 			spin_unlock(&vmo->page_lock);
@@ -1418,7 +1421,7 @@ int __vm_handle_pf(struct vm_region *entry, struct fault_info *info)
 		return -1;
 	}
 
-	if(!map_pages_to_vaddr((void *) vpage, page->paddr, PAGE_SIZE, entry->rwx))
+	if(!map_pages_to_vaddr((void *) vpage, page_to_phys(page), PAGE_SIZE, entry->rwx))
 	{
 		/* TODO: Properly destroy this */
 		info->error = VM_SIGSEGV;
@@ -1815,7 +1818,7 @@ struct page *vm_commit_private(size_t off, struct vm_object *vmo)
 	off_t file_off = (off_t) vmo->priv;
 
 	//printk("commit %lx\n", off + file_off);
-	size_t read = read_vfs(0, off + file_off, PAGE_SIZE, PHYS_TO_VIRT(p->paddr), ino);
+	size_t read = read_vfs(0, off + file_off, PAGE_SIZE, PAGE_TO_VIRT(p), ino);
 
 	if((ssize_t) read < 0)
 	{
@@ -1956,6 +1959,9 @@ int setup_vmregion_backing(struct vm_region *region, size_t pages, bool is_file_
 		add_vmo_to_private_list(mm, vmo);
 	}
 
+	if(is_shared)
+		increment_vm_stat(region->mm, shared_set_size, vmo->size);
+
 	assert(region->vmo == NULL);
 	region->vmo = vmo;
 	return 0;
@@ -2038,7 +2044,7 @@ void *map_page_list(struct page *pl, size_t size, uint64_t prot)
 	uintptr_t u = (uintptr_t) vaddr;
 	while(pl != NULL)
 	{
-		if(!map_pages_to_vaddr((void *) u, pl->paddr, PAGE_SIZE, prot))
+		if(!map_pages_to_vaddr((void *) u, page_to_phys(pl), PAGE_SIZE, prot))
 		{
 			vm_destroy_mappings(vaddr, vm_align_size_to_pages(size));
 			return NULL;
@@ -2057,13 +2063,18 @@ void *map_page_list(struct page *pl, size_t size, uint64_t prot)
 int vm_create_address_space(struct process *process, void *cr3)
 {
 	struct mm_address_space *mm = &process->address_space;
+	struct mm_address_space *current_mm = get_current_address_space();
 
 	mm->cr3 = cr3;
 	mm->mmap_base = vm_gen_mmap_base();
 	mm->start = arch_low_half_min;
 	mm->end = arch_low_half_max;
 	mm->process = process;
+	mm->resident_set_size = current_mm->resident_set_size;
+	mm->shared_set_size = current_mm->shared_set_size;
+	mm->virtual_memory_size = current_mm->virtual_memory_size;
 	mm->area_tree = rb_tree_new(vm_cmp);
+
 	if(!mm->area_tree)
 	{
 		return -1;
@@ -2142,6 +2153,8 @@ int vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
 			spin_unlock(&as->vm_spl);
 			return -EINVAL;
 		}
+
+		bool is_shared = is_mapping_shared(region);
 
 		__vm_unmap_range((void *) addr, (limit - addr) >> PAGE_SHIFT);
 
@@ -2255,6 +2268,11 @@ int vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
 				region->pages -= to_shave_off >> PAGE_SHIFT;
 			}
 		}
+
+		if(is_shared)
+			decrement_vm_stat(as, shared_set_size, to_shave_off);
+		else
+			decrement_vm_stat(as, resident_set_size, to_shave_off);
 
 		addr += to_shave_off;
 		size -= to_shave_off;
@@ -2622,7 +2640,7 @@ struct page *vm_commit_page(void *page)
 	struct page *p = vmo_get(vmo, off, true);
 	if(!p)
 		return NULL;
-	if(!map_pages_to_vaddr(page, p->paddr, PAGE_SIZE, reg->rwx))
+	if(!map_pages_to_vaddr(page, page_to_phys(p), PAGE_SIZE, reg->rwx))
 		return NULL;
 	return p;
 }

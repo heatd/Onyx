@@ -8,6 +8,7 @@
 
 #include <onyx/dma.h>
 #include <onyx/vm.h>
+#include <onyx/page.h>
 #include <onyx/utils.h>
 
 static void *expand_array(void *old, size_t new_size)
@@ -51,7 +52,7 @@ uintptr_t dma_commit_page(uintptr_t virtual_buf, size_t size)
 	if(!p)
 		return -1;
 	
-	return (uintptr_t) p->paddr + (virtual_buf & (PAGE_SIZE - 1));
+	return (uintptr_t) pfn_to_paddr(page_to_pfn(p)) + (virtual_buf & (PAGE_SIZE - 1));
 }
 
 int __dma_add_range(uintptr_t virtual_buf, size_t size, size_t max_size,

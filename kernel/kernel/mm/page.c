@@ -17,74 +17,34 @@
 #include <onyx/slab.h>
 #include <onyx/fnv.h>
 
-static struct page_hashtable hashtable = {0};
+/* struct page array a-la linux kernel */
+struct page *page_map = NULL;
 static size_t num_pages = 0;
-
-fnv_hash_t page_hash(uintptr_t p)
-{
-	fnv_hash_t hash = fnv_hash((uint8_t*) &p, sizeof(uintptr_t));
-	return hash % PAGE_HASHTABLE_ENTRIES;
-}
-
-static void append_to_hash(unsigned int hash, struct page *page)
-{
-	if(!hashtable.table[hash])
-	{
-		hashtable.table[hash] = page;
-	}
-	else
-	{
-		struct page *p = hashtable.table[hash];
-		while(p->next) p = p->next;
-		p->next = page;
-	}
-}
+static unsigned long maxpfn = 0;
 
 struct page *page_add_page(void *paddr)
 {
-	unsigned int hash = page_hash((uintptr_t) paddr);
-	struct page *page = __ksbrk(sizeof(struct page));
+	struct page *page = phys_to_page((unsigned long) paddr);
 
 	assert(page != NULL);
+	memset(page, 0, sizeof(struct page));
 
-	page->paddr = paddr;
-	page->ref = 0;
-	page->next = NULL;
-	page->next_un.next_allocation = NULL;
-	append_to_hash(hash, page);
 	++num_pages;
 
 	return page;
 }
 
-struct page *page_add_page_late(void *paddr)
+void page_allocate_pagemap(unsigned long __maxpfn)
 {
-	unsigned int hash = page_hash((uintptr_t) paddr);
-	struct page *page = zalloc(sizeof(struct page));
-
-	assert(page != NULL);
-
-	page->paddr = paddr;
-	page->ref = 0;
-	page->next = NULL;
-	append_to_hash(hash, page);
-	++num_pages;
-
-	return page;
+	maxpfn = __maxpfn;
+	page_map = __ksbrk(maxpfn * sizeof(struct page));
 }
 
 struct page *phys_to_page(uintptr_t phys)
 {
-	unsigned int hash = page_hash(phys);
-	struct page *p = hashtable.table[hash];
-	for(; p; p = p->next)
-	{
-		if(p->paddr == (void*) phys)
-			return p;
-	}
-
-	printk("page: %p queried for %lx, but it doesn't exist!\n", __builtin_return_address(0), phys);
-	return NULL;
+	unsigned long pfn = phys >> PAGE_SHIFT;
+	assert(pfn <= maxpfn);
+	return page_map + pfn;
 }
 
 extern char kernel_start[0];
@@ -157,18 +117,6 @@ bool page_is_used(void *__page, struct bootmodule *modules)
 		return true;
 
 	return platform_page_is_used(__page);
-}
-
-void page_print_shared(void)
-{
-	for(unsigned int i = 0; i < PAGE_HASHTABLE_ENTRIES; i++)
-	{
-		for(struct page *p = hashtable.table[i]; p != NULL; p = p->next)
-		{
-			if(p->ref != 1 && p->ref != 0)
-				printk("Page %p has ref %lu\n", p->paddr, p->ref);
-		}
-	}
 }
 
 void reclaim_pages(unsigned long start, unsigned long end)

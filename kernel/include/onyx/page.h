@@ -52,7 +52,6 @@
 #define PAGE_NO_RETRY		(1 << 3)
 
 
-
 #define PAGE_FLAG_LOCKED	(1 << 0)
 /* struct page - Represents every usable page on the system 
  * Everything is native-word-aligned in order to allow atomic changes
@@ -60,8 +59,6 @@
 */
 struct page
 {
-	void *paddr;
-	struct page *next;
 	unsigned long ref;
 	unsigned long flags;
 	struct page_cache_block *cache;
@@ -73,13 +70,6 @@ struct page
 		struct page *next_allocation;
 		struct page *next_virtual_region;
 	} next_un;
-};
-
-#define PAGE_TO_VIRT(page)	((struct page *)((unsigned long) page->paddr + PHYS_BASE))
-#define PAGE_HASHTABLE_ENTRIES 0x4000	
-struct page_hashtable
-{
-	struct page *table[PAGE_HASHTABLE_ENTRIES];
 };
 
 #ifdef CONFIG_BUDDY_ALLOCATOR
@@ -134,7 +124,23 @@ struct bootmodule
 	struct bootmodule *next;
 };
 
-void page_init(size_t memory_size, void *(*get_phys_mem_region)
+extern struct page *page_map;
+
+static inline unsigned long page_to_pfn(struct page *p)
+{
+	return p - page_map;
+}
+
+static inline unsigned long pfn_to_paddr(unsigned long pfn)
+{
+	return pfn << PAGE_SHIFT;
+}
+
+#define page_to_phys(page)	(void *) (pfn_to_paddr(page_to_pfn(page)))
+
+#define PAGE_TO_VIRT(page)	((void *) (pfn_to_paddr(page_to_pfn(page)) + PHYS_BASE))
+
+void page_init(size_t memory_size, unsigned long maxpfn, void *(*get_phys_mem_region)
 	(uintptr_t *base, uintptr_t *size, void *context),
 	struct bootmodule *modules);
 
@@ -165,7 +171,7 @@ void free_pages(struct page *p);
 
 __attribute__((malloc))
 void *__ksbrk(long inc);
-void __kbrk(void *break_);
+void __kbrk(void *break_, void *limit);
 
 struct used_pages
 {
@@ -188,6 +194,7 @@ static inline unsigned long page_unref(struct page *p)
 
 void __reclaim_page(struct page *new_page);
 void reclaim_pages(unsigned long start, unsigned long end);
+void page_allocate_pagemap(unsigned long __maxpfn);
 
 #ifdef __cplusplus
 }

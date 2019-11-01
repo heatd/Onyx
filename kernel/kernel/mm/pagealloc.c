@@ -325,7 +325,7 @@ static void page_add_region(uintptr_t base, size_t size, struct bootmodule *modu
 	}
 }
 
-void page_init(size_t memory_size, void *(*get_phys_mem_region)(uintptr_t *base,
+void page_init(size_t memory_size, unsigned long maxpfn, void *(*get_phys_mem_region)(uintptr_t *base,
 	uintptr_t *size, void *context), struct bootmodule *modules)
 {
 	uintptr_t region_base;
@@ -342,16 +342,15 @@ void page_init(size_t memory_size, void *(*get_phys_mem_region)(uintptr_t *base,
 
 	size_t needed_memory = nr_arenas *
 		sizeof(struct page_arena) + 
-		vm_align_size_to_pages(memory_size) * sizeof(struct page);
+		maxpfn * sizeof(struct page);
 	void *ptr = alloc_boot_page(vm_align_size_to_pages(needed_memory), 0);
 	if(!ptr)
 	{
 		halt();
 	}
 
-	memset(PHYS_TO_VIRT(ptr), 0, needed_memory);
-	__kbrk(PHYS_TO_VIRT(ptr));
-
+	__kbrk(PHYS_TO_VIRT(ptr), (void *)((unsigned long) PHYS_TO_VIRT(ptr) + needed_memory));
+	page_allocate_pagemap(maxpfn);
 
 	/* The context cookie is supposed to be used as a way for the
 	 * get_phys_mem_region implementation to keep track of where it's at,
@@ -388,18 +387,22 @@ void page_get_stats(struct memstat *m)
 extern unsigned char kernel_end;
 
 void *kernel_break = &kernel_end;
+static void *kernel_break_limit = NULL;
 
 __attribute__((malloc))
 void *__ksbrk(long inc)
 {
 	void *ret = kernel_break;
 	kernel_break = (char*) kernel_break + inc;
+
+	assert((unsigned long) kernel_break <= (unsigned long) kernel_break_limit);
 	return ret;
 }
 
-void __kbrk(void *break_)
+void __kbrk(void *break_, void *kbrk_limit)
 {
 	kernel_break = break_;
+	kernel_break_limit = kbrk_limit;
 }
 
 void free_pages(struct page *pages)
@@ -422,7 +425,7 @@ void free_page(struct page *p)
 	if(page_unref(p) == 0)
 	{
 		p->next_un.next_allocation = NULL;
-		page_free(1, p->paddr);
+		page_free(1, page_to_phys(p));
 	}
 }
 
@@ -453,7 +456,7 @@ struct page *__get_phys_pages(size_t nr_pgs, unsigned long flags)
 
 		if(page_should_zero(flags))
 		{
-			set_non_temporal(PHYS_TO_VIRT(p->paddr), 0, PAGE_SIZE);
+			set_non_temporal(PAGE_TO_VIRT(p), 0, PAGE_SIZE);
 		}
 
 		if(!plist)
@@ -478,7 +481,7 @@ struct page *do_alloc_pages_contiguous(size_t nr_pgs, unsigned long flags)
 	
 	if(page_should_zero(flags))
 	{
-		set_non_temporal(PHYS_TO_VIRT(p->paddr), 0, nr_pgs << PAGE_SHIFT);
+		set_non_temporal(PAGE_TO_VIRT(p), 0, nr_pgs << PAGE_SHIFT);
 	}
 
 	return p;
