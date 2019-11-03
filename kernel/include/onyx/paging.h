@@ -48,7 +48,12 @@ void paging_protect_kernel(void);
 void paging_invalidate(void *page, size_t pages);
 void paging_free_page_tables(struct mm_address_space *mm);
 
+#ifdef __x86_64__
+void *x86_placement_map(unsigned long _phys);
+#endif
+
 PML *get_current_pml4(void);
+
 #ifdef __cplusplus
 }
 #endif

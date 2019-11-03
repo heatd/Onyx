@@ -15,8 +15,6 @@
  *
  **************************************************************************/
 #include <stdio.h>
-#pragma GCC target("sse2", "3dnow")
-#include <x86intrin.h>
 #include <inttypes.h>
 
 #include <onyx/cpu.h>

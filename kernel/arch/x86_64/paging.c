@@ -34,6 +34,8 @@
 (X86_PAGING_GLOBAL | X86_PAGING_HUGE | X86_PAGING_USER | X86_PAGING_PRESENT | X86_PAGING_ACCESSED | \
 X86_PAGING_DIRTY | X86_PAGING_WRITETHROUGH | X86_PAGING_PCD | X86_PAGING_PAT)
 
+void* paging_map_phys_to_virt(PML *__pml, uint64_t virt, uint64_t phys, uint64_t prot);
+
 static inline void __native_tlb_invalidate_page(void *addr)
 {
 	__asm__ __volatile__("invlpg %0"::"m"(addr));
@@ -201,10 +203,83 @@ void *virtual2phys(void *ptr)
 extern PML pdptphysical_map;
 static PML pdphysical_map __attribute__((aligned(PAGE_SIZE)));
 
+static PML placement_mappings_page_dir __attribute__((aligned(4096)));
+static PML placement_mappings_page_table __attribute__((aligned(4096)));
+
+unsigned long placement_mappings_start = 0xffffffffffc00000;
+
+#define EARLY_BOOT_GDB_DELAY	\
+volatile int __gdb_debug_counter = 0; \
+while(__gdb_debug_counter != 1)
+
+
+void *x86_placement_map(unsigned long _phys)
+{
+	if(_phys > placement_mappings_start)
+		while(true) {} // HMMMMM, :thinking emoji:
+	//printf("_phys: %lx\n", _phys);
+	unsigned long phys = _phys & ~(PAGE_SIZE - 1);
+	//printf("phys: %lx\n", phys);
+
+	/* Map two pages so memory that spans both pages can get accessed */
+	paging_map_phys_to_virt(get_current_pml4(), placement_mappings_start, phys, VM_WRITE);
+	paging_map_phys_to_virt(get_current_pml4(), placement_mappings_start + PAGE_SIZE, phys + PAGE_SIZE,
+						VM_WRITE);
+	__native_tlb_invalidate_page((void *) placement_mappings_start);
+	__native_tlb_invalidate_page((void *) (placement_mappings_start + PAGE_SIZE));
+	return (void *) (placement_mappings_start + (_phys - phys));
+}
+
+void x86_setup_placement_mappings(void)
+{
+	const unsigned int paging_levels = 4;
+	unsigned int indices[paging_levels];
+	const unsigned long virt = placement_mappings_start;
+
+	PML *pml = boot_pml4;
+
+	for(unsigned int i = 0; i < paging_levels; i++)
+	{
+		indices[i] = (virt >> 12) >> (i * 9) & 0x1ff;
+	}
+
+	for(unsigned int i = paging_levels; i != 1; i--)
+	{
+		uint64_t entry = pml->entries[indices[i - 1]];
+		if(entry & 1)
+		{
+			void *page = (void*) PML_EXTRACT_ADDRESS(entry);
+			pml = (PML*) page;
+		}
+		else
+		{
+			unsigned long page = 0;
+			if(i == 3)
+			{
+				page = ((unsigned long) &placement_mappings_page_dir - KERNEL_VIRTUAL_BASE);
+			}
+			else if(i == 2)
+			{
+				page = ((unsigned long) &placement_mappings_page_table - KERNEL_VIRTUAL_BASE);
+			}
+			else
+			{
+				/* We only handle non-present page tables for PML1 and 2 */
+				__asm__ __volatile__("cli; hlt");
+			}
+		
+			pml->entries[indices[i - 1]] = make_pml3e(page, 0, 0, 1, 0, 0, 0, 1, 1);
+
+			pml = (PML *) page;
+		}
+	}
+}
+
 void paging_init(void)
 {
 	/* Get the current PML and store it */
 	__asm__ __volatile__("movq %%cr3, %%rax\t\nmovq %%rax, %0":"=r"(boot_pml4));
+
 	/* Bootstrap the first 1GB */
 	uintptr_t virt = PHYS_BASE;
 	decomposed_addr_t decAddr;
@@ -223,11 +298,12 @@ void paging_init(void)
 			while(1);
 	}
 
+	x86_setup_placement_mappings();
 }
 
 void paging_map_all_phys(void)
 {
-	bool is_1gb_supported = x86_has_cap(X86_FEATURE_PDPE1GB);
+	bool is_1gb_supported = false; //x86_has_cap(X86_FEATURE_PDPE1GB);
 
 	printf("Is 1gb supported? %s\n", is_1gb_supported ? "yes" : "no");
 	uintptr_t virt = PHYS_BASE;
@@ -249,18 +325,32 @@ void paging_map_all_phys(void)
 	}
 	else
 	{
+		PML new_pml3;
 		/* Use 2MiB pages instead */
-		entry = &pml3->entries[decAddr.pdpt];
-		*entry = make_pml3e(((uint64_t) &pdphysical_map - KERNEL_VIRTUAL_BASE), 0, 0, 1, 0, 0, 0, 1, 1);
-		for(size_t i = 1; i < 512; i++)
+		uint64_t *entry = &new_pml3.entries[0];
+		for(size_t i = 0; i < 512; i++)
 		{
+			void *ptr = alloc_boot_page(1, 0);
+
+			assert(ptr != NULL);
+
+			*entry = make_pml3e(((unsigned long) ptr), 1, 0,
+				1, 0, 0, 0, 1, 1);
+
+			PML *pd = (PML*) x86_placement_map((unsigned long) ptr);
+
 			for(size_t j = 0; j < 512; j++)
 			{
-				if(!paging_map_phys_to_virt_large(virt + i * 0x40000000 + j * 0x200000, 
-				i * 0x40000000 + j * 0x200000, VM_NOEXEC  | VM_WRITE))
-					return;
+				uintptr_t p = i * 512 * 0x200000 + j * 0x200000;
+
+				pd->entries[j] = p | 0x83 | (1UL << 63);
 			}
+
+			entry++;
 		}
+
+		memcpy(pml3, &new_pml3, sizeof(PML));
+
 	}
 
 	for(size_t i = 0; i < 512; i++)
@@ -312,57 +402,6 @@ void* paging_map_phys_to_virt_large_early(uint64_t virt, uint64_t phys, uint64_t
 	*entry = make_pml2e(phys, (prot & 4), 0,
 		 (prot & 2) ? 1 : 0, 0, 0, (prot & 0x80) ? 1 : 0,
 		 (prot & 1)? 1 : 0, 1);
-	*entry |= X86_PAGING_HUGE;
-	return (void*) virt;
-}
-
-void* paging_map_phys_to_virt_large(uint64_t virt, uint64_t phys, uint64_t prot)
-{
-	bool user = 0;
-	if (virt < 0x00007fffffffffff)
-		user = 1;
-	if(!get_current_pml4())
-		return NULL;
-	decomposed_addr_t decAddr;
-	memcpy(&decAddr, &virt, sizeof(decomposed_addr_t));
-	PML *pml4 = (PML*)((uint64_t)get_current_pml4() + PHYS_BASE);
-	
-	uint64_t* entry = &pml4->entries[decAddr.pml4];
-	PML* pml3 = NULL;
-	PML* pml2 = NULL;
-	/* If its present, use that pml3 */
-	if(*entry & X86_PAGING_PRESENT)
-	{
-		pml3 = (PML*)(*entry & 0x0FFFFFFFFFFFF000);
-	}
-	else
-	{
-		/* Else create one */
-		pml3 = (PML*) alloc_boot_page(1, 0);
-		if(!pml3)
-			return NULL;
-		*entry = make_pml4e((uint64_t) pml3, 0, 0, 0, user ? 1 : 0, 1, 1);
-	}
-	
-	pml3 = (PML*)((uint64_t)pml3 + PHYS_BASE);
-	entry = &pml3->entries[decAddr.pdpt];
-	
-	if(*entry & X86_PAGING_PRESENT)
-	{
-		pml2 = (PML*)(*entry & 0x0FFFFFFFFFFFF000);
-	}
-	else
-	{
-		pml2 = (PML*) alloc_boot_page(1, 0);
-		if(!pml2)
-			return NULL;
-		*entry = make_pml3e( (uint64_t)pml2, 0, 0, 0, 0, 0, user ? 1 : 0, 1, 1);
-	}
-
-	pml2 = (PML*)((uint64_t)pml2 + PHYS_BASE);
-	entry = &pml2->entries[decAddr.pd];
-	
-	*entry = make_pml2e(phys, (prot & 4), 0, (prot & 2)? 1 : 0, 0, 0, (prot & 0x80) ? 1 : 0, (prot & X86_PAGING_PRESENT)? 1 : 0, 1);
 	*entry |= X86_PAGING_HUGE;
 	return (void*) virt;
 } 

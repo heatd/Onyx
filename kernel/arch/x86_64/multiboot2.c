@@ -129,29 +129,14 @@ void init_multiboot2_framebuffer(struct multiboot_tag_framebuffer *tagfb)
 
 }
 
-#define BITMAP_SIZE (0x1000000 / PAGE_SIZE / sizeof(unsigned long) / CHAR_BIT)
-#define PAGES_PER_ENTRY (sizeof(unsigned long) * CHAR_BIT)
+bool physical_mem_inited = false;
 
-unsigned long dma_mem_bitmap[BITMAP_SIZE];
-
-/* TODO: This doesn't work bcs it doesn't take into account the number of pages */
-void *multiboot2_alloc_boot_page_low(size_t nr_pages)
+static inline void *temp_map_mem(unsigned long mem)
 {
-	for(size_t i = 0; i < BITMAP_SIZE; ++i)
-	{
-		if(dma_mem_bitmap[i] == 0xffffffffffffffff)
-			continue;
-		for(size_t j = 0; j < PAGES_PER_ENTRY; j++)
-		{
-			if(!(dma_mem_bitmap[i] & (1UL << j)))
-			{
-				dma_mem_bitmap[i] |= (1UL << j);
-				return (void *) (i * PAGES_PER_ENTRY * PAGE_SIZE + j * PAGE_SIZE);
-			}
-		}
-	}
-
-	return NULL;
+	if(physical_mem_inited)
+		return (void *) mem;
+	else
+		return x86_placement_map(mem);
 }
 
 bool page_is_used(void *__page, struct bootmodule *modules);
@@ -176,12 +161,16 @@ bool range_is_used(unsigned long addr, size_t nr_pages)
 
 void *multiboot2_alloc_boot_page_high(size_t nr_pages)
 {
-	size_t entries = mmap_tag->size / mmap_tag->entry_size;
-	struct multiboot_mmap_entry *mmap = (struct multiboot_mmap_entry *) mmap_tag->entries + entries-1;
+	struct multiboot_tag_mmap *vmmap_tag = temp_map_mem((unsigned long) mmap_tag); 
+	size_t entries = vmmap_tag->size / vmmap_tag->entry_size;
 	size_t i = 0;
 
-	for(; i < entries; i++, mmap--)
+	for(; i < entries; i++)
 	{
+		struct multiboot_mmap_entry *phys_mmap = (struct multiboot_mmap_entry *)
+			mmap_tag->entries + entries - 1 - i;
+		struct multiboot_mmap_entry *mmap = x86_placement_map((unsigned long) phys_mmap);
+
 		if(mmap->type != MULTIBOOT_MEMORY_AVAILABLE)
 			continue;
 	
@@ -212,10 +201,7 @@ void *multiboot2_alloc_boot_page_high(size_t nr_pages)
 
 void *multiboot2_alloc_boot_page(size_t nr_pages, long flags)
 {
-	if(flags & BOOTMEM_FLAG_LOW_MEM)
-		return multiboot2_alloc_boot_page_low(nr_pages);
-	else
-		return multiboot2_alloc_boot_page_high(nr_pages);
+	return multiboot2_alloc_boot_page_high(nr_pages);
 }
 
 void *multiboot2_get_phys_mem_region(uintptr_t *base,
@@ -248,65 +234,16 @@ void *multiboot2_get_phys_mem_region(uintptr_t *base,
 	
 }
 
-void low_mem_allocator_clear(uintptr_t page)
-{
-	page >>= PAGE_SHIFT;
-	size_t i_idx = page / PAGES_PER_ENTRY;
-
-	size_t bit_index = page % PAGES_PER_ENTRY;
-
-	dma_mem_bitmap[i_idx] &= ~(1UL << bit_index);
-}
-
-void start_low_mem_allocator(struct bootmodule *initrd_module)
-{
-	for(size_t i = 0; i < BITMAP_SIZE; ++i)
-	{
-		dma_mem_bitmap[i] = 0xffffffffffffffff;
-	}
-
-	size_t entries = mmap_tag->size / mmap_tag->entry_size;
-	struct multiboot_mmap_entry *mmap = (struct multiboot_mmap_entry *) mmap_tag->entries;
-	size_t i = 0;
-
-	for(; i < entries; i++, mmap++)
-	{
-		if(mmap->type != MULTIBOOT_MEMORY_AVAILABLE)
-			continue;
-		if(mmap->addr >= 0x1000000)
-			break;
-
-		if(mmap->addr == 0)
-		{
-			/* Page zero is reserved by the kernel */
-			mmap->addr += PAGE_SIZE;
-			mmap->len -= PAGE_SIZE;
-		}
-
-		size_t len = min(0x1000000 - mmap->addr, mmap->len);
-		size_t pgs = len / PAGE_SIZE;
-		mmap->len -= len;
-
-		for(size_t i = 0; i < pgs; i++)
-		{
-			if(page_is_used((void *) (mmap->addr + i * PAGE_SIZE), initrd_module))
-				continue;
-			low_mem_allocator_clear(mmap->addr + i * PAGE_SIZE);
-		}
-
-		mmap->addr += len;
-	}
-}
-
 static size_t mb2_count_mem(void)
 {
-	size_t entries = mmap_tag->size / mmap_tag->entry_size;
-	struct multiboot_mmap_entry *mmap = (struct multiboot_mmap_entry *) mmap_tag->entries;
+	struct multiboot_tag_mmap *vmmap_tag = temp_map_mem((unsigned long) mmap_tag); 
+	size_t entries = vmmap_tag->size / vmmap_tag->entry_size;
 
 	size_t memory = 0;
 
-	for(size_t i = 0; i < entries; i++, mmap++)
+	for(size_t i = 0; i < entries; i++)
 	{
+		struct multiboot_mmap_entry *mmap = x86_placement_map((unsigned long)(mmap_tag->entries + i));
 		if(mmap->type != MULTIBOOT_MEMORY_AVAILABLE)
 			continue;
 		memory += mmap->len;
@@ -324,13 +261,16 @@ static size_t mb2_count_mem(void)
 
 unsigned long mb2_get_maxpfn(void)
 {
-	size_t entries = mmap_tag->size / mmap_tag->entry_size;
-	struct multiboot_mmap_entry *mmap = (struct multiboot_mmap_entry *) mmap_tag->entries;
+	struct multiboot_tag_mmap *vmmap_tag = temp_map_mem((unsigned long) mmap_tag); 
+	size_t entries = vmmap_tag->size / vmmap_tag->entry_size;
+	struct multiboot_mmap_entry *phys_mmap = (struct multiboot_mmap_entry *) vmmap_tag->entries;
 
 	size_t maxpfn = 0;
 
-	for(size_t i = 0; i < entries; i++, mmap++)
+	for(size_t i = 0; i < entries; i++, phys_mmap++)
 	{
+		struct multiboot_mmap_entry *mmap = x86_placement_map((unsigned long) (mmap_tag->entries + i));
+
 		if(mmap->type == MULTIBOOT_MEMORY_BADRAM || mmap->type == MULTIBOOT_MEMORY_RESERVED)
 			continue;
 		if(mmap->addr + mmap->len > maxpfn)
@@ -351,9 +291,8 @@ bool efi64_present = false;
 
 void kernel_early(uintptr_t addr, uint32_t magic)
 {
-	addr += PHYS_BASE;
-	if (magic != MULTIBOOT2_BOOTLOADER_MAGIC)
-		return;
+	assert(magic == MULTIBOOT2_BOOTLOADER_MAGIC);
+
 	idt_init();
 	vm_init();
 
@@ -361,77 +300,81 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 	size_t total_mem = 0;
 	unsigned long max_pfn = 0;
 
-	struct multiboot_tag * tag;
+	struct multiboot_tag *tag;
+	struct multiboot_tag *vtag;
 	for(tag =
-	     (struct multiboot_tag *)(addr + 8);
-	     tag->type != MULTIBOOT_TAG_TYPE_END;
+	     (struct multiboot_tag *)(addr + 8), vtag = x86_placement_map(addr + 8);
+	     vtag->type != MULTIBOOT_TAG_TYPE_END;
 	     tag =
 	     (struct multiboot_tag *) ((multiboot_uint8_t *) tag +
-				       ((tag->size + 7) & ~7)))
+				       ALIGN_TO(vtag->size, 8)),
+				       vtag = x86_placement_map((unsigned long) tag))
+	{
+		switch (vtag->type)
 		{
-		switch (tag->type)
-		{
-		case MULTIBOOT_TAG_TYPE_MMAP:
-		{
-			mmap_tag = (struct multiboot_tag_mmap *) tag;
-			total_mem = mb2_count_mem();
-			max_pfn = mb2_get_maxpfn();
-			break;
-		}
-		case MULTIBOOT_TAG_TYPE_FRAMEBUFFER:
-		{
-			tagfb = (struct multiboot_tag_framebuffer *) tag;
-			break;
-		}
-		case MULTIBOOT_TAG_TYPE_MODULE:
-		{
-			initrd_tag = (struct multiboot_tag_module *) tag;
-			break;
-		}
-		case MULTIBOOT_TAG_TYPE_ELF_SECTIONS:
-		{
-			secs = (struct multiboot_tag_elf_sections *) tag;
-			break;
-		}
-		case MULTIBOOT_TAG_TYPE_CMDLINE:
-		{
-			struct multiboot_tag_string *t = (struct multiboot_tag_string *) tag;
-			strcpy(get_kernel_cmdline(), t->string);
-			break;
-		}
-		case MULTIBOOT_TAG_TYPE_ACPI_NEW:
-		{
-			struct multiboot_tag_new_acpi *acpi = (struct multiboot_tag_new_acpi *) tag;
-			memcpy(&grub2_rsdp, &acpi->rsdp, sizeof(ACPI_TABLE_RSDP));
-			grub2_rsdp_valid = true;
-			break;
-		}
-		case MULTIBOOT_TAG_TYPE_ACPI_OLD:
-		{
-			struct multiboot_tag_old_acpi *acpi = (struct multiboot_tag_old_acpi *) tag;
-			memcpy(&grub2_rsdp, &acpi->rsdp, sizeof(ACPI_TABLE_RSDP));
-			grub2_rsdp_valid = true;
-			break;
-		}
-		case MULTIBOOT_TAG_TYPE_EFI64:
-		{
-			efi64_present = true;
-			memcpy(&efi64_mb2, tag, sizeof(struct multiboot_tag_efi64));
-			break;
-		}
+			case MULTIBOOT_TAG_TYPE_MMAP:
+			{
+				mmap_tag = (struct multiboot_tag_mmap *) tag;
+				break;
+			}
+			case MULTIBOOT_TAG_TYPE_FRAMEBUFFER:
+			{
+				tagfb = (struct multiboot_tag_framebuffer *) tag;
+				break;
+			}
+			case MULTIBOOT_TAG_TYPE_MODULE:
+			{
+				initrd_tag = (struct multiboot_tag_module *) tag;
+				break;
+			}
+			case MULTIBOOT_TAG_TYPE_ELF_SECTIONS:
+			{
+				secs = (struct multiboot_tag_elf_sections *) tag;
+				break;
+			}
+			case MULTIBOOT_TAG_TYPE_CMDLINE:
+			{
+				struct multiboot_tag_string *t = (struct multiboot_tag_string *) vtag;
+				strcpy(get_kernel_cmdline(), t->string);
+				break;
+			}
+			case MULTIBOOT_TAG_TYPE_ACPI_NEW:
+			{
+				struct multiboot_tag_new_acpi *acpi = (struct multiboot_tag_new_acpi *) vtag;
+				memcpy(&grub2_rsdp, &acpi->rsdp, sizeof(ACPI_TABLE_RSDP));
+				grub2_rsdp_valid = true;
+				break;
+			}
+			case MULTIBOOT_TAG_TYPE_ACPI_OLD:
+			{
+				struct multiboot_tag_old_acpi *acpi = (struct multiboot_tag_old_acpi *) vtag;
+				memcpy(&grub2_rsdp, &acpi->rsdp, sizeof(ACPI_TABLE_RSDP));
+				grub2_rsdp_valid = true;
+				break;
+			}
+			case MULTIBOOT_TAG_TYPE_EFI64:
+			{
+				efi64_present = true;
+				memcpy(&efi64_mb2, vtag, sizeof(struct multiboot_tag_efi64));
+				break;
+			}
 		}
 	}
 
-	multiboot_struct_used.start = ((uintptr_t) addr - PHYS_BASE) & ~(PAGE_SIZE - 1);
+	total_mem = mb2_count_mem();
+	max_pfn = mb2_get_maxpfn();
+
+	multiboot_struct_used.start = ((uintptr_t) addr) & ~(PAGE_SIZE - 1);
 	
-	multiboot_struct_used.end = (uintptr_t) page_align_up((void *)((uintptr_t) tag - PHYS_BASE));
+	multiboot_struct_used.end = (uintptr_t) page_align_up((void *) tag);
 	multiboot_struct_used.next = NULL;
 	page_add_used_pages(&multiboot_struct_used);
 
 	elf_sections_reserve(secs);
 
-	initrd.base = initrd_tag->mod_start;
-	initrd.size = initrd_tag->mod_end - initrd_tag->mod_start;
+	struct multiboot_tag_module *vinitrd_tag = x86_placement_map((unsigned long) initrd_tag);
+	initrd.base = vinitrd_tag->mod_start;
+	initrd.size = vinitrd_tag->mod_end - vinitrd_tag->mod_start;
 	initrd.next = NULL;
 
 	set_alloc_boot_page(multiboot2_alloc_boot_page);
@@ -439,10 +382,11 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 	/* Identify the CPU it's running on (bootstrap CPU) */
 	cpu_identify();
 
-	/* TODO: don't rely on PHYS_BASE until here, use x86_placement_map() like in Carbon */
 	paging_map_all_phys();
 
-	set_initrd_address((void*) (uintptr_t) initrd_tag->mod_start);
+	physical_mem_inited = true;
+
+	set_initrd_address((void*) (uintptr_t) initrd.base);
 
 	page_init(total_mem, max_pfn, multiboot2_get_phys_mem_region, &initrd);
 
@@ -458,7 +402,7 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 	
 	if(tagfb)
 	{
-		init_multiboot2_framebuffer(tagfb);
+		init_multiboot2_framebuffer(x86_placement_map((unsigned long) tagfb));
 	}
 
 	vterm_do_init();

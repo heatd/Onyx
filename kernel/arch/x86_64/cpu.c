@@ -225,7 +225,7 @@ void x86_init_percpu(void)
 
 void cpu_init_late(void)
 {
-	/* Completely disable the PIC first*/
+	/* Completely disable the PIC first */
 	pic_remap();
 	pic_disable();
 

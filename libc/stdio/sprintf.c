@@ -152,8 +152,6 @@ static void pop_arg(union arg *arg, int type, va_list *ap)
 	break; case PDIFF:	arg->i = va_arg(*ap, ptrdiff_t);
 	break; case UIPTR:	arg->i = (uintptr_t)va_arg(*ap, void *);
 #endif
-	break; case DBL:	arg->f = va_arg(*ap, double);
-	break; case LDBL:	arg->f = va_arg(*ap, long double);
 	}
 }
 
