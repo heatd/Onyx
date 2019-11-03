@@ -49,22 +49,22 @@ void lapic_send_eoi(void);
 #define irq_set_irql	apic_set_irql
 #define irq_get_irql	apic_get_irql
 
-#define LAPIC_EOI	0xB0
-#define LAPIC_TSKPRI	0x80
-#define LAPIC_ICR	0x300
-#define LAPIC_IPIID	0x310
-#define LAPIC_LVT_TIMER	0x320
-#define LAPIC_PERFCI	0x340
-#define LAPIC_LI0	0x350
-#define LAPIC_LI1	0x360
-#define LAPIC_ERRINT	0x370
-#define LAPIC_SPUINT	0xF0
-#define LAPIC_TIMER_DIV	0x3E0
-#define LAPIC_TIMER_INITCNT 0x380
-#define LAPIC_TIMER_CURRCNT 0x390
-#define LAPIC_TIMER_IVT_MASK 0x10000
-#define LAPIC_LVT_TIMER_MODE_PERIODIC 0x20000
-#define APIC_DEFAULT_SPURIOUS_IRQ 15
-#define NUM_IOAPIC_PINS	24
+#define LAPIC_EOI			0xB0
+#define LAPIC_TSKPRI			0x80
+#define LAPIC_ICR			0x300
+#define LAPIC_IPIID			0x310
+#define LAPIC_LVT_TIMER			0x320
+#define LAPIC_PERFCI			0x340
+#define LAPIC_LI0			0x350
+#define LAPIC_LI1			0x360
+#define LAPIC_ERRINT			0x370
+#define LAPIC_SPUINT			0xF0
+#define LAPIC_TIMER_DIV			0x3E0
+#define LAPIC_TIMER_INITCNT 		0x380
+#define LAPIC_TIMER_CURRCNT 		0x390
+#define LAPIC_TIMER_IVT_MASK 		0x10000
+#define LAPIC_LVT_TIMER_MODE_PERIODIC 	0x20000
+#define APIC_DEFAULT_SPURIOUS_IRQ 	15
+#define NUM_IOAPIC_PINS			24
 
 #endif

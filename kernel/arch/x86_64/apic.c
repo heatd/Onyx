@@ -24,6 +24,7 @@
 #include <onyx/vm.h>
 #include <onyx/clock.h>
 #include <onyx/timer.h>
+#include <fractions.h>
 
 volatile uint32_t *bsp_lapic = NULL;
 volatile uint64_t ap_done = 0;
@@ -358,7 +359,7 @@ bool apic_calibrate_acpi(void)
 
 	struct clocksource *timer = &acpi_timer_source;
 
-	uint64_t start = timer->get_ticks();
+	hrtime_t start = timer->get_ticks();
 	apic_calibration_setup_count();
 
 	/* 10ms in ns */
@@ -388,6 +389,9 @@ void apic_calibrate_pit(void)
 
 void apic_calibrate(void)
 {
+	/* After eyeballing results, I can tell that the PIT gives us better results in QEMU.
+	 * Should we switch?
+	*/
 	if(apic_calibrate_acpi() == false)
 		apic_calibrate_pit();
 }
@@ -410,14 +414,15 @@ void apic_timer_init(void)
 	*/
 	lapic_write(bsp_lapic, LAPIC_TIMER_DIV, 3);
 
-	apic_rate = calib.ticks_in_10ms / 10;
+	apic_rate = INT_DIV_ROUND_CLOSEST(calib.ticks_in_10ms, 10);
 
 	printf("apic: apic timer rate: %lu\n", apic_rate);
-	us_apic_rate = apic_rate / 1000;
+	us_apic_rate = INT_DIV_ROUND_CLOSEST(apic_rate, 1000);
 
 	DISABLE_INTERRUPTS();
+
 	lapic_write(bsp_lapic, LAPIC_LVT_TIMER, 34 | LAPIC_LVT_TIMER_MODE_PERIODIC);
-	lapic_write(bsp_lapic, LAPIC_TIMER_INITCNT, calib.ticks_in_10ms / 10);
+	lapic_write(bsp_lapic, LAPIC_TIMER_INITCNT, apic_rate);
 
 	x86_set_tsc_rate(clock_delta_calc(calib.init_tsc, calib.end_tsc) * 100);
 

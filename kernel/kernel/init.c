@@ -299,6 +299,7 @@ static thread_t *new_thread;
 
 void kernel_multitasking(void *);
 void reclaim_initrd(void);
+void tickless_init(void);
 
 __attribute__((no_sanitize_undefined))
 void kernel_main(void)
@@ -354,6 +355,7 @@ void kernel_main(void)
 	/* Initialize the cache sync thread */
 	pagecache_init();
 
+	tickless_init();
 	/* Start the new thread */
 	sched_start_thread(new_thread);
 

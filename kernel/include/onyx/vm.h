@@ -153,7 +153,7 @@ struct vm_region *vm_reserve_address(void *addr, size_t pages, uint32_t type,
 	uint64_t prot);
 struct vm_region *vm_find_region(void *addr);
 int vm_clone_as(struct mm_address_space *addr_space);
-int vm_fork_as(struct mm_address_space *addr_space);
+int vm_fork_address_space(struct mm_address_space *addr_space);
 void vm_change_perms(void *range, size_t pages, int perms);
 void *vm_get_fallback_cr3(void);
 int vm_check_pointer(void *addr, size_t needed_space);

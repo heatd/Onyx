@@ -200,6 +200,7 @@ void *virtual2phys(void *ptr)
 
 extern PML pdptphysical_map;
 static PML pdphysical_map __attribute__((aligned(PAGE_SIZE)));
+
 void paging_init(void)
 {
 	/* Get the current PML and store it */

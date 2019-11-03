@@ -330,6 +330,7 @@ bool vmo_unref(struct vm_object *vmo)
 	else
 	{
 		//printk("Unrefed vmo %p with size %lx\n", vmo, vmo->size);
+		//printk("Vmo ino: %p Refs: %lu\n", vmo->ino, vmo->refcount);
 	}
 
 	return false;

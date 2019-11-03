@@ -25,6 +25,7 @@
 #include <onyx/apic.h>
 #include <onyx/clock.h>
 #include <onyx/platform.h>
+#include <fractions.h>
 
 #include <pci/pci.h>
 
@@ -523,7 +524,8 @@ int acpi_shutdown_device(struct device *dev)
 }
 
 uint64_t acpi_timer_get_ticks(void);
-unsigned int acpi_timer_get_elapsed_ns(uint64_t _old_ticks, uint64_t _new_ticks);
+hrtime_t acpi_timer_get_elapsed_ns(hrtime_t _old_ticks, hrtime_t _new_ticks);
+hrtime_t acpi_timer_get_ns(void);
 
 struct clocksource acpi_timer_source = 
 {
@@ -531,8 +533,39 @@ struct clocksource acpi_timer_source =
 	.rating = 200,
 	.rate = ACPI_PM_TIMER_FREQUENCY,
 	.get_ticks = acpi_timer_get_ticks,
+	.get_ns = acpi_timer_get_ns,
 	.elapsed_ns = acpi_timer_get_elapsed_ns
 };
+
+static struct fraction ns_per_tick = {NS_PER_SEC, ACPI_PM_TIMER_FREQUENCY};
+
+hrtime_t acpi_timer_get_ns(void)
+{
+	uint32_t t;
+	unsigned int res;
+	uint32_t max = 0xffffffff;
+
+	AcpiGetTimer(&t);
+
+	AcpiGetTimerResolution(&res);
+
+	if(res == 24)
+		max = 0x00ffffff;
+
+	hrtime_t ns_since_rollover = fract_mult_u64_fract(t, &ns_per_tick);
+
+	/* HUGE TODO: MAKE THIS LOGIC THREAD SAFE */
+	if(ns_since_rollover < acpi_timer_source.last_cycle)
+	{
+		acpi_timer_source.base += fract_mult_u64_fract(max, &ns_per_tick);
+	}
+
+	acpi_timer_source.last_cycle = ns_since_rollover;
+
+	return acpi_timer_source.base + acpi_timer_source.monotonic_warp + ns_since_rollover;
+} 
+
+#include <onyx/timer.h>
 
 int acpi_init_timer(void)
 {
@@ -546,6 +579,9 @@ int acpi_init_timer(void)
 		return -1;
 	}
 
+	acpi_timer_source.monotonic_warp = -fract_mult_u64_fract(ticks, &ns_per_tick);
+	acpi_timer_source.last_cycle = ticks;
+
 	register_clock_source(&acpi_timer_source);
 	return 0;
 }
@@ -557,7 +593,7 @@ uint64_t acpi_timer_get_ticks(void)
 	return ticks;
 }
 
-unsigned int acpi_timer_get_elapsed_ns(uint64_t _old_ticks, uint64_t _new_ticks)
+hrtime_t acpi_timer_get_elapsed_ns(hrtime_t _old_ticks, hrtime_t _new_ticks)
 {
 	/* Forced to rewrite this because AcpiGetTimerDuration works with 
 	 * microseconds instead of nanoseconds like we want

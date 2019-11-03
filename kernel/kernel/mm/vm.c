@@ -728,7 +728,7 @@ void tear_down_addr_space(struct mm_address_space *addr_space)
 
 int vm_fork_private_vmos(struct mm_address_space *mm)
 {
-	struct mm_address_space *parent_mm = &get_current_process()->address_space;
+	struct mm_address_space *parent_mm = get_current_address_space();
 	spin_lock(&parent_mm->private_vmo_lock);
 
 	struct vm_object *vmo = parent_mm->vmo_head;
@@ -752,7 +752,7 @@ int vm_fork_private_vmos(struct mm_address_space *mm)
 	return 0;
 }
 
-int vm_fork_as(struct mm_address_space *addr_space)
+int vm_fork_address_space(struct mm_address_space *addr_space)
 {
 	__vm_lock(false);
 
@@ -772,7 +772,7 @@ int vm_fork_as(struct mm_address_space *addr_space)
 		return -1;
 	}
 
-	struct process *current = get_current_process();
+	struct mm_address_space *current_mm = get_current_address_space();
 
 	addr_space->area_tree = rb_tree_new(vm_cmp);
 
@@ -783,7 +783,7 @@ int vm_fork_as(struct mm_address_space *addr_space)
 		return -1;
 	}
 
-	rb_tree_traverse(current->address_space.area_tree, fork_vm_region, (void *) &it);
+	rb_tree_traverse(current_mm->area_tree, fork_vm_region, (void *) &it);
 
 	if(!it.success)
 	{
@@ -791,6 +791,10 @@ int vm_fork_as(struct mm_address_space *addr_space)
 		__vm_unlock(false);
 		return -1;
 	}
+
+	addr_space->resident_set_size = current_mm->resident_set_size;
+	addr_space->shared_set_size = current_mm->shared_set_size;
+	addr_space->virtual_memory_size = current_mm->virtual_memory_size;
 
 	__vm_unlock(false);
 	return 0;
@@ -2063,16 +2067,15 @@ void *map_page_list(struct page *pl, size_t size, uint64_t prot)
 int vm_create_address_space(struct process *process, void *cr3)
 {
 	struct mm_address_space *mm = &process->address_space;
-	struct mm_address_space *current_mm = get_current_address_space();
 
 	mm->cr3 = cr3;
 	mm->mmap_base = vm_gen_mmap_base();
 	mm->start = arch_low_half_min;
 	mm->end = arch_low_half_max;
 	mm->process = process;
-	mm->resident_set_size = current_mm->resident_set_size;
-	mm->shared_set_size = current_mm->shared_set_size;
-	mm->virtual_memory_size = current_mm->virtual_memory_size;
+	mm->resident_set_size = 0;
+	mm->shared_set_size = 0;
+	mm->virtual_memory_size = 0;
 	mm->area_tree = rb_tree_new(vm_cmp);
 
 	if(!mm->area_tree)
@@ -2269,11 +2272,10 @@ int vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
 			}
 		}
 
-		if(is_shared)
+		decrement_vm_stat(as, virtual_memory_size, to_shave_off);
+		if(is_shared && !(region->flags & VM_USING_MAP_SHARED_OPT))
 			decrement_vm_stat(as, shared_set_size, to_shave_off);
-		else
-			decrement_vm_stat(as, resident_set_size, to_shave_off);
-
+		
 		addr += to_shave_off;
 		size -= to_shave_off;
 	}

@@ -45,9 +45,14 @@ _Pragma("GCC target(\"sse2\", \"3dnow\", \"xsave\")")
 
 static inline uint64_t rdtsc(void)
 {
-    	uint64_t ret = 0;
-    	__asm__ __volatile__ ( "rdtsc" : "=A"(ret));
-    	return ret;
+    	union
+	{
+		uint64_t value;
+		uint32_t lohi[2];
+	} v;
+	
+	__asm__ __volatile__ ("rdtscp" : "=a"(v.lohi[0]), "=d"(v.lohi[1]) :: "ecx");
+    	return v.value;
 }
 
 static inline int count_bits32(uint32_t num)

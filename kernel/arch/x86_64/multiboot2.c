@@ -74,10 +74,14 @@ static struct multiboot_tag_module *initrd_tag = NULL;
 struct multiboot_tag_elf_sections *secs;
 struct multiboot_tag_mmap *mmap_tag = NULL;
 ACPI_TABLE_RSDP grub2_rsdp = {0};
+bool grub2_rsdp_valid = false;
 
 uintptr_t get_rdsp_from_grub(void)
 {
-	return ((uintptr_t) &grub2_rsdp) - KERNEL_VIRTUAL_BASE;
+	if(grub2_rsdp_valid)
+		return ((uintptr_t) &grub2_rsdp) - KERNEL_VIRTUAL_BASE;
+	else
+		return 0;
 }
 
 extern uintptr_t kernel_end;
@@ -292,7 +296,7 @@ void start_low_mem_allocator(struct bootmodule *initrd_module)
 	}
 }
 
-size_t count_mem(void)
+static size_t mb2_count_mem(void)
 {
 	size_t entries = mmap_tag->size / mmap_tag->entry_size;
 	struct multiboot_mmap_entry *mmap = (struct multiboot_mmap_entry *) mmap_tag->entries;
@@ -367,7 +371,7 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 		case MULTIBOOT_TAG_TYPE_MMAP:
 		{
 			mmap_tag = (struct multiboot_tag_mmap *) tag;
-			total_mem = count_mem();
+			total_mem = mb2_count_mem();
 			max_pfn = mb2_get_maxpfn();
 			break;
 		}
@@ -396,12 +400,14 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 		{
 			struct multiboot_tag_new_acpi *acpi = (struct multiboot_tag_new_acpi *) tag;
 			memcpy(&grub2_rsdp, &acpi->rsdp, sizeof(ACPI_TABLE_RSDP));
+			grub2_rsdp_valid = true;
 			break;
 		}
 		case MULTIBOOT_TAG_TYPE_ACPI_OLD:
 		{
 			struct multiboot_tag_old_acpi *acpi = (struct multiboot_tag_old_acpi *) tag;
 			memcpy(&grub2_rsdp, &acpi->rsdp, sizeof(ACPI_TABLE_RSDP));
+			grub2_rsdp_valid = true;
 			break;
 		}
 		}
@@ -423,6 +429,8 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 
 	/* Identify the CPU it's running on (bootstrap CPU) */
 	cpu_identify();
+
+	/* TODO: don't rely on PHYS_BASE until here, use x86_placement_map() like in Carbon */
 	paging_map_all_phys();
 
 	set_initrd_address((void*) (uintptr_t) initrd_tag->mod_start);

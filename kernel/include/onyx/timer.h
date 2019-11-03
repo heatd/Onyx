@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include <onyx/clock.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -32,6 +33,16 @@ struct timer_event
 uint64_t timer_in_future(uint64_t offset);
 void timer_handle_pending_events(void);
 bool add_timer_event(struct timer_event* event);
+
+struct timer
+{
+	const char *name;
+	hrtime_t next_event;
+	void (*set_oneshot)(hrtime_t in_future);
+	void (*set_periodic)(unsigned long freq);
+	void (*disable_timer)(void);
+	void (*on_event)(void);
+};
 
 #ifdef __cplusplus
 }

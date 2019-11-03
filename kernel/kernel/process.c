@@ -658,7 +658,7 @@ pid_t sys_fork(struct syscall_frame *ctx)
 		return -ENOMEM;
 
 	/* Fork the vmm data and the address space */
-	if(vm_fork_as(&child->address_space) < 0)
+	if(vm_fork_address_space(&child->address_space) < 0)
 		return -ENOMEM;
 
 	/* Fork and create the new thread */
