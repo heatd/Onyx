@@ -273,7 +273,7 @@ extern "C"{
 #endif
 
 void cpu_identify(void);
-void cpu_init_interrupts(void);
+void cpu_init_late(void);
 int cpu_init_mp(void);
 int get_nr_cpus(void);
 int get_cpu_num(void);

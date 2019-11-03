@@ -8,6 +8,7 @@
 #define _X86_IRQ_H
 
 #include <onyx/registers.h>
+#include <onyx/x86/eflags.h>
 
 #define NR_IRQ 				221
 #define PCI_MSI_BASE_ADDRESS 		0xFEE00000
@@ -47,12 +48,12 @@ static inline unsigned long irq_save_and_disable(void)
 
 static inline bool irq_is_disabled(void)
 {
-	return !(x86_save_flags() & 0x200);
+	return !(x86_save_flags() & EFLAGS_INT_ENABLED);
 }
 
 static inline void irq_restore(unsigned long flags)
 {
-	if(flags & 0x200)
+	if(flags & EFLAGS_INT_ENABLED)
 		irq_enable();
 }
 

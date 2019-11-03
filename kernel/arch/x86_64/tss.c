@@ -16,7 +16,8 @@
 extern tss_entry_t tss;
 extern void tss_flush();
 extern int tss_gdt;
-void init_tss()
+
+void init_tss(void)
 {
 	gdt_init_percpu();
 }

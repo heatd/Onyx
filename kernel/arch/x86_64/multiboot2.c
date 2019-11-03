@@ -192,6 +192,7 @@ void *multiboot2_alloc_boot_page_high(size_t nr_pages)
 				uintptr_t ret = mmap->addr;
 				mmap->addr += nr_pages << PAGE_SHIFT;
 				mmap->len -= nr_pages << PAGE_SHIFT;
+				//printf("allocated %lx\n", ret);
 				return (void *) ret;
 			}
 			else if(!range_is_used(mmap->addr + mmap->len -
@@ -199,6 +200,7 @@ void *multiboot2_alloc_boot_page_high(size_t nr_pages)
 			{
 				unsigned long ret = mmap->addr + mmap->len - (nr_pages << PAGE_SHIFT);
 				mmap->len -= nr_pages << PAGE_SHIFT;
+				//printf("allocated %lx\n", ret);
 				return (void *) ret;
 			}
 
@@ -344,7 +346,8 @@ void vterm_do_init(void);
 void vm_print_map(void);
 
 struct used_pages multiboot_struct_used;
-
+struct multiboot_tag_efi64 efi64_mb2;
+bool efi64_present = false;
 
 void kernel_early(uintptr_t addr, uint32_t magic)
 {
@@ -408,6 +411,12 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 			struct multiboot_tag_old_acpi *acpi = (struct multiboot_tag_old_acpi *) tag;
 			memcpy(&grub2_rsdp, &acpi->rsdp, sizeof(ACPI_TABLE_RSDP));
 			grub2_rsdp_valid = true;
+			break;
+		}
+		case MULTIBOOT_TAG_TYPE_EFI64:
+		{
+			efi64_present = true;
+			memcpy(&efi64_mb2, tag, sizeof(struct multiboot_tag_efi64));
 			break;
 		}
 		}

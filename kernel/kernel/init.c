@@ -311,7 +311,7 @@ void kernel_main(void)
 	acpi_initialize();
 
 	/* Initialize the interrupt part of the CPU (arch dependent) */
-	cpu_init_interrupts();
+	cpu_init_late();
 
 	memcpy((void*) (PHYS_BASE + (uintptr_t) tramp), &_start_smp,
 		(uintptr_t) &_end_smp - (uintptr_t)&_start_smp);
@@ -323,6 +323,7 @@ void kernel_main(void)
 	setup_percpu();
 
 	init_tss();
+
 	/* Initialize the VFS */
 	vfs_init();
 
@@ -356,6 +357,7 @@ void kernel_main(void)
 	pagecache_init();
 
 	tickless_init();
+
 	/* Start the new thread */
 	sched_start_thread(new_thread);
 

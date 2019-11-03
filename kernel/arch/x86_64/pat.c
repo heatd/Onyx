@@ -47,7 +47,7 @@ static void flush_pat(void)
 		| (pat_config[4] << 32) | (pat_config[5] << 40)
 		| (pat_config[6] << 48) | (pat_config[7] << 56);
 
-	wrmsr(IA32_MSR_PAT, data & 0xffffffff, data >> 32);
+	wrmsr(IA32_MSR_PAT, data);
 }
 
 uint8_t cache_to_paging_bits(uint8_t type)

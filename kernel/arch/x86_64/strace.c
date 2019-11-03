@@ -299,6 +299,7 @@ void init_elf_symbols(struct multiboot_tag_elf_sections *restrict secs)
 	Elf64_Shdr *sections = (Elf64_Shdr*)(secs->sections);
 	strtabs = &sections[secs->shndx];
 	strtab = (char*)(strtabs->sh_addr + PHYS_BASE);
+
 	for(unsigned int i = 0; i < secs->num; i++)
 	{
 		if(!strcmp(".symtab", elf_get_string(sections[i].sh_name)))
@@ -355,6 +356,7 @@ void setup_kernel_symbols(struct module *m)
 
 struct used_pages symtab_pages;
 struct used_pages strtab_pages;
+struct used_pages shstrtab_pages;
 static unsigned long strtab_start, strtab_end = 0;
 static unsigned long symtab_start, symtab_end = 0;
 
@@ -362,6 +364,11 @@ void elf_sections_reserve(struct multiboot_tag_elf_sections *restrict secs)
 {
 	Elf64_Shdr *sections = (Elf64_Shdr*)(secs->sections);
 	strtabs = &sections[secs->shndx];
+
+	shstrtab_pages.start = strtabs->sh_addr & ~(PAGE_SIZE - 1);
+	shstrtab_pages.end = (uintptr_t) page_align_up((void *) (strtabs->sh_addr + strtabs->sh_size));
+	page_add_used_pages(&shstrtab_pages);
+
 	strtab = (char*)(strtabs->sh_addr + PHYS_BASE);
 	for(unsigned int i = 0; i < secs->num; i++)
 	{

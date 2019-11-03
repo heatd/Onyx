@@ -57,9 +57,7 @@ void lapic_send_eoi()
 void lapic_init(void)
 {
 	/* Get the BSP's LAPIC base address from the msr's */
-	uint32_t high, low;
-	rdmsr(0x1b, &low, &high);
-	uint64_t addr = low | ((uint64_t) high << 32);
+	uint64_t addr = rdmsr(IA32_APIC_BASE);
 	addr &= 0xFFFFF000;
 	/* Map the BSP's LAPIC */
 	bsp_lapic = mmiomap((void*) addr, PAGE_SIZE, VM_WRITE | VM_NOEXEC

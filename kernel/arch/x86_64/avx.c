@@ -11,6 +11,8 @@
 #include <onyx/fpu.h>
 #include <onyx/cpu.h>
 
+#include <onyx/x86/control_regs.h>
+
 static inline void xsetbv(unsigned long r, unsigned long xcr0)
 {
 	__asm__ __volatile__("xsetbv" :: "c"(r), "a"(xcr0 & 0xffffffff), "d"(xcr0 >> 32));
@@ -25,6 +27,11 @@ static inline unsigned long xgetbv(unsigned long r)
 
 void avx_init(void)
 {
+	if(x86_has_cap(X86_FEATURE_XSAVE))
+	{
+		x86_write_cr4(x86_read_cr4() | CR4_OSXSAVE);
+	}
+
 	if(x86_has_cap(X86_FEATURE_AVX) && x86_has_cap(X86_FEATURE_XSAVE))
 	{
 		avx_supported = true;

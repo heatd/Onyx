@@ -38,9 +38,14 @@ struct smbios_entrypoint64 *smbios_find_entry64()
 	return __find_phys_mem((void*) 0xF0000, (void*) 0xFFFFF, 16, "_SM3_");	
 }
 
+extern bool efi64_present;
+
 /* Finds the SMBIOS tables, independently of the entry point */
 void *smbios_find_tables(void)
 {
+	/* These tables can't be found like that in non BIOS systems */
+	if(efi64_present)
+		return NULL;
 	struct smbios_entrypoint32 *entry32 = smbios_find_entry32();
 	struct smbios_entrypoint64 *entry64 = smbios_find_entry64();
 	if(entry64)
@@ -97,6 +102,7 @@ char *smbios_get_string(struct smbios_table *t, uint8_t strndx)
 	}
 	return strtab;
 }
+
 /* Initializes the smbios */
 int smbios_init(void)
 {

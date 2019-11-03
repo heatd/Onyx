@@ -236,7 +236,7 @@ int sys_arch_prctl(int code, unsigned long *addr)
 		case ARCH_SET_FS:
 		{
 			get_current_thread()->fs = (void*) addr;
-			wrmsr(FS_BASE_MSR, (uintptr_t)get_current_thread()->fs & 0xFFFFFFFF, (uintptr_t)get_current_thread()->fs >> 32);
+			wrmsr(FS_BASE_MSR, (uintptr_t) get_current_thread()->fs);
 			break;
 		}
 		case ARCH_GET_FS:
@@ -248,7 +248,7 @@ int sys_arch_prctl(int code, unsigned long *addr)
 		case ARCH_SET_GS:
 		{
 			get_current_thread()->gs = (void*) addr;
-			wrmsr(KERNEL_GS_BASE, (uintptr_t)get_current_thread()->gs & 0xFFFFFFFF, (uintptr_t)get_current_thread()->gs >> 32);
+			wrmsr(KERNEL_GS_BASE, (uintptr_t) get_current_thread()->gs);
 			break;
 		}
 		case ARCH_GET_GS:
@@ -363,10 +363,7 @@ void arch_load_process(struct process *process, struct thread *thread,
 {
 	paging_load_cr3(process->address_space.cr3);
 
-	wrmsr(FS_BASE_MSR, (uintptr_t) thread->fs & 0xFFFFFFFF,
-		(uintptr_t) thread->fs >> 32);
+	wrmsr(FS_BASE_MSR, (uint64_t) thread->fs);
 
-	wrmsr(KERNEL_GS_BASE,
-		(uintptr_t) thread->gs & 0xFFFFFFFF,
-		(uintptr_t) thread->gs >> 32);
+	wrmsr(KERNEL_GS_BASE, (uint64_t) thread->gs);
 }

@@ -29,7 +29,7 @@ void do_machine_check(intctx_t *ctx)
 		uint64_t value;
 	} mc0;
 
-	rdmsr(IA32_MSR_MC0_CTL, &mc0.u_hilo.low, &mc0.u_hilo.high);
+	mc0.value = rdmsr(IA32_MSR_MC0_CTL);
 
 	dump_interrupt_context(ctx);
 

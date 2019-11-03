@@ -3,6 +3,9 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
+#include <onyx/x86/control_regs.h>
+#include <onyx/x86/msr.h>
+
 #define SMP_TRAMPOLINE_BASE	0x0
 .section .text
 .code16
@@ -21,9 +24,11 @@ _start_smp:
 	mov $SMP_TRAMPOLINE_BASE + _gdtr_begin - _start_smp, %eax
 	lgdt (%eax)
 	mov %cr0, %eax
-	or $1, %al
+	or $CR0_PE, %al
 	mov %eax, %cr0
 	jmp $0x08, $SMP_TRAMPOLINE_BASE + __long_mode_enter - _start_smp
+
+
 .code32
 __long_mode_enter:
 	mov $0x10, %ax
@@ -36,25 +41,23 @@ __long_mode_enter:
 	# Load the kernel's pml4
 	mov $pml4, %eax
 	mov %eax, %cr3
-	# Enable PAE
+	# Enable PAE and PSE
 	mov %cr4, %eax
-	or $1 << 5, %eax
+	or $(CR4_PAE | CR4_PSE), %eax
 	mov %eax, %cr4
-	/* Enable Long Mode in the MSR
-	 * Use this to perform some initialization of features
-	 * we might need
-	*/
 
-	mov $0xC0000080, %ecx
+	/* Enable Long Mode in the MSR
+	 * Use this to enable NX as well */
+
+	mov $IA32_EFER, %ecx
 	rdmsr
-	or $1, %eax # enable syscall/sysret
-	or $1 << 8, %eax # enable long mode
-	or $1 << 11, %eax # enable NX
+	or $(IA32_EFER_LME | IA32_EFER_NXE), %eax
+	xorl %edx, %edx
 	wrmsr
 
-	# Enable Paging
+	# Enable Paging and write protect
 	mov %cr0, %eax
-	or $1 << 31, %eax
+	or $(CR0_PG | CR0_WP), %eax
 	mov %eax, %cr0
 	mov $SMP_TRAMPOLINE_BASE + _gdtr2_begin - _start_smp, %eax
 	lgdt (%eax)
@@ -89,18 +92,6 @@ _long_mode:
 	mov %cr3, %rax
 	mov %rax, %cr3
 
-	mov %cr0, %rax
-	and $0xFFFB, %ax
-	or $0x2, %ax
-	or $1 << 16, %eax
-	mov %rax, %cr0
-	mov %cr4, %rax
-	or $3 << 9, %ax
-	or $1 << 18, %eax
-	mov %rax, %cr4
-	push $0x1F80
-	ldmxcsr (%rsp)
-	add $8, %rsp
 	.extern cpu_num
 	mov cpu_num, %rdi
 	# Say to the BSP that we finished

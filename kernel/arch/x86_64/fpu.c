@@ -14,6 +14,7 @@ USES_FANCY_END
 
 #include <onyx/fpu.h>
 #include <onyx/avx.h>
+#include <onyx/x86/control_regs.h>
 
 #include <sys/user.h>
 
@@ -39,6 +40,12 @@ void do_fxrstor(void *address)
 {
 	_fxrstor(address);
 }
+
+void do_ldmxcsr(unsigned int a)
+{
+	_mm_setcsr(a);
+}
+
 USES_FANCY_END
 
 void save_fpu(void *address)
@@ -100,4 +107,24 @@ void fpu_ptrace_getfpregs(void *__fpregs, struct user_fpregs_struct *regs)
 	regs->mxcsr = fpregs->mxcsr;
 	regs->mxcr_mask = fpregs->mxcsr_mask;
 	memcpy(regs->st_space, &fpregs->registers, sizeof(regs->st_space) + sizeof(regs->xmm_space));
+}
+
+void fpu_init(void)
+{
+	/* We are initializing the FPU as recommended in 9.2.1 of the
+	 * software programming guide
+	*/
+	unsigned long cr0 = x86_read_cr0();
+
+	cr0 &= ~CR0_EM;
+	cr0 |= CR0_MP | CR0_NE;
+
+	x86_write_cr0(cr0);
+
+	unsigned long cr4 = x86_read_cr4();
+	cr4 |= CR4_OSFXSR | CR4_OSXMMEXCPT;
+
+	x86_write_cr4(cr4);
+	do_ldmxcsr(0x1F80);
+
 }

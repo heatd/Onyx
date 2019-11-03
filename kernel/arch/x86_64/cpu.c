@@ -40,9 +40,12 @@ USES_FANCY_END
 #include <onyx/registers.h>
 #include <onyx/avx.h>
 #include <onyx/irq.h>
+#include <onyx/fpu.h>
 
 #include <onyx/x86/platform_info.h>
 #include <onyx/x86/tsc.h>
+#include <onyx/x86/segments.h>
+#include <onyx/x86/control_regs.h>
 
 static cpu_t cpu;
 
@@ -186,22 +189,58 @@ void cpu_identify(void)
 
 extern void syscall_ENTRY64(void);
 
-void cpu_init_interrupts(void)
+void x86_setup_standard_control_registers(void)
 {
+	/* Note that we do not set floating point bits here, only in fpu_init and avx_init */
+	const unsigned long cr0 = CR0_PE | CR0_PG | CR0_ET | CR0_WP;
+	x86_write_cr0(cr0);
+	const unsigned long cr4 = CR4_DE | CR4_MCE | CR4_PAE | CR4_PGE | CR4_PSE;
+	/* Note that CR4_PGE could only be set at this point in time since Intel
+	 * strongly recommends for it to be set after enabling paging
+	*/
+	x86_write_cr4(cr4);
+}
+
+void x86_init_percpu(void)
+{
+	/* Set up the standard control registers to set an equal playing field for every CPU */
+	x86_setup_standard_control_registers();
+	
+	/* Do floating point initialization now*/
+	fpu_init();
 	avx_init();
-	pic_remap();
-	pic_disable();
-	ioapic_init();
-	lapic_init();
-	apic_timer_init();
-	tsc_init();
-	vdso_init();
+	
+	/* Now initialize caching structures */
 	pat_init();
 
-	wrmsr(IA32_MSR_STAR, 0, ((0x18 | 3) << 16) | 0x8);
-	wrmsr(IA32_MSR_LSTAR, (unsigned long) syscall_ENTRY64 & 0xFFFFFFFF, (unsigned long) syscall_ENTRY64 >> 32);
-	wrmsr(IA32_MSR_SFMASK, 0b11000000000 | 0x100, 0);
+	uint64_t efer = rdmsr(IA32_EFER);
+	efer |= IA32_EFER_SCE;
+	wrmsr(IA32_EFER, efer);
+	/* and finally, syscall instruction MSRs */
+	wrmsr(IA32_MSR_STAR, (((uint64_t)((USER32_CS | X86_USER_MODE_FLAG) << 16) | KERNEL_CS) << 32));
+	wrmsr(IA32_MSR_LSTAR, (uint64_t) syscall_ENTRY64);
+	wrmsr(IA32_MSR_SFMASK, EFLAGS_INT_ENABLED | EFLAGS_DIRECTION |
+		EFLAGS_TRAP | EFLAGS_ALIGNMENT_CHECK);
+}
 
+void cpu_init_late(void)
+{
+	/* Completely disable the PIC first*/
+	pic_remap();
+	pic_disable();
+
+	/* Initialize the APIC and LAPIC */
+	ioapic_init();
+	lapic_init();
+
+	/* Initialize timers and TSC timekeeping */
+	apic_timer_init();
+	tsc_init();
+
+	/* Initialize the VDSO now */
+	vdso_init();
+
+	x86_init_percpu();
 
 	/* Setup the x86 platform defaults */
 	x86_platform.has_legacy_devices = true;
@@ -259,7 +298,7 @@ int cpu_init_mp(void)
 	cpus[0].sched_quantum = 10;
 	cpus[0].current_thread = NULL;
 	cpus[0].tss = &tss;
-	wrmsr(GS_BASE_MSR, (uint64_t) &cpus[0] & 0xFFFFFFFF, (uint64_t) &cpus[0] >> 32);
+	wrmsr(GS_BASE_MSR, (uint64_t) &cpus[0]);
 	spin_unlock(&ap_entry_spinlock);
 	
 	while(initialized_cpus+1 != booted_cpus);
@@ -290,9 +329,7 @@ void cpu_ap_entry(int cpu_num)
 {
 	spin_lock(&ap_entry_spinlock);
 
-	uint32_t high, low;
-	rdmsr(0x1b, &low, &high);
-	uint64_t addr = low | ((uint64_t)high << 32);
+	uint64_t addr = rdmsr(IA32_APIC_BASE);
 	addr &= 0xFFFFF000;
 	/* Map the BSP's LAPIC */
 	uintptr_t _lapic = (uintptr_t) mmiomap((void*) addr, PAGE_SIZE,
@@ -304,31 +341,26 @@ void cpu_ap_entry(int cpu_num)
 	cpus[cpu_num].lapic_phys = (void*) addr;
 	cpus[cpu_num].self = &cpus[cpu_num];
 
-	/* Initialize AVX */
-	avx_init();
 	/* Initialize the local apic + apic timer */
 	apic_timer_smp_init((volatile uint32_t *) cpus[cpu_num].lapic);
 
 	/* Fill this core's gs with &cpus[cpu_num] */
-	wrmsr(GS_BASE_MSR, (uint64_t) &cpus[cpu_num] & 0xFFFFFFFF, (uint64_t) &cpus[cpu_num] >> 32);
-	/* Initialize syscall */
-	wrmsr(IA32_MSR_STAR, 0, ((0x18 | 3) << 16) | 0x8);
-	wrmsr(IA32_MSR_LSTAR, (unsigned long) syscall_ENTRY64 & 0xFFFFFFFF, (unsigned long) syscall_ENTRY64 >> 32);
-	wrmsr(IA32_MSR_SFMASK, 0b11000000000 | 0x100, 0);
+	wrmsr(GS_BASE_MSR, (uint64_t) &cpus[cpu_num]);
 
-	gdt_init_percpu();
+	init_tss();
 
-	pat_init();
+	x86_init_percpu();
 
 	initialized_cpus++;
 
 	/* Enable interrupts */
-	__asm__ __volatile__("sti");
+	ENABLE_INTERRUPTS();
 
 	spin_unlock(&ap_entry_spinlock);
 	/* cpu_ap_entry() can't return, as there's no valid return address on the stack, so just hlt until the scheduler
 	   preempts the AP
 	*/
+	/* TODO: Free the AP stacks */
 	while(1);
 }
 
