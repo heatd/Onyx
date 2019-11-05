@@ -39,3 +39,4 @@ dhcpcd/dhcpcd
 utils/memstat/memstat
 *.tar*
 gen_password_hash
+*.vdi
