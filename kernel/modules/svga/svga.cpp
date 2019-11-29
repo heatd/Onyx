@@ -28,7 +28,7 @@ MODULE_INSERT_VERSION();
 
 #define MPRINTF(...) printf("svga: " __VA_ARGS__)
 
-smart_ptr<SvgaDevice> device;
+unique_ptr<SvgaDevice> device;
 void SvgaDevice::write_index(uint16_t index)
 {
 	outl(io_space + SVGA_INDEX_PORT, index);

@@ -883,6 +883,8 @@ void mutex_lock_slow_path(struct mutex *mutex)
 
 		struct thread *thread = get_current_thread();
 
+		assert(mutex->owner != thread);
+
 		sched_lock(thread);
 
 		enqueue_thread_mutex(mutex, thread);

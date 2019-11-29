@@ -951,8 +951,11 @@ void process_kill_other_threads()
 
 void process_destroy(thread_t *current_thread)
 {
+	/* TODO: Fix this. This means file closing routines can't sleep,
+	 * which is profoundly borken
+	*/
 	/* Enter critical section */
-	sched_disable_preempt();
+	//sched_disable_preempt();
 
 	struct process *current = get_current_process();
 	process_kill_other_threads();
@@ -976,7 +979,7 @@ void process_destroy(thread_t *current_thread)
 	/* Finally, wake up any possible concerned (waiting :D) parents */
 	sem_signal(&current->parent->wait_sem);
 
-	sched_enable_preempt();
+	//sched_enable_preempt();
 
 	sched_yield();
 

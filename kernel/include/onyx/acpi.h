@@ -7,7 +7,7 @@
 #define _ACPI_KERNEL_H
 
 #include <stdint.h>
-#include <acpi.h>
+#include <acpica/acpi.h>
 
 #include <onyx/dev.h>
 

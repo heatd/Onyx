@@ -11,7 +11,7 @@
 #define OS_NAME "Onyx"
 #define OS_TAGLINE "hey it's me, your unix"
 #define OS_RELEASE "onyx-rolling"
-#define OS_VERSION "SMP "__DATE__" "__TIME__
+#define OS_VERSION "SMP " __DATE__ " " __TIME__
 
 #if defined(__x86_64__)
 #define OS_MACHINE "x86_64 amd64"

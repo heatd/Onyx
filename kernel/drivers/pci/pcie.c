@@ -264,16 +264,16 @@ void pci_find_supported_capabilities(struct pci_device *dev);
 
 void pcie_enumerate_device(uint8_t bus, uint8_t device, uint8_t function, struct pcie_allocation *alloc)
 {
-	uint16_t vendor = (uint16_t) __pcie_read(bus, device, function, alloc, 0, sizeof(uint16_t));
+	uint16_t vendor = (uint16_t) __pcie_read(bus, device, function, alloc, PCI_REGISTER_VENDOR_ID, sizeof(uint16_t));
 
 	if(vendor == 0xffff) /* Invalid, just skip this device */
 		return;
 
-	uint16_t header = (uint16_t) __pcie_read(bus, device, function, alloc, 0xe, sizeof(uint16_t));
+	uint16_t header = (uint16_t) __pcie_read(bus, device, function, alloc, PCI_REGISTER_HEADER, sizeof(uint16_t));
 
-	uint8_t pciClass = (uint8_t)(__pcie_read(bus, device, function, alloc, 0xb, sizeof(uint8_t)));
-	uint8_t subClass = (uint8_t) __pcie_read(bus, device, function, alloc, 0xa, sizeof(uint8_t));
-	uint8_t progIF = (uint8_t) (__pcie_read(bus, device, function, alloc, 0xc, sizeof(uint8_t)));
+	uint8_t pciClass = (uint8_t)(__pcie_read(bus, device, function, alloc, PCI_REGISTER_CLASS, sizeof(uint8_t)));
+	uint8_t subClass = (uint8_t) __pcie_read(bus, device, function, alloc, PCI_REGISTER_SUBCLASS, sizeof(uint8_t));
+	uint8_t progIF = (uint8_t) (__pcie_read(bus, device, function, alloc, PCI_REGISTER_PROGIF, sizeof(uint8_t)));
 
 	// Set up some meta-data
 	struct pci_device* dev = zalloc(sizeof(struct pci_device));
@@ -285,7 +285,7 @@ void pcie_enumerate_device(uint8_t bus, uint8_t device, uint8_t function, struct
 	dev->device = device;
 	dev->segment = alloc->segment;
 	dev->vendorID = vendor;
-	dev->deviceID = (__pcie_read(bus, device, function, alloc, 0, sizeof(uint32_t)) >> 16);
+	dev->deviceID = (__pcie_read(bus, device, function, alloc, PCI_REGISTER_DEVICE_ID, sizeof(uint32_t)) >> 16);
 	dev->pciClass = pciClass;
 	dev->subClass = subClass;
 	dev->progIF = progIF;
@@ -312,7 +312,7 @@ void pcie_enumerate_device(uint8_t bus, uint8_t device, uint8_t function, struct
 		return;
 	for(int i = 1; i < 8; i++)
 	{
-		if(__pcie_read(bus, device, i, alloc, 0, sizeof(uint16_t)) == 0xFFFF)
+		if(__pcie_read(bus, device, i, alloc, PCI_REGISTER_HEADER, sizeof(uint16_t)) == 0xFFFF)
 			continue;
 		pcie_enumerate_device(bus, device, i, alloc);
 	}

@@ -327,6 +327,7 @@ int exec_target(int fd)
 		status = -1;
 		goto ret;
 	}
+
 	buffer = malloc(1024);
 	if(!buffer)
 	{

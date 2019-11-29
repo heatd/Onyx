@@ -181,8 +181,8 @@ int pci_shutdown(struct device *__dev)
 
 void pci_find_supported_capabilities(struct pci_device *dev)
 {
-	off_t pm_off = pci_find_capability(dev, PCI_CAP_ID_POWER_MANAGEMENT_INTERFACE);
-	if(pm_off != -1)
+	size_t pm_off = pci_find_capability(dev, PCI_CAP_ID_POWER_MANAGEMENT_INTERFACE, 0);
+	if(pm_off == 0)
 	{
 		/* We found the PM Register block! Great, now we'll cache the offset and the
 		 * fact that the capability exists
@@ -208,12 +208,13 @@ struct pci_device* last = NULL;
 void pci_enumerate_device(uint16_t bus, uint8_t device, uint8_t function, struct pci_device *parent)
 {
 	// Get vendor
-	uint16_t vendor = (uint16_t)(__pci_config_read_dword(bus, device, function, 0) & 0x0000ffff);
+	uint16_t vendor = (uint16_t)(__pci_config_read_dword(bus, device, function,
+					PCI_REGISTER_VENDOR_ID) & 0x0000ffff);
 
 	if(vendor == 0xFFFF) /* Invalid, just skip this device */
 		return;
 
-	uint16_t header = (uint16_t) __pci_config_read_word(bus, device, function, 0xE);
+	uint16_t header = (uint16_t) __pci_config_read_word(bus, device, function, PCI_REGISTER_HEADER);
 
 	uint32_t word = __pci_config_read_dword(bus, device, function, 0x08);
 	uint8_t progIF = (word >> 8) & 0xFF;
@@ -552,31 +553,34 @@ uint64_t pci_read(struct pci_device *dev, uint16_t off, size_t size)
 
 void pci_enable_busmastering(struct pci_device *dev)
 {
-	uint32_t command_register = (uint32_t) pci_read(dev, PCI_COMMAND, sizeof(uint32_t));
-	pci_write(dev, command_register | PCI_COMMAND_BUS_MASTER, PCI_COMMAND, sizeof(uint32_t));
+	uint32_t command_register = (uint32_t) pci_read(dev, PCI_REGISTER_COMMAND, sizeof(uint32_t));
+	pci_write(dev, command_register | PCI_COMMAND_BUS_MASTER, PCI_REGISTER_COMMAND, sizeof(uint32_t));
 }
 
 uint16_t pci_get_status(struct pci_device *dev)
 {
-	return (uint16_t) pci_read(dev, PCI_REG_STATUS, sizeof(uint16_t));
+	return (uint16_t) pci_read(dev, PCI_REGISTER_STATUS, sizeof(uint16_t));
 }
 
-off_t pci_find_capability(struct pci_device *dev, uint8_t cap)
+size_t pci_find_capability(struct pci_device *dev, uint8_t cap, int instance)
 {
 	uint16_t status = pci_get_status(dev);
 	if(!(status & PCI_STATUS_CAP_LIST_SUPPORTED))
-		return -1;
+		return 0;
 	
-	uint8_t offset = (uint8_t) pci_read(dev, PCI_REG_CAPABILTIES_POINTER, sizeof(uint8_t)) & ~3;
+	uint8_t offset = (uint8_t) pci_read(dev, PCI_REGISTER_CAPABILTIES_POINTER, sizeof(uint8_t)) & ~3;
 
 	while(offset)
 	{
 		uint16_t _cap = pci_read(dev, offset, sizeof(uint16_t));
-		if((_cap & 0xFF) == cap)
+
+		if((_cap & 0xFF) == cap && instance-- == 0)
 			return offset;
-		offset = ((uint8_t) (_cap & 0xFF00)) & ~3;
+
+		offset = ((uint8_t) (_cap >> 8)) & ~3;
 	}
-	return -1;
+
+	return 0;
 }
 
 extern struct bus pcie_bus;
@@ -584,7 +588,7 @@ extern struct bus pcie_bus;
 bool pci_find_device(bool (*callback)(struct pci_device *), bool stop_on_match)
 {
 	bool found = false;
-	for(struct device *i = pci_bus.devs; i;i = i->next)
+	for(struct device *i = pci_bus.devs; i; i = i->next)
 	{
 		if(callback((struct pci_device *) i) == true)
 		{
@@ -607,20 +611,20 @@ bool pci_find_device(bool (*callback)(struct pci_device *), bool stop_on_match)
 
 void pci_disable_busmastering(struct pci_device *dev)
 {
-	uint32_t command_register = (uint32_t) pci_read(dev, PCI_COMMAND, sizeof(uint32_t));
-	pci_write(dev, command_register & ~PCI_COMMAND_BUS_MASTER, PCI_COMMAND, sizeof(uint32_t));
+	uint32_t command_register = (uint32_t) pci_read(dev, PCI_REGISTER_COMMAND, sizeof(uint32_t));
+	pci_write(dev, command_register & ~PCI_COMMAND_BUS_MASTER, PCI_REGISTER_COMMAND, sizeof(uint32_t));
 }
 
 void pci_disable_irq(struct pci_device *dev)
 {
-	uint32_t command_register = (uint32_t) pci_read(dev, PCI_COMMAND, sizeof(uint32_t));
-	pci_write(dev, command_register | PCI_COMMAND_INTR_DISABLE, PCI_COMMAND, sizeof(uint32_t));
+	uint32_t command_register = (uint32_t) pci_read(dev, PCI_REGISTER_COMMAND, sizeof(uint32_t));
+	pci_write(dev, command_register | PCI_COMMAND_INTR_DISABLE, PCI_REGISTER_COMMAND, sizeof(uint32_t));
 }
 
 void pci_enable_irq(struct pci_device *dev)
 {
-	uint32_t command_register = (uint32_t) pci_read(dev, PCI_COMMAND, sizeof(uint32_t));
-	pci_write(dev, command_register & ~PCI_COMMAND_INTR_DISABLE, PCI_COMMAND, sizeof(uint32_t));
+	uint32_t command_register = (uint32_t) pci_read(dev, PCI_REGISTER_COMMAND, sizeof(uint32_t));
+	pci_write(dev, command_register & ~PCI_COMMAND_INTR_DISABLE, PCI_REGISTER_COMMAND, sizeof(uint32_t));
 }
 
 struct pci_id *pci_driver_supports_device(struct driver *driver, struct device *device)
@@ -729,10 +733,10 @@ int pci_enable_device(struct pci_device *device)
 	}
 
 	/* Enable the IO and MMIO of the device */
-	uint16_t command = (uint16_t) pci_read(device, PCI_COMMAND, sizeof(uint16_t));
+	uint16_t command = (uint16_t) pci_read(device, PCI_REGISTER_COMMAND, sizeof(uint16_t));
 	command |= PCI_COMMAND_MEMORY_SPACE | PCI_COMMAND_IOSPACE;
 
-	pci_write(device, command, PCI_COMMAND, sizeof(uint16_t));
+	pci_write(device, command, PCI_REGISTER_COMMAND, sizeof(uint16_t));
 
 	return 0;
 }
@@ -759,8 +763,8 @@ int pci_wait_for_tp(struct pci_device *device, off_t cap_start)
 
 int pci_reset_device(struct pci_device *device)
 {
-	off_t off = pci_find_capability(device, PCI_CAP_ID_AF);
-	if(off < 0)
+	size_t off = pci_find_capability(device, PCI_CAP_ID_AF, 0);
+	if(off == 0)
 		return errno = EIO, -1;
 	
 	if(pci_read(device, off + PCI_AF_REG_LENGTH, sizeof(uint8_t)) != 6)
@@ -780,4 +784,9 @@ int pci_reset_device(struct pci_device *device)
 	pci_write(device, PCI_AF_INTIATE_FLR, off + PCI_AF_REG_CONTROL, sizeof(uint8_t));
 
 	return pci_wait_for_tp(device, off);
+}
+
+uint16_t pci_get_subsys_id(struct pci_device *dev)
+{
+	return (uint16_t) pci_read(dev, PCI_REGISTER_SUBSYSTEM_ID, sizeof(uint16_t));
 }

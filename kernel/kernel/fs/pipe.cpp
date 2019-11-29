@@ -68,7 +68,7 @@ ssize_t pipe::read(int flags, size_t len, void *buf)
 			if(writer_count == 0)
 			{
 				mutex_unlock(&pipe_lock);
-				return 0;
+				return been_read;
 			}
 
 			/* buffer empty */
@@ -81,7 +81,7 @@ ssize_t pipe::read(int flags, size_t len, void *buf)
 		}
 		else
 		{
-			size_t to_read = min(len, pos);
+			size_t to_read = min(len - been_read, pos);
 			memcpy((void *) ((char *) buf + been_read), buffer, to_read);
 			/* move the rest of the buffer back to the beginning if we have to */
 			if(pos - to_read != 0)
@@ -139,10 +139,10 @@ ssize_t pipe::write(int flags, size_t len, const void *buf)
 		}
 	}
 
+	mutex_unlock(&pipe_lock);
 	/* After finishing the write, signal any possible readers */
 	condvar_broadcast(&read_cond);
 
-	mutex_unlock(&pipe_lock);
 	return written;
 }
 

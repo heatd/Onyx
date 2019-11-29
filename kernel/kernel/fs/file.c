@@ -95,11 +95,9 @@ badfd:
 	return errno = EBADF, NULL;
 }
 
-int __file_close(int fd, struct process *p)
+int __file_close_unlocked(int fd, struct process *p)
 {
 	ioctx_t *ctx = &p->ctx;
-
-	mutex_lock(&ctx->fdlock);
 
 	if(!validate_fd_number(fd, ctx))
 		goto badfd;
@@ -112,12 +110,23 @@ int __file_close(int fd, struct process *p)
 
 	ctx->file_desc[fd] = NULL;
 
-	mutex_unlock(&ctx->fdlock);
 	
 	return 0;
 badfd:
-	mutex_unlock(&ctx->fdlock);
 	return -EBADF;
+}
+
+int __file_close(int fd, struct process *p)
+{
+	ioctx_t *ctx = &p->ctx;
+
+	mutex_lock(&ctx->fdlock);
+
+	int ret = __file_close_unlocked(fd, p);
+
+	mutex_unlock(&ctx->fdlock);
+
+	return ret;
 }
 
 int file_close(int fd)
@@ -371,7 +380,7 @@ int sys_dup2(int oldfd, int newfd)
 	}
 
 	if(ioctx->file_desc[newfd])
-		file_close(newfd);
+		__file_close_unlocked(newfd, get_current_process());
 
 	ioctx->file_desc[newfd] = ioctx->file_desc[oldfd];
 

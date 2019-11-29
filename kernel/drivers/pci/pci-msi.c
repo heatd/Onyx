@@ -45,11 +45,11 @@ int pci_enable_msi(struct pci_device *dev, irq_t handler, void *cookie)
 	bool msix = false;
 	(void) msix;
 	/* TODO: Try to prioritize finding MSI-X capabiltiies */
-	off_t offset = pci_find_capability(dev, PCI_CAP_ID_MSI);
-	if(offset < 0)
+	size_t offset = pci_find_capability(dev, PCI_CAP_ID_MSI, 0);
+	if(offset == 0)
 	{
 		msix = false;
-		if((offset = pci_find_capability(dev, PCI_CAP_ID_MSI)) < 0)
+		if((offset = pci_find_capability(dev, PCI_CAP_ID_MSI, 0)) == 0)
 			return -1; 
 	}
 

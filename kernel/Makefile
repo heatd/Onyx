@@ -23,7 +23,7 @@ CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-stron
 CPPFLAGS:=$(CPPFLAGS) -D__is_onyx_kernel -D_POSIX_C_SOURCE -D_BSD_SOURCE -Iinclude \
 -Iinclude/acpica -isystem ../libc/include -DKERNEL_VERSION='"$(KERNEL_VERSION)"' \
 -DKERNEL_BRANCH='"$(KERNEL_BRANCH)"' -DKERNEL_ARCH='"$(KERNEL_ARCH)"' -imacros \
-include/onyx/config.h
+include/onyx/config.h -Wno-missing-field-initializers
 
 LDFLAGS:=$(LDFLAGS) -fwhole-program -fkeep-inline-functions -flto
 LIBS:=$(LIBS) -nostdlib -lk $(LIBGCC_PATH)

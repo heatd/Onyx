@@ -17,12 +17,14 @@
 #include <dirent.h>
 
 #include <mutex>
-#include <ext/concurrence.h>
+#include <memory>
+
 class Device
 {
 private:
 	std::string name;
 	std::mutex mtx;
+	std::unique_ptr <int> j;
 public:
 	Device(std::string name) : name(name)
 	{

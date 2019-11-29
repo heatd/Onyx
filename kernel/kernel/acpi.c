@@ -238,6 +238,7 @@ ACPI_STATUS acpi_find_pci_buses(ACPI_HANDLE object, UINT32 nestingLevel,
 			ERROR("acpi", "Error: AcpiGetIrqRoutingTable failed!\n");
 			return st;
 		}
+
 		ACPI_PCI_ROUTING_TABLE *rout = buffer.Pointer;
 		enumerate_pci_irq_routing(rout, context, object);
 		free(rout);
@@ -514,6 +515,7 @@ int acpi_set_device_power_state(struct acpi_device *device, unsigned int power_s
 	{
 		return 1;
 	}
+
 	return 0;
 }
 

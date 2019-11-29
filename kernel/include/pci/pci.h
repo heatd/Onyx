@@ -21,10 +21,19 @@
 
 #define PCI_BAR0 				0x10
 #define PCI_BARx(index) 			(PCI_BAR0 + 0x4 * index)
-#define PCI_INTN 				0x3C
-#define PCI_COMMAND 				0x4
-#define PCI_REG_STATUS				0x6
-#define PCI_REG_CAPABILTIES_POINTER		0x34
+
+#define PCI_REGISTER_VENDOR_ID			0x0
+#define PCI_REGISTER_DEVICE_ID			0x2
+#define PCI_REGISTER_COMMAND 			0x4
+#define PCI_REGISTER_STATUS			0x6
+#define PCI_REGISTER_HEADER			0xe
+#define PCI_REGISTER_CLASS			0xb
+#define PCI_REGISTER_SUBCLASS			0xa
+#define PCI_REGISTER_PROGIF			0xc
+#define PCI_REGISTER_SUBSYSTEM_VID		0x2c
+#define PCI_REGISTER_SUBSYSTEM_ID		0x2e
+#define PCI_REGISTER_CAPABILTIES_POINTER	0x34
+#define PCI_REGISTER_INTN 			0x3c
 
 #define PCI_TYPE_MASK				0x7f
 #define PCI_TYPE_REGULAR			0
@@ -172,6 +181,7 @@ struct pci_id
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 void pci_init();
 uint16_t __pci_config_read_word (uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset);
 uint32_t __pci_config_read_dword (uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset);
@@ -195,7 +205,7 @@ void pci_enable_busmastering(struct pci_device *dev);
 void pci_disable_busmastering(struct pci_device *dev);
 void pci_disable_irq(struct pci_device *dev);
 void pci_enable_irq(struct pci_device *dev);
-off_t pci_find_capability(struct pci_device *dev, uint8_t cap);
+size_t pci_find_capability(struct pci_device *dev, uint8_t cap, int instance);
 int pci_enable_msi(struct pci_device *dev, irq_t handler, void *cookie);
 bool pci_find_device(bool (*callback)(struct pci_device *), bool stop_on_match);
 void pci_bus_register_driver(struct driver *driver);
@@ -204,6 +214,7 @@ void *pci_map_bar(struct pci_device *device, int index);
 
 int pci_enable_device(struct pci_device *device);
 int pci_reset_device(struct pci_device *device);
+uint16_t pci_get_subsys_id(struct pci_device *dev);
 
 #ifdef __cplusplus
 }

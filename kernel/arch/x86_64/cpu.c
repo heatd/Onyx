@@ -257,7 +257,7 @@ bool is_percpu_initialized(void)
 
 int cpu_init_mp(void)
 {
-	ACPI_SUBTABLE_HEADER *first = (ACPI_SUBTABLE_HEADER *) (madt+1);
+	ACPI_SUBTABLE_HEADER *first = (ACPI_SUBTABLE_HEADER *) (madt + 1);
 	/* Lets parse through the MADT to get the number of cores.
 	 * Each LAPIC = 1 core */
 	
@@ -265,7 +265,7 @@ int cpu_init_mp(void)
 	spin_lock(&ap_entry_spinlock);
 	
 	for(ACPI_SUBTABLE_HEADER *i = first;
-	i < (ACPI_SUBTABLE_HEADER*) ((char*)madt + madt->Header.Length);
+	i < (ACPI_SUBTABLE_HEADER*) ((char*) madt + madt->Header.Length);
 	i = (ACPI_SUBTABLE_HEADER*)((uint64_t) i + (uint64_t) i->Length))
 	{
 		if(i->Type == ACPI_MADT_TYPE_LOCAL_APIC)
@@ -292,7 +292,7 @@ int cpu_init_mp(void)
 
 	DISABLE_INTERRUPTS();
 	/* Fill CPU0's data */
-	cpus[0].lapic = (volatile char*) bsp_lapic;
+	cpus[0].lapic = (volatile char *) bsp_lapic;
 	cpus[0].self = &cpus[0];
 	cpus[0].apic_ticks = boot_ticks;
 	cpus[0].sched_quantum = 10;
@@ -301,7 +301,7 @@ int cpu_init_mp(void)
 	wrmsr(GS_BASE_MSR, (uint64_t) &cpus[0]);
 	spin_unlock(&ap_entry_spinlock);
 	
-	while(initialized_cpus+1 != booted_cpus);
+	while(initialized_cpus + 1 != booted_cpus);
 	struct acpi_processor *processors = acpi_enumerate_cpus();
 	/* I guess we don't get to have thermal management then... */
 	if(!processors)
@@ -485,8 +485,8 @@ void serial_write(const char *s, size_t size, struct serial_port *port);
 
 void cpu_send_message(int cpu, unsigned long message, void *arg, bool should_wait)
 {
-	struct processor 	*p;
-	struct cpu_message	*msg = cpu_alloc_msg_slot();
+	struct processor *p;
+	struct cpu_message *msg = cpu_alloc_msg_slot();
 	if(!msg)
 		return;
 

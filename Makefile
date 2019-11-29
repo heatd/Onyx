@@ -91,7 +91,7 @@ iso: fullbuild
 qemu: iso
 	qemu-system-$(shell ./target-triplet-to-arch.sh $(HOST)) \
 	-s -cdrom Onyx.iso -drive file=hdd.img,format=raw,media=disk -m 512M \
-	-monitor stdio -boot d -netdev user,id=u1 -device e1000,netdev=u1 \
+	-monitor stdio -boot d -netdev user,id=u1 -device virtio-net,netdev=u1 \
 	-object filter-dump,id=f1,netdev=u1,file=net.pcap \
 	-enable-kvm -cpu host,migratable=on,+invtsc -smp 4 -vga qxl \
 	-usb -machine q35
