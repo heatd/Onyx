@@ -67,6 +67,7 @@
 #include <onyx/framebuffer.h>
 #include <onyx/utils.h>
 #include <onyx/mm/kasan.h>
+#include <onyx/x86/kvm.h>
 
 #include <drivers/rtc.h>
 
@@ -412,6 +413,8 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 #ifdef CONFIG_KASAN
 	kasan_init();
 #endif
+	/* TODO: Separate x86 specific initialization to another, boot protocol neutral, function */
+	kvm_init();
 }
 
 void reclaim_initrd(void)

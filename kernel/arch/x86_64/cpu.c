@@ -122,6 +122,15 @@ void __cpu_identify(void)
 
 	cpu.invariant_tsc = (bool) (edx & (1 << 8));
 
+#if 0
+	/* TODO: Add 15h support */
+	if(__get_cpuid(0x15, &eax, &ebx, &ecx, &edx))
+	{
+		INFO("x86cpu", "0x15 supported!\n");
+		halt();
+	}
+#endif
+
 }
 
 char *cpu_get_name(void)

@@ -58,8 +58,7 @@ void tsc_init(void)
 		"used as a clock source\n");
 		return;
 	}
-	uint64_t freq = //1799990000;
-	x86_get_tsc_rate();
+	uint64_t freq = x86_get_tsc_rate();
 
 	INFO("tsc", "Frequency: %lu Hz\n", freq);
 

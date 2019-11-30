@@ -488,11 +488,13 @@ void timer_calibrate(void)
 	calib.duration[0] = 2;
 	calib.duration[1] = 5;
 	calib.duration[2] = 10;
+	/* No need to cal*/
+	bool calibrate_tsc = x86_get_tsc_rate() == 0;
 
 	for(int i = 0; i < CALIBRATION_TRIALS; i++)
 	{
 		apic_calibrate(i);
-		tsc_calibrate(i);
+		if(calibrate_tsc) tsc_calibrate(i);
 	}
 
 	unsigned long deltas[3];
@@ -502,7 +504,7 @@ void timer_calibrate(void)
 		deltas[i] = calib.tsc_calib[i].best_delta;
 	}
 
-	x86_set_tsc_rate(calculate_frequency(deltas, 1000));
+	if(calibrate_tsc) x86_set_tsc_rate(calculate_frequency(deltas, 1000));
 	
 	for(int i = 0; i < 3; i++)
 	{
