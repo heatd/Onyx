@@ -319,31 +319,50 @@ struct device apic_timer_dev =
 	.name = "apic-timer"
 };
 
-struct calibration_context
+struct tsc_calib_context
 {
 	uint64_t init_tsc;
 	uint64_t end_tsc;
-	uint32_t ticks_in_10ms;
+	uint64_t best_delta;
+};
+
+#define CALIBRATION_TRIALS	3
+#define CALIBRATION_TRIES		3
+struct calibration_context
+{
+	uint32_t duration[CALIBRATION_TRIALS];
+	struct tsc_calib_context tsc_calib[CALIBRATION_TRIALS];
+	uint32_t apic_ticks[CALIBRATION_TRIALS];
 };
 
 struct calibration_context calib = {0};
 
-void apic_calibration_setup_count(void)
+void apic_calibration_setup_count(int try)
 {
+	(void) try;
 	/* 0xFFFFFFFF shouldn't overflow in 10ms */
-	lapic_write(bsp_lapic, LAPIC_TIMER_INITCNT, 0xFFFFFFFF);
-
-	calib.init_tsc = rdtsc();
+	lapic_write(bsp_lapic, LAPIC_TIMER_INITCNT, UINT32_MAX);
 }
 
-void apic_calibration_end(void)
+void tsc_calibration_setup_count(int try)
 {
-	calib.end_tsc = rdtsc();
-	/* Get the ticks that passed in 10ms */
-	uint32_t ticks_in_10ms = 0xFFFFFFFF - lapic_read(bsp_lapic, LAPIC_TIMER_CURRCNT);
-	calib.ticks_in_10ms = ticks_in_10ms;
+	calib.tsc_calib[try].init_tsc = rdtsc();
 }
 
+void tsc_calibration_end(int try)
+{
+	calib.tsc_calib[try].end_tsc = rdtsc();
+}
+
+void apic_calibration_end(int try)
+{
+	/* Get the ticks that passed in the time frame */
+	uint32_t ticks = UINT32_MAX - lapic_read(bsp_lapic, LAPIC_TIMER_CURRCNT);
+	if(ticks < calib.apic_ticks[try])
+		calib.apic_ticks[try] = ticks;
+}
+
+#if 0
 bool apic_calibrate_acpi(void)
 {
 	UINT32 u;
@@ -373,7 +392,7 @@ bool apic_calibrate_acpi(void)
 	return true;
 }
 
-void apic_calibrate_pit(void)
+void apic_calibrate_pit(int try)
 {
 	INFO("apic", "using the PIT timer for timer calibration\n");
 	pit_init_oneshot(100);
@@ -385,13 +404,112 @@ void apic_calibrate_pit(void)
 	apic_calibration_end();
 }
 
-void apic_calibrate(void)
+#endif
+
+void apic_calibrate(int try)
+{
+	calib.apic_ticks[try] = UINT32_MAX;
+
+	for(int i = 0; i < CALIBRATION_TRIALS; i++)
+	{
+		uint32_t freq = 1000 / calib.duration[try];
+		pit_init_oneshot(freq);
+
+		apic_calibration_setup_count(try);
+
+		pit_wait_for_oneshot();
+
+		apic_calibration_end(try);
+
+		pit_stop();
+	}
+}
+
+void tsc_calibrate(int try)
+{
+	calib.tsc_calib[try].best_delta = UINT64_MAX;
+
+	for(int i = 0; i < CALIBRATION_TRIALS; i++)
+	{
+		uint32_t freq = 1000 / calib.duration[try];
+		pit_init_oneshot(freq);
+
+		tsc_calibration_setup_count(try);
+
+		pit_wait_for_oneshot();
+
+		tsc_calibration_end(try);
+
+		uint64_t delta = calib.tsc_calib[try].end_tsc - calib.tsc_calib[try].init_tsc;
+
+		if(delta < calib.tsc_calib[try].best_delta)
+			calib.tsc_calib[try].best_delta = delta;
+
+		pit_stop();
+	}
+}
+
+unsigned long calculate_frequency(unsigned long *deltas, unsigned long x)
+{
+	/* Lets do a regression analysis. f(x) = mx + b */
+
+	/* Find m = (yf - yi)/(xf - xi) */
+	/* Use the Theil–Sen estimator method to get m and b */
+
+	/* Since we have 3 deltas we'll have two pairs of points to work with
+	 * and then after calculating the different slopes we'll have to get the
+	 * median. */
+
+	unsigned long slopes[2];
+	slopes[0] = INT_DIV_ROUND_CLOSEST(deltas[1] - deltas[0],
+		calib.duration[1] - calib.duration[0]);
+	slopes[1] = INT_DIV_ROUND_CLOSEST(deltas[2] - deltas[1],
+		calib.duration[2] - calib.duration[1]);
+
+	unsigned long slope = INT_DIV_ROUND_CLOSEST(slopes[1] + slopes[0], 2);
+
+	/* b is found out by the median of yi - mxi.
+	  Since we have 3 values, we use index 1 */
+
+	long b = deltas[1] - slope * calib.duration[1];
+
+	/* Now do f(x) */
+	unsigned long freq = slope * x - b;
+
+	return freq;
+}
+
+void timer_calibrate(void)
 {
 	/* After eyeballing results, I can tell that the PIT gives us better results in QEMU.
 	 * Should we switch?
 	*/
-	if(apic_calibrate_acpi() == false)
-		apic_calibrate_pit();
+	//if(apic_calibrate_acpi() == false)
+	calib.duration[0] = 2;
+	calib.duration[1] = 5;
+	calib.duration[2] = 10;
+
+	for(int i = 0; i < CALIBRATION_TRIALS; i++)
+	{
+		apic_calibrate(i);
+		tsc_calibrate(i);
+	}
+
+	unsigned long deltas[3];
+
+	for(int i = 0; i < 3; i++)
+	{
+		deltas[i] = calib.tsc_calib[i].best_delta;
+	}
+
+	x86_set_tsc_rate(calculate_frequency(deltas, 1000));
+	
+	for(int i = 0; i < 3; i++)
+	{
+		deltas[i] = calib.apic_ticks[i];
+	}
+	
+	apic_rate = calculate_frequency(deltas, 1);
 }
 
 void apic_timer_init(void)
@@ -403,16 +521,14 @@ void apic_timer_init(void)
 
 	printf("apic: calculating APIC timer frequency\n");
 
-	apic_calibrate();
+	timer_calibrate();
 
 	lapic_write(bsp_lapic, LAPIC_LVT_TIMER, LAPIC_TIMER_IVT_MASK);
-	
+
 	/* Initialize the APIC timer with IRQ2, periodic mode and an init count of
 	 * ticks_in_10ms/10(so we get a rate of 1000hz)
 	*/
 	lapic_write(bsp_lapic, LAPIC_TIMER_DIV, 3);
-
-	apic_rate = INT_DIV_ROUND_CLOSEST(calib.ticks_in_10ms, 10);
 
 	printf("apic: apic timer rate: %lu\n", apic_rate);
 	us_apic_rate = INT_DIV_ROUND_CLOSEST(apic_rate, 1000);
@@ -421,8 +537,6 @@ void apic_timer_init(void)
 
 	lapic_write(bsp_lapic, LAPIC_LVT_TIMER, 34 | LAPIC_LVT_TIMER_MODE_PERIODIC);
 	lapic_write(bsp_lapic, LAPIC_TIMER_INITCNT, apic_rate);
-
-	x86_set_tsc_rate(clock_delta_calc(calib.init_tsc, calib.end_tsc) * 100);
 
 	/* Install an IRQ handler for IRQ2 */
 	

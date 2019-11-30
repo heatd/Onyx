@@ -49,6 +49,7 @@ hrtime_t tsc_get_ns(void)
 
 static bool tsc_enabled = false;
 
+#undef TESTING_TSC
 void tsc_init(void)
 {
 	if(x86_check_invariant_tsc() == false)
@@ -57,7 +58,8 @@ void tsc_init(void)
 		"used as a clock source\n");
 		return;
 	}
-	uint64_t freq = x86_get_tsc_rate();
+	uint64_t freq = //1799990000;
+	x86_get_tsc_rate();
 
 	INFO("tsc", "Frequency: %lu Hz\n", freq);
 
@@ -75,10 +77,10 @@ void tsc_init(void)
 #ifdef TESTING_TSC
 	//printk("Sleeping. \n");
 	//printk("gtc %lu\n", get_tick_count());
+	printk("Start %lu\n", get_tick_count());
 	unsigned long start = tsc_clock.get_ns();
-	printk("Start %lu\n", start);
 
-	while(tsc_clock.get_ns() - start < NS_PER_SEC * 3);
+	while(tsc_clock.get_ns() - start < (NS_PER_SEC * 2));
 	printk("Slept. gtc %lu\n", get_tick_count());
 #endif
 }

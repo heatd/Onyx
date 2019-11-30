@@ -81,6 +81,9 @@ irq_common:
 	call signal_is_pending
 	cmp $1, %rax
 	je .L4
+.global x86_scheduler_exit
+x86_scheduler_exit:
+	/* We'll use this bit of code as a trampoline to the new thread too */
 .L5:
 	mov IRQ_STACK_OFF_CS(%rsp), %rax
 	cmp $KERNEL_CS, %rax
@@ -467,6 +470,36 @@ _sched_yield:
 
 	popaq
 	iretq
+
+#include <onyx/x86/segments.h>
+
+.global platform_yield
+platform_yield:
+	/* Basically we need to set up an IRQ frame on the stack.
+	 * For future reference consult include/(carbon/onyx)/x86/registers.h
+	*/
+	/* Set up a regular stack frame first */
+	push %rbp
+	mov %rsp, %rbp
+	push %rax	/* We're going to need rax as a scratch register */
+	push $KERNEL_DS /* %ss */
+	mov %rsp, %rax
+	add $8, %rax
+	push %rax /* %rsp */
+	pushf /* %rflags */
+	push $KERNEL_CS /* %cs */
+	push $.return_label /* %rip */
+	pushaq /* General purpose registers (%rax - %r15) */
+	push $KERNEL_DS /* %ds */
+	mov %rsp, %rdi
+	call asm_schedule
+	mov %rax, %rsp
+	jmp x86_scheduler_exit
+.return_label:
+	pop %rax
+	pop %rbp
+	ret
+	
 
 .global __sigret_return
 __sigret_return:

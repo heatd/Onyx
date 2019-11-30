@@ -39,7 +39,7 @@ static inline struct fraction fract_div(struct fraction *f1, struct fraction *f2
 	return r;
 }
 
-#define INT_DIV_ROUND_CLOSEST(x, y)		((x + (y/2)) / y)
+#define INT_DIV_ROUND_CLOSEST(x, y)		(((x) + ((y)/2)) / (y))
 
 static inline uint64_t fract_div_u64_fract(uint64_t u, struct fraction *f)
 {

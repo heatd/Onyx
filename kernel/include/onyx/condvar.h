@@ -23,6 +23,7 @@ struct cond
 void condvar_wait(struct cond *c, struct mutex *mutex);
 void condvar_signal(struct cond *c);
 void condvar_broadcast(struct cond *c);
+void condvar_wait_unlocked(struct cond *var);
 
 #ifdef __cplusplus
 }

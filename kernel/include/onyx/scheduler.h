@@ -136,10 +136,8 @@ do							\
 {							\
 	struct thread *__t = get_current_thread();	\
 	assert(__t != NULL);				\
-	spin_lock_irqsave(&__t->lock);			\
 	__t->status = state;				\
 	__sync_synchronize();				\
-	spin_unlock_irqrestore(&__t->lock);		\
 } while(0);
 
 #ifdef __cplusplus

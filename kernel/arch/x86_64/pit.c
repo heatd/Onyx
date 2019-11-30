@@ -14,6 +14,7 @@
 #include <onyx/pic.h>
 #include <onyx/compiler.h>
 #include <onyx/dev.h>
+#include <fractions.h>
 
 #define PIT_CHANNEL0_DATA	0x40
 #define PIT_CHANNEL1_DATA	0x41
@@ -53,17 +54,11 @@ struct device pit_dev =
 	.name = "pit"
 };
 
-irqstatus_t pit_irq(struct irq_context *ctx, void *cookie)
-{
-	timer_ticks++;
-	return IRQ_HANDLED;
-}
-
 void pit_init_oneshot(uint32_t frequency)
 {
 	driver_register_device(&pit_driver, &pit_dev);
 
-	int divisor = PIT_FREQUENCY / frequency;
+	uint16_t divisor = INT_DIV_ROUND_CLOSEST(PIT_FREQUENCY, frequency);
 
 	uint8_t command = 0;
 	command = PIT_COMMAND_CHANNEL(0) | PIT_COMMAND_ACCESS_LOHIBYTE |
@@ -86,7 +81,7 @@ void pit_send_readback(uint8_t channels, bool count, bool status)
 		command |= PIT_READBACK_DONT_LATCH_COUNT;
 	if(!status)
 		command |= PIT_READBACK_DONT_LATCH_STATUS;
-	
+
 	/* Mask the channels and OR them in */
 	command |= (channels & 0x3);
 
@@ -104,7 +99,7 @@ void pit_wait_for_oneshot(void)
 	} while(!(status & PIT_STATUS_OUTPUT_HIGH));
 }
 
-uint64_t pit_get_tick_count(void)
+void pit_stop(void)
 {
-	return (uint64_t) timer_ticks;
+	outb(PIT_COMMAND_REG, 0x38);
 }

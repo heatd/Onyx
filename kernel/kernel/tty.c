@@ -84,6 +84,14 @@ void tty_init(void *priv, void (*ctor)(struct tty *tty))
 
 void tty_write(const char *data, size_t size, struct tty *tty)
 {
+	if(tty->lock.owner == get_current_thread() && get_current_thread() != NULL)
+	{
+		tty->lock.counter = 0;
+		tty->lock.owner = NULL;
+		tty_write_string("PANIC: RECURSIVE TTY LOCK\n", tty);
+		halt();
+	}
+
 	mutex_lock(&tty->lock);
 
 	tty->write((void *) data, size, tty);

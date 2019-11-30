@@ -70,6 +70,7 @@ struct file_ops
 	struct inode *(*mkdir)(const char *name, mode_t mode, struct inode *node);
 	struct inode *(*mknod)(const char *name, dev_t dev, struct inode *node);
 	int (*on_open)(struct inode *node);
+	short (*poll)(void *poll_table, short events, struct inode *node);
 };
 
 struct getdents_ret

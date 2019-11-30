@@ -130,7 +130,7 @@ void ata_enable_pci_ide(struct pci_device *dev)
 	configuration space */
 	pci_enable_device(dev);
 	pci_enable_busmastering(dev);
-	pci_write(dev, 14, PCI_INTN, sizeof(uint16_t));
+	pci_write(dev, 14, PCI_REGISTER_INTN, sizeof(uint16_t));
 	pci_set_barx(dev->bus, dev->device, dev->function, 0, 0x1F0, 1, 0);
 	pci_set_barx(dev->bus, dev->device, dev->function, 1, 0x3F6, 1, 0);
 	pci_set_barx(dev->bus, dev->device, dev->function, 2, 0x170, 1, 0);

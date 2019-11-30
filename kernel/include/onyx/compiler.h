@@ -39,6 +39,10 @@
 #define _weak_alias(name, aliasname) \
 extern __typeof (name) aliasname __attribute__ ((weak, alias (#name)));
 
+#define strong_alias(name, aliasname) _strong_alias (name, aliasname)
+#define _strong_alias(name, aliasname) \
+extern __typeof (name) aliasname __attribute__ ((alias (#name)));
+
 #define USES_FANCY_START	_Pragma("GCC push_options") \
 _Pragma("GCC target(\"sse2\", \"3dnow\", \"xsave\")")
 #define USES_FANCY_END _Pragma("GCC pop_options")

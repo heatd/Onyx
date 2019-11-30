@@ -14,13 +14,12 @@ extern "C" {
 #endif
 
 ARCH_SPECIFIC void halt();
-ARCH_SPECIFIC void get_thread_ctx(registers_t* regs);
 /* The functions halt and get_thread_ctx are architecture dependent, as they require manual assembly.
  * As so, its left for the architecture to implement these functions. The kernel expects them to be hooked.
  */
 
 /* panic - Panics the system (dumps information and halts) */
-__attribute__ ((noreturn,cold,noinline))
+__attribute__ ((noreturn, cold, noinline))
 void panic(const char* msg);
 
 uintptr_t get_kernel_sym_by_name(const char *name);
@@ -32,9 +31,26 @@ void init_elf_symbols(struct multiboot_tag_elf_sections *restrict secs);
 void elf_sections_reserve(struct multiboot_tag_elf_sections *restrict secs);
 
 #endif
+
 void stack_trace_ex(uint64_t *stack);
 
 #ifdef __cplusplus
 }
 #endif
+
+#ifdef __cplusplus
+#include <stdio.h>
+
+template <typename T>
+[[noreturn]]
+void panic_bounds_check(T* arr, bool is_vec, unsigned long bad_index)
+{
+	const char *type = is_vec ? "vector" : "array";
+	printf("%s::operator[] detected a bad access with index %lu\n",
+		type, bad_index);
+	printf("%s address: %p\n", type, arr);
+	panic("array bounds check");
+}
+#endif
+
 #endif

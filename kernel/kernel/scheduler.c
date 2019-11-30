@@ -46,9 +46,8 @@ void sched_lock(struct thread *thread)
 {
 	/* Order of acquisition in order to avoid a deadlock */
 	
-	/* 1st - Lock the wait queue */
-	/* 2nd - Lock the per-cpu scheduler */
-	/* 3rd - Lock the thread */
+	/* 1st - Lock the per-cpu scheduler */
+	/* 2nd - Lock the thread */
 	
 	struct processor *cpu = get_processor_data_for_cpu(thread->cpu);
 
@@ -198,6 +197,8 @@ void *sched_switch_thread(void *last_stack)
 	return current_thread->kernel_stack;
 }
 
+strong_alias(sched_switch_thread, asm_schedule);
+
 thread_t *get_current_thread()
 {
 	struct processor *p = get_processor_data();
@@ -308,7 +309,6 @@ thread_t* sched_create_main_thread(thread_callback_t callback, uint32_t flags, i
 	return t;
 }
 
-extern void _sched_yield(void);
 int sched_init(void)
 {
 	idle_threads = malloc(sizeof(void*) * get_nr_cpus());
@@ -325,11 +325,14 @@ int sched_init(void)
 	return 0;
 }
 
+void platform_yield(void);
+
 void sched_yield(void)
 {
 	if(sched_is_preemption_disabled())
 		panic("Thread tried to sleep with preemption disabled");
-	__asm__ __volatile__("int $0x81");
+	
+	platform_yield();
 }
 
 void sched_sleep_unblock(void *ctx)
@@ -704,7 +707,7 @@ static void dequeue_thread_##primitive_name(primitive_struct *s, thread_t *threa
 	}										\
 	else										\
 	{										\
-		thread->sem_prev->sem_next = thread->sem_next;				\
+		if(thread->sem_prev) thread->sem_prev->sem_next = thread->sem_next;	\
 		if(thread->sem_next)							\
 		{									\
 			thread->sem_next->sem_prev = thread->sem_prev;			\
@@ -728,14 +731,8 @@ static void dequeue_thread_##primitive_name(primitive_struct *s, thread_t *threa
 enqueue_thread_generic(condvar, struct cond);
 dequeue_thread_generic(condvar, struct cond);
 
-void condvar_wait(struct cond *var, struct mutex *mutex)
+void condvar_wait_unlocked(struct cond *var)
 {
-	sched_disable_preempt();
-
-	mutex_unlock(mutex);
-
-	sched_enable_preempt();
-
 	thread_t *current = get_current_thread();
 
 	spin_lock_irqsave(&var->llock);
@@ -747,6 +744,17 @@ void condvar_wait(struct cond *var, struct mutex *mutex)
 	spin_unlock_preempt(&var->llock);
 
 	__sched_block(current);
+}
+
+void condvar_wait(struct cond *var, struct mutex *mutex)
+{
+	sched_disable_preempt();
+
+	mutex_unlock(mutex);
+
+	sched_enable_preempt();
+
+	condvar_wait_unlocked(var);
 
 	mutex_lock(mutex);
 }
@@ -768,7 +776,21 @@ void condvar_signal(struct cond *var)
 
 void condvar_broadcast(struct cond *var)
 {
-	while(var->head)	condvar_signal(var);
+	spin_lock_irqsave(&var->llock);
+
+	while(var->head)
+	{
+		thread_t *t = var->head;
+		if(t->sem_next)
+			t->sem_next->sem_prev = NULL;
+
+		var->head = t->sem_next;
+		t->sem_next = NULL;
+
+		thread_wake_up(t);
+	}
+
+	spin_unlock_irqrestore(&var->llock);
 }
 
 enqueue_thread_generic(sem, struct semaphore);
@@ -873,34 +895,53 @@ void sched_disable_preempt(void)
 enqueue_thread_generic(mutex, struct mutex);
 dequeue_thread_generic(mutex, struct mutex);
 
+#define prepare_sleep_generic(typenm, type) 			\
+void prepare_sleep_##typenm(type *p)			\
+{							\
+	struct thread *t = get_current_thread(); 	\
+	sched_disable_preempt();			\
+							\
+	set_current_state(THREAD_BLOCKED);		\
+	spin_lock_irqsave(&p->llock);			\
+	enqueue_thread_##typenm(p, t);			\
+	spin_unlock_irqrestore(&p->llock);		\
+}
+
+prepare_sleep_generic(mutex, struct mutex);
+
+void commit_sleep(void)
+{
+	sched_yield();
+}
+
 void mutex_lock_slow_path(struct mutex *mutex)
 {
-	unsigned long irqs = irq_save_and_disable();
+	struct thread *current = get_current_thread();
+
+	prepare_sleep_mutex(mutex);
 
 	while(!__sync_bool_compare_and_swap(&mutex->counter, 0, 1))
 	{
-		spin_lock_irqsave(&mutex->llock);
+		assert(mutex->owner != current);
 
-		struct thread *thread = get_current_thread();
+		sched_enable_preempt();
 
-		assert(mutex->owner != thread);
+		commit_sleep();
 
-		sched_lock(thread);
-
-		enqueue_thread_mutex(mutex, thread);
-		
-		spin_unlock_preempt(&mutex->llock);
-
-		__sched_block(thread);
-
-		irq_restore(irqs);
-
-		irqs = irq_save_and_disable();
+		prepare_sleep_mutex(mutex);
 	}
 
-	__sync_synchronize();
+	spin_lock_irqsave(&mutex->llock);
 
-	irq_restore(irqs);
+	dequeue_thread_mutex(mutex, current);
+
+	spin_unlock_irqrestore(&mutex->llock);
+
+	set_current_state(THREAD_RUNNABLE);
+
+	sched_enable_preempt();
+
+	__sync_synchronize();
 }
 
 void mutex_lock(struct mutex *mutex)

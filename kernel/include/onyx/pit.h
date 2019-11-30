@@ -11,5 +11,6 @@
 void pit_init_oneshot(uint32_t hz);
 void pit_wait_for_oneshot(void);
 uint16_t __pit_get_counter(void);
+void pit_stop(void);
 
 #endif
