@@ -89,9 +89,6 @@ unsigned long pvclock_get_tsc_frequency(void)
 	else
 		tsc_freq <<= -tsc_shift;
   
-
-	x86_set_tsc_rate(tsc_freq);
-
 	return tsc_freq;
 }
 
@@ -125,8 +122,5 @@ void pvclock_init(void)
 
 	wrmsr(system_time_msr, (unsigned long) system_time | MSR_KVM_SYSTEM_TIME_ENABLE);
 
-	printk("system time: %p\n", system_time);
-	printk("version: %u\n", vsystem_time->version);
-
-	pvclock_get_tsc_frequency();
+	x86_set_tsc_rate(pvclock_get_tsc_frequency());
 }

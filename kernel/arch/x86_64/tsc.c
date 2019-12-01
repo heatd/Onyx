@@ -45,6 +45,13 @@ hrtime_t tsc_get_ns(void)
 	return tsc_clock.base + tsc_clock.monotonic_warp + (fract_div_u64_fract(ticks, &ticks_per_ns));
 }
 
+hrtime_t tsc_get_counter_from_ns(hrtime_t t)
+{
+	hrtime_t tsc_ns_time = t - tsc_clock.base - tsc_clock.monotonic_warp;
+
+	return fract_mult_u64_fract(tsc_ns_time, &ticks_per_ns);
+}
+
 #include <onyx/timer.h>
 
 static bool tsc_enabled = false;

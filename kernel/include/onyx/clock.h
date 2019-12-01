@@ -11,6 +11,8 @@
 #include <time.h>
 
 #define NS_PER_SEC 	1000000000UL
+#define NS_PER_MS	1000UL
+#define NS_PER_US	1000000UL
 
 struct wallclock_source
 {

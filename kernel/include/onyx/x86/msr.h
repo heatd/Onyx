@@ -18,7 +18,7 @@
 #define IA32_MSR_SFMASK 	0xC0000084
 #define IA32_MSR_MC0_CTL 	0x00000400
 #define IA32_MSR_PAT		0x00000277
-
+#define IA32_TSC_DEADLINE	0x000006e0
 
 /* Syscall/sysret enable */
 #define IA32_EFER_SCE			(1 << 0)

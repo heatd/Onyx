@@ -4,10 +4,10 @@
 * check LICENSE at the root directory for more information
 */
 
-#include <acpi.h>
 #include <stdbool.h>
 #include <assert.h>
 
+#include <onyx/acpi.h>
 #include <onyx/apic.h>
 #include <onyx/idt.h>
 #include <onyx/panic.h>
@@ -24,6 +24,8 @@
 #include <onyx/vm.h>
 #include <onyx/clock.h>
 #include <onyx/timer.h>
+#include <onyx/x86/tsc.h>
+#include <onyx/x86/msr.h>
 #include <fractions.h>
 
 volatile uint32_t *bsp_lapic = NULL;
@@ -54,6 +56,7 @@ void lapic_send_eoi()
 	}
 }
 
+static bool tsc_deadline_supported = false;
 void lapic_init(void)
 {
 	/* Get the BSP's LAPIC base address from the msr's */
@@ -73,6 +76,12 @@ void lapic_init(void)
 
 	/* Set the task pri to 0 */
 	lapic_write(bsp_lapic, LAPIC_TSKPRI, 0);
+	tsc_deadline_supported = x86_has_cap(X86_FEATURE_TSC_DEADLINE);
+
+	if(tsc_deadline_supported)
+	{
+		printf("tsc: TSC deadline mode supported\n");
+	}
 }
 
 volatile char *ioapic_base = NULL;
@@ -264,8 +273,12 @@ void apic_update_clock_monotonic(void)
 	time_set(CLOCK_MONOTONIC, &time);
 }
 
+void apic_set_oneshot(hrtime_t deadline);
+
 irqstatus_t apic_timer_irq(struct irq_context *ctx, void *cookie)
 {
+	//apic_set_oneshot(get_main_clock()->get_ns() + NS_PER_MS);
+
 	if(unlikely(!is_percpu_initialized()))
 	{
 		boot_ticks++;
@@ -514,6 +527,57 @@ void timer_calibrate(void)
 	apic_rate = calculate_frequency(deltas, 1);
 }
 
+extern struct clocksource tsc_clock;
+
+void apic_set_oneshot_tsc(hrtime_t deadline)
+{
+	uint64_t future_tsc_counter = tsc_get_counter_from_ns(deadline);
+
+	struct processor *p = get_processor_data();
+
+	lapic_write((volatile uint32_t *) p->lapic, LAPIC_LVT_TIMER, 34 | LAPIC_LVT_TIMER_MODE_TSC_DEADLINE);
+	wrmsr(IA32_TSC_DEADLINE, future_tsc_counter);
+}
+
+void apic_set_oneshot_apic(hrtime_t deadline)
+{
+	struct clocksource *c = get_main_clock();
+	hrtime_t now = c->get_ns();
+
+	hrtime_t delta = deadline - now;
+	
+	/* Clamp the delta */
+	if(deadline < now)
+		delta = 0;
+	
+	uint64_t delta_ms = delta / NS_PER_MS;
+	if(delta % NS_PER_MS)
+		delta_ms++;
+
+	uint32_t counter = apic_rate * delta_ms;
+
+	struct processor *p = get_processor_data();
+
+	lapic_write((volatile uint32_t *) p->lapic, LAPIC_LVT_TIMER, 34);
+	lapic_write((volatile uint32_t *) p->lapic, LAPIC_TIMER_INITCNT, counter);
+}
+
+void apic_set_oneshot(hrtime_t deadline)
+{	
+	if(tsc_deadline_supported)
+		apic_set_oneshot_tsc(deadline);
+	else
+		apic_set_oneshot_apic(deadline);
+}
+
+void apic_set_periodic(uint32_t period_ms, volatile uint32_t *lapic)
+{
+	uint32_t counter = apic_rate * period_ms;
+
+	lapic_write(lapic, LAPIC_LVT_TIMER, 34 | LAPIC_LVT_TIMER_MODE_PERIODIC);
+	lapic_write(lapic, LAPIC_TIMER_INITCNT, counter);
+}
+
 void apic_timer_init(void)
 {
 	driver_register_device(&apic_driver, &apic_timer_dev);
@@ -535,10 +599,11 @@ void apic_timer_init(void)
 	printf("apic: apic timer rate: %lu\n", apic_rate);
 	us_apic_rate = INT_DIV_ROUND_CLOSEST(apic_rate, 1000);
 
+	tsc_init();
+
 	DISABLE_INTERRUPTS();
 
-	lapic_write(bsp_lapic, LAPIC_LVT_TIMER, 34 | LAPIC_LVT_TIMER_MODE_PERIODIC);
-	lapic_write(bsp_lapic, LAPIC_TIMER_INITCNT, apic_rate);
+	apic_set_periodic(1, bsp_lapic);
 
 	/* Install an IRQ handler for IRQ2 */
 	
@@ -554,16 +619,15 @@ void apic_timer_smp_init(volatile uint32_t *lapic)
 	lapic_write(lapic, LAPIC_SPUINT, 0x100 | APIC_DEFAULT_SPURIOUS_IRQ);
 
 	/* Flush pending interrupts */
-	lapic_write(bsp_lapic, LAPIC_EOI, 0);
+	lapic_write(lapic, LAPIC_EOI, 0);
 
 	/* Set the task pri to 0 */
-	lapic_write(bsp_lapic, LAPIC_TSKPRI, 0);
+	lapic_write(lapic, LAPIC_TSKPRI, 0);
 
 	/* Initialize the APIC timer with IRQ2, periodic mode and an init count of ticks_in_10ms/10(so we get a rate of 1000hz)*/
 	lapic_write(lapic, LAPIC_TIMER_DIV, 3);
 
-	lapic_write(lapic, LAPIC_LVT_TIMER, 34 | LAPIC_LVT_TIMER_MODE_PERIODIC);
-	lapic_write(lapic, LAPIC_TIMER_INITCNT, apic_rate);
+	apic_set_periodic(1, bsp_lapic);
 
 	/* If this is called, that means we've enabled SMP and can use struct processor/%%gs*/
 	is_smp_enabled = 1;

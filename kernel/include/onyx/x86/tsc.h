@@ -11,5 +11,6 @@
 
 void tsc_setup_vdso(struct vdso_time *time);
 void tsc_init(void);
+hrtime_t tsc_get_counter_from_ns(hrtime_t t);
 
 #endif

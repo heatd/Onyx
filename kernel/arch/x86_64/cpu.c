@@ -244,7 +244,6 @@ void cpu_init_late(void)
 
 	/* Initialize timers and TSC timekeeping */
 	apic_timer_init();
-	tsc_init();
 
 	/* Initialize the VDSO now */
 	vdso_init();
