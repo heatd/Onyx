@@ -41,7 +41,6 @@ struct page_list
 struct page_cpu
 {
 	struct page_arena *arenas;
-	struct processor *cpu;
 	struct page_cpu *next;
 };
 

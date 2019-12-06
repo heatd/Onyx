@@ -304,6 +304,8 @@ void tickless_init(void);
 __attribute__((no_sanitize_undefined))
 void kernel_main(void)
 {
+	percpu_init();
+
 	/* Set up symbols and the core kernel 'module' */
 	setup_core_kernel_module();
 
@@ -313,14 +315,8 @@ void kernel_main(void)
 	/* Initialize the interrupt part of the CPU (arch dependent) */
 	cpu_init_late();
 
-	memcpy((void*) (PHYS_BASE + (uintptr_t) tramp), &_start_smp,
-		(uintptr_t) &_end_smp - (uintptr_t)&_start_smp);
-
 	/* Initialize multi-processors */
 	cpu_init_mp();
-
-	/* Initialize percpu vars */
-	setup_percpu();
 
 	init_tss();
 

@@ -66,7 +66,7 @@ void ahci_deal_aio(struct command_list *list)
 		req->status = AIO_STATUS_OK;
 	}
 
-	req->req_end = get_main_clock()->get_ticks();
+	req->req_end = get_main_clock()->get_ns();
 	ahci_wake_io(req);
 }
 
@@ -347,7 +347,7 @@ bool ahci_do_command_async(struct ahci_port *ahci_port,
 bool ahci_do_command(struct ahci_port *ahci_port, struct ahci_command_ata *buf)
 {
 	struct aio_req req = {0};
-	req.req_start = get_main_clock()->get_ticks();
+	req.req_start = get_main_clock()->get_ns();
 	
 	if(!ahci_do_command_async(ahci_port, buf, &req))
 		return false;

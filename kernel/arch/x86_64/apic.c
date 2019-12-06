@@ -26,12 +26,13 @@
 #include <onyx/timer.h>
 #include <onyx/x86/tsc.h>
 #include <onyx/x86/msr.h>
+#include <onyx/percpu.h>
+
 #include <fractions.h>
 
 volatile uint32_t *bsp_lapic = NULL;
-volatile uint64_t ap_done = 0;
 volatile uint64_t core_stack = 0;
-bool is_smp_enabled = 0;
+PER_CPU_VAR(uint32_t lapic_id) = 0;
 
 void lapic_write(volatile uint32_t *lapic, uint32_t addr, uint32_t val)
 {
@@ -45,15 +46,11 @@ uint32_t lapic_read(volatile uint32_t *lapic, uint32_t addr)
 	return *laddr;
 }
 
+PER_CPU_VAR(volatile uint32_t *lapic) = NULL;
+
 void lapic_send_eoi()
 {
-	if(is_percpu_initialized() == false)
-		lapic_write(bsp_lapic, LAPIC_EOI, 0);
-	else
-	{
-		struct processor *proc = get_processor_data();
-		lapic_write((volatile uint32_t *) proc->lapic, LAPIC_EOI, 0);
-	}
+	lapic_write(get_per_cpu(lapic), LAPIC_EOI, 0);
 }
 
 static bool tsc_deadline_supported = false;
@@ -82,6 +79,8 @@ void lapic_init(void)
 	{
 		printf("tsc: TSC deadline mode supported\n");
 	}
+
+	write_per_cpu(lapic, bsp_lapic);
 }
 
 volatile char *ioapic_base = NULL;
@@ -235,7 +234,6 @@ void set_pin_handlers(void)
 			write_redirection_entry(mio->GlobalIrq, red);
 		}
 	}
-	
 }
 
 void ioapic_early_init(void)
@@ -255,7 +253,6 @@ void ioapic_init()
 }
 
 volatile uint64_t boot_ticks = 0;
-static int boot_sched_quantum = 10;
 
 void apic_update_clock_monotonic(void)
 {
@@ -275,24 +272,18 @@ void apic_update_clock_monotonic(void)
 
 void apic_set_oneshot(hrtime_t deadline);
 
+PER_CPU_VAR(unsigned long apic_ticks) = 0;
+extern uint32_t sched_quantum;
+
 irqstatus_t apic_timer_irq(struct irq_context *ctx, void *cookie)
 {
 	//apic_set_oneshot(get_main_clock()->get_ns() + NS_PER_MS);
 
-	if(unlikely(!is_percpu_initialized()))
-	{
-		boot_ticks++;
-		apic_update_clock_monotonic();
-		boot_sched_quantum--;
-		return IRQ_HANDLED;
-	}
-
-	struct processor *cpu = get_processor_data();
-	cpu->apic_ticks++;
-	cpu->sched_quantum--;
+	add_per_cpu(apic_ticks, 1);
+	add_per_cpu(sched_quantum, -1);
 
 	/* Let cpu 0 update the boot ticks and the monotonic clock */
-	if(get_cpu_num() == 0)
+	if(get_cpu_nr() == 0)
 	{
 		boot_ticks++;
 		apic_update_clock_monotonic();
@@ -301,11 +292,12 @@ irqstatus_t apic_timer_irq(struct irq_context *ctx, void *cookie)
 	process_increment_stats(is_kernel_ip(ctx->registers->rip));
 	timer_handle_pending_events();
 
-	if(cpu->sched_quantum == 0)
+	if(get_per_cpu(sched_quantum) == 0)
 	{
+		struct thread *current = get_current_thread();
 		/* If we don't have a current thread, do it the old way */
-		if(likely(cpu->current_thread))
-			cpu->current_thread->flags |= THREAD_NEEDS_RESCHED;
+		if(likely(current))
+			current->flags |= THREAD_NEEDS_RESCHED;
 		else
 			ctx->registers = sched_switch_thread(ctx->registers);
 	}
@@ -318,8 +310,7 @@ unsigned long us_apic_rate = 0;
 
 uint64_t get_microseconds(void)
 {
-	struct processor *cpu = get_processor_data();
-	return (apic_rate - lapic_read((volatile uint32_t *) cpu->lapic, LAPIC_TIMER_CURRCNT)) / us_apic_rate;
+	return (apic_rate - lapic_read(get_per_cpu(lapic), LAPIC_TIMER_CURRCNT)) / us_apic_rate;
 }
 
 struct driver apic_driver =
@@ -533,9 +524,7 @@ void apic_set_oneshot_tsc(hrtime_t deadline)
 {
 	uint64_t future_tsc_counter = tsc_get_counter_from_ns(deadline);
 
-	struct processor *p = get_processor_data();
-
-	lapic_write((volatile uint32_t *) p->lapic, LAPIC_LVT_TIMER, 34 | LAPIC_LVT_TIMER_MODE_TSC_DEADLINE);
+	lapic_write(get_per_cpu(lapic), LAPIC_LVT_TIMER, 34 | LAPIC_LVT_TIMER_MODE_TSC_DEADLINE);
 	wrmsr(IA32_TSC_DEADLINE, future_tsc_counter);
 }
 
@@ -556,10 +545,10 @@ void apic_set_oneshot_apic(hrtime_t deadline)
 
 	uint32_t counter = apic_rate * delta_ms;
 
-	struct processor *p = get_processor_data();
+	volatile uint32_t *this_lapic = get_per_cpu(lapic);
 
-	lapic_write((volatile uint32_t *) p->lapic, LAPIC_LVT_TIMER, 34);
-	lapic_write((volatile uint32_t *) p->lapic, LAPIC_TIMER_INITCNT, counter);
+	lapic_write(this_lapic, LAPIC_LVT_TIMER, 34);
+	lapic_write(this_lapic, LAPIC_TIMER_INITCNT, counter);
 }
 
 void apic_set_oneshot(hrtime_t deadline)
@@ -628,9 +617,6 @@ void apic_timer_smp_init(volatile uint32_t *lapic)
 	lapic_write(lapic, LAPIC_TIMER_DIV, 3);
 
 	apic_set_periodic(1, bsp_lapic);
-
-	/* If this is called, that means we've enabled SMP and can use struct processor/%%gs*/
-	is_smp_enabled = 1;
 }
 
 uint64_t get_tick_count(void)
@@ -649,73 +635,92 @@ void boot_send_ipi(uint8_t id, uint32_t type, uint32_t page)
 
 void apic_send_ipi(uint8_t id, uint32_t type, uint32_t page)
 {
-	struct processor *p = get_processor_data();
+	volatile uint32_t *this_lapic = get_per_cpu(lapic);
 
-	assert(p != NULL);
-
-	while(lapic_read((volatile uint32_t *) p->lapic, LAPIC_ICR) & (1 << 12))
+	while(lapic_read(this_lapic, LAPIC_ICR) & (1 << 12))
 		cpu_relax();
 
-	lapic_write((volatile uint32_t *) p->lapic, LAPIC_IPIID, (uint32_t) id << 24);
+	lapic_write(this_lapic, LAPIC_IPIID, (uint32_t) id << 24);
 	uint64_t icr = type << 8 | (page & 0xff);
 	icr |= (1 << 14);
-	lapic_write((volatile uint32_t *) p->lapic, LAPIC_ICR, (uint32_t) icr);
+	lapic_write(this_lapic, LAPIC_ICR, (uint32_t) icr);
 }
 
-void apic_wake_up_processor(uint8_t lapicid)
+void apic_wake_up_processor(uint8_t lapicid, struct smp_header *s)
 {
-	ap_done = 0;
 	boot_send_ipi(lapicid, 5, 0);
 	uint64_t tick = get_tick_count();
 	while(get_tick_count() - tick < 200)
 		__asm__ __volatile__("hlt");
-	
-	/* Allocate a stack for the core */
-	core_stack = (volatile uint64_t) get_pages(VM_KERNEL, VM_TYPE_STACK, 2,
-		VM_WRITE | VM_NOEXEC , 0) + 0x2000;
-	assert(core_stack != 0x2000);
 
 	boot_send_ipi(lapicid, 6, 0);
 	tick = get_tick_count();
 	while(get_tick_count() - tick < 1000)
 	{
-		if(ap_done == 1)
+		if(s->boot_done == true)
 		{
 			printf("AP core woke up! LAPICID %u at tick %lu\n", lapicid, get_tick_count());
 			break;
 		}
 	}
 
-	if(ap_done == 0)
+	if(!s->boot_done)
 	{
 		boot_send_ipi(lapicid, 6, 0);
 		tick = get_tick_count();
 		while(get_tick_count() - tick < 1000)
 		{
-			if(ap_done == 1)
+			if(s->boot_done == true)
 			{
 				printf("AP core woke up! LAPICID %u at tick %lu\n", lapicid, get_tick_count());
 				break;
 			}
 		}
 	}
-	if(ap_done == 0)
+
+	if(!s->boot_done)
 	{
 		printf("Failed to start an AP with LAPICID %d\n", lapicid);
 	}
-	ap_done = 0;
 }
 
 void apic_set_irql(int irql)
 {
-	/* Get the current process and use its lapic pointer */
-	struct processor *proc = get_processor_data();
-	lapic_write((volatile uint32_t *) proc->lapic, LAPIC_TSKPRI, irql);
+	volatile uint32_t *this_lapic = get_per_cpu(lapic);	
+	lapic_write(this_lapic, LAPIC_TSKPRI, irql);
 }
 
 int apic_get_irql(void)
 {
-	/* Get the current process and use its lapic pointer */
-	struct processor *proc = get_processor_data();
-	return (int) lapic_read((volatile uint32_t *) proc->lapic, LAPIC_TSKPRI);
+	volatile uint32_t *this_lapic = get_per_cpu(lapic);
+	return (int) lapic_read(this_lapic, LAPIC_TSKPRI);
+}
+
+uint32_t apic_get_lapic_id(unsigned int cpu)
+{
+	return get_per_cpu_any(lapic_id, cpu);
+}
+
+volatile uint32_t *apic_get_lapic(unsigned int cpu)
+{
+	return get_per_cpu_any(lapic, cpu);
+}
+
+void lapic_init_per_cpu(void)
+{
+	uint64_t addr = rdmsr(IA32_APIC_BASE);
+	addr &= 0xFFFFF000;
+	/* Map the BSP's LAPIC */
+	uintptr_t _lapic = (uintptr_t) mmiomap((void*) addr, PAGE_SIZE,
+		VM_WRITE | VM_NOEXEC | VM_NOCACHE);
+	assert(_lapic != 0);
+
+	write_per_cpu(lapic, _lapic);
+
+	apic_timer_smp_init(get_per_cpu(lapic));
+}
+
+void apic_set_lapic_id(unsigned int cpu, uint32_t __lapic_id)
+{
+	write_per_cpu_any(lapic_id, __lapic_id, cpu);
 }

@@ -13,7 +13,6 @@
 #include <onyx/panic.h>
 #include <onyx/gdt.h>
 
-extern tss_entry_t tss;
 extern void tss_flush();
 extern int tss_gdt;
 
@@ -22,21 +21,13 @@ void init_tss(void)
 	gdt_init_percpu();
 }
 
+PER_CPU_VAR(tss_entry_t *tss);
+
 void set_kernel_stack(uintptr_t stack0)
 {
-	struct processor *proc = get_processor_data();
-
-	if(unlikely(!proc))
-	{
-		tss.stack0 = stack0;
-		tss.ist[0] = stack0;
-	}
-	else
-	{
-		tss_entry_t *entry = proc->tss;
-		entry->stack0 = stack0;
-		entry->ist[0] = stack0;
-	}
+	tss_entry_t *entry = get_per_cpu(tss);
+	entry->stack0 = stack0;
+	entry->ist[0] = stack0;
 }
 
 void init_percpu_tss(uint64_t *gdt)
@@ -56,8 +47,5 @@ void init_percpu_tss(uint64_t *gdt)
 	tss_gdtd[2] = ((uintptr_t) new_tss >> 32);
 	tss_flush();
 
-	/* Note that we use get_processor_data_inl() here, because get_processor_data() returns NULL as
-	   percpu_initialized isn't true yet! get_processor_data_inl() makes no such checks!
-	*/
-	get_processor_data_inl()->tss = new_tss;
+	write_per_cpu(tss, new_tss);
 }

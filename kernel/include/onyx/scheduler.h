@@ -22,7 +22,6 @@
 
 typedef void(*thread_callback_t)(void*);
 struct process;
-struct processor;
 
 typedef struct thread
 {
@@ -37,7 +36,7 @@ typedef struct thread
 	int id;
 	int status;
 	int priority;
-	int cpu;
+	unsigned int cpu;
 	struct thread *next;
 	struct thread *prev_prio, *next_prio;
 	struct thread *prev_wait, *next_wait;
@@ -80,7 +79,7 @@ void sched_sleep(unsigned long ms);
 
 void sched_yield(void);
 
-void thread_add(thread_t *add);
+void thread_add(thread_t *add, unsigned int cpu);
 
 void set_current_thread(thread_t *t);
 
@@ -106,9 +105,9 @@ void sched_enable_preempt(void);
 
 void sched_disable_preempt(void);
 
-void sched_enable_preempt_for_cpu(struct processor *cpu);
+void sched_enable_preempt_for_cpu(unsigned int cpu);
 
-void sched_disable_preempt_for_cpu(struct processor *cpu);
+void sched_disable_preempt_for_cpu(unsigned int cpu);
 
 void sched_block(struct thread *thread);
 
@@ -119,6 +118,14 @@ void sched_lock(struct thread *thread);
 void sched_die();
 
 void scheduler_kill(struct thread *thread);
+
+struct thread *get_thread_for_cpu(unsigned int cpu);
+
+void sched_start_thread_for_cpu(struct thread *thread, unsigned int cpu);
+
+void sched_init_cpu(unsigned int cpu);
+
+#define SCHED_NO_CPU_PREFERENCE		(unsigned int) -1
 
 static inline bool sched_needs_resched(struct thread *thread)
 {

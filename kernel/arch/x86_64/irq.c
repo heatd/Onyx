@@ -54,14 +54,12 @@ int platform_allocate_msi_interrupts(unsigned int num_vectors, bool addr64,
 	 * TODO: Magenta hardcodes some of this stuff. Is it dangerous that things
 	 * are hardcoded like that?
 	*/
-	struct processor *proc = get_processor_data();
-	assert(proc != NULL);
 	int vecs = x86_allocate_vectors(num_vectors);
 	if(vecs < 0)
 		return -1;
 	/* See section 10.11.1 of the intel software developer manuals */
 	uint32_t address = PCI_MSI_BASE_ADDRESS;
-	address |= ((uint32_t) proc->lapic_id) << PCI_MSI_APIC_ID_SHIFT;
+	address |= (apic_get_lapic_id(get_cpu_nr())) << PCI_MSI_APIC_ID_SHIFT;
 
 	/* See section 10.11.2 of the intel software developer manuals */
 	uint32_t data_val = vecs;

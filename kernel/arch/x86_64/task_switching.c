@@ -25,7 +25,7 @@
 #include <onyx/worker.h>
 #include <onyx/cpu.h>
 #include <onyx/syscall.h>
-#include <onyx/syscall.h>
+#include <onyx/percpu.h>
 
 #include <sys/time.h>
 
@@ -348,9 +348,12 @@ void arch_save_thread(struct thread *thread, void *stack)
 		save_fpu(thread->fpu_area);
 }
 
-void arch_load_thread(struct thread *thread, struct processor *p)
+PER_CPU_VAR_NOUNUSED(unsigned long kernel_stack) = 0;
+PER_CPU_VAR_NOUNUSED(unsigned long scratch_rsp) = 0;
+
+void arch_load_thread(struct thread *thread, unsigned int cpu)
 {
-	p->kernel_stack = thread->kernel_stack_top;
+	write_per_cpu(kernel_stack, thread->kernel_stack_top);
 	/* Fill the TSS with a kernel stack */
 	set_kernel_stack((uintptr_t) thread->kernel_stack_top);
 
@@ -359,7 +362,7 @@ void arch_load_thread(struct thread *thread, struct processor *p)
 }
 
 void arch_load_process(struct process *process, struct thread *thread,
-                       struct processor *p)
+                       unsigned int cpu)
 {
 	paging_load_cr3(process->address_space.cr3);
 

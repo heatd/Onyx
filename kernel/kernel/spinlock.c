@@ -17,7 +17,7 @@ __attribute__((always_inline))
 static inline void post_lock_actions(struct spinlock *lock)
 {
 	lock->holder = (unsigned long) __builtin_return_address(1);
-	lock->owner_cpu = get_cpu_num();
+	lock->owner_cpu = get_cpu_nr();
 }
 
 static inline void post_release_actions(struct spinlock *lock)

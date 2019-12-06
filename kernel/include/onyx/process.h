@@ -138,7 +138,7 @@ void process_stop(struct process *p);
 static inline struct process *get_current_process()
 {
 	thread_t *thread = get_current_thread();
-	return (thread == NULL) ? NULL : (struct process*) thread->owner;
+	return (thread == NULL) ? NULL : (struct process *) thread->owner;
 }
 
 static inline struct mm_address_space *get_current_address_space()

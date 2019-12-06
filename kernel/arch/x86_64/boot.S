@@ -225,7 +225,5 @@ gdtr3:
 	.quad gdt_begin + 0xFFFFFFFF80000000
 
 .bss
-.global tss
-tss: 
 .skip 4096
 

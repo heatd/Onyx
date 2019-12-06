@@ -28,6 +28,7 @@
 #include <onyx/utils.h>
 #include <onyx/cpu.h>
 #include <onyx/arch.h>
+#include <onyx/percpu.h>
 
 #include <libdict/dict.h>
 
@@ -2301,6 +2302,8 @@ void vm_do_shootdown(struct tlb_shootdown *inv_data)
 	paging_invalidate((void *) inv_data->addr, inv_data->pages);
 }
 
+extern struct spinlock scheduler_lock;
+
 void vm_invalidate_range(unsigned long addr, size_t pages)
 {
 	/* If the address > higher half, then we don't need to worry about
@@ -2312,24 +2315,23 @@ void vm_invalidate_range(unsigned long addr, size_t pages)
 		return;
 	}
 
-	for(int cpu = 0; cpu < get_nr_cpus(); cpu++)
+	for(unsigned int cpu = 0; cpu < get_nr_cpus(); cpu++)
 	{
-		if(cpu == get_cpu_num())
+		if(cpu == get_cpu_nr())
 		{
 			paging_invalidate((void *) addr, pages);
 		}
 		else
 		{
-			struct processor *p = get_processor_data_for_cpu(cpu);
-
 			/* Lock the scheduler so we don't get a race condition */
-			spin_lock(&p->scheduler_lock);
-			struct process *process = p->current_thread->owner;
+			struct spinlock *l = get_per_cpu_ptr_any(scheduler_lock, cpu);
+			spin_lock(l);
+			struct process *process =get_thread_for_cpu(cpu)->owner;
 			struct process *this_process = get_current_thread()->owner;
 
 			if(process != this_process)
 			{
-				spin_unlock(&p->scheduler_lock);
+				spin_unlock(l);
 				continue;
 			}
 	
@@ -2338,7 +2340,7 @@ void vm_invalidate_range(unsigned long addr, size_t pages)
 			shootdown.pages = pages;
 			cpu_send_message(cpu, CPU_FLUSH_TLB, &shootdown, true);
 
-			spin_unlock(&p->scheduler_lock);
+			spin_unlock(l);
 		}
 	}
 }

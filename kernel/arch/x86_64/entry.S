@@ -19,7 +19,7 @@
 
 .macro SAVE_PRESERVED_SYSCALL_REGS
 	# First get the user stack
-	mov %gs:0x18, %r11
+	mov %gs:scratch_rsp, %r11
 
 	# Then push the user %rsp
 	push %r11
@@ -70,8 +70,8 @@ syscall_ENTRY64:
 
 	# We can't preempt right now(unless we want chaos)!
 	# Get the kernel stack, and save the user-stack
-	mov %rsp, %gs:0x18
-	mov %gs:0x10, %rsp
+	mov %rsp, %gs:scratch_rsp
+	mov %gs:kernel_stack, %rsp
 
 	# Save %rcx and %r11, since they're needed for sysret
 	push %rcx

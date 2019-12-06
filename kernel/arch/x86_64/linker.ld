@@ -6,6 +6,7 @@ PHYS_BASE = 0x100000;
 PHDRS
 {
 	boot PT_LOAD FLAGS(7);
+	percpu PT_LOAD FLAGS(6);
 	text PT_LOAD FLAGS(5);
 	data PT_LOAD FLAGS(6);
 	vdso PT_LOAD FLAGS(7);
@@ -33,7 +34,19 @@ SECTIONS
 		. += 0x8000;
 	} : boot
 
+	cpu_phys_base = .;
+	. = 0;
+
+	.percpu : AT(cpu_phys_base)
+	{
+		__percpu_start = .;
+		*(.percpu*)
+		__percpu_end = .;
+	} : percpu
+	
+	. += cpu_phys_base;
 	. += VIRT_BASE;
+
 	.text ALIGN(0x1000) : AT(ADDR(.text) - VIRT_BASE)
 	{
 		*(.text*)
@@ -63,10 +76,7 @@ SECTIONS
 	_data_start = .;
 	.data ALIGN(0x1000) : AT(ADDR(.data) - VIRT_BASE)
 	{
-		*(.data)
-		__percpu_start = .;
-		*(.percpu*)
-		__percpu_end = .;
+		*(.data*)
 		*(.gnu.linkonce.d*)
 	} : data
 

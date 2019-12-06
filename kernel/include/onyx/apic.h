@@ -35,12 +35,19 @@ void ioapic_mask_pin(uint32_t pin);
 uint32_t read_io_apic(uint32_t reg);
 void write_io_apic(uint32_t reg, uint32_t value);
 void lapic_init();
-void apic_wake_up_processor(uint8_t);
+
+struct smp_header;
+
+void apic_wake_up_processor(uint8_t lapic_id, struct smp_header *s);
 void apic_timer_smp_init(volatile uint32_t *lapic);
 void apic_set_irql(int irql);
 int apic_get_irql(void);
 void apic_send_ipi(uint8_t id, uint32_t type, uint32_t page);
 void lapic_send_eoi(void);
+uint32_t apic_get_lapic_id(unsigned int cpu);
+void apic_set_lapic_id(unsigned int cpu, uint32_t lapic_id);
+volatile uint32_t *apic_get_lapic(unsigned int cpu);
+void lapic_init_per_cpu(void);
 
 #ifdef __cplusplus
 }

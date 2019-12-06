@@ -14,6 +14,13 @@
 _start_smp:
 	# ensure that interrupts are disabled
 	cli
+	jmp .skip_data
+.global smpboot_header
+smpboot_header:
+thread_stack:	.quad 0		# To be filled by the waking up code
+gs_base:	.quad 0
+ap_done:	.quad 0
+.skip_data:
 	xor %ax, %ax
 	mov %ax, %ds
 	mov %ax, %gs
@@ -83,23 +90,26 @@ _long_mode:
 	mov %ax, %es
 	mov %ax, %ss
 
-	.extern ap_done
 	# Load the shared IDT
 	.extern idt_ptr
 	lidt (idt_ptr)
-	.extern core_stack
-	mov (core_stack), %rsp
+	mov $(thread_stack - _start_smp), %rbx
+	mov $0xffffd00000000000, %rax
+	add %rax, %rbx
+	mov (%rbx), %rsp
 	mov %cr3, %rax
 	mov %rax, %cr3
 
-	.extern cpu_num
-	mov cpu_num, %rdi
+	mov $(gs_base - _start_smp), %rdx
+	mov $0xffffd00000000000, %rax
+	add %rax, %rdx
+	mov (%rdx), %rdi
 	# Say to the BSP that we finished
-	.extern ap_done
-	lock incb ap_done
-	push $0
-	.extern cpu_ap_entry
-	push $cpu_ap_entry
+	mov $(ap_done - _start_smp), %rbx
+	add %rax, %rbx
+	lock incb (%rbx)
+	.extern smpboot_main
+	push $smpboot_main
 	ret
 halt:
 	hlt

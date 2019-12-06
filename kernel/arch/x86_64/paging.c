@@ -284,7 +284,7 @@ void paging_init(void)
 	uintptr_t virt = PHYS_BASE;
 	decomposed_addr_t decAddr;
 	memcpy(&decAddr, &virt, sizeof(decomposed_addr_t));
-	uint64_t* entry = &get_current_pml4()->entries[decAddr.pml4];
+	uint64_t* entry = &boot_pml4->entries[decAddr.pml4];
 	PML* pml3 = (PML*)&pdptphysical_map;
 	
 	*entry = make_pml4e((uint64_t)pml3, 0, 0, 0, 0, 1, 1);
@@ -293,9 +293,9 @@ void paging_init(void)
 	
 	for(size_t j = 0; j < 512; j++)
 	{
-		if(!paging_map_phys_to_virt_large_early(virt + j * 0x200000, 
-		j * 0x200000, VM_NOEXEC  | VM_WRITE))
-			while(1);
+		uintptr_t p = j * 0x200000; 
+
+		pdphysical_map.entries[j] = p | 0x83 | (1UL << 63);
 	}
 
 	x86_setup_placement_mappings();

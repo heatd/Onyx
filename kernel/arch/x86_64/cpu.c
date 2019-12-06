@@ -20,7 +20,8 @@
 #define _GNU_SOURCE
 #include <string.h>
 #include <stdio.h>
-#include <acpi.h>
+
+#include <onyx/acpi.h>
 #include <assert.h>
 
 #include <onyx/x86/pat.h>
@@ -41,6 +42,7 @@ USES_FANCY_END
 #include <onyx/avx.h>
 #include <onyx/irq.h>
 #include <onyx/fpu.h>
+#include <onyx/percpu.h>
 
 #include <onyx/x86/platform_info.h>
 #include <onyx/x86/tsc.h>
@@ -49,16 +51,11 @@ USES_FANCY_END
 
 static cpu_t cpu;
 
-static struct processor *cpus = NULL;
-static int booted_cpus = 0;
+static unsigned int booted_cpus = 0;
 extern ACPI_TABLE_MADT *madt;
-int cpu_num = 0;
-static struct spinlock ap_entry_spinlock;
 extern volatile uint32_t *bsp_lapic;
-volatile int initialized_cpus = 0;
+volatile unsigned int initialized_cpus = 0;
 extern volatile uint64_t boot_ticks;
-static bool percpu_initialized = false;
-extern tss_entry_t tss;
 const int bits_per_long = sizeof(unsigned long) * 8;
 
 struct x86_platform_info x86_platform = {0};
@@ -258,121 +255,41 @@ void cpu_init_late(void)
 	x86_platform.has_vga = true;
 }
 
-bool is_percpu_initialized(void)
-{
-	return percpu_initialized;
-}
-
 int cpu_init_mp(void)
 {
-	ACPI_SUBTABLE_HEADER *first = (ACPI_SUBTABLE_HEADER *) (madt + 1);
-	/* Lets parse through the MADT to get the number of cores.
-	 * Each LAPIC = 1 core */
-	
-	/* APs can't access ´cpus´ before we've finished, as it's subject to memory address changes */
-	spin_lock(&ap_entry_spinlock);
-	
-	for(ACPI_SUBTABLE_HEADER *i = first;
-	i < (ACPI_SUBTABLE_HEADER*) ((char*) madt + madt->Header.Length);
-	i = (ACPI_SUBTABLE_HEADER*)((uint64_t) i + (uint64_t) i->Length))
-	{
-		if(i->Type == ACPI_MADT_TYPE_LOCAL_APIC)
-		{
-			ACPI_MADT_LOCAL_APIC *apic = (ACPI_MADT_LOCAL_APIC *) i;
-			cpus = realloc(cpus, booted_cpus * sizeof(struct processor) + sizeof(struct processor));
-			if(!cpus)
-			{
-				panic("Out of memory while allocating the processor structures\n");
-			}
+	smp_parse_cpus(madt);
 
-			memset(&cpus[booted_cpus], 0, sizeof(struct processor));
-			cpus[booted_cpus].lapic_id = apic->Id;
-			cpus[booted_cpus].cpu_num = booted_cpus;
-			cpus[booted_cpus].self = &cpus[booted_cpus];
-			cpus[booted_cpus].sched_quantum = 10;
-			cpus[booted_cpus].current_thread = NULL;
-			booted_cpus++;
-			if(booted_cpus != 1)
-				apic_wake_up_processor(apic->Id);
-			cpu_num = booted_cpus;
-		}
-	}
+	smp_boot_cpus();
 
-	DISABLE_INTERRUPTS();
-	/* Fill CPU0's data */
-	cpus[0].lapic = (volatile char *) bsp_lapic;
-	cpus[0].self = &cpus[0];
-	cpus[0].apic_ticks = boot_ticks;
-	cpus[0].sched_quantum = 10;
-	cpus[0].current_thread = NULL;
-	cpus[0].tss = &tss;
-	wrmsr(GS_BASE_MSR, (uint64_t) &cpus[0]);
-	spin_unlock(&ap_entry_spinlock);
-	
-	while(initialized_cpus + 1 != booted_cpus);
-	struct acpi_processor *processors = acpi_enumerate_cpus();
-	/* I guess we don't get to have thermal management then... */
-	if(!processors)
-		return booted_cpus;
-	
-	/* Copy the acpi information to a new structure */
-	for(int i = 0; i < booted_cpus; i++)
-	{
-		cpus[i].acpi_processor = malloc(sizeof(struct acpi_processor));
-		if(!cpus[i].acpi_processor)
-			return booted_cpus;
-		memcpy(cpus[i].acpi_processor, &processors[i], sizeof(struct acpi_processor));
-	}
-
-	/* ... and free the old buffer */
-	free(processors);
-	percpu_initialized = true;
 	ENABLE_INTERRUPTS();
 	return booted_cpus;
 }
 
 extern PML *boot_pml4;
 
-void cpu_ap_entry(int cpu_num)
+void smpboot_main(unsigned long gs_base)
 {
-	spin_lock(&ap_entry_spinlock);
+	wrmsr(GS_BASE_MSR, gs_base);
 
-	uint64_t addr = rdmsr(IA32_APIC_BASE);
-	addr &= 0xFFFFF000;
-	/* Map the BSP's LAPIC */
-	uintptr_t _lapic = (uintptr_t) mmiomap((void*) addr, PAGE_SIZE,
-		VM_WRITE | VM_NOEXEC | VM_NOCACHE);
-	assert(_lapic != 0);
-	
-	/* Fill the processor struct with the LAPIC data */
-	cpus[cpu_num].lapic = (void *) _lapic;
-	cpus[cpu_num].lapic_phys = (void*) addr;
-	cpus[cpu_num].self = &cpus[cpu_num];
-
-	/* Initialize the local apic + apic timer */
-	apic_timer_smp_init((volatile uint32_t *) cpus[cpu_num].lapic);
-
-	/* Fill this core's gs with &cpus[cpu_num] */
-	wrmsr(GS_BASE_MSR, (uint64_t) &cpus[cpu_num]);
+	lapic_init_per_cpu();
 
 	init_tss();
 
 	x86_init_percpu();
 
-	initialized_cpus++;
+	booted_cpus++;
 
 	/* Enable interrupts */
 	ENABLE_INTERRUPTS();
 
-	spin_unlock(&ap_entry_spinlock);
-	/* cpu_ap_entry() can't return, as there's no valid return address on the stack, so just hlt until the scheduler
+	/* smpboot_main() can't return, as there's no valid return address on the stack, so just hlt until the scheduler
 	   preempts the AP
 	*/
-	/* TODO: Free the AP stacks */
-	while(1);
+	while(1)
+		__asm__ __volatile__("hlt");
 }
 
-int get_nr_cpus(void)
+unsigned int get_nr_cpus(void)
 {
 	return booted_cpus;
 }
@@ -391,37 +308,14 @@ void *memcpy_fast(void *dst, void *src, size_t n)
 	return dst;
 }
 
-struct processor *get_processor_data(void)
-{
-	if(unlikely(!percpu_initialized))
-		return NULL;
-	struct processor *proc;
-	__asm__ __volatile__("movq %%gs:0x8, %0":"=r"(proc));
-	return proc;
-}
-
 bool is_kernel_ip(uintptr_t ip)
 {
 	return ip >= VM_HIGHER_HALF;
 }
 
-int get_cpu_num(void)
+void cpu_notify(unsigned int cpu_nr)
 {
-	struct processor *p = get_processor_data();
-	if(!p)
-		return 0;
-	return p->cpu_num;
-}
-
-struct processor *get_processor_data_for_cpu(int cpu)
-{
-	assert(cpu <= booted_cpus);
-	return &cpus[cpu];
-}
-
-void cpu_notify(struct processor *p)
-{
-	apic_send_ipi(p->lapic_id, 0, X86_MESSAGE_VECTOR);
+	apic_send_ipi(apic_get_lapic_id(cpu_nr), 0, X86_MESSAGE_VECTOR);
 }
 
 void cpu_wait_for_msg_ack(volatile struct cpu_message *msg)
@@ -431,27 +325,30 @@ void cpu_wait_for_msg_ack(volatile struct cpu_message *msg)
 	msg->ack = false;
 }
 
+PER_CPU_VAR(struct spinlock outgoing_msg_lock);
+PER_CPU_VAR(struct cpu_message outgoing_msg[CPU_OUTGOING_MAX]);
+
 struct cpu_message *cpu_alloc_msg_slot_irq(void)
 {
-	/* Like the next function, but for irqs */
-	struct processor *p = get_processor_data();
-
 	unsigned long spins = 5;
 	/* Try spinning 5 times for a message slot */
 	while(spins--)
 	{
-		spin_lock_irqsave(&p->outgoing_msg_lock);
+		struct spinlock *lock = get_per_cpu_ptr(outgoing_msg_lock);
+		spin_lock_irqsave(lock);
+		struct cpu_message *outgoing_msgs = (struct cpu_message *) get_per_cpu_ptr(outgoing_msg);
+	
 		for(int i = 0; i < CPU_OUTGOING_MAX; i++)
 		{
-			if(p->outgoing_msg[i].sent == false)
+			if(outgoing_msgs[i].sent == false)
 			{
-				p->outgoing_msg[i].sent = true;
-				spin_unlock_irqrestore(&p->outgoing_msg_lock);
-				return &p->outgoing_msg[i];
+				outgoing_msgs[i].sent = true;
+				spin_unlock_irqrestore(lock);
+				return &outgoing_msgs[i];
 			}
 		}
 
-		spin_unlock_irqrestore(&p->outgoing_msg_lock);
+		spin_unlock_irqrestore(lock);
 
 		cpu_relax();
 	}
@@ -466,22 +363,24 @@ struct cpu_message *cpu_alloc_msg_slot(void)
 	if(is_in_interrupt())
 		return cpu_alloc_msg_slot_irq();
 
-	struct processor *p = get_processor_data();
-
 	while(true)
 	{
-		spin_lock_irqsave(&p->outgoing_msg_lock);
+		struct spinlock *lock = get_per_cpu_ptr(outgoing_msg_lock);
+		spin_lock_irqsave(lock);
+		struct cpu_message *outgoing_msgs = (struct cpu_message *) get_per_cpu_ptr(outgoing_msg);
+
+
 		for(int i = 0; i < CPU_OUTGOING_MAX; i++)
 		{
-			if(p->outgoing_msg[i].sent == false)
+			if(outgoing_msgs[i].sent == false)
 			{
-				p->outgoing_msg[i].sent = true;
-				spin_unlock_irqrestore(&p->outgoing_msg_lock);
-				return &p->outgoing_msg[i];
+				outgoing_msgs[i].sent = true;
+				spin_unlock_irqrestore(lock);
+				return &outgoing_msgs[i];
 			}
 		}
 
-		spin_unlock_irqrestore(&p->outgoing_msg_lock);
+		spin_unlock_irqrestore(lock);
 
 		cpu_relax();
 	}
@@ -491,36 +390,46 @@ struct cpu_message *cpu_alloc_msg_slot(void)
 extern struct serial_port com1;
 void serial_write(const char *s, size_t size, struct serial_port *port);
 
-void cpu_send_message(int cpu, unsigned long message, void *arg, bool should_wait)
+PER_CPU_VAR(struct spinlock msg_queue_lock);
+PER_CPU_VAR(struct cpu_message *msg_queue);
+
+void cpu_send_message(unsigned int cpu, unsigned long message, void *arg, bool should_wait)
 {
-	struct processor *p;
 	struct cpu_message *msg = cpu_alloc_msg_slot();
 	if(!msg)
 		return;
 
 	msg->ack = false;
 	assert(cpu <= booted_cpus);
-	p = get_processor_data_for_cpu(cpu);
-	assert(p != NULL);
+	struct spinlock *message_queue_lock = get_per_cpu_ptr_any(msg_queue_lock, cpu);
+	struct cpu_message *message_queue = get_per_cpu_any(msg_queue, cpu);
 
 	/* CPU_KILL messages don't respect locks */
 	if(likely(message != CPU_KILL))
-		spin_lock(&p->message_queue_lock);
+		spin_lock(message_queue_lock);
+
 	if(unlikely(message == CPU_KILL))
 	{
-		if(!p->message_queue)
-			p->message_queue = msg;
-		p->message_queue->message = CPU_KILL;
-		p->message_queue->ptr = NULL;
-		p->message_queue->next = NULL;
+		if(!message_queue)
+		{
+			write_per_cpu_any(msg_queue, msg, cpu);
+			message_queue = msg;
+		}
+	
+		message_queue->message = CPU_KILL;
+		message_queue->ptr = NULL;
+		message_queue->next = NULL;
 	}
 	else
 	{
-		if(!p->message_queue)
-			p->message_queue = msg;
+		if(!message_queue)
+		{
+			write_per_cpu_any(msg_queue, msg, cpu);
+			message_queue = msg;
+		}
 		else
 		{
-			struct cpu_message *m = p->message_queue;
+			struct cpu_message *m = message_queue;
 			while(m->next) m = m->next;
 			m->next = msg;
 		}
@@ -528,10 +437,10 @@ void cpu_send_message(int cpu, unsigned long message, void *arg, bool should_wai
 		msg->message = message;
 		msg->ptr = arg;
 		msg->next = NULL;
-		spin_unlock(&p->message_queue_lock);
+		spin_unlock(message_queue_lock);
 	}
 
-	cpu_notify(p);
+	cpu_notify(cpu);
 
 	if(message != CPU_KILL && should_wait)
 		cpu_wait_for_msg_ack((volatile struct cpu_message *) msg);
@@ -547,8 +456,8 @@ void cpu_kill(int cpu_num)
 
 void cpu_kill_other_cpus(void)
 {
-	int curr_cpu = get_cpu_num();
-	for(int i = 0; i < booted_cpus; i++)
+	unsigned int curr_cpu = get_cpu_nr();
+	for(unsigned int i = 0; i < booted_cpus; i++)
 	{
 		if(i != curr_cpu)
 			cpu_kill(i);
@@ -576,7 +485,7 @@ void cpu_try_resched(void *ptr)
 
 void cpu_handle_message(struct cpu_message *msg)
 {
-	unsigned int this_cpu = get_cpu_num();
+	unsigned int this_cpu = get_cpu_nr();
 	const char *str = "";
 	switch(msg->message)
 	{
@@ -606,18 +515,21 @@ void cpu_handle_message(struct cpu_message *msg)
 
 void *cpu_handle_messages(void *stack)
 {
-	struct processor *cpu = get_processor_data();
 
-	spin_lock(&cpu->message_queue_lock);
+	struct spinlock *cpu_msg_lock = get_per_cpu_ptr(msg_queue_lock);
 
-	for(struct cpu_message *msg = cpu->message_queue; msg; msg = msg->next)
+	spin_lock(cpu_msg_lock);
+
+	struct cpu_message *m = get_per_cpu(msg_queue);
+
+	for(struct cpu_message *msg = m; msg != NULL; msg = msg->next)
 	{
 		cpu_handle_message(msg);
 	}
 
-	cpu->message_queue = NULL;
+	write_per_cpu(msg_queue, NULL);
 
-	spin_unlock(&cpu->message_queue_lock);
+	spin_unlock(cpu_msg_lock);
 
 	if(sched_needs_resched(get_current_thread()))
 	{

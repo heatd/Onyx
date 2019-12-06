@@ -9,6 +9,7 @@
 #include <stdbool.h>
 #include <assert.h>
 
+#include <onyx/smp.h>
 #include <onyx/x86/irq.h>
 
 struct spinlock
@@ -46,16 +47,56 @@ static inline void spin_unlock_irqrestore(struct spinlock *lock)
 	irq_restore(lock->old_flags);
 }
 
-int get_cpu_num(void);
-
 static inline bool spin_lock_held(struct spinlock *lock)
 {
-	return lock->lock == 1 && lock->owner_cpu == (unsigned long) get_cpu_num();
+	return lock->lock == 1 && lock->owner_cpu == (unsigned long) get_cpu_nr();
 }
 
 #define MUST_HOLD_LOCK(lock)		assert(spin_lock_held(lock) != false)
 
 #ifdef __cplusplus
 }
+
+class Spinlock
+{
+private:
+	struct spinlock lock;
+public:
+	constexpr Spinlock() : lock {} {};
+	~Spinlock()
+	{
+		assert(lock.lock != 1);
+	}
+	void Lock()
+	{
+		spin_lock(&lock);
+	}
+
+	void LockIrqsave()
+	{
+		spin_lock_irqsave(&lock);
+	}
+
+	void Unlock()
+	{
+		spin_unlock(&lock);
+	}
+
+	void UnlockIrqrestore()
+	{
+		spin_unlock_irqrestore(&lock);
+	}
+
+	bool IsLocked()
+	{
+		return lock.lock == 1;
+	}
+};
+
+
+
+
+
+
 #endif
 #endif

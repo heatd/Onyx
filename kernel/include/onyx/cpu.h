@@ -230,44 +230,6 @@ struct cpu_message
 	struct cpu_message *next;
 };
 
-struct processor
-{
-#if defined (__x86_64__)
-	volatile char *lapic;
-	struct processor *self;
-	void *kernel_stack;
-	void *scratch_rsp_stack;
-	volatile char *lapic_phys;
-	int cpu_num;
-	int lapic_id;
-	size_t apic_ticks;
-	struct acpi_processor *acpi_processor;
-	tss_entry_t *tss;
-#else
-#error "Implement this structure for your architecture"
-#endif
-#ifdef __cplusplus
-	size_t active_threads;
-#else
-	atomic_size_t active_threads;
-#endif
-	thread_t *thread_queues[NUM_PRIO];
-	struct spinlock scheduler_lock;
-	size_t sched_quantum;
-	thread_t *current_thread;
-	struct spinlock outgoing_msg_lock;
-	struct cpu_message outgoing_msg[CPU_OUTGOING_MAX];
-#ifdef __cplusplus
-	unsigned long preemption_counter;
-#else
-	atomic_ulong preemption_counter;
-#endif
-
-	struct cpu_message *message_queue;
-	struct spinlock message_queue_lock;
-	unsigned char *percpu_copy;
-};
-
 #ifdef __cplusplus
 extern "C"{
 #endif
@@ -275,15 +237,11 @@ extern "C"{
 void cpu_identify(void);
 void cpu_init_late(void);
 int cpu_init_mp(void);
-int get_nr_cpus(void);
-int get_cpu_num(void);
-struct processor *get_processor_data(void);
-struct processor *get_processor_data_for_cpu(int cpu);
-bool is_percpu_initialized(void);
+unsigned int get_nr_cpus(void);
 bool is_kernel_ip(uintptr_t ip);
 void cpu_kill_other_cpus(void);
 void cpu_kill(int cpu_num);
-void cpu_send_message(int cpu, unsigned long message, void *arg, bool should_wait);
+void cpu_send_message(unsigned int cpu, unsigned long message, void *arg, bool should_wait);
 void __cpu_handle_message(void);
 
 /* CPU messages */
@@ -296,13 +254,6 @@ void __cpu_handle_message(void);
 }
 #endif
 #ifdef __x86_64__
-
-static inline struct processor *get_processor_data_inl(void)
-{
-	struct processor *proc;
-	__asm__ __volatile__("movq %%gs:0x8, %0":"=r"(proc));
-	return proc;
-}
 
 #define DISABLE_INTERRUPTS() __asm__ __volatile__("cli")
 #define ENABLE_INTERRUPTS() __asm__ __volatile__("sti")
