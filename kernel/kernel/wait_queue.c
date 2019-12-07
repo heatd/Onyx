@@ -47,6 +47,10 @@ void wait_queue_wait(struct wait_queue *queue)
 	struct thread *current = get_current_thread();
 	struct wait_queue_token token;
 	token.thread = current;
+	token.callback = NULL;
+	token.context = NULL,
+	token.next = token.prev = NULL;
+	token.signaled = false;
 
 	sched_disable_preempt();
 
@@ -76,7 +80,7 @@ void wait_queue_wake(struct wait_queue *queue)
 
 	spin_unlock(&queue->lock);
 
-	if(t->callback) t->callback(t);
+	if(t->callback) t->callback(t->context, t);
 
 	thread_wake_up(t->thread);
 }
@@ -89,7 +93,7 @@ void wait_queue_wake_all(struct wait_queue *queue)
 	{
 		struct wait_queue_token *t = wait_queue_wake_unlocked(queue);
 
-		if(t->callback) t->callback(t);
+		if(t->callback) t->callback(t->context, t);
 		thread_wake_up(t->thread);
 	}
 

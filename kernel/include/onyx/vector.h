@@ -52,10 +52,72 @@ private:
 		buffer_size = new_buf_elems;
 		return true;
 	}
+
+	void duplicate_vector_data(const vector& rhs)
+	{
+		data = malloc(buffer_size * sizeof(T));
+		assert(data != nullptr);
+		
+		for(size_t i = 0; i < nr_elems; i++)
+		{
+			data[i] = rhs.data[i];
+		}
+	}
+
 public:
 	constexpr vector() : data{nullptr}, buffer_size{0}, nr_elems{0}, log{0}
 	{
 
+	}
+
+	vector(const vector& rhs)
+	{
+		this->buffer_size = rhs.buffer_size;
+		this->log = rhs.log;
+		this->nr_elems = rhs.nr_elems;
+
+		duplicate_vector_data(rhs);
+	}
+
+	vector& operator=(const vector& rhs)
+	{
+		clear();
+		this->buffer_size = rhs.buffer_size;
+		this->log = rhs.log;
+		this->nr_elems = rhs.nr_elems;
+
+		duplicate_vector_data(rhs);
+
+		return *this;
+	}
+
+	vector(vector&& rhs)
+	{
+		this->buffer_size = rhs.buffer_size;
+		this->log = rhs.log;
+		this->nr_elems = rhs.nr_elems;
+		this->data = rhs.data;
+
+		rhs.buffer_size = 0;
+		rhs.log = 0;
+		rhs.nr_elems = 0;
+		rhs.data = nullptr;
+	}
+
+	vector& operator=(vector&& rhs)
+	{
+		clear();
+		this->buffer_size = rhs.buffer_size;
+		this->log = rhs.log;
+		this->nr_elems = rhs.nr_elems;
+		this->data = rhs.data;
+
+		rhs.buffer_size = 0;
+		rhs.log = 0;
+		rhs.nr_elems = 0;
+		rhs.data = nullptr;
+
+		return *this;
 	}
 
 	bool alloc_buf(size_t size)
@@ -118,6 +180,7 @@ public:
 		data = nullptr;
 		buffer_size = 0;
 		nr_elems = 0;
+		log = 0;
 	}
 
 	~vector()
@@ -150,7 +213,7 @@ public:
 
 	T& back()
 	{
-		return this->operator[](nr_elems);
+		return this->operator[](nr_elems - 1);
 	}
 
 	size_t buf_size() const

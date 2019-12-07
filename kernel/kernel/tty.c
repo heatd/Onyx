@@ -36,6 +36,7 @@
 #include <onyx/panic.h>
 #include <onyx/dev.h>
 #include <onyx/condvar.h>
+#include <onyx/poll.h>
 
 void vterm_release_video(void *vterm);
 void vterm_get_video(void *vt);
@@ -88,7 +89,8 @@ void tty_write(const char *data, size_t size, struct tty *tty)
 	{
 		tty->lock.counter = 0;
 		tty->lock.owner = NULL;
-		tty_write_string("PANIC: RECURSIVE TTY LOCK\n", tty);
+		const char *s = "*****PANIC: RECURSIVE TTY LOCK*****\n";
+		tty->write((void *) s, strlen(s), tty);
 		halt();
 	}
 
@@ -106,12 +108,12 @@ void tty_recieved_character(struct tty *tty, char c)
 	if(!(tty->term_io.c_lflag & ICANON))
 	{
 		tty->line_ready = true;
-		condvar_broadcast(&tty->read_cond);
+		wait_queue_wake_all(&tty->read_queue);
 	}
 	else if(c == '\n')
 	{
 		tty->line_ready = true;
-		condvar_broadcast(&tty->read_cond);
+		wait_queue_wake_all(&tty->read_queue);
 	}
 
 	if(c == '\b')
@@ -140,8 +142,7 @@ char *tty_wait_for_line(int flags, struct tty *tty)
 
 	while(!tty->line_ready)
 	{
-		mutex_lock(&tty->read_mtx);
-		condvar_wait(&tty->read_cond, &tty->read_mtx);
+		wait_queue_wait(&tty->read_queue);
 	}
 
 	tty->line_ready = false;
@@ -193,8 +194,6 @@ size_t ttydevfs_read(int flags, size_t offset, size_t count, void *buffer, struc
 	memcpy(buffer, kb_buf, read);
 	tty->keyboard_pos -= read;
 	memcpy(kb_buf, kb_buf + read, 2048 - read);
-
-	mutex_unlock(&tty->read_mtx);
 
 	return read;
 }
@@ -302,6 +301,19 @@ unsigned int tty_ioctl(int request, void *argp, struct inode *dev)
 	return -EINVAL;
 }
 
+short tty_poll(void *poll_file, short events, struct inode *ino)
+{
+	struct tty *tty = ino->i_helper;
+	
+	if(events & POLLIN)
+		poll_wait_helper(poll_file, &tty->read_queue);
+
+	short revents = POLLOUT;
+	if(tty->line_ready)
+		revents |= POLLIN;
+	return revents & events;
+}
+
 void tty_create_dev(void)
 {
 	struct dev *minor = dev_register(0, 0, "tty");
@@ -311,6 +323,8 @@ void tty_create_dev(void)
 	minor->fops.write = ttydevfs_write;
 	minor->fops.read = ttydevfs_read;
 	minor->fops.ioctl = tty_ioctl;
+	minor->fops.poll = tty_poll;
+
 	minor->priv = main_tty;
 	device_show(minor, DEVICE_NO_PATH);
 }

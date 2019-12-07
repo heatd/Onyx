@@ -72,8 +72,7 @@
 #define __NR_times				75
 #define __NR_getrusage				76
 #define __NR_ptrace				77
-#define __NR_shm_open				78
-#define __NR_shm_unlink				79
+#define __NR_poll				78
 #define __NR_proc_event_attach			80
 #define __NR_access				81
 #define __NR_rename				82
@@ -242,7 +241,6 @@
 #define __NR_msgrcv				255
 #define __NR_msgsnd				255
 #define __NR_msync				255
-#define __NR_poll				255
 #define __NR_pread64				255
 #define __NR_pwrite64				255
 #define __NR_recvmsg				255
@@ -411,8 +409,7 @@
 #define SYS_times				75
 #define SYS_getrusage				76
 #define SYS_ptrace				77
-#define SYS_shm_open				78
-#define SYS_shm_unlink				79
+#define SYS_poll				78
 #define SYS_proc_event_attach			80
 #define SYS_access				81
 #define SYS_rename				82
@@ -581,7 +578,6 @@
 #define SYS_msgrcv				255
 #define SYS_msgsnd				255
 #define SYS_msync				255
-#define SYS_poll				255
 #define SYS_pread64				255
 #define SYS_pwrite64				255
 #define SYS_recvmsg				255

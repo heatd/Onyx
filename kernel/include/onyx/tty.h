@@ -14,6 +14,7 @@
 
 #include <onyx/mutex.h>
 #include <onyx/condvar.h>
+#include <onyx/wait_queue.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -29,8 +30,7 @@ struct tty
 	uintptr_t tty_num;
 	struct mutex lock;
 	bool line_ready;
-	struct cond read_cond;
-	struct mutex read_mtx;
+	struct wait_queue read_queue;
 	struct tty *next;
 	char keyboard_buffer[2048];
 	unsigned int keyboard_pos;

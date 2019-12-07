@@ -32,7 +32,7 @@
 #include <onyx/power_management.h>
 #include <onyx/cpu.h>
 #include <onyx/page.h>
-
+#include <onyx/poll.h>
 
 uint64_t sys_nosys(void)
 {
@@ -130,6 +130,7 @@ struct sockaddr *src_addr, socklen_t *addrlen);
 extern int sys_proc_event_attach(pid_t pid, unsigned long flags);
 extern int sys_access(const char *path, int amode);
 extern void *sys_mremap(void *old_address, size_t old_size, size_t new_size, int flags, void *new_address);
+extern int sys_poll(struct pollfd *fds, nfds_t nfds, int timeout);
 
 void *syscall_table_64[] =
 {
@@ -211,7 +212,7 @@ void *syscall_table_64[] =
 	[75] = (void*) sys_times,
 	[76] = (void*) sys_getrusage,
 	[77] = (void*) sys_ptrace,
-	[78] = (void*) sys_nosys,
+	[78] = (void*) sys_poll,
 	[79] = (void*) sys_nosys,
 	[80] = (void*) sys_proc_event_attach,
 	[81] = (void*) sys_access

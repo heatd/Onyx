@@ -13,7 +13,9 @@
 struct wait_queue_token
 {
 	struct thread *thread;
-	void (*callback)(struct wait_queue_token *token);
+	void (*callback)(void *context, struct wait_queue_token *token);
+	void *context;
+	bool signaled;
 	struct wait_queue_token *prev, *next;
 };
 

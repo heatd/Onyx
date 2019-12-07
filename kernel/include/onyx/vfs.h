@@ -70,7 +70,7 @@ struct file_ops
 	struct inode *(*mkdir)(const char *name, mode_t mode, struct inode *node);
 	struct inode *(*mknod)(const char *name, dev_t dev, struct inode *node);
 	int (*on_open)(struct inode *node);
-	short (*poll)(void *poll_table, short events, struct inode *node);
+	short (*poll)(void *poll_file, short events, struct inode *node);
 };
 
 struct getdents_ret
@@ -173,6 +173,8 @@ ssize_t do_file_caching(size_t sizeofread, struct inode *ino, off_t offset,
 struct inode *inode_create(void);
 
 struct inode *get_fs_root(void);
+
+short poll_vfs(void *poll_file, short events, struct inode *node);
 
 #ifdef __cplusplus
 }

@@ -489,6 +489,16 @@ int stat_vfs(struct stat *buf, struct inode *node)
 	return errno = ENOSYS, (unsigned int) -1;
 }
 
+short default_poll(void *poll_table, short events, struct inode *node);
+
+short poll_vfs(void *poll_file, short events, struct inode *node)
+{
+	if(node->i_fops.poll != NULL)
+		return node->i_fops.poll(poll_file, events, node);
+	
+	return default_poll(poll_file, events, node);
+}
+
 struct page_cache_block *add_cache_to_node(void *ptr, size_t size, off_t offset,
 	struct inode *node)
 {
