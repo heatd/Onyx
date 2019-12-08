@@ -200,6 +200,8 @@ struct process *process_create(const char *cmd_line, ioctx_t *ctx, struct proces
 		/* Inherit the signal handlers and signal mask */
 		memcpy(&proc->sigtable, &parent->sigtable, sizeof(struct sigaction) * _NSIG);
 		memcpy(&proc->sigmask, &parent->sigmask, sizeof(sigset_t));
+		
+		/* Note that pending signals are zero'd, as per POSIX */
 
 		process_append_children(parent, proc);
 

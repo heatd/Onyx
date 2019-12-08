@@ -159,7 +159,7 @@ void sys_sigreturn(struct syscall_frame *sysframe)
 		return;
 	if(copy_from_user(&regs->rip, &sframe->uc.uc_mcontext.gregs[REG_RIP], sizeof(unsigned long)) < 0)
 		return;
-	regs->ss = USER_DS;
+	regs->ss = regs->ds = USER_DS;
 	
 	struct thread *curr = get_current_thread();
 	void *fpregs;

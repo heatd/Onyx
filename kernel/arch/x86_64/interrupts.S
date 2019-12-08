@@ -4,6 +4,8 @@
  check LICENSE at the root directory for more information
 */
 
+#include <onyx/registers.h>
+
 .section .text
 
 .macro pushaq
@@ -42,6 +44,70 @@
 	pop %rax
 .endm
 
+.macro CFI_INTERRUPT_FRAME_BEFORE_DS
+	.cfi_def_cfa rsp, 0
+	.cfi_offset rip, REGISTER_OFF_RIP-8
+	.cfi_offset cs, REGISTER_OFF_CS-8
+	.cfi_offset rsp, REGISTER_OFF_RSP-8
+	.cfi_offset ss, REGISTER_OFF_SS-8
+	.cfi_offset r15, REGISTER_OFF_R15-8
+	.cfi_offset r14, REGISTER_OFF_R14-8
+	.cfi_offset r13, REGISTER_OFF_R13-8
+	.cfi_offset r12, REGISTER_OFF_R12-8
+	.cfi_offset r11, REGISTER_OFF_R11-8
+	.cfi_offset r10, REGISTER_OFF_R10-8
+	.cfi_offset r9, REGISTER_OFF_R9-8
+	.cfi_offset r8, REGISTER_OFF_R8-8
+	.cfi_offset rbp, REGISTER_OFF_RBP-8
+	.cfi_offset rsi, REGISTER_OFF_RSI-8
+	.cfi_offset rdi, REGISTER_OFF_RDI-8
+	.cfi_offset rdx, REGISTER_OFF_RDX-8
+	.cfi_offset rcx, REGISTER_OFF_RCX-8
+	.cfi_offset rbx, REGISTER_OFF_RBX-8
+	.cfi_offset rax, REGISTER_OFF_RAX-8
+.endm
+
+.macro CFI_INTERRUPT_FRAME reg
+	.cfi_def_cfa reg, 0
+	.cfi_offset ds, 0
+	.cfi_offset rip, REGISTER_OFF_RIP
+	.cfi_offset cs, REGISTER_OFF_CS
+	.cfi_offset rsp, REGISTER_OFF_RSP
+	.cfi_offset ss, REGISTER_OFF_SS
+	.cfi_offset r15, REGISTER_OFF_R15
+	.cfi_offset r14, REGISTER_OFF_R14
+	.cfi_offset r13, REGISTER_OFF_R13
+	.cfi_offset r12, REGISTER_OFF_R12
+	.cfi_offset r11, REGISTER_OFF_R11
+	.cfi_offset r10, REGISTER_OFF_R10
+	.cfi_offset r9, REGISTER_OFF_R9
+	.cfi_offset r8, REGISTER_OFF_R8
+	.cfi_offset rbp, REGISTER_OFF_RBP
+	.cfi_offset rsi, REGISTER_OFF_RSI
+	.cfi_offset rdi, REGISTER_OFF_RDI
+	.cfi_offset rdx, REGISTER_OFF_RDX
+	.cfi_offset rcx, REGISTER_OFF_RCX
+	.cfi_offset rbx, REGISTER_OFF_RBX
+	.cfi_offset rax, REGISTER_OFF_RAX
+.endm
+
+/* Should be used after pushing %ds */
+.macro CFI_INTERRUPT_FRAME_ADJUST_DS
+	.cfi_adjust_cfa_offset 8
+	.cfi_offset ds, 0
+.endm
+
+.macro INTERRUPT_STACK_ALIGN
+	/* After pushing the interrupt frame we're left with an 8-byte aligned stack,
+	 * so align it by subbing 8 bytes
+	*/
+	sub $8, %rsp
+.endm
+
+.macro INTERRUPT_STACK_RESTORE
+	add $8, %rsp
+.endm
+
 .macro ISR_NOERRCODE num
 .global isr\num
 isr\num:
@@ -57,39 +123,54 @@ isr\num:
 */
 #define REGISTERS_UNUSED_OFF		16
 #define KERNEL_CS			0x08
-#define REGISTERS_STACK_OFF_CS		152
 
 .global irq_common
 irq_common:
+	.cfi_startproc
+	CFI_INTERRUPT_FRAME_BEFORE_DS
 	cld
+
 	mov %ds, %ax
 	push %rax
+	CFI_INTERRUPT_FRAME_ADJUST_DS
 	mov $0x10, %ax
 	mov %ax, %ss
 	mov %ax, %ds
 	mov %ax, %es
 
-	mov REGISTERS_STACK_OFF_CS(%rsp), %rax
+	mov REGISTER_OFF_CS(%rsp), %rax
 	cmp $KERNEL_CS, %rax
 	je .L3
 	swapgs
 .L3:
 	push %rdi
+	/* Note that it's 16-byte aligned here because of the push %rdi */
 	call platform_send_eoi
 	pop %rdi
+
 	mov %rsp, %rsi
+
+	.cfi_def_cfa_register rsi
 	# End the stack frame list so we stop here
 	xor %rbp, %rbp
+
+	INTERRUPT_STACK_ALIGN
+
 	call irq_handler
 	mov %rax, %rsp
+
+	INTERRUPT_STACK_ALIGN
+
 	call signal_is_pending
 	cmp $1, %rax
 	je .L4
+
+.L5:
+	INTERRUPT_STACK_RESTORE
 .global x86_scheduler_exit
 x86_scheduler_exit:
 	/* We'll use this bit of code as a trampoline to the new thread too */
-.L5:
-	mov REGISTERS_STACK_OFF_CS(%rsp), %rax
+	mov REGISTER_OFF_CS(%rsp), %rax
 	cmp $KERNEL_CS, %rax
 	je .L6
 	swapgs
@@ -102,12 +183,14 @@ x86_scheduler_exit:
 
 	add $REGISTERS_UNUSED_OFF, %rsp
 	iretq
-
 .L4:
 	mov %rsp, %rdi
-	mov $0, %rsi
+	add $8, %rdi
 	call handle_signal
 	jmp .L5
+
+.cfi_endproc
+
 
 .macro IRQ irq_num
 .global irq\irq_num
@@ -136,43 +219,41 @@ isr\num:
 .global isr_common
 isr_common:
 	.cfi_startproc
-	.cfi_signal_frame
-	.cfi_def_cfa rsp, 0
-	.cfi_offset rip, 17 * 8
-	.cfi_offset cs, 18 * 8
-	.cfi_offset rsp, 20 * 8
-	.cfi_offset ss, 21 * 8
+
+	CFI_INTERRUPT_FRAME_BEFORE_DS
 
 	cld
 	xor %rbp, %rbp
 
 	mov %ds, %rax
 	push %rax
-	.cfi_adjust_cfa_offset 8
+
+	CFI_INTERRUPT_FRAME_ADJUST_DS
+
 	mov $0x10, %ax
 	mov %ax, %ss
 	mov %ax, %ds
 	mov %ax, %es
 
-	mov REGISTERS_STACK_OFF_CS(%rsp), %rax
+	mov REGISTER_OFF_CS(%rsp), %rax
 	cmp $KERNEL_CS, %rax
 	je .L0
 	swapgs
 .L0:
 	mov %rsp, %rdi
-	push %rsp
-	.cfi_adjust_cfa_offset 8
-	add $15, %rsp
-	and $-16, %rsp
-	.cfi_adjust_cfa_offset 8
+	.cfi_def_cfa_register rdi
+
+	INTERRUPT_STACK_ALIGN
+
 	call isr_handler
 
 	call signal_is_pending
-	pop %rsp
 	cmp $1, %rax
 	je .Lisr_handle_signal
 .L1:
-	mov REGISTERS_STACK_OFF_CS(%rsp), %rax
+	INTERRUPT_STACK_RESTORE
+
+	mov REGISTER_OFF_CS(%rsp), %rax
 	cmp $KERNEL_CS, %rax
 	je .L2
 	swapgs
@@ -187,6 +268,7 @@ isr_common:
 
 .Lisr_handle_signal:
 	mov %rsp, %rdi
+	add $8, %rdi
 	call handle_signal
 	jmp .L1
 
@@ -457,14 +539,14 @@ _sched_yield:
 	mov %ax, %es
 
 	mov %rsp, %rdi
-	mov REGISTERS_STACK_OFF_CS(%rsp), %rax
+	mov REGISTER_OFF_CS(%rsp), %rax
 	cmp $KERNEL_CS, %rax
 	je .L7
 	swapgs
 .L7:
 	call sched_switch_thread
 	mov %rax, %rsp
-	mov REGISTERS_STACK_OFF_CS(%rsp), %rax
+	mov REGISTER_OFF_CS(%rsp), %rax
 	cmp $KERNEL_CS, %rax
 	je .L8
 	swapgs
@@ -481,6 +563,7 @@ _sched_yield:
 
 .global platform_yield
 platform_yield:
+	.cfi_startproc
 	/* Basically we need to set up an IRQ frame on the stack.
 	 * For future reference consult include/(carbon/onyx)/x86/registers.h
 	*/
@@ -505,7 +588,9 @@ platform_yield:
 .return_label:
 	pop %rax
 	pop %rbp
+
 	ret
+	.cfi_endproc
 	
 
 .global __sigret_return
@@ -515,6 +600,7 @@ __sigret_return:
 	mov %rdi, %rsp
 	
 	swapgs
+
 	pop %rcx
 	mov %cx, %ds
 	mov %cx, %es
@@ -529,17 +615,23 @@ apic_spurious_irq:
 
 .global __cpu_handle_message
 __cpu_handle_message:
+	.cfi_startproc
 	cli
 	sub $REGISTERS_UNUSED_OFF, %rsp
+	
+	CFI_INTERRUPT_FRAME_BEFORE_DS
+
 	pushaq
 	mov %ds, %ax
 	push %rax
+	CFI_INTERRUPT_FRAME_ADJUST_DS
+
 	mov $0x10, %ax
 	mov %ax, %ss
 	mov %ax, %ds
 	mov %ax, %es
 
-	mov REGISTERS_STACK_OFF_CS(%rsp), %rax
+	mov REGISTER_OFF_CS(%rsp), %rax
 	cmp $KERNEL_CS, %rax
 	je .L9
 	swapgs
@@ -552,7 +644,7 @@ __cpu_handle_message:
 	mov %rax, %rsp
 	call lapic_send_eoi
 
-	mov REGISTERS_STACK_OFF_CS(%rsp), %rax
+	mov REGISTER_OFF_CS(%rsp), %rax
 	cmp $KERNEL_CS, %rax
 	je .L10
 	swapgs
@@ -564,3 +656,4 @@ __cpu_handle_message:
 	popaq
 	add $REGISTERS_UNUSED_OFF, %rsp
 	iretq
+	.cfi_endproc

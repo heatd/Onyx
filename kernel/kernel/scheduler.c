@@ -815,7 +815,7 @@ void sem_do_slow_path(struct semaphore *sem)
 
 		enqueue_thread_sem(sem, thread);
 				
-		spin_unlock_preempt(&sem->lock);
+		spin_unlock_irqrestore(&sem->lock);
 
 		__sched_block(thread);
 	
