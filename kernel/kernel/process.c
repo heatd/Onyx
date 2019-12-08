@@ -703,6 +703,13 @@ int make_wait4_wstatus(int signum, bool core_dumped, int exit_code)
 void process_exit_from_signal(int signum)
 {
 	struct process *current = get_current_process();
+	if(current->pid == 1)
+	{
+		printk("Panic: %s exited with signal %d!\n",
+			get_current_process()->cmd_line, signum);
+		ENABLE_INTERRUPTS();
+		for(;;);
+	}
 
 	current->has_exited = 1;
 	current->exit_code = make_wait4_wstatus(signum, false, 0);

@@ -358,7 +358,7 @@ void kernel_main(void)
 	sched_start_thread(new_thread);
 
 	ENABLE_INTERRUPTS();
-	for (;;);
+	for(;;);
 }
 
 void do_ktests(void);

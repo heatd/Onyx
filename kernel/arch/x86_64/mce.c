@@ -15,9 +15,9 @@
 #include <onyx/cpu.h>
 #include <onyx/panic.h>
 
-void dump_interrupt_context(intctx_t *ctx);
+void dump_interrupt_context(struct registers *ctx);
 
-void do_machine_check(intctx_t *ctx)
+void do_machine_check(struct registers *ctx)
 {
 	union
 	{

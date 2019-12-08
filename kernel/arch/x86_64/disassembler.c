@@ -11,7 +11,7 @@
 #include <onyx/disassembler.h>
 
 __attribute__((no_sanitize_undefined))
-int debug_opcode(uint8_t *pc, intctx_t *ctx)
+int debug_opcode(uint8_t *pc, struct registers *ctx)
 {
 	switch(*pc)
 	{

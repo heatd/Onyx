@@ -54,6 +54,25 @@
 	xor %r10, %r10
 .endm
 
+.macro popaq
+	pop %r15
+	pop %r14
+	pop %r13
+	pop %r12
+	pop %r11
+	pop %r10
+	pop %r9
+	pop %r8
+	pop %rbp
+	pop %rsi
+	pop %rdi
+	pop %rdx
+	pop %rcx
+	pop %rbx
+	pop %rax
+.endm
+
+#define REGISTERS_UNUSED_OFF		16
 #define KERNEL_DS		0x10
 
 .global syscall_ENTRY64
@@ -108,6 +127,17 @@ syscall_ENTRY64:
 
 	call do_syscall64
 
+	mov %rax, %rdi
+	mov %rsp, %rsi
+
+	call signal_is_pending
+
+	cmp $1, %rax
+
+	je syscall_signal_path
+
+	mov %rdi, %rax
+
 	cli
 
 	pop %rcx
@@ -143,6 +173,24 @@ syscall_ENTRY64:
 	swapgs
 
 	sysretq
+
+#define STRUCT_REGISTERS_SIZE		(23 * 8)
+
+syscall_signal_path:
+	sub $STRUCT_REGISTERS_SIZE, %rsp
+	mov %rsp, %rdx
+	call do_signal_syscall
+
+	swapgs
+
+	pop %rax
+	mov %ax, %ds
+	mov %ax, %es
+
+	popaq
+
+	add $REGISTERS_UNUSED_OFF, %rsp
+	iretq
 
 .cfi_endproc
 

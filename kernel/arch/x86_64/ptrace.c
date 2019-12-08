@@ -78,6 +78,7 @@ int ptrace_poke(struct process *process, void *addr, ptrace_word_t word)
 
 	return status;
 }
+
 int ptrace_getregs(struct process *process, struct user_regs_struct *regs)
 {
 	/* TODO: We currently don't support multi-threaded ptracing, since in Onyx processes have threads

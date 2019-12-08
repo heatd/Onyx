@@ -51,7 +51,7 @@ USES_FANCY_END
 
 static cpu_t cpu;
 
-static unsigned int booted_cpus = 0;
+static unsigned int booted_cpus = 1;
 extern ACPI_TABLE_MADT *madt;
 extern volatile uint32_t *bsp_lapic;
 volatile unsigned int initialized_cpus = 0;
@@ -223,7 +223,7 @@ void x86_init_percpu(void)
 	efer |= IA32_EFER_SCE;
 	wrmsr(IA32_EFER, efer);
 	/* and finally, syscall instruction MSRs */
-	wrmsr(IA32_MSR_STAR, (((uint64_t)((USER32_CS | X86_USER_MODE_FLAG) << 16) | KERNEL_CS) << 32));
+	wrmsr(IA32_MSR_STAR, (((uint64_t)((USER32_CS) << 16) | KERNEL_CS) << 32));
 	wrmsr(IA32_MSR_LSTAR, (uint64_t) syscall_ENTRY64);
 	wrmsr(IA32_MSR_SFMASK, EFLAGS_INT_ENABLED | EFLAGS_DIRECTION |
 		EFLAGS_TRAP | EFLAGS_ALIGNMENT_CHECK);

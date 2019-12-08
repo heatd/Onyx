@@ -58,10 +58,7 @@ struct process
 	uid_t uid;
 	gid_t gid;
 	uid_t euid;
-	gid_t egid; 
-	
-	/* Signal register save */
-	registers_t old_regs;
+	gid_t egid;
 
 	/* Pointer to the VDSO */
 	void *vdso;

@@ -29,6 +29,7 @@
 #include <onyx/cpu.h>
 #include <onyx/arch.h>
 #include <onyx/percpu.h>
+#include <onyx/user.h>
 
 #include <libdict/dict.h>
 
@@ -1442,7 +1443,7 @@ int vm_handle_page_fault(struct fault_info *info)
 	if(!entry)
 	{
 		struct thread *ct = get_current_thread();
-		if(ct)
+		if(ct && !info->user)
 		{
 			struct process *current = get_current_process();
 			printk("Curr thread: %p\n", ct);
@@ -1646,89 +1647,28 @@ struct vm_region *vm_find_region_and_readable(void *usr)
 	return entry;
 }
 
-ssize_t copy_to_user(void *usr, const void *data, size_t len)
+char *strcpy_from_user(const char *uptr)
 {
-	char *usr_ptr = usr;
-	const char *data_ptr = data;
-	while(len)
+	size_t len = strlen_user(uptr);
+	if(len == (size_t) -EFAULT)
 	{
-		struct vm_region *entry;
-		if((entry = vm_find_region_and_writable(usr_ptr)) == NULL)
-		{
-			return -EFAULT;
-		}
-		size_t count = (entry->base + entry->pages * PAGE_SIZE) - (size_t) usr_ptr;
-		if(likely(count > len)) count = len;
-		memcpy(usr_ptr, data_ptr, count);
-		usr_ptr += count;
-		data_ptr += count;
-		len -= count;
+		errno = EFAULT;
+		return NULL;
 	}
-	return len;
-}
 
-ssize_t copy_from_user(void *data, const void *usr, size_t len)
-{
-	const char *usr_ptr = usr;
-	char *data_ptr = data;
-	while(len)
-	{
-		struct vm_region *entry;
-		if((entry = vm_find_region_and_readable((void*) usr_ptr)) == NULL)
-		{
-			return -EFAULT;
-		}
-		size_t count = (entry->base + entry->pages * PAGE_SIZE) - (size_t) usr_ptr;
-		if(likely(count > len)) count = len;
-		memcpy(data_ptr, usr_ptr, count);
-		usr_ptr += count;
-		data_ptr += count;
-		len -= count;
-	}
-	return len;
-}
-
-char *strcpy_from_user(const char *usr_ptr)
-{
-	char *buf = zalloc(PATH_MAX + 1);
+	char *buf = malloc(len + 1);
 	if(!buf)
 		return NULL;
-	size_t used_buf = 0;
-	size_t size_buf = PATH_MAX;
-	
-	while(true)
+	buf[len] = '\0';
+
+	if(copy_from_user(buf, uptr, len) < 0)
 	{
-		struct vm_region *entry;
-		if((entry = vm_find_region_and_readable((void*) usr_ptr)) == NULL)
-		{
-			return errno = EFAULT, NULL;
-		}
-
-		size_t count = (entry->base + entry->pages * PAGE_SIZE) - (size_t) usr_ptr;
-		for(size_t i = 0; i < count; i++, used_buf++)
-		{
-			if(used_buf == size_buf)
-			{
-				/* If we reach the limit of the buffer, realloc
-				 *  a new one */
-				char *old_buf = buf;
-				size_buf += PATH_MAX;
-				
-				if(!(buf = realloc(buf, size_buf + 1)))
-				{
-					free(old_buf);
-					return errno = ENOMEM, NULL;
-				}
-				
-				memset(buf + used_buf, 0, (size_buf - used_buf) + 1);
-			}
-
-			buf[used_buf] = *usr_ptr++;
-			if(buf[used_buf] == '\0')
-				return buf;
-		}
+		free(buf);
+		errno = EFAULT;
+		return NULL;
 	}
 
+	return buf;
 }
 
 void vm_update_addresses(uintptr_t new_kernel_space_base)
@@ -1764,9 +1704,6 @@ void vm_do_fatal_page_fault(struct fault_info *info)
 		printk("SEGV at %016lx at ip %lx in process %u(%s)\n", 
 			info->fault_address, info->ip,
 			current->pid, current->cmd_line);
-		ENABLE_INTERRUPTS();
-		//vm_print_umap();
-		while(true){}
 		kernel_raise_signal(SIGSEGV, get_current_process());
 	}
 	else

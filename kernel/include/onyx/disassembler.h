@@ -11,6 +11,6 @@
 #include <onyx/registers.h>
 
 
-int debug_opcode(uint8_t *pc, intctx_t *ctx);
+int debug_opcode(uint8_t *pc, struct registers *ctx);
 
 #endif

@@ -21,6 +21,7 @@
 #include <onyx/cpu.h>
 #include <onyx/atomic.h>
 #include <onyx/percpu.h>
+#include <onyx/exceptions.h>
 
 const char* exception_msg[] = {
     "Division by zero exception",
@@ -55,7 +56,7 @@ const char* exception_msg[] = {
     "Security exception"
 };
 
-void dump_interrupt_context(intctx_t *ctx)
+void dump_interrupt_context(struct registers *ctx)
 {
 	printk("Exception at %016lx\n", ctx->rip);
 	printk("Registers: rax: %016lx\nrbx: %016lx\nrcx: %016lx\nrdx: %016lx\n"
@@ -69,7 +70,7 @@ void dump_interrupt_context(intctx_t *ctx)
 	if(ctx->cs == 0x08) stack_trace_ex((uint64_t *) ctx->rbp);
 }
 
-static bool is_kernel_exception(intctx_t *ctx)
+static bool is_kernel_exception(struct registers *ctx)
 {
 	/* We can't use %rip here since, for example, in a page fault, %rip is
 	 * set to the target address before the page fault actually triggers.
@@ -78,7 +79,7 @@ static bool is_kernel_exception(intctx_t *ctx)
 	return ctx->cs == 0x08;
 }
 
-void div0_exception(intctx_t *ctx)
+void div0_exception(struct registers *ctx)
 {
 	if(is_kernel_exception(ctx))
 	{
@@ -93,7 +94,7 @@ void div0_exception(intctx_t *ctx)
 
 void setup_debug_register(unsigned long addr, unsigned int size, unsigned int condition);
 
-void debug_trap(intctx_t *ctx)
+void debug_trap(struct registers *ctx)
 {
 	if(is_kernel_exception(ctx))
 	{
@@ -108,14 +109,14 @@ void debug_trap(intctx_t *ctx)
 	kernel_raise_signal(SIGTRAP, current);
 }
 
-void nmi_exception(intctx_t *ctx)
+void nmi_exception(struct registers *ctx)
 {
 	dump_interrupt_context(ctx);
 	/* TODO: Handle this in a better, less destructive and useful fashion */
 	panic("Unexpected NMI exception\n");
 }
 
-void overflow_trap(intctx_t *ctx)
+void overflow_trap(struct registers *ctx)
 {
 	if(is_kernel_exception(ctx))
 	{
@@ -125,10 +126,10 @@ void overflow_trap(intctx_t *ctx)
 
 	struct process *current = get_current_process();
 
-	kernel_raise_signal(SIGFPE, current);
+	kernel_raise_signal(SIGSEGV, current);
 }
 
-void boundrange_exception(intctx_t *ctx)
+void boundrange_exception(struct registers *ctx)
 {
 	if(is_kernel_exception(ctx))
 	{
@@ -138,11 +139,10 @@ void boundrange_exception(intctx_t *ctx)
 
 	struct process *current = get_current_process();
 
-	/* TODO: Is this the correct signal to send? */
-	kernel_raise_signal(SIGFPE, current);
+	kernel_raise_signal(SIGILL, current);
 }
 
-void invalid_opcode_exception(intctx_t *ctx)
+void invalid_opcode_exception(struct registers *ctx)
 {
 	if(is_kernel_exception(ctx))
 	{
@@ -155,7 +155,7 @@ void invalid_opcode_exception(intctx_t *ctx)
 	kernel_raise_signal(SIGILL, current);
 }
 
-void device_not_avail_excp(intctx_t *ctx)
+void device_not_avail_excp(struct registers *ctx)
 {
 	/* We don't support FPU lazy switching right now, so we just send SIGFPE
 	 * to the process
@@ -170,19 +170,19 @@ void device_not_avail_excp(intctx_t *ctx)
 
 	kernel_raise_signal(SIGFPE, current);
 }
-void __double_fault(intctx_t *ctx)
+void __double_fault(struct registers *ctx)
 {
 	dump_interrupt_context(ctx);
 	panic("Double fault");
 }
 
-void exception_panic(intctx_t *ctx)
+void exception_panic(struct registers *ctx)
 {
 	dump_interrupt_context(ctx);
 	panic("Misc/Unknown exception triggered.");
 }
 
-void stack_segment_fault(intctx_t *ctx)
+void stack_segment_fault(struct registers *ctx)
 {
 	if(is_kernel_exception(ctx))
 	{
@@ -192,32 +192,38 @@ void stack_segment_fault(intctx_t *ctx)
 
 	struct process *current = get_current_process();
 
-	kernel_raise_signal(SIGKILL, current);
+	kernel_raise_signal(SIGSEGV, current);
 }
 
-void general_protection_fault(intctx_t *ctx)
+void general_protection_fault(struct registers *ctx)
 {
 	if(is_kernel_exception(ctx))
 	{
+		unsigned long fixup;
+		if((fixup = exceptions_get_fixup(ctx->rip)) != NO_FIXUP_EXISTS)
+		{
+			ctx->rip = fixup;
+			return;
+		}
+
 		dump_interrupt_context(ctx);
-		printk("GPF error code: %04x\n", (uint16_t) ctx->err_code);
+		printk("GPF error code: %04x\n", (uint16_t) ctx->int_err_code);
 		panic("General protection fault");
 	}
 
 	struct process *current = get_current_process();
 	(void) current;
 	dump_interrupt_context(ctx);
-	printk("GPF error code: %04x\n", (uint16_t) ctx->err_code);
-	//kernel_raise_signal(SIGSEGV, current);
-	while(1);
+	printk("GPF error code: %04x\n", (uint16_t) ctx->int_err_code);
+	kernel_raise_signal(SIGSEGV, current);
 }
 
 void stack_trace_user(uintptr_t *stack);
 
-void page_fault_handler(intctx_t *ctx)
+void page_fault_handler(struct registers *ctx)
 {
 	uintptr_t fault_address = cpu_get_cr2();
-	uint16_t error_code = ctx->err_code;
+	uint16_t error_code = ctx->int_err_code;
 
 	struct fault_info info;
 	info.fault_address = fault_address;
@@ -230,11 +236,21 @@ void page_fault_handler(intctx_t *ctx)
 	if(vm_handle_page_fault(&info) < 0)
 	{
 		//stack_trace_ex((uint64_t *) ctx->rbp);
+		if(!info.user)
+		{
+			unsigned long fixup;
+			if((fixup = exceptions_get_fixup(info.ip)) != NO_FIXUP_EXISTS)
+			{
+				ctx->rip = fixup;
+				return;
+			}
+		}
+	
 		vm_do_fatal_page_fault(&info);
 	}
 }
 
-void x87_fpu_exception(intctx_t *ctx)
+void x87_fpu_exception(struct registers *ctx)
 {
 	/* We don't support FPU lazy switching right now, so we just send SIGFPE
 	 * to the process
@@ -250,7 +266,7 @@ void x87_fpu_exception(intctx_t *ctx)
 	kernel_raise_signal(SIGFPE, current);
 }
 
-void alignment_check_excp(intctx_t *ctx)
+void alignment_check_excp(struct registers *ctx)
 {
 	if(is_kernel_exception(ctx))
 	{
@@ -263,7 +279,7 @@ void alignment_check_excp(intctx_t *ctx)
 	kernel_raise_signal(SIGSEGV, current);
 }
 
-void simd_fpu_exception(intctx_t *ctx)
+void simd_fpu_exception(struct registers *ctx)
 {
 	/* We don't support FPU lazy switching right now, so we just send SIGFPE
 	 * to the process
@@ -279,7 +295,7 @@ void simd_fpu_exception(intctx_t *ctx)
 	kernel_raise_signal(SIGFPE, current);
 }
 
-void virtualization_exception(intctx_t *ctx)
+void virtualization_exception(struct registers *ctx)
 {
 	if(is_kernel_exception(ctx))
 	{
@@ -292,7 +308,7 @@ void virtualization_exception(intctx_t *ctx)
 	kernel_raise_signal(SIGSEGV, current);
 }
 
-void security_exception(intctx_t *ctx)
+void security_exception(struct registers *ctx)
 {
 	if(is_kernel_exception(ctx))
 	{
@@ -305,7 +321,7 @@ void security_exception(intctx_t *ctx)
 	kernel_raise_signal(SIGSEGV, current);
 }
 
-void breakpoint_exception(intctx_t *ctx)
+void breakpoint_exception(struct registers *ctx)
 {
 	if(is_kernel_exception(ctx))
 	{
@@ -318,13 +334,13 @@ void breakpoint_exception(intctx_t *ctx)
 	kernel_raise_signal(SIGTRAP, current);
 }
 
-void invalid_tss_exception(intctx_t *ctx)
+void invalid_tss_exception(struct registers *ctx)
 {
 	dump_interrupt_context(ctx);
 	panic("Invalid TSS exception");
 }
 
-void segment_not_present_excp(intctx_t *ctx)
+void segment_not_present_excp(struct registers *ctx)
 {
 	if(is_kernel_exception(ctx))
 	{
@@ -337,12 +353,12 @@ void segment_not_present_excp(intctx_t *ctx)
 	kernel_raise_signal(SIGSEGV, current);
 }
 
-void machine_check(intctx_t *ctx)
+void machine_check(struct registers *ctx)
 {
 	do_machine_check(ctx);
 }
 
-void (* const int_handlers[])(intctx_t *ctx) = 
+void (* const int_handlers[])(struct registers *ctx) = 
 {
 	div0_exception,
 	debug_trap,
@@ -400,7 +416,7 @@ void dump_stack(uintptr_t *__rsp)
 	printk("\n");
 }
 
-void isr_handler(intctx_t *ctx)
+void isr_handler(struct registers *ctx)
 {
 	int int_no = ctx->int_no;
 

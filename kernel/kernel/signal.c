@@ -88,75 +88,7 @@ void kernel_default_signal(int signum)
 	dfl_signal_handlers[signum](signum);
 }
 
-#if defined(__x86_64__)
 /* TODO: Support signals per thread */
-void signal_transfer_to_userspace(int sig, registers_t *regs, bool is_int)
-{
-	/* Start setting the register state for the register switch */
-	/* Note that we're saving the old ones */
-	uintptr_t *userspace_stack = NULL;
-	struct process *process = get_current_process();
-	if(!is_int)
-	{
-		memcpy((registers_t*) &process->old_regs, regs, sizeof(registers_t));
-		regs->rdi = sig;
-		regs->rip = (uintptr_t) process->sigtable[sig].sa_handler;
-		regs->cs = 0x2b;
-		regs->ds = regs->ss = 0x33;
-		if(process->old_regs.ds == 0x33)
-			userspace_stack = (uintptr_t *) regs->rsp;
-		else
-		{
-			userspace_stack = get_current_thread()->user_stack;
-			regs->rsp = (uintptr_t) userspace_stack;
-		}
-	}
-	else
-	{
-		intctx_t *intctx = (intctx_t*) regs;
-		process->old_regs.rax = intctx->rax;
-		process->old_regs.rbx = intctx->rbx;
-		process->old_regs.rcx = intctx->rcx;
-		process->old_regs.rdx = intctx->rdx;
-		process->old_regs.rdi = intctx->rdi;
-		process->old_regs.rsi = intctx->rsi;
-		process->old_regs.rbp = intctx->rbp;
-		process->old_regs.rsp = intctx->rsp;
-		process->old_regs.rip = intctx->rip;
-		process->old_regs.r8 = intctx->r8;
-		process->old_regs.r9 = intctx->r9;
-		process->old_regs.r10 = intctx->r10;
-		process->old_regs.r11 = intctx->r11;
-		process->old_regs.r12 = intctx->r12;
-		process->old_regs.r13 = intctx->r13;
-		process->old_regs.r14 = intctx->r14;
-		process->old_regs.r15 = intctx->r15;
-		process->old_regs.ds = intctx->ds;
-		process->old_regs.ss = intctx->ss;
-		process->old_regs.cs = intctx->cs;
-		process->old_regs.rflags = intctx->rflags;
-		intctx->rdi = sig;
-		intctx->rip = (uintptr_t) process->sigtable[sig].sa_handler;
-		intctx->cs = 0x33;
-		intctx->ds = intctx->ss = 0x2b;
-		if(process->old_regs.ds == 0x2b)
-			userspace_stack = (uintptr_t *) intctx->rsp;
-		else
-		{
-			userspace_stack = get_current_thread()->user_stack;
-			intctx->rsp = (uintptr_t) userspace_stack;
-		}
-	}
-
-	if(userspace_stack)
-	{
-		uintptr_t sigreturn = (uintptr_t) process->sigtable[sig].sa_restorer;
-		copy_to_user(userspace_stack, &sigreturn, sizeof(sigreturn));
-	}
-}
-#else
-#error "Implement this in your architecture"
-#endif
 
 int signal_find(struct process *process)
 {
@@ -170,6 +102,7 @@ int signal_find(struct process *process)
 			return i;
 		}
 	}
+
 	return 0;
 }
 
@@ -180,12 +113,15 @@ bool signal_is_empty(struct process *process)
 	for(int i = 0; i < NSIG; i++)
 	{
 		if(sigismember(set, i) && !sigismember(blocked_set, i))
-			return true;
+			return false;
 	}
-	return false;
+
+	return true;
 }
 
-void handle_signal(registers_t *regs, bool is_int)
+void signal_setup_context(int sig, struct sigaction *sigaction, struct registers *regs);
+
+void handle_signal(struct registers *regs)
 {
 	/* We can't do signals while in kernel space */
 	if(regs->cs == 0x8)
@@ -202,9 +138,13 @@ void handle_signal(registers_t *regs, bool is_int)
 
 	/* Find an available signal */
 	int signum = signal_find(current);
+	if(signum == 0)
+		return;
+	
 	struct sigaction *sigaction = &current->sigtable[signum];
 	void (*handler)(int) = sigaction->sa_handler;
 	bool is_siginfo = (bool) sigaction->sa_flags & SA_SIGINFO;
+
 	UNUSED(is_siginfo);
 	/* TODO: Handle SA_SIGINFO */
 	/* TODO: Handle SA_RESTART */
@@ -212,23 +152,23 @@ void handle_signal(registers_t *regs, bool is_int)
 	/* TODO: Handle SA_NOCLDWAIT */
 	/* TODO: Handle SA_ONSTACK */
 	/* TODO: Handle SA_NOCLDSTOP */
+
+	if(handler != SIG_DFL)
+	{
+		signal_setup_context(signum, sigaction, regs);
+	}
+	else
+	{
+		kernel_default_signal(signum);
+	}
+
 	if(sigaction->sa_flags & SA_RESETHAND)
 	{
 		/* If so, we need to reset the handler to SIG_DFL and clear SA_SIGINFO */
 		sigaction->sa_handler = SIG_DFL;
 		sigaction->sa_flags &= ~SA_SIGINFO;
 	}
-	if(handler != SIG_DFL)
-	{
-		if(!vm_find_region(handler))
-			return;
-		signal_transfer_to_userspace(signum, regs, is_int);
-		return;
-	}
-	else
-	{
-		kernel_default_signal(signum);
-	}
+
 	if(signal_is_empty(current))
 		current->signal_pending = 0;
 }
@@ -253,6 +193,7 @@ void kernel_raise_signal(int sig, struct process *process)
 	/* Don't bother to set it as pending if sig == SIG_IGN */
 	if(process->sigtable[sig].sa_handler == SIG_IGN)
 		return;
+
 	if(sig == SIGCONT || sig == SIGSTOP)
 	{
 		if(sig == SIGCONT)
@@ -260,6 +201,7 @@ void kernel_raise_signal(int sig, struct process *process)
 		else
 			signal_stop(sig, process);
 	}
+
 	sigaddset(&process->pending_set, sig);
 	if(!sigismember(&process->sigmask, sig))
 		process->signal_pending = 1;
@@ -275,7 +217,7 @@ int sys_kill(pid_t pid, int sig)
 {
 	struct process *p = NULL;
 	struct process *current = get_current_process();
-	if((int)pid > 0)
+	if(pid > 0)
 	{
 		if(pid == current->pid)
 		{
@@ -296,39 +238,6 @@ int sys_kill(pid_t pid, int sig)
 	return 0;
 }
 
-extern void __sigret_return(uintptr_t stack);
-void sys_sigreturn(void)
-{
-	DISABLE_INTERRUPTS();
-	signal_update_pending(get_current_process());
-	/* Switch the registers again */
-	uintptr_t *regs = (uintptr_t *) get_current_thread()->kernel_stack;
-	registers_t *old = (registers_t*) &get_current_process()->old_regs;
-	*--regs = old->ds; //SS
-	*--regs = old->rsp; //RSP
-	*--regs = old->rflags; // RFLAGS
-	*--regs = old->cs; //CS
-	*--regs = old->rip; //RIP
-	*--regs = old->rax; // RAX
-	*--regs = old->rbx; // RBX
-	*--regs = old->rcx; // RCX
-	*--regs = old->rdx; // RDX
-	*--regs = old->rdi; // RDI
-	*--regs = old->rsi; // RSI
-	*--regs = old->rbp; // RBP
-	*--regs = old->r15; // R15
-	*--regs = old->r14; // R14
-	*--regs = old->r13; // R13
-	*--regs = old->r12; // R12
-	*--regs = old->r11; // R11
-	*--regs = old->r10; // R10
-	*--regs = old->r9; // R9
-	*--regs = old->r8; // R8
-	*--regs = old->ds; // DS
-	__sigret_return((uintptr_t) regs);
-	__builtin_unreachable();
-}
-
 int sys_sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
 {
 	if(signum > _NSIG)
@@ -347,6 +256,7 @@ int sys_sigaction(int signum, const struct sigaction *act, struct sigaction *old
 		if(copy_to_user(oldact, &proc->sigtable[signum], sizeof(struct sigaction)) < 0)
 			return -EFAULT;
 	}
+
 	/* If act, set the new action */
 	if(act)
 	{
@@ -367,6 +277,7 @@ int sys_sigaction(int signum, const struct sigaction *act, struct sigaction *old
 		if(copy_from_user(&proc->sigtable[signum], act, sizeof(struct sigaction)) < 0)
 			return -EFAULT;
 	}
+
 	mutex_unlock(&proc->signal_lock);
 	return 0;
 }

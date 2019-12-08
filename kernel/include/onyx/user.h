@@ -7,6 +7,9 @@
 #ifndef _KERNEL_USER_H
 #define _KERNEL_USER_H
 
+#include <stddef.h>
+
 char *strcpy_from_user(const char *user);
+size_t strlen_user(const char *user);
 
 #endif

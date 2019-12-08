@@ -52,9 +52,13 @@ isr\num:
 	jmp isr_common # Go to the handler
 .endm
 
-
-#define IRQ_STACK_OFF_CS		136
+/* struct registers has two longs that are used only for ISRs,
+ and meaningless otherwise
+*/
+#define REGISTERS_UNUSED_OFF		16
 #define KERNEL_CS			0x08
+#define REGISTERS_STACK_OFF_CS		152
+
 .global irq_common
 irq_common:
 	cld
@@ -65,7 +69,7 @@ irq_common:
 	mov %ax, %ds
 	mov %ax, %es
 
-	mov IRQ_STACK_OFF_CS(%rsp), %rax
+	mov REGISTERS_STACK_OFF_CS(%rsp), %rax
 	cmp $KERNEL_CS, %rax
 	je .L3
 	swapgs
@@ -85,7 +89,7 @@ irq_common:
 x86_scheduler_exit:
 	/* We'll use this bit of code as a trampoline to the new thread too */
 .L5:
-	mov IRQ_STACK_OFF_CS(%rsp), %rax
+	mov REGISTERS_STACK_OFF_CS(%rsp), %rax
 	cmp $KERNEL_CS, %rax
 	je .L6
 	swapgs
@@ -95,6 +99,8 @@ x86_scheduler_exit:
 	mov %ax, %es
 
 	popaq
+
+	add $REGISTERS_UNUSED_OFF, %rsp
 	iretq
 
 .L4:
@@ -107,6 +113,7 @@ x86_scheduler_exit:
 .global irq\irq_num
 irq\irq_num:
 	cli
+	sub $REGISTERS_UNUSED_OFF, %rsp
 	pushaq
 	mov $\irq_num, %rdi
 	jmp irq_common
@@ -125,8 +132,6 @@ isr\num:
 	pushaq
 	jmp isr_common # Go to the handler
 .endm
-
-#define ISR_STACK_FRAME_CS_OFF		152
 
 .global isr_common
 isr_common:
@@ -149,7 +154,7 @@ isr_common:
 	mov %ax, %ds
 	mov %ax, %es
 
-	mov ISR_STACK_FRAME_CS_OFF(%rsp), %rax
+	mov REGISTERS_STACK_OFF_CS(%rsp), %rax
 	cmp $KERNEL_CS, %rax
 	je .L0
 	swapgs
@@ -167,7 +172,7 @@ isr_common:
 	cmp $1, %rax
 	je .Lisr_handle_signal
 .L1:
-	mov ISR_STACK_FRAME_CS_OFF(%rsp), %rax
+	mov REGISTERS_STACK_OFF_CS(%rsp), %rax
 	cmp $KERNEL_CS, %rax
 	je .L2
 	swapgs
@@ -177,12 +182,11 @@ isr_common:
 	mov %ax, %es
 
 	popaq
-	add $16, %rsp
+	add $REGISTERS_UNUSED_OFF, %rsp
 	iretq
 
 .Lisr_handle_signal:
 	mov %rsp, %rdi
-	mov $1, %rsi
 	call handle_signal
 	jmp .L1
 
@@ -444,6 +448,7 @@ IRQ 221
 .global _sched_yield
 _sched_yield:
 	cli
+	sub $REGISTERS_UNUSED_OFF, %rsp
 	pushaq
 	mov %ds, %ax
 	push %rax
@@ -452,14 +457,14 @@ _sched_yield:
 	mov %ax, %es
 
 	mov %rsp, %rdi
-	mov IRQ_STACK_OFF_CS(%rsp), %rax
+	mov REGISTERS_STACK_OFF_CS(%rsp), %rax
 	cmp $KERNEL_CS, %rax
 	je .L7
 	swapgs
 .L7:
 	call sched_switch_thread
 	mov %rax, %rsp
-	mov IRQ_STACK_OFF_CS(%rsp), %rax
+	mov REGISTERS_STACK_OFF_CS(%rsp), %rax
 	cmp $KERNEL_CS, %rax
 	je .L8
 	swapgs
@@ -469,6 +474,7 @@ _sched_yield:
 	mov %ax, %es
 
 	popaq
+	add $REGISTERS_UNUSED_OFF, %rsp
 	iretq
 
 #include <onyx/x86/segments.h>
@@ -489,6 +495,7 @@ platform_yield:
 	pushf /* %rflags */
 	push $KERNEL_CS /* %cs */
 	push $.return_label /* %rip */
+	sub $REGISTERS_UNUSED_OFF, %rsp
 	pushaq /* General purpose registers (%rax - %r15) */
 	push $KERNEL_DS /* %ds */
 	mov %rsp, %rdi
@@ -504,12 +511,16 @@ platform_yield:
 .global __sigret_return
 __sigret_return:
 	cli
+
 	mov %rdi, %rsp
+	
 	swapgs
 	pop %rcx
 	mov %cx, %ds
 	mov %cx, %es
 	popaq
+
+	add $REGISTERS_UNUSED_OFF, %rsp
 	iretq
 
 .global apic_spurious_irq
@@ -519,6 +530,7 @@ apic_spurious_irq:
 .global __cpu_handle_message
 __cpu_handle_message:
 	cli
+	sub $REGISTERS_UNUSED_OFF, %rsp
 	pushaq
 	mov %ds, %ax
 	push %rax
@@ -527,7 +539,7 @@ __cpu_handle_message:
 	mov %ax, %ds
 	mov %ax, %es
 
-	mov IRQ_STACK_OFF_CS(%rsp), %rax
+	mov REGISTERS_STACK_OFF_CS(%rsp), %rax
 	cmp $KERNEL_CS, %rax
 	je .L9
 	swapgs
@@ -540,7 +552,7 @@ __cpu_handle_message:
 	mov %rax, %rsp
 	call lapic_send_eoi
 
-	mov IRQ_STACK_OFF_CS(%rsp), %rax
+	mov REGISTERS_STACK_OFF_CS(%rsp), %rax
 	cmp $KERNEL_CS, %rax
 	je .L10
 	swapgs
@@ -550,4 +562,5 @@ __cpu_handle_message:
 	mov %ax, %es
 
 	popaq
+	add $REGISTERS_UNUSED_OFF, %rsp
 	iretq

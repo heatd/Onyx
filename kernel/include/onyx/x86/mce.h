@@ -9,6 +9,6 @@
 
 #include <onyx/registers.h>
 
-void do_machine_check(intctx_t *ctx);
+void do_machine_check(struct registers *ctx);
 
 #endif

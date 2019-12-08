@@ -21,8 +21,8 @@ extern syscall_callback_t syscall_table_64[];
 
 long do_syscall64(struct syscall_frame *frame)
 {
-	/* In case of a fork, adjust %rdi so it points to the frame */
-	if(frame->rax == SYS_fork)
+	/* In case of a fork or sigreturn, adjust %rdi so it points to the frame */
+	if(frame->rax == SYS_fork || frame->rax == SYS_rt_sigreturn)
 		frame->rdi = (unsigned long) frame;
 
 	long syscall_nr = frame->rax;

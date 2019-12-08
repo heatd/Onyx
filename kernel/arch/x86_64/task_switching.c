@@ -114,6 +114,7 @@ thread_t* task_switching_create_context(thread_callback_t callback, uint32_t fla
 	*--stack = rf; // RFLAGS
 	*--stack = cs; //CS
 	*--stack = (uint64_t) callback; //RIP
+	stack -= 2;
 	*--stack = 0; // RAX
 	*--stack = 0; // RBX
 	*--stack = 0; // RCX
@@ -203,6 +204,7 @@ thread_t* task_switching_create_main_progcontext(thread_callback_t callback,
 	*--stack = rf; // RFLAGS
 	*--stack = cs; //CS
 	*--stack = (uint64_t) callback; //RIP
+	stack -= 2;
 	*--stack = 0; // RAX
 	*--stack = 0; // RBX
 	*--stack = 0; // RCX
@@ -318,6 +320,7 @@ thread_t *sched_spawn_thread(registers_t *regs, thread_callback_t start, void *a
 	*--stack = rflags; // RFLAGS
 	*--stack = cs; //CS
 	*--stack = (uint64_t) start; //RIP
+	stack -= 2;
 	*--stack = regs->rax; // RAX
 	*--stack = regs->rbx; // RBX
 	*--stack = regs->rcx; // RCX
