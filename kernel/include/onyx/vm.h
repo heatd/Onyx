@@ -127,6 +127,7 @@ struct mm_address_space
 	size_t virtual_memory_size;
 	size_t resident_set_size;
 	size_t shared_set_size;
+	size_t page_faults;
 
 	struct spinlock private_vmo_lock;
 	struct vm_object *vmo_head, *vmo_tail;

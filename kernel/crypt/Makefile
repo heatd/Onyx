@@ -1,0 +1,1 @@
+obj-y+= crypt/sha256.o

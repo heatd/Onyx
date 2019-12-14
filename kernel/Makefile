@@ -44,21 +44,29 @@ LDFLAGS:=$(LDFLAGS) $(KERNEL_ARCH_LDFLAGS)
 LIBS:=$(LIBS) $(KERNEL_ARCH_LIBS)
 ACPICA_CFLAGS:=$(filter-out -fsanitize=undefined -Werror, $(CFLAGS))
 
-OBJS:=\
-$(patsubst %.c,%.o,$(wildcard drivers/*/*.c)) \
-$(patsubst %.cpp,%.o,$(wildcard drivers/*/*.cpp)) \
-$(patsubst %.c,%.o,$(wildcard kernel/*.c)) \
-$(patsubst %.c,%.o,$(wildcard crypt/*.c)) \
-$(patsubst %.cpp,%.o,$(wildcard kernel/*.cpp)) \
-$(patsubst %.c,%.o,$(wildcard kernel/*/*.c)) \
-$(patsubst %.c,%.o,$(wildcard kernel/*/*/*.c)) \
-$(patsubst %.cpp,%.o,$(wildcard kernel/*/*.cpp)) \
-$(filter-out $(ARCHDIR)/__vdso.o, $(patsubst %.c,%.o,$(wildcard $(ARCHDIR)/*.c))) \
-$(patsubst %.c,%.o,$(wildcard $(ARCHDIR)/*/*.c)) \
-$(patsubst %.cpp,%.o,$(wildcard $(ARCHDIR)/*.cpp)) \
-$(patsubst %.cpp,%.o,$(wildcard $(ARCHDIR)/*/*.cpp)) \
-$(filter-out acpica/components/disassembler/%, $(patsubst %.c,%.o,$(wildcard acpica/components/*/*.c))) \
-$(filter-out $(ARCHDIR)/crti.o $(ARCHDIR)/__vdso_asm.S, $(patsubst %.S,%.o,$(wildcard $(ARCHDIR)/*.S)))
+#OBJS:=\
+#$(patsubst %.c,%.o,$(wildcard drivers/*/*.c)) \
+#$(patsubst %.cpp,%.o,$(wildcard drivers/*/*.cpp)) \
+#$(patsubst %.c,%.o,$(wildcard kernel/*.c)) \
+#$(patsubst %.c,%.o,$(wildcard crypt/*.c)) \
+#$(patsubst %.cpp,%.o,$(wildcard kernel/*.cpp)) \
+#$(patsubst %.c,%.o,$(wildcard kernel/*/*.c)) \
+#$(patsubst %.c,%.o,$(wildcard kernel/*/*/*.c)) \
+#$(patsubst %.cpp,%.o,$(wildcard kernel/*/*.cpp)) \
+#$filter-out $(ARCHDIR)/__vdso.o, $(patsubst %.c,%.o,$(wildcard $(ARCHDIR)/*.c))) \
+#$(patsubst %.c,%.o,$(wildcard $(ARCHDIR)/*/*.c)) \
+#$(patsubst %.cpp,%.o,$(wildcard $(ARCHDIR)/*.cpp)) \
+#$(patsubst %.cpp,%.o,$(wildcard $(ARCHDIR)/*/*.cpp)) \
+#$(filter-out acpica/components/disassembler/%, $(patsubst %.c,%.o,$(wildcard acpica/components/*/*.c))) \
+#$(filter-out $(ARCHDIR)/crti.o $(ARCHDIR)/__vdso_asm.S, $(patsubst %.S,%.o,$(wildcard $(ARCHDIR)/*.S)))
+
+include kernel/Makefile
+include $(ARCHDIR)/Makefile
+include crypt/Makefile
+include drivers/Makefile
+include acpica/Makefile
+
+OBJS:=$(obj-y)
 
 CRTI_OBJ:=../sysroot/usr/lib/crti.o
 CRTBEGIN_OBJ:=$(shell $(CC) $(CFLAGS) -mcmodel=large $(LDFLAGS) -print-file-name=crtbegin.o)
@@ -89,6 +97,7 @@ all: onyx-vdso.so.0 vmonyx
 
 vmonyx: $(OBJ_LINK_LIST) $(ARCHDIR)/linker.ld
 	@echo [LD] $@
+	echo $(OBJ_LINK_LIST)
 	# Very important to note that right now, the kernel can only link using
 	# ld.bfd due to linker script weirdness. Because of that, we pass -fuse-ld=bfd
 	@$(CC) -fuse-ld=bfd -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(OBJ_LINK_LIST) $(LDFLAGS) $(LIBS)

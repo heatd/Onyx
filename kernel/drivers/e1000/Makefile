@@ -1,0 +1,1 @@
+obj-y+= drivers/e1000/e1000.o

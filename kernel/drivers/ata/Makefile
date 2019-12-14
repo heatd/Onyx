@@ -1,0 +1,1 @@
+obj-y+= drivers/ata/ata.o

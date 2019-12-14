@@ -1,0 +1,1 @@
+obj-y+= drivers/mmio_utils/mmio.o

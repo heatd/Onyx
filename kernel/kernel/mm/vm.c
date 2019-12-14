@@ -1470,6 +1470,10 @@ int vm_handle_page_fault(struct fault_info *info)
 	if(info->user && !(entry->rwx & VM_USER))
 		return -1;
 
+	struct process *p = get_current_process();
+
+	__sync_add_and_fetch(&p->address_space.page_faults, 1);
+
 	return __vm_handle_pf(entry, info);
 }
 
