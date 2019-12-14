@@ -72,7 +72,8 @@ sighandler_t dfl_signal_handlers[] = {
 	[SIGTTOU] = signal_default_stop
 };
 
-void signal_update_pending(struct process *process);
+void signal_update_pending(struct thread *thread);
+
 #define SST_SIZE (_NSIG/8/sizeof(long))
 void signotset(sigset_t *set)
 {
@@ -84,16 +85,13 @@ void sys_exit(int exitcode);
 
 void kernel_default_signal(int signum)
 {
-	signal_update_pending(get_current_process());
 	dfl_signal_handlers[signum](signum);
 }
 
-/* TODO: Support signals per thread */
-
-int signal_find(struct process *process)
+int signal_find(struct thread *thread)
 {
-	sigset_t *set = &process->pending_set;
-	sigset_t *blocked_set = &process->sigmask;
+	sigset_t *set = &thread->sinfo.pending_set;
+	sigset_t *blocked_set = &thread->sinfo.sigmask;
 	for(int i = 0; i < NSIG; i++)
 	{
 		if(sigismember(set, i) && !sigismember(blocked_set, i))
@@ -106,10 +104,10 @@ int signal_find(struct process *process)
 	return 0;
 }
 
-bool signal_is_empty(struct process *process)
+bool signal_is_empty(struct thread *thread)
 {
-	sigset_t *set = &process->pending_set;
-	sigset_t *blocked_set = &process->sigmask;
+	sigset_t *set = &thread->sinfo.pending_set;
+	sigset_t *blocked_set = &thread->sinfo.sigmask;
 	for(int i = 0; i < NSIG; i++)
 	{
 		if(sigismember(set, i) && !sigismember(blocked_set, i))
@@ -124,29 +122,28 @@ void signal_setup_context(int sig, struct sigaction *sigaction, struct registers
 void handle_signal(struct registers *regs)
 {
 	/* We can't do signals while in kernel space */
-	if(regs->cs == 0x8)
+	if(in_kernel_space_regs(regs))
 	{
 		return;
 	}
 
-	struct thread *t = get_current_thread();
-	if(t->flags & THREAD_SHOULD_DIE)
+	struct thread *current_thread = get_current_thread();
+	if(current_thread->flags & THREAD_SHOULD_DIE)
 		sched_die();
 
-	struct process *current = get_current_process();
-	//assert(current);
-
 	/* Find an available signal */
-	int signum = signal_find(current);
+	int signum = signal_find(current_thread);
 	if(signum == 0)
 		return;
+
+	sigdelset(&current_thread->sinfo.pending_set, signum);
+	signal_update_pending(current_thread);
+
+	struct process *current = get_current_process();
 	
 	struct sigaction *sigaction = &current->sigtable[signum];
 	void (*handler)(int) = sigaction->sa_handler;
-	bool is_siginfo = (bool) sigaction->sa_flags & SA_SIGINFO;
 
-	UNUSED(is_siginfo);
-	/* TODO: Handle SA_SIGINFO */
 	/* TODO: Handle SA_RESTART */
 	/* TODO: Handle SA_NODEFER */
 	/* TODO: Handle SA_NOCLDWAIT */
@@ -168,49 +165,76 @@ void handle_signal(struct registers *regs)
 		sigaction->sa_handler = SIG_DFL;
 		sigaction->sa_flags &= ~SA_SIGINFO;
 	}
-
-	if(signal_is_empty(current))
-		current->signal_pending = 0;
 }
 
-void signal_update_pending(struct process *process)
+void signal_update_pending(struct thread *thread)
 {
-	sigset_t *set = &process->pending_set;
-	sigset_t *blocked_set = &process->sigmask;
+	sigset_t *set = &thread->sinfo.pending_set;
+	sigset_t *blocked_set = &thread->sinfo.sigmask;
 	for(int i = 0; i < NSIG; i++)
 	{
 		if(sigismember(set, i) && !sigismember(blocked_set, i))
 		{
-			process->signal_pending = 1;
+			thread->sinfo.signal_pending = true;
 			return;
 		}
 	}
-	process->signal_pending = 0;
+
+	thread->sinfo.signal_pending = false;
 }
 
 void kernel_raise_signal(int sig, struct process *process)
 {
-	/* Don't bother to set it as pending if sig == SIG_IGN */
-	if(process->sigtable[sig].sa_handler == SIG_IGN)
-		return;
+	/* BIG TODO: the thread list doesn't have a lock protecting it,
+	 * making this inherently unsafe. Fix.
+	*/
 
-	if(sig == SIGCONT || sig == SIGSTOP)
+	struct thread *t = NULL;
+
+	for(size_t i = 0; i < process->nr_threads; i++)
 	{
-		if(sig == SIGCONT)
-			signal_cont(sig, process);
-		else
-			signal_stop(sig, process);
+		struct thread *thr = process->threads[i];
+		if(!sigismember(&thr->sinfo.sigmask, sig))
+		{
+			t = thr;
+			break;
+		}
 	}
 
-	sigaddset(&process->pending_set, sig);
-	if(!sigismember(&process->sigmask, sig))
-		process->signal_pending = 1;
+	if(t == NULL)
+	{
+		/* If the signal is masked everywhere, just pick the first thread... */
+		t = process->threads[0];
+	}
+
+	assert(t != NULL);
+
+	kernel_tkill(sig, t);
 }
 
-bool signal_is_masked(struct process *process, int sig)
+int kernel_tkill(int signal, struct thread *thread)
 {
-	sigset_t *set = &process->sigmask;
+	struct process *process = thread->owner;
+	/* Don't bother to set it as pending if sig == SIG_IGN */
+	if(process->sigtable[signal].sa_handler == SIG_IGN)
+		return 0;
+
+	sigaddset(&thread->sinfo.pending_set, signal);
+	if(!sigismember(&thread->sinfo.sigmask, signal))
+		thread->sinfo.signal_pending = true;
+
+	return 0;
+}
+
+bool signal_is_masked(struct thread *thread, int sig)
+{
+	sigset_t *set = &thread->sinfo.sigmask;
 	return (bool) sigismember(set, sig);
+}
+
+bool is_valid_signal(int sig)
+{
+	return sig > 0 && sig < NSIG;
 }
 
 int sys_kill(pid_t pid, int sig)
@@ -220,28 +244,36 @@ int sys_kill(pid_t pid, int sig)
 	if(pid > 0)
 	{
 		if(pid == current->pid)
-		{
 			p = current;
-		}
 		else
+		{
 			p = get_process_from_pid(pid);
-		if(!p)
-			return errno =-ESRCH;	
+			if(!p)
+				return -ESRCH;	
+		}
+
 	}
+	else
+		return -1;
+
+	/* TODO: Handle pid < 0*/
+
 	if(sig == 0)
 		return 0;
-	if(sig > NSIG)
-		return errno =-EINVAL;
-	if(sig < 0)
-		return errno =-EINVAL;
+	
+	if(!is_valid_signal(sig))
+		return -EINVAL;
+
 	kernel_raise_signal(sig, p);
+
 	return 0;
 }
 
 int sys_sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
 {
-	if(signum > _NSIG)
+	if(!is_valid_signal(signum))
 		return -EINVAL;
+
 	/* If both pointers are NULL, just return 0 (We can't do anything) */
 	if(!oldact && !act)
 		return 0;
@@ -274,6 +306,7 @@ int sys_sigaction(int signum, const struct sigaction *act, struct sigaction *old
 				mutex_unlock(&proc->signal_lock);
 				return -EINVAL;
 		}
+	
 		if(copy_from_user(&proc->sigtable[signum], act, sizeof(struct sigaction)) < 0)
 			return -EFAULT;
 	}
@@ -284,11 +317,11 @@ int sys_sigaction(int signum, const struct sigaction *act, struct sigaction *old
 
 int sys_sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
 {
-	struct process *current = get_current_process();
+	struct thread *current = get_current_thread();
 
 	if(oldset)
 	{
-		if(copy_to_user(oldset, &current->sigmask, sizeof(sigset_t)) < 0)
+		if(copy_to_user(oldset, &current->sinfo.sigmask, sizeof(sigset_t)) < 0)
 			return -EFAULT;
 	}
 	
@@ -301,22 +334,22 @@ int sys_sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
 		{
 			case SIG_BLOCK:
 			{
-				sigorset(&current->sigmask, &current->sigmask, &kset);
-				if(sigismember(&current->sigmask, SIGKILL))
-					sigdelset(&current->sigmask, SIGKILL);
-				if(sigismember(&current->sigmask, SIGSTOP))
-					sigdelset(&current->sigmask, SIGSTOP);
+				sigorset(&current->sinfo.sigmask, &current->sinfo.sigmask, &kset);
+				if(sigismember(&current->sinfo.sigmask, SIGKILL))
+					sigdelset(&current->sinfo.sigmask, SIGKILL);
+				if(sigismember(&current->sinfo.sigmask, SIGSTOP))
+					sigdelset(&current->sinfo.sigmask, SIGSTOP);
 				break;
 			}
 			case SIG_UNBLOCK:
 			{
 				signotset(&kset);
-				sigandset(&current->sigmask, &current->sigmask, &kset); 
+				sigandset(&current->sinfo.sigmask, &current->sinfo.sigmask, &kset); 
 				break;
 			}
 			case SIG_SETMASK:
 			{
-				memcpy(&current->sigmask, &kset, sizeof(sigset_t));
+				memcpy(&current->sinfo.sigmask, &kset, sizeof(sigset_t));
 				break;
 			}
 			default:
@@ -330,15 +363,20 @@ int sys_sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
 
 bool signal_is_pending(void)
 {
-	struct process *current = get_current_process();
-	if(!current)
+	struct thread *t = get_current_thread();
+	if(!t)
 		return false;
-	return (bool) current->signal_pending || get_current_thread()->flags & THREAD_SHOULD_DIE;
+#if 0
+	if(t->sinfo.signal_pending == true)
+		printk("Signal pending!\n");
+#endif
+
+	return t->sinfo.signal_pending;
 }
 
 int sys_sigsuspend(const sigset_t *uset)
 {
-	struct process *current = get_current_process();
+	struct thread *current = get_current_thread();
 
 	sigset_t set;
 	if(copy_from_user(&set, uset, sizeof(sigset_t)) < 0)
@@ -346,14 +384,15 @@ int sys_sigsuspend(const sigset_t *uset)
 	/* Ok, mask the signals in set */
 	sigset_t old;
 	/* First, save the old sigset */
-	memcpy(&old, &current->sigmask, sizeof(sigset_t));
+	memcpy(&old, &current->sinfo.sigmask, sizeof(sigset_t));
 	/* Now, set the signal mask */
-	memcpy(&current->sigmask, &set, sizeof(sigset_t));
+	memcpy(&current->sinfo.sigmask, &set, sizeof(sigset_t));
 
 	/* Now, wait for a signal */
 	while(!signal_is_pending())
 		sched_yield();
-	memcpy(&current->sigmask, &old, sizeof(sigset_t));
+	memcpy(&current->sinfo.sigmask, &old, sizeof(sigset_t));
+
 	return -EINTR;
 }
 
@@ -362,4 +401,23 @@ int sys_pause(void)
 	while(!signal_is_pending())
 		sched_yield();
 	return -EINTR;
+}
+
+int sys_tkill(int tid, int sig)
+{
+	if(tid < 0)
+		return -EINVAL;
+
+	struct thread *t = thread_get_from_tid(tid);
+	if(!t)
+		return -ESRCH;
+	
+	/* Can't send signals to kernel threads */
+	if(t->flags & THREAD_KERNEL)
+		return -EINVAL;
+
+	if(!is_valid_signal(sig))
+		return -EINVAL;
+	
+	return kernel_tkill(sig, t);
 }

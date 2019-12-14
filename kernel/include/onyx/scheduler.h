@@ -11,6 +11,7 @@
 #include <assert.h>
 
 #include <onyx/spinlock.h>
+#include <onyx/signal.h>
 
 #define NUM_PRIO 40
 
@@ -20,7 +21,7 @@
 #define SCHED_PRIO_HIGH		30
 #define SCHED_PRIO_VERY_HIGH	39
 
-typedef void(*thread_callback_t)(void*);
+typedef void (*thread_callback_t)(void*);
 struct process;
 
 typedef struct thread
@@ -47,6 +48,7 @@ typedef struct thread
 	struct spinlock lock;
 	struct spinlock *to_release;
 	int errno_val;
+	struct signal_info sinfo;
 	/* And arch dependent stuff in this ifdef */
 #ifdef __x86_64__
 	void *fs;
@@ -124,6 +126,12 @@ struct thread *get_thread_for_cpu(unsigned int cpu);
 void sched_start_thread_for_cpu(struct thread *thread, unsigned int cpu);
 
 void sched_init_cpu(unsigned int cpu);
+
+void thread_append_to_global_list(struct thread *t);
+
+void thread_remove_from_list(struct thread *t);
+
+struct thread *thread_get_from_tid(int tid);
 
 #define SCHED_NO_CPU_PREFERENCE		(unsigned int) -1
 

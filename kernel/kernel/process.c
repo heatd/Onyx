@@ -197,9 +197,11 @@ struct process *process_create(const char *cmd_line, ioctx_t *ctx, struct proces
 		proc->uid = parent->uid;
 		proc->gid = parent->gid;
 		proc->address_space.brk = parent->address_space.brk;
-		/* Inherit the signal handlers and signal mask */
+		/* Inherit the signal handlers of the process and the
+		 * signal mask of the current thread
+		*/
 		memcpy(&proc->sigtable, &parent->sigtable, sizeof(struct sigaction) * _NSIG);
-		memcpy(&proc->sigmask, &parent->sigmask, sizeof(sigset_t));
+		/* Note that the signal mask is inherited at thread creation */
 		
 		/* Note that pending signals are zero'd, as per POSIX */
 
@@ -236,6 +238,7 @@ void process_create_thread(struct process *proc, thread_callback_t callback,
 			break;
 		}
 	}
+
 	if(!is_set)
 		thread_destroy(thread);
 }
@@ -645,6 +648,11 @@ pid_t sys_wait4(pid_t pid, int *wstatus, int options, struct rusage *usage)
 	return 0;
 }
 
+void process_copy_current_sigmask(struct thread *dest)
+{
+	memcpy(&dest->sinfo.sigmask, &get_current_thread()->sinfo.sigmask, sizeof(sigset_t));
+}
+
 pid_t sys_fork(struct syscall_frame *ctx)
 {
 	struct process 	*proc;
@@ -654,8 +662,8 @@ pid_t sys_fork(struct syscall_frame *ctx)
 	proc = (struct process*) get_current_process();
 	to_be_forked = proc->threads[0];	
 	/* Create a new process */
-	child = process_create(strdup(proc->cmd_line), &proc->ctx, proc); /* Create a process with the current
-			  			  * process's info */
+	child = process_create(strdup(proc->cmd_line), &proc->ctx, proc);
+
 	if(!child)
 		return -ENOMEM;
 
@@ -665,6 +673,8 @@ pid_t sys_fork(struct syscall_frame *ctx)
 
 	/* Fork and create the new thread */
 	process_fork_thread(to_be_forked, child, ctx);
+
+	process_copy_current_sigmask(child->threads[0]);
 
 	sched_start_thread(child->threads[0]);
 
@@ -1107,7 +1117,7 @@ void process_continue(struct process *p)
 void process_stop(struct process *p)
 {
 	if(p->threads[0])
-		thread_set_state(p->threads[0], THREAD_BLOCKED);
+		thread_set_state(p->threads[0], THREAD_INTERRUPTIBLE);
 	if(p == get_current_process())
 		sched_yield();
 }

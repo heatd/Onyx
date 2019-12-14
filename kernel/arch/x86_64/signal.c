@@ -112,8 +112,6 @@ void signal_setup_context(int sig, struct sigaction *sigaction, struct registers
 extern void __sigret_return(struct registers *regs);
 void sys_sigreturn(struct syscall_frame *sysframe)
 {
-	signal_update_pending(get_current_process());
-
 	/* Switch the registers again */
 	struct registers rbuf;
 	struct registers *regs = &rbuf;

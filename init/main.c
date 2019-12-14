@@ -167,6 +167,31 @@ func_exit:
 
 bool fail_on_mount_error = true;
 
+#if 0
+void segv(int sig)
+{
+	printf("hello comrade\n");
+}
+
+void signal_test()
+{
+	pid_t p = fork();
+
+	if(p == 0)
+	{
+		signal(SIGSEGV, segv);
+		pause();
+		perror("pause");
+	}
+	else
+	{
+		printf("Sleeping 2 seconds and killing our child\n");
+		sleep(2);
+		kill(p, SIGSEGV);
+	}
+}
+#endif
+
 int main(int argc, char **argv, char **envp)
 {
 	int c;
@@ -214,6 +239,7 @@ int main(int argc, char **argv, char **envp)
 	 * so we need to set it up ourselves.
 	*/
 	chdir("/");
+	//signal_test();
 
 	/* Execute daemons */
 	exec_daemons();

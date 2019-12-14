@@ -25,6 +25,7 @@ extern "C" {
 
 void mutex_lock(struct mutex *m);
 void mutex_unlock(struct mutex *m);
+int mutex_lock_interruptible(struct mutex *mutex);
 
 #ifdef __cplusplus
 }

@@ -108,15 +108,15 @@ syscall_ENTRY64:
 	# Save the preserved registers
 	SAVE_PRESERVED_SYSCALL_REGS
 
+	sti
+
 	# End the stack frame list
 	xor %rbp, %rbp
 
-	sti
-	
 	# Ah, we've saved the registers, and the user stack is safe - we can
 	# continue now (possible to preempt)
 	# Save the old segments, and switch to the kernel ones
-	
+
 	mov %ds, %ecx
 	push %rcx
 	mov $KERNEL_DS, %cx
@@ -127,8 +127,16 @@ syscall_ENTRY64:
 
 	call do_syscall64
 
+	
+	# Save our registers for the signal_is_pending call
 	mov %rax, %rdi
+	push %rdi
 	mov %rsp, %rsi
+	
+	# Adjust %rsi so it actually points to the stack
+	# (since the ret val got pushed)
+	add $8, %rsi
+	push %rsi
 
 	call signal_is_pending
 
@@ -136,8 +144,11 @@ syscall_ENTRY64:
 
 	je syscall_signal_path
 
-	mov %rdi, %rax
+	# If we didn't take the signal branch, restore the stack and pop the retval back
+	add $8, %rsp
+	pop %rax
 
+	# TODO: Can the cli be pushed down?
 	cli
 
 	pop %rcx
@@ -177,6 +188,8 @@ syscall_ENTRY64:
 #define STRUCT_REGISTERS_SIZE		(23 * 8)
 
 syscall_signal_path:
+	pop %rsi
+	pop %rdi
 	sub $STRUCT_REGISTERS_SIZE, %rsp
 	mov %rsp, %rdx
 	call do_signal_syscall

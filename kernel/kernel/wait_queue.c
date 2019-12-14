@@ -54,7 +54,7 @@ void wait_queue_wait(struct wait_queue *queue)
 
 	sched_disable_preempt();
 
-	set_current_state(THREAD_BLOCKED);
+	set_current_state(THREAD_UNINTERRUPTIBLE);
 
 	wait_queue_add(queue, &token);
 

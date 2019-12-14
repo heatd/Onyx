@@ -32,6 +32,7 @@
 #include <onyx/irq.h>
 #include <onyx/arch.h>
 #include <onyx/percpu.h>
+#include <libdict/rb_tree.h>
 
 static bool is_initialized = false;
 
@@ -41,10 +42,50 @@ void sched_block(struct thread *thread);
 void __sched_append_to_queue(int priority, unsigned int cpu, 
 				thread_t *thread);
 
+int sched_rbtree_cmp(const void *t1, const void *t2);
+static struct rb_tree glbl_thread_list = {.cmp_func = sched_rbtree_cmp};
+static struct spinlock glbl_thread_list_lock;
+
 PER_CPU_VAR(struct spinlock scheduler_lock);
 PER_CPU_VAR(struct thread *thread_queues_head[NUM_PRIO]);
 PER_CPU_VAR(struct thread *thread_queues_tail[NUM_PRIO]);
 PER_CPU_VAR(struct thread *current_thread);
+
+void thread_append_to_global_list(struct thread *t)
+{
+	spin_lock(&glbl_thread_list_lock);
+
+	dict_insert_result res = rb_tree_insert(&glbl_thread_list, (void *) (unsigned long) t->id);
+	assert(res.inserted == true);
+	*res.datum_ptr = t;
+
+	spin_unlock(&glbl_thread_list_lock);
+}
+
+void thread_remove_from_list(struct thread *t)
+{
+	spin_lock(&glbl_thread_list_lock);
+
+	dict_remove_result res = rb_tree_remove(&glbl_thread_list, (void *) (unsigned long) t->id);
+	assert(res.removed != false);
+
+	spin_unlock(&glbl_thread_list_lock);
+}
+
+struct thread *thread_get_from_tid(int tid)
+{
+	spin_lock(&glbl_thread_list_lock);
+
+	void **pp = rb_tree_search(&glbl_thread_list, (const void *) (unsigned long) tid);
+	
+	struct thread *t = NULL;
+	if(pp)
+		t = *pp;
+	
+	spin_unlock(&glbl_thread_list_lock);
+
+	return t;
+}
 
 void sched_lock(struct thread *thread)
 {
@@ -305,6 +346,9 @@ thread_t *sched_create_thread(thread_callback_t callback, uint32_t flags, void* 
 	if(!t)
 		return NULL;
 	t->priority = SCHED_PRIO_NORMAL;
+
+	thread_append_to_global_list(t);
+
 	return t;
 }
 
@@ -315,6 +359,9 @@ thread_t* sched_create_main_thread(thread_callback_t callback, uint32_t flags, i
 	if(!t)
 		return NULL;
 	t->priority = SCHED_PRIO_NORMAL;
+
+	thread_append_to_global_list(t);
+
 	return t;
 }
 
@@ -330,6 +377,13 @@ void sched_init_cpu(unsigned int cpu)
 	write_per_cpu_any(current_thread, t, cpu);
 	write_per_cpu_any(sched_quantum, SCHED_QUANTUM, cpu);
 	write_per_cpu_any(preemption_counter, 0, cpu);
+}
+
+int sched_rbtree_cmp(const void *t1, const void *t2)
+{
+	int tid0 = (int) (unsigned long) t1;
+	int tid1 = (int) (unsigned long) t2;
+	return tid1 - tid0;
 }
 
 int sched_init(void)
@@ -598,7 +652,7 @@ void sched_block_self(struct thread *thread)
 {
 	MUST_HOLD_LOCK(get_per_cpu_ptr_any(scheduler_lock, thread->cpu));
 
-	thread->status = THREAD_BLOCKED;
+	thread->status = THREAD_UNINTERRUPTIBLE;
 
 	spin_unlock_irqrestore(&thread->lock);
 	spin_unlock_irqrestore(get_per_cpu_ptr_any(scheduler_lock, thread->cpu));
@@ -610,7 +664,7 @@ void sched_block_other(struct thread *thread)
 {
 	MUST_HOLD_LOCK(get_per_cpu_ptr_any(scheduler_lock, thread->cpu));
 
-	thread->status = THREAD_BLOCKED;
+	thread->status = THREAD_UNINTERRUPTIBLE;
 
 	/* TODO: Add support for when the thread is running */
 	if(get_thread_for_cpu(thread->cpu) == thread)
@@ -897,12 +951,12 @@ enqueue_thread_generic(mutex, struct mutex);
 dequeue_thread_generic(mutex, struct mutex);
 
 #define prepare_sleep_generic(typenm, type) 			\
-void prepare_sleep_##typenm(type *p)			\
+void prepare_sleep_##typenm(type *p, int state)			\
 {							\
 	struct thread *t = get_current_thread(); 	\
 	sched_disable_preempt();			\
 							\
-	set_current_state(THREAD_BLOCKED);		\
+	set_current_state(state);			\
 	spin_lock_irqsave(&p->llock);			\
 	enqueue_thread_##typenm(p, t);			\
 	spin_unlock_irqrestore(&p->llock);		\
@@ -915,21 +969,30 @@ void commit_sleep(void)
 	sched_yield();
 }
 
-void mutex_lock_slow_path(struct mutex *mutex)
+int mutex_lock_slow_path(struct mutex *mutex, int state)
 {
+	int ret = 0;
+	bool signals_allowed = state == THREAD_INTERRUPTIBLE;
+
 	struct thread *current = get_current_thread();
 
-	prepare_sleep_mutex(mutex);
+	prepare_sleep_mutex(mutex, state);
 
 	while(!__sync_bool_compare_and_swap(&mutex->counter, 0, 1))
 	{
+		if(signals_allowed && signal_is_pending())
+		{
+			ret = -EINTR;
+			break;
+		}
+
 		assert(mutex->owner != current);
 
 		sched_enable_preempt();
 
 		commit_sleep();
 
-		prepare_sleep_mutex(mutex);
+		prepare_sleep_mutex(mutex, state);
 	}
 
 	spin_lock_irqsave(&mutex->llock);
@@ -943,15 +1006,30 @@ void mutex_lock_slow_path(struct mutex *mutex)
 	sched_enable_preempt();
 
 	__sync_synchronize();
+
+	return ret;
+}
+
+int __mutex_lock(struct mutex *mutex, int state)
+{
+	int ret = 0;
+	if(!__sync_bool_compare_and_swap(&mutex->counter, 0, 1))
+		ret = mutex_lock_slow_path(mutex, state);
+
+	__sync_synchronize();
+	mutex->owner = get_current_thread();
+
+	return ret;
 }
 
 void mutex_lock(struct mutex *mutex)
 {
-	if(!__sync_bool_compare_and_swap(&mutex->counter, 0, 1))
-		mutex_lock_slow_path(mutex);
+	__mutex_lock(mutex, THREAD_UNINTERRUPTIBLE);
+}
 
-	__sync_synchronize();
-	mutex->owner = get_current_thread();
+int mutex_lock_interruptible(struct mutex *mutex)
+{
+	return __mutex_lock(mutex, THREAD_INTERRUPTIBLE);
 }
 
 void mutex_unlock(struct mutex *mutex)

@@ -28,9 +28,6 @@ struct proc_event_sub;
 
 struct process
 {
-	/* Signal specific flags */
-	int signal_pending;
-
 	/* The next process in the linked list */
 	struct process *next;
 
@@ -66,15 +63,6 @@ struct process
 	/* Signal tables */
 	struct mutex signal_lock;
 	struct sigaction sigtable[_NSIG];
-
-	/* Signal mask */
-	sigset_t sigmask;
-	
-	/* Pending signal set */
-	sigset_t pending_set;
-	
-	/* Information about the current signal */
-	struct signal_info sinfo;
 
 	/* Process personality */
 	unsigned long personality;

@@ -87,9 +87,9 @@ void div0_exception(struct registers *ctx)
 		panic("Divide by zero exception");
 	}
 
-	struct process *current = get_current_process();
+	struct thread *current = get_current_thread();
 
-	kernel_raise_signal(SIGFPE, current);
+	kernel_tkill(SIGFPE, current);
 }
 
 void setup_debug_register(unsigned long addr, unsigned int size, unsigned int condition);
@@ -104,9 +104,9 @@ void debug_trap(struct registers *ctx)
 
 	//printk("Trap at %lx rbp %lx!\n", ctx->rip, ctx->rbp);
 
-	struct process *current = get_current_process();
+	struct thread *current = get_current_thread();
 
-	kernel_raise_signal(SIGTRAP, current);
+	kernel_tkill(SIGTRAP, current);
 }
 
 void nmi_exception(struct registers *ctx)
@@ -124,9 +124,9 @@ void overflow_trap(struct registers *ctx)
 		panic("Overflow trap");
 	}
 
-	struct process *current = get_current_process();
+	struct thread *current = get_current_thread();
 
-	kernel_raise_signal(SIGSEGV, current);
+	kernel_tkill(SIGSEGV, current);
 }
 
 void boundrange_exception(struct registers *ctx)
@@ -137,9 +137,9 @@ void boundrange_exception(struct registers *ctx)
 		panic("Bound range trap");
 	}
 
-	struct process *current = get_current_process();
+	struct thread *current = get_current_thread();
 
-	kernel_raise_signal(SIGILL, current);
+	kernel_tkill(SIGILL, current);
 }
 
 void invalid_opcode_exception(struct registers *ctx)
@@ -150,9 +150,9 @@ void invalid_opcode_exception(struct registers *ctx)
 		panic("Invalid instruction exception");
 	}
 
-	struct process *current = get_current_process();
+	struct thread *current = get_current_thread();
 
-	kernel_raise_signal(SIGILL, current);
+	kernel_tkill(SIGILL, current);
 }
 
 void device_not_avail_excp(struct registers *ctx)
@@ -166,9 +166,9 @@ void device_not_avail_excp(struct registers *ctx)
 		panic("FPU exception");
 	}
 
-	struct process *current = get_current_process();
+	struct thread *current = get_current_thread();
 
-	kernel_raise_signal(SIGFPE, current);
+	kernel_tkill(SIGFPE, current);
 }
 void __double_fault(struct registers *ctx)
 {
@@ -190,9 +190,9 @@ void stack_segment_fault(struct registers *ctx)
 		panic("Stack segment fault");
 	}
 
-	struct process *current = get_current_process();
+	struct thread *current = get_current_thread();
 
-	kernel_raise_signal(SIGSEGV, current);
+	kernel_tkill(SIGSEGV, current);
 }
 
 void general_protection_fault(struct registers *ctx)
@@ -211,11 +211,11 @@ void general_protection_fault(struct registers *ctx)
 		panic("General protection fault");
 	}
 
-	struct process *current = get_current_process();
+	struct thread *current = get_current_thread();
 	(void) current;
 	dump_interrupt_context(ctx);
 	printk("GPF error code: %04x\n", (uint16_t) ctx->int_err_code);
-	kernel_raise_signal(SIGSEGV, current);
+	kernel_tkill(SIGSEGV, current);
 }
 
 void stack_trace_user(uintptr_t *stack);
@@ -261,9 +261,9 @@ void x87_fpu_exception(struct registers *ctx)
 		panic("FPU exception");
 	}
 
-	struct process *current = get_current_process();
+	struct thread *current = get_current_thread();
 
-	kernel_raise_signal(SIGFPE, current);
+	kernel_tkill(SIGFPE, current);
 }
 
 void alignment_check_excp(struct registers *ctx)
@@ -274,9 +274,9 @@ void alignment_check_excp(struct registers *ctx)
 		panic("Alignment check exception");
 	}
 
-	struct process *current = get_current_process();
+	struct thread *current = get_current_thread();
 
-	kernel_raise_signal(SIGSEGV, current);
+	kernel_tkill(SIGSEGV, current);
 }
 
 void simd_fpu_exception(struct registers *ctx)
@@ -290,9 +290,9 @@ void simd_fpu_exception(struct registers *ctx)
 		panic("FPU exception");
 	}
 
-	struct process *current = get_current_process();
+	struct thread *current = get_current_thread();
 
-	kernel_raise_signal(SIGFPE, current);
+	kernel_tkill(SIGFPE, current);
 }
 
 void virtualization_exception(struct registers *ctx)
@@ -303,9 +303,9 @@ void virtualization_exception(struct registers *ctx)
 		panic("Virtualization exception");
 	}
 
-	struct process *current = get_current_process();
+	struct thread *current = get_current_thread();
 
-	kernel_raise_signal(SIGSEGV, current);
+	kernel_tkill(SIGSEGV, current);
 }
 
 void security_exception(struct registers *ctx)
@@ -316,9 +316,9 @@ void security_exception(struct registers *ctx)
 		panic("Security exception");
 	}
 
-	struct process *current = get_current_process();
+	struct thread *current = get_current_thread();
 
-	kernel_raise_signal(SIGSEGV, current);
+	kernel_tkill(SIGSEGV, current);
 }
 
 void breakpoint_exception(struct registers *ctx)
@@ -329,9 +329,9 @@ void breakpoint_exception(struct registers *ctx)
 		panic("Breakpoint exception");
 	}
 
-	struct process *current = get_current_process();
+	struct thread *current = get_current_thread();
 
-	kernel_raise_signal(SIGTRAP, current);
+	kernel_tkill(SIGTRAP, current);
 }
 
 void invalid_tss_exception(struct registers *ctx)
@@ -348,9 +348,9 @@ void segment_not_present_excp(struct registers *ctx)
 		panic("Segment not present exception");
 	}
 
-	struct process *current = get_current_process();
+	struct thread *current = get_current_thread();
 
-	kernel_raise_signal(SIGSEGV, current);
+	kernel_tkill(SIGSEGV, current);
 }
 
 void machine_check(struct registers *ctx)

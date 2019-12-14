@@ -10,6 +10,8 @@
 #include <onyx/x86/pat.h>
 #include <onyx/vm.h>
 
+#include <onyx/x86/msr.h>
+
 #define PAT_WB_INDEX		0
 #define PAT_WT_INDEX		1
 #define PAT_UNCACHED_INDEX	2

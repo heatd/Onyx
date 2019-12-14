@@ -10,6 +10,8 @@
 #include <onyx/clock.h>
 #include <onyx/cpu.h>
 #include <onyx/log.h>
+#include <onyx/timer.h>
+
 #include <fractions.h>
 
 #include <onyx/x86/tsc.h>
@@ -51,8 +53,6 @@ hrtime_t tsc_get_counter_from_ns(hrtime_t t)
 
 	return fract_mult_u64_fract(tsc_ns_time, &ticks_per_ns);
 }
-
-#include <onyx/timer.h>
 
 static bool tsc_enabled = false;
 

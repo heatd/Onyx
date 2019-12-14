@@ -10,6 +10,9 @@
 
 #ifndef __ASSEMBLER__
 
+#include <stdbool.h>
+#include <onyx/x86/segments.h>
+
 typedef struct registers
 {
 	unsigned long ds;
@@ -36,6 +39,11 @@ typedef struct registers
 	unsigned long rsp;
 	unsigned long ss;
 } registers_t;
+
+static inline bool in_kernel_space_regs(struct registers *regs)
+{
+	return regs->cs == KERNEL_CS; 
+}
 
 #endif
 

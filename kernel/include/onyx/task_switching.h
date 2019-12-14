@@ -12,11 +12,12 @@
 #include <onyx/registers.h>
 #include <onyx/fpu.h>
 
-#define THREAD_RUNNABLE 0
-#define THREAD_BLOCKED 	1
-#define THREAD_SLEEPING 2
-#define THREAD_IDLE	3
-#define THREAD_DEAD	4
+#define THREAD_RUNNABLE		0
+#define THREAD_INTERRUPTIBLE 	1
+#define THREAD_SLEEPING		2
+#define THREAD_IDLE		3
+#define THREAD_DEAD		4
+#define THREAD_UNINTERRUPTIBLE	5
 
 thread_t* task_switching_create_context(thread_callback_t callback,
 uint32_t flags, void* args);

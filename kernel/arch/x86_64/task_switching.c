@@ -27,6 +27,9 @@
 #include <onyx/syscall.h>
 #include <onyx/percpu.h>
 
+#include <onyx/x86/segments.h>
+#include <onyx/x86/msr.h>
+
 #include <sys/time.h>
 
 /* Creates a thread for the scheduler to switch to
@@ -105,9 +108,9 @@ thread_t* task_switching_create_context(thread_callback_t callback, uint32_t fla
 	if(!(flags & THREAD_KERNEL))
 		original_stack = (uintptr_t) new_thread->user_stack;
 
-	uint64_t ds = 0x10, cs = 0x08, rf = 0x202;
+	uint64_t ds = KERNEL_DS, cs = KERNEL_CS, rf = 0x202;
 	if(!(flags & THREAD_KERNEL))
-		ds = 0x33, cs = 0x2b, rf = 0x202;
+		ds = USER_DS, cs = USER_CS, rf = 0x202;
 
 	*--stack = ds; //SS
 	*--stack = original_stack; //RSP
@@ -272,6 +275,7 @@ void thread_finish_destruction(void *___thread)
 	/* Free the fpu area */
 	free(thread->fpu_area);
 
+	thread_remove_from_list(thread);
 	/* Free the thread */
 	free(thread);
 }
@@ -312,7 +316,7 @@ thread_t *sched_spawn_thread(registers_t *regs, thread_callback_t start, void *a
 	new_thread->owner = get_current_process();
 
 	uint64_t *stack = new_thread->kernel_stack;
-	uint64_t ds = 0x33, cs = 0x2b, rflags = regs->rflags;
+	uint64_t ds = USER_DS, cs = USER_CS, rflags = regs->rflags;
 
 	new_thread->rip = start;
 	*--stack = ds; //SS
@@ -340,6 +344,8 @@ thread_t *sched_spawn_thread(registers_t *regs, thread_callback_t start, void *a
 
 	new_thread->kernel_stack = stack;
 	new_thread->fs = fs;
+
+	thread_append_to_global_list(new_thread);
 
 	return new_thread;
 }

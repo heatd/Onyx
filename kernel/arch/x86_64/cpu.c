@@ -44,6 +44,7 @@ USES_FANCY_END
 #include <onyx/fpu.h>
 #include <onyx/percpu.h>
 
+#include <onyx/x86/msr.h>
 #include <onyx/x86/platform_info.h>
 #include <onyx/x86/tsc.h>
 #include <onyx/x86/segments.h>

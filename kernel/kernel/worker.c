@@ -34,7 +34,7 @@ void work_do_work(void* context)
 	
 		mutex_unlock(&work_queue_mutex);
 		/* Set the thread state to sleeping and yield */
-		set_current_state(THREAD_BLOCKED);
+		set_current_state(THREAD_UNINTERRUPTIBLE);
 		sched_yield();
 	}
 }
