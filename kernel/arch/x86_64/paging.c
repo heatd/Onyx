@@ -38,7 +38,7 @@ void* paging_map_phys_to_virt(PML *__pml, uint64_t virt, uint64_t phys, uint64_t
 
 static inline void __native_tlb_invalidate_page(void *addr)
 {
-	__asm__ __volatile__("invlpg %0"::"m"(addr));
+	__asm__ __volatile__("invlpg (%0)" : : "b"(addr) : "memory");
 }
 
 static inline uint64_t make_pml4e(uint64_t base,
@@ -213,10 +213,15 @@ volatile int __gdb_debug_counter = 0; \
 while(__gdb_debug_counter != 1)
 
 
+void __native_tlb_invalidate_all(void)
+{
+	__asm__ __volatile__("mov %%cr3, %%rax\nmov %%rax, %%cr3":::"rax");
+}
+
 void *x86_placement_map(unsigned long _phys)
 {
 	if(_phys > placement_mappings_start)
-		while(true) {} // HMMMMM, :thinking emoji:
+		__asm__ __volatile__("ud2"); // HMMMMM, :thinking emoji:
 	//printf("_phys: %lx\n", _phys);
 	unsigned long phys = _phys & ~(PAGE_SIZE - 1);
 	//printf("phys: %lx\n", phys);

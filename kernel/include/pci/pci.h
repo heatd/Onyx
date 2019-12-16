@@ -27,9 +27,10 @@
 #define PCI_REGISTER_COMMAND 			0x4
 #define PCI_REGISTER_STATUS			0x6
 #define PCI_REGISTER_HEADER			0xe
-#define PCI_REGISTER_CLASS			0xb
+#define PCI_REGISTER_REVISION_ID		0x8
+#define PCI_REGISTER_PROGIF			0x9
 #define PCI_REGISTER_SUBCLASS			0xa
-#define PCI_REGISTER_PROGIF			0xc
+#define PCI_REGISTER_CLASS			0xb
 #define PCI_REGISTER_SUBSYSTEM_VID		0x2c
 #define PCI_REGISTER_SUBSYSTEM_ID		0x2e
 #define PCI_REGISTER_CAPABILTIES_POINTER	0x34
@@ -175,8 +176,9 @@ struct pci_id
 .subclass = PCI_ANY_ID, .progif = PCI_ANY_ID, .driver_data = drv_data
 
 #define PCI_ID_CLASS(c, s, p, drv_data) \
+.device_id = PCI_ANY_ID, .vendor_id = PCI_ANY_ID, \
 .pci_class = c, .subclass = s, .progif = p, \
-.device_id = PCI_ANY_ID, .vendor_id = PCI_ANY_ID, .driver_data = drv_data
+.driver_data = drv_data
 
 #ifdef __cplusplus
 extern "C" {

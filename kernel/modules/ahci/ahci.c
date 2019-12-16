@@ -48,7 +48,8 @@ static ahci_hba_memory_regs_t *hba = NULL;
 void ahci_wake_io(void *ctx)
 {
 	struct aio_req *req = ctx;
-	sem_signal(&req->wake_sem);
+	req->wake_sem.counter = 1;
+	//sem_signal(&req->wake_sem);
 }
 
 void ahci_deal_aio(struct command_list *list)
@@ -356,6 +357,7 @@ bool ahci_do_command(struct ahci_port *ahci_port, struct ahci_command_ata *buf)
 	/* TODO: Maybe do it on large reads? */
 	while(!req.wake_sem.counter)
 		cpu_relax();
+	//sem_wait(&req.wake_sem);
 
 	vm_unlock_range(buf->buffer, buf->size, VM_FUTURE_PAGES);
 
@@ -629,8 +631,6 @@ void ahci_enable_interrupts_for_port(ahci_port_t *port)
 
 void ahci_free_list(struct ahci_port *port, size_t idx)
 {
-	spin_lock_irqsave(&port->port_lock);
-
 	command_list_t *list = port->clist + idx;
 
 	list->prdbc = 0;
@@ -638,8 +638,6 @@ void ahci_free_list(struct ahci_port *port, size_t idx)
 	port->cmdslots[idx].req = NULL;
 
 	list->prdtl = 0;
-
-	spin_unlock_irqrestore(&port->port_lock);
 }
 
 void ahci_destroy_aio(struct ahci_port *port, struct aio_req *req)

@@ -30,6 +30,7 @@
 #include <onyx/arch.h>
 #include <onyx/percpu.h>
 #include <onyx/user.h>
+#include <onyx/timer.h>
 
 #include <libdict/dict.h>
 
@@ -1420,12 +1421,16 @@ int __vm_handle_pf(struct vm_region *entry, struct fault_info *info)
 	uintptr_t vpage = info->fault_address & -PAGE_SIZE;
 	struct page *page = NULL;
 
+	//hrtime_t start = get_main_clock()->get_ns();
+	
 	if(!(page = vmo_get(entry->vmo, (vpage - entry->base) + entry->offset, true)))
 	{
 		info->error = VM_SIGSEGV;
 		printk("Error getting page\n");
 		return -1;
 	}
+
+	//hrtime_t end = get_main_clock()->get_ns();
 
 	if(!map_pages_to_vaddr((void *) vpage, page_to_phys(page), PAGE_SIZE, entry->rwx))
 	{
@@ -1434,6 +1439,7 @@ int __vm_handle_pf(struct vm_region *entry, struct fault_info *info)
 		return -1;
 	}
 
+	//printk("elapsed: %lu ns\n", end - start);
 	return 0;
 }
 

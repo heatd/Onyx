@@ -112,11 +112,6 @@ size_t ext2_read(int flags, size_t offset, size_t sizeofreading, void *buffer, s
 
 	size_t size = ext2_read_inode(ino, fs, to_be_read, offset, buffer);
 
-	/*if(node->i_inode == 32520)
-	{
-		printk("Data: %s\n", buffer);
-		while(1);
-	}*/
 	free(ino);
 	return size;
 }

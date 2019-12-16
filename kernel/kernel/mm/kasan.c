@@ -32,7 +32,7 @@
 #define KASAN_FREED		-2
 
 
-PER_CPU_VAR(bool kasan_is_init) = false;
+bool kasan_is_init = false;
 
 #define ADDR_SPACE_SIZE		(KADDR_SPACE_SIZE/8)
 

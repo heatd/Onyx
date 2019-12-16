@@ -778,7 +778,7 @@ static void dequeue_thread_##primitive_name(primitive_struct *s, thread_t *threa
 											\
 	if(s->tail == thread)								\
 	{										\
-		s->tail = NULL;								\
+		s->tail = thread->sem_prev;						\
 	}										\
 											\
 											\

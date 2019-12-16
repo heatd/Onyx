@@ -56,7 +56,7 @@ void *expand_heap(size_t size)
 
 	heap.size += nr_pages << PAGE_SHIFT;
 #ifdef CONFIG_KASAN
-	kasan_alloc_shadow((unsigned long) alloc_start, nr_pages << PAGE_SHIFT, -1);
+	kasan_alloc_shadow((unsigned long) alloc_start, nr_pages << PAGE_SHIFT, false);
 #endif
 	return alloc_start;
 }

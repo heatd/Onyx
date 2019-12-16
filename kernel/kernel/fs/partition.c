@@ -11,7 +11,7 @@
 #include <mbr.h>
 #include <gpt.h>
 
-static volatile fs_handler mbr_code_handlers[0xFF];
+static fs_handler mbr_code_handlers[0xFF];
 static filesystem_mount_t *filesystems = NULL;
 
 void insert_filesystem_mount(filesystem_mount_t *m)

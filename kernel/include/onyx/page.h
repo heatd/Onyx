@@ -151,6 +151,7 @@ struct page *page_add_page_late(void *paddr);
 
 #define PAGE_ALLOC_CONTIGUOUS	(1 << 0)
 #define PAGE_ALLOC_NO_ZERO	(1 << 1)
+#define PAGE_ALLOC_4GB_LIMIT	(1 << 2)
 
 static inline bool __page_should_zero(unsigned long flags)
 {

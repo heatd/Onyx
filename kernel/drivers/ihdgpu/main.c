@@ -152,6 +152,9 @@ int ihdgpu_probe(struct device *dev)
 		printf("igpu: Could not reset device\n");
 	}
 
+	printk("reset pci device\n");
+
+	return 0;
 	d->device = device;
 	d->mmio_regs = (volatile void *) device_registers;
 	d->gpu_memory = (volatile void *) gpu_memory;

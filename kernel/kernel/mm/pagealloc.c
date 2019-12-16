@@ -64,6 +64,7 @@ struct page_cpu main_cpu = {0};
 	arena = arena->next)
 
 
+#define ADDRESS_4GB_MARK		0x100000000
 struct page *page_alloc_from_arena(size_t nr_pages, unsigned long flags, struct page_arena *arena)
 {
 	spin_lock(&arena->lock);
@@ -89,6 +90,11 @@ struct page *page_alloc_from_arena(size_t nr_pages, unsigned long flags, struct 
 			found_pages = 0;
 			found_base = false;
 			continue;
+		}
+		else if(flags & PAGE_ALLOC_4GB_LIMIT && (uintptr_t) p > ADDRESS_4GB_MARK)
+		{
+			spin_unlock(&arena->lock);
+			return NULL;
 		}
 		else
 		{
@@ -169,6 +175,12 @@ struct page *page_alloc(size_t nr_pages, unsigned long flags)
 	struct page *pages = NULL;
 	for_every_arena(&main_cpu)
 	{
+		if(flags & PAGE_ALLOC_4GB_LIMIT &&
+			(unsigned long) arena->start_arena > ADDRESS_4GB_MARK)
+		{
+			return NULL;
+		}
+
 		if(arena->free_pages < nr_pages)
 			continue;
 		if((pages = page_alloc_from_arena(nr_pages, flags, arena)) != NULL)

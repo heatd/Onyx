@@ -95,9 +95,8 @@ all: onyx-vdso.so.0 vmonyx
 
 .PHONY: all clean install install-headers install-kernel kernel-modules
 
-vmonyx: $(OBJ_LINK_LIST) $(ARCHDIR)/linker.ld
+vmonyx: $(OBJ_LINK_LIST) $(ARCHDIR)/linker.ld ../libc/libk.a
 	@echo [LD] $@
-	echo $(OBJ_LINK_LIST)
 	# Very important to note that right now, the kernel can only link using
 	# ld.bfd due to linker script weirdness. Because of that, we pass -fuse-ld=bfd
 	@$(CC) -fuse-ld=bfd -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(OBJ_LINK_LIST) $(LDFLAGS) $(LIBS)

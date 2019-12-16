@@ -285,7 +285,7 @@ void pcie_enumerate_device(uint8_t bus, uint8_t device, uint8_t function, struct
 	dev->device = device;
 	dev->segment = alloc->segment;
 	dev->vendorID = vendor;
-	dev->deviceID = (__pcie_read(bus, device, function, alloc, PCI_REGISTER_DEVICE_ID, sizeof(uint32_t)) >> 16);
+	dev->deviceID = (__pcie_read(bus, device, function, alloc, PCI_REGISTER_DEVICE_ID, sizeof(uint16_t)));
 	dev->pciClass = pciClass;
 	dev->subClass = subClass;
 	dev->progIF = progIF;

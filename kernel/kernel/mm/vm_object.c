@@ -78,12 +78,14 @@ struct vm_object *vmo_create_phys(size_t size)
 /*
  * Populates a VMO
 */
+#include <onyx/timer.h>
 
 struct page *vmo_populate(struct vm_object *vmo, size_t off)
 {
 	MUST_HOLD_LOCK(&vmo->page_lock);
 	assert(vmo->commit != NULL);
 
+	//hrtime_t s = get_main_clock()->get_ns();
 	struct page *page = vmo->commit(off, vmo);
 	if(!page)
 	{
@@ -91,6 +93,7 @@ struct page *vmo_populate(struct vm_object *vmo, size_t off)
 		return NULL;
 	}
 
+	//hrtime_t end = get_main_clock()->get_ns();
 	page->off = off;
 
 	dict_insert_result res = rb_tree_insert(vmo->pages, (void *) page->off);

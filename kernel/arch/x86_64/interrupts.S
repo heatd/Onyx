@@ -576,6 +576,7 @@ platform_yield:
 	add $8, %rax
 	push %rax /* %rsp */
 	pushf /* %rflags */
+	cli
 	push $KERNEL_CS /* %cs */
 	push $.return_label /* %rip */
 	sub $REGISTERS_UNUSED_OFF, %rsp

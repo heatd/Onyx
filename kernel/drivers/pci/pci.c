@@ -707,9 +707,12 @@ void pci_bus_register_driver(struct driver *driver)
 	for(struct device *dev = pcie_bus.devs; dev != NULL; dev = dev->next)
 	{
 		struct pci_id *id;
+		struct pci_device *d = (void *) dev;
+		/*printk("%04x:%02x:%02x:%02x -> %04x:%04x\n",
+			d->segment, d->bus, d->device, d->function,
+			d->deviceID, d->vendorID);*/
 		if((id = pci_driver_supports_device(driver, dev)))
 		{
-			struct pci_device *d = (void *) dev;
 			d->driver_data = id->driver_data;
 			driver_register_device(driver, dev);
 			if(driver->probe(dev) < 0)
