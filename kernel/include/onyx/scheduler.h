@@ -12,6 +12,7 @@
 
 #include <onyx/spinlock.h>
 #include <onyx/signal.h>
+#include <onyx/list.h>
 
 #define NUM_PRIO 40
 
@@ -49,6 +50,7 @@ typedef struct thread
 	struct spinlock *to_release;
 	int errno_val;
 	struct signal_info sinfo;
+	struct list_head thread_list_head;
 	/* And arch dependent stuff in this ifdef */
 #ifdef __x86_64__
 	void *fs;

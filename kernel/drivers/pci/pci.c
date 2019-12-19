@@ -116,7 +116,7 @@ void __pci_write_word(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, u
 int pci_set_power_state(struct pci_device *dev, int power_state)
 {
 	struct pci_device *element = NULL;
-	void *saveptr = NULL; /* Used by list_get_element in a strtok_r kind of way */
+	void *saveptr = NULL; /* Used by extrusive_list_get_element in a strtok_r kind of way */
 	/* If we can't perform power management on this device, just return 
 	 * success(it wasn't really an error was it?) 
 	*/
@@ -135,7 +135,7 @@ int pci_set_power_state(struct pci_device *dev, int power_state)
 		return -EINVAL;	/* If not, just return */
 
 	/* Set its children's power state as well */
-	while((element = list_get_element(&dev->dev.children, &saveptr)))
+	while((element = extrusive_list_get_element(&dev->dev.children, &saveptr)))
 	{
 		pci_set_power_state(element, power_state);
 	}
@@ -256,7 +256,7 @@ void pci_enumerate_device(uint16_t bus, uint8_t device, uint8_t function, struct
 	{
 		dev->dev.parent = (struct device*) parent;
 		/* Failing to enumerate PCI devices is pretty much a failure anyway */
-		assert(list_add(&dev->dev.children, dev) == 0);		
+		assert(extrusive_list_add(&dev->dev.children, dev) == 0);		
 	}
 
 	last = dev;

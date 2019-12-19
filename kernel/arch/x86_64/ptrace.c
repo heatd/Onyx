@@ -15,6 +15,7 @@
 #include <onyx/ptrace.h>
 #include <onyx/vm.h>
 #include <onyx/fpu.h>
+#include <onyx/panic.h>
 
 #include <sys/ptrace.h>
 
@@ -83,6 +84,8 @@ int ptrace_getregs(struct process *process, struct user_regs_struct *regs)
 {
 	/* TODO: We currently don't support multi-threaded ptracing, since in Onyx processes have threads
 	 * (instead of linux's threads each have a process hack) */
+	panic("implement");
+#if 0
 	thread_t *main_thread = process->threads[0];
 
 	/* Registers are stored on the kernel stack(x86_64) */
@@ -111,9 +114,11 @@ int ptrace_getregs(struct process *process, struct user_regs_struct *regs)
 	regs->ds = regs->ss = regs->es = regs->fs = regs->gs = r->ss;
 	regs->fs_base = (uintptr_t) main_thread->fs;
 	return 0;
+#endif
 }
 int ptrace_getfpregs(struct process *process, struct user_fpregs_struct *regs)
 {
-	fpu_ptrace_getfpregs((void*) process->threads[0]->fpu_area, regs);
+	panic("implement");
+	//fpu_ptrace_getfpregs((void*) process->threads[0]->fpu_area, regs);
 	return 0;
 }

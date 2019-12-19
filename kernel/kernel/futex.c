@@ -64,7 +64,7 @@ int futex_enqueue_thread(struct futex *ftx)
 	spin_lock(&ftx->block_thread_lock);
 	if(!ftx->waiting_threads)
 	{
-		ftx->waiting_threads = malloc(sizeof(struct list_head));
+		ftx->waiting_threads = malloc(sizeof(struct extrusive_list_head));
 		if(!ftx->waiting_threads)
 		{
 			spin_unlock(&ftx->block_thread_lock);
@@ -75,7 +75,7 @@ int futex_enqueue_thread(struct futex *ftx)
 	}
 	else
 	{
-		if(list_add(ftx->waiting_threads, get_current_thread()) < 0)
+		if(extrusive_list_add(ftx->waiting_threads, get_current_thread()) < 0)
 		{
 			spin_unlock(&ftx->block_thread_lock);
 			return -1;
@@ -122,11 +122,11 @@ int futex_wake(struct futex *ftx, int val)
 {
 	int woken_up = 0;
 	spin_lock(&ftx->block_thread_lock);
-	struct list_head *thr_list = ftx->waiting_threads;
+	struct extrusive_list_head *thr_list = ftx->waiting_threads;
 	while(val-- && thr_list)
 	{
 		thread_wake_up_ftx(thr_list->ptr);
-		struct list_head *l = thr_list;
+		struct extrusive_list_head *l = thr_list;
 		thr_list = thr_list->next;
 		free(l);
 		woken_up++;

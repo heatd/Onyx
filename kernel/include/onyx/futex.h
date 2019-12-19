@@ -32,7 +32,7 @@ struct futex
 {
 	int *address;
 	struct spinlock block_thread_lock;
-	struct list_head *waiting_threads;
+	struct extrusive_list_head *waiting_threads;
 	struct futex *next;
 };
 

@@ -77,7 +77,7 @@ struct page
 typedef struct free_area
 {
 	/* Each of them contains a list of free pages */
-	struct list_head free_list;
+	struct extrusive_list_head free_list;
 	/* And a bitmap of buddies */
 	unsigned long *map;
 	/* Each "sub-zone" has a buddy, and to merge an area into a larger area, 

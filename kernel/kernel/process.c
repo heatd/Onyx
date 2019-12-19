@@ -214,10 +214,12 @@ struct process *process_create(const char *cmd_line, ioctx_t *ctx, struct proces
 
 	process_append_to_global_list(proc);
 
+	INIT_LIST_HEAD(&proc->thread_list);
+
 	return proc;
 }
 
-void process_create_thread(struct process *proc, thread_callback_t callback,
+struct thread *process_create_thread(struct process *proc, thread_callback_t callback,
 	uint32_t flags, int argc, char **argv, char **envp)
 {
 	thread_t *thread = NULL;
@@ -227,23 +229,21 @@ void process_create_thread(struct process *proc, thread_callback_t callback,
 		thread = sched_create_main_thread(callback, flags,
 						  argc, argv, envp);
 
-	int is_set = 0;
-	for(int i = 0; i < THREADS_PER_PROCESS; i++)
-	{
-		if(proc->threads[i] == NULL)
-		{
-			proc->threads[i] = thread;
-			thread->owner = proc;
-			is_set = 1;
-			break;
-		}
-	}
+	if(!thread)
+		return NULL;
 
-	if(!is_set)
-		thread_destroy(thread);
+	spin_lock(&proc->thread_list_lock);
+
+	list_add_tail(&thread->thread_list_head, &proc->thread_list);
+
+	spin_unlock(&proc->thread_list_lock);
+
+	thread->owner = proc;
+
+	return thread;
 }
 
-int process_fork_thread(thread_t *src, struct process *dest, struct syscall_frame *ctx)
+struct thread *process_fork_thread(thread_t *src, struct process *dest, struct syscall_frame *ctx)
 {
 	registers_t 	regs;
 	uintptr_t 	rsp;
@@ -277,13 +277,13 @@ int process_fork_thread(thread_t *src, struct process *dest, struct syscall_fram
 	thread_t *thread = sched_spawn_thread(&regs, (thread_callback_t) regs.rip,
 					      (void*) regs.rdi, src->fs);
 	if(!thread)
-		return -1;
+		return NULL;
 
 	save_fpu(thread->fpu_area);
 
-	dest->threads[0] = thread;
+	list_add_tail(&thread->thread_list_head, &dest->thread_list);
 	thread->owner = dest;
-	return 0;
+	return thread;
 }
 
 struct process *get_process_from_pid(pid_t pid)
@@ -407,6 +407,7 @@ void *process_setup_auxv(void *buffer, struct process *process)
 	return auxv;
 }
 
+#if 0
 void process_setup_pthread(thread_t *thread, struct process *process)
 {
 	/* TODO: Do this portably */
@@ -418,6 +419,7 @@ void process_setup_pthread(thread_t *thread, struct process *process)
 	p->tid = get_current_process()->threads[0]->id;
 	p->pid = get_current_process()->pid;
 }
+#endif
 
 /*
 	return_from_execve(): Return from execve, while loading registers and zero'ing the others.
@@ -660,7 +662,7 @@ pid_t sys_fork(struct syscall_frame *ctx)
 	thread_t 	*to_be_forked;
 
 	proc = (struct process*) get_current_process();
-	to_be_forked = proc->threads[0];	
+	to_be_forked = get_current_thread();	
 	/* Create a new process */
 	child = process_create(strdup(proc->cmd_line), &proc->ctx, proc);
 
@@ -672,11 +674,16 @@ pid_t sys_fork(struct syscall_frame *ctx)
 		return -ENOMEM;
 
 	/* Fork and create the new thread */
-	process_fork_thread(to_be_forked, child, ctx);
+	struct thread *new = process_fork_thread(to_be_forked, child, ctx);
 
-	process_copy_current_sigmask(child->threads[0]);
+	if(!new)
+	{
+		panic("TODO: Add process destruction here.\n");
+	}
 
-	sched_start_thread(child->threads[0]);
+	process_copy_current_sigmask(new);
+
+	sched_start_thread(new);
 
 	// Return the pid to the caller
 	return child->pid;
@@ -868,11 +875,10 @@ void process_wait_for_dead_threads(struct process *process)
 	{
 		goaway = true;
 
-		for(int i = 0; i < THREADS_PER_PROCESS; i++)
+		list_for_every(&process->thread_list)
 		{
-			if(!process->threads[i])
-				continue;
-			struct thread *t = process->threads[i];
+			struct thread *t = container_of(l, struct thread, thread_list_head);
+
 			if(t->status != THREAD_DEAD)
 			{
 				goaway = false;
@@ -904,9 +910,10 @@ void process_end(struct process *process)
 	if(process->ctx.cwd)
 		object_unref(&process->ctx.cwd->i_object);
 
-	for(int i = 0; i < THREADS_PER_PROCESS; i++)
+	list_for_every_safe(&process->thread_list)
 	{
-		if(process->threads[i]) thread_destroy(process->threads[i]);
+		struct thread *thread = container_of(l, struct thread, thread_list_head);
+		thread_destroy(thread);
 	}
 
 	futex_free_queue(process);
@@ -934,16 +941,16 @@ void process_reparent_children(struct process *process)
 	spin_unlock(&process->children_lock);
 }
 
-void process_kill_other_threads()
+void process_kill_other_threads(void)
 {
 	struct process *current = get_current_process();
 	struct thread *current_thread = get_current_thread();
 	unsigned long threads_to_wait_for = 0;
 	/* TODO: Fix thread killing */
-	for(int i = 0; i < THREADS_PER_PROCESS; i++)
+	list_for_every(&current->thread_list)
 	{
-		struct thread *t = current->threads[i];
-		if(!t || t == current_thread)
+		struct thread *t = container_of(l, struct thread, thread_list_head);
+		if(t == current_thread)
 			continue;
 		t->flags |= THREAD_SHOULD_DIE;
 		threads_to_wait_for++;
@@ -951,9 +958,9 @@ void process_kill_other_threads()
 
 	while(threads_to_wait_for != 0)
 	{
-		for(int i = 0; i < THREADS_PER_PROCESS; i++)
+		list_for_every_safe(&current->thread_list)
 		{
-			struct thread *t = current->threads[i];
+			struct thread *t = container_of(l, struct thread, thread_list_head);
 
 			if(t && t->status == THREAD_DEAD &&
 				(t->flags & THREAD_SHOULD_DIE) &&
@@ -962,7 +969,7 @@ void process_kill_other_threads()
 				threads_to_wait_for--;
 				current->nr_threads--;
 				t->flags &= ~THREAD_SHOULD_DIE;	
-				current->threads[i] = NULL;
+				list_remove(l);
 			}
 		}
 	}
@@ -1017,7 +1024,7 @@ int process_attach(struct process *tracer, struct process *tracee)
 	}
 	else
 	{
-		if(list_add(&tracer->tracees, tracee) < 0)
+		if(extrusive_list_add(&tracer->tracees, tracee) < 0)
 			return errno = ENOMEM, -1;
 	}
 	return 0;
@@ -1026,7 +1033,7 @@ int process_attach(struct process *tracer, struct process *tracee)
 /* Finds a pid that tracer is tracing */
 struct process *process_find_tracee(struct process *tracer, pid_t pid)
 {
-	struct list_head *list = &tracer->tracees;
+	struct extrusive_list_head *list = &tracer->tracees;
 	while(list && list->ptr)
 	{
 		struct process *tracee = list->ptr;
@@ -1039,15 +1046,13 @@ struct process *process_find_tracee(struct process *tracer, pid_t pid)
 
 void process_add_thread(struct process *process, thread_t *thread)
 {
-	for(int i = 0; i < THREADS_PER_PROCESS; i++)
-	{
-		if(!process->threads[i])
-		{
-			process->threads[i] = thread;
-			process->nr_threads++;
-			return;
-		}
-	}
+	spin_lock(&process->thread_list_lock);
+
+	list_add_tail(&thread->thread_list_head, &process->thread_list);
+
+	spin_unlock(&process->thread_list_lock);
+
+	process->nr_threads++;
 }
 
 #define CLONE_FORK		(1 << 0)
@@ -1110,14 +1115,10 @@ void process_increment_stats(bool is_kernel)
 
 void process_continue(struct process *p)
 {
-	if(p->threads[0])
-		thread_set_state(p->threads[0], THREAD_RUNNABLE);
+	panic("broken");
 }
 
 void process_stop(struct process *p)
 {
-	if(p->threads[0])
-		thread_set_state(p->threads[0], THREAD_INTERRUPTIBLE);
-	if(p == get_current_process())
-		sched_yield();
+	panic("broken");
 }

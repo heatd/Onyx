@@ -227,7 +227,7 @@ void driver_register_device(struct driver *driver, struct device *dev)
 	atomic_inc(&driver->ref, 1);
 	
 	spin_lock(&driver->device_list_lock);
-	if(list_add(&driver->devices, dev) < 0)
+	if(extrusive_list_add(&driver->devices, dev) < 0)
 		panic("Failed to register device\n");
 
 	spin_unlock(&driver->device_list_lock);
@@ -237,7 +237,7 @@ void driver_deregister_device(struct driver *driver, struct device *dev)
 {
 	spin_lock(&driver->device_list_lock);
 
-	list_remove(&driver->devices, dev);
+	extrusive_list_remove(&driver->devices, dev);
 
 	spin_unlock(&driver->device_list_lock);
 }

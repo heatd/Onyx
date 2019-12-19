@@ -58,7 +58,7 @@ struct driver
 	const char *name;
 	struct bus *bus;
 	struct spinlock device_list_lock;
-	struct list_head devices;
+	struct extrusive_list_head devices;
 	unsigned long ref;
 	void *devids;
 
@@ -78,7 +78,7 @@ struct device
 	struct driver *driver;
 	void *priv;
 
-	struct list_head children;
+	struct extrusive_list_head children;
 	struct device *prev, *next;
 };
 

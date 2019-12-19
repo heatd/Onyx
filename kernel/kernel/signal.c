@@ -191,9 +191,12 @@ void kernel_raise_signal(int sig, struct process *process)
 
 	struct thread *t = NULL;
 
-	for(size_t i = 0; i < process->nr_threads; i++)
+	spin_lock(&process->thread_list_lock);
+
+	list_for_every(&process->thread_list)
 	{
-		struct thread *thr = process->threads[i];
+		struct thread *thr = container_of(l, struct thread, thread_list_head);
+
 		if(!sigismember(&thr->sinfo.sigmask, sig))
 		{
 			t = thr;
@@ -204,12 +207,15 @@ void kernel_raise_signal(int sig, struct process *process)
 	if(t == NULL)
 	{
 		/* If the signal is masked everywhere, just pick the first thread... */
-		t = process->threads[0];
+		t = container_of(list_first_element(&process->thread_list), struct thread,
+			thread_list_head);
 	}
 
 	assert(t != NULL);
 
 	kernel_tkill(sig, t);
+
+	spin_unlock(&process->thread_list_lock);
 }
 
 int kernel_tkill(int signal, struct thread *thread)

@@ -22,7 +22,6 @@
 #include <onyx/syscall.h>
 
 struct futex;
-#define THREADS_PER_PROCESS 30
 
 struct proc_event_sub;
 
@@ -32,8 +31,9 @@ struct process
 	struct process *next;
 
 	unsigned long nr_threads;
-	/* The processes' threads */
-	thread_t *threads[30];
+	
+	struct list_head thread_list;
+	struct spinlock thread_list_lock;
 
 	struct mm_address_space address_space;
 	/* Program name*/
@@ -71,7 +71,7 @@ struct process
 	struct process *parent;
 	
 	/* Linked list to the processes being traced */
-	struct list_head tracees;
+	struct extrusive_list_head tracees;
 
 	/* Futex queue */
 	struct futex *futex_queue;
@@ -104,8 +104,8 @@ extern "C" {
 #endif
 
 struct process *process_create(const char *cmd_line, ioctx_t *ctx, struct process *parent);
-void process_create_thread(struct process *proc, thread_callback_t callback, uint32_t flags, int argc, char **argv, char **envp);
-int process_fork_thread(thread_t *src, struct process *dest, struct syscall_frame *ctx);
+struct thread *process_create_thread(struct process *proc, thread_callback_t callback,
+		uint32_t flags, int argc, char **argv, char **envp);
 struct process *get_process_from_pid(pid_t pid);
 void process_destroy_aspace(void);
 int process_attach(struct process *tracer, struct process *tracee);

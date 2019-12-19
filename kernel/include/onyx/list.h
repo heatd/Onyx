@@ -7,22 +7,88 @@
 #define _KERNEL_LIST_H
 
 #include <stdlib.h>
+#include <stdbool.h>
 
 #include <onyx/compiler.h>
+#include <onyx/utils.h>
+
+/* Implementation of struct list_head like linux, so circular */
+struct list_head
+{
+	struct list_head *prev, *next;
+};
+
+#define LIST_HEAD_INIT(lh)	{&(lh), &(lh)}
+
+#define DEFINE_LIST(name) \
+	struct list_head name = LIST_HEAD_INIT(name);
+
+static inline void INIT_LIST_HEAD(struct list_head *lh)
+{
+	lh->prev = lh;
+	lh->next = lh;
+}
+
+/* Okay, this was very clearly inspired by linux's list.h but it just links together the
+ * new node with rest of the list
+*/
+static inline void __list_add(struct list_head *_new, struct list_head *prev, struct list_head *next)
+{
+	next->prev = _new;
+	_new->next = next;
+	_new->prev = prev;
+	prev->next = _new;
+}
+
+static inline void list_add(struct list_head *_new, struct list_head *head)
+{
+	__list_add(_new, head, head->next);
+}
+
+static inline void list_add_tail(struct list_head *_new, struct list_head *head)
+{
+	__list_add(_new, head->prev, head);
+}
+
+static inline void list_remove(struct list_head *node)
+{
+	node->next->prev = node->prev;
+	node->prev->next = node->next;
+	node->prev = node->next = NULL;
+}
+
+static inline bool list_is_empty(struct list_head *head)
+{
+	return head->next == head;
+} 
+
+static inline struct list_head *list_first_element(struct list_head *head)
+{
+	if(unlikely(list_is_empty(head)))
+		return NULL;
+	return head->next;
+}
+
+#define list_for_every(lh)	for(struct list_head *l = (lh)->next; l != (lh); l = l->next)
+
+/* Again, this one is also very clearly inspired by linux */
+#define list_for_every_safe(lh)	\
+	for(struct list_head *l = (lh)->next, *____tmp = l->next; l != (lh); l = ____tmp, ____tmp = l->next)
 
 /* 
  * TODO: This code is weird, inconsistent, and needs to be rewritten
  * and re-thought.
 */
-struct list_head
+struct extrusive_list_head
 {
 	void *ptr __align_cache;
-	struct list_head *next __align_cache;
+	struct extrusive_list_head *next __align_cache;
 };
 
-static inline int list_add(struct list_head *list, void *ptr)
+static inline int extrusive_list_add(struct extrusive_list_head *list, void *ptr)
 {
-	struct list_head *new_item = (struct list_head*) malloc(sizeof(struct list_head));
+	struct extrusive_list_head *new_item = (struct extrusive_list_head*)
+		malloc(sizeof(struct extrusive_list_head));
 	if(!new_item)
 		return -1;
 	new_item->ptr = ptr;
@@ -34,7 +100,7 @@ static inline int list_add(struct list_head *list, void *ptr)
 	return 0;
 }
 
-static inline void *list_get_element(struct list_head *list, void **saveptr)
+static inline void *extrusive_list_get_element(struct extrusive_list_head *list, void **saveptr)
 {
 	if(!*saveptr)
 	{
@@ -43,8 +109,8 @@ static inline void *list_get_element(struct list_head *list, void **saveptr)
 	}
 	else
 	{
-		struct list_head *current = (struct list_head*) *saveptr;
-		struct list_head *next = current->next;
+		struct extrusive_list_head *current = (struct extrusive_list_head*) *saveptr;
+		struct extrusive_list_head *next = current->next;
 		*saveptr = next;
 		if(!next)
 			return NULL;
@@ -52,7 +118,7 @@ static inline void *list_get_element(struct list_head *list, void **saveptr)
 	}
 }
 
-static inline void list_remove(struct list_head *list, void *ptr)
+static inline void extrusive_list_remove(struct extrusive_list_head *list, void *ptr)
 {
 	if(list->ptr == ptr)
 	{
@@ -60,11 +126,11 @@ static inline void list_remove(struct list_head *list, void *ptr)
 		return;
 	}
 
-	for(struct list_head *l = list; l->next; l = l->next)
+	for(struct extrusive_list_head *l = list; l->next; l = l->next)
 	{
 		if(l->next->ptr == ptr)
 		{
-			struct list_head *a = l->next;
+			struct extrusive_list_head *a = l->next;
 			l->next = a->next;
 			free(a);
 			return;
