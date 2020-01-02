@@ -28,6 +28,7 @@ size_t ext2_write(size_t offset, size_t sizeofwrite, void *buffer, struct inode 
 off_t ext2_getdirent(struct dirent *buf, off_t off, struct inode* this);
 int ext2_stat(struct stat *buf, struct inode *node);
 struct inode *ext2_creat(const char *path, int mode, struct inode *file);
+char *ext2_readlink(struct inode *ino);
 
 struct file_ops ext2_ops = 
 {
@@ -36,7 +37,8 @@ struct file_ops ext2_ops =
 	.write = ext2_write,
 	.getdirent = ext2_getdirent,
 	.stat = ext2_stat,
-	.creat = ext2_creat
+	.creat = ext2_creat,
+	.readlink = ext2_readlink
 };
 
 uuid_t ext2_gpt_uuid[4] = 
@@ -50,7 +52,7 @@ uuid_t ext2_gpt_uuid[4] =
 
 ext2_fs_t *fslist = NULL;
 
-inode_t *ext2_get_inode_from_dir(ext2_fs_t *fs, dir_entry_t *dirent, char *name, uint32_t *inode_number,
+struct ext2_inode *ext2_get_inode_from_dir(ext2_fs_t *fs, dir_entry_t *dirent, char *name, uint32_t *inode_number,
 	size_t size)
 {
 	dir_entry_t *dirs = dirent;
@@ -70,7 +72,7 @@ inode_t *ext2_get_inode_from_dir(ext2_fs_t *fs, dir_entry_t *dirent, char *name,
 size_t ext2_write(size_t offset, size_t sizeofwrite, void *buffer, struct inode *node)
 {
 	ext2_fs_t *fs = node->i_sb->s_helper;
-	inode_t *ino = ext2_get_inode_from_number(fs, node->i_inode);
+	struct ext2_inode *ino = ext2_get_inode_from_node(node);
 	if(!ino)
 		return errno = EINVAL, (size_t) -1;
 
@@ -84,7 +86,6 @@ size_t ext2_write(size_t offset, size_t sizeofwrite, void *buffer, struct inode 
 
 	ext2_update_inode(ino, fs, node->i_inode);
 
-	free(ino);
 	return size;
 }
 
@@ -93,7 +94,7 @@ size_t ext2_read(int flags, size_t offset, size_t sizeofreading, void *buffer, s
 	//printk("Inode read: %lu, off %lu, size %lu\n", node->i_inode, offset, sizeofreading);
 	ext2_fs_t *fs = node->i_sb->s_helper;
 
-	inode_t *ino = ext2_get_inode_from_number(fs, node->i_inode);
+	struct ext2_inode *ino = ext2_get_inode_from_node(node);
 	if(!ino)
 		return errno = EINVAL, -1;
 
@@ -112,22 +113,32 @@ size_t ext2_read(int flags, size_t offset, size_t sizeofreading, void *buffer, s
 
 	size_t size = ext2_read_inode(ino, fs, to_be_read, offset, buffer);
 
-	free(ino);
 	return size;
+}
+
+struct ext2_inode_info *ext2_cache_inode_info(struct inode *ino, struct ext2_inode *fs_ino)
+{
+	struct ext2_inode_info *inf = malloc(sizeof(*inf));
+	if(!inf)
+		return NULL;
+	inf->inode = fs_ino;
+
+	return inf;
 }
 
 struct inode *ext2_open(struct inode *nd, const char *name)
 {
-	uint32_t inoden = nd->i_inode;
 	ext2_fs_t *fs = nd->i_sb->s_helper;
 	uint32_t inode_num;
-	inode_t *ino;
+	struct ext2_inode *ino;
 	char *symlink_path = NULL;
 	struct inode *node = NULL;
+
 	/* Get the inode structure from the number */
-	ino = ext2_get_inode_from_number(fs, inoden);	
+	ino = ext2_get_inode_from_node(nd);	
 	if(!ino)
 		return NULL;
+
 	ino = ext2_traverse_fs(ino, name, fs, &symlink_path, &inode_num);
 	if(!ino)
 		return NULL;
@@ -135,7 +146,10 @@ struct inode *ext2_open(struct inode *nd, const char *name)
 	/* See if we have the inode cached in the 	 */
 	node = superblock_find_inode(nd->i_sb, inode_num);
 	if(node)
+	{
+		free(ino);
 		return node;
+	}
 
 	node = inode_create();
 	if(!node)
@@ -168,9 +182,9 @@ struct inode *ext2_open(struct inode *nd, const char *name)
 	node->i_uid = ino->uid;
 	node->i_gid = ino->gid;
 	node->i_sb = nd->i_sb;
+	node->i_helper = ext2_cache_inode_info(node, ino);
 
 	memcpy(&node->i_fops, &ext2_ops, sizeof(struct file_ops));
-	free(ino);
 
 	/* Cache the inode */
 	superblock_add_inode(nd->i_sb, node);
@@ -185,17 +199,15 @@ struct inode *ext2_creat(const char *name, int mode, struct inode *file)
 	ext2_fs_t *fs = file->i_sb->s_helper;
 	uint32_t inumber = 0;
 
-	inode_t *inode = ext2_allocate_inode(&inumber, fs);
-	inode_t *dir_inode = ext2_get_inode_from_number(fs, file->i_inode);
-	if(!dir_inode)
-		return NULL;
+	struct ext2_inode *inode = ext2_allocate_inode(&inumber, fs);
+	struct ext2_inode *dir_inode = ext2_get_inode_from_node(file);
+
 	if(!inode)
 	{
-		free(dir_inode);
 		return NULL;
 	}
 
-	memset(inode, 0, sizeof(inode_t));
+	memset(inode, 0, sizeof(struct ext2_inode));
 	inode->ctime = inode->atime = inode->mtime = (uint32_t) get_posix_time();
 	inode->hard_links = 1;
 	inode->mode = EXT2_INO_TYPE_REGFILE | mode;
@@ -206,7 +218,6 @@ struct inode *ext2_creat(const char *name, int mode, struct inode *file)
 	if(ext2_add_direntry(name, inumber, inode, dir_inode, fs) < 0)
 	{
 		free(inode);
-		free(dir_inode);
 		ext2_free_inode(inumber, fs);
 		return NULL;
 	}
@@ -218,7 +229,6 @@ struct inode *ext2_creat(const char *name, int mode, struct inode *file)
 	{
 		/* TODO: Remove the direntry from the directory */
 		free(inode);
-		free(dir_inode);
 		ext2_free_inode(inumber, fs);
 		return NULL;
 	}
@@ -247,13 +257,11 @@ struct inode *ext2_creat(const char *name, int mode, struct inode *file)
 	ino->i_uid = inode->uid;
 	ino->i_gid = inode->gid;
 	ino->i_sb = file->i_sb;
+	ino->i_helper = ext2_cache_inode_info(ino, inode);
 
 	memcpy(&ino->i_fops, &ext2_ops, sizeof(struct file_ops));
 	
 	superblock_add_inode(ino->i_sb, ino);
-
-	free(inode);
-	free(dir_inode);
 
 	return ino;
 }
@@ -331,8 +339,10 @@ struct inode *ext2_mount_partition(uint64_t sector, block_device_t *dev)
 	}
 
 	struct inode *node = inode_create();
-	if(!node)
+	struct ext2_inode *ino = ext2_get_inode_from_number(fs, 2);
+	if(!node || !ino)
 	{
+		if(node)	free(node);
 		free(sb);
 		free(new_super);
 		free(fs->zero_block);
@@ -343,6 +353,8 @@ struct inode *ext2_mount_partition(uint64_t sector, block_device_t *dev)
 	node->i_inode = 2;
 	node->i_type = VFS_TYPE_DIR;
 	node->i_sb = new_super;
+	
+	node->i_helper = ext2_cache_inode_info(node, ino);
 
 	new_super->s_inodes = node;
 	new_super->s_helper = fs;
@@ -389,10 +401,9 @@ off_t ext2_getdirent(struct dirent *buf, off_t off, struct inode* this)
 
 int ext2_stat(struct stat *buf, struct inode *node)
 {
-	uint32_t inoden = node->i_inode;
 	ext2_fs_t *fs = node->i_sb->s_helper;
 	/* Get the inode structure */
-	inode_t *ino = ext2_get_inode_from_number(fs, inoden);	
+	struct ext2_inode *ino = ext2_get_inode_from_node(node);	
 
 	if(!ino)
 		return 1;

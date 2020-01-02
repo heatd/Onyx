@@ -71,6 +71,7 @@ struct file_ops
 	struct inode *(*mknod)(const char *name, dev_t dev, struct inode *node);
 	int (*on_open)(struct inode *node);
 	short (*poll)(void *poll_file, short events, struct inode *node);
+	char *(*readlink)(struct inode *ino);
 };
 
 struct getdents_ret
@@ -90,7 +91,11 @@ struct inode
 	size_t i_size;
 	dev_t i_dev;
 	dev_t i_rdev;
+	time_t i_atime;
+	time_t i_ctime;
+	time_t i_mtime;
 	struct superblock *i_sb;
+	/* TODO: Make i_fops be a pointer instead of being embedded in inode, to save memory */
 	struct file_ops i_fops;
 
 	struct spinlock i_pages_lock;

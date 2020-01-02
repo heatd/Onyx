@@ -269,11 +269,38 @@ struct inode *do_actual_open(struct inode *this, const char *name)
 	return errno = ENOSYS, NULL;
 }
 
+char *readlink_vfs(struct inode *file)
+{
+	if(file->i_fops.readlink)
+		return file->i_fops.readlink(file);
+	return errno = EINVAL, NULL;
+}
+
+struct inode *follow_symlink(struct inode *file, struct inode *parent)
+{
+	char *symlink = readlink_vfs(file);
+	if(!symlink)
+		return NULL;
+	
+	struct inode *ret = open_vfs(parent, symlink);
+
+	free(symlink);
+
+	return ret;
+}
+
 struct inode *open_path_segment(char *segm, struct inode *node)
 {
 	struct inode *file = do_actual_open(node, segm);
 	if(!file)
 		return NULL;
+	if(file->i_type == VFS_TYPE_SYMLINK)
+	{
+		file = follow_symlink(file, node);
+		if(!file)
+			return NULL;
+	}
+
 	struct inode *mountpoint = NULL;
 	if((mountpoint = mtable_lookup(file)))
 		file = mountpoint;

@@ -46,8 +46,8 @@ void ext2_free_block(uint32_t block, ext2_fs_t *fs)
 	spin_unlock(&fs->sb_lock);
 }
 
-/* Returns an inode_t from disk, and sets *inode_number to the inode number */
-inode_t *ext2_allocate_inode(uint32_t *inode_number, ext2_fs_t *fs)
+/* Returns an struct ext2_inode from disk, and sets *inode_number to the inode number */
+struct ext2_inode *ext2_allocate_inode(uint32_t *inode_number, ext2_fs_t *fs)
 {
 	/* If we just don't have any blocks available, error */
 	if(unlikely(fs->sb->unallocated_inodes == 0))

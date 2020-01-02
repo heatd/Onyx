@@ -56,7 +56,7 @@ void ext2_write_block(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs, void
 	blkdev_write(fs->first_sector * 512 + (block_index * fs->block_size), size, buffer, fs->blkdevice);
 }
 
-void __ext2_update_atime(inode_t *ino, uint32_t block, ext2_fs_t *fs, inode_t *inode_table)
+void __ext2_update_atime(struct ext2_inode *ino, uint32_t block, ext2_fs_t *fs, struct ext2_inode *inode_table)
 {
 	/* Skip atime updating if the inode doesn't want to */
 	if(ino->flags & EXT2_INO_FLAG_ATIME_NO_UPDT)
@@ -66,13 +66,13 @@ void __ext2_update_atime(inode_t *ino, uint32_t block, ext2_fs_t *fs, inode_t *i
 	ext2_write_block(block, 1, fs, inode_table);
 }
 
-static inline void __ext2_update_ctime(inode_t *ino)
+static inline void __ext2_update_ctime(struct ext2_inode *ino)
 {
 	ino->ctime = (uint32_t) get_posix_time();
 }
 
 __attribute__((no_sanitize_undefined))
-inode_t *ext2_get_inode_from_number(ext2_fs_t *fs, uint32_t inode)
+struct ext2_inode *ext2_get_inode_from_number(ext2_fs_t *fs, uint32_t inode)
 {
 	uint32_t block_size = fs->block_size;
 	uint32_t bg = (inode - 1) / fs->inodes_per_block_group;
@@ -83,8 +83,8 @@ inode_t *ext2_get_inode_from_number(ext2_fs_t *fs, uint32_t inode)
 	assert(bg < fs->number_of_block_groups);
 
 	block_group_desc_t *bgd = &fs->bgdt[bg];
-	inode_t *inode_table = NULL;
-	inode_t *inode_block = (inode_t*)((char *) (inode_table =
+	struct ext2_inode *inode_table = NULL;
+	struct ext2_inode *inode_block = (struct ext2_inode*)((char *) (inode_table =
 		ext2_read_block(bgd->inode_table_addr + block, 1, fs)) + blockind);
 	
 	if(!inode_table)
@@ -93,7 +93,7 @@ inode_t *ext2_get_inode_from_number(ext2_fs_t *fs, uint32_t inode)
 	/* Update the atime field */
 	__ext2_update_atime(inode_block, bgd->inode_table_addr + block, fs, inode_table);
 
-	inode_t *ino = malloc(fs->inode_size);
+	struct ext2_inode *ino = malloc(fs->inode_size);
 
 	if(!ino)
 	{
@@ -107,7 +107,7 @@ inode_t *ext2_get_inode_from_number(ext2_fs_t *fs, uint32_t inode)
 }
 
 __attribute__((no_sanitize_undefined))
-void ext2_update_inode(inode_t *ino, ext2_fs_t *fs, uint32_t inode)
+void ext2_update_inode(struct ext2_inode *ino, ext2_fs_t *fs, uint32_t inode)
 {
 	uint32_t block_size = fs->block_size;
 	uint32_t bg = (inode - 1) / fs->inodes_per_block_group;
@@ -115,8 +115,9 @@ void ext2_update_inode(inode_t *ino, ext2_fs_t *fs, uint32_t inode)
 	uint32_t block = (index * fs->inode_size) / block_size;
 	uint32_t blockind = (index * fs->inode_size) % block_size;
 	block_group_desc_t *bgd = &fs->bgdt[bg];
-	inode_t *inode_table = NULL;
-	inode_t *inode_block = (inode_t*)((char *) (inode_table = ext2_read_block(bgd->inode_table_addr + block, 1, fs)) + blockind);
+	struct ext2_inode *inode_table = NULL;
+	struct ext2_inode *inode_block = (struct ext2_inode*)((char *)
+		(inode_table = ext2_read_block(bgd->inode_table_addr + block, 1, fs)) + blockind);
 	if(!inode_block)
 		return;
 
@@ -127,10 +128,10 @@ void ext2_update_inode(inode_t *ino, ext2_fs_t *fs, uint32_t inode)
 }
 
 /* Open child file dirname of the directory 'ino', following symlinks */
-inode_t *ext2_open_dir(inode_t *ino, const char *dirname,
+struct ext2_inode *ext2_open_dir(struct ext2_inode *ino, const char *dirname,
 	ext2_fs_t *fs, char **symlink, uint32_t *inode_num)
 {
-	inode_t *inode = NULL;
+	struct ext2_inode *inode = NULL;
 
 	if(EXT2_GET_FILE_TYPE(ino->mode) != EXT2_INO_TYPE_DIR)
 		return errno = ENOTDIR, NULL;
@@ -138,13 +139,15 @@ inode_t *ext2_open_dir(inode_t *ino, const char *dirname,
 	if(!dirent)
 		return errno = ENOMEM, NULL;
 
-	if(ext2_read_inode(ino, fs, EXT2_CALCULATE_SIZE64(ino), 0, (char*) dirent) != (ssize_t) EXT2_CALCULATE_SIZE64(ino))
+	if(ext2_read_inode(ino, fs, EXT2_CALCULATE_SIZE64(ino), 0,
+		(char*) dirent) != (ssize_t) EXT2_CALCULATE_SIZE64(ino))
 	{
 		free(dirent);
 		return errno = EIO, NULL;
 	}
 
-	inode = ext2_get_inode_from_dir(fs, dirent, (char*) dirname, inode_num, EXT2_CALCULATE_SIZE64(ino));
+	inode = ext2_get_inode_from_dir(fs, dirent, (char*) dirname,
+		inode_num, EXT2_CALCULATE_SIZE64(ino));
 	
 	if(!inode)
 	{	
@@ -152,27 +155,18 @@ inode_t *ext2_open_dir(inode_t *ino, const char *dirname,
 		return errno = ENOENT, NULL;
 	}
 
-	if(EXT2_GET_FILE_TYPE(inode->mode) == EXT2_INO_TYPE_SYMLINK)
-	{
-		inode = ext2_follow_symlink(inode, fs, ino, inode_num, symlink);
-		if(!inode)
-		{
-			free(dirent);
-			return NULL;
-		}
-	}
-	
 	free(dirent);
 
 	return inode;
 }
 
-inode_t *ext2_traverse_fs(inode_t *wd, const char *path, ext2_fs_t *fs, char **symlink_name, uint32_t *inode_num)
+struct ext2_inode *ext2_traverse_fs(struct ext2_inode *wd, const char *path,
+	ext2_fs_t *fs, char **symlink_name, uint32_t *inode_num)
 {
 	char *saveptr;
 	char *p;
 	char *original_path;
-	inode_t *ino = wd;
+	struct ext2_inode *ino = wd;
 	/* Create a dup of the string */
 	original_path = p = strdup(path);
 	if(!p)
@@ -182,7 +176,12 @@ inode_t *ext2_traverse_fs(inode_t *wd, const char *path, ext2_fs_t *fs, char **s
 
 	for(; p; p = strtok_r(NULL, "/", &saveptr))
 	{
-		ino = ext2_open_dir(ino, (const char*) p, fs, symlink_name, inode_num);
+		struct ext2_inode *opened =
+			ext2_open_dir(ino, (const char*) p, fs, symlink_name, inode_num);
+		if(ino != wd)
+			free(ino);
+
+		ino = opened;
 		if(!ino)
 		{
 			free(original_path);
@@ -222,7 +221,7 @@ size_t ext2_calculate_dirent_size(size_t len_name)
 	return dirent_size;
 }
 
-int ext2_add_direntry(const char *name, uint32_t inum, inode_t *inode, inode_t *dir, ext2_fs_t *fs)
+int ext2_add_direntry(const char *name, uint32_t inum, struct ext2_inode *inode, struct ext2_inode *dir, ext2_fs_t *fs)
 {
 	uint8_t *buffer;
 	uint8_t *buf = buffer = zalloc(fs->block_size);

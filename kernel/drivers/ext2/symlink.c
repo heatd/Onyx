@@ -9,35 +9,50 @@
 #include <errno.h>
 #include <string.h>
 
+#include <onyx/vfs.h>
+
 #include "../include/ext2.h"
 
 /* According to Linux and e2fs, this is how you detect fast symlinks */
-bool ext2_is_fast_symlink(inode_t *inode, ext2_fs_t *fs)
+bool ext2_is_fast_symlink(struct ext2_inode *inode, ext2_fs_t *fs)
 {
 	int ea_blocks = inode->file_acl ? (fs->block_size >> 9) : 0;
 	return (inode->i_blocks - ea_blocks == 0 && EXT2_CALCULATE_SIZE64(inode) <= 60);
 }
 
-char *ext2_do_fast_symlink(inode_t *inode)
+#define EXT2_FAST_SYMLINK_SIZE			60
+
+char *ext2_do_fast_symlink(struct ext2_inode *inode)
 {
-	char *buf = malloc(60);
+	/* Fast symlinks have 60 bytes and we allocate one more for the null byte */
+	char *buf = malloc(EXT2_FAST_SYMLINK_SIZE + 1);
 	if(!buf)
 		return NULL;
-	memcpy(buf, &inode->dbp, 60);
+	memcpy(buf, &inode->dbp, EXT2_FAST_SYMLINK_SIZE);
+	buf[EXT2_FAST_SYMLINK_SIZE] = '\0';
+	/* TODO: Is it possible to trim this string? And should we? */
 	return buf;
 }
 
-char *ext2_do_slow_symlink(inode_t *inode, ext2_fs_t *fs)
+char *ext2_do_slow_symlink(struct ext2_inode *inode, ext2_fs_t *fs)
 {
-	char *buf = malloc(EXT2_CALCULATE_SIZE64(inode));
+	size_t len = EXT2_CALCULATE_SIZE64(inode);
+	char *buf = malloc(len + 1);
 	if(!buf)
 		return NULL;
 	
-	ext2_read_inode(inode, fs, EXT2_CALCULATE_SIZE64(inode), 0, buf);
+	if(ext2_read_inode(inode, fs, len, 0, buf) != (ssize_t) len)
+	{
+		free(buf);
+		return NULL;
+	}
+
+	buf[len] = '\0';
+
 	return buf;
 }
 
-char *ext2_read_symlink(inode_t *ino, ext2_fs_t *fs)
+char *ext2_read_symlink(struct ext2_inode *ino, ext2_fs_t *fs)
 {
 	if(ext2_is_fast_symlink(ino, fs))
 	{
@@ -49,57 +64,10 @@ char *ext2_read_symlink(inode_t *ino, ext2_fs_t *fs)
 	}
 }
 
-inode_t *ext2_follow_symlink(inode_t *inode, ext2_fs_t *fs, inode_t *parent, uint32_t *inode_num, char **symlink)
+char *ext2_readlink(struct inode *ino)
 {
-	char *path = ext2_read_symlink(inode, fs);
-	if(!path)
-		return NULL;
-	if(symlink) *symlink = strdup(path);
-	char *orig_path = path;
-	char *saveptr = NULL;
-	char *inode_data = malloc(EXT2_CALCULATE_SIZE64(parent));
-	if(!inode_data)
-	{
-		free(orig_path);
-		return NULL;
-	}
-	if(ext2_read_inode(parent, fs, EXT2_CALCULATE_SIZE64(parent), 0, inode_data) != (ssize_t) EXT2_CALCULATE_SIZE64(parent))
-	{
-		free(orig_path);
-		free(inode_data);
-		return NULL;
-	}
-	inode_t *ino = parent;
-	dir_entry_t *dir = (dir_entry_t*) inode_data;
-	/* Open through the path */
-	path = strtok_r(orig_path, "/", &saveptr);
-	while(path)
-	{
-		if(!dir)
-			return errno = ENOENT, NULL;
-		inode_t *old_ino = ino;
-		ino = ext2_get_inode_from_dir(fs, dir, path, inode_num, EXT2_CALCULATE_SIZE64(ino));
-		if(!ino)
-			return errno = ENOENT, NULL;
+	struct ext2_inode *ext2_ino = ext2_get_inode_from_node(ino);
+	ext2_fs_t *fs = ino->i_sb->s_helper;
 
-		free(old_ino);
-
-		//assert(EXT2_CALCULATE_SIZE64(ino));
-		if(ino->mode & EXT2_INO_TYPE_DIR)
-		{
-			inode_data = realloc(inode_data, EXT2_CALCULATE_SIZE64(ino));
-			if(!inode_data)
-				return errno = ENOMEM, NULL;
-			ext2_read_inode(ino, fs, EXT2_CALCULATE_SIZE64(ino), 0, inode_data);
-			dir = (dir_entry_t*) inode_data;
-		}
-		else
-			dir = NULL;
-		/* Get the next path segment */
-		path = strtok_r(NULL, "/", &saveptr);
-	}
-
-	free(orig_path);
-	free(inode_data);
-	return ino;
+	return ext2_read_symlink(ext2_ino, fs);
 }
