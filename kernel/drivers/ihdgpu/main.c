@@ -154,7 +154,6 @@ int ihdgpu_probe(struct device *dev)
 
 	printk("reset pci device\n");
 
-	return 0;
 	d->device = device;
 	d->mmio_regs = (volatile void *) device_registers;
 	d->gpu_memory = (volatile void *) gpu_memory;
@@ -207,6 +206,10 @@ int ihdgpu_probe(struct device *dev)
 		free(d);
 		return -1;
 	}
+
+	igd_enable_display_engine(d);
+
+	igd_query_displays(d);
 
 	if(d->lfp_data)
 	{

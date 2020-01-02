@@ -263,6 +263,7 @@ int sys_arch_prctl(int code, unsigned long *addr)
 			break;
 		}
 	}
+
 	return 0;
 }
 
@@ -367,15 +368,16 @@ void arch_load_thread(struct thread *thread, unsigned int cpu)
 	set_kernel_stack((uintptr_t) thread->kernel_stack_top);
 
 	if(!(thread->flags & THREAD_KERNEL))
+	{
 		restore_fpu(thread->fpu_area);
+		wrmsr(FS_BASE_MSR, (uint64_t) thread->fs);
+
+		wrmsr(KERNEL_GS_BASE, (uint64_t) thread->gs);
+	}
 }
 
 void arch_load_process(struct process *process, struct thread *thread,
                        unsigned int cpu)
 {
 	paging_load_cr3(process->address_space.cr3);
-
-	wrmsr(FS_BASE_MSR, (uint64_t) thread->fs);
-
-	wrmsr(KERNEL_GS_BASE, (uint64_t) thread->gs);
 }

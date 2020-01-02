@@ -105,6 +105,7 @@ void idt_init(void)
 	x86_reserve_vector(255,  apic_spurious_irq);
 	idt_load();
 }
+
 void idt_create_descriptor(uint8_t entry, uint64_t offset,
 			   uint16_t selector, uint8_t flags)
 {

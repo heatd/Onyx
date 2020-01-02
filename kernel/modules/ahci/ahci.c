@@ -48,8 +48,8 @@ static ahci_hba_memory_regs_t *hba = NULL;
 void ahci_wake_io(void *ctx)
 {
 	struct aio_req *req = ctx;
-	req->wake_sem.counter = 1;
-	//sem_signal(&req->wake_sem);
+	wait_queue_wake_all(&req->wake_sem);
+	req->signaled = true;
 }
 
 void ahci_deal_aio(struct command_list *list)
@@ -155,7 +155,10 @@ ssize_t ahci_read(size_t offset, size_t count, void* buffer, struct blkdev* blkd
 		cmd.cmd = ATA_CMD_READ_DMA_EXT;
 	
 		if(!ahci_do_command(p, &cmd))
+		{
+			mutex_unlock(&ahci_spl);
 			return -1;
+		}
 
 		buf += c;
 		count -= c;
@@ -191,7 +194,10 @@ ssize_t ahci_write(size_t offset, size_t count, void* buffer, struct blkdev* blk
 		cmd.cmd = ATA_CMD_WRITE_DMA_EXT;
 	
 		if(!ahci_do_command(p, &cmd))
+		{
+			mutex_unlock(&ahci_spl);
 			return -1;
+		}
 
 		buf += c;
 		count -= c;
@@ -345,19 +351,50 @@ bool ahci_do_command_async(struct ahci_port *ahci_port,
 	return true;
 }
 
+void ahci_wake_callback(void *cb, struct wait_queue_token *token)
+{
+	struct aio_req *req = cb;
+	req->signaled = true;
+}
+
 bool ahci_do_command(struct ahci_port *ahci_port, struct ahci_command_ata *buf)
 {
 	struct aio_req req = {0};
 	req.req_start = get_main_clock()->get_ns();
+	struct wait_queue_token wait_token = {};
 	
+	wait_token.thread = get_current_thread();
+	wait_token.context = &req;
+	wait_token.callback = ahci_wake_callback;
+
+	(void) wait_token;
+	//wait_queue_add(&req.wake_sem, &wait_token);
+
 	if(!ahci_do_command_async(ahci_port, buf, &req))
 		return false;
 
 	/* Sleeping here is a big waste, reads take less than a ms */
 	/* TODO: Maybe do it on large reads? */
-	while(!req.wake_sem.counter)
-		cpu_relax();
-	//sem_wait(&req.wake_sem);
+	/*while(!req.wake_sem.counter)
+		cpu_relax();*/
+
+	sched_disable_preempt();
+
+	//set_current_state(THREAD_UNINTERRUPTIBLE);
+	while(!req.signaled)
+	{
+		sched_enable_preempt();
+		//sched_yield();
+		//set_current_state(THREAD_UNINTERRUPTIBLE);
+		sched_disable_preempt();
+	}
+
+	set_current_state(THREAD_RUNNABLE);
+
+	sched_enable_preempt();
+
+	//printk("Response time: %luns. Disk time: %luns\n", get_main_clock()->get_ns() - req.req_start,
+	//	req.req_end - req.req_start);
 
 	vm_unlock_range(buf->buffer, buf->size, VM_FUTURE_PAGES);
 

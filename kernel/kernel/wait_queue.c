@@ -76,6 +76,13 @@ void wait_queue_wake(struct wait_queue *queue)
 {
 	spin_lock(&queue->lock);
 
+	
+	if(!queue->token_head)
+	{
+		spin_unlock(&queue->lock);
+		return;
+	}
+	
 	struct wait_queue_token *t = wait_queue_wake_unlocked(queue);
 
 	spin_unlock(&queue->lock);

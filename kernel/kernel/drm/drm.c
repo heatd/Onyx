@@ -32,6 +32,7 @@ int drm_add_device(struct drm_device *device)
 	 * after writing a gpu driver.
 	*/
 	object_init(&device->object, NULL);
+	INIT_LIST_HEAD(&device->named_list);
 
 	main_device = device;
 
@@ -77,6 +78,7 @@ int drm_expand_handle_table(struct drm_context *ctx)
 {
 	/* This executes with a lock held */
 
+	size_t new_mem_index = ctx->handle_table_entries;
 	ctx->handle_table_entries += DRM_NR_ENTRIES;
 	struct drm_object **table = (struct drm_object **) realloc(ctx->handle_table,
 		ctx->handle_table_entries * sizeof(struct drm_object *));
@@ -87,6 +89,8 @@ int drm_expand_handle_table(struct drm_context *ctx)
 		return -1;
 	}
 
+	memset(table + new_mem_index, 0, ctx->handle_table_entries - new_mem_index);
+
 	ctx->handle_table = table;
 
 	return 0;
@@ -96,7 +100,7 @@ drm_handle try_add_drm_object(struct drm_context *ctx, struct drm_object *object
 {
 	for(size_t i = 0; i < ctx->handle_table_entries; i++)
 	{
-		if(ctx->handle_table[i] != NULL)
+		if(ctx->handle_table[i] == NULL)
 		{
 			ctx->handle_table[i] = object;
 			return i;
@@ -147,6 +151,8 @@ struct drm_object *__drm_get_object(struct drm_context *ctx, drm_handle handle)
 	}
 
 	struct drm_object *object = ctx->handle_table[handle];
+	drm_object_grab(object);
+
 	spin_unlock(&ctx->handle_table_lock);
 
 	return object;
@@ -163,20 +169,64 @@ struct drm_object *drm_get_object(drm_handle handle, struct drm_device *dev)
 	return __drm_get_object(ctx, handle);
 }
 
+unsigned int __drm_close_object(drm_handle handle, struct drm_context *ctx)
+{
+	spin_lock(&ctx->handle_table_lock);
+
+	if(handle >= ctx->handle_table_entries)
+	{
+		spin_unlock(&ctx->handle_table_lock);
+		return -EINVAL;
+	}
+
+	struct drm_object *object = ctx->handle_table[handle];
+	drm_object_release(object);
+	ctx->handle_table[handle] = NULL;
+
+	spin_unlock(&ctx->handle_table_lock);
+
+	return 0;
+}
+
+unsigned int drm_close_object(drm_handle handle, struct drm_device *dev)
+{
+	pid_t pid = get_current_process()->pid;
+
+	struct drm_context *ctx = drm_get_context(pid, dev);
+	
+	assert(ctx != NULL);
+
+	return __drm_close_object(handle, ctx);
+}
+
+void drm_remove_from_named_list(struct drm_object *obj)
+{
+	spin_lock(&obj->device->named_list_lock);
+
+	list_remove(&obj->named_list);
+
+	spin_unlock(&obj->device->named_list_lock);
+
+	obj->flags &= ~DRM_OBJECT_NAMED;
+	obj->security_cookie = UINT64_MAX;
+}
+
 int drm_create_dumb_buffer(struct drm_dumb_buffer_info *buffer, struct drm_device *dev)
 {
 	assert(dev->d_ops.dumb_create != NULL);
 
 	struct drm_dumb_buffer *buf = dev->d_ops.dumb_create(buffer, dev);
 	if(!buf)
-		return -1;
-	
+		return -ENOMEM;
+
 	drm_handle handle = drm_add_object(&buf->object, dev);
 	if(handle == DRM_INVALID_HANDLE)
 	{
 		drm_object_release(&buf->object);
-		return -1;
+		return -ENOMEM;
 	}
+
+	//printk("Created drm buffer handle %lu %p\n", handle, buf);
 
 	buffer->handle = handle;
 
@@ -198,15 +248,19 @@ int drm_on_open(struct inode *node)
 
 int drm_swap_buffers(struct drm_swap_buffer_args *args, struct drm_device *dev)
 {
+	if(!dev->d_ops.swap_buffers)
+		return -EINVAL;
+
 	struct drm_object *obj = drm_get_object(args->buffer_handle, dev);
 
 	if(!obj)
 		return -EINVAL;
-	
-	if(!dev->d_ops.swap_buffers)
-		return -EINVAL;
 
-	return dev->d_ops.swap_buffers(obj, dev);
+	int ret = dev->d_ops.swap_buffers(obj, dev);
+
+	drm_object_release(obj);
+
+	return ret;
 }
 
 void __drm_append_mapping(struct drm_mapping *map, struct drm_context *c)
@@ -241,8 +295,8 @@ off_t do_drm_enable_buffer_mappings(struct drm_object *obj, struct drm_device *d
 	struct drm_mapping *map = zalloc(sizeof(*map));
 	if(!map)
 		return -ENOMEM;
+	
 	drm_object_init(&map->object, drm_mapping_destroy, dev, DRM_COOKIE_MAPPING);
-	drm_object_grab(obj);
 
 	map->buffer = obj;
 	map->fake_offset = atomic_fetch_add(&c->curr_fake_offset, PAGE_SIZE);
@@ -260,7 +314,10 @@ off_t drm_enable_buffer_mappings(drm_handle handle, struct drm_device *dev)
 		return -EINVAL;
 
 	if(obj->object_cookie != DRM_COOKIE_DUMB_BUFFER)
+	{
+		drm_object_release(obj);
 		return -EINVAL;
+	}
 
 	off_t offset = do_drm_enable_buffer_mappings(obj, dev);
 
@@ -292,6 +349,124 @@ struct drm_mapping *drm_get_mapping(off_t offset, struct drm_device *dev)
 	return do_drm_get_mapping(offset, context);
 }
 
+bool drm_generate_name(struct drm_device *dev, uint32_t *name)
+{
+	/* TODO: Eventually we'll hit the max of names even if they're all closed.
+	 * What should we do?
+	*/
+	uint32_t next_name;
+	uint32_t expected;
+	do
+	{
+		expected = dev->current_name;
+		next_name = expected + 1;
+		/* If we overflowed, we ran out of names, so just return an error */
+		if(next_name == 0)
+			return false;
+	} while(!atomic_compare_exchange_strong(&dev->current_name, &expected, next_name));
+	
+	*name = expected;
+
+	return true;
+}
+
+unsigned int drm_ioctl_set_name(struct drm_set_name_args *uargs, struct drm_device *dev)
+{
+	struct drm_set_name_args kargs;
+	if(copy_from_user(&kargs, uargs, sizeof(kargs)) < 0)
+		return -EFAULT;
+
+	struct drm_object *obj = drm_get_object(kargs.handle, dev);
+	if(!obj)
+		return -EINVAL;
+
+	uint32_t name;
+	if(!drm_generate_name(dev, &name))
+	{
+		drm_object_release(obj);
+		return -ERANGE;
+	}
+	
+	obj->flags |= DRM_OBJECT_NAMED;
+	obj->security_cookie = kargs.security_cookie;
+	obj->name = name;
+
+	kargs.name = name;
+	if(copy_to_user(uargs, &kargs, sizeof(kargs)) < 0)
+	{
+		obj->flags &= ~DRM_OBJECT_NAMED;
+		obj->security_cookie = UINT64_MAX;
+		obj->name = 0;
+		drm_object_release(obj);
+		return -EFAULT;
+	}
+
+	spin_lock(&dev->named_list_lock);
+
+	list_add(&obj->named_list, &dev->named_list);
+	
+	spin_unlock(&dev->named_list_lock);
+
+	return 0;
+}
+
+struct drm_object *drm_get_object_from_name(uint32_t name, struct drm_device *dev)
+{
+	spin_lock(&dev->named_list_lock);
+
+	list_for_every(&dev->named_list)
+	{
+		struct drm_object *obj = container_of(l, struct drm_object, named_list);
+		if(obj->name == name)
+		{
+			drm_object_grab(obj);
+			spin_unlock(&dev->named_list_lock);
+			return obj;
+		}
+	}
+
+	spin_unlock(&dev->named_list_lock);
+
+	return NULL;
+}
+
+unsigned int drm_ioctl_open_from_name(struct drm_open_from_name_args *uargs, struct drm_device *dev)
+{
+	struct drm_open_from_name_args kargs;
+	if(copy_from_user(&kargs, uargs, sizeof(kargs)) < 0)
+		return -EFAULT;
+	
+	struct drm_object *obj = drm_get_object_from_name(kargs.name, dev);
+	if(!obj)
+		return -EINVAL;
+	
+	if(obj->security_cookie != kargs.security_cookie)
+		return -EINVAL;
+	
+	drm_handle h = drm_add_object(obj, dev);
+
+	if(h == DRM_INVALID_HANDLE)
+	{
+		drm_object_release(obj);
+		return -ENOMEM;
+	}
+
+	kargs.handle = h;
+
+	if(copy_to_user(uargs, &kargs, sizeof(kargs)) < 0)
+		return -EFAULT;
+	return 0;
+}
+
+unsigned int drm_ioctl_close_handle(struct drm_close_handle_args *uargs, struct drm_device *dev)
+{
+	struct drm_close_handle_args kargs;
+	if(copy_from_user(&kargs, uargs, sizeof(kargs)) < 0)
+		return -EFAULT;
+
+	return drm_close_object(kargs.handle, dev);
+}
+
 unsigned int drm_ioctl(int request, void *argp, struct inode* file)
 {
 	switch(request)
@@ -308,7 +483,7 @@ unsigned int drm_ioctl(int request, void *argp, struct inode* file)
 
 			if(copy_to_user(argp, &buf, sizeof(buf)) < 0)
 			{
-				/* TODO: Close the handle */
+				drm_close_object(buf.handle, main_device);
 				return -EFAULT;
 			}
 
@@ -342,9 +517,17 @@ unsigned int drm_ioctl(int request, void *argp, struct inode* file)
 			off_t offset = 0;
 			if((offset = drm_enable_buffer_mappings(args.handle, main_device)) < 0)
 				return offset;
-			
+			args.offset = offset;
+			if(copy_to_user(argp, &args, sizeof(args)) < 0)
+				return -EFAULT;
 			return 0;
 		}
+		case DRM_IOCTL_SET_NAME:
+			return drm_ioctl_set_name((struct drm_set_name_args *) argp, main_device);
+		case DRM_IOCTL_OPEN_FROM_NAME:
+			return drm_ioctl_open_from_name((struct drm_open_from_name_args *) argp, main_device);
+		case DRM_IOCTL_CLOSE_OBJECT:
+			return drm_ioctl_close_handle((struct drm_close_handle_args *) argp, main_device);
 	}
 
 	return -EINVAL;
@@ -357,6 +540,7 @@ void *drm_mmap(struct vm_region *area, struct inode *inode)
 	struct drm_mapping *mapping = drm_get_mapping(area->offset, main_device);
 	if(!mapping)
 		return NULL;
+	//printk("mapping object %p\n", mapping->buffer);
 
 	struct file *fd = zalloc(sizeof(*fd));
 
@@ -364,8 +548,8 @@ void *drm_mmap(struct vm_region *area, struct inode *inode)
 		return NULL;
 	
 	fd->vfs_node = inode;
-	fd->seek = area->offset;
-	
+	area->offset = 0;
+
 	struct drm_dumb_buffer *dbuf = (struct drm_dumb_buffer *) mapping->buffer;
 	struct vm_object *vmo = vmo_create(dbuf->size, dbuf);
 
@@ -428,6 +612,12 @@ void drm_init(void)
 void __drm_object_release(struct object *object)
 {
 	struct drm_object *obj = (struct drm_object *) object;
+
+	if(obj->flags & DRM_OBJECT_NAMED)
+	{
+		drm_remove_from_named_list(obj);
+	}
+
 	if(obj->destroy) obj->destroy(obj);
 }
 

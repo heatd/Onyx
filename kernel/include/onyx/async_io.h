@@ -7,7 +7,7 @@
 #define _ONYX_ASYNC_IO_H
 
 #include <onyx/clock.h>
-#include <onyx/semaphore.h>
+#include <onyx/wait_queue.h>
 
 enum aio_status
 {
@@ -21,8 +21,9 @@ struct aio_req
 	uint64_t req_start;
 	uint64_t req_end;
 	enum aio_status status;
-	struct semaphore wake_sem;
+	struct wait_queue wake_sem;
 	void *cookie;
+	bool signaled;
 };
 
 #endif

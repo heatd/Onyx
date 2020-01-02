@@ -60,7 +60,7 @@ int ddaux_do_transfer(struct i2c_adapter *adapter,
 
 	uint32_t ddaux_ctl = 0;
 
-	ddaux_ctl |= DDI_AUX_CTL_MESSAGE_SIZE(size);
+	ddaux_ctl |= DDI_AUX_CTL_MESSAGE_SIZE((size - 1));
 	ddaux_ctl |= DDI_AUX_CTL_TIMEOUT_1600US;
 	ddaux_ctl |= DDI_AUX_CTL_DONE;
 	ddaux_ctl |= DDI_AUX_CTL_RECIEVE_ERROR;
@@ -132,7 +132,7 @@ int ddaux_do_transfers(struct i2c_adapter *adapter,
 	{
 		int st = 0;
 		
-		for(int i = 0; i < 80; i++)
+		for(int i = 0; i < 1; i++)
 		{do
 		{
 			st = ddaux_do_transfer(adapter, messages);
@@ -187,16 +187,6 @@ int igd_init_displayport(struct igpu_device *dev)
 		dev->dports[i]->name = buf;
 	
 		igd_init_displayport_i2c(dev, dev->dports[i]);
-
-		uint8_t edid[256];
-		struct i2c_message message;
-		message.addr = 0x50;
-		message.buffer = (uint8_t *) &edid;
-		message.length = sizeof(edid);
-		message.transfered = 0;
-		message.write = false;
-
-		i2c_transaction(&dev->dports[i]->ddaux, &message, 1);
 	}
 
 	return 0;

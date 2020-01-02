@@ -513,28 +513,28 @@ return_:
 
 struct vm_region *vm_find_region_in_tree(void *addr, rb_tree *tree)
 {
-	rb_itor *it = rb_itor_new(tree);
+	struct rb_itor it;
+	it.node = NULL;
+	it.tree = tree;
 
-	if(!rb_itor_search_le(it, addr))
+	if(!rb_itor_search_le(&it, addr))
 		return NULL;
 	
 	while(true)
 	{
-		struct vm_region *region = *rb_itor_datum(it);
+		struct vm_region *region = *rb_itor_datum(&it);
 		if(region->base <= (unsigned long) addr
 			&& region->base + (region->pages << PAGE_SHIFT) > (unsigned long) addr)
 		{
-			rb_itor_free(it);
 			return region;
 		}
 
-		if(!rb_itor_next(it))
+		if(!rb_itor_next(&it))
 		{
 			break;
 		}
 	}
 
-	rb_itor_free(it);
 	return NULL;
 }
 

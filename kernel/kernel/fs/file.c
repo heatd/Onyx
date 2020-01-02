@@ -881,6 +881,9 @@ int do_dupfd(struct file *f, int fdbase)
 
 int sys_fcntl(int fd, int cmd, unsigned long arg)
 {
+	/* TODO: Get new flags for file descriptors. The use of O_* is confusing since
+	 * those only apply on open calls. For example, fcntl uses FD_*. */
+
 	struct file *f = get_file_description(fd);
 	if(!f)
 		return -errno;
@@ -906,13 +909,14 @@ int sys_fcntl(int fd, int cmd, unsigned long arg)
 
 		case F_GETFD:
 		{
-			ret = f->flags;
+			ret = (f->flags & O_CLOEXEC) ? FD_CLOEXEC : 0;
 			break;
 		}
 
 		case F_SETFD:
 		{
-			f->flags = (int) arg;
+			if((int) arg & FD_CLOEXEC)
+				f->flags |= O_CLOEXEC;
 			ret = 0;
 			break;
 		}
@@ -1302,13 +1306,20 @@ void close_file_description(struct file *fd)
 /* Simple stub sys_access */
 int sys_access(const char *path, int amode)
 {
-	const char *p = strcpy_from_user(path);
+	int st = 0;
+	char *p = strcpy_from_user(path);
 	if(!p)
 		return -errno;
 
 	struct inode *ino = open_vfs(get_fs_base(p, get_current_directory()), p);
 	if(!ino)
-		return -ENOENT;
-	
-	return 0;
+	{
+		st = -ENOENT;
+		goto out;
+	}
+out:
+	if(ino != NULL)	close_vfs(ino);
+	free(p);
+
+	return st;
 }

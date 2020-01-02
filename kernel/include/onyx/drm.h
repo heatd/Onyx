@@ -15,11 +15,20 @@
 
 struct drm_device;
 
+#define DRM_OBJECT_NAMED		(1 << 0)
+
 struct drm_object
 {
 	struct object object;
 	struct drm_device *device;
 	unsigned long object_cookie;
+	unsigned long flags;
+	uint32_t name;
+	/* Security cookie set by user space as to disallow access by random processes */
+	/* TODO: Maybe this isn't safe? It's 64-bit now so it should be relatively safe from
+	 * bruteforce but I don't think it's the right approach */
+	uint64_t security_cookie;
+	struct list_head named_list;
 	void (*destroy)(struct drm_object *object);
 };
 
@@ -68,6 +77,10 @@ struct drm_device
 	const char *driver_info;
 	struct framebuffer *fb;
 	struct drm_ops d_ops;
+
+	struct spinlock named_list_lock;
+	struct list_head named_list;
+	uint32_t current_name;
 
 	struct spinlock context_lock;
 	struct drm_context *per_process_context;

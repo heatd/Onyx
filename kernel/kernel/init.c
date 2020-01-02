@@ -280,6 +280,8 @@ retry:;
 
 	sched_start_thread(main_thread);
 
+	get_current_thread()->owner = NULL;
+
 	return 0;
 }
 

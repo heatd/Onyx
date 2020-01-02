@@ -33,12 +33,18 @@ public:
 		return dirty;
 	}
 
-	inline void set_dirty()
+	std::shared_ptr<Buffer> get_buffer()
 	{
-		dirty = true;
+		return window_buffer;
 	}
 
 	void draw();
+
+	inline void set_dirty()
+	{
+		dirty = true;
+		draw();
+	}
 };
 
 

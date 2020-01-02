@@ -14,15 +14,6 @@
 #define igpu_gpio_write(dev, x, data)		igpu_mmio_write(dev, dev->gpio_regs_off + x, data)
 #define igpu_gpio_read(dev, x)			igpu_mmio_read(dev, dev->gpio_regs_off + x)
 
-void igpu_i2c_select(struct igpu_device *dev, uint8_t pin)
-{
-	printk("igpu i2c: Selecting pin %u\n", pin);
-
-	igpu_gpio_write(dev, GMBUS0, GMBUS0_RATE_SELECT_100KHZ | pin);
-
-	printk("igpu i2c: selected!\n");
-}
-
 void igpu_dump_gmbus_regs(struct igpu_device *dev)
 {
 	printk("GMBUS0: %08x\n", igpu_gpio_read(dev, GMBUS0));
@@ -31,6 +22,18 @@ void igpu_dump_gmbus_regs(struct igpu_device *dev)
 	printk("GMBUS3: %08x\n", igpu_gpio_read(dev, GMBUS3));
 	printk("GMBUS4: %08x\n", igpu_gpio_read(dev, GMBUS4));
 	printk("GMBUS5: %08x\n", igpu_gpio_read(dev, GMBUS5));
+}
+
+
+void igpu_i2c_select(struct igpu_device *dev, uint8_t pin)
+{
+	printk("igpu i2c: Selecting pin %u\n", pin);
+	igpu_dump_gmbus_regs(dev);
+
+	igpu_gpio_write(dev, GMBUS0, GMBUS0_RATE_SELECT_100KHZ | pin);
+
+	igpu_dump_gmbus_regs(dev);
+	printk("igpu i2c: selected!\n");
 }
 
 int igpu_i2c_hw_rdy(struct igpu_device *dev)
@@ -50,14 +53,18 @@ int i2c_wait_for_completion(struct igpu_device *dev)
 
 int igpu_i2c_read(struct igpu_device *dev, uint8_t addr, uint8_t *buf, uint8_t count)
 {
+	printk("Old gmbus1: %x\n", igpu_gpio_read(dev, GMBUS1));
 	uint32_t gmbus1 = 0;
-	gmbus1 |= GMBUS1_BUS_CYCLE_NO_IDX_STOP;
+	gmbus1 |= GMBUS1_BUS_CYCLE_SELECT(GMBUS1_BUS_CYCLE_NO_IDX_NO_STOP_WAIT);
 	gmbus1 |= GMBUS1_ASSERT_SWRDY;
 	gmbus1 |= GMBUS1_TOTAL_BYTE_COUNT(count);
 	gmbus1 |= GMBUS1_SLAVE_ADDR_AND_DIR(1 | (addr << 1));
+	printk("Addr: %x\n", addr);
+
 
 	igpu_gpio_write(dev, GMBUS1, gmbus1);
 	igpu_gpio_write(dev, GMBUS5, 0);
+	printk("Dev gpio regs off: %x\n", dev->gpio_regs_off + GMBUS1);
 
 	igpu_dump_gmbus_regs(dev);
 	while(count != 0)
@@ -67,6 +74,8 @@ int igpu_i2c_read(struct igpu_device *dev, uint8_t addr, uint8_t *buf, uint8_t c
 			printk("i2c read timed out\n");
 			return -ENXIO;
 		}
+
+		printk("Reading.\n");
 
 		uint32_t *ptr = (uint32_t *) buf;
 
@@ -81,7 +90,7 @@ int igpu_i2c_read(struct igpu_device *dev, uint8_t addr, uint8_t *buf, uint8_t c
 int igpu_i2c_write(struct igpu_device *dev, uint8_t addr, uint8_t *buf, uint8_t count)
 {
 	uint32_t gmbus1 = 0;
-	gmbus1 |= GMBUS1_BUS_CYCLE_NO_IDX_STOP;
+	gmbus1 |= GMBUS1_BUS_CYCLE_SELECT(GMBUS1_BUS_CYCLE_NO_IDX_STOP);
 	gmbus1 |= GMBUS1_ASSERT_SWRDY;
 	gmbus1 |= GMBUS1_TOTAL_BYTE_COUNT(count);
 	gmbus1 |= GMBUS1_SLAVE_ADDR_AND_DIR((addr << 1));
@@ -110,7 +119,7 @@ int igpu_i2c_write(struct igpu_device *dev, uint8_t addr, uint8_t *buf, uint8_t 
 void igpu_i2c_finish_transaction(struct igpu_device *dev)
 {
 	uint32_t gmbus1 = 0;
-	gmbus1 |= GMBUS1_BUS_CYCLE_NO_IDX_STOP;
+	gmbus1 |= GMBUS1_BUS_CYCLE_SELECT(GMBUS1_BUS_CYCLE_NO_IDX_STOP);
 	gmbus1 |= GMBUS1_ASSERT_SWRDY;
 	igpu_gpio_write(dev, GMBUS1, gmbus1);
 
@@ -180,6 +189,7 @@ int igpu_i2c_init(struct igpu_device *dev)
 	memset(&dev->i2c_adapter.mtx, 0, sizeof(struct mutex));
 	dev->i2c_adapter.name = "igpu-i2c";
 	dev->i2c_adapter.do_batch_transfer = igpu_transaction;
+
 	return 0;
 	
 }

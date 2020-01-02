@@ -18,7 +18,7 @@ class Display : public std::enable_shared_from_this<Display>
 {
 private:
 	struct drm_videomode videomode;
-	std::vector<std::shared_ptr<Buffer>> buffer_list;
+	std::vector<std::shared_ptr<Buffer> > buffer_list;
 	std::unique_ptr<Buffer> framebuffer_map;
 public:
 	Display();
@@ -34,6 +34,7 @@ public:
 	void GetOwnershipOfDisplay();
 	void ReleaseOwnershipOfDisplay();
 	void Clear(uint32_t color);
+	void draw_loop();
 };
 
 #endif

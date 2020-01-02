@@ -225,6 +225,21 @@ struct bdb_general_features {
 #define DEVICE_TYPE_DIGITAL_OUTPUT	(1 << 1)
 #define DEVICE_TYPE_ANALOG_OUTPUT	(1 << 0)
 
+/* dvo_port BDB 155+ */
+#define DVO_PORT_HDMIA		0
+#define DVO_PORT_HDMIB		1
+#define DVO_PORT_HDMIC		2
+#define DVO_PORT_HDMID		3
+#define DVO_PORT_LVDS		4
+#define DVO_PORT_TV		5
+#define DVO_PORT_CRT		6
+#define DVO_PORT_DPB		7
+#define DVO_PORT_DPC		8
+#define DVO_PORT_DPD		9
+#define DVO_PORT_DPA		10
+#define DVO_PORT_DPE		11				/* 193 */
+#define DVO_PORT_HDMIE		12				/* 193 */
+
 struct child_device_config {
 	uint16_t handle;
 	uint16_t device_type; /* See DEVICE_TYPE_* above */

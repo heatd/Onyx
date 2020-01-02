@@ -46,7 +46,7 @@ void page_print_shared(void);
 
 void vterm_panic(void);
 
-__attribute__ ((noreturn, cold, noinline))
+__attribute__ ((noreturn, noinline))
 void panic(const char *msg)
 {
 	/* First, disable interrupts */

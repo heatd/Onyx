@@ -123,16 +123,16 @@ void Display::copy(std::shared_ptr<Buffer> buffer, unsigned int x, unsigned int 
 
 	auto stride = framebuffer_map->get_stride();
 	auto bytespp = framebuffer_map->get_bpp() / 8;
-	auto screen_height = framebuffer_map->get_height();
-	auto screen_width = framebuffer_map->get_width();
+	auto buffer_height = buffer->get_height();
+	auto buffer_width = buffer->get_width();
 
-	fb_mapping += (y * stride) + x * (bytespp);
+	fb_mapping += (y * stride) + x * bytespp;
 	volatile uint32_t *fb = (volatile uint32_t *) fb_mapping;
 	volatile uint32_t *backbuffer = (volatile uint32_t *) buffer_raw;
 
-	for(size_t i = 0; i < screen_height; i++)
+	for(size_t i = 0; i < buffer_height; i++)
 	{
-		for(size_t j = 0; j < screen_width; j++)
+		for(size_t j = 0; j < buffer_width; j++)
 			fb[j] = *backbuffer++;
 		fb = (volatile uint32_t *) ((char*) fb + stride);
 	}

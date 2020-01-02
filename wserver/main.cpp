@@ -31,7 +31,7 @@
 #define DESKTOP_ENVIRONMENT_NAME	"/usr/bin/singularity"
 #define ERR_EXEC_FAILED			126
 
-void *ServerThread(void *ptr)
+void *server_thread_entry(void *ptr)
 {
 	Server *sv = (Server *) ptr;
 
@@ -73,9 +73,10 @@ int main(int argc, char **argv, char **envp)
 			exit(ERR_EXEC_FAILED);
 	}
 
-	pthread_t thread;
-	if(pthread_create(&thread, nullptr, ServerThread, &server) < 0)
+	pthread_t svthread;
+	if(pthread_create(&svthread, nullptr, server_thread_entry, &server) < 0)
 		perror("pthread_create");
+
 	int status;
 
 	waitpid(-1, &status, 0);

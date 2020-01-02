@@ -135,6 +135,7 @@
 #define X86_FEATURE_PCONFIG		(146)
 #define x86_FEATURE_SPEC_CTRL		(154)
 #define X86_FEATURE_STIBP		(155)
+#define X86_FEATURE_SPEC_SIDE_CHAN_MITIG (157)
 #define X86_FEATURE_SSBD		(159)
 #define X86_FEATURE_AMD_FPU		(160)
 #define X86_FEATURE_AMD_VME		(161)
@@ -191,6 +192,12 @@
 #define X86_FEATURE_PCX_L2I		(220)
 
 #define X86_MESSAGE_VECTOR		(130)
+
+#define X86_CPU_MANUFACTURER_INTEL	0
+#define X86_CPU_MANUFACTURER_AMD	1
+#define X86_CPU_MANUFACTURER_UNKNOWN	3
+
+
 typedef struct cpu
 {
 	char manuid[13];
@@ -200,9 +207,11 @@ typedef struct cpu
 	bool invariant_tsc;
 	uint64_t tsc_rate;
 	int virtualAddressSpace, physicalAddressSpace;
+	unsigned long manufacturer;
 	/* Add more as needed */
 	uint64_t caps[8];
 } cpu_t;
+
 __attribute__((hot))
 bool x86_has_cap(int cap);
 bool x86_check_invariant_tsc(void);

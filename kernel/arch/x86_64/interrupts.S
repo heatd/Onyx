@@ -140,6 +140,7 @@ irq_common:
 
 	mov REGISTER_OFF_CS(%rsp), %rax
 	cmp $KERNEL_CS, %rax
+	/* TODO: Check the lower 2 bits only because double faults set %cs to 0 */
 	je .L3
 	swapgs
 .L3:
@@ -152,7 +153,7 @@ irq_common:
 
 	.cfi_def_cfa_register rsi
 	# End the stack frame list so we stop here
-	xor %rbp, %rbp
+	#xor %rbp, %rbp
 
 	INTERRUPT_STACK_ALIGN
 
@@ -223,7 +224,7 @@ isr_common:
 	CFI_INTERRUPT_FRAME_BEFORE_DS
 
 	cld
-	xor %rbp, %rbp
+	#xor %rbp, %rbp
 
 	mov %ds, %rax
 	push %rax
@@ -253,6 +254,9 @@ isr_common:
 .L1:
 	INTERRUPT_STACK_RESTORE
 
+	/* Disable interrupts again in case a handler enabled them and didn't disable them again */
+	/* TODO: Should we run all exception handlers with interrupts enabled? */
+	cli
 	mov REGISTER_OFF_CS(%rsp), %rax
 	cmp $KERNEL_CS, %rax
 	je .L2
@@ -619,7 +623,7 @@ __cpu_handle_message:
 	.cfi_startproc
 	cli
 	sub $REGISTERS_UNUSED_OFF, %rsp
-	
+
 	CFI_INTERRUPT_FRAME_BEFORE_DS
 
 	pushaq

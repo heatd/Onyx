@@ -3,12 +3,14 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
-
-#include <sys/socket.h>
-#include <sys/un.h>
 #include <string.h>
 #include <unistd.h>
 #include <stdio.h>
+#include <fcntl.h>
+
+#include <sys/mman.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 
 #include <wserver_public_api.h>
 
@@ -17,11 +19,14 @@ static unsigned int client_id = -1;
 /* Connects to the window server and does a handshake */
 int wserver_connect(void)
 {
+	/* TODO: Implement SOCK_CLOEXEC on sys_socket */
 	client_fd = socket(AF_UNIX, SOCK_DGRAM, 0);
 
 	if(client_fd < 0)
 		return -1;
-	
+
+	fcntl(client_fd, F_SETFD, FD_CLOEXEC);
+
 	struct sockaddr_un addr = {};
 	addr.sun_family = AF_UNIX;
 	memcpy(addr.sun_path, SERVER_SOCKET_PATH, sizeof(SERVER_SOCKET_PATH));
@@ -62,8 +67,13 @@ int wserver_connect(void)
 	}
 
 	client_id = reply.reply.hrply.new_cid;
+
+	drm_initialize();
+
 	return 0;
 }
+
+drm_handle wserver_get_handle_for_window(WINDOW window);
 
 /* Creates a window */
 WINDOW wserver_create_window(struct server_message_create_window *params)
@@ -91,11 +101,77 @@ WINDOW wserver_create_window(struct server_message_create_window *params)
 	if(reply.status != STATUS_OK)
 		return BAD_WINDOW;
 	
-	return NULL;
+	return reply.reply.cwreply.window_handle;
+}
+
+drm_handle wserver_get_handle_for_window(WINDOW window)
+{
+	struct server_message msg = {};
+	msg.client_id = client_id;
+	msg.msg_type = SERVER_MESSAGE_GET_WINDOW_BUFFER_HANDLE;
+
+	msg.args.gwbhargs.window_handle = window;
+
+	if(send(client_fd, &msg, sizeof(msg), 0) < 0)
+	{
+		perror("wserver_get_handle_for_window: send");
+		return DRM_INVALID_HANDLE;
+	}
+
+	struct server_reply reply = {};
+
+	if(recv(client_fd, &reply, sizeof(reply), 0) < 0)
+	{
+		perror("wserver_get_handle_for_window: recv");
+		return DRM_INVALID_HANDLE;
+	}
+
+	if(reply.status != STATUS_OK)
+		return DRM_INVALID_HANDLE;
+
+	drm_handle h = drm_open_from_name(reply.reply.gwbhreply.drm_name,
+		reply.reply.gwbhreply.security_cookie);
+	return h;
+}
+
+void *wserver_map_drm_buf(size_t size, size_t off, drm_handle handle)
+{
+	int drm_fd = drm_get_fd();
+	struct drm_create_buf_map_args args;
+	args.handle = handle;
+	
+	if(drm_create_buffer_map(&args) < 0)
+		return NULL;
+	return mmap(NULL, size, PROT_WRITE | PROT_READ, MAP_SHARED, drm_fd, args.offset);
+}
+
+int wserver_window_map(struct wserver_window_map *map)
+{
+	drm_handle handle = wserver_get_handle_for_window(map->win);
+
+	if(handle == DRM_INVALID_HANDLE)
+		return -1;
+	map->addr = wserver_map_drm_buf(map->size, 0, handle);
+	return map->addr != MAP_FAILED ? 0 : -1;
 }
 
 /* Dirties a window buffer */
-int wserver_dirty_window(WINDOW window);
+int wserver_dirty_window(WINDOW window)
+{
+	struct server_message msg = {};
+	msg.client_id = client_id;
+	msg.msg_type = SERVER_MESSAGE_DIRTY_WINDOW;
+	msg.args.dirtywargs.dont_reply = true;
+	msg.args.dirtywargs.window_handle = window;
+
+	if(send(client_fd, &msg, sizeof(msg), 0) < 0)
+	{
+		perror("wserver_dirty_window: send");
+		return -1;
+	}
+
+	return 0;
+}
 
 /* Destroys a window */
 int wserver_destroy_window(WINDOW window);

@@ -19,6 +19,18 @@
 #define IA32_MSR_MC0_CTL 	0x00000400
 #define IA32_MSR_PAT		0x00000277
 #define IA32_TSC_DEADLINE	0x000006e0
+#define IA32_MISC_ENABLE	0x000001a0
+
+#define IA32_MISC_ENABLE_FAST_STRINGS_ENABLE		(1 << 0)
+#define IA32_MISC_ENABLE_AUTO_TCC_ENABLE		(1 << 3)
+#define IA32_MISC_ENABLE_PM_AVAIALBLE			(1 << 7)
+#define IA32_MISC_ENABLE_BTS_STORAGE_UNAVAILABLE	(1 << 11)
+#define IA32_MISC_ENABLE_PEBS_UNAVAILABLE		(1 << 12)
+#define IA32_MISC_ENABLE_ENHANCED_INTEL_SPEEDSTEP	(1 << 16)
+#define IA32_MISC_ENABLE_ENABLE_MONITOR_FSM		(1 << 18)
+#define IA32_MISC_ENABLE_LIMIT_CPUID_MAXVAL		(1 << 22)
+#define IA32_MISC_ENABLE_XTPR_MSG_DISABLE		(1 << 23)
+#define IA32_MISC_ENABLE_XD_BIT_DISABLE			(1UL << 34)
 
 /* Syscall/sysret enable */
 #define IA32_EFER_SCE			(1 << 0)
@@ -33,14 +45,14 @@
 
 #include <stdint.h>
 
-inline void wrmsr(uint32_t msr, uint64_t val)
+static inline void wrmsr(uint32_t msr, uint64_t val)
 {
 	uint32_t lo = (uint32_t) val;
 	uint32_t hi = val >> 32;
-	__asm__ __volatile__("wrmsr"::"a"(lo), "d"(hi), "c"(msr));
+	__asm__ __volatile__("wrmsr"::"a"(lo), "d"(hi), "c"(msr) : "memory");
 }
 
-inline uint64_t rdmsr(uint32_t msr)
+static inline uint64_t rdmsr(uint32_t msr)
 {
 	uint32_t lo, hi;
 	__asm__ __volatile__("rdmsr" : "=a"(lo), "=d"(hi) : "c"(msr));

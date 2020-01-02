@@ -180,6 +180,8 @@ void proc_event_do_ack(struct process *process)
 	}
 }
 
+#include <onyx/x86/msr.h>
+
 void proc_event_enter_syscall(struct syscall_frame *regs, uintptr_t rax)
 {
 	struct process *current = get_current_process();
@@ -220,6 +222,9 @@ void proc_event_enter_syscall(struct syscall_frame *regs, uintptr_t rax)
 		sem_signal(&s->event_semaphore);
 	}
 
+	if(current->pid == 2)
+		assert(rdmsr(FS_BASE_MSR) != 0);
+
 	if(current->nr_subs == 0)
 		return;
 
@@ -245,6 +250,9 @@ void proc_event_exit_syscall(long retval, long syscall_nr)
 
 		sem_signal(&s->event_semaphore);
 	}
+
+	if(current->pid == 2)
+		assert(rdmsr(FS_BASE_MSR) != 0);
 
 	if(current->nr_subs == 0)
 		return;

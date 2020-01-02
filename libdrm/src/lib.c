@@ -13,15 +13,15 @@
 
 #include <drm/drm.h>
 
-int drm_fd = -1;
+static int drm_fd = -1;
 
 int drm_initialize(void)
 {
-	drm_fd = open("/dev/drm/drm0", O_RDWR);
+	drm_fd = open("/dev/drm/drm0", O_RDWR | O_CLOEXEC);
 	
 	if(drm_fd == -1)
 	{
-		printf("libdrm: /dev/drm/drm0 not found!\n");
+		perror("Error opening drm device");
 		return -1;
 	}
 
@@ -75,4 +75,39 @@ int drm_create_buffer_map(struct drm_create_buf_map_args *args)
 	}
 
 	return 0;
+}
+
+int drm_set_name(drm_handle handle, uint64_t security_cookie, uint32_t *name)
+{
+	struct drm_set_name_args args;
+	args.handle = handle;
+	args.security_cookie = security_cookie;
+	args.name = 0;
+
+	int st = ioctl(drm_fd, DRM_IOCTL_SET_NAME, &args);
+
+	*name = args.name;
+
+	return st;
+}
+
+drm_handle drm_open_from_name(uint32_t name, uint64_t security_cookie)
+{
+	struct drm_open_from_name_args args;
+	args.handle = 0;
+	args.name = name;
+	args.security_cookie = security_cookie;
+
+	if(ioctl(drm_fd, DRM_IOCTL_OPEN_FROM_NAME, &args) < 0)
+		return DRM_INVALID_HANDLE;
+
+	return args.handle;
+}
+
+int drm_close_handle(drm_handle handle)
+{
+	struct drm_close_handle_args args;
+	args.handle = handle;
+
+	return ioctl(drm_fd, DRM_IOCTL_CLOSE_OBJECT, &args);
 }

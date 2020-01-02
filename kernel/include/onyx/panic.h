@@ -19,7 +19,7 @@ ARCH_SPECIFIC void halt();
  */
 
 /* panic - Panics the system (dumps information and halts) */
-__attribute__ ((noreturn, cold, noinline))
+__attribute__ ((noreturn, noinline))
 void panic(const char* msg);
 
 uintptr_t get_kernel_sym_by_name(const char *name);

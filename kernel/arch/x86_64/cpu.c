@@ -134,50 +134,64 @@ void __cpu_identify(void)
 char *cpu_get_name(void)
 {
 	uint32_t eax,ebx,edx,ecx = 0;
-	__get_cpuid(0,&eax,&ebx,&ecx,&edx);
+	__get_cpuid(0, &eax, &ebx, &ecx, &edx);
 	
 	uint32_t cpuid[4] = {0};
 	cpuid[0] = ebx;
 	cpuid[1] = edx;
 	cpuid[2] = ecx;
-	memcpy(&cpu.manuid,&cpuid,12);
+	memcpy(&cpu.manuid, &cpuid, 12);
+
 	/* Zero terminate the string */
 	cpu.manuid[12] = '\0';
-	__get_cpuid(CPUID_MAXFUNCTIONSUPPORTED,&eax,&ebx,&ecx,&edx);
+
+	if(!strcmp(cpu.manuid, "GenuineIntel"))
+	{
+		cpu.manufacturer = X86_CPU_MANUFACTURER_INTEL;
+	}
+	else if(!strcmp(cpu.manuid, "AuthenticAMD"))
+	{
+		cpu.manufacturer = X86_CPU_MANUFACTURER_AMD;
+	}
+	else
+		cpu.manufacturer = X86_CPU_MANUFACTURER_UNKNOWN;
+
+	__get_cpuid(CPUID_MAXFUNCTIONSUPPORTED, &eax, &ebx, &ecx, &edx);
 	cpu.max_function = eax;
 	if(cpu.max_function >= 0x8000004)
 	{
-		__get_cpuid(CPUID_BRAND0,&eax,&ebx,&ecx,&edx);
+		__get_cpuid(CPUID_BRAND0, &eax, &ebx, &ecx, &edx);
 		cpuid[0] = eax;
 		cpuid[1] = ebx;
 		cpuid[2] = ecx;
 		cpuid[3] = edx;
-		memcpy(&cpu.brandstr,&cpuid,16);
-		__get_cpuid(CPUID_BRAND1,&eax,&ebx,&ecx,&edx);
+		memcpy(&cpu.brandstr, &cpuid, 16);
+		__get_cpuid(CPUID_BRAND1, &eax, &ebx, &ecx, &edx);
 		cpuid[0] = eax;
 		cpuid[1] = ebx;
 		cpuid[2] = ecx;
 		cpuid[3] = edx;
-		memcpy(&cpu.brandstr[16],&cpuid,16);
-		__get_cpuid(CPUID_BRAND2,&eax,&ebx,&ecx,&edx);
+		memcpy(&cpu.brandstr[16], &cpuid, 16);
+		__get_cpuid(CPUID_BRAND2, &eax, &ebx, &ecx, &edx);
 		cpuid[0] = eax;
 		cpuid[1] = ebx;
 		cpuid[2] = ecx;
 		cpuid[3] = edx;
-		memcpy(&cpu.brandstr[32],&cpuid,16);
+		memcpy(&cpu.brandstr[32], &cpuid, 16);
 		cpu.brandstr[47] = '\0';
 		// Get the address space sizes
 		__get_cpuid(CPUID_ADDR_SPACE_SIZE, &eax, &ebx, &ecx, &edx);
 		cpu.physicalAddressSpace = eax & 0xFF;
 		cpu.virtualAddressSpace = (eax >> 8) & 0xFF;
 	}
+
 	return &cpu.manuid[0];
 }
 
 void cpu_get_sign(void)
 {
 	uint32_t eax = 0,ebx,edx,ecx = 0;
-	__get_cpuid(CPUID_SIGN,&eax,&ebx,&ecx,&edx);
+	__get_cpuid(CPUID_SIGN, &eax, &ebx, &ecx, &edx);
 	cpu.stepping = eax & 0xF;
 	cpu.model = (eax >> 4) & 0xF;
 	cpu.family = (eax >> 8) & 0xF;
@@ -208,6 +222,21 @@ void x86_setup_standard_control_registers(void)
 	x86_write_cr4(cr4);
 }
 
+void x86_init_percpu_intel(void)
+{
+	uint64_t misc_enable = rdmsr(IA32_MISC_ENABLE);
+	misc_enable &= ~IA32_MISC_ENABLE_XD_BIT_DISABLE;
+
+	if(x86_has_cap(X86_FEATURE_ERMS))
+		misc_enable |= IA32_MISC_ENABLE_FAST_STRINGS_ENABLE;
+	if(x86_has_cap(X86_FEATURE_EST))
+		misc_enable |= IA32_MISC_ENABLE_ENHANCED_INTEL_SPEEDSTEP;
+	if(x86_has_cap(X86_FEATURE_SSE3))
+		misc_enable |= IA32_MISC_ENABLE_ENABLE_MONITOR_FSM;
+	
+	wrmsr(IA32_MISC_ENABLE, misc_enable);
+}
+
 void x86_init_percpu(void)
 {
 	/* Set up the standard control registers to set an equal playing field for every CPU */
@@ -228,6 +257,12 @@ void x86_init_percpu(void)
 	wrmsr(IA32_MSR_LSTAR, (uint64_t) syscall_ENTRY64);
 	wrmsr(IA32_MSR_SFMASK, EFLAGS_INT_ENABLED | EFLAGS_DIRECTION |
 		EFLAGS_TRAP | EFLAGS_ALIGNMENT_CHECK);
+	
+
+	if(cpu.manufacturer == X86_CPU_MANUFACTURER_INTEL)
+	{
+		x86_init_percpu_intel();
+	}
 }
 
 void cpu_init_late(void)

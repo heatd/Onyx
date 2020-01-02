@@ -166,6 +166,9 @@ thread_t *sched_find_next(void)
 
 thread_t *sched_find_runnable(void)
 {
+	if(sched_is_preemption_disabled())
+		return get_current_thread();
+
 	thread_t *thread = sched_find_next();
 	if(!thread)
 	{
@@ -543,6 +546,11 @@ struct thread *get_thread_for_cpu(unsigned int cpu)
 	return get_per_cpu_any(current_thread, cpu);
 }
 
+bool sched_may_resched(void)
+{
+	return !(is_in_interrupt() || irq_is_disabled() || sched_is_preemption_disabled());
+}
+
 void sched_try_to_resched(struct thread *thread)
 {
 	struct thread *current = get_current_thread();
@@ -554,7 +562,7 @@ void sched_try_to_resched(struct thread *thread)
 
 	if(thread->cpu == current->cpu && thread->priority > current->priority)
 	{
-		if(is_in_interrupt() || irq_is_disabled())
+		if(!sched_may_resched())
 		{
 			current->flags |= THREAD_NEEDS_RESCHED;
 			return;
@@ -935,10 +943,24 @@ void sched_disable_preempt_for_cpu(unsigned int cpu)
 	atomic_fetch_add_explicit(preempt_counter, 1, memory_order_release);
 }
 
+void sched_try_to_resched_if_needed(void)
+{
+	struct thread *current = get_current_thread();
+
+	if(current && sched_needs_resched(current) && sched_may_resched())
+	{
+		current->flags &= ~THREAD_NEEDS_RESCHED;
+		sched_yield();
+	}
+}
+
 void sched_enable_preempt(void)
 {
 	if(percpu_initialized())
-		sched_enable_preempt_for_cpu(get_cpu_nr());
+	{
+		sched_enable_preempt_for_cpu(get_cpu_nr());	
+		sched_try_to_resched_if_needed();	
+	}
 }
 
 void sched_disable_preempt(void)

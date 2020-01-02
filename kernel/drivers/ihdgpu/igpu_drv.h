@@ -62,7 +62,9 @@ enum DDI
 	DDI_A = 0,
 	DDI_B,
 	DDI_C,
-	DDI_D
+	DDI_D,
+	DDI_E,
+	DDI_MAX
 };
 
 enum PIPE_NAME
@@ -140,6 +142,14 @@ struct bdb_lvds_lfp_data_entry;
 
 struct igd_displayport;
 
+struct igd_vbt_ddi_info
+{
+	bool is_hdmi;
+	bool is_dp;
+	bool is_edp;
+	bool is_dvi;
+};
+
 struct igpu_device
 {
 	volatile void *mmio_regs;
@@ -156,6 +166,7 @@ struct igpu_device
 	struct igd_pipe *pipes[NR_PIPES];
 	struct igd_transcoder *transcoders[NR_TRANSCODERS];
 	struct igd_primary_plane *planes[NR_PRI_PLANES];
+	struct igd_vbt_ddi_info ddi_info[DDI_MAX];
 };
 
 struct igd_displayport
@@ -189,6 +200,9 @@ int igd_enable_power(struct igpu_device *dev);
 int igd_init_pipes(struct igpu_device *device);
 int igd_init_transcoders(struct igpu_device *device);
 int igd_init_primary_planes(struct igpu_device *device);
+int igd_enable_display_engine(struct igpu_device *dev);
+int igd_query_displays(struct igpu_device *dev);
+int igd_get_ddi_info(struct igpu_device *dev);
 
 #include "igd_pipe.h"
 

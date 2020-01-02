@@ -52,6 +52,7 @@ void signal_default_stop(int signum)
 
 sighandler_t dfl_signal_handlers[] = {
 	[SIGHUP] = signal_default_term,
+	[SIGTRAP] = signal_default_core,
 	[SIGINT] = signal_default_term,
 	[SIGQUIT] = signal_default_core,
 	[SIGILL] = signal_default_core,

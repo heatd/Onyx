@@ -12,7 +12,7 @@ EXEC_PREFIX?=$(PREFIX)
 INCLUDEDIR?=$(PREFIX)/usr/include
 LIBDIR?=$(EXEC_PREFIX)/usr/lib
 
-CFLAGS:=$(CFLAGS) -Wall -Wextra -mtune=generic
+CFLAGS:=$(CFLAGS) -Wall -Wextra -mtune=generic -fPIC -DPIC
 
 CFLAGS:=$(CFLAGS)
 CPPFLAGS:=$(CPPFLAGS)
@@ -20,7 +20,7 @@ CPPFLAGS:=$(CPPFLAGS)
 OBJS:=\
 $(patsubst %.c,%.o,$(wildcard src/*.c))
 
-BINARIES=libdrm.a
+BINARIES=libdrm.a libdrm.so
 
 all: $(BINARIES)
 
@@ -45,6 +45,9 @@ clean:
 libdrm.a: $(OBJS)
 	echo [AR] $(LIBC_OBJS)
 	$(AR) rcs $@ $(OBJS)
+
+libdrm.so: $(OBJS)
+	$(CC) -shared $(OBJS) -o $@
 
 install: install-headers install-libs
 install-headers:

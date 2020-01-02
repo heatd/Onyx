@@ -46,14 +46,14 @@ void Buffer::map()
 {
 	struct drm_create_buf_map_args args;
 	args.handle = buffer_info.handle;
-	args.offset = 0;
 
 	if(drm_create_buffer_map(&args) < 0)
 		throw std::runtime_error("drm_create_buffer_map: Failure to"
 			"create buffer mapping");
 	
-	mapping = mmap(NULL, buffer_info.size, PROT_READ | PROT_WRITE, MAP_SHARED, drm_get_fd(), 0);
-	if(!mapping)
+	mapping = mmap(NULL, buffer_info.size, PROT_READ | PROT_WRITE, MAP_SHARED, drm_get_fd(),
+		args.offset);
+	if(mapping == MAP_FAILED)
 		throw std::runtime_error("mmap failed");
 }
 
@@ -72,6 +72,7 @@ Buffer::~Buffer()
 		unmap();*/
 	/* TODO: Add drm buffer destruction once it's implemented */
 }
+
 drm_handle Buffer::get_handle()
 {
 	return buffer_info.handle;

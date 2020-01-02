@@ -4,6 +4,7 @@
 * check LICENSE at the root directory for more information
 */
 
+#define _XOPEN_SOURCE 500
 #include <algorithm>
 #include <assert.h>
 #include <stdio.h>
@@ -110,6 +111,11 @@ public:
 	{
 		reply.reply.cwreply.window_handle = cwreply.window_handle;
 	}
+	
+	void set_get_window_buffer_handle_reply(struct server_message_get_window_buffer_handle_reply& r)
+	{
+		reply.reply.gwbhreply = r;
+	} 
 
 	void send()
 	{
@@ -161,8 +167,11 @@ void Server::handle_message(struct server_message *msg, struct sockaddr *addr, s
 				break;
 			}
 
+			window->draw();
+
 			WINDOW window_handle = client->create_window(window);
 			/* TODO: Delete window on client->create_window() failure */
+			// TODO: Actually I think that's getting deleted.
 		
 			server_message_create_window_reply r;
 			r.window_handle = window_handle;
@@ -170,6 +179,78 @@ void Server::handle_message(struct server_message *msg, struct sockaddr *addr, s
 			reply.set_status_code(STATUS_OK);
 			reply.set_create_window_reply(r);
 			reply.send();
+			break;
+		}
+		case SERVER_MESSAGE_GET_WINDOW_BUFFER_HANDLE:
+		{
+			auto& gwbargs = msg->args.gwbhargs;
+			ServerReply reply(addr, len, socket_fd);
+
+			auto client = get_client(msg->client_id);
+			if(!client)
+			{
+				reply.set_status_code(STATUS_FAILURE);
+				reply.send();
+				break;	
+			}
+
+			auto window = client->get_window(gwbargs.window_handle);
+
+			if(!window)
+			{
+				reply.set_status_code(STATUS_FAILURE);
+				reply.send();
+				break;
+			}
+
+			auto buffer = window->get_buffer();
+			server_message_get_window_buffer_handle_reply r;
+			uint32_t name;
+			uint64_t cookie = random();
+			if(drm_set_name(buffer->get_handle(), cookie, &name) < 0)
+				perror("drm_set_name");
+			r.drm_name = name;
+			r.security_cookie = cookie;
+
+			reply.set_status_code(STATUS_OK);
+			reply.set_get_window_buffer_handle_reply(r);
+			reply.send();
+			break;
+		}
+		case SERVER_MESSAGE_DIRTY_WINDOW:
+		{
+			auto& dwargs = msg->args.dirtywargs;
+			bool dont_reply = dwargs.dont_reply;
+			ServerReply reply(addr, len, socket_fd);
+
+			auto client = get_client(msg->client_id);
+			if(!client)
+			{
+				if(dont_reply)
+					break;
+				reply.set_status_code(STATUS_FAILURE);
+				reply.send();
+				break;	
+			}
+
+			auto window = client->get_window(dwargs.window_handle);
+
+			if(!window)
+			{
+				if(dont_reply)
+					break;
+				reply.set_status_code(STATUS_FAILURE);
+				reply.send();
+				break;
+			}
+
+			window->set_dirty();
+			if(dont_reply == false)
+			{
+				reply.set_status_code(STATUS_OK);
+				reply.send();
+			}
+
 			break;
 		}
 		default:

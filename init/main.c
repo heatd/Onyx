@@ -251,7 +251,10 @@ int main(int argc, char **argv, char **envp)
 	while(1)
 	{
 		if(waitpid(-1, NULL, WEXITED) < 0)
+		{
 			perror("waitpid");
+			return 1;
+		}
 	}
 	return 0;
 }

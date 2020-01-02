@@ -395,14 +395,18 @@ void (* const int_handlers[])(struct registers *ctx) =
 };
 
 PER_CPU_VAR(struct spinlock isr_lock);
+uint32_t in_isr = 0;
 
 static void exit_isr_handler(void)
 {
+	in_isr--;
 	//spin_unlock(&GET_PER_CPU(isr_lock, struct spinlock));
 }
 
 static void enter_isr_handler(void)
 {
+	if(in_isr > 10) { halt(); }
+	in_isr++;
 	//spin_lock(&GET_PER_CPU(isr_lock, struct spinlock));
 }
 
