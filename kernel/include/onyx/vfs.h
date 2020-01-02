@@ -176,6 +176,8 @@ struct inode *get_fs_root(void);
 
 short poll_vfs(void *poll_file, short events, struct inode *node);
 
+int fallocate_vfs(int mode, off_t offset, off_t len, struct inode *file);
+
 #ifdef __cplusplus
 }
 #endif

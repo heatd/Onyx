@@ -75,8 +75,10 @@
 #define __NR_poll				78
 #define __NR_proc_event_attach			80
 #define __NR_access				81
-#define __NR_rename				82
-#define __NR_mkdir				83
+#define __NR_fallocate				82
+#define __NR_rename				285
+#define __NR_gettid				83
+#define __NR_mkdir				186
 #define __NR_rmdir				84
 #define __NR_creat				85
 #define __NR_link				86
@@ -162,7 +164,6 @@
 #define __NR_afs_syscall			183
 #define __NR_tuxcall				184
 #define __NR_security				185
-#define __NR_gettid					186
 #define __NR_readahead				187
 #define __NR_setxattr				188
 #define __NR_lsetxattr				189
@@ -290,7 +291,6 @@
 #define __NR_signalfd				282
 #define __NR_timerfd_create			283
 #define __NR_eventfd				284
-#define __NR_fallocate				285
 #define __NR_timerfd_settime		286
 #define __NR_timerfd_gettime		287
 #define __NR_accept4				288
@@ -412,8 +412,10 @@
 #define SYS_poll				78
 #define SYS_proc_event_attach			80
 #define SYS_access				81
-#define SYS_rename				82
-#define SYS_mkdir				83
+#define SYS_fallocate				82
+#define SYS_rename				285
+#define SYS_gettid				83
+#define SYS_mkdir				186
 #define SYS_rmdir				84
 #define SYS_creat				85
 #define SYS_link				86
@@ -499,7 +501,6 @@
 #define SYS_afs_syscall			183
 #define SYS_tuxcall				184
 #define SYS_security				185
-#define SYS_gettid					186
 #define SYS_readahead				187
 #define SYS_setxattr				188
 #define SYS_lsetxattr				189
@@ -627,7 +628,6 @@
 #define SYS_signalfd				282
 #define SYS_timerfd_create			283
 #define SYS_eventfd				284
-#define SYS_fallocate				285
 #define SYS_timerfd_settime		286
 #define SYS_timerfd_gettime		287
 #define SYS_accept4				288

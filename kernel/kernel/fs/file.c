@@ -693,6 +693,21 @@ int sys_ftruncate(int fd, off_t length)
 	return ret;
 }
 
+int sys_fallocate(int fd, int mode, off_t offset, off_t len)
+{
+	struct file *f = get_file_description(fd);
+	if(!f)
+	{
+		return -errno;
+	}
+
+	int ret = fallocate_vfs(mode, offset, len, f->vfs_node);
+
+
+	fd_put(f);
+	return ret;
+}
+
 off_t sys_lseek(int fd, off_t offset, int whence)
 {
 	/* TODO: Fix O_APPEND behavior */

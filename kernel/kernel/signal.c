@@ -186,10 +186,6 @@ void signal_update_pending(struct thread *thread)
 
 void kernel_raise_signal(int sig, struct process *process)
 {
-	/* BIG TODO: the thread list doesn't have a lock protecting it,
-	 * making this inherently unsafe. Fix.
-	*/
-
 	struct thread *t = NULL;
 
 	spin_lock(&process->thread_list_lock);

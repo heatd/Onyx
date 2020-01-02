@@ -424,9 +424,9 @@ void isr_handler(struct registers *ctx)
 {
 	int int_no = ctx->int_no;
 
-	enter_isr_handler();
+	//enter_isr_handler();
 
 	int_handlers[int_no](ctx);
 
-	exit_isr_handler();
+	//exit_isr_handler();
 }

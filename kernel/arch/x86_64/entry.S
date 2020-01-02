@@ -194,6 +194,8 @@ syscall_signal_path:
 	mov %rsp, %rdx
 	call do_signal_syscall
 
+	cli
+
 	swapgs
 
 	pop %rax

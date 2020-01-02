@@ -1005,6 +1005,7 @@ void process_destroy(thread_t *current_thread)
 
 	/* Finally, wake up any possible concerned (waiting :D) parents */
 	sem_signal(&current->parent->wait_sem);
+	kernel_raise_signal(SIGCHLD, current->parent);
 
 	//sched_enable_preempt();
 

@@ -700,6 +700,53 @@ int ftruncate_vfs(off_t length, struct inode *vnode)
 	return -ENOSYS;
 }
 
+int default_fallocate(int mode, off_t offset, off_t len, struct inode *file)
+{
+	/* VERY VERY VERY VERY VERY quick and dirty implementation to satisfy /bin/ld(.gold) */
+	if(mode != 0)
+		return -EINVAL;
+
+	char *page = zalloc(PAGE_SIZE);
+	if(!page)
+	{
+		return -ENOMEM;
+	}
+
+	size_t length_diff = (size_t) len;
+	size_t off = off;
+	while(length_diff != 0)
+	{
+		size_t to_write = length_diff >= PAGE_SIZE ? PAGE_SIZE : length_diff;
+
+		size_t written = write_vfs(off, to_write, page, file);
+
+		if(written != to_write)
+		{
+			free(page);
+			return (int) written;
+		}
+
+		off += to_write;
+		length_diff -= to_write;
+	}
+
+	free(page);
+
+	return 0;
+}
+
+int fallocate_vfs(int mode, off_t offset, off_t len, struct inode *file)
+{
+	if(0)
+	{
+
+	}
+	else
+		return default_fallocate(mode, offset, len, file);
+
+	return -EINVAL;
+}
+
 int symlink_vfs(const char *dest, struct inode *inode)
 {
 	if(inode->i_fops.symlink != NULL)

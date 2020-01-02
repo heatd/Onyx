@@ -1099,3 +1099,10 @@ void scheduler_kill(struct thread *thread)
 		__sched_kill_other(thread, cpu);
 	}
 }
+
+pid_t sys_gettid(void)
+{
+	struct thread *current = get_current_thread();
+	/* TODO: Should we emulate actual linux behavior? */
+	return current->id;
+}
