@@ -1,6 +1,6 @@
 PROG:= init
 OBJS:= main.o daemon.o
-CFLAGS:=-O2 -g -std=c99 -D_POSIX_C_SOURCE -fstack-protector-strong
+CFLAGS:=-O2 -g -std=c99 -D_POSIX_C_SOURCE -fstack-protector-strong -pie
 clean:
 	rm -f $(PROG)
 	rm -f $(OBJS)
@@ -20,4 +20,4 @@ install: $(PROG)
 %.o: %.c
 	$(CC) -c $< $(CFLAGS) -o $@
 $(PROG): $(OBJS)
-	$(CC) -Wl,--warn-execstack $(OBJS) $(CFLAGS) -static -o $@
+	$(CC) -Wl,--warn-execstack $(OBJS) $(CFLAGS) -pie -static -o $@

@@ -33,6 +33,7 @@
 #include <onyx/arch.h>
 #include <onyx/percpu.h>
 #include <libdict/rb_tree.h>
+#include <onyx/rwlock.h>
 
 static bool is_initialized = false;
 
@@ -801,6 +802,8 @@ void condvar_wait_unlocked(struct cond *var)
 {
 	thread_t *current = get_current_thread();
 
+	bool b = irq_is_disabled();
+
 	spin_lock_irqsave(&var->llock);
 
 	sched_lock(current);
@@ -810,6 +813,8 @@ void condvar_wait_unlocked(struct cond *var)
 	spin_unlock_preempt(&var->llock);
 
 	__sched_block(current);
+
+	if(!b) irq_enable();
 }
 
 void condvar_wait(struct cond *var, struct mutex *mutex)
@@ -1105,4 +1110,188 @@ pid_t sys_gettid(void)
 	struct thread *current = get_current_thread();
 	/* TODO: Should we emulate actual linux behavior? */
 	return current->id;
+}
+
+bool rw_lock_tryread(struct rwlock *lock)
+{
+	unsigned long l;
+	do
+	{
+		l = lock->lock;
+		if(l == RDWR_LOCK_WRITE - 1)
+			return errno = EAGAIN, false;
+		if(l == RDWR_LOCK_WRITE)
+			return errno = EBUSY, false;
+	} while(__sync_bool_compare_and_swap(&lock->lock, l, l+1) != true);
+	
+	__sync_synchronize();
+
+	return true;
+}
+
+bool rw_lock_trywrite(struct rwlock *lock)
+{
+	bool st = __sync_bool_compare_and_swap(&lock->lock, 0, RDWR_LOCK_WRITE);
+	__sync_synchronize();
+	
+	return st;
+}
+
+enqueue_thread_generic(rwlock, struct rwlock);
+dequeue_thread_generic(rwlock, struct rwlock);
+prepare_sleep_generic(rwlock, struct rwlock);
+
+int __rw_lock_write(struct rwlock *lock, int state)
+{
+	/* Try once before doing the whole preempt disable loop and all */
+	if(rw_lock_trywrite(lock))
+		return 0;
+
+	int ret = 0;
+	struct thread *current = get_current_thread();
+
+	bool signals_allowed = state == THREAD_INTERRUPTIBLE;
+
+	prepare_sleep_rwlock(lock, state);
+
+	while(!rw_lock_trywrite(lock))
+	{
+		if(signals_allowed && signal_is_pending())
+		{
+			ret = -EINTR;
+			break;
+		}
+
+		sched_enable_preempt();
+
+		commit_sleep();
+
+		prepare_sleep_rwlock(lock, state);
+	}
+
+	spin_lock_irqsave(&lock->llock);
+
+	dequeue_thread_rwlock(lock, current);
+
+	spin_unlock_irqrestore(&lock->llock);
+
+	set_current_state(THREAD_RUNNABLE);
+
+	sched_enable_preempt();
+
+	__sync_synchronize();
+
+	return ret;
+}
+
+int __rw_lock_read(struct rwlock *lock, int state)
+{
+	/* Try once before doing the whole preempt disable loop and all */
+	if(rw_lock_tryread(lock))
+		return 0;
+
+	int ret = 0;
+	struct thread *current = get_current_thread();
+
+	bool signals_allowed = state == THREAD_INTERRUPTIBLE;
+
+	prepare_sleep_rwlock(lock, state);
+
+	while(!rw_lock_tryread(lock))
+	{
+		if(signals_allowed && signal_is_pending())
+		{
+			ret = -EINTR;
+			break;
+		}
+
+		sched_enable_preempt();
+
+		commit_sleep();
+
+		prepare_sleep_rwlock(lock, state);
+	}
+
+	spin_lock_irqsave(&lock->llock);
+
+	dequeue_thread_rwlock(lock, current);
+
+	spin_unlock_irqrestore(&lock->llock);
+
+	set_current_state(THREAD_RUNNABLE);
+
+	sched_enable_preempt();
+
+	__sync_synchronize();
+
+	return ret;
+}
+
+void rw_lock_write(struct rwlock *lock)
+{
+	__rw_lock_write(lock, THREAD_UNINTERRUPTIBLE);
+}
+
+int rw_lock_write_interruptible(struct rwlock *lock)
+{
+	return __rw_lock_write(lock, THREAD_INTERRUPTIBLE);
+}
+
+void rw_lock_read(struct rwlock *lock)
+{
+	__rw_lock_read(lock, THREAD_UNINTERRUPTIBLE);
+}
+
+int rw_lock_read_interruptible(struct rwlock *lock)
+{
+	return __rw_lock_read(lock, THREAD_INTERRUPTIBLE);
+}
+
+void rw_lock_wake_up_threads(struct rwlock *lock)
+{
+	spin_lock(&lock->llock);
+
+	while(lock->head)
+	{
+		struct thread *to_wake = lock->head;
+		dequeue_thread_rwlock(lock, lock->head);
+
+		thread_wake_up(to_wake);
+	}
+
+	spin_unlock(&lock->llock);
+}
+
+void rw_lock_wake_up_thread(struct rwlock *lock)
+{
+	spin_lock(&lock->llock);
+
+	if(lock->head)
+	{
+		struct thread *to_wake = lock->head;
+		dequeue_thread_rwlock(lock, lock->head);
+
+		thread_wake_up(to_wake);
+	}
+
+	spin_unlock(&lock->llock);
+}
+
+void rw_unlock_read(struct rwlock *lock)
+{
+	/* Implementation note: If we're unlocking a read lock, only wake up a
+	 * single thread, since the write lock is exclusive, like a mutex.
+	*/
+	if(__sync_sub_and_fetch(&lock->lock, 1) == 0)
+		rw_lock_wake_up_thread(lock);
+}
+
+void rw_unlock_write(struct rwlock *lock)
+{
+	lock->lock = 0;
+	__sync_synchronize();
+	/* Implementation note: If we're unlocking a write lock, wake up every single thread
+	 * because we can have both readers and writers waiting to get woken up.
+	*/
+	rw_lock_wake_up_threads(lock);
 }

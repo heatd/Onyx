@@ -403,6 +403,19 @@ void *process_setup_auxv(void *buffer, struct process *process)
 			case AT_SYSINFO_EHDR:
 				auxv[i].a_un.a_val = (uintptr_t) process->vdso;
 				break;
+			case AT_FLAGS:
+			{
+				/* Lets reuse AT_FLAGS for the purpose of storing dynv */
+				/* TODO: Hack? */
+				auxv[i].a_un.a_val = (uintptr_t) process->info.dyn;
+				break;
+			}
+
+			case AT_ENTRY:
+			{
+				auxv[i].a_un.a_val = (unsigned long) process->info.program_entry;
+				break;
+			}
 		}
 	}
 	return auxv;
@@ -430,6 +443,15 @@ int return_from_execve(void *entry, int argc, char **argv, char **envp, void *au
 /*
 	execve(2): Executes a program with argv and envp, replacing the current process.
 */
+
+struct inode *pick_between_cwd_and_root(char *p, struct process *proc)
+{
+	if(*p == '/')
+		return get_fs_root();
+	else
+		return proc->ctx.cwd;
+}
+
 int sys_execve(char *p, char *argv[], char *envp[])
 {
 	if(!vm_find_region(argv))
@@ -461,7 +483,7 @@ int sys_execve(char *p, char *argv[], char *envp[])
 	}
 
 	/* Open the file */
-	struct inode *in = open_vfs(get_fs_root(), path);
+	struct inode *in = open_vfs(pick_between_cwd_and_root(path, current), path);
 	if (!in)
 	{
 		free(path);

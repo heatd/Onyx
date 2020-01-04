@@ -39,3 +39,17 @@ make install-target install-target-libgcc install-target-libstdc++-v3 -j4
 ## Conclusion
 
 Everything should be done by now, just add $PREFIX/bin to your $PATH and you should be set!
+
+## Addendum
+
+## Building binutils to run on Onyx itself
+
+Using /mnt as the place where the partition is mounted:
+
+Notes:
+
+- Don't default to gold because mmap MAP_SHARED and dirtying the filesystem doesn't work yet (kernel issue) and there may be other issues besides that one
+
+```bash
+../binutils-2.32/configure --host=x86_64-onyx --prefix=/usr --with-sysroot= --with-build-sysroot=/mnt --disable-werror --disable-nls --enable-gold --enable-lto --enable-plugins
+```

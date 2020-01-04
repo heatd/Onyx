@@ -28,17 +28,7 @@ void _dlstart_c(int argc, char **argv, char **envp, size_t *auxv)
 	for (i=0; auxv[i]; i+=2) if (auxv[i]<AUX_CNT)
 		aux[auxv[i]] = auxv[i+1];
 
-	Phdr *ph = (Phdr *) aux[AT_PHDR];
-
-	for(size_t i = 0; i < aux[AT_PHNUM]; i++, ph++) 
-	{
-		if(ph->p_type == PT_DYNAMIC)
-		{
-			dynv = (size_t *) ph->p_vaddr;
-		}
-		/* Fixup the phdrs */
-		ph->p_vaddr -= aux[AT_BASE];
-	}
+	dynv = aux[AT_FLAGS];
 
 	if(!dynv)
 		return;

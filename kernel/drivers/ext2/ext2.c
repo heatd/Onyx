@@ -29,6 +29,7 @@ off_t ext2_getdirent(struct dirent *buf, off_t off, struct inode* this);
 int ext2_stat(struct stat *buf, struct inode *node);
 struct inode *ext2_creat(const char *path, int mode, struct inode *file);
 char *ext2_readlink(struct inode *ino);
+void ext2_close(struct inode *ino);
 
 struct file_ops ext2_ops = 
 {
@@ -38,7 +39,8 @@ struct file_ops ext2_ops =
 	.getdirent = ext2_getdirent,
 	.stat = ext2_stat,
 	.creat = ext2_creat,
-	.readlink = ext2_readlink
+	.readlink = ext2_readlink,
+	.close = ext2_close
 };
 
 uuid_t ext2_gpt_uuid[4] = 
@@ -67,6 +69,13 @@ struct ext2_inode *ext2_get_inode_from_dir(ext2_fs_t *fs, dir_entry_t *dirent, c
 		dirs = (dir_entry_t*)((char*) dirs + dirs->size);
 	}
 	return NULL;
+}
+
+void ext2_close(struct inode *ino)
+{
+	/* TODO: Flush metadata if inode is dirty */
+	struct ext2_inode *inode = ext2_get_inode_from_node(ino);
+	free(inode);
 }
 
 size_t ext2_write(size_t offset, size_t sizeofwrite, void *buffer, struct inode *node)
@@ -203,9 +212,7 @@ struct inode *ext2_creat(const char *name, int mode, struct inode *file)
 	struct ext2_inode *dir_inode = ext2_get_inode_from_node(file);
 
 	if(!inode)
-	{
 		return NULL;
-	}
 
 	memset(inode, 0, sizeof(struct ext2_inode));
 	inode->ctime = inode->atime = inode->mtime = (uint32_t) get_posix_time();

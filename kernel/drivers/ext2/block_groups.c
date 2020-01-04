@@ -26,6 +26,7 @@ uint32_t ext2_allocate_from_block_group(ext2_fs_t *fs, uint32_t block_group)
 		mutex_unlock(&fs->bgdt_lock);
 		return 0;
 	}
+
 	for(uint32_t i = 0; i < total_size; i++)
 	{
 		if(bitmap[i] == 0xFF)
@@ -45,6 +46,7 @@ uint32_t ext2_allocate_from_block_group(ext2_fs_t *fs, uint32_t block_group)
 			}
 		}
 	}
+
 	mutex_unlock(&fs->bgdt_lock);
 	return 0;
 }

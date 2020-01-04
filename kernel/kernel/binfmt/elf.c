@@ -174,6 +174,8 @@ bool elf_is_valid(Elf64_Ehdr *header)
 
 void* elf_load(struct binfmt_args *args)
 {
+	bool is_interp = args->needs_interp;
+
 	Elf64_Ehdr *header = malloc(sizeof(Elf64_Ehdr));
 	if(!header)
 		return errno = EINVAL, NULL;
@@ -190,10 +192,10 @@ void* elf_load(struct binfmt_args *args)
 			entry = elf64_load(args, header);
 			break;
 	}
-	
+
 	free(header);
 	
-	if(args->needs_interp)
+	if(args->needs_interp && !is_interp)
 		entry = bin_do_interp(args);
 
 	return entry;

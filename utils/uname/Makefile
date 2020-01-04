@@ -2,7 +2,7 @@ PROG:= uname
 OBJS:= main.o
 CFLAGS:=-O2 -g -fstack-protector-strong
 clean:
-	rm -f $(PROG)
+	rm -f $(PROG) $(OBJS)
 install: $(PROG)
 	mkdir -p $(DESTDIR)/usr/bin/
 	cp $(PROG) $(DESTDIR)/usr/bin/

@@ -74,6 +74,8 @@ static inline void __ext2_update_ctime(struct ext2_inode *ino)
 __attribute__((no_sanitize_undefined))
 struct ext2_inode *ext2_get_inode_from_number(ext2_fs_t *fs, uint32_t inode)
 {
+	if(!inode)
+		return NULL;
 	uint32_t block_size = fs->block_size;
 	uint32_t bg = (inode - 1) / fs->inodes_per_block_group;
 	uint32_t index = (inode - 1) % fs->inodes_per_block_group;
@@ -221,7 +223,8 @@ size_t ext2_calculate_dirent_size(size_t len_name)
 	return dirent_size;
 }
 
-int ext2_add_direntry(const char *name, uint32_t inum, struct ext2_inode *inode, struct ext2_inode *dir, ext2_fs_t *fs)
+int ext2_add_direntry(const char *name, uint32_t inum, struct ext2_inode *inode,
+	struct ext2_inode *dir, ext2_fs_t *fs)
 {
 	uint8_t *buffer;
 	uint8_t *buf = buffer = zalloc(fs->block_size);

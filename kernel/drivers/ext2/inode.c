@@ -13,7 +13,11 @@
 
 #include "../include/ext2.h"
 
-struct ext2_inode *ext2_allocate_inode_from_block_group(uint32_t *inode_no, uint32_t block_group, ext2_fs_t *fs)
+/* This is the max reserved inode number, everything below it is reserved */
+#define EXT2_UNDEL_DIR_INO		6
+
+struct ext2_inode *ext2_allocate_inode_from_block_group(uint32_t *inode_no,
+	uint32_t block_group, ext2_fs_t *fs)
 {
 	mutex_lock(&fs->ino_alloc_lock);
 	block_group_desc_t *_block_group = &fs->bgdt[block_group];
@@ -36,6 +40,11 @@ struct ext2_inode *ext2_allocate_inode_from_block_group(uint32_t *inode_no, uint
 			continue;
 		for(int j = 0; j < CHAR_BIT; j++)
 		{
+			uint32_t this_inode = fs->inodes_per_block_group * block_group
+					+ i * CHAR_BIT + j + 1;
+	
+			if(this_inode <= EXT2_UNDEL_DIR_INO)
+				continue;
 			if((bitmap[i] & (1 << j)) == 0)
 			{
 				/* Set the corresponding bit */
@@ -53,9 +62,8 @@ struct ext2_inode *ext2_allocate_inode_from_block_group(uint32_t *inode_no, uint
 						 total_blocks, fs, bitmap);
 				ext2_register_superblock_changes(fs);
 				ext2_register_bgdt_changes(fs);
+				inode = this_inode;
 				mutex_unlock(&fs->ino_alloc_lock);
-				inode = fs->inodes_per_block_group * block_group
-					+ i * CHAR_BIT + j + 1;
 				goto found;
 			}
 		}
@@ -65,18 +73,21 @@ found:
 	if(inode == 0)
 	{
 		free(bitmap);
-		return 0;
+		return NULL;
 	}
-	mutex_unlock(&fs->ino_alloc_lock);
+
 	struct ext2_inode *ino = ext2_get_inode_from_number(fs, inode);
+
 	/* TODO: Handle the inode leak here */
 	if(!ino)
 	{
 		free(bitmap);
-		return 0;
+		return NULL;
 	}
+
 	*inode_no = inode;
 	free(bitmap);
+
 	return ino;
 }
 
@@ -361,6 +372,7 @@ uint32_t ext2_get_block_from_inode(struct ext2_inode *ino, uint32_t block, ext2_
 	unsigned int min_trebly_block = entries * entries + entries + direct_block_count;
 
 	uint32_t ret = 0;
+	/* TODO: Ensure all this code handles fil holes correctly */
 	switch(type)
 	{
 		case EXT2_TYPE_DIRECT_BLOCK:

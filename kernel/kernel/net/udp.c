@@ -122,7 +122,7 @@ struct udp_packet *udp_get_queued_packet(struct udp_socket *socket)
 }
 
 ssize_t udp_recvfrom(void *buf, size_t len, int flags,
-struct sockaddr *src_addr, socklen_t *slen, struct inode *vnode)
+	struct sockaddr *src_addr, socklen_t *slen, struct inode *vnode)
 {
 	struct udp_socket *socket = (struct udp_socket*) vnode->i_helper;
 	struct sockaddr_in *addr = (struct sockaddr_in *) &socket->src_addr;

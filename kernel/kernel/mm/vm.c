@@ -1714,6 +1714,8 @@ void vm_do_fatal_page_fault(struct fault_info *info)
 		printk("SEGV at %016lx at ip %lx in process %u(%s)\n", 
 			info->fault_address, info->ip,
 			current->pid, current->cmd_line);
+		printk("Program base: %p\n", current->image_base);
+
 		kernel_raise_signal(SIGSEGV, get_current_process());
 	}
 	else
@@ -2629,14 +2631,15 @@ int vm_change_locks_range_in_region(struct vm_region *region,
 
 int vm_change_region_locks(void *__start, unsigned long length, unsigned long flags)
 {
+	/* We don't need to do this with kernel addresses */
+
+	if(is_higher_half(__start))
+		return 0;
+
 	struct mm_address_space *as = &get_current_process()->address_space;
 
 	unsigned long limit = (unsigned long) __start + length;
 	unsigned long addr = (unsigned long) __start;
-	
-	/* We don't need to do this with kernel addresses */
-	if(is_higher_half(__start))
-		return 0;
 
 	spin_lock(&as->vm_spl);
 
@@ -2668,7 +2671,7 @@ int vm_change_region_locks(void *__start, unsigned long length, unsigned long fl
 		length -= len;
 	}
 
-	spin_lock(&as->vm_spl);
+	spin_unlock(&as->vm_spl);
 	return 0;
 }
 

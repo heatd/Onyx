@@ -14,11 +14,16 @@
 struct rwlock
 {
 	unsigned long lock;
+	struct thread *head, *tail;
+	struct spinlock llock;
 };
 
 bool rw_lock_tryread(struct rwlock *lock);
 void rw_lock_read(struct rwlock *lock);
 void rw_lock_write(struct rwlock *lock);
+int rw_lock_write_interruptible(struct rwlock *lock);
+int rw_lock_read_interruptible(struct rwlock *lock);
 void rw_unlock_read(struct rwlock *lock);
 void rw_unlock_write(struct rwlock *lock);
+
 #endif

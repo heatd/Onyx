@@ -29,8 +29,11 @@ static bool elf64_is_valid(Elf64_Ehdr *header)
 	return true;
 }
 
+/* TODO: Unify load static and load dyn */
 void *elf64_load_static(struct binfmt_args *args, Elf64_Ehdr *header)
 {
+	struct process *current = get_current_process();
+	bool is_interp = args->needs_interp;
 	size_t program_headers_size = header->e_phnum * header->e_phentsize;
 	Elf64_Phdr *phdrs = malloc(program_headers_size);
 	if(!phdrs)
@@ -47,6 +50,11 @@ void *elf64_load_static(struct binfmt_args *args, Elf64_Ehdr *header)
 		return NULL;
 	}
 
+	Elf64_Dyn *dyn = NULL;
+	Elf64_Phdr *uphdrs = NULL;
+	bool load_addr_set = false;
+	unsigned long load_addr = 0;
+
 	for(Elf64_Half i = 0; i < header->e_phnum; i++)
 	{
 		if(phdrs[i].p_type == PT_NULL)
@@ -62,6 +70,16 @@ void *elf64_load_static(struct binfmt_args *args, Elf64_Ehdr *header)
 			read_vfs(0, phdrs[i].p_offset, phdrs[i].p_filesz,
 				 args->interp_path, args->file);
 			args->needs_interp = true;
+		}
+
+		if(phdrs[i].p_type == PT_DYNAMIC)
+		{
+			dyn = (Elf64_Dyn *) (phdrs[i].p_vaddr);
+		}
+
+		if(phdrs[i].p_type == PT_PHDR)
+		{
+			uphdrs = (Elf64_Phdr *) (phdrs[i].p_vaddr);
 		}
 
 		if(phdrs[i].p_type == PT_LOAD)
@@ -98,19 +116,32 @@ void *elf64_load_static(struct binfmt_args *args, Elf64_Ehdr *header)
 				size_t bss_size = phdrs[i].p_memsz - phdrs[i].p_filesz;
 				memset(bss_base, 0, bss_size);
 			}
+
+			if(!load_addr_set)
+			{
+				load_addr = phdrs[i].p_vaddr - phdrs[i].p_offset;
+				load_addr_set = true;
+			}
 		}
 	}
 
-	void *map = get_user_pages(VM_TYPE_REGULAR,
-		vm_align_size_to_pages(program_headers_size), VM_WRITE | VM_NOEXEC);
-	if(!map)
-		return NULL;
-	
-	memcpy(map, phdrs, program_headers_size);
-	struct process *p = get_current_process();
-	p->info.phdr = map;
-	p->info.phent = header->e_phentsize;
-	p->info.phnum = header->e_phnum;
+	if(!is_interp)
+	{
+		current->info.phent = header->e_phentsize;
+		current->info.phnum = header->e_phnum;
+		if(!uphdrs)
+		{
+			uphdrs = (Elf64_Phdr *) (load_addr + header->e_phoff);
+		}
+
+		current->info.phdr = uphdrs;
+		current->info.dyn = dyn;
+		current->info.program_entry = (void *) header->e_entry;
+	}
+	else
+	{
+		current->info.dyn = dyn;
+	}
 
 	free(phdrs);
 	return (void*) header->e_entry;
@@ -118,6 +149,8 @@ void *elf64_load_static(struct binfmt_args *args, Elf64_Ehdr *header)
 
 void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 {
+	bool is_interp = args->interp_path != NULL;
+
 	struct process *current = get_current_process();
 	size_t program_headers_size = header->e_phnum * header->e_phentsize;
 	struct file *fd = create_file_description(args->file, 0);
@@ -167,10 +200,41 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 	}
 
 	header->e_entry += (uintptr_t) base;
+
+	Elf64_Dyn *dyn = NULL;
+	Elf64_Phdr *uphdrs = NULL;
 	for(Elf64_Half i = 0; i < header->e_phnum; i++)
 	{
 		if(phdrs[i].p_type == PT_NULL)
 			continue;
+
+		if(phdrs[i].p_type == PT_INTERP)
+		{
+			/* The interpreter can't have an interpreter of its own */
+			if(is_interp)
+				return errno = ENOEXEC, NULL;
+
+			/* We allocate one more byte for the null byte so we don't get buffer overflow'd */
+			args->interp_path = malloc(phdrs[i].p_filesz + 1);
+			if(!args->interp_path)
+				return errno = ENOMEM, NULL;
+			args->interp_path[phdrs[i].p_filesz] = '\0';
+
+			read_vfs(0, phdrs[i].p_offset, phdrs[i].p_filesz,
+				 args->interp_path, args->file);
+			args->needs_interp = true;
+		}
+
+		if(phdrs[i].p_type == PT_DYNAMIC)
+		{
+			dyn = (Elf64_Dyn *) (phdrs[i].p_vaddr + base);
+		}
+
+		if(phdrs[i].p_type == PT_PHDR)
+		{
+			uphdrs = (Elf64_Phdr *) (phdrs[i].p_vaddr + base);
+		}
+
 		if(phdrs[i].p_type == PT_LOAD)
 		{
 			phdrs[i].p_vaddr += (uintptr_t) base;
@@ -211,86 +275,25 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 		}
 	}
 
-	void *ptr = get_user_pages(VM_TYPE_REGULAR,
-			vm_align_size_to_pages(program_headers_size), VM_WRITE | VM_NOEXEC);
-	if(!ptr)
-	{
-		errno = ENOMEM;
-		goto error2;
-	}
-
-	memcpy(ptr, phdrs, program_headers_size);
 	free(phdrs);
 	phdrs = NULL;
 
-	size_t sections_size = header->e_shnum * header->e_shentsize;
-	Elf64_Shdr *sections = malloc(sections_size);
-	if(!sections)
-	{
-		errno = ENOMEM;
-		goto error2;
-	}
-	
-	read_vfs(0, header->e_shoff, sections_size, sections, args->file);
-
-	for(size_t i = 0; i < header->e_shnum; i++)
-	{
-		if(sections[i].sh_type == SHT_RELA)
-		{
-			Elf64_Rela *r = malloc(sections[i].sh_size);
-			if(!r)
-			{
-				errno = ENOMEM;
-				goto error2;
-			}
-
-			read_vfs(0, sections[i].sh_offset, sections[i].sh_size, r, args->file);
-
-			for(size_t j = 0; j < sections[i].sh_size / sections[i].sh_entsize; j++)
-			{
-				Elf64_Rela *rela = &r[j];
-				rela->r_offset += (uintptr_t) base;
-				uintptr_t *addr = (uintptr_t*) rela->r_offset;
-				switch(ELF64_R_TYPE(rela->r_info))
-				{
-					case R_X86_64_RELATIVE:
-						*addr =
-						RELOCATE_R_X86_64_RELATIVE(
-							(uintptr_t) base,
-							rela->r_addend);
-				}
-			}
-
-			free(r);
-		}
-	}
-
 	current->image_base = (void*) base;
-	current->info.phent = header->e_phentsize;
-	current->info.phnum = header->e_phnum;
-	current->info.phdr = ptr;
-
-	for(size_t i = 0; i < header->e_phnum; i++)
+	
+	if(!is_interp)
 	{
-		if(current->info.phdr[i].p_type == PT_DYNAMIC)
-		{
-			void *dyn = get_user_pages(VM_TYPE_REGULAR,
-				vm_align_size_to_pages(current->info.phdr[i].p_filesz),
-				VM_WRITE | VM_NOEXEC);
-			if(!dyn)
-			{
-				errno = ENOMEM;
-				goto error2;
-			}
-
-			read_vfs(0, current->info.phdr[i].p_offset,
-				current->info.phdr[i].p_filesz, dyn, args->file);
-			current->info.phdr[i].p_vaddr = (uintptr_t) dyn;
-		}
+		current->info.phent = header->e_phentsize;
+		current->info.phnum = header->e_phnum;
+		current->info.phdr = uphdrs;
+		current->info.dyn = dyn;
+		current->info.program_entry = (void *) header->e_entry;
+	}
+	else
+	{
+		current->info.dyn = dyn;
 	}
 
 	/* TODO: Unmap holes */
-	free(sections);
 	close_file_description(fd);
 
 	return (void*) header->e_entry;

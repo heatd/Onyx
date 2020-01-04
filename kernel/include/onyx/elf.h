@@ -3034,6 +3034,7 @@ struct elf_info
 	size_t phnum;
 	Elf64_Phdr *phdr;
 	Elf64_Dyn *dyn;
+  void *program_entry;
 };
 
 #ifdef __cplusplus

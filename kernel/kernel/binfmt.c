@@ -24,6 +24,7 @@ void *load_binary(struct binfmt_args *args)
 	}
 	return NULL;
 }
+
 int install_binfmt(struct binfmt *format)
 {
 	if(!format_list)
@@ -53,8 +54,6 @@ void *bin_do_interp(struct binfmt_args *_args)
 	read_vfs(0, 0, 100, args.file_signature, file);
 
 	args.filename = args.interp_path;
-	args.interp_path = NULL;
-	args.needs_interp = false;
 	args.file = file;
 
 	return load_binary(&args);

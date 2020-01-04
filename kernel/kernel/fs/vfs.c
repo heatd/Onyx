@@ -323,7 +323,12 @@ struct inode *open_vfs(struct inode* this, const char *name)
 
 	while(path)
 	{
-		node = open_path_segment(path, node);
+		struct inode *new_node = open_path_segment(path, node);
+
+		if(node != this)
+			close_vfs(node);
+
+		node = new_node;
 		if(!node)
 		{
 			free(orig);

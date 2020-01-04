@@ -97,6 +97,7 @@ struct page_cache_block *add_to_cache(void *data, size_t size, size_t offset, st
 	c->node = file;
 	c->size = size;
 	c->offset = offset;
+	page->cache = c;
 	used_cache_pages++;
 
 #ifdef CONFIG_CHECK_PAGE_CACHE_INTEGRITY

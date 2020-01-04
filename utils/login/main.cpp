@@ -175,12 +175,21 @@ int main(int argc, char **argv, char **envp)
 	/* Set $HOME */
 	setenv("HOME", user->pw_dir, 1);
 
+	if(chdir(user->pw_dir) < 0)
+	{
+		printf("\nFailed to switch home directories to %s.\n", user->pw_dir);
+		perror("chdir");
+		reset_terminal();
+		return 1;
+	}
+
 	char *args[] = {NULL, NULL};
 	/* The first character of argv[0] needs to be -, in order to be a login shell */
 	args[0] = (char *) malloc(strlen(user->pw_shell) + 2);
 	if(!args[0])
 	{
 		perror("login");
+		reset_terminal();
 		return 1;
 	}
 	memset(args[0], 0, strlen(user->pw_shell) + 2);

@@ -1172,7 +1172,7 @@ static void kernel_mapped_dso(struct dso *p)
 	Phdr *ph = p->phdr;
 	for (cnt = p->phnum; cnt--; ph = (void *)((char *)ph + p->phentsize)) {
 		if (ph->p_type == PT_DYNAMIC) {
-			p->dynv = (size_t *) (p->base + ph->p_vaddr);
+		p->dynv = (size_t *) (p->base + ph->p_vaddr);
 		} else if (ph->p_type == PT_GNU_RELRO) {
 			p->relro_start = ph->p_vaddr & -PAGE_SIZE;
 			p->relro_end = (ph->p_vaddr + ph->p_memsz) & -PAGE_SIZE;
@@ -1338,9 +1338,9 @@ void __dls2(unsigned char *base, int argc, char **argv, char **envp, size_t *aux
 	Ehdr *ehdr = (void *) ldso.base;
 	ldso.name = ldso.shortname = "libc.so";
 	ldso.global = 1;
-	ldso.phnum = aux[AT_PHNUM];
-	ldso.phdr = (void*) aux[AT_PHDR];
-	ldso.phentsize = aux[AT_PHENT];
+	ldso.phnum = ehdr->e_phnum;
+	ldso.phdr = laddr(&ldso, ehdr->e_phoff);
+	ldso.phentsize = ehdr->e_phentsize;
 	kernel_mapped_dso(&ldso);
 	decode_dyn(&ldso);
 
@@ -1424,44 +1424,19 @@ _Noreturn void __dls3(int argc, char **argv, char **envp, size_t *auxv)
 	 * TODO: Find a clever way to detect if we were invoked as a normal program
 	*/
 	if(1) {
-		size_t tls_image, interp_off;
-		const char *app_name = (char *) aux[AT_EXECFN];
-		int fd = open(app_name, O_RDONLY);
-		if(fd < 0)
-		{
-			error("open: Could not open %s: %s\n", app_name, strerror(errno));
-			a_crash();
-		}
-		
-		Ehdr *hdr = malloc(sizeof(Ehdr));
-		if(!hdr)
-		{
-			perror("malloc");
-			a_crash();
-		}
-		if(read(fd, hdr, sizeof(Ehdr)) != sizeof(Ehdr))
-			error("read: Failure reading: %s", strerror(errno));
+		size_t tls_image = 0;
+		size_t interp_off = 0;
 
-		aux[AT_ENTRY] = hdr->e_entry;
+		Phdr *phdr = app.phdr = (Phdr *) aux[AT_PHDR];
+		app.phnum = aux[AT_PHNUM];
+		app.phentsize = aux[AT_PHENT];
 
-		size_t program_header_size = hdr->e_phnum * hdr->e_phentsize;
-		Phdr *phdr = malloc(program_header_size);
-		if(!phdr)
-			error("malloc: Could not allocate memory: %s", strerror(errno));
-		if(lseek(fd, hdr->e_phoff, SEEK_SET) < 0)
-			error("lseek: Failure seeking: %s", strerror(errno));
-		if(read(fd, phdr, program_header_size) != program_header_size)
-			error("read: Failure reading: %s", strerror(errno));
-		app.phdr = phdr;
-		app.phnum = hdr->e_phnum;
-		app.phentsize = hdr->e_phentsize;
-
-		/* TODO: Don't assume the base is 0 */
-		app.base = NULL;
-		for(i = hdr->e_phnum; i; i--, phdr = (void *)((char *)phdr + hdr->e_phentsize))
+		for(i = app.phnum; i; i--, phdr = (void *)((char *)phdr + app.phentsize))
 		{
 			if (phdr->p_type == PT_INTERP)
 				interp_off = (size_t)phdr->p_vaddr;
+			else if (phdr->p_type == PT_PHDR)
+				app.base = (void *)(aux[AT_PHDR] - phdr->p_vaddr);
 			else if (phdr->p_type == PT_TLS) {
 				tls_image = phdr->p_vaddr;
 				app.tls.len = phdr->p_filesz;
@@ -1472,12 +1447,9 @@ _Noreturn void __dls3(int argc, char **argv, char **envp, size_t *auxv)
 
 		if(app.tls.size) app.tls.image = laddr(&app, tls_image);
 		if(interp_off) ldso.name = laddr(&app, interp_off);
-		app.name = (char *) app_name;
+		app.name = (char *) aux[AT_EXECFN];
 
 		kernel_mapped_dso(&app);
-
-		free(hdr);
-		close(fd);
 	} else {
 		int fd;
 		char *ldname = argv[0];

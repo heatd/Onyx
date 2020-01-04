@@ -235,7 +235,6 @@ void page_fault_handler(struct registers *ctx)
 	
 	if(vm_handle_page_fault(&info) < 0)
 	{
-		//stack_trace_ex((uint64_t *) ctx->rbp);
 		if(!info.user)
 		{
 			unsigned long fixup;
@@ -245,7 +244,7 @@ void page_fault_handler(struct registers *ctx)
 				return;
 			}
 		}
-	
+		
 		vm_do_fatal_page_fault(&info);
 	}
 }

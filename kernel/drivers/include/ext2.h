@@ -7,9 +7,11 @@
 #define _EXT2_H
 
 #include <stdint.h>
+
 #include <onyx/mutex.h>
 #include <onyx/spinlock.h>
 #include <onyx/block.h>
+#include <onyx/vfs.h>
 
 #define EXT2_MBR_CODE 0x83
 #define EXT2_FS_CLEAN 1
