@@ -4,48 +4,51 @@
 * check LICENSE at the root directory for more information
 */
 
-#ifndef _ONYX_MM_WRITEBACK_H
-#define _ONYX_MM_WRITEBACK_H
+#ifndef _ONYX_MM_FLUSH_H
+#define _ONYX_MM_FLUSH_H
 
 #include <onyx/list.h>
 #include <onyx/spinlock.h>
 #include <onyx/semaphore.h>
 #include <onyx/vm.h>
+#include <onyx/pagecache.h>
+
+/* TODO: This file started as mm specific but it's quite fs now, no? */
 
 #ifndef __cplusplus
 
 /* Keep C APIs here */
 
-void writeback_init(void);
-void writeback_add_region(struct vm_region *reg);
-void writeback_remove_region(struct vm_region *reg);
+void flush_init(void);
+void flush_add_page(struct page_cache_block *blk);
+void flush_remove_page(struct page_cache_block *reg);
 
 #else
 
 #include <onyx/atomic.hpp>
 
-namespace wb
+namespace flush
 {
 
-class wb_block
+class flush_dev
 {
 private:
-	/* Each WB block has a list of regions that are backed by inodes who need writeback. */
-	struct list_head regions;
+	/* Each flush dev has a list of dirty pages that are backed by inodes that need flushing. */
+	struct list_head dirty_pages;
 	atomic<unsigned long> block_load;
 	struct spinlock __lock;
-	/* Each WB block also is associated with a thread that runs every x seconds */
+	/* Each flush dev also is associated with a thread that runs every x seconds */
 	struct thread *thread;
 	struct semaphore thread_sem;
 public:
 
 	static constexpr unsigned long wb_run_delta_ms = 10000; 
-	constexpr wb_block() : regions{}, block_load{0}, __lock{}, thread{}, thread_sem{}
+	constexpr flush_dev() : dirty_pages{}, block_load{0}, __lock{}, thread{}, thread_sem{}
 	{
-		INIT_LIST_HEAD(&regions);
+		INIT_LIST_HEAD(&dirty_pages);
 	}
 
-	~wb_block() {}
+	~flush_dev() {}
 
 	unsigned long get_load()
 	{
@@ -57,8 +60,9 @@ public:
 
 	void init();
 	void run();
-	void add_region(struct vm_region *reg);
-	void remove_region(struct vm_region *reg);
+	void add_page(struct page_cache_block *block);
+	void remove_page(struct page_cache_block *block);
+	void sync();
 };
 
 

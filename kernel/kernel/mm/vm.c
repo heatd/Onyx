@@ -36,7 +36,7 @@
 
 #include <onyx/mm/vm_object.h>
 #include <onyx/mm/kasan.h>
-#include <onyx/mm/writeback.h>
+#include <onyx/pagecache.h>
 
 #include <onyx/vm_layout.h>
 
@@ -419,6 +419,7 @@ void vm_region_destroy(struct vm_region *region)
 				remove_vmo_from_private_list(region->mm, region->vmo);
 		}
 
+		vmo_remove_mapping(region->vmo, region);
 		vmo_unref(region->vmo);
 	}
 
@@ -725,12 +726,12 @@ static bool fork_vm_region(const void *key, void *datum, void *user_data)
 		new_region->vmo = find_forked_private_vmo(new_region->vmo, it->target_mm);
 		assert(new_region->vmo != NULL);
 		vmo_ref(new_region->vmo);
-		vmo_failure = vmo_assign_mapping(new_region->vmo, new_region) < 0;
+		vmo_assign_mapping(new_region->vmo, new_region);
 	}
 	else
 	{
 		vmo_ref(new_region->vmo);
-		vmo_failure = vmo_assign_mapping(new_region->vmo, new_region) < 0;
+		vmo_assign_mapping(new_region->vmo, new_region);
 		
 	//	if(needs_wb)	writeback_add_region(new_region);
 	}
@@ -898,23 +899,24 @@ void *vmalloc(size_t pages, int type, int perms)
 		return NULL;
 	}
 
-	if(vmo_assign_mapping(vmo, vm) < 0)
-	{
-		vmo_unref(vmo);
-		vm_destroy_mappings((void *) vm->base, pages);
-		return NULL;
-	}
+	vmo_assign_mapping(vmo, vm);
+
 	vm->vmo = vmo;
 
 	if(vmo_prefault(vmo, pages << PAGE_SHIFT, 0) < 0)
 	{
+		/* FIXME: This code doesn't seem correct */
+		vmo_remove_mapping(vmo, vm);
 		vmo_unref(vmo);
+		vm->vmo = NULL;
 		vm_destroy_mappings(vm, pages);
 		return NULL;
 	}
 
 	if(vm_flush(vm) < 0)
 	{
+		/* FIXME: Same as above */
+		vmo_remove_mapping(vmo, vm);
 		vmo_unref(vmo);
 		vm_destroy_mappings(vm, pages);
 		return NULL;
@@ -944,7 +946,7 @@ int vm_check_pointer(void *addr, size_t needed_space)
 
 void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off)
 {
-	/* TODO: Lots of this code needs correct error paths */
+	/* FIXME: Lots of this code needs correct error paths */
 	int error = 0;
 
 	struct vm_region *area = NULL;
@@ -1110,6 +1112,7 @@ void vm_copy_region(const struct vm_region *source, struct vm_region *dest)
 	dest->offset = source->offset;
 	dest->mm = source->mm;
 	dest->vmo = source->vmo;
+	vmo_assign_mapping(dest->vmo, dest);
 	vmo_ref(dest->vmo);
 	dest->type = source->type;
 }
@@ -1202,7 +1205,7 @@ struct vm_region *vm_split_region(struct mm_address_space *as, struct vm_region 
 			/* The original region's size is offset */
 			region->pages = offset >> PAGE_SHIFT;
 
-			/* TODO: it's not clear what we should do on OOM cases
+			/* FIXME: it's not clear what we should do on OOM cases
 			* This code and munmap's code is riddled with these things. */
 			(void) vm_add_region(as, region);
 
@@ -1525,7 +1528,7 @@ int vm_handle_non_present_pf(struct vm_pf_context *ctx)
 					return -1;
 				}
 
-				p->flags |= PAGE_FLAG_DIRTY;
+				pagecache_dirty_block(p->cache);
 
 				ctx->page = p;
 			}
@@ -1562,7 +1565,7 @@ void vm_handle_write_wb(struct vm_pf_context *ctx)
 	unsigned long paddr = MAPPING_INFO_PADDR(ctx->mapping_info);
 	struct page *p = phys_to_page(paddr);
 
-	p->flags |= PAGE_FLAG_DIRTY;
+	pagecache_dirty_block(p->cache);
 
 	paging_change_perms((void *) ctx->vpage, ctx->page_rwx);
 	vm_invalidate_range(ctx->vpage, 1);
@@ -1961,6 +1964,7 @@ void *get_pages(size_t flags, uint32_t type, size_t pages, size_t prot, uintptr_
 
 		if(vm_flush(va) < 0)
 		{
+			vmo_remove_mapping(va->vmo, va);
 			vmo_unref(va->vmo);
 			vm_destroy_mappings(va, pages);
 			return NULL;
@@ -2115,11 +2119,7 @@ int setup_vmregion_backing(struct vm_region *region, size_t pages, bool is_file_
 	if(!vmo)
 		return -1;
 
-	if(vmo_assign_mapping(vmo, region) < 0)
-	{
-		vmo_unref(vmo);
-		return -1;
-	}
+	vmo_assign_mapping(vmo, region);
 
 	if(!(is_shared || can_use_shared_optimization) && !is_kernel)
 	{
@@ -2422,12 +2422,7 @@ int vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
 				}
 				else
 				{
-					if(vmo_assign_mapping(region->vmo, new_region) < 0)
-					{
-						vm_remove_region(as, new_region);
-						spin_unlock(&as->vm_spl);
-						return -ENOMEM;
-					}
+					vmo_assign_mapping(region->vmo, new_region);
 				
 					vmo_ref(region->vmo);
 					new_region->vmo = region->vmo;
@@ -2483,7 +2478,7 @@ void vm_do_shootdown(struct tlb_shootdown *inv_data)
 
 extern struct spinlock scheduler_lock;
 
-void vm_invalidate_range(unsigned long addr, size_t pages)
+void __vm_invalidate_range(unsigned long addr, size_t pages, struct mm_address_space *mm)
 {
 	/* If the address > higher half, then we don't need to worry about
 	 * stale tlb entries since no attacker can read kernel memory.
@@ -2494,21 +2489,23 @@ void vm_invalidate_range(unsigned long addr, size_t pages)
 		return;
 	}
 
+	struct process *p = get_current_process();
+
 	for(unsigned int cpu = 0; cpu < get_nr_cpus(); cpu++)
 	{
 		if(cpu == get_cpu_nr())
 		{
-			paging_invalidate((void *) addr, pages);
+			if(p && get_current_address_space() == mm)
+				paging_invalidate((void *) addr, pages);
 		}
 		else
 		{
 			/* Lock the scheduler so we don't get a race condition */
 			struct spinlock *l = get_per_cpu_ptr_any(scheduler_lock, cpu);
 			spin_lock(l);
-			struct process *process = get_thread_for_cpu(cpu)->owner;
-			struct process *this_process = get_current_thread()->owner;
+			struct process *p = get_thread_for_cpu(cpu)->owner;
 
-			if(process != this_process)
+			if(!p || mm != &p->address_space)
 			{
 				spin_unlock(l);
 				continue;
@@ -2522,6 +2519,18 @@ void vm_invalidate_range(unsigned long addr, size_t pages)
 			spin_unlock(l);
 		}
 	}
+}
+
+
+void vm_invalidate_range(unsigned long addr, size_t pages)
+{
+	if(is_higher_half((void *) addr))
+	{
+		paging_invalidate((void *) addr, pages);
+		return;
+	}
+
+	return __vm_invalidate_range(addr, pages, get_current_address_space());
 }
 
 bool vm_can_expand(struct mm_address_space *as, struct vm_region *region, size_t new_size)
@@ -2913,4 +2922,39 @@ int vm_lock_range(void *start, unsigned long length, unsigned long flags)
 int vm_unlock_range(void *start, unsigned long length, unsigned long flags)
 {
 	return vm_change_region_locks(start, length, flags);
+}
+
+void vm_wp_page(struct mm_address_space *mm, void *vaddr)
+{
+	printk("wp page %p %p\n", mm, vaddr);
+	assert(paging_write_protect(vaddr, mm) == true);
+
+	__vm_invalidate_range((unsigned long) vaddr, 1, mm);
+}
+
+void vm_wp_page_for_every_region(struct page *page, struct vm_object *vmo)
+{
+	size_t page_off = page->off;
+
+	spin_lock(&vmo->mapping_lock);
+
+	list_for_every(&vmo->mappings)
+	{
+		struct vm_region *region = container_of(l, struct vm_region, vmo_head);
+		spin_lock(&region->mm->vm_spl);
+		size_t mapping_off = (size_t) region->offset;
+		size_t mapping_size = region->pages << PAGE_SHIFT;
+
+
+		if(page_off >= mapping_off && mapping_off + mapping_size > page_off)
+		{
+			/* The page is included in this mapping, so WP it */
+			unsigned long vaddr = region->base + (page_off - mapping_off);
+			vm_wp_page(region->mm, (void *) vaddr);
+		}
+
+		spin_unlock(&region->mm->vm_spl);
+	}
+
+	spin_unlock(&vmo->mapping_lock);
 }

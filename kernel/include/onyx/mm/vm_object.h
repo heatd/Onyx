@@ -36,8 +36,8 @@ struct vm_object
 	/* Commits a page */
 	struct page * (*commit)(size_t off, struct vm_object *vmo);
 
-	/* VM objects hold a pointer to their mapping(s) */
-	struct list mappings;
+	/* VM objects hold pointers to their mapping(s) */
+	struct list_head mappings;
 
 	/* We also hold a pointer to their COW clones */
 	struct vm_object *cow_clone_parent, *cow_clone_child;
@@ -59,7 +59,8 @@ extern "C" {
 
 struct vm_region;
 
-int vmo_assign_mapping(struct vm_object *vmo, struct vm_region *region);
+void vmo_assign_mapping(struct vm_object *vmo, struct vm_region *region);
+void vmo_remove_mapping(struct vm_object *vmo, struct vm_region *region);
 struct vm_object *vmo_create(size_t size, void *priv);
 struct page *vmo_populate(struct vm_object *vmo, size_t off);
 struct vm_object *vmo_create_phys(size_t size);

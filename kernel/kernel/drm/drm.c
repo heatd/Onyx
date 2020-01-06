@@ -568,11 +568,7 @@ void *drm_mmap(struct vm_region *area, struct inode *inode)
 		p = p->next_un.next_allocation;
 	}
 
-	if(vmo_assign_mapping(vmo, area) < 0)
-	{
-		vmo_unref(vmo);
-		return NULL;
-	}
+	vmo_assign_mapping(vmo, area);
 
 	vmo->ino = inode;
 

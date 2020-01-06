@@ -30,19 +30,15 @@ struct page_cache_block
 	uint32_t integrity;
 #endif
 
-	volatile _Atomic long dirty;
-
-	struct mutex lock;
-
-	struct page_cache_block *prev;
-	struct page_cache_block *next;
+	struct list_head dirty_list;
+	void *blk_list;
 };
 
 #define PAGE_CACHE_SIZE PAGE_SIZE
 
 struct page_cache_block *add_to_cache(void *data, size_t size, size_t off, struct inode *node);
+void pagecache_dirty_block(struct page_cache_block *block);
 void pagecache_init(void);
-void wakeup_sync_thread(void);
 void page_cache_destroy(struct page_cache_block *block);
 size_t pagecache_get_used_pages(void);
 

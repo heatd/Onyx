@@ -69,6 +69,11 @@ static inline struct list_head *list_first_element(struct list_head *head)
 	return head->next;
 }
 
+static inline void list_reset(struct list_head *head)
+{
+	INIT_LIST_HEAD(head);
+}
+
 #define list_for_every(lh)	for(struct list_head *l = (lh)->next; l != (lh); l = l->next)
 
 /* Again, this one is also very clearly inspired by linux */

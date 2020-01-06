@@ -21,6 +21,7 @@
 #include <onyx/object.h>
 #include <onyx/process.h>
 #include <onyx/dentry.h>
+#include <onyx/mm/flush.h>
 
 struct inode *fs_root = NULL;
 struct inode *mount_list = NULL;
@@ -614,7 +615,6 @@ ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *file,
 			spin_unlock(&file->i_pages_lock);
 			if(wrote)
 			{
-				wakeup_sync_thread();
 				return wrote;
 			}
 			else
@@ -634,22 +634,21 @@ ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *file,
 		{
 			cache->size = cache_off + amount;
 		}
-	
-		cache->dirty = 1;
+
+		spin_unlock(&file->i_pages_lock);
+
+		pagecache_dirty_block(cache);
 
 		offset += amount;
 		wrote += amount;
 
-		spin_unlock(&file->i_pages_lock);
 	} while(wrote != sizeofwrite);
-
-	wakeup_sync_thread();
 
 	return (ssize_t) wrote;
 }
 
 ssize_t sendto_vfs(const void *buf, size_t len, int flags, struct sockaddr *addr,
- socklen_t addrlen, struct inode *node)
+	socklen_t addrlen, struct inode *node)
 {
 	if(node->i_fops.sendto != NULL)
 		return node->i_fops.sendto(buf, len, flags, addr, addrlen, node);

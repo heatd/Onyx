@@ -88,10 +88,8 @@ struct vm_region
 	struct vm_object *vmo;
 	struct mm_address_space *mm;
 
-	struct vm_region *next_mapping;
+	struct list_head vmo_head;
 	uintptr_t caller;
-	struct list_head writeback_list;
-	void *wb_list;
 };
 
 #define VM_OK			0x0
@@ -246,6 +244,8 @@ struct kernel_limits
 
 void get_kernel_limits(struct kernel_limits *l);
 struct page *vm_commit_page(void *page);
+void vm_wp_page_for_every_region(struct page *page, struct vm_object *vmo);
+void __vm_invalidate_range(unsigned long addr, size_t pages, struct mm_address_space *mm);
 
 #define VM_FUTURE_PAGES			(1 << 0)
 #define VM_LOCK				(1 << 1)

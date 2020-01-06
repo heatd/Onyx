@@ -657,7 +657,7 @@ void paging_load_cr3(PML *pml)
 	__asm__ __volatile__("movq %0, %%cr3"::"r"(pml));
 }
 
-void paging_change_perms(void *addr, int prot)
+bool x86_get_pt_entry(void *addr, uint64_t **entry_ptr, struct mm_address_space *mm)
 {
 	unsigned long virt = (unsigned long) addr;
 	const unsigned int paging_levels = 4;
@@ -668,7 +668,7 @@ void paging_change_perms(void *addr, int prot)
 		indices[i] = (virt >> 12) >> (i * 9) & 0x1ff;
 	}
 
-	PML *pml = (PML*)((uint64_t) get_current_pml4() + PHYS_BASE);
+	PML *pml = (PML*)((unsigned long) mm->cr3 + PHYS_BASE);
 	
 	for(unsigned int i = paging_levels; i != 1; i--)
 	{
@@ -680,11 +680,24 @@ void paging_change_perms(void *addr, int prot)
 		}
 		else
 		{
-			return;
+			return false;
 		}
 	}
 
-	uint64_t pt_entry = pml->entries[indices[0]];
+	*entry_ptr = &pml->entries[indices[0]];
+
+	return true;
+}
+
+bool __paging_change_perms(struct mm_address_space *mm, void *addr, int prot)
+{
+	uint64_t *entry;
+	if(!x86_get_pt_entry(addr, &entry, mm))
+	{
+		return false;
+	}
+
+	uint64_t pt_entry = *entry;
 	uint64_t perms = pt_entry & X86_PAGING_FLAGS_TO_SAVE_ON_MPROTECT;
 	uint64_t page = PML_EXTRACT_ADDRESS(pt_entry);
 
@@ -692,7 +705,29 @@ void paging_change_perms(void *addr, int prot)
 		perms |= X86_PAGING_NX;
 	if(prot & VM_WRITE)
 		perms |= X86_PAGING_WRITE;
-	pml->entries[indices[0]] = perms | page;
+	*entry = perms | page;
+
+	return true;
+}
+
+bool paging_change_perms(void *addr, int prot)
+{
+	struct mm_address_space *as = &kernel_address_space;
+	if((unsigned long) addr < VM_HIGHER_HALF)
+		as = get_current_address_space();
+	
+	return __paging_change_perms(as, addr, prot);
+}
+
+bool paging_write_protect(void *addr, struct mm_address_space *mm)
+{
+	uint64_t *ptentry;
+	if(!x86_get_pt_entry(addr, &ptentry, mm))
+		return false;
+
+	*ptentry = *ptentry & ~X86_PAGING_WRITE;
+
+	return true;
 }
 
 int is_invalid_arch_range(void *address, size_t pages)

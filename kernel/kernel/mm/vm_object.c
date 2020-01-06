@@ -38,6 +38,7 @@ struct vm_object *vmo_create(size_t size, void *priv)
 	vmo->size = size;
 	vmo->priv = priv;
 	vmo->refcount = 1;
+	INIT_LIST_HEAD(&vmo->mappings);
 	vmo->pages = rb_tree_new(page_cmp);
 	if(!vmo->pages)
 	{
@@ -220,7 +221,7 @@ struct vm_object *vmo_fork(struct vm_object *vmo, bool shared, struct vm_region 
 		/* Locks are not inherited */
 		new_vmo->flags &= ~(VMO_FLAG_LOCK_FUTURE_PAGES);
 		new_vmo->refcount = 1;
-		new_vmo->mappings.head = new_vmo->mappings.tail = NULL;
+		INIT_LIST_HEAD(&new_vmo->mappings);
 		new_vmo->prev_private = new_vmo->next_private = NULL;
 		new_vmo->forked_from = vmo;
 
@@ -238,11 +239,7 @@ struct vm_object *vmo_fork(struct vm_object *vmo, bool shared, struct vm_region 
 	{
 		if(__sync_add_and_fetch(&vmo->refcount, 1) == 1)
 			return NULL;
-		if(vmo_assign_mapping(vmo, reg) < 0)
-		{
-			vmo_unref(vmo);
-			return NULL;
-		}
+		vmo_assign_mapping(vmo, reg);
 
 		return vmo;
 	}
@@ -463,7 +460,7 @@ struct vm_object *vmo_split(size_t split_point, size_t hole_size, struct vm_obje
 
 	second_vmo->size -= split_point + hole_size;
 	second_vmo->pages = rb_tree_new(page_cmp);
-	second_vmo->mappings.head = second_vmo->mappings.tail = NULL;
+	INIT_LIST_HEAD(&second_vmo->mappings);
 	if(second_vmo->ino) object_ref(&second_vmo->ino->i_object);
 
 	if(!second_vmo->pages)
@@ -534,15 +531,22 @@ void vmo_ref(struct vm_object *vmo)
 	__sync_add_and_fetch(&vmo->refcount, 1);
 }
 
-int vmo_assign_mapping(struct vm_object *vmo, struct vm_region *region)
+void vmo_assign_mapping(struct vm_object *vmo, struct vm_region *region)
 {
 	spin_lock(&vmo->mapping_lock);
 
-	int ret = list_add_node(&vmo->mappings, region);
+	list_add_tail(&region->vmo_head, &vmo->mappings);
 
 	spin_unlock(&vmo->mapping_lock);
-	
-	return ret;
+}
+
+void vmo_remove_mapping(struct vm_object *vmo, struct vm_region *region)
+{
+	spin_lock(&vmo->mapping_lock);
+
+	list_remove(&region->vmo_head);
+
+	spin_unlock(&vmo->mapping_lock);
 }
 
 bool vmo_is_shared(struct vm_object *vmo)

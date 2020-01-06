@@ -17,65 +17,9 @@
 #include <onyx/utils.h>
 #include <onyx/condvar.h>
 #include <onyx/mutex.h>
-#include <onyx/mm/writeback.h>
+#include <onyx/mm/flush.h>
 
-static struct spinlock block_list_lock = {0};
-static struct page_cache_block *block_list = NULL;
 static atomic_size_t used_cache_pages = 0;
-
-size_t __do_vfs_write(void *buf, size_t size, off_t off, struct inode *this);
-
-void __add_to_list(struct page_cache_block *b)
-{
-	spin_lock_preempt(&block_list_lock);
-
-	struct page_cache_block **pp = &block_list;
-
-	while(*pp)
-		pp = &((*pp)->next);
-	*pp = b;
-	
-	if(unlikely(pp == &block_list))
-	{
-		b->prev = NULL;
-	}
-	else
-	{
-		struct page_cache_block *p = container_of(pp,
-			struct page_cache_block, next);
-		b->prev = p;
-	}
-
-	spin_unlock_preempt(&block_list_lock);
-}
-
-static void remove_from_list(struct page_cache_block *b)
-{
-	spin_lock(&block_list_lock);
-
-	/* Do a last flush in case it's dirty */
-	if(b->dirty)
-	{
-		__do_vfs_write(b->buffer, b->size, b->offset, b->node);
-	}
-
-	/* Adjust the list */
-
-	if(b->prev)
-	{
-		b->prev->next = b->next;
-		if(b->next)
-			b->next->prev = b->prev;
-	}
-	else
-	{
-		block_list = b->next;
-		if(b->next)
-			b->next->prev = NULL;
-	}
-
-	spin_unlock(&block_list_lock);
-}
 
 #ifdef CONFIG_CHECK_PAGE_CACHE_INTEGRITY
 uint32_t crc32_calculate(uint8_t *ptr, size_t len);
@@ -105,76 +49,32 @@ struct page_cache_block *add_to_cache(void *data, size_t size, size_t offset, st
 	c->integrity = crc32_calculate(c->buffer, c->size);
 #endif
 
-	__add_to_list(c);
 	return c;
 }
 
-size_t __do_vfs_write(void *buf, size_t size, off_t off, struct inode *this)
+void pagecache_dirty_block(struct page_cache_block *block)
 {
-	if(this->i_fops.write != NULL)
-		return this->i_fops.write(off, size, buf, this);
+	struct page *page = block->page;
 
-	return errno = ENOSYS;
-}
+	unsigned long old_flags = __sync_fetch_and_or(&page->flags, PAGE_FLAG_DIRTY);
 
-static thread_t *sync_thread;
+	__sync_synchronize();
 
-void pagecache_do_run(void)
-{
-	struct page_cache_block *c = block_list;
-
-	/* Go through every block and check if it's dirty */
-	for(; c != NULL; c = c->next)
-	{
-		if(c->dirty)
-		{
-			/* If so, write to the underlying fs */
-			__do_vfs_write(c->buffer, c->size, c->offset, c->node);
-			c->dirty = 0;
-		}
-	}
-}
-
-static struct cond pagecache_condvar = {0};
-static struct mutex pagecache_mutex = {0};
-
-static void pagecache_sync(void *arg)
-{
-	UNUSED(arg);
-
-	/* 
-	 * The pagecache daemon thread needs to loop forever and complete a run
-	 * when it is woken up, or in other words, when a block has been
-	 * written to and is marked dirty 
-	*/
-	mutex_lock(&pagecache_mutex);
-	for(;;)
-	{
-		condvar_wait(&pagecache_condvar, &pagecache_mutex);
-		pagecache_do_run();
-	}
+	if(old_flags & PAGE_FLAG_DIRTY)
+		return;
+	
+	flush_add_page(block);
 }
 
 void pagecache_init(void)
 {
-	sync_thread = sched_create_thread(pagecache_sync, 1, NULL);
-	if(!sync_thread)
-		panic("Could not spawn the sync thread!\n");
-	sched_start_thread(sync_thread);
-	writeback_init();
+	flush_init();
 }
 
-void wakeup_sync_thread(void)
-{
-	mutex_lock(&pagecache_mutex);
-	condvar_signal(&pagecache_condvar);
-	mutex_unlock(&pagecache_mutex);
-}
-
+// FIXME: This never gets called
 void page_cache_destroy(struct page_cache_block *block)
 {
-	remove_from_list(block);
-
+	// FIXME: Implement correctly
 	free_page(block->page);
 	used_cache_pages--;
 
