@@ -11,11 +11,14 @@
 #include <onyx/bootmem.h>
 
 #define PHYS_BASE (0xffffd00000000000)
-#define PAGE_WRITABLE 0x1
-#define PAGE_GLOBAL 0x2
-#define PAGE_KERNEL (PAGE_GLOBAL|PAGE_WRITABLE)
+
+#define PAGE_NOT_PRESENT	0
+
+
 #define PAGE_TABLE_ENTRIES 512
-#undef PAGE_SIZE
+
+#ifdef __x86_64__
+
 #define PAGE_SIZE 4096UL
 
 
@@ -23,6 +26,8 @@ typedef struct
 {
 	uint64_t entries[512];
 } PML;
+
+#endif
 
 
 #ifdef __cplusplus
@@ -40,7 +45,6 @@ void paging_map_all_phys(void);
 void *virtual2phys(void *ptr);
 int paging_clone_as(struct mm_address_space *addr_space);
 int paging_fork_tables(struct mm_address_space *addr_space);
-void paging_stop_spawning();
 void paging_load_cr3(PML *pml);
 void paging_change_perms(void *addr, int perms);
 int is_invalid_arch_range(void *address, size_t pages);
@@ -53,6 +57,20 @@ void *x86_placement_map(unsigned long _phys);
 #endif
 
 PML *get_current_pml4(void);
+
+#define PAGE_PRESENT 		(1 << 0)
+#define PAGE_GLOBAL 		(1 << 1)
+#define PAGE_WRITABLE 		(1 << 2)
+#define PAGE_EXECUTABLE 	(1 << 3)
+#define PAGE_DIRTY		(1 << 4)
+#define PAGE_ACCESSED		(1 << 5)
+#define PAGE_USER		(1 << 6)
+
+#define MAPPING_INFO_PADDR(x)	(x & -PAGE_SIZE)
+
+/* get_mapping_info: Returns paddr | flags */
+unsigned long get_mapping_info(void *addr);
+unsigned long __get_mapping_info(void *addr, struct mm_address_space *as);
 
 #ifdef __cplusplus
 }

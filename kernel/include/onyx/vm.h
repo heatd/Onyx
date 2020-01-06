@@ -12,6 +12,7 @@
 
 #include <onyx/paging.h>
 #include <onyx/spinlock.h>
+#include <onyx/list.h>
 #include <onyx/mm/vm_object.h>
 
 #ifdef __x86_64__
@@ -89,6 +90,8 @@ struct vm_region
 
 	struct vm_region *next_mapping;
 	uintptr_t caller;
+	struct list_head writeback_list;
+	void *wb_list;
 };
 
 #define VM_OK			0x0

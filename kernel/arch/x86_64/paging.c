@@ -854,3 +854,68 @@ void paging_free_page_tables(struct mm_address_space *mm)
 
 	free_page(phys_to_page((unsigned long) mm->cr3));
 }
+
+unsigned long get_mapping_info(void *addr)
+{
+	struct mm_address_space *as = &kernel_address_space;
+	if((unsigned long) addr < VM_HIGHER_HALF)
+		as = get_current_address_space();
+	
+	return __get_mapping_info(addr, as);
+}
+
+unsigned long __get_mapping_info(void *addr, struct mm_address_space *as)
+{
+	const unsigned long virt = (unsigned long) addr; 
+	const unsigned int paging_levels = 4;
+	unsigned int indices[paging_levels];
+
+	for(unsigned int i = 0; i < paging_levels; i++)
+	{
+		indices[i] = (virt >> 12) >> (i * 9) & 0x1ff;
+	}
+
+	PML *pml = (PML*)((unsigned long) as->cr3 + PHYS_BASE);
+	
+	for(unsigned int i = paging_levels; i != 1; i--)
+	{
+		unsigned long entry = pml->entries[indices[i - 1]];
+		if(entry & X86_PAGING_PRESENT)
+		{
+			void *page = (void*) PML_EXTRACT_ADDRESS(entry);
+			pml = PHYS_TO_VIRT(page);
+		}
+		else
+		{
+			return PAGE_NOT_PRESENT;
+		}
+	}
+
+	unsigned long pt_entry = pml->entries[indices[0]];
+
+	unsigned long ret = 0;
+
+	if(pt_entry & X86_PAGING_PRESENT)
+		ret |= PAGE_PRESENT;
+	else
+	{
+		return PAGE_NOT_PRESENT;
+	}
+
+	if(pt_entry & X86_PAGING_USER)
+		ret |= PAGE_USER;
+	if(pt_entry & X86_PAGING_WRITE)
+		ret |= PAGE_WRITABLE;
+	if(!(pt_entry & X86_PAGING_NX))
+		ret |= PAGE_EXECUTABLE;
+	if(pt_entry & X86_PAGING_DIRTY)
+		ret |= PAGE_DIRTY;
+	if(pt_entry & X86_PAGING_ACCESSED)
+		ret |= PAGE_ACCESSED;
+	if(pt_entry & X86_PAGING_GLOBAL)
+		ret |= PAGE_GLOBAL;
+
+	ret |= PML_EXTRACT_ADDRESS(pt_entry);
+
+	return ret;
+}

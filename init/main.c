@@ -261,6 +261,13 @@ int main(int argc, char **argv, char **envp)
 
 void load_modules(void)
 {
+	/*int fd = open("/etc/modules.load", O_RDWR);
+	void *ptr = mmap(NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+
+	printf("%s\n", ptr);
+
+	*((char *) ptr + 2) = 'b';*/
+
 	/* Open the modules file */
 	FILE *file = fopen("/etc/modules.load", "r");
 	if(!file)
@@ -282,6 +289,7 @@ void load_modules(void)
 		buf[strlen(buf)-1] = '\0';
 		if(buf[0] == '\0')
 			continue;
+
 		char *path = malloc(strlen(MODULE_PREFIX) + strlen(buf) + 1 + strlen(MODULE_EXT));
 		if(!path)
 		{
@@ -289,6 +297,7 @@ void load_modules(void)
 			fclose(file);
 			return;
 		}
+
 		strcpy(path, MODULE_PREFIX);
 		strcat(path, buf);
 		strcat(path, MODULE_EXT);

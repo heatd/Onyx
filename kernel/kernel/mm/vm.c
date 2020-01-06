@@ -36,6 +36,7 @@
 
 #include <onyx/mm/vm_object.h>
 #include <onyx/mm/kasan.h>
+#include <onyx/mm/writeback.h>
 
 #include <onyx/vm_layout.h>
 
@@ -88,6 +89,8 @@ int vm_cmp(const void* k1, const void* k2)
 
         return (unsigned long) k1 < (unsigned long) k2 ? -1 : 1; 
 }
+
+static struct page *vm_zero_page = NULL;
 
 struct vm_region *vm_reserve_region(struct mm_address_space *as,
 				    unsigned long start, size_t size)
@@ -280,6 +283,9 @@ void vm_late_init(void)
 	v->type = VM_TYPE_REGULAR;
 	v->rwx = VM_WRITE;
 
+	vm_zero_page = alloc_page(0);
+	assert(vm_zero_page != NULL);
+
 	is_initialized = true;
 }
 
@@ -361,10 +367,49 @@ void vm_unmap_range(void *range, size_t pages)
 	__vm_unlock(kernel);
 }
 
+static inline bool inode_requires_wb(struct inode *i)
+{
+	return i->i_type == VFS_TYPE_FILE;
+}
+
+bool vm_mapping_requires_wb(struct vm_region *reg)
+{
+	return reg->mapping_type == MAP_SHARED && reg->fd &&
+		inode_requires_wb(reg->fd->vfs_node);
+}
+
+bool vm_mapping_is_anon(struct vm_region *reg)
+{
+	return reg->vmo->type == VMO_ANON;
+}
+
+bool vm_mapping_requires_write_protect(struct vm_region *reg)
+{
+	if(vm_mapping_requires_wb(reg))
+	{
+		return true;
+	}
+
+	/* Let's start to map anon pages as the zero page read-only */
+	if(vm_mapping_is_anon(reg))
+		return true;
+
+	return false;
+}
+
 void vm_region_destroy(struct vm_region *region)
 {
 	/* First, unref things */
-	if(region->fd)	fd_put(region->fd);
+	if(region->fd)
+	{
+		//struct inode *ino = region->fd->vfs_node;
+		/*if(inode_requires_wb(ino) && region->mapping_type == MAP_SHARED)
+		{
+			writeback_remove_region(region);
+		}*/
+
+		fd_put(region->fd);
+	}
 
 	if(region->vmo)
 	{
@@ -671,6 +716,9 @@ static bool fork_vm_region(const void *key, void *datum, void *user_data)
 	bool is_private = !is_mapping_shared(new_region);
 	bool using_shared_optimization = vm_using_shared_optimization(new_region);
 	bool needs_to_fork_memory = is_private && !using_shared_optimization;
+	/*bool needs_wb =
+		new_region->fd && inode_requires_wb(new_region->fd->vfs_node) &&
+		new_region->mapping_type == MAP_SHARED;*/
 
 	if(needs_to_fork_memory)
 	{
@@ -683,12 +731,15 @@ static bool fork_vm_region(const void *key, void *datum, void *user_data)
 	{
 		vmo_ref(new_region->vmo);
 		vmo_failure = vmo_assign_mapping(new_region->vmo, new_region) < 0;
+		
+	//	if(needs_wb)	writeback_add_region(new_region);
 	}
 
 	if(vmo_failure)
 	{
 		dict_remove_result res = rb_tree_remove(it->target_mm->area_tree, key);
 		assert(res.removed == true);
+		//if(needs_wb)	writeback_remove_region(new_region);
 		free(new_region);
 		goto ohno;
 	}
@@ -995,6 +1046,7 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 
 		area->offset = off;
 		area->fd = file_descriptor;
+
 		/* No need to fd_get here since we already have a reference and we're not
 		 * dropping it on success
 		*/
@@ -1044,7 +1096,14 @@ int sys_munmap(void *addr, size_t length)
 void vm_copy_region(const struct vm_region *source, struct vm_region *dest)
 {
 	dest->fd = source->fd;
-	if(dest->fd) fd_get(dest->fd);
+	if(dest->fd)
+	{
+		/*struct inode *ino = dest->fd->vfs_node;
+		if(source->mapping_type == MAP_SHARED && inode_requires_wb(ino))
+			writeback_add_region(dest);*/
+		fd_get(dest->fd);
+	}
+
 	dest->flags = source->flags;
 	dest->rwx = source->rwx;
 	dest->mapping_type = source->mapping_type;
@@ -1412,31 +1471,157 @@ void *mmiomap(void *phys, size_t size, size_t flags)
 	return (void *) ((uintptr_t) p + p_off);
 }
 
+struct vm_pf_context
+{
+	/* The vm region in question */
+	struct vm_region *entry;
+	/* This fault's info */
+	struct fault_info *info;
+	/* vpage - fault_address but page aligned */
+	unsigned long vpage;
+	/* Page permitions - is prefilled by calling code */
+	int page_rwx;
+	/* Mapping info if page was present */
+	unsigned long mapping_info;
+	/* The to-be-mapped page - filled by called code */
+	struct page *page;
+};
+
+struct page *vm_pf_get_page_from_vmo(struct vm_pf_context *ctx)
+{
+	struct vm_region *entry = ctx->entry;
+	size_t vmo_off = (ctx->vpage - entry->base) + entry->offset;
+	ctx->page = vmo_get(entry->vmo, vmo_off, true);
+
+	return ctx->page;
+}
+
+int vm_handle_non_present_pf(struct vm_pf_context *ctx)
+{
+	struct vm_region *entry = ctx->entry;
+	struct fault_info *info = ctx->info;
+
+	if(vm_mapping_requires_write_protect(entry))
+	{
+		assert(info->read ^ info->write);
+		if(!info->write)
+		{
+			/* If we'll need to wp, write-protect */
+			ctx->page_rwx &= ~VM_WRITE;
+			if(vm_mapping_is_anon(entry))
+			{
+				ctx->page = vm_zero_page;
+			}
+		}
+		else
+		{
+			if(vm_mapping_requires_wb(entry))
+			{
+				/* else handle it differently(we'll need) */
+				struct page *p = vm_pf_get_page_from_vmo(ctx);
+				if(!p)
+				{
+					info->error = VM_SIGSEGV;
+					return -1;
+				}
+
+				p->flags |= PAGE_FLAG_DIRTY;
+
+				ctx->page = p;
+			}
+			else if(vm_mapping_is_anon(entry))
+			{
+				/* This is done down there */
+			}
+		}
+	}
+	
+	/* If page wasn't set before by other fault handling code, just fetch from the vmo */
+	if(ctx->page == NULL)
+	{
+		ctx->page = vm_pf_get_page_from_vmo(ctx);
+		if(!ctx->page)
+		{
+			info->error = VM_SIGSEGV;
+			return -1;
+		}
+	}
+
+	if(!map_pages_to_vaddr((void *) ctx->vpage,
+		page_to_phys(ctx->page), PAGE_SIZE, ctx->page_rwx))
+	{
+		info->error = VM_SIGSEGV;
+		return -1;
+	}
+
+	return 0;
+}
+
+void vm_handle_write_wb(struct vm_pf_context *ctx)
+{
+	unsigned long paddr = MAPPING_INFO_PADDR(ctx->mapping_info);
+	struct page *p = phys_to_page(paddr);
+
+	p->flags |= PAGE_FLAG_DIRTY;
+
+	paging_change_perms((void *) ctx->vpage, ctx->page_rwx);
+	vm_invalidate_range(ctx->vpage, 1);
+}
+
+int vm_handle_present_pf(struct vm_pf_context *ctx)
+{
+	struct vm_region *entry = ctx->entry;
+	struct fault_info *info = ctx->info;
+
+	if(info->write & !(ctx->mapping_info & PAGE_WRITABLE))
+	{
+		if(vm_mapping_requires_wb(entry))
+			vm_handle_write_wb(ctx);
+		if(vm_mapping_is_anon(entry))
+		{
+			struct page *p = vm_pf_get_page_from_vmo(ctx);
+			if(!p)
+			{
+				info->error = VM_SIGSEGV;
+				return -1;
+			}
+
+			ctx->page = p;
+
+			if(!map_pages_to_vaddr((void *) ctx->vpage,
+				page_to_phys(ctx->page), PAGE_SIZE, ctx->page_rwx))
+			{
+				info->error = VM_SIGSEGV;
+				return -1;
+			}
+		}
+	}
+
+	return 0;
+}
+
 void setup_debug_register(unsigned long addr, unsigned int size, unsigned int condition);
 
 int __vm_handle_pf(struct vm_region *entry, struct fault_info *info)
 {
-	ENABLE_INTERRUPTS();
 	assert(entry->vmo != NULL);
-	uintptr_t vpage = info->fault_address & -PAGE_SIZE;
-	struct page *page = NULL;
+	struct vm_pf_context context;
+	context.entry = entry;
+	context.info = info;
+	context.vpage = info->fault_address & -PAGE_SIZE;
+	context.page = NULL;
+	context.page_rwx = entry->rwx;
+	context.mapping_info = get_mapping_info((void *) context.vpage);
 
-	//hrtime_t start = get_main_clock()->get_ns();
-	
-	if(!(page = vmo_get(entry->vmo, (vpage - entry->base) + entry->offset, true)))
+	if(context.mapping_info & PAGE_PRESENT)
 	{
-		info->error = VM_SIGSEGV;
-		printk("Error getting page\n");
-		return -1;
+		if(vm_handle_present_pf(&context) < 0)
+			return -1;
 	}
-
-	//hrtime_t end = get_main_clock()->get_ns();
-
-	if(!map_pages_to_vaddr((void *) vpage, page_to_phys(page), PAGE_SIZE, entry->rwx))
+	else
 	{
-		/* TODO: Properly destroy this */
-		info->error = VM_SIGSEGV;
-		return -1;
+		if(vm_handle_non_present_pf(&context) < 0)
+			return -1;
 	}
 
 	//printk("elapsed: %lu ns\n", end - start);
@@ -1445,6 +1630,12 @@ int __vm_handle_pf(struct vm_region *entry, struct fault_info *info)
 
 int vm_handle_page_fault(struct fault_info *info)
 {
+	ENABLE_INTERRUPTS();
+
+	struct mm_address_space *as = get_current_address_space();
+
+	spin_lock_preempt(&as->vm_spl);
+
 	struct vm_region *entry = vm_find_region((void*) info->fault_address);
 	if(!entry)
 	{
@@ -1466,6 +1657,7 @@ int vm_handle_page_fault(struct fault_info *info)
 		}
 		
 		info->error = VM_SIGSEGV;
+		spin_unlock_preempt(&as->vm_spl);
 		return -1;
 	}
 
@@ -1476,11 +1668,34 @@ int vm_handle_page_fault(struct fault_info *info)
 	if(info->user && !(entry->rwx & VM_USER))
 		return -1;
 
-	struct process *p = get_current_process();
 
-	__sync_add_and_fetch(&p->address_space.page_faults, 1);
+	__sync_add_and_fetch(&as->page_faults, 1);
 
-	return __vm_handle_pf(entry, info);
+	int ret = __vm_handle_pf(entry, info);
+
+	spin_unlock_preempt(&as->vm_spl);
+
+#if 0
+	if(ret < 0)
+	{
+		/* Lets send a signal */
+		unsigned int sig;
+		
+		switch(info->error)
+		{
+			case VM_SIGBUS:
+				sig = SIGBUS;
+				break;
+			case VM_SIGSEGV:
+			default:
+				sig = SIGSEGV;
+				break;
+		}
+
+		kernel_tkill(sig, get_current_thread());
+	}
+#endif
+	return ret;
 }
 
 static void vm_destroy_area(void *key, void *datum)
@@ -1971,9 +2186,16 @@ good: ;
 	//printk("Created file mapping at %lx for off %lu\n", entry->base, off);
 	entry->fd = fd;
 	fd_get(fd);
+	/*bool wants_wb = inode_requires_wb(entry->fd->vfs_node) && mmap_like_type == MAP_SHARED; 
+	if(wants_wb)
+		writeback_add_region(entry);*/
 
 	if(setup_vmregion_backing(entry, pages, true) < 0)
+	{
+		/*if(wants_wb)
+			writeback_remove_region(entry);*/
 		return NULL;
+	}
 	return addr;
 }
 
@@ -2195,6 +2417,8 @@ int vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
 						add_vmo_to_private_list(as, second);
 
 					new_region->vmo = second;
+					/* We should need to do this */
+					new_region->offset = 0;
 				}
 				else
 				{
@@ -2207,6 +2431,12 @@ int vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
 				
 					vmo_ref(region->vmo);
 					new_region->vmo = region->vmo;
+/*
+					if(new_region->mapping_type == MAP_SHARED && new_region->fd &&
+						inode_requires_wb(new_region->fd->vfs_node))
+					{
+						writeback_add_region(new_region);
+					}*/
 				}
 				/* The original region's size is offset */
 				region->pages = offset >> PAGE_SHIFT;
@@ -2275,7 +2505,7 @@ void vm_invalidate_range(unsigned long addr, size_t pages)
 			/* Lock the scheduler so we don't get a race condition */
 			struct spinlock *l = get_per_cpu_ptr_any(scheduler_lock, cpu);
 			spin_lock(l);
-			struct process *process =get_thread_for_cpu(cpu)->owner;
+			struct process *process = get_thread_for_cpu(cpu)->owner;
 			struct process *this_process = get_current_thread()->owner;
 
 			if(process != this_process)

@@ -53,6 +53,7 @@
 
 
 #define PAGE_FLAG_LOCKED	(1 << 0)
+#define PAGE_FLAG_DIRTY		(1 << 1)
 /* struct page - Represents every usable page on the system 
  * Everything is native-word-aligned in order to allow atomic changes
  * Careful adding fields in - they may increase the memory use exponentially

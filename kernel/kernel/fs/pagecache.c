@@ -17,6 +17,7 @@
 #include <onyx/utils.h>
 #include <onyx/condvar.h>
 #include <onyx/mutex.h>
+#include <onyx/mm/writeback.h>
 
 static struct spinlock block_list_lock = {0};
 static struct page_cache_block *block_list = NULL;
@@ -160,6 +161,7 @@ void pagecache_init(void)
 	if(!sync_thread)
 		panic("Could not spawn the sync thread!\n");
 	sched_start_thread(sync_thread);
+	writeback_init();
 }
 
 void wakeup_sync_thread(void)
