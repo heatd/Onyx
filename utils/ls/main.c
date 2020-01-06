@@ -58,7 +58,8 @@ int do_ls(char *filename)
 			{
 				if(dir->d_name[0] == '.' && strlen(dir->d_name) == 1)
 					continue;
-				if(dir->d_name[1] == '.' && strlen(dir->d_name) == 2)
+				if(dir->d_name[0] == dir->d_name[1] == '.'
+					&& strlen(dir->d_name) == 2)
 					continue;
 			}
 		}
@@ -127,15 +128,24 @@ int do_ls(char *filename)
 			}
 		}
 	}
+
 	printf("\n");
 	closedir(dirct);
+
 	return 0;
 }
 
 int main(int argc, char **argv)
 {
 	parse_args(argc, argv);
-	if(argc < 2)
-		return 1;
-	return do_ls(argv[argc-1]);
+	
+	char *dir = ".";
+	if(!(argc < 2))
+	{
+		/* TODO: This is completely incorrect, the directory
+		 * isn't required to be the last arg and we can specify multiple directories */
+		dir = argv[argc - 1];
+	}
+
+	return do_ls(dir);
 }
