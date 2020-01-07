@@ -3,7 +3,8 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
-
+#define _POSIX_SOURCE
+#include <limits.h>
 #include <mbr.h>
 #include <partitions.h>
 #include <stdio.h>
@@ -19,8 +20,10 @@
 #include <onyx/compiler.h>
 #include <onyx/dev.h>
 #include <onyx/log.h>
+#include <onyx/panic.h>
+#include <onyx/cred.h>
 
-#include "../include/ext2.h"
+#include "ext2.h"
 
 struct inode *ext2_open(struct inode *nd, const char *name);
 size_t ext2_read(int flags, size_t offset, size_t sizeofreading, void *buffer, struct inode *node);
@@ -30,6 +33,8 @@ int ext2_stat(struct stat *buf, struct inode *node);
 struct inode *ext2_creat(const char *path, int mode, struct inode *file);
 char *ext2_readlink(struct inode *ino);
 void ext2_close(struct inode *ino);
+struct inode *ext2_mknod(const char *name, mode_t mode, dev_t dev, struct inode *ino);
+struct inode *ext2_mkdir(const char *name, mode_t mode, struct inode *ino);
 
 struct file_ops ext2_ops = 
 {
@@ -40,7 +45,9 @@ struct file_ops ext2_ops =
 	.stat = ext2_stat,
 	.creat = ext2_creat,
 	.readlink = ext2_readlink,
-	.close = ext2_close
+	.close = ext2_close,
+	.mknod = ext2_mknod,
+	.mkdir = ext2_mkdir
 };
 
 uuid_t ext2_gpt_uuid[4] = 
@@ -160,40 +167,12 @@ struct inode *ext2_open(struct inode *nd, const char *name)
 		return node;
 	}
 
-	node = inode_create();
+	node = ext2_fs_ino_to_vfs_ino(ino, inode_num, nd);
 	if(!node)
 	{
 		free(ino);
 		return errno = ENOMEM, NULL;
 	}
-
-	node->i_dev = nd->i_dev;
-	node->i_inode = inode_num;
-	/* Detect the file type */
-	if(EXT2_GET_FILE_TYPE(ino->mode) == EXT2_INO_TYPE_DIR)
-		node->i_type = VFS_TYPE_DIR;
-	else if(EXT2_GET_FILE_TYPE(ino->mode) == EXT2_INO_TYPE_REGFILE)
-		node->i_type = VFS_TYPE_FILE;
-	else if(EXT2_GET_FILE_TYPE(ino->mode) == EXT2_INO_TYPE_BLOCKDEV)
-		node->i_type = VFS_TYPE_BLOCK_DEVICE;
-	else if(EXT2_GET_FILE_TYPE(ino->mode) == EXT2_INO_TYPE_CHARDEV)
-		node->i_type = VFS_TYPE_CHAR_DEVICE;
-	else if(EXT2_GET_FILE_TYPE(ino->mode) == EXT2_INO_TYPE_SYMLINK)
-		node->i_type = VFS_TYPE_SYMLINK;
-	else if(EXT2_GET_FILE_TYPE(ino->mode) == EXT2_INO_TYPE_FIFO)
-		node->i_type = VFS_TYPE_FIFO;
-	else if(EXT2_GET_FILE_TYPE(ino->mode) == EXT2_INO_TYPE_UNIX_SOCK)
-		node->i_type = VFS_TYPE_UNIX_SOCK;
-	else
-		node->i_type = VFS_TYPE_UNK;
-
-	node->i_size = EXT2_CALCULATE_SIZE64(ino);
-	node->i_uid = ino->uid;
-	node->i_gid = ino->gid;
-	node->i_sb = nd->i_sb;
-	node->i_helper = ext2_cache_inode_info(node, ino);
-
-	memcpy(&node->i_fops, &ext2_ops, sizeof(struct file_ops));
 
 	/* Cache the inode */
 	superblock_add_inode(nd->i_sb, node);
@@ -203,7 +182,82 @@ struct inode *ext2_open(struct inode *nd, const char *name)
 
 time_t get_posix_time(void);
 
-struct inode *ext2_creat(const char *name, int mode, struct inode *file)
+struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber, struct inode *parent)
+{
+	/* Create a file */
+	struct inode *ino = inode_create();
+
+	if(!ino)
+	{
+		return NULL;
+	}
+
+	ino->i_dev = parent->i_dev;
+	ino->i_inode = inumber;
+	/* Detect the file type */
+	ino->i_type = ext2_ino_type_to_vfs_type(inode->mode);
+	ino->i_mode = inode->mode;
+
+	/* We're storing dev in dbp[0] in the same format as dev_t */
+	ino->i_rdev = inode->dbp[0];
+
+	ino->i_size = EXT2_CALCULATE_SIZE64(inode);
+	ino->i_uid = inode->uid;
+	ino->i_gid = inode->gid;
+	ino->i_sb = parent->i_sb;
+	ino->i_atime = inode->atime;
+	ino->i_ctime = inode->ctime;
+	ino->i_mtime = inode->mtime;
+
+	ino->i_helper = ext2_cache_inode_info(ino, inode);
+
+	memcpy(&ino->i_fops, &ext2_ops, sizeof(struct file_ops));
+
+	return ino;
+}
+
+uint16_t ext2_mode_to_ino_type(mode_t mode)
+{
+	if(S_ISFIFO(mode))
+		return EXT2_INO_TYPE_FIFO;
+	if(S_ISCHR(mode))
+		return EXT2_INO_TYPE_CHARDEV;
+	if(S_ISBLK(mode))
+		return EXT2_INO_TYPE_BLOCKDEV;
+	if(S_ISDIR(mode))
+		return EXT2_INO_TYPE_DIR;
+	if(S_ISLNK(mode))
+		return EXT2_INO_TYPE_SYMLINK;
+	if(S_ISSOCK(mode))
+		return EXT2_INO_TYPE_UNIX_SOCK;
+	if(S_ISREG(mode))
+		return EXT2_INO_TYPE_REGFILE;
+	return -1;
+}
+
+int ext2_ino_type_to_vfs_type(uint16_t mode)
+{
+	if(EXT2_GET_FILE_TYPE(mode) == EXT2_INO_TYPE_DIR)
+		return VFS_TYPE_DIR;
+	else if(EXT2_GET_FILE_TYPE(mode) == EXT2_INO_TYPE_REGFILE)
+		return VFS_TYPE_FILE;
+	else if(EXT2_GET_FILE_TYPE(mode) == EXT2_INO_TYPE_BLOCKDEV)
+		return VFS_TYPE_BLOCK_DEVICE;
+	else if(EXT2_GET_FILE_TYPE(mode) == EXT2_INO_TYPE_CHARDEV)
+		return VFS_TYPE_CHAR_DEVICE;
+	else if(EXT2_GET_FILE_TYPE(mode) == EXT2_INO_TYPE_SYMLINK)
+		return VFS_TYPE_SYMLINK;
+	else if(EXT2_GET_FILE_TYPE(mode) == EXT2_INO_TYPE_FIFO)
+		return VFS_TYPE_FIFO;
+	else if(EXT2_GET_FILE_TYPE(mode) == EXT2_INO_TYPE_UNIX_SOCK)
+		return VFS_TYPE_UNIX_SOCK;
+
+	/* FIXME: Signal the filesystem as corrupted through the superblock,
+	 and don't panic */
+	return VFS_TYPE_UNK;
+}
+
+struct inode *ext2_create_file(const char *name, mode_t mode, dev_t dev, struct inode *file)
 {
 	ext2_fs_t *fs = file->i_sb->s_helper;
 	uint32_t inumber = 0;
@@ -216,61 +270,63 @@ struct inode *ext2_creat(const char *name, int mode, struct inode *file)
 
 	memset(inode, 0, sizeof(struct ext2_inode));
 	inode->ctime = inode->atime = inode->mtime = (uint32_t) get_posix_time();
+	
+	struct creds *c = creds_get();
+
+	inode->uid = c->euid;
+	inode->gid = c->egid;
+
+	creds_put(c);
+
 	inode->hard_links = 1;
-	inode->mode = EXT2_INO_TYPE_REGFILE | mode;
+	uint16_t ext2_file_type = ext2_mode_to_ino_type(mode);
+	if(ext2_file_type == (uint16_t) -1)
+	{
+		errno = EINVAL;
+		goto free_ino_error;
+	}
+
+	inode->mode = ext2_file_type | (mode & ~S_IFMT);
+	
+	if(S_ISBLK(mode) || S_ISCHR(mode))
+	{
+		/* We're a device file, store the device in dbp[0] */
+		inode->dbp[0] = dev;
+	}
 
 	ext2_update_inode(inode, fs, inumber);
 	ext2_update_inode(dir_inode, fs, file->i_inode);
 	
 	if(ext2_add_direntry(name, inumber, inode, dir_inode, fs) < 0)
 	{
-		free(inode);
-		ext2_free_inode(inumber, fs);
-		return NULL;
+		errno = EINVAL;
+		goto free_ino_error;
 	}
-
-	/* Create a file */
-	struct inode *ino = inode_create();
-
+	
+	struct inode *ino = ext2_fs_ino_to_vfs_ino(inode, inumber, file);
 	if(!ino)
 	{
-		/* TODO: Remove the direntry from the directory */
-		free(inode);
-		ext2_free_inode(inumber, fs);
-		return NULL;
+		errno = ENOMEM;
+		goto unlink_ino;
 	}
 
-	ino->i_dev = file->i_dev;
-	ino->i_inode = inumber;
-	/* Detect the file type */
-	if(EXT2_GET_FILE_TYPE(inode->mode) == EXT2_INO_TYPE_DIR)
-		ino->i_type = VFS_TYPE_DIR;
-	else if(EXT2_GET_FILE_TYPE(inode->mode) == EXT2_INO_TYPE_REGFILE)
-		ino->i_type = VFS_TYPE_FILE;
-	else if(EXT2_GET_FILE_TYPE(inode->mode) == EXT2_INO_TYPE_BLOCKDEV)
-		ino->i_type = VFS_TYPE_BLOCK_DEVICE;
-	else if(EXT2_GET_FILE_TYPE(inode->mode) == EXT2_INO_TYPE_CHARDEV)
-		ino->i_type = VFS_TYPE_CHAR_DEVICE;
-	else if(EXT2_GET_FILE_TYPE(inode->mode) == EXT2_INO_TYPE_SYMLINK)
-		ino->i_type = VFS_TYPE_SYMLINK;
-	else if(EXT2_GET_FILE_TYPE(inode->mode) == EXT2_INO_TYPE_FIFO)
-		ino->i_type = VFS_TYPE_FIFO;
-	else if(EXT2_GET_FILE_TYPE(inode->mode) == EXT2_INO_TYPE_UNIX_SOCK)
-		ino->i_type = VFS_TYPE_UNIX_SOCK;
-	else
-		ino->i_type = VFS_TYPE_UNK;
-
-	ino->i_size = EXT2_CALCULATE_SIZE64(inode);
-	ino->i_uid = inode->uid;
-	ino->i_gid = inode->gid;
-	ino->i_sb = file->i_sb;
-	ino->i_helper = ext2_cache_inode_info(ino, inode);
-
-	memcpy(&ino->i_fops, &ext2_ops, sizeof(struct file_ops));
-	
 	superblock_add_inode(ino->i_sb, ino);
 
 	return ino;
+
+unlink_ino:
+	/* TODO: add ext2_unlink() */
+	free(ino);
+free_ino_error:
+	free(inode);
+	ext2_free_inode(inumber, fs);
+
+	return NULL;
+}
+
+struct inode *ext2_creat(const char *name, int mode, struct inode *file)
+{
+	return ext2_create_file(name, (mode & ~S_IFMT) | S_IFREG, 0, file);
 }
 
 __attribute__((no_sanitize_undefined))
@@ -360,7 +416,13 @@ struct inode *ext2_mount_partition(uint64_t sector, block_device_t *dev)
 	node->i_inode = 2;
 	node->i_type = VFS_TYPE_DIR;
 	node->i_sb = new_super;
-	
+	node->i_atime = ino->atime;
+	node->i_ctime = ino->ctime;
+	node->i_mtime = ino->mtime;
+	node->i_rdev = 0;
+	node->i_gid = ino->gid;
+	node->i_uid = ino->uid;
+	node->i_mode = ino->mode;
 	node->i_helper = ext2_cache_inode_info(node, ino);
 
 	new_super->s_inodes = node;
@@ -418,15 +480,31 @@ int ext2_stat(struct stat *buf, struct inode *node)
 	buf->st_dev = node->i_dev;
 	buf->st_ino = node->i_inode;
 	buf->st_nlink = ino->hard_links;
-	buf->st_mode = ino->mode;
+	buf->st_mode = node->i_mode;
 	buf->st_uid = node->i_uid;
 	buf->st_gid = node->i_gid;
-	buf->st_size = EXT2_CALCULATE_SIZE64(ino);
-	buf->st_atime = ino->atime;
-	buf->st_mtime = ino->mtime;
-	buf->st_ctime = ino->ctime;
+	buf->st_size = node->i_size;
+	buf->st_atime = node->i_atime;
+	buf->st_mtime = node->i_mtime;
+	buf->st_ctime = node->i_ctime;
 	buf->st_blksize = fs->block_size;
-	buf->st_blocks = ino->i_blocks;
+	buf->st_blocks = node->i_size % 512 ? (node->i_size / 512) + 1 : node->i_size / 512;
 	
 	return 0;
+}
+
+struct inode *ext2_mknod(const char *name, mode_t mode, dev_t dev, struct inode *ino)
+{
+	if(strlen(name) > NAME_MAX)
+		return errno = ENAMETOOLONG, NULL;
+	
+	if(S_ISDIR(mode))
+		return errno = EPERM, NULL;
+	
+	return ext2_create_file(name, mode, dev, ino);
+}
+
+struct inode *ext2_mkdir(const char *name, mode_t mode, struct inode *ino)
+{
+	return ext2_create_file(name, (mode & 0777) | S_IFDIR, 0, ino);
 }

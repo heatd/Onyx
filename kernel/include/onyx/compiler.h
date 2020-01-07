@@ -88,4 +88,6 @@ static inline int count_bits64(uint64_t num)
 #define ___PASTE(a,b) a##b
 #define __PASTE(a,b) ___PASTE(a,b)
 
+#define COMPILER_BARRIER()		__asm__ __volatile__("" ::: "memory")
+
 #endif /* COMPILER_H */

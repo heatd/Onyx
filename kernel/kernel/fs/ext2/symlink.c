@@ -11,7 +11,7 @@
 
 #include <onyx/vfs.h>
 
-#include "../include/ext2.h"
+#include "ext2.h"
 
 /* According to Linux and e2fs, this is how you detect fast symlinks */
 bool ext2_is_fast_symlink(struct ext2_inode *inode, ext2_fs_t *fs)

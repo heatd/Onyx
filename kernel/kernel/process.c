@@ -194,8 +194,7 @@ struct process *process_create(const char *cmd_line, ioctx_t *ctx, struct proces
 		/* Inherit the parent process' properties */
 		proc->personality = parent->personality;
 		proc->vdso = parent->vdso;
-		proc->uid = parent->uid;
-		proc->gid = parent->gid;
+		process_inherit_creds(proc, parent);
 		proc->address_space.brk = parent->address_space.brk;
 		/* Inherit the signal handlers of the process and the
 		 * signal mask of the current thread
@@ -373,11 +372,13 @@ void *process_setup_auxv(void *buffer, struct process *process)
 			case AT_PAGESZ:
 				auxv[i].a_un.a_val = PAGE_SIZE;
 				break;
+			/* We're able to not grab cred because we're inside execve,
+			 * there's no race condition */
 			case AT_UID:
-				auxv[i].a_un.a_val = process->uid;
+				auxv[i].a_un.a_val = process->cred.euid;
 				break;
 			case AT_GID:
-				auxv[i].a_un.a_val = process->gid;
+				auxv[i].a_un.a_val = process->cred.egid;
 				break;
 			case AT_RANDOM:
 				get_entropy((char*) scratch_space, 16);
@@ -791,28 +792,6 @@ int sys_personality(unsigned long val)
 	// TODO: Use this syscall for something. This might be potentially very useful
 	get_current_process()->personality = val;
 	return 0;
-}
-
-int sys_setuid(uid_t uid)
-{
-	get_current_process()->uid = uid;
-	return 0;
-}
-
-int sys_setgid(gid_t gid)
-{
-	get_current_process()->gid = gid;
-	return 0;
-}
-
-uid_t sys_getuid(void)
-{
-	return get_current_process()->uid;
-}
-
-gid_t sys_getgid(void)
-{
-	return get_current_process()->gid;
 }
 
 void process_destroy_aspace(void)

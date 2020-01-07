@@ -153,8 +153,14 @@ int device_mknod(struct dev *d, const char *path, const char *name)
 		if(!root)
 			return -1;
 	}
+	
+	/* TODO: Maybe let calling code determine the permissions? */
+	mode_t mode = 0600;
+	if(d->is_block) mode |= S_IFBLK;
+	else	mode |= S_IFCHR;
+	 
 
-	return root->i_fops.mknod(name, d->majorminor, root) == NULL;
+	return root->i_fops.mknod(name, mode, d->majorminor, root) == NULL;
 }
 
 int device_show(struct dev *d, const char *path)
@@ -164,7 +170,7 @@ int device_show(struct dev *d, const char *path)
 
 int device_create_dir(const char *path)
 {
-	struct inode *i = mkdir_vfs(path, 0666, dev_root);
+	struct inode *i = mkdir_vfs(path, 0600, dev_root);
 
 	return i == NULL ? -1 : 0;
 }

@@ -78,11 +78,6 @@
 #include <onyx/percpu.h>
 #include <onyx/drm.h>
 
-#include <drivers/ps2.h>
-#include <drivers/ata.h>
-#include <drivers/ext2.h>
-#include <drivers/e1000.h>
-#include <drivers/softwarefb.h>
 #include <pci/pci.h>
 
 extern uint64_t kernel_end;

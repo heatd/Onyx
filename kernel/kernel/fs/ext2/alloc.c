@@ -11,7 +11,7 @@
 #include <onyx/compiler.h>
 #include <onyx/panic.h>
 
-#include <drivers/ext2.h>
+#include "ext2.h"
 
 /* TODO: Add a way to prefer block groups */
 /* Allocates a block */

@@ -20,6 +20,7 @@
 #include <onyx/semaphore.h>
 #include <onyx/elf.h>
 #include <onyx/syscall.h>
+#include <onyx/cred.h>
 
 struct futex;
 
@@ -52,10 +53,7 @@ struct process
 	int exit_code;
 	
 	/* Process' UID and GID */
-	uid_t uid;
-	gid_t gid;
-	uid_t euid;
-	gid_t egid;
+	struct creds cred;
 
 	/* Pointer to the VDSO */
 	void *vdso;

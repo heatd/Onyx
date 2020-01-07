@@ -20,7 +20,7 @@
 #include <onyx/fscache.h>
 #include <onyx/panic.h>
 
-#include "../include/ext2.h"
+#include "ext2.h"
 
 time_t get_posix_time(void);
 
@@ -223,6 +223,26 @@ size_t ext2_calculate_dirent_size(size_t len_name)
 	return dirent_size;
 }
 
+uint8_t ext2_file_type_to_type_indicator(uint16_t mode)
+{
+	if(EXT2_GET_FILE_TYPE(mode) == EXT2_INO_TYPE_DIR)
+		return EXT2_FT_DIR;
+	else if(EXT2_GET_FILE_TYPE(mode) == EXT2_INO_TYPE_REGFILE)
+		return EXT2_FT_REG_FILE;
+	else if(EXT2_GET_FILE_TYPE(mode) == EXT2_INO_TYPE_BLOCKDEV)
+		return EXT2_FT_BLKDEV;
+	else if(EXT2_GET_FILE_TYPE(mode) == EXT2_INO_TYPE_CHARDEV)
+		return EXT2_FT_CHRDEV;
+	else if(EXT2_GET_FILE_TYPE(mode) == EXT2_INO_TYPE_SYMLINK)
+		return EXT2_FT_SYMLINK;
+	else if(EXT2_GET_FILE_TYPE(mode) == EXT2_INO_TYPE_FIFO)
+		return EXT2_FT_FIFO;
+	else if(EXT2_GET_FILE_TYPE(mode) == EXT2_INO_TYPE_UNIX_SOCK)
+		return EXT2_FT_SOCK;
+	else
+		return EXT2_FT_UNKNOWN;
+}
+
 int ext2_add_direntry(const char *name, uint32_t inum, struct ext2_inode *inode,
 	struct ext2_inode *dir, ext2_fs_t *fs)
 {
@@ -239,7 +259,7 @@ int ext2_add_direntry(const char *name, uint32_t inum, struct ext2_inode *inode,
 
 	entry.inode = inum;
 	entry.lsbit_namelen = strlen(name);
-	entry.type_indic = 1;
+	entry.type_indic = ext2_file_type_to_type_indicator(inode->mode);
 
 	strlcpy(entry.name, name, sizeof(entry.name));
 
@@ -254,8 +274,28 @@ int ext2_add_direntry(const char *name, uint32_t inum, struct ext2_inode *inode,
 				dir_entry_t *e = (dir_entry_t *) buf;
 
 				size_t actual_size = ext2_calculate_dirent_size(e->lsbit_namelen);
+				
+				if(e->inode == 0 && e->size >= dirent_size)
+				{
+					/* This direntry is unused, so use it */
+					e->inode = entry.inode;
+					e->lsbit_namelen = entry.lsbit_namelen;
+					strlcpy(e->name, entry.name, sizeof(entry.name));
+					e->type_indic = entry.type_indic;
 
-				if(e->size > actual_size && 
+					if(ext2_write_inode(dir, fs,
+						fs->block_size, (size_t) off,
+						(char*) buffer) < 0)
+					{
+						panic("ext2_write_inode failed\n");
+						return -1;
+					}
+	
+					free(buffer);
+
+					return 0;
+				}
+				else if(e->size > actual_size && 
 				   e->size - actual_size >= dirent_size)
 				{
 					dir_entry_t *d = (dir_entry_t *) (buf + actual_size);
@@ -302,4 +342,62 @@ int ext2_add_direntry(const char *name, uint32_t inum, struct ext2_inode *inode,
 
 	free(buffer);
 	return 0;
+}
+
+void ext2_unlink_dirent(dir_entry_t *before, dir_entry_t *entry)
+{
+	/* If we're not the first dirent on the block, adjust the reclen
+	 * so it points to the next dirent(or the end of the block).
+	*/
+	dir_entry_t *next = (dir_entry_t *)((char *) entry + entry->size);
+
+	if(before)
+	{
+		before->size = next - before;
+	}
+	
+	/* Mark the entry as unused */
+	entry->inode = 0;
+}
+
+int ext2_remove_direntry(uint32_t inum, struct ext2_inode *dir, ext2_fs_t *fs)
+{
+	int st = -ENOENT;
+	uint8_t *buf_start;
+	uint8_t *buf = buf_start = zalloc(fs->block_size);
+	if(!buf)
+		return errno = ENOMEM, -1;
+	
+	size_t off = 0;
+
+	while(off < EXT2_CALCULATE_SIZE64(dir))
+	{
+		ext2_read_inode(dir, fs, fs->block_size, (size_t) off, (char*) buf);
+
+		dir_entry_t *before = NULL;
+		for(size_t i = 0; i < fs->block_size; )
+		{
+			dir_entry_t *e = (dir_entry_t *) buf;
+
+			if(e->inode == inum)
+			{
+				/* We found the inode, unlink it. */
+				ext2_unlink_dirent(before, e);
+				ext2_write_inode(dir, fs, fs->block_size, off, (char *) buf);
+				st = 0;
+				goto out;
+			}
+
+			before = e;
+			buf += e->size;
+			i += e->size;
+		}
+
+		off += fs->block_size;
+		buf = buf_start;
+	}
+
+out:
+	free(buf_start);
+	return st;
 }

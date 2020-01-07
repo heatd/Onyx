@@ -11,7 +11,7 @@
 #include <string.h>
 #include <assert.h>
 
-#include "../include/ext2.h"
+#include "ext2.h"
 
 /* This is the max reserved inode number, everything below it is reserved */
 #define EXT2_UNDEL_DIR_INO		6

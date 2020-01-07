@@ -39,7 +39,7 @@ struct inode *sysfs_create_inode_for_file(struct sysfs_file *f)
 		return NULL;
 
 	ino->i_type = f->type;
-	ino->i_permitions = f->perms;
+	ino->i_mode = f->perms;
 	ino->i_sb = sysfs_root_ino->i_sb;
 	ino->i_dev = sysfs_root_ino->i_dev;
 	ino->i_inode = (ino_t) f;

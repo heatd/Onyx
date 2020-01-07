@@ -11,7 +11,7 @@
 
 #include <onyx/compiler.h>
 
-#include <drivers/ext2.h>
+#include "ext2.h"
 
 uint32_t ext2_allocate_from_block_group(ext2_fs_t *fs, uint32_t block_group)
 {
@@ -42,7 +42,7 @@ uint32_t ext2_allocate_from_block_group(ext2_fs_t *fs, uint32_t block_group)
 				ext2_register_superblock_changes(fs);
 				ext2_register_bgdt_changes(fs);
 				mutex_unlock(&fs->bgdt_lock);
-				return fs->blocks_per_block_group * block_group + i * CHAR_BIT + j + 1;
+				return fs->blocks_per_block_group * block_group + i * CHAR_BIT + j;
 			}
 		}
 	}

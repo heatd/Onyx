@@ -110,7 +110,7 @@ struct inode *tmpfs_file_to_vfs(tmpfs_file_t *file, struct inode *parent)
 			break;
 	}
 
-	//f->mode = mode;
+	f->i_mode = file->mode;
 	f->i_uid = file->st_uid;
 	f->i_gid = file->st_gid;
 
@@ -348,7 +348,7 @@ struct inode *tmpfs_open(struct inode *vnode, const char *name)
 	return tmpfs_find_inode_in_cache(vnode, file);
 }
 
-struct inode *tmpfs_mknod(const char *name, dev_t dev, struct inode *root)
+struct inode *tmpfs_mknod(const char *name, mode_t mode, dev_t dev, struct inode *root)
 {
 	tmpfs_file_t *dir = (tmpfs_file_t *) root->i_inode;
 
@@ -359,6 +359,7 @@ struct inode *tmpfs_mknod(const char *name, dev_t dev, struct inode *root)
 	
 	file->st_uid = 0;
 	file->st_gid = 0;
+	file->mode = mode;
 	file->rdev = dev;
 
 	struct dev *d = dev_find(dev);

@@ -60,6 +60,15 @@
 #define EXT2_INO_FLAG_AFS_DIR 0x20000
 #define EXT2_INO_FLAG_JOURNAL_FILE_DATA 0x40000
 
+#define EXT2_FT_UNKNOWN			0
+#define EXT2_FT_REG_FILE		1
+#define EXT2_FT_DIR			2
+#define EXT2_FT_CHRDEV			3
+#define EXT2_FT_BLKDEV			4
+#define EXT2_FT_FIFO			5
+#define EXT2_FT_SOCK			6
+#define EXT2_FT_SYMLINK			7
+
 typedef struct
 {
 	uint32_t total_inodes;
@@ -230,7 +239,12 @@ struct ext2_inode *ext2_get_inode_from_dir(ext2_fs_t *fs, dir_entry_t *dirent,
 	char *name, uint32_t *inode_number, size_t size);
 int ext2_add_direntry(const char *name, uint32_t inum, struct ext2_inode *inode,
 	struct ext2_inode *dir, ext2_fs_t *fs);
+int ext2_remove_direntry(uint32_t inum, struct ext2_inode *dir, ext2_fs_t *fs);
+
 void ext2_free_inode(uint32_t inode, ext2_fs_t *fs);
 void ext2_update_inode(struct ext2_inode *ino, ext2_fs_t *fs, uint32_t inode);
+int ext2_ino_type_to_vfs_type(uint16_t mode);
+uint16_t ext2_mode_to_ino_type(mode_t mode);
+struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber, struct inode *parent);
 
 #endif
