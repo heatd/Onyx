@@ -22,6 +22,7 @@ struct superblock
 };
 
 struct inode *superblock_find_inode(struct superblock *sb, ino_t inode);
+void superblock_add_inode_unlocked(struct superblock *sb, struct inode *inode);
 void superblock_add_inode(struct superblock *sb, struct inode *inode);
 void superblock_remove_inode(struct superblock *sb, struct inode *inode);
 

@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <dirent.h>
+#include <fcntl.h>
 
 #include <sys/types.h>
 
@@ -258,7 +259,9 @@ int ext2_add_direntry(const char *name, uint32_t inum, struct ext2_inode *inode,
 	size_t dirent_size = ext2_calculate_dirent_size(strlen(name));
 
 	entry.inode = inum;
+	assert(entry.inode != 0);
 	entry.lsbit_namelen = strlen(name);
+
 	entry.type_indic = ext2_file_type_to_type_indicator(inode->mode);
 
 	strlcpy(entry.name, name, sizeof(entry.name));
@@ -282,6 +285,8 @@ int ext2_add_direntry(const char *name, uint32_t inum, struct ext2_inode *inode,
 					e->lsbit_namelen = entry.lsbit_namelen;
 					strlcpy(e->name, entry.name, sizeof(entry.name));
 					e->type_indic = entry.type_indic;
+
+					COMPILER_BARRIER();
 
 					if(ext2_write_inode(dir, fs,
 						fs->block_size, (size_t) off,
@@ -400,4 +405,290 @@ int ext2_remove_direntry(uint32_t inum, struct ext2_inode *dir, ext2_fs_t *fs)
 out:
 	free(buf_start);
 	return st;
+}
+
+int ext2_file_present(struct ext2_inode *inode, const char *name, ext2_fs_t *fs)
+{
+	int st = 0;
+	char *buf = zalloc(fs->block_size);
+	if(!buf)
+		return -ENOMEM;
+
+	off_t off = 0;
+
+	while((size_t) off < EXT2_CALCULATE_SIZE64(inode))
+	{
+		if(ext2_read_inode(inode, fs, fs->block_size, off, buf) < 0)
+		{
+			st = -EIO;
+			goto out;
+		}
+
+		for(char *b = buf; b < buf + fs->block_size; )
+		{
+			dir_entry_t *entry = (dir_entry_t *) b;
+
+			if(entry->lsbit_namelen == strlen(name) && 
+		  	   !memcmp(entry->name, name, entry->lsbit_namelen))
+			{
+				st = 1;
+				goto out;
+			}
+
+			b += entry->size;
+		}
+
+		off += fs->block_size;
+	}
+
+out:
+	free(buf);
+	return st;
+}
+
+struct ext2_dirent_result
+{
+	off_t file_off;
+	off_t block_off;
+	char *buf;
+};
+
+int ext2_retrieve_dirent(struct ext2_inode *inode, const char *name, ext2_fs_t *fs,
+			 struct ext2_dirent_result *res)
+{
+	int st = 0;
+	char *buf = zalloc(fs->block_size);
+	if(!buf)
+		return -ENOMEM;
+
+	off_t off = 0;
+
+	while((size_t) off < EXT2_CALCULATE_SIZE64(inode))
+	{
+		if(ext2_read_inode(inode, fs, fs->block_size, off, buf) < 0)
+		{
+			st = -EIO;
+			goto out;
+		}
+
+		for(char *b = buf; b < buf + fs->block_size; )
+		{
+			dir_entry_t *entry = (dir_entry_t *) b;
+
+			if(entry->lsbit_namelen == strlen(name) && 
+		  	   !memcmp(entry->name, name, entry->lsbit_namelen))
+			{
+				res->block_off = b - buf;
+				res->file_off = off + res->block_off;
+				res->buf = buf;
+				st = 1;
+				goto out;
+			}
+		}
+
+		off += fs->block_size;
+	}
+
+out:
+	if(st != 1) free(buf);
+	return st;
+}
+
+int ext2_link(struct inode *target, const char *name, struct inode *dir)
+{
+	assert(target->i_sb == dir->i_sb);
+
+	ext2_fs_t *fs = dir->i_sb->s_helper;
+
+	struct ext2_inode *inode = ext2_get_inode_from_node(dir);
+	struct ext2_inode *target_ino = ext2_get_inode_from_node(target);
+
+	int st = ext2_file_present(inode, name, fs);
+	if(st < 0)
+	{
+		return st;
+	}
+	else if(st == 1)
+	{
+		return -EEXIST;
+	}
+
+	/* Blame past me for the inconsistency in return values */
+	st = ext2_add_direntry(name, (uint32_t) target->i_inode, target_ino, inode, fs);
+
+	if(st < 0)
+	{
+		return -errno;
+	}
+
+	__sync_fetch_and_add(&target_ino->hard_links, 1);
+	__sync_synchronize();
+	COMPILER_BARRIER();
+
+	ext2_update_inode(target_ino, fs, (uint32_t) target->i_inode);
+
+	return 0;
+}
+
+struct inode *ext2_load_inode_from_disk(uint32_t inum, struct inode *parent, ext2_fs_t *fs)
+{
+	struct ext2_inode *inode = ext2_get_inode_from_number(fs, inum);
+	if(!inode)
+		return NULL;
+	struct inode *node = ext2_fs_ino_to_vfs_ino(inode, inum, parent);
+	if(!node)
+	{
+		free(inode);
+		return errno = ENOMEM, NULL;
+	}
+
+	return node;
+}
+
+bool ext2_is_standard_dir_link(dir_entry_t *entry)
+{
+	if(!memcmp(entry->name, ".", entry->lsbit_namelen))
+		return true;
+	if(!memcmp(entry->name, "..", entry->lsbit_namelen))
+		return true;
+	return false;
+}
+
+int ext2_dir_empty(struct inode *ino)
+{
+	struct ext2_inode *inode = ext2_get_inode_from_node(ino);
+	ext2_fs_t *fs = ino->i_sb->s_helper;
+
+	int st = 1;
+	char *buf = zalloc(fs->block_size);
+	if(!buf)
+		return -ENOMEM;
+
+	off_t off = 0;
+
+	while((size_t) off < EXT2_CALCULATE_SIZE64(inode))
+	{
+		if(ext2_read_inode(inode, fs, fs->block_size, off, buf) < 0)
+		{
+			st = -EIO;
+			goto out;
+		}
+
+		for(char *b = buf; b < buf + fs->block_size; )
+		{
+			dir_entry_t *entry = (dir_entry_t *) b;
+
+			if(entry->inode != 0 && !ext2_is_standard_dir_link(entry))
+			{
+				st = 0;
+				goto out;
+			}
+		}
+
+		off += fs->block_size;
+	}
+
+out:
+	free(buf);
+	return st;
+}
+
+int ext2_unlink(const char *name, int flags, struct inode *ino)
+{
+	ext2_fs_t *fs = ino->i_sb->s_helper;
+
+	struct ext2_inode *inode = ext2_get_inode_from_node(ino);
+
+	struct ext2_dirent_result res;
+	bool zombie_inode = false;
+	int st = ext2_retrieve_dirent(inode, name, fs, &res);
+
+	if(st < 0)
+	{
+		free(res.buf);
+		return st;
+	}
+	else if(st == 0)
+	{
+		free(res.buf);
+		return -ENOENT;
+	}
+
+	dir_entry_t *ent = (dir_entry_t *) (res.buf + res.block_off);
+	
+	struct inode *target = superblock_find_inode(ino->i_sb, ent->inode);
+	if(!target)
+	{
+		if(!(target = ext2_load_inode_from_disk(ent->inode, ino, fs)))
+		{
+			free(res.buf);
+			spin_unlock(&ino->i_sb->s_ilock);
+			return -errno;
+		}
+
+		superblock_add_inode_unlocked(ino->i_sb, target);
+		spin_unlock(&ino->i_sb->s_ilock);
+	}
+
+	if(target->i_type == VFS_TYPE_DIR)
+	{
+		if(!(flags & AT_REMOVEDIR))
+		{
+			free(res.buf);
+			return -EISDIR;
+		}
+
+		if(ext2_dir_empty(target) == 0)
+		{
+			free(res.buf);
+			return -ENOTEMPTY;
+		}
+	}
+
+	dir_entry_t *before = NULL;
+
+	/* Now, unlink the dirent */
+	if(res.block_off != 0)
+	{
+		for(char *b = res.buf; b < res.buf;)
+		{
+			dir_entry_t *dir = (dir_entry_t *) b;
+			if((b - res.buf) + dir->size == res.block_off)
+			{
+				before = dir;
+				break;
+			}
+		}
+
+		assert(before != NULL);
+	}
+
+	ext2_unlink_dirent(before, (dir_entry_t *) (res.buf + res.block_off));
+
+	/* Flush to disk */
+	if(ext2_write_inode(inode, fs, fs->block_size, res.file_off, res.buf) < 0)
+	{
+		close_vfs(target);
+		return -EIO;
+	}
+
+	free(res.buf);
+
+	/* TODO: This code isn't very race-safe I think */
+	struct ext2_inode *tino = ext2_get_inode_from_node(target);
+	if(__sync_sub_and_fetch(&tino->hard_links, 1) == 0)
+	{
+		zombie_inode = true;
+	}
+
+	ext2_update_inode(tino, fs, (uint32_t) target->i_inode);
+
+	COMPILER_BARRIER();
+
+	if(zombie_inode)
+	{
+		close_vfs(ino);
+	}
+
+	return 0;
 }

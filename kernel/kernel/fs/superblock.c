@@ -21,14 +21,14 @@ struct inode *superblock_find_inode(struct superblock *sb, ino_t inode)
 		}
 	}
 
-	spin_unlock(&sb->s_ilock);
 	return NULL;
 }
 
-void superblock_add_inode(struct superblock *sb, struct inode *inode)
+void superblock_add_inode_unlocked(struct superblock *sb, struct inode *inode)
 {
-	spin_lock(&sb->s_ilock);
-
+	/* FIXME: O(n) time complexity on adding to a linked list - nasty and
+	 * possibly a war crime in multiple countries
+	*/
 	struct inode **ino = &sb->s_inodes;
 
 	while(*ino)
@@ -40,6 +40,13 @@ void superblock_add_inode(struct superblock *sb, struct inode *inode)
 	atomic_inc(&sb->s_ref, 1);
 
 	object_ref(&inode->i_object);
+}
+
+void superblock_add_inode(struct superblock *sb, struct inode *inode)
+{
+	spin_lock(&sb->s_ilock);
+
+	superblock_add_inode_unlocked(sb, inode);
 
 	spin_unlock(&sb->s_ilock);
 }

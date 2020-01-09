@@ -322,9 +322,14 @@ struct inode *tmpfs_find_inode_in_cache(struct inode *vnode, tmpfs_file_t *file)
 	inode = tmpfs_file_to_vfs(file, vnode);
 
 	if(!inode)
+	{
+		spin_unlock(&fs->superblock->s_ilock);
 		return NULL;
+	}
 	
-	superblock_add_inode(fs->superblock, inode);
+	superblock_add_inode_unlocked(fs->superblock, inode);
+
+	spin_unlock(&fs->superblock->s_ilock);
 	return inode;
 }
 

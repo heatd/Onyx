@@ -9,7 +9,7 @@
 
 #include <sys/syscall.h>
 
-#define NR_SYSCALL_MAX		83
+#define NR_SYSCALL_MAX		109
 
 #ifndef __ASSEMBLER__
 struct syscall_frame

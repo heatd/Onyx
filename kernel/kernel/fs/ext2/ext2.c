@@ -35,6 +35,8 @@ char *ext2_readlink(struct inode *ino);
 void ext2_close(struct inode *ino);
 struct inode *ext2_mknod(const char *name, mode_t mode, dev_t dev, struct inode *ino);
 struct inode *ext2_mkdir(const char *name, mode_t mode, struct inode *ino);
+int ext2_link(struct inode *target, const char *name, struct inode *dir);
+int ext2_unlink(const char *name, int flags, struct inode *ino);
 
 struct file_ops ext2_ops = 
 {
@@ -47,7 +49,9 @@ struct file_ops ext2_ops =
 	.readlink = ext2_readlink,
 	.close = ext2_close,
 	.mknod = ext2_mknod,
-	.mkdir = ext2_mkdir
+	.mkdir = ext2_mkdir,
+	.link = ext2_link,
+	.unlink = ext2_unlink
 };
 
 uuid_t ext2_gpt_uuid[4] = 
@@ -67,7 +71,7 @@ struct ext2_inode *ext2_get_inode_from_dir(ext2_fs_t *fs, dir_entry_t *dirent, c
 	dir_entry_t *dirs = dirent;
 	while((uintptr_t) dirs < (uintptr_t) dirent + size)
 	{
-		if(dirs->lsbit_namelen == strlen(name) && 
+		if(dirs->inode && dirs->lsbit_namelen == strlen(name) && 
 		   !memcmp(dirs->name, name, dirs->lsbit_namelen))
 		{
 			*inode_number = dirs->inode;
@@ -78,10 +82,27 @@ struct ext2_inode *ext2_get_inode_from_dir(ext2_fs_t *fs, dir_entry_t *dirent, c
 	return NULL;
 }
 
+time_t get_posix_time(void);
+
+/* TODO: Destroy the actual inode */
+void ext2_delete_inode(struct ext2_inode *inode, uint32_t inum, ext2_fs_t *fs)
+{
+	inode->dtime = get_posix_time();
+	ext2_update_inode(inode, fs, inum);
+	ext2_free_inode(inum, fs);
+}
+
 void ext2_close(struct inode *ino)
 {
 	/* TODO: Flush metadata if inode is dirty */
 	struct ext2_inode *inode = ext2_get_inode_from_node(ino);
+	ext2_fs_t *fs = ino->i_sb->s_helper;
+
+	if(inode->hard_links == 0)
+	{
+		ext2_delete_inode(inode, (uint32_t) ino->i_inode, fs);
+	}
+
 	free(inode);
 }
 
@@ -171,16 +192,17 @@ struct inode *ext2_open(struct inode *nd, const char *name)
 	if(!node)
 	{
 		free(ino);
+		spin_unlock(&nd->i_sb->s_ilock);
 		return errno = ENOMEM, NULL;
 	}
 
 	/* Cache the inode */
-	superblock_add_inode(nd->i_sb, node);
+	superblock_add_inode_unlocked(nd->i_sb, node);
+
+	spin_unlock(&nd->i_sb->s_ilock);
 
 	return node;
 }
-
-time_t get_posix_time(void);
 
 struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber, struct inode *parent)
 {
@@ -453,7 +475,7 @@ off_t ext2_getdirent(struct dirent *buf, off_t off, struct inode* this)
 		return 0;
 
 	/* If we reached the end of the directory list, return 0 */
-	if(!entry.inode && !entry.lsbit_namelen)
+	if(!entry.inode)
 		return 0;
 
 	memcpy(buf->d_name, entry.name, entry.lsbit_namelen);
@@ -506,5 +528,16 @@ struct inode *ext2_mknod(const char *name, mode_t mode, dev_t dev, struct inode 
 
 struct inode *ext2_mkdir(const char *name, mode_t mode, struct inode *ino)
 {
-	return ext2_create_file(name, (mode & 0777) | S_IFDIR, 0, ino);
+	struct inode *new_dir = ext2_create_file(name, (mode & 0777) | S_IFDIR, 0, ino);
+	if(!new_dir)
+	{
+		return NULL;
+	}
+	
+	/* Create the two basic links - link to self and link to parent */
+	/* FIXME: Handle failure here? */
+	ext2_link(new_dir, ".", new_dir);
+	ext2_link(ino, "..", new_dir);
+
+	return new_dir;
 }

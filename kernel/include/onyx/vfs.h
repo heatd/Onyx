@@ -43,7 +43,6 @@ typedef off_t (*__getdirent)(struct dirent *buf, off_t off, struct inode* file);
 typedef unsigned int (*__ioctl)(int request, void *argp, struct inode* file);
 typedef struct inode *(*__creat)(const char *pathname, int mode, struct inode *file);
 typedef int (*__stat)(struct stat *buf, struct inode *node);
-typedef int (*__link)(const char *newpath, struct inode *node);
 typedef int (*__symlink)(const char *linkpath, struct inode *node);
 typedef unsigned int (*putdir_t)(struct dirent *, struct dirent *ubuf, unsigned int count);
 
@@ -57,7 +56,7 @@ struct file_ops
 	__ioctl ioctl;
 	__creat creat;
 	__stat stat;
-	__link link;
+	int (*link)(struct inode *target_ino, const char *name, struct inode *dir);
 	__symlink symlink;
 	void *(*mmap)(struct vm_region *area, struct inode *node);
 	int (*bind)(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode);
@@ -72,6 +71,7 @@ struct file_ops
 	int (*on_open)(struct inode *node);
 	short (*poll)(void *poll_file, short events, struct inode *node);
 	char *(*readlink)(struct inode *ino);
+	int (*unlink)(const char *name, int flags, struct inode *node);
 };
 
 struct getdents_ret
@@ -182,6 +182,16 @@ struct inode *get_fs_root(void);
 short poll_vfs(void *poll_file, short events, struct inode *node);
 
 int fallocate_vfs(int mode, off_t offset, off_t len, struct inode *file);
+
+struct inode *mknod_vfs(const char *path, mode_t mode, dev_t dev, struct inode *file);
+
+struct file *get_current_directory(void);
+
+int link_vfs(struct inode *target, const char *name, struct inode *dir);
+
+int unlink_vfs(const char *name, int flags, struct inode *node);
+
+struct inode *get_fs_base(const char *file, struct inode *rel_base);
 
 #ifdef __cplusplus
 }

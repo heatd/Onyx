@@ -23,6 +23,7 @@
 #include <onyx/atomic.h>
 #include <onyx/user.h>
 #include <onyx/panic.h>
+#include <libgen.h>
 
 #include <sys/uio.h>
 
@@ -36,9 +37,14 @@ struct inode *get_fs_base(const char *file, struct inode *rel_base)
 	return is_absolute_filename(file) == true ? get_fs_root() : rel_base;
 }
 
-struct inode *get_current_directory(void)
+struct file *get_current_directory(void)
 {
-	return get_current_process()->ctx.cwd;
+	struct file *fp = get_current_process()->ctx.cwd;
+
+	if(unlikely(!fp))
+		return NULL;
+	fd_get(fp);
+	return fp;
 }
 
 void fd_get(struct file *fd)
@@ -273,23 +279,24 @@ static struct inode *try_to_open(struct inode *base, const char *filename, int f
 	return ret;
 }
 
-int do_sys_open(const char *filename, int flags, mode_t mode, struct inode *rel)
+int do_sys_open(const char *filename, int flags, mode_t mode, struct file *__rel)
 {
 	//printk("Open(%s)\n", filename);
 	/* This function does all the open() work, open(2) and openat(2) use this */
+	struct inode *rel = __rel->vfs_node;
 	ioctx_t *ioctx = &get_current_process()->ctx;
 	struct inode *base = get_fs_base(filename, rel);
 
-	mutex_lock(&ioctx->fdlock);
 	int fd_num = -1;
 
 	/* Open/creat the file */
 	struct inode *file = try_to_open(base, filename, flags, mode);
 	if(!file)
 	{
-		mutex_unlock(&ioctx->fdlock);
 		return -errno;
 	}
+
+	mutex_lock(&ioctx->fdlock);
 	/* Allocate a file descriptor and a file description for the file */
 	struct file *fd = allocate_file_descriptor_unlocked(&fd_num, ioctx);
 	if(!fd)
@@ -298,6 +305,8 @@ int do_sys_open(const char *filename, int flags, mode_t mode, struct inode *rel)
 		close_vfs(file);
 		return -errno;
 	}
+
+	mutex_unlock(&ioctx->fdlock);
 	
 	memset(fd, 0, sizeof(struct file));
 	
@@ -309,7 +318,6 @@ int do_sys_open(const char *filename, int flags, mode_t mode, struct inode *rel)
 	fd->flags = flags;
 
 	handle_open_flags(fd, flags);
-	mutex_unlock(&ioctx->fdlock);
 	return fd_num;
 }
 
@@ -318,9 +326,12 @@ int sys_open(const char *ufilename, int flags, mode_t mode)
 	const char *filename = strcpy_from_user(ufilename);
 	if(!filename)
 		return -errno;
+	struct file *cwd = get_current_directory();
+	/* TODO: Unify open and openat better */
 	/* open(2) does relative opens using the current working directory */
-	int fd = do_sys_open(filename, flags, mode, get_current_process()->ctx.cwd);
+	int fd = do_sys_open(filename, flags, mode, cwd);
 	free((char *) filename);
+	fd_put(cwd);
 	return fd;
 }
 
@@ -963,8 +974,11 @@ int sys_stat(const char *upathname, struct stat *ubuf)
 		return -errno;
 	
 	struct stat buf = {0};
+	struct file *curr = get_current_directory();
 
-	int st = do_sys_stat(pathname, &buf, 0, get_current_directory());
+	int st = do_sys_stat(pathname, &buf, 0, curr->vfs_node);
+
+	fd_put(curr);
 
 	if(copy_to_user(ubuf, &buf, sizeof(buf)) < 0)
 	{
@@ -1012,25 +1026,48 @@ int sys_chdir(const char *upath)
 		return -errno;
 
 	int st = 0;
-	struct inode *base = get_fs_base(path, get_current_directory());
+	struct file *curr = get_current_directory();
+	struct inode *base = get_fs_base(path, curr->vfs_node);
 	struct inode *dir = open_vfs(base, path);
+	
+	fd_put(curr);
+
 	if(!dir)
 	{
 		st = -ENOENT;
 		goto out;
 	}
 
+
 	if(!(dir->i_type & VFS_TYPE_DIR))
 	{
 		st = -ENOTDIR;
-		close_vfs(dir);
-		goto out;
+		goto close_file;
 	}
 
-	get_current_process()->ctx.cwd = dir;
-	get_current_process()->ctx.name = path;
-	path = NULL;
+	struct file *f = zalloc(sizeof(struct file));
+	if(!f)
+	{
+		st = -ENOMEM;
+		goto close_file;
+	}
 
+	f->refcount = 1;
+	f->vfs_node = dir;
+	object_ref(&dir->i_object);
+
+	struct process *current = get_current_process();
+	__atomic_exchange(&current->ctx.cwd, &f, &f, __ATOMIC_ACQUIRE);
+	current->ctx.name = path;
+
+	/* We've swapped ptrs atomically and now we're dropping the cwd reference.
+	 * Note that any current users of the cwd are using it properly.
+	*/
+	fd_put(f);
+	path = NULL;
+close_file:
+	if(dir)
+		close_vfs(dir);
 out:
 	if(path)	free((void *) path);
 	return st;
@@ -1049,8 +1086,12 @@ int sys_fchdir(int fildes)
 		return -ENOTDIR;
 	}
 
-	get_current_process()->ctx.cwd = node;
-	get_current_process()->ctx.name = "TODO";
+
+	struct process *current = get_current_process();
+
+	__atomic_exchange(&current->ctx.cwd, &f, &f, __ATOMIC_ACQUIRE);
+	/* FIXME: Implement a way to get the file's name */
+	current->ctx.name = "TODO";
 
 	fd_put(f);
 
@@ -1064,6 +1105,7 @@ int sys_getcwd(char *path, size_t size)
 
 	struct process *current = get_current_process();
 
+	/* FIXME: TOCTOU race condition with the name and file pointer */
 	if(!current->ctx.cwd)
 		return -ENOENT;
 
@@ -1075,22 +1117,30 @@ int sys_getcwd(char *path, size_t size)
 	return 0;
 }
 
-int sys_openat(int dirfd, const char *upath, int flags, mode_t mode)
+struct file *get_dirfd_file(int dirfd)
 {
-	struct inode *dir;
 	struct file *dirfd_desc = NULL;
-
 	if(dirfd != AT_FDCWD)
 	{
 		dirfd_desc = get_file_description(dirfd);
 		if(!dirfd_desc)
-			return -errno;
-		dir = dirfd_desc->vfs_node;
+			return NULL;
 	}
 	else
-		dir = get_current_process()->ctx.cwd;
+		dirfd_desc = get_current_directory();
 
-	/* TODO: Possible CWD race condition? */
+	return dirfd_desc;
+}
+
+int sys_openat(int dirfd, const char *upath, int flags, mode_t mode)
+{
+	struct file *dirfd_desc = NULL;
+
+	dirfd_desc = get_dirfd_file(dirfd);
+	if(!dirfd_desc)
+		return -errno;
+
+	struct inode *dir = dirfd_desc->vfs_node;;
 
 	if(!(dir->i_type & VFS_TYPE_DIR))
 	{
@@ -1104,7 +1154,8 @@ int sys_openat(int dirfd, const char *upath, int flags, mode_t mode)
 		if(dirfd_desc) fd_put(dirfd_desc);
 		return -errno;
 	}
-	int fd = do_sys_open(path, flags, mode, dir);
+
+	int fd = do_sys_open(path, flags, mode, dirfd_desc);
 
 	free((char *) path);
 	if(dirfd_desc) fd_put(dirfd_desc);
@@ -1120,21 +1171,14 @@ int sys_fstatat(int dirfd, const char *upathname, struct stat *ubuf, int flags)
 	struct stat buf = {0};
 	struct inode *dir;
 	int st = 0;
-	struct file *dirfd_desc = NULL;
-	
-	if(dirfd != AT_FDCWD)
+	struct file *dirfd_desc = get_dirfd_file(dirfd);
+	if(!dirfd_desc)
 	{
-		dirfd_desc = get_file_description(dirfd);
-		if(!dirfd_desc)
-		{
-			st = -errno;
-			goto out;
-		}
-
-		dir = dirfd_desc->vfs_node;
+		st = -errno;
+		goto out;
 	}
-	else
-		dir = get_current_process()->ctx.cwd;
+
+	dir = dirfd_desc->vfs_node;
 
 	if(!(dir->i_type & VFS_TYPE_DIR))
 	{
@@ -1326,7 +1370,10 @@ int sys_access(const char *path, int amode)
 	if(!p)
 		return -errno;
 
-	struct inode *ino = open_vfs(get_fs_base(p, get_current_directory()), p);
+	struct file *f = get_current_directory();
+
+	struct inode *ino = open_vfs(get_fs_base(p, f->vfs_node), p);
+	fd_put(f);
 	if(!ino)
 	{
 		st = -ENOENT;
@@ -1338,3 +1385,272 @@ out:
 
 	return st;
 }
+
+int do_sys_mkdir(const char *path, mode_t mode, struct inode *dir)
+{
+	struct inode *base = get_fs_base(path, dir);
+
+	printk("sys_mkdir\n");
+	struct inode *i = mkdir_vfs(path, mode, base);
+	if(!i)
+		return -errno;
+
+	close_vfs(i);
+	return 0; 
+}
+
+int sys_mkdirat(int dirfd, const char *upath, mode_t mode)
+{
+	struct inode *dir;
+	struct file *dirfd_desc = NULL;
+
+	dirfd_desc = get_dirfd_file(dirfd);
+	if(!dirfd_desc)
+	{
+		return -errno;
+	}
+
+	dir = dirfd_desc->vfs_node;
+
+	/* FIXME: Possible CWD race condition. Present on every syscall that uses cwd */
+	/* FIXME: Idea: Make cwd a struct file */
+	if(!(dir->i_type & VFS_TYPE_DIR))
+	{
+		if(dirfd_desc) fd_put(dirfd_desc);
+		return -ENOTDIR;
+	}
+	
+	char *path = strcpy_from_user(upath);
+	if(!path)
+	{
+		if(dirfd_desc) fd_put(dirfd_desc);
+		return -errno;
+	}
+
+	int ret = do_sys_mkdir(path, mode, dir);
+
+	free((char *) path);
+	if(dirfd_desc) fd_put(dirfd_desc);
+
+	return ret;
+}
+
+int sys_mkdir(const char *upath, mode_t mode)
+{
+	return sys_mkdirat(AT_FDCWD, upath, mode);
+}
+
+int do_sys_mknodat(const char *path, mode_t mode, dev_t dev, struct inode *dir)
+{
+	struct inode *base = get_fs_base(path, dir);
+
+	struct inode *i = mknod_vfs(path, mode, dev, base);
+	if(!i)
+		return -errno;
+
+	close_vfs(i);
+	return 0; 
+}
+
+int sys_mknodat(int dirfd, const char *upath, mode_t mode, dev_t dev)
+{
+	struct inode *dir;
+	struct file *dirfd_desc = NULL;
+	
+	dirfd_desc = get_dirfd_file(dirfd);
+	if(!dirfd_desc)
+	{
+		return -errno;
+	}
+
+	dir = dirfd_desc->vfs_node;
+
+	if(!(dir->i_type & VFS_TYPE_DIR))
+	{
+		if(dirfd_desc) fd_put(dirfd_desc);
+		return -ENOTDIR;
+	}
+	
+	char *path = strcpy_from_user(upath);
+	if(!path)
+	{
+		if(dirfd_desc) fd_put(dirfd_desc);
+		return -errno;
+	}
+
+	int ret = do_sys_mknodat(path, mode, dev, dir);
+
+	free((char *) path);
+	if(dirfd_desc) fd_put(dirfd_desc);
+
+	return ret;
+}
+
+int sys_mknod(const char *pathname, mode_t mode, dev_t dev)
+{
+	return sys_mknodat(AT_FDCWD, pathname, mode, dev);
+}
+
+int do_sys_link(int olddirfd, const char *uoldpath, int newdirfd,
+		const char *unewpath, int flags)
+{
+	/* TODO: Handle flags; same for every *at() syscall */
+	int st = 0;
+	char *oldpath = NULL;
+	char *newpath = NULL;
+	char *lname_buf = NULL;
+	struct file *olddir = NULL;
+	struct file *newdir = NULL;
+	struct inode *oldpathfile = NULL;
+	struct inode *newpathfile = NULL;
+	oldpath = strcpy_from_user(uoldpath);
+	newpath = strcpy_from_user(unewpath);
+
+	if(!oldpath || !newpath)
+	{
+		st = -errno;
+		goto out;
+	}
+
+	lname_buf = strdup(newpath);
+	if(!lname_buf)
+	{
+		st = -errno;
+		goto out;
+	}
+
+
+	olddir = get_dirfd_file(olddirfd);
+	if(!olddir)
+	{
+		st = -errno;
+		goto out;
+	}
+
+	newdir = get_dirfd_file(newdirfd);
+	if(!newdir)
+	{
+		st = -errno;
+		goto out;
+	}
+
+	oldpathfile = open_vfs(get_fs_base(oldpath, olddir->vfs_node), oldpath);
+	if(!oldpathfile)
+	{
+		st = -errno;
+		goto out;
+	}
+
+	char *to_open = dirname(newpath);
+
+	newpathfile = open_vfs(get_fs_base(to_open, newdir->vfs_node), to_open);
+	if(!newpathfile || newpathfile->i_dev != oldpathfile->i_dev)
+	{
+		/* Hard links need to be in the same filesystem */
+		st = -EXDEV;
+		goto out;
+	}
+
+	char *lname = basename(lname_buf);
+	st = link_vfs(oldpathfile, lname, newpathfile);
+out:
+	if(lname_buf)	free(lname_buf);
+	if(newpathfile)	close_vfs(newpathfile);
+	if(oldpathfile) close_vfs(oldpathfile);
+	if(oldpath)	free(oldpath);
+	if(newpath)	free(newpath);
+	if(olddir)	fd_put(olddir);
+	if(newdir)	fd_put(newdir);
+	return st;
+}
+
+/* TODO: does open_vfs handle empty strings correctly? */
+
+int sys_link(const char *oldpath, const char *newpath)
+{
+	return do_sys_link(AT_FDCWD, oldpath, AT_FDCWD, newpath, 0);
+}
+
+int sys_linkat(int olddirfd, const char *oldpath,
+               int newdirfd, const char *newpath, int flags)
+{
+	return do_sys_link(olddirfd, oldpath, newdirfd, newpath, flags);
+}
+
+int do_sys_unlink(int dirfd, const char *upathname, int flags)
+{
+	int st = 0;
+	struct file *dirfd_file = NULL;
+	char *buf = NULL;
+	struct inode *dir = NULL;
+	char *pathname = strcpy_from_user(upathname);
+	if(!pathname)
+		return -errno;
+	
+	if(!(buf = strdup(pathname)))
+	{
+		goto out;
+	}
+
+	dirfd_file = get_dirfd_file(dirfd);
+	if(!dirfd_file)
+	{
+		st = -errno;
+		goto out;
+	}
+
+	char *to_open = dirname(pathname);
+	dir = open_vfs(get_fs_base(to_open, dirfd_file->vfs_node), to_open);
+	if(!dir)
+	{
+		st = -errno;
+		goto out;
+	}
+
+	st = unlink_vfs(basename(buf), flags, dir);
+
+out:
+	if(dir)		close_vfs(dir);
+	if(buf)		free(buf);
+	if(pathname)	free(pathname);
+	if(dirfd_file)	fd_put(dirfd_file);
+
+	return st;
+}
+
+int sys_unlink(const char *pathname)
+{
+	return do_sys_unlink(AT_FDCWD, pathname, 0);
+}
+
+int sys_unlinkat(int dirfd, const char *pathname, int flags)
+{
+	return do_sys_unlink(dirfd, pathname, flags);
+}
+
+int sys_rmdir(const char *pathname)
+{
+	/* Thankfully we can implement rmdir with unlinkat semantics 
+	 * Thanks POSIX for this really nice and thoughtful API! */
+	return do_sys_unlink(AT_FDCWD, pathname, AT_REMOVEDIR); 
+}
+
+int sys_symlink(const char *target, const char *linkpath) {return -ENOSYS;}
+int sys_symlinkat(const char *target, int newdirfd, const char *linkpath) {return -ENOSYS;}
+ssize_t sys_readlink(const char *pathname, char *buf, size_t bufsiz) {return -ENOSYS;}
+ssize_t sys_readlinkat(int dirfd, const char *pathname, char *buf, size_t bufsiz) {return -ENOSYS;}
+int sys_chmod(const char *pathname, mode_t mode) {return -ENOSYS;}
+int sys_fchmod(int fd, mode_t mode) {return -ENOSYS;}
+int sys_fchmodat(int dirfd, const char *pathname, mode_t mode, int flags) {return -ENOSYS;}
+int sys_chown(const char *pathname, uid_t owner, gid_t group) {return -ENOSYS;}
+int sys_fchown(int fd, uid_t owner, gid_t group) {return -ENOSYS;}
+int sys_lchown(const char *pathname, uid_t owner, gid_t group) {return -ENOSYS;}
+int sys_fchownat(int dirfd, const char *pathname,
+                    uid_t owner, gid_t group, int flags) {return -ENOSYS;}
+mode_t sys_umask(mode_t mask) {return -ENOSYS;}
+int sys_rename(const char *oldpath, const char *newpath) {return -ENOSYS;}
+int sys_renameat(int olddirfd, const char *oldpath,
+                    int newdirfd, const char *newpath) {return -ENOSYS;}
+int sys_utimensat(int dirfd, const char *pathname,
+                     const struct timespec *times, int flags) {return -ENOSYS;}
+int sys_faccessat(int dirfd, const char *pathname, int mode, int flags) {return -ENOSYS;}

@@ -158,14 +158,14 @@ struct process *process_create(const char *cmd_line, ioctx_t *ctx, struct proces
 
 	if(ctx)
 	{
-		object_ref(&ctx->cwd->i_object);
+		fd_get(ctx->cwd);
 
 		proc->ctx.cwd = ctx->cwd;
 		proc->ctx.name = strdup(ctx->name);
 
 		if(!proc->ctx.name)
 		{
-			object_unref(&ctx->cwd->i_object);
+			fd_put(ctx->cwd);
 			free(proc->cmd_line);
 			free(proc);
 			return NULL;
@@ -174,7 +174,7 @@ struct process *process_create(const char *cmd_line, ioctx_t *ctx, struct proces
 		if(copy_file_descriptors(proc, ctx) < 0)
 		{
 			free((void *) proc->ctx.name);
-			object_unref(&ctx->cwd->i_object);
+			fd_put(ctx->cwd);
 			free(proc->cmd_line);
 			free(proc);
 			return NULL;
@@ -450,7 +450,7 @@ struct inode *pick_between_cwd_and_root(char *p, struct process *proc)
 	if(*p == '/')
 		return get_fs_root();
 	else
-		return proc->ctx.cwd;
+		return proc->ctx.cwd->vfs_node;
 }
 
 int sys_execve(char *p, char *argv[], char *envp[])
@@ -484,6 +484,7 @@ int sys_execve(char *p, char *argv[], char *envp[])
 	}
 
 	/* Open the file */
+	struct file *f = get_current_directory();
 	struct inode *in = open_vfs(pick_between_cwd_and_root(path, current), path);
 	if (!in)
 	{
@@ -492,6 +493,8 @@ int sys_execve(char *p, char *argv[], char *envp[])
 		free(kenv);
 		return -ENOENT;
 	}
+
+	fd_put(f);
 
 	if(vm_clone_as(&current->address_space) < 0)
 	{
@@ -910,7 +913,7 @@ void process_end(struct process *process)
 		free((void *) process->ctx.name);
 	
 	if(process->ctx.cwd)
-		object_unref(&process->ctx.cwd->i_object);
+		fd_put(process->ctx.cwd);
 
 	list_for_every_safe(&process->thread_list)
 	{

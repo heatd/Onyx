@@ -418,6 +418,41 @@ error:
 	return NULL;
 }
 
+struct inode *mknod_vfs(const char *path, mode_t mode, dev_t dev, struct inode *this)
+{
+	char *dup = strdup(path);
+	if(!dup)
+		return errno = ENOMEM, NULL;
+
+	char *dir = dirname((char*) dup);
+	struct inode *base;
+	if(*dir != '.' && strlen(dir) != 1)
+		base = open_vfs(this, dir);
+	else
+		base = this;
+
+	/* Reset the string again */
+	strcpy(dup, path);
+	if(!base)
+	{
+		errno = ENOENT;
+		goto error;
+	}
+
+	if(this->i_fops.mknod != NULL)
+	{
+		struct inode *ret = this->i_fops.mknod(basename((char*) dup), mode, dev, base);
+		free(dup);
+		return ret;
+	}
+
+	errno = ENOSYS;
+
+error:
+	free(dup);
+	return NULL;
+}
+
 int mount_fs(struct inode *fsroot, const char *path)
 {
 	assert(fsroot != NULL);
@@ -838,4 +873,18 @@ struct inode *inode_create(void)
 	object_init(&inode->i_object, inode_release);
 
 	return inode;
+}
+
+int link_vfs(struct inode *target, const char *name, struct inode *dir)
+{
+	if(dir->i_fops.link)
+		return dir->i_fops.link(target, name, dir);
+	return -EPERM;
+}
+
+int unlink_vfs(const char *name, int flags, struct inode *node)
+{
+	if(node->i_fops.link)
+		return node->i_fops.unlink(name, flags, node);
+	return -EINVAL;
 }

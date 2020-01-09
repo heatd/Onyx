@@ -19,6 +19,8 @@
 #include <onyx/utils.h>
 #include <onyx/random.h>
 #include <onyx/condvar.h>
+#include <onyx/file.h>
+#include <onyx/panic.h>
 
 #include <netinet/in.h>
 
@@ -176,12 +178,14 @@ int un_do_bind(const struct sockaddr_un *un, socklen_t addrlen, struct un_socket
 
 	if(!is_abstract)
 	{
-		/* TODO: This doesn't work! */
-		struct inode *inode = creat_vfs(get_fs_root(), address, 0666);
+		struct file *cwd = get_current_directory();
+
+		struct inode *inode = mknod_vfs(address, S_IFDIR | 0666, 0,
+						get_fs_base(address, cwd->vfs_node));
 		if(!inode)
 			return -errno;
 
-		inode->i_rdev = (dev_t) socket;
+		panic("implement the rest");
 
 		return 0;
 	}

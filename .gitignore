@@ -40,3 +40,6 @@ utils/memstat/memstat
 *.tar*
 gen_password_hash
 *.vdi
+utils/rm/rm
+utils/mkdir/mkdir
+utils/link/link

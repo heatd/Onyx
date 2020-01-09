@@ -183,6 +183,7 @@ retry:;
 		path = "/bin/init";
 		goto retry;
 	}
+
 	struct process *proc = process_create(path, NULL, NULL);
 	if(!proc)
 		return errno = ENOMEM, -1;
@@ -224,6 +225,15 @@ retry:;
 	proc->ctx.file_desc[2]->seek = 0;
 	proc->ctx.file_desc[2]->refcount = 1;
 	proc->ctx.file_desc[2]->flags = O_WRONLY;
+
+	struct file *f = zalloc(sizeof(struct file));
+	assert(f != NULL);
+	f->refcount = 1;
+	f->vfs_node = get_fs_root();
+	object_ref(&f->vfs_node->i_object);
+	proc->ctx.cwd = f;
+	proc->ctx.name = strdup("/");
+	assert(proc->ctx.name != NULL);
 
 	/* Read the file signature */
 	unsigned char *buffer = malloc(100);

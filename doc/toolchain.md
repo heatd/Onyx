@@ -31,7 +31,7 @@ patch -p1 < ../gcc-9.1.0.patch
 cd ..
 mkdir gcc-9.1.0-build
 cd gcc-9.1.0-build
-../gcc-9.1.0/configure --target=x86_64-onyx --prefix=$PREFIX --with-sysroot=$SYSROOT --enable-languages=c,c++ --disable-nls --enable-threads=posix --enable-libstdcxx-threads --enable-symvers=gnu
+../gcc-9.1.0/configure --target=x86_64-onyx --prefix=$PREFIX --with-sysroot=$SYSROOT --enable-languages=c,c++ --disable-nls --enable-threads=posix --enable-libstdcxx-threads --enable-symvers=gnu --enable-default-pie --enable-lto --enable-default-ssp --enable-shared
 make all-target all-target-libgcc all-target-libstdc++-v3 -j4
 make install-target install-target-libgcc install-target-libstdc++-v3 -j4
 ```

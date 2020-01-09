@@ -133,6 +133,35 @@ extern void *sys_mremap(void *old_address, size_t old_size, size_t new_size, int
 extern int sys_poll(struct pollfd *fds, nfds_t nfds, int timeout);
 extern int sys_fallocate(int fd, int mode, off_t offset, off_t len);
 extern pid_t sys_gettid(void);
+int sys_mkdirat(int dirfd, const char *upath, mode_t mode);
+int sys_mkdir(int dirfd, const char *upath, mode_t mode);
+int sys_rmdir(const char *pathname);
+int sys_mknod(const char *pathname, mode_t mode, dev_t dev);
+int sys_mknodat(int dirfd, const char *pathname, mode_t mode, dev_t dev);
+int sys_link(const char *oldpath, const char *newpath);
+int sys_linkat(int olddirfd, const char *oldpath,
+                  int newdirfd, const char *newpath, int flags);
+int sys_unlink(const char *pathname);
+int sys_unlinkat(int dirfd, const char *pathname, int flags);
+int sys_symlink(const char *target, const char *linkpath);
+int sys_symlinkat(const char *target, int newdirfd, const char *linkpath);
+ssize_t sys_readlink(const char *pathname, char *buf, size_t bufsiz);
+ssize_t sys_readlinkat(int dirfd, const char *pathname, char *buf, size_t bufsiz);
+int sys_chmod(const char *pathname, mode_t mode);
+int sys_fchmod(int fd, mode_t mode);
+int sys_fchmodat(int dirfd, const char *pathname, mode_t mode, int flags);
+int sys_chown(const char *pathname, uid_t owner, gid_t group);
+int sys_fchown(int fd, uid_t owner, gid_t group);
+int sys_lchown(const char *pathname, uid_t owner, gid_t group);
+int sys_fchownat(int dirfd, const char *pathname,
+                    uid_t owner, gid_t group, int flags);
+mode_t sys_umask(mode_t mask);
+int sys_rename(const char *oldpath, const char *newpath);
+int sys_renameat(int olddirfd, const char *oldpath,
+                    int newdirfd, const char *newpath);
+int sys_utimensat(int dirfd, const char *pathname,
+                     const struct timespec *times, int flags);
+int sys_faccessat(int dirfd, const char *pathname, int mode, int flags);
 
 void *syscall_table_64[] =
 {
@@ -219,5 +248,31 @@ void *syscall_table_64[] =
 	[80] = (void*) sys_proc_event_attach,
 	[81] = (void*) sys_access,
 	[82] = (void*) sys_fallocate,
-	[83] = (void*) sys_gettid
+	[83] = (void*) sys_gettid,
+	[84] = (void*) sys_mkdir,
+	[85] = (void*) sys_rmdir,
+	[86] = (void*) sys_mknod,
+	[87] = (void*) sys_link,
+	[88] = (void*) sys_unlink,
+	[89] = (void*) sys_symlink,
+	[90] = (void*) sys_readlink,
+	[91] = (void*) sys_chmod,
+	[92] = (void*) sys_fchmod,
+	[93] = (void*) sys_chown,
+	[94] = (void*) sys_fchown,
+	[95] = (void*) sys_lchown,
+	[96] = (void*) sys_umask,
+	[97] = (void*) sys_rename,
+	[98] = (void*) sys_nosys, // TODO: getrlimit
+	[99] = (void*) sys_mkdirat,
+	[100] = (void*) sys_mknodat,
+	[101] = (void*) sys_fchownat,
+	[102] = (void*) sys_utimensat,
+	[103] = (void*) sys_unlinkat,
+	[104] = (void*) sys_renameat,
+	[105] = (void*) sys_linkat,
+	[106] = (void*) sys_symlinkat,
+	[107] = (void*) sys_readlinkat,
+	[108] = (void*) sys_fchmodat,
+	[109] = (void*) sys_faccessat
 };

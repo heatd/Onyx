@@ -25,7 +25,7 @@ struct file
 typedef struct
 {
 	/* Current working directory */
-	struct inode *cwd;
+	struct file *cwd;
 	const char *name;
 	struct mutex fdlock;
 	struct file **file_desc;
