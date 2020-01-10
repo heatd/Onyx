@@ -171,7 +171,7 @@ int partition_setup_disk_mbr(struct blockdev *dev)
 {
 	int st = 0;
 	char *mbrbuf = malloc(512);
-	if(!dev)
+	if(!mbrbuf)
 		return -ENOMEM;
 
 	/* Read the mbr from the disk */
