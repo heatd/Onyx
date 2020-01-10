@@ -305,6 +305,8 @@ struct inode *open_path_segment(char *segm, struct inode *node)
 	struct inode *mountpoint = NULL;
 	if((mountpoint = mtable_lookup(file)))
 		file = mountpoint;
+	
+	/* TODO: reference leak here? */
 	return file;
 }
 
@@ -404,9 +406,9 @@ struct inode *mkdir_vfs(const char *path, mode_t mode, struct inode *this)
 		goto error;
 	}
 
-	if(this->i_fops.mkdir != NULL)
+	if(base->i_fops.mkdir != NULL)
 	{
-		struct inode *ret = this->i_fops.mkdir(basename((char*) dup), mode, base);
+		struct inode *ret = base->i_fops.mkdir(basename((char*) dup), mode, base);
 		free(dup);
 		return ret;
 	}
@@ -439,9 +441,9 @@ struct inode *mknod_vfs(const char *path, mode_t mode, dev_t dev, struct inode *
 		goto error;
 	}
 
-	if(this->i_fops.mknod != NULL)
+	if(base->i_fops.mknod != NULL)
 	{
-		struct inode *ret = this->i_fops.mknod(basename((char*) dup), mode, dev, base);
+		struct inode *ret = base->i_fops.mknod(basename((char*) dup), mode, dev, base);
 		free(dup);
 		return ret;
 	}
@@ -838,8 +840,8 @@ void inode_release_file(struct inode *inode)
 
 	inode_destroy_page_caches(inode);
 
-	printk("Inode %p destroyed\n", inode);
-	printk("Refcount %lu\n", inode->i_object.ref.refcount);
+	/*printk("Inode %p destroyed\n", inode);
+	printk("Refcount %lu\n", inode->i_object.ref.refcount);*/
 
 	free(inode);
 }

@@ -755,8 +755,8 @@ int sys_mount(const char *usource, const char *utarget, const char *ufilesystemt
 {
 	const char *source = NULL;
 	const char *target = NULL;
+	struct inode *block_file = NULL;
 	const char *filesystemtype = NULL;
-	char *dev_name = NULL;
 	int ret = 0;
 
 	source = strcpy_from_user(usource);
@@ -787,24 +787,23 @@ int sys_mount(const char *usource, const char *utarget, const char *ufilesystemt
 		goto out;
 	}
 
-	/* Get the device name */
-	dev_name = strdup(source);
-	if(!dev_name)
+	block_file = open_vfs(get_fs_root(), source);
+	if(!block_file)
 	{
-		ret = -ENOMEM;
+		ret = -ENOENT;
 		goto out;
 	}
 
-	dev_name[strlen(dev_name)-1] = '\0';
-
-	block_device_t *block = blkdev_search((const char *) dev_name);
-	int part_index = source[strlen(source)-1] - '1';
-
-	uint64_t lba = partition_find(part_index, block, fs);
-	struct inode *node = NULL;
-	if(!(node = fs->handler(lba, block)))
+	if(block_file->i_type != VFS_TYPE_BLOCK_DEVICE)
 	{
-		perror("");
+		ret = -ENOTBLK;
+		goto out;
+	}
+	
+	struct blockdev *d = blkdev_get_dev(block_file);
+	struct inode *node = NULL;
+	if(!(node = fs->handler(d)))
+	{
 		ret = -EINVAL;
 		goto out;
 	}
@@ -812,10 +811,10 @@ int sys_mount(const char *usource, const char *utarget, const char *ufilesystemt
 	char *str = strdup(target);
 	mount_fs(node, str);
 out:
+	if(block_file) close_vfs(block_file);
 	if(source)   free((void *) source);
 	if(target)   free((void *) target);
 	if(filesystemtype) free((void *) filesystemtype);
-	if(dev_name) free(dev_name);
 	return ret;
 }
 

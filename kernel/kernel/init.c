@@ -436,7 +436,7 @@ void kernel_multitasking(void *arg)
 	device_name[strlen(root_partition)-1] = '\0';
 
 	/* Search for it */
-	block_device_t *dev = blkdev_search(device_name);
+	struct blockdev *dev = blkdev_search(device_name);
 	if(!dev)
 		WARN("kernel", "root device not found!\n");
 

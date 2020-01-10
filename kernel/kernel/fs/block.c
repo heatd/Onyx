@@ -9,107 +9,346 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <errno.h>
+#include <fcntl.h>
 
 #include <onyx/block.h>
+#include <onyx/rwlock.h>
+#include <onyx/page.h>
+#include <partitions.h>
 
-static block_device_t *dev_list = NULL;
+static struct rwlock dev_list_lock;
+static struct list_head dev_list = LIST_HEAD_INIT(dev_list);
+
 /* 
- * Function: block_device_t *blkdev_search(const char *name);
+ * Function: struct blockdev *blkdev_search(const char *name);
  * Description: Search for 'name' on the linked list
  * Return value: Returns a valid block device on success, NULL on error. Sets errno properly.
  * errno values: EINVAL - invalid argument;
 */
-block_device_t *blkdev_search(const char *name)
+struct blockdev *blkdev_search(const char *name)
 {
-	if(!name)
-		return errno = EINVAL, NULL;
+	assert(name != NULL);
 	
-	block_device_t *dev = dev_list;
-	while(dev)
+	rw_lock_read(&dev_list_lock);
+
+	list_for_every(&dev_list)
 	{
-		if(!strcmp((char *) dev->node_path, (char *) name))
-			break;
-		dev = dev->next;
+		struct blockdev *blk = container_of(l, struct blockdev, block_dev_head);
+		if(!strcmp(blk->name, name))
+		{
+			rw_unlock_read(&dev_list_lock);
+			return blk;
+		}
 	}
 
-	return dev;
+	rw_unlock_read(&dev_list_lock);
+
+	return NULL;
 }
-/* 
- * Function: int block_add_device(block_device_t *dev);
- * Description: Adds dev to the registered block devices.
- * Return value: 0 on success, -1 on error. Sets errno properly.
- * errno values: EINVAL - invalid argument
-*/
-int blkdev_add_device(block_device_t *dev)
+
+unsigned int blkdev_ioctl(int request, void *argp, struct inode *ino)
 {
-	if(!dev)
-		return errno = EINVAL, -1;
-	if(!dev_list)
-		dev_list = dev;
-	else
+	struct blockdev *d = ino->i_helper;
+
+	(void) d;	
+	switch(request)
 	{
-		for(; dev_list->next; dev_list = dev_list->next);
-		dev_list->next = dev;
+		default:
+			return -EINVAL;
 	}
+}
+
+size_t blkdev_read_file(int flags, size_t offset, size_t len, void *buffer, struct inode *ino)
+{
+	if(flags & O_NONBLOCK)
+		return errno = EWOULDBLOCK, -1;
+
+	struct blockdev *d = ino->i_helper;
+	/* align the offset first */
+	size_t misalignment = offset % d->sector_size;
+	ssize_t sector = offset / d->sector_size;
+	size_t read = 0;
+	char *buf = buffer;
+
+	if(misalignment != 0)
+	{
+		//printk("handling misalignment\n");
+		/* *sigh* yuck, we'll need to allocate a bounce buffer */
+		/* TODO: Check how fast the page allocator is vs malloc */
+		struct page *p = alloc_page(PAGE_ALLOC_NO_ZERO);
+		if(!p)
+		{
+			return errno = ENOMEM, -1;
+		}
+
+		void *virt = PAGE_TO_VIRT(p);
+
+		//printk("reading sector %lu, %u bytes\n", sector, d->sector_size);
+	
+		ssize_t s = blkdev_read(sector * d->sector_size, d->sector_size, virt, d);
+
+		size_t to_copy = min((d->sector_size - misalignment), len);
+	 
+		if(s < 0)
+		{
+			free_page(p);
+			return -1;
+		}
+
+	
+		memcpy(buf, (char *) virt + misalignment, to_copy);
+
+		free_page(p);
+
+		sector++;
+		read = to_copy;
+		buf += read;
+		len -= read;
+		//printk("len: %lu\n", len);
+	}
+
+	//printk("len: %lu\n", len);
+
+	if(len != 0 && len / d->sector_size)
+	{
+		size_t nr_sectors = len / d->sector_size;
+		size_t reading = nr_sectors * d->sector_size;
+
+		//printk("Read: %lu\n", read);
+		//printk("here, buf %p\n", buf);
+		ssize_t s = blkdev_read(sector * d->sector_size, reading, buf, d);
+		if(s < 0)
+		{
+			return errno = ENXIO, -1;
+		}
+
+		len -= reading;
+		buf += reading;
+		read += reading;
+		sector += nr_sectors;
+	}
+
+	if(len != 0)
+	{
+		struct page *p = alloc_page(PAGE_ALLOC_NO_ZERO);
+		if(!p)
+		{
+			return errno = ENOMEM, -1;
+		}
+
+		void *virt = PAGE_TO_VIRT(p);
+
+		ssize_t s = blkdev_read(sector * d->sector_size, d->sector_size, virt, d);
+	
+		if(s < 0)
+		{
+			free_page(p);
+			return -1;
+		}
+
+		memcpy(buf, (char *) virt, len);
+
+		free_page(p);
+
+		sector++;
+		read += len;
+		buf += len;
+		len -= len;
+	}
+
+	return read;
+}
+
+size_t blkdev_write_file(size_t offset, size_t len, void* buffer, struct inode *ino)
+{
+	struct blockdev *d = ino->i_helper;
+	/* align the offset first */
+	size_t misalignment = offset % d->sector_size;
+	ssize_t sector = offset / d->sector_size;
+	size_t written = 0;
+	char *buf = buffer;
+
+	if(misalignment != 0)
+	{
+		/* *sigh* yuck, we'll need to allocate a bounce buffer */
+		/* TODO: Check how fast the page allocator is vs malloc */
+		struct page *p = alloc_page(PAGE_ALLOC_NO_ZERO);
+		if(!p)
+		{
+			return errno = ENOMEM, -1;
+		}
+
+		void *virt = PAGE_TO_VIRT(p);
+
+		ssize_t s = blkdev_read(sector * d->sector_size, d->sector_size, virt, d);
+	
+		size_t to_copy = min((d->sector_size - misalignment), len);
+		
+		if(s < 0)
+		{
+			free_page(p);
+			return -1;
+		}
+
+		memcpy((char *) virt + misalignment, buf, to_copy);
+
+		s = blkdev_write(sector * d->sector_size, d->sector_size, virt, d);
+		free_page(p);
+
+		if(s < 0)
+		{
+			return -1;
+		}
+
+		sector++;
+		written += to_copy;
+		buf += to_copy;
+		len -= to_copy;
+	}
+
+	if(len != 0)
+	{
+		size_t nr_sectors = len / d->sector_size;
+		size_t writing = nr_sectors * d->sector_size;
+
+		ssize_t s = blkdev_write(sector * d->sector_size, writing, buf, d);
+		if(s < 0)
+		{
+			return errno = ENXIO, -1;
+		}
+
+		len -= writing;
+		buf += writing;
+		written += writing;
+		sector += nr_sectors;
+	}
+
+	if(len != 0)
+	{
+		struct page *p = alloc_page(PAGE_ALLOC_NO_ZERO);
+		if(!p)
+		{
+			return errno = ENOMEM, -1;
+		}
+
+		void *virt = PAGE_TO_VIRT(p);
+
+		ssize_t s = blkdev_read(sector * d->sector_size, d->sector_size, virt, d);
+	
+		if(s < 0)
+		{
+			free_page(p);
+			return -1;
+		}
+
+		memcpy(buf, (char *) virt, len);
+
+		s = blkdev_write(sector * d->sector_size, d->sector_size, virt, d);
+		free_page(p);
+
+		if(s < 0)
+		{
+			return -1;
+		}
+
+		sector++;
+		written += len;
+		buf += len;
+		len -= len;
+	}
+
+	return written;
+
+}
+
+int blkdev_init(struct blockdev *blk)
+{
+	assert(blk != NULL);
+
+	rw_lock_write(&dev_list_lock);
+
+	list_add_tail(&blk->block_dev_head, &dev_list);
+
+	rw_unlock_write(&dev_list_lock);
+
+	struct dev *dev = blk->dev;
+	dev->is_block = true;
+	dev->fops.ioctl = blkdev_ioctl;
+	dev->fops.read = blkdev_read_file;
+	dev->fops.write = blkdev_write_file;
+	dev->priv = blk;
+
+	device_show(dev, DEVICE_NO_PATH);
+
+	if(!blkdev_is_partition(blk))
+		partition_setup_disk(blk);
+
 	return 0;
 }
 /*
- * Function: size_t blkdev_read(size_t offset, size_t count, void *buffer, struct blkdev *dev);
+ * Function: size_t blkdev_read(size_t offset, size_t count, void *buffer, struct blockdev *dev);
  * Description: Reads 'count' bytes from 'dev' to 'buffer', with offset 'offset'
  * Return value: 0 on success, -1 on error. Sets errno properly.
  * errno values: EINVAL - invalid argument; ENOSYS - operation not supported on storage device 'dev'
 */
-ssize_t blkdev_read(size_t offset, size_t count, void *buffer, struct blkdev *dev)
+ssize_t blkdev_read(size_t offset, size_t count, void *buffer, struct blockdev *dev)
 {
-	if(!dev)
-		return errno = EINVAL, -1;
-	if(!buffer)
-		return errno = EINVAL, -1;
+	if(count == 0)
+		return 0;
+	
+	if(blkdev_is_partition(dev))
+		return blkdev_read(dev->offset + offset, count, buffer, dev->actual_blockdev);
 	if(!dev->read)
-		return errno = ENOSYS, -1;
+		return errno = EIO, -1;
+
 	return dev->read(offset, count, buffer, dev);
 }
 /* 
- * Function: size_t blkdev_write(size_t offset, size_t count, void *buffer, struct blkdev *dev);
+ * Function: size_t blkdev_write(size_t offset, size_t count, void *buffer, struct blockdev *dev);
  * Description: Writes 'count' bytes from 'buffer' to 'dev', with offset 'offset'
  * Return value: 0 on success, -1 on error. Sets errno properly.
- * errno values: EINVAL - invalid argument; ENOSYS - operation not supported on storage device 'dev'
+ * errno values: EINVAL - invalid argument; EIO - operation not supported on storage device 'dev'
 */
-ssize_t blkdev_write(size_t offset, size_t count, void *buffer, struct blkdev *dev)
+ssize_t blkdev_write(size_t offset, size_t count, void *buffer, struct blockdev *dev)
 {
-	if(!dev)
-		return errno = EINVAL, -1;
-	if(!buffer)
-		return errno = EINVAL, -1;
+	if(count == 0)
+		return 0;
+
+	if(blkdev_is_partition(dev))
+		return blkdev_write(dev->offset + offset, count, buffer, dev->actual_blockdev);
 	if(!dev->write)
-		return errno = ENOSYS, -1;
+		return errno = EIO, -1;
+
 	return dev->write(offset, count, buffer, dev);
 }
 /*
- * Function: int blkdev_flush(struct blkdev *dev);
+ * Function: int blkdev_flush(struct blockdev *dev);
  * Description: Flushes storage device 'dev'
  * Return value: 0 on success, -1 on error. Sets errno properly.
- * errno values: EINVAL - invalid argument; ENOSYS - operation not supported on storage device 'dev'
+ * errno values: EINVAL - invalid argument; EIO - operation not supported on storage device 'dev'
 */
-int blkdev_flush(struct blkdev *dev)
+int blkdev_flush(struct blockdev *dev)
 {
-	if(!dev)
-		return errno = EINVAL, -1;
+	if(blkdev_is_partition(dev))
+		return blkdev_flush(dev->actual_blockdev);
 	if(!dev->flush)
 		return errno = ENOSYS, -1;
+
 	return dev->flush(dev);
 }
 /* 
- * Function: int blkdev_power(int op, struct blkdev *dev);
+ * Function: int blkdev_power(int op, struct blockdev *dev);
  * Description: Performs power management operation 'op' on device 'dev'
  * Return value: 0 on success, -1 on error. Sets errno properly.
- * errno values: EINVAL - invalid argument; ENOSYS - operation not supported on storage device 'dev'
+ * errno values: EINVAL - invalid argument; EIO - operation not supported on storage device 'dev'
 */
-int blkdev_power(int op, struct blkdev *dev)
+int blkdev_power(int op, struct blockdev *dev)
 {
-	if(!dev)
-		return errno = EINVAL, -1;
+	if(blkdev_is_partition(dev))
+		return blkdev_power(op, dev->actual_blockdev);
 	if(!dev->power)
-		return errno = ENOSYS, -1;
+		return errno = EIO, -1;
+
+
 	return dev->power(op, dev);
 }

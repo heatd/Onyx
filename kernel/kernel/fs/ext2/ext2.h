@@ -13,6 +13,7 @@
 #include <onyx/block.h>
 #include <onyx/vfs.h>
 
+#define EXT2_SUPERBLOCK_OFFSET		1024
 #define EXT2_MBR_CODE 0x83
 #define EXT2_FS_CLEAN 1
 #define EXT2_FS_ERROR 2
@@ -122,7 +123,7 @@ typedef struct
 	uint32_t inode_table_addr;
 	uint16_t unallocated_blocks_in_group;
 	uint16_t unallocated_inodes_in_group;
-	uint16_t dirs_in_group;
+	uint16_t used_dirs_count;
 } __attribute__((aligned(32))) block_group_desc_t;
 
 struct ext2_inode
@@ -166,13 +167,12 @@ typedef struct ex
 	uint32_t minor;
 	uint32_t total_inodes;
 	uint32_t total_blocks;
-	uint64_t first_sector;
 	uint32_t block_size;
 	uint32_t frag_size;
 	uint32_t blocks_per_block_group;
 	uint32_t inodes_per_block_group;
 	uint32_t number_of_block_groups;
-	block_device_t *blkdevice;
+	struct blockdev *blkdevice;
 	uint16_t inode_size;
 	block_group_desc_t *bgdt;
 	struct spinlock sb_lock;

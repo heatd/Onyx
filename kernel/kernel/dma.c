@@ -62,7 +62,10 @@ int __dma_add_range(uintptr_t virtual_buf, size_t size, size_t max_size,
 	if(phys_buf == (uintptr_t) -1)
 	{
 		if((phys_buf = dma_commit_page(virtual_buf, size)) == (uintptr_t) -1)
+		{
+			printk("could not commit\n");
 			return -1;
+		}
 	}
 
 	if(try_to_merge(phys_buf, size, max_size, ranges) == true)

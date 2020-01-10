@@ -352,13 +352,19 @@ struct inode *ext2_creat(const char *name, int mode, struct inode *file)
 }
 
 __attribute__((no_sanitize_undefined))
-struct inode *ext2_mount_partition(uint64_t sector, block_device_t *dev)
+struct inode *ext2_mount_partition(struct blockdev *dev)
 {
-	LOG("ext2", "mounting ext2 partition at sector %lu\n", sector);
+	LOG("ext2", "mounting ext2 partition on block device %s\n", dev->name);
 	superblock_t *sb = malloc(sizeof(superblock_t));
 	if(!sb)
 		return NULL;
-	blkdev_read((sector + 2) * 512, 1024, sb, dev);
+	
+	if(blkdev_read(EXT2_SUPERBLOCK_OFFSET, 1024, sb, dev) < 0)
+	{
+		free(sb);
+		return NULL;
+	}
+
 	if(sb->ext2sig == 0xef53)
 		LOG("ext2", "valid ext2 signature detected!\n");
 	else
@@ -378,7 +384,6 @@ struct inode *ext2_mount_partition(uint64_t sector, block_device_t *dev)
 	fs->sb = sb;
 	fs->major = sb->major_version;
 	fs->minor = sb->minor_version;
-	fs->first_sector = sector;
 	fs->total_inodes = sb->total_inodes;
 	fs->total_blocks = sb->total_blocks;
 	fs->block_size = 1024 << sb->log2blocksz;
@@ -456,8 +461,7 @@ struct inode *ext2_mount_partition(uint64_t sector, block_device_t *dev)
 
 __init void init_ext2drv()
 {
-	if(partition_add_handler(ext2_mount_partition, "ext2", EXT2_MBR_CODE,
-		ext2_gpt_uuid, 4) == 1)
+	if(partition_add_handler(ext2_mount_partition, "ext2") == -1)
 		FATAL("ext2", "error initializing the handler data\n");
 }
 
@@ -538,6 +542,14 @@ struct inode *ext2_mkdir(const char *name, mode_t mode, struct inode *ino)
 	/* FIXME: Handle failure here? */
 	ext2_link(new_dir, ".", new_dir);
 	ext2_link(ino, "..", new_dir);
+
+	ext2_fs_t *fs = ino->i_sb->s_helper;
+
+	uint32_t inum = (uint32_t) new_dir->i_inode;
+	uint32_t bg = inum / fs->inodes_per_block_group;
+
+	fs->bgdt[bg].used_dirs_count++;
+	ext2_register_bgdt_changes(fs);
 
 	return new_dir;
 }

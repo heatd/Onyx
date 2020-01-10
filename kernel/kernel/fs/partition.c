@@ -11,7 +11,8 @@
 #include <mbr.h>
 #include <gpt.h>
 
-static fs_handler mbr_code_handlers[0xFF];
+#include <onyx/block.h>
+
 static filesystem_mount_t *filesystems = NULL;
 
 void insert_filesystem_mount(filesystem_mount_t *m)
@@ -41,18 +42,13 @@ filesystem_mount_t *find_filesystem_handler(const char *fsname)
 	return NULL;
 }
 
-int partition_add_handler(fs_handler handler, char *filesystem, uint8_t mbr_part_code, uuid_t *uuids, size_t num_uuids)
-{
-	mbr_code_handlers[mbr_part_code] = handler;
-	
-	filesystem_mount_t *mount = malloc(sizeof(filesystem_mount_t));
+int partition_add_handler(fs_handler handler, char *filesystem)
+{	
+	filesystem_mount_t *mount = zalloc(sizeof(filesystem_mount_t));
 	if(!mount)
-		return 1;
+		return -1;
 	mount->handler = handler;
 	mount->filesystem = filesystem;
-	mount->mbr_part_code = mbr_part_code;
-	mount->uuids = uuids;
-	mount->uuids_len = num_uuids;
 
 	/* Insert into the linked list */
 	insert_filesystem_mount(mount);
@@ -60,80 +56,183 @@ int partition_add_handler(fs_handler handler, char *filesystem, uint8_t mbr_part
 	return 0;
 }
 
-fs_handler lookup_handler_from_partition_code(enum partition_type_t type, uint8_t part_code)
+
+int partition_setup(struct dev *dev, struct blockdev *block,
+		    size_t first_sector, size_t last_sector)
 {
-	if(type == PARTITION_TYPE_MBR)
-		return mbr_code_handlers[part_code];
-	return NULL;
+	struct blockdev *d = zalloc(sizeof(struct blockdev));
+	if(!d)
+		return -ENOMEM;
+	
+	d->dev = dev;
+	d->offset = first_sector * block->sector_size;
+	d->name = dev->name;
+	d->sector_size = block->sector_size;
+	d->nr_sectors = (last_sector - first_sector) + 1;
+	d->actual_blockdev = block;
+
+	if(blkdev_init(d) < 0)
+	{
+		free(d);
+		return -1;
+	}
+
+	return 0;
 }
 
-uint64_t partition_find_gpt(int index, block_device_t *dev, filesystem_mount_t *fs)
+static uuid_t unused_type = {0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000};
+
+int partition_setup_disk_gpt(struct blockdev *dev)
 {
+	int st = 0;
+	gpt_partition_entry_t *part_table = NULL;
 	gpt_header_t *gpt_header = malloc(512);
 	if(!gpt_header)
 		return errno = ENOMEM, 0;
 
 	ssize_t read = blkdev_read(512, 512, gpt_header, dev);
 	if(read != 512)
-		return 0;
+	{
+		st = -ENXIO;
+		goto out;
+	}
 
 	/* TODO: Verify the CRC32 checksum */
 	if(memcmp(gpt_header->signature, GPT_SIGNATURE, 8))
-		return 0;
+	{
+		st = -ENOENT;
+		goto out;
+	}
 
 	size_t count = gpt_header->num_partitions * gpt_header->part_entry_len;
-	gpt_partition_entry_t *part_table = malloc(count);
+	part_table = malloc(count);
 	if(!part_table)
 	{
-		free(gpt_header);
-		return 0;
+		st = -ENOMEM;
+		goto out;
 	}
+
+	unsigned int nr_parts = 0;
+
 	blkdev_read(1024, count, part_table, dev);
+	/* FIXME: Support actually reading partition entries */
 	for(uint32_t i = 0; i < gpt_header->num_partitions; i++)
 	{
-		if(i == (unsigned int) index)
+		gpt_partition_entry_t *e = &part_table[i];
+		
+		if(!memcmp(e->partition_type, unused_type, sizeof(uuid_t)))
+			continue;
+		char nr = '1' + nr_parts;
+
+		/* FIXME: Support partition numbers > 9 */
+		if(nr_parts + 1 > 9)
 		{
-			bool is_correct = false;
-			for(size_t j = 0; j < fs->uuids_len; j++)
-			{
-				if(!memcmp(part_table[i].partition_type, fs->uuids[j], 16))
-				{
-					is_correct = true;
-					break;
-				}
-			}
-			if(is_correct == false)
-				return errno = EINVAL, 0;
-			return part_table[i].first_lba;
+			st = -E2BIG;
+			goto out;
 		}
+
+		size_t name_len = strlen(dev->name);
+		char *name = malloc(name_len + 2);
+		if(!name)
+		{
+			st = -ENOMEM;
+			goto out;
+		}
+	
+		strcpy(name, dev->name);
+		name[name_len] = nr;
+		name[name_len + 1] = '\0';
+
+		struct dev *d = dev_register(MAJOR(dev->dev->majorminor), nr_parts + 1, name);
+		if(!d)
+		{
+			free(name);
+			st = -errno;
+			goto out;
+		}
+
+		if(partition_setup(d, dev, e->first_lba, e->last_lba) < 0)
+		{
+			st = -errno;
+			dev_unregister(d->majorminor);
+			goto out;
+		}
+
+		nr_parts++;
 	}
-	return errno = EINVAL, 0;
+
+out:
+	free(gpt_header);
+	free(part_table);
+	return st;
 }
 
-uint64_t partition_find(int index, block_device_t *dev, filesystem_mount_t *fs)
+int partition_setup_disk_mbr(struct blockdev *dev)
 {
-	/* Firstly, try to use GPT */
-	uint64_t lba = 0;
-	if((lba = partition_find_gpt(index, dev, fs)) != 0)
-		return lba;
-	/* Map the buffer */
-	unsigned int *mbrbuf = malloc(512);
+	int st = 0;
+	char *mbrbuf = malloc(512);
 	if(!dev)
-		return errno = ENOMEM, 0;
-	memset(mbrbuf, 0, 512);
+		return -ENOMEM;
+
 	/* Read the mbr from the disk */
 	blkdev_read(0, 512, mbrbuf, dev);
+	
 	mbrpart_t *part = (mbrpart_t*) ((char *) mbrbuf + 0x1BE);
+	
+	unsigned int nr_parts = 0;
 	/* Cycle through all the partitions */
 	for(int i = 0; i < 4; i++)
 	{
-		if(part->part_type != 0 && index == i)
+		if(part->part_type != 0)
 		{
-			if(part->part_type != fs->mbr_part_code)
-				return 0;
-		 	return part->sector;
+			char nr = '1' + nr_parts;
+
+			/* FIXME: Support partition numbers > 9 */
+			if(nr_parts + 1 > 9)
+			{
+				st = -E2BIG;
+				goto out;
+			}
+
+			size_t name_len = strlen(dev->name);
+			char *name = malloc(name_len + 2);
+			if(!name)
+			{
+				st = -ENOMEM;
+				goto out;
+			}
+		
+			strcpy(name, dev->name);
+			name[name_len] = nr;
+			name[name_len + 1] = '\0';
+
+			struct dev *d = dev_register(MAJOR(dev->dev->majorminor), nr_parts + 1, name);
+			if(!d)
+			{
+				free(name);
+				st = -errno;
+				goto out;
+			}
+
+			if(partition_setup(d, dev, part->sector, part->sector + part->size_sector) < 0)
+			{
+				st = -errno;
+				dev_unregister(d->majorminor);
+				goto out;
+			}
+
+			nr_parts++;
 		}
+
 		part++;
 	}
-	return 0;
+out:
+	free(mbrbuf);
+	return st;
+}
+
+void partition_setup_disk(struct blockdev *dev)
+{
+	if(partition_setup_disk_gpt(dev) < 0)
+		partition_setup_disk_mbr(dev);
 }

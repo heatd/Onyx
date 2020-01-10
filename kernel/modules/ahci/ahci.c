@@ -130,7 +130,7 @@ irqstatus_t ahci_irq(struct irq_context *ctx, void *cookie)
 
 struct mutex ahci_spl = {0};
 
-ssize_t ahci_read(size_t offset, size_t count, void* buffer, struct blkdev* blkd)
+ssize_t ahci_read(size_t offset, size_t count, void* buffer, struct blockdev* blkd)
 {
 	struct ahci_port *p = blkd->device_info;
 	
@@ -169,7 +169,7 @@ ssize_t ahci_read(size_t offset, size_t count, void* buffer, struct blkdev* blkd
 	return to_read;
 }
 
-ssize_t ahci_write(size_t offset, size_t count, void* buffer, struct blkdev* blkd)
+ssize_t ahci_write(size_t offset, size_t count, void* buffer, struct blockdev* blkd)
 {
 	struct ahci_port *p = blkd->device_info;
 	
@@ -371,7 +371,9 @@ bool ahci_do_command(struct ahci_port *ahci_port, struct ahci_command_ata *buf)
 	//wait_queue_add(&req.wake_sem, &wait_token);
 
 	if(!ahci_do_command_async(ahci_port, buf, &req))
+	{
 		return false;
+	}
 
 	/* Sleeping here is a big waste, reads take less than a ms */
 	/* TODO: Maybe do it on large reads? */
@@ -848,32 +850,28 @@ int ahci_initialize(void)
 
 			/* Allocate a major-minor pair for a device */
 			struct dev *min = dev_register(0, 0, strdup(buf));
-			if(!min)
-			{
-				/* Again, should we be doing this? */
-				continue;
-			}
-			device_show(min, DEVICE_NO_PATH);
-			
+			assert(min != NULL);			
 
-			block_device_t *dev = malloc(sizeof(block_device_t));
-			if(!dev)
-				continue;
-			memset(dev, 0, sizeof(block_device_t));
+			struct blockdev *dev = zalloc(sizeof(struct blockdev));
+			assert(dev != NULL);
 
-			dev->node_path = strdup(path);
+			dev->name = strdup(buf);
+			assert(dev->name != NULL);
+
 			dev->device_info = &device->ports[i];
-			dev->dev = min->majorminor;
+			dev->dev = min;
 			dev->read = ahci_read;
 			dev->write = ahci_write;
+			dev->sector_size = 512;
 
-			blkdev_add_device(dev);
 			MPRINTF("Created %s for port %d\n", path, i);
 			device->ports[i].port_nr = i; 
 			device->ports[i].port = &hba->ports[i];
 			device->ports[i].dev = device;
 
 			ahci_init_port(&device->ports[i]);
+
+			blkdev_init(dev);
 		}
 	}
 

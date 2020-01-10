@@ -235,10 +235,6 @@ int main(int argc, char **argv, char **envp)
 	/* Setup the hostname */
 	setup_hostname();
 
-	/* chdir to /, since the kernel doesn't setup the current directory
-	 * so we need to set it up ourselves.
-	*/
-	chdir("/");
 	//signal_test();
 
 	/* Execute daemons */

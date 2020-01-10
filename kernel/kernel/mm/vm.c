@@ -2821,7 +2821,9 @@ struct page *vm_commit_page(void *page)
 {
 	struct vm_region *reg = vm_find_region(page);
 	if(!reg)
+	{
 		return NULL;
+	}
 	
 	if(!reg->vmo)
 		return NULL;

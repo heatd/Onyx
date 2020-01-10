@@ -35,7 +35,7 @@ void *ext2_read_block(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs)
 	buff = malloc(size); /* Allocate a buffer */
 	if(!buff)
 		return NULL;
-	size_t read = blkdev_read(fs->first_sector * 512 + (block_index * fs->block_size), size, buff, fs->blkdevice);
+	size_t read = blkdev_read(block_index * fs->block_size, size, buff, fs->blkdevice);
 	if(read == (size_t) -1)
 	{
 		free(buff);
@@ -48,13 +48,13 @@ void ext2_read_block_raw(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs, v
 {
 	size_t size = blocks * fs->block_size; /* size = nblocks * block size */
 
-	blkdev_read(fs->first_sector * 512 + (block_index * fs->block_size), size, buffer, fs->blkdevice);
+	blkdev_read(block_index * fs->block_size, size, buffer, fs->blkdevice);
 }
 
 void ext2_write_block(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs, void *buffer)
 {
 	size_t size = blocks * fs->block_size; /* size = nblocks * block size */
-	blkdev_write(fs->first_sector * 512 + (block_index * fs->block_size), size, buffer, fs->blkdevice);
+	blkdev_write(block_index * fs->block_size, size, buffer, fs->blkdevice);
 }
 
 void __ext2_update_atime(struct ext2_inode *ino, uint32_t block, ext2_fs_t *fs, struct ext2_inode *inode_table)
@@ -198,7 +198,7 @@ struct ext2_inode *ext2_traverse_fs(struct ext2_inode *wd, const char *path,
 
 void ext2_register_superblock_changes(ext2_fs_t *fs)
 {
-	blkdev_write((fs->first_sector + 2) * 512, 1024, fs->sb, fs->blkdevice);
+	blkdev_write(EXT2_SUPERBLOCK_OFFSET, 1024, fs->sb, fs->blkdevice);
 }
 
 void ext2_register_bgdt_changes(ext2_fs_t *fs)
@@ -484,6 +484,7 @@ int ext2_retrieve_dirent(struct ext2_inode *inode, const char *name, ext2_fs_t *
 				st = 1;
 				goto out;
 			}
+			b += entry->size;
 		}
 
 		off += fs->block_size;
@@ -650,7 +651,7 @@ int ext2_unlink(const char *name, int flags, struct inode *ino)
 	/* Now, unlink the dirent */
 	if(res.block_off != 0)
 	{
-		for(char *b = res.buf; b < res.buf;)
+		for(char *b = res.buf; b < res.buf + res.block_off;)
 		{
 			dir_entry_t *dir = (dir_entry_t *) b;
 			if((b - res.buf) + dir->size == res.block_off)
@@ -658,6 +659,8 @@ int ext2_unlink(const char *name, int flags, struct inode *ino)
 				before = dir;
 				break;
 			}
+
+			b += dir->size;
 		}
 
 		assert(before != NULL);

@@ -12,7 +12,8 @@
 
 #include <onyx/block.h>
 #include <onyx/vfs.h>
-typedef struct inode *(*fs_handler)(uint64_t sector, block_device_t *dev);
+
+typedef struct inode *(*fs_handler)(struct blockdev *dev);
 enum partition_type_t
 {
 	PARTITION_TYPE_MBR,
@@ -22,9 +23,6 @@ typedef struct fs_mount_strct
 {
 	struct fs_mount_strct *next;
 	char *filesystem;
-	uuid_t *uuids;
-	size_t uuids_len;
-	uint8_t mbr_part_code;
 	fs_handler handler;
 } filesystem_mount_t;
 
@@ -32,10 +30,10 @@ typedef struct fs_mount_strct
 extern "C"{
 #endif
 
-int partition_add_handler(fs_handler handler, char *filesystem, uint8_t mbr_part_code, uuid_t *uuids, size_t num_uuids);
-uint64_t partition_find(int index, block_device_t *dev, filesystem_mount_t *fs);
+int partition_add_handler(fs_handler handler, char *filesystem);
 filesystem_mount_t *find_filesystem_handler(const char *fsname);
-fs_handler lookup_handler_from_partition_code(enum partition_type_t type, uint8_t part_code);
+struct blockdev;
+void partition_setup_disk(struct blockdev *dev);
 
 #ifdef __cplusplus
 }

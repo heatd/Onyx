@@ -151,7 +151,7 @@ static int num_drives = 0;
 static char devname[] = "sdxx";
 static char dev_name[] = "sd";
 
-int ata_flush(struct blkdev *blkd)
+int ata_flush(struct blockdev *blkd)
 {
 	struct ide_drive *drv = blkd->device_info;
 	if(!drv)
@@ -160,7 +160,7 @@ int ata_flush(struct blkdev *blkd)
 	return 0;
 }
 
-int ata_pm(int op, struct blkdev *blkd)
+int ata_pm(int op, struct blockdev *blkd)
 {
 	/* Flush all data before entering any power mode */
 	ata_flush(blkd);
@@ -174,10 +174,10 @@ int ata_pm(int op, struct blkdev *blkd)
 		return 0;
 	}
 	else
-		return errno = ENOSYS, -1;
+		return errno = EINVAL, -1;
 }
 
-ssize_t ata_read(size_t offset, size_t count, void* buffer, struct blkdev* blkd)
+ssize_t ata_read(size_t offset, size_t count, void* buffer, struct blockdev* blkd)
 {
 	struct ide_drive *drv = blkd->device_info;
 	if(drv->type == ATA_TYPE_ATAPI)
@@ -202,7 +202,7 @@ ssize_t ata_read(size_t offset, size_t count, void* buffer, struct blkdev* blkd)
 	return count;
 }
 
-ssize_t ata_write(size_t offset, size_t count, void* buffer, struct blkdev* blkd)
+ssize_t ata_write(size_t offset, size_t count, void* buffer, struct blockdev* blkd)
 {
 	struct ide_drive *drv = blkd->device_info;
 	if(!drv)
@@ -227,7 +227,7 @@ ssize_t ata_write(size_t offset, size_t count, void* buffer, struct blkdev* blkd
 
 size_t atadev_read(int flags, size_t offset, size_t count, void *buffer, struct inode *node)
 {
-	struct blkdev		*blk;
+	struct blockdev		*blk;
 	void 			*buf;
 	void			*phys_buf;
 	size_t			read;
@@ -267,7 +267,7 @@ size_t atadev_read(int flags, size_t offset, size_t count, void *buffer, struct 
 
 size_t atadev_write(size_t offset, size_t count, void *buffer, struct inode *node)
 {
-	struct blkdev		*blk;
+	struct blockdev		*blk;
 	void 			*buf;
 	void			*phys_buf;
 	size_t			written;
@@ -387,7 +387,7 @@ int ata_initialize_drive(int channel, int drive)
 		ide_drives[curr].type = ATA_TYPE_ATA;
 
 	/* Add to the block device layer */
-	block_device_t *dev = malloc(sizeof(block_device_t));
+	struct blockdev *dev = malloc(sizeof(struct blockdev));
 
 	if(!dev)
 	{
@@ -395,10 +395,10 @@ int ata_initialize_drive(int channel, int drive)
 		dev_unregister(min->majorminor);
 		return 1;	
 	}
-	memset(dev, 0, sizeof(block_device_t));
+	memset(dev, 0, sizeof(struct blockdev));
 
 	dev->device_info = &ide_drives[curr];
-	dev->dev = min->majorminor;
+	dev->dev = min;
 	char *p = malloc(strlen("/dev/") + strlen(path) + 1);
 	if(!p)
 	{
@@ -408,14 +408,14 @@ int ata_initialize_drive(int channel, int drive)
 	memset(p, 0, strlen("/dev/") + strlen(path) + 1);
 	strcpy(p, "/dev/");
 	strcat(p, path);
-	dev->node_path = p;
+	dev->name = p;
 	dev->read = ata_read;
 	dev->write = ata_write;
 	dev->flush = ata_flush;
 	dev->power = ata_pm;
 	min->priv = dev;
 
-	blkdev_add_device(dev);
+	blkdev_init(dev);
 	
 	INFO("ata", "Created %s for drive %u\n", path, num_drives);
 	return 1;
