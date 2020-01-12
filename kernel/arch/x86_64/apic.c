@@ -277,8 +277,6 @@ extern uint32_t sched_quantum;
 
 irqstatus_t apic_timer_irq(struct irq_context *ctx, void *cookie)
 {
-	//apic_set_oneshot(get_main_clock()->get_ns() + NS_PER_MS);
-
 	add_per_cpu(apic_ticks, 1);
 	add_per_cpu(sched_quantum, -1);
 
@@ -301,6 +299,10 @@ irqstatus_t apic_timer_irq(struct irq_context *ctx, void *cookie)
 		else
 			ctx->registers = sched_switch_thread(ctx->registers);
 	}
+
+#ifndef CONFIG_APIC_PERIODIC
+	apic_set_oneshot(get_main_clock()->get_ns() + NS_PER_MS);
+#endif
 
 	return IRQ_HANDLED;
 }
@@ -542,6 +544,14 @@ void apic_set_oneshot_apic(hrtime_t deadline)
 	uint64_t delta_ms = delta / NS_PER_MS;
 	if(delta % NS_PER_MS)
 		delta_ms++;
+	
+	if(delta_ms == 0)
+	{
+		printk("deadline: %lu\n", deadline);
+		printk("now: %lu\n", now);
+		printk("Clock: %s\n", c->name);
+		panic("bad delta_ms ");
+	}
 
 	uint32_t counter = apic_rate * delta_ms;
 
@@ -552,7 +562,7 @@ void apic_set_oneshot_apic(hrtime_t deadline)
 }
 
 void apic_set_oneshot(hrtime_t deadline)
-{	
+{
 	if(tsc_deadline_supported)
 		apic_set_oneshot_tsc(deadline);
 	else
@@ -592,8 +602,11 @@ void apic_timer_init(void)
 
 	DISABLE_INTERRUPTS();
 
+#ifdef CONFIG_APIC_PERIODIC
 	apic_set_periodic(1, bsp_lapic);
-
+#else
+	apic_set_oneshot(get_main_clock()->get_ns() + NS_PER_MS);
+#endif
 	/* Install an IRQ handler for IRQ2 */
 	
 	assert(install_irq(2, apic_timer_irq, &apic_timer_dev, IRQ_FLAG_REGULAR,
@@ -616,7 +629,11 @@ void apic_timer_smp_init(volatile uint32_t *lapic)
 	/* Initialize the APIC timer with IRQ2, periodic mode and an init count of ticks_in_10ms/10(so we get a rate of 1000hz)*/
 	lapic_write(lapic, LAPIC_TIMER_DIV, 3);
 
+#ifdef CONFIG_APIC_PERIODIC
 	apic_set_periodic(1, bsp_lapic);
+#else
+	apic_set_oneshot(get_main_clock()->get_ns() + NS_PER_MS);
+#endif
 }
 
 uint64_t get_tick_count(void)

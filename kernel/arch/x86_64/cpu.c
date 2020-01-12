@@ -263,6 +263,8 @@ void x86_init_percpu(void)
 	{
 		x86_init_percpu_intel();
 	}
+
+	printf("cpu#%u tsc: %lu\n", get_cpu_nr(), rdtsc());
 }
 
 void cpu_init_late(void)

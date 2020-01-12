@@ -11,6 +11,7 @@
 #include <onyx/cpu.h>
 #include <onyx/log.h>
 #include <onyx/timer.h>
+#include <onyx/panic.h>
 
 #include <fractions.h>
 
@@ -37,10 +38,12 @@ hrtime_t tsc_get_ns(void)
 {
 	hrtime_t ticks = rdtsc();
 
-	if(ticks < tsc_clock.last_cycle)
+	/*if(ticks < tsc_clock.last_cycle)
 	{
+		printk("ticks %lu\n", ticks);
+		panic("AHHHHHHH");
 		tsc_clock.base += fract_div_u64_fract(TSC_MAX_COUNT, &ticks_per_ns);
-	}
+	}*/
 
 	tsc_clock.last_cycle = ticks;
 
