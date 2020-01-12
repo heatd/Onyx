@@ -32,12 +32,16 @@ ARCHDIR:=arch/$(HOSTARCH)
 include $(ARCHDIR)/make.config
 include kernel.config
 
-# TODO: Add -finstrument-functions support
 CFLAGS:=$(CFLAGS) $(KERNEL_ARCH_CFLAGS)
 
 ifeq ($(CONFIG_KASAN), y)
 CFLAGS+=-fsanitize=kernel-address
 endif
+
+ifeq ($(CONFIG_KTRACE), y)
+CFLAGS+=-pg -mnop-mcount -mfentry -mrecord-mcount -minstrument-return=nop5 -mrecord-return
+endif
+
 CXXFLAGS:=-fno-rtti -fno-exceptions -fcheck-new
 CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS) -D ACPI_LIBRARY -D ACPI_DEBUG_OUTPUT=1
 LDFLAGS:=$(LDFLAGS) $(KERNEL_ARCH_LDFLAGS)

@@ -79,10 +79,10 @@ uintptr_t elf_resolve_symbol(struct elf_loader_context *ctx, Elf64_Shdr *target,
 	if(symbol->st_shndx == SHN_UNDEF)
 	{
 		const char *name = elf_get_reloc_str(ctx->header, stringtab, symbol->st_name);
-		uintptr_t val = module_resolve_sym(name);
+		struct symbol *s = module_resolve_sym(name);
 
-		if(val)
-			return val;
+		if(s)
+			return s->value;
 		else
 		{
 			if(ELF64_ST_BIND(symbol->st_info) & STB_WEAK)
@@ -541,7 +541,7 @@ void *elf_load_kernel_module(void *file, struct module *module)
 		if(!res.success)
 			return errno = EINVAL, NULL;
 
-		sym_values[i] = res.retval;
+		sym_values[i] = res.sym->value;
 	}
 
 	module->fini = (module_fini_t) ((void *) sym_values[1]);

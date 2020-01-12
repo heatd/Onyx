@@ -248,22 +248,22 @@ public:
 
 	unique_ptr& operator=(const unique_ptr& p) = delete;
 
-	bool operator==(const unique_ptr& p)
+	bool operator==(const unique_ptr& p) const
 	{
 		return (p == p.p);
 	}
 
-	bool operator==(const T *ptr)
+	bool operator==(const T *ptr) const
 	{	
 		return (p == ptr);
 	}
 
-	bool operator!=(const unique_ptr& p)
+	bool operator!=(const unique_ptr& p) const
 	{
 		return !operator==(p);
 	}
 
-	bool operator!=(const T *ptr)
+	bool operator!=(const T *ptr) const
 	{
 		return !operator==(ptr);
 	}

@@ -4,4 +4,6 @@ x86_64-y:= acpi/acpi.o apic.o atomic.o avx.o boot.o copy_user.o copy.o cpu.o deb
 	smp_trampoline.o smp.o spinlock.o strace.o syscall_table.o syscall.o task_switching.o tsc.o \
 	tss.o vdso_helper.o vdso.o vm.o
 
+x86_64-$(CONFIG_KTRACE)+= ktrace.o fentry.o
+
 obj-y+= $(patsubst %, arch/x86_64/%, $(x86_64-y))

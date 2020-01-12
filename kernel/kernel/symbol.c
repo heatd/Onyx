@@ -18,7 +18,7 @@ int setup_symbol(struct symbol *s, Elf64_Sym *sym, const char *name)
 
 	if(ELF64_ST_BIND(sym->st_info) & STB_GLOBAL)
 		s->visibility |= SYMBOL_VIS_GLOBAL;
-		
+
 	if(ELF64_ST_BIND(sym->st_info) & STB_WEAK)
 		s->visibility |= SYMBOL_VIS_WEAK;
 #if DEBUG_SYMBOLS
@@ -32,6 +32,8 @@ int setup_symbol(struct symbol *s, Elf64_Sym *sym, const char *name)
 		s->visibility |= SYMBOL_FUNCTION;
 	else if(ELF64_ST_TYPE(sym->st_info) & STT_OBJECT)
 		s->visibility |= SYMBOL_OBJECT;
+	
+	s->size = sym->st_size;
 
 	return 0;
 }

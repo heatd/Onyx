@@ -7,61 +7,67 @@
 #ifndef _CARBON_LIST_H
 #define _CARBON_LIST_H
 
-template <typename T>
-class LinkedList;
+#include <onyx/utility.hpp>
 
 template <typename T>
-class LinkedListIterator;
+class linked_list;
 
 template <typename T>
-class LinkedListNode
+class linked_list_iterator;
+
+template <typename T>
+class linked_list_node
 {
 public:
 	T data;
-	LinkedListNode<T> *prev, *next;
-	friend class LinkedList<T>;
-	friend class LinkedListIterator<T>;
+	linked_list_node<T> *prev, *next;
+	friend class linked_list<T>;
+	friend class linked_list_iterator<T>;
 
-	LinkedListNode(T data) : data(data), prev(nullptr), next(nullptr)
+	linked_list_node(const T& data) : data(data), prev(nullptr), next(nullptr)
 	{
 	}
 
-	inline void Append(LinkedListNode<T> *node)
+	linked_list_node(T&& data) : data(cul::move(data)), prev(nullptr), next(nullptr)
+	{
+	}
+
+	inline void append(linked_list_node<T> *node)
 	{
 		next = node;
 		node->prev = this;
 	}
 
-	LinkedListNode<T>* operator++(int)
+	linked_list_node<T>* operator++(int)
 	{
 		return next;
 	}
 };
 
 template <typename T>
-class LinkedListIterator
+class linked_list_iterator
 {
 private:
-	LinkedListNode<T> *current_node;
-	friend class LinkedList<T>;
+	linked_list_node<T> *current_node;
+	friend class linked_list<T>;
 public:
-	LinkedListIterator() : current_node(nullptr)
+	linked_list_iterator() : current_node(nullptr)
 	{}
 
-	LinkedListIterator(LinkedListNode<T> *node)
+	linked_list_iterator(linked_list_node<T> *node)
 	{
 		current_node = node;
 	}
 
-	LinkedListIterator<T>& operator++()
+	linked_list_iterator<T>& operator++()
 	{
 		current_node = current_node->next;
 		return *this;
 	}
 
-	LinkedListIterator<T> operator++(int)
+	linked_list_iterator<T> operator++(int)
 	{
-		LinkedListIterator<T> copy(*this);
+		linked_list_iterator<T> copy(*this);
 		++(*this);
 		return copy;
 	}
@@ -71,45 +77,50 @@ public:
 		return current_node->data;
 	}
 
-	bool operator==(const LinkedListIterator<T>& a)
+	const T& operator*() const
+	{
+		return current_node->data;
+	}
+
+	bool operator==(const linked_list_iterator<T>& a)
 	{
 		return current_node == a.current_node;
 	}
 
-	bool operator!=(const LinkedListIterator<T>& a)
+	bool operator!=(const linked_list_iterator<T>& a)
 	{
 		return current_node != a.current_node;
 	}
 };
 
 template <typename T>
-class LinkedList
+class linked_list
 {
 private:
-	LinkedListNode<T> *head, *tail;
+	linked_list_node<T> *head, *tail;
 public:
-	LinkedList<T>() : head(nullptr), tail(nullptr){}
+	linked_list<T>() : head(nullptr), tail(nullptr){}
 
 	/* Low-level-ish interface to the linked list */
-	LinkedListNode<T> *GetHead() const
+	linked_list_node<T> *get_head() const
 	{
 		return head;
 	}
 
-	LinkedListNode<T> *GetTail() const
+	linked_list_node<T> *get_tail() const
 	{
 		return tail;
 	}
 
-	bool Add(T data)
+	bool add(const T& data)
 	{
-		auto p = new LinkedListNode<T>(data);
+		auto p = new linked_list_node<T>(data);
 		if(!p)
 			return false;
 		
 		if(head)
 		{
-			tail->Append(p);
+			tail->append(p);
 		}
 		else
 		{
@@ -121,22 +132,42 @@ public:
 		return true;
 	}
 
-	LinkedListIterator<T> begin()
+	bool add(T&& data)
 	{
-		LinkedListIterator<T> it(head);
+		auto p = new linked_list_node<T>(cul::move(data));
+		if(!p)
+			return false;
+		
+		if(head)
+		{
+			tail->append(p);
+		}
+		else
+		{
+			head = p;
+		}
+
+		tail = p;
+
+		return true;
+	}
+
+	linked_list_iterator<T> begin()
+	{
+		linked_list_iterator<T> it(head);
 		return it;
 	}
 
-	LinkedListIterator<T> end()
+	linked_list_iterator<T> end()
 	{
-		return LinkedListIterator<T>(nullptr);
+		return linked_list_iterator<T>(nullptr);
 	}
 
-	inline bool Remove(const T& data, LinkedListIterator<T>& it)
+	inline bool remove(const T& data, linked_list_iterator<T>& it)
 	{
 		while(it != end())
 		{
-			LinkedListNode<T> *node = it.current_node;
+			linked_list_node<T> *node = it.current_node;
 
 			if(node->data == data)
 			{
@@ -161,27 +192,27 @@ public:
 		return false;
 	}
 
-	inline bool Remove(const T& data)
+	inline bool remove(const T& data)
 	{
-		LinkedListIterator<T> it = begin();
+		linked_list_iterator<T> it = begin();
 
-		return Remove(data, it);
+		return remove(data, it);
 	}
 
-	inline bool IsEmpty()
+	inline bool is_empty()
 	{
 		return (head == nullptr);
 	}
 
-	bool Copy(LinkedList<T> *list)
+	bool Copy(linked_list<T> *list)
 	{
 		for(auto it = list->begin(); it != list->end(); it++)
 		{
-			if(!this->Add(*it))
+			if(!this->add(*it))
 			{
 				/* Undo */
 				for(auto n = list->begin(); n != it; n++)
-					this->Remove(*n);
+					this->remove(*n);
 				
 				return false;
 			}

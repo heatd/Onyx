@@ -10,7 +10,7 @@
 #include <onyx/spinlock.h>
 #include <onyx/panic.h>
 
-static LinkedList<timer_event*> pending_list;
+static linked_list<timer_event*> pending_list;
 static spinlock list_lock;
 
 /* Ported from Carbon, improved and C-ified */
@@ -24,7 +24,7 @@ bool add_timer_event(timer_event* event)
 	memcpy(ev, event, sizeof(timer_event));
 
 	spin_lock_irqsave(&list_lock);
-	bool st = pending_list.Add(ev);
+	bool st = pending_list.add(ev);
 
 	if(!st)
 		delete ev;
@@ -33,9 +33,9 @@ bool add_timer_event(timer_event* event)
 	return st;
 }
 
-void handle_running_event(timer_event *event, LinkedListIterator<timer_event *> it)
+void handle_running_event(timer_event *event, linked_list_iterator<timer_event *> it)
 {
-	pending_list.Remove(event, it);
+	pending_list.remove(event, it);
 
 	auto callback = event->callback;
 	auto context = event->context;

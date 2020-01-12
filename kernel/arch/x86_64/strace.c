@@ -150,6 +150,10 @@ static bool sym_iterate_each_module(struct module *m, void *p)
 		/* Skip if it's not a function */
 		if(!(s->visibility & SYMBOL_FUNCTION))
 			continue;
+		
+		/* Check if it's inside the bounds of the symbol */
+		if(!((unsigned long) p >= s->value && (unsigned long) p < s->value + s->size))
+			continue;
 	
 		long diff = c->addr - s->value;
 

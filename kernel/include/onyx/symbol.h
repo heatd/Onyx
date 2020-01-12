@@ -24,6 +24,7 @@ struct symbol
 	char *name;
 	fnv_hash_t name_hash;
 	unsigned long value;
+	unsigned long size;
 	uint8_t visibility;
 };
 

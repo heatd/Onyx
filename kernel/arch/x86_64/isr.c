@@ -22,6 +22,7 @@
 #include <onyx/atomic.h>
 #include <onyx/percpu.h>
 #include <onyx/exceptions.h>
+#include <onyx/x86/ktrace.h>
 
 const char* exception_msg[] = {
     "Division by zero exception",
@@ -320,10 +321,27 @@ void security_exception(struct registers *ctx)
 	kernel_tkill(SIGSEGV, current);
 }
 
+bool ktrace_enabled_int3 = false;
+
+void ktrace_enable_int3(void)
+{
+	ktrace_enabled_int3 = true;
+}
+
+void ktrace_disable_int3(void)
+{
+	ktrace_enabled_int3 = true;
+}
+
 void breakpoint_exception(struct registers *ctx)
 {
 	if(is_kernel_exception(ctx))
 	{
+		if(ktrace_enabled_int3)
+		{
+			ktrace_int3_handler(ctx);
+			return;
+		}
 		dump_interrupt_context(ctx);
 		panic("Breakpoint exception");
 	}

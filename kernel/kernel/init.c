@@ -77,6 +77,7 @@
 #include <onyx/clock.h>
 #include <onyx/percpu.h>
 #include <onyx/drm.h>
+#include <onyx/ktrace.h>
 
 #include <pci/pci.h>
 
@@ -327,6 +328,9 @@ void kernel_main(void)
 
 	/* Initialize multi-processors */
 	cpu_init_mp();
+
+	/* Set up ktrace */
+	ktrace_init();
 
 	init_tss();
 

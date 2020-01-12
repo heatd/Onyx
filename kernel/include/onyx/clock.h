@@ -20,6 +20,10 @@ struct wallclock_source
 	time_t (*get_posix_time)(void);
 };
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* hrtime is expressed in units of nanoseconds */
 typedef uint64_t hrtime_t;
 
@@ -54,4 +58,7 @@ void time_set(clockid_t clock, struct clock_time *val);
 int clock_gettime_kernel(clockid_t clk_id, struct timespec *tp);
 struct clock_time *get_raw_clock_time(clockid_t clkid);
 
+#ifdef __cplusplus
+}
+#endif
 #endif

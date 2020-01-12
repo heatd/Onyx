@@ -38,11 +38,13 @@ struct module
 	module_fini_t fini;
 };
 
+struct symbol;
+
 struct module_resolve_ctx
 {
 	const char *sym_name;
 	bool success;
-	unsigned long retval;
+	struct symbol *sym;
 	bool weak_sym;
 };
 
@@ -53,7 +55,7 @@ int load_module(const char *path, const char *name);
 void *module_allocate_pages(size_t size, int prot);
 void module_dump(void);
 void setup_core_kernel_module(void);
-unsigned long module_resolve_sym(const char *name);
+struct symbol *module_resolve_sym(const char *name);
 void *elf_load_kernel_module(void *file, struct module *module);
 bool module_try_resolve(struct module *m, void *ctx);
 void module_unmap(struct module *module);

@@ -22,8 +22,6 @@ ARCH_SPECIFIC void halt();
 __attribute__ ((noreturn, noinline))
 void panic(const char* msg);
 
-uintptr_t get_kernel_sym_by_name(const char *name);
-
 #ifndef __cplusplus
 
 /* This does not compile in C++ */

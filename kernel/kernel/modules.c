@@ -122,9 +122,9 @@ bool module_try_resolve(struct module *m, void *ctx)
 				return true;
 			bool is_weak = s->visibility & SYMBOL_VIS_WEAK;
 
-			c->retval = s->value;
 			c->weak_sym = is_weak;
 			c->success = true;
+			c->sym = s;
 
 			return true;
 		}
@@ -133,18 +133,18 @@ bool module_try_resolve(struct module *m, void *ctx)
 	return true;
 }
 
-unsigned long module_resolve_sym(const char *name)
+struct symbol *module_resolve_sym(const char *name)
 {
 	struct module_resolve_ctx ctx = {};
 	ctx.sym_name = name;
 	ctx.success = false;
-	ctx.retval = 0;
+	ctx.sym = NULL;
 
 	for_each_module(module_try_resolve, &ctx);
 
 	if(ctx.success)
-		return ctx.retval;
-	return 0;
+		return ctx.sym;
+	return NULL;
 }
 
 void module_unmap(struct module *module)

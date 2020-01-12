@@ -429,11 +429,11 @@ void serial_write(const char *s, size_t size, struct serial_port *port);
 PER_CPU_VAR(struct spinlock msg_queue_lock);
 PER_CPU_VAR(struct cpu_message *msg_queue);
 
-void cpu_send_message(unsigned int cpu, unsigned long message, void *arg, bool should_wait)
+bool cpu_send_message(unsigned int cpu, unsigned long message, void *arg, bool should_wait)
 {
 	struct cpu_message *msg = cpu_alloc_msg_slot();
 	if(!msg)
-		return;
+		return false;
 
 	msg->ack = false;
 	assert(cpu <= booted_cpus);
@@ -482,6 +482,8 @@ void cpu_send_message(unsigned int cpu, unsigned long message, void *arg, bool s
 		cpu_wait_for_msg_ack((volatile struct cpu_message *) msg);
 
 	((volatile struct cpu_message *) msg)->sent = false;
+
+	return true;
 }
 
 void cpu_kill(int cpu_num)
