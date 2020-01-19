@@ -551,7 +551,7 @@ ssize_t ext2_write_inode(struct ext2_inode *ino, ext2_fs_t *fs, size_t size, off
 ssize_t ext2_read_inode(struct ext2_inode *ino, ext2_fs_t *fs, size_t size, off_t off, char *buffer)
 {
 	/* This scratch buffer is too big to be allocated on the stack */
-	char *scratch = zalloc(fs->block_size);
+	char *scratch = malloc(fs->block_size);
 	if(!scratch)
 		return errno = ENOMEM, -1;
 	ssize_t read = 0;

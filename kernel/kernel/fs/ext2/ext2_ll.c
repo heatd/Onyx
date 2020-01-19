@@ -48,7 +48,7 @@ void ext2_read_block_raw(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs, v
 {
 	size_t size = blocks * fs->block_size; /* size = nblocks * block size */
 
-	blkdev_read(block_index * fs->block_size, size, buffer, fs->blkdevice);
+	blkdev_read(((size_t) block_index) * fs->block_size, size, buffer, fs->blkdevice);
 }
 
 void ext2_write_block(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs, void *buffer)
