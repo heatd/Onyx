@@ -14,6 +14,7 @@
 #include <onyx/network.h>
 #include <onyx/vm.h>
 #include <onyx/crc32.h>
+#include <onyx/byteswap.h>
 
 #include <pci/pci.h>
 #include <drivers/e1000.h>
@@ -22,13 +23,17 @@ int eth_send_packet(char *destmac, char *payload, uint16_t len, uint16_t protoco
 {
 	ethernet_header_t *hdr = malloc(len + sizeof(ethernet_header_t));
 	if(!hdr)
-		return errno = ENOMEM, 1;
+		return -ENOMEM;
+
 	memset(hdr, 0, sizeof(ethernet_header_t) + len);
+
 	memcpy(&hdr->payload, payload, len);
-	hdr->ethertype = LITTLE_TO_BIG16(protocol);
+	hdr->ethertype = htons(protocol);
 	memcpy(&hdr->mac_dest, destmac, 6);
 	memcpy(&hdr->mac_source, &netif->mac_address, 6);
 	int status = netif_send_packet(netif, (char*) hdr, len + sizeof(ethernet_header_t));
+	
 	free(hdr);
+
 	return status;
 }

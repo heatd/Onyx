@@ -35,35 +35,35 @@ unsigned int netif_ioctl(int request, void *argp, struct inode* this)
 		}
 		case SIOGETINET4:
 		{
-			if(vm_check_pointer(argp, sizeof(struct if_config_inet)) < 0)
-				return -EFAULT;
 			struct if_config_inet *c = argp;
 			struct sockaddr_in *local = (struct sockaddr_in*) &netif->local_ip;
 			struct sockaddr_in *router = (struct sockaddr_in*) &netif->router_ip;
-			memcpy(&c->address, &local->sin_addr, sizeof(struct in_addr));
-			memcpy(&c->router, &router->sin_addr, sizeof(struct in_addr));
+			if(copy_to_user(&c->address, &local->sin_addr, sizeof(struct in_addr)) < 0)
+				return -EFAULT;
+			if(copy_to_user(&c->router, &router->sin_addr, sizeof(struct in_addr)) < 0)
+				return -EFAULT;
 			return 0;
 		}
 		case SIOSETINET6:
 		{
-			if(vm_check_pointer(argp, sizeof(struct if_config_inet6)) < 0)
-				return -EFAULT;
 			struct if_config_inet *c = argp;
 			struct sockaddr_in *local = (struct sockaddr_in*) &netif->local_ip;
-			memcpy(&local->sin_addr, &c->address, sizeof(struct in6_addr));
 			struct sockaddr_in *router = (struct sockaddr_in*) &netif->router_ip;
-			memcpy(&router->sin_addr, &c->router, sizeof(struct in6_addr));
+			if(copy_to_user(&local->sin_addr, &c->address, sizeof(struct in6_addr)) <0)
+				return -EFAULT;
+			if(copy_to_user(&router->sin_addr, &c->router, sizeof(struct in6_addr)) < 0)
+				return -EFAULT;
 			return 0;
 		}
 		case SIOGETINET6:
 		{
-			if(vm_check_pointer(argp, sizeof(struct if_config_inet6)) < 0)
-				return -EFAULT;
 			struct if_config_inet6 *c = argp;
 			struct sockaddr_in6 *local = (struct sockaddr_in6*) &netif->local_ip;
 			struct sockaddr_in6 *router = (struct sockaddr_in6*) &netif->router_ip;
-			memcpy(&c->address, &local->sin6_addr, sizeof(struct in6_addr));
-			memcpy(&c->router, &router->sin6_addr, sizeof(struct in6_addr));
+			if(copy_to_user(&c->address, &local->sin6_addr, sizeof(struct in6_addr)) < 0)
+				return -EFAULT;
+			if(copy_to_user(&c->router, &router->sin6_addr, sizeof(struct in6_addr)) < 0)
+				return -EFAULT;
 			return 0;
 		}
 		case SIOGETMAC:
@@ -143,7 +143,7 @@ int netif_send_packet(struct netif *netif, const void *buffer, uint16_t size)
 {
 	assert(netif);
 	if(netif->sendpacket)
-		return netif->sendpacket(buffer, size);
+		return netif->sendpacket(buffer, size, netif);
 	return errno = ENODEV, -1;
 }
 

@@ -23,7 +23,7 @@ void ktrace_init(void);
 }
 #endif
 
-enum ktrace_type_entry : uint8_t
+enum ktrace_type_entry
 {
 	KTRACE_TYPE_ENTRY = 0,
 	KTRACE_TYPE_EXIT = 1

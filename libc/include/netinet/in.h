@@ -64,10 +64,16 @@ extern const struct in6_addr in6addr_any, in6addr_loopback;
 #define INET_ADDRSTRLEN  16
 #define INET6_ADDRSTRLEN 46
 
+#ifndef __is_onyx_kernel
+
+/* The kernel has kernel specific inlines */
+
 uint32_t htonl(uint32_t);
 uint16_t htons(uint16_t);
 uint32_t ntohl(uint32_t);
 uint16_t ntohs(uint16_t);
+
+#endif
 
 #define IPPROTO_IP       0
 #define IPPROTO_HOPOPTS  0

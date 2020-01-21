@@ -11,9 +11,9 @@
 #include <pci/pci.h>
 
 #define INTEL_VENDOR		0x8086 
-#define E1000_DEV		0x100E
-#define E1000_I217		0x153A
-#define E1000E_DEV		0x10D3
+#define E1000_DEV			0x100E
+#define E1000_I217			0x153A
+#define E1000E_DEV			0x10D3
 #define E1000_82577LM		0x10EA
  
 /* Register values look up in linux/drivers/net/ethernet/intel/e1000e/regs.h */
@@ -21,7 +21,7 @@
 #define REG_STATUS		0x0008
 #define REG_EECD		0x0010
 #define REG_EEPROM		0x0014
-#define REG_CTRL_EXT		0x0018
+#define REG_CTRL_EXT	0x0018
 #define REG_FLA			0x001c
 #define REG_MDIC		0x0020
 #define REG_SCTL		0x0024
@@ -41,7 +41,7 @@
 #define REG_RXDESCHEAD		0x2810
 #define REG_RXDESCTAIL		0x2818
 #define REG_CRCERRS		0x4000
-#define REG_TCTRL		0x0400
+#define REG_TCTL		0x0400
 #define REG_TXDESCLO		0x3800
 #define REG_TXDESCHI		0x3804
 #define REG_TXDESCLEN		0x3808
@@ -53,7 +53,6 @@
 #define REG_RXDCTL		0x3828 // RX Descriptor Control
 #define REG_RADV		0x282C // RX Int. Absolute Delay Timer
 #define REG_RSRPD		0x2C00 // RX Small Packet Detect Interrupt
-
 
 
 #define REG_TIPG		0x0410 /* Transmit Inter Packet Gap */
@@ -108,33 +107,56 @@
 #define TCTL_COLD_SHIFT			12          // Collision Distance
 #define TCTL_SWXOFF			(1 << 22)   // Software XOFF Transmission
 #define TCTL_RTLC			(1 << 24)   // Re-transmit on Late Collision
- 
+#define TCTL_RRTHRESH(x)	(x << 29)
+
 #define TSTA_DD				(1 << 0)    // Descriptor Done
 #define TSTA_EC				(1 << 1)    // Excess Collisions
 #define TSTA_LC				(1 << 2)    // Late Collision
 #define LSTA_TU				(1 << 3)    // Transmit Underrun
 
-#define E1000_NUM_RX_DESC 		32
-#define E1000_NUM_TX_DESC		8
- 
+#define POPTS_IXSM			(1 << 0)
+#define POPTS_TXSM			(1 << 1)
+
 #define MAX_MTU 			1514
 
 /* CTRL Register */
-#define CTRL_FD				(1 << 0)
+#define CTRL_FD					(1 << 0)
 #define CTRL_GIO_MASTER_DIS		(1 << 1)
-#define CTRL_ASDE			(1 << 5)
-#define CTRL_SLU			(1 << 6)
+#define CTRL_ASDE				(1 << 5)
+#define CTRL_SLU				(1 << 6)
 #define CTRL_SPEED_10MB			(0)
 #define CTRL_SPEED_100MB		(1 << 8)
 #define CTRL_SPEED_1000MB		(2 << 8)
 #define CTRL_FORCE_SPEED		(1 << 11)
 #define CTRL_FRCDPLX			(1 << 12)
 #define CTRL_ADVD3WUC			(1 << 20)
-#define CTRL_RST			(1 << 26)
-#define CTRL_RFCE			(1 << 27)
-#define CTRL_TFCE			(1 << 28)
-#define CTRL_VME			(1 << 30)
+#define CTRL_RST				(1 << 26)
+#define CTRL_RFCE				(1 << 27)
+#define CTRL_TFCE				(1 << 28)
+#define CTRL_VME				(1 << 30)
 #define CTRL_PHY_RST			(1U << 31)
+
+#define ICR_TXDW		(1 << 0)
+#define ICR_TXQE		(1 << 1)
+#define ICR_LSC			(1 << 2)
+#define ICR_RXDMT0		(1 << 4)
+#define ICR_DSW			(1 << 5)
+#define ICR_RXO			(1 << 6)
+#define ICR_RXT0		(1 << 7)
+#define ICR_MDAC		(1 << 9)
+#define ICR_PHYINT		(1 << 12)
+#define ICR_LSECPN		(1 << 14)
+#define ICR_TXDLOW		(1 << 15)
+#define ICR_SRPD		(1 << 16)
+#define ICR_ACK			(1 << 17)
+#define ICR_MNG			(1 << 18)
+#define ICR_EPRST		(1 << 20)
+#define ICR_ECCER		(1 << 22)
+#define ICR_INT_ASSERTED	(1 << 31)
+
+#define IMS_TXDW		(1 << 0)
+#define IMS_TXQE		(1 << 1)
+#define IMS_RXT0		(1 << 7)
 
 struct e1000_rx_desc
 {
@@ -153,7 +175,7 @@ struct e1000_tx_desc
 	volatile uint8_t cso;
 	volatile uint8_t cmd;
 	volatile uint8_t status;
-	volatile uint8_t css;
+	volatile uint8_t popts;
 	volatile uint16_t special;
 } __attribute__((packed));
 

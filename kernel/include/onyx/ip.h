@@ -38,29 +38,9 @@ typedef struct
 	char options[0];
 } __attribute__((packed)) ip_header_t;
 
-static inline uint16_t ipsum(ip_header_t *hdr)
+static inline uint16_t __ipsum_unfolded(void *addr, size_t bytes, uint16_t init_count)
 {
-	uint32_t sum = 0;
-	uint32_t ret = 0;
-	uint16_t *ptr = (uint16_t*) hdr;
-	for(int i = 0; i < (hdr->ihl * 2); i++)
-	{
-		sum += ptr[i];
-	}
-	ret = sum & 0xFFFF;
-	uint32_t carry = sum - ret;
-	while(carry)
-	{
-		ret += carry;
-		carry = (ret - (ret & 0xFFFF)) >> 16;
-		ret &= 0xFFFF;
-	}
-	return ~ret;
-}
-
-static inline uint16_t internetchksum(void *addr, size_t bytes)
-{
-	uint32_t sum = 0;
+	uint32_t sum = init_count;
 	uint32_t ret = 0;
 	uint16_t *ptr = (uint16_t*) addr;
 	size_t words = bytes / 2;
@@ -68,18 +48,34 @@ static inline uint16_t internetchksum(void *addr, size_t bytes)
 	{
 		sum += ptr[i];
 	}
+
 	ret = sum & 0xFFFF;
 	uint32_t carry = sum - ret;
 	while(carry)
 	{
 		ret += carry;
-		carry = (ret - (ret & 0xFFFF)) >> 16;
+		carry = ret >> 16;
 		ret &= 0xFFFF;
 	}
 	return ~ret;
 }
 
-int send_ipv4_packet(uint32_t senderip, uint32_t destip, unsigned int type,
+static inline uint16_t ipsum_unfolded(void *addr, size_t bytes)
+{
+	return __ipsum_unfolded(addr, bytes, 0);
+}
+
+static inline uint16_t ipsum_fold(uint16_t s)
+{
+	return ~s;
+}
+
+static inline uint16_t ipsum(void *addr, size_t bytes)
+{
+	return ipsum_fold(ipsum_unfolded(addr, bytes));
+}
+
+int ipv4_send_packet(uint32_t senderip, uint32_t destip, unsigned int type,
 		     char *payload, size_t payload_size, struct netif *netif);
 struct socket *ipv4_create_socket(int type, int protocol);
 void ipv4_handle_packet(ip_header_t *header, size_t size, struct netif *netif);

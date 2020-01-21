@@ -74,7 +74,7 @@ void dhcp_close_options(dhcp_packet_t *pkt, off_t off)
 	pkt->options[off] = DHO_END;
 }
 
-void dhcp_decode_boot_packet(int fd, dhcp_packet_t *packet)
+int dhcp_decode_boot_packet(int fd, dhcp_packet_t *packet)
 {
 	uint32_t router_ip;
 	uint32_t assigned_ip;
@@ -99,32 +99,32 @@ void dhcp_decode_boot_packet(int fd, dhcp_packet_t *packet)
 		{
 			case DHO_ROUTERS:
 			{
-				opt++;
-				router_ip = htonl(*(uint32_t *) opt);
+				opt += 2;
+				router_ip = ntohl(*(uint32_t *) opt);
 				printf("Router ip: %x\n", router_ip);
 				opt += 4;
 				break;
 			}
 			case DHO_SUBNET_MASK:
 			{
-				opt++;
-				subnet_mask = htonl(*(uint32_t *) opt);
+				opt += 2;
+				subnet_mask = ntohl(*(uint32_t *) opt);
 				printf("Subnet mask: %x\n", router_ip);
 				opt += 4;
 				break;
 			}
 			case DHO_DOMAIN_NAME_SERVERS:
 			{
-				unsigned char *future = opt + *opt;
-				dns_server = htonl(*(uint32_t *) opt);
+				opt += 2;
+				dns_server = ntohl(*(uint32_t *) opt);
 				printf("DNS server: %x\n", dns_server);
-				opt = future;
+				opt += 4;
 				break;
 			}
 			case DHO_DHCP_LEASE_TIME:
 			{
-				opt++;
-				lease_time = htonl(*(uint32_t *) opt);
+				opt += 2;
+				lease_time = ntohl(*(uint32_t *) opt);
 				printf("DHCP lease time: %us\n", lease_time);
 				opt += 4;
 				break;
@@ -137,7 +137,19 @@ void dhcp_decode_boot_packet(int fd, dhcp_packet_t *packet)
 				break;
 			}
 		}
-	}	
+	}
+	
+	struct if_config_inet cfg;
+	cfg.address.s_addr = our_ip;
+	cfg.subnet.s_addr = subnet_mask;
+	cfg.router.s_addr = router_ip;
+	if(ioctl(fd, SIOSETINET4, &cfg) < 0)
+	{
+		perror("SIOSETINET4");
+		return -1;
+	}
+
+	return 0;
 }
 
 int dhcp_setup_netif(int fd, int sock)
@@ -175,10 +187,6 @@ int dhcp_setup_netif(int fd, int sock)
 			      DHO_DHCP_PARAMETER_REQUEST_LIST);
 	dhcp_close_options(boot_packet, off);
 
-	return;
-	/* TODO: The e1000 driver's memory allocation is sketchy so after this,
-	 * things get badly corrupted
-	*/
 	if(send(sock, boot_packet, sizeof(dhcp_packet_t), 0) < 0)
 	{
 		error("send: Error sending the boot packet: %s\n",
@@ -211,9 +219,11 @@ int main(int argc, char **argv, char **envp)
 		return 0;
 	}
 
+#if 0
 	dup2(logfd, 0);
 	dup2(logfd, 1);
 	dup2(logfd, 2);
+#endif
 
 	close(logfd);
 

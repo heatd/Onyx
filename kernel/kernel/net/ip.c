@@ -20,22 +20,26 @@
 #include <onyx/network.h>
 #include <onyx/udp.h>
 #include <onyx/arp.h>
+#include <onyx/byteswap.h>
 
-int send_ipv4_packet(uint32_t senderip, uint32_t destip, unsigned int type, char *payload, size_t payload_size, struct netif *netif)
+int ipv4_send_packet(uint32_t senderip, uint32_t destip, unsigned int type, char *payload,
+	size_t payload_size, struct netif *netif)
 {
 	ip_header_t *ip_header = malloc(sizeof(ip_header_t) + payload_size);
 	if(!ip_header)
-		return errno = ENOMEM, 1;
+		return -ENOMEM;
+
 	memset(ip_header, 0, sizeof(ip_header_t) + payload_size);
-	ip_header->source_ip = LITTLE_TO_BIG32(senderip);
-	ip_header->dest_ip = LITTLE_TO_BIG32(destip);
+
+	ip_header->source_ip = htonl(senderip);
+	ip_header->dest_ip = htonl(destip);
 	ip_header->proto = type;
-	ip_header->frag_off__flags =  LITTLE_TO_BIG16(2 & 0x7);
+	ip_header->frag_off__flags = 0;
 	ip_header->ttl = 64;
-	ip_header->total_len = LITTLE_TO_BIG16((sizeof(ip_header_t) + payload_size));
+	ip_header->total_len = htons((sizeof(ip_header_t) + payload_size));
 	ip_header->version = 4;
 	ip_header->ihl = 5;
-	ip_header->header_checksum = ipsum(ip_header);
+	ip_header->header_checksum = ipsum(ip_header, ip_header->ihl * sizeof(uint32_t));
 	memcpy(&ip_header->payload, payload, payload_size);
 
 	unsigned char destmac[6] = {0};

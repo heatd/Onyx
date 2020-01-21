@@ -21,16 +21,18 @@ struct netif
 {
 	const char *name;
 	struct inode *device_file;
+	void *priv;
 	unsigned int flags;
 	unsigned char mac_address[6];
 	unsigned char router_mac[6];
 	struct sockaddr_in local_ip;
 	struct sockaddr_in router_ip;
-	int (*sendpacket)(const void *buffer, uint16_t size);
+	int (*sendpacket)(const void *buffer, uint16_t size, struct netif *nif);
 	struct netif *next;
 	struct arp_hashtable arp_hashtable;
 	struct spinlock hashtable_spinlock;
-	struct udp_socket **udp_ports;
+	struct spinlock udp_socket_lock;
+	struct list_head udp_sockets;
 };
 
 #ifdef __cplusplus

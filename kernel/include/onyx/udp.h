@@ -57,9 +57,10 @@ struct udp_socket
 	struct semaphore packet_semaphore;
 	struct udp_packet *packet_list;
 	struct spinlock packet_lock;
+	struct list_head socket_list_head;
 };
 
-int send_udp_packet(char *payload, size_t payload_size, int source_port, int dest_port, 
+int udp_send_packet(char *payload, size_t payload_size, int source_port, int dest_port, 
 		uint32_t srcip, uint32_t destip, struct netif *netif);
 struct socket *udp_create_socket(int type);
 int udp_init_netif(struct netif *netif);

@@ -267,8 +267,9 @@ int rtl_wait_for_irq(int timeout, int tx)
 	return 0;
 }
 
-int rtl_send_packet(const void *buf, const uint16_t size)
+int rtl_send_packet(const void *buf, const uint16_t size, struct netif *nif)
 {
+	(void) nif;
 	int status;
 	int tx = get_next_tx();
 

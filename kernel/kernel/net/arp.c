@@ -93,7 +93,8 @@ int arp_submit_request(struct arp_cache *c, struct netif *netif)
 	arp->sender_proto_address[2] = 0;
 	arp->sender_proto_address[3] = 0;
 	memcpy(&arp->target_proto_address, &c->ip, ARP_PLEN_IPV4);
-	int st = eth_send_packet((char*) &arp->target_hw_address, (char*) arp, sizeof(arp_request_t), PROTO_ARP, netif);
+	int st = eth_send_packet((char*) &arp->target_hw_address, (char*) arp,
+		sizeof(arp_request_t), PROTO_ARP, netif);
 	if(st)
 		return -1;
 	while(1);
