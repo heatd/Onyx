@@ -64,39 +64,39 @@ int check_af_support(int domain)
 	}
 }
 
+static const int type_mask = SOCK_DGRAM | SOCK_STREAM | SOCK_SEQPACKET;
+static const int sock_flag_mask = ~type_mask;
+
 int net_check_type_support(int type)
 {
-	switch(type)
-	{
-		case SOCK_DGRAM:
-		case SOCK_STREAM:
-		case SOCK_RAW:
-			return 0;
-		default:
-			return -1;
-	}
+	return type & type_mask;
 }
 
 int net_autodetect_protocol(int type, int domain)
 {
-	switch(type)
+	switch(type & type_mask)
 	{
 		case SOCK_DGRAM:
+		{
 			if(domain == AF_UNIX)
 				return PROTOCOL_UNIX;
 			else if(domain == AF_INET)
 				return PROTOCOL_UDP;
 			else
 				return -1;
+		}
 		case SOCK_RAW:
+		{
 			if(domain == AF_INET)
 				return PROTOCOL_IPV4;
 			else if(domain == AF_UNIX)
 				return PROTOCOL_UNIX;
 			return -1;
+		}
 		case SOCK_STREAM:
 			return PROTOCOL_TCP;
 	}
+
 	return -1;
 }
 
@@ -157,6 +157,10 @@ int sys_socket(int domain, int type, int protocol)
 	struct inode *inode = socket_create_inode(socket);
 	if(!inode)
 		return -errno;
+
+	if(type & SOCK_CLOEXEC)
+		dflags |= O_CLOEXEC;
+
 	/* Open a file descriptor with the socket vnode */
 	int fd = open_with_vnode(inode, dflags);
 	/* If we failed, close the socket and return */

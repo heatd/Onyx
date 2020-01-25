@@ -46,7 +46,7 @@ int ipv4_send_packet(uint32_t senderip, uint32_t destip, unsigned int type, char
 	if(destip == INADDR_BROADCAST)
 	{
 		/* INADDR_BROADCAST packets are sent to mac address ff:ff:ff:ff:ff:ff */
-		memset(&destmac, 0xFF, 6);
+		memset(&destmac, 0xff, 6);
 	}
 	else if(destip == INADDR_LOOPBACK)
 	{
