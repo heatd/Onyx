@@ -584,6 +584,8 @@ int ext2_dir_empty(struct inode *ino)
 				st = 0;
 				goto out;
 			}
+
+			b += entry->size;
 		}
 
 		off += fs->block_size;
@@ -669,7 +671,8 @@ int ext2_unlink(const char *name, int flags, struct inode *ino)
 	ext2_unlink_dirent(before, (dir_entry_t *) (res.buf + res.block_off));
 
 	/* Flush to disk */
-	if(ext2_write_inode(inode, fs, fs->block_size, res.file_off, res.buf) < 0)
+	/* TODO: Maybe we can optimize things by not flushing the whole block? */
+	if(ext2_write_inode(inode, fs, fs->block_size, res.file_off - res.block_off, res.buf) < 0)
 	{
 		close_vfs(target);
 		return -EIO;

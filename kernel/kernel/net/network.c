@@ -69,6 +69,7 @@ static const int sock_flag_mask = ~type_mask;
 
 int net_check_type_support(int type)
 {
+	(void) sock_flag_mask;
 	return type & type_mask;
 }
 
