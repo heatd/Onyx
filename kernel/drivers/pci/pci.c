@@ -419,36 +419,6 @@ void pci_set_barx(uint8_t slot, uint8_t device, uint8_t function, uint8_t index,
 	__pci_write_dword(slot, device, function, PCI_BARx(index), bar);
 }
 
-/* All the PCI drivers' headers */
-#include <drivers/e1000.h>
-#include <drivers/ata.h>
-pci_driver_t pci_drivers[] =
-{
-};
-
-const size_t pci_driver_array_entries = sizeof(pci_drivers) / sizeof(pci_driver_t);
-void pci_initialize_drivers()
-{
-	for(size_t i = 0; i < pci_driver_array_entries; i++)
-	{
-		if(pci_drivers[i].driver_type == PCI_DRIVER_GENERIC)
-		{
-			struct pci_device *dev = get_pcidev_from_classes(pci_drivers[i].pciClass, pci_drivers[i].subClass, pci_drivers[i].progIF);
-			if(!dev)
-				continue;
-			pci_drivers[i].cb(dev);
-		}	
-		else
-		{
-			struct pci_device *dev = get_pcidev_from_vendor_device(pci_drivers[i].deviceID, pci_drivers[i].vendorID);
-			if(!dev)
-				continue;
-			pci_drivers[i].cb(dev);
-		}
-			
-	}
-}
-
 struct pci_device *get_pcidev(struct pci_device_address *addr)
 {
 	if(pcie_is_enabled())

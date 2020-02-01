@@ -198,4 +198,7 @@ int qxl_init(void)
 	return 0;
 }
 
-DRIVER_INIT(qxl_init);
+MODULE_INIT(qxl_init);
+MODULE_INSERT_VERSION();
+MODULE_LICENSE(MODULE_LICENSE_MIT);
+MODULE_AUTHOR("Pedro Falcato");

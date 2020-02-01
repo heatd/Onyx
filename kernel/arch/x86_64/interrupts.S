@@ -150,8 +150,9 @@ irq_common:
 	pop %rdi
 
 	mov %rsp, %rsi
+	mov %rsi, %rbp
 
-	.cfi_def_cfa_register rsi
+	.cfi_def_cfa_register rbp
 	# End the stack frame list so we stop here
 	#xor %rbp, %rbp
 
@@ -224,7 +225,6 @@ isr_common:
 	CFI_INTERRUPT_FRAME_BEFORE_DS
 
 	cld
-	#xor %rbp, %rbp
 
 	mov %ds, %rax
 	push %rax
@@ -241,8 +241,9 @@ isr_common:
 	je .L0
 	swapgs
 .L0:
-	mov %rsp, %rdi
-	.cfi_def_cfa_register rdi
+	mov %rsp, %rbp
+	mov %rbp, %rdi
+	.cfi_def_cfa_register rbp
 
 	INTERRUPT_STACK_ALIGN
 

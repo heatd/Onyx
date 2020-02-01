@@ -279,4 +279,8 @@ uint64_t get_posix_time_early()
 	return date.unixtime;
 }
 
-DRIVER_INIT(init_rtc);
+MODULE_INIT(init_rtc);
+MODULE_INSERT_VERSION();
+MODULE_LICENSE(MODULE_LICENSE_MIT);
+MODULE_AUTHOR("Pedro Falcato");
+

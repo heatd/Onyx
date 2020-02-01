@@ -40,11 +40,14 @@ struct module
 
 struct symbol;
 
+#define SYMBOL_RESOLVE_MAY_BE_STATIC		(1 << 0)
+
 struct module_resolve_ctx
 {
 	const char *sym_name;
 	bool success;
 	struct symbol *sym;
+	unsigned long flags;
 	bool weak_sym;
 };
 
@@ -56,7 +59,10 @@ void *module_allocate_pages(size_t size, int prot);
 void module_dump(void);
 void setup_core_kernel_module(void);
 struct symbol *module_resolve_sym(const char *name);
-void *elf_load_kernel_module(void *file, struct module *module);
+
+struct inode;
+
+void *elf_load_kernel_module(struct inode *file, struct module *module);
 bool module_try_resolve(struct module *m, void *ctx);
 void module_unmap(struct module *module);
 void module_remove(struct module *m, bool unmap_sections);

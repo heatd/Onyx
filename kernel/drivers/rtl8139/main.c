@@ -9,7 +9,7 @@
 #include <errno.h>
 #include <assert.h>
 
-#include <rtl8139.h>
+#include "include/rtl8139.h"
 
 #include <onyx/log.h>
 #include <onyx/irq.h>
@@ -26,10 +26,6 @@
 
 #include <drivers/mmio.h>
 #include <pci/pci.h>
-
-MODULE_AUTHOR("Pedro Falcato");
-MODULE_LICENSE(MODULE_LICENSE_MIT);
-MODULE_INSERT_VERSION();
 
 void *rx_buffer = NULL;
 struct tx_buffer tx_buffers[RTL_NR_TX] = {0};
@@ -300,7 +296,7 @@ struct driver rtl_driver =
 	.name = "rtl"
 };
 
-int module_init()
+static int rtl8139_init()
 {
 	device = get_pcidev_from_vendor_device(RTL8139_DEVICEID, RTL8139_VENDORID);
 	if(!device)
@@ -354,8 +350,14 @@ int module_init()
 	return 0;
 }
 
-int module_fini(void)
+int rtl8139_fini(void)
 {
 	rtl_destroy_tx();
 	return 0;
 }
+
+MODULE_INIT(rtl8139_init);
+MODULE_FINI(rtl8139_fini);
+MODULE_INSERT_VERSION();
+MODULE_LICENSE(MODULE_LICENSE_MIT);
+MODULE_AUTHOR("Pedro Falcato");

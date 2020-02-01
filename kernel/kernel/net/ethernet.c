@@ -17,7 +17,6 @@
 #include <onyx/byteswap.h>
 
 #include <pci/pci.h>
-#include <drivers/e1000.h>
 
 int eth_send_packet(char *destmac, char *payload, uint16_t len, uint16_t protocol, struct netif *netif)
 {

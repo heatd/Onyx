@@ -133,10 +133,14 @@ struct driver virtio_driver =
 	.probe = virtio_probe
 };
 
+extern "C"
 int virtio_init(void)
 {
 	pci_bus_register_driver(&virtio_driver);
 	return 0;
 }
 
-DRIVER_INIT(virtio_init);
+MODULE_INIT(virtio_init);
+MODULE_INSERT_VERSION();
+MODULE_LICENSE(MODULE_LICENSE_MIT);
+MODULE_AUTHOR("Pedro Falcato");

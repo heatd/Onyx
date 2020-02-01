@@ -321,6 +321,8 @@ void security_exception(struct registers *ctx)
 	kernel_tkill(SIGSEGV, current);
 }
 
+#ifdef CONFIG_KTRACE
+
 bool ktrace_enabled_int3 = false;
 
 void ktrace_enable_int3(void)
@@ -332,16 +334,19 @@ void ktrace_disable_int3(void)
 {
 	ktrace_enabled_int3 = true;
 }
+#endif
 
 void breakpoint_exception(struct registers *ctx)
 {
 	if(is_kernel_exception(ctx))
 	{
+#ifdef CONFIG_KTRACE
 		if(ktrace_enabled_int3)
 		{
 			ktrace_int3_handler(ctx);
 			return;
 		}
+#endif
 		dump_interrupt_context(ctx);
 		panic("Breakpoint exception");
 	}

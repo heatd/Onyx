@@ -30,7 +30,7 @@ struct symbol
 
 static inline bool is_useful_symbol(Elf64_Sym *sym)
 {
-	if(sym->st_shndx == SHN_UNDEF)
+	if(sym->st_shndx == SHN_UNDEF || sym->st_shndx >= SHN_LORESERVE)
 		return false;
 	
 	if(ELF64_ST_TYPE(sym->st_info) == STT_FILE ||

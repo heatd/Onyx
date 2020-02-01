@@ -118,7 +118,7 @@ bool module_try_resolve(struct module *m, void *ctx)
 
 		if(s->name_hash == hash)
 		{
-			if(!symbol_is_exported(s))
+			if(!symbol_is_exported(s) && !(c->flags & SYMBOL_RESOLVE_MAY_BE_STATIC))
 				return true;
 			bool is_weak = s->visibility & SYMBOL_VIS_WEAK;
 
@@ -189,7 +189,6 @@ int load_module(const char *path, const char *name)
 {	
 	struct inode *file = NULL;
 	struct module *mod = zalloc(sizeof(struct module));
-	char *buffer = NULL;
 	if(!mod)
 		return -1;
 	
@@ -208,22 +207,7 @@ int load_module(const char *path, const char *name)
 		goto error_path;
 	}
 
-	buffer = malloc(file->i_size);
-
-	if(!buffer)
-	{
-		goto error_path;
-	}
-	
-	size_t read = read_vfs(0, 0, file->i_size, buffer, file);
-	if (read != file->i_size)
-	{
-		errno = EIO;
-		goto error_path;
-	}
-	
-	
-	void *entry = elf_load_kernel_module(buffer, mod);
+	void *entry = elf_load_kernel_module(file, mod);
 	if(!entry)
 	{
 		goto error_path;
@@ -235,21 +219,16 @@ int load_module(const char *path, const char *name)
 	init();
 
 	/* Release used resources */
-	free(buffer);
 	close_vfs(file);
 
 	return 0;
 
 error_path:
-
-	if(buffer)
-		free(buffer);
-
 	if(file)
 		close_vfs(file);
 	module_remove(mod, true);
 
-	return -1;
+	return -errno;
 }
 
 void *module_allocate_pages(size_t size, int prot)

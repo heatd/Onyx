@@ -558,4 +558,8 @@ int ps2_init(void)
 	return ps2_probe(&ps2_platform_device);
 }
 
-DRIVER_INIT(ps2_init);
+MODULE_INIT(ps2_init);
+MODULE_INSERT_VERSION();
+MODULE_LICENSE(MODULE_LICENSE_MIT);
+MODULE_AUTHOR("Pedro Falcato");
+

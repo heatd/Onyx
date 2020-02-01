@@ -14,6 +14,7 @@ export AS:=$(HOST)-as
 export CC:=$(HOST)-gcc
 export CXX:=$(HOST)-g++
 export NM:=$(HOST)-nm
+export LD:=$(HOST)-ld.bfd
 export HOST_CC:=gcc
 export PREFIX:=/usr
 export EXEC_PREFIX:=$(PREFIX)

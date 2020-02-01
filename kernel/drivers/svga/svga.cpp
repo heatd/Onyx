@@ -4,7 +4,7 @@
 * check LICENSE at the root directory for more information
 */
 #include <stdio.h>
-#include <svga.h>
+#include "include/svga.h"
 #include <limits.h>
 
 #include <onyx/smart.h>
@@ -16,7 +16,9 @@
 #include <onyx/compiler.h>
 #include <onyx/scheduler.h>
 
-extern "C" {
+
+extern "C"
+{
 #include <onyx/framebuffer.h>
 }
 
@@ -28,7 +30,7 @@ MODULE_INSERT_VERSION();
 
 #define MPRINTF(...) printf("svga: " __VA_ARGS__)
 
-unique_ptr<SvgaDevice> device;
+static unique_ptr<SvgaDevice> device;
 void SvgaDevice::write_index(uint16_t index)
 {
 	outl(io_space + SVGA_INDEX_PORT, index);
@@ -169,7 +171,10 @@ void SvgaDevice::send_command_fifo(void *command, size_t len)
 	command_buffer[SVGA_FIFO_STOP] += len;
 }
 
-extern "C" int module_init(void)
+extern "C"
+{
+
+static int svga_init(void)
 {
 	MPRINTF("initializing\n");
 
@@ -180,8 +185,8 @@ extern "C" int module_init(void)
 		return 1;
 	}
 
-	device = smartptr::make<SvgaDevice>(dev);
-	if(!device.get_data())
+	device = make_unique<SvgaDevice>(dev);
+	if(!device)
 		return 1;
 	/* Now, get the needed bars (0, 1 and 2, respectively) */
 	struct pci_bar iospace_bar, framebuffer_bar, command_buffer_bar;
@@ -227,7 +232,12 @@ extern "C" int module_init(void)
 	return 0;
 }
 
-extern "C" int module_fini(void)
+static int svga_fini(void)
 {
 	return 0;
+}
+
+MODULE_INIT(svga_init);
+MODULE_FINI(svga_fini);
+
 }

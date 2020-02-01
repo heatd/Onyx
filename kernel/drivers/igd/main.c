@@ -240,4 +240,7 @@ int ihdgpu_init(void)
 	return 0;
 }
 
-DRIVER_INIT(ihdgpu_init);
+MODULE_INIT(ihdgpu_init);
+MODULE_INSERT_VERSION();
+MODULE_LICENSE(MODULE_LICENSE_MIT);
+MODULE_AUTHOR("Pedro Falcato");

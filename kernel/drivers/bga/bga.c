@@ -6,11 +6,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <bga.h>
+#include "include/bga.h"
 
 #include <onyx/mutex.h>
 #include <onyx/compiler.h>
 #include <onyx/video.h>
+#include <onyx/module.h>
 
 #define MPRINTF(...) printf("bga: "__VA_ARGS__)
 
@@ -86,7 +87,7 @@ struct video_device bga_device =
 	.refcount = 0
 };
 
-int module_init(void)
+static int bga_init(void)
 {
 	struct pci_device *device = get_pcidev_from_vendor_device(BOCHSVGA_PCI_DEVICEID, BOCHSVGA_PCI_VENDORID);
 	if(!device)
@@ -101,7 +102,14 @@ int module_init(void)
 	return 0;
 }
 
-int module_fini(void)
+int bga_fini(void)
 {
 	return 0;
 }
+
+MODULE_INSERT_VERSION();
+MODULE_LICENSE(MODULE_LICENSE_MIT);
+MODULE_AUTHOR("Pedro Falcato");
+
+MODULE_INIT(bga_init);
+MODULE_FINI(bga_fini);

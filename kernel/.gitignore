@@ -1,5 +1,5 @@
 *.o
 vmonyx*
-*.kmod
+*.ko
 *.so*
 *.config

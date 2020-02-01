@@ -32,20 +32,27 @@ struct elf_loader_context
 {
 	Elf64_Ehdr *header;
 	Elf64_Shdr *sections;
-	Elf64_Shdr *shstrtab;
+	char *shstrtab;
 	Elf64_Shdr *symtab;
 	Elf64_Shdr *strtab;
+	char *symstrtab;
+	char *strings;
 	Elf64_Sym *syms;
+	struct inode *file;
 };
+
+/* TODO: A bunch of this code requires bound-checking */
 
 static inline char *elf_get_string(struct elf_loader_context *context, Elf64_Word off)
 {
-	return (char*) context->header + context->strtab->sh_offset + off;
+	if(context->strtab->sh_size < off)
+		return NULL;
+	return context->strings + off;
 }
 
 static inline char *elf_get_shstring(struct elf_loader_context *context, Elf64_Word off)
 {
-	return (char*) context->header + context->shstrtab->sh_offset + off;
+	return (char*) context->shstrtab + off;
 }
 
 static Elf64_Sym *elf_get_sym(struct elf_loader_context *ctx, char *symname)
@@ -55,7 +62,10 @@ static Elf64_Sym *elf_get_sym(struct elf_loader_context *ctx, char *symname)
 	
 	for(unsigned int i = 1; i < nr_entries; i++)
 	{
-		if(!strcmp(elf_get_string(ctx,  syms[i].st_name), symname))
+		char *string = elf_get_string(ctx,  syms[i].st_name);
+		if(!string)
+			return NULL;
+		if(!strcmp(string, symname))
 		{
 			return &syms[i];
 		}
@@ -64,21 +74,20 @@ static Elf64_Sym *elf_get_sym(struct elf_loader_context *ctx, char *symname)
 	return NULL;
 }
 
-static inline char *elf_get_reloc_str(Elf64_Ehdr *hdr, Elf64_Shdr *strsec, Elf64_Off off)
+static inline char *elf_get_reloc_str(struct elf_loader_context *ctx, Elf64_Off off)
 {
-	return (char*)hdr + strsec->sh_offset + off;
+	return ctx->symstrtab + off;
 }
 
 uintptr_t get_common_block(const char *name, size_t size);
 
-uintptr_t elf_resolve_symbol(struct elf_loader_context *ctx, Elf64_Shdr *target, size_t sym_idx)
+uintptr_t elf_resolve_symbol(struct elf_loader_context *ctx, size_t sym_idx)
 {
 	Elf64_Sym *symbol = &ctx->syms[sym_idx];
-	Elf64_Shdr *stringtab = &ctx->sections[ctx->symtab->sh_link];
 
 	if(symbol->st_shndx == SHN_UNDEF)
 	{
-		const char *name = elf_get_reloc_str(ctx->header, stringtab, symbol->st_name);
+		const char *name = elf_get_reloc_str(ctx, symbol->st_name);
 		struct symbol *s = module_resolve_sym(name);
 
 		if(s)
@@ -97,7 +106,7 @@ uintptr_t elf_resolve_symbol(struct elf_loader_context *ctx, Elf64_Shdr *target,
 		return symbol->st_value;
 	else if(symbol->st_shndx == SHN_COMMON)
 	{
-		const char *name = elf_get_reloc_str(ctx->header, stringtab, symbol->st_name);
+		const char *name = elf_get_reloc_str(ctx, symbol->st_name);
 		assert(symbol->st_value <= PAGE_SIZE);
 		return get_common_block(name, symbol->st_size);
 	}
@@ -115,18 +124,30 @@ int elf_relocate_addend(struct elf_loader_context *ctx, Elf64_Rela *rela, Elf64_
 {
 	Elf64_Shdr *sections = ctx->sections;
 	Elf64_Shdr *target_section = &sections[section->sh_info];
+	
+	if(!(target_section->sh_flags & SHF_ALLOC))
+		return 0;
 	//printk("Section index: %lu\n", section->sh_info);
-	uintptr_t addr =  (uintptr_t)((char *) ctx->header + target_section->sh_offset);
+	
+	
+	/* Target section->sh_offset's were adjust as to represent the relation
+	 * between the load address and the ctx->header address */
+	
+	uintptr_t addr = (uintptr_t)((char *) ctx->header + target_section->sh_offset);
+	
 	//printk("Addr: %lx\n", addr);
+	
 	uintptr_t *p = (uintptr_t*) (addr + rela->r_offset);
+	
 	//printk("P: %p\n", p);
+	
 	size_t sym_idx = ELF64_R_SYM(rela->r_info);
 
 	int32_t *ptr32s = (int32_t*) p;
 	uint32_t *ptr32u = (uint32_t *) p;
 	if(sym_idx != SHN_UNDEF)
 	{
-		uintptr_t sym = elf_resolve_symbol(ctx, target_section, sym_idx);
+		uintptr_t sym = elf_resolve_symbol(ctx, sym_idx);
 
 		switch (ELF64_R_TYPE(rela->r_info))
 		{
@@ -146,7 +167,7 @@ int elf_relocate_addend(struct elf_loader_context *ctx, Elf64_Rela *rela, Elf64_
 				break;
 			default:
 				printk("Unsuported relocation %lu!\n", ELF64_R_TYPE(rela->r_info));
-				return 1;
+				return -1;
 		}
 	}
 	return 0;
@@ -203,6 +224,8 @@ void* elf_load(struct binfmt_args *args)
 
 bool elf_validate_modinfo(struct elf_loader_context *ctx)
 {
+	/* TODO: Maybe keep modinfo around? */
+
 	bool modinfo_found = false;
 
 	const size_t shnum = ctx->header->e_shnum;
@@ -215,27 +238,43 @@ bool elf_validate_modinfo(struct elf_loader_context *ctx)
 		{
 			modinfo_found = true;
 
-			char *parse = (char*) ctx->header + section->sh_offset;
+			char *parse;
+			char *buf = parse = malloc(section->sh_size);
+			if(!parse)
+				return false;
+			
+			if(read_vfs(0, section->sh_offset, section->sh_size, parse, ctx->file) != section->sh_size)
+			{
+				free(parse);
+				return false;
+			}
+
 			char *kver = NULL;
 			for(size_t j = 0; j < section->sh_size; j++)
 			{
-				if(strncmp(parse, "kernel=", strlen("kernel=")) != 0)
+				if(strncmp(parse, "kernel=", strlen("kernel=")) == 0)
 				{
-					kver = parse + strlen("kernel=") - 1;
+					kver = parse + strlen("kernel=");
 					break;
 				}
 				parse++;
 			}
 
 			if(!kver)
+			{
+				free(buf);
 				return false;
+			}
 
 			/* Check if the kernel version matches up */
 			if(strcmp(OS_RELEASE, kver))
 			{
 				FATAL("module", "Kernel version does not match with the module!\n");
+				free(buf);
 				return false;
 			}
+
+			free(buf);
 		}
 	}
 
@@ -369,8 +408,9 @@ bool elf_load_module_sections(struct elf_loader_context *ctx, struct module *mod
 			}
 			else
 			{
-				memcpy((void *) addr, (char*) ctx->header +
-					section->sh_offset, section->sh_size);
+				if(read_vfs(addr, section->sh_offset, section->sh_size, (void *) addr, ctx->file)
+					!= section->sh_size)
+					return false;
 			}
 
 			section->sh_offset = (Elf64_Off) addr - (Elf64_Off) ctx->header;
@@ -397,7 +437,7 @@ void elf_restore_module_perms(struct module *module)
 bool elf_setup_symtable(struct elf_loader_context *ctx, struct module *module)
 {
 	const size_t nr_entries = ctx->symtab->sh_size / ctx->symtab->sh_entsize;
-	Elf64_Sym *symtab = (void *)((char *) ctx->header + ctx->symtab->sh_offset);
+	Elf64_Sym *symtab = ctx->syms;
 
 	size_t nr_symbols = 0;
 
@@ -422,6 +462,8 @@ bool elf_setup_symtable(struct elf_loader_context *ctx, struct module *module)
 			continue;
 
 		const char *name = elf_get_string(ctx, sym->st_name);
+		if(!name)
+			goto fail;
 
 		struct symbol *s = &symbol_table[n];
 		
@@ -450,27 +492,50 @@ fail:
 	return false;
 }
 
-void *elf_load_kernel_module(void *file, struct module *module)
+void *elf_load_kernel_module(struct inode *file, struct module *module)
 {
+	void *ret = NULL;
 	struct elf_loader_context ctx = {};
+	ctx.file = file;
 
-	if(!file)
-		return errno = EINVAL, NULL;
+	Elf64_Ehdr header;
+	
+	if(read_vfs(0, 0, sizeof(Elf64_Ehdr), &header, file) != sizeof(Elf64_Ehdr))
+		return NULL;
 	
 	/* Check if its elf64 file is invalid */
-	Elf64_Ehdr *header = (Elf64_Ehdr*) file;
-	if(!elf_is_valid(header))
+	if(!elf_is_valid(&header))
 		return errno = EINVAL, NULL;
 	
-	ctx.header = header;
-	Elf64_Shdr *sections = (Elf64_Shdr*)((char*) file + header->e_shoff);
+	ctx.header = &header;
+	Elf64_Shdr *sections = malloc(header.e_shentsize * header.e_shnum);
+	if(!sections)
+		return NULL;
+	
+	if(read_vfs(0, header.e_shoff, header.e_shentsize * header.e_shnum, sections, file)
+	   != header.e_shentsize * header.e_shnum)
+	{
+		free(sections);
+		return NULL;
+	}
 	
 	ctx.sections = sections;
-	ctx.shstrtab = &sections[header->e_shstrndx];
+	Elf64_Shdr *shstrtab = &sections[header.e_shstrndx];
+	ctx.shstrtab = malloc(shstrtab->sh_size);
+	if(!ctx.shstrtab)
+	{
+		goto out_error;
+	}
+
+	if(read_vfs(0, shstrtab->sh_offset, shstrtab->sh_size, ctx.shstrtab, file) != shstrtab->sh_size)
+	{
+		goto out_error;
+	}
+
 
 	Elf64_Shdr *symtab = NULL, *strtab = NULL;
 
-	for(size_t i = 0; i < header->e_shnum; i++)
+	for(size_t i = 0; i < header.e_shnum; i++)
 	{
 		if(!strcmp(elf_get_shstring(&ctx, sections[i].sh_name), ".symtab"))
 			symtab = &sections[i];
@@ -478,19 +543,53 @@ void *elf_load_kernel_module(void *file, struct module *module)
 			strtab = &sections[i];
 	}
 
-	if(!symtab)
-		return errno = EINVAL, NULL;
-	if(!strtab)
-		return errno = EINVAL, NULL;
+	if(!symtab || !strtab)
+	{
+		errno = EINVAL;
+		goto out_error;
+	}
 	
 	ctx.strtab = strtab;
 	ctx.symtab = symtab;
-	ctx.syms = (Elf64_Sym *)((char *) file + symtab->sh_offset);
+	ctx.strings = malloc(strtab->sh_size);
+	if(!ctx.strings)
+		goto out_error;
+	
+	if(read_vfs(0, strtab->sh_offset, strtab->sh_size, ctx.strings, file) != strtab->sh_size)
+		goto out_error;
+
+	ctx.syms = malloc(symtab->sh_size);
+	if(!ctx.syms)
+	{
+		goto out_error;
+	}
+
+	/* Bad section */
+	if(ctx.symtab->sh_link > header.e_shnum)
+		goto out_error;
+
+	if(read_vfs(0, symtab->sh_offset, symtab->sh_size, ctx.syms, file) != symtab->sh_size)
+	{
+		goto out_error;
+	}
+
+	Elf64_Shdr *sec = &sections[ctx.symtab->sh_link];
+
+	ctx.symstrtab = malloc(sec->sh_size);
+	if(!ctx.symstrtab)
+		goto out_error;
+	
+	if(read_vfs(0, sec->sh_offset, sec->sh_size, ctx.symstrtab, file) != sec->sh_size)
+		goto out_error;
 
 	bool modinfo_valid = elf_validate_modinfo(&ctx);
 
 	if(!modinfo_valid)
-		return errno = EINVAL, NULL;
+	{
+		printf("elf_load_kernel_module: %s: invalid modinfo\n", module->name);
+		errno = EINVAL;
+		goto out_error;
+	}
 	
 	elf_create_module_layout(&ctx, module);
 
@@ -498,34 +597,50 @@ void *elf_load_kernel_module(void *file, struct module *module)
 	   !elf_load_module_sections(&ctx, module, ELF_MODULE_RO)   ||
 	   !elf_load_module_sections(&ctx, module, ELF_MODULE_DATA))
 	{
-		return errno = ENOMEM, NULL;
+		errno = ENOMEM;
+		goto out_error;
 	}
 
 	module->layout.base = module->layout.start_text;
 
-	for(size_t i = 0; i < header->e_shnum; i++)
+	for(size_t i = 0; i < header.e_shnum; i++)
 	{
 		Elf64_Shdr *section = &sections[i];
 		if(section->sh_type == SHT_RELA)
 		{
-			Elf64_Rela *r = (Elf64_Rela*)((char*) file + section->sh_offset);
+			Elf64_Rela *r = malloc(section->sh_size);
+			if(!r)
+			{
+				goto out_error;
+			}
+
+			if(read_vfs(0, section->sh_offset, section->sh_size, r, file) != section->sh_size)
+			{
+				free(r);
+				goto out_error;
+			}
+
 			const size_t nr_relocs = section->sh_size / section->sh_entsize;
 			for(size_t j = 0; j < nr_relocs; j++)
 			{
 				Elf64_Rela *rela = &r[j];
-				if(elf_relocate_addend(&ctx, rela, section) == 1)
+				if(elf_relocate_addend(&ctx, rela, section) < 0)
 				{
 					printk("Couldn't relocate the kernel module!\n");
-					return errno = EINVAL, NULL;
+					free(r);
+					errno = EINVAL;
+					goto out_error;
 				}
 			}
+
+			free(r);
 		}
 	}
 
 	elf_restore_module_perms(module);
 
 	if(!elf_setup_symtable(&ctx, module))
-		return NULL;
+		goto out_error;
 
 	char *symbols_to_lookup[2] = {"module_init", "module_fini"};
 	unsigned long sym_values[2] = {0, 0};
@@ -534,19 +649,32 @@ void *elf_load_kernel_module(void *file, struct module *module)
 	{
 		char *name = symbols_to_lookup[i];
 		struct module_resolve_ctx res = {};
+		res.flags = SYMBOL_RESOLVE_MAY_BE_STATIC;
 		res.sym_name = name;
 		
 		module_try_resolve(module, &res);
-		
-		if(!res.success)
-			return errno = EINVAL, NULL;
 
-		sym_values[i] = res.sym->value;
+		/* module_fini isn't required to exist */
+		if(!res.success && i == 0)
+			goto out_error;
+
+		if(res.success)
+			sym_values[i] = res.sym->value;
 	}
 
 	module->fini = (module_fini_t) ((void *) sym_values[1]);
 
-	return (void *) sym_values[0];
+	ret = (void *) sym_values[0];
+
+	/* Exit re-used between the error path and normal exit path */
+out_error:
+	free(ctx.shstrtab);
+	free(ctx.sections);
+	free(ctx.syms);
+	free(ctx.symstrtab);
+	free(ctx.strings);
+
+	return ret;
 }
 
 bool elf_is_valid_exec(uint8_t *file)

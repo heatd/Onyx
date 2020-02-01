@@ -41,7 +41,8 @@ void ahci_destroy_aio(struct ahci_port *port, struct aio_req *req);
 
 #define MPRINTF(...) printf("ahci: "__VA_ARGS__)
 
-struct ahci_device *device = NULL;
+/* TODO: Stop using globals and use a per-device struct instead, using .probe */
+static struct ahci_device *device = NULL;
 static struct pci_device *ahci_dev = NULL;
 static ahci_hba_memory_regs_t *hba = NULL;
 
@@ -890,7 +891,7 @@ struct driver ahci_driver =
 	.devids = &pci_ahci_devids
 };
 
-int module_init()
+static int ahci_init(void)
 {
 	int status = 0;
 	int irq = -1;
@@ -969,8 +970,11 @@ ret:
 	return status;
 }
 
-int module_fini()
+int ahci_fini(void)
 {
 	MPRINTF("de-initializing!\n");
 	return 0;
 }
+
+MODULE_INIT(ahci_init);
+MODULE_FINI(ahci_fini);

@@ -612,4 +612,7 @@ void ata_write_sectors(unsigned int channel, unsigned int drive, uint32_t buffer
 	}
 }
 
-DRIVER_INIT(ata_init);
+MODULE_INIT(ata_init);
+MODULE_INSERT_VERSION();
+MODULE_LICENSE(MODULE_LICENSE_MIT);
+MODULE_AUTHOR("Pedro Falcato");

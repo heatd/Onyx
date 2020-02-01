@@ -329,8 +329,10 @@ void kernel_main(void)
 	/* Initialize multi-processors */
 	cpu_init_mp();
 
+#ifdef CONFIG_KTRACE
 	/* Set up ktrace */
 	ktrace_init();
+#endif
 
 	init_tss();
 

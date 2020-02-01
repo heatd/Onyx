@@ -77,7 +77,6 @@ void e1000_handle_recieve(struct e1000_device *dev)
 irqstatus_t e1000_irq(struct irq_context *ctx, void *cookie)
 {
 	volatile uint32_t status = e1000_read(REG_ICR, cookie);
-	printf("IRQ: status %x\n", status);
 	if(status & ICR_RXT0)
 	{
 		e1000_handle_recieve(cookie);
@@ -524,4 +523,7 @@ int e1000_init(void)
 	return 0;
 }
 
-DRIVER_INIT(e1000_init);
+MODULE_INIT(e1000_init);
+MODULE_INSERT_VERSION();
+MODULE_LICENSE(MODULE_LICENSE_MIT);
+MODULE_AUTHOR("Pedro Falcato");

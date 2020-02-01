@@ -8,7 +8,7 @@
 
 #define DEFAULT_TARGETS_PATH		"/etc/init.d/targets"
 #define MODULE_PREFIX "/usr/lib/modules/"
-#define MODULE_EXT    ".kmod"
+#define MODULE_EXT    ".ko"
 #define PROPERTY_SERVICE "Service"
 #define PROPERTY_DEPENDENCIES "Dependencies"
 #define SUBPROP_WANTS "Wants"

@@ -12,12 +12,13 @@
 MODULE_AUTHOR("Pedro Falcato");
 MODULE_LICENSE(MODULE_LICENSE_MIT);
 
-int module_init()
+static int module_init()
 {
 	printf("Module loaded!\n");
 	return 0;
 } 
-int module_fini()
+
+static int module_fini()
 {
 	printf("Module unloaded!\n");
 	return 0;

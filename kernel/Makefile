@@ -103,7 +103,7 @@ vmonyx: $(OBJ_LINK_LIST) $(ARCHDIR)/linker.ld ../libc/libk.a
 	@echo [LD] $@
 	# Very important to note that right now, the kernel can only link using
 	# ld.bfd due to linker script weirdness. Because of that, we pass -fuse-ld=bfd
-	@$(CC) -fuse-ld=bfd -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(OBJ_LINK_LIST) $(LDFLAGS) $(LIBS)
+	$(CC) -fuse-ld=bfd -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(OBJ_LINK_LIST) $(LDFLAGS) $(LIBS)
 	cp vmonyx vmonyx-unstripped
 	strip -g vmonyx
 acpica/%.o: acpica/%.c kernel.config
@@ -134,9 +134,8 @@ onyx-vdso.so.0: $(ARCHDIR)/__vdso_asm.o $(ARCHDIR)/__vdso.o kernel.config
 	@echo [VDSO]
 	$(CC) $(VDSO_LDFLAGS) $(ARCHDIR)/__vdso_asm.o $(ARCHDIR)/__vdso.o -o $@ -ffreestanding \
 	 -nostdlib -Iinclude -I../libc/include
-clean:
+clean: clean-modules
 	rm -f vmonyx $(OBJS) $(ALL_OUR_OBJS) *.o */*.o */*/*.o
-	$(MAKE) -C modules/ clean
 
 install: install-headers install-kernel
 
@@ -144,6 +143,33 @@ install-headers:
 	mkdir -p $(DESTDIR)$(INCLUDEDIR)
 	cp -RTv include $(DESTDIR)$(INCLUDEDIR)
 	cp -RTv drivers/include $(DESTDIR)$(INCLUDEDIR)/drivers
+
+
+CPPFLAGS_MODULES:= $(CPPFLAGS) -D __KERNEL_MODULE__
+
+define NEWLINE
+
+
+endef
+
+
+$(obj-m): CPPFLAGS:= $(CPPFLAGS_MODULES)
+
+define define_module_target
+$(1): $(2)
+	$(LD) -r $(2) -o drivers/$(1)/$(1).ko
+
+$(1)-clean:
+	rm -f $(2) drivers/$(1)/$(1).ko
+endef
+
+$(foreach module, $(modules), $(eval $(call define_module_target,$(module),$$($(module)-y)) $(NEWLINE)))
+
+kernel-modules: $(foreach module, $(modules), $(module))
+
+clean-modules: $(foreach module, $(modules), $(module)-clean)
+
+MODULE_FILES:=$(foreach module, $(modules), drivers/$(module)/$(module).ko)
 
 install-kernel: vmonyx kernel-modules onyx-vdso.so.0
 	mkdir -p $(DESTDIR)$(BOOTDIR)
@@ -153,6 +179,10 @@ install-kernel: vmonyx kernel-modules onyx-vdso.so.0
 	mkdir -p $(DESTDIR)/var/
 	mkdir -p $(DESTDIR)/tmp/
 	mkdir -p $(DESTDIR)/sys/
+	mkdir -p $(DESTDIR)/usr/lib/modules
+ifneq ($(MODULE_FILES),)
+	cp $(MODULE_FILES) $(DESTDIR)/usr/lib/modules
+endif
 	mkdir -p $(DESTDIR)$(LIBDIR)
 	cp $<  $(DESTDIR)$(BOOTDIR)
 	cp onyx-vdso.so.0 $(DESTDIR)$(LIBDIR)
@@ -160,5 +190,3 @@ install-kernel: vmonyx kernel-modules onyx-vdso.so.0
 	mkdir -p $(DESTDIR)/usr/share/man
 	mkdir -p $(DESTDIR)/usr/share/man/man9
 	cp onyx.9 $(DESTDIR)/usr/share/man/man9
-kernel-modules:
-	$(MAKE) -C modules/

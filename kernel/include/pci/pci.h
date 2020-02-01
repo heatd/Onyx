@@ -200,7 +200,6 @@ struct pci_device *get_pcidev_from_vendor_device(uint16_t deviceid, uint16_t ven
 struct pci_device *get_pcidev(struct pci_device_address *addr);
 struct pci_device *get_pcidev_from_classes(uint8_t pciclass, uint8_t subclass, uint8_t progif);
 void pci_set_barx(uint8_t slot, uint8_t device, uint8_t function, uint8_t index, uint32_t address, uint8_t is_io, uint8_t is_prefetch);
-void pci_initialize_drivers();
 void pci_write(struct pci_device *dev, uint64_t value, uint16_t off, size_t size);
 uint64_t pci_read(struct pci_device *dev, uint16_t off, size_t size);
 void pci_enable_busmastering(struct pci_device *dev);

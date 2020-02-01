@@ -1,0 +1,1 @@
+obj-y+= drivers/example/main.o

@@ -8,10 +8,14 @@
 
 int ehci_init();
 
+extern "C"
 int usb_main()
 {
 	return ehci_init();	
 }
 
 
-DRIVER_INIT(usb_main);
+MODULE_INIT(usb_main);
+MODULE_INSERT_VERSION();
+MODULE_LICENSE(MODULE_LICENSE_MIT);
+MODULE_AUTHOR("Pedro Falcato");

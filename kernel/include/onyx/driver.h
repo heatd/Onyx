@@ -6,10 +6,11 @@
 #ifndef _KERNEL_DRIVER_H
 #define _KERNEL_DRIVER_H
 
-#include <onyx/module.h>
-
 #define DRIVER_INIT(x) __attribute__((section(".driver.init"), used, aligned(1))) \
 static int (*__module_init)(void) = x
+
+#include <onyx/module.h>
+
 
 void driver_init(void);
 

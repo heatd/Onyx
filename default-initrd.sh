@@ -27,8 +27,8 @@ strip -g --strip-all $DESTDIR/sbin/init
 #du -smh $DESTDIR/usr/lib/libc.so
 #du -smh $DESTDIR/usr/bin/dash
 cp $SYSTEM_ROOT/usr/lib/modules/* $DESTDIR/usr/lib/modules
-strip -g --strip-unneeded $DESTDIR/usr/lib/modules/*.kmod
-#du -smh $DESTDIR/usr/lib/modules/*.kmod
+#strip -g --strip-unneeded $DESTDIR/usr/lib/modules/*.ko
+#du -smh $DESTDIR/usr/lib/modules/*.ko
 ln -sf libc.so $DESTDIR/usr/lib/ld-onyx.so
 
 toolchain=$(dirname `which $HOST-gcc`)/..
