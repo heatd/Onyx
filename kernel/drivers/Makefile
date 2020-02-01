@@ -11,7 +11,11 @@ $(eval $(call INCLUDE_IF_ENABLED,CONFIG_SVGA,svga))
 $(eval $(call INCLUDE_IF_ENABLED,CONFIG_USB,usb))
 $(eval $(call INCLUDE_IF_ENABLED,CONFIG_VIRTIO,virtio))
 
+ifeq ($(CONFIG_X86_PLATFORM), pc)
+
 include drivers/mmio_utils/Makefile
 include drivers/pci/Makefile
 include drivers/ps2/Makefile
 include drivers/rtc/Makefile
+
+endif
