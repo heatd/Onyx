@@ -606,7 +606,7 @@ void ahci_port_set_idle(ahci_port_t *port)
 }
 
 int ahci_allocate_port_lists(ahci_hba_memory_regs_t *hba, ahci_port_t *port,
-struct ahci_port *_port)
+	struct ahci_port *_port)
 {
 	bool addr64_supported = hba->host_cap & AHCI_CAP_ADDR64;
 	/* Allocates the command list and the FIS buffer for a port */
@@ -630,6 +630,7 @@ struct ahci_port *_port)
 
 	if((uintptr_t) command_list & 0xFFFFFFFF00000000 && addr64_supported == false)
 		goto error;
+
 	if((uintptr_t) fisb & 0xFFFFFFFF00000000 && addr64_supported == false)
 		goto error;
 
@@ -641,9 +642,9 @@ struct ahci_port *_port)
 
 	/* Set FB and CB */
 	port->command_list_base_low = (uintptr_t) command_list & 0xFFFFFFFF;
-	port->command_list_base_hi = (uintptr_t) command_list & 0xFFFFFFFF00000000;
+	port->command_list_base_hi = ((unsigned long) command_list) >> 32;
 	port->fis_list_base_low = (uintptr_t) fisb & 0xFFFFFFFF;
-	port->fis_list_base_hi = (uintptr_t) fisb & 0xFFFFFFFF00000000;
+	port->fis_list_base_hi = ((unsigned long) fisb) >> 32;
 	
 	return 0;
 error:
