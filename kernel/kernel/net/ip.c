@@ -29,7 +29,7 @@ int ipv4_send_packet(uint32_t senderip, uint32_t destip, unsigned int type, char
 	if(!ip_header)
 		return -ENOMEM;
 
-	memset(ip_header, 0, sizeof(ip_header_t) + payload_size);
+	memset(ip_header, 0, sizeof(ip_header_t));
 
 	ip_header->source_ip = htonl(senderip);
 	ip_header->dest_ip = htonl(destip);
@@ -40,6 +40,7 @@ int ipv4_send_packet(uint32_t senderip, uint32_t destip, unsigned int type, char
 	ip_header->version = 4;
 	ip_header->ihl = 5;
 	ip_header->header_checksum = ipsum(ip_header, ip_header->ihl * sizeof(uint32_t));
+	printk("checksum: %x\n", ip_header->header_checksum);
 	memcpy(&ip_header->payload, payload, payload_size);
 
 	unsigned char destmac[6] = {0};

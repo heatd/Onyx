@@ -57,7 +57,7 @@ static inline uint16_t __ipsum_unfolded(void *addr, size_t bytes, uint16_t init_
 		carry = ret >> 16;
 		ret &= 0xFFFF;
 	}
-	return ~ret;
+	return ret;
 }
 
 static inline uint16_t ipsum_unfolded(void *addr, size_t bytes)
