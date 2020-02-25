@@ -10,12 +10,13 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
+#include <stdio.h>
 
 #include <onyx/compiler.h>
 #include <onyx/array_iterator.h>
 #include <onyx/panic.h>
 #include <onyx/new.h>
-#include <stdio.h>
 #include <onyx/utility.hpp>
 
 namespace cul
@@ -226,24 +227,24 @@ public:
 		nr_elems = nr;
 	}
 
-	array_iterator<T> begin()
+	T* begin()
 	{
-		return array_iterator<T>{data};
+		return data;
 	}
 
-	array_iterator<T> end()
+	T* end()
 	{
-		return array_iterator<T>{&data[nr_elems]};
+		return &data[nr_elems];
 	}
 
-	const_array_iterator<T> cbegin()
+	const T* cbegin() const
 	{
-		return const_array_iterator<T>{data};
+		return data;
 	}
 
-	const_array_iterator<T> cend()
+	const T* cend() const
 	{
-		return const_array_iterator<T>{&data[nr_elems]};
+		return &data[nr_elems];
 	}
 
 	T *get_buf()

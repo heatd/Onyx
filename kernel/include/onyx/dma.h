@@ -10,6 +10,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct phys_range
 {
 	uintptr_t addr;
@@ -30,5 +34,9 @@ struct phys_ranges
 int dma_get_ranges(void *vbuf, size_t buf_size, size_t max_range,
 	struct phys_ranges *ranges);
 void dma_destroy_ranges(struct phys_ranges *ranges);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

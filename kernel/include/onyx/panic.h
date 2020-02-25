@@ -44,9 +44,9 @@ template <typename T>
 void panic_bounds_check(T* arr, bool is_vec, unsigned long bad_index)
 {
 	const char *type = is_vec ? "vector" : "array";
-	printf("%s::operator[] detected a bad access with index %lu\n",
+	printk("%s::operator[] detected a bad access with index %lu\n",
 		type, bad_index);
-	printf("%s address: %p\n", type, arr);
+	printk("%s address: %p\n", type, arr);
 	panic("array bounds check");
 }
 #endif

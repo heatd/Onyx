@@ -89,5 +89,7 @@ static inline int count_bits64(uint64_t num)
 #define __PASTE(a,b) ___PASTE(a,b)
 
 #define COMPILER_BARRIER()		__asm__ __volatile__("" ::: "memory")
+#define ilog2(X) ((unsigned) (8*sizeof (unsigned long long) - __builtin_clzll((X)) - 1))
+#define ALIGN_TO(x, y) (((unsigned long)x + (y - 1)) & -y)
 
 #endif /* COMPILER_H */

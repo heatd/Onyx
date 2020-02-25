@@ -74,7 +74,7 @@ struct wait_queue_token *wait_queue_wake_unlocked(struct wait_queue *queue)
 
 void wait_queue_wake(struct wait_queue *queue)
 {
-	spin_lock(&queue->lock);
+	spin_lock_irqsave(&queue->lock);
 
 	
 	if(!queue->token_head)
@@ -85,7 +85,7 @@ void wait_queue_wake(struct wait_queue *queue)
 	
 	struct wait_queue_token *t = wait_queue_wake_unlocked(queue);
 
-	spin_unlock(&queue->lock);
+	spin_unlock_irqrestore(&queue->lock);
 
 	if(t->callback) t->callback(t->context, t);
 
@@ -94,7 +94,7 @@ void wait_queue_wake(struct wait_queue *queue)
 
 void wait_queue_wake_all(struct wait_queue *queue)
 {
-	spin_lock(&queue->lock);
+	spin_lock_irqsave(&queue->lock);
 
 	while(queue->token_head)
 	{
@@ -104,25 +104,25 @@ void wait_queue_wake_all(struct wait_queue *queue)
 		thread_wake_up(t->thread);
 	}
 
-	spin_unlock(&queue->lock);
+	spin_unlock_irqrestore(&queue->lock);
 	
 }
 
 void wait_queue_add(struct wait_queue *queue, struct wait_queue_token *token)
 {
-	spin_lock(&queue->lock);
+	spin_lock_irqsave(&queue->lock);
 
 	token->prev = token->next = NULL;
 	append_to_queue(queue, token);
 
-	spin_unlock(&queue->lock);
+	spin_unlock_irqrestore(&queue->lock);
 }
 
 void wait_queue_remove(struct wait_queue *queue, struct wait_queue_token *token)
 {
-	spin_lock(&queue->lock);
+	spin_lock_irqsave(&queue->lock);
 
 	dequeue_token(queue, token);
 
-	spin_unlock(&queue->lock);
+	spin_unlock_irqrestore(&queue->lock);
 }

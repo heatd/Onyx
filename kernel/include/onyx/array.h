@@ -40,24 +40,24 @@ public:
 		return nr_elem;
 	}
 
-	array_iterator<T> begin()
+	T* begin()
 	{
-		return array_iterator<T>(data);
+		return data;
 	}
 
-	array_iterator<T> end()
+	T* end()
 	{
-		return array_iterator<T>(data + nr_elem);
+		return data + nr_elem;
 	}
 
-	const_array_iterator<T> cbegin()
+	const T* cbegin() const
 	{
-		return const_array_iterator<T>(data);
+		return data;
 	}
 
-	const_array_iterator<T> cend()
+	const T* cend() const
 	{
-		return const_array_iterator<T>(data + nr_elem);
+		return data + nr_elem;
 	}
 };
 

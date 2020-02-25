@@ -39,12 +39,9 @@
 
 #define NR_ZONES 3
 #define IS_HUGE_ALIGNED(x) (((unsigned long) x % HUGE_PAGE_SIZE) ? 0 : 1)
-#define ALIGN_TO(x, y) (((unsigned long)x + (y - 1)) & -y)
 #define IS_DMA_PTR(x) x < DMA_UPPER_LIMIT
 #define IS_HIGHMEM_PTR(x) x > HIGH_MEM_FLOOR && x < HIGH_MEM_LIMIT
 #define IS_HIGHMEM64_PTR(x) x > HIGH_MEM_64_FLOOR && x < HIGH_MEM_64_LIMIT
-
-#define ilog2(X) ((unsigned) (8*sizeof (unsigned long long) - __builtin_clzll((X)) - 1))
 
 
 /* Passed to alloc_page() */

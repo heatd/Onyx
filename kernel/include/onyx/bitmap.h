@@ -35,10 +35,9 @@ private:
 	unsigned long *bitmap;
 	size_t size;
 	size_t size_in_longs;
-	struct spinlock lock;
 	static constexpr unsigned long bits_per_entry = sizeof(unsigned long) * 8;
 public:
-	Bitmap() : bitmap{}, size(s), lock{}
+	Bitmap() : bitmap{}, size(s)
 	{
 		size_in_longs = size / (8 * sizeof(unsigned long));
 		if(size % (8 * sizeof(unsigned long)))
@@ -102,7 +101,6 @@ public:
 
 	inline bool FindFreeBit(unsigned long *bit)
 	{
-		scoped_spinlock guard {&lock};
 		for(size_t i = 0; i < size_in_longs; i++)
 		{
 			if(bitmap[i] == ULONG_MAX)

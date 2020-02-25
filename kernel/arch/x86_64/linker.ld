@@ -71,10 +71,10 @@ SECTIONS
 		*(.ehtable*)
 		_ehtable_end = .;
 		__mcount_loc_start = .;
-		*(__mcount_loc*)
+		*(__mcount_loc)
 		__mcount_loc_end = .;
 		__return_loc_start = .;
-		*(__return_loc*)
+		*(__return_loc)
 		__return_loc_end = .;
 	} : text
 

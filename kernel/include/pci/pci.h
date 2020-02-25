@@ -22,6 +22,8 @@
 #define PCI_BAR0 				0x10
 #define PCI_BARx(index) 			(PCI_BAR0 + 0x4 * index)
 
+#define PCI_NR_BARS						6
+
 #define PCI_REGISTER_VENDOR_ID			0x0
 #define PCI_REGISTER_DEVICE_ID			0x2
 #define PCI_REGISTER_COMMAND 			0x4
@@ -82,25 +84,25 @@
 #define PCI_STATUS_SIGNALED_SYSTEM_ERROR	(1 << 14)
 #define PCI_STATUS_DETECTED_PARITY_ERROR	(1 << 15)
 
-#define PCI_CAP_ID_RESERVED				(0)
+#define PCI_CAP_ID_RESERVED							(0)
 #define PCI_CAP_ID_POWER_MANAGEMENT_INTERFACE		(1)
-#define PCI_CAP_ID_AGP					(2)
-#define PCI_CAP_ID_VPD					(3)
-#define PCI_CAP_ID_SLOT_IDENT				(4)
-#define PCI_CAP_ID_MSI					(5)
-#define PCI_CAP_ID_COMPACTPCI_HOT_SWAP			(6)
-#define PCI_CAP_ID_PCI_X				(7)
-#define PCI_CAP_ID_HYPER_TRANSPORT			(8)
-#define PCI_CAP_ID_VENDOR				(9)
-#define PCI_CAP_ID_DEBUG_PORT				(0xA)
+#define PCI_CAP_ID_AGP								(2)
+#define PCI_CAP_ID_VPD								(3)
+#define PCI_CAP_ID_SLOT_IDENT						(4)
+#define PCI_CAP_ID_MSI								(5)
+#define PCI_CAP_ID_COMPACTPCI_HOT_SWAP				(6)
+#define PCI_CAP_ID_PCI_X							(7)
+#define PCI_CAP_ID_HYPER_TRANSPORT					(8)
+#define PCI_CAP_ID_VENDOR							(9)
+#define PCI_CAP_ID_DEBUG_PORT						(0xA)
 #define PCI_CAP_ID_COMPACTPCI_CENTRAL_RSRC_CNTRL	(0xB)
-#define PCI_CAP_ID_PCI_HOTPLUG				(0xC)
-#define PCI_CAP_ID_BRIDGE_SUBSYS_VENDOR			(0xD)
-#define PCI_CAP_ID_AGPX8				(0xE)
-#define PCI_CAP_ID_SECURE_DEVICE			(0xF)
-#define PCI_CAP_ID_PCI_EXPRESS				(0x10)
-#define PCI_CAP_ID_MSI_X				(0x11)
-#define PCI_CAP_ID_AF					(0x13)
+#define PCI_CAP_ID_PCI_HOTPLUG						(0xC)
+#define PCI_CAP_ID_BRIDGE_SUBSYS_VENDOR				(0xD)
+#define PCI_CAP_ID_AGPX8							(0xE)
+#define PCI_CAP_ID_SECURE_DEVICE					(0xF)
+#define PCI_CAP_ID_PCI_EXPRESS						(0x10)
+#define PCI_CAP_ID_MSI_X							(0x11)
+#define PCI_CAP_ID_AF								(0x13)
 
 #define PCI_DRIVER_GENERIC 0
 #define PCI_DRIVER_SPECIFIC 1

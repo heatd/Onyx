@@ -267,11 +267,12 @@ void __cpu_handle_message(void);
 #ifdef __cplusplus
 }
 #endif
+
 #ifdef __x86_64__
 
 #define DISABLE_INTERRUPTS() __asm__ __volatile__("cli")
 #define ENABLE_INTERRUPTS() __asm__ __volatile__("sti")
-#endif
+
 
 static inline uintptr_t cpu_get_cr0(void)
 {
@@ -300,5 +301,10 @@ static inline uintptr_t cpu_get_cr4(void)
 	__asm__ __volatile__("mov %%cr4, %0":"=r"(cr4));
 	return cr4;
 }
+
+#define write_memory_barrier()	__asm__ __volatile__("sfence" ::: "memory")
+#define read_memory_barrier()	__asm__ __volatile__("lfence" ::: "memory")
+
+#endif
 
 #endif
