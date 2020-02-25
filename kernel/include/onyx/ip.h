@@ -8,7 +8,8 @@
 
 #include <stdint.h>
 
-#include <onyx/ethernet.h>
+#include <onyx/netif.h>
+#include <onyx/packetbuf.h>
 
 #define IPV4_ICMP 1
 #define IPV4_IGMP 2
@@ -76,8 +77,15 @@ static inline uint16_t ipsum(void *addr, size_t bytes)
 }
 
 int ipv4_send_packet(uint32_t senderip, uint32_t destip, unsigned int type,
-		     char *payload, size_t payload_size, struct netif *netif);
+                     struct packetbuf_info *buf, struct netif *netif);
 struct socket *ipv4_create_socket(int type, int protocol);
 void ipv4_handle_packet(ip_header_t *header, size_t size, struct netif *netif);
+
+extern struct packetbuf_proto __ipv4_pbf;
+
+static inline struct packetbuf_proto *ipv4_get_packetbuf(void)
+{
+	return &__ipv4_pbf;
+}
 
 #endif

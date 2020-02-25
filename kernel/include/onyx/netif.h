@@ -16,6 +16,7 @@ struct netif;
 #include <sys/socket.h>
 
 struct udp_socket;
+
 #define NETIF_LINKUP		(1 << 0)
 struct netif
 {
@@ -33,6 +34,9 @@ struct netif
 	struct spinlock hashtable_spinlock;
 	struct spinlock udp_socket_lock;
 	struct list_head udp_sockets;
+	struct packetbuf_proto * (*get_packetbuf_proto)(struct netif *n);
+	/* To be filled for stuff like virtio */
+	struct packetbuf_proto *if_proto;
 };
 
 #ifdef __cplusplus

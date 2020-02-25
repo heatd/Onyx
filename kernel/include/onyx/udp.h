@@ -20,26 +20,6 @@ typedef struct udp
 	uint8_t payload[0];
 } udp_header_t;
 
-static inline uint16_t udpsum(udp_header_t *hdr)
-{
-	uint32_t sum = 0;
-	uint32_t ret = 0;
-	uint16_t *ptr = (uint16_t*) hdr;
-	for(int i = 0; i < (hdr->len * 2); i++)
-	{
-		sum += ptr[i];
-	}
-	ret = sum & 0xFFFF;
-	uint32_t carry = sum - ret;
-	while(carry)
-	{
-		ret += carry;
-		carry = (ret - (ret & 0xFFFF)) >> 16;
-		ret &= 0xFFFF;
-	}
-	return ~ret;
-}
-
 struct udp_packet
 {
 	struct sockaddr_in addr;

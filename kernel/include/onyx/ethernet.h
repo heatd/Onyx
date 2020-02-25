@@ -10,6 +10,7 @@
 #include <stdint.h>
 
 #include <onyx/netif.h>
+#include <onyx/packetbuf.h>
 
 #define PROTO_IPV4 ((uint16_t) 0x800)
 #define PROTO_ARP ((uint16_t) 0x806)
@@ -38,13 +39,16 @@ typedef int (*device_send_packet)(const void*, uint16_t);
 #ifdef __cplusplus
 extern "C" {
 #endif
-void eth_set_packet_buf(uint8_t *buf);
-void eth_set_packet_len(uint16_t len);
-void eth_set_dev_send_packet(device_send_packet);
-int eth_send_packet(char *destmac, char *payload, uint16_t len, uint16_t protocol, struct netif *netif);
-int ethernet_handle_packet(uint8_t *packet, uint16_t len);
-int ethernet_init();
-void eth_set_router_mac(char* mac);
+
+int eth_send_packet(char *destmac, struct packetbuf_info *buf, uint16_t protocol, struct netif *netif);
+
+extern struct packetbuf_proto __eth_proto;
+
+static inline struct packetbuf_proto *eth_get_packetbuf_proto(void)
+{
+	return &__eth_proto;
+}
+
 #ifdef __cplusplus
 }
 #endif

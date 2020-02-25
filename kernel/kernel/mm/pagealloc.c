@@ -172,9 +172,12 @@ struct page *page_alloc_from_arena(size_t nr_pages, unsigned long flags, struct 
 
 struct page *page_alloc(size_t nr_pages, unsigned long flags)
 {
+	size_t i = 0;
 	struct page *pages = NULL;
 	for_every_arena(&main_cpu)
 	{
+		i++;
+
 		if(flags & PAGE_ALLOC_4GB_LIMIT &&
 			(unsigned long) arena->start_arena > ADDRESS_4GB_MARK)
 		{
@@ -185,6 +188,7 @@ struct page *page_alloc(size_t nr_pages, unsigned long flags)
 			continue;
 		if((pages = page_alloc_from_arena(nr_pages, flags, arena)) != NULL)
 		{
+			if(flags & (1 << 12)) printk("iterations %lu\n", i);
 			used_pages += nr_pages;
 			return pages;
 		}

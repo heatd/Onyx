@@ -7,7 +7,7 @@
 #include <string.h>
 #include <errno.h>
 
-/* Don't change the include order! Maybe TOFIX?*/
+/* Don't change the include order! Maybe TOFIX? */
 #include <onyx/ethernet.h>
 #include <onyx/netif.h>
 #include <onyx/spinlock.h>
@@ -15,6 +15,7 @@
 #include <onyx/compiler.h>
 #include <onyx/ip.h>
 #include <onyx/log.h>
+#include <onyx/byteswap.h>
 
 static volatile int arp_response_arrived = 0;
 
@@ -69,17 +70,42 @@ struct arp_cache *arp_find(struct netif *netif, uint32_t ip)
 	return arp;
 }
 
+size_t arp_get_packetlen(void *info, struct packetbuf_proto **next, void **next_info);
+
+struct packetbuf_proto arp_proto = 
+{
+	.name = "arp",
+	.get_len = arp_get_packetlen
+};
+
+size_t arp_get_packetlen(void *info, struct packetbuf_proto **next, void **next_info)
+{
+	struct netif *n = info;
+	
+	if(n->if_proto)
+	{
+		*next = n->if_proto;
+		*next_info = info;
+	}
+
+	return sizeof(arp_request_t);
+}
+
 int arp_submit_request(struct arp_cache *c, struct netif *netif)
 {
-	arp_request_t *arp = malloc(sizeof(arp_request_t));
-	if(!arp)
-		return errno = ENOMEM, -1;
+	struct packetbuf_info bufs = {0};
+	
+	if(packetbuf_alloc(&bufs, &arp_proto, netif) < 0)
+		return -ENOMEM;
+
+	size_t arp_header_off = packetbuf_get_off(&bufs);
+	arp_request_t *arp = (void *)(((char *) bufs.packet) + arp_header_off);
 	memset(arp, 0, sizeof(arp_request_t));
-	arp->htype = LITTLE_TO_BIG16(ARP_ETHERNET);
+	arp->htype = htons(ARP_ETHERNET);
 	arp->ptype = 0x0008;
 	arp->hlen = ARP_HLEN_ETHERNET;
 	arp->plen = ARP_PLEN_IPV4;
-	arp->operation = LITTLE_TO_BIG16(ARP_OP_REQUEST);
+	arp->operation = htons(ARP_OP_REQUEST);
 	
 	memcpy(&arp->sender_hw_address, &netif->mac_address, 6);
 	arp->target_hw_address[0] = 0xFF;
@@ -93,11 +119,11 @@ int arp_submit_request(struct arp_cache *c, struct netif *netif)
 	arp->sender_proto_address[2] = 0;
 	arp->sender_proto_address[3] = 0;
 	memcpy(&arp->target_proto_address, &c->ip, ARP_PLEN_IPV4);
-	int st = eth_send_packet((char*) &arp->target_hw_address, (char*) arp,
-		sizeof(arp_request_t), PROTO_ARP, netif);
-	if(st)
-		return -1;
-	while(1);
+	int st = eth_send_packet((char*) &arp->target_hw_address, &bufs, PROTO_ARP, netif);
+	
+	packetbuf_free(&bufs);
+
+	return st;
 }
 
 int arp_resolve_in(uint32_t ip, unsigned char *mac, struct netif *netif)

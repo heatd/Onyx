@@ -18,6 +18,7 @@
 #include <onyx/compiler.h>
 #include <onyx/utils.h>
 #include <onyx/byteswap.h>
+#include <onyx/packetbuf.h>
 
 #include <netinet/in.h>
 
@@ -38,14 +39,44 @@ uint16_t udpv4_calculate_checksum(udp_header_t *header, uint32_t srcip, uint32_t
 	return ipsum_fold(r);
 }
 
+#include <onyx/clock.h>
+
+size_t udpv4_get_packetlen(void *info, struct packetbuf_proto **next, void **next_info);
+
+struct packetbuf_proto udpv4_proto = 
+{
+	.name = "udp",
+	.get_len = udpv4_get_packetlen
+};
+
+size_t udpv4_get_packetlen(void *info, struct packetbuf_proto **next, void **next_info)
+{
+	struct netif *n = info;
+
+	(void) n;
+
+	*next = ipv4_get_packetbuf();
+	*next_info = info;
+
+	return sizeof(udp_header_t);
+}
+
 int udp_send_packet(char *payload, size_t payload_size, int source_port,
 	            int dest_port, uint32_t srcip, uint32_t destip,
 		    	struct netif *netif)
 {
-	udp_header_t *udp_header = malloc(sizeof(udp_header_t) + payload_size);
-	if(!udp_header)
-		return errno = ENOMEM, 1;
+	struct packetbuf_info buf = {0};
+	buf.length = payload_size;
+	buf.packet = NULL;
+
+	if(packetbuf_alloc(&buf, &udpv4_proto, netif) < 0)
+	{
+		packetbuf_free(&buf);
+		return -1;
+	}
 	
+	udp_header_t *udp_header = (void *)(((char *) buf.packet) + packetbuf_get_off(&buf));
+
 	memset(udp_header, 0, sizeof(udp_header_t));
 
 	udp_header->source_port = htons(source_port);
@@ -54,11 +85,11 @@ int udp_send_packet(char *payload, size_t payload_size, int source_port,
 					  payload_size));
 	memcpy(&udp_header->payload, payload, payload_size);
 
-	// TODO: Doesn't work yet, investigate.
 	udp_header->checksum = udpv4_calculate_checksum(udp_header, srcip, destip);
-	int ret = ipv4_send_packet(srcip, destip, IPV4_UDP, (char*) udp_header,
-				   sizeof(udp_header_t) + payload_size, netif);
-	free(udp_header);
+	int ret = ipv4_send_packet(srcip, destip, IPV4_UDP, &buf, netif);
+
+	packetbuf_free(&buf);
+
 	return ret;
 }
 

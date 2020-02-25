@@ -21,6 +21,7 @@
 #include <onyx/netif.h>
 #include <onyx/dev.h>
 #include <onyx/panic.h>
+#include <onyx/ethernet.h>
 
 #include <drivers/mmio.h>
 #include "e1000.h"
@@ -451,6 +452,11 @@ struct pci_id e1000_pci_ids[] =
 	{ PCI_ID_DEVICE(INTEL_VENDOR, E1000_82577LM, NULL) }
 };
 
+struct packetbuf_proto *e1000_get_packetbuf_proto(struct netif *n)
+{
+	return eth_get_packetbuf_proto();
+}
+
 int e1000_probe(struct device *__dev)
 {
 	struct pci_device *dev = (struct pci_device *) __dev;
@@ -503,6 +509,7 @@ int e1000_probe(struct device *__dev)
 	n->flags |= NETIF_LINKUP;
 	n->sendpacket = e1000_send_packet;
 	n->priv = nicdev;
+	n->get_packetbuf_proto = e1000_get_packetbuf_proto;
 	nicdev->nic_netif = n;
 	memcpy(n->mac_address, nicdev->e1000_internal_mac_address, 6);
 	netif_register_if(n);
