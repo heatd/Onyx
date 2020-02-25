@@ -21,19 +21,33 @@
 
 #include <netinet/in.h>
 
-uint16_t udp_calculate_checksum(udp_header_t *header)
+uint16_t udpv4_calculate_checksum(udp_header_t *header, uint32_t srcip, uint32_t dstip)
 {
-	return 0;
+	srcip = htonl(srcip);
+	dstip = htonl(dstip);
+	uint16_t proto = IPV4_UDP << 8;
+	uint16_t packet_length = ntohs(header->len);
+	
+	uint16_t r = __ipsum_unfolded(&srcip, sizeof(srcip), 0);
+	r = __ipsum_unfolded(&dstip, sizeof(dstip), r);
+	r = __ipsum_unfolded(&proto, sizeof(proto), r);
+	r = __ipsum_unfolded(&header->len, sizeof(header->len), r);
+	
+	r = __ipsum_unfolded(header, packet_length, r);
+
+	return ipsum_fold(r);
 }
 
 int udp_send_packet(char *payload, size_t payload_size, int source_port,
 	            int dest_port, uint32_t srcip, uint32_t destip,
 		    	struct netif *netif)
 {
-	udp_header_t *udp_header = zalloc(sizeof(udp_header_t) + payload_size);
+	udp_header_t *udp_header = malloc(sizeof(udp_header_t) + payload_size);
 	if(!udp_header)
 		return errno = ENOMEM, 1;
 	
+	memset(udp_header, 0, sizeof(udp_header_t));
+
 	udp_header->source_port = htons(source_port);
 	udp_header->dest_port = htons(dest_port);
 	udp_header->len = htons((uint16_t)(sizeof(udp_header_t) +
@@ -41,7 +55,7 @@ int udp_send_packet(char *payload, size_t payload_size, int source_port,
 	memcpy(&udp_header->payload, payload, payload_size);
 
 	// TODO: Doesn't work yet, investigate.
-	udp_header->checksum = udp_calculate_checksum(udp_header);
+	udp_header->checksum = udpv4_calculate_checksum(udp_header, srcip, destip);
 	int ret = ipv4_send_packet(srcip, destip, IPV4_UDP, (char*) udp_header,
 				   sizeof(udp_header_t) + payload_size, netif);
 	free(udp_header);
