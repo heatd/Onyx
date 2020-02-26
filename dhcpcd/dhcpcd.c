@@ -22,6 +22,7 @@
 #include <dhcp.h>
 
 #define DHCP_MIN_OPT_OFFSET	4
+
 char *program_name;
 void error(char *msg, ...)
 {
@@ -83,13 +84,13 @@ int dhcp_decode_boot_packet(int fd, dhcp_packet_t *packet)
 	uint32_t lease_time;
 
 	uint32_t our_ip = htonl(packet->yiaddr);
-	printf("Assigned IP: %x\n", our_ip);
-	unsigned char *opt = &packet->options;
+	//printf("Assigned IP: %x\n", our_ip);
+	unsigned char *opt = (unsigned char *) &packet->options;
 
 	if(memcmp(opt, DHCP_OPTIONS_COOKIE, 4) == 1)
 	{
 		printf("dhcpcd: Bad cookie\n");
-		return;
+		return -1;
 	}
 
 	opt += 4;
@@ -101,7 +102,7 @@ int dhcp_decode_boot_packet(int fd, dhcp_packet_t *packet)
 			{
 				opt += 2;
 				router_ip = ntohl(*(uint32_t *) opt);
-				printf("Router ip: %x\n", router_ip);
+				//printf("Router ip: %x\n", router_ip);
 				opt += 4;
 				break;
 			}
@@ -109,7 +110,7 @@ int dhcp_decode_boot_packet(int fd, dhcp_packet_t *packet)
 			{
 				opt += 2;
 				subnet_mask = ntohl(*(uint32_t *) opt);
-				printf("Subnet mask: %x\n", router_ip);
+				//printf("Subnet mask: %x\n", router_ip);
 				opt += 4;
 				break;
 			}
@@ -117,7 +118,7 @@ int dhcp_decode_boot_packet(int fd, dhcp_packet_t *packet)
 			{
 				opt += 2;
 				dns_server = ntohl(*(uint32_t *) opt);
-				printf("DNS server: %x\n", dns_server);
+				//printf("DNS server: %x\n", dns_server);
 				opt += 4;
 				break;
 			}
@@ -125,7 +126,7 @@ int dhcp_decode_boot_packet(int fd, dhcp_packet_t *packet)
 			{
 				opt += 2;
 				lease_time = ntohl(*(uint32_t *) opt);
-				printf("DHCP lease time: %us\n", lease_time);
+				//printf("DHCP lease time: %us\n", lease_time);
 				opt += 4;
 				break;
 			}
@@ -194,7 +195,7 @@ int dhcp_setup_netif(int fd, int sock)
 		return -1;
 	}
 
-	printf("Sent packet\n");
+	//printf("Sent packet\n");
 
 	memset(boot_packet, 0, sizeof(dhcp_packet_t));
 	if(recv(sock, boot_packet, sizeof(dhcp_packet_t), 0) < 0)
@@ -204,7 +205,7 @@ int dhcp_setup_netif(int fd, int sock)
 		return -1;
 	}
 
-	printf("Decoding boot packet\n");
+	//printf("Decoding boot packet\n");
 	dhcp_decode_boot_packet(fd, boot_packet);
 
 }
@@ -245,17 +246,17 @@ int main(int argc, char **argv, char **envp)
 	}
 
 	struct sockaddr_in sockaddr = {0};
-	sockaddr.sin_port = 68;
-	if(bind(sock, &sockaddr, sizeof(struct sockaddr)) < 0)
+	sockaddr.sin_port = htons(68);
+	if(bind(sock, (const struct sockaddr *) &sockaddr, sizeof(struct sockaddr)) < 0)
 	{
 		perror("dhcpcd: bind");
 		return 1;
 	}
 
-	sockaddr.sin_port = 67;
+	sockaddr.sin_port = htons(67);
 	sockaddr.sin_addr.s_addr = 0xFFFFFFFF;
 	
-	if(connect(sock, &sockaddr, sizeof(struct sockaddr)) < 0)
+	if(connect(sock, (const struct sockaddr *) &sockaddr, sizeof(struct sockaddr)) < 0)
 	{
 		perror("dhcpcd: connect");
 		return 1;

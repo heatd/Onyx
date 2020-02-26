@@ -95,7 +95,12 @@ int net_autodetect_protocol(int type, int domain)
 			return -1;
 		}
 		case SOCK_STREAM:
-			return PROTOCOL_TCP;
+		{
+			if(domain == AF_INET)
+				return PROTOCOL_TCP;
+			else
+				return -1;
+		}
 	}
 
 	return -1;

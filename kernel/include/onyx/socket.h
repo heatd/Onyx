@@ -26,11 +26,6 @@ struct socket
 	int proto;
 	int connection_type;
 	int domain;
-	int localport;
-	int remote_port;
-	uint32_t remote_ip;
-	size_t len;
-	char *buffer;
 	struct netif *netif;
 	bool bound;
 	bool connected;

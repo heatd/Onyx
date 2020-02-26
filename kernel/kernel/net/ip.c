@@ -21,6 +21,7 @@
 #include <onyx/udp.h>
 #include <onyx/arp.h>
 #include <onyx/byteswap.h>
+#include <onyx/tcp.h>
 
 size_t ipv4_get_packlen(void *info, struct packetbuf_proto **next, void **next_info);
 
@@ -102,7 +103,15 @@ struct socket *ipv4_create_socket(int type, int protocol)
 			{
 				case PROTOCOL_UDP:
 					return udp_create_socket(type);
+				default:
+					return NULL;
 			}
+		}
+
+		case SOCK_STREAM:
+		{
+			case PROTOCOL_TCP:
+				return tcp_create_socket(type);
 		}
 	}
 	return NULL;

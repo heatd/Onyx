@@ -10,6 +10,7 @@
 #include <onyx/spinlock.h>
 #include <onyx/dev.h>
 #include <onyx/udp.h>
+#include <onyx/tcp.h>
 
 #include <sys/ioctl.h>
 
@@ -78,8 +79,10 @@ unsigned int netif_ioctl(int request, void *argp, struct inode* this)
 
 void netif_register_if(struct netif *netif)
 {
-	if(udp_init_netif(netif) < 0)
-		return;
+	assert(udp_init_netif(netif) == 0);
+	
+	assert(tcp_init_netif(netif) == 0);
+	
 	struct dev *d = dev_register(0, 0, (char*) netif->name);
 	if(!d)
 		return;
@@ -89,7 +92,9 @@ void netif_register_if(struct netif *netif)
 	d->fops.ioctl = netif_ioctl;
 
 	device_show(d, DEVICE_NO_PATH);
+	
 	spin_lock(&netif_list_lock);
+	
 	if(!netif_list)
 	{
 		netif_list = netif;
@@ -100,6 +105,7 @@ void netif_register_if(struct netif *netif)
 		while(n->next) n = n->next;
 		n->next = netif;
 	}
+
 	spin_unlock(&netif_list_lock);
 }
 

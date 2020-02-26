@@ -32,8 +32,14 @@ struct netif
 	struct netif *next;
 	struct arp_hashtable arp_hashtable;
 	struct spinlock hashtable_spinlock;
-	struct spinlock udp_socket_lock;
-	struct list_head udp_sockets;
+	struct spinlock udp_socket_lock_v4;
+	struct list_head udp_sockets_v4;
+	struct spinlock udp_socket_lock_v6;
+	struct list_head udp_sockets_v6;
+	struct spinlock tcp_socket_lock_v4;
+	struct list_head tcp_sockets_v4;
+	struct spinlock tcp_socket_lock_v6;
+	struct list_head tcp_sockets_v6;
 	struct packetbuf_proto * (*get_packetbuf_proto)(struct netif *n);
 	/* To be filled for stuff like virtio */
 	struct packetbuf_proto *if_proto;

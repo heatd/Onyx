@@ -79,8 +79,8 @@ int udp_send_packet(char *payload, size_t payload_size, int source_port,
 
 	memset(udp_header, 0, sizeof(udp_header_t));
 
-	udp_header->source_port = htons(source_port);
-	udp_header->dest_port = htons(dest_port);
+	udp_header->source_port = source_port;
+	udp_header->dest_port = dest_port;
 	udp_header->len = htons((uint16_t)(sizeof(udp_header_t) +
 					  payload_size));
 	memcpy(&udp_header->payload, payload, payload_size);
@@ -95,30 +95,30 @@ int udp_send_packet(char *payload, size_t payload_size, int source_port,
 
 struct udp_socket *udp_get_port(struct netif *nif, in_port_t port)
 {
-	spin_lock(&nif->udp_socket_lock);
+	spin_lock(&nif->udp_socket_lock_v4);
 
-	list_for_every(&nif->udp_sockets)
+	list_for_every(&nif->udp_sockets_v4)
 	{
 		struct udp_socket *s = container_of(l, struct udp_socket, socket_list_head);
 
 		if(s->src_addr.sin_port == port)
 		{
 			socket_ref(&s->socket);
-			spin_unlock(&nif->udp_socket_lock);
+			spin_unlock(&nif->udp_socket_lock_v4);
 			return s;
 		}
 	}
 
-	spin_unlock(&nif->udp_socket_lock);
+	spin_unlock(&nif->udp_socket_lock_v4);
 
 	return NULL;
 }
 
 void udp_append_socket(struct netif *nif, struct udp_socket *s)
 {
-	spin_lock(&nif->udp_socket_lock);
-	list_add_tail(&s->socket_list_head, &nif->udp_sockets);
-	spin_unlock(&nif->udp_socket_lock);
+	spin_lock(&nif->udp_socket_lock_v4);
+	list_add_tail(&s->socket_list_head, &nif->udp_sockets_v4);
+	spin_unlock(&nif->udp_socket_lock_v4);
 }
 
 int udp_bind(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode)
@@ -129,6 +129,7 @@ int udp_bind(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode
 	if(!socket->socket.netif)
 		socket->socket.netif = netif_choose();
 	struct sockaddr_in *in = (struct sockaddr_in *) addr;
+	in->sin_port = ntoh16(in->sin_port);
 
 	/* Check if there's any socket bound to this address yet */
 	struct udp_socket *s = udp_get_port(socket->socket.netif, in->sin_port);
@@ -178,6 +179,7 @@ ssize_t udp_sendto(const void *buf, size_t len, int flags, struct sockaddr *addr
 		to = (struct sockaddr_in *) addr;
 
 	struct sockaddr_in from = {0};
+	/* TODO: I don't think this is quite correct. */
 	if(!socket->socket.bound)
 		netif_get_ipv4_addr(&from, socket->socket.netif);
 	else
@@ -277,8 +279,8 @@ struct socket *udp_create_socket(int type)
 
 int udp_init_netif(struct netif *netif)
 {
-	/* TODO: Add IPv6 support */
-	INIT_LIST_HEAD(&netif->udp_sockets);
+	INIT_LIST_HEAD(&netif->udp_sockets_v4);
+	INIT_LIST_HEAD(&netif->udp_sockets_v6);
 	return 0;
 }
 
