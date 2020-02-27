@@ -596,7 +596,7 @@ void drm_init(void)
 	dev->fops.mmap = drm_mmap;
 	MPRINTF("drm0 devid %lx:%lx\n", MAJOR(dev->majorminor), MINOR(dev->majorminor));
 	
-	assert(device_show(dev, "drm") == 0);
+	assert(device_show(dev, "drm", 0666) == 0);
 
 	/* Create the backup software drm as the current device, so we always
 	 * have a device that can create dumb buffers and swap fbs

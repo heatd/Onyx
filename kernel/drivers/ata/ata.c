@@ -377,7 +377,7 @@ int ata_initialize_drive(int channel, int drive)
 	min->fops.write = atadev_write;
 	min->fops.read = atadev_read;
 
-	device_show(min, DEVICE_NO_PATH);
+	device_show(min, DEVICE_NO_PATH, 0600);
 
 	num_drives++;
 

@@ -149,7 +149,7 @@ void init_random_dev(void)
 
 	dev->fops.read = random_read;
 	
-	device_show(dev, DEVICE_NO_PATH);
+	device_show(dev, DEVICE_NO_PATH, 0666);
 }
 
 void init_urandom_dev(void)
@@ -160,7 +160,7 @@ void init_urandom_dev(void)
 
 	dev->fops.read = urandom_read;
 	
-	device_show(dev, DEVICE_NO_PATH);
+	device_show(dev, DEVICE_NO_PATH, 0666);
 }
 
 void entropy_init_dev(void)

@@ -91,7 +91,7 @@ void netif_register_if(struct netif *netif)
 
 	d->fops.ioctl = netif_ioctl;
 
-	device_show(d, DEVICE_NO_PATH);
+	device_show(d, DEVICE_NO_PATH, 0666);
 	
 	spin_lock(&netif_list_lock);
 	

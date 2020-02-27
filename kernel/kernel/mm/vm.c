@@ -1482,7 +1482,7 @@ struct vm_pf_context
 	struct fault_info *info;
 	/* vpage - fault_address but page aligned */
 	unsigned long vpage;
-	/* Page permitions - is prefilled by calling code */
+	/* Page permissions - is prefilled by calling code */
 	int page_rwx;
 	/* Mapping info if page was present */
 	unsigned long mapping_info;

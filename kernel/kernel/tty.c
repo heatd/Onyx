@@ -326,5 +326,5 @@ void tty_create_dev(void)
 	minor->fops.poll = tty_poll;
 
 	minor->priv = main_tty;
-	device_show(minor, DEVICE_NO_PATH);
+	device_show(minor, DEVICE_NO_PATH, 0666);
 }

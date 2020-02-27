@@ -41,8 +41,8 @@ struct dev *dev_find(dev_t dev);
 #define DEVICE_NO_PATH			""
 
 int device_create_dir(const char *path);
-int device_mknod(struct dev *d, const char *path, const char *name);
-int device_show(struct dev *d, const char *path);
+int device_mknod(struct dev *d, const char *path, const char *name, mode_t mode);
+int device_show(struct dev *d, const char *path, mode_t mode);
 
 void devfs_init(void);
 void null_init(void);

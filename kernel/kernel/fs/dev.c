@@ -143,7 +143,7 @@ void devfs_init(void)
 	assert(dev != NULL);
 }
 
-int device_mknod(struct dev *d, const char *path, const char *name)
+int device_mknod(struct dev *d, const char *path, const char *name, mode_t mode)
 {
 	struct inode *root = dev_root;
 
@@ -151,11 +151,10 @@ int device_mknod(struct dev *d, const char *path, const char *name)
 	{
 		root = open_vfs(root, path);
 		if(!root)
-			return -1;
+			return -errno;
 	}
 	
 	/* TODO: Maybe let calling code determine the permissions? */
-	mode_t mode = 0600;
 	if(d->is_block) mode |= S_IFBLK;
 	else	mode |= S_IFCHR;
 	 
@@ -163,9 +162,9 @@ int device_mknod(struct dev *d, const char *path, const char *name)
 	return root->i_fops.mknod(name, mode, d->majorminor, root) == NULL;
 }
 
-int device_show(struct dev *d, const char *path)
+int device_show(struct dev *d, const char *path, mode_t mode)
 {
-	return device_mknod(d, path, d->name);	
+	return device_mknod(d, path, d->name, mode);
 }
 
 int device_create_dir(const char *path)

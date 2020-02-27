@@ -290,23 +290,90 @@ struct inode *follow_symlink(struct inode *file, struct inode *parent)
 	return ret;
 }
 
+bool file_can_access(struct inode *file, unsigned int perms)
+{
+	bool access_good = true;
+	struct creds *c = creds_get();
+
+	if(unlikely(c->euid == 0))
+	{
+		/* We're root: the access is good */
+		goto out;
+	}
+
+	/* We're not root, let's do permission checking */
+
+	/* Case 1 -  we're the owners of the file (file->uid == c->euid) */
+
+	/* We're going to transform FILE_ACCESS_* constants (our perms var) into UNIX permissions */
+	mode_t ino_perms;
+
+	if(likely(file->i_uid == c->euid))
+	{
+		ino_perms = ((perms & FILE_ACCESS_READ) ? S_IRUSR : 0) |
+                    ((perms & FILE_ACCESS_WRITE) ? S_IWUSR : 0) |
+					((perms & FILE_ACCESS_EXECUTE) ? S_IXUSR : 0);
+	}
+	else if(file->i_gid == c->egid)
+	{
+		/* Case 2 - we're in the same group as the file */
+		ino_perms = ((perms & FILE_ACCESS_READ) ? S_IRGRP : 0) |
+                    ((perms & FILE_ACCESS_WRITE) ? S_IWGRP : 0) |
+					((perms & FILE_ACCESS_EXECUTE) ? S_IXGRP : 0);
+	}
+	else
+	{
+		/* Case 3 - others permissions apply */
+		ino_perms = ((perms & FILE_ACCESS_READ) ? S_IROTH : 0) |
+                    ((perms & FILE_ACCESS_WRITE) ? S_IWOTH : 0) |
+					((perms & FILE_ACCESS_EXECUTE) ? S_IXOTH : 0);
+	}
+
+	/* Now, test the calculated permission bits against the file's mode */
+
+	access_good = (file->i_mode & ino_perms) == ino_perms;
+
+#if 0
+	if(!access_good)
+	{
+		printk("Halting for debug: ino perms %u, perms %u\n", ino_perms, file->i_mode);
+		while(true) {}
+	}
+#endif
+out:
+	creds_put(c);
+	return access_good;
+}
+
 struct inode *open_path_segment(char *segm, struct inode *node)
 {
+	/* Let's check if we have read access to the directory before doing anything */
+	if(!file_can_access(node, FILE_ACCESS_READ))
+	{
+		return errno = EACCES, NULL;
+	}
+
 	struct inode *file = do_actual_open(node, segm);
 	if(!file)
 		return NULL;
+
 	if(file->i_type == VFS_TYPE_SYMLINK)
 	{
-		file = follow_symlink(file, node);
-		if(!file)
+		struct inode *target = follow_symlink(file, node);
+		if(!target)
 			return NULL;
+		
+		close_vfs(file);
+		file = target;
 	}
 
 	struct inode *mountpoint = NULL;
 	if((mountpoint = mtable_lookup(file)))
+	{
+		close_vfs(file);
 		file = mountpoint;
-	
-	/* TODO: reference leak here? */
+	}
+
 	return file;
 }
 
@@ -371,6 +438,13 @@ struct inode *creat_vfs(struct inode *this, const char *path, int mode)
 		goto error;
 	}
 
+	if(!file_can_access(base, FILE_ACCESS_WRITE))
+	{
+		close_vfs(base);
+		errno = EACCES;
+		goto error;
+	}
+
 	if(base->i_fops.creat != NULL)
 	{
 		struct inode *ret = base->i_fops.creat(basename((char*) dup), mode, base);
@@ -403,6 +477,13 @@ struct inode *mkdir_vfs(const char *path, mode_t mode, struct inode *this)
 	if(!base)
 	{
 		errno = ENOENT;
+		goto error;
+	}
+
+	if(!file_can_access(base, FILE_ACCESS_WRITE))
+	{
+		close_vfs(base);
+		errno = EACCES;
 		goto error;
 	}
 
@@ -441,6 +522,13 @@ struct inode *mknod_vfs(const char *path, mode_t mode, dev_t dev, struct inode *
 		goto error;
 	}
 
+	if(!file_can_access(base, FILE_ACCESS_WRITE))
+	{
+		close_vfs(base);
+		errno = EACCES;
+		goto error;
+	}
+
 	if(base->i_fops.mknod != NULL)
 	{
 		struct inode *ret = base->i_fops.mknod(basename((char*) dup), mode, dev, base);
@@ -474,10 +562,10 @@ int mount_fs(struct inode *fsroot, const char *path)
 	{
 		struct inode *file = open_vfs(get_fs_root(), dirname((char*) path));
 		if(!file)
-			return -ENOENT;
+			return -errno;
 		file = do_actual_open(file, basename((char*) path));
 		if(!file)
-			return -ENOENT;
+			return -errno;
 		return mtable_mount(file, fsroot);
 	}
 	return 0;
@@ -817,6 +905,9 @@ int fallocate_vfs(int mode, off_t offset, off_t len, struct inode *file)
 
 int symlink_vfs(const char *dest, struct inode *inode)
 {
+	if(!file_can_access(inode, FILE_ACCESS_WRITE))
+		return -EACCES;
+
 	if(inode->i_fops.symlink != NULL)
 		return inode->i_fops.symlink(dest, inode);
 	return -ENOSYS;
@@ -879,13 +970,18 @@ struct inode *inode_create(void)
 
 int link_vfs(struct inode *target, const char *name, struct inode *dir)
 {
+	if(!file_can_access(dir, FILE_ACCESS_WRITE))
+		return -EACCES;
+
 	if(dir->i_fops.link)
 		return dir->i_fops.link(target, name, dir);
-	return -EPERM;
+	return -EINVAL;
 }
 
 int unlink_vfs(const char *name, int flags, struct inode *node)
 {
+	if(!file_can_access(node, FILE_ACCESS_WRITE))
+		return -EACCES;
 	if(node->i_fops.link)
 		return node->i_fops.unlink(name, flags, node);
 	return -EINVAL;

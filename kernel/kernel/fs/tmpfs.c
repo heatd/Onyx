@@ -504,6 +504,7 @@ int tmpfs_mount(const char *mountpoint)
 	node->i_helper = fs;
 	node->i_inode = (ino_t) fs->root;
 	node->i_sb = fs->superblock;
+	node->i_mode = 0755;
 
 	tmpfs_set_node_fileops(node);
 

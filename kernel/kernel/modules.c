@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 
+#include <onyx/cred.h>
 #include <onyx/modules.h>
 #include <onyx/vfs.h>
 #include <onyx/elf.h>
@@ -282,24 +283,35 @@ uintptr_t get_common_block(const char *name, size_t size)
 
 int sys_insmod(const char *path, const char *name)
 {
-	const char *kpath = strcpy_from_user(path);
-	if(!kpath)
-		return -errno;
+	int st = 0;
+	const char *kpath = NULL;
+	const char *kname = NULL;
+	struct creds *c = creds_get();
 
-	const char *kname = strcpy_from_user(name);
-	if(!kname)
+	if(c->euid != 0)
+		return -EPERM;
+	kpath = strcpy_from_user(path);
+	if(!kpath)
 	{
-		free((char *) kpath);
-		return -errno;
+		st = -errno;
+		goto out;
 	}
 
-	int st = load_module(kpath, kname);
+	kname = strcpy_from_user(name);
+	if(!kname)
+	{
+		st = -errno;
+		goto out;
+	}
+
+	st = load_module(kpath, kname);
 
 	if(st < 0)
 		st = -errno;
-	
+out:
 	free((char *) kpath);
 	free((char *) kname);
+	creds_put(c);
 	return st;
 }
 

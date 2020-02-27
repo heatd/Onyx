@@ -278,7 +278,7 @@ int blkdev_init(struct blockdev *blk)
 	dev->fops.write = blkdev_write_file;
 	dev->priv = blk;
 
-	device_show(dev, DEVICE_NO_PATH);
+	device_show(dev, DEVICE_NO_PATH, 0600);
 
 	if(!blkdev_is_partition(blk))
 		partition_setup_disk(blk);

@@ -505,7 +505,7 @@ int sys_execve(char *p, char *argv[], char *envp[])
 		return -1;
 	}
 
-	/* TODO: Check file permitions */
+	/* TODO: Check file permissions */
 	/* Swap address spaces. Good thing we saved argv and envp before */
 	if(vm_create_address_space(current, current->address_space.cr3) < 0)
 	{
@@ -1023,7 +1023,7 @@ int process_attach(struct process *tracer, struct process *tracee)
 	/* You can't attach to yourself */
 	if(tracer == tracee)
 		return errno = ESRCH, -1;
-	/* TODO: Enforce process permitions */
+	/* TODO: Enforce process permissions */
 	if(!tracer->tracees.ptr)
 	{
 		tracer->tracees.ptr = tracee;

@@ -84,8 +84,8 @@ struct inode
 {
 	struct object i_object;
 	ino_t i_inode;
-	int i_gid;
-	int i_uid;
+	gid_t i_gid;
+	uid_t i_uid;
 	mode_t i_mode;
 	int i_type;
 	size_t i_size;
@@ -192,6 +192,13 @@ int link_vfs(struct inode *target, const char *name, struct inode *dir);
 int unlink_vfs(const char *name, int flags, struct inode *node);
 
 struct inode *get_fs_base(const char *file, struct inode *rel_base);
+
+
+#define FILE_ACCESS_READ    (1 << 0)
+#define	FILE_ACCESS_WRITE   (1 << 1)
+#define FILE_ACCESS_EXECUTE (1 << 2)
+
+bool file_can_access(struct inode *file, unsigned int perms);
 
 #ifdef __cplusplus
 }

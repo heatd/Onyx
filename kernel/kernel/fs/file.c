@@ -274,8 +274,20 @@ void handle_open_flags(struct file *fd, int flags)
 static struct inode *try_to_open(struct inode *base, const char *filename, int flags, mode_t mode)
 {
 	struct inode *ret = open_vfs(base, filename);
-	if(!ret && flags & O_CREAT)
+	
+	if(ret)
+	{
+		/* Let's check for permissions */
+		if(!file_can_access(ret, open_to_file_access_flags(flags)))
+		{
+			close_vfs(ret);
+			return errno = EACCES, NULL;
+		}
+	}
+
+	if(!ret && errno == ENOENT && flags & O_CREAT)
 		ret = creat_vfs(base, filename, mode);
+
 	return ret;
 }
 
@@ -1033,7 +1045,7 @@ int sys_chdir(const char *upath)
 
 	if(!dir)
 	{
-		st = -ENOENT;
+		st = -errno;
 		goto out;
 	}
 
@@ -1375,7 +1387,7 @@ int sys_access(const char *path, int amode)
 	fd_put(f);
 	if(!ino)
 	{
-		st = -ENOENT;
+		st = -errno;
 		goto out;
 	}
 out:

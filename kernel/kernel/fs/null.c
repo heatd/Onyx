@@ -28,5 +28,5 @@ void null_init(void)
 
 	min->fops.write = null_write;
 	
-	device_show(min, DEVICE_NO_PATH);
+	device_show(min, DEVICE_NO_PATH, 0666);
 }
