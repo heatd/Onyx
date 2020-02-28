@@ -517,6 +517,7 @@ ssize_t ext2_write_inode_block(struct ext2_inode *ino, uint32_t block, char *buf
 	return fs->block_size;
 }
 
+/* TODO: Don't assume ext2_read_inode_block and ext2_write_inode_block don't fail. */
 ssize_t ext2_write_inode(struct ext2_inode *ino, ext2_fs_t *fs, size_t size, off_t off, char *buffer)
 {
 	char *scratch = zalloc(fs->block_size);
@@ -535,7 +536,11 @@ ssize_t ext2_write_inode(struct ext2_inode *ino, ext2_fs_t *fs, size_t size, off
 		size_t amount = (ssize_t) size - written < block_left ?
 			(ssize_t) size - written : block_left;
 		
-		memcpy(scratch + block_off, buffer + written, amount);
+		if(copy_from_user(scratch + block_off, buffer + written, amount) < 0)
+		{
+			free(scratch);
+			return errno = EFAULT, -1;
+		}
 		
 		assert(ext2_write_inode_block(ino, block, scratch, fs) != -1);
 		
@@ -564,7 +569,12 @@ ssize_t ext2_read_inode(struct ext2_inode *ino, ext2_fs_t *fs, size_t size, off_
 
 		ext2_read_inode_block(ino, block, scratch, fs);
 		size_t amount = (ssize_t) (size - read) < block_left ? (ssize_t) size - read : block_left;
-		memcpy(buffer + read, scratch + block_off, amount);
+		
+		if(copy_to_user(buffer + read, scratch + block_off, amount) < 0)
+		{
+			free(scratch);
+			return errno = EFAULT, -1;
+		}
 
 		read += amount;
 		off += amount;

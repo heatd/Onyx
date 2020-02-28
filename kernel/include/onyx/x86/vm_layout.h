@@ -30,4 +30,8 @@ typedef enum
 #define MMAP_ASLR_BITS		42
 #define BRK_ASLR_BITS		30
 
+
+#define VM_USER_ADDR_LIMIT			arch_low_half_max
+#define VM_KERNEL_ADDR_LIMIT		((unsigned long) -1)
+
 #endif

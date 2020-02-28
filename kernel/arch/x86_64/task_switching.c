@@ -29,6 +29,7 @@
 
 #include <onyx/x86/segments.h>
 #include <onyx/x86/msr.h>
+#include <onyx/x86/vm_layout.h>
 
 #include <sys/time.h>
 
@@ -61,6 +62,11 @@ thread_t* task_switching_create_context(thread_callback_t callback, uint32_t fla
 
 		memset(new_thread->fpu_area, 0, FPU_AREA_SIZE);
 		setup_fpu_area(new_thread->fpu_area);
+		new_thread->addr_limit = VM_USER_ADDR_LIMIT;
+	}
+	else
+	{
+		new_thread->addr_limit = VM_KERNEL_ADDR_LIMIT;
 	}
 
 	// If the thread is user mode, create a user stack
@@ -164,12 +170,15 @@ thread_t* task_switching_create_main_progcontext(thread_callback_t callback,
 	memset(new_thread->fpu_area, 0, FPU_AREA_SIZE);
 
 	setup_fpu_area(new_thread->fpu_area);
-	if(!(flags & 1)) // If the thread is user mode, create a user stack
+	if(!(flags & THREAD_KERNEL)) // If the thread is user mode, create a user stack
 	{
 		new_thread->user_stack = (uintptr_t*) get_user_pages(VM_TYPE_STACK, 256, VM_WRITE | VM_NOEXEC);
 		if(!new_thread->user_stack)
 			return NULL;
+		new_thread->addr_limit = VM_USER_ADDR_LIMIT;
 	}
+	else
+		new_thread->addr_limit = VM_KERNEL_ADDR_LIMIT;
 	
 	new_thread->kernel_stack = (uintptr_t*) get_pages(VM_KERNEL, VM_TYPE_STACK, 4,
 		VM_WRITE | VM_NOEXEC , 0);
@@ -297,6 +306,8 @@ thread_t *sched_spawn_thread(registers_t *regs, thread_callback_t start, void *a
 		free(new_thread);
 		return NULL;
 	}
+
+	new_thread->addr_limit = VM_USER_ADDR_LIMIT;
 	
 	memset(new_thread->fpu_area, 0, FPU_AREA_SIZE);
 	
@@ -380,4 +391,11 @@ void arch_load_process(struct process *process, struct thread *thread,
                        unsigned int cpu)
 {
 	paging_load_cr3(process->address_space.cr3);
+}
+
+unsigned long thread_get_addr_limit(void)
+{
+	struct thread *t = get_current_thread();
+	assert(t->addr_limit != 0);
+	return t->addr_limit;
 }

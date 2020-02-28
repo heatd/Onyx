@@ -1991,7 +1991,10 @@ struct page *vm_commit_private(size_t off, struct vm_object *vmo)
 	off_t file_off = (off_t) vmo->priv;
 
 	//printk("commit %lx\n", off + file_off);
+	unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
 	size_t read = read_vfs(0, off + file_off, PAGE_SIZE, PAGE_TO_VIRT(p), ino);
+
+	thread_change_addr_limit(old);
 
 	if((ssize_t) read < 0)
 	{

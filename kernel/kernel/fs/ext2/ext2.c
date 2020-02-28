@@ -471,8 +471,12 @@ off_t ext2_getdirent(struct dirent *buf, off_t off, struct inode* this)
 	dir_entry_t entry;
 	size_t read;
 
+	unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
+
 	/* Read a dir entry from the offset */
 	read = ext2_read(0, off, sizeof(dir_entry_t), &entry, this);
+
+	thread_change_addr_limit(old);
 
 	/* If we reached the end of the directory buffer, return 0 */
 	if(read == 0)

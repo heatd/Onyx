@@ -182,6 +182,8 @@ size_t tmpfs_read(int flags, size_t offset, size_t size, void *buffer, struct in
 		size_t block = offset / block_size;
 		off_t block_off = offset % block_size;
 		off_t block_left = block_size - block_off;
+		
+		/* TODO: We shouldn't need a scratch page, should we? Investigate. */
 		if(!tmpfs_read_block(file, block, scratch))
 		{
 			free_page(p);
@@ -192,13 +194,21 @@ size_t tmpfs_read(int flags, size_t offset, size_t size, void *buffer, struct in
 		if(offset + amount > vnode->i_size)
 		{
 			amount = vnode->i_size - offset;
-			memcpy(buffer + read, scratch + block_off, amount);
+			if(copy_to_user(buffer + read, scratch + block_off, amount) < 0)
+				read = -EFAULT;
 			read += amount;
 			free_page(p);
 			return read;
 		}
 		else
-			memcpy(buffer + read, scratch + block_off, amount);
+		{
+			if(copy_to_user(buffer + read, scratch + block_off, amount) < 0)
+			{
+				free_page(p);
+				return -EFAULT;
+			}
+		}
+	
 		read += amount;
 		offset += amount;
 	}

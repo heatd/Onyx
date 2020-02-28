@@ -82,7 +82,17 @@ ssize_t pipe::read(int flags, size_t len, void *buf)
 		else
 		{
 			size_t to_read = min(len - been_read, pos);
-			memcpy((void *) ((char *) buf + been_read), buffer, to_read);
+			if(copy_to_user((void *) ((char *) buf + been_read), buffer, to_read) < 0)
+			{
+				
+				/* Note: We do need to signal writers and readers on EFAULT if we have read/written */
+				if(been_read != 0)
+					condvar_broadcast(&write_cond);
+
+				mutex_unlock(&pipe_lock);
+				return errno = EFAULT, -1;
+			}
+
 			/* move the rest of the buffer back to the beginning if we have to */
 			if(pos - to_read != 0)
 				memmove(buffer, (const void *) ((char *) buffer + to_read), pos - to_read);
@@ -132,8 +142,16 @@ ssize_t pipe::write(int flags, size_t len, const void *buf)
 		{
 			size_t to_write = min(len - written, available_space());
 			/* sigh - sometimes C++ really gets in the way */
-			memcpy((void *)((char *) buffer + pos), (const void *) ((char *) buf + written),
-				to_write);
+			if(copy_from_user((void *)((char *) buffer + pos), (const void *) ((char *) buf + written),
+				to_write) < 0)
+			{
+				/* Note: We do need to signal writers and readers on EFAULT if we have read/written */
+				if(written != 0)
+					condvar_broadcast(&read_cond);
+				mutex_unlock(&pipe_lock);
+				return errno = EFAULT, -1;
+			}
+
 			pos += to_write;
 			written += to_write;
 		}

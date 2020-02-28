@@ -4,17 +4,32 @@
 * check LICENSE at the root directory for more information
 */
 
-#define kernel_min 0xffff800000000000
-.section .data
-kernel_min_val: .quad kernel_min
-
 # cbn_status_t copy_to_user(void *udst, const void *ksrc, size_t size);
 .section .text
 .global copy_to_user
 .balign 32
 copy_to_user:
-	cmp (kernel_min_val), %rdi
-	jae copy_to_user.handler
+	
+	# Note: This is slow, but it's needed...
+	# TODO: How can we access C structs from assembly safely?
+	push %rdi
+	push %rsi
+	push %rdx
+
+	call thread_get_addr_limit
+	
+	pop %rdx
+	pop %rsi
+	pop %rdi
+
+	# Check if dst < addr_limit
+	cmp %rax, %rdi
+	# And if dst + len < addr_limit
+	mov %rdi, %r8
+	add %rdx, %r8
+	cmp %rax, %r8
+
+	ja copy_to_user.handler
 	xor %rax, %rax
 	mov %rdx, %rcx
 copy_to_user.copy_instr:
@@ -37,8 +52,26 @@ copy_to_user.handler:
 .global copy_from_user
 .balign 32
 copy_from_user:
-	cmp (kernel_min_val), %rsi
-	jae copy_from_user.handler
+	# Note: This is slow, but it's needed...
+	# TODO: How can we access C structs from assembly safely?
+	push %rdi
+	push %rsi
+	push %rdx
+
+	call thread_get_addr_limit
+	
+	pop %rdx
+	pop %rsi
+	pop %rdi
+
+	# Check if src < addr_limit
+	cmp %rax, %rsi
+	# And if src + len < addr_limit
+	mov %rsi, %r8
+	add %rdx, %r8
+	cmp %rax, %r8
+
+	ja copy_from_user.handler
 	xor %rax, %rax
 	mov %rdx, %rcx
 copy_from_user.copy_instr:
@@ -58,9 +91,26 @@ copy_from_user.handler:
 .global strlen_user
 .balign 32
 strlen_user:
-	cmp (kernel_min_val), %rdi
-	jae strlen_user.handler
+	# Note: This is slow, but it's needed...
+	# TODO: How can we access C structs from assembly safely?
+	push %rdi
+
+	call thread_get_addr_limit
+	
+	pop %rdi
+
+	# Check if dst < addr_limit
+	cmp %rax, %rdi
+
+	ja strlen_user.handler
+
+	# Store address limit in %r8
+
+	mov %rax, %r8
 	xor %rax, %rax
+strlen_user.loop:
+	cmp %r8, %rdi
+	ja strlen_user.handler
 strlen_user.count:
 	mov (%rdi), %si
 	cmp $0, %si
@@ -72,6 +122,8 @@ strlen_user.function_out:
 	ret
 strlen_user.handler:
 	# CBN_STATUS_SEGFAULT = -5
+	cli
+	hlt
 	mov $-14, %rax
 	jmp strlen_user.function_out
 

@@ -529,8 +529,20 @@ int sys_execve(char *p, char *argv[], char *envp[])
 		close_vfs(in);
 		return -ENOMEM;
 	}
+
+
+	unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
+
 	/* Read the file signature */
-	read_vfs(0, 0, 100, file, in);
+	if(read_vfs(0, 0, 100, file, in) == (size_t) -1)
+	{
+		free(karg);
+		free(kenv);
+		free(file);
+		close_vfs(in);
+		return -errno;
+	}
+
 	struct binfmt_args args = {0};
 	args.file_signature = file;
 	args.filename = current->cmd_line;
@@ -548,6 +560,8 @@ int sys_execve(char *p, char *argv[], char *envp[])
 		close_vfs(in);
 		return -errno;
 	}
+
+	thread_change_addr_limit(old);
 
 	free(file);
 

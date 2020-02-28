@@ -51,6 +51,7 @@ typedef struct thread
 	int errno_val;
 	struct signal_info sinfo;
 	struct list_head thread_list_head;
+	unsigned long addr_limit;
 	/* And arch dependent stuff in this ifdef */
 #ifdef __x86_64__
 	void *fs;
@@ -58,10 +59,10 @@ typedef struct thread
 #endif
 } thread_t;
 
-#define THREAD_KERNEL		(1 << 0)
+#define THREAD_KERNEL			(1 << 0)
 #define THREAD_NEEDS_RESCHED	(1 << 1)
-#define THREAD_IS_DYING		(1 << 2)
-#define THREAD_SHOULD_DIE	(1 << 3)
+#define THREAD_IS_DYING			(1 << 2)
+#define THREAD_SHOULD_DIE		(1 << 3)
 
 #ifdef __cplusplus
 extern "C" {
@@ -135,6 +136,8 @@ void thread_remove_from_list(struct thread *t);
 
 struct thread *thread_get_from_tid(int tid);
 
+unsigned long thread_get_addr_limit(void);
+
 #define SCHED_NO_CPU_PREFERENCE		(unsigned int) -1
 
 static inline bool sched_needs_resched(struct thread *thread)
@@ -160,4 +163,5 @@ do							\
 #ifdef __cplusplus
 }
 #endif
+
 #endif

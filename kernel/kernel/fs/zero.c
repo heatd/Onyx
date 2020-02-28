@@ -16,6 +16,7 @@ size_t zero_read(int flags, size_t offset, size_t count, void *buf, struct inode
 	UNUSED(offset);
 	UNUSED(n);
 	UNUSED(flags);
+	/* FIXME: user_memset */
 	memset(buf, 0, count);
 	return count;
 }

@@ -40,8 +40,14 @@ char *ext2_do_slow_symlink(struct ext2_inode *inode, ext2_fs_t *fs)
 	char *buf = malloc(len + 1);
 	if(!buf)
 		return NULL;
+
+	unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
+
+	ssize_t read = ext2_read_inode(inode, fs, len, 0, buf);
 	
-	if(ext2_read_inode(inode, fs, len, 0, buf) != (ssize_t) len)
+	thread_change_addr_limit(old);
+	
+	if(read != (ssize_t) len)
 	{
 		free(buf);
 		return NULL;

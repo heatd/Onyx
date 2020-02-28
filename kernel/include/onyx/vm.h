@@ -14,9 +14,11 @@
 #include <onyx/spinlock.h>
 #include <onyx/list.h>
 #include <onyx/mm/vm_object.h>
+#include <onyx/scheduler.h>
 
 #ifdef __x86_64__
 #include <onyx/x86/page.h>
+#include <onyx/x86/vm_layout.h>
 #endif
 
 #include <sys/types.h>
@@ -252,6 +254,15 @@ void __vm_invalidate_range(unsigned long addr, size_t pages, struct mm_address_s
 #define VM_UNLOCK			(1 << 2)
 int vm_lock_range(void *start, unsigned long length, unsigned long flags);
 int vm_unlock_range(void *start, unsigned long length, unsigned long flags);
+
+static inline unsigned long thread_change_addr_limit(unsigned long limit)
+{
+	struct thread *t = get_current_thread();
+	unsigned long r = t->addr_limit;
+	t->addr_limit = limit;
+
+	return r;
+}
 
 #ifdef __cplusplus
 }

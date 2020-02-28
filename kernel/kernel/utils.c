@@ -8,6 +8,7 @@
 
 #include <onyx/utils.h>
 #include <onyx/vm.h>
+#include <onyx/scheduler.h>
 
 void *memdup(void *ptr, size_t size)
 {

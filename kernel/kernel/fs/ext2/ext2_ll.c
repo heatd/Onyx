@@ -20,6 +20,7 @@
 #include <onyx/log.h>
 #include <onyx/fscache.h>
 #include <onyx/panic.h>
+#include <onyx/vm.h>
 
 #include "ext2.h"
 
@@ -179,8 +180,12 @@ struct ext2_inode *ext2_traverse_fs(struct ext2_inode *wd, const char *path,
 
 	for(; p; p = strtok_r(NULL, "/", &saveptr))
 	{
+		unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
 		struct ext2_inode *opened =
 			ext2_open_dir(ino, (const char*) p, fs, symlink_name, inode_num);
+		
+		thread_change_addr_limit(old);
+	
 		if(ino != wd)
 			free(ino);
 
@@ -418,7 +423,13 @@ int ext2_file_present(struct ext2_inode *inode, const char *name, ext2_fs_t *fs)
 
 	while((size_t) off < EXT2_CALCULATE_SIZE64(inode))
 	{
-		if(ext2_read_inode(inode, fs, fs->block_size, off, buf) < 0)
+		unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
+
+		ssize_t res = ext2_read_inode(inode, fs, fs->block_size, off, buf);
+
+		thread_change_addr_limit(old);
+
+		if(res < 0)
 		{
 			st = -EIO;
 			goto out;
@@ -465,7 +476,13 @@ int ext2_retrieve_dirent(struct ext2_inode *inode, const char *name, ext2_fs_t *
 
 	while((size_t) off < EXT2_CALCULATE_SIZE64(inode))
 	{
-		if(ext2_read_inode(inode, fs, fs->block_size, off, buf) < 0)
+		unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
+
+		ssize_t read_res = ext2_read_inode(inode, fs, fs->block_size, off, buf);
+
+		thread_change_addr_limit(old);
+
+		if(read_res < 0)
 		{
 			st = -EIO;
 			goto out;
@@ -514,8 +531,12 @@ int ext2_link(struct inode *target, const char *name, struct inode *dir)
 		return -EEXIST;
 	}
 
+	unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
+
 	/* Blame past me for the inconsistency in return values */
 	st = ext2_add_direntry(name, (uint32_t) target->i_inode, target_ino, inode, fs);
+
+	thread_change_addr_limit(old);
 
 	if(st < 0)
 	{
@@ -569,7 +590,13 @@ int ext2_dir_empty(struct inode *ino)
 
 	while((size_t) off < EXT2_CALCULATE_SIZE64(inode))
 	{
-		if(ext2_read_inode(inode, fs, fs->block_size, off, buf) < 0)
+		unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
+
+		ssize_t res = ext2_read_inode(inode, fs, fs->block_size, off, buf);
+
+		thread_change_addr_limit(old);
+
+		if(res < 0)
 		{
 			st = -EIO;
 			goto out;

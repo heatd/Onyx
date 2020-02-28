@@ -22,6 +22,7 @@
 #include <onyx/process.h>
 #include <onyx/dentry.h>
 #include <onyx/mm/flush.h>
+#include <onyx/vm.h>
 
 struct inode *fs_root = NULL;
 struct inode *mount_list = NULL;
@@ -112,12 +113,17 @@ struct page *vmo_inode_commit(size_t off, struct vm_object *vmo)
 	size_t to_read = i->i_size - off < PAGE_SIZE ? i->i_size - off : PAGE_SIZE;
 
 	assert(to_read <= PAGE_SIZE);
+
+	unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
+
 	size_t read = read_vfs(
 		READ_VFS_FLAG_IS_PAGE_CACHE,
 		off,
 		to_read,
 		ptr,
 		i);
+
+	thread_change_addr_limit(old);
 
 	if(read != to_read)
 	{
@@ -585,8 +591,12 @@ unsigned int putdir(struct dirent *buf, struct dirent *ubuf,
 	
 	if(reclen > count)
 		return errno = EINVAL, -1;
-	/* TODO: Use copy_to_user() */
-	memcpy(ubuf, buf, reclen);
+
+	if(copy_to_user(ubuf, buf, reclen) < 0)
+	{
+		errno = EFAULT;
+		return -1;
+	}
 
 	return reclen > count ? count : reclen;
 }
@@ -624,7 +634,7 @@ int getdents_vfs(unsigned int count, putdir_t putdir,
 		/* Error, most likely out of buffer space */
 		if(written == (unsigned int) -1)
 		{
-			if(!pos) return errno = EINVAL, -1;
+			if(!pos) return -1;
 			else
 				return pos;
 		}
@@ -688,7 +698,8 @@ ssize_t lookup_file_cache(void *buffer, size_t sizeofread, struct inode *file,
 			}
 			else
 			{
-				return -ENOMEM;
+				errno = ENOMEM;
+				return -1;
 			}
 		}
 
@@ -703,20 +714,35 @@ ssize_t lookup_file_cache(void *buffer, size_t sizeofread, struct inode *file,
 		if(offset + amount > file->i_size)
 		{
 			amount = file->i_size - offset;
-			memcpy((char*) buffer + read,  (char*) cache->buffer +
-				cache_off, amount);
+			if(copy_to_user((char*) buffer + read,  (char*) cache->buffer +
+				cache_off, amount) < 0)
+			{
+				spin_unlock_preempt(&file->i_pages_lock);
+				errno = EFAULT;
+				return -1;
+			}
+
 			spin_unlock_preempt(&file->i_pages_lock);
 			return read + amount;
 		}
 		else
-			memcpy((char*) buffer + read,  (char*) cache->buffer +
-				cache_off, amount);
+		{
+			if(copy_to_user((char*) buffer + read,  (char*) cache->buffer +
+				cache_off, amount) < 0)
+			{
+				spin_unlock_preempt(&file->i_pages_lock);
+				errno = EFAULT;
+				return -1;
+			}
+		}
+
 		offset += amount;
 		read += amount;
 
 		spin_unlock_preempt(&file->i_pages_lock);
 
 	}
+
 	return (ssize_t) read;
 }
 
@@ -743,7 +769,10 @@ ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *file,
 				return wrote;
 			}
 			else
-				return -ENOMEM;
+			{
+				errno = ENOMEM;
+				return -1;
+			}
 		}
 
 		off_t cache_off = offset % PAGE_CACHE_SIZE;
@@ -752,8 +781,13 @@ ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *file,
 		size_t amount = sizeofwrite - wrote < (size_t) rest ?
 			sizeofwrite - wrote : (size_t) rest;
 
-		memcpy((char*) cache->buffer + cache_off, (char*) buffer +
-			wrote, amount);
+		if(copy_from_user((char*) cache->buffer + cache_off, (char*) buffer +
+			wrote, amount) < 0)
+		{
+			spin_unlock(&file->i_pages_lock);
+			errno = EFAULT;
+			return -1;
+		}
 	
 		if(cache->size < cache_off + amount)
 		{
