@@ -573,7 +573,7 @@ void *cpu_handle_messages(void *stack)
 
 	if(sched_needs_resched(get_current_thread()))
 	{
-		return sched_switch_thread(stack);
+		return sched_preempt_thread(stack);
 	}
 
 	return stack;

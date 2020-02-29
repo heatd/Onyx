@@ -183,9 +183,17 @@ struct inode *sysfs_open(struct inode *node, const char *name)
 		}
 		segm = strtok_r(NULL, "/", &saveptr);
 	}
+
 	free(path);
 
-	return sysfs_create_inode_for_file(file);
+	struct inode *ino = sysfs_create_inode_for_file(file);
+
+	if(ino)
+	{
+		superblock_add_inode(node->i_sb, ino);
+	}
+
+	return ino;
 }
 
 size_t sysfs_read(int flags, size_t offset, size_t sizeofread, void *buffer, struct inode *this)
@@ -320,13 +328,15 @@ struct sysfs_file *sysfs_add_device(struct device *dev)
 
 struct sysfs_file *sysfs_add_bus(struct bus *bus)
 {
-	struct inode *inode = open_vfs(sysfs_root_ino, "buses");
+	struct inode *inode = open_vfs(sysfs_root_ino, "bus");
 	if(!inode)
 		return NULL;
 	struct sysfs_file *i = sysfs_create_entry(bus->name, 0666, inode);
 	if(!i)
 		return NULL;
+
 	i->priv = bus;
+
 	return i;
 }
 

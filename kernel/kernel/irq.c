@@ -113,7 +113,7 @@ void check_for_resched(struct irq_context *context)
 	if(curr && sched_needs_resched(curr))
 	{
 		curr->flags &= ~THREAD_NEEDS_RESCHED;
-		context->registers = sched_switch_thread(context->registers);
+		context->registers = sched_preempt_thread(context->registers);
 	}
 }
 

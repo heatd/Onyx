@@ -297,7 +297,7 @@ irqstatus_t apic_timer_irq(struct irq_context *ctx, void *cookie)
 		if(likely(current))
 			current->flags |= THREAD_NEEDS_RESCHED;
 		else
-			ctx->registers = sched_switch_thread(ctx->registers);
+			ctx->registers = sched_preempt_thread(ctx->registers);
 	}
 
 #ifndef CONFIG_APIC_PERIODIC

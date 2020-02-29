@@ -63,6 +63,7 @@ typedef struct thread
 #define THREAD_NEEDS_RESCHED	(1 << 1)
 #define THREAD_IS_DYING			(1 << 2)
 #define THREAD_SHOULD_DIE		(1 << 3)
+#define THREAD_ACTIVE			(1 << 4)
 
 #ifdef __cplusplus
 extern "C" {
@@ -137,6 +138,8 @@ void thread_remove_from_list(struct thread *t);
 struct thread *thread_get_from_tid(int tid);
 
 unsigned long thread_get_addr_limit(void);
+
+void *sched_preempt_thread(void *current_stack);
 
 #define SCHED_NO_CPU_PREFERENCE		(unsigned int) -1
 

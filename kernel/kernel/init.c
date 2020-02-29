@@ -453,5 +453,5 @@ void kernel_multitasking(void *arg)
 	assert(find_and_exec_init(args, envp) == 0);
 
 	set_current_state(THREAD_UNINTERRUPTIBLE);
-	for (;;);
+	sched_yield();
 }

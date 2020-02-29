@@ -228,7 +228,19 @@ void *sched_switch_thread(void *last_stack)
 	thread_t *curr_thread = get_per_cpu(current_thread);
 
 	if(likely(curr_thread))
+	{
+		bool thread_blocked = curr_thread->status == THREAD_INTERRUPTIBLE ||
+	                          curr_thread->status == THREAD_UNINTERRUPTIBLE;
+
+		if(thread_blocked && curr_thread->flags & THREAD_ACTIVE)
+		{
+			write_per_cpu(sched_quantum, SCHED_QUANTUM);
+			return last_stack;
+		}
+
 		sched_save_thread(curr_thread, last_stack);
+
+	}		
 
 	struct thread *source_thread = curr_thread;
 
@@ -248,6 +260,24 @@ void *sched_switch_thread(void *last_stack)
 
 strong_alias(sched_switch_thread, asm_schedule);
 
+void *sched_preempt_thread(void *current_stack)
+{
+	struct thread *t = get_current_thread();
+
+	if(t) t->flags |= THREAD_ACTIVE;
+
+	COMPILER_BARRIER();
+	write_memory_barrier();
+
+	void *ret = sched_switch_thread(current_stack);
+
+	if(t) t->flags &= ~THREAD_ACTIVE;
+
+	COMPILER_BARRIER();
+	write_memory_barrier();
+
+	return ret;
+}
 struct thread *get_current_thread(void)
 {
 	if(!percpu_initialized())

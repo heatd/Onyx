@@ -216,7 +216,7 @@ void dev_create_sysfs(void)
 	struct sysfs_file *devices = NULL;
 	struct sysfs_file *buses = NULL;
 	assert((devices = sysfs_create_dir("devices", 0666, root)) != NULL);
-	assert((buses = sysfs_create_dir("buses", 0666, root)) != NULL);
+	assert((buses = sysfs_create_dir("bus", 0666, root)) != NULL);
 
 	dev_add_files();
 }

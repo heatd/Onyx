@@ -154,7 +154,6 @@ int device_mknod(struct dev *d, const char *path, const char *name, mode_t mode)
 			return -errno;
 	}
 	
-	/* TODO: Maybe let calling code determine the permissions? */
 	if(d->is_block) mode |= S_IFBLK;
 	else	mode |= S_IFCHR;
 	 
