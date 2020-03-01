@@ -455,101 +455,91 @@ struct inode *pick_between_cwd_and_root(char *p, struct process *proc)
 
 int sys_execve(char *p, char *argv[], char *envp[])
 {
-	if(!vm_find_region(argv))
-		return errno =-EFAULT;
-	if(!vm_find_region(envp))
-		return errno =-EFAULT;
+	int st = 0;
+	struct inode *exec_file = NULL;
+	uint8_t *file = NULL;
+	int argc;
+	char **kenv = NULL;
+	char **karg = NULL;
 
 	char *path = strcpy_from_user(p);
 	if(!path)
 		return -errno;
+
 	struct process *current = get_current_process();
 
 	/* Copy argv and envp to the kernel space */
-	int argc;
-	char **karg = process_copy_envarg(argv, true, &argc);
-	/* TODO: Abort process construction */
+	karg = process_copy_envarg(argv, true, &argc);
+	
 	if(!karg)
 	{
-		free(path);
-		return -ENOMEM;
+		st = -errno;
+		goto error;
 	}
 
-	char **kenv = process_copy_envarg(envp, true, NULL);
+	kenv = process_copy_envarg(envp, true, NULL);
 	if(!kenv)
 	{
-		free(karg);
-		free(path);
-		return -ENOMEM;
+		st = -errno;
+		goto error;
 	}
 
 	/* Open the file */
 	struct file *f = get_current_directory();
-	struct inode *in = open_vfs(pick_between_cwd_and_root(path, current), path);
+	exec_file = open_vfs(pick_between_cwd_and_root(path, current), path);
 
 	fd_put(f);
 
-	if (!in)
+	if(!exec_file)
 	{
-		free(path);
-		free(karg);
-		free(kenv);
-		return -ENOENT;
+		st = -errno;
+		goto error;
 	}
 
-	if(in->i_type != VFS_TYPE_FILE || !file_can_access(in, FILE_ACCESS_EXECUTE))
+	if(exec_file->i_type != VFS_TYPE_FILE || !file_can_access(exec_file, FILE_ACCESS_EXECUTE))
 	{
-		free(path);
-		free(karg);
-		free(kenv);
-		close_vfs(in);
-		return -EACCES;
+		st = -EACCES;
+		goto error;
 	}
 
 	if(vm_clone_as(&current->address_space) < 0)
 	{
-		free(path);
-		free(karg);
-		free(kenv);
-		close_vfs(in);
-		return -ENOMEM;
+		st = -ENOMEM;
+		goto error;
 	}
 
 	/* Swap address spaces. Good thing we saved argv and envp before */
 	if(vm_create_address_space(current, current->address_space.cr3) < 0)
 	{
-		/* TODO: Failure in sys_execve seems fragile. Test and fix. */
-		free(path);
-		free(karg);
-		free(kenv);
-		close_vfs(in);
-		return -ENOMEM;
+		st = -ENOMEM;
+		goto error;
 	}
 
 	current->cmd_line = strdup(path);
+	if(!current->cmd_line)
+	{
+		st = -ENOMEM;
+		goto error;
+	}
+
 	paging_load_cr3(current->address_space.cr3);
 	
 	/* Setup the binfmt args */
-	uint8_t *file = malloc(100);
+	file = malloc(100);
 	if(!file)
 	{
-		free(karg);
-		free(kenv);
-		close_vfs(in);
-		return -ENOMEM;
+		st = -ENOMEM;
+		goto error;
 	}
 
 
 	unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
 
 	/* Read the file signature */
-	if(read_vfs(0, 0, 100, file, in) == (size_t) -1)
+	if(read_vfs(0, 0, 100, file, exec_file) == (size_t) -1)
 	{
-		free(karg);
-		free(kenv);
-		free(file);
-		close_vfs(in);
-		return -errno;
+		st = -ENOMEM;
+		goto error;
 	}
 
 	struct binfmt_args args = {0};
@@ -557,17 +547,14 @@ int sys_execve(char *p, char *argv[], char *envp[])
 	args.filename = current->cmd_line;
 	args.argv = karg;
 	args.envp = kenv;
-	args.file = in;
+	args.file = exec_file;
 
 	/* Load the actual binary */
 	void *entry = load_binary(&args);
 	if(!entry)
 	{
-		free(karg);
-		free(kenv);
-		free(file);
-		close_vfs(in);
-		return -errno;
+		st = -errno;
+		goto error;
 	}
 
 	thread_change_addr_limit(old);
@@ -600,6 +587,15 @@ int sys_execve(char *p, char *argv[], char *envp[])
 
 	free(path);
 	return return_from_execve(entry, argc, uargv, uenv, auxv, user_stack);
+error:
+	free(karg);
+	free(kenv);
+	free(path);
+	free(file);
+
+	if(exec_file)	close_vfs(exec_file);
+
+	return st;
 }
 
 pid_t sys_getppid()
