@@ -2241,10 +2241,8 @@ void *map_page_list(struct page *pl, size_t size, uint64_t prot)
 	return vaddr;
 }
 
-int vm_create_address_space(struct process *process, void *cr3)
+int vm_create_address_space(struct mm_address_space *mm, struct process *process, void *cr3)
 {
-	struct mm_address_space *mm = &process->address_space;
-
 	mm->cr3 = cr3;
 	mm->mmap_base = vm_gen_mmap_base();
 	mm->start = arch_low_half_min;
@@ -2257,18 +2255,24 @@ int vm_create_address_space(struct process *process, void *cr3)
 
 	if(!mm->area_tree)
 	{
-		return -1;
+		return -ENOMEM;
 	}
-
-	mm->brk = map_user(vm_gen_brk_base(), 1, VM_TYPE_HEAP,
-		VM_WRITE | VM_NOEXEC | VM_USER);
-
-	if(!mm->brk)
-		return -1;
 
 	return 0;
 }
 
+int vm_create_brk(struct mm_address_space *mm)
+{
+	mm->brk = map_user(vm_gen_brk_base(), 1, VM_TYPE_HEAP,
+		VM_WRITE | VM_NOEXEC | VM_USER);
+
+	if(!mm->brk)
+	{
+		return -ENOMEM;
+	}
+
+	return 0;
+}
 
 void validate_free(void *p)
 {

@@ -78,6 +78,7 @@
 #include <onyx/percpu.h>
 #include <onyx/drm.h>
 #include <onyx/ktrace.h>
+#include <onyx/exec.h>
 
 #include <pci/pci.h>
 
@@ -242,6 +243,9 @@ retry:;
 		return errno = ENOMEM;
 	read_vfs(0, 0, 100, buffer, in);
 
+	struct exec_state st;
+	st.flushed = true;
+
 	argv[0] = path;
 	/* Prepare the argument struct */
 	struct binfmt_args args = {0};
@@ -250,11 +254,12 @@ retry:;
 	args.file = in;
 	args.argv = argv;
 	args.envp = envp;
+	args.state = &st;
 
 	get_current_thread()->owner = proc;
 
 
-	assert(vm_create_address_space(proc, proc->address_space.cr3) == 0);
+	assert(vm_create_address_space(&proc->address_space, proc, proc->address_space.cr3) == 0);
 
 	struct process *current = get_current_process();
 
@@ -262,6 +267,8 @@ retry:;
 	void *entry = load_binary(&args);
 
 	assert(entry != NULL);
+
+	assert(vm_create_brk(get_current_address_space()) == 0);
 
 	int argc;
 	char **_argv = process_copy_envarg(argv, false, &argc);

@@ -21,6 +21,7 @@ struct binfmt
 	struct binfmt *next;
 };
 
+struct exec_state;
 struct binfmt_args
 {
 	uint8_t *file_signature;
@@ -29,6 +30,7 @@ struct binfmt_args
 	struct inode *file;
 	char *interp_path;
 	bool needs_interp;
+	struct exec_state *state;
 };
 
 #ifdef __cplusplus

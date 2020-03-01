@@ -7,8 +7,10 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <errno.h>
 
 #include <onyx/binfmt.h>
+#include <onyx/exec.h>
 
 static struct binfmt *format_list = NULL;
 void *load_binary(struct binfmt_args *args)
@@ -46,8 +48,16 @@ void *bin_do_interp(struct binfmt_args *_args)
 	struct inode *file = open_vfs(get_fs_root(), args.interp_path);
 	if(!file)
 	{
+#if 0
 		printk("Could not open %s\n", args.interp_path);
 		perror("open_vfs");
+#endif
+		return NULL;
+	}
+
+	if(!file_is_executable(file))
+	{
+		errno = EACCES;
 		return NULL;
 	}
 

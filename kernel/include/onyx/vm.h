@@ -215,9 +215,11 @@ void *__map_pages_to_vaddr(struct process *process, void *virt, void *phys,
 		size_t size, size_t flags);
 void *map_page_list(struct page *pl, size_t size, uint64_t prot);
 
-int vm_create_address_space(struct process *process, void *cr3);
+int vm_create_address_space(struct mm_address_space *mm, struct process *process, void *cr3);
 
 int vm_munmap(struct mm_address_space *as, void *__addr, size_t size);
+
+int vm_create_brk(struct mm_address_space *mm);
 
 
 static inline void *page_align_up(void *ptr)

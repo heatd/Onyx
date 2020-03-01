@@ -559,17 +559,20 @@ void thread_destroy(struct thread *thread)
 	worker_schedule(&req, WORKER_PRIO_NORMAL);
 }
 
-void sched_die()
+void sched_die(void)
 {
 	struct thread *current = get_current_thread();
 
 	current->status = THREAD_DEAD;
 	current->flags |= THREAD_IS_DYING;
 
-	struct work_request req;
+	sched_yield();
+
+	/* TODO: We shouldn't free the thread right here, rather when the thread death is ack'd */
+	/*struct work_request req;
 	req.func = thread_finish_destruction;
 	req.param = current;
-	worker_schedule(&req, WORKER_PRIO_NORMAL);
+	worker_schedule(&req, WORKER_PRIO_NORMAL);*/
 }
 
 struct thread *get_thread_for_cpu(unsigned int cpu)

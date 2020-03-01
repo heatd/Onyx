@@ -11,6 +11,7 @@
 #include <onyx/binfmt/elf64.h>
 #include <onyx/vm.h>
 #include <onyx/vfs.h>
+#include <onyx/exec.h>
 
 static bool elf64_is_valid(Elf64_Ehdr *header)
 {
@@ -29,7 +30,7 @@ static bool elf64_is_valid(Elf64_Ehdr *header)
 	return true;
 }
 
-/* TODO: Unify load static and load dyn */
+/* FIXME: Unify load static and load dyn */
 void *elf64_load_static(struct binfmt_args *args, Elf64_Ehdr *header)
 {
 	struct process *current = get_current_process();
@@ -54,6 +55,13 @@ void *elf64_load_static(struct binfmt_args *args, Elf64_Ehdr *header)
 	Elf64_Phdr *uphdrs = NULL;
 	bool load_addr_set = false;
 	unsigned long load_addr = 0;
+
+	int st;
+	if((st = flush_old_exec(args->state)) < 0)
+	{
+		errno = -st;
+		return NULL;
+	}
 
 	for(Elf64_Half i = 0; i < header->e_phnum; i++)
 	{
@@ -186,6 +194,13 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 			if(alignment == (uintptr_t) -1)
 				alignment = phdrs[i].p_align;
 		}
+	}
+
+	int st;
+	if((st = flush_old_exec(args->state)) < 0)
+	{
+		errno = -st;
+		goto error1;
 	}
 
 	/* TODO: Rework this */

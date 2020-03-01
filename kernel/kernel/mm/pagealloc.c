@@ -24,7 +24,7 @@
 
 size_t page_memory_size;
 size_t nr_global_pages;
-static atomic_size_t used_pages = 0;
+atomic_size_t used_pages = 0;
 
 static inline unsigned long pow2(int exp)
 {
