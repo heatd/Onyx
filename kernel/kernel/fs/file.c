@@ -168,10 +168,10 @@ static inline int find_free_fd(int fdbase)
 		{
 			if(ioctx->file_desc[i] == NULL)
 			{
-				mutex_unlock(&ioctx->fdlock);
 				return i;
 			}
 		}
+
 		if(enlarge_file_descriptor_table(get_current_process()) < 0)
 		{
 			mutex_unlock(&ioctx->fdlock);
@@ -407,6 +407,11 @@ int sys_dup2(int oldfd, int newfd)
 
 	ioctx->file_desc[newfd] = ioctx->file_desc[oldfd];
 
+	/* FIXME: Okay, so... Turns out we're not handling CLOEXEC properly. It's a file
+	 * descriptor flag, instead of a file description flag. So, dup/dup2, fcntl F_DUPFD, etc
+	 * are doing their job incorrectly because they're keeping CLOEXEC from the original fd. */
+	/* This is a dirty hack to make shell redirection work "properly" */
+	ioctx->file_desc[newfd]->flags &= ~O_CLOEXEC;
 	/* Note: To avoid fd_get/fd_put, we use the ref we get from
 	 * get_file_description as the ref for newfd. Therefore, we don't
 	 * fd_get and fd_put().
@@ -860,6 +865,8 @@ int sys_pipe(int upipefd[2])
 		return errno = -EMFILE;
 	/* and allocate each of them */
 	ioctx->file_desc[wrfd] = zalloc(sizeof(struct file));
+	mutex_unlock(&ioctx->fdlock);
+
 	if(!ioctx->file_desc[wrfd])
 		return errno = -ENOMEM;
 
@@ -868,6 +875,7 @@ int sys_pipe(int upipefd[2])
 	if(rdfd < 0)
 		return errno = -EMFILE;
 	ioctx->file_desc[rdfd] = zalloc(sizeof(struct file));
+	mutex_unlock(&ioctx->fdlock);
 	if(!ioctx->file_desc[rdfd])
 	{
 		free(ioctx->file_desc[wrfd]);
@@ -909,9 +917,15 @@ int sys_pipe(int upipefd[2])
 int do_dupfd(struct file *f, int fdbase)
 {
 	int new_fd = find_free_fd(fdbase);
+	if(new_fd < 0)
+		return new_fd;
+
 	ioctx_t *ioctx = &get_current_process()->ctx;
-	ioctx->file_desc[fdbase] = f;
+	ioctx->file_desc[new_fd] = f;
+
 	fd_get(f);
+
+	mutex_unlock(&ioctx->fdlock);
 
 	return new_fd;
 }

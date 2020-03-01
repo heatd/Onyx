@@ -1,4 +1,4 @@
-PROG:= devmgr
+PROG:= devmgrd
 OBJS:= src/main.o
 CFLAGS:=-O2 -g -D_POSIX_C_SOURCE -fstack-protector-strong
 clean:

@@ -70,6 +70,9 @@ int Enumerate(int fd)
 
 int main(int argc, char **argv, char **envp)
 {
+	close(0);
+	close(1);
+	close(2);
 	struct stat buf;
 	int fd = open("/sys", O_RDONLY | O_DIRECTORY);
 	if(fd < 0)

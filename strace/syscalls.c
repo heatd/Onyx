@@ -831,6 +831,7 @@ struct system_call system_calls[MAX_SYS] =
 	{"time", do_time, do_long_exit},
 	{"gettimeofday", do_gettimeofday, do_integer_exit},
 	{"reboot", do_noargs, do_void_exit},
+	{"unknown", do_noargs, do_integer_exit},	// TODO
 	{"readv", do_print_iov, do_long_exit},
 	{"writev", do_print_iov, do_long_exit},
 	{"preadv", do_print_piov, do_long_exit},
@@ -842,6 +843,7 @@ struct system_call system_calls[MAX_SYS] =
 	{"personality", do_personality, do_integer_exit},
 	{"setuid", do_print_id, do_integer_exit},
 	{"setgid", do_print_id, do_integer_exit},
+	{"unknown", do_noargs, do_integer_exit}, // TODO
 	{"mremap", do_mremap, do_mmap_exit},
 	{"sigreturn", do_noargs, do_noexit},
 	{"insmod", do_insmod, do_integer_exit},
@@ -856,6 +858,7 @@ struct system_call system_calls[MAX_SYS] =
 	{"fcntl", do_fcntl, do_integer_exit},
 	{"unknown", do_noargs, do_integer_exit},
 	{"stat", do_stat, do_integer_exit},
+	{"unknown", do_noargs, do_integer_exit},
 	{"unknown", do_noargs, do_integer_exit},
 	{"sigaction", do_sigaction, do_integer_exit},
 	{"pipe", do_pipe, do_integer_exit},
