@@ -20,7 +20,8 @@ int pci_shutdown(struct device *__dev);
 static struct bus pci_bus = 
 {
 	.name = "pci",
-	.shutdown = pci_shutdown
+	.shutdown = pci_shutdown,
+	.device_list_head = LIST_HEAD_INIT(pci_bus.device_list_head),
 };
 
 void __pci_write(struct pci_device *dev, uint64_t value, uint16_t off, size_t size);
@@ -222,10 +223,9 @@ void pci_enumerate_device(uint16_t bus, uint8_t device, uint8_t function, struct
 	uint8_t pciClass = (word >> 24) & 0xFF;
 
 	// Set up some meta-data
-	struct pci_device* dev = malloc(sizeof(struct pci_device));
+	struct pci_device* dev = zalloc(sizeof(struct pci_device));
 	if(!dev)
 		panic("pci: early unrecoverable oom\n");
-	memset(dev, 0, sizeof(struct pci_device));
 
 	dev->bus = bus;
 	dev->function = function;
@@ -243,11 +243,14 @@ void pci_enumerate_device(uint16_t bus, uint8_t device, uint8_t function, struct
 	pci_find_supported_capabilities(dev);
 	/* Set up the pci device's name */
 	char name_buf[200] = {0};
-	snprintf(name_buf, 200, "%04x%04x", vendor, dev->deviceID);
+	snprintf(name_buf, 200, "%02x.%02x.%02x", dev->bus, dev->device, dev->function);
 	dev->dev.name = strdup(name_buf);
 	assert(dev->dev.name);
 
+	assert(device_init(&dev->dev) == 0);
+
 	bus_add_device(&pci_bus, (struct device*) dev);
+
 	if(likely(last))
 		last->next = dev;
 	else
@@ -372,7 +375,13 @@ uint16_t pci_get_intn(struct pci_device *dev)
 	return intn;
 }
 
-void pci_init()
+struct bus b =
+{
+	.name = "test",
+	.device_list_head = LIST_HEAD_INIT(b.device_list_head)
+};
+
+void pci_init(void)
 {
 	pcie_get_mcfg();
 	if(pcie_is_enabled())
@@ -381,56 +390,39 @@ void pci_init()
 	}
 	else
 	{
-		/* Register the PCI bus */
-		bus_register(&pci_bus);
+		assert(bus_init(&pci_bus) == 0);
+		bus_init(&b);
+		bus_register(&b);
 		/* Check every pci device and add it onto the bus */
 		pci_enumerate_devices();
+		/* Register the PCI bus */
+		bus_register(&pci_bus);
 		assert(acpi_get_irq_routing_info(&pci_bus) == 0);
 	}
 }
 
-struct pci_device *get_pcidev_from_vendor_device(uint16_t deviceid, uint16_t vendorid)
-{
-	if(pcie_is_enabled())
-		return get_pciedev_from_vendor_device(deviceid, vendorid);
-	for(struct pci_device *i = linked_list; i; i = i->next)
-	{
-		if(i->deviceID == deviceid && i->vendorID == vendorid)
-			return i;
-	}
-	return NULL;
-}
-
-struct pci_device *get_pcidev_from_classes(uint8_t class, uint8_t subclass, uint8_t progif)
-{
-	if(pcie_is_enabled())
-		return get_pciedev_from_classes(class, subclass, progif);
-	for(struct pci_device *i = linked_list; i;i = i->next)
-	{
-		if(i->pciClass == class && i->subClass == subclass && i->progIF == progif)
-			return i;
-	}
-	return NULL;
-}
-
-void pci_set_barx(uint8_t slot, uint8_t device, uint8_t function, uint8_t index, uint32_t address, uint8_t is_io, uint8_t is_prefetch)
+void pci_set_barx(uint8_t slot, uint8_t device, uint8_t function, uint8_t index,
+	uint32_t address, uint8_t is_io, uint8_t is_prefetch)
 {
 	uint32_t bar = address | is_io | (is_prefetch << 2);
 	__pci_write_dword(slot, device, function, PCI_BARx(index), bar);
 }
 
-struct pci_device *get_pcidev(struct pci_device_address *addr)
+extern struct bus pcie_bus;
+
+struct pci_device *pci_get_dev(struct pci_device_address *addr)
 {
-	if(pcie_is_enabled())
-		return get_pciedev(addr);
-	struct pci_device *dev = (struct pci_device *) pci_bus.devs;
-	while(dev)
+	struct list_head *dev_list = pcie_is_enabled() ? &pcie_bus.device_list_head : &pci_bus.device_list_head;
+	list_for_every(dev_list)
 	{
-		if(dev->bus == addr->bus && dev->device == addr->device 
-                   && dev->function == addr->function)
-			return dev;
-		dev = (struct pci_device *) dev->dev.next;
+
+		struct device *__pci = container_of(l, struct device, device_list_node);
+		struct pci_device *pci = (struct pci_device *) __pci;
+		if(pci->segment == addr->segment && pci->bus == addr->bus && pci->device == 
+		   addr->device && pci->function == addr->function)
+			return pci;
 	}
+
 	return NULL;
 }
 
@@ -555,30 +547,6 @@ size_t pci_find_capability(struct pci_device *dev, uint8_t cap, int instance)
 
 extern struct bus pcie_bus;
 
-bool pci_find_device(bool (*callback)(struct pci_device *), bool stop_on_match)
-{
-	bool found = false;
-	for(struct device *i = pci_bus.devs; i; i = i->next)
-	{
-		if(callback((struct pci_device *) i) == true)
-		{
-			found = true;
-			if(stop_on_match)
-				return true;
-		}
-	}
-	for(struct device *i = pcie_bus.devs; i;i = i->next)
-	{
-		if(callback((struct pci_device *) i) == true)
-		{
-			found = true;
-			if(stop_on_match)
-				return true;
-		}
-	}
-	return found;
-}
-
 void pci_disable_busmastering(struct pci_device *dev)
 {
 	uint32_t command_register = (uint32_t) pci_read(dev, PCI_REGISTER_COMMAND, sizeof(uint32_t));
@@ -641,6 +609,29 @@ struct pci_id *pci_driver_supports_device(struct driver *driver, struct device *
 	return NULL;
 }
 
+void __pci_bus_register(struct driver *driver, struct bus *bus)
+{
+	list_for_every(&bus->device_list_head)
+	{
+		struct device *dev = container_of(l, struct device, device_list_node);
+		struct pci_id *id;
+		struct pci_device *d = (struct pci_device *) dev;
+#if 0
+		printk("%04x:%02x:%02x:%02x -> %04x:%04x\n",
+			d->segment, d->bus, d->device, d->function,
+			d->deviceID, d->vendorID);
+#endif
+
+		if((id = pci_driver_supports_device(driver, dev)))
+		{
+			d->driver_data = id->driver_data;
+			driver_register_device(driver, dev);
+			if(driver->probe(dev) < 0)
+				driver_deregister_device(driver, dev);
+		}
+	}
+}
+
 void pci_bus_register_driver(struct driver *driver)
 {
 	spin_lock(&pci_bus.bus_lock);
@@ -661,34 +652,8 @@ void pci_bus_register_driver(struct driver *driver)
 
 	spin_unlock(&pci_bus.bus_lock);
 
-	for(struct device *dev = pci_bus.devs; dev != NULL; dev = dev->next)
-	{
-		struct pci_id *id;
-		if((id = pci_driver_supports_device(driver, dev)))
-		{
-			struct pci_device *d = (void *) dev;
-			d->driver_data = id->driver_data;
-			driver_register_device(driver, dev);
-			if(driver->probe(dev) < 0)
-				driver_deregister_device(driver, dev);
-		}
-	}
-
-	for(struct device *dev = pcie_bus.devs; dev != NULL; dev = dev->next)
-	{
-		struct pci_id *id;
-		struct pci_device *d = (void *) dev;
-		/*printk("%04x:%02x:%02x:%02x -> %04x:%04x\n",
-			d->segment, d->bus, d->device, d->function,
-			d->deviceID, d->vendorID);*/
-		if((id = pci_driver_supports_device(driver, dev)))
-		{
-			d->driver_data = id->driver_data;
-			driver_register_device(driver, dev);
-			if(driver->probe(dev) < 0)
-				driver_deregister_device(driver, dev);
-		}
-	}
+	__pci_bus_register(driver, &pci_bus);
+	__pci_bus_register(driver, &pcie_bus);
 }
 
 int pci_enable_device(struct pci_device *device)

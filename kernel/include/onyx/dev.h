@@ -15,6 +15,7 @@
 #include <onyx/spinlock.h>
 #include <onyx/list.h>
 #include <onyx/tmpfs.h>
+#include <onyx/sysfs.h>
 
 #define MAJOR_DEVICE_HASHTABLE 255
 
@@ -76,18 +77,22 @@ struct device
 	const char *name;
 	struct bus *bus;
 	struct driver *driver;
+	struct sysfs_object device_sysfs;
 	void *priv;
 
 	struct extrusive_list_head children;
-	struct device *prev, *next;
+	struct list_head device_list_node;
 };
 
 struct bus
 {
-	const char *name; 	/* Name of the bus */
+	/* Name of the bus */
+	const char *name;
 	struct spinlock bus_lock;
-	struct device *devs;	/* List of every device connected to this bus */
+	/* List of every device connected to this bus */
+	struct list_head device_list_head;
 	struct driver *registered_drivers;
+	struct sysfs_object bus_sysfs;
 
 	int (*shutdown)(struct device *);
 	int (*resume)(struct device *);
@@ -96,21 +101,33 @@ struct bus
 	int (*shutdown_bus)(struct bus *);
 	int (*suspend_bus)(struct bus *);
 	int (*resume_bus)(struct bus *);
-	struct bus *prev, *next;
+	struct list_head bus_list_node;
 };
+
+/* bus_init - Initialize a bus structure */
+int bus_init(struct bus *bus);
+
+/* bus_init - Initialize a device structure */
+int device_init(struct device *dev);
 
 /* bus_register - Register a bus */
 void bus_register(struct bus *bus);
+
 /* bus_unregister - Unregister a bus */
 void bus_unregister(struct bus *bus);
+
 /* bus_add_device - Add a device to a bus */
 void bus_add_device(struct bus *bus, struct device *device);
+
 /* bus_find_device - Find a device on the bus */
 struct device *bus_find_device(struct bus *bus, const char *devname);
+
 /* bus_shutdown - Shutdown every device on the bus */
 void bus_shutdown(struct bus *bus);
+
 /* bus_shutdown_every - Shutdown every bus */
 void bus_shutdown_every(void);
+
 /* bus_suspend_every - Suspend every bus */
 void bus_suspend_every(void);
 

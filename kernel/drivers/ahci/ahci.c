@@ -41,11 +41,6 @@ void ahci_destroy_aio(struct ahci_port *port, struct aio_req *req);
 
 #define MPRINTF(...) printf("ahci: "__VA_ARGS__)
 
-/* TODO: Stop using globals and use a per-device struct instead, using .probe */
-static struct ahci_device *device = NULL;
-static struct pci_device *ahci_dev = NULL;
-static ahci_hba_memory_regs_t *hba = NULL;
-
 void ahci_wake_io(void *ctx)
 {
 	struct aio_req *req = ctx;
@@ -248,7 +243,7 @@ command_list_t *ahci_allocate_command_list(struct ahci_port *ahci_port, size_t *
 	spin_lock_irqsave(&ahci_port->port_lock);
 
 	command_list_t *list = ahci_find_free_command_list(clist,
-		AHCI_CAP_NCS(device->hba->host_cap), index);
+		AHCI_CAP_NCS(ahci_port->dev->hba->host_cap), index);
 	spin_unlock_irqrestore(&ahci_port->port_lock);
 
 	return list;
@@ -430,7 +425,7 @@ int ahci_check_drive_type(ahci_port_t *port)
 	return port->sig;
 }
 
-void ahci_probe_ports(int n_ports)
+void ahci_probe_ports(int n_ports, ahci_hba_memory_regs_t *hba)
 {
 	uint32_t ports_impl = hba->ports_implemented;
 	for(int i = 0; i < 32; i++)
@@ -451,6 +446,7 @@ void ahci_probe_ports(int n_ports)
 				}
 			}
 		}
+
 		ports_impl >>= 1;
 	}
 }
@@ -473,7 +469,7 @@ const char *ahci_get_if_speed(ahci_hba_memory_regs_t *hba)
 	}
 }
 
-int ahci_check_caps(ahci_hba_memory_regs_t *hba)
+int ahci_check_caps(ahci_hba_memory_regs_t *hba, struct pci_device *ahci_dev)
 {
 	MPRINTF("supported features: ");
 	if(hba->host_cap & AHCI_CAP_SXS)
@@ -512,7 +508,8 @@ int ahci_check_caps(ahci_hba_memory_regs_t *hba)
 		printf("64-bit addressing ");
 	printf("\n");
 
-	MPRINTF("version %s device at %x:%x:%x running at speed %s\n", ahci_stringify_version(ahci_get_version(hba)), ahci_dev->bus, 
+	MPRINTF("version %s device at %x:%x:%x running at speed %s\n",
+		ahci_stringify_version(ahci_get_version(hba)), ahci_dev->bus, 
 		ahci_dev->device, ahci_dev->function, ahci_get_if_speed(hba));
 	return 0;
 }
@@ -765,6 +762,9 @@ int ahci_configure_port_dma(struct ahci_port *port, unsigned int ncs)
 void ahci_init_port(struct ahci_port *ahci_port)
 {
 	ahci_port_t *port = ahci_port->port;
+	struct ahci_device *device = ahci_port->dev;
+	ahci_hba_memory_regs_t *hba = device->hba;
+
 	/* Enable interrupts */
 	ahci_enable_interrupts_for_port(port);
 	
@@ -810,7 +810,7 @@ void ahci_init_port(struct ahci_port *ahci_port)
 	ahci_do_identify(ahci_port);
 }
 
-int ahci_initialize(void)
+int ahci_initialize(struct ahci_device *device)
 {
 	ahci_hba_memory_regs_t *hba = device->hba;
 
@@ -886,44 +886,28 @@ struct pci_id pci_ahci_devids[] =
 	{ 0 }
 };
 
-struct driver ahci_driver =
-{
-	.name = "ahci",
-	.devids = &pci_ahci_devids
-};
 
-static int ahci_init(void)
+int ahci_probe(struct device *dev)
 {
 	int status = 0;
 	int irq = -1;
-	MPRINTF("initializing!\n");
-
-	/* Get the PCI device */
-	ahci_dev = get_pcidev_from_classes(CLASS_MASS_STORAGE_CONTROLLER, 6, 0);
-	if(!ahci_dev)
-		ahci_dev = get_pcidev_from_classes(CLASS_MASS_STORAGE_CONTROLLER, 6, 1);
-	if(!ahci_dev)
-	{
-		MPRINTF("could not find a valid SATA device!\n");
-		return 1;
-	}
+	struct pci_device *ahci_dev = (struct pci_device *) dev;
 
 	if(pci_enable_device(ahci_dev) < 0)
 		return -1;
-	driver_register_device(&ahci_driver, (struct device *) ahci_dev);
 
 	/* Get BAR5 of the device BARs */
 	struct pci_bar bar;
 	if(pci_get_bar(ahci_dev, 5, &bar) < 0)
 		return -1;
 
-	hba = mmiomap((void *) bar.address, bar.size, VM_WRITE | VM_NOCACHE |
-						      VM_NOEXEC);
+	ahci_hba_memory_regs_t *hba = mmiomap((void *) bar.address, bar.size,
+										  VM_WRITE | VM_NOCACHE | VM_NOEXEC);
 
 	assert(hba != NULL);
 
 	/* Allocate a struct ahci_device and fill it */
-	device = zalloc(sizeof(struct ahci_device));
+	struct ahci_device *device = zalloc(sizeof(struct ahci_device));
 	if(!device)
 		return -1;
 
@@ -935,7 +919,7 @@ static int ahci_init(void)
 	/* Enable PCI busmastering */
 	pci_enable_busmastering(ahci_dev);
 	
-	if(ahci_check_caps(hba) < 0)
+	if(ahci_check_caps(hba, ahci_dev) < 0)
 	{
 		status = -1;
 		goto ret;
@@ -953,13 +937,14 @@ static int ahci_init(void)
 			IRQ_FLAG_REGULAR, device) == 0);
 	}
 	/* Initialize AHCI */
-	if(ahci_initialize() < 0)
+	if(ahci_initialize(device) < 0)
 	{
 		MPRINTF("Failed to initialize the AHCI controller\n");
 		status = -1;
 		goto ret;
-	}
-	ahci_probe_ports(count_bits32(hba->ports_implemented));
+	
+}
+	ahci_probe_ports(count_bits32(hba->ports_implemented), hba);
 ret:
 	if(status != 0)
 	{
@@ -968,7 +953,22 @@ ret:
 		device = NULL;
 	}
 
-	return status;
+	return -1;
+}
+struct driver ahci_driver =
+{
+	.name = "ahci",
+	.devids = &pci_ahci_devids,
+	.probe = ahci_probe
+};
+
+static int ahci_init(void)
+{
+	MPRINTF("initializing!\n");
+
+	pci_bus_register_driver(&ahci_driver);
+
+	return 0;
 }
 
 int ahci_fini(void)

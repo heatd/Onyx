@@ -15,55 +15,70 @@
 #include <onyx/sysfs.h>
 
 static struct spinlock bus_list_lock;
-static struct bus *bus_list = NULL;
+static struct list_head bus_list = LIST_HEAD_INIT(bus_list);
+
+static struct sysfs_object devices_obj;
+static struct sysfs_object buses_obj;
+
+int bus_init(struct bus *bus)
+{
+	return sysfs_object_init(bus->name, &bus->bus_sysfs);
+}
+
+int device_init(struct device *dev)
+{
+	return sysfs_object_init(dev->name, &dev->device_sysfs);
+}
 
 void bus_register(struct bus *bus)
 {
 	spin_lock(&bus_list_lock);
-	assert(bus);
-	if(!bus_list)
-		bus_list = bus;
-	else
-	{
-		struct bus *b = bus_list;
-		while(b->next) b = b->next;
 
-		b->next = bus;
-		bus->prev = b;
-	}
+	list_add_tail(&bus->bus_list_node, &bus_list);
+
 	spin_unlock(&bus_list_lock);
+
+	bus->bus_sysfs.perms = 0644 | S_IFDIR;
+
+	sysfs_add(&bus->bus_sysfs, &buses_obj);
 }
 
 void bus_add_device(struct bus *bus, struct device *device)
 {
 	spin_lock(&bus->bus_lock);
-	assert(bus);
-	assert(device);
+	
+	assert(bus != NULL);
+	assert(device != NULL);
+	
 	device->bus = bus;
-	if(!bus->devs)
-		bus->devs = device;
-	else
-	{
-		struct device *d = bus->devs;
-		while(d->next) d = d->next;
+	
+	list_add_tail(&device->device_list_node, &bus->device_list_head);
 
-		d->next = device;
-		device->prev = d;
-	}
 	spin_unlock(&bus->bus_lock);
+
+	device->device_sysfs.perms = 0644 | S_IFDIR;
+
+	sysfs_add(&device->device_sysfs, &bus->bus_sysfs);
 }
 
 struct device *bus_find_device(struct bus *bus, const char *devname)
 {
 	assert(bus);
 	assert(devname);
-	if(!bus->devs)
-		return NULL;
-	for(struct device *dev = bus->devs; dev; dev = dev->next)
+
+	spin_lock(&bus->bus_lock);
+
+	list_for_every(&bus->device_list_head)
 	{
+		struct device *dev = container_of(l, struct device, device_list_node);
 		if(!strcmp(dev->name, devname))
+		{
+			spin_unlock(&bus->bus_lock);
 			return dev;
+		}
 	}
+
+	spin_unlock(&bus->bus_lock);
 	return NULL;
 }
 
@@ -122,82 +137,96 @@ void bus_shutdown(struct bus *bus)
 {
 	assert(bus);
 	spin_lock(&bus->bus_lock);
-	for(struct device *dev = bus->devs; dev; dev = dev->next)
+	
+	list_for_every(&bus->device_list_head)
 	{
+		struct device *dev = container_of(l, struct device, device_list_node);
 		device_shutdown(dev);
 	}
+
 	spin_unlock(&bus->bus_lock);
 }
 
 void bus_shutdown_every(void)
 {
 	spin_lock(&bus_list_lock);
-	for(struct bus *bus = bus_list; bus; bus = bus->next)
+	
+	list_for_every(&bus_list)
 	{
+		struct bus *bus = container_of(l, struct bus, bus_list_node);
 		bus_shutdown(bus);
 		if(bus->shutdown_bus) bus->shutdown_bus(bus);
 	}
+
 	spin_unlock(&bus_list_lock);
 }
 
 void bus_suspend(struct bus *bus)
 {
 	assert(bus);
+
 	spin_lock(&bus->bus_lock);
-	for(struct device *dev = bus->devs; dev; dev = dev->next)
+
+	list_for_every(&bus->device_list_head)
 	{
+		struct device *dev = container_of(l, struct device, device_list_node);
 		device_suspend(dev);
 	}
+
 	spin_unlock(&bus->bus_lock);
 }
 
 void bus_resume(struct bus *bus)
 {
 	assert(bus);
+	
 	spin_lock(&bus->bus_lock);
-	for(struct device *dev = bus->devs; dev; dev = dev->next)
+	
+	list_for_every(&bus->device_list_head)
 	{
+		struct device *dev = container_of(l, struct device, device_list_node);
 		device_resume(dev);
 	}
+
 	spin_unlock(&bus->bus_lock);
 }
 
 void bus_suspend_every(void)
 {
 	spin_lock(&bus_list_lock);
-	for(struct bus *bus = bus_list; bus; bus = bus->next)
+	
+	list_for_every(&bus_list)
 	{
+		struct bus *bus = container_of(l, struct bus, bus_list_node);
 		bus_suspend(bus);
 	}
+
 	spin_unlock(&bus_list_lock);
 }
 
 void bus_resume_every(void)
 {
 	spin_lock(&bus_list_lock);
-	for(struct bus *bus = bus_list; bus; bus = bus->next)
+	
+	list_for_every(&bus_list)
 	{
+		struct bus *bus = container_of(l, struct bus, bus_list_node);
 		bus_resume(bus);
 	}
+
 	spin_unlock(&bus_list_lock);
 }
 
 void bus_unregister(struct bus *bus)
 {
 	spin_lock(&bus_list_lock);
-	if(bus == bus_list)
-	{
-		bus_list = bus->next;
-		bus_list->prev = NULL;
-	}
-	else
-	{
-		bus->prev->next = bus->next;
-		bus->next->prev = bus->prev;
-	}
+	
+	list_remove(&bus->bus_list_node);
+
 	spin_unlock(&bus_list_lock);
 }
 
+#if 0
 static void dev_add_files(void)
 {
 	for(struct bus *b = bus_list; b != NULL; b = b->next)
@@ -210,15 +239,14 @@ static void dev_add_files(void)
 	}
 }
 
+#endif
+
 void dev_create_sysfs(void)
 {
-	struct inode *root = open_vfs(get_fs_root(), "/sys");
-	struct sysfs_file *devices = NULL;
-	struct sysfs_file *buses = NULL;
-	assert((devices = sysfs_create_dir("devices", 0666, root)) != NULL);
-	assert((buses = sysfs_create_dir("bus", 0666, root)) != NULL);
-
-	dev_add_files();
+	assert(sysfs_init_and_add("devices", &devices_obj, NULL) == 0);
+	devices_obj.perms = 0644 | S_IFDIR;
+	assert(sysfs_init_and_add("bus", &buses_obj, NULL) == 0);
+	buses_obj.perms = 0644 | S_IFDIR;
 }
 
 void driver_register_device(struct driver *driver, struct device *dev)

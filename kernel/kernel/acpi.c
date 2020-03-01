@@ -100,7 +100,8 @@ int acpi_shutdown_device(struct device *dev);
 static struct bus acpi_bus = 
 {
 	.name = "acpi",
-	.shutdown = acpi_shutdown_device
+	.shutdown = acpi_shutdown_device,
+	.device_list_head = LIST_HEAD_INIT(acpi_bus.device_list_head)
 };
 
 ACPI_STATUS acpi_walk_irq(ACPI_HANDLE object, UINT32 nestingLevel,
@@ -148,7 +149,7 @@ int enumerate_pci_irq_routing(ACPI_PCI_ROUTING_TABLE *table, struct bus *bus,
 		uint8_t device = it->Address >> 16;
 		struct pci_device_address addr = {0};
 		addr.device = device;
-		struct pci_device *dev = get_pcidev(&addr);
+		struct pci_device *dev = pci_get_dev(&addr);
 		if(!dev)
 			continue;
 
@@ -367,6 +368,8 @@ ACPI_STATUS acpi_add_device(ACPI_HANDLE object, UINT32 nestingLevel, void *conte
 	device->object = object;
 	device->info = info;
 	device->resources = resources;
+
+	assert(device_init(&device->dev) == 0);
 	
 	bus_add_device(&acpi_bus, (struct device*) device);
 
@@ -423,12 +426,14 @@ int acpi_initialize(void)
 		panic("AcpiInitializeObjects failed!");
 
 	INFO("acpi", "initialized!\n");
+	
+	assert(bus_init(&acpi_bus) == 0);
+
+	/* Enumerate every device */
+	acpi_enumerate_devices();
 
 	/* Register the acpi bus */
 	bus_register(&acpi_bus);
-	
-	/* Enumerate every device */
-	acpi_enumerate_devices();
 
 	acpi_init_timer();
 
@@ -672,8 +677,9 @@ void acpi_bus_register_driver(struct driver *driver)
 
 	spin_unlock(&acpi_bus.bus_lock);
 
-	for(struct device *dev = acpi_bus.devs; dev != NULL; dev = dev->next)
+	list_for_every(&acpi_bus.device_list_head)
 	{
+		struct device *dev = container_of(l, struct device, device_list_node);
 		if(acpi_driver_supports_device(driver, dev))
 		{
 			driver_register_device(driver, dev);

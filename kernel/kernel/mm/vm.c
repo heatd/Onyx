@@ -1806,6 +1806,7 @@ ssize_t aslr_write(void *buffer, size_t size, off_t off)
 	{
 		enable_aslr = false;
 	}
+
 	return 1;
 }
 
@@ -1828,26 +1829,27 @@ ssize_t kmaps_read(void *buffer, size_t size, off_t off)
 	#endif
 }
 
+static struct sysfs_object vm_obj;
+static struct sysfs_object aslr_control;
+static struct sysfs_object kmaps;
+
 void vm_sysfs_init(void)
 {
-	INFO("vmm", "Setting up /sys/vm, /sys/vm_aslr and /sys/kmaps\n");
-	struct inode *sysfs = open_vfs(get_fs_root(), "/sys");
-	if(!sysfs)
-		panic("vm_sysfs_init: /sys not mounted!\n");
-	struct sysfs_file *vmfile = sysfs_create_entry("vm", 0666, sysfs);
-	if(!vmfile)
-		panic("vm_sysfs_init: Could not create /sys/vm\n");
-	
-	struct sysfs_file *aslr_control = sysfs_create_entry("vm_aslr", 0666, sysfs);
-	if(!aslr_control)
-		panic("vm_sysfs_init: Could not create /sys/vm_aslr\n");
-	aslr_control->read = aslr_read;
-	aslr_control->write = aslr_write;
+	INFO("vmm", "Setting up /sys/vm\n");
 
-	struct sysfs_file *kmaps = sysfs_create_entry("kmaps", 0400, sysfs);
-	if(!kmaps)
-		panic("vm_sysfs_init: Could not create /sys/kmaps\n");
-	kmaps->read = kmaps_read;
+	assert(sysfs_object_init("vm", &vm_obj) == 0);
+	vm_obj.perms = 0644 | S_IFDIR;
+
+	assert(sysfs_init_and_add("aslr_ctl", &aslr_control, &vm_obj) == 0);
+	aslr_control.read = aslr_read;
+	aslr_control.write = aslr_write;
+	aslr_control.perms = 0644 | S_IFREG;
+
+	assert(sysfs_init_and_add("kmaps", &kmaps, &vm_obj) == 0);
+	kmaps.read = kmaps_read;
+	kmaps.perms = 0444 | S_IFREG;
+
+	sysfs_add(&vm_obj, NULL);
 }
 
 int vm_mark_cow(struct vm_region *area)

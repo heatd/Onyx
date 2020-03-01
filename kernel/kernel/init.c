@@ -315,6 +315,8 @@ void tickless_init(void);
 __attribute__((no_sanitize_undefined))
 void kernel_main(void)
 {
+	sysfs_init();
+
 	percpu_init();
 
 	/* Set up symbols and the core kernel 'module' */
@@ -415,8 +417,8 @@ void kernel_multitasking(void *arg)
 	/* Initialize the worker thread */
 	worker_init();
 
-	/* Initialize sysfs */
-	sysfs_init();
+	/* Mount sysfs */
+	sysfs_mount();
 
 	/* Populate /sys */
 	vm_sysfs_init();

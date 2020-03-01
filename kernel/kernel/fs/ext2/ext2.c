@@ -348,7 +348,13 @@ free_ino_error:
 
 struct inode *ext2_creat(const char *name, int mode, struct inode *file)
 {
-	return ext2_create_file(name, (mode & ~S_IFMT) | S_IFREG, 0, file);
+	unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
+
+	struct inode *i = ext2_create_file(name, (mode & ~S_IFMT) | S_IFREG, 0, file);
+
+	thread_change_addr_limit(old);
+
+	return i;
 }
 
 __attribute__((no_sanitize_undefined))

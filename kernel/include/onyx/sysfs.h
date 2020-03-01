@@ -9,14 +9,27 @@
 #include <stdbool.h>
 
 #include <onyx/list.h>
+#include <onyx/object.h>
+
+#include <sys/stat.h>
+
 /* Each sysfs entry is a sysfs property */
-struct sysfs_file
+struct sysfs_object
 {
+	struct object obj;
 	char *name;
-	struct sysfs_file *children, *next;
+
+	struct list_head dentry_node;
+
+	struct spinlock dentry_lock;
+	
+	struct list_head dentries;
+	
+	struct sysfs_object *parent;
+	
 	ino_t inode;
 	int type;
-	int perms;
+	mode_t perms;
 	void *priv;
 	ssize_t (*write)(void *buffer, size_t size, off_t off);
 	ssize_t (*read)(void *buffer, size_t size, off_t off);
@@ -25,12 +38,12 @@ struct sysfs_file
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 void sysfs_init(void);
-struct sysfs_file *sysfs_create_entry(const char *pathname, int mode, struct inode *node);
+int sysfs_object_init(const char *name, struct sysfs_object *obj);
+void sysfs_add(struct sysfs_object *obj, struct sysfs_object *parent);
+int sysfs_init_and_add(const char *name, struct sysfs_object *obj, struct sysfs_object *parent);
 void sysfs_mount(void);
-struct sysfs_file *sysfs_add_device(struct device *dev);
-struct sysfs_file *sysfs_add_bus(struct bus *bus);
-struct sysfs_file *sysfs_create_dir(const char *name, int perm, struct inode *ino);
 
 #ifdef __cplusplus
 }

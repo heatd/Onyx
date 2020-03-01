@@ -320,7 +320,7 @@ ACPI_STATUS AcpiOsReadPciConfiguration(ACPI_PCI_ID *PciId, UINT32 Register, UINT
 	addr.bus = (uint8_t) PciId->Bus;
 	addr.device = (uint8_t) PciId->Device;
 	addr.function = (uint8_t) PciId->Function;
-	struct pci_device *dev = get_pcidev(&addr);
+	struct pci_device *dev = pci_get_dev(&addr);
 	if(!dev)
 	{
 		struct pci_device fake_dev;

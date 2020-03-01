@@ -677,11 +677,22 @@ struct page_cache_block *add_cache_to_node(void *ptr, size_t size, off_t offset,
 	return cache;
 }
 
+bool inode_is_cacheable(struct inode *file)
+{
+	if(file->i_flags & INODE_FLAG_DONT_CACHE)
+		return false;
+	if(file->i_type != VFS_TYPE_FILE)
+		return false;
+
+	return true;
+}
+
 ssize_t lookup_file_cache(void *buffer, size_t sizeofread, struct inode *file,
 	off_t offset)
 {
-	if(file->i_type != VFS_TYPE_FILE)
+	if(!inode_is_cacheable(file))
 		return -1;
+
 	if((size_t) offset > file->i_size)
 		return 0;
 	size_t read = 0;
@@ -749,8 +760,9 @@ ssize_t lookup_file_cache(void *buffer, size_t sizeofread, struct inode *file,
 ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *file,
 	off_t offset)
 {
-	if(file->i_type != VFS_TYPE_FILE)
+	if(!inode_is_cacheable(file))
 		return -1;
+
 
 	size_t wrote = 0;
 	do

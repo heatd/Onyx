@@ -291,17 +291,17 @@ void rtl_fill_mac(struct netif *n)
 	}
 }
 
-struct driver rtl_driver = 
+static struct pci_id pci_rtl_devids[] = 
 {
-	.name = "rtl"
+	{ PCI_ID_DEVICE(RTL8139_VENDORID, RTL8139_DEVICEID, NULL) },
+	{ 0 }
 };
 
-static int rtl8139_init()
+/* FIXME: Fix this driver, that's even full of globals */
+
+int rtl_probe(struct device *dev)
 {
-	device = get_pcidev_from_vendor_device(RTL8139_DEVICEID, RTL8139_VENDORID);
-	if(!device)
-		return -1;
-	driver_register_device(&rtl_driver, (struct device *) device);
+	device = (struct pci_device *) dev;
 
 	/* Enable PCI busmastering */
 	pci_enable_busmastering(device);
@@ -347,6 +347,19 @@ static int rtl8139_init()
 	netif_register_if(n);
 
 	nic_netif = n;
+	return 0;
+}
+
+static struct driver rtl_driver = 
+{
+	.name = "rtl",
+	.devids = &pci_rtl_devids,
+	.probe = rtl_probe
+};
+
+static int rtl8139_init()
+{
+	pci_bus_register_driver(&rtl_driver);
 	return 0;
 }
 

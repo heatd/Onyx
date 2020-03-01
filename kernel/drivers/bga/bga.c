@@ -87,18 +87,31 @@ struct video_device bga_device =
 	.refcount = 0
 };
 
-static int bga_init(void)
+static struct pci_id pci_bga_devids[] = 
 {
-	struct pci_device *device = get_pcidev_from_vendor_device(BOCHSVGA_PCI_DEVICEID, BOCHSVGA_PCI_VENDORID);
-	if(!device)
-	{
-		MPRINTF("Couldn't find a valid BGA PCI device!\n");
-		return 1;
-	}
+	{ PCI_ID_DEVICE(BOCHSVGA_PCI_VENDORID, BOCHSVGA_PCI_DEVICEID, NULL) },
+	{ 0 }
+};
+
+int bga_probe(struct device *dev)
+{
+	struct pci_device *device = (struct pci_device *) dev;
 
 	if(pci_enable_device(device) < 0)
 		return -1;
-	//video_set_main_adapter(&bga_device);
+
+	return 0;
+}
+static struct driver bga_driver = 
+{
+	.name = "bga",
+	.devids = &pci_bga_devids,
+	.probe = bga_probe
+};
+
+static int bga_init(void)
+{
+	pci_bus_register_driver(&bga_driver);
 	return 0;
 }
 

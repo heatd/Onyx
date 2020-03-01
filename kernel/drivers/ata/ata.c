@@ -57,11 +57,6 @@ void *write_buffer = NULL;
 
 static struct mutex lock = MUTEX_INITIALIZER;
 
-struct driver ata_driver = 
-{
-	.name = "ata"
-};
-
 void ata_send_command(struct ide_drive* drive, uint8_t command)
 {
 	if(drive->channel > 0)
@@ -421,32 +416,35 @@ int ata_initialize_drive(int channel, int drive)
 	return 1;
 }
 
-bool ata_device_filter(struct pci_device *dev)
+/* FIXME: Fix this whole mess of a driver into something kinda decent */
+/* Or, delete it. */
+
+struct pci_id ata_devs[] =
 {
-	if(dev->pciClass == CLASS_MASS_STORAGE_CONTROLLER && dev->subClass == 1)
-	{
-		idedev = dev;
-		return true;
-	}
-	else if(dev->pciClass == CLASS_MASS_STORAGE_CONTROLLER && dev->subClass == 6)
-	{
-		struct pci_bar bar4;
-		if(pci_get_bar(dev, 4, &bar4) < 0)
-			return false;
+	{PCI_ID_CLASS(CLASS_MASS_STORAGE_CONTROLLER, 1, PCI_ANY_ID, NULL)},
+	{PCI_ID_CLASS(CLASS_MASS_STORAGE_CONTROLLER, 6, PCI_ANY_ID, NULL)},
+	{0}
+};
 
-		if(bar4.is_iorange && bar4.address)
-		{
-			idedev = dev;
-			return true;
-		}
+int ata_probe(struct device *d)
+{
+	struct pci_device *device = (struct pci_device *) d;
 
-	}
-	return false;
+	idedev = device;
+
+	return 0;
 }
+
+struct driver ata_driver = 
+{
+	.name = "ata",
+	.devids = &ata_devs,
+	.probe = ata_probe
+};
 
 int ata_init(void)
 {
-	pci_find_device(ata_device_filter, true);
+	pci_bus_register_driver(&ata_driver);
 	if(!idedev)
 		return -1;
 

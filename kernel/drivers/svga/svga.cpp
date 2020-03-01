@@ -174,16 +174,9 @@ void SvgaDevice::send_command_fifo(void *command, size_t len)
 extern "C"
 {
 
-static int svga_init(void)
+int svga_probe(struct device *_dev)
 {
-	MPRINTF("initializing\n");
-
-	/* Get a handle to the PCI device */
-	struct pci_device *dev = get_pcidev_from_vendor_device(VMWARE_SVGAII_PCI_DEVICE, VMWARE_SVGAII_PCI_VENDOR);
-	if(!dev)
-	{
-		return 1;
-	}
+	struct pci_device *dev = (struct pci_device *) _dev;
 
 	device = make_unique<SvgaDevice>(dev);
 	if(!device)
@@ -229,6 +222,27 @@ static int svga_init(void)
 	//video_set_main_adapter(&svga_device);
 
 	MPRINTF("Successfully initialized the device!\n");
+	return 0;
+}
+
+static struct pci_id svga_dev_ids[] = 
+{
+	{ PCI_ID_DEVICE(VMWARE_SVGAII_PCI_VENDOR, VMWARE_SVGAII_PCI_DEVICE, NULL) },
+	{ 0 }
+};
+
+static struct driver svga_driver
+{
+	.name = "svga",
+	.devids = &svga_dev_ids,
+	.probe = svga_probe
+};
+
+static int svga_init(void)
+{
+	MPRINTF("initializing\n");
+
+	pci_bus_register_driver(&svga_driver);
 	return 0;
 }
 

@@ -22,6 +22,7 @@ struct pcie_allocation *allocations = NULL;
 struct bus pcie_bus =
 {
 	.name = "pcie",
+	.device_list_head = LIST_HEAD_INIT(pcie_bus.device_list_head),
 };
 
 int pcie_get_mcfg(void)
@@ -298,10 +299,12 @@ void pcie_enumerate_device(uint8_t bus, uint8_t device, uint8_t function, struct
 	pci_find_supported_capabilities(dev);
 	/* Set up the pci device's name */
 	char name_buf[200] = {0};
-	snprintf(name_buf, 200, "pci-%x%x", vendor, dev->deviceID);
+	snprintf(name_buf, 200, "%04x.%02x.%02x.%02x", dev->segment, dev->bus, dev->device, dev->function);
 	dev->dev.name = strdup(name_buf);
 	assert(dev->dev.name);
 	
+	assert(device_init(&dev->dev) == 0);
+
 	bus_add_device(&pcie_bus, (struct device*) dev);
 	
 	/* It's pointless to enumerate subfunctions since functions can't have them */
@@ -317,6 +320,7 @@ void pcie_enumerate_device(uint8_t bus, uint8_t device, uint8_t function, struct
 		pcie_enumerate_device(bus, device, i, alloc);
 	}
 }
+
 void pcie_enumerate_devices_in_alloc(struct pcie_allocation *alloc)
 {
 	for(uint8_t bus = alloc->start_bus; bus < alloc->end_bus; bus++)
@@ -327,6 +331,7 @@ void pcie_enumerate_devices_in_alloc(struct pcie_allocation *alloc)
 		}
 	}
 }
+
 void pcie_enumerate_devices(void)
 {
 	struct pcie_allocation *alloc = allocations;
@@ -336,6 +341,7 @@ void pcie_enumerate_devices(void)
 		alloc = alloc->next;
 	}
 }
+
 int pcie_init(void)
 {
 	assert(pcie_is_enabled() == true);
@@ -367,50 +373,15 @@ int pcie_init(void)
 		pcie_append_allocation(allocation);
 		++alloc;
 	}
-	/* Register the PCIe bus */
-	bus_register(&pcie_bus);
+
+	assert(bus_init(&pcie_bus) == 0);
+
 	/* Finally, enumerate devices */
 	pcie_enumerate_devices();
+
+	/* Register the PCIe bus */
+	bus_register(&pcie_bus);
+
 	assert(acpi_get_irq_routing_info(&pcie_bus) == 0);
 	return 0;
-}
-
-struct pci_device *get_pciedev_from_classes(uint8_t pciclass, uint8_t subclass, uint8_t progif)
-{
-	struct device *d = pcie_bus.devs;
-	while(d)
-	{
-		struct pci_device *pci = (struct pci_device *) d;
-		if(pci->pciClass == pciclass && pci->subClass == subclass && pci->progIF == progif)
-			return pci;
-		d = d->next;
-	}
-	return NULL;
-}
-
-struct pci_device *get_pciedev_from_vendor_device(uint16_t deviceid, uint16_t vendorid)
-{
-	struct device *d = pcie_bus.devs;
-	while(d)
-	{
-		struct pci_device *pci = (struct pci_device *) d;
-		if(pci->deviceID == deviceid && pci->vendorID == vendorid)
-			return pci;
-		d = d->next;
-	}
-	return NULL;
-}
-
-struct pci_device *get_pciedev(struct pci_device_address *addr)
-{
-	struct device *d = pcie_bus.devs;
-	while(d)
-	{
-		struct pci_device *pci = (struct pci_device *) d;
-		if(pci->segment == addr->segment && pci->bus == addr->bus && pci->device == 
-		   addr->device && pci->function == addr->function)
-			return pci;
-		d = d->next;
-	}
-	return NULL;
 }

@@ -83,6 +83,7 @@ struct getdents_ret
 struct inode
 {
 	struct object i_object;
+	unsigned int i_flags;
 	ino_t i_inode;
 	gid_t i_gid;
 	uid_t i_uid;
@@ -105,6 +106,8 @@ struct inode
 	struct inode *i_link;
 	void *i_helper;
 };
+
+#define INODE_FLAG_DONT_CACHE		(1 << 0)
 
 #if 0
 struct file
