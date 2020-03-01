@@ -486,6 +486,9 @@ int sys_execve(char *p, char *argv[], char *envp[])
 	/* Open the file */
 	struct file *f = get_current_directory();
 	struct inode *in = open_vfs(pick_between_cwd_and_root(path, current), path);
+
+	fd_put(f);
+
 	if (!in)
 	{
 		free(path);
@@ -494,7 +497,14 @@ int sys_execve(char *p, char *argv[], char *envp[])
 		return -ENOENT;
 	}
 
-	fd_put(f);
+	if(in->i_type != VFS_TYPE_FILE || !file_can_access(in, FILE_ACCESS_EXECUTE))
+	{
+		free(path);
+		free(karg);
+		free(kenv);
+		close_vfs(in);
+		return -EACCES;
+	}
 
 	if(vm_clone_as(&current->address_space) < 0)
 	{
@@ -502,10 +512,9 @@ int sys_execve(char *p, char *argv[], char *envp[])
 		free(karg);
 		free(kenv);
 		close_vfs(in);
-		return -1;
+		return -ENOMEM;
 	}
 
-	/* TODO: Check file permissions */
 	/* Swap address spaces. Good thing we saved argv and envp before */
 	if(vm_create_address_space(current, current->address_space.cr3) < 0)
 	{
@@ -514,7 +523,7 @@ int sys_execve(char *p, char *argv[], char *envp[])
 		free(karg);
 		free(kenv);
 		close_vfs(in);
-		return -1;
+		return -ENOMEM;
 	}
 
 	current->cmd_line = strdup(path);
