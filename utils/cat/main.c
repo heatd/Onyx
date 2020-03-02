@@ -1,56 +1,92 @@
 /*
-* Copyright (c) 2017 Pedro Falcato
+* Copyright (c) 2020 Pedro Falcato
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
 #include <string.h>
 #include <stdio.h>
+
+#include <unistd.h>
 #include <stdlib.h>
+#include <fcntl.h>
 
 void print_usage(char *prog_name)
 {
-	printf("%s: Usage: %s [filename]\n", prog_name, prog_name);
+	printf("%s: Usage: %s [FILE]...\n", prog_name, prog_name);
 }
-int main(int argc, char **argv, char **envp)
+
+const char *noargs_args[] = {"-", NULL};
+
+#define BUF_SIZE			4096
+
+int do_cat(const char **args)
 {
-	if(argc < 2)
-	{
-		print_usage(argv[0]);
-		return 1;
-	}
-
-	FILE *file = fopen(argv[1], "r");
-	if(!file)
-	{
-		perror(argv[1]);
-		return 1;
-	}
-
-	if(fseek(file, 0L, SEEK_END) == -1)
-	{
-		fclose(file);
-		return 1;
-	}
-
-	size_t file_size = ftell(file);
-	rewind(file);
-
-	char *buf = malloc(file_size);
+	char *buf = malloc(BUF_SIZE);
 	if(!buf)
 	{
-		fclose(file);
-		return 1;
-	}
-
-	if(fread(buf, file_size, 1, file) != file_size)
-	{
 		perror("cat");
-		return 1;
 	}
 
-	printf("%s", buf);
-	fclose(file);
-	free(buf);
+	memset(buf, 0, BUF_SIZE);
+	const char **argp = args;
 
-	return 0;
+	while(*argp)
+	{
+		const char *arg = *argp;
+		
+		int fd;
+
+		if(arg[0] == '-')
+		{
+			if(arg[1] != '\0')
+			{
+				/* This is an argument, ignore */
+				argp++;
+				continue;
+			}
+
+			fd = STDIN_FILENO;
+		}
+		else
+		{
+			fd = open(arg, O_RDONLY);
+			if(fd < 0)
+			{
+				perror("cat");
+				return -1;
+			}
+		}
+
+		ssize_t nread = 0;
+		while((nread = read(fd, buf, BUF_SIZE)) != 0)
+		{
+			if(nread < 0)
+			{
+				perror("cat: read");
+				return -1;
+			}
+
+			if(write(STDOUT_FILENO, buf, nread) < 0)
+			{
+				perror("cat: write");
+				return -1;
+			}
+		}
+
+		argp++;
+
+		if(fd != STDIN_FILENO)
+			close(fd);
+	}
+}
+
+int main(int argc, char **argv, char **envp)
+{
+	/* TODO: Parse args */
+	if(argc < 2)
+	{
+		return do_cat(noargs_args);
+	}
+
+	return do_cat((const char **) (argv + 1));
 }
