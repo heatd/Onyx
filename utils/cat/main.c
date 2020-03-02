@@ -25,6 +25,7 @@ int do_cat(const char **args)
 	if(!buf)
 	{
 		perror("cat");
+		return 1;
 	}
 
 	memset(buf, 0, BUF_SIZE);
@@ -53,7 +54,7 @@ int do_cat(const char **args)
 			if(fd < 0)
 			{
 				perror("cat");
-				return -1;
+				return 1;
 			}
 		}
 
@@ -63,13 +64,13 @@ int do_cat(const char **args)
 			if(nread < 0)
 			{
 				perror("cat: read");
-				return -1;
+				return 1;
 			}
 
 			if(write(STDOUT_FILENO, buf, nread) < 0)
 			{
 				perror("cat: write");
-				return -1;
+				return 1;
 			}
 		}
 
