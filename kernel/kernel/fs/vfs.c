@@ -186,21 +186,15 @@ struct page_cache_block *__inode_get_page_internal(struct inode *inode, size_t o
 	return b;
 }
 
-struct page_cache_block *__inode_get_page(struct inode *inode, size_t offset)
-{
-	return __inode_get_page_internal(inode, offset, FILE_CACHING_READ);
-}
-
-struct page_cache_block *inode_get_page(struct inode *inode, off_t offset)
+struct page_cache_block *inode_get_page(struct inode *inode, off_t offset, long flags)
 {
 	spin_lock_preempt(&inode->i_pages_lock);
 
-	struct page_cache_block *b = __inode_get_page(inode, offset);
+	struct page_cache_block *b = __inode_get_page_internal(inode, offset, flags);
 
-	if(!b)
-	{
-		spin_unlock_preempt(&inode->i_pages_lock);
-	}
+	if(b) page_pin(b->page);
+
+	spin_unlock_preempt(&inode->i_pages_lock);
 
 	return b;
 }
@@ -775,7 +769,7 @@ ssize_t lookup_file_cache(void *buffer, size_t sizeofread, struct inode *file,
 
 	while(read != sizeofread)
 	{
-		struct page_cache_block *cache = inode_get_page(file, offset);
+		struct page_cache_block *cache = inode_get_page(file, offset, FILE_CACHING_READ);
 
 		if(!cache)
 		{
@@ -790,6 +784,8 @@ ssize_t lookup_file_cache(void *buffer, size_t sizeofread, struct inode *file,
 			}
 		}
 
+		struct page *page = cache->page;
+
 		off_t cache_off = offset % PAGE_CACHE_SIZE;
 		off_t rest = PAGE_CACHE_SIZE - cache_off;
 
@@ -801,15 +797,15 @@ ssize_t lookup_file_cache(void *buffer, size_t sizeofread, struct inode *file,
 		if(offset + amount > file->i_size)
 		{
 			amount = file->i_size - offset;
-			if(copy_to_user((char*) buffer + read,  (char*) cache->buffer +
+			if(copy_to_user((char*) buffer + read, (char*) cache->buffer +
 				cache_off, amount) < 0)
 			{
-				spin_unlock_preempt(&file->i_pages_lock);
+				page_unpin(page);
 				errno = EFAULT;
 				return -1;
 			}
 
-			spin_unlock_preempt(&file->i_pages_lock);
+			page_unpin(page);
 			return read + amount;
 		}
 		else
@@ -817,7 +813,7 @@ ssize_t lookup_file_cache(void *buffer, size_t sizeofread, struct inode *file,
 			if(copy_to_user((char*) buffer + read,  (char*) cache->buffer +
 				cache_off, amount) < 0)
 			{
-				spin_unlock_preempt(&file->i_pages_lock);
+				page_unpin(page);
 				errno = EFAULT;
 				return -1;
 			}
@@ -826,8 +822,7 @@ ssize_t lookup_file_cache(void *buffer, size_t sizeofread, struct inode *file,
 		offset += amount;
 		read += amount;
 
-		spin_unlock_preempt(&file->i_pages_lock);
-
+		page_unpin(page);
 	}
 
 	return (ssize_t) read;
@@ -842,15 +837,11 @@ ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *file,
 	size_t wrote = 0;
 	do
 	{
-		
-		spin_lock(&file->i_pages_lock);
-		struct page_cache_block *cache =
-			__inode_get_page_internal(file, offset,
+		struct page_cache_block *cache = inode_get_page(file, offset,
 						  FILE_CACHING_WRITE);
 
 		if(cache == NULL)
 		{
-			spin_unlock(&file->i_pages_lock);
 			if(wrote)
 			{
 				return wrote;
@@ -862,6 +853,8 @@ ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *file,
 			}
 		}
 
+		struct page *page = cache->page;
+
 		off_t cache_off = offset % PAGE_CACHE_SIZE;
 		off_t rest = PAGE_CACHE_SIZE - cache_off;
 
@@ -871,7 +864,7 @@ ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *file,
 		if(copy_from_user((char*) cache->buffer + cache_off, (char*) buffer +
 			wrote, amount) < 0)
 		{
-			spin_unlock(&file->i_pages_lock);
+			page_unpin(page);
 			errno = EFAULT;
 			return -1;
 		}
@@ -881,10 +874,10 @@ ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *file,
 			cache->size = cache_off + amount;
 		}
 
-		spin_unlock(&file->i_pages_lock);
-
 		pagecache_dirty_block(cache);
 
+		page_unpin(page);
+	
 		offset += amount;
 		wrote += amount;
 

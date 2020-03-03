@@ -51,6 +51,7 @@
 
 #define PAGE_FLAG_LOCKED	(1 << 0)
 #define PAGE_FLAG_DIRTY		(1 << 1)
+#define PAGE_FLAG_PINNED	(1 << 2)
 /* struct page - Represents every usable page on the system 
  * Everything is native-word-aligned in order to allow atomic changes
  * Careful adding fields in - they may increase the memory use exponentially
@@ -189,6 +190,18 @@ static inline unsigned long page_ref(struct page *p)
 static inline unsigned long page_unref(struct page *p)
 {
 	return __atomic_sub_fetch(&p->ref, 1, __ATOMIC_RELEASE);
+}
+
+static inline void page_pin(struct page *p)
+{
+	__sync_fetch_and_or(&p->flags, PAGE_FLAG_PINNED);
+	__sync_synchronize();
+}
+
+static inline void page_unpin(struct page *p)
+{
+	__sync_fetch_and_and(&p->flags, ~PAGE_FLAG_PINNED);
+	__sync_synchronize();
 }
 
 void __reclaim_page(struct page *new_page);
