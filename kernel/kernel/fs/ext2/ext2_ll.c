@@ -36,12 +36,15 @@ void *ext2_read_block(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs)
 	buff = malloc(size); /* Allocate a buffer */
 	if(!buff)
 		return NULL;
+
 	size_t read = blkdev_read(block_index * fs->block_size, size, buff, fs->blkdevice);
+
 	if(read == (size_t) -1)
 	{
 		free(buff);
 		return NULL;
 	}
+
 	return buff;
 }
 
@@ -212,9 +215,9 @@ void ext2_register_bgdt_changes(ext2_fs_t *fs)
 	if((fs->number_of_block_groups * sizeof(block_group_desc_t)) % fs->block_size)
 		blocks_for_bgdt++;
 	if(fs->block_size == 1024)
-		ext2_write_block(2, (uint16_t)blocks_for_bgdt, fs, fs->bgdt);
+		ext2_write_block(2, (uint16_t) blocks_for_bgdt, fs, fs->bgdt);
 	else
-		ext2_write_block(1, (uint16_t)blocks_for_bgdt, fs, fs->bgdt);
+		ext2_write_block(1, (uint16_t) blocks_for_bgdt, fs, fs->bgdt);
 }
 
 size_t ext2_calculate_dirent_size(size_t len_name)
@@ -363,7 +366,10 @@ void ext2_unlink_dirent(dir_entry_t *before, dir_entry_t *entry)
 
 	if(before)
 	{
-		before->size = next - before;
+		printk("Old size: %u\n", before->size);
+		printk("Next: %p\nBefore: %p\n", next, before);
+		before->size = (unsigned long) next - (unsigned long) before;
+		printk("New size: %u\n", before->size);
 	}
 	
 	/* Mark the entry as unused */
@@ -476,11 +482,7 @@ int ext2_retrieve_dirent(struct ext2_inode *inode, const char *name, ext2_fs_t *
 
 	while((size_t) off < EXT2_CALCULATE_SIZE64(inode))
 	{
-		unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
-
 		ssize_t read_res = ext2_read_inode(inode, fs, fs->block_size, off, buf);
-
-		thread_change_addr_limit(old);
 
 		if(read_res < 0)
 		{
@@ -501,6 +503,7 @@ int ext2_retrieve_dirent(struct ext2_inode *inode, const char *name, ext2_fs_t *
 				st = 1;
 				goto out;
 			}
+
 			b += entry->size;
 		}
 
@@ -640,7 +643,6 @@ int ext2_unlink(const char *name, int flags, struct inode *ino)
 	}
 	else if(st == 0)
 	{
-		free(res.buf);
 		return -ENOENT;
 	}
 
@@ -718,9 +720,11 @@ int ext2_unlink(const char *name, int flags, struct inode *ino)
 
 	COMPILER_BARRIER();
 
+	close_vfs(target);
+
 	if(zombie_inode)
 	{
-		close_vfs(ino);
+		close_vfs(target);
 	}
 
 	return 0;

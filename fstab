@@ -1,2 +1,3 @@
-# Filesystem source	# Filesystem mount point  # Filesystem name
+# Filesystem source	# Filesystem mount point  # Filesystem name # Mount options # dump # fsck
 /dev/sda1               /                         ext2
+# 			lazytime		0		0

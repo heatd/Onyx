@@ -15,6 +15,8 @@
 
 /* TODO: This file started as mm specific but it's quite fs now, no? */
 
+struct inode;
+
 #ifndef __cplusplus
 
 /* Keep C APIs here */
@@ -22,6 +24,8 @@
 void flush_init(void);
 void flush_add_page(struct page_cache_block *blk);
 void flush_remove_page(struct page_cache_block *reg);
+void flush_add_inode(struct inode *ino);
+void flush_remove_inode(struct inode *ino);
 
 #else
 
@@ -35,6 +39,7 @@ class flush_dev
 private:
 	/* Each flush dev has a list of dirty pages that are backed by inodes that need flushing. */
 	struct list_head dirty_pages;
+	struct list_head dirty_inodes;
 	atomic<unsigned long> block_load;
 	struct spinlock __lock;
 	/* Each flush dev also is associated with a thread that runs every x seconds */
@@ -43,9 +48,10 @@ private:
 public:
 
 	static constexpr unsigned long wb_run_delta_ms = 10000; 
-	constexpr flush_dev() : dirty_pages{}, block_load{0}, __lock{}, thread{}, thread_sem{}
+	constexpr flush_dev() : dirty_pages{}, dirty_inodes{}, block_load{0}, __lock{}, thread{}, thread_sem{}
 	{
 		INIT_LIST_HEAD(&dirty_pages);
+		INIT_LIST_HEAD(&dirty_inodes);
 	}
 
 	~flush_dev() {}
@@ -62,6 +68,8 @@ public:
 	void run();
 	void add_page(struct page_cache_block *block);
 	void remove_page(struct page_cache_block *block);
+	void add_inode(struct inode *ino);
+	void remove_inode(struct inode *ino);
 	void sync();
 };
 

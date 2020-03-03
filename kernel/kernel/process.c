@@ -540,13 +540,7 @@ void process_destroy_file_descriptors(struct process *process)
 		if(!table[i])
 			continue;
 
-		table[i]->refcount--;
-
-		if(!table[i]->refcount)
-		{
-			object_unref(&table[i]->vfs_node->i_object);
-			free(table[i]);
-		}
+		fd_put(table[i]);
 	}
 
 	free(table);

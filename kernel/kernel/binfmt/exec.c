@@ -271,9 +271,9 @@ int sys_execve(char *p, char *argv[], char *envp[])
 	unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
 
 	/* Read the file signature */
-	if(read_vfs(0, 0, 100, file, exec_file) == (size_t) -1)
+	if(read_vfs(0, 0, 100, file, exec_file) < 0)
 	{
-		st = -ENOMEM;
+		st = -errno;
 		goto error;
 	}
 

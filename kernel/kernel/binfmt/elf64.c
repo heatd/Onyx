@@ -151,6 +151,8 @@ void *elf64_load_static(struct binfmt_args *args, Elf64_Ehdr *header)
 		current->info.dyn = dyn;
 	}
 
+	close_file_description(fd);
+
 	free(phdrs);
 	return (void*) header->e_entry;
 }
@@ -173,7 +175,8 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 	}
 
 	/* Read the program headers */
-	if(read_vfs(0, header->e_phoff, program_headers_size, phdrs, args->file) != program_headers_size)
+	if(read_vfs(0, header->e_phoff, program_headers_size, phdrs, args->file) !=
+		(ssize_t) program_headers_size)
 	{
 		errno = EIO;
 		goto error1;

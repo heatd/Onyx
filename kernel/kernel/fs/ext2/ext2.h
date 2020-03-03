@@ -38,6 +38,7 @@
 #define EXT2_ROFTR_SPARSE_SUPERBLOCKS_GROUP_DESC_TABLES 1
 #define EXT2_ROFTR_FS_64BIT_SZ 2
 #define EXT2_ROFTR_DIR_CONTENTS_BIN_TREE 4
+
 #define EXT2_INO_TYPE_FIFO 0x1000
 #define EXT2_INO_TYPE_CHARDEV 0x2000
 #define EXT2_INO_TYPE_DIR 0x4000
@@ -45,10 +46,7 @@
 #define EXT2_INO_TYPE_REGFILE 0x8000
 #define EXT2_INO_TYPE_SYMLINK 0xA000
 #define EXT2_INO_TYPE_UNIX_SOCK 0xC000
-/*
-#define EXT2_INO_PERM
-^^ IS TODO, as I've not quite understood what each value meant, will check
-*/
+
 #define EXT2_INO_FLAG_SECURE_DEL 0x1
 #define EXT2_INO_FLAG_COPYDATA_DEL 0x2
 #define EXT2_INO_FLAG_FILE_COMPRESS 0x4
@@ -246,5 +244,9 @@ void ext2_update_inode(struct ext2_inode *ino, ext2_fs_t *fs, uint32_t inode);
 int ext2_ino_type_to_vfs_type(uint16_t mode);
 uint16_t ext2_mode_to_ino_type(mode_t mode);
 struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber, struct inode *parent);
+void ext2_free_inode_space(struct ext2_inode *inode, ext2_fs_t *fs);
+
+int ext2_free_block_bg(uint32_t block, uint32_t block_group, ext2_fs_t *fs);
+int ext2_free_inode_bg(uint32_t inode, uint32_t block_group, ext2_fs_t *fs);
 
 #endif

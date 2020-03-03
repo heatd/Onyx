@@ -147,7 +147,13 @@ struct inode *tmpfs_creat(const char *pathname, int mode, struct inode *vnode)
 	new_file->mode = mode;
 	new_file->type = TMPFS_FILE_TYPE_REG;
 
-	return tmpfs_file_to_vfs(new_file, vnode);
+	struct inode *in = tmpfs_file_to_vfs(new_file, vnode);
+	if(!in)
+		return NULL;
+	
+	superblock_add_inode(vnode->i_sb, in);
+
+	return in;
 }
 
 ssize_t tmpfs_read_block(tmpfs_file_t *file, size_t block, char *buf)
@@ -312,7 +318,13 @@ struct inode *tmpfs_mkdir(const char *name, mode_t mode, struct inode *vnode)
 	new_file->mode = mode;
 	new_file->type = TMPFS_FILE_TYPE_DIR;
 	
-	return tmpfs_file_to_vfs(new_file, vnode);
+	struct inode *in = tmpfs_file_to_vfs(new_file, vnode);
+	if(!in)
+		return NULL;
+	
+	superblock_add_inode(vnode->i_sb, in);
+
+	return in;
 }
 
 struct inode *tmpfs_find_inode_in_cache(struct inode *vnode, tmpfs_file_t *file)
@@ -387,7 +399,13 @@ struct inode *tmpfs_mknod(const char *name, mode_t mode, dev_t dev, struct inode
 		d->file = file;
 	}
 
-	return tmpfs_file_to_vfs(file, root);
+	struct inode *in = tmpfs_file_to_vfs(file, root);
+	if(!in)
+		return NULL;
+	
+	superblock_add_inode(root->i_sb, in);
+
+	return in;
 }
 
 off_t tmpfs_getdirent(struct dirent *buf, off_t off, struct inode* file)

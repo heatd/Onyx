@@ -19,6 +19,7 @@
 struct ext2_inode *ext2_allocate_inode_from_block_group(uint32_t *inode_no,
 	uint32_t block_group, ext2_fs_t *fs)
 {
+	/* TODO: Optimize this a-la block_groups.c */
 	mutex_lock(&fs->ino_alloc_lock);
 	block_group_desc_t *_block_group = &fs->bgdt[block_group];
 	size_t total_size = fs->inodes_per_block_group / CHAR_BIT;
@@ -31,7 +32,7 @@ struct ext2_inode *ext2_allocate_inode_from_block_group(uint32_t *inode_no,
 	if(!bitmap)
 	{
 		mutex_unlock(&fs->ino_alloc_lock);
-		return 0;
+		return NULL;
 	}
 
 	for(uint32_t i = 0; i < total_size; i++)
@@ -89,6 +90,38 @@ found:
 	free(bitmap);
 
 	return ino;
+}
+
+int ext2_free_inode_bg(uint32_t inode, uint32_t block_group, ext2_fs_t *fs)
+{
+	/* TODO: Same as above */
+	mutex_lock(&fs->ino_alloc_lock);
+	block_group_desc_t *_block_group = &fs->bgdt[block_group];
+	size_t total_size = fs->inodes_per_block_group / CHAR_BIT;
+	size_t total_blocks = total_size % fs->block_size ? (total_size / fs->block_size) + 1 :
+		total_size / fs->block_size;
+
+	uint8_t *bitmap = ext2_read_block(_block_group->inode_usage_addr, total_blocks, fs);
+
+	if(!bitmap)
+	{
+		mutex_unlock(&fs->ino_alloc_lock);
+		return 0;
+	}
+
+	inode -= 1;
+	uint32_t byte_off = (inode - (fs->inodes_per_block_group * block_group)) / CHAR_BIT;
+
+	uint32_t bit_off = (inode - (fs->inodes_per_block_group * block_group)) - byte_off * CHAR_BIT;
+
+	bitmap[byte_off] &= ~(1 << bit_off);
+
+	ext2_write_block(_block_group->inode_usage_addr, total_blocks, fs, bitmap);
+
+	free(bitmap);
+
+	mutex_unlock(&fs->ino_alloc_lock);
+	return 0;
 }
 
 int ext2_add_singly_indirect_block(struct ext2_inode *inode, uint32_t block,
@@ -372,7 +405,7 @@ uint32_t ext2_get_block_from_inode(struct ext2_inode *ino, uint32_t block, ext2_
 	unsigned int min_trebly_block = entries * entries + entries + direct_block_count;
 
 	uint32_t ret = 0;
-	/* TODO: Ensure all this code handles fil holes correctly */
+	/* TODO: Ensure all this code handles file holes correctly */
 	switch(type)
 	{
 		case EXT2_TYPE_DIRECT_BLOCK:
@@ -584,4 +617,71 @@ ssize_t ext2_read_inode(struct ext2_inode *ino, ext2_fs_t *fs, size_t size, off_
 
 	free(scratch);
 	return read;
+}
+
+int ext2_free_indirect_block(uint32_t block, unsigned int indirection_level, ext2_fs_t *fs)
+{
+	uint32_t *blockbuf = ext2_read_block(block, 1, fs);
+	if(!blockbuf)
+		return -1;
+
+	int st = 0;
+	
+	unsigned int nr_entries = fs->block_size / sizeof(uint32_t);
+
+	for(unsigned int i = 0; i < nr_entries; i++)
+	{
+		if(blockbuf[i] == EXT2_ERR_INV_BLOCK)
+			continue;
+
+		if(indirection_level != 1)
+		{
+			st = ext2_free_indirect_block(blockbuf[i], indirection_level - 1, fs);
+
+			if(st < 0)
+			{
+				goto out;
+			}
+		}
+		else
+		{
+			ext2_free_block(blockbuf[i], fs);
+		}
+	}
+
+out:
+	free(blockbuf);
+	return st;
+}
+
+void ext2_free_inode_space(struct ext2_inode *inode, ext2_fs_t *fs)
+{
+	/* Free direct bps first */
+	for(unsigned int i = 0; i < direct_block_count; i++)
+	{
+		uint32_t block = inode->dbp[i];
+
+		if(block != 0)
+		{
+			/* Valid block, free */
+			ext2_free_block(block, fs);
+		}
+
+		inode->dbp[i] = 0;
+	}
+
+	if(inode->single_indirect_bp != EXT2_ERR_INV_BLOCK)
+	{
+		ext2_free_indirect_block(inode->single_indirect_bp, 1, fs);
+	}
+
+	if(inode->doubly_indirect_bp != EXT2_ERR_INV_BLOCK)
+	{
+		ext2_free_indirect_block(inode->doubly_indirect_bp, 2, fs);
+	}
+
+	if(inode->trebly_indirect_bp != EXT2_ERR_INV_BLOCK)
+	{
+		ext2_free_indirect_block(inode->trebly_indirect_bp, 3, fs);
+	}
 }

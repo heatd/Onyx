@@ -23,10 +23,13 @@
 #include <onyx/dentry.h>
 #include <onyx/mm/flush.h>
 #include <onyx/vm.h>
+#include <onyx/clock.h>
 
 struct inode *fs_root = NULL;
 struct inode *mount_list = NULL;
+
 ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *file, off_t offset);
+bool inode_is_cacheable(struct inode *file);
 
 #define FILE_CACHING_READ	(0 << 0)
 #define FILE_CACHING_WRITE	(1 << 0)
@@ -116,7 +119,7 @@ struct page *vmo_inode_commit(size_t off, struct vm_object *vmo)
 
 	unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
 
-	size_t read = read_vfs(
+	ssize_t read = read_vfs(
 		READ_VFS_FLAG_IS_PAGE_CACHE,
 		off,
 		to_read,
@@ -125,7 +128,7 @@ struct page *vmo_inode_commit(size_t off, struct vm_object *vmo)
 
 	thread_change_addr_limit(old);
 
-	if(read != to_read)
+	if(read != (ssize_t) to_read)
 	{
 		printk("Error file read %lx bytes out of %lx, off %lx\n", read, to_read, off);
 		perror("file");
@@ -202,44 +205,107 @@ struct page_cache_block *inode_get_page(struct inode *inode, off_t offset)
 	return b;
 }
 
-size_t read_vfs(int flags, size_t offset, size_t sizeofread, void* buffer, struct inode* this)
+void inode_update_atime(struct inode *ino)
 {
-	if(this->i_type & VFS_TYPE_DIR)
-		return errno = EISDIR, -1;
-	if(this->i_fops.read != NULL)
-	{
-		ssize_t status;
-		/* If caching failed, just do the normal way */
-		if(flags & READ_VFS_FLAG_IS_PAGE_CACHE ||
-		  (status = lookup_file_cache(buffer, sizeofread, this, offset)) < 0)
-			return this->i_fops.read(flags, offset, sizeofread, buffer, this);
-		return status;
-	}
-	return errno = ENOSYS;
+	ino->i_atime = clock_get_posix_time();
+	inode_mark_dirty(ino);
 }
 
-size_t write_vfs(size_t offset, size_t sizeofwrite, void* buffer, struct inode* this)
+void inode_update_ctime(struct inode *ino)
 {
-	assert((unsigned long) this > VM_HIGHER_HALF);
+	ino->i_ctime = clock_get_posix_time();
+	inode_mark_dirty(ino);
+}
 
-	if(this->i_type & VFS_TYPE_DIR)
+void inode_update_mtime(struct inode *ino)
+{
+	ino->i_mtime = clock_get_posix_time();
+	inode_mark_dirty(ino);
+}
+
+ssize_t do_actual_read(int flags, size_t offset, size_t len, void *buf, struct inode *ino)
+{
+	if(flags & READ_VFS_FLAG_IS_PAGE_CACHE || !inode_is_cacheable(ino))
+		return ino->i_fops.read(flags, offset, len, buf, ino);
+	
+	return lookup_file_cache(buf, len, ino, offset);
+}
+
+bool is_invalid_length(size_t len)
+{
+	return ((ssize_t) len) < 0;
+}
+
+size_t clamp_length(size_t len)
+{
+	if(is_invalid_length(len))
+		len = SSIZE_MAX;
+	return len;
+}
+
+ssize_t read_vfs(int flags, size_t offset, size_t len, void *buffer, struct inode *ino)
+{
+	if(ino->i_type & VFS_TYPE_DIR)
 		return errno = EISDIR, -1;
 	
-	if(this->i_fops.write != NULL)
-	{
-		ssize_t status;
-		/* If caching failed, just do the normal way */
-		if((status = write_file_cache(buffer, sizeofwrite, this, offset)) < 0)
-			return this->i_fops.write(offset, sizeofwrite, buffer, this);
-		if(offset + sizeofwrite > this->i_size)
-		{
-			this->i_size = offset + sizeofwrite;
-		}
+	if(!ino->i_fops.read)
+		return errno = EIO, -1;
+	
+	len = clamp_length(len);
 
-		return status;
+	ssize_t res = do_actual_read(flags, offset, len, buffer, ino);
+
+	if(res >= 0)
+	{
+		inode_update_atime(ino);
 	}
 
-	return errno = ENOSYS;
+	return res;
+}
+
+ssize_t do_actual_write(size_t offset, size_t len, void *buffer, struct inode *ino)
+{
+	ssize_t st = 0;
+
+	if(!inode_is_cacheable(ino))
+	{
+		st = ino->i_fops.write(offset, len, buffer, ino);
+	}
+	else
+	{
+		st = write_file_cache(buffer, len, ino, offset);
+	}
+
+	if(st >= 0)
+	{
+		/* Adjust the file size if needed */
+		
+		if(offset + len > ino->i_size)
+		{
+			ino->i_size = offset + len;
+			inode_update_ctime(ino);
+			inode_mark_dirty(ino);
+		}
+
+		inode_update_mtime(ino);
+	}
+	
+	return st;
+}
+
+ssize_t write_vfs(size_t offset, size_t len, void *buffer, struct inode *ino)
+{
+	if(ino->i_type & VFS_TYPE_DIR)
+		return errno = EISDIR, -1;
+	
+	if(!ino->i_fops.write)
+		return errno = EIO, -1;
+
+	len = clamp_length(len);
+	
+	ssize_t res = do_actual_write(offset, len, buffer, ino);
+
+	return res;
 }
 
 int ioctl_vfs(int request, char *argp, struct inode *this)
@@ -282,7 +348,14 @@ struct inode *do_actual_open(struct inode *this, const char *name)
 char *readlink_vfs(struct inode *file)
 {
 	if(file->i_fops.readlink)
-		return file->i_fops.readlink(file);
+	{
+		char *p = file->i_fops.readlink(file);
+		if(p != NULL)
+			inode_update_atime(file);
+		
+		return p;
+	}
+
 	return errno = EINVAL, NULL;
 }
 
@@ -766,7 +839,6 @@ ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *file,
 	if(!inode_is_cacheable(file))
 		return -1;
 
-
 	size_t wrote = 0;
 	do
 	{
@@ -968,40 +1040,28 @@ void inode_destroy_page_caches(struct inode *inode)
 		vmo_unref(inode->i_pages);
 }
 
-void inode_release_file(struct inode *inode)
-{
-	assert(inode->i_sb != NULL);
 
-	/* Remove the inode from its superblock */
-	superblock_remove_inode(inode->i_sb, inode);
+void inode_release(struct object *object)
+{
+	struct inode *inode = (struct inode *) object;
+
+	if(inode->i_sb)
+	{
+		assert(inode->i_sb != NULL);
+
+		/* Remove the inode from its superblock */
+		superblock_remove_inode(inode->i_sb, inode);
+	}
+
+	if(inode->i_flags & INODE_FLAG_DIRTY)
+		flush_remove_inode(inode);
 
 	if(inode->i_fops.close != NULL)
 		inode->i_fops.close(inode);
 
 	inode_destroy_page_caches(inode);
 
-	/*printk("Inode %p destroyed\n", inode);
-	printk("Refcount %lu\n", inode->i_object.ref.refcount);*/
-
 	free(inode);
-}
-
-void inode_release_generic(struct inode *inode)
-{
-	if(inode->i_fops.close != NULL)
-		inode->i_fops.close(inode);
-
-	free(inode);
-}
-
-void inode_release(struct object *object)
-{
-	struct inode *inode = (struct inode *) object;
-
-	if(inode->i_type == VFS_TYPE_FILE || inode->i_type == VFS_TYPE_DIR)
-		inode_release_file(inode);
-	else
-		inode_release_generic(inode);
 }
 
 struct inode *inode_create(void)
@@ -1034,4 +1094,26 @@ int unlink_vfs(const char *name, int flags, struct inode *node)
 	if(node->i_fops.link)
 		return node->i_fops.unlink(name, flags, node);
 	return -EINVAL;
+}
+
+void inode_mark_dirty(struct inode *ino)
+{
+	unsigned long old_flags = __sync_fetch_and_or(&ino->i_flags, INODE_FLAG_DIRTY);
+
+	__sync_synchronize();
+
+	if(old_flags & INODE_FLAG_DIRTY)
+		return;
+
+	flush_add_inode(ino);	
+}
+
+int inode_flush(struct inode *ino)
+{
+	struct superblock *sb = ino->i_sb;
+
+	if(!sb || !sb->flush_inode)
+		return 0;
+	
+	return sb->flush_inode(ino);
 }

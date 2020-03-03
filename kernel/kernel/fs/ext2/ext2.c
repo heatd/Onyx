@@ -84,10 +84,10 @@ struct ext2_inode *ext2_get_inode_from_dir(ext2_fs_t *fs, dir_entry_t *dirent, c
 
 time_t get_posix_time(void);
 
-/* TODO: Destroy the actual inode */
 void ext2_delete_inode(struct ext2_inode *inode, uint32_t inum, ext2_fs_t *fs)
 {
 	inode->dtime = get_posix_time();
+	ext2_free_inode_space(inode, fs);
 	ext2_update_inode(inode, fs, inum);
 	ext2_free_inode(inum, fs);
 }
@@ -230,8 +230,15 @@ struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber,
 	ino->i_atime = inode->atime;
 	ino->i_ctime = inode->ctime;
 	ino->i_mtime = inode->mtime;
+	ino->i_nlink = inode->hard_links;
 
 	ino->i_helper = ext2_cache_inode_info(ino, inode);
+
+	if(!ino->i_helper)
+	{
+		free(ino);
+		return NULL;
+	}
 
 	memcpy(&ino->i_fops, &ext2_ops, sizeof(struct file_ops));
 
@@ -357,6 +364,28 @@ struct inode *ext2_creat(const char *name, int mode, struct inode *file)
 	return i;
 }
 
+int ext2_flush_inode(struct inode *inode)
+{
+	struct ext2_inode *ino = ext2_get_inode_from_node(inode);
+	ext2_fs_t *fs = inode->i_sb->s_helper;
+
+	/* Refresh the on-disk struct with the vfs inode data */
+	ino->atime = inode->i_atime;
+	ino->ctime = inode->i_ctime;
+	ino->mtime = inode->i_mtime;
+	ino->size_lo = (uint32_t) inode->i_size;
+	ino->size_hi = (uint32_t) (inode->i_size >> 32);
+	ino->gid = inode->i_gid;
+	ino->uid = inode->i_uid;
+	ino->hard_links = (uint16_t) inode->i_nlink;
+	ino->mode = inode->i_mode;
+	ino->uid = inode->i_uid;
+
+	ext2_update_inode(ino, fs, (uint32_t) inode->i_inode);
+
+	return 0;
+}
+
 __attribute__((no_sanitize_undefined))
 struct inode *ext2_mount_partition(struct blockdev *dev)
 {
@@ -460,6 +489,7 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 
 	new_super->s_inodes = node;
 	new_super->s_helper = fs;
+	new_super->flush_inode = ext2_flush_inode;
 
 	memcpy(&node->i_fops, &ext2_ops, sizeof(struct file_ops));
 	return node;

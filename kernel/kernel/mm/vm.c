@@ -1635,7 +1635,8 @@ int vm_handle_page_fault(struct fault_info *info)
 {
 	ENABLE_INTERRUPTS();
 
-	struct mm_address_space *as = get_current_address_space();
+	struct mm_address_space *as = info->user ? get_current_address_space()
+		: &kernel_address_space;
 
 	spin_lock_preempt(&as->vm_spl);
 
@@ -1994,11 +1995,11 @@ struct page *vm_commit_private(size_t off, struct vm_object *vmo)
 
 	//printk("commit %lx\n", off + file_off);
 	unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
-	size_t read = read_vfs(0, off + file_off, PAGE_SIZE, PAGE_TO_VIRT(p), ino);
+	ssize_t read = read_vfs(0, off + file_off, PAGE_SIZE, PAGE_TO_VIRT(p), ino);
 
 	thread_change_addr_limit(old);
 
-	if((ssize_t) read < 0)
+	if(read < 0)
 	{
 		free_page(p);
 		return NULL;
@@ -2191,9 +2192,6 @@ good: ;
 	//printk("Created file mapping at %lx for off %lu\n", entry->base, off);
 	entry->fd = fd;
 	fd_get(fd);
-	/*bool wants_wb = inode_requires_wb(entry->fd->vfs_node) && mmap_like_type == MAP_SHARED; 
-	if(wants_wb)
-		writeback_add_region(entry);*/
 
 	if(setup_vmregion_backing(entry, pages, true) < 0)
 	{

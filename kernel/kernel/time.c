@@ -147,6 +147,11 @@ struct clock_time *get_raw_clock_time(clockid_t clkid)
 	return &clocks[clkid];
 }
 
+time_t clock_get_posix_time(void)
+{
+	return get_raw_clock_time(CLOCK_REALTIME)->epoch;
+}
+
 void ndelay(unsigned int ns)
 {
 	struct clocksource *c = get_main_clock();

@@ -95,19 +95,22 @@ struct inode
 	time_t i_atime;
 	time_t i_ctime;
 	time_t i_mtime;
+	nlink_t i_nlink;
 	struct superblock *i_sb;
 	/* TODO: Make i_fops be a pointer instead of being embedded in inode, to save memory */
 	struct file_ops i_fops;
 
 	struct spinlock i_pages_lock;
 	struct vm_object *i_pages;
+	struct list_head i_dirty_inode_node;
+	void *i_flush_dev;
 	
 	struct inode *i_next;
-	struct inode *i_link;
 	void *i_helper;
 };
 
 #define INODE_FLAG_DONT_CACHE		(1 << 0)
+#define INODE_FLAG_DIRTY			(1 << 1)
 
 #if 0
 struct file
@@ -133,10 +136,10 @@ struct inode *open_vfs(struct inode *dir, const char *path);
 
 #define READ_VFS_FLAG_IS_PAGE_CACHE		(1 << 20)
 
-size_t read_vfs(int flags, size_t offset, size_t sizeofread, void* buffer,
+ssize_t read_vfs(int flags, size_t offset, size_t length, void *buffer,
 	struct inode* file);
 
-size_t write_vfs(size_t offset, size_t sizeofwrite, void* buffer,
+ssize_t write_vfs(size_t offset, size_t length, void *buffer,
 	struct inode* file);
 
 void close_vfs(struct inode* file);
@@ -196,6 +199,9 @@ int unlink_vfs(const char *name, int flags, struct inode *node);
 
 struct inode *get_fs_base(const char *file, struct inode *rel_base);
 
+void inode_mark_dirty(struct inode *ino);
+
+int inode_flush(struct inode *ino);
 
 #define FILE_ACCESS_READ    (1 << 0)
 #define	FILE_ACCESS_WRITE   (1 << 1)

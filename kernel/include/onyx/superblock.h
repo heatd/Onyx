@@ -19,6 +19,7 @@ struct superblock
 	unsigned long s_ref;
 	void *s_helper;
 	struct spinlock s_ilock;
+	int (*flush_inode)(struct inode *inode);
 };
 
 struct inode *superblock_find_inode(struct superblock *sb, ino_t inode);

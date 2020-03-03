@@ -58,11 +58,24 @@ void flush_dev::sync()
 		struct page *page = blk->page;
 		struct vm_object *vmo = blk->node->i_pages;
 		vm_wp_page_for_every_region(page, vmo);
+		block_load--;
+	}
+
+	list_for_every_safe(&dirty_inodes)
+	{
+		struct inode *ino = container_of(l, struct inode, i_dirty_inode_node);
+
+		__sync_fetch_and_and(&ino->i_flags, ~INODE_FLAG_DIRTY);
+		__sync_synchronize();
+
+		inode_flush(ino);
+		block_load--;
 	}
 
 	/* reset the list */
 	list_reset(&dirty_pages);
-	block_load = 0;
+	list_reset(&dirty_inodes);
+	assert(block_load == 0);
 
 	unlock();
 }
@@ -99,10 +112,45 @@ void flush_dev::add_page(struct page_cache_block *reg)
 void flush_dev::remove_page(struct page_cache_block *reg)
 {
 	lock();
+	
+	/* We do a last check here inside the lock to be sure it's actually still dirty */
+	if(reg->page->flags & PAGE_FLAG_DIRTY)
+	{
+		/* TODO: I'm not sure this is 100% safe, because it might've gotten dirtied again
+		 * to a different flushdev(but in that case, should we be removing it anyways?).
+		 * This also applies to remove_inode().
+		*/
+		block_load--;
+		list_remove(&reg->dirty_list);
+	}
 
-	block_load--;
+	unlock();
+}
 
-	list_remove(&reg->dirty_list);
+void flush_dev::add_inode(struct inode *ino)
+{
+	lock();
+	
+	list_add_tail(&ino->i_dirty_inode_node, &dirty_inodes);
+
+	if(block_load++ == 0)
+	{
+		sem_signal(&thread_sem);
+	}
+
+	unlock();
+}
+
+void flush_dev::remove_inode(struct inode *ino)
+{
+	lock();
+
+	/* We do a last check here inside the lock to be sure it's actually still dirty */
+	if(ino->i_flags & INODE_FLAG_DIRTY)
+	{
+		block_load--;
+		list_remove(&ino->i_dirty_inode_node);
+	}
 
 	unlock();
 }
@@ -115,8 +163,7 @@ void flush_thr_init(void *arg)
 	b->run();
 }
 
-extern "C"
-void flush_add_page(struct page_cache_block *page)
+flush::flush_dev *flush_allocate_dev()
 {
 	flush::flush_dev *blk = nullptr;
 	unsigned long load = ~0UL;
@@ -129,6 +176,14 @@ void flush_add_page(struct page_cache_block *page)
 			blk = &b;
 		}
 	}
+
+	return blk;
+}
+
+extern "C"
+void flush_add_page(struct page_cache_block *page)
+{
+	flush::flush_dev *blk = flush_allocate_dev();
 
 	/* wat */
 	assert(blk != nullptr);
@@ -153,4 +208,22 @@ void flush_init(void)
 	{
 		b.init();
 	}
+}
+
+extern "C" void flush_add_inode(struct inode *ino)
+{
+	auto dev = flush_allocate_dev();
+
+	ino->i_flush_dev = dev;
+
+	dev->add_inode(ino);
+}
+
+extern "C" void flush_remove_inode(struct inode *ino)
+{
+	auto dev = reinterpret_cast<flush::flush_dev *>(ino->i_flush_dev);
+
+	dev->remove_inode(ino);
+
+	ino->i_flush_dev = nullptr;
 }

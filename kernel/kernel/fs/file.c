@@ -217,7 +217,7 @@ ssize_t sys_read(int fd, const void *buf, size_t count)
 		goto error;
 	}
 
-	ssize_t size = (ssize_t) read_vfs(f->flags, f->seek,
+	ssize_t size = read_vfs(f->flags, f->seek,
 		count, (char*) buf, f->vfs_node);
 	if(size == -1)
 	{
@@ -459,14 +459,18 @@ ssize_t sys_readv(int fd, const struct iovec *vec, int veccnt)
 	
 		if(v.iov_len == 0)
 			continue;
-		size_t was_read = read_vfs(f->flags, 
+		ssize_t was_read = read_vfs(f->flags, 
 			f->seek, v.iov_len, v.iov_base,
 			f->vfs_node);
+		if(was_read < 0)
+		{
+			goto out;
+		}
 
 		read += was_read;
 		f->seek += was_read;
 
-		if(was_read != v.iov_len)
+		if((size_t) was_read != v.iov_len)
 		{
 			goto out;
 		}
@@ -576,14 +580,19 @@ ssize_t sys_preadv(int fd, const struct iovec *vec, int veccnt, off_t offset)
 	
 		if(v.iov_len == 0)
 			continue;
-		size_t was_read = read_vfs(f->flags, 
+		ssize_t was_read = read_vfs(f->flags, 
 			offset, v.iov_len, v.iov_base,
 			f->vfs_node);
+
+		if(was_read < 0)
+		{
+			goto out;
+		}
 
 		read += was_read;
 		offset += was_read;
 
-		if(was_read != v.iov_len)
+		if((size_t) was_read != v.iov_len)
 		{
 			goto out;
 		}
@@ -1380,11 +1389,12 @@ struct file *create_file_description(struct inode *inode, off_t seek)
 }
 
 void close_file_description(struct file *fd)
-{
-	object_unref(&fd->vfs_node->i_object);
-	
+{	
 	if(--fd->refcount == 0)
+	{
+		close_vfs(fd->vfs_node);
 		free(fd);
+	}
 }
 
 /* Simple stub sys_access */
