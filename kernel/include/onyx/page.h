@@ -194,13 +194,13 @@ static inline unsigned long page_unref(struct page *p)
 
 static inline void page_pin(struct page *p)
 {
-	__sync_fetch_and_or(&p->flags, PAGE_FLAG_PINNED);
+	page_ref(p);
 	__sync_synchronize();
 }
 
 static inline void page_unpin(struct page *p)
 {
-	__sync_fetch_and_and(&p->flags, ~PAGE_FLAG_PINNED);
+	page_unref(p);
 	__sync_synchronize();
 }
 

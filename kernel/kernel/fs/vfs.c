@@ -159,6 +159,8 @@ int inode_create_vmo(struct inode *ino)
 
 struct page_cache_block *inode_get_cache_block(struct inode *ino, size_t off)
 {
+	MUST_HOLD_LOCK(&ino->i_pages_lock);
+
 	if(!ino->i_pages)
 	{
 		if(inode_create_vmo(ino) < 0)
@@ -173,6 +175,7 @@ struct page_cache_block *inode_get_cache_block(struct inode *ino, size_t off)
 	struct page *p = vmo_get(ino->i_pages, off, true);
 	if(!p)
 		return NULL;
+
 	return p->cache;
 }
 
@@ -192,7 +195,7 @@ struct page_cache_block *inode_get_page(struct inode *inode, off_t offset, long 
 
 	struct page_cache_block *b = __inode_get_page_internal(inode, offset, flags);
 
-	if(b) page_pin(b->page);
+	/* No need to pin the page since it's already pinned by vmo_get */
 
 	spin_unlock_preempt(&inode->i_pages_lock);
 

@@ -46,6 +46,7 @@ static bool try_to_merge(uintptr_t buf, size_t size, size_t max_size,
 
 uintptr_t dma_commit_page(uintptr_t virtual_buf, size_t size)
 {
+	/* TODO: Pin stuff. Applies to below too */
 	uintptr_t page = virtual_buf & ~(PAGE_SIZE - 1);
 	struct page *p = vm_commit_page((void *) page);
 

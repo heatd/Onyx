@@ -129,6 +129,13 @@ struct page *vmo_get(struct vm_object *vmo, size_t off, bool may_populate)
 
 	if(!p && may_populate)
 		p = vmo_populate(vmo, off);
+	
+
+	if(p)
+	{
+		page_pin(p);
+	}
+
 	spin_unlock_preempt(&vmo->page_lock);
 
 	return p;

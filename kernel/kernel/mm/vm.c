@@ -1553,9 +1553,12 @@ int vm_handle_non_present_pf(struct vm_pf_context *ctx)
 	if(!map_pages_to_vaddr((void *) ctx->vpage,
 		page_to_phys(ctx->page), PAGE_SIZE, ctx->page_rwx))
 	{
+		page_unpin(ctx->page);
 		info->error = VM_SIGSEGV;
 		return -1;
 	}
+
+	page_unpin(ctx->page);
 
 	return 0;
 }
@@ -2828,9 +2831,7 @@ struct page *vm_commit_page(void *page)
 {
 	struct vm_region *reg = vm_find_region(page);
 	if(!reg)
-	{
 		return NULL;
-	}
 	
 	if(!reg->vmo)
 		return NULL;
@@ -2841,8 +2842,15 @@ struct page *vm_commit_page(void *page)
 	struct page *p = vmo_get(vmo, off, true);
 	if(!p)
 		return NULL;
+	
 	if(!map_pages_to_vaddr(page, page_to_phys(p), PAGE_SIZE, reg->rwx))
+	{
+		page_unpin(p);
 		return NULL;
+	}
+
+	page_unpin(p);
+
 	return p;
 }
 
