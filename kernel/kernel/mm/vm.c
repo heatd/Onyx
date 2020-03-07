@@ -1636,8 +1636,6 @@ int __vm_handle_pf(struct vm_region *entry, struct fault_info *info)
 
 int vm_handle_page_fault(struct fault_info *info)
 {
-	ENABLE_INTERRUPTS();
-
 	struct mm_address_space *as = info->user ? get_current_address_space()
 		: &kernel_address_space;
 

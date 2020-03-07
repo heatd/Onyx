@@ -7,6 +7,8 @@
 #ifndef _ONYX_WAIT_QUEUE_H
 #define _ONYX_WAIT_QUEUE_H
 
+#include <stdbool.h>
+
 #include <onyx/scheduler.h>
 #include <onyx/spinlock.h>
 
@@ -34,6 +36,7 @@ void wait_queue_wake(struct wait_queue *queue);
 void wait_queue_wake_all(struct wait_queue *queue);
 void wait_queue_add(struct wait_queue *queue, struct wait_queue_token *token);
 void wait_queue_remove(struct wait_queue *queue, struct wait_queue_token *token);
+bool wait_queue_may_delete(struct wait_queue *queue);
 
 #ifdef __cplusplus
 }

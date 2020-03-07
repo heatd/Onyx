@@ -233,6 +233,8 @@ void page_fault_handler(struct registers *ctx)
 	info.exec = error_code & 0x10;
 	info.user = error_code & 0x4;
 	info.ip = ctx->rip;
+
+	irq_restore(ctx->rflags);
 	
 	if(vm_handle_page_fault(&info) < 0)
 	{

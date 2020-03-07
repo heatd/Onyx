@@ -71,8 +71,7 @@ void ahci_do_clist_irq(struct ahci_port *port, int j)
 {
 	port->cmdslots[j].recieved_interrupt = true;
 	port->cmdslots[j].last_interrupt_status = port->port->interrupt_status;
-	port->cmdslots[j].status =
-		port->port->status;
+	port->cmdslots[j].status = port->port->status;
 	port->cmdslots[j].tfd = port->port->tfd;
 	ahci_deal_aio(&port->cmdslots[j]);
 }
@@ -124,8 +123,6 @@ irqstatus_t ahci_irq(struct irq_context *ctx, void *cookie)
 
 #define AHCI_BYTES_PER_REQ	(NUM_PRDT_PER_TABLE * PRDT_MAX_SIZE)
 
-struct mutex ahci_spl = {0};
-
 ssize_t ahci_read(size_t offset, size_t count, void* buffer, struct blockdev* blkd)
 {
 	struct ahci_port *p = blkd->device_info;
@@ -136,7 +133,6 @@ ssize_t ahci_read(size_t offset, size_t count, void* buffer, struct blockdev* bl
 	assert(offset % 512 == 0);
 	assert(count % 512 == 0);
 	uint8_t *buf = buffer;
-	mutex_lock(&ahci_spl);
 
 	while(count != 0)
 	{
@@ -152,7 +148,6 @@ ssize_t ahci_read(size_t offset, size_t count, void* buffer, struct blockdev* bl
 	
 		if(!ahci_do_command(p, &cmd))
 		{
-			mutex_unlock(&ahci_spl);
 			return -1;
 		}
 
@@ -161,7 +156,6 @@ ssize_t ahci_read(size_t offset, size_t count, void* buffer, struct blockdev* bl
 		lba += c / 512;
 	}
 
-	mutex_unlock(&ahci_spl);
 	return to_read;
 }
 
@@ -176,7 +170,6 @@ ssize_t ahci_write(size_t offset, size_t count, void* buffer, struct blockdev* b
 	assert(offset % 512 == 0);
 	assert(count % 512 == 0);
 
-	mutex_lock(&ahci_spl);
 	while(count != 0)
 	{
 		size_t c = count > AHCI_BYTES_PER_REQ ?
@@ -191,7 +184,6 @@ ssize_t ahci_write(size_t offset, size_t count, void* buffer, struct blockdev* b
 	
 		if(!ahci_do_command(p, &cmd))
 		{
-			mutex_unlock(&ahci_spl);
 			return -1;
 		}
 
@@ -200,7 +192,6 @@ ssize_t ahci_write(size_t offset, size_t count, void* buffer, struct blockdev* b
 		lba += c / 512;
 	}
 
-	mutex_unlock(&ahci_spl);
 	return to_read;
 }
 
@@ -338,7 +329,7 @@ bool ahci_do_command_async(struct ahci_port *ahci_port,
 
 	spin_lock_irqsave(&ahci_port->port_lock);
 
-	ahci_port->issued |= (1 << list_index);
+	ahci_port->issued = (1 << list_index);
 
 	ahci_issue_command(ahci_port, list_index);
 
@@ -353,46 +344,55 @@ void ahci_wake_callback(void *cb, struct wait_queue_token *token)
 	req->signaled = true;
 }
 
+// FIXME: The ahci driver right now still requires this global mutex, since some part of the other
+// logic is broken. Fix.
+
+static struct mutex mtx;
+
 bool ahci_do_command(struct ahci_port *ahci_port, struct ahci_command_ata *buf)
 {
+	(void) mtx;
 	struct aio_req req = {0};
+	memset(&req, 0, sizeof(req));
+
 	req.req_start = get_main_clock()->get_ns();
-	struct wait_queue_token wait_token = {};
+	struct wait_queue_token wait_token = {0};
 	
+	memset(&wait_token, 0, sizeof(wait_token));
+
 	wait_token.thread = get_current_thread();
 	wait_token.context = &req;
-	wait_token.callback = ahci_wake_callback;
+	wait_token.callback = NULL;
 
-	(void) wait_token;
-	//wait_queue_add(&req.wake_sem, &wait_token);
+	wait_queue_add(&req.wake_sem, &wait_token);
+
+	mutex_lock(&mtx);
+
+	set_current_state(THREAD_UNINTERRUPTIBLE);
 
 	if(!ahci_do_command_async(ahci_port, buf, &req))
 	{
+		mutex_unlock(&mtx);
 		return false;
 	}
 
-	/* Sleeping here is a big waste, reads take less than a ms */
-	/* TODO: Maybe do it on large reads? */
-	/*while(!req.wake_sem.counter)
-		cpu_relax();*/
 
-	sched_disable_preempt();
-
-	//set_current_state(THREAD_UNINTERRUPTIBLE);
 	while(!req.signaled)
 	{
-		sched_enable_preempt();
 		//sched_yield();
-		//set_current_state(THREAD_UNINTERRUPTIBLE);
-		sched_disable_preempt();
+		set_current_state(THREAD_UNINTERRUPTIBLE);
 	}
 
 	set_current_state(THREAD_RUNNABLE);
 
-	sched_enable_preempt();
+	mutex_unlock(&mtx);
 
-	//printk("Response time: %luns. Disk time: %luns\n", get_main_clock()->get_ns() - req.req_start,
-	//	req.req_end - req.req_start);
+	while(!wait_queue_may_delete(&req.wake_sem)) {}
+
+#if 0
+	printk("Response time: %luns. Disk time: %luns\n", get_main_clock()->get_ns() - req.req_start,
+		req.req_end - req.req_start);
+#endif
 
 	vm_unlock_range(buf->buffer, buf->size, VM_FUTURE_PAGES);
 

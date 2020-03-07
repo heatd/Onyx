@@ -4,6 +4,7 @@
 * check LICENSE at the root directory for more information
 */
 #include <stddef.h>
+
 #include <onyx/wait_queue.h>
 #include <onyx/task_switching.h>
 
@@ -13,7 +14,6 @@ static void append_to_queue(struct wait_queue *queue, struct wait_queue_token *t
 
 	if(!queue->token_head)
 		queue->token_head = token;
-
 
 	if(p)
 	{
@@ -69,6 +69,8 @@ struct wait_queue_token *wait_queue_wake_unlocked(struct wait_queue *queue)
 
 	dequeue_token(queue, token);
 
+	token->signaled = true;
+
 	return token;
 }
 
@@ -76,10 +78,9 @@ void wait_queue_wake(struct wait_queue *queue)
 {
 	spin_lock_irqsave(&queue->lock);
 
-	
 	if(!queue->token_head)
 	{
-		spin_unlock(&queue->lock);
+		spin_unlock_irqrestore(&queue->lock);
 		return;
 	}
 	
@@ -105,7 +106,6 @@ void wait_queue_wake_all(struct wait_queue *queue)
 	}
 
 	spin_unlock_irqrestore(&queue->lock);
-	
 }
 
 void wait_queue_add(struct wait_queue *queue, struct wait_queue_token *token)
@@ -125,4 +125,15 @@ void wait_queue_remove(struct wait_queue *queue, struct wait_queue_token *token)
 	dequeue_token(queue, token);
 
 	spin_unlock_irqrestore(&queue->lock);
+}
+
+bool wait_queue_may_delete(struct wait_queue *queue)
+{
+	spin_lock_irqsave(&queue->lock);
+
+	bool may = queue->token_head == NULL;
+
+	spin_unlock_irqrestore(&queue->lock);
+
+	return may;
 }

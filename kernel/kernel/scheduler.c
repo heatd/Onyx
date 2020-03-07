@@ -607,7 +607,9 @@ void sched_try_to_resched(struct thread *thread)
 	}
 	else
 	{
-		if(get_thread_for_cpu(thread->cpu)->priority < thread->priority)
+		struct thread *other_thread = get_thread_for_cpu(thread->cpu);
+		int other_prio = other_thread->priority;
+		if(other_prio < thread->priority)
 		{
 			/* Send a CPU message asking for a resched */
 			cpu_send_message(thread->cpu, CPU_TRY_RESCHED, thread, false);

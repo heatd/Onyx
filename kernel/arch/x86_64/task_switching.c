@@ -359,6 +359,8 @@ thread_t *sched_spawn_thread(registers_t *regs, thread_callback_t start, void *a
 
 	thread_append_to_global_list(new_thread);
 
+	new_thread->priority = SCHED_PRIO_NORMAL;
+
 	return new_thread;
 }
 

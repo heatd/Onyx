@@ -144,11 +144,6 @@ irq_common:
 	je .L3
 	swapgs
 .L3:
-	push %rdi
-	/* Note that it's 16-byte aligned here because of the push %rdi */
-	call platform_send_eoi
-	pop %rdi
-
 	mov %rsp, %rsi
 	mov %rsi, %rbp
 
@@ -156,10 +151,18 @@ irq_common:
 	# End the stack frame list so we stop here
 	#xor %rbp, %rbp
 
+	mov %rdi, %r12
+
 	INTERRUPT_STACK_ALIGN
 
 	call irq_handler
-	mov %rax, %rsp
+
+	mov %rax, %rbx
+	mov %r12, %rdi
+
+	call platform_send_eoi
+
+	mov %rbx, %rsp
 
 	INTERRUPT_STACK_ALIGN
 
