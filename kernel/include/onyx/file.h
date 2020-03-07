@@ -22,9 +22,11 @@ struct file *get_file_description(int fd);
 void fd_get(struct file *fd);
 void fd_put(struct file *fd);
 
+#define OPEN_FLAGS_ACCESS_MODE(flags)	(flags & 0x3)
+
 static inline unsigned int open_to_file_access_flags(int open_flgs)
 {
-	unsigned int last_two_bits = (open_flgs & 0x3);
+	unsigned int last_two_bits = OPEN_FLAGS_ACCESS_MODE(open_flgs);
 	if(last_two_bits == O_RDONLY)
 		return FILE_ACCESS_READ;
 	else if(last_two_bits == O_RDWR)
@@ -36,6 +38,8 @@ static inline unsigned int open_to_file_access_flags(int open_flgs)
 		panic("Unsanitized open flags");
 	}
 }
+
+bool fd_may_access(struct file *f, unsigned int access);
 
 #ifdef __cplusplus
 }

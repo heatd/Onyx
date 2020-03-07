@@ -211,7 +211,7 @@ ssize_t sys_read(int fd, const void *buf, size_t count)
 	if(!f)
 		goto error;
 
-	if(!f->flags & O_RDONLY)
+	if(!fd_may_access(f, FILE_ACCESS_READ))
 	{
 		errno = EBADF;
 		goto error;
@@ -243,7 +243,7 @@ ssize_t sys_write(int fd, const void *buf, size_t count)
 	if(!f)
 		goto error;
 
-	if(!f->flags & O_WRONLY)
+	if(!fd_may_access(f, FILE_ACCESS_WRITE))
 	{
 		errno = EBADF;
 		goto error;
@@ -422,6 +422,22 @@ int sys_dup2(int oldfd, int newfd)
 	return newfd;
 }
 
+bool fd_may_access(struct file *f, unsigned int access)
+{
+	if(access == FILE_ACCESS_READ)
+	{
+		if(OPEN_FLAGS_ACCESS_MODE(f->flags) == O_WRONLY)
+			return false;
+	}
+	else if(access == FILE_ACCESS_WRITE)
+	{
+		if(OPEN_FLAGS_ACCESS_MODE(f->flags) == O_RDONLY)
+			return false;
+	}
+
+	return true;
+}
+
 ssize_t sys_readv(int fd, const struct iovec *vec, int veccnt)
 {
 	size_t read = 0;
@@ -442,7 +458,7 @@ ssize_t sys_readv(int fd, const struct iovec *vec, int veccnt)
 		goto out;
 	}
 
-	if(!f->flags & O_RDONLY)
+	if(!fd_may_access(f, FILE_ACCESS_READ))
 	{
 		errno = EBADF;
 		goto error;
@@ -505,7 +521,7 @@ ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt)
 		goto out;
 	}
 
-	if(!f->flags & O_WRONLY)
+	if(!fd_may_access(f, FILE_ACCESS_WRITE))
 	{
 		errno = EBADF;
 		goto error;
@@ -563,7 +579,7 @@ ssize_t sys_preadv(int fd, const struct iovec *vec, int veccnt, off_t offset)
 		goto out;
 	}
 
-	if(!f->flags & O_RDONLY)
+	if(!fd_may_access(f, FILE_ACCESS_READ))
 	{
 		errno = EBADF;
 		goto error;
@@ -627,7 +643,7 @@ ssize_t sys_pwritev(int fd, const struct iovec *vec, int veccnt, off_t offset)
 		goto out;
 	}
 
-	if(!f->flags & O_WRONLY)
+	if(!fd_may_access(f, FILE_ACCESS_WRITE))
 	{
 		errno = EBADF;
 		goto error;
@@ -723,9 +739,18 @@ int sys_ftruncate(int fd, off_t length)
 	{
 		return -errno;
 	}
-	
-	int ret = ftruncate_vfs(length, f->vfs_node);
 
+	int ret = 0;
+
+	if(!fd_may_access(f, FILE_ACCESS_WRITE))
+	{
+		ret = -EBADF;
+		goto out;
+	}
+	
+	ret = ftruncate_vfs(length, f->vfs_node);
+
+out:
 	fd_put(f);
 	return ret;
 }
@@ -1409,9 +1434,19 @@ int sys_access(const char *path, int amode)
 
 	struct inode *ino = open_vfs(get_fs_base(p, f->vfs_node), p);
 	fd_put(f);
+
+	unsigned int mask = ((amode & R_OK) ? FILE_ACCESS_READ : 0) |
+                        ((amode & X_OK) ? FILE_ACCESS_EXECUTE : 0) |
+                        ((amode & W_OK) ? FILE_ACCESS_WRITE : 0);
 	if(!ino)
 	{
 		st = -errno;
+		goto out;
+	}
+
+	if(!file_can_access(ino, mask))
+	{
+		st = -EACCES;
 		goto out;
 	}
 out:

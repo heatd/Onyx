@@ -72,6 +72,7 @@ struct file_ops
 	short (*poll)(void *poll_file, short events, struct inode *node);
 	char *(*readlink)(struct inode *ino);
 	int (*unlink)(const char *name, int flags, struct inode *node);
+	int (*fallocate)(int mode, off_t offset, off_t len, struct inode *node);
 };
 
 struct getdents_ret

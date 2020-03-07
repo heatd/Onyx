@@ -37,7 +37,8 @@ struct inode *ext2_mknod(const char *name, mode_t mode, dev_t dev, struct inode 
 struct inode *ext2_mkdir(const char *name, mode_t mode, struct inode *ino);
 int ext2_link(struct inode *target, const char *name, struct inode *dir);
 int ext2_unlink(const char *name, int flags, struct inode *ino);
-
+int ext2_fallocate(int mode, off_t off, off_t len, struct inode *ino);
+int ext2_ftruncate(off_t off, struct inode *ino);
 struct file_ops ext2_ops = 
 {
 	.open = ext2_open,
@@ -51,7 +52,9 @@ struct file_ops ext2_ops =
 	.mknod = ext2_mknod,
 	.mkdir = ext2_mkdir,
 	.link = ext2_link,
-	.unlink = ext2_unlink
+	.unlink = ext2_unlink,
+	.fallocate = ext2_fallocate,
+	.ftruncate = ext2_ftruncate
 };
 
 uuid_t ext2_gpt_uuid[4] = 
@@ -94,7 +97,6 @@ void ext2_delete_inode(struct ext2_inode *inode, uint32_t inum, ext2_fs_t *fs)
 
 void ext2_close(struct inode *ino)
 {
-	/* TODO: Flush metadata if inode is dirty */
 	struct ext2_inode *inode = ext2_get_inode_from_node(ino);
 	ext2_fs_t *fs = ino->i_sb->s_helper;
 

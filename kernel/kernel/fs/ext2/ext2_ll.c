@@ -716,9 +716,9 @@ int ext2_unlink(const char *name, int flags, struct inode *ino)
 		zombie_inode = true;
 	}
 
-	ext2_update_inode(tino, fs, (uint32_t) target->i_inode);
-
 	COMPILER_BARRIER();
+
+	ext2_update_inode(tino, fs, (uint32_t) target->i_inode);
 
 	close_vfs(target);
 
@@ -728,4 +728,14 @@ int ext2_unlink(const char *name, int flags, struct inode *ino)
 	}
 
 	return 0;
+}
+
+int ext2_ftruncate(off_t _len, struct inode *ino)
+{
+	return -ENOSYS;
+}
+
+int ext2_fallocate(int mode, off_t off, off_t len, struct inode *ino)
+{
+	return -ENOSYS;
 }

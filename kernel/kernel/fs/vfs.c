@@ -963,6 +963,9 @@ int default_ftruncate(off_t length, struct inode *vnode)
 
 int ftruncate_vfs(off_t length, struct inode *vnode)
 {
+	if(length < 0)
+		return -EINVAL;
+
 	if(vnode->i_fops.ftruncate != NULL)
 		return vnode->i_fops.ftruncate(length, vnode);
 	else
@@ -1010,9 +1013,9 @@ int default_fallocate(int mode, off_t offset, off_t len, struct inode *file)
 
 int fallocate_vfs(int mode, off_t offset, off_t len, struct inode *file)
 {
-	if(0)
+	if(file->i_fops.fallocate)
 	{
-
+		return file->i_fops.fallocate(mode, offset, len, file);
 	}
 	else
 		return default_fallocate(mode, offset, len, file);
