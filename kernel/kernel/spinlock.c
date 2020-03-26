@@ -55,13 +55,10 @@ void spin_unlock_preempt(struct spinlock *lock)
 
 void spin_lock(struct spinlock *lock)
 {
+	sched_disable_preempt();
+
 	spin_lock_preempt(lock);
 	post_lock_actions(lock);
-
-	/* Disable preemption before locking, and enable it on release.
-	 * This means locks get faster
-	*/
-	sched_disable_preempt();
 }
 
 void spin_unlock(struct spinlock *lock)
