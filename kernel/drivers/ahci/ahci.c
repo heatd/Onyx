@@ -235,8 +235,17 @@ command_list_t *ahci_allocate_command_list(struct ahci_port *ahci_port, size_t *
 
 	spin_lock(&ahci_port->bitmap_spl);
 
-	wait_for_event_locked(&ahci_port->list_wq, ahci_port->list_bitmap != ~0U, &ahci_port->bitmap_spl);
+	/* Erm, I give up. For now. wait_queues are broken, and there's nothing I can do.
+	 * Maybe I'll do a clean rewrite or something. */
+	//wait_for_event_locked(&ahci_port->list_wq, ahci_port->list_bitmap != ~0U, &ahci_port->bitmap_spl);
 
+	while(ahci_port->list_bitmap == ~0U)
+	{
+		spin_unlock(&ahci_port->bitmap_spl);
+		sched_yield();
+		spin_lock(&ahci_port->bitmap_spl);
+	}
+	
 	unsigned int pos = __builtin_ctz(~ahci_port->list_bitmap);
 
 	ahci_port->list_bitmap |= (1 << pos);
@@ -797,8 +806,8 @@ void ahci_init_port(struct ahci_port *ahci_port)
 
 	unsigned int ncs = AHCI_CAP_NCS(device->hba->host_cap);
 	printf("ahci: AHCI controller supports %u command list slots\n", ncs);
-	ahci_port->list_bitmap = ~((1 << 1) - 1);
-	// ~((1 << 1) - 1); true: -(1 << ncs)
+	ahci_port->list_bitmap = -(1 << ncs);
+	// wait queue debugging value: ~((1 << 1) - 1); true: -(1 << ncs)
 	if(ahci_allocate_port_lists(hba, port, ahci_port) < 0)
 	{
 		MPRINTF("Failed to allocate the command and FIS lists for port %p\n", port);
