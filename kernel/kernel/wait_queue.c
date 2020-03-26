@@ -4,43 +4,10 @@
 * check LICENSE at the root directory for more information
 */
 #include <stddef.h>
-
+#include <stdio.h>
 #include <onyx/wait_queue.h>
 #include <onyx/task_switching.h>
 
-static void append_to_queue(struct wait_queue *queue, struct wait_queue_token *token)
-{
-	struct wait_queue_token *p = queue->token_tail;
-
-	if(!queue->token_head)
-		queue->token_head = token;
-
-	if(p)
-	{
-		p->next = token;
-		token->prev = p;
-	}
-
-	queue->token_tail = token;
-}
-
-static void dequeue_token(struct wait_queue *q, struct wait_queue_token *token)
-{
-	if(q->token_head == token)
-	{
-		q->token_head = token->next;
-	}
-
-	if(q->token_tail == token)
-	{
-		q->token_tail = token->prev;
-	}
-
-	if(token->prev)	token->prev->next = token->next;
-	if(token->next)	token->next->prev = token->prev;
-
-	token->prev = token->next = NULL;
-}
 
 void wait_queue_wait(struct wait_queue *queue)
 {
@@ -49,7 +16,7 @@ void wait_queue_wait(struct wait_queue *queue)
 	token.thread = current;
 	token.callback = NULL;
 	token.context = NULL,
-	token.next = token.prev = NULL;
+	token.token_node.next = token.token_node.prev = NULL;
 	token.signaled = false;
 
 	sched_disable_preempt();
@@ -65,9 +32,18 @@ void wait_queue_wait(struct wait_queue *queue)
 
 struct wait_queue_token *wait_queue_wake_unlocked(struct wait_queue *queue)
 {
-	struct wait_queue_token *token = queue->token_head;
+	MUST_HOLD_LOCK(&queue->lock);
+	assert(list_is_empty(&queue->token_list) == false);
 
-	dequeue_token(queue, token);
+	struct list_head *token_lh = list_first_element(&queue->token_list);
+
+	assert(token_lh != NULL);
+
+	struct wait_queue_token *token = container_of(token_lh, struct wait_queue_token, token_node);
+
+	list_remove(token_lh);
+
+	list_assert_correct(&queue->token_list);
 
 	token->signaled = true;
 
@@ -78,7 +54,7 @@ void wait_queue_wake(struct wait_queue *queue)
 {
 	spin_lock_irqsave(&queue->lock);
 
-	if(!queue->token_head)
+	if(list_is_empty(&queue->token_list))
 	{
 		spin_unlock_irqrestore(&queue->lock);
 		return;
@@ -86,18 +62,18 @@ void wait_queue_wake(struct wait_queue *queue)
 	
 	struct wait_queue_token *t = wait_queue_wake_unlocked(queue);
 
-	spin_unlock_irqrestore(&queue->lock);
-
 	if(t->callback) t->callback(t->context, t);
 
 	thread_wake_up(t->thread);
+
+	spin_unlock_irqrestore(&queue->lock);
 }
 
 void wait_queue_wake_all(struct wait_queue *queue)
 {
 	spin_lock_irqsave(&queue->lock);
 
-	while(queue->token_head)
+	while(!list_is_empty(&queue->token_list))
 	{
 		struct wait_queue_token *t = wait_queue_wake_unlocked(queue);
 
@@ -112,8 +88,11 @@ void wait_queue_add(struct wait_queue *queue, struct wait_queue_token *token)
 {
 	spin_lock_irqsave(&queue->lock);
 
-	token->prev = token->next = NULL;
-	append_to_queue(queue, token);
+	assert(token->token_node.prev == NULL);
+
+	list_add_tail(&token->token_node, &queue->token_list);
+
+	list_assert_correct(&queue->token_list);
 
 	spin_unlock_irqrestore(&queue->lock);
 }
@@ -121,17 +100,25 @@ void wait_queue_add(struct wait_queue *queue, struct wait_queue_token *token)
 void wait_queue_remove(struct wait_queue *queue, struct wait_queue_token *token)
 {
 	spin_lock_irqsave(&queue->lock);
+	
+	struct list_head *node = &token->token_node;
+	if(node->next != LIST_REMOVE_POISON)
+		list_remove(node);
 
-	dequeue_token(queue, token);
+	list_assert_correct(&queue->token_list);
 
-	spin_unlock_irqrestore(&queue->lock);
+	token->callback = NULL;
+	token->signaled = false;
+	token->context = NULL;
+
+	spin_unlock_irqrestore(&queue->lock);	
 }
 
 bool wait_queue_may_delete(struct wait_queue *queue)
 {
 	spin_lock_irqsave(&queue->lock);
 
-	bool may = queue->token_head == NULL;
+	bool may = list_is_empty(&queue->token_list);
 
 	spin_unlock_irqrestore(&queue->lock);
 

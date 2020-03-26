@@ -75,6 +75,7 @@ void tty_init(void *priv, void (*ctor)(struct tty *tty))
 	tty->priv = priv;
 	tty->tty_num = idm_get_id(tty_ids);
 	tty->term_io.c_lflag = ICANON | ECHO;
+	init_wait_queue_head(&tty->read_queue);
 	/** Use the ctor to init the tty with write and read functions */
 	ctor(tty);
 

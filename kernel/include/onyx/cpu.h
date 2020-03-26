@@ -15,6 +15,8 @@
 
 #include <onyx/acpi.h>
 #include <onyx/scheduler.h>
+#include <onyx/compiler.h>
+
 #ifdef __x86_64__
 #include <onyx/tss.h>
 #endif
@@ -301,9 +303,6 @@ static inline uintptr_t cpu_get_cr4(void)
 	__asm__ __volatile__("mov %%cr4, %0":"=r"(cr4));
 	return cr4;
 }
-
-#define write_memory_barrier()	__asm__ __volatile__("sfence" ::: "memory")
-#define read_memory_barrier()	__asm__ __volatile__("lfence" ::: "memory")
 
 #endif
 

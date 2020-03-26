@@ -221,7 +221,7 @@ void *sched_switch_thread(void *last_stack)
 {
 	if(is_initialized == 0 || sched_is_preemption_disabled())
 	{
-		write_per_cpu(sched_quantum, SCHED_QUANTUM);
+		write_per_cpu(sched_quantum, 1);
 		return last_stack;
 	}
 
@@ -234,7 +234,7 @@ void *sched_switch_thread(void *last_stack)
 
 		if(thread_blocked && curr_thread->flags & THREAD_ACTIVE)
 		{
-			write_per_cpu(sched_quantum, SCHED_QUANTUM);
+			write_per_cpu(sched_quantum, 1);
 			return last_stack;
 		}
 

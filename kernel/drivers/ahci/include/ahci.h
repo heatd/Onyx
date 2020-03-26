@@ -233,6 +233,9 @@ struct ahci_port
 	command_list_t *clist;
 	void *fisb;
 	struct command_list cmdslots[32];
+	uint32_t list_bitmap;
+	struct spinlock bitmap_spl;
+	struct wait_queue list_wq;
 	unsigned char identify[512];
 	uint32_t issued;
 };

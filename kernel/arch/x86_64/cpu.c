@@ -490,7 +490,7 @@ bool cpu_send_message(unsigned int cpu, unsigned long message, void *arg, bool s
 
 void cpu_kill(int cpu_num)
 {
-	printk("Killing cpu %u\n", cpu_num);
+	printf("Killing cpu %u\n", cpu_num);
 	cpu_send_message(cpu_num, CPU_KILL, NULL, false);
 }
 

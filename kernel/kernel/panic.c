@@ -69,8 +69,9 @@ void panic(const char *msg)
 	printk("Stack dump: \n");
 
 	stack_trace();
-	printk("Killing cpus\n");
+	printk("Killing cpus... ");
 	cpu_kill_other_cpus();
+	printk("Done.\n");
 	//page_print_shared();
 	halt();
 	__builtin_unreachable();

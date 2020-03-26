@@ -92,4 +92,11 @@ static inline int count_bits64(uint64_t num)
 #define ilog2(X) ((unsigned) (8*sizeof (unsigned long long) - __builtin_clzll((X)) - 1))
 #define ALIGN_TO(x, y) (((unsigned long)x + (y - 1)) & -y)
 
+#ifdef __x86_64__
+
+#define write_memory_barrier()	__asm__ __volatile__("sfence" ::: "memory")
+#define read_memory_barrier()	__asm__ __volatile__("lfence" ::: "memory")
+
+#endif
+
 #endif /* COMPILER_H */

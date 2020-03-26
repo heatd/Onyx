@@ -82,9 +82,11 @@ void ahci_do_port_irqs(struct ahci_port *port)
 
 	for(unsigned int j = 0; j < 32; j++)
 	{
-		if(cmd_done & (1UL << j))
+		if(cmd_done & (1U << j))
+		{
 			ahci_do_clist_irq(port, j);
-		port->issued &= ~(1UL << j);
+			port->issued &= ~(1UL << j);
+		}
 	}
 }
 
@@ -99,16 +101,16 @@ irqstatus_t ahci_irq(struct irq_context *ctx, void *cookie)
 	 * IRQ code is flagging it as SPURIOUS, which isn't actually true.
 	*/
 	if(!ports)
-		return IRQ_HANDLED;
+		return IRQ_UNHANDLED;
 
-	for(int i = 0; i < 32; i++)
+	for(unsigned int i = 0; i < 32; i++)
 	{
 		struct ahci_port *port = &dev->ports[i];
 		spin_lock_irqsave(&port->port_lock);
 
-		if(ports & (1L << i))
+		if(ports & (1U << i))
 		{
-			uint32_t port_is = dev->ports[i].port->interrupt_status;
+			uint32_t port_is = port->port->interrupt_status;
 			dev->hba->interrupt_status = (1U << i);
 			ahci_do_port_irqs(port);
 			port->port->interrupt_status = port_is;
@@ -224,20 +226,28 @@ command_list_t *ahci_find_free_command_list(command_list_t *lists,
 
 void ahci_issue_command(struct ahci_port *port, size_t slot)
 {
-	port->port->command_issue |= (1 << slot);
+	port->port->command_issue = (1 << slot);
 }
 
 command_list_t *ahci_allocate_command_list(struct ahci_port *ahci_port, size_t *index)
 {
 	command_list_t *clist = ahci_port->clist;
 
-	spin_lock_irqsave(&ahci_port->port_lock);
+	spin_lock(&ahci_port->bitmap_spl);
 
-	command_list_t *list = ahci_find_free_command_list(clist,
-		AHCI_CAP_NCS(ahci_port->dev->hba->host_cap), index);
-	spin_unlock_irqrestore(&ahci_port->port_lock);
+	wait_for_event_locked(&ahci_port->list_wq, ahci_port->list_bitmap != ~0U, &ahci_port->bitmap_spl);
 
-	return list;
+	unsigned int pos = __builtin_ctz(~ahci_port->list_bitmap);
+
+	ahci_port->list_bitmap |= (1 << pos);
+
+	spin_unlock(&ahci_port->bitmap_spl);
+
+	clist = clist + pos;
+
+	*index = (size_t) pos;
+
+	return clist;
 }
 
 size_t ahci_setup_prdt(prdt_t *table, struct phys_ranges *ranges)
@@ -329,7 +339,7 @@ bool ahci_do_command_async(struct ahci_port *ahci_port,
 
 	spin_lock_irqsave(&ahci_port->port_lock);
 
-	ahci_port->issued = (1 << list_index);
+	ahci_port->issued |= (1 << list_index);
 
 	ahci_issue_command(ahci_port, list_index);
 
@@ -344,16 +354,11 @@ void ahci_wake_callback(void *cb, struct wait_queue_token *token)
 	req->signaled = true;
 }
 
-// FIXME: The ahci driver right now still requires this global mutex, since some part of the other
-// logic is broken. Fix.
-
-static struct mutex mtx;
-
 bool ahci_do_command(struct ahci_port *ahci_port, struct ahci_command_ata *buf)
 {
-	(void) mtx;
 	struct aio_req req = {0};
 	memset(&req, 0, sizeof(req));
+	aio_req_init(&req);
 
 	req.req_start = get_main_clock()->get_ns();
 	struct wait_queue_token wait_token = {0};
@@ -366,13 +371,11 @@ bool ahci_do_command(struct ahci_port *ahci_port, struct ahci_command_ata *buf)
 
 	wait_queue_add(&req.wake_sem, &wait_token);
 
-	mutex_lock(&mtx);
 
 	set_current_state(THREAD_UNINTERRUPTIBLE);
 
 	if(!ahci_do_command_async(ahci_port, buf, &req))
 	{
-		mutex_unlock(&mtx);
 		return false;
 	}
 
@@ -385,7 +388,6 @@ bool ahci_do_command(struct ahci_port *ahci_port, struct ahci_command_ata *buf)
 
 	set_current_state(THREAD_RUNNABLE);
 
-	mutex_unlock(&mtx);
 
 	while(!wait_queue_may_delete(&req.wake_sem)) {}
 
@@ -667,6 +669,7 @@ void ahci_enable_interrupts_for_port(ahci_port_t *port)
 		     AHCI_PORT_INTERRUPT_DSE;
 }
 
+static unsigned int woke = 0;
 void ahci_free_list(struct ahci_port *port, size_t idx)
 {
 	command_list_t *list = port->clist + idx;
@@ -676,6 +679,20 @@ void ahci_free_list(struct ahci_port *port, size_t idx)
 	port->cmdslots[idx].req = NULL;
 
 	list->prdtl = 0;
+
+	spin_lock(&port->bitmap_spl);
+
+	bool needs_to_wake_up = port->list_bitmap == ~0U;
+
+	port->list_bitmap &= ~(1 << idx);
+
+	if(needs_to_wake_up)
+	{
+		wait_queue_wake(&port->list_wq);
+		woke++;
+	}
+
+	spin_unlock(&port->bitmap_spl);
 }
 
 void ahci_destroy_aio(struct ahci_port *port, struct aio_req *req)
@@ -693,7 +710,7 @@ int ahci_do_identify(struct ahci_port *port)
 			command.size = 512;
 			command.write = false;
 			command.lba = 0;
-			command.cmd = ATA_CMD_READ_DMA_EXT;
+			command.cmd = ATA_CMD_IDENTIFY;
 			command.buffer = &port->identify;
 
 			if(!ahci_do_command(port, &command))
@@ -780,7 +797,8 @@ void ahci_init_port(struct ahci_port *ahci_port)
 
 	unsigned int ncs = AHCI_CAP_NCS(device->hba->host_cap);
 	printf("ahci: AHCI controller supports %u command list slots\n", ncs);
-	
+	ahci_port->list_bitmap = ~((1 << 1) - 1);
+	// ~((1 << 1) - 1); true: -(1 << ncs)
 	if(ahci_allocate_port_lists(hba, port, ahci_port) < 0)
 	{
 		MPRINTF("Failed to allocate the command and FIS lists for port %p\n", port);
@@ -801,6 +819,7 @@ void ahci_init_port(struct ahci_port *ahci_port)
 		}
 	}
 
+	init_wait_queue_head(&ahci_port->list_wq);
 
 	/* Enable FIS receive */
 	port->pxcmd |= AHCI_PORT_CMD_FRE;
@@ -942,8 +961,8 @@ int ahci_probe(struct device *dev)
 		MPRINTF("Failed to initialize the AHCI controller\n");
 		status = -1;
 		goto ret;
-	
-}
+	}
+
 	ahci_probe_ports(count_bits32(hba->ports_implemented), hba);
 ret:
 	if(status != 0)

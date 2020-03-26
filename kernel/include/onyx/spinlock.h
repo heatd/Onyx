@@ -43,8 +43,9 @@ static inline void spin_lock_irqsave(struct spinlock *lock)
 
 static inline void spin_unlock_irqrestore(struct spinlock *lock)
 {
+	unsigned long old = lock->old_flags;
 	spin_unlock_preempt(lock);
-	irq_restore(lock->old_flags);
+	irq_restore(old);
 }
 
 static inline bool spin_lock_held(struct spinlock *lock)

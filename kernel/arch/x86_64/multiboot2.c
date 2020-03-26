@@ -68,6 +68,7 @@
 #include <onyx/utils.h>
 #include <onyx/mm/kasan.h>
 #include <onyx/x86/kvm.h>
+#include <onyx/x86/msr.h>
 
 #include <drivers/rtc.h>
 

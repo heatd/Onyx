@@ -33,6 +33,7 @@ int pcie_get_mcfg(void)
 		printf("pcie: MCFG not found - proceeding with conventional pci.\n");
 		return 0;
 	}
+
 	return 0;
 }
 
@@ -152,7 +153,8 @@ void __pcie_config_write_word(struct pcie_address addr, uint16_t data)
 	__pcie_config_write_dword(addr, dword);
 }
 
-uint64_t pcie_read_device_from_segment(struct pci_device *dev, struct pcie_allocation *alloc, uint16_t off, size_t size)
+uint64_t pcie_read_device_from_segment(struct pci_device *dev,
+	struct pcie_allocation *alloc, uint16_t off, size_t size)
 {
 	uint64_t val = -1;
 
@@ -184,7 +186,7 @@ uint64_t pcie_read_device_from_segment(struct pci_device *dev, struct pcie_alloc
 }
 
 void pcie_write_device_from_segment(struct pci_device *dev, struct pcie_allocation *alloc,
-uint64_t value, uint16_t off, size_t size)
+	uint64_t value, uint16_t off, size_t size)
 {
 	struct pcie_address addr;
 	addr.alloc = alloc;

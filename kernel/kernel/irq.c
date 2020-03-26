@@ -144,7 +144,6 @@ void dispatch_irq(unsigned int irq, struct irq_context *context)
 		}
 	}
 	
-	printf("Rogue IRQ %u\n", irq);
 	rogue_irqs++;
 	line->stats.spurious++;
 	write_per_cpu(in_irq, false);

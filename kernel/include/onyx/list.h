@@ -38,6 +38,7 @@ static inline void __list_add(struct list_head *_new, struct list_head *prev, st
 	_new->next = next;
 	_new->prev = prev;
 	prev->next = _new;
+	write_memory_barrier();
 }
 
 static inline void list_add(struct list_head *_new, struct list_head *head)
@@ -50,17 +51,22 @@ static inline void list_add_tail(struct list_head *_new, struct list_head *head)
 	__list_add(_new, head->prev, head);
 }
 
+#define LIST_REMOVE_POISON			((struct list_head *) 0xDEAD)
+
 static inline void list_remove(struct list_head *node)
 {
 	node->next->prev = node->prev;
 	node->prev->next = node->next;
-	node->prev = node->next = NULL;
+	write_memory_barrier();
+	node->prev = node->next = LIST_REMOVE_POISON;
 }
 
 static inline bool list_is_empty(struct list_head *head)
 {
 	return head->next == head;
 } 
+
+void list_assert_correct(struct list_head *head);
 
 static inline struct list_head *list_first_element(struct list_head *head)
 {

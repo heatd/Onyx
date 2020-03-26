@@ -15,34 +15,42 @@
 #include <onyx/dns.h>
 #include <onyx/network.h>
 
+/* FIXME: 98% sure there's a race condition here, TOFIX */
+
 int sys_sethostname(const void *name, size_t len)
 {
 	if(len > 65)
-		return errno =-EINVAL;
+		return -EINVAL;
+	
 	if((ssize_t) len < 0)
-		return errno =-EINVAL;
+		return -EINVAL;
+	
 	/* We need to copy the name, since the user pointer isn't safe */
-	char *hostname = malloc(len+1);
+	char *hostname = malloc(len + 1);
 	if(!hostname)
-		return errno =-ENOMEM;
-	memset(hostname, 0, len+1);
+		return -ENOMEM;
+
+	memset(hostname, 0, len + 1);
 	if(copy_from_user(hostname, name, len) < 0)
 	{
 		free(hostname);
 		return -EFAULT;
 	}
+
 	network_sethostname(hostname);
 	
 	return 0;
 }
+
 int sys_gethostname(char *name, size_t len)
 {
 	if((ssize_t) len < 0)
-		return errno =-EINVAL;
+		return -EINVAL;
 	
 	size_t str_len = strlen(network_gethostname());
 	if(len < str_len)
-		return errno =-EINVAL;
+		return -EINVAL;
+	
 	if(copy_to_user(name, network_gethostname(), str_len) < 0)
 		return -EFAULT;
 	

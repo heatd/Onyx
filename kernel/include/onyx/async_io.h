@@ -26,4 +26,9 @@ struct aio_req
 	bool signaled;
 };
 
+static inline void aio_req_init(struct aio_req *r)
+{
+	init_wait_queue_head(&r->wake_sem);
+}
+
 #endif
