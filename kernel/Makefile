@@ -110,6 +110,7 @@ vmonyx: $(OBJ_LINK_LIST) $(ARCHDIR)/linker.ld ../libc/libk.a
 	$(CC) -fuse-ld=bfd -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(OBJ_LINK_LIST) $(LDFLAGS) $(LIBS)
 	cp vmonyx vmonyx-unstripped
 	strip -g vmonyx
+
 acpica/%.o: acpica/%.c kernel.config
 	@echo [CC] $<
 	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) $(CPPFLAGS)
@@ -125,19 +126,24 @@ kernel/mm/malloc/%.o: kernel/mm/malloc/%.c
 %.o: %.c kernel.config
 	@echo [CC] $<
 	@$(CC) -c $< -o $@ -std=c11 $(CFLAGS) $(CPPFLAGS) -Wno-error=deprecated-declarations
+
 %.o: %.S kernel.config
 	@echo [AS] $<
 	@$(CC) -c $(CPPFLAGS) -o $@ $<
+
 %.o: %.cpp kernel.config
 	@echo [CXX] $<
 	@$(CXX) -c $< -o $@ -std=c++17 $(CFLAGS) $(CPPFLAGS) $(CXXFLAGS)
+
 $(ARCHDIR)/__vdso.o: $(ARCHDIR)/__vdso.c kernel.config
 	@echo [CC] $<
 	@$(CC) -c $< -o $@ -fpic -Iinclude/acpica -Iinclude -isystem ../libc/include
+
 onyx-vdso.so.0: $(ARCHDIR)/__vdso_asm.o $(ARCHDIR)/__vdso.o kernel.config
 	@echo [VDSO]
 	$(CC) $(VDSO_LDFLAGS) $(ARCHDIR)/__vdso_asm.o $(ARCHDIR)/__vdso.o -o $@ -ffreestanding \
 	 -nostdlib -Iinclude -I../libc/include
+
 clean: clean-modules
 	rm -f vmonyx $(OBJS) $(ALL_OUR_OBJS) *.o */*.o */*/*.o
 

@@ -24,6 +24,7 @@ struct netif
 	struct inode *device_file;
 	void *priv;
 	unsigned int flags;
+	unsigned int mtu;
 	unsigned char mac_address[6];
 	unsigned char router_mac[6];
 	struct sockaddr_in local_ip;

@@ -65,6 +65,8 @@ int udp_send_packet(char *payload, size_t payload_size, int source_port,
 	            int dest_port, uint32_t srcip, uint32_t destip,
 		    	struct netif *netif)
 {
+	if(payload_size > UINT16_MAX)
+		return errno = EMSGSIZE, -1;
 	struct packetbuf_info buf = {0};
 	buf.length = payload_size;
 	buf.packet = NULL;
@@ -300,7 +302,7 @@ void udp_append_packet(struct udp_packet *packet, struct udp_socket *socket)
 	sem_signal(&socket->packet_semaphore);
 }
 
-void udp_handle_packet(ip_header_t *header, size_t length, struct netif *netif)
+void udp_handle_packet(struct ip_header *header, size_t length, struct netif *netif)
 {
 	udp_header_t *udp_header = (udp_header_t *) (header + 1);
 

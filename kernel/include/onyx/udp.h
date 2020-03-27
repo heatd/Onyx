@@ -44,6 +44,6 @@ int udp_send_packet(char *payload, size_t payload_size, int source_port, int des
 		uint32_t srcip, uint32_t destip, struct netif *netif);
 struct socket *udp_create_socket(int type);
 int udp_init_netif(struct netif *netif);
-void udp_handle_packet(ip_header_t *header, size_t length, struct netif *netif);
+void udp_handle_packet(struct ip_header *header, size_t length, struct netif *netif);
 
 #endif

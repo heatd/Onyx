@@ -510,6 +510,7 @@ int e1000_probe(struct device *__dev)
 	n->sendpacket = e1000_send_packet;
 	n->priv = nicdev;
 	n->get_packetbuf_proto = e1000_get_packetbuf_proto;
+	n->mtu = MAX_MTU;
 	nicdev->nic_netif = n;
 	memcpy(n->mac_address, nicdev->e1000_internal_mac_address, 6);
 	netif_register_if(n);

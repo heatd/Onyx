@@ -21,7 +21,7 @@
 
 struct sock;
 
-typedef struct
+struct ip_header
 {
 	unsigned int ihl : 4;
 	unsigned int version : 4;
@@ -29,15 +29,20 @@ typedef struct
 	unsigned int ecn : 2;
 	uint16_t total_len;
 	uint16_t identification;
-	uint16_t frag_off__flags;
+	uint16_t frag_info;
 	uint8_t ttl;
 	uint8_t proto;
 	uint16_t header_checksum;
 	uint32_t source_ip;
 	uint32_t dest_ip;
-	char payload[0];
-	char options[0];
-} __attribute__((packed)) ip_header_t;
+} __attribute__((packed));
+
+#define IPV4_FRAG_INFO_DONT_FRAGMENT	0x4000
+#define IPV4_FRAG_INFO_MORE_FRAGMENTS	0x2000
+
+#define IPV4_FRAG_INFO_FLAGS(x)		(x & 0x7)
+#define IPV4_MAKE_FRAGOFF(x)		(x << 3)
+#define IPV4_GET_FRAGOFF(x)			(x >> 2)
 
 static inline uint16_t __ipsum_unfolded(void *addr, size_t bytes, uint16_t init_count)
 {
@@ -79,7 +84,7 @@ static inline uint16_t ipsum(void *addr, size_t bytes)
 int ipv4_send_packet(uint32_t senderip, uint32_t destip, unsigned int type,
                      struct packetbuf_info *buf, struct netif *netif);
 struct socket *ipv4_create_socket(int type, int protocol);
-void ipv4_handle_packet(ip_header_t *header, size_t size, struct netif *netif);
+void ipv4_handle_packet(struct ip_header *header, size_t size, struct netif *netif);
 
 extern struct packetbuf_proto __ipv4_pbf;
 
