@@ -44,6 +44,10 @@ struct ip_header
 #define IPV4_MAKE_FRAGOFF(x)		(x << 3)
 #define IPV4_GET_FRAGOFF(x)			(x >> 2)
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 static inline uint16_t __ipsum_unfolded(void *addr, size_t bytes, uint16_t init_count)
 {
 	uint32_t sum = init_count;
@@ -92,5 +96,9 @@ static inline struct packetbuf_proto *ipv4_get_packetbuf(void)
 {
 	return &__ipv4_pbf;
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

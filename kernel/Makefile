@@ -16,7 +16,7 @@ LIBDIR?=$(EXEC_PREFIX)/usr/lib
 CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-strong \
 -Wno-unused-parameter -Wno-unused-function \
 -Werror -Wno-error=frame-address -Wno-address-of-packed-member -Wno-cast-function-type \
--fno-sanitize=pointer-overflow -fno-pie
+-Wno-error=invalid-offsetof -fno-sanitize=pointer-overflow -fno-pie
 
 # NOTE: I don't think pointer-overflow works with kernel pointers
 
@@ -46,11 +46,29 @@ ifeq ($(CONFIG_UBSAN), y)
 CFLAGS+=-fsanitize=undefined -fno-sanitize=alignment -fno-sanitize=pointer-overflow
 endif
 
+CLANG_TIDY_CHECKS:="performance*, modernize-pass-by-value, readability*, misc*, \
+		-readability-implicit-bool-conversion, -readability-braces-around-statements, \
+		-readability-else-after-return, -readability-isolate-declaration, \
+		-readability-magic-numbers, -misc-unused-parameters, \
+		-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling"
+
 CXXFLAGS:=-fno-rtti -fno-exceptions -fcheck-new
 CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS) -D ACPI_LIBRARY -D ACPI_DEBUG_OUTPUT=1
 LDFLAGS:=$(LDFLAGS) $(KERNEL_ARCH_LDFLAGS)
 LIBS:=$(LIBS) $(KERNEL_ARCH_LIBS)
 ACPICA_CFLAGS:=$(filter-out -fsanitize=undefined -Werror, $(CFLAGS))
+
+# clang-tidy doesn't recognize a bunch of compiler flags
+CLANG_TIDY_CFLAGS:=$(filter-out -mnop-mcount -mrecord-mcount -mrecord-return \
+	-Wno-error=frame-address -minstrument-return=nop5 \
+	-Wno-cast-function-type, $(CFLAGS))
+
+ifeq ($(RUN_CLANG_TIDY), 1)
+CLANG_TIDY:=-clang-tidy -checks=$(CLANG_TIDY_CHECKS) $< -- $(CLANG_TIDY_CFLAGS) $(CPPFLAGS) -D__onyx__ >> clang-tidy.out
+else
+CLANG_TIDY:=
+endif
+
 
 #OBJS:=\
 #$(patsubst %.c,%.o,$(wildcard drivers/*/*.c)) \
@@ -125,6 +143,7 @@ kernel/mm/malloc/%.o: kernel/mm/malloc/%.c
 
 %.o: %.c kernel.config
 	@echo [CC] $<
+	$(CLANG_TIDY)
 	@$(CC) -c $< -o $@ -std=c11 $(CFLAGS) $(CPPFLAGS) -Wno-error=deprecated-declarations
 
 %.o: %.S kernel.config
@@ -133,6 +152,7 @@ kernel/mm/malloc/%.o: kernel/mm/malloc/%.c
 
 %.o: %.cpp kernel.config
 	@echo [CXX] $<
+	$(CLANG_TIDY)
 	@$(CXX) -c $< -o $@ -std=c++17 $(CFLAGS) $(CPPFLAGS) $(CXXFLAGS)
 
 $(ARCHDIR)/__vdso.o: $(ARCHDIR)/__vdso.c kernel.config
@@ -146,6 +166,7 @@ onyx-vdso.so.0: $(ARCHDIR)/__vdso_asm.o $(ARCHDIR)/__vdso.o kernel.config
 
 clean: clean-modules
 	rm -f vmonyx $(OBJS) $(ALL_OUR_OBJS) *.o */*.o */*/*.o
+	rm -f clang-tidy.out
 
 install: install-headers install-kernel
 

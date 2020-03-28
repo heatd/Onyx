@@ -33,8 +33,9 @@ int network_handle_packet(uint8_t *packet, uint16_t len, struct netif *netif)
 	hdr->ethertype = LITTLE_TO_BIG16(hdr->ethertype);
 	if(hdr->ethertype == PROTO_IPV4)
 		ipv4_handle_packet((struct ip_header*)(hdr+1), len - sizeof(ethernet_header_t), netif);
-	/*else if(hdr->ethertype == PROTO_ARP)
-		arp_handle_packet((arp_request_t*)(hdr+1), len - sizeof(ethernet_header_t));*/
+	else if(hdr->ethertype == PROTO_ARP)
+		arp_handle_packet((arp_request_t*)(hdr+1), len - sizeof(ethernet_header_t), netif);
+
 	return 0;
 }
 
@@ -49,130 +50,6 @@ void network_sethostname(const char *name)
 	if(strcmp((char*) hostname, ""))
 		free((void *) hostname);
 	hostname = name;
-}
-
-int check_af_support(int domain)
-{
-	switch(domain)
-	{
-		case AF_INET:
-			return 0;
-		case AF_UNIX:
-			return 0;
-		default:
-			return -1;
-	}
-}
-
-static const int type_mask = SOCK_DGRAM | SOCK_STREAM | SOCK_SEQPACKET;
-static const int sock_flag_mask = ~type_mask;
-
-int net_check_type_support(int type)
-{
-	(void) sock_flag_mask;
-	return type & type_mask;
-}
-
-int net_autodetect_protocol(int type, int domain)
-{
-	switch(type & type_mask)
-	{
-		case SOCK_DGRAM:
-		{
-			if(domain == AF_UNIX)
-				return PROTOCOL_UNIX;
-			else if(domain == AF_INET)
-				return PROTOCOL_UDP;
-			else
-				return -1;
-		}
-		case SOCK_RAW:
-		{
-			if(domain == AF_INET)
-				return PROTOCOL_IPV4;
-			else if(domain == AF_UNIX)
-				return PROTOCOL_UNIX;
-			return -1;
-		}
-		case SOCK_STREAM:
-		{
-			if(domain == AF_INET)
-				return PROTOCOL_TCP;
-			else
-				return -1;
-		}
-	}
-
-	return -1;
-}
-
-struct socket *unix_create_socket(int type, int protocol);
-
-struct socket *socket_create(int domain, int type, int protocol)
-{
-	switch(domain)
-	{
-		case AF_INET:
-			return ipv4_create_socket(type, protocol);
-			return errno = EAFNOSUPPORT, NULL;
-		case AF_UNIX:
-			return unix_create_socket(type, protocol);
-		default:
-			return errno = EAFNOSUPPORT, NULL;
-	}
-}
-
-struct inode *socket_create_inode(struct socket *socket)
-{
-	struct inode *inode = inode_create();
-
-	if(!inode)
-		return NULL;
-	
-	assert(socket->ops != NULL);
-
-	memcpy(&inode->i_fops, socket->ops, sizeof(struct file_ops));
-
-	inode->i_type = VFS_TYPE_UNIX_SOCK;
-	inode->i_helper = socket;
-
-	return inode;
-}
-
-int sys_socket(int domain, int type, int protocol)
-{
-	int dflags;
-	dflags = O_RDWR;
-	if(check_af_support(domain) < 0)
-		return -EAFNOSUPPORT;
-	if(net_check_type_support(type) < 0)
-		return -EINVAL;
-
-	if(protocol == 0)
-	{
-		/* If protocol == 0, auto-detect the proto */
-		if((protocol = net_autodetect_protocol(type, domain)) < 0)
-			return -EINVAL;
-	}
-
-	/* Create the socket */
-	struct socket *socket = socket_create(domain, type, protocol);
-	if(!socket)
-		return -errno;
-	
-	struct inode *inode = socket_create_inode(socket);
-	if(!inode)
-		return -errno;
-
-	if(type & SOCK_CLOEXEC)
-		dflags |= O_CLOEXEC;
-
-	/* Open a file descriptor with the socket vnode */
-	int fd = open_with_vnode(inode, dflags);
-	/* If we failed, close the socket and return */
-	if(fd < 0)
-		close_vfs((struct inode*) socket);
-	return fd;
 }
 
 static slab_cache_t *network_slab;

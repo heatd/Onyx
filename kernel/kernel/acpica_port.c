@@ -21,7 +21,6 @@
 #include <onyx/cpu.h>
 
 #include <pci/pci.h>
-#include <drivers/rtc.h>
 
 void spinlock_lock(unsigned long*);
 void spinlock_unlock(unsigned long*);

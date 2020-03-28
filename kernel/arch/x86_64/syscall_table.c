@@ -162,6 +162,9 @@ int sys_renameat(int olddirfd, const char *oldpath,
 int sys_utimensat(int dirfd, const char *pathname,
                      const struct timespec *times, int flags);
 int sys_faccessat(int dirfd, const char *pathname, int mode, int flags);
+int sys_listen(int sockfd, int backlog);
+int sys_accept(int sockfd, struct sockaddr *addr, socklen_t *slen);
+int sys_accept4(int sockfd, struct sockaddr *addr, socklen_t *slen, int flags);
 
 void *syscall_table_64[] =
 {
@@ -274,5 +277,8 @@ void *syscall_table_64[] =
 	[106] = (void*) sys_symlinkat,
 	[107] = (void*) sys_readlinkat,
 	[108] = (void*) sys_fchmodat,
-	[109] = (void*) sys_faccessat
+	[109] = (void*) sys_faccessat,
+	[110] = (void*) sys_listen,
+	[111] = (void*) sys_accept,
+	[112] = (void*) sys_accept4
 };

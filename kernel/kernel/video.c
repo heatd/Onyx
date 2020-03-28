@@ -4,13 +4,11 @@
 * check LICENSE at the root directory for more information
 */
 #include <stdlib.h>
-#include <stdio.h> // TOREMOVE
 #include <stdint.h>
 #include <errno.h>
 #include <stdatomic.h>
 
 #include <onyx/video.h>
-#include <drivers/softwarefb.h>
 
 static struct video_device *main_adapter = NULL;
 

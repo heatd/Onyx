@@ -40,8 +40,8 @@ struct udp_socket
 	struct list_head socket_list_head;
 };
 
-int udp_send_packet(char *payload, size_t payload_size, int source_port, int dest_port, 
-		uint32_t srcip, uint32_t destip, struct netif *netif);
+int udp_send_packet(char *payload, size_t payload_size, in_port_t source_port, in_port_t dest_port, 
+		in_addr_t srcip, in_addr_t destip, struct netif *netif);
 struct socket *udp_create_socket(int type);
 int udp_init_netif(struct netif *netif);
 void udp_handle_packet(struct ip_header *header, size_t length, struct netif *netif);

@@ -25,9 +25,9 @@ typedef struct
 	uint8_t plen;
 	uint16_t operation;
 	uint8_t sender_hw_address[6];
-	uint8_t sender_proto_address[4];
+	uint32_t sender_proto_address;
 	uint8_t target_hw_address[6];
-	uint8_t target_proto_address[4];
+	uint32_t target_proto_address;
 
 } __attribute__((packed)) arp_request_t;
 
@@ -47,8 +47,10 @@ struct netif;
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 int arp_resolve_in(uint32_t ip, unsigned char *mac, struct netif *netif);
-int arp_handle_packet(arp_request_t *arp, uint16_t len);
+int arp_handle_packet(arp_request_t *arp, uint16_t len, struct netif *netif);
+
 #ifdef __cplusplus
 }
 #endif

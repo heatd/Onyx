@@ -17,8 +17,6 @@
 #include <onyx/log.h>
 #include <onyx/byteswap.h>
 
-static volatile int arp_response_arrived = 0;
-
 int arp_hash(uint32_t ip)
 {
 	return ip % 255;
@@ -40,10 +38,10 @@ struct arp_cache *arp_get(struct arp_hashtable *table, int hash, uint32_t ip)
 
 struct arp_cache *arp_create(struct arp_hashtable *table, int hash, uint32_t ip)
 {
-	struct arp_cache *c = malloc(sizeof(struct arp_cache));
+	struct arp_cache *c = zalloc(sizeof(struct arp_cache));
 	if(!c)
 		return NULL;
-	memset(c, 0, sizeof(struct arp_cache));
+
 	if(!table->entries[hash])
 	{
 		c->ip = ip;
@@ -61,13 +59,37 @@ struct arp_cache *arp_create(struct arp_hashtable *table, int hash, uint32_t ip)
 struct arp_cache *arp_find(struct netif *netif, uint32_t ip)
 {
 	spin_lock(&netif->hashtable_spinlock);
+
 	struct arp_hashtable *table = &netif->arp_hashtable;
+	
 	int hash = arp_hash(ip);
+	
 	struct arp_cache *arp = arp_get(table, hash, ip);
 	if(!arp)
 		arp = arp_create(table, hash, ip);
+
 	spin_unlock(&netif->hashtable_spinlock);
 	return arp;
+}
+
+int arp_handle_packet(arp_request_t *arp, uint16_t len, struct netif *netif)
+{
+	/* We're not interested in handling requests right now. TODO: Maybe add this? */
+	if(htons(arp->operation) != ARP_OP_REPLY)
+		return 0;
+
+	in_addr_t req_ip = ntohl(arp->sender_proto_address);
+	struct arp_cache *arp_req = arp_find(netif, req_ip);
+
+	/* Huh, RIP */
+	if(!arp_req)
+		return -ENOMEM;
+
+	memcpy(&arp_req->mac, arp->sender_hw_address, ARP_HLEN_ETHERNET);
+
+	arp_req->flags |= ARP_FLAG_RESOLVED;
+
+	return 0;
 }
 
 size_t arp_get_packetlen(void *info, struct packetbuf_proto **next, void **next_info);
@@ -82,18 +104,18 @@ size_t arp_get_packetlen(void *info, struct packetbuf_proto **next, void **next_
 {
 	struct netif *n = info;
 	
-	if(n->if_proto)
-	{
-		*next = n->if_proto;
-		*next_info = info;
-	}
+
+	*next = n->get_packetbuf_proto(n);
+	*next_info = info;
 
 	return sizeof(arp_request_t);
 }
 
 int arp_submit_request(struct arp_cache *c, struct netif *netif)
 {
-	struct packetbuf_info bufs = {0};
+	struct packetbuf_info bufs = {};
+	bufs.packet = NULL;
+	bufs.length = 0;
 	
 	if(packetbuf_alloc(&bufs, &arp_proto, netif) < 0)
 		return -ENOMEM;
@@ -114,14 +136,12 @@ int arp_submit_request(struct arp_cache *c, struct netif *netif)
 	arp->target_hw_address[3] = 0xFF;
 	arp->target_hw_address[4] = 0xFF;
 	arp->target_hw_address[5] = 0xFF;
-	arp->sender_proto_address[0] =  0;
-	arp->sender_proto_address[1] = 0;
-	arp->sender_proto_address[2] = 0;
-	arp->sender_proto_address[3] = 0;
-	memcpy(&arp->target_proto_address, &c->ip, ARP_PLEN_IPV4);
+	arp->sender_proto_address = htonl(netif->local_ip.sin_addr.s_addr);
+	arp->target_proto_address = htonl(c->ip);
 	int st = eth_send_packet((char*) &arp->target_hw_address, &bufs, PROTO_ARP, netif);
 	
 	packetbuf_free(&bufs);
+
 
 	return st;
 }
@@ -130,7 +150,8 @@ int arp_resolve_in(uint32_t ip, unsigned char *mac, struct netif *netif)
 {
 	struct arp_cache *arp = arp_find(netif, ip);
 	if(!arp)
-		return -1;
+		return -ENOMEM;
+
 	if(arp->flags & ARP_FLAG_RESOLVED)
 	{
 		memcpy(mac, &arp->mac, 6);
@@ -138,6 +159,17 @@ int arp_resolve_in(uint32_t ip, unsigned char *mac, struct netif *netif)
 	}
 	else
 	{
-		return arp_submit_request(arp, netif);
+		int st = arp_submit_request(arp, netif);
+		if(st < 0)
+		{
+			return st;
+		}
+
+		/* TODO: Timeout */
+		while(!(arp->flags & ARP_FLAG_RESOLVED))
+			sched_sleep(10);
+		
+		memcpy(mac, &arp->mac, 6);
+		return 0;
 	}
 }

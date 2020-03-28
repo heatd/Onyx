@@ -13,7 +13,6 @@
 #include <onyx/timer.h>
 #include <onyx/vm.h>
 #include <onyx/panic.h>
-#include <drivers/rtc.h>
 
 #define VBOX_DEBUG
 

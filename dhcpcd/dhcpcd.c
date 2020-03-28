@@ -19,6 +19,8 @@
 #include <netinet/in.h>
 #include <sys/ioctl.h>
 
+#include <arpa/inet.h>
+
 #include <dhcp.h>
 
 #define DHCP_MIN_OPT_OFFSET	4
@@ -254,7 +256,7 @@ int main(int argc, char **argv, char **envp)
 	}
 
 	sockaddr.sin_port = htons(67);
-	sockaddr.sin_addr.s_addr = 0xFFFFFFFF;
+	sockaddr.sin_addr.s_addr = inet_addr("255.255.255.255");
 	
 	if(connect(sock, (const struct sockaddr *) &sockaddr, sizeof(struct sockaddr)) < 0)
 	{
@@ -266,6 +268,30 @@ int main(int argc, char **argv, char **envp)
 	init_entropy();
 
 	dhcp_setup_netif(fd, sock);
+
+	int sockfd, connfd; 
+    struct sockaddr_in servaddr, cli; 
+  
+    // socket create and varification 
+    sockfd = socket(AF_INET, SOCK_STREAM, 0); 
+    if (sockfd == -1) { 
+        printf("socket creation failed...\n"); 
+        exit(0); 
+    } 
+    else
+        printf("Socket successfully created..\n"); 
+    bzero(&servaddr, sizeof(servaddr)); 
+  
+   	 // assign IP, PORT 
+    	servaddr.sin_family = AF_INET; 
+    	servaddr.sin_addr.s_addr = inet_addr("216.58.211.46"); 
+    	servaddr.sin_port = htons(80);
+	
+	connect(sockfd, (const struct sockaddr *) &servaddr, sizeof(struct sockaddr_in));
+	perror("connect");
+	send(sockfd, "Hello World!\n", strlen("Hello World!\n"), 0);
+	perror("send");
+
 	while(1)
 		sleep(100000);
 	return 0;

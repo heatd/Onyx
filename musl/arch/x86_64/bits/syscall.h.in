@@ -99,11 +99,14 @@
 #undef __NR_futimesat
 #define __NR_unlinkat				103
 #define __NR_renameat				104
-#define __NR_linkat				105
+#define __NR_linkat					105
 #define __NR_symlinkat				106
 #define __NR_readlinkat				107
 #define __NR_fchmodat				108
 #define __NR_faccessat				109
+#define __NR_listen					110
+#define __NR_accept					111
+#define __NR_accept4				112
 #define __NR_sysinfo			255
 #define __NR_geteuid			255
 #define __NR_getegid			255
@@ -238,14 +241,12 @@
 #define __NR_ioprio_get				252
 #define __NR_inotify_init			253
 #define __NR_inotify_add_watch			254
-#define __NR_accept				255
 #define __NR_alarm				255
 #define __NR_getitimer				255
 #define __NR_getpeername			255
 #define __NR_getsockname			255
 #define __NR_getsockopt				255
 #define __NR_inotify_rm_watch			255
-#define __NR_listen				255
 #define __NR_madvise				255
 #define __NR_mincore				255
 #define __NR_msgctl				255
@@ -292,7 +293,6 @@
 #define __NR_eventfd				284
 #define __NR_timerfd_settime		286
 #define __NR_timerfd_gettime		287
-#define __NR_accept4				288
 #define __NR_signalfd4				289
 #define __NR_eventfd2				290
 #define __NR_epoll_create1			291

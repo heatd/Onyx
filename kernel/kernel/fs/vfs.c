@@ -889,37 +889,6 @@ ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *file,
 	return (ssize_t) wrote;
 }
 
-ssize_t sendto_vfs(const void *buf, size_t len, int flags, struct sockaddr *addr,
-	socklen_t addrlen, struct inode *node)
-{
-	if(node->i_fops.sendto != NULL)
-		return node->i_fops.sendto(buf, len, flags, addr, addrlen, node);
-	return -ENOSYS;
-}
-
-int connect_vfs(const struct sockaddr *addr, socklen_t addrlen, struct inode *node)
-{
-	if(node->i_fops.connect != NULL)
-		return node->i_fops.connect(addr, addrlen, node);
-	return -ENOSYS;
-}
-
-int bind_vfs(const struct sockaddr *addr, socklen_t addrlen, struct inode *node)
-{
-	if(node->i_fops.bind != NULL)
-		return node->i_fops.bind(addr, addrlen, node);
-	return -ENOSYS;
-}
-
-ssize_t recvfrom_vfs(void *buf, size_t len, int flags,
-	struct sockaddr *src_addr, socklen_t *slen, struct inode *node)
-{
-	if(node->i_fops.recvfrom != NULL)
-		return node->i_fops.recvfrom(buf, len, flags, src_addr, slen,
-			node);
-	return -ENOSYS;
-}
-
 int default_ftruncate(off_t length, struct inode *vnode)
 {
 	if(length < 0)

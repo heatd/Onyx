@@ -122,6 +122,11 @@ void signal_setup_context(int sig, struct sigaction *sigaction, struct registers
 
 void handle_signal(struct registers *regs)
 {
+	/* TODO: Block the signal we're handling, and restore it in sigreturn */
+	/* TODO: Add realtime signals, they seem simple enough, it might just require
+	 * a list for each signal
+	 */
+
 	/* We can't do signals while in kernel space */
 	if(in_kernel_space_regs(regs))
 	{

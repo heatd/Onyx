@@ -99,11 +99,14 @@
 #undef __NR_futimesat
 #define __NR_unlinkat				103
 #define __NR_renameat				104
-#define __NR_linkat				105
+#define __NR_linkat					105
 #define __NR_symlinkat				106
 #define __NR_readlinkat				107
 #define __NR_fchmodat				108
 #define __NR_faccessat				109
+#define __NR_listen					110
+#define __NR_accept					111
+#define __NR_accept4				112
 #define __NR_sysinfo			255
 #define __NR_geteuid			255
 #define __NR_getegid			255
@@ -238,14 +241,12 @@
 #define __NR_ioprio_get				252
 #define __NR_inotify_init			253
 #define __NR_inotify_add_watch			254
-#define __NR_accept				255
 #define __NR_alarm				255
 #define __NR_getitimer				255
 #define __NR_getpeername			255
 #define __NR_getsockname			255
 #define __NR_getsockopt				255
 #define __NR_inotify_rm_watch			255
-#define __NR_listen				255
 #define __NR_madvise				255
 #define __NR_mincore				255
 #define __NR_msgctl				255
@@ -292,7 +293,6 @@
 #define __NR_eventfd				284
 #define __NR_timerfd_settime		286
 #define __NR_timerfd_gettime		287
-#define __NR_accept4				288
 #define __NR_signalfd4				289
 #define __NR_eventfd2				290
 #define __NR_epoll_create1			291
@@ -435,11 +435,14 @@
 #undef SYS_futimesat
 #define SYS_unlinkat				103
 #define SYS_renameat				104
-#define SYS_linkat				105
+#define SYS_linkat					105
 #define SYS_symlinkat				106
 #define SYS_readlinkat				107
 #define SYS_fchmodat				108
 #define SYS_faccessat				109
+#define SYS_listen					110
+#define SYS_accept					111
+#define SYS_accept4				112
 #define SYS_sysinfo			255
 #define SYS_geteuid			255
 #define SYS_getegid			255
@@ -574,14 +577,12 @@
 #define SYS_ioprio_get				252
 #define SYS_inotify_init			253
 #define SYS_inotify_add_watch			254
-#define SYS_accept				255
 #define SYS_alarm				255
 #define SYS_getitimer				255
 #define SYS_getpeername			255
 #define SYS_getsockname			255
 #define SYS_getsockopt				255
 #define SYS_inotify_rm_watch			255
-#define SYS_listen				255
 #define SYS_madvise				255
 #define SYS_mincore				255
 #define SYS_msgctl				255
@@ -628,7 +629,6 @@
 #define SYS_eventfd				284
 #define SYS_timerfd_settime		286
 #define SYS_timerfd_gettime		287
-#define SYS_accept4				288
 #define SYS_signalfd4				289
 #define SYS_eventfd2				290
 #define SYS_epoll_create1			291

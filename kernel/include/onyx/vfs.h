@@ -59,12 +59,6 @@ struct file_ops
 	int (*link)(struct inode *target_ino, const char *name, struct inode *dir);
 	__symlink symlink;
 	void *(*mmap)(struct vm_region *area, struct inode *node);
-	int (*bind)(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode);
-	int (*connect)(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode);
-	ssize_t (*sendto)(const void *buf, size_t len, int flags,
-		struct sockaddr *addr, socklen_t addrlen, struct inode *vnode);
-	ssize_t (*recvfrom)(void *buf, size_t len, int flags, struct sockaddr *addr, 
-		socklen_t *slen, struct inode *vnode);
 	int (*ftruncate)(off_t length, struct inode *node);
 	struct inode *(*mkdir)(const char *name, mode_t mode, struct inode *node);
 	struct inode *(*mknod)(const char *name, mode_t mode, dev_t dev, struct inode *node);
@@ -153,18 +147,6 @@ int getdents_vfs(unsigned int count, putdir_t putdir, struct dirent* dirp,
 int ioctl_vfs(int request, char *argp, struct inode *file);
 
 int stat_vfs(struct stat *buf, struct inode *node);
-
-ssize_t sendto_vfs(const void *buf, size_t len, int flags, struct sockaddr *addr,
- socklen_t addrlen, struct inode *node);
-
-int connect_vfs(const struct sockaddr *addr, socklen_t addrlen,
-	struct inode *node);
-
-int bind_vfs(const struct sockaddr *addr, socklen_t addrlen,
-	struct inode *node);
-
-ssize_t recvfrom_vfs(void *buf, size_t len, int flags,
-	struct sockaddr *src_addr, socklen_t *slen, struct inode *node);
 
 int ftruncate_vfs(off_t length, struct inode *vnode);
 

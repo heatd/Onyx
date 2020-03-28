@@ -198,9 +198,9 @@ int un_do_bind(const struct sockaddr_un *un, socklen_t addrlen, struct un_socket
 	return 0;
 }
 
-int un_bind(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode)
+int un_bind(const struct sockaddr *addr, socklen_t addrlen, struct socket *s)
 {
-	struct un_socket *socket = (struct un_socket*) vnode->i_helper;
+	struct un_socket *socket = (struct un_socket*) s;
 	if(socket->socket.bound)
 		return -EINVAL;
 
@@ -219,12 +219,11 @@ int un_bind(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode)
 	return st;
 }
 
-int un_bind_ephemeral(struct inode *vnode)
+int un_bind_ephemeral(struct un_socket *socket)
 {
 	struct sockaddr_un bind_addr = {0};
 	socklen_t addrlen = sizeof(sa_family_t) + 20;
 	bool failed = false;
-	struct un_socket *socket = (struct un_socket*) vnode->i_helper;
 
 	do
 	{
@@ -245,9 +244,9 @@ int un_bind_ephemeral(struct inode *vnode)
 	}
 }
 
-int un_connect(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode)
+int un_connect(const struct sockaddr *addr, socklen_t addrlen, struct socket *s)
 {
-	struct un_socket *socket = vnode->i_helper;
+	struct un_socket *socket = (struct un_socket *) s;
 
 	const struct sockaddr_un *un = (const struct sockaddr_un *) addr;
 	char *address;
@@ -258,7 +257,7 @@ int un_connect(const struct sockaddr *addr, socklen_t addrlen, struct inode *vno
 
 	if(!socket->socket.bound)
 	{
-		int st = un_bind_ephemeral(vnode);
+		int st = un_bind_ephemeral(socket);
 		if(st < 0)
 			return st;
 	}
@@ -329,7 +328,7 @@ ssize_t un_do_sendto(const void *buf, size_t len, struct un_socket *dest, struct
 }
 
 ssize_t un_sendto(const void *buf, size_t len, int flags,
-	struct sockaddr *_addr, socklen_t addrlen, struct inode *vnode)
+	struct sockaddr *_addr, socklen_t addrlen, struct socket *s)
 {
 	struct sockaddr_un a = {};
 	if(_addr)
@@ -341,7 +340,7 @@ ssize_t un_sendto(const void *buf, size_t len, int flags,
 	}
 
 	struct sockaddr *addr = (struct sockaddr *) &a;
-	struct un_socket *socket = vnode->i_helper;
+	struct un_socket *socket = (struct un_socket *) s;
 	
 	spin_lock(&socket->socket_lock);
 
@@ -457,9 +456,9 @@ ssize_t un_do_recvfrom(struct un_socket *socket, void *buf, size_t len,
 }
 
 ssize_t un_recvfrom(void *buf, size_t len, int flags, struct sockaddr *addr, 
-		socklen_t *slen, struct inode *vnode)
+		socklen_t *slen, struct socket *s)
 {
-	struct un_socket *socket = vnode->i_helper;
+	struct un_socket *socket = (struct un_socket *) s;
 	struct sockaddr_un kaddr = {0};
 	socklen_t addrlen = sizeof(struct sockaddr_un);
 	socklen_t kaddrlen;
@@ -503,7 +502,7 @@ ssize_t un_recvfrom(void *buf, size_t len, int flags, struct sockaddr *addr,
 	return st;
 }
 
-static struct file_ops un_ops = 
+static struct sock_ops un_ops = 
 {
 	.bind = un_bind,
 	.connect = un_connect,
@@ -523,7 +522,7 @@ struct socket *unix_create_socket(int type, int protocol)
 	if(!socket)
 		return NULL;
 
-	socket->socket.ops = &un_ops;
+	socket->socket.s_ops = &un_ops;
 	socket->type = type;
 	socket->socket.dtor = unix_socket_dtor;
 

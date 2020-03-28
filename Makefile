@@ -50,6 +50,7 @@ libc: install-headers
 	$(MAKE) -C $@ install
 
 kernel: libc install-headers
+	rm -f kernel/clang-tidy.out
 	$(MAKE) -C $@ install
 
 musl: install-packages

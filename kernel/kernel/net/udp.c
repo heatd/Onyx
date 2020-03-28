@@ -24,8 +24,6 @@
 
 uint16_t udpv4_calculate_checksum(udp_header_t *header, uint32_t srcip, uint32_t dstip)
 {
-	srcip = htonl(srcip);
-	dstip = htonl(dstip);
 	uint16_t proto = IPV4_UDP << 8;
 	uint16_t packet_length = ntohs(header->len);
 	
@@ -61,12 +59,13 @@ size_t udpv4_get_packetlen(void *info, struct packetbuf_proto **next, void **nex
 	return sizeof(udp_header_t);
 }
 
-int udp_send_packet(char *payload, size_t payload_size, int source_port,
-	            int dest_port, uint32_t srcip, uint32_t destip,
+int udp_send_packet(char *payload, size_t payload_size, in_port_t source_port,
+	            in_port_t dest_port, in_addr_t srcip, in_addr_t destip,
 		    	struct netif *netif)
 {
 	if(payload_size > UINT16_MAX)
 		return errno = EMSGSIZE, -1;
+
 	struct packetbuf_info buf = {0};
 	buf.length = payload_size;
 	buf.packet = NULL;
@@ -123,9 +122,9 @@ void udp_append_socket(struct netif *nif, struct udp_socket *s)
 	spin_unlock(&nif->udp_socket_lock_v4);
 }
 
-int udp_bind(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode)
+int udp_bind(const struct sockaddr *addr, socklen_t addrlen, struct socket *sock)
 {
-	struct udp_socket *socket = (struct udp_socket*) vnode->i_helper;
+	struct udp_socket *socket = (struct udp_socket*) sock;
 	if(socket->socket.bound)
 		return -EINVAL;
 	if(!socket->socket.netif)
@@ -145,7 +144,7 @@ int udp_bind(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode
 	if(in->sin_port == 0){}
 	/* TODO: Add port allocation */
 
-	/* TODO: This may not be correct behavior. */
+	/* TODO: This is not correct behavior. Check tcp.cpp for more */
 	if(in->sin_addr.s_addr == INADDR_ANY)
 		in->sin_addr.s_addr = INADDR_LOOPBACK;
 
@@ -157,9 +156,10 @@ int udp_bind(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode
 	return 0;
 }
 
-int udp_connect(const struct sockaddr *addr, socklen_t addrlen, struct inode *vnode)
+int udp_connect(const struct sockaddr *addr, socklen_t addrlen, struct socket *sock)
 {
-	struct udp_socket *socket = (struct udp_socket*) vnode->i_helper;
+	struct udp_socket *socket = (struct udp_socket*) sock;
+	/* TODO: We need to bind if it's not yet bound */
 	memcpy(&socket->dest_addr, addr, sizeof(struct sockaddr));
 	if(!socket->socket.netif)
 		socket->socket.netif = netif_choose();
@@ -168,9 +168,9 @@ int udp_connect(const struct sockaddr *addr, socklen_t addrlen, struct inode *vn
 }
 
 ssize_t udp_sendto(const void *buf, size_t len, int flags, struct sockaddr *addr,
-	socklen_t addrlen, struct inode *vnode)
+	socklen_t addrlen, struct socket *sock)
 {
-	struct udp_socket *socket = (struct udp_socket*) vnode->i_helper;
+	struct udp_socket *socket = (struct udp_socket*) sock;
 	bool not_conn = !socket->socket.connected;
 
 	struct sockaddr_in *to = (struct sockaddr_in*) &socket->dest_addr;
@@ -211,9 +211,9 @@ struct udp_packet *udp_get_queued_packet(struct udp_socket *socket)
 }
 
 ssize_t udp_recvfrom(void *buf, size_t len, int flags,
-	struct sockaddr *src_addr, socklen_t *slen, struct inode *vnode)
+	struct sockaddr *src_addr, socklen_t *slen, struct socket *sock)
 {
-	struct udp_socket *socket = (struct udp_socket*) vnode->i_helper;
+	struct udp_socket *socket = (struct udp_socket*) sock;
 	struct sockaddr_in *addr = (struct sockaddr_in *) &socket->src_addr;
 	if(!addr->sin_addr.s_addr)
 		return -ENOTCONN;
@@ -251,18 +251,14 @@ ssize_t udp_recvfrom(void *buf, size_t len, int flags,
 	return to_copy;
 }
 
-size_t udp_write(size_t offset, size_t sizeofwrite, void* buffer, struct inode* this)
-{
-	return (size_t) udp_sendto(buffer, sizeofwrite, 0, NULL, 0, this);
-}
-
-static struct file_ops udp_ops = 
+struct sock_ops udp_ops = 
 {
 	.bind = udp_bind,
 	.connect = udp_connect,
 	.sendto = udp_sendto,
-	.write = udp_write,
-	.recvfrom = udp_recvfrom
+	.recvfrom = udp_recvfrom,
+	.listen = default_listen,
+	.accept = default_accept
 };
 
 struct socket *udp_create_socket(int type)
@@ -272,9 +268,7 @@ struct socket *udp_create_socket(int type)
 		return NULL;
 
 	
-	socket->socket.ops = &udp_ops;
-	
-	socket->type = type;
+	socket->socket.s_ops = &udp_ops;
 	
 	return (struct socket*) socket;
 }

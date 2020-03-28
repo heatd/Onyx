@@ -202,12 +202,12 @@ int ipv4_calculate_dstmac(unsigned char *destmac, uint32_t destip, struct netif 
 	if(destip == INADDR_BROADCAST)
 	{
 		/* INADDR_BROADCAST packets are sent to mac address ff:ff:ff:ff:ff:ff */
-		memset(&destmac, 0xff, 6);
+		memset(destmac, 0xff, 6);
 	}
 	else if(destip == INADDR_LOOPBACK)
 	{
 		/* INADDR_LOOPBACK packets are sent to the local NIC's mac */
-		memcpy(&destmac, netif->router_mac, 6);
+		memcpy(destmac, netif->router_mac, 6);
 	}
 	else
 	{
@@ -272,8 +272,9 @@ int ipv4_send_packet(uint32_t senderip, uint32_t destip, unsigned int type,
 	size_t payload_size = buf->length - ip_header_off - sizeof(struct ip_header);
 
 	struct ipv4_send_info sinfo = {};
-	sinfo.dest_ip = htonl(destip);
-	sinfo.src_ip = htonl(senderip);
+	/* Dest ip and sender ip are already in network order */
+	sinfo.dest_ip = destip;
+	sinfo.src_ip = senderip;
 	sinfo.ttl = 64;
 	sinfo.type = type;
 	sinfo.frags_following = false;
@@ -307,6 +308,10 @@ void ipv4_handle_packet(struct ip_header *header, size_t size, struct netif *net
 
 	if(header->proto == IPV4_UDP)
 		udp_handle_packet(usable_header, size, netif);
+	else if(header->proto == IPV4_TCP)
+	{
+		tcp_handle_packet(usable_header, size, netif);
+	}
 
 	free(usable_header);
 }

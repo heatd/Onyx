@@ -32,11 +32,20 @@ struct packetbuf_info
 	size_t current_off;
 };
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int packetbuf_alloc(struct packetbuf_info *pinfo, struct packetbuf_proto *first, void *info);
 void packetbuf_free(struct packetbuf_info *info);
+
 static inline size_t packetbuf_get_off(struct packetbuf_info *info)
 {
 	return info->offsets[info->current_off++];
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

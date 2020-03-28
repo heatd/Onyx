@@ -10,11 +10,11 @@
 #include <errno.h>
 
 #include <onyx/compiler.h>
-#include <onyx/pit.h>
 #include <onyx/timer.h>
 #include <onyx/dev.h>
 #include <onyx/random.h>
 #include <onyx/process.h>
+#include <onyx/clock.h>
 
 #include <drivers/rtc.h>
 
@@ -36,7 +36,7 @@ void entropy_refill(void)
 	size_t nr_refills = max_entropy / sizeof(unsigned int);
 	for(size_t i = 0; i < nr_refills; i++)
 	{
-		*buf++ = get_posix_time() << 28 | get_microseconds() << 24 | (rdtsc() << 20 ^ rand());
+		*buf++ = clock_get_posix_time() << 28 | get_microseconds() << 24 | ((rdtsc() << 20) ^ rand());
 	}
 }
 
@@ -60,7 +60,7 @@ size_t ent_read(size_t off, size_t count, void *buffer, struct inode *node)
 
 void initialize_entropy(void)
 {
-	/* Use get_posix_time as entropy, together with the TSC and the PIT */
+	/* Use get_posix_time as entropy, together with the TSC */
 	uint64_t p = get_posix_time_early();
 	add_entropy(&p, sizeof(uint64_t));
 	uint64_t tsc = rdtsc();
