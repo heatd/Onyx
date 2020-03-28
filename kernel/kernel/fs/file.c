@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <assert.h>
+#include <limits.h>
 
 #include <partitions.h>
 
@@ -63,12 +64,12 @@ void fd_put(struct file *fd)
 
 static bool validate_fd_number(int fd, struct ioctx *ctx)
 {
-	if(fd >= ctx->file_desc_entries)
+	if(fd < 0)
 	{
 		return false;
 	}
 
-	if(fd < 0)
+	if((unsigned int) fd >= ctx->file_desc_entries)
 	{
 		return false;
 	}
@@ -79,6 +80,50 @@ static bool validate_fd_number(int fd, struct ioctx *ctx)
 	}
 
 	return true;
+}
+
+static inline bool fd_is_open(int fd, struct ioctx *ctx)
+{
+	unsigned long long_idx = fd / FDS_PER_LONG;
+	unsigned long bit_idx = fd % FDS_PER_LONG;
+	return ctx->open_fds[long_idx] & (1 << bit_idx);
+}
+
+static inline void fd_close_bit(int fd, struct ioctx *ctx)
+{
+	unsigned long long_idx = fd / FDS_PER_LONG;
+	unsigned long bit_idx = fd % FDS_PER_LONG;
+	ctx->open_fds[long_idx] &= ~(1 << bit_idx);
+}
+
+void fd_set_cloexec(int fd, bool toggle, struct ioctx *ctx)
+{
+	unsigned long long_idx = fd / FDS_PER_LONG;
+	unsigned long bit_idx = fd % FDS_PER_LONG;
+
+	if(toggle)
+		ctx->cloexec_fds[long_idx] |= (1 << bit_idx);
+	else
+		ctx->cloexec_fds[long_idx] &= ~(1 << bit_idx);
+}
+
+void fd_set_open(int fd, bool toggle, struct ioctx *ctx)
+{
+	unsigned long long_idx = fd / FDS_PER_LONG;
+	unsigned long bit_idx = fd % FDS_PER_LONG;
+
+	if(toggle)
+		ctx->open_fds[long_idx] |= (1 << bit_idx);
+	else
+		ctx->open_fds[long_idx] &= ~(1 << bit_idx);
+}
+
+bool fd_is_cloexec(int fd, struct ioctx *ctx)
+{
+	unsigned long long_idx = fd / FDS_PER_LONG;
+	unsigned long bit_idx = fd % FDS_PER_LONG;
+
+	return ctx->cloexec_fds[long_idx] & (1 << bit_idx);
 }
 
 struct file *__get_file_description(int fd, struct process *p)
@@ -115,7 +160,7 @@ int __file_close_unlocked(int fd, struct process *p)
 	fd_put(f);
 
 	ctx->file_desc[fd] = NULL;
-
+	fd_close_bit(fd, ctx);
 	
 	return 0;
 badfd:
@@ -145,32 +190,159 @@ struct file *get_file_description(int fd)
 	return __get_file_description(fd, get_current_process());
 }
 
-/* Enlarges the file descriptor table by UINT8_MAX(255) entries */
-int enlarge_file_descriptor_table(struct process *process)
+int copy_file_descriptors(struct process *process, struct ioctx *ctx)
 {
-	process->ctx.file_desc_entries += UINT8_MAX;
-	struct file **table = malloc(process->ctx.file_desc_entries * sizeof(void*));
-	if(!table)
-		return -1;
-	memcpy(table, process->ctx.file_desc, (process->ctx.file_desc_entries - UINT8_MAX) * sizeof(void*));
-	free(process->ctx.file_desc);
-	process->ctx.file_desc = table;
+	mutex_lock(&ctx->fdlock);
+
+	process->ctx.file_desc = malloc(ctx->file_desc_entries * sizeof(void*));
+	process->ctx.file_desc_entries = ctx->file_desc_entries;
+	if(!process->ctx.file_desc)
+	{
+		mutex_unlock(&ctx->fdlock);
+		return -ENOMEM;
+	}
+
+	process->ctx.cloexec_fds = malloc(ctx->file_desc_entries / 8);
+	if(!process->ctx.cloexec_fds)
+	{
+		free(process->ctx.file_desc);
+		return -ENOMEM;
+	}
+
+	process->ctx.open_fds = malloc(ctx->file_desc_entries / 8);
+	if(!process->ctx.open_fds)
+	{
+		free(process->ctx.file_desc);
+		free(process->ctx.cloexec_fds);
+		return -ENOMEM;
+	}
+
+	for(unsigned int i = 0; i < process->ctx.file_desc_entries; i++)
+	{
+		process->ctx.file_desc[i] = ctx->file_desc[i];
+		if(ctx->file_desc[i])
+			fd_get(ctx->file_desc[i]);
+	}
+
+	memcpy(process->ctx.cloexec_fds, ctx->cloexec_fds, ctx->file_desc_entries / 8);
+	memcpy(process->ctx.open_fds, ctx->open_fds, ctx->file_desc_entries / 8);
+
+	mutex_unlock(&ctx->fdlock);
 	return 0;
 }
 
-static inline int find_free_fd(int fdbase)
+int allocate_file_descriptor_table(struct process *process)
+{
+	process->ctx.file_desc = zalloc(FILE_DESCRIPTOR_GROW_NR * sizeof(void*));
+	if(!process->ctx.file_desc)
+		return -ENOMEM;
+
+	process->ctx.file_desc_entries = FILE_DESCRIPTOR_GROW_NR;
+	
+	process->ctx.cloexec_fds = zalloc(FILE_DESCRIPTOR_GROW_NR / 8);
+	if(!process->ctx.cloexec_fds)
+	{
+		free(process->ctx.file_desc);
+		return -ENOMEM;
+	}
+
+	process->ctx.open_fds = zalloc(FILE_DESCRIPTOR_GROW_NR / 8);
+	if(!process->ctx.open_fds)
+	{
+		free(process->ctx.file_desc);
+		free(process->ctx.cloexec_fds);
+		return -1;
+	}
+
+	return 0;
+}
+
+#define FD_ENTRIES_TO_FDSET_SIZE(x)				((x) / 8)
+
+/* Enlarges the file descriptor table by FILE_DESCRIPTOR_GROW_NR(255) entries */
+int enlarge_file_descriptor_table(struct process *process)
+{
+	unsigned int old_nr_fds = process->ctx.file_desc_entries;
+
+	process->ctx.file_desc_entries += FILE_DESCRIPTOR_GROW_NR;
+
+	unsigned int new_nr_fds = process->ctx.file_desc_entries;
+
+	struct file **table = malloc(process->ctx.file_desc_entries * sizeof(void*));
+	unsigned long *cloexec_fds = malloc(FD_ENTRIES_TO_FDSET_SIZE(new_nr_fds));
+	/* We use zalloc here to implicitly zero free fds */
+	unsigned long *open_fds = zalloc(FD_ENTRIES_TO_FDSET_SIZE(new_nr_fds));
+	if(!table || !cloexec_fds || !open_fds)
+		goto error;
+	
+	/* Note that we use old_nr_fds for these copies specifically as to not go
+	 * out of bounds.
+	 */
+	memcpy(table, process->ctx.file_desc, (old_nr_fds) * sizeof(void*));
+	memcpy(cloexec_fds, process->ctx.cloexec_fds, FD_ENTRIES_TO_FDSET_SIZE(old_nr_fds));
+	memcpy(open_fds, process->ctx.open_fds, FD_ENTRIES_TO_FDSET_SIZE(old_nr_fds));
+
+	free(process->ctx.cloexec_fds);
+	free(process->ctx.open_fds);
+	free(process->ctx.file_desc);
+
+	process->ctx.file_desc = table;
+	process->ctx.cloexec_fds = cloexec_fds;
+	process->ctx.open_fds = open_fds;
+
+	return 0;
+
+error:
+	free(table);
+	free(cloexec_fds);
+	free(open_fds);
+
+	/* Don't forget to restore the old file_desc_entries! */
+	process->ctx.file_desc_entries = old_nr_fds;
+
+	return -ENOMEM;
+}
+
+int alloc_fd(int fdbase)
 {
 	struct ioctx *ioctx = &get_current_process()->ctx;
 	mutex_lock(&ioctx->fdlock);
-	while(1)
+
+	unsigned long starting_long = fdbase / FDS_PER_LONG;
+
+	while(true)
 	{
-		for(int i = fdbase; i < ioctx->file_desc_entries; i++)
+		unsigned long nr_longs = ioctx->file_desc_entries / FDS_PER_LONG;
+
+		for(unsigned long i = starting_long; i < nr_longs; i++)
 		{
-			if(ioctx->file_desc[i] == NULL)
+			if(ioctx->open_fds[i] == ULONG_MAX)
+				continue;
+			
+			/* We speed it up by doing an ffz. */
+			unsigned int first_free = __builtin_ctz(~ioctx->open_fds[i]);
+	
+			for(unsigned int j = first_free; j < FDS_PER_LONG; j++)
 			{
-				return i;
+				int fd = FDS_PER_LONG * i + j;
+
+				if(ioctx->open_fds[i] & (1 << j))
+					continue;
+
+				if(fd < fdbase)
+					continue;
+				else
+				{
+					/* Found a free fd that we can use, let's mark it used and return it */
+					ioctx->open_fds[i] |= (1 << j);
+					/* And don't forget to reset the cloexec flag! */
+					fd_set_cloexec(fd, false, ioctx); 
+					return fd;
+				} 
 			}
 		}
+
+		/* TODO: Make it so we can enlarge it directly to the size we want */
 
 		if(enlarge_file_descriptor_table(get_current_process()) < 0)
 		{
@@ -180,33 +352,27 @@ static inline int find_free_fd(int fdbase)
 	}
 }
 
-struct file *allocate_file_descriptor_unlocked(int *fd, struct ioctx *ioctx)
+struct file *file_alloc(int *fd, struct ioctx *ioctx)
 {
-	while(1)
+	int filedesc = alloc_fd(0);
+	if(filedesc < 0)
+		return errno = -filedesc, NULL;
+	
+	ioctx->file_desc[filedesc] = zalloc(sizeof(struct file));
+	if(!ioctx->file_desc[filedesc])
 	{
-		for(int i = 0; i < ioctx->file_desc_entries; i++)
-		{
-			if(ioctx->file_desc[i] == NULL)
-			{
-				ioctx->file_desc[i] = malloc(sizeof(struct file));
-				if(!ioctx->file_desc[i])
-					return NULL;
-				*fd = i;
-				return ioctx->file_desc[i];
-			}
-		}
-		if(enlarge_file_descriptor_table(get_current_process()) < 0)
-		{
-			return NULL;
-		}
+		fd_close_bit(filedesc, ioctx);
+		mutex_unlock(&ioctx->fdlock);
+		return errno = ENOMEM, NULL;
 	}
+
+	*fd = filedesc;
+
+	return ioctx->file_desc[filedesc];
 }
 
 ssize_t sys_read(int fd, const void *buf, size_t count)
-{	
-	/*if(vm_check_pointer((void*) buf, count) < 0)
-		return errno =-EFAULT; */
-	
+{
 	struct file *f = get_file_description(fd);
 	if(!f)
 		goto error;
@@ -235,10 +401,7 @@ error:
 }
 
 ssize_t sys_write(int fd, const void *buf, size_t count)
-{
-	if(vm_check_pointer((void*) buf, count) < 0)
-		return -EFAULT;
-	
+{	
 	struct file *f = get_file_description(fd);
 	if(!f)
 		goto error;
@@ -296,7 +459,6 @@ int do_sys_open(const char *filename, int flags, mode_t mode, struct file *__rel
 	//printk("Open(%s)\n", filename);
 	/* This function does all the open() work, open(2) and openat(2) use this */
 	struct inode *rel = __rel->f_ino;
-	struct ioctx *ioctx = &get_current_process()->ctx;
 	struct inode *base = get_fs_base(filename, rel);
 
 	int fd_num = -1;
@@ -308,28 +470,11 @@ int do_sys_open(const char *filename, int flags, mode_t mode, struct file *__rel
 		return -errno;
 	}
 
-	mutex_lock(&ioctx->fdlock);
 	/* Allocate a file descriptor and a file description for the file */
-	struct file *fd = allocate_file_descriptor_unlocked(&fd_num, ioctx);
-	if(!fd)
-	{
-		mutex_unlock(&ioctx->fdlock);
-		close_vfs(file);
-		return -errno;
-	}
+	fd_num = open_with_vnode(file, flags);
 
-	mutex_unlock(&ioctx->fdlock);
-	
-	memset(fd, 0, sizeof(struct file));
-	
-	fd->f_ino = file;
-	object_ref(&file->i_object);
-	fd->f_refcount = 1;
-	fd->f_seek = 0;
+	close_vfs(file);
 
-	fd->f_flags = flags;
-
-	handle_open_flags(fd, flags);
 	return fd_num;
 }
 
@@ -354,39 +499,39 @@ int sys_close(int fd)
 
 int sys_dup(int fd)
 {
+	int st = 0;
 	struct ioctx *ioctx = &get_current_process()->ctx;
 	
 	struct file *f = get_file_description(fd);
 	if(!f)
 		return -errno;
 
-	mutex_lock(&ioctx->fdlock);
-	while(true)
-	{
-		/* TODO: This is not optimized. And it's quite ugly code too */
-		for(int i = 0; i < ioctx->file_desc_entries; i++)
-		{
-			if(ioctx->file_desc[i] == NULL)
-			{
-				ioctx->file_desc[i] = f;
-				mutex_unlock(&ioctx->fdlock);
-				fd_put(f);
-				return i;
-			}
-		}
+	int new_fd = alloc_fd(0);
 
-		if(enlarge_file_descriptor_table(get_current_process()) < 0)
-		{
-			mutex_unlock(&ioctx->fdlock);
-			fd_put(f);
-			return -ENOMEM;
-		}
+	if(new_fd < 0)
+	{
+		st = new_fd;
+		goto out_error;
 	}
+
+	ioctx->file_desc[new_fd] = f;
+
+	/* We don't put the fd on success, because it's the reference the new fd holds */
+
+	mutex_unlock(&ioctx->fdlock);
+
+	return new_fd;
+out_error:
+	fd_put(f);
+	return st;
 }
 
 int sys_dup2(int oldfd, int newfd)
 {
 	struct ioctx *ioctx = &get_current_process()->ctx;
+
+	if(newfd < 0)
+		return -EINVAL;
 
 	struct file *f = get_file_description(oldfd);
 	if(!f)
@@ -394,7 +539,7 @@ int sys_dup2(int oldfd, int newfd)
 
 	mutex_lock(&ioctx->fdlock);
 	/* TODO: Handle newfd's larger than the number of entries by extending the table */
-	if(newfd > ioctx->file_desc_entries)
+	if((unsigned int) newfd > ioctx->file_desc_entries)
 	{
 		panic("TODO");
 		fd_put(f);
@@ -406,12 +551,8 @@ int sys_dup2(int oldfd, int newfd)
 		__file_close_unlocked(newfd, get_current_process());
 
 	ioctx->file_desc[newfd] = ioctx->file_desc[oldfd];
-
-	/* FIXME: Okay, so... Turns out we're not handling CLOEXEC properly. It's a file
-	 * descriptor flag, instead of a file description flag. So, dup/dup2, fcntl F_DUPFD, etc
-	 * are doing their job incorrectly because they're keeping CLOEXEC from the original fd. */
-	/* This is a dirty hack to make shell redirection work "properly" */
-	ioctx->file_desc[newfd]->f_flags &= ~O_CLOEXEC;
+	fd_set_cloexec(newfd, false, ioctx);
+	fd_set_open(newfd, true, ioctx);
 	/* Note: To avoid fd_get/fd_put, we use the ref we get from
 	 * get_file_description as the ref for newfd. Therefore, we don't
 	 * fd_get and fd_put().
@@ -890,32 +1031,7 @@ int sys_isatty(int fd)
 int sys_pipe(int upipefd[2])
 {
 	int pipefd[2] = {-1, -1};
-
-	struct ioctx *ioctx = &get_current_process()->ctx;
-	/* Find 2 free file descriptors */
-	int wrfd = find_free_fd(0);
-
-	if(wrfd < 0)
-		return errno = -EMFILE;
-	/* and allocate each of them */
-	ioctx->file_desc[wrfd] = zalloc(sizeof(struct file));
-	mutex_unlock(&ioctx->fdlock);
-
-	if(!ioctx->file_desc[wrfd])
-		return errno = -ENOMEM;
-
-	int rdfd = find_free_fd(0);
-	
-	if(rdfd < 0)
-		return errno = -EMFILE;
-	ioctx->file_desc[rdfd] = zalloc(sizeof(struct file));
-	mutex_unlock(&ioctx->fdlock);
-	if(!ioctx->file_desc[rdfd])
-	{
-		free(ioctx->file_desc[wrfd]);
-		ioctx->file_desc[wrfd] = NULL;
-		return errno = -ENOMEM;
-	}
+	int st = 0;
 
 	/* Create the pipe */
 	struct inode *read_end, *write_end;
@@ -923,34 +1039,48 @@ int sys_pipe(int upipefd[2])
 	/* TODO: Free the file descriptor number on failure */
 	if(pipe_create(&read_end, &write_end) < 0)
 	{
-		free(ioctx->file_desc[wrfd]);
-		ioctx->file_desc[wrfd] = NULL;
-		free(ioctx->file_desc[rdfd]);
-		ioctx->file_desc[rdfd] = NULL;
-
-		return errno = -ENOMEM;
+		return -errno;
 	}
 
-	ioctx->file_desc[rdfd]->f_refcount = 1;
-	ioctx->file_desc[wrfd]->f_refcount = 1;
-	ioctx->file_desc[rdfd]->f_ino = read_end;
-	ioctx->file_desc[wrfd]->f_ino = write_end;
+	pipefd[0] = open_with_vnode(read_end, O_RDONLY);
+	if(pipefd[0] < 0)
+	{
+		st = -errno;
+		goto error;
+	}
 
-	ioctx->file_desc[rdfd]->f_flags = O_RDONLY;
-	ioctx->file_desc[wrfd]->f_flags = O_WRONLY;
-
-	pipefd[0] = rdfd;
-	pipefd[1] = wrfd;
+	pipefd[1] = open_with_vnode(write_end, O_WRONLY);
+	if(pipefd[1] < 0)
+	{
+		st = -errno;
+		goto error;
+	}
 
 	if(copy_to_user(upipefd, pipefd, sizeof(int) * 2) < 0)
-		return -EFAULT;
+	{
+		st = -EFAULT;
+		goto error;
+	}
+
+	close_vfs(read_end);
+	close_vfs(write_end);
 
 	return 0;
+error:
+	close_vfs(read_end);
+	close_vfs(write_end);
+
+	if(pipefd[0] != -1)
+		file_close(pipefd[0]);
+	if(pipefd[1] != -1)
+		file_close(pipefd[1]);
+
+	return -st;
 }
 
-int do_dupfd(struct file *f, int fdbase)
+int do_dupfd(struct file *f, int fdbase, bool cloexec)
 {
-	int new_fd = find_free_fd(fdbase);
+	int new_fd = alloc_fd(fdbase);
 	if(new_fd < 0)
 		return new_fd;
 
@@ -959,58 +1089,94 @@ int do_dupfd(struct file *f, int fdbase)
 
 	fd_get(f);
 
+	fd_set_cloexec(new_fd, cloexec, ioctx);
+
 	mutex_unlock(&ioctx->fdlock);
 
 	return new_fd;
+}
+
+int fcntl_f_getfd(int fd, struct ioctx *ctx)
+{
+	mutex_lock(&ctx->fdlock);
+
+	if(!validate_fd_number(fd, ctx))
+	{
+		mutex_unlock(&ctx->fdlock);
+		return -EBADF;
+	}
+
+	int st = fd_is_cloexec(fd, ctx) ? FD_CLOEXEC : 0;
+
+	mutex_unlock(&ctx->fdlock);
+	return st;
+}
+
+int fnctl_f_setfd(int fd, unsigned long arg, struct ioctx *ctx)
+{
+	mutex_lock(&ctx->fdlock);
+
+	if(!validate_fd_number(fd, ctx))
+	{
+		mutex_unlock(&ctx->fdlock);
+		return -EBADF;
+	}
+
+	bool wants_cloexec = arg & FD_CLOEXEC;
+
+	fd_set_cloexec(fd, wants_cloexec, ctx);
+
+	mutex_unlock(&ctx->fdlock);
+
+	return 0;
 }
 
 int sys_fcntl(int fd, int cmd, unsigned long arg)
 {
 	/* TODO: Get new flags for file descriptors. The use of O_* is confusing since
 	 * those only apply on open calls. For example, fcntl uses FD_*. */
-
-	struct file *f = get_file_description(fd);
-	if(!f)
-		return -errno;
+	struct file *f = NULL;
+	struct ioctx *ctx = &get_current_process()->ctx;
 
 	int ret = 0;
 	switch(cmd)
 	{
 		case F_DUPFD:
 		{
-			ret = do_dupfd(f, (int) arg);
+			struct file *f = get_file_description(fd);
+			if(!f)
+				return -errno;
+
+			ret = do_dupfd(f, (int) arg, false);
 			break;
 		}
 
 		case F_DUPFD_CLOEXEC:
 		{
-			ret = do_dupfd(f, (int) arg);
-			struct file *new = get_file_description(ret);
-			new->f_flags |= O_CLOEXEC;
-			fd_put(new);
+			f = get_file_description(fd);
+			if(!f)
+				return -errno;
 
+			ret = do_dupfd(f, (int) arg, true);
 			break;
 		}
 
 		case F_GETFD:
 		{
-			ret = (f->f_flags & O_CLOEXEC) ? FD_CLOEXEC : 0;
-			break;
+			return fcntl_f_getfd(fd, ctx);
 		}
 
 		case F_SETFD:
 		{
-			if((int) arg & FD_CLOEXEC)
-				f->f_flags |= O_CLOEXEC;
-			ret = 0;
-			break;
+			return fnctl_f_setfd(fd, arg, ctx);
 		}
+
 		default:
 			ret = -EINVAL;
 			break;
 	}
 
-	fd_put(f);
+	if(f) fd_put(f);
 	return ret;
 }
 
@@ -1283,17 +1449,17 @@ void file_do_cloexec(struct ioctx *ctx)
 	mutex_lock(&ctx->fdlock);
 	struct file **fd = ctx->file_desc;
 	
-	for(int i = 0; i < ctx->file_desc_entries; i++)
+	for(unsigned int i = 0; i < ctx->file_desc_entries; i++)
 	{
 		if(!fd[i])
 			continue;
-		if(fd[i]->f_flags & O_CLOEXEC)
+		if(fd_is_cloexec(i, ctx))
 		{
 			/* Close the file */
-			fd_put(fd[i]);
-			fd[i] = NULL;
+			__file_close_unlocked(i, get_current_process());
 		}
 	}
+
 	mutex_unlock(&ctx->fdlock);
 }
 
@@ -1302,10 +1468,9 @@ int open_with_vnode(struct inode *node, int flags)
 	/* This function does all the open() work, open(2) and openat(2) use this */
 	struct ioctx *ioctx = &get_current_process()->ctx;
 
-	mutex_lock(&ioctx->fdlock);
 	int fd_num = -1;
 	/* Allocate a file descriptor and a file description for the file */
-	struct file *fd = allocate_file_descriptor_unlocked(&fd_num, ioctx);
+	struct file *fd = file_alloc(&fd_num, ioctx);
 	if(!fd)
 	{
 		mutex_unlock(&ioctx->fdlock);
@@ -1321,6 +1486,9 @@ int open_with_vnode(struct inode *node, int flags)
 	fd->f_seek = 0;
 	fd->f_flags = flags;
 	handle_open_flags(fd, flags);
+	bool cloexec = flags & O_CLOEXEC;
+	fd_set_cloexec(fd_num, cloexec, ioctx);
+
 	mutex_unlock(&ioctx->fdlock);
 	return fd_num;
 }
@@ -1377,7 +1545,6 @@ int do_sys_mkdir(const char *path, mode_t mode, struct inode *dir)
 {
 	struct inode *base = get_fs_base(path, dir);
 
-	printk("sys_mkdir\n");
 	struct inode *i = mkdir_vfs(path, mode, base);
 	if(!i)
 		return -errno;

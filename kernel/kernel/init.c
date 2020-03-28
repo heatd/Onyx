@@ -166,6 +166,9 @@ char *kernel_getopt(char *opt)
 
 void *process_setup_auxv(void *buffer, struct process *process);
 void dump_used_mem(void);
+
+int alloc_fd(int fdbase);
+
 extern PML *current_pml4;
 int find_and_exec_init(char **argv, char **envp)
 {
@@ -191,42 +194,16 @@ retry:;
 		return errno = ENOMEM, -1;
 
 	proc->address_space.cr3 = get_current_pml4();
- 
-	/* Setup stdio */
-	proc->ctx.file_desc[0] = zalloc(sizeof(struct file));
-	if(!proc->ctx.file_desc[0])
-	{
-		panic("kernel: out of memory while loading init(file descriptor 0)!\n");
-	}
-	
-	proc->ctx.file_desc[0]->f_ino = open_vfs(get_fs_root(), "/dev/tty");
-	if(!proc->ctx.file_desc[0]->f_ino)
-	{
-		perror("kernel: ");
-		panic("Could not open tty\n");
-	}
 
-	proc->ctx.file_desc[0]->f_seek = 0;
-	proc->ctx.file_desc[0]->f_refcount = 1;
-	proc->ctx.file_desc[0]->f_flags = O_RDONLY;
-	proc->ctx.file_desc[1] = zalloc(sizeof(struct file));
-	if(!proc->ctx.file_desc[1])
-	{
-		panic("kernel: out of memory while loading init(file descriptor 1)!\n");
-	}
-	proc->ctx.file_desc[1]->f_ino = open_vfs(get_fs_root(), "/dev/tty");
-	proc->ctx.file_desc[1]->f_seek = 0;
-	proc->ctx.file_desc[1]->f_refcount = 1;
-	proc->ctx.file_desc[1]->f_flags = O_WRONLY;
-	proc->ctx.file_desc[2] = zalloc(sizeof(struct file));
-	if(!proc->ctx.file_desc[2])
-	{
-		panic("kernel: out of memory while loading init(file descriptor 2)!\n");
-	}
-	proc->ctx.file_desc[2]->f_ino = open_vfs(get_fs_root(), "/dev/tty");
-	proc->ctx.file_desc[2]->f_seek = 0;
-	proc->ctx.file_desc[2]->f_refcount = 1;
-	proc->ctx.file_desc[2]->f_flags = O_WRONLY;
+	get_current_thread()->owner = proc;
+ 
+	/* Setup standard file descriptors (STDIN(0), STDOUT(1), STDERR(2)) */
+	struct inode *ino = open_vfs(get_fs_root(), "/dev/tty");
+	
+	assert(open_with_vnode(ino, O_RDONLY) == 0);
+	assert(open_with_vnode(ino, O_WRONLY) == 1);
+	assert(open_with_vnode(ino, O_WRONLY) == 2);
+	
 
 	struct file *f = zalloc(sizeof(struct file));
 	assert(f != NULL);
@@ -255,9 +232,6 @@ retry:;
 	args.argv = argv;
 	args.envp = envp;
 	args.state = &st;
-
-	get_current_thread()->owner = proc;
-
 
 	assert(vm_create_address_space(&proc->address_space, proc, proc->address_space.cr3) == 0);
 

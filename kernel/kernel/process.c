@@ -53,41 +53,6 @@ slab_cache_t *process_cache = NULL;
 void process_destroy(thread_t *);
 void process_end(struct process *process);
 
-int copy_file_descriptors(struct process *process, struct ioctx *ctx)
-{
-	mutex_lock(&ctx->fdlock);
-
-	process->ctx.file_desc = malloc(ctx->file_desc_entries * sizeof(void*));
-	process->ctx.file_desc_entries = ctx->file_desc_entries;
-	if(!process->ctx.file_desc)
-	{
-		mutex_unlock(&ctx->fdlock);
-		return -1;
-	}
-
-	for(int i = 0; i < process->ctx.file_desc_entries; i++)
-	{
-		process->ctx.file_desc[i] = ctx->file_desc[i];
-		if(ctx->file_desc[i])
-			fd_get(ctx->file_desc[i]);
-	}
-
-	mutex_unlock(&ctx->fdlock);
-	return 0;
-}
-
-int allocate_file_descriptor_table(struct process *process)
-{
-	process->ctx.file_desc = malloc(UINT8_MAX * sizeof(void*));
-	if(!process->ctx.file_desc)
-	{
-		return -1;
-	}
-	memset(process->ctx.file_desc, 0, UINT8_MAX * sizeof(void*));
-	process->ctx.file_desc_entries = UINT8_MAX;
-	return 0;
-}
-
 void process_append_children(struct process *parent, struct process *children)
 {
 	spin_lock(&parent->children_lock);
@@ -125,22 +90,13 @@ void process_append_to_global_list(struct process *p)
 
 struct process *process_create(const char *cmd_line, struct ioctx *ctx, struct process *parent)
 {
-	#if 0
-	if(unlikely(!process_cache))
-	{
-		process_cache = slab_create("struct process", sizeof(struct process), 16, 0, 0, 0);
-		if(!process_cache)
-			panic("Could not create the process slab cache\n");
-	}
-	#endif
-
 	if(unlikely(!process_ids))
 	{
 		process_ids = idm_add("pid", 1, UINTMAX_MAX);
 		assert(process_ids != NULL);
 	}
 
-	struct process *proc = malloc(sizeof(struct process));
+	struct process *proc = zalloc(sizeof(struct process));
 	if(!proc)
 		return errno = ENOMEM, NULL;
 	memset(proc, 0, sizeof(struct process));
@@ -535,7 +491,7 @@ void process_destroy_file_descriptors(struct process *process)
 	struct file **table = ctx->file_desc;
 	mutex_lock(&ctx->fdlock);
 
-	for(int i = 0; i < ctx->file_desc_entries; i++)
+	for(unsigned int i = 0; i < ctx->file_desc_entries; i++)
 	{
 		if(!table[i])
 			continue;

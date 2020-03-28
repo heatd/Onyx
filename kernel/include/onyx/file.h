@@ -33,6 +33,8 @@ int open_with_vnode(struct inode *node, int flags);
 struct file *get_file_description(int fd);
 void fd_get(struct file *fd);
 void fd_put(struct file *fd);
+int allocate_file_descriptor_table(struct process *process);
+int copy_file_descriptors(struct process *process, struct ioctx *ctx);
 
 #define OPEN_FLAGS_ACCESS_MODE(flags)	(flags & 0x3)
 

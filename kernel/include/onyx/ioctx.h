@@ -11,6 +11,9 @@
 #include <sys/types.h>
 #include <onyx/file.h>
 
+#define FDS_PER_LONG										(sizeof(unsigned long) * 8)
+#define FILE_DESCRIPTOR_GROW_NR								(FDS_PER_LONG)
+
 struct ioctx
 {
 	/* Current working directory */
@@ -18,7 +21,9 @@ struct ioctx
 	const char *name;
 	struct mutex fdlock;
 	struct file **file_desc;
-	int file_desc_entries;
+	unsigned int file_desc_entries;
+	unsigned long *cloexec_fds;
+	unsigned long *open_fds;
 };
 
 struct file *create_file_description(struct inode *inode, off_t seek);
