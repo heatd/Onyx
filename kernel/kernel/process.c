@@ -53,7 +53,7 @@ slab_cache_t *process_cache = NULL;
 void process_destroy(thread_t *);
 void process_end(struct process *process);
 
-int copy_file_descriptors(struct process *process, ioctx_t *ctx)
+int copy_file_descriptors(struct process *process, struct ioctx *ctx)
 {
 	mutex_lock(&ctx->fdlock);
 
@@ -123,7 +123,7 @@ void process_append_to_global_list(struct process *p)
 	spin_unlock(&process_list_lock);
 }
 
-struct process *process_create(const char *cmd_line, ioctx_t *ctx, struct process *parent)
+struct process *process_create(const char *cmd_line, struct ioctx *ctx, struct process *parent)
 {
 	#if 0
 	if(unlikely(!process_cache))
@@ -531,7 +531,7 @@ void process_destroy_aspace(void)
 
 void process_destroy_file_descriptors(struct process *process)
 {
-	ioctx_t *ctx = &process->ctx;
+	struct ioctx *ctx = &process->ctx;
 	struct file **table = ctx->file_desc;
 	mutex_lock(&ctx->fdlock);
 

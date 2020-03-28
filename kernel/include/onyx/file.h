@@ -8,7 +8,6 @@
 
 #include <fcntl.h>
 
-#include <onyx/ioctx.h>
 #include <onyx/vfs.h>
 #include <onyx/panic.h>
 
@@ -16,7 +15,20 @@
 extern "C" {
 #endif
 
-void file_do_cloexec(ioctx_t *ctx);
+struct file
+{
+#ifndef __cplusplus
+	_Atomic
+#endif	
+	unsigned long f_refcount;
+	off_t f_seek;
+	struct inode *f_ino;
+	int f_flags;
+};
+
+struct ioctx;
+
+void file_do_cloexec(struct ioctx *ctx);
 int open_with_vnode(struct inode *node, int flags);
 struct file *get_file_description(int fd);
 void fd_get(struct file *fd);

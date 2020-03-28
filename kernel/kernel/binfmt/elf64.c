@@ -151,7 +151,7 @@ void *elf64_load_static(struct binfmt_args *args, Elf64_Ehdr *header)
 		current->info.dyn = dyn;
 	}
 
-	close_file_description(fd);
+	fd_put(fd);
 
 	free(phdrs);
 	return (void*) header->e_entry;
@@ -312,7 +312,7 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 	}
 
 	/* TODO: Unmap holes */
-	close_file_description(fd);
+	fd_put(fd);
 
 	return (void*) header->e_entry;
 error2:
@@ -320,7 +320,7 @@ error2:
 error1:
 	free(phdrs);
 error0:
-	close_file_description(fd);
+	fd_put(fd);
 
 	return NULL;
 }

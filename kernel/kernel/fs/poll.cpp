@@ -117,7 +117,7 @@ int sys_poll(struct pollfd *fds, nfds_t nfds, int timeout)
 			continue;
 		}
 
-		auto ino = f->vfs_node;
+		auto ino = f->f_ino;
 
 		poll_file pf{kpollfd.fd, &pt, ino, kpollfd.events, it};
 

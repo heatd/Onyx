@@ -375,7 +375,7 @@ static inline bool inode_requires_wb(struct inode *i)
 bool vm_mapping_requires_wb(struct vm_region *reg)
 {
 	return reg->mapping_type == MAP_SHARED && reg->fd &&
-		inode_requires_wb(reg->fd->vfs_node);
+		inode_requires_wb(reg->fd->f_ino);
 }
 
 bool vm_mapping_is_anon(struct vm_region *reg)
@@ -402,7 +402,7 @@ void vm_region_destroy(struct vm_region *region)
 	/* First, unref things */
 	if(region->fd)
 	{
-		//struct inode *ino = region->fd->vfs_node;
+		//struct inode *ino = region->fd->f_ino;
 		/*if(inode_requires_wb(ino) && region->mapping_type == MAP_SHARED)
 		{
 			writeback_remove_region(region);
@@ -718,7 +718,7 @@ static bool fork_vm_region(const void *key, void *datum, void *user_data)
 	bool using_shared_optimization = vm_using_shared_optimization(new_region);
 	bool needs_to_fork_memory = is_private && !using_shared_optimization;
 	/*bool needs_wb =
-		new_region->fd && inode_requires_wb(new_region->fd->vfs_node) &&
+		new_region->fd && inode_requires_wb(new_region->fd->f_ino) &&
 		new_region->mapping_type == MAP_SHARED;*/
 
 	if(needs_to_fork_memory)
@@ -967,8 +967,8 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 		if(!file_descriptor)
 			return (void *) (unsigned long) -errno;
 
-		bool fd_has_write = !(file_descriptor->flags & O_WRONLY) &&
-				    !(file_descriptor->flags & O_RDWR);
+		bool fd_has_write = !(file_descriptor->f_flags & O_WRONLY) &&
+				    !(file_descriptor->f_flags & O_RDWR);
 		if(fd_has_write && prot & PROT_WRITE
 		&& flags & MAP_SHARED)
 		{
@@ -1053,11 +1053,11 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 		 * dropping it on success
 		*/
 
-		if((file_descriptor->vfs_node->i_type == VFS_TYPE_BLOCK_DEVICE 
-		   || file_descriptor->vfs_node->i_type == VFS_TYPE_CHAR_DEVICE)
+		if((file_descriptor->f_ino->i_type == VFS_TYPE_BLOCK_DEVICE 
+		   || file_descriptor->f_ino->i_type == VFS_TYPE_CHAR_DEVICE)
 		   && area->mapping_type == MAP_SHARED)
 		{
-			struct inode *vnode = file_descriptor->vfs_node;
+			struct inode *vnode = file_descriptor->f_ino;
 			if(!vnode->i_fops.mmap)
 			{
 				return (void *) -ENOSYS;
@@ -1100,7 +1100,7 @@ void vm_copy_region(const struct vm_region *source, struct vm_region *dest)
 	dest->fd = source->fd;
 	if(dest->fd)
 	{
-		/*struct inode *ino = dest->fd->vfs_node;
+		/*struct inode *ino = dest->fd->f_ino;
 		if(source->mapping_type == MAP_SHARED && inode_requires_wb(ino))
 			writeback_add_region(dest);*/
 		fd_get(dest->fd);
@@ -1395,7 +1395,7 @@ static bool vm_print(const void *key, void *datum, void *user_data)
 					       "R", w ? "W" : "-", x ? "X" : "-");
 	printk("vmo %p mapped at offset %lx", region->vmo, region->offset);
 	if(file_backed)
-		printk(" - file backed ino %lu\n", fd->vfs_node->i_inode);
+		printk(" - file backed ino %lu\n", fd->f_ino->i_inode);
 	else
 		printk("\n");
 
@@ -2087,7 +2087,7 @@ int setup_vmregion_backing(struct vm_region *region, size_t pages, bool is_file_
 
 	if(is_file_backed && (is_shared || can_use_shared_optimization))
 	{
-		struct inode *ino = region->fd->vfs_node;
+		struct inode *ino = region->fd->f_ino;
 
 		spin_lock(&ino->i_pages_lock);
 
@@ -2116,7 +2116,7 @@ int setup_vmregion_backing(struct vm_region *region, size_t pages, bool is_file_
 		vmo = vmo_create(pages * PAGE_SIZE, (void *) region->offset);
 		if(!vmo)
 			return -1;
-		vmo->ino = region->fd->vfs_node;
+		vmo->ino = region->fd->f_ino;
 		vmo->commit = vm_commit_private;
 		region->offset = 0;
 	}
@@ -2436,7 +2436,7 @@ int vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
 					new_region->vmo = region->vmo;
 /*
 					if(new_region->mapping_type == MAP_SHARED && new_region->fd &&
-						inode_requires_wb(new_region->fd->vfs_node))
+						inode_requires_wb(new_region->fd->f_ino))
 					{
 						writeback_add_region(new_region);
 					}*/

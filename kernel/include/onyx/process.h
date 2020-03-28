@@ -41,7 +41,7 @@ struct process
 	char *cmd_line;
 
 	/* IO Context of the process */
-	ioctx_t ctx;
+	struct ioctx ctx;
 
 	/* Process ID */
 	pid_t pid;
@@ -101,7 +101,7 @@ struct process
 extern "C" {
 #endif
 
-struct process *process_create(const char *cmd_line, ioctx_t *ctx, struct process *parent);
+struct process *process_create(const char *cmd_line, struct ioctx *ctx, struct process *parent);
 struct thread *process_create_thread(struct process *proc, thread_callback_t callback,
 		uint32_t flags, int argc, char **argv, char **envp);
 struct process *get_process_from_pid(pid_t pid);

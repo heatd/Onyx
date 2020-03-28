@@ -49,19 +49,19 @@ struct file *get_current_directory(void)
 
 void fd_get(struct file *fd)
 {
-	__sync_add_and_fetch(&fd->refcount, 1);
+	__sync_add_and_fetch(&fd->f_refcount, 1);
 }
 
 void fd_put(struct file *fd)
 {
-	if(__sync_sub_and_fetch(&fd->refcount, 1) == 0)
+	if(__sync_sub_and_fetch(&fd->f_refcount, 1) == 0)
 	{
-		close_vfs(fd->vfs_node);
+		close_vfs(fd->f_ino);
 		free(fd);
 	}
 }
 
-static bool validate_fd_number(int fd, ioctx_t *ctx)
+static bool validate_fd_number(int fd, struct ioctx *ctx)
 {
 	if(fd >= ctx->file_desc_entries)
 	{
@@ -83,7 +83,7 @@ static bool validate_fd_number(int fd, ioctx_t *ctx)
 
 struct file *__get_file_description(int fd, struct process *p)
 {
-	ioctx_t *ctx = &p->ctx;
+	struct ioctx *ctx = &p->ctx;
 
 	mutex_lock(&ctx->fdlock);
 
@@ -103,7 +103,7 @@ badfd:
 
 int __file_close_unlocked(int fd, struct process *p)
 {
-	ioctx_t *ctx = &p->ctx;
+	struct ioctx *ctx = &p->ctx;
 
 	if(!validate_fd_number(fd, ctx))
 		goto badfd;
@@ -124,7 +124,7 @@ badfd:
 
 int __file_close(int fd, struct process *p)
 {
-	ioctx_t *ctx = &p->ctx;
+	struct ioctx *ctx = &p->ctx;
 
 	mutex_lock(&ctx->fdlock);
 
@@ -160,7 +160,7 @@ int enlarge_file_descriptor_table(struct process *process)
 
 static inline int find_free_fd(int fdbase)
 {
-	ioctx_t *ioctx = &get_current_process()->ctx;
+	struct ioctx *ioctx = &get_current_process()->ctx;
 	mutex_lock(&ioctx->fdlock);
 	while(1)
 	{
@@ -180,7 +180,7 @@ static inline int find_free_fd(int fdbase)
 	}
 }
 
-struct file *allocate_file_descriptor_unlocked(int *fd, ioctx_t *ioctx)
+struct file *allocate_file_descriptor_unlocked(int *fd, struct ioctx *ioctx)
 {
 	while(1)
 	{
@@ -217,15 +217,15 @@ ssize_t sys_read(int fd, const void *buf, size_t count)
 		goto error;
 	}
 
-	ssize_t size = read_vfs(f->flags, f->seek,
-		count, (char*) buf, f->vfs_node);
+	ssize_t size = read_vfs(f->f_flags, f->f_seek,
+		count, (char*) buf, f->f_ino);
 	if(size == -1)
 	{
 		goto error;
 	}
 
 	/* TODO: Seek adjustments are required to be atomic */
-	__sync_add_and_fetch(&f->seek, size);
+	__sync_add_and_fetch(&f->f_seek, size);
 	fd_put(f);
 
 	return size;
@@ -249,14 +249,14 @@ ssize_t sys_write(int fd, const void *buf, size_t count)
 		goto error;
 	}
 	
-	size_t written = write_vfs(f->seek,
+	size_t written = write_vfs(f->f_seek,
 				   count, (void*) buf, 
-				   f->vfs_node);
+				   f->f_ino);
 
 	if(written == (size_t) -1)
 		goto error;
 
-	__sync_add_and_fetch(&f->seek, written);
+	__sync_add_and_fetch(&f->f_seek, written);
 
 	fd_put(f);
 	return written;
@@ -268,7 +268,7 @@ error:
 void handle_open_flags(struct file *fd, int flags)
 {
 	if(flags & O_APPEND)
-		fd->seek = fd->vfs_node->i_size;
+		fd->f_seek = fd->f_ino->i_size;
 }
 
 static struct inode *try_to_open(struct inode *base, const char *filename, int flags, mode_t mode)
@@ -295,8 +295,8 @@ int do_sys_open(const char *filename, int flags, mode_t mode, struct file *__rel
 {
 	//printk("Open(%s)\n", filename);
 	/* This function does all the open() work, open(2) and openat(2) use this */
-	struct inode *rel = __rel->vfs_node;
-	ioctx_t *ioctx = &get_current_process()->ctx;
+	struct inode *rel = __rel->f_ino;
+	struct ioctx *ioctx = &get_current_process()->ctx;
 	struct inode *base = get_fs_base(filename, rel);
 
 	int fd_num = -1;
@@ -322,12 +322,12 @@ int do_sys_open(const char *filename, int flags, mode_t mode, struct file *__rel
 	
 	memset(fd, 0, sizeof(struct file));
 	
-	fd->vfs_node = file;
+	fd->f_ino = file;
 	object_ref(&file->i_object);
-	fd->refcount = 1;
-	fd->seek = 0;
+	fd->f_refcount = 1;
+	fd->f_seek = 0;
 
-	fd->flags = flags;
+	fd->f_flags = flags;
 
 	handle_open_flags(fd, flags);
 	return fd_num;
@@ -354,7 +354,7 @@ int sys_close(int fd)
 
 int sys_dup(int fd)
 {
-	ioctx_t *ioctx = &get_current_process()->ctx;
+	struct ioctx *ioctx = &get_current_process()->ctx;
 	
 	struct file *f = get_file_description(fd);
 	if(!f)
@@ -386,7 +386,7 @@ int sys_dup(int fd)
 
 int sys_dup2(int oldfd, int newfd)
 {
-	ioctx_t *ioctx = &get_current_process()->ctx;
+	struct ioctx *ioctx = &get_current_process()->ctx;
 
 	struct file *f = get_file_description(oldfd);
 	if(!f)
@@ -411,7 +411,7 @@ int sys_dup2(int oldfd, int newfd)
 	 * descriptor flag, instead of a file description flag. So, dup/dup2, fcntl F_DUPFD, etc
 	 * are doing their job incorrectly because they're keeping CLOEXEC from the original fd. */
 	/* This is a dirty hack to make shell redirection work "properly" */
-	ioctx->file_desc[newfd]->flags &= ~O_CLOEXEC;
+	ioctx->file_desc[newfd]->f_flags &= ~O_CLOEXEC;
 	/* Note: To avoid fd_get/fd_put, we use the ref we get from
 	 * get_file_description as the ref for newfd. Therefore, we don't
 	 * fd_get and fd_put().
@@ -426,12 +426,12 @@ bool fd_may_access(struct file *f, unsigned int access)
 {
 	if(access == FILE_ACCESS_READ)
 	{
-		if(OPEN_FLAGS_ACCESS_MODE(f->flags) == O_WRONLY)
+		if(OPEN_FLAGS_ACCESS_MODE(f->f_flags) == O_WRONLY)
 			return false;
 	}
 	else if(access == FILE_ACCESS_WRITE)
 	{
-		if(OPEN_FLAGS_ACCESS_MODE(f->flags) == O_RDONLY)
+		if(OPEN_FLAGS_ACCESS_MODE(f->f_flags) == O_RDONLY)
 			return false;
 	}
 
@@ -475,16 +475,16 @@ ssize_t sys_readv(int fd, const struct iovec *vec, int veccnt)
 	
 		if(v.iov_len == 0)
 			continue;
-		ssize_t was_read = read_vfs(f->flags, 
-			f->seek, v.iov_len, v.iov_base,
-			f->vfs_node);
+		ssize_t was_read = read_vfs(f->f_flags, 
+			f->f_seek, v.iov_len, v.iov_base,
+			f->f_ino);
 		if(was_read < 0)
 		{
 			goto out;
 		}
 
 		read += was_read;
-		f->seek += was_read;
+		f->f_seek += was_read;
 
 		if((size_t) was_read != v.iov_len)
 		{
@@ -538,11 +538,11 @@ ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt)
 	
 		if(v.iov_len == 0)
 			continue;
-		size_t was_written = write_vfs(f->seek,
-			v.iov_len, v.iov_base,f->vfs_node);
+		size_t was_written = write_vfs(f->f_seek,
+			v.iov_len, v.iov_base,f->f_ino);
 
 		written += was_written;
-		f->seek += was_written;
+		f->f_seek += was_written;
 
 		if(was_written != v.iov_len)
 		{
@@ -596,9 +596,9 @@ ssize_t sys_preadv(int fd, const struct iovec *vec, int veccnt, off_t offset)
 	
 		if(v.iov_len == 0)
 			continue;
-		ssize_t was_read = read_vfs(f->flags, 
+		ssize_t was_read = read_vfs(f->f_flags, 
 			offset, v.iov_len, v.iov_base,
-			f->vfs_node);
+			f->f_ino);
 
 		if(was_read < 0)
 		{
@@ -661,7 +661,7 @@ ssize_t sys_pwritev(int fd, const struct iovec *vec, int veccnt, off_t offset)
 		if(v.iov_len == 0)
 			continue;
 		size_t was_written = write_vfs(offset,
-			v.iov_len, v.iov_base,f->vfs_node);
+			v.iov_len, v.iov_base,f->f_ino);
 
 		written += was_written;
 		offset += was_written;
@@ -697,15 +697,15 @@ int sys_getdents(int fd, struct dirent *dirp, unsigned int count)
 	}
 
 	struct getdents_ret ret_buf = {0};
-	ret = getdents_vfs(count, putdir, dirp, f->seek,
-		&ret_buf, f->vfs_node);
+	ret = getdents_vfs(count, putdir, dirp, f->f_seek,
+		&ret_buf, f->f_ino);
 	if(ret < 0)
 	{
 		ret = -errno;
 		goto out;
 	}
 
-	f->seek = ret_buf.new_off;
+	f->f_seek = ret_buf.new_off;
 
 	ret = ret_buf.read;
 out:
@@ -721,7 +721,7 @@ int sys_ioctl(int fd, int request, char *argp)
 		return -errno;
 	}
 
-	int ret = ioctl_vfs(request, argp, f->vfs_node);
+	int ret = ioctl_vfs(request, argp, f->f_ino);
 
 	fd_put(f);
 	return ret;
@@ -748,7 +748,7 @@ int sys_ftruncate(int fd, off_t length)
 		goto out;
 	}
 	
-	ret = ftruncate_vfs(length, f->vfs_node);
+	ret = ftruncate_vfs(length, f->f_ino);
 
 out:
 	fd_put(f);
@@ -763,7 +763,7 @@ int sys_fallocate(int fd, int mode, off_t offset, off_t len)
 		return -errno;
 	}
 
-	int ret = fallocate_vfs(mode, offset, len, f->vfs_node);
+	int ret = fallocate_vfs(mode, offset, len, f->f_ino);
 
 
 	fd_put(f);
@@ -779,18 +779,18 @@ off_t sys_lseek(int fd, off_t offset, int whence)
 		return -errno;
 
 	/* TODO: Add a way for inodes to tell they don't support seeking */
-	if(f->vfs_node->i_type == VFS_TYPE_FIFO)
+	if(f->f_ino->i_type == VFS_TYPE_FIFO)
 	{
 		ret = -ESPIPE;
 		goto out;
 	}
 	
 	if(whence == SEEK_CUR)
-		ret = __sync_add_and_fetch(&f->seek, offset);
+		ret = __sync_add_and_fetch(&f->f_seek, offset);
 	else if(whence == SEEK_SET)
-		ret = f->seek = offset;
+		ret = f->f_seek = offset;
 	else if(whence == SEEK_END)
-		ret = f->seek = f->vfs_node->i_size + offset;
+		ret = f->f_seek = f->f_ino->i_size + offset;
 	else
 	{
 		ret = -EINVAL;
@@ -880,7 +880,7 @@ int sys_isatty(int fd)
 	*/
 
 	int ret = -ENOTTY;
-	if(f->vfs_node->i_type & VFS_TYPE_CHAR_DEVICE)
+	if(f->f_ino->i_type & VFS_TYPE_CHAR_DEVICE)
 		ret = 1;
 	
 	fd_put(f);
@@ -891,7 +891,7 @@ int sys_pipe(int upipefd[2])
 {
 	int pipefd[2] = {-1, -1};
 
-	ioctx_t *ioctx = &get_current_process()->ctx;
+	struct ioctx *ioctx = &get_current_process()->ctx;
 	/* Find 2 free file descriptors */
 	int wrfd = find_free_fd(0);
 
@@ -931,13 +931,13 @@ int sys_pipe(int upipefd[2])
 		return errno = -ENOMEM;
 	}
 
-	ioctx->file_desc[rdfd]->refcount = 1;
-	ioctx->file_desc[wrfd]->refcount = 1;
-	ioctx->file_desc[rdfd]->vfs_node = read_end;
-	ioctx->file_desc[wrfd]->vfs_node = write_end;
+	ioctx->file_desc[rdfd]->f_refcount = 1;
+	ioctx->file_desc[wrfd]->f_refcount = 1;
+	ioctx->file_desc[rdfd]->f_ino = read_end;
+	ioctx->file_desc[wrfd]->f_ino = write_end;
 
-	ioctx->file_desc[rdfd]->flags = O_RDONLY;
-	ioctx->file_desc[wrfd]->flags = O_WRONLY;
+	ioctx->file_desc[rdfd]->f_flags = O_RDONLY;
+	ioctx->file_desc[wrfd]->f_flags = O_WRONLY;
 
 	pipefd[0] = rdfd;
 	pipefd[1] = wrfd;
@@ -954,7 +954,7 @@ int do_dupfd(struct file *f, int fdbase)
 	if(new_fd < 0)
 		return new_fd;
 
-	ioctx_t *ioctx = &get_current_process()->ctx;
+	struct ioctx *ioctx = &get_current_process()->ctx;
 	ioctx->file_desc[new_fd] = f;
 
 	fd_get(f);
@@ -986,7 +986,7 @@ int sys_fcntl(int fd, int cmd, unsigned long arg)
 		{
 			ret = do_dupfd(f, (int) arg);
 			struct file *new = get_file_description(ret);
-			new->flags |= O_CLOEXEC;
+			new->f_flags |= O_CLOEXEC;
 			fd_put(new);
 
 			break;
@@ -994,14 +994,14 @@ int sys_fcntl(int fd, int cmd, unsigned long arg)
 
 		case F_GETFD:
 		{
-			ret = (f->flags & O_CLOEXEC) ? FD_CLOEXEC : 0;
+			ret = (f->f_flags & O_CLOEXEC) ? FD_CLOEXEC : 0;
 			break;
 		}
 
 		case F_SETFD:
 		{
 			if((int) arg & FD_CLOEXEC)
-				f->flags |= O_CLOEXEC;
+				f->f_flags |= O_CLOEXEC;
 			ret = 0;
 			break;
 		}
@@ -1035,7 +1035,7 @@ int sys_stat(const char *upathname, struct stat *ubuf)
 	struct stat buf = {0};
 	struct file *curr = get_current_directory();
 
-	int st = do_sys_stat(pathname, &buf, 0, curr->vfs_node);
+	int st = do_sys_stat(pathname, &buf, 0, curr->f_ino);
 
 	fd_put(curr);
 
@@ -1061,7 +1061,7 @@ int sys_fstat(int fd, struct stat *ubuf)
 
 	struct stat buf = {0};
 
-	if(stat_vfs(&buf, f->vfs_node) < 0)
+	if(stat_vfs(&buf, f->f_ino) < 0)
 	{
 		ret = -errno;
 		goto out;
@@ -1086,7 +1086,7 @@ int sys_chdir(const char *upath)
 
 	int st = 0;
 	struct file *curr = get_current_directory();
-	struct inode *base = get_fs_base(path, curr->vfs_node);
+	struct inode *base = get_fs_base(path, curr->f_ino);
 	struct inode *dir = open_vfs(base, path);
 	
 	fd_put(curr);
@@ -1111,8 +1111,8 @@ int sys_chdir(const char *upath)
 		goto close_file;
 	}
 
-	f->refcount = 1;
-	f->vfs_node = dir;
+	f->f_refcount = 1;
+	f->f_ino = dir;
 	object_ref(&dir->i_object);
 
 	struct process *current = get_current_process();
@@ -1138,7 +1138,7 @@ int sys_fchdir(int fildes)
 	if(!f)
 		return -errno;
 
-	struct inode *node = f->vfs_node;
+	struct inode *node = f->f_ino;
 	if(!(node->i_type & VFS_TYPE_DIR))
 	{
 		fd_put(f);
@@ -1199,7 +1199,7 @@ int sys_openat(int dirfd, const char *upath, int flags, mode_t mode)
 	if(!dirfd_desc)
 		return -errno;
 
-	struct inode *dir = dirfd_desc->vfs_node;;
+	struct inode *dir = dirfd_desc->f_ino;;
 
 	if(!(dir->i_type & VFS_TYPE_DIR))
 	{
@@ -1237,7 +1237,7 @@ int sys_fstatat(int dirfd, const char *upathname, struct stat *ubuf, int flags)
 		goto out;
 	}
 
-	dir = dirfd_desc->vfs_node;
+	dir = dirfd_desc->f_ino;
 
 	if(!(dir->i_type & VFS_TYPE_DIR))
 	{
@@ -1271,14 +1271,14 @@ int sys_fmount(int fd, const char *upath)
 		return -errno;
 	}
 
-	int st = mount_fs(f->vfs_node, path);
+	int st = mount_fs(f->f_ino, path);
 
 	free((void *) path);
 	fd_put(f);
 	return st;
 }
 
-void file_do_cloexec(ioctx_t *ctx)
+void file_do_cloexec(struct ioctx *ctx)
 {
 	mutex_lock(&ctx->fdlock);
 	struct file **fd = ctx->file_desc;
@@ -1287,7 +1287,7 @@ void file_do_cloexec(ioctx_t *ctx)
 	{
 		if(!fd[i])
 			continue;
-		if(fd[i]->flags & O_CLOEXEC)
+		if(fd[i]->f_flags & O_CLOEXEC)
 		{
 			/* Close the file */
 			fd_put(fd[i]);
@@ -1300,7 +1300,7 @@ void file_do_cloexec(ioctx_t *ctx)
 int open_with_vnode(struct inode *node, int flags)
 {
 	/* This function does all the open() work, open(2) and openat(2) use this */
-	ioctx_t *ioctx = &get_current_process()->ctx;
+	struct ioctx *ioctx = &get_current_process()->ctx;
 
 	mutex_lock(&ioctx->fdlock);
 	int fd_num = -1;
@@ -1313,13 +1313,13 @@ int open_with_vnode(struct inode *node, int flags)
 	}
 
 	memset(fd, 0, sizeof(struct file));
-	fd->vfs_node = node;
+	fd->f_ino = node;
 	
 	object_ref(&node->i_object);
 
-	fd->refcount = 1;
-	fd->seek = 0;
-	fd->flags = flags;
+	fd->f_refcount = 1;
+	fd->f_seek = 0;
+	fd->f_flags = flags;
 	handle_open_flags(fd, flags);
 	mutex_unlock(&ioctx->fdlock);
 	return fd_num;
@@ -1330,22 +1330,13 @@ struct file *create_file_description(struct inode *inode, off_t seek)
 	struct file *fd = zalloc(sizeof(*fd));
 	if(!fd)
 		return NULL;
-	fd->vfs_node = inode;
-	fd->seek = seek;
-	fd->refcount = 1;
+	fd->f_ino = inode;
+	fd->f_seek = seek;
+	fd->f_refcount = 1;
 	
 	object_ref(&inode->i_object);
 
 	return fd;
-}
-
-void close_file_description(struct file *fd)
-{	
-	if(--fd->refcount == 0)
-	{
-		close_vfs(fd->vfs_node);
-		free(fd);
-	}
 }
 
 /* Simple stub sys_access */
@@ -1358,7 +1349,7 @@ int sys_access(const char *path, int amode)
 
 	struct file *f = get_current_directory();
 
-	struct inode *ino = open_vfs(get_fs_base(p, f->vfs_node), p);
+	struct inode *ino = open_vfs(get_fs_base(p, f->f_ino), p);
 	fd_put(f);
 
 	unsigned int mask = ((amode & R_OK) ? FILE_ACCESS_READ : 0) |
@@ -1406,7 +1397,7 @@ int sys_mkdirat(int dirfd, const char *upath, mode_t mode)
 		return -errno;
 	}
 
-	dir = dirfd_desc->vfs_node;
+	dir = dirfd_desc->f_ino;
 
 	/* FIXME: Possible CWD race condition. Present on every syscall that uses cwd */
 	/* FIXME: Idea: Make cwd a struct file */
@@ -1459,7 +1450,7 @@ int sys_mknodat(int dirfd, const char *upath, mode_t mode, dev_t dev)
 		return -errno;
 	}
 
-	dir = dirfd_desc->vfs_node;
+	dir = dirfd_desc->f_ino;
 
 	if(!(dir->i_type & VFS_TYPE_DIR))
 	{
@@ -1530,7 +1521,7 @@ int do_sys_link(int olddirfd, const char *uoldpath, int newdirfd,
 		goto out;
 	}
 
-	oldpathfile = open_vfs(get_fs_base(oldpath, olddir->vfs_node), oldpath);
+	oldpathfile = open_vfs(get_fs_base(oldpath, olddir->f_ino), oldpath);
 	if(!oldpathfile)
 	{
 		st = -errno;
@@ -1539,7 +1530,7 @@ int do_sys_link(int olddirfd, const char *uoldpath, int newdirfd,
 
 	char *to_open = dirname(newpath);
 
-	newpathfile = open_vfs(get_fs_base(to_open, newdir->vfs_node), to_open);
+	newpathfile = open_vfs(get_fs_base(to_open, newdir->f_ino), to_open);
 	if(!newpathfile || newpathfile->i_dev != oldpathfile->i_dev)
 	{
 		/* Hard links need to be in the same filesystem */
@@ -1596,7 +1587,7 @@ int do_sys_unlink(int dirfd, const char *upathname, int flags)
 	}
 
 	char *to_open = dirname(pathname);
-	dir = open_vfs(get_fs_base(to_open, dirfd_file->vfs_node), to_open);
+	dir = open_vfs(get_fs_base(to_open, dirfd_file->f_ino), to_open);
 	if(!dir)
 	{
 		st = -errno;

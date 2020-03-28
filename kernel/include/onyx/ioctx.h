@@ -9,20 +9,9 @@
 #include <onyx/vfs.h>
 #include <onyx/mutex.h>
 #include <sys/types.h>
-#include <limits.h>
+#include <onyx/file.h>
 
-struct file
-{
-#ifndef __cplusplus
-	_Atomic
-#endif	
-	unsigned long refcount;
-	off_t seek;
-	struct inode *vfs_node;
-	int flags;
-};
-
-typedef struct
+struct ioctx
 {
 	/* Current working directory */
 	struct file *cwd;
@@ -30,9 +19,8 @@ typedef struct
 	struct mutex fdlock;
 	struct file **file_desc;
 	int file_desc_entries;
-} ioctx_t;
+};
 
 struct file *create_file_description(struct inode *inode, off_t seek);
-void close_file_description(struct file *fd);
 
 #endif

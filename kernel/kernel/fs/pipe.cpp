@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <limits.h>
 
 #include <onyx/pipe.h>
 #include <onyx/spinlock.h>

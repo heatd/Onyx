@@ -182,7 +182,7 @@ struct inode *pick_between_cwd_and_root(char *p, struct process *proc)
 	if(*p == '/')
 		return get_fs_root();
 	else
-		return proc->ctx.cwd->vfs_node;
+		return proc->ctx.cwd->f_ino;
 }
 
 bool file_is_executable(struct inode *exec_file)

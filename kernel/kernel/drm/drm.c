@@ -547,7 +547,7 @@ void *drm_mmap(struct vm_region *area, struct inode *inode)
 	if(!fd)
 		return NULL;
 	
-	fd->vfs_node = inode;
+	fd->f_ino = inode;
 	area->offset = 0;
 
 	struct drm_dumb_buffer *dbuf = (struct drm_dumb_buffer *) mapping->buffer;

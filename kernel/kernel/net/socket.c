@@ -112,7 +112,7 @@ struct file *get_socket_fd(int fd)
 	if(!desc)
 		return errno = EBADF, NULL;
 
-	if(desc->vfs_node->i_fops.write != socket_write)
+	if(desc->f_ino->i_fops.write != socket_write)
 	{
 		fd_put(desc);
 		return errno = ENOTSOCK, NULL;
@@ -123,7 +123,7 @@ struct file *get_socket_fd(int fd)
 
 struct socket *file_to_socket(struct file *f)
 {
-	return f->vfs_node->i_helper;
+	return f->f_ino->i_helper;
 }
 
 ssize_t sys_sendto(int sockfd, const void *buf, size_t len, int flags,
@@ -198,7 +198,7 @@ int sys_listen(int sockfd, int backlog)
 	if(!f)
 		return -errno;
 	
-	struct socket *sock = f->vfs_node->i_helper;
+	struct socket *sock = f->f_ino->i_helper;
 
 	if(sock->type != SOCK_DGRAM || sock->type != SOCK_SEQPACKET)
 	{
@@ -417,7 +417,7 @@ int sys_accept4(int sockfd, struct sockaddr *addr, socklen_t *slen, int flags)
 	if(!f)
 		return -errno;
 	
-	struct socket *sock = f->vfs_node->i_helper;
+	struct socket *sock = f->f_ino->i_helper;
 
 	if(!sock_listening(sock))
 	{

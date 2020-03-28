@@ -199,40 +199,40 @@ retry:;
 		panic("kernel: out of memory while loading init(file descriptor 0)!\n");
 	}
 	
-	proc->ctx.file_desc[0]->vfs_node = open_vfs(get_fs_root(), "/dev/tty");
-	if(!proc->ctx.file_desc[0]->vfs_node)
+	proc->ctx.file_desc[0]->f_ino = open_vfs(get_fs_root(), "/dev/tty");
+	if(!proc->ctx.file_desc[0]->f_ino)
 	{
 		perror("kernel: ");
 		panic("Could not open tty\n");
 	}
 
-	proc->ctx.file_desc[0]->seek = 0;
-	proc->ctx.file_desc[0]->refcount = 1;
-	proc->ctx.file_desc[0]->flags = O_RDONLY;
+	proc->ctx.file_desc[0]->f_seek = 0;
+	proc->ctx.file_desc[0]->f_refcount = 1;
+	proc->ctx.file_desc[0]->f_flags = O_RDONLY;
 	proc->ctx.file_desc[1] = zalloc(sizeof(struct file));
 	if(!proc->ctx.file_desc[1])
 	{
 		panic("kernel: out of memory while loading init(file descriptor 1)!\n");
 	}
-	proc->ctx.file_desc[1]->vfs_node = open_vfs(get_fs_root(), "/dev/tty");
-	proc->ctx.file_desc[1]->seek = 0;
-	proc->ctx.file_desc[1]->refcount = 1;
-	proc->ctx.file_desc[1]->flags = O_WRONLY;
+	proc->ctx.file_desc[1]->f_ino = open_vfs(get_fs_root(), "/dev/tty");
+	proc->ctx.file_desc[1]->f_seek = 0;
+	proc->ctx.file_desc[1]->f_refcount = 1;
+	proc->ctx.file_desc[1]->f_flags = O_WRONLY;
 	proc->ctx.file_desc[2] = zalloc(sizeof(struct file));
 	if(!proc->ctx.file_desc[2])
 	{
 		panic("kernel: out of memory while loading init(file descriptor 2)!\n");
 	}
-	proc->ctx.file_desc[2]->vfs_node = open_vfs(get_fs_root(), "/dev/tty");
-	proc->ctx.file_desc[2]->seek = 0;
-	proc->ctx.file_desc[2]->refcount = 1;
-	proc->ctx.file_desc[2]->flags = O_WRONLY;
+	proc->ctx.file_desc[2]->f_ino = open_vfs(get_fs_root(), "/dev/tty");
+	proc->ctx.file_desc[2]->f_seek = 0;
+	proc->ctx.file_desc[2]->f_refcount = 1;
+	proc->ctx.file_desc[2]->f_flags = O_WRONLY;
 
 	struct file *f = zalloc(sizeof(struct file));
 	assert(f != NULL);
-	f->refcount = 1;
-	f->vfs_node = get_fs_root();
-	object_ref(&f->vfs_node->i_object);
+	f->f_refcount = 1;
+	f->f_ino = get_fs_root();
+	object_ref(&f->f_ino->i_object);
 	proc->ctx.cwd = f;
 	proc->ctx.name = strdup("/");
 	assert(proc->ctx.name != NULL);
