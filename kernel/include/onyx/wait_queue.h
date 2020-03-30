@@ -13,6 +13,7 @@
 #include <onyx/scheduler.h>
 #include <onyx/spinlock.h>
 #include <onyx/list.h>
+
 struct wait_queue_token
 {
 	struct thread *thread;
@@ -57,6 +58,7 @@ do											\
 		if(cond)							\
 			break;							\
 		cmd;								\
+		wait_queue_remove(wq, &token);		\
 	}										\
 											\
 	wait_queue_remove(wq, &token);			\

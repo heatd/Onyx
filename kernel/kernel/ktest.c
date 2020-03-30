@@ -142,6 +142,40 @@ void sleep_test(void)
 
 #endif
 
+#ifdef CONFIG_KTEST_SPINLOCK
+
+static struct spinlock spl;
+static volatile unsigned long counter = 0;
+
+void spinlock_thread_entry(void *arg)
+{
+	bool incs = get_cpu_nr() % 2;
+	for(long i = 0; i < (INT64_MAX); i++)
+	{
+		spin_lock(&spl);
+
+		if(incs)
+			counter++;
+		else
+			counter--;
+		spin_unlock(&spl);
+	}
+}
+
+void spinlock_test()
+{
+	unsigned int nr_cpus = get_nr_cpus();
+	for(unsigned int i = 0; i < nr_cpus; i++)
+	{
+		assert(sched_create_thread(spinlock_thread_entry, THREAD_KERNEL, NULL) != NULL);
+	}
+
+	printk("Test done.\n");
+	assert(counter == 0);
+}
+
+#endif
+
 void execute_vm_tests();
 
 static void (*tests[])(void) = {
@@ -156,6 +190,9 @@ static void (*tests[])(void) = {
 #endif
 #ifdef CONFIG_VM_TESTS
 	execute_vm_tests,
+#endif
+#ifdef CONFIG_KTEST_SPINLOCK
+	spinlock_test,
 #endif
 };
 
