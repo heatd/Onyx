@@ -56,6 +56,22 @@ void creds_put_write(struct creds *c)
 	rw_unlock_write(&c->lock);
 }
 
+struct creds *__creds_get(struct process *p)
+{
+	struct creds *c = &p->cred;
+
+	rw_lock_read(&c->lock);
+	return c;
+}
+
+struct creds *__creds_get_write(struct process *p)
+{
+	struct creds *c = &p->cred;
+
+	rw_lock_write(&c->lock);
+	return c;
+}
+
 int process_inherit_creds(struct process *new_child, struct process *parent)
 {
 	/* FIXME: Setuid and setgid? */

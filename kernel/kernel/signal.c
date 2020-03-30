@@ -13,6 +13,7 @@
 #include <onyx/signal.h>
 #include <onyx/panic.h>
 #include <onyx/process.h>
+#include <onyx/task_switching.h>
 
 void signal_default_term(int signum)
 {
@@ -74,6 +75,7 @@ sighandler_t dfl_signal_handlers[] = {
 };
 
 void signal_update_pending(struct thread *thread);
+void __signal_update_pending(struct thread *thread);
 
 #define SST_SIZE (_NSIG/8/sizeof(long))
 void signotset(sigset_t *set)
@@ -82,22 +84,32 @@ void signotset(sigset_t *set)
 		set->__bits[i] = ~set->__bits[i];
 }
 
-void sys_exit(int exitcode);
-
-void kernel_default_signal(int signum)
+void do_default_signal(int signum, struct sigpending *pend)
 {
+	struct process *curr = get_current_process();
+	struct thread *thread = get_current_thread();
+	spin_unlock(&thread->sinfo.lock);
+	spin_unlock(&curr->signal_lock);
+
+	/* We need to unlock the signal table lock, because we might get killed
+	 * in a moment, and having a pending lock just isn't too pretty, you know.
+	 */
+
 	dfl_signal_handlers[signum](signum);
+
+	spin_lock(&curr->signal_lock);
+	spin_lock(&thread->sinfo.lock);
 }
 
 int signal_find(struct thread *thread)
 {
 	sigset_t *set = &thread->sinfo.pending_set;
 	sigset_t *blocked_set = &thread->sinfo.sigmask;
+
 	for(int i = 0; i < NSIG; i++)
 	{
 		if(sigismember(set, i) && !sigismember(blocked_set, i))
 		{
-			sigdelset(set, i);
 			return i;
 		}
 	}
@@ -118,11 +130,151 @@ bool signal_is_empty(struct thread *thread)
 	return true;
 }
 
-void signal_setup_context(int sig, struct sigaction *sigaction, struct registers *regs);
+void __signal_add_to_blocked_set(struct thread *current, sigset_t *new)
+{
+	if(sigismember(new, SIGKILL))
+		sigdelset(new, SIGKILL);
+	if(sigismember(new, SIGSTOP))
+		sigdelset(new, SIGSTOP);
+
+	sigorset(&current->sinfo.sigmask, new, &current->sinfo.sigmask);
+}
+
+void signal_add_to_blocked_set(struct thread *current, sigset_t *new)
+{
+	__signal_add_to_blocked_set(current, new);
+	signal_update_pending(current);
+}
+
+void signal_set_blocked_set(struct thread *current, sigset_t *new)
+{
+	if(sigismember(new, SIGKILL))
+		sigdelset(new, SIGKILL);
+	if(sigismember(new, SIGSTOP))
+		sigdelset(new, SIGSTOP);
+	
+	memcpy(&current->sinfo.sigmask, new, sizeof(*new));
+	signal_update_pending(current);
+}
+
+#define SIGNAL_QUERY_POP			(1 << 0)
+
+struct sigpending *signal_query_pending(int signum, unsigned int flags, struct signal_info *info)
+{
+	list_for_every(&info->pending_head)
+	{
+		struct sigpending *pend = container_of(l, struct sigpending, list_node);
+		
+		if(pend->signum == signum)
+		{
+			/* Found one! */
+			if(flags & SIGNAL_QUERY_POP)
+				list_remove(&pend->list_node);
+			return pend;
+		}
+	}
+
+	return NULL;
+}
+
+void deliver_signal(int signum, struct sigpending *pending, struct registers *regs);
+
+/* Returns negative if deliver_signal shouldn't execute the rest of the code, and should return immediately */
+int force_sigsegv(struct sigpending *pending, struct registers *regs)
+{
+	int signum = pending->signum;
+
+	pending->info->si_code = SI_KERNEL;
+	pending->info->si_signo = SIGSEGV;
+	pending->info->si_addr = NULL;
+
+	/* If we were trying to deliver SEGV; just do the default signal */
+	if(signum == SIGSEGV)
+	{
+		do_default_signal(signum, pending);
+	}
+	else
+	{
+		/* Else, try to deliver a SIGSEGV */
+		deliver_signal(SIGSEGV, pending, regs);
+		/* Explicitly return here in order not to execute the rest of the code */
+		return -1;
+	}
+
+	return 0;
+}
+
+void signal_unqueue(int signum, struct thread *thread)
+{
+	bool is_realtime_signal = signum >= KERNEL_SIGRTMIN;
+	bool should_delete =  true;
+
+	if(is_realtime_signal)
+	{
+		/* Search the query'ed backlog to see if there are other
+		 * realtime signals(of the same signum, of course) queued.
+		 */
+
+		should_delete = signal_query_pending(signum, 0, &thread->sinfo) == NULL;
+	}
+
+	if(should_delete)
+	{
+		sigdelset(&thread->sinfo.pending_set, signum);
+	}
+
+	__signal_update_pending(thread);
+}
+
+void deliver_signal(int signum, struct sigpending *pending, struct registers *regs)
+{
+	struct thread *thread = get_current_thread();
+	struct process *process = thread->owner;
+
+	struct sigaction *sigaction = &process->sigtable[signum];
+	void (*handler)(int) = sigaction->sa_handler;
+
+	/* TODO: Handle SA_RESTART */
+	/* TODO: Handle SA_NOCLDWAIT */
+	/* TODO: Handle SA_ONSTACK */
+	/* TODO: Handle SA_NOCLDSTOP */
+
+	if(handler != SIG_DFL)
+	{
+		if(signal_setup_context(pending, sigaction, regs) < 0)
+		{
+			if(force_sigsegv(pending, regs) < 0)
+				return;
+		}
+	}
+	else
+	{
+		do_default_signal(signum, pending);
+	}
+
+	if(sigaction->sa_flags & SA_RESETHAND)
+	{
+		/* If so, we need to reset the handler to SIG_DFL and clear SA_SIGINFO */
+		sigaction->sa_handler = SIG_DFL;
+		sigaction->sa_flags &= ~SA_SIGINFO;
+	}
+	
+	sigset_t new_blocked;
+	memcpy(&new_blocked, &sigaction->sa_mask, sizeof(new_blocked));
+
+	if(!(sigaction->sa_flags & SA_NODEFER))
+	{
+		/* POSIX specifies that the signal needs to be blocked while being handled */
+		sigaddset(&new_blocked, signum);
+	}
+
+	__signal_add_to_blocked_set(thread, &new_blocked);
+
+	signal_unqueue(signum, thread);
+}
 
 void handle_signal(struct registers *regs)
 {
-	/* TODO: Block the signal we're handling, and restore it in sigreturn */
 	/* TODO: Add realtime signals, they seem simple enough, it might just require
 	 * a list for each signal
 	 */
@@ -133,63 +285,70 @@ void handle_signal(struct registers *regs)
 		return;
 	}
 
-	struct thread *current_thread = get_current_thread();
-	if(current_thread->flags & THREAD_SHOULD_DIE)
+	if(irq_is_disabled())
+		irq_enable();
+
+	struct thread *thread = get_current_thread();
+	struct process *process = thread->owner;
+	if(thread->flags & THREAD_SHOULD_DIE)
 		sched_die();
 
+	spin_lock(&process->signal_lock);
+
+	spin_lock(&thread->sinfo.lock);
+
 	/* Find an available signal */
-	int signum = signal_find(current_thread);
+	int signum = signal_find(thread);
 	if(signum == 0)
+	{
+		spin_unlock(&thread->sinfo.lock);
+		spin_unlock(&process->signal_lock);
 		return;
-
-	sigdelset(&current_thread->sinfo.pending_set, signum);
-	signal_update_pending(current_thread);
-
-	struct process *current = get_current_process();
-	
-	struct sigaction *sigaction = &current->sigtable[signum];
-	void (*handler)(int) = sigaction->sa_handler;
-
-	/* TODO: Handle SA_RESTART */
-	/* TODO: Handle SA_NODEFER */
-	/* TODO: Handle SA_NOCLDWAIT */
-	/* TODO: Handle SA_ONSTACK */
-	/* TODO: Handle SA_NOCLDSTOP */
-
-	if(handler != SIG_DFL)
-	{
-		signal_setup_context(signum, sigaction, regs);
-	}
-	else
-	{
-		kernel_default_signal(signum);
 	}
 
-	if(sigaction->sa_flags & SA_RESETHAND)
-	{
-		/* If so, we need to reset the handler to SIG_DFL and clear SA_SIGINFO */
-		sigaction->sa_handler = SIG_DFL;
-		sigaction->sa_flags &= ~SA_SIGINFO;
-	}
+	struct sigpending *pending = signal_query_pending(signum,
+                                  SIGNAL_QUERY_POP, &thread->sinfo);
+
+	assert(pending != NULL);
+
+	deliver_signal(signum, pending, regs);
+
+	free(pending->info);
+	free(pending);
+
+	spin_unlock(&thread->sinfo.lock);
+	spin_unlock(&process->signal_lock);
 }
 
-void signal_update_pending(struct thread *thread)
+void __signal_update_pending(struct thread *thread)
 {
 	sigset_t *set = &thread->sinfo.pending_set;
 	sigset_t *blocked_set = &thread->sinfo.sigmask;
+
+	bool is_pending = false;
+
 	for(int i = 0; i < NSIG; i++)
 	{
 		if(sigismember(set, i) && !sigismember(blocked_set, i))
 		{
-			thread->sinfo.signal_pending = true;
-			return;
+			is_pending = true;
+			break;
 		}
 	}
 
-	thread->sinfo.signal_pending = false;
+	thread->sinfo.signal_pending = is_pending;
 }
 
-void kernel_raise_signal(int sig, struct process *process)
+void signal_update_pending(struct thread *thread)
+{
+	spin_lock(&thread->sinfo.lock);
+
+	__signal_update_pending(thread);
+
+	spin_unlock(&thread->sinfo.lock);
+}
+
+int kernel_raise_signal(int sig, struct process *process, unsigned int flags, siginfo_t *info)
 {
 	struct thread *t = NULL;
 
@@ -215,23 +374,142 @@ void kernel_raise_signal(int sig, struct process *process)
 
 	assert(t != NULL);
 
-	kernel_tkill(sig, t);
+	int st = kernel_tkill(sig, t, flags, info);
 
 	spin_unlock(&process->thread_list_lock);
+
+	return st;
 }
 
-int kernel_tkill(int signal, struct thread *thread)
+void do_signal_force_unblock(int signal, struct thread *thread)
+{
+	/* Do it like Linux, and restore the handler to SIG_DFL,
+	 * and unmask the thread
+	 */
+
+	struct process *process = thread->owner;
+
+	process->sigtable[signal].sa_handler = SIG_DFL;
+	sigdelset(&thread->sinfo.sigmask, signal);
+}
+
+int may_kill(int signum, struct process *target, siginfo_t *info)
+{
+	bool is_kernel = !info || info->si_code > 0;
+	int st = 0;
+
+	if(is_kernel)
+		return 0;
+
+	struct creds *c = creds_get();
+	struct creds *other = NULL;
+	if(c->euid == 0)
+		goto out;
+	
+	other = __creds_get(target);
+	if(c->euid == other->ruid || c->euid == other->suid ||
+	   c->ruid == other->ruid || c->ruid == other->suid)
+		st = 0;
+	else
+		st = -1;
+
+out:
+	if(other)	creds_put(other);
+	creds_put(c);
+	return st;
+}
+
+int kernel_tkill(int signal, struct thread *thread, unsigned int flags, siginfo_t *info)
 {
 	struct process *process = thread->owner;
+
+	if(may_kill(signal, process, info) < 0)
+		return -EPERM;
+
 	/* Don't bother to set it as pending if sig == SIG_IGN */
-	if(process->sigtable[signal].sa_handler == SIG_IGN)
+	bool is_signal_ign = (process->sigtable[signal].sa_handler == SIG_IGN);
+
+	bool is_masked = sigismember(&thread->sinfo.sigmask, signal);
+
+	bool signal_delivery_blocked = is_signal_ign || is_masked;
+
+	if(flags & SIGNAL_FORCE && signal_delivery_blocked)
+	{
+		/* If the signal delivery is being forced for some reason
+		 * (usually, it's because of a hardware exception), we'll need
+		 * to unblock it forcefully.
+		 */
+		do_signal_force_unblock(signal, thread);
+	}
+	else if(is_signal_ign)
+	{
 		return 0;
+	}
+
+	spin_lock(&thread->sinfo.lock);
+
+	bool standard_signal = signal < KERNEL_SIGRTMIN;
+
+	if(standard_signal && sigismember(&thread->sinfo.pending_set, signal))
+	{
+		/* Already signaled, return success */
+		goto success;
+	}
+
+	struct sigpending *pending = malloc(sizeof(*pending));
+	if(!pending)
+	{
+		goto failure_oom;
+	}
+
+	siginfo_t *copy_siginfo = malloc(sizeof(siginfo_t));
+	if(!copy_siginfo)
+	{
+		free(pending);
+		goto failure_oom;
+	}
+
+	if(info)
+	{
+		memcpy(copy_siginfo, info, sizeof(siginfo_t));
+	}
+	else
+	{
+		memset(copy_siginfo, 0, sizeof(siginfo_t));
+		copy_siginfo->si_code = SI_KERNEL;
+	}
+
+	copy_siginfo->si_signo = signal;
+
+	pending->info = copy_siginfo;
+	pending->signum = signal;
+
+	list_add(&pending->list_node, &thread->sinfo.pending_head);
 
 	sigaddset(&thread->sinfo.pending_set, signal);
 	if(!sigismember(&thread->sinfo.sigmask, signal))
+	{
 		thread->sinfo.signal_pending = true;
+		if(thread->status == THREAD_INTERRUPTIBLE)
+			thread_wake_up(thread);
+	}
+
+success:	
+	spin_unlock(&thread->sinfo.lock);
 
 	return 0;
+
+failure_oom:
+
+	if(flags & SIGNAL_FORCE)
+	{
+		/* I don't think there's another way to do this, for now */
+		/* Our kernel's OOM behavior and mechanisms are iffy *at best* */
+		panic("SIGNAL_FORCE couldn't be done");
+	}
+
+	spin_unlock(&thread->sinfo.lock);
+	return -ENOMEM;
 }
 
 bool signal_is_masked(struct thread *thread, int sig)
@@ -247,63 +525,87 @@ bool is_valid_signal(int sig)
 
 int sys_kill(pid_t pid, int sig)
 {
+	int st = 0;
 	struct process *p = NULL;
-	struct process *current = get_current_process();
+
 	if(pid > 0)
 	{
-		if(pid == current->pid)
-			p = current;
-		else
-		{
-			p = get_process_from_pid(pid);
-			if(!p)
-				return -ESRCH;	
-		}
-
+		p = get_process_from_pid(pid);
+		if(!p)
+			return -ESRCH;	
 	}
 	else
-		return -1;
+		return -ENOSYS;
 
-	/* TODO: Handle pid < 0*/
-
+	/* TODO: Handle pid < 0 */
 	if(sig == 0)
-		return 0;
+	{
+		goto out;
+	}
 	
 	if(!is_valid_signal(sig))
-		return -EINVAL;
+	{
+		st = -EINVAL;
+		goto out;
+	}
 
-	kernel_raise_signal(sig, p);
+	struct creds *c = creds_get();
 
-	return 0;
+	siginfo_t info = {};
+	info.si_signo = sig;
+	info.si_code = SI_USER;
+	info.si_uid = c->euid;
+	info.si_pid = get_current_process()->pid;
+
+	creds_put(c);
+
+	st = kernel_raise_signal(sig, p, 0, &info);
+
+out:
+	process_put(p);
+	return st;
 }
 
 int sys_sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
 {
+	int st = 0;
 	if(!is_valid_signal(signum))
 		return -EINVAL;
 
 	/* If both pointers are NULL, just return 0 (We can't do anything) */
 	if(!oldact && !act)
 		return 0;
+
 	struct process *proc = get_current_process();
 
-	/* Lock the mutex */
-	mutex_lock(&proc->signal_lock);
+	/* Lock the signal table */
+	spin_lock(&proc->signal_lock);
 
 	/* If old_act, save the old action */
 	if(oldact)
 	{
 		if(copy_to_user(oldact, &proc->sigtable[signum], sizeof(struct sigaction)) < 0)
-			return -EFAULT;
+		{
+			st = -EFAULT;
+			goto out;
+		}
 	}
 
 	/* If act, set the new action */
 	if(act)
 	{
+		struct sigaction sa;
+
+		if(copy_from_user(&sa, act, sizeof(struct sigaction)) < 0)
+		{
+			st = -EFAULT;
+			goto out;
+		}
+
 		if(act->sa_handler == SIG_ERR)
 		{
-			mutex_unlock(&proc->signal_lock);
-			return -EINVAL;
+			st = -EINVAL;
+			goto out;
 		}
 		/* Check if it's actually possible to set a handler to this signal */
 		switch(signum)
@@ -311,16 +613,17 @@ int sys_sigaction(int signum, const struct sigaction *act, struct sigaction *old
 			/* If not, return EINVAL */
 			case SIGKILL:
 			case SIGSTOP:
-				mutex_unlock(&proc->signal_lock);
-				return -EINVAL;
+				st = -EINVAL;
+				goto out;
 		}
-	
-		if(copy_from_user(&proc->sigtable[signum], act, sizeof(struct sigaction)) < 0)
-			return -EFAULT;
+
+		memcpy(&proc->sigtable[signum], &sa, sizeof(sa));
 	}
 
-	mutex_unlock(&proc->signal_lock);
-	return 0;
+out:
+	spin_unlock(&proc->signal_lock);
+
+	return st;
 }
 
 int sys_sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
@@ -342,22 +645,19 @@ int sys_sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
 		{
 			case SIG_BLOCK:
 			{
-				sigorset(&current->sinfo.sigmask, &current->sinfo.sigmask, &kset);
-				if(sigismember(&current->sinfo.sigmask, SIGKILL))
-					sigdelset(&current->sinfo.sigmask, SIGKILL);
-				if(sigismember(&current->sinfo.sigmask, SIGSTOP))
-					sigdelset(&current->sinfo.sigmask, SIGSTOP);
+				signal_add_to_blocked_set(current, &kset);
 				break;
 			}
 			case SIG_UNBLOCK:
 			{
 				signotset(&kset);
-				sigandset(&current->sinfo.sigmask, &current->sinfo.sigmask, &kset); 
+				sigandset(&current->sinfo.sigmask, &current->sinfo.sigmask, &kset);
+				signal_update_pending(current);
 				break;
 			}
 			case SIG_SETMASK:
 			{
-				memcpy(&current->sinfo.sigmask, &kset, sizeof(sigset_t));
+				signal_set_blocked_set(current, &kset);
 				break;
 			}
 			default:
@@ -365,7 +665,6 @@ int sys_sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
 		}
 	}
 
-	signal_update_pending(current);
 	return 0;
 }
 
@@ -411,21 +710,149 @@ int sys_pause(void)
 	return -EINTR;
 }
 
-int sys_tkill(int tid, int sig)
+void signal_context_init(struct thread *new_thread)
 {
+	INIT_LIST_HEAD(&new_thread->sinfo.pending_head);
+}
+
+#define TGKILL_CHECK_PID			(1 << 0)
+#define TGKILL_SIGQUEUE				(1 << 1)
+
+int do_tgkill(int pid, int tid, int sig, unsigned int flags, siginfo_t *kinfo)
+{
+	int st = 0;
 	if(tid < 0)
 		return -EINVAL;
 
 	struct thread *t = thread_get_from_tid(tid);
 	if(!t)
+	{
 		return -ESRCH;
+	}
 	
 	/* Can't send signals to kernel threads */
 	if(t->flags & THREAD_KERNEL)
-		return -EINVAL;
+	{
+		st = -EINVAL;
+		goto out;
+	}
+
+	if(flags & TGKILL_CHECK_PID && t->owner->pid != pid)
+	{
+		st = -ESRCH;
+		goto out;
+	}
 
 	if(!is_valid_signal(sig))
-		return -EINVAL;
+	{
+		st = -EINVAL;
+		goto out;
+	}
 	
-	return kernel_tkill(sig, t);
+	siginfo_t info = {};
+	if(!(flags & TGKILL_SIGQUEUE))
+	{
+		struct creds *c = creds_get();
+
+		info.si_signo = sig;
+		info.si_code = SI_TKILL;
+		info.si_uid = c->euid;
+		info.si_pid = get_current_process()->pid;
+
+		creds_put(c);
+	}
+	else
+	{
+		memcpy(&info, kinfo, sizeof(info));
+	}
+
+	st = kernel_tkill(sig, t, 0, &info);
+
+out:
+	thread_put(t);
+
+	return st;
+}
+
+int sys_tkill(int tid, int sig)
+{
+	return do_tgkill(-1, tid, sig, 0, NULL);
+}
+
+int sys_tgkill(int pid, int tid, int sig)
+{
+	return do_tgkill(pid, tid, sig, TGKILL_CHECK_PID, NULL);
+}
+
+int sanitize_rt_sigqueueinfo(siginfo_t *info, pid_t pid)
+{
+	struct process *current = get_current_process();
+
+	if(current->pid == pid)
+		return 0;
+	
+	if(info->si_code >= 0)
+		return -1;
+	if(info->si_code == SI_TKILL)
+		return -1;
+	
+	return 0;
+}
+
+int sys_rt_sigqueueinfo(pid_t pid, int sig, siginfo_t *uinfo)
+{
+	int st = 0;
+	siginfo_t info;
+	if(copy_from_user(&info, uinfo, sizeof(info)) < 0)
+		return -EFAULT;
+	
+	if(sanitize_rt_sigqueueinfo(&info, pid) < 0)
+		return -EPERM;
+
+	struct process *p = get_process_from_pid(pid);
+	if(!p)
+		return -ESRCH;
+
+	if(sig == 0)
+	{
+		goto out;
+	}
+	
+	if(!is_valid_signal(sig))
+	{
+		st = -EINVAL;
+		goto out;
+	}
+
+	st = kernel_raise_signal(sig, p, 0, &info);
+
+out:
+	process_put(p);
+	return st;
+}
+
+int sys_rt_tgsigqueueinfo(pid_t pid, pid_t tid, int sig, siginfo_t *uinfo)
+{
+	siginfo_t info;
+	if(copy_from_user(&info, uinfo, sizeof(info)) < 0)
+		return -EFAULT;
+	
+	if(sanitize_rt_sigqueueinfo(&info, pid) < 0)
+		return -EPERM;
+
+	return do_tgkill(pid, tid, sig, TGKILL_CHECK_PID | TGKILL_SIGQUEUE, &info);
+}
+
+void signal_do_execve(struct process *proc)
+{
+	for(int i = 0; i < NSIG; i++)
+	{
+		struct sigaction *sa = &proc->sigtable[i];
+		if(sa->sa_handler != SIG_IGN)
+			sa->sa_handler = NULL;
+		
+		sa->sa_flags = 0;
+		memset(&sa->sa_mask, 0, sizeof(sa->sa_mask));
+		sa->sa_restorer = NULL;
+	}
 }

@@ -15,6 +15,7 @@
 #include <onyx/vdso.h>
 #include <onyx/random.h>
 #include <onyx/user.h>
+#include <onyx/signal.h>
 
 void exec_state_destroy(struct exec_state *);
 
@@ -159,6 +160,9 @@ int flush_old_exec(struct exec_state *state)
 	file_do_cloexec(&curr->ctx);
 
 	st = vm_create_brk(&curr->address_space);
+
+	/* And reset the signal disposition */
+	signal_do_execve(curr);
 
 	if(st == 0)
 	{
@@ -343,7 +347,7 @@ error_die_signal:
 	free(path);
 	free(karg);
 	free(kenv);
-	kernel_raise_signal(SIGKILL, current);
+	kernel_raise_signal(SIGKILL, current, SIGNAL_FORCE, NULL);
 
 	/* This sched_yield should execute the signal handler */
 	sched_yield();

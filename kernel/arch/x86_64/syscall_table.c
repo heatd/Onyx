@@ -165,6 +165,10 @@ int sys_faccessat(int dirfd, const char *pathname, int mode, int flags);
 int sys_listen(int sockfd, int backlog);
 int sys_accept(int sockfd, struct sockaddr *addr, socklen_t *slen);
 int sys_accept4(int sockfd, struct sockaddr *addr, socklen_t *slen, int flags);
+int sys_rt_sigqueueinfo(pid_t tgid, int sig, siginfo_t *info);
+int sys_rt_tgsigqueueinfo(pid_t tgid, pid_t tid, int sig, siginfo_t *info);
+int sys_tkill(int tid, int sig);
+int sys_tgkill(int pid, int tid, int sig);
 
 void *syscall_table_64[] =
 {
@@ -280,5 +284,9 @@ void *syscall_table_64[] =
 	[109] = (void*) sys_faccessat,
 	[110] = (void*) sys_listen,
 	[111] = (void*) sys_accept,
-	[112] = (void*) sys_accept4
+	[112] = (void*) sys_accept4,
+	[113] = (void*) sys_rt_sigqueueinfo,
+	[114] = (void*) sys_rt_tgsigqueueinfo,
+	[115] = (void*) sys_tkill,
+	[116] = (void*) sys_tgkill
 };

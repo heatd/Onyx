@@ -28,9 +28,16 @@ long sys_ptrace(long request, pid_t pid, void *addr, void *data, void *addr2)
 			{
 				return -ESRCH;
 			}
+			
 			if(process_attach(process, tracee) < 0)
+			{
+				process_put(tracee);
 				return -errno;
-			kernel_raise_signal(SIGSTOP, tracee);
+			}
+
+			kernel_raise_signal(SIGSTOP, tracee, 0, NULL);
+
+			process_put(tracee);
 			return 0;
 		}
 		case PTRACE_PEEKTEXT:
@@ -83,7 +90,7 @@ long sys_ptrace(long request, pid_t pid, void *addr, void *data, void *addr2)
 			{
 				return -ESRCH;
 			}
-			kernel_raise_signal(SIGCONT, tracee);
+			kernel_raise_signal(SIGCONT, tracee, 0, NULL);
 			return 0;
 		}
 		default:

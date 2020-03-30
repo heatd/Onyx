@@ -1938,7 +1938,11 @@ void vm_do_fatal_page_fault(struct fault_info *info)
 			current->pid, current->cmd_line);
 		printk("Program base: %p\n", current->image_base);
 
-		kernel_raise_signal(SIGSEGV, get_current_process());
+		siginfo_t sinfo = {};
+		sinfo.si_code = SI_KERNEL;
+		sinfo.si_addr = (void *) info->fault_address;
+	
+		kernel_tkill(SIGSEGV, get_current_thread(), SIGNAL_FORCE, &sinfo);
 	}
 	else
 		panic("Unable to satisfy paging request");

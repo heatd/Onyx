@@ -27,6 +27,7 @@ struct process;
 
 typedef struct thread
 {
+	unsigned long refcount;
 	/* Put arch-independent stuff right here */
 	uintptr_t *user_stack;
 	uintptr_t *kernel_stack;
@@ -162,6 +163,17 @@ do							\
 	__t->status = state;				\
 	__sync_synchronize();				\
 } while(0);
+
+static inline void thread_get(struct thread *thread)
+{
+	__atomic_add_fetch(&thread->refcount, 1, __ATOMIC_ACQUIRE);
+}
+
+static inline void thread_put(struct thread *thread)
+{
+	if(__atomic_sub_fetch(&thread->refcount, 1, __ATOMIC_ACQUIRE) == 0)
+		thread_destroy(thread);
+}
 
 #ifdef __cplusplus
 }

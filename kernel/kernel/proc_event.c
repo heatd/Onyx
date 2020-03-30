@@ -160,6 +160,7 @@ int sys_proc_event_attach(pid_t pid, unsigned long flags)
 	int fd = open_with_vnode(ino, O_RDWR);
 	if(fd < 0)
 	{
+		process_put(p);
 		free(ino);
 		free(new_sub);
 		return -errno;
@@ -191,7 +192,7 @@ void proc_event_enter_syscall(struct syscall_frame *regs, uintptr_t rax)
 		s->event_buf.type = PROC_EVENT_SYSCALL_ENTER;
 		s->event_buf.pid = current->pid;
 		s->event_buf.thread = get_current_thread()->id;
-		s->event_buf.e_un.syscall.cs = 0x2b;
+		s->event_buf.e_un.syscall.cs = USER_CS;
 		s->event_buf.e_un.syscall.ds = regs->ds;
 		s->event_buf.e_un.syscall.eflags = regs->rflags;
 		s->event_buf.e_un.syscall.es = regs->ds;
@@ -222,9 +223,6 @@ void proc_event_enter_syscall(struct syscall_frame *regs, uintptr_t rax)
 		sem_signal(&s->event_semaphore);
 	}
 
-	if(current->pid == 2)
-		assert(rdmsr(FS_BASE_MSR) != 0);
-
 	if(current->nr_subs == 0)
 		return;
 
@@ -250,9 +248,6 @@ void proc_event_exit_syscall(long retval, long syscall_nr)
 
 		sem_signal(&s->event_semaphore);
 	}
-
-	if(current->pid == 2)
-		assert(rdmsr(FS_BASE_MSR) != 0);
 
 	if(current->nr_subs == 0)
 		return;

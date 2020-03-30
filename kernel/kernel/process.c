@@ -99,9 +99,11 @@ struct process *process_create(const char *cmd_line, struct ioctx *ctx, struct p
 	struct process *proc = zalloc(sizeof(struct process));
 	if(!proc)
 		return errno = ENOMEM, NULL;
+
 	memset(proc, 0, sizeof(struct process));
 	
 	/* TODO: idm_get_id doesn't wrap? POSIX COMPLIANCE */
+	proc->refcount = 1;
 	proc->pid = idm_get_id(process_ids);
 	assert(proc->pid != (pid_t) -1);
 	proc->cmd_line = strdup(cmd_line);
@@ -244,13 +246,14 @@ struct thread *process_fork_thread(thread_t *src, struct process *dest, struct s
 
 struct process *get_process_from_pid(pid_t pid)
 {
-
+	/* TODO: Maybe storing processes in a tree would be a good idea? */
 	spin_lock(&process_list_lock);
 
 	for(struct process *p = first_process; p != NULL; p = p->next)
 	{
 		if(p->pid == pid)
 		{
+			process_get(p);
 			spin_unlock(&process_list_lock);
 			return p;
 		}
@@ -258,6 +261,11 @@ struct process *get_process_from_pid(pid_t pid)
 
 	spin_unlock(&process_list_lock);
 	return NULL;
+}
+
+void unlock_process_list(void)
+{
+	spin_unlock(&process_list_lock);
 }
 
 pid_t sys_getppid()
@@ -292,6 +300,8 @@ bool process_found_children(pid_t pid, struct process *process)
 	return false;
 }
 
+void process_remove_from_list(struct process *process);
+
 bool wait4_find_dead_process(struct process *process, pid_t pid, int *wstatus, pid_t *ret)
 {
 	bool looking_for_any = pid < 0;
@@ -306,10 +316,12 @@ bool wait4_find_dead_process(struct process *process, pid_t pid, int *wstatus, p
 				if(copy_to_user(wstatus, &p->exit_code, sizeof(int)) < 0)
 					return false;
 			}
+
 			*ret = p->pid;
 
 			spin_unlock(&process->children_lock);
-			process_end(p);
+
+			process_put(p);
 
 			return true;
 		}
@@ -578,7 +590,7 @@ void process_wait_for_dead_threads(struct process *process)
 void process_end(struct process *process)
 {
 	process_remove_from_list(process);
-	
+
 	process_wait_for_dead_threads(process);
 
 	free(process->cmd_line);
@@ -657,12 +669,6 @@ void process_kill_other_threads(void)
 
 void process_destroy(thread_t *current_thread)
 {
-	/* TODO: Fix this. This means file closing routines can't sleep,
-	 * which is profoundly borken
-	*/
-	/* Enter critical section */
-	//sched_disable_preempt();
-
 	struct process *current = get_current_process();
 	process_kill_other_threads();
 
@@ -684,9 +690,9 @@ void process_destroy(thread_t *current_thread)
 
 	/* Finally, wake up any possible concerned (waiting :D) parents */
 	sem_signal(&current->parent->wait_sem);
-	kernel_raise_signal(SIGCHLD, current->parent);
 
-	//sched_enable_preempt();
+	/* TODO: We need to send an actual SIGCHILD (look at the siginfo structure) */
+	kernel_raise_signal(SIGCHLD, current->parent, 0, NULL);
 
 	sched_yield();
 

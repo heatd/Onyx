@@ -167,10 +167,12 @@ func_exit:
 
 bool fail_on_mount_error = true;
 
-#if 0
-void segv(int sig)
+void segv(int sig, siginfo_t *info, void *ucontext)
 {
+	ucontext_t *ctx = ucontext;
 	printf("hello comrade\n");
+	//printf("Fault at %lx\n", info->si_addr);
+	//printf("Sent from %d\n", info->si_code);
 }
 
 void signal_test()
@@ -179,18 +181,26 @@ void signal_test()
 
 	if(p == 0)
 	{
-		signal(SIGSEGV, segv);
-		pause();
-		perror("pause");
+		struct sigaction act;
+		act.sa_sigaction = segv;
+		act.sa_flags = SA_SIGINFO;
+		memset(&act.sa_mask, 0, sizeof(act.sa_mask));
+		sigaction(SIGRTMIN, &act, NULL);
+		sleep(1);
+		//sigaction(SIGILL, &act, NULL);
+		//raise(SIGILL);
+
+		while(true) {}
 	}
 	else
 	{
 		printf("Sleeping 2 seconds and killing our child\n");
-		sleep(2);
-		kill(p, SIGSEGV);
+		//sleep(2);
+		for(int i = 0; i < 10; i++) kill(p, SIGRTMIN);
 	}
+
+	while(true) {}
 }
-#endif
 
 int main(int argc, char **argv, char **envp)
 {

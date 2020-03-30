@@ -107,6 +107,10 @@
 #define __NR_listen					110
 #define __NR_accept					111
 #define __NR_accept4				112
+#define __NR_rt_sigqueueinfo		113
+#define __NR_rt_tgsigqueueinfo		114
+#define __NR_tkill					115
+#define __NR_tgkill					116
 #define __NR_sysinfo			255
 #define __NR_geteuid			255
 #define __NR_getegid			255
@@ -129,7 +133,6 @@
 #define __NR_capset				126
 #define __NR_rt_sigpending		127
 #define __NR_rt_sigtimedwait	128
-#define __NR_rt_sigqueueinfo	129
 #define __NR_sigaltstack		131
 #define __NR_utime				132
 #define __NR_uselib				134
@@ -191,7 +194,6 @@
 #define __NR_removexattr			197
 #define __NR_lremovexattr			198
 #define __NR_fremovexattr			199
-#define __NR_tkill					200
 #define __NR_sched_setaffinity		203
 #define __NR_sched_getaffinity		204
 #define __NR_set_thread_area		205
@@ -220,7 +222,6 @@
 #define __NR_exit_group				231
 #define __NR_epoll_wait				232
 #define __NR_epoll_ctl				233
-#define __NR_tgkill				234
 #define __NR_utimes				235
 #define __NR_vserver				236
 #define __NR_mbind				237
@@ -299,7 +300,6 @@
 #define __NR_dup3					292
 #define __NR_pipe2					293
 #define __NR_inotify_init1			294
-#define __NR_rt_tgsigqueueinfo		297
 #define __NR_perf_event_open		298
 #define __NR_recvmmsg				299
 #define __NR_fanotify_init			300
@@ -443,6 +443,10 @@
 #define SYS_listen					110
 #define SYS_accept					111
 #define SYS_accept4				112
+#define SYS_rt_sigqueueinfo		113
+#define SYS_rt_tgsigqueueinfo		114
+#define SYS_tkill					115
+#define SYS_tgkill					116
 #define SYS_sysinfo			255
 #define SYS_geteuid			255
 #define SYS_getegid			255
@@ -465,7 +469,6 @@
 #define SYS_capset				126
 #define SYS_rt_sigpending		127
 #define SYS_rt_sigtimedwait	128
-#define SYS_rt_sigqueueinfo	129
 #define SYS_sigaltstack		131
 #define SYS_utime				132
 #define SYS_uselib				134
@@ -527,7 +530,6 @@
 #define SYS_removexattr			197
 #define SYS_lremovexattr			198
 #define SYS_fremovexattr			199
-#define SYS_tkill					200
 #define SYS_sched_setaffinity		203
 #define SYS_sched_getaffinity		204
 #define SYS_set_thread_area		205
@@ -556,7 +558,6 @@
 #define SYS_exit_group				231
 #define SYS_epoll_wait				232
 #define SYS_epoll_ctl				233
-#define SYS_tgkill				234
 #define SYS_utimes				235
 #define SYS_vserver				236
 #define SYS_mbind				237
@@ -635,7 +636,6 @@
 #define SYS_dup3					292
 #define SYS_pipe2					293
 #define SYS_inotify_init1			294
-#define SYS_rt_tgsigqueueinfo		297
 #define SYS_perf_event_open		298
 #define SYS_recvmmsg				299
 #define SYS_fanotify_init			300

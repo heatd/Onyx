@@ -118,7 +118,7 @@ ssize_t pipe::write(int flags, size_t len, const void *buf)
 	{
 		if(reader_count == 0)
 		{
-			kernel_raise_signal(SIGPIPE, get_current_process());
+			kernel_raise_signal(SIGPIPE, get_current_process(), 0, NULL);
 			mutex_unlock(&pipe_lock);
 			return errno = EPIPE, -1;
 		}

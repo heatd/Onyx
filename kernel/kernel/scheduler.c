@@ -81,8 +81,11 @@ struct thread *thread_get_from_tid(int tid)
 	
 	struct thread *t = NULL;
 	if(pp)
+	{
 		t = *pp;
-	
+		thread_get(t);
+	}
+
 	spin_unlock(&glbl_thread_list_lock);
 
 	return t;
@@ -462,7 +465,9 @@ void sched_sleep(unsigned long ms)
 	ev.future_timestamp = timer_in_future(ms);
 	assert(add_timer_event(&ev) != false);
 
-	sched_block(current);
+	set_current_state(THREAD_INTERRUPTIBLE);
+
+	sched_yield();
 }
 
 int __sched_remove_thread_from_execution(thread_t *thread, unsigned int cpu)
@@ -1122,6 +1127,10 @@ void __sched_kill_other(struct thread *thread, unsigned int cpu)
 	cpu_send_message(cpu, CPU_KILL_THREAD, NULL, false);
 }
 
+/* FIXME: Our threading stuff is kinda iffy and all the destruction, etc isn't well defined.
+ * Rewrite all that.
+ */
+
 void scheduler_kill(struct thread *thread)
 {
 	unsigned int cpu = thread->cpu;
@@ -1131,7 +1140,7 @@ void scheduler_kill(struct thread *thread)
 		if(get_thread_for_cpu(cpu) == thread)
 			sched_die();
 		else
-			thread_destroy(thread);
+			thread_put(thread);
 	}
 	else
 	{

@@ -89,8 +89,10 @@ void div0_exception(struct registers *ctx)
 	}
 
 	struct thread *current = get_current_thread();
+	siginfo_t info = {};
+	info.si_code = SI_KERNEL;
 
-	kernel_tkill(SIGFPE, current);
+	kernel_tkill(SIGFPE, current, SIGNAL_FORCE, &info);
 }
 
 void setup_debug_register(unsigned long addr, unsigned int size, unsigned int condition);
@@ -107,7 +109,10 @@ void debug_trap(struct registers *ctx)
 
 	struct thread *current = get_current_thread();
 
-	kernel_tkill(SIGTRAP, current);
+	siginfo_t info = {};
+	info.si_code = SI_KERNEL;
+
+	kernel_tkill(SIGTRAP, current, SIGNAL_FORCE, &info);
 }
 
 void nmi_exception(struct registers *ctx)
@@ -127,7 +132,10 @@ void overflow_trap(struct registers *ctx)
 
 	struct thread *current = get_current_thread();
 
-	kernel_tkill(SIGSEGV, current);
+	siginfo_t info = {};
+	info.si_code = SI_KERNEL;
+
+	kernel_tkill(SIGSEGV, current, SIGNAL_FORCE, &info);
 }
 
 void boundrange_exception(struct registers *ctx)
@@ -140,7 +148,10 @@ void boundrange_exception(struct registers *ctx)
 
 	struct thread *current = get_current_thread();
 
-	kernel_tkill(SIGILL, current);
+	siginfo_t info = {};
+	info.si_code = SI_KERNEL;
+
+	kernel_tkill(SIGILL, current, SIGNAL_FORCE, &info);
 }
 
 void invalid_opcode_exception(struct registers *ctx)
@@ -153,7 +164,10 @@ void invalid_opcode_exception(struct registers *ctx)
 
 	struct thread *current = get_current_thread();
 
-	kernel_tkill(SIGILL, current);
+	siginfo_t info = {};
+	info.si_code = SI_KERNEL;
+
+	kernel_tkill(SIGILL, current, SIGNAL_FORCE, &info);
 }
 
 void device_not_avail_excp(struct registers *ctx)
@@ -169,7 +183,10 @@ void device_not_avail_excp(struct registers *ctx)
 
 	struct thread *current = get_current_thread();
 
-	kernel_tkill(SIGFPE, current);
+	siginfo_t info = {};
+	info.si_code = SI_KERNEL;
+
+	kernel_tkill(SIGFPE, current, SIGNAL_FORCE, &info);
 }
 void __double_fault(struct registers *ctx)
 {
@@ -193,7 +210,10 @@ void stack_segment_fault(struct registers *ctx)
 
 	struct thread *current = get_current_thread();
 
-	kernel_tkill(SIGSEGV, current);
+	siginfo_t info = {};
+	info.si_code = SI_KERNEL;
+
+	kernel_tkill(SIGSEGV, current, SIGNAL_FORCE, &info);
 }
 
 void general_protection_fault(struct registers *ctx)
@@ -216,7 +236,11 @@ void general_protection_fault(struct registers *ctx)
 	(void) current;
 	dump_interrupt_context(ctx);
 	printk("GPF error code: %04x\n", (uint16_t) ctx->int_err_code);
-	kernel_tkill(SIGSEGV, current);
+
+	siginfo_t info = {};
+	info.si_code = SI_KERNEL;
+
+	kernel_tkill(SIGSEGV, current, SIGNAL_FORCE, &info);
 }
 
 void stack_trace_user(uintptr_t *stack);
@@ -234,8 +258,6 @@ void page_fault_handler(struct registers *ctx)
 	info.user = error_code & 0x4;
 	info.ip = ctx->rip;
 
-	irq_restore(ctx->rflags);
-	
 	if(vm_handle_page_fault(&info) < 0)
 	{
 		if(!info.user)
@@ -265,7 +287,10 @@ void x87_fpu_exception(struct registers *ctx)
 
 	struct thread *current = get_current_thread();
 
-	kernel_tkill(SIGFPE, current);
+	siginfo_t info = {};
+	info.si_code = SI_KERNEL;
+
+	kernel_tkill(SIGFPE, current, SIGNAL_FORCE, &info);
 }
 
 void alignment_check_excp(struct registers *ctx)
@@ -278,7 +303,10 @@ void alignment_check_excp(struct registers *ctx)
 
 	struct thread *current = get_current_thread();
 
-	kernel_tkill(SIGSEGV, current);
+	siginfo_t info = {};
+	info.si_code = SI_KERNEL;
+
+	kernel_tkill(SIGSEGV, current, SIGNAL_FORCE, &info);
 }
 
 void simd_fpu_exception(struct registers *ctx)
@@ -294,7 +322,10 @@ void simd_fpu_exception(struct registers *ctx)
 
 	struct thread *current = get_current_thread();
 
-	kernel_tkill(SIGFPE, current);
+	siginfo_t info = {};
+	info.si_code = SI_KERNEL;
+
+	kernel_tkill(SIGFPE, current, SIGNAL_FORCE, &info);
 }
 
 void virtualization_exception(struct registers *ctx)
@@ -307,7 +338,10 @@ void virtualization_exception(struct registers *ctx)
 
 	struct thread *current = get_current_thread();
 
-	kernel_tkill(SIGSEGV, current);
+	siginfo_t info = {};
+	info.si_code = SI_KERNEL;
+
+	kernel_tkill(SIGSEGV, current, SIGNAL_FORCE, &info);
 }
 
 void security_exception(struct registers *ctx)
@@ -320,7 +354,10 @@ void security_exception(struct registers *ctx)
 
 	struct thread *current = get_current_thread();
 
-	kernel_tkill(SIGSEGV, current);
+	siginfo_t info = {};
+	info.si_code = SI_KERNEL;
+
+	kernel_tkill(SIGSEGV, current, SIGNAL_FORCE, &info);
 }
 
 #ifdef CONFIG_KTRACE
@@ -355,7 +392,10 @@ void breakpoint_exception(struct registers *ctx)
 
 	struct thread *current = get_current_thread();
 
-	kernel_tkill(SIGTRAP, current);
+	siginfo_t info = {};
+	info.si_code = SI_KERNEL;
+
+	kernel_tkill(SIGTRAP, current, SIGNAL_FORCE, &info);
 }
 
 void invalid_tss_exception(struct registers *ctx)
@@ -374,7 +414,10 @@ void segment_not_present_excp(struct registers *ctx)
 
 	struct thread *current = get_current_thread();
 
-	kernel_tkill(SIGSEGV, current);
+	siginfo_t info = {};
+	info.si_code = SI_KERNEL;
+
+	kernel_tkill(SIGSEGV, current, SIGNAL_FORCE, &info);
 }
 
 void machine_check(struct registers *ctx)
@@ -450,6 +493,7 @@ void isr_handler(struct registers *ctx)
 
 	//enter_isr_handler();
 
+	irq_restore(ctx->rflags);
 	int_handlers[int_no](ctx);
 
 	//exit_isr_handler();

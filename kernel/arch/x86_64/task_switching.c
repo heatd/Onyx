@@ -38,6 +38,8 @@
 */
 atomic_int curr_id = 1;
 
+/* FIXME: All of this code is garbage and is repeating itself. Fix. */
+
 thread_t* task_switching_create_context(thread_callback_t callback, uint32_t flags, void* args)
 {
 	thread_t* new_thread = malloc(sizeof(thread_t));
@@ -50,6 +52,9 @@ thread_t* task_switching_create_context(thread_callback_t callback, uint32_t fla
 	new_thread->rip = callback;
 	new_thread->flags = flags;
 	new_thread->id = curr_id++;
+	new_thread->refcount = 1;
+
+	signal_context_init(new_thread);
 
 	if(!(flags & THREAD_KERNEL))
 	{
@@ -159,6 +164,9 @@ thread_t* task_switching_create_main_progcontext(thread_callback_t callback,
 	new_thread->rip = callback;
 	new_thread->flags = flags;
 	new_thread->id = curr_id++;
+	new_thread->refcount = 1;
+
+	signal_context_init(new_thread);
 
 	new_thread->fpu_area = aligned_alloc(FPU_AREA_ALIGNMENT, FPU_AREA_SIZE);
 	if(!new_thread->fpu_area)
@@ -306,6 +314,10 @@ thread_t *sched_spawn_thread(registers_t *regs, thread_callback_t start, void *a
 		free(new_thread);
 		return NULL;
 	}
+
+	new_thread->refcount = 1;
+
+	signal_context_init(new_thread);
 
 	new_thread->addr_limit = VM_USER_ADDR_LIMIT;
 	
