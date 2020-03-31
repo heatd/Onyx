@@ -51,20 +51,24 @@ char **process_copy_envarg(char **envarg, bool to_kernel, int *count)
 
 	char *strings = (char*) new + (nr_args + 1) * sizeof(void*);
 	char *it = strings;
+
 	/* Actually copy the buffer */
 	for(size_t i = 0; i < nr_args; i++)
 	{
 		strcpy(it, envarg[i]);
 		it += strlen(envarg[i]) + 1;
 	}
+
 	char **new_args = (char**) new;
 	for(size_t i = 0; i < nr_args; i++)
 	{
 		new_args[i] = (char*) strings;
 		strings += strlen(new_args[i]) + 1;
 	}
+
 	if(count)
 		*count = nr_args;
+	
 	return new_args;
 }
 

@@ -43,7 +43,7 @@
 #include <sys/mman.h>
 
 bool is_initialized = false;
-static bool enable_aslr = true;
+static bool enable_aslr = false;
 
 uintptr_t high_half 		= arch_high_half;
 uintptr_t low_half_max 		= arch_low_half_max;
@@ -66,6 +66,10 @@ int vm_add_region(struct mm_address_space *as, struct vm_region *region);
 void remove_vmo_from_private_list(struct mm_address_space *mm, struct vm_object *vmo);
 void add_vmo_to_private_list(struct mm_address_space *mm, struct vm_object *vmo);
 bool vm_using_shared_optimization(struct vm_region *region);
+int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size);
+void vm_unmap_every_region_in_range(struct mm_address_space *as, unsigned long start,
+				    unsigned long length);
+bool limits_are_contained(struct vm_region *reg, unsigned long start, unsigned long limit);
 
 int imax(int x, int y)
 {
@@ -95,6 +99,8 @@ static struct page *vm_zero_page = NULL;
 struct vm_region *vm_reserve_region(struct mm_address_space *as,
 				    unsigned long start, size_t size)
 {
+	MUST_HOLD_LOCK(&as->vm_spl);
+
 	struct vm_region *region = zalloc(sizeof(struct vm_region));
 	if(!region)
 		return NULL;
@@ -109,7 +115,14 @@ struct vm_region *vm_reserve_region(struct mm_address_space *as,
 	if(res.inserted == false)
 	{
 		if(res.datum_ptr)
-			panic("oopsie");
+		{
+			spin_unlock(&as->vm_spl);
+			printk("Oopsie at %lx\n", start);
+
+			vm_print_umap();
+			panic("oops");
+		}
+
 		free(region);
 		return NULL;
 	}
@@ -129,20 +142,23 @@ struct vm_region *vm_reserve_region(struct mm_address_space *as,
 
 unsigned long vm_allocate_base(struct mm_address_space *as, unsigned long min, size_t size)
 {
+	MUST_HOLD_LOCK(&as->vm_spl);
+
 	if(min < as->start)
 		min = as->start;
 
-	rb_itor *it = rb_itor_new(as->area_tree);
+	struct rb_itor it;
+	it.node = NULL;
+	it.tree = as->area_tree;
 	bool node_valid;
 	unsigned long last_end = min;
 	struct vm_region *f = NULL;
 
-	MUST_HOLD_LOCK(&as->vm_spl);
 	if(min != as->start)
-		node_valid = rb_itor_search_ge(it, (const void *) min);
+		node_valid = rb_itor_search_ge(&it, (const void *) min);
 	else
 	{
-		node_valid = rb_itor_first(it);
+		node_valid = rb_itor_first(&it);
 	}
 
 	if(!node_valid)
@@ -153,7 +169,7 @@ unsigned long vm_allocate_base(struct mm_address_space *as, unsigned long min, s
 	 * and the start of the address space
 	*/
 
-	f = (struct vm_region *) *rb_itor_datum(it);
+	f = (struct vm_region *) *rb_itor_datum(&it);
 
 #if DEBUG_VM_1
 	printk("Tiniest node: %016lx\n", f->base);
@@ -168,21 +184,20 @@ unsigned long vm_allocate_base(struct mm_address_space *as, unsigned long min, s
 	
 	while(node_valid)
 	{
-		struct vm_region *f = (struct vm_region *) *rb_itor_datum(it);
+		struct vm_region *f = (struct vm_region *) *rb_itor_datum(&it);
 		last_end = f->base + (f->pages << PAGE_SHIFT);
 
-		node_valid = rb_itor_next(it);
+		node_valid = rb_itor_next(&it);
 		if(!node_valid)
 			break;
 
-		struct vm_region *vm = (struct vm_region *) *rb_itor_datum(it);
+		struct vm_region *vm = (struct vm_region *) *rb_itor_datum(&it);
 
 		if(vm->base - last_end >= size && min <= vm->base)
 			break;
 	}
 
 done:
-	rb_itor_free(it);
 #if DEBUG_VM_3
 	if(as == &kernel_address_space && min == kstacks_addr)
 	printk("Ptr: %lx\nSize: %lx\n", last_end, size);
@@ -260,6 +275,8 @@ void vm_late_init(void)
 	vm_addr_init();
 
 	heap_size = arch_heap_get_size() - (heap_addr - heap_addr_no_aslr);
+	spin_lock(&kernel_address_space.vm_spl);
+
 	/* Start populating the address space */
 	struct vm_region *v = vm_reserve_region(&kernel_address_space, heap_addr, heap_size);
 	if(!v)
@@ -285,6 +302,8 @@ void vm_late_init(void)
 
 	vm_zero_page = alloc_page(0);
 	assert(vm_zero_page != NULL);
+
+	spin_unlock(&kernel_address_space.vm_spl);
 
 	is_initialized = true;
 }
@@ -488,21 +507,16 @@ unsigned long vm_get_base_address(uint64_t flags, uint32_t type)
 	}
 }
 
-struct vm_region *vm_allocate_virt_region(uint64_t flags, size_t pages, uint32_t type,
-	uint64_t prot)
+struct vm_region *__vm_allocate_virt_region(uint64_t flags, size_t pages, uint32_t type, uint64_t prot)
 {
-	if(pages == 0)
-		return NULL;
-
-	/* Lock everything before allocating anything */
 	bool allocating_kernel = true;
 	if(flags & VM_ADDRESS_USER)
 		allocating_kernel = false;
 
-	__vm_lock(allocating_kernel);
-
 	struct mm_address_space *as = allocating_kernel ? &kernel_address_space :
 		&get_current_process()->address_space;
+
+	MUST_HOLD_LOCK(&as->vm_spl);
 
 	unsigned long base_addr = vm_get_base_address(flags, type);
 
@@ -514,46 +528,107 @@ struct vm_region *vm_allocate_virt_region(uint64_t flags, size_t pages, uint32_t
 		region->type = type;
 	}
 
-	/* Unlock and return */
+	return region;
+}
+
+struct vm_region *vm_allocate_virt_region(uint64_t flags, size_t pages, uint32_t type, uint64_t prot)
+{
+	if(pages == 0)
+		return NULL;
+
+	/* Lock everything before allocating anything */
+	bool allocating_kernel = true;
+	if(flags & VM_ADDRESS_USER)
+		allocating_kernel = false;
+
+	__vm_lock(allocating_kernel);
+
+	struct vm_region *region = __vm_allocate_virt_region(flags, pages, type, prot);
+
 	__vm_unlock(allocating_kernel);
 
 	return region;
 }
 
-struct vm_region *vm_reserve_address(void *addr, size_t pages, uint32_t type, uint64_t prot)
+bool vm_region_is_empty(void *addr, size_t length)
+{
+	struct mm_address_space *mm = get_current_address_space();
+	struct rb_itor it;
+	it.tree = mm->area_tree;
+	it.node = NULL;
+	unsigned long limit = (unsigned long) addr + length;
+
+	bool node_valid = rb_itor_first(&it);
+	
+	while(node_valid)
+	{
+		struct vm_region *reg = *rb_itor_datum(&it);
+
+		if(limits_are_contained(reg, (unsigned long) addr, limit))
+		{
+			return false;
+		}
+
+		node_valid = rb_itor_next(&it);
+	}
+	
+	return true;
+}
+
+#define VM_CREATE_REGION_AT_DEBUG			0
+
+struct vm_region *__vm_create_region_at(void *addr, size_t pages, uint32_t type, uint64_t prot)
 {
 	bool reserving_kernel = is_higher_half(addr);
 	struct vm_region *v = NULL;
 
-	__vm_lock(reserving_kernel);
-	/* BUG!: There's a bug right here, 
-	 * vm_find_region() is most likely not enough 
-	*/
-	if(vm_find_region(addr))
+	if(!vm_region_is_empty(addr, pages << PAGE_SHIFT))
 	{
-		__vm_unlock(reserving_kernel);
+#if VM_CREATE_REGION_AT_DEBUG
+		sched_enable_preempt();
+		printk("Failed to map %p - %lx\n", addr, (unsigned long) addr + (pages << PAGE_SHIFT));
+		vm_print_umap();
+		sched_disable_preempt();
+#endif
+
 		errno = EINVAL;
 		return NULL;
 	}
 
 	struct mm_address_space *mm = &get_current_process()->address_space;
 
-	if((uintptr_t) addr >= high_half)
-		v = vm_reserve_region(&kernel_address_space, (uintptr_t) addr, pages * PAGE_SIZE);
+	if(reserving_kernel)
+		v = vm_reserve_region(&kernel_address_space, (unsigned long) addr, pages * PAGE_SIZE);
 	else
-		v = vm_reserve_region(mm, (uintptr_t) addr, pages * PAGE_SIZE);
+		v = vm_reserve_region(mm, (unsigned long) addr, pages * PAGE_SIZE);
 	if(!v)
 	{
 		addr = NULL;
 		errno = ENOMEM;
 		goto return_;
 	}
-	v->base = (uintptr_t) addr;
+
+	v->base = (unsigned long) addr;
 	v->pages = pages;
 	v->type = type;
 	v->rwx = prot;
+
 return_:
+	return v;
+}
+
+struct vm_region *vm_create_region_at(void *addr, size_t pages, uint32_t type, uint64_t prot)
+{
+	bool reserving_kernel = is_higher_half(addr);
+	struct vm_region *v = NULL;
+
+	__vm_lock(reserving_kernel);
+
+	assert(prot & VM_USER && !reserving_kernel);
+	v = __vm_create_region_at(addr, pages, type, prot);
+
 	__vm_unlock(reserving_kernel);
+
 	return v;
 }
 
@@ -944,39 +1019,15 @@ int vm_check_pointer(void *addr, size_t needed_space)
 		return -1;
 }
 
-void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off)
+void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file, off_t off)
 {
-	/* FIXME: Lots of this code needs correct error paths */
-	int error = 0;
-
+	int st = 0;
 	struct vm_region *area = NULL;
-	struct file *file_descriptor = NULL;
-	if(length == 0)
-		return (void*) -EINVAL;
-	if(!(flags & MAP_PRIVATE) && !(flags & MAP_SHARED))
-		return (void*) -EINVAL;
-	if(flags & MAP_PRIVATE && flags & MAP_SHARED)
-		return (void*) -EINVAL;
-	/* If we don't like the offset, return EINVAL */
-	if(off % PAGE_SIZE)
-		return (void*) -EINVAL;
+	bool is_file_mapping = file != NULL;
 
-	if(!(flags & MAP_ANONYMOUS)) /* This is a file-backed mapping */
-	{
-		file_descriptor = get_file_description(fd);
-		if(!file_descriptor)
-			return (void *) (unsigned long) -errno;
+	struct mm_address_space *mm = get_current_address_space();
 
-		bool fd_has_write = !(file_descriptor->f_flags & O_WRONLY) &&
-				    !(file_descriptor->f_flags & O_RDWR);
-		if(fd_has_write && prot & PROT_WRITE
-		&& flags & MAP_SHARED)
-		{
-			/* You can't map for writing on a file without read access with MAP_SHARED! */
-			error = -EACCES;
-			goto out_error;
-		}
-	}
+	spin_lock(&mm->vm_spl);
 
 	/* Calculate the pages needed for the overall size */
 	size_t pages = vm_align_size_to_pages(length);
@@ -988,22 +1039,23 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 	{
 		if(flags & MAP_FIXED)
 		{
-			error = -ENOMEM;
+			st = -ENOMEM;
 			goto out_error;
 		}
-		
-		addr = NULL;
+		else
+			addr = NULL;
 	}
+
 
 	if(!addr)
 	{
 		if(flags & MAP_FIXED)
 		{
-			error = -ENOMEM;
+			st = -ENOMEM;
 			goto out_error;
 		}
 		/* Specified by POSIX, if addr == NULL, guess an address */
-		area = vm_allocate_virt_region(VM_ADDRESS_USER, pages,
+		area = __vm_allocate_virt_region(VM_ADDRESS_USER, pages,
 			VM_TYPE_SHARED, vm_prot);
 	}
 	else
@@ -1011,25 +1063,25 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 		if(flags & MAP_FIXED)
 		{
 			struct mm_address_space *mm = &get_current_process()->address_space;
-			vm_munmap(mm, addr, pages << PAGE_SHIFT);
+			__vm_munmap(mm, addr, pages << PAGE_SHIFT);
 		}
 
-		area = vm_reserve_address(addr, pages, VM_TYPE_REGULAR, vm_prot);
+		area = __vm_create_region_at(addr, pages, VM_TYPE_REGULAR, vm_prot);
 		if(!area)
 		{
 			if(flags & MAP_FIXED)
 			{
-				error = -ENOMEM;
+				st = -ENOMEM;
 				goto out_error;
 			}
 
-			area = vm_allocate_virt_region(VM_ADDRESS_USER, pages, VM_TYPE_REGULAR, vm_prot);
+			area = __vm_allocate_virt_region(VM_ADDRESS_USER, pages, VM_TYPE_REGULAR, vm_prot);
 		}
 	}
 
 	if(!area)
 	{
-		error = -ENOMEM;
+		st = -ENOMEM;
 		goto out_error;
 	}
 
@@ -1038,7 +1090,7 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 	else
 		area->mapping_type = MAP_PRIVATE;
 
-	if(!(flags & MAP_ANONYMOUS))
+	if(is_file_mapping)
 	{
 		//printk("Mapping off %lx, size %lx, prots %x\n", off, length, prot);
 
@@ -1047,33 +1099,86 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 		area->type = VM_TYPE_FILE_BACKED;
 
 		area->offset = off;
-		area->fd = file_descriptor;
+		area->fd = file;
 
 		/* No need to fd_get here since we already have a reference and we're not
 		 * dropping it on success
 		*/
 
-		if((file_descriptor->f_ino->i_type == VFS_TYPE_BLOCK_DEVICE 
-		   || file_descriptor->f_ino->i_type == VFS_TYPE_CHAR_DEVICE)
+		struct inode *ino = file->f_ino;
+
+		if((ino->i_type == VFS_TYPE_BLOCK_DEVICE 
+		   || ino->i_type == VFS_TYPE_CHAR_DEVICE)
 		   && area->mapping_type == MAP_SHARED)
 		{
-			struct inode *vnode = file_descriptor->f_ino;
-			if(!vnode->i_fops.mmap)
+			if(!ino->i_fops.mmap)
 			{
 				return (void *) -ENOSYS;
 			}
 
-			return vnode->i_fops.mmap(area, vnode);
+			void *ret = ino->i_fops.mmap(area, ino);
+
+			spin_unlock(&mm->vm_spl);
+
+			return ret;
 		}
 	}
 
 	if(setup_vmregion_backing(area, pages, !(flags & MAP_ANONYMOUS)) < 0)
 			return (void *) -ENOMEM;
 
-	return (void *) area->base;
+	void *base = (void *) area->base;
+
+	spin_unlock(&mm->vm_spl);
+	return base;
 
 out_error:
-	if(file_descriptor)	fd_put(file_descriptor);
+	spin_unlock(&mm->vm_spl);
+	return (void *) (unsigned long) st;
+}
+
+void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off)
+{
+	int error = 0;
+
+	struct file *file = NULL;
+	bool is_file_mapping = !(flags & MAP_ANONYMOUS);
+
+	/* Ok, start the basic input sanitation for user-space inputs */
+	if(length == 0)
+		return (void*) -EINVAL;
+
+	if(!(flags & MAP_PRIVATE) && !(flags & MAP_SHARED))
+		return (void*) -EINVAL;
+
+	if(flags & MAP_PRIVATE && flags & MAP_SHARED)
+		return (void*) -EINVAL;
+
+	/* Our mmap() implementation needs page aligned offsets */
+	if(off % PAGE_SIZE)
+		return (void*) -EINVAL;
+
+	if(is_file_mapping) /* This is a file-backed mapping */
+	{
+		file = get_file_description(fd);
+		if(!file)
+			return (void *) (unsigned long) -errno;
+
+		bool fd_has_write = !(file->f_flags & O_WRONLY) &&
+				    !(file->f_flags & O_RDWR);
+	
+		if(fd_has_write && prot & PROT_WRITE && flags & MAP_SHARED)
+		{
+			/* You can't map for writing on a file without read access with MAP_SHARED! */
+			error = -EACCES;
+			goto out_error;
+		}
+	}
+
+	return vm_mmap(addr, length, prot, flags, file, off);
+
+out_error:
+	if(file)	fd_put(file);
 	return (void *) (unsigned long) error;
 }
 
@@ -1390,7 +1495,7 @@ static bool vm_print(const void *key, void *datum, void *user_data)
 	bool file_backed = is_file_backed(region);
 	struct file *fd = region->fd;
 
-	printk("[%016lx - %016lx] : %s%s%s\n", region->base,
+	printk("(key %p) [%016lx - %016lx] : %s%s%s\n", key, region->base,
 					       region->base + (region->pages << PAGE_SHIFT),
 					       "R", w ? "W" : "-", x ? "X" : "-");
 	printk("vmo %p mapped at offset %lx", region->vmo, region->offset);
@@ -1717,7 +1822,6 @@ void vm_destroy_addr_space(struct mm_address_space *mm)
 	/* First, iterate through the rb tree and free/unmap stuff */
 	spin_lock(&mm->vm_spl);
 	rb_tree_free(mm->area_tree, vm_destroy_area);
-	spin_lock_held(&mm->vm_spl);
 
 	/* We're going to swap our address space to init's, and free our own */
 	
@@ -2157,6 +2261,7 @@ bool is_file_backed(struct vm_region *region)
 	return region->type == VM_TYPE_FILE_BACKED;
 }
 
+/* TODO: All this code is flawed */
 void *create_file_mapping(void *addr, size_t pages, int flags,
 	int prot, struct file *fd, off_t off)
 {
@@ -2171,11 +2276,20 @@ void *create_file_mapping(void *addr, size_t pages, int flags,
 	}
 	else
 	{
-		if(!(entry = vm_reserve_address(addr, pages, VM_TYPE_REGULAR, prot)))
+		if(!(entry = vm_create_region_at(addr, pages, VM_TYPE_REGULAR, prot)))
 		{
-			vm_munmap(get_current_address_space(), addr, pages << PAGE_SHIFT);
-			if((entry = vm_reserve_address(addr, pages, VM_TYPE_REGULAR, prot)))
+			struct mm_address_space *mm = get_current_address_space();
+			spin_lock(&mm->vm_spl);
+			
+			vm_unmap_every_region_in_range(mm, (unsigned long) addr, pages << PAGE_SHIFT);
+
+			if((entry = __vm_create_region_at(addr, pages, VM_TYPE_REGULAR, prot)))
+			{
+				spin_unlock(&mm->vm_spl);
 				goto good;
+			}
+			
+			spin_unlock(&mm->vm_spl);
 
 			if(flags & VM_MMAP_FIXED)
 				return NULL;
@@ -2209,7 +2323,7 @@ good: ;
 
 void *map_user(void *addr, size_t pages, uint32_t type, uint64_t prot)
 {
-	struct vm_region *en = vm_reserve_address(addr, pages, type, prot);
+	struct vm_region *en = vm_create_region_at(addr, pages, type, prot);
 	if(!en)
 		return NULL;
 	if(setup_vmregion_backing(en, pages, false) < 0)
@@ -2292,6 +2406,8 @@ void *vm_get_fallback_cr3(void)
 
 void vm_remove_region(struct mm_address_space *as, struct vm_region *region)
 {
+	MUST_HOLD_LOCK(&as->vm_spl);
+
 	dict_remove_result res = rb_tree_remove(as->area_tree,
 						 (const void *) region->base);
 	assert(res.removed == true);
@@ -2299,6 +2415,8 @@ void vm_remove_region(struct mm_address_space *as, struct vm_region *region)
 
 int vm_add_region(struct mm_address_space *as, struct vm_region *region)
 {
+	MUST_HOLD_LOCK(&as->vm_spl);
+
 	dict_insert_result res = rb_tree_insert(as->area_tree, (void *) region->base);
 
 	if(!res.inserted)
@@ -2322,22 +2440,19 @@ void vm_unmap_range_raw(void *range, size_t size)
 	vm_invalidate_range((unsigned long) range, size >> PAGE_SHIFT);
 }
 
-int vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
+int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
 {
 	size = ALIGN_TO(size, PAGE_SIZE);
 	unsigned long addr = (unsigned long) __addr;
 	unsigned long limit = addr + size;
 
-	spin_lock(&as->vm_spl);
-
-	//printk("munmap %lx, %lx\n", addr, limit);
+	MUST_HOLD_LOCK(&as->vm_spl);
 
 	while(addr < limit)
 	{
 		struct vm_region *region = vm_find_region_in_tree((void *) addr, as->area_tree);
 		if(!region)
 		{
-			spin_unlock(&as->vm_spl);
 			return -EINVAL;
 		}
 
@@ -2361,7 +2476,6 @@ int vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
 
 				if(vm_add_region(as, region) < 0)
 				{
-					spin_unlock(&as->vm_spl);
 					return -ENOMEM;
 				}
 			
@@ -2394,7 +2508,6 @@ int vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
 
 				if(!new_region)
 				{
-					spin_unlock(&as->vm_spl);
 					return -ENOMEM;
 				}
 
@@ -2421,7 +2534,6 @@ int vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
 					{
 						vm_remove_region(as, new_region);
 						/* TODO: Undo new_region stuff and free it */
-						spin_unlock(&as->vm_spl);
 						return -ENOMEM;
 					}
 
@@ -2467,9 +2579,18 @@ int vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
 		size -= to_shave_off;
 	}
 
+	return 0;
+}
+
+int vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
+{
+	spin_lock(&as->vm_spl);
+
+	int ret = __vm_munmap(as, __addr, size);
+
 	spin_unlock(&as->vm_spl);
 
-	return 0;
+	return ret;
 }
 
 static bool for_every_region_visit(const void *key, void *region, void *caller_data)
@@ -2514,12 +2635,17 @@ void __vm_invalidate_range(unsigned long addr, size_t pages, struct mm_address_s
 		{
 			/* Lock the scheduler so we don't get a race condition */
 			struct spinlock *l = get_per_cpu_ptr_any(scheduler_lock, cpu);
-			spin_lock(l);
+
+			/* We need to save irqs here because there might be an IRQ that
+			 * interrupts us and wants to wake a thread, and then we're deadlocked.
+			 */
+	
+			spin_lock_irqsave(l);
 			struct process *p = get_thread_for_cpu(cpu)->owner;
 
 			if(!p || mm != &p->address_space)
 			{
-				spin_unlock(l);
+				spin_unlock_irqrestore(l);
 				continue;
 			}
 	
@@ -2528,7 +2654,7 @@ void __vm_invalidate_range(unsigned long addr, size_t pages, struct mm_address_s
 			shootdown.pages = pages;
 			cpu_send_message(cpu, CPU_FLUSH_TLB, &shootdown, true);
 
-			spin_unlock(l);
+			spin_unlock_irqrestore(l);
 		}
 	}
 }
@@ -2652,7 +2778,7 @@ void *vm_remap_create_new_mapping_of_shared_pages(void *new_address, size_t new_
 			goto out;
 		}
 
-		new_mapping = vm_reserve_address(new_address, new_size >> PAGE_SHIFT,
+		new_mapping = vm_create_region_at(new_address, new_size >> PAGE_SHIFT,
 			VM_TYPE_REGULAR, old_region->rwx);
 	}
 	else
@@ -2726,24 +2852,84 @@ void *vm_remap_try(void *old_address, size_t old_size, void *new_address, size_t
 	return (void *) old_reg->base;
 }
 
+bool limits_are_contained(struct vm_region *reg, unsigned long start, unsigned long limit)
+{
+	unsigned long reg_limit = reg->base + (reg->pages << PAGE_SHIFT);
+
+	if(start <= reg->base && limit > reg->base)
+		return true;
+	if(reg->base <= start && reg_limit >= limit)
+		return true;
+
+	return false;
+}
+
+#define VM_UNMAP_EVERY_REGION_IN_RANGE_DEBUG			0
+
 void vm_unmap_every_region_in_range(struct mm_address_space *as, unsigned long start,
 				    unsigned long length)
 {
 	unsigned long limit = start + length;
-	while(true)
+
+#if VM_UNMAP_EVERY_REGION_IN_RANGE_DEBUG
+	sched_enable_preempt();
+
+	printk("Unmapping from %lx to %lx\n", start, limit);
+#endif
+
+begin: ;
+	struct rb_itor it;
+	it.node = NULL;
+	it.tree = as->area_tree;
+
+	bool node_valid = rb_itor_first(&it);
+
+	while(node_valid)
 	{
-		void **pp = rb_tree_search_ge(as->area_tree, (void *) start);
-		if(!pp)
-			return;
+		void **pp = rb_itor_datum(&it);
+		assert(pp != NULL);
 
 		struct vm_region *reg = *pp;
-		if(reg->base >= start + length)
-			return;
+
+#if	VM_UNMAP_EVERY_REGION_IN_RANGE_DEBUG
+		printk("Testing if %lx - %lx overlaps with %lx - %lx: ", reg->base,
+			   reg->base + (reg->pages << PAGE_SHIFT), start, limit);
+#endif
+		if(!limits_are_contained(reg, start, limit))
+		{
+#if VM_UNMAP_EVERY_REGION_IN_RANGE_DEBUG
+			printk("no\n");
+#endif
+			node_valid = rb_itor_next(&it);
+			if(!node_valid)
+				break;
+			continue;
+		}
+
+#if VM_UNMAP_EVERY_REGION_IN_RANGE_DEBUG
+		printk("yes\n");
+#endif
+
 		unsigned long reg_len = reg->pages << PAGE_SHIFT;
-		unsigned long to_unmap = limit - reg->base < reg_len
-			? limit - reg->base : reg_len;
-		vm_munmap(as, (void *) reg->base, to_unmap);
+		unsigned long reg_addr = reg->base < start ? start : reg->base;
+		unsigned long to_unmap = limit - reg_addr < reg_len
+			? limit - reg_addr : reg_len;
+
+		if(to_unmap == 0)
+			break;
+#if VM_UNMAP_EVERY_REGION_IN_RANGE_DEBUG
+		printk("__vm_munmap %lx - %lx\n", reg_addr, reg_addr + to_unmap);
+#endif
+		int st = __vm_munmap(as, (void *) reg_addr, to_unmap);
+
+		assert(st == 0);
+
+		goto begin;
 	}
+
+#if VM_UNMAP_EVERY_REGION_IN_RANGE_DEBUG
+	sched_disable_preempt();
+#endif
 }
 
 /* TODO: Test things */

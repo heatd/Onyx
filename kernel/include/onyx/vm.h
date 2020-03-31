@@ -153,7 +153,7 @@ struct vm_region *vm_allocate_virt_region(uint64_t flags, size_t pages,
 struct page *vm_map_range(void *range, size_t pages, uint64_t flags);
 void vm_unmap_range(void *range, size_t pages);
 void vm_destroy_mappings(void *range, size_t pages);
-struct vm_region *vm_reserve_address(void *addr, size_t pages, uint32_t type,
+struct vm_region *vm_create_region_at(void *addr, size_t pages, uint32_t type,
 	uint64_t prot);
 struct vm_region *vm_find_region(void *addr);
 int vm_clone_as(struct mm_address_space *addr_space);

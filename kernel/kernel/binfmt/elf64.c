@@ -279,6 +279,7 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 				pages, VM_MMAP_PRIVATE | VM_MMAP_FIXED,
 				prot, fd, phdrs[i].p_offset - misalignment))
 			{
+				perror("create file mapping");
 				errno = ENOMEM;
 				goto error2;
 			}
