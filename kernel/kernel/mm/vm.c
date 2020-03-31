@@ -58,7 +58,7 @@ uintptr_t kstacks_addr	 	= arch_kstacks_off;
 uintptr_t heap_addr		= arch_heap_off;
 size_t heap_size = 0;
 
-int setup_vmregion_backing(struct vm_region *region, size_t pages, bool is_file_backed);
+int vm_region_setup_backing(struct vm_region *region, size_t pages, bool is_file_backed);
 int populate_shared_mapping(void *page, struct file *fd,
 	struct vm_region *entry, size_t nr_pages);
 void vm_remove_region(struct mm_address_space *as, struct vm_region *region);
@@ -355,11 +355,11 @@ void do_vm_unmap(void *range, size_t pages)
 	bool node_valid = rb_itor_search_ge(&it, (void *) off);
 	while(node_valid)
 	{
-		struct page *p = *rb_itor_datum(&it);
+		size_t poff = (size_t) rb_itor_key(&it);
 		
-		if(p->off >= off + (nr_pages << PAGE_SHIFT))
+		if(poff >= off + (nr_pages << PAGE_SHIFT))
 			break;
-		unsigned long reg_off = p->off - off;
+		unsigned long reg_off = poff - off;
 		paging_unmap((void *) (entry->base + reg_off));
 
 		node_valid = rb_itor_next(&it);
@@ -399,7 +399,7 @@ bool vm_mapping_requires_wb(struct vm_region *reg)
 
 bool vm_mapping_is_anon(struct vm_region *reg)
 {
-	return reg->vmo->type == VMO_ANON;
+	return reg->fd == NULL;
 }
 
 bool vm_mapping_requires_write_protect(struct vm_region *reg)
@@ -686,7 +686,8 @@ int vm_clone_as(struct mm_address_space *addr_space)
 	return 0;
 }
 
-int vm_flush_mapping(struct vm_region *mapping, struct process *proc)
+int vm_flush_mapping(struct vm_region *mapping, struct process *proc, unsigned int flags,
+                     unsigned int rwx)
 {
 	struct vm_object *vmo = mapping->vmo;
 	
@@ -701,17 +702,19 @@ int vm_flush_mapping(struct vm_region *mapping, struct process *proc)
 	spin_lock(&vmo->page_lock);
 
 	it.tree = vmo->pages;
+	int mapping_rwx = flags & VM_FLUSH_RWX_VALID ? (int) rwx : mapping->rwx; 
 
 	bool node_valid = rb_itor_search_ge(&it, (void *) off);
 	while(node_valid)
 	{
 		struct page *p = *rb_itor_datum(&it);
-		
-		if(p->off >= off + (nr_pages << PAGE_SHIFT))
+		size_t poff = (size_t) rb_itor_key(&it);
+
+		if(poff >= off + (nr_pages << PAGE_SHIFT))
 			break;
-		unsigned long reg_off = p->off - off;
+		unsigned long reg_off = poff - off;
 		if(!__map_pages_to_vaddr(proc, (void *) (mapping->base + reg_off), page_to_phys(p),
-			PAGE_SIZE, mapping->rwx))
+			PAGE_SIZE, mapping_rwx))
 		{
 			spin_unlock(&vmo->page_lock);
 			return -1;
@@ -724,13 +727,13 @@ int vm_flush_mapping(struct vm_region *mapping, struct process *proc)
 	return 0;
 }
 
-int vm_flush(struct vm_region *entry)
+int vm_flush(struct vm_region *entry, unsigned int flags, unsigned int rwx)
 {
 	struct process *p = entry->mm ? entry->mm->process : NULL;
 #if DEBUG_VM_FLUSH
 printk("Has process? %s\n", p ? "true" : "false");
 #endif
-	return vm_flush_mapping(entry, p);
+	return vm_flush_mapping(entry, p, flags, rwx);
 }
 
 struct fork_iteration
@@ -822,7 +825,8 @@ static bool fork_vm_region(const void *key, void *datum, void *user_data)
 
 	new_region->mm = it->target_mm;
 
-	if(vm_flush(new_region) < 0)
+	unsigned int new_rwx = is_private ? new_region->rwx & ~VM_WRITE : new_region->rwx;
+	if(vm_flush(new_region, 0, new_rwx) < 0)
 	{
 		/* Let the generic addr space destruction code handle this, 
 		 * since there's everything's set now */
@@ -988,7 +992,7 @@ void *vmalloc(size_t pages, int type, int perms)
 		return NULL;
 	}
 
-	if(vm_flush(vm) < 0)
+	if(vm_flush(vm, 0, 0) < 0)
 	{
 		/* FIXME: Same as above */
 		vmo_remove_mapping(vmo, vm);
@@ -1027,6 +1031,10 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
 
 	struct mm_address_space *mm = get_current_address_space();
 
+	/* We don't like this offset. */
+	if(off & (PAGE_SIZE - 1))
+		return (void *) (unsigned long) -EINVAL;
+
 	spin_lock(&mm->vm_spl);
 
 	/* Calculate the pages needed for the overall size */
@@ -1063,7 +1071,7 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
 		if(flags & MAP_FIXED)
 		{
 			struct mm_address_space *mm = &get_current_process()->address_space;
-			__vm_munmap(mm, addr, pages << PAGE_SHIFT);
+			vm_unmap_every_region_in_range(mm, (unsigned long) addr, pages << PAGE_SHIFT);
 		}
 
 		area = __vm_create_region_at(addr, pages, VM_TYPE_REGULAR, vm_prot);
@@ -1124,8 +1132,11 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
 		}
 	}
 
-	if(setup_vmregion_backing(area, pages, !(flags & MAP_ANONYMOUS)) < 0)
-			return (void *) -ENOMEM;
+	if(vm_region_setup_backing(area, pages, !(flags & MAP_ANONYMOUS)) < 0)
+	{
+		vm_munmap(mm, addr, pages << PAGE_SHIFT);
+		return (void *) -ENOMEM;
+	}
 
 	void *base = (void *) area->base;
 
@@ -1604,6 +1615,78 @@ struct page *vm_pf_get_page_from_vmo(struct vm_pf_context *ctx)
 	return ctx->page;
 }
 
+int vm_handle_non_present_wp(struct fault_info *info, struct vm_pf_context *ctx)
+{
+	struct vm_region *entry = ctx->entry;
+
+	assert(info->read ^ info->write);
+	if(!info->write)
+	{
+		/* If we'll need to wp, write-protect */
+		ctx->page_rwx &= ~VM_WRITE;
+		if(vm_mapping_is_anon(entry))
+		{
+			ctx->page = vm_zero_page;
+		}
+	}
+	else
+	{
+		if(vm_mapping_requires_wb(entry))
+		{
+			/* else handle it differently(we'll need) */
+			struct page *p = vm_pf_get_page_from_vmo(ctx);
+			if(!p)
+			{
+				info->error = VM_SIGSEGV;
+				return -1;
+			}
+
+			pagecache_dirty_block(p->cache);
+
+			ctx->page = p;
+		}
+		else if(vm_mapping_is_anon(entry))
+		{
+			/* This is done in vm_pf_get_page_from_vmo */
+		}
+	}
+
+	return 0;
+}
+
+bool vm_mapping_is_cow(struct vm_region *entry)
+{
+	return entry->mapping_type == MAP_PRIVATE;
+}
+
+int vm_handle_non_present_copy_on_write(struct fault_info *info, struct vm_pf_context *ctx)
+{
+	bool is_write = info->write;
+
+	/* Let the vm_pf_get_page_from_vmo() do that */
+	if(is_write)
+		return 0;
+	
+	struct vm_region *entry = ctx->entry;
+	size_t vmo_off = (ctx->vpage - entry->base) + entry->offset;
+
+	struct vm_object *vmo = entry->vmo;
+
+#if 0
+	printk("Vmo off: %lx\n", vmo_off);
+	printk("Faulting %lx in\n", ctx->vpage);
+#endif
+
+	struct page *page = vmo_get_cow_page(vmo, vmo_off);
+	if(!page)
+		return -1;
+
+	ctx->page = page;
+	ctx->page_rwx &= ~VM_WRITE;
+
+	return 0;
+}
+
 int vm_handle_non_present_pf(struct vm_pf_context *ctx)
 {
 	struct vm_region *entry = ctx->entry;
@@ -1611,37 +1694,13 @@ int vm_handle_non_present_pf(struct vm_pf_context *ctx)
 
 	if(vm_mapping_requires_write_protect(entry))
 	{
-		assert(info->read ^ info->write);
-		if(!info->write)
-		{
-			/* If we'll need to wp, write-protect */
-			ctx->page_rwx &= ~VM_WRITE;
-			if(vm_mapping_is_anon(entry))
-			{
-				ctx->page = vm_zero_page;
-			}
-		}
-		else
-		{
-			if(vm_mapping_requires_wb(entry))
-			{
-				/* else handle it differently(we'll need) */
-				struct page *p = vm_pf_get_page_from_vmo(ctx);
-				if(!p)
-				{
-					info->error = VM_SIGSEGV;
-					return -1;
-				}
-
-				pagecache_dirty_block(p->cache);
-
-				ctx->page = p;
-			}
-			else if(vm_mapping_is_anon(entry))
-			{
-				/* This is done down there */
-			}
-		}
+		if(vm_handle_non_present_wp(info, ctx) < 0)
+			return -1;
+	}
+	else if(vm_mapping_is_cow(entry))
+	{
+		if(vm_handle_non_present_copy_on_write(info, ctx) < 0)
+			return -1;
 	}
 	
 	/* If page wasn't set before by other fault handling code, just fetch from the vmo */
@@ -1679,6 +1738,56 @@ void vm_handle_write_wb(struct vm_pf_context *ctx)
 	vm_invalidate_range(ctx->vpage, 1);
 }
 
+int vm_handle_present_cow(struct vm_pf_context *ctx)
+{
+	struct vm_object *vmo = ctx->entry->vmo;
+	struct fault_info *info = ctx->info;
+
+	struct vm_region *entry = ctx->entry;
+	size_t vmo_off = (ctx->vpage - entry->base) + entry->offset;
+
+	if(!vmo_on_cow(entry->vmo))
+	{
+		struct page *p = vm_pf_get_page_from_vmo(ctx);
+		if(!p)
+		{
+			info->error = VM_SIGSEGV;
+			return -1;
+		}
+
+		ctx->page = p;
+
+		if(!map_pages_to_vaddr((void *) ctx->vpage,
+			page_to_phys(ctx->page), PAGE_SIZE, ctx->page_rwx))
+		{
+			info->error = VM_SIGSEGV;
+			return -1;
+		}
+
+		return 0;
+	}
+
+	struct page *new_page = vmo_cow_on_page(vmo, vmo_off);
+	if(!new_page)
+	{
+		info->error = VM_SIGSEGV;
+		return -1;
+	}
+
+	if(!map_pages_to_vaddr((void *) ctx->vpage,
+				page_to_phys(new_page), PAGE_SIZE, ctx->page_rwx))
+	{
+		page_unpin(new_page);
+		info->error = VM_SIGSEGV;
+		return -1;
+	}
+
+
+	page_unpin(new_page);
+
+	return 0;
+}
+
 int vm_handle_present_pf(struct vm_pf_context *ctx)
 {
 	struct vm_region *entry = ctx->entry;
@@ -1688,23 +1797,10 @@ int vm_handle_present_pf(struct vm_pf_context *ctx)
 	{
 		if(vm_mapping_requires_wb(entry))
 			vm_handle_write_wb(ctx);
-		if(vm_mapping_is_anon(entry))
+		else if(vm_mapping_is_cow(entry))
 		{
-			struct page *p = vm_pf_get_page_from_vmo(ctx);
-			if(!p)
-			{
-				info->error = VM_SIGSEGV;
+			if(vm_handle_present_cow(ctx) < 0)
 				return -1;
-			}
-
-			ctx->page = p;
-
-			if(!map_pages_to_vaddr((void *) ctx->vpage,
-				page_to_phys(ctx->page), PAGE_SIZE, ctx->page_rwx))
-			{
-				info->error = VM_SIGSEGV;
-				return -1;
-			}
 		}
 	}
 
@@ -1958,15 +2054,6 @@ void vm_sysfs_init(void)
 	sysfs_add(&vm_obj, NULL);
 }
 
-int vm_mark_cow(struct vm_region *area)
-{
-	/* If the area isn't writable, don't mark it as COW */
-	if(!(area->rwx & VM_WRITE))
-		return errno = EINVAL, -1;
-	area->flags |= VM_COW;
-	return 0;
-}
-
 struct vm_region *vm_find_region_and_writable(void *usr)
 {
 	struct vm_region *entry = vm_find_region(usr);
@@ -2045,7 +2132,6 @@ void vm_do_fatal_page_fault(struct fault_info *info)
 		siginfo_t sinfo = {};
 		sinfo.si_code = SI_KERNEL;
 		sinfo.si_addr = (void *) info->fault_address;
-	
 		kernel_tkill(SIGSEGV, get_current_thread(), SIGNAL_FORCE, &sinfo);
 	}
 	else
@@ -2060,7 +2146,7 @@ void *get_pages(size_t flags, uint32_t type, size_t pages, size_t prot, uintptr_
 	if(!va)
 		return NULL;
 	
-	if(setup_vmregion_backing(va, pages, false) < 0)
+	if(vm_region_setup_backing(va, pages, false) < 0)
 	{
 		vm_munmap(va->mm, (void *) va->base, pages << PAGE_SHIFT);
 		return NULL;
@@ -2074,7 +2160,7 @@ void *get_pages(size_t flags, uint32_t type, size_t pages, size_t prot, uintptr_
 			return NULL;
 		}
 
-		if(vm_flush(va) < 0)
+		if(vm_flush(va, 0, 0) < 0)
 		{
 			vmo_remove_mapping(va->vmo, va);
 			vmo_unref(va->vmo);
@@ -2186,14 +2272,14 @@ bool vm_using_shared_optimization(struct vm_region *region)
 	return region->flags & VM_USING_MAP_SHARED_OPT;
 }
 
-int setup_vmregion_backing(struct vm_region *region, size_t pages, bool is_file_backed)
+int vm_region_setup_backing(struct vm_region *region, size_t pages, bool is_file_backed)
 {
 	bool is_shared = is_mapping_shared(region);
 	bool is_kernel = is_higher_half((void *) region->base);
-	bool can_use_shared_optimization = can_use_map_shared_optimization(region);
+
 	struct vm_object *vmo;
 
-	if(is_file_backed && (is_shared || can_use_shared_optimization))
+	if(is_file_backed && is_shared)
 	{
 		struct inode *ino = region->fd->f_ino;
 
@@ -2212,20 +2298,18 @@ int setup_vmregion_backing(struct vm_region *region, size_t pages, bool is_file_
 		vmo = ino->i_pages;
 
 		spin_unlock(&ino->i_pages_lock);
-		if(can_use_shared_optimization)
-		{
-			region->flags |= VM_USING_MAP_SHARED_OPT;
-			//printk("using optimization\n");
-		}
 	}
 	else if(is_file_backed && !is_shared)
 	{
+		/* Alright, we're using COW to fault stuff in */
 		/* store the offset in vmo->priv */
 		vmo = vmo_create(pages * PAGE_SIZE, (void *) region->offset);
 		if(!vmo)
 			return -1;
 		vmo->ino = region->fd->f_ino;
 		vmo->commit = vm_commit_private;
+		vmo_do_cow(vmo, region->fd->f_ino->i_pages);
+
 		region->offset = 0;
 	}
 	else
@@ -2236,7 +2320,7 @@ int setup_vmregion_backing(struct vm_region *region, size_t pages, bool is_file_
 
 	vmo_assign_mapping(vmo, region);
 
-	if(!(is_shared || can_use_shared_optimization) && !is_kernel)
+	if(!is_shared && !is_kernel)
 	{
 		struct mm_address_space *mm = &get_current_process()->address_space;
 
@@ -2312,7 +2396,7 @@ good: ;
 	entry->fd = fd;
 	fd_get(fd);
 
-	if(setup_vmregion_backing(entry, pages, true) < 0)
+	if(vm_region_setup_backing(entry, pages, true) < 0)
 	{
 		/*if(wants_wb)
 			writeback_remove_region(entry);*/
@@ -2326,7 +2410,7 @@ void *map_user(void *addr, size_t pages, uint32_t type, uint64_t prot)
 	struct vm_region *en = vm_create_region_at(addr, pages, type, prot);
 	if(!en)
 		return NULL;
-	if(setup_vmregion_backing(en, pages, false) < 0)
+	if(vm_region_setup_backing(en, pages, false) < 0)
 		return NULL;
 	return addr;
 }
@@ -3059,7 +3143,9 @@ int vm_change_locks_range_in_region(struct vm_region *region,
 	while(node_valid)
 	{
 		struct page *p = *rb_itor_datum(&it);
-		if(p->off >= end_off)
+		size_t poff = (size_t) rb_itor_key(&it);
+
+		if(poff >= end_off)
 			return 0;
 		if(flags & VM_LOCK)
 			p->flags |= PAGE_FLAG_LOCKED;
@@ -3131,16 +3217,13 @@ int vm_unlock_range(void *start, unsigned long length, unsigned long flags)
 
 void vm_wp_page(struct mm_address_space *mm, void *vaddr)
 {
-	printk("wp page %p %p\n", mm, vaddr);
 	assert(paging_write_protect(vaddr, mm) == true);
 
 	__vm_invalidate_range((unsigned long) vaddr, 1, mm);
 }
 
-void vm_wp_page_for_every_region(struct page *page, struct vm_object *vmo)
+void vm_wp_page_for_every_region(struct page *page, size_t page_off, struct vm_object *vmo)
 {
-	size_t page_off = page->off;
-
 	spin_lock(&vmo->mapping_lock);
 
 	list_for_every(&vmo->mappings)

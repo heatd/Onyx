@@ -104,7 +104,6 @@ public:
 		auto page = alloc_page(0);
 		if(!page)
 			return nullptr;
-		page->off = off;
 		return page;
 	}
 
@@ -131,7 +130,7 @@ public:
 
 		assert(vmo_prefault(vmo, 1024 << PAGE_SHIFT, 0) >= 0);
 
-		assert(vm_flush(vm) >= 0);
+		assert(vm_flush(vm, 0, 0) >= 0);
 		//printk("Ptr: %lx - %lx\n", (unsigned long) vm->base, (unsigned long) vm->base + (1024 << PAGE_SHIFT));
 
 		return vm;
@@ -169,7 +168,9 @@ bool vm_unmap_tests::is_not_present_in_vmo(struct vm_object *vmo, unsigned long 
 	while(node_valid)
 	{
 		struct page *page = (struct page *) *rb_itor_datum(&it);
-		if(page->off >= lower && page->off < higher)
+		size_t off = (size_t) rb_itor_key(&it);
+	
+		if(off >= lower && off < higher)
 		{
 			pages_to_be_found--;
 			//printk("page offset %lx present!\n", page->off);

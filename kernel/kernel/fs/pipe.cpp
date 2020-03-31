@@ -231,11 +231,11 @@ int pipe_create(struct inode **pipe_readable, struct inode **pipe_writeable)
 	/* Create the node */
 	struct inode *node0 = nullptr, *node1 = nullptr; 
 	pipe *new_pipe = nullptr;
-	node0 = inode_create();
+	node0 = inode_create(false);
 	if(!node0)
 		return errno = ENOMEM, -1;
 	
-	node1 = inode_create();
+	node1 = inode_create(false);
 	if(!node1)
 		goto err0;
 

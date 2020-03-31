@@ -88,7 +88,7 @@ error:
 
 struct inode *tmpfs_file_to_vfs(tmpfs_file_t *file, struct inode *parent)
 {
-	struct inode *f = inode_create();
+	struct inode *f = inode_create(file->type == TMPFS_FILE_TYPE_REG);
 	if(!f)
 		return NULL;
 	switch(file->type)
@@ -129,6 +129,8 @@ struct inode *tmpfs_file_to_vfs(tmpfs_file_t *file, struct inode *parent)
 
 	f->i_inode = (ino_t) file;
 	f->i_size = file->size;
+	if(f->i_type == VFS_TYPE_FILE)
+		f->i_pages->size = f->i_size;
 	f->i_sb = tmpfs_get_root(parent)->superblock;
 
 	return f;
@@ -521,7 +523,7 @@ int tmpfs_mount(const char *mountpoint)
 		return -1;
 	}
 
-	struct inode *node = inode_create();
+	struct inode *node = inode_create(false);
 	if(!node)
 	{
 		tmpfs_destroy_early(fs);

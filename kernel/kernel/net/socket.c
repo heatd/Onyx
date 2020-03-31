@@ -335,7 +335,7 @@ void socket_close(struct inode *ino)
 
 struct inode *socket_create_inode(struct socket *socket)
 {
-	struct inode *inode = inode_create();
+	struct inode *inode = inode_create(false);
 
 	if(!inode)
 		return NULL;

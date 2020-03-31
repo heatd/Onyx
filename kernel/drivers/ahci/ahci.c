@@ -380,7 +380,6 @@ bool ahci_do_command(struct ahci_port *ahci_port, struct ahci_command_ata *buf)
 
 	wait_queue_add(&req.wake_sem, &wait_token);
 
-
 	set_current_state(THREAD_UNINTERRUPTIBLE);
 
 	if(!ahci_do_command_async(ahci_port, buf, &req))

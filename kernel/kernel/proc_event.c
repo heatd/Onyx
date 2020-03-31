@@ -134,7 +134,7 @@ int sys_proc_event_attach(pid_t pid, unsigned long flags)
 	new_sub->valid_sub = true;
 	new_sub->has_new_event = false;
 
-	struct inode *ino = inode_create();
+	struct inode *ino = inode_create(false);
 	if(!ino)
 	{
 		free(new_sub);

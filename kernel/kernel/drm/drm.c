@@ -557,15 +557,17 @@ void *drm_mmap(struct vm_region *area, struct inode *inode)
 		return NULL;
 	size_t nr_pages = vm_align_size_to_pages(dbuf->size);
 	struct page *p = dbuf->pages;
+	size_t off = 0;
 	while(nr_pages--)
 	{
-		if(vmo_add_page(p->off, p, vmo) < 0)
+		if(vmo_add_page(off, p, vmo) < 0)
 		{
 			vmo_destroy(vmo);
 			return NULL;
 		}
 
 		p = p->next_un.next_allocation;
+		off += PAGE_SIZE;
 	}
 
 	vmo_assign_mapping(vmo, area);

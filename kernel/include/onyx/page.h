@@ -62,8 +62,6 @@ struct page
 	unsigned long flags;
 	struct page_cache_block *cache;
 
-	size_t off;		/* Offset in vmo */
-
 	union
 	{
 		struct page *next_allocation;

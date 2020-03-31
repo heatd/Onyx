@@ -467,8 +467,6 @@ struct page *__get_phys_pages(size_t nr_pgs, unsigned long flags)
 			return NULL;
 		}
 
-		p->off = off;
-
 		if(page_should_zero(flags))
 		{
 			set_non_temporal(PAGE_TO_VIRT(p), 0, PAGE_SIZE);

@@ -36,13 +36,13 @@
 #define VM_TYPE_FILE_BACKED	(5)
 #define VM_TYPE_MODULE		(6)
 
-#define VM_WRITE 		(1 << 0)
-#define VM_NOEXEC 		(1 << 1)
-#define VM_USER 		(1 << 2)
-#define VM_NOCACHE		(1 << 3)
+#define VM_WRITE 			(1 << 0)
+#define VM_NOEXEC 			(1 << 1)
+#define VM_USER 			(1 << 2)
+#define VM_NOCACHE			(1 << 3)
 #define VM_WRITETHROUGH		(1 << 4)
-#define VM_WC			(1 << 5)
-#define VM_WP			(1 << 6)
+#define VM_WC				(1 << 5)
+#define VM_WP				(1 << 6)
 #define VM_DONT_MAP_OVER	(1 << 7)
 
 /* Internal flags used by the mm code */
@@ -184,7 +184,10 @@ void *get_pages(size_t flags, uint32_t type, size_t pages, size_t prot,
 	uintptr_t alignment);
 bool is_mapping_shared(struct vm_region *);
 bool is_file_backed(struct vm_region *);
-int vm_flush(struct vm_region *entry);
+
+#define VM_FLUSH_RWX_VALID			(1 << 0)
+int vm_flush(struct vm_region *entry, unsigned int flags, unsigned int rwx);
+
 void vm_print_map(void);
 void vm_print_umap();
 int vm_mprotect(struct mm_address_space *as, void *__addr, size_t size, int prot);
@@ -248,7 +251,7 @@ struct kernel_limits
 
 void get_kernel_limits(struct kernel_limits *l);
 struct page *vm_commit_page(void *page);
-void vm_wp_page_for_every_region(struct page *page, struct vm_object *vmo);
+void vm_wp_page_for_every_region(struct page *page, size_t offset, struct vm_object *vmo);
 void __vm_invalidate_range(unsigned long addr, size_t pages, struct mm_address_space *mm);
 
 #define VM_FUTURE_PAGES			(1 << 0)

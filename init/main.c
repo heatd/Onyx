@@ -170,7 +170,6 @@ bool fail_on_mount_error = true;
 void segv(int sig, siginfo_t *info, void *ucontext)
 {
 	ucontext_t *ctx = ucontext;
-	printf("hello comrade\n");
 	//printf("Fault at %lx\n", info->si_addr);
 	//printf("Sent from %d\n", info->si_code);
 }
@@ -200,6 +199,27 @@ void signal_test()
 	}
 
 	while(true) {}
+}
+
+void mmap_test(void)
+{
+	int fd = open("/etc/init.d/targets/default.target", O_RDONLY);
+	if(fd < 0)
+	{
+		perror("bad open");
+		return;
+	}
+
+	volatile void *addr = mmap(NULL, 4096, PROT_WRITE | PROT_READ, MAP_PRIVATE, fd, 0);
+	if(addr == MAP_FAILED)
+	{
+		perror("mmap");
+		return;
+	}
+
+	printf("Here %s\n", addr);
+
+	memset(addr, 0, 4096);
 }
 
 int main(int argc, char **argv, char **envp)
@@ -246,6 +266,7 @@ int main(int argc, char **argv, char **envp)
 	setup_hostname();
 
 	//signal_test();
+	mmap_test();
 
 	/* Execute daemons */
 	exec_daemons();

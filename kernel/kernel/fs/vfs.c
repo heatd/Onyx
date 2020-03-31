@@ -112,7 +112,6 @@ struct page *vmo_inode_commit(size_t off, struct vm_object *vmo)
 	if(!page)
 		return NULL;
 
-	page->off = off;
 	void *ptr = PAGE_TO_VIRT(page);
 	size_t to_read = i->i_size - off < PAGE_SIZE ? i->i_size - off : PAGE_SIZE;
 
@@ -1033,7 +1032,7 @@ void inode_release(struct object *object)
 	free(inode);
 }
 
-struct inode *inode_create(void)
+struct inode *inode_create(bool is_reg)
 {
 	struct inode *inode = zalloc(sizeof(*inode));
 
@@ -1042,6 +1041,15 @@ struct inode *inode_create(void)
 
 	/* Don't release inodes immediately */
 	object_init(&inode->i_object, inode_release);
+
+	if(is_reg)
+	{
+		if(inode_create_vmo(inode) < 0)
+		{
+			free(inode);
+			return NULL;
+		}
+	}
 
 	return inode;
 }

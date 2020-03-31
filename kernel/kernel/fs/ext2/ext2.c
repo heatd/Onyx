@@ -209,7 +209,7 @@ struct inode *ext2_open(struct inode *nd, const char *name)
 struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber, struct inode *parent)
 {
 	/* Create a file */
-	struct inode *ino = inode_create();
+	struct inode *ino = inode_create(ext2_ino_type_to_vfs_type(inode->mode) == VFS_TYPE_FILE);
 
 	if(!ino)
 	{
@@ -226,6 +226,9 @@ struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber,
 	ino->i_rdev = inode->dbp[0];
 
 	ino->i_size = EXT2_CALCULATE_SIZE64(inode);
+	if(ino->i_type == VFS_TYPE_FILE)
+		ino->i_pages->size = ino->i_size;
+
 	ino->i_uid = inode->uid;
 	ino->i_gid = inode->gid;
 	ino->i_sb = parent->i_sb;
@@ -465,7 +468,7 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 		return NULL;
 	}
 
-	struct inode *node = inode_create();
+	struct inode *node = inode_create(false);
 	struct ext2_inode *ino = ext2_get_inode_from_number(fs, 2);
 	if(!node || !ino)
 	{

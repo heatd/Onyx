@@ -48,7 +48,7 @@ int sysfs_type_to_vfs_type(mode_t mode)
 
 struct inode *sysfs_create_inode_for_file(struct sysfs_object *f)
 {
-	struct inode *ino = inode_create();
+	struct inode *ino = inode_create(false);
 	if(!ino)
 		return NULL;
 
@@ -144,7 +144,7 @@ size_t sysfs_write(size_t offset, size_t sizeofwrite, void *buffer, struct inode
 void sysfs_init(void)
 {
 	/* If this function fails, just panic. sysfs is crucial */
-	struct inode *root = inode_create();
+	struct inode *root = inode_create(false);
 	assert(root != NULL);
 
 	struct superblock *sb = zalloc(sizeof(*sb));

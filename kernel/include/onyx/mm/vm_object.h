@@ -40,7 +40,7 @@ struct vm_object
 	struct list_head mappings;
 
 	/* We also hold a pointer to their COW clones */
-	struct vm_object *cow_clone_parent, *cow_clone_child;
+	struct vm_object *cow_clone;
 
 	struct inode *ino;
 	struct spinlock page_lock;
@@ -77,6 +77,15 @@ void vmo_destroy(struct vm_object *vmo);
 int vmo_add_page(size_t off, struct page *p, struct vm_object *vmo);
 void vmo_ref(struct vm_object *vmo);
 bool vmo_is_shared(struct vm_object *vmo);
+void vmo_do_cow(struct vm_object *vmo, struct vm_object *target);
+struct page *vmo_get_cow_page(struct vm_object *vmo, size_t off);
+void vmo_uncow(struct vm_object *vmo);
+struct page *vmo_cow_on_page(struct vm_object *vmo, size_t off);
+
+static inline bool vmo_on_cow(struct vm_object *vmo)
+{
+	return vmo->cow_clone != NULL;
+}
 
 #ifdef __cplusplus
 }

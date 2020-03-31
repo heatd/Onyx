@@ -164,7 +164,7 @@ ssize_t lookup_file_cache(void *buffer, size_t sizeofread, struct inode *file,
 ssize_t do_file_caching(size_t sizeofread, struct inode *ino, off_t offset,
 	int flags);
 
-struct inode *inode_create(void);
+struct inode *inode_create(bool is_regular_file);
 
 struct inode *get_fs_root(void);
 
@@ -191,6 +191,9 @@ int inode_flush(struct inode *ino);
 #define FILE_ACCESS_EXECUTE (1 << 2)
 
 bool file_can_access(struct inode *file, unsigned int perms);
+
+struct page_cache_block;
+struct page_cache_block *inode_get_page(struct inode *inode, off_t offset, long flags);
 
 #ifdef __cplusplus
 }

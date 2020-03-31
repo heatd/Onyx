@@ -14,7 +14,7 @@ static struct file_ops pseudo_ops =
 
 struct inode *pseudo_to_inode(struct pseudo_file *file)
 {
-	struct inode *inode = inode_create();
+	struct inode *inode = inode_create(false);
 	if(!inode)
 		return NULL;
 	inode->i_dev = (dev_t) file->mount;

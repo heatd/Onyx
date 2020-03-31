@@ -57,7 +57,7 @@ void flush_dev::sync()
 		
 		struct page *page = blk->page;
 		struct vm_object *vmo = blk->node->i_pages;
-		vm_wp_page_for_every_region(page, vmo);
+		vm_wp_page_for_every_region(page, blk->offset, vmo);
 		block_load--;
 	}
 
