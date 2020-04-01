@@ -33,9 +33,8 @@ static inline unsigned long pow2(int exp)
 
 struct page_list 
 {
-	struct page_list *prev;
 	struct page *page;
-	struct page_list *next;
+	struct list_head list_node;
 };
 
 struct page_cpu
@@ -51,8 +50,7 @@ struct page_arena
 	unsigned long nr_pages;
 	void *start_arena;
 	void *end_arena;
-	struct page_list *page_list;
-	struct page_list *tail;
+	struct list_head page_list;
 	struct spinlock lock;
 	struct page_arena *next;
 };
@@ -71,7 +69,6 @@ struct page_cpu main_cpu = {0};
 
 struct page *page_alloc_one(unsigned long flags, struct page_arena *arena)
 {
-
 #if 0
 	hrtime_t t0 = 0;
 	hrtime_t t1 = 0;
@@ -82,20 +79,13 @@ struct page *page_alloc_one(unsigned long flags, struct page_arena *arena)
 	}
 #endif
 	
-	struct page_list *p = arena->page_list;
-
-	if(p->next)
-		p->next->prev = NULL;
-	arena->page_list = p->next;
-
-	if(arena->tail == p)
-		arena->tail = NULL;
+	struct page_list *p = container_of(list_first_element(&arena->page_list), struct page_list, list_node);
+	
+	list_remove(&p->list_node);
 
 	page_ref(p->page);
 
 	arena->free_pages--;
-
-	p->page->next_un.next_allocation = NULL;
 
 	spin_unlock(&arena->lock);
 #if 0
@@ -119,8 +109,6 @@ struct page *page_alloc_from_arena(size_t nr_pages, unsigned long flags, struct 
 	struct page_list *base_pg = NULL;
 	bool found_base = false;
 
-	struct page_list *p = arena->page_list;
-
 	if(arena->free_pages < nr_pages)
 	{
 		spin_unlock(&arena->lock);
@@ -131,9 +119,12 @@ struct page *page_alloc_from_arena(size_t nr_pages, unsigned long flags, struct 
 		return page_alloc_one(flags, arena);
 
 	/* Look for contiguous pages */
-	for(; p && found_pages != nr_pages; p = p->next)
+	list_for_every(&arena->page_list)
 	{
-		if(nr_pages != 1 && (uintptr_t) p->next - (uintptr_t) p > PAGE_SIZE)
+		struct page_list *p = container_of(l, struct page_list, list_node);
+		struct page_list *next = container_of(l->next, struct page_list, list_node);
+
+		if(nr_pages != 1 && (uintptr_t) next - (uintptr_t) p > PAGE_SIZE)
 		{
 			found_pages = 0;
 			found_base = false;
@@ -153,6 +144,9 @@ struct page *page_alloc_from_arena(size_t nr_pages, unsigned long flags, struct 
 			}
 			++found_pages;
 		}
+
+		if(found_pages == nr_pages)
+			break;
 	}
 
 	/* If we haven't found nr_pages contiguous pages, continue the search */
@@ -164,23 +158,15 @@ struct page *page_alloc_from_arena(size_t nr_pages, unsigned long flags, struct 
 	else
 	{
 		base_pg = (struct page_list *) base;
-		struct page_list *head = base_pg->prev;
-		struct page_list *tail = base_pg;
+		struct list_head *prev = base_pg->list_node.prev;
+		struct list_head *next = &base_pg->list_node;
 
 		arena->free_pages -= found_pages;
 
 		for(size_t i = 0; i < found_pages; i++)
-			tail = tail->next;
+			next = next->next;
 
-		if(head)
-			head->next = tail;
-		else
-			arena->page_list = tail;
-
-		if(tail)
-			tail->prev = head;
-		else
-			arena->tail = head;
+		list_remove_bulk(prev, next);
 
 		spin_unlock(&arena->lock);
 
@@ -211,7 +197,7 @@ struct page *page_alloc_from_arena(size_t nr_pages, unsigned long flags, struct 
 				plist = pl->page;
 			}
 
-			pl = pl->next;
+			pl = container_of(pl->list_node.next, struct page_list, list_node);
 		}
 
 		return base_pg->page;
@@ -258,73 +244,21 @@ struct page *page_alloc(size_t nr_pages, unsigned long flags)
 	return NULL;
 }
 
-static void append_page(struct page_arena *arena, struct page_list *page)
-{
-	if(!arena->page_list)
-	{
-		arena->page_list = arena->tail = page;
-		page->next = NULL;
-		page->prev = NULL;
-	}
-	else
-	{
-		arena->tail->next = page;
-		page->prev = arena->tail;
-		arena->tail = page;
-		page->next = NULL;
-	}
-}
-
-void page_free_pages(struct page_arena *arena, void *addr, size_t nr_pages)
+void page_free_pages(struct page_arena *arena, void *_addr, size_t nr_pages)
 {
 	spin_lock(&arena->lock);
 
-	if(!arena->page_list)
+	unsigned long addr = (unsigned long) _addr;
+
+	for(size_t i = 0; i < nr_pages; i++)
 	{
-		assert(arena->tail == NULL);
-		struct page_list *list = NULL;
-		uintptr_t b = (uintptr_t) addr;
-		for(size_t i = 0; i < nr_pages; i++, b += PAGE_SIZE)
-		{
-			struct page_list *l = PHYS_TO_VIRT(b);
-			l->page = phys_to_page(b);
-			l->next = NULL;
-			if(!list)
-			{
-				arena->page_list = l;
-				l->prev = NULL;
-				list = l;	
-			}
-			else
-			{
-				list->next = l;
-				l->prev = list;
-				list = l;
-			}
+		struct page_list *l = PHYS_TO_VIRT(addr);
+		l->page = phys_to_page(addr);
 
-		}
-
-		arena->tail = list;
-	}
-	else
-	{
-		struct page_list *list = arena->tail;
-		
-		uintptr_t b = (uintptr_t) addr;
-		for(size_t i = 0; i < nr_pages; i++, b += PAGE_SIZE)
-		{
-			struct page_list *l = PHYS_TO_VIRT(b);
-			l->page = phys_to_page(b);
-			l->next = NULL;
-			list->next = l;
-			l->prev = list;
-			list = l;
-		}
-
-		arena->tail = list;
+		list_add_tail(&l->list_node, &arena->page_list);
 	}
 
-	arena->free_pages++;
+	arena->free_pages += nr_pages;
 
 	spin_unlock(&arena->lock);
 }
@@ -357,10 +291,9 @@ static int page_add(struct page_arena *arena, void *__page,
 	nr_global_pages++;
 
 	struct page_list *page = PHYS_TO_VIRT(__page);
-	page->next = NULL;
 
-	append_page(arena, page);
 	page->page = page_add_page(__page);
+	list_add_tail(&page->list_node, &arena->page_list);
 
 	return 0;
 }
@@ -386,6 +319,7 @@ static void page_add_region(uintptr_t base, size_t size, struct bootmodule *modu
 		arena->free_pages = arena->nr_pages = area_size >> PAGE_SHIFT;
 		arena->start_arena = (void*) base;
 		arena->end_arena = (void*) (base + area_size);
+		INIT_LIST_HEAD(&arena->page_list);
 
 		for(size_t i = 0; i < area_size; i += PAGE_SIZE)
 		{

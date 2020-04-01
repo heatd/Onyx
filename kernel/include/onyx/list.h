@@ -38,7 +38,6 @@ static inline void __list_add(struct list_head *_new, struct list_head *prev, st
 	_new->next = next;
 	_new->prev = prev;
 	prev->next = _new;
-	write_memory_barrier();
 }
 
 static inline void list_add(struct list_head *_new, struct list_head *head)
@@ -53,11 +52,15 @@ static inline void list_add_tail(struct list_head *_new, struct list_head *head)
 
 #define LIST_REMOVE_POISON			((struct list_head *) 0xDEAD)
 
+static inline void list_remove_bulk(struct list_head *prev, struct list_head *next)
+{
+	prev->next = next;
+	next->prev = prev;
+}
+
 static inline void list_remove(struct list_head *node)
 {
-	node->next->prev = node->prev;
-	node->prev->next = node->next;
-	write_memory_barrier();
+	list_remove_bulk(node->prev, node->next);
 	node->prev = node->next = LIST_REMOVE_POISON;
 }
 
