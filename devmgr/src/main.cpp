@@ -19,12 +19,14 @@
 #include <mutex>
 #include <memory>
 
+#include "../include/devmgr.hpp"
+#include "../include/pci.hpp"
+#include "../include/fd_wrapper.hpp"
+
 class Device
 {
 private:
 	std::string name;
-	std::mutex mtx;
-	std::unique_ptr <int> j;
 public:
 	Device(std::string name) : name(name)
 	{
@@ -33,21 +35,47 @@ public:
 	{}
 };
 
+void Bus::EnumerateDevices()
+{
+	DIR *nd = fdopendir(fd);
+	if(!nd)
+	{
+		perror("fdopendir");
+		throw std::runtime_error("Failed to create DIR");
+	}
+
+	struct dirent *d;
+	while((d = readdir(nd)) != NULL)
+	{
+		
+	}
+}
+
 namespace DeviceManager
 {
 
-std::vector<Device*> device_list;
+std::vector<std::shared_ptr<Bus> > bus_list;
 
-int Enumerate(int fd)
+
+BusType BusNameToType(const std::string& name)
 {
-	int dir = openat(fd, "devices", O_RDONLY|O_DIRECTORY);
-	if(dir < 0)
-	{
-		perror("openat");
-		return -1;
-	}
+	BusType type;
 
-	DIR *nd = fdopendir(dir);
+	if(name == "pcie" || name == "pci")
+		type = BusType::PCI;
+	else if(name == "acpi")
+		type = BusType::ACPI;
+	else if(name == "usb")
+		type = BusType::USB;
+	else
+		throw std::runtime_error("Unknown bus " + name);
+
+	return type;
+}
+
+int EnumerateBuses(int fd)
+{
+	DIR *nd = fdopendir(fd);
 	if(!nd)
 	{
 		perror("Error opening dir\n");
@@ -57,57 +85,49 @@ int Enumerate(int fd)
 	struct dirent *d;
 	while((d = readdir(nd)) != NULL)
 	{
-		Device *dev = new Device(std::string(d->d_name));
+		int bus_fd = openat(fd, d->d_name, O_DIRECTORY | O_RDWR);
+		if(bus_fd < 0)
+		{
+			perror("openat");
+			throw std::runtime_error("Failed to open /sys/bus/" + std::string(d->d_name));
+		}
 
-		device_list.push_back(dev);
+		const std::string name(d->d_name);
+		auto type = BusNameToType(name);
+	
+		std::shared_ptr<Bus> dev;
+
+		switch(type)
+		{
+			case BusType::PCI:
+				dev = std::make_shared<PciBus>(name, bus_fd);
+			default:
+				continue;
+		}
+
+		bus_list.push_back(std::move(dev));
+
+		dev->EnumerateDevices();
 	}
 
 	return 0;
 }
 
-
 };
 
 int main(int argc, char **argv, char **envp)
 {
-	close(0);
-	close(1);
-	close(2);
 	struct stat buf;
-	int fd = open("/sys", O_RDONLY | O_DIRECTORY);
+	int fd = open("/sys/bus", O_RDONLY | O_DIRECTORY);
 	if(fd < 0)
 	{
-		perror("Could not open /sys");
+		perror("Could not open /sys/bus");
 		return 1;
 	}
 
-	if(fstat(fd, &buf) < 0)
-	{
-		perror("fstat");
-		return 1;
-	}
-
-	DIR *dir = fdopendir(fd);
-
-	if(!dir)
-	{
-		perror("Could not open /sys");
-		return 1;
-	}
-
-	struct dirent *d;
-	while((d = readdir(dir)) != NULL)
-	{
-		if(d->d_type == DT_DIR)
-		{
-			if(!strcmp(d->d_name, "devices"))
-			{
-				if(DeviceManager::Enumerate(fd) < 0)
-					return 1;
-			}
-		}
-	}
+	DeviceManager::EnumerateBuses(fd);
 	
+
 	while(1)
 		sleep(10000);
 }

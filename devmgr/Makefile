@@ -1,5 +1,6 @@
 PROG:= devmgrd
-OBJS:= src/main.o
+OBJS:= src/main.o src/pci.o
+
 CFLAGS:=-O2 -g -D_POSIX_C_SOURCE -fstack-protector-strong
 clean:
 	rm -f $(PROG)
