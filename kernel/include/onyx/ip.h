@@ -23,6 +23,7 @@ struct sock;
 
 struct ip_header
 {
+	/* TODO: These bitfields are screwing up the structure's size, I think */
 	unsigned int ihl : 4;
 	unsigned int version : 4;
 	unsigned int dscp : 6;
@@ -36,6 +37,8 @@ struct ip_header
 	uint32_t source_ip;
 	uint32_t dest_ip;
 } __attribute__((packed));
+
+#define IPV4_MIN_HEADER_LEN			20
 
 #define IPV4_FRAG_INFO_DONT_FRAGMENT	0x4000
 #define IPV4_FRAG_INFO_MORE_FRAGMENTS	0x2000
@@ -67,6 +70,7 @@ static inline uint16_t __ipsum_unfolded(void *addr, size_t bytes, uint16_t init_
 		carry = ret >> 16;
 		ret &= 0xFFFF;
 	}
+
 	return ret;
 }
 

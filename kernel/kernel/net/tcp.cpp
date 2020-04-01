@@ -151,14 +151,28 @@ struct packetbuf_proto tcpv4_proto =
 
 size_t tcpv4_get_packetlen(void *info, struct packetbuf_proto **next, void **next_info)
 {
-	tcp_socket *socket = reinterpret_cast<tcp_socket *>(info);
+	tcp_packet *pkt = reinterpret_cast<tcp_packet *>(info);
 
 	*next = ipv4_get_packetbuf();
-	*next_info = socket->netif;
+	*next_info = pkt->get_socket()->netif;
 
-	/* TODO: Handle options */
+	return sizeof(struct tcp_header) + pkt->options_length();
+}
 
-	return sizeof(struct tcp_header);
+bool validate_tcp_packet(const tcp_header *header, size_t size)
+{
+	if(sizeof(tcp_header) > size)
+		return false;
+
+	auto flags = ntohs(header->data_offset_and_flags);
+
+	uint16_t data_off = flags >> TCP_DATA_OFFSET_SHIFT;
+	size_t off_bytes = data_off * sizeof(uint32_t);
+
+	if(off_bytes > size)
+		return false;
+
+	return true;
 }
 
 extern "C"
@@ -167,6 +181,9 @@ int tcp_handle_packet(struct ip_header *ip_header, size_t size, struct netif *ne
 	int st = 0;
 	auto ip_header_size = ip_header->ihl * sizeof(uint32_t);
 	auto header = reinterpret_cast<tcp_header *>(((uint8_t *) ip_header + ip_header_size));
+
+	if(!validate_tcp_packet(header, size))
+		return 0;
 
 	auto flags = ntohs(header->data_offset_and_flags);
 
@@ -208,13 +225,15 @@ out:
 
 uint16_t tcpv4_calculate_checksum(tcp_header *header, uint16_t packet_length, uint32_t srcip, uint32_t dstip)
 {
+	bool padded = packet_length & 1;
+
 	uint32_t proto = ((packet_length + IPV4_TCP) << 8);
-	
+
 	uint16_t r = __ipsum_unfolded(&srcip, sizeof(srcip), 0);
 	r = __ipsum_unfolded(&dstip, sizeof(dstip), r);
 	r = __ipsum_unfolded(&proto, sizeof(proto), r);
-	
-	r = __ipsum_unfolded(header, packet_length, r);
+
+	r = __ipsum_unfolded(header, padded ? packet_length + 1 : packet_length, r);
 
 	return ipsum_fold(r);
 }
@@ -226,64 +245,190 @@ constexpr inline uint16_t tcp_header_length_to_data_off(uint16_t len)
 
 #define TCP_MAKE_DATA_OFF(off)		(off << TCP_DATA_OFFSET_SHIFT)
 
-int tcp_socket::send_syn_ack(uint16_t flags)
+uint16_t tcp_packet::options_length() const
+{
+	uint16_t len = 0;
+	list_for_every_safe(&option_list)
+	{
+		tcp_option *opt = container_of(l, tcp_option, list_node);
+		len += opt->length;
+	}
+
+	/* TCP options have padding to make sure it ends on a 32-bit boundary */
+	if(len & (4 - 1))
+		len = ALIGN_TO(len, 4);
+
+	return len;
+}
+
+void tcp_packet::put_options(char *opts)
+{
+	list_for_every(&option_list)
+	{
+		tcp_option *opt = container_of(l, tcp_option, list_node);
+
+		opts[0] = opt->kind;
+		opts[1] = opt->length;
+		/* Take off 2 bytes to account for the overhead of kind and length */
+		memcpy(&opts[2], &opt->data, opt->length - 2);
+		opts += opt->length;
+	}
+}
+
+int tcp_packet::send()
 {
 	struct packetbuf_info info = {0};
+	info.length = payload.size_bytes();
+	bool padded = false;
+
+	if(info.length & 1)
+	{
+		padded = true;
+		info.length++;
+	}
+
 	if(packetbuf_alloc(&info, &tcpv4_proto, this) < 0)
 	{
 		packetbuf_free(&info);
 		return -ENOMEM;
 	}
-
-	struct tcp_header *tcp_packet = (tcp_header *)(((char *) info.packet) + packetbuf_get_off(&info));
-
-	memset(tcp_packet, 0, sizeof(tcp_header));
 	
-	auto &dest = daddr();
-	auto &src = saddr();
+	uint16_t options_len = options_length();
+	auto header_size = sizeof(tcp_header) + options_len;
 
-	auto data_off = TCP_MAKE_DATA_OFF(tcp_header_length_to_data_off(sizeof(tcp_header)));
+	struct tcp_header *header = (tcp_header *)(((char *) info.packet) + packetbuf_get_off(&info));
+
+	memset(header, 0, header_size);
+	
+	auto &dest = socket->daddr();
+	auto &src = socket->saddr();
+
+	auto data_off = TCP_MAKE_DATA_OFF(tcp_header_length_to_data_off(header_size));
 
 	/* Assume the max window size as the window size, for now */
-	tcp_packet->window_size = htons(UINT16_MAX);
-	tcp_packet->source_port = src.sin_port;
-	tcp_packet->sequence_number = htonl(seq_number);
-	tcp_packet->data_offset_and_flags = htons(data_off | flags);
-	tcp_packet->dest_port = dest.sin_port;
-	tcp_packet->urgent_pointer = 0;
+	header->window_size = htons(socket->window_size);
+	header->source_port = src.sin_port;
+	header->sequence_number = htonl(socket->sequence_nr());
+	header->data_offset_and_flags = htons(data_off | flags);
+	header->dest_port = dest.sin_port;
+	header->urgent_pointer = 0;
 	
 	if(flags & TCP_FLAG_ACK)
-		tcp_packet->ack_number = htonl(ack_number + 1);
+		header->ack_number = htonl(socket->acknowledge_nr() + 1);
 	else
-		tcp_packet->ack_number = 0;
+		header->ack_number = 0;
+	
+	put_options(reinterpret_cast<char *>(header + 1));
 
-	tcp_packet->checksum = tcpv4_calculate_checksum(tcp_packet,
-		sizeof(tcp_header), src.sin_addr.s_addr, dest.sin_addr.s_addr);
+	char *payload_ptr = reinterpret_cast<char *>(header) + header_size;
+	memcpy(payload_ptr, payload.data(), payload.size_bytes());
+
+	if(padded)
+	{
+		payload_ptr[payload.size_bytes()] = 0;
+		info.length--;
+	}
+
+	header->checksum = tcpv4_calculate_checksum(header,
+		header_size + payload.size_bytes(), src.sin_addr.s_addr, dest.sin_addr.s_addr);
 
 	int st = ipv4_send_packet(src.sin_addr.s_addr, dest.sin_addr.s_addr, IPV4_TCP, &info,
-		netif);
+		socket->netif);
 	
-	state = tcp_state::TCP_STATE_SYN_SENT;
+	if(padded) info.length++;
 
 	packetbuf_free(&info);
 
 	if(st < 0)
 	{
-		state = tcp_state::TCP_STATE_CLOSED;
 		return st;
 	}
 
 	return 0;
 }
 
-int tcp_socket::start_connection()
-{
-	seq_number = arc4random();
+static constexpr uint16_t min_header_size = sizeof(tcp_header);
 
-	int st = send_syn_ack(TCP_FLAG_SYN);
+bool tcp_socket::parse_options(tcp_header *packet)
+{
+	auto flags = ntohs(packet->data_offset_and_flags);
+
+	bool syn_set = flags & TCP_FLAG_SYN;
+	(void) syn_set;
+
+	uint16_t data_off = flags >> TCP_DATA_OFFSET_SHIFT;
+
+	if(data_off == tcp_header_length_to_data_off(min_header_size))
+		return true;
+
+	auto data_off_bytes = data_off * sizeof(uint32_t);
+	
+	uint8_t *options = reinterpret_cast<uint8_t *>(packet + 1);
+	uint8_t *end = options + (data_off_bytes - min_header_size);
+
+	while(options != end)
+	{
+		uint8_t opt_byte = *options;
+
+		/* The layout of TCP options is [byte 0 - option kind]
+		 * [byte 1 - option length ] [byte 2...length - option data]
+		 */
+
+		if(opt_byte == TCP_OPTION_END_OF_OPTIONS)
+			break;
+
+		if(opt_byte == TCP_OPTION_NOP)
+		{
+			options++;
+			continue;
+		}
+		
+		uint8_t length = *(options + 1);
+
+		switch(opt_byte)
+		{
+			case TCP_OPTION_MSS:
+				if(!syn_set)
+					return false;
+
+				mss = *(uint16_t *)(options + 2);
+				mss = ntohs(mss);
+				break;
+			case TCP_OPTION_WINDOW_SCALE:
+				if(!syn_set)
+					return false;
+
+				uint8_t wss = *(options + 2);
+				window_size_shift = wss;
+				break;
+		}
+
+
+		options += length;
+	}
+
+	return true;
+}
+
+/* TODO: This doesn't apply to IPv6 */
+constexpr uint16_t tcp_headers_overhead = sizeof(struct tcp_header) +
+	sizeof(ethernet_header_t) + IPV4_MIN_HEADER_LEN;
+
+int tcp_socket::start_handshake()
+{
+	tcp_packet first_packet{{}, this, TCP_FLAG_SYN};
+	tcp_option opt{TCP_OPTION_MSS, 4};
+	uint16_t our_mss = netif->mtu - tcp_headers_overhead;
+	opt.data.mss = htons(our_mss);
+
+	first_packet.append_option(&opt);
+
+	int st = first_packet.send();
 	
 	if(st < 0)
 		return st;
+
+	state = tcp_state::TCP_STATE_SYN_SENT;
 
 	auto ack = wait_for_ack([this](const tcp_ack *ack) -> bool
 	{
@@ -301,17 +446,50 @@ int tcp_socket::start_connection()
 	
 	if(!ack)
 	{
+		state = tcp_state::TCP_STATE_CLOSED;
 		return -ETIMEDOUT;
 	}
+
+	state = tcp_state::TCP_STATE_SYN_RECIEVED;
 	
 	auto packet = ack->get_packet();
 
 	ack_number = ntohl(packet->sequence_number);
 	seq_number++;
+	window_size = ntohs(packet->window_size) << window_size_shift;
 
-	st = send_syn_ack(TCP_FLAG_ACK);
-	
+	if(!parse_options(packet))
+	{
+		delete ack;
+		/* Invalid packet */
+		state = tcp_state::TCP_STATE_CLOSED;
+		return -EIO;
+	}
+
 	delete ack;
+
+	return 0;
+}
+
+int tcp_socket::finish_handshake()
+{
+	tcp_packet packet{{}, this, TCP_FLAG_ACK};
+	return packet.send();
+}
+
+int tcp_socket::start_connection()
+{
+	seq_number = arc4random();
+
+	int st = start_handshake();
+	if(st < 0)
+		return st;
+
+	st = finish_handshake();
+
+	state = tcp_state::TCP_STATE_ESTABLISHED;
+	
+	expected_ack = ack_number;
 
 	return st;
 }
@@ -350,22 +528,70 @@ int tcp_connect(const struct sockaddr *addr, socklen_t addrlen, struct socket *s
 	return socket->connect(addr, addrlen);
 }
 
-ssize_t tcp_socket::sendto(const void *buf, size_t len, int flags)
+ssize_t tcp_socket::queue_data(const void *user_buf, size_t len)
 {
-	mutex_lock(&send_buffer_lock);
-
-	if(send_buffer.buf_size() < current_pos + len)
+	if(current_pos + len > send_buffer.buf_size())
 	{
 		if(!send_buffer.alloc_buf(current_pos + len))
 		{
-			mutex_unlock(&send_buffer_lock);
-			return -ENOMEM;
+			return -EINVAL;
 		}
 	}
 
-	mutex_unlock(&send_buffer_lock);
+
+	uint8_t *ptr = send_buffer.get_buf() + current_pos;
+
+	if(copy_from_user(ptr, user_buf, len) < 0)
+		return -EFAULT;
+	current_pos += len;
 
 	return 0;
+}
+
+void tcp_socket::try_to_send()
+{
+	if(window_size >= mss && current_pos >= mss)
+	{
+		cul::slice<const uint8_t> data{send_buffer.begin(), mss};
+		tcp_packet packet{data, this, TCP_FLAG_ACK | TCP_FLAG_PSH};
+
+		packet.send();
+
+		/* TODO: Retry? */
+		auto old_pos = current_pos;
+		current_pos -= data.size_bytes();
+
+		if(current_pos != 0)
+			memcpy(send_buffer.begin(), send_buffer.end() + 1, old_pos - current_pos);
+	}
+	else
+	{
+		/* TODO: Wait for ack */
+		cul::slice<const uint8_t> data{send_buffer.begin(), current_pos};
+		tcp_packet packet{data, this, TCP_FLAG_ACK | TCP_FLAG_PSH};
+		packet.send();
+	}
+}
+
+ssize_t tcp_socket::sendto(const void *buf, size_t len, int flags)
+{
+	if(len > UINT16_MAX)
+		return -EINVAL;
+
+	mutex_lock(&send_lock);
+
+	auto st = queue_data(buf, len);
+	if(st < 0)
+	{
+		mutex_unlock(&send_lock);
+		return st;
+	}
+
+	try_to_send();
+
+	mutex_unlock(&send_lock);
+
+	return len;
 }
 
 ssize_t tcp_sendto(const void *buf, size_t len, int flags, struct sockaddr *addr,

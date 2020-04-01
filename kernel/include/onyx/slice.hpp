@@ -24,6 +24,8 @@ protected:
 	size_t len;
 public:
 	slice_dynamic(Type *p, size_t l) : ptr{p}, len{l} {}
+	slice_dynamic() : ptr(nullptr), len(0) {}
+
 	~slice_dynamic() {}
 	
 	size_t size()
@@ -39,6 +41,7 @@ protected:
 	Type *ptr;
 public:
 	slice_static(Type *p, size_t l) : ptr{p} {}
+	slice_static() : ptr{nullptr} {}
 	~slice_static() {}
 
 	constexpr size_t size()
@@ -62,6 +65,8 @@ public:
 	
 	template <typename IteratorType>
 	slice(IteratorType start, IteratorType end) : base_class{&*start, &*end - &*start} {}
+
+	slice() : base_class{} {}
 
 	Type *data() const
 	{

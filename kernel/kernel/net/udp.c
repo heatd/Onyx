@@ -296,9 +296,22 @@ void udp_append_packet(struct udp_packet *packet, struct udp_socket *socket)
 	sem_signal(&socket->packet_semaphore);
 }
 
+bool valid_udp_packet(udp_header_t *header, size_t length)
+{
+	if(sizeof(udp_header_t) > length)
+		return false;
+	if(ntohs(header->len) > length)
+		return false;
+
+	return true;
+}
+
 void udp_handle_packet(struct ip_header *header, size_t length, struct netif *netif)
 {
 	udp_header_t *udp_header = (udp_header_t *) (header + 1);
+
+	if(!valid_udp_packet(udp_header, length))
+		return;
 
 	struct sockaddr_in addr;
 	addr.sin_addr.s_addr = ntoh32(header->source_ip);

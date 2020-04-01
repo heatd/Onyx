@@ -16,6 +16,8 @@
 
 #ifdef __cplusplus
 #include <onyx/vector.h>
+#include <onyx/slice.hpp>
+
 #endif
 
 struct tcp_header
@@ -43,6 +45,14 @@ struct tcp_header
 #define TCP_DATA_OFFSET_SHIFT	(12)
 #define TCP_DATA_OFFSET_MASK	(0xf)
 
+#define TCP_OPTION_END_OF_OPTIONS		(0)
+#define TCP_OPTION_NOP					(1)
+#define TCP_OPTION_MSS					(2)
+#define TCP_OPTION_WINDOW_SCALE			(3)
+#define TCP_OPTION_SACK_PERMITTED		(4)
+#define TCP_OPTION_SACK					(5)
+#define TCP_OPTION_TIMESTAMP			(8)
+
 #ifdef __cplusplus
 
 enum class tcp_state
@@ -58,14 +68,6 @@ enum class tcp_state
 	TCP_STATE_LAST_ACK,
 	TCP_STATE_TIME_WAIT,
 	TCP_STATE_CLOSED
-};
-
-struct tcp_packet
-{
-	struct sockaddr_in addr;
-	void *payload;
-	size_t size;
-	struct list_head packet_list_memb;
 };
 
 class tcp_ack
@@ -107,6 +109,86 @@ public:
 	}
 };
 
+class tcp_option
+{
+public:
+	/* Lets use a static buffer to simplify things, using the length of SACK as the largest (since it is atm).
+	 * This won't need to be future proof since we can progressively update it as time goes on,
+	 * since we won't send options we're not aware of.
+	 */
+
+	static constexpr uint8_t largest_length = (34 - 2);
+	uint8_t kind;
+	uint8_t length;
+	union
+	{
+		uint16_t mss;
+		uint8_t window_scale_shift;
+		uint8_t _data[largest_length];
+	} data;
+	/* If it was allocated dynamically, the tcp_packet dtor needs to delete it */
+	uint8_t dynamic;
+
+	struct list_head list_node;
+
+	tcp_option(uint8_t kind, uint8_t length) : kind{kind}, length{length}, dynamic{0} {}
+
+	~tcp_option() {}
+
+
+};
+
+class tcp_socket;
+
+class tcp_packet
+{
+private:
+	cul::slice<const uint8_t> payload;
+	tcp_socket *socket;
+	struct list_head option_list;
+	uint16_t flags;
+
+	void delete_options()
+	{
+		list_for_every_safe(&option_list)
+		{
+			tcp_option *opt = container_of(l, tcp_option, list_node);
+
+			list_remove(l);
+			if(opt->dynamic)
+				delete opt;
+		}
+	}
+
+	void put_options(char *opts);
+
+public:
+	tcp_packet(cul::slice<const uint8_t> data, tcp_socket *socket, uint16_t flags) : payload(data),
+	           socket(socket), flags(flags)
+	{
+		INIT_LIST_HEAD(&option_list);
+	}
+
+	~tcp_packet()
+	{
+		delete_options();
+	}
+
+	uint16_t options_length() const;
+
+	int send();
+
+	tcp_socket *get_socket()
+	{
+		return socket;
+	}
+
+	void append_option(tcp_option *opt)
+	{
+		list_add(&opt->list_node, &option_list);
+	}
+};
+
 class tcp_socket : public socket
 {
 private:
@@ -122,9 +204,15 @@ private:
 	cond tcp_ack_cond;
 	uint32_t seq_number;
 	uint32_t ack_number;
-	mutex send_buffer_lock;
+	mutex send_lock;
 	cul::vector<uint8_t> send_buffer;
 	size_t current_pos;
+	uint16_t mss;
+	uint32_t window_size;
+	uint8_t window_size_shift;
+	uint32_t our_window_size;
+	uint8_t our_window_shift;
+	uint32_t expected_ack;
 
 	template <typename pred>
 	tcp_ack *find_ack(pred predicate)
@@ -159,16 +247,25 @@ private:
 		}
 	}
 
-	int send_syn_ack(uint16_t flags);
+	int start_handshake();
+	int finish_handshake();
+
+	bool parse_options(tcp_header *packet);
 
 public:
+	friend class tcp_packet;
 	struct list_head socket_list_head;
+
+	static constexpr uint16_t default_mss = 536;
+	static constexpr uint16_t default_window_size_shift = 0;
 
 	tcp_socket() : socket{}, state(tcp_state::TCP_STATE_CLOSED), type(SOCK_STREAM),
 	               src_addr{}, dest_addr{}, packet_semaphore{}, packet_list_head{},
 				   packet_lock{}, tcp_ack_list_lock{}, tcp_ack_cond{},
-				   seq_number{0}, ack_number{0}, send_buffer_lock{}, send_buffer{},
-				   current_pos{}, socket_list_head{}
+				   seq_number{0}, ack_number{0}, send_lock{}, send_buffer{},
+				   current_pos{}, mss{default_mss}, window_size{0},
+				   window_size_shift{default_window_size_shift}, our_window_size{UINT16_MAX},
+				   our_window_shift{default_window_size_shift}, expected_ack{0}
 	{
 		INIT_LIST_HEAD(&tcp_ack_list);
 	}
@@ -195,6 +292,20 @@ public:
 	}
 
 	ssize_t sendto(const void *buf, size_t len, int flags);
+
+	uint32_t sequence_nr()
+	{
+		return seq_number;
+	}
+
+	uint32_t acknowledge_nr()
+	{
+		return ack_number;
+	}
+
+	ssize_t queue_data(const void *user_buf, size_t len);
+
+	void try_to_send();
 };
 
 #endif

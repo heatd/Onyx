@@ -302,9 +302,22 @@ int ipv4_send_packet(uint32_t senderip, uint32_t destip, unsigned int type,
 	return eth_send_packet((char*) &destmac, buf, PROTO_IPV4, netif);
 }
 
+/* TODO: Possibly, these basic checks across ethernet.c, ip.c, udp.c, tcp.cpp aren't enough */
+bool ipv4_valid_packet(struct ip_header *header, size_t size)
+{
+	if(ntohs(header->total_len) > size)
+		return false;
+	if(sizeof(struct ip_header) > size)
+		return false;
+	return true;
+}
+
 void ipv4_handle_packet(struct ip_header *header, size_t size, struct netif *netif)
 {
 	struct ip_header *usable_header = memdup(header, size);
+
+	if(!ipv4_valid_packet(usable_header, size))
+		return;
 
 	if(header->proto == IPV4_UDP)
 		udp_handle_packet(usable_header, size, netif);
