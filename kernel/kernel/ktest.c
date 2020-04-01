@@ -176,6 +176,25 @@ void spinlock_test()
 
 #endif
 
+#ifdef CONFIG_KTEST_ALLOC_PAGE_PERF
+
+#include <onyx/clock.h>
+
+void page_alloc_perf(void)
+{
+	struct clocksource *c = get_main_clock();
+
+	hrtime_t t0 = c->get_ns();
+
+	alloc_page(PAGE_ALLOC_NO_ZERO | (1 << 12));
+
+	hrtime_t t1 = c->get_ns();
+
+	printk("Performance: %lu ns\n", t1 - t0);
+}
+
+#endif
+
 void execute_vm_tests();
 
 static void (*tests[])(void) = {
@@ -193,6 +212,9 @@ static void (*tests[])(void) = {
 #endif
 #ifdef CONFIG_KTEST_SPINLOCK
 	spinlock_test,
+#endif
+#ifdef CONFIG_KTEST_ALLOC_PAGE_PERF
+	page_alloc_perf,
 #endif
 };
 

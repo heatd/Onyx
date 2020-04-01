@@ -29,17 +29,20 @@ static inline void post_release_actions(struct spinlock *lock)
 
 void spin_lock_preempt(struct spinlock *lock)
 {
+	unsigned long expected_val = 0;
 	while(true)
 	{
-		while(lock->lock != 0)
+		while(__atomic_load_n(&lock->lock, __ATOMIC_RELAXED) != 0)
 			cpu_relax();
+
+		expected_val = 0;
 		
-		if(__sync_bool_compare_and_swap(&lock->lock, 0, 1))
+		if(__atomic_compare_exchange_n(&lock->lock, &expected_val, 1,
+		                               false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED))
 			break;
 	}
 
 	post_lock_actions(lock);
-	__sync_synchronize();
 }
 
 void spin_unlock_preempt(struct spinlock *lock)
@@ -48,17 +51,15 @@ void spin_unlock_preempt(struct spinlock *lock)
 
 	post_release_actions(lock);
 
-	lock->lock = 0;
-
-	__sync_synchronize();
+	__atomic_store_n(&lock->lock, 0, __ATOMIC_RELEASE);
 }
 
 void spin_lock(struct spinlock *lock)
 {
+	sched_disable_preempt();
+
 	spin_lock_preempt(lock);
 	post_lock_actions(lock);
-
-	sched_disable_preempt();
 }
 
 void spin_unlock(struct spinlock *lock)
@@ -67,7 +68,7 @@ void spin_unlock(struct spinlock *lock)
 	sched_enable_preempt();
 }
 
-int try_and_spin_lock(struct spinlock *lock)
+int spin_try_lock(struct spinlock *lock)
 {
 
 	/* Disable preemption before locking, and enable it on release.
@@ -75,7 +76,11 @@ int try_and_spin_lock(struct spinlock *lock)
 	*/
 	sched_disable_preempt();
 
-	while(!__sync_bool_compare_and_swap(&lock->lock, 0, 1))
+	unsigned long expected_val = 0;
+
+
+	if(!__atomic_compare_exchange_n(&lock->lock, &expected_val, 1,
+		                               false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED))
 	{
 		sched_enable_preempt();
 		return 1;

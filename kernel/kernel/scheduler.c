@@ -977,15 +977,15 @@ void sched_enable_preempt_for_cpu(unsigned int cpu)
 {
 	unsigned long *preempt_counter = get_per_cpu_ptr_any(preemption_counter, cpu); 
 
-	assert(*preempt_counter > 0);
+	//assert(*preempt_counter > 0);
 
-	atomic_fetch_add_explicit(preempt_counter, -1, memory_order_release);
+	atomic_fetch_add_explicit(preempt_counter, -1, memory_order_relaxed);
 }
 
 void sched_disable_preempt_for_cpu(unsigned int cpu)
 {
 	unsigned long *preempt_counter = get_per_cpu_ptr_any(preemption_counter, cpu); 
-	atomic_fetch_add_explicit(preempt_counter, 1, memory_order_release);
+	atomic_fetch_add_explicit(preempt_counter, 1, memory_order_relaxed);
 }
 
 void sched_try_to_resched_if_needed(void)

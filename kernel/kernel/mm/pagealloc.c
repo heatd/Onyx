@@ -41,6 +41,7 @@ struct page_list
 struct page_cpu
 {
 	struct page_arena *arenas;
+	struct page_arena *first_to_search;
 	struct page_cpu *next;
 };
 
@@ -60,11 +61,55 @@ static bool page_is_initialized = false;
 
 struct page_cpu main_cpu = {0};
 
-#define for_every_arena(cpu)	for(struct page_arena *arena = (cpu)->arenas; arena; \
+#define for_every_arena(cpu, starting_arena)	for(struct page_arena *arena = starting_arena; arena; \
 	arena = arena->next)
 
 
+#include <onyx/clock.h>
+
 #define ADDRESS_4GB_MARK		0x100000000
+
+struct page *page_alloc_one(unsigned long flags, struct page_arena *arena)
+{
+
+#if 0
+	hrtime_t t0 = 0;
+	hrtime_t t1 = 0;
+	if(flags & 1 << 12)
+	{
+		struct clocksource *c = get_main_clock();
+	 	t0 = c->get_ns();
+	}
+#endif
+	
+	struct page_list *p = arena->page_list;
+
+	if(p->next)
+		p->next->prev = NULL;
+	arena->page_list = p->next;
+
+	if(arena->tail == p)
+		arena->tail = NULL;
+
+	page_ref(p->page);
+
+	arena->free_pages--;
+
+	p->page->next_un.next_allocation = NULL;
+
+	spin_unlock(&arena->lock);
+#if 0
+	if(flags & 1 << 12)
+	{
+		struct clocksource *c = get_main_clock();
+	 	t1 = c->get_ns();
+		printk("Took %lu ns\n", t1 - t0);
+	}
+#endif
+
+	return p->page;
+}
+
 struct page *page_alloc_from_arena(size_t nr_pages, unsigned long flags, struct page_arena *arena)
 {
 	spin_lock(&arena->lock);
@@ -82,10 +127,13 @@ struct page *page_alloc_from_arena(size_t nr_pages, unsigned long flags, struct 
 		return NULL;
 	}
 
+	if(likely(nr_pages == 1))
+		return page_alloc_one(flags, arena);
+
 	/* Look for contiguous pages */
 	for(; p && found_pages != nr_pages; p = p->next)
 	{
-		if((uintptr_t) p->next - (uintptr_t) p > PAGE_SIZE && nr_pages != 1)
+		if(nr_pages != 1 && (uintptr_t) p->next - (uintptr_t) p > PAGE_SIZE)
 		{
 			found_pages = 0;
 			found_base = false;
@@ -128,7 +176,7 @@ struct page *page_alloc_from_arena(size_t nr_pages, unsigned long flags, struct 
 			head->next = tail;
 		else
 			arena->page_list = tail;
-		
+
 		if(tail)
 			tail->prev = head;
 		else
@@ -172,24 +220,37 @@ struct page *page_alloc_from_arena(size_t nr_pages, unsigned long flags, struct 
 
 struct page *page_alloc(size_t nr_pages, unsigned long flags)
 {
-	size_t i = 0;
 	struct page *pages = NULL;
-	for_every_arena(&main_cpu)
-	{
-		i++;
+	struct page_arena *last_with_pages = NULL;
 
+	for_every_arena(&main_cpu, main_cpu.first_to_search)
+	{
 		if(flags & PAGE_ALLOC_4GB_LIMIT &&
 			(unsigned long) arena->start_arena > ADDRESS_4GB_MARK)
 		{
 			return NULL;
 		}
 
-		if(arena->free_pages < nr_pages)
+		if(arena->free_pages && !last_with_pages)
+			last_with_pages = arena;
+
+		if(unlikely(arena->free_pages < nr_pages))
 			continue;
+
 		if((pages = page_alloc_from_arena(nr_pages, flags, arena)) != NULL)
 		{
-			if(flags & (1 << 12)) printk("iterations %lu\n", i);
 			used_pages += nr_pages;
+
+			if(last_with_pages == arena && !arena->free_pages)
+			{
+				/* Handle the case where we took it's last free page */
+				if(arena->next)
+					last_with_pages = arena->next;
+				/* If it's the last arena, there's no problem. */
+			}
+
+			main_cpu.first_to_search = last_with_pages;
+
 			return pages;
 		}
 	}
@@ -271,7 +332,7 @@ void page_free_pages(struct page_arena *arena, void *addr, size_t nr_pages)
 void page_free(size_t nr_pages, void *addr)
 {
 	bool freed = false;
-	for_every_arena(&main_cpu)
+	for_every_arena(&main_cpu, main_cpu.arenas)
 	{
 		if((uintptr_t) arena->start_arena <= (uintptr_t) addr && 
 			(uintptr_t) arena->end_arena > (uintptr_t) addr)
@@ -338,6 +399,9 @@ static void page_add_region(uintptr_t base, size_t size, struct bootmodule *modu
 		size -= area_size;
 		base += area_size;
 	}
+
+	if(!main_cpu.first_to_search)
+		main_cpu.first_to_search = main_cpu.arenas;
 }
 
 void page_init(size_t memory_size, unsigned long maxpfn, void *(*get_phys_mem_region)(uintptr_t *base,
