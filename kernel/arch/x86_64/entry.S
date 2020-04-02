@@ -140,7 +140,7 @@ syscall_ENTRY64:
 
 	call signal_is_pending
 
-	cmp $1, %rax
+	cmp $1, %al
 
 	je syscall_signal_path
 

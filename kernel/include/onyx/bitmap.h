@@ -65,7 +65,7 @@ public:
 		if(nr_bytes % sizeof(unsigned long))
 			size_in_longs++;
 
-		bitmap = (unsigned long *) malloc(nr_bytes);
+		bitmap = (unsigned long *) malloc(size_in_longs * sizeof(unsigned long));
 		if(!bitmap)
 			return false;
 		memset(bitmap, filler, nr_bytes);
@@ -87,7 +87,7 @@ public:
 		if(nr_bytes % sizeof(unsigned long))
 			new_size_in_longs++;
 
-		auto _bitmap = realloc(bitmap, nr_bytes);
+		auto _bitmap = realloc(bitmap, new_size_in_longs * sizeof(unsigned long));
 		if(!_bitmap)
 			return false;
 		memset((char *) _bitmap + old_nr_bytes, filler, nr_bytes - old_nr_bytes);

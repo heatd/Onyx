@@ -44,3 +44,4 @@ utils/rm/rm
 utils/mkdir/mkdir
 utils/link/link
 hdd.img.bak.zst
+kernel/kernel.config

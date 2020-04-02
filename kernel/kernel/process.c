@@ -342,7 +342,9 @@ pid_t sys_wait4(pid_t pid, int *wstatus, int options, struct rusage *usage)
 	while(true)
 	{
 		if(signal_is_pending())
+		{
 			return -EINTR;
+		}
 
 		spin_lock(&current->children_lock);
 
@@ -469,6 +471,7 @@ void sys_exit(int status)
 		for(;;);
 	}
 
+	printk("Pid %d exiting\n", current->pid);
 	current->has_exited = 1;
 	current->exit_code = make_wait4_wstatus(0, false, status);
 

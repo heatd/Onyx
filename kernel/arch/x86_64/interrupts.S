@@ -167,7 +167,7 @@ irq_common:
 	INTERRUPT_STACK_ALIGN
 
 	call signal_is_pending
-	cmp $1, %rax
+	cmp $1, %al
 	je .L4
 
 .L5:
@@ -253,7 +253,7 @@ isr_common:
 	call isr_handler
 
 	call signal_is_pending
-	cmp $1, %rax
+	cmp $1, %al
 	je .Lisr_handle_signal
 .L1:
 	INTERRUPT_STACK_RESTORE

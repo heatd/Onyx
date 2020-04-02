@@ -112,6 +112,25 @@ void tty_write(const char *data, size_t size, struct tty *tty)
 
 void tty_recieved_character(struct tty *tty, char c)
 {
+	if(c == '\b')
+	{
+		if(tty->keyboard_pos <= 0)
+		{
+			tty->keyboard_pos = 0;
+			goto out;
+		}
+
+		TTY_PRINT_IF_ECHO("\b \b", 3, tty);
+
+		tty->keyboard_buffer[tty->keyboard_pos] = 0;
+		tty->keyboard_pos--;
+		goto out;
+	}
+
+	tty->keyboard_buffer[tty->keyboard_pos++] = c;
+	TTY_PRINT_IF_ECHO(&c, 1, tty);
+
+out:
 	if(!(tty->term_io.c_lflag & ICANON))
 	{
 		tty->line_ready = true;
@@ -122,24 +141,6 @@ void tty_recieved_character(struct tty *tty, char c)
 		tty->line_ready = true;
 		wait_queue_wake_all(&tty->read_queue);
 	}
-
-	if(c == '\b')
-	{
-		if(tty->keyboard_pos <= 0)
-		{
-			tty->keyboard_pos = 0;
-			return;
-		}
-
-		TTY_PRINT_IF_ECHO("\b \b", 3, tty);
-
-		tty->keyboard_buffer[tty->keyboard_pos] = 0;
-		tty->keyboard_pos--;
-		return;
-	}
-
-	tty->keyboard_buffer[tty->keyboard_pos++] = c;
-	TTY_PRINT_IF_ECHO(&c, 1, tty);
 }
 
 char *tty_wait_for_line(int flags, struct tty *tty)

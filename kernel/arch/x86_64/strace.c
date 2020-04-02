@@ -152,7 +152,8 @@ static bool sym_iterate_each_module(struct module *m, void *p)
 			continue;
 		
 		/* Check if it's inside the bounds of the symbol */
-		if(!((unsigned long) p >= s->value && (unsigned long) p < s->value + s->size))
+
+		if(!((unsigned long) c->addr >= s->value && (unsigned long) c->addr < s->value + s->size))
 			continue;
 	
 		long diff = c->addr - s->value;
@@ -256,7 +257,7 @@ char *resolve_sym(void *address)
 
 	if(!iterate_symbols(&c))
 		return NULL;
-	
+
 	const char *symbol_name = c.sym->name;
 	char *ret = NULL;
 	struct module *m = c.module;

@@ -328,7 +328,7 @@ void udp_handle_packet(struct ip_header *header, size_t length, struct netif *ne
 		return;
 	}
 
-	size_t payload_len = ntoh16(udp_header->len);
+	size_t payload_len = ntoh16(udp_header->len) - sizeof(udp_header_t);
 
 	packet->size = payload_len;
 	packet->payload = memdup(udp_header + 1, payload_len);
