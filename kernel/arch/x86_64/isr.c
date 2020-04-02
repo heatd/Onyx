@@ -101,6 +101,7 @@ void debug_trap(struct registers *ctx)
 {
 	if(is_kernel_exception(ctx))
 	{
+		//printk("Trap at %lx rbp %lx!\n", ctx->rip, ctx->rbp);
 		dump_interrupt_context(ctx);
 		panic("Debug trap");
 	}

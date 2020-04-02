@@ -157,6 +157,16 @@ public:
 		return new_val;
 	}
 
+	type operator+=(type inc)
+	{
+		return this->add_fetch(inc);
+	}
+
+	type operator-=(type inc)
+	{
+		return this->sub_fetch(inc);
+	}
+
 	operator type()
 	{
 		return this->load();

@@ -56,7 +56,7 @@ static inline uint64_t rdtsc(void)
 	} v;
 	
 	__asm__ __volatile__ ("rdtscp" : "=a"(v.lohi[0]), "=d"(v.lohi[1]) :: "ecx");
-    	return v.value;
+    return v.value;
 }
 
 static inline int count_bits32(uint32_t num)

@@ -292,6 +292,7 @@ static thread_t *new_thread;
 void kernel_multitasking(void *);
 void reclaim_initrd(void);
 void tickless_init(void);
+void do_ktests(void);
 
 __attribute__((no_sanitize_undefined))
 void kernel_main(void)
@@ -336,6 +337,11 @@ void kernel_main(void)
 	/* Initialize the scheduler */
 	if(sched_init())
 		panic("sched: failed to initialize!");
+#ifdef CONFIG_DO_TESTS
+	/* Execute ktests */
+	do_ktests();
+	do_ktests();
+#endif
 
 	/* Initalize multitasking */
 	new_thread = sched_create_thread(kernel_multitasking, 1, NULL);
@@ -359,8 +365,6 @@ void kernel_main(void)
 	ENABLE_INTERRUPTS();
 	for(;;);
 }
-
-void do_ktests(void);
 
 void kernel_multitasking(void *arg)
 {
@@ -403,11 +407,6 @@ void kernel_multitasking(void *arg)
 
 	/* Populate /sys */
 	vm_sysfs_init();
-
-#ifdef CONFIG_DO_TESTS
-	/* Execute ktests */
-	do_ktests();
-#endif
 
 	/* Mount the root partition */
 	char *root_partition = kernel_getopt("--root");

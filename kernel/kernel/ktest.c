@@ -180,17 +180,26 @@ void spinlock_test()
 
 #include <onyx/clock.h>
 
+void *external_ptr = NULL;
+
 void page_alloc_perf(void)
 {
 	struct clocksource *c = get_main_clock();
 
-	hrtime_t t0 = c->get_ns();
+	hrtime_t lowest = UINT64_MAX;
 
-	alloc_page(PAGE_ALLOC_NO_ZERO | (1 << 12));
+	for(int i = 0; i < 40; i++)
+	{
+		hrtime_t t0 = c->get_ns();
 
-	hrtime_t t1 = c->get_ns();
+		external_ptr = alloc_page(PAGE_ALLOC_NO_ZERO);
 
-	printk("Performance: %lu ns\n", t1 - t0);
+		hrtime_t t1 = c->get_ns();
+
+		lowest = lowest < (t1 - t0) ? lowest : t1 - t0;
+	}
+
+	printk("Performance: %lu ns\n", lowest);
 }
 
 #endif

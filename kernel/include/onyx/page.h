@@ -52,6 +52,8 @@
 #define PAGE_FLAG_LOCKED	(1 << 0)
 #define PAGE_FLAG_DIRTY		(1 << 1)
 #define PAGE_FLAG_PINNED	(1 << 2)
+#define PAGE_FLAG_FREE		(1 << 3)
+
 /* struct page - Represents every usable page on the system 
  * Everything is native-word-aligned in order to allow atomic changes
  * Careful adding fields in - they may increase the memory use exponentially
@@ -146,9 +148,10 @@ struct page *phys_to_page(uintptr_t phys);
 struct page *page_add_page(void *paddr);
 struct page *page_add_page_late(void *paddr);
 
-#define PAGE_ALLOC_CONTIGUOUS	(1 << 0)
-#define PAGE_ALLOC_NO_ZERO	(1 << 1)
-#define PAGE_ALLOC_4GB_LIMIT	(1 << 2)
+#define PAGE_ALLOC_CONTIGUOUS			(1 << 0)
+#define PAGE_ALLOC_NO_ZERO				(1 << 1)
+#define PAGE_ALLOC_4GB_LIMIT			(1 << 2)
+#define PAGE_ALLOC_INTERNAL_DEBUG		(1 << 3)
 
 static inline bool __page_should_zero(unsigned long flags)
 {
