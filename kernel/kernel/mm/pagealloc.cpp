@@ -421,7 +421,8 @@ struct page *alloc_pages(size_t nr_pgs, unsigned long flags)
 	//printk("alloc pages %lu %p\n", nr_pgs, __builtin_return_address(1));
 	auto &node = main_node;
 
-	if(unlikely(flags & PAGE_ALLOC_CONTIGUOUS))
+	/* Optimise for the possibility that someone's looking to allocate '1' contiguous page */
+	if(unlikely(flags & PAGE_ALLOC_CONTIGUOUS && nr_pgs > 1))
 		return node.alloc_contiguous(nr_pgs, flags);
 	else
 		return node.allocate_pages(nr_pgs, flags);

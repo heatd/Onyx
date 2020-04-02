@@ -8,10 +8,10 @@
 
 #include <stdio.h>
 
-#define INFO(x, ...) printf("[""INFO""] "x": "__VA_ARGS__)
-#define WARN(x, ...) printf("[""WARNING""] "x": "__VA_ARGS__)
-#define ERROR(x, ...) printf("[""ERROR""] "x": "__VA_ARGS__)
-#define FATAL(x, ...) printf("[""FATAL""] "x": "__VA_ARGS__)
+#define INFO(x, ...) printf("[""INFO""] " x ": " __VA_ARGS__)
+#define WARN(x, ...) printf("[""WARNING""] " x ": " __VA_ARGS__)
+#define ERROR(x, ...) printf("[""ERROR""] " x ": " __VA_ARGS__)
+#define FATAL(x, ...) printf("[""FATAL""] " x ": " __VA_ARGS__)
 
 #define LOG INFO
 #define SUBMIT_BUG_REPORT(x) printf("If you want this bug/feature to be fixed, open an issue at the repo's issue tracker(https://github.com/heatd/Onyx/issues) with a title along the lines of \"%s: Fix x bug\". Thanks!\n", x);

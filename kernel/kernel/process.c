@@ -471,7 +471,6 @@ void sys_exit(int status)
 		for(;;);
 	}
 
-	printk("Pid %d exiting\n", current->pid);
 	current->has_exited = 1;
 	current->exit_code = make_wait4_wstatus(0, false, status);
 

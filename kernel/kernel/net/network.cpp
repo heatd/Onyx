@@ -24,9 +24,11 @@
 #include <onyx/dpc.h>
 #include <onyx/network.h>
 #include <onyx/slab.h>
+#include <onyx/mm/pool.hpp>
 
 static const char *hostname = "";
 
+extern "C"
 int network_handle_packet(uint8_t *packet, uint16_t len, struct netif *netif)
 {
 	ethernet_header_t *hdr = (ethernet_header_t*) packet;
@@ -44,44 +46,32 @@ int network_handle_packet(uint8_t *packet, uint16_t len, struct netif *netif)
 	return 0;
 }
 
+extern "C"
 const char *network_gethostname()
 {
 	return hostname;
 }
 
+extern "C"
 void network_sethostname(const char *name)
 {
-	/* TODO: Invalidate the dns cache entry of the last host name */
 	if(strcmp((char*) hostname, ""))
 		free((void *) hostname);
 	hostname = name;
 }
 
-static slab_cache_t *network_slab;
+memory_pool<network_args, false> pool;
 
 void network_do_dispatch(void *__args)
 {
-	struct network_args *args = __args;
+	network_args *args = reinterpret_cast<network_args *>(__args);
 	network_handle_packet(args->buffer, args->size, args->netif);
-	slab_free(network_slab, __args);
-}
-
-#ifndef NET_POOL_NUM_OBJS
-#define NET_POOL_NUM_OBJS	512
-#endif
-
-void __init network_init(void)
-{
-	network_slab = slab_create("net", sizeof(struct network_args), 0,
-			SLAB_FLAG_POOL, NULL, NULL);
-	assert(network_slab != NULL);
-
-	assert(slab_populate(network_slab, NET_POOL_NUM_OBJS) != -1);
+	pool.free(args);
 }
 
 void network_dispatch_recieve(uint8_t *packet, uint16_t len, struct netif *netif)
 {
-	struct network_args *args = slab_allocate(network_slab);
+	network_args *args = reinterpret_cast<network_args*>(pool.allocate());
 	if(!args)
 	{
 		ERROR("net", "Could not recieve packet: Out of memory inside IRQ\n");

@@ -137,7 +137,7 @@ kernel/mm/kasan.o: kernel/mm/kasan.c
 	@echo [CC] NOKASAN $<
 	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) -fno-sanitize=kernel-address $(CPPFLAGS)
 
-kernel/mm/malloc/%.o: kernel/mm/malloc/%.c
+kernel/mm/malloc/%.o: kernel/mm/malloc/%.c kernel.config
 	@echo [CC] NOKASAN $<
 	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) -fno-sanitize=kernel-address $(CPPFLAGS)
 
