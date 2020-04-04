@@ -128,13 +128,17 @@ irqstatus_t ahci_irq(struct irq_context *ctx, void *cookie)
 ssize_t ahci_read(size_t offset, size_t count, void* buffer, struct blockdev* blkd)
 {
 	struct ahci_port *p = blkd->device_info;
-	
+
 	size_t to_read = count;
 
 	uint64_t lba = offset / 512;
 	assert(offset % 512 == 0);
 	assert(count % 512 == 0);
 	uint8_t *buf = buffer;
+
+	/* TODO: Implement other types of devices */
+	if(p->port->sig != SATA_SIG_ATA)
+		return -ENXIO;
 
 	while(count != 0)
 	{
@@ -164,13 +168,16 @@ ssize_t ahci_read(size_t offset, size_t count, void* buffer, struct blockdev* bl
 ssize_t ahci_write(size_t offset, size_t count, void* buffer, struct blockdev* blkd)
 {
 	struct ahci_port *p = blkd->device_info;
-	
+
 	size_t to_read = count;
 
 	uint64_t lba = offset / 512;
 	uint8_t *buf = buffer;
 	assert(offset % 512 == 0);
 	assert(count % 512 == 0);
+
+	if(p->port->sig != SATA_SIG_ATA)
+		return -ENXIO;
 
 	while(count != 0)
 	{
@@ -566,11 +573,12 @@ bool ahci_port_is_idle(ahci_port_t *port)
 int ahci_wait_bit(volatile uint32_t *reg, uint32_t mask, unsigned long timeout, bool clear)
 {
 	uint64_t last = get_tick_count();
-	while(1)
+	while(true)
 	{
 		/* If the time is up, return a timeout */
-		if(last + timeout < get_tick_count())
+		if(get_tick_count() - last >= timeout)
 			return errno = ETIMEDOUT, -1;
+
 		if(clear)
 		{
 			if(!(*reg & mask))
@@ -584,7 +592,6 @@ int ahci_wait_bit(volatile uint32_t *reg, uint32_t mask, unsigned long timeout, 
 
 		sched_yield();
 	}
-	return -1;
 }
 
 void ahci_port_set_idle(ahci_port_t *port)
@@ -867,6 +874,7 @@ int ahci_initialize(struct ahci_device *device)
 			/* Do not create a device until we've checked the port has some device behind it */
 			if(ahci_port_has_device(&hba->ports[i]) == false)
 				continue;
+	
 			/* Create the device */
 			char path[255];
 			memset(path, 0, 255);

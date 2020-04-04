@@ -70,9 +70,9 @@ bool x86_has_cap(int cap)
 	return cpu.caps[q_index] & (1UL << bit_index);
 }
 
-bool x86_check_invariant_tsc(void)
+bool x86_has_usable_tsc(void)
 {
-	return cpu.invariant_tsc;
+	return cpu.invariant_tsc || cpu.constant_tsc;
 }
 
 void x86_set_tsc_rate(uint64_t rate)
@@ -120,6 +120,16 @@ void __cpu_identify(void)
 
 	cpu.invariant_tsc = (bool) (edx & (1 << 8));
 
+	/* Intel manuals 17.17 Time-Stamp Counter describes this in detail.
+	 * In short, Pentium M, Pentium 4, some Xeons and some P6's, the TSC increments with
+	 * every internal processor cycle, so it's not constant because power management
+	 * may throttle it back and forth. However, since family 0xf & model 0x2 and 
+	 * family 0x6 & model 0xe, things have been defacto constant, even without the invariant_tsc
+	 * flag.
+	 */
+	if((cpu.family == 0xf && cpu.model > 0x2) || (cpu.family == 0x6 && cpu.model >= 0xe))
+		cpu.constant_tsc = true;
+
 #if 0
 	/* TODO: Add 15h support */
 	if(__get_cpuid(0x15, &eax, &ebx, &ecx, &edx))
@@ -133,7 +143,7 @@ void __cpu_identify(void)
 
 char *cpu_get_name(void)
 {
-	uint32_t eax,ebx,edx,ecx = 0;
+	uint32_t eax, ebx, edx, ecx;
 	__get_cpuid(0, &eax, &ebx, &ecx, &edx);
 	
 	uint32_t cpuid[4] = {0};
@@ -190,11 +200,28 @@ char *cpu_get_name(void)
 
 void cpu_get_sign(void)
 {
-	uint32_t eax = 0,ebx,edx,ecx = 0;
+	uint32_t eax, ebx, edx, ecx;
 	__get_cpuid(CPUID_SIGN, &eax, &ebx, &ecx, &edx);
-	cpu.stepping = eax & 0xF;
-	cpu.model = (eax >> 4) & 0xF;
-	cpu.family = (eax >> 8) & 0xF;
+
+	unsigned int stepping = eax & 0xf;
+	unsigned int model = (eax >> 4) & 0xf;
+	unsigned int family = (eax >> 8) & 0xf;
+	unsigned int processor_type = (eax >> 12) & 0x3;
+	unsigned int extended_model = (eax >> 16) & 0xf;
+	unsigned int extended_family = (eax >> 20) & 0xff;
+
+	unsigned int cpu_family = family;
+	unsigned int cpu_model = model;
+	if(family == 6 || family == 15)
+		cpu_model = model + (extended_model << 4);
+	if(family == 15)
+		cpu_family = family + extended_family;
+	
+	printf("CPUID: %04x:%04x:%04x:%04x\n", cpu_family, cpu_model, stepping,
+		processor_type);
+	cpu.model = cpu_model;
+	cpu.family = cpu_family;
+	cpu.stepping = stepping;
 }
 
 void cpu_identify(void)
@@ -272,6 +299,8 @@ void cpu_init_late(void)
 	/* Completely disable the PIC first */
 	pic_remap();
 	pic_disable();
+
+	pat_init();
 
 	/* Initialize the APIC and LAPIC */
 	ioapic_init();

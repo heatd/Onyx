@@ -79,7 +79,7 @@ void igd_update_pipe_mode(struct igd_pipe *pipe, struct igpu_device *dev)
 	igpu_mmio_write(dev, pipe->plane->pri_stride_reg, stride);
 	igpu_mmio_write(dev, 0x00068080, 0);
 	igpu_mmio_write(dev, 0x68074, 0);
-	igpu_mmio_write(dev, 0x68070, 0); */
+	igpu_mmio_write(dev, 0x68070, 0);*/
 	printk("PIPE_CONF: %x\n", igpu_mmio_read(dev, 0x7f008));
 	printk("VERT: %u\nHORIZONTAL: %u\n", srcsz & PIPE_SRCSZ_VERT_MASK,
 					    srcsz >> PIPE_SRCSZ_HORIZ_SHIFT);

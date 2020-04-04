@@ -8,6 +8,7 @@
 #define _ONYX_FRACT_H
 
 #include <stdint.h>
+#include <stdio.h>
 
 struct fraction
 {
@@ -44,7 +45,11 @@ static inline struct fraction fract_div(struct fraction *f1, struct fraction *f2
 static inline uint64_t fract_div_u64_fract(uint64_t u, struct fraction *f)
 {
 	struct fraction f2;
-	f2.numerator = u * f->denominator;
+	if(__builtin_umull_overflow(u,  f->denominator, &f2.numerator))
+	{
+		printk("Overflow! with u %lu and denominator %lu\n", u, f->denominator);
+	}
+
 	f2.denominator = f->numerator;
 
 	return INT_DIV_ROUND_CLOSEST(f2.numerator, f2.denominator);
@@ -53,7 +58,12 @@ static inline uint64_t fract_div_u64_fract(uint64_t u, struct fraction *f)
 static inline uint64_t fract_mult_u64_fract(uint64_t u, struct fraction *f)
 {
 	struct fraction f2;
-	f2.numerator = u * f->numerator;
+	
+	if(__builtin_umull_overflow(u,  f->numerator, &f2.numerator))
+	{
+		printk("Overflow! with u %lu and numerator %lu\n", u, f->numerator);
+	}
+
 	f2.denominator = f->denominator;
 
 	return INT_DIV_ROUND_CLOSEST(f2.numerator, f2.denominator);

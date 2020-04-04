@@ -1914,6 +1914,7 @@ static void vm_destroy_area(void *key, void *datum)
 void vm_destroy_addr_space(struct mm_address_space *mm)
 {
 	struct process *current = mm->process;
+	bool free_pgd = true;
 
 	/* First, iterate through the rb tree and free/unmap stuff */
 	spin_lock(&mm->vm_spl);
@@ -1923,11 +1924,18 @@ void vm_destroy_addr_space(struct mm_address_space *mm)
 	
 	void *own_addrspace = current->address_space.cr3;
 
+	if(own_addrspace == vm_get_fallback_cr3())
+	{
+		/* If init is deciding to exec with forking, don't free the fallback pgd! */
+		free_pgd = false;
+	}
 	current->address_space.cr3 = vm_get_fallback_cr3();
 
 	paging_load_cr3(mm->cr3);
 
-	free_page(phys_to_page((uintptr_t) own_addrspace));
+	if(free_pgd)
+		free_page(phys_to_page((uintptr_t) own_addrspace));
+
 	spin_unlock(&mm->vm_spl);
 }
 

@@ -11,6 +11,8 @@
 extern uintptr_t _driver_init_start;
 extern uintptr_t _driver_init_end;
 
+char *resolve_sym(void *address);
+
 void driver_init(void)
 {	
 	uintptr_t *ptr = &_driver_init_start;

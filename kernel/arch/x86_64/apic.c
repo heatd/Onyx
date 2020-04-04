@@ -30,6 +30,8 @@
 
 #include <fractions.h>
 
+//#define CONFIG_APIC_PERIODIC
+
 volatile uint32_t *bsp_lapic = NULL;
 volatile uint64_t core_stack = 0;
 PER_CPU_VAR(uint32_t lapic_id) = 0;
@@ -553,10 +555,13 @@ void apic_set_oneshot_apic(hrtime_t deadline)
 		panic("bad delta_ms ");
 	}
 
-	uint32_t counter = apic_rate * delta_ms;
+	uint32_t counter = ((apic_rate) * delta_ms);
 
 	volatile uint32_t *this_lapic = get_per_cpu(lapic);
 
+	lapic_write(this_lapic, LAPIC_TIMER_INITCNT, 0);
+
+	lapic_write(this_lapic, LAPIC_TIMER_DIV, 3);
 	lapic_write(this_lapic, LAPIC_LVT_TIMER, 34);
 	lapic_write(this_lapic, LAPIC_TIMER_INITCNT, counter);
 }
@@ -579,6 +584,8 @@ void apic_set_periodic(uint32_t period_ms, volatile uint32_t *lapic)
 
 void apic_timer_init(void)
 {
+	// FIXME: Progress: Portatil preso com TSC_DEADLINE, e há bugs nas clocksources, e o portatil tambem
+	// prende no código para o controlador AHCI
 	driver_register_device(&apic_driver, &apic_timer_dev);
 
 	/* Set the timer divisor to 16 */
@@ -602,16 +609,17 @@ void apic_timer_init(void)
 
 	DISABLE_INTERRUPTS();
 
+	/* Install an IRQ handler for IRQ2 */
+	
+	assert(install_irq(2, apic_timer_irq, &apic_timer_dev, IRQ_FLAG_REGULAR,
+		NULL) == 0);
+
 #ifdef CONFIG_APIC_PERIODIC
 	apic_set_periodic(1, bsp_lapic);
 #else
 	apic_set_oneshot(get_main_clock()->get_ns() + NS_PER_MS);
 #endif
-	/* Install an IRQ handler for IRQ2 */
-	
-	assert(install_irq(2, apic_timer_irq, &apic_timer_dev, IRQ_FLAG_REGULAR,
-		NULL) == 0);
-	
+
 	ENABLE_INTERRUPTS();
 }
 
@@ -668,7 +676,9 @@ void apic_wake_up_processor(uint8_t lapicid, struct smp_header *s)
 	boot_send_ipi(lapicid, 5, 0);
 	uint64_t tick = get_tick_count();
 	while(get_tick_count() - tick < 200)
+	{
 		__asm__ __volatile__("hlt");
+	}
 
 	boot_send_ipi(lapicid, 6, 0);
 	tick = get_tick_count();

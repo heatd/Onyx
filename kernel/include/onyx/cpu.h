@@ -210,6 +210,7 @@ typedef struct cpu
 	uint32_t max_function;
 	uint32_t stepping, family, model, extended_model, extended_family;
 	bool invariant_tsc;
+	bool constant_tsc;
 	uint64_t tsc_rate;
 	int virtualAddressSpace, physicalAddressSpace;
 	unsigned long manufacturer;
@@ -217,9 +218,13 @@ typedef struct cpu
 	uint64_t caps[8];
 } cpu_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 __attribute__((hot))
 bool x86_has_cap(int cap);
-bool x86_check_invariant_tsc(void);
+bool x86_has_usable_tsc(void);
 void x86_set_tsc_rate(uint64_t rate);
 uint64_t x86_get_tsc_rate(void);
 
@@ -228,6 +233,10 @@ static inline void cpu_relax(void)
 {
 	__asm__ __volatile__("pause" ::: "memory");
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 #include <onyx/x86/irq.h>
 

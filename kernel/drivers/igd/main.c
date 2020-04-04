@@ -147,10 +147,10 @@ int ihdgpu_probe(struct device *dev)
 		return -1;
 	}
 
-	if(pci_reset_device(device) < 0)
+	/*if(pci_reset_device(device) < 0)
 	{
 		printf("igpu: Could not reset device\n");
-	}
+	}*/
 
 	printk("reset pci device\n");
 
@@ -207,7 +207,7 @@ int ihdgpu_probe(struct device *dev)
 		return -1;
 	}
 
-	igd_enable_display_engine(d);
+	//igd_enable_display_engine(d);
 
 	igd_query_displays(d);
 

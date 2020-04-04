@@ -16,8 +16,10 @@
 #include <fractions.h>
 
 #include <onyx/x86/tsc.h>
+#include <fixed_point/fixed_point.h>
 
-static struct fraction ticks_per_ns;
+static struct fp_32_64 ticks_per_ns;
+static struct fp_32_64 ns_per_tick;
 
 uint64_t tsc_get_ticks(void);
 hrtime_t tsc_elapsed_ns(hrtime_t start, hrtime_t end);
@@ -47,14 +49,21 @@ hrtime_t tsc_get_ns(void)
 
 	tsc_clock.last_cycle = ticks;
 
-	return tsc_clock.base + tsc_clock.monotonic_warp + (fract_div_u64_fract(ticks, &ticks_per_ns));
+	return tsc_clock.base + tsc_clock.monotonic_warp + (u64_mul_u64_fp32_64(ticks, ticks_per_ns));
 }
 
 hrtime_t tsc_get_counter_from_ns(hrtime_t t)
 {
 	hrtime_t tsc_ns_time = t - tsc_clock.base - tsc_clock.monotonic_warp;
+	if(t > tsc_ns_time)
+	{
+		printk("tsc_ns_time bad time\n");
+		printk("Base %lx, warp %lx, t %lx, cpu %u\n", tsc_clock.base, tsc_clock.monotonic_warp, t, get_cpu_nr());
+		printk("tsc_ns_time: %lx\n", tsc_ns_time);
+		panic("bad tsc ns");
+	}
 
-	return fract_mult_u64_fract(tsc_ns_time, &ticks_per_ns);
+	return u64_mul_u64_fp32_64(tsc_ns_time, ns_per_tick);
 }
 
 static bool tsc_enabled = false;
@@ -62,22 +71,25 @@ static bool tsc_enabled = false;
 #undef TESTING_TSC
 void tsc_init(void)
 {
-	if(x86_check_invariant_tsc() == false)
+	if(x86_has_usable_tsc() == false)
 	{
-		INFO("tsc", "Invariant TSC not available - tsc not able to be "
+		INFO("tsc", "Invariant/Constant TSC not available - tsc is not able to be "
 		"used as a clock source\n");
 		return;
 	}
 	uint64_t freq = x86_get_tsc_rate();
 
 	INFO("tsc", "Frequency: %lu Hz\n", freq);
+	assert(freq <= UINT32_MAX);
 
-	ticks_per_ns.numerator = freq;
-	ticks_per_ns.denominator = NS_PER_SEC;
-	fract_reduce(&ticks_per_ns);
+	fp_32_64_div_32_32(&ns_per_tick, (uint32_t) freq, NS_PER_SEC);
+
+	fp_32_64_div_32_32(&ticks_per_ns, NS_PER_SEC, (uint32_t) freq);
+
+	//printk("ticks per ns: %lu/%lu\n", ticks_per_ns.numerator, ticks_per_ns.denominator);
 
 	tsc_clock.rate = freq;
-	tsc_clock.monotonic_warp = -fract_div_u64_fract(rdtsc(), &ticks_per_ns);
+	tsc_clock.monotonic_warp = -u64_mul_u64_fp32_64(rdtsc(), ticks_per_ns);
 	tsc_clock.last_cycle = rdtsc();
 	register_clock_source(&tsc_clock);
 
@@ -97,13 +109,13 @@ void tsc_init(void)
 hrtime_t tsc_elapsed_ns(hrtime_t start, hrtime_t end)
 {
 	hrtime_t delta = clock_delta_calc(start, end);
-	return fract_div_u64_fract(delta, &ticks_per_ns);
+	return u64_mul_u64_fp32_64(delta, ticks_per_ns);
 }
 
 void tsc_setup_vdso(struct vdso_time *time)
 {
 	if(!tsc_enabled)
 		return;
-	time->ticks_per_ns = fract_get_int(&ticks_per_ns);
-	time->using_tsc = x86_check_invariant_tsc();
+	time->ticks_per_ns = u32_mul_u64_fp32_64(1, ticks_per_ns);
+	time->using_tsc = x86_has_usable_tsc();
 }

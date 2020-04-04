@@ -61,6 +61,8 @@ void print(const char *data, size_t data_length)
 	}
 }
 
+void tty_write_string_kernel(const char *s);
+
 static void __flush_print()
 {
 	#ifdef __is_onyx_kernel
@@ -69,8 +71,6 @@ static void __flush_print()
 	memset(buffer, 0, sizeof(buffer));
 	bufferPos = 0;
 }
-
-void tty_write_string_kernel(const char *s);
 
 void __flush_print_screen()
 {
