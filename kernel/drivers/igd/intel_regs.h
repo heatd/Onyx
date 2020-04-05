@@ -242,13 +242,6 @@
 #define FUSE_STRAP					0x42014
 #define FUSE_STRAP_CDCLK_LIMIT		(1 << 24)
 
-#define LCPLL_CTL_HSW				0x130040
-#define LCPLL_CTL_HSW_PLL_DISABLE	(1 << 31)
-#define LCPLL_CTL_PLL_LOCK			(1 << 30)
-#define LCPLL_CTL_CDCLK_SELECT_450  0
-#define LCPLL_CTL_CDCLK_SELECT_ALT	(1 << 26)
-
-
 #define LCPLL1_CTL					0x46010
 
 #define LCPLL1_CTL_PLL_ENABLE		(1U << 31)

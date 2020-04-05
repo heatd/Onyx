@@ -87,7 +87,7 @@ struct igpu_driver_data igpu_haswell_priv =
 	.architecture = INTEL_ARCH_HASWELL
 };
 
-struct igpu_driver_data igpu_haswell_priv = 
+struct igpu_driver_data igpu_haswell_priv_ult = 
 {
 	.has_gmch_display = false,
 	.enable_power = igd_enable_power_haswell,
@@ -99,7 +99,7 @@ struct igpu_driver_data igpu_haswell_priv =
 struct pci_id ihdgpu_pci_ids[] = 
 {
 	{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x5917, &igpu_skl_priv) },
-	{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x0a16, &igpu_haswell_priv) },
+	{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x0a16, &igpu_haswell_priv_ult) },
 	{0}
 };
 

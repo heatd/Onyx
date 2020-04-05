@@ -148,11 +148,11 @@ int igd_enable_display_engine_skl(struct igpu_device *dev)
 
 int igd_enable_display_engine_hsw(struct igpu_device *dev)
 {
-	uint32_t cdclk_ctl = (CDCLK_CTL_FREQ_SELECT_450MHZ << CDCLK_CTL_FREQ_SELECT_SHIFT) |
+	/*uint32_t cdclk_ctl = (CDCLK_CTL_FREQ_SELECT_450MHZ << CDCLK_CTL_FREQ_SELECT_SHIFT) |
 			      CDCLK_CTL_FREQ_DECIMAL_337_5MHZ;
-	igpu_mmio_write(dev, CDCLK_CTL, cdclk_ctl);
+	igpu_mmio_write(dev, CDCLK_CTL, cdclk_ctl);*/
 
-
+	return 0;
 }
 
 int igd_query_displays(struct igpu_device *dev)
