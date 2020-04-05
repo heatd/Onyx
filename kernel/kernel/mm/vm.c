@@ -106,7 +106,7 @@ struct vm_region *vm_reserve_region(struct mm_address_space *as,
 		return NULL;
 
 	region->base = start;
-	region->pages = vm_align_size_to_pages(size);
+	region->pages = vm_size_to_pages(size);
 	region->rwx = 0;
 
 	dict_insert_result res = rb_tree_insert(as->area_tree,
@@ -1038,7 +1038,7 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
 	spin_lock(&mm->vm_spl);
 
 	/* Calculate the pages needed for the overall size */
-	size_t pages = vm_align_size_to_pages(length);
+	size_t pages = vm_size_to_pages(length);
 	int vm_prot = VM_USER |
 		      ((prot & PROT_WRITE) ? VM_WRITE : 0) |
 		      ((!(prot & PROT_EXEC)) ? VM_NOEXEC : 0);
@@ -1199,7 +1199,7 @@ int sys_munmap(void *addr, size_t length)
 	if(is_higher_half(addr))
 		return -EINVAL;
 
-	size_t pages = vm_align_size_to_pages(length);
+	size_t pages = vm_size_to_pages(length);
 	
 	if((unsigned long) addr & (PAGE_SIZE - 1))
 		return -EINVAL;
@@ -1431,7 +1431,7 @@ int sys_mprotect(void *addr, size_t len, int prot)
 		      ((prot & PROT_WRITE) ? VM_WRITE : 0) |
 		      ((!(prot & PROT_EXEC)) ? VM_NOEXEC : 0);
 
-	size_t pages = vm_align_size_to_pages(len);
+	size_t pages = vm_size_to_pages(len);
 
 	len = pages << PAGE_SHIFT; /* Align len on a page boundary */
 
@@ -1532,7 +1532,7 @@ void vm_print_umap()
 void *__map_pages_to_vaddr(struct process *process, void *virt, void *phys,
 		size_t size, size_t flags)
 {
-	size_t pages = vm_align_size_to_pages(size);
+	size_t pages = vm_size_to_pages(size);
 	
 #if DEBUG_PRINT_MAPPING
 	printk("__map_pages_to_vaddr: %p (phys %p) - %lx\n", virt, phys, (unsigned long) virt + size);
@@ -1558,7 +1558,7 @@ void *mmiomap(void *phys, size_t size, size_t flags)
 	uintptr_t u = (uintptr_t) phys;
 	uintptr_t p_off = u & (PAGE_SIZE - 1);
 
-	size_t pages = vm_align_size_to_pages(size);
+	size_t pages = vm_size_to_pages(size);
 	if(p_off)
 	{
 		pages++;
@@ -2426,7 +2426,7 @@ void *map_user(void *addr, size_t pages, uint32_t type, uint64_t prot)
 void *map_page_list(struct page *pl, size_t size, uint64_t prot)
 {
 	struct vm_region *entry = vm_allocate_virt_region(VM_KERNEL,
-		vm_align_size_to_pages(size), VM_TYPE_REGULAR, prot);
+		vm_size_to_pages(size), VM_TYPE_REGULAR, prot);
 	if(!entry)
 		return NULL;
 	void *vaddr = (void *) entry->base;
@@ -2436,7 +2436,7 @@ void *map_page_list(struct page *pl, size_t size, uint64_t prot)
 	{
 		if(!map_pages_to_vaddr((void *) u, page_to_phys(pl), PAGE_SIZE, prot))
 		{
-			vm_destroy_mappings(vaddr, vm_align_size_to_pages(size));
+			vm_destroy_mappings(vaddr, vm_size_to_pages(size));
 			return NULL;
 		}
 

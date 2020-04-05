@@ -34,17 +34,19 @@ SECTIONS
 		. += 0x8000;
 	} : boot
 
-	cpu_phys_base = .;
+	percpu_base = .;
 	. = 0;
 
-	.percpu : AT(cpu_phys_base)
+	.percpu : AT(percpu_base)
 	{
 		__percpu_start = .;
 		*(.percpu*)
 		__percpu_end = .;
 	} : percpu
 	
-	. += cpu_phys_base;
+	. += percpu_base;
+	. = ALIGN(0x1000);
+
 	. += VIRT_BASE;
 
 	.text ALIGN(0x1000) : AT(ADDR(.text) - VIRT_BASE)

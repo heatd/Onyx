@@ -10,9 +10,11 @@
 
 #include <onyx/percpu.h>
 #include <onyx/x86/msr.h>
+#include <onyx/vm.h>
 
 extern unsigned char __percpu_start;
 extern unsigned char __percpu_end;
+extern unsigned char percpu_base;
 
 /* Define errno somewhere */
 PER_CPU_VAR(int __true_errno) = 0;
@@ -46,14 +48,7 @@ void percpu_init()
 	size_t percpu_size = (unsigned long) &__percpu_end - (unsigned long) &__percpu_start;
 	printf("percpu: .percpu size: %lu\n", percpu_size);
 
-	void *buffer = zalloc(percpu_size);
-	assert(buffer != nullptr);
-
-	wrmsr(GS_BASE_MSR, (unsigned long) buffer);
-
-	write_per_cpu(__cpu_base, (unsigned long) buffer);
-
-	assert(get_per_cpu(__cpu_base) == (unsigned long) buffer);
+	void *buffer = (void *) get_per_cpu(__cpu_base);
 
 	percpu_add_percpu((unsigned long) buffer);
 	percpu_inited = true;
@@ -74,9 +69,16 @@ unsigned long percpu_init_for_cpu(unsigned int cpu)
 	return (unsigned long) buffer;
 }
 
-bool percpu_initialized()
-{
-	return percpu_inited;
 }
 
+extern "C"
+int percpu_map_master_copy()
+{
+	size_t percpu_size = (unsigned long) &__percpu_end - (unsigned long) &__percpu_start;
+	size_t nr_pages = vm_size_to_pages(percpu_size);
+	unsigned long percpu_virtual_start = (unsigned long) &percpu_base + KERNEL_VIRTUAL_BASE;
+
+	auto ret = map_pages_to_vaddr((void *) percpu_virtual_start, (void *) &percpu_base,
+	                              nr_pages, VM_WRITE | VM_NOEXEC);
+	return ret ? 0 : -1;
 }

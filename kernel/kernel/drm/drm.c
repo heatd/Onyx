@@ -555,7 +555,7 @@ void *drm_mmap(struct vm_region *area, struct inode *inode)
 
 	if(!vmo)
 		return NULL;
-	size_t nr_pages = vm_align_size_to_pages(dbuf->size);
+	size_t nr_pages = vm_size_to_pages(dbuf->size);
 	struct page *p = dbuf->pages;
 	size_t off = 0;
 	while(nr_pages--)

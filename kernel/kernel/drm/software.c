@@ -34,7 +34,7 @@ struct drm_dumb_buffer *drm_soft_dumb_create(struct drm_dumb_buffer_info *info, 
 	size_t size = info->width * info->height * info->bpp/8;
 	
 	/* Allocate the fb in pages so it can be mapped */
-	struct page *page_list = alloc_pages(vm_align_size_to_pages(size), 0);
+	struct page *page_list = alloc_pages(vm_size_to_pages(size), 0);
 
 	if(!page_list)
 		return NULL;

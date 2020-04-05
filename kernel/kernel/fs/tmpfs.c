@@ -262,7 +262,7 @@ int tmpfs_fill_with_data(struct inode *vnode, const void *_buf, size_t size)
 	tmpfs_file_t *file = (tmpfs_file_t *) vnode->i_inode;
 	
 	const char *buf = _buf;
-	size_t nr_reads = vm_align_size_to_pages(size);
+	size_t nr_reads = vm_size_to_pages(size);
 	off_t off = 0;
 
 	for(size_t i = 0; i < nr_reads; i++)

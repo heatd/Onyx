@@ -73,7 +73,7 @@ struct slab *slab_create_slab(size_t size_obj, slab_cache_t *cache)
 		return errno = ENOMEM, NULL;
 	}
 
-	void *buffer = vmalloc(vm_align_size_to_pages(slab_size),
+	void *buffer = vmalloc(vm_size_to_pages(slab_size),
 		VM_TYPE_REGULAR, VM_NOEXEC | VM_WRITE);
 	if(!buffer)
 	{
@@ -85,7 +85,7 @@ struct slab *slab_create_slab(size_t size_obj, slab_cache_t *cache)
 	slab->buf = buffer;
 	if(slab_setup_bufctls(slab, cache) < 0)
 	{
-		vfree(buffer, vm_align_size_to_pages(slab_size));
+		vfree(buffer, vm_size_to_pages(slab_size));
 		free(slab);
 		return errno = ENOMEM, NULL;
 	}
@@ -250,7 +250,7 @@ void slab_destroy_slab(struct slab *slab)
 		bufctl = bufctl->next;
 		free(this);
 	}
-	vfree(slab->buf, vm_align_size_to_pages(slab->size));
+	vfree(slab->buf, vm_size_to_pages(slab->size));
 }
 
 void slab_destroy(slab_cache_t *cache)

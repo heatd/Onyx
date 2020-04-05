@@ -44,7 +44,7 @@ char **process_copy_envarg(char **envarg, bool to_kernel, int *count)
 	else
 	{
 		new = get_user_pages(VM_TYPE_SHARED,
-			vm_align_size_to_pages(buffer_size), VM_WRITE | VM_NOEXEC | VM_USER);
+			vm_size_to_pages(buffer_size), VM_WRITE | VM_NOEXEC | VM_USER);
 		if(!new)
 			return NULL;
 	}

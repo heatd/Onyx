@@ -281,13 +281,6 @@ void *sched_preempt_thread(void *current_stack)
 
 	return ret;
 }
-struct thread *get_current_thread(void)
-{
-	if(!percpu_initialized())
-		return NULL;
-
-	return get_per_cpu(current_thread);
-}
 
 void sched_idle(void *ptr)
 {
@@ -994,24 +987,20 @@ void sched_try_to_resched_if_needed(void)
 
 	if(current && sched_needs_resched(current) && sched_may_resched())
 	{
-		current->flags &= ~THREAD_NEEDS_RESCHED;
 		sched_yield();
+		current->flags &= ~THREAD_NEEDS_RESCHED;
 	}
 }
 
 void sched_enable_preempt(void)
 {
-	if(percpu_initialized())
-	{
-		sched_enable_preempt_for_cpu(get_cpu_nr());	
-		sched_try_to_resched_if_needed();	
-	}
+	sched_enable_preempt_for_cpu(get_cpu_nr());	
+	sched_try_to_resched_if_needed();	
 }
 
 void sched_disable_preempt(void)
 {
-	if(percpu_initialized())
-		sched_disable_preempt_for_cpu(get_cpu_nr());
+	sched_disable_preempt_for_cpu(get_cpu_nr());
 }
 
 enqueue_thread_generic(mutex, struct mutex);

@@ -816,6 +816,8 @@ void paging_protect_kernel(void)
 	map_pages_to_vaddr((void *) vdso_start, (void *) (vdso_start - KERNEL_VIRTUAL_BASE),
 		size, VM_WRITE);
 
+	percpu_map_master_copy();
+
 	__asm__ __volatile__("movq %0, %%cr3"::"r"(pml));
 
 	kernel_address_space.cr3 = pml;

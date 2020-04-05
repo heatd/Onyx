@@ -207,13 +207,13 @@ const size_t rx_buffer_size = 2048;
 int e1000_init_rx(struct e1000_device *dev)
 {
 	int st = 0;
-	size_t needed_pages = vm_align_size_to_pages(sizeof(struct e1000_rx_desc) * E1000_NUM_RX_DESC + 16);
+	size_t needed_pages = vm_size_to_pages(sizeof(struct e1000_rx_desc) * E1000_NUM_RX_DESC + 16);
 	struct page *rx_pages = alloc_pages(needed_pages, PAGE_ALLOC_CONTIGUOUS);
 
 	if(!rx_pages)
 		return -ENOMEM;
 
-	struct page *rx_buf_pages = alloc_pages(vm_align_size_to_pages(E1000_NUM_RX_DESC * rx_buffer_size),
+	struct page *rx_buf_pages = alloc_pages(vm_size_to_pages(E1000_NUM_RX_DESC * rx_buffer_size),
                                              PAGE_ALLOC_NO_ZERO);
 	if(!rx_buf_pages)
 	{
@@ -281,7 +281,7 @@ int e1000_init_tx(struct e1000_device *dev)
 {
 	struct e1000_tx_desc *txdescs = NULL;
 	int st = 0;
-	size_t needed_pages = vm_align_size_to_pages(sizeof(struct e1000_rx_desc) * E1000_NUM_RX_DESC + 16);
+	size_t needed_pages = vm_size_to_pages(sizeof(struct e1000_rx_desc) * E1000_NUM_RX_DESC + 16);
 	struct page *tx_pages = alloc_pages(needed_pages, PAGE_ALLOC_CONTIGUOUS);
 
 	if(!tx_pages)

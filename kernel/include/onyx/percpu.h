@@ -146,7 +146,7 @@ extern "C" {
 
 void percpu_init();
 unsigned long percpu_init_for_cpu(unsigned int cpu);
-bool percpu_initialized();
+int percpu_map_master_copy();
 
 #ifdef __cplusplus
 }

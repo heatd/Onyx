@@ -204,7 +204,7 @@ bool virtq_split::init()
 	size_t avail_ring_length = ALIGN_TO(queue_size * sizeof(uint16_t) + 4, 4);
 	size_t used_ring_length = queue_size * sizeof(virtq_used_elem)
                               + sizeof(uint16_t) * 2;
-	size_t total_pages = vm_align_size_to_pages(descriptor_table_length
+	size_t total_pages = vm_size_to_pages(descriptor_table_length
                          + avail_ring_length + used_ring_length);
 	
 	desc_bitmap.SetSize(queue_size);

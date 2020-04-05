@@ -167,7 +167,7 @@ void page_init(size_t memory_size, unsigned long maxpfn, void *(*get_phys_mem_re
 	size_t needed_memory = nr_arenas *
 		sizeof(struct page_arena) + 
 		maxpfn * sizeof(struct page);
-	void *ptr = alloc_boot_page(vm_align_size_to_pages(needed_memory), 0);
+	void *ptr = alloc_boot_page(vm_size_to_pages(needed_memory), 0);
 	if(!ptr)
 	{
 		halt();

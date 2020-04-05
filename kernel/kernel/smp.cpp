@@ -20,8 +20,6 @@ PER_CPU_VAR(unsigned int cpu_nr) = 0;
 
 unsigned int get_cpu_nr()
 {
-	if(!percpu_initialized())
-		return 0;
 	return get_per_cpu(cpu_nr);
 }
 

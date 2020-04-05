@@ -13,6 +13,7 @@
 #include <onyx/spinlock.h>
 #include <onyx/signal.h>
 #include <onyx/list.h>
+#include <onyx/percpu.h>
 
 #define NUM_PRIO 40
 
@@ -78,7 +79,14 @@ thread_t* sched_create_main_thread(thread_callback_t callback, uint32_t flags,in
 
 void sched_remove_thread(thread_t *thread);
 
-thread_t *get_current_thread(void);
+/* This symbol is percpu, don't use. */
+extern struct thread *current_thread;
+
+static inline struct thread *get_current_thread(void)
+{
+	return get_per_cpu(current_thread);
+}
+
 
 void* sched_switch_thread(void* last_stack);
 

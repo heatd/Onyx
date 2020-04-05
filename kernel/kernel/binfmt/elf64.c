@@ -209,7 +209,7 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 	/* TODO: Rework this */
 
 	needed_size += last_size;
-	base = get_pages(VM_ADDRESS_USER, VM_TYPE_SHARED, vm_align_size_to_pages(needed_size), 
+	base = get_pages(VM_ADDRESS_USER, VM_TYPE_SHARED, vm_size_to_pages(needed_size), 
 				VM_WRITE | VM_USER, alignment);
 	if(!base)
 	{
@@ -258,7 +258,7 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 			phdrs[i].p_vaddr += (uintptr_t) base;
 			uintptr_t aligned_address = phdrs[i].p_vaddr & ~(PAGE_SIZE - 1);
 			size_t total_size = phdrs[i].p_memsz + (phdrs[i].p_vaddr - aligned_address);
-			size_t pages = vm_align_size_to_pages(total_size);
+			size_t pages = vm_size_to_pages(total_size);
 			size_t misalignment = phdrs[i].p_vaddr - aligned_address;
 		
 			/* Sanitize the address first */

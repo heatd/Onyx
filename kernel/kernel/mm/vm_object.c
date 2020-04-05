@@ -148,7 +148,7 @@ void vmo_rb_delete_func(void *key, void *data)
 
 int vmo_fork_pages(struct vm_object *vmo)
 {
-	size_t pages = vm_align_size_to_pages(vmo->size);
+	size_t pages = vm_size_to_pages(vmo->size);
 	if(!pages)
 		return 0;
 	
@@ -266,7 +266,7 @@ static void vmo_rollback_pages(struct page *begin, struct page *end, struct vm_o
 
 int vmo_prefault(struct vm_object *vmo, size_t size, size_t offset)
 {
-	size_t pages = vm_align_size_to_pages(size);
+	size_t pages = vm_size_to_pages(size);
 
 	struct page *p = alloc_pages(pages, 0);
 	if(!p)

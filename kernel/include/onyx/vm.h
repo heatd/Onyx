@@ -232,7 +232,7 @@ static inline void *page_align_up(void *ptr)
 	return (void *) i;
 }
 
-static inline size_t vm_align_size_to_pages(size_t size)
+static inline size_t vm_size_to_pages(size_t size)
 {
 	size_t pages = size >> PAGE_SHIFT;
 	if(size & (PAGE_SIZE-1))

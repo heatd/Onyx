@@ -41,9 +41,21 @@ stack_bottom:
 stack_top:
 
 .section .text
-_start: 
+_start:
 	push $0
 	movq $stack_top, %rsp
+
+	/* Take the time to wrmsr the default GS_BASE */
+	mov $percpu_base, %rdx
+	add $VIRT_BASE, %rdx
+	mov %rdx, %r11
+	mov %edx, %eax
+	shr $32, %rdx
+	mov $GS_BASE_MSR, %ecx
+	wrmsr
+
+	mov %r11, %gs:__cpu_base
+
 	call kernel_early
 	call _init
 	call randomize_stack_canary
