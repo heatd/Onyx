@@ -11,6 +11,7 @@
 #include <stdio.h>
 
 #include <onyx/i2c.h>
+#include <onyx/clock.h>
 
 #include <pci/pci.h>
 
@@ -21,6 +22,8 @@ struct igpu_device;
 #define INTEL_ARCH_HASWELL		0
 #define INTEL_ARCH_SKYLAKE		1
 
+#define INTEL_FLAG_ULT			(1 << 0)
+
 struct igpu_driver_data
 {
 	/* Turns out, we need to know this, because gmch uses the normal
@@ -30,9 +33,10 @@ struct igpu_driver_data
 	 * Note that we can only detect if we have a GMCH vs PCH with PCI ids
 	*/
 	bool has_gmch_display;
-	/* TODO: Add more stuff */
 	int (*enable_power)(struct igpu_device *dev);
-	int architecture;
+	int (*enable_display_engine)(struct igpu_device *dev);
+	unsigned int architecture;
+	unsigned int extra_flags;
 };
 
 struct igpu_gmbus
@@ -189,7 +193,7 @@ void igpu_mmio_write(struct igpu_device *dev, uint32_t offset, uint32_t data);
 int igpu_i2c_init(struct igpu_device *dev);
 
 int igpu_wait_bit(struct igpu_device *dev, uint32_t reg, uint32_t mask,
-		  unsigned long timeout, bool clear);
+		  hrtime_t timeout, bool clear);
 
 int igd_init_displayport(struct igpu_device *dev);
 int igd_enable_power_skylake(struct igpu_device *dev);

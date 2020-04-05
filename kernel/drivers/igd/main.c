@@ -13,6 +13,7 @@
 #include <onyx/acpi.h>
 #include <onyx/log.h>
 #include <onyx/video/edid.h>
+#include <onyx/cpu.h>
 
 #include <pci/pci.h>
 
@@ -40,15 +41,16 @@ void igpu_mmio_write(struct igpu_device *dev, uint32_t offset, uint32_t data)
 }
 
 int igpu_wait_bit(struct igpu_device *dev, uint32_t reg, uint32_t mask,
-		  unsigned long timeout, bool clear)
+		  hrtime_t timeout, bool clear)
 {
-	uint64_t last = get_tick_count();
+	hrtime_t t0 = clocksource_get_time();
 	
 	while(true)
 	{
 		/* If the time is up, return a timeout */
-		if(last + timeout < get_tick_count())
+		if(clocksource_get_time() - t0 >= timeout)
 			return -ETIMEDOUT;
+
 		if(clear)
 		{
 			if((igpu_mmio_read(dev, reg) & mask) == 0)
@@ -60,15 +62,20 @@ int igpu_wait_bit(struct igpu_device *dev, uint32_t reg, uint32_t mask,
 				return 0;
 		}
 
-		sched_yield();
+		/* TODO: Use a sleep when we implement clock events */
+		cpu_relax();
 	}
 
 	return -ETIMEDOUT;
 }
 
-struct igpu_driver_data igpu_default_priv = {
+int igd_enable_display_engine_skl(struct igpu_device *dev);
+int igd_enable_display_engine_hsw(struct igpu_device *dev);
+
+struct igpu_driver_data igpu_skl_priv = {
 	.has_gmch_display = false,
 	.enable_power = igd_enable_power_skylake,
+	.enable_display_engine = igd_enable_display_engine_skl,
 	.architecture = INTEL_ARCH_SKYLAKE
 };
 
@@ -76,28 +83,22 @@ struct igpu_driver_data igpu_haswell_priv =
 {
 	.has_gmch_display = false,
 	.enable_power = igd_enable_power_haswell,
+	.enable_display_engine = igd_enable_display_engine_hsw,
 	.architecture = INTEL_ARCH_HASWELL
+};
+
+struct igpu_driver_data igpu_haswell_priv = 
+{
+	.has_gmch_display = false,
+	.enable_power = igd_enable_power_haswell,
+	.enable_display_engine = igd_enable_display_engine_hsw,
+	.architecture = INTEL_ARCH_HASWELL,
+	.extra_flags = INTEL_FLAG_ULT
 };
 
 struct pci_id ihdgpu_pci_ids[] = 
 {
-	{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x5917, &igpu_default_priv) },
-	{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x5916, &igpu_default_priv) },
-	{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x5912, &igpu_default_priv) },
-	{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x5902, &igpu_default_priv) },
-	{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x1606, &igpu_default_priv) },
-	{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x1612, &igpu_default_priv) },
-	{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x1616, &igpu_default_priv) },
-	{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x161e, &igpu_default_priv) },
-	{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x1626, &igpu_default_priv) },
-	{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x1902, &igpu_default_priv) },
-	{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x1906, &igpu_default_priv) },
-	{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x1912, &igpu_default_priv) },
-	{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x191b, &igpu_default_priv) },
-	{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x191d, &igpu_default_priv) },
-	{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x191e, &igpu_default_priv) },
-	{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x1921, &igpu_default_priv) },
-	{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x591d, &igpu_default_priv) },
+	{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x5917, &igpu_skl_priv) },
 	{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x0a16, &igpu_haswell_priv) },
 	{0}
 };

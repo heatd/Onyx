@@ -58,6 +58,7 @@ void time_set(clockid_t clock, struct clock_time *val);
 int clock_gettime_kernel(clockid_t clk_id, struct timespec *tp);
 struct clock_time *get_raw_clock_time(clockid_t clkid);
 time_t clock_get_posix_time(void);
+hrtime_t clocksource_get_time(void);
 
 #ifdef __cplusplus
 }

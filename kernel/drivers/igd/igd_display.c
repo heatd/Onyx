@@ -53,7 +53,7 @@ int igd_change_cdclk_magic_sequence(struct igpu_device *dev)
 		/* TODO: When we add high resolution timing support to the kernel,
 		 * adjust this interface */
 		if(igpu_wait_bit(dev, GT_DRIVER_MAILBOX_INTERFACE, GT_DRIVER_MAILBOX_INTERFACE_RUN_BIT,
-			1, true) < 0)
+			150 * NS_PER_US, true) < 0)
 			return -ETIMEDOUT;
 		
 		/* TODO: The manual suggests we timeout out of the whole process */
@@ -64,7 +64,7 @@ int igd_change_cdclk_magic_sequence(struct igpu_device *dev)
 	return 0;
 }
 
-void igd_finish_cdclk_freq_change(struct igpu_device *dev, unsigned int freq)
+void igd_finish_cdclk_freq_change_kbl(struct igpu_device *dev, unsigned int freq)
 {
 	uint32_t data0;
 
@@ -91,7 +91,7 @@ void igd_finish_cdclk_freq_change(struct igpu_device *dev, unsigned int freq)
 	igpu_mmio_write(dev, GT_DRIVER_MAILBOX_INTERFACE, GT_DRIVER_MAILBOX_INTERFACE_MAGIC_VALUE);
 }
 
-int igd_enable_display_engine(struct igpu_device *dev)
+int igd_enable_display_engine_skl(struct igpu_device *dev)
 {
 	/* Check page 126 of the KBL display chapter for more info */
 
@@ -123,7 +123,7 @@ int igd_enable_display_engine(struct igpu_device *dev)
 
 	igpu_mmio_write(dev, LCPLL1_CTL, lcpll1_ctl);
 
-	if(igpu_wait_bit(dev, LCPLL1_CTL, LCPLL1_CTL_PLL_LOCK, 5, false) < 0)
+	if(igpu_wait_bit(dev, LCPLL1_CTL, LCPLL1_CTL_PLL_LOCK, NS_PER_MS * 5, false) < 0)
 	{
 		printk("%s: Timed out waiting for PLL Lock(DPLL 0)\n", __func__);
 		return -ETIMEDOUT;
@@ -136,14 +136,23 @@ int igd_enable_display_engine(struct igpu_device *dev)
 
 	igpu_mmio_write(dev, CDCLK_CTL, cdclk_ctl);
 
-	igd_finish_cdclk_freq_change(dev, CDCLK_CTL_FREQ_SELECT_337_5MHZ);
+	igd_finish_cdclk_freq_change_kbl(dev, CDCLK_CTL_FREQ_SELECT_337_5MHZ);
 
 	igpu_mmio_write(dev, DBUF_CTL, DBUF_CTL_POWER_REQUEST);
 
-	if(igpu_wait_bit(dev, DBUF_CTL, DBUF_CTL_POWER_STATE, 1, false) < 0)
+	if(igpu_wait_bit(dev, DBUF_CTL, DBUF_CTL_POWER_STATE, NS_PER_MS * 1, false) < 0)
 		return -ETIMEDOUT;
 
 	return 0;
+}
+
+int igd_enable_display_engine_hsw(struct igpu_device *dev)
+{
+	uint32_t cdclk_ctl = (CDCLK_CTL_FREQ_SELECT_450MHZ << CDCLK_CTL_FREQ_SELECT_SHIFT) |
+			      CDCLK_CTL_FREQ_DECIMAL_337_5MHZ;
+	igpu_mmio_write(dev, CDCLK_CTL, cdclk_ctl);
+
+
 }
 
 int igd_query_displays(struct igpu_device *dev)

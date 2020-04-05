@@ -48,6 +48,11 @@ struct clocksource *get_main_clock(void)
 	return main_clock;
 }
 
+hrtime_t clocksource_get_time(void)
+{
+	return main_clock->get_ns();
+}
+
 time_t sys_time(time_t *s)
 {
 	if(s)

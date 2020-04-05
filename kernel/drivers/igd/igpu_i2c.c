@@ -42,13 +42,13 @@ int igpu_i2c_hw_rdy(struct igpu_device *dev)
 		return -1;
 	return igpu_wait_bit(dev, dev->gpio_regs_off + GMBUS2,
 			     GMBUS2_HW_RDY,
-			     50, false);
+			     50 * NS_PER_MS, false);
 }
 
 int i2c_wait_for_completion(struct igpu_device *dev)
 {
 	return igpu_wait_bit(dev, dev->gpio_regs_off + GMBUS2,
-			     GMBUS2_HW_WAIT_PHASE, 50, false);
+			     GMBUS2_HW_WAIT_PHASE, 50 * NS_PER_MS, false);
 }
 
 int igpu_i2c_read(struct igpu_device *dev, uint8_t addr, uint8_t *buf, uint8_t count)
@@ -124,7 +124,7 @@ void igpu_i2c_finish_transaction(struct igpu_device *dev)
 	igpu_gpio_write(dev, GMBUS1, gmbus1);
 
 	int st = igpu_wait_bit(dev, dev->gpio_regs_off + GMBUS2,
-			       GMBUS2_GMBUS_ACTIVE, 100, true);
+			       GMBUS2_GMBUS_ACTIVE, 100 * NS_PER_MS, true);
 
 	uint32_t gmbus0 = 0;
 	igpu_gpio_write(dev, GMBUS0, gmbus0);
