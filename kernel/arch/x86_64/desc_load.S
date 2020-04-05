@@ -4,15 +4,18 @@
  check LICENSE at the root directory for more information
 */
 .section .text
+
 .global tss_flush
 tss_flush:
 	mov $0x3b, %ax
 	ltr %ax
 	ret
+
 .global gdt_flush
 gdt_flush:
 	lgdt (%rdi)
 	ret
+
 .global idt_flush
 idt_flush:
 	lidt (%rdi)

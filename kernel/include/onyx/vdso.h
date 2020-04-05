@@ -12,17 +12,32 @@
 #include <sys/time.h>
 
 #include <onyx/clock.h>
+#include <fixed_point/fixed_point.h>
 
 struct vdso_time
 {
-	unsigned int ticks_per_ns;
+	struct fp_32_64 ticks_per_ns;
 #ifdef __x86_64__
 	bool using_tsc;
 #endif
 };
 
+struct vdso_clock_time
+{
+	time_t epoch;
+	hrtime_t tick;
+};
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void vdso_init(void);
-void *map_vdso(void);
+void *vdso_map(void);
 int vdso_update_time(clockid_t id, struct clock_time *time);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

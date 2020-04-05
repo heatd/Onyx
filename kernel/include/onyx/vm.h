@@ -269,6 +269,9 @@ static inline unsigned long thread_change_addr_limit(unsigned long limit)
 	return r;
 }
 
+void *vm_map_vmo(size_t flags, uint32_t type, size_t pages, size_t prot, struct vm_object *vmo);
+
+
 #ifdef __cplusplus
 }
 #endif

@@ -266,7 +266,7 @@ int main(int argc, char **argv, char **envp)
 	setup_hostname();
 
 	//signal_test();
-	mmap_test();
+	//mmap_test();
 
 	/* Execute daemons */
 	exec_daemons();

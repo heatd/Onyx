@@ -69,4 +69,6 @@ extern char **__environ;
 #undef LFS64
 #define LFS64(x) LFS64_2(x, x##64)
 
+void __vdso_init(void);
+
 #endif

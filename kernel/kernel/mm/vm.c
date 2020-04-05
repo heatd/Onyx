@@ -399,7 +399,7 @@ bool vm_mapping_requires_wb(struct vm_region *reg)
 
 bool vm_mapping_is_anon(struct vm_region *reg)
 {
-	return reg->fd == NULL;
+	return reg->fd == NULL && reg->vmo->type == VMO_ANON;
 }
 
 bool vm_mapping_requires_write_protect(struct vm_region *reg)
@@ -966,8 +966,7 @@ void vm_change_perms(void *range, size_t pages, int perms)
 
 void *vmalloc(size_t pages, int type, int perms)
 {
-	struct vm_region *vm =
-		vm_allocate_virt_region(VM_KERNEL, pages, type, perms);
+	struct vm_region *vm = vm_allocate_virt_region(VM_KERNEL, pages, type, perms);
 	if(!vm)
 		return NULL;
 
@@ -2146,6 +2145,50 @@ void vm_do_fatal_page_fault(struct fault_info *info)
 		panic("Unable to satisfy paging request");
 }
 
+void *vm_map_vmo(size_t flags, uint32_t type, size_t pages, size_t prot, struct vm_object *vmo)
+{
+	bool kernel = !(flags & VM_ADDRESS_USER);
+	void *ret = NULL;
+	struct mm_address_space *mm = get_current_address_space();
+	spin_lock(&mm->vm_spl);
+
+	struct vm_region *reg = __vm_allocate_virt_region(flags, pages, type, prot);
+	if(!reg)
+	{
+		goto ret;
+	}
+
+	vmo_ref(vmo);
+
+	reg->vmo = vmo;
+	vmo_assign_mapping(vmo, reg);
+	reg->mapping_type = MAP_SHARED;
+
+	if(kernel)
+	{
+		if(vmo_prefault(reg->vmo, pages << PAGE_SHIFT, 0) < 0)
+		{
+			__vm_munmap(&kernel_address_space, (void *) reg->base, pages << PAGE_SHIFT);
+			goto ret;
+		}
+
+		if(vm_flush(reg, 0, 0) < 0)
+		{
+			__vm_munmap(&kernel_address_space, (void *) reg->base, pages << PAGE_SHIFT);
+			goto ret;
+		}
+
+#ifdef CONFIG_KASAN
+		kasan_alloc_shadow(va->base, pages << PAGE_SHIFT, true);
+#endif
+	}
+
+	ret = (void *) reg->base;
+ret:
+	spin_unlock(&mm->vm_spl);
+	return ret;
+}
+
 void *get_pages(size_t flags, uint32_t type, size_t pages, size_t prot, uintptr_t alignment)
 {
 	bool kernel = !(flags & VM_ADDRESS_USER);
@@ -2321,10 +2364,13 @@ int vm_region_setup_backing(struct vm_region *region, size_t pages, bool is_file
 		region->offset = 0;
 	}
 	else
+	{
 		vmo = vmo_create_phys(pages * PAGE_SIZE);
 
-	if(!vmo)
-		return -1;
+		if(!vmo)
+			return -1;
+		vmo->type = VMO_ANON;
+	}
 
 	vmo_assign_mapping(vmo, region);
 

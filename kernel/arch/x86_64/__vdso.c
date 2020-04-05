@@ -13,6 +13,7 @@
 #include <onyx/clock.h>
 #include <onyx/vdso.h>
 #include <onyx/cpu.h>
+#include <fixed_point/fixed_point.h>
 
 #include <sys/time.h>
 
@@ -42,14 +43,14 @@ uint64_t clock_delta_calc(uint64_t start, uint64_t end)
 	return end - start;
 }
 
-volatile struct clock_time clock_realtime = {0};
-volatile struct clock_time clock_monotonic = {0};
+volatile struct vdso_clock_time clock_realtime = {0};
+volatile struct vdso_clock_time clock_monotonic = {0};
 volatile struct vdso_time __time;
 
-unsigned int tsc_elapsed_ns(uint64_t start, uint64_t end)
+unsigned long tsc_elapsed_ns(uint64_t start, uint64_t end)
 {
 	uint64_t delta = clock_delta_calc(start, end);
-	return delta / __time.ticks_per_ns;
+	return u64_mul_u64_fp32_64(delta, __time.ticks_per_ns);
 }
 
 #define SyS_clock_gettime			42
@@ -62,7 +63,7 @@ int __vdso_clock_gettime(clockid_t clk_id, struct timespec *tp)
 		return __vdso_syscall(SyS_clock_gettime, clk_id, tp);
 	}
 
-	volatile struct clock_time *clk = NULL;
+	volatile struct vdso_clock_time *clk = NULL;
 	switch(clk_id)
 	{
 		case CLOCK_REALTIME:

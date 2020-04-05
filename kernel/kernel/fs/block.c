@@ -74,7 +74,6 @@ size_t blkdev_read_file(int flags, size_t offset, size_t len, void *buffer, stru
 	{
 		//printk("handling misalignment\n");
 		/* *sigh* yuck, we'll need to allocate a bounce buffer */
-		/* TODO: Check how fast the page allocator is vs malloc */
 		struct page *p = alloc_page(PAGE_ALLOC_NO_ZERO);
 		if(!p)
 		{

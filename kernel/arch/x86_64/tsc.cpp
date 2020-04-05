@@ -116,6 +116,6 @@ void tsc_setup_vdso(struct vdso_time *time)
 {
 	if(!tsc_enabled)
 		return;
-	time->ticks_per_ns = u32_mul_u64_fp32_64(1, ticks_per_ns);
+	time->ticks_per_ns = ticks_per_ns;
 	time->using_tsc = x86_has_usable_tsc();
 }

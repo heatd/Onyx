@@ -5,6 +5,7 @@
 #include "syscall.h"
 #include "atomic.h"
 #include "libc.h"
+
 #include <unistd.h>
 #include <string.h>
 void __init_tls(size_t *);
@@ -69,6 +70,7 @@ int __libc_start_main(int (*main)(int,char **,char **), int argc, char **argv, c
 	__init_libc(envp, argv[0], auxv);
 
 #ifndef SHARED
+	__vdso_init();
 	__libc_start_init();
 #endif
 	/* Pass control to the application */

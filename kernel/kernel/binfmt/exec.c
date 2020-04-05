@@ -74,7 +74,7 @@ char **process_copy_envarg(char **envarg, bool to_kernel, int *count)
 
 void *process_setup_auxv(void *buffer, struct process *process)
 {
-	process->vdso = map_vdso();
+	process->vdso = vdso_map();
 	/* Setup the auxv at the stack bottom */
 	Elf64_auxv_t *auxv = (Elf64_auxv_t *) buffer;
 	unsigned char *scratch_space = (unsigned char *) (auxv + 37);

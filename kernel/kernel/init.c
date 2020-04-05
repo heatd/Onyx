@@ -362,8 +362,6 @@ void kernel_main(void)
 	/* Start the new thread */
 	sched_start_thread(new_thread);
 
-	printk("here\n");
-
 	ENABLE_INTERRUPTS();
 	for(;;);
 }

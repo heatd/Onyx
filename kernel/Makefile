@@ -114,8 +114,8 @@ $(CRTN_OBJ) \
 
 VDSO_LDFLAGS:= -Wl,-Bsymbolic -shared \
 -Wl,-soname=onyx-vdso.so.0 -fpic \
--T $(ARCHDIR)/vdso.ld -z max-page-size=0x1000 \
--z common-page-size=0x1000
+-z max-page-size=0x1000 -z common-page-size=0x1000 \
+-T $(ARCHDIR)/vdso.ld
 
 all: onyx-vdso.so.0 vmonyx
 
@@ -157,12 +157,12 @@ kernel/mm/malloc/%.o: kernel/mm/malloc/%.c kernel.config
 
 $(ARCHDIR)/__vdso.o: $(ARCHDIR)/__vdso.c kernel.config
 	@echo [CC] $<
-	@$(CC) -c $< -o $@ -fpic -Iinclude/acpica -Iinclude -isystem ../libc/include
+	@$(CC) -c $< -o $@ -fpic -Iinclude/acpica -Iinclude -isystem ../libc/include -fno-zero-initialized-in-bss
 
 onyx-vdso.so.0: $(ARCHDIR)/__vdso_asm.o $(ARCHDIR)/__vdso.o kernel.config
 	@echo [VDSO]
 	$(CC) $(VDSO_LDFLAGS) $(ARCHDIR)/__vdso_asm.o $(ARCHDIR)/__vdso.o -o $@ -ffreestanding \
-	 -nostdlib -Iinclude -I../libc/include
+	 -nostdlib -Iinclude -I../libc/include -Wl,--hash-style=both -fuse-ld=bfd
 
 clean: clean-modules
 	rm -f vmonyx $(OBJS) $(ALL_OUR_OBJS) *.o */*.o */*/*.o
