@@ -43,7 +43,7 @@
 #include <sys/mman.h>
 
 bool is_initialized = false;
-static bool enable_aslr = false;
+static bool enable_aslr = true;
 
 uintptr_t high_half 		= arch_high_half;
 uintptr_t low_half_max 		= arch_low_half_max;
@@ -1992,6 +1992,9 @@ ssize_t aslr_read(void *buffer, size_t size, off_t off)
 	UNUSED(size);
 	UNUSED(off);
 	char *buf = buffer;
+	if(off == 1)
+		return 0;
+
 	if(enable_aslr)
 	{
 		*buf = '1';

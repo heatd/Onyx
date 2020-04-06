@@ -9,26 +9,32 @@
 #include <inttypes.h>
 #include <stdlib.h>
 #include "internal.h"
+
 static inline uintptr_t min(uintptr_t x, uintptr_t y)
 {
 	return x < y ? x : y;
 }
+
 static inline char *elf_get_string(Elf64_Word off, elf_object_t* obj)
 {
 	return obj->strtab + off;
 }
+
 static inline char *elf_get_shstring(Elf64_Word off, elf_object_t* obj)
 {
 	return obj->shstrtab + off;
 }
+
 static inline void *elf_get_pointer(void *file, Elf64_Off offset)
 {
 	return (void*)(char*)file + offset;
 }
+
 static inline Elf64_Sym *elf_get_sym(size_t idx, elf_object_t *obj)
 {
 	return &obj->symtab[idx];
 }
+
 int verify_elf(void *file)
 {
 	Elf64_Ehdr *header = (Elf64_Ehdr *) file;
@@ -47,6 +53,7 @@ int verify_elf(void *file)
 		return -1;
 	return 0;
 }
+
 elf_object_t *elf_parse(void *file)
 {
 	if(verify_elf(file) < 0)
@@ -77,6 +84,7 @@ elf_object_t *elf_parse(void *file)
 	}
 	return object;
 }
+
 char *resolve_sym(uintptr_t address, elf_object_t *object)
 {
 	Elf64_Sym *syms = object->symtab;
@@ -93,6 +101,7 @@ char *resolve_sym(uintptr_t address, elf_object_t *object)
 			return buf;
 		}
 	}
+	
 	Elf64_Sym *closest_sym = NULL;
 	long diff = INT64_MAX;
 	Elf64_Addr addr = (Elf64_Addr) address;
@@ -110,13 +119,17 @@ char *resolve_sym(uintptr_t address, elf_object_t *object)
 			continue;
 		closest_sym = &syms[i];
 	}
+	
 	if(!closest_sym)
 		return NULL;
+	
 	size_t buf_size = strlen(elf_get_string(closest_sym->st_name, object)) + 22;
 	char *buf = malloc(buf_size);
 	if(!buf)
 		return NULL;
+	
 	memset(buf, 0, buf_size);
 	snprintf(buf, buf_size, "<%s+0x%"PRIx64">", elf_get_string(closest_sym->st_name, object), diff);
+
 	return buf;
 }

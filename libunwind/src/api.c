@@ -13,6 +13,7 @@ Unwind_info *Unwind_unwind(size_t *nr_info)
 {
 	return Unwind_stack(nr_info);
 }
+
 void Unwind_dump(_Bool should_exit, int exitcode)
 {
 	printf("Stack dump:\n");

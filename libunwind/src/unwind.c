@@ -61,6 +61,7 @@ Unwind_info *Unwind_stack(size_t *size)
 		close(fd);
 		return NULL;
 	}
+
 	read(fd, buffer, buf.st_size);
 
 	/* TODO: Handle symbols from multiple binaries(so libc.so, libdrm.so, etc can be easily debugged) */

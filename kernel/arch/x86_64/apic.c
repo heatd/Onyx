@@ -84,8 +84,6 @@ void lapic_init(void)
 		printf("tsc: TSC deadline mode supported\n");
 	}
 
-	tsc_deadline_supported = false;
-
 	write_per_cpu(lapic, bsp_lapic);
 }
 
