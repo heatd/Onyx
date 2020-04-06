@@ -363,7 +363,8 @@ void kernel_main(void)
 	sched_start_thread(new_thread);
 
 	ENABLE_INTERRUPTS();
-	for(;;);
+	
+	sched_transition_to_idle();
 }
 
 void kernel_multitasking(void *arg)

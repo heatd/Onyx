@@ -96,7 +96,7 @@ void futex_sleep_until_wake(const struct timespec *timeout)
 	}
 
 	if(waiting_time)
-		sched_sleep(waiting_time);
+		sched_sleep_ms(waiting_time);
 	else
 		sched_sleep_until_wake();
 }

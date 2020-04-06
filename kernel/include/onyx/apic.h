@@ -75,4 +75,11 @@ void lapic_init_per_cpu(void);
 #define APIC_DEFAULT_SPURIOUS_IRQ 	15
 #define NUM_IOAPIC_PINS			24
 
+#define ICR_DELIVERY_NORMAL 0
+#define ICR_DELIVERY_LOWEST 1
+#define ICR_DELIVERY_SMI	2
+#define ICR_DELIVERY_NMI    4
+#define ICR_DELIVERY_INIT	5
+#define ICR_DELIVERY_SIPI	6
+
 #endif

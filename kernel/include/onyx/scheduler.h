@@ -14,6 +14,7 @@
 #include <onyx/signal.h>
 #include <onyx/list.h>
 #include <onyx/percpu.h>
+#include <onyx/clock.h>
 
 #define NUM_PRIO 40
 
@@ -90,7 +91,7 @@ static inline struct thread *get_current_thread(void)
 
 void* sched_switch_thread(void* last_stack);
 
-void sched_sleep(unsigned long ms);
+void sched_sleep(unsigned long ns);
 
 void sched_yield(void);
 
@@ -181,6 +182,13 @@ static inline void thread_put(struct thread *thread)
 {
 	if(__atomic_sub_fetch(&thread->refcount, 1, __ATOMIC_ACQUIRE) == 0)
 		thread_destroy(thread);
+}
+
+void sched_transition_to_idle(void);
+
+static inline void sched_sleep_ms(unsigned long ms)
+{
+	sched_sleep(ms * NS_PER_MS);
 }
 
 #ifdef __cplusplus

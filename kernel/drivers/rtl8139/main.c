@@ -193,7 +193,7 @@ void rtl_software_reset(void)
 	INFO("rtl8139", "Doing a software reset of the card...\n");
 	rtl_writeb(REG_CMD, CMD_RESET);
 	while(rtl_readb(REG_CMD) & CMD_RESET)
-		sched_sleep(1);
+		sched_sleep_ms(1);
 	INFO("rtl8139", "Reset complete!\n");
 }
 void rtl_destroy_tx(void)
@@ -257,7 +257,7 @@ int rtl_wait_for_irq(int timeout, int tx)
 		if(curr_stamp + timeout <= get_tick_count())
 			return -ETIMEDOUT;
 		/* TODO: Maybe we shouldn't sleep, or should we? */
-		sched_sleep(5);
+		sched_sleep_ms(5);
 	}
 	recieved_irq = false;
 	return 0;

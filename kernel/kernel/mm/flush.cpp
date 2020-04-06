@@ -86,7 +86,7 @@ void flush_dev::run()
 	{
 		while(this->get_load())
 		{
-			sched_sleep(flush_dev::wb_run_delta_ms);
+			sched_sleep_ms(flush_dev::wb_run_delta_ms);
 
 			//printk("Flushing data to disk\n");
 			sync();

@@ -334,11 +334,15 @@ int cpu_init_mp(void)
 
 extern PML *boot_pml4;
 
+void sched_enable_pulse(void);
+
 void smpboot_main(unsigned long gs_base)
 {
 	wrmsr(GS_BASE_MSR, gs_base);
 
 	lapic_init_per_cpu();
+
+	sched_enable_pulse();
 
 	init_tss();
 
@@ -349,11 +353,7 @@ void smpboot_main(unsigned long gs_base)
 	/* Enable interrupts */
 	ENABLE_INTERRUPTS();
 
-	/* smpboot_main() can't return, as there's no valid return address on the stack, so just hlt until the scheduler
-	   preempts the AP
-	*/
-	while(1)
-		__asm__ __volatile__("hlt");
+	sched_transition_to_idle();
 }
 
 unsigned int get_nr_cpus(void)

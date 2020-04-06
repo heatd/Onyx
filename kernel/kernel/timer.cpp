@@ -6,76 +6,84 @@
 #include <string.h>
 
 #include <onyx/timer.h>
-#include <onyx/list.hpp>
 #include <onyx/spinlock.h>
 #include <onyx/panic.h>
 
-static linked_list<timer_event*> pending_list;
-static spinlock list_lock;
-
-/* Ported from Carbon, improved and C-ified */
-
 extern "C"
-bool add_timer_event(timer_event* event)
+void timer_queue_clockevent(struct clockevent *ev)
 {
-	timer_event *ev = new timer_event;
-	if(!ev)
-		return false;
-	memcpy(ev, event, sizeof(timer_event));
+	auto timer = platform_get_timer();
 
-	spin_lock_irqsave(&list_lock);
-	bool st = pending_list.add(ev);
+	spin_lock_irqsave(&timer->event_list_lock);
 
-	if(!st)
-		delete ev;
-	spin_unlock_irqrestore(&list_lock);
+	if(ev->flags & CLOCKEVENT_FLAG_POISON)
+		panic("Tried to queue clockevent that's already queued");
 
-	return st;
-}
+	list_add_tail(&ev->list_node, &timer->event_list);
 
-void handle_running_event(timer_event *event, linked_list_iterator<timer_event *> it)
-{
-	pending_list.remove(event, it);
+	ev->flags |= CLOCKEVENT_FLAG_POISON;
 
-	auto callback = event->callback;
-	auto context = event->context;
-
-	if(event->can_run_in_irq)
-		callback(context);
-	else
+	if(timer->next_event > ev->deadline)
 	{
-		panic("do something");
+		timer->next_event = ev->deadline;
+		timer->set_oneshot(ev->deadline);
 	}
+
+	spin_unlock_irqrestore(&timer->event_list_lock);
 }
 
 extern "C"
-void timer_handle_pending_events(void)
+void timer_disable(struct timer *t)
 {
-	spin_lock_irqsave(&list_lock);
-	for(auto it = pending_list.begin();
-	    it != pending_list.end(); )
+	if(t->disable_timer)
+		t->disable_timer();
+}
+
+extern "C"
+void timer_handle_events(struct timer *t)
+{
+	auto current_time = clocksource_get_time();
+
+	spin_lock_irqsave(&t->event_list_lock);
+
+	hrtime_t lowest = UINT64_MAX;
+
+	list_for_every_safe(&t->event_list)
 	{
-		auto event = *it;
-
-		/* Not sure if we need <= but keep like that to be sure we don't miss events */
-		bool needs_to_run = event->future_timestamp <= get_tick_count();
-
-		/* Note: We increment the iterator here since handle_running_event
-		 * removes the event from the list. Therefore if we did it in the for loop,
-		 * it would be corrupted since the node it would point to wouldn't exist
-		*/
-		if(needs_to_run)
+		struct clockevent *ev = container_of(l, struct clockevent, list_node);
+		if(ev->deadline > current_time)
 		{
-			handle_running_event(event, it++);
+			lowest = lowest < ev->deadline ? lowest : ev->deadline;
+			continue;
+		}
+
+		if(ev->flags & CLOCKEVENT_FLAG_ATOMIC)
+		{
+			ev->callback(ev);
+			if(!(ev->flags & CLOCKEVENT_FLAG_PULSE))
+			{
+				ev->flags &= ~CLOCKEVENT_FLAG_POISON;
+				list_remove(&ev->list_node);
+			}
+			else
+			{
+				lowest = lowest < ev->deadline ? lowest : ev->deadline;
+			}
 		}
 		else
-			it++;
+			ev->flags |= CLOCKEVENT_FLAG_PENDING;
 	}
 
-	spin_unlock_irqrestore(&list_lock);
-}
-
-uint64_t timer_in_future(uint64_t offset)
-{
-	return get_tick_count() + offset;
+	if(lowest == UINT64_MAX)
+	{
+		t->next_event = TIMER_NEXT_EVENT_NOT_PENDING;
+		timer_disable(t);
+	}
+	else
+	{
+		t->next_event = lowest;
+		t->set_oneshot(lowest);
+	}
+	
+	spin_unlock_irqrestore(&t->event_list_lock);
 }

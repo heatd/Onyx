@@ -203,6 +203,20 @@ void sched_save_thread(struct thread *thread, void *stack)
 #define SCHED_QUANTUM		10
 
 PER_CPU_VAR(uint32_t sched_quantum) = 0;
+PER_CPU_VAR(struct clockevent sched_pulse);
+
+void sched_decrease_quantum(struct clockevent *ev)
+{
+	add_per_cpu(sched_quantum, -1);
+
+	if(get_per_cpu(sched_quantum) == 0)
+	{
+		struct thread *curr = get_current_thread();
+		curr->flags |= THREAD_NEEDS_RESCHED;
+	}
+
+	ev->deadline = clocksource_get_time() + NS_PER_MS;
+}
 
 void sched_load_thread(struct thread *thread, unsigned int cpu)
 {
@@ -409,6 +423,17 @@ void sched_init_cpu(unsigned int cpu)
 	write_per_cpu_any(preemption_counter, 0, cpu);
 }
 
+void sched_enable_pulse(void)
+{
+	struct clockevent *ev = get_per_cpu_ptr(sched_pulse);
+	ev->callback = sched_decrease_quantum;
+	ev->deadline = clocksource_get_time() + NS_PER_MS;
+	ev->flags = CLOCKEVENT_FLAG_ATOMIC | CLOCKEVENT_FLAG_PULSE;
+	ev->priv = NULL;
+
+	timer_queue_clockevent(ev);
+}
+
 int sched_rbtree_cmp(const void *t1, const void *t2)
 {
 	int tid0 = (int) (unsigned long) t1;
@@ -422,10 +447,12 @@ int sched_init(void)
 
 	assert(t != NULL);
 
-	t->priority = SCHED_PRIO_VERY_LOW;
-	sched_start_thread_for_cpu(t, get_cpu_nr());
+	t->priority = SCHED_PRIO_NORMAL;
+	//sched_start_thread_for_cpu(t, get_cpu_nr());
 
 	write_per_cpu(sched_quantum, SCHED_QUANTUM);
+	set_current_thread(t);
+	sched_enable_pulse();
 
 	is_initialized = true;
 	return 0;
@@ -441,22 +468,22 @@ void sched_yield(void)
 	platform_yield();
 }
 
-void sched_sleep_unblock(void *ctx)
+void sched_sleep_unblock(struct clockevent *v)
 {
-	struct thread *t = ctx;
+	struct thread *t = v->priv;
 	thread_wake_up(t);
 }
 
-void sched_sleep(unsigned long ms)
+void sched_sleep(unsigned long ns)
 {
 	thread_t *current = get_current_thread();
 
-	struct timer_event ev;
+	struct clockevent ev;
 	ev.callback = sched_sleep_unblock;
-	ev.context = current;
-	ev.can_run_in_irq = true;
-	ev.future_timestamp = timer_in_future(ms);
-	assert(add_timer_event(&ev) != false);
+	ev.priv = current;
+	ev.flags = CLOCKEVENT_FLAG_ATOMIC;
+	ev.deadline = clocksource_get_time() + ns;
+	timer_queue_clockevent(&ev);
 
 	set_current_state(THREAD_INTERRUPTIBLE);
 
@@ -525,13 +552,10 @@ int sys_nanosleep(const struct timespec *req, struct timespec *rem)
 	struct timespec ts;
 	if(copy_from_user(&ts, req, sizeof(struct timespec)) < 0)
 		return -EFAULT;
-	time_t ticks = ts.tv_sec * 1000;
-	if(ts.tv_nsec)
-	{
-		if(ts.tv_nsec < 500)
-			ticks++;
-	}
-	sched_sleep(ticks);
+	
+	hrtime_t ns = ts.tv_sec * NS_PER_SEC + ts.tv_nsec;
+
+	sched_sleep_ms(ns);
 	return 0;
 }
 
@@ -1327,4 +1351,11 @@ void rw_unlock_write(struct rwlock *lock)
 	 * because we can have both readers and writers waiting to get woken up.
 	*/
 	rw_lock_wake_up_threads(lock);
+}
+
+void sched_transition_to_idle(void)
+{
+	struct thread *curr = get_current_thread();
+	curr->priority = SCHED_PRIO_VERY_LOW;
+	curr->rip(NULL);
 }

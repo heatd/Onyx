@@ -167,7 +167,7 @@ int arp_resolve_in(uint32_t ip, unsigned char *mac, struct netif *netif)
 
 		/* TODO: Timeout */
 		while(!(arp->flags & ARP_FLAG_RESOLVED))
-			sched_sleep(10);
+			sched_sleep_ms(10);
 		
 		memcpy(mac, &arp->mac, 6);
 		return 0;

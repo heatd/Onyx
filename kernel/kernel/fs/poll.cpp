@@ -58,7 +58,7 @@ sleep_result poll_table::sleep_poll(int timeout)
 	if(inifinite_timeout)
 		sched_block(get_current_thread());
 	else
-		sched_sleep(static_cast<unsigned long>(timeout));
+		sched_sleep_ms(static_cast<unsigned long>(timeout));
 	
 	if(signal_is_pending())
 		return sleep_result::signal;

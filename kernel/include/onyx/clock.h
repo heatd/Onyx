@@ -10,6 +10,8 @@
 #include <stdint.h>
 #include <time.h>
 
+#include <fixed_point/fixed_point.h>
+
 #define NS_PER_SEC 	1000000000UL
 #define NS_PER_MS	1000000UL
 #define NS_PER_US	1000UL
@@ -36,6 +38,7 @@ struct clocksource
 	hrtime_t base;
 	hrtime_t last_cycle;
 	hrtime_t max_idle_ns;
+	struct fp_32_64 *ticks_per_ns;
 	long monotonic_warp;
 	hrtime_t (*get_ticks)(void);
 	hrtime_t (*get_ns)(void);

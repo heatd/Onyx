@@ -10,6 +10,9 @@
 #include <stdbool.h>
 
 #include <onyx/clock.h>
+#include <onyx/list.h>
+#include <onyx/spinlock.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -20,29 +23,38 @@ uint64_t get_microseconds();
 void udelay(unsigned int us);
 void ndelay(unsigned int ns);
 
-typedef void (*timer_callback)(void *context);
+#define CLOCKEVENT_FLAG_ATOMIC			(1 << 0) 	/* Can run in IRQ context */	
+#define CLOCKEVENT_FLAG_PENDING			(1 << 1)	/* Is waiting to run under softirq context */
+#define CLOCKEVENT_FLAG_PULSE			(1 << 2)	/* Automatically requeue the same struct (that was modified by the cb) */
+#define CLOCKEVENT_FLAG_POISON			(1 << 3)
 
-struct timer_event
+struct clockevent
 {
-	uint64_t future_timestamp;
-	timer_callback callback;
-	void *context;
-	bool can_run_in_irq;
+	hrtime_t deadline;
+	void *priv;
+	unsigned int flags;
+	void (*callback)(struct clockevent *ev);
+	struct list_head list_node;
 };
 
-uint64_t timer_in_future(uint64_t offset);
-void timer_handle_pending_events(void);
-bool add_timer_event(struct timer_event* event);
+#define TIMER_NEXT_EVENT_NOT_PENDING			UINT64_MAX
 
 struct timer
 {
 	const char *name;
 	hrtime_t next_event;
+	void *priv;
+	struct list_head event_list;
+	struct spinlock event_list_lock;
 	void (*set_oneshot)(hrtime_t in_future);
 	void (*set_periodic)(unsigned long freq);
 	void (*disable_timer)(void);
 	void (*on_event)(void);
 };
+
+struct timer *platform_get_timer(void);
+void timer_queue_clockevent(struct clockevent *ev);
+void timer_handle_events(struct timer *t);
 
 #ifdef __cplusplus
 }

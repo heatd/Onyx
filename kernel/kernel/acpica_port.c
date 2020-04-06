@@ -128,7 +128,7 @@ void AcpiOsSleep(UINT64 Milliseconds)
 {
 	/* Without this check, the kernel might crash at early boot, when we don't have a thread */
 	if(get_current_thread())
-		sched_sleep(Milliseconds);
+		sched_sleep_ms(Milliseconds);
 }
 
 void AcpiOsStall(UINT32 Microseconds)

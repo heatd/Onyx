@@ -25,7 +25,7 @@
 #include <onyx/apic.h>
 #include <onyx/clock.h>
 #include <onyx/platform.h>
-#include <fractions.h>
+#include <fixed_point/fixed_point.h>
 
 #include <pci/pci.h>
 
@@ -435,8 +435,6 @@ int acpi_initialize(void)
 	/* Register the acpi bus */
 	bus_register(&acpi_bus);
 
-	acpi_init_timer();
-
 	platform_init_acpi();
 
 	return 0;
@@ -537,14 +535,14 @@ hrtime_t acpi_timer_get_ns(void);
 struct clocksource acpi_timer_source = 
 {
 	.name = "acpi_pm_timer",
-	.rating = 200,
+	.rating = 150,
 	.rate = ACPI_PM_TIMER_FREQUENCY,
 	.get_ticks = acpi_timer_get_ticks,
 	.get_ns = acpi_timer_get_ns,
 	.elapsed_ns = acpi_timer_get_elapsed_ns
 };
 
-static struct fraction ns_per_tick = {NS_PER_SEC, ACPI_PM_TIMER_FREQUENCY};
+static struct fp_32_64 acpi_timer_ticks_per_ns;
 
 hrtime_t acpi_timer_get_ns(void)
 {
@@ -559,12 +557,11 @@ hrtime_t acpi_timer_get_ns(void)
 	if(res == 24)
 		max = 0x00ffffff;
 
-	hrtime_t ns_since_rollover = fract_mult_u64_fract(t, &ns_per_tick);
+	hrtime_t ns_since_rollover = u64_mul_u32_fp32_64(t, acpi_timer_ticks_per_ns);
 
-	/* HUGE TODO: MAKE THIS LOGIC THREAD SAFE */
 	if(ns_since_rollover < acpi_timer_source.last_cycle)
 	{
-		acpi_timer_source.base += fract_mult_u64_fract(max, &ns_per_tick);
+		acpi_timer_source.base += u64_mul_u32_fp32_64(max, acpi_timer_ticks_per_ns);
 	}
 
 	acpi_timer_source.last_cycle = ns_since_rollover;
@@ -586,10 +583,20 @@ int acpi_init_timer(void)
 		return -1;
 	}
 
-	acpi_timer_source.monotonic_warp = -fract_mult_u64_fract(ticks, &ns_per_tick);
+	fp_32_64_div_32_32(&acpi_timer_ticks_per_ns, NS_PER_SEC, ACPI_PM_TIMER_FREQUENCY);
+
+	acpi_timer_source.monotonic_warp = -u64_mul_u32_fp32_64(ticks, acpi_timer_ticks_per_ns);
 	acpi_timer_source.last_cycle = ticks;
 
+	AcpiGetTimerResolution(&acpi_timer_source.resolution);
+	acpi_timer_source.ticks_per_ns = &acpi_timer_ticks_per_ns;
+
 	register_clock_source(&acpi_timer_source);
+
+	hrtime_t t0 = clocksource_get_time();
+
+	(void) t0;
+	//while(true) {}
 	return 0;
 }
 

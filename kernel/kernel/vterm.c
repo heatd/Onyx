@@ -556,7 +556,7 @@ void vterm_blink_thread(void *ctx)
 			    vt->fb, c);
 
 		mutex_unlock(&vt->vt_lock);
-		sched_sleep(500);
+		sched_sleep_ms(500);
 	}
 }
 
@@ -1166,7 +1166,7 @@ void vterm_release_video(struct vterm *vt)
 	vterm_send_message(vt, VTERM_MESSAGE_DIE, NULL);
 
 	/* Wait 10ms for the render thread to stop */
-	sched_sleep(10);
+	sched_sleep_ms(10);
 
 	mutex_unlock(&vt->vt_lock);
 

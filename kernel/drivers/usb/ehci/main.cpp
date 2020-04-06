@@ -41,7 +41,7 @@ void ehci_controller::reset()
 	{
 		printk("%x\n", operational_reg_space.read<uint32_t>(ehci_op_regs::USBSTS));
 		printk("%x\n", operational_reg_space.read<uint32_t>(ehci_op_regs::USBCMD));
-		sched_sleep(10);
+		sched_sleep_ms(10);
 	}
 
 	operational_reg_space.write<uint32_t>(ehci_op_regs::FRINDEX, 0);
@@ -53,7 +53,7 @@ void ehci_controller::reset()
 	operational_reg_space.write<uint32_t>(ehci_op_regs::USBCMD, reg);
 	/* Wait for the reset to be over */
 	while(operational_reg_space.read<uint32_t>(ehci_op_regs::USBCMD) & USBCMD_HCRESET)
-		sched_sleep(10);
+		sched_sleep_ms(10);
 }
 
 bool ehci_controller::init()

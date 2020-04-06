@@ -55,6 +55,8 @@ void lapic_send_eoi()
 	lapic_write(get_per_cpu(lapic), LAPIC_EOI, 0);
 }
 
+extern struct clocksource tsc_clock;
+
 static bool tsc_deadline_supported = false;
 void lapic_init(void)
 {
@@ -81,6 +83,8 @@ void lapic_init(void)
 	{
 		printf("tsc: TSC deadline mode supported\n");
 	}
+
+	tsc_deadline_supported = false;
 
 	write_per_cpu(lapic, bsp_lapic);
 }
@@ -240,6 +244,7 @@ void set_pin_handlers(void)
 
 void ioapic_early_init(void)
 {
+	/* TODO: Detecting I/O APICs should be a good idea */
 	/* Map the I/O APIC base */
 	ioapic_base = mmiomap((void*) IOAPIC_BASE_PHYS, PAGE_SIZE,
 		VM_WRITE | VM_NOEXEC | VM_NOCACHE);
@@ -276,12 +281,12 @@ void apic_update_clock_monotonic(void)
 void apic_set_oneshot(hrtime_t deadline);
 
 PER_CPU_VAR(unsigned long apic_ticks) = 0;
+PER_CPU_VAR(struct timer lapic_timer);
 extern uint32_t sched_quantum;
 
 irqstatus_t apic_timer_irq(struct irq_context *ctx, void *cookie)
 {
 	add_per_cpu(apic_ticks, 1);
-	add_per_cpu(sched_quantum, -1);
 
 	/* Let cpu 0 update the boot ticks and the monotonic clock */
 	if(get_cpu_nr() == 0)
@@ -291,21 +296,7 @@ irqstatus_t apic_timer_irq(struct irq_context *ctx, void *cookie)
 	}
 
 	process_increment_stats(is_kernel_ip(ctx->registers->rip));
-	timer_handle_pending_events();
-
-	if(get_per_cpu(sched_quantum) == 0)
-	{
-		struct thread *current = get_current_thread();
-		/* If we don't have a current thread, do it the old way */
-		if(likely(current))
-			current->flags |= THREAD_NEEDS_RESCHED;
-		else
-			ctx->registers = sched_preempt_thread(ctx->registers);
-	}
-
-#ifndef CONFIG_APIC_PERIODIC
-	apic_set_oneshot(get_main_clock()->get_ns() + NS_PER_MS);
-#endif
+	timer_handle_events(get_per_cpu_ptr(lapic_timer));
 
 	return IRQ_HANDLED;
 }
@@ -335,8 +326,8 @@ struct tsc_calib_context
 	uint64_t best_delta;
 };
 
-#define CALIBRATION_TRIALS	3
-#define CALIBRATION_TRIES		3
+#define CALIBRATION_TRIALS      3
+#define CALIBRATION_TRIES       3
 struct calibration_context
 {
 	uint32_t duration[CALIBRATION_TRIALS];
@@ -370,50 +361,6 @@ void apic_calibration_end(int try)
 	if(ticks < calib.apic_ticks[try])
 		calib.apic_ticks[try] = ticks;
 }
-
-#if 0
-bool apic_calibrate_acpi(void)
-{
-	UINT32 u;
-	ACPI_STATUS st = AcpiGetTimer(&u);
-
-	/* Test if the timer exists first */
-	if(ACPI_FAILURE(st))
-		return false;
-
-	INFO("apic", "using the ACPI PM timer for timer calibration\n");
-
-	struct clocksource *timer = &acpi_timer_source;
-
-	hrtime_t start = timer->get_ticks();
-	apic_calibration_setup_count();
-
-	/* 10ms in ns */
-	const unsigned int needed_interval = 10000000;
-
-	/* Do a busy loop to minimize latency */
-	while(timer->elapsed_ns(start, timer->get_ticks()) < needed_interval)
-	{
-	}
-
-	apic_calibration_end();
-
-	return true;
-}
-
-void apic_calibrate_pit(int try)
-{
-	INFO("apic", "using the PIT timer for timer calibration\n");
-	pit_init_oneshot(100);
-
-	apic_calibration_setup_count();
-
-	pit_wait_for_oneshot();
-
-	apic_calibration_end();
-}
-
-#endif
 
 void apic_calibrate(int try)
 {
@@ -533,30 +480,33 @@ void apic_set_oneshot_tsc(hrtime_t deadline)
 	wrmsr(IA32_TSC_DEADLINE, future_tsc_counter);
 }
 
+struct fp_32_64 apic_ticks_per_ns;
+
 void apic_set_oneshot_apic(hrtime_t deadline)
 {
-	struct clocksource *c = get_main_clock();
-	hrtime_t now = c->get_ns();
+	hrtime_t now = clocksource_get_time();
 
 	hrtime_t delta = deadline - now;
 	
 	/* Clamp the delta */
 	if(deadline < now)
 		delta = 0;
-	
-	uint64_t delta_ms = delta / NS_PER_MS;
-	if(delta % NS_PER_MS)
-		delta_ms++;
-	
-	if(delta_ms == 0)
+
+	if(delta == 0)
 	{
-		printk("deadline: %lu\n", deadline);
-		printk("now: %lu\n", now);
-		printk("Clock: %s\n", c->name);
-		panic("bad delta_ms ");
+		delta = 1;
 	}
 
-	uint32_t counter = ((apic_rate) * delta_ms);
+	uint64_t counter64 = u64_mul_u64_fp32_64(delta, apic_ticks_per_ns);
+	if(counter64 >> 32)
+		counter64 = UINT32_MAX;
+	
+	uint32_t counter = (uint32_t) counter64;
+	if(counter == 0)
+	{
+		/* Fire it now. */
+		counter = 1;
+	}
 
 	volatile uint32_t *this_lapic = get_per_cpu(lapic);
 
@@ -567,9 +517,20 @@ void apic_set_oneshot_apic(hrtime_t deadline)
 	lapic_write(this_lapic, LAPIC_TIMER_INITCNT, counter);
 }
 
+static bool should_use_tsc_deadline = false;
+
+PER_CPU_VAR(bool defer_events);
+
 void apic_set_oneshot(hrtime_t deadline)
 {
-	if(tsc_deadline_supported)
+	/* defer events is set in early boot so we don't fault trying to touch a
+	 * lapic mapping that doesn't exist
+	 */
+	
+	if(get_per_cpu(defer_events))
+		return;
+
+	if(should_use_tsc_deadline)
 		apic_set_oneshot_tsc(deadline);
 	else
 		apic_set_oneshot_apic(deadline);
@@ -583,10 +544,29 @@ void apic_set_periodic(uint32_t period_ms, volatile uint32_t *lapic)
 	lapic_write(lapic, LAPIC_TIMER_INITCNT, counter);
 }
 
+void apic_timer_set_periodic(hrtime_t period_ns)
+{
+	hrtime_t period_ms = period_ns / NS_PER_MS;
+	uint32_t counter = apic_rate * period_ms;
+
+	lapic_write(get_per_cpu(lapic), LAPIC_LVT_TIMER, 34 | LAPIC_LVT_TIMER_MODE_PERIODIC);
+	lapic_write(get_per_cpu(lapic), LAPIC_TIMER_INITCNT, counter);
+}
+
+void platform_init_clockevents(void);
+
+bool s = false;
+
+void signal_stuff()
+{
+	s = true;
+	printk("signaled\n");
+}
+
+int acpi_init_timer(void);
+
 void apic_timer_init(void)
 {
-	// FIXME: Progress: Portatil preso com TSC_DEADLINE, e há bugs nas clocksources, e o portatil tambem
-	// prende no código para o controlador AHCI
 	driver_register_device(&apic_driver, &apic_timer_dev);
 
 	/* Set the timer divisor to 16 */
@@ -606,7 +586,7 @@ void apic_timer_init(void)
 	printf("apic: apic timer rate: %lu\n", apic_rate);
 	us_apic_rate = INT_DIV_ROUND_CLOSEST(apic_rate, 1000);
 
-	tsc_init();
+	fp_32_64_div_32_32(&apic_ticks_per_ns, apic_rate, NS_PER_MS);
 
 	DISABLE_INTERRUPTS();
 
@@ -615,13 +595,16 @@ void apic_timer_init(void)
 	assert(install_irq(2, apic_timer_irq, &apic_timer_dev, IRQ_FLAG_REGULAR,
 		NULL) == 0);
 
-#ifdef CONFIG_APIC_PERIODIC
-	apic_set_periodic(1, bsp_lapic);
-#else
-	apic_set_oneshot(get_main_clock()->get_ns() + NS_PER_MS);
-#endif
+	platform_init_clockevents();
+
+	/* TODO: Do this generically */
+	tsc_init();
+
+	acpi_init_timer();
 
 	ENABLE_INTERRUPTS();
+
+	should_use_tsc_deadline = tsc_deadline_supported && get_main_clock() == &tsc_clock;
 }
 
 void apic_timer_smp_init(volatile uint32_t *lapic)
@@ -638,11 +621,7 @@ void apic_timer_smp_init(volatile uint32_t *lapic)
 	/* Initialize the APIC timer with IRQ2, periodic mode and an init count of ticks_in_10ms/10(so we get a rate of 1000hz)*/
 	lapic_write(lapic, LAPIC_TIMER_DIV, 3);
 
-#ifdef CONFIG_APIC_PERIODIC
-	apic_set_periodic(1, bsp_lapic);
-#else
-	apic_set_oneshot(get_main_clock()->get_ns() + NS_PER_MS);
-#endif
+	platform_init_clockevents();
 }
 
 uint64_t get_tick_count(void)
@@ -672,43 +651,45 @@ void apic_send_ipi(uint8_t id, uint32_t type, uint32_t page)
 	lapic_write(this_lapic, LAPIC_ICR, (uint32_t) icr);
 }
 
-void apic_wake_up_processor(uint8_t lapicid, struct smp_header *s)
+bool apic_send_sipi_and_wait(uint8_t lapicid, struct smp_header *s)
 {
-	boot_send_ipi(lapicid, 5, 0);
-	uint64_t tick = get_tick_count();
-	while(get_tick_count() - tick < 200)
-	{
-		__asm__ __volatile__("hlt");
-	}
-
-	boot_send_ipi(lapicid, 6, 0);
-	tick = get_tick_count();
-	while(get_tick_count() - tick < 1000)
+	boot_send_ipi(lapicid, ICR_DELIVERY_SIPI, 0);
+	
+	hrtime_t t0 = clocksource_get_time();
+	while(clocksource_get_time() - t0 < 1000 * NS_PER_MS)
 	{
 		if(s->boot_done == true)
 		{
-			printf("AP core woke up! LAPICID %u at tick %lu\n", lapicid, get_tick_count());
+			return true; 
+		}
+	}
+
+	return false;
+}
+
+void apic_wake_up_processor(uint8_t lapicid, struct smp_header *s)
+{
+	boot_send_ipi(lapicid, ICR_DELIVERY_INIT, 0);
+	
+	hrtime_t t0 = clocksource_get_time();
+	while(clocksource_get_time() - t0 < 200 * NS_PER_MS)
+	{
+		cpu_relax();
+	}
+
+	for(int i = 1; i < 3; i++)
+	{
+		bool success = apic_send_sipi_and_wait(lapicid, s);
+		if(success)
 			break;
-		}
+		
+		if(i != 2)
+			printf("x86/wakeup: No response from AP(id %u)... retrying SIPI\n", lapicid);
 	}
 
 	if(!s->boot_done)
 	{
-		boot_send_ipi(lapicid, 6, 0);
-		tick = get_tick_count();
-		while(get_tick_count() - tick < 1000)
-		{
-			if(s->boot_done == true)
-			{
-				printf("AP core woke up! LAPICID %u at tick %lu\n", lapicid, get_tick_count());
-				break;
-			}
-		}
-	}
-
-	if(!s->boot_done)
-	{
-		printf("Failed to start an AP with LAPICID %d\n", lapicid);
+		printf("x86/wakeup: Failed to start an AP with LAPICID %d\n", lapicid);
 	}
 }
 
@@ -751,4 +732,48 @@ void lapic_init_per_cpu(void)
 void apic_set_lapic_id(unsigned int cpu, uint32_t __lapic_id)
 {
 	write_per_cpu_any(lapic_id, __lapic_id, cpu);
+}
+
+PER_CPU_VAR(bool timer_initialised);
+
+/* Should be called percpu */
+void platform_init_clockevents(void)
+{
+	struct timer *this_timer = get_per_cpu_ptr(lapic_timer);
+	this_timer->set_oneshot = apic_set_oneshot;
+	this_timer->set_periodic = apic_timer_set_periodic;
+
+	this_timer->name = "lapic timer";
+
+	if(this_timer->next_event)
+	{
+		this_timer->set_oneshot(this_timer->next_event);
+	}
+	else
+	{
+		this_timer->next_event = TIMER_NEXT_EVENT_NOT_PENDING;
+		INIT_LIST_HEAD(&this_timer->event_list);
+	}
+
+	write_per_cpu(timer_initialised, true);
+	write_per_cpu(defer_events, false);
+}
+
+struct timer *platform_get_timer(void)
+{
+	struct timer *this_timer = get_per_cpu_ptr(lapic_timer);
+
+	if(!get_per_cpu(timer_initialised))
+	{
+		/* This is for clocksources that register themselves earlier than the platform timers */
+		/* TODO: Maybe do initialisation earlier in the boot and avoid this? */
+		INIT_LIST_HEAD(&this_timer->event_list);
+		this_timer->next_event = TIMER_NEXT_EVENT_NOT_PENDING;
+		write_per_cpu(defer_events, true);
+		write_per_cpu(timer_initialised, true);
+		this_timer->set_oneshot = apic_set_oneshot;
+		this_timer->set_periodic = apic_timer_set_periodic;
+	}
+
+	return this_timer;
 }

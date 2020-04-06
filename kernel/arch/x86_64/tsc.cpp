@@ -29,9 +29,10 @@ struct clocksource tsc_clock =
 {
 	.name = "tsc",
 	.rating = 350,
+	.resolution = 64,
 	.get_ticks = rdtsc,
 	.get_ns = tsc_get_ns,
-	.elapsed_ns = tsc_elapsed_ns
+	.elapsed_ns = tsc_elapsed_ns,
 };
 
 #define TSC_MAX_COUNT		UINT64_MAX
@@ -91,6 +92,8 @@ void tsc_init(void)
 	tsc_clock.rate = freq;
 	tsc_clock.monotonic_warp = -u64_mul_u64_fp32_64(rdtsc(), ticks_per_ns);
 	tsc_clock.last_cycle = rdtsc();
+	tsc_clock.ticks_per_ns = &ticks_per_ns;
+
 	register_clock_source(&tsc_clock);
 
 	tsc_enabled = true;

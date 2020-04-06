@@ -42,7 +42,7 @@ void test_page_alloc(void)
 		sched_start_thread(threads[i]);
 	}
 
-	sched_sleep(10000000);
+	sched_sleep_ms(10000000);
 }
 #endif
 
@@ -111,7 +111,7 @@ void sleep_test_t2(void *ctx)
 	unsigned int sleep_nr = 0;
 	while(true)
 	{
-		sched_sleep(1);
+		sched_sleep_ms(1);
 		sleep_do_ack();
 		sleep_nr++;
 	}
@@ -126,7 +126,7 @@ void sleep_test(void)
 
 	while(true)
 	{
-		sched_sleep(1);
+		sched_sleep_ms(1);
 		sleep_wait_for_ack();
 		sleep_nr++;
 

@@ -31,6 +31,27 @@ void register_wallclock_source(struct wallclock_source *clk)
 	main_wallclock = clk;
 }
 
+void clocksource_calc_max_idle(struct clocksource *clk)
+{
+	hrtime_t timer_mask = clk->resolution == 64 ? UINT64_MAX : (1UL << clk->resolution) - 1;
+
+	/* Check for possible overflow calculating this */
+	if(timer_mask == UINT64_MAX && u64_mul_u64_fp32_64(1, *clk->ticks_per_ns) >= 1)
+	{
+		clk->max_idle_ns = UINT64_MAX;
+		return;
+	}
+
+	clk->max_idle_ns = u64_mul_u64_fp32_64(timer_mask, *clk->ticks_per_ns);
+}
+
+void clocksource_unidle(struct clockevent *ev)
+{
+	struct clocksource *s = ev->priv;
+	s->get_ns();
+	ev->deadline = clocksource_get_time() + s->max_idle_ns;
+}
+
 void register_clock_source(struct clocksource *clk)
 {
 	if(main_clock)
@@ -40,6 +61,22 @@ void register_clock_source(struct clocksource *clk)
 	}
 	else
 		main_clock = clk;
+
+	clocksource_calc_max_idle(clk);
+	struct clockevent *ev = zalloc(sizeof(*ev));
+	assert(ev != NULL);
+	
+	/* For very nice timesources like the x86's TSC, this will possibly overflow.
+	 * If so, just set the clockevent to the furthest possible time
+	 * (UINT64_MAX - 1, because UINT64_MAX is used as TIMER_NEXT_EVENT_NOT_PENDING). */
+
+	if(__builtin_add_overflow(clocksource_get_time(), clk->max_idle_ns, &ev->deadline))
+		ev->deadline = TIMER_NEXT_EVENT_NOT_PENDING - 1;
+	ev->priv = clk;
+	ev->callback = clocksource_unidle;
+	ev->flags = CLOCKEVENT_FLAG_ATOMIC | CLOCKEVENT_FLAG_PULSE;
+
+	timer_queue_clockevent(ev);
 }
 
 struct clocksource *get_main_clock(void)
