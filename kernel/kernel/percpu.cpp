@@ -11,6 +11,7 @@
 #include <onyx/percpu.h>
 #include <onyx/x86/msr.h>
 #include <onyx/vm.h>
+#include <onyx/init.h>
 
 extern unsigned char __percpu_start;
 extern unsigned char __percpu_end;
@@ -53,6 +54,9 @@ void percpu_init()
 	percpu_add_percpu((unsigned long) buffer);
 	percpu_inited = true;
 }
+
+INIT_LEVEL_VERY_EARLY_CORE_ENTRY(percpu_init);
+
 
 unsigned long percpu_init_for_cpu(unsigned int cpu)
 {

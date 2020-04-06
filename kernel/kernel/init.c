@@ -79,6 +79,7 @@
 #include <onyx/drm.h>
 #include <onyx/ktrace.h>
 #include <onyx/exec.h>
+#include <onyx/init.h>
 
 #include <pci/pci.h>
 
@@ -291,35 +292,58 @@ static thread_t *new_thread;
 
 void kernel_multitasking(void *);
 void reclaim_initrd(void);
-void tickless_init(void);
 void do_ktests(void);
 
-__attribute__((no_sanitize_undefined))
-void kernel_main(void)
+struct init_level_info
 {
-	sysfs_init();
+	unsigned long *level_start;
+	unsigned long *level_end;
+};
 
-	percpu_init();
+extern unsigned long __init_level0_start;
+extern unsigned long __init_level0_end;
+extern unsigned long __init_level1_start;
+extern unsigned long __init_level1_end;
+extern unsigned long __init_level2_start;
+extern unsigned long __init_level2_end;
+extern unsigned long __init_level3_start;
+extern unsigned long __init_level3_end;
+extern unsigned long __init_level4_start;
+extern unsigned long __init_level4_end;
+extern unsigned long __init_level5_start;
+extern unsigned long __init_level5_end;
+extern unsigned long __init_level6_start;
+extern unsigned long __init_level6_end;
+extern unsigned long __init_level7_start;
+extern unsigned long __init_level7_end;
 
-	/* Set up symbols and the core kernel 'module' */
-	setup_core_kernel_module();
+static struct init_level_info init_levels[INIT_LEVEL_CORE_AFTER_SCHED + 2] = {
+	{&__init_level0_start, &__init_level0_end},
+	{&__init_level1_start, &__init_level1_end},
+	{&__init_level2_start, &__init_level2_end},
+	{&__init_level3_start, &__init_level3_end},
+	{&__init_level4_start, &__init_level4_end},
+	{&__init_level5_start, &__init_level5_end},
+	{&__init_level6_start, &__init_level6_end},
+	{&__init_level7_start, &__init_level7_end}
+};
 
-	/* Initialize ACPI */
-	acpi_initialize();
 
-	/* Initialize the interrupt part of the CPU (arch dependent) */
-	cpu_init_late();
+void do_init_level(unsigned int level)
+{
+	unsigned long *start = init_levels[level].level_start;
+	unsigned long *end = init_levels[level].level_end;
 
-	/* Initialize multi-processors */
-	cpu_init_mp();
+	while(start != end)
+	{
+		void (*func)() = (void *) *start;
+		func();
+		start++;
+	}
+}
 
-#ifdef CONFIG_KTRACE
-	/* Set up ktrace */
-	ktrace_init();
-#endif
-
-	init_tss();
-
+void fs_init(void)
+{
 	/* Initialize the VFS */
 	vfs_init();
 
@@ -332,14 +356,32 @@ void kernel_main(void)
 	init_initrd(initrd_addr);
 
 	reclaim_initrd();
+}
+
+void kernel_main(void)
+{
+	do_init_level(INIT_LEVEL_VERY_EARLY_CORE);
+
+	do_init_level(INIT_LEVEL_VERY_EARLY_PLATFORM);
+
+	fs_init();
+	
+	do_init_level(INIT_LEVEL_EARLY_CORE_KERNEL);
+
+	do_init_level(INIT_LEVEL_EARLY_PLATFORM);
+	
+	do_init_level(INIT_LEVEL_CORE_PLATFORM);
+
+	do_init_level(INIT_LEVEL_CORE_INIT);
+
 	DISABLE_INTERRUPTS();
 
 	/* Initialize the scheduler */
 	if(sched_init())
 		panic("sched: failed to initialize!");
+
 #ifdef CONFIG_DO_TESTS
 	/* Execute ktests */
-	do_ktests();
 	do_ktests();
 #endif
 
@@ -348,16 +390,7 @@ void kernel_main(void)
 
 	assert(new_thread);
 
-	/* Initialize late libc */
-	libc_late_init();
-
-	/* Initialize the IRQ worker thread */
-	irq_init();
-
-	/* Initialize the cache sync thread */
-	pagecache_init();
-
-	tickless_init();
+	do_init_level(INIT_LEVEL_CORE_AFTER_SCHED);
 
 	/* Start the new thread */
 	sched_start_thread(new_thread);
@@ -369,39 +402,18 @@ void kernel_main(void)
 
 void kernel_multitasking(void *arg)
 {
-	vt_init_blink();
-
 	LOG("kernel", "Command line: %s\n", kernel_cmdline);
-
-	/* Initialize the SMBIOS subsystem */
-	smbios_init();
-
-	/* Initialize the PCI subsystem */
-	pci_init();
-
-	/* Initialize devfs */
-	devfs_init();
-
-	/* Initialize drm */
-	drm_init();
-
-	/* Initialize each device driver */
-	driver_init();
-
-	/* Initialize power management */
-	pm_init();
 
 	/* Parse the command line string to a more friendly argv-like buffer */
 	kernel_parse_command_line(kernel_cmdline);
+
+	do_init_level(INIT_LEVEL_CORE_KERNEL);
 
 	/* Start populating /dev */
 	tty_create_dev(); /* /dev/tty */
 	null_init(); /* /dev/null */
 	zero_init(); /* /dev/zero */
 	entropy_init_dev(); /* /dev/random and /dev/urandom */
-	
-	/* Initialize the worker thread */
-	worker_init();
 
 	/* Mount sysfs */
 	sysfs_mount();
@@ -423,11 +435,6 @@ void kernel_multitasking(void *arg)
 	strcpy(device_name, root_partition);
 	/* Zero-terminate the string */
 	device_name[strlen(root_partition)-1] = '\0';
-
-	/* Search for it */
-	struct blockdev *dev = blkdev_search(device_name);
-	if(!dev)
-		WARN("kernel", "root device not found!\n");
 
 	/* Pass the root partition to init */
 	char *args[] = {"", root_partition, NULL};

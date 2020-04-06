@@ -17,6 +17,7 @@
 #include <onyx/framebuffer.h>
 #include <onyx/process.h>
 #include <onyx/drm-cookies.h>
+#include <onyx/init.h>
 
 #include <drm/drm.h>
 
@@ -606,6 +607,8 @@ void drm_init(void)
 
 	drm_init_software_dev();
 }
+
+INIT_LEVEL_CORE_KERNEL_ENTRY(drm_init);
 
 void __drm_object_release(struct object *object)
 {

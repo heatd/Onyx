@@ -17,6 +17,7 @@
 #include <onyx/panic.h>
 #include <onyx/tmpfs.h>
 #include <onyx/vfs.h>
+#include <onyx/init.h>
 
 static struct dev *devices[MAJOR_DEVICE_HASHTABLE];
 
@@ -142,6 +143,8 @@ void devfs_init(void)
 
 	assert(dev != NULL);
 }
+
+INIT_LEVEL_CORE_AFTER_SCHED_ENTRY(devfs_init);
 
 int device_mknod(struct dev *d, const char *path, const char *name, mode_t mode)
 {

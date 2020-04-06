@@ -14,6 +14,7 @@
 #include <onyx/platform.h>
 #include <onyx/dpc.h>
 #include <onyx/percpu.h>
+#include <onyx/init.h>
 
 struct irq_line irq_lines[NR_IRQ] = {0};
 unsigned long rogue_irqs = 0;
@@ -154,3 +155,5 @@ void irq_init(void)
 {
 	dpc_init();
 }
+
+INIT_LEVEL_CORE_AFTER_SCHED_ENTRY(irq_init);

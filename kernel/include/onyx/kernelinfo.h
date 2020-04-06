@@ -6,8 +6,8 @@
 #ifndef _KERNEL_INFO_H
 #define _KERNEL_INFO_H
 
-#undef stringify
-#define stringify(str) #str
+#include <onyx/utils.h>
+
 #define OS_NAME "Onyx"
 #define OS_TAGLINE "hey it's me, your unix"
 #define OS_RELEASE "onyx-rolling"

@@ -14,6 +14,7 @@
 #include <onyx/acpi.h>
 #include <onyx/panic.h>
 #include <onyx/dev.h>
+#include <onyx/init.h>
 
 void pm_reboot(void)
 {
@@ -78,3 +79,5 @@ void pm_init(void)
 	if(ACPI_FAILURE((st = AcpiInstallFixedEventHandler(ACPI_EVENT_SLEEP_BUTTON, __pm_suspend, NULL))))
 		printf("AcpiInstallFixedEventHandler failed!\n");
 }
+
+INIT_LEVEL_CORE_AFTER_SCHED_ENTRY(pm_init);

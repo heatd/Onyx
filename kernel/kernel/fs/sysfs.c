@@ -13,6 +13,7 @@
 #include <onyx/dev.h>
 #include <onyx/sysfs.h>
 #include <onyx/vfs.h>
+#include <onyx/init.h>
 
 struct sysfs_object sysfs_root =
 {
@@ -169,6 +170,8 @@ void sysfs_init(void)
 	/* Spawn the standard sysfs directories */
 	dev_create_sysfs();
 }
+
+INIT_LEVEL_VERY_EARLY_CORE_ENTRY(sysfs_init);
 
 void sysfs_mount(void)
 {

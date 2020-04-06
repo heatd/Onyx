@@ -7,6 +7,7 @@
 #include <stdint.h>
 
 #include <onyx/driver.h>
+#include <onyx/init.h>
 
 extern uintptr_t _driver_init_start;
 extern uintptr_t _driver_init_end;
@@ -24,3 +25,5 @@ void driver_init(void)
 		ptr++;
 	}
 }
+
+INIT_LEVEL_CORE_KERNEL_ENTRY(driver_init);

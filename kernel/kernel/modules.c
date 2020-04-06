@@ -15,6 +15,7 @@
 #include <onyx/vm.h>
 #include <onyx/symbol.h>
 #include <onyx/user.h>
+#include <onyx/init.h>
 
 bool mods_disabled = 0;
 #define DEFAULT_SIZE 100
@@ -99,6 +100,8 @@ void setup_core_kernel_module(void)
 
 	module_add(&core_kernel);
 }
+
+INIT_LEVEL_VERY_EARLY_CORE_ENTRY(setup_core_kernel_module);
 
 bool symbol_is_exported(struct symbol *s)
 {

@@ -25,6 +25,8 @@
 #include <onyx/apic.h>
 #include <onyx/clock.h>
 #include <onyx/platform.h>
+#include <onyx/init.h>
+
 #include <fixed_point/fixed_point.h>
 
 #include <pci/pci.h>
@@ -392,7 +394,7 @@ void acpi_enumerate_devices(void)
 	}
 }
 
-int acpi_initialize(void)
+void acpi_initialise(void)
 {
 	acpi_find_rsdp();
 	ACPI_STATUS st = AcpiInitializeSubsystem();
@@ -436,9 +438,9 @@ int acpi_initialize(void)
 	bus_register(&acpi_bus);
 
 	platform_init_acpi();
-
-	return 0;
 }
+
+INIT_LEVEL_VERY_EARLY_PLATFORM_ENTRY(acpi_initialise);
 
 uint32_t acpi_get_apic_id_lapic(ACPI_SUBTABLE_HEADER *madt)
 {

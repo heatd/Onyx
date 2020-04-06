@@ -10,6 +10,7 @@
 #include <onyx/smbios.h>
 #include <onyx/vm.h>
 #include <onyx/compiler.h>
+#include <onyx/init.h>
 
 static struct smbios_table *tables = NULL;
 static size_t nr_structs = 0;
@@ -104,13 +105,13 @@ char *smbios_get_string(struct smbios_table *t, uint8_t strndx)
 }
 
 /* Initializes the smbios */
-int smbios_init(void)
+void smbios_init(void)
 {
 	LOG("smbios","Initializing!\n");
 
 	tables = smbios_find_tables();
 	if(!tables)
-		return 1;
+		return;
 	
 	struct smbios_table_bios_info *info = (struct smbios_table_bios_info*) smbios_get_table(SMBIOS_TYPE_BIOS_INFO);
 	
@@ -119,6 +120,6 @@ int smbios_init(void)
 		INFO("smbios", "BIOS Vendor: %s\n", smbios_get_string(&info->header, info->vendor));
 		INFO("smbios", "BIOS Date: %s\n", smbios_get_string(&info->header, info->bios_release_date));
 	}
-
-	return 0;
 }
+
+INIT_LEVEL_CORE_AFTER_SCHED_ENTRY(smbios_init);

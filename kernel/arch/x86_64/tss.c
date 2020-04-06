@@ -12,14 +12,17 @@
 #include <onyx/compiler.h>
 #include <onyx/panic.h>
 #include <onyx/gdt.h>
+#include <onyx/init.h>
 
 extern void tss_flush();
 extern int tss_gdt;
 
-void init_tss(void)
+void tss_init(void)
 {
 	gdt_init_percpu();
 }
+
+INIT_LEVEL_EARLY_PLATFORM_ENTRY(tss_init);
 
 PER_CPU_VAR(tss_entry_t *tss);
 

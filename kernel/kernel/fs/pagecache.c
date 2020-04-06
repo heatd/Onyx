@@ -17,6 +17,8 @@
 #include <onyx/utils.h>
 #include <onyx/condvar.h>
 #include <onyx/mutex.h>
+#include <onyx/init.h>
+
 #include <onyx/mm/flush.h>
 
 static atomic_size_t used_cache_pages = 0;
@@ -70,6 +72,8 @@ void pagecache_init(void)
 {
 	flush_init();
 }
+
+INIT_LEVEL_CORE_AFTER_SCHED_ENTRY(pagecache_init);
 
 // FIXME: This never gets called
 void page_cache_destroy(struct page_cache_block *block)

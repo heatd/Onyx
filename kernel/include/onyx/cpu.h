@@ -259,7 +259,6 @@ extern "C"{
 
 void cpu_identify(void);
 void cpu_init_late(void);
-int cpu_init_mp(void);
 unsigned int get_nr_cpus(void);
 bool is_kernel_ip(uintptr_t ip);
 void cpu_kill_other_cpus(void);

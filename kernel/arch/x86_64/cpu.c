@@ -43,6 +43,7 @@ USES_FANCY_END
 #include <onyx/irq.h>
 #include <onyx/fpu.h>
 #include <onyx/percpu.h>
+#include <onyx/init.h>
 
 #include <onyx/x86/msr.h>
 #include <onyx/x86/platform_info.h>
@@ -294,6 +295,15 @@ void x86_init_percpu(void)
 	printf("cpu#%u tsc: %lu\n", get_cpu_nr(), rdtsc());
 }
 
+void cpu_init_mp(void)
+{
+	smp_parse_cpus(madt);
+
+	smp_boot_cpus();
+
+	ENABLE_INTERRUPTS();
+}
+
 void cpu_init_late(void)
 {
 	/* Completely disable the PIC first */
@@ -320,17 +330,11 @@ void cpu_init_late(void)
 	x86_platform.has_msi = true;
 	x86_platform.has_rtc = true;
 	x86_platform.has_vga = true;
+
+	cpu_init_mp();
 }
 
-int cpu_init_mp(void)
-{
-	smp_parse_cpus(madt);
-
-	smp_boot_cpus();
-
-	ENABLE_INTERRUPTS();
-	return booted_cpus;
-}
+INIT_LEVEL_EARLY_PLATFORM_ENTRY(cpu_init_late);
 
 extern PML *boot_pml4;
 
@@ -344,7 +348,7 @@ void smpboot_main(unsigned long gs_base)
 
 	sched_enable_pulse();
 
-	init_tss();
+	tss_init();
 
 	x86_init_percpu();
 

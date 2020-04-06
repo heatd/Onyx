@@ -13,6 +13,7 @@
 #include <onyx/acpi.h>
 #include <onyx/panic.h>
 #include <onyx/dev.h>
+#include <onyx/init.h>
 
 #include <pci/pci.h>
 
@@ -400,6 +401,8 @@ void pci_init(void)
 		assert(acpi_get_irq_routing_info(&pci_bus) == 0);
 	}
 }
+
+INIT_LEVEL_CORE_AFTER_SCHED_ENTRY(pci_init);
 
 void pci_set_barx(uint8_t slot, uint8_t device, uint8_t function, uint8_t index,
 	uint32_t address, uint8_t is_io, uint8_t is_prefetch)

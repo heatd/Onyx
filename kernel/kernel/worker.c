@@ -13,6 +13,7 @@
 #include <onyx/mutex.h>
 #include <onyx/panic.h>
 #include <onyx/utils.h>
+#include <onyx/init.h>
 
 static thread_t *worker = NULL;
 static struct mutex work_queue_mutex = MUTEX_INITIALIZER;
@@ -20,7 +21,7 @@ static struct work_request *work_queue = NULL;
 
 void work_do_work(void* context)
 {
-	while(1)
+	while(true)
 	{
 		mutex_lock(&work_queue_mutex);
 		/* Do all the work needed */
@@ -47,6 +48,8 @@ void worker_init(void)
 
 	sched_block(worker);
 }
+
+INIT_LEVEL_CORE_AFTER_SCHED_ENTRY(worker_init);
 
 int worker_schedule(struct work_request *work, int priority)
 {

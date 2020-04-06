@@ -19,6 +19,7 @@
 #include <onyx/scheduler.h>
 #include <onyx/thread.h>
 #include <onyx/portio.h>
+#include <onyx/init.h>
 
 #include <sys/ioctl.h>
 
@@ -1146,6 +1147,8 @@ void vt_init_blink(void)
 
 	vterm_switch_to_multithread(vt);
 }
+
+INIT_LEVEL_CORE_AFTER_SCHED_ENTRY(vt_init_blink);
 
 void vterm_panic(void)
 {

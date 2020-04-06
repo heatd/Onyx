@@ -20,6 +20,9 @@ void *copy_page_to_page(void *p1, void *p2);
 
 #define min(x, y) (x < y ? x : y)
 
+#define __stringify(str) #str
+#define stringify(str)   __stringify(str)
+
 #ifdef __cplusplus
 }
 #endif

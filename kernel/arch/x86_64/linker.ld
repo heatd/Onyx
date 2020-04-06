@@ -78,6 +78,30 @@ SECTIONS
 		__return_loc_start = .;
 		*(__return_loc)
 		__return_loc_end = .;
+		__init_level0_start = .;
+		*(.init.level0)
+		__init_level0_end = .;
+		__init_level1_start = .;
+		*(.init.level1)
+		__init_level1_end = .;
+		__init_level2_start = .;
+		*(.init.level2)
+		__init_level2_end = .;
+		__init_level3_start = .;
+		*(.init.level3)
+		__init_level3_end = .;
+		__init_level4_start = .;
+		*(.init.level4)
+		__init_level4_end = .;
+		__init_level5_start = .;
+		*(.init.level5)
+		__init_level5_end = .;
+		__init_level6_start = .;
+		*(.init.level6)
+		__init_level6_end = .;
+		__init_level7_start = .;
+		*(.init.level7)
+		__init_level7_end = .;
 	} : text
 
 	_ro_end = .;
