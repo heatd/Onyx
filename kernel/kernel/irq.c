@@ -148,7 +148,6 @@ void dispatch_irq(unsigned int irq, struct irq_context *context)
 	rogue_irqs++;
 	line->stats.spurious++;
 	write_per_cpu(in_irq, false);
-
 }
 
 void irq_init(void)

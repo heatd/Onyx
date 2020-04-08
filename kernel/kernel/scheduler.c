@@ -337,15 +337,11 @@ void __sched_append_to_queue(int priority, unsigned int cpu,
 
 void sched_append_to_queue(int priority, unsigned int cpu, thread_t *thread)
 {
-	sched_disable_preempt_for_cpu(cpu);
-
 	spin_lock(get_per_cpu_ptr_any(scheduler_lock, cpu));
 
 	__sched_append_to_queue(priority, cpu, thread);
 
 	spin_unlock(get_per_cpu_ptr_any(scheduler_lock, cpu));
-
-	sched_enable_preempt_for_cpu(cpu);
 }
 
 PER_CPU_VAR(unsigned long active_threads) = 0;
@@ -372,15 +368,11 @@ void thread_add(thread_t *thread, unsigned int cpu_num)
 {
 	if(cpu_num == SCHED_NO_CPU_PREFERENCE)
 		cpu_num = sched_allocate_processor();
-	
-	sched_disable_preempt_for_cpu(cpu_num);
 
 	thread->cpu = cpu_num;
 	add_per_cpu_any(active_threads, 1, cpu_num);
 	/* Append the thread to the queue */
 	sched_append_to_queue(thread->priority, cpu_num, thread);
-
-	sched_enable_preempt_for_cpu(cpu_num);
 }
 
 thread_t *sched_create_thread(thread_callback_t callback, uint32_t flags, void* args)
@@ -555,7 +547,8 @@ int sys_nanosleep(const struct timespec *req, struct timespec *rem)
 	
 	hrtime_t ns = ts.tv_sec * NS_PER_SEC + ts.tv_nsec;
 
-	sched_sleep_ms(ns);
+	sched_sleep(ns);
+
 	return 0;
 }
 
@@ -653,10 +646,7 @@ void thread_set_state(thread_t *thread, int state)
 	}
 
 	if(state == THREAD_RUNNABLE)
-	{		
-		/* This may break? */
-		sched_disable_preempt_for_cpu(thread->cpu);
-
+	{
 		thread->status = state;
 
 		if(get_thread_for_cpu(thread->cpu) == thread)
@@ -668,7 +658,6 @@ void thread_set_state(thread_t *thread, int state)
 
 		sched_append_to_queue(thread->priority, thread->cpu,
 					thread);
-		sched_enable_preempt_for_cpu(thread->cpu);
 		try_resched = true;
 	}
 	else
@@ -1018,13 +1007,23 @@ void sched_try_to_resched_if_needed(void)
 
 void sched_enable_preempt(void)
 {
-	sched_enable_preempt_for_cpu(get_cpu_nr());	
+	unsigned long *preempt_counter = get_per_cpu_ptr(preemption_counter); 
+
+	//assert(*preempt_counter > 0);
+
+	atomic_fetch_add_explicit(preempt_counter, -1, memory_order_relaxed);
+	
+	if(*preempt_counter == 0 && !irq_is_disabled())
+		softirq_try_handle();
+
 	sched_try_to_resched_if_needed();	
 }
 
 void sched_disable_preempt(void)
 {
-	sched_disable_preempt_for_cpu(get_cpu_nr());
+	unsigned long *preempt_counter = get_per_cpu_ptr(preemption_counter); 
+
+	atomic_fetch_add_explicit(preempt_counter, 1, memory_order_relaxed);
 }
 
 enqueue_thread_generic(mutex, struct mutex);

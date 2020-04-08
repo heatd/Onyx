@@ -20,6 +20,7 @@
 #include <onyx/idt.h>
 #include <onyx/apic.h>
 #include <onyx/dpc.h>
+#include <onyx/softirq.h>
 
 int platform_install_irq(unsigned int irqn, struct interrupt_handler *h)
 {
@@ -29,6 +30,8 @@ int platform_install_irq(unsigned int irqn, struct interrupt_handler *h)
 	
 	return 0;
 }
+
+void platform_send_eoi(uint64_t irq);
 
 uintptr_t irq_handler(uint64_t irqn, registers_t *regs)
 {
@@ -42,6 +45,14 @@ uintptr_t irq_handler(uint64_t irqn, registers_t *regs)
 	context.registers = regs;
 
 	dispatch_irq((unsigned int) irqn, &context);
+
+	platform_send_eoi(irqn);
+
+	/* It's implicit that irqs are enabled since we are in a handler */
+	if(!sched_is_preemption_disabled() && softirq_pending())
+	{
+		softirq_handle();
+	}
 
 	return (uintptr_t) context.registers;
 }

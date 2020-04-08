@@ -1181,9 +1181,9 @@ void vterm_get_video(struct vterm *vt)
 
 	vt->blink_die = false;
 
-	thread_set_state(vt->blink_thread, THREAD_RUNNABLE);
+	thread_wake_up(vt->blink_thread);
 
-	thread_set_state(vt->render_thread, THREAD_RUNNABLE);
+	thread_wake_up(vt->render_thread);
 
 	mutex_unlock(&vt->vt_lock);
 

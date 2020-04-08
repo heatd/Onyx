@@ -151,18 +151,11 @@ irq_common:
 	# End the stack frame list so we stop here
 	#xor %rbp, %rbp
 
-	mov %rdi, %r12
-
 	INTERRUPT_STACK_ALIGN
 
 	call irq_handler
 
-	mov %rax, %rbx
-	mov %r12, %rdi
-
-	call platform_send_eoi
-
-	mov %rbx, %rsp
+	mov %rax, %rsp
 
 	INTERRUPT_STACK_ALIGN
 

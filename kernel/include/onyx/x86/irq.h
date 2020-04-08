@@ -8,6 +8,7 @@
 #define _X86_IRQ_H
 
 #include <onyx/registers.h>
+
 #include <onyx/x86/eflags.h>
 
 #define NR_IRQ 				221
@@ -20,6 +21,9 @@ struct irq_context
 	registers_t *registers;
 };
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 static inline unsigned long x86_save_flags(void)
 {
@@ -51,10 +55,26 @@ static inline bool irq_is_disabled(void)
 	return !(x86_save_flags() & EFLAGS_INT_ENABLED);
 }
 
+void softirq_try_handle(void);
+bool sched_is_preemption_disabled(void);
+void sched_try_to_resched_if_needed(void);
+
 static inline void irq_restore(unsigned long flags)
 {
 	if(flags & EFLAGS_INT_ENABLED)
+	{
 		irq_enable();
+
+		if(!sched_is_preemption_disabled())
+		{
+			softirq_try_handle();
+			sched_try_to_resched_if_needed();
+		}
+	}
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

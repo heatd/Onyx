@@ -8,6 +8,7 @@
 #include <onyx/timer.h>
 #include <onyx/spinlock.h>
 #include <onyx/panic.h>
+#include <onyx/softirq.h>
 
 extern "C"
 void timer_queue_clockevent(struct clockevent *ev)
@@ -42,6 +43,9 @@ void timer_disable(struct timer *t)
 extern "C"
 void timer_handle_events(struct timer *t)
 {
+	bool atomic_context = irq_is_disabled();
+	bool has_raised_softirq = false;
+
 	auto current_time = clocksource_get_time();
 
 	spin_lock_irqsave(&t->event_list_lock);
@@ -57,7 +61,7 @@ void timer_handle_events(struct timer *t)
 			continue;
 		}
 
-		if(ev->flags & CLOCKEVENT_FLAG_ATOMIC)
+		if(!atomic_context || ev->flags & CLOCKEVENT_FLAG_ATOMIC)
 		{
 			ev->callback(ev);
 			if(!(ev->flags & CLOCKEVENT_FLAG_PULSE))
@@ -71,7 +75,15 @@ void timer_handle_events(struct timer *t)
 			}
 		}
 		else
+		{
 			ev->flags |= CLOCKEVENT_FLAG_PENDING;
+			if(!has_raised_softirq)
+			{
+				has_raised_softirq = true;
+				/* TODO: This is broken. */
+				//softirq_raise(SOFTIRQ_VECTOR_TIMER);
+			}
+		}
 	}
 
 	if(lowest == UINT64_MAX)
@@ -84,6 +96,6 @@ void timer_handle_events(struct timer *t)
 		t->next_event = lowest;
 		t->set_oneshot(lowest);
 	}
-	
+
 	spin_unlock_irqrestore(&t->event_list_lock);
 }

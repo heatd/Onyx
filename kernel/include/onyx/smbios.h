@@ -23,6 +23,7 @@ struct smbios_entrypoint32
 	uint16_t nr_smbios_structs;
 	uint8_t bcd_revision;
 };
+
 struct smbios_entrypoint64
 {
 	char sig[5]; /* _SM3_ */
@@ -79,6 +80,7 @@ struct smbios_table_bios_info
 	/* Points to the string table after the formatted part of the struct */
 	char strings[0];
 };
+
 #ifdef __cplusplus
 extern "C" {
 #endif
