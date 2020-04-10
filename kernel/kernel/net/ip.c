@@ -199,12 +199,12 @@ int ipv4_create_fragments(struct list_head *frag_list, struct packetbuf_info *bu
 
 int ipv4_calculate_dstmac(unsigned char *destmac, uint32_t destip, struct netif *netif)
 {
-	if(destip == INADDR_BROADCAST)
+	if(destip == htonl(INADDR_BROADCAST))
 	{
 		/* INADDR_BROADCAST packets are sent to mac address ff:ff:ff:ff:ff:ff */
 		memset(destmac, 0xff, 6);
 	}
-	else if(destip == INADDR_LOOPBACK)
+	else if(destip == htonl(INADDR_LOOPBACK))
 	{
 		/* INADDR_LOOPBACK packets are sent to the local NIC's mac */
 		memcpy(destmac, netif->router_mac, 6);
@@ -233,7 +233,7 @@ int ipv4_do_fragmentation(struct ipv4_send_info *sinfo, size_t payload_size,
 	}
 
 	unsigned char destmac[6] = {};
-	if(ipv4_calculate_dstmac((unsigned char *) &destmac, ntohl(sinfo->dest_ip), netif) < 0)
+	if(ipv4_calculate_dstmac((unsigned char *) &destmac, sinfo->dest_ip, netif) < 0)
 	{
 		st = -1;
 		goto out;

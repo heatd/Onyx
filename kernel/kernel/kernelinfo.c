@@ -12,6 +12,7 @@
 #include <onyx/kernelinfo.h>
 #include <onyx/vm.h>
 #include <onyx/network.h>
+
 int sys_uname(struct utsname *ubuf)
 {
 	struct utsname buf = {0};

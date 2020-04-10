@@ -259,6 +259,7 @@ int rtl_wait_for_irq(int timeout, int tx)
 		/* TODO: Maybe we shouldn't sleep, or should we? */
 		sched_sleep_ms(5);
 	}
+
 	recieved_irq = false;
 	return 0;
 }

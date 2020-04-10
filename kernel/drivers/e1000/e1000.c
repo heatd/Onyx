@@ -150,7 +150,7 @@ int e1000_read_mac_address(struct e1000_device *dev)
 	{
 		uint8_t *mem_base_mac_8 = (uint8_t *) (dev->mmio_space + 0x5400);
 		uint32_t *mem_base_mac_32 = (uint32_t *) (dev->mmio_space + 0x5400);
-		if (mem_base_mac_32[0] != 0)
+		if(mem_base_mac_32[0] != 0)
 		{
 			for(int i = 0; i < 6; i++)
 			{
@@ -350,13 +350,14 @@ int e1000_send_packet(const void *data, uint16_t len, struct netif *nif)
 	struct page *buf = alloc_page(PAGE_ALLOC_NO_ZERO);
 	if(!buf)
 		return -ENOMEM;
+
 	memcpy(PAGE_TO_VIRT(buf), data, len);
 
 	spin_lock(&dev->tx_cur_lock);
 
 	dev->tx_descs[dev->tx_cur].addr = (uint64_t) page_to_phys(buf);
 	dev->tx_descs[dev->tx_cur].length = len;
-	dev->tx_descs[dev->tx_cur].cmd = CMD_EOP | CMD_IFCS | CMD_RS | CMD_RPS | CMD_IC;
+	dev->tx_descs[dev->tx_cur].cmd = CMD_EOP | CMD_IFCS | CMD_RS | CMD_RPS;
 	dev->tx_descs[dev->tx_cur].status = 0;
 	dev->tx_descs[dev->tx_cur].popts = POPTS_TXSM;
 	uint8_t old_cur = dev->tx_cur;
@@ -491,6 +492,11 @@ int e1000_probe(struct device *__dev)
 
 	if(e1000_read_mac_address(nicdev))
 		return -1;
+	
+	printk("Mac address: ");
+	for(int i = 0; i < 6; i++)
+		printk("%02x%s", nicdev->e1000_internal_mac_address[i], i != 5 ? ":" : "");
+	printk("\n");
 	
 	if(e1000_init_descs(nicdev))
 	{

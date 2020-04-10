@@ -130,7 +130,6 @@ int udp_bind(const struct sockaddr *addr, socklen_t addrlen, struct socket *sock
 	if(!socket->socket.netif)
 		socket->socket.netif = netif_choose();
 	struct sockaddr_in *in = (struct sockaddr_in *) addr;
-	in->sin_port = ntoh16(in->sin_port);
 
 	/* Check if there's any socket bound to this address yet */
 	struct udp_socket *s = udp_get_port(socket->socket.netif, in->sin_port);
@@ -145,8 +144,6 @@ int udp_bind(const struct sockaddr *addr, socklen_t addrlen, struct socket *sock
 	/* TODO: Add port allocation */
 
 	/* TODO: This is not correct behavior. Check tcp.cpp for more */
-	if(in->sin_addr.s_addr == INADDR_ANY)
-		in->sin_addr.s_addr = INADDR_LOOPBACK;
 
 	memcpy(&socket->src_addr, addr, sizeof(struct sockaddr));
 	
@@ -214,9 +211,6 @@ ssize_t udp_recvfrom(void *buf, size_t len, int flags,
 	struct sockaddr *src_addr, socklen_t *slen, struct socket *sock)
 {
 	struct udp_socket *socket = (struct udp_socket*) sock;
-	struct sockaddr_in *addr = (struct sockaddr_in *) &socket->src_addr;
-	if(!addr->sin_addr.s_addr)
-		return -ENOTCONN;
 
 	bool storing_src = src_addr ? true : false;
 
@@ -315,7 +309,7 @@ void udp_handle_packet(struct ip_header *header, size_t length, struct netif *ne
 
 	struct sockaddr_in addr;
 	addr.sin_addr.s_addr = ntoh32(header->source_ip);
-	uint32_t src_port = ntoh16(udp_header->dest_port);
+	uint32_t src_port = udp_header->dest_port;
 
 	addr.sin_port = ntoh16(udp_header->source_port);
 

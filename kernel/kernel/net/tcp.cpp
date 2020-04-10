@@ -102,7 +102,7 @@ int tcp_socket::bind(const struct sockaddr *addr, socklen_t addrlen)
 	 * or if INADDR_ANY, bind to every netif
 	*/
 	if(in->sin_addr.s_addr == INADDR_ANY)
-		in->sin_addr.s_addr = htonl(netif->local_ip.sin_addr.s_addr);
+		in->sin_addr.s_addr = netif->local_ip.sin_addr.s_addr;
 
 	if(in->sin_port != 0)
 	{

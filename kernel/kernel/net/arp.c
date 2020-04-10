@@ -78,7 +78,7 @@ int arp_handle_packet(arp_request_t *arp, uint16_t len, struct netif *netif)
 	if(htons(arp->operation) != ARP_OP_REPLY)
 		return 0;
 
-	in_addr_t req_ip = ntohl(arp->sender_proto_address);
+	in_addr_t req_ip = arp->sender_proto_address;
 	struct arp_cache *arp_req = arp_find(netif, req_ip);
 
 	/* Huh, RIP */
@@ -136,8 +136,8 @@ int arp_submit_request(struct arp_cache *c, struct netif *netif)
 	arp->target_hw_address[3] = 0xFF;
 	arp->target_hw_address[4] = 0xFF;
 	arp->target_hw_address[5] = 0xFF;
-	arp->sender_proto_address = htonl(netif->local_ip.sin_addr.s_addr);
-	arp->target_proto_address = htonl(c->ip);
+	arp->sender_proto_address = netif->local_ip.sin_addr.s_addr;
+	arp->target_proto_address = c->ip;
 	int st = eth_send_packet((char*) &arp->target_hw_address, &bufs, PROTO_ARP, netif);
 	
 	packetbuf_free(&bufs);

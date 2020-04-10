@@ -132,6 +132,9 @@ int netif_unregister_if(struct netif *netif)
 			n = n->next;
 		}
 	}
+
+	spin_unlock(&netif_list_lock);
+
 	return -1;
 }
 
@@ -142,6 +145,7 @@ struct netif *netif_choose(void)
 		if(n->flags & NETIF_LINKUP)
 			return n;
 	}
+
 	return NULL;
 }
 

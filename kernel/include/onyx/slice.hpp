@@ -112,8 +112,6 @@ public:
 	{
 		return this->size() * sizeof(Type);
 	}
-
-	
 };
 
 

@@ -17,7 +17,12 @@ struct netif;
 
 struct udp_socket;
 
-#define NETIF_LINKUP		(1 << 0)
+#define NETIF_LINKUP							(1 << 0)
+#define NETIF_SUPPORTS_IP_CHECKSUM_OFF			(1 << 1)
+#define NETIF_SUPPORTS_TCP_CHECKSUM_OFF			(1 << 2)
+#define NETIF_SUPPORTS_ISO						(1 << 3)
+#define NETIF_SUPPORTS_TSO						(1 << 4)
+
 struct netif
 {
 	const char *name;
