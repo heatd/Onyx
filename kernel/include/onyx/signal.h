@@ -39,6 +39,9 @@ struct signal_info
 	bool signal_pending;
 };
 
+#define SIGNAL_GROUP_STOP_PENDING               (1 << 0)
+#define SIGNAL_GROUP_CONT_PENDING               (1 << 1)
+
 struct process;
 struct thread;
 
@@ -51,7 +54,8 @@ int signal_setup_context(struct sigpending *pend, struct sigaction *sigaction, s
 void handle_signal(struct registers *regs);
 void signal_update_pending(struct thread *thread);
 
-#define SIGNAL_FORCE			(1 << 0)
+#define SIGNAL_FORCE                            (1 << 0)
+#define SIGNAL_IN_BROADCAST               (1 << 1)
 
 int kernel_raise_signal(int sig, struct process *process, unsigned int flags, siginfo_t *info);
 int kernel_tkill(int signal, struct thread *thread, unsigned int flags, siginfo_t *info);

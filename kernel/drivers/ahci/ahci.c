@@ -244,14 +244,14 @@ command_list_t *ahci_allocate_command_list(struct ahci_port *ahci_port, size_t *
 
 	/* Erm, I give up. For now. wait_queues are broken, and there's nothing I can do.
 	 * Maybe I'll do a clean rewrite or something. */
-	wait_for_event_locked(&ahci_port->list_wq, ahci_port->list_bitmap != ~0U, &ahci_port->bitmap_spl);
+	//wait_for_event_locked(&ahci_port->list_wq, ahci_port->list_bitmap != ~0U, &ahci_port->bitmap_spl);
 
-	/*while(ahci_port->list_bitmap == ~0U)
+	while(ahci_port->list_bitmap == ~0U)
 	{
 		spin_unlock(&ahci_port->bitmap_spl);
 		sched_yield();
 		spin_lock(&ahci_port->bitmap_spl);
-	}*/
+	}
 	
 	unsigned int pos = __builtin_ctz(~ahci_port->list_bitmap);
 

@@ -929,6 +929,10 @@ int vm_fork_address_space(struct mm_address_space *addr_space)
 	addr_space->resident_set_size = current_mm->resident_set_size;
 	addr_space->shared_set_size = current_mm->shared_set_size;
 	addr_space->virtual_memory_size = current_mm->virtual_memory_size;
+	addr_space->mmap_base = current_mm->mmap_base;
+	addr_space->brk = current_mm->brk;
+	addr_space->start = current_mm->start;
+	addr_space->end = current_mm->end;
 
 	__vm_unlock(false);
 	return 0;

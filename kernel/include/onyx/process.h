@@ -63,6 +63,7 @@ struct process
 	/* Signal tables */
 	struct spinlock signal_lock;
 	struct sigaction sigtable[_NSIG];
+	unsigned int signal_group_flags;
 
 	/* Process personality */
 	unsigned long personality;
@@ -114,8 +115,6 @@ struct process *process_find_tracee(struct process *tracer, pid_t pid);
 void process_exit_from_signal(int signum);
 char **process_copy_envarg(char **envarg, bool to_kernel, int *count);
 void process_increment_stats(bool is_kernel);
-void process_continue(struct process *p);
-void process_stop(struct process *p);
 void process_end(struct process *p);
 
 static inline void process_get(struct process *process)

@@ -174,28 +174,33 @@ void segv(int sig, siginfo_t *info, void *ucontext)
 	//printf("Sent from %d\n", info->si_code);
 }
 
+#include <pthread.h>
+
+void *func(void *f)
+{
+	while(true) {}
+}
+
 void signal_test()
 {
 	pid_t p = fork();
 
 	if(p == 0)
 	{
-		struct sigaction act;
-		act.sa_sigaction = segv;
-		act.sa_flags = SA_SIGINFO;
-		memset(&act.sa_mask, 0, sizeof(act.sa_mask));
-		sigaction(SIGRTMIN, &act, NULL);
-		sleep(1);
-		//sigaction(SIGILL, &act, NULL);
-		//raise(SIGILL);
+		pthread_t new_thread;
+		if(pthread_create(&new_thread, NULL, func, NULL) < 0)
+			perror("pthread_create");
 
 		while(true) {}
 	}
 	else
 	{
 		printf("Sleeping 2 seconds and killing our child\n");
-		//sleep(2);
-		for(int i = 0; i < 10; i++) kill(p, SIGRTMIN);
+		sleep(1);
+		for(int i = 0; i < 10; i++) kill(p, SIGSTOP);
+		printf("Now, we're SIGCONTing it\n");
+		sleep(1);
+		kill(p, SIGCONT);
 	}
 
 	while(true) {}

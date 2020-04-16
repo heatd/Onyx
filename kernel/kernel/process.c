@@ -801,13 +801,3 @@ void process_increment_stats(bool is_kernel)
 	else
 		process->user_time++;
 }
-
-void process_continue(struct process *p)
-{
-	panic("broken");
-}
-
-void process_stop(struct process *p)
-{
-	panic("broken");
-}

@@ -492,7 +492,7 @@ int e1000_probe(struct device *__dev)
 
 	if(e1000_read_mac_address(nicdev))
 		return -1;
-	
+
 	if(e1000_init_descs(nicdev))
 	{
 		ERROR("e1000", "failed to initialize!\n");
