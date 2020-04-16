@@ -292,14 +292,14 @@ int tcp_packet::send()
 		packetbuf_free(&info);
 		return -ENOMEM;
 	}
-	
+
 	uint16_t options_len = options_length();
 	auto header_size = sizeof(tcp_header) + options_len;
 
 	struct tcp_header *header = (tcp_header *)(((char *) info.packet) + packetbuf_get_off(&info));
 
 	memset(header, 0, header_size);
-	
+
 	auto &dest = socket->daddr();
 	auto &src = socket->saddr();
 
@@ -312,12 +312,12 @@ int tcp_packet::send()
 	header->data_offset_and_flags = htons(data_off | flags);
 	header->dest_port = dest.sin_port;
 	header->urgent_pointer = 0;
-	
+
 	if(flags & TCP_FLAG_ACK)
 		header->ack_number = htonl(socket->acknowledge_nr() + 1);
 	else
 		header->ack_number = 0;
-	
+
 	put_options(reinterpret_cast<char *>(header + 1));
 
 	char *payload_ptr = reinterpret_cast<char *>(header) + header_size;
@@ -334,7 +334,7 @@ int tcp_packet::send()
 
 	int st = ipv4_send_packet(src.sin_addr.s_addr, dest.sin_addr.s_addr, IPV4_TCP, &info,
 		socket->netif);
-	
+
 	if(padded) info.length++;
 
 	packetbuf_free(&info);
@@ -424,7 +424,7 @@ int tcp_socket::start_handshake()
 	first_packet.append_option(&opt);
 
 	int st = first_packet.send();
-	
+
 	if(st < 0)
 		return st;
 

@@ -20,6 +20,7 @@
 #include <onyx/thread.h>
 #include <onyx/portio.h>
 #include <onyx/init.h>
+#include <onyx/serial.h>
 
 #include <sys/ioctl.h>
 
@@ -887,12 +888,6 @@ size_t vterm_parse_ansi(char *buffer, size_t len, struct vterm *vt)
 	return (buffer - orig) + 1;
 }
 
-struct serial_port
-{
-	uint16_t io_port;
-	int com_nr;
-};
-
 extern struct serial_port com1;
 void serial_write(const char *s, size_t size, struct serial_port *port);
 
@@ -982,79 +977,30 @@ void vterm_init(struct tty *tty)
 	vt->tty = tty;
 }
 
-bool serial_is_transmit_empty(struct serial_port *port)
+ssize_t serial_write_tty(void *s, size_t size, struct tty *tty)
 {
-	return inb(port->io_port + 5) & 0x20;
+	struct serial_port *port = tty->priv;
+
+	serial_write(s, size, port);
+
+	return size;
 }
 
-bool serial_recieved(struct serial_port *port)
+void serial_tty_init(struct tty *tty)
 {
-	return inb(port->io_port + 5) & 1;
-}
-
-static void write_byte(char c, struct serial_port *port)
-{
-	while(!serial_is_transmit_empty(port));
-
-	outb(port->io_port, c);
-	if(c == '\n')
-		write_byte('\r', port);
-}
-
-void serial_write(const char *s, size_t size, struct serial_port *port)
-{
-	for(size_t i = 0; i < size; i++)
-	{
-		write_byte(*(s + i), port);
-	}
-}
-
-static char read_byte(struct serial_port *port)
-{
-	while(!serial_recieved(port));
-
-	return inb(port->io_port);
-}
-
-void serial_port_init(struct serial_port *port)
-{
-	outb(port->io_port + 1, 0x00);    // Disable all interrupts
-	outb(port->io_port + 3, 0x80);    // Enable DLAB (set baud rate divisor)
-	outb(port->io_port + 0, 0x03);    // Set divisor to 3 (lo byte) 38400 baud
-	outb(port->io_port + 1, 0x00);    //                  (hi byte)
-	outb(port->io_port + 3, 0x03);    // 8 bits, no parity, one stop bit
-	outb(port->io_port + 2, 0xC7);    // Enable FIFO, clear them, with 14-byte threshold
-	outb(port->io_port + 4, 0x0B);    // IRQs enabled, RTS/DSR set
-}
-
-struct serial_port com1 = 
-{
-	.io_port = 0x3f8,
-	.com_nr = 0
-};
-
-ssize_t serial_console_write(void *buffer, size_t len, struct tty *c)
-{
-	struct serial_port *p = c->priv;
-	serial_write(buffer, len, p);
-
-	return len;
-}
-
-void x86serial_init(struct tty *tty)
-{
-	tty->priv = &com1;
-	tty->write = serial_console_write;
+	tty->write = serial_write_tty;
+	tty->priv = platform_get_main_serial();
 }
 
 void vterm_do_init(void)
 {
-	serial_port_init(&com1);
+	platform_serial_init();
+
 	struct framebuffer *fb = get_primary_framebuffer();
 	if(fb)
 		tty_init(&primary_vterm, vterm_init);
 	else
-		tty_init(NULL, x86serial_init);
+		tty_init(NULL, serial_tty_init);
 }
 
 struct vterm *get_current_vt(void)

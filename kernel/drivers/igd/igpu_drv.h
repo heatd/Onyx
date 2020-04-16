@@ -184,6 +184,8 @@ struct igd_displayport
 	struct igd_pipe *pipe;
 };
 
+typedef uint32_t igd_gtt_entry_t;
+
 #define igd_get_arch(dev)	(((struct igpu_driver_data *) dev->device->driver_data)->architecture)
 #define HAS_GMCH_DISPLAY(dev) (((struct igpu_driver_data *) dev->device->driver_data)->has_gmch_display)
 
@@ -207,6 +209,7 @@ int igd_init_primary_planes(struct igpu_device *device);
 int igd_enable_display_engine(struct igpu_device *dev);
 int igd_query_displays(struct igpu_device *dev);
 int igd_get_ddi_info(struct igpu_device *dev);
+int igd_init_gtt(struct igpu_device *dev);
 
 #include "igd_pipe.h"
 

@@ -212,7 +212,7 @@ size_t pci_find_capability(struct pci_device *dev, uint8_t cap, int instance);
 int pci_enable_msi(struct pci_device *dev, irq_t handler, void *cookie);
 void pci_bus_register_driver(struct driver *driver);
 int pci_get_bar(struct pci_device *dev, int index, struct pci_bar *bar);
-void *pci_map_bar(struct pci_device *device, int index);
+void *pci_map_bar(struct pci_device *device, int index, unsigned int caching);
 
 int pci_enable_device(struct pci_device *device);
 int pci_reset_device(struct pci_device *device);

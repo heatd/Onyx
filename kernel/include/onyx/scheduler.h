@@ -91,7 +91,7 @@ static inline struct thread *get_current_thread(void)
 
 void* sched_switch_thread(void* last_stack);
 
-void sched_sleep(unsigned long ns);
+hrtime_t sched_sleep(unsigned long ns);
 
 void sched_yield(void);
 

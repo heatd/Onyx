@@ -105,7 +105,7 @@ int qxl_init_device(struct qxl_device *device)
 	pci_get_bar(device->device, QXL_ROM_BAR, &device->rom_bar);
 	pci_get_bar(device->device, QXL_IOBASE_BAR, &device->iorange_bar);
 	
-	if((device->vram_mapping = pci_map_bar(device->device, QXL_VRAM_BAR)) == NULL)
+	if((device->vram_mapping = pci_map_bar(device->device, QXL_VRAM_BAR, VM_WC)) == NULL)
 	{
 		MPRINTF("Could not map vram\n");
 		return -1;
@@ -124,13 +124,13 @@ int qxl_init_device(struct qxl_device *device)
 
 	/* TODO: destroy all the mappings done when I get that done in the
 	 * virtual memory manager */
-	if((device->surface_mapping = pci_map_bar(device->device, sbar)) == NULL)
+	if((device->surface_mapping = pci_map_bar(device->device, sbar, VM_WC)) == NULL)
 	{
 		MPRINTF("Could not map surface\n");
 		return -1;
 	}
 
-	if((device->rom = pci_map_bar(device->device, QXL_ROM_BAR)) == NULL)
+	if((device->rom = pci_map_bar(device->device, QXL_ROM_BAR, VM_NOCACHE)) == NULL)
 	{
 		MPRINTF("Could not map ROM\n");
 		return -1;

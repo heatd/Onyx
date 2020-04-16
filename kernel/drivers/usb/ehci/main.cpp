@@ -81,7 +81,7 @@ int ehci_probe(struct device *__dev)
 	printk("EHCI device found at %04x:%02x:%02x:%02x!\n",
 		dev->segment, dev->bus, dev->device, dev->function);
 	
-	void *buffer = pci_map_bar(dev, PCI_USB2_HOST_CONTROLLER_REGISTER_SPACE_BAR);
+	void *buffer = pci_map_bar(dev, PCI_USB2_HOST_CONTROLLER_REGISTER_SPACE_BAR, VM_NOCACHE);
 	if(!buffer)
 	{
 		printk("ehci: failed to map bar\n");

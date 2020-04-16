@@ -85,7 +85,7 @@ bool vdev::find_structures()
 			if(!mapping)
 			{
 				/* Create a mapping of the bar */
-				mapping = bars[bar] = pci_map_bar(dev, bar);
+				mapping = bars[bar] = pci_map_bar(dev, bar, VM_NOCACHE);
 				if(!mapping)
 				{
 					return false;

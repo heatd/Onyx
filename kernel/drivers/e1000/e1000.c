@@ -466,7 +466,7 @@ int e1000_probe(struct device *__dev)
 		"ID %04x:%04x\n", dev->segment, dev->bus, dev->device,
 		dev->function, dev->vendorID, dev->deviceID);
 	
-	char *mem_space = pci_map_bar(dev, 0);
+	char *mem_space = pci_map_bar(dev, 0, VM_NOCACHE);
 	if(!mem_space)
 	{
 		ERROR("e1000", "Sorry! This driver only supports e1000 register access through MMIO, "
@@ -492,11 +492,6 @@ int e1000_probe(struct device *__dev)
 
 	if(e1000_read_mac_address(nicdev))
 		return -1;
-	
-	printk("Mac address: ");
-	for(int i = 0; i < 6; i++)
-		printk("%02x%s", nicdev->e1000_internal_mac_address[i], i != 5 ? ":" : "");
-	printk("\n");
 	
 	if(e1000_init_descs(nicdev))
 	{

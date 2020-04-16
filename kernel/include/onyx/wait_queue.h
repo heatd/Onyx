@@ -9,8 +9,10 @@
 
 #include <stdbool.h>
 #include <string.h>
+#include <errno.h>
 
 #include <onyx/scheduler.h>
+#include <onyx/task_switching.h>
 #include <onyx/spinlock.h>
 #include <onyx/list.h>
 
@@ -40,12 +42,14 @@ void wait_queue_add(struct wait_queue *queue, struct wait_queue_token *token);
 void wait_queue_remove(struct wait_queue *queue, struct wait_queue_token *token);
 bool wait_queue_may_delete(struct wait_queue *queue);
 
+bool signal_is_pending();
+
 #define __wait_for_event(wq, cond, state, cmd)	\
-do											\
-{											\
+({											\
 											\
+	long __ret = 0;							\
 	if(cond)								\
-		break;								\
+		goto out;							\
 											\
 	struct wait_queue_token token;			\
 											\
@@ -57,15 +61,56 @@ do											\
 		wait_queue_add(wq, &token);			\
 		if(cond)							\
 			break;							\
+		if(state == THREAD_INTERRUPTIBLE && signal_is_pending()) \
+		{ __ret = -EINTR; goto out;}		\
 		cmd;								\
 		wait_queue_remove(wq, &token);		\
 	}										\
-											\
+out:										\
 	wait_queue_remove(wq, &token);			\
 	set_current_state(THREAD_RUNNABLE);		\
-} while(0);
+	__ret;										\
+})
+
+#define __wait_for_event_with_timeout(wq, cond, state, timeout_ns)	\
+({											\
+											\
+	hrtime_t timeout = timeout_ns;			\
+	unsigned long ret = 0;					\
+	if(cond)								\
+		goto out;								\
+											\
+	struct wait_queue_token token;			\
+											\
+	set_current_state(state);				\
+	while(true)								\
+	{										\
+		memset(&token, 0, sizeof(token));		\
+		token.thread = get_current_thread();	\
+		wait_queue_add(wq, &token);			\
+		if(cond)							\
+			goto out;							\
+		if(state == THREAD_INTERRUPTIBLE && signal_is_pending()) \
+		{ ret = (unsigned long) -EINTR; goto out;}		\
+		timeout = sched_sleep(timeout); if(timeout == 0) {ret = -ETIMEDOUT; goto out;} \
+		wait_queue_remove(wq, &token);		\
+	}										\
+out:										\
+	wait_queue_remove(wq, &token);			\
+	set_current_state(THREAD_RUNNABLE);		\
+	ret;										\
+})
+
+#define wait_for_event_timeout(wq, cond, _timeout)	\
+        __wait_for_event_with_timeout(wq, cond, THREAD_UNINTERRUPTIBLE, _timeout)
+
+#define wait_for_event_timeout_interruptible(wq, cond, _timeout)	\
+        __wait_for_event_with_timeout(wq, cond, THREAD_INTERRUPTIBLE, _timeout)
 
 #define wait_for_event(wq, cond)	__wait_for_event(wq, cond, THREAD_UNINTERRUPTIBLE, sched_yield())
+
+#define wait_for_event_interruptible(wq, cond)	__wait_for_event(wq, cond, THREAD_INTERRUPTIBLE, sched_yield())
+
 
 #define wait_for_event_locked(wq, cond, lock) __wait_for_event(wq, cond, THREAD_UNINTERRUPTIBLE, \
 	spin_unlock(lock);sched_yield();spin_lock(lock))

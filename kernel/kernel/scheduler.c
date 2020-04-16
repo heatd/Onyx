@@ -466,7 +466,7 @@ void sched_sleep_unblock(struct clockevent *v)
 	thread_wake_up(t);
 }
 
-void sched_sleep(unsigned long ns)
+hrtime_t sched_sleep(unsigned long ns)
 {
 	thread_t *current = get_current_thread();
 
@@ -480,6 +480,15 @@ void sched_sleep(unsigned long ns)
 	set_current_state(THREAD_INTERRUPTIBLE);
 
 	sched_yield();
+
+	hrtime_t t1 = clocksource_get_time();
+	hrtime_t rem = t1 - ev.deadline;
+	
+	/* It's okay if we wake up slightly after we wanted to, just return success */
+	if(t1 > ev.deadline)
+		rem = 0;
+
+	return rem;
 }
 
 int __sched_remove_thread_from_execution(thread_t *thread, unsigned int cpu)

@@ -339,7 +339,7 @@ int pci_get_bar(struct pci_device *dev, int index, struct pci_bar *bar)
 	return 0;
 }
 
-void *pci_map_bar(struct pci_device *device, int index)
+void *pci_map_bar(struct pci_device *device, int index, unsigned int caching)
 {
 	struct pci_bar bar;
 
@@ -357,7 +357,7 @@ void *pci_map_bar(struct pci_device *device, int index)
 #endif
 
 	return mmiomap((void *) bar.address, bar.size, VM_WRITE | VM_NOEXEC
-		| VM_NOCACHE);
+		| caching);
 }
 
 uint16_t pci_get_intn(struct pci_device *dev)

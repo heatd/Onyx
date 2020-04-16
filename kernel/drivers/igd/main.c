@@ -130,7 +130,7 @@ int ihdgpu_probe(struct device *dev)
 		return -1;
 	}
 
-	void *device_registers = pci_map_bar(device, 0);
+	void *device_registers = pci_map_bar(device, 0, VM_NOCACHE);
 	
 	if(device_registers == NULL)
 	{
@@ -139,7 +139,7 @@ int ihdgpu_probe(struct device *dev)
 		return -1;
 	}
 
-	void *gpu_memory = pci_map_bar(device, 2);
+	void *gpu_memory = pci_map_bar(device, 2, VM_WC);
 
 	if(gpu_memory == NULL)
 	{
