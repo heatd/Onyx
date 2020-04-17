@@ -1018,7 +1018,6 @@ int sys_pipe(int upipefd[2])
 	/* Create the pipe */
 	struct inode *read_end, *write_end;
 
-	/* TODO: Free the file descriptor number on failure */
 	if(pipe_create(&read_end, &write_end) < 0)
 	{
 		return -errno;
