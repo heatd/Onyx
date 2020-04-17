@@ -49,7 +49,7 @@ bool signal_is_pending();
 											\
 	long __ret = 0;							\
 	if(cond)								\
-		goto out;							\
+		goto out_final;							\
 											\
 	struct wait_queue_token token;			\
 											\
@@ -69,7 +69,8 @@ bool signal_is_pending();
 out:										\
 	wait_queue_remove(wq, &token);			\
 	set_current_state(THREAD_RUNNABLE);		\
-	__ret;										\
+out_final:									\
+	__ret;									\
 })
 
 #define __wait_for_event_with_timeout(wq, cond, state, timeout_ns)	\
@@ -78,7 +79,7 @@ out:										\
 	hrtime_t timeout = timeout_ns;			\
 	unsigned long ret = 0;					\
 	if(cond)								\
-		goto out;								\
+		goto out_final;								\
 											\
 	struct wait_queue_token token;			\
 											\
@@ -98,6 +99,7 @@ out:										\
 out:										\
 	wait_queue_remove(wq, &token);			\
 	set_current_state(THREAD_RUNNABLE);		\
+out_final:									\
 	ret;										\
 })
 
