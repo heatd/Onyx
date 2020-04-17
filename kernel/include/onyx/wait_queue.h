@@ -62,14 +62,14 @@ bool signal_is_pending();
 		if(cond)							\
 			break;							\
 		if(state == THREAD_INTERRUPTIBLE && signal_is_pending()) \
-		{ __ret = -EINTR; goto out;}		\
+		{ __ret = -EINTR; goto __out;}		\
 		cmd;								\
 		wait_queue_remove(wq, &token);		\
 	}										\
-out:										\
+__out:										\
 	wait_queue_remove(wq, &token);			\
 	set_current_state(THREAD_RUNNABLE);		\
-out_final:									\
+out_final: ;								\
 	__ret;									\
 })
 
@@ -77,7 +77,7 @@ out_final:									\
 ({											\
 											\
 	hrtime_t timeout = timeout_ns;			\
-	unsigned long ret = 0;					\
+	long __ret = 0;					\
 	if(cond)								\
 		goto out_final;								\
 											\
@@ -90,17 +90,17 @@ out_final:									\
 		token.thread = get_current_thread();	\
 		wait_queue_add(wq, &token);			\
 		if(cond)							\
-			goto out;							\
+			goto __out;							\
 		if(state == THREAD_INTERRUPTIBLE && signal_is_pending()) \
-		{ ret = (unsigned long) -EINTR; goto out;}		\
-		timeout = sched_sleep(timeout); if(timeout == 0) {ret = -ETIMEDOUT; goto out;} \
+		{ __ret = -EINTR; goto __out;}		\
+		timeout = sched_sleep(timeout); if(timeout == 0) {__ret = -ETIMEDOUT; goto __out;} \
 		wait_queue_remove(wq, &token);		\
 	}										\
-out:										\
+__out:										\
 	wait_queue_remove(wq, &token);			\
 	set_current_state(THREAD_RUNNABLE);		\
 out_final:									\
-	ret;										\
+	__ret;										\
 })
 
 #define wait_for_event_timeout(wq, cond, _timeout)	\

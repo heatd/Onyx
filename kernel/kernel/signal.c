@@ -14,6 +14,7 @@
 #include <onyx/panic.h>
 #include <onyx/process.h>
 #include <onyx/task_switching.h>
+#include <onyx/wait_queue.h>
 
 void signal_default_term(int signum)
 {
@@ -800,25 +801,32 @@ int sys_sigsuspend(const sigset_t *uset)
 	sigset_t set;
 	if(copy_from_user(&set, uset, sizeof(sigset_t)) < 0)
 		return -EFAULT;
+
 	/* Ok, mask the signals in set */
 	sigset_t old;
 	/* First, save the old sigset */
 	memcpy(&old, &current->sinfo.sigmask, sizeof(sigset_t));
 	/* Now, set the signal mask */
-	memcpy(&current->sinfo.sigmask, &set, sizeof(sigset_t));
+	signal_set_blocked_set(current, &set);
 
-	/* Now, wait for a signal */
-	while(!signal_is_pending())
-		sched_yield();
-	memcpy(&current->sinfo.sigmask, &old, sizeof(sigset_t));
+	/* Now, wait for a signal */	
+	struct wait_queue wq;
+	init_wait_queue_head(&wq);
+
+	wait_for_event_interruptible(&wq, false);
+
+	signal_set_blocked_set(current, &old);
 
 	return -EINTR;
 }
 
 int sys_pause(void)
 {
-	while(!signal_is_pending())
-		sched_yield();
+	struct wait_queue wq;
+	init_wait_queue_head(&wq);
+
+	wait_for_event_interruptible(&wq, false);
+
 	return -EINTR;
 }
 
@@ -917,7 +925,7 @@ int sys_rt_sigqueueinfo(pid_t pid, int sig, siginfo_t *uinfo)
 	siginfo_t info;
 	if(copy_from_user(&info, uinfo, sizeof(info)) < 0)
 		return -EFAULT;
-	
+
 	if(sanitize_rt_sigqueueinfo(&info, pid) < 0)
 		return -EPERM;
 
@@ -967,4 +975,105 @@ void signal_do_execve(struct process *proc)
 		memset(&sa->sa_mask, 0, sizeof(sa->sa_mask));
 		sa->sa_restorer = NULL;
 	}
+}
+
+#define CURRENT_SIGSETLEN				8
+
+/* We need to separate this function since you can't have 2 wait_for_events */
+/* TODO: Maybe fix it? */
+long sigtimedwait_forever(struct wait_queue *wq)
+{
+	return wait_for_event_interruptible(wq, false);
+}
+
+int sys_rt_sigtimedwait(const sigset_t *set, siginfo_t *info, const struct timespec *utimeout, size_t sigsetlen)
+{
+	if(sigsetlen != CURRENT_SIGSETLEN)
+		return -EINVAL;
+
+	int st = 0;
+	struct process *process = get_current_process();
+	struct thread *thread = get_current_thread();
+
+	struct wait_queue wq;
+	init_wait_queue_head(&wq);
+
+	struct timespec timeout = {0};
+
+	if(utimeout && copy_from_user(&timeout, utimeout, sizeof(timeout)) < 0)
+		return -EFAULT;
+	
+	sigset_t kset;
+
+	if(copy_from_user(&kset, set, sizeof(kset)) < 0)
+		return -EFAULT;
+
+	hrtime_t timeout_ns = timespec_to_hrtime(&timeout);
+
+	long res;
+	if(utimeout)
+		res = wait_for_event_timeout_interruptible(&wq, false, timeout_ns);
+	else
+	{
+		res = sigtimedwait_forever(&wq);
+	}
+
+	if(res == -ETIMEDOUT)
+		return -EAGAIN;
+
+	spin_lock(&process->signal_lock);
+	spin_lock(&thread->sinfo.lock);
+
+	/* Find a pending signal */
+	int signum = signal_find(thread);
+	assert(signum != 0);
+
+	/* If it's not a member of set, error out with EINTR(it will be handled on syscall return). */
+	if(!sigismember(&kset, signum))
+	{
+		st = -EINTR;
+		goto out;
+	}
+
+	/* As in the normal signal handling path, pop the sigpending */
+	struct sigpending *pending = signal_query_pending(signum,
+                                  SIGNAL_QUERY_POP, &thread->sinfo);
+
+	assert(pending != NULL);
+
+	signal_unqueue(signum, thread);
+
+	st = pending->signum;
+
+	free(pending->info);
+	free(pending);
+
+	if(copy_to_user(info, pending->info, sizeof(sigset_t)) < 0)
+	{
+		st = -EFAULT;
+		goto out;
+	}
+
+out:
+	spin_unlock(&thread->sinfo.lock);
+	spin_unlock(&process->signal_lock);
+
+	return st;
+}
+
+int sys_rt_sigpending(sigset_t *uset, size_t sigsetlen)
+{
+	sigset_t set;
+	struct thread *current = get_current_thread();
+
+	if(sigsetlen != CURRENT_SIGSETLEN)
+		return -EINVAL;
+
+	memcpy(&set, &current->sinfo.pending_set, sizeof(set));
+	sigandset(&set, &set, &current->sinfo.sigmask);
+
+	if(copy_to_user(uset, &set, sizeof(set)) < 0)
+		return -EFAULT;
+	
+	return 0;
 }

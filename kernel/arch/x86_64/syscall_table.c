@@ -65,7 +65,6 @@ extern off_t sys_lseek(int fd, off_t offset, int whence);
 extern int sys_mount(const char *source, const char *target,
 const char *filesystemtype, unsigned long mountflags, const void *data);
 extern ssize_t sys_write(int fd, const void *buf, size_t count);
-extern int sys_isatty(int fd);
 extern int sys_syslog(int type, char *buffer, int len);
 extern void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd,
  off_t offset);
@@ -169,6 +168,8 @@ int sys_rt_sigqueueinfo(pid_t tgid, int sig, siginfo_t *info);
 int sys_rt_tgsigqueueinfo(pid_t tgid, pid_t tid, int sig, siginfo_t *info);
 int sys_tkill(int tid, int sig);
 int sys_tgkill(int pid, int tid, int sig);
+int sys_rt_sigtimedwait(const sigset_t *set, siginfo_t *info, const struct timespec *timeout, size_t sigsetlen);
+int sys_rt_sigpending(sigset_t *set, size_t sigsetlen);
 
 void *syscall_table_64[] =
 {
@@ -207,7 +208,7 @@ void *syscall_table_64[] =
 	[32] = (void*) sys_personality,
 	[33] = (void*) sys_setuid,
 	[34] = (void*) sys_setgid,
-	[35] = (void*) sys_isatty,
+	[35] = (void*) sys_nosys,
 	[36] = (void*) sys_mremap,
 	[37] = (void*) sys_sigreturn,
 	[38] = (void*) sys_insmod,
@@ -288,5 +289,7 @@ void *syscall_table_64[] =
 	[113] = (void*) sys_rt_sigqueueinfo,
 	[114] = (void*) sys_rt_tgsigqueueinfo,
 	[115] = (void*) sys_tkill,
-	[116] = (void*) sys_tgkill
+	[116] = (void*) sys_tgkill,
+	[117] = (void*) sys_rt_sigpending,
+	[118] = (void*) sys_rt_sigtimedwait
 };

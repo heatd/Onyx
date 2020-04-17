@@ -187,20 +187,40 @@ void signal_test()
 
 	if(p == 0)
 	{
-		pthread_t new_thread;
+		/*pthread_t new_thread;
 		if(pthread_create(&new_thread, NULL, func, NULL) < 0)
-			perror("pthread_create");
+			perror("pthread_create");*/
+		
+		sigset_t mask;
+		sigaddset(&mask, SIGSEGV);
+		sigprocmask(SIG_SETMASK, &mask, NULL);
+		/*struct sigaction sa;
+		sa.sa_flags = SA_SIGINFO;
+		sa.sa_sigaction = segv;
 
+		sigaction(SIGSEGV, &sa, NULL);*/
+
+		/*sigset_t set = {};
+		siginfo_t info;
+		sigaddset(&set, SIGSEGV);
+		if(sigwaitinfo(&set, &info) < 0)
+			perror("sigwaitinfo");*/
+		//printf("Signalled - info code %d\n", info.si_code);
+		/*sleep(2);
+
+		if(sigpending(&mask) < 0)
+			perror("sigpending");
+		printf("Is segv pending? %u\n", sigismember(&mask, SIGSEGV));*/
 		while(true) {}
 	}
 	else
 	{
 		printf("Sleeping 2 seconds and killing our child\n");
 		sleep(1);
-		for(int i = 0; i < 10; i++) kill(p, SIGSTOP);
+		kill(p, SIGSEGV);
 		printf("Now, we're SIGCONTing it\n");
 		sleep(1);
-		kill(p, SIGCONT);
+		//kill(p, SIGCONT);
 	}
 
 	while(true) {}

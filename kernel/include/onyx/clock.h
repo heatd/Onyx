@@ -63,6 +63,8 @@ struct clock_time *get_raw_clock_time(clockid_t clkid);
 time_t clock_get_posix_time(void);
 hrtime_t clocksource_get_time(void);
 
+#define timespec_to_hrtime(ts)		((ts)->tv_sec * NS_PER_SEC + (ts)->tv_nsec)
+
 #ifdef __cplusplus
 }
 #endif

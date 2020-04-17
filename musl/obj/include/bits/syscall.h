@@ -111,6 +111,8 @@
 #define __NR_rt_tgsigqueueinfo		114
 #define __NR_tkill					115
 #define __NR_tgkill					116
+#define __NR_rt_sigpending		    117
+#define __NR_rt_sigtimedwait	    118
 #define __NR_sysinfo			255
 #define __NR_geteuid			255
 #define __NR_getegid			255
@@ -119,10 +121,10 @@
 #define __NR_setsid				255
 #define __NR_setreuid			255
 #define __NR_setregid			255
-#define __NR_getgroups			115
-#define __NR_setgroups			116
-#define __NR_setresuid			117
-#define __NR_getresuid			118
+#define __NR_getgroups			255
+#define __NR_setgroups			255
+#define __NR_setresuid			255
+#define __NR_getresuid			255
 #define __NR_setresgid			119
 #define __NR_getresgid			120
 #define __NR_getpgid			121
@@ -131,8 +133,6 @@
 #define __NR_getsid				124
 #define __NR_capget				125
 #define __NR_capset				126
-#define __NR_rt_sigpending		127
-#define __NR_rt_sigtimedwait	128
 #define __NR_sigaltstack		131
 #define __NR_utime				132
 #define __NR_uselib				134
@@ -447,6 +447,8 @@
 #define SYS_rt_tgsigqueueinfo		114
 #define SYS_tkill					115
 #define SYS_tgkill					116
+#define SYS_rt_sigpending		    117
+#define SYS_rt_sigtimedwait	    118
 #define SYS_sysinfo			255
 #define SYS_geteuid			255
 #define SYS_getegid			255
@@ -455,10 +457,10 @@
 #define SYS_setsid				255
 #define SYS_setreuid			255
 #define SYS_setregid			255
-#define SYS_getgroups			115
-#define SYS_setgroups			116
-#define SYS_setresuid			117
-#define SYS_getresuid			118
+#define SYS_getgroups			255
+#define SYS_setgroups			255
+#define SYS_setresuid			255
+#define SYS_getresuid			255
 #define SYS_setresgid			119
 #define SYS_getresgid			120
 #define SYS_getpgid			121
@@ -467,8 +469,6 @@
 #define SYS_getsid				124
 #define SYS_capget				125
 #define SYS_capset				126
-#define SYS_rt_sigpending		127
-#define SYS_rt_sigtimedwait	128
 #define SYS_sigaltstack		131
 #define SYS_utime				132
 #define SYS_uselib				134

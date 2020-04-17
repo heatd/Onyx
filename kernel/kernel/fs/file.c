@@ -1010,24 +1010,6 @@ out:
 	return ret;
 }
 
-int sys_isatty(int fd)
-{	
-	struct file *f = get_file_description(fd);
-	if(!f)
-		return -errno;
-
-	/* TODO: This doesn't work since it says every chardev is a tty.
-	 * Add a way for inodes to say they're ttys
-	*/
-
-	int ret = -ENOTTY;
-	if(f->f_ino->i_type & VFS_TYPE_CHAR_DEVICE)
-		ret = 1;
-	
-	fd_put(f);
-	return ret;
-}
-
 int sys_pipe(int upipefd[2])
 {
 	int pipefd[2] = {-1, -1};
