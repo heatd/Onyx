@@ -11,7 +11,7 @@
 
 #include <onyx/spinlock.h>
 
-struct inode;
+struct file;
 
 struct superblock
 {

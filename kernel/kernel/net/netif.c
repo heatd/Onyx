@@ -16,9 +16,9 @@
 
 static struct spinlock netif_list_lock = {0};
 struct netif *netif_list = NULL;
-unsigned int netif_ioctl(int request, void *argp, struct inode* this)
+unsigned int netif_ioctl(int request, void *argp, struct file* this)
 {
-	struct netif *netif = this->i_helper;
+	struct netif *netif = this->f_ino->i_helper;
 	assert(netif);
 	switch(request)
 	{

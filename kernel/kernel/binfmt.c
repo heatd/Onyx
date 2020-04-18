@@ -45,7 +45,7 @@ void *bin_do_interp(struct binfmt_args *_args)
 	struct binfmt_args args;
 	memcpy(&args, _args, sizeof(struct binfmt_args));
 
-	struct inode *file = open_vfs(get_fs_root(), args.interp_path);
+	struct file *file = open_vfs(get_fs_root(), args.interp_path);
 	if(!file)
 	{
 #if 0
@@ -61,7 +61,7 @@ void *bin_do_interp(struct binfmt_args *_args)
 		return NULL;
 	}
 
-	read_vfs(0, 0, 100, args.file_signature, file);
+	read_vfs(0, 100, args.file_signature, file);
 
 	args.filename = args.interp_path;
 	args.file = file;

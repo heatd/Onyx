@@ -17,6 +17,7 @@
 #include <onyx/spinlock.h>
 #include <onyx/wait_queue.h>
 #include <onyx/smart.h>
+#include <onyx/file.h>
 
 class poll_file;
 
@@ -83,19 +84,19 @@ class poll_file
 private:
 	poll_table* pt;
 	cul::vector<unique_ptr<poll_file_entry> > entries;
-	struct inode *file;
+	struct file *file;
 	short events;
 	short revents;
 	struct pollfd *upoll;
 	int fd;
 public:
 	
-	constexpr poll_file(int fd, poll_table* pt, struct inode *f, short events, struct pollfd *__u) :
+	constexpr poll_file(int fd, poll_table* pt, struct file *f, short events, struct pollfd *__u) :
 			pt{pt}, entries{}, file{f}, events{events},
 			revents{0}, upoll(__u), fd{fd}
 	{
-		/* Get a reference to the inode! */
-		object_ref(&f->i_object);
+		/* Get a reference to the file! */
+		fd_get(f);
 	}
 
 	constexpr poll_file() : pt{}, entries{}, file{}, events{}, revents{}, upoll{nullptr}, fd{-1} {}
@@ -103,7 +104,7 @@ public:
 	~poll_file()
 	{
 		if(file)
-			close_vfs(file);
+			fd_put(file);
 	}
 
 	/* Delete copy contructors */
@@ -150,7 +151,7 @@ public:
 
 	void wait(wait_queue *queue);
 
-	struct inode *get_file() const
+	struct file *get_file() const
 	{
 		return file;
 	}

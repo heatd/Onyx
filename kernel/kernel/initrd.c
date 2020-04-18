@@ -55,13 +55,12 @@ void initrd_mount(void)
 		
 		filename = strtok_r(filename, "/", &saveptr);
 
-		struct inode *node = get_fs_root();
+		struct file *node = get_fs_root();
 		if(*filename != '.' && strlen(filename) != 1)
 		{
-
 			while(filename)
 			{
-				struct inode *last = node;
+				struct file *last = node;
 				if(!(node = open_vfs(node, filename)))
 				{
 					node = last;
@@ -81,7 +80,7 @@ void initrd_mount(void)
 
 		if(iter[i]->typeflag == TAR_TYPE_FILE)
 		{
-			struct inode *file = creat_vfs(node, filename, 0666);
+			struct file *file = creat_vfs(node, filename, 0666);
 			assert(file != NULL);
 	
 			char *buffer = (char *) iter[i] + 512;
@@ -90,14 +89,14 @@ void initrd_mount(void)
 		}
 		else if(iter[i]->typeflag == TAR_TYPE_DIR)
 		{
-			struct inode *file = mkdir_vfs(filename, 0666, node);
-
+			struct file *file = mkdir_vfs(filename, 0666, node);
+			if(!file) perror("mkdir_vfs");
 			assert(file != NULL);
 		}
 		else if(iter[i]->typeflag == TAR_TYPE_SYMLNK)
 		{
 			char *buffer = (char *) iter[i]->linkname;
-			struct inode *file = creat_vfs(node, filename, 0666);
+			struct file *file = creat_vfs(node, filename, 0666);
 			assert(file != NULL);
 
 			assert(symlink_vfs(buffer, file) == 0);

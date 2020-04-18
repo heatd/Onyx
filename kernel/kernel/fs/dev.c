@@ -133,13 +133,13 @@ struct dev *dev_find(dev_t dev)
 	return NULL;
 }
 
-struct inode *dev_root = NULL;
+struct file *dev_root = NULL;
 void devfs_init(void)
 {
 	/* Mount tmpfs on /dev */
 	assert(tmpfs_mount("/dev") == 0);
 
-	struct inode *dev = dev_root = open_vfs(get_fs_root(), "/dev");
+	struct file *dev = dev_root = open_vfs(get_fs_root(), "/dev");
 
 	assert(dev != NULL);
 }
@@ -148,7 +148,7 @@ INIT_LEVEL_CORE_AFTER_SCHED_ENTRY(devfs_init);
 
 int device_mknod(struct dev *d, const char *path, const char *name, mode_t mode)
 {
-	struct inode *root = dev_root;
+	struct file *root = dev_root;
 
 	if(strcmp(path, DEVICE_NO_PATH) != 0)
 	{
@@ -161,7 +161,7 @@ int device_mknod(struct dev *d, const char *path, const char *name, mode_t mode)
 	else	mode |= S_IFCHR;
 	 
 
-	return root->i_fops.mknod(name, mode, d->majorminor, root) == NULL;
+	return root->f_ino->i_fops.mknod(name, mode, d->majorminor, root) == NULL;
 }
 
 int device_show(struct dev *d, const char *path, mode_t mode)
@@ -171,7 +171,7 @@ int device_show(struct dev *d, const char *path, mode_t mode)
 
 int device_create_dir(const char *path)
 {
-	struct inode *i = mkdir_vfs(path, 0600, dev_root);
+	struct file *i = mkdir_vfs(path, 0600, dev_root);
 
 	return i == NULL ? -1 : 0;
 }

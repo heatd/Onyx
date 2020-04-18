@@ -33,7 +33,7 @@ bool is_absolute_filename(const char *file)
 	return *file == '/' ? true : false;
 }
 
-struct inode *get_fs_base(const char *file, struct inode *rel_base)
+struct file *get_fs_base(const char *file, struct file *rel_base)
 {
 	return is_absolute_filename(file) == true ? get_fs_root() : rel_base;
 }
@@ -352,23 +352,16 @@ int alloc_fd(int fdbase)
 	}
 }
 
-struct file *file_alloc(int *fd, struct ioctx *ioctx)
+int file_alloc(struct file *f, struct ioctx *ioctx)
 {
 	int filedesc = alloc_fd(0);
 	if(filedesc < 0)
-		return errno = -filedesc, NULL;
+		return errno = -filedesc, filedesc;
 	
-	ioctx->file_desc[filedesc] = zalloc(sizeof(struct file));
-	if(!ioctx->file_desc[filedesc])
-	{
-		fd_close_bit(filedesc, ioctx);
-		mutex_unlock(&ioctx->fdlock);
-		return errno = ENOMEM, NULL;
-	}
+	ioctx->file_desc[filedesc] = f;
+	fd_get(f);
 
-	*fd = filedesc;
-
-	return ioctx->file_desc[filedesc];
+	return filedesc;
 }
 
 ssize_t sys_read(int fd, const void *buf, size_t count)
@@ -376,15 +369,15 @@ ssize_t sys_read(int fd, const void *buf, size_t count)
 	struct file *f = get_file_description(fd);
 	if(!f)
 		goto error;
-
+	
 	if(!fd_may_access(f, FILE_ACCESS_READ))
 	{
 		errno = EBADF;
 		goto error;
 	}
 
-	ssize_t size = read_vfs(f->f_flags, f->f_seek,
-		count, (char*) buf, f->f_ino);
+	ssize_t size = read_vfs(f->f_seek,
+		count, (char*) buf, f);
 	if(size == -1)
 	{
 		goto error;
@@ -414,7 +407,7 @@ ssize_t sys_write(int fd, const void *buf, size_t count)
 	
 	size_t written = write_vfs(f->f_seek,
 				   count, (void*) buf, 
-				   f->f_ino);
+				   f);
 
 	if(written == (size_t) -1)
 		goto error;
@@ -434,16 +427,16 @@ void handle_open_flags(struct file *fd, int flags)
 		fd->f_seek = fd->f_ino->i_size;
 }
 
-static struct inode *try_to_open(struct inode *base, const char *filename, int flags, mode_t mode)
+static struct file *try_to_open(struct file *base, const char *filename, int flags, mode_t mode)
 {
-	struct inode *ret = open_vfs(base, filename);
+	struct file *ret = open_vfs(base, filename);
 	
 	if(ret)
 	{
 		/* Let's check for permissions */
 		if(!file_can_access(ret, open_to_file_access_flags(flags)))
 		{
-			close_vfs(ret);
+			fd_put(ret);
 			return errno = EACCES, NULL;
 		}
 	}
@@ -458,13 +451,13 @@ int do_sys_open(const char *filename, int flags, mode_t mode, struct file *__rel
 {
 	//printk("Open(%s)\n", filename);
 	/* This function does all the open() work, open(2) and openat(2) use this */
-	struct inode *rel = __rel->f_ino;
-	struct inode *base = get_fs_base(filename, rel);
+	struct file *rel = __rel;
+	struct file *base = get_fs_base(filename, rel);
 
 	int fd_num = -1;
 
 	/* Open/creat the file */
-	struct inode *file = try_to_open(base, filename, flags, mode);
+	struct file *file = try_to_open(base, filename, flags, mode);
 	if(!file)
 	{
 		return -errno;
@@ -473,7 +466,7 @@ int do_sys_open(const char *filename, int flags, mode_t mode, struct file *__rel
 	/* Allocate a file descriptor and a file description for the file */
 	fd_num = open_with_vnode(file, flags);
 
-	close_vfs(file);
+	fd_put(file);
 
 	return fd_num;
 }
@@ -616,9 +609,7 @@ ssize_t sys_readv(int fd, const struct iovec *vec, int veccnt)
 	
 		if(v.iov_len == 0)
 			continue;
-		ssize_t was_read = read_vfs(f->f_flags, 
-			f->f_seek, v.iov_len, v.iov_base,
-			f->f_ino);
+		ssize_t was_read = read_vfs(f->f_seek, v.iov_len, v.iov_base, f);
 		if(was_read < 0)
 		{
 			goto out;
@@ -680,7 +671,7 @@ ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt)
 		if(v.iov_len == 0)
 			continue;
 		size_t was_written = write_vfs(f->f_seek,
-			v.iov_len, v.iov_base,f->f_ino);
+			v.iov_len, v.iov_base,f);
 
 		written += was_written;
 		f->f_seek += was_written;
@@ -737,9 +728,7 @@ ssize_t sys_preadv(int fd, const struct iovec *vec, int veccnt, off_t offset)
 	
 		if(v.iov_len == 0)
 			continue;
-		ssize_t was_read = read_vfs(f->f_flags, 
-			offset, v.iov_len, v.iov_base,
-			f->f_ino);
+		ssize_t was_read = read_vfs(offset, v.iov_len, v.iov_base, f);
 
 		if(was_read < 0)
 		{
@@ -802,7 +791,7 @@ ssize_t sys_pwritev(int fd, const struct iovec *vec, int veccnt, off_t offset)
 		if(v.iov_len == 0)
 			continue;
 		size_t was_written = write_vfs(offset,
-			v.iov_len, v.iov_base,f->f_ino);
+			v.iov_len, v.iov_base,f);
 
 		written += was_written;
 		offset += was_written;
@@ -839,7 +828,7 @@ int sys_getdents(int fd, struct dirent *dirp, unsigned int count)
 
 	struct getdents_ret ret_buf = {0};
 	ret = getdents_vfs(count, putdir, dirp, f->f_seek,
-		&ret_buf, f->f_ino);
+		&ret_buf, f);
 	if(ret < 0)
 	{
 		ret = -errno;
@@ -862,7 +851,7 @@ int sys_ioctl(int fd, int request, char *argp)
 		return -errno;
 	}
 
-	int ret = ioctl_vfs(request, argp, f->f_ino);
+	int ret = ioctl_vfs(request, argp, f);
 
 	fd_put(f);
 	return ret;
@@ -889,7 +878,7 @@ int sys_ftruncate(int fd, off_t length)
 		goto out;
 	}
 	
-	ret = ftruncate_vfs(length, f->f_ino);
+	ret = ftruncate_vfs(length, f);
 
 out:
 	fd_put(f);
@@ -904,7 +893,7 @@ int sys_fallocate(int fd, int mode, off_t offset, off_t len)
 		return -errno;
 	}
 
-	int ret = fallocate_vfs(mode, offset, len, f->f_ino);
+	int ret = fallocate_vfs(mode, offset, len, f);
 
 
 	fd_put(f);
@@ -947,7 +936,7 @@ int sys_mount(const char *usource, const char *utarget, const char *ufilesystemt
 {
 	const char *source = NULL;
 	const char *target = NULL;
-	struct inode *block_file = NULL;
+	struct file *block_file = NULL;
 	const char *filesystemtype = NULL;
 	int ret = 0;
 
@@ -986,7 +975,7 @@ int sys_mount(const char *usource, const char *utarget, const char *ufilesystemt
 		goto out;
 	}
 
-	if(block_file->i_type != VFS_TYPE_BLOCK_DEVICE)
+	if(block_file->f_ino->i_type != VFS_TYPE_BLOCK_DEVICE)
 	{
 		ret = -ENOTBLK;
 		goto out;
@@ -1003,7 +992,7 @@ int sys_mount(const char *usource, const char *utarget, const char *ufilesystemt
 	char *str = strdup(target);
 	mount_fs(node, str);
 out:
-	if(block_file) close_vfs(block_file);
+	if(block_file) fd_put(block_file);
 	if(source)   free((void *) source);
 	if(target)   free((void *) target);
 	if(filesystemtype) free((void *) filesystemtype);
@@ -1016,7 +1005,7 @@ int sys_pipe(int upipefd[2])
 	int st = 0;
 
 	/* Create the pipe */
-	struct inode *read_end, *write_end;
+	struct file *read_end, *write_end;
 
 	if(pipe_create(&read_end, &write_end) < 0)
 	{
@@ -1043,13 +1032,13 @@ int sys_pipe(int upipefd[2])
 		goto error;
 	}
 
-	close_vfs(read_end);
-	close_vfs(write_end);
+	fd_put(read_end);
+	fd_put(write_end);
 
 	return 0;
 error:
-	close_vfs(read_end);
-	close_vfs(write_end);
+	fd_put(read_end);
+	fd_put(write_end);
 
 	if(pipefd[0] != -1)
 		file_close(pipefd[0]);
@@ -1161,15 +1150,15 @@ int sys_fcntl(int fd, int cmd, unsigned long arg)
 	return ret;
 }
 
-int do_sys_stat(const char *pathname, struct stat *buf, int flags, struct inode *rel)
+int do_sys_stat(const char *pathname, struct stat *buf, int flags, struct file *rel)
 {
-	struct inode *base = get_fs_base(pathname, rel);
-	struct inode *stat_node = open_vfs(base, pathname);
+	struct file *base = get_fs_base(pathname, rel);
+	struct file *stat_node = open_vfs(base, pathname);
 	if(!stat_node)
 		return -errno; /* Don't set errno, as we don't know if it was actually a ENOENT */
 
 	int st = stat_vfs(buf, stat_node);
-	close_vfs(stat_node);
+	fd_put(stat_node);
 	return st < 0 ? -errno : st;
 }
 
@@ -1182,7 +1171,7 @@ int sys_stat(const char *upathname, struct stat *ubuf)
 	struct stat buf = {0};
 	struct file *curr = get_current_directory();
 
-	int st = do_sys_stat(pathname, &buf, 0, curr->f_ino);
+	int st = do_sys_stat(pathname, &buf, 0, curr);
 
 	fd_put(curr);
 
@@ -1208,7 +1197,7 @@ int sys_fstat(int fd, struct stat *ubuf)
 
 	struct stat buf = {0};
 
-	if(stat_vfs(&buf, f->f_ino) < 0)
+	if(stat_vfs(&buf, f) < 0)
 	{
 		ret = -errno;
 		goto out;
@@ -1233,8 +1222,8 @@ int sys_chdir(const char *upath)
 
 	int st = 0;
 	struct file *curr = get_current_directory();
-	struct inode *base = get_fs_base(path, curr->f_ino);
-	struct inode *dir = open_vfs(base, path);
+	struct file *base = get_fs_base(path, curr);
+	struct file *dir = open_vfs(base, path);
 	
 	fd_put(curr);
 
@@ -1245,22 +1234,13 @@ int sys_chdir(const char *upath)
 	}
 
 
-	if(!(dir->i_type & VFS_TYPE_DIR))
+	if(!(dir->f_ino->i_type & VFS_TYPE_DIR))
 	{
 		st = -ENOTDIR;
 		goto close_file;
 	}
 
-	struct file *f = zalloc(sizeof(struct file));
-	if(!f)
-	{
-		st = -ENOMEM;
-		goto close_file;
-	}
-
-	f->f_refcount = 1;
-	f->f_ino = dir;
-	object_ref(&dir->i_object);
+	struct file *f = dir;
 
 	struct process *current = get_current_process();
 	__atomic_exchange(&current->ctx.cwd, &f, &f, __ATOMIC_ACQUIRE);
@@ -1271,9 +1251,10 @@ int sys_chdir(const char *upath)
 	*/
 	fd_put(f);
 	path = NULL;
+	goto out;
 close_file:
 	if(dir)
-		close_vfs(dir);
+		fd_put(dir);
 out:
 	if(path)	free((void *) path);
 	return st;
@@ -1285,8 +1266,8 @@ int sys_fchdir(int fildes)
 	if(!f)
 		return -errno;
 
-	struct inode *node = f->f_ino;
-	if(!(node->i_type & VFS_TYPE_DIR))
+	struct file *node = f;
+	if(!(node->f_ino->i_type & VFS_TYPE_DIR))
 	{
 		fd_put(f);
 		return -ENOTDIR;
@@ -1346,9 +1327,9 @@ int sys_openat(int dirfd, const char *upath, int flags, mode_t mode)
 	if(!dirfd_desc)
 		return -errno;
 
-	struct inode *dir = dirfd_desc->f_ino;;
+	struct file *dir = dirfd_desc;
 
-	if(!(dir->i_type & VFS_TYPE_DIR))
+	if(!(dir->f_ino->i_type & VFS_TYPE_DIR))
 	{
 		if(dirfd_desc) fd_put(dirfd_desc);
 		return -ENOTDIR;
@@ -1375,7 +1356,7 @@ int sys_fstatat(int dirfd, const char *upathname, struct stat *ubuf, int flags)
 	if(!pathname)
 		return -errno;
 	struct stat buf = {0};
-	struct inode *dir;
+	struct file *dir;
 	int st = 0;
 	struct file *dirfd_desc = get_dirfd_file(dirfd);
 	if(!dirfd_desc)
@@ -1384,9 +1365,9 @@ int sys_fstatat(int dirfd, const char *upathname, struct stat *ubuf, int flags)
 		goto out;
 	}
 
-	dir = dirfd_desc->f_ino;
+	dir = dirfd_desc;
 
-	if(!(dir->i_type & VFS_TYPE_DIR))
+	if(!(dir->f_ino->i_type & VFS_TYPE_DIR))
 	{
 		st = -ENOTDIR;
 		goto out;
@@ -1444,48 +1425,28 @@ void file_do_cloexec(struct ioctx *ctx)
 	mutex_unlock(&ctx->fdlock);
 }
 
-int open_with_vnode(struct inode *node, int flags)
+int open_with_vnode(struct file *node, int flags)
 {
 	/* This function does all the open() work, open(2) and openat(2) use this */
 	struct ioctx *ioctx = &get_current_process()->ctx;
 
 	int fd_num = -1;
 	/* Allocate a file descriptor and a file description for the file */
-	struct file *fd = file_alloc(&fd_num, ioctx);
-	if(!fd)
+	fd_num = file_alloc(node, ioctx);
+	if(fd_num < 0)
 	{
 		mutex_unlock(&ioctx->fdlock);
 		return -errno;
 	}
 
-	memset(fd, 0, sizeof(struct file));
-	fd->f_ino = node;
-	
-	object_ref(&node->i_object);
-
-	fd->f_refcount = 1;
-	fd->f_seek = 0;
-	fd->f_flags = flags;
-	handle_open_flags(fd, flags);
+	node->f_seek = 0;
+	node->f_flags = flags;
+	handle_open_flags(node, flags);
 	bool cloexec = flags & O_CLOEXEC;
 	fd_set_cloexec(fd_num, cloexec, ioctx);
 
 	mutex_unlock(&ioctx->fdlock);
 	return fd_num;
-}
-
-struct file *create_file_description(struct inode *inode, off_t seek)
-{
-	struct file *fd = zalloc(sizeof(*fd));
-	if(!fd)
-		return NULL;
-	fd->f_ino = inode;
-	fd->f_seek = seek;
-	fd->f_refcount = 1;
-	
-	object_ref(&inode->i_object);
-
-	return fd;
 }
 
 /* Simple stub sys_access */
@@ -1498,7 +1459,7 @@ int sys_access(const char *path, int amode)
 
 	struct file *f = get_current_directory();
 
-	struct inode *ino = open_vfs(get_fs_base(p, f->f_ino), p);
+	struct file *ino = open_vfs(get_fs_base(p, f), p);
 	fd_put(f);
 
 	unsigned int mask = ((amode & R_OK) ? FILE_ACCESS_READ : 0) |
@@ -1516,27 +1477,27 @@ int sys_access(const char *path, int amode)
 		goto out;
 	}
 out:
-	if(ino != NULL)	close_vfs(ino);
+	if(ino != NULL)	fd_put(ino);
 	free(p);
 
 	return st;
 }
 
-int do_sys_mkdir(const char *path, mode_t mode, struct inode *dir)
+int do_sys_mkdir(const char *path, mode_t mode, struct file *dir)
 {
-	struct inode *base = get_fs_base(path, dir);
+	struct file *base = get_fs_base(path, dir);
 
-	struct inode *i = mkdir_vfs(path, mode, base);
+	struct file *i = mkdir_vfs(path, mode, base);
 	if(!i)
 		return -errno;
 
-	close_vfs(i);
+	fd_put(i);
 	return 0; 
 }
 
 int sys_mkdirat(int dirfd, const char *upath, mode_t mode)
 {
-	struct inode *dir;
+	struct file *dir;
 	struct file *dirfd_desc = NULL;
 
 	dirfd_desc = get_dirfd_file(dirfd);
@@ -1545,11 +1506,9 @@ int sys_mkdirat(int dirfd, const char *upath, mode_t mode)
 		return -errno;
 	}
 
-	dir = dirfd_desc->f_ino;
+	dir = dirfd_desc;
 
-	/* FIXME: Possible CWD race condition. Present on every syscall that uses cwd */
-	/* FIXME: Idea: Make cwd a struct file */
-	if(!(dir->i_type & VFS_TYPE_DIR))
+	if(!(dir->f_ino->i_type & VFS_TYPE_DIR))
 	{
 		if(dirfd_desc) fd_put(dirfd_desc);
 		return -ENOTDIR;
@@ -1575,21 +1534,21 @@ int sys_mkdir(const char *upath, mode_t mode)
 	return sys_mkdirat(AT_FDCWD, upath, mode);
 }
 
-int do_sys_mknodat(const char *path, mode_t mode, dev_t dev, struct inode *dir)
+int do_sys_mknodat(const char *path, mode_t mode, dev_t dev, struct file *dir)
 {
-	struct inode *base = get_fs_base(path, dir);
+	struct file *base = get_fs_base(path, dir);
 
-	struct inode *i = mknod_vfs(path, mode, dev, base);
+	struct file *i = mknod_vfs(path, mode, dev, base);
 	if(!i)
 		return -errno;
 
-	close_vfs(i);
+	fd_put(i);
 	return 0; 
 }
 
 int sys_mknodat(int dirfd, const char *upath, mode_t mode, dev_t dev)
 {
-	struct inode *dir;
+	struct file *dir;
 	struct file *dirfd_desc = NULL;
 	
 	dirfd_desc = get_dirfd_file(dirfd);
@@ -1598,9 +1557,9 @@ int sys_mknodat(int dirfd, const char *upath, mode_t mode, dev_t dev)
 		return -errno;
 	}
 
-	dir = dirfd_desc->f_ino;
+	dir = dirfd_desc;
 
-	if(!(dir->i_type & VFS_TYPE_DIR))
+	if(!(dir->f_ino->i_type & VFS_TYPE_DIR))
 	{
 		if(dirfd_desc) fd_put(dirfd_desc);
 		return -ENOTDIR;
@@ -1636,8 +1595,8 @@ int do_sys_link(int olddirfd, const char *uoldpath, int newdirfd,
 	char *lname_buf = NULL;
 	struct file *olddir = NULL;
 	struct file *newdir = NULL;
-	struct inode *oldpathfile = NULL;
-	struct inode *newpathfile = NULL;
+	struct file *oldpathfile = NULL;
+	struct file *newpathfile = NULL;
 	oldpath = strcpy_from_user(uoldpath);
 	newpath = strcpy_from_user(unewpath);
 
@@ -1669,7 +1628,7 @@ int do_sys_link(int olddirfd, const char *uoldpath, int newdirfd,
 		goto out;
 	}
 
-	oldpathfile = open_vfs(get_fs_base(oldpath, olddir->f_ino), oldpath);
+	oldpathfile = open_vfs(get_fs_base(oldpath, olddir), oldpath);
 	if(!oldpathfile)
 	{
 		st = -errno;
@@ -1678,8 +1637,8 @@ int do_sys_link(int olddirfd, const char *uoldpath, int newdirfd,
 
 	char *to_open = dirname(newpath);
 
-	newpathfile = open_vfs(get_fs_base(to_open, newdir->f_ino), to_open);
-	if(!newpathfile || newpathfile->i_dev != oldpathfile->i_dev)
+	newpathfile = open_vfs(get_fs_base(to_open, newdir), to_open);
+	if(!newpathfile || newpathfile->f_ino->i_dev != oldpathfile->f_ino->i_dev)
 	{
 		/* Hard links need to be in the same filesystem */
 		st = -EXDEV;
@@ -1690,8 +1649,8 @@ int do_sys_link(int olddirfd, const char *uoldpath, int newdirfd,
 	st = link_vfs(oldpathfile, lname, newpathfile);
 out:
 	if(lname_buf)	free(lname_buf);
-	if(newpathfile)	close_vfs(newpathfile);
-	if(oldpathfile) close_vfs(oldpathfile);
+	if(newpathfile)	fd_put(newpathfile);
+	if(oldpathfile) fd_put(oldpathfile);
 	if(oldpath)	free(oldpath);
 	if(newpath)	free(newpath);
 	if(olddir)	fd_put(olddir);
@@ -1717,7 +1676,7 @@ int do_sys_unlink(int dirfd, const char *upathname, int flags)
 	int st = 0;
 	struct file *dirfd_file = NULL;
 	char *buf = NULL;
-	struct inode *dir = NULL;
+	struct file *dir = NULL;
 	char *pathname = strcpy_from_user(upathname);
 	if(!pathname)
 		return -errno;
@@ -1735,7 +1694,7 @@ int do_sys_unlink(int dirfd, const char *upathname, int flags)
 	}
 
 	char *to_open = dirname(pathname);
-	dir = open_vfs(get_fs_base(to_open, dirfd_file->f_ino), to_open);
+	dir = open_vfs(get_fs_base(to_open, dirfd_file), to_open);
 	if(!dir)
 	{
 		st = -errno;
@@ -1745,7 +1704,7 @@ int do_sys_unlink(int dirfd, const char *upathname, int flags)
 	st = unlink_vfs(basename(buf), flags, dir);
 
 out:
-	if(dir)		close_vfs(dir);
+	if(dir)		fd_put(dir);
 	if(buf)		free(buf);
 	if(pathname)	free(pathname);
 	if(dirfd_file)	fd_put(dirfd_file);

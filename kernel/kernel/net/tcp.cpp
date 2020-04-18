@@ -321,7 +321,9 @@ int tcp_packet::send()
 	put_options(reinterpret_cast<char *>(header + 1));
 
 	char *payload_ptr = reinterpret_cast<char *>(header) + header_size;
-	memcpy(payload_ptr, payload.data(), payload.size_bytes());
+
+	if(payload.size_bytes() != 0)
+		memcpy(payload_ptr, payload.data(), payload.size_bytes());
 
 	if(padded)
 	{

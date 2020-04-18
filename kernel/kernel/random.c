@@ -52,7 +52,7 @@ void get_entropy(char *buf, size_t s)
 	}
 }
 
-size_t ent_read(size_t off, size_t count, void *buffer, struct inode *node)
+size_t ent_read(size_t off, size_t count, void *buffer, struct file *node)
 {
 	get_entropy((char*) buffer, count);
 	return count;
@@ -132,12 +132,12 @@ size_t get_entropy_from_pool(int pool, size_t size, void *buffer)
 	return -EINVAL;
 }
 
-size_t random_read(int flags, size_t offset, size_t sizeofreading, void *buffer, struct inode *this)
+size_t random_read(size_t offset, size_t sizeofreading, void *buffer, struct file *this)
 {
 	return get_entropy_from_pool(ENTROPY_POOL_RANDOM, sizeofreading, buffer);
 }
 
-size_t urandom_read(int flags, size_t offset, size_t sizeofreading, void *buffer, struct inode *this)
+size_t urandom_read(size_t offset, size_t sizeofreading, void *buffer, struct file *this)
 {
 	return get_entropy_from_pool(ENTROPY_POOL_URANDOM, sizeofreading, buffer);
 }

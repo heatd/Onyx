@@ -46,9 +46,9 @@ struct blockdev *blkdev_search(const char *name)
 	return NULL;
 }
 
-unsigned int blkdev_ioctl(int request, void *argp, struct inode *ino)
+unsigned int blkdev_ioctl(int request, void *argp, struct file *f)
 {
-	struct blockdev *d = ino->i_helper;
+	struct blockdev *d = f->f_ino->i_helper;
 
 	(void) d;	
 	switch(request)
@@ -58,12 +58,12 @@ unsigned int blkdev_ioctl(int request, void *argp, struct inode *ino)
 	}
 }
 
-size_t blkdev_read_file(int flags, size_t offset, size_t len, void *buffer, struct inode *ino)
+size_t blkdev_read_file(size_t offset, size_t len, void *buffer, struct file *f)
 {
-	if(flags & O_NONBLOCK)
+	if(f->f_flags & O_NONBLOCK)
 		return errno = EWOULDBLOCK, -1;
 
-	struct blockdev *d = ino->i_helper;
+	struct blockdev *d = f->f_ino->i_helper;
 	/* align the offset first */
 	size_t misalignment = offset % d->sector_size;
 	ssize_t sector = offset / d->sector_size;
@@ -158,9 +158,9 @@ size_t blkdev_read_file(int flags, size_t offset, size_t len, void *buffer, stru
 	return read;
 }
 
-size_t blkdev_write_file(size_t offset, size_t len, void* buffer, struct inode *ino)
+size_t blkdev_write_file(size_t offset, size_t len, void* buffer, struct file *f)
 {
-	struct blockdev *d = ino->i_helper;
+	struct blockdev *d =  f->f_ino->i_helper;
 	/* align the offset first */
 	size_t misalignment = offset % d->sector_size;
 	ssize_t sector = offset / d->sector_size;
@@ -170,7 +170,6 @@ size_t blkdev_write_file(size_t offset, size_t len, void* buffer, struct inode *
 	if(misalignment != 0)
 	{
 		/* *sigh* yuck, we'll need to allocate a bounce buffer */
-		/* TODO: Check how fast the page allocator is vs malloc */
 		struct page *p = alloc_page(PAGE_ALLOC_NO_ZERO);
 		if(!p)
 		{

@@ -220,7 +220,7 @@ ssize_t ata_write(size_t offset, size_t count, void* buffer, struct blockdev* bl
 	return count;
 }
 
-size_t atadev_read(int flags, size_t offset, size_t count, void *buffer, struct inode *node)
+size_t atadev_read(size_t offset, size_t count, void *buffer, struct file *node)
 {
 	struct blockdev		*blk;
 	void 			*buf;
@@ -228,7 +228,7 @@ size_t atadev_read(int flags, size_t offset, size_t count, void *buffer, struct 
 	size_t			read;
 	size_t			toread;
 	struct ide_drive 	*drv;
-	blk = node->i_helper;
+	blk = node->f_ino->i_helper;
 	assert(blk != NULL);
 
 	drv = blk->device_info;
@@ -260,7 +260,7 @@ size_t atadev_read(int flags, size_t offset, size_t count, void *buffer, struct 
 	return read;
 }
 
-size_t atadev_write(size_t offset, size_t count, void *buffer, struct inode *node)
+size_t atadev_write(size_t offset, size_t count, void *buffer, struct file *node)
 {
 	struct blockdev		*blk;
 	void 			*buf;
@@ -268,7 +268,7 @@ size_t atadev_write(size_t offset, size_t count, void *buffer, struct inode *nod
 	size_t			written;
 	size_t			towrite;
 	struct ide_drive 	*drv;
-	blk = node->i_helper;
+	blk = node->f_ino->i_helper;
 	assert(blk != NULL);
 
 	drv = blk->device_info;

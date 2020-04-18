@@ -21,7 +21,7 @@ struct dentry
 	struct object object;
 
 	char d_name[NAME_MAX];
-	struct inode *d_inode;
+	struct file *d_inode;
 
 	struct dentry *d_parent;
 	struct dentry *d_next;

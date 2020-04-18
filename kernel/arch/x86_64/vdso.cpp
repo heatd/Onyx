@@ -120,6 +120,7 @@ static vdso main_vdso{&__vdso_start, (unsigned long) &__vdso_end - (unsigned lon
 
 #endif
 
+__attribute__((no_sanitize_undefined))
 bool vdso::init()
 {
 	char *file = (char *) &__vdso_start;

@@ -42,14 +42,9 @@ void *elf64_load_static(struct binfmt_args *args, Elf64_Ehdr *header)
 
 	/* Read the program header */
 
-	read_vfs(0, header->e_phoff, program_headers_size, phdrs, args->file);
+	read_vfs(header->e_phoff, program_headers_size, phdrs, args->file);
 
-	struct file *fd = create_file_description(args->file, 0);
-	if(!fd)
-	{
-		free(phdrs);
-		return NULL;
-	}
+	struct file *fd = args->file;
 
 	Elf64_Dyn *dyn = NULL;
 	Elf64_Phdr *uphdrs = NULL;
@@ -75,7 +70,7 @@ void *elf64_load_static(struct binfmt_args *args, Elf64_Ehdr *header)
 				return errno = ENOMEM, NULL;
 			args->interp_path[phdrs[i].p_filesz] = '\0';
 
-			read_vfs(0, phdrs[i].p_offset, phdrs[i].p_filesz,
+			read_vfs(phdrs[i].p_offset, phdrs[i].p_filesz,
 				 args->interp_path, args->file);
 			args->needs_interp = true;
 		}
@@ -151,8 +146,6 @@ void *elf64_load_static(struct binfmt_args *args, Elf64_Ehdr *header)
 		current->info.dyn = dyn;
 	}
 
-	fd_put(fd);
-
 	free(phdrs);
 	return (void*) header->e_entry;
 }
@@ -163,9 +156,7 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 
 	struct process *current = get_current_process();
 	size_t program_headers_size = header->e_phnum * header->e_phentsize;
-	struct file *fd = create_file_description(args->file, 0);
-	if(!fd)
-		return NULL;
+	struct file *fd = args->file;
 
 	Elf64_Phdr *phdrs = malloc(program_headers_size);
 	if(!phdrs)
@@ -175,7 +166,7 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 	}
 
 	/* Read the program headers */
-	if(read_vfs(0, header->e_phoff, program_headers_size, phdrs, args->file) !=
+	if(read_vfs(header->e_phoff, program_headers_size, phdrs, args->file) !=
 		(ssize_t) program_headers_size)
 	{
 		errno = EIO;
@@ -238,7 +229,7 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 				return errno = ENOMEM, NULL;
 			args->interp_path[phdrs[i].p_filesz] = '\0';
 
-			read_vfs(0, phdrs[i].p_offset, phdrs[i].p_filesz,
+			read_vfs(phdrs[i].p_offset, phdrs[i].p_filesz,
 				 args->interp_path, args->file);
 			args->needs_interp = true;
 		}
@@ -313,7 +304,6 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 	}
 
 	/* TODO: Unmap holes */
-	fd_put(fd);
 
 	return (void*) header->e_entry;
 error2:
@@ -321,8 +311,6 @@ error2:
 error1:
 	free(phdrs);
 error0:
-	fd_put(fd);
-
 	return NULL;
 }
 

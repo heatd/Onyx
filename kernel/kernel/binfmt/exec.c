@@ -185,17 +185,17 @@ int return_from_execve(void *entry, int argc, char **argv, char **envp, void *au
 	execve(2): Executes a program with argv and envp, replacing the current process.
 */
 
-struct inode *pick_between_cwd_and_root(char *p, struct process *proc)
+struct file *pick_between_cwd_and_root(char *p, struct process *proc)
 {
 	if(*p == '/')
 		return get_fs_root();
 	else
-		return proc->ctx.cwd->f_ino;
+		return proc->ctx.cwd;
 }
 
-bool file_is_executable(struct inode *exec_file)
+bool file_is_executable(struct file *exec_file)
 {
-	if(exec_file->i_type != VFS_TYPE_FILE || !file_can_access(exec_file, FILE_ACCESS_EXECUTE))
+	if(exec_file->f_ino->i_type != VFS_TYPE_FILE || !file_can_access(exec_file, FILE_ACCESS_EXECUTE))
 	{
 		return false;
 	}
@@ -207,7 +207,7 @@ extern size_t used_pages;
 int sys_execve(char *p, char *argv[], char *envp[])
 {
 	int st;
-	struct inode *exec_file = NULL;
+	struct file *exec_file = NULL;
 	struct exec_state state;
 	bool exec_state_created = false;
 	uint8_t *file = NULL;
@@ -251,6 +251,7 @@ int sys_execve(char *p, char *argv[], char *envp[])
 
 	if(!exec_file)
 	{
+		perror("open_vfs");
 		st = -errno;
 		goto error;
 	}
@@ -279,7 +280,7 @@ int sys_execve(char *p, char *argv[], char *envp[])
 	unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
 
 	/* Read the file signature */
-	if(read_vfs(0, 0, 100, file, exec_file) < 0)
+	if(read_vfs(0, 100, file, exec_file) < 0)
 	{
 		st = -errno;
 		goto error;
@@ -300,7 +301,7 @@ int sys_execve(char *p, char *argv[], char *envp[])
 		st = -errno;
 		if(state.flushed)
 		{
-			close_vfs(exec_file);
+			fd_put(exec_file);
 			free(file);
 			goto error_die_signal;
 		}
@@ -309,7 +310,7 @@ int sys_execve(char *p, char *argv[], char *envp[])
 	}
 
 	thread_change_addr_limit(old);
-	close_vfs(exec_file);
+	fd_put(exec_file);
 
 	free(file);
 
@@ -364,7 +365,7 @@ error:
 	free(path);
 	free(file);
 
-	if(exec_file)	close_vfs(exec_file);
+	if(exec_file)	fd_put(exec_file);
 
 	return st;
 }

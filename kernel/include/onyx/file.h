@@ -15,21 +15,10 @@
 extern "C" {
 #endif
 
-struct file
-{
-#ifndef __cplusplus
-	_Atomic
-#endif	
-	unsigned long f_refcount;
-	off_t f_seek;
-	struct inode *f_ino;
-	int f_flags;
-};
-
 struct ioctx;
 
 void file_do_cloexec(struct ioctx *ctx);
-int open_with_vnode(struct inode *node, int flags);
+int open_with_vnode(struct file *node, int flags);
 struct file *get_file_description(int fd);
 void fd_get(struct file *fd);
 void fd_put(struct file *fd);

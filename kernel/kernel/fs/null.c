@@ -10,7 +10,7 @@
 #include <onyx/compiler.h>
 #include <onyx/panic.h>
 
-size_t null_write(size_t offset, size_t count, void *buf, struct inode *n)
+size_t null_write(size_t offset, size_t count, void *buf, struct file *n)
 {
 	/* While writing to /dev/null, everything gets discarded. It's basically a no-op. */
 	UNUSED(offset);

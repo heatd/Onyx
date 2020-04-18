@@ -76,7 +76,7 @@ void poll_file::signal()
 constexpr short default_poll_return = (POLLIN | POLLOUT | POLLRDNORM | POLLWRNORM);
 
 extern "C"
-short default_poll(void *pf, short events, struct inode *ino)
+short default_poll(void *pf, short events, struct file *f)
 {
 	return default_poll_return & events;
 }
@@ -117,9 +117,7 @@ int sys_poll(struct pollfd *fds, nfds_t nfds, int timeout)
 			continue;
 		}
 
-		auto ino = f->f_ino;
-
-		poll_file pf{kpollfd.fd, &pt, ino, kpollfd.events, it};
+		poll_file pf{kpollfd.fd, &pt, f, kpollfd.events, it};
 
 		vec.push_back(cul::move(pf));
 

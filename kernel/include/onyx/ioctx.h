@@ -26,6 +26,4 @@ struct ioctx
 	unsigned long *open_fds;
 };
 
-struct file *create_file_description(struct inode *inode, off_t seek);
-
 #endif

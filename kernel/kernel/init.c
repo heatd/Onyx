@@ -175,7 +175,7 @@ int find_and_exec_init(char **argv, char **envp)
 	char *path = strdup("/sbin/init");
 	assert(path != NULL);
 retry:;
-	struct inode *in = open_vfs(get_fs_root(), path);
+	struct file *in = open_vfs(get_fs_root(), path);
 	if(!in)
 	{
 		printk("%s: Not found\n", path);
@@ -198,19 +198,18 @@ retry:;
 	get_current_thread()->owner = proc;
  
 	/* Setup standard file descriptors (STDIN(0), STDOUT(1), STDERR(2)) */
-	struct inode *ino = open_vfs(get_fs_root(), "/dev/tty");
 	
-	assert(open_with_vnode(ino, O_RDONLY) == 0);
-	assert(open_with_vnode(ino, O_WRONLY) == 1);
-	assert(open_with_vnode(ino, O_WRONLY) == 2);
-	
+	unsigned int flags[3] = {O_RDONLY, O_WRONLY, O_WRONLY};
 
-	struct file *f = zalloc(sizeof(struct file));
-	assert(f != NULL);
-	f->f_refcount = 1;
-	f->f_ino = get_fs_root();
-	object_ref(&f->f_ino->i_object);
-	proc->ctx.cwd = f;
+	for(int i = 0; i < 3; i++)
+	{
+		struct file *streams = open_vfs(get_fs_root(), "/dev/tty");
+	
+		assert(open_with_vnode(streams, flags[i]) == i);
+		fd_put(streams);
+	}
+
+	proc->ctx.cwd = get_fs_root();
 	proc->ctx.name = strdup("/");
 	assert(proc->ctx.name != NULL);
 
@@ -218,7 +217,7 @@ retry:;
 	unsigned char *buffer = malloc(100);
 	if (!buffer)
 		return errno = ENOMEM;
-	read_vfs(0, 0, 100, buffer, in);
+	read_vfs(0, 100, buffer, in);
 
 	struct exec_state st;
 	st.flushed = true;

@@ -45,7 +45,7 @@ public:
 extern "C"
 #endif
 
-int pipe_create(struct inode **pipe_readable, struct inode **pipe_writeable);
+int pipe_create(struct file **pipe_readable, struct file **pipe_writeable);
 
 
 

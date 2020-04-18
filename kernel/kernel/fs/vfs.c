@@ -26,8 +26,8 @@
 #include <onyx/vm.h>
 #include <onyx/clock.h>
 
-struct inode *fs_root = NULL;
-struct inode *mount_list = NULL;
+struct file *fs_root = NULL;
+struct file *mount_list = NULL;
 
 ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *file, off_t offset);
 bool inode_is_cacheable(struct inode *file);
@@ -38,7 +38,7 @@ bool inode_is_cacheable(struct inode *file);
 struct filesystem_root
 {
 	struct object object;
-	struct inode *inode;
+	struct file *file;
 	struct dentry *root_dentry;
 };
 
@@ -61,42 +61,11 @@ struct filesystem_root *get_filesystem_root(void)
 	return &boot_root;
 }
 
-struct inode *get_fs_root(void)
+struct file *get_fs_root(void)
 {
 	struct filesystem_root *root = get_filesystem_root();
 
-	return root->inode;
-}
-
-struct page_cache_block *inode_do_caching(struct inode *inode, size_t offset, long flags)
-{
-	struct page_cache_block *block = NULL;
-	/* Allocate a cache buffer */
-	struct page *p = alloc_page(0);
-	if(!p)
-		return NULL;
-	
-	void *virt = PAGE_TO_VIRT(p);
-
-	/* The size may be lesser than PAGE_SIZE, because we may reach EOF
-	 * before reading a whole page */
-
-	ssize_t size = inode->i_fops.read(0, offset, PAGE_SIZE, virt, inode);
-
-	if(size <= 0 && !(flags & FILE_CACHING_WRITE))
-	{
-		free_page(p);
-		return NULL;
-	}
-
-	/* Add the cache block */
-	block = add_cache_to_node(p, (size_t) size, offset, inode);
-
-	/* Now the block might be added, return. We don't need to check for
-	 * null
-	*/
-
-	return block;
+	return root->file;
 }
 
 #ifdef CONFIG_CHECK_PAGE_CACHE_INTEGRITY
@@ -112,19 +81,14 @@ struct page *vmo_inode_commit(size_t off, struct vm_object *vmo)
 	if(!page)
 		return NULL;
 
-	void *ptr = PAGE_TO_VIRT(page);
 	size_t to_read = i->i_size - off < PAGE_SIZE ? i->i_size - off : PAGE_SIZE;
 
 	assert(to_read <= PAGE_SIZE);
 
 	unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
 
-	ssize_t read = read_vfs(
-		READ_VFS_FLAG_IS_PAGE_CACHE,
-		off,
-		to_read,
-		ptr,
-		i);
+	assert(i->i_fops.readpage != NULL);
+	ssize_t read = i->i_fops.readpage(page, off, i);
 
 	thread_change_addr_limit(old);
 
@@ -220,12 +184,12 @@ void inode_update_mtime(struct inode *ino)
 	inode_mark_dirty(ino);
 }
 
-ssize_t do_actual_read(int flags, size_t offset, size_t len, void *buf, struct inode *ino)
+ssize_t do_actual_read(size_t offset, size_t len, void *buf, struct file *file)
 {
-	if(flags & READ_VFS_FLAG_IS_PAGE_CACHE || !inode_is_cacheable(ino))
-		return ino->i_fops.read(flags, offset, len, buf, ino);
+	if(!inode_is_cacheable(file->f_ino))
+		return file->f_ino->i_fops.read(offset, len, buf, file);
 	
-	return lookup_file_cache(buf, len, ino, offset);
+	return lookup_file_cache(buf, len, file->f_ino, offset);
 }
 
 bool is_invalid_length(size_t len)
@@ -240,8 +204,9 @@ size_t clamp_length(size_t len)
 	return len;
 }
 
-ssize_t read_vfs(int flags, size_t offset, size_t len, void *buffer, struct inode *ino)
+ssize_t read_vfs(size_t offset, size_t len, void *buffer, struct file *file)
 {
+	struct inode *ino = file->f_ino;
 	if(ino->i_type & VFS_TYPE_DIR)
 		return errno = EISDIR, -1;
 	
@@ -250,7 +215,7 @@ ssize_t read_vfs(int flags, size_t offset, size_t len, void *buffer, struct inod
 	
 	len = clamp_length(len);
 
-	ssize_t res = do_actual_read(flags, offset, len, buffer, ino);
+	ssize_t res = do_actual_read(offset, len, buffer, file);
 
 	if(res >= 0)
 	{
@@ -260,13 +225,14 @@ ssize_t read_vfs(int flags, size_t offset, size_t len, void *buffer, struct inod
 	return res;
 }
 
-ssize_t do_actual_write(size_t offset, size_t len, void *buffer, struct inode *ino)
+ssize_t do_actual_write(size_t offset, size_t len, void *buffer, struct file *f)
 {
 	ssize_t st = 0;
+	struct inode *ino = f->f_ino;
 
 	if(!inode_is_cacheable(ino))
 	{
-		st = ino->i_fops.write(offset, len, buffer, ino);
+		st = ino->i_fops.write(offset, len, buffer, f);
 	}
 	else
 	{
@@ -290,8 +256,9 @@ ssize_t do_actual_write(size_t offset, size_t len, void *buffer, struct inode *i
 	return st;
 }
 
-ssize_t write_vfs(size_t offset, size_t len, void *buffer, struct inode *ino)
+ssize_t write_vfs(size_t offset, size_t len, void *buffer, struct file *f)
 {
+	struct inode *ino = f->f_ino;
 	if(ino->i_type & VFS_TYPE_DIR)
 		return errno = EISDIR, -1;
 	
@@ -300,55 +267,61 @@ ssize_t write_vfs(size_t offset, size_t len, void *buffer, struct inode *ino)
 
 	len = clamp_length(len);
 	
-	ssize_t res = do_actual_write(offset, len, buffer, ino);
+	ssize_t res = do_actual_write(offset, len, buffer, f);
 
 	return res;
 }
 
-int ioctl_vfs(int request, char *argp, struct inode *this)
+int ioctl_vfs(int request, char *argp, struct file *this)
 {
-	if(this->i_fops.ioctl != NULL)
-		return this->i_fops.ioctl(request, (void*) argp, this);
+	if(this->f_ino->i_fops.ioctl != NULL)
+		return this->f_ino->i_fops.ioctl(request, (void*) argp, this);
 	return -ENOSYS;
 }
 
-void close_vfs(struct inode* this)
+void close_vfs(struct inode *this)
 {
 	object_unref(&this->i_object);
 }
 
-struct inode *do_actual_open(struct inode *this, const char *name)
+struct file *do_actual_open(struct file *this, const char *name)
 {
 	assert(this != NULL);
 
-	if(this->i_fops.open != NULL)
-	{
-		struct inode *i = this->i_fops.open(this, name);
-		
-		if(i)
-		{
-			if(i->i_fops.on_open)
-			{
-				if(i->i_fops.on_open(i) < 0)
-				{
-					close_vfs(i);
-					return NULL;
-				}
-			}
-		}
+	if(this->f_ino->i_fops.open == NULL)
+		return errno = EIO, NULL;
 
-		return i;
+	struct inode *i = this->f_ino->i_fops.open(this, name);
+
+	if(!i)
+		return NULL;
+	
+	struct file *f = inode_to_file(i);
+	if(!f)
+	{
+		close_vfs(i);
+		return NULL;
 	}
-	return errno = ENOSYS, NULL;
+
+	if(f->f_ino->i_fops.on_open)
+	{
+		if(f->f_ino->i_fops.on_open(f) < 0)
+		{
+			fd_put(f);
+			return NULL;
+		}		
+	}
+
+	return f;
 }
 
-char *readlink_vfs(struct inode *file)
+char *readlink_vfs(struct file *file)
 {
-	if(file->i_fops.readlink)
+	if(file->f_ino->i_fops.readlink)
 	{
-		char *p = file->i_fops.readlink(file);
+		char *p = file->f_ino->i_fops.readlink(file);
 		if(p != NULL)
-			inode_update_atime(file);
+			inode_update_atime(file->f_ino);
 		
 		return p;
 	}
@@ -356,23 +329,24 @@ char *readlink_vfs(struct inode *file)
 	return errno = EINVAL, NULL;
 }
 
-struct inode *follow_symlink(struct inode *file, struct inode *parent)
+struct file *follow_symlink(struct file *file, struct file *parent)
 {
 	char *symlink = readlink_vfs(file);
 	if(!symlink)
 		return NULL;
-	
-	struct inode *ret = open_vfs(parent, symlink);
+
+	struct file *ret = open_vfs(parent, symlink);
 
 	free(symlink);
 
 	return ret;
 }
 
-bool file_can_access(struct inode *file, unsigned int perms)
+bool file_can_access(struct file *f, unsigned int perms)
 {
 	bool access_good = true;
 	struct creds *c = creds_get();
+	struct inode *file = f->f_ino;
 
 	if(unlikely(c->euid == 0))
 	{
@@ -424,7 +398,7 @@ out:
 	return access_good;
 }
 
-struct inode *open_path_segment(char *segm, struct inode *node)
+struct file *open_path_segment(char *segm, struct file *node)
 {
 	/* Let's check if we have read access to the directory before doing anything */
 	if(!file_can_access(node, FILE_ACCESS_READ))
@@ -432,31 +406,31 @@ struct inode *open_path_segment(char *segm, struct inode *node)
 		return errno = EACCES, NULL;
 	}
 
-	struct inode *file = do_actual_open(node, segm);
+	struct file *file = do_actual_open(node, segm);
 	if(!file)
 		return NULL;
 
-	if(file->i_type == VFS_TYPE_SYMLINK)
+	if(file->f_ino->i_type == VFS_TYPE_SYMLINK)
 	{
-		struct inode *target = follow_symlink(file, node);
+		struct file *target = follow_symlink(file, node);
 		if(!target)
 			return NULL;
 		
-		close_vfs(file);
+		fd_put(file);
 		file = target;
 	}
 
-	struct inode *mountpoint = NULL;
+	struct file *mountpoint = NULL;
 	if((mountpoint = mtable_lookup(file)))
 	{
-		close_vfs(file);
+		fd_put(file);
 		file = mountpoint;
 	}
 
 	return file;
 }
 
-struct inode *open_vfs(struct inode* this, const char *name)
+struct file *open_vfs(struct file* this, const char *name)
 {
 	/* Okay, so we need to traverse the path */
 	/* First off, dupe the string */
@@ -468,18 +442,22 @@ struct inode *open_vfs(struct inode* this, const char *name)
 
 	/* Now, tokenize it using strtok */
 	path = strtok_r(path, "/", &saveptr);
-	struct inode *node = this;
+	struct file *node = this;
 
 	while(path)
 	{
-		struct inode *new_node = open_path_segment(path, node);
+		struct file *new_node = open_path_segment(path, node);
 
 		if(node != this)
-			close_vfs(node);
+			fd_put(node);
 
 		node = new_node;
 		if(!node)
 		{
+#if 0
+			perror("open_path_segment");
+			printk("Failed opening %s, segment %s\n", name, path);
+#endif
 			free(orig);
 			return NULL;
 		}
@@ -489,13 +467,13 @@ struct inode *open_vfs(struct inode* this, const char *name)
 
 	free(orig);
 
-	/* Get a new ref to the node */
 	if(node == this)
-		object_ref(&node->i_object);
+		fd_get(node);
+
 	return node;
 }
 
-struct inode *creat_vfs(struct inode *this, const char *path, int mode)
+struct file *creat_vfs(struct file *this, const char *path, int mode)
 {
 	char *dup = strdup(path);
 	if(!dup)
@@ -503,7 +481,7 @@ struct inode *creat_vfs(struct inode *this, const char *path, int mode)
 
 	char *dir = dirname((char*) dup);
 
-	struct inode *base;
+	struct file *base;
 	if(*dir != '.' && strlen(dir) != 1)
 		base = open_vfs(this, dir);
 	else
@@ -519,18 +497,24 @@ struct inode *creat_vfs(struct inode *this, const char *path, int mode)
 
 	if(!file_can_access(base, FILE_ACCESS_WRITE))
 	{
-		close_vfs(base);
+		fd_put(base);
 		errno = EACCES;
 		goto error;
 	}
 
-	if(base->i_fops.creat != NULL)
-	{
-		struct inode *ret = base->i_fops.creat(basename((char*) dup), mode, base);
-		free(dup);
-		return ret;
-	}
+	if(base->f_ino->i_fops.creat == NULL)
+		goto error_nosys;
+	struct inode *ret = base->f_ino->i_fops.creat(basename((char*) dup), mode, base);
+	
+	free(dup);
+	
+	struct file *f = inode_to_file(ret);
+	if(!f)
+		close_vfs(ret);
 
+	return f;
+
+error_nosys:
 	errno = ENOSYS;
 
 error:
@@ -538,14 +522,14 @@ error:
 	return NULL;
 }
 
-struct inode *mkdir_vfs(const char *path, mode_t mode, struct inode *this)
+struct file *mkdir_vfs(const char *path, mode_t mode, struct file *this)
 {
 	char *dup = strdup(path);
 	if(!dup)
 		return errno = ENOMEM, NULL;
 
 	char *dir = dirname((char*) dup);
-	struct inode *base;
+	struct file *base;
 	if(*dir != '.' && strlen(dir) != 1)
 		base = open_vfs(this, dir);
 	else
@@ -561,18 +545,24 @@ struct inode *mkdir_vfs(const char *path, mode_t mode, struct inode *this)
 
 	if(!file_can_access(base, FILE_ACCESS_WRITE))
 	{
-		close_vfs(base);
+		fd_put(base);
 		errno = EACCES;
 		goto error;
 	}
 
-	if(base->i_fops.mkdir != NULL)
-	{
-		struct inode *ret = base->i_fops.mkdir(basename((char*) dup), mode, base);
-		free(dup);
-		return ret;
-	}
+	if(base->f_ino->i_fops.mkdir == NULL)
+		goto error_nosys;
 
+	struct inode *ret = base->f_ino->i_fops.mkdir(basename((char*) dup), mode, base);
+	free(dup);
+
+	struct file *f = inode_to_file(ret);
+	if(!f)
+		close_vfs(ret);
+
+	return f;
+
+error_nosys:
 	errno = ENOSYS;
 
 error:
@@ -580,14 +570,14 @@ error:
 	return NULL;
 }
 
-struct inode *mknod_vfs(const char *path, mode_t mode, dev_t dev, struct inode *this)
+struct file *mknod_vfs(const char *path, mode_t mode, dev_t dev, struct file *this)
 {
 	char *dup = strdup(path);
 	if(!dup)
 		return errno = ENOMEM, NULL;
 
 	char *dir = dirname((char*) dup);
-	struct inode *base;
+	struct file *base;
 	if(*dir != '.' && strlen(dir) != 1)
 		base = open_vfs(this, dir);
 	else
@@ -603,18 +593,24 @@ struct inode *mknod_vfs(const char *path, mode_t mode, dev_t dev, struct inode *
 
 	if(!file_can_access(base, FILE_ACCESS_WRITE))
 	{
-		close_vfs(base);
+		fd_put(base);
 		errno = EACCES;
 		goto error;
 	}
 
-	if(base->i_fops.mknod != NULL)
-	{
-		struct inode *ret = base->i_fops.mknod(basename((char*) dup), mode, dev, base);
-		free(dup);
-		return ret;
-	}
+	if(base->f_ino->i_fops.mknod == NULL)
+		goto error_nosys;
 
+	struct inode *ret = base->f_ino->i_fops.mknod(basename((char*) dup), mode, dev, base);
+	free(dup);
+	
+	struct file *f = inode_to_file(ret);
+	if(!f)
+		close_vfs(ret);
+
+	return f;
+
+error_nosys:
 	errno = ENOSYS;
 
 error:
@@ -630,30 +626,44 @@ int mount_fs(struct inode *fsroot, const char *path)
 	
 	if(strcmp((char*) path, "/") == 0)
 	{
-		if(boot_root.inode)
+		struct file *f = zalloc(sizeof *f);
+		if(!f)
+			return -ENOMEM;
+		f->f_ino = fsroot;
+		f->f_refcount = 1;
+
+		if(boot_root.file)
 		{
-			object_unref(&boot_root.inode->i_object);
+			fd_put(boot_root.file);
 		}
 
-		boot_root.inode = fsroot;
+		boot_root.file = f;
 	}
 	else
 	{
-		struct inode *file = open_vfs(get_fs_root(), dirname((char*) path));
+		/* TODO: This seems iffy logic, at best */
+		struct file *file = open_vfs(get_fs_root(), dirname((char*) path));
 		if(!file)
 			return -errno;
 		file = do_actual_open(file, basename((char*) path));
 		if(!file)
 			return -errno;
-		return mtable_mount(file, fsroot);
+		struct file *fsroot_f = inode_to_file(fsroot);
+		if(!fsroot_f)
+		{
+			fd_put(file);
+			return -ENOMEM;
+		}
+	
+		return mtable_mount(file, fsroot_f);
 	}
 	return 0;
 }
 
-off_t do_getdirent(struct dirent *buf, off_t off, struct inode *file)
+off_t do_getdirent(struct dirent *buf, off_t off, struct file *file)
 {
-	if(file->i_fops.getdirent != NULL)
-		return file->i_fops.getdirent(buf, off, file);
+	if(file->f_ino->i_fops.getdirent != NULL)
+		return file->f_ino->i_fops.getdirent(buf, off, file);
 	return -ENOSYS;
 }
 
@@ -676,9 +686,9 @@ unsigned int putdir(struct dirent *buf, struct dirent *ubuf,
 
 int getdents_vfs(unsigned int count, putdir_t putdir,
 	struct dirent* dirp, off_t off, struct getdents_ret *ret,
-	struct inode *this)
+	struct file *f)
 {
-	if(!(this->i_type & VFS_TYPE_DIR))
+	if(!(f->f_ino->i_type & VFS_TYPE_DIR))
 		return errno = ENOTDIR, -1;
 	
 	/*printk("Seek: %lu\n", off);
@@ -688,7 +698,7 @@ int getdents_vfs(unsigned int count, putdir_t putdir,
 	
 	while(pos < count)
 	{
-		off_t of = do_getdirent(&buf, off, this);
+		off_t of = do_getdirent(&buf, off, f);
 		
 		//printk("Dirent: %s\n", buf.d_name);
 		if(of == 0)
@@ -722,20 +732,20 @@ int getdents_vfs(unsigned int count, putdir_t putdir,
 	return pos; 
 }
 
-int stat_vfs(struct stat *buf, struct inode *node)
+int stat_vfs(struct stat *buf, struct file *node)
 {
-	if(node->i_fops.stat != NULL)
-		return node->i_fops.stat(buf, node);
+	if(node->f_ino->i_fops.stat != NULL)
+		return node->f_ino->i_fops.stat(buf, node);
 	
 	return errno = ENOSYS, (unsigned int) -1;
 }
 
-short default_poll(void *poll_table, short events, struct inode *node);
+short default_poll(void *poll_table, short events, struct file *node);
 
-short poll_vfs(void *poll_file, short events, struct inode *node)
+short poll_vfs(void *poll_file, short events, struct file *node)
 {
-	if(node->i_fops.poll != NULL)
-		return node->i_fops.poll(poll_file, events, node);
+	if(node->f_ino->i_fops.poll != NULL)
+		return node->f_ino->i_fops.poll(poll_file, events, node);
 	
 	return default_poll(poll_file, events, node);
 }
@@ -750,11 +760,11 @@ struct page_cache_block *add_cache_to_node(void *ptr, size_t size, off_t offset,
 	return cache;
 }
 
-bool inode_is_cacheable(struct inode *file)
+bool inode_is_cacheable(struct inode *ino)
 {
-	if(file->i_flags & INODE_FLAG_DONT_CACHE)
+	if(ino->i_flags & INODE_FLAG_DONT_CACHE)
 		return false;
-	if(file->i_type != VFS_TYPE_FILE)
+	if(ino->i_type != VFS_TYPE_FILE)
 		return false;
 
 	return true;
@@ -831,16 +841,16 @@ ssize_t lookup_file_cache(void *buffer, size_t sizeofread, struct inode *file,
 	return (ssize_t) read;
 }
 
-ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *file,
+ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *ino,
 	off_t offset)
 {
-	if(!inode_is_cacheable(file))
+	if(!inode_is_cacheable(ino))
 		return -1;
 
 	size_t wrote = 0;
 	do
 	{
-		struct page_cache_block *cache = inode_get_page(file, offset,
+		struct page_cache_block *cache = inode_get_page(ino, offset,
 						  FILE_CACHING_WRITE);
 
 		if(cache == NULL)
@@ -889,10 +899,11 @@ ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *file,
 	return (ssize_t) wrote;
 }
 
-int default_ftruncate(off_t length, struct inode *vnode)
+int default_ftruncate(off_t length, struct file *f)
 {
 	if(length < 0)
 		return -EINVAL;
+	struct inode *vnode = f->f_ino;
 	
 	if((size_t) length <= vnode->i_size)
 	{
@@ -913,7 +924,7 @@ int default_ftruncate(off_t length, struct inode *vnode)
 	{
 		size_t to_write = length_diff >= PAGE_SIZE ? PAGE_SIZE : length_diff;
 
-		size_t written = write_vfs(off, to_write, page, vnode);
+		size_t written = write_vfs(off, to_write, page, f);
 
 		if(written != to_write)
 		{
@@ -930,13 +941,13 @@ int default_ftruncate(off_t length, struct inode *vnode)
 	return 0;
 }
 
-int ftruncate_vfs(off_t length, struct inode *vnode)
+int ftruncate_vfs(off_t length, struct file *vnode)
 {
 	if(length < 0)
 		return -EINVAL;
 
-	if(vnode->i_fops.ftruncate != NULL)
-		return vnode->i_fops.ftruncate(length, vnode);
+	if(vnode->f_ino->i_fops.ftruncate != NULL)
+		return vnode->f_ino->i_fops.ftruncate(length, vnode);
 	else
 	{
 		return default_ftruncate(length, vnode);
@@ -945,7 +956,7 @@ int ftruncate_vfs(off_t length, struct inode *vnode)
 	return -ENOSYS;
 }
 
-int default_fallocate(int mode, off_t offset, off_t len, struct inode *file)
+int default_fallocate(int mode, off_t offset, off_t len, struct file *file)
 {
 	/* VERY VERY VERY VERY VERY quick and dirty implementation to satisfy /bin/ld(.gold) */
 	if(mode != 0)
@@ -980,11 +991,11 @@ int default_fallocate(int mode, off_t offset, off_t len, struct inode *file)
 	return 0;
 }
 
-int fallocate_vfs(int mode, off_t offset, off_t len, struct inode *file)
+int fallocate_vfs(int mode, off_t offset, off_t len, struct file *file)
 {
-	if(file->i_fops.fallocate)
+	if(file->f_ino->i_fops.fallocate)
 	{
-		return file->i_fops.fallocate(mode, offset, len, file);
+		return file->f_ino->i_fops.fallocate(mode, offset, len, file);
 	}
 	else
 		return default_fallocate(mode, offset, len, file);
@@ -992,13 +1003,13 @@ int fallocate_vfs(int mode, off_t offset, off_t len, struct inode *file)
 	return -EINVAL;
 }
 
-int symlink_vfs(const char *dest, struct inode *inode)
+int symlink_vfs(const char *dest, struct file *inode)
 {
 	if(!file_can_access(inode, FILE_ACCESS_WRITE))
 		return -EACCES;
 
-	if(inode->i_fops.symlink != NULL)
-		return inode->i_fops.symlink(dest, inode);
+	if(inode->f_ino->i_fops.symlink != NULL)
+		return inode->f_ino->i_fops.symlink(dest, inode);
 	return -ENOSYS;
 }
 
@@ -1054,22 +1065,22 @@ struct inode *inode_create(bool is_reg)
 	return inode;
 }
 
-int link_vfs(struct inode *target, const char *name, struct inode *dir)
+int link_vfs(struct file *target, const char *name, struct file *dir)
 {
 	if(!file_can_access(dir, FILE_ACCESS_WRITE))
 		return -EACCES;
 
-	if(dir->i_fops.link)
-		return dir->i_fops.link(target, name, dir);
+	if(dir->f_ino->i_fops.link)
+		return dir->f_ino->i_fops.link(target, name, dir);
 	return -EINVAL;
 }
 
-int unlink_vfs(const char *name, int flags, struct inode *node)
+int unlink_vfs(const char *name, int flags, struct file *node)
 {
 	if(!file_can_access(node, FILE_ACCESS_WRITE))
 		return -EACCES;
-	if(node->i_fops.link)
-		return node->i_fops.unlink(name, flags, node);
+	if(node->f_ino->i_fops.link)
+		return node->f_ino->i_fops.unlink(name, flags, node);
 	return -EINVAL;
 }
 
@@ -1093,4 +1104,17 @@ int inode_flush(struct inode *ino)
 		return 0;
 	
 	return sb->flush_inode(ino);
+}
+
+struct file *inode_to_file(struct inode *ino)
+{
+	struct file *f = zalloc(sizeof(struct file));
+	if(!f)
+		return NULL;
+	f->f_ino = ino;
+	f->f_flags = 0;
+	f->f_refcount = 1;
+	f->f_seek = 0;
+
+	return f;
 }

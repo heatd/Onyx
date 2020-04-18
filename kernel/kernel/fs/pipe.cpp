@@ -174,18 +174,18 @@ pipe *get_pipe(void *helper)
 	return (pipe *) ((void *) (raw & ~PIPE_WRITEABLE));
 }
 
-size_t pipe_read(int flags, size_t offset, size_t sizeofread, void* buffer, struct inode* file)
+size_t pipe_read(size_t offset, size_t sizeofread, void* buffer, struct file* file)
 {
 	(void) offset;
-	pipe *p = get_pipe(file->i_helper);
-	return p->read(flags, sizeofread, buffer);
+	pipe *p = get_pipe(file->f_ino->i_helper);
+	return p->read(file->f_flags, sizeofread, buffer);
 }
 
-size_t pipe_write(size_t offset, size_t sizeofwrite, void* buffer, struct inode* file)
+size_t pipe_write(size_t offset, size_t sizeofwrite, void* buffer, struct file* file)
 {
 	(void) offset;
-	pipe *p = get_pipe(file->i_helper);
-	return p->write(0, sizeofwrite, buffer);
+	pipe *p = get_pipe(file->f_ino->i_helper);
+	return p->write(file->f_flags, sizeofwrite, buffer);
 }
 
 void pipe::close_read_end()
@@ -203,10 +203,10 @@ void pipe::close_write_end()
 	mutex_unlock(&pipe_lock);
 }
 
-void pipe_close(struct inode* file)
+void pipe_close(struct inode* ino)
 {
-	bool is_writeable = ((unsigned long) file->i_helper) & PIPE_WRITEABLE;
-	pipe *p = get_pipe(file->i_helper);
+	bool is_writeable = ((unsigned long) ino->i_helper) & PIPE_WRITEABLE;
+	pipe *p = get_pipe(ino->i_helper);
 
 	if(is_writeable)
 	{
@@ -226,11 +226,12 @@ void pipe_close(struct inode* file)
 	p->unref();
 }
 
-int pipe_create(struct inode **pipe_readable, struct inode **pipe_writeable)
+int pipe_create(struct file **pipe_readable, struct file **pipe_writeable)
 {
 	/* Create the node */
 	struct inode *node0 = nullptr, *node1 = nullptr; 
 	pipe *new_pipe = nullptr;
+	struct file *rd = nullptr, *wr = nullptr;
 	node0 = inode_create(false);
 	if(!node0)
 		return errno = ENOMEM, -1;
@@ -258,10 +259,22 @@ int pipe_create(struct inode **pipe_readable, struct inode **pipe_writeable)
 	node0->i_fops.read = pipe_read;
 	node0->i_fops.close = pipe_close;
 
+	/* TODO: This memcpy seems unsafe, at least... */
 	memcpy(node1, node0, sizeof(*node0));
 
-	*pipe_readable = node0;
-	*pipe_writeable = node1;
+	rd = inode_to_file(node0);
+	if(!rd)
+		goto err1;
+	
+	wr = inode_to_file(node1);
+	if(!wr)
+	{
+		fd_put(rd);
+		goto err1;
+	}
+
+	*pipe_readable = rd;
+	*pipe_writeable = wr;
 
 	/* Since malloc returns 16-byte aligned memory we can use the lower bits for stuff like this */
 	node1->i_helper = (void *)((unsigned long) new_pipe | PIPE_WRITEABLE);

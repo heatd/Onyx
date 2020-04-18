@@ -114,6 +114,10 @@ struct page *vmo_populate(struct vm_object *vmo, size_t off)
 struct page *vmo_get(struct vm_object *vmo, size_t off, bool may_populate)
 {
 	struct page *p = NULL;
+	
+	if(vmo->ino)
+		vmo->size = vmo->ino->i_size;
+
 	assert(off < vmo->size);
 
 	spin_lock_preempt(&vmo->page_lock);

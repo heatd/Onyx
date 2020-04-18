@@ -12,9 +12,9 @@ typedef struct
 {
 	ino_t ino;
 	dev_t dev;
-	struct inode *rootfs;
+	struct file *rootfs;
 } mountpoint_t;
-struct inode *mtable_lookup(struct inode *mountpoint);
-int mtable_mount(struct inode *mountpoint, struct inode *rootfs);
+struct file *mtable_lookup(struct file *mountpoint);
+int mtable_mount(struct file *mountpoint, struct file *rootfs);
 
 #endif

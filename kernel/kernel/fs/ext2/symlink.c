@@ -70,8 +70,9 @@ char *ext2_read_symlink(struct ext2_inode *ino, ext2_fs_t *fs)
 	}
 }
 
-char *ext2_readlink(struct inode *ino)
+char *ext2_readlink(struct file *f)
 {
+	struct inode *ino = f->f_ino;
 	struct ext2_inode *ext2_ino = ext2_get_inode_from_node(ino);
 	ext2_fs_t *fs = ino->i_sb->s_helper;
 

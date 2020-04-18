@@ -63,10 +63,11 @@ static void __remove_from_list(struct process *p, struct proc_event_sub *s)
 	spin_unlock(&p->sub_queue_lock);
 }
 
-size_t proc_event_read(int flags, size_t offset, size_t sizeofread, void* buffer,
-	struct inode* file)
+size_t proc_event_read(size_t offset, size_t sizeofread, void* buffer,
+                       struct file *file)
 {
-	struct proc_event_sub *sub = file->i_helper;
+	struct inode *ino = file->f_ino;
+	struct proc_event_sub *sub = ino->i_helper;
 
 	if(sub->valid_sub == false)
 	{
@@ -74,7 +75,7 @@ size_t proc_event_read(int flags, size_t offset, size_t sizeofread, void* buffer
 		return errno = ESRCH, (size_t) -1;
 	}
 
-	if(!sub->has_new_event && flags & O_NONBLOCK)	return 0;
+	if(!sub->has_new_event && file->f_flags & O_NONBLOCK)	return 0;
 
 	sem_wait(&sub->event_semaphore);
 
@@ -102,8 +103,10 @@ void proc_event_close(struct inode *ino)
 
 void proc_event_do_ack(struct process *process);
 
-unsigned int proc_event_ioctl(int request, void *argp, struct inode* ino)
+unsigned int proc_event_ioctl(int request, void *argp, struct file *file)
 {
+	struct inode *ino = file->f_ino;
+
 	switch(request)
 	{
 		case PROCEVENT_ACK:
@@ -157,7 +160,14 @@ int sys_proc_event_attach(pid_t pid, unsigned long flags)
 	
 	new_sub->target_process = p;
 
-	int fd = open_with_vnode(ino, O_RDWR);
+	struct file *f = inode_to_file(ino);
+	if(!f)
+	{
+		close_vfs(ino);
+		return -ENOMEM;	
+	}
+
+	int fd = open_with_vnode(f, O_RDWR);
 	if(fd < 0)
 	{
 		process_put(p);
@@ -165,6 +175,8 @@ int sys_proc_event_attach(pid_t pid, unsigned long flags)
 		free(new_sub);
 		return -errno;
 	}
+
+	fd_put(f);
 
 	__append_to_list(new_sub, p);
 

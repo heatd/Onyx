@@ -26,7 +26,7 @@ struct udp_socket;
 struct netif
 {
 	const char *name;
-	struct inode *device_file;
+	struct file *device_file;
 	void *priv;
 	unsigned int flags;
 	unsigned int mtu;

@@ -234,7 +234,7 @@ int drm_create_dumb_buffer(struct drm_dumb_buffer_info *buffer, struct drm_devic
 	return 0;
 }
 
-int drm_on_open(struct inode *node)
+int drm_on_open(struct file *node)
 {
 	/* On open(), create a new process context
 	 * if it doesn't exist already
@@ -468,7 +468,7 @@ unsigned int drm_ioctl_close_handle(struct drm_close_handle_args *uargs, struct 
 	return drm_close_object(kargs.handle, dev);
 }
 
-unsigned int drm_ioctl(int request, void *argp, struct inode* file)
+unsigned int drm_ioctl(int request, void *argp, struct file* file)
 {
 	switch(request)
 	{
@@ -536,7 +536,7 @@ unsigned int drm_ioctl(int request, void *argp, struct inode* file)
 
 void drm_init_software_dev(void);
 
-void *drm_mmap(struct vm_region *area, struct inode *inode)
+void *drm_mmap(struct vm_region *area, struct file *f)
 {
 	struct drm_mapping *mapping = drm_get_mapping(area->offset, main_device);
 	if(!mapping)
@@ -548,7 +548,8 @@ void *drm_mmap(struct vm_region *area, struct inode *inode)
 	if(!fd)
 		return NULL;
 	
-	fd->f_ino = inode;
+	fd->f_ino = f->f_ino;
+	object_ref(&f->f_ino->i_object);
 	area->offset = 0;
 
 	struct drm_dumb_buffer *dbuf = (struct drm_dumb_buffer *) mapping->buffer;
@@ -573,7 +574,7 @@ void *drm_mmap(struct vm_region *area, struct inode *inode)
 
 	vmo_assign_mapping(vmo, area);
 
-	vmo->ino = inode;
+	vmo->ino = f->f_ino;
 
 	area->vmo = vmo;
 

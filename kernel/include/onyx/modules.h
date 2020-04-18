@@ -60,9 +60,9 @@ void module_dump(void);
 void setup_core_kernel_module(void);
 struct symbol *module_resolve_sym(const char *name);
 
-struct inode;
+struct file;
 
-void *elf_load_kernel_module(struct inode *file, struct module *module);
+void *elf_load_kernel_module(struct file *file, struct module *module);
 bool module_try_resolve(struct module *m, void *ctx);
 void module_unmap(struct module *module);
 void module_remove(struct module *m, bool unmap_sections);

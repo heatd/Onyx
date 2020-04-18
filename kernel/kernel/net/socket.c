@@ -94,9 +94,9 @@ void socket_unref(struct socket *socket)
 	object_unref(&socket->object);
 }
 
-size_t socket_write(size_t offset, size_t len, void* buffer, struct inode* file)
+size_t socket_write(size_t offset, size_t len, void* buffer, struct file* file)
 {
-	struct socket *s = file->i_helper;
+	struct socket *s = file->f_ino->i_helper;
 
 	return s->s_ops->sendto(buffer, len, 0, NULL, 0, s);
 }
@@ -376,14 +376,23 @@ int sys_socket(int domain, int type, int protocol)
 	if(!inode)
 		return -errno;
 
+	struct file *f = inode_to_file(inode);
+	if(!f)
+	{
+		close_vfs(inode);
+		return -ENOMEM;
+	}
+
 	if(type & SOCK_CLOEXEC)
 		dflags |= O_CLOEXEC;
 
 	/* Open a file descriptor with the socket vnode */
-	int fd = open_with_vnode(inode, dflags);
+	int fd = open_with_vnode(f, dflags);
 	/* If we failed, close the socket and return */
 	if(fd < 0)
 		close_vfs(inode);
+	fd_put(f);
+
 	return fd;
 }
 
@@ -452,16 +461,23 @@ int sys_accept4(int sockfd, struct sockaddr *addr, socklen_t *slen, int flags)
 		goto out;
 	}
 
+	struct file *newf = inode_to_file(inode);
+	if(!newf)
+	{
+		close_vfs(inode);
+		st = -errno;
+		goto out;
+	}
+
 	int dflags = 0;
 
 	if(flags & SOCK_CLOEXEC)
 		dflags |= O_CLOEXEC;
 
 	/* Open a file descriptor with the socket vnode */
-	int fd = open_with_vnode(inode, dflags);
-	/* If we failed, close the socket and return */
-	if(fd < 0)
-		close_vfs((struct inode *) inode);
+	int fd = open_with_vnode(newf, dflags);
+
+	fd_put(newf);
 
 	st = fd;
 out:

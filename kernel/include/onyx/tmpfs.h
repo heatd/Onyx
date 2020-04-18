@@ -48,10 +48,10 @@ typedef struct tmpfs_filesystem
 	struct superblock *superblock;
 } tmpfs_filesystem_t;
 
-tmpfs_filesystem_t *tmpfs_get_root(struct inode *inode);
+tmpfs_filesystem_t *tmpfs_get_root(struct file *inode);
 int tmpfs_mount(const char *mountpoint);
-int tmpfs_fill_with_data(struct inode *vnode, const void *buf, size_t size);
+int tmpfs_fill_with_data(struct file *vnode, const void *buf, size_t size);
 tmpfs_file_t *tmpfs_create_file(tmpfs_file_t *dir, const char *name);
-struct inode *tmpfs_file_to_vfs(tmpfs_file_t *file, struct inode *parent);
+struct inode *tmpfs_file_to_vfs(tmpfs_file_t *file, struct file *parent);
 
 #endif

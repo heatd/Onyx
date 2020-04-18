@@ -16,6 +16,7 @@
 #include <onyx/symbol.h>
 #include <onyx/user.h>
 #include <onyx/init.h>
+#include <onyx/file.h>
 
 bool mods_disabled = 0;
 #define DEFAULT_SIZE 100
@@ -191,7 +192,7 @@ void module_remove(struct module *m, bool unmap_sections)
 
 int load_module(const char *path, const char *name)
 {	
-	struct inode *file = NULL;
+	struct file *file = NULL;
 	struct module *mod = zalloc(sizeof(struct module));
 	if(!mod)
 		return -1;
@@ -223,13 +224,13 @@ int load_module(const char *path, const char *name)
 	init();
 
 	/* Release used resources */
-	close_vfs(file);
+	fd_put(file);
 
 	return 0;
 
 error_path:
 	if(file)
-		close_vfs(file);
+		fd_put(file);
 	module_remove(mod, true);
 
 	return -errno;

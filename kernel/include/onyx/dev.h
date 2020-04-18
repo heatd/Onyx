@@ -49,7 +49,7 @@ void devfs_init(void);
 void null_init(void);
 void zero_init(void);
 
-extern struct inode *slashdev;
+extern struct file *slashdev;
 
 struct bus;
 struct device;

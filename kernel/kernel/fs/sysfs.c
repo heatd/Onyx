@@ -65,7 +65,7 @@ struct inode *sysfs_create_inode_for_file(struct sysfs_object *f)
 	return ino;
 }
 
-struct inode *sysfs_creat(const char *pathname, int mode, struct inode *node)
+struct inode *sysfs_creat(const char *pathname, int mode, struct file *node)
 {
 	return errno = EPERM, NULL;
 }
@@ -92,9 +92,9 @@ struct sysfs_object *sysfs_get_obj(struct sysfs_object *file, const char *name)
 	return NULL;
 }
 
-struct inode *sysfs_open(struct inode *node, const char *name)
+struct inode *sysfs_open(struct file *f, const char *name)
 {
-
+	struct inode *node = f->f_ino;
 	struct sysfs_object *file = (struct sysfs_object*) node->i_inode;
 	assert(file != NULL);
 
@@ -122,9 +122,9 @@ struct inode *sysfs_open(struct inode *node, const char *name)
 	return ino;
 }
 
-size_t sysfs_read(int flags, size_t offset, size_t sizeofread, void *buffer, struct inode *this)
+size_t sysfs_read(size_t offset, size_t sizeofread, void *buffer, struct file *this)
 {
-	struct sysfs_object *file = (struct sysfs_object*) this->i_inode;
+	struct sysfs_object *file = (struct sysfs_object*) this->f_ino->i_inode;
 	assert(file != NULL);
 
 	if(file->read) return file->read(buffer, sizeofread, offset);
@@ -132,9 +132,9 @@ size_t sysfs_read(int flags, size_t offset, size_t sizeofread, void *buffer, str
 		return errno = ENOSYS, (size_t) -1;
 }
 
-size_t sysfs_write(size_t offset, size_t sizeofwrite, void *buffer, struct inode *this)
+size_t sysfs_write(size_t offset, size_t sizeofwrite, void *buffer, struct file *this)
 {
-	struct sysfs_object *file = (struct sysfs_object*) this->i_inode;
+	struct sysfs_object *file = (struct sysfs_object*) this->f_ino->i_inode;
 	assert(file != NULL);
 
 	if(file->write) return file->write(buffer, sizeofwrite, offset);
@@ -182,9 +182,9 @@ void sysfs_mount(void)
 	}
 }
 
-off_t sysfs_getdirent(struct dirent *buf, off_t off, struct inode *ino)
+off_t sysfs_getdirent(struct dirent *buf, off_t off, struct file *_file)
 {
-	struct sysfs_object *file = (struct sysfs_object*) ino->i_inode;
+	struct sysfs_object *file = (struct sysfs_object*) _file->f_ino->i_inode;
 	assert(file != NULL);
 
 	spin_lock(&file->dentry_lock);
@@ -229,15 +229,15 @@ off_t sysfs_getdirent(struct dirent *buf, off_t off, struct inode *ino)
 	return off + 1;
 }
 
-int sysfs_stat(struct stat *buf, struct inode *node)
+int sysfs_stat(struct stat *buf, struct file *node)
 {
 	memset(buf, 0, sizeof(struct stat));
 
-	struct sysfs_object *file = (struct sysfs_object *) node->i_inode;
+	struct sysfs_object *file = (struct sysfs_object *) node->f_ino->i_inode;
 	buf->st_mode = file->perms;
 
-	buf->st_ino = node->i_inode;
-	buf->st_dev = node->i_dev;
+	buf->st_ino = node->f_ino->i_inode;
+	buf->st_dev = node->f_ino->i_dev;
 
 	return 0;
 }

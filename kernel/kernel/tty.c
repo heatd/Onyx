@@ -143,7 +143,7 @@ out:
 	}
 }
 
-char *tty_wait_for_line(int flags, struct tty *tty)
+char *tty_wait_for_line(unsigned int flags, struct tty *tty)
 {
 	if(flags & O_NONBLOCK && !tty->line_ready)
 		return tty->keyboard_buffer;
@@ -176,9 +176,9 @@ void tty_write_string_kernel(const char *data)
 	tty_write_string(data, main_tty);
 }
 
-size_t ttydevfs_write(size_t offset, size_t sizeofwrite, void* buffer, struct inode* this)
+size_t ttydevfs_write(size_t offset, size_t sizeofwrite, void* buffer, struct file* this)
 {
-	struct tty *tty = this->i_helper;
+	struct tty *tty = this->f_ino->i_helper;
 	
 	tty_write(buffer, sizeofwrite, tty);
 	return sizeofwrite;
@@ -192,11 +192,11 @@ size_t strnewlinelen(char *str)
 	return len+1;
 }
 
-size_t ttydevfs_read(int flags, size_t offset, size_t count, void *buffer, struct inode *this)
+size_t ttydevfs_read(size_t offset, size_t count, void *buffer, struct file *this)
 {
-	struct tty *tty = this->i_helper;
+	struct tty *tty = this->f_ino->i_helper;
 
-	char *kb_buf = tty_wait_for_line(flags, tty);
+	char *kb_buf = tty_wait_for_line(this->f_flags, tty);
 	size_t len = tty->term_io.c_lflag & ICANON ? strnewlinelen(kb_buf) : strlen(kb_buf);
 	size_t read = count < len ? count : len;
 	memcpy(buffer, kb_buf, read);
@@ -206,9 +206,9 @@ size_t ttydevfs_read(int flags, size_t offset, size_t count, void *buffer, struc
 	return read;
 }
 
-unsigned int tty_ioctl(int request, void *argp, struct inode *dev)
+unsigned int tty_ioctl(int request, void *argp, struct file *dev)
 {
-	struct tty *tty = dev->i_helper;
+	struct tty *tty = dev->f_ino->i_helper;
 
 	switch(request)
 	{
@@ -309,9 +309,9 @@ unsigned int tty_ioctl(int request, void *argp, struct inode *dev)
 	return -EINVAL;
 }
 
-short tty_poll(void *poll_file, short events, struct inode *ino)
+short tty_poll(void *poll_file, short events, struct file *f)
 {
-	struct tty *tty = ino->i_helper;
+	struct tty *tty = f->f_ino->i_helper;
 	
 	if(events & POLLIN)
 		poll_wait_helper(poll_file, &tty->read_queue);

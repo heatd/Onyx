@@ -10,16 +10,16 @@
 #include <onyx/panic.h>
 #include <onyx/compiler.h>
 
-size_t zero_read(int flags, size_t offset, size_t count, void *buf, struct inode *n)
+size_t zero_read(size_t offset, size_t count, void *buf, struct file *n)
 {
 	/* While reading from /dev/zero, all you read is zeroes. Just memset the buf. */
 	UNUSED(offset);
 	UNUSED(n);
-	UNUSED(flags);
 	/* FIXME: user_memset */
 	memset(buf, 0, count);
 	return count;
 }
+
 void zero_init(void)
 {	
 	struct dev *min = dev_register(0, 0, "zero");

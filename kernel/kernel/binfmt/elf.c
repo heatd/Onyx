@@ -38,7 +38,7 @@ struct elf_loader_context
 	char *symstrtab;
 	char *strings;
 	Elf64_Sym *syms;
-	struct inode *file;
+	struct file *file;
 };
 
 /* TODO: A bunch of this code requires bound-checking */
@@ -201,7 +201,7 @@ void* elf_load(struct binfmt_args *args)
 	if(!header)
 		return errno = EINVAL, NULL;
 	
-	if(read_vfs(0, 0, sizeof(Elf64_Ehdr), header, args->file) < 0)
+	if(read_vfs(0, sizeof(Elf64_Ehdr), header, args->file) < 0)
 	{
 		free(header);
 		return NULL;
@@ -248,7 +248,7 @@ bool elf_validate_modinfo(struct elf_loader_context *ctx)
 			if(!parse)
 				return false;
 			
-			if(read_vfs(0, section->sh_offset, section->sh_size, parse, ctx->file) !=
+			if(read_vfs(section->sh_offset, section->sh_size, parse, ctx->file) !=
 				(ssize_t) section->sh_size)
 			{
 				free(parse);
@@ -414,7 +414,7 @@ bool elf_load_module_sections(struct elf_loader_context *ctx, struct module *mod
 			}
 			else
 			{
-				if(read_vfs(addr, section->sh_offset, section->sh_size, (void *) addr, ctx->file)
+				if(read_vfs(section->sh_offset, section->sh_size, (void *) addr, ctx->file)
 					!= (ssize_t) section->sh_size)
 					return false;
 			}
@@ -498,7 +498,7 @@ fail:
 	return false;
 }
 
-void *elf_load_kernel_module(struct inode *file, struct module *module)
+void *elf_load_kernel_module(struct file *file, struct module *module)
 {
 	void *ret = NULL;
 	struct elf_loader_context ctx = {};
@@ -506,7 +506,7 @@ void *elf_load_kernel_module(struct inode *file, struct module *module)
 
 	Elf64_Ehdr header;
 	
-	if(read_vfs(0, 0, sizeof(Elf64_Ehdr), &header, file) != (ssize_t) sizeof(Elf64_Ehdr))
+	if(read_vfs(0, sizeof(Elf64_Ehdr), &header, file) != (ssize_t) sizeof(Elf64_Ehdr))
 		return NULL;
 	
 	/* Check if its elf64 file is invalid */
@@ -518,7 +518,7 @@ void *elf_load_kernel_module(struct inode *file, struct module *module)
 	if(!sections)
 		return NULL;
 	
-	if(read_vfs(0, header.e_shoff, header.e_shentsize * header.e_shnum, sections, file)
+	if(read_vfs(header.e_shoff, header.e_shentsize * header.e_shnum, sections, file)
 	   != (ssize_t) (header.e_shentsize * header.e_shnum))
 	{
 		free(sections);
@@ -533,7 +533,7 @@ void *elf_load_kernel_module(struct inode *file, struct module *module)
 		goto out_error;
 	}
 
-	if(read_vfs(0, shstrtab->sh_offset, shstrtab->sh_size, ctx.shstrtab, file) != (ssize_t) shstrtab->sh_size)
+	if(read_vfs(shstrtab->sh_offset, shstrtab->sh_size, ctx.shstrtab, file) != (ssize_t) shstrtab->sh_size)
 	{
 		goto out_error;
 	}
@@ -561,7 +561,7 @@ void *elf_load_kernel_module(struct inode *file, struct module *module)
 	if(!ctx.strings)
 		goto out_error;
 	
-	if(read_vfs(0, strtab->sh_offset, strtab->sh_size, ctx.strings, file) != (ssize_t) strtab->sh_size)
+	if(read_vfs(strtab->sh_offset, strtab->sh_size, ctx.strings, file) != (ssize_t) strtab->sh_size)
 		goto out_error;
 
 	ctx.syms = malloc(symtab->sh_size);
@@ -574,7 +574,7 @@ void *elf_load_kernel_module(struct inode *file, struct module *module)
 	if(ctx.symtab->sh_link > header.e_shnum)
 		goto out_error;
 
-	if(read_vfs(0, symtab->sh_offset, symtab->sh_size, ctx.syms, file) != (ssize_t) symtab->sh_size)
+	if(read_vfs(symtab->sh_offset, symtab->sh_size, ctx.syms, file) != (ssize_t) symtab->sh_size)
 	{
 		goto out_error;
 	}
@@ -585,7 +585,7 @@ void *elf_load_kernel_module(struct inode *file, struct module *module)
 	if(!ctx.symstrtab)
 		goto out_error;
 	
-	if(read_vfs(0, sec->sh_offset, sec->sh_size, ctx.symstrtab, file) != (ssize_t) sec->sh_size)
+	if(read_vfs(sec->sh_offset, sec->sh_size, ctx.symstrtab, file) != (ssize_t) sec->sh_size)
 		goto out_error;
 
 	bool modinfo_valid = elf_validate_modinfo(&ctx);
@@ -620,7 +620,7 @@ void *elf_load_kernel_module(struct inode *file, struct module *module)
 				goto out_error;
 			}
 
-			if(read_vfs(0, section->sh_offset, section->sh_size, r, file) != (ssize_t) section->sh_size)
+			if(read_vfs(section->sh_offset, section->sh_size, r, file) != (ssize_t) section->sh_size)
 			{
 				free(r);
 				goto out_error;

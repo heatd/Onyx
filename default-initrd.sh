@@ -16,6 +16,7 @@ cp hostname $DESTDIR/etc/hostname
 cp passwd $DESTDIR/etc/passwd
 cp fstab $DESTDIR/etc/fstab
 cp shadow $DESTDIR/etc/shadow
+cp profile $DESTDIR/etc/profile
 
 # TODO: use the cross-toolchain's strip
 cp $SYSTEM_ROOT/usr/bin/dash  $DESTDIR/usr/bin

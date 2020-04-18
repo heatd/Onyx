@@ -515,8 +515,11 @@ out:
 	return st;
 }
 
-int ext2_link(struct inode *target, const char *name, struct inode *dir)
+int ext2_link(struct file *_target, const char *name, struct file *_dir)
 {
+	struct inode *target = _target->f_ino;
+	struct inode *dir = _dir->f_ino;
+
 	assert(target->i_sb == dir->i_sb);
 
 	ext2_fs_t *fs = dir->i_sb->s_helper;
@@ -555,11 +558,12 @@ int ext2_link(struct inode *target, const char *name, struct inode *dir)
 	return 0;
 }
 
-struct inode *ext2_load_inode_from_disk(uint32_t inum, struct inode *parent, ext2_fs_t *fs)
+struct inode *ext2_load_inode_from_disk(uint32_t inum, struct file *parent, ext2_fs_t *fs)
 {
 	struct ext2_inode *inode = ext2_get_inode_from_number(fs, inum);
 	if(!inode)
 		return NULL;
+	
 	struct inode *node = ext2_fs_ino_to_vfs_ino(inode, inum, parent);
 	if(!node)
 	{
@@ -626,8 +630,9 @@ out:
 	return st;
 }
 
-int ext2_unlink(const char *name, int flags, struct inode *ino)
+int ext2_unlink(const char *name, int flags, struct file *f)
 {
+	struct inode *ino = f->f_ino;
 	ext2_fs_t *fs = ino->i_sb->s_helper;
 
 	struct ext2_inode *inode = ext2_get_inode_from_node(ino);
@@ -651,7 +656,7 @@ int ext2_unlink(const char *name, int flags, struct inode *ino)
 	struct inode *target = superblock_find_inode(ino->i_sb, ent->inode);
 	if(!target)
 	{
-		if(!(target = ext2_load_inode_from_disk(ent->inode, ino, fs)))
+		if(!(target = ext2_load_inode_from_disk(ent->inode, f, fs)))
 		{
 			free(res.buf);
 			spin_unlock(&ino->i_sb->s_ilock);
@@ -730,12 +735,12 @@ int ext2_unlink(const char *name, int flags, struct inode *ino)
 	return 0;
 }
 
-int ext2_ftruncate(off_t _len, struct inode *ino)
+int ext2_ftruncate(off_t _len, struct file *ino)
 {
 	return -ENOSYS;
 }
 
-int ext2_fallocate(int mode, off_t off, off_t len, struct inode *ino)
+int ext2_fallocate(int mode, off_t off, off_t len, struct file *ino)
 {
 	return -ENOSYS;
 }

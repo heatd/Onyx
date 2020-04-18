@@ -32,18 +32,19 @@
 #define VFS_PAGE_HASHTABLE_ENTRIES	(PAGE_SIZE / sizeof(uintptr_t))
 
 struct inode;
+struct file;
 struct dev;
 struct dentry;
 
-typedef size_t (*__read)(int flags, size_t offset, size_t sizeofread, void* buffer, struct inode* file);
-typedef size_t (*__write)(size_t offset, size_t sizeofwrite, void* buffer, struct inode* file);
-typedef void (*__close)(struct inode* file);
-typedef struct inode *(*__open)(struct inode* file, const char *name);
-typedef off_t (*__getdirent)(struct dirent *buf, off_t off, struct inode* file);
-typedef unsigned int (*__ioctl)(int request, void *argp, struct inode* file);
-typedef struct inode *(*__creat)(const char *pathname, int mode, struct inode *file);
-typedef int (*__stat)(struct stat *buf, struct inode *node);
-typedef int (*__symlink)(const char *linkpath, struct inode *node);
+typedef size_t (*__read)(size_t offset, size_t sizeofread, void* buffer, struct file* file);
+typedef size_t (*__write)(size_t offset, size_t sizeofwrite, void* buffer, struct file* file);
+typedef void (*__close)(struct inode *file);
+typedef struct inode *(*__open)(struct file* file, const char *name);
+typedef off_t (*__getdirent)(struct dirent *buf, off_t off, struct file* file);
+typedef unsigned int (*__ioctl)(int request, void *argp, struct file* file);
+typedef struct inode *(*__creat)(const char *pathname, int mode, struct file *file);
+typedef int (*__stat)(struct stat *buf, struct file *node);
+typedef int (*__symlink)(const char *linkpath, struct file *node);
 typedef unsigned int (*putdir_t)(struct dirent *, struct dirent *ubuf, unsigned int count);
 
 struct file_ops
@@ -56,17 +57,19 @@ struct file_ops
 	__ioctl ioctl;
 	__creat creat;
 	__stat stat;
-	int (*link)(struct inode *target_ino, const char *name, struct inode *dir);
+	int (*link)(struct file *target_ino, const char *name, struct file *dir);
 	__symlink symlink;
-	void *(*mmap)(struct vm_region *area, struct inode *node);
-	int (*ftruncate)(off_t length, struct inode *node);
-	struct inode *(*mkdir)(const char *name, mode_t mode, struct inode *node);
-	struct inode *(*mknod)(const char *name, mode_t mode, dev_t dev, struct inode *node);
-	int (*on_open)(struct inode *node);
-	short (*poll)(void *poll_file, short events, struct inode *node);
-	char *(*readlink)(struct inode *ino);
-	int (*unlink)(const char *name, int flags, struct inode *node);
-	int (*fallocate)(int mode, off_t offset, off_t len, struct inode *node);
+	void *(*mmap)(struct vm_region *area, struct file *node);
+	int (*ftruncate)(off_t length, struct file *node);
+	struct inode *(*mkdir)(const char *name, mode_t mode, struct file *node);
+	struct inode *(*mknod)(const char *name, mode_t mode, dev_t dev, struct file *node);
+	int (*on_open)(struct file *node);
+	short (*poll)(void *poll_file, short events, struct file *node);
+	char *(*readlink)(struct file *ino);
+	int (*unlink)(const char *name, int flags, struct file *node);
+	int (*fallocate)(int mode, off_t offset, off_t len, struct file *node);
+	ssize_t (*readpage)(struct page *page, size_t offset, struct inode *ino);
+	ssize_t (*writepage)(struct page *page, size_t offset, struct inode *ino);
 };
 
 struct getdents_ret
@@ -104,20 +107,19 @@ struct inode
 	void *i_helper;
 };
 
-#define INODE_FLAG_DONT_CACHE		(1 << 0)
-#define INODE_FLAG_DIRTY			(1 << 1)
-
-#if 0
 struct file
 {
-	struct object object;
-	struct inode *inode;
-	struct dentry *dentry;
+#ifndef __cplusplus
+	_Atomic
+#endif	
+	unsigned long f_refcount;
+	off_t f_seek;
+	struct inode *f_ino;
+	unsigned int f_flags;
 };
-/* TODO */
 
-#endif
-
+#define INODE_FLAG_DONT_CACHE		(1 << 0)
+#define INODE_FLAG_DIRTY			(1 << 1)
 
 #ifdef __cplusplus
 extern "C" {
@@ -127,38 +129,36 @@ int inode_create_vmo(struct inode *ino);
 
 struct page_cache_block *add_cache_to_node(void *ptr, size_t size, off_t offset, struct inode *node);
 
-struct inode *open_vfs(struct inode *dir, const char *path);
+struct file *open_vfs(struct file *dir, const char *path);
 
-#define READ_VFS_FLAG_IS_PAGE_CACHE		(1 << 20)
-
-ssize_t read_vfs(int flags, size_t offset, size_t length, void *buffer,
-	struct inode* file);
+ssize_t read_vfs(size_t offset, size_t length, void *buffer,
+	struct file* file);
 
 ssize_t write_vfs(size_t offset, size_t length, void *buffer,
-	struct inode* file);
+	struct file* file);
 
 void close_vfs(struct inode* file);
 
-struct inode *creat_vfs(struct inode *node, const char *path, int mode);
+struct file *creat_vfs(struct file *node, const char *path, int mode);
 
 int getdents_vfs(unsigned int count, putdir_t putdir, struct dirent* dirp,
-	off_t off, struct getdents_ret *ret, struct inode *file);
+	off_t off, struct getdents_ret *ret, struct file *file);
 
-int ioctl_vfs(int request, char *argp, struct inode *file);
+int ioctl_vfs(int request, char *argp, struct file *file);
 
-int stat_vfs(struct stat *buf, struct inode *node);
+int stat_vfs(struct stat *buf, struct file *node);
 
-int ftruncate_vfs(off_t length, struct inode *vnode);
+int ftruncate_vfs(off_t length, struct file *vnode);
 
-struct inode *mkdir_vfs(const char *path, mode_t mode, struct inode *node);
+struct file *mkdir_vfs(const char *path, mode_t mode, struct file *node);
 
-int symlink_vfs(const char *dest, struct inode *inode);
+int symlink_vfs(const char *dest, struct file *inode);
 
 int mount_fs(struct inode *node, const char *mp);
 
 int vfs_init(void);
 
-ssize_t lookup_file_cache(void *buffer, size_t sizeofread, struct inode *file,
+ssize_t lookup_file_cache(void *buffer, size_t sizeofread, struct inode *ino,
 	off_t offset);
 
 ssize_t do_file_caching(size_t sizeofread, struct inode *ino, off_t offset,
@@ -166,21 +166,21 @@ ssize_t do_file_caching(size_t sizeofread, struct inode *ino, off_t offset,
 
 struct inode *inode_create(bool is_regular_file);
 
-struct inode *get_fs_root(void);
+struct file *get_fs_root(void);
 
-short poll_vfs(void *poll_file, short events, struct inode *node);
+short poll_vfs(void *poll_file, short events, struct file *node);
 
-int fallocate_vfs(int mode, off_t offset, off_t len, struct inode *file);
+int fallocate_vfs(int mode, off_t offset, off_t len, struct file *file);
 
-struct inode *mknod_vfs(const char *path, mode_t mode, dev_t dev, struct inode *file);
+struct file *mknod_vfs(const char *path, mode_t mode, dev_t dev, struct file *file);
 
 struct file *get_current_directory(void);
 
-int link_vfs(struct inode *target, const char *name, struct inode *dir);
+int link_vfs(struct file *target, const char *name, struct file *dir);
 
-int unlink_vfs(const char *name, int flags, struct inode *node);
+int unlink_vfs(const char *name, int flags, struct file *node);
 
-struct inode *get_fs_base(const char *file, struct inode *rel_base);
+struct file *get_fs_base(const char *file, struct file *rel_base);
 
 void inode_mark_dirty(struct inode *ino);
 
@@ -190,10 +190,12 @@ int inode_flush(struct inode *ino);
 #define	FILE_ACCESS_WRITE   (1 << 1)
 #define FILE_ACCESS_EXECUTE (1 << 2)
 
-bool file_can_access(struct inode *file, unsigned int perms);
+bool file_can_access(struct file *file, unsigned int perms);
 
 struct page_cache_block;
 struct page_cache_block *inode_get_page(struct inode *inode, off_t offset, long flags);
+
+struct file *inode_to_file(struct inode *ino);
 
 #ifdef __cplusplus
 }

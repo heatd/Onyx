@@ -18,6 +18,6 @@ int exec_state_create(struct exec_state *state);
 
 int flush_old_exec(struct exec_state *state);
 
-bool file_is_executable(struct inode *exec_file);
+bool file_is_executable(struct file *exec_file);
 
 #endif

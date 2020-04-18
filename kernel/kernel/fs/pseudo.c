@@ -8,11 +8,12 @@
 
 #include <onyx/pseudo.h>
 
+#if 0
 static struct file_ops pseudo_ops = 
 {
 };
 
-struct inode *pseudo_to_inode(struct pseudo_file *file)
+struct file *pseudo_to_inode(struct pseudo_file *file)
 {
 	struct inode *inode = inode_create(false);
 	if(!inode)
@@ -54,7 +55,7 @@ struct pseudo_mount *pseudo_create_mount(const char *mountpath, int mode)
 
 	m->sb = sb;
 
-	struct inode *inode = pseudo_to_inode(m->root);
+	struct file *inode = pseudo_to_inode(m->root);
 	if(!inode)
 	{
 		free(sb);
@@ -79,3 +80,5 @@ struct pseudo_mount *pseudo_create_mount(const char *mountpath, int mode)
 void pseudo_add_file(struct pseudo_file *dir, struct pseudo_file *file)
 {}
 void pseudo_rm_file(struct pseudo_file *file);
+
+#endif

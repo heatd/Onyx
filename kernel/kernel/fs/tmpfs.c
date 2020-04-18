@@ -38,16 +38,16 @@ static void tmpfs_append(tmpfs_filesystem_t *fs)
 	mutex_unlock(&tmpfs_list_lock);
 }
 
-int tmpfs_symlink(const char *dest, struct inode *inode)
+int tmpfs_symlink(const char *dest, struct file *f)
 {
-	tmpfs_file_t *file = (tmpfs_file_t *) inode->i_inode;
+	tmpfs_file_t *file = (tmpfs_file_t *) f->f_ino->i_inode;
 
 	char *str = strdup(dest);
 	if(!str)
 		return -1;
 	file->symlink = (const char *) str;
 	file->type = TMPFS_FILE_TYPE_SYM;
-	inode->i_type = VFS_TYPE_SYMLINK;
+	f->f_ino->i_type = VFS_TYPE_SYMLINK;
 
 	return 0;
 }
@@ -86,7 +86,7 @@ error:
 	return NULL;
 }
 
-struct inode *tmpfs_file_to_vfs(tmpfs_file_t *file, struct inode *parent)
+struct inode *tmpfs_file_to_vfs(tmpfs_file_t *file, struct file *parent)
 {
 	struct inode *f = inode_create(file->type == TMPFS_FILE_TYPE_REG);
 	if(!f)
@@ -115,7 +115,7 @@ struct inode *tmpfs_file_to_vfs(tmpfs_file_t *file, struct inode *parent)
 	f->i_gid = file->st_gid;
 
 	f->i_rdev = file->rdev;
-	f->i_helper = parent->i_helper;
+	f->i_helper = parent->f_ino->i_helper;
 
 	if(f->i_rdev)
 	{
@@ -136,9 +136,9 @@ struct inode *tmpfs_file_to_vfs(tmpfs_file_t *file, struct inode *parent)
 	return f;
 }
 
-struct inode *tmpfs_creat(const char *pathname, int mode, struct inode *vnode)
+struct inode *tmpfs_creat(const char *pathname, int mode, struct file *f)
 {
-	tmpfs_file_t *file = (tmpfs_file_t *) vnode->i_inode;
+	tmpfs_file_t *file = (tmpfs_file_t *) f->f_ino->i_inode;
 
 	assert(file != NULL);
 
@@ -149,11 +149,11 @@ struct inode *tmpfs_creat(const char *pathname, int mode, struct inode *vnode)
 	new_file->mode = mode;
 	new_file->type = TMPFS_FILE_TYPE_REG;
 
-	struct inode *in = tmpfs_file_to_vfs(new_file, vnode);
+	struct inode *in = tmpfs_file_to_vfs(new_file, f);
 	if(!in)
 		return NULL;
 	
-	superblock_add_inode(vnode->i_sb, in);
+	superblock_add_inode(f->f_ino->i_sb, in);
 
 	return in;
 }
@@ -175,9 +175,9 @@ ssize_t tmpfs_read_block(tmpfs_file_t *file, size_t block, char *buf)
 	return block_size;
 }
 
-size_t tmpfs_read(int flags, size_t offset, size_t size, void *buffer, struct inode *vnode)
+size_t tmpfs_read_ino(size_t offset, size_t size, void *buffer, struct inode *ino)
 {
-	tmpfs_file_t *file = (tmpfs_file_t *) vnode->i_inode;
+	tmpfs_file_t *file = (tmpfs_file_t *) ino->i_inode;
 
 	struct page *p = alloc_page(0);
 	if(!p)
@@ -199,9 +199,9 @@ size_t tmpfs_read(int flags, size_t offset, size_t size, void *buffer, struct in
 		}
 
 		size_t amount = (ssize_t) (size - read) < block_left ? (ssize_t) size - read : block_left;
-		if(offset + amount > vnode->i_size)
+		if(offset + amount > ino->i_size)
 		{
-			amount = vnode->i_size - offset;
+			amount = ino->i_size - offset;
 			if(copy_to_user(buffer + read, scratch + block_off, amount) < 0)
 				read = -EFAULT;
 			read += amount;
@@ -225,10 +225,25 @@ size_t tmpfs_read(int flags, size_t offset, size_t size, void *buffer, struct in
 	return read;
 }
 
-size_t tmpfs_write(size_t offset, size_t size, void *buffer, struct inode *vnode)
+size_t tmpfs_read(size_t offset, size_t size, void *buffer, struct file *f)
+{
+	return tmpfs_read_ino(offset, size, buffer, f->f_ino);
+}
+
+ssize_t tmpfs_readpage(struct page *page, size_t off, struct inode *ino)
+{
+	return tmpfs_read_ino(off, PAGE_SIZE, PAGE_TO_VIRT(page), ino);
+}
+
+size_t tmpfs_write(size_t offset, size_t size, void *buffer, struct file *vnode)
 {
 	/* We don't write anything since it should be cached anyway */
 	return size;
+}
+
+ssize_t tmpfs_writepage(struct page *page, size_t off, struct inode *ino)
+{
+	return PAGE_SIZE;
 }
 
 static void tmpfs_append_data(tmpfs_data_block_t *block, tmpfs_file_t *file)
@@ -257,9 +272,10 @@ static int tmpfs_add_block(const char *buf, size_t size, tmpfs_file_t *file)
 	return 0;
 }
 
-int tmpfs_fill_with_data(struct inode *vnode, const void *_buf, size_t size)
+int tmpfs_fill_with_data(struct file *f, const void *_buf, size_t size)
 {
-	tmpfs_file_t *file = (tmpfs_file_t *) vnode->i_inode;
+	struct inode *ino = f->f_ino;
+	tmpfs_file_t *file = (tmpfs_file_t *) ino->i_inode;
 	
 	const char *buf = _buf;
 	size_t nr_reads = vm_size_to_pages(size);
@@ -271,10 +287,11 @@ int tmpfs_fill_with_data(struct inode *vnode, const void *_buf, size_t size)
 		if(tmpfs_add_block(buf, sz, file) < 0)
 			return errno = ENOSPC, -1;
 		file->size += sz;
-		vnode->i_size += sz;
+		ino->i_size += sz;
 		buf += sz;
 		off += block_size;
 	}
+
 	return 0;
 }
 
@@ -304,9 +321,10 @@ tmpfs_file_t *tmpfs_open_file(tmpfs_file_t *dir, const char *name)
 	return errno = ENOENT, NULL;
 }
 
-struct inode *tmpfs_mkdir(const char *name, mode_t mode, struct inode *vnode)
+struct inode *tmpfs_mkdir(const char *name, mode_t mode, struct file *f)
 {
-	tmpfs_file_t *file = (tmpfs_file_t *) vnode->i_inode;
+	struct inode *ino = f->f_ino;
+	tmpfs_file_t *file = (tmpfs_file_t *) ino->i_inode;
 	
 	assert(file != NULL);
 	
@@ -320,16 +338,16 @@ struct inode *tmpfs_mkdir(const char *name, mode_t mode, struct inode *vnode)
 	new_file->mode = mode;
 	new_file->type = TMPFS_FILE_TYPE_DIR;
 	
-	struct inode *in = tmpfs_file_to_vfs(new_file, vnode);
+	struct inode *in = tmpfs_file_to_vfs(new_file, f);
 	if(!in)
 		return NULL;
 	
-	superblock_add_inode(vnode->i_sb, in);
+	superblock_add_inode(ino->i_sb, in);
 
 	return in;
 }
 
-struct inode *tmpfs_find_inode_in_cache(struct inode *vnode, tmpfs_file_t *file)
+struct inode *tmpfs_find_inode_in_cache(struct file *vnode, tmpfs_file_t *file)
 {
 	tmpfs_filesystem_t *fs = tmpfs_get_root(vnode);
 	
@@ -341,7 +359,7 @@ struct inode *tmpfs_find_inode_in_cache(struct inode *vnode, tmpfs_file_t *file)
 	if(inode)
 		return inode;
 	
-	/* If we found it, great, else, create a new struct inode and add it to
+	/* If we found it, great, else, create a new struct file and add it to
 	 * the cache */
 	inode = tmpfs_file_to_vfs(file, vnode);
 
@@ -357,9 +375,10 @@ struct inode *tmpfs_find_inode_in_cache(struct inode *vnode, tmpfs_file_t *file)
 	return inode;
 }
 
-struct inode *tmpfs_open(struct inode *vnode, const char *name)
+struct inode *tmpfs_open(struct file *f, const char *name)
 {
-	tmpfs_file_t *dir = (tmpfs_file_t *) vnode->i_inode;
+	struct inode *ino = f->f_ino;
+	tmpfs_file_t *dir = (tmpfs_file_t *) ino->i_inode;
 
 	assert(dir != NULL);
 
@@ -367,19 +386,13 @@ struct inode *tmpfs_open(struct inode *vnode, const char *name)
 	if(!file)
 		return NULL;
 
-	if(file->type & VFS_TYPE_SYMLINK)
-	{
-		if(file->symlink[0] != '/')
-			return open_vfs(vnode, file->symlink);
-		return open_vfs(get_fs_root(), file->symlink);
-	}
-
-	return tmpfs_find_inode_in_cache(vnode, file);
+	return tmpfs_find_inode_in_cache(f, file);
 }
 
-struct inode *tmpfs_mknod(const char *name, mode_t mode, dev_t dev, struct inode *root)
+struct inode *tmpfs_mknod(const char *name, mode_t mode, dev_t dev, struct file *root)
 {
-	tmpfs_file_t *dir = (tmpfs_file_t *) root->i_inode;
+	struct inode *ino = root->f_ino;
+	tmpfs_file_t *dir = (tmpfs_file_t *) ino->i_inode;
 
 	tmpfs_file_t *file = tmpfs_create_file(dir, name);
 
@@ -405,14 +418,15 @@ struct inode *tmpfs_mknod(const char *name, mode_t mode, dev_t dev, struct inode
 	if(!in)
 		return NULL;
 	
-	superblock_add_inode(root->i_sb, in);
+	superblock_add_inode(ino->i_sb, in);
 
 	return in;
 }
 
-off_t tmpfs_getdirent(struct dirent *buf, off_t off, struct inode* file)
+off_t tmpfs_getdirent(struct dirent *buf, off_t off, struct file* file)
 {
-	tmpfs_file_t *dir = (tmpfs_file_t *) file->i_inode;
+	struct inode *ino = file->f_ino;
+	tmpfs_file_t *dir = (tmpfs_file_t *) ino->i_inode;
 	off_t orig_off = off;
 
 	mutex_lock(&dir->dirent_lock);
@@ -441,15 +455,15 @@ off_t tmpfs_getdirent(struct dirent *buf, off_t off, struct inode* file)
 	buf->d_off = orig_off;
 	buf->d_reclen = sizeof(struct dirent) - (256 - (strlen(buf->d_name) + 1));
 
-	if(file->i_type & VFS_TYPE_DIR)
+	if(f->type & VFS_TYPE_DIR)
 		buf->d_type = DT_DIR;
-	else if(file->i_type & VFS_TYPE_BLOCK_DEVICE)
+	else if(f->type & VFS_TYPE_BLOCK_DEVICE)
 		buf->d_type = DT_BLK;
-	else if(file->i_type & VFS_TYPE_CHAR_DEVICE)
+	else if(f->type & VFS_TYPE_CHAR_DEVICE)
 		buf->d_type = DT_CHR;
-	else if(file->i_type & VFS_TYPE_SYMLINK)
+	else if(f->type & VFS_TYPE_SYMLINK)
 		buf->d_type = DT_LNK;
-	else if(file->i_type & VFS_TYPE_FILE)
+	else if(f->type & VFS_TYPE_FILE)
 		buf->d_type = DT_REG;
 
 	mutex_unlock(&dir->dirent_lock);
@@ -457,8 +471,9 @@ off_t tmpfs_getdirent(struct dirent *buf, off_t off, struct inode* file)
 	return orig_off + 1;
 }
 
-int tmpfs_stat(struct stat *buf, struct inode *node)
+int tmpfs_stat(struct stat *buf, struct file *f)
 {
+	struct inode *node = f->f_ino;
 	tmpfs_file_t *file = (tmpfs_file_t *) node->i_inode;
 	buf->st_ino = (ino_t) file;
 	buf->st_size = file->size;
@@ -468,6 +483,13 @@ int tmpfs_stat(struct stat *buf, struct inode *node)
 	buf->st_rdev = file->rdev;
 
 	return 0;
+}
+
+char *tmpfs_readlink(struct file *f)
+{
+	tmpfs_file_t *file = (tmpfs_file_t *) f->f_ino->i_inode;
+
+	return strdup(file->symlink);
 }
 
 static void tmpfs_set_node_fileops(struct inode *node)
@@ -481,6 +503,9 @@ static void tmpfs_set_node_fileops(struct inode *node)
 	node->i_fops.mknod = tmpfs_mknod;
 	node->i_fops.getdirent = tmpfs_getdirent;
 	node->i_fops.stat = tmpfs_stat;
+	node->i_fops.readpage = tmpfs_readpage;
+	node->i_fops.writepage = tmpfs_writepage;
+	node->i_fops.readlink = tmpfs_readlink;
 }
 
 tmpfs_filesystem_t *__tmpfs_allocate_fs(void)
@@ -548,12 +573,12 @@ int tmpfs_mount(const char *mountpoint)
 	return 0;
 }
 
-tmpfs_filesystem_t *tmpfs_get_root(struct inode *inode)
+tmpfs_filesystem_t *tmpfs_get_root(struct file *f)
 {
-	return inode->i_helper;
+	return f->f_ino->i_helper;
 }
 
-tmpfs_file_t *tmpfs_get_raw_file(struct inode *inode)
+tmpfs_file_t *tmpfs_get_raw_file(struct file *f)
 {
-	return (void *) inode->i_inode;
+	return (void *) f->f_ino->i_inode;
 }

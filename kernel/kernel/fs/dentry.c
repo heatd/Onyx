@@ -53,7 +53,7 @@ struct dentry *dentry_open(struct dentry *dir, const char *name)
 		}
 	}
 
-	struct inode *inode = open_vfs(dir->d_inode, name);
+	struct file *inode = open_vfs(dir->d_inode, name);
 
 	if(!inode)
 	{
@@ -81,7 +81,7 @@ void dentry_release(struct object *obj)
 	slab_free(dentry_cache, dentry);
 }
 
-struct dentry *dentry_create(char *name, struct inode *inode)
+struct dentry *dentry_create(char *name, struct file *inode)
 {
 	struct dentry *d = slab_allocate(dentry_cache);
 

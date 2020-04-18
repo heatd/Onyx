@@ -27,7 +27,7 @@ struct binfmt_args
 	uint8_t *file_signature;
 	char *filename;
 	char **argv, **envp;
-	struct inode *file;
+	struct file *file;
 	char *interp_path;
 	bool needs_interp;
 	struct exec_state *state;

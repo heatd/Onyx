@@ -20,14 +20,6 @@ namespace flush
 static constexpr unsigned long nr_wb_threads = 4UL;
 array<flush::flush_dev, nr_wb_threads> thread_list;
 
-size_t __do_vfs_write(void *buf, size_t size, off_t off, struct inode *ino)
-{
-	if(ino->i_fops.write != NULL)
-		return ino->i_fops.write(off, size, buf, ino);
-
-	return -ENXIO;
-}
-
 void flush_dev::init()
 {
 	thread = sched_create_thread(flush_thr_init, THREAD_KERNEL, (void *) this);
@@ -49,7 +41,8 @@ void flush_dev::sync()
 		/*printk("writeback file %p, size %lu, off %lu\n", blk->node,
 			blk->size, blk->offset);*/
 
-		__do_vfs_write(blk->buffer, blk->size, blk->offset, blk->node);
+		assert(blk->node->i_fops.writepage != NULL);
+		blk->node->i_fops.writepage(blk->page, blk->offset, blk->node);
 
 		__sync_fetch_and_and(&blk->page->flags, ~PAGE_FLAG_DIRTY);
 

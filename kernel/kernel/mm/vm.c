@@ -421,7 +421,7 @@ void vm_region_destroy(struct vm_region *region)
 	/* First, unref things */
 	if(region->fd)
 	{
-		//struct inode *ino = region->fd->f_ino;
+		//struct file *ino = region->fd->f_ino;
 		/*if(inode_requires_wb(ino) && region->mapping_type == MAP_SHARED)
 		{
 			writeback_remove_region(region);
@@ -1127,7 +1127,7 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
 				return (void *) -ENOSYS;
 			}
 
-			void *ret = ino->i_fops.mmap(area, ino);
+			void *ret = ino->i_fops.mmap(area, file);
 
 			spin_unlock(&mm->vm_spl);
 
@@ -1219,7 +1219,7 @@ void vm_copy_region(const struct vm_region *source, struct vm_region *dest)
 	dest->fd = source->fd;
 	if(dest->fd)
 	{
-		/*struct inode *ino = dest->fd->f_ino;
+		/*struct file *ino = dest->fd->f_ino;
 		if(source->mapping_type == MAP_SHARED && inode_requires_wb(ino))
 			writeback_add_region(dest);*/
 		fd_get(dest->fd);
@@ -2186,7 +2186,7 @@ void *vm_map_vmo(size_t flags, uint32_t type, size_t pages, size_t prot, struct 
 		}
 
 #ifdef CONFIG_KASAN
-		kasan_alloc_shadow(va->base, pages << PAGE_SHIFT, true);
+		kasan_alloc_shadow(reg->base, pages << PAGE_SHIFT, true);
 #endif
 	}
 
@@ -2248,7 +2248,8 @@ struct page *vm_commit_private(size_t off, struct vm_object *vmo)
 
 	//printk("commit %lx\n", off + file_off);
 	unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
-	ssize_t read = read_vfs(0, off + file_off, PAGE_SIZE, PAGE_TO_VIRT(p), ino);
+	assert(ino->i_fops.readpage != NULL);
+	ssize_t read = ino->i_fops.readpage(p, off + file_off, ino);
 
 	thread_change_addr_limit(old);
 

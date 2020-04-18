@@ -47,9 +47,9 @@ static inline bool blkdev_is_partition(struct blockdev *dev)
 	return dev->actual_blockdev != NULL;
 }
 
-static inline struct blockdev *blkdev_get_dev(struct inode *ino)
+static inline struct blockdev *blkdev_get_dev(struct file *f)
 {
-	return ino->i_helper;
+	return f->f_ino->i_helper;
 }
 
 #ifdef __cplusplus
