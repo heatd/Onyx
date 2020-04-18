@@ -212,7 +212,7 @@ ssize_t read_vfs(size_t offset, size_t len, void *buffer, struct file *file)
 	
 	if(!ino->i_fops.read)
 		return errno = EIO, -1;
-	
+
 	len = clamp_length(len);
 
 	ssize_t res = do_actual_read(offset, len, buffer, file);

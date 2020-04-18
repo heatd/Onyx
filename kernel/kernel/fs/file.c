@@ -404,6 +404,9 @@ ssize_t sys_write(int fd, const void *buf, size_t count)
 		errno = EBADF;
 		goto error;
 	}
+
+	if(f->f_flags & O_APPEND)
+		f->f_seek = f->f_ino->i_size;
 	
 	size_t written = write_vfs(f->f_seek,
 				   count, (void*) buf, 
@@ -670,6 +673,10 @@ ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt)
 	
 		if(v.iov_len == 0)
 			continue;
+
+		if(f->f_flags & O_APPEND)
+			f->f_seek = f->f_ino->i_size;
+
 		size_t was_written = write_vfs(f->f_seek,
 			v.iov_len, v.iov_base,f);
 
