@@ -226,6 +226,13 @@ void pipe_close(struct inode* ino)
 	p->unref();
 }
 
+struct file_ops pipe_ops = 
+{
+	.read = pipe_read,
+	.write = pipe_write,
+	.close = pipe_close
+};
+
 int pipe_create(struct file **pipe_readable, struct file **pipe_writeable)
 {
 	/* Create the node */
@@ -255,9 +262,7 @@ int pipe_create(struct file **pipe_readable, struct file **pipe_writeable)
 	node0->i_type = VFS_TYPE_CHAR_DEVICE;
 	node0->i_inode = current_inode_number++;
 	node0->i_helper = (void *) new_pipe;
-	node0->i_fops.write = pipe_write;
-	node0->i_fops.read = pipe_read;
-	node0->i_fops.close = pipe_close;
+	node0->i_fops = &pipe_ops;
 
 	/* TODO: This memcpy seems unsafe, at least... */
 	memcpy(node1, node0, sizeof(*node0));

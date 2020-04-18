@@ -121,7 +121,7 @@ struct inode *tmpfs_file_to_vfs(tmpfs_file_t *file, struct file *parent)
 	{
 		struct dev *d = dev_find(f->i_rdev);
 		assert(d != NULL);
-		memcpy(&f->i_fops, &d->fops, sizeof(struct file_ops));
+		f->i_fops = &d->fops;
 		f->i_helper = d->priv;
 	}
 	else
@@ -492,20 +492,25 @@ char *tmpfs_readlink(struct file *f)
 	return strdup(file->symlink);
 }
 
+struct file_ops tmpfs_ops = 
+{
+	.creat = tmpfs_creat,
+	.read = tmpfs_read,
+	.write = tmpfs_write,
+	.mkdir = tmpfs_mkdir,
+	.open = tmpfs_open,
+	.symlink = tmpfs_symlink,
+	.mknod = tmpfs_mknod,
+	.getdirent = tmpfs_getdirent,
+	.stat = tmpfs_stat,
+	.readpage = tmpfs_readpage,
+	.writepage = tmpfs_writepage,
+	.readlink = tmpfs_readlink
+};
+
 static void tmpfs_set_node_fileops(struct inode *node)
 {
-	node->i_fops.creat = tmpfs_creat;
-	node->i_fops.read = tmpfs_read;
-	node->i_fops.write = tmpfs_write;
-	node->i_fops.mkdir = tmpfs_mkdir;
-	node->i_fops.open = tmpfs_open;
-	node->i_fops.symlink = tmpfs_symlink;
-	node->i_fops.mknod = tmpfs_mknod;
-	node->i_fops.getdirent = tmpfs_getdirent;
-	node->i_fops.stat = tmpfs_stat;
-	node->i_fops.readpage = tmpfs_readpage;
-	node->i_fops.writepage = tmpfs_writepage;
-	node->i_fops.readlink = tmpfs_readlink;
+	node->i_fops = &tmpfs_ops;
 }
 
 tmpfs_filesystem_t *__tmpfs_allocate_fs(void)

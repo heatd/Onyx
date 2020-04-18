@@ -1122,12 +1122,12 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
 		   || ino->i_type == VFS_TYPE_CHAR_DEVICE)
 		   && area->mapping_type == MAP_SHARED)
 		{
-			if(!ino->i_fops.mmap)
+			if(!ino->i_fops->mmap)
 			{
 				return (void *) -ENOSYS;
 			}
 
-			void *ret = ino->i_fops.mmap(area, file);
+			void *ret = ino->i_fops->mmap(area, file);
 
 			spin_unlock(&mm->vm_spl);
 
@@ -2248,8 +2248,8 @@ struct page *vm_commit_private(size_t off, struct vm_object *vmo)
 
 	//printk("commit %lx\n", off + file_off);
 	unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
-	assert(ino->i_fops.readpage != NULL);
-	ssize_t read = ino->i_fops.readpage(p, off + file_off, ino);
+	assert(ino->i_fops->readpage != NULL);
+	ssize_t read = ino->i_fops->readpage(p, off + file_off, ino);
 
 	thread_change_addr_limit(old);
 

@@ -161,7 +161,7 @@ int device_mknod(struct dev *d, const char *path, const char *name, mode_t mode)
 	else	mode |= S_IFCHR;
 	 
 
-	return root->f_ino->i_fops.mknod(name, mode, d->majorminor, root) == NULL;
+	return root->f_ino->i_fops->mknod(name, mode, d->majorminor, root) == NULL;
 }
 
 int device_show(struct dev *d, const char *path, mode_t mode)

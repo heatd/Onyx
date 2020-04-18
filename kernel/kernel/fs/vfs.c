@@ -87,8 +87,8 @@ struct page *vmo_inode_commit(size_t off, struct vm_object *vmo)
 
 	unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
 
-	assert(i->i_fops.readpage != NULL);
-	ssize_t read = i->i_fops.readpage(page, off, i);
+	assert(i->i_fops->readpage != NULL);
+	ssize_t read = i->i_fops->readpage(page, off, i);
 
 	thread_change_addr_limit(old);
 
@@ -187,7 +187,7 @@ void inode_update_mtime(struct inode *ino)
 ssize_t do_actual_read(size_t offset, size_t len, void *buf, struct file *file)
 {
 	if(!inode_is_cacheable(file->f_ino))
-		return file->f_ino->i_fops.read(offset, len, buf, file);
+		return file->f_ino->i_fops->read(offset, len, buf, file);
 	
 	return lookup_file_cache(buf, len, file->f_ino, offset);
 }
@@ -210,7 +210,7 @@ ssize_t read_vfs(size_t offset, size_t len, void *buffer, struct file *file)
 	if(ino->i_type & VFS_TYPE_DIR)
 		return errno = EISDIR, -1;
 	
-	if(!ino->i_fops.read)
+	if(!ino->i_fops->read)
 		return errno = EIO, -1;
 
 	len = clamp_length(len);
@@ -232,7 +232,7 @@ ssize_t do_actual_write(size_t offset, size_t len, void *buffer, struct file *f)
 
 	if(!inode_is_cacheable(ino))
 	{
-		st = ino->i_fops.write(offset, len, buffer, f);
+		st = ino->i_fops->write(offset, len, buffer, f);
 	}
 	else
 	{
@@ -262,7 +262,7 @@ ssize_t write_vfs(size_t offset, size_t len, void *buffer, struct file *f)
 	if(ino->i_type & VFS_TYPE_DIR)
 		return errno = EISDIR, -1;
 	
-	if(!ino->i_fops.write)
+	if(!ino->i_fops->write)
 		return errno = EIO, -1;
 
 	len = clamp_length(len);
@@ -274,8 +274,8 @@ ssize_t write_vfs(size_t offset, size_t len, void *buffer, struct file *f)
 
 int ioctl_vfs(int request, char *argp, struct file *this)
 {
-	if(this->f_ino->i_fops.ioctl != NULL)
-		return this->f_ino->i_fops.ioctl(request, (void*) argp, this);
+	if(this->f_ino->i_fops->ioctl != NULL)
+		return this->f_ino->i_fops->ioctl(request, (void*) argp, this);
 	return -ENOSYS;
 }
 
@@ -288,10 +288,10 @@ struct file *do_actual_open(struct file *this, const char *name)
 {
 	assert(this != NULL);
 
-	if(this->f_ino->i_fops.open == NULL)
+	if(this->f_ino->i_fops->open == NULL)
 		return errno = EIO, NULL;
 
-	struct inode *i = this->f_ino->i_fops.open(this, name);
+	struct inode *i = this->f_ino->i_fops->open(this, name);
 
 	if(!i)
 		return NULL;
@@ -303,9 +303,9 @@ struct file *do_actual_open(struct file *this, const char *name)
 		return NULL;
 	}
 
-	if(f->f_ino->i_fops.on_open)
+	if(f->f_ino->i_fops->on_open)
 	{
-		if(f->f_ino->i_fops.on_open(f) < 0)
+		if(f->f_ino->i_fops->on_open(f) < 0)
 		{
 			fd_put(f);
 			return NULL;
@@ -317,9 +317,9 @@ struct file *do_actual_open(struct file *this, const char *name)
 
 char *readlink_vfs(struct file *file)
 {
-	if(file->f_ino->i_fops.readlink)
+	if(file->f_ino->i_fops->readlink)
 	{
-		char *p = file->f_ino->i_fops.readlink(file);
+		char *p = file->f_ino->i_fops->readlink(file);
 		if(p != NULL)
 			inode_update_atime(file->f_ino);
 		
@@ -502,9 +502,9 @@ struct file *creat_vfs(struct file *this, const char *path, int mode)
 		goto error;
 	}
 
-	if(base->f_ino->i_fops.creat == NULL)
+	if(base->f_ino->i_fops->creat == NULL)
 		goto error_nosys;
-	struct inode *ret = base->f_ino->i_fops.creat(basename((char*) dup), mode, base);
+	struct inode *ret = base->f_ino->i_fops->creat(basename((char*) dup), mode, base);
 	
 	free(dup);
 	
@@ -550,10 +550,10 @@ struct file *mkdir_vfs(const char *path, mode_t mode, struct file *this)
 		goto error;
 	}
 
-	if(base->f_ino->i_fops.mkdir == NULL)
+	if(base->f_ino->i_fops->mkdir == NULL)
 		goto error_nosys;
 
-	struct inode *ret = base->f_ino->i_fops.mkdir(basename((char*) dup), mode, base);
+	struct inode *ret = base->f_ino->i_fops->mkdir(basename((char*) dup), mode, base);
 	free(dup);
 
 	struct file *f = inode_to_file(ret);
@@ -598,10 +598,10 @@ struct file *mknod_vfs(const char *path, mode_t mode, dev_t dev, struct file *th
 		goto error;
 	}
 
-	if(base->f_ino->i_fops.mknod == NULL)
+	if(base->f_ino->i_fops->mknod == NULL)
 		goto error_nosys;
 
-	struct inode *ret = base->f_ino->i_fops.mknod(basename((char*) dup), mode, dev, base);
+	struct inode *ret = base->f_ino->i_fops->mknod(basename((char*) dup), mode, dev, base);
 	free(dup);
 	
 	struct file *f = inode_to_file(ret);
@@ -662,8 +662,8 @@ int mount_fs(struct inode *fsroot, const char *path)
 
 off_t do_getdirent(struct dirent *buf, off_t off, struct file *file)
 {
-	if(file->f_ino->i_fops.getdirent != NULL)
-		return file->f_ino->i_fops.getdirent(buf, off, file);
+	if(file->f_ino->i_fops->getdirent != NULL)
+		return file->f_ino->i_fops->getdirent(buf, off, file);
 	return -ENOSYS;
 }
 
@@ -734,8 +734,8 @@ int getdents_vfs(unsigned int count, putdir_t putdir,
 
 int stat_vfs(struct stat *buf, struct file *node)
 {
-	if(node->f_ino->i_fops.stat != NULL)
-		return node->f_ino->i_fops.stat(buf, node);
+	if(node->f_ino->i_fops->stat != NULL)
+		return node->f_ino->i_fops->stat(buf, node);
 	
 	return errno = ENOSYS, (unsigned int) -1;
 }
@@ -744,8 +744,8 @@ short default_poll(void *poll_table, short events, struct file *node);
 
 short poll_vfs(void *poll_file, short events, struct file *node)
 {
-	if(node->f_ino->i_fops.poll != NULL)
-		return node->f_ino->i_fops.poll(poll_file, events, node);
+	if(node->f_ino->i_fops->poll != NULL)
+		return node->f_ino->i_fops->poll(poll_file, events, node);
 	
 	return default_poll(poll_file, events, node);
 }
@@ -946,8 +946,8 @@ int ftruncate_vfs(off_t length, struct file *vnode)
 	if(length < 0)
 		return -EINVAL;
 
-	if(vnode->f_ino->i_fops.ftruncate != NULL)
-		return vnode->f_ino->i_fops.ftruncate(length, vnode);
+	if(vnode->f_ino->i_fops->ftruncate != NULL)
+		return vnode->f_ino->i_fops->ftruncate(length, vnode);
 	else
 	{
 		return default_ftruncate(length, vnode);
@@ -993,9 +993,9 @@ int default_fallocate(int mode, off_t offset, off_t len, struct file *file)
 
 int fallocate_vfs(int mode, off_t offset, off_t len, struct file *file)
 {
-	if(file->f_ino->i_fops.fallocate)
+	if(file->f_ino->i_fops->fallocate)
 	{
-		return file->f_ino->i_fops.fallocate(mode, offset, len, file);
+		return file->f_ino->i_fops->fallocate(mode, offset, len, file);
 	}
 	else
 		return default_fallocate(mode, offset, len, file);
@@ -1008,8 +1008,8 @@ int symlink_vfs(const char *dest, struct file *inode)
 	if(!file_can_access(inode, FILE_ACCESS_WRITE))
 		return -EACCES;
 
-	if(inode->f_ino->i_fops.symlink != NULL)
-		return inode->f_ino->i_fops.symlink(dest, inode);
+	if(inode->f_ino->i_fops->symlink != NULL)
+		return inode->f_ino->i_fops->symlink(dest, inode);
 	return -ENOSYS;
 }
 
@@ -1035,8 +1035,8 @@ void inode_release(struct object *object)
 	if(inode->i_flags & INODE_FLAG_DIRTY)
 		flush_remove_inode(inode);
 
-	if(inode->i_fops.close != NULL)
-		inode->i_fops.close(inode);
+	if(inode->i_fops->close != NULL)
+		inode->i_fops->close(inode);
 
 	inode_destroy_page_caches(inode);
 
@@ -1070,8 +1070,8 @@ int link_vfs(struct file *target, const char *name, struct file *dir)
 	if(!file_can_access(dir, FILE_ACCESS_WRITE))
 		return -EACCES;
 
-	if(dir->f_ino->i_fops.link)
-		return dir->f_ino->i_fops.link(target, name, dir);
+	if(dir->f_ino->i_fops->link)
+		return dir->f_ino->i_fops->link(target, name, dir);
 	return -EINVAL;
 }
 
@@ -1079,8 +1079,8 @@ int unlink_vfs(const char *name, int flags, struct file *node)
 {
 	if(!file_can_access(node, FILE_ACCESS_WRITE))
 		return -EACCES;
-	if(node->f_ino->i_fops.link)
-		return node->f_ino->i_fops.unlink(name, flags, node);
+	if(node->f_ino->i_fops->link)
+		return node->f_ino->i_fops->unlink(name, flags, node);
 	return -EINVAL;
 }
 

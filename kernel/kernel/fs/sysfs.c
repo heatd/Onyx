@@ -242,14 +242,19 @@ int sysfs_stat(struct stat *buf, struct file *node)
 	return 0;
 }
 
+struct file_ops sysfs_ops = 
+{
+	.open = sysfs_open,
+	.creat = sysfs_creat,
+	.read = sysfs_read,
+	.write = sysfs_write,
+	.getdirent = sysfs_getdirent,
+	.stat = sysfs_stat
+};
+
 void sysfs_setup_fops(struct inode *ino)
 {
-	ino->i_fops.open = sysfs_open;
-	ino->i_fops.creat = sysfs_creat;
-	ino->i_fops.read = sysfs_read;
-	ino->i_fops.write = sysfs_write;
-	ino->i_fops.getdirent = sysfs_getdirent;
-	ino->i_fops.stat = sysfs_stat;
+	ino->i_fops = &sysfs_ops;
 }
 
 

@@ -101,9 +101,12 @@ size_t socket_write(size_t offset, size_t len, void* buffer, struct file* file)
 	return s->s_ops->sendto(buffer, len, 0, NULL, 0, s);
 }
 
+void socket_close(struct inode *ino);
+
 struct file_ops socket_ops = 
 {
-	.write = socket_write
+	.write = socket_write,
+	.close = socket_close
 };
 
 struct file *get_socket_fd(int fd)
@@ -112,7 +115,7 @@ struct file *get_socket_fd(int fd)
 	if(!desc)
 		return errno = EBADF, NULL;
 
-	if(desc->f_ino->i_fops.write != socket_write)
+	if(desc->f_ino->i_fops->write != socket_write)
 	{
 		fd_put(desc);
 		return errno = ENOTSOCK, NULL;
@@ -340,8 +343,7 @@ struct inode *socket_create_inode(struct socket *socket)
 	if(!inode)
 		return NULL;
 	
-	memcpy(&inode->i_fops, &socket_ops, sizeof(struct file_ops));
-	inode->i_fops.close = socket_close;
+	inode->i_fops = &socket_ops;
 
 	inode->i_type = VFS_TYPE_UNIX_SOCK;
 	inode->i_helper = socket;

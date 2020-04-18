@@ -41,8 +41,8 @@ void flush_dev::sync()
 		/*printk("writeback file %p, size %lu, off %lu\n", blk->node,
 			blk->size, blk->offset);*/
 
-		assert(blk->node->i_fops.writepage != NULL);
-		blk->node->i_fops.writepage(blk->page, blk->offset, blk->node);
+		assert(blk->node->i_fops->writepage != NULL);
+		blk->node->i_fops->writepage(blk->page, blk->offset, blk->node);
 
 		__sync_fetch_and_and(&blk->page->flags, ~PAGE_FLAG_DIRTY);
 

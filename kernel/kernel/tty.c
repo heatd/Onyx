@@ -176,7 +176,7 @@ void tty_write_string_kernel(const char *data)
 	tty_write_string(data, main_tty);
 }
 
-size_t ttydevfs_write(size_t offset, size_t sizeofwrite, void* buffer, struct file* this)
+size_t ttydevfs_write(size_t offset, size_t sizeofwrite, void* buffer, struct file *this)
 {
 	struct tty *tty = this->f_ino->i_helper;
 	

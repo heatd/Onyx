@@ -258,7 +258,7 @@ struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber,
 		return NULL;
 	}
 
-	memcpy(&ino->i_fops, &ext2_ops, sizeof(struct file_ops));
+	ino->i_fops = &ext2_ops;
 
 	return ino;
 }
@@ -510,7 +510,8 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 	new_super->s_helper = fs;
 	new_super->flush_inode = ext2_flush_inode;
 
-	memcpy(&node->i_fops, &ext2_ops, sizeof(struct file_ops));
+	node->i_fops = &ext2_ops;
+
 	return node;
 }
 

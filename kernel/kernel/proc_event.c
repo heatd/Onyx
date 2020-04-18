@@ -124,6 +124,13 @@ unsigned int proc_event_ioctl(int request, void *argp, struct file *file)
 	}
 }
 
+struct file_ops proc_event_ops = 
+{
+	.read = proc_event_read,
+	.close = proc_event_close,
+	.ioctl = proc_event_ioctl
+};
+
 int sys_proc_event_attach(pid_t pid, unsigned long flags)
 {	
 	struct proc_event_sub *new_sub = zalloc(sizeof(*new_sub));
@@ -145,9 +152,7 @@ int sys_proc_event_attach(pid_t pid, unsigned long flags)
 	}
 	
 	ino->i_helper = new_sub;
-	ino->i_fops.read = proc_event_read;
-	ino->i_fops.close = proc_event_close;
-	ino->i_fops.ioctl = proc_event_ioctl;
+	ino->i_fops = &proc_event_ops;
 	ino->i_type = VFS_TYPE_UNIX_SOCK;
 
 	struct process *p = get_process_from_pid(pid);

@@ -96,7 +96,7 @@ struct inode
 	nlink_t i_nlink;
 	struct superblock *i_sb;
 	/* TODO: Make i_fops be a pointer instead of being embedded in inode, to save memory */
-	struct file_ops i_fops;
+	struct file_ops *i_fops;
 
 	struct spinlock i_pages_lock;
 	struct vm_object *i_pages;
