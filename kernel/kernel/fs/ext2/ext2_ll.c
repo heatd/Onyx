@@ -67,13 +67,13 @@ void __ext2_update_atime(struct ext2_inode *ino, uint32_t block, ext2_fs_t *fs, 
 	if(ino->flags & EXT2_INO_FLAG_ATIME_NO_UPDT)
 		return;
 	/* Update atime */
-	ino->atime = (uint32_t) get_posix_time();
+	ino->atime = (uint32_t) clock_get_posix_time();
 	ext2_write_block(block, 1, fs, inode_table);
 }
 
 static inline void __ext2_update_ctime(struct ext2_inode *ino)
 {
-	ino->ctime = (uint32_t) get_posix_time();
+	ino->ctime = (uint32_t) clock_get_posix_time();
 }
 
 __attribute__((no_sanitize_undefined))

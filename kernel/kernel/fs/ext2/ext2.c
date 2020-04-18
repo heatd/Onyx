@@ -81,11 +81,9 @@ struct ext2_inode *ext2_get_inode_from_dir(ext2_fs_t *fs, dir_entry_t *dirent, c
 	return NULL;
 }
 
-time_t get_posix_time(void);
-
 void ext2_delete_inode(struct ext2_inode *inode, uint32_t inum, ext2_fs_t *fs)
 {
-	inode->dtime = get_posix_time();
+	inode->dtime = clock_get_posix_time();
 	ext2_free_inode_space(inode, fs);
 	ext2_update_inode(inode, fs, inum);
 	ext2_free_inode(inum, fs);
@@ -319,7 +317,7 @@ struct inode *ext2_create_file(const char *name, mode_t mode, dev_t dev, struct 
 		return NULL;
 
 	memset(inode, 0, sizeof(struct ext2_inode));
-	inode->ctime = inode->atime = inode->mtime = (uint32_t) get_posix_time();
+	inode->ctime = inode->atime = inode->mtime = (uint32_t) clock_get_posix_time();
 	
 	struct creds *c = creds_get();
 

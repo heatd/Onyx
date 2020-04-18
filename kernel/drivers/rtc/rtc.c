@@ -94,7 +94,7 @@ const int months[] =
 	31
 };
 
-uint64_t get_unix_time(const date_t * const udate)
+uint64_t get_unix_time(const date_t *const udate)
 {
 	uint64_t utime = 0;
 	for(int i = 1970; i < udate->year; i++)
@@ -116,6 +116,7 @@ uint64_t get_unix_time(const date_t * const udate)
 			utime += 365 * 24 * 60 * 60; 
 		}
 	}
+
 	// Calculate this year's POSIX time
 	int total_day = 0;
 	int month = udate->month - 1;
@@ -133,6 +134,7 @@ uint64_t get_unix_time(const date_t * const udate)
 	{
 		total_day++;
 	}
+
 	utime += total_day * 86400;
 	utime += udate->hours * 60 * 60;
 	utime += udate->minutes * 60;
