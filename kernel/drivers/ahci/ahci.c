@@ -233,7 +233,7 @@ command_list_t *ahci_find_free_command_list(command_list_t *lists,
 
 void ahci_issue_command(struct ahci_port *port, size_t slot)
 {
-	port->port->command_issue = (1 << slot);
+	port->port->command_issue = (1U << slot);
 }
 
 command_list_t *ahci_allocate_command_list(struct ahci_port *ahci_port, size_t *index)
@@ -397,10 +397,11 @@ bool ahci_do_command(struct ahci_port *ahci_port, struct ahci_command_ata *buf)
 
 	while(!wait_queue_may_delete(&req.wake_sem)) {}
 
-#if 0
-	printk("Response time: %luns. Disk time: %luns\n", get_main_clock()->get_ns() - req.req_start,
-		req.req_end - req.req_start);
-#endif
+
+	if(req.req_end - req.req_start > NS_PER_SEC)
+		printk("Response time: %luns. Disk time: %luns\n", get_main_clock()->get_ns() - req.req_start,
+		       req.req_end - req.req_start);
+
 
 	vm_unlock_range(buf->buffer, buf->size, VM_FUTURE_PAGES);
 
@@ -671,8 +672,7 @@ bool ahci_port_has_device(ahci_port_t *port)
 
 void ahci_enable_interrupts_for_port(ahci_port_t *port)
 {
-	port->pxie = AHCI_PORT_INTERRUPT_DHRE | AHCI_PORT_INTERRUPT_PSE |
-		     AHCI_PORT_INTERRUPT_DSE;
+	port->pxie = AHCI_PORT_INTERRUPT_DHRE;
 }
 
 static unsigned int woke = 0;
