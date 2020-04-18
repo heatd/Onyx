@@ -515,11 +515,8 @@ out:
 	return st;
 }
 
-int ext2_link(struct file *_target, const char *name, struct file *_dir)
+int ext2_link(struct inode *target, const char *name, struct inode *dir)
 {
-	struct inode *target = _target->f_ino;
-	struct inode *dir = _dir->f_ino;
-
 	assert(target->i_sb == dir->i_sb);
 
 	ext2_fs_t *fs = dir->i_sb->s_helper;
@@ -556,6 +553,11 @@ int ext2_link(struct file *_target, const char *name, struct file *_dir)
 	ext2_update_inode(target_ino, fs, (uint32_t) target->i_inode);
 
 	return 0;
+}
+
+int ext2_link_fops(struct file *_target, const char *name, struct file *_dir)
+{
+	return ext2_link(_target->f_ino, name, _dir->f_ino);
 }
 
 struct inode *ext2_load_inode_from_disk(uint32_t inum, struct file *parent, ext2_fs_t *fs)

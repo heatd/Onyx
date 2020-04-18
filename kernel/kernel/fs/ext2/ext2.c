@@ -35,12 +35,14 @@ char *ext2_readlink(struct file *ino);
 void ext2_close(struct inode *ino);
 struct inode *ext2_mknod(const char *name, mode_t mode, dev_t dev, struct file *ino);
 struct inode *ext2_mkdir(const char *name, mode_t mode, struct file *ino);
-int ext2_link(struct file *target, const char *name, struct file *dir);
+int ext2_link_fops(struct file *target, const char *name, struct file *dir);
 int ext2_unlink(const char *name, int flags, struct file *f);
 int ext2_fallocate(int mode, off_t off, off_t len, struct file *f);
 int ext2_ftruncate(off_t off, struct file *f);
 ssize_t ext2_readpage(struct page *page, size_t off, struct inode *ino);
 ssize_t ext2_writepage(struct page *page, size_t off, struct inode *ino);
+
+int ext2_link(struct inode *target, const char *name, struct inode *dir);
 
 struct file_ops ext2_ops = 
 {
@@ -54,24 +56,13 @@ struct file_ops ext2_ops =
 	.close = ext2_close,
 	.mknod = ext2_mknod,
 	.mkdir = ext2_mkdir,
-	.link = ext2_link,
+	.link = ext2_link_fops,
 	.unlink = ext2_unlink,
 	.fallocate = ext2_fallocate,
 	.ftruncate = ext2_ftruncate,
 	.readpage = ext2_readpage,
 	.writepage = ext2_writepage
 };
-
-uuid_t ext2_gpt_uuid[4] = 
-{
-	{0x3DAF, 0x0FC6, 0x8483, 0x4772, 0x798E, 0x693D, 0x47D8, 0xE47D}, /* Linux filesystem data */
-	/* I'm not sure that the following entries are used, and they're probably broken */
-	{0xBCE3, 0x4F68, 0x4DB1, 0xE8CD, 0xFBCA, 0x96E7, 0xB709, 0xF984}, /* Root partition (x86-64) */
-	{0xC7E1, 0x933A, 0x4F13, 0x2EB4, 0x0E14, 0xB844, 0xF915, 0xE2AE}, /* /home partition */
-	{0x8425, 0x3B8F, 0x4F3B, 0x20E0, 0x1A25, 0x907F, 0x98E8, 0xA76F} /* /srv (server data) partition */
-};
-
-ext2_fs_t *fslist = NULL;
 
 struct ext2_inode *ext2_get_inode_from_dir(ext2_fs_t *fs, dir_entry_t *dirent, char *name, uint32_t *inode_number,
 	size_t size)
@@ -611,11 +602,8 @@ struct inode *ext2_mkdir(const char *name, mode_t mode, struct file *f)
 	
 	/* Create the two basic links - link to self and link to parent */
 	/* FIXME: Handle failure here? */
-	/* FIXME: Fix this */
-#if 0
 	ext2_link(new_dir, ".", new_dir);
-	ext2_link(f, "..", new_dir);
-#endif
+	ext2_link(f->f_ino, "..", new_dir);
 
 	ext2_fs_t *fs = f->f_ino->i_sb->s_helper;
 
