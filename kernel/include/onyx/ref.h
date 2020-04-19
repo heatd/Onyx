@@ -16,8 +16,16 @@ struct ref
 	void (*release)(struct ref *ref);
 };
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void ref_init(struct ref *ref, unsigned long refcount, void (*releasefunc)(struct ref *));
 bool ref_grab(struct ref *ref);
 void ref_release(struct ref *ref);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

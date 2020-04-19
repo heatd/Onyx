@@ -1,10 +1,11 @@
 #include <sys/sysinfo.h>
-#include "syscall.h"
 #include "libc.h"
+#include <errno.h>
 
 int __lsysinfo(struct sysinfo *info)
 {
-	return syscall(SYS_sysinfo, info);
+	errno = ENOSYS;
+	return -1;
 }
 
 weak_alias(__lsysinfo, sysinfo);

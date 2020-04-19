@@ -147,7 +147,7 @@ struct process *process_create(const char *cmd_line, struct ioctx *ctx, struct p
 		}
 	}
 
-	if(parent)
+	if(likely(parent))
 	{
 		/* Inherit the parent process' properties */
 		proc->personality = parent->personality;
@@ -157,7 +157,13 @@ struct process *process_create(const char *cmd_line, struct ioctx *ctx, struct p
 		/* Inherit the signal handlers of the process and the
 		 * signal mask of the current thread
 		*/
+
+		spin_lock(&proc->signal_lock);
+
 		memcpy(&proc->sigtable, &parent->sigtable, sizeof(struct sigaction) * _NSIG);
+
+		spin_unlock(&proc->signal_lock);
+
 		/* Note that the signal mask is inherited at thread creation */
 		
 		/* Note that pending signals are zero'd, as per POSIX */
@@ -165,6 +171,8 @@ struct process *process_create(const char *cmd_line, struct ioctx *ctx, struct p
 		process_append_children(parent, proc);
 
 		proc->parent = parent;
+
+		pgrp_inherit(proc, parent);
 	}
 
 	proc->address_space.process = proc;

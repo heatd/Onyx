@@ -26,6 +26,8 @@ struct futex;
 
 struct proc_event_sub;
 
+struct pgrp;
+
 struct process
 {
 	unsigned long refcount;
@@ -98,11 +100,43 @@ struct process
 
 	struct spinlock children_lock;
 	struct process *children, *prev_sibbling, *next_sibbling;
+
+	struct pgrp *pgrp;
+	struct list_head pgrp_list_node;
+	
+	struct pgrp *session;
+	struct list_head session_list_node;
+};
+
+/* Note that this struct is supposed to be used for any type of process groupings, 
+ * for example, sessions and process groups
+ */
+
+#define PGRP_PROCESS_GROUP      0
+#define PGRP_SESSION            1
+#define PGRP_MAX                2
+
+struct pgrp
+{
+	struct ref refc;
+	pid_t id;
+	struct list_head pgrp_head[PGRP_MAX];
+	struct list_head pgrp_list_node;
 };
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+static inline void pgrp_get(struct pgrp *pgrp)
+{
+	ref_grab(&pgrp->refc);
+}
+
+static inline void pgrp_put(struct pgrp *pgrp)
+{
+	ref_release(&pgrp->refc);
+}
 
 struct process *process_create(const char *cmd_line, struct ioctx *ctx, struct process *parent);
 struct thread *process_create_thread(struct process *proc, thread_callback_t callback,
@@ -142,5 +176,8 @@ static inline struct mm_address_space *get_current_address_space()
 {
 	return &get_current_process()->address_space;
 }
+
+struct pgrp *pgrp_create(pid_t pid);
+void pgrp_inherit(struct process *new, struct process *parent);
 
 #endif

@@ -194,6 +194,11 @@ retry:;
 		return errno = ENOMEM, -1;
 
 	proc->address_space.cr3 = get_current_pml4();
+	proc->session = pgrp_create(proc->pid);
+	proc->pgrp = pgrp_create(proc->pid);
+
+	assert(proc->session != NULL);
+	assert(proc->pgrp != NULL);
 
 	get_current_thread()->owner = proc;
  
