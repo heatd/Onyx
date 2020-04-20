@@ -409,7 +409,7 @@ void arch_load_thread(struct thread *thread, unsigned int cpu)
 void arch_load_process(struct process *process, struct thread *thread,
                        unsigned int cpu)
 {
-	paging_load_cr3(process->address_space.cr3);
+	vm_load_arch_mmu(&process->address_space.arch_mmu);
 }
 
 unsigned long thread_get_addr_limit(void)

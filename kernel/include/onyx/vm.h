@@ -19,6 +19,7 @@
 #ifdef __x86_64__
 #include <onyx/x86/page.h>
 #include <onyx/x86/vm_layout.h>
+#include <onyx/x86/vm.h>
 #endif
 
 #include <sys/types.h>
@@ -136,9 +137,7 @@ struct mm_address_space
 
 	struct spinlock private_vmo_lock;
 	struct vm_object *vmo_head, *vmo_tail;
-#ifdef __x86_64__
-	PML* cr3;
-#endif
+	struct arch_mm_address_space arch_mmu;
 };
 
 #ifdef __cplusplus
@@ -219,8 +218,10 @@ void *__map_pages_to_vaddr(struct process *process, void *virt, void *phys,
 		size_t size, size_t flags);
 void *map_page_list(struct page *pl, size_t size, uint64_t prot);
 
-int vm_create_address_space(struct mm_address_space *mm, struct process *process, void *cr3);
-
+int vm_create_address_space(struct mm_address_space *mm, struct process *process);
+void vm_free_arch_mmu(struct arch_mm_address_space *mm);
+void vm_load_arch_mmu(struct arch_mm_address_space *mm);
+void vm_save_current_mmu(struct mm_address_space *mm);
 int vm_munmap(struct mm_address_space *as, void *__addr, size_t size);
 
 int vm_create_brk(struct mm_address_space *mm);

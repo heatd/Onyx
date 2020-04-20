@@ -21,70 +21,19 @@
 
 int ptrace_peek(struct process *process, void *addr, ptrace_word_t *word)
 {
-	int status = 0;
-	/* Save the old VMM tree */
-	//avl_node_t *old_tree = vm_get_tree();
-
-	/* Set the vmm tree before changing CR3, as changing cr3 is very expensive(saves performance on invalid requests) */
-	//vm_set_tree(process->tree);
-	
-	/* Lock the address space */
-	spin_lock(&process->address_space.vm_spl);
-	/* Load the actual address space */
-	paging_load_cr3(process->address_space.cr3);
-
-	/* Do the actual copy */
-	if(copy_from_user(word, addr, sizeof(ptrace_word_t)) < 0)
-	{
-		status = -1;
-		errno = EFAULT;
-	}
-
-	/* Unlock the address space */
-	spin_unlock(&process->address_space.vm_spl);
-	
-	/* Restore the old context */
-	//vm_set_tree(old_tree);
-	paging_load_cr3(get_current_process()->address_space.cr3);
-
-	return status;
+	return errno = EFAULT, -1;
 }
+
 int ptrace_poke(struct process *process, void *addr, ptrace_word_t word)
 {
-	int status = 0;
-	/* Save the old VMM tree */
-	//avl_node_t *old_tree = vm_get_tree();
-
-	/* Set the vmm tree before changing CR3, as changing cr3 is very expensive(saves performance on invalid requests) */
-	//vm_set_tree(process->tree);
-	
-	/* Lock the address space */
-	spin_lock(&process->address_space.vm_spl);
-	/* Load the actual address space */
-	paging_load_cr3(process->address_space.cr3);
-
-	/* Do the actual copy */
-	if(copy_to_user(addr, &word, sizeof(ptrace_word_t)) < 0)
-	{
-		status = -1;
-		errno = EFAULT;
-	}
-
-	/* Unlock the address space */
-	spin_unlock(&process->address_space.vm_spl);
-	
-	/* Restore the old context */
-	//vm_set_tree(old_tree);
-	paging_load_cr3(get_current_process()->address_space.cr3);
-
-	return status;
+	return errno = EFAULT, -1;
 }
 
 int ptrace_getregs(struct process *process, struct user_regs_struct *regs)
 {
 	/* TODO: We currently don't support multi-threaded ptracing, since in Onyx processes have threads
 	 * (instead of linux's threads each have a process hack) */
-	panic("implement");
+	return errno = EFAULT, -1;
 #if 0
 	thread_t *main_thread = process->threads[0];
 

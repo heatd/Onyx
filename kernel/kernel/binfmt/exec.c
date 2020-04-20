@@ -157,7 +157,7 @@ int flush_old_exec(struct exec_state *state)
 
 	memcpy(&curr->address_space, &state->new_address_space, sizeof(struct mm_address_space));
 
-	paging_load_cr3(curr->address_space.cr3);
+	vm_load_arch_mmu(&curr->address_space.arch_mmu);
 	
 	/* Close O_CLOEXEC files */
 	file_do_cloexec(&curr->ctx);
@@ -379,11 +379,11 @@ int exec_state_create(struct exec_state *state)
 	if(vm_clone_as(&state->new_address_space) < 0)
 	{
 		st = -ENOMEM;
-		goto error;
+		goto error0;
 	}
 
 	/* Swap address spaces. Good thing we saved argv and envp before */
-	if(vm_create_address_space(&state->new_address_space, current, state->new_address_space.cr3) < 0)
+	if(vm_create_address_space(&state->new_address_space, current) < 0)
 	{
 		st = -ENOMEM;
 		goto error;
@@ -392,8 +392,8 @@ int exec_state_create(struct exec_state *state)
 	return st;
 
 error:
-	if(state->new_address_space.cr3)
-		free_page(phys_to_page((unsigned long) state->new_address_space.cr3));
+	vm_free_arch_mmu(&state->new_address_space.arch_mmu);
+error0:
 	return st;
 }
 

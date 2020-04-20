@@ -193,7 +193,7 @@ retry:;
 	if(!proc)
 		return errno = ENOMEM, -1;
 
-	proc->address_space.cr3 = get_current_pml4();
+	vm_save_current_mmu(&proc->address_space);
 
 	get_current_thread()->owner = proc;
  
@@ -232,7 +232,7 @@ retry:;
 	args.envp = envp;
 	args.state = &st;
 
-	assert(vm_create_address_space(&proc->address_space, proc, proc->address_space.cr3) == 0);
+	assert(vm_create_address_space(&proc->address_space, proc) == 0);
 
 	struct process *current = get_current_process();
 

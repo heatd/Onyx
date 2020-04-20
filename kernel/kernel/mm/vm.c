@@ -225,7 +225,7 @@ void vm_addr_init(void)
 	kernel_address_space.area_tree = rb_tree_new(vm_cmp);
 	kernel_address_space.start = KADDR_START;
 	kernel_address_space.end = UINTPTR_MAX;
-	kernel_address_space.cr3 = get_current_pml4();
+	vm_save_current_mmu(&kernel_address_space);
 
 	assert(kernel_address_space.area_tree != NULL);
 }
@@ -1926,19 +1926,23 @@ void vm_destroy_addr_space(struct mm_address_space *mm)
 
 	/* We're going to swap our address space to init's, and free our own */
 	
-	void *own_addrspace = current->address_space.cr3;
+	void *own_addrspace = vm_get_pgd(&current->address_space.arch_mmu);
 
 	if(own_addrspace == vm_get_fallback_cr3())
 	{
-		/* If init is deciding to exec with forking, don't free the fallback pgd! */
+		/* If init is deciding to exec without forking, don't free the fallback pgd! */
 		free_pgd = false;
 	}
-	current->address_space.cr3 = vm_get_fallback_cr3();
 
-	paging_load_cr3(mm->cr3);
+	struct arch_mm_address_space old_arch_mmu;
+	vm_set_pgd(&old_arch_mmu, own_addrspace);
+
+	vm_set_pgd(&current->address_space.arch_mmu, vm_get_fallback_cr3());
+
+	vm_load_arch_mmu(&current->address_space.arch_mmu);
 
 	if(free_pgd)
-		free_page(phys_to_page((uintptr_t) own_addrspace));
+		vm_free_arch_mmu(&old_arch_mmu);
 
 	spin_unlock(&mm->vm_spl);
 }
@@ -2432,9 +2436,8 @@ void *map_page_list(struct page *pl, size_t size, uint64_t prot)
 	return vaddr;
 }
 
-int vm_create_address_space(struct mm_address_space *mm, struct process *process, void *cr3)
+int vm_create_address_space(struct mm_address_space *mm, struct process *process)
 {
-	mm->cr3 = cr3;
 	mm->mmap_base = vm_gen_mmap_base();
 	mm->start = arch_low_half_min;
 	mm->end = arch_low_half_max;
@@ -2475,7 +2478,7 @@ void validate_free(void *p)
 
 void *vm_get_fallback_cr3(void)
 {
-	return kernel_address_space.cr3;
+	return vm_get_pgd(&kernel_address_space.arch_mmu);
 }
 
 void vm_remove_region(struct mm_address_space *as, struct vm_region *region)

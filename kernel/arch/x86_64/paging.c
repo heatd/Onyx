@@ -146,7 +146,7 @@ PML *get_current_pml4(void)
 	struct process *p = get_current_process();
 	if(!p)
 		return boot_pml4;
-	return (PML*) p->address_space.cr3;
+	return (PML*) p->address_space.arch_mmu.cr3;
 }
 
 #define HUGE1GB_SHIFT		30
@@ -576,7 +576,7 @@ int paging_clone_as(struct mm_address_space *addr_space)
 
 	memcpy(&p->entries[256], &curr->entries[256], 256 * sizeof(uint64_t));
 
-	addr_space->cr3 = new_pml;
+	addr_space->arch_mmu.cr3 = new_pml;
 	return 0;
 }
 
@@ -645,7 +645,7 @@ int paging_fork_tables(struct mm_address_space *addr_space)
 		}
 	}
 	
-	addr_space->cr3 = (void *) new_pml;
+	addr_space->arch_mmu.cr3 = (void *) new_pml;
 	return 0;
 }
 
@@ -670,7 +670,7 @@ bool x86_get_pt_entry(void *addr, uint64_t **entry_ptr, struct mm_address_space 
 		indices[i] = (virt >> 12) >> (i * 9) & 0x1ff;
 	}
 
-	PML *pml = (PML*)((unsigned long) mm->cr3 + PHYS_BASE);
+	PML *pml = (PML*)((unsigned long) mm->arch_mmu.cr3 + PHYS_BASE);
 	
 	for(unsigned int i = paging_levels; i != 1; i--)
 	{
@@ -822,7 +822,7 @@ void paging_protect_kernel(void)
 
 	__asm__ __volatile__("movq %0, %%cr3"::"r"(pml));
 
-	kernel_address_space.cr3 = pml;
+	kernel_address_space.arch_mmu.cr3 = pml;
 }
 
 void paging_invalidate(void *page, size_t pages)
@@ -837,7 +837,7 @@ void paging_invalidate(void *page, size_t pages)
 
 void *vm_map_page(struct process *proc, uint64_t virt, uint64_t phys, uint64_t prot)
 {
-	PML *pml = proc ? proc->address_space.cr3 : get_current_pml4();
+	PML *pml = proc ? proc->address_space.arch_mmu.cr3 : get_current_pml4();
 	
 	assert(pml != NULL);
 
@@ -876,7 +876,7 @@ void paging_free_pml3(PML *pml)
 
 void paging_free_page_tables(struct mm_address_space *mm)
 {
-	PML *pml = PHYS_TO_VIRT(mm->cr3);
+	PML *pml = PHYS_TO_VIRT(mm->arch_mmu.cr3);
 
 	for(int i = 0; i < 256; i++)
 	{
@@ -891,7 +891,7 @@ void paging_free_page_tables(struct mm_address_space *mm)
 		}
 	}
 
-	free_page(phys_to_page((unsigned long) mm->cr3));
+	free_page(phys_to_page((unsigned long) mm->arch_mmu.cr3));
 }
 
 unsigned long get_mapping_info(void *addr)
@@ -914,7 +914,7 @@ unsigned long __get_mapping_info(void *addr, struct mm_address_space *as)
 		indices[i] = (virt >> 12) >> (i * 9) & 0x1ff;
 	}
 
-	PML *pml = (PML*)((unsigned long) as->cr3 + PHYS_BASE);
+	PML *pml = (PML*)((unsigned long) as->arch_mmu.cr3 + PHYS_BASE);
 	
 	for(unsigned int i = paging_levels; i != 1; i--)
 	{
@@ -957,4 +957,19 @@ unsigned long __get_mapping_info(void *addr, struct mm_address_space *as)
 	ret |= PML_EXTRACT_ADDRESS(pt_entry);
 
 	return ret;
+}
+
+void vm_free_arch_mmu(struct arch_mm_address_space *mm)
+{
+	free_page(phys_to_page((unsigned long) mm->cr3));
+}
+
+void vm_load_arch_mmu(struct arch_mm_address_space *mm)
+{
+	paging_load_cr3(mm->cr3);
+}
+
+void vm_save_current_mmu(struct mm_address_space *mm)
+{
+	mm->arch_mmu.cr3 = get_current_pml4();
 }
