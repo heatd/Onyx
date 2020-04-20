@@ -244,7 +244,11 @@ void mmap_test(void)
 
 	printf("Here address %p, %s\n", addr, addr);
 
-	mprotect(addr, 4096, PROT_WRITE | PROT_READ);
+	if(mprotect(addr, 4096, PROT_WRITE | PROT_READ) < 0)
+	{
+		perror("mprotect");
+		return;
+	}
 
 	memset(addr, 0, 4096);
 

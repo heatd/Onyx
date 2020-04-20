@@ -1184,12 +1184,18 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 		if(!file)
 			return (void *) (unsigned long) -errno;
 
-		bool fd_has_write = !(file->f_flags & O_WRONLY) &&
-				    !(file->f_flags & O_RDWR);
-	
-		if(fd_has_write && prot & PROT_WRITE && flags & MAP_SHARED)
+		/* You can't map a file without having read access to it. */
+		if(!fd_may_access(file, FILE_ACCESS_READ))
 		{
-			/* You can't map for writing on a file without read access with MAP_SHARED! */
+			error = -EACCES;
+			goto out_error;
+		}
+
+		bool fd_has_write = fd_may_access(file, FILE_ACCESS_WRITE);
+
+		/* You can't create a shared mapping of a file without having write access to it */
+		if(!fd_has_write && prot & PROT_WRITE && flags & MAP_SHARED)
+		{
 			error = -EACCES;
 			goto out_error;
 		}
@@ -1372,7 +1378,7 @@ int vm_mprotect_in_region(struct mm_address_space *as, struct vm_region *region,
 
 	struct vm_region *new_region = vm_split_region(as, region, addr, size, pto_shave_off);
 	if(!new_region)
-		return -1;
+		return -ENOMEM;
 
 	bool marking_write = (prot & VM_WRITE) && !(new_region->rwx & VM_WRITE);
 
@@ -1419,6 +1425,23 @@ int vm_mprotect(struct mm_address_space *as, void *__addr, size_t size, int prot
 		{
 			spin_unlock(&as->vm_spl);
 			return -EINVAL;
+		}
+
+		if(region->mapping_type == MAP_SHARED && region->fd && prot & PROT_WRITE)
+		{
+			/* Block the mapping if we're trying to mprotect a shared mapping to PROT_WRITE while 
+			 * not having the necessary perms on the file.
+			 */
+
+			struct file *file = region->fd;
+			bool fd_has_write = fd_may_access(file, FILE_ACCESS_WRITE);
+			
+			if(!fd_has_write)
+			{
+				spin_unlock(&as->vm_spl);
+				return -EACCES;
+			}
+
 		}
 
 		size_t to_shave_off = 0;
