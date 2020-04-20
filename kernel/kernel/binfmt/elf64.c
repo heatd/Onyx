@@ -101,12 +101,11 @@ void *elf64_load_static(struct binfmt_args *args, Elf64_Ehdr *header)
 				return errno = EINVAL, NULL;
 			}
 
-			int prot = (VM_USER) |
-				   ((phdrs[i].p_flags & PF_W) ? VM_WRITE : 0) |
-				   ((phdrs[i].p_flags & PF_X) ? 0 : VM_NOEXEC);
-			if(!create_file_mapping((void *) aligned_address,
-				pages, VM_MMAP_PRIVATE | VM_MMAP_FIXED,
-				prot, fd, phdrs[i].p_offset - misalignment))
+			int prot =
+					((phdrs[i].p_flags & PF_W) ? PROT_WRITE : 0) |
+				   ((phdrs[i].p_flags & PF_X) ? PROT_EXEC : 0);
+			if(!vm_mmap((void *) aligned_address, pages << PAGE_SHIFT, prot, MAP_PRIVATE, 
+			            fd, phdrs[i].p_offset - misalignment))
 			{
 				errno = ENOMEM;
 				return NULL;
@@ -114,6 +113,12 @@ void *elf64_load_static(struct binfmt_args *args, Elf64_Ehdr *header)
 
 			if(phdrs[i].p_filesz != phdrs[i].p_memsz)
 			{
+				if(!(prot & PROT_WRITE))
+				{
+					errno = ENOEXEC;
+					return NULL;
+				}
+
 				/* This program header has the .bss, zero it out */
 				uint8_t *bss_base = (uint8_t *) (phdrs[i].p_vaddr + phdrs[i].p_filesz);
 				size_t bss_size = phdrs[i].p_memsz - phdrs[i].p_filesz;
@@ -200,8 +205,7 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 	/* TODO: Rework this */
 
 	needed_size += last_size;
-	base = get_pages(VM_ADDRESS_USER, VM_TYPE_SHARED, vm_size_to_pages(needed_size), 
-				VM_WRITE | VM_USER, alignment);
+	base = vm_mmap(NULL, vm_size_to_pages(needed_size) << PAGE_SHIFT, PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, NULL, 0);
 	if(!base)
 	{
 		errno = ENOMEM;
@@ -259,16 +263,15 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 				goto error2;
 			}
 
-			int prot = (VM_USER) |
-				   ((phdrs[i].p_flags & PF_W) ? VM_WRITE : 0) |
-				   ((phdrs[i].p_flags & PF_X) ? 0 : VM_NOEXEC);
+			int prot =
+				   ((phdrs[i].p_flags & PF_W) ? PROT_WRITE : 0) |
+				   ((phdrs[i].p_flags & PF_X) ? PROT_EXEC : 0);
 
 			/* Note that things are mapped VM_WRITE | VM_USER before the memcpy so 
 			 we don't PF ourselves(i.e: writing to RO memory) */
 			
-			if(!create_file_mapping((void *) aligned_address,
-				pages, VM_MMAP_PRIVATE | VM_MMAP_FIXED,
-				prot, fd, phdrs[i].p_offset - misalignment))
+			if(!vm_mmap((void *) aligned_address, pages << PAGE_SHIFT, prot, MAP_PRIVATE | MAP_FIXED,
+			            fd, phdrs[i].p_offset - misalignment))
 			{
 				perror("create file mapping");
 				errno = ENOMEM;
@@ -277,6 +280,15 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 
 			if(phdrs[i].p_filesz != phdrs[i].p_memsz)
 			{
+				if(!(prot & PROT_WRITE))
+				{
+					/* This malicious binary is trying to get us to segfault by writing to 
+					 * read-only memory
+					 */
+					errno = ENOEXEC;
+					goto error2;
+				}
+
 				/* This program header has the .bss, zero it out */
 				uint8_t *bss_base = (uint8_t *) (phdrs[i].p_vaddr + phdrs[i].p_filesz);
 				size_t bss_size = phdrs[i].p_memsz - phdrs[i].p_filesz;

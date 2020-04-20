@@ -111,8 +111,9 @@ struct page *vmo_populate(struct vm_object *vmo, size_t off)
 	return page;
 }
 
-struct page *vmo_get(struct vm_object *vmo, size_t off, bool may_populate)
+struct page *vmo_get(struct vm_object *vmo, size_t off, unsigned int flags)
 {
+	bool may_populate = flags & VMO_GET_MAY_POPULATE;
 	struct page *p = NULL;
 	
 	if(vmo->ino)
@@ -175,30 +176,19 @@ int vmo_fork_pages(struct vm_object *vmo)
 	{
 		struct page *old_p = *rb_itor_datum(it);
 		size_t off = (size_t) rb_itor_key(it);
-		/* No need to zero since it's being overwritten anyway */
-		struct page *p = alloc_page(0);
-		
-		if(!p)
-		{
-			rb_tree_free(new_tree, vmo_rb_delete_func);
-			rb_itor_free(it);
-			spin_unlock(&vmo->page_lock);
-			return -1;
-		}
 	
-		copy_page_to_page(page_to_phys(p), page_to_phys(old_p));
-
 		dict_insert_result res = rb_tree_insert(new_tree, (void *) off);
 		if(!res.inserted)
 		{
-			free_page(p);
 			rb_tree_free(new_tree, vmo_rb_delete_func);
 			rb_itor_free(it);
 			spin_unlock(&vmo->page_lock);
 			return -1;
 		}
 
-		*res.datum_ptr = p;
+		page_ref(old_p);
+
+		*res.datum_ptr = old_p;
 		node_valid = rb_itor_next(it);
 	}
 
@@ -221,37 +211,52 @@ void vmo_unref_list(struct list *l)
 struct vm_object *vmo_fork(struct vm_object *vmo, bool shared, struct vm_region *reg)
 {
 	struct vm_object *new_vmo;
-	if(!shared)
-	{
-		new_vmo = vmo_create(vmo->size, vmo->priv);
-		if(!new_vmo)
-			return NULL;
-		memcpy(new_vmo, vmo, sizeof(*new_vmo));
-		/* Locks are not inherited */
-		new_vmo->flags &= ~(VMO_FLAG_LOCK_FUTURE_PAGES);
-		new_vmo->refcount = 1;
-		INIT_LIST_HEAD(&new_vmo->mappings);
-		new_vmo->prev_private = new_vmo->next_private = NULL;
-		new_vmo->forked_from = vmo;
 
-		spin_lock(&vmo->page_lock);
-		if(vmo_fork_pages(new_vmo) < 0)
-		{
-			free(new_vmo);
-			spin_unlock(&vmo->page_lock);
-			return NULL;
-		}
-
-		spin_unlock(&vmo->page_lock);
-	}
-	else
+	if(shared)
 	{
-		if(__sync_add_and_fetch(&vmo->refcount, 1) == 1)
-			return NULL;
-		vmo_assign_mapping(vmo, reg);
+		/* Shared mappings have the peculiarity of just being a atomic add to the refc,
+		 * and an append to a mappings list. Therefore, we don't need to do anything here,
+		 * since it will be handled by each vm region's forking(fork_vm_region, mm/vm.c).
+		 */
 
 		return vmo;
 	}
+
+	/* Private mappings require a new copy of the vmo to be created, so we can fork it
+	 * correctly. */
+
+	new_vmo = vmo_create(vmo->size, vmo->priv);
+	if(!new_vmo)
+		return NULL;
+
+	new_vmo->flags = vmo->flags;
+	/* Locks are not inherited */
+	new_vmo->flags &= ~(VMO_FLAG_LOCK_FUTURE_PAGES);
+	new_vmo->prev_private = new_vmo->next_private = NULL;
+	new_vmo->forked_from = vmo;
+	new_vmo->ino = vmo->ino;
+	new_vmo->commit = vmo->commit;
+	new_vmo->type = vmo->type;
+	new_vmo->priv = vmo->priv;
+	
+	/* We're setting pages to the old vmo's pages so vmo_fork_pages can use them.
+	 * In reality, vmo_fork_pages will just iterate through the old tree and create a copy
+	 * of it.
+	 */
+	new_vmo->pages = vmo->pages;
+	new_vmo->cow_clone = vmo->cow_clone;
+
+	if(new_vmo->cow_clone) vmo_ref(new_vmo->cow_clone);
+
+	spin_lock(&vmo->page_lock);
+	if(vmo_fork_pages(new_vmo) < 0)
+	{
+		free(new_vmo);
+		spin_unlock(&vmo->page_lock);
+		return NULL;
+	}
+
+	spin_unlock(&vmo->page_lock);
 	
 	return new_vmo;
 }
@@ -578,7 +583,7 @@ void vmo_do_cow(struct vm_object *vmo, struct vm_object *target)
 struct page *vmo_get_cow_page(struct vm_object *vmo, size_t off)
 {
 	size_t vmo_off = (off_t) vmo->priv;
-	struct page *p = vmo_get(vmo->cow_clone, vmo_off + off, true);
+	struct page *p = vmo_get(vmo->cow_clone, vmo_off + off, VMO_GET_MAY_POPULATE);
 
 	if(!p)
 		return NULL;
@@ -604,7 +609,8 @@ struct page *vmo_cow_on_page(struct vm_object *vmo, size_t off)
 	
 	void **datum = rb_tree_search(vmo->pages, (void *) off);
 	
-	assert(datum != NULL);
+	if(datum == NULL)
+		halt();
 
 	struct page *old_page = *datum;
 

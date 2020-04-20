@@ -22,6 +22,8 @@
 #endif
 
 #include <sys/types.h>
+#include <sys/mman.h>
+
 #if defined (__i386__)
 	#define KERNEL_VIRTUAL_BASE 0xC0000000
 #elif defined (__x86_64__)
@@ -191,7 +193,7 @@ int vm_flush(struct vm_region *entry, unsigned int flags, unsigned int rwx);
 void vm_print_map(void);
 void vm_print_umap();
 int vm_mprotect(struct mm_address_space *as, void *__addr, size_t size, int prot);
-
+void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file, off_t off);
 struct tlb_shootdown
 {
 	unsigned long addr;

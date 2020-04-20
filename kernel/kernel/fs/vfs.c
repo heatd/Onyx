@@ -136,7 +136,7 @@ struct page_cache_block *inode_get_cache_block(struct inode *ino, size_t off)
 		ino->i_pages->size += (off - ino->i_pages->size) + PAGE_SIZE;
 	}
 
-	struct page *p = vmo_get(ino->i_pages, off, true);
+	struct page *p = vmo_get(ino->i_pages, off, VMO_GET_MAY_POPULATE);
 	if(!p)
 		return NULL;
 

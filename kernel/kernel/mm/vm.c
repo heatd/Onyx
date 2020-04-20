@@ -37,13 +37,14 @@
 #include <onyx/mm/vm_object.h>
 #include <onyx/mm/kasan.h>
 #include <onyx/pagecache.h>
+#include <onyx/copy.h>
 
 #include <onyx/vm_layout.h>
 
 #include <sys/mman.h>
 
 bool is_initialized = false;
-static bool enable_aslr = true;
+static bool enable_aslr = false;
 
 uintptr_t high_half 		= arch_high_half;
 uintptr_t low_half_max 		= arch_low_half_max;
@@ -409,10 +410,6 @@ bool vm_mapping_requires_write_protect(struct vm_region *reg)
 		return true;
 	}
 
-	/* Let's start to map anon pages as the zero page read-only */
-	if(vm_mapping_is_anon(reg))
-		return true;
-
 	return false;
 }
 
@@ -421,12 +418,6 @@ void vm_region_destroy(struct vm_region *region)
 	/* First, unref things */
 	if(region->fd)
 	{
-		//struct file *ino = region->fd->f_ino;
-		/*if(inode_requires_wb(ino) && region->mapping_type == MAP_SHARED)
-		{
-			writeback_remove_region(region);
-		}*/
-
 		fd_put(region->fd);
 	}
 
@@ -795,44 +786,54 @@ static bool fork_vm_region(const void *key, void *datum, void *user_data)
 	bool is_private = !is_mapping_shared(new_region);
 	bool using_shared_optimization = vm_using_shared_optimization(new_region);
 	bool needs_to_fork_memory = is_private && !using_shared_optimization;
-	/*bool needs_wb =
-		new_region->fd && inode_requires_wb(new_region->fd->f_ino) &&
-		new_region->mapping_type == MAP_SHARED;*/
 
 	if(needs_to_fork_memory)
 	{
+		/* No need to ref the vmo since it was a new vmo created for us while forking. */
 		new_region->vmo = find_forked_private_vmo(new_region->vmo, it->target_mm);
 		assert(new_region->vmo != NULL);
-		vmo_ref(new_region->vmo);
 		vmo_assign_mapping(new_region->vmo, new_region);
 	}
 	else
 	{
 		vmo_ref(new_region->vmo);
 		vmo_assign_mapping(new_region->vmo, new_region);
-		
-	//	if(needs_wb)	writeback_add_region(new_region);
 	}
 
 	if(vmo_failure)
 	{
 		dict_remove_result res = rb_tree_remove(it->target_mm->area_tree, key);
 		assert(res.removed == true);
-		//if(needs_wb)	writeback_remove_region(new_region);
 		free(new_region);
 		goto ohno;
 	}
 
 	new_region->mm = it->target_mm;
 
+	/* If it's a private mapping, we're mapping it either COW if it's a writable mapping, or
+	 * just not writable if it's a a RO/R-X mapping. Therefore, we mask the VM_WRITE bit
+	 * out of the flush permissions, as to map things write-protected if it's a writable mapping.
+	 */
+
 	unsigned int new_rwx = is_private ? new_region->rwx & ~VM_WRITE : new_region->rwx;
-	if(vm_flush(new_region, 0, new_rwx) < 0)
+	if(vm_flush(new_region, VM_FLUSH_RWX_VALID, new_rwx) < 0)
 	{
 		/* Let the generic addr space destruction code handle this, 
 		 * since there's everything's set now */
 		goto ohno;
 	}
 
+	if(is_private && region->rwx & VM_WRITE)
+	{
+		/* If the region is writable and we're a private mapping, we'll need to
+		 * mark the original mapping as write-protected too, so the parent can also trigger COW behaviour.
+		 */
+		int st = vm_flush(region, VM_FLUSH_RWX_VALID, new_rwx);
+
+		/* I don't even know how it should be possible to OOM changing protections
+		 * of mappings that already exist. TODO: BUT, is it a plausible thing and should we handle it? */
+		assert(st == 0);
+	}
 	return true;
 
 ohno:
@@ -1042,6 +1043,8 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
 
 	/* Calculate the pages needed for the overall size */
 	size_t pages = vm_size_to_pages(length);
+
+	/* TODO: Add PROT_NONE support */
 	int vm_prot = VM_USER |
 		      ((prot & PROT_WRITE) ? VM_WRITE : 0) |
 		      ((!(prot & PROT_EXEC)) ? VM_NOEXEC : 0);
@@ -1111,10 +1114,7 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
 
 		area->offset = off;
 		area->fd = file;
-
-		/* No need to fd_get here since we already have a reference and we're not
-		 * dropping it on success
-		*/
+		fd_get(file);
 
 		struct inode *ino = file->f_ino;
 
@@ -1548,6 +1548,8 @@ void *__map_pages_to_vaddr(struct process *process, void *virt, void *phys,
 			return NULL;
 	}
 
+	vm_invalidate_range((unsigned long) virt, pages);
+
 	return ptr;
 }
 
@@ -1613,7 +1615,7 @@ struct page *vm_pf_get_page_from_vmo(struct vm_pf_context *ctx)
 {
 	struct vm_region *entry = ctx->entry;
 	size_t vmo_off = (ctx->vpage - entry->base) + entry->offset;
-	ctx->page = vmo_get(entry->vmo, vmo_off, true);
+	ctx->page = vmo_get(entry->vmo, vmo_off, VMO_GET_MAY_POPULATE);
 
 	return ctx->page;
 }
@@ -1674,6 +1676,18 @@ int vm_handle_non_present_copy_on_write(struct fault_info *info, struct vm_pf_co
 	size_t vmo_off = (ctx->vpage - entry->base) + entry->offset;
 
 	struct vm_object *vmo = entry->vmo;
+
+	/* If we don't have a COW clone, this means we're an anon mapping and we're just looking to COW-map
+	 * the zero page
+	 */
+	if(!vmo->cow_clone)
+	{
+		page_ref(vm_zero_page);
+		vmo_add_page(vmo_off, vm_zero_page, vmo);
+		ctx->page = vm_zero_page;
+		ctx->page_rwx &= ~VM_WRITE;
+		return 0;
+	}
 
 #if 0
 	printk("Vmo off: %lx\n", vmo_off);
@@ -1749,27 +1763,6 @@ int vm_handle_present_cow(struct vm_pf_context *ctx)
 	struct vm_region *entry = ctx->entry;
 	size_t vmo_off = (ctx->vpage - entry->base) + entry->offset;
 
-	if(!vmo_on_cow(entry->vmo))
-	{
-		struct page *p = vm_pf_get_page_from_vmo(ctx);
-		if(!p)
-		{
-			info->error = VM_SIGSEGV;
-			return -1;
-		}
-
-		ctx->page = p;
-
-		if(!map_pages_to_vaddr((void *) ctx->vpage,
-			page_to_phys(ctx->page), PAGE_SIZE, ctx->page_rwx))
-		{
-			info->error = VM_SIGSEGV;
-			return -1;
-		}
-
-		return 0;
-	}
-
 	struct page *new_page = vmo_cow_on_page(vmo, vmo_off);
 	if(!new_page)
 	{
@@ -1784,7 +1777,6 @@ int vm_handle_present_cow(struct vm_pf_context *ctx)
 		info->error = VM_SIGSEGV;
 		return -1;
 	}
-
 
 	page_unpin(new_page);
 
@@ -1802,6 +1794,7 @@ int vm_handle_present_pf(struct vm_pf_context *ctx)
 			vm_handle_write_wb(ctx);
 		else if(vm_mapping_is_cow(entry))
 		{
+			//printk("C O W'ing page %lx, file backed: %s, pid %d\n", ctx->vpage, entry->fd ? "yes" : "no", get_current_process()->pid);
 			if(vm_handle_present_cow(ctx) < 0)
 				return -1;
 		}
@@ -1840,8 +1833,9 @@ int __vm_handle_pf(struct vm_region *entry, struct fault_info *info)
 
 int vm_handle_page_fault(struct fault_info *info)
 {
-	struct mm_address_space *as = info->user ? get_current_address_space()
-		: &kernel_address_space;
+	bool use_kernel_as = !info->user && is_higher_half((void *) info->fault_address);
+	struct mm_address_space *as = use_kernel_as ? &kernel_address_space
+		: get_current_address_space();
 
 	spin_lock_preempt(&as->vm_spl);
 
@@ -1876,6 +1870,11 @@ int vm_handle_page_fault(struct fault_info *info)
 		return -1;
 	if(info->user && !(entry->rwx & VM_USER))
 		return -1;
+
+	/*if(entry->pages == 3)
+	{
+		printk("Ip: %lx\n", info->ip - (unsigned long) get_current_process()->image_base);
+	}*/
 
 
 	__sync_add_and_fetch(&as->page_faults, 1);
@@ -2526,8 +2525,8 @@ int vm_create_address_space(struct mm_address_space *mm, struct process *process
 
 int vm_create_brk(struct mm_address_space *mm)
 {
-	mm->brk = map_user(vm_gen_brk_base(), 1, VM_TYPE_HEAP,
-		VM_WRITE | VM_NOEXEC | VM_USER);
+	mm->brk = vm_mmap(vm_gen_brk_base(), 1 << PAGE_SHIFT, PROT_WRITE,
+                      MAP_PRIVATE | MAP_FIXED | MAP_ANON, NULL, 0);
 
 	if(!mm->brk)
 	{
@@ -3173,7 +3172,7 @@ struct page *vm_commit_page(void *page)
 	struct vm_object *vmo = reg->vmo;
 
 	unsigned long off = reg->offset + ((unsigned long) page - reg->base);
-	struct page *p = vmo_get(vmo, off, true);
+	struct page *p = vmo_get(vmo, off, VMO_GET_MAY_POPULATE);
 	if(!p)
 		return NULL;
 	
@@ -3308,3 +3307,10 @@ void vm_wp_page_for_every_region(struct page *page, size_t page_off, struct vm_o
 
 	spin_unlock(&vmo->mapping_lock);
 }
+
+/* TODO: Add a safe way to find out what physical address is mapped to what virtual address(handles COW, WP, etc),
+ * Fix mprotect changing up write-protects, probably merge mprotect and munmap code into generic "split up region"
+ * code. Fix vm_mmap's return values(returning (void *) -errno isn't nice to check for in kernel code and we should
+ * probably make sys_mmap return -errno if vm_mmap returns NULL(meaning error)). Verify lock safety. Change the lock
+ * to a mutex.
+ */

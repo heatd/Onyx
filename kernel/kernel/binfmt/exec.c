@@ -43,8 +43,7 @@ char **process_copy_envarg(char **envarg, bool to_kernel, int *count)
 	}
 	else
 	{
-		new = get_user_pages(VM_TYPE_SHARED,
-			vm_size_to_pages(buffer_size), VM_WRITE | VM_NOEXEC | VM_USER);
+		new = vm_mmap(NULL, vm_size_to_pages(buffer_size) << PAGE_SHIFT, PROT_WRITE, MAP_PRIVATE | MAP_ANON, NULL, 0);
 		if(!new)
 			return NULL;
 	}
@@ -333,7 +332,7 @@ int sys_execve(char *p, char *argv[], char *envp[])
 	free(kenv);
 	kenv = NULL;
 
-	void *user_stack = get_user_pages(VM_TYPE_SHARED, 256, VM_WRITE | VM_NOEXEC | VM_USER);
+	void *user_stack = vm_mmap(NULL, 256 << PAGE_SHIFT, PROT_WRITE, MAP_PRIVATE | MAP_ANON, NULL, 0);
 	void *auxv = NULL;
 	if(!user_stack)
 	{

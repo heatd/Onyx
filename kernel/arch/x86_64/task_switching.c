@@ -77,7 +77,7 @@ thread_t* task_switching_create_context(thread_callback_t callback, uint32_t fla
 	// If the thread is user mode, create a user stack
 	if(!(flags & THREAD_KERNEL))
 	{
-		new_thread->user_stack = get_user_pages(VM_TYPE_STACK, 256, VM_WRITE | VM_NOEXEC | VM_USER);
+		new_thread->user_stack = vm_mmap(NULL, 256 << PAGE_SHIFT, PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, NULL, 0);
 		if(!new_thread->user_stack)
 		{
 			free(new_thread->fpu_area);
@@ -180,9 +180,14 @@ thread_t* task_switching_create_main_progcontext(thread_callback_t callback,
 	setup_fpu_area(new_thread->fpu_area);
 	if(!(flags & THREAD_KERNEL)) // If the thread is user mode, create a user stack
 	{
-		new_thread->user_stack = (uintptr_t*) get_user_pages(VM_TYPE_STACK, 256, VM_WRITE | VM_NOEXEC);
+		new_thread->user_stack = vm_mmap(NULL, 256 << PAGE_SHIFT, PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, NULL, 0);
 		if(!new_thread->user_stack)
+		{
+			free(new_thread->fpu_area);
+			free(new_thread);
 			return NULL;
+		}
+
 		new_thread->addr_limit = VM_USER_ADDR_LIMIT;
 	}
 	else

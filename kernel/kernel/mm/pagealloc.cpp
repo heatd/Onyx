@@ -418,7 +418,7 @@ out:
 extern "C"
 struct page *alloc_pages(size_t nr_pgs, unsigned long flags)
 {
-	//printk("alloc pages %lu %p\n", nr_pgs, __builtin_return_address(1));
+	//printf("alloc pages %lu %p\n", nr_pgs, __builtin_return_address(0));
 	auto &node = main_node;
 
 	/* Optimise for the possibility that someone's looking to allocate '1' contiguous page */

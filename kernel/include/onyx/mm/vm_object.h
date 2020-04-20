@@ -64,7 +64,11 @@ void vmo_remove_mapping(struct vm_object *vmo, struct vm_region *region);
 struct vm_object *vmo_create(size_t size, void *priv);
 struct page *vmo_populate(struct vm_object *vmo, size_t off);
 struct vm_object *vmo_create_phys(size_t size);
-struct page *vmo_get(struct vm_object *vmo, size_t off, bool may_populate);
+
+#define VMO_GET_MAY_POPULATE                     (1 << 0)
+#define VMO_GET_SKIP_COW                         (1 << 1)
+
+struct page *vmo_get(struct vm_object *vmo, size_t off, unsigned int flags);
 struct vm_object *vmo_fork(struct vm_object *vmo, bool shared, struct vm_region *reg);
 int vmo_prefault(struct vm_object *vmo, size_t size, size_t offset);
 bool vmo_unref(struct vm_object *vmo);
