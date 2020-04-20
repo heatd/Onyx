@@ -31,7 +31,7 @@
 #define X86_PAGING_NX			(1UL << 63)
 
 #define X86_PAGING_FLAGS_TO_SAVE_ON_MPROTECT		\
-(X86_PAGING_GLOBAL | X86_PAGING_HUGE | X86_PAGING_USER | X86_PAGING_PRESENT | X86_PAGING_ACCESSED | \
+(X86_PAGING_GLOBAL | X86_PAGING_HUGE | X86_PAGING_USER | X86_PAGING_ACCESSED | \
 X86_PAGING_DIRTY | X86_PAGING_WRITETHROUGH | X86_PAGING_PCD | X86_PAGING_PAT)
 
 void* paging_map_phys_to_virt(PML *__pml, uint64_t virt, uint64_t phys, uint64_t prot);
@@ -465,6 +465,7 @@ void* paging_map_phys_to_virt(PML *__pml, uint64_t virt, uint64_t phys, uint64_t
 	bool global = prot & VM_USER ? false : true;
 	user = prot & VM_USER ? true : false;
 	bool write = prot & VM_WRITE ? true : false;
+	bool readable = prot & (VM_READ | VM_WRITE) || !noexec;
 	unsigned int cache_type = vm_prot_to_cache_type(prot);
 	uint8_t caching_bits = cache_to_paging_bits(cache_type);
 
@@ -473,7 +474,7 @@ void* paging_map_phys_to_virt(PML *__pml, uint64_t virt, uint64_t phys, uint64_t
 				(user ? X86_PAGING_USER : 0) |
 				(write ? X86_PAGING_WRITE : 0) |
 				((caching_bits << 3) & 0x3) |
-				X86_PAGING_PRESENT;
+				(readable ? X86_PAGING_PRESENT : 0);
 
 	if(prot & VM_DONT_MAP_OVER && pml->entries[indices[0]] & X86_PAGING_PRESENT)
 		return (void *) virt;
@@ -707,6 +708,8 @@ bool __paging_change_perms(struct mm_address_space *mm, void *addr, int prot)
 		perms |= X86_PAGING_NX;
 	if(prot & VM_WRITE)
 		perms |= X86_PAGING_WRITE;
+	if(prot & VM_READ)
+		perms |= X86_PAGING_PRESENT;
 	*entry = perms | page;
 
 	return true;
@@ -972,4 +975,51 @@ void vm_load_arch_mmu(struct arch_mm_address_space *mm)
 void vm_save_current_mmu(struct mm_address_space *mm)
 {
 	mm->arch_mmu.cr3 = get_current_pml4();
+}
+
+void vm_mmu_mprotect_page(struct mm_address_space *as, void *addr, int old_prots, int new_prots)
+{
+	uint64_t *ptentry;
+	if(!x86_get_pt_entry(addr, &ptentry, as))
+		return;
+	
+	if(!*ptentry)
+		return;
+
+	/* Make sure we don't accidentally mark a page as writable when 
+	 * it's write-protected and we're changing some other bits.
+	 * For example: mprotect(PROT_EXEC) on a COW'd supposedly writable
+	 * page would try to re-apply the writable permission.
+	 */
+
+	/* In this function, we use the old_prots parameter to know whether it was a write-protected
+	 * page.
+	 */
+	bool is_wp_page = !(*ptentry & X86_PAGING_WRITE) && old_prots & VM_WRITE;
+
+	if(is_wp_page)
+	{
+		new_prots &= ~VM_WRITE;
+		//printk("NOT VM_WRITING\n");
+	}
+
+	//printk("new prots: %x\n", new_prots);
+
+	unsigned long paddr = PML_EXTRACT_ADDRESS(*ptentry);
+	bool noexec = new_prots & VM_NOEXEC ? true : false;
+	bool global = new_prots & VM_USER ? false : true;
+	bool user = new_prots & VM_USER ? true : false;
+	bool write = new_prots & VM_WRITE ? true : false;
+	bool readable = new_prots & (VM_READ | VM_WRITE) || !noexec;
+
+	unsigned int cache_type = vm_prot_to_cache_type(new_prots);
+	uint8_t caching_bits = cache_to_paging_bits(cache_type);
+
+	uint64_t page_prots = (noexec ? X86_PAGING_NX : 0) |
+				(global ? X86_PAGING_GLOBAL : 0) |
+				(user ? X86_PAGING_USER : 0) |
+				(write ? X86_PAGING_WRITE : 0) |
+				((caching_bits << 3) & 0x3) |
+				(readable ? X86_PAGING_PRESENT : 0);
+	*ptentry = paddr | page_prots;
 }

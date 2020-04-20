@@ -204,7 +204,7 @@ retry:;
 	for(int i = 0; i < 3; i++)
 	{
 		struct file *streams = open_vfs(get_fs_root(), "/dev/tty");
-	
+
 		assert(open_with_vnode(streams, flags[i]) == i);
 		fd_put(streams);
 	}

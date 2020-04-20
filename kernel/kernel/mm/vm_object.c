@@ -459,11 +459,7 @@ struct vm_object *vmo_create_copy(struct vm_object *vmo)
 	if(!copy)
 		return NULL;
 	copy->flags &= ~(VMO_FLAG_LOCK_FUTURE_PAGES);
-	
-	bool file = copy->type == VMO_BACKED && copy->ino;
-	
-	if(file)
-		object_ref(&copy->ino->i_object);
+	if(copy->cow_clone)    vmo_ref(copy->cow_clone);
 	
 	return copy;
 }
@@ -497,8 +493,6 @@ struct vm_object *vmo_split(size_t split_point, size_t hole_size, struct vm_obje
 		free(second_vmo);
 		return NULL;
 	}
-
-	vmo_update_offsets(split_point + hole_size, second_vmo);
 
 	vmo->size -= hole_size + second_vmo->size;
 

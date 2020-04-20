@@ -71,6 +71,7 @@ int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size);
 void vm_unmap_every_region_in_range(struct mm_address_space *as, unsigned long start,
 				    unsigned long length);
 bool limits_are_contained(struct vm_region *reg, unsigned long start, unsigned long limit);
+bool vm_mapping_is_cow(struct vm_region *entry);
 
 int imax(int x, int y)
 {
@@ -515,6 +516,8 @@ struct vm_region *__vm_allocate_virt_region(uint64_t flags, size_t pages, uint32
 
 	if(region)
 	{
+		if(prot & VM_WRITE || !(prot & VM_NOEXEC))
+			prot |= VM_READ;
 		region->rwx = prot;
 		region->type = type;
 	}
@@ -1037,15 +1040,17 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
 
 	/* We don't like this offset. */
 	if(off & (PAGE_SIZE - 1))
-		return (void *) (unsigned long) -EINVAL;
+		return errno = EINVAL, NULL;
 
 	spin_lock(&mm->vm_spl);
 
 	/* Calculate the pages needed for the overall size */
 	size_t pages = vm_size_to_pages(length);
 
-	/* TODO: Add PROT_NONE support */
+	if(prot & (PROT_WRITE | PROT_EXEC)) prot |= PROT_READ;
+
 	int vm_prot = VM_USER |
+			  ((prot & PROT_READ) ? VM_READ : 0)   |
 		      ((prot & PROT_WRITE) ? VM_WRITE : 0) |
 		      ((!(prot & PROT_EXEC)) ? VM_NOEXEC : 0);
 
@@ -1124,7 +1129,7 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
 		{
 			if(!ino->i_fops->mmap)
 			{
-				return (void *) -ENOSYS;
+				return errno = ENOSYS, NULL;
 			}
 
 			void *ret = ino->i_fops->mmap(area, file);
@@ -1138,7 +1143,7 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
 	if(vm_region_setup_backing(area, pages, !(flags & MAP_ANONYMOUS)) < 0)
 	{
 		vm_munmap(mm, addr, pages << PAGE_SHIFT);
-		return (void *) -ENOMEM;
+		return errno = ENOMEM, NULL;
 	}
 
 	void *base = (void *) area->base;
@@ -1148,7 +1153,7 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
 
 out_error:
 	spin_unlock(&mm->vm_spl);
-	return (void *) (unsigned long) st;
+	return errno = -st, NULL;
 }
 
 void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off)
@@ -1156,6 +1161,7 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 	int error = 0;
 
 	struct file *file = NULL;
+	void *ret = NULL;
 	bool is_file_mapping = !(flags & MAP_ANONYMOUS);
 
 	/* Ok, start the basic input sanitation for user-space inputs */
@@ -1189,8 +1195,16 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 		}
 	}
 
-	return vm_mmap(addr, length, prot, flags, file, off);
+	ret = vm_mmap(addr, length, prot, flags, file, off);
 
+	if(ret == NULL)
+	{
+		ret = (void *)(unsigned long) -errno;
+	}
+
+	if(file) fd_put(file);
+
+	return ret;
 out_error:
 	if(file)	fd_put(file);
 	return (void *) (unsigned long) error;
@@ -1351,28 +1365,44 @@ struct vm_region *vm_split_region(struct mm_address_space *as, struct vm_region 
 }
 
 int vm_mprotect_in_region(struct mm_address_space *as, struct vm_region *region,
-			  unsigned long addr, size_t size, int prot, size_t *pto_shave_off)
+			  unsigned long addr, size_t size, int *pprot, size_t *pto_shave_off)
 {
-	bool using_shared_optimization = vm_using_shared_optimization(region);
-	bool marking_write = prot & VM_WRITE;
-
+	int prot = *pprot;
 	//printk("mprotect %lx - %lx, prot %x\n", addr, addr + size, prot);
-
-	if(marking_write && using_shared_optimization)
-	{
-		/* Our little MAP_PRIVATE using MAP_SHARED trick will not work
-		 * now, so create a new vm object backing
-		*/
-		panic("implement\n");
-	}
 
 	struct vm_region *new_region = vm_split_region(as, region, addr, size, pto_shave_off);
 	if(!new_region)
 		return -1;
 
+	bool marking_write = (prot & VM_WRITE) && !(new_region->rwx & VM_WRITE);
+
 	new_region->rwx = prot;
 
+	if(marking_write && (vm_mapping_is_cow(region) || vm_mapping_requires_write_protect(region)))
+	{
+		/* If we're a COW mapping or some kind of mapping that requires write-protection,
+		 * we can't change the pages' permissions to allow VM_WRITE
+		 */
+		*pprot &= ~VM_WRITE;
+	}
+
+
 	return 0;
+}
+
+void vm_do_mmu_mprotect(struct mm_address_space *as, void *address, size_t nr_pgs,
+                        int old_prots, int new_prots)
+{
+	void *addr = address;
+
+	for(size_t i = 0; i < nr_pgs; i++)
+	{
+		vm_mmu_mprotect_page(as, address, old_prots, new_prots);
+
+		address = (void *)((unsigned long) address + PAGE_SIZE);
+	}
+
+	vm_invalidate_range((unsigned long) addr, nr_pgs);
 }
 
 int vm_mprotect(struct mm_address_space *as, void *__addr, size_t size, int prot)
@@ -1392,7 +1422,10 @@ int vm_mprotect(struct mm_address_space *as, void *__addr, size_t size, int prot
 		}
 
 		size_t to_shave_off = 0;
-		int st = vm_mprotect_in_region(as, region, addr, size, prot, &to_shave_off);
+		int old_prots = region->rwx;
+		int new_prots = prot;
+
+		int st = vm_mprotect_in_region(as, region, addr, size, &new_prots, &to_shave_off);
 
 		if(st < 0)
 		{
@@ -1400,7 +1433,7 @@ int vm_mprotect(struct mm_address_space *as, void *__addr, size_t size, int prot
 			return st;
 		}
 
-		vm_change_perms((void *) addr, to_shave_off >> PAGE_SHIFT, prot);
+		vm_do_mmu_mprotect(as, (void *) addr, to_shave_off >> PAGE_SHIFT, old_prots, new_prots);
 
 		addr += to_shave_off;
 		size -= to_shave_off;
@@ -1431,8 +1464,12 @@ int sys_mprotect(void *addr, size_t len, int prot)
 		return -EINVAL;
 
 	int vm_prot = VM_USER |
-		      ((prot & PROT_WRITE) ? VM_WRITE : 0) |
-		      ((!(prot & PROT_EXEC)) ? VM_NOEXEC : 0);
+		      ((prot & PROT_WRITE) ? VM_WRITE : 0)    |
+		      ((!(prot & PROT_EXEC)) ? VM_NOEXEC : 0) |
+			  ((prot & PROT_READ) ? VM_READ : 0);
+
+	if(prot & PROT_WRITE)
+		vm_prot |= VM_READ;
 
 	size_t pages = vm_size_to_pages(len);
 
@@ -1872,12 +1909,8 @@ int vm_handle_page_fault(struct fault_info *info)
 		return -1;
 	if(info->user && !(entry->rwx & VM_USER))
 		return -1;
-
-	/*if(entry->pages == 3)
-	{
-		printk("Ip: %lx\n", info->ip - (unsigned long) get_current_process()->image_base);
-	}*/
-
+	if(info->read && !(entry->rwx & VM_READ))
+		return -1;
 
 	__sync_add_and_fetch(&as->page_faults, 1);
 

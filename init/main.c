@@ -235,16 +235,20 @@ void mmap_test(void)
 		return;
 	}
 
-	volatile void *addr = mmap(NULL, 4096, PROT_WRITE | PROT_READ, MAP_PRIVATE, fd, 0);
+	volatile void *addr = mmap(NULL, 4096, PROT_READ, MAP_PRIVATE, fd, 0);
 	if(addr == MAP_FAILED)
 	{
 		perror("mmap");
 		return;
 	}
 
-	printf("Here %s\n", addr);
+	printf("Here address %p, %s\n", addr, addr);
+
+	mprotect(addr, 4096, PROT_WRITE | PROT_READ);
 
 	memset(addr, 0, 4096);
+
+	printf("Done testing\n");
 }
 
 int main(int argc, char **argv, char **envp)

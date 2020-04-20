@@ -47,6 +47,7 @@
 #define VM_WC				(1 << 5)
 #define VM_WP				(1 << 6)
 #define VM_DONT_MAP_OVER	(1 << 7)
+#define VM_READ             (1 << 8)
 
 /* Internal flags used by the mm code */
 #define __VM_CACHE_TYPE_REGULAR 	0
@@ -283,6 +284,8 @@ void *vm_map_vmo(size_t flags, uint32_t type, size_t pages, size_t prot, struct 
 #define GPP_ACCESS_PFNMAP          (1 << 2)
 
 int get_phys_pages(void *addr, unsigned int flags, struct page **pages, size_t nr);
+
+void vm_mmu_mprotect_page(struct mm_address_space *as, void *addr, int old_prots, int new_prots);
 
 #ifdef __cplusplus
 }

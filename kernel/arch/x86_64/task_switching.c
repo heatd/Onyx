@@ -330,7 +330,7 @@ thread_t *sched_spawn_thread(registers_t *regs, thread_callback_t start, void *a
 	
 	setup_fpu_area(new_thread->fpu_area);
 
-	new_thread->kernel_stack = vmalloc(4, VM_TYPE_STACK, VM_WRITE  | VM_NOEXEC);
+	new_thread->kernel_stack = vmalloc(4, VM_TYPE_STACK, VM_WRITE | VM_NOEXEC);
 
 	if(!new_thread->kernel_stack)
 	{
