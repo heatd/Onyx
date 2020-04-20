@@ -290,9 +290,9 @@ void paging_init(void)
 	decomposed_addr_t decAddr;
 	memcpy(&decAddr, &virt, sizeof(decomposed_addr_t));
 	uint64_t* entry = &boot_pml4->entries[decAddr.pml4];
-	PML* pml3 = (PML*)&pdptphysical_map;
+	PML* pml3 = (PML*) &pdptphysical_map;
 	
-	*entry = make_pml4e((uint64_t)pml3, 0, 0, 0, 0, 1, 1);
+	*entry = make_pml4e((uint64_t) pml3, 0, 0, 0, 0, 1, 1);
 	entry = &pml3->entries[decAddr.pdpt];
 	*entry = make_pml3e(((uint64_t) &pdphysical_map - KERNEL_VIRTUAL_BASE), 0, 0, 1, 0, 0, 0, 1, 1);
 	
@@ -300,15 +300,17 @@ void paging_init(void)
 	{
 		uintptr_t p = j * 0x200000; 
 
-		pdphysical_map.entries[j] = p | 0x83 | (1UL << 63);
+		pdphysical_map.entries[j] = p | X86_PAGING_WRITE | X86_PAGING_PRESENT | X86_PAGING_GLOBAL |
+		                            X86_PAGING_NX | X86_PAGING_HUGE;
 	}
 
 	x86_setup_placement_mappings();
+
 }
 
 void paging_map_all_phys(void)
 {
-	bool is_1gb_supported = false; //x86_has_cap(X86_FEATURE_PDPE1GB);
+	bool is_1gb_supported = x86_has_cap(X86_FEATURE_PDPE1GB);
 
 	printf("Is 1gb supported? %s\n", is_1gb_supported ? "yes" : "no");
 	uintptr_t virt = PHYS_BASE;
@@ -324,7 +326,7 @@ void paging_map_all_phys(void)
 		for(size_t i = 0; i < 512; i++)
 		{
 			entry = &pml3->entries[i];
-			*entry = make_pml3e(i * 0x40000000, 0, 0, 1, 0, 0, 0, 1, 1);
+			*entry = make_pml3e(i * 0x40000000, 1, 0, 1, 0, 0, 0, 1, 1);
 			*entry |= X86_PAGING_HUGE;
 		}
 	}
@@ -348,14 +350,14 @@ void paging_map_all_phys(void)
 			{
 				uintptr_t p = i * 512 * 0x200000 + j * 0x200000;
 
-				pd->entries[j] = p | 0x83 | (1UL << 63);
+				pd->entries[j] = p | X86_PAGING_WRITE | X86_PAGING_PRESENT | X86_PAGING_GLOBAL |
+		                            X86_PAGING_NX | X86_PAGING_HUGE;
 			}
 
 			entry++;
 		}
 
 		memcpy(pml3, &new_pml3, sizeof(PML));
-
 	}
 
 	for(size_t i = 0; i < 512; i++)

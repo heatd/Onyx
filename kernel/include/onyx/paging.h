@@ -10,7 +10,8 @@
 #include <string.h>
 #include <onyx/bootmem.h>
 
-#define PHYS_BASE (0xffffd00000000000)
+#define PHYS_BASE               (0xffffd00000000000)
+#define PHYS_BASE_LIMIT         (0xffffd08000000000)
 
 #define PAGE_NOT_PRESENT	0
 
@@ -65,9 +66,9 @@ PML *get_current_pml4(void);
 #define PAGE_GLOBAL 		(1 << 1)
 #define PAGE_WRITABLE 		(1 << 2)
 #define PAGE_EXECUTABLE 	(1 << 3)
-#define PAGE_DIRTY		(1 << 4)
+#define PAGE_DIRTY		    (1 << 4)
 #define PAGE_ACCESSED		(1 << 5)
-#define PAGE_USER		(1 << 6)
+#define PAGE_USER		    (1 << 6)
 
 #define MAPPING_INFO_PADDR(x)	(x & -PAGE_SIZE)
 

@@ -44,7 +44,7 @@
 #include <sys/mman.h>
 
 bool is_initialized = false;
-static bool enable_aslr = false;
+static bool enable_aslr = true;
 
 uintptr_t high_half 		= arch_high_half;
 uintptr_t low_half_max 		= arch_low_half_max;
@@ -1579,6 +1579,8 @@ void *mmiomap(void *phys, size_t size, size_t flags)
 		return NULL;
 	}
 
+	entry->flags = 
+
 	u &= ~(PAGE_SIZE - 1);
 
 	/* TODO: Clean up if something goes wrong */
@@ -2312,19 +2314,6 @@ void remove_vmo_from_private_list(struct mm_address_space *mm, struct vm_object 
 	spin_unlock(&mm->private_vmo_lock);
 }
 
-bool can_use_map_shared_optimization(struct vm_region *region)
-{
-	/* So, basically in order to map shared pages in a MAP_PRIVATE
-	 * we need to make sure that off is page aligned and that the region is not writable
-	*/
-	off_t off = region->offset;
-	if((off & (PAGE_SIZE - 1)) != 0)
-		return false;
-	if(region->rwx & VM_WRITE)
-		return false;
-	return true;
-}
-
 bool vm_using_shared_optimization(struct vm_region *region)
 {
 	return region->flags & VM_USING_MAP_SHARED_OPT;
@@ -2398,72 +2387,12 @@ int vm_region_setup_backing(struct vm_region *region, size_t pages, bool is_file
 
 bool is_mapping_shared(struct vm_region *region)
 {
-	return region->mapping_type == MAP_SHARED || region->flags & VM_USING_MAP_SHARED_OPT;
+	return region->mapping_type == MAP_SHARED;
 }
 
 bool is_file_backed(struct vm_region *region)
 {
 	return region->type == VM_TYPE_FILE_BACKED;
-}
-
-/* TODO: All this code is flawed */
-void *create_file_mapping(void *addr, size_t pages, int flags,
-	int prot, struct file *fd, off_t off)
-{
-	struct vm_region *entry = NULL;
-	if(!addr)
-	{
-		panic("todo");
-		if(!(addr = get_user_pages(VM_TYPE_REGULAR, pages, prot)))
-		{
-			return NULL;
-		}
-	}
-	else
-	{
-		if(!(entry = vm_create_region_at(addr, pages, VM_TYPE_REGULAR, prot)))
-		{
-			struct mm_address_space *mm = get_current_address_space();
-			spin_lock(&mm->vm_spl);
-			
-			vm_unmap_every_region_in_range(mm, (unsigned long) addr, pages << PAGE_SHIFT);
-
-			if((entry = __vm_create_region_at(addr, pages, VM_TYPE_REGULAR, prot)))
-			{
-				spin_unlock(&mm->vm_spl);
-				goto good;
-			}
-			
-			spin_unlock(&mm->vm_spl);
-
-			if(flags & VM_MMAP_FIXED)
-				return NULL;
-			panic("todo");
-			if(!(addr = get_user_pages(VM_TYPE_REGULAR, pages, prot)))
-			{
-				return NULL;
-			}
-		}
-	}
-good: ;
-	assert(entry != NULL);
-
-	/* TODO: Maybe we shouldn't use MMAP flags and use these new ones instead? */
-	int mmap_like_type =  flags & VM_MMAP_PRIVATE ? MAP_PRIVATE : MAP_SHARED;
-	entry->mapping_type = mmap_like_type;
-	entry->type = VM_TYPE_FILE_BACKED;
-	entry->offset = off;
-	//printk("Created file mapping at %lx for off %lu\n", entry->base, off);
-	entry->fd = fd;
-	fd_get(fd);
-
-	if(vm_region_setup_backing(entry, pages, true) < 0)
-	{
-		/*if(wants_wb)
-			writeback_remove_region(entry);*/
-		return NULL;
-	}
-	return addr;
 }
 
 void *map_user(void *addr, size_t pages, uint32_t type, uint64_t prot)
@@ -3314,3 +3243,144 @@ void vm_wp_page_for_every_region(struct page *page, size_t page_off, struct vm_o
  * probably make sys_mmap return -errno if vm_mmap returns NULL(meaning error)). Verify lock safety. Change the lock
  * to a mutex.
  */
+
+int get_phys_pages_direct(unsigned long addr, unsigned int flags, struct page **pages, size_t nr_pgs)
+{
+	if(flags & GPP_USER)
+		return GPP_ACCESS_FAULT;
+
+	/* This is a PFNMAP kind of thing, so we don't have pages to reference.
+	 * We'll just need to pretend each paddr is a page struct and tell the caller at the
+	 * end, using GPP_ACCESS_PFNMAP.
+	 */
+
+	for(size_t i = 0; i < nr_pgs; i++, addr += PAGE_SIZE)
+	{
+		unsigned long paddr = addr - PHYS_BASE;
+		struct page *p = phys_to_page(paddr);
+		pages[i] = p;
+		page_ref(p);
+	}
+
+	return GPP_ACCESS_OK | GPP_ACCESS_PFNMAP;
+}
+
+int gpp_try_to_fault_in(unsigned long addr, struct vm_region *entry, unsigned int flags)
+{
+	struct fault_info finfo;
+	finfo.error = 0;
+	finfo.exec = false;
+	finfo.fault_address = addr;
+	finfo.ip = 0;
+	finfo.read = flags & GPP_READ;
+	finfo.user = true;
+	finfo.write = flags & GPP_WRITE;
+
+	if(__vm_handle_pf(entry, &finfo) < 0)
+	{
+		return GPP_ACCESS_FAULT;
+	}
+
+	return GPP_ACCESS_OK;
+}
+
+int __get_phys_pages(struct vm_region *region, unsigned long addr, unsigned int flags,
+                     struct page **pages, size_t nr_pgs)
+{
+	unsigned long page_rwx_mask = (flags & GPP_READ ? PAGE_PRESENT : 0) |
+                                  (flags & GPP_WRITE ? PAGE_WRITABLE : 0) |
+								  (flags & GPP_USER ? PAGE_USER : 0);
+
+	for(size_t i = 0; i < nr_pgs; i++, addr += PAGE_SIZE)
+	{
+retry: ;
+		unsigned long mapping_info = get_mapping_info((void *) addr);
+
+		if((mapping_info & page_rwx_mask) != page_rwx_mask)
+		{
+			int st = gpp_try_to_fault_in(addr, region, flags);
+
+			if(!(st & GPP_ACCESS_OK))
+				return st;
+			goto retry;
+		}
+
+		unsigned long paddr = MAPPING_INFO_PADDR(mapping_info);
+
+		struct page *page = phys_to_page(paddr);
+
+		pages[i] = page;
+	}
+
+	return GPP_ACCESS_OK;
+}
+
+int get_phys_pages(void *_addr, unsigned int flags, struct page **pages, size_t nr_pgs)
+{
+	bool is_user = flags & GPP_USER;
+	int ret = GPP_ACCESS_OK;
+	size_t number_of_pages = nr_pgs;
+
+	struct mm_address_space *as = is_user ? get_current_address_space() : &kernel_address_space;
+
+	spin_lock(&as->vm_spl);
+
+	unsigned long addr = (unsigned long) _addr;
+
+	if(addr >= PHYS_BASE && (addr + (nr_pgs << PAGE_SHIFT)) < PHYS_BASE_LIMIT)
+	{
+		ret = get_phys_pages_direct(addr, flags, pages, nr_pgs);
+		goto out;
+	}
+
+	size_t pages_gotten = 0;
+
+	while(nr_pgs)
+	{
+		struct vm_region *reg = vm_find_region((void *) addr);
+
+		if(!reg)
+		{
+			ret = GPP_ACCESS_FAULT;
+			goto out;
+		}
+
+		/* Do a permission check. */
+		unsigned int rwx_mask = (flags & GPP_READ ? 0 : 0) |
+        	                    (flags & GPP_WRITE ? VM_WRITE : 0) |
+	        	                (flags & GPP_USER ? VM_USER : 0);
+	
+		if((reg->rwx & rwx_mask) != rwx_mask)
+		{
+			ret = GPP_ACCESS_FAULT;
+			goto out;
+		}
+
+		/* Calculate the number of pages we can resolve in this region */
+		size_t vm_region_off_pgs = (reg->base - addr) >> PAGE_SHIFT;
+		size_t max_resolved_pgs = reg->pages - vm_region_off_pgs;
+		size_t resolved_pgs = min(nr_pgs, max_resolved_pgs);
+
+		/* And now resolve stuff */
+		ret = __get_phys_pages(reg, addr, flags, pages + pages_gotten, resolved_pgs);
+
+		/* Bail if we've hit an error */
+		if(!(ret & GPP_ACCESS_OK))
+			goto out;
+
+		nr_pgs -= resolved_pgs;
+		pages_gotten += resolved_pgs;
+		addr += nr_pgs << PAGE_SHIFT;
+	}
+
+
+	/* Now that we're done, we're pinning the pages we just got */
+
+	for(size_t i = 0; i < number_of_pages; i++)
+		page_pin(pages[i]);
+
+out:
+	spin_unlock(&as->vm_spl);
+
+	return ret;
+}

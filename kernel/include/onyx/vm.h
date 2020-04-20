@@ -76,7 +76,7 @@ static inline unsigned long vm_prot_to_cache_type(uint64_t prot)
 #define VM_HIGHER_HALF 0xffff800000000000
 #define PHYS_TO_VIRT(x) (void*)((uintptr_t) (x) + PHYS_BASE)
 
-#define VM_COW				(1 << 1)
+#define VM_PFNMAP                   (1 << 1)
 #define VM_USING_MAP_SHARED_OPT		(1 << 2)
 
 struct vm_region
@@ -193,6 +193,8 @@ int vm_flush(struct vm_region *entry, unsigned int flags, unsigned int rwx);
 void vm_print_map(void);
 void vm_print_umap();
 int vm_mprotect(struct mm_address_space *as, void *__addr, size_t size, int prot);
+
+struct file;
 void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file, off_t off);
 struct tlb_shootdown
 {
@@ -206,9 +208,6 @@ void vm_invalidate_range(unsigned long addr, size_t pages);
 #define VM_MMAP_PRIVATE		(1 << 0)
 #define VM_MMAP_SHARED		(1 << 1)
 #define VM_MMAP_FIXED		(1 << 2)
-
-void *create_file_mapping(void *addr, size_t pages, int flags,
-	int prot, struct file *fd, off_t off);
 
 void *map_user(void *addr, size_t pages, uint32_t type, uint64_t prot);
 
@@ -257,8 +256,9 @@ void vm_wp_page_for_every_region(struct page *page, size_t offset, struct vm_obj
 void __vm_invalidate_range(unsigned long addr, size_t pages, struct mm_address_space *mm);
 
 #define VM_FUTURE_PAGES			(1 << 0)
-#define VM_LOCK				(1 << 1)
-#define VM_UNLOCK			(1 << 2)
+#define VM_LOCK				    (1 << 1)
+#define VM_UNLOCK			    (1 << 2)
+
 int vm_lock_range(void *start, unsigned long length, unsigned long flags);
 int vm_unlock_range(void *start, unsigned long length, unsigned long flags);
 
@@ -273,6 +273,15 @@ static inline unsigned long thread_change_addr_limit(unsigned long limit)
 
 void *vm_map_vmo(size_t flags, uint32_t type, size_t pages, size_t prot, struct vm_object *vmo);
 
+#define GPP_READ                   (1 << 0)
+#define GPP_WRITE                  (1 << 1)
+#define GPP_USER                   (1 << 2)
+
+#define GPP_ACCESS_OK              (1 << 0)
+#define GPP_ACCESS_FAULT           (1 << 1)
+#define GPP_ACCESS_PFNMAP          (1 << 2)
+
+int get_phys_pages(void *addr, unsigned int flags, struct page **pages, size_t nr);
 
 #ifdef __cplusplus
 }
