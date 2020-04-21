@@ -1,5 +1,5 @@
 PROJECTS:=libc kernel
-SOURCE_PACKAGES:= libdrm libunwind init dhcpcd wserver strace devmgr singularity
+SOURCE_PACKAGES:= libdrm libunwind libuuid init dhcpcd wserver strace devmgr singularity
 
 ALL_MODULES:=$(PROJECTS) $(SOURCE_PACKAGES)
 
