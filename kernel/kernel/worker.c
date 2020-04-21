@@ -16,7 +16,7 @@
 #include <onyx/init.h>
 
 static thread_t *worker = NULL;
-static struct mutex work_queue_mutex = MUTEX_INITIALIZER;
+DECLARE_MUTEX(work_queue_mutex);
 static struct work_request *work_queue = NULL;
 
 void work_do_work(void* context)

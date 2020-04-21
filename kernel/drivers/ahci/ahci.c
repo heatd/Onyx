@@ -301,8 +301,6 @@ bool ahci_do_command_async(struct ahci_port *ahci_port,
 	list->prdbc = 0;
 
 	struct phys_ranges ranges;
-	
-	vm_lock_range(buf->buffer, buf->size, VM_FUTURE_PAGES);
 
 	if(dma_get_ranges(buf->buffer, buf->size, PRDT_MAX_SIZE, &ranges) < 0)
 	{
@@ -397,13 +395,11 @@ bool ahci_do_command(struct ahci_port *ahci_port, struct ahci_command_ata *buf)
 
 	while(!wait_queue_may_delete(&req.wake_sem)) {}
 
-
+#if 0
 	if(req.req_end - req.req_start > NS_PER_SEC)
 		printk("Response time: %luns. Disk time: %luns\n", get_main_clock()->get_ns() - req.req_start,
 		       req.req_end - req.req_start);
-
-
-	vm_unlock_range(buf->buffer, buf->size, VM_FUTURE_PAGES);
+#endif
 
 	if(req.status == AIO_STATUS_OK)
 	{

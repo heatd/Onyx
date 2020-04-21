@@ -59,15 +59,14 @@ uintptr_t dma_commit_page(uintptr_t virtual_buf, size_t size)
 int __dma_add_range(uintptr_t virtual_buf, size_t size, size_t max_size,
 	struct phys_ranges *ranges)
 {
-	uintptr_t phys_buf = (uintptr_t) virtual2phys((void *) virtual_buf);
-	if(phys_buf == (uintptr_t) -1)
-	{
-		if((phys_buf = dma_commit_page(virtual_buf, size)) == (uintptr_t) -1)
-		{
-			printk("could not commit\n");
-			return -1;
-		}
-	}
+	struct page *p;
+	
+	unsigned long vpage_off = virtual_buf & (PAGE_SIZE - 1);
+
+	if(get_phys_pages((void *) (virtual_buf - vpage_off), GPP_WRITE, &p, 1) < 0)
+		return -1;
+
+	unsigned long phys_buf = (unsigned long) page_to_phys(p) + vpage_off;
 
 	if(try_to_merge(phys_buf, size, max_size, ranges) == true)
 		return 0;

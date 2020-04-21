@@ -26,7 +26,7 @@ static atomic<ino_t> current_inode_number = 0;
 constexpr pipe::pipe() : refcountable(2), buffer(nullptr), buf_size(0), pos(0),
 	pipe_lock{}, write_cond{}, read_cond{}, reader_count{1}, writer_count{1}
 {
-
+	mutex_init(&pipe_lock);
 }
 
 pipe::~pipe()

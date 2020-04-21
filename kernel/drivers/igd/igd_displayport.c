@@ -152,6 +152,8 @@ void igd_init_displayport_i2c(struct igpu_device *dev, struct igd_displayport *p
 {
 	struct i2c_adapter *adapter = &port->ddaux;
 
+	mutex_init(&port->ddaux.mtx);
+
 	adapter->do_batch_transfer = ddaux_do_transfers;
 	adapter->name = port->name;
 	adapter->priv = port;

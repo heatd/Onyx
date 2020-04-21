@@ -6,18 +6,28 @@
 #ifndef _KERNEL_MUTEX_H
 #define _KERNEL_MUTEX_H
 
+#include <string.h>
+
 #include <onyx/scheduler.h>
+#include <onyx/list.h>
 
 struct mutex
 {
 	struct spinlock llock;
-	thread_t *head;
-	thread_t *tail;
+	struct list_head thread_list;
 	unsigned long counter;
 	struct thread *owner;
 };
 
-#define MUTEX_INITIALIZER {0}
+#define DECLARE_MUTEX(name)	struct mutex name = {.thread_list = LIST_HEAD_INIT(name.thread_list)};
+
+#define MUTEX_INITIALIZER {.thread_list = LIST_HEAD_INIT(thread_list)}
+
+static inline void mutex_init(struct mutex *mutex)
+{
+	memset(mutex, 0, sizeof(*mutex));
+	INIT_LIST_HEAD(&mutex->thread_list);
+}
 
 #ifdef __cplusplus
 extern "C" {

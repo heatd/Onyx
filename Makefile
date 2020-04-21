@@ -1,5 +1,5 @@
 PROJECTS:=libc kernel
-SOURCE_PACKAGES:= libdrm libunwind libuuid init dhcpcd wserver strace devmgr singularity
+SOURCE_PACKAGES:= libdrm libunwind libuuid init dhcpcd wserver strace devmgr singularity testsuite
 
 ALL_MODULES:=$(PROJECTS) $(SOURCE_PACKAGES)
 
@@ -59,7 +59,10 @@ musl: install-packages
 libssp: install-packages musl
 	$(MAKE) -C $@ install
 
-test: libtest musl install-packages
+libtest: musl install-packages
+	$(MAKE) -C $@ install
+
+testsuite: libtest musl install-packages
 	$(MAKE) -C $@ install
 
 singularity: musl libssp install-packages wserver

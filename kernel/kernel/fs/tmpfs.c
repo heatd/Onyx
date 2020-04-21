@@ -16,7 +16,7 @@
 #include <onyx/page.h>
 #include <onyx/dev.h>
 
-static struct mutex tmpfs_list_lock;
+static DECLARE_MUTEX(tmpfs_list_lock);
 static tmpfs_filesystem_t *filesystems = NULL;
 static const size_t block_size = PAGE_SIZE; 
 
@@ -77,6 +77,9 @@ tmpfs_file_t *tmpfs_create_file(tmpfs_file_t *dir, const char *name)
 	file->name = strdup(name);
 	if(!file->name)
 		goto error;
+
+	mutex_init(&file->data_lock);
+	mutex_init(&file->dirent_lock);
 	
 	tmpfs_append_file(dir, file);
 
@@ -528,6 +531,8 @@ tmpfs_filesystem_t *__tmpfs_allocate_fs(void)
 	new_root->parent = new_root;
 	new_root->type = TMPFS_FILE_TYPE_DIR;
 	new_fs->root = new_root;
+	mutex_init(&new_root->data_lock);
+	mutex_init(&new_root->dirent_lock);
 
 	tmpfs_append(new_fs);
 	return new_fs;

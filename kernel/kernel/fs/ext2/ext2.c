@@ -435,6 +435,8 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 		return NULL;
 	}
 
+	mutex_init(&fs->bgdt_lock);
+	mutex_init(&fs->ino_alloc_lock);
 	fs->sb = sb;
 	fs->major = sb->major_version;
 	fs->minor = sb->minor_version;

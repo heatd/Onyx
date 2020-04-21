@@ -16,7 +16,7 @@
 
 static mountpoint_t *mtable = NULL;
 static size_t nr_mtable_entries = 0;
-static struct mutex mtable_lock = MUTEX_INITIALIZER;
+static DECLARE_MUTEX(mtable_lock);
 
 struct file *mtable_lookup(struct file *mountpoint)
 {

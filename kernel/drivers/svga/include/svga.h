@@ -106,9 +106,10 @@ public:
 	int modeset(unsigned int width, unsigned int height, unsigned int bpp);
 	SvgaDevice(struct pci_device *dev) : dev(dev)
 	{
-		memset(&mtx, 0, sizeof(struct mutex));
-		memset(&mtx, 0, sizeof(struct mutex));
+		mutex_init(&mtx);
+		mutex_init(&fifo_lock);
 	}
+
 	void enable();
 	void setup_fifo();
 	void wait_for_fifo(size_t len);

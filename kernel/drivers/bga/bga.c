@@ -15,7 +15,8 @@
 
 #define MPRINTF(...) printf("bga: "__VA_ARGS__)
 
-static struct mutex mtx = {0};
+static DECLARE_MUTEX(mtx);
+
 void bga_set_index(uint16_t index)
 {
 	outw(VBE_DISPI_IOPORT_INDEX, index);

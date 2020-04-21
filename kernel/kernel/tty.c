@@ -73,6 +73,7 @@ void tty_init(void *priv, void (*ctor)(struct tty *tty))
 	assert(tty != NULL);
 
 	tty->priv = priv;
+	mutex_init(&tty->lock);
 	tty->tty_num = idm_get_id(tty_ids);
 	tty->term_io.c_lflag = ICANON | ECHO;
 	init_wait_queue_head(&tty->read_queue);

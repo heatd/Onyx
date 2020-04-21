@@ -103,6 +103,8 @@ struct process *process_create(const char *cmd_line, struct ioctx *ctx, struct p
 	memset(proc, 0, sizeof(struct process));
 	
 	/* TODO: idm_get_id doesn't wrap? POSIX COMPLIANCE */
+	mutex_init(&proc->condvar_mutex);
+	mutex_init(&proc->ctx.fdlock);
 	proc->refcount = 1;
 	proc->pid = idm_get_id(process_ids);
 	assert(proc->pid != (pid_t) -1);

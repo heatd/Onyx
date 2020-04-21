@@ -55,7 +55,7 @@ unsigned int current_channel = (unsigned int) -1;
 void *read_buffer = NULL;
 void *write_buffer = NULL;
 
-static struct mutex lock = MUTEX_INITIALIZER;
+static DECLARE_MUTEX(lock);
 
 void ata_send_command(struct ide_drive* drive, uint8_t command)
 {

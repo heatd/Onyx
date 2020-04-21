@@ -447,7 +447,7 @@ uint32_t acpi_get_apic_id_lapic(ACPI_SUBTABLE_HEADER *madt)
 	return ((ACPI_MADT_LOCAL_APIC*) madt)->Id;
 }
 
-static struct mutex cpu_enum_lock = {0};
+static DECLARE_MUTEX(cpu_enum_lock);
 
 static size_t __ndx = 0;
 

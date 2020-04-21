@@ -47,7 +47,7 @@ void test_page_alloc(void)
 #endif
 
 #ifdef CONFIG_KTEST_MTX
-static struct mutex mtx = {0};
+static DECLARE_MUTEX(mtx) = {0};
 
 void sem_test_mtx(void *ctx)
 {

@@ -2766,19 +2766,14 @@ void __vm_invalidate_range(unsigned long addr, size_t pages, struct mm_address_s
 		}
 		else
 		{
-			/* Lock the scheduler so we don't get a race condition */
-			struct spinlock *l = get_per_cpu_ptr_any(scheduler_lock, cpu);
-
 			/* We need to save irqs here because there might be an IRQ that
 			 * interrupts us and wants to wake a thread, and then we're deadlocked.
 			 */
 	
-			spin_lock_irqsave(l);
 			struct process *p = get_thread_for_cpu(cpu)->owner;
 
 			if(!p || mm != &p->address_space)
 			{
-				spin_unlock_irqrestore(l);
 				continue;
 			}
 	
@@ -2786,8 +2781,6 @@ void __vm_invalidate_range(unsigned long addr, size_t pages, struct mm_address_s
 			shootdown.addr = addr;
 			shootdown.pages = pages;
 			cpu_send_message(cpu, CPU_FLUSH_TLB, &shootdown, true);
-
-			spin_unlock_irqrestore(l);
 		}
 	}
 }

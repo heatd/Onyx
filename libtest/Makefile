@@ -12,7 +12,7 @@ EXEC_PREFIX?=$(PREFIX)
 INCLUDEDIR?=$(PREFIX)/usr/include
 LIBDIR?=$(EXEC_PREFIX)/usr/lib
 
-CFLAGS:=$(CFLAGS) -Wall -Wextra -mtune=generic
+CFLAGS:=$(CFLAGS) -Wall -Wextra -mtune=generic -fPIC
 
 CFLAGS:=$(CFLAGS)
 CPPFLAGS:=$(CPPFLAGS) -Iinclude

@@ -1035,9 +1035,6 @@ void sched_disable_preempt(void)
 	atomic_fetch_add_explicit(preempt_counter, 1, memory_order_relaxed);
 }
 
-enqueue_thread_generic(mutex, struct mutex);
-dequeue_thread_generic(mutex, struct mutex);
-
 #define prepare_sleep_generic(typenm, type) 			\
 void prepare_sleep_##typenm(type *p, int state)			\
 {							\
@@ -1050,7 +1047,16 @@ void prepare_sleep_##typenm(type *p, int state)			\
 	spin_unlock_irqrestore(&p->llock);		\
 }
 
-prepare_sleep_generic(mutex, struct mutex);
+//prepare_sleep_generic(mutex, struct mutex);
+
+void prepare_sleep_mutex(struct mutex *mtx, int state)
+{
+	struct thread *t = get_current_thread();
+	
+	set_current_state(state);
+
+	list_add_tail(&t->wait_list_head, &mtx->thread_list);
+}
 
 void commit_sleep(void)
 {
@@ -1064,6 +1070,8 @@ int mutex_lock_slow_path(struct mutex *mutex, int state)
 
 	struct thread *current = get_current_thread();
 
+	spin_lock_irqsave(&mutex->llock);
+
 	prepare_sleep_mutex(mutex, state);
 
 	while(!__sync_bool_compare_and_swap(&mutex->counter, 0, 1))
@@ -1076,24 +1084,22 @@ int mutex_lock_slow_path(struct mutex *mutex, int state)
 
 		assert(mutex->owner != current);
 
-		sched_enable_preempt();
+		spin_unlock_irqrestore(&mutex->llock);
 
 		commit_sleep();
+
+		spin_lock_irqsave(&mutex->llock);
+
+		list_remove(&current->wait_list_head);
 
 		prepare_sleep_mutex(mutex, state);
 	}
 
-	spin_lock_irqsave(&mutex->llock);
-
-	dequeue_thread_mutex(mutex, current);
-
-	spin_unlock_irqrestore(&mutex->llock);
+	list_remove(&current->wait_list_head);
 
 	set_current_state(THREAD_RUNNABLE);
 
-	sched_enable_preempt();
-
-	__sync_synchronize();
+	spin_unlock_irqrestore(&mutex->llock);
 
 	return ret;
 }
@@ -1104,7 +1110,6 @@ int __mutex_lock(struct mutex *mutex, int state)
 	if(!__sync_bool_compare_and_swap(&mutex->counter, 0, 1))
 		ret = mutex_lock_slow_path(mutex, state);
 
-	__sync_synchronize();
 	mutex->owner = get_current_thread();
 
 	return ret;
@@ -1128,14 +1133,12 @@ void mutex_unlock(struct mutex *mutex)
 
 	spin_lock_irqsave(&mutex->llock);
 
-	if(mutex->head)
+	if(!list_is_empty(&mutex->thread_list))
 	{
-		sched_disable_preempt();
-		struct thread *t = mutex->head;
-		dequeue_thread_mutex(mutex, mutex->head);
+		struct list_head *l = list_first_element(&mutex->thread_list);
+		struct thread *t = container_of(l, struct thread, wait_list_head);
 
 		thread_wake_up(t);
-		sched_enable_preempt();
 	}
 
 	spin_unlock_irqrestore(&mutex->llock);

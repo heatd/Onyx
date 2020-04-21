@@ -268,6 +268,8 @@ public:
 				   our_window_shift{default_window_size_shift}, expected_ack{0}
 	{
 		INIT_LIST_HEAD(&tcp_ack_list);
+		mutex_init(&tcp_ack_list_lock);
+		mutex_init(&send_lock);
 	}
 
 	~tcp_socket()

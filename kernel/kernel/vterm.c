@@ -949,6 +949,10 @@ unsigned int vterm_ioctl_tty(int request, void *argp, struct tty *tty)
 void vterm_init(struct tty *tty)
 {
 	struct vterm *vt = tty->priv;
+
+	mutex_init(&vt->vt_lock);
+	mutex_init(&vt->condvar_mutex);
+
 	tty->is_vterm = true;
 	struct framebuffer *fb = get_primary_framebuffer();
 	struct font *font = get_font_data();

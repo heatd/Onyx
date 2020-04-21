@@ -368,6 +368,7 @@ int ps2_probe(struct device *device)
 	controller->device = device;
 	controller->irqs[0] = i8042_keyboard_irq;
 	controller->irqs[1] = i8042_mouse_irq;
+	mutex_init(&controller->controller_lock);
 
 	/* Flush the output */
 	ps2_flush_output(controller);
