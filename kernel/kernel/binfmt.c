@@ -61,7 +61,10 @@ void *bin_do_interp(struct binfmt_args *_args)
 		return NULL;
 	}
 
-	read_vfs(0, 100, args.file_signature, file);
+	if(read_vfs(0, BINFMT_SIGNATURE_LENGTH, args.file_signature, file) < 0)
+	{
+		return NULL;
+	}
 
 	args.filename = args.interp_path;
 	args.file = file;

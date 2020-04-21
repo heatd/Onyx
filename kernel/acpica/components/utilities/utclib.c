@@ -450,39 +450,6 @@ strcmp (
     return ((unsigned char) *String1 - (unsigned char) *String2);
 }
 
-
-/*******************************************************************************
- *
- * FUNCTION:    strchr
- *
- * PARAMETERS:  String          - Search string
- *              ch              - character to search for
- *
- * RETURN:      Ptr to char or NULL if not found
- *
- * DESCRIPTION: Search a string for a character
- *
- ******************************************************************************/
-
-char *
-strchr (
-    const char              *String,
-    int                     ch)
-{
-
-
-    for ( ; (*String); String++)
-    {
-        if ((*String) == (char) ch)
-        {
-            return ((char *) String);
-        }
-    }
-
-    return (NULL);
-}
-
-
 /*******************************************************************************
  *
  * FUNCTION:    strncmp

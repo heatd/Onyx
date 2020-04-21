@@ -157,7 +157,7 @@ void *elf64_load_static(struct binfmt_args *args, Elf64_Ehdr *header)
 
 void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 {
-	bool is_interp = args->interp_path != NULL;
+	bool is_interp = args->needs_interp;
 
 	struct process *current = get_current_process();
 	size_t program_headers_size = header->e_phnum * header->e_phentsize;

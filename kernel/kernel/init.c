@@ -214,10 +214,14 @@ retry:;
 	assert(proc->ctx.name != NULL);
 
 	/* Read the file signature */
-	unsigned char *buffer = malloc(100);
+	unsigned char *buffer = zalloc(BINFMT_SIGNATURE_LENGTH);
 	if (!buffer)
-		return errno = ENOMEM;
-	read_vfs(0, 100, buffer, in);
+		return errno = ENOMEM, -1;
+	
+	if(read_vfs(0, BINFMT_SIGNATURE_LENGTH, buffer, in) < 0)
+	{
+		return -1;
+	}
 
 	struct exec_state st;
 	st.flushed = true;

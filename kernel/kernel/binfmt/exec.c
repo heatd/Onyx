@@ -269,7 +269,7 @@ int sys_execve(char *p, char *argv[], char *envp[])
 	}
 	
 	/* Setup the binfmt args */
-	file = malloc(100);
+	file = zalloc(BINFMT_SIGNATURE_LENGTH);
 	if(!file)
 	{
 		st = -ENOMEM;
@@ -279,7 +279,7 @@ int sys_execve(char *p, char *argv[], char *envp[])
 	unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
 
 	/* Read the file signature */
-	if(read_vfs(0, 100, file, exec_file) < 0)
+	if(read_vfs(0, BINFMT_SIGNATURE_LENGTH, file, exec_file) < 0)
 	{
 		st = -errno;
 		goto error;
@@ -292,9 +292,15 @@ int sys_execve(char *p, char *argv[], char *envp[])
 	args.envp = kenv;
 	args.file = exec_file;
 	args.state = &state;
+	args.argc = &argc;
 
 	/* Load the actual binary */
 	void *entry = load_binary(&args);
+
+	/* Update the pointers since the binary loader might've changed them(for example, shebang does that) */
+	karg = args.argv;
+	kenv = args.envp;
+
 	if(!entry)
 	{
 		st = -errno;
@@ -354,6 +360,7 @@ error_die_signal:
 	kernel_raise_signal(SIGKILL, current, SIGNAL_FORCE, NULL);
 
 	/* This sched_yield should execute the signal handler */
+	/* TODO: This doesn't work because we're in kernel space */
 	sched_yield();
 	return -1;
 

@@ -41,6 +41,7 @@ int strcoll (const char *, const char *);
 size_t strxfrm (char *__restrict, const char *__restrict, size_t);
 
 char *strchr (const char *, int);
+char *strnchr(const char *s, size_t len, int c);
 char *strrchr (const char *, int);
 
 size_t strcspn (const char *, const char *);

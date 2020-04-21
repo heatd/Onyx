@@ -111,9 +111,9 @@ irqstatus_t ahci_irq(struct irq_context *ctx, void *cookie)
 		if(ports & (1U << i))
 		{
 			uint32_t port_is = port->port->interrupt_status;
+			port->port->interrupt_status = port_is;
 			dev->hba->interrupt_status = (1U << i);
 			ahci_do_port_irqs(port);
-			port->port->interrupt_status = port_is;
 		}
 
 		spin_unlock_irqrestore(&port->port_lock);

@@ -44,7 +44,6 @@ string/strcat.o \
 errno/errno.o \
 ctype/to.o \
 string/memchr.o \
-string/strstr.o \
 stdlib/qsort.o \
 string/strtok.o \
 math/fabs.o \
@@ -84,7 +83,9 @@ posix/sigemptyset.o \
 posix/sigfillset.o \
 posix/sigisemptyset.o \
 posix/sigismember.o \
-posix/sigorset.o
+posix/sigorset.o \
+string/strchr.o
+
 OBJS:=\
 $(FREEOBJS) \
 libc/init.o \
