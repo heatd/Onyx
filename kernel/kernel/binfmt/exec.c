@@ -156,6 +156,7 @@ int flush_old_exec(struct exec_state *state)
 	vm_destroy_addr_space(&curr->address_space);
 
 	memcpy(&curr->address_space, &state->new_address_space, sizeof(struct mm_address_space));
+	mutex_init(&curr->address_space.vm_lock);
 
 	vm_load_arch_mmu(&curr->address_space.arch_mmu);
 	

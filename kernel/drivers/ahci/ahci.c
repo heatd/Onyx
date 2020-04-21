@@ -44,8 +44,8 @@ void ahci_destroy_aio(struct ahci_port *port, struct aio_req *req);
 void ahci_wake_io(void *ctx)
 {
 	struct aio_req *req = ctx;
-	wait_queue_wake_all(&req->wake_sem);
 	req->signaled = true;
+	wait_queue_wake_all(&req->wake_sem);
 }
 
 void ahci_deal_aio(struct command_list *list)
@@ -380,13 +380,14 @@ bool ahci_do_command(struct ahci_port *ahci_port, struct ahci_command_ata *buf)
 
 	if(!ahci_do_command_async(ahci_port, buf, &req))
 	{
+		set_current_state(THREAD_RUNNABLE);
 		return false;
 	}
 
 
 	while(!req.signaled)
 	{
-		//sched_yield();
+		sched_yield();
 		set_current_state(THREAD_UNINTERRUPTIBLE);
 	}
 

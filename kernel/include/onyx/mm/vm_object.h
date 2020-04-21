@@ -12,6 +12,8 @@
 
 #include <onyx/page.h>
 #include <onyx/list.h>
+#include <onyx/mutex.h>
+
 #include <libdict/rb_tree.h>
 
 enum vmo_type
@@ -43,7 +45,7 @@ struct vm_object
 	struct vm_object *cow_clone;
 
 	struct inode *ino;
-	struct spinlock page_lock;
+	struct mutex page_lock;
 
 	struct spinlock mapping_lock;
 

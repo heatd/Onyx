@@ -15,6 +15,7 @@
 #include <onyx/list.h>
 #include <onyx/mm/vm_object.h>
 #include <onyx/scheduler.h>
+#include <onyx/mutex.h>
 
 #ifdef __x86_64__
 #include <onyx/x86/page.h>
@@ -123,7 +124,7 @@ struct mm_address_space
 	struct rb_tree *area_tree;
 	unsigned long start;
 	unsigned long end;
-	struct spinlock vm_spl;
+	struct mutex vm_lock;
 
 	/* mmap(2) base */
 	void *mmap_base;

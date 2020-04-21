@@ -124,6 +124,24 @@ int dma_get_ranges(void *vbuf, size_t buf_size, size_t max_range,
 
 void dma_destroy_ranges(struct phys_ranges *ranges)
 {
+
+	for(size_t i = 0; i < ranges->nr_ranges; i++)
+	{
+		struct phys_range *phys_range = ranges->ranges[i];
+		
+		unsigned long base_page = phys_range->addr & -PAGE_SIZE;
+		unsigned long base_off = phys_range->addr & (PAGE_SIZE - 1);
+
+		unsigned long total_pages = (phys_range->size + base_off) >> PAGE_SHIFT;
+
+		while(total_pages--)
+		{
+			struct page *p = phys_to_page(base_page);
+			page_unpin(p);
+			base_page += PAGE_SIZE;
+		}
+	}
+
 	for(size_t i = 0; i < ranges->nr_ranges; i++)
 		free(ranges->ranges[i]);
 	free(ranges->ranges);

@@ -542,8 +542,12 @@ void cpu_handle_kill(void)
 	halt();
 }
 
+unsigned long total_resched = 0;
+unsigned long success_resched = 0;
+
 void cpu_try_resched(void *ptr)
 {
+	__sync_add_and_fetch(&total_resched, 1);
 	struct thread *thread = ptr;
 
 	struct thread *current = get_current_thread();
@@ -551,6 +555,7 @@ void cpu_try_resched(void *ptr)
 	/* If the scheduled thread's prio is > than ours, resched! */
 	if(thread->priority > current->priority)
 	{
+		__sync_add_and_fetch(&success_resched, 1);
 		sched_should_resched();
 		return;
 	}
@@ -588,7 +593,6 @@ void cpu_handle_message(struct cpu_message *msg)
 
 void *cpu_handle_messages(void *stack)
 {
-
 	struct spinlock *cpu_msg_lock = get_per_cpu_ptr(msg_queue_lock);
 
 	spin_lock(cpu_msg_lock);

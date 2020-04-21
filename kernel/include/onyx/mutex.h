@@ -37,6 +37,8 @@ void mutex_lock(struct mutex *m);
 void mutex_unlock(struct mutex *m);
 int mutex_lock_interruptible(struct mutex *mutex);
 
+#define MUST_HOLD_MUTEX(m)		assert((m)->counter == 1 && (m)->owner == get_current_thread())
+
 #ifdef __cplusplus
 }
 #endif
