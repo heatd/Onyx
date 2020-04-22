@@ -9,7 +9,17 @@
 
 #include <stddef.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 char *strcpy_from_user(const char *user);
 size_t strlen_user(const char *user);
+
+long get_user32(unsigned int *uaddr, unsigned int *dest);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

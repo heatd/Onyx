@@ -10,8 +10,11 @@
 #include <vector>
 #include <fcntl.h>
 #include <iostream>
+#include <mutex>
 
 #include <test/libtest.h>
+
+std::mutex mtx;
 
 bool disk_test()
 {
@@ -33,6 +36,7 @@ bool disk_test()
 
 			while(true)
 			{
+				mtx.lock();
 				unsigned char buffer[4096];
 				if(lseek(fd, 0, SEEK_SET) < 0)
 				{
@@ -50,6 +54,8 @@ bool disk_test()
 
 				struct timespec ts1;
 				clock_gettime(CLOCK_MONOTONIC, &ts1);
+
+				mtx.unlock();
 
 				if(ts1.tv_sec - ts.tv_sec >= 300)
 					return;

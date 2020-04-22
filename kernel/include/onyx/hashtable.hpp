@@ -9,6 +9,7 @@
 
 #include <onyx/list.hpp>
 #include <onyx/utility.hpp>
+#include <onyx/list.h>
 
 namespace cul
 {
@@ -77,6 +78,16 @@ public:
 		return buckets[index].end();
 	}
 
+	size_t get_hashtable_index(hash_type hash)
+	{
+		return hash % number_entries;
+	}
+
+	linked_list<T>& get_hashtable(size_t index)
+	{
+		return buckets[index];
+	}
+
 	bool remove_element(T& elem, hash_type hash, linked_list_iterator<T> it)
 	{
 		auto index = hash % number_entries;
@@ -90,6 +101,51 @@ public:
 		auto index = hash % number_entries;
 
 		return remove_element(elem, hash, buckets[index].begin());
+	}
+};
+
+/* This hashtable works for types with list_node(uses list_head) 
+ * It was made for futexes, but it's adaptable enough for everything else
+ * that may want to use list_head.
+ */
+template <typename T, size_t number_entries,
+	typename hash_type, hash_type (*hash_func)(T& data)>
+class hashtable2
+{
+private:
+	struct list_head buckets[number_entries];
+public:
+	hashtable2() : buckets()
+	{
+		for(auto &l : buckets)
+			INIT_LIST_HEAD(&l);
+	}
+
+	~hashtable2()
+	{
+	}
+
+	bool add_element(const T& elem)
+	{
+		auto hash = hash_func(const_cast<T&>(elem));
+
+		auto index = hash % number_entries;
+		return list_add_tail(&elem.list_node, &buckets[index]);
+	}
+
+	size_t get_hashtable_index(hash_type hash)
+	{
+		return hash % number_entries;
+	}
+
+	list_head* get_hashtable(size_t index)
+	{
+		return &buckets[index];
+	}
+
+	void remove_element(T& elem)
+	{
+		list_remove(&elem.list_node);
 	}
 };
 

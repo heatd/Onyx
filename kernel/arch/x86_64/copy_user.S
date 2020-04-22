@@ -122,12 +122,37 @@ strlen_user.function_out:
 	ret
 strlen_user.handler:
 	# CBN_STATUS_SEGFAULT = -5
-	cli
-	hlt
 	mov $-14, %rax
 	jmp strlen_user.function_out
 
 .pushsection .ehtable
 	.quad strlen_user.count
 	.quad strlen_user.handler
+.popsection
+
+.global get_user32
+get_user32:
+	# addr in %rdi, dest in %rsi, ret is 0 if good or -EFAULT if we faulted
+	push %rdi
+	push %rsi
+
+	call thread_get_addr_limit
+
+	pop %rsi	
+	pop %rdi
+
+	# Check if src < addr_limit
+	cmp %rax, %rdi
+	ja 3f
+1:  movl (%rdi), %edx
+	movl %edx, (%rsi)
+	xor %rax, %rax
+2:
+	ret
+3:
+	mov $-14, %rax
+	jmp 2b
+.pushsection .ehtable
+	.quad 1b
+	.quad 3b
 .popsection

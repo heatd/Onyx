@@ -73,7 +73,7 @@ out_final: ;								\
 	__ret;									\
 })
 
-#define __wait_for_event_with_timeout(wq, cond, state, timeout_ns)	\
+#define __wait_for_event_with_timeout(wq, cond, state, timeout_ns, cmd)	\
 ({											\
 											\
 	hrtime_t timeout = timeout_ns;			\
@@ -93,7 +93,7 @@ out_final: ;								\
 			goto __out;							\
 		if(state == THREAD_INTERRUPTIBLE && signal_is_pending()) \
 		{ __ret = -EINTR; goto __out;}		\
-		timeout = sched_sleep(timeout); if(timeout == 0) {__ret = -ETIMEDOUT; goto __out;} \
+		cmd; \
 		wait_queue_remove(wq, &token);		\
 	}										\
 __out:										\
@@ -104,17 +104,26 @@ out_final:									\
 })
 
 #define wait_for_event_timeout(wq, cond, _timeout)	\
-        __wait_for_event_with_timeout(wq, cond, THREAD_UNINTERRUPTIBLE, _timeout)
+        __wait_for_event_with_timeout(wq, cond, THREAD_UNINTERRUPTIBLE, _timeout, \
+		timeout = sched_sleep(timeout); if(timeout == 0) {__ret = -ETIMEDOUT; goto __out;})
 
 #define wait_for_event_timeout_interruptible(wq, cond, _timeout)	\
-        __wait_for_event_with_timeout(wq, cond, THREAD_INTERRUPTIBLE, _timeout)
+        __wait_for_event_with_timeout(wq, cond, THREAD_INTERRUPTIBLE, _timeout, \
+		timeout = sched_sleep(timeout); if(timeout == 0) {__ret = -ETIMEDOUT; goto __out;})
+
+#define wait_for_event_locked_timeout_interruptible(wq, cond, _timeout, lock)	\
+        __wait_for_event_with_timeout(wq, cond, THREAD_INTERRUPTIBLE, _timeout, \
+		spin_unlock(lock); timeout = sched_sleep(timeout); spin_lock(lock);		\
+		if(timeout == 0) {__ret = -ETIMEDOUT; goto __out;})
 
 #define wait_for_event(wq, cond)	__wait_for_event(wq, cond, THREAD_UNINTERRUPTIBLE, sched_yield())
 
 #define wait_for_event_interruptible(wq, cond)	__wait_for_event(wq, cond, THREAD_INTERRUPTIBLE, sched_yield())
 
-
 #define wait_for_event_locked(wq, cond, lock) __wait_for_event(wq, cond, THREAD_UNINTERRUPTIBLE, \
+	spin_unlock(lock);sched_yield();spin_lock(lock))
+
+#define wait_for_event_locked_interruptible(wq, cond, lock) __wait_for_event(wq, cond, THREAD_INTERRUPTIBLE, \
 	spin_unlock(lock);sched_yield();spin_lock(lock))
 
 #define WAIT_QUEUE_INIT(x)			{.lock = {}, .token_list = LIST_HEAD_INIT(&x.token_list) };

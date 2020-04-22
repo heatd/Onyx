@@ -22,8 +22,6 @@
 #include <onyx/syscall.h>
 #include <onyx/cred.h>
 
-struct futex;
-
 struct proc_event_sub;
 
 struct process
@@ -74,11 +72,6 @@ struct process
 	/* Linked list to the processes being traced */
 	struct extrusive_list_head tracees;
 
-	/* Futex queue */
-	struct futex *futex_queue;
-
-	/* Futex queue lock */
-	struct spinlock futex_queue_lock;
 	/* User time and system time consumed by the process */
 	clock_t user_time;
 	clock_t system_time;

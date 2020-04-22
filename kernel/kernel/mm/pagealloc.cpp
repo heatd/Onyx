@@ -443,6 +443,12 @@ void page_node::free_page(struct page *p)
 {
 	spin_lock(&node_lock);
 
+	/* Reset the page */
+	p->flags = 0;
+	p->cache = nullptr;
+	p->next_un.next_allocation = nullptr;
+	p->ref = 0;
+
 	p->flags |= PAGE_FLAG_FREE;
 
 	auto page_list_node = (struct page_list *) PAGE_TO_VIRT(p);

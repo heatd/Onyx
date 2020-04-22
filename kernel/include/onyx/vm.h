@@ -283,6 +283,7 @@ void *vm_map_vmo(size_t flags, uint32_t type, size_t pages, size_t prot, struct 
 #define GPP_ACCESS_OK              (1 << 0)
 #define GPP_ACCESS_FAULT           (1 << 1)
 #define GPP_ACCESS_PFNMAP          (1 << 2)
+#define GPP_ACCESS_SHARED          (1 << 3)
 
 int get_phys_pages(void *addr, unsigned int flags, struct page **pages, size_t nr);
 

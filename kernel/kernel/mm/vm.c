@@ -3377,6 +3377,7 @@ int get_phys_pages(void *_addr, unsigned int flags, struct page **pages, size_t 
 {
 	bool is_user = flags & GPP_USER;
 	int ret = GPP_ACCESS_OK;
+	bool had_shared_pages = false;
 	size_t number_of_pages = nr_pgs;
 
 	struct mm_address_space *as = is_user ? get_current_address_space() : &kernel_address_space;
@@ -3402,6 +3403,9 @@ int get_phys_pages(void *_addr, unsigned int flags, struct page **pages, size_t 
 			ret = GPP_ACCESS_FAULT;
 			goto out;
 		}
+
+		if(reg->mapping_type == MAP_SHARED)
+			had_shared_pages = true;
 
 		/* Do a permission check. */
 		unsigned int rwx_mask = (flags & GPP_READ ? 0 : 0) |
@@ -3439,6 +3443,9 @@ int get_phys_pages(void *_addr, unsigned int flags, struct page **pages, size_t 
 
 out:
 	mutex_unlock(&as->vm_lock);
+
+	if(ret & GPP_ACCESS_OK && had_shared_pages)
+		ret |= GPP_ACCESS_SHARED;
 
 	return ret;
 }

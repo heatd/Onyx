@@ -612,7 +612,6 @@ void process_end(struct process *process)
 		thread_destroy(thread);
 	}
 
-	futex_free_queue(process);
 	free(process);
 }
 

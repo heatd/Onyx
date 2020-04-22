@@ -28,14 +28,13 @@
 #define FUTEX_CLOCK_REALTIME	256
 #define FUTEX_OP_MASK		~(FUTEX_PRIVATE_FLAG | FUTEX_CLOCK_REALTIME)
 
-struct futex
-{
-	int *address;
-	struct spinlock block_thread_lock;
-	struct extrusive_list_head *waiting_threads;
-	struct futex *next;
-};
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-void futex_free_queue(struct process *process);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
