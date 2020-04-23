@@ -457,7 +457,6 @@ void process_exit_from_signal(int signum)
 	current->has_exited = 1;
 	current->exit_code = make_wait4_wstatus(signum, false, 0);
 
-	/* TODO: Support multi-threaded processes */
 	thread_t *current_thread = get_current_thread();
 
 	process_destroy(current_thread);
@@ -745,15 +744,13 @@ void process_add_thread(struct process *process, thread_t *thread)
 	process->nr_threads++;
 }
 
-#define CLONE_FORK		(1 << 0)
-#define CLONE_SPAWNTHREAD	(1 << 1)
+#define CLONE_FORK           (1 << 0)
+#define CLONE_SPAWNTHREAD	 (1 << 1)
 long valid_flags = CLONE_FORK | CLONE_SPAWNTHREAD;
 
 int sys_clone(int (*fn)(void *), void *child_stack, int flags, void *arg, pid_t *ptid, void *tls)
 {
 	if(flags & ~valid_flags)
-		return -EINVAL;
-	if(!vm_find_region(fn))
 		return -EINVAL;
 	if(flags & CLONE_FORK)
 		return -EINVAL; /* TODO: Add CLONE_FORK */
@@ -774,6 +771,8 @@ int sys_clone(int (*fn)(void *), void *child_stack, int flags, void *arg, pid_t 
 		return -errno;
 	}
 
+	thread->ctid = ptid;
+
 	process_add_thread(get_current_process(), thread);
 	sched_start_thread(thread);
 
@@ -785,6 +784,20 @@ void sys_exit_thread(int value)
 	/* Okay, so the libc called us. That means we can start destroying the thread */
 	/* NOTE: I'm not really sure if musl destroyed the user stack and fs,
 	 * and if we should anything to free them */
+
+	struct thread *thread = get_current_thread();
+	if(thread->ctid)
+	{
+		pid_t value = 0;
+		if(copy_to_user(thread->ctid, &value, sizeof(value)) < 0)
+			goto skip;
+		futex_wake(thread->ctid, INT_MAX);
+	}
+skip:
+
+	sched_disable_preempt();
+
+	
 	/* Destroy the thread */
 	sched_die();
 	/* aaaaand we'll never return back to user-space, so just hang on */

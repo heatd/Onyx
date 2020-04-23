@@ -14,8 +14,6 @@
 
 #include <test/libtest.h>
 
-std::mutex mtx;
-
 bool disk_test()
 {
 	std::vector<std::thread> thread_vector;
@@ -36,7 +34,6 @@ bool disk_test()
 
 			while(true)
 			{
-				mtx.lock();
 				unsigned char buffer[4096];
 				if(lseek(fd, 0, SEEK_SET) < 0)
 				{
@@ -55,9 +52,7 @@ bool disk_test()
 				struct timespec ts1;
 				clock_gettime(CLOCK_MONOTONIC, &ts1);
 
-				mtx.unlock();
-
-				if(ts1.tv_sec - ts.tv_sec >= 300)
+				if(ts1.tv_sec - ts.tv_sec >= 60)
 					return;
 			}
 		}));

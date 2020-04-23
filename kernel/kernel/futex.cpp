@@ -332,6 +332,13 @@ int wake(int *uaddr, int flags, int to_wake)
 
 };
 
+extern "C" int futex_wake(int *uaddr, int nr_waiters)
+{
+	if((unsigned long) uaddr & (4 - 1))
+		return -EINVAL;
+	
+	return futex::wake(uaddr, 0, nr_waiters);
+}
 
 /* TODO: Add FUTEX_CLOCK_REALTIME support */
 #define FUTEX_KNOWN_FLAGS      (FUTEX_PRIVATE_FLAG)

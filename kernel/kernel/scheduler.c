@@ -543,7 +543,9 @@ void set_current_thread(thread_t *t)
 
 pid_t sys_set_tid_address(pid_t *tidptr)
 {
-	return get_current_thread()->id;
+	struct thread *t = get_current_thread();
+	t->ctid = tidptr;
+	return t->id;
 }
 
 int sys_nanosleep(const struct timespec *req, struct timespec *rem)
@@ -585,9 +587,15 @@ void sched_die(void)
 {
 	struct thread *current = get_current_thread();
 
+	/* We need to switch to the fallback page directory while we can, because
+	 * we don't know if the current pgd will be destroyed by some other thread.
+	 */
+	vm_switch_to_fallback_pgd();
+
 	current->status = THREAD_DEAD;
 	current->flags |= THREAD_IS_DYING;
 
+	sched_enable_preempt();
 	sched_yield();
 
 	/* TODO: We shouldn't free the thread right here, rather when the thread death is ack'd */

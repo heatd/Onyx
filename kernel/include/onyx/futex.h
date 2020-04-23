@@ -32,6 +32,7 @@
 extern "C" {
 #endif
 
+int futex_wake(int *uaddr, int nr_waiters);
 
 #ifdef __cplusplus
 }

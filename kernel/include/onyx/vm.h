@@ -289,6 +289,8 @@ int get_phys_pages(void *addr, unsigned int flags, struct page **pages, size_t n
 
 void vm_mmu_mprotect_page(struct mm_address_space *as, void *addr, int old_prots, int new_prots);
 
+void vm_switch_to_fallback_pgd(void);
+
 #ifdef __cplusplus
 }
 #endif

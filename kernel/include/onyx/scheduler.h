@@ -56,6 +56,10 @@ typedef struct thread
 	struct list_head thread_list_head;
 	unsigned long addr_limit;
 	struct list_head wait_list_head;
+	/* Clear child tid address - It's set by sys_set_tid_address or by sys_clone itself 
+	 * and it's used to futex_wake any threads blocked by join.
+	 */
+	void *ctid;
 	/* And arch dependent stuff in this ifdef */
 #ifdef __x86_64__
 	void *fs;

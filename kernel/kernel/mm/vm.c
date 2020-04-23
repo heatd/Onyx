@@ -2005,6 +2005,13 @@ void vm_destroy_addr_space(struct mm_address_space *mm)
 	mutex_unlock(&mm->vm_lock);
 }
 
+void vm_switch_to_fallback_pgd(void)
+{
+	assert(sched_is_preemption_disabled() == true);
+
+	vm_load_arch_mmu(&kernel_address_space.arch_mmu);
+}
+
 /* Sanitizes an address. To be used by program loaders */
 int vm_sanitize_address(void *address, size_t pages)
 {
