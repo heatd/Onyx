@@ -15,7 +15,6 @@
 struct spinlock
 {
 	unsigned long lock;
-	unsigned long waiters;
 	unsigned long holder;
 	unsigned long owner_cpu;
 	unsigned long old_flags;
