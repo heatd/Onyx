@@ -130,6 +130,11 @@ entry_point:
 	movw %ax, %es
 	movw %ax, %ss
 
+	# Our %gs and %fs segments need to be NULL
+	xor %ax, %ax
+	mov %ax, %gs
+	mov %ax, %fs
+
 	movq $gdtr3, %rax
 	lgdt (%rax)
 	popq %rbx

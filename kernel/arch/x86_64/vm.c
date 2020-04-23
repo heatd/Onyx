@@ -21,6 +21,9 @@ static uintptr_t vm_calculate_virtual_address(uintptr_t bits)
 	return -((uintptr_t) 1 << (bits - 1));
 }
 
+/* We don't support more than 48-bits(PML5) right now. */
+
+#define VM_SUPPORTED_VM_BITS            48
 void arch_vm_init(void)
 {
 	unsigned int eax = 0, ebx = 0, ecx = 0, edx = 0;
@@ -31,7 +34,8 @@ void arch_vm_init(void)
 	*/
 	uint8_t vm_bits = (uint8_t) (eax >> 8);
 
-	vm_update_addresses(vm_calculate_virtual_address(vm_bits));
+	(void) vm_bits;
+	vm_update_addresses(vm_calculate_virtual_address(VM_SUPPORTED_VM_BITS));
 }
 
 /* Dummy function to keep the kernel happy, since x86 reports every platform

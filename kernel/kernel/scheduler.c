@@ -943,17 +943,17 @@ void sem_do_slow_path(struct semaphore *sem)
 
 		enqueue_thread_sem(sem, thread);
 				
-		spin_unlock_irqrestore(&sem->lock);
+		spin_unlock(&sem->lock);
 
 		__sched_block(thread);
 	
-		spin_lock_irqsave(&sem->lock);
+		spin_lock(&sem->lock);
 	}
 }
 
 void sem_wait(struct semaphore *sem)
 {	
-	spin_lock_irqsave(&sem->lock);
+	spin_lock(&sem->lock);
 
 	while(true)
 	{
@@ -968,7 +968,7 @@ void sem_wait(struct semaphore *sem)
 		}
 	}
 
-	spin_unlock_irqrestore(&sem->lock);
+	spin_unlock(&sem->lock);
 }
 
 static void wake_up(struct semaphore *sem)

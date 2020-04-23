@@ -106,8 +106,6 @@ void debug_trap(struct registers *ctx)
 		panic("Debug trap");
 	}
 
-	//printk("Trap at %lx rsp %lx, pid %d\n", ctx->rip, ctx->rsp, get_current_process()->pid);
-
 	struct thread *current = get_current_thread();
 
 	siginfo_t info = {};

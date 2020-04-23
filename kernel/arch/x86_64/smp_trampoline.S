@@ -85,10 +85,11 @@ _long_mode:
 	mov %rax, %cr3
 	mov $0x10, %rax
 	mov %ax, %ds
-	mov %ax, %gs
-	mov %ax, %fs
 	mov %ax, %es
 	mov %ax, %ss
+	xor %ax, %ax
+	mov %ax, %gs
+	mov %ax, %fs
 
 	# Load the shared IDT
 	.extern idt_ptr

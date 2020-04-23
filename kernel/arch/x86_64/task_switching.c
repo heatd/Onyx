@@ -256,31 +256,33 @@ thread_t* task_switching_create_main_progcontext(thread_callback_t callback,
 #define ARCH_SET_FS 0x1002
 #define ARCH_GET_FS 0x1003
 #define ARCH_GET_GS 0x1004
+
 int sys_arch_prctl(int code, unsigned long *addr)
 {
+	struct thread *current = get_current_thread();
 	switch(code)
 	{
 		case ARCH_SET_FS:
 		{
-			get_current_thread()->fs = (void*) addr;
-			wrmsr(FS_BASE_MSR, (uintptr_t) get_current_thread()->fs);
+			current->fs = (void*) addr;
+			wrmsr(FS_BASE_MSR, (uintptr_t) current->fs);
 			break;
 		}
 		case ARCH_GET_FS:
 		{
-			if(copy_to_user(addr, &get_current_thread()->fs, sizeof(unsigned long)) < 0)
+			if(copy_to_user(addr, &current->fs, sizeof(unsigned long)) < 0)
 				return -EFAULT;
 			break;
 		}
 		case ARCH_SET_GS:
 		{
-			get_current_thread()->gs = (void*) addr;
-			wrmsr(KERNEL_GS_BASE, (uintptr_t) get_current_thread()->gs);
+			current->gs = (void*) addr;
+			wrmsr(KERNEL_GS_BASE, (uintptr_t) current->gs);
 			break;
 		}
 		case ARCH_GET_GS:
 		{
-			if(copy_to_user(addr, &get_current_thread()->gs, sizeof(unsigned long)) < 0)
+			if(copy_to_user(addr, current->gs, sizeof(unsigned long)) < 0)
 				return -EFAULT;
 			break;
 		}
@@ -400,8 +402,8 @@ void arch_load_thread(struct thread *thread, unsigned int cpu)
 	if(!(thread->flags & THREAD_KERNEL))
 	{
 		restore_fpu(thread->fpu_area);
-		wrmsr(FS_BASE_MSR, (uint64_t) thread->fs);
 
+		wrmsr(FS_BASE_MSR, (uint64_t) thread->fs);
 		wrmsr(KERNEL_GS_BASE, (uint64_t) thread->gs);
 	}
 }
