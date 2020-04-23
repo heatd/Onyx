@@ -35,7 +35,7 @@ void ext2_free_block(uint32_t block, ext2_fs_t *fs)
 {
 	assert(block != EXT2_ERR_INV_BLOCK);
 
-	spin_lock(&fs->sb_lock);
+	mutex_lock(&fs->sb_lock);
 	
 	fs->sb->unallocated_blocks++;
 
@@ -45,7 +45,7 @@ void ext2_free_block(uint32_t block, ext2_fs_t *fs)
 
 	ext2_free_block_bg(block, block_group, fs);
 	
-	spin_unlock(&fs->sb_lock);
+	mutex_unlock(&fs->sb_lock);
 }
 
 /* Returns an struct ext2_inode from disk, and sets *inode_number to the inode number */
@@ -68,12 +68,8 @@ struct ext2_inode *ext2_allocate_inode(uint32_t *inode_number, ext2_fs_t *fs)
 void ext2_free_inode(uint32_t inode, ext2_fs_t *fs)
 {
 	uint32_t block_group = inode / fs->inodes_per_block_group;
-	
-	spin_lock(&fs->sb_lock);
 
 	assert(block_group <= fs->number_of_block_groups);
 
 	ext2_free_inode_bg(inode, block_group, fs);
-
-	spin_unlock(&fs->sb_lock);
 }

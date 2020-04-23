@@ -442,6 +442,12 @@ static struct file *try_to_open(struct file *base, const char *filename, int fla
 			fd_put(ret);
 			return errno = EACCES, NULL;
 		}
+
+		if(flags & O_EXCL)
+		{
+			fd_put(ret);
+			return errno = EEXIST, NULL;
+		}
 	}
 
 	if(!ret && errno == ENOENT && flags & O_CREAT)

@@ -1,5 +1,6 @@
 PROG:= testsuite
-OBJS:= src/disk_driver_tests.o
+OBJS:= src/futex_test.o \
+       src/mmap_test.o
 
 CXXFLAGS:=-O2 -g -std=c++17 -D_POSIX_C_SOURCE -ltest
 

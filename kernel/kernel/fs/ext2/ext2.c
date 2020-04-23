@@ -59,7 +59,7 @@ struct file_ops ext2_ops =
 	.link = ext2_link_fops,
 	.unlink = ext2_unlink,
 	.fallocate = ext2_fallocate,
-	.ftruncate = ext2_ftruncate,
+	//.ftruncate = ext2_ftruncate,
 	.readpage = ext2_readpage,
 	.writepage = ext2_writepage
 };
@@ -437,6 +437,7 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 
 	mutex_init(&fs->bgdt_lock);
 	mutex_init(&fs->ino_alloc_lock);
+	mutex_init(&fs->sb_lock);
 	fs->sb = sb;
 	fs->major = sb->major_version;
 	fs->minor = sb->minor_version;

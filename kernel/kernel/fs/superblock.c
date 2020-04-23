@@ -11,6 +11,7 @@
 struct inode *superblock_find_inode(struct superblock *sb, ino_t inode)
 {
 	spin_lock(&sb->s_ilock);
+
 	for(struct inode *ino = sb->s_inodes; ino; ino = ino->i_next)
 	{
 		if(ino->i_inode == inode)

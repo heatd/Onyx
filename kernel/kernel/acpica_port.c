@@ -25,8 +25,6 @@
 void spinlock_lock(unsigned long*);
 void spinlock_unlock(unsigned long*);
 int printf(const char *, ...);
-extern const uint16_t CONFIG_ADDRESS;
-extern const uint16_t CONFIG_DATA;
 
 ACPI_STATUS AcpiOsInitialize()
 {

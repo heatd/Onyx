@@ -120,6 +120,9 @@ int ext2_free_inode_bg(uint32_t inode, uint32_t block_group, ext2_fs_t *fs)
 
 	free(bitmap);
 
+	fs->sb->unallocated_inodes++;
+	_block_group->unallocated_inodes_in_group++;
+
 	mutex_unlock(&fs->ino_alloc_lock);
 	return 0;
 }

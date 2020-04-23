@@ -658,15 +658,38 @@ int ext2_unlink(const char *name, int flags, struct file *f)
 	struct inode *target = superblock_find_inode(ino->i_sb, ent->inode);
 	if(!target)
 	{
+		/* Ok, this is a multiple-step process:
+		 * 1) Try to find the inode in the superblock cache.
+		 * 1a) If it's there, get a ref and continue
+		 * 2) Unlock the s_ilock since we will read from disk and probably sleep.
+		 * 3) Load the inode from disk.
+		 * 4) Lock the s_ilock and try to find the inode again.
+		 * 4a) If in between the unlock and the re-locking,
+		 * some thread added the inode, we close the inode we read ourselves and use that one.
+		 * 5) Else, use superblock_add_inode_unlocked with the lock from superblock_find_inode
+		 * and unlock s_ilock.
+		 */
+	
+		spin_unlock(&ino->i_sb->s_ilock);
+	
 		if(!(target = ext2_load_inode_from_disk(ent->inode, f, fs)))
 		{
 			free(res.buf);
-			spin_unlock(&ino->i_sb->s_ilock);
 			return -errno;
 		}
 
-		superblock_add_inode_unlocked(ino->i_sb, target);
-		spin_unlock(&ino->i_sb->s_ilock);
+		struct inode *new_target = NULL;
+
+		if(!(new_target = superblock_find_inode(ino->i_sb, ent->inode)))
+		{
+			superblock_add_inode_unlocked(ino->i_sb, target);
+			spin_unlock(&ino->i_sb->s_ilock);
+		}
+		else
+		{
+			close_vfs(target);
+			target = new_target;
+		}
 	}
 
 	if(target->i_type == VFS_TYPE_DIR)
@@ -735,11 +758,6 @@ int ext2_unlink(const char *name, int flags, struct file *f)
 	}
 
 	return 0;
-}
-
-int ext2_ftruncate(off_t _len, struct file *ino)
-{
-	return -ENOSYS;
 }
 
 int ext2_fallocate(int mode, off_t off, off_t len, struct file *ino)

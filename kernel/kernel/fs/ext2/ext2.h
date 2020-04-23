@@ -173,7 +173,7 @@ typedef struct ex
 	struct blockdev *blkdevice;
 	uint16_t inode_size;
 	block_group_desc_t *bgdt;
-	struct spinlock sb_lock;
+	struct mutex sb_lock;
 	struct mutex bgdt_lock;
 	struct mutex ino_alloc_lock;
 	void *zero_block; /* A pointer to a zero'd block of memory with size 'block_size' */
