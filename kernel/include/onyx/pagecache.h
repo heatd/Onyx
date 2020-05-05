@@ -13,6 +13,8 @@
 #include <onyx/vfs.h>
 #include <onyx/vm.h>
 
+#include <onyx/mm/flush.h>
+
 struct page_cache_block
 {
 	/* Virtual mapping of the buffer */
@@ -30,8 +32,7 @@ struct page_cache_block
 	uint32_t integrity;
 #endif
 
-	struct list_head dirty_list;
-	void *blk_list;
+	struct flush_object fobj;
 };
 
 #define PAGE_CACHE_SIZE PAGE_SIZE
@@ -40,7 +41,7 @@ struct page_cache_block
 extern "C" {
 #endif
 
-struct page_cache_block *add_to_cache(void *data, size_t size, size_t off, struct inode *node);
+struct page_cache_block *pagecache_create_cache_block(struct page *page, size_t size, size_t off, struct inode *node);
 void pagecache_dirty_block(struct page_cache_block *block);
 void pagecache_init(void);
 void page_cache_destroy(struct page_cache_block *block);

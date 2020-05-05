@@ -247,6 +247,7 @@ struct ahci_device
 	struct ahci_port ports[32];
 };
 
+#define AHCI_COMMAND_BIO_REQ           (1 << 0)
 struct ahci_command_ata
 {
 	uint8_t cmd;
@@ -254,6 +255,7 @@ struct ahci_command_ata
 	bool write;
 	void *buffer;
 	uint64_t lba;
+	unsigned int flags;
 };
 
 /* Bitmasks for the capabilities register of the HBA */

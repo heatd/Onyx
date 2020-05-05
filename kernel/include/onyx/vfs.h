@@ -19,15 +19,15 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 
-#define VFS_TYPE_FILE 		(1 << 0)
-#define VFS_TYPE_DIR 		(1 << 1)
-#define VFS_TYPE_SYMLINK 	(1 << 2)
-#define VFS_TYPE_MOUNTPOINT 	(1 << 3)
-#define VFS_TYPE_CHAR_DEVICE 	(1 << 4)
-#define VFS_TYPE_BLOCK_DEVICE 	(1 << 5)
-#define VFS_TYPE_FIFO		(1 << 6)
-#define VFS_TYPE_UNIX_SOCK	(1 << 7)
-#define VFS_TYPE_UNK		(1 << 8)
+#define VFS_TYPE_FILE            (1 << 0)
+#define VFS_TYPE_DIR             (1 << 1)
+#define VFS_TYPE_SYMLINK         (1 << 2)
+#define VFS_TYPE_MOUNTPOINT      (1 << 3)
+#define VFS_TYPE_CHAR_DEVICE     (1 << 4)
+#define VFS_TYPE_BLOCK_DEVICE    (1 << 5)
+#define VFS_TYPE_FIFO            (1 << 6)
+#define VFS_TYPE_UNIX_SOCK       (1 << 7)
+#define VFS_TYPE_UNK             (1 << 8)
 
 #define VFS_PAGE_HASHTABLE_ENTRIES	(PAGE_SIZE / sizeof(uintptr_t))
 
@@ -126,8 +126,6 @@ extern "C" {
 #endif
 
 int inode_create_vmo(struct inode *ino);
-
-struct page_cache_block *add_cache_to_node(void *ptr, size_t size, off_t offset, struct inode *node);
 
 struct file *open_vfs(struct file *dir, const char *path);
 

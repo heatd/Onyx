@@ -145,6 +145,10 @@ static void draw_char(uint32_t c, unsigned int x, unsigned int y,
 	struct framebuffer *fb, struct color fg, struct color bg)
 {
 	struct font *font = get_font_data();
+
+	if(c >= font->chars)
+		c = '?';
+
 	volatile char *buffer = (volatile char *) fb->framebuffer;
 
 	buffer += y * fb->pitch + x * (fb->bpp / 8);

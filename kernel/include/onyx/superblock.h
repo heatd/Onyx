@@ -13,6 +13,7 @@
 
 struct file;
 
+struct blockdev;
 struct superblock
 {
 	struct inode *s_inodes;
@@ -20,6 +21,8 @@ struct superblock
 	void *s_helper;
 	struct spinlock s_ilock;
 	int (*flush_inode)(struct inode *inode);
+	unsigned int s_block_size;
+	struct blockdev *s_bdev;
 };
 
 struct inode *superblock_find_inode(struct superblock *sb, ino_t inode);

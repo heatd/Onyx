@@ -780,17 +780,6 @@ void sched_sleep_until_wake(void)
 	sched_block(thread);
 }
 
-void thread_wake_up_ftx(thread_t *thread)
-{
-	thread_wake_up(thread);
-	thread->woken_up_by_futex = true;
-}
-
-void thread_reset_futex_state(thread_t *thread)
-{
-	thread->woken_up_by_futex = false;
-}
-
 void sched_start_thread_for_cpu(struct thread *t, unsigned int cpu)
 {
 	assert(t != NULL);
@@ -1053,103 +1042,6 @@ void prepare_sleep_##typenm(type *p, int state)			\
 	spin_unlock_irqrestore(&p->llock);		\
 }
 
-//prepare_sleep_generic(mutex, struct mutex);
-
-void prepare_sleep_mutex(struct mutex *mtx, int state)
-{
-	struct thread *t = get_current_thread();
-	
-	set_current_state(state);
-
-	list_add_tail(&t->wait_list_head, &mtx->thread_list);
-}
-
-void commit_sleep(void)
-{
-	sched_yield();
-}
-
-int mutex_lock_slow_path(struct mutex *mutex, int state)
-{
-	int ret = 0;
-	bool signals_allowed = state == THREAD_INTERRUPTIBLE;
-
-	struct thread *current = get_current_thread();
-
-	spin_lock_irqsave(&mutex->llock);
-
-	prepare_sleep_mutex(mutex, state);
-
-	while(!__sync_bool_compare_and_swap(&mutex->counter, 0, 1))
-	{
-		if(signals_allowed && signal_is_pending())
-		{
-			ret = -EINTR;
-			break;
-		}
-
-		assert(mutex->owner != current);
-
-		spin_unlock_irqrestore(&mutex->llock);
-
-		commit_sleep();
-
-		spin_lock_irqsave(&mutex->llock);
-
-		list_remove(&current->wait_list_head);
-
-		prepare_sleep_mutex(mutex, state);
-	}
-
-	list_remove(&current->wait_list_head);
-
-	set_current_state(THREAD_RUNNABLE);
-
-	spin_unlock_irqrestore(&mutex->llock);
-
-	return ret;
-}
-
-int __mutex_lock(struct mutex *mutex, int state)
-{
-	int ret = 0;
-	if(!__sync_bool_compare_and_swap(&mutex->counter, 0, 1))
-		ret = mutex_lock_slow_path(mutex, state);
-
-	mutex->owner = get_current_thread();
-
-	return ret;
-}
-
-void mutex_lock(struct mutex *mutex)
-{
-	__mutex_lock(mutex, THREAD_UNINTERRUPTIBLE);
-}
-
-int mutex_lock_interruptible(struct mutex *mutex)
-{
-	return __mutex_lock(mutex, THREAD_INTERRUPTIBLE);
-}
-
-void mutex_unlock(struct mutex *mutex)
-{
-	mutex->owner = NULL;
-	__sync_bool_compare_and_swap(&mutex->counter, 1, 0);
-	__sync_synchronize();
-
-	spin_lock_irqsave(&mutex->llock);
-
-	if(!list_is_empty(&mutex->thread_list))
-	{
-		struct list_head *l = list_first_element(&mutex->thread_list);
-		struct thread *t = container_of(l, struct thread, wait_list_head);
-
-		thread_wake_up(t);
-	}
-
-	spin_unlock_irqrestore(&mutex->llock);
-}
-
 void __sched_kill_other(struct thread *thread, unsigned int cpu)
 {
 	MUST_HOLD_LOCK(get_per_cpu_ptr_any(scheduler_lock, thread->cpu));
@@ -1209,6 +1101,11 @@ bool rw_lock_trywrite(struct rwlock *lock)
 	__sync_synchronize();
 	
 	return st;
+}
+
+static void commit_sleep()
+{
+	sched_yield();
 }
 
 enqueue_thread_generic(rwlock, struct rwlock);
@@ -1374,5 +1271,5 @@ void sched_transition_to_idle(void)
 {
 	struct thread *curr = get_current_thread();
 	curr->priority = SCHED_PRIO_VERY_LOW;
-	curr->rip(NULL);
+	curr->entry(NULL);
 }

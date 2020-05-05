@@ -53,6 +53,8 @@
 #define PAGE_FLAG_DIRTY		(1 << 1)
 #define PAGE_FLAG_PINNED	(1 << 2)
 #define PAGE_FLAG_FREE		(1 << 3)
+#define PAGE_FLAG_BUFFER    (1 << 4)      /* Used by the filesystem code */
+#define PAGE_FLAG_FLUSHING  (1 << 5)
 
 /* struct page - Represents every usable page on the system 
  * Everything is native-word-aligned in order to allow atomic changes
@@ -64,11 +66,14 @@ struct page
 	unsigned long flags;
 	struct page_cache_block *cache;
 
+	/* Hmm, I'd love a way to get rid of next_un */
 	union
 	{
 		struct page *next_allocation;
 		struct page *next_virtual_region;
 	} next_un;
+
+	unsigned long priv;
 };
 
 #ifdef CONFIG_BUDDY_ALLOCATOR

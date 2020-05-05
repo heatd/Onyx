@@ -36,8 +36,9 @@ extern "C" {
 void mutex_lock(struct mutex *m);
 void mutex_unlock(struct mutex *m);
 int mutex_lock_interruptible(struct mutex *mutex);
+bool mutex_holds_lock(struct mutex *m);
 
-#define MUST_HOLD_MUTEX(m)		assert((m)->counter == 1 && (m)->owner == get_current_thread())
+#define MUST_HOLD_MUTEX(m)		assert(mutex_holds_lock(m) == true)
 
 #ifdef __cplusplus
 }

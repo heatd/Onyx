@@ -13,8 +13,12 @@
 #include <onyx/block.h>
 #include <onyx/vfs.h>
 
+#include <onyx/buffer.h>
+
 #define EXT2_SUPERBLOCK_OFFSET		1024
-#define EXT2_MBR_CODE 0x83
+
+#define EXT2_SIGNATURE		0xef53
+
 #define EXT2_FS_CLEAN 1
 #define EXT2_FS_ERROR 2
 #define EXT2_IGNORE_ERROR 1
@@ -158,9 +162,11 @@ typedef struct
 	char name[255];
 } dir_entry_t;
 
-typedef struct ex
+struct block_buf;
+struct ext2_fs_info
 {
 	superblock_t *sb;
+	struct block_buf *sb_bb;
 	uint32_t major;
 	uint32_t minor;
 	uint32_t total_inodes;
@@ -178,8 +184,7 @@ typedef struct ex
 	struct mutex ino_alloc_lock;
 	void *zero_block; /* A pointer to a zero'd block of memory with size 'block_size' */
 	unsigned int entry_shift;
-	struct ex *next;
-} ext2_fs_t;
+};
 
 struct ext2_inode_info
 {
@@ -207,46 +212,46 @@ static inline struct ext2_inode *ext2_get_inode_from_node(struct inode *ino)
 
 extern const unsigned int direct_block_count;
 
-void *ext2_read_block(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs);
-void ext2_read_block_raw(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs,
+void *ext2_read_block(uint32_t block_index, uint16_t blocks, struct ext2_fs_info *fs);
+void ext2_read_block_raw(uint32_t block_index, uint16_t blocks, struct ext2_fs_info *fs,
 	void *buffer);
-void ext2_write_block(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs,
+void ext2_write_block(uint32_t block_index, uint16_t blocks, struct ext2_fs_info *fs,
 	void *buffer);
-uint32_t ext2_allocate_block(ext2_fs_t *fs);
-void ext2_free_block(uint32_t block, ext2_fs_t *fs);
-ssize_t ext2_read_inode(struct ext2_inode *ino, ext2_fs_t *fs,
+uint32_t ext2_allocate_block(struct ext2_fs_info *fs);
+void ext2_free_block(uint32_t block, struct ext2_fs_info *fs);
+ssize_t ext2_read_inode(struct ext2_inode *ino, struct ext2_fs_info *fs,
 	size_t size, off_t off, char *buffer);
-ssize_t ext2_write_inode(struct ext2_inode *ino, ext2_fs_t *fs,
+ssize_t ext2_write_inode(struct ext2_inode *ino, struct ext2_fs_info *fs,
 	size_t size, off_t off, char *buffer);
-struct ext2_inode *ext2_allocate_inode(uint32_t *inode_number, ext2_fs_t *fs);
-struct ext2_inode *ext2_get_inode_from_number(ext2_fs_t *fs, uint32_t inode);
-uint32_t ext2_allocate_from_block_group(ext2_fs_t *fs, uint32_t block_group);
+struct ext2_inode *ext2_allocate_inode(uint32_t *inode_number, struct ext2_fs_info *fs);
+struct ext2_inode *ext2_get_inode_from_number(struct ext2_fs_info *fs, uint32_t inode);
+uint32_t ext2_allocate_from_block_group(struct ext2_fs_info *fs, uint32_t block_group);
 struct ext2_inode *ext2_allocate_inode_from_block_group(uint32_t *inode_no,
-	uint32_t block_group, ext2_fs_t *fs);
-void ext2_register_superblock_changes(ext2_fs_t *fs);
-void ext2_register_bgdt_changes(ext2_fs_t *fs);
-unsigned int ext2_detect_block_type(uint32_t block, ext2_fs_t *fs);
+	uint32_t block_group, struct ext2_fs_info *fs);
+void ext2_dirty_sb(struct ext2_fs_info *fs);
+void ext2_register_bgdt_changes(struct ext2_fs_info *fs);
+unsigned int ext2_detect_block_type(uint32_t block, struct ext2_fs_info *fs);
 int ext2_add_block_to_inode(struct ext2_inode *inode, uint32_t block,
-	uint32_t block_index, ext2_fs_t *fs);
+	uint32_t block_index, struct ext2_fs_info *fs);
 void ext2_set_inode_size(struct ext2_inode *inode, size_t size);
-void ext2_update_inode(struct ext2_inode *ino, ext2_fs_t *fs, uint32_t inode);
-char *ext2_read_symlink(struct ext2_inode *ino, ext2_fs_t *fs);
-struct ext2_inode *ext2_traverse_fs(struct ext2_inode *wd, const char *path, ext2_fs_t *fs,
+void ext2_update_inode(struct ext2_inode *ino, struct ext2_fs_info *fs, uint32_t inode);
+char *ext2_read_symlink(struct ext2_inode *ino, struct ext2_fs_info *fs);
+struct ext2_inode *ext2_traverse_fs(struct ext2_inode *wd, const char *path, struct ext2_fs_info *fs,
 	char **symlink_name, uint32_t *inode_num);
-struct ext2_inode *ext2_get_inode_from_dir(ext2_fs_t *fs, dir_entry_t *dirent,
+struct ext2_inode *ext2_get_inode_from_dir(struct ext2_fs_info *fs, dir_entry_t *dirent,
 	char *name, uint32_t *inode_number, size_t size);
 int ext2_add_direntry(const char *name, uint32_t inum, struct ext2_inode *inode,
-	struct ext2_inode *dir, ext2_fs_t *fs);
-int ext2_remove_direntry(uint32_t inum, struct ext2_inode *dir, ext2_fs_t *fs);
+	struct ext2_inode *dir, struct ext2_fs_info *fs);
+int ext2_remove_direntry(uint32_t inum, struct ext2_inode *dir, struct ext2_fs_info *fs);
 
-void ext2_free_inode(uint32_t inode, ext2_fs_t *fs);
-void ext2_update_inode(struct ext2_inode *ino, ext2_fs_t *fs, uint32_t inode);
+void ext2_free_inode(uint32_t inode, struct ext2_fs_info *fs);
+void ext2_update_inode(struct ext2_inode *ino, struct ext2_fs_info *fs, uint32_t inode);
 int ext2_ino_type_to_vfs_type(uint16_t mode);
 uint16_t ext2_mode_to_ino_type(mode_t mode);
 struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber, struct file *parent);
-void ext2_free_inode_space(struct ext2_inode *inode, ext2_fs_t *fs);
+void ext2_free_inode_space(struct ext2_inode *inode, struct ext2_fs_info *fs);
 
-int ext2_free_block_bg(uint32_t block, uint32_t block_group, ext2_fs_t *fs);
-int ext2_free_inode_bg(uint32_t inode, uint32_t block_group, ext2_fs_t *fs);
+int ext2_free_block_bg(uint32_t block, uint32_t block_group, struct ext2_fs_info *fs);
+int ext2_free_inode_bg(uint32_t inode, uint32_t block_group, struct ext2_fs_info *fs);
 
 #endif

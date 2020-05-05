@@ -133,7 +133,8 @@ static inline struct process *get_current_process()
 
 static inline struct mm_address_space *get_current_address_space()
 {
-	return &get_current_process()->address_space;
+	struct process *proc = get_current_process();
+	return proc ? &proc->address_space : NULL;
 }
 
 #endif

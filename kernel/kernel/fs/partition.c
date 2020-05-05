@@ -70,6 +70,8 @@ int partition_setup(struct dev *dev, struct blockdev *block,
 	d->sector_size = block->sector_size;
 	d->nr_sectors = (last_sector - first_sector) + 1;
 	d->actual_blockdev = block;
+	d->submit_request = block->submit_request;
+	d->device_info = block->device_info;
 
 	if(blkdev_init(d) < 0)
 	{

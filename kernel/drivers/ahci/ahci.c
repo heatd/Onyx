@@ -151,6 +151,7 @@ ssize_t ahci_read(size_t offset, size_t count, void* buffer, struct blockdev* bl
 		cmd.size = c;
 		cmd.write = false;
 		cmd.cmd = ATA_CMD_READ_DMA_EXT;
+		cmd.flags = 0;
 	
 		if(!ahci_do_command(p, &cmd))
 		{
@@ -163,6 +164,61 @@ ssize_t ahci_read(size_t offset, size_t count, void* buffer, struct blockdev* bl
 	}
 
 	return to_read;
+}
+
+#define ATA_CMD_ERR_BAD_REQ                0xff
+static uint8_t bio_req_to_ata_command(struct bio_req *req)
+{
+	uint8_t op = (req->flags & BIO_REQ_OP_MASK);
+	
+	switch(op)
+	{
+		case BIO_REQ_READ_OP:
+			return ATA_CMD_READ_DMA_EXT;
+		case BIO_REQ_WRITE_OP:
+			return ATA_CMD_WRITE_DMA_EXT;
+		default:
+			return ATA_CMD_ERR_BAD_REQ;
+	}
+}
+
+int ahci_submit_request(struct blockdev *dev, struct bio_req *req)
+{
+	struct ahci_port *port = dev->device_info;
+	sector_t sector = req->sector_number + (dev->offset / 512);
+
+	//printk("req: %lu.%lu\n", req->curr_vec_index, req->nr_vecs);
+
+	while(req->curr_vec_index != req->nr_vecs)
+	{
+		struct ahci_command_ata cmd;
+		cmd.lba = sector;
+		cmd.cmd = bio_req_to_ata_command(req);
+
+		if(cmd.cmd == ATA_CMD_ERR_BAD_REQ)
+		{
+			req->flags |= BIO_REQ_NOT_SUPP;
+			return -EIO;
+		}
+
+		cmd.write = (req->flags & BIO_REQ_OP_MASK) == BIO_REQ_WRITE_OP;
+
+		cmd.buffer = req;
+		cmd.flags = AHCI_COMMAND_BIO_REQ;
+	
+		if(!ahci_do_command(port, &cmd))
+		{
+			req->flags |= BIO_REQ_EIO;
+			return -EIO;
+		}
+		
+		/* ahci_do_command fills in cmd.size with the size read */
+		sector_t sectors_read = cmd.size / 512;
+		sector += sectors_read;
+	}
+
+	req->flags |= BIO_REQ_DONE;
+	return 0;
 }
 
 ssize_t ahci_write(size_t offset, size_t count, void* buffer, struct blockdev* blkd)
@@ -190,6 +246,7 @@ ssize_t ahci_write(size_t offset, size_t count, void* buffer, struct blockdev* b
 		cmd.size = c;
 		cmd.write = true;
 		cmd.cmd = ATA_CMD_WRITE_DMA_EXT;
+		cmd.flags = 0;
 	
 		if(!ahci_do_command(p, &cmd))
 		{
@@ -288,6 +345,44 @@ void ahci_set_lba(uint64_t lba, cfis_t *cfis)
 	cfis->lba5 = (lba >> 40) & 0xFF;
 }
 
+void ahci_free_list(struct ahci_port *port, size_t idx);
+
+long ahci_setup_prdt_bio(prdt_t *prdt, struct bio_req *r, size_t *size)
+{
+	struct page_iov *v = r->vec + r->curr_vec_index;
+	size_t left = r->nr_vecs - r->curr_vec_index;
+
+	unsigned int i = 0;
+	size_t req_size = 0;
+
+	for(; i < left; i++)
+	{
+		if(i == NUM_PRDT_PER_TABLE)
+			break;
+		prdt_t *prd = prdt + i;
+		unsigned long paddr = (unsigned long) page_to_phys(v->page) + v->page_off;
+		
+		/* Addresses need to be word-aligned :/ */
+		if(paddr & (2 - 1))
+			return -EINVAL;
+
+		assert(v->length <= PAGE_SIZE);
+
+		/* TODO: Merge contiguous prdt entries? */
+		prd->address = paddr;
+		prd->dw3 = v->length - 1;
+		req_size += v->length;
+		prd->res0 = 0;
+		v++;
+	}
+
+	r->curr_vec_index += i;
+
+	*size = req_size;
+
+	return i;
+}
+
 bool ahci_do_command_async(struct ahci_port *ahci_port,
 	struct ahci_command_ata *buf,
 	struct aio_req *ioreq)
@@ -300,23 +395,40 @@ bool ahci_do_command_async(struct ahci_port *ahci_port,
 	list->desc_info = fis_len | (buf->write ? AHCI_COMMAND_LIST_WRITE : 0);
 	list->prdbc = 0;
 
-	struct phys_ranges ranges;
-
-	if(dma_get_ranges(buf->buffer, buf->size, PRDT_MAX_SIZE, &ranges) < 0)
-	{
-		list->prdtl = 0;
-		return false;
-	}
-
 	command_table_t *table = PHYS_TO_VIRT(ahci_port->ctables[list_index]);
 
 	memset(table, 0, sizeof(command_table_t));
 
 	prdt_t *prdt = (prdt_t *) (table + 1);
 
-	size_t nr_prdt = ahci_setup_prdt(prdt, &ranges);
+	long nr_prdt = 0;
 
-	dma_destroy_ranges(&ranges);
+	if(buf->flags & AHCI_COMMAND_BIO_REQ)
+	{
+		struct bio_req *req = buf->buffer;
+		if((nr_prdt = ahci_setup_prdt_bio(prdt, req, &buf->size)) < 0)
+		{
+			ioreq->status = AIO_STATUS_EIO;
+			ahci_free_list(ahci_port, list_index);
+			return false;
+		}
+	}
+	else
+	{
+		struct phys_ranges ranges;
+
+		if(dma_get_ranges(buf->buffer, buf->size, PRDT_MAX_SIZE, &ranges) < 0)
+		{
+			ahci_free_list(ahci_port, list_index);
+			return false;
+		}
+
+
+		nr_prdt = (long) ahci_setup_prdt(prdt, &ranges);
+
+		/* TODO: Calling destroy ranges here isn't safe */
+		dma_destroy_ranges(&ranges);
+	}
 
 	list->prdtl = nr_prdt;
 
@@ -328,6 +440,7 @@ bool ahci_do_command_async(struct ahci_port *ahci_port,
 
 	/* Load the LBA */
 	uint64_t lba = buf->lba;
+	//printk("Lba: %lu\n", lba);
 	ahci_set_lba(lba, &table->cfis);
 
 	/* We need to set bit 6 to enable the LBA mode */
@@ -672,7 +785,6 @@ void ahci_enable_interrupts_for_port(ahci_port_t *port)
 	port->pxie = AHCI_PORT_INTERRUPT_DHRE;
 }
 
-static unsigned int woke = 0;
 void ahci_free_list(struct ahci_port *port, size_t idx)
 {
 	command_list_t *list = port->clist + idx;
@@ -692,7 +804,6 @@ void ahci_free_list(struct ahci_port *port, size_t idx)
 	if(needs_to_wake_up)
 	{
 		wait_queue_wake(&port->list_wq);
-		woke++;
 	}
 
 	spin_unlock(&port->bitmap_spl);
@@ -887,6 +998,7 @@ int ahci_initialize(struct ahci_device *device)
 			dev->dev = min;
 			dev->read = ahci_read;
 			dev->write = ahci_write;
+			dev->submit_request = ahci_submit_request;
 			dev->sector_size = 512;
 
 			MPRINTF("Created %s for port %d\n", path, i);

@@ -1901,6 +1901,13 @@ int vm_handle_page_fault(struct fault_info *info)
 	struct mm_address_space *as = use_kernel_as ? &kernel_address_space
 		: get_current_address_space();
 
+	/* Surrender immediately if there's no user address space or the fault was inside vm code */
+	if(!as || mutex_holds_lock(&as->vm_lock))
+	{
+		info->error = VM_SIGSEGV;
+		return -1;
+	}
+
 	mutex_lock(&as->vm_lock);
 
 	struct vm_region *entry = vm_find_region((void*) info->fault_address);

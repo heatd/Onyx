@@ -32,25 +32,19 @@ void flush_dev::sync()
 	lock();
 
 	//printk("Syncing\n");
-	/* We have to use list_for_every_safe because between clearing the page dirty
-	 * flag and going to the next page some other cpu can see the flag is clear,
-	 * and queue it up for another flush in another flush_dev(which isn't locked) */
-	list_for_every_safe(&dirty_pages)
+	/* We have to use list_for_every_safe because between clearing the dirty
+	 * flag and going to the next buf some other cpu can see the flag is clear,
+	 * and queue it up for another flush in another flush_dev (which isn't locked) */
+	list_for_every_safe(&dirty_bufs)
 	{
-		struct page_cache_block *blk = container_of(l, struct page_cache_block, dirty_list);
+		flush_object *buf = container_of(l, flush_object, dirty_list);
 		/*printk("writeback file %p, size %lu, off %lu\n", blk->node,
 			blk->size, blk->offset);*/
 
-		assert(blk->node->i_fops->writepage != NULL);
-		blk->node->i_fops->writepage(blk->page, blk->offset, blk->node);
+		buf->ops->flush(buf);
 
-		__sync_fetch_and_and(&blk->page->flags, ~PAGE_FLAG_DIRTY);
+		buf->ops->set_dirty(false, buf);
 
-		__sync_synchronize();
-		
-		struct page *page = blk->page;
-		struct vm_object *vmo = blk->node->i_pages;
-		vm_wp_page_for_every_region(page, blk->offset, vmo);
 		block_load--;
 	}
 
@@ -66,11 +60,27 @@ void flush_dev::sync()
 	}
 
 	/* reset the list */
-	list_reset(&dirty_pages);
+	list_reset(&dirty_bufs);
 	list_reset(&dirty_inodes);
 	assert(block_load == 0);
 
 	unlock();
+}
+
+ssize_t flush_dev::sync_one(struct flush_object *obj)
+{
+	lock();
+
+	size_t res = obj->ops->flush(obj);
+
+	obj->ops->set_dirty(false, obj);
+
+	list_remove(&obj->dirty_list);
+	block_load--;
+
+	unlock();
+
+	return res;
 }
 
 void flush_dev::run()
@@ -89,32 +99,49 @@ void flush_dev::run()
 	}
 }
 
-void flush_dev::add_page(struct page_cache_block *reg)
+bool flush_dev::called_from_sync()
 {
+	/* We detect this by testing if the current thread holds this lock */
+	return mutex_holds_lock(&__lock);
+}
+
+bool flush_dev::add_buf(struct flush_object *obj)
+{
+	/* It's very possible the flush code is calling us from sync and trying to
+	 * lock the flush dev would cause a deadlock. Therefore, we want to sync it ourselves right now.
+	 */
+	if(called_from_sync())
+	{
+		obj->ops->flush(obj);
+		return false;
+	}
+
 	lock();
 
-	list_add_tail(&reg->dirty_list, &dirty_pages);
+	list_add_tail(&obj->dirty_list, &dirty_bufs);
 	if(block_load++ == 0)
 	{
 		sem_signal(&thread_sem);
 	}
 
 	unlock();
+
+	return true;
 }
 
-void flush_dev::remove_page(struct page_cache_block *reg)
+void flush_dev::remove_buf(struct flush_object *obj)
 {
 	lock();
 	
 	/* We do a last check here inside the lock to be sure it's actually still dirty */
-	if(reg->page->flags & PAGE_FLAG_DIRTY)
+	if(obj->ops->is_dirty(obj))
 	{
 		/* TODO: I'm not sure this is 100% safe, because it might've gotten dirtied again
 		 * to a different flushdev(but in that case, should we be removing it anyways?).
 		 * This also applies to remove_inode().
 		*/
 		block_load--;
-		list_remove(&reg->dirty_list);
+		list_remove(&obj->dirty_list);
 	}
 
 	unlock();
@@ -174,24 +201,26 @@ flush::flush_dev *flush_allocate_dev()
 }
 
 extern "C"
-void flush_add_page(struct page_cache_block *page)
+void flush_add_buf(struct flush_object *f)
 {
 	flush::flush_dev *blk = flush_allocate_dev();
 
 	/* wat */
 	assert(blk != nullptr);
 	
-	blk->add_page(page);
+	/* If we were flushed right away, we're going to want to avoid setting f->blk_list */
+	if(!blk->add_buf(f))
+		return;
 
-	page->blk_list = (void *) blk;
+	f->blk_list = (void *) blk;
 }
 
 extern "C"
-void flush_remove_page(struct page_cache_block *blk)
+void flush_remove_buf(struct flush_object *blk)
 {
 	flush::flush_dev *b = (flush::flush_dev *) blk->blk_list;
 
-	b->remove_page(blk);
+	b->remove_buf(blk);
 }
 
 extern "C"
@@ -219,4 +248,11 @@ extern "C" void flush_remove_inode(struct inode *ino)
 	dev->remove_inode(ino);
 
 	ino->i_flush_dev = nullptr;
+}
+
+ssize_t flush_sync_one(struct flush_object *obj)
+{
+	flush::flush_dev *b = (flush::flush_dev *) obj->blk_list;
+
+	return b->sync_one(obj);
 }

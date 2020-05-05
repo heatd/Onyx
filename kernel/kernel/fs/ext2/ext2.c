@@ -22,6 +22,7 @@
 #include <onyx/log.h>
 #include <onyx/panic.h>
 #include <onyx/cred.h>
+#include <onyx/buffer.h>
 
 #include "ext2.h"
 
@@ -64,7 +65,7 @@ struct file_ops ext2_ops =
 	.writepage = ext2_writepage
 };
 
-struct ext2_inode *ext2_get_inode_from_dir(ext2_fs_t *fs, dir_entry_t *dirent, char *name, uint32_t *inode_number,
+struct ext2_inode *ext2_get_inode_from_dir(struct ext2_fs_info *fs, dir_entry_t *dirent, char *name, uint32_t *inode_number,
 	size_t size)
 {
 	dir_entry_t *dirs = dirent;
@@ -81,7 +82,7 @@ struct ext2_inode *ext2_get_inode_from_dir(ext2_fs_t *fs, dir_entry_t *dirent, c
 	return NULL;
 }
 
-void ext2_delete_inode(struct ext2_inode *inode, uint32_t inum, ext2_fs_t *fs)
+void ext2_delete_inode(struct ext2_inode *inode, uint32_t inum, struct ext2_fs_info *fs)
 {
 	inode->dtime = clock_get_posix_time();
 	ext2_free_inode_space(inode, fs);
@@ -92,7 +93,7 @@ void ext2_delete_inode(struct ext2_inode *inode, uint32_t inum, ext2_fs_t *fs)
 void ext2_close(struct inode *vfs_ino)
 {
 	struct ext2_inode *inode = ext2_get_inode_from_node(vfs_ino);
-	ext2_fs_t *fs = vfs_ino->i_sb->s_helper;
+	struct ext2_fs_info *fs = vfs_ino->i_sb->s_helper;
 
 	if(inode->hard_links == 0)
 	{
@@ -104,20 +105,12 @@ void ext2_close(struct inode *vfs_ino)
 
 size_t ext2_write_ino(size_t offset, size_t sizeofwrite, void *buffer, struct inode *node)
 {
-	ext2_fs_t *fs = node->i_sb->s_helper;
+	struct ext2_fs_info *fs = node->i_sb->s_helper;
 	struct ext2_inode *ino = ext2_get_inode_from_node(node);
 	if(!ino)
 		return errno = EINVAL, (size_t) -1;
 
 	size_t size = ext2_write_inode(ino, fs, sizeofwrite, offset, buffer);
-
-	if(offset + size > EXT2_CALCULATE_SIZE64(ino))
-	{
-		ext2_set_inode_size(ino, offset + size);
-		node->i_size = offset + size;
-	}
-
-	ext2_update_inode(ino, fs, node->i_inode);
 
 	return size;
 }
@@ -135,7 +128,7 @@ ssize_t ext2_writepage(struct page *page, size_t off, struct inode *ino)
 size_t ext2_read_ino(size_t offset, size_t len, void *buffer, struct inode *node)
 {
 	//printk("Inode read: %lu, off %lu, size %lu\n", node->i_inode, offset, sizeofreading);
-	ext2_fs_t *fs = node->i_sb->s_helper;
+	struct ext2_fs_info *fs = node->i_sb->s_helper;
 
 	struct ext2_inode *ino = ext2_get_inode_from_node(node);
 	if(!ino)
@@ -180,7 +173,7 @@ struct ext2_inode_info *ext2_cache_inode_info(struct inode *ino, struct ext2_ino
 struct inode *ext2_open(struct file *f, const char *name)
 {
 	struct inode *nd = f->f_ino;
-	ext2_fs_t *fs = nd->i_sb->s_helper;
+	struct ext2_fs_info *fs = nd->i_sb->s_helper;
 	uint32_t inode_num;
 	struct ext2_inode *ino;
 	char *symlink_path = NULL;
@@ -307,7 +300,7 @@ int ext2_ino_type_to_vfs_type(uint16_t mode)
 struct inode *ext2_create_file(const char *name, mode_t mode, dev_t dev, struct file *f)
 {
 	struct inode *vfs_ino = f->f_ino;
-	ext2_fs_t *fs = vfs_ino->i_sb->s_helper;
+	struct ext2_fs_info *fs = vfs_ino->i_sb->s_helper;
 	uint32_t inumber = 0;
 
 	struct ext2_inode *inode = ext2_allocate_inode(&inumber, fs);
@@ -386,7 +379,7 @@ struct inode *ext2_creat(const char *name, int mode, struct file *file)
 int ext2_flush_inode(struct inode *inode)
 {
 	struct ext2_inode *ino = ext2_get_inode_from_node(inode);
-	ext2_fs_t *fs = inode->i_sb->s_helper;
+	struct ext2_fs_info *fs = inode->i_sb->s_helper;
 
 	/* Refresh the on-disk struct with the vfs inode data */
 	ino->atime = inode->i_atime;
@@ -405,50 +398,91 @@ int ext2_flush_inode(struct inode *inode)
 	return 0;
 }
 
-__attribute__((no_sanitize_undefined))
 struct inode *ext2_mount_partition(struct blockdev *dev)
 {
 	LOG("ext2", "mounting ext2 partition on block device %s\n", dev->name);
-	superblock_t *sb = malloc(sizeof(superblock_t));
+	struct superblock *sb = zalloc(sizeof(struct superblock));
 	if(!sb)
 		return NULL;
-	
-	if(blkdev_read(EXT2_SUPERBLOCK_OFFSET, 1024, sb, dev) < 0)
-	{
-		free(sb);
-		return NULL;
-	}
 
-	if(sb->ext2sig == 0xef53)
+	struct ext2_fs_info *fs = NULL;
+	struct inode *root_inode = NULL;
+	struct ext2_inode *disk_root_ino = NULL;
+
+	dev->sb = sb;
+
+	sb->s_block_size = EXT2_SUPERBLOCK_OFFSET;
+	sb->s_bdev = dev;
+
+	struct block_buf *b = sb_read_block(sb, 1);
+
+	superblock_t *ext2_sb = block_buf_data(b);
+	
+	ext2_sb->ext2sig = EXT2_SIGNATURE;
+
+	if(ext2_sb->ext2sig == EXT2_SIGNATURE)
 		LOG("ext2", "valid ext2 signature detected!\n");
 	else
 	{
-		ERROR("ext2", "invalid ext2 signature %x\n", sb->ext2sig);
-		free(sb);
-		return errno = EINVAL, NULL;
+		ERROR("ext2", "invalid ext2 signature %x\n", ext2_sb->ext2sig);
+		errno = EINVAL;
+		block_buf_put(b);
+		goto error;
 	}
 
-	ext2_fs_t *fs = zalloc(sizeof(*fs));
+	block_buf_dirty(b);
+
+	unsigned int block_size = 1024 << ext2_sb->log2blocksz;
+
+	if(block_size > MAX_BLOCK_SIZE)
+	{
+		ERROR("ext2", "bad block size %u\n", block_size);
+		block_buf_put(b);
+		goto error;
+	}
+
+	/* Since we're re-adjusting the block buffer to be the actual block buffer,
+	 * we're deleting this block_buf and grabbing a new one
+	 */
+
+	block_buf_free(b);
+	b = NULL;
+	sb->s_block_size = block_size;
+	unsigned long superblock_block = block_size == 1024 ? 1 : 0;
+	unsigned long sb_off = EXT2_SUPERBLOCK_OFFSET & (block_size - 1);
+
+	b = sb_read_block(sb, superblock_block);
+
+	if(!b)
+	{
+		/* :( riperino the bufferino */
+		goto error;
+	}
+
+	ext2_sb = block_buf_data(b) + sb_off;
+
+	fs = zalloc(sizeof(*fs));
 	if(!fs)
 	{
-		free(sb);
-		return NULL;
+		goto error;
 	}
 
 	mutex_init(&fs->bgdt_lock);
 	mutex_init(&fs->ino_alloc_lock);
 	mutex_init(&fs->sb_lock);
-	fs->sb = sb;
-	fs->major = sb->major_version;
-	fs->minor = sb->minor_version;
-	fs->total_inodes = sb->total_inodes;
-	fs->total_blocks = sb->total_blocks;
-	fs->block_size = 1024 << sb->log2blocksz;
-	fs->frag_size = 1024 << sb->log2fragsz;
-	fs->inode_size = sb->size_inode_bytes;
+
+	fs->sb_bb = b;
+	fs->sb = ext2_sb;
+	fs->major = ext2_sb->major_version;
+	fs->minor = ext2_sb->minor_version;
+	fs->total_inodes = ext2_sb->total_inodes;
+	fs->total_blocks = ext2_sb->total_blocks;
+	fs->block_size = block_size;
+	fs->frag_size = 1024 << ext2_sb->log2fragsz;
+	fs->inode_size = ext2_sb->size_inode_bytes;
 	fs->blkdevice = dev;
-	fs->blocks_per_block_group = sb->blockgroupblocks;
-	fs->inodes_per_block_group = sb->blockgroupinodes;
+	fs->blocks_per_block_group = ext2_sb->blockgroupblocks;
+	fs->inodes_per_block_group = ext2_sb->blockgroupinodes;
 	fs->number_of_block_groups = fs->total_blocks / fs->blocks_per_block_group;
 	unsigned long entries = fs->block_size / sizeof(uint32_t);
 	fs->entry_shift = 31 - __builtin_clz(entries);
@@ -459,9 +493,7 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 	fs->zero_block = zalloc(fs->block_size);
 	if(!fs->zero_block)
 	{
-		free(sb);
-		free(fs);
-		return errno = ENOMEM, NULL;
+		goto error;
 	}
 
 	block_group_desc_t *bgdt = NULL;
@@ -476,46 +508,45 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 		bgdt = ext2_read_block(1, (uint16_t) blocks_for_bgdt, fs);
 	fs->bgdt = bgdt;
 
-	struct superblock *new_super = zalloc(sizeof(*new_super));
-	if(!sb)
+	root_inode = inode_create(false);
+	disk_root_ino = ext2_get_inode_from_number(fs, 2);
+	if(!root_inode || !disk_root_ino)
 	{
-		free(sb);
-		free(fs->zero_block);
-		free(fs);
-		return NULL;
+		if(root_inode)	free(root_inode);
+		goto error;
 	}
 
-	struct inode *node = inode_create(false);
-	struct ext2_inode *ino = ext2_get_inode_from_number(fs, 2);
-	if(!node || !ino)
+	root_inode->i_inode = 2;
+	root_inode->i_type = VFS_TYPE_DIR;
+	root_inode->i_sb = sb;
+	root_inode->i_atime = disk_root_ino->atime;
+	root_inode->i_ctime = disk_root_ino->ctime;
+	root_inode->i_mtime = disk_root_ino->mtime;
+	root_inode->i_rdev = 0;
+	root_inode->i_gid = disk_root_ino->gid;
+	root_inode->i_uid = disk_root_ino->uid;
+	root_inode->i_mode = disk_root_ino->mode;
+	root_inode->i_helper = ext2_cache_inode_info(root_inode, disk_root_ino);
+
+	sb->s_inodes = root_inode;
+	sb->s_helper = fs;
+	sb->flush_inode = ext2_flush_inode;
+
+	root_inode->i_fops = &ext2_ops;
+
+	return root_inode;
+error:
+	if(sb)	free(sb);
+	if(b)   block_buf_put(b);
+	if(fs)
 	{
-		if(node)	free(node);
-		free(sb);
-		free(new_super);
-		free(fs->zero_block);
+		if(fs->zero_block)
+			free(fs->zero_block);
+		
 		free(fs);
-		return errno = ENOMEM, NULL;
 	}
 
-	node->i_inode = 2;
-	node->i_type = VFS_TYPE_DIR;
-	node->i_sb = new_super;
-	node->i_atime = ino->atime;
-	node->i_ctime = ino->ctime;
-	node->i_mtime = ino->mtime;
-	node->i_rdev = 0;
-	node->i_gid = ino->gid;
-	node->i_uid = ino->uid;
-	node->i_mode = ino->mode;
-	node->i_helper = ext2_cache_inode_info(node, ino);
-
-	new_super->s_inodes = node;
-	new_super->s_helper = fs;
-	new_super->flush_inode = ext2_flush_inode;
-
-	node->i_fops = &ext2_ops;
-
-	return node;
+	return NULL;
 }
 
 __init void init_ext2drv()
@@ -560,7 +591,7 @@ off_t ext2_getdirent(struct dirent *buf, off_t off, struct file *this)
 int ext2_stat(struct stat *buf, struct file *f)
 {
 	struct inode *node = f->f_ino;
-	ext2_fs_t *fs = node->i_sb->s_helper;
+	struct ext2_fs_info *fs = node->i_sb->s_helper;
 	/* Get the inode structure */
 	struct ext2_inode *ino = ext2_get_inode_from_node(node);	
 
@@ -607,7 +638,7 @@ struct inode *ext2_mkdir(const char *name, mode_t mode, struct file *f)
 	ext2_link(new_dir, ".", new_dir);
 	ext2_link(f->f_ino, "..", new_dir);
 
-	ext2_fs_t *fs = f->f_ino->i_sb->s_helper;
+	struct ext2_fs_info *fs = f->f_ino->i_sb->s_helper;
 
 	uint32_t inum = (uint32_t) new_dir->i_inode;
 	uint32_t bg = inum / fs->inodes_per_block_group;

@@ -103,7 +103,7 @@ int dma_get_ranges(void *vbuf, size_t buf_size, size_t max_range,
 
 	while(buf_size != 0)
 	{
-		/* Handle non-page-aligned buffers by doing it a page at a time*/
+		/* Handle non-page-aligned buffers by doing it a page at a time */
 		size_t buf_page_size = PAGE_SIZE - (buf & (PAGE_SIZE-1));
 		size_t s = min(buf_page_size, buf_size);
 		s = min(s, max_range);

@@ -13,18 +13,18 @@
 
 #include "ext2.h"
 
-uint32_t ext2_get_block_bitmap_size(ext2_fs_t *fs)
+uint32_t ext2_get_block_bitmap_size(struct ext2_fs_info *fs)
 {
 	return fs->blocks_per_block_group / CHAR_BIT;
 }
 
-uint32_t ext2_bitmap_size_to_nr_blocks(uint32_t size, ext2_fs_t *fs)
+uint32_t ext2_bitmap_size_to_nr_blocks(uint32_t size, struct ext2_fs_info *fs)
 {
 	return size % fs->block_size ? (size / fs->block_size) + 1 :
            size / fs->block_size;
 }
 
-uint8_t *ext2_get_block_bitmap(block_group_desc_t *_block_group, uint32_t block_index, ext2_fs_t *fs)
+uint8_t *ext2_get_block_bitmap(block_group_desc_t *_block_group, uint32_t block_index, struct ext2_fs_info *fs)
 {
 	size_t total_size = ext2_get_block_bitmap_size(fs);
 	size_t total_blocks = ext2_bitmap_size_to_nr_blocks(total_size, fs) - block_index;
@@ -35,7 +35,7 @@ uint8_t *ext2_get_block_bitmap(block_group_desc_t *_block_group, uint32_t block_
 }
 
 void ext2_flush_block_bitmap(uint8_t *bitmap_base, uint8_t *bit_location,
-                             block_group_desc_t *desc, ext2_fs_t *fs)
+                             block_group_desc_t *desc, struct ext2_fs_info *fs)
 {
 	uint32_t base_bitmap_block = desc->block_usage_addr;
 
@@ -51,7 +51,7 @@ void ext2_flush_block_bitmap(uint8_t *bitmap_base, uint8_t *bit_location,
 	ext2_write_block(base_bitmap_block + block_idx, 1, fs, bitmap_base + byte_off);
 }
 
-uint32_t ext2_allocate_from_block_group(ext2_fs_t *fs, uint32_t block_group)
+uint32_t ext2_allocate_from_block_group(struct ext2_fs_info *fs, uint32_t block_group)
 {
 	mutex_lock(&fs->bgdt_lock);
 	block_group_desc_t *_block_group = &fs->bgdt[block_group];
@@ -77,7 +77,7 @@ uint32_t ext2_allocate_from_block_group(ext2_fs_t *fs, uint32_t block_group)
 				_block_group->unallocated_blocks_in_group--;
 				fs->sb->unallocated_blocks--;
 				ext2_flush_block_bitmap(bitmap, &bitmap[i], _block_group, fs);
-				ext2_register_superblock_changes(fs);
+				ext2_dirty_sb(fs);
 				ext2_register_bgdt_changes(fs);
 				mutex_unlock(&fs->bgdt_lock);
 				free(bitmap);
@@ -92,7 +92,7 @@ uint32_t ext2_allocate_from_block_group(ext2_fs_t *fs, uint32_t block_group)
 	return 0;
 }
 
-int ext2_free_block_bg(uint32_t block, uint32_t block_group, ext2_fs_t *fs)
+int ext2_free_block_bg(uint32_t block, uint32_t block_group, struct ext2_fs_info *fs)
 {
 	mutex_lock(&fs->bgdt_lock);
 

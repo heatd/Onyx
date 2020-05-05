@@ -17,7 +17,7 @@
 #define EXT2_UNDEL_DIR_INO		6
 
 struct ext2_inode *ext2_allocate_inode_from_block_group(uint32_t *inode_no,
-	uint32_t block_group, ext2_fs_t *fs)
+	uint32_t block_group, struct ext2_fs_info *fs)
 {
 	/* TODO: Optimize this a-la block_groups.c */
 	mutex_lock(&fs->ino_alloc_lock);
@@ -61,7 +61,7 @@ struct ext2_inode *ext2_allocate_inode_from_block_group(uint32_t *inode_no,
 				 * and this is the most important part */
 				ext2_write_block(_block_group->inode_usage_addr,
 						 total_blocks, fs, bitmap);
-				ext2_register_superblock_changes(fs);
+				ext2_dirty_sb(fs);
 				ext2_register_bgdt_changes(fs);
 				inode = this_inode;
 				mutex_unlock(&fs->ino_alloc_lock);
@@ -92,7 +92,7 @@ found:
 	return ino;
 }
 
-int ext2_free_inode_bg(uint32_t inode, uint32_t block_group, ext2_fs_t *fs)
+int ext2_free_inode_bg(uint32_t inode, uint32_t block_group, struct ext2_fs_info *fs)
 {
 	/* TODO: Same as above */
 	mutex_lock(&fs->ino_alloc_lock);
@@ -128,7 +128,7 @@ int ext2_free_inode_bg(uint32_t inode, uint32_t block_group, ext2_fs_t *fs)
 }
 
 int ext2_add_singly_indirect_block(struct ext2_inode *inode, uint32_t block,
-	uint32_t block_index, ext2_fs_t *fs)
+	uint32_t block_index, struct ext2_fs_info *fs)
 {
 	bool allocated_single = false;
 
@@ -171,7 +171,7 @@ int ext2_add_singly_indirect_block(struct ext2_inode *inode, uint32_t block,
 }
 
 int ext2_add_doubly_indirect_block(struct ext2_inode *inode, uint32_t block,
-	uint32_t block_index, ext2_fs_t *fs)
+	uint32_t block_index, struct ext2_fs_info *fs)
 {
 	const unsigned int entries = (fs->block_size / sizeof(uint32_t));
 	unsigned int min_doubly_block = entries + direct_block_count;
@@ -245,7 +245,7 @@ int ext2_add_doubly_indirect_block(struct ext2_inode *inode, uint32_t block,
 }
 
 int ext2_add_trebly_indirect_block(struct ext2_inode *inode, uint32_t block,
-	uint32_t block_index, ext2_fs_t *fs)
+	uint32_t block_index, struct ext2_fs_info *fs)
 {
 	const unsigned int entries = (fs->block_size / sizeof(uint32_t));
 	unsigned int min_trebly_block = entries * entries + entries + direct_block_count;
@@ -336,7 +336,7 @@ int ext2_add_trebly_indirect_block(struct ext2_inode *inode, uint32_t block,
 	return 0;
 }
 
-int ext2_add_block_to_inode(struct ext2_inode *inode, uint32_t block, uint32_t block_index, ext2_fs_t *fs)
+int ext2_add_block_to_inode(struct ext2_inode *inode, uint32_t block, uint32_t block_index, struct ext2_fs_info *fs)
 {
 	unsigned int type = ext2_detect_block_type(block_index, fs);
 	switch(type)
@@ -370,7 +370,7 @@ void ext2_set_inode_size(struct ext2_inode *inode, size_t size)
 	inode->size_lo = size & 0xFFFFFFFF;
 }
 
-unsigned int ext2_detect_block_type(uint32_t block, ext2_fs_t *fs)
+unsigned int ext2_detect_block_type(uint32_t block, struct ext2_fs_info *fs)
 {
 	const unsigned int entries = (fs->block_size / sizeof(uint32_t));
 	unsigned int min_singly_block = direct_block_count;
@@ -386,9 +386,9 @@ unsigned int ext2_detect_block_type(uint32_t block, ext2_fs_t *fs)
 	return EXT2_TYPE_TREBLY_BLOCK;
 }
 
-uint32_t ext2_get_block_from_inode(struct ext2_inode *ino, uint32_t block, ext2_fs_t *fs);
+uint32_t ext2_get_block_from_inode(struct ext2_inode *ino, uint32_t block, struct ext2_fs_info *fs);
 
-ssize_t ext2_read_inode_block(struct ext2_inode *ino, uint32_t blk, char *buffer, ext2_fs_t *fs)
+ssize_t ext2_read_inode_block(struct ext2_inode *ino, uint32_t blk, char *buffer, struct ext2_fs_info *fs)
 {
 	uint32_t fs_block = ext2_get_block_from_inode(ino, blk, fs);
 	if(fs_block == EXT2_ERR_INV_BLOCK)
@@ -398,7 +398,7 @@ ssize_t ext2_read_inode_block(struct ext2_inode *ino, uint32_t blk, char *buffer
 	return fs->block_size;
 }
 
-uint32_t ext2_get_block_from_inode(struct ext2_inode *ino, uint32_t block, ext2_fs_t *fs)
+uint32_t ext2_get_block_from_inode(struct ext2_inode *ino, uint32_t block, struct ext2_fs_info *fs)
 {
 	unsigned int type = ext2_detect_block_type(block, fs);
 
@@ -528,7 +528,7 @@ uint32_t ext2_get_block_from_inode(struct ext2_inode *ino, uint32_t block, ext2_
 	return ret;
 }
 
-uint32_t ext2_get_inode_block(struct ext2_inode *ino, uint32_t block, ext2_fs_t *fs)
+uint32_t ext2_get_inode_block(struct ext2_inode *ino, uint32_t block, struct ext2_fs_info *fs)
 {
 	uint32_t b = ext2_get_block_from_inode(ino, block, fs);
 	if(b == EXT2_ERR_INV_BLOCK)
@@ -543,7 +543,7 @@ uint32_t ext2_get_inode_block(struct ext2_inode *ino, uint32_t block, ext2_fs_t 
 		return b;
 }
 
-ssize_t ext2_write_inode_block(struct ext2_inode *ino, uint32_t block, char *buffer, ext2_fs_t *fs)
+ssize_t ext2_write_inode_block(struct ext2_inode *ino, uint32_t block, char *buffer, struct ext2_fs_info *fs)
 {
 	uint32_t blk = ext2_get_inode_block(ino, block, fs);
 	if(blk == EXT2_ERR_INV_BLOCK)
@@ -554,7 +554,7 @@ ssize_t ext2_write_inode_block(struct ext2_inode *ino, uint32_t block, char *buf
 }
 
 /* TODO: Don't assume ext2_read_inode_block and ext2_write_inode_block don't fail. */
-ssize_t ext2_write_inode(struct ext2_inode *ino, ext2_fs_t *fs, size_t size, off_t off, char *buffer)
+ssize_t ext2_write_inode(struct ext2_inode *ino, struct ext2_fs_info *fs, size_t size, off_t off, char *buffer)
 {
 	char *scratch = zalloc(fs->block_size);
 	if(!scratch)
@@ -590,7 +590,7 @@ ssize_t ext2_write_inode(struct ext2_inode *ino, ext2_fs_t *fs, size_t size, off
 }
 
 /* Reads off an inode */
-ssize_t ext2_read_inode(struct ext2_inode *ino, ext2_fs_t *fs, size_t size, off_t off, char *buffer)
+ssize_t ext2_read_inode(struct ext2_inode *ino, struct ext2_fs_info *fs, size_t size, off_t off, char *buffer)
 {
 	/* This scratch buffer is too big to be allocated on the stack */
 	char *scratch = malloc(fs->block_size);
@@ -622,7 +622,7 @@ ssize_t ext2_read_inode(struct ext2_inode *ino, ext2_fs_t *fs, size_t size, off_
 	return read;
 }
 
-int ext2_free_indirect_block(uint32_t block, unsigned int indirection_level, ext2_fs_t *fs)
+int ext2_free_indirect_block(uint32_t block, unsigned int indirection_level, struct ext2_fs_info *fs)
 {
 	uint32_t *blockbuf = ext2_read_block(block, 1, fs);
 	if(!blockbuf)
@@ -657,7 +657,7 @@ out:
 	return st;
 }
 
-void ext2_free_inode_space(struct ext2_inode *inode, ext2_fs_t *fs)
+void ext2_free_inode_space(struct ext2_inode *inode, struct ext2_fs_info *fs)
 {
 	/* Free direct bps first */
 	for(unsigned int i = 0; i < direct_block_count; i++)

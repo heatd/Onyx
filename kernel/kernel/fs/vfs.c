@@ -73,13 +73,26 @@ uint32_t crc32_calculate(uint8_t *ptr, size_t len);
 
 #endif
 
+/* This function trims the part of the page that wasn't read in(because the segment of
+ * the file is smaller than PAGE_SIZE).
+ */
+static void zero_rest_of_page(struct page *page, size_t to_read)
+{
+	unsigned char *buf = PAGE_TO_VIRT(page) + to_read;
+
+	size_t to_zero = PAGE_SIZE - to_read;
+
+	memset(buf, 0, to_zero);
+} 
+
 struct page *vmo_inode_commit(size_t off, struct vm_object *vmo)
 {
 	struct inode *i = vmo->ino;
 
-	struct page *page = alloc_page(0);
+	struct page *page = alloc_page(PAGE_ALLOC_NO_ZERO);
 	if(!page)
 		return NULL;
+	page->flags |= PAGE_FLAG_BUFFER;
 
 	size_t to_read = i->i_size - off < PAGE_SIZE ? i->i_size - off : PAGE_SIZE;
 
@@ -101,9 +114,10 @@ struct page *vmo_inode_commit(size_t off, struct vm_object *vmo)
 		return NULL;
 	}
 
-	if(!add_cache_to_node(page, read, off, i))
+	zero_rest_of_page(page, to_read);
+
+	if(!pagecache_create_cache_block(page, read, off, i))
 	{
-		printk("error add cache to node\n");
 		free_page(page);
 		return NULL;
 	}
@@ -241,15 +255,6 @@ ssize_t do_actual_write(size_t offset, size_t len, void *buffer, struct file *f)
 
 	if(st >= 0)
 	{
-		/* Adjust the file size if needed */
-		
-		if(offset + len > ino->i_size)
-		{
-			ino->i_size = offset + len;
-			inode_update_ctime(ino);
-			inode_mark_dirty(ino);
-		}
-
 		inode_update_mtime(ino);
 	}
 	
@@ -750,16 +755,6 @@ short poll_vfs(void *poll_file, short events, struct file *node)
 	return default_poll(poll_file, events, node);
 }
 
-struct page_cache_block *add_cache_to_node(void *ptr, size_t size, off_t offset,
-	struct inode *node)
-{
-	struct page_cache_block *cache = add_to_cache(ptr, size, offset, node);
-	if(!cache)
-		return NULL;
-	
-	return cache;
-}
-
 bool inode_is_cacheable(struct inode *ino)
 {
 	if(ino->i_flags & INODE_FLAG_DONT_CACHE)
@@ -776,8 +771,9 @@ ssize_t lookup_file_cache(void *buffer, size_t sizeofread, struct inode *file,
 	if(!inode_is_cacheable(file))
 		return -1;
 
-	if((size_t) offset > file->i_size)
+	if((size_t) offset >= file->i_size)
 		return 0;
+
 	size_t read = 0;
 
 	while(read != sizeofread)
@@ -841,7 +837,7 @@ ssize_t lookup_file_cache(void *buffer, size_t sizeofread, struct inode *file,
 	return (ssize_t) read;
 }
 
-ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *ino,
+ssize_t write_file_cache(void *buffer, size_t len, struct inode *ino,
 	off_t offset)
 {
 	if(!inode_is_cacheable(ino))
@@ -850,6 +846,15 @@ ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *ino,
 	size_t wrote = 0;
 	do
 	{
+		/* Adjust the file size if needed */
+		if(offset + len > ino->i_size)
+		{
+			/* TODO: Adjust the block count */
+			ino->i_size = offset + len;
+			inode_update_ctime(ino);
+			inode_mark_dirty(ino);
+		}
+	
 		struct page_cache_block *cache = inode_get_page(ino, offset,
 						  FILE_CACHING_WRITE);
 
@@ -871,8 +876,8 @@ ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *ino,
 		off_t cache_off = offset % PAGE_CACHE_SIZE;
 		off_t rest = PAGE_CACHE_SIZE - cache_off;
 
-		size_t amount = sizeofwrite - wrote < (size_t) rest ?
-			sizeofwrite - wrote : (size_t) rest;
+		size_t amount = len - wrote < (size_t) rest ?
+			len - wrote : (size_t) rest;
 
 		if(copy_from_user((char*) cache->buffer + cache_off, (char*) buffer +
 			wrote, amount) < 0)
@@ -894,7 +899,7 @@ ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *ino,
 		offset += amount;
 		wrote += amount;
 
-	} while(wrote != sizeofwrite);
+	} while(wrote != len);
 
 	return (ssize_t) wrote;
 }
@@ -918,18 +923,23 @@ int default_ftruncate(off_t length, struct file *f)
 		return -ENOMEM;
 	}
 
+	printk("Default ftruncate\n");
+
 	size_t length_diff = (size_t) length - vnode->i_size;
 	size_t off = vnode->i_size;
+
 	while(length_diff != 0)
 	{
 		size_t to_write = length_diff >= PAGE_SIZE ? PAGE_SIZE : length_diff;
 
+		unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
 		size_t written = write_vfs(off, to_write, page, f);
-
+		
+		thread_change_addr_limit(old);
 		if(written != to_write)
 		{
 			free(page);
-			return (int) written;
+			return -errno;
 		}
 
 		off += to_write;
@@ -1019,6 +1029,32 @@ void inode_destroy_page_caches(struct inode *inode)
 		vmo_unref(inode->i_pages);
 }
 
+ssize_t inode_sync(struct inode *inode)
+{
+	struct rb_itor it;
+	it.node = NULL;
+	mutex_lock(&inode->i_pages->page_lock);
+
+	it.tree = inode->i_pages->pages;
+
+	while(rb_itor_valid(&it))
+	{
+		void *datum = *rb_itor_datum(&it);
+		struct page_cache_block *b = datum;
+		struct page *page = b->page;
+
+		if(page->flags & PAGE_FLAG_DIRTY)
+		{
+			flush_sync_one(&b->fobj);
+		}
+
+		rb_itor_next(&it);
+	}
+
+	/* TODO: Return errors */
+	mutex_unlock(&inode->i_pages->page_lock);
+	return 0;
+}
 
 void inode_release(struct object *object)
 {
@@ -1035,10 +1071,13 @@ void inode_release(struct object *object)
 	if(inode->i_flags & INODE_FLAG_DIRTY)
 		flush_remove_inode(inode);
 
-	if(inode->i_fops->close != NULL)
-		inode->i_fops->close(inode);
+	/* TODO: Detect the case where we're getting deleted and avoid sync'ing caches */
+	inode_sync(inode);
 
 	inode_destroy_page_caches(inode);
+
+	if(inode->i_fops->close != NULL)
+		inode->i_fops->close(inode);
 
 	free(inode);
 }

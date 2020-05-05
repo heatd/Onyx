@@ -36,7 +36,7 @@ typedef struct thread
 	uintptr_t *kernel_stack_top;
 	uintptr_t *user_stack_bottom;
 	struct process *owner;
-	thread_callback_t rip;
+	thread_callback_t entry;
 	uint32_t flags;
 	int id;
 	int status;
@@ -46,7 +46,6 @@ typedef struct thread
 	struct thread *prev_prio, *next_prio;
 	struct thread *prev_wait, *next_wait;
 	unsigned char *fpu_area;
-	bool woken_up_by_futex;
 	struct thread *sem_prev;
 	struct thread *sem_next;
 	struct spinlock lock;

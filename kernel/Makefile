@@ -39,7 +39,8 @@ CFLAGS+=-fsanitize=kernel-address
 endif
 
 ifeq ($(CONFIG_KTRACE), y)
-CFLAGS+=-pg -mnop-mcount -mfentry -mrecord-mcount -minstrument-return=nop5 -mrecord-return
+# mrecord-mcount breaks templates, and that's bad :/ TODO: One day, figure out if it's fixable
+C_ONLY_CFLAGS+=-pg -mnop-mcount -mfentry -mrecord-mcount -minstrument-return=nop5 -mrecord-return
 endif
 
 ifeq ($(CONFIG_UBSAN), y)
@@ -131,20 +132,20 @@ vmonyx: $(OBJ_LINK_LIST) $(ARCHDIR)/linker.ld ../libc/libk.a
 
 acpica/%.o: acpica/%.c kernel.config
 	@echo [CC] $<
-	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) $(CPPFLAGS)
+	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) $(C_ONLY_CFLAGS) $(CPPFLAGS)
 
 kernel/mm/kasan.o: kernel/mm/kasan.c
 	@echo [CC] NOKASAN $<
-	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) -fno-sanitize=kernel-address $(CPPFLAGS)
+	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) $(C_ONLY_CFLAGS) -fno-sanitize=kernel-address $(CPPFLAGS)
 
 kernel/mm/malloc/%.o: kernel/mm/malloc/%.c kernel.config
 	@echo [CC] NOKASAN $<
-	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) -fno-sanitize=kernel-address $(CPPFLAGS)
+	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) $(C_ONLY_CFLAGS) -fno-sanitize=kernel-address $(CPPFLAGS)
 
 %.o: %.c kernel.config
 	@echo [CC] $<
 	$(CLANG_TIDY)
-	@$(CC) -c $< -o $@ -std=c11 $(CFLAGS) $(CPPFLAGS) -Wno-error=deprecated-declarations
+	@$(CC) -c $< -o $@ -std=c11 $(CFLAGS) $(CPPFLAGS) $(C_ONLY_CFLAGS) -Wno-error=deprecated-declarations
 
 %.o: %.S kernel.config
 	@echo [AS] $<

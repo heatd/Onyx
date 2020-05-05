@@ -14,6 +14,8 @@
 #include <onyx/block.h>
 #include <onyx/rwlock.h>
 #include <onyx/page.h>
+#include <onyx/buffer.h>
+
 #include <partitions.h>
 
 static struct rwlock dev_list_lock;
@@ -261,6 +263,12 @@ size_t blkdev_write_file(size_t offset, size_t len, void* buffer, struct file *f
 
 int blkdev_init(struct blockdev *blk)
 {
+	blk->vmo = vmo_create(blk->nr_sectors * blk->sector_size, blk);
+	if(!blk->vmo)
+		return -1;
+	blk->vmo->commit = bbuffer_commit;
+	blk->vmo->priv = blk;
+
 	assert(blk != NULL);
 
 	rw_lock_write(&dev_list_lock);
@@ -349,4 +357,12 @@ int blkdev_power(int op, struct blockdev *dev)
 
 
 	return dev->power(op, dev);
+}
+
+int bio_submit_request(struct blockdev *dev, struct bio_req *req)
+{
+	if(unlikely(dev->submit_request == NULL))
+		return -EIO;
+	
+	return dev->submit_request(dev, req);
 }

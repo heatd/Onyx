@@ -674,10 +674,10 @@ void process_destroy(thread_t *current_thread)
 	struct process *current = get_current_process();
 	process_kill_other_threads();
 
-	/* Firstly, destroy the address space */
-	process_destroy_aspace();
-
 	process_destroy_file_descriptors(current);
+
+	/* We destroy the address space after fds because some close() routines may require address space access */
+	process_destroy_aspace();
 
 	process_reparent_children(current);
 

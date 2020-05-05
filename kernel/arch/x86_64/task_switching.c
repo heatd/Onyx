@@ -49,7 +49,7 @@ thread_t* task_switching_create_context(thread_callback_t callback, uint32_t fla
 	
 	memset(new_thread, 0, sizeof(thread_t));
 
-	new_thread->rip = callback;
+	new_thread->entry = callback;
 	new_thread->flags = flags;
 	new_thread->id = curr_id++;
 	new_thread->refcount = 1;
@@ -161,7 +161,7 @@ thread_t* task_switching_create_main_progcontext(thread_callback_t callback,
 	
 	memset(new_thread, 0, sizeof(thread_t));
 
-	new_thread->rip = callback;
+	new_thread->entry = callback;
 	new_thread->flags = flags;
 	new_thread->id = curr_id++;
 	new_thread->refcount = 1;
@@ -349,7 +349,7 @@ thread_t *sched_spawn_thread(registers_t *regs, thread_callback_t start, void *a
 	uint64_t *stack = new_thread->kernel_stack;
 	uint64_t ds = USER_DS, cs = USER_CS, rflags = regs->rflags;
 
-	new_thread->rip = start;
+	new_thread->entry = start;
 	*--stack = ds; //SS
 	*--stack = regs->rsp; //RSP
 	*--stack = rflags; // RFLAGS

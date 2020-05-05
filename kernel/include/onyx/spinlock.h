@@ -30,7 +30,6 @@ void spin_unlock(struct spinlock *lock);
 void spin_lock_preempt(struct spinlock *lock);
 void spin_unlock_preempt(struct spinlock *lock);
 int spin_try_lock(struct spinlock *lock);
-void wait_spinlock(struct spinlock*);
 
 
 static inline void spin_lock_irqsave(struct spinlock *lock)

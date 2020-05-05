@@ -14,6 +14,7 @@
 
 #include <onyx/list.h>
 #include <onyx/dev.h>
+#include <onyx/page.h>
 
 /* Power management operations*/
 #define BLKDEV_PM_SLEEP 1
@@ -21,10 +22,43 @@
 #define BLKDEV_PM_RESET 3
 
 struct blockdev;
-typedef ssize_t (*__blkread)(size_t offset, size_t count, void* buffer, struct blockdev* this);
-typedef ssize_t (*__blkwrite)(size_t offset, size_t count, void* buffer, struct blockdev* this);
-typedef int (*__blkflush)(struct blockdev* this);
-typedef int (*__blkpowermanagement)(int op, struct blockdev* this);
+
+typedef uint64_t sector_t;
+
+struct page_iov
+{
+	struct page *page;
+	unsigned int length;
+	unsigned int page_off;
+};
+
+
+#define BIO_REQ_OP_MASK      (0xff)
+#define BIO_REQ_READ_OP      0
+#define BIO_REQ_WRITE_OP     1
+
+/* BIO flags start at bit 8 since bits 0 - 7 are reserved for operations */
+/* Note that we still have 24 bits for flags, which should be More Than Enough(tm) */
+#define BIO_REQ_DONE         (1 << 8)
+#define BIO_REQ_EIO          (1 << 9)
+#define BIO_REQ_TIMEOUT      (1 << 10)
+#define BIO_REQ_NOT_SUPP     (1 << 11)
+
+struct bio_req
+{
+	uint32_t flags;
+	sector_t sector_number;
+	struct page_iov *vec;
+	size_t nr_vecs;
+	size_t curr_vec_index;
+};
+
+typedef ssize_t (*__blkread)(size_t offset, size_t count, void* buffer, struct blockdev* _this);
+typedef ssize_t (*__blkwrite)(size_t offset, size_t count, void* buffer, struct blockdev* _this);
+typedef int (*__blkflush)(struct blockdev* _this);
+typedef int (*__blkpowermanagement)(int op, struct blockdev* _this);
+
+struct superblock;
 
 struct blockdev
 {
@@ -34,12 +68,18 @@ struct blockdev
 	__blkpowermanagement power;
 	const char *name;
 	unsigned int sector_size;
-	unsigned int nr_sectors;
+	/* Explicitly use uint64_t here to support LBA > 32, like the extremely popular LBA48 */
+	uint64_t nr_sectors;
 	void *device_info;
 	struct dev *dev;
 	struct list_head block_dev_head;
 	struct blockdev *actual_blockdev;	// isn't null when blockdev is a partition
 	size_t offset;
+	int (*submit_request)(struct blockdev *dev, struct bio_req *req);
+	/* This vmo serves as the buffer cache of the block device, exactly like the page cache */
+	struct vm_object *vmo;
+	/* This will have the mounted superblock here if this block device is mounted */
+	struct superblock *sb;
 };
 
 static inline bool blkdev_is_partition(struct blockdev *dev)
@@ -49,7 +89,7 @@ static inline bool blkdev_is_partition(struct blockdev *dev)
 
 static inline struct blockdev *blkdev_get_dev(struct file *f)
 {
-	return f->f_ino->i_helper;
+	return (struct blockdev*) f->f_ino->i_helper;
 }
 
 #ifdef __cplusplus
@@ -97,6 +137,8 @@ int blkdev_flush(struct blockdev *dev);
  * errno values: EINVAL - invalid argument; ENOSYS - operation not supported on storage device 'dev'
 */
 int blkdev_power(int op, struct blockdev *dev);
+
+int bio_submit_request(struct blockdev *dev, struct bio_req *req);
 
 #ifdef __cplusplus
 }

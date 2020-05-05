@@ -28,7 +28,7 @@ time_t get_posix_time(void);
 
 const unsigned int direct_block_count = 12;
 
-void *ext2_read_block(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs)
+void *ext2_read_block(uint32_t block_index, uint16_t blocks, struct ext2_fs_info *fs)
 {
 	size_t size = blocks * fs->block_size; /* size = nblocks * block size */
 	void *buff = NULL;
@@ -48,20 +48,20 @@ void *ext2_read_block(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs)
 	return buff;
 }
 
-void ext2_read_block_raw(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs, void *buffer)
+void ext2_read_block_raw(uint32_t block_index, uint16_t blocks, struct ext2_fs_info *fs, void *buffer)
 {
 	size_t size = blocks * fs->block_size; /* size = nblocks * block size */
 
 	blkdev_read(((size_t) block_index) * fs->block_size, size, buffer, fs->blkdevice);
 }
 
-void ext2_write_block(uint32_t block_index, uint16_t blocks, ext2_fs_t *fs, void *buffer)
+void ext2_write_block(uint32_t block_index, uint16_t blocks, struct ext2_fs_info *fs, void *buffer)
 {
 	size_t size = blocks * fs->block_size; /* size = nblocks * block size */
 	blkdev_write(block_index * fs->block_size, size, buffer, fs->blkdevice);
 }
 
-void __ext2_update_atime(struct ext2_inode *ino, uint32_t block, ext2_fs_t *fs, struct ext2_inode *inode_table)
+void __ext2_update_atime(struct ext2_inode *ino, uint32_t block, struct ext2_fs_info *fs, struct ext2_inode *inode_table)
 {
 	/* Skip atime updating if the inode doesn't want to */
 	if(ino->flags & EXT2_INO_FLAG_ATIME_NO_UPDT)
@@ -77,7 +77,7 @@ static inline void __ext2_update_ctime(struct ext2_inode *ino)
 }
 
 __attribute__((no_sanitize_undefined))
-struct ext2_inode *ext2_get_inode_from_number(ext2_fs_t *fs, uint32_t inode)
+struct ext2_inode *ext2_get_inode_from_number(struct ext2_fs_info *fs, uint32_t inode)
 {
 	if(!inode)
 		return NULL;
@@ -114,7 +114,7 @@ struct ext2_inode *ext2_get_inode_from_number(ext2_fs_t *fs, uint32_t inode)
 }
 
 __attribute__((no_sanitize_undefined))
-void ext2_update_inode(struct ext2_inode *ino, ext2_fs_t *fs, uint32_t inode)
+void ext2_update_inode(struct ext2_inode *ino, struct ext2_fs_info *fs, uint32_t inode)
 {
 	uint32_t block_size = fs->block_size;
 	uint32_t bg = (inode - 1) / fs->inodes_per_block_group;
@@ -136,7 +136,7 @@ void ext2_update_inode(struct ext2_inode *ino, ext2_fs_t *fs, uint32_t inode)
 
 /* Open child file dirname of the directory 'ino', following symlinks */
 struct ext2_inode *ext2_open_dir(struct ext2_inode *ino, const char *dirname,
-	ext2_fs_t *fs, char **symlink, uint32_t *inode_num)
+	struct ext2_fs_info *fs, char **symlink, uint32_t *inode_num)
 {
 	struct ext2_inode *inode = NULL;
 
@@ -168,7 +168,7 @@ struct ext2_inode *ext2_open_dir(struct ext2_inode *ino, const char *dirname,
 }
 
 struct ext2_inode *ext2_traverse_fs(struct ext2_inode *wd, const char *path,
-	ext2_fs_t *fs, char **symlink_name, uint32_t *inode_num)
+	struct ext2_fs_info *fs, char **symlink_name, uint32_t *inode_num)
 {
 	char *saveptr;
 	char *p;
@@ -204,12 +204,12 @@ struct ext2_inode *ext2_traverse_fs(struct ext2_inode *wd, const char *path,
 	return ino;
 }
 
-void ext2_register_superblock_changes(ext2_fs_t *fs)
+void ext2_dirty_sb(struct ext2_fs_info *fs)
 {
-	blkdev_write(EXT2_SUPERBLOCK_OFFSET, 1024, fs->sb, fs->blkdevice);
+	block_buf_dirty(fs->sb_bb);
 }
 
-void ext2_register_bgdt_changes(ext2_fs_t *fs)
+void ext2_register_bgdt_changes(struct ext2_fs_info *fs)
 {
 	size_t blocks_for_bgdt = (fs->number_of_block_groups * sizeof(block_group_desc_t)) / fs->block_size;
 	if((fs->number_of_block_groups * sizeof(block_group_desc_t)) % fs->block_size)
@@ -253,7 +253,7 @@ uint8_t ext2_file_type_to_type_indicator(uint16_t mode)
 }
 
 int ext2_add_direntry(const char *name, uint32_t inum, struct ext2_inode *inode,
-	struct ext2_inode *dir, ext2_fs_t *fs)
+	struct ext2_inode *dir, struct ext2_fs_info *fs)
 {
 	uint8_t *buffer;
 	uint8_t *buf = buffer = zalloc(fs->block_size);
@@ -376,7 +376,7 @@ void ext2_unlink_dirent(dir_entry_t *before, dir_entry_t *entry)
 	entry->inode = 0;
 }
 
-int ext2_remove_direntry(uint32_t inum, struct ext2_inode *dir, ext2_fs_t *fs)
+int ext2_remove_direntry(uint32_t inum, struct ext2_inode *dir, struct ext2_fs_info *fs)
 {
 	int st = -ENOENT;
 	uint8_t *buf_start;
@@ -418,7 +418,7 @@ out:
 	return st;
 }
 
-int ext2_file_present(struct ext2_inode *inode, const char *name, ext2_fs_t *fs)
+int ext2_file_present(struct ext2_inode *inode, const char *name, struct ext2_fs_info *fs)
 {
 	int st = 0;
 	char *buf = zalloc(fs->block_size);
@@ -470,7 +470,7 @@ struct ext2_dirent_result
 	char *buf;
 };
 
-int ext2_retrieve_dirent(struct ext2_inode *inode, const char *name, ext2_fs_t *fs,
+int ext2_retrieve_dirent(struct ext2_inode *inode, const char *name, struct ext2_fs_info *fs,
 			 struct ext2_dirent_result *res)
 {
 	int st = 0;
@@ -519,7 +519,7 @@ int ext2_link(struct inode *target, const char *name, struct inode *dir)
 {
 	assert(target->i_sb == dir->i_sb);
 
-	ext2_fs_t *fs = dir->i_sb->s_helper;
+	struct ext2_fs_info *fs = dir->i_sb->s_helper;
 
 	struct ext2_inode *inode = ext2_get_inode_from_node(dir);
 	struct ext2_inode *target_ino = ext2_get_inode_from_node(target);
@@ -560,7 +560,7 @@ int ext2_link_fops(struct file *_target, const char *name, struct file *_dir)
 	return ext2_link(_target->f_ino, name, _dir->f_ino);
 }
 
-struct inode *ext2_load_inode_from_disk(uint32_t inum, struct file *parent, ext2_fs_t *fs)
+struct inode *ext2_load_inode_from_disk(uint32_t inum, struct file *parent, struct ext2_fs_info *fs)
 {
 	struct ext2_inode *inode = ext2_get_inode_from_number(fs, inum);
 	if(!inode)
@@ -588,7 +588,7 @@ bool ext2_is_standard_dir_link(dir_entry_t *entry)
 int ext2_dir_empty(struct inode *ino)
 {
 	struct ext2_inode *inode = ext2_get_inode_from_node(ino);
-	ext2_fs_t *fs = ino->i_sb->s_helper;
+	struct ext2_fs_info *fs = ino->i_sb->s_helper;
 
 	int st = 1;
 	char *buf = zalloc(fs->block_size);
@@ -635,7 +635,7 @@ out:
 int ext2_unlink(const char *name, int flags, struct file *f)
 {
 	struct inode *ino = f->f_ino;
-	ext2_fs_t *fs = ino->i_sb->s_helper;
+	struct ext2_fs_info *fs = ino->i_sb->s_helper;
 
 	struct ext2_inode *inode = ext2_get_inode_from_node(ino);
 

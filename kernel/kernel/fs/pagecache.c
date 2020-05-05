@@ -18,6 +18,8 @@
 #include <onyx/condvar.h>
 #include <onyx/mutex.h>
 #include <onyx/init.h>
+#include <onyx/utils.h>
+#include <onyx/cpu.h>
 
 #include <onyx/mm/flush.h>
 
@@ -27,23 +29,72 @@ static atomic_size_t used_cache_pages = 0;
 uint32_t crc32_calculate(uint8_t *ptr, size_t len);
 #endif
 
-struct page_cache_block *add_to_cache(void *data, size_t size, size_t offset, struct inode *file)
-{
-	/* Allocate a block/page for the cache */
-	struct page *page = data;
+#define cache_block_from_fo(fo)    container_of(fo, struct page_cache_block, fobj)
 
+bool pagecache_is_dirty(struct flush_object *fo)
+{
+	struct page_cache_block *b = cache_block_from_fo(fo);
+
+	return b->page->flags & PAGE_FLAG_DIRTY;
+}
+
+void wait_for_flush(struct page *page)
+{
+	/* TODO: busy sleeping is bad. Add a wait queue? */
+	while(page->flags & PAGE_FLAG_FLUSHING)
+		cpu_relax();
+}
+
+void pagecache_set_dirty(bool dirty, struct flush_object *fo)
+{
+	struct page_cache_block *b = cache_block_from_fo(fo);
+	struct page *page = b->page;
+
+	if(dirty)
+	{
+		wait_for_flush(page);
+		__sync_fetch_and_or(&page->flags, PAGE_FLAG_DIRTY);
+	}
+	else
+	{
+		/* Re-write-protect shared mappings */
+		struct vm_object *vmo = b->node->i_pages;
+		vm_wp_page_for_every_region(page, b->offset, vmo);
+
+		__sync_fetch_and_and(&page->flags, ~(PAGE_FLAG_DIRTY | PAGE_FLAG_FLUSHING));
+	}
+}
+
+ssize_t pagecache_flush(struct flush_object *fo)
+{
+	struct page_cache_block *b = cache_block_from_fo(fo);
+	struct page *page = b->page;
+
+	page->flags |= PAGE_FLAG_FLUSHING;
+
+	assert(b->node->i_fops->writepage != NULL);
+	return b->node->i_fops->writepage(b->page, b->offset, b->node);
+}
+
+const struct flush_ops pagecache_flush_ops = 
+{
+	.is_dirty = pagecache_is_dirty,
+	.set_dirty = pagecache_set_dirty,
+	.flush = pagecache_flush
+};
+
+struct page_cache_block *pagecache_create_cache_block(struct page *page, size_t size, size_t offset, struct inode *file)
+{
 	struct page_cache_block *c = zalloc(sizeof(struct page_cache_block));
 	if(!c)
-	{
-		free_page(page);
-		return errno = ENOMEM, NULL;
-	}
+		return NULL;
 
 	c->buffer = PAGE_TO_VIRT(page);
 	c->page = page;
 	c->node = file;
 	c->size = size;
 	c->offset = offset;
+	c->fobj.ops = &pagecache_flush_ops;
 	page->cache = c;
 	used_cache_pages++;
 
@@ -60,12 +111,10 @@ void pagecache_dirty_block(struct page_cache_block *block)
 
 	unsigned long old_flags = __sync_fetch_and_or(&page->flags, PAGE_FLAG_DIRTY);
 
-	__sync_synchronize();
-
 	if(old_flags & PAGE_FLAG_DIRTY)
 		return;
 	
-	flush_add_page(block);
+	flush_add_buf(&block->fobj);
 }
 
 void pagecache_init(void)
