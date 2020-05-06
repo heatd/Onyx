@@ -117,8 +117,7 @@ strlen_user:
 	 #define HASZERO(v)          (((v) - CONST1) & ~(v) & CONST2)
 	*/
 1:
-	mov %rdi, %rsi
-	and $7, %rsi
+	test $7, %rdi
 	jz 5f
 
 4:
