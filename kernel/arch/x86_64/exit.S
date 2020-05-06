@@ -17,7 +17,8 @@ return_from_execve:
 	mov %rcx, %rdx
 	mov %r8, %rcx
 	pop %r8
-	# Reload unused registers to avoid leaks
+
+	# Wipe unused registers to avoid leaks
 	xor %rbx, %rbx
 	xor %rbp, %rbp
 	xor %r10, %r10
