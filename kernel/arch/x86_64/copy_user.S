@@ -154,8 +154,7 @@ strlen_user:
 
 	/* This is the good ol' for-loop-based strlen that we're using here to search these 8 bytes */
 3:
-	mov (%rdi), %sil
-	cmp $0, %sil
+	cmpb $0, (%rdi)
 	je strlen_user.function_out
 	inc %rax
 	inc %rdi
