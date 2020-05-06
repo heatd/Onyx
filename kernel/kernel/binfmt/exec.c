@@ -339,20 +339,19 @@ int sys_execve(char *p, char *argv[], char *envp[])
 	free(kenv);
 	kenv = NULL;
 
-	void *user_stack = vm_mmap(NULL, 256 << PAGE_SHIFT, PROT_WRITE, MAP_PRIVATE | MAP_ANON, NULL, 0);
-	void *auxv = NULL;
-	if(!user_stack)
-	{
+	struct stack_info si;
+	si.length = DEFAULT_USER_STACK_LEN;
+	
+	if(process_alloc_stack(&si) < 0)
 		goto error_die_signal;
-	}
+
+	void *auxv = NULL;
 
 	/* Setup auxv */
-	auxv = process_setup_auxv(user_stack, current);
-	user_stack = (char*) user_stack + 256 * PAGE_SIZE;
-	get_current_thread()->user_stack_bottom = user_stack;
+	auxv = process_setup_auxv(si.base, current);
 
 	free(path);
-	return return_from_execve(entry, argc, uargv, uenv, auxv, user_stack);
+	return return_from_execve(entry, argc, uargv, uenv, auxv, si.top);
 
 error_die_signal:
 	free(path);

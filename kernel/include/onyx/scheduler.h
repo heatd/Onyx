@@ -31,10 +31,8 @@ typedef struct thread
 {
 	unsigned long refcount;
 	/* Put arch-independent stuff right here */
-	uintptr_t *user_stack;
 	uintptr_t *kernel_stack;
 	uintptr_t *kernel_stack_top;
-	uintptr_t *user_stack_bottom;
 	struct process *owner;
 	thread_callback_t entry;
 	uint32_t flags;
@@ -49,7 +47,6 @@ typedef struct thread
 	struct thread *sem_prev;
 	struct thread *sem_next;
 	struct spinlock lock;
-	struct spinlock *to_release;
 	int errno_val;
 	struct signal_info sinfo;
 	struct list_head thread_list_head;
@@ -79,8 +76,6 @@ extern "C" {
 int sched_init(void);
 
 thread_t *sched_create_thread(thread_callback_t callback, uint32_t flags, void* args);
-
-thread_t* sched_create_main_thread(thread_callback_t callback, uint32_t flags,int argc, char **argv, char **envp);
 
 void sched_remove_thread(thread_t *thread);
 

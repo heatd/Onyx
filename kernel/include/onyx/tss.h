@@ -20,7 +20,16 @@ typedef struct tss_entry
 	uint16_t iomap_base;
 } __attribute__((packed)) tss_entry_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void tss_init(void);
 void init_percpu_tss(uint64_t *gdt);
 void set_kernel_stack(uintptr_t stack0);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif

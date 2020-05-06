@@ -12,7 +12,7 @@
 extern "C" {
 #endif
 
-thread_t *sched_spawn_thread(registers_t *regs, thread_callback_t start, void *arg, void *fs);
+thread_t *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs);
 
 #ifdef __cplusplus
 }

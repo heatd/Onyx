@@ -178,74 +178,6 @@ struct process *process_create(const char *cmd_line, struct ioctx *ctx, struct p
 	return proc;
 }
 
-struct thread *process_create_thread(struct process *proc, thread_callback_t callback,
-	uint32_t flags, int argc, char **argv, char **envp)
-{
-	thread_t *thread = NULL;
-	if(!argv)
-		thread = sched_create_thread(callback, flags, NULL);
-	else
-		thread = sched_create_main_thread(callback, flags,
-						  argc, argv, envp);
-
-	if(!thread)
-		return NULL;
-
-	spin_lock(&proc->thread_list_lock);
-
-	list_add_tail(&thread->thread_list_head, &proc->thread_list);
-
-	spin_unlock(&proc->thread_list_lock);
-
-	thread->owner = proc;
-
-	return thread;
-}
-
-struct thread *process_fork_thread(thread_t *src, struct process *dest, struct syscall_frame *ctx)
-{
-	registers_t 	regs;
-	uintptr_t 	rsp;
-	uintptr_t 	rflags;
-	uintptr_t 	ip;
-
-	/* TODO: Move this to arch/x86_64/process.c */
-	rsp = ctx->user_rsp;
-	rflags = ctx->rflags;
-	ip = ctx->rip;
-
-	/* Setup the registers on the stack */
-	regs.rax = 0;
-	regs.rbx = ctx->rbx;
-	regs.rcx = 0;
-	regs.rdx = ctx->rdx;
-	regs.rdi = ctx->rdi;
-	regs.rsi = ctx->rsi;
-	regs.rbp = ctx->rbp;
-	regs.rsp = rsp;
-	regs.rip = ip;
-	regs.r8 = ctx->r8;
-	regs.r9 = ctx->r9;
-	regs.r10 = ctx->r10;
-	regs.r11 = 0;
-	regs.r12 = ctx->r12;
-	regs.r13 = ctx->r13;
-	regs.r14 = ctx->r14;
-	regs.r15 = ctx->r15;
-	regs.rflags = rflags;
-	thread_t *thread = sched_spawn_thread(&regs, (thread_callback_t) regs.rip,
-					      (void*) regs.rdi, src->fs);
-	if(!thread)
-		return NULL;
-
-	save_fpu(thread->fpu_area);
-
-	thread->owner = dest;
-
-	list_add_tail(&thread->thread_list_head, &dest->thread_list);
-	return thread;
-}
-
 struct process *get_process_from_pid(pid_t pid)
 {
 	/* TODO: Maybe storing processes in a tree would be a good idea? */
@@ -739,44 +671,9 @@ void process_add_thread(struct process *process, thread_t *thread)
 
 	list_add_tail(&thread->thread_list_head, &process->thread_list);
 
-	spin_unlock(&process->thread_list_lock);
-
 	process->nr_threads++;
-}
 
-#define CLONE_FORK           (1 << 0)
-#define CLONE_SPAWNTHREAD	 (1 << 1)
-long valid_flags = CLONE_FORK | CLONE_SPAWNTHREAD;
-
-int sys_clone(int (*fn)(void *), void *child_stack, int flags, void *arg, pid_t *ptid, void *tls)
-{
-	if(flags & ~valid_flags)
-		return -EINVAL;
-	if(flags & CLONE_FORK)
-		return -EINVAL; /* TODO: Add CLONE_FORK */
-	thread_callback_t start = (thread_callback_t) fn;
-
-	registers_t regs;
-	memset(&regs, 0, sizeof(registers_t));
-	regs.rsp = (uint64_t) child_stack;
-	regs.rflags = 0x202;
-
-	thread_t *thread = sched_spawn_thread(&regs, start, arg, tls);
-	if(!thread)
-		return -errno;
-
-	if(copy_to_user(ptid, &thread->id, sizeof(pid_t)) < 0)
-	{
-		thread_destroy(thread);
-		return -errno;
-	}
-
-	thread->ctid = ptid;
-
-	process_add_thread(get_current_process(), thread);
-	sched_start_thread(thread);
-
-	return 0;
+	spin_unlock(&process->thread_list_lock);
 }
 
 void sys_exit_thread(int value)

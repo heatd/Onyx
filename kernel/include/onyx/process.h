@@ -22,6 +22,8 @@
 #include <onyx/syscall.h>
 #include <onyx/cred.h>
 
+#include <onyx/vm_layout.h>
+
 struct proc_event_sub;
 
 struct process
@@ -98,10 +100,12 @@ extern "C" {
 #endif
 
 struct process *process_create(const char *cmd_line, struct ioctx *ctx, struct process *parent);
-struct thread *process_create_thread(struct process *proc, thread_callback_t callback,
-		uint32_t flags, int argc, char **argv, char **envp);
-struct process *get_process_from_pid(pid_t pid);
 
+struct thread *process_create_main_thread(struct process *proc, thread_callback_t callback, void *sp,
+                                     int argc, char **argv, char **envp);
+
+struct process *get_process_from_pid(pid_t pid);
+struct thread *process_fork_thread(thread_t *src, struct process *dest, struct syscall_frame *ctx);
 void process_destroy_aspace(void);
 int process_attach(struct process *tracer, struct process *tracee);
 struct process *process_find_tracee(struct process *tracer, pid_t pid);
@@ -109,6 +113,7 @@ void process_exit_from_signal(int signum);
 char **process_copy_envarg(char **envarg, bool to_kernel, int *count);
 void process_increment_stats(bool is_kernel);
 void process_end(struct process *p);
+void process_add_thread(struct process *process, thread_t *thread);
 
 static inline void process_get(struct process *process)
 {
@@ -120,6 +125,15 @@ static inline void process_put(struct process *process)
 	if(__atomic_sub_fetch(&process->refcount, 1, __ATOMIC_ACQUIRE) == 0)
 		process_end(process);
 }
+
+struct stack_info
+{
+	void *base;
+	void *top;
+	size_t length;
+};
+
+int process_alloc_stack(struct stack_info *info);
 
 #ifdef __cplusplus
 }

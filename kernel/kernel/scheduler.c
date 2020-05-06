@@ -14,7 +14,6 @@
 #include <stdio.h>
 
 #include <onyx/timer.h>
-#include <onyx/data_structures.h>
 #include <onyx/task_switching.h>
 #include <onyx/vm.h>
 #include <onyx/spinlock.h>
@@ -371,32 +370,6 @@ void thread_add(thread_t *thread, unsigned int cpu_num)
 	add_per_cpu_any(active_threads, 1, cpu_num);
 	/* Append the thread to the queue */
 	sched_append_to_queue(thread->priority, cpu_num, thread);
-}
-
-thread_t *sched_create_thread(thread_callback_t callback, uint32_t flags, void* args)
-{
-	/* Create the thread context (aka the real work) */
-	thread_t *t = task_switching_create_context(callback, flags, args);
-	if(!t)
-		return NULL;
-	t->priority = SCHED_PRIO_NORMAL;
-
-	thread_append_to_global_list(t);
-
-	return t;
-}
-
-thread_t* sched_create_main_thread(thread_callback_t callback, uint32_t flags, int argc, char **argv, char **envp)
-{
-	/* Create the thread context (aka the real work) */
-	thread_t *t = task_switching_create_main_progcontext(callback, flags, argc, argv, envp);
-	if(!t)
-		return NULL;
-	t->priority = SCHED_PRIO_NORMAL;
-
-	thread_append_to_global_list(t);
-
-	return t;
 }
 
 void sched_init_cpu(unsigned int cpu)

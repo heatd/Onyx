@@ -20,10 +20,4 @@
 #define THREAD_UNINTERRUPTIBLE	5
 #define THREAD_STOPPED          6
 
-thread_t* task_switching_create_context(thread_callback_t callback,
-uint32_t flags, void* args);
-
-thread_t* task_switching_create_main_progcontext(thread_callback_t callback,
-uint32_t flags, int argc, char **argv, char **envp);
-
 #endif

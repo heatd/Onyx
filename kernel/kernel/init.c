@@ -251,22 +251,19 @@ retry:;
 	char **_argv = process_copy_envarg(argv, false, &argc);
 	char **_env = process_copy_envarg(envp, false, NULL);
 
-	struct thread *main_thread = process_create_thread(proc, (thread_callback_t) entry, 0,
+	struct stack_info si;
+	si.length = DEFAULT_USER_STACK_LEN;
+
+	assert(process_alloc_stack(&si) == 0);
+
+	struct thread *main_thread = process_create_main_thread(proc, (thread_callback_t) entry, si.top,
 		argc, _argv, _env);
 	
 	assert(main_thread != NULL);
 
-	Elf64_auxv_t *auxv = process_setup_auxv(main_thread->user_stack_bottom, current);
+	Elf64_auxv_t *auxv = process_setup_auxv(si.base, current);
 	registers_t *regs = (registers_t *) main_thread->kernel_stack;
 	regs->rcx = (uintptr_t) auxv;
-	
-	uintptr_t *fs = get_user_pages(VM_TYPE_REGULAR, 1, VM_WRITE | VM_NOEXEC | VM_USER);
-	assert(fs != NULL);
-	main_thread->fs = (void*) fs;
-	__pthread_t *p = (__pthread_t*) fs;
-	p->self = (__pthread_t*) fs;
-	p->tid = main_thread->id;
-	p->pid = get_current_process()->pid;
 
 	sched_start_thread(main_thread);
 

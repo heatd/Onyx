@@ -1,0 +1,263 @@
+/*
+* Copyright (c) 2016, 2017 Pedro Falcato
+* This file is part of Onyx, and is released under the terms of the MIT License
+* check LICENSE at the root directory for more information
+*/
+
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <errno.h>
+
+#include <onyx/timer.h>
+#include <onyx/task_switching.h>
+#include <onyx/vm.h>
+#include <onyx/spinlock.h>
+#include <onyx/panic.h>
+#include <onyx/tss.h>
+#include <onyx/process.h>
+#include <onyx/idt.h>
+#include <onyx/elf.h>
+#include <onyx/fpu.h>
+#include <onyx/apic.h>
+#include <onyx/worker.h>
+#include <onyx/cpu.h>
+#include <onyx/syscall.h>
+#include <onyx/percpu.h>
+#include <onyx/atomic.hpp>
+
+#include <onyx/x86/segments.h>
+#include <onyx/x86/eflags.h>
+#include <onyx/x86/msr.h>
+#include <onyx/x86/vm_layout.h>
+
+#include <sys/time.h>
+
+/* Creates a thread for the scheduler to switch to
+   Expects a callback for the code(RIP) and some flags
+*/
+atomic<int> curr_id = 1;
+constexpr unsigned long kernel_stack_size = 0x4000;
+
+void thread_setup_stack(thread *thread, bool is_user, registers_t *regs)
+{
+	uint64_t *stack = thread->kernel_stack;
+	uint64_t ds, cs, rflags = regs->rflags;
+
+	if(is_user)
+	{
+		ds = USER_DS;
+		cs = USER_CS;
+	}
+	else
+	{
+		ds = KERNEL_DS;
+		cs = KERNEL_CS;
+		regs->rsp = reinterpret_cast<uint64_t>(thread->kernel_stack);
+	}
+
+	thread->entry = reinterpret_cast<thread_callback_t>(regs->rip);
+	*--stack = ds; //SS
+	*--stack = regs->rsp; //RSP
+	*--stack = rflags; // RFLAGS
+	*--stack = cs; //CS
+	*--stack = regs->rip; //RIP
+
+	/* Skip int_no and int_err_code */
+	stack -= 2;
+
+	*--stack = regs->rax; // RAX
+	*--stack = regs->rbx; // RBX
+	*--stack = regs->rcx; // RCX
+	*--stack = regs->rdx; // RDX
+	*--stack = regs->rdi; // RDI
+	*--stack = regs->rsi; // RSI
+	*--stack = regs->rbp; // RBP
+	*--stack = regs->r8; // r8
+	*--stack = regs->r9; // r9
+	*--stack = regs->r10; // r10
+	*--stack = regs->r11; // R11
+	*--stack = regs->r12; // R12
+	*--stack = regs->r13; // R13
+	*--stack = regs->r14; // R14
+	*--stack = regs->r15; // R15
+	*--stack = ds; // DS
+
+	thread->kernel_stack = stack;
+}
+
+#define ARCH_SET_GS 0x1001
+#define ARCH_SET_FS 0x1002
+#define ARCH_GET_FS 0x1003
+#define ARCH_GET_GS 0x1004
+
+extern "C"
+{
+
+int sys_arch_prctl(int code, unsigned long *addr)
+{
+	struct thread *current = get_current_thread();
+	switch(code)
+	{
+		case ARCH_SET_FS:
+		{
+			current->fs = (void*) addr;
+			wrmsr(FS_BASE_MSR, (uintptr_t) current->fs);
+			break;
+		}
+		case ARCH_GET_FS:
+		{
+			if(copy_to_user(addr, &current->fs, sizeof(unsigned long)) < 0)
+				return -EFAULT;
+			break;
+		}
+		case ARCH_SET_GS:
+		{
+			current->gs = (void*) addr;
+			wrmsr(KERNEL_GS_BASE, (uintptr_t) current->gs);
+			break;
+		}
+		case ARCH_GET_GS:
+		{
+			if(copy_to_user(addr, current->gs, sizeof(unsigned long)) < 0)
+				return -EFAULT;
+			break;
+		}
+	}
+
+	return 0;
+}
+
+void thread_finish_destruction(void *___thread)
+{
+	thread *thread = static_cast<thread_t *>(___thread);
+	/* Destroy the kernel stack */
+	vfree((void*) ((uintptr_t) thread->kernel_stack_top - kernel_stack_size), 4);
+	
+	/* Free the fpu area */
+	free(thread->fpu_area);
+
+	thread_remove_from_list(thread);
+	/* Free the thread */
+	free(thread);
+}
+
+thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs)
+{
+	thread* new_thread = new thread;
+	
+	if(!new_thread)
+		return NULL;
+
+	memset(new_thread, 0, sizeof(thread));
+
+	new_thread->id = curr_id++;
+	new_thread->flags = flags;
+
+	bool is_user = !(flags & THREAD_KERNEL);
+
+	if(is_user)
+	{
+		posix_memalign((void**) &new_thread->fpu_area, FPU_AREA_ALIGNMENT, FPU_AREA_SIZE);
+	
+		if(!new_thread->fpu_area)
+			goto error;
+
+		memset(new_thread->fpu_area, 0, FPU_AREA_SIZE);
+	
+		setup_fpu_area(new_thread->fpu_area);
+
+		signal_context_init(new_thread);
+
+		new_thread->addr_limit = VM_USER_ADDR_LIMIT;	
+
+		new_thread->owner = get_current_process();
+	}
+	else
+	{
+		new_thread->addr_limit = VM_KERNEL_ADDR_LIMIT;
+	}
+
+	new_thread->refcount = 1;
+
+	new_thread->kernel_stack = static_cast<uintptr_t *>(vmalloc(4, VM_TYPE_STACK, VM_WRITE | VM_NOEXEC));
+
+	if(!new_thread->kernel_stack)
+	{
+		goto error;
+	}
+
+	new_thread->kernel_stack = reinterpret_cast<uintptr_t *>(((char*) new_thread->kernel_stack + kernel_stack_size));
+	new_thread->kernel_stack_top = new_thread->kernel_stack;
+
+	thread_setup_stack(new_thread, is_user, regs);
+
+	new_thread->fs = fs;
+
+	thread_append_to_global_list(new_thread);
+
+	new_thread->priority = SCHED_PRIO_NORMAL;
+
+	return new_thread;
+
+error:
+	if(new_thread->fpu_area)
+		free(new_thread->fpu_area);
+	
+	delete new_thread;
+
+	return NULL;
+}
+
+void arch_save_thread(struct thread *thread, void *stack)
+{
+	/* No need to save the fpu context if we're a kernel thread! */
+	if(!(thread->flags & THREAD_KERNEL))
+		save_fpu(thread->fpu_area);
+}
+
+PER_CPU_VAR_NOUNUSED(unsigned long kernel_stack) = 0;
+PER_CPU_VAR_NOUNUSED(unsigned long scratch_rsp) = 0;
+
+void arch_load_thread(struct thread *thread, unsigned int cpu)
+{
+	write_per_cpu(kernel_stack, thread->kernel_stack_top);
+	/* Fill the TSS with a kernel stack */
+	set_kernel_stack((uintptr_t) thread->kernel_stack_top);
+
+	if(!(thread->flags & THREAD_KERNEL))
+	{
+		restore_fpu(thread->fpu_area);
+
+		wrmsr(FS_BASE_MSR, (uint64_t) thread->fs);
+		wrmsr(KERNEL_GS_BASE, (uint64_t) thread->gs);
+	}
+}
+
+void arch_load_process(struct process *process, struct thread *thread,
+                       unsigned int cpu)
+{
+	vm_load_arch_mmu(&process->address_space.arch_mmu);
+}
+
+unsigned long thread_get_addr_limit(void)
+{
+	struct thread *t = get_current_thread();
+	assert(t->addr_limit != 0);
+	return t->addr_limit;
+}
+
+thread_t *sched_create_thread(thread_callback_t callback, uint32_t flags, void* args)
+{
+	/* Create the thread context (aka the real work) */
+	registers_t regs = {};
+	regs.rip = (unsigned long) callback;
+	regs.rdi = (unsigned long) args;
+	regs.rflags = default_rflags;
+
+	thread_t *t = sched_spawn_thread(&regs, flags, NULL);
+	return t;
+}
+
+}
