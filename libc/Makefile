@@ -127,7 +127,7 @@ libc.so: $(OBJS)
 
 %.libk.o: %.cpp ../kernel/kernel.config
 	echo [CXX] $<.libk
-	$(CXX) -c $< -o $@ -std=c++14 -mcmode=kernel $(LIBK_CFLAGS) $(LIBK_CPPFLAGS)
+	$(CXX) -c $< -o $@ -std=c++14 -mcmodel=kernel $(LIBK_CFLAGS) $(LIBK_CPPFLAGS)
 
 %.libk.o: %.S ../kernel/kernel.config
 	echo [AS] $<.libk

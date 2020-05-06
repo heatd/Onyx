@@ -99,25 +99,69 @@ strlen_user:
 	
 	pop %rdi
 
-	# Check if dst < addr_limit
+	# Check if src < addr_limit
 	cmp %rax, %rdi
 
 	ja strlen_user.handler
 
-	# Store address limit in %r8
-
-	mov %rax, %r8
 	xor %rax, %rax
-strlen_user.loop:
-	cmp %r8, %rdi
-	ja strlen_user.handler
-strlen_user.count:
-	mov (%rdi), %si
-	cmp $0, %si
+	/* Basically we want do to here what we do in strlen(), we're using a
+	 * HASZERO kind of thing while aligning the string first to a word boundary. */
+
+	/* For reference:
+	 #define CONST1          ((size_t) 0x0101010101010101ULL)
+	 #define CONST2          ((size_t) 0x8080808080808080ULL)
+
+	 #define WORD_SIZE           (sizeof(size_t) / CHAR_BIT)
+	 #define ALIGNED(x, y)       !((unsigned long) x & (y - 1))
+	 #define HASZERO(v)          (((v) - CONST1) & ~(v) & CONST2)
+	*/
+1:
+	mov %rdi, %rsi
+	and $7, %rsi
+	jz 5f
+
+4:
+	cmpb $0, (%rdi)
+	jz strlen_user.function_out
+
+	/* We also need to increment %rax here */
+	inc %rax
+	inc %rdi
+
+	jmp 1b
+
+5:
+	movabs $0x0101010101010101, %rsi
+	movabs $0x8080808080808080, %rdx
+
+	/* Read the word and keep two copies of it: one will be subbed from and the
+	 * other will be NOT'd */
+2:
+	mov (%rdi), %r8
+	mov %r8, %rcx
+
+	sub %rsi, %r8
+	not %rcx
+	and %rcx, %r8
+	and %rdx, %r8
+
+	jnz 3f
+
+	add $8, %rax
+	add $8, %rdi
+
+	jmp 2b
+
+	/* This is the good ol' for-loop-based strlen that we're using here to search these 8 bytes */
+3:
+	mov (%rdi), %sil
+	cmp $0, %sil
 	je strlen_user.function_out
 	inc %rax
 	inc %rdi
-	jmp strlen_user.count
+	jmp 3b
+
 strlen_user.function_out:
 	ret
 strlen_user.handler:
@@ -126,7 +170,11 @@ strlen_user.handler:
 	jmp strlen_user.function_out
 
 .pushsection .ehtable
-	.quad strlen_user.count
+	.quad 2b
+	.quad strlen_user.handler
+	.quad 3b
+	.quad strlen_user.handler
+	.quad 4b
 	.quad strlen_user.handler
 .popsection
 
