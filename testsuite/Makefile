@@ -1,6 +1,7 @@
 PROG:= testsuite
 OBJS:= src/futex_test.o \
-       src/mmap_test.o
+
+#       src/mmap_test.o not yet finished
 
 CXXFLAGS:=-O2 -g -std=c++17 -D_POSIX_C_SOURCE -ltest
 

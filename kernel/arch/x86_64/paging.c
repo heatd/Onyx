@@ -654,7 +654,8 @@ void paging_load_cr3(PML *pml)
 {
 	assert(pml != NULL);
 	PML *oldpml;
-	__asm__ __volatile__("movq %%cr3, %%rax\t\nmovq %%rax, %0":"=r"(oldpml));
+
+	__asm__ __volatile__("movq %%cr3, %0" : "=r"(oldpml));
 	if(oldpml == pml)
 		return;
 	__asm__ __volatile__("movq %0, %%cr3"::"r"(pml));

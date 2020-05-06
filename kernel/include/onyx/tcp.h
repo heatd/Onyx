@@ -72,7 +72,8 @@ enum class tcp_state
 
 class tcp_ack
 {
-private:
+/* Same as below */
+public:
 	tcp_header *packet;
 	uint16_t length;
 public:
@@ -131,7 +132,7 @@ public:
 
 	struct list_head list_node;
 
-	tcp_option(uint8_t kind, uint8_t length) : kind{kind}, length{length}, dynamic{0} {}
+	tcp_option(uint8_t kind, uint8_t length) : kind{kind}, length{length}, dynamic{0}, list_node{} {}
 
 	~tcp_option() {}
 
@@ -142,7 +143,9 @@ class tcp_socket;
 
 class tcp_packet
 {
-private:
+
+/* We have to use public here so offsetof isn't UB */
+public:
 	cul::slice<const uint8_t> payload;
 	tcp_socket *socket;
 	struct list_head option_list;
@@ -162,9 +165,8 @@ private:
 
 	void put_options(char *opts);
 
-public:
 	tcp_packet(cul::slice<const uint8_t> data, tcp_socket *socket, uint16_t flags) : payload(data),
-	           socket(socket), flags(flags)
+	           socket(socket), option_list{}, flags(flags)
 	{
 		INIT_LIST_HEAD(&option_list);
 	}
@@ -191,7 +193,8 @@ public:
 
 class tcp_socket : public socket
 {
-private:
+/* Same as above */
+public:
 	enum tcp_state state;
 	int type;
 	struct sockaddr_in src_addr;

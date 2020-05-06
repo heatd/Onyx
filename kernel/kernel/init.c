@@ -125,7 +125,7 @@ void kernel_parse_command_line(char *cmd)
 
 			kernel_arguments[kernel_argc] = new_string;
 			kernel_argc++;
-			cmd += size_token -1;
+			cmd += size_token - 1;
 		}
 
 		cmd++;

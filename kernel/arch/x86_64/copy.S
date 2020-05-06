@@ -74,3 +74,17 @@ or %r8, %rax
 xor %rax, %rax
 
 ret
+
+.global memcpy
+memcpy:
+	push %rbp
+	mov %rsp, %rbp
+
+	mov %rdx, %rcx
+	mov %rdi, %rax
+
+	rep movsb
+
+	pop %rbp
+
+	ret

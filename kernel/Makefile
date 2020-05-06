@@ -23,7 +23,7 @@ CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-stron
 CPPFLAGS:=$(CPPFLAGS) -D__is_onyx_kernel -D_POSIX_C_SOURCE -D_BSD_SOURCE -Iinclude \
 -Iinclude/acpica -isystem ../libc/include -DKERNEL_VERSION='"$(KERNEL_VERSION)"' \
 -DKERNEL_BRANCH='"$(KERNEL_BRANCH)"' -DKERNEL_ARCH='"$(KERNEL_ARCH)"' -imacros \
-include/onyx/config.h -Wno-missing-field-initializers
+include/onyx/config.h -Wno-missing-field-initializers -Wno-format-truncation
 
 LDFLAGS:=$(LDFLAGS) -fkeep-inline-functions -no-pie -Wl,--build-id=none
 LIBS:=$(LIBS) -nostdlib -lk $(LIBGCC_PATH)
@@ -62,12 +62,14 @@ ACPICA_CFLAGS:=$(filter-out -fsanitize=undefined -Werror, $(CFLAGS))
 # clang-tidy doesn't recognize a bunch of compiler flags
 CLANG_TIDY_CFLAGS:=$(filter-out -mnop-mcount -mrecord-mcount -mrecord-return \
 	-Wno-error=frame-address -minstrument-return=nop5 \
-	-Wno-cast-function-type, $(CFLAGS))
+	-Wno-cast-function-type -Wno-format-truncation, $(CFLAGS))
 
 ifeq ($(RUN_CLANG_TIDY), 1)
-CLANG_TIDY:=-clang-tidy -checks=$(CLANG_TIDY_CHECKS) $< -- $(CLANG_TIDY_CFLAGS) $(CPPFLAGS) -D__onyx__ >> clang-tidy.out
+CLANG_TIDY:=-clang-tidy -checks=$(CLANG_TIDY_CHECKS)
+CLANG_TIDY_ARGS:=-- $(CLANG_TIDY_CFLAGS) $(CPPFLAGS) -D__onyx__ >> clang-tidy.out
 else
-CLANG_TIDY:=
+CLANG_TIDY:=true
+CLANG_TIDY_ARGS:=
 endif
 
 
@@ -142,9 +144,14 @@ kernel/mm/malloc/%.o: kernel/mm/malloc/%.c kernel.config
 	@echo [CC] NOKASAN $<
 	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) $(C_ONLY_CFLAGS) -fno-sanitize=kernel-address $(CPPFLAGS)
 
+# I don't like this solution of having an ifeq RUN_CLANG_TIDY but I can't find a better way to do this and still pass $<
+
 %.o: %.c kernel.config
 	@echo [CC] $<
-	$(CLANG_TIDY)
+
+ifeq ($(RUN_CLANG_TIDY), 1)
+	$(CLANG_TIDY) $< $(CLANG_TIDY_ARGS)
+endif
 	@$(CC) -c $< -o $@ -std=c11 $(CFLAGS) $(CPPFLAGS) $(C_ONLY_CFLAGS) -Wno-error=deprecated-declarations
 
 %.o: %.S kernel.config
@@ -153,7 +160,11 @@ kernel/mm/malloc/%.o: kernel/mm/malloc/%.c kernel.config
 
 %.o: %.cpp kernel.config
 	@echo [CXX] $<
-	$(CLANG_TIDY)
+
+ifeq ($(RUN_CLANG_TIDY), 1)
+	$(CLANG_TIDY) $< $(CLANG_TIDY_ARGS)
+endif
+
 	@$(CXX) -c $< -o $@ -std=c++17 $(CFLAGS) $(CPPFLAGS) $(CXXFLAGS)
 
 $(ARCHDIR)/__vdso.o: $(ARCHDIR)/__vdso.c kernel.config

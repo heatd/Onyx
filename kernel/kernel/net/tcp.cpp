@@ -228,10 +228,12 @@ uint16_t tcpv4_calculate_checksum(tcp_header *header, uint16_t packet_length, ui
 	bool padded = packet_length & 1;
 
 	uint32_t proto = ((packet_length + IPV4_TCP) << 8);
+	uint16_t buf[2];
+	memcpy(&buf, &proto, sizeof(buf));
 
 	uint16_t r = __ipsum_unfolded(&srcip, sizeof(srcip), 0);
 	r = __ipsum_unfolded(&dstip, sizeof(dstip), r);
-	r = __ipsum_unfolded(&proto, sizeof(proto), r);
+	r = __ipsum_unfolded(buf, sizeof(buf), r);
 
 	r = __ipsum_unfolded(header, padded ? packet_length + 1 : packet_length, r);
 
@@ -332,7 +334,7 @@ int tcp_packet::send()
 	}
 
 	header->checksum = tcpv4_calculate_checksum(header,
-		header_size + payload.size_bytes(), src.sin_addr.s_addr, dest.sin_addr.s_addr);
+		static_cast<uint16_t>(header_size + payload.size_bytes()), src.sin_addr.s_addr, dest.sin_addr.s_addr);
 
 	int st = ipv4_send_packet(src.sin_addr.s_addr, dest.sin_addr.s_addr, IPV4_TCP, &info,
 		socket->netif);

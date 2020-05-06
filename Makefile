@@ -24,7 +24,7 @@ export INCLUDEDIR:=$(PREFIX)/include
 export BINDIR:=$(PREFIX)/bin
 export MANDIR:=/usr/share/man
 export PKGDIR:=/pkg
-export CFLAGS?=-Os -g
+export CFLAGS?=-O2 -g
 export CPPFLAGS:=
 
 # Configure the cross-compiler to use the desired system root.

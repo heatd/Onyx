@@ -145,7 +145,8 @@ void __cpu_identify(void)
 char *cpu_get_name(void)
 {
 	uint32_t eax, ebx, edx, ecx;
-	__get_cpuid(0, &eax, &ebx, &ecx, &edx);
+	if(__get_cpuid(0, &eax, &ebx, &ecx, &edx) == 0)
+		panic("Odd cpuid error");
 	
 	uint32_t cpuid[4] = {0};
 	cpuid[0] = ebx;
@@ -202,7 +203,8 @@ char *cpu_get_name(void)
 void cpu_get_sign(void)
 {
 	uint32_t eax, ebx, edx, ecx;
-	__get_cpuid(CPUID_SIGN, &eax, &ebx, &ecx, &edx);
+	if(__get_cpuid(CPUID_SIGN, &eax, &ebx, &ecx, &edx) == 0)
+		panic("Odd cpuid error getting signature");
 
 	unsigned int stepping = eax & 0xf;
 	unsigned int model = (eax >> 4) & 0xf;
