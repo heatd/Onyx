@@ -307,6 +307,8 @@ struct sockaddr_storage {
 	unsigned long __ss_align;
 };
 
+/* We need this ifdef because having a function named socket sucks for C++ :/ */
+#ifndef __is_onyx_kernel
 int socket (int, int, int);
 int socketpair (int, int, int, int [2]);
 
@@ -332,6 +334,8 @@ int getsockopt (int, int, int, void *__restrict, socklen_t *__restrict);
 int setsockopt (int, int, int, const void *, socklen_t);
 
 int sockatmark (int);
+
+#endif
 
 #ifdef __cplusplus
 }

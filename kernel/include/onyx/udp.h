@@ -10,6 +10,7 @@
 
 #include <onyx/network.h>
 #include <onyx/semaphore.h>
+#include <onyx/ip.h>
 
 typedef struct udp
 {
@@ -28,12 +29,8 @@ struct udp_packet
 	struct udp_packet *next;
 };
 
-struct udp_socket
+struct udp_socket : public inet_socket
 {
-	struct socket socket;
-	int type;
-	struct sockaddr_in src_addr;
-	struct sockaddr_in dest_addr;
 	struct semaphore packet_semaphore;
 	struct udp_packet *packet_list;
 	struct spinlock packet_lock;

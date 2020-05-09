@@ -10,6 +10,9 @@
 
 #include <onyx/netif.h>
 #include <onyx/packetbuf.h>
+#include <onyx/socket.h>
+
+#include <sys/socket.h>
 
 #define IPV4_ICMP 1
 #define IPV4_IGMP 2
@@ -18,8 +21,6 @@
 #define IPV4_ENCAP 41
 #define IPV4_OSPF 89
 #define IPV4_SCTP 132
-
-struct sock;
 
 struct ip_header
 {
@@ -38,6 +39,37 @@ struct ip_header
 	uint32_t dest_ip;
 } __attribute__((packed));
 
+struct inet_socket : public socket
+{
+	/* in6 is able to hold sockaddr_in and sockaddr_in6, since it's bigger */
+	sockaddr_in src_addr;
+	sockaddr_in dest_addr;
+
+	inet_socket() : socket{}, src_addr{}, dest_addr{} {}
+
+	static uint32_t make_hash(inet_socket *& sock)
+	{
+		auto hash = fnv_hash(&sock->proto, sizeof(int));
+		hash = fnv_hash_cont(&sock->src_addr, sizeof(sock->src_addr), hash);
+
+		return hash;
+	}
+
+	static uint32_t make_hash_from_id(const socket_id& id)
+	{
+		auto hash = fnv_hash(&id.protocol, sizeof(id.protocol));
+		hash = fnv_hash_cont(&id.src_addr, sizeof(id.src_addr), hash);
+
+		return hash;
+	}
+
+	bool is_id(const socket_id& id, unsigned int flags) const
+	{
+		return proto == id.protocol && !memcmp(&src_addr, &id.src_addr, sizeof(sockaddr)) &&
+		       (!(flags & GET_SOCKET_DSTADDR_VALID) || !memcmp(&dest_addr, &id.dst_addr, sizeof(sockaddr)));
+	}
+};
+
 #define IPV4_MIN_HEADER_LEN			20
 
 #define IPV4_FRAG_INFO_DONT_FRAGMENT	0x4000
@@ -46,10 +78,6 @@ struct ip_header
 #define IPV4_FRAG_INFO_FLAGS(x)		(x & 0x7)
 #define IPV4_MAKE_FRAGOFF(x)		(x << 3)
 #define IPV4_GET_FRAGOFF(x)			(x >> 2)
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 static inline uint16_t __ipsum_unfolded(void *addr, size_t bytes, uint16_t init_count)
 {
@@ -96,13 +124,56 @@ void ipv4_handle_packet(struct ip_header *header, size_t size, struct netif *net
 
 extern struct packetbuf_proto __ipv4_pbf;
 
+inline void ipv4_to_sockaddr(in_addr_t addr, in_port_t port, sockaddr_in &in)
+{
+	in.sin_addr.s_addr = addr;
+	in.sin_family = AF_INET;
+	in.sin_port = port;
+	memset(&in.sin_zero, 0, sizeof(in.sin_zero));
+}
+
+inline bool check_sockaddr_in(sockaddr_in *in)
+{
+	if(in->sin_family != AF_INET)
+		return false;
+
+	memset(&in->sin_zero, 0, sizeof(in->sin_zero));
+	return true;
+}
+
 static inline struct packetbuf_proto *ipv4_get_packetbuf(void)
 {
 	return &__ipv4_pbf;
 }
 
-#ifdef __cplusplus
+/* This routine also handles broadcast addresses and all complexity envolved with ip addresses */
+template <typename T>
+inline T *inet_resolve_socket(in_addr_t src, in_port_t port_src, in_port_t port_dst,
+                              int proto, netif *nif, bool ign_dst = false)
+{
+	struct sockaddr_in socket_dst;
+	struct sockaddr_in socket_src;
+	struct sockaddr_in socket_dst_broadcast;
+	unsigned int flags = !ign_dst ? GET_SOCKET_DSTADDR_VALID : 0;
+	ipv4_to_sockaddr(INADDR_BROADCAST, port_src, socket_dst_broadcast);
+	ipv4_to_sockaddr(src, port_src, socket_dst);
+	ipv4_to_sockaddr(nif->local_ip.sin_addr.s_addr, port_dst, socket_src);
+
+	const socket_id id(proto, sa_generic(socket_src), sa_generic(socket_dst));
+	const socket_id other_possible_id(proto, sa_generic(socket_src), sa_generic(socket_dst_broadcast));
+
+	auto socket = netif_get_socket(id, nif, flags);
+
+	if(!socket)
+		socket = netif_get_socket(other_possible_id, nif, flags);
+	
+	return static_cast<T *>(socket);
 }
-#endif
+
+/* Ports under 1024 are privileged; they can only bound to by root. */
+static constexpr uint16_t inet_min_unprivileged_port = 1024;
+
+/* 'port' is a big-endian(or network order) variable */
+bool inet_has_permission_for_port(in_port_t port);
 
 #endif

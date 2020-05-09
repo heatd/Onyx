@@ -38,7 +38,7 @@ struct arp_cache *arp_get(struct arp_hashtable *table, int hash, uint32_t ip)
 
 struct arp_cache *arp_create(struct arp_hashtable *table, int hash, uint32_t ip)
 {
-	struct arp_cache *c = zalloc(sizeof(struct arp_cache));
+	arp_cache *c = static_cast<arp_cache *>(zalloc(sizeof(struct arp_cache)));
 	if(!c)
 		return NULL;
 
@@ -102,7 +102,7 @@ struct packetbuf_proto arp_proto =
 
 size_t arp_get_packetlen(void *info, struct packetbuf_proto **next, void **next_info)
 {
-	struct netif *n = info;
+	struct netif *n = static_cast<struct netif *>(info);
 	
 
 	*next = n->get_packetbuf_proto(n);
@@ -121,7 +121,7 @@ int arp_submit_request(struct arp_cache *c, struct netif *netif)
 		return -ENOMEM;
 
 	size_t arp_header_off = packetbuf_get_off(&bufs);
-	arp_request_t *arp = (void *)(((char *) bufs.packet) + arp_header_off);
+	arp_request_t *arp = reinterpret_cast<arp_request_t *>(((char *) bufs.packet) + arp_header_off);
 	memset(arp, 0, sizeof(arp_request_t));
 	arp->htype = htons(ARP_ETHERNET);
 	arp->ptype = 0x0008;

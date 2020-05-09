@@ -19,9 +19,11 @@ extern bool avx_supported;
 #else
 #error "Implement FPU switching for your arch"
 #endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 void setup_fpu_area(unsigned char *address);
 void save_fpu(void *address);
 void restore_fpu(void *address);
@@ -31,4 +33,5 @@ void fpu_init(void);
 #ifdef __cplusplus
 }
 #endif
+
 #endif

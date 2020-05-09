@@ -23,7 +23,7 @@ enum vmo_type
 };
 
 #define VMO_FLAG_LOCK_FUTURE_PAGES		(1 << 0)
-
+#define VMO_FLAG_DEVICE_MAPPING         (1 << 1)
 struct vm_object
 {
 	enum vmo_type type;

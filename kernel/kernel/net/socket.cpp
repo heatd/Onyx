@@ -10,6 +10,11 @@
 #include <onyx/socket.h>
 #include <onyx/ip.h>
 
+struct socket *file_to_socket(struct file *f)
+{
+	return static_cast<struct socket *>(f->f_ino->i_helper);
+}
+
 /* Most of these default values don't make much sense, but we have them as placeholders */
 int default_listen(struct socket *sock)
 {
@@ -21,10 +26,10 @@ struct socket *default_accept(struct socket_conn_request *req, struct socket *so
 {
 	(void) sock;
 	(void) req;
-	return errno = EIO, NULL;
+	return errno = EIO, nullptr;
 }
 
-int default_bind(const struct sockaddr *addr, socklen_t addrlen, struct socket *sock)
+int default_bind(struct sockaddr *addr, socklen_t addrlen, struct socket *sock)
 {
 	(void) addr;
 	(void) addrlen;
@@ -32,7 +37,7 @@ int default_bind(const struct sockaddr *addr, socklen_t addrlen, struct socket *
 	return -EIO;
 }
 
-int default_connect(const struct sockaddr *addr, socklen_t addrlen, struct socket *sock)
+int default_connect(struct sockaddr *addr, socklen_t addrlen, struct socket *sock)
 {
 	(void) addr;
 	(void) addrlen;
@@ -66,8 +71,12 @@ ssize_t default_recvfrom(void *buf, size_t len, int flags, struct sockaddr *addr
 
 struct sock_ops default_s_ops =
 {
+	.listen = default_listen,
 	.accept = default_accept,
-	.listen = default_listen
+	.bind = default_bind,
+	.connect = default_connect,
+	.sendto = default_sendto,
+	.recvfrom = default_recvfrom
 };
 
 void socket_release(struct object *obj)
@@ -96,9 +105,9 @@ void socket_unref(struct socket *socket)
 
 size_t socket_write(size_t offset, size_t len, void* buffer, struct file* file)
 {
-	struct socket *s = file->f_ino->i_helper;
+	struct socket *s = file_to_socket(file);
 
-	return s->s_ops->sendto(buffer, len, 0, NULL, 0, s);
+	return s->s_ops->sendto(buffer, len, 0, nullptr, 0, s);
 }
 
 void socket_close(struct inode *ino);
@@ -113,22 +122,18 @@ struct file *get_socket_fd(int fd)
 {
 	struct file *desc = get_file_description(fd);
 	if(!desc)
-		return errno = EBADF, NULL;
+		return errno = EBADF, nullptr;
 
 	if(desc->f_ino->i_fops->write != socket_write)
 	{
 		fd_put(desc);
-		return errno = ENOTSOCK, NULL;
+		return errno = ENOTSOCK, nullptr;
 	}
 
 	return desc;
 }
 
-struct socket *file_to_socket(struct file *f)
-{
-	return f->f_ino->i_helper;
-}
-
+extern "C"
 ssize_t sys_sendto(int sockfd, const void *buf, size_t len, int flags,
 	struct sockaddr *addr, socklen_t addrlen)
 {
@@ -143,34 +148,68 @@ ssize_t sys_sendto(int sockfd, const void *buf, size_t len, int flags,
 	return ret;
 }
 
-int sys_connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
+extern "C"
+int sys_connect(int sockfd, const struct sockaddr *uaddr, socklen_t addrlen)
 {
+	sockaddr_storage addr;
+	if(addrlen > sizeof(sockaddr_storage))
+		return -EINVAL;
+
+	if(copy_from_user(&addr, uaddr, addrlen) < 0)
+		return -EFAULT;
+
+	struct file *desc = get_socket_fd(sockfd);
+	if(!desc)
+		return -errno;
+	
+	int ret = -EINTR;
+	struct socket *s = file_to_socket(desc);
+
+	/* See the comment below in sys_bind for explanation */
+	if(mutex_lock_interruptible(&s->connection_state_lock) < 0)
+		goto out;
+
+	ret = s->s_ops->connect((sockaddr *) &addr, addrlen, s);
+
+	mutex_unlock(&s->connection_state_lock);
+out:
+	fd_put(desc);
+	return ret;
+}
+
+extern "C"
+int sys_bind(int sockfd, const struct sockaddr *uaddr, socklen_t addrlen)
+{
+	sockaddr_storage addr;
+	if(addrlen > sizeof(sockaddr_storage))
+		return -EINVAL;
+
+	if(copy_from_user(&addr, uaddr, addrlen) < 0)
+		return -EFAULT;
+
 	struct file *desc = get_socket_fd(sockfd);
 	if(!desc)
 		return -errno;
 
 	struct socket *s = file_to_socket(desc);
+	int ret = -EINTR;
 
-	int ret = s->s_ops->connect(addr, addrlen, s);
+	/* We use mutex_lock_interruptible here as we can be held up for quite a
+	 * big amount of time for things like TCP connect()s that are timing out.
+	 */
+	if(mutex_lock_interruptible(&s->connection_state_lock) < 0)
+		goto out;
 
+	ret = s->s_ops->bind((sockaddr *) &addr, addrlen, s);
+
+	mutex_unlock(&s->connection_state_lock);
+
+out:
 	fd_put(desc);
 	return ret;
 }
 
-int sys_bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
-{
-	struct file *desc = get_socket_fd(sockfd);
-	if(!desc)
-		return -errno;
-
-	struct socket *s = file_to_socket(desc);
-
-	int ret = s->s_ops->bind(addr, addrlen, s);
-
-	fd_put(desc);
-	return ret;
-}
-
+extern "C"
 ssize_t sys_recvfrom(int sockfd, void *buf, size_t len, int flags,
                      struct sockaddr *src_addr, socklen_t *addrlen)
 {
@@ -194,14 +233,15 @@ bool sock_listening(struct socket *sock)
 	return sock->backlog != 0;
 }
 
+extern "C"
 int sys_listen(int sockfd, int backlog)
 {
 	int st = 0;
 	struct file *f = get_socket_fd(sockfd);
 	if(!f)
 		return -errno;
-	
-	struct socket *sock = f->f_ino->i_helper;
+
+	struct socket *sock = file_to_socket(f);
 
 	if(sock->type != SOCK_DGRAM || sock->type != SOCK_SEQPACKET)
 	{
@@ -222,8 +262,14 @@ int sys_listen(int sockfd, int backlog)
 	if(backlog > backlog_limit)
 		backlog = backlog_limit;
 	
+	if(mutex_lock_interruptible(&sock->connection_state_lock) < 0)
+	{
+		st = -EINTR;
+		goto out;
+	}
+
 	/* Big note: the backlog value in the socket structure is used both to determine
-	 * the backlog size **and** if the socket is in a listening state, with 0 repre-
+	 * the backlog size **and** if the socket is in a listening state, with != 0 repre-
 	 * senting that state.
 	*/
 	
@@ -235,9 +281,11 @@ int sys_listen(int sockfd, int backlog)
 		 * listening state
 		*/
 		sock->backlog = 0;
-		goto out;
+		goto out2;
 	}
 
+out2:
+	mutex_unlock(&sock->connection_state_lock);
 out:
 	fd_put(f);
 	return st;
@@ -302,7 +350,7 @@ struct socket *unix_create_socket(int type, int protocol);
 
 struct socket *socket_create(int domain, int type, int protocol)
 {
-	struct socket *socket = NULL;
+	struct socket *socket = nullptr;
 	switch(domain)
 	{
 		case AF_INET:
@@ -312,11 +360,11 @@ struct socket *socket_create(int domain, int type, int protocol)
 			socket = unix_create_socket(type, protocol);
 			break;
 		default:
-			return errno = EAFNOSUPPORT, NULL;
+			return errno = EAFNOSUPPORT, nullptr;
 	}
 
 	if(!socket)
-		return NULL;
+		return nullptr;
 
 	socket->type = type;
 	socket->domain = domain;
@@ -331,7 +379,7 @@ struct socket *socket_create(int domain, int type, int protocol)
 
 void socket_close(struct inode *ino)
 {
-	struct socket *s = ino->i_helper;
+	struct socket *s = static_cast<struct socket *>(ino->i_helper);
 
 	socket_unref(s);
 }
@@ -341,7 +389,7 @@ struct inode *socket_create_inode(struct socket *socket)
 	struct inode *inode = inode_create(false);
 
 	if(!inode)
-		return NULL;
+		return nullptr;
 	
 	inode->i_fops = &socket_ops;
 
@@ -351,6 +399,7 @@ struct inode *socket_create_inode(struct socket *socket)
 	return inode;
 }
 
+extern "C"
 int sys_socket(int domain, int type, int protocol)
 {
 	int dflags;
@@ -418,6 +467,7 @@ struct socket_conn_request *dequeue_conn_request(struct socket *sock)
 	return req;
 }
 
+extern "C"
 int sys_accept4(int sockfd, struct sockaddr *addr, socklen_t *slen, int flags)
 {
 	int st = 0;
@@ -428,7 +478,18 @@ int sys_accept4(int sockfd, struct sockaddr *addr, socklen_t *slen, int flags)
 	if(!f)
 		return -errno;
 	
-	struct socket *sock = f->f_ino->i_helper;
+	struct socket *sock = file_to_socket(f);
+	struct socket_conn_request *req = nullptr;
+	struct socket *new_socket = nullptr;
+	struct inode *inode = nullptr;
+	struct file *newf = nullptr;
+	int dflags = 0, fd = -1;
+
+	if(mutex_lock_interruptible(&sock->connection_state_lock) < 0)
+	{
+		st = -EINTR;
+		goto out_no_lock;
+	}
 
 	if(!sock_listening(sock))
 	{
@@ -444,9 +505,9 @@ int sys_accept4(int sockfd, struct sockaddr *addr, socklen_t *slen, int flags)
 
 	sem_wait(&sock->listener_sem);
 
-	struct socket_conn_request *req = dequeue_conn_request(sock);
+	req = dequeue_conn_request(sock);
 
-	struct socket *new_socket = sock->s_ops->accept(req, sock);
+	new_socket = sock->s_ops->accept(req, sock);
 	free(req);
 
 	if(!new_socket)
@@ -455,7 +516,7 @@ int sys_accept4(int sockfd, struct sockaddr *addr, socklen_t *slen, int flags)
 		goto out;
 	}
 
-	struct inode *inode = socket_create_inode(new_socket);
+	inode = socket_create_inode(new_socket);
 	if(!inode)
 	{
 		socket_unref(new_socket);
@@ -463,7 +524,7 @@ int sys_accept4(int sockfd, struct sockaddr *addr, socklen_t *slen, int flags)
 		goto out;
 	}
 
-	struct file *newf = inode_to_file(inode);
+	newf = inode_to_file(inode);
 	if(!newf)
 	{
 		close_vfs(inode);
@@ -471,22 +532,23 @@ int sys_accept4(int sockfd, struct sockaddr *addr, socklen_t *slen, int flags)
 		goto out;
 	}
 
-	int dflags = 0;
-
 	if(flags & SOCK_CLOEXEC)
 		dflags |= O_CLOEXEC;
 
 	/* Open a file descriptor with the socket vnode */
-	int fd = open_with_vnode(newf, dflags);
+	fd = open_with_vnode(newf, dflags);
 
 	fd_put(newf);
 
 	st = fd;
 out:
+	mutex_unlock(&sock->connection_state_lock);
+out_no_lock:
 	fd_put(f);
 	return st;
 }
 
+extern "C"
 int sys_accept(int sockfd, struct sockaddr *addr, socklen_t *slen)
 {
 	return sys_accept4(sockfd, addr, slen, 0);

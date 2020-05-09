@@ -17,6 +17,7 @@
 
 /* FIXME: 98% sure there's a race condition here, TOFIX */
 
+extern "C"
 int sys_sethostname(const void *name, size_t len)
 {
 	if(len > 65)
@@ -26,7 +27,7 @@ int sys_sethostname(const void *name, size_t len)
 		return -EINVAL;
 	
 	/* We need to copy the name, since the user pointer isn't safe */
-	char *hostname = malloc(len + 1);
+	char *hostname = static_cast<char *>(malloc(len + 1));
 	if(!hostname)
 		return -ENOMEM;
 
@@ -42,6 +43,7 @@ int sys_sethostname(const void *name, size_t len)
 	return 0;
 }
 
+extern "C"
 int sys_gethostname(char *name, size_t len)
 {
 	if((ssize_t) len < 0)

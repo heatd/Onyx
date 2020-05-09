@@ -13,7 +13,18 @@ typedef uint32_t fnv_hash_t;
 #define FNV_PRIME 		16777619
 #define FNV_OFFSET_BASIS 	2166136261
 
-static inline fnv_hash_t __fnv_hash(uint8_t *data, size_t size)
+
+#ifdef __cplusplus
+/* Handy define for the functions below, which can totally be constexpr in C++ */
+#define CONSTEXPR constexpr
+
+#else
+
+#define CONSTEXPR
+
+#endif
+
+CONSTEXPR static inline fnv_hash_t __fnv_hash(const uint8_t *data, size_t size)
 {
 	fnv_hash_t hash = FNV_OFFSET_BASIS;
 	while(size--)
@@ -21,9 +32,25 @@ static inline fnv_hash_t __fnv_hash(uint8_t *data, size_t size)
 		hash *= FNV_PRIME;
 		hash ^= *data++;
 	}
+
 	return hash;
 }
 
-#define fnv_hash(data, size)	__fnv_hash((uint8_t *) data, size)
+/* Used when continuing hashes (you'd call fnv_hash() and then call fnv_hash_cont
+ * with the old hash as to continue hashing)
+ */
+CONSTEXPR static inline fnv_hash_t __fnv_hash_cont(const uint8_t *data, size_t size, fnv_hash_t hash)
+{
+	while(size--)
+	{
+		hash *= FNV_PRIME;
+		hash ^= *data++;
+	}
+
+	return hash;
+}
+
+#define fnv_hash(data, size)	__fnv_hash((const uint8_t *) data, size)
+#define fnv_hash_cont(data, size, hash)	__fnv_hash_cont((const uint8_t *) data, size, hash)
 
 #endif

@@ -99,3 +99,16 @@ void timer_handle_events(struct timer *t)
 
 	spin_unlock_irqrestore(&t->event_list_lock);
 }
+
+void timer_remove_event(struct clockevent *ev)
+{
+	auto timer = platform_get_timer();
+
+	spin_lock_irqsave(&timer->event_list_lock);
+
+	/* For now we need to do this check inside the lock as to prevent race conditions :( */
+	if(ev->flags & CLOCKEVENT_FLAG_POISON)
+		list_remove(&ev->list_node);
+
+	spin_unlock_irqrestore(&timer->event_list_lock);
+}

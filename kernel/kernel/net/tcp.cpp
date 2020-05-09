@@ -12,39 +12,9 @@
 #include <onyx/ip.h>
 #include <onyx/byteswap.h>
 
-tcp_socket *__tcp_get_port_unlocked(netif *nif, in_port_t port)
-{
-	MUST_HOLD_LOCK(&nif->tcp_socket_lock_v4);
-	list_for_every(&nif->tcp_sockets_v4)
-	{
-		tcp_socket *s = container_of(l, tcp_socket, socket_list_head);
-
-		if(s->saddr().sin_port == port)
-		{
-			socket_ref(s);
-			return s;
-		}
-	}
-
-	return NULL;
-}
-
-tcp_socket *tcp_get_port(netif *nif, in_port_t port)
-{
-	spin_lock(&nif->tcp_socket_lock_v4);
-
-	auto ret = __tcp_get_port_unlocked(nif, port);
-
-	spin_unlock(&nif->tcp_socket_lock_v4);
-
-	return ret;
-}
-
 extern "C"
 int tcp_init_netif(struct netif *netif)
 {
-	INIT_LIST_HEAD(&netif->tcp_sockets_v4);
-	INIT_LIST_HEAD(&netif->tcp_sockets_v6);
 	return 0;
 }
 
@@ -52,42 +22,33 @@ int tcp_init_netif(struct netif *netif)
 static constexpr in_port_t ephemeral_upper_bound = 61000;
 static constexpr in_port_t ephemeral_lower_bound = 32768;
 
-void __tcp_append_socket_unlocked(netif *nif, tcp_socket *s)
-{
-	MUST_HOLD_LOCK(&nif->tcp_socket_lock_v4);
-	list_add_tail(&s->socket_list_head, &nif->tcp_sockets_v4);
-}
-
-void tcp_append_socket(struct netif *nif, tcp_socket *s)
-{
-	spin_lock(&nif->tcp_socket_lock_v4);
-	__tcp_append_socket_unlocked(nif, s);
-	spin_unlock(&nif->tcp_socket_lock_v4);
-}
-
-in_port_t tcp_allocate_ephemeral_port(netif *netif)
+in_port_t tcp_allocate_ephemeral_port(netif *netif, sockaddr_in &in)
 {
 	while(true)
 	{
 		in_port_t port = htons(static_cast<in_port_t>(arc4random_uniform(
 			 ephemeral_upper_bound - ephemeral_lower_bound)) + ephemeral_lower_bound);
 
-		spin_lock(&netif->tcp_socket_lock_v4);
+		in.sin_port = htons(port);
+	
+		const socket_id id{AF_INET, sa_generic(in), sa_generic(in)};
+		
+		netif_lock_socks(id, netif);
 
-		auto sock = __tcp_get_port_unlocked(netif, port);
+		auto sock = netif_get_socket(id, netif, GET_SOCKET_CHECK_EXISTANCE | GET_SOCKET_UNLOCKED);
 
 		if(!sock)
 			return port;
 		else
 		{
 			/* Let's try again, boys */
-			spin_unlock(&netif->tcp_socket_lock_v4);
+			netif_unlock_socks(id, netif);
 		}
 	}
 
 }
 
-int tcp_socket::bind(const struct sockaddr *addr, socklen_t addrlen)
+int tcp_socket::bind(struct sockaddr *addr, socklen_t addrlen)
 {
 	if(bound)
 		return -EINVAL;
@@ -96,7 +57,6 @@ int tcp_socket::bind(const struct sockaddr *addr, socklen_t addrlen)
 		netif = netif_choose();
 
 	struct sockaddr_in *in = (struct sockaddr_in *) addr;
-	in->sin_port = ntoh16(in->sin_port);
 
 	/* TODO: This is not correct behavior. We should bind to the netif of the s_addr,
 	 * or if INADDR_ANY, bind to every netif
@@ -104,37 +64,40 @@ int tcp_socket::bind(const struct sockaddr *addr, socklen_t addrlen)
 	if(in->sin_addr.s_addr == INADDR_ANY)
 		in->sin_addr.s_addr = netif->local_ip.sin_addr.s_addr;
 
+	const socket_id id(in->sin_family, sa_generic(*in), sa_generic(*in));
+
 	if(in->sin_port != 0)
 	{
+		if(!inet_has_permission_for_port(in->sin_port))
+			return -EACCES;
+
+		netif_lock_socks(id, netif);
 		/* Check if there's any socket bound to this address yet */
-		tcp_socket *s = tcp_get_port(netif, in->sin_port);
-		if(s)
+		if(netif_get_socket(id, netif, GET_SOCKET_CHECK_EXISTANCE | GET_SOCKET_UNLOCKED))
 		{
-			socket_unref(s);
+			netif_unlock_socks(id, netif);
 			return -EADDRINUSE;
 		}
-
-		spin_lock(&netif->tcp_socket_lock_v4);
 	}
 	else
 	{
 		/* Lets try to allocate a new ephemeral port for us */
-		auto port = tcp_allocate_ephemeral_port(netif);
-		in->sin_port = port;
+		tcp_allocate_ephemeral_port(netif, *in);
 	}
 
-	/* Note: tcp_socket_lock_v4 needs to be held */
+	/* Note: locks need to be held */
 
 	memcpy(&src_addr, addr, sizeof(struct sockaddr));
-	__tcp_append_socket_unlocked(netif, this);
-	bound = true;
+	bool success = netif_add_socket(this, netif, ADD_SOCKET_UNLOCKED);
+	
+	bound = success;
 
-	spin_unlock(&netif->tcp_socket_lock_v4);
+	netif_unlock_socks(id, netif);
 
-	return 0;
+	return bound ? 0 : -ENOMEM;
 }
 
-int tcp_bind(const struct sockaddr *addr, socklen_t addrlen, struct socket *sock)
+int tcp_bind(struct sockaddr *addr, socklen_t addrlen, struct socket *sock)
 {
 	tcp_socket *socket = (tcp_socket *) sock;
 
@@ -187,10 +150,11 @@ int tcp_handle_packet(struct ip_header *ip_header, size_t size, struct netif *ne
 
 	auto flags = ntohs(header->data_offset_and_flags);
 
-	auto tcp_port = tcp_get_port(netif, header->dest_port);
+	auto socket = inet_resolve_socket<tcp_socket>(ip_header->source_ip,
+                      header->source_port, header->dest_port, PROTOCOL_TCP, netif);
 	uint16_t tcp_payload_len = static_cast<uint16_t>(size - ip_header_size);
 
-	if(!tcp_port)
+	if(!socket)
 	{
 		/* No socket bound, bad packet. */
 		return 0;
@@ -214,11 +178,11 @@ int tcp_handle_packet(struct ip_header *ip_header, size_t size, struct netif *ne
 			goto out;
 		}
 
-		tcp_port->append_ack(ack);
+		socket->append_ack(ack);
 	}
 
 out:
-	socket_unref(tcp_port);
+	socket_unref(socket);
 	
 	return st;
 }
@@ -446,12 +410,13 @@ int tcp_socket::start_handshake()
 			return false;
 
 		return true;
-	});
+	}, st);
 	
 	if(!ack)
 	{
+		/* wait_for_ack returns the error code in st (int& error) */
 		state = tcp_state::TCP_STATE_CLOSED;
-		return -ETIMEDOUT;
+		return st;
 	}
 
 	state = tcp_state::TCP_STATE_SYN_RECIEVED;
@@ -498,20 +463,16 @@ int tcp_socket::start_connection()
 	return st;
 }
 
-int tcp_socket::connect(const struct sockaddr *addr, socklen_t addrlen)
+int tcp_socket::connect(struct sockaddr *addr, socklen_t addrlen)
 {	
 	if(!bound)
 	{
-		/* TODO: We probably need locks here.
-		 * Also, maybe sockets shouldn't be such in bed with vfs code.
-		 */
-
 		sockaddr_in bind_addr = {};
 		bind_addr.sin_family = AF_INET;
 		bind_addr.sin_addr.s_addr = INADDR_ANY;
 		bind_addr.sin_port = 0;
 	
-		bind((const sockaddr *) &bind_addr, sizeof(bind_addr));
+		bind((sockaddr *) &bind_addr, sizeof(bind_addr));
 	}
 
 	if(connected)
@@ -526,7 +487,7 @@ int tcp_socket::connect(const struct sockaddr *addr, socklen_t addrlen)
 	return start_connection();
 }
 
-int tcp_connect(const struct sockaddr *addr, socklen_t addrlen, struct socket *sock)
+int tcp_connect(struct sockaddr *addr, socklen_t addrlen, struct socket *sock)
 {
 	tcp_socket *socket = (tcp_socket*) sock;
 	return socket->connect(addr, addrlen);
@@ -552,8 +513,28 @@ ssize_t tcp_socket::queue_data(const void *user_buf, size_t len)
 	return 0;
 }
 
+ssize_t tcp_socket::get_max_payload_len(uint16_t tcp_header_len)
+{
+	struct packetbuf_info in = {};
+	
+	/* TODO: Rework this - this shouldn't be allowed to fail and we shouldn't
+	 * need to allocate memory for this */
+	if(packetbuf_alloc(&in, &tcpv4_proto, this) < 0)
+		return -ENOMEM;
+
+	auto proto_overhead = in.offsets[in.current_off] + tcp_header_len;
+
+	packetbuf_free(&in);
+
+	return static_cast<ssize_t>(proto_overhead);
+}
+
 void tcp_socket::try_to_send()
 {
+	/* TODO: Implement Nagle's algorithm.
+	 * Before we do that, we should probably have retransmission implemented.
+	 */
+	#if 0
 	if(window_size >= mss && current_pos >= mss)
 	{
 		cul::slice<const uint8_t> data{send_buffer.begin(), mss};
@@ -561,7 +542,11 @@ void tcp_socket::try_to_send()
 
 		packet.send();
 
-		/* TODO: Retry? */
+		/* TODO: Implement retries in general? */
+		/* TODO: There's lots of room for improvement - maybe a list of buffer
+		 * would be a better idea and would avoid this gigantic memcpy we have below
+		 * due to vector.
+		 */
 		auto old_pos = current_pos;
 		current_pos -= data.size_bytes();
 
@@ -569,8 +554,9 @@ void tcp_socket::try_to_send()
 			memcpy(send_buffer.begin(), send_buffer.end() + 1, old_pos - current_pos);
 	}
 	else
+	#endif
 	{
-		/* TODO: Wait for ack */
+		/* TODO: Support TCP segmentation instead of relying on IPv4 segmentation */
 		cul::slice<const uint8_t> data{send_buffer.begin(), current_pos};
 		tcp_packet packet{data, this, TCP_FLAG_ACK | TCP_FLAG_PSH};
 		packet.send();

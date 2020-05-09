@@ -221,7 +221,7 @@ struct driver acpi_driver =
 	.name = "acpi"
 };
 
-static struct device dev =
+static struct device acpi_dev =
 {
 	.name = "acpi_sci",
 	.driver = &acpi_driver
@@ -229,8 +229,7 @@ static struct device dev =
 
 ACPI_STATUS AcpiOsInstallInterruptHandler(UINT32 InterruptLevel, ACPI_OSD_HANDLER Handler, void *Context)
 {
-	assert(install_irq(InterruptLevel, acpi_sci_irq, &dev,
-		IRQ_FLAG_REGULAR, Context) == 0);
+	assert(install_irq(InterruptLevel, acpi_sci_irq, &acpi_dev, IRQ_FLAG_REGULAR, Context) == 0);
 	ServiceRout = Handler;
 
 	return AE_OK;
@@ -238,7 +237,7 @@ ACPI_STATUS AcpiOsInstallInterruptHandler(UINT32 InterruptLevel, ACPI_OSD_HANDLE
 
 ACPI_STATUS AcpiOsRemoveInterruptHandler(UINT32 InterruptNumber, ACPI_OSD_HANDLER Handler)
 {
-	free_irq(InterruptNumber, &dev);
+	free_irq(InterruptNumber, &acpi_dev);
 	ServiceRout = NULL;
 	return AE_OK;
 }

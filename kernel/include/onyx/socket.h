@@ -33,8 +33,8 @@ struct sock_ops
 {
 	int (*listen)(struct socket *sock);
 	struct socket *(*accept)(struct socket_conn_request *req, struct socket *sock);
-	int (*bind)(const struct sockaddr *addr, socklen_t addrlen, struct socket *sock);
-	int (*connect)(const struct sockaddr *addr, socklen_t addrlen, struct socket *sock);
+	int (*bind)(struct sockaddr *addr, socklen_t addrlen, struct socket *sock);
+	int (*connect)(struct sockaddr *addr, socklen_t addrlen, struct socket *sock);
 	ssize_t (*sendto)(const void *buf, size_t len, int flags,
 		struct sockaddr *addr, socklen_t addrlen, struct socket *sock);
 	ssize_t (*recvfrom)(void *buf, size_t len, int flags, struct sockaddr *addr, 
@@ -52,6 +52,11 @@ ssize_t default_recvfrom(void *buf, size_t len, int flags, struct sockaddr *addr
 
 extern struct sock_ops default_s_ops;
 
+#ifdef __cplusplus
+
+#include <onyx/hashtable.hpp>
+#include <onyx/fnv.h>
+
 struct socket
 {
 	struct object object;
@@ -59,6 +64,8 @@ struct socket
 	int proto;
 	int domain;
 	struct netif *netif;
+	/* This mutex serialises binds, connects, listens and accepts on the socket, as to prevent race conditions */
+	struct mutex connection_state_lock;
 	bool bound;
 	bool connected;
 
@@ -72,14 +79,22 @@ struct socket
 
 	struct sock_ops *s_ops;
 
-#ifdef __cplusplus
 	/* Define a default constructor here */
 	socket() : object{}, type{}, proto{}, domain{}, netif{}, bound{}, connected{},
                dtor{}, listener_sem{}, conn_req_list_lock{}, conn_request_list{},
 			   nr_pending{}, backlog{}, s_ops{&default_s_ops}
-	{}
-#endif
+	{
+		mutex_init(&connection_state_lock);
+	}
 };
+
+template <typename T>
+sockaddr &sa_generic(T &s)
+{
+	return (sockaddr &) s;
+}
+
+#endif
 
 #ifdef __cplusplus
 extern "C" {

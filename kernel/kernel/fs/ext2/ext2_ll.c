@@ -18,7 +18,6 @@
 #include <onyx/compiler.h>
 #include <onyx/dev.h>
 #include <onyx/log.h>
-#include <onyx/fscache.h>
 #include <onyx/panic.h>
 #include <onyx/vm.h>
 

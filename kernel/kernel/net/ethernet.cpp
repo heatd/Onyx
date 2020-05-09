@@ -28,7 +28,7 @@ struct packetbuf_proto __eth_proto =
 
 size_t eth_get_packetlen(void *info, struct packetbuf_proto **next, void **next_info)
 {
-	struct netif *n = info;
+	struct netif *n = static_cast<netif *>(info);
 	
 	if(n->if_proto)
 	{
@@ -42,7 +42,7 @@ size_t eth_get_packetlen(void *info, struct packetbuf_proto **next, void **next_
 int eth_send_packet(char *destmac, struct packetbuf_info *buf, uint16_t protocol, struct netif *netif)
 {
 	size_t eth_header_off = packetbuf_get_off(buf);
-	ethernet_header_t *hdr = (void *)(((char *) buf->packet) + eth_header_off);
+	auto hdr = reinterpret_cast<ethernet_header_t*>(((char *) buf->packet) + eth_header_off);
 
 	memset(hdr, 0, sizeof(ethernet_header_t));
 

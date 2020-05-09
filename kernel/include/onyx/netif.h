@@ -15,13 +15,14 @@ struct netif;
 #include <netinet/in.h>
 #include <sys/socket.h>
 
-struct udp_socket;
-
 #define NETIF_LINKUP							(1 << 0)
 #define NETIF_SUPPORTS_IP_CHECKSUM_OFF			(1 << 1)
 #define NETIF_SUPPORTS_TCP_CHECKSUM_OFF			(1 << 2)
 #define NETIF_SUPPORTS_ISO						(1 << 3)
 #define NETIF_SUPPORTS_TSO						(1 << 4)
+
+/* Defined as an opaque struct since it's C++ TODO: Yuck. */
+struct sockets_info;
 
 struct netif
 {
@@ -31,21 +32,13 @@ struct netif
 	unsigned int flags;
 	unsigned int mtu;
 	unsigned char mac_address[6];
-	unsigned char router_mac[6];
 	struct sockaddr_in local_ip;
 	struct sockaddr_in router_ip;
 	int (*sendpacket)(const void *buffer, uint16_t size, struct netif *nif);
 	struct netif *next;
 	struct arp_hashtable arp_hashtable;
 	struct spinlock hashtable_spinlock;
-	struct spinlock udp_socket_lock_v4;
-	struct list_head udp_sockets_v4;
-	struct spinlock udp_socket_lock_v6;
-	struct list_head udp_sockets_v6;
-	struct spinlock tcp_socket_lock_v4;
-	struct list_head tcp_sockets_v4;
-	struct spinlock tcp_socket_lock_v6;
-	struct list_head tcp_sockets_v6;
+	struct sockets_info *sock_info;
 	struct packetbuf_proto * (*get_packetbuf_proto)(struct netif *n);
 	/* To be filled for stuff like virtio */
 	struct packetbuf_proto *if_proto;
@@ -53,6 +46,34 @@ struct netif
 
 #ifdef __cplusplus
 extern "C" {
+
+struct socket_id
+{
+	int protocol;
+	const struct sockaddr &src_addr;
+	const struct sockaddr &dst_addr;
+
+	socket_id(int proto, const sockaddr &s, const sockaddr &d) : protocol(proto), src_addr(s), dst_addr(d)
+	{}
+};
+
+struct socket;
+struct inet_socket;
+
+#define GET_SOCKET_UNLOCKED        (1 << 0)
+#define GET_SOCKET_DSTADDR_VALID   (1 << 1)
+#define GET_SOCKET_CHECK_EXISTANCE (1 << 2)
+
+#define ADD_SOCKET_UNLOCKED        (1 << 0)
+
+inet_socket *netif_get_socket(const socket_id& id, netif *nif, unsigned int flags = 0);
+void netif_lock_socks(const socket_id& id, netif *nif);
+void netif_unlock_socks(const socket_id& id, netif *nif);
+
+bool netif_add_socket(inet_socket *sock, netif *nif, unsigned int flags = 0);
+
+void netif_print_open_sockets(netif *nif);
+
 #endif
 
 void netif_register_if(struct netif *netif);

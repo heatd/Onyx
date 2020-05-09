@@ -55,6 +55,7 @@ struct timer
 struct timer *platform_get_timer(void);
 void timer_queue_clockevent(struct clockevent *ev);
 void timer_handle_events(struct timer *t);
+void timer_remove_event(struct clockevent *ev);
 
 #ifdef __cplusplus
 }

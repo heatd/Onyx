@@ -36,14 +36,12 @@ struct unix_packet
 	struct unix_packet *next;
 };
 
-struct un_socket
+struct un_socket : public socket
 {
-	struct socket socket;
 	struct spinlock socket_lock;
 	struct unix_packet *packet_list;
 	struct mutex packet_list_lock;
 	struct cond packet_condvar;
-	int type;
 	struct un_name *abstr_name;
 
 	struct un_socket *dest;
@@ -66,30 +64,8 @@ struct spinlock un_namespace_list_lock;
 
 struct un_name *un_find_name(char *address, size_t namelen);
 
-struct un_name *add_to_namespace(char *address, size_t namelen,
-	struct un_socket *bound_socket)
+static void __append_name(un_name *name)
 {
-	if(un_find_name(address, namelen))
-	{
-		spin_unlock(&un_namespace_list_lock);
-		return errno = EADDRINUSE, NULL;
-	}
-
-	struct un_name *name = zalloc(sizeof(*name));
-	if(!name)
-		goto cleanup_and_die;
-	
-	char *newbuffer = memdup(address, namelen);
-	if(!newbuffer)
-		goto cleanup_and_die;
-		
-	name->address = newbuffer;
-	name->bound_socket = bound_socket;
-
-	bound_socket->abstr_name = name;
-
-	name->namelen = namelen;
-
 	spin_lock(&un_namespace_list_lock);
 
 	struct un_name **pp = &un_namespace_list;
@@ -100,6 +76,35 @@ struct un_name *add_to_namespace(char *address, size_t namelen,
 	*pp = name;
 
 	spin_unlock(&un_namespace_list_lock);
+}
+
+struct un_name *add_to_namespace(char *address, size_t namelen,
+	struct un_socket *bound_socket)
+{
+	if(un_find_name(address, namelen))
+	{
+		spin_unlock(&un_namespace_list_lock);
+		return errno = EADDRINUSE, nullptr;
+	}
+
+	char *newbuffer = nullptr;
+
+	struct un_name *name = static_cast<un_name*>(zalloc(sizeof(*name)));
+	if(!name)
+		goto cleanup_and_die;
+	
+	newbuffer = static_cast<char *>(memdup(address, namelen));
+	if(!newbuffer)
+		goto cleanup_and_die;
+		
+	name->address = newbuffer;
+	name->bound_socket = bound_socket;
+
+	bound_socket->abstr_name = name;
+
+	name->namelen = namelen;
+
+	__append_name(name);
 
 	return name;
 cleanup_and_die:
@@ -197,24 +202,20 @@ int un_do_bind(const struct sockaddr_un *un, socklen_t addrlen, struct un_socket
 	return 0;
 }
 
-int un_bind(const struct sockaddr *addr, socklen_t addrlen, struct socket *s)
+int un_bind(struct sockaddr *addr, socklen_t addrlen, struct socket *s)
 {
 	struct un_socket *socket = (struct un_socket*) s;
-	if(socket->socket.bound)
+	if(socket->bound)
 		return -EINVAL;
-
-	struct sockaddr_un kaddr;
 
 	if(addrlen > sizeof(struct sockaddr_un))
 		return -EINVAL;
 	
-	if(copy_from_user(&kaddr, addr, addrlen) < 0)
-		return -EFAULT;
-	const struct sockaddr_un *un = (const struct sockaddr_un *) &kaddr;
+	struct sockaddr_un *un = (struct sockaddr_un *) addr;
 
 	int st = un_do_bind(un, addrlen, socket);
 	if(st == 0)
-		socket->socket.bound = true;
+		socket->bound = true;
 	return st;
 }
 
@@ -238,23 +239,23 @@ int un_bind_ephemeral(struct un_socket *socket)
 		return -errno;
 	else
 	{
-		socket->socket.bound = true;
+		socket->bound = true;
 		return 0;
 	}
 }
 
-int un_connect(const struct sockaddr *addr, socklen_t addrlen, struct socket *s)
+int un_connect(struct sockaddr *addr, socklen_t addrlen, struct socket *s)
 {
 	struct un_socket *socket = (struct un_socket *) s;
 
-	const struct sockaddr_un *un = (const struct sockaddr_un *) addr;
+	struct sockaddr_un *un = (struct sockaddr_un *) addr;
 	char *address;
 	size_t namelen;
 	bool is_abstract;
 
 	int status = 0;
 
-	if(!socket->socket.bound)
+	if(!socket->bound)
 	{
 		int st = un_bind_ephemeral(socket);
 		if(st < 0)
@@ -271,9 +272,11 @@ int un_connect(const struct sockaddr *addr, socklen_t addrlen, struct socket *s)
 	{
 		struct un_name *name = un_find_name(address, namelen);
 		if(!name)
+		{
 			return -EADDRNOTAVAIL;
+		}
 
-		socket_ref(&name->bound_socket->socket);
+		socket_ref(name->bound_socket);
 		spin_unlock(&un_namespace_list_lock);
 
 		socket->dest = name->bound_socket;
@@ -290,7 +293,7 @@ ssize_t un_do_sendto(const void *buf, size_t len, struct un_socket *dest, struct
 {
 	assert(dest != NULL);
 
-	struct unix_packet *packet = malloc(sizeof(*packet));
+	struct unix_packet *packet = static_cast<unix_packet *>(malloc(sizeof(*packet)));
 	if(!packet)
 	{
 		return -ENOMEM;
@@ -374,7 +377,7 @@ ssize_t un_sendto(const void *buf, size_t len, int flags,
 		}
 
 		dest = name->bound_socket;
-		socket_ref(&dest->socket);
+		socket_ref(dest);
 		has_to_unref = true;
 		spin_unlock(&un_namespace_list_lock);
 	}
@@ -387,7 +390,7 @@ ssize_t un_sendto(const void *buf, size_t len, int flags,
 
 	if(dest->conn_reset)
 	{
-		socket_unref(&socket->socket);
+		socket_unref(socket);
 		spin_unlock(&socket->socket_lock);
 		return -ECONNRESET;
 	}
@@ -397,7 +400,7 @@ ssize_t un_sendto(const void *buf, size_t len, int flags,
 	spin_unlock(&socket->socket_lock);
 
 	if(has_to_unref)
-		socket_unref(&dest->socket);
+		socket_unref(dest);
 
 	return st;
 }
@@ -421,7 +424,8 @@ ssize_t un_do_recvfrom(struct un_socket *socket, void *buf, size_t len,
 	struct unix_packet *packet = socket->packet_list;
 
 	size_t to_read = min(len, packet->size);
-	if(copy_to_user(buf, packet->buffer + packet->read, to_read) < 0)
+	auto packet_ptr = static_cast<const char *>(packet->buffer) + packet->read;
+	if(copy_to_user(buf, reinterpret_cast<const void *>(packet_ptr), to_read) < 0)
 	{
 		mutex_unlock(&socket->packet_list_lock);
 		return errno = EFAULT, -1;
@@ -517,14 +521,14 @@ void unix_socket_dtor(struct socket *socket)
 
 struct socket *unix_create_socket(int type, int protocol)
 {
-	struct un_socket *socket = zalloc(sizeof(struct un_socket));
+	struct un_socket *socket = new un_socket();
 	if(!socket)
 		return NULL;
 
 	mutex_init(&socket->packet_list_lock);
-	socket->socket.s_ops = &un_ops;
+	socket->s_ops = &un_ops;
 	socket->type = type;
-	socket->socket.dtor = unix_socket_dtor;
+	socket->dtor = unix_socket_dtor;
 
 	return (struct socket *) socket;
 }

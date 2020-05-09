@@ -49,7 +49,7 @@ struct packetbuf_proto udpv4_proto =
 
 size_t udpv4_get_packetlen(void *info, struct packetbuf_proto **next, void **next_info)
 {
-	struct netif *n = info;
+	netif *n = static_cast<netif *>(info);
 
 	(void) n;
 
@@ -76,7 +76,7 @@ int udp_send_packet(char *payload, size_t payload_size, in_port_t source_port,
 		return -1;
 	}
 	
-	udp_header_t *udp_header = (void *)(((char *) buf.packet) + packetbuf_get_off(&buf));
+	udp_header_t *udp_header = reinterpret_cast<udp_header_t *>(((char *) buf.packet) + packetbuf_get_off(&buf));
 
 	memset(udp_header, 0, sizeof(udp_header_t));
 
@@ -94,73 +94,74 @@ int udp_send_packet(char *payload, size_t payload_size, in_port_t source_port,
 	return ret;
 }
 
-struct udp_socket *udp_get_port(struct netif *nif, in_port_t port)
-{
-	spin_lock(&nif->udp_socket_lock_v4);
-
-	list_for_every(&nif->udp_sockets_v4)
-	{
-		struct udp_socket *s = container_of(l, struct udp_socket, socket_list_head);
-
-		if(s->src_addr.sin_port == port)
-		{
-			socket_ref(&s->socket);
-			spin_unlock(&nif->udp_socket_lock_v4);
-			return s;
-		}
-	}
-
-	spin_unlock(&nif->udp_socket_lock_v4);
-
-	return NULL;
-}
-
-void udp_append_socket(struct netif *nif, struct udp_socket *s)
-{
-	spin_lock(&nif->udp_socket_lock_v4);
-	list_add_tail(&s->socket_list_head, &nif->udp_sockets_v4);
-	spin_unlock(&nif->udp_socket_lock_v4);
-}
-
-int udp_bind(const struct sockaddr *addr, socklen_t addrlen, struct socket *sock)
+int udp_bind(struct sockaddr *addr, socklen_t addrlen, struct socket *sock)
 {
 	struct udp_socket *socket = (struct udp_socket*) sock;
-	if(socket->socket.bound)
+	if(socket->bound)
 		return -EINVAL;
-	if(!socket->socket.netif)
-		socket->socket.netif = netif_choose();
+
 	struct sockaddr_in *in = (struct sockaddr_in *) addr;
 
+	if(!check_sockaddr_in(in))
+		return -EINVAL;
+
+	if(!socket->netif)
+		socket->netif = netif_choose();
+
+	const socket_id id{PROTOCOL_UDP, *addr, *addr};
+
+	netif_lock_socks(id, socket->netif);
+
 	/* Check if there's any socket bound to this address yet */
-	struct udp_socket *s = udp_get_port(socket->socket.netif, in->sin_port);
+	udp_socket *s = reinterpret_cast<udp_socket *>(netif_get_socket(id,
+	                    socket->netif, GET_SOCKET_UNLOCKED | GET_SOCKET_CHECK_EXISTANCE));
 	if(s)
 	{
-		socket_unref(&s->socket);
+		netif_unlock_socks(id, socket->netif);
 		return -EADDRINUSE;
 	}
 	
+	if(!inet_has_permission_for_port(in->sin_port))
+	{
+		netif_unlock_socks(id, socket->netif);
+		return -EACCES;
+	}
 
 	if(in->sin_port == 0){}
 	/* TODO: Add port allocation */
 
 	/* TODO: This is not correct behavior. Check tcp.cpp for more */
 
-	memcpy(&socket->src_addr, addr, sizeof(struct sockaddr));
+	memcpy(&socket->src_addr, addr, sizeof(sockaddr_in));
 	
-	udp_append_socket(socket->socket.netif, socket);
-	socket->socket.bound = true;
+	bool success = netif_add_socket(socket, socket->netif, ADD_SOCKET_UNLOCKED);
+
+	netif_unlock_socks(id, socket->netif);
+
+	/* We know for sure that if netif failed it was because of an OOM */
+
+	if(success)
+		socket->bound = true;
+	else
+		return -ENOMEM;
 
 	return 0;
 }
 
-int udp_connect(const struct sockaddr *addr, socklen_t addrlen, struct socket *sock)
+int udp_connect(struct sockaddr *addr, socklen_t addrlen, struct socket *sock)
 {
 	struct udp_socket *socket = (struct udp_socket*) sock;
+
+	struct sockaddr_in *in = (struct sockaddr_in *) addr;
+
+	if(!check_sockaddr_in(in))
+		return -EINVAL;
+
 	/* TODO: We need to bind if it's not yet bound */
 	memcpy(&socket->dest_addr, addr, sizeof(struct sockaddr));
-	if(!socket->socket.netif)
-		socket->socket.netif = netif_choose();
-	socket->socket.connected = true;
+	if(!socket->netif)
+		socket->netif = netif_choose();
+	socket->connected = true;
 	return 0;
 }
 
@@ -168,9 +169,14 @@ ssize_t udp_sendto(const void *buf, size_t len, int flags, struct sockaddr *addr
 	socklen_t addrlen, struct socket *sock)
 {
 	struct udp_socket *socket = (struct udp_socket*) sock;
-	bool not_conn = !socket->socket.connected;
+	bool not_conn = !socket->connected;
 
-	struct sockaddr_in *to = (struct sockaddr_in*) &socket->dest_addr;
+	struct sockaddr_in *to = (struct sockaddr_in *) &socket->dest_addr;
+
+	struct sockaddr_in *in = (struct sockaddr_in *) addr;
+
+	if(in && !check_sockaddr_in(in))
+		return -EINVAL;
 
 	if(not_conn && addr == NULL)
 		return -ENOTCONN;
@@ -179,14 +185,14 @@ ssize_t udp_sendto(const void *buf, size_t len, int flags, struct sockaddr *addr
 
 	struct sockaddr_in from = {0};
 	/* TODO: I don't think this is quite correct. */
-	if(!socket->socket.bound)
-		netif_get_ipv4_addr(&from, socket->socket.netif);
+	if(!socket->bound)
+		netif_get_ipv4_addr(&from, socket->netif);
 	else
 		memcpy(&from, &socket->src_addr, sizeof(struct sockaddr));
 	
 	if(udp_send_packet((char*) buf, len, from.sin_port, to->sin_port,
 			   from.sin_addr.s_addr, to->sin_addr.s_addr, 
-			   socket->socket.netif) < 0)
+			   socket->netif) < 0)
 	{
 		return -errno;
 	}
@@ -247,30 +253,27 @@ ssize_t udp_recvfrom(void *buf, size_t len, int flags,
 
 struct sock_ops udp_ops = 
 {
+	.listen = default_listen,
+	.accept = default_accept,
 	.bind = udp_bind,
 	.connect = udp_connect,
 	.sendto = udp_sendto,
 	.recvfrom = udp_recvfrom,
-	.listen = default_listen,
-	.accept = default_accept
 };
 
 struct socket *udp_create_socket(int type)
 {
-	struct udp_socket *socket = zalloc(sizeof(struct udp_socket));
+	struct udp_socket *socket = new udp_socket();
 	if(!socket)
 		return NULL;
-
 	
-	socket->socket.s_ops = &udp_ops;
+	socket->s_ops = &udp_ops;
 	
 	return (struct socket*) socket;
 }
 
 int udp_init_netif(struct netif *netif)
 {
-	INIT_LIST_HEAD(&netif->udp_sockets_v4);
-	INIT_LIST_HEAD(&netif->udp_sockets_v6);
 	return 0;
 }
 
@@ -307,15 +310,10 @@ void udp_handle_packet(struct ip_header *header, size_t length, struct netif *ne
 	if(!valid_udp_packet(udp_header, length))
 		return;
 
-	struct sockaddr_in addr;
-	addr.sin_addr.s_addr = ntoh32(header->source_ip);
-	uint32_t src_port = udp_header->dest_port;
+	struct sockaddr_in socket_dst;
+	ipv4_to_sockaddr(header->source_ip, udp_header->source_port, socket_dst);
 
-	addr.sin_port = ntoh16(udp_header->source_port);
-
-	addr.sin_family = AF_INET;
-	
-	struct udp_packet *packet = zalloc(sizeof(*packet));
+	struct udp_packet *packet = static_cast<udp_packet *>(zalloc(sizeof(*packet)));
 	if(!packet)
 	{
 		printf("udp: Could not allocate packet memory\n");
@@ -326,7 +324,7 @@ void udp_handle_packet(struct ip_header *header, size_t length, struct netif *ne
 
 	packet->size = payload_len;
 	packet->payload = memdup(udp_header + 1, payload_len);
-	memcpy(&packet->addr, &addr, sizeof(addr));
+	memcpy(&packet->addr, &socket_dst, sizeof(socket_dst));
 
 	if(!packet->payload)
 	{
@@ -335,7 +333,10 @@ void udp_handle_packet(struct ip_header *header, size_t length, struct netif *ne
 		return;
 	}
 
-	struct udp_socket *socket = udp_get_port(netif, src_port);
+	netif_print_open_sockets(netif);
+	auto socket = inet_resolve_socket<udp_socket>(header->source_ip,
+                      udp_header->source_port, udp_header->dest_port, PROTOCOL_UDP,
+					  netif, true);
 	if(!socket)
 	{
 		free(packet->payload);
@@ -345,5 +346,5 @@ void udp_handle_packet(struct ip_header *header, size_t length, struct netif *ne
 
 	udp_append_packet(packet, socket);
 
-	socket_unref(&socket->socket);
+	socket_unref(socket);
 }

@@ -1072,7 +1072,8 @@ void inode_release(struct object *object)
 		flush_remove_inode(inode);
 
 	/* TODO: Detect the case where we're getting deleted and avoid sync'ing caches */
-	inode_sync(inode);
+	if(inode->i_type == VFS_TYPE_FILE)
+		inode_sync(inode);
 
 	inode_destroy_page_caches(inode);
 

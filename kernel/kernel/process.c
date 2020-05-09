@@ -693,7 +693,6 @@ void sys_exit_thread(int value)
 skip:
 
 	sched_disable_preempt();
-
 	
 	/* Destroy the thread */
 	sched_die();

@@ -557,6 +557,7 @@ void *drm_mmap(struct vm_region *area, struct file *f)
 
 	if(!vmo)
 		return NULL;
+
 	size_t nr_pages = vm_size_to_pages(dbuf->size);
 	struct page *p = dbuf->pages;
 	size_t off = 0;
@@ -575,6 +576,7 @@ void *drm_mmap(struct vm_region *area, struct file *f)
 	vmo_assign_mapping(vmo, area);
 
 	vmo->ino = f->f_ino;
+	vmo->flags |= VMO_FLAG_DEVICE_MAPPING;
 
 	area->vmo = vmo;
 

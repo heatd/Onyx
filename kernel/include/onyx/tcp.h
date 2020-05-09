@@ -8,17 +8,17 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <type_traits>
 
 #include <onyx/semaphore.h>
 #include <onyx/socket.h>
 #include <onyx/mutex.h>
-#include <onyx/condvar.h>
+#include <onyx/wait_queue.h>
+#include <onyx/ip.h>
 
-#ifdef __cplusplus
 #include <onyx/vector.h>
 #include <onyx/slice.hpp>
-
-#endif
+#include <onyx/scoped_lock.h>
 
 struct tcp_header
 {
@@ -191,20 +191,17 @@ public:
 	}
 };
 
-class tcp_socket : public socket
+class tcp_socket : public inet_socket
 {
-/* Same as above */
-public:
+private:
 	enum tcp_state state;
 	int type;
-	struct sockaddr_in src_addr;
-	struct sockaddr_in dest_addr;
 	struct semaphore packet_semaphore;
 	struct list_head packet_list_head;
 	struct spinlock packet_lock;
-	mutex tcp_ack_list_lock;
+	struct spinlock tcp_ack_list_lock;
 	struct list_head tcp_ack_list;
-	cond tcp_ack_cond;
+	wait_queue tcp_ack_wq;
 	uint32_t seq_number;
 	uint32_t ack_number;
 	mutex send_lock;
@@ -216,6 +213,7 @@ public:
 	uint32_t our_window_size;
 	uint8_t our_window_shift;
 	uint32_t expected_ack;
+	/* TODO: Add a lock for this stuff up here */
 
 	template <typename pred>
 	tcp_ack *find_ack(pred predicate)
@@ -224,55 +222,55 @@ public:
 		{
 			tcp_ack *ack = container_of(l, tcp_ack, list_node);
 			if(predicate(ack))
+			{
 				return ack;
+			}
 		}
 
 		return nullptr;
 	}
 
 	template <typename pred>
-	tcp_ack *wait_for_ack(pred predicate)
+	tcp_ack *wait_for_ack(pred predicate, int& error, bool remove = true)
 	{
-		/* TODO: Add timeouts */
-		mutex_lock(&tcp_ack_list_lock);
+		spin_lock(&tcp_ack_list_lock);
 
-		while(true)
-		{
-			auto found_ack = find_ack(predicate);
-			if(found_ack)
-			{
-				found_ack->remove();
-				mutex_unlock(&tcp_ack_list_lock);
-				return found_ack;				
-			}
+		tcp_ack *ack = nullptr;
 
-			condvar_wait(&tcp_ack_cond, &tcp_ack_list_lock);
-		}
+		int st = wait_for_event_locked_timeout_interruptible(&tcp_ack_wq, (ack = find_ack(predicate)) != nullptr,
+		                                            100 * NS_PER_SEC, &tcp_ack_list_lock);
+		
+		if(ack && remove)
+			ack->remove();
+
+		error = st;
+		spin_unlock(&tcp_ack_list_lock);
+
+		return ack;
 	}
 
 	int start_handshake();
 	int finish_handshake();
 
 	bool parse_options(tcp_header *packet);
+	ssize_t get_max_payload_len(uint16_t tcp_header_len);
 
 public:
 	friend class tcp_packet;
-	struct list_head socket_list_head;
 
 	static constexpr uint16_t default_mss = 536;
 	static constexpr uint16_t default_window_size_shift = 0;
 
-	tcp_socket() : socket{}, state(tcp_state::TCP_STATE_CLOSED), type(SOCK_STREAM),
-	               src_addr{}, dest_addr{}, packet_semaphore{}, packet_list_head{},
-				   packet_lock{}, tcp_ack_list_lock{}, tcp_ack_cond{},
-				   seq_number{0}, ack_number{0}, send_lock{}, send_buffer{},
-				   current_pos{}, mss{default_mss}, window_size{0},
+	tcp_socket() : inet_socket{}, state(tcp_state::TCP_STATE_CLOSED), type(SOCK_STREAM),
+	               packet_semaphore{}, packet_list_head{}, packet_lock{},
+				   tcp_ack_list_lock{}, tcp_ack_wq{}, seq_number{0}, ack_number{0},
+				   send_lock{}, send_buffer{}, current_pos{}, mss{default_mss}, window_size{0},
 				   window_size_shift{default_window_size_shift}, our_window_size{UINT16_MAX},
 				   our_window_shift{default_window_size_shift}, expected_ack{0}
 	{
 		INIT_LIST_HEAD(&tcp_ack_list);
-		mutex_init(&tcp_ack_list_lock);
 		mutex_init(&send_lock);
+		init_wait_queue_head(&tcp_ack_wq);
 	}
 
 	~tcp_socket()
@@ -280,20 +278,19 @@ public:
 		assert(state == tcp_state::TCP_STATE_CLOSED);
 	}
 
-	struct sockaddr_in &saddr() {return src_addr;}
-	struct sockaddr_in &daddr() {return dest_addr;}
+	struct sockaddr_in &saddr() {return (sockaddr_in &) src_addr;}
+	struct sockaddr_in &daddr() {return (sockaddr_in &) dest_addr;}
 
-	int bind(const struct sockaddr *addr, socklen_t addrlen);
-	int connect(const struct sockaddr *addr, socklen_t addrlen);
+	int bind(struct sockaddr *addr, socklen_t addrlen);
+	int connect(struct sockaddr *addr, socklen_t addrlen);
 
 	int start_connection();
 
 	void append_ack(tcp_ack *ack)
 	{
-		mutex_lock(&tcp_ack_list_lock);
+		scoped_lock guard(&tcp_ack_list_lock);
 		ack->append(&tcp_ack_list);
-		condvar_broadcast(&tcp_ack_cond);
-		mutex_unlock(&tcp_ack_list_lock);
+		wait_queue_wake_all(&tcp_ack_wq);
 	}
 
 	ssize_t sendto(const void *buf, size_t len, int flags);

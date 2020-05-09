@@ -11,20 +11,23 @@
 #include <onyx/dev.h>
 #include <onyx/udp.h>
 #include <onyx/tcp.h>
+#include <onyx/byteswap.h>
+#include <onyx/sockets_info.hpp>
 
 #include <sys/ioctl.h>
 
 static struct spinlock netif_list_lock = {0};
 struct netif *netif_list = NULL;
-unsigned int netif_ioctl(int request, void *argp, struct file* this)
+unsigned int netif_ioctl(int request, void *argp, struct file* f)
 {
-	struct netif *netif = this->f_ino->i_helper;
-	assert(netif);
+	auto netif = static_cast<struct netif *>(f->f_ino->i_helper);
+	assert(netif != nullptr);
 	switch(request)
 	{
 		case SIOSETINET4:
 		{
-			struct if_config_inet *c = argp;
+			struct if_config_inet *c = static_cast<if_config_inet *>(argp);
+
 			struct if_config_inet i;
 			if(copy_from_user(&i, c, sizeof(struct if_config_inet)) < 0)
 				return -EFAULT;
@@ -36,7 +39,7 @@ unsigned int netif_ioctl(int request, void *argp, struct file* this)
 		}
 		case SIOGETINET4:
 		{
-			struct if_config_inet *c = argp;
+			struct if_config_inet *c = static_cast<if_config_inet *>(argp);
 			struct sockaddr_in *local = (struct sockaddr_in*) &netif->local_ip;
 			struct sockaddr_in *router = (struct sockaddr_in*) &netif->router_ip;
 			if(copy_to_user(&c->address, &local->sin_addr, sizeof(struct in_addr)) < 0)
@@ -47,7 +50,7 @@ unsigned int netif_ioctl(int request, void *argp, struct file* this)
 		}
 		case SIOSETINET6:
 		{
-			struct if_config_inet *c = argp;
+			struct if_config_inet6 *c = static_cast<if_config_inet6 *>(argp);
 			struct sockaddr_in *local = (struct sockaddr_in*) &netif->local_ip;
 			struct sockaddr_in *router = (struct sockaddr_in*) &netif->router_ip;
 			if(copy_to_user(&local->sin_addr, &c->address, sizeof(struct in6_addr)) <0)
@@ -58,7 +61,7 @@ unsigned int netif_ioctl(int request, void *argp, struct file* this)
 		}
 		case SIOGETINET6:
 		{
-			struct if_config_inet6 *c = argp;
+			struct if_config_inet6 *c = static_cast<if_config_inet6 *>(argp);
 			struct sockaddr_in6 *local = (struct sockaddr_in6*) &netif->local_ip;
 			struct sockaddr_in6 *router = (struct sockaddr_in6*) &netif->router_ip;
 			if(copy_to_user(&c->address, &local->sin6_addr, sizeof(struct in6_addr)) < 0)
@@ -82,6 +85,10 @@ void netif_register_if(struct netif *netif)
 	assert(udp_init_netif(netif) == 0);
 	
 	assert(tcp_init_netif(netif) == 0);
+
+	netif->sock_info = new sockets_info();
+	
+	assert(netif->sock_info != nullptr);
 	
 	struct dev *d = dev_register(0, 0, (char*) netif->name);
 	if(!d)
@@ -160,4 +167,103 @@ int netif_send_packet(struct netif *netif, const void *buffer, uint16_t size)
 void netif_get_ipv4_addr(struct sockaddr_in *s, struct netif *netif)
 {
 	memcpy(&s, &netif->local_ip, sizeof(struct sockaddr));
+}
+
+/* TODO: Use range locks for increased efficiency, instead of having a big
+ * lock like we have right now
+ */
+
+void netif_lock_socks(const socket_id& id, netif *nif)
+{
+	spin_lock(&nif->sock_info->lock);
+}
+
+void netif_unlock_socks(const socket_id& id, netif *nif)
+{
+	spin_unlock(&nif->sock_info->lock);
+}
+
+inet_socket *netif_get_socket(const socket_id& id, netif *nif, unsigned int flags)
+{
+	auto socket_info = nif->sock_info;
+	auto hash = inet_socket::make_hash_from_id(id);
+	bool unlocked = flags & GET_SOCKET_UNLOCKED;
+
+	if(!unlocked)
+		netif_lock_socks(id, nif);
+
+	/* Alright, so this is the standard hashtable thing - hash the socket_id,
+	 * get the iterators, and then iterate through the list and compare the
+	 * socket_id with the socket's internal id. This should be pretty efficient except for the
+	 * big old lock that we should replace with ranged-locks(each lock locking a part of the hashtable).
+	 */
+
+	auto begin = socket_info->socket_hashtable.get_hash_list_begin(hash);
+	auto end = socket_info->socket_hashtable.get_hash_list_end(hash);
+	inet_socket *ret = nullptr;
+
+	while(begin != end)
+	{
+		auto sock = *begin;
+		if(sock->is_id(id, flags))
+		{
+			ret = sock;
+			break;
+		}
+
+		begin++;
+	}
+
+	/* GET_SOCKET_CHECK_EXISTANCE is very useful for operations like bind,
+	 * as to avoid two extra atomic operations.
+	 */
+
+	if(ret && !(flags & GET_SOCKET_CHECK_EXISTANCE))
+		socket_ref(ret);
+
+	if(!unlocked)
+		netif_unlock_socks(id, nif);
+
+	return ret;
+}
+
+bool netif_add_socket(inet_socket *sock, netif *nif, unsigned int flags)
+{
+	bool unlocked = flags & ADD_SOCKET_UNLOCKED;
+
+	const socket_id id(sock->proto, sa_generic(sock->src_addr), sa_generic(sock->dest_addr));
+
+	if(!unlocked)
+		netif_lock_socks(id, nif);
+
+	bool success = nif->sock_info->socket_hashtable.add_element(sock);
+
+	if(!unlocked)
+		netif_unlock_socks(id, nif);
+
+	return success;
+}
+
+void netif_print_open_sockets(netif *nif)
+{
+	auto sinfo = nif->sock_info;
+	
+	for(size_t i = 0; i < 512; i++)
+	{
+		auto list = sinfo->socket_hashtable.get_hashtable(i);
+
+		for(auto &socket : list)
+		{		
+			if(socket->domain == AF_INET)
+			{
+				auto inet_addr = (sockaddr_in *) &socket->src_addr;
+				auto inet_daddr = (sockaddr_in *) &socket->dest_addr;
+				printk("Socket bound ip %x port %u - ", inet_addr->sin_addr.s_addr, ntohs(inet_addr->sin_port));
+				printk("Connected to %x, port %u - ", inet_daddr->sin_addr.s_addr, ntohs(inet_daddr->sin_port));
+				printk("protocol %u\n", socket->proto);
+			}
+			else
+				printk("unknown socket of domain %d, %p\n", socket->domain, socket);
+		}
+	}
 }

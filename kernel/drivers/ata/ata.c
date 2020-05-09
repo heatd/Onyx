@@ -21,7 +21,6 @@
 #include <onyx/dev.h>
 #include <onyx/block.h>
 #include <onyx/log.h>
-#include <onyx/fscache.h>
 #include <onyx/compiler.h>
 #include <onyx/page.h>
 #include <onyx/mutex.h>

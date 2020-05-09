@@ -22,6 +22,7 @@
 #include <onyx/arp.h>
 #include <onyx/byteswap.h>
 #include <onyx/tcp.h>
+#include <onyx/cred.h>
 
 size_t ipv4_get_packlen(void *info, struct packetbuf_proto **next, void **next_info);
 
@@ -34,7 +35,7 @@ struct packetbuf_proto __ipv4_pbf =
 size_t ipv4_get_packlen(void *info, struct packetbuf_proto **next, void **next_info)
 {
 	/* In this function, info = netif */
-	struct netif *n = info;
+	struct netif *n = static_cast<netif *>(info);
 
 	*next = n->get_packetbuf_proto(n);
 	*next_info = info;
@@ -122,7 +123,7 @@ int ipv4_create_fragments(struct list_head *frag_list, struct packetbuf_info *bu
 
 	while(payload_size != 0)
 	{
-		struct ipv4_fragment *frag = zalloc(sizeof(*frag));
+		struct ipv4_fragment *frag = static_cast<ipv4_fragment *>(zalloc(sizeof(*frag)));
 		if(!frag)
 		{
 			ipv4_free_frags(frag_list);
@@ -207,7 +208,10 @@ int ipv4_calculate_dstmac(unsigned char *destmac, uint32_t destip, struct netif 
 	else if(destip == htonl(INADDR_LOOPBACK))
 	{
 		/* INADDR_LOOPBACK packets are sent to the local NIC's mac */
-		memcpy(destmac, netif->router_mac, 6);
+		/* TODO: This is probably not correct. We most likely need to just send
+		 * it to the other socket manually
+		 */
+		memcpy(destmac, netif->mac_address, 6);
 	}
 	else
 	{
@@ -267,7 +271,7 @@ int ipv4_send_packet(uint32_t senderip, uint32_t destip, unsigned int type,
                      struct packetbuf_info *buf, struct netif *netif)
 {
 	size_t ip_header_off = packetbuf_get_off(buf);
-	struct ip_header *ip_header = (void *)(((char *) buf->packet) + ip_header_off);
+	struct ip_header *ip_header = reinterpret_cast<struct ip_header *>(((char *) buf->packet) + ip_header_off);
 	
 	size_t payload_size = buf->length - ip_header_off - sizeof(struct ip_header);
 
@@ -314,7 +318,7 @@ bool ipv4_valid_packet(struct ip_header *header, size_t size)
 
 void ipv4_handle_packet(struct ip_header *header, size_t size, struct netif *netif)
 {
-	struct ip_header *usable_header = memdup(header, size);
+	struct ip_header *usable_header = static_cast<ip_header *>(memdup(header, size));
 
 	if(!ipv4_valid_packet(usable_header, size))
 		return;
@@ -351,4 +355,21 @@ struct socket *ipv4_create_socket(int type, int protocol)
 		}
 	}
 	return NULL;
+}
+
+bool inet_has_permission_for_port(in_port_t port)
+{
+	port = ntohs(port);
+
+	if(port >= inet_min_unprivileged_port)
+		return true;
+	
+	struct creds *c = creds_get();
+
+	if(c->euid == 0)
+		return true;
+	
+	creds_put(c);
+
+	return false;
 }

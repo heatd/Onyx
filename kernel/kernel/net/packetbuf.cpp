@@ -25,7 +25,7 @@ static int __put_in_bufs(struct packetbuf_info *info, size_t len)
 		void *new_ptr = realloc(info->offsets, sizeof(size_t) * new_bufcount);
 		if(!new_ptr)
 			return -1;
-		info->offsets = new_ptr;
+		info->offsets = static_cast<unsigned long *>(new_ptr);
 		info->buf_count = new_bufcount;
 	}
 

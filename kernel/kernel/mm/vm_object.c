@@ -118,7 +118,7 @@ struct page *vmo_get(struct vm_object *vmo, size_t off, unsigned int flags)
 	bool may_populate = flags & VMO_GET_MAY_POPULATE;
 	struct page *p = NULL;
 	
-	if(vmo->ino)
+	if(vmo->ino && !(vmo->flags & VMO_FLAG_DEVICE_MAPPING))
 		vmo->size = vmo->ino->i_size;
 
 	assert(off < vmo->size);

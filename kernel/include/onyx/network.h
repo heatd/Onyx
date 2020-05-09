@@ -9,7 +9,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include <onyx/ip.h>
 #include <onyx/vfs.h>
 #include <onyx/socket.h>
 
