@@ -12,9 +12,9 @@
 #include <endian.h>
 
 #include <onyx/dev.h>
-#include <onyx/ip.h>
-#include <onyx/udp.h>
-#include <onyx/netif.h>
+#include <onyx/net/ip.h>
+#include <onyx/net/udp.h>
+#include <onyx/net/netif.h>
 #include <onyx/compiler.h>
 #include <onyx/utils.h>
 #include <onyx/byteswap.h>
@@ -333,7 +333,6 @@ void udp_handle_packet(struct ip_header *header, size_t length, struct netif *ne
 		return;
 	}
 
-	netif_print_open_sockets(netif);
 	auto socket = inet_resolve_socket<udp_socket>(header->source_ip,
                       udp_header->source_port, udp_header->dest_port, PROTOCOL_UDP,
 					  netif, true);

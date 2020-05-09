@@ -6,8 +6,8 @@
 #include <stdio.h>
 #include "../virtio.hpp"
 
-#include <onyx/network.h>
-#include <onyx/ethernet.h>
+#include <onyx/net/network.h>
+#include <onyx/net/ethernet.h>
 #include <onyx/slice.hpp>
 
 namespace virtio

@@ -11,7 +11,7 @@
 
 #include <onyx/kernelinfo.h>
 #include <onyx/vm.h>
-#include <onyx/network.h>
+#include <onyx/net/network.h>
 
 int sys_uname(struct utsname *ubuf)
 {

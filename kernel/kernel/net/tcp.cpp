@@ -8,8 +8,8 @@
 #include <stdio.h>
 
 #include <onyx/random.h>
-#include <onyx/tcp.h>
-#include <onyx/ip.h>
+#include <onyx/net/tcp.h>
+#include <onyx/net/ip.h>
 #include <onyx/byteswap.h>
 
 extern "C"

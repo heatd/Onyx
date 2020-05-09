@@ -18,11 +18,11 @@
 #include <onyx/scheduler.h>
 #include <onyx/page.h>
 #include <onyx/spinlock.h>
-#include <onyx/ethernet.h>
+#include <onyx/net/ethernet.h>
 #include <onyx/timer.h>
-#include <onyx/netif.h>
+#include <onyx/net/netif.h>
 #include <onyx/dpc.h>
-#include <onyx/network.h>
+#include <onyx/net/network.h>
 
 #include <drivers/mmio.h>
 #include <pci/pci.h>

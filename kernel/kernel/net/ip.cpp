@@ -14,14 +14,14 @@
 #include <sys/socket.h>
 
 #include <onyx/utils.h>
-#include <onyx/ip.h>
-#include <onyx/ethernet.h>
-#include <onyx/netif.h>
-#include <onyx/network.h>
-#include <onyx/udp.h>
+#include <onyx/net/ip.h>
+#include <onyx/net/ethernet.h>
+#include <onyx/net/netif.h>
+#include <onyx/net/network.h>
+#include <onyx/net/udp.h>
 #include <onyx/arp.h>
 #include <onyx/byteswap.h>
-#include <onyx/tcp.h>
+#include <onyx/net/tcp.h>
 #include <onyx/cred.h>
 
 size_t ipv4_get_packlen(void *info, struct packetbuf_proto **next, void **next_info);

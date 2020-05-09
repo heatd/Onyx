@@ -8,12 +8,12 @@
 #include <errno.h>
 
 /* Don't change the include order! Maybe TOFIX? */
-#include <onyx/ethernet.h>
-#include <onyx/netif.h>
+#include <onyx/net/ethernet.h>
+#include <onyx/net/netif.h>
 #include <onyx/spinlock.h>
 #include <onyx/arp.h>
 #include <onyx/compiler.h>
-#include <onyx/ip.h>
+#include <onyx/net/ip.h>
 #include <onyx/log.h>
 #include <onyx/byteswap.h>
 

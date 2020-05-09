@@ -12,16 +12,16 @@
 #include <errno.h>
 
 #include <onyx/vm.h>
-#include <onyx/ethernet.h>
+#include <onyx/net/ethernet.h>
 #include <onyx/pic.h>
 #include <onyx/irq.h>
 #include <onyx/log.h>
-#include <onyx/network.h>
+#include <onyx/net/network.h>
 #include <onyx/driver.h>
-#include <onyx/netif.h>
+#include <onyx/net/netif.h>
 #include <onyx/dev.h>
 #include <onyx/panic.h>
-#include <onyx/ethernet.h>
+#include <onyx/net/ethernet.h>
 
 #include <drivers/mmio.h>
 #include "e1000.h"

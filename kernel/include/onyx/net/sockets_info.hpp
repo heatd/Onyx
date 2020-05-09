@@ -6,7 +6,7 @@
 #ifndef _ONYX_SOCKETS_INFO_HPP
 #define _ONYX_SOCKETS_INFO_HPP
 
-#include <onyx/ip.h>
+#include <onyx/net/ip.h>
 
 #include <onyx/hashtable.hpp>
 #include <onyx/spinlock.h>

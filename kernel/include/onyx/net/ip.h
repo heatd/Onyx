@@ -8,9 +8,9 @@
 
 #include <stdint.h>
 
-#include <onyx/netif.h>
+#include <onyx/net/netif.h>
 #include <onyx/packetbuf.h>
-#include <onyx/socket.h>
+#include <onyx/net/socket.h>
 
 #include <sys/socket.h>
 
@@ -39,18 +39,25 @@ struct ip_header
 	uint32_t dest_ip;
 } __attribute__((packed));
 
+union sockaddr_in_both
+{
+	sockaddr_in in4;
+	sockaddr_in6 in6;
+};
+
 struct inet_socket : public socket
 {
 	/* in6 is able to hold sockaddr_in and sockaddr_in6, since it's bigger */
-	sockaddr_in src_addr;
-	sockaddr_in dest_addr;
+	sockaddr_in_both src_addr;
+	sockaddr_in_both dest_addr;
 
 	inet_socket() : socket{}, src_addr{}, dest_addr{} {}
 
 	static uint32_t make_hash(inet_socket *& sock)
 	{
+		size_t size_of_addr = sock->domain == AF_INET ? sizeof(sockaddr_in) : sizeof(sockaddr_in6);
 		auto hash = fnv_hash(&sock->proto, sizeof(int));
-		hash = fnv_hash_cont(&sock->src_addr, sizeof(sock->src_addr), hash);
+		hash = fnv_hash_cont(&sock->src_addr, size_of_addr, hash);
 
 		return hash;
 	}
@@ -58,15 +65,16 @@ struct inet_socket : public socket
 	static uint32_t make_hash_from_id(const socket_id& id)
 	{
 		auto hash = fnv_hash(&id.protocol, sizeof(id.protocol));
-		hash = fnv_hash_cont(&id.src_addr, sizeof(id.src_addr), hash);
+		hash = fnv_hash_cont(&id.src_addr, sizeof(sockaddr_in), hash);
 
 		return hash;
 	}
 
 	bool is_id(const socket_id& id, unsigned int flags) const
 	{
-		return proto == id.protocol && !memcmp(&src_addr, &id.src_addr, sizeof(sockaddr)) &&
-		       (!(flags & GET_SOCKET_DSTADDR_VALID) || !memcmp(&dest_addr, &id.dst_addr, sizeof(sockaddr)));
+		//size_t size_of_addr = domain == AF_INET ? sizeof(sockaddr_in) : sizeof(sockaddr_in6);
+		return proto == id.protocol && !memcmp(&src_addr, &id.src_addr, sizeof(sockaddr_in)) &&
+		       (!(flags & GET_SOCKET_DSTADDR_VALID) || !memcmp(&dest_addr, &id.dst_addr, sizeof(sockaddr_in)));
 	}
 };
 

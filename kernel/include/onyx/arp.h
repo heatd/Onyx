@@ -9,7 +9,7 @@
 
 #include <stdint.h>
 
-#include <onyx/ethernet.h>
+#include <onyx/net/ethernet.h>
 
 #define ARP_ETHERNET ((uint16_t)1)
 #define ARP_HLEN_ETHERNET ((uint16_t)6)

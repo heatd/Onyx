@@ -11,10 +11,10 @@
 #include <type_traits>
 
 #include <onyx/semaphore.h>
-#include <onyx/socket.h>
+#include <onyx/net/socket.h>
 #include <onyx/mutex.h>
 #include <onyx/wait_queue.h>
-#include <onyx/ip.h>
+#include <onyx/net/ip.h>
 
 #include <onyx/vector.h>
 #include <onyx/slice.hpp>

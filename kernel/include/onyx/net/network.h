@@ -10,7 +10,7 @@
 #include <stdbool.h>
 
 #include <onyx/vfs.h>
-#include <onyx/socket.h>
+#include <onyx/net/socket.h>
 
 #include <sys/socket.h>
 

@@ -8,9 +8,9 @@
 
 #include <stdint.h>
 
-#include <onyx/network.h>
+#include <onyx/net/network.h>
 #include <onyx/semaphore.h>
-#include <onyx/ip.h>
+#include <onyx/net/ip.h>
 
 typedef struct udp
 {

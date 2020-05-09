@@ -12,8 +12,7 @@
 #include <sys/utsname.h>
 
 #include <onyx/vm.h>
-#include <onyx/dns.h>
-#include <onyx/network.h>
+#include <onyx/net/network.h>
 
 /* FIXME: 98% sure there's a race condition here, TOFIX */
 

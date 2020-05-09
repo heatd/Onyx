@@ -12,7 +12,7 @@
 
 #include <onyx/vfs.h>
 #include <onyx/object.h>
-#include <onyx/netif.h>
+#include <onyx/net/netif.h>
 #include <onyx/semaphore.h>
 
 #define PROTOCOL_IPV4		1

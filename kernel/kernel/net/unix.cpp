@@ -12,9 +12,8 @@
 #include <stdio.h>
 
 #include <onyx/dev.h>
-#include <onyx/ip.h>
-#include <onyx/network.h>
-#include <onyx/netif.h>
+#include <onyx/net/network.h>
+#include <onyx/net/netif.h>
 #include <onyx/compiler.h>
 #include <onyx/utils.h>
 #include <onyx/random.h>

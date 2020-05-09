@@ -6,13 +6,13 @@
 #include <assert.h>
 #include <errno.h>
 
-#include <onyx/netif.h>
+#include <onyx/net/netif.h>
 #include <onyx/spinlock.h>
 #include <onyx/dev.h>
-#include <onyx/udp.h>
-#include <onyx/tcp.h>
+#include <onyx/net/udp.h>
+#include <onyx/net/tcp.h>
 #include <onyx/byteswap.h>
-#include <onyx/sockets_info.hpp>
+#include <onyx/net/sockets_info.hpp>
 
 #include <sys/ioctl.h>
 

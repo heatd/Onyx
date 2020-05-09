@@ -9,7 +9,7 @@
 
 #include <stdint.h>
 
-#include <onyx/netif.h>
+#include <onyx/net/netif.h>
 #include <onyx/packetbuf.h>
 
 #define PROTO_IPV4 ((uint16_t) 0x800)

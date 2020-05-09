@@ -8,10 +8,10 @@
 #include <string.h>
 #include <errno.h>
 
-#include <onyx/ethernet.h>
-#include <onyx/ip.h>
+#include <onyx/net/ethernet.h>
+#include <onyx/net/ip.h>
 #include <onyx/arp.h>
-#include <onyx/network.h>
+#include <onyx/net/network.h>
 #include <onyx/vm.h>
 #include <onyx/crc32.h>
 #include <onyx/byteswap.h>

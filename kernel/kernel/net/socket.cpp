@@ -7,8 +7,8 @@
 
 #include <onyx/file.h>
 #include <onyx/utils.h>
-#include <onyx/socket.h>
-#include <onyx/ip.h>
+#include <onyx/net/socket.h>
+#include <onyx/net/ip.h>
 
 struct socket *file_to_socket(struct file *f)
 {

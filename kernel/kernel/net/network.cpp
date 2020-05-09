@@ -13,16 +13,14 @@
 #include <assert.h>
 
 #include <onyx/log.h>
-#include <onyx/network.h>
-#include <onyx/ip.h>
-#include <onyx/udp.h>
-#include <onyx/icmp.h>
+#include <onyx/net/network.h>
+#include <onyx/net/ip.h>
+#include <onyx/net/udp.h>
 #include <onyx/compiler.h>
-#include <onyx/dns.h>
 #include <onyx/file.h>
-#include <onyx/ethernet.h>
+#include <onyx/net/ethernet.h>
 #include <onyx/dpc.h>
-#include <onyx/network.h>
+#include <onyx/net/network.h>
 #include <onyx/slab.h>
 #include <onyx/mm/pool.hpp>
 

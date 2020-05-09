@@ -22,7 +22,7 @@
 #include <sys/times.h>
 
 #include <onyx/modules.h>
-#include <onyx/network.h>
+#include <onyx/net/network.h>
 #include <onyx/kernelinfo.h>
 #include <onyx/tty.h>
 #include <onyx/process.h>
