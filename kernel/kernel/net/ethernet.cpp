@@ -10,7 +10,7 @@
 
 #include <onyx/net/ethernet.h>
 #include <onyx/net/ip.h>
-#include <onyx/arp.h>
+#include <onyx/net/arp.h>
 #include <onyx/net/network.h>
 #include <onyx/vm.h>
 #include <onyx/crc32.h>

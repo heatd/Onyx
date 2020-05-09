@@ -19,7 +19,7 @@
 #include <onyx/net/netif.h>
 #include <onyx/net/network.h>
 #include <onyx/net/udp.h>
-#include <onyx/arp.h>
+#include <onyx/net/arp.h>
 #include <onyx/byteswap.h>
 #include <onyx/net/tcp.h>
 #include <onyx/cred.h>

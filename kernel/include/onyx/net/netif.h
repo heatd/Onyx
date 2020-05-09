@@ -10,7 +10,7 @@
 #include <onyx/vfs.h>
 #include <onyx/spinlock.h>
 struct netif;
-#include <onyx/arp.h>
+#include <onyx/net/arp.h>
 
 #include <netinet/in.h>
 #include <sys/socket.h>

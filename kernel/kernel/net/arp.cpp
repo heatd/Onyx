@@ -11,7 +11,7 @@
 #include <onyx/net/ethernet.h>
 #include <onyx/net/netif.h>
 #include <onyx/spinlock.h>
-#include <onyx/arp.h>
+#include <onyx/net/arp.h>
 #include <onyx/compiler.h>
 #include <onyx/net/ip.h>
 #include <onyx/log.h>
