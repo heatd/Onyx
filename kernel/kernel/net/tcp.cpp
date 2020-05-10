@@ -45,7 +45,7 @@ size_t tcpv4_get_packetlen(void *info, struct packetbuf_proto **next, void **nex
 	tcp_packet *pkt = reinterpret_cast<tcp_packet *>(info);
 
 	*next = ipv4_get_packetbuf();
-	*next_info = pkt->get_socket()->netif;
+	*next_info = pkt->nif;
 
 	return sizeof(struct tcp_header) + pkt->options_length();
 }
@@ -195,13 +195,12 @@ int tcp_packet::send()
 	memset(header, 0, header_size);
 
 	auto &dest = socket->daddr();
-	auto &src = socket->saddr();
 
 	auto data_off = TCP_MAKE_DATA_OFF(tcp_header_length_to_data_off(header_size));
 
 	/* Assume the max window size as the window size, for now */
 	header->window_size = htons(socket->window_size);
-	header->source_port = src.sin_port;
+	header->source_port = socket->saddr().sin_port;
 	header->sequence_number = htonl(socket->sequence_nr());
 	header->data_offset_and_flags = htons(data_off | flags);
 	header->dest_port = dest.sin_port;
@@ -226,10 +225,10 @@ int tcp_packet::send()
 	}
 
 	header->checksum = tcpv4_calculate_checksum(header,
-		static_cast<uint16_t>(header_size + payload.size_bytes()), src.sin_addr.s_addr, dest.sin_addr.s_addr);
+		static_cast<uint16_t>(header_size + payload.size_bytes()), saddr->sin_addr.s_addr, dest.sin_addr.s_addr);
 
-	int st = ip::v4::send_packet(src.sin_addr.s_addr, dest.sin_addr.s_addr, IPV4_TCP, &info,
-		socket->netif);
+	int st = ip::v4::send_packet(saddr->sin_addr.s_addr, dest.sin_addr.s_addr, IPV4_TCP, &info,
+		nif);
 
 	if(padded) info.length++;
 
@@ -310,11 +309,12 @@ bool tcp_socket::parse_options(tcp_header *packet)
 constexpr uint16_t tcp_headers_overhead = sizeof(struct tcp_header) +
 	sizeof(ethernet_header_t) + IPV4_MIN_HEADER_LEN;
 
-int tcp_socket::start_handshake()
+int tcp_socket::start_handshake(netif *nif, sockaddr_in *from)
 {
-	tcp_packet first_packet{{}, this, TCP_FLAG_SYN};
+	tcp_packet first_packet{{}, this, TCP_FLAG_SYN, nif, from};
 	tcp_option opt{TCP_OPTION_MSS, 4};
-	uint16_t our_mss = netif->mtu - tcp_headers_overhead;
+
+	uint16_t our_mss = nif->mtu - tcp_headers_overhead;
 	opt.data.mss = htons(our_mss);
 
 	first_packet.append_option(&opt);
@@ -368,9 +368,9 @@ int tcp_socket::start_handshake()
 	return 0;
 }
 
-int tcp_socket::finish_handshake()
+int tcp_socket::finish_handshake(netif *nif, sockaddr_in *from)
 {
-	tcp_packet packet{{}, this, TCP_FLAG_ACK};
+	tcp_packet packet{{}, this, TCP_FLAG_ACK, nif, from};
 	return packet.send();
 }
 
@@ -378,11 +378,19 @@ int tcp_socket::start_connection()
 {
 	seq_number = arc4random();
 
-	int st = start_handshake();
+	auto fam = get_proto_fam();
+	
+	/* TODO: This interface is ugly, clunky, and incorrect */
+	struct sockaddr src;
+	memcpy(&src, &saddr(), sizeof(src));
+
+	auto netif = fam->route(&src, (sockaddr *) &daddr());
+
+	int st = start_handshake(netif, (sockaddr_in *) &src);
 	if(st < 0)
 		return st;
 
-	st = finish_handshake();
+	st = finish_handshake(netif, (sockaddr_in *) &src);
 
 	state = tcp_state::TCP_STATE_ESTABLISHED;
 	
@@ -485,9 +493,16 @@ void tcp_socket::try_to_send()
 	else
 	#endif
 	{
+		auto fam = get_proto_fam();
+	
+		/* TODO: This interface is ugly, clunky, and incorrect */
+		struct sockaddr src;
+		memcpy(&src, &saddr(), sizeof(src));
+
+		auto netif = fam->route(&src, (sockaddr *) &daddr());
 		/* TODO: Support TCP segmentation instead of relying on IPv4 segmentation */
 		cul::slice<const uint8_t> data{send_buffer.begin(), current_pos};
-		tcp_packet packet{data, this, TCP_FLAG_ACK | TCP_FLAG_PSH};
+		tcp_packet packet{data, this, TCP_FLAG_ACK | TCP_FLAG_PSH, netif, (sockaddr_in *) &src};
 		packet.send();
 	}
 }

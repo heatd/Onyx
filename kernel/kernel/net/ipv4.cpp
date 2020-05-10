@@ -219,11 +219,8 @@ int calculate_dstmac(unsigned char *destmac, uint32_t destip, struct netif *neti
 	}
 	else if(destip == htonl(INADDR_LOOPBACK))
 	{
-		/* INADDR_LOOPBACK packets are sent to the local NIC's mac */
-		/* TODO: This is probably not correct. We most likely need to just send
-		 * it to the other socket manually
-		 */
-		memcpy(destmac, netif->mac_address, 6);
+		/* INADDR_LOOPBACK packets are not sent, so we're zero'ing it */
+		memset(destmac, 0, 6);
 	}
 	else
 	{
@@ -381,7 +378,7 @@ in_port_t allocate_ephemeral_port(netif *netif, sockaddr_in &in, inet_socket *so
 		in_port_t port = htons(static_cast<in_port_t>(arc4random_uniform(
 			 ephemeral_upper_bound - ephemeral_lower_bound)) + ephemeral_lower_bound);
 
-		in.sin_port = htons(port);
+		in.sin_port = port;
 	
 		const socket_id id{sock->proto, sa_generic(in), sa_generic(in)};
 		
@@ -434,8 +431,6 @@ int proto_family::bind_one(sockaddr_in *in, netif *netif, inet_socket *sock)
 
 	netif_unlock_socks(id, netif);
 
-	if(success) sock->netif = netif;
-
 	return success ? 0 : -ENOMEM;
 }
 
@@ -455,8 +450,10 @@ int proto_family::bind(sockaddr *addr, socklen_t len, inet_socket *sock)
 	{
 		auto nif = netif_get_from_addr(addr, AF_INET);
 		if(!nif)
+		{
 			return -EINVAL;
-		
+		}
+
 		st = bind_one(in, nif, sock);
 	}
 	else
@@ -492,7 +489,6 @@ int proto_family::bind(sockaddr *addr, socklen_t len, inet_socket *sock)
 		return st;
 	
 	sock->bound = true;
-
 	return 0;
 }
 
@@ -504,6 +500,69 @@ int proto_family::bind_any(inet_socket *sock)
 	in.sin_port = 0;
 
 	return bind((sockaddr *) &in, sizeof(sockaddr_in), sock);
+}
+
+rwlock routing_table_lock;
+cul::vector<inet4_route> routing_table;
+
+netif *proto_family::route(sockaddr *from, sockaddr *to)
+{
+	sockaddr_in *in = (sockaddr_in *) from;
+
+	/* If the source address specifies an interface, we need to use that one. */
+	if(in->sin_addr.s_addr != INADDR_ANY)
+		return netif_get_from_addr(from, AF_INET);
+
+	/* Else, we're searching through the routing table to find the best interface to use in order
+	 * to reach our destination
+	 */
+	netif *best_if = nullptr;
+	int lowest_metric = INT_MAX;
+	auto dest = ((sockaddr_in *) to)->sin_addr.s_addr;
+
+	rw_lock_read(&routing_table_lock);
+
+	for(auto &r : routing_table)
+	{
+		/* Do a bitwise and between the destination address and the mask
+		 * If the result = r.dest, we can use this interface.
+		 */
+#if 0
+		printk("dest %x, mask %x, supposed dest %x\n", dest, r.mask, r.dest);
+#endif
+		if((dest & r.mask) != r.dest)
+			continue;
+#if 0
+		printk("%s is good\n", r.nif->name);
+		printk("is loopback set %u\n", r.nif->flags & NETIF_LOOPBACK);
+#endif
+	
+		if(r.metric < lowest_metric)
+		{
+			best_if = r.nif;
+			lowest_metric = r.metric;
+		}
+	}
+
+	rw_unlock_read(&routing_table_lock);
+
+	if(best_if)
+	{
+		in->sin_addr.s_addr = best_if->local_ip.sin_addr.s_addr;
+	}
+
+	return best_if;
+}
+
+bool add_route(inet4_route &route)
+{
+	rw_lock_write(&routing_table_lock);
+
+	bool st = routing_table.push_back(route);
+
+	rw_unlock_write(&routing_table_lock);
+
+	return st;
 }
 
 static proto_family v4_protocol;

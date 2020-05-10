@@ -20,6 +20,7 @@ struct netif;
 #define NETIF_SUPPORTS_TCP_CHECKSUM_OFF			(1 << 2)
 #define NETIF_SUPPORTS_ISO						(1 << 3)
 #define NETIF_SUPPORTS_TSO						(1 << 4)
+#define NETIF_LOOPBACK                          (1 << 5)
 
 /* Defined as an opaque struct since it's C++ TODO: Yuck. */
 struct sockets_info;

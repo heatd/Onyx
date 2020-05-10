@@ -106,6 +106,18 @@ void netif_register_if(struct netif *netif)
 	list_add_tail(&netif->list_node, &netif_list);
 
 	spin_unlock(&netif_list_lock);
+
+	bool is_loopback = netif->flags & NETIF_LOOPBACK;
+
+	struct inet4_route route;
+	
+	route.mask = is_loopback ? htonl(0xff000000) : 0;
+	route.dest = is_loopback ? htonl(INADDR_LOOPBACK) : 0;
+	route.dest &= route.mask;
+	route.nif = netif;
+	route.metric = is_loopback ? 1 : 10;
+
+	assert(ip::v4::add_route(route) == true);
 }
 
 int netif_unregister_if(struct netif *netif)
@@ -127,7 +139,7 @@ struct netif *netif_choose(void)
 	list_for_every(&netif_list)
 	{
 		netif *n = container_of(l, netif, list_node);
-		if(n->flags & NETIF_LINKUP)
+		if(n->flags & NETIF_LINKUP && !(n->flags & NETIF_LOOPBACK))
 		{
 			spin_unlock(&netif_list_lock);
 			return n;
@@ -145,10 +157,12 @@ netif *netif_get_from_addr(struct sockaddr *s, int domain)
 	spin_lock(&netif_list_lock);
 
 	sockaddr_in *in = (sockaddr_in *) s;
+	//printk("trying to find %x\n", in->sin_addr.s_addr);
 
 	list_for_every(&netif_list)
 	{
 		netif *n = container_of(l, netif, list_node);
+		//printk("local %x\n", n->local_ip.sin_addr.s_addr);
 		if(n->local_ip.sin_addr.s_addr == in->sin_addr.s_addr)
 		{
 			spin_unlock(&netif_list_lock);

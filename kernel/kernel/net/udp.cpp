@@ -26,13 +26,18 @@ uint16_t udpv4_calculate_checksum(udp_header_t *header, uint32_t srcip, uint32_t
 {
 	uint16_t proto = IPV4_UDP << 8;
 	uint16_t packet_length = ntohs(header->len);
-	
-	uint16_t r = __ipsum_unfolded(&srcip, sizeof(srcip), 0);
-	r = __ipsum_unfolded(&dstip, sizeof(dstip), r);
+	uint16_t __src[2];
+	uint16_t __dst[2];
+
+	memcpy(&__src, &srcip, sizeof(srcip));
+	memcpy(&__dst, &dstip, sizeof(dstip));
+
+	uint16_t r = __ipsum_unfolded(&__src, sizeof(srcip), 0);
+	r = __ipsum_unfolded(&__dst, sizeof(dstip), r);
 	r = __ipsum_unfolded(&proto, sizeof(proto), r);
 	r = __ipsum_unfolded(&header->len, sizeof(header->len), r);
-	
-	r = __ipsum_unfolded(header, packet_length, r);
+
+	r = __ipsum_unfolded(header, packet_length & 1 ? packet_length + 1 : packet_length, r);
 
 	return ipsum_fold(r);
 }
@@ -63,6 +68,14 @@ int udp_send_packet(char *payload, size_t payload_size, in_port_t source_port,
 	            in_port_t dest_port, in_addr_t srcip, in_addr_t destip,
 		    	struct netif *netif)
 {
+	bool padded = false;
+
+	if(payload_size & 1)
+	{
+		padded = true;
+		payload_size++;
+	}
+
 	if(payload_size > UINT16_MAX)
 		return errno = EMSGSIZE, -1;
 
@@ -82,8 +95,16 @@ int udp_send_packet(char *payload, size_t payload_size, in_port_t source_port,
 
 	udp_header->source_port = source_port;
 	udp_header->dest_port = dest_port;
+
+	if(padded)
+	{
+		*((char *) buf.packet + payload_size) = 0;
+		payload_size--;
+	}
+
 	udp_header->len = htons((uint16_t)(sizeof(udp_header_t) +
 					  payload_size));
+
 	memcpy(&udp_header->payload, payload, payload_size);
 
 	udp_header->checksum = udpv4_calculate_checksum(udp_header, srcip, destip);
@@ -149,15 +170,16 @@ ssize_t udp_socket::sendto(const void *buf, size_t len, int flags, struct sockad
 	else if(addr != NULL)
 		to = (struct sockaddr_in *) addr;
 
-	struct sockaddr_in from = {0};
-	/* TODO: I don't think this is quite correct. */
-	if(!bound)
-		netif_get_ipv4_addr(&from, netif);
-	else
-		memcpy(&from, &src_addr, sizeof(struct sockaddr));
-	
-	if(udp_send_packet((char*) buf, len, from.sin_port, to->sin_port,
-			   from.sin_addr.s_addr, to->sin_addr.s_addr, 
+	struct sockaddr from;
+	/* TODO: This is not quite ipv6 safe */
+	memcpy(&from, &src_addr, sizeof(from));
+	auto fam = get_proto_fam();
+	auto netif = fam->route(&from, (sockaddr *) to);
+
+	auto &from_in = (sockaddr_in &) from;
+
+	if(udp_send_packet((char*) buf, len, from_in.sin_port, to->sin_port,
+			   from_in.sin_addr.s_addr, to->sin_addr.s_addr, 
 			   netif) < 0)
 	{
 		return -errno;

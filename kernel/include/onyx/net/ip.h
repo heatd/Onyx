@@ -59,13 +59,21 @@ namespace v4
 
 };
 
-#include <stdio.h>
+struct netif;
+struct inet4_route
+{
+	in_addr_t dest;
+	in_addr_t mask;
+	netif *nif;
+	int metric;
+};
 
 class inet_proto_family : public proto_family
 {
 public:
 	virtual int bind(struct sockaddr *addr, socklen_t len, inet_socket *socket) = 0;
 	virtual int bind_any(inet_socket *sock) = 0;
+	virtual netif *route(sockaddr *from, sockaddr *to) = 0;
 };
 
 struct inet_socket : public socket
@@ -134,7 +142,7 @@ static inline uint16_t __ipsum_unfolded(void *addr, size_t bytes, uint16_t init_
 {
 	uint32_t sum = init_count;
 	uint32_t ret = 0;
-	uint16_t *ptr = (uint16_t *) addr;
+	uint16_t __attribute__((may_alias)) *ptr = (uint16_t __attribute__((may_alias)) *) addr;
 	size_t words = bytes / 2;
 	for(size_t i = 0; i < words; i++)
 	{
@@ -181,6 +189,7 @@ private:
 public:
 	virtual int bind(sockaddr *addr, socklen_t len, inet_socket *socket) override;
 	virtual int bind_any(inet_socket *sock) override;
+	virtual netif *route(sockaddr *from, sockaddr *to) override;
 };
 
 int send_packet(uint32_t senderip, uint32_t destip, unsigned int type,
@@ -189,6 +198,8 @@ int send_packet(uint32_t senderip, uint32_t destip, unsigned int type,
 socket *create_socket(int type, int protocol);
 
 void handle_packet(struct ip_header *header, size_t size, struct netif *netif);
+
+bool add_route(inet4_route &route);
 
 };
 

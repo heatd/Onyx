@@ -61,7 +61,6 @@ struct socket
 	int type;
 	int proto;
 	int domain;
-	struct netif *netif;
 	/* This mutex serialises binds, connects, listens and accepts on the socket, as to prevent race conditions */
 	struct mutex connection_state_lock;
 	bool bound;
@@ -79,7 +78,7 @@ struct socket
 	proto_family *proto_domain;
 
 	/* Define a default constructor here */
-	socket() : object{}, type{}, proto{}, domain{}, netif{}, bound{}, connected{},
+	socket() : object{}, type{}, proto{}, domain{}, bound{}, connected{},
                dtor{}, listener_sem{}, conn_req_list_lock{}, conn_request_list{},
 			   nr_pending{}, backlog{}, s_ops{&default_s_ops}, proto_domain{}
 	{

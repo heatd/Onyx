@@ -150,6 +150,8 @@ public:
 	tcp_socket *socket;
 	struct list_head option_list;
 	uint16_t flags;
+	netif *nif;
+	sockaddr_in *saddr;
 
 	void delete_options()
 	{
@@ -165,8 +167,9 @@ public:
 
 	void put_options(char *opts);
 
-	tcp_packet(cul::slice<const uint8_t> data, tcp_socket *socket, uint16_t flags) : payload(data),
-	           socket(socket), option_list{}, flags(flags)
+	tcp_packet(cul::slice<const uint8_t> data, tcp_socket *socket, uint16_t flags,
+               netif *nif, sockaddr_in *in) : payload(data),
+	           socket(socket), option_list{}, flags(flags), nif(nif), saddr(in)
 	{
 		INIT_LIST_HEAD(&option_list);
 	}
@@ -249,8 +252,8 @@ private:
 		return ack;
 	}
 
-	int start_handshake();
-	int finish_handshake();
+	int start_handshake(netif *nif, sockaddr_in *from);
+	int finish_handshake(netif *nif, sockaddr_in *from);
 
 	bool parse_options(tcp_header *packet);
 	ssize_t get_max_payload_len(uint16_t tcp_header_len);
