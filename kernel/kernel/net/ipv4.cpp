@@ -434,6 +434,14 @@ int proto_family::bind_one(sockaddr_in *in, netif *netif, inet_socket *sock)
 	return success ? 0 : -ENOMEM;
 }
 
+static constexpr bool is_bind_any(in_addr_t addr)
+{
+	/* For historical reasons, INADDR_ANY == INADDR_BROADCAST (linux's ip(7)).
+	 * Linux isn't alone in this and we should strive for compatibility.
+	 */
+	return addr == INADDR_ANY || addr == INADDR_BROADCAST;
+}
+
 int proto_family::bind(sockaddr *addr, socklen_t len, inet_socket *sock)
 {
 	if(len != sizeof(sockaddr_in))
@@ -446,7 +454,7 @@ int proto_family::bind(sockaddr *addr, socklen_t len, inet_socket *sock)
 	if(!sock->validate_sockaddr_len_pair(addr, len))
 		return -EINVAL;
 
-	if(in->sin_addr.s_addr != INADDR_ANY)
+	if(is_bind_any(in->sin_addr.s_addr))
 	{
 		auto nif = netif_get_from_addr(addr, AF_INET);
 		if(!nif)
