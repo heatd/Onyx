@@ -11,7 +11,9 @@
 
 #include <onyx/kernelinfo.h>
 #include <onyx/vm.h>
-#include <onyx/net/network.h>
+
+const char *network_gethostname();
+void network_sethostname(const char *);
 
 int sys_uname(struct utsname *ubuf)
 {

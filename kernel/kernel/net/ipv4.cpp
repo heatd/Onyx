@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2016, 2017 Pedro Falcato
+* Copyright (c) 2016-2020 Pedro Falcato
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
@@ -13,6 +13,7 @@
 
 #include <sys/socket.h>
 
+#include <onyx/random.h>
 #include <onyx/utils.h>
 #include <onyx/net/ip.h>
 #include <onyx/net/ethernet.h>
@@ -24,15 +25,26 @@
 #include <onyx/net/tcp.h>
 #include <onyx/cred.h>
 
-size_t ipv4_get_packlen(void *info, struct packetbuf_proto **next, void **next_info);
+namespace ip
+{
+
+namespace v4
+{
+
+size_t get_packlen(void *info, struct packetbuf_proto **next, void **next_info);
+
+extern "C"
+{
 
 struct packetbuf_proto __ipv4_pbf =
 {
 	.name = "ipv4",
-	.get_len = ipv4_get_packlen
+	.get_len = get_packlen
 };
 
-size_t ipv4_get_packlen(void *info, struct packetbuf_proto **next, void **next_info)
+}
+
+size_t get_packlen(void *info, struct packetbuf_proto **next, void **next_info)
 {
 	/* In this function, info = netif */
 	struct netif *n = static_cast<netif *>(info);
@@ -42,12 +54,12 @@ size_t ipv4_get_packlen(void *info, struct packetbuf_proto **next, void **next_i
 	return sizeof(struct ip_header);
 }
 
-bool ipv4_needs_fragmentation(size_t packet_size, struct netif *netif)
+bool needs_fragmentation(size_t packet_size, struct netif *netif)
 {
 	return packet_size > netif->mtu;
 }
 
-struct ipv4_fragment
+struct fragment
 {
 	struct packetbuf_info *original_packet;
 	struct packetbuf_info this_buf;
@@ -56,11 +68,11 @@ struct ipv4_fragment
 	struct list_head list_node;
 };
 
-void ipv4_free_frags(struct list_head *frag_list)
+void free_frags(struct list_head *frag_list)
 {
 	list_for_every_safe(frag_list)
 	{
-		struct ipv4_fragment *f = container_of(l, struct ipv4_fragment, list_node);
+		struct fragment *f = container_of(l, struct fragment, list_node);
 
 		if(f->packet_off != 0)
 		{
@@ -72,7 +84,7 @@ void ipv4_free_frags(struct list_head *frag_list)
 	}
 }
 
-struct ipv4_send_info
+struct send_info
 {
 	uint32_t src_ip;
 	uint32_t dest_ip;
@@ -85,7 +97,7 @@ struct ipv4_send_info
 #define IPV4_OFF_TO_FRAG_OFF(x)		((x) >> 3)
 #define IPV4_FRAG_OFF_TO_OFF(x)		((x) << 3)
 
-void ipv4_setup_fragment(struct ipv4_send_info *info, struct ipv4_fragment *frag,
+void setup_fragment(struct send_info *info, struct fragment *frag,
 	struct ip_header *ip_header, struct netif *netif)
 {
 	bool frags_following = info->frags_following;
@@ -106,8 +118,8 @@ void ipv4_setup_fragment(struct ipv4_send_info *info, struct ipv4_fragment *frag
 	ip_header->header_checksum = ipsum(ip_header, ip_header->ihl * sizeof(uint32_t));
 }
 
-int ipv4_create_fragments(struct list_head *frag_list, struct packetbuf_info *buf,
-	size_t payload_size, struct ipv4_send_info *sinfo, struct netif *netif)
+int create_fragments(struct list_head *frag_list, struct packetbuf_info *buf,
+	size_t payload_size, struct send_info *sinfo, struct netif *netif)
 {
 	/* Okay, let's split stuff in multiple IPv4 fragments */
 
@@ -123,10 +135,10 @@ int ipv4_create_fragments(struct list_head *frag_list, struct packetbuf_info *bu
 
 	while(payload_size != 0)
 	{
-		struct ipv4_fragment *frag = static_cast<ipv4_fragment *>(zalloc(sizeof(*frag)));
+		struct fragment *frag = static_cast<fragment *>(zalloc(sizeof(*frag)));
 		if(!frag)
 		{
-			ipv4_free_frags(frag_list);
+			free_frags(frag_list);
 			return -ENOMEM;
 		}
 
@@ -167,7 +179,7 @@ int ipv4_create_fragments(struct list_head *frag_list, struct packetbuf_info *bu
 			if(packetbuf_alloc(&frag->this_buf, &__ipv4_pbf, netif) < 0)
 			{
 				free(frag);
-				ipv4_free_frags(frag_list);
+				free_frags(frag_list);
 				return -ENOMEM;
 			}
 
@@ -187,7 +199,7 @@ int ipv4_create_fragments(struct list_head *frag_list, struct packetbuf_info *bu
 				frag->this_buf.packet + (packet_metadata_len - sizeof(struct ip_header)));
 		
 		sinfo->frags_following = !(payload_size == this_payload_size);
-		ipv4_setup_fragment(sinfo, frag, header, netif);
+		setup_fragment(sinfo, frag, header, netif);
 
 		list_add_tail(&frag->list_node, frag_list);
 
@@ -198,7 +210,7 @@ int ipv4_create_fragments(struct list_head *frag_list, struct packetbuf_info *bu
 	return 0;
 }
 
-int ipv4_calculate_dstmac(unsigned char *destmac, uint32_t destip, struct netif *netif)
+int calculate_dstmac(unsigned char *destmac, uint32_t destip, struct netif *netif)
 {
 	if(destip == htonl(INADDR_BROADCAST))
 	{
@@ -224,11 +236,11 @@ int ipv4_calculate_dstmac(unsigned char *destmac, uint32_t destip, struct netif 
 	return 0;
 }
 
-int ipv4_do_fragmentation(struct ipv4_send_info *sinfo, size_t payload_size,
+int do_fragmentation(struct send_info *sinfo, size_t payload_size,
                          struct packetbuf_info *buf, struct netif *netif)
 {
 	struct list_head frags = LIST_HEAD_INIT(frags);
-	int st = ipv4_create_fragments(&frags, buf, payload_size, sinfo, netif);
+	int st = create_fragments(&frags, buf, payload_size, sinfo, netif);
 
 	if(st < 0)
 	{
@@ -237,7 +249,7 @@ int ipv4_do_fragmentation(struct ipv4_send_info *sinfo, size_t payload_size,
 	}
 
 	unsigned char destmac[6] = {};
-	if(ipv4_calculate_dstmac((unsigned char *) &destmac, sinfo->dest_ip, netif) < 0)
+	if(calculate_dstmac((unsigned char *) &destmac, sinfo->dest_ip, netif) < 0)
 	{
 		st = -1;
 		goto out;
@@ -245,7 +257,7 @@ int ipv4_do_fragmentation(struct ipv4_send_info *sinfo, size_t payload_size,
 
 	list_for_every(&frags)
 	{
-		struct ipv4_fragment *frag = container_of(l, struct ipv4_fragment, list_node);
+		struct fragment *frag = container_of(l, struct fragment, list_node);
 
 		if(eth_send_packet((char *) &destmac, &frag->this_buf, PROTO_IPV4, netif) < 0)
 		{
@@ -255,19 +267,19 @@ int ipv4_do_fragmentation(struct ipv4_send_info *sinfo, size_t payload_size,
 	}
 
 out:
-	ipv4_free_frags(&frags);
+	free_frags(&frags);
 
 	return st;
 }
 
 uint16_t identification_counter = 0;
 
-static uint16_t ipv4_allocate_id(void)
+static uint16_t allocate_id(void)
 {
 	return __atomic_fetch_add(&identification_counter, 1, __ATOMIC_CONSUME);
 }
 
-int ipv4_send_packet(uint32_t senderip, uint32_t destip, unsigned int type,
+int send_packet(uint32_t senderip, uint32_t destip, unsigned int type,
                      struct packetbuf_info *buf, struct netif *netif)
 {
 	size_t ip_header_off = packetbuf_get_off(buf);
@@ -275,7 +287,7 @@ int ipv4_send_packet(uint32_t senderip, uint32_t destip, unsigned int type,
 	
 	size_t payload_size = buf->length - ip_header_off - sizeof(struct ip_header);
 
-	struct ipv4_send_info sinfo = {};
+	struct send_info sinfo = {};
 	/* Dest ip and sender ip are already in network order */
 	sinfo.dest_ip = destip;
 	sinfo.src_ip = senderip;
@@ -283,22 +295,22 @@ int ipv4_send_packet(uint32_t senderip, uint32_t destip, unsigned int type,
 	sinfo.type = type;
 	sinfo.frags_following = false;
 
-	if(ipv4_needs_fragmentation(buf->length, netif))
+	if(needs_fragmentation(buf->length, netif))
 	{
 		/* TODO: Support ISO(IP segmentation offloading) */
-		sinfo.identification = ipv4_allocate_id();
-		return ipv4_do_fragmentation(&sinfo, payload_size, buf, netif);
+		sinfo.identification = allocate_id();
+		return do_fragmentation(&sinfo, payload_size, buf, netif);
 	}
 
 	/* Let's reuse code by creating a single fragment struct on the stack */
-	struct ipv4_fragment frag;
+	struct fragment frag;
 	frag.length = payload_size;
 	frag.packet_off = 0;
 
-	ipv4_setup_fragment(&sinfo, &frag, ip_header, netif);
+	setup_fragment(&sinfo, &frag, ip_header, netif);
 
 	unsigned char destmac[6] = {};
-	if(ipv4_calculate_dstmac((unsigned char *) &destmac, destip, netif) < 0)
+	if(calculate_dstmac((unsigned char *) &destmac, destip, netif) < 0)
 	{
 		return -1;
 	}
@@ -307,7 +319,7 @@ int ipv4_send_packet(uint32_t senderip, uint32_t destip, unsigned int type,
 }
 
 /* TODO: Possibly, these basic checks across ethernet.c, ip.c, udp.c, tcp.cpp aren't enough */
-bool ipv4_valid_packet(struct ip_header *header, size_t size)
+bool valid_packet(struct ip_header *header, size_t size)
 {
 	if(ntohs(header->total_len) > size)
 		return false;
@@ -316,11 +328,11 @@ bool ipv4_valid_packet(struct ip_header *header, size_t size)
 	return true;
 }
 
-void ipv4_handle_packet(struct ip_header *header, size_t size, struct netif *netif)
+void handle_packet(struct ip_header *header, size_t size, struct netif *netif)
 {
 	struct ip_header *usable_header = static_cast<ip_header *>(memdup(header, size));
 
-	if(!ipv4_valid_packet(usable_header, size))
+	if(!valid_packet(usable_header, size))
 		return;
 
 	if(header->proto == IPV4_UDP)
@@ -333,7 +345,7 @@ void ipv4_handle_packet(struct ip_header *header, size_t size, struct netif *net
 	free(usable_header);
 }
 
-struct socket *ipv4_create_socket(int type, int protocol)
+socket *choose_protocol_and_create(int type, int protocol)
 {
 	switch(type)
 	{
@@ -344,7 +356,7 @@ struct socket *ipv4_create_socket(int type, int protocol)
 				case PROTOCOL_UDP:
 					return udp_create_socket(type);
 				default:
-					return NULL;
+					return nullptr;
 			}
 		}
 
@@ -352,9 +364,161 @@ struct socket *ipv4_create_socket(int type, int protocol)
 		{
 			case PROTOCOL_TCP:
 				return tcp_create_socket(type);
+			default:
+				return nullptr;
 		}
 	}
-	return NULL;
+}
+
+/* Use linux's ephemeral ports */
+static constexpr in_port_t ephemeral_upper_bound = 61000;
+static constexpr in_port_t ephemeral_lower_bound = 32768;
+
+in_port_t allocate_ephemeral_port(netif *netif, sockaddr_in &in, inet_socket *sock)
+{
+	while(true)
+	{
+		in_port_t port = htons(static_cast<in_port_t>(arc4random_uniform(
+			 ephemeral_upper_bound - ephemeral_lower_bound)) + ephemeral_lower_bound);
+
+		in.sin_port = htons(port);
+	
+		const socket_id id{sock->proto, sa_generic(in), sa_generic(in)};
+		
+		netif_lock_socks(id, netif);
+
+		auto sock = netif_get_socket(id, netif, GET_SOCKET_CHECK_EXISTANCE | GET_SOCKET_UNLOCKED);
+
+		if(!sock)
+			return port;
+		else
+		{
+			/* Let's try again, boys */
+			netif_unlock_socks(id, netif);
+		}
+	}
+
+}
+
+int proto_family::bind_one(sockaddr_in *in, netif *netif, inet_socket *sock)
+{
+	const socket_id id(sock->proto, sa_generic(*in), sa_generic(*in));
+
+	if(in->sin_port != 0)
+	{
+		if(!inet_has_permission_for_port(in->sin_port))
+			return -EPERM;
+
+		netif_lock_socks(id, netif);
+		/* Check if there's any socket bound to this address yet */
+		if(netif_get_socket(id, netif, GET_SOCKET_CHECK_EXISTANCE | GET_SOCKET_UNLOCKED))
+		{
+			netif_unlock_socks(id, netif);
+			return -EADDRINUSE;
+		}
+	}
+	else
+	{
+		/* Lets try to allocate a new ephemeral port for us */
+		allocate_ephemeral_port(netif, *in, sock);
+	}
+
+	/* Note that we keep doing this memcpy in each bind_one() just so the socket
+	 * hashes properly - the state of the socket(whether it's bound or not) entirely depends on
+	 * sock->bound = true in proto_family::bind()
+	 */
+	memcpy(&sock->src_addr, in, sizeof(struct sockaddr));
+
+	/* Note: locks need to be held */
+	bool success = netif_add_socket(sock, netif, ADD_SOCKET_UNLOCKED);
+
+	netif_unlock_socks(id, netif);
+
+	if(success) sock->netif = netif;
+
+	return success ? 0 : -ENOMEM;
+}
+
+int proto_family::bind(sockaddr *addr, socklen_t len, inet_socket *sock)
+{
+	if(len != sizeof(sockaddr_in))
+		return -EINVAL;
+
+	sockaddr_in *in = (sockaddr_in *) addr;
+
+	int st = 0;
+
+	if(!sock->validate_sockaddr_len_pair(addr, len))
+		return -EINVAL;
+
+	if(in->sin_addr.s_addr != INADDR_ANY)
+	{
+		auto nif = netif_get_from_addr(addr, AF_INET);
+		if(!nif)
+			return -EINVAL;
+		
+		st = bind_one(in, nif, sock);
+	}
+	else
+	{
+		auto list_start = netif_lock_and_get_list();
+		
+		list_for_every(list_start)
+		{
+			auto netif = container_of(l, struct netif, list_node);
+
+			st = bind_one(in, netif, sock);
+
+			if(st < 0)
+			{
+				auto stop = l;
+
+				list_for_every(list_start)
+				{
+					if(l == stop)
+						break;
+					panic("Implement socket un-binding");
+				}
+
+				netif_unlock_list();
+				return st;
+			}
+		}
+
+		netif_unlock_list();
+	}
+
+	if(st < 0)
+		return st;
+	
+	sock->bound = true;
+
+	return 0;
+}
+
+int proto_family::bind_any(inet_socket *sock)
+{
+	sockaddr_in in = {};
+	in.sin_family = AF_INET;
+	in.sin_addr.s_addr = INADDR_ANY;
+	in.sin_port = 0;
+
+	return bind((sockaddr *) &in, sizeof(sockaddr_in), sock);
+}
+
+static proto_family v4_protocol;
+
+socket *create_socket(int type, int protocol)
+{
+	auto sock = choose_protocol_and_create(type, protocol);
+
+	if(sock)
+		sock->proto_domain = &v4_protocol;
+
+	return sock;
+}
+
+}
 }
 
 bool inet_has_permission_for_port(in_port_t port)
@@ -372,4 +536,23 @@ bool inet_has_permission_for_port(in_port_t port)
 	creds_put(c);
 
 	return false;
+}
+
+/* Modifies *addr too */
+bool inet_socket::validate_sockaddr_len_pair(sockaddr *addr, socklen_t len)
+{
+	bool v6 = domain == AF_INET6;
+
+	if(!v6)
+		return validate_sockaddr_len_pair_v4(reinterpret_cast<sockaddr_in*>(addr), len);
+	else
+		return validate_sockaddr_len_pair_v6(reinterpret_cast<sockaddr_in6*>(addr), len);
+}
+
+bool inet_socket::validate_sockaddr_len_pair_v4(sockaddr_in *addr, socklen_t len)
+{
+	if(len != sizeof(sockaddr_in))
+		return false;
+
+	return check_sockaddr_in(addr);
 }

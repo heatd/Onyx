@@ -569,6 +569,8 @@ void thread_destroy(struct thread *thread)
 
 void sched_die(void)
 {
+	sched_disable_preempt();
+
 	struct thread *current = get_current_thread();
 
 	/* We need to switch to the fallback page directory while we can, because

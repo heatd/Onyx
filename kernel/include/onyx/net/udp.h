@@ -3,8 +3,8 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
-#ifndef _KERNEL_UDP
-#define _KERNEL_UDP
+#ifndef _ONYX_NET_UDP_H
+#define _ONYX_NET_UDP_H
 
 #include <stdint.h>
 
@@ -34,7 +34,11 @@ struct udp_socket : public inet_socket
 	struct semaphore packet_semaphore;
 	struct udp_packet *packet_list;
 	struct spinlock packet_lock;
-	struct list_head socket_list_head;
+
+	int bind(sockaddr *addr, socklen_t len);
+	int connect(sockaddr *addr, socklen_t len);
+	ssize_t sendto(const void *buf, size_t len, int flags, struct sockaddr *addr,
+                   socklen_t addrlen);
 };
 
 int udp_send_packet(char *payload, size_t payload_size, in_port_t source_port, in_port_t dest_port, 

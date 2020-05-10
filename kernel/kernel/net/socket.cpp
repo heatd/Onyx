@@ -169,8 +169,15 @@ int sys_connect(int sockfd, const struct sockaddr *uaddr, socklen_t addrlen)
 	if(mutex_lock_interruptible(&s->connection_state_lock) < 0)
 		goto out;
 
+	if(s->connected)
+	{
+		ret = -EISCONN;
+		goto out2;
+	}
+
 	ret = s->s_ops->connect((sockaddr *) &addr, addrlen, s);
 
+out2:
 	mutex_unlock(&s->connection_state_lock);
 out:
 	fd_put(desc);
@@ -199,9 +206,16 @@ int sys_bind(int sockfd, const struct sockaddr *uaddr, socklen_t addrlen)
 	 */
 	if(mutex_lock_interruptible(&s->connection_state_lock) < 0)
 		goto out;
+	
+	if(s->bound)
+	{
+		ret = -EINVAL;
+		goto out2;
+	}
 
 	ret = s->s_ops->bind((sockaddr *) &addr, addrlen, s);
 
+out2:
 	mutex_unlock(&s->connection_state_lock);
 
 out:
@@ -354,7 +368,7 @@ struct socket *socket_create(int domain, int type, int protocol)
 	switch(domain)
 	{
 		case AF_INET:
-			socket = ipv4_create_socket(type, protocol);
+			socket = ip::v4::create_socket(type, protocol);
 			break;
 		case AF_UNIX:
 			socket = unix_create_socket(type, protocol);

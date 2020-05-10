@@ -16,7 +16,6 @@
 #include <string.h>
 #include <byteswap.h>
 
-#include <onyx/net/network.h>
 #include <onyx/crypt/sha256.h>
 
 #define WPA_GET_BE32(a) ((((uint32_t) (a)[0]) << 24) | (((uint32_t) (a)[1]) << 16) | \

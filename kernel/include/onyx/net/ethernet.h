@@ -4,8 +4,8 @@
 * check LICENSE at the root directory for more information
 */
 
-#ifndef _ETHERNET_H
-#define _ETHERNET_H
+#ifndef _ONYX_NET_ETHERNET_H
+#define _ONYX_NET_ETHERNET_H
 
 #include <stdint.h>
 

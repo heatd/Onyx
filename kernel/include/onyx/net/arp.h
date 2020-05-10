@@ -4,8 +4,8 @@
 * check LICENSE at the root directory for more information
 */
 
-#ifndef _ARP_H
-#define _ARP_H
+#ifndef _ONYX_NET_ARP_H
+#define _ONYX_NET_ARP_H
 
 #include <stdint.h>
 

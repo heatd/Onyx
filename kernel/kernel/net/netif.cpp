@@ -17,7 +17,8 @@
 #include <sys/ioctl.h>
 
 static struct spinlock netif_list_lock = {0};
-struct netif *netif_list = NULL;
+struct list_head netif_list = LIST_HEAD_INIT(netif_list);
+
 unsigned int netif_ioctl(int request, void *argp, struct file* f)
 {
 	auto netif = static_cast<struct netif *>(f->f_ino->i_helper);
@@ -102,16 +103,7 @@ void netif_register_if(struct netif *netif)
 	
 	spin_lock(&netif_list_lock);
 	
-	if(!netif_list)
-	{
-		netif_list = netif;
-	}
-	else
-	{
-		struct netif *n = netif_list;
-		while(n->next) n = n->next;
-		n->next = netif;
-	}
+	list_add_tail(&netif->list_node, &netif_list);
 
 	spin_unlock(&netif_list_lock);
 }
@@ -119,41 +111,66 @@ void netif_register_if(struct netif *netif)
 int netif_unregister_if(struct netif *netif)
 {
 	spin_lock(&netif_list_lock);
-	if(netif_list == netif)
+	
+	list_remove(&netif->list_node);
+
+	spin_unlock(&netif_list_lock);
+
+	return 0;
+}
+
+struct netif *netif_choose(void)
+{
+	/* TODO: Netif refcounting would be bery noice */
+	spin_lock(&netif_list_lock);
+
+	list_for_every(&netif_list)
 	{
-		netif_list = netif->next;
-		spin_unlock(&netif_list_lock);
-		return 0;
-	}
-	else
-	{
-		struct netif *n = netif_list;
-		while(n)
+		netif *n = container_of(l, netif, list_node);
+		if(n->flags & NETIF_LINKUP)
 		{
-			if(n->next == netif)
-			{
-				n->next = netif->next;
-				spin_unlock(&netif_list_lock);
-				return 0;
-			}
-			n = n->next;
+			spin_unlock(&netif_list_lock);
+			return n;
 		}
 	}
 
 	spin_unlock(&netif_list_lock);
 
-	return -1;
+	return NULL;
 }
 
-struct netif *netif_choose(void)
+netif *netif_get_from_addr(struct sockaddr *s, int domain)
 {
-	for(struct netif *n = netif_list; n; n = n->next)
+	assert(domain == AF_INET);
+	spin_lock(&netif_list_lock);
+
+	sockaddr_in *in = (sockaddr_in *) s;
+
+	list_for_every(&netif_list)
 	{
-		if(n->flags & NETIF_LINKUP)
+		netif *n = container_of(l, netif, list_node);
+		if(n->local_ip.sin_addr.s_addr == in->sin_addr.s_addr)
+		{
+			spin_unlock(&netif_list_lock);
 			return n;
+		}
 	}
 
-	return NULL;
+	spin_unlock(&netif_list_lock);
+
+	return nullptr;
+}
+
+struct list_head *netif_lock_and_get_list(void)
+{
+	spin_lock(&netif_list_lock);
+
+	return &netif_list;
+}
+
+void netif_unlock_list(void)
+{
+	spin_unlock(&netif_list_lock);
 }
 
 int netif_send_packet(struct netif *netif, const void *buffer, uint16_t size)

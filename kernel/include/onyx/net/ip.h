@@ -3,14 +3,15 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
-#ifndef _KERNEL_IP_H
-#define _KERNEL_IP_H
+#ifndef _ONYX_NET_IP_H
+#define _ONYX_NET_IP_H
 
 #include <stdint.h>
 
 #include <onyx/net/netif.h>
 #include <onyx/packetbuf.h>
 #include <onyx/net/socket.h>
+#include <onyx/net/proto_family.h>
 
 #include <sys/socket.h>
 
@@ -45,6 +46,28 @@ union sockaddr_in_both
 	sockaddr_in6 in6;
 };
 
+class inet_proto_family;
+
+/* Forward declaration of ip::v4::proto_family for inet_socket friendship */
+namespace ip
+{
+
+namespace v4
+{
+	class proto_family;
+}
+
+};
+
+#include <stdio.h>
+
+class inet_proto_family : public proto_family
+{
+public:
+	virtual int bind(struct sockaddr *addr, socklen_t len, inet_socket *socket) = 0;
+	virtual int bind_any(inet_socket *sock) = 0;
+};
+
 struct inet_socket : public socket
 {
 	/* in6 is able to hold sockaddr_in and sockaddr_in6, since it's bigger */
@@ -55,17 +78,21 @@ struct inet_socket : public socket
 
 	static uint32_t make_hash(inet_socket *& sock)
 	{
-		size_t size_of_addr = sock->domain == AF_INET ? sizeof(sockaddr_in) : sizeof(sockaddr_in6);
+		//size_t size_of_addr = sock->domain == AF_INET ? sizeof(sockaddr_in) : sizeof(sockaddr_in6);
+		sockaddr_in *sin = (sockaddr_in *) &sock->src_addr.in4;
 		auto hash = fnv_hash(&sock->proto, sizeof(int));
-		hash = fnv_hash_cont(&sock->src_addr, size_of_addr, hash);
+		hash = fnv_hash_cont(&sin->sin_port, sizeof(in_port_t), hash);
+		//printk("Hashing proto %d port %u\n", sock->proto, sin->sin_port);
 
 		return hash;
 	}
 
 	static uint32_t make_hash_from_id(const socket_id& id)
 	{
+		sockaddr_in *sin = (sockaddr_in *) &id.src_addr;
 		auto hash = fnv_hash(&id.protocol, sizeof(id.protocol));
-		hash = fnv_hash_cont(&id.src_addr, sizeof(sockaddr_in), hash);
+		hash = fnv_hash_cont(&sin->sin_port, sizeof(in_port_t), hash);
+		//printk("Hashing proto %d port %u\n", id.protocol, sin->sin_port);
 
 		return hash;
 	}
@@ -73,9 +100,25 @@ struct inet_socket : public socket
 	bool is_id(const socket_id& id, unsigned int flags) const
 	{
 		//size_t size_of_addr = domain == AF_INET ? sizeof(sockaddr_in) : sizeof(sockaddr_in6);
-		return proto == id.protocol && !memcmp(&src_addr, &id.src_addr, sizeof(sockaddr_in)) &&
+		sockaddr_in *this_sin = (sockaddr_in *) &src_addr;
+		sockaddr_in *other_sin = (sockaddr_in *) &id.src_addr;
+
+		return proto == id.protocol && this_sin->sin_port == other_sin->sin_port &&
 		       (!(flags & GET_SOCKET_DSTADDR_VALID) || !memcmp(&dest_addr, &id.dst_addr, sizeof(sockaddr_in)));
 	}
+
+	inet_proto_family *get_proto_fam()
+	{
+		return static_cast<inet_proto_family *>(proto_domain);
+	}
+
+private:
+	friend class ip::v4::proto_family;
+	bool validate_sockaddr_len_pair_v4(sockaddr_in *addr, socklen_t len);
+	bool validate_sockaddr_len_pair_v6(sockaddr_in6 *addr, socklen_t len);
+protected:
+	/* Modifies *addr too */
+	bool validate_sockaddr_len_pair(sockaddr *addr, socklen_t len);
 };
 
 #define IPV4_MIN_HEADER_LEN			20
@@ -91,7 +134,7 @@ static inline uint16_t __ipsum_unfolded(void *addr, size_t bytes, uint16_t init_
 {
 	uint32_t sum = init_count;
 	uint32_t ret = 0;
-	uint16_t *ptr = (uint16_t*) addr;
+	uint16_t *ptr = (uint16_t *) addr;
 	size_t words = bytes / 2;
 	for(size_t i = 0; i < words; i++)
 	{
@@ -125,10 +168,31 @@ static inline uint16_t ipsum(void *addr, size_t bytes)
 	return ipsum_fold(ipsum_unfolded(addr, bytes));
 }
 
-int ipv4_send_packet(uint32_t senderip, uint32_t destip, unsigned int type,
+namespace ip
+{
+
+namespace v4
+{
+
+class proto_family : public inet_proto_family
+{
+private:
+	int bind_one(sockaddr_in *in, netif *nif, inet_socket *sock);
+public:
+	virtual int bind(sockaddr *addr, socklen_t len, inet_socket *socket) override;
+	virtual int bind_any(inet_socket *sock) override;
+};
+
+int send_packet(uint32_t senderip, uint32_t destip, unsigned int type,
                      struct packetbuf_info *buf, struct netif *netif);
-struct socket *ipv4_create_socket(int type, int protocol);
-void ipv4_handle_packet(struct ip_header *header, size_t size, struct netif *netif);
+
+socket *create_socket(int type, int protocol);
+
+void handle_packet(struct ip_header *header, size_t size, struct netif *netif);
+
+};
+
+};
 
 extern struct packetbuf_proto __ipv4_pbf;
 

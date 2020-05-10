@@ -4,8 +4,8 @@
 * check LICENSE at the root directory for more information
 */
 
-#ifndef _ONYX_SOCKET_H
-#define _ONYX_SOCKET_H
+#ifndef _ONYX_NET_SOCKET_H
+#define _ONYX_NET_SOCKET_H
 
 #include <stdint.h>
 #include <stddef.h>
@@ -14,6 +14,9 @@
 #include <onyx/object.h>
 #include <onyx/net/netif.h>
 #include <onyx/semaphore.h>
+#include <onyx/net/proto_family.h>
+#include <onyx/hashtable.hpp>
+#include <onyx/fnv.h>
 
 #define PROTOCOL_IPV4		1
 #define PROTOCOL_IPV6		2
@@ -52,11 +55,6 @@ ssize_t default_recvfrom(void *buf, size_t len, int flags, struct sockaddr *addr
 
 extern struct sock_ops default_s_ops;
 
-#ifdef __cplusplus
-
-#include <onyx/hashtable.hpp>
-#include <onyx/fnv.h>
-
 struct socket
 {
 	struct object object;
@@ -78,11 +76,12 @@ struct socket
 	int backlog;
 
 	struct sock_ops *s_ops;
+	proto_family *proto_domain;
 
 	/* Define a default constructor here */
 	socket() : object{}, type{}, proto{}, domain{}, netif{}, bound{}, connected{},
                dtor{}, listener_sem{}, conn_req_list_lock{}, conn_request_list{},
-			   nr_pending{}, backlog{}, s_ops{&default_s_ops}
+			   nr_pending{}, backlog{}, s_ops{&default_s_ops}, proto_domain{}
 	{
 		mutex_init(&connection_state_lock);
 	}
@@ -93,8 +92,6 @@ sockaddr &sa_generic(T &s)
 {
 	return (sockaddr &) s;
 }
-
-#endif
 
 #ifdef __cplusplus
 extern "C" {

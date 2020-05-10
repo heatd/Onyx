@@ -690,10 +690,7 @@ void sys_exit_thread(int value)
 			goto skip;
 		futex_wake(thread->ctid, INT_MAX);
 	}
-skip:
-
-	sched_disable_preempt();
-	
+skip:	
 	/* Destroy the thread */
 	sched_die();
 	/* aaaaand we'll never return back to user-space, so just hang on */

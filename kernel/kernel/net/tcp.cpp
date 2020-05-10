@@ -18,83 +18,11 @@ int tcp_init_netif(struct netif *netif)
 	return 0;
 }
 
-/* Use linux's ephemeral ports */
-static constexpr in_port_t ephemeral_upper_bound = 61000;
-static constexpr in_port_t ephemeral_lower_bound = 32768;
-
-in_port_t tcp_allocate_ephemeral_port(netif *netif, sockaddr_in &in)
-{
-	while(true)
-	{
-		in_port_t port = htons(static_cast<in_port_t>(arc4random_uniform(
-			 ephemeral_upper_bound - ephemeral_lower_bound)) + ephemeral_lower_bound);
-
-		in.sin_port = htons(port);
-	
-		const socket_id id{AF_INET, sa_generic(in), sa_generic(in)};
-		
-		netif_lock_socks(id, netif);
-
-		auto sock = netif_get_socket(id, netif, GET_SOCKET_CHECK_EXISTANCE | GET_SOCKET_UNLOCKED);
-
-		if(!sock)
-			return port;
-		else
-		{
-			/* Let's try again, boys */
-			netif_unlock_socks(id, netif);
-		}
-	}
-
-}
-
 int tcp_socket::bind(struct sockaddr *addr, socklen_t addrlen)
 {
-	if(bound)
-		return -EINVAL;
-	
-	if(!netif)
-		netif = netif_choose();
+	auto fam = get_proto_fam();
 
-	struct sockaddr_in *in = (struct sockaddr_in *) addr;
-
-	/* TODO: This is not correct behavior. We should bind to the netif of the s_addr,
-	 * or if INADDR_ANY, bind to every netif
-	*/
-	if(in->sin_addr.s_addr == INADDR_ANY)
-		in->sin_addr.s_addr = netif->local_ip.sin_addr.s_addr;
-
-	const socket_id id(in->sin_family, sa_generic(*in), sa_generic(*in));
-
-	if(in->sin_port != 0)
-	{
-		if(!inet_has_permission_for_port(in->sin_port))
-			return -EACCES;
-
-		netif_lock_socks(id, netif);
-		/* Check if there's any socket bound to this address yet */
-		if(netif_get_socket(id, netif, GET_SOCKET_CHECK_EXISTANCE | GET_SOCKET_UNLOCKED))
-		{
-			netif_unlock_socks(id, netif);
-			return -EADDRINUSE;
-		}
-	}
-	else
-	{
-		/* Lets try to allocate a new ephemeral port for us */
-		tcp_allocate_ephemeral_port(netif, *in);
-	}
-
-	/* Note: locks need to be held */
-
-	memcpy(&src_addr, addr, sizeof(struct sockaddr));
-	bool success = netif_add_socket(this, netif, ADD_SOCKET_UNLOCKED);
-	
-	bound = success;
-
-	netif_unlock_socks(id, netif);
-
-	return bound ? 0 : -ENOMEM;
+	return fam->bind(addr, addrlen, this);
 }
 
 int tcp_bind(struct sockaddr *addr, socklen_t addrlen, struct socket *sock)
@@ -300,7 +228,7 @@ int tcp_packet::send()
 	header->checksum = tcpv4_calculate_checksum(header,
 		static_cast<uint16_t>(header_size + payload.size_bytes()), src.sin_addr.s_addr, dest.sin_addr.s_addr);
 
-	int st = ipv4_send_packet(src.sin_addr.s_addr, dest.sin_addr.s_addr, IPV4_TCP, &info,
+	int st = ip::v4::send_packet(src.sin_addr.s_addr, dest.sin_addr.s_addr, IPV4_TCP, &info,
 		socket->netif);
 
 	if(padded) info.length++;
@@ -467,16 +395,17 @@ int tcp_socket::connect(struct sockaddr *addr, socklen_t addrlen)
 {	
 	if(!bound)
 	{
-		sockaddr_in bind_addr = {};
-		bind_addr.sin_family = AF_INET;
-		bind_addr.sin_addr.s_addr = INADDR_ANY;
-		bind_addr.sin_port = 0;
-	
-		bind((sockaddr *) &bind_addr, sizeof(bind_addr));
+		auto fam = get_proto_fam();
+		int st = fam->bind_any(this);
+		if(st < 0)
+			return st;
 	}
 
 	if(connected)
 		return -EISCONN;
+	
+	if(!validate_sockaddr_len_pair(addr, addrlen))
+		return -EINVAL;
 
 	struct sockaddr_in *in = (struct sockaddr_in *) addr;
 	(void) in;

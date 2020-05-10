@@ -363,7 +363,9 @@ void handle_signal(struct registers *regs)
 	struct thread *thread = get_current_thread();
 	struct process *process = thread->owner;
 	if(thread->flags & THREAD_SHOULD_DIE)
+	{
 		sched_die();
+	}
 
 	spin_lock(&process->signal_lock);
 

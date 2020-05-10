@@ -3,14 +3,17 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
-#ifndef _KERNEL_NETWORK_H
-#define _KERNEL_NETWORK_H
+#ifndef _ONYX_NET_NETWORK_H
+#define _ONYX_NET_NETWORK_H
 
 #include <stdint.h>
 #include <stdbool.h>
 
 #include <onyx/vfs.h>
+
+#ifdef __cplusplus
 #include <onyx/net/socket.h>
+#endif
 
 #include <sys/socket.h>
 

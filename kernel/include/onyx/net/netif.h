@@ -3,8 +3,8 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
-#ifndef _KERNEL_NETIF_H
-#define _KERNEL_NETIF_H
+#ifndef _ONYX_NET_NETIF_H
+#define _ONYX_NET_NETIF_H
 #include <stdint.h>
 
 #include <onyx/vfs.h>
@@ -35,7 +35,7 @@ struct netif
 	struct sockaddr_in local_ip;
 	struct sockaddr_in router_ip;
 	int (*sendpacket)(const void *buffer, uint16_t size, struct netif *nif);
-	struct netif *next;
+	struct list_head list_node;
 	struct arp_hashtable arp_hashtable;
 	struct spinlock hashtable_spinlock;
 	struct sockets_info *sock_info;
@@ -81,6 +81,9 @@ int netif_unregister_if(struct netif *netif);
 struct netif *netif_choose(void);
 int netif_send_packet(struct netif *netif, const void *buffer, uint16_t size);
 void netif_get_ipv4_addr(struct sockaddr_in *s, struct netif *netif);
+struct netif *netif_get_from_addr(struct sockaddr *s, int domain);
+struct list_head *netif_lock_and_get_list(void);
+void netif_unlock_list(void);
 
 #ifdef __cplusplus
 }

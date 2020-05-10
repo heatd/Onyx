@@ -37,7 +37,7 @@ int network_handle_packet(uint8_t *packet, uint16_t len, struct netif *netif)
 	
 	hdr->ethertype = LITTLE_TO_BIG16(hdr->ethertype);
 	if(hdr->ethertype == PROTO_IPV4)
-		ipv4_handle_packet((struct ip_header*)(hdr + 1), len - sizeof(ethernet_header_t), netif);
+		ip::v4::handle_packet((struct ip_header*)(hdr + 1), len - sizeof(ethernet_header_t), netif);
 	else if(hdr->ethertype == PROTO_ARP)
 		arp_handle_packet((arp_request_t*)(hdr + 1), len - sizeof(ethernet_header_t), netif);
 
