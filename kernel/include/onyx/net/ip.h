@@ -26,10 +26,14 @@
 struct ip_header
 {
 	/* TODO: These bitfields are screwing up the structure's size, I think */
+#if __BYTE_ORDER == __LITTLE_ENDIAN
 	unsigned int ihl : 4;
 	unsigned int version : 4;
-	unsigned int dscp : 6;
-	unsigned int ecn : 2;
+#else
+	unsigned int version : 4;
+	unsigned int ihl : 4;
+#endif
+	uint8_t tos;
 	uint16_t total_len;
 	uint16_t identification;
 	uint16_t frag_info;
