@@ -454,7 +454,7 @@ int proto_family::bind(sockaddr *addr, socklen_t len, inet_socket *sock)
 	if(!sock->validate_sockaddr_len_pair(addr, len))
 		return -EINVAL;
 
-	if(is_bind_any(in->sin_addr.s_addr))
+	if(!is_bind_any(in->sin_addr.s_addr))
 	{
 		auto nif = netif_get_from_addr(addr, AF_INET);
 		if(!nif)
@@ -518,7 +518,7 @@ netif *proto_family::route(sockaddr *from, sockaddr *to)
 	sockaddr_in *in = (sockaddr_in *) from;
 
 	/* If the source address specifies an interface, we need to use that one. */
-	if(in->sin_addr.s_addr != INADDR_ANY)
+	if(!is_bind_any(in->sin_addr.s_addr))
 		return netif_get_from_addr(from, AF_INET);
 
 	/* Else, we're searching through the routing table to find the best interface to use in order
