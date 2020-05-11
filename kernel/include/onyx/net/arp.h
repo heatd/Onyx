@@ -43,6 +43,7 @@ struct arp_hashtable
 {
 	struct arp_cache *entries[255];
 };
+
 struct netif;
 #ifdef __cplusplus
 extern "C" {

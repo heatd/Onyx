@@ -459,7 +459,7 @@ int proto_family::bind(sockaddr *addr, socklen_t len, inet_socket *sock)
 		auto nif = netif_get_from_addr(addr, AF_INET);
 		if(!nif)
 		{
-			return -EINVAL;
+			return -EADDRNOTAVAIL;
 		}
 
 		st = bind_one(in, nif, sock);
