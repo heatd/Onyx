@@ -79,7 +79,7 @@ extern int sys_sethostname(const void *name, size_t len);
 extern int sys_gethostname(char *name, size_t len);
 extern int sys_uname(struct utsname *buf);
 extern void sys_reboot();
-extern void sys_shutdown();
+extern int sys_shutdown(int sockfd, int how);
 extern int sys_insmod(const char *path, const char *name);
 extern void sys_sigreturn(void *ret);
 extern int sys_kill(pid_t pid, int sig);

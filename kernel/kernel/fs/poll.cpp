@@ -55,8 +55,16 @@ sleep_result poll_table::sleep_poll(int timeout)
 
 	bool inifinite_timeout = timeout < 0;
 
+	set_current_state(THREAD_INTERRUPTIBLE);
+
+	if(was_signaled())
+	{
+		set_current_state(THREAD_RUNNABLE);
+		return sleep_result::woken_up;
+	}
+
 	if(inifinite_timeout)
-		sched_block(get_current_thread());
+		sched_yield();
 	else
 		sched_sleep_ms(static_cast<unsigned long>(timeout));
 	
@@ -128,6 +136,10 @@ int sys_poll(struct pollfd *fds, nfds_t nfds, int timeout)
 
 	while(!should_return)
 	{
+		/* TODO: The current poll implementation isn't safe.
+		 * Particularly, we can miss wakeups in between the check and the sleep
+		 */
+
 		for(auto& poll_file : vec)
 		{
 			auto file = poll_file.get_file();

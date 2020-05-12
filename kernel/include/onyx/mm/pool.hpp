@@ -197,7 +197,7 @@ public:
 	{
 		if(is_large_object())
 		{
-			return align_up(size_of_inline_segment() + size_of_chunk() * 24, PAGE_SIZE); 
+			return align_up(size_of_inline_segment() + size_of_chunk() * 24, (size_t) PAGE_SIZE); 
 		}
 		else
 			return default_pool_size;

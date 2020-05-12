@@ -11,9 +11,11 @@
 #include <type_traits>
 
 #include <onyx/semaphore.h>
-#include <onyx/net/socket.h>
 #include <onyx/mutex.h>
 #include <onyx/wait_queue.h>
+#include <onyx/refcount.h>
+
+#include <onyx/net/socket.h>
 #include <onyx/net/ip.h>
 
 #include <onyx/vector.h>
@@ -141,17 +143,34 @@ public:
 
 class tcp_socket;
 
-class tcp_packet
+#define TCP_PACKET_FLAG_ON_STACK              (1 << 0)
+#define TCP_PACKET_FLAG_WANTS_ACK_HEADER      (1 << 1)
+
+#include <onyx/cpu.h>
+
+class tcp_packet : public refcountable
 {
 
 /* We have to use public here so offsetof isn't UB */
 public:
 	cul::slice<const uint8_t> payload;
 	tcp_socket *socket;
+	struct packetbuf_info info;
+	bool packetbuf_inited;
 	struct list_head option_list;
 	uint16_t flags;
 	netif *nif;
 	sockaddr_in *saddr;
+	/* Ideas at 4.am: Have a struct that stores both a list_head and a pointer to the
+	 * original class, and make code use that instead of container_of. This should work
+	 * properly for every kind of class, and would avoid having to construct list_node<T>'s.
+	 */
+	list_head_cpp<tcp_packet> pending_packet_list_node;
+	bool acked;
+	wait_queue ack_wq;
+	uint16_t packet_flags;
+	tcp_header *response_header;
+	uint32_t starting_seq_number;
 
 	void delete_options()
 	{
@@ -168,20 +187,63 @@ public:
 	void put_options(char *opts);
 
 	tcp_packet(cul::slice<const uint8_t> data, tcp_socket *socket, uint16_t flags,
-               netif *nif, sockaddr_in *in) : payload(data),
-	           socket(socket), option_list{}, flags(flags), nif(nif), saddr(in)
+               netif *nif, sockaddr_in *in) : refcountable(), payload(data),
+	           socket(socket), info{}, packetbuf_inited{false}, option_list{}, flags(flags), nif(nif),
+			   saddr(in), pending_packet_list_node{this}, acked{false}, ack_wq{}, packet_flags{}
 	{
 		INIT_LIST_HEAD(&option_list);
+		init_wait_queue_head(&ack_wq);
+	}
+
+	void wait_for_single_ref() const
+	{
+		/* Busy-loop waiting for the refc to drop - this shouldn't take long */
+		while(__refcount.load() != 1)
+			cpu_relax();
 	}
 
 	~tcp_packet()
 	{
+
+		/* If we're on stack we want to make sure we're the only reference to this */
+		if(packet_flags & TCP_PACKET_FLAG_ON_STACK)
+			wait_for_single_ref();
+
 		delete_options();
+		if(packetbuf_inited)
+			packetbuf_free(&info);
 	}
 
 	uint16_t options_length() const;
+	void set_packet_flags(uint16_t flags)
+	{
+		this->packet_flags = flags;
+	}
+
+	bool ack_for_packet(uint32_t last_ack, uint32_t this_ack)
+	{
+		auto ack_length = static_cast<uint32_t>(payload.size_bytes());
+		if(flags & TCP_FLAG_SYN)
+			ack_length++;
+	
+		if(starting_seq_number >= last_ack && this_ack >= starting_seq_number + ack_length)
+			return true;
+		
+		return false;
+	}
 
 	int send();
+
+	constexpr bool should_wait_for_ack()
+	{
+		/* TODO: Add all the other cases */
+		if(flags == TCP_FLAG_ACK && payload.size_bytes() == 0)
+			return false;
+		return true;
+	}
+	
+	int wait_for_ack();
+	int wait_for_ack_timeout(hrtime_t timeout);
 
 	tcp_socket *get_socket()
 	{
@@ -204,9 +266,12 @@ private:
 	struct spinlock packet_lock;
 	struct spinlock tcp_ack_list_lock;
 	struct list_head tcp_ack_list;
+	struct list_head pending_out_packets;
+	struct spinlock pending_out_packets_lock;
 	wait_queue tcp_ack_wq;
 	uint32_t seq_number;
 	uint32_t ack_number;
+	uint32_t last_ack_number;
 	mutex send_lock;
 	cul::vector<uint8_t> send_buffer;
 	size_t current_pos;
@@ -258,7 +323,20 @@ private:
 	bool parse_options(tcp_header *packet);
 	ssize_t get_max_payload_len(uint16_t tcp_header_len);
 
+	void append_pending_out(tcp_packet *packet);
+	void remove_pending_out(tcp_packet *packet);
 public:
+	struct packet_handling_data
+	{
+		tcp_header *header;
+		uint16_t tcp_segment_size;
+
+		packet_handling_data(tcp_header *header, uint16_t segm_size) : header(header), tcp_segment_size(segm_size)
+		{}
+	};
+
+	int handle_packet(const packet_handling_data& data);
+
 	friend class tcp_packet;
 
 	static constexpr uint16_t default_mss = 536;
@@ -266,7 +344,8 @@ public:
 
 	tcp_socket() : inet_socket{}, state(tcp_state::TCP_STATE_CLOSED), type(SOCK_STREAM),
 	               packet_semaphore{}, packet_list_head{}, packet_lock{},
-				   tcp_ack_list_lock{}, tcp_ack_wq{}, seq_number{0}, ack_number{0},
+				   tcp_ack_list_lock{}, pending_out_packets{}, pending_out_packets_lock{},
+				   tcp_ack_wq{}, seq_number{0}, ack_number{0},
 				   send_lock{}, send_buffer{}, current_pos{}, mss{default_mss}, window_size{0},
 				   window_size_shift{default_window_size_shift}, our_window_size{UINT16_MAX},
 				   our_window_shift{default_window_size_shift}, expected_ack{0}
@@ -274,6 +353,7 @@ public:
 		INIT_LIST_HEAD(&tcp_ack_list);
 		mutex_init(&send_lock);
 		init_wait_queue_head(&tcp_ack_wq);
+		INIT_LIST_HEAD(&pending_out_packets);
 	}
 
 	~tcp_socket()
@@ -298,7 +378,7 @@ public:
 
 	ssize_t sendto(const void *buf, size_t len, int flags);
 
-	uint32_t sequence_nr()
+	uint32_t &sequence_nr()
 	{
 		return seq_number;
 	}

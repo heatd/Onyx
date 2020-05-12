@@ -308,11 +308,15 @@ public:
 template <typename T, class ... Args>
 shared_ptr<T> make_shared(Args && ... args)
 {
-	T *data = new T(args...);
-	if(!data)
+	char *buf = (char *) malloc(sizeof(refcount<T>) + sizeof(T));
+	if(!buf)
 		return nullptr;
 
-	shared_ptr<T> p(data);
+	refcount<T> *refc = new (buf) refcount<T>();
+	T *data = new (buf + sizeof(refcount<T>)) T(args...);
+
+	shared_ptr<T> p(nullptr);
+	p.__set_refc(refc);
 	return p;
 }
 

@@ -78,6 +78,7 @@ public:
 	virtual int bind(struct sockaddr *addr, socklen_t len, inet_socket *socket) = 0;
 	virtual int bind_any(inet_socket *sock) = 0;
 	virtual netif *route(sockaddr *from, sockaddr *to) = 0;
+	virtual void unbind_one(netif *nif, inet_socket *sock) = 0;
 };
 
 struct inet_socket : public socket
@@ -124,6 +125,8 @@ struct inet_socket : public socket
 		return static_cast<inet_proto_family *>(proto_domain);
 	}
 
+	virtual ~inet_socket();
+
 private:
 	friend class ip::v4::proto_family;
 	bool validate_sockaddr_len_pair_v4(sockaddr_in *addr, socklen_t len);
@@ -131,6 +134,7 @@ private:
 protected:
 	/* Modifies *addr too */
 	bool validate_sockaddr_len_pair(sockaddr *addr, socklen_t len);
+	void unbind();
 };
 
 #define IPV4_MIN_HEADER_LEN			20
@@ -194,6 +198,7 @@ public:
 	virtual int bind(sockaddr *addr, socklen_t len, inet_socket *socket) override;
 	virtual int bind_any(inet_socket *sock) override;
 	virtual netif *route(sockaddr *from, sockaddr *to) override;
+	virtual void unbind_one(netif *nif, inet_socket *sock) override;
 };
 
 int send_packet(uint32_t senderip, uint32_t destip, unsigned int type,

@@ -66,6 +66,8 @@ struct inet_socket;
 #define GET_SOCKET_CHECK_EXISTANCE (1 << 2)
 
 #define ADD_SOCKET_UNLOCKED        (1 << 0)
+#define REMOVE_SOCKET_UNLOCKED        (1 << 0)
+
 
 inet_socket *netif_get_socket(const socket_id& id, netif *nif, unsigned int flags = 0);
 void netif_lock_socks(const socket_id& id, netif *nif);
@@ -74,6 +76,9 @@ void netif_unlock_socks(const socket_id& id, netif *nif);
 bool netif_add_socket(inet_socket *sock, netif *nif, unsigned int flags = 0);
 
 void netif_print_open_sockets(netif *nif);
+
+bool netif_remove_socket(inet_socket *sock, netif *nif, unsigned int flags);
+
 
 #endif
 

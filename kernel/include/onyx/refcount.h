@@ -12,6 +12,7 @@
 #include <onyx/deleter.hpp>
 #include <onyx/atomic.hpp>
 
+#define REFCOUNT_DEBUG
 class refcountable
 {
 public:
@@ -21,7 +22,12 @@ public:
 	constexpr refcountable() : __refcount(1) {}
 	constexpr refcountable(unsigned long init) : __refcount(init) {}
 
-	virtual ~refcountable() {}
+	virtual ~refcountable()
+	{
+#ifdef REFCOUNT_DEBUG
+		assert(__refcount < 2);
+#endif
+	}
 
 	unsigned long ref()
 	{

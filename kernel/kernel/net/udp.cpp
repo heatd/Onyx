@@ -195,58 +195,6 @@ ssize_t udp_sendto(const void *buf, size_t len, int flags, sockaddr *addr,
 	return socket->sendto(buf, len, flags, addr, addrlen);
 }
 
-/* udp_get_queued_packet - Gets either a packet that was queued on receive or waits for one */
-struct udp_packet *udp_get_queued_packet(udp_socket *socket)
-{
-	sem_wait(&socket->packet_semaphore);
-	spin_lock(&socket->packet_lock);
-
-	struct udp_packet *packet = socket->packet_list;
-	socket->packet_list = packet->next;
-
-	spin_unlock(&socket->packet_lock);
-
-	return packet;
-}
-
-ssize_t udp_recvfrom(void *buf, size_t len, int flags,
-	struct sockaddr *src_addr, socklen_t *slen, struct socket *sock)
-{
-	struct udp_socket *socket = (struct udp_socket*) sock;
-
-	bool storing_src = src_addr ? true : false;
-
-	struct udp_packet *packet = udp_get_queued_packet(socket);
-
-	assert(packet != NULL);
-	
-	ssize_t to_copy = min(len, packet->size);
-
-	memcpy(buf, packet->payload, to_copy);
-
-	if(storing_src)
-	{
-		memset(&packet->addr.sin_zero, 0, sizeof(packet->addr.sin_zero));
-
-		if(copy_to_user(src_addr, &packet->addr, sizeof(packet->addr)) < 0)
-		{
-			free(packet);
-			return -EFAULT;
-		}
-
-		socklen_t length = sizeof(packet->addr);
-		if(copy_to_user(slen, &length, sizeof(socklen_t)) < 0)
-		{
-			free(packet);
-			return -EFAULT;
-		}
-	}
-
-	free(packet);
-
-	return to_copy;
-}
-
 struct sock_ops udp_ops = 
 {
 	.listen = default_listen,
@@ -254,7 +202,7 @@ struct sock_ops udp_ops =
 	.bind = udp_bind,
 	.connect = udp_connect,
 	.sendto = udp_sendto,
-	.recvfrom = udp_recvfrom,
+	.recvfrom = default_recvfrom
 };
 
 struct socket *udp_create_socket(int type)
@@ -271,22 +219,6 @@ struct socket *udp_create_socket(int type)
 int udp_init_netif(struct netif *netif)
 {
 	return 0;
-}
-
-void udp_append_packet(struct udp_packet *packet, struct udp_socket *socket)
-{
-	spin_lock(&socket->packet_lock);
-
-	struct udp_packet **pp = &socket->packet_list;
-	
-	while(*pp)
-		pp = &(*pp)->next;
-
-	*pp = packet;
-
-	spin_unlock(&socket->packet_lock);
-
-	sem_signal(&socket->packet_semaphore);
 }
 
 bool valid_udp_packet(udp_header_t *header, size_t length)
@@ -309,37 +241,38 @@ void udp_handle_packet(struct ip_header *header, size_t length, struct netif *ne
 	struct sockaddr_in socket_dst;
 	ipv4_to_sockaddr(header->source_ip, udp_header->source_port, socket_dst);
 
-	struct udp_packet *packet = static_cast<udp_packet *>(zalloc(sizeof(*packet)));
-	if(!packet)
-	{
-		printf("udp: Could not allocate packet memory\n");
-		return;
-	}
-
-	size_t payload_len = ntoh16(udp_header->len) - sizeof(udp_header_t);
-
-	packet->size = payload_len;
-	packet->payload = memdup(udp_header + 1, payload_len);
-	memcpy(&packet->addr, &socket_dst, sizeof(socket_dst));
-
-	if(!packet->payload)
-	{
-		printf("udp: Could not allocate payload memory\n");
-		free(packet);
-		return;
-	}
-
 	auto socket = inet_resolve_socket<udp_socket>(header->source_ip,
                       udp_header->source_port, udp_header->dest_port, PROTOCOL_UDP,
 					  netif, true);
 	if(!socket)
 	{
-		free(packet->payload);
-		free(packet);
 		return;
 	}
 
-	udp_append_packet(packet, socket);
+	size_t payload_len = ntoh16(udp_header->len) - sizeof(udp_header_t);
 
-	socket_unref(socket);
+	recv_packet *p = new recv_packet();
+	if(!p)
+	{
+		printf("udp: Could not allocate packet memory\n");
+		goto out;
+	}
+
+	p->size = payload_len;
+	p->payload = memdup(udp_header + 1, payload_len);
+
+	if(!p->payload)
+	{
+		printf("udp: Could not allocate payload memory\n");
+		delete p;
+		goto out;
+	}
+
+	memcpy(&p->src_addr, &socket_dst, sizeof(socket_dst));
+	p->addr_len = sizeof(sockaddr_in);
+	
+	socket->in_band_queue.add_packet(p);
+
+out:
+	socket->unref();
 }

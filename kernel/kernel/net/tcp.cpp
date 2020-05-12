@@ -12,6 +12,19 @@
 #include <onyx/net/ip.h>
 #include <onyx/byteswap.h>
 
+constexpr inline uint16_t tcp_header_length_to_data_off(uint16_t len)
+{
+	return len / sizeof(uint32_t);
+}
+
+constexpr inline uint16_t tcp_header_data_off_to_length(uint16_t len)
+{
+	return len * sizeof(uint32_t);
+}
+
+#define TCP_MAKE_DATA_OFF(off)		(off << TCP_DATA_OFFSET_SHIFT)
+#define TCP_GET_DATA_OFF(off)		(off >> TCP_DATA_OFFSET_SHIFT)
+
 extern "C"
 int tcp_init_netif(struct netif *netif)
 {
@@ -66,6 +79,119 @@ bool validate_tcp_packet(const tcp_header *header, size_t size)
 	return true;
 }
 
+int tcp_socket::handle_packet(const tcp_socket::packet_handling_data& data)
+{
+	auto data_off = TCP_GET_DATA_OFF(ntohs(data.header->data_offset_and_flags));
+	uint16_t header_size = tcp_header_data_off_to_length(data_off);
+	auto seq_number = ntohl(data.header->sequence_number);
+
+	if(data.tcp_segment_size < header_size)
+		return -1;
+#if 0
+	printk("segment size: %u\n", data.tcp_segment_size);
+	printk("header size: %u\n", header_size);
+	printk("ack number %u\n", ack_number);
+#endif
+
+	uint16_t data_size = data.tcp_segment_size - header_size;
+
+
+	auto flags = htons(data.header->data_offset_and_flags);
+
+	/* TODO: Send RST on bad packets */
+	if(flags & TCP_FLAG_SYN)
+	{
+		if(state != tcp_state::TCP_STATE_SYN_SENT)
+			return 0;
+		window_size = ntohs(data.header->window_size) << window_size_shift;
+
+		if(!parse_options(data.header))
+		{
+			/* Invalid packet */
+			state = tcp_state::TCP_STATE_CLOSED;
+			return -EIO;
+		}
+	}
+
+	if(flags & TCP_FLAG_ACK)
+	{
+		if(state == tcp_state::TCP_STATE_LISTEN || state == tcp_state::TCP_STATE_CLOSED)
+			return 0;
+	
+		/* Filter out out-of-order packets by checking the seq number */
+		if(!(flags & TCP_FLAG_SYN) && seq_number != ack_number)
+		{
+#if 0
+			printk("seq number %u - ack %u\n", seq_number, ack_number);
+#endif
+			return -1;
+		}
+
+		auto ack = ntohl(data.header->ack_number);
+
+		scoped_lock guard{&pending_out_packets_lock};
+
+		bool was_acked = false;
+
+		list_for_every_safe(&pending_out_packets)
+		{
+			auto pkt = list_head_cpp<tcp_packet>::self_from_list_head(l);
+			if(!pkt->ack_for_packet(last_ack_number, ack))
+				continue;
+#if 0
+			printk("Packet: %p\n", pkt);
+#endif
+			was_acked = true;
+			pkt->acked = true;
+			wait_queue_wake_all(&pkt->ack_wq);
+
+			list_remove(&pkt->pending_packet_list_node);
+			
+			/* Unref *must* be the last thing we do */
+			pkt->unref();
+		}
+
+		guard.unlock();
+
+		(void) was_acked;
+
+		last_ack_number = ack;
+		/* ack_number holds the other side of the connection's sequence number */
+		{
+			/* ack_number holds the other side of the connection's sequence number */
+			auto starting_seq_number = ntohl(data.header->sequence_number);
+			uint32_t seqs = data_size;
+			if(flags & TCP_FLAG_SYN)
+				seqs++;
+			if(flags & TCP_FLAG_FIN)
+				seqs++;
+
+#if 0
+			printk("These seqs: %u\n", seqs);
+#endif
+			ack_number = starting_seq_number + seqs;
+		}
+	}
+
+#if 0
+	printk("next ack number %u\n", ack_number);
+#endif
+
+	if(data_size || flags & TCP_FLAG_FIN)
+	{
+		struct sockaddr src;
+		memcpy(&src, &saddr(), sizeof(src));
+		auto fam = get_proto_fam();
+
+		auto netif = fam->route(&src, (sockaddr *) &daddr());
+	
+		tcp_packet pkt{{}, this, TCP_FLAG_ACK, netif, (sockaddr_in *) &src};
+		pkt.send();
+	}
+
+	return 0;
+}
+
 extern "C"
 int tcp_handle_packet(struct ip_header *ip_header, size_t size, struct netif *netif)
 {
@@ -75,8 +201,6 @@ int tcp_handle_packet(struct ip_header *ip_header, size_t size, struct netif *ne
 
 	if(!validate_tcp_packet(header, size))
 		return 0;
-
-	auto flags = ntohs(header->data_offset_and_flags);
 
 	auto socket = inet_resolve_socket<tcp_socket>(ip_header->source_ip,
                       header->source_port, header->dest_port, PROTOCOL_TCP, netif);
@@ -88,29 +212,11 @@ int tcp_handle_packet(struct ip_header *ip_header, size_t size, struct netif *ne
 		return 0;
 	}
 
-	if(flags & TCP_FLAG_ACK)
-	{
-		auto new_buf = reinterpret_cast<tcp_header *>(malloc(tcp_payload_len));
-		if(!new_buf)
-		{
-			st = -ENOMEM;
-			goto out;
-		}
+	const tcp_socket::packet_handling_data handle_data{header, tcp_payload_len}; 
 
-		memcpy(new_buf, header, tcp_payload_len);
-	
-		tcp_ack *ack = new tcp_ack(new_buf, tcp_payload_len);
-		if(!ack)
-		{
-			free((void *) new_buf);
-			goto out;
-		}
+	st = socket->handle_packet(handle_data);
 
-		socket->append_ack(ack);
-	}
-
-out:
-	socket_unref(socket);
+	socket->unref();
 	
 	return st;
 }
@@ -131,13 +237,6 @@ uint16_t tcpv4_calculate_checksum(tcp_header *header, uint16_t packet_length, ui
 
 	return ipsum_fold(r);
 }
-
-constexpr inline uint16_t tcp_header_length_to_data_off(uint16_t len)
-{
-	return len / sizeof(uint32_t);
-}
-
-#define TCP_MAKE_DATA_OFF(off)		(off << TCP_DATA_OFFSET_SHIFT)
 
 uint16_t tcp_packet::options_length() const
 {
@@ -171,7 +270,6 @@ void tcp_packet::put_options(char *opts)
 
 int tcp_packet::send()
 {
-	struct packetbuf_info info = {0};
 	info.length = payload.size_bytes();
 	bool padded = false;
 
@@ -186,6 +284,8 @@ int tcp_packet::send()
 		packetbuf_free(&info);
 		return -ENOMEM;
 	}
+
+	packetbuf_inited = true;
 
 	uint16_t options_len = options_length();
 	auto header_size = sizeof(tcp_header) + options_len;
@@ -207,7 +307,7 @@ int tcp_packet::send()
 	header->urgent_pointer = 0;
 
 	if(flags & TCP_FLAG_ACK)
-		header->ack_number = htonl(socket->acknowledge_nr() + 1);
+		header->ack_number = htonl(socket->acknowledge_nr());
 	else
 		header->ack_number = 0;
 
@@ -227,19 +327,38 @@ int tcp_packet::send()
 	header->checksum = tcpv4_calculate_checksum(header,
 		static_cast<uint16_t>(header_size + payload.size_bytes()), saddr->sin_addr.s_addr, dest.sin_addr.s_addr);
 
+	if(should_wait_for_ack())
+		socket->append_pending_out(this);
+
+	starting_seq_number = socket->sequence_nr();
+	uint32_t seqs = payload.size_bytes();
+	if(flags & TCP_FLAG_SYN)
+		seqs++;
+
+	socket->sequence_nr() += seqs;
+
 	int st = ip::v4::send_packet(saddr->sin_addr.s_addr, dest.sin_addr.s_addr, IPV4_TCP, &info,
 		nif);
 
 	if(padded) info.length++;
 
-	packetbuf_free(&info);
-
 	if(st < 0)
 	{
+		socket->remove_pending_out(this);
 		return st;
 	}
 
 	return 0;
+}
+
+int tcp_packet::wait_for_ack()
+{
+	return wait_for_event_interruptible(&ack_wq, acked);
+}
+
+int tcp_packet::wait_for_ack_timeout(hrtime_t _timeout)
+{
+	return wait_for_event_timeout_interruptible(&ack_wq, acked, _timeout);
 }
 
 static constexpr uint16_t min_header_size = sizeof(tcp_header);
@@ -312,6 +431,8 @@ constexpr uint16_t tcp_headers_overhead = sizeof(struct tcp_header) +
 int tcp_socket::start_handshake(netif *nif, sockaddr_in *from)
 {
 	tcp_packet first_packet{{}, this, TCP_FLAG_SYN, nif, from};
+	first_packet.set_packet_flags(TCP_PACKET_FLAG_ON_STACK | TCP_PACKET_FLAG_WANTS_ACK_HEADER);
+
 	tcp_option opt{TCP_OPTION_MSS, 4};
 
 	uint16_t our_mss = nif->mtu - tcp_headers_overhead;
@@ -326,29 +447,22 @@ int tcp_socket::start_handshake(netif *nif, sockaddr_in *from)
 
 	state = tcp_state::TCP_STATE_SYN_SENT;
 
-	auto ack = wait_for_ack([this](const tcp_ack *ack) -> bool
-	{
-		auto header = ack->get_packet();
-		if(ntohl(header->ack_number) != (seq_number + 1))
-			return false;
+	/* TODO: Timeouts */
+	st = first_packet.wait_for_ack();
 
-		auto flags = ntohs(header->data_offset_and_flags);
-
-		if((flags & (TCP_FLAG_SYN | TCP_FLAG_ACK)) != (TCP_FLAG_ACK | TCP_FLAG_SYN))
-			return false;
-
-		return true;
-	}, st);
+	printk("ack received\n");
 	
-	if(!ack)
+	if(st < 0)
 	{
-		/* wait_for_ack returns the error code in st (int& error) */
+		/* wait_for_ack returns the error code in st */
 		state = tcp_state::TCP_STATE_CLOSED;
 		return st;
 	}
 
 	state = tcp_state::TCP_STATE_SYN_RECIEVED;
 	
+#if 0
+	/* TODO: Add this */
 	auto packet = ack->get_packet();
 
 	ack_number = ntohl(packet->sequence_number);
@@ -364,6 +478,7 @@ int tcp_socket::start_handshake(netif *nif, sockaddr_in *from)
 	}
 
 	delete ack;
+#endif
 
 	return 0;
 }
@@ -371,6 +486,8 @@ int tcp_socket::start_handshake(netif *nif, sockaddr_in *from)
 int tcp_socket::finish_handshake(netif *nif, sockaddr_in *from)
 {
 	tcp_packet packet{{}, this, TCP_FLAG_ACK, nif, from};
+	packet.set_packet_flags(TCP_PACKET_FLAG_ON_STACK);
+
 	return packet.send();
 }
 
@@ -495,15 +612,26 @@ void tcp_socket::try_to_send()
 	{
 		auto fam = get_proto_fam();
 	
-		/* TODO: This interface is ugly, clunky, and incorrect */
+		/* TODO: This interface is ugly, clunky, and incorrect for ipv6.
+		 * We should widen use of sockaddr_in_both */
 		struct sockaddr src;
 		memcpy(&src, &saddr(), sizeof(src));
 
 		auto netif = fam->route(&src, (sockaddr *) &daddr());
 		/* TODO: Support TCP segmentation instead of relying on IPv4 segmentation */
 		cul::slice<const uint8_t> data{send_buffer.begin(), current_pos};
-		tcp_packet packet{data, this, TCP_FLAG_ACK | TCP_FLAG_PSH, netif, (sockaddr_in *) &src};
-		packet.send();
+		tcp_packet *packet = new tcp_packet{data, this, TCP_FLAG_ACK | TCP_FLAG_PSH, netif, (sockaddr_in *) &src};
+		if(!packet)
+			return;
+		
+		/* TODO: Return errors from this */
+		auto st = packet->send();
+		if(st < 0)
+		{
+			return;
+		}
+
+		packet->unref();
 	}
 }
 
@@ -528,10 +656,33 @@ ssize_t tcp_socket::sendto(const void *buf, size_t len, int flags)
 	return len;
 }
 
+void tcp_socket::append_pending_out(tcp_packet *pckt)
+{
+	scoped_lock<spinlock> guard{&pending_out_packets_lock};
+	list_add_tail(&pckt->pending_packet_list_node, &pending_out_packets);
+	
+	/* Don't forget to ref the packet! */
+	pckt->ref();
+}
+
+void tcp_socket::remove_pending_out(tcp_packet *pkt)
+{
+	scoped_lock guard{&pending_out_packets_lock};
+
+	list_remove(&pkt->pending_packet_list_node);
+	
+	/* And also don't forget to unref it back! */
+	pkt->unref();
+}
+
 ssize_t tcp_sendto(const void *buf, size_t len, int flags, struct sockaddr *addr,
              socklen_t alen, struct socket *sock)
 {
-	/* TODO: Do we need to handle addr != NULL */
+	/* Connection-oriented sockets like ours are supposed to ignore addr and return EISCONN
+	 * when the dest addr is not NULL.
+	 */
+	if(addr)
+		return -EISCONN;
 	tcp_socket *socket = (tcp_socket*) sock;
 	return socket->sendto(buf, len, flags);
 }

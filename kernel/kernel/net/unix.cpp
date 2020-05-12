@@ -275,7 +275,7 @@ int un_connect(struct sockaddr *addr, socklen_t addrlen, struct socket *s)
 			return -EADDRNOTAVAIL;
 		}
 
-		socket_ref(name->bound_socket);
+		name->bound_socket->ref();
 		spin_unlock(&un_namespace_list_lock);
 
 		socket->dest = name->bound_socket;
@@ -376,7 +376,7 @@ ssize_t un_sendto(const void *buf, size_t len, int flags,
 		}
 
 		dest = name->bound_socket;
-		socket_ref(dest);
+		dest->ref();
 		has_to_unref = true;
 		spin_unlock(&un_namespace_list_lock);
 	}
@@ -389,7 +389,7 @@ ssize_t un_sendto(const void *buf, size_t len, int flags,
 
 	if(dest->conn_reset)
 	{
-		socket_unref(socket);
+		socket->unref();
 		spin_unlock(&socket->socket_lock);
 		return -ECONNRESET;
 	}
@@ -399,7 +399,7 @@ ssize_t un_sendto(const void *buf, size_t len, int flags,
 	spin_unlock(&socket->socket_lock);
 
 	if(has_to_unref)
-		socket_unref(dest);
+		socket->unref();
 
 	return st;
 }

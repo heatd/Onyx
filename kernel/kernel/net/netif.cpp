@@ -250,7 +250,7 @@ inet_socket *netif_get_socket(const socket_id& id, netif *nif, unsigned int flag
 	 */
 
 	if(ret && !(flags & GET_SOCKET_CHECK_EXISTANCE))
-		socket_ref(ret);
+		ret->ref();
 
 	if(!unlocked)
 		netif_unlock_socks(id, nif);
@@ -272,6 +272,23 @@ bool netif_add_socket(inet_socket *sock, netif *nif, unsigned int flags)
 	if(!unlocked)
 		netif_unlock_socks(id, nif);
 
+	return success;
+}
+
+bool netif_remove_socket(inet_socket *sock, netif *nif, unsigned int flags)
+{
+	bool unlocked = flags & REMOVE_SOCKET_UNLOCKED;
+
+	const socket_id id(sock->proto, sa_generic(sock->src_addr), sa_generic(sock->dest_addr));
+
+	if(!unlocked)
+		netif_lock_socks(id, nif);
+
+	bool success = nif->sock_info->socket_hashtable.remove_element(sock);
+
+	if(!unlocked)
+		netif_unlock_socks(id, nif);
+	
 	return success;
 }
 

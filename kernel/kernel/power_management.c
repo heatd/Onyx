@@ -57,11 +57,6 @@ void sys_reboot(void)
 	pm_reboot();
 }
 
-void sys_shutdown(void)
-{
-	pm_shutdown();
-}
-
 void pm_init(void)
 {
 	ACPI_STATUS st;

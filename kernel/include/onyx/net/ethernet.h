@@ -21,7 +21,6 @@ typedef struct
 	uint8_t mac_dest[6];
 	uint8_t mac_source[6];
 	uint16_t ethertype;
-	uint8_t payload[0];
 } __attribute__((packed)) ethernet_header_t;
 
 typedef struct

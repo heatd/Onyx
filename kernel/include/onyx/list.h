@@ -18,6 +18,32 @@ struct list_head
 	struct list_head *prev, *next;
 };
 
+#ifdef __cplusplus
+
+template <typename T>
+class list_head_cpp : public list_head
+{
+private:
+	T *self;
+public:
+	constexpr list_head_cpp(T *self) : self(self)
+	{}
+	/* TODO: Do we need to define copy ctors, move ctors here? */
+
+	T *from_list()
+	{
+		return self;
+	}
+
+	static constexpr T *self_from_list_head(struct list_head *lh)
+	{
+		auto l = static_cast<list_head_cpp *>(lh);
+		return l->from_list();
+	}
+};
+
+#endif
+
 #define LIST_HEAD_INIT(lh)	{&(lh), &(lh)}
 
 #define DEFINE_LIST(name) \

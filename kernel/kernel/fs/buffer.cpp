@@ -87,7 +87,9 @@ static void block_buf_set_dirty(bool dirty, flush_object *fo)
 		__sync_fetch_and_or(&page->flags, PAGE_FLAG_DIRTY);
 
 		if(!(old_flags & BLOCKBUF_FLAG_DIRTY))
+		{
 			flush_add_buf(fo);
+		}
 	}
 	else
 	{

@@ -11,6 +11,7 @@
 #include <onyx/net/network.h>
 #include <onyx/semaphore.h>
 #include <onyx/net/ip.h>
+#include <onyx/wait_queue.h>
 
 typedef struct udp
 {
@@ -31,10 +32,6 @@ struct udp_packet
 
 struct udp_socket : public inet_socket
 {
-	struct semaphore packet_semaphore;
-	struct udp_packet *packet_list;
-	struct spinlock packet_lock;
-
 	int bind(sockaddr *addr, socklen_t len);
 	int connect(sockaddr *addr, socklen_t len);
 	ssize_t sendto(const void *buf, size_t len, int flags, struct sockaddr *addr,

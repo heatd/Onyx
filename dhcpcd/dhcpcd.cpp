@@ -22,6 +22,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <sys/ioctl.h>
+#include <netdb.h>
 
 #include <arpa/inet.h>
 
@@ -256,9 +257,18 @@ void tcp_test()
     else
         printf("Socket successfully created..\n"); 
     bzero(&servaddr, sizeof(servaddr)); 
-  
+	
+	struct hostent *ent = gethostbyname2("google.com", AF_INET);
+	if(!ent)
+	{
+		herror("gethostbyname2");
+		printf("Failed to resolve google.com\n");
+		exit(0);
+	}
+
+	struct in_addr **address_list = (struct in_addr **) ent->h_addr_list;
     servaddr.sin_family = AF_INET; 
-    servaddr.sin_addr.s_addr = inet_addr("216.58.211.46"); 
+    servaddr.sin_addr.s_addr = address_list[0]->s_addr;
     servaddr.sin_port = htons(80);
 	
 	connect(sockfd, (const struct sockaddr *) &servaddr, sizeof(struct sockaddr_in));

@@ -332,11 +332,13 @@ void handle_packet(struct ip_header *header, size_t size, struct netif *netif)
 	if(!valid_packet(usable_header, size))
 		return;
 
+	uint16_t len = htons(usable_header->total_len);
+
 	if(header->proto == IPV4_UDP)
-		udp_handle_packet(usable_header, size, netif);
+		udp_handle_packet(usable_header, len, netif);
 	else if(header->proto == IPV4_TCP)
 	{
-		tcp_handle_packet(usable_header, size, netif);
+		tcp_handle_packet(usable_header, len, netif);
 	}
 
 	free(usable_header);
@@ -510,6 +512,11 @@ int proto_family::bind_any(inet_socket *sock)
 	return bind((sockaddr *) &in, sizeof(sockaddr_in), sock);
 }
 
+void proto_family::unbind_one(netif *nif, inet_socket *sock)
+{
+	assert(netif_remove_socket(sock, nif, REMOVE_SOCKET_UNLOCKED) == true);
+}
+
 rwlock routing_table_lock;
 cul::vector<inet4_route> routing_table;
 
@@ -622,4 +629,39 @@ bool inet_socket::validate_sockaddr_len_pair_v4(sockaddr_in *addr, socklen_t len
 		return false;
 
 	return check_sockaddr_in(addr);
+}
+
+void inet_socket::unbind()
+{
+	bool is_inaddr_any = false;
+
+	if(domain == AF_INET)
+	{
+		is_inaddr_any = ip::v4::is_bind_any(src_addr.in4.sin_addr.s_addr);
+	}
+	
+	auto proto_fam = get_proto_fam();
+
+	if(likely(is_inaddr_any))
+	{
+		auto list_start = netif_lock_and_get_list();
+
+		list_for_every(list_start)
+		{
+			auto netif = container_of(l, struct netif, list_node);
+			proto_fam->unbind_one(netif, this);
+		}
+
+		netif_unlock_list();
+	}
+	else
+	{
+		auto netif = netif_get_from_addr((sockaddr *) &src_addr, domain);
+		proto_fam->unbind_one(netif, this);
+	}
+}
+
+inet_socket::~inet_socket()
+{
+	unbind();
 }

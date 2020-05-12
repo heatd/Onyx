@@ -7,8 +7,11 @@
 
 #include <onyx/file.h>
 #include <onyx/utils.h>
+#include <onyx/poll.h>
+
 #include <onyx/net/socket.h>
 #include <onyx/net/ip.h>
+#include <onyx/scoped_lock.h>
 
 struct socket *file_to_socket(struct file *f)
 {
@@ -57,16 +60,106 @@ ssize_t default_sendto(const void *buf, size_t len, int flags,
 	return -EIO;
 }
 
-ssize_t default_recvfrom(void *buf, size_t len, int flags, struct sockaddr *addr, 
-		socklen_t *slen, struct socket *sock)
+ssize_t default_recvfrom(void *buf, size_t len, int flags, sockaddr *src_addr, 
+		socklen_t *slen, socket *sock)
 {
-	(void) buf;
-	(void) len;
-	(void) flags;
-	(void) addr;
-	(void) slen;
-	(void) sock;
-	return -EIO;
+	/* TODO: We can implement recvfrom using recvmsg */
+	return sock->default_recvfrom(buf, len, flags, src_addr, slen);
+}
+
+ssize_t recv_queue::recvfrom(void *_buf, size_t len, int flags, sockaddr *src_addr, socklen_t *slen)
+{
+	char *buf = (char *) _buf;
+	bool storing_src = src_addr ? true : false;
+	bool remove_data = !(flags & MSG_PEEK);
+	ssize_t total_read = 0;
+
+	int st = 0;
+
+	auto list = get_recv_packet_list(flags, len, st);
+	if(!list)
+	{
+		return st;
+	}
+
+	list_for_every_safe(&recv_list)
+	{
+		auto packet = list_head_cpp<recv_packet>::self_from_list_head(l);
+
+		if(storing_src)
+		{
+			//printk("packet src: %u\n", ((sockaddr_in *) &packet->src_addr)->sin_addr.s_addr);
+			if(copy_to_user(src_addr, &packet->src_addr, packet->addr_len) < 0)
+			{
+				spin_unlock(&recv_queue_lock);
+				return -EFAULT;
+			}
+
+			socklen_t length = packet->addr_len;
+			if(copy_to_user(slen, &length, sizeof(socklen_t)) < 0)
+			{
+				spin_unlock(&recv_queue_lock);
+				return -EFAULT;
+			}
+
+			/* don't store src twice. Although I'm not sure how defined storing_src is with !SOCK_DGRAM */
+			storing_src = false;
+		}
+
+		auto avail = packet->size - packet->read;
+
+		ssize_t to_copy = min(len, avail);
+
+		if(copy_to_user(buf, (char *) packet->payload + packet->read, to_copy) < 0)
+		{
+			spin_unlock(&recv_queue_lock);
+			return -EFAULT;
+		}
+
+		buf += to_copy;
+		total_read += to_copy;
+		len -= to_copy;
+
+		if(remove_data)
+		{
+			packet->read += to_copy;
+			total_data_in_buffers -= to_copy;
+
+			if(packet->read == packet->size || sock->type == SOCK_DGRAM)
+			{
+				total_data_in_buffers -= packet->size - packet->read; 
+				list_remove(&packet->list_node);
+				delete packet;
+			}
+		}
+
+		if(total_read == (ssize_t) len || sock->type == SOCK_DGRAM)
+			break;
+	}
+
+	spin_unlock(&recv_queue_lock);
+
+	return total_read;
+}
+
+void recv_queue::clear_packets()
+{
+	scoped_lock guard{&recv_queue_lock};
+
+	list_for_every_safe(&recv_list)
+	{
+		auto packet = list_head_cpp<recv_packet>::self_from_list_head(l);
+		list_remove(&packet->list_node);
+		total_data_in_buffers -= (packet->size - packet->read);
+		delete packet;
+	}
+}
+
+recv_queue::~recv_queue()
+{
+	clear_packets();
+
+	assert(total_data_in_buffers == 0);
 }
 
 struct sock_ops default_s_ops =
@@ -93,29 +186,137 @@ void socket_init(struct socket *socket)
 	object_init(&socket->object, socket_release);
 }
 
-void socket_ref(struct socket *socket)
+bool recv_queue::has_data_available(int msg_flags, size_t required_data)
 {
-	object_ref(&socket->object);
+	if(msg_flags & MSG_WAITALL)
+	{
+		if(total_data_in_buffers >= required_data)
+		{
+			return true;
+		}
+		else
+			return false;
+	}
+
+	return !list_is_empty(&recv_list);
 }
 
-void socket_unref(struct socket *socket)
+bool recv_queue::poll(void *poll_file)
 {
-	object_unref(&socket->object);
+	scoped_lock guard{&recv_queue_lock};
+
+	if(has_data_available(0, 0))
+		return true;
+	
+	poll_wait_helper(poll_file, &recv_wait);
+	return false;
 }
 
-size_t socket_write(size_t offset, size_t len, void* buffer, struct file* file)
+/* Returns with recv_queue_lock held on success */
+struct list_head *recv_queue::get_recv_packet_list(int msg_flags, size_t required_data, int &error)
+{
+	spin_lock(&recv_queue_lock);
+
+	if(msg_flags & MSG_DONTWAIT && !has_data_available(msg_flags, required_data))
+	{
+		spin_unlock(&recv_queue_lock);
+		error = -EAGAIN;
+		return nullptr;
+	}
+
+	/* TODO: Add recv timeout support */
+	error = wait_for_event_locked_interruptible(&recv_wait, has_data_available(msg_flags, required_data),
+	                                            &recv_queue_lock);
+	if(error == 0)
+	{
+		return &recv_list;
+	}
+	else
+	{
+		spin_unlock(&recv_queue_lock);
+		return nullptr;
+	}
+}
+
+int fd_flags_to_msg_flags(struct file *f)
+{
+	int flags = 0;
+	if(f->f_flags & O_NONBLOCK)
+		flags |= MSG_DONTWAIT;
+	return flags;
+}
+
+void recv_queue::add_packet(recv_packet *p)
+{
+	scoped_lock guard{&recv_queue_lock};
+
+	list_add_tail(&p->list_node, &recv_list);
+	total_data_in_buffers += p->size;
+	wait_queue_wake_all(&recv_wait);
+
+}
+
+ssize_t socket::default_recvfrom(void *buf, size_t len, int flags, sockaddr *src_addr, socklen_t *slen)
+{
+	recv_queue &q = (flags & MSG_OOB) ? oob_data_queue : in_band_queue;
+
+	return q.recvfrom(buf, len, flags, src_addr, slen);
+}
+
+size_t socket_write(size_t offset, size_t len, void* buffer, struct file *file)
 {
 	struct socket *s = file_to_socket(file);
 
-	return s->s_ops->sendto(buffer, len, 0, nullptr, 0, s);
+	return s->s_ops->sendto(buffer, len, fd_flags_to_msg_flags(file), nullptr, 0, s);
+}
+
+size_t socket_read(size_t offset, size_t len, void *buffer, file *file)
+{
+	struct socket *s = file_to_socket(file);
+
+	return s->s_ops->recvfrom(buffer, len, fd_flags_to_msg_flags(file), nullptr, nullptr, s);
+}
+
+short socket::poll(void *poll_file, short events)
+{
+	short avail_events = POLLOUT;
+
+	if(events & POLLPRI)
+	{
+		if(oob_data_queue.poll(poll_file))
+			avail_events |= POLLPRI;
+	}
+
+	if(events & POLLIN)
+	{
+		if(in_band_queue.poll(poll_file))
+			avail_events |= POLLIN;
+	}
+
+	//printk("avail events: %u\n", avail_events);
+
+	return avail_events & events;
+}
+
+short socket_poll(void *poll_file, short events, struct file *node)
+{
+	struct socket *s = file_to_socket(node);
+
+#if 0
+	if(s->s_ops->poll)
+		return s->s_ops->poll(poll_file, events, s);
+#endif
+	return s->poll(poll_file, events);	
 }
 
 void socket_close(struct inode *ino);
 
 struct file_ops socket_ops = 
 {
+	.read = socket_read,
 	.write = socket_write,
-	.close = socket_close
+	.close = socket_close,
+	.poll = socket_poll
 };
 
 struct file *get_socket_fd(int fd)
@@ -233,8 +434,10 @@ ssize_t sys_recvfrom(int sockfd, void *buf, size_t len, int flags,
 
 	struct socket *s = file_to_socket(desc);
 
+	flags |= fd_flags_to_msg_flags(desc);
+
 	ssize_t ret = s->s_ops->recvfrom(buf, len, flags, src_addr, addrlen, s);
-	
+
 	fd_put(desc);
 	return ret;
 }
@@ -305,6 +508,12 @@ out:
 	return st;
 }
 
+extern "C"
+int sys_shutdown(int sockfd, int how)
+{
+	return 0;
+}
+
 int check_af_support(int domain)
 {
 	switch(domain)
@@ -318,13 +527,13 @@ int check_af_support(int domain)
 	}
 }
 
-static const int type_mask = SOCK_DGRAM | SOCK_STREAM | SOCK_SEQPACKET;
+static const int type_mask = ~(SOCK_NONBLOCK | SOCK_CLOEXEC);
 static const int sock_flag_mask = ~type_mask;
 
 int net_check_type_support(int type)
 {
 	(void) sock_flag_mask;
-	return type & type_mask;
+	return 1;
 }
 
 int net_autodetect_protocol(int type, int domain)
@@ -395,7 +604,7 @@ void socket_close(struct inode *ino)
 {
 	struct socket *s = static_cast<struct socket *>(ino->i_helper);
 
-	socket_unref(s);
+	s->unref();
 }
 
 struct inode *socket_create_inode(struct socket *socket)
@@ -433,7 +642,7 @@ int sys_socket(int domain, int type, int protocol)
 	}
 
 	/* Create the socket */
-	struct socket *socket = socket_create(domain, type, protocol);
+	struct socket *socket = socket_create(domain, type & type_mask, protocol);
 	if(!socket)
 		return -errno;
 	
@@ -450,6 +659,8 @@ int sys_socket(int domain, int type, int protocol)
 
 	if(type & SOCK_CLOEXEC)
 		dflags |= O_CLOEXEC;
+	if(type & SOCK_NONBLOCK)
+		dflags |= O_NONBLOCK;
 
 	/* Open a file descriptor with the socket vnode */
 	int fd = open_with_vnode(f, dflags);
@@ -533,7 +744,7 @@ int sys_accept4(int sockfd, struct sockaddr *addr, socklen_t *slen, int flags)
 	inode = socket_create_inode(new_socket);
 	if(!inode)
 	{
-		socket_unref(new_socket);
+		new_socket->unref();
 		st = -errno;
 		goto out;
 	}

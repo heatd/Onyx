@@ -37,7 +37,7 @@ protected:
 	type val;
 public:
 	constexpr atomic_primitive(type v) : val{v} {}
-	type load(mem_order order = mem_order::seq_cst)
+	type load(mem_order order = mem_order::seq_cst) const
 	{
 		return __atomic_load_n(&val, (int) order);
 	}
@@ -167,7 +167,7 @@ public:
 		return this->sub_fetch(inc);
 	}
 
-	operator type()
+	operator type() const
 	{
 		return this->load();
 	}
