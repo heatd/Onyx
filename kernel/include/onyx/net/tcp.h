@@ -330,8 +330,10 @@ public:
 	{
 		tcp_header *header;
 		uint16_t tcp_segment_size;
+		sockaddr_in_both *src_addr;
 
-		packet_handling_data(tcp_header *header, uint16_t segm_size) : header(header), tcp_segment_size(segm_size)
+		packet_handling_data(tcp_header *header, uint16_t segm_size, sockaddr_in_both *b)
+		                     : header(header), tcp_segment_size(segm_size), src_addr(b)
 		{}
 	};
 

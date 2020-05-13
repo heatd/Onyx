@@ -94,7 +94,7 @@ int tcp_socket::handle_packet(const tcp_socket::packet_handling_data& data)
 #endif
 
 	uint16_t data_size = data.tcp_segment_size - header_size;
-
+	cul::slice<uint8_t> buf{(uint8_t *) data.header + header_size, data_size}; 
 
 	auto flags = htons(data.header->data_offset_and_flags);
 
@@ -179,6 +179,23 @@ int tcp_socket::handle_packet(const tcp_socket::packet_handling_data& data)
 
 	if(data_size || flags & TCP_FLAG_FIN)
 	{
+		recv_packet *p = new recv_packet();
+		if(!p)
+			return -1;
+		
+		p->addr_len = sizeof(sockaddr_in);
+		memcpy(&p->src_addr, data.src_addr, sizeof(sockaddr_in));
+		p->payload = memdup(buf.data(), buf.size_bytes());
+		if(!p->payload)
+		{
+			delete p;
+			return -1;
+		}
+
+		p->size = buf.size_bytes();
+
+		in_band_queue.add_packet(p);
+
 		struct sockaddr src;
 		memcpy(&src, &saddr(), sizeof(src));
 		auto fam = get_proto_fam();
@@ -212,7 +229,10 @@ int tcp_handle_packet(struct ip_header *ip_header, size_t size, struct netif *ne
 		return 0;
 	}
 
-	const tcp_socket::packet_handling_data handle_data{header, tcp_payload_len}; 
+	sockaddr_in_both both;
+	ipv4_to_sockaddr(ip_header->source_ip, header->source_port, both.in4);
+
+	const tcp_socket::packet_handling_data handle_data{header, tcp_payload_len, &both}; 
 
 	st = socket->handle_packet(handle_data);
 
@@ -450,8 +470,10 @@ int tcp_socket::start_handshake(netif *nif, sockaddr_in *from)
 	/* TODO: Timeouts */
 	st = first_packet.wait_for_ack();
 
+#if 0
 	printk("ack received\n");
-	
+#endif
+
 	if(st < 0)
 	{
 		/* wait_for_ack returns the error code in st */
@@ -691,7 +713,8 @@ static struct sock_ops tcp_ops =
 {
 	.bind = tcp_bind,
 	.connect = tcp_connect,
-	.sendto = tcp_sendto
+	.sendto = tcp_sendto,
+	.recvfrom = default_recvfrom
 };
 
 extern "C"

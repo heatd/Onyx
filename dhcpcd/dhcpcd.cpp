@@ -275,6 +275,15 @@ void tcp_test()
 	perror("connect");
 	send(sockfd, "Hello World!\n", strlen("Hello World!\n"), 0);
 	perror("send");
+#if 0
+	char buffer[4096];
+	ssize_t read = 0;
+	while((read = recvfrom(sockfd, buffer, sizeof(buffer) - 1, 0, nullptr, nullptr)) >= 0)
+	{
+		printf("buffer: %s", buffer);
+		memset(buffer, 0, sizeof(buffer));
+	}
+#endif
 }
 
 int instance::setup_netif()
