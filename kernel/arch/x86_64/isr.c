@@ -234,6 +234,14 @@ void general_protection_fault(struct registers *ctx)
 	struct thread *current = get_current_thread();
 	(void) current;
 	dump_interrupt_context(ctx);
+	unsigned long image_base = (unsigned long) current->owner->image_base;
+	
+	if(image_base)
+	{
+		printk("Image base: %lx\n", image_base);
+		printk("Adjusted ip: %lx\n", ctx->rip - image_base);
+	}
+
 	printk("GPF error code: %04x\n", (uint16_t) ctx->int_err_code);
 
 	siginfo_t info = {};

@@ -1462,13 +1462,13 @@ int open_with_vnode(struct file *node, int flags)
 	return fd_num;
 }
 
-/* Simple stub sys_access */
 int sys_access(const char *path, int amode)
 {
 	int st = 0;
 	char *p = strcpy_from_user(path);
 	if(!p)
 		return -errno;
+	printk("access %s\n", path);
 
 	struct file *f = get_current_directory();
 

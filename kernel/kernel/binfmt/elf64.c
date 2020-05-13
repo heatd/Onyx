@@ -300,8 +300,10 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 	free(phdrs);
 	phdrs = NULL;
 
-	current->image_base = (void*) base;
-	
+	if(is_interp) current->interp_base = (void*) base;
+	else
+		current->image_base = (void *) base;
+
 	if(!is_interp)
 	{
 		current->info.phent = header->e_phentsize;

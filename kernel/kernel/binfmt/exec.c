@@ -103,7 +103,7 @@ void *process_setup_auxv(void *buffer, struct process *process)
 				scratch_space += 16;
 				break;
 			case AT_BASE:
-				auxv[i].a_un.a_val = (uintptr_t) process->image_base;
+				auxv[i].a_un.a_val = (uintptr_t) process->interp_base;
 				break;
 			case AT_PHENT:
 				auxv[i].a_un.a_val = process->info.phent;

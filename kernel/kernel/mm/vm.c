@@ -2218,7 +2218,7 @@ void vm_do_fatal_page_fault(struct fault_info *info)
 		printk("SEGV at %016lx at ip %lx in process %u(%s)\n", 
 			info->fault_address, info->ip,
 			current->pid, current->cmd_line);
-		printk("Program base: %p\n", current->image_base);
+		printk("Program base: %p\n", current->interp_base);
 
 		siginfo_t sinfo = {};
 		sinfo.si_code = SI_KERNEL;

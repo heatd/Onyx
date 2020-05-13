@@ -77,6 +77,7 @@ struct ext2_inode *ext2_get_inode_from_dir(struct ext2_fs_info *fs, dir_entry_t 
 			*inode_number = dirs->inode;
 			return ext2_get_inode_from_number(fs, dirs->inode);
 		}
+
 		dirs = (dir_entry_t*)((char*) dirs + dirs->size);
 	}
 	return NULL;
@@ -174,7 +175,7 @@ struct inode *ext2_open(struct file *f, const char *name)
 {
 	struct inode *nd = f->f_ino;
 	struct ext2_fs_info *fs = nd->i_sb->s_helper;
-	uint32_t inode_num;
+	uint32_t inode_num = 0;
 	struct ext2_inode *ino;
 	char *symlink_path = NULL;
 	struct inode *node = NULL;

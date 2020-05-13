@@ -84,6 +84,7 @@ struct process
 	unsigned long nr_subs;
 	unsigned long nr_acks;
 
+	void *interp_base;
 	void *image_base;
 
 	struct elf_info info;

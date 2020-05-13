@@ -36,7 +36,7 @@ void *ext2_read_block(uint32_t block_index, uint16_t blocks, struct ext2_fs_info
 	if(!buff)
 		return NULL;
 
-	size_t read = blkdev_read(block_index * fs->block_size, size, buff, fs->blkdevice);
+	size_t read = blkdev_read((size_t) block_index * fs->block_size, size, buff, fs->blkdevice);
 
 	if(read == (size_t) -1)
 	{

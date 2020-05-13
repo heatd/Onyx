@@ -828,7 +828,7 @@ size_t vterm_parse_ansi(char *buffer, size_t len, struct vterm *vt)
 			{
 				if(args[0] == 0)
 					args[0] = 1;
-				if(args[1] == 1)
+				if(args[1] == 0)
 					args[1] = 1;
 
 				vterm_ansi_do_cup(args[1], args[0], vt);
