@@ -1468,7 +1468,6 @@ int sys_access(const char *path, int amode)
 	char *p = strcpy_from_user(path);
 	if(!p)
 		return -errno;
-	printk("access %s\n", path);
 
 	struct file *f = get_current_directory();
 
