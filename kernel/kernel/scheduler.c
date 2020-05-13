@@ -995,6 +995,17 @@ void sched_try_to_resched_if_needed(void)
 	}
 }
 
+void sched_enable_preempt_no_softirq(void)
+{
+	unsigned long *preempt_counter = get_per_cpu_ptr(preemption_counter); 
+
+	//assert(*preempt_counter > 0);
+
+	atomic_fetch_add_explicit(preempt_counter, -1, memory_order_relaxed);
+
+	sched_try_to_resched_if_needed();
+}
+
 void sched_enable_preempt(void)
 {
 	unsigned long *preempt_counter = get_per_cpu_ptr(preemption_counter); 

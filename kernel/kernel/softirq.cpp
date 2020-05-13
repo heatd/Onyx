@@ -42,7 +42,7 @@ void softirq_handle()
 
 	if(is_disabled) irq_disable();
 
-	sched_enable_preempt();
+	sched_enable_preempt_no_softirq();
 }
 
 extern "C"

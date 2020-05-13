@@ -120,6 +120,8 @@ void sched_enable_preempt(void);
 
 void sched_disable_preempt(void);
 
+void sched_enable_preempt_no_softirq(void);
+
 void sched_enable_preempt_for_cpu(unsigned int cpu);
 
 void sched_disable_preempt_for_cpu(unsigned int cpu);

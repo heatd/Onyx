@@ -80,8 +80,7 @@ void timer_handle_events(struct timer *t)
 			if(!has_raised_softirq)
 			{
 				has_raised_softirq = true;
-				/* TODO: This is broken. */
-				//softirq_raise(SOFTIRQ_VECTOR_TIMER);
+				softirq_raise(SOFTIRQ_VECTOR_TIMER);
 			}
 		}
 	}
