@@ -187,6 +187,7 @@ void page_alloc_perf(void)
 	struct clocksource *c = get_main_clock();
 
 	hrtime_t lowest = UINT64_MAX;
+	hrtime_t highest = 0;
 
 	for(int i = 0; i < 40; i++)
 	{
@@ -197,9 +198,10 @@ void page_alloc_perf(void)
 		hrtime_t t1 = c->get_ns();
 
 		lowest = lowest < (t1 - t0) ? lowest : t1 - t0;
+		highest = highest > (t1 - t0) ? highest : t1 - t0;
 	}
 
-	printk("Performance: %lu ns\n", lowest);
+	printk("Performance: lowest %lu ns - highest %lu ns avg %lu ns\n", lowest, highest, (highest + lowest) / 2);
 }
 
 #endif
