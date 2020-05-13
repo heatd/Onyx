@@ -20,6 +20,8 @@ void timer_queue_clockevent(struct clockevent *ev)
 	if(ev->flags & CLOCKEVENT_FLAG_POISON)
 		panic("Tried to queue clockevent that's already queued");
 
+	ev->timer = timer;
+
 	list_add_tail(&ev->list_node, &timer->event_list);
 
 	ev->flags |= CLOCKEVENT_FLAG_POISON;
@@ -68,6 +70,7 @@ void timer_handle_events(struct timer *t)
 			{
 				ev->flags &= ~CLOCKEVENT_FLAG_POISON;
 				list_remove(&ev->list_node);
+				ev->timer = nullptr;
 			}
 			else
 			{
@@ -101,13 +104,19 @@ void timer_handle_events(struct timer *t)
 
 void timer_remove_event(struct clockevent *ev)
 {
-	auto timer = platform_get_timer();
+	auto timer = ev->timer;
 
-	spin_lock_irqsave(&timer->event_list_lock);
+	/* ev->timer is set after list_remove up there, therefore we check first
+	 * if ev->timer is nullptr. If so, it's not in there and we don't need to lock.
+	 * If it's set, we lock the event list, and recheck for CLOCKEVENT_POISON; if it's set,
+	 * the event is still in there and we need to list_remove it.
+	 */
+	if(timer != nullptr)
+	{
+		spin_lock_irqsave(&timer->event_list_lock);
 
-	/* For now we need to do this check inside the lock as to prevent race conditions :( */
-	if(ev->flags & CLOCKEVENT_FLAG_POISON)
-		list_remove(&ev->list_node);
-
-	spin_unlock_irqrestore(&timer->event_list_lock);
+		if(ev->flags & CLOCKEVENT_FLAG_POISON)
+			list_remove(&ev->list_node);
+		spin_unlock_irqrestore(&timer->event_list_lock);
+	}
 }

@@ -28,6 +28,8 @@ void ndelay(unsigned int ns);
 #define CLOCKEVENT_FLAG_PULSE			(1 << 2)	/* Automatically requeue the same struct (that was modified by the cb) */
 #define CLOCKEVENT_FLAG_POISON			(1 << 3)
 
+struct timer;
+
 struct clockevent
 {
 	hrtime_t deadline;
@@ -35,6 +37,7 @@ struct clockevent
 	unsigned int flags;
 	void (*callback)(struct clockevent *ev);
 	struct list_head list_node;
+	struct timer *timer;
 };
 
 #define TIMER_NEXT_EVENT_NOT_PENDING			UINT64_MAX
