@@ -496,28 +496,8 @@ void process_remove_from_list(struct process *process)
 
 void process_wait_for_dead_threads(struct process *process)
 {
-	bool goaway = false;
-
-	while(!goaway)
+	while(process->nr_threads)
 	{
-		goaway = true;
-
-		list_for_every(&process->thread_list)
-		{
-			struct thread *t = container_of(l, struct thread, thread_list_head);
-
-			if(t->status != THREAD_DEAD)
-			{
-				goaway = false;
-				continue;
-			}
-			else
-			{
-				if(t->flags & THREAD_IS_DYING)
-					goaway = false;
-			}
-		}
-
 		cpu_relax();
 	}
 }
@@ -536,12 +516,6 @@ void process_end(struct process *process)
 	
 	if(process->ctx.cwd)
 		fd_put(process->ctx.cwd);
-
-	list_for_every_safe(&process->thread_list)
-	{
-		struct thread *thread = container_of(l, struct thread, thread_list_head);
-		thread_destroy(thread);
-	}
 
 	free(process);
 }
@@ -593,7 +567,6 @@ void process_kill_other_threads(void)
 				!(t->flags & THREAD_IS_DYING))
 			{
 				threads_to_wait_for--;
-				current->nr_threads--;
 				t->flags &= ~THREAD_SHOULD_DIE;	
 				list_remove(l);
 			}

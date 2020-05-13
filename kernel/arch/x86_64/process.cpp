@@ -67,6 +67,9 @@ struct thread *process_fork_thread(thread_t *src, struct process *dest, struct s
 	thread->owner = dest;
 
 	list_add_tail(&thread->thread_list_head, &dest->thread_list);
+
+	dest->nr_threads = 1;
+
 	return thread;
 }
 

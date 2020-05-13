@@ -254,8 +254,11 @@ void *sched_switch_thread(void *last_stack)
 			return last_stack;
 		}
 
-		sched_save_thread(curr_thread, last_stack);
+		/* Put the scheduler's reference - this might cause a thread to be woken up, so we do it right here */
+		if(curr_thread->status == THREAD_DEAD)
+			thread_put(curr_thread);
 
+		sched_save_thread(curr_thread, last_stack);
 	}		
 
 	struct thread *source_thread = curr_thread;
@@ -554,7 +557,16 @@ void thread_destroy(struct thread *thread)
 	 * need to context switch out of here,
 	 * or you know, we're actually using the kernel stack right now!
 	*/
-	
+
+	if(thread->owner)
+	{
+		__atomic_sub_fetch(&thread->owner->nr_threads, 1, __ATOMIC_RELAXED);
+
+		spin_lock(&thread->owner->thread_list_lock);
+		list_remove(&thread->thread_list_head);
+		spin_unlock(&thread->owner->thread_list_lock);
+	}
+
 	/* Remove the thread from the queue */
 	sched_remove_thread(thread);
 
@@ -583,12 +595,6 @@ void sched_die(void)
 
 	sched_enable_preempt();
 	sched_yield();
-
-	/* TODO: We shouldn't free the thread right here, rather when the thread death is ack'd */
-	/*struct work_request req;
-	req.func = thread_finish_destruction;
-	req.param = current;
-	worker_schedule(&req, WORKER_PRIO_NORMAL);*/
 }
 
 struct thread *get_thread_for_cpu(unsigned int cpu)
