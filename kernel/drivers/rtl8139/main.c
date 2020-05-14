@@ -169,7 +169,7 @@ void rtl_dpc(void *ctx)
 
 }
 
-static volatile bool recieved_irq = false;
+static volatile bool received_irq = false;
 irqstatus_t rtl_irq_handler(struct irq_context *ctx, void *cookie)
 {
 	uint16_t status = rtl_readw(REG_ISR);
@@ -183,7 +183,7 @@ irqstatus_t rtl_irq_handler(struct irq_context *ctx, void *cookie)
 		dpc_schedule_work(&work, DPC_PRIORITY_HIGH);
 	}
 	else
-		recieved_irq = true;
+		received_irq = true;
 	rtl_clear_interrupt();
 	return 0;
 }
@@ -238,10 +238,10 @@ int rtl_init(void)
 	}
 	rtl_writel(REG_RBSTART, (uint32_t) (uintptr_t) ph_rx);
 	rtl_writel(REG_RCR, RCR_WRAP | RCR_AAP | RCR_APM | RCR_AM | RCR_AB); /* Accept every valid packet */
-	/* Enable Transmitter OK, Reciever OK and Timeout interrupts */
+	/* Enable Transmitter OK, receiver OK and Timeout interrupts */
 	rtl_writew(REG_IMR, IMR_TOK | IMR_ROK | IMR_TIMEOUT);
 	/* Enable RX and TX */
-	rtl_writew(REG_CMD, CMD_RECIEVER_ENABLE | CMD_TRANSMITTER_ENABLE);
+	rtl_writew(REG_CMD, CMD_receiveR_ENABLE | CMD_TRANSMITTER_ENABLE);
 	/* Initialize the TX buffers */
 	rtl_init_tx();
 
@@ -252,7 +252,7 @@ int rtl_init(void)
 int rtl_wait_for_irq(int timeout, int tx)
 {
 	uint64_t curr_stamp = get_tick_count();
-	while(!recieved_irq)
+	while(!received_irq)
 	{
 		if(curr_stamp + timeout <= get_tick_count())
 			return -ETIMEDOUT;
@@ -260,7 +260,7 @@ int rtl_wait_for_irq(int timeout, int tx)
 		sched_sleep_ms(5);
 	}
 
-	recieved_irq = false;
+	received_irq = false;
 	return 0;
 }
 

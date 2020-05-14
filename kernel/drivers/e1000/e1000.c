@@ -56,7 +56,7 @@ static void e1000_init_busmastering(struct e1000_device *dev)
 	pci_enable_busmastering(dev->nicdev);
 }
 
-void e1000_handle_recieve(struct e1000_device *dev)
+void e1000_handle_receive(struct e1000_device *dev)
 {
 	uint16_t old_cur = 0;
 	while((dev->rx_descs[dev->rx_cur].status & 0x1))
@@ -64,7 +64,7 @@ void e1000_handle_recieve(struct e1000_device *dev)
 		uint8_t *buf = (uint8_t *) dev->rx_descs[dev->rx_cur].addr;
 		uint16_t len = dev->rx_descs[dev->rx_cur].length;
 
-		network_dispatch_recieve(buf + PHYS_BASE, len, dev->nic_netif);
+		network_dispatch_receive(buf + PHYS_BASE, len, dev->nic_netif);
 
 		dev->rx_descs[dev->rx_cur].status = 0;
 		old_cur = dev->rx_cur;
@@ -80,7 +80,7 @@ irqstatus_t e1000_irq(struct irq_context *ctx, void *cookie)
 	volatile uint32_t status = e1000_read(REG_ICR, cookie);
 	if(status & ICR_RXT0)
 	{
-		e1000_handle_recieve(cookie);
+		e1000_handle_receive(cookie);
 	}
 	
 	return IRQ_HANDLED;

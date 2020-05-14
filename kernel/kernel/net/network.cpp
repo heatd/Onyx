@@ -67,12 +67,12 @@ void network_do_dispatch(void *__args)
 	pool.free(args);
 }
 
-void network_dispatch_recieve(uint8_t *packet, uint16_t len, struct netif *netif)
+void network_dispatch_receive(uint8_t *packet, uint16_t len, struct netif *netif)
 {
 	network_args *args = reinterpret_cast<network_args*>(pool.allocate());
 	if(!args)
 	{
-		ERROR("net", "Could not recieve packet: Out of memory inside IRQ\n");
+		ERROR("net", "Could not receive packet: Out of memory inside IRQ\n");
 		return;
 	}
 

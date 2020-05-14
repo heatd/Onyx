@@ -111,7 +111,7 @@ void tty_write(const char *data, size_t size, struct tty *tty)
 
 #define TTY_PRINT_IF_ECHO(c, l, t) if(t->term_io.c_lflag & ECHO) tty_write(c, l, t)
 
-void tty_recieved_character(struct tty *tty, char c)
+void tty_received_character(struct tty *tty, char c)
 {
 	if(c == '\b')
 	{

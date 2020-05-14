@@ -28,7 +28,7 @@ struct network_args
 extern "C" {
 #endif
 
-void network_dispatch_recieve(uint8_t *packet, uint16_t len, struct netif *netif);
+void network_dispatch_receive(uint8_t *packet, uint16_t len, struct netif *netif);
 int network_handle_packet(uint8_t *packet, uint16_t len, struct netif *netif);
 const char *network_gethostname();
 void network_sethostname(const char *);

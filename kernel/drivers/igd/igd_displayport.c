@@ -63,7 +63,7 @@ int ddaux_do_transfer(struct i2c_adapter *adapter,
 	ddaux_ctl |= DDI_AUX_CTL_MESSAGE_SIZE((size - 1));
 	ddaux_ctl |= DDI_AUX_CTL_TIMEOUT_1600US;
 	ddaux_ctl |= DDI_AUX_CTL_DONE;
-	ddaux_ctl |= DDI_AUX_CTL_RECIEVE_ERROR;
+	ddaux_ctl |= DDI_AUX_CTL_receive_ERROR;
 	ddaux_ctl |= DDI_AUX_CTL_TIMEOUT_ERROR;
 	ddaux_ctl |= DDI_AUX_CTL_SEND_BUSY;
 	ddaux_ctl |= DDI_AUX_CTL_IRQ_ON_DONE; /* 1 means disabled */
@@ -87,9 +87,9 @@ int ddaux_do_transfer(struct i2c_adapter *adapter,
 				return 0;
 			}
 
-			if(ddaux_ctl & DDI_AUX_CTL_RECIEVE_ERROR)
+			if(ddaux_ctl & DDI_AUX_CTL_receive_ERROR)
 			{
-				printk("Recieve error\n");
+				printk("receive error\n");
 				return 0;
 			}
 

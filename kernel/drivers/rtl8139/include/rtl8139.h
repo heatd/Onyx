@@ -76,7 +76,7 @@
 
 #define CMD_BUFFER_EMPTY	(1 << 0)
 #define CMD_TRANSMITTER_ENABLE	(1 << 2)
-#define CMD_RECIEVER_ENABLE	(1 << 3)
+#define CMD_receiveR_ENABLE	(1 << 3)
 #define CMD_RESET		(1 << 4)
 
 #define TSD_OWN			(1 << 13)

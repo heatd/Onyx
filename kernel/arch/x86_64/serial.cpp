@@ -71,7 +71,7 @@ enum class uart8250_register
 #define UART8250_IIR_RX_DATA_AVL  (1 << 2)
 
 extern "C"
-int vterm_recieve_input(char c);
+int vterm_receive_input(char c);
 
 struct driver serial_platform_driver = 
 {
@@ -151,7 +151,8 @@ public:
 void do_dispatch(void *ctx)
 {
 	uint8_t data = (uint8_t) (unsigned long) ctx;
-	vterm_recieve_input(data);
+	//vterm_receive_input(data);
+	(void) data;
 }
 
 void uart8250_port::dispatch_rx()
@@ -267,7 +268,7 @@ bool uart8250_port::init()
 	
 	write<uint8_t>(uart8250_register::fifo_control, fcr);
 	
-	/* Signal that we're ready to send and ready to recieve */
+	/* Signal that we're ready to send and ready to receive */
 	write<uint8_t>(uart8250_register::modem_control, UART8250_MCR_GPO2_ENABLE | UART8250_MCR_DATA_TERMINAL_RDY
                    | UART8250_MCR_REQ_TO_SEND);
 

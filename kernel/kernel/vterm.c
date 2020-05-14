@@ -18,9 +18,14 @@
 #include <onyx/vm.h>
 #include <onyx/scheduler.h>
 #include <onyx/thread.h>
-#include <onyx/portio.h>
 #include <onyx/init.h>
 #include <onyx/serial.h>
+#include <onyx/dpc.h>
+
+#include <onyx/input/keys.h>
+#include <onyx/input/event.h>
+#include <onyx/input/state.h>
+#include <onyx/input/device.h>
 
 #include <sys/ioctl.h>
 
@@ -1016,15 +1021,237 @@ struct vterm *get_current_vt(void)
 	return &primary_vterm;
 }
 
-int vterm_recieve_input(char c)
+int vterm_receive_input(char *c)
 {
 	struct vterm *vt = get_current_vt();
 	if(!vt)
 		return -1;
 
-	tty_recieved_character(vt->tty, c);
+	tty_received_character(vt->tty, *c);
 
 	return 0;
+}
+
+struct key_action
+{
+	keycode_t key;
+	char *action;
+	char *shift_action;
+	char *ctrl_action;
+	char *alt_action;
+	uint8_t flags;
+};
+
+struct key_action key_actions[] = 
+{
+	{KEYMAP_KEY_A, "a", "A"},
+	{KEYMAP_KEY_B, "b", "B"},
+	{KEYMAP_KEY_C, "c", "C"},
+	{KEYMAP_KEY_D, "d", "D"},
+	{KEYMAP_KEY_E, "e", "E"},
+	{KEYMAP_KEY_F, "f", "F"},
+	{KEYMAP_KEY_G, "g", "G"},
+	{KEYMAP_KEY_H, "h", "H"},
+	{KEYMAP_KEY_I, "i", "I"},
+	{KEYMAP_KEY_J, "j", "J"},
+	{KEYMAP_KEY_K, "k", "K"},
+	{KEYMAP_KEY_L, "l", "L"},
+	{KEYMAP_KEY_M, "m", "M"},
+	{KEYMAP_KEY_N, "n", "N"},
+	{KEYMAP_KEY_O, "o", "O"},
+	{KEYMAP_KEY_P, "p", "P"},
+	{KEYMAP_KEY_Q, "q", "Q"},
+	{KEYMAP_KEY_R, "r", "R"},
+	{KEYMAP_KEY_S, "s", "S"},
+	{KEYMAP_KEY_T, "t", "T"},
+	{KEYMAP_KEY_U, "u", "U"},
+	{KEYMAP_KEY_V, "v", "V"},
+	{KEYMAP_KEY_X, "x", "X"},
+	{KEYMAP_KEY_W, "w", "W"},
+	{KEYMAP_KEY_Y, "y", "Y"},
+	{KEYMAP_KEY_Z, "z", "Z"},
+	{KEYMAP_KEY_0, "0", ")"},
+	{KEYMAP_KEY_1, "1", "!"},
+	{KEYMAP_KEY_2, "2", "@"},
+	{KEYMAP_KEY_3, "3", "#"},
+	{KEYMAP_KEY_4, "4", "$"},
+	{KEYMAP_KEY_5, "5", "%"},
+	{KEYMAP_KEY_6, "6", "^"},
+	{KEYMAP_KEY_7, "7", "&"},
+	{KEYMAP_KEY_8, "8", "*"},
+	{KEYMAP_KEY_9, "9", "("},
+	{KEYMAP_KEY_COMMA, ",", "<"},
+	{KEYMAP_KEY_DOT, ".", ">"},
+	{KEYMAP_KEY_KEYPAD_0, "0"},
+	{KEYMAP_KEY_KEYPAD_1, "1"},
+	{KEYMAP_KEY_KEYPAD_2, "2"},
+	{KEYMAP_KEY_KEYPAD_3, "3"},
+	{KEYMAP_KEY_KEYPAD_4, "4"},
+	{KEYMAP_KEY_KEYPAD_5, "5"},
+	{KEYMAP_KEY_KEYPAD_6, "6"},
+	{KEYMAP_KEY_KEYPAD_7, "7"},
+	{KEYMAP_KEY_KEYPAD_8, "8"},
+	{KEYMAP_KEY_KEYPAD_9, "9"},
+	{KEYMAP_KEY_MINUS, "-", "_"},
+	{KEYMAP_KEY_EQUALS, "=", "+"},
+	{KEYMAP_KEY_LEFTBRACE, "[", "{"},
+	{KEYMAP_KEY_RIGHTBRACE, "]", "}"},
+	{KEYMAP_KEY_ENTER, "\n"},
+	{KEYMAP_KEY_SEMICOLON, ";", ":"},
+	{KEYMAP_KEY_GRAVE, "`", "~"},
+	{KEYMAP_KEY_TAB, "\t"},
+	{KEYMAP_KEY_APOSTROPHE, "'", "\""},
+	{KEYMAP_KEY_SLASH, "/", "?"},
+	{KEYMAP_KEY_BACKSLASH, "|"},
+	{KEYMAP_KEY_BACKSPACE, "\b"},
+	{KEYMAP_KEY_KEYPAD_DOT, "."},
+	{KEYMAP_KEY_KEYPAD_SLASH, "/"},
+	{KEYMAP_KEY_KEYPAD_ASTERISK, "*"},
+	{KEYMAP_KEY_KEYPAD_MINUS, "-"},
+	{KEYMAP_KEY_KEYPAD_PLUS, "+"},
+	{KEYMAP_KEY_KEYPAD_ENTER, "\n"},
+	{KEYMAP_KEY_SPACE, " ", " "}
+};
+
+struct key_action pt_pt_key_actions[] = 
+{
+	{KEYMAP_KEY_A, "a", "A"},
+	{KEYMAP_KEY_B, "b", "B"},
+	{KEYMAP_KEY_C, "c", "C"},
+	{KEYMAP_KEY_D, "d", "D"},
+	{KEYMAP_KEY_E, "e", "E"},
+	{KEYMAP_KEY_F, "f", "F"},
+	{KEYMAP_KEY_G, "g", "G"},
+	{KEYMAP_KEY_H, "h", "H"},
+	{KEYMAP_KEY_I, "i", "I"},
+	{KEYMAP_KEY_J, "j", "J"},
+	{KEYMAP_KEY_K, "k", "K"},
+	{KEYMAP_KEY_L, "l", "L"},
+	{KEYMAP_KEY_M, "m", "M"},
+	{KEYMAP_KEY_N, "n", "N"},
+	{KEYMAP_KEY_O, "o", "O"},
+	{KEYMAP_KEY_P, "p", "P"},
+	{KEYMAP_KEY_Q, "q", "Q"},
+	{KEYMAP_KEY_R, "r", "R"},
+	{KEYMAP_KEY_S, "s", "S"},
+	{KEYMAP_KEY_T, "t", "T"},
+	{KEYMAP_KEY_U, "u", "U"},
+	{KEYMAP_KEY_V, "v", "V"},
+	{KEYMAP_KEY_X, "x", "X"},
+	{KEYMAP_KEY_W, "w", "W"},
+	{KEYMAP_KEY_Y, "y", "Y"},
+	{KEYMAP_KEY_Z, "z", "Z"},
+	{KEYMAP_KEY_0, "0", "=", NULL, "}"},
+	{KEYMAP_KEY_1, "1", "!"},
+	{KEYMAP_KEY_2, "2", "\"", NULL, "@"},
+	{KEYMAP_KEY_3, "3", "#", NULL, "£"},
+	{KEYMAP_KEY_4, "4", "$", NULL, "§"},
+	{KEYMAP_KEY_5, "5", "%", NULL, "€"},
+	{KEYMAP_KEY_6, "6", "&"},
+	{KEYMAP_KEY_7, "7", "/", NULL, "{"},
+	{KEYMAP_KEY_8, "8", "(", NULL, "["},
+	{KEYMAP_KEY_9, "9", ")", NULL, "]"},
+	{KEYMAP_KEY_COMMA, ",", ";"},
+	{KEYMAP_KEY_DOT, ".", ":"},
+	{KEYMAP_KEY_KEYPAD_0, "0"},
+	{KEYMAP_KEY_KEYPAD_1, "1"},
+	{KEYMAP_KEY_KEYPAD_2, "2"},
+	{KEYMAP_KEY_KEYPAD_3, "3"},
+	{KEYMAP_KEY_KEYPAD_4, "4"},
+	{KEYMAP_KEY_KEYPAD_5, "5"},
+	{KEYMAP_KEY_KEYPAD_6, "6"},
+	{KEYMAP_KEY_KEYPAD_7, "7"},
+	{KEYMAP_KEY_KEYPAD_8, "8"},
+	{KEYMAP_KEY_KEYPAD_9, "9"},
+	{KEYMAP_KEY_MINUS, "'", "?"},
+	{KEYMAP_KEY_EQUALS, "«", "»"},
+	{KEYMAP_KEY_LEFTBRACE, "+", "*"},
+	{KEYMAP_KEY_RIGHTBRACE, "´", "`"},
+	{KEYMAP_KEY_ENTER, "\n"},
+	{KEYMAP_KEY_SEMICOLON, "ç", "Ç"},
+	{KEYMAP_KEY_GRAVE, "\\", "|"},
+	{KEYMAP_KEY_TAB, "\t"},
+	{KEYMAP_KEY_APOSTROPHE, "º", "ª"},
+	{KEYMAP_KEY_SLASH, "-", "_"},
+	{KEYMAP_KEY_BACKSLASH, "|"},
+	{KEYMAP_KEY_BACKSPACE, "\b"},
+	{KEYMAP_KEY_KEYPAD_DOT, "."},
+	{KEYMAP_KEY_KEYPAD_SLASH, "/"},
+	{KEYMAP_KEY_KEYPAD_ASTERISK, "*"},
+	{KEYMAP_KEY_KEYPAD_MINUS, "-"},
+	{KEYMAP_KEY_KEYPAD_PLUS, "+"},
+	{KEYMAP_KEY_KEYPAD_ENTER, "\n"},
+	{KEYMAP_KEY_SPACE, " ", " "}
+};
+
+const size_t nr_actions = sizeof(key_actions) / sizeof(key_actions[0]);
+
+void __vterm_receive_input(void *p)
+{
+	char *s = p;
+	vterm_receive_input(s);
+}
+
+int vterm_handle_key(struct vterm *vt, struct input_device *dev, struct input_event *ev)
+{	
+	/* We have no interest in release events */
+	if(!(ev->flags & INPUT_EVENT_FLAG_PRESSED))
+		return 0;
+
+	struct key_action *acts = pt_pt_key_actions;
+	struct key_action *desired_action = NULL;
+
+	for(size_t i = 0; i < nr_actions; i++)
+	{
+		if(acts[i].key == ev->code)
+		{
+			desired_action = &acts[i];
+			break;
+		}
+	}
+
+	/* Not mapped */
+	if(!desired_action)
+		return 0;
+
+	char *action_string = NULL;
+
+	if(unlikely(dev->state.shift_pressed || dev->state.caps_enabled))
+	{
+		action_string = desired_action->shift_action;
+	}
+	else if(unlikely(dev->state.ctrl_pressed))
+	{
+		action_string = desired_action->ctrl_action;
+	}
+	else if(unlikely(dev->state.alt_pressed))
+	{
+		action_string = desired_action->alt_action;
+	}
+	else
+	{
+		action_string = desired_action->action;
+	}
+
+	if(likely(action_string))
+	{
+		struct dpc_work w;
+		w.context = action_string;
+		w.funcptr = __vterm_receive_input;
+		w.next = NULL;
+		dpc_schedule_work(&w, DPC_PRIORITY_MEDIUM);
+	}
+
+	return 0;
+}
+
+int vterm_submit_event(struct input_device *dev, struct input_event *ev)
+{
+	struct vterm *vt = get_current_vt();
+	if(!vt)
+		return -1;
+
+	return vterm_handle_key(vt, dev, ev);
 }
 
 void vterm_handle_message(struct vterm_message *msg, struct vterm *vt)

@@ -69,7 +69,7 @@ void ahci_deal_aio(struct command_list *list)
 
 void ahci_do_clist_irq(struct ahci_port *port, int j)
 {
-	port->cmdslots[j].recieved_interrupt = true;
+	port->cmdslots[j].received_interrupt = true;
 	port->cmdslots[j].last_interrupt_status = port->port->interrupt_status;
 	port->cmdslots[j].status = port->port->status;
 	port->cmdslots[j].tfd = port->port->tfd;

@@ -49,7 +49,7 @@ void tty_init(void *priv, void (*ctor)(struct tty *tty));
 void tty_scroll();
 void tty_put_entry_at(char c, uint32_t color, size_t column, size_t row);
 char *tty_wait_for_line();
-void tty_recieved_character(struct tty *tty, char c);
+void tty_received_character(struct tty *tty, char c);
 void tty_create_dev();
 
 #ifdef __cplusplus

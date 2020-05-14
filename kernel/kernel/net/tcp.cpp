@@ -481,7 +481,7 @@ int tcp_socket::start_handshake(netif *nif, sockaddr_in *from)
 		return st;
 	}
 
-	state = tcp_state::TCP_STATE_SYN_RECIEVED;
+	state = tcp_state::TCP_STATE_SYN_receiveD;
 	
 #if 0
 	/* TODO: Add this */

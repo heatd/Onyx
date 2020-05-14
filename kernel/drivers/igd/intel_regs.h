@@ -120,7 +120,7 @@
 #define DDI_AUX_CTL_TIMEOUT_600US	(1 << 26)
 #define DDI_AUX_CTL_TIMEOUT_800US	(1 << 27)
 #define DDI_AUX_CTL_TIMEOUT_1600US	(1 << 26 | 1 << 27)
-#define DDI_AUX_CTL_RECIEVE_ERROR	(1 << 25)
+#define DDI_AUX_CTL_receive_ERROR	(1 << 25)
 
 #define DDI_AUX_CTL_MESSAGE_SIZE(size)	(size << 20)
 

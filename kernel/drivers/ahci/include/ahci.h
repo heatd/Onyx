@@ -213,7 +213,7 @@ typedef volatile struct
 
 struct command_list
 {
-	volatile bool recieved_interrupt;
+	volatile bool received_interrupt;
 	uint32_t last_interrupt_status;
 	uint32_t status;
 	uint32_t tfd;

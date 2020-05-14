@@ -10,6 +10,7 @@
 #include <stdbool.h>
 
 #include <onyx/mutex.h>
+#include <onyx/input/device.h>
 
 #define PS2_CMD_OK		0x00
 #define PS2_CMD_TIMEOUT		0xff
@@ -44,6 +45,7 @@
 #define PS2_INIT_OK	0x55
 
 struct ps2_controller;
+struct input_dev;
 
 struct ps2_port
 {
@@ -51,7 +53,8 @@ struct ps2_port
 	bool has_device;
 	int port_number;
 	struct ps2_controller *controller;
-	void (*on_byte)(uint8_t data);
+	void (*on_byte)(struct ps2_port *port);
+	struct input_device dev;
 };
 
 struct ps2_controller
@@ -69,5 +72,6 @@ void ps2_keyboard_init(struct ps2_port *port);
 uint8_t ps2_send_command_to_device(struct ps2_port *port, uint8_t command,
 	bool get_response, uint8_t *response);
 void ps2_wait_for_input_buffer(struct ps2_controller *controller);
+uint8_t ps2_read_data(struct ps2_port *port);
 
 #endif

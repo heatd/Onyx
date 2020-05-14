@@ -21,7 +21,6 @@ extern void send_event_to_kernel(unsigned char keycode);
 irqstatus_t ps2_irq(struct irq_context *ctx, void *cookie)
 {
 	unsigned char status;
-	unsigned char data;
 
 	struct ps2_port *port = cookie;
 
@@ -29,9 +28,8 @@ irqstatus_t ps2_irq(struct irq_context *ctx, void *cookie)
 
 	if(status & PS2_STATUS_OUTPUT_BUFFER_FULL)
 	{
-		data = inb(port->controller->data_port);
 		if(port->on_byte)
-			port->on_byte(data);
+			port->on_byte(port);
 	}
 
 	return IRQ_HANDLED;
@@ -398,6 +396,11 @@ int ps2_probe(struct device *device)
 		printf("ps2: Could not enable irqs\n");
 	/* TODO: Add a mouse driver */
 	return 0;
+}
+
+uint8_t ps2_read_data(struct ps2_port *port)
+{
+	return inb(port->controller->data_port);
 }
 
 static struct acpi_dev_id acpi_keyboard_ids[] =
