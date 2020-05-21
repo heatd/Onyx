@@ -221,6 +221,11 @@ bool network_vdev::perform_subsystem_initialization()
 	}
 
 	nif = make_unique<netif>();
+	if(!nif)
+	{
+		set_failure();
+		return false;
+	}
 
 	nif->name = "eth0";
 	nif->flags |= NETIF_LINKUP;
