@@ -279,17 +279,17 @@ public:
 			delete p;
 	}
 
-	T* get_data()
+	T* get_data() const
 	{
 		return p;
 	}
 
-	T& operator*()
+	T& operator*() const
 	{
 		return *get_data();
 	}
 	
-	T* operator->()
+	T* operator->() const
 	{
 		return get_data();
 	}

@@ -126,13 +126,30 @@ bool vdev::perform_base_virtio_initialization()
 	return true;
 }
 
-bool vdev::has_feature(unsigned long feature)
+bool vdev::raw_has_feature(unsigned long feature)
 {
 	unsigned long dwords = feature / 32;
 	unsigned long remainder = feature % 32;
 
 	pci_common_cfg().write(device_feature_select, dwords);
 	return pci_common_cfg().read<uint32_t>(device_feature) & (1 << remainder);
+}
+
+void vdev::cache_features()
+{
+	/* Right now, the max feature bit is 38, so the logic is quite simple, we just need to
+	 * read two device feature dwords and or them together.
+	 */
+
+	uint32_t words[2];
+	
+	for(int i = 0; i < 2; i++)
+	{
+		pci_common_cfg().write(device_feature_select, i);
+		words[i] = pci_common_cfg().read<uint32_t>(device_feature);
+	}
+
+	feature_cache[0] = static_cast<uint64_t>(words[1]) << 32 | words[0];
 }
 
 void vdev::signal_feature(unsigned long feature)
@@ -189,10 +206,47 @@ bool vdev::finish_feature_negotiation()
 	pci_common_cfg().write(pci_common_cfg::device_status, r);
 
 	if(pci_common_cfg().read<uint8_t>(pci_common_cfg::device_status) & device_status::features_ok)
+	{
+		cache_features();
 		return true;
-	
+	}
+
 	/* If features ok isn't set anymore, the features we selected are not supported */
 	return false;
+}
+
+void vdev::finalise_driver_init()
+{
+	auto st = pci_common_cfg().read<uint8_t>(pci_common_cfg::device_status);
+	st |= device_status::driver_ok;
+	pci_common_cfg().write<uint8_t>(pci_common_cfg::device_status, st);
+}
+
+void vdev::set_failure()
+{
+	auto st = pci_common_cfg().read<uint8_t>(pci_common_cfg::device_status);
+	st |= device_status::failed;
+	pci_common_cfg().write<uint8_t>(pci_common_cfg::device_status, st);
+}
+
+bool vdev::do_device_independent_negotiation()
+{
+	if(raw_has_feature(device_features::version_1))
+	{
+		signal_feature(device_features::version_1);
+	}
+	else
+	{
+		if(!supports_legacy())
+			return false;
+	}
+
+	if(raw_has_feature(device_features::ring_indirect_desc))
+	{
+		signal_feature(device_features::ring_indirect_desc);
+	}
+
+	return true;
 }
 
 bool virtq_split::init()
@@ -211,7 +265,7 @@ bool virtq_split::init()
 	if(!desc_bitmap.AllocateBitmap())
 		return false;
 
-	vq_pages = alloc_pages(total_pages, PAGE_ALLOC_CONTIGUOUS | PAGE_ALLOC_NO_ZERO);
+	vq_pages = alloc_pages(total_pages, PAGE_ALLOC_CONTIGUOUS);
 	if(!vq_pages)
 		return false;
 	
@@ -225,11 +279,11 @@ bool virtq_split::init()
 	device->write_config<uint16_t>(pci_common_cfg::queue_size, queue_size);
 	device->write_config<uint32_t>(pci_common_cfg::queue_desc_low, static_cast<uint32_t>(_descs));
 	device->write_config<uint32_t>(pci_common_cfg::queue_desc_high, static_cast<uint32_t>(_descs << 32));
-	device->write_config<uint32_t>(pci_common_cfg::queue_device_high, static_cast<uint32_t>(_used));
-	device->write_config<uint32_t>(pci_common_cfg::queue_device_low, static_cast<uint32_t>(_used << 32));
-	device->write_config<uint32_t>(pci_common_cfg::queue_driver_high, static_cast<uint32_t>(_avail));
-	device->write_config<uint32_t>(pci_common_cfg::queue_driver_low, static_cast<uint32_t>(_avail << 32));
-	
+	device->write_config<uint32_t>(pci_common_cfg::queue_device_high, static_cast<uint32_t>(_used << 32));
+	device->write_config<uint32_t>(pci_common_cfg::queue_device_low, static_cast<uint32_t>(_used));
+	device->write_config<uint32_t>(pci_common_cfg::queue_driver_high, static_cast<uint32_t>(_avail << 32));
+	device->write_config<uint32_t>(pci_common_cfg::queue_driver_low, static_cast<uint32_t>(_avail));
+
 	auto& notify = device->notify_cfg();
 	auto multiplier = notify.notify_off_mult;
 
@@ -254,7 +308,7 @@ void virtio_buf_list::tear_down_bufs()
 	}
 }
 
-bool virtio_buf_list::prepare(void *addr, size_t length, bool writable)
+bool virtio_buf_list::prepare(const void *addr, size_t length, bool writable)
 {
 	struct phys_ranges r;
 	if(dma_get_ranges(addr, length, UINT32_MAX, &r) < 0)
@@ -269,7 +323,7 @@ bool virtio_buf_list::prepare(void *addr, size_t length, bool writable)
 	for(size_t i = 0; i < r.nr_ranges; i++)
 	{
 		auto range = r.ranges[i];
-		virtio_buf *b = new virtio_buf(range->addr, range->size, vq);
+		virtio_buf *b = new virtio_buf(range->addr, range->size);
 		if(!b)
 		{
 			tear_down_bufs();
@@ -305,7 +359,6 @@ bool virtio_buf_list::prepare(void *addr, size_t length, bool writable)
 
 bool virtq::allocate_descriptors(virtio_buf_list& buf_list)
 {
-
 	size_t expected, new_val;
 
 	do
@@ -325,6 +378,7 @@ bool virtq::allocate_descriptors(virtio_buf_list& buf_list)
 		auto buf = container_of(l, virtio_buf, buf_list_memb);
 		unsigned long d;
 		assert(desc_bitmap.FindFreeBit(&d));
+
 		buf->index = static_cast<uint16_t>(d);
 	}
 
@@ -368,7 +422,7 @@ uint16_t virtq_split::prepare_descriptors(virtio_buf_list& bufs)
 	return desc_head;
 }
 
-bool virtq_split::put_buffer(virtio_buf_list& list)
+bool virtq_split::put_buffer(virtio_buf_list& list, bool should_notify)
 {
 	auto descs = prepare_descriptors(list);
 
@@ -379,7 +433,8 @@ bool virtq_split::put_buffer(virtio_buf_list& list)
 
 	write_memory_barrier();
 	
-	notify();
+	if(should_notify) [[likely]]
+		notify();
 
 	return true;
 }
@@ -387,6 +442,67 @@ bool virtq_split::put_buffer(virtio_buf_list& list)
 void virtq_split::notify()
 {
 	device->notify_cfg().write<uint32_t>(eff_queue_notify_off, nr);
+}
+
+cul::pair<unsigned long, size_t> virtq_split::get_buf_from_id(uint16_t id) const
+{
+	return {descs[id].paddr, descs[id].length};
+}
+
+void virtq_split::handle_irq()
+{
+	while(used->idx != last_seen_used_idx)
+	{
+		auto &elem = used->ring[last_seen_used_idx];
+
+		device->handle_used_buffer(elem, this);
+		{
+			/* TODO: This should be more involved, less buggy, use wait queues,
+			 * and unpin pages
+			 */
+
+			scoped_lock g{&desc_alloc_lock};
+			desc_bitmap.FreeBit(elem.id);
+			avail_descs++;
+		}
+
+		last_seen_used_idx++;
+	}
+}
+
+void vdev::handle_vq_irq()
+{
+	for(auto &c : virtqueue_list)
+	{
+		c->handle_irq();
+	}
+}
+
+static bool our_irq(uint32_t status)
+{
+	/* Automatically tests bit 0 and 1 */
+	return status != 0;
+}
+
+irqstatus_t vdev::handle_irq()
+{
+	/* TODO: Handle MSI-X interrupts */
+
+	/* The spec states that reading this automatically clears
+	 * the isr status register and de-asserts the interrupt.
+	 */
+
+	auto status = isr_cfg().read<uint32_t>(isr_cfg::isr_status);
+
+	if(!our_irq(status))
+		return IRQ_UNHANDLED;
+
+	if(status & VIRTIO_ISR_CFG_QUEUE_INTERRUPT)
+		handle_vq_irq();
+	
+	/* TODO: Handle cfg interrupts */
+
+	return IRQ_HANDLED;
 }
 
 }
@@ -398,10 +514,11 @@ struct pci_id virtio_pci_ids[] =
 	{}
 };
 
-irqstatus_t virtio_handl(struct irq_context *context, void *cookie)
+irqstatus_t virtio_handle_irq(struct irq_context *context, void *cookie)
 {
-	printk("virtio irq\n");
-	return IRQ_HANDLED;
+	virtio::vdev *vdv = static_cast<virtio::vdev *>(cookie);
+
+	return vdv->handle_irq();
 }
 
 int virtio_probe(struct device *_dev)
@@ -439,8 +556,11 @@ int virtio_probe(struct device *_dev)
 	virtio_device->perform_base_virtio_initialization();
 	virtio_device->perform_subsystem_initialization();
 
-	assert(install_irq(pci_get_intn(device), virtio_handl, _dev, IRQ_FLAG_REGULAR,
+	assert(install_irq(pci_get_intn(device), virtio_handle_irq, _dev, IRQ_FLAG_REGULAR,
            virtio_device.get_data()) == 0);
+	
+	virtio_device.release();
+
 	return 0;
 }
 

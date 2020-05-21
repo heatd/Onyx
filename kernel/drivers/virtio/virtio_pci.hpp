@@ -64,6 +64,14 @@ enum pci_common_cfg
 	pci_common_cfg_max = 56
 };
 
+enum isr_cfg
+{
+	isr_status = 0
+};
+
+#define VIRTIO_ISR_CFG_QUEUE_INTERRUPT     (1 << 0)
+#define VIRTIO_ISR_CFG_DEVICE_CFG_INT      (1 << 1)
+
 constexpr size_t notify_off_multiplier = length_off + 4;
 
 };

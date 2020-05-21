@@ -31,7 +31,7 @@ struct phys_ranges
  * of size buf_size, each range having a max size of max_range.
 */
 
-int dma_get_ranges(void *vbuf, size_t buf_size, size_t max_range,
+int dma_get_ranges(const void *vbuf, size_t buf_size, size_t max_range,
 	struct phys_ranges *ranges);
 
 void dma_destroy_ranges(struct phys_ranges *ranges);

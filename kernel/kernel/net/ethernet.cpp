@@ -50,7 +50,7 @@ int eth_send_packet(char *destmac, struct packetbuf_info *buf, uint16_t protocol
 	memcpy(&hdr->mac_dest, destmac, 6);
 	memcpy(&hdr->mac_source, &netif->mac_address, 6);
 
-	int status = netif_send_packet(netif, (char*) hdr, buf->length);
+	int status = netif_send_packet(netif, (const void *) buf->packet, buf->length);
 
 	return status;
 }

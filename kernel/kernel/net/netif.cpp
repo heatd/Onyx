@@ -189,7 +189,7 @@ void netif_unlock_list(void)
 
 int netif_send_packet(struct netif *netif, const void *buffer, uint16_t size)
 {
-	assert(netif);
+	assert(netif != nullptr);
 	if(netif->sendpacket)
 		return netif->sendpacket(buffer, size, netif);
 	return errno = ENODEV, -1;

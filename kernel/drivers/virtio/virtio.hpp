@@ -18,6 +18,11 @@
 #include <onyx/condvar.h>
 #include <onyx/bitmap.h>
 #include <onyx/pair.hpp>
+#include <onyx/irq.h>
+
+#include <onyx/net/netif.h>
+#include <onyx/packetbuf.h>
+#include <onyx/pair.hpp>
 
 #include <pci/pci.h>
 
@@ -66,12 +71,29 @@ enum network_features
 	standby = 62
 };
 
+/* Device-independent features*/
+enum device_features
+{
+	ring_indirect_desc = 28,
+	ring_event_idx = 29,
+	version_1 = 32,
+	access_platform = 33,
+	ring_packed = 34,
+	in_order = 35,
+	order_platform = 36,
+	sr_iov = 37,
+	notification_data = 38
+};
+
 /* Means that the descriptor continues via the next field */
 #define VIRTQ_DESC_F_NEXT			(1 << 0)
 /* Buffer is device-write only */
 #define VIRTQ_DESC_F_WRITE			(1 << 1)
 /* Buffer contains a list of buffer descriptors */
 #define VIRTQ_DESC_F_INDIRECT		(1 << 2)
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic warning "-Wpadded"
 
 struct virtq_desc
 {
@@ -105,6 +127,8 @@ struct virtq_used
 	struct virtq_used_elem ring[];
 };
 
+#pragma GCC diagnostic pop
+
 class vdev;
 class virtq;
 
@@ -115,11 +139,10 @@ public:
 	size_t length;
 	bool write;
 	uint16_t index;
-	virtq *vq;
 	struct list_head buf_list_memb;
 
-	virtio_buf(unsigned long paddr, size_t length, virtq *v) : addr{paddr}, length{length}, write{false},
-															   index{0}, vq{v}
+	virtio_buf(unsigned long paddr, size_t length) : addr{paddr}, length{length}, write{false},
+															   index{0}
 	{ INIT_LIST_HEAD(&buf_list_memb); }
 
 	~virtio_buf() {}
@@ -131,10 +154,10 @@ private:
 	void tear_down_bufs();
 public:
 	struct list_head buf_list_head;
-	virtq *vq;
+	unique_ptr<virtq> &vq;
 	size_t nr_elems;
 
-	virtio_buf_list(virtq *v) : buf_list_head{}, vq(v), nr_elems{}
+	virtio_buf_list(unique_ptr<virtq> &v) : buf_list_head{}, vq(v), nr_elems{}
 	{
 		INIT_LIST_HEAD(&buf_list_head);
 	}
@@ -144,7 +167,7 @@ public:
 		tear_down_bufs();
 	}
 
-	bool prepare(void *addr, size_t length, bool writeable);
+	bool prepare(const void *addr, size_t length, bool writeable);
 };
 
 class virtq
@@ -165,8 +188,11 @@ public:
                                         avail_descs(), desc_alloc_lock{} {}
 	virtual ~virtq() {}
 	virtual bool init() = 0;
-	virtual bool put_buffer(virtio_buf_list& bufs) = 0;
+	virtual bool put_buffer(virtio_buf_list& bufs, bool notify = true) = 0;
 	virtual void notify() = 0;
+	virtual void handle_irq() = 0;
+	unsigned int get_nr() const {return nr;}
+	virtual cul::pair<unsigned long, size_t> get_buf_from_id(uint16_t id) const = 0;
 };
 
 class virtq_split : public virtq
@@ -182,16 +208,18 @@ private:
 	struct virtq_used *used;
 	/* Note: this has been calculated from queue_mult * queue_notify_off */
 	unsigned long eff_queue_notify_off;
+	/* The driver keeps track of the last used_idx in order to track progress for used buffers */
+	unsigned int last_seen_used_idx;
 public:
 	virtq_split(vdev *dev, unsigned int qsize, unsigned int nr) : virtq{dev, nr}, vq_pages{nullptr},
 		queue_size{qsize}, descs{nullptr},
-		avail{nullptr}, used{nullptr}, eff_queue_notify_off{0}
+		avail{nullptr}, used{nullptr}, eff_queue_notify_off{0}, last_seen_used_idx{0}
 	{ avail_descs = get_queue_size(); }
 	
 	~virtq_split() {}
 	
 	bool init() override;
-	bool put_buffer(virtio_buf_list& bufs) override;
+	bool put_buffer(virtio_buf_list& bufs, bool notify) override;
 	
 	unsigned int get_queue_size() override
 	{
@@ -201,6 +229,10 @@ public:
 	uint16_t prepare_descriptors(virtio_buf_list& bufs);
 
 	void notify() override;
+
+	void handle_irq() override;
+
+	cul::pair<unsigned long, size_t> get_buf_from_id(uint16_t id) const override;
 };
 
 class virtio_structure
@@ -289,8 +321,26 @@ protected:
 	void *bars[PCI_NR_BARS];
 	virtio_structure structures[5];
 	cul::vector<unique_ptr<virtq> > virtqueue_list;
+
+	virtual bool supports_legacy()
+	{
+		return false;
+	}
+
+	bool do_device_independent_negotiation();
+
+	uint64_t feature_cache[1];
+
+	void cache_features();
+
+	bool has_feature(unsigned long feature) const
+	{
+		assert(feature < 64);
+		return feature_cache[0] & (1UL << feature);
+	}
+
 public:
-	vdev(struct pci_device *dev) : dev(dev), bars{}, structures{} {}
+	vdev(struct pci_device *dev) : dev(dev), bars{}, structures{}, feature_cache{} {}
 	virtual ~vdev() {}
 	vdev(const vdev& rhs) = delete;
 	vdev(vdev&& rhs) = delete;
@@ -311,6 +361,11 @@ public:
 	virtio_structure& notify_cfg()
 	{
 		return structures[virtio::vendor_pci_cap::notify - 1];
+	}
+
+	virtio_structure& isr_cfg()
+	{
+		return structures[virtio::vendor_pci_cap::isr - 1];
 	}
 
 	template <typename T>
@@ -337,7 +392,7 @@ public:
 		device_cfg().write(offset, val);
 	}
 
-	bool has_feature(unsigned long feature);
+	bool raw_has_feature(unsigned long feature);
 
 	/* To be used by drivers to negotiate features */
 	void signal_feature(unsigned long feature);
@@ -351,6 +406,16 @@ public:
 	virtual bool perform_subsystem_initialization() = 0;
 	bool create_virtqueue(unsigned int nr, unsigned queue_size);
 	uint16_t get_max_virtq_size(unsigned int nr);
+
+	void finalise_driver_init();
+	void set_failure();
+
+	irqstatus_t handle_irq();
+
+	void handle_vq_irq();
+
+	virtual void handle_used_buffer(const virtq_used_elem &elem, const virtq *vq)
+	{}
 };
 
 struct virtio_net_hdr
@@ -370,17 +435,27 @@ struct virtio_net_hdr
 	uint16_t csum_start; 
 	uint16_t csum_offset; 
 	uint16_t num_buffers; 
-};
+} __attribute__((packed));
 
 class network_vdev : public vdev
 {
 private:
 	void get_mac(cul::slice<uint8_t, 6>& mac_buf);
+	unique_ptr<netif> nif;
+	struct page *rx_pages;
+
+	static struct packetbuf_proto *get_packetbuf_proto(netif *n);
+	static int __sendpacket(const void *buffer, uint16_t size, netif *nif);
+	
+	int send_packet(const void *buffer, uint16_t size);
 public:
 	network_vdev(struct pci_device *d) : vdev(d) {}
-	~network_vdev() {}
+	~network_vdev();
 	
 	bool perform_subsystem_initialization() override;
+	bool setup_rx();
+
+	void handle_used_buffer(const virtq_used_elem &elem, const virtq *vq) override;
 };
 
 class gpu_vdev : public vdev

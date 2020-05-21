@@ -94,7 +94,7 @@ int __dma_add_range(uintptr_t virtual_buf, size_t size, size_t max_size,
 	return 0;
 }
 
-int dma_get_ranges(void *vbuf, size_t buf_size, size_t max_range,
+int dma_get_ranges(const void *vbuf, size_t buf_size, size_t max_range,
 	struct phys_ranges *ranges)
 {
 	uintptr_t buf = (uintptr_t) vbuf;
