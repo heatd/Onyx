@@ -521,6 +521,13 @@ irqstatus_t virtio_handle_irq(struct irq_context *context, void *cookie)
 	return vdv->handle_irq();
 }
 
+class t
+{
+public:
+	t() {printk("ctor\n");}
+	~t() {printk("dtor\n");}
+};
+
 int virtio_probe(struct device *_dev)
 {
 	struct pci_device *device = (struct pci_device *) _dev;
@@ -558,7 +565,7 @@ int virtio_probe(struct device *_dev)
 
 	assert(install_irq(pci_get_intn(device), virtio_handle_irq, _dev, IRQ_FLAG_REGULAR,
            virtio_device.get_data()) == 0);
-	
+
 	virtio_device.release();
 
 	return 0;

@@ -10,15 +10,19 @@
 
 #include <onyx/remove_extent.h>
 
+static constexpr unsigned char _R__refc_was_make_shared = (1 << 0);
+
 template <typename T>
 class refcount
 {
 private:
-	long ref;
+	unsigned long ref;
 	T *data;
+	unsigned char flags;
 public:
 	refcount() : ref(1), data(nullptr){}
-	refcount(T *d): ref(1), data(d){}
+	refcount(T *d) : ref(1), data(d){}
+	refcount(unsigned char flags) : ref(0), data{nullptr}, flags{flags}{}
 	~refcount()
 	{
 		if(data)
@@ -40,7 +44,11 @@ public:
 		/* 1 - 1 = 0! */
 		if(__sync_fetch_and_sub(&ref, 1) == 1)
 		{
-			delete data;
+			if(!(flags & _R__refc_was_make_shared)) [[unlikely]]
+				delete data;
+			else
+				data->~T();
+
 			data = nullptr;
 			/* Commit sudoku */
 			delete this;
@@ -51,6 +59,16 @@ public:
 	{
 		__sync_fetch_and_add(&ref, 1);
 	}
+
+	void __set_data(T *d)
+	{
+		data = d;
+	}
+
+	void __set_refs(unsigned long refs)
+	{
+		ref = refs;
+	}
 };
 
 template <typename T>
@@ -58,15 +76,17 @@ class shared_ptr
 {
 private:
 	refcount<T> *ref;
+	T *p;
 	using element_type = remove_extent_t<T>;
 public:
-	shared_ptr() : ref(nullptr) {}
+	shared_ptr() : ref(nullptr), p{nullptr} {}
 	shared_ptr(T *data)
 	{
 		if(data != nullptr)
 			ref = new refcount<T>(data);
 		else
 			ref = nullptr;
+		p = data;
 	}
 
 	refcount<T> *__get_refc() const
@@ -80,6 +100,7 @@ public:
 			ref->release();
 		r->refer();
 		ref = r;
+		p = r->get_data();
 	}
 
 	template <typename Type>
@@ -89,15 +110,17 @@ public:
 		if(refc)
 			refc->refer();
 		ref = refc;
+		p = refc->get_data();
 	}
 
 	void __reset()
 	{
 		ref = nullptr;
+		p = nullptr;
 	}
 
 	template <typename Type>
-	shared_ptr(shared_ptr<Type>&& ptr) : ref(ptr.ref)
+	shared_ptr(shared_ptr<Type>&& ptr) : ref(ptr.ref), p(ptr.get_data())
 	{
 		ptr.__reset();
 	}
@@ -109,9 +132,11 @@ public:
 		{
 			ref->release();
 			ref = nullptr;
+			p = nullptr;
 		}
 
 		ref = ptr.__get_refc();
+		p = ptr.get_data();
 		ptr.__reset();
 
 		return *this;
@@ -128,12 +153,14 @@ public:
 		{
 			ref->release();
 			ref = nullptr;
+			p = nullptr;
 		}
 
 		if(refc)
 		{
 			refc->refer();
 			ref = refc;
+			p = refc->get_data();
 		}
 	ret:
 		return *this;
@@ -171,18 +198,16 @@ public:
 
 	~shared_ptr(void)
 	{
-		/* Order this in order to be thread-safe */
 		auto r = ref;
 		ref = nullptr;
+		p = nullptr;
 
 		if(r) r->release();
 	}
 
 	T* get_data()
 	{
-		if(!ref)
-			return nullptr;
-		return ref->get_data();
+		return p;
 	}
 
 	T& operator*()
@@ -312,8 +337,9 @@ shared_ptr<T> make_shared(Args && ... args)
 	if(!buf)
 		return nullptr;
 
-	refcount<T> *refc = new (buf) refcount<T>();
+	refcount<T> *refc = new (buf) refcount<T>(_R__refc_was_make_shared);
 	T *data = new (buf + sizeof(refcount<T>)) T(args...);
+	refc->__set_data(data);
 
 	shared_ptr<T> p(nullptr);
 	p.__set_refc(refc);
