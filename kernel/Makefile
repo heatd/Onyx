@@ -16,15 +16,15 @@ LIBDIR?=$(EXEC_PREFIX)/usr/lib
 CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-strong \
 -Wno-unused-parameter -Wno-unused-function \
 -Werror -Wno-error=frame-address -Wno-address-of-packed-member -Wno-cast-function-type \
--Wno-error=invalid-offsetof -fno-sanitize=pointer-overflow -fno-pie
+-Wno-error=invalid-offsetof -fno-sanitize=pointer-overflow -fno-pie \
+-Wno-missing-field-initializers -Wno-format-truncation -Wstrict-aliasing
 
 # NOTE: I don't think pointer-overflow works with kernel pointers
 
 CPPFLAGS:=$(CPPFLAGS) -D__is_onyx_kernel -D_POSIX_C_SOURCE -D_BSD_SOURCE -Iinclude \
 -Iinclude/acpica -isystem ../libc/include -DKERNEL_VERSION='"$(KERNEL_VERSION)"' \
 -DKERNEL_BRANCH='"$(KERNEL_BRANCH)"' -DKERNEL_ARCH='"$(KERNEL_ARCH)"' -imacros \
-include/onyx/config.h -Wno-missing-field-initializers -Wno-format-truncation \
--Wstrict-aliasing
+include/onyx/config.h
 
 LDFLAGS:=$(LDFLAGS) -fkeep-inline-functions -no-pie -Wl,--build-id=none
 LIBS:=$(LIBS) -nostdlib -lk $(LIBGCC_PATH)
@@ -52,7 +52,8 @@ CLANG_TIDY_CHECKS:="performance*, modernize-pass-by-value, readability*, misc*, 
 		-readability-implicit-bool-conversion, -readability-braces-around-statements, \
 		-readability-else-after-return, -readability-isolate-declaration, \
 		-readability-magic-numbers, -misc-unused-parameters, \
-		-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling"
+		-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling, \
+		-readability-inconsistent-declaration-parameter-name -readability-qualified-auto"
 
 CXXFLAGS:=-fno-rtti -fno-exceptions -fcheck-new
 CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS) -D ACPI_LIBRARY -D ACPI_DEBUG_OUTPUT=1
@@ -67,7 +68,7 @@ CLANG_TIDY_CFLAGS:=$(filter-out -mnop-mcount -mrecord-mcount -mrecord-return \
 
 ifeq ($(RUN_CLANG_TIDY), 1)
 CLANG_TIDY:=-clang-tidy -checks=$(CLANG_TIDY_CHECKS)
-CLANG_TIDY_ARGS:=-- $(CLANG_TIDY_CFLAGS) $(CPPFLAGS) -D__onyx__ >> clang-tidy.out
+CLANG_TIDY_ARGS:=-- $(CLANG_TIDY_CFLAGS) $(CPPFLAGS) -D__onyx__ -U__linux__ -U_LINUX >> clang-tidy.out
 else
 CLANG_TIDY:=true
 CLANG_TIDY_ARGS:=

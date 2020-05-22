@@ -6,10 +6,11 @@
 /* File: acpica_port.c. It's here as the OS layer for ACPICA */
 
 #include <stdio.h>
-#include <acpi.h>
 #include <limits.h>
 #include <assert.h>
 
+#include <onyx/scheduler.h>
+#include <onyx/semaphore.h>
 #include <onyx/vm.h>
 #include <onyx/irq.h>
 #include <onyx/portio.h>
@@ -19,12 +20,9 @@
 #include <onyx/slab.h>
 #include <onyx/acpi.h>
 #include <onyx/cpu.h>
+#include <onyx/dpc.h>
 
 #include <pci/pci.h>
-
-void spinlock_lock(unsigned long*);
-void spinlock_unlock(unsigned long*);
-int printf(const char *, ...);
 
 ACPI_STATUS AcpiOsInitialize()
 {
@@ -70,41 +68,40 @@ void AcpiOsUnmapMemory(void *where, ACPI_SIZE Length)
 	size_t pages = Length / 4096;
 	if(Length % 4096)
 		pages++;
-	(void)where;
-	//Memory::Unmap(where, pages);
-	//Memory::ReleaseLockedPages(where);
+	(void) where;
 }
 
 ACPI_STATUS AcpiOsGetPhysicalAddress(void *LogicalAddress, ACPI_PHYSICAL_ADDRESS *PhysicalAddress)
 {
-	*PhysicalAddress = (ACPI_PHYSICAL_ADDRESS)virtual2phys(LogicalAddress);
+	*PhysicalAddress = (ACPI_PHYSICAL_ADDRESS) virtual2phys(LogicalAddress);
 	return AE_OK;
 }
 
-#include <onyx/mm/kasan.h>
-
 void *AcpiOsAllocate(ACPI_SIZE Size)
 {	
-	void *ptr = malloc(Size);
-	if(!ptr)
-		printf("Allocation failed with size %lu\n", Size);
-	return ptr;
+	return malloc(Size);
 }
 
 void AcpiOsFree(void *Memory)
 {
 	free(Memory);
 }
-// On the OSDev wiki it says it's never used, so I don't need to implement this right now(all memory should be readable anyway)
+
+/* On the OSDev wiki it says it's never used, so I don't need to
+ * implement this right now (all memory should be readable anyway)
+ */
 BOOLEAN AcpiOsReadable(void * Memory, ACPI_SIZE Length)
 {
-	return 1;
+	return true;
 }
-// On the OSDev wiki it says it's never used, so I don't need to implement this right now(all memory should be writable anyway)
+/* On the OSDev wiki it says it's never used, so I don't need to
+ * implement this right now (all memory should be writable anyway)
+ */
 BOOLEAN AcpiOsWritable(void * Memory, ACPI_SIZE Length)
 {
-	return 1;
+	return true;
 }
+
 ACPI_THREAD_ID AcpiOsGetThreadId()
 {
 	thread_t *thread = get_current_thread();
@@ -112,14 +109,28 @@ ACPI_THREAD_ID AcpiOsGetThreadId()
 		return 1;
 	return get_current_thread()->id;
 }
-ACPI_STATUS AcpiOsExecute(ACPI_EXECUTE_TYPE Type, ACPI_OSD_EXEC_CALLBACK Function, void * Context)
+
+ACPI_STATUS AcpiOsExecute(ACPI_EXECUTE_TYPE Type, ACPI_OSD_EXEC_CALLBACK Function, void *Context)
 {
-	printk("Hello");
-	thread_t *thread = NULL;
-	if(!(thread = sched_create_thread((thread_callback_t) Function, 1, Context)))
+	struct dpc_work w;
+	w.context = Context;
+	w.funcptr = Function;
+	w.next = NULL;
+
+	/* TODO: Something tells me these callbacks may sleep, and henceforth they're not
+	 * okay to use in dpc contexts, where latency is key.
+	 */
+
+	/* My really crappy fix that doesn't fix a lot right now is to set the priority to LOW */
+	if(dpc_schedule_work(&w, DPC_PRIORITY_LOW) < 0)
 		return AE_NO_MEMORY;
-	sched_start_thread(thread);
+
 	return AE_OK;
+}
+
+void AcpiOsWaitEventsComplete(void)
+{
+	/* TODO: This is impossible to implement right now */
 }
 
 void AcpiOsSleep(UINT64 Milliseconds)
@@ -131,16 +142,23 @@ void AcpiOsSleep(UINT64 Milliseconds)
 
 void AcpiOsStall(UINT32 Microseconds)
 {
-	uint64_t orig_us = get_microseconds();
+	hrtime_t orig_us = clocksource_get_time() / NS_PER_US;
 
-	while(get_microseconds() != orig_us + Microseconds)
+	while((clocksource_get_time() / NS_PER_US) - orig_us < Microseconds)
 		cpu_relax();
 }
 
+/* Do all these undefs to satisfy vscode, whose intellisense defines __linux__, etc */
+#undef AcpiOsCreateMutex
+#undef AcpiOsDeleteMutex
+#undef AcpiOsAcquireMutex
+#undef AcpiOsReleaseMutex
+
 ACPI_STATUS AcpiOsCreateMutex(ACPI_MUTEX *OutHandle)
 {
-	*OutHandle = AcpiOsAllocateZeroed(sizeof(ACPI_MUTEX));
+	*OutHandle = AcpiOsAllocateZeroed(sizeof(struct mutex));
 	if(*OutHandle == NULL)	return AE_NO_MEMORY;
+	mutex_init(*OutHandle);
 	return AE_OK;
 }
 
@@ -152,19 +170,18 @@ void AcpiOsDeleteMutex(ACPI_MUTEX Handle)
 // TODO: Implement Timeout
 ACPI_STATUS AcpiOsAcquireMutex(ACPI_MUTEX Handle, UINT16 Timeout)
 {
-	spinlock_lock((unsigned long*) Handle);
+	mutex_lock(Handle);
 	return AE_OK;
 }
 
 void AcpiOsReleaseMutex(ACPI_MUTEX Handle)
 {
-	spinlock_unlock((unsigned long*) Handle);
+	mutex_unlock(Handle);
 }
 
-// TODO: Implement Semaphores (should be pretty simple)
 ACPI_STATUS AcpiOsCreateSemaphore(UINT32 MaxUnits, UINT32 InitialUnits, ACPI_SEMAPHORE * OutHandle)
 {
-	*OutHandle = AcpiOsAllocateZeroed(sizeof(ACPI_MUTEX));
+	*OutHandle = AcpiOsAllocateZeroed(sizeof(struct semaphore));
 	if(*OutHandle == NULL) return AE_NO_MEMORY;
 	return AE_OK;
 }
@@ -175,37 +192,45 @@ ACPI_STATUS AcpiOsDeleteSemaphore(ACPI_SEMAPHORE Handle)
 	return AE_OK;
 }
 
+/* TODO: Same as above, Timeout. */
 ACPI_STATUS AcpiOsWaitSemaphore(ACPI_SEMAPHORE Handle, UINT32 Units, UINT16 Timeout)
 {
+	while(Units--)
+		sem_wait(Handle);
+
 	return AE_OK;
 }
 
 ACPI_STATUS AcpiOsSignalSemaphore(ACPI_SEMAPHORE Handle, UINT32 Units)
 {
+	while(Units--)
+		sem_signal(Handle);
 	return AE_OK;
 }
 
 ACPI_STATUS AcpiOsCreateLock(ACPI_SPINLOCK *OutHandle)
 {
-	*OutHandle = AcpiOsAllocateZeroed(sizeof(ACPI_SPINLOCK));
+	*OutHandle = AcpiOsAllocateZeroed(sizeof(struct spinlock));
 	if(*OutHandle == NULL) return AE_NO_MEMORY;
 	return AE_OK;
 }
 
-void AcpiOsDeleteLock(ACPI_HANDLE Handle)
+void AcpiOsDeleteLock(ACPI_SPINLOCK Handle)
 {
 	free(Handle);
 }
 
 ACPI_CPU_FLAGS AcpiOsAcquireLock(ACPI_SPINLOCK Handle)
 {
-	spinlock_lock((unsigned long*)Handle);
+	/* We don't need to return ACPI_CPU_FLAGS because it's kept in the struct spinlock itself */
+	spin_lock_irqsave(Handle);
 	return 0;
 }
 
 void AcpiOsReleaseLock(ACPI_SPINLOCK Handle, ACPI_CPU_FLAGS Flags)
 {
-	spinlock_unlock((unsigned long*)Handle);
+	(void) Flags;
+	spin_unlock_irqrestore(Handle);
 }
 
 ACPI_OSD_HANDLER ServiceRout;
@@ -242,7 +267,7 @@ ACPI_STATUS AcpiOsRemoveInterruptHandler(UINT32 InterruptNumber, ACPI_OSD_HANDLE
 	return AE_OK;
 }
 
-ACPI_STATUS AcpiOsReadMemory ( ACPI_PHYSICAL_ADDRESS Address, UINT64 *Value, UINT32 Width)
+ACPI_STATUS AcpiOsReadMemory(ACPI_PHYSICAL_ADDRESS Address, UINT64 *Value, UINT32 Width)
 {
 	void *ptr;
 	ptr = AcpiOsMapMemory(Address, 4096);
@@ -257,10 +282,10 @@ ACPI_STATUS AcpiOsReadMemory ( ACPI_PHYSICAL_ADDRESS Address, UINT64 *Value, UIN
 	return AE_OK;
 }
 
-ACPI_STATUS AcpiOsWriteMemory ( ACPI_PHYSICAL_ADDRESS Address, UINT64 Value, UINT32 Width)
+ACPI_STATUS AcpiOsWriteMemory(ACPI_PHYSICAL_ADDRESS Address, UINT64 Value, UINT32 Width)
 {
 	UINT64 *ptr;
-	ptr = (UINT64*)AcpiOsMapMemory(Address, 4096);
+	ptr = (UINT64*) AcpiOsMapMemory(Address, 4096);
 	if(Width == 8)
 		*ptr = Value & 0xFF;
 	else if(Width == 16)
@@ -272,7 +297,7 @@ ACPI_STATUS AcpiOsWriteMemory ( ACPI_PHYSICAL_ADDRESS Address, UINT64 Value, UIN
 	return AE_OK;
 }
 
-ACPI_STATUS AcpiOsReadPort (ACPI_IO_ADDRESS Address, UINT32 *Value, UINT32 Width)
+ACPI_STATUS AcpiOsReadPort(ACPI_IO_ADDRESS Address, UINT32 *Value, UINT32 Width)
 {
 	if(Width == 8)
 		*Value = inb(Address);
@@ -283,25 +308,25 @@ ACPI_STATUS AcpiOsReadPort (ACPI_IO_ADDRESS Address, UINT32 *Value, UINT32 Width
 	return AE_OK;
 }
 
-ACPI_STATUS AcpiOsWritePort (ACPI_IO_ADDRESS Address, UINT32 Value, UINT32 Width)
+ACPI_STATUS AcpiOsWritePort(ACPI_IO_ADDRESS Address, UINT32 Value, UINT32 Width)
 {
 	if(Width == 8)
-		outb(Address, (uint8_t)Value);
+		outb(Address, (uint8_t) Value);
 	else if(Width == 16)
-		outw(Address, (uint16_t)Value);
+		outw(Address, (uint16_t) Value);
 	else if(Width == 32)
 		outl(Address, Value);
 	return AE_OK;
 }
 
-ACPI_STATUS AcpiOsWritePciConfiguration (ACPI_PCI_ID *PciId, UINT32 Register, UINT64 Value, UINT32 Width)
+ACPI_STATUS AcpiOsWritePciConfiguration(ACPI_PCI_ID *PciId, UINT32 Register, UINT64 Value, UINT32 Width)
 {
 	if(Width == 8)
-		__pci_write_byte(PciId->Bus, PciId->Device, PciId->Function, Register, (uint8_t)Value);
+		__pci_write_byte(PciId->Bus, PciId->Device, PciId->Function, Register, (uint8_t) Value);
 	if(Width == 16)
-		__pci_write_word(PciId->Bus, PciId->Device, PciId->Function, Register, (uint16_t)Value);
+		__pci_write_word(PciId->Bus, PciId->Device, PciId->Function, Register, (uint16_t) Value);
 	if(Width == 32)
-		__pci_write_dword(PciId->Bus, PciId->Device, PciId->Function, Register, (uint32_t)Value);
+		__pci_write_dword(PciId->Bus, PciId->Device, PciId->Function, Register, (uint32_t) Value);
 	if(Width == 64)
 		__pci_write_qword(PciId->Bus, PciId->Device, PciId->Function, Register, Value);
 	return AE_OK;
@@ -334,18 +359,14 @@ ACPI_STATUS AcpiOsReadPciConfiguration(ACPI_PCI_ID *PciId, UINT32 Register, UINT
 	return AE_OK;
 }
 
-ACPI_STATUS
-AcpiOsPhysicalTableOverride (
-ACPI_TABLE_HEADER * ExistingTable,
-ACPI_PHYSICAL_ADDRESS *NewAddress,
-UINT32 * NewTableLength)
+ACPI_STATUS AcpiOsPhysicalTableOverride(ACPI_TABLE_HEADER *ExistingTable,
+                ACPI_PHYSICAL_ADDRESS *NewAddress, UINT32 *NewTableLength)
 {
 	*NewAddress = 0;
 	return AE_OK;
 }
 
-void AcpiOsPrintf (
-const char *Format, ...)
+void AcpiOsPrintf(const char *Format, ...)
 {
 	va_list params;
 	va_start(params, Format);
@@ -353,27 +374,16 @@ const char *Format, ...)
 	va_end(params);
 }
 
-void
-AcpiOsWaitEventsComplete (
-void)
-{
-	return;
-}
-
-ACPI_STATUS
-AcpiOsSignal (
-UINT32 Function,
-void *Info)
+ACPI_STATUS AcpiOsSignal(UINT32 Function, void *Info)
 {
 	panic("Acpi Signal called!");
 	return AE_OK;
 }
 
-UINT64
-AcpiOsGetTimer (
-void)
+UINT64 AcpiOsGetTimer(void)
 {
-	return get_tick_count();
+	/* Time is returned in 100ns units */
+	return clocksource_get_time() / 100;
 }
 
 ACPI_STATUS
@@ -382,25 +392,15 @@ AcpiOsTerminate()
 	return AE_OK;
 }
 
-int isprint(int ch)
-{
-	return 1;
-}
-
-void
-AcpiOsVprintf(const char *Fmt, va_list Args)
+void AcpiOsVprintf(const char *Fmt, va_list Args)
 {
 	vprintf(Fmt, Args);
 }
 
-ACPI_STATUS
-AcpiOsEnterSleep (
-    UINT8                   SleepState,
-    UINT32                  RegaValue,
-    UINT32                  RegbValue)
-    {
-	    return AE_OK;
-    }
+ACPI_STATUS AcpiOsEnterSleep(UINT8 SleepState, UINT32 RegaValue, UINT32 RegbValue)
+{
+    return AE_OK;
+}
 
 #if 0
 ACPI_STATUS

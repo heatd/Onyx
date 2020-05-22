@@ -37,15 +37,12 @@ fnv_hash_t ktracepoint::hash(unique_ptr<ktracepoint> &p)
 bool ktracepoint::find_call_addrs()
 {
 	mcount_call_addr = search_loc<mcount_loc_section>();
-	if(mcount_call_addr == search_bad_addr)
-		return false;
+	return !(mcount_call_addr == search_bad_addr);
 #if 0
 	return_call_addr = search_loc<return_loc_section>();
 	if(return_call_addr == search_bad_addr)
 		return false;
 #endif
-
-	return true;
 }
 
 bool append_tracepoint(unique_ptr<ktracepoint> &p)
@@ -142,9 +139,7 @@ void ktracepoint::log_entry(unsigned long ip, unsigned long caller)
 bool ktracepoint::allocate_buffer()
 {
 	ring_buffer = alloc_pages(ring_buffer_size >> PAGE_SHIFT, PAGE_ALLOC_CONTIGUOUS);
-	if(!ring_buffer)
-		return false;
-	return true;
+	return ring_buffer != nullptr;
 }
 
 void log_func_entry(unsigned long ip, unsigned long caller)

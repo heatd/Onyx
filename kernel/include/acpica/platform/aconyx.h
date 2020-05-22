@@ -24,9 +24,14 @@
 #undef ACPI_DISASSEMBLER
 
 struct mutex;
+struct semaphore;
+struct spinlock;
 
 #define ACPI_MUTEX_TYPE             ACPI_OSL_MUTEX
 #define ACPI_MUTEX                  struct mutex *
+#define ACPI_SPINLOCK 				struct spinlock*
+#define ACPI_SEMAPHORE              struct semaphore*
+
 #undef ACPI_USE_SYSTEM_CLIBRARY
 #undef ACPI_USE_STANDARD_HEADERS
 //#undef ACPI_USE_LOCAL_CACHE

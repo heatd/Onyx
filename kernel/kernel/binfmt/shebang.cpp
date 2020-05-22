@@ -124,7 +124,7 @@ void *shebang_load(struct binfmt_args *args)
 
 	char **old_kargs = args->argv;
 
-	bool argc_is_zero = args->argc == 0;
+	bool argc_is_zero = args->argc == nullptr;
 
 	/* Calculate the new argc */
 	int argc = *args->argc + (arg != nullptr ? 2 : 1);
