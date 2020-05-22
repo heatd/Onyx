@@ -259,9 +259,9 @@ public:
 	}
 
 	template <typename Type>
-	unique_ptr(unique_ptr<Type>&& ptr) : p(ptr.p)
+	unique_ptr(unique_ptr<Type>&& ptr) : p(ptr.release())
 	{
-		ptr.p = nullptr;
+
 	}
 
 	template <typename Type>

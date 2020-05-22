@@ -5,6 +5,7 @@
 */
 #include <stdio.h>
 #include "../virtio.hpp"
+#include "network.hpp"
 
 #include <onyx/slice.hpp>
 #include <onyx/page.h>
@@ -246,6 +247,11 @@ bool network_vdev::perform_subsystem_initialization()
 network_vdev::~network_vdev()
 {
 	if(rx_pages)  free_pages(rx_pages);
+}
+
+unique_ptr<vdev> create_network_device(pci_device *dev)
+{
+	return make_unique<network_vdev>(dev);
 }
 
 }

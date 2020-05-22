@@ -206,7 +206,7 @@ off_t sysfs_getdirent(struct dirent *buf, off_t off, struct file *_file)
 	if(!f)
 		return 0;
 
-	strncpy(buf->d_name, f->name, 256);
+	strlcpy(buf->d_name, f->name, 256);
 	buf->d_ino = f->inode;
 	buf->d_off = off;
 	buf->d_reclen = sizeof(struct dirent) - (256 - (strlen(buf->d_name) + 1));

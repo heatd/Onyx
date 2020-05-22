@@ -418,16 +418,6 @@ void kernel_multitasking(void *arg)
 	if(!root_partition)
 		panic("--root wasn't specified in the kernel arguments");
 
-	/* Note that we don't actually allocate an extra byte for the NULL terminator, since the partition number will
-	 become just that */
-	char *device_name = malloc(strlen(root_partition));
-	if(!device_name)
-		panic("Out of memory while allocating ´device_name´");
-
-	strcpy(device_name, root_partition);
-	/* Zero-terminate the string */
-	device_name[strlen(root_partition)-1] = '\0';
-
 	/* Pass the root partition to init */
 	char *args[] = {"", root_partition, NULL};
 	char *envp[] = {"PATH=/bin:/usr/bin:/sbin:", NULL};

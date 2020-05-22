@@ -12,8 +12,8 @@ EXEC_PREFIX?=$(PREFIX)
 INCLUDEDIR?=$(PREFIX)/usr/include
 LIBDIR?=$(EXEC_PREFIX)/usr/lib
 
-CFLAGS:=$(CFLAGS) -mtune=generic -Wno-error -fno-omit-frame-pointer -fno-pie
-LIBK_CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin
+CFLAGS:=$(CFLAGS) -mtune=generic -Wno-error -fno-omit-frame-pointer -fno-pie -fno-builtin
+LIBK_CFLAGS:=$(CFLAGS) -ffreestanding
 LIBK_CPPFLAGS:=$(CPPFLAGS) -D__is_onyx_kernel
 
 ARCHDIR:=arch/$(HOSTARCH)

@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2018 Pedro Falcato
+* Copyright (c) 2018-2020 Pedro Falcato
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
@@ -521,13 +521,6 @@ irqstatus_t virtio_handle_irq(struct irq_context *context, void *cookie)
 	return vdv->handle_irq();
 }
 
-class t
-{
-public:
-	t() {printk("ctor\n");}
-	~t() {printk("dtor\n");}
-};
-
 int virtio_probe(struct device *_dev)
 {
 	struct pci_device *device = (struct pci_device *) _dev;
@@ -550,12 +543,16 @@ int virtio_probe(struct device *_dev)
 
 	switch(device_subsystem)
 	{
+#ifdef CONFIG_VIRTIO_NET
 		case virtio::network_pci_subsys:
-			virtio_device = make_unique<virtio::network_vdev>(device);
+			virtio_device = virtio::create_network_device(device);
 			break;
+#endif
+#ifdef CONFIG_VIRTIO_GPU
 		case virtio::gpu_pci_subsys:
-			virtio_device = make_unique<virtio::gpu_vdev>(device);
+			virtio_device = virtio::create_gpu_device(device);
 			break;
+#endif
 		default:
 			return -1;
 	}

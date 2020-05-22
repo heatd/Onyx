@@ -166,7 +166,7 @@ ifeq ($(RUN_CLANG_TIDY), 1)
 	$(CLANG_TIDY) $< $(CLANG_TIDY_ARGS)
 endif
 
-	@$(CXX) -c $< -o $@ -std=c++17 $(CFLAGS) $(CPPFLAGS) $(CXXFLAGS)
+	@$(CXX) -c $< -o $@ -std=c++20 $(CFLAGS) $(CPPFLAGS) $(CXXFLAGS)
 
 $(ARCHDIR)/__vdso.o: $(ARCHDIR)/__vdso.c kernel.config
 	@echo [CC] $<

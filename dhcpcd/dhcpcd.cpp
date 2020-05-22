@@ -17,6 +17,7 @@
 #include <thread>
 #include <memory>
 #include <assert.h>
+#include <stdexcept>
 
 #include <sys/syscall.h>
 #include <sys/socket.h>
