@@ -90,7 +90,7 @@ void AcpiOsFree(void *Memory)
 /* On the OSDev wiki it says it's never used, so I don't need to
  * implement this right now (all memory should be readable anyway)
  */
-BOOLEAN AcpiOsReadable(void * Memory, ACPI_SIZE Length)
+BOOLEAN AcpiOsReadable(void *Memory, ACPI_SIZE Length)
 {
 	return true;
 }

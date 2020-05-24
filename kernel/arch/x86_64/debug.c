@@ -4,11 +4,14 @@
 * check LICENSE at the root directory for more information
 */
 
+#include <onyx/cpu.h>
+
 __attribute__((noreturn, cold))
 void halt()
 {
-	__asm__ __volatile__("cli \t\n hlt");
-	// If execution goes past this, I don't know what the hell our kernel is running on
-	for(;;);
+	DISABLE_INTERRUPTS();
+
+	while(true) __asm__ __volatile__("hlt");
+
 	__builtin_unreachable();
 }

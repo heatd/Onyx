@@ -25,6 +25,18 @@ typename remove_reference<T>::type move(T&& t)
 	return static_cast<typename remove_reference<T>::type&& >(t);
 }
 
+template<typename _Type>
+constexpr _Type&& forward(typename remove_reference<_Type>::type& t)
+{
+	return static_cast<_Type&&>(t);
+}
+
+template<typename _Type>
+constexpr _Type&& forward(typename remove_reference<_Type>::type&& t)
+{
+	return static_cast<_Type&&>(t);
+}
+
 template <typename T>
 void swap(T& a, T& b)
 {

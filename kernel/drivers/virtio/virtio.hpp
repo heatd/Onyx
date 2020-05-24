@@ -117,10 +117,10 @@ private:
 	void tear_down_bufs();
 public:
 	struct list_head buf_list_head;
-	unique_ptr<virtq> &vq;
+	const unique_ptr<virtq> &vq;
 	size_t nr_elems;
 
-	virtio_buf_list(unique_ptr<virtq> &v) : buf_list_head{}, vq(v), nr_elems{}
+	virtio_buf_list(const unique_ptr<virtq> &v) : buf_list_head{}, vq(v), nr_elems{}
 	{
 		INIT_LIST_HEAD(&buf_list_head);
 	}
@@ -379,6 +379,11 @@ public:
 
 	virtual void handle_used_buffer(const virtq_used_elem &elem, const virtq *vq)
 	{}
+
+	const unique_ptr<virtq>& get_vq(int nr)
+	{
+		return virtqueue_list[nr];
+	}
 };
 
 enum device_status : uint8_t

@@ -29,10 +29,10 @@ install: $(PROG) $(LIB)
 	$(CXX) -c $< $(CFLAGS) $(CPPFLAGS) -o $@
 
 $(PROG): $(OBJS)
-	$(CXX) $(OBJS) $(CFLAGS) -o $@ -ldrm
+	$(CXX) $(OBJS) $(CFLAGS) -o $@ -lphoton
 
 libwserver/lib.o: libwserver/lib.c 
 	$(CC) -c $< -march=sandybridge -fstack-protector-strong -std=c11 $(CPPFLAGS) -o $@ -fPIC -DPIC
 
 $(LIB): $(PROG) libwserver/lib.o
-	$(CC) -shared libwserver/lib.o -ldrm -o $@
+	$(CC) -shared libwserver/lib.o -lphoton -o $@

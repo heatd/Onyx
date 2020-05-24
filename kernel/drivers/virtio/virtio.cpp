@@ -17,6 +17,7 @@
 
 #include <pci/pci.h>
 #include "virtio.hpp"
+#include "virtio_utils.hpp"
 
 
 namespace virtio
@@ -416,6 +417,10 @@ uint16_t virtq_split::prepare_descriptors(virtio_buf_list& bufs)
 			virtio_buf *nbuf = container_of(l->next, virtio_buf, buf_list_memb);
 			desc->next = nbuf->index;
 		}
+		else
+		{
+			desc->next = 0;
+		}
 	}
 
 
@@ -556,12 +561,12 @@ int virtio_probe(struct device *_dev)
 		default:
 			return -1;
 	}
-	
-	virtio_device->perform_base_virtio_initialization();
-	virtio_device->perform_subsystem_initialization();
 
 	assert(install_irq(pci_get_intn(device), virtio_handle_irq, _dev, IRQ_FLAG_REGULAR,
            virtio_device.get_data()) == 0);
+
+	virtio_device->perform_base_virtio_initialization();
+	virtio_device->perform_subsystem_initialization();
 
 	virtio_device.release();
 

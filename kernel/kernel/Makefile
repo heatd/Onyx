@@ -7,7 +7,7 @@ kern-y+= acpi.o acpi_osl.o arc4random.o binfmt.o copy.o cppnew.o cpprt.o crc32.o
 
 kern-$(CONFIG_UBSAN)+= ubsan.o
 
-kern-y+= fonts/font.o drm/drm.o drm/software.o binfmt/elf.o binfmt/elf64.o binfmt/exec.o \
+kern-y+= fonts/font.o photon/photon.o photon/software.o binfmt/elf.o binfmt/elf64.o binfmt/exec.o \
 	libdict/rb_tree.o libdict/tree_common.o libdict/wb_tree.o time/tickless.o binfmt/shebang.o
 
 kern-$(CONFIG_KTRACE)+= ktrace.o

@@ -7,6 +7,10 @@
 #ifndef _CARBON_PAIR_HPP
 #define _CARBON_PAIR_HPP
 
+#include <stddef.h>
+
+#include <onyx/tuple_size.hpp>
+
 namespace cul
 {
 
@@ -41,6 +45,21 @@ public:
 	}
 };
 
+};
+
+namespace std
+{
+
+#if 0
+
+template <typename... _Args>
+struct tuple_size<cul::pair<_Args...>>
+{
+public:
+	static constexpr size_t value = 2;
+};
+
+#endif
 };
 
 #endif

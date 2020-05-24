@@ -20,7 +20,7 @@
 #include <window.h>
 #include <server.h>
 
-#include <drm/drm.h>
+#include <photon/photon.h>
 
 #include <sys/wait.h>
 #include <sys/mman.h>

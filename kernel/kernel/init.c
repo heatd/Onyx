@@ -69,7 +69,7 @@
 #include <onyx/crypt/sha256.h>
 #include <onyx/clock.h>
 #include <onyx/percpu.h>
-#include <onyx/drm.h>
+#include <onyx/photon.h>
 #include <onyx/ktrace.h>
 #include <onyx/exec.h>
 #include <onyx/init.h>

@@ -20,7 +20,7 @@ CPPFLAGS:=$(CPPFLAGS)
 OBJS:=\
 $(patsubst %.c,%.o,$(wildcard src/*.c))
 
-BINARIES=libdrm.a libdrm.so
+BINARIES=libphoton.a libphoton.so
 
 all: $(BINARIES)
 
@@ -42,11 +42,10 @@ all: $(BINARIES)
 clean:
 	rm -f $(BINARIES) $(OBJS) $(LIBK_OBJS) *.o */*.o */*/*.o
 
-libdrm.a: $(OBJS)
-	echo [AR] $(LIBC_OBJS)
+libphoton.a: $(OBJS)
 	$(AR) rcs $@ $(OBJS)
 
-libdrm.so: $(OBJS)
+libphoton.so: $(OBJS)
 	$(CC) -shared $(OBJS) -o $@
 
 install: install-headers install-libs

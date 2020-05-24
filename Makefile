@@ -1,5 +1,5 @@
 PROJECTS:=libc kernel
-SOURCE_PACKAGES:= libdrm libunwind libuuid init dhcpcd wserver strace devmgr singularity testsuite
+SOURCE_PACKAGES:= libphoton libunwind libuuid init dhcpcd wserver strace devmgr singularity testsuite
 
 ALL_MODULES:=$(PROJECTS) $(SOURCE_PACKAGES)
 
@@ -73,7 +73,7 @@ $(SOURCE_PACKAGES): musl libssp install-packages
 
 install-headers: build-prep
 	$(MAKE) -C kernel install-headers
-	$(MAKE) -C libdrm install-headers
+	$(MAKE) -C libphoton install-headers
 
 build-srcpackages: $(SOURCE_PACKAGES)
 
@@ -98,9 +98,9 @@ qemu: iso
 	-s -cdrom Onyx.iso -drive file=hdd.img,format=raw,media=disk -m 512M \
 	-monitor stdio -boot d -netdev user,id=u1 -device virtio-net,netdev=u1 \
 	-object filter-dump,id=f1,netdev=u1,file=net.pcap \
-	-enable-kvm -cpu host,migratable=on,+invtsc -smp 3 -vga virtio \
-	-device usb-ehci -device usb-mouse -machine q35 -trace virtio* \
-	-display gtk,gl=on -no-reboot -no-shutdown
+	-enable-kvm -cpu host,migratable=on,+invtsc -smp 3 -vga qxl \
+	-device usb-ehci -device usb-mouse -machine q35 \
+	-display gtk,gl=on
 
 intel-passthrough-qemu: iso
 	sudo qemu-system-x86_64 -vga qxl -display gtk,gl=on \

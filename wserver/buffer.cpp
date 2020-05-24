@@ -13,7 +13,7 @@
 
 #include <sys/mman.h>
 
-#include <drm/drm.h>
+#include <photon/photon.h>
 
 Buffer::Buffer(unsigned int width, unsigned int height, unsigned int bpp, std::weak_ptr<Display> display)
 	: height(height), width(width), bpp(bpp), display(display), mapping(nullptr)
@@ -38,20 +38,20 @@ void Buffer::create()
 	buffer_info.height = height;
 	buffer_info.width = width;
 
-	if(drm_create_dumb_buffer(&buffer_info) < 0)
-		throw std::runtime_error("drm_create_dumb_buffer failed");
+	if(photon_create_dumb_buffer(&buffer_info) < 0)
+		throw std::runtime_error("photon_create_dumb_buffer failed");
 }
 
 void Buffer::map()
 {
-	struct drm_create_buf_map_args args;
+	struct photon_create_buf_map_args args;
 	args.handle = buffer_info.handle;
 
-	if(drm_create_buffer_map(&args) < 0)
-		throw std::runtime_error("drm_create_buffer_map: Failure to"
+	if(photon_create_buffer_map(&args) < 0)
+		throw std::runtime_error("photon_create_buffer_map: Failure to"
 			"create buffer mapping");
 	
-	mapping = mmap(NULL, buffer_info.size, PROT_READ | PROT_WRITE, MAP_SHARED, drm_get_fd(),
+	mapping = mmap(NULL, buffer_info.size, PROT_READ | PROT_WRITE, MAP_SHARED, photon_get_fd(),
 		args.offset);
 	if(mapping == MAP_FAILED)
 		throw std::runtime_error("mmap failed");
@@ -73,7 +73,7 @@ Buffer::~Buffer()
 	/* TODO: Add drm buffer destruction once it's implemented */
 }
 
-drm_handle Buffer::get_handle()
+photon_handle Buffer::get_handle()
 {
 	return buffer_info.handle;
 }

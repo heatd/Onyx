@@ -207,9 +207,9 @@ void Server::handle_message(struct server_message *msg, struct sockaddr *addr, s
 			server_message_get_window_buffer_handle_reply r;
 			uint32_t name;
 			uint64_t cookie = random();
-			if(drm_set_name(buffer->get_handle(), cookie, &name) < 0)
-				perror("drm_set_name");
-			r.drm_name = name;
+			if(photon_set_name(buffer->get_handle(), cookie, &name) < 0)
+				perror("photon_set_name");
+			r.photon_name = name;
 			r.security_cookie = cookie;
 
 			reply.set_status_code(STATUS_OK);

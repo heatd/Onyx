@@ -68,12 +68,12 @@ int wserver_connect(void)
 
 	client_id = reply.reply.hrply.new_cid;
 
-	drm_initialize();
+	photon_initialize();
 
 	return 0;
 }
 
-drm_handle wserver_get_handle_for_window(WINDOW window);
+photon_handle wserver_get_handle_for_window(WINDOW window);
 
 /* Creates a window */
 WINDOW wserver_create_window(struct server_message_create_window *params)
@@ -104,7 +104,7 @@ WINDOW wserver_create_window(struct server_message_create_window *params)
 	return reply.reply.cwreply.window_handle;
 }
 
-drm_handle wserver_get_handle_for_window(WINDOW window)
+photon_handle wserver_get_handle_for_window(WINDOW window)
 {
 	struct server_message msg = {};
 	msg.client_id = client_id;
@@ -115,7 +115,7 @@ drm_handle wserver_get_handle_for_window(WINDOW window)
 	if(send(client_fd, &msg, sizeof(msg), 0) < 0)
 	{
 		perror("wserver_get_handle_for_window: send");
-		return DRM_INVALID_HANDLE;
+		return PHOTON_INVALID_HANDLE;
 	}
 
 	struct server_reply reply = {};
@@ -123,35 +123,35 @@ drm_handle wserver_get_handle_for_window(WINDOW window)
 	if(recv(client_fd, &reply, sizeof(reply), 0) < 0)
 	{
 		perror("wserver_get_handle_for_window: recv");
-		return DRM_INVALID_HANDLE;
+		return PHOTON_INVALID_HANDLE;
 	}
 
 	if(reply.status != STATUS_OK)
-		return DRM_INVALID_HANDLE;
+		return PHOTON_INVALID_HANDLE;
 
-	drm_handle h = drm_open_from_name(reply.reply.gwbhreply.drm_name,
+	photon_handle h = photon_open_from_name(reply.reply.gwbhreply.photon_name,
 		reply.reply.gwbhreply.security_cookie);
 	return h;
 }
 
-void *wserver_map_drm_buf(size_t size, size_t off, drm_handle handle)
+void *wserver_map_photon_buf(size_t size, size_t off, photon_handle handle)
 {
-	int drm_fd = drm_get_fd();
-	struct drm_create_buf_map_args args;
+	int photon_fd = photon_get_fd();
+	struct photon_create_buf_map_args args;
 	args.handle = handle;
 	
-	if(drm_create_buffer_map(&args) < 0)
+	if(photon_create_buffer_map(&args) < 0)
 		return NULL;
-	return mmap(NULL, size, PROT_WRITE | PROT_READ, MAP_SHARED, drm_fd, args.offset);
+	return mmap(NULL, size, PROT_WRITE | PROT_READ, MAP_SHARED, photon_fd, args.offset);
 }
 
 int wserver_window_map(struct wserver_window_map *map)
 {
-	drm_handle handle = wserver_get_handle_for_window(map->win);
+	photon_handle handle = wserver_get_handle_for_window(map->win);
 
-	if(handle == DRM_INVALID_HANDLE)
+	if(handle == PHOTON_INVALID_HANDLE)
 		return -1;
-	map->addr = wserver_map_drm_buf(map->size, 0, handle);
+	map->addr = wserver_map_photon_buf(map->size, 0, handle);
 	return map->addr != MAP_FAILED ? 0 : -1;
 }
 

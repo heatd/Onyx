@@ -9,7 +9,7 @@
 
 #include <memory>
 
-#include <drm/drm.h>
+#include <photon/photon.h>
 
 class Display;
 
@@ -17,7 +17,7 @@ class Buffer
 {
 private:
 	std::weak_ptr <Display> display;
-	struct drm_dumb_buffer_info buffer_info;
+	struct photon_dumb_buffer_info buffer_info;
 	unsigned int height;
 	unsigned int width;
 	unsigned int bpp;
@@ -31,7 +31,7 @@ public:
 	~Buffer();
 	void map();
 	void unmap();
-	drm_handle get_handle();
+	photon_handle get_handle();
 
 	inline unsigned int get_height()
 	{

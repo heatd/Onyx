@@ -12,12 +12,12 @@
 
 #include <buffer.h>
 
-#include <drm/drm.h>
+#include <photon/photon.h>
 
 class Display : public std::enable_shared_from_this<Display>
 {
 private:
-	struct drm_videomode videomode;
+	struct photon_videomode videomode;
 	std::vector<std::shared_ptr<Buffer> > buffer_list;
 	std::unique_ptr<Buffer> framebuffer_map;
 public:

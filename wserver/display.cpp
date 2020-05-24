@@ -16,7 +16,7 @@
 
 #include <display.h>
 
-#include <drm/drm.h>
+#include <photon/photon.h>
 
 #include <sys/ioctl.h>
 
@@ -70,12 +70,12 @@ void Display::GetOwnershipOfDisplay()
 
 Display::Display()
 {
-	if(drm_initialize() < 0)
-		throw std::runtime_error("drm_initialize: Failed to"
+	if(photon_initialize() < 0)
+		throw std::runtime_error("photon_initialize: Failed to"
 			"initialize");
 	
-	if(drm_get_videomode(&videomode) < 0)
-		throw std::runtime_error("drm_get_videomode: Failed to get"
+	if(photon_get_videomode(&videomode) < 0)
+		throw std::runtime_error("photon_get_videomode: Failed to get"
 			"video mode");
 
 	framebuffer_map = std::make_unique<Buffer>(videomode.height,
@@ -100,7 +100,7 @@ std::shared_ptr<Buffer> Display::create_buffer(unsigned int height, unsigned int
 
 void Display::swap()
 {
-	if(drm_swap_buffers(framebuffer_map->get_handle()) < 0)
+	if(photon_swap_buffers(framebuffer_map->get_handle()) < 0)
 		throw std::runtime_error("Display::swap: Failed to swap"
 		"framebuffers\n");
 }

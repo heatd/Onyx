@@ -14,20 +14,10 @@
 
 #include "../virtio.hpp"
 
+#include "../virtio_utils.hpp"
+
 namespace virtio
 {
-
-class gpu_vdev : public vdev
-{
-private:
-	static constexpr unsigned int controlq_nr = 0;
-	static constexpr unsigned int cursorq_nr = 1;
-public:
-	gpu_vdev(struct pci_device *d) : vdev(d) {}
-	~gpu_vdev() {}
-	
-	bool perform_subsystem_initialization() override;
-};
 
 enum virtio_gpu_ctrl_type
 {
@@ -85,15 +75,30 @@ struct virtio_gpu_rect
 	uint32_t height;
 };
 
-struct virtio_gpu_resp_display_info
+struct virtio_gpu_resp_display_info : virtio_gpu_ctrl_hdr
 {
-	virtio_gpu_ctrl_hdr hdr;
 	struct virtio_gpu_display_one
 	{
 		struct virtio_gpu_rect r;
 		uint32_t enabled;
 		uint32_t flags;
 	} pmodes[VIRTIO_GPU_MAX_SCANOUTS]; 
+};
+
+class gpu_vdev : public vdev
+{
+private:
+	static constexpr unsigned int controlq_nr = 0;
+	static constexpr unsigned int cursorq_nr = 1;
+	
+	using virtio_gpu_control_msg = virtio_control_msg<virtio_gpu_ctrl_hdr, uint8_t>;
+	virtio_control_msg_queue<virtio_gpu_ctrl_hdr, uint8_t> controlq_msgs;
+public:
+	gpu_vdev(struct pci_device *d) : vdev(d), controlq_msgs{this, controlq_nr} {}
+	~gpu_vdev() {}
+
+	bool perform_subsystem_initialization() override;
+	void handle_used_buffer(const virtq_used_elem &elem, const virtq *vq) override;
 };
 
 namespace gpu_regs

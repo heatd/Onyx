@@ -13,7 +13,7 @@
 extern "C" {
 #endif
 
-#include <drm/drm.h>
+#include <photon/photon.h>
 
 enum server_message_type
 {
@@ -83,7 +83,7 @@ struct server_message_create_window_reply
 
 struct server_message_get_window_buffer_handle_reply
 {
-	uint32_t drm_name;
+	uint32_t photon_name;
 	uint64_t security_cookie;
 };
 
@@ -117,7 +117,7 @@ int wserver_destroy_window(WINDOW window);
 int wserver_goodbye(void);
 
 /* Retrieves the DRM buffer handle for the window */
-drm_handle wserver_get_handle_for_window(WINDOW window);
+photon_handle wserver_get_handle_for_window(WINDOW window);
 
 struct wserver_window_map
 {
