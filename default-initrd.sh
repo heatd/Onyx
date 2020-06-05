@@ -12,13 +12,13 @@ mkdir -p $DESTDIR/sbin
 mkdir -p $DESTDIR/usr/lib/modules
 
 # TODO: Separate these default files into their own directory instead of being in root
-cp modules.load $DESTDIR/etc/modules.load
-cp hostname $DESTDIR/etc/hostname
-cp passwd $DESTDIR/etc/passwd
-cp fstab $DESTDIR/etc/fstab
-cp shadow $DESTDIR/etc/shadow
-cp profile $DESTDIR/etc/profile
-cp resolv.conf $DESTDIR/etc/resolv.conf
+cp defaults/modules.load $DESTDIR/etc/modules.load
+cp defaults/hostname $DESTDIR/etc/hostname
+cp defaults/passwd $DESTDIR/etc/passwd
+cp defaults/fstab $DESTDIR/etc/fstab
+cp defaults/shadow $DESTDIR/etc/shadow
+cp defaults/profile $DESTDIR/etc/profile
+cp defaults/resolv.conf $DESTDIR/etc/resolv.conf
 
 # TODO: use the cross-toolchain's strip
 cp $SYSTEM_ROOT/usr/bin/dash  $DESTDIR/usr/bin
