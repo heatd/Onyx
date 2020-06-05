@@ -148,7 +148,7 @@ public:
 		auto p = parent;
 		auto node = this;
 
-		while(p & p->left == node)
+		while(p && p->left == node)
 		{
 			node = p;
 			p = node->parent;
@@ -165,7 +165,7 @@ public:
 		auto p = parent;
 		auto node = this;
 
-		while(p & p->right == node)
+		while(p && p->right == node)
 		{
 			node = p;
 			p = node->parent;
