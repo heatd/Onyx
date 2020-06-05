@@ -1,5 +1,5 @@
 PROJECTS:=libc kernel
-SOURCE_PACKAGES:= libphoton libunwind libuuid init dhcpcd wserver strace devmgr singularity testsuite
+SOURCE_PACKAGES:= photon libunwind libuuid init dhcpcd wserver strace devmgr singularity testsuite
 
 ALL_MODULES:=$(PROJECTS) $(SOURCE_PACKAGES)
 
@@ -73,7 +73,7 @@ $(SOURCE_PACKAGES): musl libssp install-packages
 
 install-headers: build-prep
 	$(MAKE) -C kernel install-headers
-	$(MAKE) -C libphoton install-headers
+	$(MAKE) -C photon install-headers
 
 build-srcpackages: $(SOURCE_PACKAGES)
 
@@ -103,8 +103,9 @@ qemu: iso
 	-display gtk,gl=on
 
 intel-passthrough-qemu: iso
-	sudo qemu-system-x86_64 -vga qxl -display gtk,gl=on \
-	-device vfio-pci,sysfsdev=/sys/devices/pci0000\:00/0000\:00\:02.0/d507ce65-255a-4b85-88b5-0090410c0b5c,display=on,x-igd-opregion=on  \
+	sudo qemu-system-x86_64 -vga none -display gtk,gl=on \
+	-device vfio-pci,sysfsdev=/sys/devices/pci0000\:00/0000\:00\:02.0/d507ce65-255a-4b85-88b5-0090410c0b5c,display=on,x-igd-opregion=on,\
+	ramfb=on,driver=vfio-pci-nohotplug \
 	-enable-kvm -s -cdrom Onyx.iso \
 	-drive file=hdd.img,format=raw,media=disk -m 512M \
 	-boot d -netdev user,id=u1 -device e1000,netdev=u1 \

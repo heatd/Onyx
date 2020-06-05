@@ -70,11 +70,11 @@ void Display::GetOwnershipOfDisplay()
 
 Display::Display()
 {
-	if(photon_initialize() < 0)
+	//if(photon_initialize() < 0)
 		throw std::runtime_error("photon_initialize: Failed to"
 			"initialize");
 	
-	if(photon_get_videomode(&videomode) < 0)
+	//if(photon_get_videomode(&videomode) < 0)
 		throw std::runtime_error("photon_get_videomode: Failed to get"
 			"video mode");
 
@@ -100,7 +100,7 @@ std::shared_ptr<Buffer> Display::create_buffer(unsigned int height, unsigned int
 
 void Display::swap()
 {
-	if(photon_swap_buffers(framebuffer_map->get_handle()) < 0)
+	//if(photon_swap_buffers(framebuffer_map->get_handle()) < 0)
 		throw std::runtime_error("Display::swap: Failed to swap"
 		"framebuffers\n");
 }

@@ -1,0 +1,1 @@
+include src/libphoton/Makefile

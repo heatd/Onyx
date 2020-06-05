@@ -21,8 +21,7 @@
 #include <onyx/photon-cookies.h>
 #include <onyx/init.h>
 #include <onyx/scoped_lock.h>
-
-#include <photon/photon.h>
+#include <pci/pci.h>
 
 #define MPRINTF(...) printf("photon: " __VA_ARGS__)
 
@@ -375,6 +374,50 @@ unsigned int device::do_ioctl_close_handle(photon_close_handle_args *uargs)
 	return close_object(kargs.handle);
 }
 
+unsigned int device::do_ioctl_get_info(photon_info *uinfo)
+{
+	photon_info kinfo = {};
+	strlcpy(kinfo.driver_name, driver_name, __PHOTON_INFO_MAX);
+	strlcpy(kinfo.driver_version, driver_version, __PHOTON_INFO_MAX);
+	strlcpy(kinfo.photon_version, photon_version_string, __PHOTON_INFO_MAX);
+
+	return copy_to_user(uinfo, &kinfo, sizeof(kinfo));
+}
+
+unsigned int device::do_ioctl_get_bus_info_pci(photon_bus_info& info)
+{
+	pci_device *pdev = reinterpret_cast<pci_device *>(underlying_dev);
+
+	auto &pci_info = info.info.pci_info;
+
+	pci_info.addr.bus = pdev->bus;
+	pci_info.addr.device = pdev->device;
+	pci_info.addr.segment = pdev->segment;
+	pci_info.addr.function = pdev->function;
+	pci_info.device_id = pdev->deviceID;
+	pci_info.vendor_id = pdev->vendorID;
+	pci_info.subsystem_id = pci_get_subsys_id(pdev);
+
+	return 0;
+}
+
+unsigned int device::do_ioctl_get_bus_info(photon_bus_info *uinfo)
+{
+	unsigned int st = 0;
+	photon_bus_info info;
+	info.type = bus_type;
+
+	if(bus_type == PHOTON_BUS_PCI)
+		st = do_ioctl_get_bus_info_pci(info);
+	else
+		return -EINVAL;
+
+	if(st != 0)
+		return st;
+
+	return copy_to_user(uinfo, &info, sizeof(info));
+}
+
 unsigned int device::do_ioctls(int request, void *argp)
 {
 	switch(request)
@@ -397,6 +440,7 @@ unsigned int device::do_ioctls(int request, void *argp)
 
 			return 0;
 		}
+
 		case PHOTON_IOCTL_SWAP_BUFS:
 		{
 			photon_swap_buffer_args a;
@@ -405,6 +449,7 @@ unsigned int device::do_ioctls(int request, void *argp)
 			
 			return do_swap_buffers(a);
 		}
+
 		case PHOTON_IOCTL_CREATE_BUF_MAP:
 		{
 			photon_create_buf_map_args args;
@@ -431,11 +476,18 @@ unsigned int device::do_ioctls(int request, void *argp)
 		case PHOTON_IOCTL_CLOSE_OBJECT:
 			return do_ioctl_close_handle((photon_close_handle_args *) argp);
 
-		default:
-			return handle_platform_ioctls(request, argp);
-	}
+		case PHOTON_IOCTL_GET_INFO:
+			return do_ioctl_get_info((photon_info *) argp);
+		
+		case PHOTON_IOCTL_GET_BUS_INFO:
+			return do_ioctl_get_bus_info((photon_bus_info *) argp);
 
-	return -EINVAL;
+		case PHOTON_IOCTL_PLATFORM_MIN...PHOTON_IOCTL_PLATFORM_MAX:
+			return handle_platform_ioctls(request, argp);
+
+		default:
+			return -EINVAL;
+	}
 }
 
 unsigned int photon_ioctl(int request, void *argp, struct file *file)

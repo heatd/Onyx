@@ -19,7 +19,7 @@
 #include <onyx/atomic.hpp>
 #include <onyx/scoped_lock.h>
 
-#include <photon/photon.h>
+#include <photon/photon-types.h>
 
 
 namespace photon
@@ -148,12 +148,16 @@ public:
 	shared_ptr<mapping> get_mapping(off_t offset);
 };
 
+constexpr const char *photon_version_string = "Photon 1.0-dev";
+
 class device
 {
 protected:
-	const char *name;
 	::dev *dev;
-	const char *driver_info;
+	device *underlying_dev;
+	const char *driver_name;
+	const char *driver_version;
+	photon_bus_type bus_type;
 
 	spinlock named_list_lock;
 	list_head named_list;
@@ -171,7 +175,9 @@ protected:
 
 public:
 
-	device()
+	device(device *under_dev, photon_bus_type t, const char *driver_name,
+	       const char *driver_version) : underlying_dev(under_dev), driver_name(driver_name),
+                                         driver_version(driver_version), bus_type(t)
 	{
 		INIT_LIST_HEAD(&named_list);
 	}
@@ -199,6 +205,9 @@ public:
 	unsigned int do_ioctl_set_name(photon_set_name_args *uargs);
 	unsigned int do_ioctl_open_from_name(photon_open_from_name_args *uargs);
 	unsigned int do_ioctl_close_handle(photon_close_handle_args *uargs);
+	unsigned int do_ioctl_get_info(photon_info *uinfo);
+	unsigned int do_ioctl_get_bus_info(photon_bus_info *uinfo);
+	unsigned int do_ioctl_get_bus_info_pci(photon_bus_info& info);
 	unsigned int do_ioctls(int request, void *argp);
 	void *do_mmap(struct vm_region *area, struct file *f);
 

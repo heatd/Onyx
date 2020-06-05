@@ -9,6 +9,7 @@
 
 #include <stddef.h>
 
+#include <onyx/utility.hpp>
 #include <onyx/tuple_size.hpp>
 
 namespace cul

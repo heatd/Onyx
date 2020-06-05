@@ -38,7 +38,7 @@ void Buffer::create()
 	buffer_info.height = height;
 	buffer_info.width = width;
 
-	if(photon_create_dumb_buffer(&buffer_info) < 0)
+	//if(photon_create_dumb_buffer(&buffer_info) < 0)
 		throw std::runtime_error("photon_create_dumb_buffer failed");
 }
 
@@ -47,11 +47,11 @@ void Buffer::map()
 	struct photon_create_buf_map_args args;
 	args.handle = buffer_info.handle;
 
-	if(photon_create_buffer_map(&args) < 0)
+	//if(photon_create_buffer_map(&args) < 0)
 		throw std::runtime_error("photon_create_buffer_map: Failure to"
 			"create buffer mapping");
 	
-	mapping = mmap(NULL, buffer_info.size, PROT_READ | PROT_WRITE, MAP_SHARED, photon_get_fd(),
+	mapping = mmap(NULL, buffer_info.size, PROT_READ | PROT_WRITE, MAP_SHARED, /* photon_get_fd() */ -1,
 		args.offset);
 	if(mapping == MAP_FAILED)
 		throw std::runtime_error("mmap failed");

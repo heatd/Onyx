@@ -68,8 +68,6 @@ int wserver_connect(void)
 
 	client_id = reply.reply.hrply.new_cid;
 
-	photon_initialize();
-
 	return 0;
 }
 
@@ -128,14 +126,16 @@ photon_handle wserver_get_handle_for_window(WINDOW window)
 
 	if(reply.status != STATUS_OK)
 		return PHOTON_INVALID_HANDLE;
-
+#if 0
 	photon_handle h = photon_open_from_name(reply.reply.gwbhreply.photon_name,
 		reply.reply.gwbhreply.security_cookie);
-	return h;
+#endif
+	return PHOTON_INVALID_HANDLE;
 }
 
 void *wserver_map_photon_buf(size_t size, size_t off, photon_handle handle)
 {
+#if 0
 	int photon_fd = photon_get_fd();
 	struct photon_create_buf_map_args args;
 	args.handle = handle;
@@ -143,6 +143,8 @@ void *wserver_map_photon_buf(size_t size, size_t off, photon_handle handle)
 	if(photon_create_buffer_map(&args) < 0)
 		return NULL;
 	return mmap(NULL, size, PROT_WRITE | PROT_READ, MAP_SHARED, photon_fd, args.offset);
+#endif
+	return NULL;
 }
 
 int wserver_window_map(struct wserver_window_map *map)

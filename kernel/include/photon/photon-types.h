@@ -3,17 +3,13 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
-#ifndef PHOTON_H_INCLUDED
-#define PHOTON_H_INCLUDED
+#ifndef _PHOTON_PHOTON_TYPES_H
+#define _PHOTON_PHOTON_TYPES_H
 
 #include <stdint.h>
+#include <limits.h>
 
 #include <sys/types.h>
-
-#ifdef __cplusplus
-extern "C"
-{
-#endif
 
 typedef uint64_t photon_handle;
 
@@ -26,22 +22,56 @@ typedef uint64_t photon_handle;
 #define PHOTON_IOCTL_SET_NAME                     0x00000004
 #define PHOTON_IOCTL_OPEN_FROM_NAME               0x00000005
 #define PHOTON_IOCTL_CLOSE_OBJECT                 0x00000006
+#define PHOTON_IOCTL_GET_INFO                     0x00000007
+#define PHOTON_IOCTL_GET_BUS_INFO                 0x00000008
 
 /* Generic max defines an upper bound for generic ioctls.
  * Anything beyond that is a driver-specific ioctl that should be handled by the
  * gpu driver.
 */
 #define PHOTON_IOCTL_GENERIC_MAX		0x7fffffff
-
-#define __PHOTON_INFO_MAX 60
+#define PHOTON_IOCTL_PLATFORM_MIN       (int)(((unsigned int) PHOTON_IOCTL_GENERIC_MAX + 1))
+#define PHOTON_IOCTL_PLATFORM_MAX       ((int) 0xffffffff)
+#define __PHOTON_INFO_MAX 80
 
 struct photon_info
 {
 	char photon_version[__PHOTON_INFO_MAX];
-	char video_driver[__PHOTON_INFO_MAX];
-	char card[__PHOTON_INFO_MAX];
+	char driver_name[__PHOTON_INFO_MAX];
+	char driver_version[__PHOTON_INFO_MAX];
 };
 
+enum photon_bus_type
+{
+	PHOTON_BUS_PCI = 0,
+	PHOTON_BUS_PLATFORM
+};
+
+struct photon_pci_address
+{
+	uint16_t segment;
+	uint8_t bus;
+	uint8_t device;
+	uint8_t function;
+};
+
+struct photon_pci_info
+{
+	struct photon_pci_address addr;
+	uint16_t device_id;
+	uint16_t vendor_id;
+	uint16_t subsystem_id;
+};
+
+struct photon_bus_info
+{
+	enum photon_bus_type type;
+
+	union
+	{
+		struct photon_pci_info pci_info;
+	} info;
+};
 
 struct photon_dumb_buffer_info
 {
@@ -100,29 +130,5 @@ struct photon_close_handle_args
 {
 	photon_handle handle;
 };
-
-#ifdef __is_onyx_kernel
-#define PHOTON_KERNEL_CODE
-#endif
-
-#ifndef PHOTON_KERNEL_CODE
-
-int photon_initialize(void);
-int photon_modeset(unsigned int width, unsigned int height, unsigned int bpp);
-
-int photon_create_dumb_buffer(struct photon_dumb_buffer_info *info);
-int photon_swap_buffers(photon_handle buffer);
-int photon_get_videomode(struct photon_videomode *mode);
-int photon_get_fd(void);
-int photon_create_buffer_map(struct photon_create_buf_map_args *args);
-int photon_set_name(photon_handle handle, uint64_t security_cookie, uint32_t *name);
-photon_handle photon_open_from_name(uint32_t name, uint64_t security_cookie);
-int photon_close_handle(photon_handle handle);
-
-#endif
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif
