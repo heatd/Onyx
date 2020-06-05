@@ -18,7 +18,7 @@
 #include <onyx/wait_queue.h>
 #include <onyx/user.h>
 #include <onyx/fnv.h>
-#include <onyx/smart.h>
+#include <onyx/memory.hpp>
 #include <onyx/pagecache.h>
 
 /* This union describes the key used to match futexes with each other.

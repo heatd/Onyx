@@ -7,7 +7,7 @@
 
 #include <onyx/driver.h>
 #include <onyx/dev.h>
-#include <onyx/smart.h>
+#include <onyx/memory.hpp>
 #include <onyx/panic.h>
 
 #include "ehci.hpp"

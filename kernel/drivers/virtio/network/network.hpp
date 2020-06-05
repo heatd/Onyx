@@ -9,7 +9,7 @@
 
 #include <stdint.h>
 #include <onyx/slice.hpp>
-#include <onyx/smart.h>
+#include <onyx/memory.hpp>
 #include <onyx/net/network.h>
 
 #include "../virtio.hpp"

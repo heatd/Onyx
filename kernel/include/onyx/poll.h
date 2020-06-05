@@ -16,7 +16,7 @@
 #include <onyx/vector.h>
 #include <onyx/spinlock.h>
 #include <onyx/wait_queue.h>
-#include <onyx/smart.h>
+#include <onyx/memory.hpp>
 #include <onyx/file.h>
 
 class poll_file;

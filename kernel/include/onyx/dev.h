@@ -35,7 +35,7 @@ extern "C" {
 #endif
 
 unsigned int __allocate_dynamic_major(void);
-struct dev *dev_register(unsigned int major, unsigned int minor, char *name);
+struct dev *dev_register(unsigned int major, unsigned int minor, const char *name);
 void dev_unregister(dev_t dev);
 struct dev *dev_find(dev_t dev);
 

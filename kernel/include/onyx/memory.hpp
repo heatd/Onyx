@@ -3,12 +3,13 @@
 * This file is part of Carbon, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
-#ifndef _SMART_KERNEL_H
-#define _SMART_KERNEL_H
+#ifndef _ONYX_MEMORY_HPP
+#define _ONYX_MEMORY_HPP
 
 #include <assert.h>
 
 #include <onyx/remove_extent.h>
+#include <onyx/new.h>
 
 static constexpr unsigned char _R__refc_was_make_shared = (1 << 0);
 
@@ -78,15 +79,45 @@ private:
 	refcount<T> *ref;
 	T *p;
 	using element_type = remove_extent_t<T>;
+
+	void __reset()
+	{
+		ref = nullptr;
+		p = nullptr;
+	}
+
+	void assign_pointer_to_self(T *ptr)
+	{
+		if(ptr != nullptr) [[likely]]
+			ref = new refcount<T>(p);
+		else
+			ref = nullptr;
+		
+		if(ref == nullptr) [[unlikely]]
+			p = nullptr;
+		else
+			p = ptr;
+	}
+
 public:
 	shared_ptr() : ref(nullptr), p{nullptr} {}
 	shared_ptr(T *data)
 	{
-		if(data != nullptr)
-			ref = new refcount<T>(data);
-		else
-			ref = nullptr;
-		p = data;
+		assign_pointer_to_self(data);
+	}
+
+	void reset(T *ptr = nullptr)
+	{
+		if(ref) [[likely]]
+		{
+			ref->release();
+			__reset();
+		}
+
+		if(ptr) [[unlikely]]
+		{
+			assign_pointer_to_self(ptr);
+		}
 	}
 
 	refcount<T> *__get_refc() const
@@ -96,8 +127,7 @@ public:
 
 	void __set_refc(refcount<T> *r)
 	{
-		if(ref)
-			ref->release();
+		reset();
 		r->refer();
 		ref = r;
 		p = r->get_data();
@@ -113,12 +143,6 @@ public:
 		p = refc->get_data();
 	}
 
-	void __reset()
-	{
-		ref = nullptr;
-		p = nullptr;
-	}
-
 	template <typename Type>
 	shared_ptr(shared_ptr<Type>&& ptr) : ref(ptr.ref), p(ptr.get_data())
 	{
@@ -128,17 +152,21 @@ public:
 	template <typename Type>
 	shared_ptr& operator=(shared_ptr<Type>&& ptr)
 	{
+		auto refc = ptr.__get_refc();
+
+		if(ref == refc)
+			goto ret;
+
 		if(ref)
 		{
-			ref->release();
-			ref = nullptr;
-			p = nullptr;
+			reset();
 		}
 
 		ref = ptr.__get_refc();
 		p = ptr.get_data();
 		ptr.__reset();
 
+ret:
 		return *this;
 	}
 
@@ -149,11 +177,10 @@ public:
 
 		if(ref == refc)
 			goto ret;
+
 		if(ref)
 		{
-			ref->release();
-			ref = nullptr;
-			p = nullptr;
+			reset();
 		}
 
 		if(refc)
@@ -162,6 +189,7 @@ public:
 			ref = refc;
 			p = refc->get_data();
 		}
+
 	ret:
 		return *this;
 	}

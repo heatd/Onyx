@@ -41,7 +41,7 @@ unsigned int __allocate_dynamic_major(void)
 	return (unsigned int) -1;
 }
 
-struct dev *dev_register(unsigned int major, unsigned int minor, char *name)
+struct dev *dev_register(unsigned int major, unsigned int minor, const char *name)
 {
 	struct dev *c = NULL;
 	struct dev *dev = NULL;

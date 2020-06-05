@@ -9,7 +9,7 @@
 
 #include <onyx/wait_queue.h>
 #include <onyx/list.h>
-#include <onyx/smart.h>
+#include <onyx/memory.hpp>
 #include <onyx/tuple.hpp>
 #include <onyx/pair.hpp>
 #include <onyx/scoped_lock.h>

@@ -11,7 +11,7 @@
 #include <onyx/modules.h>
 #include <onyx/hashtable.hpp>
 #include <onyx/spinlock.h>
-#include <onyx/smart.h>
+#include <onyx/memory.hpp>
 #include <onyx/utility.hpp>
 #include <onyx/linker_section.hpp>
 #include <onyx/process.h>

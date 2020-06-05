@@ -40,7 +40,7 @@ struct ktrace_ftrace_data
 
 #ifdef __cplusplus
 
-#include <onyx/smart.h>
+#include <onyx/memory.hpp>
 #include <onyx/linker_section.hpp>
 
 namespace ktrace

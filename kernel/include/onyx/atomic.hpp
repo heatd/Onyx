@@ -37,6 +37,8 @@ protected:
 	type val;
 public:
 	constexpr atomic_primitive(type v) : val{v} {}
+	constexpr atomic_primitive() : val{} {}
+
 	type load(mem_order order = mem_order::seq_cst) const
 	{
 		return __atomic_load_n(&val, (int) order);
@@ -96,6 +98,30 @@ public:
 	{
 		return __atomic_fetch_xor(&val, v, (int) order);
 	}
+
+	bool compare_exchange_weak(type& expected, type desired, mem_order success, mem_order failure)
+	{
+		return __atomic_compare_exchange_n(&val, &expected, desired,
+		                               true, (int) success, (int) failure);
+	}
+
+	bool compare_exchange_weak(type& expected, type desired, mem_order order = mem_order::seq_cst)
+	{
+		return __atomic_compare_exchange_n(&val, &expected, desired,
+		                               true, (int) order, (int) order);
+	}
+
+	bool compare_exchange_strong(type& expected, type desired, mem_order success, mem_order failure)
+	{
+		return __atomic_compare_exchange_n(&val, &expected, desired,
+		                               false, (int) success, (int) failure);
+	}
+
+	bool compare_exchange_strong(type& expected, type desired, mem_order order = mem_order::seq_cst)
+	{
+		return __atomic_compare_exchange_n(&val, &expected, desired,
+		                               false, (int) order, (int) order);
+	}
 };
 
 template <typename type>
@@ -128,6 +154,8 @@ private:
 public:
 	constexpr atomic(type v) : conditional<is_integral_v<type>, atomic_primitive<type>,
 		      atomic_complex_type<type> >::type(v) {}
+	constexpr atomic() : conditional<is_integral_v<type>, atomic_primitive<type>,
+		      atomic_complex_type<type> >::type() {}
 
 	/* pre increment */
 	type operator++()

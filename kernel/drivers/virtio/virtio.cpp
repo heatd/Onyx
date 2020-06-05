@@ -9,7 +9,7 @@
 #include <onyx/driver.h>
 #include <onyx/dev.h>
 #include <onyx/acpi.h>
-#include <onyx/smart.h>
+#include <onyx/memory.hpp>
 #include <onyx/byteswap.h>
 #include <onyx/compiler.h>
 #include <onyx/dma.h>

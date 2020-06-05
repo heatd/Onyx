@@ -317,8 +317,8 @@ public:
 		mmap_seg = cul::move(seg);
 
 		auto pair = mmap_seg.setup_chunks();
-		free_chunk_head = pair.first_member;
-		free_chunk_tail = pair.second_member;
+		free_chunk_head = pair.first;
+		free_chunk_tail = pair.second;
 
 		append_segment(&mmap_seg);
 

@@ -81,6 +81,28 @@ public:
 		if(is_locked)
 			unlock();
 	}
+
+	scoped_lock(const scoped_lock& l) = delete;
+	scoped_lock& operator=(const scoped_lock& rhs) = delete;
+
+	scoped_lock(scoped_lock&& l)
+	{
+		internal_lock = l.internal_lock;
+		is_locked = l.is_locked;
+		l.is_locked = false;
+		l.internal_lock = nullptr;
+	}
+
+	scoped_lock& operator=(scoped_lock&& rhs)
+	{
+		internal_lock = rhs.internal_lock;
+		is_locked = rhs.is_locked;
+		rhs.is_locked = false;
+		rhs.internal_lock = nullptr;
+
+		return *this;
+	}
+
 };
 
 class Spinlock;

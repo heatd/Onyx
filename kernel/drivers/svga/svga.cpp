@@ -7,7 +7,7 @@
 #include "include/svga.h"
 #include <limits.h>
 
-#include <onyx/smart.h>
+#include <onyx/memory.hpp>
 #include <onyx/mutex.h>
 #include <onyx/vm.h>
 #include <onyx/module.h>

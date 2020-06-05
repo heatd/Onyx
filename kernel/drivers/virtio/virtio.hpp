@@ -13,7 +13,7 @@
 #include <onyx/portio.h>
 #include <onyx/array.h>
 #include <onyx/vector.h>
-#include <onyx/smart.h>
+#include <onyx/memory.hpp>
 #include <onyx/slice.hpp>
 #include <onyx/condvar.h>
 #include <onyx/bitmap.h>
