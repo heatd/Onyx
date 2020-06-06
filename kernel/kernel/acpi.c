@@ -22,7 +22,7 @@
 #include <onyx/cpu.h>
 #include <onyx/pnp.h>
 #include <onyx/dev.h>
-#include <onyx/apic.h>
+#include <onyx/x86/apic.h>
 #include <onyx/clock.h>
 #include <onyx/platform.h>
 #include <onyx/init.h>

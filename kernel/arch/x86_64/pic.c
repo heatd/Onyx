@@ -3,9 +3,9 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
-#include <onyx/pic.h>
+#include <onyx/x86/pic.h>
 #include <stdint.h>
-#include <onyx/portio.h>
+#include <onyx/port_io.h>
 
 static uint16_t __pic_get_irq_reg(int ocw3)
 {

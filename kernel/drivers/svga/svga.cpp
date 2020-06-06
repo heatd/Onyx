@@ -11,7 +11,7 @@
 #include <onyx/mutex.h>
 #include <onyx/vm.h>
 #include <onyx/module.h>
-#include <onyx/portio.h>
+#include <onyx/port_io.h>
 #include <onyx/video.h>
 #include <onyx/compiler.h>
 #include <onyx/scheduler.h>

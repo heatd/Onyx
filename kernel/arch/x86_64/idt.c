@@ -6,7 +6,7 @@
 #include <string.h>
 #include <assert.h>
 
-#include <onyx/idt.h>
+#include <onyx/x86/idt.h>
 #include <onyx/cpu.h>
 
 idt_ptr_t idt_ptr;

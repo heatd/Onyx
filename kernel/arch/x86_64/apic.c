@@ -8,17 +8,17 @@
 #include <assert.h>
 
 #include <onyx/acpi.h>
-#include <onyx/apic.h>
-#include <onyx/idt.h>
+#include <onyx/x86/apic.h>
+#include <onyx/x86/idt.h>
 #include <onyx/panic.h>
-#include <onyx/pit.h>
+#include <onyx/x86/pit.h>
 #include <onyx/irq.h>
 #include <onyx/task_switching.h>
 #include <onyx/acpi.h>
 #include <onyx/cpu.h>
 #include <onyx/registers.h>
 #include <onyx/log.h>
-#include <onyx/idt.h>
+#include <onyx/x86/idt.h>
 #include <onyx/process.h>
 #include <onyx/clock.h>
 #include <onyx/vm.h>

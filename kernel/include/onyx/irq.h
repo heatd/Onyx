@@ -13,7 +13,7 @@
 #include <onyx/registers.h>
 
 #ifdef __x86_64__
-#include <onyx/apic.h>
+#include <onyx/x86/apic.h>
 #include <onyx/x86/irq.h>
 #endif
 

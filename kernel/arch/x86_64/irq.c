@@ -17,8 +17,8 @@
 #include <onyx/irq.h>
 #include <onyx/platform.h>
 #include <onyx/cpu.h>
-#include <onyx/idt.h>
-#include <onyx/apic.h>
+#include <onyx/x86/idt.h>
+#include <onyx/x86/apic.h>
 #include <onyx/dpc.h>
 #include <onyx/softirq.h>
 

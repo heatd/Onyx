@@ -10,7 +10,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <onyx/portio.h>
+#include <onyx/port_io.h>
 #include <onyx/array.h>
 #include <onyx/vector.h>
 #include <onyx/memory.hpp>

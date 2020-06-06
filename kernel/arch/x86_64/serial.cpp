@@ -6,7 +6,7 @@
 
 #include <stdint.h>
 
-#include <onyx/portio.h>
+#include <onyx/port_io.h>
 #include <onyx/serial.h>
 #include <onyx/tty.h>
 #include <onyx/irq.h>

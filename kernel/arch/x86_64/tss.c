@@ -11,7 +11,7 @@
 #include <onyx/cpu.h>
 #include <onyx/compiler.h>
 #include <onyx/panic.h>
-#include <onyx/gdt.h>
+#include <onyx/x86/gdt.h>
 #include <onyx/init.h>
 
 extern void tss_flush();

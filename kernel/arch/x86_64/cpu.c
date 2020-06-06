@@ -32,14 +32,14 @@ USES_FANCY_START
 USES_FANCY_END
 #include <onyx/log.h>
 #include <onyx/cpu.h>
-#include <onyx/gdt.h>
+#include <onyx/x86/gdt.h>
 #include <onyx/panic.h>
-#include <onyx/apic.h>
-#include <onyx/pic.h>
+#include <onyx/x86/apic.h>
+#include <onyx/x86/pic.h>
 #include <onyx/acpi.h>
 #include <onyx/spinlock.h>
 #include <onyx/registers.h>
-#include <onyx/avx.h>
+#include <onyx/x86/avx.h>
 #include <onyx/irq.h>
 #include <onyx/fpu.h>
 #include <onyx/percpu.h>
@@ -272,7 +272,7 @@ void x86_init_percpu(void)
 	/* Set up the standard control registers to set an equal playing field for every CPU */
 	x86_setup_standard_control_registers();
 	
-	/* Do floating point initialization now*/
+	/* Do floating point initialization now */
 	fpu_init();
 	avx_init();
 	

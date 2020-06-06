@@ -28,7 +28,7 @@
 #include <bits/ioctl.h>
 
 #include <onyx/task_switching.h>
-#include <onyx/portio.h>
+#include <onyx/port_io.h>
 #include <onyx/tty.h>
 #include <onyx/framebuffer.h>
 #include <onyx/mutex.h>
@@ -251,8 +251,7 @@ unsigned int tty_ioctl(int request, void *argp, struct file *dev)
 			return 0;
 		case TIOCGWINSZ:
 		{
-			tty->ioctl(request, argp, tty);
-			return 0;
+			return tty->ioctl(request, argp, tty);
 		}
 		case TIOCSWINSZ:
 		{

@@ -8,7 +8,7 @@
 #include <assert.h>
 
 #include <onyx/driver.h>
-#include <onyx/portio.h>
+#include <onyx/port_io.h>
 #include <onyx/irq.h>
 #include <onyx/pic.h>
 #include <onyx/log.h>

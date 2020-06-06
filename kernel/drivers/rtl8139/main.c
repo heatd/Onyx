@@ -13,7 +13,7 @@
 
 #include <onyx/log.h>
 #include <onyx/irq.h>
-#include <onyx/portio.h>
+#include <onyx/port_io.h>
 #include <onyx/module.h>
 #include <onyx/scheduler.h>
 #include <onyx/page.h>

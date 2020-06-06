@@ -11,7 +11,7 @@
 #include <assert.h>
 
 #include <onyx/platform.h>
-#include <onyx/idt.h>
+#include <onyx/x86/idt.h>
 #include <onyx/page.h>
 #include <onyx/acpi.h>
 #include <onyx/x86/platform_info.h>

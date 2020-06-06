@@ -17,10 +17,9 @@
 #include <onyx/panic.h>
 #include <onyx/tss.h>
 #include <onyx/process.h>
-#include <onyx/idt.h>
 #include <onyx/elf.h>
 #include <onyx/fpu.h>
-#include <onyx/apic.h>
+#include <onyx/x86/apic.h>
 #include <onyx/worker.h>
 #include <onyx/cpu.h>
 #include <onyx/syscall.h>
@@ -159,12 +158,12 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs)
 
 	if(is_user)
 	{
-		posix_memalign((void**) &new_thread->fpu_area, FPU_AREA_ALIGNMENT, FPU_AREA_SIZE);
+		posix_memalign((void**) &new_thread->fpu_area, fpu_get_save_alignment(), fpu_get_save_size());
 	
 		if(!new_thread->fpu_area)
 			goto error;
 
-		memset(new_thread->fpu_area, 0, FPU_AREA_SIZE);
+		memset(new_thread->fpu_area, 0, fpu_get_save_size());
 	
 		setup_fpu_area(new_thread->fpu_area);
 

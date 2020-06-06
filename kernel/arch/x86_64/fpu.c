@@ -13,12 +13,13 @@ USES_FANCY_END
 #include <string.h>
 
 #include <onyx/fpu.h>
-#include <onyx/avx.h>
+#include <onyx/x86/avx.h>
 #include <onyx/x86/control_regs.h>
 
 #include <sys/user.h>
 
 bool avx_supported = false;
+
 USES_FANCY_START
 
 void do_xsave(void *address, long xcr0)
@@ -47,6 +48,23 @@ void do_ldmxcsr(unsigned int a)
 }
 
 USES_FANCY_END
+
+#define FXSAVE_AREA_SIZE         512
+#define FXSAVE_AREA_ALIGNMENT    16
+
+/* We're using these values by default. However, they may be overwritten by xsave code. */
+size_t fpu_area_size = FXSAVE_AREA_SIZE;
+size_t fpu_area_alignment = FXSAVE_AREA_ALIGNMENT;
+
+size_t fpu_get_save_size(void)
+{
+	return fpu_area_size;
+}
+
+size_t fpu_get_save_alignment(void)
+{
+	return fpu_area_alignment;
+}
 
 void save_fpu(void *address)
 {

@@ -4,7 +4,7 @@
 * check LICENSE at the root directory for more information
 */
 #include <stdio.h>
-#include <onyx/portio.h>
+#include <onyx/port_io.h>
 
 #include <onyx/input/keys.h>
 #include <onyx/input/event.h>

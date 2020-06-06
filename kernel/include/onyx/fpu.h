@@ -11,9 +11,6 @@
 #include <sys/user.h>
 #ifdef __x86_64__
 
-#define FPU_AREA_ALIGNMENT 	64
-#define FPU_AREA_SIZE		2048
-
 extern bool avx_supported;
 
 #else
@@ -29,6 +26,8 @@ void save_fpu(void *address);
 void restore_fpu(void *address);
 void fpu_ptrace_getfpregs(void *fpregs, struct user_fpregs_struct *regs);
 void fpu_init(void);
+size_t fpu_get_save_size(void);
+size_t fpu_get_save_alignment(void);
 
 #ifdef __cplusplus
 }

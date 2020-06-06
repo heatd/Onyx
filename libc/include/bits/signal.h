@@ -46,14 +46,7 @@ typedef struct _fpstate {
 	} _xmm[16];
 	unsigned padding[24];
 } *fpregset_t;
-struct sigcontext {
-	unsigned long r8, r9, r10, r11, r12, r13, r14, r15;
-	unsigned long rdi, rsi, rbp, rbx, rdx, rax, rcx, rsp, rip, eflags;
-	unsigned short cs, gs, fs, __pad0;
-	unsigned long err, trapno, oldmask, cr2;
-	struct _fpstate *fpstate;
-	unsigned long __reserved1[8];
-};
+
 typedef struct {
 	gregset_t gregs;
 	fpregset_t fpregs;

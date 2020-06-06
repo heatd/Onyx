@@ -281,7 +281,7 @@ int ioctl_vfs(int request, char *argp, struct file *this)
 {
 	if(this->f_ino->i_fops->ioctl != NULL)
 		return this->f_ino->i_fops->ioctl(request, (void*) argp, this);
-	return -ENOSYS;
+	return -ENOTTY;
 }
 
 void close_vfs(struct inode *this)
@@ -718,7 +718,7 @@ int getdents_vfs(unsigned int count, putdir_t putdir,
 			return errno = -of, -1;
 
 		/* Put the dirent in the user-space buffer */
-		unsigned int written = putdir(&buf, dirp, count);
+		unsigned int written = putdir(&buf, dirp, count - pos);
 		/* Error, most likely out of buffer space */
 		if(written == (unsigned int) -1)
 		{

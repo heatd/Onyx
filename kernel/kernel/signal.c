@@ -312,7 +312,6 @@ void deliver_signal(int signum, struct sigpending *pending, struct registers *re
 
 	/* TODO: Handle SA_RESTART */
 	/* TODO: Handle SA_NOCLDWAIT */
-	/* TODO: Handle SA_ONSTACK */
 	/* TODO: Handle SA_NOCLDSTOP */
 
 	if(handler != SIG_DFL)
@@ -835,6 +834,7 @@ int sys_pause(void)
 void signal_context_init(struct thread *new_thread)
 {
 	INIT_LIST_HEAD(&new_thread->sinfo.pending_head);
+	new_thread->sinfo.altstack.ss_flags = SS_DISABLE;
 }
 
 #define TGKILL_CHECK_PID			(1 << 0)
@@ -967,6 +967,7 @@ int sys_rt_tgsigqueueinfo(pid_t pid, pid_t tid, int sig, siginfo_t *uinfo)
 
 void signal_do_execve(struct process *proc)
 {
+	/* Clear the non-ignored signal disposition */
 	for(int i = 0; i < NSIG; i++)
 	{
 		struct sigaction *sa = &proc->sigtable[i];
@@ -977,6 +978,12 @@ void signal_do_execve(struct process *proc)
 		memset(&sa->sa_mask, 0, sizeof(sa->sa_mask));
 		sa->sa_restorer = NULL;
 	}
+
+	/* Clear the altstack */
+	struct thread *t = get_current_thread();
+	
+	memset(&t->sinfo.altstack, 0, sizeof(t->sinfo.altstack));
+	t->sinfo.altstack.ss_flags = SS_DISABLE;
 }
 
 #define CURRENT_SIGSETLEN				8
@@ -1077,5 +1084,75 @@ int sys_rt_sigpending(sigset_t *uset, size_t sigsetlen)
 	if(copy_to_user(uset, &set, sizeof(set)) < 0)
 		return -EFAULT;
 	
+	return 0;
+}
+
+bool executing_in_altstack(const struct syscall_frame *frm, const stack_t *stack)
+{
+	/* TODO: This is arch-dependent and we'd probably be better off wrapping this access
+	 * with a arch-dependent macro.
+	 */
+	/* TODO: This depends on whether the stack grows downwards or upwards. This logic covers the first case. */
+	unsigned long sp = frm->user_rsp;
+	unsigned long alt_sp = (unsigned long) stack->ss_sp;
+	unsigned long alt_stack_limit = alt_sp + stack->ss_size;
+	return sp >= alt_sp && sp < alt_stack_limit;
+}
+
+static int alt_stack_sp_flags(const struct syscall_frame *frame, const stack_t *stack)
+{
+	return executing_in_altstack(frame, stack) ? SS_ONSTACK : 0;
+}
+
+#define VALID_SIGALTSTACK_FLAGS				(SS_AUTODISARM | SS_DISABLE)
+
+int sys_sigaltstack(const stack_t *new_stack, stack_t *old_stack, const struct syscall_frame *frame)
+{
+	struct thread *current = get_current_thread();
+	struct signal_info *sinfo = &current->sinfo;
+
+	if(old_stack)
+	{
+		stack_t kold = {};
+		kold.ss_sp = sinfo->altstack.ss_sp;
+		kold.ss_size = sinfo->altstack.ss_size;
+		kold.ss_flags = alt_stack_sp_flags(frame, &sinfo->altstack) | sinfo->altstack.ss_flags;
+
+		if(copy_to_user(old_stack, &kold, sizeof(kold)) < 0)
+			return -EFAULT;
+	}
+
+	if(new_stack)
+	{
+		stack_t stk;
+		if(copy_from_user(&stk, new_stack, sizeof(stk)) < 0)
+			return -EFAULT;
+		
+		if(stk.ss_flags & ~VALID_SIGALTSTACK_FLAGS)
+			return -EINVAL;
+
+		if(executing_in_altstack(frame, &sinfo->altstack))
+			return -EPERM;
+		
+		stack_t *s = &sinfo->altstack;
+
+		if(stk.ss_flags & SS_DISABLE)
+		{
+			/* We're disabling, zero out size and sp, and set the flag properly. */
+			s->ss_flags = SS_DISABLE;
+			s->ss_size = 0;
+			s->ss_sp = NULL;
+		}
+		else
+		{
+			if(stk.ss_size < MINSIGSTKSZ)
+				return -ENOMEM;
+
+			s->ss_sp = stk.ss_sp;
+			s->ss_size = stk.ss_size;
+			s->ss_flags = stk.ss_flags;
+		}
+	}
+
 	return 0;
 }

@@ -9,8 +9,8 @@
 #include <assert.h>
 
 #include <onyx/irq.h>
-#include <onyx/portio.h>
-#include <onyx/pit.h>
+#include <onyx/port_io.h>
+#include <onyx/x86/pit.h>
 #include <onyx/pic.h>
 #include <onyx/compiler.h>
 #include <onyx/dev.h>

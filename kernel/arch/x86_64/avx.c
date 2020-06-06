@@ -7,7 +7,7 @@
 #include <cpuid.h>
 #include <stdio.h>
 
-#include <onyx/avx.h>
+#include <onyx/x86/avx.h>
 #include <onyx/fpu.h>
 #include <onyx/cpu.h>
 
@@ -25,6 +25,9 @@ static inline unsigned long xgetbv(unsigned long r)
 	return ret;
 }
 
+extern size_t fpu_area_size;
+extern size_t fpu_area_alignment;
+
 void avx_init(void)
 {
 	if(x86_has_cap(X86_FEATURE_XSAVE))
@@ -34,12 +37,22 @@ void avx_init(void)
 
 	if(x86_has_cap(X86_FEATURE_AVX) && x86_has_cap(X86_FEATURE_XSAVE))
 	{
-		avx_supported = true;
 		/* If it's supported, set the proper xcr0 bits */
 		int64_t xcr0 = 0;
 
 		xcr0 |= AVX_XCR0_AVX | AVX_XCR0_FPU | AVX_XCR0_SSE;
 
 		xsetbv(0, xcr0);
+
+		uint32_t eax, ebx, ecx, edx;
+
+		ecx = 0;
+		if(!__get_cpuid_count(CPUID_XSTATE, 0, &eax, &ebx, &ecx, &edx))
+			return;
+		
+		fpu_area_size = ebx;
+		fpu_area_alignment = AVX_SAVE_ALIGNMENT;
+
+		avx_supported = true;
 	}
 }

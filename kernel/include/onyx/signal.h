@@ -37,6 +37,11 @@ struct signal_info
 
 	/* Symbolizes if a signal is pending or not */
 	bool signal_pending;
+
+	/* No need for a lock here since any possible changes
+	 * to this variable happen in kernel mode, in this exact thread.
+	 */
+	stack_t altstack;
 };
 
 #define SIGNAL_GROUP_STOP_PENDING               (1 << 0)

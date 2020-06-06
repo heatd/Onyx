@@ -25,6 +25,10 @@ long do_syscall64(struct syscall_frame *frame)
 	if(frame->rax == SYS_fork || frame->rax == SYS_rt_sigreturn)
 		frame->rdi = (unsigned long) frame;
 
+	/* sigaltstack's implementation requires the syscall frame as the 3rd argument */
+	if(frame->rax == SYS_sigaltstack)
+		frame->rdx = (unsigned long) frame;
+
 	long syscall_nr = frame->rax;
 	long ret = 0;
 

@@ -1,24 +1,21 @@
 /*
-* Copyright (c) 2016, 2017 Pedro Falcato
+* Copyright (c) 2016-2020 Pedro Falcato
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
-#ifndef _IDT_H
-#define _IDT_H
+#ifndef _ONYX_X86_IDT_H
+#define _ONYX_X86_IDT_H
+
 #include <stdlib.h>
 #include <stdint.h>
 
-#if defined (__x86_64__)
-struct idt_ptr
+typedef struct idt_ptr
 {
 	uint16_t limit;
 	uint64_t base;
-}__attribute__((packed));
-#endif
+} __attribute__((packed)) idt_ptr_t;
 
-typedef struct idt_ptr idt_ptr_t;
-#if defined (__x86_64__)
-struct IDT_entry
+typedef struct idt_entry
 {
 	uint16_t offset_low;
 	uint16_t selector;
@@ -27,22 +24,21 @@ struct IDT_entry
 	uint16_t offset_high;
 	uint32_t offset_top;
 	uint32_t res;
-}__attribute__((packed));
-#endif
-typedef struct IDT_entry idt_entry_t;
+} __attribute__((packed)) idt_entry_t;
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 void idt_create_descriptor(uint8_t entry, uint64_t offset, uint16_t selector, uint8_t flags);
 void idt_set_system_gate(uint8_t entry, uint64_t offset, uint16_t selector, uint8_t flags);
-void idt_load();
-void idt_init();
+void idt_load(void);
+void idt_init(void);
 void x86_reserve_vector(int vector, void (*handler)());
 int x86_allocate_vector(void (*handler)());
 int x86_allocate_vectors(int nr);
-#ifdef __cplusplus
-}
-#endif
+
 extern void isr0();
 extern void isr1();
 extern void isr2();
@@ -101,4 +97,9 @@ extern void irq22();
 extern void irq23();
 extern void syscall_ENTRY64_int();
 extern void apic_spurious_irq();
-#endif /* _IDT_H */
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

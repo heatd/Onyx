@@ -5,7 +5,7 @@
 */
 #include <onyx/acpi.h>
 #include <onyx/vector.h>
-#include <onyx/apic.h>
+#include <onyx/x86/apic.h>
 #include <onyx/smp.h>
 
 extern struct smp_header smpboot_header;

@@ -4,7 +4,7 @@
 * check LICENSE at the root directory for more information
 */
 #include <onyx/irq.h>
-#include <onyx/portio.h>
+#include <onyx/port_io.h>
 #include <onyx/panic.h>
 #include <onyx/acpi.h>
 #include <onyx/log.h>

@@ -22,11 +22,10 @@
 #include <onyx/slab.h>
 #include <onyx/vm.h>
 #include <onyx/paging.h>
-#include <onyx/idt.h>
+#include <onyx/x86/idt.h>
 #include <onyx/tty.h>
 #include <onyx/panic.h>
 #include <onyx/cpu.h>
-#include <onyx/pit.h>
 #include <onyx/vfs.h>
 #include <onyx/initrd.h>
 #include <onyx/task_switching.h>

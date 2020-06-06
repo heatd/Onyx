@@ -10,7 +10,7 @@
 #include <acpi.h>
 
 #include <onyx/power_management.h>
-#include <onyx/portio.h>
+#include <onyx/port_io.h>
 #include <onyx/acpi.h>
 #include <onyx/panic.h>
 #include <onyx/dev.h>

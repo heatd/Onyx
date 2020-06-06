@@ -3,8 +3,8 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
-#ifndef _KERNEL_GDT_H
-#define _KERNEL_GDT_H
+#ifndef _ONYX_X86_GDT_H
+#define _ONYX_X86_GDT_H
 
 #include <stdint.h>
 

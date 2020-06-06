@@ -17,7 +17,7 @@
 #define VBOX_DEBUG
 
 #ifdef VBOX_DEBUG
-#include <onyx/portio.h>
+#include <onyx/port_io.h>
 #endif
 
 static char _log_buf[LOG_BUF_SIZE];

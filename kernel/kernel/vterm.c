@@ -947,11 +947,11 @@ unsigned int vterm_ioctl_tty(int request, void *argp, struct tty *tty)
 			kwin.ws_xpixel = vt->fb->width;
 			kwin.ws_ypixel = vt->fb->height;
 			if(copy_to_user(win, &kwin, sizeof(struct winsize)) < 0)
-				return errno = EFAULT, -1;
+				return -EFAULT;
 			return 0;
 		}
 		default:
-			return errno = EINVAL, -1;
+			return -EINVAL;
 	}
 }
 

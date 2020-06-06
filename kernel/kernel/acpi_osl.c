@@ -13,7 +13,7 @@
 #include <onyx/semaphore.h>
 #include <onyx/vm.h>
 #include <onyx/irq.h>
-#include <onyx/portio.h>
+#include <onyx/port_io.h>
 #include <onyx/panic.h>
 #include <onyx/task_switching.h>
 #include <onyx/timer.h>

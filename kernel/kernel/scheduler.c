@@ -20,10 +20,8 @@
 #include <onyx/panic.h>
 #include <onyx/tss.h>
 #include <onyx/process.h>
-#include <onyx/idt.h>
 #include <onyx/elf.h>
 #include <onyx/fpu.h>
-#include <onyx/apic.h>
 #include <onyx/worker.h>
 #include <onyx/cpu.h>
 #include <onyx/semaphore.h>

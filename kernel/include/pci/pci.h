@@ -11,7 +11,7 @@
 
 #include <pci/pcie.h>
 
-#include <onyx/portio.h>
+#include <onyx/port_io.h>
 #include <onyx/spinlock.h>
 #include <onyx/compiler.h>
 #include <onyx/dev.h>

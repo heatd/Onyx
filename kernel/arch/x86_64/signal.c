@@ -28,9 +28,28 @@
 int signal_setup_context(struct sigpending *pend, struct sigaction *sigaction, struct registers *regs)
 {
 	int sig = pend->signum;
+	struct thread *curr = get_current_thread();
+	struct signal_info *sinfo = &curr->sinfo;
+	unsigned long sp = regs->rsp - REDZONE_OFFSET;
+
+	/* Note that we handle the redzone preservation up here, because when running on an altstack 
+	 * we don't need to do that.
+	 */
+	if(sigaction->sa_flags & SA_ONSTACK && !(sinfo->altstack.ss_flags & SS_DISABLE))
+	{
+		sp = (unsigned long) sinfo->altstack.ss_sp + sinfo->altstack.ss_size;
+		if(sinfo->altstack.ss_flags & SS_AUTODISARM)
+		{
+			sinfo->altstack.ss_sp = NULL;
+			sinfo->altstack.ss_size = 0;
+			sinfo->altstack.ss_flags = SS_DISABLE;
+		}
+	}
+
+	size_t fpu_size = fpu_get_save_size();
 	/* Start setting the register state for the register switch */
 	/* Note that we're saving the old ones */
-	unsigned char *stack = (unsigned char *) regs->rsp - REDZONE_OFFSET - FPU_AREA_SIZE;
+	unsigned char *stack = (unsigned char *) sp - fpu_size;
 
 	struct sigframe *sframe = (struct sigframe *) stack - 1;
 
@@ -83,15 +102,13 @@ int signal_setup_context(struct sigpending *pend, struct sigaction *sigaction, s
 	if(copy_to_user(&sframe->uc.uc_mcontext.gregs[REG_RIP], &regs->rip, sizeof(unsigned long)) < 0)
 		return -EFAULT;
 
-	struct thread *curr = get_current_thread();
-
 	/* We're saving the sigmask, that will then be restored */
 	if(copy_to_user(&sframe->uc.uc_sigmask, &curr->sinfo.sigmask, sizeof(sigset_t)) < 0)
 		return -EFAULT;
 
 	save_fpu(curr->fpu_area);
 
-	if(copy_to_user(&sframe->fpregs, curr->fpu_area, FPU_AREA_SIZE) < 0)
+	if(copy_to_user(&sframe->fpregs, curr->fpu_area, fpu_size) < 0)
 		return -EFAULT;
 	
 	void *fpregs = &sframe->fpregs;
@@ -99,7 +116,8 @@ int signal_setup_context(struct sigpending *pend, struct sigaction *sigaction, s
 	if(copy_to_user(&sframe->uc.uc_mcontext.fpregs, &fpregs, sizeof(void *)) < 0)
 		return -EFAULT;
 	
-	regs->rsp = (unsigned long) sframe;
+	/* Align the stack to 16 bytes, specified by the ABI */
+	regs->rsp = ((unsigned long) sframe) & ~16;
 	regs->rip = (unsigned long) sigaction->sa_handler;
 	regs->rdi = sig;
 
@@ -114,7 +132,9 @@ int signal_setup_context(struct sigpending *pend, struct sigaction *sigaction, s
 	return 0;
 }
 
+__attribute__((noreturn))
 extern void __sigret_return(struct registers *regs);
+
 void sys_sigreturn(struct syscall_frame *sysframe)
 {
 	/* Switch the registers again */
@@ -175,7 +195,7 @@ void sys_sigreturn(struct syscall_frame *sysframe)
 	
 	/* We need to disable interrupts here to avoid corruption of the fpu state */
 	DISABLE_INTERRUPTS();
-	if(copy_from_user(curr->fpu_area, fpregs, FPU_AREA_SIZE) < 0)
+	if(copy_from_user(curr->fpu_area, fpregs, fpu_get_save_size()) < 0)
 		return;
 
 	restore_fpu(curr->fpu_area);

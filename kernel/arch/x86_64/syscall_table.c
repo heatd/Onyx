@@ -169,6 +169,7 @@ int sys_tkill(int tid, int sig);
 int sys_tgkill(int pid, int tid, int sig);
 int sys_rt_sigtimedwait(const sigset_t *set, siginfo_t *info, const struct timespec *timeout, size_t sigsetlen);
 int sys_rt_sigpending(sigset_t *set, size_t sigsetlen);
+int sys_sigaltstack(const stack_t *new_stack, stack_t *old_stack, const struct syscall_frame *frame);
 
 void *syscall_table_64[] =
 {
@@ -290,5 +291,10 @@ void *syscall_table_64[] =
 	[115] = (void*) sys_tkill,
 	[116] = (void*) sys_tgkill,
 	[117] = (void*) sys_rt_sigpending,
-	[118] = (void*) sys_rt_sigtimedwait
+	[118] = (void*) sys_rt_sigtimedwait,
+	[119] = (void*) sys_nosys,
+	[120] = (void*) sys_nosys,
+	[121] = (void*) sys_nosys,
+	[122] = (void*) sys_nosys,
+	[123] = (void*) sys_sigaltstack,
 };

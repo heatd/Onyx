@@ -117,6 +117,7 @@
 #define __NR_getsockopt				120
 #define __NR_getpeername			121
 #define __NR_getsockname			122
+#define __NR_sigaltstack			123
 #define __NR_sysinfo			255
 #define __NR_geteuid			255
 #define __NR_getegid			255
@@ -137,7 +138,6 @@
 #define __NR_getsid				255
 #define __NR_capget				255
 #define __NR_capset				255
-#define __NR_sigaltstack		255
 #define __NR_utime				255
 #define __NR_uselib				255
 #define __NR_ustat				255
@@ -453,6 +453,7 @@
 #define SYS_getsockopt				120
 #define SYS_getpeername			121
 #define SYS_getsockname			122
+#define SYS_sigaltstack			123
 #define SYS_sysinfo			255
 #define SYS_geteuid			255
 #define SYS_getegid			255
@@ -473,7 +474,6 @@
 #define SYS_getsid				255
 #define SYS_capget				255
 #define SYS_capset				255
-#define SYS_sigaltstack		255
 #define SYS_utime				255
 #define SYS_uselib				255
 #define SYS_ustat				255
