@@ -706,11 +706,11 @@ int pci_reset_device(struct pci_device *device)
 {
 	size_t off = pci_find_capability(device, PCI_CAP_ID_AF, 0);
 	if(off == 0)
-		return errno = EIO, -1;
+		return errno = ENOTSUP, -1;
 	
 	if(pci_read(device, off + PCI_AF_REG_LENGTH, sizeof(uint8_t)) != 6)
 	{
-		INFO("pci", "pci device at %04x:%02x:%02x:%02x has an invalid AF\n",
+		ERROR("pci", "pci device at %04x:%02x:%02x:%02x has an invalid AF\n",
 			device->segment, device->bus, device->device,
 			device->function);
 		return errno = EIO, -1;

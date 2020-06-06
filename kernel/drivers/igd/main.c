@@ -99,7 +99,7 @@ struct igpu_driver_data igpu_haswell_priv_ult =
 struct pci_id ihdgpu_pci_ids[] = 
 {
 	{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x5917, &igpu_skl_priv) },
-	{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x0a16, &igpu_haswell_priv_ult) },
+	//{ PCI_ID_DEVICE(INTEL_VENDOR_ID, 0x0a16, &igpu_haswell_priv_ult) },
 	{0}
 };
 
@@ -148,12 +148,15 @@ int ihdgpu_probe(struct device *dev)
 		return -1;
 	}
 
-	/*if(pci_reset_device(device) < 0)
+	if(pci_reset_device(device) < 0)
 	{
-		printf("igpu: Could not reset device\n");
-	}*/
-
-	printk("reset pci device\n");
+		if(errno != ENOTSUP)
+		{
+			printf("igpu: Could not reset device\n");
+			free(d);
+			return -1;
+		}
+	}
 
 	d->device = device;
 	d->mmio_regs = (volatile void *) device_registers;
@@ -208,7 +211,7 @@ int ihdgpu_probe(struct device *dev)
 		return -1;
 	}
 
-	//igd_enable_display_engine(d);
+	igd_enable_display_engine_skl(d);
 
 	igd_query_displays(d);
 
@@ -236,7 +239,6 @@ struct driver ihdgpu_driver =
 
 int ihdgpu_init(void)
 {
-	printk("Registering ihdgpu driver!\n");
 	pci_bus_register_driver(&ihdgpu_driver);
 	return 0;
 }

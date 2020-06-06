@@ -107,8 +107,8 @@ intel-passthrough-qemu: iso
 	-device vfio-pci,sysfsdev=/sys/devices/pci0000\:00/0000\:00\:02.0/d507ce65-255a-4b85-88b5-0090410c0b5c,display=on,x-igd-opregion=on,\
 	ramfb=on,driver=vfio-pci-nohotplug \
 	-enable-kvm -s -cdrom Onyx.iso \
-	-drive file=hdd.img,format=raw,media=disk -m 512M \
-	-boot d -netdev user,id=u1 -device e1000,netdev=u1 \
+	-machine q35 -drive file=hdd.img,format=raw,media=disk -m 512M \
+	-boot d -netdev user,id=u1 -device virtio-net,netdev=u1 \
 	-object filter-dump,id=f1,netdev=u1,file=net.pcap \
 	-smp 2 -cpu host,migratable=on,+invtsc
 
