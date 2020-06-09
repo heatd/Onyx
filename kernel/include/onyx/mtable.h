@@ -14,7 +14,16 @@ typedef struct
 	dev_t dev;
 	struct file *rootfs;
 } mountpoint_t;
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct file *mtable_lookup(struct file *mountpoint);
 int mtable_mount(struct file *mountpoint, struct file *rootfs);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

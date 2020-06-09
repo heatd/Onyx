@@ -95,7 +95,7 @@ struct inode
 	time_t i_mtime;
 	nlink_t i_nlink;
 	struct superblock *i_sb;
-	/* TODO: Make i_fops be a pointer instead of being embedded in inode, to save memory */
+
 	struct file_ops *i_fops;
 
 	struct spinlock i_pages_lock;
@@ -105,7 +105,10 @@ struct inode
 	
 	struct inode *i_next;
 	void *i_helper;
+	struct dentry *i_dentry; /* Only valid for directories */
 };
+
+struct dentry;
 
 struct file
 {
@@ -116,6 +119,7 @@ struct file
 	off_t f_seek;
 	struct inode *f_ino;
 	unsigned int f_flags;
+	struct dentry *f_dentry;
 };
 
 #define INODE_FLAG_DONT_CACHE		(1 << 0)
@@ -178,6 +182,8 @@ int link_vfs(struct file *target, const char *name, struct file *dir);
 
 int unlink_vfs(const char *name, int flags, struct file *node);
 
+char *readlink_vfs(struct file *file);
+
 struct file *get_fs_base(const char *file, struct file *rel_base);
 
 void inode_mark_dirty(struct inode *ino);
@@ -194,6 +200,15 @@ struct page_cache_block;
 struct page_cache_block *inode_get_page(struct inode *inode, off_t offset, long flags);
 
 struct file *inode_to_file(struct inode *ino);
+
+struct filesystem_root
+{
+	struct object object;
+	struct file *file;
+};
+
+struct filesystem_root *get_filesystem_root(void);
+
 
 #ifdef __cplusplus
 }

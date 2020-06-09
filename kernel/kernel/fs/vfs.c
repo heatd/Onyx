@@ -35,19 +35,12 @@ bool inode_is_cacheable(struct inode *file);
 #define FILE_CACHING_READ	(0 << 0)
 #define FILE_CACHING_WRITE	(1 << 0)
 
-struct filesystem_root
-{
-	struct object object;
-	struct file *file;
-	struct dentry *root_dentry;
-};
-
 struct filesystem_root boot_root = {0};
 
 int vfs_init(void)
 {
 	object_init(&boot_root.object, NULL);
-	//dentry_init();
+	dentry_init();
 
 	return 0;
 }
@@ -289,37 +282,6 @@ void close_vfs(struct inode *this)
 	object_unref(&this->i_object);
 }
 
-struct file *do_actual_open(struct file *this, const char *name)
-{
-	assert(this != NULL);
-
-	if(this->f_ino->i_fops->open == NULL)
-		return errno = EIO, NULL;
-
-	struct inode *i = this->f_ino->i_fops->open(this, name);
-
-	if(!i)
-		return NULL;
-	
-	struct file *f = inode_to_file(i);
-	if(!f)
-	{
-		close_vfs(i);
-		return NULL;
-	}
-
-	if(f->f_ino->i_fops->on_open)
-	{
-		if(f->f_ino->i_fops->on_open(f) < 0)
-		{
-			fd_put(f);
-			return NULL;
-		}		
-	}
-
-	return f;
-}
-
 char *readlink_vfs(struct file *file)
 {
 	if(file->f_ino->i_fops->readlink)
@@ -403,83 +365,9 @@ out:
 	return access_good;
 }
 
-struct file *open_path_segment(char *segm, struct file *node)
-{
-	/* Let's check if we have read access to the directory before doing anything */
-	if(!file_can_access(node, FILE_ACCESS_READ))
-	{
-		return errno = EACCES, NULL;
-	}
-
-	struct file *file = do_actual_open(node, segm);
-	if(!file)
-		return NULL;
-
-	if(file->f_ino->i_type == VFS_TYPE_SYMLINK)
-	{
-		struct file *target = follow_symlink(file, node);
-		if(!target)
-			return NULL;
-		
-		fd_put(file);
-		file = target;
-	}
-
-	struct file *mountpoint = NULL;
-	if((mountpoint = mtable_lookup(file)))
-	{
-		fd_put(file);
-		file = mountpoint;
-	}
-
-	return file;
-}
-
-struct file *open_vfs(struct file* this, const char *name)
-{
-	/* Okay, so we need to traverse the path */
-	/* First off, dupe the string */
-	char *path = strdup(name);
-	if(!path)
-		return errno = ENOMEM, NULL;
-	char *saveptr;
-	char *orig = path;
-
-	/* Now, tokenize it using strtok */
-	path = strtok_r(path, "/", &saveptr);
-	struct file *node = this;
-
-	while(path)
-	{
-		struct file *new_node = open_path_segment(path, node);
-
-		if(node != this)
-			fd_put(node);
-
-		node = new_node;
-		if(!node)
-		{
-#if 0
-			perror("open_path_segment");
-			printk("Failed opening %s, segment %s\n", name, path);
-#endif
-			free(orig);
-			return NULL;
-		}
-
-		path = strtok_r(NULL, "/", &saveptr);
-	}
-
-	free(orig);
-
-	if(node == this)
-		fd_get(node);
-
-	return node;
-}
-
 struct file *creat_vfs(struct file *this, const char *path, int mode)
 {
+	//panic("boo");
 	char *dup = strdup(path);
 	if(!dup)
 		return errno = ENOMEM, NULL;
@@ -529,6 +417,7 @@ error:
 
 struct file *mkdir_vfs(const char *path, mode_t mode, struct file *this)
 {
+	//panic("boo");
 	char *dup = strdup(path);
 	if(!dup)
 		return errno = ENOMEM, NULL;
@@ -577,6 +466,7 @@ error:
 
 struct file *mknod_vfs(const char *path, mode_t mode, dev_t dev, struct file *this)
 {
+	//panic("boo");
 	char *dup = strdup(path);
 	if(!dup)
 		return errno = ENOMEM, NULL;
@@ -621,48 +511,6 @@ error_nosys:
 error:
 	free(dup);
 	return NULL;
-}
-
-int mount_fs(struct inode *fsroot, const char *path)
-{
-	assert(fsroot != NULL);
-
-	printf("mount_fs: Mounting on %s\n", path);
-	
-	if(strcmp((char*) path, "/") == 0)
-	{
-		struct file *f = zalloc(sizeof *f);
-		if(!f)
-			return -ENOMEM;
-		f->f_ino = fsroot;
-		f->f_refcount = 1;
-
-		if(boot_root.file)
-		{
-			fd_put(boot_root.file);
-		}
-
-		boot_root.file = f;
-	}
-	else
-	{
-		/* TODO: This seems iffy logic, at best */
-		struct file *file = open_vfs(get_fs_root(), dirname((char*) path));
-		if(!file)
-			return -errno;
-		file = do_actual_open(file, basename((char*) path));
-		if(!file)
-			return -errno;
-		struct file *fsroot_f = inode_to_file(fsroot);
-		if(!fsroot_f)
-		{
-			fd_put(file);
-			return -ENOMEM;
-		}
-	
-		return mtable_mount(file, fsroot_f);
-	}
-	return 0;
 }
 
 off_t do_getdirent(struct dirent *buf, off_t off, struct file *file)
@@ -1015,6 +863,7 @@ int fallocate_vfs(int mode, off_t offset, off_t len, struct file *file)
 
 int symlink_vfs(const char *dest, struct file *inode)
 {
+	//panic("boo");
 	if(!file_can_access(inode, FILE_ACCESS_WRITE))
 		return -EACCES;
 
