@@ -13,7 +13,6 @@
 #include <onyx/vm.h>
 #include <onyx/port_io.h>
 #include <onyx/vfs.h>
-#include <onyx/pic.h>
 #include <onyx/irq.h>
 #include <onyx/panic.h>
 #include <onyx/timer.h>

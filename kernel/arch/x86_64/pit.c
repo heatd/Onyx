@@ -11,7 +11,7 @@
 #include <onyx/irq.h>
 #include <onyx/port_io.h>
 #include <onyx/x86/pit.h>
-#include <onyx/pic.h>
+#include <onyx/x86/pic.h>
 #include <onyx/compiler.h>
 #include <onyx/dev.h>
 #include <fractions.h>

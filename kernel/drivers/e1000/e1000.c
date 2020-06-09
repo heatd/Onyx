@@ -13,7 +13,6 @@
 
 #include <onyx/vm.h>
 #include <onyx/net/ethernet.h>
-#include <onyx/pic.h>
 #include <onyx/irq.h>
 #include <onyx/log.h>
 #include <onyx/net/network.h>

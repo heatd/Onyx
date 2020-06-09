@@ -10,7 +10,6 @@
 #include <onyx/driver.h>
 #include <onyx/port_io.h>
 #include <onyx/irq.h>
-#include <onyx/pic.h>
 #include <onyx/log.h>
 #include <onyx/cpu.h>
 #include <onyx/clock.h>
