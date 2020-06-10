@@ -42,12 +42,20 @@ struct file *get_fs_base(const char *file, struct file *rel_base)
 
 struct file *get_current_directory(void)
 {
-	struct file *fp = get_current_process()->ctx.cwd;
+	struct ioctx *ctx = &get_current_process()->ctx;
+	spin_lock(&ctx->cwd_lock);
+
+	struct file *fp = ctx->cwd;
 
 	if(unlikely(!fp))
+	{
+		spin_unlock(&ctx->cwd_lock);
 		return NULL;
+	}
 
 	fd_get(fp);
+
+	spin_unlock(&ctx->cwd_lock);
 	return fp;
 }
 
@@ -1259,14 +1267,18 @@ int sys_chdir(const char *upath)
 	struct file *f = dir;
 
 	struct process *current = get_current_process();
-	__atomic_exchange(&current->ctx.cwd, &f, &f, __ATOMIC_ACQUIRE);
-	current->ctx.name = path;
+	struct ioctx *ctx = &current->ctx;
+	spin_lock(&ctx->cwd_lock);
+
+	struct file *old = ctx->cwd;
+	ctx->cwd = f;
+
+	spin_unlock(&ctx->cwd_lock);
 
 	/* We've swapped ptrs atomically and now we're dropping the cwd reference.
 	 * Note that any current users of the cwd are using it properly.
 	*/
-	fd_put(f);
-	path = NULL;
+	fd_put(old);
 	goto out;
 close_file:
 	if(dir)
@@ -1291,12 +1303,18 @@ int sys_fchdir(int fildes)
 
 
 	struct process *current = get_current_process();
+	struct ioctx *ctx = &current->ctx;
+	spin_lock(&ctx->cwd_lock);
 
-	__atomic_exchange(&current->ctx.cwd, &f, &f, __ATOMIC_ACQUIRE);
-	/* FIXME: Implement a way to get the file's name */
-	current->ctx.name = "TODO";
+	struct file *old = ctx->cwd;
+	ctx->cwd = f;
 
-	fd_put(f);
+	spin_unlock(&ctx->cwd_lock);
+
+	/* We've swapped ptrs atomically and now we're dropping the cwd reference.
+	 * Note that any current users of the cwd are using it properly.
+	*/
+	fd_put(old);
 
 	return 0;
 }
@@ -1306,17 +1324,28 @@ int sys_getcwd(char *path, size_t size)
 	if(size == 0 && path != NULL)
 		return -EINVAL;
 
-	struct process *current = get_current_process();
+	struct file *cwd = get_current_directory();
+	char *name = dentry_to_file_name(cwd->f_dentry);
+	
+	fd_put(cwd);
 
-	/* FIXME: TOCTOU race condition with the name and file pointer */
-	if(!current->ctx.cwd)
-		return -ENOENT;
-
-	if(strlen(current->ctx.name) + 1 > size)
-		return -ERANGE;
-
-	if(copy_to_user(path, current->ctx.name, strlen(current->ctx.name) + 1) < 0)
+	if(!name)
+	{
 		return -errno;
+	}
+
+	if(strlen(name) + 1 > size)
+	{
+		free(name);
+		return -ERANGE;
+	}
+
+	if(copy_to_user(path, name, strlen(name) + 1) < 0)
+	{
+		free(name);
+		return -errno;
+	}
+
 	return 0;
 }
 

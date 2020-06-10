@@ -212,7 +212,6 @@ dentry *dentry_parent(dentry *dir)
 {
 	scoped_rwlock<rw_lock::read> g{dir->d_lock};
 
-	assert(dir->d_inode->i_type == VFS_TYPE_DIR);
 	auto ret = dir->d_parent;
 	
 	if(ret) dentry_get(ret);
@@ -762,6 +761,78 @@ struct file *symlink_vfs(const char *path, const char *dest, struct dentry *dir)
 {
 	symlink_handling h{dest};
 	return file_creation_helper(dir, path, h);
+}
+
+struct path_element
+{
+	dentry *d;
+	struct list_head node;
+};
+
+char *dentry_to_file_name(struct dentry *dentry)
+{
+	/* Calculate the initial length as / + the null terminator */
+	size_t buf_len = 2;
+	char *buf = nullptr;
+	char *s = nullptr;
+	auto fs_root = get_filesystem_root()->file->f_dentry;
+
+	dentry_get(fs_root);
+
+	auto d = dentry;
+	struct list_head element_list;
+	INIT_LIST_HEAD(&element_list);
+
+	/* Get another ref here to have prettier code */
+	dentry_get(d);
+
+	/* TODO: Is this logic safe from race conditions? */
+	while(d != fs_root && d != nullptr)
+	{
+		path_element *p = new path_element;
+		if(!p)
+			goto error;
+		p->d = d;
+		/* Add 1 to the len because of the separator */
+		buf_len += d->d_name_length + 1;
+		list_add(&p->node, &element_list);
+		
+		d = dentry_parent(d);
+	}
+
+	/* Remove one from the end to avoid trailing slashes */
+	buf_len--;
+
+	buf = (char *) malloc(buf_len);
+	if(!buf)
+		goto error;
+	buf[0] = '/';
+	s = &buf[1];
+	
+	list_for_every_safe(&element_list)
+	{
+		auto elem = container_of(l, struct path_element, node);
+		auto dent = elem->d;
+		memcpy(s, dent->d_name, dent->d_name_length);
+		s += dent->d_name_length;
+		*s++ = '/';
+		dentry_put(dent);
+		delete elem;
+	}
+
+	buf[buf_len - 1] = '\0';
+
+	return buf;
+
+error:
+	list_for_every_safe(&element_list)
+	{
+		auto elem = container_of(l, struct path_element, node);
+		dentry_put(elem->d);
+		delete elem;
+	}
+
+	return nullptr;
 }
 
 }

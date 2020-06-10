@@ -40,6 +40,8 @@ int install_binfmt(struct binfmt *format)
 	return 0;
 }
 
+#include <onyx/dentry.h>
+
 void *bin_do_interp(struct binfmt_args *_args)
 {
 	struct binfmt_args args;

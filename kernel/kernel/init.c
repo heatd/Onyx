@@ -202,9 +202,6 @@ retry:;
 	proc->ctx.cwd = get_fs_root();
 	fd_get(proc->ctx.cwd);
 
-	proc->ctx.name = strdup("/");
-	assert(proc->ctx.name != NULL);
-
 	/* Read the file signature */
 	unsigned char *buffer = zalloc(BINFMT_SIGNATURE_LENGTH);
 	if (!buffer)

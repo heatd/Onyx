@@ -50,6 +50,7 @@ void dentry_put(struct dentry *d);
 void dentry_get(struct dentry *d);
 struct inode;
 struct dentry *dentry_create(const char *name, struct inode *inode, struct dentry *parent);
+char *dentry_to_file_name(struct dentry *dentry);
 
 #ifdef __cplusplus
 }

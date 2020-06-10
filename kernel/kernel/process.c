@@ -121,19 +121,9 @@ struct process *process_create(const char *cmd_line, struct ioctx *ctx, struct p
 		fd_get(ctx->cwd);
 
 		proc->ctx.cwd = ctx->cwd;
-		proc->ctx.name = strdup(ctx->name);
-
-		if(!proc->ctx.name)
-		{
-			fd_put(ctx->cwd);
-			free(proc->cmd_line);
-			free(proc);
-			return NULL;
-		}
 		
 		if(copy_file_descriptors(proc, ctx) < 0)
 		{
-			free((void *) proc->ctx.name);
 			fd_put(ctx->cwd);
 			free(proc->cmd_line);
 			free(proc);
@@ -510,9 +500,6 @@ void process_end(struct process *process)
 
 	free(process->cmd_line);
 	process->cmd_line = NULL;
-
-	if(process->ctx.name)
-		free((void *) process->ctx.name);
 	
 	if(process->ctx.cwd)
 		fd_put(process->ctx.cwd);
