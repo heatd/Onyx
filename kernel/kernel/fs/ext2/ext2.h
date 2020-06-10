@@ -248,7 +248,7 @@ void ext2_free_inode(uint32_t inode, struct ext2_fs_info *fs);
 void ext2_update_inode(struct ext2_inode *ino, struct ext2_fs_info *fs, uint32_t inode);
 int ext2_ino_type_to_vfs_type(uint16_t mode);
 uint16_t ext2_mode_to_ino_type(mode_t mode);
-struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber, struct file *parent);
+struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber, struct inode *parent);
 void ext2_free_inode_space(struct ext2_inode *inode, struct ext2_fs_info *fs);
 
 int ext2_free_block_bg(uint32_t block, uint32_t block_group, struct ext2_fs_info *fs);

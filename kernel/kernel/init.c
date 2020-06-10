@@ -200,6 +200,8 @@ retry:;
 	}
 
 	proc->ctx.cwd = get_fs_root();
+	fd_get(proc->ctx.cwd);
+
 	proc->ctx.name = strdup("/");
 	assert(proc->ctx.name != NULL);
 

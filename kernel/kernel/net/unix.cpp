@@ -184,7 +184,7 @@ int un_do_bind(const struct sockaddr_un *un, socklen_t addrlen, struct un_socket
 	{
 		struct file *cwd = get_current_directory();
 
-		struct file *inode = mknod_vfs(address, S_IFDIR | 0666, 0, get_fs_base(address, cwd));
+		struct file *inode = mknod_vfs(address, S_IFDIR | 0666, 0, get_fs_base(address, cwd)->f_dentry);
 		if(!inode)
 			return -errno;
 

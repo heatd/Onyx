@@ -64,7 +64,7 @@ void initrd_mount(void)
 				if(!(node = open_vfs(node, filename)))
 				{
 					node = last;
-					if(!(node = mkdir_vfs(filename, 0777, node)))
+					if(!(node = mkdir_vfs(filename, 0777, node->f_dentry)))
 					{
 						perror("mkdir");
 						panic("Error loading initrd");
@@ -80,7 +80,7 @@ void initrd_mount(void)
 
 		if(iter[i]->typeflag == TAR_TYPE_FILE)
 		{
-			struct file *file = creat_vfs(node, filename, 0666);
+			struct file *file = creat_vfs(node->f_dentry, filename, 0666);
 			assert(file != NULL);
 	
 			char *buffer = (char *) iter[i] + 512;
@@ -89,17 +89,15 @@ void initrd_mount(void)
 		}
 		else if(iter[i]->typeflag == TAR_TYPE_DIR)
 		{
-			struct file *file = mkdir_vfs(filename, 0666, node);
+			struct file *file = mkdir_vfs(filename, 0666, node->f_dentry);
 			if(!file) perror("mkdir_vfs");
 			assert(file != NULL);
 		}
 		else if(iter[i]->typeflag == TAR_TYPE_SYMLNK)
 		{
 			char *buffer = (char *) iter[i]->linkname;
-			struct file *file = creat_vfs(node, filename, 0666);
+			struct file *file = symlink_vfs(filename, buffer, node->f_dentry);
 			assert(file != NULL);
-
-			assert(symlink_vfs(buffer, file) == 0);
 		}
 	}
 }

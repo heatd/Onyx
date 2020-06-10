@@ -46,9 +46,31 @@ extern "C"
 struct dentry *dentry_open(char *path, struct dentry *base);
 struct dentry *dentry_mount(const char *mountpoint, struct inode *inode);
 void dentry_init(void);
+void dentry_put(struct dentry *d);
+void dentry_get(struct dentry *d);
+struct inode;
+struct dentry *dentry_create(const char *name, struct inode *inode, struct dentry *parent);
 
 #ifdef __cplusplus
 }
+#endif
+
+#ifdef __cplusplus
+
+#include <onyx/string_view.hpp>
+
+using dentry_lookup_flags_t = uint16_t;
+
+#define DENTRY_LOOKUP_UNLOCKED             (1 << 0)    /* To be used when inserting or already holding a lock */
+#define DENTRY_LOOKUP_DONT_TRY_TO_RESOLVE  (1 << 1)    /* Don't try to resolve cache misses */
+
+dentry *dentry_lookup_internal(std::string_view v, dentry *dir, dentry_lookup_flags_t flags = 0);
+
+struct nameidata;
+dentry *dentry_resolve(nameidata& data);
+void dentry_destroy(dentry *d);
+
+
 #endif
 
 #endif

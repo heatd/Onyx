@@ -19,6 +19,7 @@
 #include <onyx/panic.h>
 #include <onyx/list.hpp>
 #include <onyx/utils.h>
+#include <onyx/dentry.h>
 
 static struct dev *pipedev = NULL;
 static atomic<ino_t> current_inode_number = 0; 
@@ -239,6 +240,7 @@ int pipe_create(struct file **pipe_readable, struct file **pipe_writeable)
 	struct inode *node0 = nullptr, *node1 = nullptr; 
 	pipe *new_pipe = nullptr;
 	struct file *rd = nullptr, *wr = nullptr;
+	dentry *read_dent, *write_dent;
 	node0 = inode_create(false);
 	if(!node0)
 		return errno = ENOMEM, -1;
@@ -266,17 +268,30 @@ int pipe_create(struct file **pipe_readable, struct file **pipe_writeable)
 
 	/* TODO: This memcpy seems unsafe, at least... */
 	memcpy(node1, node0, sizeof(*node0));
+	read_dent = dentry_create("<pipe_read>", node0, nullptr);
+	if(!read_dent)
+		goto err1;
+	
+	write_dent = dentry_create("<pipe_write>", node1, nullptr);
+	if(!write_dent)
+	{
+		dentry_put(read_dent);
+		goto err1;
+	}
 
 	rd = inode_to_file(node0);
 	if(!rd)
-		goto err1;
-	
+		goto err2;
+
 	wr = inode_to_file(node1);
 	if(!wr)
 	{
 		fd_put(rd);
-		goto err1;
+		goto err2;
 	}
+
+	rd->f_dentry = read_dent;
+	wr->f_dentry = write_dent;
 
 	*pipe_readable = rd;
 	*pipe_writeable = wr;
@@ -284,6 +299,9 @@ int pipe_create(struct file **pipe_readable, struct file **pipe_writeable)
 	/* Since malloc returns 16-byte aligned memory we can use the lower bits for stuff like this */
 	node1->i_helper = (void *)((unsigned long) new_pipe | PIPE_WRITEABLE);
 	return 0;
+err2:
+	dentry_put(write_dent);
+	dentry_put(read_dent);
 err1:
 	if(new_pipe)
 	{

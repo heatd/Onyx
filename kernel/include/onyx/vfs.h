@@ -39,12 +39,12 @@ struct dentry;
 typedef size_t (*__read)(size_t offset, size_t sizeofread, void* buffer, struct file* file);
 typedef size_t (*__write)(size_t offset, size_t sizeofwrite, void* buffer, struct file* file);
 typedef void (*__close)(struct inode *file);
-typedef struct inode *(*__open)(struct file* file, const char *name);
+typedef struct inode *(*__open)(struct dentry *dir, const char *name);
 typedef off_t (*__getdirent)(struct dirent *buf, off_t off, struct file* file);
 typedef unsigned int (*__ioctl)(int request, void *argp, struct file* file);
-typedef struct inode *(*__creat)(const char *pathname, int mode, struct file *file);
+typedef struct inode *(*__creat)(const char *name, int mode, struct dentry *dir);
 typedef int (*__stat)(struct stat *buf, struct file *node);
-typedef int (*__symlink)(const char *linkpath, struct file *node);
+typedef struct inode *(*__symlink)(const char *name, const char *linkpath, struct dentry *dir);
 typedef unsigned int (*putdir_t)(struct dirent *, struct dirent *ubuf, unsigned int count);
 
 struct file_ops
@@ -57,16 +57,16 @@ struct file_ops
 	__ioctl ioctl;
 	__creat creat;
 	__stat stat;
-	int (*link)(struct file *target_ino, const char *name, struct file *dir);
+	int (*link)(struct file *target_ino, const char *name, struct dentry *dir);
 	__symlink symlink;
 	void *(*mmap)(struct vm_region *area, struct file *node);
 	int (*ftruncate)(off_t length, struct file *node);
-	struct inode *(*mkdir)(const char *name, mode_t mode, struct file *node);
-	struct inode *(*mknod)(const char *name, mode_t mode, dev_t dev, struct file *node);
+	struct inode *(*mkdir)(const char *name, mode_t mode, struct dentry *dir);
+	struct inode *(*mknod)(const char *name, mode_t mode, dev_t dev, struct dentry *dir);
 	int (*on_open)(struct file *node);
 	short (*poll)(void *poll_file, short events, struct file *node);
 	char *(*readlink)(struct file *ino);
-	int (*unlink)(const char *name, int flags, struct file *node);
+	int (*unlink)(const char *name, int flags, struct dentry *dir);
 	int (*fallocate)(int mode, off_t offset, off_t len, struct file *node);
 	ssize_t (*readpage)(struct page *page, size_t offset, struct inode *ino);
 	ssize_t (*writepage)(struct page *page, size_t offset, struct inode *ino);
@@ -141,7 +141,7 @@ ssize_t write_vfs(size_t offset, size_t length, void *buffer,
 
 void close_vfs(struct inode* file);
 
-struct file *creat_vfs(struct file *node, const char *path, int mode);
+struct file *creat_vfs(struct dentry *node, const char *path, int mode);
 
 int getdents_vfs(unsigned int count, putdir_t putdir, struct dirent* dirp,
 	off_t off, struct getdents_ret *ret, struct file *file);
@@ -152,9 +152,9 @@ int stat_vfs(struct stat *buf, struct file *node);
 
 int ftruncate_vfs(off_t length, struct file *vnode);
 
-struct file *mkdir_vfs(const char *path, mode_t mode, struct file *node);
+struct file *mkdir_vfs(const char *path, mode_t mode, struct dentry *node);
 
-int symlink_vfs(const char *dest, struct file *inode);
+struct file *symlink_vfs(const char *path, const char *dest, struct dentry *inode);
 
 int mount_fs(struct inode *node, const char *mp);
 
@@ -174,7 +174,7 @@ short poll_vfs(void *poll_file, short events, struct file *node);
 
 int fallocate_vfs(int mode, off_t offset, off_t len, struct file *file);
 
-struct file *mknod_vfs(const char *path, mode_t mode, dev_t dev, struct file *file);
+struct file *mknod_vfs(const char *path, mode_t mode, dev_t dev, struct dentry *file);
 
 struct file *get_current_directory(void);
 

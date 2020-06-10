@@ -23,21 +23,22 @@
 #include <onyx/panic.h>
 #include <onyx/cred.h>
 #include <onyx/buffer.h>
+#include <onyx/dentry.h>
 
 #include "ext2.h"
 
-struct inode *ext2_open(struct file *nd, const char *name);
+struct inode *ext2_open(struct dentry *dir, const char *name);
 size_t ext2_read(size_t offset, size_t sizeofreading, void *buffer, struct file *node);
 size_t ext2_write(size_t offset, size_t sizeofwrite, void *buffer, struct file *node);
-off_t ext2_getdirent(struct dirent *buf, off_t off, struct file* this);
+off_t ext2_getdirent(struct dirent *buf, off_t off, struct file *f);
 int ext2_stat(struct stat *buf, struct file *node);
-struct inode *ext2_creat(const char *path, int mode, struct file *file);
+struct inode *ext2_creat(const char *path, int mode, struct dentry *dir);
 char *ext2_readlink(struct file *ino);
 void ext2_close(struct inode *ino);
-struct inode *ext2_mknod(const char *name, mode_t mode, dev_t dev, struct file *ino);
-struct inode *ext2_mkdir(const char *name, mode_t mode, struct file *ino);
-int ext2_link_fops(struct file *target, const char *name, struct file *dir);
-int ext2_unlink(const char *name, int flags, struct file *f);
+struct inode *ext2_mknod(const char *name, mode_t mode, dev_t dev, struct dentry *dir);
+struct inode *ext2_mkdir(const char *name, mode_t mode, struct dentry *dir);
+int ext2_link_fops(struct file *target, const char *name, struct dentry *dir);
+int ext2_unlink(const char *name, int flags, struct dentry *dir);
 int ext2_fallocate(int mode, off_t off, off_t len, struct file *f);
 int ext2_ftruncate(off_t off, struct file *f);
 ssize_t ext2_readpage(struct page *page, size_t off, struct inode *ino);
@@ -171,9 +172,9 @@ struct ext2_inode_info *ext2_cache_inode_info(struct inode *ino, struct ext2_ino
 	return inf;
 }
 
-struct inode *ext2_open(struct file *f, const char *name)
+struct inode *ext2_open(struct dentry *dir, const char *name)
 {
-	struct inode *nd = f->f_ino;
+	struct inode *nd = dir->d_inode;
 	struct ext2_fs_info *fs = nd->i_sb->s_helper;
 	uint32_t inode_num = 0;
 	struct ext2_inode *ino;
@@ -197,7 +198,7 @@ struct inode *ext2_open(struct file *f, const char *name)
 		return node;
 	}
 
-	node = ext2_fs_ino_to_vfs_ino(ino, inode_num, f);
+	node = ext2_fs_ino_to_vfs_ino(ino, inode_num, dir->d_inode);
 	if(!node)
 	{
 		free(ino);
@@ -213,7 +214,7 @@ struct inode *ext2_open(struct file *f, const char *name)
 	return node;
 }
 
-struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber, struct file *parent)
+struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber, struct inode *parent)
 {
 	/* Create a file */
 	struct inode *ino = inode_create(ext2_ino_type_to_vfs_type(inode->mode) == VFS_TYPE_FILE);
@@ -223,7 +224,7 @@ struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber,
 		return NULL;
 	}
 
-	ino->i_dev = parent->f_ino->i_dev;
+	ino->i_dev = parent->i_dev;
 	ino->i_inode = inumber;
 	/* Detect the file type */
 	ino->i_type = ext2_ino_type_to_vfs_type(inode->mode);
@@ -238,7 +239,7 @@ struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber,
 
 	ino->i_uid = inode->uid;
 	ino->i_gid = inode->gid;
-	ino->i_sb = parent->f_ino->i_sb;
+	ino->i_sb = parent->i_sb;
 	ino->i_atime = inode->atime;
 	ino->i_ctime = inode->ctime;
 	ino->i_mtime = inode->mtime;
@@ -298,9 +299,9 @@ int ext2_ino_type_to_vfs_type(uint16_t mode)
 	return VFS_TYPE_UNK;
 }
 
-struct inode *ext2_create_file(const char *name, mode_t mode, dev_t dev, struct file *f)
+struct inode *ext2_create_file(const char *name, mode_t mode, dev_t dev, struct dentry *dir)
 {
-	struct inode *vfs_ino = f->f_ino;
+	struct inode *vfs_ino = dir->d_inode;
 	struct ext2_fs_info *fs = vfs_ino->i_sb->s_helper;
 	uint32_t inumber = 0;
 
@@ -345,7 +346,7 @@ struct inode *ext2_create_file(const char *name, mode_t mode, dev_t dev, struct 
 		goto free_ino_error;
 	}
 	
-	struct inode *ino = ext2_fs_ino_to_vfs_ino(inode, inumber, f);
+	struct inode *ino = ext2_fs_ino_to_vfs_ino(inode, inumber, dir->d_inode);
 	if(!ino)
 	{
 		errno = ENOMEM;
@@ -366,11 +367,11 @@ free_ino_error:
 	return NULL;
 }
 
-struct inode *ext2_creat(const char *name, int mode, struct file *file)
+struct inode *ext2_creat(const char *name, int mode, struct dentry *dir)
 {
 	unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
 
-	struct inode *i = ext2_create_file(name, (mode & ~S_IFMT) | S_IFREG, 0, file);
+	struct inode *i = ext2_create_file(name, (mode & ~S_IFMT) | S_IFREG, 0, dir);
 
 	thread_change_addr_limit(old);
 
@@ -615,7 +616,7 @@ int ext2_stat(struct stat *buf, struct file *f)
 	return 0;
 }
 
-struct inode *ext2_mknod(const char *name, mode_t mode, dev_t dev, struct file *ino)
+struct inode *ext2_mknod(const char *name, mode_t mode, dev_t dev, struct dentry *dir)
 {
 	if(strlen(name) > NAME_MAX)
 		return errno = ENAMETOOLONG, NULL;
@@ -623,12 +624,12 @@ struct inode *ext2_mknod(const char *name, mode_t mode, dev_t dev, struct file *
 	if(S_ISDIR(mode))
 		return errno = EPERM, NULL;
 	
-	return ext2_create_file(name, mode, dev, ino);
+	return ext2_create_file(name, mode, dev, dir);
 }
 
-struct inode *ext2_mkdir(const char *name, mode_t mode, struct file *f)
+struct inode *ext2_mkdir(const char *name, mode_t mode, struct dentry *dir)
 {
-	struct inode *new_dir = ext2_create_file(name, (mode & 0777) | S_IFDIR, 0, f);
+	struct inode *new_dir = ext2_create_file(name, (mode & 0777) | S_IFDIR, 0, dir);
 	if(!new_dir)
 	{
 		return NULL;
@@ -637,9 +638,9 @@ struct inode *ext2_mkdir(const char *name, mode_t mode, struct file *f)
 	/* Create the two basic links - link to self and link to parent */
 	/* FIXME: Handle failure here? */
 	ext2_link(new_dir, ".", new_dir);
-	ext2_link(f->f_ino, "..", new_dir);
+	ext2_link(dir->d_inode, "..", new_dir);
 
-	struct ext2_fs_info *fs = f->f_ino->i_sb->s_helper;
+	struct ext2_fs_info *fs = dir->d_inode->i_sb->s_helper;
 
 	uint32_t inum = (uint32_t) new_dir->i_inode;
 	uint32_t bg = inum / fs->inodes_per_block_group;

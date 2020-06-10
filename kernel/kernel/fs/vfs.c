@@ -365,154 +365,6 @@ out:
 	return access_good;
 }
 
-struct file *creat_vfs(struct file *this, const char *path, int mode)
-{
-	//panic("boo");
-	char *dup = strdup(path);
-	if(!dup)
-		return errno = ENOMEM, NULL;
-
-	char *dir = dirname((char*) dup);
-
-	struct file *base;
-	if(*dir != '.' && strlen(dir) != 1)
-		base = open_vfs(this, dir);
-	else
-		base = this;
-
-	/* Reset the string again */
-	strcpy(dup, path);
-	if(!base)
-	{
-		errno = ENOENT;
-		goto error;
-	}
-
-	if(!file_can_access(base, FILE_ACCESS_WRITE))
-	{
-		fd_put(base);
-		errno = EACCES;
-		goto error;
-	}
-
-	if(base->f_ino->i_fops->creat == NULL)
-		goto error_nosys;
-	struct inode *ret = base->f_ino->i_fops->creat(basename((char*) dup), mode, base);
-	
-	free(dup);
-	
-	struct file *f = inode_to_file(ret);
-	if(!f)
-		close_vfs(ret);
-
-	return f;
-
-error_nosys:
-	errno = ENOSYS;
-
-error:
-	free(dup);
-	return NULL;
-}
-
-struct file *mkdir_vfs(const char *path, mode_t mode, struct file *this)
-{
-	//panic("boo");
-	char *dup = strdup(path);
-	if(!dup)
-		return errno = ENOMEM, NULL;
-
-	char *dir = dirname((char*) dup);
-	struct file *base;
-	if(*dir != '.' && strlen(dir) != 1)
-		base = open_vfs(this, dir);
-	else
-		base = this;
-
-	/* Reset the string again */
-	strcpy(dup, path);
-	if(!base)
-	{
-		errno = ENOENT;
-		goto error;
-	}
-
-	if(!file_can_access(base, FILE_ACCESS_WRITE))
-	{
-		fd_put(base);
-		errno = EACCES;
-		goto error;
-	}
-
-	if(base->f_ino->i_fops->mkdir == NULL)
-		goto error_nosys;
-
-	struct inode *ret = base->f_ino->i_fops->mkdir(basename((char*) dup), mode, base);
-	free(dup);
-
-	struct file *f = inode_to_file(ret);
-	if(!f)
-		close_vfs(ret);
-
-	return f;
-
-error_nosys:
-	errno = ENOSYS;
-
-error:
-	free(dup);
-	return NULL;
-}
-
-struct file *mknod_vfs(const char *path, mode_t mode, dev_t dev, struct file *this)
-{
-	//panic("boo");
-	char *dup = strdup(path);
-	if(!dup)
-		return errno = ENOMEM, NULL;
-
-	char *dir = dirname((char*) dup);
-	struct file *base;
-	if(*dir != '.' && strlen(dir) != 1)
-		base = open_vfs(this, dir);
-	else
-		base = this;
-
-	/* Reset the string again */
-	strcpy(dup, path);
-	if(!base)
-	{
-		errno = ENOENT;
-		goto error;
-	}
-
-	if(!file_can_access(base, FILE_ACCESS_WRITE))
-	{
-		fd_put(base);
-		errno = EACCES;
-		goto error;
-	}
-
-	if(base->f_ino->i_fops->mknod == NULL)
-		goto error_nosys;
-
-	struct inode *ret = base->f_ino->i_fops->mknod(basename((char*) dup), mode, dev, base);
-	free(dup);
-	
-	struct file *f = inode_to_file(ret);
-	if(!f)
-		close_vfs(ret);
-
-	return f;
-
-error_nosys:
-	errno = ENOSYS;
-
-error:
-	free(dup);
-	return NULL;
-}
-
 off_t do_getdirent(struct dirent *buf, off_t off, struct file *file)
 {
 	if(file->f_ino->i_fops->getdirent != NULL)
@@ -861,17 +713,6 @@ int fallocate_vfs(int mode, off_t offset, off_t len, struct file *file)
 	return -EINVAL;
 }
 
-int symlink_vfs(const char *dest, struct file *inode)
-{
-	//panic("boo");
-	if(!file_can_access(inode, FILE_ACCESS_WRITE))
-		return -EACCES;
-
-	if(inode->f_ino->i_fops->symlink != NULL)
-		return inode->f_ino->i_fops->symlink(dest, inode);
-	return -ENOSYS;
-}
-
 void inode_destroy_page_caches(struct inode *inode)
 {
 	if(inode->i_pages)
@@ -908,7 +749,7 @@ ssize_t inode_sync(struct inode *inode)
 void inode_release(struct object *object)
 {
 	struct inode *inode = (struct inode *) object;
-
+	//printk("Releasing inode %p\n", inode);
 	if(inode->i_sb)
 	{
 		assert(inode->i_sb != NULL);
@@ -960,7 +801,7 @@ int link_vfs(struct file *target, const char *name, struct file *dir)
 		return -EACCES;
 
 	if(dir->f_ino->i_fops->link)
-		return dir->f_ino->i_fops->link(target, name, dir);
+		return dir->f_ino->i_fops->link(target, name, dir->f_dentry);
 	return -EINVAL;
 }
 
@@ -968,8 +809,9 @@ int unlink_vfs(const char *name, int flags, struct file *node)
 {
 	if(!file_can_access(node, FILE_ACCESS_WRITE))
 		return -EACCES;
+
 	if(node->f_ino->i_fops->link)
-		return node->f_ino->i_fops->unlink(name, flags, node);
+		return node->f_ino->i_fops->unlink(name, flags, node->f_dentry);
 	return -EINVAL;
 }
 
@@ -1004,6 +846,7 @@ struct file *inode_to_file(struct inode *ino)
 	f->f_flags = 0;
 	f->f_refcount = 1;
 	f->f_seek = 0;
+	f->f_dentry = NULL;
 
 	return f;
 }

@@ -14,6 +14,7 @@
 #include <onyx/sysfs.h>
 #include <onyx/vfs.h>
 #include <onyx/init.h>
+#include <onyx/dentry.h>
 
 struct sysfs_object sysfs_root =
 {
@@ -65,7 +66,7 @@ struct inode *sysfs_create_inode_for_file(struct sysfs_object *f)
 	return ino;
 }
 
-struct inode *sysfs_creat(const char *pathname, int mode, struct file *node)
+struct inode *sysfs_creat(const char *pathname, int mode, struct dentry *dentry)
 {
 	return errno = EPERM, NULL;
 }
@@ -92,9 +93,9 @@ struct sysfs_object *sysfs_get_obj(struct sysfs_object *file, const char *name)
 	return NULL;
 }
 
-struct inode *sysfs_open(struct file *f, const char *name)
+struct inode *sysfs_open(struct dentry *dir, const char *name)
 {
-	struct inode *node = f->f_ino;
+	struct inode *node = dir->d_inode;
 	struct sysfs_object *file = (struct sysfs_object*) node->i_inode;
 	assert(file != NULL);
 

@@ -451,7 +451,7 @@ int main(int argc, char **argv, char **envp)
 	if(logfd < 0)
 	{
 		perror("could not create logfd");
-		return 0;
+		return 1;
 	}
 
 #if 0

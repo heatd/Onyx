@@ -15,6 +15,7 @@
 #include <onyx/mutex.h>
 #include <onyx/page.h>
 #include <onyx/dev.h>
+#include <onyx/dentry.h>
 
 static DECLARE_MUTEX(tmpfs_list_lock);
 static tmpfs_filesystem_t *filesystems = NULL;
@@ -36,20 +37,6 @@ static void tmpfs_append(tmpfs_filesystem_t *fs)
 	*p = fs;
 
 	mutex_unlock(&tmpfs_list_lock);
-}
-
-int tmpfs_symlink(const char *dest, struct file *f)
-{
-	tmpfs_file_t *file = (tmpfs_file_t *) f->f_ino->i_inode;
-
-	char *str = strdup(dest);
-	if(!str)
-		return -1;
-	file->symlink = (const char *) str;
-	file->type = TMPFS_FILE_TYPE_SYM;
-	f->f_ino->i_type = VFS_TYPE_SYMLINK;
-
-	return 0;
 }
 
 static void tmpfs_append_file(tmpfs_file_t *dir, tmpfs_file_t *file)
@@ -139,9 +126,39 @@ struct inode *tmpfs_file_to_vfs(tmpfs_file_t *file, struct file *parent)
 	return f;
 }
 
-struct inode *tmpfs_creat(const char *pathname, int mode, struct file *f)
+struct inode *tmpfs_symlink(const char *name, const char *dest, struct dentry *dent)
 {
-	tmpfs_file_t *file = (tmpfs_file_t *) f->f_ino->i_inode;
+	tmpfs_file_t *dir = (tmpfs_file_t *) dent->d_inode->i_inode;
+
+	char *str = strdup(dest);
+	if(!str)
+		return errno = ENOMEM, NULL;
+
+	tmpfs_file_t *new_file = tmpfs_create_file(dir, name);
+	if(!new_file)
+	{
+		free(str);
+		return errno = ENOMEM, NULL;
+	}
+
+	new_file->symlink = (const char *) str;
+	new_file->type = TMPFS_FILE_TYPE_SYM;
+
+	struct file parent = {};
+	parent.f_dentry = dent;
+	parent.f_ino = dent->d_inode;
+
+	/* TODO: Tmpfs needs to be rewritten: Inodes don't work like they're supposed to,
+	 * and there are race conditions.
+	 */
+	struct inode *ino = tmpfs_file_to_vfs(new_file, &parent);
+	return ino;
+}
+
+#define TMPFS_FILE_FROM_DENTRY(dent)  (tmpfs_file_t *) (dentry->d_inode->i_inode)
+struct inode *tmpfs_creat(const char *pathname, int mode, struct dentry *dentry)
+{
+	tmpfs_file_t *file = TMPFS_FILE_FROM_DENTRY(dentry);
 
 	assert(file != NULL);
 
@@ -151,12 +168,15 @@ struct inode *tmpfs_creat(const char *pathname, int mode, struct file *f)
 
 	new_file->mode = mode;
 	new_file->type = TMPFS_FILE_TYPE_REG;
+	struct file parent = {};
+	parent.f_dentry = dentry;
+	parent.f_ino = dentry->d_inode;
 
-	struct inode *in = tmpfs_file_to_vfs(new_file, f);
+	struct inode *in = tmpfs_file_to_vfs(new_file, &parent);
 	if(!in)
 		return NULL;
 	
-	superblock_add_inode(f->f_ino->i_sb, in);
+	superblock_add_inode(in->i_sb, in);
 
 	return in;
 }
@@ -324,9 +344,9 @@ tmpfs_file_t *tmpfs_open_file(tmpfs_file_t *dir, const char *name)
 	return errno = ENOENT, NULL;
 }
 
-struct inode *tmpfs_mkdir(const char *name, mode_t mode, struct file *f)
+struct inode *tmpfs_mkdir(const char *name, mode_t mode, struct dentry *dir)
 {
-	struct inode *ino = f->f_ino;
+	struct inode *ino = dir->d_inode;
 	tmpfs_file_t *file = (tmpfs_file_t *) ino->i_inode;
 	
 	assert(file != NULL);
@@ -340,8 +360,11 @@ struct inode *tmpfs_mkdir(const char *name, mode_t mode, struct file *f)
 
 	new_file->mode = mode;
 	new_file->type = TMPFS_FILE_TYPE_DIR;
-	
-	struct inode *in = tmpfs_file_to_vfs(new_file, f);
+	struct file parent = {};
+	parent.f_dentry = dir;
+	parent.f_ino = dir->d_inode;
+
+	struct inode *in = tmpfs_file_to_vfs(new_file, &parent);
 	if(!in)
 		return NULL;
 	
@@ -378,23 +401,26 @@ struct inode *tmpfs_find_inode_in_cache(struct file *vnode, tmpfs_file_t *file)
 	return inode;
 }
 
-struct inode *tmpfs_open(struct file *f, const char *name)
+struct inode *tmpfs_open(struct dentry *dir, const char *name)
 {
-	struct inode *ino = f->f_ino;
-	tmpfs_file_t *dir = (tmpfs_file_t *) ino->i_inode;
+	struct inode *ino = dir->d_inode;
+	tmpfs_file_t *_dir = (tmpfs_file_t *) ino->i_inode;
 
-	assert(dir != NULL);
+	assert(_dir != NULL);
 
-	tmpfs_file_t *file = tmpfs_open_file(dir, name);
+	tmpfs_file_t *file = tmpfs_open_file(_dir, name);
 	if(!file)
 		return NULL;
+	struct file parent = {};
+	parent.f_dentry = dir;
+	parent.f_ino = ino;
 
-	return tmpfs_find_inode_in_cache(f, file);
+	return tmpfs_find_inode_in_cache(&parent, file);
 }
 
-struct inode *tmpfs_mknod(const char *name, mode_t mode, dev_t dev, struct file *root)
+struct inode *tmpfs_mknod(const char *name, mode_t mode, dev_t dev, struct dentry *_dir)
 {
-	struct inode *ino = root->f_ino;
+	struct inode *ino = _dir->d_inode;
 	tmpfs_file_t *dir = (tmpfs_file_t *) ino->i_inode;
 
 	tmpfs_file_t *file = tmpfs_create_file(dir, name);
@@ -417,7 +443,11 @@ struct inode *tmpfs_mknod(const char *name, mode_t mode, dev_t dev, struct file 
 		d->file = file;
 	}
 
-	struct inode *in = tmpfs_file_to_vfs(file, root);
+	struct file parent = {};
+	parent.f_dentry = _dir;
+	parent.f_ino = ino;
+
+	struct inode *in = tmpfs_file_to_vfs(file, &parent);
 	if(!in)
 		return NULL;
 	

@@ -20,6 +20,7 @@
 #include <onyx/vfs.h>
 #include <onyx/atomic.h>
 #include <onyx/proc_event.h>
+#include <onyx/dentry.h>
 
 #include <proc_event.h>
 
@@ -165,18 +166,29 @@ int sys_proc_event_attach(pid_t pid, unsigned long flags)
 	
 	new_sub->target_process = p;
 
+	struct dentry *d = dentry_create("<proc_event>", ino, NULL);
+	if(!d)
+	{
+		close_vfs(ino);
+		return -ENOMEM;
+	}
+
 	struct file *f = inode_to_file(ino);
 	if(!f)
 	{
+		dentry_put(d);
 		close_vfs(ino);
 		return -ENOMEM;	
 	}
+
+	f->f_dentry = d;
 
 	int fd = open_with_vnode(f, O_RDWR);
 	if(fd < 0)
 	{
 		process_put(p);
 		free(ino);
+		dentry_put(d);
 		free(new_sub);
 		return -errno;
 	}

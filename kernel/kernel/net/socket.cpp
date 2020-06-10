@@ -8,6 +8,7 @@
 #include <onyx/file.h>
 #include <onyx/utils.h>
 #include <onyx/poll.h>
+#include <onyx/dentry.h>
 
 #include <onyx/net/socket.h>
 #include <onyx/net/ip.h>
@@ -622,6 +623,23 @@ struct inode *socket_create_inode(struct socket *socket)
 	return inode;
 }
 
+file *socket_inode_to_file(inode *ino)
+{
+	auto f = inode_to_file(ino);
+	if(!f)
+		return nullptr;
+
+	auto dent = dentry_create("<socket>", ino, nullptr);
+	if(!dent)
+	{
+		fd_put(f);
+		return nullptr;
+	}
+
+	f->f_dentry = dent;
+	return f;
+}
+
 extern "C"
 int sys_socket(int domain, int type, int protocol)
 {
@@ -650,7 +668,7 @@ int sys_socket(int domain, int type, int protocol)
 	if(!inode)
 		return -errno;
 
-	struct file *f = inode_to_file(inode);
+	struct file *f = socket_inode_to_file(inode);
 	if(!f)
 	{
 		close_vfs(inode);
@@ -749,7 +767,7 @@ int sys_accept4(int sockfd, struct sockaddr *addr, socklen_t *slen, int flags)
 		goto out;
 	}
 
-	newf = inode_to_file(inode);
+	newf = socket_inode_to_file(inode);
 	if(!newf)
 	{
 		close_vfs(inode);

@@ -24,6 +24,8 @@
 #include <onyx/atomic.h>
 #include <onyx/user.h>
 #include <onyx/panic.h>
+#include <onyx/dentry.h>
+
 #include <libgen.h>
 
 #include <sys/uio.h>
@@ -44,6 +46,7 @@ struct file *get_current_directory(void)
 
 	if(unlikely(!fp))
 		return NULL;
+
 	fd_get(fp);
 	return fp;
 }
@@ -58,6 +61,7 @@ void fd_put(struct file *fd)
 	if(__sync_sub_and_fetch(&fd->f_refcount, 1) == 0)
 	{
 		close_vfs(fd->f_ino);
+		dentry_put(fd->f_dentry);
 		free(fd);
 	}
 }
@@ -451,7 +455,7 @@ static struct file *try_to_open(struct file *base, const char *filename, int fla
 	}
 
 	if(!ret && errno == ENOENT && flags & O_CREAT)
-		ret = creat_vfs(base, filename, mode);
+		ret = creat_vfs(base->f_dentry, filename, mode);
 
 	return ret;
 }
@@ -543,7 +547,6 @@ int sys_dup2(int oldfd, int newfd)
 	/* TODO: Handle newfd's larger than the number of entries by extending the table */
 	if((unsigned int) newfd > ioctx->file_desc_entries)
 	{
-		panic("TODO");
 		fd_put(f);
 		mutex_unlock(&ioctx->fdlock);
 		return -EBADF;
@@ -1499,7 +1502,7 @@ int do_sys_mkdir(const char *path, mode_t mode, struct file *dir)
 {
 	struct file *base = get_fs_base(path, dir);
 
-	struct file *i = mkdir_vfs(path, mode, base);
+	struct file *i = mkdir_vfs(path, mode, base->f_dentry);
 	if(!i)
 		return -errno;
 
@@ -1550,7 +1553,7 @@ int do_sys_mknodat(const char *path, mode_t mode, dev_t dev, struct file *dir)
 {
 	struct file *base = get_fs_base(path, dir);
 
-	struct file *i = mknod_vfs(path, mode, dev, base);
+	struct file *i = mknod_vfs(path, mode, dev, base->f_dentry);
 	if(!i)
 		return -errno;
 

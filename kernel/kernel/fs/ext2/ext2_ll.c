@@ -20,6 +20,7 @@
 #include <onyx/log.h>
 #include <onyx/panic.h>
 #include <onyx/vm.h>
+#include <onyx/dentry.h>
 
 #include "ext2.h"
 
@@ -554,12 +555,12 @@ int ext2_link(struct inode *target, const char *name, struct inode *dir)
 	return 0;
 }
 
-int ext2_link_fops(struct file *_target, const char *name, struct file *_dir)
+int ext2_link_fops(struct file *_target, const char *name, struct dentry *_dir)
 {
-	return ext2_link(_target->f_ino, name, _dir->f_ino);
+	return ext2_link(_target->f_ino, name, _dir->d_inode);
 }
 
-struct inode *ext2_load_inode_from_disk(uint32_t inum, struct file *parent, struct ext2_fs_info *fs)
+struct inode *ext2_load_inode_from_disk(uint32_t inum, struct inode *parent, struct ext2_fs_info *fs)
 {
 	struct ext2_inode *inode = ext2_get_inode_from_number(fs, inum);
 	if(!inode)
@@ -631,9 +632,9 @@ out:
 	return st;
 }
 
-int ext2_unlink(const char *name, int flags, struct file *f)
+int ext2_unlink(const char *name, int flags, struct dentry *dir)
 {
-	struct inode *ino = f->f_ino;
+	struct inode *ino = dir->d_inode;
 	struct ext2_fs_info *fs = ino->i_sb->s_helper;
 
 	struct ext2_inode *inode = ext2_get_inode_from_node(ino);
@@ -671,7 +672,7 @@ int ext2_unlink(const char *name, int flags, struct file *f)
 	
 		spin_unlock(&ino->i_sb->s_ilock);
 	
-		if(!(target = ext2_load_inode_from_disk(ent->inode, f, fs)))
+		if(!(target = ext2_load_inode_from_disk(ent->inode, ino, fs)))
 		{
 			free(res.buf);
 			return -errno;

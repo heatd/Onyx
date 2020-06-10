@@ -57,7 +57,9 @@ void paging_free_page_tables(struct mm_address_space *mm);
 bool paging_write_protect(void *addr, struct mm_address_space *mm);
 
 #ifdef __x86_64__
+
 void *x86_placement_map(unsigned long _phys);
+
 #endif
 
 PML *get_current_pml4(void);

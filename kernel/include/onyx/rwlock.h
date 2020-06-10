@@ -34,4 +34,62 @@ void rw_unlock_write(struct rwlock *lock);
 }
 #endif
 
+#ifdef __cplusplus
+
+enum class rw_lock
+{
+	read = 0,
+	write
+};
+
+template <rw_lock lock_type>
+class scoped_rwlock
+{
+private:
+	bool IsLocked;
+	rwlock& internal_lock;
+public:
+
+	constexpr bool read() const
+	{
+		return lock_type == rw_lock::read;
+	}
+
+	constexpr bool write() const
+	{
+		return lock_type == rw_lock::write;
+	}
+
+	void lock()
+	{
+		if(read())
+			rw_lock_read(&internal_lock);
+		else
+			rw_lock_write(&internal_lock);
+		IsLocked = true;
+	}
+
+	void unlock()
+	{
+		if(read())
+			rw_unlock_read(&internal_lock);
+		else
+			rw_unlock_write(&internal_lock);
+		IsLocked = false;
+	}
+
+	scoped_rwlock(rwlock& lock) : internal_lock(lock)
+	{
+		this->lock();
+	}
+
+	~scoped_rwlock()
+	{
+		if(IsLocked)
+			unlock();
+	}
+};
+
+#endif
+
 #endif
