@@ -137,6 +137,8 @@ struct process *process_create(const char *cmd_line, struct ioctx *ctx, struct p
 			free(proc);
 			return NULL;
 		}
+
+		proc->ctx.umask = S_IWOTH | S_IWGRP;
 	}
 
 	if(parent)

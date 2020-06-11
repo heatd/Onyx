@@ -442,6 +442,11 @@ void handle_open_flags(struct file *fd, int flags)
 		fd->f_seek = fd->f_ino->i_size;
 }
 
+static inline mode_t get_current_umask(void)
+{
+	return get_current_process()->ctx.umask;
+}
+
 static struct file *try_to_open(struct file *base, const char *filename, int flags, mode_t mode)
 {
 	unsigned int open_flags = (flags & O_EXCL ? OPEN_FLAG_FAIL_IF_LINK : 0) |
@@ -475,7 +480,7 @@ static struct file *try_to_open(struct file *base, const char *filename, int fla
 	}
 
 	if(!ret && errno == ENOENT && flags & O_CREAT)
-		ret = creat_vfs(base->f_dentry, filename, mode);
+		ret = creat_vfs(base->f_dentry, filename, mode & ~get_current_umask());
 
 	return ret;
 }
@@ -1553,7 +1558,7 @@ int do_sys_mkdir(const char *path, mode_t mode, struct file *dir)
 {
 	struct file *base = get_fs_base(path, dir);
 
-	struct file *i = mkdir_vfs(path, mode, base->f_dentry);
+	struct file *i = mkdir_vfs(path, mode & ~get_current_umask(), base->f_dentry);
 	if(!i)
 		return -errno;
 
@@ -1604,7 +1609,7 @@ int do_sys_mknodat(const char *path, mode_t mode, dev_t dev, struct file *dir)
 {
 	struct file *base = get_fs_base(path, dir);
 
-	struct file *i = mknod_vfs(path, mode, dev, base->f_dentry);
+	struct file *i = mknod_vfs(path, mode & ~get_current_umask(), dev, base->f_dentry);
 	if(!i)
 		return -errno;
 
@@ -1723,8 +1728,6 @@ out:
 	if(newdir)	fd_put(newdir);
 	return st;
 }
-
-/* TODO: does open_vfs handle empty strings correctly? */
 
 int sys_link(const char *oldpath, const char *newpath)
 {
@@ -1848,6 +1851,15 @@ ssize_t sys_readlink(const char *pathname, char *buf, size_t bufsiz)
 	return sys_readlinkat(AT_FDCWD, pathname, buf, bufsiz);
 }
 
+mode_t sys_umask(mode_t mask)
+{
+	struct process *current = get_current_process();
+	mode_t old = current->ctx.umask;
+	current->ctx.umask = mask & 0777;
+
+	return old;
+}
+
 int sys_symlink(const char *target, const char *linkpath) {return -ENOSYS;}
 int sys_symlinkat(const char *target, int newdirfd, const char *linkpath) {return -ENOSYS;}
 int sys_chmod(const char *pathname, mode_t mode) {return -ENOSYS;}
@@ -1858,7 +1870,6 @@ int sys_fchown(int fd, uid_t owner, gid_t group) {return -ENOSYS;}
 int sys_lchown(const char *pathname, uid_t owner, gid_t group) {return -ENOSYS;}
 int sys_fchownat(int dirfd, const char *pathname,
                     uid_t owner, gid_t group, int flags) {return -ENOSYS;}
-mode_t sys_umask(mode_t mask) {return -ENOSYS;}
 int sys_rename(const char *oldpath, const char *newpath) {return -ENOSYS;}
 int sys_renameat(int olddirfd, const char *oldpath,
                     int newdirfd, const char *newpath) {return -ENOSYS;}
