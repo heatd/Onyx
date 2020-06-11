@@ -110,6 +110,8 @@ struct process *process_create(const char *cmd_line, struct ioctx *ctx, struct p
 	assert(proc->pid != (pid_t) -1);
 	proc->cmd_line = strdup(cmd_line);
 
+	itimer_init(proc);
+
 	if(!proc->cmd_line)
 	{
 		free(proc);

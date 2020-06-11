@@ -3,8 +3,8 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
-#ifndef _PROCESS_H
-#define _PROCESS_H
+#ifndef _ONYX_PROCESS_H
+#define _ONYX_PROCESS_H
 
 #include <sys/types.h>
 
@@ -21,6 +21,7 @@
 #include <onyx/elf.h>
 #include <onyx/syscall.h>
 #include <onyx/cred.h>
+#include <onyx/itimer.h>
 
 #include <onyx/vm_layout.h>
 
@@ -94,6 +95,8 @@ struct process
 
 	struct spinlock children_lock;
 	struct process *children, *prev_sibbling, *next_sibbling;
+
+	struct itimer timers[ITIMER_COUNT];
 };
 
 #ifdef __cplusplus

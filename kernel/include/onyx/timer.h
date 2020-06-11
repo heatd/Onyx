@@ -32,6 +32,8 @@ struct timer;
 
 struct clockevent
 {
+	/* This lock protects the whole structure from concurrent access */
+	struct spinlock lock;
 	hrtime_t deadline;
 	void *priv;
 	unsigned int flags;

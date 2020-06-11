@@ -118,6 +118,8 @@
 #define __NR_getpeername			121
 #define __NR_getsockname			122
 #define __NR_sigaltstack			123
+#define __NR_setitimer				124
+#define __NR_getitimer				125
 #define __NR_sysinfo			255
 #define __NR_geteuid			255
 #define __NR_getegid			255
@@ -246,8 +248,6 @@
 #define __NR_ioprio_get				252
 #define __NR_inotify_init			253
 #define __NR_inotify_add_watch			254
-#define __NR_alarm				255
-#define __NR_getitimer				255
 #define __NR_inotify_rm_watch			255
 #define __NR_madvise				255
 #define __NR_mincore				255
@@ -266,7 +266,6 @@
 #define __NR_semop				255
 #define __NR_sendfile				255
 #define __NR_sendmsg				255
-#define __NR_setitimer				255
 #define __NR_shmat				255
 #define __NR_shmctl				255
 #define __NR_shmdt				255
@@ -454,6 +453,8 @@
 #define SYS_getpeername			121
 #define SYS_getsockname			122
 #define SYS_sigaltstack			123
+#define SYS_setitimer				124
+#define SYS_getitimer				125
 #define SYS_sysinfo			255
 #define SYS_geteuid			255
 #define SYS_getegid			255
@@ -582,8 +583,6 @@
 #define SYS_ioprio_get				252
 #define SYS_inotify_init			253
 #define SYS_inotify_add_watch			254
-#define SYS_alarm				255
-#define SYS_getitimer				255
 #define SYS_inotify_rm_watch			255
 #define SYS_madvise				255
 #define SYS_mincore				255
@@ -602,7 +601,6 @@
 #define SYS_semop				255
 #define SYS_sendfile				255
 #define SYS_sendmsg				255
-#define SYS_setitimer				255
 #define SYS_shmat				255
 #define SYS_shmctl				255
 #define SYS_shmdt				255

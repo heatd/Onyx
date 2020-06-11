@@ -29,8 +29,11 @@
 #include <onyx/irq.h>
 #include <onyx/arch.h>
 #include <onyx/percpu.h>
-#include <libdict/rb_tree.h>
 #include <onyx/rwlock.h>
+#include <onyx/clock.h>
+
+#include <libdict/rb_tree.h>
+
 
 static bool is_initialized = false;
 
@@ -538,10 +541,25 @@ int sys_nanosleep(const struct timespec *req, struct timespec *rem)
 	struct timespec ts;
 	if(copy_from_user(&ts, req, sizeof(struct timespec)) < 0)
 		return -EFAULT;
-	
+
+	if(!timespec_valid(&ts, false))
+		return -EINVAL;
+
 	hrtime_t ns = ts.tv_sec * NS_PER_SEC + ts.tv_nsec;
 
-	sched_sleep(ns);
+	hrtime_t ns_rem = sched_sleep(ns);
+
+	if(rem)
+	{
+		ts.tv_sec = ns_rem / NS_PER_SEC;
+		ts.tv_nsec = ns_rem % NS_PER_SEC;
+
+		if(copy_to_user(rem, &ts, sizeof(struct timespec)) < 0)
+			return -EFAULT;
+	}
+
+	if(rem && signal_is_pending())
+		return -EINTR;
 
 	return 0;
 }

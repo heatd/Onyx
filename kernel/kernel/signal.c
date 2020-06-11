@@ -15,6 +15,7 @@
 #include <onyx/process.h>
 #include <onyx/task_switching.h>
 #include <onyx/wait_queue.h>
+#include <onyx/clock.h>
 
 void signal_default_term(int signum)
 {
@@ -1011,6 +1012,9 @@ int sys_rt_sigtimedwait(const sigset_t *set, siginfo_t *info, const struct times
 
 	if(utimeout && copy_from_user(&timeout, utimeout, sizeof(timeout)) < 0)
 		return -EFAULT;
+
+	if(!timespec_valid(&timeout, false))
+		return -EINVAL;
 	
 	sigset_t kset;
 

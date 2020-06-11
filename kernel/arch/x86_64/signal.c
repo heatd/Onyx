@@ -49,9 +49,13 @@ int signal_setup_context(struct sigpending *pend, struct sigaction *sigaction, s
 	size_t fpu_size = fpu_get_save_size();
 	/* Start setting the register state for the register switch */
 	/* Note that we're saving the old ones */
-	unsigned char *stack = (unsigned char *) sp - fpu_size;
 
-	struct sigframe *sframe = (struct sigframe *) stack - 1;
+	/* We need a 16 byte aligned location here, as the stack will point here */
+	/* Redzone is already handled */
+	unsigned long sframe_location = sp - sizeof(struct sigframe) - fpu_size;
+	sframe_location &= -16;
+
+	struct sigframe *sframe = (struct sigframe *) sframe_location;
 
 	if(copy_to_user(&sframe->retaddr, &sigaction->sa_restorer, sizeof(void *)) < 0)
 		return -EFAULT;
@@ -117,7 +121,7 @@ int signal_setup_context(struct sigpending *pend, struct sigaction *sigaction, s
 		return -EFAULT;
 	
 	/* Align the stack to 16 bytes, specified by the ABI */
-	regs->rsp = ((unsigned long) sframe) & ~16;
+	regs->rsp = (unsigned long) sframe;
 	regs->rip = (unsigned long) sigaction->sa_handler;
 	regs->rdi = sig;
 
@@ -140,7 +144,6 @@ void sys_sigreturn(struct syscall_frame *sysframe)
 	/* Switch the registers again */
 	struct registers rbuf;
 	struct registers *regs = &rbuf;
-
 	struct sigframe *sframe = (struct sigframe *) (sysframe->user_rsp - 8);
 
 	/* Set-up the ucontext */

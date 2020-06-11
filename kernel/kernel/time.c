@@ -206,3 +206,35 @@ void udelay(unsigned int us)
 {
 	ndelay(us * 1000);
 }
+
+bool timespec_valid(const struct timespec *ts, bool may_be_negative)
+{
+	if(ts->tv_nsec >= (long) NS_PER_SEC)
+		return false;
+
+	if(may_be_negative)
+		return true;
+	
+	if(ts->tv_sec < 0)
+		return false;
+	if(ts->tv_nsec < 0)
+		return false;
+
+	return true;
+}
+
+bool timeval_valid(const struct timeval *tv, bool may_be_negative)
+{
+	if(tv->tv_usec >= (long) US_PER_SEC)
+		return false;
+	
+	if(may_be_negative)
+		return true;
+	
+	if(tv->tv_sec < 0)
+		return false;
+	if(tv->tv_usec < 0)
+		return false;
+
+	return true;
+}

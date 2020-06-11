@@ -227,16 +227,19 @@ private_futex_out:
 
 int wait(int *uaddr, int val, int flags, const struct timespec *utimespec)
 {
-	bool timeout_valid = false;
+	bool has_timeout = false;
 	struct timespec ts;
 	hrtime_t timeout = 0;
 	int st = 0;
 
 	if(utimespec != nullptr)
 	{
-		timeout_valid = true;
+		has_timeout = true;
 		if(copy_from_user(&ts, utimespec, sizeof(ts)) < 0)
 			return -EFAULT;
+
+		if(!timespec_valid(&ts, false))
+			return -EINVAL; 
 	}
 	
 	timeout = timespec_to_hrtime(&ts);
@@ -272,7 +275,7 @@ int wait(int *uaddr, int val, int flags, const struct timespec *utimespec)
 
 	list_add_tail(&queue.list_node, list_head);
 
-	if(timeout_valid)
+	if(has_timeout)
 		st = queue.wait(timeout, lock);
 	else
 		st = queue.wait(lock);
