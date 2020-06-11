@@ -87,7 +87,7 @@ public:
 		{
 			throw std::runtime_error(std::string("ioctl: Could not get the local mac address: ") + strerror(errno));
 		}
-	
+
 		thread = std::move(std::thread{&instance::run, this});
 	}
 

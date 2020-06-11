@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include "libc.h"
+#include "lock.h"
 
 /* Ensure that at least 32 atexit handlers can be registered without malloc */
 #define COUNT 32
@@ -13,7 +14,7 @@ static struct fl
 } builtin, *head;
 
 static int slot;
-static volatile int lock[2];
+static volatile int lock[1];
 
 void __funcs_on_exit()
 {

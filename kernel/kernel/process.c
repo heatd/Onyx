@@ -153,7 +153,7 @@ struct process *process_create(const char *cmd_line, struct ioctx *ctx, struct p
 		/* Inherit the signal handlers of the process and the
 		 * signal mask of the current thread
 		*/
-		memcpy(&proc->sigtable, &parent->sigtable, sizeof(struct sigaction) * _NSIG);
+		memcpy(&proc->sigtable, &parent->sigtable, sizeof(struct k_sigaction) * _NSIG);
 		/* Note that the signal mask is inherited at thread creation */
 		
 		/* Note that pending signals are zero'd, as per POSIX */

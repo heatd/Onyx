@@ -1,3 +1,5 @@
+#include "libc.h"
+
 #if defined(__SH4A__)
 
 #define a_ll a_ll
@@ -21,7 +23,7 @@ static inline int a_sc(volatile int *p, int v)
 #define a_barrier a_barrier
 static inline void a_barrier()
 {
-	__asm__ __volatile__ ("synco" : : "memory");
+	__asm__ __volatile__ ("synco" ::: "memory");
 }
 
 #define a_pre_llsc a_barrier
@@ -30,7 +32,7 @@ static inline void a_barrier()
 #else
 
 #define a_cas a_cas
-__attribute__((__visibility__("hidden"))) extern const void *__sh_cas_ptr;
+extern hidden const void *__sh_cas_ptr;
 static inline int a_cas(volatile int *p, int t, int s)
 {
 	register int r1 __asm__("r1");

@@ -91,8 +91,8 @@ extern int sys_stat(const char *pathname, struct stat *buf);
 extern int sys_fstat(int fd, struct stat *buf);
 extern int sys_clock_gettime(clockid_t clk_id, struct timespec *tp);
 extern int sys_pipe(int *pipefd);
-extern int sys_sigaction(int signum, const struct sigaction *act,
-struct sigaction *oldact);
+extern int sys_sigaction(int signum, const struct k_sigaction *act,
+struct k_sigaction *oldact);
 extern int sys_memstat(struct memstat *memstat);
 extern int sys_chdir(const char *path);
 extern int sys_fchdir(int fildes);

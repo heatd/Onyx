@@ -30,10 +30,9 @@ static inline void a_post_llsc()
 	__asm__ __volatile__ ("isync" : : : "memory");
 }
 
-#define a_store a_store
-static inline void a_store(volatile int *p, int v)
+#define a_clz_32 a_clz_32
+static inline int a_clz_32(uint32_t x)
 {
-	a_pre_llsc();
-	*p = v;
-	a_post_llsc();
+	__asm__ ("cntlzw %0, %1" : "=r"(x) : "r"(x));
+	return x;
 }

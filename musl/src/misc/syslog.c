@@ -9,9 +9,9 @@
 #include <pthread.h>
 #include <errno.h>
 #include <fcntl.h>
-#include "libc.h"
+#include "lock.h"
 
-static volatile int lock[2];
+static volatile int lock[1];
 static char log_ident[32];
 static int log_opt;
 static int log_facility = LOG_USER;
@@ -122,7 +122,7 @@ static void _vsyslog(int priority, const char *message, va_list ap)
 	}
 }
 
-void __vsyslog(int priority, const char *message, va_list ap)
+static void __vsyslog(int priority, const char *message, va_list ap)
 {
 	int cs;
 	if (!(log_mask & LOG_MASK(priority&7)) || (priority&~0x3ff)) return;

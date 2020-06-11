@@ -20,8 +20,7 @@ FILE *fopen(const char *restrict filename, const char *restrict mode)
 
 	fd = sys_open(filename, flags, 0666);
 	if (fd < 0) return 0;
-	if (flags & O_CLOEXEC)
-		__syscall(SYS_fcntl, fd, F_SETFD, FD_CLOEXEC);
+	/* We save an fcntl here because open() already handles that. */
 
 	f = __fdopen(fd, mode);
 	if (f) return f;
@@ -30,4 +29,4 @@ FILE *fopen(const char *restrict filename, const char *restrict mode)
 	return 0;
 }
 
-LFS64(fopen);
+weak_alias(fopen, fopen64);

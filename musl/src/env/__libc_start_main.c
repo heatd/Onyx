@@ -2,40 +2,39 @@
 #include <poll.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <unistd.h>
 #include "syscall.h"
 #include "atomic.h"
 #include "libc.h"
 
-#include <unistd.h>
-#include <string.h>
-void __init_tls(size_t *);
-
 static void dummy(void) {}
 weak_alias(dummy, _init);
 
-__attribute__((__weak__, __visibility__("hidden")))
-extern void (*const __init_array_start)(void), (*const __init_array_end)(void);
+extern weak hidden void (*const __init_array_start)(void), (*const __init_array_end)(void);
 
 static void dummy1(void *p) {}
 weak_alias(dummy1, __init_ssp);
 
 #define AUX_CNT 38
 
-void __init_libc(char **envp, char *pn, size_t *_auxv)
+#ifdef __GNUC__
+__attribute__((__noinline__))
+#endif
+void __init_libc(char **envp, char *pn)
 {
 	size_t i, *auxv, aux[AUX_CNT] = { 0 };
 	__environ = envp;
-
-	libc.auxv = auxv = _auxv;
+	for (i=0; envp[i]; i++);
+	libc.auxv = auxv = (void *)(envp+i+1);
 	for (i=0; auxv[i]; i+=2) if (auxv[i]<AUX_CNT) aux[auxv[i]] = auxv[i+1];
 	__hwcap = aux[AT_HWCAP];
-	__sysinfo = aux[AT_SYSINFO];
+	if (aux[AT_SYSINFO]) __sysinfo = aux[AT_SYSINFO];
 	libc.page_size = aux[AT_PAGESZ];
 
-	if (pn) {
-		__progname = __progname_full = pn;
-		for (i=0; pn[i]; i++) if (pn[i]=='/') __progname = pn+i+1;
-	}
+	if (!pn) pn = (void*)aux[AT_EXECFN];
+	if (!pn) pn = "";
+	__progname = __progname_full = pn;
+	for (i=0; pn[i]; i++) if (pn[i]=='/') __progname = pn+i+1;
 
 	__init_tls(aux);
 	__init_ssp((void *)aux[AT_RANDOM]);
@@ -44,11 +43,13 @@ void __init_libc(char **envp, char *pn, size_t *_auxv)
 		&& !aux[AT_SECURE]) return;
 
 	struct pollfd pfd[3] = { {.fd=0}, {.fd=1}, {.fd=2} };
+	int r =
 #ifdef SYS_poll
 	__syscall(SYS_poll, pfd, 3, 0);
 #else
 	__syscall(SYS_ppoll, pfd, 3, &(struct timespec){0}, 0, _NSIG/8);
 #endif
+	if (r<0) a_crash();
 	for (i=0; i<3; i++) if (pfd[i].revents&POLLNVAL)
 		if (__sys_open("/dev/null", O_RDWR)<0)
 			a_crash();
@@ -60,19 +61,37 @@ static void libc_start_init(void)
 	_init();
 	uintptr_t a = (uintptr_t)&__init_array_start;
 	for (; a<(uintptr_t)&__init_array_end; a+=sizeof(void(*)()))
-		(*(void (**)())a)();
+		(*(void (**)(void))a)();
 }
 
 weak_alias(libc_start_init, __libc_start_init);
 
-int __libc_start_main(int (*main)(int,char **,char **), int argc, char **argv, char **envp, size_t *auxv)
-{
-	__init_libc(envp, argv[0], auxv);
+typedef int lsm2_fn(int (*)(int,char **,char **), int, char **);
+static lsm2_fn libc_start_main_stage2;
 
-#ifndef SHARED
-	__vdso_init();
+int __libc_start_main(int (*main)(int,char **,char **), int argc, char **argv)
+{
+	char **envp = argv+argc+1;
+
+	/* External linkage, and explicit noinline attribute if available,
+	 * are used to prevent the stack frame used during init from
+	 * persisting for the entire process lifetime. */
+	__init_libc(envp, argv[0]);
+
+	/* Barrier against hoisting application code or anything using ssp
+	 * or thread pointer prior to its initialization above. */
+	lsm2_fn *stage2 = libc_start_main_stage2;
+	__asm__ ( "" : "+r"(stage2) : : "memory" );
+	return stage2(main, argc, argv);
+}
+
+static int libc_start_main_stage2(int (*main)(int,char **,char **), int argc, char **argv)
+{
+	char **envp = argv+argc+1;
 	__libc_start_init();
-#endif
+
+	__vdso_init();
+
 	/* Pass control to the application */
 	exit(main(argc, argv, envp));
 	return 0;

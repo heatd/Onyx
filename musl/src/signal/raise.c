@@ -5,12 +5,9 @@
 
 int raise(int sig)
 {
-	int pid, ret;
 	sigset_t set;
-	(void) set;	
-	/*__block_app_sigs(&set); */
-	pid = __syscall(SYS_getpid);
-	ret = syscall(SYS_kill, pid, sig);
-	/*__restore_sigs(&set);*/
+	__block_app_sigs(&set);
+	int ret = syscall(SYS_tkill, __pthread_self()->tid, sig);
+	__restore_sigs(&set);
 	return ret;
 }

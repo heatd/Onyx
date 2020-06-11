@@ -41,7 +41,8 @@ long do_syscall64(struct syscall_frame *frame)
 						   frame->r8, frame->r9);
 	}
 	else
-		ret = -ENOSYS;	
+		ret = -ENOSYS;
+	//printk("Doing syscall %lu = %lu\n", frame->rax, ret);
 
 	proc_event_exit_syscall(ret, syscall_nr);
 

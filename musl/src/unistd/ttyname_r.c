@@ -1,8 +1,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <sys/stat.h>
-
-void __procfdname(char *, unsigned);
+#include "syscall.h"
 
 int ttyname_r(int fd, char *name, size_t size)
 {
@@ -10,7 +9,7 @@ int ttyname_r(int fd, char *name, size_t size)
 	char procname[sizeof "/proc/self/fd/" + 3*sizeof(int) + 2];
 	ssize_t l;
 
-	if (!isatty(fd)) return ENOTTY;
+	if (!isatty(fd)) return errno;
 
 	__procfdname(procname, fd);
 	l = readlink(procname, name, size);
@@ -23,7 +22,7 @@ int ttyname_r(int fd, char *name, size_t size)
 	if (stat(name, &st1) || fstat(fd, &st2))
 		return errno;
 	if (st1.st_dev != st2.st_dev || st1.st_ino != st2.st_ino)
-		return ENOENT;
+		return ENODEV;
 
 	return 0;
 }

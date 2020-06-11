@@ -4,6 +4,6 @@
 
 int sigisemptyset(const sigset_t *set)
 {
-	static const unsigned long zeroset[_NSIG/8/sizeof(long)];
+	static const unsigned long zeroset[_SIGSET_SIZE];
 	return !memcmp(set, &zeroset, _NSIG/8);
 }

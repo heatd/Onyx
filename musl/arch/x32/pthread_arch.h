@@ -1,7 +1,7 @@
 static inline struct pthread *__pthread_self()
 {
 	struct pthread *self;
-	__asm__ __volatile__ ("mov %%fs:0,%0" : "=r" (self) );
+	__asm__ ("mov %%fs:0,%0" : "=r" (self) );
 	return self;
 }
 
@@ -10,3 +10,5 @@ static inline struct pthread *__pthread_self()
 #define MC_PC gregs[REG_RIP]
 
 #define CANARY canary2
+
+#define tls_mod_off_t unsigned long long

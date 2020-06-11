@@ -8,31 +8,22 @@
 #include "syscall.h"
 #include "pthread_impl.h"
 #include "fdop.h"
-#include "libc.h"
 
 struct args {
 	int p[2];
 	sigset_t oldmask;
 	const char *path;
-	int (*exec)(const char *, char *const *, char *const *);
 	const posix_spawn_file_actions_t *fa;
 	const posix_spawnattr_t *restrict attr;
 	char *const *argv, *const *envp;
 };
-
-void __get_handler_set(sigset_t *);
 
 static int __sys_dup2(int old, int new)
 {
 #ifdef SYS_dup2
 	return __syscall(SYS_dup2, old, new);
 #else
-	if (old==new) {
-		int r = __syscall(SYS_fcntl, old, F_GETFD);
-		return r<0 ? r : old;
-	} else {
-		return __syscall(SYS_dup3, old, new, 0);
-	}
+	return __syscall(SYS_dup3, old, new, 0);
 #endif
 }
 
@@ -73,6 +64,10 @@ static int child(void *args_vp)
 		__libc_sigaction(i, &sa, 0);
 	}
 
+	if (attr->__flags & POSIX_SPAWN_SETSID)
+		if ((ret=__syscall(SYS_setsid)) < 0)
+			goto fail;
+
 	if (attr->__flags & POSIX_SPAWN_SETPGROUP)
 		if ((ret=__syscall(SYS_setpgid, 0, attr->__pgrp)))
 			goto fail;
@@ -105,8 +100,21 @@ static int child(void *args_vp)
 				__syscall(SYS_close, op->fd);
 				break;
 			case FDOP_DUP2:
-				if ((ret=__sys_dup2(op->srcfd, op->fd))<0)
+				fd = op->srcfd;
+				if (fd == p) {
+					ret = -EBADF;
 					goto fail;
+				}
+				if (fd != op->fd) {
+					if ((ret=__sys_dup2(fd, op->fd))<0)
+						goto fail;
+				} else {
+					ret = __syscall(SYS_fcntl, fd, F_GETFD);
+					ret = __syscall(SYS_fcntl, fd, F_SETFD,
+					                ret & ~FD_CLOEXEC);
+					if (ret<0)
+						goto fail;
+				}
 				break;
 			case FDOP_OPEN:
 				fd = __sys_open(op->path, op->oflag, op->mode);
@@ -116,6 +124,14 @@ static int child(void *args_vp)
 						goto fail;
 					__syscall(SYS_close, fd);
 				}
+				break;
+			case FDOP_CHDIR:
+				ret = __syscall(SYS_chdir, op->path);
+				if (ret<0) goto fail;
+				break;
+			case FDOP_FCHDIR:
+				ret = __syscall(SYS_fchdir, op->fd);
+				if (ret<0) goto fail;
 				break;
 			}
 		}
@@ -130,7 +146,10 @@ static int child(void *args_vp)
 	pthread_sigmask(SIG_SETMASK, (attr->__flags & POSIX_SPAWN_SETSIGMASK)
 		? &attr->__mask : &args->oldmask, 0);
 
-	args->exec(args->path, args->argv, args->envp);
+	int (*exec)(const char *, char *const *, char *const *) =
+		attr->__fn ? (int (*)())attr->__fn : execve;
+
+	exec(args->path, args->argv, args->envp);
 	ret = -errno;
 
 fail:
@@ -141,14 +160,13 @@ fail:
 }
 
 
-int __posix_spawnx(pid_t *restrict res, const char *restrict path,
-	int (*exec)(const char *, char *const *, char *const *),
+int posix_spawn(pid_t *restrict res, const char *restrict path,
 	const posix_spawn_file_actions_t *fa,
 	const posix_spawnattr_t *restrict attr,
 	char *const argv[restrict], char *const envp[restrict])
 {
 	pid_t pid;
-	char stack[1024];
+	char stack[1024+PATH_MAX];
 	int ec=0, cs;
 	struct args args;
 
@@ -158,7 +176,6 @@ int __posix_spawnx(pid_t *restrict res, const char *restrict path,
 	pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &cs);
 
 	args.path = path;
-	args.exec = exec;
 	args.fa = fa;
 	args.attr = attr ? attr : &(const posix_spawnattr_t){0};
 	args.argv = argv;
@@ -171,7 +188,12 @@ int __posix_spawnx(pid_t *restrict res, const char *restrict path,
 	if (pid > 0) {
 		if (read(args.p[0], &ec, sizeof ec) != sizeof ec) ec = 0;
 		else waitpid(pid, &(int){0}, 0);
-	} else {
+	} else if(pid == 0)
+	{
+		child(&args);
+	}
+	else
+	{
 		ec = -pid;
 	}
 
@@ -183,12 +205,4 @@ int __posix_spawnx(pid_t *restrict res, const char *restrict path,
 	pthread_setcancelstate(cs, 0);
 
 	return ec;
-}
-
-int posix_spawn(pid_t *restrict res, const char *restrict path,
-	const posix_spawn_file_actions_t *fa,
-	const posix_spawnattr_t *restrict attr,
-	char *const argv[restrict], char *const envp[restrict])
-{
-	return __posix_spawnx(res, path, execve, fa, attr, argv, envp);
 }

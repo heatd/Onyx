@@ -55,7 +55,7 @@ extern "C" {
 #endif
 
 bool signal_is_pending(void);
-int signal_setup_context(struct sigpending *pend, struct sigaction *sigaction, struct registers *regs);
+int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigaction, struct registers *regs);
 void handle_signal(struct registers *regs);
 void signal_update_pending(struct thread *thread);
 

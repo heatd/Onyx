@@ -11,16 +11,14 @@
 #include <sys/stat.h>
 #include <stdlib.h>
 #include <pthread.h>
-#include "libc.h"
-
-char *__shm_mapname(const char *, char *);
+#include "lock.h"
 
 static struct {
 	ino_t ino;
 	sem_t *sem;
 	int refcnt;
 } *semtab;
-static volatile int lock[2];
+static volatile int lock[1];
 
 #define FLAGS (O_RDWR|O_NOFOLLOW|O_CLOEXEC|O_NONBLOCK)
 
@@ -37,8 +35,8 @@ sem_t *sem_open(const char *name, int flags, ...)
 	struct stat st;
 	char buf[NAME_MAX+10];
 
-	/*if (!(name = __shm_mapname(name, buf))) */
-	return SEM_FAILED;
+	if (!(name = __shm_mapname(name, buf)))
+		return SEM_FAILED;
 
 	LOCK(lock);
 	/* Allocate table if we don't have one yet */

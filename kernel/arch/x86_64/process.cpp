@@ -84,14 +84,10 @@ int process_alloc_stack(struct stack_info *info)
 	return 0;
 }
 
-struct thread *process_create_main_thread(struct process *proc, thread_callback_t callback, void *sp,
-                                     int argc, char **argv, char **envp)
+struct thread *process_create_main_thread(struct process *proc, thread_callback_t callback, void *sp)
 {
 	registers_t regs = {};
 	regs.rsp = reinterpret_cast<unsigned long>(sp);
-	regs.rdi = static_cast<unsigned long>(argc);
-	regs.rsi = reinterpret_cast<unsigned long>(argv);
-	regs.rdx = reinterpret_cast<unsigned long>(envp);
 	regs.rip = reinterpret_cast<unsigned long>(callback);
 	regs.rflags = default_rflags;
 
@@ -113,8 +109,20 @@ struct thread *process_create_main_thread(struct process *proc, thread_callback_
 #define CLONE_SPAWNTHREAD	 (1 << 1)
 long valid_flags = CLONE_FORK | CLONE_SPAWNTHREAD;
 
-int sys_clone(int (*fn)(void *), void *child_stack, int flags, void *arg, pid_t *ptid, void *tls)
+struct tid_out
 {
+	/* TID is placed here */
+	pid_t *ptid;
+	/* This location is zero'd when the thread exits */
+	pid_t *ctid;
+};
+
+int sys_clone(int (*fn)(void *), void *child_stack, int flags, void *arg, struct tid_out *out, void *tls)
+{
+	struct tid_out ktid_out;
+	if(copy_from_user(&ktid_out, out, sizeof(ktid_out)) < 0)
+		return -EFAULT;
+
 	if(flags & ~valid_flags)
 		return -EINVAL;
 	if(flags & CLONE_FORK)
@@ -131,13 +139,13 @@ int sys_clone(int (*fn)(void *), void *child_stack, int flags, void *arg, pid_t 
 	if(!thread)
 		return -errno;
 
-	if(copy_to_user(ptid, &thread->id, sizeof(pid_t)) < 0)
+	if(copy_to_user(out->ptid, &thread->id, sizeof(pid_t)) < 0)
 	{
 		thread_destroy(thread);
 		return -errno;
 	}
 
-	thread->ctid = ptid;
+	thread->ctid = ktid_out.ctid;
 
 	process_add_thread(get_current_process(), thread);
 	sched_start_thread(thread);

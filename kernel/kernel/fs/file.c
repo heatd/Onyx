@@ -490,7 +490,7 @@ static struct file *try_to_open(struct file *base, const char *filename, int fla
 /* TODO: Add O_SYNC */
 #define VALID_OPEN_FLAGS      (O_RDONLY | O_WRONLY | O_RDWR | \
                                O_CREAT | O_DIRECTORY | O_EXCL | \
-                               O_NOFOLLOW | O_NONBLOCK | O_APPEND | O_CLOEXEC)
+                               O_NOFOLLOW | O_NONBLOCK | O_APPEND | O_CLOEXEC | O_LARGEFILE)
 
 int do_sys_open(const char *filename, int flags, mode_t mode, struct file *__rel)
 {
@@ -1284,7 +1284,6 @@ int sys_chdir(const char *upath)
 		goto out;
 	}
 
-
 	if(!(dir->f_ino->i_type & VFS_TYPE_DIR))
 	{
 		st = -ENOTDIR;
@@ -1353,7 +1352,7 @@ int sys_getcwd(char *path, size_t size)
 
 	struct file *cwd = get_current_directory();
 	char *name = dentry_to_file_name(cwd->f_dentry);
-	
+
 	fd_put(cwd);
 
 	if(!name)
@@ -1373,7 +1372,7 @@ int sys_getcwd(char *path, size_t size)
 		return -errno;
 	}
 
-	return 0;
+	return strlen(name);
 }
 
 struct file *get_dirfd_file(int dirfd)
@@ -1399,14 +1398,6 @@ int sys_openat(int dirfd, const char *upath, int flags, mode_t mode)
 	if(!dirfd_desc)
 		return -errno;
 
-	struct file *dir = dirfd_desc;
-
-	if(!(dir->f_ino->i_type & VFS_TYPE_DIR))
-	{
-		if(dirfd_desc) fd_put(dirfd_desc);
-		return -ENOTDIR;
-	}
-	
 	const char *path = strcpy_from_user(upath);
 	if(!path)
 	{
@@ -1438,12 +1429,6 @@ int sys_fstatat(int dirfd, const char *upathname, struct stat *ubuf, int flags)
 	}
 
 	dir = dirfd_desc;
-
-	if(!(dir->f_ino->i_type & VFS_TYPE_DIR))
-	{
-		st = -ENOTDIR;
-		goto out;
-	}
 
 	st = do_sys_stat(pathname, &buf, flags, dir);
 

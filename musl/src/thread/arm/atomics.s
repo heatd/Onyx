@@ -15,10 +15,10 @@ __a_barrier_oldkuser:
 	mov r1,r0
 	mov r2,sp
 	ldr ip,=0xffff0fc0
-	mov lr,pc
-	mov pc,ip
+	bl 1f
 	pop {r0,r1,r2,r3,ip,lr}
 	bx lr
+1:	bx ip
 
 .global __a_barrier_v6
 .hidden __a_barrier_v6
@@ -84,7 +84,7 @@ __a_gettp_cp15:
 	bx lr
 
 /* Tag this file with minimum ISA level so as not to affect linking. */
-.arch armv4t
+.object_arch armv4t
 .eabi_attribute 6,2
 
 .data

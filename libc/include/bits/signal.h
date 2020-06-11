@@ -121,3 +121,4 @@ typedef struct __ucontext {
 
 #define _NSIG 65
 
+#define _NSIG_PER_WORD   (_NSIG - 1)

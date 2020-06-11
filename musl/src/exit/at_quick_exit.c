@@ -1,11 +1,12 @@
 #include <stdlib.h>
 #include "libc.h"
+#include "lock.h"
 
 #define COUNT 32
 
 static void (*funcs[COUNT])(void);
 static int count;
-static volatile int lock[2];
+static volatile int lock[1];
 
 void __funcs_on_quick_exit()
 {
@@ -21,9 +22,10 @@ void __funcs_on_quick_exit()
 
 int at_quick_exit(void (*func)(void))
 {
-	if (count == 32) return -1;
+	int r = 0;
 	LOCK(lock);
-	funcs[count++] = func;
+	if (count == 32) r = -1;
+	else funcs[count++] = func;
 	UNLOCK(lock);
-	return 0;
+	return r;
 }

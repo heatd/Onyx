@@ -8,7 +8,7 @@ typedef union {
 
 typedef struct {
 	unsigned fpc;
-	fpreg_t fprs[16];
+	elf_fpreg_t fprs[16];
 } elf_fpregset_t;
 
 #define ELF_NGREG 27
@@ -32,7 +32,7 @@ struct _user_per_struct {
 	unsigned short perc_atmid;
 	unsigned long address;
 	unsigned char access_id;
-} per_struct;
+};
 
 struct _user_regs_struct {
 	struct _user_psw_struct psw;
@@ -54,8 +54,8 @@ struct user {
 	char u_comm[32];
 };
 
-#define PAGE_MASK            (~(PAGE_SIZE-1))
-#define NBPG                 PAGE_SIZE
+#define PAGE_MASK            (~(PAGESIZE-1))
+#define NBPG                 PAGESIZE
 #define UPAGES               1
 #define HOST_TEXT_START_ADDR (u.start_code)
 #define HOST_STACK_END_ADDR  (u.start_stack + u.u_ssize * NBPG)

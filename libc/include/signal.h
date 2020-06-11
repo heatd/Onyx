@@ -173,6 +173,18 @@ struct sigaction {
 	int sa_flags;
 	void (*sa_restorer)(void);
 };
+
+struct k_sigaction
+{
+	union {
+		void (*sa_handler)(int);
+		void (*sa_sigaction)(int, siginfo_t *, void *);
+	} __sa_handler;
+	unsigned long sa_flags;
+	void (*sa_restorer)(void);
+	unsigned int sa_mask[2];
+};
+
 #define sa_handler   __sa_handler.sa_handler
 #define sa_sigaction __sa_handler.sa_sigaction
 

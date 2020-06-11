@@ -308,8 +308,8 @@ void deliver_signal(int signum, struct sigpending *pending, struct registers *re
 	struct thread *thread = get_current_thread();
 	struct process *process = thread->owner;
 
-	struct sigaction *sigaction = &process->sigtable[signum];
-	void (*handler)(int) = sigaction->sa_handler;
+	struct k_sigaction *k_sigaction = &process->sigtable[signum];
+	void (*handler)(int) = k_sigaction->sa_handler;
 
 	/* TODO: Handle SA_RESTART */
 	/* TODO: Handle SA_NOCLDWAIT */
@@ -317,7 +317,7 @@ void deliver_signal(int signum, struct sigpending *pending, struct registers *re
 
 	if(handler != SIG_DFL)
 	{
-		if(signal_setup_context(pending, sigaction, regs) < 0)
+		if(signal_setup_context(pending, k_sigaction, regs) < 0)
 		{
 			if(force_sigsegv(pending, regs) < 0)
 				return;
@@ -328,17 +328,17 @@ void deliver_signal(int signum, struct sigpending *pending, struct registers *re
 		do_default_signal(signum, pending);
 	}
 
-	if(sigaction->sa_flags & SA_RESETHAND)
+	if(k_sigaction->sa_flags & SA_RESETHAND)
 	{
 		/* If so, we need to reset the handler to SIG_DFL and clear SA_SIGINFO */
-		sigaction->sa_handler = SIG_DFL;
-		sigaction->sa_flags &= ~SA_SIGINFO;
+		k_sigaction->sa_handler = SIG_DFL;
+		k_sigaction->sa_flags &= ~SA_SIGINFO;
 	}
 	
 	sigset_t new_blocked;
-	memcpy(&new_blocked, &sigaction->sa_mask, sizeof(new_blocked));
+	memcpy(&new_blocked, &k_sigaction->sa_mask, sizeof(new_blocked));
 
-	if(!(sigaction->sa_flags & SA_NODEFER))
+	if(!(k_sigaction->sa_flags & SA_NODEFER))
 	{
 		/* POSIX specifies that the signal needs to be blocked while being handled */
 		sigaddset(&new_blocked, signum);
@@ -681,7 +681,7 @@ out:
 	return st;
 }
 
-int sys_sigaction(int signum, const struct sigaction *act, struct sigaction *oldact)
+int sys_sigaction(int signum, const struct k_sigaction *act, struct k_sigaction *oldact)
 {
 	int st = 0;
 	if(!is_valid_signal(signum))
@@ -699,7 +699,7 @@ int sys_sigaction(int signum, const struct sigaction *act, struct sigaction *old
 	/* If old_act, save the old action */
 	if(oldact)
 	{
-		if(copy_to_user(oldact, &proc->sigtable[signum], sizeof(struct sigaction)) < 0)
+		if(copy_to_user(oldact, &proc->sigtable[signum], sizeof(struct k_sigaction)) < 0)
 		{
 			st = -EFAULT;
 			goto out;
@@ -709,9 +709,9 @@ int sys_sigaction(int signum, const struct sigaction *act, struct sigaction *old
 	/* If act, set the new action */
 	if(act)
 	{
-		struct sigaction sa;
+		struct k_sigaction sa;
 
-		if(copy_from_user(&sa, act, sizeof(struct sigaction)) < 0)
+		if(copy_from_user(&sa, act, sizeof(struct k_sigaction)) < 0)
 		{
 			st = -EFAULT;
 			goto out;
@@ -971,7 +971,7 @@ void signal_do_execve(struct process *proc)
 	/* Clear the non-ignored signal disposition */
 	for(int i = 0; i < NSIG; i++)
 	{
-		struct sigaction *sa = &proc->sigtable[i];
+		struct k_sigaction *sa = &proc->sigtable[i];
 		if(sa->sa_handler != SIG_IGN)
 			sa->sa_handler = NULL;
 		

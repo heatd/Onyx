@@ -15,15 +15,9 @@ extern "C" {
 
 #include <bits/alltypes.h>
 
-typedef struct __dirstream DIR;
+#include <bits/dirent.h>
 
-struct dirent {
-	ino_t d_ino;
-	off_t d_off;
-	unsigned short d_reclen;
-	unsigned char d_type;
-	char d_name[256];
-};
+typedef struct __dirstream DIR;
 
 #define d_fileno d_ino
 

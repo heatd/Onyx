@@ -79,6 +79,9 @@ int pthread_detach(pthread_t);
 _Noreturn void pthread_exit(void *);
 int pthread_join(pthread_t, void **);
 
+#ifdef __GNUC__
+__attribute__((const))
+#endif
 pthread_t pthread_self(void);
 
 int pthread_equal(pthread_t, pthread_t);
@@ -219,6 +222,16 @@ int pthread_getattr_default_np(pthread_attr_t *);
 int pthread_setattr_default_np(const pthread_attr_t *);
 int pthread_tryjoin_np(pthread_t, void **);
 int pthread_timedjoin_np(pthread_t, void **, const struct timespec *);
+#endif
+
+#if _REDIR_TIME64
+__REDIR(pthread_mutex_timedlock, __pthread_mutex_timedlock_time64);
+__REDIR(pthread_cond_timedwait, __pthread_cond_timedwait_time64);
+__REDIR(pthread_rwlock_timedrdlock, __pthread_rwlock_timedrdlock_time64);
+__REDIR(pthread_rwlock_timedwrlock, __pthread_rwlock_timedwrlock_time64);
+#ifdef _GNU_SOURCE
+__REDIR(pthread_timedjoin_np, __pthread_timedjoin_np_time64);
+#endif
 #endif
 
 #ifdef __cplusplus

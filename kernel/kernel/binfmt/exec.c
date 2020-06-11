@@ -43,9 +43,7 @@ char **process_copy_envarg(char **envarg, bool to_kernel, int *count)
 	}
 	else
 	{
-		new = vm_mmap(NULL, vm_size_to_pages(buffer_size) << PAGE_SHIFT, PROT_WRITE, MAP_PRIVATE | MAP_ANON, NULL, 0);
-		if(!new)
-			return NULL;
+		panic("old code");
 	}
 
 	char *strings = (char*) new + (nr_args + 1) * sizeof(void*);
@@ -71,12 +69,51 @@ char **process_copy_envarg(char **envarg, bool to_kernel, int *count)
 	return new_args;
 }
 
-void *process_setup_auxv(void *buffer, struct process *process)
+size_t count_strings_len(char **ps, int *count)
+{
+	size_t total_len = 0;
+	int _count = 0;
+
+	while(*ps)
+	{
+		total_len += strlen(*ps++) + 1;
+		_count++;
+	}
+
+	if(count)
+		*count = _count;
+
+	return total_len;
+}
+
+/* Sigh... Why doesn't C have references... */
+void process_put_strings(char ***pp, char **pstrings, char **vec)
+{
+	char **p = *pp;
+	char *strings = *pstrings;
+
+	while(*vec)
+	{
+		char *s = strings;
+		/* stpcpy returns a pointer to dest, then we add one to account for the null byte */
+		//printk("Writing (%s) strlen %lu to %p\n", *vec, strlen(*vec), s);
+		strings = stpcpy(strings, *vec) + 1;
+		*p = s;
+		vec++;
+		p++;
+	}
+
+	*p++ = NULL;
+	*pp = p;
+	*pstrings = strings;
+}
+
+void *process_setup_auxv(void *buffer, char *strings_space, struct process *process)
 {
 	process->vdso = vdso_map();
 	/* Setup the auxv at the stack bottom */
 	Elf64_auxv_t *auxv = (Elf64_auxv_t *) buffer;
-	unsigned char *scratch_space = (unsigned char *) (auxv + 37);
+	unsigned char *scratch_space = (unsigned char *) strings_space;
 	for(int i = 0; i < 38; i++)
 	{
 		if(i != 0)
@@ -124,9 +161,6 @@ void *process_setup_auxv(void *buffer, struct process *process)
 				break;
 			case AT_FLAGS:
 			{
-				/* Lets reuse AT_FLAGS for the purpose of storing dynv */
-				/* TODO: Hack? */
-				auxv[i].a_un.a_val = (uintptr_t) process->info.dyn;
 				break;
 			}
 
@@ -139,6 +173,39 @@ void *process_setup_auxv(void *buffer, struct process *process)
 	}
 
 	return auxv;
+}
+
+void process_put_entry_info(struct stack_info *info, char **argv, char **envp)
+{
+	int envc = 0;
+	int argc = 0;
+	size_t arg_len = count_strings_len(argv, &argc);
+	size_t env_len = count_strings_len(envp, &envc);
+	
+	/* The calling convention passes argv[0] ... argv[?] = NULL, envp[0] ... envp[?] = NULL, auxv
+	 * and only then can we put our strings.
+     */
+	size_t invariants = sizeof(long) + ((argc + 1) * sizeof(void *)) + ((envc + 1) * sizeof(void *))
+	                    + 38 * sizeof(Elf64_auxv_t);
+
+	size_t total_info_len = arg_len + env_len + invariants
+	       + strlen(get_current_process()->cmd_line) + 1 + 16;
+	//printk("Old top: %p\n", info->top);
+	info->top = (void *) ((unsigned long) info->top - total_info_len);
+
+	__attribute__((may_alias)) char **pointers_base = info->top;
+	__attribute__((may_alias)) char *strings_space = (char *) pointers_base + invariants;
+
+	__attribute__((may_alias)) long *pargc = (long *) pointers_base;
+	*pargc = argc;
+	//printk("argv at %p\n", pointers_base);
+	pointers_base = (void *)((char *) pointers_base + sizeof(long));
+	process_put_strings(&pointers_base, &strings_space, argv);
+	//printk("envp at %p\n", pointers_base);
+	process_put_strings(&pointers_base, &strings_space, envp);
+	//printk("auxv at %p\n", pointers_base);
+	process_setup_auxv(pointers_base, strings_space, get_current_process());
+	//printk("Stack pointer: %p\n", info->top);
 }
 
 void process_kill_other_threads(void);
@@ -180,7 +247,7 @@ int flush_old_exec(struct exec_state *state)
 	return_from_execve(): Return from execve, while loading registers and zero'ing the others.
 	Does not return!
 */ 
-int return_from_execve(void *entry, int argc, char **argv, char **envp, void *auxv, void *stack);
+int return_from_execve(void *entry, void *stack);
 /*
 	execve(2): Executes a program with argv and envp, replacing the current process.
 */
@@ -320,38 +387,18 @@ int sys_execve(char *p, char *argv[], char *envp[])
 
 	free(file);
 
-	/* Copy argv and envp to user space memory */
-	char **uargv = process_copy_envarg(karg, false, NULL);
-	if(!uargv)
-	{
-		goto error_die_signal;
-	}
-
-	free(karg);
-	karg = NULL;
-
-	char **uenv = process_copy_envarg(kenv, false, NULL);
-	if(!uenv)
-	{
-		goto error_die_signal;
-	}
-	
-	free(kenv);
-	kenv = NULL;
-
 	struct stack_info si;
 	si.length = DEFAULT_USER_STACK_LEN;
 	
 	if(process_alloc_stack(&si) < 0)
 		goto error_die_signal;
 
-	void *auxv = NULL;
-
-	/* Setup auxv */
-	auxv = process_setup_auxv(si.base, current);
-
+	process_put_entry_info(&si, karg, kenv);
+	free(karg);
+	free(kenv);
 	free(path);
-	return return_from_execve(entry, argc, uargv, uenv, auxv, si.top);
+
+	return return_from_execve(entry, si.top);
 
 error_die_signal:
 	free(path);

@@ -48,16 +48,15 @@ static inline void a_post_llsc()
 	__asm__ __volatile__ ("isync" : : : "memory");
 }
 
-#define a_store a_store
-static inline void a_store(volatile int *p, int v)
-{
-	a_pre_llsc();
-	*p = v;
-	a_post_llsc();
-}
-
 #define a_crash a_crash
 static inline void a_crash()
 {
 	__asm__ __volatile__ (".long 0");
+}
+
+#define a_clz_64 a_clz_64
+static inline int a_clz_64(uint64_t x)
+{
+	__asm__ ("cntlzd %0, %1" : "=r"(x) : "r"(x));
+	return x;
 }

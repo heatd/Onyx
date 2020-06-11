@@ -8,6 +8,11 @@
 #define _IOR(a,b,c) _IOC(_IOC_READ,(a),(b),sizeof(c))
 #define _IOWR(a,b,c) _IOC(_IOC_READ|_IOC_WRITE,(a),(b),sizeof(c))
 
+#define TIOONYXCTL 0x5461
+
+#define TIO_ONYX_GET_OWNERSHIP_OF_TTY		(1 << 0)
+#define TIO_ONYX_RELEASE_OWNERSHIP_OF_TTY	(1 << 1)
+
 #define TCGETS		0x5401
 #define TCSETS		0x5402
 #define TCSETSW		0x5403
@@ -63,6 +68,9 @@
 #define TIOCGPKT	0x80045438
 #define TIOCGPTLCK	0x80045439
 #define TIOCGEXCL	0x80045440
+#define TIOCGPTPEER	0x5441
+#define TIOCGISO7816	0x80285442
+#define TIOCSISO7816	0xc0285443
 
 #define FIONCLEX	0x5450
 #define FIOCLEX		0x5451
@@ -80,28 +88,6 @@
 #define TIOCMIWAIT	0x545C
 #define TIOCGICOUNT	0x545D
 #define FIOQSIZE	0x5460
-#define TIOONYXCTL	0x5461
-
-#define TIO_ONYX_GET_OWNERSHIP_OF_TTY		(1 << 0)
-#define TIO_ONYX_RELEASE_OWNERSHIP_OF_TTY	(1 << 1)
-
-#define TIOCPKT_DATA		 0
-#define TIOCPKT_FLUSHREAD	 1
-#define TIOCPKT_FLUSHWRITE	 2
-#define TIOCPKT_STOP		 4
-#define TIOCPKT_START		 8
-#define TIOCPKT_NOSTOP		16
-#define TIOCPKT_DOSTOP		32
-#define TIOCPKT_IOCTL		64
-
-#define TIOCSER_TEMT    0x01
-
-struct winsize {
-	unsigned short ws_row;
-	unsigned short ws_col;
-	unsigned short ws_xpixel;
-	unsigned short ws_ypixel;
-};
 
 #define TIOCM_LE        0x001
 #define TIOCM_DTR       0x002
@@ -118,29 +104,18 @@ struct winsize {
 #define TIOCM_OUT2      0x4000
 #define TIOCM_LOOP      0x8000
 
-#define N_TTY           0
-#define N_SLIP          1
-#define N_MOUSE         2
-#define N_PPP           3
-#define N_STRIP         4
-#define N_AX25          5
-#define N_X25           6
-#define N_6PACK         7
-#define N_MASC          8
-#define N_R3964         9
-#define N_PROFIBUS_FDL  10
-#define N_IRDA          11
-#define N_SMSBLOCK      12
-#define N_HDLC          13
-#define N_SYNC_PPP      14
-#define N_HCI           15
-
 #define FIOSETOWN       0x8901
 #define SIOCSPGRP       0x8902
 #define FIOGETOWN       0x8903
 #define SIOCGPGRP       0x8904
 #define SIOCATMARK      0x8905
+#if __LONG_MAX == 0x7fffffff
+#define SIOCGSTAMP      _IOR(0x89, 6, char[16])
+#define SIOCGSTAMPNS    _IOR(0x89, 7, char[16])
+#else
 #define SIOCGSTAMP      0x8906
+#define SIOCGSTAMPNS    0x8907
+#endif
 
 #include <netinet/in.h>
 struct if_config_inet
@@ -161,6 +136,7 @@ struct if_config_inet6
 #define SIOGETINET4	0x9002
 #define SIOGETINET6	0x9003
 #define SIOGETMAC	0x9004
-#define SIOGETIFNAME	0x9005
+#define SIOGETIFNAME 0x9005
 #define SIOGETINDEX	0x9006
+
 #include <bits/ioctl_fix.h>

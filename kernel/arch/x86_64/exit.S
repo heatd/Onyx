@@ -7,17 +7,8 @@
 .section .text
 .global return_from_execve
 
-# Entry point is at RDI, argc at RSI, argv at RDX, envp at RCX, auxv at R8, stack at R9
+# Entry point is at RDI, stack at RSI
 return_from_execve:
-	# Load the registers
-	push %rdi
-	mov $0x202, %r11
-	mov %rsi, %rdi
-	mov %rdx, %rsi
-	mov %rcx, %rdx
-	mov %r8, %rcx
-	pop %r8
-
 	# Wipe unused registers to avoid leaks
 	xor %rbx, %rbx
 	xor %rbp, %rbp
@@ -27,6 +18,13 @@ return_from_execve:
 	xor %r14, %r14
 	xor %r15, %r15
 	
+	# rdi and rsi aren't zero'd here, only in a few instructions ahead since
+	# they hold RIP and RSP
+	xor %rdx, %rdx
+	xor %rcx, %rcx
+	xor %r8, %r8
+	xor %r9, %r9
+
 	cli
 	swapgs
 
@@ -35,14 +33,11 @@ return_from_execve:
 	mov %ax, %es
 
 	push $0x33
-	push %r9
-	xor %r9, %r9
+	push %rsi
 	push $0x202
 	push $0x2b
-	push %r8
+	push %rdi
 
-	xor %rax, %rax
-	xor %r8, %r8
 	iretq
 
 .global __cxa_atexit

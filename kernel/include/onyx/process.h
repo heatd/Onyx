@@ -63,7 +63,7 @@ struct process
 
 	/* Signal tables */
 	struct spinlock signal_lock;
-	struct sigaction sigtable[_NSIG];
+	struct k_sigaction sigtable[_NSIG];
 	unsigned int signal_group_flags;
 
 	/* Process personality */
@@ -105,8 +105,7 @@ extern "C" {
 
 struct process *process_create(const char *cmd_line, struct ioctx *ctx, struct process *parent);
 
-struct thread *process_create_main_thread(struct process *proc, thread_callback_t callback, void *sp,
-                                     int argc, char **argv, char **envp);
+struct thread *process_create_main_thread(struct process *proc, thread_callback_t callback, void *sp);
 
 struct process *get_process_from_pid(pid_t pid);
 struct thread *process_fork_thread(thread_t *src, struct process *dest, struct syscall_frame *ctx);
@@ -138,6 +137,8 @@ struct stack_info
 };
 
 int process_alloc_stack(struct stack_info *info);
+
+void process_put_entry_info(struct stack_info *info, char **argc, char **envp);
 
 #ifdef __cplusplus
 }

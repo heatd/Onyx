@@ -1,5 +1,3 @@
-#include <endian.h>
-
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 #define ENDIAN_SUFFIX "le"
 #else
@@ -11,6 +9,7 @@
 #define TPOFF_K (-0x7000)
 
 #define REL_SYMBOLIC    R_PPC64_ADDR64
+#define REL_USYMBOLIC   R_PPC64_UADDR64
 #define REL_GOT         R_PPC64_GLOB_DAT
 #define REL_PLT         R_PPC64_JMP_SLOT
 #define REL_RELATIVE    R_PPC64_RELATIVE
@@ -27,6 +26,6 @@
 	"	bl 1f \n" \
 	"	.long " #sym "-. \n" \
 	"1:	mflr %1 \n" \
-	"	lwz %0, 0(%1) \n" \
+	"	lwa %0, 0(%1) \n" \
 	"	add %0, %0, %1 \n" \
 	: "=r"(*(fp)), "=r"((long){0}) : : "memory", "lr" )

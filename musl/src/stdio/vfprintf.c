@@ -4,6 +4,8 @@
 #include <limits.h>
 #include <string.h>
 #include <stdarg.h>
+#include <stddef.h>
+#include <stdlib.h>
 #include <wchar.h>
 #include <inttypes.h>
 #include <math.h>
@@ -26,14 +28,6 @@
 
 #define FLAGMASK (ALT_FORM|ZERO_PAD|LEFT_ADJ|PAD_POS|MARK_POS|GROUPED)
 
-#if UINT_MAX == ULONG_MAX
-#define LONG_IS_INT
-#endif
-
-#if SIZE_MAX != ULONG_MAX || UINTMAX_MAX != ULLONG_MAX
-#define ODD_TYPES
-#endif
-
 /* State machine to accept length modifiers + conversion specifiers.
  * Result is 0 on failure, or an argument type to pop on success. */
 
@@ -42,23 +36,9 @@ enum {
 	ZTPRE, JPRE,
 	STOP,
 	PTR, INT, UINT, ULLONG,
-#ifndef LONG_IS_INT
 	LONG, ULONG,
-#else
-#define LONG INT
-#define ULONG UINT
-#endif
 	SHORT, USHORT, CHAR, UCHAR,
-#ifdef ODD_TYPES
 	LLONG, SIZET, IMAX, UMAX, PDIFF, UIPTR,
-#else
-#define LLONG ULLONG
-#define SIZET ULONG
-#define IMAX LLONG
-#define UMAX ULLONG
-#define PDIFF LONG
-#define UIPTR ULONG
-#endif
 	DBL, LDBL,
 	NOARG,
 	MAXSTATE
@@ -128,29 +108,23 @@ union arg
 
 static void pop_arg(union arg *arg, int type, va_list *ap)
 {
-	/* Give the compiler a hint for optimizing the switch. */
-	if ((unsigned)type > MAXSTATE) return;
 	switch (type) {
 	       case PTR:	arg->p = va_arg(*ap, void *);
 	break; case INT:	arg->i = va_arg(*ap, int);
 	break; case UINT:	arg->i = va_arg(*ap, unsigned int);
-#ifndef LONG_IS_INT
 	break; case LONG:	arg->i = va_arg(*ap, long);
 	break; case ULONG:	arg->i = va_arg(*ap, unsigned long);
-#endif
 	break; case ULLONG:	arg->i = va_arg(*ap, unsigned long long);
 	break; case SHORT:	arg->i = (short)va_arg(*ap, int);
 	break; case USHORT:	arg->i = (unsigned short)va_arg(*ap, int);
 	break; case CHAR:	arg->i = (signed char)va_arg(*ap, int);
 	break; case UCHAR:	arg->i = (unsigned char)va_arg(*ap, int);
-#ifdef ODD_TYPES
 	break; case LLONG:	arg->i = va_arg(*ap, long long);
 	break; case SIZET:	arg->i = va_arg(*ap, size_t);
 	break; case IMAX:	arg->i = va_arg(*ap, intmax_t);
 	break; case UMAX:	arg->i = va_arg(*ap, uintmax_t);
 	break; case PDIFF:	arg->i = va_arg(*ap, ptrdiff_t);
 	break; case UIPTR:	arg->i = (uintptr_t)va_arg(*ap, void *);
-#endif
 	break; case DBL:	arg->f = va_arg(*ap, double);
 	break; case LDBL:	arg->f = va_arg(*ap, long double);
 	}
@@ -247,6 +221,7 @@ static int fmt_fp(FILE *f, long double y, int w, int p, int fl, int t)
 		else re=LDBL_MANT_DIG/4-1-p;
 
 		if (re) {
+			round *= 1<<(LDBL_MANT_DIG%4);
 			while (re--) round*=16;
 			if (*prefix=='-') {
 				y=-y;
@@ -586,7 +561,7 @@ static int printf_core(FILE *f, const char *fmt, va_list *ap, union arg *nl_arg,
 			if (0) {
 		case 'o':
 			a = fmt_o(arg.i, z);
-			if ((fl&ALT_FORM) && p<z-a+1) prefix+=5, pl=1;
+			if ((fl&ALT_FORM) && p<z-a+1) p=z-a+1;
 			} if (0) {
 		case 'd': case 'i':
 			pl=1;
@@ -601,7 +576,7 @@ static int printf_core(FILE *f, const char *fmt, va_list *ap, union arg *nl_arg,
 			a = fmt_u(arg.i, z);
 			}
 			if (xp && p<0) goto overflow;
-			if (p>=0) fl &= ~ZERO_PAD;
+			if (xp) fl &= ~ZERO_PAD;
 			if (!arg.i && !p) {
 				a=z;
 				break;
@@ -700,11 +675,12 @@ int vfprintf(FILE *restrict f, const char *restrict fmt, va_list ap)
 	if (f->mode < 1) f->flags &= ~F_ERR;
 	if (!f->buf_size) {
 		saved_buf = f->buf;
-		f->wpos = f->wbase = f->buf = internal_buf;
+		f->buf = internal_buf;
 		f->buf_size = sizeof internal_buf;
-		f->wend = internal_buf + sizeof internal_buf;
+		f->wpos = f->wbase = f->wend = 0;
 	}
-	ret = printf_core(f, fmt, &ap2, nl_arg, nl_type);
+	if (!f->wend && __towrite(f)) ret = -1;
+	else ret = printf_core(f, fmt, &ap2, nl_arg, nl_type);
 	if (saved_buf) {
 		f->write(f, 0, 0);
 		if (!f->wpos) ret = -1;

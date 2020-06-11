@@ -4,6 +4,8 @@
 #include <limits.h>
 #include <string.h>
 #include <stdarg.h>
+#include <stddef.h>
+#include <stdlib.h>
 #include <wchar.h>
 #include <inttypes.h>
 
@@ -19,14 +21,6 @@
 
 #define FLAGMASK (ALT_FORM|ZERO_PAD|LEFT_ADJ|PAD_POS|MARK_POS|GROUPED)
 
-#if UINT_MAX == ULONG_MAX
-#define LONG_IS_INT
-#endif
-
-#if SIZE_MAX != ULONG_MAX || UINTMAX_MAX != ULLONG_MAX
-#define ODD_TYPES
-#endif
-
 /* State machine to accept length modifiers + conversion specifiers.
  * Result is 0 on failure, or an argument type to pop on success. */
 
@@ -35,23 +29,9 @@ enum {
 	ZTPRE, JPRE,
 	STOP,
 	PTR, INT, UINT, ULLONG,
-#ifndef LONG_IS_INT
 	LONG, ULONG,
-#else
-#define LONG INT
-#define ULONG UINT
-#endif
 	SHORT, USHORT, CHAR, UCHAR,
-#ifdef ODD_TYPES
 	LLONG, SIZET, IMAX, UMAX, PDIFF, UIPTR,
-#else
-#define LLONG ULLONG
-#define SIZET ULONG
-#define IMAX LLONG
-#define UMAX ULLONG
-#define PDIFF LONG
-#define UIPTR ULONG
-#endif
 	DBL, LDBL,
 	NOARG,
 	MAXSTATE
@@ -73,6 +53,8 @@ static const unsigned char states[]['z'-'A'+1] = {
 	}, { /* 1: l-prefixed */
 		S('d') = LONG, S('i') = LONG,
 		S('o') = ULONG, S('u') = ULONG, S('x') = ULONG, S('X') = ULONG,
+		S('e') = DBL, S('f') = DBL, S('g') = DBL, S('a') = DBL,
+		S('E') = DBL, S('F') = DBL, S('G') = DBL, S('A') = DBL,
 		S('c') = INT, S('s') = PTR, S('n') = PTR,
 		S('l') = LLPRE,
 	}, { /* 2: ll-prefixed */
@@ -119,29 +101,23 @@ union arg
 
 static void pop_arg(union arg *arg, int type, va_list *ap)
 {
-	/* Give the compiler a hint for optimizing the switch. */
-	if ((unsigned)type > MAXSTATE) return;
 	switch (type) {
 	       case PTR:	arg->p = va_arg(*ap, void *);
 	break; case INT:	arg->i = va_arg(*ap, int);
 	break; case UINT:	arg->i = va_arg(*ap, unsigned int);
-#ifndef LONG_IS_INT
 	break; case LONG:	arg->i = va_arg(*ap, long);
 	break; case ULONG:	arg->i = va_arg(*ap, unsigned long);
-#endif
 	break; case ULLONG:	arg->i = va_arg(*ap, unsigned long long);
 	break; case SHORT:	arg->i = (short)va_arg(*ap, int);
 	break; case USHORT:	arg->i = (unsigned short)va_arg(*ap, int);
 	break; case CHAR:	arg->i = (signed char)va_arg(*ap, int);
 	break; case UCHAR:	arg->i = (unsigned char)va_arg(*ap, int);
-#ifdef ODD_TYPES
 	break; case LLONG:	arg->i = va_arg(*ap, long long);
 	break; case SIZET:	arg->i = va_arg(*ap, size_t);
 	break; case IMAX:	arg->i = va_arg(*ap, intmax_t);
 	break; case UMAX:	arg->i = va_arg(*ap, uintmax_t);
 	break; case PDIFF:	arg->i = va_arg(*ap, ptrdiff_t);
 	break; case UIPTR:	arg->i = (uintptr_t)va_arg(*ap, void *);
-#endif
 	break; case DBL:	arg->f = va_arg(*ap, double);
 	break; case LDBL:	arg->f = va_arg(*ap, long double);
 	}
@@ -282,8 +258,11 @@ static int wprintf_core(FILE *f, const wchar_t *fmt, va_list *ap, union arg *nl_
 			}
 			continue;
 		case 'c':
+			if (w<1) w=1;
+			if (w>1 && !(fl&LEFT_ADJ)) fprintf(f, "%*s", w-1, "");
 			fputwc(btowc(arg.i), f);
-			l = 1;
+			if (w>1 && (fl&LEFT_ADJ)) fprintf(f, "%*s", w-1, "");
+			l = w;
 			continue;
 		case 'C':
 			fputwc(arg.i, f);

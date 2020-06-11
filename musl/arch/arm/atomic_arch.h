@@ -1,14 +1,15 @@
+#include "libc.h"
+
 #if __ARM_ARCH_4__ || __ARM_ARCH_4T__ || __ARM_ARCH == 4
 #define BLX "mov lr,pc\n\tbx"
 #else
 #define BLX "blx"
 #endif
 
-extern uintptr_t __attribute__((__visibility__("hidden")))
-	__a_cas_ptr, __a_barrier_ptr;
+extern hidden uintptr_t __a_cas_ptr, __a_barrier_ptr;
 
-#if ((__ARM_ARCH_6__ || __ARM_ARCH_6K__ || __ARM_ARCH_6ZK__) && !__thumb__) \
- || __ARM_ARCH_7A__ || __ARM_ARCH_7R__ ||  __ARM_ARCH >= 7
+#if ((__ARM_ARCH_6__ || __ARM_ARCH_6K__ || __ARM_ARCH_6KZ__ || __ARM_ARCH_6ZK__) && !__thumb__) \
+ || __ARM_ARCH_6T2__ || __ARM_ARCH_7A__ || __ARM_ARCH_7R__ || __ARM_ARCH >= 7
 
 #define a_ll a_ll
 static inline int a_ll(volatile int *p)
@@ -81,3 +82,26 @@ static inline void a_crash()
 #endif
 		: : : "memory");
 }
+
+#if __ARM_ARCH >= 5 && (!__thumb__ || __thumb2__)
+
+#define a_clz_32 a_clz_32
+static inline int a_clz_32(uint32_t x)
+{
+	__asm__ ("clz %0, %1" : "=r"(x) : "r"(x));
+	return x;
+}
+
+#if __ARM_ARCH_6T2__ || __ARM_ARCH_7A__ || __ARM_ARCH_7R__ || __ARM_ARCH >= 7
+
+#define a_ctz_32 a_ctz_32
+static inline int a_ctz_32(uint32_t x)
+{
+	uint32_t xr;
+	__asm__ ("rbit %0, %1" : "=r"(xr) : "r"(x));
+	return a_clz_32(xr);
+}
+
+#endif
+
+#endif

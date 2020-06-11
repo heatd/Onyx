@@ -18,10 +18,16 @@ extern "C" {
 
 struct sched_param {
 	int sched_priority;
-	int sched_ss_low_priority;
-	struct timespec sched_ss_repl_period;
-	struct timespec sched_ss_init_budget;
-	int sched_ss_max_repl;
+	int __reserved1;
+#if _REDIR_TIME64
+	long __reserved2[4];
+#else
+	struct {
+		time_t __reserved1;
+		long __reserved2;
+	} __reserved2[2];
+#endif
+	int __reserved3;
 };
 
 int    sched_get_priority_max(int);
@@ -42,7 +48,8 @@ int     sched_yield(void);
 #define SCHED_RESET_ON_FORK 0x40000000
 
 #ifdef _GNU_SOURCE
-#define CLONE_FORK		(1 << 0)
+#define CSIGNAL		0x000000ff
+#define CLONE_FORK		    (1 << 0)
 #define CLONE_SPAWNTHREAD	(1 << 1)
 
 int clone (int (*)(void *), void *, int, void *, ...);
@@ -51,6 +58,7 @@ int setns(int, int);
 
 void *memcpy(void *__restrict, const void *__restrict, size_t);
 int memcmp(const void *, const void *, size_t);
+void *memset (void *, int, size_t);
 void *calloc(size_t, size_t);
 void free(void *);
 
@@ -106,6 +114,10 @@ __CPU_op_func_S(XOR, ^)
 #define CPU_ZERO(set) CPU_ZERO_S(sizeof(cpu_set_t),set)
 #define CPU_EQUAL(s1,s2) CPU_EQUAL_S(sizeof(cpu_set_t),s1,s2)
 
+#endif
+
+#if _REDIR_TIME64
+__REDIR(sched_rr_get_interval, __sched_rr_get_interval_time64);
 #endif
 
 #ifdef __cplusplus

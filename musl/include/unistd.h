@@ -128,12 +128,11 @@ long fpathconf(int, int);
 long sysconf(int);
 size_t confstr(int, char *, size_t);
 
+#if defined(_XOPEN_SOURCE) || defined(_GNU_SOURCE) || defined(_BSD_SOURCE)
 #define F_ULOCK 0
 #define F_LOCK  1
 #define F_TLOCK 2
 #define F_TEST  3
-
-#if defined(_XOPEN_SOURCE) || defined(_GNU_SOURCE) || defined(_BSD_SOURCE)
 int setreuid(uid_t, uid_t);
 int setregid(gid_t, gid_t);
 int lockf(int, int, off_t);
@@ -176,6 +175,8 @@ int acct(const char *);
 long syscall(long, ...);
 int execvpe(const char *, char *const [], char *const []);
 int issetugid(void);
+int getentropy(void *, size_t);
+extern int optreset;
 #endif
 
 #ifdef _GNU_SOURCE
@@ -188,6 +189,7 @@ char *get_current_dir_name(void);
 int syncfs(int);
 int euidaccess(const char *, int);
 int eaccess(const char *, int);
+ssize_t copy_file_range(int, off_t *, int, off_t *, size_t, unsigned);
 #endif
 
 #if defined(_LARGEFILE64_SOURCE) || defined(_GNU_SOURCE)

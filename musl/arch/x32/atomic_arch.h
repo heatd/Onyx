@@ -106,9 +106,16 @@ static inline int a_ctz_64(uint64_t x)
 	return x;
 }
 
-#define a_ctz_l a_ctz_l
-static inline int a_ctz_l(unsigned long x)
+#define a_ctz_32 a_ctz_32
+static inline int a_ctz_32(uint32_t x)
 {
 	__asm__( "bsf %1,%0" : "=r"(x) : "r"(x) );
+	return x;
+}
+
+#define a_clz_64 a_clz_64
+static inline int a_clz_64(uint64_t x)
+{
+	__asm__( "bsr %1,%0 ; xor $63,%0" : "=r"(x) : "r"(x) );
 	return x;
 }

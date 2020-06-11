@@ -153,8 +153,6 @@ char *kernel_getopt(char *opt)
 	return NULL;
 }
 
-
-void *process_setup_auxv(void *buffer, struct process *process);
 void dump_used_mem(void);
 
 int alloc_fd(int fdbase);
@@ -227,8 +225,6 @@ retry:;
 
 	assert(vm_create_address_space(&proc->address_space, proc) == 0);
 
-	struct process *current = get_current_process();
-
 	/* Finally, load the binary */
 	void *entry = load_binary(&args);
 
@@ -236,23 +232,16 @@ retry:;
 
 	assert(vm_create_brk(get_current_address_space()) == 0);
 
-	int argc;
-	char **_argv = process_copy_envarg(argv, false, &argc);
-	char **_env = process_copy_envarg(envp, false, NULL);
-
 	struct stack_info si;
 	si.length = DEFAULT_USER_STACK_LEN;
 
 	assert(process_alloc_stack(&si) == 0);
 
-	struct thread *main_thread = process_create_main_thread(proc, (thread_callback_t) entry, si.top,
-		argc, _argv, _env);
+	process_put_entry_info(&si, argv, envp);
+
+	struct thread *main_thread = process_create_main_thread(proc, (thread_callback_t) entry, si.top);
 	
 	assert(main_thread != NULL);
-
-	Elf64_auxv_t *auxv = process_setup_auxv(si.base, current);
-	registers_t *regs = (registers_t *) main_thread->kernel_stack;
-	regs->rcx = (uintptr_t) auxv;
 
 	sched_start_thread(main_thread);
 

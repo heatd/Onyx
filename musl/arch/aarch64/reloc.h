@@ -1,5 +1,3 @@
-#include <endian.h>
-
 #if __BYTE_ORDER == __BIG_ENDIAN
 #define ENDIAN_SUFFIX "_be"
 #else
@@ -10,7 +8,7 @@
 
 #define NO_LEGACY_INITFINI
 
-#define TPOFF_K 16
+#define TPOFF_K 0
 
 #define REL_SYMBOLIC    R_AARCH64_ABS64
 #define REL_GOT         R_AARCH64_GLOB_DAT

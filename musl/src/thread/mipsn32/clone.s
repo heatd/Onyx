@@ -1,5 +1,6 @@
 .set	noreorder
 .global	__clone
+.hidden __clone
 .type	__clone,@function
 __clone:
 	# Save function pointer and argument pointer on new thread stack
@@ -26,5 +27,8 @@ __clone:
 	nop
 1:	lw	$25, 0($sp)	# function pointer
 	lw	$4, 4($sp)	# argument pointer
-	jr	$25		# call the user's function
+	jalr	$25		# call the user's function
 	nop
+	move 	$4, $2
+	li	$2, 6058
+	syscall

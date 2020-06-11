@@ -25,7 +25,7 @@
 #define REDZONE_OFFSET		128
 #include <onyx/fpu.h>
 
-int signal_setup_context(struct sigpending *pend, struct sigaction *sigaction, struct registers *regs)
+int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigaction, struct registers *regs)
 {
 	int sig = pend->signum;
 	struct thread *curr = get_current_thread();
@@ -35,7 +35,7 @@ int signal_setup_context(struct sigpending *pend, struct sigaction *sigaction, s
 	/* Note that we handle the redzone preservation up here, because when running on an altstack 
 	 * we don't need to do that.
 	 */
-	if(sigaction->sa_flags & SA_ONSTACK && !(sinfo->altstack.ss_flags & SS_DISABLE))
+	if(k_sigaction->sa_flags & SA_ONSTACK && !(sinfo->altstack.ss_flags & SS_DISABLE))
 	{
 		sp = (unsigned long) sinfo->altstack.ss_sp + sinfo->altstack.ss_size;
 		if(sinfo->altstack.ss_flags & SS_AUTODISARM)
@@ -57,10 +57,10 @@ int signal_setup_context(struct sigpending *pend, struct sigaction *sigaction, s
 
 	struct sigframe *sframe = (struct sigframe *) sframe_location;
 
-	if(copy_to_user(&sframe->retaddr, &sigaction->sa_restorer, sizeof(void *)) < 0)
+	if(copy_to_user(&sframe->retaddr, &k_sigaction->sa_restorer, sizeof(void *)) < 0)
 		return -EFAULT;
 
-	if(sigaction->sa_flags & SA_SIGINFO)
+	if(k_sigaction->sa_flags & SA_SIGINFO)
 	{
 		if(copy_to_user(&sframe->sinfo, pend->info, sizeof(siginfo_t)) < 0)
 			return -EFAULT;
@@ -122,10 +122,10 @@ int signal_setup_context(struct sigpending *pend, struct sigaction *sigaction, s
 	
 	/* Align the stack to 16 bytes, specified by the ABI */
 	regs->rsp = (unsigned long) sframe;
-	regs->rip = (unsigned long) sigaction->sa_handler;
+	regs->rip = (unsigned long) k_sigaction->sa_handler;
 	regs->rdi = sig;
 
-	if(sigaction->sa_flags & SA_SIGINFO)
+	if(k_sigaction->sa_flags & SA_SIGINFO)
 	{
 		regs->rsi = (unsigned long) &sframe->sinfo;
 		regs->rdx = (unsigned long) &sframe->uc;

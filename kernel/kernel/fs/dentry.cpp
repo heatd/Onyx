@@ -157,7 +157,7 @@ extern "C" dentry *dentry_create(const char *name, inode *inode, dentry *parent)
 	/* We need this if() because we might call dentry_create before retrieving an inode */
 	if(inode) object_ref(&inode->i_object);
 	new_dentry->d_parent = parent; 
-	
+
 	if(parent) [[likely]]
 	{
 		list_add_tail(&new_dentry->d_parent_dir_node, &parent->d_children_head);
@@ -536,6 +536,7 @@ int __dentry_resolve_path(nameidata& data)
 			auto dest = new_found->d_mount_dentry;
 			dentry_put(new_found);
 			new_found = dest;
+			dentry_get(dest);
 		}
 
 		dentry_put(data.location);
@@ -685,7 +686,7 @@ struct create_handling : public last_name_handling
 		auto new_dentry = dentry_create(_name, nullptr, dentry);
 		if(!new_dentry)
 			return unexpected<int>{-ENOMEM};
-
+	
 		struct inode *new_inode = nullptr;
 	
 		if(in.type == create_file_type::creat)
@@ -700,6 +701,8 @@ struct create_handling : public last_name_handling
 			dentry_kill_unlocked(new_dentry);
 			return unexpected<int>{-errno};
 		}
+
+		dentry_get(new_dentry);
 
 		if(in.type == create_file_type::mkdir)
 		{

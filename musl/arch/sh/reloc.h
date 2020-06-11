@@ -1,5 +1,3 @@
-#include <endian.h>
-
 #if __BYTE_ORDER == __BIG_ENDIAN
 #define ENDIAN_SUFFIX "eb"
 #else
@@ -20,7 +18,7 @@
 
 #define LDSO_ARCH "sh" ENDIAN_SUFFIX FP_SUFFIX ABI_SUFFIX
 
-#define TPOFF_K 8
+#define TPOFF_K 0
 
 #define REL_SYMBOLIC    R_SH_DIR32
 #define REL_OFFSET      R_SH_REL32

@@ -86,3 +86,8 @@ static inline long __syscall6(long n, long a, long b, long c, long d, long e, lo
 	register long r1 __asm__("r1") = f;
 	__asm_syscall(22, "r"(r3), "r"(r4), "r"(r5), "r"(r6), "r"(r7), "0"(r0), "r"(r1));
 }
+
+#define SYSCALL_IPC_BROKEN_MODE
+
+#define SIOCGSTAMP_OLD   (2U<<30 | 's'<<8 | 100 | 8<<16)
+#define SIOCGSTAMPNS_OLD (2U<<30 | 's'<<8 | 101 | 8<<16)

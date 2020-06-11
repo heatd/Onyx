@@ -52,6 +52,7 @@ struct ipv6_mreq {
 #define INADDR_UNSPEC_GROUP     ((in_addr_t) 0xe0000000)
 #define INADDR_ALLHOSTS_GROUP   ((in_addr_t) 0xe0000001)
 #define INADDR_ALLRTRS_GROUP    ((in_addr_t) 0xe0000002)
+#define INADDR_ALLSNOOPERS_GROUP ((in_addr_t) 0xe000006a)
 #define INADDR_MAX_LOCAL_GROUP  ((in_addr_t) 0xe00000ff)
 
 #define IN6ADDR_ANY_INIT      { { { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 } } }
@@ -68,6 +69,8 @@ uint32_t htonl(uint32_t);
 uint16_t htons(uint16_t);
 uint32_t ntohl(uint32_t);
 uint16_t ntohs(uint16_t);
+
+#define IPPORT_RESERVED 1024
 
 #define IPPROTO_IP       0
 #define IPPROTO_HOPOPTS  0
@@ -198,6 +201,7 @@ uint16_t ntohs(uint16_t);
 #define IP_NODEFRAG        22
 #define IP_CHECKSUM        23
 #define IP_BIND_ADDRESS_NO_PORT 24
+#define IP_RECVFRAGSIZE    25
 #define IP_MULTICAST_IF    32
 #define IP_MULTICAST_TTL   33
 #define IP_MULTICAST_LOOP  34
@@ -332,6 +336,8 @@ struct ip6_mtuinfo {
 #define IPV6_V6ONLY             26
 #define IPV6_JOIN_ANYCAST       27
 #define IPV6_LEAVE_ANYCAST      28
+#define IPV6_MULTICAST_ALL      29
+#define IPV6_ROUTER_ALERT_ISOLATE 30
 #define IPV6_IPSEC_POLICY       34
 #define IPV6_XFRM_POLICY        35
 #define IPV6_HDRINCL            36
@@ -359,6 +365,8 @@ struct ip6_mtuinfo {
 #define IPV6_RECVORIGDSTADDR    IPV6_ORIGDSTADDR
 #define IPV6_TRANSPARENT        75
 #define IPV6_UNICAST_IF         76
+#define IPV6_RECVFRAGSIZE       77
+#define IPV6_FREEBIND           78
 
 #define IPV6_ADD_MEMBERSHIP     IPV6_JOIN_GROUP
 #define IPV6_DROP_MEMBERSHIP    IPV6_LEAVE_GROUP
