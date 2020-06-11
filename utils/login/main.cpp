@@ -57,7 +57,7 @@ int get_output(std::string& str)
 	{
 		char *pos;
 		if((pos = strchr(buf, '\n')))
-    		{
+    	{
 			should_stop = true;
 			*pos = '\0';
 		}
@@ -174,6 +174,8 @@ int main(int argc, char **argv, char **envp)
 	setenv("LOGNAME", user->pw_name, 1);
 	/* Set $HOME */
 	setenv("HOME", user->pw_dir, 1);
+	/* Set $SHELL */
+	setenv("SHELL", user->pw_shell, 1);
 
 	if(chdir(user->pw_dir) < 0)
 	{

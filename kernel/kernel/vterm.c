@@ -730,6 +730,7 @@ void vterm_ansi_erase_in_display(unsigned long n, struct vterm *vt)
 
 		/* Whole screen */
 		case 2:
+		case 3:
 		{
 			vterm_fill_screen(vt, ' ', vt->fg, vt->bg);
 			break;

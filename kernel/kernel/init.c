@@ -416,7 +416,7 @@ void kernel_multitasking(void *arg)
 
 	/* Pass the root partition to init */
 	char *args[] = {"", root_partition, NULL};
-	char *envp[] = {"PATH=/bin:/usr/bin:/sbin:", NULL};
+	char *envp[] = {"PATH=/bin:/usr/bin:/sbin:", "TERM=linux", "LANG=C", "PWD=/", NULL};
 
 	assert(find_and_exec_init(args, envp) == 0);
 
