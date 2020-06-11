@@ -78,9 +78,11 @@ struct nameidata
 
 	last_name_handling *handler;
 
+	unsigned int lookup_flags;
+
 	nameidata(std::string_view view, dentry *root, dentry *rel, last_name_handling *h = nullptr) :
 	          view{view}, pos{}, root{root}, location{rel},
-			  token_type{fs_token_type::REGULAR_TOKEN}, nloops{0}, handler{h}
+			  token_type{fs_token_type::REGULAR_TOKEN}, nloops{0}, handler{h}, lookup_flags{0}
 	{}
 
 	nameidata for_symlink_resolution(std::string_view path) const
@@ -419,18 +421,58 @@ bool dentry_is_mountpoint(dentry *dir)
 	return dir->d_flags & DENTRY_FLAG_MOUNTPOINT;
 }
 
+expected<dentry *, int> dentry_follow_symlink(nameidata& data, dentry *symlink)
+{
+	file f;
+	f.f_ino = symlink->d_inode;
+
+	/* Oops - We hit the max symlink count */
+	if(data.nloops++ == data.max_loops)
+	{
+		return unexpected<int>{-ELOOP};
+	}
+
+	auto target_str = readlink_vfs(&f);
+	if(!target_str)
+	{
+		return unexpected<int>{-errno};
+	}
+
+	/* Create a new nameidata for the new path, **with the current nloop**. 
+	 * This makes it so we properly keep track of nloop.
+	 */
+
+	auto new_nameidata = data.for_symlink_resolution({target_str, strlen(target_str)});
+
+	auto symlink_target = dentry_resolve(new_nameidata);
+
+	free((void *) target_str);
+
+	if(!symlink_target)
+	{
+		return unexpected<int>{-errno};
+	}
+
+	/* We need to track the new structure's nloop as to keep a lookup-global count */
+	data.track_symlink_count(new_nameidata);
+
+	return symlink_target;
+}
+
 int __dentry_resolve_path(nameidata& data)
 {
 	std::string_view v;
 	//printk("Resolving %s\n", data.view.data());
+	bool dont_follow_last = data.lookup_flags & OPEN_FLAG_NOFOLLOW;
 
 	while((v = get_token_from_path(data)).data() != nullptr)
 	{
 		if(v.length() > NAME_MAX)
 			return -ENAMETOOLONG;
-	
+		
+		bool is_last_name = data.token_type == fs_token_type::LAST_NAME_IN_PATH;
 		//printk("%.*s\n", (int) v.length(), v.data());
-		if(data.token_type == fs_token_type::LAST_NAME_IN_PATH && data.handler)
+		if(is_last_name && data.handler)
 		{
 			//printk("^^ is last name\n");
 			auto ex = (*data.handler)(data, v);
@@ -466,47 +508,27 @@ int __dentry_resolve_path(nameidata& data)
 				return -errno;
 			}
 		}
-	
+
 		if(dentry_is_symlink(new_found))
 		{
-			file f;
-			f.f_ino = new_found->d_inode;
-
-			/* Oops - We hit the max symlink count */
-			if(data.nloops++ == data.max_loops)
+			if(is_last_name && data.lookup_flags & OPEN_FLAG_FAIL_IF_LINK)
 			{
 				dentry_put(new_found);
 				return -ELOOP;
 			}
-
-			auto target_str = readlink_vfs(&f);
-			if(!target_str)
+			else if(is_last_name && dont_follow_last)
 			{
-				dentry_put(new_found);
-				return -errno;
 			}
-
-			/* Create a new nameidata for the new path, **with the current nloop**. 
-			 * This makes it so we properly keep track of nloop.
-			 */
-
-			auto new_nameidata = data.for_symlink_resolution({target_str, strlen(target_str)});
-
-			auto symlink_target = dentry_resolve(new_nameidata);
-
-			free((void *) target_str);
-
-			if(!symlink_target)
+			else [[likely]]
 			{
+				auto result = dentry_follow_symlink(data, new_found);
 				dentry_put(new_found);
-				return -errno;
+
+				if(!result)
+					return result.error();
+				else
+					new_found = result.value();
 			}
-
-			/* We need to track the new structure's nloop as to keep a lookup-global count */
-			data.track_symlink_count(new_nameidata);
-
-			dentry_put(new_found);
-			new_found = symlink_target;
 		}
 
 		if(dentry_is_mountpoint(new_found))
@@ -539,7 +561,10 @@ int dentry_resolve_path(nameidata& data)
 	else
 		std::cout << "Pathname type: Relative\n";
 	*/
-	bool must_be_dir = pathname[pathname.length() - 1] == '/';
+
+	if(pathname[pathname.length() - 1] == '/')
+		data.lookup_flags |= LOOKUP_FLAG_INTERNAL_TRAILING_SLASH;
+	bool must_be_dir = data.lookup_flags & (LOOKUP_FLAG_INTERNAL_TRAILING_SLASH | OPEN_FLAG_MUST_BE_DIR);
 
 	std::string_view v;
 
@@ -566,7 +591,11 @@ int dentry_resolve_path(nameidata& data)
 		return st;
 	}
 
-	(void) must_be_dir;
+	if(!dentry_is_dir(data.location) && must_be_dir)
+	{
+		dentry_put(data.location);
+		return -ENOTDIR;
+	}
 
 	return 0;
 }
@@ -579,7 +608,7 @@ dentry *dentry_resolve(nameidata& data)
 	return data.location;
 }
 
-extern "C" file *open_vfs(file *f, const char *name)
+extern "C" file *open_vfs_with_flags(file *f, const char *name, unsigned int open_flags)
 {
 	auto fs_root = get_filesystem_root();
 
@@ -588,6 +617,8 @@ extern "C" file *open_vfs(file *f, const char *name)
 
 	nameidata namedata{std::string_view{name, strlen(name)},
 					   fs_root->file->f_dentry, f->f_dentry};
+
+	namedata.lookup_flags = open_flags;
 
 	auto dent = dentry_resolve(namedata);
 
@@ -606,6 +637,12 @@ extern "C" file *open_vfs(file *f, const char *name)
 
 	return new_file;
 }
+
+struct file *open_vfs(struct file *dir, const char *path)
+{
+	return open_vfs_with_flags(dir, path, 0);
+}
+
 
 void dentry_init(void) {}
 
@@ -636,6 +673,9 @@ struct create_handling : public last_name_handling
 
 		char _name[NAME_MAX + 1] = {};
 		memcpy(_name, name.data(), name.length());
+
+		if(in.type != create_file_type::mkdir && data.lookup_flags & LOOKUP_FLAG_INTERNAL_TRAILING_SLASH)
+			return unexpected<int>{-ENOTDIR};
 
 		scoped_rwlock<rw_lock::write> g{dentry->d_lock};
 

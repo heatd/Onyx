@@ -284,6 +284,9 @@ void close_vfs(struct inode *this)
 
 char *readlink_vfs(struct file *file)
 {
+	if(file->f_ino->i_type != VFS_TYPE_SYMLINK)
+		return errno = EINVAL, NULL;
+
 	if(file->f_ino->i_fops->readlink)
 	{
 		char *p = file->f_ino->i_fops->readlink(file);

@@ -131,6 +131,13 @@ extern "C" {
 
 int inode_create_vmo(struct inode *ino);
 
+#define OPEN_FLAG_NOFOLLOW                  (1 << 0)
+#define OPEN_FLAG_FAIL_IF_LINK              (1 << 1)
+#define OPEN_FLAG_MUST_BE_DIR               (1 << 2)
+#define LOOKUP_FLAG_INTERNAL_TRAILING_SLASH (1 << 3)   /* Might be useful for callers
+                                                        * that handle the last name. */
+
+struct file *open_vfs_with_flags(struct file *dir, const char *path, unsigned int flags);
 struct file *open_vfs(struct file *dir, const char *path);
 
 ssize_t read_vfs(size_t offset, size_t length, void *buffer,

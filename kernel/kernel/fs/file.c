@@ -444,7 +444,10 @@ void handle_open_flags(struct file *fd, int flags)
 
 static struct file *try_to_open(struct file *base, const char *filename, int flags, mode_t mode)
 {
-	struct file *ret = open_vfs(base, filename);
+	unsigned int open_flags = (flags & O_EXCL ? OPEN_FLAG_FAIL_IF_LINK : 0) |
+	                          (flags & O_NOFOLLOW ? OPEN_FLAG_FAIL_IF_LINK : 0) |
+							  (flags & O_DIRECTORY ? OPEN_FLAG_MUST_BE_DIR : 0);
+	struct file *ret = open_vfs_with_flags(base, filename, open_flags);
 	
 	if(ret)
 	{
@@ -453,6 +456,15 @@ static struct file *try_to_open(struct file *base, const char *filename, int fla
 		{
 			fd_put(ret);
 			return errno = EACCES, NULL;
+		}
+
+		if(ret->f_ino->i_type == VFS_TYPE_DIR)
+		{
+			if(flags & O_RDWR || flags & O_WRONLY || (flags & O_CREAT && !(flags & O_DIRECTORY)))
+			{
+				fd_put(ret);
+				return errno = EISDIR, NULL;
+			}
 		}
 
 		if(flags & O_EXCL)
@@ -468,8 +480,18 @@ static struct file *try_to_open(struct file *base, const char *filename, int fla
 	return ret;
 }
 
+/* TODO: Add O_PATH */
+/* TODO: Add O_TRUNC */
+/* TODO: Add O_SYNC */
+#define VALID_OPEN_FLAGS      (O_RDONLY | O_WRONLY | O_RDWR | \
+                               O_CREAT | O_DIRECTORY | O_EXCL | \
+                               O_NOFOLLOW | O_NONBLOCK | O_APPEND | O_CLOEXEC)
+
 int do_sys_open(const char *filename, int flags, mode_t mode, struct file *__rel)
 {
+	if(flags & ~VALID_OPEN_FLAGS)
+		return -EINVAL;
+
 	//printk("Open(%s)\n", filename);
 	/* This function does all the open() work, open(2) and openat(2) use this */
 	struct file *rel = __rel;
@@ -1773,10 +1795,61 @@ int sys_rmdir(const char *pathname)
 	return do_sys_unlink(AT_FDCWD, pathname, AT_REMOVEDIR); 
 }
 
+ssize_t sys_readlinkat(int dirfd, const char *upathname, char *ubuf, size_t bufsiz)
+{
+	if((ssize_t) bufsiz < 0)
+		return -EINVAL;
+	ssize_t st = 0;
+	char *pathname = strcpy_from_user(upathname);
+	if(!pathname)
+		return -errno;
+	
+	struct file *base = get_dirfd_file(dirfd);
+	if(!base)
+	{
+		st = -errno;
+		goto out;
+	}
+
+	struct file *f = open_vfs_with_flags(base, pathname, OPEN_FLAG_NOFOLLOW);
+	if(!f)
+	{
+		st = -errno;
+		goto out;
+	}
+
+	char *buf = readlink_vfs(f);
+	if(!buf)
+	{
+		st = -errno;
+		goto out1;
+	}
+
+	size_t buf_len = strlen(buf);
+	size_t to_copy = buf_len < bufsiz ? buf_len : bufsiz;
+
+	st = copy_to_user(ubuf, buf, to_copy);
+
+	/* If the copy succeeded, set return to to_copy(it would be zero otherwise) */
+	if(st == 0)
+		st = to_copy;
+
+	free(buf);
+out1:
+	fd_put(f);
+out:
+	free(pathname);
+	if(base) fd_put(base);
+	return st;
+}
+
+ssize_t sys_readlink(const char *pathname, char *buf, size_t bufsiz)
+{
+	return sys_readlinkat(AT_FDCWD, pathname, buf, bufsiz);
+}
+
 int sys_symlink(const char *target, const char *linkpath) {return -ENOSYS;}
 int sys_symlinkat(const char *target, int newdirfd, const char *linkpath) {return -ENOSYS;}
-ssize_t sys_readlink(const char *pathname, char *buf, size_t bufsiz) {return -ENOSYS;}
-ssize_t sys_readlinkat(int dirfd, const char *pathname, char *buf, size_t bufsiz) {return -ENOSYS;}
 int sys_chmod(const char *pathname, mode_t mode) {return -ENOSYS;}
 int sys_fchmod(int fd, mode_t mode) {return -ENOSYS;}
 int sys_fchmodat(int dirfd, const char *pathname, mode_t mode, int flags) {return -ENOSYS;}
