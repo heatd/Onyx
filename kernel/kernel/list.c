@@ -9,6 +9,7 @@
 
 void list_assert_correct(struct list_head *head)
 {
+#if 0
 	if(list_is_empty(head))
 		return;
 
@@ -18,4 +19,7 @@ void list_assert_correct(struct list_head *head)
 		assert(next != LIST_REMOVE_POISON);
 		assert(next->prev == h);
 	}
+#else
+	return;
+#endif
 }

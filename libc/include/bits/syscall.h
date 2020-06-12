@@ -408,7 +408,7 @@
 #define SYS_times				75
 #define SYS_getrusage				76
 #define SYS_ptrace				77
-#define SYS_poll				78
+#define SYS_ppoll				78
 #define SYS_proc_event_attach			80
 #define SYS_access				81
 #define SYS_fallocate				82
@@ -615,7 +615,6 @@
 #define SYS_vfork				255
 #define SYS_migrate_pages			256
 #define SYS_pselect6				270
-#define SYS_ppoll				271
 #define SYS_unshare				272
 #define SYS_set_robust_list			273
 #define SYS_get_robust_list			274

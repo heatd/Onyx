@@ -128,7 +128,8 @@ struct sockaddr *src_addr, socklen_t *addrlen);
 extern int sys_proc_event_attach(pid_t pid, unsigned long flags);
 extern int sys_access(const char *path, int amode);
 extern void *sys_mremap(void *old_address, size_t old_size, size_t new_size, int flags, void *new_address);
-extern int sys_poll(struct pollfd *fds, nfds_t nfds, int timeout);
+extern int sys_ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *timeout,
+                     const sigset_t *sigmask, size_t sigsetsize);
 extern int sys_fallocate(int fd, int mode, off_t offset, off_t len);
 extern pid_t sys_gettid(void);
 int sys_mkdirat(int dirfd, const char *upath, mode_t mode);
@@ -253,8 +254,8 @@ void *syscall_table_64[] =
 	[75] = (void*) sys_times,
 	[76] = (void*) sys_getrusage,
 	[77] = (void*) sys_ptrace,
-	[78] = (void*) sys_poll,
-	[79] = (void*) sys_nosys,
+	[78] = (void*) sys_ppoll,
+	[79] = (void*) sys_pselect,
 	[80] = (void*) sys_proc_event_attach,
 	[81] = (void*) sys_access,
 	[82] = (void*) sys_fallocate,

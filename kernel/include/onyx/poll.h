@@ -18,6 +18,7 @@
 #include <onyx/wait_queue.h>
 #include <onyx/memory.hpp>
 #include <onyx/file.h>
+#include <onyx/signal.h>
 
 class poll_file;
 
@@ -172,7 +173,7 @@ public:
 		return events | (POLLHUP | POLLERR);
 	}
 
-	int get_fd()
+	int get_fd() const
 	{
 		return fd;
 	}
@@ -226,7 +227,7 @@ public:
 	}
 	
 	/* timeout in ms - negative means infinite, 0 means don't sleep */
-	sleep_result sleep_poll(int timeout);
+	sleep_result sleep_poll(hrtime_t timeout, bool timeout_valid);
 };
 
 extern "C"
@@ -234,6 +235,16 @@ extern "C"
 #endif
 
 void poll_wait_helper(void *poll_file, struct wait_queue *q);
+
+struct pselect_arg
+{
+	const sigset_t *mask;
+	size_t length;
+};
+
+int sys_pselect(int nfds, fd_set *readfds, fd_set *writefds,
+                fd_set *exceptfds, const struct timespec *timeout,
+                struct pselect_arg *arg);
 
 #ifdef __cplusplus
 }

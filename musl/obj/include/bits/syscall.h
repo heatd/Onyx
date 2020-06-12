@@ -73,7 +73,8 @@
 #define __NR_times				75
 #define __NR_getrusage				76
 #define __NR_ptrace				77
-#define __NR_poll				78
+#define __NR_ppoll				78
+#define __NR_pselect6			79
 #define __NR_proc_event_attach			80
 #define __NR_access				81
 #define __NR_fallocate				82
@@ -261,7 +262,6 @@
 #define __NR_pwrite64				255
 #define __NR_recvmsg				255
 #define __NR_sched_yield			255
-#define __NR_select				255
 #define __NR_semctl				255
 #define __NR_semget				255
 #define __NR_semop				255
@@ -278,8 +278,6 @@
 #define __NR_fdatasync				255
 #define __NR_vfork				255
 #define __NR_migrate_pages			256
-#define __NR_pselect6				270
-#define __NR_ppoll				271
 #define __NR_unshare				272
 #define __NR_set_robust_list			273
 #define __NR_get_robust_list			274
@@ -424,7 +422,8 @@
 #define SYS_times				75
 #define SYS_getrusage				76
 #define SYS_ptrace				77
-#define SYS_poll				78
+#define SYS_ppoll				78
+#define SYS_pselect6			79
 #define SYS_proc_event_attach			80
 #define SYS_access				81
 #define SYS_fallocate				82
@@ -612,7 +611,6 @@
 #define SYS_pwrite64				255
 #define SYS_recvmsg				255
 #define SYS_sched_yield			255
-#define SYS_select				255
 #define SYS_semctl				255
 #define SYS_semget				255
 #define SYS_semop				255
@@ -629,8 +627,6 @@
 #define SYS_fdatasync				255
 #define SYS_vfork				255
 #define SYS_migrate_pages			256
-#define SYS_pselect6				270
-#define SYS_ppoll				271
 #define SYS_unshare				272
 #define SYS_set_robust_list			273
 #define SYS_get_robust_list			274

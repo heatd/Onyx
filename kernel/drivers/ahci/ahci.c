@@ -65,6 +65,7 @@ void ahci_deal_aio(struct command_list *list)
 
 	req->req_end = get_main_clock()->get_ns();
 	ahci_wake_io(req);
+	list->req = NULL;
 }
 
 void ahci_do_clist_irq(struct ahci_port *port, int j)
