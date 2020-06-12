@@ -1,5 +1,5 @@
 #!/bin/sh
-UTILS="cat dmesg echo login ls packmanager true yes printenv uname sleep memstat link rm mkdir"
+UTILS="dmesg login packmanager memstat"
 cd utils
 for UTIL in $UTILS; do
 	echo "Building $UTIL"

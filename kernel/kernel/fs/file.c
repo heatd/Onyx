@@ -271,12 +271,17 @@ int allocate_file_descriptor_table(struct process *process)
 
 #define FD_ENTRIES_TO_FDSET_SIZE(x)				((x) / 8)
 
-/* Enlarges the file descriptor table by FILE_DESCRIPTOR_GROW_NR(255) entries */
-int enlarge_file_descriptor_table(struct process *process)
+/* Enlarges the file descriptor table by FILE_DESCRIPTOR_GROW_NR(64) entries */
+int enlarge_file_descriptor_table(struct process *process, unsigned int new_size)
 {
 	unsigned int old_nr_fds = process->ctx.file_desc_entries;
 
-	process->ctx.file_desc_entries += FILE_DESCRIPTOR_GROW_NR;
+	new_size = ALIGN_TO(new_size, FILE_DESCRIPTOR_GROW_NR);
+
+	process->ctx.file_desc_entries = new_size;
+
+	if(new_size > INT_MAX)
+		return -EMFILE;
 
 	unsigned int new_nr_fds = process->ctx.file_desc_entries;
 
@@ -355,8 +360,8 @@ int alloc_fd(int fdbase)
 		}
 
 		/* TODO: Make it so we can enlarge it directly to the size we want */
-
-		if(enlarge_file_descriptor_table(get_current_process()) < 0)
+		int new_entries = ioctx->file_desc_entries + FILE_DESCRIPTOR_GROW_NR;
+		if(enlarge_file_descriptor_table(get_current_process(), new_entries) < 0)
 		{
 			mutex_unlock(&ioctx->fdlock);
 			return -ENOMEM;
@@ -435,6 +440,73 @@ error:
 	if(f) fd_put(f);
 	return -errno;
 }
+
+ssize_t sys_pread(int fd, void *buf, size_t count, off_t offset)
+{
+	struct file *f = get_file_description(fd);
+	if(!f)
+		goto error;
+	
+	if(!fd_may_access(f, FILE_ACCESS_READ))
+	{
+		errno = EBADF;
+		goto error;
+	}
+
+	if(offset < 0)
+	{
+		errno = EINVAL;
+		return -errno;
+	}
+
+	ssize_t size = read_vfs(offset,
+		count, (char*) buf, f);
+	if(size < 0)
+	{
+		goto error;
+	}
+
+	fd_put(f);
+
+	return size;
+error:
+	if(f) fd_put(f);
+	return -errno;
+}
+
+ssize_t sys_pwrite(int fd, const void *buf, size_t count, off_t offset)
+{	
+	struct file *f = get_file_description(fd);
+	if(!f)
+		goto error;
+
+	if(!fd_may_access(f, FILE_ACCESS_WRITE))
+	{
+		errno = EBADF;
+		goto error;
+	}
+
+	if(offset < 0)
+	{
+		errno = EINVAL;
+		goto error;
+	}
+	
+	ssize_t written = write_vfs(offset,
+				   count, (void*) buf, 
+				   f);
+
+	if(written < 0)
+		goto error;
+
+
+	fd_put(f);
+	return written;
+error:
+	if(f) fd_put(f);
+	return -errno;
+}
+
 
 void handle_open_flags(struct file *fd, int flags)
 {
@@ -569,7 +641,8 @@ out_error:
 
 int sys_dup2(int oldfd, int newfd)
 {
-	struct ioctx *ioctx = &get_current_process()->ctx;
+	struct process *current = get_current_process();
+	struct ioctx *ioctx = &current->ctx;
 
 	if(newfd < 0)
 		return -EINVAL;
@@ -579,16 +652,18 @@ int sys_dup2(int oldfd, int newfd)
 		return -errno;
 
 	mutex_lock(&ioctx->fdlock);
-	/* TODO: Handle newfd's larger than the number of entries by extending the table */
 	if((unsigned int) newfd > ioctx->file_desc_entries)
 	{
-		fd_put(f);
-		mutex_unlock(&ioctx->fdlock);
-		return -EBADF;
+		int st = enlarge_file_descriptor_table(current, newfd + 1);
+		if(st < 0)
+		{
+			fd_put(f);
+			return st;
+		}
 	}
 
 	if(ioctx->file_desc[newfd])
-		__file_close_unlocked(newfd, get_current_process());
+		__file_close_unlocked(newfd, current);
 
 	ioctx->file_desc[newfd] = ioctx->file_desc[oldfd];
 	fd_set_cloexec(newfd, false, ioctx);
@@ -960,7 +1035,7 @@ off_t sys_lseek(int fd, off_t offset, int whence)
 		return -errno;
 
 	/* TODO: Add a way for inodes to tell they don't support seeking */
-	if(f->f_ino->i_type == VFS_TYPE_FIFO)
+	if(f->f_ino->i_type == VFS_TYPE_FIFO || f->f_ino->i_flags & INODE_FLAG_NO_SEEK)
 	{
 		ret = -ESPIPE;
 		goto out;
@@ -1133,7 +1208,7 @@ int fcntl_f_getfd(int fd, struct ioctx *ctx)
 	return st;
 }
 
-int fnctl_f_setfd(int fd, unsigned long arg, struct ioctx *ctx)
+int fcntl_f_setfd(int fd, unsigned long arg, struct ioctx *ctx)
 {
 	mutex_lock(&ctx->fdlock);
 
@@ -1148,6 +1223,50 @@ int fnctl_f_setfd(int fd, unsigned long arg, struct ioctx *ctx)
 	fd_set_cloexec(fd, wants_cloexec, ctx);
 
 	mutex_unlock(&ctx->fdlock);
+
+	return 0;
+}
+
+int fcntl_f_getfl(int fd, struct ioctx *ctx)
+{
+	bool is_cloexec;
+
+	mutex_lock(&ctx->fdlock);
+
+	if(!validate_fd_number(fd, ctx))
+	{
+		mutex_unlock(&ctx->fdlock);
+		return -EBADF;
+	}
+
+	is_cloexec = fd_is_cloexec(fd, ctx);
+
+	mutex_unlock(&ctx->fdlock);
+
+	struct file *f = get_file_description(fd);
+	if(!f)
+		return -errno;
+	unsigned int result = f->f_flags | (is_cloexec ? O_CLOEXEC : 0);
+
+	fd_put(f);
+
+	return result;
+}
+
+#define SETFL_MASK (O_APPEND | O_ASYNC | O_DIRECT | O_NOATIME | O_NONBLOCK)
+
+int fcntl_f_setfl(int fd, struct ioctx *ctx, unsigned long arg)
+{
+	struct file *f = get_file_description(fd);
+	if(!f)
+		return -errno;
+	
+	/* TODO: Some flags, like O_ASYNC are not that simple to handle... */
+	arg &= (O_APPEND | O_ASYNC | O_DIRECT | O_NOATIME | O_NONBLOCK);
+
+	f->f_flags = arg | (f->f_flags & ~SETFL_MASK);
+
+	fd_put(f);
 
 	return 0;
 }
@@ -1189,8 +1308,13 @@ int sys_fcntl(int fd, int cmd, unsigned long arg)
 
 		case F_SETFD:
 		{
-			return fnctl_f_setfd(fd, arg, ctx);
+			return fcntl_f_setfd(fd, arg, ctx);
 		}
+
+		case F_GETFL:
+			return fcntl_f_getfl(fd, ctx);
+		case F_SETFL:
+			return fcntl_f_setfl(fd, ctx, arg);
 
 		default:
 			ret = -EINVAL;
@@ -1201,10 +1325,13 @@ int sys_fcntl(int fd, int cmd, unsigned long arg)
 	return ret;
 }
 
+#define STAT_FLAG_LSTAT          (1 << 0)
+
 int do_sys_stat(const char *pathname, struct stat *buf, int flags, struct file *rel)
 {
+	unsigned int open_flags = (flags & STAT_FLAG_LSTAT ? OPEN_FLAG_NOFOLLOW : 0);
 	struct file *base = get_fs_base(pathname, rel);
-	struct file *stat_node = open_vfs(base, pathname);
+	struct file *stat_node = open_vfs_with_flags(base, pathname, open_flags);
 	if(!stat_node)
 		return -errno; /* Don't set errno, as we don't know if it was actually a ENOENT */
 
@@ -1223,6 +1350,28 @@ int sys_stat(const char *upathname, struct stat *ubuf)
 	struct file *curr = get_current_directory();
 
 	int st = do_sys_stat(pathname, &buf, 0, curr);
+
+	fd_put(curr);
+
+	if(copy_to_user(ubuf, &buf, sizeof(buf)) < 0)
+	{
+		st = -errno;
+	}
+
+	free((void *) pathname);
+	return st;
+}
+
+int sys_lstat(const char *upathname, struct stat *ubuf)
+{
+	const char *pathname = strcpy_from_user(upathname);
+	if(!pathname)
+		return -errno;
+	
+	struct stat buf = {0};
+	struct file *curr = get_current_directory();
+
+	int st = do_sys_stat(pathname, &buf, STAT_FLAG_LSTAT, curr);
 
 	fd_put(curr);
 

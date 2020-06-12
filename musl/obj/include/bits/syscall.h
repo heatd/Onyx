@@ -122,6 +122,8 @@
 #define __NR_sigaltstack			123
 #define __NR_setitimer				124
 #define __NR_getitimer				125
+#define __NR_pread64				126
+#define __NR_pwrite64				127
 #define __NR_sysinfo			255
 #define __NR_geteuid			255
 #define __NR_getegid			255
@@ -258,8 +260,6 @@
 #define __NR_msgrcv				255
 #define __NR_msgsnd				255
 #define __NR_msync				255
-#define __NR_pread64				255
-#define __NR_pwrite64				255
 #define __NR_recvmsg				255
 #define __NR_sched_yield			255
 #define __NR_semctl				255
@@ -471,6 +471,8 @@
 #define SYS_sigaltstack			123
 #define SYS_setitimer				124
 #define SYS_getitimer				125
+#define SYS_pread64				126
+#define SYS_pwrite64				127
 #define SYS_sysinfo			255
 #define SYS_geteuid			255
 #define SYS_getegid			255
@@ -607,8 +609,6 @@
 #define SYS_msgrcv				255
 #define SYS_msgsnd				255
 #define SYS_msync				255
-#define SYS_pread64				255
-#define SYS_pwrite64				255
 #define SYS_recvmsg				255
 #define SYS_sched_yield			255
 #define SYS_semctl				255

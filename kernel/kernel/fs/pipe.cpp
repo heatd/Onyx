@@ -262,6 +262,7 @@ int pipe_create(struct file **pipe_readable, struct file **pipe_writeable)
 
 	node0->i_dev = pipedev->majorminor;
 	node0->i_type = VFS_TYPE_CHAR_DEVICE;
+	node0->i_flags = INODE_FLAG_NO_SEEK;
 	node0->i_inode = current_inode_number++;
 	node0->i_helper = (void *) new_pipe;
 	node0->i_fops = &pipe_ops;

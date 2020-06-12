@@ -88,6 +88,7 @@ extern int sys_setuid(uid_t uid);
 extern int sys_setgid(gid_t gid);
 extern int sys_fcntl(int fd, int cmd, ...);
 extern int sys_stat(const char *pathname, struct stat *buf);
+extern int sys_lstat(const char *pathname, struct stat *buf);
 extern int sys_fstat(int fd, struct stat *buf);
 extern int sys_clock_gettime(clockid_t clk_id, struct timespec *tp);
 extern int sys_pipe(int *pipefd);
@@ -173,6 +174,8 @@ int sys_rt_sigpending(sigset_t *set, size_t sigsetlen);
 int sys_sigaltstack(const stack_t *new_stack, stack_t *old_stack, const struct syscall_frame *frame);
 int sys_setitimer(int which, const struct itimerval *new_value, struct itimerval *old_value);
 int sys_getitimer(int which, struct itimerval *curr_value);
+ssize_t sys_pread(int fd, void *buf, size_t count, off_t offset);
+ssize_t sys_pwrite(int fd, const void *buf, size_t count, off_t offset);
 
 void *syscall_table_64[] =
 {
@@ -227,7 +230,7 @@ void *syscall_table_64[] =
 	[48] = (void*) sys_nosys, /* Reserved for sync */
 	[49] = (void*) sys_stat,
 	[50] = (void*) sys_fstat,
-	[51] = (void*) sys_nosys, /* Reserved for lstat */
+	[51] = (void*) sys_lstat,
 	[52] = (void*) sys_sigaction,
 	[53] = (void*) sys_pipe,
 	[54] = (void*) sys_memstat,
@@ -301,5 +304,7 @@ void *syscall_table_64[] =
 	[122] = (void*) sys_nosys,
 	[123] = (void*) sys_sigaltstack,
 	[124] = (void*) sys_setitimer,
-	[125] = (void*) sys_getitimer
+	[125] = (void*) sys_getitimer,
+	[126] = (void*) sys_pread,
+	[127] = (void*) sys_pwrite
 };

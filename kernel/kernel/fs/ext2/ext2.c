@@ -129,7 +129,7 @@ ssize_t ext2_writepage(struct page *page, size_t off, struct inode *ino)
 
 size_t ext2_read_ino(size_t offset, size_t len, void *buffer, struct inode *node)
 {
-	//printk("Inode read: %lu, off %lu, size %lu\n", node->i_inode, offset, sizeofreading);
+	// printk("Inode read: %lu, off %lu, size %lu\n", node->i_inode, offset, len);
 	struct ext2_fs_info *fs = node->i_sb->s_helper;
 
 	struct ext2_inode *ino = ext2_get_inode_from_node(node);

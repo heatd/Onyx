@@ -318,7 +318,6 @@ int sys_execve(char *p, char *argv[], char *envp[])
 
 	if(!exec_file)
 	{
-		perror("open_vfs");
 		st = -errno;
 		goto error;
 	}

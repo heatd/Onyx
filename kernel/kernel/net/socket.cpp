@@ -618,6 +618,7 @@ struct inode *socket_create_inode(struct socket *socket)
 	inode->i_fops = &socket_ops;
 
 	inode->i_type = VFS_TYPE_UNIX_SOCK;
+	inode->i_flags = INODE_FLAG_NO_SEEK;
 	inode->i_helper = socket;
 
 	return inode;

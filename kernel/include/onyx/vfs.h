@@ -124,6 +124,7 @@ struct file
 
 #define INODE_FLAG_DONT_CACHE		(1 << 0)
 #define INODE_FLAG_DIRTY			(1 << 1)
+#define INODE_FLAG_NO_SEEK          (1 << 2)
 
 #ifdef __cplusplus
 extern "C" {

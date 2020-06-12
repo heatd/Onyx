@@ -104,7 +104,7 @@ void *elf64_load_static(struct binfmt_args *args, Elf64_Ehdr *header)
 			int prot =
 					((phdrs[i].p_flags & PF_W) ? PROT_WRITE : 0) |
 				   ((phdrs[i].p_flags & PF_X) ? PROT_EXEC : 0);
-			if(!vm_mmap((void *) aligned_address, pages << PAGE_SHIFT, prot, MAP_PRIVATE, 
+			if(!vm_mmap((void *) aligned_address, pages << PAGE_SHIFT, prot, MAP_PRIVATE | MAP_FIXED, 
 			            fd, phdrs[i].p_offset - misalignment))
 			{
 				errno = ENOMEM;
@@ -121,8 +121,29 @@ void *elf64_load_static(struct binfmt_args *args, Elf64_Ehdr *header)
 
 				/* This program header has the .bss, zero it out */
 				uint8_t *bss_base = (uint8_t *) (phdrs[i].p_vaddr + phdrs[i].p_filesz);
+				uint8_t *zero_pages_base = page_align_up(bss_base);
 				size_t bss_size = phdrs[i].p_memsz - phdrs[i].p_filesz;
-				memset(bss_base, 0, bss_size);
+				size_t to_zero = zero_pages_base - bss_base;
+				if(to_zero > bss_size)
+					to_zero = bss_size;
+
+				size_t zero_pages_len = bss_size - to_zero;
+
+				if(zero_pages_len)
+				{
+					size_t pages = zero_pages_len / PAGE_SIZE;
+					if(zero_pages_len % PAGE_SIZE)
+						pages++;
+
+					if(!vm_mmap(zero_pages_base, pages << PAGE_SHIFT, prot,
+						MAP_PRIVATE | MAP_FIXED | MAP_ANON, NULL, 0))
+					{
+						errno = ENOMEM;
+						return NULL;
+					}
+				}
+
+				if(to_zero) memset(bss_base, 0, bss_size);
 			}
 
 			if(!load_addr_set)
@@ -289,10 +310,30 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 					goto error2;
 				}
 
-				/* This program header has the .bss, zero it out */
 				uint8_t *bss_base = (uint8_t *) (phdrs[i].p_vaddr + phdrs[i].p_filesz);
+				uint8_t *zero_pages_base = page_align_up(bss_base);
 				size_t bss_size = phdrs[i].p_memsz - phdrs[i].p_filesz;
-				memset(bss_base, 0, bss_size);
+				size_t to_zero = zero_pages_base - bss_base;
+				if(to_zero > bss_size)
+					to_zero = bss_size;
+
+				size_t zero_pages_len = bss_size - to_zero;
+
+				if(zero_pages_len)
+				{
+					size_t pages = zero_pages_len / PAGE_SIZE;
+					if(zero_pages_len % PAGE_SIZE)
+						pages++;
+
+					if(!vm_mmap(zero_pages_base, pages << PAGE_SHIFT, prot,
+						MAP_PRIVATE | MAP_FIXED | MAP_ANON, NULL, 0))
+					{
+						errno = ENOMEM;
+						return NULL;
+					}
+				}
+
+				if(to_zero) memset(bss_base, 0, bss_size);
 			}
 		}
 	}

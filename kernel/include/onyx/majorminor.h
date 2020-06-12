@@ -10,4 +10,5 @@
 #define MINOR(x) (x & 0xFFFF)
 
 #define MKDEV(major, minor) ((major << 16) | minor)
+
 #endif
