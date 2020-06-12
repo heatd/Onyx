@@ -121,7 +121,7 @@ bool module_try_resolve(struct module *m, void *ctx)
 	{
 		struct symbol *s = &m->symtable[i];
 
-		if(s->name_hash == hash)
+		if(s->name_hash == hash && !strcmp(s->name, c->sym_name))
 		{
 			if(!symbol_is_exported(s) && !(c->flags & SYMBOL_RESOLVE_MAY_BE_STATIC))
 				return true;
