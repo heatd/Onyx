@@ -73,6 +73,49 @@ void thread_remove_from_list(struct thread *t)
 	spin_unlock(&glbl_thread_list_lock);
 }
 
+char *thread_strings[] =
+{
+	"THREAD_RUNNABLE",
+	"THREAD_INTERRUPTIBLE",
+	"THREAD_SLEEPING",
+	"THREAD_IDLE",
+	"THREAD_DEAD",
+	"THREAD_UNINTERRUPTIBLE",
+	"THREAD_STOPPED"
+};
+
+bool _dump_thread(const void *key, void *_thread, void *of)
+{
+	struct thread *thread = _thread;
+
+	printk("Thread id %d\n", thread->id);
+
+	if(thread->owner)
+		printk("User space thread - owner %s\n", thread->owner->cmd_line);
+
+	printk("Thread status: %s\n", thread_strings[thread->status]);
+	if(thread->status == THREAD_INTERRUPTIBLE || thread->status == THREAD_UNINTERRUPTIBLE)
+	{
+		struct registers *regs = (struct registers *) thread->kernel_stack;
+		printk("Dumping context. IP = %016lx, RBP = %016lx\n", regs->rip, regs->rbp);
+		stack_trace_ex((uint64_t *) regs->rbp);
+	}
+
+	return true;
+}
+
+void vterm_panic(void);
+
+void sched_dump_threads(void)
+{
+	vterm_panic();
+	//spin_lock(&glbl_thread_list_lock);
+
+	rb_tree_traverse(&glbl_thread_list, _dump_thread, NULL);
+	
+	//spin_unlock(&glbl_thread_list_lock);
+}
+
 struct thread *thread_get_from_tid(int tid)
 {
 	spin_lock(&glbl_thread_list_lock);

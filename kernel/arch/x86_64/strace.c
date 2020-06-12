@@ -85,11 +85,11 @@ void stack_trace_ex(uint64_t *stack)
 	uint64_t *rbp = stack;
 	for(size_t i = 0; i < unwinds_possible; i++)
 	{
-		if(thread)
+		/*if(thread)
 		{
 			if((uint64_t*) *rbp >= thread->kernel_stack_top)
 				break;
-		}
+		}*/
 
 		if(!(void*) *(rbp + 1))
 			break;

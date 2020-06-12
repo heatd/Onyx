@@ -76,6 +76,7 @@ ssize_t pipe::read(int flags, size_t len, void *buf)
 			/* buffer empty */
 			if(flags & O_NONBLOCK)
 			{
+				mutex_unlock(&pipe_lock);
 				return errno = EAGAIN, -1;
 			}
 
@@ -159,9 +160,10 @@ ssize_t pipe::write(int flags, size_t len, const void *buf)
 		}
 	}
 
-	mutex_unlock(&pipe_lock);
 	/* After finishing the write, signal any possible readers */
 	condvar_broadcast(&read_cond);
+
+	mutex_unlock(&pipe_lock);
 
 	return written;
 }
@@ -189,18 +191,24 @@ size_t pipe_write(size_t offset, size_t sizeofwrite, void* buffer, struct file* 
 	return p->write(file->f_flags, sizeofwrite, buffer);
 }
 
-void pipe::close_read_end()
+void pipe::close_write_end()
 {
-	/* wake up any possibly-blocked readers */
+	/* wake up any possibly-blocked writers */
 	mutex_lock(&pipe_lock);
-	condvar_broadcast(&read_cond);
+	
+	if(--writer_count == 0)
+		condvar_broadcast(&read_cond);
+
 	mutex_unlock(&pipe_lock);
 }
 
-void pipe::close_write_end()
+void pipe::close_read_end()
 {
 	mutex_lock(&pipe_lock);
-	condvar_broadcast(&write_cond);
+	
+	if(--reader_count == 0)
+		condvar_broadcast(&write_cond);
+
 	mutex_unlock(&pipe_lock);
 }
 
@@ -211,17 +219,11 @@ void pipe_close(struct inode* ino)
 
 	if(is_writeable)
 	{
-		if(--p->writer_count == 0)
-		{
-			p->close_write_end();
-		}
+		p->close_write_end();
 	}
 	else
 	{
-		if(--p->reader_count == 0)
-		{
-			p->close_read_end();
-		}
+		p->close_read_end();
 	}
 	
 	p->unref();
