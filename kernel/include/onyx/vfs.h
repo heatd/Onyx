@@ -81,6 +81,7 @@ struct getdents_ret
 struct inode
 {
 	struct object i_object;
+	/* TODO: We could use a rwlock here to sequence reads and writes */
 	unsigned int i_flags;
 	ino_t i_inode;
 	gid_t i_gid;
@@ -136,8 +137,12 @@ int inode_create_vmo(struct inode *ino);
 #define OPEN_FLAG_FAIL_IF_LINK              (1 << 1)
 #define OPEN_FLAG_MUST_BE_DIR               (1 << 2)
 #define LOOKUP_FLAG_INTERNAL_TRAILING_SLASH (1 << 3)   /* Might be useful for callers
-                                                        * that handle the last name. */
+                                                        * that handle the last name.
+														*/
 
+#define OPEN_FLAG_EMPTY_PATH                 (1 << 4)  /* Used to implement AT_EMPTY_PATH,
+                                                        * makes open routines return the base file.
+														*/
 struct file *open_vfs_with_flags(struct file *dir, const char *path, unsigned int flags);
 struct file *open_vfs(struct file *dir, const char *path);
 
@@ -186,7 +191,7 @@ struct file *mknod_vfs(const char *path, mode_t mode, dev_t dev, struct dentry *
 
 struct file *get_current_directory(void);
 
-int link_vfs(struct file *target, const char *name, struct file *dir);
+int link_vfs(struct file *target, struct file *rel_base, const char *newpath);
 
 int unlink_vfs(const char *name, int flags, struct file *node);
 
@@ -202,6 +207,7 @@ int inode_flush(struct inode *ino);
 #define	FILE_ACCESS_WRITE   (1 << 1)
 #define FILE_ACCESS_EXECUTE (1 << 2)
 
+bool inode_can_access(struct inode *file, unsigned int perms);
 bool file_can_access(struct file *file, unsigned int perms);
 
 struct page_cache_block;

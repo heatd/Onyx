@@ -22,4 +22,60 @@ long get_user32(unsigned int *uaddr, unsigned int *dest);
 }
 #endif
 
+#ifdef __cplusplus
+
+#include <onyx/expected.hpp>
+
+class user_string
+{
+private:
+	char *buf;
+public:
+
+	user_string() : buf{nullptr}
+	{
+
+	}
+
+	user_string(const user_string& rhs) = delete;
+	user_string& operator=(const user_string& rhs) = delete;
+
+	user_string(user_string&& rhs) = default;
+	user_string& operator=(user_string&& rhs) = default;
+
+	~user_string()
+	{
+		free((void *) buf);
+	}
+
+	expected<char *, int> from_user(const char *ustring)
+	{
+		auto ret = buf = strcpy_from_user(ustring);
+		if(!ret) [[unlikely]]
+			return unexpected<int>{-errno};
+		return ret;
+	}
+
+	char *data() const
+	{
+		return buf;
+	}
+
+	char *release()
+	{
+		auto r = buf;
+		buf = nullptr;
+		return r;
+	}
+
+	char& operator[](size_t index) const
+	{
+		return buf[index];
+	}
+
+	/* We don't provide an implicit convertion to char * because that would be unsafe */
+};
+
+#endif
+
 #endif

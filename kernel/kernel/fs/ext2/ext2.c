@@ -97,7 +97,7 @@ void ext2_close(struct inode *vfs_ino)
 	struct ext2_inode *inode = ext2_get_inode_from_node(vfs_ino);
 	struct ext2_fs_info *fs = vfs_ino->i_sb->s_helper;
 
-	if(inode->hard_links == 0)
+	if(vfs_ino->i_nlink == 0)
 	{
 		ext2_delete_inode(inode, (uint32_t) vfs_ino->i_inode, fs);
 	}
@@ -529,6 +529,7 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 	root_inode->i_uid = disk_root_ino->uid;
 	root_inode->i_mode = disk_root_ino->mode;
 	root_inode->i_helper = ext2_cache_inode_info(root_inode, disk_root_ino);
+	root_inode->i_dev = dev->dev->majorminor;
 
 	sb->s_inodes = root_inode;
 	sb->s_helper = fs;

@@ -54,6 +54,11 @@ public:
 		return _has_value;
 	}
 
+	constexpr bool has_error() const
+	{
+		return !_has_value;
+	}
+
 	constexpr _Type& value()
 	{
 		assert(has_value() == true);

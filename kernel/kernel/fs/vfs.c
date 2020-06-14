@@ -299,24 +299,10 @@ char *readlink_vfs(struct file *file)
 	return errno = EINVAL, NULL;
 }
 
-struct file *follow_symlink(struct file *file, struct file *parent)
-{
-	char *symlink = readlink_vfs(file);
-	if(!symlink)
-		return NULL;
-
-	struct file *ret = open_vfs(parent, symlink);
-
-	free(symlink);
-
-	return ret;
-}
-
-bool file_can_access(struct file *f, unsigned int perms)
+bool inode_can_access(struct inode *file, unsigned int perms)
 {
 	bool access_good = true;
 	struct creds *c = creds_get();
-	struct inode *file = f->f_ino;
 
 	if(unlikely(c->euid == 0))
 	{
@@ -368,6 +354,11 @@ out:
 	return access_good;
 }
 
+bool file_can_access(struct file *file, unsigned int perms)
+{
+	return inode_can_access(file->f_ino, perms);
+}
+
 off_t do_getdirent(struct dirent *buf, off_t off, struct file *file)
 {
 	if(file->f_ino->i_fops->getdirent != NULL)
@@ -398,6 +389,9 @@ int getdents_vfs(unsigned int count, putdir_t putdir,
 {
 	if(!(f->f_ino->i_type & VFS_TYPE_DIR))
 		return errno = ENOTDIR, -1;
+
+	if(!file_can_access(f, FILE_ACCESS_READ))
+		return errno = EACCES, -1;
 	
 	/*printk("Seek: %lu\n", off);
 	printk("Count: %u\n", count);*/
@@ -682,7 +676,7 @@ int default_fallocate(int mode, off_t offset, off_t len, struct file *file)
 	}
 
 	size_t length_diff = (size_t) len;
-	size_t off = off;
+	size_t off = offset;
 	while(length_diff != 0)
 	{
 		size_t to_write = length_diff >= PAGE_SIZE ? PAGE_SIZE : length_diff;
@@ -795,27 +789,9 @@ struct inode *inode_create(bool is_reg)
 		}
 	}
 
+	inode->i_nlink = 1;
+
 	return inode;
-}
-
-int link_vfs(struct file *target, const char *name, struct file *dir)
-{
-	if(!file_can_access(dir, FILE_ACCESS_WRITE))
-		return -EACCES;
-
-	if(dir->f_ino->i_fops->link)
-		return dir->f_ino->i_fops->link(target, name, dir->f_dentry);
-	return -EINVAL;
-}
-
-int unlink_vfs(const char *name, int flags, struct file *node)
-{
-	if(!file_can_access(node, FILE_ACCESS_WRITE))
-		return -EACCES;
-
-	if(node->f_ino->i_fops->link)
-		return node->f_ino->i_fops->unlink(name, flags, node->f_dentry);
-	return -EINVAL;
 }
 
 void inode_mark_dirty(struct inode *ino)

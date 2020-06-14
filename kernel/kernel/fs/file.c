@@ -583,6 +583,16 @@ int do_sys_open(const char *filename, int flags, mode_t mode, struct file *__rel
 		return -errno;
 	}
 
+	if(file->f_ino->i_fops->on_open)
+	{
+		int st = file->f_ino->i_fops->on_open(file);
+		if(st < 0)
+		{
+			fd_put(file);
+			return st;
+		}
+	}
+
 	/* Allocate a file descriptor and a file description for the file */
 	fd_num = open_with_vnode(file, flags);
 
@@ -1790,148 +1800,6 @@ int sys_mknod(const char *pathname, mode_t mode, dev_t dev)
 	return sys_mknodat(AT_FDCWD, pathname, mode, dev);
 }
 
-int do_sys_link(int olddirfd, const char *uoldpath, int newdirfd,
-		const char *unewpath, int flags)
-{
-	/* TODO: Handle flags; same for every *at() syscall */
-	int st = 0;
-	char *oldpath = NULL;
-	char *newpath = NULL;
-	char *lname_buf = NULL;
-	struct file *olddir = NULL;
-	struct file *newdir = NULL;
-	struct file *oldpathfile = NULL;
-	struct file *newpathfile = NULL;
-	oldpath = strcpy_from_user(uoldpath);
-	newpath = strcpy_from_user(unewpath);
-
-	if(!oldpath || !newpath)
-	{
-		st = -errno;
-		goto out;
-	}
-
-	lname_buf = strdup(newpath);
-	if(!lname_buf)
-	{
-		st = -errno;
-		goto out;
-	}
-
-
-	olddir = get_dirfd_file(olddirfd);
-	if(!olddir)
-	{
-		st = -errno;
-		goto out;
-	}
-
-	newdir = get_dirfd_file(newdirfd);
-	if(!newdir)
-	{
-		st = -errno;
-		goto out;
-	}
-
-	oldpathfile = open_vfs(get_fs_base(oldpath, olddir), oldpath);
-	if(!oldpathfile)
-	{
-		st = -errno;
-		goto out;
-	}
-
-	char *to_open = dirname(newpath);
-
-	newpathfile = open_vfs(get_fs_base(to_open, newdir), to_open);
-	if(!newpathfile || newpathfile->f_ino->i_dev != oldpathfile->f_ino->i_dev)
-	{
-		/* Hard links need to be in the same filesystem */
-		st = -EXDEV;
-		goto out;
-	}
-
-	char *lname = basename(lname_buf);
-	st = link_vfs(oldpathfile, lname, newpathfile);
-out:
-	if(lname_buf)	free(lname_buf);
-	if(newpathfile)	fd_put(newpathfile);
-	if(oldpathfile) fd_put(oldpathfile);
-	if(oldpath)	free(oldpath);
-	if(newpath)	free(newpath);
-	if(olddir)	fd_put(olddir);
-	if(newdir)	fd_put(newdir);
-	return st;
-}
-
-int sys_link(const char *oldpath, const char *newpath)
-{
-	return do_sys_link(AT_FDCWD, oldpath, AT_FDCWD, newpath, 0);
-}
-
-int sys_linkat(int olddirfd, const char *oldpath,
-               int newdirfd, const char *newpath, int flags)
-{
-	return do_sys_link(olddirfd, oldpath, newdirfd, newpath, flags);
-}
-
-int do_sys_unlink(int dirfd, const char *upathname, int flags)
-{
-	int st = 0;
-	struct file *dirfd_file = NULL;
-	char *buf = NULL;
-	struct file *dir = NULL;
-	char *pathname = strcpy_from_user(upathname);
-	if(!pathname)
-		return -errno;
-	
-	if(!(buf = strdup(pathname)))
-	{
-		goto out;
-	}
-
-	dirfd_file = get_dirfd_file(dirfd);
-	if(!dirfd_file)
-	{
-		st = -errno;
-		goto out;
-	}
-
-	char *to_open = dirname(pathname);
-	dir = open_vfs(get_fs_base(to_open, dirfd_file), to_open);
-	if(!dir)
-	{
-		st = -errno;
-		goto out;
-	}
-
-	st = unlink_vfs(basename(buf), flags, dir);
-
-out:
-	if(dir)		fd_put(dir);
-	if(buf)		free(buf);
-	if(pathname)	free(pathname);
-	if(dirfd_file)	fd_put(dirfd_file);
-
-	return st;
-}
-
-int sys_unlink(const char *pathname)
-{
-	return do_sys_unlink(AT_FDCWD, pathname, 0);
-}
-
-int sys_unlinkat(int dirfd, const char *pathname, int flags)
-{
-	return do_sys_unlink(dirfd, pathname, flags);
-}
-
-int sys_rmdir(const char *pathname)
-{
-	/* Thankfully we can implement rmdir with unlinkat semantics 
-	 * Thanks POSIX for this really nice and thoughtful API! */
-	return do_sys_unlink(AT_FDCWD, pathname, AT_REMOVEDIR); 
-}
-
 ssize_t sys_readlinkat(int dirfd, const char *upathname, char *ubuf, size_t bufsiz)
 {
 	if((ssize_t) bufsiz < 0)
@@ -1994,8 +1862,6 @@ mode_t sys_umask(mode_t mask)
 	return old;
 }
 
-int sys_symlink(const char *target, const char *linkpath) {return -ENOSYS;}
-int sys_symlinkat(const char *target, int newdirfd, const char *linkpath) {return -ENOSYS;}
 int sys_chmod(const char *pathname, mode_t mode) {return -ENOSYS;}
 int sys_fchmod(int fd, mode_t mode) {return -ENOSYS;}
 int sys_fchmodat(int dirfd, const char *pathname, mode_t mode, int flags) {return -ENOSYS;}
@@ -2004,9 +1870,7 @@ int sys_fchown(int fd, uid_t owner, gid_t group) {return -ENOSYS;}
 int sys_lchown(const char *pathname, uid_t owner, gid_t group) {return -ENOSYS;}
 int sys_fchownat(int dirfd, const char *pathname,
                     uid_t owner, gid_t group, int flags) {return -ENOSYS;}
-int sys_rename(const char *oldpath, const char *newpath) {return -ENOSYS;}
-int sys_renameat(int olddirfd, const char *oldpath,
-                    int newdirfd, const char *newpath) {return -ENOSYS;}
+
 int sys_utimensat(int dirfd, const char *pathname,
                      const struct timespec *times, int flags) {return -ENOSYS;}
 int sys_faccessat(int dirfd, const char *pathname, int mode, int flags) {return -ENOSYS;}

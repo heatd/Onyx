@@ -19,6 +19,7 @@
 #define INLINE_NAME_MAX			40
 
 #define DENTRY_FLAG_MOUNTPOINT               (1 << 0)
+#define DENTRY_FLAG_MOUNT_ROOT               (1 << 1)
 
 struct dentry
 {
@@ -71,6 +72,100 @@ struct nameidata;
 dentry *dentry_resolve(nameidata& data);
 void dentry_destroy(dentry *d);
 
+
+class auto_dentry
+{
+private:
+	dentry *d;
+
+	void ref() const
+	{
+		if(d) dentry_get(d);
+	}
+
+	void unref() const
+	{
+		if(d) dentry_put(d);
+	}
+
+public:
+
+	auto_dentry() = default;
+
+	auto_dentry(dentry *_f) : d{_f} {}
+
+	~auto_dentry()
+	{
+		if(d) dentry_put(d);
+	}
+
+	auto_dentry& operator=(const auto_dentry& rhs)
+	{
+		if(&rhs == this)
+			return *this;
+		
+		unref();
+
+		if(rhs.d)
+		{
+			rhs.ref();
+			d = rhs.d;
+		}
+
+		return *this;
+	}
+
+	auto_dentry(const auto_dentry& rhs)
+	{
+		if(&rhs == this)
+			return;
+		
+		unref();
+
+		if(rhs.d)
+		{
+			rhs.ref();
+			d = rhs.d;
+		}
+	}
+
+	auto_dentry& operator=(auto_dentry&& rhs)
+	{
+		if(&rhs == this)
+			return *this;
+		
+		d = rhs.d;
+		rhs.d = nullptr;
+
+		return *this;
+	}
+
+	auto_dentry(auto_dentry&& rhs)
+	{
+		if(&rhs == this)
+			return;
+		
+		d = rhs.d;
+		rhs.d = nullptr;
+	}
+
+	dentry *get_dentry()
+	{
+		return d;
+	}
+
+	dentry *release()
+	{
+		auto ret = d;
+		d = nullptr;
+		return ret;
+	}
+
+	operator bool() const
+	{
+		return d != nullptr;
+	}
+};
 
 #endif
 
