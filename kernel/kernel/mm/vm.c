@@ -1772,7 +1772,7 @@ int vm_handle_non_present_pf(struct vm_pf_context *ctx)
 {
 	struct vm_region *entry = ctx->entry;
 	struct fault_info *info = ctx->info;
-
+	
 	if(vm_mapping_requires_write_protect(entry))
 	{
 		if(vm_handle_non_present_wp(info, ctx) < 0)
@@ -1890,6 +1890,7 @@ int __vm_handle_pf(struct vm_region *entry, struct fault_info *info)
 		if(vm_handle_non_present_pf(&context) < 0)
 			return -1;
 	}
+
 
 	//printk("elapsed: %lu ns\n", end - start);
 	return 0;

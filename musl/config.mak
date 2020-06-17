@@ -12,7 +12,7 @@ exec_prefix = $(prefix)
 bindir = $(exec_prefix)/bin
 libdir = $(prefix)/lib
 includedir = $(prefix)/include
-syslibdir = /lib
+syslibdir = /usr/lib
 CC = x86_64-onyx-gcc
 CFLAGS = 
 CFLAGS_AUTO = -g -Os -pipe -fno-unwind-tables -fno-asynchronous-unwind-tables -ffunction-sections -fdata-sections -Werror=implicit-function-declaration -Werror=implicit-int -Werror=pointer-sign -Werror=pointer-arith

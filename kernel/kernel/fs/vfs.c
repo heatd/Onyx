@@ -29,11 +29,7 @@
 struct file *fs_root = NULL;
 struct file *mount_list = NULL;
 
-ssize_t write_file_cache(void *buffer, size_t sizeofwrite, struct inode *file, off_t offset);
 bool inode_is_cacheable(struct inode *file);
-
-#define FILE_CACHING_READ	(0 << 0)
-#define FILE_CACHING_WRITE	(1 << 0)
 
 struct filesystem_root boot_root = {0};
 
@@ -128,51 +124,6 @@ int inode_create_vmo(struct inode *ino)
 	return 0;
 }
 
-struct page_cache_block *inode_get_cache_block(struct inode *ino, size_t off)
-{
-	MUST_HOLD_LOCK(&ino->i_pages_lock);
-
-	if(!ino->i_pages)
-	{
-		if(inode_create_vmo(ino) < 0)
-			return NULL;
-	}
-
-	if(off >= ino->i_pages->size)
-	{
-		ino->i_pages->size += (off - ino->i_pages->size) + PAGE_SIZE;
-	}
-
-	struct page *p = vmo_get(ino->i_pages, off, VMO_GET_MAY_POPULATE);
-	if(!p)
-		return NULL;
-
-	return p->cache;
-}
-
-struct page_cache_block *__inode_get_page_internal(struct inode *inode, size_t offset, long flags)
-{
-	off_t aligned_off = (offset / PAGE_CACHE_SIZE) * PAGE_CACHE_SIZE;
-
-	MUST_HOLD_LOCK(&inode->i_pages_lock);
-	struct page_cache_block *b = inode_get_cache_block(inode, aligned_off);
-	
-	return b;
-}
-
-struct page_cache_block *inode_get_page(struct inode *inode, off_t offset, long flags)
-{
-	spin_lock_preempt(&inode->i_pages_lock);
-
-	struct page_cache_block *b = __inode_get_page_internal(inode, offset, flags);
-
-	/* No need to pin the page since it's already pinned by vmo_get */
-
-	spin_unlock_preempt(&inode->i_pages_lock);
-
-	return b;
-}
-
 void inode_update_atime(struct inode *ino)
 {
 	ino->i_atime = clock_get_posix_time();
@@ -196,7 +147,7 @@ ssize_t do_actual_read(size_t offset, size_t len, void *buf, struct file *file)
 	if(!inode_is_cacheable(file->f_ino))
 		return file->f_ino->i_fops->read(offset, len, buf, file);
 	
-	return lookup_file_cache(buf, len, file->f_ino, offset);
+	return file_read_cache(buf, len, file->f_ino, offset);
 }
 
 bool is_invalid_length(size_t len)
@@ -217,7 +168,7 @@ ssize_t read_vfs(size_t offset, size_t len, void *buffer, struct file *file)
 	if(ino->i_type & VFS_TYPE_DIR)
 		return errno = EISDIR, -1;
 	
-	if(!ino->i_fops->read)
+	if(!ino->i_fops->readpage && !ino->i_fops->read)
 		return errno = EIO, -1;
 
 	len = clamp_length(len);
@@ -243,7 +194,7 @@ ssize_t do_actual_write(size_t offset, size_t len, void *buffer, struct file *f)
 	}
 	else
 	{
-		st = write_file_cache(buffer, len, ino, offset);
+		st = file_write_cache(buffer, len, ino, offset);
 	}
 
 	if(st >= 0)
@@ -260,7 +211,7 @@ ssize_t write_vfs(size_t offset, size_t len, void *buffer, struct file *f)
 	if(ino->i_type & VFS_TYPE_DIR)
 		return errno = EISDIR, -1;
 	
-	if(!ino->i_fops->write)
+	if(!ino->i_fops->writepage && !ino->i_fops->write)
 		return errno = EIO, -1;
 
 	len = clamp_length(len);
@@ -361,6 +312,7 @@ bool file_can_access(struct file *file, unsigned int perms)
 
 off_t do_getdirent(struct dirent *buf, off_t off, struct file *file)
 {
+	/* FIXME: Detect when we're trying to list unlinked directories, lock the dentry, etc... */
 	if(file->f_ino->i_fops->getdirent != NULL)
 		return file->f_ino->i_fops->getdirent(buf, off, file);
 	return -ENOSYS;
@@ -434,12 +386,36 @@ int getdents_vfs(unsigned int count, putdir_t putdir,
 	return pos; 
 }
 
+int default_stat(struct stat *buf, struct file *f)
+{
+	struct inode *ino = f->f_ino;
+
+	buf->st_atime = ino->i_atime;
+	buf->st_ctime = ino->i_ctime;
+	buf->st_mtime = ino->i_mtime;
+
+	buf->st_blksize = ino->i_sb ? ino->i_sb->s_block_size : PAGE_SIZE;
+	buf->st_blocks = ino->i_blocks;
+	buf->st_dev = ino->i_dev;
+	buf->st_gid = ino->i_gid;
+	buf->st_uid = ino->i_uid;
+	buf->st_ino = ino->i_inode;
+	buf->st_mode = ino->i_mode;
+	buf->st_nlink = ino->i_nlink;
+	buf->st_rdev = ino->i_rdev;
+	buf->st_size = ino->i_size;
+
+	return 0;
+}
+
 int stat_vfs(struct stat *buf, struct file *node)
 {
 	if(node->f_ino->i_fops->stat != NULL)
 		return node->f_ino->i_fops->stat(buf, node);
-	
-	return errno = ENOSYS, (unsigned int) -1;
+	else
+	{
+		return default_stat(buf, node);
+	}
 }
 
 short default_poll(void *poll_table, short events, struct file *node);
@@ -460,145 +436,6 @@ bool inode_is_cacheable(struct inode *ino)
 		return false;
 
 	return true;
-}
-
-ssize_t lookup_file_cache(void *buffer, size_t sizeofread, struct inode *file,
-	off_t offset)
-{
-	if(!inode_is_cacheable(file))
-		return -1;
-
-	if((size_t) offset >= file->i_size)
-		return 0;
-
-	size_t read = 0;
-
-	while(read != sizeofread)
-	{
-		struct page_cache_block *cache = inode_get_page(file, offset, FILE_CACHING_READ);
-
-		if(!cache)
-		{
-			if(read)
-			{
-				return read;
-			}
-			else
-			{
-				errno = ENOMEM;
-				return -1;
-			}
-		}
-
-		struct page *page = cache->page;
-
-		off_t cache_off = offset % PAGE_CACHE_SIZE;
-		off_t rest = PAGE_CACHE_SIZE - cache_off;
-
-		assert(rest > 0);
-	
-		size_t amount = sizeofread - read < (size_t) rest ?
-			sizeofread - read : (size_t) rest;
-
-		if(offset + amount > file->i_size)
-		{
-			amount = file->i_size - offset;
-			if(copy_to_user((char*) buffer + read, (char*) cache->buffer +
-				cache_off, amount) < 0)
-			{
-				page_unpin(page);
-				errno = EFAULT;
-				return -1;
-			}
-
-			page_unpin(page);
-			return read + amount;
-		}
-		else
-		{
-			if(copy_to_user((char*) buffer + read,  (char*) cache->buffer +
-				cache_off, amount) < 0)
-			{
-				page_unpin(page);
-				errno = EFAULT;
-				return -1;
-			}
-		}
-
-		offset += amount;
-		read += amount;
-
-		page_unpin(page);
-	}
-
-	return (ssize_t) read;
-}
-
-ssize_t write_file_cache(void *buffer, size_t len, struct inode *ino,
-	off_t offset)
-{
-	if(!inode_is_cacheable(ino))
-		return -1;
-
-	size_t wrote = 0;
-	do
-	{
-		/* Adjust the file size if needed */
-		if(offset + len > ino->i_size)
-		{
-			/* TODO: Adjust the block count */
-			ino->i_size = offset + len;
-			inode_update_ctime(ino);
-			inode_mark_dirty(ino);
-		}
-	
-		struct page_cache_block *cache = inode_get_page(ino, offset,
-						  FILE_CACHING_WRITE);
-
-		if(cache == NULL)
-		{
-			if(wrote)
-			{
-				return wrote;
-			}
-			else
-			{
-				errno = ENOMEM;
-				return -1;
-			}
-		}
-
-		struct page *page = cache->page;
-
-		off_t cache_off = offset % PAGE_CACHE_SIZE;
-		off_t rest = PAGE_CACHE_SIZE - cache_off;
-
-		size_t amount = len - wrote < (size_t) rest ?
-			len - wrote : (size_t) rest;
-
-		if(copy_from_user((char*) cache->buffer + cache_off, (char*) buffer +
-			wrote, amount) < 0)
-		{
-			page_unpin(page);
-			errno = EFAULT;
-			return -1;
-		}
-	
-		if(cache->size < cache_off + amount)
-		{
-			cache->size = cache_off + amount;
-		}
-
-		pagecache_dirty_block(cache);
-
-		page_unpin(page);
-	
-		offset += amount;
-		wrote += amount;
-
-	} while(wrote != len);
-
-	return (ssize_t) wrote;
 }
 
 int default_ftruncate(off_t length, struct file *f)
@@ -746,7 +583,13 @@ ssize_t inode_sync(struct inode *inode)
 void inode_release(struct object *object)
 {
 	struct inode *inode = (struct inode *) object;
+	bool should_die = inode_get_nlink(inode) == 0;
 	//printk("Releasing inode %p\n", inode);
+
+	/* TODO: I don't think we're in a position to remove the inode
+	 * when the inode has already been removed...
+	 */
+#if 0
 	if(inode->i_sb)
 	{
 		assert(inode->i_sb != NULL);
@@ -754,20 +597,52 @@ void inode_release(struct object *object)
 		/* Remove the inode from its superblock */
 		superblock_remove_inode(inode->i_sb, inode);
 	}
+#endif
 
 	if(inode->i_flags & INODE_FLAG_DIRTY)
 		flush_remove_inode(inode);
 
-	/* TODO: Detect the case where we're getting deleted and avoid sync'ing caches */
-	if(inode->i_type == VFS_TYPE_FILE)
+	if(!should_die && inode->i_type == VFS_TYPE_FILE)
 		inode_sync(inode);
 
 	inode_destroy_page_caches(inode);
+
+	/* Note that we require kill_inode to be called before close, at least for now,
+	 * because close may very well free resources that are needed to free the inode.
+	 * This happens, for example, in ext2.
+	 */
+	struct superblock *sb = inode->i_sb;
+
+	/* TODO: This doesn't work yet because inode_destroy is only called when ref = 0,
+	 * which implies it has to be dropped from the cache. This is stupid.
+	 */
+
+	if(should_die && sb && sb->kill_inode)
+	{
+		/* TODO: Handle failures? */
+		sb->kill_inode(inode);
+	}
 
 	if(inode->i_fops->close != NULL)
 		inode->i_fops->close(inode);
 
 	free(inode);
+}
+
+int inode_init(struct inode *inode, bool is_reg)
+{
+	/* Don't release inodes immediately */
+	object_init(&inode->i_object, inode_release);
+
+	if(is_reg)
+	{
+		if(inode_create_vmo(inode) < 0)
+		{
+			return -ENOMEM;
+		}
+	}
+
+	return 0;
 }
 
 struct inode *inode_create(bool is_reg)
@@ -777,19 +652,11 @@ struct inode *inode_create(bool is_reg)
 	if(!inode)
 		return NULL;
 
-	/* Don't release inodes immediately */
-	object_init(&inode->i_object, inode_release);
-
-	if(is_reg)
+	if(inode_init(inode, is_reg) < 0)
 	{
-		if(inode_create_vmo(inode) < 0)
-		{
-			free(inode);
-			return NULL;
-		}
+		free(inode);
+		return NULL;
 	}
-
-	inode->i_nlink = 1;
 
 	return inode;
 }

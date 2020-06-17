@@ -1182,7 +1182,8 @@ struct key_action pt_pt_key_actions[] =
 	{KEYMAP_KEY_KEYPAD_MINUS, "-"},
 	{KEYMAP_KEY_KEYPAD_PLUS, "+"},
 	{KEYMAP_KEY_KEYPAD_ENTER, "\n"},
-	{KEYMAP_KEY_SPACE, " ", " "}
+	{KEYMAP_KEY_SPACE, " ", " "},
+	{KEYMAP_102ND, "<", ">"}
 };
 
 const size_t nr_actions = sizeof(key_actions) / sizeof(key_actions[0]);
@@ -1208,7 +1209,7 @@ int vterm_handle_key(struct vterm *vt, struct input_device *dev, struct input_ev
 	struct key_action *acts = pt_pt_key_actions;
 	struct key_action *desired_action = NULL;
 
-	for(size_t i = 0; i < nr_actions; i++)
+	for(size_t i = 0; i <= nr_actions; i++)
 	{
 		if(acts[i].key == ev->code)
 		{

@@ -366,10 +366,14 @@ void ext2_unlink_dirent(dir_entry_t *before, dir_entry_t *entry)
 
 	if(before)
 	{
+		#if 0
 		printk("Old size: %u\n", before->size);
 		printk("Next: %p\nBefore: %p\n", next, before);
+		#endif
 		before->size = (unsigned long) next - (unsigned long) before;
+		#if 0
 		printk("New size: %u\n", before->size);
+		#endif
 	}
 	
 	/* Mark the entry as unused */

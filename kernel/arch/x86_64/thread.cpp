@@ -243,6 +243,8 @@ void arch_load_process(struct process *process, struct thread *thread,
 unsigned long thread_get_addr_limit(void)
 {
 	struct thread *t = get_current_thread();
+	if(!t) [[unlikely]]
+		return VM_KERNEL_ADDR_LIMIT;
 	assert(t->addr_limit != 0);
 	return t->addr_limit;
 }

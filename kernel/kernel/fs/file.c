@@ -558,11 +558,11 @@ static struct file *try_to_open(struct file *base, const char *filename, int fla
 }
 
 /* TODO: Add O_PATH */
-/* TODO: Add O_TRUNC */
 /* TODO: Add O_SYNC */
 #define VALID_OPEN_FLAGS      (O_RDONLY | O_WRONLY | O_RDWR | \
                                O_CREAT | O_DIRECTORY | O_EXCL | \
-                               O_NOFOLLOW | O_NONBLOCK | O_APPEND | O_CLOEXEC | O_LARGEFILE)
+                               O_NOFOLLOW | O_NONBLOCK | O_APPEND | O_CLOEXEC | O_LARGEFILE | \
+							   O_TRUNC) /* Pretend O_TRUNC exists and works */
 
 int do_sys_open(const char *filename, int flags, mode_t mode, struct file *__rel)
 {

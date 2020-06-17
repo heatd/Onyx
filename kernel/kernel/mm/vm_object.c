@@ -92,7 +92,6 @@ struct page *vmo_populate(struct vm_object *vmo, size_t off)
 	struct page *page = vmo->commit(off, vmo);
 	if(!page)
 	{
-		printk("vmo commit failed\n");
 		return NULL;
 	}
 
@@ -100,7 +99,6 @@ struct page *vmo_populate(struct vm_object *vmo, size_t off)
 	dict_insert_result res = rb_tree_insert(vmo->pages, (void *) off);
 	if(!res.inserted)
 	{
-		printk("rb_tree_insert failed\n");
 		free_page(page);
 		return NULL;
 	}
@@ -116,12 +114,19 @@ struct page *vmo_populate(struct vm_object *vmo, size_t off)
 struct page *vmo_get(struct vm_object *vmo, size_t off, unsigned int flags)
 {
 	bool may_populate = flags & VMO_GET_MAY_POPULATE;
+	bool may_not_implicit_cow = flags & VMO_GET_MAY_NOT_IMPLICIT_COW;
+	bool is_cow = vmo->cow_clone != NULL;
+ 
 	struct page *p = NULL;
 	
 	if(vmo->ino && !(vmo->flags & VMO_FLAG_DEVICE_MAPPING))
 		vmo->size = vmo->ino->i_size;
 
-	assert(off < vmo->size);
+	/* TODO: Add a way to spit out error codes */
+	if(off >= vmo->size)
+	{
+		return NULL;
+	}
 
 	mutex_lock(&vmo->page_lock);
 
@@ -130,6 +135,44 @@ struct page *vmo_get(struct vm_object *vmo, size_t off, unsigned int flags)
 	if(pp)
 	{
 		p = *pp;
+	}
+
+	if(!p && is_cow && !may_not_implicit_cow)
+	{
+		struct page *new_page = alloc_page(PAGE_ALLOC_NO_ZERO);
+		if(!new_page)
+		{
+			mutex_unlock(&vmo->page_lock);
+			return NULL;
+		}
+
+		size_t vmo_off = (off_t) vmo->priv;
+
+		//printk("clone size: %lx\n", vmo->cow_clone->ino->i_size);
+		struct page *old_page = vmo_get(vmo->cow_clone, off + vmo_off, flags);
+		if(!old_page)
+		{
+			//printk("failed\n");
+			free_page(new_page);
+			mutex_unlock(&vmo->page_lock);
+			return NULL;
+		}
+
+		copy_page_to_page(page_to_phys(new_page), page_to_phys(old_page));
+
+		page_unpin(old_page);
+
+		dict_insert_result res = rb_tree_insert(vmo->pages, (void *) off);
+		if(!res.inserted)
+		{
+			free_page(new_page);
+			mutex_unlock(&vmo->page_lock);
+			return NULL;
+		}
+
+		*res.datum_ptr = new_page;
+
+		p = new_page;
 	}
 
 	if(!p && may_populate)

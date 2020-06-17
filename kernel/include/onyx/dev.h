@@ -14,7 +14,6 @@
 #include <onyx/vfs.h>
 #include <onyx/spinlock.h>
 #include <onyx/list.h>
-#include <onyx/tmpfs.h>
 #include <onyx/sysfs.h>
 
 #define MAJOR_DEVICE_HASHTABLE 255
@@ -27,7 +26,7 @@ struct dev
 	char *name;
 	void *priv;
 	bool is_block;
-	tmpfs_file_t *file;
+	struct inode *file;
 };
 
 #ifdef __cplusplus

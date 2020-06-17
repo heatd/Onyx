@@ -85,7 +85,13 @@ void initrd_mount(void)
 	
 			char *buffer = (char *) iter[i] + 512;
 			size_t size = tar_get_size(iter[i]->size);
-			assert(tmpfs_fill_with_data(file, buffer, size) != -1);
+			ssize_t st = write_vfs(0, size, buffer, file);
+
+			if(st < 0)
+			{
+				perror("write_vfs");
+				assert(st > 0);
+			}
 		}
 		else if(iter[i]->typeflag == TAR_TYPE_DIR)
 		{

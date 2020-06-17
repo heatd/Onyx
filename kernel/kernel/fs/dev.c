@@ -21,8 +21,6 @@
 
 static struct dev *devices[MAJOR_DEVICE_HASHTABLE];
 
-tmpfs_filesystem_t *tmpfs_root;
-
 static inline int major_to_hash(dev_t major)
 {
 	return major;
@@ -161,7 +159,7 @@ int device_mknod(struct dev *d, const char *path, const char *name, mode_t mode)
 	else	mode |= S_IFCHR;
 	 
 
-	return root->f_ino->i_fops->mknod(name, mode, d->majorminor, root->f_dentry) == NULL;
+	return mknod_vfs(name, mode, d->majorminor, root->f_dentry) == NULL;
 }
 
 int device_show(struct dev *d, const char *path, mode_t mode)

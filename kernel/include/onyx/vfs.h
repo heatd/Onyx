@@ -15,6 +15,7 @@
 #include <onyx/object.h>
 #include <onyx/vm.h>
 #include <onyx/superblock.h>
+#include <onyx/rwlock.h>
 
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -28,8 +29,6 @@
 #define VFS_TYPE_FIFO            (1 << 6)
 #define VFS_TYPE_UNIX_SOCK       (1 << 7)
 #define VFS_TYPE_UNK             (1 << 8)
-
-#define VFS_PAGE_HASHTABLE_ENTRIES	(PAGE_SIZE / sizeof(uintptr_t))
 
 struct inode;
 struct file;
@@ -78,6 +77,11 @@ struct getdents_ret
 	off_t new_off;
 };
 
+#ifdef __cplusplus
+extern "C"
+#endif
+int inode_init(struct inode *ino, bool is_reg);
+
 struct inode
 {
 	struct object i_object;
@@ -95,6 +99,7 @@ struct inode
 	time_t i_ctime;
 	time_t i_mtime;
 	nlink_t i_nlink;
+	blkcnt_t i_blocks; 
 	struct superblock *i_sb;
 
 	struct file_ops *i_fops;
@@ -107,6 +112,14 @@ struct inode
 	struct inode *i_next;
 	void *i_helper;
 	struct dentry *i_dentry; /* Only valid for directories */
+	struct rwlock i_rwlock;
+
+#ifdef __cplusplus
+	int init(mode_t mode)
+	{
+		return inode_init(this, S_ISREG(mode));
+	}
+#endif
 };
 
 struct dentry;
@@ -173,12 +186,6 @@ int mount_fs(struct inode *node, const char *mp);
 
 int vfs_init(void);
 
-ssize_t lookup_file_cache(void *buffer, size_t sizeofread, struct inode *ino,
-	off_t offset);
-
-ssize_t do_file_caching(size_t sizeofread, struct inode *ino, off_t offset,
-	int flags);
-
 struct inode *inode_create(bool is_regular_file);
 
 struct file *get_fs_root(void);
@@ -203,6 +210,17 @@ void inode_mark_dirty(struct inode *ino);
 
 int inode_flush(struct inode *ino);
 
+int inode_special_init(struct inode *ino);
+
+static inline bool inode_is_special(struct inode *ino)
+{
+	if(ino->i_type == VFS_TYPE_BLOCK_DEVICE || ino->i_type == VFS_TYPE_CHAR_DEVICE ||
+	   ino->i_type == VFS_TYPE_FIFO || ino->i_type == VFS_TYPE_UNIX_SOCK)
+	   	return true;
+	else
+		return false;
+}
+
 #define FILE_ACCESS_READ    (1 << 0)
 #define	FILE_ACCESS_WRITE   (1 << 1)
 #define FILE_ACCESS_EXECUTE (1 << 2)
@@ -223,6 +241,55 @@ struct filesystem_root
 
 struct filesystem_root *get_filesystem_root(void);
 
+
+/* Although tbh, vfs_type should be irradicated */
+static inline int mode_to_vfs_type(mode_t mode)
+{
+	if(S_ISREG(mode))
+		return VFS_TYPE_FILE;
+	else if(S_ISBLK(mode))
+		return VFS_TYPE_BLOCK_DEVICE;
+	else if(S_ISCHR(mode))
+		return VFS_TYPE_CHAR_DEVICE;
+	else if(S_ISFIFO(mode))
+		return VFS_TYPE_FIFO;
+	else if(S_ISLNK(mode))
+		return VFS_TYPE_SYMLINK;
+	else if(S_ISSOCK(mode))
+		return VFS_TYPE_UNIX_SOCK;
+	else if(S_ISDIR(mode))
+		return VFS_TYPE_DIR;
+	else
+		__builtin_unreachable();
+}
+
+/* Must be called with i_rwlock held */
+static inline void inode_set_size(struct inode *ino, size_t size)
+{
+	ino->i_size = size;
+	inode_mark_dirty(ino);
+}
+
+static inline void inode_inc_nlink(struct inode *ino)
+{
+	__atomic_add_fetch(&ino->i_nlink, 1, __ATOMIC_RELAXED);
+}
+
+static inline void inode_dec_nlink(struct inode *ino)
+{
+	__atomic_sub_fetch(&ino->i_nlink, 1, __ATOMIC_RELAXED);
+}
+
+static inline nlink_t inode_get_nlink(struct inode *ino)
+{
+	return __atomic_load_n(&ino->i_nlink, __ATOMIC_RELAXED);
+}
+
+/* Called when the inode's references = 0 */
+static inline bool inode_should_die(struct inode *ino)
+{
+	return inode_get_nlink(ino) == 0;
+}
 
 #ifdef __cplusplus
 }

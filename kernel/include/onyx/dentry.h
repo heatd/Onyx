@@ -71,6 +71,7 @@ dentry *dentry_lookup_internal(std::string_view v, dentry *dir, dentry_lookup_fl
 struct nameidata;
 dentry *dentry_resolve(nameidata& data);
 void dentry_destroy(dentry *d);
+dentry *dentry_parent(dentry *dir);
 
 
 class auto_dentry

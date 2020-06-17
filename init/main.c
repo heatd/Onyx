@@ -302,7 +302,14 @@ int main(int argc, char **argv, char **envp)
 	//mmap_test();
 
 	/* Execute daemons */
-	exec_daemons();
+	int st;
+
+	if((st = exec_daemons()) != 0)
+	{
+		printf("exec_daemons: error %d\n", st);
+		return 1;
+	}
+
 	/* Mask every signal */
 	sigset_t set;
 	sigfillset(&set);

@@ -68,7 +68,7 @@ struct page *vmo_populate(struct vm_object *vmo, size_t off);
 struct vm_object *vmo_create_phys(size_t size);
 
 #define VMO_GET_MAY_POPULATE                     (1 << 0)
-#define VMO_GET_SKIP_COW                         (1 << 1)
+#define VMO_GET_MAY_NOT_IMPLICIT_COW                 (1 << 1)
 
 struct page *vmo_get(struct vm_object *vmo, size_t off, unsigned int flags);
 struct vm_object *vmo_fork(struct vm_object *vmo, bool shared, struct vm_region *reg);

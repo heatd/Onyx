@@ -50,7 +50,7 @@ void *bin_do_interp(struct binfmt_args *_args)
 	struct file *file = open_vfs(get_fs_root(), args.interp_path);
 	if(!file)
 	{
-#if 0
+#if 1
 		printk("Could not open %s\n", args.interp_path);
 		perror("open_vfs");
 #endif

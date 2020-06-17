@@ -8,50 +8,47 @@
 
 #include <onyx/mutex.h>
 #include <onyx/vfs.h>
+#include <onyx/superblock.h>
+#include <onyx/list.h>
 
 #include <sys/types.h>
 
-#define TMPFS_FILE_TYPE_DIR	(1 << 0)
-#define TMPFS_FILE_TYPE_REG	(1 << 1)
-#define TMPFS_FILE_TYPE_SYM	(1 << 2)
-#define TMPFS_FILE_TYPE_CHAR	(1 << 3)
-#define TMPFS_FILE_TYPE_BLOCK	(1 << 4)
+#ifdef __cplusplus
 
-typedef struct data_blk
+#include <onyx/atomic.hpp>
+
+struct tmpfs_inode : public inode
 {
-	struct data_blk *next;
-	char data[0];
-} tmpfs_data_block_t;
+	/* Used to store the symlink, if it is one */
+	const char *link;
+};
 
-typedef struct tmpfs_file
+class tmpfs_superblock : public superblock
 {
-	const char *name;
-	size_t size;
-	uid_t st_uid;
-	gid_t st_gid;
-	mode_t mode;
-	dev_t rdev;
-	unsigned int type;
-	const char *symlink;
-	tmpfs_data_block_t *data;
-	struct mutex dirent_lock;
-	struct mutex data_lock;
-	struct tmpfs_file *sibblings;
-	struct tmpfs_file *parent;
-	struct tmpfs_file *child;
-} tmpfs_file_t;
+private:
+	atomic<ino_t> curr_inode;
+public:
+	static atomic<dev_t> curr_minor_number;
 
-typedef struct tmpfs_filesystem
-{
-	struct tmpfs_filesystem *next;
-	tmpfs_file_t *root;
-	struct superblock *superblock;
-} tmpfs_filesystem_t;
+	dev_t fs_minor;
 
-tmpfs_filesystem_t *tmpfs_get_root(struct file *inode);
+	list_head_cpp<tmpfs_superblock> fs_list_node;
+
+	tmpfs_superblock() : superblock{}, curr_inode{}, fs_minor{++curr_minor_number}, fs_list_node{this}
+	{
+		s_block_size = PAGE_SIZE;
+	}
+
+	tmpfs_inode *create_inode(mode_t mode, dev_t rdev = 0);
+};
+
+extern "C" {
+#endif
+
 int tmpfs_mount(const char *mountpoint);
-int tmpfs_fill_with_data(struct file *vnode, const void *buf, size_t size);
-tmpfs_file_t *tmpfs_create_file(tmpfs_file_t *dir, const char *name);
-struct inode *tmpfs_file_to_vfs(tmpfs_file_t *file, struct file *parent);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

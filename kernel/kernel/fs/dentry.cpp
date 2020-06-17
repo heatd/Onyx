@@ -310,7 +310,15 @@ dentry *dentry_mount(const char *mountpoint, struct inode *inode)
 		return nullptr;
 	}
 
-	dentry *new_d = dentry_create(basename(path), inode, base_dentry);
+	dentry *new_d = inode->i_dentry ?: dentry_create(basename(path), inode, base_dentry);
+
+	if(inode->i_dentry)
+	{
+		/* TODO: I don't believe it's adjusting d_parent properly */
+		dentry_put(inode->i_dentry->d_parent);
+		dentry_get(base_dentry);
+		inode->i_dentry->d_parent = base_dentry;
+	}
 
 	if(new_d)
 	{
@@ -325,6 +333,7 @@ dentry *dentry_mount(const char *mountpoint, struct inode *inode)
 		base_dentry->d_flags |= DENTRY_FLAG_MOUNTPOINT;
 		dentry_get(new_d);
 		new_d->d_flags |= DENTRY_FLAG_MOUNT_ROOT;
+		inode->i_dentry = new_d;
 
 		rw_unlock_write(&base_dentry->d_lock);
 	}
@@ -967,7 +976,7 @@ struct link_handling : public last_name_handling
 			return unexpected<int>{-st};
 		}
 
-		__atomic_add_fetch(&dest_ino->i_nlink, 1, __ATOMIC_RELAXED);
+		inode_inc_nlink(dest_ino);
 
 		return new_dentry;
 	}
@@ -1046,7 +1055,7 @@ void dentry_do_unlink(dentry *entry)
 
 	entry->d_parent = nullptr;
 
-	__atomic_sub_fetch(&entry->d_inode->i_nlink, 1, __ATOMIC_RELAXED);
+	inode_dec_nlink(entry->d_inode);
 
 	rw_unlock_write(&entry->d_lock);
 
@@ -1276,7 +1285,7 @@ extern "C" int sys_renameat(int olddirfd, const char *uoldpath,
 	if(!inode_can_access(old.get_dentry()->d_inode, FILE_ACCESS_WRITE))
 			return -EACCES;
 
-#if 0	
+#if 0
 	rename_handling h{old.get_dentry()};
 
 	generic_last_name_helper(newdir.get_file()->f_dentry, newpath.data(), h);

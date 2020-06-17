@@ -138,10 +138,7 @@ int execute_program(const char *path, const char *type)
 		/* Pass path as argv[0] */
 		if(execl(path, path, NULL) < 0)
 		{
-			/* TODO: Syncronize with the parent */
 			fprintf(stderr, "%s: %s: %s: %s\n", __func__, "execl", path, strerror(errno));
-			fprintf(stderr, "Address: %p\n", path);
-			while(1);
 			exit(1);
 		}
 	}
@@ -385,6 +382,7 @@ int find_targets(const char *dir)
 		fprintf(stderr, "%s: %s: %s\n", __func__, dir, strerror(errno));
 		return -1;
 	}
+
 	/* Now, use dirfd with openat in order to open the default.target file */
 	fd = openat(dirfd, "default.target", O_RDONLY | O_CLOEXEC);
 	if(fd < 0)
@@ -393,6 +391,7 @@ int find_targets(const char *dir)
 		close(dirfd);
 		return -1;
 	}
+
 	status = exec_target(fd);
 	close(dirfd);
 	/* We don't close fd here because it might've been closed by fclose, maybe we can handle this better? */

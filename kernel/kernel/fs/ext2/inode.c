@@ -676,15 +676,18 @@ void ext2_free_inode_space(struct ext2_inode *inode, struct ext2_fs_info *fs)
 	if(inode->single_indirect_bp != EXT2_ERR_INV_BLOCK)
 	{
 		ext2_free_indirect_block(inode->single_indirect_bp, 1, fs);
+		inode->single_indirect_bp = 0;
 	}
 
 	if(inode->doubly_indirect_bp != EXT2_ERR_INV_BLOCK)
 	{
 		ext2_free_indirect_block(inode->doubly_indirect_bp, 2, fs);
+		inode->doubly_indirect_bp = 0;
 	}
 
 	if(inode->trebly_indirect_bp != EXT2_ERR_INV_BLOCK)
 	{
 		ext2_free_indirect_block(inode->trebly_indirect_bp, 3, fs);
+		inode->trebly_indirect_bp = 0;
 	}
 }

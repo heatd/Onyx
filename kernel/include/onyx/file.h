@@ -3,10 +3,11 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
-#ifndef _KERNEL_FILE_H
-#define _KERNEL_FILE_H
+#ifndef _ONYX_FILE_H
+#define _ONYX_FILE_H
 
 #include <fcntl.h>
+#include <errno.h>
 
 #include <onyx/vfs.h>
 #include <onyx/panic.h>

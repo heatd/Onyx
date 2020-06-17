@@ -95,13 +95,12 @@ void ext2_delete_inode(struct ext2_inode *inode, uint32_t inum, struct ext2_fs_i
 void ext2_close(struct inode *vfs_ino)
 {
 	struct ext2_inode *inode = ext2_get_inode_from_node(vfs_ino);
-	struct ext2_fs_info *fs = vfs_ino->i_sb->s_helper;
 
-	if(vfs_ino->i_nlink == 0)
-	{
-		ext2_delete_inode(inode, (uint32_t) vfs_ino->i_inode, fs);
-	}
-
+	/* TODO: It would be better, cache-wise and memory allocator-wise if we
+	 * had ext2_inode incorporate a struct inode inside it, and have everything in the same location.
+	 * TODO: We're also storing a lot of redudant info in ext2_inode(we already have most stuff in
+	 * the regular struct inode).
+	 */
 	free(inode);
 }
 
@@ -400,6 +399,15 @@ int ext2_flush_inode(struct inode *inode)
 	return 0;
 }
 
+int ext2_kill_inode(struct inode *inode)
+{
+	struct ext2_fs_info *fs = inode->i_sb->s_helper;
+	struct ext2_inode *ext2_inode_ = ext2_get_inode_from_node(inode);
+
+	ext2_delete_inode(ext2_inode_, (uint32_t) inode->i_inode, fs);
+	return 0;
+}
+
 struct inode *ext2_mount_partition(struct blockdev *dev)
 {
 	LOG("ext2", "mounting ext2 partition on block device %s\n", dev->name);
@@ -534,6 +542,7 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 	sb->s_inodes = root_inode;
 	sb->s_helper = fs;
 	sb->flush_inode = ext2_flush_inode;
+	sb->kill_inode = ext2_kill_inode;
 
 	root_inode->i_fops = &ext2_ops;
 

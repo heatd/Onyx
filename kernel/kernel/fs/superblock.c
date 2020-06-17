@@ -74,3 +74,13 @@ getout:
 	atomic_dec(&sb->s_ref, 1);
 	spin_unlock(&sb->s_ilock);
 }
+
+void superblock_kill(struct superblock *sb)
+{
+	for(struct inode *ino = sb->s_inodes, *next = NULL; ino != NULL; ino = next)
+	{
+		next = ino->i_next;
+
+		close_vfs(ino);
+	}
+}

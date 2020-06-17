@@ -157,7 +157,8 @@ void dump_used_mem(void);
 
 int alloc_fd(int fdbase);
 
-extern PML *current_pml4;
+#include <onyx/dentry.h>
+
 int find_and_exec_init(char **argv, char **envp)
 {
 	char *path = strdup("/sbin/init");
@@ -192,7 +193,7 @@ retry:;
 	for(int i = 0; i < 3; i++)
 	{
 		struct file *streams = open_vfs(get_fs_root(), "/dev/tty");
-
+	
 		assert(open_with_vnode(streams, flags[i]) == i);
 		fd_put(streams);
 	}
@@ -204,8 +205,10 @@ retry:;
 	unsigned char *buffer = zalloc(BINFMT_SIGNATURE_LENGTH);
 	if (!buffer)
 		return errno = ENOMEM, -1;
-	
-	if(read_vfs(0, BINFMT_SIGNATURE_LENGTH, buffer, in) < 0)
+
+	ssize_t bytes_read = 0;
+
+	if((bytes_read = read_vfs(0, BINFMT_SIGNATURE_LENGTH, buffer, in)) < 0)
 	{
 		return -1;
 	}

@@ -113,7 +113,8 @@ typedef enum key
 	KEYMAP_KEY_MENU,
 	KEYMAP_KEY_RCTRL,
 	KEYMAP_KEY_PAUSE,
-	KEYMAP_NOT_MAPPED
+	KEYMAP_102ND,
+	KEYMAP_NOT_MAPPED,
 } keycode_t;
 
 struct keymap

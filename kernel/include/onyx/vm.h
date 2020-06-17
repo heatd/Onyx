@@ -268,6 +268,9 @@ int vm_unlock_range(void *start, unsigned long length, unsigned long flags);
 static inline unsigned long thread_change_addr_limit(unsigned long limit)
 {
 	struct thread *t = get_current_thread();
+	if(!t)
+		return VM_KERNEL_ADDR_LIMIT;
+
 	unsigned long r = t->addr_limit;
 	t->addr_limit = limit;
 
