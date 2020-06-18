@@ -54,6 +54,7 @@ struct inode *sysfs_create_inode_for_file(struct sysfs_object *f)
 	if(!ino)
 		return NULL;
 
+	ino->i_nlink = 1;
 	ino->i_type = sysfs_type_to_vfs_type(f->perms);
 	ino->i_mode = f->perms;
 	ino->i_sb = sysfs_root_ino->i_sb;
@@ -153,10 +154,11 @@ void sysfs_init(void)
 
 	assert(sb != NULL);
 
-	sb->s_ref = 1;
+	superblock_init(sb);
 
 	root->i_sb = sb;
 	root->i_inode = (ino_t) &sysfs_root;
+	root->i_nlink = 1;
 
 	root->i_type = sysfs_type_to_vfs_type(sysfs_root.perms);
 

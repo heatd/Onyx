@@ -14,9 +14,11 @@
 
 struct spinlock
 {
+	/* TODO: Conditionally have these debug features, and have owner_cpu be in lock */
 	unsigned long lock;
 	unsigned long holder;
 	unsigned long owner_cpu;
+	/* TODO: Have old_flags be a local variable */
 	unsigned long old_flags;
 };
 

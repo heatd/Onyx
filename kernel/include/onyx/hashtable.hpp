@@ -133,7 +133,7 @@ public:
 		return list_add_tail(&elem.list_node, &buckets[index]);
 	}
 
-	size_t get_hashtable_index(hash_type hash)
+	size_t get_hashtable_index(hash_type hash) const
 	{
 		return hash % number_entries;
 	}

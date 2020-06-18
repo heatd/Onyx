@@ -84,8 +84,10 @@ int inode_init(struct inode *ino, bool is_reg);
 
 struct inode
 {
-	struct object i_object;
-	/* TODO: We could use a rwlock here to sequence reads and writes */
+	unsigned long i_refc;
+	/* TODO: We could use a lock here to protect i_flags to have
+	 * thread-safe dirties, etc...
+	 */
 	unsigned int i_flags;
 	ino_t i_inode;
 	gid_t i_gid;
@@ -104,7 +106,6 @@ struct inode
 
 	struct file_ops *i_fops;
 
-	struct spinlock i_pages_lock;
 	struct vm_object *i_pages;
 	struct list_head i_dirty_inode_node;
 	void *i_flush_dev;
@@ -113,6 +114,8 @@ struct inode
 	void *i_helper;
 	struct dentry *i_dentry; /* Only valid for directories */
 	struct rwlock i_rwlock;
+	struct list_head i_sb_list_node;
+	struct list_head i_hash_list_node;
 
 #ifdef __cplusplus
 	int init(mode_t mode)
@@ -165,7 +168,10 @@ ssize_t read_vfs(size_t offset, size_t length, void *buffer,
 ssize_t write_vfs(size_t offset, size_t length, void *buffer,
 	struct file* file);
 
-void close_vfs(struct inode* file);
+void inode_ref(struct inode *ino);
+void inode_unref(struct inode *ino);
+
+void close_vfs(struct inode *ino);
 
 struct file *creat_vfs(struct dentry *node, const char *path, int mode);
 
@@ -290,6 +296,8 @@ static inline bool inode_should_die(struct inode *ino)
 {
 	return inode_get_nlink(ino) == 0;
 }
+
+void inode_unlock_hashtable(struct superblock *sb, ino_t ino_nr);
 
 #ifdef __cplusplus
 }

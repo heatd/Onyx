@@ -13,11 +13,30 @@
 #include <onyx/rwlock.h>
 #include <onyx/panic.h>
 #include <onyx/dev.h>
+#include <onyx/hashtable.hpp>
+#include <onyx/fnv.h>
+#include <onyx/scoped_lock.h>
+
+fnv_hash_t inode_hash(inode &ino)
+{
+	auto h = fnv_hash(&ino.i_dev, sizeof(dev_t));
+	h = fnv_hash_cont(&ino.i_inode, sizeof(ino_t), h);
+	return h;
+}
+
+fnv_hash_t inode_hash(dev_t dev, ino_t ino)
+{
+	auto h = fnv_hash(&dev, sizeof(dev_t));
+	return fnv_hash_cont(&ino, sizeof(ino_t), h);
+}
+
+constexpr size_t inode_hashtable_size = 512;
+
+static cul::hashtable2<inode, inode_hashtable_size, fnv_hash_t, inode_hash> inode_hashtable;
+static struct spinlock inode_hashtable_locks[inode_hashtable_size];
 
 struct page_cache_block *inode_get_cache_block(struct inode *ino, size_t off, long flags)
 {
-	MUST_HOLD_LOCK(&ino->i_pages_lock);
-
 	assert(ino->i_pages != nullptr);
 
 	if(flags & FILE_CACHING_WRITE && off >= ino->i_pages->size)
@@ -57,7 +76,6 @@ struct page_cache_block *__inode_get_page_internal(struct inode *inode, size_t o
 {
 	size_t aligned_off = offset & -(PAGE_SIZE - 1);
 
-	MUST_HOLD_LOCK(&inode->i_pages_lock);
 	struct page_cache_block *b = inode_get_cache_block(inode, aligned_off, flags);
 	
 	return b;
@@ -65,13 +83,9 @@ struct page_cache_block *__inode_get_page_internal(struct inode *inode, size_t o
 
 struct page_cache_block *inode_get_page(struct inode *inode, size_t offset, long flags = 0)
 {
-	spin_lock_preempt(&inode->i_pages_lock);
-
 	struct page_cache_block *b = __inode_get_page_internal(inode, offset, flags);
 
 	/* No need to pin the page since it's already pinned by vmo_get */
-
-	spin_unlock_preempt(&inode->i_pages_lock);
 
 	return b;
 }
@@ -200,4 +214,198 @@ int inode_special_init(struct inode *ino)
 	}
 
 	return 0;
+}
+
+extern "C"
+void inode_ref(struct inode *ino)
+{
+	__atomic_add_fetch(&ino->i_refc, 1, __ATOMIC_RELAXED);
+#if 0
+	if(ino->i_inode == 3549)
+		printk("inode_ref(%lu) from %p\n", ino->i_refc, __builtin_return_address(0));
+#endif
+}
+
+void inode_destroy_page_caches(struct inode *inode)
+{
+	if(inode->i_pages)
+		vmo_unref(inode->i_pages);
+}
+
+ssize_t inode_sync(struct inode *inode)
+{
+	struct rb_itor it;
+	it.node = NULL;
+	mutex_lock(&inode->i_pages->page_lock);
+
+	it.tree = inode->i_pages->pages;
+
+	while(rb_itor_valid(&it))
+	{
+		void *datum = *rb_itor_datum(&it);
+		struct page_cache_block *b = (page_cache_block *) datum;
+		struct page *page = b->page;
+
+		if(page->flags & PAGE_FLAG_DIRTY)
+		{
+			flush_sync_one(&b->fobj);
+		}
+
+		rb_itor_next(&it);
+	}
+
+	/* TODO: Return errors */
+	mutex_unlock(&inode->i_pages->page_lock);
+	return 0;
+}
+
+void inode_release(struct inode *inode)
+{
+	printk("inode release\n");
+	bool should_die = inode_get_nlink(inode) == 0;
+	//printk("Releasing inode %p\n", inode);
+
+	if(inode->i_sb)
+	{
+		assert(inode->i_sb != NULL);
+
+		/* Remove the inode from its superblock */
+		superblock_remove_inode(inode->i_sb, inode);
+	}
+
+	if(inode->i_flags & INODE_FLAG_DIRTY)
+		flush_remove_inode(inode);
+
+	if(inode->i_type == VFS_TYPE_FILE)
+		inode_sync(inode);
+
+	inode_destroy_page_caches(inode);
+
+	/* Note that we require kill_inode to be called before close, at least for now,
+	 * because close may very well free resources that are needed to free the inode.
+	 * This happens, for example, in ext2.
+	 */
+	struct superblock *sb = inode->i_sb;
+
+	if(should_die && sb && sb->kill_inode)
+	{
+		/* TODO: Handle failures? */
+		sb->kill_inode(inode);
+	}
+
+	if(inode->i_fops->close != NULL)
+		inode->i_fops->close(inode);
+
+	free(inode);
+}
+
+void inode_unref(struct inode *ino)
+{
+	unsigned long refs = __atomic_sub_fetch(&ino->i_refc, 1, __ATOMIC_RELAXED);
+	//printk("unref %p(ino nr %lu) - refs %lu\n", ino, ino->i_inode, refs);
+#if 0
+	if(inode_should_die(ino))
+	{
+		printk("inode should die and refs = %lu\n", refs);
+		while(true) {}
+	}
+#endif
+
+	if(!refs && inode_should_die(ino))
+	{
+		inode_release(ino);
+	}
+#if 0
+	if(ino->i_inode == 3549)
+		printk("inode_unref(%lu) from %p\n", ino->i_refc, __builtin_return_address(0));
+#endif
+}
+
+extern "C"
+struct inode *superblock_find_inode(struct superblock *sb, ino_t ino_nr)
+{
+	auto hash = inode_hash(sb->s_devnr, ino_nr);
+
+	auto index = inode_hashtable.get_hashtable_index(hash);
+
+	scoped_lock<spinlock> g{&inode_hashtable_locks[index]};
+
+	auto _l = inode_hashtable.get_hashtable(index);
+
+	list_for_every(_l)
+	{
+		auto ino = container_of(l, inode, i_hash_list_node);
+		
+		if(ino->i_dev == sb->s_devnr && ino->i_inode == ino_nr)
+		{
+			inode_ref(ino);
+			return ino;
+		}
+	}
+
+	g.keep_locked();
+
+	return nullptr;
+}
+
+extern "C"
+void superblock_add_inode_unlocked(struct superblock *sb, struct inode *inode)
+{
+	auto hash = inode_hash(sb->s_devnr, inode->i_inode);
+	auto index = inode_hashtable.get_hashtable_index(hash);
+
+	MUST_HOLD_LOCK(&inode_hashtable_locks[index]);
+
+	auto head = inode_hashtable.get_hashtable(index);
+
+	list_add_tail(&inode->i_hash_list_node, head);
+
+	scoped_lock g{&sb->s_ilock};
+	list_add_tail(&inode->i_sb_list_node, &sb->s_inodes);
+	__atomic_add_fetch(&sb->s_ref, 1, __ATOMIC_RELAXED);
+
+	spin_unlock(&inode_hashtable_locks[index]);
+}
+
+/* Should only be used when creating new inodes(so we're sure that they don't exist). */
+extern "C"
+void superblock_add_inode(struct superblock *sb, struct inode *inode)
+{
+	auto hash = inode_hash(sb->s_devnr, inode->i_inode);
+	auto index = inode_hashtable.get_hashtable_index(hash);
+	scoped_lock g{&inode_hashtable_locks[index]};
+	superblock_add_inode_unlocked(sb, inode);
+	
+	// Was already unlocked
+	g.keep_locked();
+}
+
+extern "C"
+void superblock_remove_inode(struct superblock *sb, struct inode *inode)
+{
+	scoped_lock g{&sb->s_ilock};
+	list_remove(&inode->i_sb_list_node);
+
+	__atomic_sub_fetch(&sb->s_ref, 1, __ATOMIC_RELAXED);
+}
+
+extern "C"
+void superblock_kill(struct superblock *sb)
+{
+	list_for_every_safe(&sb->s_inodes)
+	{
+		struct inode *ino = container_of(l, inode, i_sb_list_node);
+
+		close_vfs(ino);
+	}
+}
+
+extern "C"
+void inode_unlock_hashtable(struct superblock *sb, ino_t ino_nr)
+{
+	auto hash = inode_hash(sb->s_devnr, ino_nr);
+
+	auto index = inode_hashtable.get_hashtable_index(hash);
+
+	spin_unlock(&inode_hashtable_locks[index]);
 }

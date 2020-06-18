@@ -521,7 +521,7 @@ struct vm_object *vmo_split(size_t split_point, size_t hole_size, struct vm_obje
 	second_vmo->size -= split_point + hole_size;
 	second_vmo->pages = rb_tree_new(page_cmp);
 	INIT_LIST_HEAD(&second_vmo->mappings);
-	if(second_vmo->ino) object_ref(&second_vmo->ino->i_object);
+	if(second_vmo->ino) inode_ref(second_vmo->ino);
 
 	if(!second_vmo->pages)
 	{
@@ -535,7 +535,7 @@ struct vm_object *vmo_split(size_t split_point, size_t hole_size, struct vm_obje
 	   vmo_purge_pages(max, vmo->size, 0, second_vmo, vmo) < 0)
 	{
 		if(second_vmo->ino)
-			object_unref(&second_vmo->ino->i_object);
+			inode_unref(second_vmo->ino);
 		rb_tree_free(second_vmo->pages, vmo_rb_delete_func);
 		free(second_vmo);
 		return NULL;

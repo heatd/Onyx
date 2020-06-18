@@ -210,7 +210,7 @@ tmpfs_inode *tmpfs_superblock::create_inode(mode_t mode, dev_t rdev)
 
 	ino->i_nlink = 1;
 
-	object_ref(&ino->i_object);
+	inode_ref(ino);
 
 	/* We're currently holding two refs: one for the user, and another for the simple fact
 	 * that we need this inode to remain in memory.
@@ -264,6 +264,8 @@ tmpfs_superblock *tmpfs_create_sb(void)
 	tmpfs_superblock *new_fs = new tmpfs_superblock{};
 	if(!new_fs)
 		return NULL;
+
+	superblock_init(new_fs);
 
 	tmpfs_append(new_fs);
 	return new_fs;

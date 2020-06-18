@@ -511,7 +511,7 @@ void *device::do_mmap(struct vm_region *area, struct file *f)
 		return nullptr;
 	
 	fd->f_ino = f->f_ino;
-	object_ref(&f->f_ino->i_object);
+	inode_ref(f->f_ino);
 	area->offset = 0;
 
 	auto dbuf = cast<dumb_buffer, object>(mapping->buf());

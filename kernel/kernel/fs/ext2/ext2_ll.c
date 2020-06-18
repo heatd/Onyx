@@ -644,7 +644,6 @@ int ext2_unlink(const char *name, int flags, struct dentry *dir)
 	struct ext2_inode *inode = ext2_get_inode_from_node(ino);
 
 	struct ext2_dirent_result res;
-	bool zombie_inode = false;
 	int st = ext2_retrieve_dirent(inode, name, fs, &res);
 
 	if(st < 0)
@@ -660,41 +659,9 @@ int ext2_unlink(const char *name, int flags, struct dentry *dir)
 	dir_entry_t *ent = (dir_entry_t *) (res.buf + res.block_off);
 	
 	struct inode *target = superblock_find_inode(ino->i_sb, ent->inode);
-	if(!target)
-	{
-		/* Ok, this is a multiple-step process:
-		 * 1) Try to find the inode in the superblock cache.
-		 * 1a) If it's there, get a ref and continue
-		 * 2) Unlock the s_ilock since we will read from disk and probably sleep.
-		 * 3) Load the inode from disk.
-		 * 4) Lock the s_ilock and try to find the inode again.
-		 * 4a) If in between the unlock and the re-locking,
-		 * some thread added the inode, we close the inode we read ourselves and use that one.
-		 * 5) Else, use superblock_add_inode_unlocked with the lock from superblock_find_inode
-		 * and unlock s_ilock.
-		 */
-	
-		spin_unlock(&ino->i_sb->s_ilock);
-	
-		if(!(target = ext2_load_inode_from_disk(ent->inode, ino, fs)))
-		{
-			free(res.buf);
-			return -errno;
-		}
 
-		struct inode *new_target = NULL;
-
-		if(!(new_target = superblock_find_inode(ino->i_sb, ent->inode)))
-		{
-			superblock_add_inode_unlocked(ino->i_sb, target);
-			spin_unlock(&ino->i_sb->s_ilock);
-		}
-		else
-		{
-			close_vfs(target);
-			target = new_target;
-		}
-	}
+	/* TODO: target is forced to exist; pass dentry and optimise this, maybe */
+	assert(target != NULL);
 
 	if(target->i_type == VFS_TYPE_DIR)
 	{
@@ -743,23 +710,7 @@ int ext2_unlink(const char *name, int flags, struct dentry *dir)
 
 	free(res.buf);
 
-	/* TODO: This code isn't very race-safe I think */
-	struct ext2_inode *tino = ext2_get_inode_from_node(target);
-	if(__sync_sub_and_fetch(&tino->hard_links, 1) == 0)
-	{
-		zombie_inode = true;
-	}
-
-	COMPILER_BARRIER();
-
-	ext2_update_inode(tino, fs, (uint32_t) target->i_inode);
-
 	close_vfs(target);
-
-	if(zombie_inode)
-	{
-		close_vfs(target);
-	}
 
 	return 0;
 }

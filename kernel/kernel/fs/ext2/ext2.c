@@ -88,7 +88,17 @@ void ext2_delete_inode(struct ext2_inode *inode, uint32_t inum, struct ext2_fs_i
 {
 	inode->dtime = clock_get_posix_time();
 	ext2_free_inode_space(inode, fs);
+
+	inode->hard_links = 0;
 	ext2_update_inode(inode, fs, inum);
+
+	uint32_t block_group = inum / fs->inodes_per_block_group;
+
+	if(S_ISDIR(inode->mode))
+		fs->bgdt[block_group].used_dirs_count--;
+	
+	ext2_register_bgdt_changes(fs);
+
 	ext2_free_inode(inum, fs);
 }
 
@@ -201,14 +211,12 @@ struct inode *ext2_open(struct dentry *dir, const char *name)
 	if(!node)
 	{
 		free(ino);
-		spin_unlock(&nd->i_sb->s_ilock);
+		inode_unlock_hashtable(nd->i_sb, inode_num);
 		return errno = ENOMEM, NULL;
 	}
 
 	/* Cache the inode */
 	superblock_add_inode_unlocked(nd->i_sb, node);
-
-	spin_unlock(&nd->i_sb->s_ilock);
 
 	return node;
 }
@@ -223,7 +231,13 @@ struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber,
 		return NULL;
 	}
 
-	ino->i_dev = parent->i_dev;
+	/* Possible when mounting the root inode */
+	if(parent)
+	{
+		ino->i_dev = parent->i_dev;
+		ino->i_sb = parent->i_sb;
+	}
+
 	ino->i_inode = inumber;
 	/* Detect the file type */
 	ino->i_type = ext2_ino_type_to_vfs_type(inode->mode);
@@ -238,7 +252,6 @@ struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber,
 
 	ino->i_uid = inode->uid;
 	ino->i_gid = inode->gid;
-	ino->i_sb = parent->i_sb;
 	ino->i_atime = inode->atime;
 	ino->i_ctime = inode->ctime;
 	ino->i_mtime = inode->mtime;
@@ -405,6 +418,7 @@ int ext2_kill_inode(struct inode *inode)
 	struct ext2_inode *ext2_inode_ = ext2_get_inode_from_node(inode);
 
 	ext2_delete_inode(ext2_inode_, (uint32_t) inode->i_inode, fs);
+	printk("Rip inode\n");
 	return 0;
 }
 
@@ -414,6 +428,7 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 	struct superblock *sb = zalloc(sizeof(struct superblock));
 	if(!sb)
 		return NULL;
+	superblock_init(sb);
 
 	struct ext2_fs_info *fs = NULL;
 	struct inode *root_inode = NULL;
@@ -481,6 +496,7 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 	mutex_init(&fs->ino_alloc_lock);
 	mutex_init(&fs->sb_lock);
 
+	sb->s_devnr = sb->s_bdev->dev->majorminor;
 	fs->sb_bb = b;
 	fs->sb = ext2_sb;
 	fs->major = ext2_sb->major_version;
@@ -518,28 +534,23 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 		bgdt = ext2_read_block(1, (uint16_t) blocks_for_bgdt, fs);
 	fs->bgdt = bgdt;
 
-	root_inode = inode_create(false);
 	disk_root_ino = ext2_get_inode_from_number(fs, 2);
-	if(!root_inode || !disk_root_ino)
+	if(!disk_root_ino)
 	{
-		if(root_inode)	free(root_inode);
 		goto error;
 	}
 
-	root_inode->i_inode = 2;
-	root_inode->i_type = VFS_TYPE_DIR;
-	root_inode->i_sb = sb;
-	root_inode->i_atime = disk_root_ino->atime;
-	root_inode->i_ctime = disk_root_ino->ctime;
-	root_inode->i_mtime = disk_root_ino->mtime;
-	root_inode->i_rdev = 0;
-	root_inode->i_gid = disk_root_ino->gid;
-	root_inode->i_uid = disk_root_ino->uid;
-	root_inode->i_mode = disk_root_ino->mode;
-	root_inode->i_helper = ext2_cache_inode_info(root_inode, disk_root_ino);
-	root_inode->i_dev = dev->dev->majorminor;
+	root_inode = ext2_fs_ino_to_vfs_ino(disk_root_ino, 2, NULL);
+	if(!root_inode)
+	{
+		free(disk_root_ino);
+		goto error;
+	}
 
-	sb->s_inodes = root_inode;
+	root_inode->i_sb = sb;
+	root_inode->i_dev = sb->s_devnr;
+
+	superblock_add_inode(sb, root_inode);
 	sb->s_helper = fs;
 	sb->flush_inode = ext2_flush_inode;
 	sb->kill_inode = ext2_kill_inode;

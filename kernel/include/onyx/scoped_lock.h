@@ -103,6 +103,11 @@ public:
 		return *this;
 	}
 
+	void keep_locked()
+	{
+		is_locked = false;
+	}
+
 };
 
 class Spinlock;

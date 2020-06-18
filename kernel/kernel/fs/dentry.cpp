@@ -33,10 +33,20 @@ void dentry_get(dentry *d)
 {
 	/* Must hold parent's d_lock */
 	__atomic_add_fetch(&d->d_ref, 1, __ATOMIC_RELAXED);
+
+#if 0
+	if(d->d_inode && d->d_inode->i_inode == 3549)
+		printk("dentry_get from %p\n", __builtin_return_address(0));
+#endif
 }
 
 void dentry_put(dentry *d)
 {
+#if 0
+	if(d->d_inode && d->d_inode->i_inode == 3549)
+		printk("dentry_put from %p\n", __builtin_return_address(0));
+#endif
+
 	if(__atomic_sub_fetch(&d->d_ref, 1, __ATOMIC_RELAXED) == 0)
 		dentry_destroy(d);
 }
@@ -156,7 +166,7 @@ extern "C" dentry *dentry_create(const char *name, inode *inode, dentry *parent)
 	new_dentry->d_inode = inode;
 	
 	/* We need this if() because we might call dentry_create before retrieving an inode */
-	if(inode) object_ref(&inode->i_object);
+	if(inode) inode_ref(inode);
 	new_dentry->d_parent = parent; 
 
 	if(parent) [[likely]]
@@ -494,7 +504,6 @@ int __dentry_resolve_path(nameidata& data)
 			{
 				dentry_put(data.location);
 				data.location = ex.value();
-				dentry_get(data.location);
 				return 0;
 			}
 
@@ -667,7 +676,7 @@ extern "C" file *open_vfs_with_flags(file *f, const char *name, unsigned int ope
 		return nullptr;
 	}
 
-	object_ref(&dent->d_inode->i_object);
+	inode_ref(dent->d_inode);
 	new_file->f_dentry = dent;
 
 	return new_file;
@@ -747,7 +756,10 @@ struct create_handling : public last_name_handling
 		}
 
 		new_dentry->d_inode = new_inode;
-
+#if 0
+		printk("cinode refs: %lu\n", new_inode->i_refc);
+		printk("cdentry refs: %lu\n", new_dentry->d_ref);
+#endif
 		return new_dentry;
 	}
 };
@@ -831,6 +843,8 @@ file *file_creation_helper(dentry *base, const char *path, last_name_handling& h
 		dentry_put(dent);
 		return nullptr;
 	}
+
+	inode_ref(dent->d_inode);
 	
 	new_file->f_dentry = dent;
 
@@ -1108,7 +1122,7 @@ struct unlink_handling : public last_name_handling
 			return unexpected<int>{-EBUSY};
 		}
 
-		/* Do the actual fs unlink*/
+		/* Do the actual fs unlink */
 		auto st = inode->i_fops->unlink(_name, flags, dentry);
 
 		if(st < 0)

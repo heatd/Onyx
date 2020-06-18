@@ -122,6 +122,8 @@ int ext2_free_inode_bg(uint32_t inode, uint32_t block_group, struct ext2_fs_info
 
 	fs->sb->unallocated_inodes++;
 	_block_group->unallocated_inodes_in_group++;
+	ext2_dirty_sb(fs);
+	ext2_register_bgdt_changes(fs);
 
 	mutex_unlock(&fs->ino_alloc_lock);
 	return 0;

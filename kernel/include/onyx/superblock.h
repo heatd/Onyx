@@ -16,10 +16,10 @@ struct file;
 struct blockdev;
 struct superblock
 {
-	struct inode *s_inodes;
+	struct list_head s_inodes;
+	struct spinlock s_ilock;
 	unsigned long s_ref;
 	void *s_helper;
-	struct spinlock s_ilock;
 	int (*flush_inode)(struct inode *inode);
 	int (*kill_inode)(struct inode *inode);
 	unsigned int s_block_size;
@@ -31,6 +31,7 @@ struct superblock
 extern "C" {
 #endif
 
+void superblock_init(struct superblock *sb);
 struct inode *superblock_find_inode(struct superblock *sb, ino_t inode);
 void superblock_add_inode_unlocked(struct superblock *sb, struct inode *inode);
 void superblock_add_inode(struct superblock *sb, struct inode *inode);

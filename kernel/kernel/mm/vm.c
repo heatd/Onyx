@@ -2407,21 +2407,9 @@ int vm_region_setup_backing(struct vm_region *region, size_t pages, bool is_file
 	{
 		struct inode *ino = region->fd->f_ino;
 
-		spin_lock(&ino->i_pages_lock);
-
-		if(!ino->i_pages)
-		{
-			if(inode_create_vmo(ino) < 0)
-			{
-				spin_unlock(&ino->i_pages_lock);
-				return -1;
-			}
-		}
-
+		assert(ino->i_pages != NULL);
 		vmo_ref(ino->i_pages);
 		vmo = ino->i_pages;
-
-		spin_unlock(&ino->i_pages_lock);
 	}
 	else if(is_file_backed && !is_shared)
 	{

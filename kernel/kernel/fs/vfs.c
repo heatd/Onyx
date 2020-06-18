@@ -230,7 +230,7 @@ int ioctl_vfs(int request, char *argp, struct file *this)
 
 void close_vfs(struct inode *this)
 {
-	object_unref(&this->i_object);
+	inode_unref(this);
 }
 
 char *readlink_vfs(struct file *file)
@@ -547,93 +547,9 @@ int fallocate_vfs(int mode, off_t offset, off_t len, struct file *file)
 	return -EINVAL;
 }
 
-void inode_destroy_page_caches(struct inode *inode)
-{
-	if(inode->i_pages)
-		vmo_unref(inode->i_pages);
-}
-
-ssize_t inode_sync(struct inode *inode)
-{
-	struct rb_itor it;
-	it.node = NULL;
-	mutex_lock(&inode->i_pages->page_lock);
-
-	it.tree = inode->i_pages->pages;
-
-	while(rb_itor_valid(&it))
-	{
-		void *datum = *rb_itor_datum(&it);
-		struct page_cache_block *b = datum;
-		struct page *page = b->page;
-
-		if(page->flags & PAGE_FLAG_DIRTY)
-		{
-			flush_sync_one(&b->fobj);
-		}
-
-		rb_itor_next(&it);
-	}
-
-	/* TODO: Return errors */
-	mutex_unlock(&inode->i_pages->page_lock);
-	return 0;
-}
-
-void inode_release(struct object *object)
-{
-	struct inode *inode = (struct inode *) object;
-	bool should_die = inode_get_nlink(inode) == 0;
-	//printk("Releasing inode %p\n", inode);
-
-	/* TODO: I don't think we're in a position to remove the inode
-	 * when the inode has already been removed...
-	 */
-#if 0
-	if(inode->i_sb)
-	{
-		assert(inode->i_sb != NULL);
-
-		/* Remove the inode from its superblock */
-		superblock_remove_inode(inode->i_sb, inode);
-	}
-#endif
-
-	if(inode->i_flags & INODE_FLAG_DIRTY)
-		flush_remove_inode(inode);
-
-	if(!should_die && inode->i_type == VFS_TYPE_FILE)
-		inode_sync(inode);
-
-	inode_destroy_page_caches(inode);
-
-	/* Note that we require kill_inode to be called before close, at least for now,
-	 * because close may very well free resources that are needed to free the inode.
-	 * This happens, for example, in ext2.
-	 */
-	struct superblock *sb = inode->i_sb;
-
-	/* TODO: This doesn't work yet because inode_destroy is only called when ref = 0,
-	 * which implies it has to be dropped from the cache. This is stupid.
-	 */
-
-	if(should_die && sb && sb->kill_inode)
-	{
-		/* TODO: Handle failures? */
-		sb->kill_inode(inode);
-	}
-
-	if(inode->i_fops->close != NULL)
-		inode->i_fops->close(inode);
-
-	free(inode);
-}
-
 int inode_init(struct inode *inode, bool is_reg)
 {
-	/* Don't release inodes immediately */
-	object_init(&inode->i_object, inode_release);
-
+	inode->i_refc = 1;
 	if(is_reg)
 	{
 		if(inode_create_vmo(inode) < 0)
