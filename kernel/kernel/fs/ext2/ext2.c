@@ -418,7 +418,6 @@ int ext2_kill_inode(struct inode *inode)
 	struct ext2_inode *ext2_inode_ = ext2_get_inode_from_node(inode);
 
 	ext2_delete_inode(ext2_inode_, (uint32_t) inode->i_inode, fs);
-	printk("Rip inode\n");
 	return 0;
 }
 

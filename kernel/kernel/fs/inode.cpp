@@ -261,7 +261,6 @@ ssize_t inode_sync(struct inode *inode)
 
 void inode_release(struct inode *inode)
 {
-	printk("inode release\n");
 	bool should_die = inode_get_nlink(inode) == 0;
 	//printk("Releasing inode %p\n", inode);
 
