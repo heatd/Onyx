@@ -51,7 +51,7 @@ class ktracepoint
 private:
 	const char *function_name;
 	struct page *ring_buffer;
-	static constexpr size_t ring_buffer_size = PAGE_SIZE * 2;
+	static constexpr size_t ring_buffer_size = PAGE_SIZE * 8;
 	size_t read_pointer;
 	size_t write_pointer;
 	unsigned long nr_overruns;

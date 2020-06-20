@@ -424,6 +424,8 @@ void process_destroy_aspace(void)
 	struct process *current = get_current_process();
 
 	vm_destroy_addr_space(&current->address_space);
+
+	while(true) {}
 }
 
 void process_destroy_file_descriptors(struct process *process)

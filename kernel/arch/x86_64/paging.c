@@ -133,9 +133,16 @@ typedef struct
 	uint64_t rest :16;
 } decomposed_addr_t;
 
+unsigned long allocated_page_tables = 0;
+
 void *alloc_pt(void)
 {
 	struct page *p = alloc_page(0);
+	if(p)
+	{
+		__atomic_add_fetch(&allocated_page_tables, 1, __ATOMIC_RELAXED);
+	}
+
 	return p != NULL ? (void *) pfn_to_paddr(page_to_pfn(p)) : NULL;
 }
 
@@ -491,7 +498,7 @@ bool pml_is_empty(void *_pml)
 	PML *pml = _pml;
 	for(int i = 0; i < 512; i++)
 	{
-		if(pml->entries[i])
+		if(pml->entries[i] & X86_PAGING_PRESENT)
 			return false;
 	}
 	return true;
@@ -540,8 +547,10 @@ void *paging_unmap(void* memory)
 	*/
 	if(pml_is_empty(pml1))
 	{
+		//printk("page table empty: freeing\n");
 		uintptr_t raw_address = pml2->entries[dec.pd] & 0x0FFFFFFFFFFFF000;
 		free_page(phys_to_page(raw_address));
+		__atomic_sub_fetch(&allocated_page_tables, 1, __ATOMIC_RELAXED);
 		pml2->entries[dec.pd] = 0;
 	}
 
@@ -549,6 +558,7 @@ void *paging_unmap(void* memory)
 	{
 		uintptr_t raw_address = pml3->entries[dec.pdpt] & 0x0FFFFFFFFFFFF000;
 		free_page(phys_to_page(raw_address));
+		__atomic_sub_fetch(&allocated_page_tables, 1, __ATOMIC_RELAXED);
 		pml3->entries[dec.pdpt] = 0;
 	}
 
@@ -556,6 +566,7 @@ void *paging_unmap(void* memory)
 	{
 		uintptr_t raw_address = pml4->entries[dec.pml4] & 0x0FFFFFFFFFFFF000;
 		free_page(phys_to_page(raw_address));
+		__atomic_sub_fetch(&allocated_page_tables, 1, __ATOMIC_RELAXED);
 		pml4->entries[dec.pml4] = 0;
 	}
 
@@ -602,6 +613,9 @@ int paging_fork_tables(struct mm_address_space *addr_space)
 	struct page *page = alloc_page(0);
 	if(!page)
 		return -1;
+	
+	__atomic_add_fetch(&allocated_page_tables, 1, __ATOMIC_RELAXED);
+
 	unsigned long new_pml = pfn_to_paddr(page_to_pfn(page));
 	PML *p = PHYS_TO_VIRT(new_pml);
 	PML *curr = PHYS_TO_VIRT(get_current_pml4());

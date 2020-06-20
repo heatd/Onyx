@@ -157,8 +157,6 @@ void dump_used_mem(void);
 
 int alloc_fd(int fdbase);
 
-#include <onyx/dentry.h>
-
 int find_and_exec_init(char **argv, char **envp)
 {
 	char *path = strdup("/sbin/init");
@@ -253,7 +251,7 @@ retry:;
 	return 0;
 }
 
-#if 0
+#if 1
 void dump_used_mem(void)
 {
 	struct memstat ps;

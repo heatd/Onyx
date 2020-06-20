@@ -248,7 +248,7 @@ void free_page(struct page *p)
 	assert(p != NULL);
 	assert(p->ref != 0);
 
-	if(page_unref(p) == 0)
+	if(__page_unref(p) == 0)
 	{
 		p->next_un.next_allocation = NULL;
 		main_node.free_page(p);

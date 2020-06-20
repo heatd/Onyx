@@ -255,6 +255,8 @@ void mmap_test(void)
 	printf("Done testing\n");
 }
 
+#include <onyx/public/memstat.h>
+
 int main(int argc, char **argv, char **envp)
 {
 	int c;
@@ -274,6 +276,26 @@ int main(int argc, char **argv, char **envp)
 	pid_t p = getpid();
 	if(p != 1)
 		return 1;
+
+#if 0
+	struct memstat ostat;
+	syscall(SYS_memstat, &ostat);
+
+	int pid = fork();
+	if(pid != 0)
+	{
+		sleep(1);
+
+		struct memstat stat;
+		syscall(SYS_memstat, &stat);
+		printf("Allocated: %u\n", stat.allocated_pages);
+		printf("Old allocated: %u\n", ostat.allocated_pages);
+	}
+	else if(pid == 0)
+	{
+		exit(0);
+	}
+#endif
 
 	/* Load the needed kernel modules */
 	load_modules();

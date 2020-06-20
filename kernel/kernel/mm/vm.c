@@ -1978,6 +1978,8 @@ static void vm_destroy_area(void *key, void *datum)
 {
 	struct vm_region *region = datum;
 
+	do_vm_unmap(key, region->pages);
+
 	vm_region_destroy(region);
 }
 
