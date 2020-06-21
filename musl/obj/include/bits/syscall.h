@@ -19,7 +19,7 @@
 #define __NR_wait4				19
 #define __NR_time				20
 #define __NR_gettimeofday			21
-#define __NR_reboot				22
+#define __NR_set_power_state	22
 #define __NR_readv				24
 #define __NR_writev				25
 #define __NR_preadv				26
@@ -124,6 +124,7 @@
 #define __NR_getitimer				125
 #define __NR_pread64				126
 #define __NR_pwrite64				127
+#define __NR_fsync					128
 #define __NR_sysinfo			255
 #define __NR_geteuid			255
 #define __NR_getegid			255
@@ -274,7 +275,6 @@
 #define __NR_shutdown				255
 #define __NR_socketpair				255
 #define __NR_flock				255
-#define __NR_fsync				255
 #define __NR_fdatasync				255
 #define __NR_vfork				255
 #define __NR_migrate_pages			256
@@ -368,7 +368,7 @@
 #define SYS_wait4				19
 #define SYS_time				20
 #define SYS_gettimeofday			21
-#define SYS_reboot				22
+#define SYS_set_power_state	22
 #define SYS_readv				24
 #define SYS_writev				25
 #define SYS_preadv				26
@@ -473,6 +473,7 @@
 #define SYS_getitimer				125
 #define SYS_pread64				126
 #define SYS_pwrite64				127
+#define SYS_fsync					128
 #define SYS_sysinfo			255
 #define SYS_geteuid			255
 #define SYS_getegid			255
@@ -623,7 +624,6 @@
 #define SYS_shutdown				255
 #define SYS_socketpair				255
 #define SYS_flock				255
-#define SYS_fsync				255
 #define SYS_fdatasync				255
 #define SYS_vfork				255
 #define SYS_migrate_pages			256

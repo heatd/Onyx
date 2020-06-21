@@ -44,6 +44,7 @@ void flush_remove_buf(struct flush_object *blk);
 void flush_add_inode(struct inode *ino);
 void flush_remove_inode(struct inode *ino);
 ssize_t flush_sync_one(struct flush_object *obj);
+void flush_do_sync(void);
 
 #ifdef __cplusplus
 }

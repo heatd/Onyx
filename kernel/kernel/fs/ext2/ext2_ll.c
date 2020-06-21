@@ -81,6 +81,7 @@ struct ext2_inode *ext2_get_inode_from_number(struct ext2_fs_info *fs, uint32_t 
 {
 	if(!inode)
 		return NULL;
+
 	uint32_t block_size = fs->block_size;
 	uint32_t bg = (inode - 1) / fs->inodes_per_block_group;
 	uint32_t index = (inode - 1) % fs->inodes_per_block_group;
@@ -93,7 +94,7 @@ struct ext2_inode *ext2_get_inode_from_number(struct ext2_fs_info *fs, uint32_t 
 	struct ext2_inode *inode_table = NULL;
 	struct ext2_inode *inode_block = (struct ext2_inode*)((char *) (inode_table =
 		ext2_read_block(bgd->inode_table_addr + block, 1, fs)) + blockind);
-	
+
 	if(!inode_table)
 		return NULL;
 	
@@ -125,7 +126,7 @@ void ext2_update_inode(struct ext2_inode *ino, struct ext2_fs_info *fs, uint32_t
 	struct ext2_inode *inode_table = NULL;
 	struct ext2_inode *inode_block = (struct ext2_inode*)((char *)
 		(inode_table = ext2_read_block(bgd->inode_table_addr + block, 1, fs)) + blockind);
-	if(!inode_block)
+	if(!inode_table)
 		return;
 
 	__ext2_update_ctime(ino);

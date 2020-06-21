@@ -49,7 +49,7 @@ uintptr_t acpi_get_rsdp(void);
 
 int acpi_initialize(void);
 
-uint32_t acpi_shutdown(void *context);
+uint32_t acpi_shutdown(void);
 
 uint32_t acpi_execute_pic(int value);
 
@@ -62,7 +62,7 @@ struct acpi_processor *acpi_enumerate_cpus(void);
 
 struct acpi_device *acpi_get_device(const char *id);
 
-unsigned int acpi_suspend(void *context);
+unsigned int acpi_suspend(void);
 
 int acpi_get_irq_routing_info(struct bus *bus);
 

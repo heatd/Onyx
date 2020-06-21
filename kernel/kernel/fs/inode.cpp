@@ -16,6 +16,7 @@
 #include <onyx/hashtable.hpp>
 #include <onyx/fnv.h>
 #include <onyx/scoped_lock.h>
+#include <onyx/file.h>
 
 fnv_hash_t inode_hash(inode &ino)
 {
@@ -74,7 +75,7 @@ struct page_cache_block *inode_get_cache_block(struct inode *ino, size_t off, lo
 
 struct page_cache_block *__inode_get_page_internal(struct inode *inode, size_t offset, long flags)
 {
-	size_t aligned_off = offset & -(PAGE_SIZE - 1);
+	size_t aligned_off = offset & ~(PAGE_SIZE - 1);
 
 	struct page_cache_block *b = inode_get_cache_block(inode, aligned_off, flags);
 	
@@ -407,4 +408,19 @@ void inode_unlock_hashtable(struct superblock *sb, ino_t ino_nr)
 	auto index = inode_hashtable.get_hashtable_index(hash);
 
 	spin_unlock(&inode_hashtable_locks[index]);
+}
+
+extern "C"
+int sys_fsync(int fd)
+{
+	auto_file f;
+	if(f.from_fd(fd) < 0)
+	{
+		return -EBADF;
+	}
+
+	/* TODO: Same problem as inode_sync, return errors. */
+	inode_sync(f.get_file()->f_ino);
+
+	return 0;
 }

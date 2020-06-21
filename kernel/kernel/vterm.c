@@ -655,6 +655,8 @@ void vterm_ansi_erase_in_line(unsigned long n, struct vterm *vt)
 			{
 				struct console_cell *c = &vt->cells[vt->cursor_y * vt->columns + i];
 				c->codepoint = ' ';
+				c->fg = vt->fg;
+				c->bg = vt->bg;
 				c->dirty = 1;
 			}
 			break;
@@ -669,6 +671,8 @@ void vterm_ansi_erase_in_line(unsigned long n, struct vterm *vt)
 			{
 				struct console_cell *c = &vt->cells[vt->cursor_y * vt->columns + i];
 				c->codepoint = ' ';
+				c->fg = vt->fg;
+				c->bg = vt->bg;
 				c->dirty = 1;
 			}
 			break;
@@ -681,6 +685,8 @@ void vterm_ansi_erase_in_line(unsigned long n, struct vterm *vt)
 			{
 				struct console_cell *c = &vt->cells[vt->cursor_y * vt->columns + i];
 				c->codepoint = ' ';
+				c->fg = vt->fg;
+				c->bg = vt->bg;
 				c->dirty = 1;
 			}
 			break;

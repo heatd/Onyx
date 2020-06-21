@@ -38,6 +38,7 @@ void idt_init(void);
 void x86_reserve_vector(int vector, void (*handler)());
 int x86_allocate_vector(void (*handler)());
 int x86_allocate_vectors(int nr);
+void idt_flush(uint64_t addr);
 
 extern void isr0();
 extern void isr1();

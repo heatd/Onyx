@@ -256,3 +256,18 @@ ssize_t flush_sync_one(struct flush_object *obj)
 
 	return b->sync_one(obj);
 }
+
+extern "C"
+void flush_do_sync()
+{
+	for(auto &w : flush::thread_list)
+	{
+		w.sync();
+	}
+}
+
+extern "C"
+void sys_sync()
+{
+	flush_do_sync();
+}

@@ -78,7 +78,7 @@ extern int sys_nanosleep(const struct timespec *req, struct timespec *rem);
 extern int sys_sethostname(const void *name, size_t len);
 extern int sys_gethostname(char *name, size_t len);
 extern int sys_uname(struct utsname *buf);
-extern void sys_reboot();
+extern int sys_set_power_state(unsigned int state, unsigned int flags);
 extern int sys_shutdown(int sockfd, int how);
 extern int sys_insmod(const char *path, const char *name);
 extern void sys_sigreturn(void *ret);
@@ -176,6 +176,8 @@ int sys_setitimer(int which, const struct itimerval *new_value, struct itimerval
 int sys_getitimer(int which, struct itimerval *curr_value);
 ssize_t sys_pread(int fd, void *buf, size_t count, off_t offset);
 ssize_t sys_pwrite(int fd, const void *buf, size_t count, off_t offset);
+int sys_fsync(int fd);
+void sys_sync(void);
 
 void *syscall_table_64[] =
 {
@@ -201,7 +203,7 @@ void *syscall_table_64[] =
 	[19] = (void*) sys_wait4,
 	[20] = (void*) sys_time,
 	[21] = (void*) sys_gettimeofday,
-	[22] = (void*) sys_reboot,
+	[22] = (void*) sys_set_power_state,
 	[23] = (void*) sys_shutdown,
 	[24] = (void*) sys_readv,
 	[25] = (void*) sys_writev,
@@ -227,7 +229,7 @@ void *syscall_table_64[] =
 	[45] = (void*) sys_set_tid_address,
 	[46] = (void*) sys_syslog,
 	[47] = (void*) sys_fcntl,
-	[48] = (void*) sys_nosys, /* Reserved for sync */
+	[48] = (void*) sys_sync,
 	[49] = (void*) sys_stat,
 	[50] = (void*) sys_fstat,
 	[51] = (void*) sys_lstat,
@@ -306,5 +308,6 @@ void *syscall_table_64[] =
 	[124] = (void*) sys_setitimer,
 	[125] = (void*) sys_getitimer,
 	[126] = (void*) sys_pread,
-	[127] = (void*) sys_pwrite
+	[127] = (void*) sys_pwrite,
+	[128] = (void*) sys_fsync
 };

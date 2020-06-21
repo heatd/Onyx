@@ -3,7 +3,7 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
-#include <acpi.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -67,9 +67,8 @@ static const ACPI_EXCEPTION_INFO    AcpiGbl_ExceptionNames_Env[] =
     EXCEP_TXT ((char*)"AE_ACCESS",                     (char*)"Permission denied for the requested operation")
 };
 
-uint32_t acpi_shutdown(void *context)
+uint32_t acpi_shutdown(void)
 {
-	UNUSED_PARAMETER(context);
 	AcpiEnterSleepStatePrep(5);
 	DISABLE_INTERRUPTS();
 	AcpiEnterSleepState(5);
@@ -80,13 +79,12 @@ uint32_t acpi_shutdown(void *context)
 
 extern int __enter_sleep_state(uint8_t sleep_state);
 
-unsigned int acpi_suspend(void *context)
+unsigned int acpi_suspend(void)
 {
-	UNUSED_PARAMETER(context);
 	/* Prepare to enter S3 */
 	ACPI_STATUS st = AcpiEnterSleepStatePrep(2);
 	if(ACPI_FAILURE(st))
-		return 1;
+		return -EIO;
 	DISABLE_INTERRUPTS();
 	/* We'll need to enter assembly in order to correctly save and restore
 	 * registers
@@ -394,6 +392,34 @@ void acpi_enumerate_devices(void)
 	}
 }
 
+unsigned int acpi_power_event_handler(void *context)
+{
+	(void) context;
+	return acpi_shutdown();
+}
+
+unsigned int acpi_suspend_event_handler(void *context)
+{
+	(void) context;
+	return acpi_suspend();
+}
+
+ACPI_STATUS acpi_init_power(void)
+{
+	ACPI_STATUS st;
+	
+	if(ACPI_FAILURE((st = AcpiEnableEvent(ACPI_EVENT_POWER_BUTTON, 0))))
+		return st;
+
+	if(ACPI_FAILURE((st = AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON, acpi_power_event_handler, NULL))))
+		return st;
+
+	if(ACPI_FAILURE((st = AcpiInstallFixedEventHandler(ACPI_EVENT_SLEEP_BUTTON, acpi_suspend_event_handler, NULL))))
+		return st;
+	
+	return AE_OK;
+}
+
 void acpi_initialise(void)
 {
 	acpi_find_rsdp();
@@ -438,6 +464,8 @@ void acpi_initialise(void)
 	bus_register(&acpi_bus);
 
 	platform_init_acpi();
+
+	acpi_init_power();
 }
 
 INIT_LEVEL_VERY_EARLY_PLATFORM_ENTRY(acpi_initialise);

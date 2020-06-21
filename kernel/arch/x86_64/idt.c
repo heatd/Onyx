@@ -11,7 +11,6 @@
 
 idt_ptr_t idt_ptr;
 idt_entry_t idt_entries[256];
-void idt_flush(uint64_t addr);
 extern void _sched_yield();
 
 void x86_reserve_vector(int vector, void (*handler)())
