@@ -47,7 +47,6 @@ struct ids *process_ids = NULL;
 struct process *first_process = NULL;
 static struct process *process_tail = NULL;
 static struct spinlock process_list_lock;
-volatile struct process *current_process = NULL;
 slab_cache_t *process_cache = NULL;
 
 void process_destroy(thread_t *);

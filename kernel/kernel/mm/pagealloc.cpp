@@ -276,7 +276,7 @@ struct page *page_node::alloc_page(unsigned long flags)
 
 	list_remove(&p->list_node);
 	
-	page_ref(p->page);
+	p->page->ref = 1;
 	
 	assert(p->page->flags & PAGE_FLAG_FREE);
 	

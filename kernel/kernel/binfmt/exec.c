@@ -410,7 +410,7 @@ error_die_signal:
 	sched_yield();
 	return -1;
 
-error:
+error: ;
 	if(exec_state_created) exec_state_destroy(&state);
 	free(karg);
 	free(kenv);

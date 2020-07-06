@@ -696,7 +696,7 @@ struct binfmt elf_binfmt = {
 	.next = NULL
 };
 
-__init void __elf_init()
+__init static void __elf_init()
 {
 	install_binfmt(&elf_binfmt);
 }

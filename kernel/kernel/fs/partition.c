@@ -42,7 +42,7 @@ filesystem_mount_t *find_filesystem_handler(const char *fsname)
 	return NULL;
 }
 
-int partition_add_handler(fs_handler handler, char *filesystem)
+int partition_add_handler(fs_handler handler, const char *filesystem)
 {	
 	filesystem_mount_t *mount = zalloc(sizeof(filesystem_mount_t));
 	if(!mount)

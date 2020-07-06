@@ -15,7 +15,7 @@
 
 /* TODO: Add a way to prefer block groups */
 /* Allocates a block */
-uint32_t ext2_allocate_block(struct ext2_fs_info *fs)
+uint32_t ext2_allocate_block(struct ext2_superblock *fs)
 {
 	/* If we just don't have any blocks available, error */
 	if(unlikely(fs->sb->unallocated_blocks == 0))
@@ -31,7 +31,7 @@ uint32_t ext2_allocate_block(struct ext2_fs_info *fs)
 }
 
 /* Frees a block */
-void ext2_free_block(uint32_t block, struct ext2_fs_info *fs)
+void ext2_free_block(uint32_t block, struct ext2_superblock *fs)
 {
 	assert(block != EXT2_ERR_INV_BLOCK);
 
@@ -49,7 +49,7 @@ void ext2_free_block(uint32_t block, struct ext2_fs_info *fs)
 }
 
 /* Returns an struct ext2_inode from disk, and sets *inode_number to the inode number */
-struct ext2_inode *ext2_allocate_inode(uint32_t *inode_number, struct ext2_fs_info *fs)
+struct ext2_inode *ext2_allocate_inode(uint32_t *inode_number, struct ext2_superblock *fs)
 {
 	/* If we just don't have any blocks available, error */
 	if(unlikely(fs->sb->unallocated_inodes == 0))
@@ -65,7 +65,7 @@ struct ext2_inode *ext2_allocate_inode(uint32_t *inode_number, struct ext2_fs_in
 	return 0;
 }
 
-void ext2_free_inode(uint32_t inode, struct ext2_fs_info *fs)
+void ext2_free_inode(uint32_t inode, struct ext2_superblock *fs)
 {
 	uint32_t block_group = inode / fs->inodes_per_block_group;
 

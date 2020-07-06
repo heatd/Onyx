@@ -22,7 +22,7 @@ enum partition_type_t
 typedef struct fs_mount_strct
 {
 	struct fs_mount_strct *next;
-	char *filesystem;
+	const char *filesystem;
 	fs_handler handler;
 } filesystem_mount_t;
 
@@ -30,7 +30,7 @@ typedef struct fs_mount_strct
 extern "C"{
 #endif
 
-int partition_add_handler(fs_handler handler, char *filesystem);
+int partition_add_handler(fs_handler handler, const char *filesystem);
 filesystem_mount_t *find_filesystem_handler(const char *fsname);
 struct blockdev;
 void partition_setup_disk(struct blockdev *dev);

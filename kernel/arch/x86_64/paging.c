@@ -460,6 +460,7 @@ void* paging_map_phys_to_virt(PML *__pml, uint64_t virt, uint64_t phys, uint64_t
 		}
 		else
 		{
+			assert(entry == 0);
 			void *page = alloc_pt();
 			if(!page)
 				return NULL;
@@ -540,7 +541,7 @@ void *paging_unmap(void* memory)
 		return NULL;
 
 	uintptr_t address = PML_EXTRACT_ADDRESS(*entry);
-	*entry = 0;
+	*entry = 0xDEADBEEF & ~1;
 
 	/* Now that we've freed the destination page, work our way upwards to check if the paging structures are empty 
 	   If so, free them as well 
@@ -933,7 +934,6 @@ unsigned long __get_mapping_info(void *addr, struct mm_address_space *as)
 	}
 
 	PML *pml = (PML*)((unsigned long) as->arch_mmu.cr3 + PHYS_BASE);
-	
 	for(unsigned int i = paging_levels; i != 1; i--)
 	{
 		unsigned long entry = pml->entries[indices[i - 1]];

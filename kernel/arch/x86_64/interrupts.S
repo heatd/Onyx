@@ -170,6 +170,7 @@ x86_scheduler_exit:
 	/* We'll use this bit of code as a trampoline to the new thread too */
 	mov REGISTER_OFF_CS(%rsp), %rax
 	cmp $KERNEL_CS, %rax
+	cli
 	je .L6
 	swapgs
 .L6:

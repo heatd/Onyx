@@ -1641,8 +1641,6 @@ void *mmiomap(void *phys, size_t size, size_t flags)
 		return NULL;
 	}
 
-	entry->flags = 
-
 	u &= ~(PAGE_SIZE - 1);
 
 	/* TODO: Clean up if something goes wrong */
@@ -1772,7 +1770,7 @@ int vm_handle_non_present_pf(struct vm_pf_context *ctx)
 {
 	struct vm_region *entry = ctx->entry;
 	struct fault_info *info = ctx->info;
-	
+
 	if(vm_mapping_requires_write_protect(entry))
 	{
 		if(vm_handle_non_present_wp(info, ctx) < 0)
@@ -1827,6 +1825,8 @@ int vm_handle_present_cow(struct vm_pf_context *ctx)
 	struct vm_region *entry = ctx->entry;
 	size_t vmo_off = (ctx->vpage - entry->base) + entry->offset;
 
+	//printk("Re-mapping COW'd page %lx with perms %x\n", ctx->vpage, ctx->page_rwx);
+	
 	struct page *new_page = vmo_cow_on_page(vmo, vmo_off);
 	if(!new_page)
 	{
@@ -1851,16 +1851,27 @@ int vm_handle_present_pf(struct vm_pf_context *ctx)
 {
 	struct vm_region *entry = ctx->entry;
 	struct fault_info *info = ctx->info;
+#if 0
+	printk("Handling present PF at %lx %s%s%s\n", ctx->info->fault_address,
+		ctx->info->write ? "W" : "-", ctx->info->read ? "R" : "-", ctx->info->exec ? "X" : "-");
+#endif
 
 	if(info->write & !(ctx->mapping_info & PAGE_WRITABLE))
 	{
 		if(vm_mapping_requires_wb(entry))
+		{
+			//printk("writeback!\n");
 			vm_handle_write_wb(ctx);
+		}
 		else if(vm_mapping_is_cow(entry))
 		{
 			//printk("C O W'ing page %lx, file backed: %s, pid %d\n", ctx->vpage, entry->fd ? "yes" : "no", get_current_process()->pid);
 			if(vm_handle_present_cow(ctx) < 0)
 				return -1;
+		}
+		else
+		{
+			panic("Strange case inside vm_handle_present_pf");
 		}
 	}
 
@@ -1880,6 +1891,15 @@ int __vm_handle_pf(struct vm_region *entry, struct fault_info *info)
 	context.page_rwx = entry->rwx;
 	context.mapping_info = get_mapping_info((void *) context.vpage);
 
+#if 0
+	struct process *p = get_current_process();
+
+	printk("fault on address %lx, page %lx, "
+	  " present %s, process %d (%s)\n", context.info->fault_address,
+	  context.vpage, context.mapping_info & PAGE_PRESENT ? "true" : "false",
+	  p->pid, p->cmd_line);
+#endif
+			
 	if(context.mapping_info & PAGE_PRESENT)
 	{
 		if(vm_handle_present_pf(&context) < 0)
@@ -1993,8 +2013,11 @@ void vm_destroy_addr_space(struct mm_address_space *mm)
 	rb_tree_free(mm->area_tree, vm_destroy_area);
 
 	/* We're going to swap our address space to init's, and free our own */
-	
-	void *own_addrspace = vm_get_pgd(&current->address_space.arch_mmu);
+	/* Note that we use mm explicitly, but switch to current->address_space explicitly.
+	 * This is because vm_destroy_addr_space is called when we need to destroy
+	 * an exec state (i.e an execve failure).
+	 */
+	void *own_addrspace = vm_get_pgd(&mm->arch_mmu);
 
 	if(own_addrspace == vm_get_fallback_cr3())
 	{
@@ -2005,7 +2028,7 @@ void vm_destroy_addr_space(struct mm_address_space *mm)
 	struct arch_mm_address_space old_arch_mmu;
 	vm_set_pgd(&old_arch_mmu, own_addrspace);
 
-	vm_set_pgd(&current->address_space.arch_mmu, vm_get_fallback_cr3());
+	vm_set_pgd(&mm->arch_mmu, vm_get_fallback_cr3());
 
 	vm_load_arch_mmu(&current->address_space.arch_mmu);
 
@@ -3299,13 +3322,6 @@ void vm_wp_page_for_every_region(struct page *page, size_t page_off, struct vm_o
 
 	spin_unlock(&vmo->mapping_lock);
 }
-
-/* TODO: Add a safe way to find out what physical address is mapped to what virtual address(handles COW, WP, etc),
- * Fix mprotect changing up write-protects, probably merge mprotect and munmap code into generic "split up region"
- * code. Fix vm_mmap's return values(returning (void *) -errno isn't nice to check for in kernel code and we should
- * probably make sys_mmap return -errno if vm_mmap returns NULL(meaning error)). Verify lock safety. Change the lock
- * to a mutex.
- */
 
 int get_phys_pages_direct(unsigned long addr, unsigned int flags, struct page **pages, size_t nr_pgs)
 {

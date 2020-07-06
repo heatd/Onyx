@@ -14,7 +14,7 @@
 #include "ext2.h"
 
 /* According to Linux and e2fs, this is how you detect fast symlinks */
-bool ext2_is_fast_symlink(struct ext2_inode *inode, struct ext2_fs_info *fs)
+bool ext2_is_fast_symlink(struct ext2_inode *inode, struct ext2_superblock *fs)
 {
 	int ea_blocks = inode->file_acl ? (fs->block_size >> 9) : 0;
 	return (inode->i_blocks - ea_blocks == 0 && EXT2_CALCULATE_SIZE64(inode) <= 60);
@@ -25,7 +25,7 @@ bool ext2_is_fast_symlink(struct ext2_inode *inode, struct ext2_fs_info *fs)
 char *ext2_do_fast_symlink(struct ext2_inode *inode)
 {
 	/* Fast symlinks have 60 bytes and we allocate one more for the null byte */
-	char *buf = malloc(EXT2_FAST_SYMLINK_SIZE + 1);
+	char *buf = (char *) malloc(EXT2_FAST_SYMLINK_SIZE + 1);
 	if(!buf)
 		return NULL;
 	memcpy(buf, &inode->dbp, EXT2_FAST_SYMLINK_SIZE);
@@ -34,10 +34,10 @@ char *ext2_do_fast_symlink(struct ext2_inode *inode)
 	return buf;
 }
 
-char *ext2_do_slow_symlink(struct ext2_inode *inode, struct ext2_fs_info *fs)
+char *ext2_do_slow_symlink(struct ext2_inode *inode, struct ext2_superblock *fs)
 {
 	size_t len = EXT2_CALCULATE_SIZE64(inode);
-	char *buf = malloc(len + 1);
+	char *buf = (char *) malloc(len + 1);
 	if(!buf)
 		return NULL;
 
@@ -58,7 +58,7 @@ char *ext2_do_slow_symlink(struct ext2_inode *inode, struct ext2_fs_info *fs)
 	return buf;
 }
 
-char *ext2_read_symlink(struct ext2_inode *ino, struct ext2_fs_info *fs)
+char *ext2_read_symlink(struct ext2_inode *ino, struct ext2_superblock *fs)
 {
 	if(ext2_is_fast_symlink(ino, fs))
 	{
@@ -74,7 +74,7 @@ char *ext2_readlink(struct file *f)
 {
 	struct inode *ino = f->f_ino;
 	struct ext2_inode *ext2_ino = ext2_get_inode_from_node(ino);
-	struct ext2_fs_info *fs = ino->i_sb->s_helper;
+	struct ext2_superblock *fs = ext2_superblock_from_inode(ino);
 
 	return ext2_read_symlink(ext2_ino, fs);
 }

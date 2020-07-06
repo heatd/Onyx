@@ -193,7 +193,7 @@ struct binfmt shebang_binfmt = {
 	.next = NULL
 };
 
-__init void __elf_init()
+__init static void __shebang_init()
 {
 	install_binfmt(&shebang_binfmt);
 }

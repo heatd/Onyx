@@ -13,29 +13,30 @@
 
 #include "ext2.h"
 
-uint32_t ext2_get_block_bitmap_size(struct ext2_fs_info *fs)
+uint32_t ext2_get_block_bitmap_size(struct ext2_superblock *fs)
 {
 	return fs->blocks_per_block_group / CHAR_BIT;
 }
 
-uint32_t ext2_bitmap_size_to_nr_blocks(uint32_t size, struct ext2_fs_info *fs)
+uint32_t ext2_bitmap_size_to_nr_blocks(uint32_t size, struct ext2_superblock *fs)
 {
 	return size % fs->block_size ? (size / fs->block_size) + 1 :
            size / fs->block_size;
 }
 
-uint8_t *ext2_get_block_bitmap(block_group_desc_t *_block_group, uint32_t block_index, struct ext2_fs_info *fs)
+uint8_t *ext2_get_block_bitmap(block_group_desc_t *_block_group, uint32_t block_index, struct ext2_superblock *fs)
 {
 	size_t total_size = ext2_get_block_bitmap_size(fs);
 	size_t total_blocks = ext2_bitmap_size_to_nr_blocks(total_size, fs) - block_index;
 
-	uint8_t *bitmap = ext2_read_block(_block_group->block_usage_addr + block_index, total_blocks, fs);
+	uint8_t *bitmap = static_cast<uint8_t *>(
+			ext2_read_block(_block_group->block_usage_addr + block_index, total_blocks, fs));
 	
 	return bitmap;
 }
 
 void ext2_flush_block_bitmap(uint8_t *bitmap_base, uint8_t *bit_location,
-                             block_group_desc_t *desc, struct ext2_fs_info *fs)
+                             block_group_desc_t *desc, struct ext2_superblock *fs)
 {
 	uint32_t base_bitmap_block = desc->block_usage_addr;
 
@@ -51,7 +52,7 @@ void ext2_flush_block_bitmap(uint8_t *bitmap_base, uint8_t *bit_location,
 	ext2_write_block(base_bitmap_block + block_idx, 1, fs, bitmap_base + byte_off);
 }
 
-uint32_t ext2_allocate_from_block_group(struct ext2_fs_info *fs, uint32_t block_group)
+uint32_t ext2_allocate_from_block_group(struct ext2_superblock *fs, uint32_t block_group)
 {
 	mutex_lock(&fs->bgdt_lock);
 	block_group_desc_t *_block_group = &fs->bgdt[block_group];
@@ -92,7 +93,7 @@ uint32_t ext2_allocate_from_block_group(struct ext2_fs_info *fs, uint32_t block_
 	return 0;
 }
 
-int ext2_free_block_bg(uint32_t block, uint32_t block_group, struct ext2_fs_info *fs)
+int ext2_free_block_bg(uint32_t block, uint32_t block_group, struct ext2_superblock *fs)
 {
 	mutex_lock(&fs->bgdt_lock);
 
