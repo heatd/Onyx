@@ -276,7 +276,6 @@
 #define __NR_socketpair				255
 #define __NR_flock				255
 #define __NR_fdatasync				255
-#define __NR_vfork				255
 #define __NR_migrate_pages			256
 #define __NR_unshare				272
 #define __NR_set_robust_list			273
@@ -625,7 +624,6 @@
 #define SYS_socketpair				255
 #define SYS_flock				255
 #define SYS_fdatasync				255
-#define SYS_vfork				255
 #define SYS_migrate_pages			256
 #define SYS_unshare				272
 #define SYS_set_robust_list			273
