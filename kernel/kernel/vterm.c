@@ -52,23 +52,41 @@ static struct color default_bg = {0};
 
 const struct color color_table[] = 
 {
-	{.r = 0, .g = 0, .b = 0}, 		/* Black */
-	{.r = 0xff},				/* Red */
-	{.g = 0xff},				/* Green */
-	{.r = 0xff, .g = 0xff},			/* Yellow */
-	{.b = 0xff},				/* Blue */
-	{.r = 0xff, .b = 0xff},			/* Magenta */
-	{.g = 0xff, .b = 0xff},			/* Cyan */
-	{.r = 0xaa, .g = 0xaa, .b = 0xaa}	/* White */
+	{.r = 0, .g = 0, .b = 0},          /* Black */
+	{.r = 0xff},                       /* Red */
+	{.g = 0xff},                       /* Green */
+	{.r = 0xff, .g = 0xff},            /* Yellow */
+	{.b = 0xff},                       /* Blue */
+	{.r = 0xff, .b = 0xff},            /* Magenta */
+	{.g = 0xff, .b = 0xff},            /* Cyan */
+	{.r = 0xaa, .g = 0xaa, .b = 0xaa}  /* White */
 };
+
+#define VTERM_CONSOLE_CELL_DIRTY          (1 << 0)
+#define VTERM_CONSOLE_CELL_CONTINUATION   (1 << 1)
 
 struct console_cell
 {
 	uint32_t codepoint;
 	struct color bg;
 	struct color fg;
-	unsigned long dirty;	
+	uint32_t flags;	
 };
+
+static inline void vterm_set_dirty(struct console_cell *c)
+{
+	c->flags |= VTERM_CONSOLE_CELL_DIRTY;
+}
+
+static inline void vterm_clear_dirty(struct console_cell *c)
+{
+	c->flags &= ~VTERM_CONSOLE_CELL_DIRTY;
+}
+
+static inline bool vterm_is_dirty(struct console_cell *c)
+{
+	return c->flags & VTERM_CONSOLE_CELL_DIRTY;
+}
 
 #define VTERM_MESSAGE_FLUSH		1
 #define VTERM_MESSAGE_FLUSH_ALL		2
@@ -91,8 +109,6 @@ struct vterm
 	struct console_cell *cells;
 	struct color fg;
 	struct color bg;
-	char keyboard_buffer[2048];
-	unsigned int keyboard_pos;
 	struct thread *blink_thread;
 	bool blink_status;	/* true = visible, false = not */
 	unsigned int saved_x, saved_y;	/* Used by ANSI_SAVE/RESTORE_CURSOR */
@@ -203,7 +219,7 @@ void do_vterm_flush_all(struct vterm *vterm)
 			struct console_cell *cell = &vterm->cells[j * vterm->columns + i];
 			draw_char(cell->codepoint, i * f->width, j * f->height,
 				vterm->fb, cell->fg, cell->bg);
-			cell->dirty = 0;
+			vterm_clear_dirty(cell);
 		}
 	}
 }
@@ -252,14 +268,14 @@ void vterm_set_char(char c, unsigned int x, unsigned int y, struct color fg,
 	cell->codepoint = c;
 	cell->fg = fg;
 	cell->bg = bg;
-	cell->dirty = 1;
+	vterm_set_dirty(cell);
 }
 
 void vterm_dirty_cell(unsigned int x, unsigned int y, struct vterm *vt)
 {
 	struct console_cell *cell = &vt->cells[y *
 			vt->columns + x];
-	cell->dirty = 1;
+	vterm_set_dirty(cell);
 }
 
 bool vterm_putc(char c, struct vterm *vt)
@@ -391,11 +407,11 @@ void do_vterm_flush(struct vterm *vterm)
 		{
 			struct console_cell *cell = &vterm->cells[j * vterm->columns + i];
 
-			if(cell->dirty)
+			if(vterm_is_dirty(cell))
 			{
 				draw_char(cell->codepoint, i * f->width, j * f->height,
 					vterm->fb, cell->fg, cell->bg);
-				cell->dirty = 0;
+				vterm_clear_dirty(cell);
 			}
 		}
 	}
@@ -420,7 +436,7 @@ void vterm_fill_screen(struct vterm *vterm, uint32_t character,
 			cell->codepoint = character;
 			cell->bg = bg;
 			cell->fg = fg;
-			cell->dirty = 1;
+			vterm_set_dirty(cell);
 		}
 	}
 }
@@ -657,7 +673,7 @@ void vterm_ansi_erase_in_line(unsigned long n, struct vterm *vt)
 				c->codepoint = ' ';
 				c->fg = vt->fg;
 				c->bg = vt->bg;
-				c->dirty = 1;
+				vterm_set_dirty(c);
 			}
 			break;
 		}
@@ -673,7 +689,7 @@ void vterm_ansi_erase_in_line(unsigned long n, struct vterm *vt)
 				c->codepoint = ' ';
 				c->fg = vt->fg;
 				c->bg = vt->bg;
-				c->dirty = 1;
+				vterm_set_dirty(c);
 			}
 			break;
 		}
@@ -687,7 +703,7 @@ void vterm_ansi_erase_in_line(unsigned long n, struct vterm *vt)
 				c->codepoint = ' ';
 				c->fg = vt->fg;
 				c->bg = vt->bg;
-				c->dirty = 1;
+				vterm_set_dirty(c);
 			}
 			break;
 		}
@@ -713,7 +729,7 @@ void vterm_ansi_erase_in_display(unsigned long n, struct vterm *vt)
 			{
 				struct console_cell *c = &vt->cells[cidx + i];
 				c->codepoint = ' ';
-				c->dirty = 1;
+				vterm_set_dirty(c);
 			}
 
 			break;
@@ -728,7 +744,7 @@ void vterm_ansi_erase_in_display(unsigned long n, struct vterm *vt)
 			{
 				struct console_cell *c = &vt->cells[i];
 				c->codepoint = ' ';
-				c->dirty = 1;
+				vterm_set_dirty(c);
 			}
 
 			break;
