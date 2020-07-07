@@ -46,7 +46,7 @@ int reset_terminal(void)
 }
 
 #define TEMP_BUF_SIZE		1024
-int get_output(std::string& str)
+int get_input(std::string& str)
 {
 	char *buf = (char *) malloc(TEMP_BUF_SIZE);
 	if(!buf)
@@ -113,9 +113,9 @@ int main(int argc, char **argv, char **envp)
 		printf("username:");
 		fflush(stdout);
 
-		if(get_output(username) < 0)
+		if(get_input(username) < 0)
 		{
-			perror("get_output");
+			perror("get_input");
 			return 1;
 		}
 
@@ -124,10 +124,10 @@ int main(int argc, char **argv, char **envp)
 
 		hide_stdin();
 
-		if(get_output(password) < 0)
+		if(get_input(password) < 0)
 		{
 			reset_terminal();
-			perror("get_output");
+			perror("get_input");
 			return 1;
 		}
 	
