@@ -76,8 +76,12 @@ struct process
 	struct extrusive_list_head tracees;
 
 	/* User time and system time consumed by the process */
-	clock_t user_time;
-	clock_t system_time;
+	hrtime_t user_time;
+	hrtime_t system_time;
+	/* Note that children_utime and stime are already stored in ticks, since
+	 * we don't need ns precision there. */
+	clock_t children_utime;
+	clock_t children_stime;
 
 	/* proc_event queue */
 	struct spinlock sub_queue_lock;
@@ -114,7 +118,6 @@ int process_attach(struct process *tracer, struct process *tracee);
 struct process *process_find_tracee(struct process *tracer, pid_t pid);
 void process_exit_from_signal(int signum);
 char **process_copy_envarg(char **envarg, bool to_kernel, int *count);
-void process_increment_stats(bool is_kernel);
 void process_end(struct process *p);
 void process_add_thread(struct process *process, thread_t *thread);
 

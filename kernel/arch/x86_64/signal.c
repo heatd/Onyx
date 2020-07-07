@@ -212,6 +212,7 @@ void sys_sigreturn(struct syscall_frame *sysframe)
 	
 	signal_set_blocked_set(curr, &set);
 
+	context_tracking_exit_kernel();
 	__sigret_return(regs);
 
 	__builtin_unreachable();

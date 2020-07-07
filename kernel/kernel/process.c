@@ -229,9 +229,11 @@ bool process_found_children(pid_t pid, struct process *process)
 
 void process_remove_from_list(struct process *process);
 
-bool wait4_find_dead_process(struct process *process, pid_t pid, int *wstatus, pid_t *ret)
+bool wait4_find_dead_process(struct process *process, pid_t pid, int *wstatus,
+                             struct rusage *user_usage, pid_t *ret)
 {
 	bool looking_for_any = pid < 0;
+	struct rusage r = {0};
 
 	for(struct process *p = process->children; p != NULL; p = p->next_sibbling)
 	{
@@ -245,6 +247,15 @@ bool wait4_find_dead_process(struct process *process, pid_t pid, int *wstatus, p
 			}
 
 			*ret = p->pid;
+
+			hrtime_to_timeval(p->system_time, &r.ru_utime);
+			hrtime_to_timeval(p->user_time, &r.ru_utime);
+
+			if(user_usage && copy_to_user(user_usage, &r, sizeof(r)) < 0)
+				return false;
+
+			__atomic_add_fetch(&process->children_utime, p->user_time / NS_PER_MS, __ATOMIC_RELAXED);
+			__atomic_add_fetch(&process->children_stime, p->system_time / NS_PER_MS, __ATOMIC_RELAXED);
 
 			spin_unlock(&process->children_lock);
 
@@ -278,7 +289,7 @@ pid_t sys_wait4(pid_t pid, int *wstatus, int options, struct rusage *usage)
 		pid_t ret;
 		errno = 0;
 
-		if(wait4_find_dead_process(current, pid, wstatus, &ret))
+		if(wait4_find_dead_process(current, pid, wstatus, usage, &ret))
 		{
 			return ret;
 		}

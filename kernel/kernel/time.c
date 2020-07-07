@@ -157,17 +157,6 @@ int sys_clock_gettime(clockid_t clk_id, struct timespec *tp)
 	return 0;
 }
 
-clock_t sys_times(struct tms *buf)
-{
-	struct process *current = get_current_process();
-	struct tms b = {0};
-	b.tms_stime = current->system_time;
-	b.tms_utime = current->user_time;
-	if(copy_to_user(buf, &b, sizeof(struct tms)) < 0)
-		return -EFAULT;
-	return get_tick_count();
-}
-
 int sys_getrusage(int who, struct rusage *usage)
 {
 	return -ENOSYS;

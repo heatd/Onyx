@@ -397,6 +397,7 @@ int sys_execve(char *p, char *argv[], char *envp[])
 	free(kenv);
 	free(path);
 
+	context_tracking_exit_kernel();
 	return return_from_execve(entry, si.top);
 
 error_die_signal:

@@ -500,8 +500,12 @@ void isr_handler(struct registers *ctx)
 
 	//enter_isr_handler();
 
+	context_tracking_enter_kernel();
+
 	irq_restore(ctx->rflags);
 	int_handlers[int_no](ctx);
 
 	//exit_isr_handler();
+
+	context_tracking_exit_kernel();
 }

@@ -293,7 +293,6 @@ irqstatus_t apic_timer_irq(struct irq_context *ctx, void *cookie)
 		apic_update_clock_monotonic();
 	}
 
-	process_increment_stats(is_kernel_ip(ctx->registers->rip));
 	timer_handle_events(get_per_cpu_ptr(lapic_timer));
 
 	return IRQ_HANDLED;

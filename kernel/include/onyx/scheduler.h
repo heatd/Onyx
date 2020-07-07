@@ -15,6 +15,7 @@
 #include <onyx/list.h>
 #include <onyx/percpu.h>
 #include <onyx/clock.h>
+#include <onyx/cputime.h>
 
 #define NUM_PRIO 40
 
@@ -56,6 +57,8 @@ typedef struct thread
 	 * and it's used to futex_wake any threads blocked by join.
 	 */
 	void *ctid;
+
+	struct thread_cputime_info cputime_info;
 	/* And arch dependent stuff in this ifdef */
 #ifdef __x86_64__
 	void *fs;

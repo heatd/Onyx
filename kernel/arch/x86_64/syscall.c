@@ -21,6 +21,8 @@ extern syscall_callback_t syscall_table_64[];
 
 long do_syscall64(struct syscall_frame *frame)
 {
+	context_tracking_enter_kernel();
+
 	/* In case of a fork or sigreturn, adjust %rdi so it points to the frame */
 	if(frame->rax == SYS_fork || frame->rax == SYS_rt_sigreturn)
 		frame->rdi = (unsigned long) frame;
@@ -48,6 +50,8 @@ long do_syscall64(struct syscall_frame *frame)
 		printk("Error doing syscall %ld\n", syscall_nr);
 #endif
 	proc_event_exit_syscall(ret, syscall_nr);
+
+	context_tracking_exit_kernel();
 
 	return ret;
 }

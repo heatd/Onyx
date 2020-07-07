@@ -178,6 +178,8 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs)
 		new_thread->addr_limit = VM_KERNEL_ADDR_LIMIT;
 	}
 
+	cputime_info_init(new_thread);
+
 	new_thread->refcount = 1;
 
 	new_thread->kernel_stack = static_cast<uintptr_t *>(vmalloc(4, VM_TYPE_STACK, VM_WRITE | VM_NOEXEC));

@@ -357,6 +357,8 @@ void handle_signal(struct registers *regs)
 		return;
 	}
 
+	context_tracking_enter_kernel();
+
 	if(irq_is_disabled())
 		irq_enable();
 
@@ -377,6 +379,7 @@ void handle_signal(struct registers *regs)
 	{
 		spin_unlock(&thread->sinfo.lock);
 		spin_unlock(&process->signal_lock);
+		context_tracking_exit_kernel();
 		return;
 	}
 
@@ -392,6 +395,8 @@ void handle_signal(struct registers *regs)
 
 	spin_unlock(&thread->sinfo.lock);
 	spin_unlock(&process->signal_lock);
+
+	context_tracking_exit_kernel();
 }
 
 void __signal_update_pending(struct thread *thread)

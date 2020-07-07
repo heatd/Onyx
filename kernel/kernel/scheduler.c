@@ -274,6 +274,8 @@ void sched_load_thread(struct thread *thread, unsigned int cpu)
 
 	write_per_cpu_any(sched_quantum, SCHED_QUANTUM, cpu);
 
+	cputime_restart_accounting(thread);
+
 	spin_unlock_irqrestore(get_per_cpu_ptr_any(scheduler_lock, cpu));
 }
 
@@ -298,11 +300,13 @@ void *sched_switch_thread(void *last_stack)
 			return last_stack;
 		}
 
+		sched_save_thread(curr_thread, last_stack);
+
+		do_cputime_accounting();
+	
 		/* Put the scheduler's reference - this might cause a thread to be woken up, so we do it right here */
 		if(curr_thread->status == THREAD_DEAD)
 			thread_put(curr_thread);
-
-		sched_save_thread(curr_thread, last_stack);
 	}		
 
 	struct thread *source_thread = curr_thread;
