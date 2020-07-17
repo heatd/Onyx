@@ -45,6 +45,18 @@ void swap(T& a, T& b)
 	b = move(temp);
 }
 
+template <typename Type>
+Type min(Type t0, Type t1)
+{
+	return t0 > t1 ? t1 : t0;
+}
+
+template <typename Type>
+Type max(Type t0, Type t1)
+{
+	return t0 < t1 ? t1 : t0;
+}
+
 }
 
 #endif

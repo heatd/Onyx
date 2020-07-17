@@ -6,121 +6,183 @@
 
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdio.h> //remove
 #include <limits.h>
 
 #include <onyx/compiler.h>
 
 #include "ext2.h"
 
-uint32_t ext2_get_block_bitmap_size(struct ext2_superblock *fs)
+bool ext2_block_group::init(ext2_superblock *sb)
 {
-	return fs->blocks_per_block_group / CHAR_BIT;
-}
+	auto bgdt_block_start = sb->block_size == 1024 ? 2 : 1;
+	auto bgdt_block = bgdt_block_start + ((sizeof(block_group_desc_t) * nr) / sb->block_size);
+	auto bgdt_offset = (sizeof(block_group_desc_t) * nr) % sb->block_size;
 
-uint32_t ext2_bitmap_size_to_nr_blocks(uint32_t size, struct ext2_superblock *fs)
-{
-	return size % fs->block_size ? (size / fs->block_size) + 1 :
-           size / fs->block_size;
-}
-
-uint8_t *ext2_get_block_bitmap(block_group_desc_t *_block_group, uint32_t block_index, struct ext2_superblock *fs)
-{
-	size_t total_size = ext2_get_block_bitmap_size(fs);
-	size_t total_blocks = ext2_bitmap_size_to_nr_blocks(total_size, fs) - block_index;
-
-	uint8_t *bitmap = static_cast<uint8_t *>(
-			ext2_read_block(_block_group->block_usage_addr + block_index, total_blocks, fs));
+	buf = sb_read_block(sb, bgdt_block);
+	if(!buf)
+		return false;
 	
-	return bitmap;
+	bgd = (block_group_desc_t *)((char *) block_buf_data(buf) + bgdt_offset);
+
+	return true;
 }
 
-void ext2_flush_block_bitmap(uint8_t *bitmap_base, uint8_t *bit_location,
-                             block_group_desc_t *desc, struct ext2_superblock *fs)
+/* This is the max reserved inode number, everything below it is reserved */
+#define EXT2_UNDEL_DIR_INO		6
+
+expected<ext2_inode_no, int> ext2_block_group::allocate_inode(ext2_superblock *sb)
 {
-	uint32_t base_bitmap_block = desc->block_usage_addr;
+	scoped_mutex g{inode_bitmap_lock};
 
-	/* Get the offset from the base of the bitmap, and then align it to a block boundary */
-	
-	size_t byte_off = bit_location - bitmap_base;
+	/* The inode and block bitmaps are guaranteed to a single block in size */
+	auto_block_buf buf = sb_read_block(sb, bgd->inode_usage_addr);
 
-	/* This math is valid because block_size is always a power of 2 */
-	byte_off &= ~(fs->block_size - 1);
-
-	uint32_t block_idx = byte_off / fs->block_size;
-
-	ext2_write_block(base_bitmap_block + block_idx, 1, fs, bitmap_base + byte_off);
-}
-
-uint32_t ext2_allocate_from_block_group(struct ext2_superblock *fs, uint32_t block_group)
-{
-	mutex_lock(&fs->bgdt_lock);
-	block_group_desc_t *_block_group = &fs->bgdt[block_group];
-	
-	uint8_t *bitmap = ext2_get_block_bitmap(_block_group, 0, fs);
-	if(!bitmap)
+	if(!buf)
 	{
-		mutex_unlock(&fs->bgdt_lock);
-		return EXT2_ERR_INV_BLOCK;
+		sb->error("Failed to read inode bitmap");
+		return unexpected{-EIO};
 	}
 
-	uint32_t bitmap_size = ext2_get_block_bitmap_size(fs);
+	auto bitmap = static_cast<unsigned long *>(block_buf_data(buf));
 
-	for(uint32_t i = 0; i < bitmap_size; i++)
-	{
-		if(bitmap[i] == 0xff)
-			continue;
-		for(int j = 0; j < CHAR_BIT; j++)
-		{
-			if(!(bitmap[i] & (1 << j)))
-			{
-				bitmap[i] |= (1 << j);
-				_block_group->unallocated_blocks_in_group--;
-				fs->sb->unallocated_blocks--;
-				ext2_flush_block_bitmap(bitmap, &bitmap[i], _block_group, fs);
-				ext2_dirty_sb(fs);
-				ext2_register_bgdt_changes(fs);
-				mutex_unlock(&fs->bgdt_lock);
-				free(bitmap);
-				return fs->blocks_per_block_group * block_group + i * CHAR_BIT + j;
-			}
-		}
-	}
+	auto bit = ext2_scan_zero(bitmap, sb->s_block_size);
 
-	free(bitmap);
+	if(bit == SCAN_ZERO_NOT_FOUND)
+		return unexpected{-ENOSPC};
 
-	mutex_unlock(&fs->bgdt_lock);
-	return 0;
+	/* Set the corresponding bit */
+	bitmap[bit / WORD_SIZE] |= (1 << (bit % WORD_SIZE));
+	/* Change the block group and superblock
+	   structures in order to reflect it */
+
+	dec_unallocated_inodes();
+
+	EXT2_ATOMIC_SUB(sb->sb->s_free_inodes_count, 1);
+	/* Actually register the changes on disk */
+	/* We give the bitmap priority here,
+	 * since there can be a disk failure or a
+	 * shutdown at any time,
+	 * and this is the most important part */
+
+	block_buf_dirty(buf);
+	ext2_dirty_sb(sb);
+
+	return nr * sb->inodes_per_block_group + bit + 1;
 }
 
-int ext2_free_block_bg(uint32_t block, uint32_t block_group, struct ext2_superblock *fs)
+expected<ext2_inode_no, int> ext2_block_group::allocate_block(ext2_superblock *sb)
 {
-	mutex_lock(&fs->bgdt_lock);
+	scoped_mutex g{block_bitmap_lock};
 
-	uint32_t base_block = fs->blocks_per_block_group * block_group;
-	uint32_t bit_idx = base_block - block;
-	uint32_t byte_idx = bit_idx / CHAR_BIT;
-	uint32_t block_aligned_off = byte_idx & ~(fs->block_size - 1);
+	/* The inode and block bitmaps are guaranteed to a single block in size */
+	auto_block_buf buf = sb_read_block(sb, bgd->block_usage_addr);
 
-	block_group_desc_t *bg = &fs->bgdt[block_group];
-
-	/* Calculate the block we need to access */
-	uint32_t block_bitmap_index = block_aligned_off / fs->block_size;
-
-	uint8_t *bitmap = ext2_get_block_bitmap(bg, block_bitmap_index, fs);
-	if(!bitmap)
+	if(!buf)
 	{
-		mutex_unlock(&fs->bgdt_lock);
-		return -1;
+		sb->error("Failed to read block bitmap");
+		return unexpected{-EIO};
 	}
 
-	bit_idx -= byte_idx * CHAR_BIT;
+	auto bitmap = static_cast<unsigned long *>(block_buf_data(buf));
 
-	bitmap[byte_idx - block_aligned_off] &= ~(1 << bit_idx);
+	auto bit = ext2_scan_zero(bitmap, sb->s_block_size);
 
-	ext2_flush_block_bitmap(bitmap, &bitmap[byte_idx - block_aligned_off], bg, fs);
+	if(bit == SCAN_ZERO_NOT_FOUND)
+		return unexpected{-ENOSPC};
 
-	mutex_unlock(&fs->bgdt_lock);
+	/* Set the corresponding bit */
+	bitmap[bit / WORD_SIZE] |= (1 << (bit % WORD_SIZE));
+	/* Change the block group and superblock
+	   structures in order to reflect it */
 
-	return 0;
+	dec_unallocated_blocks();
+
+	EXT2_ATOMIC_SUB(sb->sb->s_free_blocks_count, 1);
+	/* Actually register the changes on disk */
+	/* We give the bitmap priority here,
+	 * since there can be a disk failure or a
+	 * shutdown at any time,
+	 * and this is the most important part */
+
+	block_buf_dirty(buf);
+	ext2_dirty_sb(sb);
+
+	return nr * sb->blocks_per_block_group + bit;
+}
+
+void ext2_block_group::free_block(ext2_inode_no inode, ext2_superblock *sb)
+{
+	scoped_mutex g{block_bitmap_lock};
+
+	/* The inode and block bitmaps are guaranteed to a single block in size */
+	auto_block_buf buf = sb_read_block(sb, bgd->block_usage_addr);
+
+	if(!buf)
+	{
+		sb->error("Failed to read block bitmap");
+		return;
+	}
+
+	auto bitmap = static_cast<uint8_t *>(block_buf_data(buf));
+
+	auto bit = (inode - 1) % sb->blocks_per_block_group;
+	auto byte_idx = bit / CHAR_BIT;
+	auto bit_idx = bit % CHAR_BIT;
+
+	/* Let's check for corruption, if it's already free we'll have to error. */
+	if(!(bitmap[byte_idx] & (1 << bit_idx)))
+	{
+		sb->error("Corruption detected: Block already freed");
+		return;
+	}
+
+	bitmap[byte_idx] &= ~(1 << bit_idx);
+
+	block_buf_dirty(buf);
+
+	inc_unallocated_blocks();
+
+	EXT2_ATOMIC_ADD(sb->sb->s_free_blocks_count, 1);
+	block_buf_dirty(sb->sb_bb);
+}
+
+void ext2_block_group::free_inode(ext2_inode_no inode, ext2_superblock *sb)
+{
+	scoped_mutex g{inode_bitmap_lock};
+
+	/* The inode and block bitmaps are guaranteed to a single block in size */
+	auto_block_buf buf = sb_read_block(sb, bgd->inode_usage_addr);
+
+	if(!buf)
+	{
+		sb->error("Failed to read inode bitmap");
+		return;
+	}
+
+	auto bitmap = static_cast<uint8_t *>(block_buf_data(buf));
+
+	auto bit = (inode - 1) % sb->inodes_per_block_group;
+	auto byte_idx = bit / CHAR_BIT;
+	auto bit_idx = bit % CHAR_BIT;
+
+	/* Let's check for corruption, if it's already free we'll have to error. */
+	if(!(bitmap[byte_idx] & (1 << bit_idx)))
+	{
+		sb->error("Corruption detected: Inode already freed");
+		return;
+	}
+
+	bitmap[byte_idx] &= ~(1 << bit_idx);
+
+	block_buf_dirty(buf);
+
+	inc_unallocated_inodes();
+
+	EXT2_ATOMIC_ADD(sb->sb->s_free_inodes_count, 1);
+	block_buf_dirty(sb->sb_bb);
+}
+
+auto_block_buf ext2_block_group::get_inode_table(const ext2_superblock *sb, uint32_t off) const
+{
+	return sb_read_block(sb, bgd->inode_table_addr + off);
 }

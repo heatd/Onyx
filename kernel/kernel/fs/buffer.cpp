@@ -145,6 +145,7 @@ void block_buf_remove(struct block_buf *buf)
 	}
 }
 
+extern "C"
 void block_buf_writeback(struct block_buf *buf)
 {
 	flush_sync_one(&buf->flush_obj);
@@ -247,7 +248,7 @@ error:
 	return nullptr;
 }
 
-extern "C" struct block_buf *sb_read_block(struct superblock *sb, unsigned long block)
+extern "C" struct block_buf *sb_read_block(const struct superblock *sb, unsigned long block)
 {
 	struct blockdev *dev = sb->s_bdev;
 	size_t real_off = sb->s_block_size * block;

@@ -8,6 +8,7 @@
 #define _ONYX_SCOPED_LOCK_H
 
 #include <onyx/spinlock.h>
+#include <onyx/mutex.h>
 
 template <typename LockType, bool irq_save = false>
 class scoped_lock
@@ -106,6 +107,76 @@ public:
 	void keep_locked()
 	{
 		is_locked = false;
+	}
+
+};
+
+template <bool interruptible = false>
+class scoped_mutex
+{
+private:
+	mutex& internal_lock;
+	bool is_locked;
+public:
+	void lock()
+	{
+		if constexpr(interruptible)
+		{
+			/* if we've failed to lock the mutex, we got -EINTR, so we don't set is_locked*/
+			if(mutex_lock_interruptible(&internal_lock) < 0)
+				return;
+		}
+		else
+			mutex_lock(&internal_lock);
+		is_locked = true;
+	}
+
+	void unlock()
+	{
+		mutex_unlock(&internal_lock);
+		is_locked = false;
+	}
+
+	explicit scoped_mutex(mutex& lock) : internal_lock(lock)
+	{
+		this->lock();
+	}
+
+	~scoped_mutex()
+	{
+		if(is_locked)
+			unlock();
+	}
+
+	scoped_mutex(const scoped_mutex& l) = delete;
+	scoped_mutex& operator=(const scoped_mutex& rhs) = delete;
+
+	scoped_mutex(scoped_mutex&& l)
+	{
+		internal_lock = l.internal_lock;
+		is_locked = l.is_locked;
+		l.is_locked = false;
+		l.internal_lock = nullptr;
+	}
+
+	scoped_mutex& operator=(scoped_mutex&& rhs)
+	{
+		internal_lock = rhs.internal_lock;
+		is_locked = rhs.is_locked;
+		rhs.is_locked = false;
+		rhs.internal_lock = nullptr;
+
+		return *this;
+	}
+
+	void keep_locked()
+	{
+		is_locked = false;
+	}
+
+	bool locked() const
+	{
+		return is_locked;
 	}
 
 };

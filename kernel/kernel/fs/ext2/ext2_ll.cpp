@@ -37,7 +37,7 @@ void *ext2_read_block(uint32_t block_index, uint16_t blocks, struct ext2_superbl
 	if(!buff)
 		return nullptr;
 
-	size_t read = blkdev_read((size_t) block_index * fs->block_size, size, buff, fs->blkdevice);
+	size_t read = blkdev_read((size_t) block_index * fs->block_size, size, buff, fs->s_bdev);
 
 	if(read == (size_t) -1)
 	{
@@ -52,23 +52,13 @@ void ext2_read_block_raw(uint32_t block_index, uint16_t blocks, struct ext2_supe
 {
 	size_t size = blocks * fs->block_size; /* size = nblocks * block size */
 
-	blkdev_read(((size_t) block_index) * fs->block_size, size, buffer, fs->blkdevice);
+	blkdev_read(((size_t) block_index) * fs->block_size, size, buffer, fs->s_bdev);
 }
 
 void ext2_write_block(uint32_t block_index, uint16_t blocks, struct ext2_superblock *fs, void *buffer)
 {
 	size_t size = blocks * fs->block_size; /* size = nblocks * block size */
-	blkdev_write(block_index * fs->block_size, size, buffer, fs->blkdevice);
-}
-
-void __ext2_update_atime(struct ext2_inode *ino, uint32_t block, struct ext2_superblock *fs, struct ext2_inode *inode_table)
-{
-	/* Skip atime updating if the inode doesn't want to */
-	if(ino->flags & EXT2_INO_FLAG_ATIME_NO_UPDT)
-		return;
-	/* Update atime */
-	ino->atime = (uint32_t) clock_get_posix_time();
-	ext2_write_block(block, 1, fs, inode_table);
+	blkdev_write(block_index * fs->block_size, size, buffer, fs->s_bdev);
 }
 
 static inline void __ext2_update_ctime(struct ext2_inode *ino)
@@ -76,79 +66,69 @@ static inline void __ext2_update_ctime(struct ext2_inode *ino)
 	ino->ctime = (uint32_t) clock_get_posix_time();
 }
 
-__attribute__((no_sanitize_undefined))
-struct ext2_inode *ext2_get_inode_from_number(struct ext2_superblock *fs, uint32_t inode)
+ext2_inode *ext2_superblock::get_inode(ext2_inode_no inode) const
 {
-	if(!inode)
-		return nullptr;
+	uint32_t bg_no = ext2_inode_number_to_bg(inode, this);
+	uint32_t index = (inode - 1) % inodes_per_block_group;
+	uint32_t inodes_per_block = block_size / inode_size;
+	uint32_t block = index / inodes_per_block;
+	uint32_t off = (index % inodes_per_block) * inode_size;
 
-	uint32_t block_size = fs->block_size;
-	uint32_t bg = (inode - 1) / fs->inodes_per_block_group;
-	uint32_t index = (inode - 1) % fs->inodes_per_block_group;
-	uint32_t block = (index * fs->inode_size) / block_size;
-	uint32_t blockind = (index * fs->inode_size) % block_size;
+	assert(bg_no < number_of_block_groups);
 
-	assert(bg < fs->number_of_block_groups);
+	const auto &bg = block_groups[bg_no];
 
-	block_group_desc_t *bgd = &fs->bgdt[bg];
-	struct ext2_inode *inode_table = nullptr;
-	struct ext2_inode *inode_block = (struct ext2_inode*)((char *) (inode_table =
-		(ext2_inode *) ext2_read_block(bgd->inode_table_addr + block, 1, fs)) + blockind);
-
-	if(!inode_table)
-		return nullptr;
-	
-	/* Update the atime field */
-	__ext2_update_atime(inode_block, bgd->inode_table_addr + block, fs, inode_table);
-
-	struct ext2_inode *ino = (ext2_inode *) malloc(fs->inode_size);
-
-	if(!ino)
+	auto buf = bg.get_inode_table(this, block);
+	if(!buf)
 	{
-		free(inode_table);
+		error("Error reading inode table.");
 		return nullptr;
 	}
 
-	memcpy(ino, inode_block, fs->inode_size);
-	free(inode_table);
+	ext2_inode *ino = (ext2_inode *) malloc(inode_size);
+
+	if(!ino)
+		return nullptr;
+
+	ext2_inode *on_disk = (ext2_inode *) ((char *) block_buf_data(buf) + off);
+
+	memcpy(ino, on_disk, inode_size);
+
 	return ino;
 }
 
-void ext2_update_inode(struct ext2_inode *ino, struct ext2_superblock *fs, uint32_t inode)
+void ext2_superblock::update_inode(ext2_inode *ino, ext2_inode_no inode_no)
 {
-	uint32_t block_size = fs->block_size;
-	uint32_t bg = (inode - 1) / fs->inodes_per_block_group;
-	uint32_t index = (inode - 1) % fs->inodes_per_block_group;
-	uint32_t block = (index * fs->inode_size) / block_size;
-	uint32_t blockind = (index * fs->inode_size) % block_size;
-	block_group_desc_t *bgd = &fs->bgdt[bg];
-	struct ext2_inode *inode_table = nullptr;
-	struct ext2_inode *inode_block = (struct ext2_inode*)((char *)
-		(inode_table = (ext2_inode *) ext2_read_block(bgd->inode_table_addr + block, 1, fs)) + blockind);
-	if(!inode_table)
-		return;
+	uint32_t bg_no = ext2_inode_number_to_bg(inode_no, this);
+	uint32_t index = (inode_no - 1) % inodes_per_block_group;
+	uint32_t inodes_per_block = block_size / inode_size;
+	uint32_t block = index / inodes_per_block;
+	uint32_t off = (index % inodes_per_block) * inode_size;
 
-	__ext2_update_ctime(ino);
-	memcpy(inode_block, ino, fs->inode_size);
-	ext2_write_block(bgd->inode_table_addr + block, 1, fs, inode_table);
-	free(inode_table);
+	assert(bg_no < number_of_block_groups);
+
+	const auto &bg = block_groups[bg_no];
+
+	auto buf = bg.get_inode_table(this, block);
+	if(!buf)
+	{
+		error("Error reading inode table.");
+		return;
+	}
+
+	ext2_inode *on_disk = (ext2_inode *) ((char *) block_buf_data(buf) + off);
+
+	memcpy(on_disk, ino, inode_size);
+
+	block_buf_dirty(buf);
+
+	return;
 }
 
 
 void ext2_dirty_sb(struct ext2_superblock *fs)
 {
 	block_buf_dirty(fs->sb_bb);
-}
-
-void ext2_register_bgdt_changes(struct ext2_superblock *fs)
-{
-	size_t blocks_for_bgdt = (fs->number_of_block_groups * sizeof(block_group_desc_t)) / fs->block_size;
-	if((fs->number_of_block_groups * sizeof(block_group_desc_t)) % fs->block_size)
-		blocks_for_bgdt++;
-	if(fs->block_size == 1024)
-		ext2_write_block(2, (uint16_t) blocks_for_bgdt, fs, fs->bgdt);
-	else
-		ext2_write_block(1, (uint16_t) blocks_for_bgdt, fs, fs->bgdt);
 }
 
 size_t ext2_calculate_dirent_size(size_t len_name)
@@ -478,7 +458,7 @@ int ext2_link(struct inode *target, const char *name, struct inode *dir)
 	__sync_synchronize();
 	COMPILER_BARRIER();
 
-	ext2_update_inode(target_ino, fs, (uint32_t) target->i_inode);
+	fs->update_inode(target_ino, (ext2_inode_no) target->i_inode);
 
 	return 0;
 }
@@ -490,7 +470,7 @@ int ext2_link_fops(struct file *_target, const char *name, struct dentry *_dir)
 
 struct inode *ext2_load_inode_from_disk(uint32_t inum, struct ext2_superblock *fs)
 {
-	struct ext2_inode *inode = ext2_get_inode_from_number(fs, inum);
+	struct ext2_inode *inode = fs->get_inode(inum);
 	if(!inode)
 		return nullptr;
 	

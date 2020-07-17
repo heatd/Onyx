@@ -13,122 +13,6 @@
 
 #include "ext2.h"
 
-/* This is the max reserved inode number, everything below it is reserved */
-#define EXT2_UNDEL_DIR_INO		6
-
-struct ext2_inode *ext2_allocate_inode_from_block_group(uint32_t *inode_no,
-	uint32_t block_group, struct ext2_superblock *fs)
-{
-	/* TODO: Optimize this a-la block_groups.c */
-	mutex_lock(&fs->ino_alloc_lock);
-	block_group_desc_t *_block_group = &fs->bgdt[block_group];
-	size_t total_size = fs->inodes_per_block_group / CHAR_BIT;
-	size_t total_blocks = total_size % fs->block_size ? (total_size / fs->block_size) + 1 :
-		total_size / fs->block_size;
-
-	uint8_t *bitmap = (uint8_t *) ext2_read_block(_block_group->inode_usage_addr, total_blocks, fs);
-	uint32_t inode = 0;
-
-	if(!bitmap)
-	{
-		mutex_unlock(&fs->ino_alloc_lock);
-		return NULL;
-	}
-
-	for(uint32_t i = 0; i < total_size; i++)
-	{
-		if(bitmap[i] == 0xFF)
-			continue;
-		for(int j = 0; j < CHAR_BIT; j++)
-		{
-			uint32_t this_inode = fs->inodes_per_block_group * block_group
-					+ i * CHAR_BIT + j + 1;
-	
-			if(this_inode <= EXT2_UNDEL_DIR_INO)
-				continue;
-			if((bitmap[i] & (1 << j)) == 0)
-			{
-				/* Set the corresponding bit */
-				bitmap[i] |= (1 << j);
-				/* Change the block group and superblock
-				 structures in order to reflect it */
-				_block_group->unallocated_inodes_in_group--;
-				fs->sb->unallocated_inodes--;
-				/* Actually register the changes on disk */
-				/* We give the bitmap priority here,
-				 * since there can be a disk failure or a
-				 * shutdown at any time,
-				 * and this is the most important part */
-				ext2_write_block(_block_group->inode_usage_addr,
-						 total_blocks, fs, bitmap);
-				ext2_dirty_sb(fs);
-				ext2_register_bgdt_changes(fs);
-				inode = this_inode;
-				mutex_unlock(&fs->ino_alloc_lock);
-				goto found;
-			}
-		}
-	}
-found:
-	/* If we didn't find a free inode, return */
-	if(inode == 0)
-	{
-		free(bitmap);
-		return NULL;
-	}
-
-	struct ext2_inode *ino = ext2_get_inode_from_number(fs, inode);
-
-	/* TODO: Handle the inode leak here */
-	if(!ino)
-	{
-		free(bitmap);
-		return NULL;
-	}
-
-	*inode_no = inode;
-	free(bitmap);
-
-	return ino;
-}
-
-int ext2_free_inode_bg(uint32_t inode, uint32_t block_group, struct ext2_superblock *fs)
-{
-	/* TODO: Same as above */
-	mutex_lock(&fs->ino_alloc_lock);
-	block_group_desc_t *_block_group = &fs->bgdt[block_group];
-	size_t total_size = fs->inodes_per_block_group / CHAR_BIT;
-	size_t total_blocks = total_size % fs->block_size ? (total_size / fs->block_size) + 1 :
-		total_size / fs->block_size;
-
-	uint8_t *bitmap = (uint8_t *) ext2_read_block(_block_group->inode_usage_addr, total_blocks, fs);
-
-	if(!bitmap)
-	{
-		mutex_unlock(&fs->ino_alloc_lock);
-		return 0;
-	}
-
-	inode -= 1;
-	uint32_t byte_off = (inode - (fs->inodes_per_block_group * block_group)) / CHAR_BIT;
-
-	uint32_t bit_off = (inode - (fs->inodes_per_block_group * block_group)) - byte_off * CHAR_BIT;
-
-	bitmap[byte_off] &= ~(1 << bit_off);
-
-	ext2_write_block(_block_group->inode_usage_addr, total_blocks, fs, bitmap);
-
-	free(bitmap);
-
-	fs->sb->unallocated_inodes++;
-	_block_group->unallocated_inodes_in_group++;
-	ext2_dirty_sb(fs);
-	ext2_register_bgdt_changes(fs);
-
-	mutex_unlock(&fs->ino_alloc_lock);
-	return 0;
-}
-
 int ext2_add_singly_indirect_block(struct ext2_inode *inode, uint32_t block,
 	uint32_t block_index, struct ext2_superblock *fs)
 {
@@ -138,7 +22,7 @@ int ext2_add_singly_indirect_block(struct ext2_inode *inode, uint32_t block,
 	/* If the singly indirect bp doesn't exist, create it */
 	if(!inode->single_indirect_bp)
 	{
-		inode->single_indirect_bp = ext2_allocate_block(fs);
+		inode->single_indirect_bp = fs->allocate_block();
 		allocated_single = true;
 
 		if(inode->single_indirect_bp == EXT2_ERR_INV_BLOCK)
@@ -155,7 +39,7 @@ int ext2_add_singly_indirect_block(struct ext2_inode *inode, uint32_t block,
 	{
 		if(allocated_single)
 		{
-			ext2_free_block(inode->single_indirect_bp, fs);
+			fs->free_block(inode->single_indirect_bp);
 			inode->single_indirect_bp = 0;
 		}
 		return -1;
@@ -195,7 +79,7 @@ int ext2_add_doubly_indirect_block(struct ext2_inode *inode, uint32_t block,
 		ext2_read_block_raw(inode->doubly_indirect_bp, 1, fs, buf);
 	else
 	{
-		dp = ext2_allocate_block(fs);
+		dp = fs->allocate_block();
 		allocated_doubly = true;
 
 		if(dp == EXT2_ERR_INV_BLOCK)
@@ -212,13 +96,13 @@ int ext2_add_doubly_indirect_block(struct ext2_inode *inode, uint32_t block,
 
 	if(!singly_bp)
 	{
-		singly_bp = ext2_allocate_block(fs);
+		singly_bp = fs->allocate_block();
 
 		if(singly_bp == EXT2_ERR_INV_BLOCK)
 		{
 			if(allocated_doubly)
 			{
-				ext2_free_block(dp, fs);
+				fs->free_block(dp);
 				inode->doubly_indirect_bp = 0;
 			}
 
@@ -269,7 +153,7 @@ int ext2_add_trebly_indirect_block(struct ext2_inode *inode, uint32_t block,
 
 	if(!(tbp = inode->trebly_indirect_bp))
 	{
-		uint32_t n = tbp = ext2_allocate_block(fs);
+		uint32_t n = tbp = fs->allocate_block();
 		if(n == EXT2_ERR_INV_BLOCK)
 		{
 			free(buf);
@@ -287,13 +171,13 @@ int ext2_add_trebly_indirect_block(struct ext2_inode *inode, uint32_t block,
 	
 	if(!(dbp = buf[trebly_table_index]))
 	{
-		uint32_t n = dbp = ext2_allocate_block(fs);
+		uint32_t n = dbp = fs->allocate_block();
 
 		if(n == EXT2_ERR_INV_BLOCK)
 		{
 			if(allocated_trebly)
 			{
-				ext2_free_block(tbp, fs);
+				fs->free_block(tbp);
 				inode->trebly_indirect_bp = 0;
 			}
 
@@ -311,7 +195,7 @@ int ext2_add_trebly_indirect_block(struct ext2_inode *inode, uint32_t block,
 	
 	if(!(sbp = buf[doubly_table_index]))
 	{
-		uint32_t n = sbp = ext2_allocate_block(fs);
+		uint32_t n = sbp = fs->allocate_block();
 
 		if(n == EXT2_ERR_INV_BLOCK)
 		{
@@ -536,7 +420,7 @@ uint32_t ext2_get_inode_block(struct ext2_inode *ino, uint32_t block, struct ext
 	if(b == EXT2_ERR_INV_BLOCK)
 	{
 		/* We'll have to allocate a new block and add it in */
-		uint32_t new_block = ext2_allocate_block(fs);
+		uint32_t new_block = fs->allocate_block();
 		ext2_add_block_to_inode(ino, new_block, block, fs);
 
 		return new_block;
@@ -650,7 +534,7 @@ int ext2_free_indirect_block(uint32_t block, unsigned int indirection_level, str
 		}
 		else
 		{
-			ext2_free_block(blockbuf[i], fs);
+			fs->free_block(blockbuf[i]);
 		}
 	}
 
@@ -669,7 +553,7 @@ void ext2_free_inode_space(struct ext2_inode *inode, struct ext2_superblock *fs)
 		if(block != 0)
 		{
 			/* Valid block, free */
-			ext2_free_block(block, fs);
+			fs->free_block(block);
 		}
 
 		inode->dbp[i] = 0;

@@ -12,7 +12,7 @@
 #define CONST1          ((size_t) 0x0101010101010101ULL)
 #define CONST2          ((size_t) 0x8080808080808080ULL)
 
-#define WORD_SIZE           (sizeof(size_t) / CHAR_BIT)
+#define WORD_SIZE           (sizeof(size_t))
 #define ALIGNED(x, y)       !((unsigned long) x & (y - 1))
 #define HASZERO(v)          (((v) - CONST1) & ~(v) & CONST2)
 

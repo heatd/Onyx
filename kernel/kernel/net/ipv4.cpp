@@ -604,12 +604,11 @@ bool inet_has_permission_for_port(in_port_t port)
 	
 	struct creds *c = creds_get();
 
-	if(c->euid == 0)
-		return true;
+	bool ret = c->euid == 0;
 	
 	creds_put(c);
 
-	return false;
+	return ret;
 }
 
 /* Modifies *addr too */

@@ -4,72 +4,133 @@
 * check LICENSE at the root directory for more information
 */
 
+#include <errno.h>
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <assert.h>
 
 #include <onyx/compiler.h>
 #include <onyx/panic.h>
+#include <onyx/cred.h>
 
 #include "ext2.h"
 
-/* TODO: Add a way to prefer block groups */
-/* Allocates a block */
-uint32_t ext2_allocate_block(struct ext2_superblock *fs)
+expected<cul::pair<ext2_inode_no, ext2_inode *>, int> ext2_superblock::allocate_inode()
 {
-	/* If we just don't have any blocks available, error */
-	if(unlikely(fs->sb->unallocated_blocks == 0))
-		return 0;
-	for(uint32_t i = 0; i < fs->number_of_block_groups; i++)
+	/* TODO: Add a good algorithm that can locally pick an inode */
+
+	/* If we just don't have any inodes available, error */
+	if(sb->s_free_inodes_count == 0) [[unlikely]]
+		return unexpected<int>{-ENOSPC};
+
+	for(auto &bg : block_groups)
 	{
-		if(fs->bgdt[i].unallocated_blocks_in_group == 0)
-			continue;
-		return ext2_allocate_from_block_group(fs, i);
+		if(bg.get_bgd()->unallocated_inodes_in_group > 0)
+		{
+			auto res = bg.allocate_inode(this);
+			if(res.has_error())
+				continue;
+			else
+			{
+				ext2_inode *ino = get_inode(res.value());
+				if(!ino)
+				{
+					bg.free_inode(res.value(), this);
+					return unexpected{-errno};
+				}
+
+				memset(ino, 0, inode_size);
+
+				return cul::pair{res.value(), ino};
+			}
+		}
 	}
 
-	return 0;
+	return unexpected<int>{-ENOSPC};
 }
 
-/* Frees a block */
-void ext2_free_block(uint32_t block, struct ext2_superblock *fs)
+void ext2_superblock::free_inode(ext2_inode_no inode)
+{
+	uint32_t bg_no = ext2_inode_number_to_bg(inode, this);
+
+	assert(bg_no <= number_of_block_groups);
+
+	block_groups[bg_no].free_inode(inode, this);
+}
+
+ext2_block_no ext2_superblock::try_allocate_block_from_bg(ext2_block_group_no nr)
+{
+	assert(nr < number_of_block_groups);
+
+	auto &bg = block_groups[nr];
+
+	if(bg.get_bgd()->unallocated_blocks_in_group == 0)
+		return EXT2_ERR_INV_BLOCK;
+
+	return bg.allocate_block(this);
+}
+
+ext2_block_no ext2_superblock::allocate_block(ext2_block_group_no preferred)
+{
+	if(sb->s_free_blocks_count == 0) [[unlikely]]
+		return EXT2_ERR_INV_BLOCK;
+
+	if(sb->s_free_blocks_count <= sb->s_r_blocks_count) [[unlikely]]
+	{
+		auto c = creds_get();
+
+		bool may_use_blocks =
+		  c->euid == sb->s_def_resuid ||
+		  c->egid == sb->s_def_resgid;
+
+		creds_put(c);
+
+		if(!may_use_blocks)
+			return EXT2_ERR_INV_BLOCK;
+	}
+
+	if(preferred == (ext2_block_group_no) -1) preferred = 0;
+	
+	/* Our algorithm works like this: We take the preferred block group, and then we'll
+	 * iterate the block groups inside-out, trying them according to the distance.
+	 */
+
+	auto max_block_group = this->number_of_block_groups - 1;
+	int dist_start = preferred;
+	int dist_end = max_block_group - preferred;
+
+	auto max_distance = cul::max(dist_start, dist_end);
+	ext2_block_no block = EXT2_ERR_INV_BLOCK;
+
+	for(int dist = 0; dist <= max_distance; dist++, dist_start--, dist_end--)
+	{
+		/* We're testing against dist here because if dist is zero(opening round)
+		 * we'll only need to test once.
+		 */
+		if(dist && dist_start >= 0)
+			block = try_allocate_block_from_bg(dist_start);
+		
+		if(block != EXT2_ERR_INV_BLOCK)
+			return block;
+
+		if(dist_end >= 0)
+           block = try_allocate_block_from_bg(dist_start);
+
+		if(block != EXT2_ERR_INV_BLOCK)
+			return block;
+	}
+
+	return EXT2_ERR_INV_BLOCK;
+}
+
+void ext2_superblock::free_block(ext2_block_no block)
 {
 	assert(block != EXT2_ERR_INV_BLOCK);
 
-	mutex_lock(&fs->sb_lock);
-	
-	fs->sb->unallocated_blocks++;
+	auto block_group = block / blocks_per_block_group;
 
-	uint32_t block_group = block / fs->blocks_per_block_group;
-	
-	assert(block_group <= fs->number_of_block_groups);
+	assert(block_group < number_of_block_groups);
 
-	ext2_free_block_bg(block, block_group, fs);
-	
-	mutex_unlock(&fs->sb_lock);
-}
-
-/* Returns an struct ext2_inode from disk, and sets *inode_number to the inode number */
-struct ext2_inode *ext2_allocate_inode(uint32_t *inode_number, struct ext2_superblock *fs)
-{
-	/* If we just don't have any blocks available, error */
-	if(unlikely(fs->sb->unallocated_inodes == 0))
-		return 0;
-	
-	for(uint32_t i = 0; i < fs->number_of_block_groups; i++)
-	{
-		if(fs->bgdt[i].unallocated_inodes_in_group == 0)
-			continue;
-		return ext2_allocate_inode_from_block_group(inode_number, i, fs);
-	}
-
-	return 0;
-}
-
-void ext2_free_inode(uint32_t inode, struct ext2_superblock *fs)
-{
-	uint32_t block_group = inode / fs->inodes_per_block_group;
-
-	assert(block_group <= fs->number_of_block_groups);
-
-	ext2_free_inode_bg(inode, block_group, fs);
+	block_groups[block_group].free_block(block, this);
 }

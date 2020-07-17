@@ -67,16 +67,14 @@ void ext2_delete_inode(struct ext2_inode *inode, uint32_t inum, struct ext2_supe
 	ext2_free_inode_space(inode, fs);
 
 	inode->hard_links = 0;
-	ext2_update_inode(inode, fs, inum);
+	fs->update_inode(inode, inum);
 
-	uint32_t block_group = inum / fs->inodes_per_block_group;
+	uint32_t block_group = (inum - 1) / fs->inodes_per_block_group;
 
 	if(S_ISDIR(inode->mode))
-		fs->bgdt[block_group].used_dirs_count--;
-	
-	ext2_register_bgdt_changes(fs);
+		fs->block_groups[block_group].dec_used_dirs();
 
-	ext2_free_inode(inum, fs);
+	fs->free_inode(inum);
 }
 
 void ext2_close(struct inode *vfs_ino)
@@ -316,7 +314,17 @@ struct inode *ext2_create_file(const char *name, mode_t mode, dev_t dev, struct 
 	uint32_t inumber = 0;
 	struct inode *ino = nullptr;
 
-	struct ext2_inode *inode = ext2_allocate_inode(&inumber, fs);
+	auto res = fs->allocate_inode();
+	if(res.has_error())
+	{
+		errno = -res.error();
+		return nullptr;
+	}
+
+	auto p = res.value();
+	inumber = p.first;
+
+	struct ext2_inode *inode = p.second;
 	struct ext2_inode *dir_inode = ext2_get_inode_from_node(vfs_ino);
 
 	if(!inode)
@@ -348,8 +356,8 @@ struct inode *ext2_create_file(const char *name, mode_t mode, dev_t dev, struct 
 		inode->dbp[0] = dev;
 	}
 
-	ext2_update_inode(inode, fs, inumber);
-	ext2_update_inode(dir_inode, fs, vfs_ino->i_inode);
+	fs->update_inode(inode, inumber);
+	fs->update_inode(dir_inode, vfs_ino->i_inode);
 	
 	if(ext2_add_direntry(name, inumber, inode, dir_inode, fs) < 0)
 	{
@@ -373,7 +381,7 @@ unlink_ino:
 	free(ino);
 free_ino_error:
 	free(inode);
-	ext2_free_inode(inumber, fs);
+	fs->free_block(inumber);
 
 	return nullptr;
 }
@@ -407,7 +415,7 @@ int ext2_flush_inode(struct inode *inode)
 	ino->mode = inode->i_mode;
 	ino->uid = inode->i_uid;
 
-	ext2_update_inode(ino, fs, (uint32_t) inode->i_inode);
+	fs->update_inode(ino, (ext2_inode_no) inode->i_inode);
 
 	return 0;
 }
@@ -429,13 +437,10 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 		return nullptr;
 
 	struct inode *root_inode = nullptr;
-	struct ext2_inode *disk_root_ino = nullptr;
 	unsigned int block_size = 0;
 	unsigned long superblock_block = 0;
 	unsigned long sb_off = 0;
 	unsigned long entries = 0;
-	block_group_desc_t *bgdt = nullptr;
-	size_t blocks_for_bgdt = 0;
 
 	dev->sb = sb;
 
@@ -446,13 +451,11 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 
 	superblock_t *ext2_sb = (superblock_t *) block_buf_data(b);
 	
-	ext2_sb->ext2sig = EXT2_SIGNATURE;
-
-	if(ext2_sb->ext2sig == EXT2_SIGNATURE)
+	if(ext2_sb->s_magic == EXT2_SIGNATURE)
 		LOG("ext2", "valid ext2 signature detected!\n");
 	else
 	{
-		ERROR("ext2", "invalid ext2 signature %x\n", ext2_sb->ext2sig);
+		ERROR("ext2", "invalid ext2 signature %x\n", ext2_sb->s_magic);
 		errno = EINVAL;
 		block_buf_put(b);
 		goto error;
@@ -460,7 +463,7 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 
 	block_buf_dirty(b);
 
-	block_size = 1024 << ext2_sb->log2blocksz;
+	block_size = 1024 << ext2_sb->s_log_block_size;
 
 	if(block_size > MAX_BLOCK_SIZE)
 	{
@@ -489,23 +492,18 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 
 	ext2_sb = (superblock_t *)((char *) block_buf_data(b) + sb_off);
 
-	mutex_init(&sb->bgdt_lock);
-	mutex_init(&sb->ino_alloc_lock);
-	mutex_init(&sb->sb_lock);
-
 	sb->s_devnr = sb->s_bdev->dev->majorminor;
 	sb->sb_bb = b;
 	sb->sb = ext2_sb;
-	sb->major = ext2_sb->major_version;
-	sb->minor = ext2_sb->minor_version;
-	sb->total_inodes = ext2_sb->total_inodes;
-	sb->total_blocks = ext2_sb->total_blocks;
+	sb->major = ext2_sb->s_rev_level;
+	sb->minor = ext2_sb->s_minor_rev_level;
+	sb->total_inodes = ext2_sb->s_inodes_count;
+	sb->total_blocks = ext2_sb->s_blocks_count;
 	sb->block_size = block_size;
-	sb->frag_size = 1024 << ext2_sb->log2fragsz;
-	sb->inode_size = ext2_sb->size_inode_bytes;
-	sb->blkdevice = dev;
-	sb->blocks_per_block_group = ext2_sb->blockgroupblocks;
-	sb->inodes_per_block_group = ext2_sb->blockgroupinodes;
+	sb->frag_size = 1024 << ext2_sb->s_log_frag_size;
+	sb->inode_size = ext2_sb->s_inode_size;
+	sb->blocks_per_block_group = ext2_sb->s_blocks_per_group;
+	sb->inodes_per_block_group = ext2_sb->s_inodes_per_group;
 	sb->number_of_block_groups = sb->total_blocks / sb->blocks_per_block_group;
 	entries = sb->block_size / sizeof(uint32_t);
 	sb->entry_shift = 31 - __builtin_clz(entries);
@@ -519,29 +517,20 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 		goto error;
 	}
 
-	blocks_for_bgdt = (sb->number_of_block_groups *
-		sizeof(block_group_desc_t)) / sb->block_size;
-
-	if((sb->number_of_block_groups * sizeof(block_group_desc_t)) % sb->block_size)
-		blocks_for_bgdt++;
-	if(sb->block_size == 1024)
-		bgdt = (block_group_desc_t *) ext2_read_block(2, (uint16_t) blocks_for_bgdt, sb);
-	else
-		bgdt = (block_group_desc_t *) ext2_read_block(1, (uint16_t) blocks_for_bgdt, sb);
-	sb->bgdt = bgdt;
-
-	disk_root_ino = ext2_get_inode_from_number(sb, 2);
-	if(!disk_root_ino)
+	for(unsigned int i = 0; i < sb->number_of_block_groups; i++)
 	{
-		goto error;
+		ext2_block_group bg{i};
+		if(!bg.init(sb))
+			goto error;
+
+		if(!sb->block_groups.push_back(cul::move(bg)))
+			goto error;
 	}
 
-	root_inode = ext2_fs_ino_to_vfs_ino(disk_root_ino, 2, sb);
+
+	root_inode = ext2_load_inode_from_disk(2, sb);
 	if(!root_inode)
-	{
-		free(disk_root_ino);
 		goto error;
-	}
 
 	superblock_add_inode(sb, root_inode);
 	sb->flush_inode = ext2_flush_inode;
@@ -554,9 +543,7 @@ error:
 	if(b)   block_buf_put(b);
 	if(sb)
 	{
-		if(sb->zero_block)
-			free(sb->zero_block);
-		
+		free(sb->zero_block);
 		free(sb);
 	}
 
@@ -623,10 +610,24 @@ struct inode *ext2_mkdir(const char *name, mode_t mode, struct dentry *dir)
 	struct ext2_superblock *fs = ext2_superblock_from_inode(dir->d_inode);
 
 	uint32_t inum = (uint32_t) new_dir->i_inode;
-	uint32_t bg = inum / fs->inodes_per_block_group;
 
-	fs->bgdt[bg].used_dirs_count++;
-	ext2_register_bgdt_changes(fs);
+	fs->block_groups[ext2_inode_number_to_bg(inum, fs)].inc_used_dirs();
 
 	return new_dir;
+}
+
+void ext2_superblock::error(const char *str) const
+{
+	printk("ext2_error: %s\n", str);
+
+	sb->s_state = EXT2_ERROR_FS;
+	block_buf_dirty(sb_bb);
+	block_buf_writeback(sb_bb);
+
+	if(sb->s_errors == EXT2_ERRORS_CONTINUE)
+		return;
+	else if(sb->s_errors == EXT2_ERRORS_PANIC)
+		panic("ext2: Panic from previous filesystem error");
+	
+	/* TODO: Add (re)mouting read-only */
 }

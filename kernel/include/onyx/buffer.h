@@ -50,8 +50,9 @@ extern "C" {
 struct superblock;
 
 struct block_buf *page_add_blockbuf(struct page *page, unsigned int page_off);
-struct block_buf *sb_read_block(struct superblock *sb, unsigned long block);
+struct block_buf *sb_read_block(const struct superblock *sb, unsigned long block);
 void block_buf_free(struct block_buf *buf);
+void block_buf_writeback(struct block_buf *buf);
 struct page *bbuffer_commit(size_t off, struct vm_object *vmo);
 void block_buf_dirty(struct block_buf *buf);
 
@@ -77,6 +78,102 @@ static inline void *block_buf_data(struct block_buf *b)
 
 #ifdef __cplusplus
 }
+
+class auto_block_buf
+{
+private:
+	block_buf *buf;
+public:
+	auto_block_buf() : buf{nullptr} {}
+	auto_block_buf(block_buf *b) : buf{b} {}
+
+	void unref() const
+	{
+		block_buf_put(buf);
+	}
+
+	void ref() const
+	{
+		block_buf_get(buf);
+	}
+
+	block_buf *release()
+	{
+		auto ret = buf;
+		buf = nullptr;
+		return ret;
+	}
+
+	void reset(block_buf *b)
+	{
+		if(buf)
+			unref();
+		buf = b;
+	}
+
+	auto_block_buf& operator=(auto_block_buf&& rhs)
+	{
+		if(this != &rhs)
+			reset(rhs.release());
+		return *this; 
+	}
+
+	auto_block_buf(auto_block_buf&& rhs)
+	{
+		if(this != &rhs)
+		{
+			buf = nullptr;
+			reset(rhs.release());
+		}
+	}
+
+	auto_block_buf& operator=(const auto_block_buf& rhs)
+	{
+		auto b = rhs.buf;
+
+		if(this == &rhs)
+			return *this;
+
+		if(b)
+			block_buf_get(b);
+
+		reset(b);
+
+		return *this;
+	}
+
+	auto_block_buf(const auto_block_buf& rhs)
+	{
+		auto b = rhs.buf;
+
+		if(this == &rhs)
+			return;
+
+		if(b)
+			block_buf_get(b);
+
+		reset(b);
+
+		return;
+	}
+
+	~auto_block_buf()
+	{
+		if(buf)
+			unref();
+	}
+
+	operator bool() const
+	{
+		return buf != nullptr;
+	}
+
+	operator block_buf *() const
+	{
+		return buf;
+	}
+};
+
 #endif
 
 #endif

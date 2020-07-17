@@ -202,6 +202,16 @@ public:
 		return data[idx];
 	}
 
+	const T& operator[](unsigned long idx) const
+	{
+		if(idx >= nr_elems)
+		{
+			panic_bounds_check(this, true, idx);
+		}
+
+		return data[idx];
+	}
+
 	size_t size() const
 	{
 		return nr_elems;
