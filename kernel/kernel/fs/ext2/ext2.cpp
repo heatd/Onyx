@@ -520,6 +520,14 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 
 	ext2_sb = (superblock_t *)((char *) block_buf_data(b) + sb_off);
 
+	if(ext2_sb->s_feature_incompat & ~EXT2_SUPPORTED_INCOMPAT)
+	{
+		ERROR("ext2", "couldn't mount: unsupported filesystem features");
+		goto error;
+	}
+
+
+
 	sb->s_devnr = sb->s_bdev->dev->majorminor;
 	sb->sb_bb = b;
 	sb->sb = ext2_sb;

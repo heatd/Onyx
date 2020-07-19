@@ -536,4 +536,7 @@ __atomic_add_fetch(&var, num, __ATOMIC_RELAXED)
 #define EXT2_ATOMIC_SUB(var, num)    \
 __atomic_sub_fetch(&var, num, __ATOMIC_RELAXED)
 
+
+#define EXT2_SUPPORTED_INCOMPAT   EXT2_FEATURE_INCOMPAT_FILETYPE
+
 #endif
