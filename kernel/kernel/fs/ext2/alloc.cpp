@@ -71,8 +71,10 @@ ext2_block_no ext2_superblock::try_allocate_block_from_bg(ext2_block_group_no nr
 		return EXT2_ERR_INV_BLOCK;
 
 	auto res = bg.allocate_block(this);
-	
+
+#if 0	
 	printk("Allocated block %u from bg %u\n", res.value_or(EXT2_ERR_INV_BLOCK), nr);
+#endif
 	return res.value_or(EXT2_ERR_INV_BLOCK);
 }
 

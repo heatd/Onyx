@@ -83,7 +83,7 @@
 #define EXT3_JOURNAL_DATA_FL             0x4000
 #define EXT2_RESERVED_FL                 0x80000000
 
-/* Filetype flags that are stored in the directory entries */
+/* File type flags that are stored in the directory entries */
 #define EXT2_FT_UNKNOWN         0
 #define EXT2_FT_REG_FILE        1
 #define EXT2_FT_DIR             2
@@ -162,6 +162,8 @@ typedef struct
 #define EXT2_DIND_BLOCK    13
 #define EXT2_TIND_BLOCK    14
 #define EXT2_NR_BLOCKS     15
+
+#define EXT2_GOOD_OLD_INODE_SIZE 128
 struct ext2_inode
 {
 	uint16_t mode;
@@ -361,12 +363,14 @@ struct ext2_superblock : public superblock
 	uint32_t total_inodes;
 	uint32_t total_blocks;
 	uint32_t block_size;
+	uint32_t features_compat;
+	uint32_t features_incompat;
+	uint32_t features_ro_compat;
 	uint32_t frag_size;
 	uint32_t blocks_per_block_group;
 	uint32_t inodes_per_block_group;
 	uint32_t number_of_block_groups;
 	uint16_t inode_size;
-	void *zero_block; /* A pointer to a zero'd block of memory with size 'block_size' */
 	unsigned int entry_shift;
 	cul::vector<ext2_block_group> block_groups;
 

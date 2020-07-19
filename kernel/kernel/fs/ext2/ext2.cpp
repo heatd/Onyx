@@ -105,7 +105,9 @@ ssize_t ext2_writepage(page *page, size_t off, inode *ino)
 		v->page = buf->this_page;
 		v->page_off = buf->page_off;
 
+	#if 0
 		printk("Writing to block %lu\n", buf->block_nr);
+	#endif
 
 		if(sb_write_bio(sb, v, 1, buf->block_nr) < 0)
 		{
@@ -520,13 +522,25 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 
 	ext2_sb = (superblock_t *)((char *) block_buf_data(b) + sb_off);
 
-	if(ext2_sb->s_feature_incompat & ~EXT2_SUPPORTED_INCOMPAT)
+	if(ext2_sb->s_rev_level == EXT2_DYNAMIC_REV)
 	{
-		ERROR("ext2", "couldn't mount: unsupported filesystem features");
+		sb->features_compat = ext2_sb->s_feature_compat;
+		sb->features_incompat = ext2_sb->s_feature_incompat;
+		sb->features_ro_compat = ext2_sb->s_feature_ro_compat;
+		sb->inode_size = ext2_sb->s_inode_size;
+	}
+	else if(ext2_sb->s_rev_level == EXT2_GOOD_OLD_REV)
+	{
+		sb->features_compat = 0;
+		sb->features_incompat = 0;
+		sb->features_ro_compat = 0;
+		sb->inode_size = EXT2_GOOD_OLD_INODE_SIZE;
+	}
+	else
+	{
+		ERROR("ext2", "couldn't mount: Unknown revision level");
 		goto error;
 	}
-
-
 
 	sb->s_devnr = sb->s_bdev->dev->majorminor;
 	sb->sb_bb = b;
@@ -546,12 +560,6 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 
 	if (sb->total_blocks % sb->blocks_per_block_group)
 		sb->number_of_block_groups++;
-	/* The driver keeps a block sized zero'd mem chunk for easy and fast overwriting of blocks */
-	sb->zero_block = zalloc(sb->block_size);
-	if(!sb->zero_block)
-	{
-		goto error;
-	}
 
 	for(unsigned int i = 0; i < sb->number_of_block_groups; i++)
 	{
@@ -584,7 +592,6 @@ error:
 	if(b)   block_buf_put(b);
 	if(sb)
 	{
-		free(sb->zero_block);
 		free(sb);
 	}
 
