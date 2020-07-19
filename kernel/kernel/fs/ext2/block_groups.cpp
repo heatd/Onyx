@@ -50,8 +50,10 @@ expected<ext2_inode_no, int> ext2_block_group::allocate_inode(ext2_superblock *s
 	if(bit == SCAN_ZERO_NOT_FOUND)
 		return unexpected{-ENOSPC};
 
+	static constexpr auto bits_per_long = WORD_SIZE * CHAR_BIT;
+
 	/* Set the corresponding bit */
-	bitmap[bit / WORD_SIZE] |= (1 << (bit % WORD_SIZE));
+	bitmap[bit / bits_per_long] |= (1 << (bit % bits_per_long));
 	/* Change the block group and superblock
 	   structures in order to reflect it */
 
@@ -90,8 +92,13 @@ expected<ext2_inode_no, int> ext2_block_group::allocate_block(ext2_superblock *s
 	if(bit == SCAN_ZERO_NOT_FOUND)
 		return unexpected{-ENOSPC};
 
+	static constexpr auto bits_per_long = WORD_SIZE * CHAR_BIT;
+
 	/* Set the corresponding bit */
-	bitmap[bit / WORD_SIZE] |= (1 << (bit % WORD_SIZE));
+	bitmap[bit / bits_per_long] |= (1 << (bit % bits_per_long));
+
+	assert(ext2_scan_zero(bitmap, sb->s_block_size) != bit);
+
 	/* Change the block group and superblock
 	   structures in order to reflect it */
 
@@ -143,7 +150,8 @@ void ext2_block_group::free_block(ext2_inode_no inode, ext2_superblock *sb)
 	inc_unallocated_blocks();
 
 	EXT2_ATOMIC_ADD(sb->sb->s_free_blocks_count, 1);
-	block_buf_dirty(sb->sb_bb);
+
+	ext2_dirty_sb(sb);
 }
 
 void ext2_block_group::free_inode(ext2_inode_no inode, ext2_superblock *sb)
@@ -179,7 +187,8 @@ void ext2_block_group::free_inode(ext2_inode_no inode, ext2_superblock *sb)
 	inc_unallocated_inodes();
 
 	EXT2_ATOMIC_ADD(sb->sb->s_free_inodes_count, 1);
-	block_buf_dirty(sb->sb_bb);
+
+	ext2_dirty_sb(sb);
 }
 
 auto_block_buf ext2_block_group::get_inode_table(const ext2_superblock *sb, uint32_t off) const

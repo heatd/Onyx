@@ -42,6 +42,8 @@ expected<cul::pair<ext2_inode_no, ext2_inode *>, int> ext2_superblock::allocate_
 
 				memset(ino, 0, inode_size);
 
+				update_inode(ino, res.value());
+
 				return cul::pair{res.value(), ino};
 			}
 		}
@@ -68,7 +70,10 @@ ext2_block_no ext2_superblock::try_allocate_block_from_bg(ext2_block_group_no nr
 	if(bg.get_bgd()->unallocated_blocks_in_group == 0)
 		return EXT2_ERR_INV_BLOCK;
 
-	return bg.allocate_block(this);
+	auto res = bg.allocate_block(this);
+	
+	printk("Allocated block %u from bg %u\n", res.value_or(EXT2_ERR_INV_BLOCK), nr);
+	return res.value_or(EXT2_ERR_INV_BLOCK);
 }
 
 ext2_block_no ext2_superblock::allocate_block(ext2_block_group_no preferred)

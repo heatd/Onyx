@@ -90,11 +90,3 @@ int spin_try_lock(struct spinlock *lock)
 	post_lock_actions(lock);
 	return 0;
 }
-
-void spinlock_init(struct spinlock *s)
-{
-	s->holder = 0xDEADCAFEDEADCAFE;
-	s->lock = 0;
-	s->old_flags = 0;
-	s->owner_cpu = 0;
-}

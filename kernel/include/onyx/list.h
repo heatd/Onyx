@@ -49,7 +49,7 @@ public:
 #define DEFINE_LIST(name) \
 	struct list_head name = LIST_HEAD_INIT(name);
 
-static inline void INIT_LIST_HEAD(struct list_head *lh)
+CONSTEXPR static inline void INIT_LIST_HEAD(struct list_head *lh)
 {
 	lh->prev = lh;
 	lh->next = lh;

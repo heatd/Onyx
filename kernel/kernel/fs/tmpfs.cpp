@@ -169,6 +169,11 @@ off_t tmpfs_getdirent(struct dirent *buf, off_t off, struct file *file)
 	return off + 1;
 }
 
+int tmpfs_prepare_write(inode *ino, struct page *page, size_t page_off, size_t offset, size_t len)
+{
+	return 0;
+}
+
 struct file_ops tmpfs_fops = 
 {
 	.read = nullptr,
@@ -191,7 +196,8 @@ struct file_ops tmpfs_fops =
 	.unlink = tmpfs_unlink,
 	.fallocate = nullptr,
 	.readpage = tmpfs_readpage,
-	.writepage = tmpfs_writepage
+	.writepage = tmpfs_writepage,
+	.prepare_write = tmpfs_prepare_write
 };
 
 tmpfs_inode *tmpfs_superblock::create_inode(mode_t mode, dev_t rdev)

@@ -40,6 +40,7 @@ struct block_buf
 };
 
 #define BLOCKBUF_FLAG_DIRTY          (1 << 0)
+#define BLOCKBUF_FLAG_UNDER_WB       (1 << 1)
 
 #define MAX_BLOCK_SIZE				PAGE_SIZE
 
@@ -55,6 +56,8 @@ void block_buf_free(struct block_buf *buf);
 void block_buf_writeback(struct block_buf *buf);
 struct page *bbuffer_commit(size_t off, struct vm_object *vmo);
 void block_buf_dirty(struct block_buf *buf);
+struct block_buf *block_buf_from_page(struct page *p);
+void page_destroy_block_bufs(struct page *page);
 
 static inline void block_buf_get(struct block_buf *buf)
 {

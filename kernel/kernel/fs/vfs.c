@@ -432,7 +432,12 @@ bool inode_is_cacheable(struct inode *ino)
 {
 	if(ino->i_flags & INODE_FLAG_DONT_CACHE)
 		return false;
-	if(ino->i_type != VFS_TYPE_FILE)
+	
+	/* TODO: Find a better solution here. Set a flag for when the inode has a cache maybe?
+	 * Or use the .read and .write function pointers.
+	 */
+
+	if(ino->i_type != VFS_TYPE_FILE && ino->i_type != VFS_TYPE_DIR && ino->i_type != VFS_TYPE_SYMLINK)
 		return false;
 
 	return true;
@@ -547,10 +552,10 @@ int fallocate_vfs(int mode, off_t offset, off_t len, struct file *file)
 	return -EINVAL;
 }
 
-int inode_init(struct inode *inode, bool is_reg)
+int inode_init(struct inode *inode, bool is_cached)
 {
 	inode->i_refc = 1;
-	if(is_reg)
+	if(is_cached)
 	{
 		if(inode_create_vmo(inode) < 0)
 		{
@@ -561,14 +566,14 @@ int inode_init(struct inode *inode, bool is_reg)
 	return 0;
 }
 
-struct inode *inode_create(bool is_reg)
+struct inode *inode_create(bool is_cached)
 {
 	struct inode *inode = zalloc(sizeof(*inode));
 
 	if(!inode)
 		return NULL;
 
-	if(inode_init(inode, is_reg) < 0)
+	if(inode_init(inode, is_cached) < 0)
 	{
 		free(inode);
 		return NULL;

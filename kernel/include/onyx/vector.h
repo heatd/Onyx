@@ -31,11 +31,11 @@ private:
 	unsigned long nr_elems;
 	unsigned long log;
 
-	void setup_expansion(size_t new_nr_elems)
+	void setup_expansion(T *d, size_t new_nr_elems)
 	{
-		for(size_t i = nr_elems; i < new_nr_elems; i++)
+		for(size_t i = 0; i < new_nr_elems; i++)
 		{
-			new (data + i) T{};
+			new (d + i) T{};
 		}
 	}
 
@@ -43,13 +43,20 @@ private:
 	{
 		size_t new_buf_elems = 1 << log;
 		size_t new_buffer_size = new_buf_elems * sizeof(T);
-		T *new_data = reinterpret_cast<T*>(realloc((void *) data,
-						   new_buffer_size));
+		T *new_data = reinterpret_cast<T*>(malloc(new_buffer_size));
 		if(!new_data)
 			return false;
+		
+		setup_expansion(new_data, new_buf_elems);
+
+		for(size_t i = 0; i < nr_elems; i++)
+			new_data[i] = cul::move(data[i]);
+
 		log++;
+
+		free(data);
+
 		data = new_data;
-		setup_expansion(new_buf_elems);
 		buffer_size = new_buf_elems;
 		return true;
 	}

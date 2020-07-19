@@ -8,21 +8,13 @@
 
 #include <stdint.h>
 #include <stddef.h>
+
+#include <onyx/utils.h>
+
 typedef uint32_t fnv_hash_t;
 
 #define FNV_PRIME 		16777619
 #define FNV_OFFSET_BASIS 	2166136261
-
-
-#ifdef __cplusplus
-/* Handy define for the functions below, which can totally be constexpr in C++ */
-#define CONSTEXPR constexpr
-
-#else
-
-#define CONSTEXPR
-
-#endif
 
 CONSTEXPR static inline fnv_hash_t __fnv_hash(const uint8_t *data, size_t size)
 {

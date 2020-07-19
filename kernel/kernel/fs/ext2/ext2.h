@@ -157,6 +157,11 @@ typedef struct
 	uint16_t used_dirs_count;
 } __attribute__((aligned(32))) block_group_desc_t;
 
+#define EXT2_DBLOCKS       12
+#define EXT2_IND_BLOCK     12
+#define EXT2_DIND_BLOCK    13
+#define EXT2_TIND_BLOCK    14
+#define EXT2_NR_BLOCKS     15
 struct ext2_inode
 {
 	uint16_t mode;
@@ -171,14 +176,11 @@ struct ext2_inode
 	uint32_t i_blocks;
 	uint32_t flags;
 	uint32_t os_spec;
-	uint32_t dbp[12];
-	uint32_t single_indirect_bp;
-	uint32_t doubly_indirect_bp;
-	uint32_t trebly_indirect_bp;
-	uint32_t gen_number;
-	uint32_t file_acl;
+	uint32_t i_data[EXT2_NR_BLOCKS];
+	uint32_t i_generation;
+	uint32_t i_file_acl;
 	uint32_t size_hi;
-	uint32_t block_address_frag;
+	uint32_t i_faddr;
 	uint32_t os_spec_val[3];
 };
 
@@ -202,7 +204,7 @@ class ext2_block_group
 private:
 	block_group_desc_t *bgd{};
 	auto_block_buf buf{};
-	const ext2_block_group_no nr;
+	ext2_block_group_no nr;
 	mutex inode_bitmap_lock{};
 	mutex block_bitmap_lock{};
 
@@ -212,7 +214,9 @@ public:
 
 	ext2_block_group() : buf{}, nr{(ext2_block_group_no) -1}
 	{
-
+		mutex_init(&inode_bitmap_lock);
+		mutex_init(&block_bitmap_lock);
+		spinlock_init(&lock_);
 	}
 
 	ext2_block_group(ext2_block_group_no nr_) : nr{nr_}
@@ -229,6 +233,9 @@ public:
 
 		bgd = rhs.bgd;
 		buf = cul::move(rhs.buf);
+		nr = cul::move(rhs.nr);
+		mutex_init(&inode_bitmap_lock);
+		mutex_init(&block_bitmap_lock);
 
 		rhs.bgd = nullptr;
 		rhs.buf = nullptr;
@@ -243,6 +250,9 @@ public:
 
 		bgd = rhs.bgd;
 		buf = cul::move(rhs.buf);
+		nr = cul::move(rhs.nr);
+		mutex_init(&inode_bitmap_lock);
+		mutex_init(&block_bitmap_lock);
 
 		rhs.bgd = nullptr;
 		rhs.buf = nullptr;
@@ -378,6 +388,8 @@ public:
 	ext2_inode *get_inode(ext2_inode_no nr) const;
 	void update_inode(ext2_inode *ino, ext2_inode_no inode_no);
 
+	int read_blocks(ext2_block_no block, ext2_block_no number_of_blocks, auto_block_buf *bufs);
+
 };
 
 struct ext2_inode_info
@@ -400,35 +412,27 @@ static inline struct ext2_inode *ext2_get_inode_from_node(struct inode *ino)
 #define EXT2_DIRECT_BLOCK_COUNT		12	
 
 #define EXT2_ERR_INV_BLOCK		0
+#define EXT2_FILE_HOLE_BLOCK    0
 
 #define EXT2_GET_FILE_TYPE(mode) (mode & 0xE000)
 #define EXT2_CALCULATE_SIZE64(ino) (((uint64_t)ino->size_hi << 32) | ino->size_lo)
 
 extern const unsigned int direct_block_count;
 
-void *ext2_read_block(uint32_t block_index, uint16_t blocks, struct ext2_superblock *fs);
-void ext2_read_block_raw(uint32_t block_index, uint16_t blocks, struct ext2_superblock *fs,
-	void *buffer);
-void ext2_write_block(uint32_t block_index, uint16_t blocks, struct ext2_superblock *fs,
-	void *buffer);
-ssize_t ext2_read_inode(struct ext2_inode *ino, struct ext2_superblock *fs,
-	size_t size, off_t off, char *buffer);
-ssize_t ext2_write_inode(struct ext2_inode *ino, struct ext2_superblock *fs,
-	size_t size, off_t off, char *buffer);
-void ext2_dirty_sb(struct ext2_superblock *fs);
+void ext2_dirty_sb(ext2_superblock *fs);
 unsigned int ext2_detect_block_type(uint32_t block, struct ext2_superblock *fs);
 int ext2_add_block_to_inode(struct ext2_inode *inode, uint32_t block,
 	uint32_t block_index, struct ext2_superblock *fs);
 void ext2_set_inode_size(struct ext2_inode *inode, size_t size);
-char *ext2_read_symlink(struct ext2_inode *ino, struct ext2_superblock *fs);
-int ext2_add_direntry(const char *name, uint32_t inum, struct ext2_inode *inode,
-	struct ext2_inode *dir, struct ext2_superblock *fs);
-int ext2_remove_direntry(uint32_t inum, struct ext2_inode *dir, struct ext2_superblock *fs);
+int ext2_add_direntry(const char *name, uint32_t inum, ext2_inode *raw_ino,
+	inode *dir, ext2_superblock *fs);
+int ext2_remove_direntry(uint32_t inum, inode *dir, ext2_superblock *fs);
 
 int ext2_ino_type_to_vfs_type(uint16_t mode);
 uint16_t ext2_mode_to_ino_type(mode_t mode);
 struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber, ext2_superblock *fs);
 void ext2_free_inode_space(struct ext2_inode *inode, struct ext2_superblock *fs);
+expected<ext2_block_no, int> ext2_get_block_from_inode(ext2_inode *ino, ext2_block_no block, ext2_superblock *sb);
 
 struct ext2_dirent_result
 {
@@ -437,24 +441,27 @@ struct ext2_dirent_result
 	char *buf;
 };
 
-int ext2_retrieve_dirent(struct ext2_inode *inode, const char *name, struct ext2_superblock *fs,
-			 struct ext2_dirent_result *res);
+int ext2_retrieve_dirent(inode *inode, const char *name, ext2_superblock *sb,
+			ext2_dirent_result *res);
 
-struct inode *ext2_load_inode_from_disk(uint32_t inum, struct ext2_superblock *fs);
+struct inode *ext2_load_inode_from_disk(uint32_t inum, ext2_superblock *fs);
 
-static inline ext2_superblock *ext2_superblock_from_inode(struct inode *ino)
+static inline ext2_superblock *ext2_superblock_from_inode(inode *ino)
 {
 	return (ext2_superblock *) ino->i_sb;
 }
 
-#define WORD_SIZE           (sizeof(unsigned long) / CHAR_BIT)
+#define WORD_SIZE           sizeof(unsigned long)
 typedef uint8_t __attribute__((__may_alias__)) __bitmap_byte;
 
 #define SCAN_ZERO_NOT_FOUND			~0UL
 
+#include <stdio.h>
+
 inline unsigned long ext2_scan_zero(unsigned long *bitmap, unsigned long size)
 {
 	size_t nr_words = size / WORD_SIZE;
+	static constexpr auto bits_per_long = WORD_SIZE * CHAR_BIT;
 
 	/* I don't believe we need to handle trailing bytes here, since block sizes are
 	 * pretty much guaranteed to be word aligned.
@@ -463,19 +470,27 @@ inline unsigned long ext2_scan_zero(unsigned long *bitmap, unsigned long size)
 	size_t trailing_bytes = size % WORD_SIZE;
 #endif
 
+#if 0
+	printk("Nr words: %lu\n", size);
+#endif
+
 	for(unsigned long i = 0; i < nr_words; i++)
 	{
 		if(bitmap[i] == ~0UL)
 			continue;
 		
 		if(bitmap[i] == 0)
-			return i * nr_words;
+			return i * bits_per_long;
 		else
 		{
 			/* We're going to have to use builtin_clz here */
-			unsigned int first_bit_unset = __builtin_clzl(bitmap[i]);
+			unsigned int first_bit_unset = __builtin_ffs(~bitmap[i]) - 1;
 
-			return i * nr_words + first_bit_unset;
+		#if 0
+			printk("First bit unset: %u\n", first_bit_unset);
+		#endif
+
+			return i * bits_per_long + first_bit_unset;
 		}
 	}
 

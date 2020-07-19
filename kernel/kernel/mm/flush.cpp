@@ -113,6 +113,7 @@ bool flush_dev::add_buf(struct flush_object *obj)
 	if(called_from_sync())
 	{
 		obj->ops->flush(obj);
+		obj->ops->set_dirty(false, obj);
 		return false;
 	}
 

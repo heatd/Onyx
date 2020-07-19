@@ -34,6 +34,16 @@ Type min(Type t1, Type t2)
 
 #endif
 
+#ifdef __cplusplus
+/* Handy define for functions that can totally be constexpr in C++ */
+#define CONSTEXPR constexpr
+
+#else
+
+#define CONSTEXPR
+
+#endif
+
 #define __stringify(str) #str
 #define stringify(str)   __stringify(str)
 

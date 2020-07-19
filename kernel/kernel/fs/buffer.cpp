@@ -10,6 +10,7 @@
 #include <onyx/buffer.h>
 #include <onyx/mm/pool.hpp>
 #include <onyx/mm/flush.h>
+#include <onyx/cpu.h>
 
 memory_pool<block_buf, false> block_buf_pool;
 
@@ -44,9 +45,15 @@ ssize_t block_buf_flush(flush_object *fo)
 
 	r.vec = &vec;
 
+	__atomic_fetch_or(&buf->flags, BLOCKBUF_FLAG_UNDER_WB, __ATOMIC_RELAXED);
+	__atomic_fetch_or(&vec.page->flags, PAGE_FLAG_FLUSHING, __ATOMIC_RELAXED);
+
 	if(bio_submit_request(buf->dev, &r) < 0)
 		return -EIO;
-	
+#if 0
+	printk("Flushed #%lu.\n", buf->block_nr);
+#endif
+
 	return buf->block_size;
 }
 
@@ -55,6 +62,12 @@ bool block_buf_is_dirty(flush_object *fo)
 	auto buf = block_buf_from_flush_obj(fo);
 
 	return buf->flags & BLOCKBUF_FLAG_DIRTY;
+}
+
+extern "C"
+block_buf *block_buf_from_page(struct page *p)
+{
+	return reinterpret_cast<block_buf *>(p->priv);
 }
 
 bool page_has_dirty_bufs(struct page *p)
@@ -83,8 +96,11 @@ static void block_buf_set_dirty(bool dirty, flush_object *fo)
 
 	if(dirty)
 	{
-		unsigned long old_flags = __sync_fetch_and_or(&buf->flags, BLOCKBUF_FLAG_DIRTY);
-		__sync_fetch_and_or(&page->flags, PAGE_FLAG_DIRTY);
+		while(buf->flags & BLOCKBUF_FLAG_UNDER_WB)
+			cpu_relax();
+
+		unsigned long old_flags = __atomic_fetch_or(&buf->flags, BLOCKBUF_FLAG_DIRTY, __ATOMIC_RELAXED);
+		__atomic_fetch_or(&page->flags, PAGE_FLAG_DIRTY, __ATOMIC_RELAXED);
 
 		if(!(old_flags & BLOCKBUF_FLAG_DIRTY))
 		{
@@ -93,9 +109,13 @@ static void block_buf_set_dirty(bool dirty, flush_object *fo)
 	}
 	else
 	{
-		__sync_fetch_and_and(&buf->flags, ~BLOCKBUF_FLAG_DIRTY);
+
+	#if 0
+		printk("unset dirty block #%lu\n", buf->block_nr);
+	#endif
+		__atomic_and_fetch(&buf->flags, ~(BLOCKBUF_FLAG_DIRTY | BLOCKBUF_FLAG_UNDER_WB), __ATOMIC_RELAXED);
 		if(!page_has_dirty_bufs(page))
-			__sync_fetch_and_and(&page->flags, ~PAGE_FLAG_DIRTY);
+			__atomic_and_fetch(&page->flags, ~(PAGE_FLAG_DIRTY | PAGE_FLAG_FLUSHING), __ATOMIC_RELAXED);
 	}
 }
 
@@ -114,6 +134,7 @@ extern "C" struct block_buf *page_add_blockbuf(struct page *page, unsigned int p
 	buf->next = nullptr;
 	buf->flush_obj.ops = &blockbuf_fops;
 	buf->refc = 1;
+	buf->flags = 0;
 
 	/* It's better to do this naively using O(n) as to keep memory usage per-struct page low. */
 	block_buf **pp = reinterpret_cast<block_buf **>(&page->priv);
@@ -161,7 +182,8 @@ extern "C" void block_buf_free(struct block_buf *buf)
 	block_buf_pool.free(buf);
 }
 
-static void page_destroy_block_bufs(struct page *page)
+extern "C"
+void page_destroy_block_bufs(struct page *page)
 {
 	auto b = reinterpret_cast<block_buf *>(page->priv);
 

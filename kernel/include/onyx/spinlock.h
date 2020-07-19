@@ -11,6 +11,7 @@
 
 #include <onyx/smp.h>
 #include <onyx/x86/irq.h>
+#include <onyx/utils.h>
 
 struct spinlock
 {
@@ -32,7 +33,15 @@ void spin_unlock(struct spinlock *lock);
 void spin_lock_preempt(struct spinlock *lock);
 void spin_unlock_preempt(struct spinlock *lock);
 int spin_try_lock(struct spinlock *lock);
-void spinlock_init(struct spinlock *s);
+
+CONSTEXPR static inline void spinlock_init(struct spinlock *s)
+{
+	s->holder = 0xDEADCAFEDEADCAFE;
+	s->lock = 0;
+	s->old_flags = 0;
+	s->owner_cpu = 0;
+}
+
 
 static inline void spin_lock_irqsave(struct spinlock *lock)
 {

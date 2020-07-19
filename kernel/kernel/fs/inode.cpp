@@ -46,6 +46,7 @@ struct page_cache_block *inode_get_cache_block(struct inode *ino, size_t off, lo
 		struct page *p = alloc_page(0);
 		if(!p)
 			return nullptr;
+		p->flags = PAGE_FLAG_BUFFER;
 
 		auto block = pagecache_create_cache_block(p, PAGE_SIZE, off, ino);
 		if(!block)
@@ -114,6 +115,14 @@ ssize_t file_write_cache(void *buffer, size_t len, struct inode *ino, size_t off
 		auto rest = PAGE_SIZE - cache_off;
 
 		auto amount = len - wrote < rest ? len - wrote : rest;
+		size_t aligned_off = offset & ~(PAGE_SIZE - 1);
+
+		if(int st = ino->i_fops->prepare_write(ino, page, aligned_off, cache_off, amount); st < 0)
+		{
+			page_unpin(page);
+			errno = -st;
+			return -1;
+		}
 
 		if(copy_from_user((char *) cache->buffer + cache_off, (char*) buffer +
 			wrote, amount) < 0)

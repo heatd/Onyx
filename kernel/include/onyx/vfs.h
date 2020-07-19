@@ -69,6 +69,8 @@ struct file_ops
 	int (*fallocate)(int mode, off_t offset, off_t len, struct file *node);
 	ssize_t (*readpage)(struct page *page, size_t offset, struct inode *ino);
 	ssize_t (*writepage)(struct page *page, size_t offset, struct inode *ino);
+	int (*prepare_write)(struct inode *ino, struct page *page, size_t page_off, size_t offset, size_t len);
+
 };
 
 struct getdents_ret
@@ -192,7 +194,7 @@ int mount_fs(struct inode *node, const char *mp);
 
 int vfs_init(void);
 
-struct inode *inode_create(bool is_regular_file);
+struct inode *inode_create(bool is_cached);
 
 struct file *get_fs_root(void);
 

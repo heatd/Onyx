@@ -10,6 +10,10 @@
 
 #include <onyx/scheduler.h>
 #include <onyx/list.h>
+#include <onyx/utils.h>
+
+struct mutex;
+CONSTEXPR static inline void mutex_init(struct mutex *mutex);
 
 struct mutex
 {
@@ -17,15 +21,37 @@ struct mutex
 	struct list_head thread_list;
 	unsigned long counter;
 	struct thread *owner;
+
+#ifdef __cplusplus
+	constexpr mutex() : llock{}, thread_list{}, counter{}, owner{}
+	{
+		mutex_init(this);
+	}
+
+	mutex(const mutex&) = delete;
+	mutex(mutex&& m) = delete;
+	mutex& operator=(const mutex &) = delete;
+	mutex& operator=(mutex &&) = delete;
+#endif
+
 };
+
+#ifdef __cplusplus
+#define DECLARE_MUTEX(name) mutex name
+
+#else
 
 #define DECLARE_MUTEX(name)	struct mutex name = {.thread_list = LIST_HEAD_INIT(name.thread_list)};
 
+#endif
+
 #define MUTEX_INITIALIZER {.thread_list = LIST_HEAD_INIT(thread_list)}
 
-static inline void mutex_init(struct mutex *mutex)
+CONSTEXPR static inline void mutex_init(struct mutex *mutex)
 {
-	memset(mutex, 0, sizeof(*mutex));
+	spinlock_init(&mutex->llock);
+	mutex->counter = 0;
+	mutex->owner = NULL;
 	INIT_LIST_HEAD(&mutex->thread_list);
 }
 

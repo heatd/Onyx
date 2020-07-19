@@ -97,6 +97,7 @@ void mutex_unlock(struct mutex *mutex)
 	if(!list_is_empty(&mutex->thread_list))
 	{
 		struct list_head *l = list_first_element(&mutex->thread_list);
+		assert(l != &mutex->thread_list);
 		struct thread *t = container_of(l, struct thread, wait_list_head);
 
 		thread_wake_up(t);

@@ -70,7 +70,7 @@ ssize_t pagecache_flush(struct flush_object *fo)
 	struct page_cache_block *b = cache_block_from_fo(fo);
 	struct page *page = b->page;
 
-	page->flags |= PAGE_FLAG_FLUSHING;
+	__sync_or_and_fetch(&page->flags, PAGE_FLAG_FLUSHING);
 
 	assert(b->node->i_fops->writepage != NULL);
 	return b->node->i_fops->writepage(b->page, b->offset, b->node);

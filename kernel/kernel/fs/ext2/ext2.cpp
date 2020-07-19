@@ -24,11 +24,11 @@
 #include <onyx/cred.h>
 #include <onyx/buffer.h>
 #include <onyx/dentry.h>
+#include <onyx/pagecache.h>
 
 #include "ext2.h"
 
 struct inode *ext2_open(struct dentry *dir, const char *name);
-size_t ext2_read(size_t offset, size_t sizeofreading, void *buffer, struct file *node);
 off_t ext2_getdirent(struct dirent *buf, off_t off, struct file *f);
 struct inode *ext2_creat(const char *path, int mode, struct dentry *dir);
 char *ext2_readlink(struct file *ino);
@@ -41,7 +41,7 @@ int ext2_fallocate(int mode, off_t off, off_t len, struct file *f);
 int ext2_ftruncate(off_t off, struct file *f);
 ssize_t ext2_readpage(struct page *page, size_t off, struct inode *ino);
 ssize_t ext2_writepage(struct page *page, size_t off, struct inode *ino);
-
+int ext2_prepare_write(inode *ino, struct page *page, size_t page_off, size_t offset, size_t len);
 int ext2_link(struct inode *target, const char *name, struct inode *dir);
 
 struct file_ops ext2_ops = 
@@ -58,7 +58,8 @@ struct file_ops ext2_ops =
 	.fallocate = ext2_fallocate,
 	//.ftruncate = ext2_ftruncate,
 	.readpage = ext2_readpage,
-	.writepage = ext2_writepage
+	.writepage = ext2_writepage,
+	.prepare_write = ext2_prepare_write
 };
 
 void ext2_delete_inode(struct ext2_inode *inode, uint32_t inum, struct ext2_superblock *fs)
@@ -89,56 +90,87 @@ void ext2_close(struct inode *vfs_ino)
 	free(inode);
 }
 
-size_t ext2_write_ino(size_t offset, size_t sizeofwrite, void *buffer, struct inode *node)
+
+ssize_t ext2_writepage(page *page, size_t off, inode *ino)
 {
-	struct ext2_superblock *fs = ext2_superblock_from_inode(node);
-	struct ext2_inode *ino = ext2_get_inode_from_node(node);
-	if(!ino)
-		return errno = EINVAL, (size_t) -1;
+	auto buf = block_buf_from_page(page);
+	auto sb = ext2_superblock_from_inode(ino);
 
-	size_t size = ext2_write_inode(ino, fs, sizeofwrite, offset, static_cast<char *>(buffer));
+	assert(buf != nullptr);
 
-	return size;
-}
-
-ssize_t ext2_writepage(struct page *page, size_t off, struct inode *ino)
-{
-	return ext2_write_ino(off, PAGE_SIZE, PAGE_TO_VIRT(page), ino);
-}
-
-size_t ext2_read_ino(size_t offset, size_t len, void *buffer, struct inode *node)
-{
-	// printk("Inode read: %lu, off %lu, size %lu\n", node->i_inode, offset, len);
-	struct ext2_superblock *fs = ext2_superblock_from_inode(node);
-
-	struct ext2_inode *ino = ext2_get_inode_from_node(node);
-	if(!ino)
-		return errno = EINVAL, -1;
-
-	if(node->i_type == VFS_TYPE_DIR)
+	while(buf)
 	{
-		node->i_size = EXT2_CALCULATE_SIZE64(ino);
+		page_iov v[1];
+		v->length = buf->block_size;
+		v->page = buf->this_page;
+		v->page_off = buf->page_off;
+
+		printk("Writing to block %lu\n", buf->block_nr);
+
+		if(sb_write_bio(sb, v, 1, buf->block_nr) < 0)
+		{
+			sb->error("Error writing back page");
+			return -EIO;
+		}
+
+		buf = buf->next;
 	}
 
-	if(offset > node->i_size)
-		return errno = EINVAL, -1;
-
-	size_t to_be_read = offset + len > node->i_size ?
-		node->i_size - offset : len;
-
-	size_t size = ext2_read_inode(ino, fs, to_be_read, offset, static_cast<char *>(buffer));
-
-	return size;
-}
-
-size_t ext2_read(size_t offset, size_t sizeofreading, void *buffer, struct file *f)
-{
-	return ext2_read_ino(offset, sizeofreading, buffer, f->f_ino);
+	return PAGE_SIZE;
 }
 
 ssize_t ext2_readpage(struct page *page, size_t off, struct inode *ino)
 {
-	return ext2_read_ino(off, PAGE_SIZE, PAGE_TO_VIRT(page), ino);
+	bool is_buffer = page->flags & PAGE_FLAG_BUFFER;
+
+	assert(is_buffer == true);
+
+	auto raw_inode = ext2_get_inode_from_node(ino);
+	auto sb = ext2_superblock_from_inode(ino);
+	auto nr_blocks = PAGE_SIZE / sb->block_size;
+	auto base_block_index = off / sb->block_size;
+
+	auto curr_off = 0;
+
+	for(size_t i = 0; i < nr_blocks; i++)
+	{
+		struct block_buf *b = nullptr;
+		if(is_buffer && !(b = page_add_blockbuf(page, curr_off)))
+		{
+			page_destroy_block_bufs(page);
+			return -ENOMEM;
+		}
+
+		auto res = ext2_get_block_from_inode(raw_inode, base_block_index + i, sb);
+		if(res.has_error())
+		{
+			page_destroy_block_bufs(page);
+			return -ENOMEM;
+		}
+
+		/* TODO: Coalesce reads */
+		page_iov v[1];
+		v->page = page;
+		v->length = sb->block_size;
+		v->page_off = curr_off;
+
+		if(sb_read_bio(sb, v, 1, res.value()) < 0)
+		{
+			page_destroy_block_bufs(page);
+			return -EIO;
+		}
+
+		if(is_buffer)
+		{
+			b->block_nr = res.value();
+			b->block_size = sb->block_size;
+			b->dev = sb->s_bdev;
+		}
+
+		curr_off += sb->block_size;
+	}
+
+	return min(PAGE_SIZE, ino->i_size - off);
 }
 
 struct ext2_inode_info *ext2_cache_inode_info(struct inode *ino, struct ext2_inode *fs_ino)
@@ -188,15 +220,9 @@ inode *ext2_get_inode(ext2_superblock *sb, uint32_t inode_num)
 
 struct inode *ext2_open(struct dentry *dir, const char *name)
 {
-	struct inode *nd = dir->d_inode;
-	struct ext2_superblock *fs = ext2_superblock_from_inode(nd);
+	struct inode *ino = dir->d_inode;
+	struct ext2_superblock *fs = ext2_superblock_from_inode(ino);
 	uint32_t inode_num;
-	struct ext2_inode *ino;
-
-	/* Get the inode structure from the number */
-	ino = ext2_get_inode_from_node(nd);	
-	if(!ino)
-		return nullptr;
 
 	struct ext2_dirent_result res;
 	int st = ext2_retrieve_dirent(ino, name, fs, &res);
@@ -219,7 +245,7 @@ struct inode *ext2_open(struct dentry *dir, const char *name)
 struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber, ext2_superblock *sb)
 {
 	/* Create a file */
-	struct inode *ino = inode_create(ext2_ino_type_to_vfs_type(inode->mode) == VFS_TYPE_FILE);
+	struct inode *ino = inode_create(S_ISDIR(inode->mode) || S_ISREG(inode->mode) || S_ISLNK(inode->mode));
 
 	if(!ino)
 	{
@@ -239,7 +265,7 @@ struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber,
 	ino->i_mode = inode->mode;
 
 	/* We're storing dev in dbp[0] in the same format as dev_t */
-	ino->i_rdev = inode->dbp[0];
+	ino->i_rdev = inode->i_data[0];
 
 	ino->i_size = EXT2_CALCULATE_SIZE64(inode);
 	if(ino->i_type == VFS_TYPE_FILE)
@@ -353,13 +379,13 @@ struct inode *ext2_create_file(const char *name, mode_t mode, dev_t dev, struct 
 	if(S_ISBLK(mode) || S_ISCHR(mode))
 	{
 		/* We're a device file, store the device in dbp[0] */
-		inode->dbp[0] = dev;
+		inode->i_data[0] = dev;
 	}
 
 	fs->update_inode(inode, inumber);
 	fs->update_inode(dir_inode, vfs_ino->i_inode);
 	
-	if(ext2_add_direntry(name, inumber, inode, dir_inode, fs) < 0)
+	if(ext2_add_direntry(name, inumber, inode, vfs_ino, fs) < 0)
 	{
 		errno = EINVAL;
 		goto free_ino_error;
@@ -441,6 +467,7 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 	unsigned long superblock_block = 0;
 	unsigned long sb_off = 0;
 	unsigned long entries = 0;
+	struct page *page;
 
 	dev->sb = sb;
 
@@ -461,8 +488,6 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 		goto error;
 	}
 
-	block_buf_dirty(b);
-
 	block_size = 1024 << ext2_sb->s_log_block_size;
 
 	if(block_size > MAX_BLOCK_SIZE)
@@ -476,8 +501,11 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 	 * we're deleting this block_buf and grabbing a new one
 	 */
 
+	page = b->this_page;
 	block_buf_free(b);
+	page_destroy_block_bufs(page);
 	b = nullptr;
+
 	sb->s_block_size = block_size;
 	superblock_block = block_size == 1024 ? 1 : 0;
 	sb_off = EXT2_SUPERBLOCK_OFFSET & (block_size - 1);
@@ -536,6 +564,11 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 	sb->flush_inode = ext2_flush_inode;
 	sb->kill_inode = ext2_kill_inode;
 
+	sb->sb->s_mtime = clock_get_posix_time();
+	sb->sb->s_mnt_count++;
+
+	block_buf_dirty(sb->sb_bb);
+
 	root_inode->i_fops = &ext2_ops;
 
 	return root_inode;
@@ -560,12 +593,14 @@ off_t ext2_getdirent(struct dirent *buf, off_t off, struct file *f)
 {
 	off_t new_off;
 	dir_entry_t entry;
-	size_t read;
+	ssize_t read;
 
 	unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
 
 	/* Read a dir entry from the offset */
-	read = ext2_read(off, sizeof(dir_entry_t), &entry, f);
+	read = file_read_cache(&entry, sizeof(dir_entry_t), f->f_ino, off);
+	if(read < 0)
+		return read;
 
 	thread_change_addr_limit(old);
 

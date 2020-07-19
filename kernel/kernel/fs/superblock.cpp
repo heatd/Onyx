@@ -6,6 +6,7 @@
 #include <onyx/vfs.h>
 #include <onyx/superblock.h>
 #include <onyx/atomic.h>
+#include <onyx/block.h>
 
 extern "C"
 void superblock_init(struct superblock *sb)
@@ -13,4 +14,28 @@ void superblock_init(struct superblock *sb)
 	INIT_LIST_HEAD(&sb->s_inodes);
 	sb->s_ref = 1;
 	spinlock_init(&sb->s_ilock);
+}
+
+extern "C"
+int sb_read_bio(struct superblock *sb, struct page_iov *vec, size_t nr_vecs, size_t block_number)
+{
+	struct bio_req r{};
+	r.nr_vecs = nr_vecs;
+	r.vec = vec;
+	r.sector_number = block_number * (sb->s_block_size / sb->s_bdev->sector_size);
+	r.flags = BIO_REQ_READ_OP;
+
+	return bio_submit_request(sb->s_bdev, &r);
+}
+
+extern "C"
+int sb_write_bio(struct superblock *sb, struct page_iov *vec, size_t nr_vecs, size_t block_number)
+{
+	struct bio_req r{};
+	r.nr_vecs = nr_vecs;
+	r.vec = vec;
+	r.sector_number = block_number * (sb->s_block_size / sb->s_bdev->sector_size);
+	r.flags = BIO_REQ_WRITE_OP;
+
+	return bio_submit_request(sb->s_bdev, &r);
 }

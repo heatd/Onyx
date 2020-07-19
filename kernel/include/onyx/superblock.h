@@ -38,6 +38,11 @@ void superblock_add_inode(struct superblock *sb, struct inode *inode);
 void superblock_remove_inode(struct superblock *sb, struct inode *inode);
 void superblock_kill(struct superblock *sb);
 
+struct page_iov;
+
+int sb_read_bio(struct superblock *sb, struct page_iov *vec, size_t nr_vecs, size_t block_number);
+int sb_write_bio(struct superblock *sb, struct page_iov *vec, size_t nr_vecs, size_t block_number);
+
 #ifdef __cplusplus
 }
 #endif
