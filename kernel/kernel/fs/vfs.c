@@ -25,6 +25,7 @@
 #include <onyx/mm/flush.h>
 #include <onyx/vm.h>
 #include <onyx/clock.h>
+#include <onyx/cpu.h>
 
 struct file *fs_root = NULL;
 struct file *mount_list = NULL;
@@ -582,8 +583,16 @@ struct inode *inode_create(bool is_cached)
 	return inode;
 }
 
+void inode_wait_flush(struct inode *ino)
+{
+	while(ino->i_flags & INODE_FLAG_DIRTYING)
+		cpu_relax();
+}
+
 void inode_mark_dirty(struct inode *ino)
 {
+	inode_wait_flush(ino);
+
 	unsigned long old_flags = __sync_fetch_and_or(&ino->i_flags, INODE_FLAG_DIRTY);
 
 	__sync_synchronize();
@@ -600,8 +609,14 @@ int inode_flush(struct inode *ino)
 
 	if(!sb || !sb->flush_inode)
 		return 0;
-	
-	return sb->flush_inode(ino);
+
+	__sync_fetch_and_or(&ino->i_flags, INODE_FLAG_DIRTYING);
+
+	int st = sb->flush_inode(ino);
+
+	__sync_fetch_and_and(&ino->i_flags, ~(INODE_FLAG_DIRTYING | INODE_FLAG_DIRTY));
+
+	return st;
 }
 
 struct file *inode_to_file(struct inode *ino)

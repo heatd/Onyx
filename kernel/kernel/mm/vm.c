@@ -1138,6 +1138,8 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
 
 			mutex_unlock(&mm->vm_lock);
 
+			if(ret) inode_update_atime(ino);
+
 			return ret;
 		}
 	}

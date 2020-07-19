@@ -155,7 +155,10 @@ expected<ext2_block_no, int> ext2_create_path(struct inode *ino, ext2_block_no b
 
 				if(buf) block_buf_dirty(buf);
 				else
+				{
+					inode_update_ctime(ino);
 					inode_mark_dirty(ino);
+				}
 			}
 			
 			buf = sb_read_block(sb, b);
@@ -183,6 +186,7 @@ expected<ext2_block_no, int> ext2_create_path(struct inode *ino, ext2_block_no b
 				dest_block_nr = curr_block[off] = block; 
 
 				ino->i_blocks += sb->block_size / 512;
+				inode_update_ctime(ino);
 				inode_mark_dirty(ino);
 			}
 		}
