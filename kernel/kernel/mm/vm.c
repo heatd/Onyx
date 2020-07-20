@@ -3481,3 +3481,8 @@ out:
 
 	return ret;
 }
+
+struct page *vm_get_zero_page(void)
+{
+	return vm_zero_page;
+}

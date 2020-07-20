@@ -280,6 +280,9 @@ void vterm_dirty_cell(unsigned int x, unsigned int y, struct vterm *vt)
 
 bool vterm_putc(char c, struct vterm *vt)
 {
+	if(c == '\0')
+		return false;
+
 	if(c == '\t')
 	{
 		bool did_scroll = false;

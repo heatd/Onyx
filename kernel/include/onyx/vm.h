@@ -175,10 +175,13 @@ int vm_sanitize_address(void *address, size_t pages);
 void *vm_gen_mmap_base(void);
 void *vm_gen_brk_base(void);
 void vm_sysfs_init(void);
-int vm_mark_cow(struct vm_region *zone);
 struct vm_region *vm_find_region_and_writable(void *usr);
+
 ssize_t copy_to_user(void *usr, const void *data, size_t len);
 ssize_t copy_from_user(void *data, const void *usr, size_t len);
+ssize_t user_memset(void *data, int val, size_t len);
+
+int vm_region_setup_backing(struct vm_region *region, size_t pages, bool is_file_backed);
 void vm_update_addresses(uintptr_t new_kernel_space_base);
 uintptr_t vm_randomize_address(uintptr_t base, uintptr_t bits);
 void *map_pages_to_vaddr(void *virt, void *phys, size_t size, size_t flags);
@@ -293,6 +296,8 @@ int get_phys_pages(void *addr, unsigned int flags, struct page **pages, size_t n
 void vm_mmu_mprotect_page(struct mm_address_space *as, void *addr, int old_prots, int new_prots);
 
 void vm_switch_to_fallback_pgd(void);
+
+struct page *vm_get_zero_page(void);
 
 #ifdef __cplusplus
 }

@@ -17,6 +17,7 @@
 #include <onyx/fnv.h>
 #include <onyx/scoped_lock.h>
 #include <onyx/file.h>
+#include <onyx/buffer.h>
 
 fnv_hash_t inode_hash(inode &ino)
 {
@@ -250,6 +251,8 @@ ssize_t inode_sync(struct inode *inode)
 
 	it.tree = inode->i_pages->pages;
 
+	rb_itor_first(&it);
+
 	while(rb_itor_valid(&it))
 	{
 		void *datum = *rb_itor_datum(&it);
@@ -444,6 +447,8 @@ int inode_truncate_range(struct inode *inode, size_t start, size_t end)
 
 	it.tree = inode->i_pages->pages;
 
+	rb_itor_first(&it);
+
 	while(rb_itor_valid(&it))
 	{
 		void *datum = *rb_itor_datum(&it);
@@ -464,11 +469,15 @@ int inode_truncate_range(struct inode *inode, size_t start, size_t end)
 					flush_sync_one(&b->fobj);
 				}
 
+				page_destroy_block_bufs(page);
+
 				page->cache = NULL;
 				free(b);
+
 				rb_tree_remove(inode->i_pages->pages, (void *) start);
-				return 0;
 			}
+
+			return 0;
 		}
 		else if(start >= this_start || end <= this_end)
 		{

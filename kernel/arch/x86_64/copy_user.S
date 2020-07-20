@@ -202,3 +202,44 @@ get_user32:
 	.quad 1b
 	.quad 3b
 .popsection
+
+# ssize_t user_memset(void *data, int val, size_t len);
+.global user_memset
+.type user_memset, @function
+.balign 32
+user_memset:
+	push %rdi
+	push %rsi
+	push %rdx
+
+	call thread_get_addr_limit
+	
+	pop %rdx
+	pop %rsi
+	pop %rdi
+
+	# Check if dst < addr_limit
+	cmp %rax, %rdi
+	# And if dst + len < addr_limit
+	mov %rdi, %r8
+	add %rdx, %r8
+	cmp %rax, %r8
+
+	ja 3f
+	mov %si, %ax
+	mov %rdx, %rcx
+1:
+	rep stosb (%rdi)
+2:
+	ret
+3:
+	# CBN_STATUS_SEGFAULT = -5
+	# These pieces of code were ported from Carbon but the principle applies
+	# We're returning -EFAULT = -14
+	mov $-14, %rax
+	jmp 2b
+
+.pushsection .ehtable
+	.quad 1b
+	.quad 3b
+.popsection
