@@ -433,3 +433,50 @@ int sys_fsync(int fd)
 
 	return 0;
 }
+
+extern "C"
+int inode_truncate_range(struct inode *inode, size_t start, size_t end)
+{
+	scoped_mutex g{inode->i_pages->page_lock};
+
+	struct rb_itor it;
+	it.node = NULL;
+
+	it.tree = inode->i_pages->pages;
+
+	while(rb_itor_valid(&it))
+	{
+		void *datum = *rb_itor_datum(&it);
+		auto this_start = (size_t) rb_itor_key(&it);
+
+		struct page_cache_block *b = (page_cache_block *) datum;
+		auto this_end = this_start + b->size;
+
+		if(start > this_start && end == this_end)
+		{
+			b->size -= start;
+			if(b->size == 0)
+			{
+				struct page *page = b->page;
+
+				if(page->flags & PAGE_FLAG_DIRTY)
+				{
+					flush_sync_one(&b->fobj);
+				}
+
+				page->cache = NULL;
+				free(b);
+				rb_tree_remove(inode->i_pages->pages, (void *) start);
+				return 0;
+			}
+		}
+		else if(start >= this_start || end <= this_end)
+		{
+			panic("bad truncate usage");
+		}
+
+		rb_itor_next(&it);
+	}
+
+	return 0;
+}

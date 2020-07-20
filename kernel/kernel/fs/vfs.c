@@ -496,14 +496,22 @@ int ftruncate_vfs(off_t length, struct file *vnode)
 	if(length < 0)
 		return -EINVAL;
 
+	if((size_t) length == vnode->f_ino->i_size)
+		return 0;
+
+	rw_lock_write(&vnode->f_ino->i_rwlock);
+
+	int st = 0;
 	if(vnode->f_ino->i_fops->ftruncate != NULL)
-		return vnode->f_ino->i_fops->ftruncate(length, vnode);
+		st = vnode->f_ino->i_fops->ftruncate(length, vnode);
 	else
 	{
-		return default_ftruncate(length, vnode);
+		st = default_ftruncate(length, vnode);
 	}
 
-	return -ENOSYS;
+	rw_unlock_write(&vnode->f_ino->i_rwlock);
+
+	return st;
 }
 
 int default_fallocate(int mode, off_t offset, off_t len, struct file *file)

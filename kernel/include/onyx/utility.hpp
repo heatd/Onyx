@@ -57,6 +57,18 @@ Type max(Type t0, Type t1)
 	return t0 < t1 ? t1 : t0;
 }
 
+template <typename T, typename U>
+constexpr T align_up2(T number, U alignment)
+{
+	return (number + (alignment - 1)) & -alignment;
+}
+
+template <typename T, typename U>
+constexpr T align_down2(T number, U alignment)
+{
+	return number & ~(alignment - 1);
+}
+
 }
 
 #endif

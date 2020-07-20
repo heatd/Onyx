@@ -177,6 +177,33 @@ public:
 	}
 };
 
+class buf_dirty_trigger
+{
+private:
+	auto_block_buf &buf;
+	bool dont_dirty;
+public:
+	buf_dirty_trigger(auto_block_buf &b) : buf{b}, dont_dirty{false} {}
+
+	~buf_dirty_trigger()
+	{
+		if(!dont_dirty)
+			block_buf_dirty(buf);
+	}
+
+	void explicit_dirty()
+	{
+		block_buf_dirty(buf);
+		dont_dirty = true;
+	}
+
+	void do_not_dirty()
+	{
+		dont_dirty = true;
+	}
+};
+
+
 #endif
 
 #endif

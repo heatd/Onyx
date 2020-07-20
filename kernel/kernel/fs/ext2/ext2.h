@@ -435,7 +435,7 @@ int ext2_remove_direntry(uint32_t inum, inode *dir, ext2_superblock *fs);
 int ext2_ino_type_to_vfs_type(uint16_t mode);
 uint16_t ext2_mode_to_ino_type(mode_t mode);
 struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber, ext2_superblock *fs);
-void ext2_free_inode_space(struct ext2_inode *inode, struct ext2_superblock *fs);
+void ext2_free_inode_space(struct inode *inode, struct ext2_superblock *fs);
 expected<ext2_block_no, int> ext2_get_block_from_inode(ext2_inode *ino, ext2_block_no block, ext2_superblock *sb);
 
 struct ext2_dirent_result

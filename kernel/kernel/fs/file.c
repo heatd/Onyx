@@ -549,6 +549,16 @@ static struct file *try_to_open(struct file *base, const char *filename, int fla
 			fd_put(ret);
 			return errno = EEXIST, NULL;
 		}
+
+		if(flags & O_TRUNC)
+		{
+			int st = ftruncate_vfs(0, ret);
+			if(st < 0)
+			{
+				fd_put(ret);
+				return NULL;
+			}
+		}
 	}
 
 	if(!ret && errno == ENOENT && flags & O_CREAT)
@@ -562,7 +572,7 @@ static struct file *try_to_open(struct file *base, const char *filename, int fla
 #define VALID_OPEN_FLAGS      (O_RDONLY | O_WRONLY | O_RDWR | \
                                O_CREAT | O_DIRECTORY | O_EXCL | \
                                O_NOFOLLOW | O_NONBLOCK | O_APPEND | O_CLOEXEC | O_LARGEFILE | \
-							   O_TRUNC) /* Pretend O_TRUNC exists and works */
+							   O_TRUNC)
 
 int do_sys_open(const char *filename, int flags, mode_t mode, struct file *__rel)
 {

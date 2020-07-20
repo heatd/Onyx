@@ -1808,15 +1808,24 @@ int vm_handle_non_present_pf(struct vm_pf_context *ctx)
 	return 0;
 }
 
-void vm_handle_write_wb(struct vm_pf_context *ctx)
+int vm_handle_write_wb(struct vm_pf_context *ctx)
 {
 	unsigned long paddr = MAPPING_INFO_PADDR(ctx->mapping_info);
 	struct page *p = phys_to_page(paddr);
+	int st = 0;
+
+	if((st = p->cache->node->i_fops->prepare_write(p->cache->node,
+	    p, 0, p->cache->offset, PAGE_SIZE) < 0))
+	{
+		return st;
+	}
 
 	pagecache_dirty_block(p->cache);
 
 	paging_change_perms((void *) ctx->vpage, ctx->page_rwx);
 	vm_invalidate_range(ctx->vpage, 1);
+
+	return 0;
 }
 
 int vm_handle_present_cow(struct vm_pf_context *ctx)
@@ -1863,7 +1872,7 @@ int vm_handle_present_pf(struct vm_pf_context *ctx)
 		if(vm_mapping_requires_wb(entry))
 		{
 			//printk("writeback!\n");
-			vm_handle_write_wb(ctx);
+			return vm_handle_write_wb(ctx);
 		}
 		else if(vm_mapping_is_cow(entry))
 		{

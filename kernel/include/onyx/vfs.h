@@ -59,7 +59,7 @@ struct file_ops
 	int (*link)(struct file *target_ino, const char *name, struct dentry *dir);
 	__symlink symlink;
 	void *(*mmap)(struct vm_region *area, struct file *node);
-	int (*ftruncate)(off_t length, struct file *node);
+	int (*ftruncate)(size_t length, struct file *node);
 	struct inode *(*mkdir)(const char *name, mode_t mode, struct dentry *dir);
 	struct inode *(*mknod)(const char *name, mode_t mode, dev_t dev, struct dentry *dir);
 	int (*on_open)(struct file *node);
@@ -241,6 +241,7 @@ struct page_cache_block;
 struct page_cache_block *inode_get_page(struct inode *inode, off_t offset, long flags);
 
 struct file *inode_to_file(struct inode *ino);
+int inode_truncate_range(struct inode *inode, size_t start, size_t end);
 
 struct filesystem_root
 {

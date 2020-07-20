@@ -38,7 +38,7 @@ struct inode *ext2_mkdir(const char *name, mode_t mode, struct dentry *dir);
 int ext2_link_fops(struct file *target, const char *name, struct dentry *dir);
 int ext2_unlink(const char *name, int flags, struct dentry *dir);
 int ext2_fallocate(int mode, off_t off, off_t len, struct file *f);
-int ext2_ftruncate(off_t off, struct file *f);
+int ext2_ftruncate(size_t len, struct file *f);
 ssize_t ext2_readpage(struct page *page, size_t off, struct inode *ino);
 ssize_t ext2_writepage(struct page *page, size_t off, struct inode *ino);
 int ext2_prepare_write(inode *ino, struct page *page, size_t page_off, size_t offset, size_t len);
@@ -51,21 +51,23 @@ struct file_ops ext2_ops =
 	.getdirent = ext2_getdirent,
 	.creat = ext2_creat,
 	.link = ext2_link_fops,
+	.ftruncate = ext2_ftruncate,
 	.mkdir = ext2_mkdir,
 	.mknod = ext2_mknod,
 	.readlink = ext2_readlink,
 	.unlink = ext2_unlink,
 	.fallocate = ext2_fallocate,
-	//.ftruncate = ext2_ftruncate,
 	.readpage = ext2_readpage,
 	.writepage = ext2_writepage,
 	.prepare_write = ext2_prepare_write
 };
 
-void ext2_delete_inode(struct ext2_inode *inode, uint32_t inum, struct ext2_superblock *fs)
+void ext2_delete_inode(struct inode *inode_, uint32_t inum, struct ext2_superblock *fs)
 {
+	struct ext2_inode *inode = ext2_get_inode_from_node(inode_);
+
 	inode->dtime = clock_get_posix_time();
-	ext2_free_inode_space(inode, fs);
+	ext2_free_inode_space(inode_, fs);
 
 	inode->hard_links = 0;
 	fs->update_inode(inode, inum);
@@ -451,9 +453,8 @@ int ext2_flush_inode(struct inode *inode)
 int ext2_kill_inode(struct inode *inode)
 {
 	struct ext2_superblock *fs = ext2_superblock_from_inode(inode);
-	struct ext2_inode *ext2_inode_ = ext2_get_inode_from_node(inode);
 
-	ext2_delete_inode(ext2_inode_, (uint32_t) inode->i_inode, fs);
+	ext2_delete_inode(inode, (uint32_t) inode->i_inode, fs);
 	return 0;
 }
 

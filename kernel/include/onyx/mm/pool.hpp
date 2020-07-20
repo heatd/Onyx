@@ -17,6 +17,7 @@
 #include <onyx/utility.hpp>
 #include <onyx/enable_if.h>
 #include <onyx/scoped_lock.h>
+#include <onyx/utility.hpp>
 
 #define OBJECT_POOL_ALLOCATE_WARM_CACHE
 
@@ -27,12 +28,6 @@
 #define OBJECT_POOL_DEFER_UNMAP
 
 static constexpr size_t object_pool_alignment = 16UL;
-
-template <typename T>
-constexpr T align_up(T number, T alignment)
-{
-	return (number + (alignment - 1)) & -alignment;
-}
 
 
 template <typename T, bool use_vm>
@@ -185,19 +180,19 @@ public:
 
 	static constexpr size_t size_of_chunk()
 	{
-		return align_up(sizeof(T), object_pool_alignment) + sizeof(memory_chunk<T>);
+		return cul::align_up2(sizeof(T), object_pool_alignment) + sizeof(memory_chunk<T>);
 	}
 
 	static constexpr size_t size_of_inline_segment()
 	{
-		return align_up(sizeof(memory_pool_segment), object_pool_alignment);
+		return cul::align_up2(sizeof(memory_pool_segment), object_pool_alignment);
 	}
 
 	static constexpr size_t memory_pool_size()
 	{
 		if(is_large_object())
 		{
-			return align_up(size_of_inline_segment() + size_of_chunk() * 24, (size_t) PAGE_SIZE); 
+			return cul::align_up2(size_of_inline_segment() + size_of_chunk() * 24, (size_t) PAGE_SIZE); 
 		}
 		else
 			return default_pool_size;
