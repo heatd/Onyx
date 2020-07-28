@@ -352,7 +352,7 @@ socket *choose_protocol_and_create(int type, int protocol)
 		{
 			switch(protocol)
 			{
-				case PROTOCOL_UDP:
+				case IPPROTO_UDP:
 					return udp_create_socket(type);
 				default:
 					return nullptr;
@@ -361,7 +361,7 @@ socket *choose_protocol_and_create(int type, int protocol)
 
 		case SOCK_STREAM:
 		{
-			case PROTOCOL_TCP:
+			case IPPROTO_TCP:
 				return tcp_create_socket(type);
 			default:
 				return nullptr;
@@ -663,4 +663,31 @@ void inet_socket::unbind()
 inet_socket::~inet_socket()
 {
 	unbind();
+}
+
+int inet_socket::setsockopt_inet(int level, int opt, const void *optval, socklen_t len)
+{
+	return -ENOPROTOOPT;
+}
+
+int inet_socket::getsockopt_inet(int level, int opt, void *optval, socklen_t *len)
+{
+	socklen_t length;
+	if(copy_from_user(&length, len, sizeof(length)) < 0)
+		return -EFAULT;
+
+	/* Lessens the dupping of code */
+	auto put_opt = [&](const auto &val) -> int
+	{
+		return put_option(val, length, len, optval);
+	};
+
+	switch(opt)
+	{
+		case IP_TTL:
+			int ttl = 64;
+			return put_opt(ttl);
+	}
+
+	return -ENOPROTOOPT;
 }

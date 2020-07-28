@@ -32,7 +32,7 @@ uint16_t udpv4_calculate_checksum(udp_header_t *header, uint32_t srcip, uint32_t
 	memcpy(&__src, &srcip, sizeof(srcip));
 	memcpy(&__dst, &dstip, sizeof(dstip));
 
-	uint16_t r = __ipsum_unfolded(&__src, sizeof(srcip), 0);
+	auto r = __ipsum_unfolded(&__src, sizeof(srcip), 0);
 	r = __ipsum_unfolded(&__dst, sizeof(dstip), r);
 	r = __ipsum_unfolded(&proto, sizeof(proto), r);
 	r = __ipsum_unfolded(&header->len, sizeof(header->len), r);
@@ -44,15 +44,15 @@ uint16_t udpv4_calculate_checksum(udp_header_t *header, uint32_t srcip, uint32_t
 
 #include <onyx/clock.h>
 
-size_t udpv4_get_packetlen(void *info, struct packetbuf_proto **next, void **next_info);
+size_t udpv4_get_packetlen(void *info, packetbuf_proto **next, void **next_info);
 
-struct packetbuf_proto udpv4_proto =
+packetbuf_proto udpv4_proto =
 {
 	.name = "udp",
 	.get_len = udpv4_get_packetlen
 };
 
-size_t udpv4_get_packetlen(void *info, struct packetbuf_proto **next, void **next_info)
+size_t udpv4_get_packetlen(void *info, packetbuf_proto **next, void **next_info)
 {
 	netif *n = static_cast<netif *>(info);
 
@@ -66,7 +66,7 @@ size_t udpv4_get_packetlen(void *info, struct packetbuf_proto **next, void **nex
 
 int udp_send_packet(char *payload, size_t payload_size, in_port_t source_port,
 	            in_port_t dest_port, in_addr_t srcip, in_addr_t destip,
-		    	struct netif *netif)
+		    	netif *netif)
 {
 	bool padded = false;
 
@@ -79,7 +79,7 @@ int udp_send_packet(char *payload, size_t payload_size, in_port_t source_port,
 	if(payload_size > UINT16_MAX)
 		return errno = EMSGSIZE, -1;
 
-	struct packetbuf_info buf = {0};
+	packetbuf_info buf = {0};
 	buf.length = payload_size;
 	buf.packet = NULL;
 
@@ -121,13 +121,6 @@ int udp_socket::bind(sockaddr *addr, socklen_t len)
 	return fam->bind(addr, len, this);
 }
 
-int udp_bind(sockaddr *addr, socklen_t addrlen, socket *sock)
-{
-	udp_socket *socket = static_cast<udp_socket *>(sock);
-
-	return socket->bind(addr, addrlen);
-}
-
 int udp_socket::connect(sockaddr *addr, socklen_t len)
 {
 	if(!validate_sockaddr_len_pair(addr, len))
@@ -141,26 +134,20 @@ int udp_socket::connect(sockaddr *addr, socklen_t len)
 			return st;
 	}
 
-	memcpy(&dest_addr, addr, sizeof(struct sockaddr));
+	memcpy(&dest_addr, addr, sizeof(sockaddr));
 	connected = true;
 
 	return 0;
 }
 
-int udp_connect(sockaddr *addr, socklen_t addrlen, socket *sock)
-{
-	udp_socket *socket = static_cast<udp_socket *>(sock);
-	return socket->connect(addr, addrlen);
-}
-
-ssize_t udp_socket::sendto(const void *buf, size_t len, int flags, struct sockaddr *addr,
+ssize_t udp_socket::sendto(const void *buf, size_t len, int flags, sockaddr *addr,
                            socklen_t addrlen)
 {
 	bool not_conn = !connected;
 
-	struct sockaddr_in *to = (struct sockaddr_in *) &dest_addr;
+	sockaddr_in *to = (sockaddr_in *) &dest_addr;
 
-	struct sockaddr_in *in = (struct sockaddr_in *) addr;
+	sockaddr_in *in = (sockaddr_in *) addr;
 
 	if(in && !validate_sockaddr_len_pair(addr, addrlen))
 		return -EINVAL;
@@ -168,9 +155,9 @@ ssize_t udp_socket::sendto(const void *buf, size_t len, int flags, struct sockad
 	if(not_conn && addr == NULL)
 		return -ENOTCONN;
 	else if(addr != NULL)
-		to = (struct sockaddr_in *) addr;
+		to = (sockaddr_in *) addr;
 
-	struct sockaddr from;
+	sockaddr from;
 	/* TODO: This is not quite ipv6 safe */
 	memcpy(&from, &src_addr, sizeof(from));
 	auto fam = get_proto_fam();
@@ -188,35 +175,12 @@ ssize_t udp_socket::sendto(const void *buf, size_t len, int flags, struct sockad
 	return len;
 }
 
-ssize_t udp_sendto(const void *buf, size_t len, int flags, sockaddr *addr,
-	socklen_t addrlen, socket *sock)
+socket *udp_create_socket(int type)
 {
-	udp_socket *socket = (struct udp_socket*) sock;
-	return socket->sendto(buf, len, flags, addr, addrlen);
+	return new udp_socket;
 }
 
-struct sock_ops udp_ops = 
-{
-	.listen = default_listen,
-	.accept = default_accept,
-	.bind = udp_bind,
-	.connect = udp_connect,
-	.sendto = udp_sendto,
-	.recvfrom = default_recvfrom
-};
-
-struct socket *udp_create_socket(int type)
-{
-	struct udp_socket *socket = new udp_socket();
-	if(!socket)
-		return NULL;
-	
-	socket->s_ops = &udp_ops;
-	
-	return (struct socket*) socket;
-}
-
-int udp_init_netif(struct netif *netif)
+int udp_init_netif(netif *netif)
 {
 	return 0;
 }
@@ -231,18 +195,18 @@ bool valid_udp_packet(udp_header_t *header, size_t length)
 	return true;
 }
 
-void udp_handle_packet(struct ip_header *header, size_t length, struct netif *netif)
+void udp_handle_packet(ip_header *header, size_t length, netif *netif)
 {
 	udp_header_t *udp_header = (udp_header_t *) (header + 1);
 
 	if(!valid_udp_packet(udp_header, length))
 		return;
 
-	struct sockaddr_in socket_dst;
+	sockaddr_in socket_dst;
 	ipv4_to_sockaddr(header->source_ip, udp_header->source_port, socket_dst);
 
 	auto socket = inet_resolve_socket<udp_socket>(header->source_ip,
-                      udp_header->source_port, udp_header->dest_port, PROTOCOL_UDP,
+                      udp_header->source_port, udp_header->dest_port, IPPROTO_UDP,
 					  netif, true);
 	if(!socket)
 	{
@@ -275,4 +239,24 @@ void udp_handle_packet(struct ip_header *header, size_t length, struct netif *ne
 
 out:
 	socket->unref();
+}
+
+int udp_socket::getsockopt(int level, int optname, void *val, socklen_t *len)
+{
+	if(is_inet_level(level))
+		return getsockopt_inet(level, optname, val, len);
+	if(level == SOL_SOCKET)
+		return getsockopt_socket_level(optname, val, len);
+	
+	return -ENOPROTOOPT;
+}
+
+int udp_socket::setsockopt(int level, int optname, const void *val, socklen_t len)
+{
+	if(is_inet_level(level))
+		return setsockopt_inet(level, optname, val, len);
+	if(level == SOL_SOCKET)
+		return setsockopt_socket_level(optname, val, len);
+	
+	return -ENOPROTOOPT;
 }

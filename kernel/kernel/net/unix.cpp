@@ -525,9 +525,7 @@ struct socket *unix_create_socket(int type, int protocol)
 		return NULL;
 
 	mutex_init(&socket->packet_list_lock);
-	socket->s_ops = &un_ops;
 	socket->type = type;
-	socket->dtor = unix_socket_dtor;
 
 	return (struct socket *) socket;
 }

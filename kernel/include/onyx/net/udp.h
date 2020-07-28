@@ -30,12 +30,15 @@ struct udp_packet
 	struct udp_packet *next;
 };
 
-struct udp_socket : public inet_socket
+class udp_socket : public inet_socket
 {
-	int bind(sockaddr *addr, socklen_t len);
-	int connect(sockaddr *addr, socklen_t len);
+public:
+	int bind(sockaddr *addr, socklen_t len) override;
+	int connect(sockaddr *addr, socklen_t len) override;
 	ssize_t sendto(const void *buf, size_t len, int flags, struct sockaddr *addr,
-                   socklen_t addrlen);
+                   socklen_t addrlen) override;
+	int getsockopt(int level, int optname, void *val, socklen_t *len) override;
+	int setsockopt(int level, int optname, const void *val, socklen_t len) override;
 };
 
 int udp_send_packet(char *payload, size_t payload_size, in_port_t source_port, in_port_t dest_port, 

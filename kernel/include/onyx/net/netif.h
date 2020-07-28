@@ -61,12 +61,12 @@ struct socket_id
 struct socket;
 struct inet_socket;
 
-#define GET_SOCKET_UNLOCKED        (1 << 0)
-#define GET_SOCKET_DSTADDR_VALID   (1 << 1)
-#define GET_SOCKET_CHECK_EXISTANCE (1 << 2)
+#define GET_SOCKET_UNLOCKED                (1 << 0)
+#define GET_SOCKET_DSTADDR_VALID           (1 << 1)
+#define GET_SOCKET_CHECK_EXISTANCE         (1 << 2)
 
-#define ADD_SOCKET_UNLOCKED        (1 << 0)
-#define REMOVE_SOCKET_UNLOCKED        (1 << 0)
+#define ADD_SOCKET_UNLOCKED                (1 << 0)
+#define REMOVE_SOCKET_UNLOCKED             (1 << 0)
 
 
 inet_socket *netif_get_socket(const socket_id& id, netif *nif, unsigned int flags = 0);

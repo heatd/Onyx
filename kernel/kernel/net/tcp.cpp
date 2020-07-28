@@ -38,13 +38,6 @@ int tcp_socket::bind(struct sockaddr *addr, socklen_t addrlen)
 	return fam->bind(addr, addrlen, this);
 }
 
-int tcp_bind(struct sockaddr *addr, socklen_t addrlen, struct socket *sock)
-{
-	tcp_socket *socket = (tcp_socket *) sock;
-
-	return socket->bind(addr, addrlen);
-}
-
 size_t tcpv4_get_packetlen(void *info, struct packetbuf_proto **next, void **next_info);
 
 struct packetbuf_proto tcpv4_proto =
@@ -220,7 +213,7 @@ int tcp_handle_packet(struct ip_header *ip_header, size_t size, struct netif *ne
 		return 0;
 
 	auto socket = inet_resolve_socket<tcp_socket>(ip_header->source_ip,
-                      header->source_port, header->dest_port, PROTOCOL_TCP, netif);
+                      header->source_port, header->dest_port, IPPROTO_TCP, netif);
 	uint16_t tcp_payload_len = static_cast<uint16_t>(size - ip_header_size);
 
 	if(!socket)
@@ -249,7 +242,7 @@ uint16_t tcpv4_calculate_checksum(tcp_header *header, uint16_t packet_length, ui
 	uint16_t buf[2];
 	memcpy(&buf, &proto, sizeof(buf));
 
-	uint16_t r = __ipsum_unfolded(&srcip, sizeof(srcip), 0);
+	auto r = __ipsum_unfolded(&srcip, sizeof(srcip), 0);
 	r = __ipsum_unfolded(&dstip, sizeof(dstip), r);
 	r = __ipsum_unfolded(buf, sizeof(buf), r);
 
@@ -563,12 +556,6 @@ int tcp_socket::connect(struct sockaddr *addr, socklen_t addrlen)
 	return start_connection();
 }
 
-int tcp_connect(struct sockaddr *addr, socklen_t addrlen, struct socket *sock)
-{
-	tcp_socket *socket = (tcp_socket*) sock;
-	return socket->connect(addr, addrlen);
-}
-
 ssize_t tcp_socket::queue_data(const void *user_buf, size_t len)
 {
 	if(current_pos + len > send_buffer.buf_size())
@@ -657,8 +644,11 @@ void tcp_socket::try_to_send()
 	}
 }
 
-ssize_t tcp_socket::sendto(const void *buf, size_t len, int flags)
+ssize_t tcp_socket::sendto(const void *buf, size_t len, int flags, sockaddr *addr, socklen_t addrlen)
 {
+	if(addr)
+		return -EISCONN;
+
 	if(len > UINT16_MAX)
 		return -EINVAL;
 
@@ -697,34 +687,26 @@ void tcp_socket::remove_pending_out(tcp_packet *pkt)
 	pkt->unref();
 }
 
-ssize_t tcp_sendto(const void *buf, size_t len, int flags, struct sockaddr *addr,
-             socklen_t alen, struct socket *sock)
+int tcp_socket::setsockopt(int level, int opt, const void *optval, socklen_t optlen)
 {
-	/* Connection-oriented sockets like ours are supposed to ignore addr and return EISCONN
-	 * when the dest addr is not NULL.
-	 */
-	if(addr)
-		return -EISCONN;
-	tcp_socket *socket = (tcp_socket*) sock;
-	return socket->sendto(buf, len, flags);
+	if(level == SOL_SOCKET)
+		return setsockopt_socket_level(opt, optval, optlen);
+	
+	if(is_inet_level(level))
+		return setsockopt_inet(level, opt, optval, optlen);
+
+	return -ENOPROTOOPT;
 }
 
-static struct sock_ops tcp_ops = 
+int tcp_socket::getsockopt(int level, int opt, void *optval, socklen_t *optlen)
 {
-	.bind = tcp_bind,
-	.connect = tcp_connect,
-	.sendto = tcp_sendto,
-	.recvfrom = default_recvfrom
-};
+	if(level == SOL_SOCKET)
+		return getsockopt_socket_level(opt, optval, optlen);
+	return -ENOPROTOOPT;
+}
 
 extern "C"
 struct socket *tcp_create_socket(int type)
 {
-	tcp_socket *tcp_sock = new tcp_socket();
-	if(!tcp_sock)
-		return NULL;
-
-	tcp_sock->s_ops = &tcp_ops;
-
-	return tcp_sock;
+	return new tcp_socket();
 }

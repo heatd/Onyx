@@ -366,8 +366,8 @@ public:
 	struct sockaddr_in &saddr() {return (sockaddr_in &) src_addr;}
 	struct sockaddr_in &daddr() {return (sockaddr_in &) dest_addr;}
 
-	int bind(struct sockaddr *addr, socklen_t addrlen);
-	int connect(struct sockaddr *addr, socklen_t addrlen);
+	int bind(struct sockaddr *addr, socklen_t addrlen) override;
+	int connect(struct sockaddr *addr, socklen_t addrlen) override;
 
 	int start_connection();
 
@@ -378,7 +378,7 @@ public:
 		wait_queue_wake_all(&tcp_ack_wq);
 	}
 
-	ssize_t sendto(const void *buf, size_t len, int flags);
+	ssize_t sendto(const void *buf, size_t len, int flags, sockaddr *addr, socklen_t addrlen) override;
 
 	uint32_t &sequence_nr()
 	{
@@ -393,6 +393,9 @@ public:
 	ssize_t queue_data(const void *user_buf, size_t len);
 
 	void try_to_send();
+
+	int setsockopt(int level, int opt, const void *optval, socklen_t optlen) override;
+	int getsockopt(int level, int opt, void *optval, socklen_t *optlen) override;
 };
 
 #endif

@@ -179,6 +179,9 @@ ssize_t sys_pwrite(int fd, const void *buf, size_t count, off_t offset);
 int sys_fsync(int fd);
 void sys_sync(void);
 
+int sys_getsockopt(int sockfd, int level, int optname, void *optval, socklen_t *optlen);
+int sys_setsockopt(int sockfd, int level, int optname, const void *optval, socklen_t optlen);
+
 void *syscall_table_64[] =
 {
 	[0] = (void*) sys_write,
@@ -300,8 +303,8 @@ void *syscall_table_64[] =
 	[116] = (void*) sys_tgkill,
 	[117] = (void*) sys_rt_sigpending,
 	[118] = (void*) sys_rt_sigtimedwait,
-	[119] = (void*) sys_nosys,
-	[120] = (void*) sys_nosys,
+	[119] = (void*) sys_getsockopt,
+	[120] = (void*) sys_setsockopt,
 	[121] = (void*) sys_nosys,
 	[122] = (void*) sys_nosys,
 	[123] = (void*) sys_sigaltstack,

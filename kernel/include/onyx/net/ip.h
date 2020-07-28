@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2016, 2017 Pedro Falcato
+* Copyright (c) 2016-2020 Pedro Falcato
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
@@ -25,7 +25,9 @@
 
 struct ip_header
 {
-	/* TODO: These bitfields are screwing up the structure's size, I think */
+	/* TODO: These bitfields are screwing up the structure's size,
+	 * although I think it's an intellisense problem. The problem doesn't seem to arise when compiling the code.
+	 */
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 	unsigned int ihl : 4;
 	unsigned int version : 4;
@@ -89,6 +91,14 @@ struct inet_socket : public socket
 
 	inet_socket() : socket{}, src_addr{}, dest_addr{} {}
 
+	static in_port_t get_port(inet_socket *sock, sockaddr_in_both &addr)
+	{
+		if(sock->domain == AF_INET)
+			return addr.in4.sin_port;
+		else
+			return addr.in6.sin6_port;
+	}
+
 	static uint32_t make_hash(inet_socket *& sock)
 	{
 		//size_t size_of_addr = sock->domain == AF_INET ? sizeof(sockaddr_in) : sizeof(sockaddr_in6);
@@ -127,6 +137,17 @@ struct inet_socket : public socket
 
 	virtual ~inet_socket();
 
+	int setsockopt_inet(int level, int opt, const void *optval, socklen_t len);
+	int getsockopt_inet(int level, int opt, void *optval, socklen_t *len);
+
+	bool is_inet_level(int level) const
+	{
+		if(domain == AF_INET)
+			return level == SOL_IP;
+		else /* if(domain == AF_INET6) is implicit */
+			return level == SOL_IPV6; 
+	}
+
 private:
 	friend class ip::v4::proto_family;
 	bool validate_sockaddr_len_pair_v4(sockaddr_in *addr, socklen_t len);
@@ -146,37 +167,70 @@ protected:
 #define IPV4_MAKE_FRAGOFF(x)		(x << 3)
 #define IPV4_GET_FRAGOFF(x)			(x >> 2)
 
-static inline uint16_t __ipsum_unfolded(void *addr, size_t bytes, uint16_t init_count)
+
+typedef uint32_t __attribute__((may_alias)) may_alias_uint32_t;
+typedef uint64_t __attribute__((may_alias)) may_alias_uint64_t;
+typedef uint16_t __attribute__((may_alias)) may_alias_uint16_t;
+typedef uint8_t __attribute__((may_alias)) may_alias_uint8_t;
+
+#define IS_BUFFER_ALIGNED_TO(buf, boundary)  (((unsigned long) buf) & boundary)
+
+#ifdef __x86_64__
+
+#define ADD_CARRY_64_BYTES(buf, result)  \
+__asm__ __volatile__("addq 0*8(%[buf]), %[res]\n\t" \
+					 "adcq 1*8(%[buf]), %[res]\n\t" \
+					 "adcq 2*8(%[buf]), %[res]\n\t" \
+					 "adcq 3*8(%[buf]), %[res]\n\t" \
+					 "adcq 4*8(%[buf]), %[res]\n\t" \
+					 "adcq 5*8(%[buf]), %[res]\n\t" \
+					 "adcq 6*8(%[buf]), %[res]\n\t" \
+					 "adcq 7*8(%[buf]), %[res]\n\t" \
+					 "adc $0, %[res]" : [res] "=r"(result) \
+					 : [buf] "r"(buf), "[res]" "r"(result))
+
+#define ADD_CARRY_64BIT(buf, result) \
+__asm__ __volatile__("addq (%1), %0\n\t" \
+					 "adc $0, %0\n\t" : "=r"(result) : "r"(buf), "0" "r"(result))
+
+static inline uint16_t fold32_to_16(uint32_t a) 
 {
-	uint32_t sum = init_count;
-	uint32_t ret = 0;
-	uint16_t __attribute__((may_alias)) *ptr = (uint16_t __attribute__((may_alias)) *) addr;
-	size_t words = bytes / 2;
-	for(size_t i = 0; i < words; i++)
-	{
-		sum += ptr[i];
-	}
-
-	ret = sum & 0xFFFF;
-	uint32_t carry = sum - ret;
-	while(carry)
-	{
-		ret += carry;
-		carry = ret >> 16;
-		ret &= 0xFFFF;
-	}
-
-	return ret;
+	uint16_t b = a >> 16; 
+	__asm__ __volatile__("addw %w2, %w0\n\t"
+                         "adcw $0, %w0\n" 
+	                     : "=r"(b)
+						 : "0"(b), "r"(a));
+	return b;
 }
 
-static inline uint16_t ipsum_unfolded(void *addr, size_t bytes)
+static inline uint32_t addcarry32(uint32_t a, uint32_t b)
 {
-	return __ipsum_unfolded(addr, bytes, 0);
+	__asm__ __volatile__("addl %2, %0\n\t"
+                         "adcl $0, %0"
+                         : "=r"(a)
+                         : "0"(a), "rm"(b));
+	return a;
 }
 
-static inline uint16_t ipsum_fold(uint16_t s)
+#endif
+
+using inetsum_t = uint32_t;
+
+inetsum_t do_checksum(const uint8_t *buf, size_t len);
+
+static inline inetsum_t __ipsum_unfolded(const void *addr, size_t bytes, inetsum_t starting_csum)
 {
-	return ~s;
+	return addcarry32(starting_csum, do_checksum((const uint8_t *) addr, bytes));
+}
+
+static inline inetsum_t ipsum_unfolded(const void *addr, size_t length)
+{
+	return do_checksum((const uint8_t *) addr, length);
+}
+
+static inline uint16_t ipsum_fold(inetsum_t cs)
+{
+	return ~fold32_to_16(cs);
 }
 
 static inline uint16_t ipsum(void *addr, size_t bytes)

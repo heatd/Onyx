@@ -82,12 +82,12 @@ public:
 		return current_node->data;
 	}
 
-	bool operator==(const linked_list_iterator<T>& a)
+	bool operator==(const linked_list_iterator<T>& a) const
 	{
 		return current_node == a.current_node;
 	}
 
-	bool operator!=(const linked_list_iterator<T>& a)
+	bool operator!=(const linked_list_iterator<T>& a) const
 	{
 		return current_node != a.current_node;
 	}
