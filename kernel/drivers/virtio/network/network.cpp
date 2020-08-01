@@ -39,70 +39,29 @@ void network_vdev::get_mac(cul::slice<uint8_t, 6>& mac_buf)
 		b = read<uint8_t>(network_registers::mac_base + i++);
 }
 
-size_t net_if_getlen(void *info, struct packetbuf_proto **next, void **next_info)
-{
-	auto vdev = static_cast<network_vdev *>(info);
-	(void) vdev;
-
-	*next = nullptr;
-	*next_info = info;
-
-	return sizeof(virtio_net_hdr);
-}
-
-
-packetbuf_proto net_if_proto =
-{
-	.name = "virtio_net",
-	.get_len = net_if_getlen
-};
-
-packetbuf_proto *network_vdev::get_packetbuf_proto(netif *n)
-{
-	return eth_get_packetbuf_proto();
-}
-
-int network_vdev::__sendpacket(const void *buffer, uint16_t size, netif *nif)
+int network_vdev::__sendpacket(packetbuf *buf, netif *nif)
 {
 	auto dev = static_cast<network_vdev *>(nif->priv);
 
-	return dev->send_packet(buffer, size);
+	return dev->send_packet(buf);
 }
 
 static constexpr unsigned int network_receiveq = 0;
 static constexpr unsigned int network_transmitq = 1;
 
-int network_vdev::send_packet(const void *buffer, uint16_t size)
+int network_vdev::send_packet(packetbuf *buf)
 {
-	/* TODO: We're casting away const here! Ewwwwwwwwwwww - passing [buffer, size] here
-	 * isn't a good idea - I don't like it and it forces us to do this disgusting thing.
-	 */
 	int st = 0;
 
-	/* This page allocation + copy is ugly, I really really don't like it but the
-	 * network stack packet submission is this broken...
-	 * TODO: Fix.
-	 */
-	
-	/* The networking subsystem should benefit from something like, for example, a packetbuf struct that holds
-	 * a bunch more of packet data and gets passed *everywhere*, including send_packet, instead of being a
-	 * glorified buffer allocation system as-is right now. Also, allocating raw pages instead of needing either a copy
-	 * or dma_get_ranges
-	 */
-
-	struct page *p = alloc_page(PAGE_ALLOC_NO_ZERO);
-	if(!p)
-		return -ENOMEM;
-
-	auto hdr = reinterpret_cast<virtio_net_hdr *>(const_cast<void *>(buffer));
+	auto hdr = reinterpret_cast<virtio_net_hdr *>(buf->push_header(sizeof(virtio_net_hdr)));
 	memset(hdr, 0, sizeof(*hdr));
 	hdr->gso_type = VIRTIO_NET_HDR_GSO_NONE;
 	auto &transmit = virtqueue_list[network_transmitq];
 
-	memcpy(PAGE_TO_VIRT(p), buffer, size);
-
+	/* TODO: Add proper sg-list support to virtio_buf_list */
 	virtio_buf_list list{transmit};
-	if(!list.prepare(PAGE_TO_VIRT(p), size, false))
+	auto addr = buf->page_vec[0].to_iter(buf->start_page_off()).to_pointer<uint8_t *>();
+	if(!list.prepare(addr, buf->length(), false))
 	{
 		st = -EIO;
 		goto out_error;
@@ -122,7 +81,6 @@ int network_vdev::send_packet(const void *buffer, uint16_t size)
 
 	return 0;
 out_error:
-	free_page(p);
 	return st;
 }
 
@@ -233,8 +191,6 @@ bool network_vdev::perform_subsystem_initialization()
 	nif->priv = this;
 	nif->sendpacket = virtio::network_vdev::__sendpacket;
 	nif->mtu = 1514;
-	nif->if_proto = &virtio::net_if_proto;
-	nif->get_packetbuf_proto = virtio::network_vdev::get_packetbuf_proto;
 
 	cul::slice<uint8_t, 6> m{nif->mac_address, 6};
 	get_mac(m);

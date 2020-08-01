@@ -23,6 +23,7 @@
 #include <onyx/net/network.h>
 #include <onyx/slab.h>
 #include <onyx/mm/pool.hpp>
+#include <onyx/packetbuf.h>
 
 static const char *hostname = "";
 
@@ -58,7 +59,7 @@ void network_sethostname(const char *name)
 	hostname = name;
 }
 
-memory_pool<network_args, false> pool;
+memory_pool<network_args, MEMORY_POOL_USABLE_ON_IRQ> pool;
 
 void network_do_dispatch(void *__args)
 {

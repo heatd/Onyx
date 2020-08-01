@@ -16,6 +16,7 @@
 #include <onyx/list.h>
 #include <onyx/ref.h>
 #include <onyx/public/memstat.h>
+#include <onyx/vm.h>
 
 /* The default physical allocator is the buddy allocator */
 #define CONFIG_BUDDY_ALLOCATOR		1

@@ -187,12 +187,12 @@ void netif_unlock_list(void)
 	spin_unlock(&netif_list_lock);
 }
 
-int netif_send_packet(struct netif *netif, const void *buffer, uint16_t size)
+int netif_send_packet(netif *netif, packetbuf *buf)
 {
 	assert(netif != nullptr);
 	if(netif->sendpacket)
-		return netif->sendpacket(buffer, size, netif);
-	return errno = ENODEV, -1;
+		return netif->sendpacket(buf, netif);
+	return -ENODEV;
 }
 
 void netif_get_ipv4_addr(struct sockaddr_in *s, struct netif *netif)

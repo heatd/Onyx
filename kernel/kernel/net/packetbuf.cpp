@@ -7,80 +7,124 @@
 #include <stdlib.h>
 #include <errno.h>
 
-
 #include <stdio.h>
 
 #include <onyx/packetbuf.h>
 #include <onyx/compiler.h>
+#include <onyx/mm/pool.hpp>
 
-/* Let's use 3 since it fits perfectly with (UDP/TCP), IPv4, ETH - it's the main packet stack */
+memory_pool<packetbuf, MEMORY_POOL_USABLE_ON_IRQ> packetbuf_pool;
 
-#define BUF_COUNT_INCREMENT			3
-static int __put_in_bufs(struct packetbuf_info *info, size_t len)
+void *packetbuf::operator new(size_t length)
 {
-	
-	if(unlikely(info->nr_offs >= info->buf_count))
-	{
-		size_t new_bufcount = info->buf_count + 3;
-		void *new_ptr = realloc(info->offsets, sizeof(size_t) * new_bufcount);
-		if(!new_ptr)
-			return -1;
-		info->offsets = static_cast<unsigned long *>(new_ptr);
-		info->buf_count = new_bufcount;
-	}
-
-	info->offsets[info->nr_offs] = len;
-	info->nr_offs++;
-
-	return 0;
+	return packetbuf_pool.allocate();
 }
 
-int packetbuf_alloc(struct packetbuf_info *pinfo, struct packetbuf_proto *first, void *info)
+void packetbuf::operator delete(void *ptr)
 {
-	struct packetbuf_proto *curr_proto = first;
-
-	while(curr_proto != NULL)
-	{
-		/* We use these two variables so get_len is easier to write
-		 * (don't need to make sure that *next and *next_info are NULL at the end). */
-		void *new_info = NULL;
-		struct packetbuf_proto *next_proto = NULL;
-
-		size_t len = curr_proto->get_len(info, &next_proto, &new_info);
-	
-		if(__put_in_bufs(pinfo, len) < 0)
-			return -ENOMEM; 
-
-		info = new_info;
-		curr_proto = next_proto;
-	}
-
-	
-	size_t proto_length = 0;
-
-	for(size_t i = 0; i < pinfo->nr_offs; i++)
-		proto_length += pinfo->offsets[i];
-	
-	pinfo->length += proto_length;
-
-	size_t size_until_now = 0;
-
-	for(long i = pinfo->nr_offs - 1; i >= 0; i--)
-	{
-		size_t this_layer_len = pinfo->offsets[i];
-		pinfo->offsets[i] = size_until_now;
-		size_until_now += this_layer_len;
-	}
-
-	pinfo->packet = malloc(pinfo->length);
-	if(!pinfo->packet)
-		return -1;
-
-	return 0;
+	packetbuf_pool.free(reinterpret_cast<packetbuf *>(ptr));
 }
 
-void packetbuf_free(struct packetbuf_info *info)
+bool packetbuf::allocate_space(size_t length)
 {
-	free(info->packet);
-	free(info->offsets);
+	/* This should only be called once - essentially,
+	 * we allocate enough pages for the packet and fill page_vec.
+	 */
+	assert(length <= UINT16_MAX);
+
+	auto nr_pages = vm_size_to_pages(length);
+	const auto original_length = length;
+
+	page *pages = alloc_pages(nr_pages, PAGE_ALLOC_NO_ZERO);
+	if(!pages)
+		return false;
+
+	vmo = vmo_create(length, nullptr);
+	if(!vmo)
+	{
+		free_pages(pages);
+		return false;
+	}
+
+	auto pages_head = pages;
+
+	for(size_t i = 0; i < nr_pages; i++)
+	{
+		page_ref(pages);
+
+		if(vmo_add_page(i << PAGE_SHIFT, pages, vmo) < 0)
+		{
+			free_pages(pages_head);
+			vmo_destroy(vmo);
+			return false;
+		}
+
+		page_vec[i].page = pages;
+		page_vec[i].length = min(length, PAGE_SIZE);
+		length -= page_vec[i].length;
+		page_vec[i].page_off = 0;
+		pages = pages->next_un.next_allocation;
+	}
+
+	buffer_start = vm_map_vmo(VM_KERNEL, VM_TYPE_REGULAR, nr_pages, VM_WRITE | VM_NOEXEC | VM_READ, vmo);
+	if(!buffer_start)
+	{
+		free_pages(pages_head);
+
+		for(size_t i = 0; i < nr_pages; i++)
+		{
+			page_vec[i].reset();
+		}
+
+		vmo_destroy(vmo);
+		vmo = nullptr;
+
+		return false;
+	}
+
+	net_header = transport_header = nullptr;
+	data = tail = (unsigned char *) buffer_start;
+	end = (unsigned char *) buffer_start + original_length;
+
+	return true;
+}
+
+void packetbuf::reserve_headers(unsigned int header_length)
+{
+	data += header_length;
+	tail = data;
+}
+
+void *packetbuf::push_header(unsigned int header_length)
+{
+	assert((unsigned long) data >= (unsigned long) buffer_start);
+
+	data -= header_length;
+
+	return (void *) data;
+}
+
+void *packetbuf::put(unsigned int size)
+{
+	auto to_ret = tail;
+
+	tail += size;
+
+	assert((unsigned long) tail <= (unsigned long) end);
+
+	return to_ret;
+}
+
+packetbuf::~packetbuf()
+{
+	const auto mapping_length = end - (unsigned char *) buffer_start;
+
+	if(buffer_start)   vm_munmap(&kernel_address_space, buffer_start, mapping_length);
+	if(vmo)  vmo_destroy(vmo);
+
+	for(auto &v : page_vec)
+	{
+		if(v.page)
+			free_page(v.page);
+	}
 }

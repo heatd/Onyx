@@ -39,14 +39,7 @@ typedef int (*device_send_packet)(const void*, uint16_t);
 extern "C" {
 #endif
 
-int eth_send_packet(char *destmac, struct packetbuf_info *buf, uint16_t protocol, struct netif *netif);
-
-extern struct packetbuf_proto __eth_proto;
-
-static inline struct packetbuf_proto *eth_get_packetbuf_proto(void)
-{
-	return &__eth_proto;
-}
+int eth_send_packet(char *destmac, packetbuf *buf, uint16_t protocol, struct netif *netif);
 
 #ifdef __cplusplus
 }

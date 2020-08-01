@@ -12,7 +12,7 @@
 #include <onyx/mm/flush.h>
 #include <onyx/cpu.h>
 
-memory_pool<block_buf, false> block_buf_pool;
+memory_pool<block_buf, 0> block_buf_pool;
 
 ssize_t block_buf_flush(flush_object *fo);
 bool block_buf_is_dirty(flush_object *fo);

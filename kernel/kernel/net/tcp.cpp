@@ -38,24 +38,6 @@ int tcp_socket::bind(struct sockaddr *addr, socklen_t addrlen)
 	return fam->bind(addr, addrlen, this);
 }
 
-size_t tcpv4_get_packetlen(void *info, struct packetbuf_proto **next, void **next_info);
-
-struct packetbuf_proto tcpv4_proto =
-{
-	.name = "tcp",
-	.get_len = tcpv4_get_packetlen
-};
-
-size_t tcpv4_get_packetlen(void *info, struct packetbuf_proto **next, void **next_info)
-{
-	tcp_packet *pkt = reinterpret_cast<tcp_packet *>(info);
-
-	*next = ipv4_get_packetbuf();
-	*next_info = pkt->nif;
-
-	return sizeof(struct tcp_header) + pkt->options_length();
-}
-
 bool validate_tcp_packet(const tcp_header *header, size_t size)
 {
 	if(sizeof(tcp_header) > size)
@@ -283,27 +265,18 @@ void tcp_packet::put_options(char *opts)
 
 int tcp_packet::send()
 {
-	info.length = payload.size_bytes();
-	bool padded = false;
-
-	if(info.length & 1)
-	{
-		padded = true;
-		info.length++;
-	}
-
-	if(packetbuf_alloc(&info, &tcpv4_proto, this) < 0)
-	{
-		packetbuf_free(&info);
+	buf = make_unique<packetbuf>();
+	if(!buf)
 		return -ENOMEM;
-	}
 
-	packetbuf_inited = true;
+	if(!buf->allocate_space(payload.size_bytes() + socket->get_headers_len() + MAX_TCP_HEADER_LENGTH))
+		return -ENOMEM;
+	buf->reserve_headers(socket->get_headers_len() + MAX_TCP_HEADER_LENGTH);
 
 	uint16_t options_len = options_length();
 	auto header_size = sizeof(tcp_header) + options_len;
 
-	struct tcp_header *header = (tcp_header *)(((char *) info.packet) + packetbuf_get_off(&info));
+	tcp_header *header = (tcp_header *) buf->push_header(header_size);
 
 	memset(header, 0, header_size);
 
@@ -326,34 +299,29 @@ int tcp_packet::send()
 
 	put_options(reinterpret_cast<char *>(header + 1));
 
-	char *payload_ptr = reinterpret_cast<char *>(header) + header_size;
+	auto length = payload.size_bytes();
 
-	if(payload.size_bytes() != 0)
-		memcpy(payload_ptr, payload.data(), payload.size_bytes());
-
-	if(padded)
+	if(length != 0)
 	{
-		payload_ptr[payload.size_bytes()] = 0;
-		info.length--;
+		auto ptr = buf->put(length);
+		memcpy(ptr, payload.data(), length);
 	}
 
 	header->checksum = tcpv4_calculate_checksum(header,
-		static_cast<uint16_t>(header_size + payload.size_bytes()), saddr->sin_addr.s_addr, dest.sin_addr.s_addr);
+		static_cast<uint16_t>(header_size + length), saddr->sin_addr.s_addr, dest.sin_addr.s_addr);
 
 	if(should_wait_for_ack())
 		socket->append_pending_out(this);
 
 	starting_seq_number = socket->sequence_nr();
-	uint32_t seqs = payload.size_bytes();
+	uint32_t seqs = length;
 	if(flags & TCP_FLAG_SYN)
 		seqs++;
 
 	socket->sequence_nr() += seqs;
 
-	int st = ip::v4::send_packet(saddr->sin_addr.s_addr, dest.sin_addr.s_addr, IPV4_TCP, &info,
+	int st = ip::v4::send_packet(saddr->sin_addr.s_addr, dest.sin_addr.s_addr, IPV4_TCP, buf.get(),
 		nif);
-
-	if(padded) info.length++;
 
 	if(st < 0)
 	{
@@ -474,7 +442,7 @@ int tcp_socket::start_handshake(netif *nif, sockaddr_in *from)
 		return st;
 	}
 
-	state = tcp_state::TCP_STATE_SYN_receiveD;
+	state = tcp_state::TCP_STATE_SYN_RECEIVED;
 	
 #if 0
 	/* TODO: Add this */
@@ -578,18 +546,7 @@ ssize_t tcp_socket::queue_data(const void *user_buf, size_t len)
 
 ssize_t tcp_socket::get_max_payload_len(uint16_t tcp_header_len)
 {
-	struct packetbuf_info in = {};
-	
-	/* TODO: Rework this - this shouldn't be allowed to fail and we shouldn't
-	 * need to allocate memory for this */
-	if(packetbuf_alloc(&in, &tcpv4_proto, this) < 0)
-		return -ENOMEM;
-
-	auto proto_overhead = in.offsets[in.current_off] + tcp_header_len;
-
-	packetbuf_free(&in);
-
-	return static_cast<ssize_t>(proto_overhead);
+	return 0;
 }
 
 void tcp_socket::try_to_send()

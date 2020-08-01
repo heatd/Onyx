@@ -2270,7 +2270,9 @@ void *vm_map_vmo(size_t flags, uint32_t type, size_t pages, size_t prot, struct 
 {
 	bool kernel = !(flags & VM_ADDRESS_USER);
 	void *ret = NULL;
-	struct mm_address_space *mm = get_current_address_space();
+	struct mm_address_space *mm = kernel ? &kernel_address_space :
+		&get_current_process()->address_space;
+
 	mutex_lock(&mm->vm_lock);
 
 	struct vm_region *reg = __vm_allocate_virt_region(flags, pages, type, prot);
@@ -2287,7 +2289,7 @@ void *vm_map_vmo(size_t flags, uint32_t type, size_t pages, size_t prot, struct 
 
 	if(kernel)
 	{
-		if(vmo_prefault(reg->vmo, pages << PAGE_SHIFT, 0) < 0)
+		if(vmo->type == VMO_ANON && vmo_prefault(reg->vmo, pages << PAGE_SHIFT, 0) < 0)
 		{
 			__vm_munmap(&kernel_address_space, (void *) reg->base, pages << PAGE_SHIFT);
 			goto ret;

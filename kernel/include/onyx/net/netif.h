@@ -25,6 +25,8 @@ struct netif;
 /* Defined as an opaque struct since it's C++ TODO: Yuck. */
 struct sockets_info;
 
+struct packetbuf;
+
 struct netif
 {
 	const char *name;
@@ -35,14 +37,11 @@ struct netif
 	unsigned char mac_address[6];
 	struct sockaddr_in local_ip;
 	struct sockaddr_in router_ip;
-	int (*sendpacket)(const void *buffer, uint16_t size, struct netif *nif);
+	int (*sendpacket)(packetbuf *buf, struct netif *nif);
 	struct list_head list_node;
 	struct arp_hashtable arp_hashtable;
 	struct spinlock hashtable_spinlock;
 	struct sockets_info *sock_info;
-	struct packetbuf_proto * (*get_packetbuf_proto)(struct netif *n);
-	/* To be filled for stuff like virtio */
-	struct packetbuf_proto *if_proto;
 };
 
 #ifdef __cplusplus
@@ -79,13 +78,14 @@ void netif_print_open_sockets(netif *nif);
 
 bool netif_remove_socket(inet_socket *sock, netif *nif, unsigned int flags);
 
+int netif_send_packet(struct netif *netif, packetbuf *buf);
+
 
 #endif
 
 void netif_register_if(struct netif *netif);
 int netif_unregister_if(struct netif *netif);
 struct netif *netif_choose(void);
-int netif_send_packet(struct netif *netif, const void *buffer, uint16_t size);
 void netif_get_ipv4_addr(struct sockaddr_in *s, struct netif *netif);
 struct netif *netif_get_from_addr(struct sockaddr *s, int domain);
 struct list_head *netif_lock_and_get_list(void);

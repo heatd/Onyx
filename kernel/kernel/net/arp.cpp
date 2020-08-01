@@ -16,6 +16,7 @@
 #include <onyx/net/ip.h>
 #include <onyx/log.h>
 #include <onyx/byteswap.h>
+#include <onyx/memory.hpp>
 
 int arp_hash(uint32_t ip)
 {
@@ -92,36 +93,18 @@ int arp_handle_packet(arp_request_t *arp, uint16_t len, struct netif *netif)
 	return 0;
 }
 
-size_t arp_get_packetlen(void *info, struct packetbuf_proto **next, void **next_info);
-
-struct packetbuf_proto arp_proto = 
-{
-	.name = "arp",
-	.get_len = arp_get_packetlen
-};
-
-size_t arp_get_packetlen(void *info, struct packetbuf_proto **next, void **next_info)
-{
-	struct netif *n = static_cast<struct netif *>(info);
-	
-
-	*next = n->get_packetbuf_proto(n);
-	*next_info = info;
-
-	return sizeof(arp_request_t);
-}
-
 int arp_submit_request(struct arp_cache *c, struct netif *netif)
 {
-	struct packetbuf_info bufs = {};
-	bufs.packet = NULL;
-	bufs.length = 0;
-	
-	if(packetbuf_alloc(&bufs, &arp_proto, netif) < 0)
+	auto buf = make_unique<packetbuf>();
+	if(!buf)
 		return -ENOMEM;
+	
+	if(!buf->allocate_space(sizeof(arp_request_t) + PACKET_MAX_HEAD_LENGTH))
+		return -ENOMEM;
+	
+	buf->reserve_headers(sizeof(arp_request_t) + PACKET_MAX_HEAD_LENGTH);
 
-	size_t arp_header_off = packetbuf_get_off(&bufs);
-	arp_request_t *arp = reinterpret_cast<arp_request_t *>(((char *) bufs.packet) + arp_header_off);
+	auto arp = reinterpret_cast<arp_request_t *>(buf->push_header(sizeof(arp_request_t)));
 	memset(arp, 0, sizeof(arp_request_t));
 	arp->htype = htons(ARP_ETHERNET);
 	arp->ptype = 0x0008;
@@ -138,9 +121,7 @@ int arp_submit_request(struct arp_cache *c, struct netif *netif)
 	arp->target_hw_address[5] = 0xFF;
 	arp->sender_proto_address = netif->local_ip.sin_addr.s_addr;
 	arp->target_proto_address = c->ip;
-	int st = eth_send_packet((char*) &arp->target_hw_address, &bufs, PROTO_ARP, netif);
-	
-	packetbuf_free(&bufs);
+	int st = eth_send_packet((char*) &arp->target_hw_address, buf.get(), PROTO_ARP, netif);
 
 
 	return st;

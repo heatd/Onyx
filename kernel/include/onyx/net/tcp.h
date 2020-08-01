@@ -21,6 +21,8 @@
 #include <onyx/vector.h>
 #include <onyx/slice.hpp>
 #include <onyx/scoped_lock.h>
+#include <onyx/memory.hpp>
+#include <onyx/packetbuf.h>
 
 struct tcp_header
 {
@@ -35,6 +37,8 @@ struct tcp_header
 	uint8_t options[];
 } __attribute__((packed));
 
+#define MAX_TCP_HEADER_LENGTH   (PACKET_MAX_HEAD_LENGTH + 60)
+
 #define TCP_FLAG_FIN			(uint16_t)(1 << 0)
 #define TCP_FLAG_SYN			(uint16_t)(1 << 1)
 #define TCP_FLAG_RST			(uint16_t)(1 << 2)
@@ -46,6 +50,8 @@ struct tcp_header
 #define TCP_FLAG_NS				(uint16_t)(1 << 8)
 #define TCP_DATA_OFFSET_SHIFT	(12)
 #define TCP_DATA_OFFSET_MASK	(0xf)
+
+#define TCP_HEADER_MAX_SIZE     60
 
 #define TCP_OPTION_END_OF_OPTIONS		(0)
 #define TCP_OPTION_NOP					(1)
@@ -61,7 +67,7 @@ enum class tcp_state
 {
 	TCP_STATE_LISTEN = 0,
 	TCP_STATE_SYN_SENT,
-	TCP_STATE_SYN_receiveD,
+	TCP_STATE_SYN_RECEIVED,
 	TCP_STATE_ESTABLISHED,
 	TCP_STATE_FIN_WAIT_1,
 	TCP_STATE_FIN_WAIT_2,
@@ -155,8 +161,7 @@ class tcp_packet : public refcountable
 public:
 	cul::slice<const uint8_t> payload;
 	tcp_socket *socket;
-	struct packetbuf_info info;
-	bool packetbuf_inited;
+	unique_ptr<packetbuf> buf;
 	struct list_head option_list;
 	uint16_t flags;
 	netif *nif;
@@ -188,7 +193,7 @@ public:
 
 	tcp_packet(cul::slice<const uint8_t> data, tcp_socket *socket, uint16_t flags,
                netif *nif, sockaddr_in *in) : refcountable(), payload(data),
-	           socket(socket), info{}, packetbuf_inited{false}, option_list{}, flags(flags), nif(nif),
+	           socket(socket), buf{}, option_list{}, flags(flags), nif(nif),
 			   saddr(in), pending_packet_list_node{this}, acked{false}, ack_wq{}, packet_flags{}
 	{
 		INIT_LIST_HEAD(&option_list);
@@ -210,8 +215,6 @@ public:
 			wait_for_single_ref();
 
 		delete_options();
-		if(packetbuf_inited)
-			packetbuf_free(&info);
 	}
 
 	uint16_t options_length() const;

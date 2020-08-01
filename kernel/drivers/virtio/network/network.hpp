@@ -29,7 +29,7 @@ struct virtio_net_hdr
 #define VIRTIO_NET_HDR_GSO_TCPV6       4 
 #define VIRTIO_NET_HDR_GSO_ECN      0x80 
 	uint8_t gso_type; 
-	uint16_t hdr_len; 
+	uint16_t hdr_len;
 	uint16_t gso_size; 
 	uint16_t csum_start; 
 	uint16_t csum_offset; 
@@ -43,10 +43,9 @@ private:
 	unique_ptr<netif> nif;
 	struct page *rx_pages;
 
-	static struct packetbuf_proto *get_packetbuf_proto(netif *n);
-	static int __sendpacket(const void *buffer, uint16_t size, netif *nif);
+	static int __sendpacket(packetbuf *buf, netif *nif);
 	
-	int send_packet(const void *buffer, uint16_t size);
+	int send_packet(packetbuf *buf);
 public:
 	network_vdev(struct pci_device *d) : vdev(d) {}
 	~network_vdev();

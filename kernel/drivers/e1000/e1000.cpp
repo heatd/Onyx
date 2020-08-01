@@ -76,10 +76,12 @@ void e1000_handle_receive(struct e1000_device *dev)
 
 irqstatus_t e1000_irq(struct irq_context *ctx, void *cookie)
 {
-	volatile uint32_t status = e1000_read(REG_ICR, cookie);
+	auto device = (e1000_device *) cookie;
+
+	volatile uint32_t status = e1000_read(REG_ICR, device);
 	if(status & ICR_RXT0)
 	{
-		e1000_handle_receive(cookie);
+		e1000_handle_receive(device);
 	}
 	
 	return IRQ_HANDLED;
@@ -175,7 +177,9 @@ struct page_frag_res
 	size_t off;
 };
 
-struct page_frag_res page_frag_alloc(struct page_frag_alloc_info *inf, size_t size)
+/* TODO: Put this in an actual header */
+
+extern "C" struct page_frag_res page_frag_alloc(struct page_frag_alloc_info *inf, size_t size)
 {
 	assert(size <= PAGE_SIZE);
 
@@ -209,6 +213,10 @@ int e1000_init_rx(struct e1000_device *dev)
 	size_t needed_pages = vm_size_to_pages(sizeof(struct e1000_rx_desc) * E1000_NUM_RX_DESC + 16);
 	struct page *rx_pages = alloc_pages(needed_pages, PAGE_ALLOC_CONTIGUOUS);
 
+	struct page_frag_alloc_info alloc_info;
+	unsigned long rxd_base = 0;
+	struct e1000_rx_desc *rxdescs;
+
 	if(!rx_pages)
 		return -ENOMEM;
 
@@ -220,12 +228,11 @@ int e1000_init_rx(struct e1000_device *dev)
 		goto error0;
 	}
 
-	struct page_frag_alloc_info alloc_info;
 	alloc_info.curr = alloc_info.page_list = rx_buf_pages;
 	alloc_info.off = 0;
 
-	struct e1000_rx_desc *rxdescs = map_page_list(rx_pages, needed_pages << PAGE_SHIFT,
-                                                  VM_WRITE | VM_NOEXEC);
+	rxdescs = (e1000_rx_desc *) map_page_list(rx_pages, needed_pages << PAGE_SHIFT,
+                                                  VM_WRITE | VM_NOEXEC | VM_READ);
 	if(!rxdescs)
 	{
 		st = -ENOMEM;
@@ -244,7 +251,7 @@ int e1000_init_rx(struct e1000_device *dev)
 		rxdescs[i].status = 0;
 	}
 
-	unsigned long rxd_base = (unsigned long) page_to_phys(rx_pages);
+	rxd_base = (unsigned long) page_to_phys(rx_pages);
 
 	e1000_write(REG_RXDESCLO, (uint32_t) rxd_base, dev);
 	e1000_write(REG_RXDESCHI, (uint32_t)(rxd_base >> 32), dev);
@@ -282,18 +289,19 @@ int e1000_init_tx(struct e1000_device *dev)
 	int st = 0;
 	size_t needed_pages = vm_size_to_pages(sizeof(struct e1000_rx_desc) * E1000_NUM_RX_DESC + 16);
 	struct page *tx_pages = alloc_pages(needed_pages, PAGE_ALLOC_CONTIGUOUS);
+	unsigned long txd_base = 0;
 
 	if(!tx_pages)
 		return -ENOMEM;
 
-	txdescs = map_page_list(tx_pages, needed_pages << PAGE_SHIFT, VM_WRITE | VM_NOEXEC);
+	txdescs = (e1000_tx_desc *) map_page_list(tx_pages, needed_pages << PAGE_SHIFT, VM_WRITE | VM_NOEXEC);
 	if(!txdescs)
 	{
 		st = -ENOMEM;
 		goto error0;
 	}
 
-	unsigned long txd_base = (unsigned long) page_to_phys(tx_pages);
+	txd_base = (unsigned long) page_to_phys(tx_pages);
 	e1000_write(REG_TXDESCLO, (uint32_t) txd_base, dev);
 	e1000_write(REG_TXDESCHI, (uint32_t)(txd_base >> 32), dev);
 
@@ -341,21 +349,16 @@ void e1000_enable_interrupts(struct e1000_device *dev)
 	e1000_read(REG_ICR, dev);
 }
 
-int e1000_send_packet(const void *data, uint16_t len, struct netif *nif)
+int e1000_send_packet(packetbuf *buf, struct netif *nif)
 {
-	struct e1000_device *dev = nif->priv;
-
-	/* TODO: Rework this */
-	struct page *buf = alloc_page(PAGE_ALLOC_NO_ZERO);
-	if(!buf)
-		return -ENOMEM;
-
-	memcpy(PAGE_TO_VIRT(buf), data, len);
+	struct e1000_device *dev = (e1000_device *) nif->priv;
 
 	spin_lock(&dev->tx_cur_lock);
 
-	dev->tx_descs[dev->tx_cur].addr = (uint64_t) page_to_phys(buf);
-	dev->tx_descs[dev->tx_cur].length = len;
+	/* TODO: Support having more than one page */
+	auto buffer_start_off = buf->data - (unsigned char *) buf->buffer_start;
+	dev->tx_descs[dev->tx_cur].addr = ((uint64_t) page_to_phys(buf->page_vec[0].page)) + buffer_start_off;
+	dev->tx_descs[dev->tx_cur].length = buf->length();
 	dev->tx_descs[dev->tx_cur].cmd = CMD_EOP | CMD_IFCS | CMD_RS | CMD_RPS;
 	dev->tx_descs[dev->tx_cur].status = 0;
 	dev->tx_descs[dev->tx_cur].popts = POPTS_TXSM;
@@ -365,8 +368,6 @@ int e1000_send_packet(const void *data, uint16_t len, struct netif *nif)
 	spin_unlock(&dev->tx_cur_lock);
 
 	while(!(dev->tx_descs[old_cur].status & 0xff));
-
-	free_page(buf);
 
 	return 0;
 }
@@ -452,11 +453,6 @@ struct pci_id e1000_pci_ids[] =
 	{ PCI_ID_DEVICE(INTEL_VENDOR, E1000_82577LM, NULL) }
 };
 
-struct packetbuf_proto *e1000_get_packetbuf_proto(struct netif *n)
-{
-	return eth_get_packetbuf_proto();
-}
-
 int e1000_probe(struct device *__dev)
 {
 	struct pci_device *dev = (struct pci_device *) __dev;
@@ -465,7 +461,7 @@ int e1000_probe(struct device *__dev)
 		"ID %04x:%04x\n", dev->segment, dev->bus, dev->device,
 		dev->function, dev->vendorID, dev->deviceID);
 	
-	char *mem_space = pci_map_bar(dev, 0, VM_NOCACHE);
+	char *mem_space = (char *) pci_map_bar(dev, 0, VM_NOCACHE);
 	if(!mem_space)
 	{
 		ERROR("e1000", "Sorry! This driver only supports e1000 register access through MMIO, "
@@ -473,7 +469,7 @@ int e1000_probe(struct device *__dev)
 		return -1;
 	}
 
-	struct e1000_device *nicdev = zalloc(sizeof(*nicdev));
+	struct e1000_device *nicdev = new e1000_device;
 	if(!nicdev)
 	{
 		/* TODO: Unmap mem_space */
@@ -500,7 +496,7 @@ int e1000_probe(struct device *__dev)
 
 	e1000_enable_interrupts(nicdev);
 
-	struct netif *n = zalloc(sizeof(struct netif));
+	netif *n = new netif;
 	if(!n)
 		return -1;
 
@@ -509,7 +505,6 @@ int e1000_probe(struct device *__dev)
 	n->flags |= NETIF_LINKUP;
 	n->sendpacket = e1000_send_packet;
 	n->priv = nicdev;
-	n->get_packetbuf_proto = e1000_get_packetbuf_proto;
 	n->mtu = MAX_MTU;
 	nicdev->nic_netif = n;
 	memcpy(n->mac_address, nicdev->e1000_internal_mac_address, 6);

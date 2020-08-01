@@ -39,10 +39,10 @@ public:
                    socklen_t addrlen) override;
 	int getsockopt(int level, int optname, void *val, socklen_t *len) override;
 	int setsockopt(int level, int optname, const void *val, socklen_t len) override;
+	int send_packet(char *payload, size_t payload_size, in_port_t source_port, in_port_t dest_port, 
+		in_addr_t srcip, in_addr_t destip, struct netif *netif);
 };
 
-int udp_send_packet(char *payload, size_t payload_size, in_port_t source_port, in_port_t dest_port, 
-		in_addr_t srcip, in_addr_t destip, struct netif *netif);
 struct socket *udp_create_socket(int type);
 int udp_init_netif(struct netif *netif);
 void udp_handle_packet(struct ip_header *header, size_t length, struct netif *netif);

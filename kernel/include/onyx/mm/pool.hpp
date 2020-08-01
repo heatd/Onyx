@@ -233,18 +233,24 @@ public:
 	}
 };
 
-template <typename T, bool use_virtual_memory = false>
+#define MEMORY_POOL_USE_VM              (1 << 0)
+#define MEMORY_POOL_USABLE_ON_IRQ       (1 << 1)
+
+template <typename T, int pool_flags = 0>
 class memory_pool
 {
 private:
 	memory_chunk<T> *free_chunk_head, *free_chunk_tail;
 	struct spinlock lock;
-	memory_pool_segment<T, use_virtual_memory> *segment_head, *segment_tail;
+	memory_pool_segment<T, pool_flags & MEMORY_POOL_USE_VM> *segment_head, *segment_tail;
 	size_t nr_objects;
 public:
-	static constexpr bool using_vm = use_virtual_memory; 
+	static constexpr bool using_vm = pool_flags & MEMORY_POOL_USE_VM;
+	static constexpr bool usable_onirq = pool_flags & MEMORY_POOL_USABLE_ON_IRQ; 
 
-	void append_segment(memory_pool_segment<T, use_virtual_memory> *seg)
+	static_assert(!(usable_onirq && using_vm), "You may not use virtual memory mappings under IRQ context.");
+
+	void append_segment(memory_pool_segment<T, using_vm> *seg)
 	{
 		if(!segment_head)
 		{
@@ -260,7 +266,7 @@ public:
 		seg->next = seg->prev = nullptr;
 	}
 
-	void remove_segment(memory_pool_segment<T, use_virtual_memory> *seg)
+	void remove_segment(memory_pool_segment<T, using_vm> *seg)
 	{
 		if(seg->prev)
 		{
@@ -274,15 +280,15 @@ public:
 		else
 			segment_tail = seg->prev;
 
-		seg->~memory_pool_segment<T, use_virtual_memory>();
+		seg->~memory_pool_segment<T, using_vm>();
 	}
 
 	bool expand_pool()
 	{
 		//std::cout << "Expanding pool.\n";
-		auto allocation_size = memory_pool_segment<T, use_virtual_memory>::memory_pool_size();
+		auto allocation_size = memory_pool_segment<T, using_vm>::memory_pool_size();
 		
-		memory_pool_segment<T, use_virtual_memory> seg{allocation_size};
+		memory_pool_segment<T, using_vm> seg{allocation_size};
 	 	void *address = NULL;
 
 		if constexpr(using_vm)
@@ -308,7 +314,7 @@ public:
 
 		//std::cout << "Added " << new_mmap_region << " size " << allocation_size << "\n";
 
-		auto &mmap_seg = *static_cast<memory_pool_segment<T, use_virtual_memory> *>(address);
+		auto &mmap_seg = *static_cast<memory_pool_segment<T, using_vm> *>(address);
 		mmap_seg = cul::move(seg);
 
 		auto pair = mmap_seg.setup_chunks();
@@ -335,7 +341,7 @@ public:
 		return c;
 	}
 
-	void free_list_purge_segment_chunks(memory_pool_segment<T, use_virtual_memory> *seg)
+	void free_list_purge_segment_chunks(memory_pool_segment<T, using_vm> *seg)
 	{
 		//std::cout << "Removing chunks\n";
 		auto l = free_chunk_head;
@@ -390,7 +396,7 @@ public:
 		}
 	}
 
-	void purge_segment(memory_pool_segment<T, use_virtual_memory> *segment)
+	void purge_segment(memory_pool_segment<T, using_vm> *segment)
 	{
 		if(segment->empty())
 		{
@@ -417,7 +423,7 @@ public:
 
 	T *allocate()
 	{
-		scoped_lock<spinlock> guard{&lock};
+		scoped_lock<spinlock, usable_onirq> guard{&lock};
 
 		while(!free_chunk_head)
 		{
@@ -434,7 +440,7 @@ public:
 
 		if(!free_chunk_head)	free_chunk_tail = nullptr;
 
-		reinterpret_cast<memory_pool_segment<T, use_virtual_memory> *>(return_chunk->segment)->used_objs++;
+		reinterpret_cast<memory_pool_segment<T, using_vm> *>(return_chunk->segment)->used_objs++;
 		used_objects++;
 
 #ifdef OBJECT_CANARY
@@ -448,7 +454,7 @@ public:
 	{
 		auto chunk = ptr_to_chunk(ptr);
 		//std::cout << "Removing chunk " << chunk << "\n";
-		scoped_lock<spinlock> guard{&lock};
+		scoped_lock<spinlock, usable_onirq> guard{&lock};
 
 		chunk->next = nullptr;
 #ifdef OBJECT_CANARY
@@ -462,7 +468,7 @@ public:
 #endif
 
 		used_objects--;
-		auto segment = reinterpret_cast<memory_pool_segment<T, use_virtual_memory> *>(chunk->segment);
+		auto segment = reinterpret_cast<memory_pool_segment<T, using_vm> *>(chunk->segment);
 		segment->used_objs--;
 
 #ifndef OBJECT_POOL_DEFER_UNMAP
@@ -473,6 +479,7 @@ public:
 
 	void purge()
 	{
+		scoped_lock<spinlock, usable_onirq> g{&lock};
 		auto s = segment_head;
 
 		while(s)

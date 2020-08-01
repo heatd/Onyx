@@ -7,42 +7,105 @@
 #define _ONYX_PACKETBUF_H
 
 #include <stddef.h>
+#include <limits.h>
 
-/* packetbuf_proto - implemented by every protocol layer in order to
- * figure out the size of the final packet
-*/
+#include <onyx/page.h>
+#include <onyx/page_iov.h>
 
-struct packetbuf_proto
+#define PACKETBUF_MAX_NR_PAGES    (UINT16_MAX / PAGE_SIZE)
+
+#define DEFAULT_HEADER_LEN        128
+
+struct vm_object;
+struct packetbuf
 {
-	const char *name;
-	/* get_len - called to get its overhead - info is used if needed, else NULL.
-	 * Returns: its overhead as a return value, the next proto if any in *next and
-	 * the next info arg in *next_info.
-	*/
-	size_t (*get_len)(void *info, struct packetbuf_proto **next, void **next_info);
+	/* Reasoning behind this - We're going to need at
+	 * most 64KiB of space for the buffer, since that's the most we'll
+	 * be able to buffer in one packet, for mostly technical but also practical reasons.
+	 * So, we're getting 'x' number of iovs for the packet's data and 2 more;
+	 * 1 is used as header data, because IF we're using zero-copy networking
+	 * there will be inevitably a gap between the headers(which should span at most from
+	 * [0 ... 120's...] and the end of the page.
+	 * The other iov is used as a terminating canary.
+	 */
+
+	/* Another important thing to note - networking headers
+	 * and other code that uses push() is limited to page_iov[0].
+	 */
+	struct page_iov page_vec[PACKETBUF_MAX_NR_PAGES + 2];
+
+	unsigned char *net_header;
+	unsigned char *transport_header;
+	unsigned char *data;
+	unsigned char *tail;
+	unsigned char *end;
+
+	void *buffer_start;
+
+	unsigned int zero_copy : 1;
+	vm_object *vmo;
+
+	/**
+	 * @brief Construct a new default packetbuf object.
+	 * 
+	 */
+	packetbuf() : page_vec{}, net_header{}, transport_header{}, data{}, tail{},
+	              end{}, buffer_start{}, zero_copy{0}, vmo{} {}
+	
+	~packetbuf();
+
+	void *operator new(size_t length);
+	void operator delete(void *ptr);
+
+	/**
+	 * @brief Reserve space for the packet.
+	 * This function is only meant to be called once, at initialisation,
+	 * and calling it again may make the kernel crash and burn.
+	 * @param length the maximum length of the whole packet(including headers and footers)
+	 * @return true if it was successful, false if it was not.
+	 */
+	bool allocate_space(size_t length);
+
+	/**
+	 * @brief Reserve space for the headers.
+	 * 
+	 * @param header_length length of the headers 
+	 */
+	void reserve_headers(unsigned int header_length);
+
+	/**
+	 * @brief Get space for a networking header, and adjust data to point to the start of the header
+	 * 
+	 * @param size size of the header
+	 * @return void* the address of the new header
+	 */
+	void *push_header(unsigned int size);
+
+	/**
+	 * @brief Get space for data, and advance tail by size
+	 * 
+	 * @param size the length of the data
+	 * @return void* the address of the new data
+	 */
+	void *put(unsigned int size);
+
+	unsigned int length() const
+	{
+		return tail - data;
+	}
+
+	unsigned int start_page_off() const
+	{
+		return data - (unsigned char *) buffer_start;
+	}
 };
 
-struct packetbuf_info
-{
-	void *packet;
-	size_t length;
-	size_t *offsets;
-	size_t nr_offs;
-	size_t buf_count;
-	size_t current_off;
-};
+#define PACKET_MAX_HEAD_LENGTH		128
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int packetbuf_alloc(struct packetbuf_info *pinfo, struct packetbuf_proto *first, void *info);
-void packetbuf_free(struct packetbuf_info *info);
-
-static inline size_t packetbuf_get_off(struct packetbuf_info *info)
-{
-	return info->offsets[info->current_off++];
-}
 
 #ifdef __cplusplus
 }

@@ -23,7 +23,7 @@
 #include <onyx/string_view.hpp>
 #include <onyx/expected.hpp>
 
-static memory_pool<dentry, false> dentry_pool;
+static memory_pool<dentry, 0> dentry_pool;
 dentry *root_dentry = nullptr;
 
 extern "C"

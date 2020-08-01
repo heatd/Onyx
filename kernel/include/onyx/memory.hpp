@@ -345,6 +345,11 @@ public:
 		return p;
 	}
 
+	T* get() const
+	{
+		return p;
+	}
+
 	T& operator*() const
 	{
 		return *get_data();

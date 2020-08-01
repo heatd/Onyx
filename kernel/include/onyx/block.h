@@ -15,6 +15,8 @@
 #include <onyx/list.h>
 #include <onyx/dev.h>
 #include <onyx/page.h>
+#include <onyx/page.h>
+#include <onyx/page_iov.h>
 
 /* Power management operations*/
 #define BLKDEV_PM_SLEEP 1
@@ -24,14 +26,6 @@
 struct blockdev;
 
 typedef uint64_t sector_t;
-
-struct page_iov
-{
-	struct page *page;
-	unsigned int length;
-	unsigned int page_off;
-};
-
 
 #define BIO_REQ_OP_MASK      (0xff)
 #define BIO_REQ_READ_OP      0

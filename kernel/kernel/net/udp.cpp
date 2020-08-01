@@ -19,6 +19,7 @@
 #include <onyx/utils.h>
 #include <onyx/byteswap.h>
 #include <onyx/packetbuf.h>
+#include <onyx/memory.hpp>
 
 #include <netinet/in.h>
 
@@ -44,73 +45,38 @@ uint16_t udpv4_calculate_checksum(udp_header_t *header, uint32_t srcip, uint32_t
 
 #include <onyx/clock.h>
 
-size_t udpv4_get_packetlen(void *info, packetbuf_proto **next, void **next_info);
-
-packetbuf_proto udpv4_proto =
-{
-	.name = "udp",
-	.get_len = udpv4_get_packetlen
-};
-
-size_t udpv4_get_packetlen(void *info, packetbuf_proto **next, void **next_info)
-{
-	netif *n = static_cast<netif *>(info);
-
-	(void) n;
-
-	*next = ipv4_get_packetbuf();
-	*next_info = info;
-
-	return sizeof(udp_header_t);
-}
-
-int udp_send_packet(char *payload, size_t payload_size, in_port_t source_port,
+int udp_socket::send_packet(char *payload, size_t payload_size, in_port_t source_port,
 	            in_port_t dest_port, in_addr_t srcip, in_addr_t destip,
 		    	netif *netif)
 {
-	bool padded = false;
-
-	if(payload_size & 1)
-	{
-		padded = true;
-		payload_size++;
-	}
-
 	if(payload_size > UINT16_MAX)
-		return errno = EMSGSIZE, -1;
+		return -EMSGSIZE;
 
-	packetbuf_info buf = {0};
-	buf.length = payload_size;
-	buf.packet = NULL;
+	unique_ptr b = make_unique<packetbuf>();
+	if(!b)
+		return -ENOMEM;
 
-	if(packetbuf_alloc(&buf, &udpv4_proto, netif) < 0)
-	{
-		packetbuf_free(&buf);
-		return -1;
-	}
-	
-	udp_header_t *udp_header = reinterpret_cast<udp_header_t *>(((char *) buf.packet) + packetbuf_get_off(&buf));
+	if(!b->allocate_space(payload_size + get_headers_len() + sizeof(udp_header_t) + PACKET_MAX_HEAD_LENGTH))
+		return -ENOMEM;
+
+	b->reserve_headers(get_headers_len() + sizeof(udp_header_t) + PACKET_MAX_HEAD_LENGTH);
+
+	udp_header_t *udp_header = (udp_header_t *) b->push_header(sizeof(udp_header));
 
 	memset(udp_header, 0, sizeof(udp_header_t));
 
 	udp_header->source_port = source_port;
 	udp_header->dest_port = dest_port;
 
-	if(padded)
-	{
-		*((char *) buf.packet + payload_size) = 0;
-		payload_size--;
-	}
-
 	udp_header->len = htons((uint16_t)(sizeof(udp_header_t) +
 					  payload_size));
+	
+	auto ptr = b->put((unsigned int) payload_size);
 
-	memcpy(&udp_header->payload, payload, payload_size);
+	memcpy(ptr, payload, payload_size);
 
 	udp_header->checksum = udpv4_calculate_checksum(udp_header, srcip, destip);
-	int ret = ip::v4::send_packet(srcip, destip, IPV4_UDP, &buf, netif);
-
-	packetbuf_free(&buf);
+	int ret = ip::v4::send_packet(srcip, destip, IPV4_UDP, b.get(), netif);
 
 	return ret;
 }
@@ -165,11 +131,11 @@ ssize_t udp_socket::sendto(const void *buf, size_t len, int flags, sockaddr *add
 
 	auto &from_in = (sockaddr_in &) from;
 
-	if(udp_send_packet((char*) buf, len, from_in.sin_port, to->sin_port,
+	if(int st = send_packet((char*) buf, len, from_in.sin_port, to->sin_port,
 			   from_in.sin_addr.s_addr, to->sin_addr.s_addr, 
-			   netif) < 0)
+			   netif); st < 0)
 	{
-		return -errno;
+		return st;
 	}
 
 	return len;

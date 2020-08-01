@@ -31,29 +31,6 @@ namespace ip
 namespace v4
 {
 
-size_t get_packlen(void *info, struct packetbuf_proto **next, void **next_info);
-
-extern "C"
-{
-
-struct packetbuf_proto __ipv4_pbf =
-{
-	.name = "ipv4",
-	.get_len = get_packlen
-};
-
-}
-
-size_t get_packlen(void *info, struct packetbuf_proto **next, void **next_info)
-{
-	/* In this function, info = netif */
-	struct netif *n = static_cast<netif *>(info);
-
-	*next = n->get_packetbuf_proto(n);
-	*next_info = info;
-	return sizeof(struct ip_header);
-}
-
 bool needs_fragmentation(size_t packet_size, struct netif *netif)
 {
 	return packet_size > netif->mtu;
@@ -61,8 +38,8 @@ bool needs_fragmentation(size_t packet_size, struct netif *netif)
 
 struct fragment
 {
-	struct packetbuf_info *original_packet;
-	struct packetbuf_info this_buf;
+	packetbuf *original_packet;
+	packetbuf *this_buf;
 	uint16_t packet_off;
 	uint16_t length;
 	struct list_head list_node;
@@ -77,10 +54,12 @@ void free_frags(struct list_head *frag_list)
 		if(f->packet_off != 0)
 		{
 			/* Don't free when it's the first fragment, because it uses a copy of the original packetbuf */
-			packetbuf_free(&f->this_buf);
+			// packetbuf_free(&f->this_buf);
 		}
 
 		list_remove(l);
+
+		free(f);
 	}
 }
 
@@ -118,11 +97,13 @@ void setup_fragment(struct send_info *info, struct fragment *frag,
 	ip_header->header_checksum = ipsum(ip_header, ip_header->ihl * sizeof(uint32_t));
 }
 
-int create_fragments(struct list_head *frag_list, struct packetbuf_info *buf,
+int create_fragments(struct list_head *frag_list, packetbuf *buf,
 	size_t payload_size, struct send_info *sinfo, struct netif *netif)
 {
 	/* Okay, let's split stuff in multiple IPv4 fragments */
-
+	/* TODO: Implement with packetbufs */
+	return -EIO;
+#if 0
 	size_t total_packet_size = payload_size;
 	(void) total_packet_size;
 	uint16_t off = 0;
@@ -131,7 +112,7 @@ int create_fragments(struct list_head *frag_list, struct packetbuf_info *buf,
 	 * This will give the size of, using a classic ethernet stack as an example,
 	 * [ETHERNET HEADER] + [IP HEADER], which are for our purposes, the overhead of each packet.
 	*/
-	size_t packet_metadata_len = buf->length - payload_size;
+	size_t packet_metadata_len = buf->length() - payload_size;
 
 	while(payload_size != 0)
 	{
@@ -170,7 +151,7 @@ int create_fragments(struct list_head *frag_list, struct packetbuf_info *buf,
 			 * length; this should make this a faster operation.
 			*/
 			memcpy(&frag->this_buf, buf, sizeof(*buf));
-			frag->this_buf.length = packet_metadata_len + this_payload_size;
+			frag->this_buflength = packet_metadata_len + this_payload_size;
 		}
 		else
 		{
@@ -208,6 +189,8 @@ int create_fragments(struct list_head *frag_list, struct packetbuf_info *buf,
 	}
 
 	return 0;
+#endif
+
 }
 
 int calculate_dstmac(unsigned char *destmac, uint32_t destip, struct netif *netif)
@@ -234,7 +217,7 @@ int calculate_dstmac(unsigned char *destmac, uint32_t destip, struct netif *neti
 }
 
 int do_fragmentation(struct send_info *sinfo, size_t payload_size,
-                         struct packetbuf_info *buf, struct netif *netif)
+                         packetbuf *buf, struct netif *netif)
 {
 	struct list_head frags = LIST_HEAD_INIT(frags);
 	int st = create_fragments(&frags, buf, payload_size, sinfo, netif);
@@ -256,7 +239,7 @@ int do_fragmentation(struct send_info *sinfo, size_t payload_size,
 	{
 		struct fragment *frag = container_of(l, struct fragment, list_node);
 
-		if(eth_send_packet((char *) &destmac, &frag->this_buf, PROTO_IPV4, netif) < 0)
+		if(eth_send_packet((char *) &destmac, frag->this_buf, PROTO_IPV4, netif) < 0)
 		{
 			st = -1;
 			goto out;
@@ -277,12 +260,11 @@ static uint16_t allocate_id(void)
 }
 
 int send_packet(uint32_t senderip, uint32_t destip, unsigned int type,
-                     struct packetbuf_info *buf, struct netif *netif)
+                     packetbuf *buf, struct netif *netif)
 {
-	size_t ip_header_off = packetbuf_get_off(buf);
-	struct ip_header *ip_header = reinterpret_cast<struct ip_header *>(((char *) buf->packet) + ip_header_off);
-	
-	size_t payload_size = buf->length - ip_header_off - sizeof(struct ip_header);
+	ip_header *iphdr = (ip_header *) buf->push_header(sizeof(ip_header));
+
+	size_t payload_size = buf->length() - sizeof(struct ip_header);
 
 	struct send_info sinfo = {};
 	/* Dest ip and sender ip are already in network order */
@@ -292,7 +274,7 @@ int send_packet(uint32_t senderip, uint32_t destip, unsigned int type,
 	sinfo.type = type;
 	sinfo.frags_following = false;
 
-	if(needs_fragmentation(buf->length, netif))
+	if(needs_fragmentation(buf->length(), netif))
 	{
 		/* TODO: Support ISO(IP segmentation offloading) */
 		sinfo.identification = allocate_id();
@@ -304,7 +286,7 @@ int send_packet(uint32_t senderip, uint32_t destip, unsigned int type,
 	frag.length = payload_size;
 	frag.packet_off = 0;
 
-	setup_fragment(&sinfo, &frag, ip_header, netif);
+	setup_fragment(&sinfo, &frag, iphdr, netif);
 
 	unsigned char destmac[6] = {};
 	if(calculate_dstmac((unsigned char *) &destmac, destip, netif) < 0)
@@ -690,4 +672,15 @@ int inet_socket::getsockopt_inet(int level, int opt, void *optval, socklen_t *le
 	}
 
 	return -ENOPROTOOPT;
+}
+
+size_t inet_socket::get_headers_len() const
+{
+	/* TODO: For all of inet_sockets code, we need to properly detect if we're
+	 * an inet6 socket working as an inet4 one, or not.
+	 */
+	if(domain == AF_INET6)
+		return sizeof(ip6_hdr);    /* TODO: Extensions */
+	else
+		return sizeof(ip_header);
 }

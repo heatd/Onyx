@@ -14,6 +14,7 @@
 #include <onyx/net/proto_family.h>
 
 #include <sys/socket.h>
+#include <netinet/ip6.h>
 
 #define IPV4_ICMP 1
 #define IPV4_IGMP 2
@@ -148,6 +149,7 @@ struct inet_socket : public socket
 			return level == SOL_IPV6; 
 	}
 
+	size_t get_headers_len() const;
 private:
 	friend class ip::v4::proto_family;
 	bool validate_sockaddr_len_pair_v4(sockaddr_in *addr, socklen_t len);
@@ -256,7 +258,7 @@ public:
 };
 
 int send_packet(uint32_t senderip, uint32_t destip, unsigned int type,
-                     struct packetbuf_info *buf, struct netif *netif);
+                     packetbuf *buf, struct netif *netif);
 
 socket *create_socket(int type, int protocol);
 
@@ -267,8 +269,6 @@ bool add_route(inet4_route &route);
 };
 
 };
-
-extern struct packetbuf_proto __ipv4_pbf;
 
 inline void ipv4_to_sockaddr(in_addr_t addr, in_port_t port, sockaddr_in &in)
 {
@@ -285,11 +285,6 @@ inline bool check_sockaddr_in(sockaddr_in *in)
 
 	memset(&in->sin_zero, 0, sizeof(in->sin_zero));
 	return true;
-}
-
-static inline struct packetbuf_proto *ipv4_get_packetbuf(void)
-{
-	return &__ipv4_pbf;
 }
 
 /* This routine also handles broadcast addresses and all complexity envolved with ip addresses */
