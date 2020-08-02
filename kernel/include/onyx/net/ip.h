@@ -150,6 +150,8 @@ struct inet_socket : public socket
 	}
 
 	size_t get_headers_len() const;
+
+	bool needs_fragmenting(netif *nif, packetbuf *buf) const;
 private:
 	friend class ip::v4::proto_family;
 	bool validate_sockaddr_len_pair_v4(sockaddr_in *addr, socklen_t len);

@@ -223,7 +223,7 @@ bool network_vdev::perform_subsystem_initialization()
 	nif->flags |= NETIF_LINKUP | nif_flags;
 	nif->priv = this;
 	nif->sendpacket = virtio::network_vdev::__sendpacket;
-	nif->mtu = 1514;
+	nif->mtu = 1500;
 
 	cul::slice<uint8_t, 6> m{nif->mac_address, 6};
 	get_mac(m);

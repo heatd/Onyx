@@ -309,7 +309,7 @@ int tcp_packet::send()
 		memcpy(ptr, payload.data(), length);
 	}
 
-	if(nif->flags & NETIF_SUPPORTS_CSUM_OFFLOAD)
+	if(nif->flags & NETIF_SUPPORTS_CSUM_OFFLOAD && !socket->needs_fragmenting(nif, buf.get()))
 	{
 		header->checksum = ~tcpv4_calculate_checksum(header,
 			static_cast<uint16_t>(header_size + length), saddr->sin_addr.s_addr, dest.sin_addr.s_addr, false);

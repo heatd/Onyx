@@ -53,13 +53,13 @@ void free_frags(struct list_head *frag_list)
 
 		if(f->packet_off != 0)
 		{
-			/* Don't free when it's the first fragment, because it uses a copy of the original packetbuf */
-			// packetbuf_free(&f->this_buf);
+			/* Don't free when it's the first fragment, because it uses the original packetbuf */
+			delete f->this_buf;
 		}
 
 		list_remove(l);
 
-		free(f);
+		delete f;
 	}
 }
 
@@ -100,23 +100,32 @@ void setup_fragment(struct send_info *info, struct fragment *frag,
 int create_fragments(struct list_head *frag_list, packetbuf *buf,
 	size_t payload_size, struct send_info *sinfo, struct netif *netif)
 {
+	if(buf->needs_csum)
+	{
+		auto starting_csum = *buf->csum_offset;
+		*(volatile may_alias_uint16_t *) buf->csum_offset = 0; 
+		auto csum = __ipsum_unfolded(buf->csum_start, buf->tail - buf->csum_start, starting_csum);
+
+		*buf->csum_offset = ipsum_fold(csum);
+
+		buf->needs_csum = 0;
+		buf->csum_offset = nullptr;
+		buf->csum_start = nullptr;
+	}
+
 	/* Okay, let's split stuff in multiple IPv4 fragments */
-	/* TODO: Implement with packetbufs */
-	return -EIO;
-#if 0
-	size_t total_packet_size = payload_size;
-	(void) total_packet_size;
 	uint16_t off = 0;
 
 	/* Calculate the metadata's by subtracting payload_size from buf->length.
-	 * This will give the size of, using a classic ethernet stack as an example,
-	 * [ETHERNET HEADER] + [IP HEADER], which are for our purposes, the overhead of each packet.
+	 * This will give the size of the ip header which is used together
+	 * with PACKET_MAX_HEAD_LENGTH, the overhead of each packet.
 	*/
-	size_t packet_metadata_len = buf->length() - payload_size;
+	size_t packet_metadata_len = sizeof(ip_header);
+	fragment *first_frag = nullptr;
 
 	while(payload_size != 0)
 	{
-		struct fragment *frag = static_cast<fragment *>(zalloc(sizeof(*frag)));
+		struct fragment *frag = new fragment{};
 		if(!frag)
 		{
 			free_frags(frag_list);
@@ -138,46 +147,61 @@ int create_fragments(struct list_head *frag_list, packetbuf *buf,
 
 		/* Sizes need to be 8-byte aligned so the next fragment's offset can be valid
 		 * (fragment offsets are expressed in 8-byte units) */
+
 		size_t this_payload_size =
 			IPV4_FRAG_OFF_TO_OFF(IPV4_OFF_TO_FRAG_OFF(total_size - packet_metadata_len));
+
+		if(!this_payload_size)
+			this_payload_size = payload_size;
 
 		frag->packet_off = off;
 		frag->length = this_payload_size;
 
+#if 0
+		printk("Created fragment from %u size %lu\n", off, this_payload_size);
+		printk("Remaining payload size: %lu\n", payload_size);
+#endif
+
+		/* Quick note regarding the following code: We account for the ip_header
+		 * a bunch of times because frag->length *does not* account for the header and
+		 * only takes the data's length into consideration; despite this, frag->length
+		 * + sizeof(ip_header) <= mtu.
+		 */
+
 		bool first_packet = frag->packet_off == 0;
 		if(first_packet)
 		{
-			/* If first fragment, copy the original buf's info and change the
-			 * length; this should make this a faster operation.
-			*/
-			memcpy(&frag->this_buf, buf, sizeof(*buf));
-			frag->this_buflength = packet_metadata_len + this_payload_size;
+			first_frag = frag;
+			frag->this_buf = buf;
 		}
 		else
 		{
-			frag->this_buf.length = this_payload_size;
-	
-			if(packetbuf_alloc(&frag->this_buf, &__ipv4_pbf, netif) < 0)
+			auto header_length = packet_metadata_len + PACKET_MAX_HEAD_LENGTH;
+			/* After allocating a new buffer, copy the packet */
+			packetbuf *new_buf = new packetbuf;
+			if(!new_buf ||
+			  !new_buf->allocate_space(this_payload_size + header_length))
 			{
-				free(frag);
+				if(new_buf) delete new_buf;
+				delete frag;
 				free_frags(frag_list);
-				return -ENOMEM;
+				return -ENOMEM;	
 			}
 
-			/* After allocating a new buffer, copy the packet */
+			new_buf->reserve_headers(header_length);
 
-			/* Note: This packetbuf_get_off is used to pop the ipv4 offset off the offset stack */
-			packetbuf_get_off(&frag->this_buf);
-	
-			size_t segment_off = packet_metadata_len + off;
-			uint8_t *new_packet_ptr = (uint8_t *) frag->this_buf.packet + packet_metadata_len;
-			const uint8_t *old_packet_ptr = (const uint8_t *) buf->packet + segment_off;
+			/* We add sizeof(ip_header) here because we're guaranteed to have pushed the ip_header,
+			 * down below, of the original buffer, before.
+			 */
+
+			const uint8_t *old_packet_ptr = buf->data + sizeof(ip_header) + off;
+			auto new_packet_ptr = new_buf->put(frag->length);
+
 			memcpy(new_packet_ptr, old_packet_ptr, frag->length);
-
+			frag->this_buf = new_buf;
 		}
 
-		struct ip_header *header = (struct ip_header *)((uint8_t *)
-				frag->this_buf.packet + (packet_metadata_len - sizeof(struct ip_header)));
+		struct ip_header *header = (ip_header *) frag->this_buf->push_header(sizeof(ip_header));
 		
 		sinfo->frags_following = !(payload_size == this_payload_size);
 		setup_fragment(sinfo, frag, header, netif);
@@ -188,9 +212,27 @@ int create_fragments(struct list_head *frag_list, packetbuf *buf,
 		off += this_payload_size;
 	}
 
-	return 0;
+#if 0
+	printk("Frag length: %u\n", first_frag->length);
 #endif
 
+	buf->tail = buf->data + first_frag->length + sizeof(ip_header);
+
+	buf->page_vec[0].length = buf->tail - (unsigned char *) buf->buffer_start;
+
+#if 0
+	printk("vec length: %u\n", buf->page_vec[0].length - buf->buffer_start_off());
+#endif
+
+	for(size_t i = 1; i < PACKETBUF_MAX_NR_PAGES + 1; i++)
+	{
+		if(!buf->page_vec[i].page)
+			break;
+		free_page(buf->page_vec[i].page);
+		buf->page_vec[i].page = nullptr;
+	}
+
+	return 0;
 }
 
 int calculate_dstmac(unsigned char *destmac, uint32_t destip, struct netif *netif)
@@ -262,9 +304,7 @@ static uint16_t allocate_id(void)
 int send_packet(uint32_t senderip, uint32_t destip, unsigned int type,
                      packetbuf *buf, struct netif *netif)
 {
-	ip_header *iphdr = (ip_header *) buf->push_header(sizeof(ip_header));
-
-	size_t payload_size = buf->length() - sizeof(struct ip_header);
+	size_t payload_size = buf->length();
 
 	struct send_info sinfo = {};
 	/* Dest ip and sender ip are already in network order */
@@ -280,6 +320,8 @@ int send_packet(uint32_t senderip, uint32_t destip, unsigned int type,
 		sinfo.identification = allocate_id();
 		return do_fragmentation(&sinfo, payload_size, buf, netif);
 	}
+
+	ip_header *iphdr = (ip_header *) buf->push_header(sizeof(ip_header));
 
 	/* Let's reuse code by creating a single fragment struct on the stack */
 	struct fragment frag;
@@ -684,4 +726,9 @@ size_t inet_socket::get_headers_len() const
 		return sizeof(ip6_hdr);    /* TODO: Extensions */
 	else
 		return sizeof(ip_header);
+}
+
+bool inet_socket::needs_fragmenting(netif *nif, packetbuf *buf) const
+{
+	return nif->mtu < buf->length() + get_headers_len();
 }

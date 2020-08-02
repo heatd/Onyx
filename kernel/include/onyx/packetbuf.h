@@ -125,6 +125,11 @@ struct packetbuf
 	{
 		return (unsigned char *) csum_offset - data;
 	}
+
+	unsigned int buffer_start_off() const
+	{
+		return data - (unsigned char *) buffer_start;
+	}
 };
 
 #define PACKET_MAX_HEAD_LENGTH		128

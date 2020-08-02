@@ -450,7 +450,7 @@ unsigned int e1000_device::prepare_legacy_descs(packetbuf *buf)
 		/* Account header overhead that might exist here */
 		if(!xmited)
 		{
-			buffer_start_off = (buf->data - (unsigned char *) buf->buffer_start);
+			buffer_start_off = buf->buffer_start_off();
 			length -= buffer_start_off;
 		}
 
@@ -520,8 +520,6 @@ int e1000_device::send_packet_legacy_tx(packetbuf *buf)
 
 	return 0;
 }
-
-#include <onyx/net/ip.h>
 
 void e1000_device::prepare_context_desc(packetbuf *buf)
 {
@@ -761,10 +759,10 @@ int e1000_probe(struct device *__dev)
 
 	/* TODO: Allocate device names */
 	n->name = "eth0";
-	n->flags |= NETIF_LINKUP | NETIF_SUPPORTS_CSUM_OFFLOAD;
+	n->flags |= NETIF_LINKUP;
 	n->sendpacket = e1000_send_packet;
 	n->priv = nicdev;
-	n->mtu = MAX_MTU;
+	n->mtu = 1500;
 	nicdev->nic_netif = n;
 	memcpy(n->mac_address, nicdev->e1000_internal_mac_address, 6);
 	netif_register_if(n);

@@ -79,7 +79,7 @@ int udp_socket::send_packet(char *payload, size_t payload_size, in_port_t source
 	if(copy_from_user(ptr, payload, payload_size) < 0)
 		return -EFAULT;
 
-	if(netif->flags & NETIF_SUPPORTS_CSUM_OFFLOAD)
+	if(netif->flags & NETIF_SUPPORTS_CSUM_OFFLOAD && !needs_fragmenting(netif, b.get()))
 	{
 		/* Don't supply the 1's complement of the checksum, since the network stack expects a partial sum */
 		udp_header->checksum = ~udpv4_calculate_checksum(udp_header, srcip, destip, false);
