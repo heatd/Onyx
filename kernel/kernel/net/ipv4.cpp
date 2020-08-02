@@ -285,6 +285,7 @@ int send_packet(uint32_t senderip, uint32_t destip, unsigned int type,
 	struct fragment frag;
 	frag.length = payload_size;
 	frag.packet_off = 0;
+	buf->net_header = (unsigned char *) iphdr;
 
 	setup_fragment(&sinfo, &frag, iphdr, netif);
 

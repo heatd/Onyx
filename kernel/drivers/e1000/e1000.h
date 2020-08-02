@@ -86,36 +86,16 @@
 #define RCTL_BSIZE_4096			((3 << 16) | (1 << 25))
 #define RCTL_BSIZE_8192			((2 << 16) | (1 << 25))
 #define RCTL_BSIZE_16384		((1 << 16) | (1 << 25))
-
-
-// Transmit Command
  
-#define CMD_EOP				(1 << 0)    // End of Packet
-#define CMD_IFCS			(1 << 1)    // Insert FCS
-#define CMD_IC				(1 << 2)    // Insert Checksum
-#define CMD_RS				(1 << 3)    // Report Status
-#define CMD_RPS				(1 << 4)    // Report Packet Sent
-#define CMD_VLE				(1 << 6)    // VLAN Packet Enable
-#define CMD_IDE				(1 << 7)    // Interrupt Delay Enable
+/* TCTL Register */
  
- 
-// TCTL Register
- 
-#define TCTL_EN				(1 << 1)    // Transmit Enable
-#define TCTL_PSP			(1 << 3)    // Pad Short Packets
-#define TCTL_CT_SHIFT			4           // Collision Threshold
-#define TCTL_COLD_SHIFT			12          // Collision Distance
-#define TCTL_SWXOFF			(1 << 22)   // Software XOFF Transmission
-#define TCTL_RTLC			(1 << 24)   // Re-transmit on Late Collision
-#define TCTL_RRTHRESH(x)	(x << 29)
-
-#define TSTA_DD				(1 << 0)    // Descriptor Done
-#define TSTA_EC				(1 << 1)    // Excess Collisions
-#define TSTA_LC				(1 << 2)    // Late Collision
-#define LSTA_TU				(1 << 3)    // Transmit Underrun
-
-#define POPTS_IXSM			(1 << 0)
-#define POPTS_TXSM			(1 << 1)
+#define TCTL_EN             (1 << 1)    // Transmit Enable
+#define TCTL_PSP            (1 << 3)    // Pad Short Packets
+#define TCTL_CT_SHIFT       4           // Collision Threshold
+#define TCTL_COLD_SHIFT     12          // Collision Distance
+#define TCTL_SWXOFF         (1 << 22)   // Software XOFF Transmission
+#define TCTL_RTLC           (1 << 24)   // Re-transmit on Late Collision
+#define TCTL_RRTHRESH(x)    (x << 29)
 
 #define MAX_MTU 			1514
 
@@ -167,7 +147,48 @@ struct e1000_rx_desc
 	volatile uint8_t errors;
 	volatile uint16_t special;
 } __attribute__((packed));
+
+
+/* Transmit Command */
  
+#define CMD_EOP				(1 << 0)    // End of Packet
+#define CMD_IFCS			(1 << 1)    // Insert FCS
+#define CMD_IC				(1 << 2)    // Insert Checksum
+
+/* Report status */
+#define CMD_RS				(1 << 3)
+
+/* Report Packet Sent - Not valid for TCP/IP context descriptors */
+#define CMD_RPS				(1 << 4)
+
+/* Descriptor extension - Set as 1 for extended (non-legacy) descriptors */
+#define CMD_DEXT            (1 << 5)
+
+/* VLAN Packet Enable - Not valid for TCP/IP context descriptors */
+#define CMD_VLE				(1 << 6)
+
+/* Interrupt Delay Enable */
+#define CMD_IDE				(1 << 7)
+
+/* TCP/IP specific context descriptor CMD's */
+
+/* Set as 1b for TCP, 0b for non-tcp */
+#define CMD_TCP             (1 << 0)
+
+/* Set as 1b for IPv4, 0b for IPv6 */
+#define CMD_IP              (1 << 1)
+
+/* TCP Segmentation Enable */
+#define CMD_TSE             (1 << 2)
+
+#define TSTA_DD             (1 << 0)    // Descriptor Done
+#define TSTA_EC             (1 << 1)    // Excess Collisions
+#define TSTA_LC             (1 << 2)    // Late Collision
+#define LSTA_TU             (1 << 3)    // Transmit Underrun
+
+#define POPTS_IXSM			(1 << 0)
+#define POPTS_TXSM			(1 << 1)
+
 struct e1000_tx_desc
 {
 	volatile uint64_t addr;
@@ -175,8 +196,65 @@ struct e1000_tx_desc
 	volatile uint8_t cso;
 	volatile uint8_t cmd;
 	volatile uint8_t status;
-	volatile uint8_t popts;
+	volatile uint8_t css;
 	volatile uint16_t special;
+} __attribute__((packed));
+
+
+#define E1000_TX_CONTEXT_DESC            0
+#define E1000_TX_TCPIP_DATA_DESC         1
+
+/* All of this is described on page 57 of the 8254x software developer's manual */
+struct e1000_tx_tcpip_context_desc
+{
+	/* IP checksum start */
+	uint8_t ipcss;
+
+	/* IP checksum offset */
+	uint8_t ipcso;
+
+	/* IP checksum ending - 0 means until the end of the packet */
+	uint16_t ipcse;
+
+	/* TCP/UDP checksum start */
+	uint8_t tucss;
+
+	/* TCP/UDP checksum offset */
+	uint8_t tucso;
+
+	/* TCP/UDP checksum ending - 0 means until the end of the packet */
+	uint16_t tucse;
+
+	/* Payload length */
+	unsigned int paylen : 20;
+
+	/* Descriptor type */
+	unsigned int dtype : 4;
+
+	/* TCP/UDP command field */
+	unsigned int tucmd : 8;
+
+	uint8_t status;
+
+	/* Header length */
+	uint8_t hdrlen;
+
+	/* Maximum segment size */
+	uint16_t mss;
+
+} __attribute__((packed));
+
+struct e1000_tx_tcpip_data_desc
+{
+	uint64_t address;
+	unsigned int datalen : 20;
+	unsigned int dtype : 4;
+	unsigned int dcmd : 8;
+
+	uint8_t status;
+	uint8_t popts;
+	uint16_t special;
+
 } __attribute__((packed));
 
 #endif

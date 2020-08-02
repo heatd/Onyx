@@ -2263,7 +2263,10 @@ void vm_do_fatal_page_fault(struct fault_info *info)
 		kernel_tkill(SIGSEGV, get_current_thread(), SIGNAL_FORCE, &sinfo);
 	}
 	else
+	{
+		printk("Kernel fatal segfault accesing %016lx at ip %lx\n", info->fault_address, info->ip);
 		panic("Unable to satisfy paging request");
+	}
 }
 
 void *vm_map_vmo(size_t flags, uint32_t type, size_t pages, size_t prot, struct vm_object *vmo)

@@ -30,17 +30,17 @@ static const char *hostname = "";
 extern "C"
 int network_handle_packet(uint8_t *packet, uint16_t len, struct netif *netif)
 {
-	ethernet_header_t *hdr = (ethernet_header_t*) packet;
+	struct eth_header *hdr = (struct eth_header*) packet;
 	
 	/* Bad packet */
-	if(sizeof(ethernet_header_t) >= len)
+	if(sizeof(struct eth_header) >= len)
 		return 0;
 	
 	hdr->ethertype = LITTLE_TO_BIG16(hdr->ethertype);
 	if(hdr->ethertype == PROTO_IPV4)
-		ip::v4::handle_packet((struct ip_header*)(hdr + 1), len - sizeof(ethernet_header_t), netif);
+		ip::v4::handle_packet((struct ip_header*)(hdr + 1), len - sizeof(struct eth_header), netif);
 	else if(hdr->ethertype == PROTO_ARP)
-		arp_handle_packet((arp_request_t*)(hdr + 1), len - sizeof(ethernet_header_t), netif);
+		arp_handle_packet((arp_request_t*)(hdr + 1), len - sizeof(struct eth_header), netif);
 
 	return 0;
 }

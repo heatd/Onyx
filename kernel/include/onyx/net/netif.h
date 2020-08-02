@@ -16,10 +16,10 @@ struct netif;
 #include <sys/socket.h>
 
 #define NETIF_LINKUP							(1 << 0)
-#define NETIF_SUPPORTS_IP_CHECKSUM_OFF			(1 << 1)
-#define NETIF_SUPPORTS_TCP_CHECKSUM_OFF			(1 << 2)
-#define NETIF_SUPPORTS_ISO						(1 << 3)
-#define NETIF_SUPPORTS_TSO						(1 << 4)
+#define NETIF_SUPPORTS_CSUM_OFFLOAD			    (1 << 1)
+#define NETIF_SUPPORTS_TSO4						(1 << 3)
+#define NETIF_SUPPORTS_TSO6						(1 << 4)
+#define NETIF_SUPPORTS_UFO                      (1 << 5)
 #define NETIF_LOOPBACK                          (1 << 5)
 
 /* Defined as an opaque struct since it's C++ TODO: Yuck. */

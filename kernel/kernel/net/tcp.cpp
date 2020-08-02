@@ -216,10 +216,9 @@ int tcp_handle_packet(struct ip_header *ip_header, size_t size, struct netif *ne
 	return st;
 }
 
-uint16_t tcpv4_calculate_checksum(tcp_header *header, uint16_t packet_length, uint32_t srcip, uint32_t dstip)
+uint16_t tcpv4_calculate_checksum(tcp_header *header, uint16_t packet_length, uint32_t srcip, uint32_t dstip,
+                                  bool calc_data = true)
 {
-	bool padded = packet_length & 1;
-
 	uint32_t proto = ((packet_length + IPV4_TCP) << 8);
 	uint16_t buf[2];
 	memcpy(&buf, &proto, sizeof(buf));
@@ -228,7 +227,8 @@ uint16_t tcpv4_calculate_checksum(tcp_header *header, uint16_t packet_length, ui
 	r = __ipsum_unfolded(&dstip, sizeof(dstip), r);
 	r = __ipsum_unfolded(buf, sizeof(buf), r);
 
-	r = __ipsum_unfolded(header, padded ? packet_length + 1 : packet_length, r);
+	if(calc_data)
+		r = __ipsum_unfolded(header, packet_length, r);
 
 	return ipsum_fold(r);
 }
@@ -278,6 +278,8 @@ int tcp_packet::send()
 
 	tcp_header *header = (tcp_header *) buf->push_header(header_size);
 
+	buf->transport_header = (unsigned char *) header;
+
 	memset(header, 0, header_size);
 
 	auto &dest = socket->daddr();
@@ -307,8 +309,19 @@ int tcp_packet::send()
 		memcpy(ptr, payload.data(), length);
 	}
 
-	header->checksum = tcpv4_calculate_checksum(header,
-		static_cast<uint16_t>(header_size + length), saddr->sin_addr.s_addr, dest.sin_addr.s_addr);
+	if(nif->flags & NETIF_SUPPORTS_CSUM_OFFLOAD)
+	{
+		header->checksum = ~tcpv4_calculate_checksum(header,
+			static_cast<uint16_t>(header_size + length), saddr->sin_addr.s_addr, dest.sin_addr.s_addr, false);
+		buf->csum_offset = &header->checksum;
+		buf->csum_start = (unsigned char *) header;
+		buf->needs_csum = 1;
+	}
+	else
+	{
+		header->checksum = tcpv4_calculate_checksum(header,
+			static_cast<uint16_t>(header_size + length), saddr->sin_addr.s_addr, dest.sin_addr.s_addr);
+	}
 
 	if(should_wait_for_ack())
 		socket->append_pending_out(this);
@@ -407,7 +420,7 @@ bool tcp_socket::parse_options(tcp_header *packet)
 
 /* TODO: This doesn't apply to IPv6 */
 constexpr uint16_t tcp_headers_overhead = sizeof(struct tcp_header) +
-	sizeof(ethernet_header_t) + IPV4_MIN_HEADER_LEN;
+	sizeof(struct eth_header) + IPV4_MIN_HEADER_LEN;
 
 int tcp_socket::start_handshake(netif *nif, sockaddr_in *from)
 {

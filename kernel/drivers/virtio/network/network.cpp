@@ -143,8 +143,22 @@ void network_vdev::handle_used_buffer(const virtq_used_elem &elem, const virtq *
 	}
 }
 
+virtio::network_features supported_features[] =
+{
+	network_features::csum,
+	/*network_features::guest_csum,
+	network_features::guest_tso4,
+	network_features::guest_tso6,*/
+	network_features::host_tso4,
+	network_features::host_tso6,
+	//network_features::guest_ufo,
+	network_features::host_ufo
+};
+
 bool network_vdev::perform_subsystem_initialization()
 {
+	unsigned int nif_flags = 0;
+
 	if(raw_has_feature(network_features::mac))
 	{
 		signal_feature(network_features::mac);
@@ -153,6 +167,25 @@ bool network_vdev::perform_subsystem_initialization()
 	{
 		/* The device should support the mac address feature */
 		return false;
+	}
+
+	for(auto feature : supported_features)
+	{
+		if(raw_has_feature(feature))
+		{
+			signal_feature(feature);
+			if(feature == network_features::csum)
+				nif_flags |= NETIF_SUPPORTS_CSUM_OFFLOAD;
+			
+			if(feature == network_features::host_tso4)
+				nif_flags |= NETIF_SUPPORTS_TSO4;
+			
+			if(feature == network_features::host_tso6)
+				nif_flags |= NETIF_SUPPORTS_TSO6;
+			
+			if(feature == network_features::host_ufo)
+				nif_flags |= NETIF_SUPPORTS_UFO;
+		}
 	}
 
 	if(!do_device_independent_negotiation() || !finish_feature_negotiation())
@@ -187,7 +220,7 @@ bool network_vdev::perform_subsystem_initialization()
 	}
 
 	nif->name = "eth0";
-	nif->flags |= NETIF_LINKUP;
+	nif->flags |= NETIF_LINKUP | nif_flags;
 	nif->priv = this;
 	nif->sendpacket = virtio::network_vdev::__sendpacket;
 	nif->mtu = 1514;

@@ -20,9 +20,9 @@
 
 int eth_send_packet(char *destmac, packetbuf *buf, uint16_t protocol, struct netif *netif)
 {
-	auto hdr = (ethernet_header_t *) buf->push_header(sizeof(ethernet_header_t));
+	auto hdr = (struct eth_header *) buf->push_header(sizeof(struct eth_header));
 
-	memset(hdr, 0, sizeof(ethernet_header_t));
+	memset(hdr, 0, sizeof(struct eth_header));
 
 	hdr->ethertype = htons(protocol);
 	memcpy(&hdr->mac_dest, destmac, 6);

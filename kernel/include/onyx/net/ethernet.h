@@ -16,12 +16,12 @@
 #define PROTO_ARP ((uint16_t) 0x806)
 #define PROTO_IPV6 ((uint16_t) 0x86DD)
 
-typedef struct
+struct eth_header
 {
 	uint8_t mac_dest[6];
 	uint8_t mac_source[6];
 	uint16_t ethertype;
-} __attribute__((packed)) ethernet_header_t;
+} __attribute__((packed));
 
 typedef struct
 {

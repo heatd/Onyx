@@ -17,6 +17,11 @@
 #define DEFAULT_HEADER_LEN        128
 
 struct vm_object;
+
+#define PACKETBUF_GSO_TSO4          (1 << 0)
+#define PACKETBUF_GSO_TSO6          (1 << 1)
+#define PACKETBUF_GSO_UFO           (1 << 2)
+
 struct packetbuf
 {
 	/* Reasoning behind this - We're going to need at
@@ -29,9 +34,6 @@ struct packetbuf
 	 * The other iov is used as a terminating canary.
 	 */
 
-	/* Another important thing to note - networking headers
-	 * and other code that uses push() is limited to page_iov[0].
-	 */
 	struct page_iov page_vec[PACKETBUF_MAX_NR_PAGES + 2];
 
 	unsigned char *net_header;
@@ -42,15 +44,25 @@ struct packetbuf
 
 	void *buffer_start;
 
-	unsigned int zero_copy : 1;
+	uint16_t *csum_offset;
+	unsigned char *csum_start;
 	vm_object *vmo;
+
+	unsigned int header_length;
+	uint16_t gso_size;
+
+	uint8_t gso_flags;
+
+	unsigned int needs_csum : 1;
+	unsigned int zero_copy : 1;
 
 	/**
 	 * @brief Construct a new default packetbuf object.
 	 * 
 	 */
 	packetbuf() : page_vec{}, net_header{}, transport_header{}, data{}, tail{},
-	              end{}, buffer_start{}, zero_copy{0}, vmo{} {}
+	              end{}, buffer_start{}, csum_offset{nullptr}, csum_start{nullptr},
+				  vmo{}, header_length{}, gso_size{}, gso_flags{}, needs_csum{0}, zero_copy{0} {}
 	
 	~packetbuf();
 
@@ -97,6 +109,21 @@ struct packetbuf
 	unsigned int start_page_off() const
 	{
 		return data - (unsigned char *) buffer_start;
+	}
+
+	unsigned int transport_header_off() const
+	{
+		return transport_header - data; 
+	}
+
+	unsigned int net_header_off() const
+	{
+		return net_header - data;
+	}
+
+	unsigned int csum_offset_bytes() const
+	{
+		return (unsigned char *) csum_offset - data;
 	}
 };
 

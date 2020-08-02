@@ -21,34 +21,106 @@
 #include <onyx/dev.h>
 #include <onyx/panic.h>
 #include <onyx/net/ethernet.h>
+#include <onyx/scoped_lock.h>
+#include <onyx/cpu.h>
 
 #include <drivers/mmio.h>
 #include "e1000.h"
 #include <pci/pci.h>
 
-#define E1000_NUM_RX_DESC 		32
-#define E1000_NUM_TX_DESC		8
- 
+
+static constexpr size_t number_rx_desc = ((PAGE_SIZE * 2) / sizeof(e1000_tx_desc)) - 1;
+
+/* There's a -1 here to account for the tail descriptor that's 16 bytes in size (aka the size of a desc) */
+static constexpr size_t number_tx_desc = ((PAGE_SIZE * 2) / sizeof(e1000_tx_desc)) - 1;
+
+struct e1000_device;
+
+void e1000_write(uint16_t addr, uint32_t val, e1000_device *dev);
+uint32_t e1000_read(uint16_t addr, const e1000_device *dev);
+
 struct e1000_device
 {
-	char *mmio_space;
-	bool eeprom_exists;
-	unsigned long rx_cur;
-	unsigned long tx_cur;
-	struct spinlock tx_cur_lock;
-	struct e1000_rx_desc *rx_descs;
-	struct e1000_tx_desc *tx_descs;
-	struct page *rx_pages;
-	struct page *tx_pages;
-	struct page *rx_buf_pages;
-	struct pci_device *nicdev;
-	struct netif *nic_netif;
+	char *mmio_space{};
+	bool eeprom_exists{false};
+
+	unsigned int rx_cur{0};
+
+	unsigned int tx_cur{0};
+	unsigned int tx_used{0};
+	mutable spinlock tx_lock{};
+	mutable wait_queue tx_queue{};
+
+	e1000_rx_desc *rx_descs;
+	unsigned char *tx_descs;
+
+	static constexpr unsigned int tx_desc_size = 16;
+
+	page *rx_pages;
+	page *tx_pages;
+	page *rx_buf_pages;
+	pci_device *nicdev;
+	netif *nic_netif;
 	unsigned char e1000_internal_mac_address[6];
 	unsigned int irq_nr;
-};
 
-void e1000_write(uint16_t addr, uint32_t val, struct e1000_device *dev);
-uint32_t e1000_read(uint16_t addr, struct e1000_device *dev);
+	template <typename Type>
+	Type& tx_descriptor(unsigned int idx)
+	{
+		return *(Type *)(tx_descs + idx * tx_desc_size);
+	}
+
+	e1000_device()
+	{
+		spinlock_init(&tx_lock);
+		init_wait_queue_head(&tx_queue);
+	}
+
+	unsigned int nr_tx_descs_available() const
+	{
+		return number_tx_desc - tx_used;
+	}
+
+	bool has_nr_tx_descs_available(unsigned int descs) const
+	{
+		return nr_tx_descs_available() >= descs;
+	}
+
+	void wait_for_tx_descs(unsigned int descs) const
+	{
+		spin_lock(&tx_lock);
+	
+		wait_for_event_locked(&tx_queue, has_nr_tx_descs_available(descs), &tx_lock);
+	}
+
+	int send_packet_legacy_tx(packetbuf *buf);
+
+	int send_packet_extended_tx(packetbuf *buf);
+
+	unsigned int prepare_legacy_descs(packetbuf *buf);
+
+	unsigned int prepare_extended_descs(packetbuf *buf);
+
+	void prepare_context_desc(packetbuf *buf);
+
+	void free_descs(unsigned int to_free)
+	{
+		scoped_lock<spinlock> g{&tx_lock};
+
+		tx_used -= to_free;
+
+		/* 2 descs should be useful for ~1 caller */
+		if(tx_used < 3)
+			wait_queue_wake(&tx_queue);
+		else
+			wait_queue_wake_all(&tx_queue);
+	}
+
+	void increment_tx_cur()
+	{
+		tx_cur = (tx_cur + 1) % number_tx_desc;
+	}
+};
 
 static void e1000_init_busmastering(struct e1000_device *dev)
 {
@@ -68,7 +140,7 @@ void e1000_handle_receive(struct e1000_device *dev)
 		dev->rx_descs[dev->rx_cur].status = 0;
 		old_cur = dev->rx_cur;
 
-		dev->rx_cur = (dev->rx_cur + 1) % E1000_NUM_RX_DESC;
+		dev->rx_cur = (dev->rx_cur + 1) % number_rx_desc;
 
 		e1000_write(REG_RXDESCTAIL, old_cur, dev);
 	}
@@ -87,12 +159,12 @@ irqstatus_t e1000_irq(struct irq_context *ctx, void *cookie)
 	return IRQ_HANDLED;
 }
 
-void e1000_write(uint16_t addr, uint32_t val, struct e1000_device *dev)
+void e1000_write(uint16_t addr, uint32_t val, e1000_device *dev)
 {
 	mmio_writel((uintptr_t) (dev->mmio_space + addr), val);
 }
 
-uint32_t e1000_read(uint16_t addr, struct e1000_device *dev)
+uint32_t e1000_read(uint16_t addr, const e1000_device *dev)
 {
 	return mmio_readl((uintptr_t) (dev->mmio_space + addr));
 }
@@ -210,7 +282,7 @@ const size_t rx_buffer_size = 2048;
 int e1000_init_rx(struct e1000_device *dev)
 {
 	int st = 0;
-	size_t needed_pages = vm_size_to_pages(sizeof(struct e1000_rx_desc) * E1000_NUM_RX_DESC + 16);
+	size_t needed_pages = vm_size_to_pages(sizeof(struct e1000_rx_desc) * number_rx_desc + 16);
 	struct page *rx_pages = alloc_pages(needed_pages, PAGE_ALLOC_CONTIGUOUS);
 
 	struct page_frag_alloc_info alloc_info;
@@ -220,7 +292,7 @@ int e1000_init_rx(struct e1000_device *dev)
 	if(!rx_pages)
 		return -ENOMEM;
 
-	struct page *rx_buf_pages = alloc_pages(vm_size_to_pages(E1000_NUM_RX_DESC * rx_buffer_size),
+	struct page *rx_buf_pages = alloc_pages(vm_size_to_pages(number_rx_desc * rx_buffer_size),
                                              PAGE_ALLOC_NO_ZERO);
 	if(!rx_buf_pages)
 	{
@@ -239,7 +311,7 @@ int e1000_init_rx(struct e1000_device *dev)
 		goto error1;
 	}
 
-	for(int i = 0; i < E1000_NUM_RX_DESC; i++)
+	for(unsigned int i = 0; i < number_rx_desc; i++)
 	{
 		struct page_frag_res res = page_frag_alloc(&alloc_info, rx_buffer_size);
 		/* How can this even happen? Keep this here though, as a sanity check */
@@ -256,10 +328,10 @@ int e1000_init_rx(struct e1000_device *dev)
 	e1000_write(REG_RXDESCLO, (uint32_t) rxd_base, dev);
 	e1000_write(REG_RXDESCHI, (uint32_t)(rxd_base >> 32), dev);
 
-	e1000_write(REG_RXDESCLEN, E1000_NUM_RX_DESC * 16, dev);
+	e1000_write(REG_RXDESCLEN, number_rx_desc * 16, dev);
 
 	e1000_write(REG_RXDESCHEAD, 0, dev);
-	e1000_write(REG_RXDESCTAIL, E1000_NUM_RX_DESC-1, dev);
+	e1000_write(REG_RXDESCTAIL, number_rx_desc-1, dev);
 
 	dev->rx_buf_pages = rx_buf_pages;
 	dev->rx_pages = rx_pages;
@@ -287,7 +359,7 @@ int e1000_init_tx(struct e1000_device *dev)
 {
 	struct e1000_tx_desc *txdescs = NULL;
 	int st = 0;
-	size_t needed_pages = vm_size_to_pages(sizeof(struct e1000_rx_desc) * E1000_NUM_RX_DESC + 16);
+	size_t needed_pages = vm_size_to_pages(sizeof(struct e1000_tx_desc) * number_tx_desc + 16);
 	struct page *tx_pages = alloc_pages(needed_pages, PAGE_ALLOC_CONTIGUOUS);
 	unsigned long txd_base = 0;
 
@@ -305,7 +377,7 @@ int e1000_init_tx(struct e1000_device *dev)
 	e1000_write(REG_TXDESCLO, (uint32_t) txd_base, dev);
 	e1000_write(REG_TXDESCHI, (uint32_t)(txd_base >> 32), dev);
 
-	e1000_write(REG_TXDESCLEN, E1000_NUM_TX_DESC * 16, dev);
+	e1000_write(REG_TXDESCLEN, number_tx_desc * 16, dev);
 
 	e1000_write(REG_TXDESCHEAD, 0, dev);
 	e1000_write(REG_TXDESCTAIL, 0, dev);
@@ -317,7 +389,7 @@ int e1000_init_tx(struct e1000_device *dev)
 
 	dev->tx_cur = 0;
 	dev->tx_pages = tx_pages;
-	dev->tx_descs = txdescs;
+	dev->tx_descs = (unsigned char *) txdescs;
 
 	return 0;
 error0:
@@ -349,27 +421,214 @@ void e1000_enable_interrupts(struct e1000_device *dev)
 	e1000_read(REG_ICR, dev);
 }
 
-int e1000_send_packet(packetbuf *buf, struct netif *nif)
+static unsigned int calc_packetbuf_descs(packetbuf *buf)
 {
-	struct e1000_device *dev = (e1000_device *) nif->priv;
+	unsigned int descs = 0;
+	for(const auto &v : buf->page_vec)
+	{
+		if(!v.page)
+			return descs;
+		descs++;
+	}
 
-	spin_lock(&dev->tx_cur_lock);
+	__builtin_unreachable();
+}
 
-	/* TODO: Support having more than one page */
-	auto buffer_start_off = buf->data - (unsigned char *) buf->buffer_start;
-	dev->tx_descs[dev->tx_cur].addr = ((uint64_t) page_to_phys(buf->page_vec[0].page)) + buffer_start_off;
-	dev->tx_descs[dev->tx_cur].length = buf->length();
-	dev->tx_descs[dev->tx_cur].cmd = CMD_EOP | CMD_IFCS | CMD_RS | CMD_RPS;
-	dev->tx_descs[dev->tx_cur].status = 0;
-	dev->tx_descs[dev->tx_cur].popts = POPTS_TXSM;
-	uint8_t old_cur = dev->tx_cur;
-	dev->tx_cur = (dev->tx_cur + 1) % E1000_NUM_TX_DESC;
-	e1000_write(REG_TXDESCTAIL, dev->tx_cur, dev);
-	spin_unlock(&dev->tx_cur_lock);
+unsigned int e1000_device::prepare_legacy_descs(packetbuf *buf)
+{
+	unsigned int last_tx = 0;
+	unsigned int xmited = 0;
 
-	while(!(dev->tx_descs[old_cur].status & 0xff));
+	for(const auto &vec : buf->page_vec)
+	{
+		if(!vec.page)
+			break;
+
+		unsigned long buffer_start_off = 0;
+		auto length = vec.length;
+
+		/* Account header overhead that might exist here */
+		if(!xmited)
+		{
+			buffer_start_off = (buf->data - (unsigned char *) buf->buffer_start);
+			length -= buffer_start_off;
+		}
+
+		buffer_start_off += vec.page_off;
+
+		auto &desc = tx_descriptor<e1000_tx_desc>(tx_cur);
+
+		desc.addr = ((uint64_t) page_to_phys(vec.page)) + buffer_start_off;
+		desc.length = length;
+		desc.cmd = CMD_IFCS | CMD_RS | CMD_RPS | (buf->needs_csum ? CMD_IC : 0);
+		desc.status = 0;	
+	
+		if(buf->needs_csum)
+		{
+			auto offset = (unsigned char *) buf->csum_offset - buf->data;
+			desc.cso = (uint8_t) offset;
+			desc.css = (uint8_t) (buf->csum_start - buf->data);
+		}
+		else
+		{
+			desc.cso = 0;
+			desc.css = 0;
+		}
+
+		last_tx = tx_cur;
+
+		increment_tx_cur();
+
+		xmited++;
+	}
+
+	/* The last tx descriptor requires EOP set */
+	auto &last = tx_descriptor<e1000_tx_desc>(last_tx);
+	last.cmd = last.cmd | CMD_EOP;
+
+	return last_tx;
+}
+
+#define SEND_PACKET_PERF_TEST              0
+
+int e1000_device::send_packet_legacy_tx(packetbuf *buf)
+{
+	unsigned int needed_descs = calc_packetbuf_descs(buf);
+
+	wait_for_tx_descs(needed_descs);
+
+	auto old_cur = prepare_legacy_descs(buf);
+	
+	e1000_write(REG_TXDESCTAIL, tx_cur, this);
+
+#if SEND_PACKET_PERF_TEST
+	auto t0 = clocksource_get_time();
+#endif
+
+	spin_unlock(&tx_lock);
+
+	while(!(tx_descriptor<e1000_tx_desc>(old_cur).status & 0xff))
+		cpu_relax();
+
+#if SEND_PACKET_PERF_TEST
+	auto t1 = clocksource_get_time();
+
+	printk("send packet busy wait took %lu\n", t1 - t0);
+#endif
+
+	free_descs(needed_descs);
 
 	return 0;
+}
+
+#include <onyx/net/ip.h>
+
+void e1000_device::prepare_context_desc(packetbuf *buf)
+{
+	auto& desc = tx_descriptor<e1000_tx_tcpip_context_desc>(tx_cur);
+
+	memset(&desc, 0, sizeof(desc));
+
+	desc.tucss = buf->transport_header_off();
+	desc.ipcss = buf->net_header_off();
+
+	if(buf->needs_csum)
+	{
+		desc.tucso = buf->csum_offset_bytes();
+		desc.tucse = 0;
+	}
+
+	desc.dtype = E1000_TX_CONTEXT_DESC;
+	desc.tucmd = CMD_DEXT | CMD_RS; 
+
+	increment_tx_cur();
+}
+
+unsigned int e1000_device::prepare_extended_descs(packetbuf *buf)
+{
+	unsigned int last_tx = 0;
+	unsigned int xmited = 0;
+
+	unsigned int last_desc_cmd = CMD_EOP | CMD_IFCS;
+
+	for(const auto &vec : buf->page_vec)
+	{
+		if(!vec.page)
+			break;
+
+		unsigned long buffer_start_off = 0;
+		auto length = vec.length;
+		auto &desc = tx_descriptor<e1000_tx_tcpip_data_desc>(tx_cur);
+		memset(&desc, 0, sizeof(desc));
+
+		/* Account header overhead that might exist here */
+		if(!xmited)
+		{
+			buffer_start_off = (buf->data - (unsigned char *) buf->buffer_start);
+			length -= buffer_start_off;
+			desc.popts = (buf->needs_csum ? POPTS_TXSM : 0);
+		}
+
+		buffer_start_off += vec.page_off;
+
+		desc.address = ((uint64_t) page_to_phys(vec.page)) + buffer_start_off;
+		desc.datalen = length;
+		desc.dtype = E1000_TX_TCPIP_DATA_DESC;
+		desc.dcmd = CMD_RS | CMD_DEXT;
+		desc.status = 0;
+		desc.special = 0;
+
+		last_tx = tx_cur;
+
+		increment_tx_cur();
+
+		xmited++;
+	}
+
+	tx_descriptor<e1000_tx_tcpip_data_desc>(last_tx).dcmd |= last_desc_cmd;
+
+	return last_tx;
+}
+
+int e1000_device::send_packet_extended_tx(packetbuf *buf)
+{
+	/* We need a context descriptor, so we're adding 1 to the descriptors
+	 * required by the packetbuf's data itself
+	 */
+
+	unsigned int needed_descs = calc_packetbuf_descs(buf) + 1;
+
+	wait_for_tx_descs(needed_descs);
+
+	prepare_context_desc(buf);
+
+	auto old_cur = prepare_extended_descs(buf);
+	
+	e1000_write(REG_TXDESCTAIL, tx_cur, this);
+
+#if SEND_PACKET_PERF_TEST
+	auto t0 = clocksource_get_time();
+#endif
+
+	spin_unlock(&tx_lock);
+
+	while(!(tx_descriptor<e1000_tx_tcpip_data_desc>(old_cur).status & 0xff));
+
+#if SEND_PACKET_PERF_TEST
+	auto t1 = clocksource_get_time();
+
+	printk("send packet busy wait took %lu\n", t1 - t0);
+#endif
+
+	free_descs(needed_descs);
+
+	return 0;
+}
+
+int e1000_send_packet(packetbuf *buf, netif *nif)
+{
+	auto dev = (e1000_device *) nif->priv;
+	return dev->send_packet_extended_tx(buf);
 }
 
 void e1000_disable_rxtx(struct e1000_device *dev)
@@ -502,7 +761,7 @@ int e1000_probe(struct device *__dev)
 
 	/* TODO: Allocate device names */
 	n->name = "eth0";
-	n->flags |= NETIF_LINKUP;
+	n->flags |= NETIF_LINKUP | NETIF_SUPPORTS_CSUM_OFFLOAD;
 	n->sendpacket = e1000_send_packet;
 	n->priv = nicdev;
 	n->mtu = MAX_MTU;

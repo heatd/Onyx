@@ -235,7 +235,7 @@ static inline uint16_t ipsum_fold(inetsum_t cs)
 	return ~fold32_to_16(cs);
 }
 
-static inline uint16_t ipsum(void *addr, size_t bytes)
+static inline uint16_t ipsum(const void *addr, size_t bytes)
 {
 	return ipsum_fold(ipsum_unfolded(addr, bytes));
 }

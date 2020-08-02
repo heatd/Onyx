@@ -74,7 +74,7 @@ enum network_features
 	feature_mtu = 3,
 	mac = 5,
 	guest_tso4 = 7,
-	guet_tso6 = 8,
+	guest_tso6 = 8,
 	guest_ecn = 9,
 	guest_ufo = 10,
 	host_tso4 = 11,

@@ -23,10 +23,11 @@
 
 #include <netinet/in.h>
 
-uint16_t udpv4_calculate_checksum(udp_header_t *header, uint32_t srcip, uint32_t dstip)
+uint16_t udpv4_calculate_checksum(udp_header_t *header, uint32_t srcip, uint32_t dstip,
+                                  bool do_rest_of_packet = true)
 {
 	uint16_t proto = IPV4_UDP << 8;
-	uint16_t packet_length = ntohs(header->len);
+	uint16_t packet_length = htons(header->len);
 	uint16_t __src[2];
 	uint16_t __dst[2];
 
@@ -38,7 +39,8 @@ uint16_t udpv4_calculate_checksum(udp_header_t *header, uint32_t srcip, uint32_t
 	r = __ipsum_unfolded(&proto, sizeof(proto), r);
 	r = __ipsum_unfolded(&header->len, sizeof(header->len), r);
 
-	r = __ipsum_unfolded(header, packet_length & 1 ? packet_length + 1 : packet_length, r);
+	if(do_rest_of_packet)
+		r = __ipsum_unfolded(header, packet_length, r);
 
 	return ipsum_fold(r);
 }
@@ -65,17 +67,29 @@ int udp_socket::send_packet(char *payload, size_t payload_size, in_port_t source
 
 	memset(udp_header, 0, sizeof(udp_header_t));
 
+	b->transport_header = (unsigned char *) udp_header;
+
 	udp_header->source_port = source_port;
 	udp_header->dest_port = dest_port;
 
-	udp_header->len = htons((uint16_t)(sizeof(udp_header_t) +
-					  payload_size));
+	udp_header->len = htons((uint16_t)(sizeof(udp_header_t) + payload_size));
 	
 	auto ptr = b->put((unsigned int) payload_size);
 
-	memcpy(ptr, payload, payload_size);
+	if(copy_from_user(ptr, payload, payload_size) < 0)
+		return -EFAULT;
 
-	udp_header->checksum = udpv4_calculate_checksum(udp_header, srcip, destip);
+	if(netif->flags & NETIF_SUPPORTS_CSUM_OFFLOAD)
+	{
+		/* Don't supply the 1's complement of the checksum, since the network stack expects a partial sum */
+		udp_header->checksum = ~udpv4_calculate_checksum(udp_header, srcip, destip, false);
+		b->csum_offset = &udp_header->checksum;
+		b->csum_start = (unsigned char *) udp_header;
+		b->needs_csum = 1;
+	}
+	else
+		udp_header->checksum = udpv4_calculate_checksum(udp_header, srcip, destip);
+
 	int ret = ip::v4::send_packet(srcip, destip, IPV4_UDP, b.get(), netif);
 
 	return ret;

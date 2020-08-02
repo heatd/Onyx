@@ -302,6 +302,16 @@ protected:
 		return feature_cache[0] & (1UL << feature);
 	}
 
+	static constexpr unsigned long feature_to_bit(unsigned long feature)
+	{
+		return 1UL << feature;
+	}
+
+	unsigned long has_feature_mask(unsigned long feature_mask) const
+	{
+		return feature_cache[0] & feature_mask;
+	}
+
 public:
 	vdev(struct pci_device *dev) : dev(dev), bars{}, structures{}, feature_cache{} {}
 	virtual ~vdev() {}
