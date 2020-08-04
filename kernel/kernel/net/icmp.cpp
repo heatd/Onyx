@@ -12,51 +12,91 @@
 #include <onyx/net/network.h>
 #include <onyx/net/icmp.h>
 #include <onyx/net/ip.h>
-#include <onyx/log.h>
-#if 0
-int icmp_socket = -1;
-void icmp_init()
+#include <onyx/packetbuf.h>
+#include <onyx/memory.hpp>
+#include <onyx/byteswap.h>
+
+#define ICMP_PACKETBUF_HEADER_SPACE  (PACKET_MAX_HEAD_LENGTH + sizeof(ip_header) + sizeof(icmp::icmp_header))
+
+namespace icmp
 {
-	INFO("icmp", "initializing\n");
-	icmp_socket = socket(AF_INET, SOCK_RAW, IPV4_ICMP);
-	if(icmp_socket == -1)
-	{
-		ERROR("icmp", "failed to create socket\n");
+
+unique_ptr<packetbuf> allocate_icmp_response_packet(unsigned int extra_size = 0)
+{
+	auto buf = make_unique<packetbuf>();
+	if(!buf)
+		return nullptr;
+	
+	if(!buf->allocate_space(ICMP_PACKETBUF_HEADER_SPACE + extra_size))
+		return nullptr;
+	
+	buf->reserve_headers(ICMP_PACKETBUF_HEADER_SPACE);
+	
+	return buf;
+}
+
+void send_echo_reply(ip_header *iphdr, icmp_header *icmphdr, uint16_t length, netif *nif)
+{
+	auto dst = iphdr->source_ip;
+	auto src = nif->local_ip.sin_addr.s_addr;
+
+	auto data_length = length - min_icmp_size();
+
+	auto buf = allocate_icmp_response_packet(data_length);
+	if(!buf)
 		return;
-	}
+	
+	auto response_icmp = (icmp_header *) buf->push_header(min_icmp_size());
+
+	response_icmp->type = ICMP_TYPE_ECHO_REPLY;
+	response_icmp->code = 0;
+	response_icmp->rest = icmphdr->rest;
+	memcpy(buf->put(data_length), &icmphdr->echo.data, data_length);
+	response_icmp->checksum = ipsum(response_icmp, length);
+
+	ip::v4::send_packet(src, dst, IPV4_ICMP, buf.get(), nif);
 }
-int _icmp_ping()
+
+int send_dst_unreachable(const dst_unreachable_info& info, netif *nif)
 {
-	icmp_header_t *hdr = malloc(sizeof(icmp_header_t) + 30);
-	if(!hdr)
-		return 1;
-	memset(hdr, 0, sizeof(icmp_header_t) + 30);
-	hdr->type = ICMP_TYPE_ECHO_REQUEST;
-	hdr->rest = 0x100FEFE;
-	hdr->checksum = internetchksum(hdr, sizeof(icmp_header_t) + 30);
-	send(icmp_socket, hdr, sizeof(icmp_header_t) + 30);
-	free(hdr);
-	hdr = NULL;
-	recv(icmp_socket, (void**) &hdr);
-	if(hdr->type && hdr->rest == 0x100FEFE)
-	{
-		/* If hdr->type != ICMP_TYPE_ECHO_REPLY and the identification number is identical to the sent one,
-		 we had an error, so just return the error code */
-		uint8_t code = hdr->code;
-		free(hdr);
-		return code;
-	}
-	return 0;
+	auto dst = info.iphdr->source_ip;
+	auto src = nif->local_ip.sin_addr.s_addr;
+
+	auto buf = allocate_icmp_response_packet();
+	if(!buf)
+		return -ENOMEM;
+	
+	auto response_icmp = (icmp_header *) buf->push_header(sizeof(icmp_header));
+
+	response_icmp->type = ICMP_TYPE_DEST_UNREACHABLE;
+	response_icmp->code = info.code;
+	
+	if(info.code == ICMP_CODE_FRAGMENTATION_REQUIRED)
+		response_icmp->rest = htonl(info.next_hop_mtu << 16);
+	else
+		response_icmp->rest = 0;
+
+	memcpy(&response_icmp->dest_unreach.header, info.iphdr, sizeof(ip_header));
+	memcpy(&response_icmp->dest_unreach.original_dgram, info.dgram, 8);
+	response_icmp->checksum = ipsum(response_icmp, sizeof(icmp_header));
+
+	return ip::v4::send_packet(src, dst, IPV4_ICMP, buf.get(), nif);
 }
-int icmp_ping(uint32_t ip, int times)
+
+void handle_packet(struct ip_header *iphdr, uint16_t length, netif *nif)
 {
-	bind(icmp_socket, 0, ip, 0);
-	for(int i = 0; i < times; i++)
+	if(length < min_icmp_size())
+		return;
+
+	auto header = (icmp_header *) ((unsigned char *) iphdr + ip_header_length(iphdr));
+	auto header_length = length;
+
+	switch(header->type)
 	{
-		int i = _icmp_ping();
-		if(i)
-			return i;
+		case ICMP_TYPE_ECHO_REQUEST:
+			send_echo_reply(iphdr, header, header_length, nif);
+			break;
 	}
-	return 0;
 }
-#endif
+
+}

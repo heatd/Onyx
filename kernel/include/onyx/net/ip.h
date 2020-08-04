@@ -47,6 +47,11 @@ struct ip_header
 	uint32_t dest_ip;
 } __attribute__((packed));
 
+static constexpr uint16_t ip_header_length(const ip_header *hdr)
+{
+	return hdr->ihl << 2;
+}
+
 union sockaddr_in_both
 {
 	sockaddr_in in4;

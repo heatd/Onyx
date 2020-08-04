@@ -24,6 +24,7 @@
 #include <onyx/byteswap.h>
 #include <onyx/net/tcp.h>
 #include <onyx/cred.h>
+#include <onyx/net/icmp.h>
 
 namespace ip
 {
@@ -94,7 +95,7 @@ void setup_fragment(struct send_info *info, struct fragment *frag,
 	ip_header->total_len = htons(frag->length + sizeof(struct ip_header));
 	ip_header->version = 4;
 	ip_header->ihl = 5;
-	ip_header->header_checksum = ipsum(ip_header, ip_header->ihl * sizeof(uint32_t));
+	ip_header->header_checksum = ipsum(ip_header, ip_header->ihl << 2);
 }
 
 int create_fragments(struct list_head *frag_list, packetbuf *buf,
@@ -345,8 +346,16 @@ bool valid_packet(struct ip_header *header, size_t size)
 {
 	if(ntohs(header->total_len) > size)
 		return false;
+
 	if(sizeof(struct ip_header) > size)
 		return false;
+	
+	if(header->ihl < 5)
+		return false;
+	
+	if(header->version != 4)
+		return false;
+
 	return true;
 }
 
@@ -355,15 +364,42 @@ void handle_packet(struct ip_header *header, size_t size, struct netif *netif)
 	struct ip_header *usable_header = static_cast<ip_header *>(memdup(header, size));
 
 	if(!valid_packet(usable_header, size))
+	{
+		free(usable_header);
 		return;
+	}
 
 	uint16_t len = htons(usable_header->total_len);
+	auto iphdr_len = ip_header_length(usable_header);
+
+	auto protocol_len = len - iphdr_len;
 
 	if(header->proto == IPV4_UDP)
-		udp_handle_packet(usable_header, len, netif);
+		udp_handle_packet(usable_header, protocol_len, netif);
 	else if(header->proto == IPV4_TCP)
+		tcp_handle_packet(usable_header, protocol_len, netif);
+	else if(header->proto == IPV4_ICMP)
+		icmp::handle_packet(usable_header, protocol_len, netif);
+	else
 	{
-		tcp_handle_packet(usable_header, len, netif);
+		/* Oh, no, an unhandled protocol! Send an ICMP error message */
+
+		icmp::dst_unreachable_info dst_un;
+		dst_un.code = ICMP_CODE_PROTO_UNREACHABLE;
+		dst_un.iphdr = usable_header;
+		unsigned char *dgram;
+		unsigned char bytes[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+		
+		/* We perform this check to make sure we don't leak memory */
+		if(protocol_len >= 8)
+			dgram = (unsigned char *) usable_header + (usable_header->ihl << 2);
+		else
+			dgram = bytes;
+
+		dst_un.dgram = dgram;
+		dst_un.next_hop_mtu = 0;
+
+		icmp::send_dst_unreachable(dst_un, netif);
 	}
 
 	free(usable_header);

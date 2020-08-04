@@ -14,13 +14,16 @@
 
 constexpr inline uint16_t tcp_header_length_to_data_off(uint16_t len)
 {
-	return len / sizeof(uint32_t);
+	return len >> 2;
 }
 
 constexpr inline uint16_t tcp_header_data_off_to_length(uint16_t len)
 {
-	return len * sizeof(uint32_t);
+	return len << 2;
 }
+
+uint16_t tcpv4_calculate_checksum(tcp_header *header, uint16_t packet_length, uint32_t srcip, uint32_t dstip,
+                                  bool calc_data = true);
 
 #define TCP_MAKE_DATA_OFF(off)		(off << TCP_DATA_OFFSET_SHIFT)
 #define TCP_GET_DATA_OFF(off)		(off >> TCP_DATA_OFFSET_SHIFT)
@@ -40,15 +43,18 @@ int tcp_socket::bind(struct sockaddr *addr, socklen_t addrlen)
 
 bool validate_tcp_packet(const tcp_header *header, size_t size)
 {
-	if(sizeof(tcp_header) > size)
+	if(sizeof(tcp_header) > size) [[unlikely]]
 		return false;
 
 	auto flags = ntohs(header->data_offset_and_flags);
 
 	uint16_t data_off = flags >> TCP_DATA_OFFSET_SHIFT;
-	size_t off_bytes = data_off * sizeof(uint32_t);
+	size_t off_bytes = tcp_header_data_off_to_length(data_off);
 
-	if(off_bytes > size)
+	if(off_bytes > size) [[unlikely]]
+		return false;
+	
+	if(off_bytes < sizeof(tcp_header)) [[unlikely]]
 		return false;
 
 	return true;
@@ -184,22 +190,55 @@ int tcp_socket::handle_packet(const tcp_socket::packet_handling_data& data)
 	return 0;
 }
 
+int tcp_send_rst_no_socket(const sockaddr_in_both& dstaddr, in_port_t srcport, int domain, netif *nif)
+{
+	auto buf = make_unique<packetbuf>();
+	if(!buf)
+		return -ENOMEM;
+	
+	auto ip_size = domain == AF_INET ? sizeof(ip_header) : sizeof(ip6_hdr);
+
+	if(!buf->allocate_space(MAX_TCP_HEADER_LENGTH + ip_size))
+		return -ENOMEM;
+
+	buf->reserve_headers(MAX_TCP_HEADER_LENGTH + ip_size);
+
+	auto hdr = (tcp_header *) buf->push_header(sizeof(tcp_header));
+
+	memset(hdr, 0, sizeof(tcp_header));
+	hdr->dest_port = dstaddr.in4.sin_port;
+	hdr->source_port = srcport;
+	hdr->data_offset_and_flags =
+	     htons(TCP_MAKE_DATA_OFF(tcp_header_length_to_data_off(sizeof(tcp_header))) | TCP_FLAG_RST);
+	hdr->checksum = tcpv4_calculate_checksum(hdr, sizeof(tcp_header),
+	                nif->local_ip.sin_addr.s_addr, dstaddr.in4.sin_addr.s_addr);
+
+	return ip::v4::send_packet(nif->local_ip.sin_addr.s_addr,
+	                           dstaddr.in4.sin_addr.s_addr, IPV4_TCP, buf.get(), nif);
+}
+
 extern "C"
 int tcp_handle_packet(struct ip_header *ip_header, size_t size, struct netif *netif)
 {
 	int st = 0;
-	auto ip_header_size = ip_header->ihl * sizeof(uint32_t);
+	auto ip_header_size = ip_header->ihl << 2;
 	auto header = reinterpret_cast<tcp_header *>(((uint8_t *) ip_header + ip_header_size));
 
-	if(!validate_tcp_packet(header, size))
+	if(!validate_tcp_packet(header, size)) [[unlikely]]
 		return 0;
 
 	auto socket = inet_resolve_socket<tcp_socket>(ip_header->source_ip,
                       header->source_port, header->dest_port, IPPROTO_TCP, netif);
-	uint16_t tcp_payload_len = static_cast<uint16_t>(size - ip_header_size);
+	uint16_t tcp_payload_len = static_cast<uint16_t>(size);
 
 	if(!socket)
 	{
+		sockaddr_in_both addr;
+		addr.in4.sin_addr.s_addr = ip_header->source_ip;
+		addr.in4.sin_family = AF_INET;
+		addr.in4.sin_port = header->source_port;
+
+		tcp_send_rst_no_socket(addr, header->dest_port, AF_INET, netif);
 		/* No socket bound, bad packet. */
 		return 0;
 	}
@@ -217,7 +256,7 @@ int tcp_handle_packet(struct ip_header *ip_header, size_t size, struct netif *ne
 }
 
 uint16_t tcpv4_calculate_checksum(tcp_header *header, uint16_t packet_length, uint32_t srcip, uint32_t dstip,
-                                  bool calc_data = true)
+                                  bool calc_data)
 {
 	uint32_t proto = ((packet_length + IPV4_TCP) << 8);
 	uint16_t buf[2];
@@ -369,7 +408,7 @@ bool tcp_socket::parse_options(tcp_header *packet)
 	if(data_off == tcp_header_length_to_data_off(min_header_size))
 		return true;
 
-	auto data_off_bytes = data_off * sizeof(uint32_t);
+	auto data_off_bytes = tcp_header_data_off_to_length(data_off);
 	
 	uint8_t *options = reinterpret_cast<uint8_t *>(packet + 1);
 	uint8_t *end = options + (data_off_bytes - min_header_size);

@@ -21,6 +21,7 @@
 #include <onyx/net/ethernet.h>
 #include <onyx/dpc.h>
 #include <onyx/net/network.h>
+#include <onyx/net/icmp.h>
 #include <onyx/slab.h>
 #include <onyx/mm/pool.hpp>
 #include <onyx/packetbuf.h>
@@ -36,11 +37,12 @@ int network_handle_packet(uint8_t *packet, uint16_t len, struct netif *netif)
 	if(sizeof(struct eth_header) >= len)
 		return 0;
 	
+	auto remaining_len = len - sizeof(struct eth_header);
 	hdr->ethertype = LITTLE_TO_BIG16(hdr->ethertype);
 	if(hdr->ethertype == PROTO_IPV4)
-		ip::v4::handle_packet((struct ip_header*)(hdr + 1), len - sizeof(struct eth_header), netif);
+		ip::v4::handle_packet((struct ip_header *)(hdr + 1), remaining_len, netif);
 	else if(hdr->ethertype == PROTO_ARP)
-		arp_handle_packet((arp_request_t*)(hdr + 1), len - sizeof(struct eth_header), netif);
+		arp_handle_packet((arp_request_t*)(hdr + 1), remaining_len, netif);
 
 	return 0;
 }

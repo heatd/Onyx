@@ -20,6 +20,7 @@
 #include <onyx/byteswap.h>
 #include <onyx/packetbuf.h>
 #include <onyx/memory.hpp>
+#include <onyx/net/icmp.h>
 
 #include <netinet/in.h>
 
@@ -190,6 +191,9 @@ void udp_handle_packet(ip_header *header, size_t length, netif *netif)
 					  netif, true);
 	if(!socket)
 	{
+		icmp::dst_unreachable_info dst_un{ICMP_CODE_PORT_UNREACHABLE, 0,
+		                (const unsigned char *) udp_header, header};
+		icmp::send_dst_unreachable(dst_un, netif);
 		return;
 	}
 
