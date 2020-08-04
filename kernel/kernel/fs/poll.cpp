@@ -419,7 +419,7 @@ int sys_pselect(int nfds, fd_set *ureadfds, fd_set *uwritefds,
 		return -EFAULT;
 	if(uwritefds && copy_to_user(uwritefds, &writefds, sizeof(writefds)) < 0)
 		return -EFAULT;
-	if(uexceptfds && copy_to_user(uexceptfds, &uexceptfds, sizeof(uexceptfds)) < 0)
+	if(uexceptfds && copy_to_user(uexceptfds, &exceptfds, sizeof(exceptfds)) < 0)
 		return -EFAULT;
 
 	return fd_bits_set;

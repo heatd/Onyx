@@ -54,7 +54,9 @@ CLANG_TIDY_CHECKS:="performance*, modernize-pass-by-value, readability*, misc*, 
 		-readability-magic-numbers, -misc-unused-parameters, \
 		-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling, \
 		-readability-inconsistent-declaration-parameter-name, -readability-qualified-auto, \
-		-misc-non-private-member-variables-in-classes, -clang-diagnostic-unknown-attributes"
+		-misc-non-private-member-variables-in-classes, -clang-diagnostic-unknown-attributes, \
+		cppcoreguidelines-slicing, cppcoreguidelines-pro-type-const-cast, \
+		google-runtime-operator, bugprone*, -bugprone-narrowing-conversions"
 
 CXXFLAGS:=-fno-rtti -fno-exceptions -fcheck-new
 CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS) -D ACPI_LIBRARY -D ACPI_DEBUG_OUTPUT=1

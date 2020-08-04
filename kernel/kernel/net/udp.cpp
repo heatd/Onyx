@@ -64,7 +64,7 @@ int udp_socket::send_packet(char *payload, size_t payload_size, in_port_t source
 
 	b->reserve_headers(get_headers_len() + sizeof(udp_header_t) + PACKET_MAX_HEAD_LENGTH);
 
-	udp_header_t *udp_header = (udp_header_t *) b->push_header(sizeof(udp_header));
+	udp_header_t *udp_header = (udp_header_t *) b->push_header(sizeof(udp_header_t));
 
 	memset(udp_header, 0, sizeof(udp_header_t));
 
