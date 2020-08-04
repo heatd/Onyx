@@ -53,7 +53,8 @@ CLANG_TIDY_CHECKS:="performance*, modernize-pass-by-value, readability*, misc*, 
 		-readability-else-after-return, -readability-isolate-declaration, \
 		-readability-magic-numbers, -misc-unused-parameters, \
 		-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling, \
-		-readability-inconsistent-declaration-parameter-name -readability-qualified-auto"
+		-readability-inconsistent-declaration-parameter-name, -readability-qualified-auto, \
+		-misc-non-private-member-variables-in-classes, -clang-diagnostic-unknown-attributes"
 
 CXXFLAGS:=-fno-rtti -fno-exceptions -fcheck-new
 CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS) -D ACPI_LIBRARY -D ACPI_DEBUG_OUTPUT=1
@@ -66,9 +67,12 @@ CLANG_TIDY_CFLAGS:=$(filter-out -mnop-mcount -mrecord-mcount -mrecord-return \
 	-Wno-error=frame-address -minstrument-return=nop5 \
 	-Wno-cast-function-type -Wno-format-truncation, $(CFLAGS))
 
+RUN_CLANG_TIDY?=1
+
 ifeq ($(RUN_CLANG_TIDY), 1)
-CLANG_TIDY:=-clang-tidy -checks=$(CLANG_TIDY_CHECKS)
-CLANG_TIDY_ARGS:=-- $(CLANG_TIDY_CFLAGS) $(CPPFLAGS) -D__onyx__ -U__linux__ -U_LINUX >> clang-tidy.out
+CLANG_TIDY:=@-clang-tidy --color -checks=$(CLANG_TIDY_CHECKS)
+CLANG_TIDY_ARGS:=-- $(CLANG_TIDY_CFLAGS) -std=c++20 $(CXXFLAGS) $(CPPFLAGS) \
+--sysroot=$(SYSROOT) -D__onyx__ -U__linux__ -U_LINUX
 else
 CLANG_TIDY:=true
 CLANG_TIDY_ARGS:=
@@ -151,9 +155,9 @@ kernel/mm/malloc/%.o: kernel/mm/malloc/%.c kernel.config
 %.o: %.c kernel.config
 	@echo [CC] $<
 
-ifeq ($(RUN_CLANG_TIDY), 1)
-	$(CLANG_TIDY) $< $(CLANG_TIDY_ARGS)
-endif
+#ifeq ($(RUN_CLANG_TIDY), 1)
+#	$(CLANG_TIDY) $< $(CLANG_TIDY_ARGS)
+#endif
 	@$(CC) -c $< -o $@ -std=c11 $(CFLAGS) $(CPPFLAGS) $(C_ONLY_CFLAGS) -Wno-error=deprecated-declarations
 
 %.o: %.S kernel.config

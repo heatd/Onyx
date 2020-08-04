@@ -141,9 +141,11 @@ public:
 
 		size = rhs.size;
 		used_objs = rhs.used_objs;
+		prev = next = nullptr;
 
 		rhs.size = SIZE_MAX;
 		rhs.used_objs = 0;
+		rhs.prev = rhs.next = nullptr;
 	}
 
 	memory_pool_segment& operator=(memory_pool_segment&& rhs)

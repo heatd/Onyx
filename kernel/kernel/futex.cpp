@@ -64,7 +64,7 @@ struct futex_key
 		offset = 0;
 	}
 
-	bool operator==(const futex_key& k)
+	bool operator==(const futex_key& k) const
 	{
 		if(offset != k.offset)
 			return false;
@@ -121,7 +121,7 @@ public:
 		return key;
 	}
 
-	bool was_awaken()
+	bool was_awaken() const
 	{
 		return awaken;
 	}
@@ -228,7 +228,7 @@ private_futex_out:
 int wait(int *uaddr, int val, int flags, const struct timespec *utimespec)
 {
 	bool has_timeout = false;
-	struct timespec ts;
+	struct timespec ts{};
 	hrtime_t timeout = 0;
 	int st = 0;
 

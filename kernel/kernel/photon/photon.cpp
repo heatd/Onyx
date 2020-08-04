@@ -208,14 +208,7 @@ int device::do_swap_buffers(const photon_swap_buffer_args& args)
 	return ret;
 }
 
-bool context::append_mapping(shared_ptr<mapping> mapping)
-{
-	scoped_lock g{&mappings_lock};
-
-	return mapping_list.add(mapping);
-}
-
-expected<off_t, int> context::create_buffer_mapping(shared_ptr<object> obj, device *dev)
+expected<off_t, int> context::create_buffer_mapping(const shared_ptr<object>& obj, device *dev)
 {
 	auto map = make_shared<mapping>(dev, obj);
 	if(!map)

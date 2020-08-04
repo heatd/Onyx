@@ -17,8 +17,10 @@ enum class mem_order : int
 	acq_rel = __ATOMIC_ACQ_REL,
 	acquire = __ATOMIC_ACQUIRE,
 	consume = __ATOMIC_CONSUME,
+#ifndef __clang__
 	hle_acquire = __ATOMIC_HLE_ACQUIRE,
 	hle_release = __ATOMIC_HLE_RELEASE,
+#endif
 	relaxed = __ATOMIC_RELAXED,
 	release = __ATOMIC_RELEASE,
 	seq_cst = __ATOMIC_SEQ_CST

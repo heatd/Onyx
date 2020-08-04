@@ -335,6 +335,7 @@ dentry *dentry_mount(const char *mountpoint, struct inode *inode)
 		rw_lock_write(&base_dentry->d_lock);
 		if(base_dentry->d_flags & DENTRY_FLAG_MOUNTPOINT)
 		{
+			free((void *) path);
 			rw_unlock_write(&base_dentry->d_lock);
 			return errno = EBUSY, nullptr;
 		}
@@ -451,7 +452,7 @@ expected<dentry *, int> dentry_follow_symlink(nameidata& data, dentry *symlink)
 	f.f_ino = symlink->d_inode;
 
 	/* Oops - We hit the max symlink count */
-	if(data.nloops++ == data.max_loops)
+	if(data.nloops++ == nameidata::max_loops)
 	{
 		return unexpected<int>{-ELOOP};
 	}
@@ -598,8 +599,6 @@ int dentry_resolve_path(nameidata& data)
 	if(pathname[pathname.length() - 1] == '/')
 		data.lookup_flags |= LOOKUP_FLAG_INTERNAL_TRAILING_SLASH;
 	bool must_be_dir = data.lookup_flags & (LOOKUP_FLAG_INTERNAL_TRAILING_SLASH | OPEN_FLAG_MUST_BE_DIR);
-
-	std::string_view v;
 
 	if(absolute)
 	{

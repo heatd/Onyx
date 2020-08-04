@@ -40,6 +40,8 @@ void softirq_handle()
 		pending &= ~(1 << SOFTIRQ_VECTOR_TIMER);
 	}
 
+	write_per_cpu(pending_vectors, pending);
+
 	if(is_disabled) irq_disable();
 
 	sched_enable_preempt_no_softirq();

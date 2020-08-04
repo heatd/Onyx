@@ -83,7 +83,7 @@ public:
 static bool page_is_initialized = false;
 static constexpr size_t arena_default_size = 0x200000;
 
-struct page_node main_node;
+page_node main_node;
 
 
 #include <onyx/clock.h>

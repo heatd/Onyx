@@ -105,8 +105,6 @@ void ext2_superblock::update_inode(ext2_inode *ino, ext2_inode_no inode_no)
 	memcpy(on_disk, ino, inode_size);
 
 	block_buf_dirty(buf);
-
-	return;
 }
 
 
@@ -517,12 +515,7 @@ int ext2_unlink(const char *name, int flags, struct dentry *dir)
 
 	if(st < 0)
 	{
-		free(res.buf);
 		return st;
-	}
-	else if(st == 0)
-	{
-		return -ENOENT;
 	}
 
 	dir_entry_t *ent = (dir_entry_t *) (res.buf + res.block_off);

@@ -227,7 +227,7 @@ public:
 	}
 	
 	/* timeout in ms - negative means infinite, 0 means don't sleep */
-	sleep_result sleep_poll(hrtime_t timeout, bool timeout_valid);
+	sleep_result sleep_poll(hrtime_t timeout, bool timeout_valid) const;
 };
 
 extern "C"

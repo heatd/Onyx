@@ -306,10 +306,7 @@ err2:
 	dentry_put(write_dent);
 	dentry_put(read_dent);
 err1:
-	if(new_pipe)
-	{
-		delete new_pipe;
-	}
+	delete new_pipe;
 err0:
 	if(node0)	free(node0);
 	if(node1)	free(node1);

@@ -365,10 +365,10 @@ bool virtq::allocate_descriptors(virtio_buf_list& buf_list)
 	do
 	{
 		expected = avail_descs;
+		new_val = expected - buf_list.nr_elems;
 		if(buf_list.nr_elems > expected)
 			continue;
 
-		new_val = expected - buf_list.nr_elems;
 	} while(buf_list.nr_elems <= expected &&
             !atomic_compare_exchange_strong(&avail_descs, &expected, new_val));
 

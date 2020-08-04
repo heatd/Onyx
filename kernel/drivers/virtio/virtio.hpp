@@ -177,7 +177,7 @@ public:
 	virtq_split(vdev *dev, unsigned int qsize, unsigned int nr) : virtq{dev, nr}, vq_pages{nullptr},
 		queue_size{qsize}, descs{nullptr},
 		avail{nullptr}, used{nullptr}, eff_queue_notify_off{0}, last_seen_used_idx{0}
-	{ avail_descs = get_queue_size(); }
+	{ avail_descs = queue_size; }
 	
 	~virtq_split() {}
 	

@@ -72,7 +72,7 @@ static bool tsc_enabled = false;
 #undef TESTING_TSC
 void tsc_init(void)
 {
-	if(x86_has_usable_tsc() == false)
+	if(!x86_has_usable_tsc())
 	{
 		INFO("tsc", "Invariant/Constant TSC not available - tsc is not able to be "
 		"used as a clock source\n");

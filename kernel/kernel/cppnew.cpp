@@ -16,22 +16,27 @@ void* operator new(size_t size)
 {
 	return malloc(size);
 }
+
 void* operator new[](size_t size)
 {
 	return malloc(size);
 }
+
 void operator delete(void* addr)
 {
 	return free(addr);
 }
+
 void operator delete[](void* addr)
 {
 	return free(addr);
 }
+
 void operator delete(void* ptr, size_t addr)
 {
 	free(ptr);
 }
+
 void operator delete[](void* ptr, size_t addr)
 {
 	free(ptr);

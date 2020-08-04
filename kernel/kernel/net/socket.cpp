@@ -59,7 +59,7 @@ ssize_t socket::sendto(const void *buf, size_t len, int flags,
 ssize_t recv_queue::recvfrom(void *_buf, size_t len, int flags, sockaddr *src_addr, socklen_t *slen)
 {
 	char *buf = (char *) _buf;
-	bool storing_src = src_addr ? true : false;
+	bool storing_src = src_addr != nullptr;
 	bool remove_data = !(flags & MSG_PEEK);
 	ssize_t total_read = 0;
 
@@ -155,12 +155,7 @@ bool recv_queue::has_data_available(int msg_flags, size_t required_data)
 {
 	if(msg_flags & MSG_WAITALL)
 	{
-		if(total_data_in_buffers >= required_data)
-		{
-			return true;
-		}
-		else
-			return false;
+		return total_data_in_buffers >= required_data;
 	}
 
 	return !list_is_empty(&recv_list);

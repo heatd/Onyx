@@ -118,7 +118,7 @@ class uart8250_port : public serial_port
 			outl(port, val);
 	}
 
-	constexpr uint16_t calculate_divisor(uint16_t rate)
+	static constexpr uint16_t calculate_divisor(uint16_t rate)
 	{
 		return serial_clock / rate;
 	}
@@ -232,7 +232,7 @@ void uart8250_port::write(const char *s, size_t size)
 	}
 }
 
-struct uart8250_port com1{0x3f8, 1};
+uart8250_port com1{0x3f8, 1};
 
 bool uart8250_port::present()
 {

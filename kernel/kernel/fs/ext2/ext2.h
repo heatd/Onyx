@@ -19,6 +19,7 @@
 #include <onyx/expected.hpp>
 
 #include <onyx/buffer.h>
+#include <sys/stat.h>
 
 #define EXT2_SUPERBLOCK_OFFSET		1024
 
@@ -418,7 +419,7 @@ static inline struct ext2_inode *ext2_get_inode_from_node(struct inode *ino)
 #define EXT2_ERR_INV_BLOCK		0
 #define EXT2_FILE_HOLE_BLOCK    0
 
-#define EXT2_GET_FILE_TYPE(mode) (mode & 0xE000)
+#define EXT2_GET_FILE_TYPE(mode) (mode & S_IFMT)
 #define EXT2_CALCULATE_SIZE64(ino) (((uint64_t)ino->size_hi << 32) | ino->size_lo)
 
 extern const unsigned int direct_block_count;

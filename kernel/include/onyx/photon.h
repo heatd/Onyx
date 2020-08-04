@@ -94,7 +94,7 @@ class mapping : public object
 	shared_ptr<object> buffer;
 public:
 	mapping(device *dev, shared_ptr<object> buf) : object(dev, PHOTON_COOKIE_MAPPING),
-	      buffer{buf} {}
+	      fake_offset{}, buffer{buf} {}
 
 	void set_fake_off(off_t off)
 	{
@@ -131,15 +131,14 @@ public:
 	photon_handle add_object(const shared_ptr<object>& obj);
 	shared_ptr<object> get_object(photon_handle handle);
 	unsigned int close_object(photon_handle handle);
-	bool append_mapping(shared_ptr<mapping> mapping);
 	
 	off_t allocate_fake_offset()
 	{
 		return curr_fake_offset.fetch_add(PAGE_SIZE);
 	}
 
-	expected<off_t, int> create_buffer_mapping(shared_ptr<object> obj, device *dev);
-	bool add_mapping(shared_ptr<mapping> obj)
+	expected<off_t, int> create_buffer_mapping(const shared_ptr<object>& obj, device *dev);
+	bool add_mapping(const shared_ptr<mapping>& obj)
 	{
 		scoped_lock g{&mappings_lock};
 		return mapping_list.add(obj);

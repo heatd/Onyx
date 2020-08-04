@@ -89,7 +89,7 @@ private:
 	void assign_pointer_to_self(T *ptr)
 	{
 		if(ptr != nullptr) [[likely]]
-			ref = new refcount<T>(p);
+			ref = new refcount<T>(ptr);
 		else
 			ref = nullptr;
 		

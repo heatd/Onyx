@@ -26,8 +26,13 @@ class list_head_cpp : public list_head
 private:
 	T *self;
 public:
-	constexpr list_head_cpp(T *self) : self(self)
-	{}
+	constexpr list_head_cpp(T *self) : list_head{nullptr, nullptr}, self(self)
+	{
+		/* *sigh* clang-tidy doesn't shut up about prev and next being uninitialised,
+		 * so, here we go...
+		 */
+		prev = next = nullptr;
+	}
 	/* TODO: Do we need to define copy ctors, move ctors here? */
 
 	T *from_list()

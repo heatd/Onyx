@@ -124,6 +124,9 @@ int create_fragments(struct list_head *frag_list, packetbuf *buf,
 	size_t packet_metadata_len = sizeof(ip_header);
 	fragment *first_frag = nullptr;
 
+	/* If the payload_size is 0 the mtu is almost certainly completely wrong */
+	assert(payload_size != 0);
+
 	while(payload_size != 0)
 	{
 		struct fragment *frag = new fragment{};
@@ -183,7 +186,7 @@ int create_fragments(struct list_head *frag_list, packetbuf *buf,
 			if(!new_buf ||
 			  !new_buf->allocate_space(this_payload_size + header_length))
 			{
-				if(new_buf) delete new_buf;
+				delete new_buf;
 				delete frag;
 				free_frags(frag_list);
 				return -ENOMEM;	

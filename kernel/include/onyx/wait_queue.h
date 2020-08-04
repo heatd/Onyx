@@ -78,10 +78,10 @@ out_final: ;								\
 											\
 	hrtime_t timeout = timeout_ns;			\
 	long __ret = 0;					\
+	struct wait_queue_token token;			\
 	if(cond)								\
 		goto out_final;								\
 											\
-	struct wait_queue_token token;			\
 											\
 	set_current_state(state);				\
 	while(true)								\

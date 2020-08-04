@@ -591,10 +591,7 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 	return root_inode;
 error:
 	if(b)   block_buf_put(b);
-	if(sb)
-	{
-		free(sb);
-	}
+	delete sb;
 
 	return nullptr;
 }

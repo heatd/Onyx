@@ -27,6 +27,8 @@ export PKGDIR:=/pkg
 export CFLAGS?=-O2 -g
 export CPPFLAGS:=
 
+SYSROOT=$(PWD)/sysroot
+
 # Configure the cross-compiler to use the desired system root.
 export CXX:=$(CXX) --sysroot=$(PWD)/sysroot
 export CC:=$(CC) --sysroot=$(PWD)/sysroot

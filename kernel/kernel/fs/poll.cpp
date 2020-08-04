@@ -48,7 +48,7 @@ void poll_file::wait(wait_queue *queue)
 	file->wait_on();
 }
 
-sleep_result poll_table::sleep_poll(hrtime_t timeout, bool timeout_valid)
+sleep_result poll_table::sleep_poll(hrtime_t timeout, bool timeout_valid) const
 {
 	if(timeout == 0 && timeout_valid)
 		return sleep_result::timeout;

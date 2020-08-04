@@ -8,7 +8,6 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include <type_traits>
 
 #include <onyx/semaphore.h>
 #include <onyx/mutex.h>
@@ -194,7 +193,8 @@ public:
 	tcp_packet(cul::slice<const uint8_t> data, tcp_socket *socket, uint16_t flags,
                netif *nif, sockaddr_in *in) : refcountable(), payload(data),
 	           socket(socket), buf{}, option_list{}, flags(flags), nif(nif),
-			   saddr(in), pending_packet_list_node{this}, acked{false}, ack_wq{}, packet_flags{}
+			   saddr(in), pending_packet_list_node{this}, acked{false}, ack_wq{}, packet_flags{},
+			   response_header{}, starting_seq_number{}
 	{
 		INIT_LIST_HEAD(&option_list);
 		init_wait_queue_head(&ack_wq);
