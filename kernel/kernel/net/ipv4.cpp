@@ -437,20 +437,21 @@ socket *choose_protocol_and_create(int type, int protocol)
 static constexpr in_port_t ephemeral_upper_bound = 61000;
 static constexpr in_port_t ephemeral_lower_bound = 32768;
 
-in_port_t allocate_ephemeral_port(netif *netif, sockaddr_in &in, inet_socket *sock)
+in_port_t allocate_ephemeral_port(netif *netif, inet_sock_address &addr, inet_socket *sock)
 {
 	while(true)
 	{
 		in_port_t port = htons(static_cast<in_port_t>(arc4random_uniform(
 			 ephemeral_upper_bound - ephemeral_lower_bound)) + ephemeral_lower_bound);
 
-		in.sin_port = port;
-	
-		const socket_id id{sock->proto, sa_generic(in), sa_generic(in)};
+		addr.port = port;
+
+		/* We pass the same address as the dst address but in reality, dst_addr isn't checked. */
+		const socket_id id{sock->proto, AF_INET, addr, addr};
 		
 		netif_lock_socks(id, netif);
 
-		auto sock = netif_get_socket(id, netif, GET_SOCKET_CHECK_EXISTANCE | GET_SOCKET_UNLOCKED);
+		auto sock = netif_get_socket(id, netif, GET_SOCKET_CHECK_EXISTENCE | GET_SOCKET_UNLOCKED);
 
 		if(!sock)
 			return port;
@@ -465,7 +466,8 @@ in_port_t allocate_ephemeral_port(netif *netif, sockaddr_in &in, inet_socket *so
 
 int proto_family::bind_one(sockaddr_in *in, netif *netif, inet_socket *sock)
 {
-	const socket_id id(sock->proto, sa_generic(*in), sa_generic(*in));
+	inet_sock_address addr{*in};
+	const socket_id id(sock->proto, AF_INET, addr, addr);
 
 	if(in->sin_port != 0)
 	{
@@ -474,7 +476,7 @@ int proto_family::bind_one(sockaddr_in *in, netif *netif, inet_socket *sock)
 
 		netif_lock_socks(id, netif);
 		/* Check if there's any socket bound to this address yet */
-		if(netif_get_socket(id, netif, GET_SOCKET_CHECK_EXISTANCE | GET_SOCKET_UNLOCKED))
+		if(netif_get_socket(id, netif, GET_SOCKET_CHECK_EXISTENCE | GET_SOCKET_UNLOCKED))
 		{
 			netif_unlock_socks(id, netif);
 			return -EADDRINUSE;
@@ -483,14 +485,14 @@ int proto_family::bind_one(sockaddr_in *in, netif *netif, inet_socket *sock)
 	else
 	{
 		/* Lets try to allocate a new ephemeral port for us */
-		allocate_ephemeral_port(netif, *in, sock);
+		in->sin_port = allocate_ephemeral_port(netif, addr, sock);
 	}
 
 	/* Note that we keep doing this memcpy in each bind_one() just so the socket
 	 * hashes properly - the state of the socket(whether it's bound or not) entirely depends on
 	 * sock->bound = true in proto_family::bind()
 	 */
-	memcpy(&sock->src_addr, in, sizeof(struct sockaddr));
+	sock->src_addr = addr;
 
 	/* Note: locks need to be held */
 	bool success = netif_add_socket(sock, netif, ADD_SOCKET_UNLOCKED);
@@ -522,7 +524,7 @@ int proto_family::bind(sockaddr *addr, socklen_t len, inet_socket *sock)
 
 	if(!is_bind_any(in->sin_addr.s_addr))
 	{
-		auto nif = netif_get_from_addr(addr, AF_INET);
+		auto nif = netif_get_from_addr(inet_sock_address{*in}, AF_INET);
 		if(!nif)
 		{
 			return -EADDRNOTAVAIL;
@@ -584,12 +586,12 @@ void proto_family::unbind_one(netif *nif, inet_socket *sock)
 rwlock routing_table_lock;
 cul::vector<inet4_route> routing_table;
 
-netif *proto_family::route(sockaddr *from, sockaddr *to)
+netif *proto_family::route(inet_sock_address& from, const inet_sock_address& to, int domain)
 {
-	sockaddr_in *in = (sockaddr_in *) from;
-
+	/* domain only matters for IPv6 sockets that need to check if it's running on ipv4-mapped */
+	(void) domain;
 	/* If the source address specifies an interface, we need to use that one. */
-	if(!is_bind_any(in->sin_addr.s_addr))
+	if(!is_bind_any(from.in4.s_addr))
 		return netif_get_from_addr(from, AF_INET);
 
 	/* Else, we're searching through the routing table to find the best interface to use in order
@@ -597,7 +599,7 @@ netif *proto_family::route(sockaddr *from, sockaddr *to)
 	 */
 	netif *best_if = nullptr;
 	int lowest_metric = INT_MAX;
-	auto dest = ((sockaddr_in *) to)->sin_addr.s_addr;
+	auto dest = to.in4.s_addr;
 
 	rw_lock_read(&routing_table_lock);
 
@@ -627,7 +629,7 @@ netif *proto_family::route(sockaddr *from, sockaddr *to)
 
 	if(best_if)
 	{
-		in->sin_addr.s_addr = best_if->local_ip.sin_addr.s_addr;
+		from.in4.s_addr = best_if->local_ip.sin_addr.s_addr;
 	}
 
 	return best_if;
@@ -700,7 +702,7 @@ void inet_socket::unbind()
 
 	if(domain == AF_INET)
 	{
-		is_inaddr_any = ip::v4::is_bind_any(src_addr.in4.sin_addr.s_addr);
+		is_inaddr_any = ip::v4::is_bind_any(src_addr.in4.s_addr);
 	}
 	
 	auto proto_fam = get_proto_fam();
@@ -719,7 +721,7 @@ void inet_socket::unbind()
 	}
 	else
 	{
-		auto netif = netif_get_from_addr((sockaddr *) &src_addr, domain);
+		auto netif = netif_get_from_addr(src_addr, domain);
 		proto_fam->unbind_one(netif, this);
 	}
 }

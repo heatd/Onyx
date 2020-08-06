@@ -51,7 +51,12 @@ extern struct sock_ops default_s_ops;
 
 struct recv_packet
 {
-	sockaddr src_addr;
+	union
+	{
+		sockaddr_in in4;
+		sockaddr_in6 in6;
+	} src_addr;
+
 	socklen_t addr_len;
 	void *payload;
 	size_t size;

@@ -164,7 +164,7 @@ public:
 	struct list_head option_list;
 	uint16_t flags;
 	netif *nif;
-	sockaddr_in *saddr;
+	const inet_sock_address &saddr;
 	/* Ideas at 4.am: Have a struct that stores both a list_head and a pointer to the
 	 * original class, and make code use that instead of container_of. This should work
 	 * properly for every kind of class, and would avoid having to construct list_node<T>'s.
@@ -191,7 +191,7 @@ public:
 	void put_options(char *opts);
 
 	tcp_packet(cul::slice<const uint8_t> data, tcp_socket *socket, uint16_t flags,
-               netif *nif, sockaddr_in *in) : refcountable(), payload(data),
+               netif *nif, const inet_sock_address& in) : refcountable(), payload(data),
 	           socket(socket), buf{}, option_list{}, flags(flags), nif(nif),
 			   saddr(in), pending_packet_list_node{this}, acked{false}, ack_wq{}, packet_flags{},
 			   response_header{}, starting_seq_number{}
@@ -320,8 +320,8 @@ private:
 		return ack;
 	}
 
-	int start_handshake(netif *nif, sockaddr_in *from);
-	int finish_handshake(netif *nif, sockaddr_in *from);
+	int start_handshake(netif *nif);
+	int finish_handshake(netif *nif);
 
 	bool parse_options(tcp_header *packet);
 	ssize_t get_max_payload_len(uint16_t tcp_header_len);
@@ -334,9 +334,10 @@ public:
 		tcp_header *header;
 		uint16_t tcp_segment_size;
 		sockaddr_in_both *src_addr;
+		int domain;
 
-		packet_handling_data(tcp_header *header, uint16_t segm_size, sockaddr_in_both *b)
-		                     : header(header), tcp_segment_size(segm_size), src_addr(b)
+		packet_handling_data(tcp_header *header, uint16_t segm_size, sockaddr_in_both *b, int domain)
+		                     : header(header), tcp_segment_size(segm_size), src_addr(b), domain{domain}
 		{}
 	};
 
@@ -366,8 +367,8 @@ public:
 		assert(state == tcp_state::TCP_STATE_CLOSED);
 	}
 
-	struct sockaddr_in &saddr() {return (sockaddr_in &) src_addr;}
-	struct sockaddr_in &daddr() {return (sockaddr_in &) dest_addr;}
+	const inet_sock_address& saddr() {return src_addr;}
+	const inet_sock_address& daddr() {return dest_addr;}
 
 	int bind(struct sockaddr *addr, socklen_t addrlen) override;
 	int connect(struct sockaddr *addr, socklen_t addrlen) override;

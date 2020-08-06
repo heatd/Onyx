@@ -274,7 +274,7 @@ void tcp_test()
 	
 	connect(sockfd, (const struct sockaddr *) &servaddr, sizeof(struct sockaddr_in));
 	perror("connect");
-	send(sockfd, "Hello World!\n", strlen("Hello World!\n"), 0);
+	send(sockfd, "GET / HTTP/1.0\r\n\r\n", strlen("GET / HTTP/1.0\r\n\r\n"), 0);
 	perror("send");
 #if 0
 	char buffer[4096];

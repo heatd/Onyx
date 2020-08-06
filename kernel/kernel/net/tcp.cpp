@@ -164,8 +164,8 @@ int tcp_socket::handle_packet(const tcp_socket::packet_handling_data& data)
 		if(!p)
 			return -1;
 		
-		p->addr_len = sizeof(sockaddr_in);
-		memcpy(&p->src_addr, data.src_addr, sizeof(sockaddr_in));
+		p->addr_len = domain == AF_INET ? sizeof(sockaddr_in) : sizeof(sockaddr_in6);
+		memcpy(&p->src_addr.in4, data.src_addr, p->addr_len);
 		p->payload = memdup(buf.data(), buf.size_bytes());
 		if(!p->payload)
 		{
@@ -181,9 +181,9 @@ int tcp_socket::handle_packet(const tcp_socket::packet_handling_data& data)
 		memcpy(&src, &saddr(), sizeof(src));
 		auto fam = get_proto_fam();
 
-		auto netif = fam->route(&src, (sockaddr *) &daddr());
+		auto netif = fam->route(src_addr, dest_addr, domain);
 	
-		tcp_packet pkt{{}, this, TCP_FLAG_ACK, netif, (sockaddr_in *) &src};
+		tcp_packet pkt{{}, this, TCP_FLAG_ACK, netif, src_addr};
 		pkt.send();
 	}
 
@@ -212,6 +212,7 @@ int tcp_send_rst_no_socket(const sockaddr_in_both& dstaddr, in_port_t srcport, i
 	     htons(TCP_MAKE_DATA_OFF(tcp_header_length_to_data_off(sizeof(tcp_header))) | TCP_FLAG_RST);
 	hdr->checksum = tcpv4_calculate_checksum(hdr, sizeof(tcp_header),
 	                nif->local_ip.sin_addr.s_addr, dstaddr.in4.sin_addr.s_addr);
+	/* TODO: Don't assume IPv4 */
 
 	return ip::v4::send_packet(nif->local_ip.sin_addr.s_addr,
 	                           dstaddr.in4.sin_addr.s_addr, IPV4_TCP, buf.get(), nif);
@@ -246,7 +247,7 @@ int tcp_handle_packet(struct ip_header *ip_header, size_t size, struct netif *ne
 	sockaddr_in_both both;
 	ipv4_to_sockaddr(ip_header->source_ip, header->source_port, both.in4);
 
-	const tcp_socket::packet_handling_data handle_data{header, tcp_payload_len, &both}; 
+	const tcp_socket::packet_handling_data handle_data{header, tcp_payload_len, &both, AF_INET}; 
 
 	st = socket->handle_packet(handle_data);
 
@@ -327,10 +328,10 @@ int tcp_packet::send()
 
 	/* Assume the max window size as the window size, for now */
 	header->window_size = htons(socket->window_size);
-	header->source_port = socket->saddr().sin_port;
+	header->source_port = socket->saddr().port;
 	header->sequence_number = htonl(socket->sequence_nr());
 	header->data_offset_and_flags = htons(data_off | flags);
-	header->dest_port = dest.sin_port;
+	header->dest_port = dest.port;
 	header->urgent_pointer = 0;
 
 	if(flags & TCP_FLAG_ACK)
@@ -350,8 +351,9 @@ int tcp_packet::send()
 
 	if(nif->flags & NETIF_SUPPORTS_CSUM_OFFLOAD && !socket->needs_fragmenting(nif, buf.get()))
 	{
+		/* TODO: Don't assume IPv4 */
 		header->checksum = ~tcpv4_calculate_checksum(header,
-			static_cast<uint16_t>(header_size + length), saddr->sin_addr.s_addr, dest.sin_addr.s_addr, false);
+			static_cast<uint16_t>(header_size + length), saddr.in4.s_addr, dest.in4.s_addr, false);
 		buf->csum_offset = &header->checksum;
 		buf->csum_start = (unsigned char *) header;
 		buf->needs_csum = 1;
@@ -359,7 +361,7 @@ int tcp_packet::send()
 	else
 	{
 		header->checksum = tcpv4_calculate_checksum(header,
-			static_cast<uint16_t>(header_size + length), saddr->sin_addr.s_addr, dest.sin_addr.s_addr);
+			static_cast<uint16_t>(header_size + length), saddr.in4.s_addr, dest.in4.s_addr);
 	}
 
 	if(should_wait_for_ack())
@@ -372,7 +374,7 @@ int tcp_packet::send()
 
 	socket->sequence_nr() += seqs;
 
-	int st = ip::v4::send_packet(saddr->sin_addr.s_addr, dest.sin_addr.s_addr, IPV4_TCP, buf.get(),
+	int st = ip::v4::send_packet(saddr.in4.s_addr, dest.in4.s_addr, IPV4_TCP, buf.get(),
 		nif);
 
 	if(st < 0)
@@ -461,9 +463,9 @@ bool tcp_socket::parse_options(tcp_header *packet)
 constexpr uint16_t tcp_headers_overhead = sizeof(struct tcp_header) +
 	sizeof(struct eth_header) + IPV4_MIN_HEADER_LEN;
 
-int tcp_socket::start_handshake(netif *nif, sockaddr_in *from)
+int tcp_socket::start_handshake(netif *nif)
 {
-	tcp_packet first_packet{{}, this, TCP_FLAG_SYN, nif, from};
+	tcp_packet first_packet{{}, this, TCP_FLAG_SYN, nif, src_addr};
 	first_packet.set_packet_flags(TCP_PACKET_FLAG_ON_STACK | TCP_PACKET_FLAG_WANTS_ACK_HEADER);
 
 	tcp_option opt{TCP_OPTION_MSS, 4};
@@ -518,9 +520,9 @@ int tcp_socket::start_handshake(netif *nif, sockaddr_in *from)
 	return 0;
 }
 
-int tcp_socket::finish_handshake(netif *nif, sockaddr_in *from)
+int tcp_socket::finish_handshake(netif *nif)
 {
-	tcp_packet packet{{}, this, TCP_FLAG_ACK, nif, from};
+	tcp_packet packet{{}, this, TCP_FLAG_ACK, nif, src_addr};
 	packet.set_packet_flags(TCP_PACKET_FLAG_ON_STACK);
 
 	return packet.send();
@@ -531,18 +533,14 @@ int tcp_socket::start_connection()
 	seq_number = arc4random();
 
 	auto fam = get_proto_fam();
-	
-	/* TODO: This interface is ugly, clunky, and incorrect */
-	struct sockaddr src;
-	memcpy(&src, &saddr(), sizeof(src));
 
-	auto netif = fam->route(&src, (sockaddr *) &daddr());
+	auto netif = fam->route(src_addr, dest_addr, domain);
 
-	int st = start_handshake(netif, (sockaddr_in *) &src);
+	int st = start_handshake(netif);
 	if(st < 0)
 		return st;
 
-	st = finish_handshake(netif, (sockaddr_in *) &src);
+	st = finish_handshake(netif);
 
 	state = tcp_state::TCP_STATE_ESTABLISHED;
 	
@@ -568,9 +566,12 @@ int tcp_socket::connect(struct sockaddr *addr, socklen_t addrlen)
 		return -EINVAL;
 
 	struct sockaddr_in *in = (struct sockaddr_in *) addr;
-	(void) in;
+	struct sockaddr_in6 *in6 = (sockaddr_in6 *) addr;
 
-	memcpy(&dest_addr, addr, addrlen);
+	if(domain == AF_INET)
+		dest_addr = inet_sock_address{*in};
+	else
+		dest_addr = inet_sock_address{*in6};
 	connected = true;
 
 	return start_connection();
@@ -629,16 +630,11 @@ void tcp_socket::try_to_send()
 	#endif
 	{
 		auto fam = get_proto_fam();
-	
-		/* TODO: This interface is ugly, clunky, and incorrect for ipv6.
-		 * We should widen use of sockaddr_in_both */
-		struct sockaddr src;
-		memcpy(&src, &saddr(), sizeof(src));
 
-		auto netif = fam->route(&src, (sockaddr *) &daddr());
+		auto netif = fam->route(src_addr, dest_addr, domain);
 		/* TODO: Support TCP segmentation instead of relying on IPv4 segmentation */
 		cul::slice<const uint8_t> data{send_buffer.begin(), current_pos};
-		tcp_packet *packet = new tcp_packet{data, this, TCP_FLAG_ACK | TCP_FLAG_PSH, netif, (sockaddr_in *) &src};
+		tcp_packet *packet = new tcp_packet{data, this, TCP_FLAG_ACK | TCP_FLAG_PSH, netif, src_addr};
 		if(!packet)
 			return;
 		

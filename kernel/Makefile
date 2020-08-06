@@ -56,7 +56,8 @@ CLANG_TIDY_CHECKS:="performance*, modernize-pass-by-value, readability*, misc*, 
 		-readability-inconsistent-declaration-parameter-name, -readability-qualified-auto, \
 		-misc-non-private-member-variables-in-classes, -clang-diagnostic-unknown-attributes, \
 		cppcoreguidelines-slicing, cppcoreguidelines-pro-type-const-cast, \
-		google-runtime-operator, bugprone*, -bugprone-narrowing-conversions"
+		google-runtime-operator, bugprone*, -bugprone-narrowing-conversions, \
+		clang-analyzer-optin.performance.Padding, modernize-use-override"
 
 CXXFLAGS:=-fno-rtti -fno-exceptions -fcheck-new
 CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS) -D ACPI_LIBRARY -D ACPI_DEBUG_OUTPUT=1
@@ -168,12 +169,11 @@ kernel/mm/malloc/%.o: kernel/mm/malloc/%.c kernel.config
 
 %.o: %.cpp kernel.config
 	@echo [CXX] $<
+	@$(CXX) -c $< -o $@ -std=c++20 $(CFLAGS) $(CPPFLAGS) $(CXXFLAGS)
 
 ifeq ($(RUN_CLANG_TIDY), 1)
 	$(CLANG_TIDY) $< $(CLANG_TIDY_ARGS)
 endif
-
-	@$(CXX) -c $< -o $@ -std=c++20 $(CFLAGS) $(CPPFLAGS) $(CXXFLAGS)
 
 $(ARCHDIR)/__vdso.o: $(ARCHDIR)/__vdso.c kernel.config
 	@echo [CC] $<

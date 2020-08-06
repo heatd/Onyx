@@ -115,7 +115,9 @@ int udp_socket::connect(sockaddr *addr, socklen_t len)
 			return st;
 	}
 
-	memcpy(&dest_addr, addr, sizeof(sockaddr));
+	auto res = sockaddr_to_isa(addr);
+	dest_addr = res.first;
+	//printk("udp: Connected to address %x\n", dest_addr.in4.s_addr);
 	connected = true;
 
 	return 0;
@@ -124,30 +126,28 @@ int udp_socket::connect(sockaddr *addr, socklen_t len)
 ssize_t udp_socket::sendto(const void *buf, size_t len, int flags, sockaddr *addr,
                            socklen_t addrlen)
 {
-	bool not_conn = !connected;
-
-	sockaddr_in *to = (sockaddr_in *) &dest_addr;
-
-	sockaddr_in *in = (sockaddr_in *) addr;
-
-	if(in && !validate_sockaddr_len_pair(addr, addrlen))
+	if(addr && !validate_sockaddr_len_pair(addr, addrlen))
 		return -EINVAL;
 
-	if(not_conn && addr == NULL)
+	inet_sock_address dest = dest_addr;
+	int our_domain = domain;
+
+	if(addr)
+	{
+		auto res = sockaddr_to_isa(addr);
+		dest = res.first;
+		our_domain = res.second;
+	}
+
+	if(!connected && addr == NULL)
 		return -ENOTCONN;
-	else if(addr != NULL)
-		to = (sockaddr_in *) addr;
 
-	sockaddr from;
-	/* TODO: This is not quite ipv6 safe */
-	memcpy(&from, &src_addr, sizeof(from));
 	auto fam = get_proto_fam();
-	auto netif = fam->route(&from, (sockaddr *) to);
+	auto netif = fam->route(src_addr, dest, our_domain);
 
-	auto &from_in = (sockaddr_in &) from;
-
-	if(int st = send_packet((char*) buf, len, from_in.sin_port, to->sin_port,
-			   from_in.sin_addr.s_addr, to->sin_addr.s_addr, 
+	/* TODO: Connect ipv6 support up */
+	if(int st = send_packet((char*) buf, len, src_addr.port, dest.port,
+			   src_addr.in4.s_addr, dest.in4.s_addr, 
 			   netif); st < 0)
 	{
 		return st;

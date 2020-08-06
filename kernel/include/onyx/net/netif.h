@@ -47,13 +47,17 @@ struct netif
 #ifdef __cplusplus
 extern "C" {
 
+struct inet_sock_address;
+
 struct socket_id
 {
 	int protocol;
-	const struct sockaddr &src_addr;
-	const struct sockaddr &dst_addr;
+	int domain;
+	const struct inet_sock_address &src_addr;
+	const struct inet_sock_address &dst_addr;
 
-	socket_id(int proto, const sockaddr &s, const sockaddr &d) : protocol(proto), src_addr(s), dst_addr(d)
+	socket_id(int proto, int domain, const inet_sock_address &s, const inet_sock_address &d)
+	: protocol{proto}, domain{domain}, src_addr{s}, dst_addr{d}
 	{}
 };
 
@@ -62,7 +66,7 @@ struct inet_socket;
 
 #define GET_SOCKET_UNLOCKED                (1 << 0)
 #define GET_SOCKET_DSTADDR_VALID           (1 << 1)
-#define GET_SOCKET_CHECK_EXISTANCE         (1 << 2)
+#define GET_SOCKET_CHECK_EXISTENCE         (1 << 2)
 
 #define ADD_SOCKET_UNLOCKED                (1 << 0)
 #define REMOVE_SOCKET_UNLOCKED             (1 << 0)
@@ -87,7 +91,7 @@ void netif_register_if(struct netif *netif);
 int netif_unregister_if(struct netif *netif);
 struct netif *netif_choose(void);
 void netif_get_ipv4_addr(struct sockaddr_in *s, struct netif *netif);
-struct netif *netif_get_from_addr(struct sockaddr *s, int domain);
+struct netif *netif_get_from_addr(const inet_sock_address& s, int domain);
 struct list_head *netif_lock_and_get_list(void);
 void netif_unlock_list(void);
 
