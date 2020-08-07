@@ -37,8 +37,9 @@ unique_ptr<packetbuf> allocate_icmp_response_packet(unsigned int extra_size = 0)
 
 void send_echo_reply(ip_header *iphdr, icmp_header *icmphdr, uint16_t length, netif *nif)
 {
-	auto dst = iphdr->source_ip;
-	auto src = nif->local_ip.sin_addr.s_addr;
+	in_addr dst;
+	dst.s_addr = iphdr->source_ip;
+	auto src = nif->local_ip.sin_addr;
 
 	auto data_length = length - min_icmp_size();
 
@@ -54,13 +55,22 @@ void send_echo_reply(ip_header *iphdr, icmp_header *icmphdr, uint16_t length, ne
 	memcpy(buf->put(data_length), &icmphdr->echo.data, data_length);
 	response_icmp->checksum = ipsum(response_icmp, length);
 
-	ip::v4::send_packet(src, dst, IPV4_ICMP, buf.get(), nif);
+	inet_sock_address from{src, 0};
+	inet_sock_address to{dst, 0};
+
+	auto res = ip::v4::get_v4_proto()->route(from, to, AF_INET);
+
+	if(res.has_error())
+		return;
+
+	ip::v4::send_packet(res.value(), IPV4_ICMP, buf.get(), nif);
 }
 
 int send_dst_unreachable(const dst_unreachable_info& info, netif *nif)
 {
-	auto dst = info.iphdr->source_ip;
-	auto src = nif->local_ip.sin_addr.s_addr;
+	in_addr dst;
+	dst.s_addr = info.iphdr->source_ip;
+	auto src = nif->local_ip.sin_addr;
 
 	auto buf = allocate_icmp_response_packet();
 	if(!buf)
@@ -80,7 +90,15 @@ int send_dst_unreachable(const dst_unreachable_info& info, netif *nif)
 	memcpy(&response_icmp->dest_unreach.original_dgram, info.dgram, 8);
 	response_icmp->checksum = ipsum(response_icmp, sizeof(icmp_header));
 
-	return ip::v4::send_packet(src, dst, IPV4_ICMP, buf.get(), nif);
+	inet_sock_address from{src, 0};
+	inet_sock_address to{dst, 0};
+
+	auto res = ip::v4::get_v4_proto()->route(from, to, AF_INET);
+
+	if(res.has_error())
+		return res.error();
+
+	return ip::v4::send_packet(res.value(), IPV4_ICMP, buf.get(), nif);
 }
 
 void handle_packet(struct ip_header *iphdr, uint16_t length, netif *nif)

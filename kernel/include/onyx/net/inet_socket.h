@@ -8,6 +8,8 @@
 #define _ONYX_NET_INET_SOCKET_H
 
 #include <onyx/net/inet_sock_addr.h>
+#include <onyx/net/inet_route.h>
+
 #include <onyx/byteswap.h>
 
 class inet_proto_family;
@@ -29,10 +31,15 @@ struct inet_socket : public socket
 	inet_sock_address src_addr;
 	inet_sock_address dest_addr;
 
-	unsigned int ipv4_on_inet6 : 1,
-	             ipv6_only : 1;
+	inet_route route_cache;
 
-	inet_socket() : socket{}, src_addr{}, dest_addr{}, ipv4_on_inet6{}, ipv6_only{} {}
+	unsigned int ipv4_on_inet6 : 1,
+	             ipv6_only : 1,
+				 route_cache_valid : 1;
+
+	inet_socket() : socket{}, src_addr{}, dest_addr{}, ipv4_on_inet6{}, ipv6_only{},
+	                route_cache_valid{}
+	{}
 
 	constexpr bool in_ipv4_mode() const
 	{

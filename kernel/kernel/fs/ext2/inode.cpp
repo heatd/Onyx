@@ -416,9 +416,9 @@ int ext2_free_space(size_t new_len, inode *ino)
 	auto len = ext2_get_block_path(sb, boundary_coords.coords, boundary_block & ~(sb->block_size - 1));
 	boundary_coords.size = len;
 
-	for(auto i = EXT2_NR_BLOCKS - 1; i != 0; i--)
+	for(int i = EXT2_NR_BLOCKS - 1; i != 0; i--)
 	{
-		int indirection_level;
+		int indirection_level = 3;
 		if(i < EXT2_IND_BLOCK)
 		{
 			indirection_level = 0;

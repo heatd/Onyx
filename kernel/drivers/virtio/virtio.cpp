@@ -377,7 +377,7 @@ bool virtq::allocate_descriptors(virtio_buf_list& buf_list)
 	list_for_every(&buf_list.buf_list_head)
 	{
 		auto buf = container_of(l, virtio_buf, buf_list_memb);
-		unsigned long d;
+		unsigned long d = 0;
 		assert(desc_bitmap.FindFreeBit(&d));
 
 		buf->index = static_cast<uint16_t>(d);

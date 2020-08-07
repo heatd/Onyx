@@ -163,7 +163,6 @@ public:
 	unique_ptr<packetbuf> buf;
 	struct list_head option_list;
 	uint16_t flags;
-	netif *nif;
 	const inet_sock_address &saddr;
 	/* Ideas at 4.am: Have a struct that stores both a list_head and a pointer to the
 	 * original class, and make code use that instead of container_of. This should work
@@ -191,8 +190,8 @@ public:
 	void put_options(char *opts);
 
 	tcp_packet(cul::slice<const uint8_t> data, tcp_socket *socket, uint16_t flags,
-               netif *nif, const inet_sock_address& in) : refcountable(), payload(data),
-	           socket(socket), buf{}, option_list{}, flags(flags), nif(nif),
+               const inet_sock_address& in) : refcountable(), payload(data),
+	           socket(socket), buf{}, option_list{}, flags(flags),
 			   saddr(in), pending_packet_list_node{this}, acked{false}, ack_wq{}, packet_flags{},
 			   response_header{}, starting_seq_number{}
 	{

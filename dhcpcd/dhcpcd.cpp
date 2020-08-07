@@ -24,6 +24,7 @@
 #include <netinet/in.h>
 #include <sys/ioctl.h>
 #include <netdb.h>
+#include <onyx/public/netkernel.h>
 
 #include <arpa/inet.h>
 
@@ -54,6 +55,8 @@ void errorx(const char *msg, ...)
 
 namespace dhcpcd
 {
+
+int rtfd = -1;
 
 void init_entropy(void)
 {
@@ -247,7 +250,7 @@ std::unique_ptr<packet> instance::get_packets(std::function<bool (packet *)> pre
 void tcp_test()
 {
 	int sockfd, connfd; 
-    struct sockaddr_in servaddr, cli; 
+    struct sockaddr_in servaddr, cli;
   
     // TCP test
     sockfd = socket(AF_INET, SOCK_STREAM, 0); 
@@ -389,6 +392,28 @@ int instance::setup_netif()
 		perror("SIOSETINET4");
 		return -1;
 	}
+	
+	struct netkernel_route4_add msg;
+	msg.hdr.msg_type = NETKERNEL_MSG_ROUTE4_ADD;
+	msg.hdr.flags = 0;
+	msg.hdr.size = sizeof(msg);
+	msg.dest.s_addr = 0;
+	msg.gateway.s_addr = router_ip;
+	msg.mask.s_addr = 0; 
+	msg.metric = 100;
+	msg.flags = ROUTE4_FLAG_GATEWAY;
+	strcpy(msg.iface, device_name.c_str() + 5);
+
+	if(send(rtfd, &msg, sizeof(msg), 0) < 0)
+		perror("nksend");
+	
+	msg.dest.s_addr = our_ip & subnet_mask;
+	msg.gateway.s_addr = 0;
+	msg.mask.s_addr = subnet_mask;
+	msg.flags = 0;
+
+	if(send(rtfd, &msg, sizeof(msg), 0) < 0)
+		perror("nksend"); 
 
 	tcp_test();
 
@@ -461,6 +486,22 @@ int main(int argc, char **argv, char **envp)
 #endif
 
 	close(logfd);
+
+	dhcpcd::rtfd = socket(AF_NETKERNEL, SOCK_DGRAM, 0);
+	if(dhcpcd::rtfd < 0)
+	{
+		perror("nksocket");
+		return 1;
+	}
+
+	sockaddr_nk nksa;
+	nksa.nk_family = AF_NETKERNEL;
+	strcpy(nksa.path, "ipv4.rt");
+	if(connect(dhcpcd::rtfd, (const sockaddr *) &nksa, sizeof(nksa)) < 0)
+	{
+		perror("nkconnect");
+		return 1;
+	}
 
 	printf("%s: Daemon initialized\n", argv[0]);
 

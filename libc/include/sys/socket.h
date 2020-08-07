@@ -108,7 +108,8 @@ struct linger {
 #define PF_VSOCK        40
 #define PF_KCM          41
 #define PF_QIPCRTR      42
-#define PF_MAX          43
+#define PF_MAX          46
+#define PF_NETKERNEL       45
 
 #define AF_UNSPEC       PF_UNSPEC
 #define AF_LOCAL        PF_LOCAL
@@ -157,6 +158,9 @@ struct linger {
 #define AF_KCM          PF_KCM
 #define AF_QIPCRTR      PF_QIPCRTR
 #define AF_MAX          PF_MAX
+#define AF_NETKERNEL    PF_NETKERNEL
+
+#define NETKERNEL_PROTO    0xffaa
 
 #ifndef SO_DEBUG
 #define SO_DEBUG        1

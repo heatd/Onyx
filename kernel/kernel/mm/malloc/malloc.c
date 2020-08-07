@@ -395,13 +395,6 @@ void *realloc(void *p, size_t n)
 	return new;
 }
 
-void setup_debug_register(unsigned long addr, unsigned int size, unsigned int condition)
-{
-	unsigned long dr7 = 1 | size << 18 | condition << 16;
-
-	__asm__ volatile("mov %0, %%dr0; mov %1, %%dr7" :: "r"(addr), "r"(dr7));
-}
-
 void free(void *p)
 {
 	if(!p)

@@ -764,6 +764,7 @@ int e1000_probe(struct device *__dev)
 	n->priv = nicdev;
 	n->mtu = 1500;
 	nicdev->nic_netif = n;
+	n->dll_ops = &eth_ops;
 	memcpy(n->mac_address, nicdev->e1000_internal_mac_address, 6);
 	netif_register_if(n);
 

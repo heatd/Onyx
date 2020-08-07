@@ -7,9 +7,11 @@
 #define _ONYX_MEMORY_HPP
 
 #include <assert.h>
+#include <stdlib.h>
 
 #include <onyx/remove_extent.h>
 #include <onyx/new.h>
+#include <onyx/utility.hpp>
 
 static constexpr unsigned char _R__refc_was_make_shared = (1 << 0);
 
@@ -72,6 +74,8 @@ public:
 	}
 };
 
+typedef decltype(nullptr) nullptr_t;
+
 template <typename T>
 class shared_ptr
 {
@@ -92,7 +96,7 @@ private:
 			ref = new refcount<T>(ptr);
 		else
 			ref = nullptr;
-		
+
 		if(ref == nullptr) [[unlikely]]
 			p = nullptr;
 		else
@@ -100,13 +104,18 @@ private:
 	}
 
 public:
-	shared_ptr() : ref(nullptr), p{nullptr} {}
-	shared_ptr(T *data)
+	explicit shared_ptr() : ref(nullptr), p{nullptr} {}
+	explicit shared_ptr(T *data)
 	{
 		assign_pointer_to_self(data);
 	}
 
-	void reset(T *ptr = nullptr)
+	shared_ptr(nullptr_t data)
+	{
+		assign_pointer_to_self(data);
+	}
+
+	void reset(T *ptr_ = nullptr)
 	{
 		if(ref) [[likely]]
 		{
@@ -114,9 +123,9 @@ public:
 			__reset();
 		}
 
-		if(ptr) [[unlikely]]
+		if(ptr_) [[unlikely]]
 		{
-			assign_pointer_to_self(ptr);
+			assign_pointer_to_self(ptr_);
 		}
 	}
 
@@ -133,24 +142,21 @@ public:
 		p = r->get_data();
 	}
 
-	template <typename Type>
-	shared_ptr(const shared_ptr<Type>& ptr)
+	shared_ptr(const shared_ptr& ptr)
 	{
 		auto refc = ptr.__get_refc();
 		if(refc)
 			refc->refer();
 		ref = refc;
-		p = refc->get_data();
+		p = refc ? refc->get_data() : nullptr;
 	}
 
-	template <typename Type>
-	shared_ptr(shared_ptr<Type>&& ptr) : ref(ptr.ref), p(ptr.get_data())
+	shared_ptr(shared_ptr&& ptr) : ref(ptr.ref), p(ptr.get_data())
 	{
 		ptr.__reset();
 	}
 
-	template <typename Type>
-	shared_ptr& operator=(shared_ptr<Type>&& ptr)
+	shared_ptr& operator=(shared_ptr&& ptr)
 	{
 		auto refc = ptr.__get_refc();
 
@@ -170,10 +176,9 @@ ret:
 		return *this;
 	}
 
-	template <typename Type>
-	shared_ptr& operator=(const shared_ptr<Type>& p)
+	shared_ptr& operator=(const shared_ptr& ptr)
 	{
-		auto refc = p.__get_refc();
+		auto refc = ptr.__get_refc();
 
 		if(ref == refc)
 			goto ret;
@@ -183,12 +188,11 @@ ret:
 			reset();
 		}
 
-		if(refc)
-		{
-			refc->refer();
-			ref = refc;
-			p = refc->get_data();
-		}
+		ref = ptr.__get_refc();
+		p = ptr.get_data();
+
+		if(ref)
+			ref->refer();
 
 	ret:
 		return *this;
@@ -224,7 +228,7 @@ ret:
 		return ref->data[index];
 	}
 
-	~shared_ptr(void)
+	~shared_ptr()
 	{
 		auto r = ref;
 		ref = nullptr;
@@ -233,7 +237,12 @@ ret:
 		if(r) r->release();
 	}
 
-	T* get_data()
+	T* get_data() const
+	{
+		return p;
+	}
+
+	T* get() const
 	{
 		return p;
 	}
@@ -374,12 +383,13 @@ public:
 template <typename T, class ... Args>
 shared_ptr<T> make_shared(Args && ... args)
 {
-	char *buf = (char *) malloc(sizeof(refcount<T>) + sizeof(T));
+	auto refc_part_size = cul::align_up2(sizeof(refcount<T>), alignof(T));
+	char *buf = (char *) malloc(refc_part_size + sizeof(T));
 	if(!buf)
 		return nullptr;
 
 	refcount<T> *refc = new (buf) refcount<T>(_R__refc_was_make_shared);
-	T *data = new (buf + sizeof(refcount<T>)) T(args...);
+	T *data = new (buf + refc_part_size) T(args...);
 	refc->__set_data(data);
 
 	shared_ptr<T> p(nullptr);

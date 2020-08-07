@@ -176,14 +176,8 @@ int tcp_socket::handle_packet(const tcp_socket::packet_handling_data& data)
 		p->size = buf.size_bytes();
 
 		in_band_queue.add_packet(p);
-
-		struct sockaddr src;
-		memcpy(&src, &saddr(), sizeof(src));
-		auto fam = get_proto_fam();
-
-		auto netif = fam->route(src_addr, dest_addr, domain);
 	
-		tcp_packet pkt{{}, this, TCP_FLAG_ACK, netif, src_addr};
+		tcp_packet pkt{{}, this, TCP_FLAG_ACK, src_addr};
 		pkt.send();
 	}
 
@@ -214,8 +208,15 @@ int tcp_send_rst_no_socket(const sockaddr_in_both& dstaddr, in_port_t srcport, i
 	                nif->local_ip.sin_addr.s_addr, dstaddr.in4.sin_addr.s_addr);
 	/* TODO: Don't assume IPv4 */
 
-	return ip::v4::send_packet(nif->local_ip.sin_addr.s_addr,
-	                           dstaddr.in4.sin_addr.s_addr, IPV4_TCP, buf.get(), nif);
+	inet_sock_address from{nif->local_ip.sin_addr, dstaddr.in4.sin_port};
+	inet_sock_address to{dstaddr.in4};
+
+	auto res = ip::v4::get_v4_proto()->route(from, to, domain);
+
+	if(res.has_error())
+		return res.error();
+
+	return ip::v4::send_packet(res.value(), IPV4_TCP, buf.get(), nif);
 }
 
 extern "C"
@@ -349,11 +350,14 @@ int tcp_packet::send()
 		memcpy(ptr, payload.data(), length);
 	}
 
+	auto& route = socket->route_cache;
+	auto nif = route.nif;
+
 	if(nif->flags & NETIF_SUPPORTS_CSUM_OFFLOAD && !socket->needs_fragmenting(nif, buf.get()))
 	{
 		/* TODO: Don't assume IPv4 */
 		header->checksum = ~tcpv4_calculate_checksum(header,
-			static_cast<uint16_t>(header_size + length), saddr.in4.s_addr, dest.in4.s_addr, false);
+			static_cast<uint16_t>(header_size + length), route.src_addr.in4.s_addr, route.dst_addr.in4.s_addr, false);
 		buf->csum_offset = &header->checksum;
 		buf->csum_start = (unsigned char *) header;
 		buf->needs_csum = 1;
@@ -361,7 +365,7 @@ int tcp_packet::send()
 	else
 	{
 		header->checksum = tcpv4_calculate_checksum(header,
-			static_cast<uint16_t>(header_size + length), saddr.in4.s_addr, dest.in4.s_addr);
+			static_cast<uint16_t>(header_size + length), route.src_addr.in4.s_addr, route.dst_addr.in4.s_addr);
 	}
 
 	if(should_wait_for_ack())
@@ -374,7 +378,7 @@ int tcp_packet::send()
 
 	socket->sequence_nr() += seqs;
 
-	int st = ip::v4::send_packet(saddr.in4.s_addr, dest.in4.s_addr, IPV4_TCP, buf.get(),
+	int st = ip::v4::send_packet(socket->route_cache, IPV4_TCP, buf.get(),
 		nif);
 
 	if(st < 0)
@@ -465,7 +469,7 @@ constexpr uint16_t tcp_headers_overhead = sizeof(struct tcp_header) +
 
 int tcp_socket::start_handshake(netif *nif)
 {
-	tcp_packet first_packet{{}, this, TCP_FLAG_SYN, nif, src_addr};
+	tcp_packet first_packet{{}, this, TCP_FLAG_SYN, src_addr};
 	first_packet.set_packet_flags(TCP_PACKET_FLAG_ON_STACK | TCP_PACKET_FLAG_WANTS_ACK_HEADER);
 
 	tcp_option opt{TCP_OPTION_MSS, 4};
@@ -522,7 +526,7 @@ int tcp_socket::start_handshake(netif *nif)
 
 int tcp_socket::finish_handshake(netif *nif)
 {
-	tcp_packet packet{{}, this, TCP_FLAG_ACK, nif, src_addr};
+	tcp_packet packet{{}, this, TCP_FLAG_ACK, src_addr};
 	packet.set_packet_flags(TCP_PACKET_FLAG_ON_STACK);
 
 	return packet.send();
@@ -534,13 +538,19 @@ int tcp_socket::start_connection()
 
 	auto fam = get_proto_fam();
 
-	auto netif = fam->route(src_addr, dest_addr, domain);
+	auto result = fam->route(src_addr, dest_addr, domain);
 
-	int st = start_handshake(netif);
+	if(result.has_error())
+		return result.error();
+
+	route_cache = result.value();
+	route_cache_valid = 1;
+
+	int st = start_handshake(route_cache.nif);
 	if(st < 0)
 		return st;
 
-	st = finish_handshake(netif);
+	st = finish_handshake(route_cache.nif);
 
 	state = tcp_state::TCP_STATE_ESTABLISHED;
 	
@@ -634,7 +644,7 @@ void tcp_socket::try_to_send()
 		auto netif = fam->route(src_addr, dest_addr, domain);
 		/* TODO: Support TCP segmentation instead of relying on IPv4 segmentation */
 		cul::slice<const uint8_t> data{send_buffer.begin(), current_pos};
-		tcp_packet *packet = new tcp_packet{data, this, TCP_FLAG_ACK | TCP_FLAG_PSH, netif, src_addr};
+		tcp_packet *packet = new tcp_packet{data, this, TCP_FLAG_ACK | TCP_FLAG_PSH, src_addr};
 		if(!packet)
 			return;
 		

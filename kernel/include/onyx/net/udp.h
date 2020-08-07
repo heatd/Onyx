@@ -12,6 +12,7 @@
 #include <onyx/semaphore.h>
 #include <onyx/net/ip.h>
 #include <onyx/wait_queue.h>
+#include <onyx/net/inet_route.h>
 
 typedef struct udp
 {
@@ -39,8 +40,8 @@ public:
                    socklen_t addrlen) override;
 	int getsockopt(int level, int optname, void *val, socklen_t *len) override;
 	int setsockopt(int level, int optname, const void *val, socklen_t len) override;
-	int send_packet(char *payload, size_t payload_size, in_port_t source_port, in_port_t dest_port, 
-		in_addr_t srcip, in_addr_t destip, struct netif *netif);
+	int send_packet(char *payload, size_t payload_size, in_port_t source_port, in_port_t dest_port,
+	                inet_route& route);
 };
 
 struct socket *udp_create_socket(int type);

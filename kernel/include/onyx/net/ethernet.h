@@ -11,15 +11,18 @@
 
 #include <onyx/net/netif.h>
 #include <onyx/packetbuf.h>
+#include <onyx/net/dll.h>
 
 #define PROTO_IPV4 ((uint16_t) 0x800)
 #define PROTO_ARP ((uint16_t) 0x806)
 #define PROTO_IPV6 ((uint16_t) 0x86DD)
 
+#define ETH_ALEN 6
+
 struct eth_header
 {
-	uint8_t mac_dest[6];
-	uint8_t mac_source[6];
+	uint8_t mac_dest[ETH_ALEN];
+	uint8_t mac_source[ETH_ALEN];
 	uint16_t ethertype;
 } __attribute__((packed));
 
@@ -29,17 +32,19 @@ typedef struct
 	uint32_t crc32;
 } __attribute__((packed)) ethernet_footer_t;
 
-#define LITTLE_TO_BIG16(n) ((n >> 8) | (n << 8))
-#define LITTLE_TO_BIG32(n) ((n >> 24) & 0xFF) | ((n << 8) & 0xFF0000) | \
-			   ((n >> 8) & 0xFF00) | ((n << 24) & 0xFF000000)
 
-typedef int (*device_send_packet)(const void*, uint16_t);
+class eth_dll_ops : public data_link_layer_ops
+{
+public:
+	int setup_header(packetbuf *buf, tx_type type, tx_protocol proto, netif *nif, const void *dst_hw) override;
+};
+
+extern eth_dll_ops eth_ops;
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int eth_send_packet(char *destmac, packetbuf *buf, uint16_t protocol, struct netif *netif);
 
 #ifdef __cplusplus
 }

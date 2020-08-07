@@ -30,8 +30,8 @@ void loopback_init(void)
 	n->name = "loopback";
 	n->mtu = UINT16_MAX;
 	n->local_ip.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-	n->router_ip.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
 	n->sendpacket = loopback_send_packet;
+	n->dll_ops = &eth_ops;
 
 	netif_register_if(n);
 }

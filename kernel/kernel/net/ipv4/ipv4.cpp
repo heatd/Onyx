@@ -25,6 +25,7 @@
 #include <onyx/net/tcp.h>
 #include <onyx/cred.h>
 #include <onyx/net/icmp.h>
+#include <onyx/init.h>
 
 namespace ip
 {
@@ -66,12 +67,13 @@ void free_frags(struct list_head *frag_list)
 
 struct send_info
 {
-	uint32_t src_ip;
-	uint32_t dest_ip;
+	inet_route& route;
 	unsigned int type;
 	unsigned int ttl;
 	bool frags_following;
 	uint16_t identification;
+
+	send_info(inet_route& r) : route{r} {}
 };
 
 #define IPV4_OFF_TO_FRAG_OFF(x)		((x) >> 3)
@@ -85,8 +87,8 @@ void setup_fragment(struct send_info *info, struct fragment *frag,
 	memset(ip_header, 0, sizeof(struct ip_header));
 	/* Source ip and dest ip have been already endian-swapped as to
 	 * (ever so slightly) speed up fragmentation */
-	ip_header->source_ip = info->src_ip;
-	ip_header->dest_ip = info->dest_ip;
+	ip_header->source_ip = info->route.src_addr.in4.s_addr;
+	ip_header->dest_ip = info->route.dst_addr.in4.s_addr;
 	ip_header->proto = info->type;
 	ip_header->frag_info = htons((frags_following ? IPV4_FRAG_INFO_MORE_FRAGMENTS : 0)
                            | (IPV4_OFF_TO_FRAG_OFF(frag->packet_off)));
@@ -206,6 +208,7 @@ int create_fragments(struct list_head *frag_list, packetbuf *buf,
 		}
 
 		struct ip_header *header = (ip_header *) frag->this_buf->push_header(sizeof(ip_header));
+		frag->this_buf->net_header = (unsigned char *) header;
 		
 		sinfo->frags_following = !(payload_size == this_payload_size);
 		setup_fragment(sinfo, frag, header, netif);
@@ -239,27 +242,34 @@ int create_fragments(struct list_head *frag_list, packetbuf *buf,
 	return 0;
 }
 
-int calculate_dstmac(unsigned char *destmac, uint32_t destip, struct netif *netif)
+static tx_type detect_tx_type(const packetbuf *buf)
 {
-	if(destip == htonl(INADDR_BROADCAST))
+	auto iphdr = reinterpret_cast<ip_header*>(buf->net_header);
+
+	if(iphdr->dest_ip == INADDR_BROADCAST) [[unlikely]]
+		return tx_type::broadcast;
+	return tx_type::unicast;
+}
+
+int send_fragment(inet_route& route, fragment *frag, netif *nif)
+{
+	auto buf = frag->this_buf;
+	auto type = detect_tx_type(buf);
+	int st = 0;
+
+	const void *hwaddr = nullptr;
+
+	if(type != tx_type::broadcast) [[likely]]
 	{
-		/* INADDR_BROADCAST packets are sent to mac address ff:ff:ff:ff:ff:ff */
-		memset(destmac, 0xff, 6);
-	}
-	else if(destip == htonl(INADDR_LOOPBACK))
-	{
-		/* INADDR_LOOPBACK packets are not sent, so we're zero'ing it */
-		memset(destmac, 0, 6);
-	}
-	else
-	{
-		/* Else, we need to send it to the router, so get the router's mac address */
-		struct sockaddr_in *in = (struct sockaddr_in*) &netif->router_ip;
-		if(arp_resolve_in(in->sin_addr.s_addr, destmac, netif) < 0)
-			return errno = ENETUNREACH, -1;
+		if(route.dst_hw->flags & NEIGHBOUR_FLAG_BADENTRY)
+			return -ENETUNREACH;
+		hwaddr = route.dst_hw->hwaddr().data();
 	}
 
-	return 0;
+	if((st = nif->dll_ops->setup_header(buf, type, tx_protocol::ipv4, nif, hwaddr)) < 0) [[unlikely]]
+		return st;
+	
+	return netif_send_packet(nif, buf);
 }
 
 int do_fragmentation(struct send_info *sinfo, size_t payload_size,
@@ -274,22 +284,14 @@ int do_fragmentation(struct send_info *sinfo, size_t payload_size,
 		return -1;
 	}
 
-	unsigned char destmac[6] = {};
-	if(calculate_dstmac((unsigned char *) &destmac, sinfo->dest_ip, netif) < 0)
-	{
-		st = -1;
-		goto out;
-	}
-
 	list_for_every(&frags)
 	{
 		struct fragment *frag = container_of(l, struct fragment, list_node);
 
-		if(eth_send_packet((char *) &destmac, frag->this_buf, PROTO_IPV4, netif) < 0)
-		{
-			st = -1;
+		st = send_fragment(sinfo->route, frag, netif);
+
+		if(st < 0)
 			goto out;
-		}
 	}
 
 out:
@@ -305,15 +307,13 @@ static uint16_t allocate_id(void)
 	return __atomic_fetch_add(&identification_counter, 1, __ATOMIC_CONSUME);
 }
 
-int send_packet(uint32_t senderip, uint32_t destip, unsigned int type,
+int send_packet(inet_route& route, unsigned int type,
                      packetbuf *buf, struct netif *netif)
 {
 	size_t payload_size = buf->length();
 
-	struct send_info sinfo = {};
+	struct send_info sinfo{route};
 	/* Dest ip and sender ip are already in network order */
-	sinfo.dest_ip = destip;
-	sinfo.src_ip = senderip;
 	sinfo.ttl = 64;
 	sinfo.type = type;
 	sinfo.frags_following = false;
@@ -331,17 +331,12 @@ int send_packet(uint32_t senderip, uint32_t destip, unsigned int type,
 	struct fragment frag;
 	frag.length = payload_size;
 	frag.packet_off = 0;
+	frag.this_buf = buf;
 	buf->net_header = (unsigned char *) iphdr;
 
 	setup_fragment(&sinfo, &frag, iphdr, netif);
 
-	unsigned char destmac[6] = {};
-	if(calculate_dstmac((unsigned char *) &destmac, destip, netif) < 0)
-	{
-		return -1;
-	}
-
-	return eth_send_packet((char*) &destmac, buf, PROTO_IPV4, netif);
+	return send_fragment(route, &frag, netif);
 }
 
 /* TODO: Possibly, these basic checks across ethernet.c, ip.c, udp.c, tcp.cpp aren't enough */
@@ -584,21 +579,27 @@ void proto_family::unbind_one(netif *nif, inet_socket *sock)
 }
 
 rwlock routing_table_lock;
-cul::vector<inet4_route> routing_table;
+cul::vector<shared_ptr<inet4_route>> routing_table;
 
-netif *proto_family::route(inet_sock_address& from, const inet_sock_address& to, int domain)
+expected<inet_route, int> proto_family::route(const inet_sock_address& from,
+                                              const inet_sock_address& to, int domain)
 {
 	/* domain only matters for IPv6 sockets that need to check if it's running on ipv4-mapped */
 	(void) domain;
+	netif *required_netif = nullptr;
 	/* If the source address specifies an interface, we need to use that one. */
 	if(!is_bind_any(from.in4.s_addr))
-		return netif_get_from_addr(from, AF_INET);
+	{
+		required_netif = netif_get_from_addr(from, AF_INET);
+		if(!required_netif)
+			return unexpected<int>{-ENETDOWN};
+	}
 
 	/* Else, we're searching through the routing table to find the best interface to use in order
 	 * to reach our destination
 	 */
-	netif *best_if = nullptr;
-	int lowest_metric = INT_MAX;
+	shared_ptr<inet4_route> best_route;
+	int highest_metric = 0;
 	auto dest = to.in4.s_addr;
 
 	rw_lock_read(&routing_table_lock);
@@ -611,35 +612,67 @@ netif *proto_family::route(inet_sock_address& from, const inet_sock_address& to,
 #if 0
 		printk("dest %x, mask %x, supposed dest %x\n", dest, r.mask, r.dest);
 #endif
-		if((dest & r.mask) != r.dest)
+		if((dest & r->mask) != r->dest)
+			continue;
+		
+		if(required_netif && r->nif != required_netif)
 			continue;
 #if 0
 		printk("%s is good\n", r.nif->name);
 		printk("is loopback set %u\n", r.nif->flags & NETIF_LOOPBACK);
 #endif
 	
-		if(r.metric < lowest_metric)
+		int mods = 0;
+		if(r->flags & INET4_ROUTE_FLAG_GATEWAY)
+			mods--;
+
+		if(r->metric + mods > highest_metric)
 		{
-			best_if = r.nif;
-			lowest_metric = r.metric;
+			best_route = r;
+			highest_metric = r->metric;
 		}
 	}
 
 	rw_unlock_read(&routing_table_lock);
 
-	if(best_if)
+	if(!best_route)
+		return unexpected<int>{-ENETUNREACH};
+	
+	inet_route r;
+	r.dst_addr.in4 = to.in4;
+	r.nif = best_route->nif;
+	r.src_addr.in4.s_addr = r.nif->local_ip.sin_addr.s_addr;
+	r.flags = best_route->flags;
+	r.gateway_addr.in4.s_addr = best_route->gateway;
+
+	auto to_resolve = r.dst_addr.in4.s_addr;
+
+	if(r.flags & INET4_ROUTE_FLAG_GATEWAY)
 	{
-		from.in4.s_addr = best_if->local_ip.sin_addr.s_addr;
+		to_resolve = r.gateway_addr.in4.s_addr;
 	}
 
-	return best_if;
+	auto res = arp_resolve_in(to_resolve, r.nif);
+
+	if(res.has_error()) [[unlikely]]
+		return unexpected<int>(-ENETUNREACH);
+
+	r.dst_hw = res.value();
+
+	return r;
 }
 
 bool add_route(inet4_route &route)
 {
 	rw_lock_write(&routing_table_lock);
 
-	bool st = routing_table.push_back(route);
+	auto ptr = make_shared<inet4_route>();
+	if(!ptr)
+		return false;
+	
+	memcpy(ptr.get(), &route, sizeof(route));
+
+	bool st = routing_table.push_back(ptr);
 
 	rw_unlock_write(&routing_table_lock);
 
@@ -647,6 +680,11 @@ bool add_route(inet4_route &route)
 }
 
 static proto_family v4_protocol;
+
+inet_proto_family *get_v4_proto()
+{
+	return &v4_protocol;
+}
 
 socket *create_socket(int type, int protocol)
 {
@@ -764,7 +802,7 @@ size_t inet_socket::get_headers_len() const
 	 * an inet6 socket working as an inet4 one, or not.
 	 */
 	if(domain == AF_INET6)
-		return sizeof(ip6_hdr);    /* TODO: Extensions */
+		return sizeof(ip6hdr);    /* TODO: Extensions */
 	else
 		return sizeof(ip_header);
 }

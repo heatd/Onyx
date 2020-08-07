@@ -30,6 +30,13 @@ int rw_lock_read_interruptible(struct rwlock *lock);
 void rw_unlock_read(struct rwlock *lock);
 void rw_unlock_write(struct rwlock *lock);
 
+static inline void rwlock_init(struct rwlock *lock)
+{
+	lock->lock = 0;
+	lock->head = lock->tail = NULL;
+	spinlock_init(&lock->llock);
+}
+
 #ifdef __cplusplus
 }
 #endif

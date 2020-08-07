@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2017 Pedro Falcato
+* Copyright (c) 2017-2020 Pedro Falcato
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
@@ -11,6 +11,7 @@
 #include <onyx/spinlock.h>
 struct netif;
 #include <onyx/net/arp.h>
+#include <onyx/net/dll.h>
 
 #include <netinet/in.h>
 #include <sys/socket.h>
@@ -36,12 +37,10 @@ struct netif
 	unsigned int mtu;
 	unsigned char mac_address[6];
 	struct sockaddr_in local_ip;
-	struct sockaddr_in router_ip;
 	int (*sendpacket)(packetbuf *buf, struct netif *nif);
 	struct list_head list_node;
-	struct arp_hashtable arp_hashtable;
-	struct spinlock hashtable_spinlock;
 	struct sockets_info *sock_info;
+	data_link_layer_ops *dll_ops;
 };
 
 #ifdef __cplusplus
@@ -94,6 +93,7 @@ void netif_get_ipv4_addr(struct sockaddr_in *s, struct netif *netif);
 struct netif *netif_get_from_addr(const inet_sock_address& s, int domain);
 struct list_head *netif_lock_and_get_list(void);
 void netif_unlock_list(void);
+struct netif *netif_from_name(const char *name);
 
 #ifdef __cplusplus
 }

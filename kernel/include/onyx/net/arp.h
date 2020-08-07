@@ -10,6 +10,8 @@
 #include <stdint.h>
 
 #include <onyx/net/ethernet.h>
+#include <onyx/net/neighbour.h>
+#include <onyx/expected.hpp>
 
 #define ARP_ETHERNET ((uint16_t)1)
 #define ARP_HLEN_ETHERNET ((uint16_t)6)
@@ -17,6 +19,7 @@
 #define ARP_PLEN_IPV6 ((uint16_t)6)
 #define ARP_OP_REQUEST ((uint16_t)1)
 #define ARP_OP_REPLY ((uint16_t)2) 
+
 typedef struct
 {
 	uint16_t htype;
@@ -31,25 +34,12 @@ typedef struct
 
 } __attribute__((packed)) arp_request_t;
 
-#define ARP_FLAG_RESOLVED		(1 << 0)
-struct arp_cache
-{
-	int flags;
-	uint32_t ip;
-	unsigned char mac[6];
-	struct arp_cache *next;
-};
-struct arp_hashtable
-{
-	struct arp_cache *entries[255];
-};
-
 struct netif;
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int arp_resolve_in(uint32_t ip, unsigned char *mac, struct netif *netif);
+expected<shared_ptr<neighbour>, int> arp_resolve_in(uint32_t ip, struct netif *netif);
 int arp_handle_packet(arp_request_t *arp, uint16_t len, struct netif *netif);
 
 #ifdef __cplusplus

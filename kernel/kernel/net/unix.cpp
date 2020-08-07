@@ -334,7 +334,7 @@ ssize_t un_sendto(const void *buf, size_t len, int flags,
 	struct sockaddr_un a = {};
 	if(_addr)
 	{
-		if(addrlen > sizeof(struct sockaddr_un))
+		if(addrlen != sizeof(struct sockaddr_un))
 			return -EINVAL;
 		if(copy_from_user(&a, _addr, addrlen) < 0)
 			return -EFAULT;

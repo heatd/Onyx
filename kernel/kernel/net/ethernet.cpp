@@ -18,17 +18,33 @@
 
 #include <pci/pci.h>
 
-int eth_send_packet(char *destmac, packetbuf *buf, uint16_t protocol, struct netif *netif)
+eth_dll_ops eth_ops;
+
+static const uint16_t eth_proto_table[] =
+{
+	PROTO_IPV4,
+	PROTO_IPV6,
+	PROTO_ARP
+};
+
+auto tx_proto_to_eth_proto(tx_protocol proto)
+{
+	return eth_proto_table[(int) proto];
+}
+
+int eth_dll_ops::setup_header(packetbuf *buf, tx_type type, tx_protocol proto, netif *nif, const void *dst_hw)
 {
 	auto hdr = (struct eth_header *) buf->push_header(sizeof(struct eth_header));
 
 	memset(hdr, 0, sizeof(struct eth_header));
 
-	hdr->ethertype = htons(protocol);
-	memcpy(&hdr->mac_dest, destmac, 6);
-	memcpy(&hdr->mac_source, &netif->mac_address, 6);
+	hdr->ethertype = htons(tx_proto_to_eth_proto(proto));
+	if(type != tx_type::broadcast)
+		memcpy(&hdr->mac_dest, dst_hw, ETH_ALEN);
+	else
+		memset(hdr->mac_dest, 0xff, ETH_ALEN);
 
-	int status = netif_send_packet(netif, buf);
+	memcpy(&hdr->mac_source, &nif->mac_address, ETH_ALEN);
 
-	return status;
+	return 0;
 }

@@ -14,6 +14,25 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
+struct ip6hdr
+{
+
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+	unsigned int traffic_class : 4;
+	unsigned int version : 4;
+#else
+	unsigned int version : 4;
+	unsigned int traffic_class : 4;
+#endif
+
+	uint8_t flow_label[3];
+	uint16_t payload_length;
+	uint8_t next_header;
+	uint8_t hop_limit;
+	in6_addr src_addr;
+	in6_addr dst_addr;
+} __attribute__((packed));
+
 namespace ip
 {
 
@@ -48,6 +67,9 @@ namespace v6
 		else
 			return {inet_sock_address{*sa}, AF_INET6};
 	} 
+
+	int send_packet(const in6_addr& src, const in6_addr& dst, unsigned int type,
+                     packetbuf *buf, struct netif *netif);
 }
 
 }

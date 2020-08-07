@@ -144,7 +144,10 @@ void __cpu_identify(void)
 
 char *cpu_get_name(void)
 {
-	uint32_t eax, ebx, edx, ecx;
+	uint32_t eax = 0;
+	uint32_t ebx = 0;
+	uint32_t edx = 0;
+	uint32_t ecx = 0;
 	if(__get_cpuid(0, &eax, &ebx, &ecx, &edx) == 0)
 		panic("Odd cpuid error");
 	

@@ -49,9 +49,12 @@ uint16_t udpv4_calculate_checksum(udp_header_t *header, uint32_t srcip, uint32_t
 #include <onyx/clock.h>
 
 int udp_socket::send_packet(char *payload, size_t payload_size, in_port_t source_port,
-	            in_port_t dest_port, in_addr_t srcip, in_addr_t destip,
-		    	netif *netif)
+	            in_port_t dest_port, inet_route& route)
 {
+	auto netif = route.nif;
+	auto srcip = route.src_addr.in4.s_addr;
+	auto destip = route.dst_addr.in4.s_addr;
+
 	if(payload_size > UINT16_MAX)
 		return -EMSGSIZE;
 
@@ -91,7 +94,7 @@ int udp_socket::send_packet(char *payload, size_t payload_size, in_port_t source
 	else
 		udp_header->checksum = udpv4_calculate_checksum(udp_header, srcip, destip);
 
-	int ret = ip::v4::send_packet(srcip, destip, IPV4_UDP, b.get(), netif);
+	int ret = ip::v4::send_packet(route, IPV4_UDP, b.get(), netif);
 
 	return ret;
 }
@@ -143,12 +146,16 @@ ssize_t udp_socket::sendto(const void *buf, size_t len, int flags, sockaddr *add
 		return -ENOTCONN;
 
 	auto fam = get_proto_fam();
-	auto netif = fam->route(src_addr, dest, our_domain);
+	auto result = fam->route(src_addr, dest, our_domain);
+	if(result.has_error())
+		return result.error();
+	
+	auto route = result.value();
+
 
 	/* TODO: Connect ipv6 support up */
 	if(int st = send_packet((char*) buf, len, src_addr.port, dest.port,
-			   src_addr.in4.s_addr, dest.in4.s_addr, 
-			   netif); st < 0)
+			   route); st < 0)
 	{
 		return st;
 	}

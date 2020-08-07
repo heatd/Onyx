@@ -12,6 +12,7 @@
 
 #include <onyx/net/socket.h>
 #include <onyx/net/ip.h>
+#include <onyx/net/netkernel.h>
 #include <onyx/scoped_lock.h>
 
 socket *file_to_socket(struct file *f)
@@ -301,9 +302,23 @@ ssize_t sys_sendto(int sockfd, const void *buf, size_t len, int flags,
 	struct file *desc = get_socket_fd(sockfd);
 	if(!desc)
 		return -errno;
+	
+	/* Ugh, this uses a big part of the stack... I don't like this
+	 * and we're going to get rid of this anyway when we add sendmsg
+	 */
+	sockaddr_storage sa;
+
+	if(addr)
+	{
+		if(addrlen > sizeof(sa))
+			return -EINVAL;
+
+		if(copy_from_user(&sa, addr, addrlen) < 0)
+			return -EFAULT;
+	}
 
 	socket *s = file_to_socket(desc);
-	ssize_t ret = s->sendto(buf, len, flags, addr, addrlen);
+	ssize_t ret = s->sendto(buf, len, flags, addr ? (sockaddr *) &sa : nullptr, addrlen);
 
 	fd_put(desc);
 	return ret;
@@ -474,8 +489,8 @@ int check_af_support(int domain)
 	switch(domain)
 	{
 		case AF_INET:
-			return 0;
 		case AF_UNIX:
+		case AF_NETKERNEL:
 			return 0;
 		default:
 			return -1;
@@ -493,6 +508,11 @@ int net_check_type_support(int type)
 
 int net_autodetect_protocol(int type, int domain)
 {
+
+	/* AF_NETKERNEL is an outlier since it's usable in both types */
+	if(domain == AF_NETKERNEL)
+		return NETKERNEL_PROTO;
+
 	switch(type & type_mask)
 	{
 		case SOCK_DGRAM:
@@ -504,6 +524,7 @@ int net_autodetect_protocol(int type, int domain)
 			else
 				return -1;
 		}
+
 		case SOCK_RAW:
 		{
 			if(domain == AF_INET)
@@ -514,6 +535,7 @@ int net_autodetect_protocol(int type, int domain)
 				return PROTOCOL_UNIX;
 			return -1;
 		}
+
 		case SOCK_STREAM:
 		{
 			if(domain == AF_INET || domain == AF_INET6)
@@ -541,6 +563,9 @@ socket *socket_create(int domain, int type, int protocol)
 			// socket = unix_create_socket(type, protocol);
 			/* TODO: Fix unix sockets */
 			socket = nullptr;
+			break;
+		case AF_NETKERNEL:
+			socket = netkernel::create_socket(type);
 			break;
 		default:
 			return errno = EAFNOSUPPORT, nullptr;

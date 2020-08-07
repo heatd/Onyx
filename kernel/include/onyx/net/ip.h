@@ -14,6 +14,7 @@
 #include <onyx/net/socket.h>
 #include <onyx/net/proto_family.h>
 #include <onyx/net/ipv6.h>
+#include <onyx/net/inet_route.h>
 
 #include <sys/socket.h>
 #include <netinet/ip6.h>
@@ -61,20 +62,17 @@ union sockaddr_in_both
 };
 
 struct netif;
-struct inet4_route
-{
-	in_addr_t dest;
-	in_addr_t mask;
-	netif *nif;
-	int metric;
-};
+
+/* These flags are in sync with netkernel_route4 flags */
+
+struct inet_socket;
 
 class inet_proto_family : public proto_family
 {
 public:
 	virtual int bind(struct sockaddr *addr, socklen_t len, inet_socket *socket) = 0;
 	virtual int bind_any(inet_socket *sock) = 0;
-	virtual netif *route(inet_sock_address& from, const inet_sock_address &to, int domain) = 0;
+	virtual expected<inet_route, int> route(const inet_sock_address& from, const inet_sock_address &to, int domain) = 0;
 	virtual void unbind_one(netif *nif, inet_socket *sock) = 0;
 };
 
@@ -171,11 +169,11 @@ private:
 public:
 	int bind(sockaddr *addr, socklen_t len, inet_socket *socket) override;
 	int bind_any(inet_socket *sock) override;
-	netif *route(inet_sock_address& from, const inet_sock_address &to, int domain) override;
+	expected<inet_route, int> route(const inet_sock_address& from, const inet_sock_address &to, int domain) override;
 	void unbind_one(netif *nif, inet_socket *sock) override;
 };
 
-int send_packet(uint32_t senderip, uint32_t destip, unsigned int type,
+int send_packet(inet_route& route, unsigned int type,
                      packetbuf *buf, struct netif *netif);
 
 socket *create_socket(int type, int protocol);
@@ -188,6 +186,8 @@ inline constexpr cul::pair<inet_sock_address, int> sockaddr4_to_isa(const sockad
 {
 	return {inet_sock_address{*sa}, AF_INET};
 }
+
+inet_proto_family *get_v4_proto();
 
 };
 

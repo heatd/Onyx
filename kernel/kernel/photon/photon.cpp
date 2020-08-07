@@ -345,7 +345,7 @@ unsigned int device::do_ioctl_open_from_name(photon_open_from_name_args *uargs)
 	if(obj->security_cookie != kargs.security_cookie)
 		return -EINVAL;
 	
-	photon_handle h = add_object(obj);
+	photon_handle h = add_object(shared_ptr{obj});
 
 	if(h == PHOTON_INVALID_HANDLE)
 		return -ENOMEM;

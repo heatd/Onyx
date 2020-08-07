@@ -34,18 +34,13 @@ unsigned int netif_ioctl(int request, void *argp, struct file* f)
 				return -EFAULT;
 			auto local = &netif->local_ip;
 			memcpy(&local->sin_addr, &i.address, sizeof(struct in_addr));
-			auto *router = &netif->router_ip;
-			memcpy(&router->sin_addr, &i.router, sizeof(struct in_addr));
 			return 0;
 		}
 		case SIOGETINET4:
 		{
 			struct if_config_inet *c = static_cast<if_config_inet *>(argp);
 			auto local = &netif->local_ip;
-			auto router = &netif->router_ip;
 			if(copy_to_user(&c->address, &local->sin_addr, sizeof(struct in_addr)) < 0)
-				return -EFAULT;
-			if(copy_to_user(&c->router, &router->sin_addr, sizeof(struct in_addr)) < 0)
 				return -EFAULT;
 			return 0;
 		}
@@ -120,8 +115,9 @@ void netif_register_if(struct netif *netif)
 	route.mask = is_loopback ? htonl(0xff000000) : 0;
 	route.dest = is_loopback ? htonl(INADDR_LOOPBACK) : 0;
 	route.dest &= route.mask;
+	route.gateway = 0;
 	route.nif = netif;
-	route.metric = is_loopback ? 1 : 10;
+	route.metric = is_loopback ? 1000 : 10;
 
 	assert(ip::v4::add_route(route) == true);
 }
@@ -320,4 +316,26 @@ void netif_print_open_sockets(netif *nif)
 				printk("unknown socket of domain %d, %p\n", socket->domain, socket);
 		}
 	}
+}
+
+netif *netif_from_name(const char *name)
+{
+	spin_lock(&netif_list_lock);
+
+	//printk("trying to find %x\n", in->sin_addr.s_addr);
+
+	list_for_every(&netif_list)
+	{
+		netif *n = container_of(l, netif, list_node);
+		//printk("local %x\n", n->local_ip.sin_addr.s_addr);
+		if(!strcmp(n->name, name))
+		{
+			spin_unlock(&netif_list_lock);
+			return n;
+		}
+	}
+
+	spin_unlock(&netif_list_lock);
+
+	return nullptr;
 }

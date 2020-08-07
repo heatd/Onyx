@@ -224,6 +224,7 @@ bool network_vdev::perform_subsystem_initialization()
 	nif->priv = this;
 	nif->sendpacket = virtio::network_vdev::__sendpacket;
 	nif->mtu = 1500;
+	nif->dll_ops = &eth_ops;
 
 	cul::slice<uint8_t, 6> m{nif->mac_address, 6};
 	get_mac(m);
