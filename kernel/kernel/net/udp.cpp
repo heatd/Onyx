@@ -122,6 +122,15 @@ int udp_socket::connect(sockaddr *addr, socklen_t len)
 	dest_addr = res.first;
 	//printk("udp: Connected to address %x\n", dest_addr.in4.s_addr);
 	connected = true;
+	
+	auto route_result = get_proto_fam()->route(src_addr, dest_addr, domain);
+	
+	/* If we've got an error, ignore it. Is this correct/sane behavior? */
+	if(route_result.has_error())
+		return 0;
+
+	route_cache = route_result.value();
+	route_cache_valid = 1;
 
 	return 0;
 }
@@ -145,13 +154,22 @@ ssize_t udp_socket::sendto(const void *buf, size_t len, int flags, sockaddr *add
 	if(!connected && addr == NULL)
 		return -ENOTCONN;
 
-	auto fam = get_proto_fam();
-	auto result = fam->route(src_addr, dest, our_domain);
-	if(result.has_error())
-		return result.error();
+	inet_route route;
 	
-	auto route = result.value();
+	if(connected)
+	{
+		route = route_cache;
+		assert(route_cache_valid == 1);
+	}
+	else
+	{
+		auto fam = get_proto_fam();
+		auto result = fam->route(src_addr, dest, our_domain);
+		if(result.has_error())
+			return result.error();
 
+		route = result.value();
+	}
 
 	/* TODO: Connect ipv6 support up */
 	if(int st = send_packet((char*) buf, len, src_addr.port, dest.port,

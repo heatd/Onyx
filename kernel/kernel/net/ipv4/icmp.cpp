@@ -88,6 +88,7 @@ int send_dst_unreachable(const dst_unreachable_info& info, netif *nif)
 
 	memcpy(&response_icmp->dest_unreach.header, info.iphdr, sizeof(ip_header));
 	memcpy(&response_icmp->dest_unreach.original_dgram, info.dgram, 8);
+	response_icmp->checksum = 0;
 	response_icmp->checksum = ipsum(response_icmp, sizeof(icmp_header));
 
 	inet_sock_address from{src, 0};

@@ -43,6 +43,7 @@ int arp_handle_packet(arp_request_t *arp, uint16_t len, struct netif *netif)
 	unsigned char *mac = new unsigned char[ETH_ALEN];
 	if(!mac)
 		return 0;
+	memcpy(mac, arp->sender_hw_address, ETH_ALEN);
 
 	cul::slice<unsigned char> sl{mac, ETH_ALEN};
 	ptr->set_hwaddr(sl);
