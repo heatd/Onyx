@@ -535,13 +535,23 @@ int __dentry_resolve_path(nameidata& data)
 
 		if(dentry_is_symlink(new_found))
 		{
-			if(is_last_name && data.lookup_flags & OPEN_FLAG_FAIL_IF_LINK)
+			/* Posix states that paths that end in a trailing slash are required to be the same as /.
+			 * For example: open("/usr/bin/") == open("/usr/bin/.").
+			 * Therefore, we have to special case that.
+			 */
+
+			const bool must_be_dir = data.lookup_flags & LOOKUP_FLAG_INTERNAL_TRAILING_SLASH;
+			const bool should_follow_symlink = !dont_follow_last || must_be_dir;
+			
+			//printk("Following symlink for path elem %s\n", v.data());
+			if(is_last_name && (data.lookup_flags & OPEN_FLAG_FAIL_IF_LINK))
 			{
 				dentry_put(new_found);
 				return -ELOOP;
 			}
-			else if(is_last_name && dont_follow_last)
+			else if(is_last_name && !should_follow_symlink)
 			{
+				//printk("Cannot follow symlink. Trailing slash: %s\n", must_be_dir ? "yes" : "no");
 			}
 			else [[likely]]
 			{
