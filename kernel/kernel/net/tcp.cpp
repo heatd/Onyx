@@ -587,7 +587,7 @@ int tcp_socket::connect(struct sockaddr *addr, socklen_t addrlen)
 	return start_connection();
 }
 
-ssize_t tcp_socket::queue_data(const void *user_buf, size_t len)
+ssize_t tcp_socket::queue_data(iovec *vec, int vlen, size_t len)
 {
 	if(current_pos + len > send_buffer.buf_size())
 	{
@@ -600,8 +600,14 @@ ssize_t tcp_socket::queue_data(const void *user_buf, size_t len)
 
 	uint8_t *ptr = send_buffer.get_buf() + current_pos;
 
-	if(copy_from_user(ptr, user_buf, len) < 0)
-		return -EFAULT;
+	for(int i = 0; i < vlen; i++, vec++)
+	{
+		if(copy_from_user(ptr, vec->iov_base, vec->iov_len) < 0)
+			return -EINVAL;
+		
+		ptr += vec->iov_len;
+	}
+
 	current_pos += len;
 
 	return 0;
@@ -659,17 +665,22 @@ void tcp_socket::try_to_send()
 	}
 }
 
-ssize_t tcp_socket::sendto(const void *buf, size_t len, int flags, sockaddr *addr, socklen_t addrlen)
+ssize_t tcp_socket::sendmsg(const msghdr *msg, int flags)
 {
-	if(addr)
+	if(msg->msg_name)
 		return -EISCONN;
+
+	auto len = iovec_count_length(msg->msg_iov, msg->msg_iovlen);
+
+	if(len < 0)
+		return len;
 
 	if(len > UINT16_MAX)
 		return -EINVAL;
 
 	mutex_lock(&send_lock);
 
-	auto st = queue_data(buf, len);
+	auto st = queue_data(msg->msg_iov, msg->msg_iovlen, (size_t) len);
 	if(st < 0)
 	{
 		mutex_unlock(&send_lock);

@@ -38,16 +38,24 @@ struct socket_conn_request
 
 struct socket;
 
-int default_listen(struct socket *sock);
-struct socket *default_accept(struct socket_conn_request *req, struct socket *sock);
-int default_bind(const struct sockaddr *addr, socklen_t addrlen, struct socket *sock);
-int default_connect(const struct sockaddr *addr, socklen_t addrlen, struct socket *sock);
-ssize_t default_sendto(const void *buf, size_t len, int flags,
-		struct sockaddr *addr, socklen_t addrlen, struct socket *sock);
-ssize_t default_recvfrom(void *buf, size_t len, int flags, struct sockaddr *addr, 
-		socklen_t *slen, struct socket *sock);
 
-extern struct sock_ops default_s_ops;
+static inline ssize_t iovec_count_length(iovec *vec, unsigned int n)
+{
+	ssize_t length = 0;
+
+	while(n--)
+	{
+		if((ssize_t) vec->iov_len < 0)
+			return -EINVAL;
+		
+		if(__builtin_saddl_overflow(length, vec->iov_len, &length))
+			return -EINVAL;
+
+		vec++;
+	}
+
+	return length;
+}
 
 struct recv_packet
 {
@@ -202,7 +210,7 @@ public:
 	virtual socket *accept(socket_conn_request *req);
 	virtual int bind(sockaddr *addr, socklen_t addrlen);
 	virtual int connect(sockaddr *addr, socklen_t addrlen);
-
+	virtual ssize_t sendmsg(const struct msghdr *msg,	int flags);
 	virtual ssize_t sendto(const void *buf, size_t len, int flags,
                            sockaddr *addr, socklen_t addrlen);
 

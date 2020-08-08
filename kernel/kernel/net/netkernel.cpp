@@ -89,7 +89,7 @@ int netkernel_socket::setsockopt(int level, int optname, const void *optval, soc
 	return -ENOPROTOOPT;
 }
 
-static constexpr bool validate_sockaddr(sockaddr *addr, socklen_t len)
+static constexpr bool validate_sockaddr(const sockaddr *addr, socklen_t len)
 {
 	if(len != sizeof(sockaddr_nk)) [[unlikely]]
 		return false;
@@ -139,11 +139,16 @@ int netkernel_socket::connect(sockaddr *addr, socklen_t addrlen)
 
 #define NETKERNEL_HDR_VALID_FLAGS_MASK       0
 
-ssize_t netkernel_socket::sendto(const void *ubuf, size_t len, int flags,
-                 sockaddr *addr, socklen_t addrlen)
+ssize_t netkernel_socket::sendmsg(const struct msghdr *msg, int flags)
 {
+	auto addr = (const sockaddr *) msg->msg_name;
+	auto addrlen = msg->msg_namelen;
 	if(!addr && !connected)
 		return -ENOTCONN;
+	
+	auto len = iovec_count_length(msg->msg_iov, msg->msg_iovlen);
+	if(len < 0)
+		return len;
 	
 	auto obj = dst;
 
@@ -166,13 +171,21 @@ ssize_t netkernel_socket::sendto(const void *ubuf, size_t len, int flags,
 	unsigned char *buf = new unsigned char[len];
 	if(!buf)
 		return -ENOMEM;
+	auto bufp = buf;
 	
-	if(copy_from_user(buf, ubuf, len) < 0)
-		return -EFAULT;
+	for(int i = 0; i < msg->msg_iovlen; i++)
+	{
+		const auto& vec = msg->msg_iov[i];
+
+		if(copy_from_user(bufp, vec.iov_base, vec.iov_len) < 0)
+			return -EFAULT;
+
+		bufp += vec.iov_len;
+	}
 
 	auto hdr = (netkernel_hdr *) buf;
 
-	if(hdr->flags & ~NETKERNEL_HDR_VALID_FLAGS_MASK || hdr->size > len)
+	if(hdr->flags & ~NETKERNEL_HDR_VALID_FLAGS_MASK || hdr->size > (size_t) len)
 	{
 		delete[] buf;
 		return -EINVAL;

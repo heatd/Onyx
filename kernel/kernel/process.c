@@ -400,6 +400,7 @@ void process_exit_from_signal(int signum)
 
 void sys_exit(int status)
 {
+	status &= 0xff;
 	struct process *current = get_current_process();
 	if(current->pid == 1)
 	{

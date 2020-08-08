@@ -125,6 +125,10 @@
 #define __NR_pread64				126
 #define __NR_pwrite64				127
 #define __NR_fsync					128
+#define __NR_sendmsg				129
+#define __NR_recvmsg				130
+#define __NR_sendmmsg				131
+#define __NR_recvmmsg				132
 #define __NR_sysinfo			255
 #define __NR_geteuid			255
 #define __NR_getegid			255
@@ -261,13 +265,11 @@
 #define __NR_msgrcv				255
 #define __NR_msgsnd				255
 #define __NR_msync				255
-#define __NR_recvmsg				255
 #define __NR_sched_yield			255
 #define __NR_semctl				255
 #define __NR_semget				255
 #define __NR_semop				255
 #define __NR_sendfile				255
-#define __NR_sendmsg				255
 #define __NR_shmat				255
 #define __NR_shmctl				255
 #define __NR_shmdt				255
@@ -298,7 +300,6 @@
 #define __NR_pipe2					293
 #define __NR_inotify_init1			294
 #define __NR_perf_event_open		298
-#define __NR_recvmmsg				299
 #define __NR_fanotify_init			300
 #define __NR_fanotify_mark			301
 #define __NR_prlimit64				302
@@ -306,7 +307,6 @@
 #define __NR_open_by_handle_at			304
 #define __NR_clock_adjtime			305
 #define __NR_syncfs				306
-#define __NR_sendmmsg				307
 #define __NR_setns				308
 #define __NR_getcpu				309
 #define __NR_process_vm_readv			310

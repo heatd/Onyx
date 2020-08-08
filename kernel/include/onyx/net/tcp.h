@@ -381,7 +381,7 @@ public:
 		wait_queue_wake_all(&tcp_ack_wq);
 	}
 
-	ssize_t sendto(const void *buf, size_t len, int flags, sockaddr *addr, socklen_t addrlen) override;
+	ssize_t sendmsg(const msghdr *msg, int flags) override;
 
 	uint32_t &sequence_nr()
 	{
@@ -393,7 +393,7 @@ public:
 		return ack_number;
 	}
 
-	ssize_t queue_data(const void *user_buf, size_t len);
+	ssize_t queue_data(iovec *vec, int vlen, size_t count);
 
 	void try_to_send();
 

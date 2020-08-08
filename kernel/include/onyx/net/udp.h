@@ -36,11 +36,10 @@ class udp_socket : public inet_socket
 public:
 	int bind(sockaddr *addr, socklen_t len) override;
 	int connect(sockaddr *addr, socklen_t len) override;
-	ssize_t sendto(const void *buf, size_t len, int flags, struct sockaddr *addr,
-                   socklen_t addrlen) override;
+	ssize_t sendmsg(const msghdr *msg, int flags) override;
 	int getsockopt(int level, int optname, void *val, socklen_t *len) override;
 	int setsockopt(int level, int optname, const void *val, socklen_t len) override;
-	int send_packet(char *payload, size_t payload_size, in_port_t source_port, in_port_t dest_port,
+	int send_packet(const msghdr *msg, ssize_t payload_size, in_port_t source_port, in_port_t dest_port,
 	                inet_route& route);
 };
 

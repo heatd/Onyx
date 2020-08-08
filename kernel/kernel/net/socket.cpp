@@ -57,6 +57,13 @@ ssize_t socket::sendto(const void *buf, size_t len, int flags,
 	return -EIO;
 }
 
+ssize_t socket::sendmsg(const struct msghdr *msg,	int flags)
+{
+	(void) msg;
+	(void) flags;
+	return -EIO;
+}
+
 ssize_t recv_queue::recvfrom(void *_buf, size_t len, int flags, sockaddr *src_addr, socklen_t *slen)
 {
 	char *buf = (char *) _buf;
@@ -293,35 +300,6 @@ struct file *get_socket_fd(int fd)
 	}
 
 	return desc;
-}
-
-extern "C"
-ssize_t sys_sendto(int sockfd, const void *buf, size_t len, int flags,
-	struct sockaddr *addr, socklen_t addrlen)
-{
-	struct file *desc = get_socket_fd(sockfd);
-	if(!desc)
-		return -errno;
-	
-	/* Ugh, this uses a big part of the stack... I don't like this
-	 * and we're going to get rid of this anyway when we add sendmsg
-	 */
-	sockaddr_storage sa;
-
-	if(addr)
-	{
-		if(addrlen > sizeof(sa))
-			return -EINVAL;
-
-		if(copy_from_user(&sa, addr, addrlen) < 0)
-			return -EFAULT;
-	}
-
-	socket *s = file_to_socket(desc);
-	ssize_t ret = s->sendto(buf, len, flags, addr ? (sockaddr *) &sa : nullptr, addrlen);
-
-	fd_put(desc);
-	return ret;
 }
 
 extern "C"
@@ -852,4 +830,141 @@ int sys_setsockopt(int sockfd, int level, int optname, const void *optval, sockl
 	socket *sock = file_to_socket(f);
 
 	return sock->setsockopt(level, optname, optval, optlen);
+}
+
+#define INLINE_IOVECS            4
+
+struct msghdr_guard
+{
+	iovec *vecs;
+	iovec inline_vecs[INLINE_IOVECS];
+	sockaddr_storage sa;
+	int vecs_allocated : 1;
+	void *msg_control;
+
+	msghdr_guard() : vecs{inline_vecs}, inline_vecs{}, sa{}, vecs_allocated{0}, msg_control{}
+	{}
+
+	~msghdr_guard()
+	{
+		if(vecs_allocated)
+			delete[] vecs;
+		
+		free(msg_control);
+	}
+};
+
+int copy_msghdr_from_user(msghdr *msg, const msghdr *umsg, msghdr_guard& guard)
+{
+	if(copy_from_user(msg, umsg, sizeof(msghdr)) < 0)
+		return -EFAULT;
+
+	if(msg->msg_name)
+	{
+		if(msg->msg_namelen > sizeof(sockaddr_storage))
+			return -EINVAL;
+
+		if(copy_from_user(&guard.sa, msg->msg_name, msg->msg_namelen) < 0)
+			return -EFAULT;
+
+		msg->msg_name = &guard.sa;
+	}
+
+	if(msg->msg_iovlen < 0)
+		return -EINVAL;
+
+	if(msg->msg_iovlen > INLINE_IOVECS)
+	{
+		if(msg->msg_iovlen > IOV_MAX)
+			return -EINVAL;
+
+		guard.vecs = new iovec[msg->msg_iovlen];
+		if(!guard.vecs)
+			return -ENOMEM;
+		guard.vecs_allocated = 1;
+	}
+
+	if(copy_from_user(guard.vecs, msg->msg_iov, sizeof(iovec) * msg->msg_iovlen) < 0)
+		return -EFAULT;
+	
+	msg->msg_iov = guard.vecs;
+
+	if(msg->msg_control)
+	{
+		auto buf = malloc(msg->msg_controllen);
+		if(!buf)
+			return -ENOMEM;
+		
+		if(copy_from_user(buf, msg->msg_control, msg->msg_controllen) < 0)
+			return -EFAULT;
+		guard.msg_control = msg->msg_control = buf;
+	}
+
+	return 0;
+}
+
+ssize_t socket_sendmsg(socket *sock, msghdr *umsg, int flags)
+{
+	msghdr msg;
+	msghdr_guard g;
+
+	if(int st = copy_msghdr_from_user(&msg, umsg, g); st < 0)
+		return st;
+	
+	return sock->sendmsg(&msg, flags);
+}
+
+extern "C"
+ssize_t sys_sendto(int sockfd, const void *buf, size_t len, int flags,
+	struct sockaddr *addr, socklen_t addrlen)
+{
+	struct file *desc = get_socket_fd(sockfd);
+	if(!desc)
+		return -errno;
+	
+	/* Ugh, this uses a big part of the stack... I don't like this
+	 * and we're going to get rid of this anyway when we add sendmsg
+	 */
+	sockaddr_storage sa;
+
+	if(addr)
+	{
+		if(addrlen > sizeof(sa))
+			return -EINVAL;
+
+		if(copy_from_user(&sa, addr, addrlen) < 0)
+			return -EFAULT;
+	}
+
+	msghdr msg;
+	msg.msg_control = nullptr;
+	msg.msg_controllen = 0;
+	msg.msg_flags = 0;
+	
+	iovec vec0;
+	/* This cast is safe because sendmsg won't write to the iov */
+	vec0.iov_base = const_cast<void *>(buf);
+	vec0.iov_len = len;
+	msg.msg_iov = &vec0;
+	msg.msg_iovlen = 1;
+	msg.msg_name = addr ? &sa : nullptr;
+	msg.msg_namelen = addr ? addrlen : 0;
+
+	socket *s = file_to_socket(desc);
+	ssize_t ret = s->sendmsg(&msg, flags);
+
+	fd_put(desc);
+	return ret;
+}
+
+extern "C"
+ssize_t sys_sendmsg(int sockfd, struct msghdr *msg, int flags)
+{
+	file *f = get_socket_fd(sockfd);
+	if(!f)
+		return -errno;
+	
+	socket *sock = file_to_socket(f);
+
+	return sock->sendmsg(msg, flags);
 }

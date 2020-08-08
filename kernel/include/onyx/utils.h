@@ -3,10 +3,12 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
-#ifndef _UTILS_H
-#define _UTILS_H
+#ifndef _ONYX_UTILS_H
+#define _ONYX_UTILS_H
 
 #include <stddef.h>
+#include <stdbool.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -34,9 +36,20 @@ Type min(Type t1, Type t2)
 
 #endif
 
+static inline bool array_overflows(size_t n, size_t elem_size)
+{
+	return n > (size_t) -1 / elem_size;
+}
+
 #ifdef __cplusplus
 /* Handy define for functions that can totally be constexpr in C++ */
 #define CONSTEXPR constexpr
+
+template <typename Type>
+static inline bool array_overflows(size_t n)
+{
+	return array_overflows(n, sizeof(Type));
+}
 
 #else
 

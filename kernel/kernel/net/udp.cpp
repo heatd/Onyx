@@ -48,7 +48,7 @@ uint16_t udpv4_calculate_checksum(udp_header_t *header, uint32_t srcip, uint32_t
 
 #include <onyx/clock.h>
 
-int udp_socket::send_packet(char *payload, size_t payload_size, in_port_t source_port,
+int udp_socket::send_packet(const msghdr *msg, ssize_t payload_size, in_port_t source_port,
 	            in_port_t dest_port, inet_route& route)
 {
 	auto netif = route.nif;
@@ -78,10 +78,16 @@ int udp_socket::send_packet(char *payload, size_t payload_size, in_port_t source
 
 	udp_header->len = htons((uint16_t)(sizeof(udp_header_t) + payload_size));
 	
-	auto ptr = b->put((unsigned int) payload_size);
+	unsigned char *ptr = (unsigned char *) b->put((unsigned int) payload_size);
 
-	if(copy_from_user(ptr, payload, payload_size) < 0)
-		return -EFAULT;
+	for(int i = 0; i < msg->msg_iovlen; i++)
+	{
+		const auto &vec = msg->msg_iov[i];
+		if(copy_from_user(ptr, vec.iov_base, vec.iov_len) < 0)
+			return -EINVAL;
+		
+		ptr += vec.iov_len;
+	}
 
 	if(netif->flags & NETIF_SUPPORTS_CSUM_OFFLOAD && !needs_fragmenting(netif, b.get()))
 	{
@@ -135,14 +141,18 @@ int udp_socket::connect(sockaddr *addr, socklen_t len)
 	return 0;
 }
 
-ssize_t udp_socket::sendto(const void *buf, size_t len, int flags, sockaddr *addr,
-                           socklen_t addrlen)
+ssize_t udp_socket::sendmsg(const msghdr *msg, int flags)
 {
-	if(addr && !validate_sockaddr_len_pair(addr, addrlen))
+	sockaddr *addr = (sockaddr *) msg->msg_name;
+	if(addr && !validate_sockaddr_len_pair(addr, msg->msg_namelen))
 		return -EINVAL;
 
 	inet_sock_address dest = dest_addr;
 	int our_domain = domain;
+
+	auto payload_size = iovec_count_length(msg->msg_iov, msg->msg_iovlen);
+	if(payload_size < 0)
+		return payload_size;
 
 	if(addr)
 	{
@@ -151,7 +161,7 @@ ssize_t udp_socket::sendto(const void *buf, size_t len, int flags, sockaddr *add
 		our_domain = res.second;
 	}
 
-	if(!connected && addr == NULL)
+	if(!connected && addr == nullptr)
 		return -ENOTCONN;
 
 	inet_route route;
@@ -172,13 +182,13 @@ ssize_t udp_socket::sendto(const void *buf, size_t len, int flags, sockaddr *add
 	}
 
 	/* TODO: Connect ipv6 support up */
-	if(int st = send_packet((char*) buf, len, src_addr.port, dest.port,
+	if(int st = send_packet(msg, payload_size, src_addr.port, dest.port,
 			   route); st < 0)
 	{
 		return st;
 	}
 
-	return len;
+	return payload_size;
 }
 
 socket *udp_create_socket(int type)

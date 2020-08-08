@@ -181,6 +181,7 @@ void sys_sync(void);
 
 int sys_getsockopt(int sockfd, int level, int optname, void *optval, socklen_t *optlen);
 int sys_setsockopt(int sockfd, int level, int optname, const void *optval, socklen_t optlen);
+ssize_t sys_sendmsg(int sockfd, struct msghdr *msg, int flags);
 
 void *syscall_table_64[] =
 {
@@ -312,5 +313,6 @@ void *syscall_table_64[] =
 	[125] = (void*) sys_getitimer,
 	[126] = (void*) sys_pread,
 	[127] = (void*) sys_pwrite,
-	[128] = (void*) sys_fsync
+	[128] = (void*) sys_fsync,
+	[129] = (void*) sys_sendmsg
 };

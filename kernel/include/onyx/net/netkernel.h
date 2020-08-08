@@ -37,8 +37,7 @@ public:
 	int getsockopt(int level, int optname, void *optval, socklen_t *optlen) override;
 	int setsockopt(int level, int optname, const void *optval, socklen_t optlen) override;
 	int connect(sockaddr *addr, socklen_t addrlen) override;
-	ssize_t sendto(const void *buf, size_t len, int flags,
-                           sockaddr *addr, socklen_t addrlen) override;
+	ssize_t sendmsg(const struct msghdr *msg, int flags) override;
 };
 
 /**
