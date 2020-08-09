@@ -133,6 +133,8 @@ constexpr bool adding_guard_page = true;
 void thread_finish_destruction(void *___thread)
 {
 	thread *thread = static_cast<thread_t *>(___thread);
+
+#if 1
 	/* Destroy the kernel stack */
 	unsigned long stack_base = ((unsigned long) thread->kernel_stack_top) - kernel_stack_size;
 	if(adding_guard_page)
@@ -140,11 +142,13 @@ void thread_finish_destruction(void *___thread)
 	auto pages = adding_guard_page ? 6 : 4;
 
 	vfree((void *) stack_base, pages);
-	
+#endif
 	/* Free the fpu area */
 	free(thread->fpu_area);
 
 	thread_remove_from_list(thread);
+	
+	((volatile struct thread *) thread)->canary = THREAD_DEAD_CANARY;
 	/* Free the thread */
 	free(thread);
 }
@@ -160,6 +164,7 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs)
 
 	new_thread->id = curr_id++;
 	new_thread->flags = flags;
+	new_thread->canary = THREAD_STRUCT_CANARY;
 
 	bool is_user = !(flags & THREAD_KERNEL);
 	auto pages = adding_guard_page ? 6 : 4;
@@ -230,6 +235,7 @@ error:
 
 void arch_save_thread(struct thread *thread, void *stack)
 {
+	assert(thread->canary == THREAD_STRUCT_CANARY);
 	/* No need to save the fpu context if we're a kernel thread! */
 	if(!(thread->flags & THREAD_KERNEL))
 		save_fpu(thread->fpu_area);
@@ -240,6 +246,8 @@ PER_CPU_VAR_NOUNUSED(unsigned long scratch_rsp) = 0;
 
 void arch_load_thread(struct thread *thread, unsigned int cpu)
 {
+	assert(thread->canary == THREAD_STRUCT_CANARY);
+
 	write_per_cpu(kernel_stack, thread->kernel_stack_top);
 	/* Fill the TSS with a kernel stack */
 	set_kernel_stack((uintptr_t) thread->kernel_stack_top);

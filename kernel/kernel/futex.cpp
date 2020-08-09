@@ -86,9 +86,9 @@ public:
 	futex_key key;
 	bool awaken;
 	wait_queue wq;
-	struct list_head list_node;
+	list_head_cpp<futex_queue> list_node;
 
-	futex_queue(futex_key key) : key(key), awaken(false), wq{}, list_node{}
+	futex_queue(futex_key key) : key(key), awaken(false), wq{}, list_node{this}
 	{
 		init_wait_queue_head(&wq);
 	}
@@ -110,6 +110,9 @@ public:
 	void wake()
 	{
 		awaken = true;
+
+		COMPILER_BARRIER();
+
 		wait_queue_wake_all(&wq);
 		list_remove(&list_node);
 	}
@@ -315,8 +318,9 @@ int wake(int *uaddr, int flags, int to_wake)
 	list_for_every_safe(list_head)
 	{
 		if(to_wake == 0)
-			break;	
-		futex_queue *f = container_of(l, futex_queue, list_node);
+			break;
+
+		futex_queue *f = list_head_cpp<futex_queue>::self_from_list_head(l);
 
 		MUST_HOLD_LOCK(&futex_hashtable_locks[hash_index]);
 		

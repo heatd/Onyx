@@ -120,7 +120,7 @@ packetbuf::~packetbuf()
 	const auto mapping_length = end - (unsigned char *) buffer_start;
 
 	if(buffer_start)   vm_munmap(&kernel_address_space, buffer_start, mapping_length);
-	if(vmo)  vmo_destroy(vmo);
+	if(vmo)  vmo_unref(vmo);
 
 	for(auto &v : page_vec)
 	{

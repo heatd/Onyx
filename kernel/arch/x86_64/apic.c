@@ -635,8 +635,13 @@ void boot_send_ipi(uint8_t id, uint32_t type, uint32_t page)
 	lapic_write(bsp_lapic, LAPIC_ICR, (uint32_t) icr);
 }
 
+PER_CPU_VAR(struct spinlock ipi_lock);
+
 void apic_send_ipi(uint8_t id, uint32_t type, uint32_t page)
 {
+	struct spinlock *lock = get_per_cpu_ptr(ipi_lock);
+	spin_lock_irqsave(lock);
+
 	volatile uint32_t *this_lapic = get_per_cpu(lapic);
 
 	while(lapic_read(this_lapic, LAPIC_ICR) & (1 << 12))
@@ -646,6 +651,8 @@ void apic_send_ipi(uint8_t id, uint32_t type, uint32_t page)
 	uint64_t icr = type << 8 | (page & 0xff);
 	icr |= (1 << 14);
 	lapic_write(this_lapic, LAPIC_ICR, (uint32_t) icr);
+
+	spin_unlock_irqrestore(lock);
 }
 
 bool apic_send_sipi_and_wait(uint8_t lapicid, struct smp_header *s)

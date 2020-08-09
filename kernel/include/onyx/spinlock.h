@@ -18,7 +18,6 @@ struct spinlock
 	/* TODO: Conditionally have these debug features, and have owner_cpu be in lock */
 	unsigned long lock;
 	unsigned long holder;
-	unsigned long owner_cpu;
 	/* TODO: Have old_flags be a local variable */
 	unsigned long old_flags;
 };
@@ -39,7 +38,6 @@ CONSTEXPR static inline void spinlock_init(struct spinlock *s)
 	s->holder = 0xDEADCAFEDEADCAFE;
 	s->lock = 0;
 	s->old_flags = 0;
-	s->owner_cpu = 0;
 }
 
 
@@ -59,7 +57,7 @@ static inline void spin_unlock_irqrestore(struct spinlock *lock)
 
 static inline bool spin_lock_held(struct spinlock *lock)
 {
-	return lock->lock == 1 && lock->owner_cpu == (unsigned long) get_cpu_nr();
+	return lock->lock == get_cpu_nr() + 1;
 }
 
 #define MUST_HOLD_LOCK(lock)		assert(spin_lock_held(lock) != false)

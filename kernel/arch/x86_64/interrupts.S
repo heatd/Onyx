@@ -234,8 +234,8 @@ isr_common:
 	mov %ax, %es
 
 	mov REGISTER_OFF_CS(%rsp), %rax
-	cmp $KERNEL_CS, %rax
-	je .L0
+	test $3, %rax
+	jz .L0
 	swapgs
 .L0:
 	mov %rsp, %rbp

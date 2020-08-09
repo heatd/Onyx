@@ -418,6 +418,8 @@ bool vm_mapping_requires_write_protect(struct vm_region *reg)
 
 void vm_region_destroy(struct vm_region *region)
 {
+	MUST_HOLD_MUTEX(&region->mm->vm_lock);
+
 	/* First, unref things */
 	if(region->fd)
 	{
@@ -436,6 +438,10 @@ void vm_region_destroy(struct vm_region *region)
 		vmo_unref(region->vmo);
 	}
 
+	memset_s(region, 0xfd, sizeof(struct vm_region));
+	
+	assert(vm_find_region((void *) region->base) == NULL);
+
 	free(region);
 }
 
@@ -443,11 +449,12 @@ void vm_destroy_mappings(void *range, size_t pages)
 {
 	struct mm_address_space *mm = is_higher_half(range)
 				? &kernel_address_space : &get_current_process()->address_space;
+
+	mutex_lock(&mm->vm_lock);
+
 	struct vm_region *reg = vm_find_region(range);
 
 	vm_unmap_range(range, pages);
-
-	mutex_lock(&mm->vm_lock);
 
 	rb_tree_remove(mm->area_tree, (const void *) reg->base);
 	
@@ -2665,7 +2672,7 @@ int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
 
 				region->base += to_shave_off;
 				region->pages -= to_shave_off >> PAGE_SHIFT;
-
+				
 				if(vm_add_region(as, region) < 0)
 				{
 					return -ENOMEM;
@@ -2764,7 +2771,7 @@ int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
 		}
 
 		decrement_vm_stat(as, virtual_memory_size, to_shave_off);
-		if(is_shared && !(region->flags & VM_USING_MAP_SHARED_OPT))
+		if(is_shared)
 			decrement_vm_stat(as, shared_set_size, to_shave_off);
 		
 		addr += to_shave_off;
@@ -2839,6 +2846,8 @@ void __vm_invalidate_range(unsigned long addr, size_t pages, struct mm_address_s
 			struct tlb_shootdown shootdown;
 			shootdown.addr = addr;
 			shootdown.pages = pages;
+			write_memory_barrier();
+
 			cpu_send_message(cpu, CPU_FLUSH_TLB, &shootdown, true);
 
 		}

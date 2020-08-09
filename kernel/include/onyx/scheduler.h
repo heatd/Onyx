@@ -28,9 +28,13 @@
 typedef void (*thread_callback_t)(void*);
 struct process;
 
+#define THREAD_STRUCT_CANARY   0xcacacacafdfddead
+#define THREAD_DEAD_CANARY     0xdeadbeefbeefdead
+
 typedef struct thread
 {
 	unsigned long refcount;
+	unsigned long canary;
 	/* Put arch-independent stuff right here */
 	uintptr_t *kernel_stack;
 	uintptr_t *kernel_stack_top;

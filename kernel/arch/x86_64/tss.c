@@ -33,6 +33,9 @@ void set_kernel_stack(uintptr_t stack0)
 	entry->ist[0] = stack0;
 }
 
+unsigned char double_fault_stack[512];
+unsigned char *double_fault_stack_top = &double_fault_stack[511];
+
 void init_percpu_tss(uint64_t *gdt)
 {
 	tss_entry_t *new_tss = malloc(sizeof(tss_entry_t));
@@ -51,4 +54,6 @@ void init_percpu_tss(uint64_t *gdt)
 	tss_flush();
 
 	write_per_cpu(tss, new_tss);
+
+	new_tss->ist[1] = (unsigned long) double_fault_stack_top;
 }

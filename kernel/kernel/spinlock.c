@@ -17,19 +17,19 @@ __attribute__((always_inline))
 static inline void post_lock_actions(struct spinlock *lock)
 {
 	lock->holder = (unsigned long) __builtin_return_address(1);
-	lock->owner_cpu = get_cpu_nr();
 }
 
 static inline void post_release_actions(struct spinlock *lock)
 {
 	lock->holder = 0xDEADBEEFDEADBEEF;
-	lock->owner_cpu = (unsigned long) -1;
 }
 
 
 void spin_lock_preempt(struct spinlock *lock)
 {
 	unsigned long expected_val = 0;
+	unsigned long what_to_insert = get_cpu_nr() + 1;
+
 	while(true)
 	{
 		while(__atomic_load_n(&lock->lock, __ATOMIC_RELAXED) != 0)
@@ -37,7 +37,7 @@ void spin_lock_preempt(struct spinlock *lock)
 
 		expected_val = 0;
 		
-		if(__atomic_compare_exchange_n(&lock->lock, &expected_val, 1,
+		if(__atomic_compare_exchange_n(&lock->lock, &expected_val, what_to_insert,
 		                               false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED))
 			break;
 	}
@@ -77,9 +77,10 @@ int spin_try_lock(struct spinlock *lock)
 	sched_disable_preempt();
 
 	unsigned long expected_val = 0;
+	unsigned long what_to_insert = get_cpu_nr() + 1;
 
 
-	if(!__atomic_compare_exchange_n(&lock->lock, &expected_val, 1,
+	if(!__atomic_compare_exchange_n(&lock->lock, &expected_val, what_to_insert,
 		                               false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED))
 	{
 		sched_enable_preempt();
