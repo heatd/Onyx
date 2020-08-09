@@ -118,6 +118,7 @@ void netif_register_if(struct netif *netif)
 	route.gateway = 0;
 	route.nif = netif;
 	route.metric = is_loopback ? 1000 : 10;
+	route.flags = INET4_ROUTE_FLAG_SCOPE_LOCAL;
 
 	assert(ip::v4::add_route(route) == true);
 }

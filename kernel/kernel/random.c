@@ -20,14 +20,21 @@
 
 const size_t max_entropy = PAGE_SIZE * 4;
 static char entropy_buffer[PAGE_SIZE * 4] = {0};
+struct spinlock entropy_lock;
 static size_t current_entropy = 0;
 
 void add_entropy(void *ent, size_t size)
 {
+	spin_lock(&entropy_lock);
 	if(current_entropy == max_entropy || current_entropy + size > max_entropy)
-		return;
-	memcpy(&entropy_buffer[current_entropy], ent, size);
-	current_entropy += size;
+	{}
+	else
+	{
+		memcpy(&entropy_buffer[current_entropy], ent, size);
+		current_entropy += size;
+	}
+
+	spin_unlock(&entropy_lock);
 }
 
 void entropy_refill(void)
@@ -38,10 +45,14 @@ void entropy_refill(void)
 	{
 		*buf++ = clock_get_posix_time() << 28 | get_microseconds() << 24 | ((rdtsc() << 20) ^ rand());
 	}
+
+	current_entropy = max_entropy;
 }
 
 void get_entropy(char *buf, size_t s)
 {
+	spin_lock(&entropy_lock);
+
 	for(size_t i = 0; i < s; i++)
 	{
 		if(current_entropy == 0)
@@ -50,6 +61,8 @@ void get_entropy(char *buf, size_t s)
 		current_entropy--;
 		memmove(entropy_buffer, &entropy_buffer[1], current_entropy);
 	}
+
+	spin_unlock(&entropy_lock);
 }
 
 size_t ent_read(size_t off, size_t count, void *buffer, struct file *node)
@@ -118,18 +131,28 @@ size_t urandom_get_entropy(size_t size, void *buffer)
 size_t get_entropy_from_pool(int pool, size_t size, void *buffer)
 {
 	assert(pool == ENTROPY_POOL_RANDOM || pool == ENTROPY_POOL_URANDOM);
+	size_t ret = (size_t) -EINVAL;
+
+	spin_lock(&entropy_lock);
+
 	switch(pool)
 	{
 		case ENTROPY_POOL_RANDOM:
 		{
-			return random_get_entropy(size, buffer);
+			ret = random_get_entropy(size, buffer);
+			break;
 		}
+
 		case ENTROPY_POOL_URANDOM:
 		{
-			return urandom_get_entropy(size, buffer);
+			ret = urandom_get_entropy(size, buffer);
+			break;
 		}
 	}
-	return -EINVAL;
+
+	spin_unlock(&entropy_lock);
+
+	return ret;
 }
 
 size_t random_read(size_t offset, size_t sizeofreading, void *buffer, struct file *this)

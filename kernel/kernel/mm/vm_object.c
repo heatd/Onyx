@@ -651,7 +651,7 @@ struct page *vmo_cow_on_page(struct vm_object *vmo, size_t off)
 	void **datum = rb_tree_search(vmo->pages, (void *) off);
 	
 	if(datum == NULL)
-		halt();
+		panic("Fatal COW bug - page not found in VMO");
 
 	struct page *old_page = *datum;
 

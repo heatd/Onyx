@@ -647,6 +647,7 @@ __cpu_handle_message:
 	mov %rax, %rsp
 	call lapic_send_eoi
 
+	cli
 	mov REGISTER_OFF_CS(%rsp), %rax
 	cmp $KERNEL_CS, %rax
 	je .L10

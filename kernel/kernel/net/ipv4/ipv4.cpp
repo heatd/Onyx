@@ -610,7 +610,7 @@ expected<inet_route, int> proto_family::route(const inet_sock_address& from,
 		 * If the result = r.dest, we can use this interface.
 		 */
 #if 0
-		printk("dest %x, mask %x, supposed dest %x\n", dest, r.mask, r.dest);
+		printk("dest %x, mask %x, supposed dest %x\n", dest, r->mask, r->dest);
 #endif
 		if((dest & r->mask) != r->dest)
 			continue;
@@ -618,8 +618,8 @@ expected<inet_route, int> proto_family::route(const inet_sock_address& from,
 		if(required_netif && r->nif != required_netif)
 			continue;
 #if 0
-		printk("%s is good\n", r.nif->name);
-		printk("is loopback set %u\n", r.nif->flags & NETIF_LOOPBACK);
+		printk("%s is good\n", r->nif->name);
+		printk("is loopback set %u\n", r->nif->flags & NETIF_LOOPBACK);
 #endif
 	
 		int mods = 0;
@@ -655,7 +655,9 @@ expected<inet_route, int> proto_family::route(const inet_sock_address& from,
 	auto res = arp_resolve_in(to_resolve, r.nif);
 
 	if(res.has_error()) [[unlikely]]
+	{
 		return unexpected<int>(-ENETUNREACH);
+	}
 
 	r.dst_hw = res.value();
 

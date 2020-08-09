@@ -26,6 +26,7 @@ struct inet4_route
 };
 
 #define INET4_ROUTE_FLAG_GATEWAY    (1 << 0)
+#define INET4_ROUTE_FLAG_SCOPE_LOCAL (1 << 1)
 
 /* Cached information of the route the packet should take from here to the dst.
  */

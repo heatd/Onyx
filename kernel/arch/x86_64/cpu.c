@@ -586,7 +586,9 @@ void cpu_handle_message(struct cpu_message *msg)
 			str = "CPU_FLUSH_TLB";
 			/* The order of the ack is important here! */
 			vm_do_shootdown(msg->ptr);
+			COMPILER_BARRIER();
 			msg->ack = true;
+			write_memory_barrier();
 			break;
 	}
 

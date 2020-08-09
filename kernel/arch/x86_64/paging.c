@@ -30,6 +30,8 @@
 #define X86_PAGING_GLOBAL		(1 << 8)
 #define X86_PAGING_NX			(1UL << 63)
 
+#define X86_PAGING_PROT_BITS   ((PAGE_SIZE - 1) | X86_PAGING_NX)
+
 #define X86_PAGING_FLAGS_TO_SAVE_ON_MPROTECT		\
 (X86_PAGING_GLOBAL | X86_PAGING_HUGE | X86_PAGING_USER | X86_PAGING_ACCESSED | \
 X86_PAGING_DIRTY | X86_PAGING_WRITETHROUGH | X86_PAGING_PCD | X86_PAGING_PAT)
@@ -40,6 +42,8 @@ static inline void __native_tlb_invalidate_page(void *addr)
 {
 	__asm__ __volatile__("invlpg (%0)" : : "b"(addr) : "memory");
 }
+
+bool x86_get_pt_entry(void *addr, uint64_t **entry_ptr, struct mm_address_space *mm);
 
 static inline uint64_t make_pml4e(uint64_t base,
 				  uint64_t avl,
@@ -499,9 +503,56 @@ bool pml_is_empty(void *_pml)
 	PML *pml = _pml;
 	for(int i = 0; i < 512; i++)
 	{
-		if(pml->entries[i] & X86_PAGING_PRESENT)
+		if(pml->entries[i])
 			return false;
 	}
+
+	return true;
+}
+
+struct pt_location
+{
+	PML *table;
+	unsigned int index;
+};
+
+bool x86_get_pt_entry_with_ptables(void *addr, uint64_t **entry_ptr, struct mm_address_space *mm,
+                                   struct pt_location location[4])
+{
+	unsigned long virt = (unsigned long) addr;
+	const unsigned int paging_levels = 4;
+	unsigned int indices[paging_levels];
+
+	for(unsigned int i = 0; i < paging_levels; i++)
+	{
+		indices[i] = (virt >> 12) >> (i * 9) & 0x1ff;
+	}
+
+	PML *pml = (PML*)((unsigned long) mm->arch_mmu.cr3 + PHYS_BASE);
+	unsigned int location_index = 0;
+	
+	for(unsigned int i = paging_levels; i != 1; i--)
+	{
+		uint64_t entry = pml->entries[indices[i - 1]];
+		location[location_index].table = pml;
+		location[location_index++].index = indices[i - 1];
+
+		if(entry & X86_PAGING_PRESENT)
+		{
+			void *page = (void*) PML_EXTRACT_ADDRESS(entry);
+			pml = PHYS_TO_VIRT(page);
+		}
+		else
+		{
+			return false;
+		}
+	}
+
+	location[location_index].table = pml;
+	location[location_index++].index = indices[0];
+
+	*entry_ptr = &pml->entries[indices[0]];
+
 	return true;
 }
 
@@ -517,58 +568,41 @@ void *paging_unmap(void* memory)
 	else
 		as = get_current_address_space();
 
-	decomposed_addr_t dec;
-	memcpy(&dec, &memory, sizeof(decomposed_addr_t));
-	PML *pml4 = (PML*)((uint64_t) get_current_pml4() + PHYS_BASE);
+	uint64_t *entry = NULL;
 	
-	uint64_t* entry = &pml4->entries[dec.pml4];
+	/* idx 0 - PML4 + index of 3
+	 * idx 1 - PML3 + index of 2
+	 * idx 2 - PML2 + index of 1
+	 * idx 3 - PML1 + index of page
+	 */
+	struct pt_location locations[4];
 
-	if(!(*entry & X86_PAGING_PRESENT))
-		return NULL;
-	PML *pml3 = (PML*)((*entry & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
-	entry = &pml3->entries[dec.pdpt];
-	if(!(*entry & X86_PAGING_PRESENT)) /* If the entry isn't committed, just return */
-		return NULL;
-	PML *pml2 = (PML*)((*entry & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
-	entry = &pml2->entries[dec.pd];
-
-	if(!(*entry & X86_PAGING_PRESENT)) /* If the entry isn't committed, just return */
-		return NULL;
-	PML *pml1 = (PML*)((*entry & 0x0FFFFFFFFFFFF000) + PHYS_BASE);
-	entry = &pml1->entries[dec.pt];
-
-	if(!(*entry & X86_PAGING_PRESENT)) /* If the entry isn't committed, just return */
+	if(!x86_get_pt_entry_with_ptables(memory, &entry, as, locations))
 		return NULL;
 
 	uintptr_t address = PML_EXTRACT_ADDRESS(*entry);
-	*entry = 0xDEADBEEF & ~1;
+	*entry = 0;
 
 	/* Now that we've freed the destination page, work our way upwards to check if the paging structures are empty 
 	   If so, free them as well 
 	*/
-	if(pml_is_empty(pml1))
-	{
-		//printk("page table empty: freeing\n");
-		uintptr_t raw_address = pml2->entries[dec.pd] & 0x0FFFFFFFFFFFF000;
-		free_page(phys_to_page(raw_address));
-		__atomic_sub_fetch(&allocated_page_tables, 1, __ATOMIC_RELAXED);
-		pml2->entries[dec.pd] = 0;
-	}
 
-	if(pml_is_empty(pml2))
+	for(int i = 3; i > 0; i--)
 	{
-		uintptr_t raw_address = pml3->entries[dec.pdpt] & 0x0FFFFFFFFFFFF000;
-		free_page(phys_to_page(raw_address));
-		__atomic_sub_fetch(&allocated_page_tables, 1, __ATOMIC_RELAXED);
-		pml3->entries[dec.pdpt] = 0;
-	}
+		PML *pml = locations[i].table;
+		unsigned int upper_table_idx = locations[i - 1].index;
 
-	if(pml_is_empty(pml3))
-	{
-		uintptr_t raw_address = pml4->entries[dec.pml4] & 0x0FFFFFFFFFFFF000;
-		free_page(phys_to_page(raw_address));
-		__atomic_sub_fetch(&allocated_page_tables, 1, __ATOMIC_RELAXED);
-		pml4->entries[dec.pml4] = 0;
+		if(pml_is_empty(pml))
+		{
+			uint64_t *upper_level_entry = &locations[i - 1].table->entries[upper_table_idx];
+			unsigned long raw_address = PML_EXTRACT_ADDRESS(*upper_level_entry);
+			*upper_level_entry = 0;
+			
+			//printk("freeing address %lx\n", raw_address);
+ 
+			free_page(phys_to_page(raw_address));
+			__atomic_sub_fetch(&allocated_page_tables, 1, __ATOMIC_RELAXED);
+		}
 	}
 
 	decrement_vm_stat(as, resident_set_size, PAGE_SIZE);
@@ -710,6 +744,8 @@ bool x86_get_pt_entry(void *addr, uint64_t **entry_ptr, struct mm_address_space 
 
 bool __paging_change_perms(struct mm_address_space *mm, void *addr, int prot)
 {
+	MUST_HOLD_MUTEX(&mm->vm_lock);
+
 	uint64_t *entry;
 	if(!x86_get_pt_entry(addr, &entry, mm))
 	{

@@ -341,6 +341,7 @@ out_of_mem:
 void do_vm_unmap(void *range, size_t pages)
 {
 	struct vm_region *entry = vm_find_region(range);
+	MUST_HOLD_MUTEX(&entry->mm->vm_lock);
 	assert(entry != NULL);
 
 	struct vm_object *vmo = entry->vmo;
@@ -1828,6 +1829,8 @@ int vm_handle_write_wb(struct vm_pf_context *ctx)
 	return 0;
 }
 
+#include <onyx/dentry.h>
+
 int vm_handle_present_cow(struct vm_pf_context *ctx)
 {
 	struct vm_object *vmo = ctx->entry->vmo;
@@ -1836,8 +1839,16 @@ int vm_handle_present_cow(struct vm_pf_context *ctx)
 	struct vm_region *entry = ctx->entry;
 	size_t vmo_off = (ctx->vpage - entry->base) + entry->offset;
 
-	//printk("Re-mapping COW'd page %lx with perms %x\n", ctx->vpage, ctx->page_rwx);
-	
+#if 0
+	printk("Re-mapping COW'd page %lx with perms %x\n", ctx->vpage, ctx->page_rwx);
+	printk("fd: %p", entry->fd);
+
+	if(entry->fd)
+		printk(" (%s)\n", entry->fd->f_dentry->d_name);
+	else
+		printk("\n");
+#endif
+
 	struct page *new_page = vmo_cow_on_page(vmo, vmo_off);
 	if(!new_page)
 	{

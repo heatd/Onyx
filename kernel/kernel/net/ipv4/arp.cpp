@@ -52,8 +52,26 @@ int arp_handle_packet(arp_request_t *arp, uint16_t len, struct netif *netif)
 	return 0;
 }
 
-int arp_submit_request(uint32_t target_addr, struct netif *netif)
+int arp_submit_request(shared_ptr<neighbour>& ptr, uint32_t target_addr, struct netif *netif)
 {
+	if(target_addr == INADDR_BROADCAST || target_addr == INADDR_LOOPBACK || netif->flags & NETIF_LOOPBACK)
+	{
+		auto _ptr = new unsigned char[ETH_ALEN];
+
+		if(_ptr)
+		{
+			bool is_bcast = target_addr == INADDR_BROADCAST;
+			memset(_ptr, is_bcast ? 0xff : 0, ETH_ALEN);
+			auto sl = cul::slice<unsigned char>{_ptr, ETH_ALEN};
+			ptr->set_hwaddr(sl);
+			ptr->flags |= NEIGHBOUR_FLAG_HAS_RESPONSE | (is_bcast ? NEIGHBOUR_FLAG_BROADCAST : 0);
+		}
+		else
+		{
+			return -ENOMEM;
+		}
+	}
+
 	auto buf = make_unique<packetbuf>();
 	if(!buf)
 		return -ENOMEM;
@@ -100,25 +118,7 @@ expected<shared_ptr<neighbour>, int> arp_resolve_in(uint32_t ip, struct netif *n
 	{
 		if(created)
 		{
-			bool failed = false;
-			if(ip == INADDR_BROADCAST)
-			{
-				auto _ptr = new unsigned char[ETH_ALEN];
-				
-				if(_ptr)
-				{
-					memset(_ptr, 0xff, ETH_ALEN);
-					auto sl = cul::slice<unsigned char>{_ptr, ETH_ALEN};
-					ptr->set_hwaddr(sl);
-					ptr->flags |= NEIGHBOUR_FLAG_HAS_RESPONSE | NEIGHBOUR_FLAG_BROADCAST;
-				}
-				else
-				{
-					failed = true;
-				}
-			}
-
-			if(failed || (ip != INADDR_BROADCAST && arp_submit_request(ip, netif) < 0))
+			if(arp_submit_request(ptr, ip, netif) < 0)
 			{
 				arp_table.remove(ptr.get_data());
 				return unexpected{-ENOMEM};

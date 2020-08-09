@@ -128,11 +128,18 @@ int sys_arch_prctl(int code, unsigned long *addr)
 	return 0;
 }
 
+constexpr bool adding_guard_page = true;
+
 void thread_finish_destruction(void *___thread)
 {
 	thread *thread = static_cast<thread_t *>(___thread);
 	/* Destroy the kernel stack */
-	vfree((void*) ((uintptr_t) thread->kernel_stack_top - kernel_stack_size), 4);
+	unsigned long stack_base = ((unsigned long) thread->kernel_stack_top) - kernel_stack_size;
+	if(adding_guard_page)
+		stack_base -= PAGE_SIZE;
+	auto pages = adding_guard_page ? 6 : 4;
+
+	vfree((void *) stack_base, pages);
 	
 	/* Free the fpu area */
 	free(thread->fpu_area);
@@ -155,6 +162,7 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs)
 	new_thread->flags = flags;
 
 	bool is_user = !(flags & THREAD_KERNEL);
+	auto pages = adding_guard_page ? 6 : 4;
 
 	if(is_user)
 	{
@@ -182,11 +190,20 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs)
 
 	new_thread->refcount = 1;
 
-	new_thread->kernel_stack = static_cast<uintptr_t *>(vmalloc(4, VM_TYPE_STACK, VM_WRITE | VM_NOEXEC));
+	new_thread->kernel_stack = static_cast<uintptr_t *>(vmalloc(pages, VM_TYPE_STACK, VM_WRITE | VM_NOEXEC));
 
 	if(!new_thread->kernel_stack)
 	{
 		goto error;
+	}
+
+	if(adding_guard_page)
+	{
+		unsigned char *p = (unsigned char *) new_thread->kernel_stack;
+
+		vm_mprotect(&kernel_address_space, new_thread->kernel_stack, PAGE_SIZE, 0);
+		vm_mprotect(&kernel_address_space, p + PAGE_SIZE + kernel_stack_size, PAGE_SIZE, 0);
+		new_thread->kernel_stack = (uintptr_t *)(p + PAGE_SIZE);
 	}
 
 	new_thread->kernel_stack = reinterpret_cast<uintptr_t *>(((char*) new_thread->kernel_stack + kernel_stack_size));

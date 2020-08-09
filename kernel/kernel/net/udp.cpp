@@ -166,10 +166,9 @@ ssize_t udp_socket::sendmsg(const msghdr *msg, int flags)
 
 	inet_route route;
 	
-	if(connected)
+	if(connected && route_cache_valid)
 	{
 		route = route_cache;
-		assert(route_cache_valid == 1);
 	}
 	else
 	{
