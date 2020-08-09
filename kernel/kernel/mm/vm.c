@@ -2812,23 +2812,13 @@ extern struct spinlock scheduler_lock;
 
 void __vm_invalidate_range(unsigned long addr, size_t pages, struct mm_address_space *mm)
 {
-	/* If the address > higher half, then we don't need to worry about
-	 * stale tlb entries since no attacker can read kernel memory.
-	*/
-	if(is_higher_half((void *) addr))
-	{
-		paging_invalidate((void *) addr, pages);
-		return;
-	}
-
-	struct process *p = get_current_process();
+	bool is_kernel_address = is_higher_half((void *) addr);
 
 	for(unsigned int cpu = 0; cpu < get_nr_cpus(); cpu++)
 	{
 		if(cpu == get_cpu_nr())
 		{
-			if(p && get_current_address_space() == mm)
-				paging_invalidate((void *) addr, pages);
+			paging_invalidate((void *) addr, pages);
 		}
 		else
 		{
@@ -2838,7 +2828,7 @@ void __vm_invalidate_range(unsigned long addr, size_t pages, struct mm_address_s
 	
 			struct process *p = get_thread_for_cpu(cpu)->owner;
 
-			if(!p || mm != &p->address_space)
+			if(!is_kernel_address && (!p || mm != &p->address_space))
 			{
 				continue;
 			}
