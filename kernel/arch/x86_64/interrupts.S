@@ -661,3 +661,49 @@ __cpu_handle_message:
 	add $REGISTERS_UNUSED_OFF, %rsp
 	iretq
 	.cfi_endproc
+
+.global __cpu_resched
+__cpu_resched:
+	.cfi_startproc
+	cli
+	sub $REGISTERS_UNUSED_OFF, %rsp
+
+	CFI_INTERRUPT_FRAME_BEFORE_DS
+
+	pushaq
+	mov %ds, %ax
+	push %rax
+	CFI_INTERRUPT_FRAME_ADJUST_DS
+
+	mov $0x10, %ax
+	mov %ax, %ss
+	mov %ax, %ds
+	mov %ax, %es
+
+	mov REGISTER_OFF_CS(%rsp), %rax
+	cmp $KERNEL_CS, %rax
+	je .L11
+	swapgs
+.L11:
+	# End the stack frame list so we stop here
+	xor %rbp, %rbp
+	mov %rsp, %rdi
+	call cpu_resched
+
+	mov %rax, %rsp
+	call lapic_send_eoi
+
+	cli
+	mov REGISTER_OFF_CS(%rsp), %rax
+	cmp $KERNEL_CS, %rax
+	je .L12
+	swapgs
+.L12:
+	pop %rax
+	mov %ax, %ds
+	mov %ax, %es
+
+	popaq
+	add $REGISTERS_UNUSED_OFF, %rsp
+	iretq
+	.cfi_endproc

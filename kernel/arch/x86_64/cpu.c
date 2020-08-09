@@ -401,127 +401,50 @@ void cpu_wait_for_msg_ack(volatile struct cpu_message *msg)
 	msg->ack = false;
 }
 
-PER_CPU_VAR(struct spinlock outgoing_msg_lock);
-PER_CPU_VAR(struct cpu_message outgoing_msg[CPU_OUTGOING_MAX]);
-
-struct cpu_message *cpu_alloc_msg_slot_irq(void)
-{
-	unsigned long spins = 5;
-	/* Try spinning 5 times for a message slot */
-	while(spins--)
-	{
-		struct spinlock *lock = get_per_cpu_ptr(outgoing_msg_lock);
-		spin_lock_irqsave(lock);
-		struct cpu_message *outgoing_msgs = (struct cpu_message *) get_per_cpu_ptr(outgoing_msg);
-	
-		for(int i = 0; i < CPU_OUTGOING_MAX; i++)
-		{
-			if(outgoing_msgs[i].sent == false)
-			{
-				outgoing_msgs[i].sent = true;
-				spin_unlock_irqrestore(lock);
-				return &outgoing_msgs[i];
-			}
-		}
-
-		spin_unlock_irqrestore(lock);
-
-		cpu_relax();
-	}
-
-	return NULL;
-}
-
-struct cpu_message *cpu_alloc_msg_slot(void)
-{
-	/* Try and alloc a message slot */
-
-	if(is_in_interrupt())
-		return cpu_alloc_msg_slot_irq();
-
-	while(true)
-	{
-		struct spinlock *lock = get_per_cpu_ptr(outgoing_msg_lock);
-		spin_lock_irqsave(lock);
-		struct cpu_message *outgoing_msgs = (struct cpu_message *) get_per_cpu_ptr(outgoing_msg);
-
-
-		for(int i = 0; i < CPU_OUTGOING_MAX; i++)
-		{
-			if(outgoing_msgs[i].sent == false)
-			{
-				outgoing_msgs[i].sent = true;
-				spin_unlock_irqrestore(lock);
-				return &outgoing_msgs[i];
-			}
-		}
-
-		spin_unlock_irqrestore(lock);
-
-		cpu_relax();
-	}
-	
-}
-
 extern struct serial_port com1;
 void serial_write(const char *s, size_t size, struct serial_port *port);
 
 PER_CPU_VAR(struct spinlock msg_queue_lock);
-PER_CPU_VAR(struct cpu_message *msg_queue);
+PER_CPU_VAR(struct list_head message_queue);
+
+void cpu_messages_init(unsigned int cpu)
+{
+	printk("initing cpu%u\n", cpu);
+	struct list_head *h = get_per_cpu_ptr_any(message_queue, cpu);
+	INIT_LIST_HEAD(h);
+
+	struct spinlock *l = get_per_cpu_ptr_any(msg_queue_lock, cpu);
+	spinlock_init(l);
+}
+
+void cpu_send_resched(unsigned int cpu)
+{
+	apic_send_ipi(apic_get_lapic_id(cpu), 0, X86_RESCHED_VECTOR);
+}
 
 bool cpu_send_message(unsigned int cpu, unsigned long message, void *arg, bool should_wait)
 {
-	struct cpu_message *msg = cpu_alloc_msg_slot();
-	if(!msg)
-		return false;
-
-	msg->ack = false;
 	assert(cpu <= booted_cpus);
 	struct spinlock *message_queue_lock = get_per_cpu_ptr_any(msg_queue_lock, cpu);
-	struct cpu_message *message_queue = get_per_cpu_any(msg_queue, cpu);
+	struct list_head *queue = get_per_cpu_ptr_any(message_queue, cpu);
 
-	/* CPU_KILL messages don't respect locks */
-	if(likely(message != CPU_KILL))
-		spin_lock(message_queue_lock);
-
-	if(unlikely(message == CPU_KILL))
-	{
-		if(!message_queue)
-		{
-			write_per_cpu_any(msg_queue, msg, cpu);
-			message_queue = msg;
-		}
+	struct cpu_message msg;
+	msg.message = message;
+	msg.ptr = arg;
+	msg.sent = true;
+	msg.ack = false;
 	
-		message_queue->message = CPU_KILL;
-		message_queue->ptr = NULL;
-		message_queue->next = NULL;
-	}
-	else
-	{
-		if(!message_queue)
-		{
-			write_per_cpu_any(msg_queue, msg, cpu);
-			message_queue = msg;
-		}
-		else
-		{
-			struct cpu_message *m = message_queue;
-			while(m->next) m = m->next;
-			m->next = msg;
-		}
+	INIT_LIST_HEAD(&msg.node);
 
-		msg->message = message;
-		msg->ptr = arg;
-		msg->next = NULL;
-		spin_unlock(message_queue_lock);
-	}
+	spin_lock_irqsave(message_queue_lock);
+
+	list_add_tail(&msg.node, queue);
+
+	spin_unlock_irqrestore(message_queue_lock);
 
 	cpu_notify(cpu);
 
-	if(message != CPU_KILL && should_wait)
-		cpu_wait_for_msg_ack((volatile struct cpu_message *) msg);
-
-	((volatile struct cpu_message *) msg)->sent = false;
+	cpu_wait_for_msg_ack((volatile struct cpu_message *) &msg);
 
 	return true;
 }
@@ -550,20 +473,10 @@ void cpu_handle_kill(void)
 unsigned long total_resched = 0;
 unsigned long success_resched = 0;
 
-void cpu_try_resched(void *ptr)
+void cpu_try_resched(void)
 {
 	__sync_add_and_fetch(&total_resched, 1);
-	struct thread *thread = ptr;
-
-	struct thread *current = get_current_thread();
-
-	/* If the scheduled thread's prio is > than ours, resched! */
-	if(thread->priority > current->priority)
-	{
-		__sync_add_and_fetch(&success_resched, 1);
-		sched_should_resched();
-		return;
-	}
+	sched_should_resched();
 }
 
 void cpu_handle_message(struct cpu_message *msg)
@@ -579,7 +492,7 @@ void cpu_handle_message(struct cpu_message *msg)
 			break;
 		case CPU_TRY_RESCHED:
 			str = "CPU_TRY_RESCHED";
-			cpu_try_resched(msg->ptr);
+			cpu_try_resched();
 			msg->ack = true;
 			break;
 		case CPU_FLUSH_TLB:
@@ -601,19 +514,34 @@ void cpu_handle_message(struct cpu_message *msg)
 void *cpu_handle_messages(void *stack)
 {
 	struct spinlock *cpu_msg_lock = get_per_cpu_ptr(msg_queue_lock);
+	struct list_head *list = get_per_cpu_ptr(message_queue);
 
-	spin_lock(cpu_msg_lock);
+	spin_lock_irqsave(cpu_msg_lock);
 
-	struct cpu_message *m = get_per_cpu(msg_queue);
-
-	for(struct cpu_message *msg = m; msg != NULL; msg = msg->next)
+	list_for_every_safe(list)
 	{
+		struct cpu_message *msg = container_of(l, struct cpu_message, node);
+
+		list_remove(l);
+
+		COMPILER_BARRIER();
+
 		cpu_handle_message(msg);
 	}
 
-	write_per_cpu(msg_queue, NULL);
+	spin_unlock_irqrestore(cpu_msg_lock);
 
-	spin_unlock(cpu_msg_lock);
+	if(sched_needs_resched(get_current_thread()))
+	{
+		return sched_preempt_thread(stack);
+	}
+
+	return stack;
+}
+
+void *cpu_resched(void *stack)
+{
+	cpu_try_resched();
 
 	if(sched_needs_resched(get_current_thread()))
 	{

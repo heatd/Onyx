@@ -307,7 +307,7 @@ void *sched_switch_thread(void *last_stack)
 		/* Put the scheduler's reference - this might cause a thread to be woken up, so we do it right here */
 		if(curr_thread->status == THREAD_DEAD)
 			thread_put(curr_thread);
-	}		
+	}
 
 	struct thread *source_thread = curr_thread;
 
@@ -639,7 +639,8 @@ void thread_destroy(struct thread *thread)
 	struct work_request req;
 	req.func = thread_finish_destruction;
 	req.param = thread;
-	worker_schedule(&req, WORKER_PRIO_NORMAL);
+	(void) req;
+	//worker_schedule(&req, WORKER_PRIO_NORMAL);
 }
 
 void sched_die(void)
@@ -697,7 +698,7 @@ void sched_try_to_resched(struct thread *thread)
 		if(other_prio < thread->priority)
 		{
 			/* Send a CPU message asking for a resched */
-			cpu_send_message(thread->cpu, CPU_TRY_RESCHED, thread, false);
+			cpu_send_resched(thread->cpu);
 		}
 	}
 }

@@ -16,6 +16,7 @@
 #include <onyx/acpi.h>
 #include <onyx/scheduler.h>
 #include <onyx/compiler.h>
+#include <onyx/list.h>
 
 #ifdef __x86_64__
 #include <onyx/tss.h>
@@ -198,6 +199,7 @@
 #define X86_FEATURE_PCX_L2I		(220)
 
 #define X86_MESSAGE_VECTOR		(130)
+#define X86_RESCHED_VECTOR      (131)
 
 #define X86_CPU_MANUFACTURER_INTEL	0
 #define X86_CPU_MANUFACTURER_AMD	1
@@ -251,7 +253,7 @@ struct cpu_message
 	void *ptr;
 	volatile bool ack;
 	volatile bool sent;
-	struct cpu_message *next;
+	struct list_head node;
 };
 
 #ifdef __cplusplus
@@ -265,8 +267,10 @@ bool is_kernel_ip(uintptr_t ip);
 void cpu_kill_other_cpus(void);
 void cpu_kill(int cpu_num);
 bool cpu_send_message(unsigned int cpu, unsigned long message, void *arg, bool should_wait);
+void cpu_send_resched(unsigned int cpu);
 void __cpu_handle_message(void);
-
+void __cpu_resched(void);
+void cpu_messages_init(unsigned int cpu);
 
 /* CPU messages */
 #define CPU_KILL	(unsigned long) -1

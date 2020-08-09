@@ -7,6 +7,7 @@
 #include <onyx/vector.h>
 #include <onyx/x86/apic.h>
 #include <onyx/smp.h>
+#include <onyx/cpu.h>
 
 extern struct smp_header smpboot_header;
 extern unsigned char _start_smp;
@@ -41,6 +42,8 @@ void boot(unsigned int cpu)
 
 	sched_init_cpu(cpu);
 
+	cpu_messages_init(cpu);
+
 	s->thread_stack = (unsigned long) get_thread_for_cpu(cpu)->kernel_stack_top;
 
 	apic_set_lapic_id(cpu, lapic_ids[cpu]);
@@ -71,6 +74,7 @@ void smp_parse_cpus(void *__madt)
 	}
 
 	smp::set_number_of_cpus(nr_cpus);
+	cpu_messages_init(0);
 
 	/* We're CPU0 and we're online */
 	smp::set_online(0);

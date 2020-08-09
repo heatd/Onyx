@@ -134,7 +134,7 @@ void thread_finish_destruction(void *___thread)
 {
 	thread *thread = static_cast<thread_t *>(___thread);
 
-#if 1
+#if 0
 	/* Destroy the kernel stack */
 	unsigned long stack_base = ((unsigned long) thread->kernel_stack_top) - kernel_stack_size;
 	if(adding_guard_page)
@@ -147,7 +147,8 @@ void thread_finish_destruction(void *___thread)
 	free(thread->fpu_area);
 
 	thread_remove_from_list(thread);
-	
+
+	memset_s(thread, 0x80, sizeof(struct thread));
 	((volatile struct thread *) thread)->canary = THREAD_DEAD_CANARY;
 	/* Free the thread */
 	free(thread);

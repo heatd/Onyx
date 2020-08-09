@@ -65,8 +65,7 @@ int get_input(std::string& str)
 		str += buf;
 	}
 
-	/* TODO: Replace bzero with explicit_bzero */
-	bzero(buf, TEMP_BUF_SIZE);
+	explicit_bzero(buf, TEMP_BUF_SIZE);
 	free(buf);
 
 	return 0;

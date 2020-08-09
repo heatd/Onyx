@@ -42,6 +42,7 @@
 void explicit_bzero(void *ptr, size_t size)
 {
 	memset(ptr, 0, size);
+	__asm__ __volatile__("":::"memory");
 }
 
 struct chacha

@@ -101,6 +101,7 @@ void idt_init(void)
 	x86_reserve_vector(31, isr31);
 	idt_set_system_gate(129,  (uint64_t) _sched_yield, 0x08, 0x8e);
 	x86_reserve_vector(X86_MESSAGE_VECTOR, __cpu_handle_message);
+	x86_reserve_vector(X86_RESCHED_VECTOR, __cpu_resched);
 	x86_reserve_vector(255,  apic_spurious_irq);
 
 	/* Double fault handlers use a separate stack */
