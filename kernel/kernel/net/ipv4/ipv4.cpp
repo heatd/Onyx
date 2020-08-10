@@ -357,50 +357,53 @@ bool valid_packet(struct ip_header *header, size_t size)
 	return true;
 }
 
-void handle_packet(struct ip_header *header, size_t size, struct netif *netif)
+int handle_packet(netif *nif, packetbuf *buf)
 {
-	struct ip_header *usable_header = static_cast<ip_header *>(memdup(header, size));
+	struct ip_header *header = (ip_header *) buf->data;
 
-	if(!valid_packet(usable_header, size))
+	if(!valid_packet(header, buf->length()))
 	{
-		free(usable_header);
-		return;
+		return -EINVAL;
 	}
 
-	uint16_t len = htons(usable_header->total_len);
-	auto iphdr_len = ip_header_length(usable_header);
+	buf->net_header = (unsigned char *) header;
+	buf->domain = AF_INET;
+	auto iphdr_len = ip_header_length(header);
 
-	auto protocol_len = len - iphdr_len;
+	buf->data += iphdr_len;
+
+	/* Adjust tail to point at the end of the ipv4 packet */
+	buf->tail = (unsigned char *) header + ntohs(header->total_len);
 
 	if(header->proto == IPV4_UDP)
-		udp_handle_packet(usable_header, protocol_len, netif);
+		return udp_handle_packet(nif, buf);
 	else if(header->proto == IPV4_TCP)
-		tcp_handle_packet(usable_header, protocol_len, netif);
+		return tcp_handle_packet(nif, buf);
 	else if(header->proto == IPV4_ICMP)
-		icmp::handle_packet(usable_header, protocol_len, netif);
+		return icmp::handle_packet(nif, buf);
 	else
 	{
 		/* Oh, no, an unhandled protocol! Send an ICMP error message */
 
 		icmp::dst_unreachable_info dst_un;
 		dst_un.code = ICMP_CODE_PROTO_UNREACHABLE;
-		dst_un.iphdr = usable_header;
+		dst_un.iphdr = header;
 		unsigned char *dgram;
 		unsigned char bytes[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 		
 		/* We perform this check to make sure we don't leak memory */
-		if(protocol_len >= 8)
-			dgram = (unsigned char *) usable_header + (usable_header->ihl << 2);
+		if(buf->length() >= 8)
+			dgram = (unsigned char *) header + iphdr_len;
 		else
 			dgram = bytes;
 
 		dst_un.dgram = dgram;
 		dst_un.next_hop_mtu = 0;
 
-		icmp::send_dst_unreachable(dst_un, netif);
+		icmp::send_dst_unreachable(dst_un, nif);
 	}
 
-	free(usable_header);
+	return 0;
 }
 
 socket *choose_protocol_and_create(int type, int protocol)
@@ -766,9 +769,28 @@ void inet_socket::unbind()
 	}
 }
 
+void inet_socket::append_inet_rx_pbuf(packetbuf *buf)
+{
+	scoped_lock g{&rx_packet_list_lock};
+
+	buf->ref();
+
+	list_add_tail(&buf->list_node, &rx_packet_list);
+
+	wait_queue_wake_all(&rx_wq);
+}
+
 inet_socket::~inet_socket()
 {
 	unbind();
+
+	list_for_every_safe(&rx_packet_list)
+	{
+		auto buf = list_head_cpp<packetbuf>::self_from_list_head(l);
+		list_remove(&buf->list_node);
+
+		buf->unref();
+	}
 }
 
 int inet_socket::setsockopt_inet(int level, int opt, const void *optval, socklen_t len)

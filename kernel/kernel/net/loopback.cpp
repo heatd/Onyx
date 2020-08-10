@@ -19,7 +19,8 @@ int loopback_send_packet(packetbuf *buf, netif *nif)
 #if 0
 	printk("send packet loopback\n");
 #endif
-	network_handle_packet(buf->data, buf->length(), nif);
+	/* TODO: This doesn't work */
+	//nif->dll_ops->rx_packet(nif, buf);
 	return 0;
 }
 

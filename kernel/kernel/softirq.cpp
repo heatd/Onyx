@@ -8,6 +8,7 @@
 #include <onyx/percpu.h>
 #include <onyx/irq.h>
 #include <onyx/timer.h>
+#include <onyx/net/netif.h>
 
 PER_CPU_VAR(unsigned int pending_vectors);
 
@@ -38,6 +39,12 @@ void softirq_handle()
 	{
 		timer_handle_events(platform_get_timer());
 		pending &= ~(1 << SOFTIRQ_VECTOR_TIMER);
+	}
+
+	if(pending & (1 << SOFTIRQ_VECTOR_NETRX))
+	{
+		netif_do_rx();
+		pending &= ~(1 << SOFTIRQ_VECTOR_NETRX);
 	}
 
 	write_per_cpu(pending_vectors, pending);

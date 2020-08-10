@@ -102,13 +102,15 @@ int send_dst_unreachable(const dst_unreachable_info& info, netif *nif)
 	return ip::v4::send_packet(res.value(), IPV4_ICMP, buf.get(), nif);
 }
 
-void handle_packet(struct ip_header *iphdr, uint16_t length, netif *nif)
+int handle_packet(netif *nif, packetbuf *buf)
 {
-	if(length < min_icmp_size())
-		return;
+	if(buf->length() < min_icmp_size())
+		return -EINVAL;
 
-	auto header = (icmp_header *) ((unsigned char *) iphdr + ip_header_length(iphdr));
-	auto header_length = length;
+	ip_header *iphdr = (ip_header *) buf->net_header;
+
+	auto header = (icmp_header *) buf->data;
+	auto header_length = buf->length();
 
 	switch(header->type)
 	{
@@ -116,6 +118,8 @@ void handle_packet(struct ip_header *iphdr, uint16_t length, netif *nif)
 			send_echo_reply(iphdr, header, header_length, nif);
 			break;
 	}
+
+	return 0;
 }
 
 }

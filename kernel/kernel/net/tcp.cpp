@@ -186,7 +186,7 @@ int tcp_socket::handle_packet(const tcp_socket::packet_handling_data& data)
 
 int tcp_send_rst_no_socket(const sockaddr_in_both& dstaddr, in_port_t srcport, int domain, netif *nif)
 {
-	auto buf = make_unique<packetbuf>();
+	auto buf = make_refc<packetbuf>();
 	if(!buf)
 		return -ENOMEM;
 	
@@ -220,18 +220,18 @@ int tcp_send_rst_no_socket(const sockaddr_in_both& dstaddr, in_port_t srcport, i
 }
 
 extern "C"
-int tcp_handle_packet(struct ip_header *ip_header, size_t size, struct netif *netif)
+int tcp_handle_packet(netif *netif, packetbuf *buf)
 {
+	auto ip_header = (struct ip_header *) buf->net_header;
 	int st = 0;
-	auto ip_header_size = ip_header->ihl << 2;
-	auto header = reinterpret_cast<tcp_header *>(((uint8_t *) ip_header + ip_header_size));
+	auto header = reinterpret_cast<tcp_header *>(buf->data);
 
-	if(!validate_tcp_packet(header, size)) [[unlikely]]
+	if(!validate_tcp_packet(header, buf->length())) [[unlikely]]
 		return 0;
 
 	auto socket = inet_resolve_socket<tcp_socket>(ip_header->source_ip,
                       header->source_port, header->dest_port, IPPROTO_TCP, netif);
-	uint16_t tcp_payload_len = static_cast<uint16_t>(size);
+	uint16_t tcp_payload_len = static_cast<uint16_t>(ntohs(ip_header->total_len) - ip_header_length(ip_header));
 
 	if(!socket)
 	{
@@ -306,7 +306,7 @@ void tcp_packet::put_options(char *opts)
 
 int tcp_packet::send()
 {
-	buf = make_unique<packetbuf>();
+	buf = make_refc<packetbuf>();
 	if(!buf)
 		return -ENOMEM;
 

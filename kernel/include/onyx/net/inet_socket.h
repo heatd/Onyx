@@ -33,13 +33,21 @@ struct inet_socket : public socket
 
 	inet_route route_cache;
 
+	struct list_head rx_packet_list;
+	struct spinlock rx_packet_list_lock;
+	wait_queue rx_wq;
+
 	unsigned int ipv4_on_inet6 : 1,
 	             ipv6_only : 1,
 				 route_cache_valid : 1;
 
 	inet_socket() : socket{}, src_addr{}, dest_addr{}, ipv4_on_inet6{}, ipv6_only{},
 	                route_cache_valid{}
-	{}
+	{
+		INIT_LIST_HEAD(&rx_packet_list);
+		spinlock_init(&rx_packet_list_lock);
+		init_wait_queue_head(&rx_wq);
+	}
 
 	constexpr bool in_ipv4_mode() const
 	{
@@ -91,6 +99,8 @@ struct inet_socket : public socket
 	{
 		return reinterpret_cast<inet_proto_family *>(proto_domain);
 	}
+
+	void append_inet_rx_pbuf(packetbuf *buf);
 
 	virtual ~inet_socket();
 

@@ -73,19 +73,25 @@ private:
 public:
 	void ref()
 	{
+		if(!p)
+			return;
 		p->ref();
 		refed_counter++;
 	}
 
 	void unref()
 	{
+		if(!p)
+			return;
 		p->unref();
 		refed_counter--;
 	}
 
 	void unref_everything()
 	{
-		p->unref_multiple();
+		if(!p)
+			return;
+		p->unref_multiple(refed_counter);
 	}
 
 	void disable()
@@ -94,20 +100,48 @@ public:
 		p = nullptr;
 	}
 
-	ref_guard(T *p) : p(p)
+	explicit ref_guard(T *p) : p(p)
 	{
 		ref();
 	}
 
-	ref_guard(const ref_guard& r) : p(r.ptr), refed_counter(r.refed_counter)
+	ref_guard() : p{nullptr}
 	{
+	}
+
+	operator bool()
+	{
+		return p != nullptr;
+	}
+
+	T* operator->() const
+	{
+		return p;
+	}
+
+	T* get() const
+	{
+		return p;
+	}
+
+	T& operator*() const
+	{
+		return *p;
+	}
+
+	ref_guard(const ref_guard& r) : p(r.p), refed_counter(r.refed_counter)
+	{
+		if(!p)
+			return;
 		p->refer_multiple(refed_counter);
 	}
 
-	ref_guard(ref_guard&& r) : p(r.ptr), refed_counter(r.refed_counter)
+	ref_guard(ref_guard&& r) : p(r.p), refed_counter(r.refed_counter)
 	{
+		if(!p)
+			return;
 		p->refer_multiple(refed_counter);
-		r.ptr = nullptr;
+		r.p = nullptr;
 		r.refed_counter = 0;
 	}
 
@@ -118,7 +152,7 @@ public:
 		*/
 		assert(p == nullptr);
 
-		p = r.ptr;
+		p = r.p;
 		refed_counter = r.refed_counter;
 		p->refer_multiple(refed_counter);
 
@@ -127,9 +161,9 @@ public:
 
 	ref_guard& operator=(ref_guard&& r)
 	{
-		p = r.ptr;
+		p = r.p;
 		refed_counter = r.refed_counter;
-		r.ptr = nullptr;
+		r.p = nullptr;
 		r.refed_counter = 0;
 
 		return *this;
@@ -140,5 +174,17 @@ public:
 		unref_everything();
 	}
 };
+
+template <typename T, class ... Args>
+ref_guard<T> make_refc(Args && ... args)
+{
+	T *data = new T(args...);
+	if(!data)
+		return ref_guard<T>{nullptr};
+
+	ref_guard<T> p(data);
+	return p;
+}
+
 
 #endif

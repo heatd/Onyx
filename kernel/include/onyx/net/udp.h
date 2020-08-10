@@ -8,11 +8,13 @@
 
 #include <stdint.h>
 
-#include <onyx/net/network.h>
 #include <onyx/semaphore.h>
-#include <onyx/net/ip.h>
 #include <onyx/wait_queue.h>
-#include <onyx/net/inet_route.h>
+#include <onyx/scoped_lock.h>
+
+#include <onyx/net/ip.h>
+#include <onyx/net/network.h>
+
 
 typedef struct udp
 {
@@ -33,6 +35,28 @@ struct udp_packet
 
 class udp_socket : public inet_socket
 {
+	packetbuf *get_rx_head()
+	{
+		if(list_is_empty(&rx_packet_list))
+			return nullptr;
+		
+		return list_head_cpp<packetbuf>::self_from_list_head(list_first_element(&rx_packet_list));
+	}
+
+	bool has_data_available()
+	{
+		scoped_lock g{&rx_packet_list_lock};
+
+		return !list_is_empty(&rx_packet_list);
+	}
+
+	expected<packetbuf *, int> get_datagram(int flags);
+
+	int wait_for_dgrams()
+	{
+		return wait_for_event_locked_interruptible(&rx_wq, !list_is_empty(&rx_packet_list), &rx_packet_list_lock);
+	}
+
 public:
 	int bind(sockaddr *addr, socklen_t len) override;
 	int connect(sockaddr *addr, socklen_t len) override;
@@ -41,10 +65,18 @@ public:
 	int setsockopt(int level, int optname, const void *val, socklen_t len) override;
 	int send_packet(const msghdr *msg, ssize_t payload_size, in_port_t source_port, in_port_t dest_port,
 	                inet_route& route);
+	ssize_t recvmsg(msghdr *msg, int flags) override;
+
+	void rx_dgram(packetbuf *buf)
+	{
+		append_inet_rx_pbuf(buf);
+	}
+
+	short poll(void *poll_file, short events) override;
 };
 
 struct socket *udp_create_socket(int type);
 int udp_init_netif(struct netif *netif);
-void udp_handle_packet(struct ip_header *header, size_t length, struct netif *netif);
+int udp_handle_packet(netif *netif, packetbuf *buf);
 
 #endif

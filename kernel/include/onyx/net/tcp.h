@@ -160,7 +160,7 @@ class tcp_packet : public refcountable
 public:
 	cul::slice<const uint8_t> payload;
 	tcp_socket *socket;
-	unique_ptr<packetbuf> buf;
+	ref_guard<packetbuf> buf;
 	struct list_head option_list;
 	uint16_t flags;
 	const inet_sock_address &saddr;
@@ -409,7 +409,7 @@ extern "C" {
 
 struct socket *tcp_create_socket(int type);
 int tcp_init_netif(struct netif *netif);
-int tcp_handle_packet(struct ip_header *header, size_t size, struct netif *netif);
+int tcp_handle_packet(netif *netif, packetbuf *buf);
 
 #ifdef __cplusplus
 }

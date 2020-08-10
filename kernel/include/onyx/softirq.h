@@ -12,7 +12,8 @@ extern "C" {
 
 enum softirq_vector
 {
-	SOFTIRQ_VECTOR_TIMER = 0
+	SOFTIRQ_VECTOR_TIMER = 0,
+	SOFTIRQ_VECTOR_NETRX
 };
 
 void softirq_raise(enum softirq_vector vec);

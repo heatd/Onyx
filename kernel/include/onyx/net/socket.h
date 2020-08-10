@@ -163,7 +163,7 @@ public:
 
 	ssize_t default_recvfrom(void *buf, size_t len, int flags, sockaddr *src_addr, socklen_t *slen);
 	bool has_data_available(int msg_flags, size_t required_data);
-	short poll(void *poll_file, short events);
+	virtual short poll(void *poll_file, short events);
 
 	template <typename Type>
 	expected<Type, int> get_socket_option(void *optval, const socklen_t *optlen)
@@ -211,11 +211,7 @@ public:
 	virtual int bind(sockaddr *addr, socklen_t addrlen);
 	virtual int connect(sockaddr *addr, socklen_t addrlen);
 	virtual ssize_t sendmsg(const struct msghdr *msg,	int flags);
-	virtual ssize_t sendto(const void *buf, size_t len, int flags,
-                           sockaddr *addr, socklen_t addrlen);
-
-	virtual ssize_t recvfrom(void *buf, size_t len, int flags, sockaddr *addr, 
-                             socklen_t *slen);
+	virtual ssize_t recvmsg(struct msghdr *msg, int flags);
 	virtual int getsockopt(int level, int optname, void *optval, socklen_t *optlen) = 0;
 	virtual int setsockopt(int level, int optname, const void *optval, socklen_t optlen) = 0;
 };

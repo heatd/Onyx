@@ -29,25 +29,6 @@
 static const char *hostname = "";
 
 extern "C"
-int network_handle_packet(uint8_t *packet, uint16_t len, struct netif *netif)
-{
-	struct eth_header *hdr = (struct eth_header*) packet;
-	
-	/* Bad packet */
-	if(sizeof(struct eth_header) >= len)
-		return 0;
-	
-	auto remaining_len = len - sizeof(struct eth_header);
-	hdr->ethertype = ntohs(hdr->ethertype);
-	if(hdr->ethertype == PROTO_IPV4)
-		ip::v4::handle_packet((struct ip_header *)(hdr + 1), remaining_len, netif);
-	else if(hdr->ethertype == PROTO_ARP)
-		arp_handle_packet((arp_request_t*)(hdr + 1), remaining_len, netif);
-
-	return 0;
-}
-
-extern "C"
 const char *network_gethostname()
 {
 	return hostname;
@@ -66,7 +47,7 @@ memory_pool<network_args, MEMORY_POOL_USABLE_ON_IRQ> pool;
 void network_do_dispatch(void *__args)
 {
 	network_args *args = reinterpret_cast<network_args *>(__args);
-	network_handle_packet(args->buffer, args->size, args->netif);
+	//network_handle_packet(args->buffer, args->size, args->netif);
 	pool.free(args);
 }
 

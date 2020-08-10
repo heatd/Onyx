@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <endian.h>
 
+#include <onyx/scoped_lock.h>
 #include <onyx/dev.h>
 #include <onyx/net/ip.h>
 #include <onyx/net/udp.h>
@@ -20,6 +21,8 @@
 #include <onyx/byteswap.h>
 #include <onyx/packetbuf.h>
 #include <onyx/memory.hpp>
+#include <onyx/poll.h>
+
 #include <onyx/net/icmp.h>
 
 #include <netinet/in.h>
@@ -58,7 +61,7 @@ int udp_socket::send_packet(const msghdr *msg, ssize_t payload_size, in_port_t s
 	if(payload_size > UINT16_MAX)
 		return -EMSGSIZE;
 
-	unique_ptr b = make_unique<packetbuf>();
+	auto b = make_refc<packetbuf>();
 	if(!b)
 		return -ENOMEM;
 
@@ -210,12 +213,14 @@ bool valid_udp_packet(udp_header_t *header, size_t length)
 	return true;
 }
 
-void udp_handle_packet(ip_header *header, size_t length, netif *netif)
+int udp_handle_packet(netif *netif, packetbuf *buf)
 {
-	udp_header_t *udp_header = (udp_header_t *) (header + 1);
+	udp_header_t *udp_header = (udp_header_t *) buf->data;
 
-	if(!valid_udp_packet(udp_header, length))
-		return;
+	if(!valid_udp_packet(udp_header, buf->length()))
+		return -EINVAL;
+	
+	auto header = (ip_header *) buf->net_header;
 
 	sockaddr_in socket_dst;
 	ipv4_to_sockaddr(header->source_ip, udp_header->source_port, socket_dst);
@@ -228,35 +233,130 @@ void udp_handle_packet(ip_header *header, size_t length, netif *netif)
 		icmp::dst_unreachable_info dst_un{ICMP_CODE_PORT_UNREACHABLE, 0,
 		                (const unsigned char *) udp_header, header};
 		icmp::send_dst_unreachable(dst_un, netif);
-		return;
+		return 0;
 	}
 
-	size_t payload_len = ntoh16(udp_header->len) - sizeof(udp_header_t);
+	buf->transport_header = (unsigned char *) udp_header;
+	buf->data += sizeof(udp_header_t);
 
-	recv_packet *p = new recv_packet();
-	if(!p)
-	{
-		printf("udp: Could not allocate packet memory\n");
-		goto out;
-	}
+	socket->rx_dgram(buf);
 
-	p->size = payload_len;
-	p->payload = memdup(udp_header + 1, payload_len);
-
-	if(!p->payload)
-	{
-		printf("udp: Could not allocate payload memory\n");
-		delete p;
-		goto out;
-	}
-
-	memcpy(&p->src_addr, &socket_dst, sizeof(socket_dst));
-	p->addr_len = sizeof(sockaddr_in);
-	
-	socket->in_band_queue.add_packet(p);
-
-out:
 	socket->unref();
+	return 0;
+}
+
+expected<packetbuf *, int> udp_socket::get_datagram(int flags)
+{
+	scoped_lock g{&rx_packet_list_lock};
+
+	int st = 0;
+	packetbuf *buf = nullptr;
+
+	do
+	{
+		if(st == -EINTR)
+			return unexpected<int>{st};
+
+		buf = get_rx_head();
+		if(!buf && flags & MSG_DONTWAIT)
+			return unexpected<int>{-EWOULDBLOCK};
+
+		st = wait_for_dgrams();
+	} while(!buf);
+
+	g.keep_locked();
+
+	return buf;
+}
+
+static void copy_msgname_to_user(struct msghdr *msg, packetbuf *buf)
+{
+	udp_header_t *udp_header = (udp_header_t *) buf->transport_header;
+
+	if(buf->domain == AF_INET)
+	{
+		const ip_header *hdr = (const ip_header *) buf->net_header;
+		sockaddr_in in;
+		explicit_bzero(&in, sizeof(in));
+
+		in.sin_family = AF_INET;
+		in.sin_port = udp_header->source_port;
+		in.sin_addr.s_addr = hdr->source_ip;
+
+		memcpy(msg->msg_name, &in, msg->msg_namelen);
+
+		msg->msg_namelen = min(sizeof(in), (size_t) msg->msg_namelen);
+	}
+	else // if(buf->domain == AF_INET6)
+	{
+		const ip6hdr *hdr = (const ip6hdr *) buf->net_header;
+
+		sockaddr_in6 in6;
+		explicit_bzero(&in6, sizeof(in6));
+
+		in6.sin6_family = AF_INET6;
+		/* TODO: Probably not correct */
+		in6.sin6_flowinfo = hdr->flow_label[0] | hdr->flow_label[1] << 8 | hdr->flow_label[2] << 16;;
+		in6.sin6_port = udp_header->source_port;
+		memcpy(&in6.sin6_addr, &hdr->src_addr, sizeof(hdr->src_addr));
+
+		memcpy(msg->msg_name, &in6, msg->msg_namelen);
+
+		msg->msg_namelen = min(sizeof(in6), (size_t) msg->msg_namelen);
+	}
+}
+
+ssize_t udp_socket::recvmsg(msghdr *msg, int flags)
+{
+	auto iovlen = iovec_count_length(msg->msg_iov, msg->msg_iovlen);
+	if(iovlen < 0)
+		return iovlen;
+
+	auto st = get_datagram(flags);
+	if(st.has_error())
+		return st.error();
+
+	auto buf = st.value();
+	ssize_t read = iovlen;
+
+	if(iovlen < buf->length())
+		msg->msg_flags = MSG_TRUNC;
+
+	if(flags & MSG_TRUNC)
+	{
+		read = buf->length();
+	}
+
+	auto ptr = buf->data;
+
+	if(msg->msg_name)
+	{
+		copy_msgname_to_user(msg, buf);
+	}
+
+	for(int i = 0; i < msg->msg_iovlen; i++)
+	{
+		auto iov = msg->msg_iov[i];
+		if(copy_to_user(iov.iov_base, ptr, iov.iov_len) < 0)
+		{
+			spin_unlock(&rx_packet_list_lock);
+			return -EFAULT;
+		}
+
+		ptr += iov.iov_len;
+	}
+
+	msg->msg_controllen = 0;
+
+	if(!(flags & MSG_PEEK))
+	{
+		list_remove(&buf->list_node);
+		buf->unref();
+	}
+
+	spin_unlock(&rx_packet_list_lock);
+
+	return read;
 }
 
 int udp_socket::getsockopt(int level, int optname, void *val, socklen_t *len)
@@ -277,4 +377,21 @@ int udp_socket::setsockopt(int level, int optname, const void *val, socklen_t le
 		return setsockopt_socket_level(optname, val, len);
 	
 	return -ENOPROTOOPT;
+}
+
+short udp_socket::poll(void *poll_file, short events)
+{
+	short avail_events = POLLOUT;
+
+	if(events & POLLIN)
+	{
+		if(has_data_available())
+			avail_events |= POLLIN;
+		else
+			poll_wait_helper(poll_file, &rx_wq);
+	}
+
+	//printk("avail events: %u\n", avail_events);
+
+	return avail_events & events;
 }

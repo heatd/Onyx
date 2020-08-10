@@ -48,3 +48,27 @@ int eth_dll_ops::setup_header(packetbuf *buf, tx_type type, tx_protocol proto, n
 
 	return 0;
 }
+
+extern "C"
+int eth_dll_ops::rx_packet(netif *netif, packetbuf *buf)
+{
+	struct eth_header *hdr = (struct eth_header*) buf->data;
+
+	/* Bad packet */
+	if(sizeof(struct eth_header) >= buf->length())
+		return -EIO;
+
+	buf->data += sizeof(eth_header);
+	
+	auto ethertype = ntohs(hdr->ethertype);
+	
+	switch(ethertype)
+	{
+		case PROTO_IPV4:
+			return ip::v4::handle_packet(netif, buf);
+		case PROTO_ARP:
+			return arp_handle_packet(netif, buf);
+	}
+
+	return 0;
+}

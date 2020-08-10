@@ -11,6 +11,7 @@
 
 #include <onyx/page.h>
 #include <onyx/page_iov.h>
+#include <onyx/refcount.h>
 
 #define PACKETBUF_MAX_NR_PAGES    (UINT16_MAX / PAGE_SIZE)
 
@@ -22,7 +23,7 @@ struct vm_object;
 #define PACKETBUF_GSO_TSO6          (1 << 1)
 #define PACKETBUF_GSO_UFO           (1 << 2)
 
-struct packetbuf
+struct packetbuf : public refcountable
 {
 	/* Reasoning behind this - We're going to need at
 	 * most 64KiB of space for the buffer, since that's the most we'll
@@ -55,14 +56,18 @@ struct packetbuf
 
 	unsigned int needs_csum : 1;
 	unsigned int zero_copy : 1;
+	int domain;
+
+	list_head_cpp<packetbuf> list_node;
 
 	/**
 	 * @brief Construct a new default packetbuf object.
 	 * 
 	 */
-	packetbuf() : page_vec{}, net_header{}, transport_header{}, data{}, tail{},
+	packetbuf() : refcountable{}, page_vec{}, net_header{}, transport_header{}, data{}, tail{},
 	              end{}, buffer_start{}, csum_offset{nullptr}, csum_start{nullptr},
-				  vmo{}, header_length{}, gso_size{}, gso_flags{}, needs_csum{0}, zero_copy{0} {}
+				  vmo{}, header_length{}, gso_size{}, gso_flags{}, needs_csum{0}, zero_copy{0},
+				  domain{0}, list_node{this} {}
 	
 	~packetbuf();
 

@@ -148,6 +148,22 @@ struct e1000_rx_desc
 	volatile uint16_t special;
 } __attribute__((packed));
 
+#define RSTA_DD    (1 << 0)
+#define RSTA_EOP   (1 << 1)
+#define RSTA_IXSM  (1 << 2)
+#define RSTA_VP    (1 << 3)
+#define RSTA_TCPCS (1 << 5)
+#define RSTA_IPCS  (1 << 6)
+#define RSTA_PIF   (1 << 7)
+
+#define RERR_CE    (1 << 0)
+#define RERR_SE    (1 << 1)
+#define RERR_SEQ   (1 << 2)
+#define RERR_CXE   (1 << 4)
+#define RERR_TCPE  (1 << 5)
+#define RERR_IPE   (1 << 6)
+#define RERR_RXE   (1 << 7)
+
 
 /* Transmit Command */
  

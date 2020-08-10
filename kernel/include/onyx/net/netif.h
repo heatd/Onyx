@@ -22,6 +22,9 @@ struct netif;
 #define NETIF_SUPPORTS_TSO6						(1 << 4)
 #define NETIF_SUPPORTS_UFO                      (1 << 5)
 #define NETIF_LOOPBACK                          (1 << 5)
+#define NETIF_HAS_RX_AVAILABLE                  (1 << 6)
+#define NETIF_DOING_RX_POLL                     (1 << 7)
+#define NETIF_MISSED_RX                         (1 << 8)
 
 /* Defined as an opaque struct since it's C++ TODO: Yuck. */
 struct sockets_info;
@@ -38,7 +41,10 @@ struct netif
 	unsigned char mac_address[6];
 	struct sockaddr_in local_ip;
 	int (*sendpacket)(packetbuf *buf, struct netif *nif);
+	int (*poll_rx)(struct netif *nif);
+	void (*rx_end)(struct netif *nif);
 	struct list_head list_node;
+	struct list_head rx_queue_node;
 	struct sockets_info *sock_info;
 	data_link_layer_ops *dll_ops;
 };
@@ -94,6 +100,9 @@ struct netif *netif_get_from_addr(const inet_sock_address& s, int domain);
 struct list_head *netif_lock_and_get_list(void);
 void netif_unlock_list(void);
 struct netif *netif_from_name(const char *name);
+int netif_do_rx(void);
+void netif_signal_rx(netif *nif);
+int netif_process_pbuf(netif *nif, packetbuf *buf);
 
 #ifdef __cplusplus
 }

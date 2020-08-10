@@ -26,6 +26,7 @@ class data_link_layer_ops
 {
 public:
 	virtual int setup_header(packetbuf *buf, tx_type type, tx_protocol proto, netif *nif, const void *dst_hw) = 0;
+	virtual int rx_packet(netif *nif, packetbuf *buf) = 0;
 };
 
 #endif

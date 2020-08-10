@@ -12,6 +12,9 @@
 #include <onyx/net/udp.h>
 #include <onyx/net/tcp.h>
 #include <onyx/byteswap.h>
+#include <onyx/softirq.h>
+#include <onyx/init.h>
+
 #include <onyx/net/sockets_info.hpp>
 
 #include <sys/ioctl.h>
@@ -339,4 +342,108 @@ netif *netif_from_name(const char *name)
 	spin_unlock(&netif_list_lock);
 
 	return nullptr;
+}
+
+struct rx_queue_percpu
+{
+	struct list_head to_rx_list;
+	struct spinlock lock;
+};
+
+PER_CPU_VAR(rx_queue_percpu rx_queue);
+
+static void init_rx_queues()
+{
+	auto q = get_per_cpu_ptr(rx_queue);
+	spinlock_init(&q->lock);
+	INIT_LIST_HEAD(&q->to_rx_list);
+}
+
+INIT_LEVEL_CORE_PERCPU_CTOR(init_rx_queues);
+
+extern "C"
+void netif_signal_rx(netif *nif)
+{
+	unsigned int flags, og_flags;
+
+	do
+	{
+		flags = nif->flags;
+		og_flags = flags;
+
+		flags |= NETIF_HAS_RX_AVAILABLE;
+
+		if(og_flags & NETIF_DOING_RX_POLL)
+			flags |= NETIF_MISSED_RX;
+		
+
+	} while(!__atomic_compare_exchange_n(&nif->flags, &og_flags, flags,
+		                               false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED));
+	
+	if(og_flags & NETIF_HAS_RX_AVAILABLE)
+		return;
+
+	auto queue = get_per_cpu_ptr(rx_queue);
+
+	spin_lock_irqsave(&queue->lock);
+
+	list_add_tail(&nif->rx_queue_node, &queue->to_rx_list);
+
+	spin_unlock_irqrestore(&queue->lock);
+
+	softirq_raise(softirq_vector::SOFTIRQ_VECTOR_NETRX);
+}
+
+void netif_do_rxpoll(netif *nif)
+{
+	__atomic_or_fetch(&nif->flags, NETIF_DOING_RX_POLL, __ATOMIC_RELAXED);
+
+	while(true)
+	{
+		nif->poll_rx(nif);
+
+		unsigned int flags, og_flags;
+
+		do
+		{
+			og_flags = flags = nif->flags;
+
+			if(!(og_flags & NETIF_MISSED_RX))
+			{
+				nif->rx_end(nif);
+				flags &= ~(NETIF_HAS_RX_AVAILABLE | NETIF_DOING_RX_POLL);
+			}
+			
+			flags &= ~NETIF_MISSED_RX;
+
+		} while(!__atomic_compare_exchange_n(&nif->flags, &og_flags, flags,
+		                               false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED));
+		
+		if(!(flags & NETIF_DOING_RX_POLL))
+			break;
+	}
+}
+
+extern "C"
+int netif_do_rx(void)
+{
+	auto queue = get_per_cpu_ptr(rx_queue);
+
+	scoped_lock g{&queue->lock};
+
+	list_for_every(&queue->to_rx_list)
+	{
+		netif *n = container_of(l, netif, rx_queue_node);
+
+		netif_do_rxpoll(n);
+	}
+
+	list_reset(&queue->to_rx_list);
+
+	return 0;
+}
+
+int netif_process_pbuf(netif *nif, packetbuf *buf)
+{
+	return nif->dll_ops->rx_packet(nif, buf);
 }

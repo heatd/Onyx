@@ -26,8 +26,13 @@ static constexpr hrtime_t arp_response_timeout = 250 * NS_PER_MS;
 /* 20 minutes in milis */
 static constexpr unsigned long arp_validity_time_ms = 1200000;
 
-int arp_handle_packet(arp_request_t *arp, uint16_t len, struct netif *netif)
+int arp_handle_packet(netif *netif, packetbuf *buf)
 {
+	auto arp = (arp_request_t *) buf->data;
+
+	if(buf->length() < sizeof(arp_request_t))
+		return -EINVAL;
+
 	/* We're not interested in handling requests right now. TODO: Maybe add this? */
 	if(htons(arp->operation) != ARP_OP_REPLY)
 		return 0;
@@ -70,6 +75,8 @@ int arp_submit_request(shared_ptr<neighbour>& ptr, uint32_t target_addr, struct 
 		{
 			return -ENOMEM;
 		}
+
+		return 0;
 	}
 
 	auto buf = make_unique<packetbuf>();

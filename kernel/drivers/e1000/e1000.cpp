@@ -127,15 +127,40 @@ static void e1000_init_busmastering(struct e1000_device *dev)
 	pci_enable_busmastering(dev->nicdev);
 }
 
-void e1000_handle_receive(struct e1000_device *dev)
+int e1000_process_packet(netif *nif, e1000_rx_desc& desc)
 {
-	uint16_t old_cur = 0;
-	while((dev->rx_descs[dev->rx_cur].status & 0x1))
-	{
-		uint8_t *buf = (uint8_t *) dev->rx_descs[dev->rx_cur].addr;
-		uint16_t len = dev->rx_descs[dev->rx_cur].length;
+	if(desc.errors != 0)
+		return -EIO;
 
-		network_dispatch_receive(buf + PHYS_BASE, len, dev->nic_netif);
+	auto pckt = make_refc<packetbuf>(); 
+	if(!pckt)
+		return -ENOMEM;
+
+	if(!pckt->allocate_space(desc.length))
+		return -ENOMEM;
+
+	if(desc.status & (RSTA_IXSM))
+	{
+		pckt->needs_csum = 1;
+	}
+
+	void *p = pckt->put(desc.length);
+
+	memcpy(p, PHYS_TO_VIRT(desc.addr), desc.length);
+
+	return netif_process_pbuf(nif, pckt.get());
+}
+
+int e1000_pollrx(netif *nif)
+{
+	e1000_device *dev = (e1000_device *) nif->priv;
+
+	uint16_t old_cur = 0;
+	while((dev->rx_descs[dev->rx_cur].status & RSTA_DD))
+	{
+		auto &rxd = dev->rx_descs[dev->rx_cur];
+
+		e1000_process_packet(nif, rxd);
 
 		dev->rx_descs[dev->rx_cur].status = 0;
 		old_cur = dev->rx_cur;
@@ -144,7 +169,18 @@ void e1000_handle_receive(struct e1000_device *dev)
 
 		e1000_write(REG_RXDESCTAIL, old_cur, dev);
 	}
+
+	return 0;
 }
+
+void e1000_rxend(netif *nif)
+{
+	e1000_device *dev = (e1000_device *) nif->priv;
+
+	e1000_write(REG_IMS, IMS_TXDW | IMS_TXQE | IMS_RXT0, dev);
+}
+
+unsigned int e1000_irqs = 0;
 
 irqstatus_t e1000_irq(struct irq_context *ctx, void *cookie)
 {
@@ -153,7 +189,9 @@ irqstatus_t e1000_irq(struct irq_context *ctx, void *cookie)
 	volatile uint32_t status = e1000_read(REG_ICR, device);
 	if(status & ICR_RXT0)
 	{
-		e1000_handle_receive(device);
+		netif_signal_rx(device->nic_netif);
+		e1000_write(REG_IMS, IMS_TXDW | IMS_TXQE, device);
+		e1000_irqs++;
 	}
 	
 	return IRQ_HANDLED;
@@ -763,6 +801,8 @@ int e1000_probe(struct device *__dev)
 	n->sendpacket = e1000_send_packet;
 	n->priv = nicdev;
 	n->mtu = 1500;
+	n->poll_rx = e1000_pollrx;
+	n->rx_end = e1000_rxend;
 	nicdev->nic_netif = n;
 	n->dll_ops = &eth_ops;
 	memcpy(n->mac_address, nicdev->e1000_internal_mac_address, 6);

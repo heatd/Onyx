@@ -18,7 +18,8 @@ enum INIT_LEVEL
 	INIT_LEVEL_CORE_PLATFORM,
 	INIT_LEVEL_CORE_INIT,
 	INIT_LEVEL_CORE_AFTER_SCHED,
-	INIT_LEVEL_CORE_KERNEL
+	INIT_LEVEL_CORE_KERNEL,
+	INIT_LEVEL_CORE_PERCPU_CTOR
 };
 
 #define __INIT_ENTRY(func, x)		__attribute__((section(".init.level" # x), used, aligned(1))) \
@@ -33,5 +34,16 @@ static void (*__PASTE(func, __COUNTER__))(void) = func
 #define INIT_LEVEL_CORE_INIT_ENTRY(func)            __INIT_ENTRY(func, 5)
 #define INIT_LEVEL_CORE_AFTER_SCHED_ENTRY(func)     __INIT_ENTRY(func, 6)
 #define INIT_LEVEL_CORE_KERNEL_ENTRY(func)          __INIT_ENTRY(func, 7)
+#define INIT_LEVEL_CORE_PERCPU_CTOR(func)          __INIT_ENTRY(func, 8)
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void do_init_level(unsigned int level);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

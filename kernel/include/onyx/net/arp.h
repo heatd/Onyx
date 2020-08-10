@@ -11,6 +11,7 @@
 
 #include <onyx/net/ethernet.h>
 #include <onyx/net/neighbour.h>
+#include <onyx/packetbuf.h>
 #include <onyx/expected.hpp>
 
 #define ARP_ETHERNET ((uint16_t)1)
@@ -40,7 +41,7 @@ extern "C" {
 #endif
 
 expected<shared_ptr<neighbour>, int> arp_resolve_in(uint32_t ip, struct netif *netif);
-int arp_handle_packet(arp_request_t *arp, uint16_t len, struct netif *netif);
+int arp_handle_packet(netif *netif, packetbuf *buf);
 
 #ifdef __cplusplus
 }

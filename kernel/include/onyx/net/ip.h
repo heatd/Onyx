@@ -178,7 +178,7 @@ int send_packet(inet_route& route, unsigned int type,
 
 socket *create_socket(int type, int protocol);
 
-void handle_packet(struct ip_header *header, size_t size, struct netif *netif);
+int handle_packet(netif *nif, packetbuf *buf);
 
 bool add_route(inet4_route &route);
 

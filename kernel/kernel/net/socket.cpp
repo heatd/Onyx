@@ -46,18 +46,7 @@ int socket::connect(struct sockaddr *addr, socklen_t addrlen)
 	return -EIO;
 }
 
-ssize_t socket::sendto(const void *buf, size_t len, int flags,
-		struct sockaddr *addr, socklen_t addrlen)
-{
-	(void) buf;
-	(void) len;
-	(void) flags;
-	(void) addr;
-	(void) addrlen;
-	return -EIO;
-}
-
-ssize_t socket::sendmsg(const struct msghdr *msg,	int flags)
+ssize_t socket::sendmsg(const struct msghdr *msg, int flags)
 {
 	(void) msg;
 	(void) flags;
@@ -224,25 +213,50 @@ void recv_queue::add_packet(recv_packet *p)
 
 }
 
-ssize_t socket::socket::recvfrom(void *buf, size_t len, int flags, sockaddr *src_addr, socklen_t *slen)
+ssize_t socket::recvmsg(struct msghdr *msg, int flags)
 {
-	recv_queue &q = (flags & MSG_OOB) ? oob_data_queue : in_band_queue;
-
-	return q.recvfrom(buf, len, flags, src_addr, slen);
+	return -EIO;
 }
 
 size_t socket_write(size_t offset, size_t len, void* buffer, struct file *file)
 {
 	socket *s = file_to_socket(file);
 
-	return s->sendto(buffer, len, fd_flags_to_msg_flags(file), nullptr, 0);
+	msghdr msg;
+	msg.msg_control = nullptr;
+	msg.msg_controllen = 0;
+	msg.msg_flags = 0;
+	
+	iovec vec0;
+	/* This cast is safe because sendmsg won't write to the iov */
+	vec0.iov_base = const_cast<void *>(buffer);
+	vec0.iov_len = len;
+	msg.msg_iov = &vec0;
+	msg.msg_iovlen = 1;
+	msg.msg_name = nullptr;
+	msg.msg_namelen = 0;
+
+	return s->sendmsg(&msg, fd_flags_to_msg_flags(file));
 }
 
 size_t socket_read(size_t offset, size_t len, void *buffer, file *file)
 {
 	socket *s = file_to_socket(file);
+	msghdr msg;
+	msg.msg_control = nullptr;
+	msg.msg_controllen = 0;
+	msg.msg_flags = 0;
+	
+	iovec vec0;
+	/* This cast is safe because sendmsg won't write to the iov */
+	vec0.iov_base = buffer;
+	vec0.iov_len = len;
+	msg.msg_iov = &vec0;
+	msg.msg_iovlen = 1;
+	msg.msg_name = nullptr;
+	msg.msg_namelen = 0;
 
-	return s->recvfrom(buffer, len, fd_flags_to_msg_flags(file), nullptr, nullptr);
+	return s->recvmsg(&msg, fd_flags_to_msg_flags(file));
 }
 
 short socket::poll(void *poll_file, short events)
@@ -379,7 +393,7 @@ out:
 
 extern "C"
 ssize_t sys_recvfrom(int sockfd, void *buf, size_t len, int flags,
-                     struct sockaddr *src_addr, socklen_t *addrlen)
+                     struct sockaddr *src_addr, socklen_t *paddrlen)
 {
 	struct file *desc = get_socket_fd(sockfd);
 	if(!desc)
@@ -388,10 +402,52 @@ ssize_t sys_recvfrom(int sockfd, void *buf, size_t len, int flags,
 	socket *s = file_to_socket(desc);
 
 	flags |= fd_flags_to_msg_flags(desc);
+	socklen_t addrlen = 0;
 
-	ssize_t ret = s->recvfrom(buf, len, flags, src_addr, addrlen);
+	sockaddr_storage sa;
+
+	if(src_addr)
+	{
+		if(copy_from_user(&addrlen, paddrlen, sizeof(addrlen)) < 0)
+			return -EFAULT;
+
+		if(addrlen > sizeof(sa))
+			return -EINVAL;
+
+		if(copy_from_user(&sa, src_addr, addrlen) < 0)
+			return -EFAULT;
+	}
+
+	msghdr msg;
+	msg.msg_control = nullptr;
+	msg.msg_controllen = 0;
+	msg.msg_flags = 0;
+	
+	iovec vec0;
+	/* This cast is safe because sendmsg won't write to the iov */
+	vec0.iov_base = const_cast<void *>(buf);
+	vec0.iov_len = len;
+	msg.msg_iov = &vec0;
+	msg.msg_iovlen = 1;
+	msg.msg_name = src_addr ? &sa : nullptr;
+	msg.msg_namelen = src_addr ? addrlen : 0;
+
+	ssize_t ret = s->recvmsg(&msg, flags);
 
 	fd_put(desc);
+
+	if(ret < 0)
+		return ret;
+	
+	if(src_addr)
+	{
+		if(copy_to_user(paddrlen, &msg.msg_namelen, sizeof(socklen_t)) < 0)
+			return -EFAULT;
+		
+		if(copy_to_user(src_addr, msg.msg_name, msg.msg_namelen) < 0)
+			return -EFAULT;
+	}
+
 	return ret;
 }
 
@@ -841,6 +897,10 @@ struct msghdr_guard
 	sockaddr_storage sa;
 	int vecs_allocated : 1;
 	void *msg_control;
+	void *ucontrol{};
+	void *uiov{};
+	void *uname{};
+
 
 	msghdr_guard() : vecs{inline_vecs}, inline_vecs{}, sa{}, vecs_allocated{0}, msg_control{}
 	{}
@@ -867,6 +927,8 @@ int copy_msghdr_from_user(msghdr *msg, const msghdr *umsg, msghdr_guard& guard)
 		if(copy_from_user(&guard.sa, msg->msg_name, msg->msg_namelen) < 0)
 			return -EFAULT;
 
+		guard.uname = msg->msg_name;
+
 		msg->msg_name = &guard.sa;
 	}
 
@@ -886,6 +948,8 @@ int copy_msghdr_from_user(msghdr *msg, const msghdr *umsg, msghdr_guard& guard)
 
 	if(copy_from_user(guard.vecs, msg->msg_iov, sizeof(iovec) * msg->msg_iovlen) < 0)
 		return -EFAULT;
+
+	guard.uiov = msg->msg_iov;
 	
 	msg->msg_iov = guard.vecs;
 
@@ -897,6 +961,8 @@ int copy_msghdr_from_user(msghdr *msg, const msghdr *umsg, msghdr_guard& guard)
 		
 		if(copy_from_user(buf, msg->msg_control, msg->msg_controllen) < 0)
 			return -EFAULT;
+
+		guard.ucontrol = msg->msg_control;
 		guard.msg_control = msg->msg_control = buf;
 	}
 
@@ -966,5 +1032,52 @@ ssize_t sys_sendmsg(int sockfd, struct msghdr *msg, int flags)
 	
 	socket *sock = file_to_socket(f);
 
-	return sock->sendmsg(msg, flags);
+	return socket_sendmsg(sock, msg, flags | fd_flags_to_msg_flags(f));
+}
+
+ssize_t socket_recvmsg(socket *sock, msghdr *umsg, int flags)
+{
+	msghdr msg;
+	msghdr_guard g;
+
+	if(int st = copy_msghdr_from_user(&msg, umsg, g); st < 0)
+		return st;
+	
+	auto st = sock->sendmsg(&msg, flags);
+
+	if(st < 0)
+		return st;
+	
+	msg.msg_control = g.ucontrol;
+	msg.msg_iov = (iovec *) g.uiov;
+	msg.msg_name = g.uname;
+
+	if(msg.msg_control)
+	{
+		if(copy_to_user(msg.msg_control, g.msg_control, msg.msg_controllen) < 0)
+			return -EFAULT;
+	}
+
+	if(msg.msg_name)
+	{
+		if(copy_to_user(msg.msg_name, g.uname, msg.msg_namelen) < 0)
+			return -EFAULT;
+	}
+
+	if(copy_to_user(umsg, &msg, sizeof(msghdr)) < 0)
+		return -EFAULT;
+	
+	return st;
+}
+
+extern "C"
+ssize_t sys_recvmsg(int sockfd, struct msghdr *msg, int flags)
+{
+	file *f = get_socket_fd(sockfd);
+	if(!f)
+		return -errno;
+	
+	socket *sock = file_to_socket(f);
+
+	return socket_recvmsg(sock, msg, flags | fd_flags_to_msg_flags(f));
 }

@@ -37,6 +37,7 @@ class eth_dll_ops : public data_link_layer_ops
 {
 public:
 	int setup_header(packetbuf *buf, tx_type type, tx_protocol proto, netif *nif, const void *dst_hw) override;
+	int rx_packet(netif *nif, packetbuf *buf) override;
 };
 
 extern eth_dll_ops eth_ops;

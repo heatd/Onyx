@@ -102,6 +102,9 @@ SECTIONS
 		__init_level7_start = .;
 		*(.init.level7)
 		__init_level7_end = .;
+		__init_level8_start = .;
+		*(.init.level8)
+		__init_level8_end = .;
 	} : text
 
 	_ro_end = .;

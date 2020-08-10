@@ -414,6 +414,8 @@ void cpu_messages_init(unsigned int cpu)
 
 	struct spinlock *l = get_per_cpu_ptr_any(msg_queue_lock, cpu);
 	spinlock_init(l);
+
+	do_init_level(INIT_LEVEL_CORE_PERCPU_CTOR);
 }
 
 void cpu_send_resched(unsigned int cpu)

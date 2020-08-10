@@ -59,6 +59,9 @@ int network_vdev::send_packet(packetbuf *buf)
 	auto &transmit = virtqueue_list[network_transmitq];
 
 	/* TODO: Add proper sg-list support to virtio_buf_list */
+	/* FIXME: Tx and Rx logic is broken. Fix. For example, transmit frees a page it shouldn't free,
+	 * and RX code is outdated.
+	 */
 	virtio_buf_list list{transmit};
 	auto addr = buf->page_vec[0].to_iter(buf->start_page_off()).to_pointer<uint8_t *>();
 	if(!list.prepare(addr, buf->length(), false))
