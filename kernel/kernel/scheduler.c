@@ -31,6 +31,7 @@
 #include <onyx/percpu.h>
 #include <onyx/rwlock.h>
 #include <onyx/clock.h>
+#include <onyx/dpc.h>
 
 #include <libdict/rb_tree.h>
 
@@ -213,17 +214,10 @@ thread_t *sched_find_next(void)
 
 thread_t *sched_find_runnable(void)
 {
-	if(sched_is_preemption_disabled())
-		return get_current_thread();
-
 	thread_t *thread = sched_find_next();
 	if(!thread)
 	{
-		thread_t *current = get_current_thread();
-		if(current->status == THREAD_RUNNABLE)
-			return current;
-		else
-			panic("sched_find_runnable: no runnable thread");
+		panic("sched_find_runnable: no runnable thread");
 	}
 	return thread;
 }
@@ -279,9 +273,16 @@ void sched_load_thread(struct thread *thread, unsigned int cpu)
 	spin_unlock_irqrestore(get_per_cpu_ptr_any(scheduler_lock, cpu));
 }
 
+void sched_load_finish(struct thread *prev_thread, struct thread *next_thread)
+{	
+	arch_context_switch(prev_thread, next_thread);
+}
+
+unsigned long st_invoked = 0;
+
 void *sched_switch_thread(void *last_stack)
 {
-	if(is_initialized == 0 || sched_is_preemption_disabled())
+	if(!is_initialized || sched_is_preemption_disabled())
 	{
 		add_per_cpu(sched_quantum, 1);
 		return last_stack;
@@ -297,21 +298,21 @@ void *sched_switch_thread(void *last_stack)
 		if(thread_blocked && curr_thread->flags & THREAD_ACTIVE)
 		{
 			write_per_cpu(sched_quantum, 1);
+			curr_thread->flags &= ~THREAD_ACTIVE;
 			return last_stack;
 		}
+
+		curr_thread->flags &= ~THREAD_ACTIVE;
 
 		sched_save_thread(curr_thread, last_stack);
 
 		do_cputime_accounting();
-	
-		/* Put the scheduler's reference - this might cause a thread to be woken up, so we do it right here */
-		if(curr_thread->status == THREAD_DEAD)
-			thread_put(curr_thread);
 	}
 
 	struct thread *source_thread = curr_thread;
 
 	curr_thread = sched_find_runnable();
+	st_invoked++;
 
 	sched_load_thread(curr_thread, get_cpu_nr());
 	
@@ -322,7 +323,10 @@ void *sched_switch_thread(void *last_stack)
 		source_thread->flags &= ~THREAD_IS_DYING; 
 	}
 
-	return curr_thread->kernel_stack;
+	sched_load_finish(source_thread, curr_thread);
+	__builtin_unreachable();
+
+	panic("sched_load_finish returned");
 }
 
 strong_alias(sched_switch_thread, asm_schedule);
@@ -636,11 +640,11 @@ void thread_destroy(struct thread *thread)
 	/* We can't actually destroy the user stack because the vm regions are already destroyed */
 	
 	/* Schedule further thread destruction */
-	struct work_request req;
-	req.func = thread_finish_destruction;
-	req.param = thread;
-	(void) req;
-	//worker_schedule(&req, WORKER_PRIO_NORMAL);
+	struct dpc_work w;
+	w.context = thread;
+	w.funcptr = thread_finish_destruction;
+	w.next = NULL;
+	dpc_schedule_work(&w, DPC_PRIORITY_MEDIUM);
 }
 
 void sched_die(void)

@@ -95,7 +95,7 @@ static inline struct thread *get_current_thread(void)
 }
 
 
-void* sched_switch_thread(void* last_stack);
+void *sched_switch_thread(void *last_stack);
 
 hrtime_t sched_sleep(unsigned long ns);
 
@@ -158,6 +158,8 @@ struct thread *thread_get_from_tid(int tid);
 unsigned long thread_get_addr_limit(void);
 
 void *sched_preempt_thread(void *current_stack);
+
+void arch_context_switch(struct thread *prev, struct thread *next);
 
 #define SCHED_NO_CPU_PREFERENCE		(unsigned int) -1
 

@@ -1620,7 +1620,7 @@ void *__map_pages_to_vaddr(struct process *process, void *virt, void *phys,
 			return NULL;
 	}
 
-	vm_invalidate_range((unsigned long) virt, pages);
+	if(!(flags & VM_NOFLUSH)) vm_invalidate_range((unsigned long) virt, pages);
 
 	return ptr;
 }
@@ -1655,7 +1655,7 @@ void *mmiomap(void *phys, size_t size, size_t flags)
 
 	/* TODO: Clean up if something goes wrong */
 	void *p = map_pages_to_vaddr((void *) entry->base, (void *) u,
-				     size, flags);
+				     size, flags | VM_NOFLUSH);
 	if(!p)
 	{
 		printf("map_pages_to_vaddr: Could not map pages\n");
@@ -2282,7 +2282,7 @@ void vm_do_fatal_page_fault(struct fault_info *info)
 	}
 	else
 	{
-		printk("Kernel fatal segfault accesing %016lx at ip %lx\n", info->fault_address, info->ip);
+		printk("Kernel fatal segfault accessing %016lx at ip %lx\n", info->fault_address, info->ip);
 		panic("Unable to satisfy paging request");
 	}
 }
@@ -2847,12 +2847,6 @@ void __vm_invalidate_range(unsigned long addr, size_t pages, struct mm_address_s
 
 void vm_invalidate_range(unsigned long addr, size_t pages)
 {
-	if(is_higher_half((void *) addr))
-	{
-		paging_invalidate((void *) addr, pages);
-		return;
-	}
-
 	return __vm_invalidate_range(addr, pages, get_current_address_space());
 }
 

@@ -19,6 +19,7 @@
 #include <onyx/cpu.h>
 #include <onyx/x86/idt.h>
 #include <onyx/x86/apic.h>
+#include <onyx/x86/isr.h>
 #include <onyx/dpc.h>
 #include <onyx/softirq.h>
 
@@ -33,20 +34,31 @@ int platform_install_irq(unsigned int irqn, struct interrupt_handler *h)
 
 void platform_send_eoi(uint64_t irq);
 
-uintptr_t irq_handler(uint64_t irqn, registers_t *regs)
+void check_for_resched(struct irq_context *context)
+{
+	struct thread *curr = get_current_thread();
+	if(curr && sched_needs_resched(curr))
+	{
+		curr->flags &= ~THREAD_NEEDS_RESCHED;
+		context->registers = sched_preempt_thread(context->registers);
+	}
+}
+
+unsigned long irq_handler(struct registers *regs)
 {
 	/* Just return on the odd occasion that irqn > NR_IRQ */
 	assert(irq_is_disabled() == true);
+
+	uint64_t irqn = regs->int_no - EXCEPTION_VECTORS_END;
+
 	/* TODO: Maybe assert'ing would be better */
-	if(irqn > NR_IRQ)
-		return (uintptr_t) regs;
+	if(irqn > NR_IRQ + EXCEPTION_VECTORS_END)
+		return (unsigned long) regs;
 
 	struct irq_context context;
 	context.registers = regs;
 
 	dispatch_irq((unsigned int) irqn, &context);
-
-	platform_send_eoi(irqn);
 
 	/* It's implicit that irqs are enabled since we are in a handler */
 	if(!sched_is_preemption_disabled() && softirq_pending())
@@ -54,7 +66,9 @@ uintptr_t irq_handler(uint64_t irqn, registers_t *regs)
 		softirq_handle();
 	}
 
-	return (uintptr_t) context.registers;
+	check_for_resched(&context);
+
+	return (unsigned long) context.registers;
 }
 
 int platform_allocate_msi_interrupts(unsigned int num_vectors, bool addr64,

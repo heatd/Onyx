@@ -5,6 +5,7 @@
 */
 
 #include <onyx/registers.h>
+#include <onyx/x86/segments.h>
 
 .section .text
 
@@ -108,44 +109,108 @@
 	add $8, %rsp
 .endm
 
-.macro ISR_NOERRCODE num
-.global isr\num
-isr\num:
-	cli
-	push $0 # Push a dummy error code to align the stack
-	push $\num # Push the interrupt number
-	pushaq
-	jmp isr_common # Go to the handler
-.endm
-
 /* struct registers has two longs that are used only for ISRs,
  and meaningless otherwise
 */
 #define REGISTERS_UNUSED_OFF		16
-#define KERNEL_CS			0x08
 
-.global irq_common
-irq_common:
+#define EXCEPTION_VECTORS_END       32
+
+.macro ISR_NOERRCODE num
+.global isr\num
+isr\num:
+	cli
+	sub $8, %rsp
+	push $\num # Push the interrupt number
+	jmp x86_interrupt_common # Go to the handler
+
+.pushsection .rodata.isr_table
+.quad isr\num
+.popsection
+
+.endm
+
+.macro IRQ irq_num
+.global irq\irq_num
+irq\irq_num:
+	cli
+	sub $8, %rsp
+	push $(\irq_num + EXCEPTION_VECTORS_END)
+	jmp x86_interrupt_common
+
+.pushsection .rodata.isr_table
+.quad irq\irq_num
+.popsection
+
+.endm
+
+.macro ISR_ERRCODE num
+.global isr\num
+isr\num:
+	cli
+	push $\num # Push the interrupt number to the intctx
+	jmp x86_interrupt_common # Go to the handler
+
+.pushsection .rodata.isr_table
+.quad isr\num
+.popsection
+
+.endm
+
+.global x86_interrupt_ret
+.type x86_interrupt_ret, @function
+x86_interrupt_ret:
+	call signal_is_pending
+	cmp $1, %al
+	je 1f
+
+2:
+	INTERRUPT_STACK_RESTORE
+.global x86_scheduler_exit
+x86_scheduler_exit:
+	/* We'll use this bit of code as a trampoline to the new thread too */
+	mov REGISTER_OFF_CS(%rsp), %rax
+	test $3, %rax
+	cli
+	jz 3f
+	swapgs
+3:
+	pop %rax
+	mov %ax, %ds
+	mov %ax, %es
+
+	popaq
+
+	add $REGISTERS_UNUSED_OFF, %rsp
+	iretq
+1:
+	mov %rsp, %rdi
+	add $8, %rdi
+	call handle_signal
+	jmp 2b
+
+x86_interrupt_common:
 	.cfi_startproc
+	pushaq
 	CFI_INTERRUPT_FRAME_BEFORE_DS
 	cld
 
 	mov %ds, %ax
 	push %rax
 	CFI_INTERRUPT_FRAME_ADJUST_DS
-	mov $0x10, %ax
+	mov $KERNEL_DS, %ax
 	mov %ax, %ss
 	mov %ax, %ds
 	mov %ax, %es
 
 	mov REGISTER_OFF_CS(%rsp), %rax
-	cmp $KERNEL_CS, %rax
-	/* TODO: Check the lower 2 bits only because double faults set %cs to 0 */
-	je .L3
+	test $3, %rax
+
+	jz .L3
 	swapgs
 .L3:
-	mov %rsp, %rsi
-	mov %rsi, %rbp
+	mov %rsp, %rdi
+	mov %rdi, %rbp
 
 	.cfi_def_cfa_register rbp
 	# End the stack frame list so we stop here
@@ -153,128 +218,20 @@ irq_common:
 
 	INTERRUPT_STACK_ALIGN
 
-	call irq_handler
+	call x86_dispatch_interrupt
 
 	mov %rax, %rsp
 
-	INTERRUPT_STACK_ALIGN
-
-	call signal_is_pending
-	cmp $1, %al
-	je .L4
-
-.L5:
-	INTERRUPT_STACK_RESTORE
-.global x86_scheduler_exit
-x86_scheduler_exit:
-	/* We'll use this bit of code as a trampoline to the new thread too */
-	mov REGISTER_OFF_CS(%rsp), %rax
-	cmp $KERNEL_CS, %rax
-	cli
-	je .L6
-	swapgs
-.L6:
-	pop %rax
-	mov %ax, %ds
-	mov %ax, %es
-
-	popaq
-
-	add $REGISTERS_UNUSED_OFF, %rsp
-	iretq
-.L4:
-	mov %rsp, %rdi
-	add $8, %rdi
-	call handle_signal
-	jmp .L5
+	jmp x86_interrupt_ret
 
 .cfi_endproc
 
-
-.macro IRQ irq_num
-.global irq\irq_num
-irq\irq_num:
-	cli
-	sub $REGISTERS_UNUSED_OFF, %rsp
-	pushaq
-	mov $\irq_num, %rdi
-	jmp irq_common
-
-.global irq\irq_num\()_end
-irq\irq_num\()_end:
-
-.endm
-
-
-.macro ISR_ERRCODE num
-.global isr\num
-isr\num:
-	cli
-	push $\num # Push the interrupt number to the intctx
-	pushaq
-	jmp isr_common # Go to the handler
-.endm
-
-.global isr_common
-isr_common:
-	.cfi_startproc
-
-	CFI_INTERRUPT_FRAME_BEFORE_DS
-
-	cld
-
-	mov %ds, %rax
-	push %rax
-
-	CFI_INTERRUPT_FRAME_ADJUST_DS
-
-	mov $0x10, %ax
-	mov %ax, %ss
-	mov %ax, %ds
-	mov %ax, %es
-
-	mov REGISTER_OFF_CS(%rsp), %rax
-	test $3, %rax
-	jz .L0
-	swapgs
-.L0:
-	mov %rsp, %rbp
-	mov %rbp, %rdi
-	.cfi_def_cfa_register rbp
-
-	INTERRUPT_STACK_ALIGN
-
-	call isr_handler
-
-	call signal_is_pending
-	cmp $1, %al
-	je .Lisr_handle_signal
-.L1:
-	INTERRUPT_STACK_RESTORE
-
-	/* Disable interrupts again in case a handler enabled them and didn't disable them again */
-	/* TODO: Should we run all exception handlers with interrupts enabled? */
-	cli
-	mov REGISTER_OFF_CS(%rsp), %rax
-	cmp $KERNEL_CS, %rax
-	je .L2
-	swapgs
-.L2:
-	pop %rax
-	mov %ax, %ds
-	mov %ax, %es
-
-	popaq
-	add $REGISTERS_UNUSED_OFF, %rsp
-	iretq
-
-.Lisr_handle_signal:
-	mov %rsp, %rdi
-	add $8, %rdi
-	call handle_signal
-	jmp .L1
-
-.cfi_endproc
+.pushsection .rodata.isr_table
+.balign 8
+.global x86_isr_table
+.type x86_isr_table, STT_OBJECT
+x86_isr_table:
+.popsection
 
 ISR_NOERRCODE 0
 ISR_NOERRCODE 1
@@ -437,6 +394,8 @@ IRQ 125
 IRQ 126
 IRQ 127
 IRQ 128
+IRQ 129
+IRQ 130
 IRQ 131
 IRQ 132
 IRQ 133
@@ -528,40 +487,16 @@ IRQ 218
 IRQ 219
 IRQ 220
 IRQ 221
+IRQ 222
+IRQ 223
+IRQ 224
+IRQ 225
 
-.global _sched_yield
-_sched_yield:
-	cli
-	sub $REGISTERS_UNUSED_OFF, %rsp
-	pushaq
-	mov %ds, %ax
-	push %rax
-	mov $0x10, %ax
-	mov %ax, %ds
-	mov %ax, %es
 
-	mov %rsp, %rdi
-	mov REGISTER_OFF_CS(%rsp), %rax
-	cmp $KERNEL_CS, %rax
-	je .L7
-	swapgs
-.L7:
-	call sched_switch_thread
-	mov %rax, %rsp
-	mov REGISTER_OFF_CS(%rsp), %rax
-	cmp $KERNEL_CS, %rax
-	je .L8
-	swapgs
-.L8:
-	pop %rax
-	mov %ax, %ds
-	mov %ax, %es
-
-	popaq
-	add $REGISTERS_UNUSED_OFF, %rsp
-	iretq
-
-#include <onyx/x86/segments.h>
+.pushsection .rodata.isr_table
+.global x86_isr_table_end
+x86_isr_table_end:
+.popsection
 
 .global platform_yield
 platform_yield:
@@ -615,95 +550,3 @@ __sigret_return:
 .global apic_spurious_irq
 apic_spurious_irq:
 	iretq
-
-.global __cpu_handle_message
-__cpu_handle_message:
-	.cfi_startproc
-	cli
-	sub $REGISTERS_UNUSED_OFF, %rsp
-
-	CFI_INTERRUPT_FRAME_BEFORE_DS
-
-	pushaq
-	mov %ds, %ax
-	push %rax
-	CFI_INTERRUPT_FRAME_ADJUST_DS
-
-	mov $0x10, %ax
-	mov %ax, %ss
-	mov %ax, %ds
-	mov %ax, %es
-
-	mov REGISTER_OFF_CS(%rsp), %rax
-	cmp $KERNEL_CS, %rax
-	je .L9
-	swapgs
-.L9:
-	# End the stack frame list so we stop here
-	xor %rbp, %rbp
-	mov %rsp, %rdi
-	call cpu_handle_messages
-
-	mov %rax, %rsp
-	call lapic_send_eoi
-
-	cli
-	mov REGISTER_OFF_CS(%rsp), %rax
-	cmp $KERNEL_CS, %rax
-	je .L10
-	swapgs
-.L10:
-	pop %rax
-	mov %ax, %ds
-	mov %ax, %es
-
-	popaq
-	add $REGISTERS_UNUSED_OFF, %rsp
-	iretq
-	.cfi_endproc
-
-.global __cpu_resched
-__cpu_resched:
-	.cfi_startproc
-	cli
-	sub $REGISTERS_UNUSED_OFF, %rsp
-
-	CFI_INTERRUPT_FRAME_BEFORE_DS
-
-	pushaq
-	mov %ds, %ax
-	push %rax
-	CFI_INTERRUPT_FRAME_ADJUST_DS
-
-	mov $0x10, %ax
-	mov %ax, %ss
-	mov %ax, %ds
-	mov %ax, %es
-
-	mov REGISTER_OFF_CS(%rsp), %rax
-	cmp $KERNEL_CS, %rax
-	je .L11
-	swapgs
-.L11:
-	# End the stack frame list so we stop here
-	xor %rbp, %rbp
-	mov %rsp, %rdi
-	call cpu_resched
-
-	mov %rax, %rsp
-	call lapic_send_eoi
-
-	cli
-	mov REGISTER_OFF_CS(%rsp), %rax
-	cmp $KERNEL_CS, %rax
-	je .L12
-	swapgs
-.L12:
-	pop %rax
-	mov %ax, %ds
-	mov %ax, %es
-
-	popaq
-	add $REGISTERS_UNUSED_OFF, %rsp
-	iretq
-	.cfi_endproc

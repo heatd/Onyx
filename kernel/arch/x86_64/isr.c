@@ -10,6 +10,7 @@
 
 #include <signal.h>
 
+#include <onyx/x86/isr.h>
 #include <onyx/disassembler.h>
 #include <onyx/process.h>
 #include <onyx/signal.h>
@@ -496,15 +497,17 @@ void dump_stack(uintptr_t *__rsp)
 
 #include <onyx/x86/msr.h>
 
-void isr_handler(struct registers *ctx)
+unsigned long isr_handler(struct registers *ctx)
 {
 	int int_no = ctx->int_no;
 
 	//enter_isr_handler();
+#if 0
 	unsigned long gsbase = rdmsr(GS_BASE_MSR);
 
 	if(gsbase == 0)
 		__asm__ __volatile("cli\t\nhlt");
+#endif
 
 	context_tracking_enter_kernel();
 
@@ -514,4 +517,28 @@ void isr_handler(struct registers *ctx)
 	//exit_isr_handler();
 
 	context_tracking_exit_kernel();
+
+	return INTERRUPT_STACK_ALIGN(ctx);
+}
+
+void platform_send_eoi(uint64_t irq);
+
+unsigned long x86_dispatch_interrupt(struct registers *regs)
+{
+	unsigned long vec_no = regs->int_no;
+	unsigned long result;
+ 
+	if(vec_no < EXCEPTION_VECTORS_END)
+		return isr_handler(regs);
+
+	
+	platform_send_eoi(vec_no - EXCEPTION_VECTORS_END);
+	
+	if(vec_no == X86_MESSAGE_VECTOR)
+		result = INTERRUPT_STACK_ALIGN(cpu_handle_messages(regs));
+	else if(vec_no == X86_RESCHED_VECTOR)
+		result = INTERRUPT_STACK_ALIGN(cpu_resched(regs));
+	else result = INTERRUPT_STACK_ALIGN(irq_handler(regs));
+
+	return result;
 }

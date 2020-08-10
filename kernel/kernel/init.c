@@ -412,4 +412,5 @@ void kernel_multitasking(void *arg)
 
 	set_current_state(THREAD_UNINTERRUPTIBLE);
 	sched_yield();
+	panic("yield uninterruptible returned");
 }

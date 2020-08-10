@@ -558,22 +558,8 @@ void process_kill_other_threads(void)
 		threads_to_wait_for++;
 	}
 
-	while(threads_to_wait_for != 0)
-	{
-		list_for_every_safe(&current->thread_list)
-		{
-			struct thread *t = container_of(l, struct thread, thread_list_head);
-
-			if(t && t->status == THREAD_DEAD &&
-				(t->flags & THREAD_SHOULD_DIE) &&
-				!(t->flags & THREAD_IS_DYING))
-			{
-				threads_to_wait_for--;
-				t->flags &= ~THREAD_SHOULD_DIE;	
-				list_remove(l);
-			}
-		}
-	}
+	while(current->nr_threads != 1)
+		cpu_relax();
 }
 
 void process_destroy(thread_t *current_thread)

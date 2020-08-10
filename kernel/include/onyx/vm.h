@@ -49,6 +49,7 @@
 #define VM_WP				(1 << 6)
 #define VM_DONT_MAP_OVER	(1 << 7)
 #define VM_READ             (1 << 8)
+#define VM_NOFLUSH          (1 << 9)
 
 /* Internal flags used by the mm code */
 #define __VM_CACHE_TYPE_REGULAR 	0

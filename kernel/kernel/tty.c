@@ -149,10 +149,7 @@ char *tty_wait_for_line(unsigned int flags, struct tty *tty)
 	if(flags & O_NONBLOCK && !tty->line_ready)
 		return tty->keyboard_buffer;
 
-	while(!tty->line_ready)
-	{
-		wait_queue_wait(&tty->read_queue);
-	}
+	wait_for_event(&tty->read_queue, tty->line_ready);
 
 	tty->line_ready = false;
 	return tty->keyboard_buffer;

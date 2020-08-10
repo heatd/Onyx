@@ -644,6 +644,14 @@ void apic_send_ipi(uint8_t id, uint32_t type, uint32_t page)
 
 	volatile uint32_t *this_lapic = get_per_cpu(lapic);
 
+	if(unlikely(!this_lapic))
+	{
+		/* If we don't have a lapic yet, just return because we're in early boot
+		 * and we don't need that right now.
+		 */
+		return;
+	}
+
 	while(lapic_read(this_lapic, LAPIC_ICR) & (1 << 12))
 		cpu_relax();
 

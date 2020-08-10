@@ -134,7 +134,7 @@ void thread_finish_destruction(void *___thread)
 {
 	thread *thread = static_cast<thread_t *>(___thread);
 
-#if 0
+#if 1
 	/* Destroy the kernel stack */
 	unsigned long stack_base = ((unsigned long) thread->kernel_stack_top) - kernel_stack_size;
 	if(adding_guard_page)
@@ -148,7 +148,7 @@ void thread_finish_destruction(void *___thread)
 
 	thread_remove_from_list(thread);
 
-	memset_s(thread, 0x80, sizeof(struct thread));
+	memset_s(&thread->lock, 0x80, sizeof(struct spinlock));
 	((volatile struct thread *) thread)->canary = THREAD_DEAD_CANARY;
 	/* Free the thread */
 	free(thread);
@@ -289,4 +289,21 @@ thread_t *sched_create_thread(thread_callback_t callback, uint32_t flags, void* 
 	return t;
 }
 
+}
+
+extern "C" 
+[[noreturn]]
+void x86_context_switch(thread *prev, unsigned char *stack, bool needs_to_kill_prev);
+
+extern "C"
+void arch_context_switch(thread *prev, thread *next)
+{
+	bool is_last_dead = prev && prev->status == THREAD_DEAD;
+	x86_context_switch(prev, (unsigned char *) next->kernel_stack, is_last_dead);
+}
+
+extern "C"
+void x86_thread_put(thread *t)
+{
+	thread_put(t);
 }

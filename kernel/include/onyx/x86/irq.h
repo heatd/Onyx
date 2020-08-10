@@ -11,7 +11,7 @@
 
 #include <onyx/x86/eflags.h>
 
-#define NR_IRQ 				221
+#define NR_IRQ 				223
 #define PCI_MSI_BASE_ADDRESS 		0xFEE00000
 #define PCI_MSI_APIC_ID_SHIFT		12
 #define PCI_MSI_REDIRECTION_HINT	(1 << 3)

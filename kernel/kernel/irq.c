@@ -108,16 +108,6 @@ void free_irq(unsigned int irq, struct device *device)
 	spin_unlock(&line->list_lock);
 }
 
-void check_for_resched(struct irq_context *context)
-{
-	struct thread *curr = get_current_thread();
-	if(curr && sched_needs_resched(curr))
-	{
-		curr->flags &= ~THREAD_NEEDS_RESCHED;
-		context->registers = sched_preempt_thread(context->registers);
-	}
-}
-
 PER_CPU_VAR(bool in_irq) = false;
 
 bool is_in_interrupt(void)
@@ -137,7 +127,6 @@ void dispatch_irq(unsigned int irq, struct irq_context *context)
 		
 		if(st == IRQ_HANDLED)
 		{
-			check_for_resched(context);
 			line->stats.handled_irqs++;
 			h->handled_irqs++;
 			write_per_cpu(in_irq, false);

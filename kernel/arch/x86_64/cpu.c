@@ -409,7 +409,6 @@ PER_CPU_VAR(struct list_head message_queue);
 
 void cpu_messages_init(unsigned int cpu)
 {
-	printk("initing cpu%u\n", cpu);
 	struct list_head *h = get_per_cpu_ptr_any(message_queue, cpu);
 	INIT_LIST_HEAD(h);
 
@@ -530,12 +529,7 @@ void *cpu_handle_messages(void *stack)
 	}
 
 	spin_unlock_irqrestore(cpu_msg_lock);
-
-	if(sched_needs_resched(get_current_thread()))
-	{
-		return sched_preempt_thread(stack);
-	}
-
+	
 	return stack;
 }
 
@@ -545,7 +539,7 @@ void *cpu_resched(void *stack)
 
 	if(sched_needs_resched(get_current_thread()))
 	{
-		return sched_preempt_thread(stack);
+		stack = sched_preempt_thread(stack);
 	}
 
 	return stack;

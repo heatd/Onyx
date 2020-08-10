@@ -64,7 +64,7 @@ int pci_enable_msi(struct pci_device *dev, irq_t handler, void *cookie)
 	if(platform_allocate_msi_interrupts(num_vecs, addr64, &data) < 0)
 		return -1;
 	/* TODO: This is arch specific, and shouldn't be here */
-	size_t irq_stub_size = (size_t) (&irq0_end - (char*) &irq0);
+	size_t irq_stub_size = 12;
 	unsigned int irq_offset = data.vector_start - 32;
 	for(unsigned int i = 0; i < num_vecs; i++)
 	{

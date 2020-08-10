@@ -7,11 +7,12 @@
 #include <assert.h>
 
 #include <onyx/x86/idt.h>
+#include <onyx/x86/isr.h>
+
 #include <onyx/cpu.h>
 
 idt_ptr_t idt_ptr;
 idt_entry_t idt_entries[256];
-extern void _sched_yield();
 
 void x86_reserve_vector(int vector, void (*handler)())
 {
@@ -63,6 +64,10 @@ int x86_allocate_vectors(int nr)
 	return -1;
 }
 
+extern unsigned long x86_isr_table[];
+
+#include <stdio.h>
+
 void idt_init(void)
 {
 	memset(&idt_entries, 0, sizeof(idt_entry_t) * 256);
@@ -99,10 +104,18 @@ void idt_init(void)
 	x86_reserve_vector(29, isr29);
 	x86_reserve_vector(30, isr30);
 	x86_reserve_vector(31, isr31);
-	idt_set_system_gate(129,  (uint64_t) _sched_yield, 0x08, 0x8e);
-	x86_reserve_vector(X86_MESSAGE_VECTOR, __cpu_handle_message);
-	x86_reserve_vector(X86_RESCHED_VECTOR, __cpu_resched);
-	x86_reserve_vector(255,  apic_spurious_irq);
+
+	unsigned int to_reserve[] = {X86_MESSAGE_VECTOR, X86_RESCHED_VECTOR, 255};
+	unsigned int len = sizeof(to_reserve) / sizeof(unsigned int);
+
+	for(unsigned int i = 0; i < len; i++)
+	{
+		int vector = to_reserve[i] - EXCEPTION_VECTORS_END;
+		void(*irq_stub_handler)() = (void*) x86_isr_table[vector + EXCEPTION_VECTORS_END];
+
+		printf("Setting up vector %u, %p\n", vector + EXCEPTION_VECTORS_END, irq_stub_handler);
+		x86_reserve_vector(vector + EXCEPTION_VECTORS_END, irq_stub_handler);
+	}
 
 	/* Double fault handlers use a separate stack */
 	/* TODO: Set this up better. */
