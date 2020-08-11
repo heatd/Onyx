@@ -19,8 +19,16 @@ int loopback_send_packet(packetbuf *buf, netif *nif)
 #if 0
 	printk("send packet loopback\n");
 #endif
-	/* TODO: This doesn't work */
-	//nif->dll_ops->rx_packet(nif, buf);
+
+	auto new_buf = make_refc<packetbuf>();
+	if(!new_buf)
+		return -ENOMEM;
+	
+	if(!new_buf->allocate_space(buf->length()))
+		return -ENOMEM;
+	
+	memcpy(new_buf->put(buf->length()), buf->data, buf->length());
+	nif->dll_ops->rx_packet(nif, new_buf.get());
 	return 0;
 }
 
