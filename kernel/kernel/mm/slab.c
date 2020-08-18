@@ -148,7 +148,7 @@ void *slab_allocate_from_slab(struct slab *slab)
 
 void *slab_allocate(slab_cache_t *cache)
 {
-	spin_lock_irqsave(&cache->lock);
+	unsigned long cpu_flags = spin_lock_irqsave(&cache->lock);
 	struct slab *slab = cache->slab_list;
 	while(slab)
 	{
@@ -158,7 +158,7 @@ void *slab_allocate(slab_cache_t *cache)
 #if DEBUG_SLAB
 			printk("cache %s returning %p\n", cache->name, obj);
 #endif
-			spin_unlock_irqrestore(&cache->lock);
+			spin_unlock_irqrestore(&cache->lock, cpu_flags);
 			return obj;
 		}
 		if(!slab->next)
@@ -167,7 +167,7 @@ void *slab_allocate(slab_cache_t *cache)
 			struct slab *nslab = slab_create_slab(cache->size, cache);
 			if(!nslab)
 			{
-				spin_unlock_irqrestore(&cache->lock);
+				spin_unlock_irqrestore(&cache->lock, cpu_flags);
 				return errno = ENOMEM, NULL;
 			}
 			slab->next = nslab;
@@ -175,7 +175,7 @@ void *slab_allocate(slab_cache_t *cache)
 		}
 		slab = slab->next;
 	}
-	spin_unlock_irqrestore(&cache->lock);
+	spin_unlock_irqrestore(&cache->lock, cpu_flags);
 	return NULL;
 }
 
@@ -255,7 +255,8 @@ void slab_destroy_slab(struct slab *slab)
 
 void slab_destroy(slab_cache_t *cache)
 {
-	spin_lock_irqsave(&cache->lock);
+	unsigned long cpu_flags = spin_lock_irqsave(&cache->lock);
+
 	/* First destroy the slabs */
 	struct slab *slab = cache->slab_list;
 	while(slab)
@@ -277,6 +278,9 @@ void slab_destroy(slab_cache_t *cache)
 	{
 		last_slab = cache->prev;
 	}
+
+	irq_restore(cpu_flags);
+
 	free(cache);
 }
 

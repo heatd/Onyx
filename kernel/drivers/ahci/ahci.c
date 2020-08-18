@@ -107,7 +107,7 @@ irqstatus_t ahci_irq(struct irq_context *ctx, void *cookie)
 	for(unsigned int i = 0; i < 32; i++)
 	{
 		struct ahci_port *port = &dev->ports[i];
-		spin_lock_irqsave(&port->port_lock);
+		unsigned long cpu_flags = spin_lock_irqsave(&port->port_lock);
 
 		if(ports & (1U << i))
 		{
@@ -117,7 +117,7 @@ irqstatus_t ahci_irq(struct irq_context *ctx, void *cookie)
 			ahci_do_port_irqs(port);
 		}
 
-		spin_unlock_irqrestore(&port->port_lock);
+		spin_unlock_irqrestore(&port->port_lock, cpu_flags);
 
 	}
 
@@ -456,13 +456,13 @@ bool ahci_do_command_async(struct ahci_port *ahci_port,
 	l->req = ioreq;
 	ioreq->cookie = (void *) list_index;
 
-	spin_lock_irqsave(&ahci_port->port_lock);
+	unsigned long cpu_flags = spin_lock_irqsave(&ahci_port->port_lock);
 
 	ahci_port->issued |= (1 << list_index);
 
 	ahci_issue_command(ahci_port, list_index);
 
-	spin_unlock_irqrestore(&ahci_port->port_lock);
+	spin_unlock_irqrestore(&ahci_port->port_lock, cpu_flags);
 
 	return true;
 }

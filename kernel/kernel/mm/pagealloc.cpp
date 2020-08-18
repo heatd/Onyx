@@ -264,7 +264,7 @@ struct page *page_node::alloc_page(unsigned long flags)
 	if(flags & PAGE_ALLOC_4GB_LIMIT)
 		return alloc_contiguous(1, flags);
 
-	spin_lock_irqsave(&node_lock);
+	unsigned long cpu_flags = spin_lock_irqsave(&node_lock);
 
 	if(list_is_empty(&page_list))
 	{
@@ -287,7 +287,7 @@ struct page *page_node::alloc_page(unsigned long flags)
 	::used_pages++;
 
 out:
-	spin_unlock_irqrestore(&node_lock);
+	spin_unlock_irqrestore(&node_lock, cpu_flags);
 	return ret;
 }
 
@@ -396,7 +396,7 @@ struct page *page_arena::alloc_contiguous(size_t nr_pgs, unsigned long flags)
 struct page *page_node::alloc_contiguous(size_t nr_pgs, unsigned long flags)
 {	
 	struct page *pages = nullptr;
-	spin_lock_irqsave(&node_lock);
+	unsigned long cpu_flags = spin_lock_irqsave(&node_lock);
 
 	list_for_every(&arena_list)
 	{
@@ -411,7 +411,7 @@ struct page *page_node::alloc_contiguous(size_t nr_pgs, unsigned long flags)
 	}
 
 out:
-	spin_unlock_irqrestore(&node_lock);
+	spin_unlock_irqrestore(&node_lock, cpu_flags);
 	return pages;
 }
 
@@ -441,7 +441,7 @@ void __reclaim_page(struct page *new_page)
 
 void page_node::free_page(struct page *p)
 {
-	spin_lock_irqsave(&node_lock);
+	unsigned long cpu_flags = spin_lock_irqsave(&node_lock);
 
 	/* Reset the page */
 	p->flags = 0;
@@ -460,5 +460,5 @@ void page_node::free_page(struct page *p)
 	used_pages--;
 	::used_pages--;
 	
-	spin_unlock_irqrestore(&node_lock);
+	spin_unlock_irqrestore(&node_lock, cpu_flags);
 }

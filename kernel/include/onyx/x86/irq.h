@@ -50,6 +50,8 @@ static inline unsigned long irq_save_and_disable(void)
 	return old;
 }
 
+#define CPU_FLAGS_NO_IRQ       (0)
+
 static inline bool irq_is_disabled(void)
 {
 	return !(x86_save_flags() & EFLAGS_INT_ENABLED);

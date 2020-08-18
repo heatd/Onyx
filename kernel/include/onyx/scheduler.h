@@ -135,13 +135,12 @@ void sched_disable_preempt_for_cpu(unsigned int cpu);
 
 void sched_block(struct thread *thread);
 
-void __sched_block(struct thread *thread);
+void __sched_block(struct thread *thread, unsigned long cpuflags);
 
-void sched_lock(struct thread *thread);
+FUNC_NO_DISCARD
+unsigned long sched_lock(struct thread *thread);
 
 void sched_die();
-
-void scheduler_kill(struct thread *thread);
 
 struct thread *get_thread_for_cpu(unsigned int cpu);
 

@@ -25,6 +25,7 @@
 #error "Onyx needs to be compiled using a Onyx Cross Compiler"
 #endif /* __onyx__ */
 
+#define FUNC_NO_DISCARD  __attribute__((warn_unused_result))
 #define align(x) __attribute__((aligned(x)))
 #define __align_cache align(16)
 #define likely(x)      __builtin_expect(!!(x), 1)

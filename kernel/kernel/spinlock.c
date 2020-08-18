@@ -16,19 +16,23 @@
 __attribute__((always_inline))
 static inline void post_lock_actions(struct spinlock *lock)
 {
+#ifdef CONFIG_SPINLOCK_DEBUG
 	lock->holder = (unsigned long) __builtin_return_address(1);
+#endif
 }
 
 static inline void post_release_actions(struct spinlock *lock)
 {
+#ifdef CONFIG_SPINLOCK_DEBUG
 	lock->holder = 0xDEADBEEFDEADBEEF;
+#endif
 }
 
 
 void spin_lock_preempt(struct spinlock *lock)
 {
-	unsigned long expected_val = 0;
-	unsigned long what_to_insert = get_cpu_nr() + 1;
+	raw_spinlock_t expected_val = 0;
+	raw_spinlock_t what_to_insert = get_cpu_nr() + 1;
 
 	while(true)
 	{
@@ -47,7 +51,9 @@ void spin_lock_preempt(struct spinlock *lock)
 
 void spin_unlock_preempt(struct spinlock *lock)
 {
+#ifdef CONFIG_SPINLOCK_DEBUG
 	assert(lock->lock > 0);
+#endif
 
 	post_release_actions(lock);
 
@@ -76,8 +82,8 @@ int spin_try_lock(struct spinlock *lock)
 	*/
 	sched_disable_preempt();
 
-	unsigned long expected_val = 0;
-	unsigned long what_to_insert = get_cpu_nr() + 1;
+	raw_spinlock_t expected_val = 0;
+	raw_spinlock_t what_to_insert = get_cpu_nr() + 1;
 
 
 	if(!__atomic_compare_exchange_n(&lock->lock, &expected_val, what_to_insert,

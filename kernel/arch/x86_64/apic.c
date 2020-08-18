@@ -640,7 +640,7 @@ PER_CPU_VAR(struct spinlock ipi_lock);
 void apic_send_ipi(uint8_t id, uint32_t type, uint32_t page)
 {
 	struct spinlock *lock = get_per_cpu_ptr(ipi_lock);
-	spin_lock_irqsave(lock);
+	unsigned long cpu_flags = spin_lock_irqsave(lock);
 
 	volatile uint32_t *this_lapic = get_per_cpu(lapic);
 
@@ -660,7 +660,7 @@ void apic_send_ipi(uint8_t id, uint32_t type, uint32_t page)
 	icr |= (1 << 14);
 	lapic_write(this_lapic, LAPIC_ICR, (uint32_t) icr);
 
-	spin_unlock_irqrestore(lock);
+	spin_unlock_irqrestore(lock, cpu_flags);
 }
 
 bool apic_send_sipi_and_wait(uint8_t lapicid, struct smp_header *s)

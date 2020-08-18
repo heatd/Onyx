@@ -8,7 +8,6 @@
 #include <stdbool.h>
 
 #include <onyx/compiler.h>
-#include <onyx/smp.h>
 
 #define PER_CPU_VAR(var) __attribute__((section(".percpu"), used))	var
 #define PER_CPU_VAR_NOUNUSED(var) var __attribute__((section(".percpu")))

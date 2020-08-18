@@ -31,7 +31,7 @@ int mutex_lock_slow_path(struct mutex *mutex, int state)
 
 	struct thread *current = get_current_thread();
 
-	spin_lock_irqsave(&mutex->llock);
+	unsigned long cpu_flags = spin_lock_irqsave(&mutex->llock);
 
 	prepare_sleep_mutex(mutex, state);
 
@@ -45,11 +45,11 @@ int mutex_lock_slow_path(struct mutex *mutex, int state)
 
 		assert(mutex->owner != current);
 
-		spin_unlock_irqrestore(&mutex->llock);
+		spin_unlock_irqrestore(&mutex->llock, cpu_flags);
 
 		commit_sleep();
 
-		spin_lock_irqsave(&mutex->llock);
+		cpu_flags = spin_lock_irqsave(&mutex->llock);
 
 		list_remove(&current->wait_list_head);
 
@@ -60,7 +60,7 @@ int mutex_lock_slow_path(struct mutex *mutex, int state)
 
 	set_current_state(THREAD_RUNNABLE);
 
-	spin_unlock_irqrestore(&mutex->llock);
+	spin_unlock_irqrestore(&mutex->llock, cpu_flags);
 
 	return ret;
 }
@@ -92,7 +92,7 @@ void mutex_unlock(struct mutex *mutex)
 	__sync_bool_compare_and_swap(&mutex->counter, 1, 0);
 	__sync_synchronize();
 
-	spin_lock_irqsave(&mutex->llock);
+	unsigned long cpu_flags = spin_lock_irqsave(&mutex->llock);
 
 	if(!list_is_empty(&mutex->thread_list))
 	{
@@ -103,7 +103,7 @@ void mutex_unlock(struct mutex *mutex)
 		thread_wake_up(t);
 	}
 
-	spin_unlock_irqrestore(&mutex->llock);
+	spin_unlock_irqrestore(&mutex->llock, cpu_flags);
 }
 
 bool mutex_holds_lock(struct mutex *m)

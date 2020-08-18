@@ -18,11 +18,6 @@ extern "C"
 
 PER_CPU_VAR(unsigned int cpu_nr) = 0;
 
-unsigned int get_cpu_nr()
-{
-	return get_per_cpu(cpu_nr);
-}
-
 };
 
 namespace smp

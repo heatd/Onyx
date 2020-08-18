@@ -9,6 +9,7 @@
 
 #include <onyx/spinlock.h>
 #include <onyx/mutex.h>
+#include <onyx/enable_if.h>
 
 template <typename LockType, bool irq_save = false>
 class scoped_lock
@@ -53,11 +54,12 @@ class scoped_lock<spinlock, irq_save>
 private:
 	bool is_locked;
 	spinlock *internal_lock;
+	unsigned long cpu_flags; /* TODO: Optimise this out from non-irqsave locks */
 public:
 	void lock()
 	{
 		if(irq_save)
-			spin_lock_irqsave(internal_lock);
+			cpu_flags = spin_lock_irqsave(internal_lock);
 		else
 			spin_lock(internal_lock);
 		is_locked = true;
@@ -66,13 +68,13 @@ public:
 	void unlock()
 	{
 		if(irq_save)
-			spin_unlock_irqrestore(internal_lock);
+			spin_unlock_irqrestore(internal_lock, cpu_flags);
 		else
 			spin_unlock(internal_lock);
 		is_locked = false;
 	}
 
-	scoped_lock(spinlock *lock) : internal_lock(lock)
+	scoped_lock(spinlock *lock) : internal_lock(lock), cpu_flags{}
 	{
 		this->lock();
 	}

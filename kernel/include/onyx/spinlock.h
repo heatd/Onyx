@@ -12,14 +12,17 @@
 #include <onyx/smp.h>
 #include <onyx/x86/irq.h>
 #include <onyx/utils.h>
+#include <onyx/compiler.h>
+
+typedef unsigned int raw_spinlock_t;
 
 struct spinlock
 {
 	/* TODO: Conditionally have these debug features, and have owner_cpu be in lock */
-	unsigned long lock;
+	raw_spinlock_t lock;
+#ifdef CONFIG_SPINLOCK_DEBUG
 	unsigned long holder;
-	/* TODO: Have old_flags be a local variable */
-	unsigned long old_flags;
+#endif
 };
 
 #ifdef __cplusplus
@@ -35,24 +38,25 @@ int spin_try_lock(struct spinlock *lock);
 
 CONSTEXPR static inline void spinlock_init(struct spinlock *s)
 {
+
+#ifdef CONFIG_SPINLOCK_DEBUG
 	s->holder = 0xDEADCAFEDEADCAFE;
+#endif
+
 	s->lock = 0;
-	s->old_flags = 0;
 }
 
-
-static inline void spin_lock_irqsave(struct spinlock *lock)
+static inline FUNC_NO_DISCARD unsigned long spin_lock_irqsave(struct spinlock *lock)
 {
 	unsigned long flags = irq_save_and_disable();
 	spin_lock_preempt(lock);
-	lock->old_flags = flags;
+	return flags;
 }
 
-static inline void spin_unlock_irqrestore(struct spinlock *lock)
+static inline void spin_unlock_irqrestore(struct spinlock *lock, unsigned long old_flags)
 {
-	unsigned long old = lock->old_flags;
 	spin_unlock_preempt(lock);
-	irq_restore(old);
+	irq_restore(old_flags);
 }
 
 static inline bool spin_lock_held(struct spinlock *lock)
@@ -69,8 +73,9 @@ class Spinlock
 {
 private:
 	struct spinlock lock;
+	unsigned long cpu_flags;
 public:
-	constexpr Spinlock() : lock {} {};
+	constexpr Spinlock() : lock {}, cpu_flags{} {};
 	~Spinlock()
 	{
 		assert(lock.lock != 1);
@@ -82,7 +87,7 @@ public:
 
 	void LockIrqsave()
 	{
-		spin_lock_irqsave(&lock);
+		cpu_flags = spin_lock_irqsave(&lock);
 	}
 
 	void Unlock()
@@ -92,7 +97,7 @@ public:
 
 	void UnlockIrqrestore()
 	{
-		spin_unlock_irqrestore(&lock);
+		spin_unlock_irqrestore(&lock, cpu_flags);
 	}
 
 	bool IsLocked()

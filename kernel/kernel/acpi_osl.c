@@ -223,14 +223,13 @@ void AcpiOsDeleteLock(ACPI_SPINLOCK Handle)
 ACPI_CPU_FLAGS AcpiOsAcquireLock(ACPI_SPINLOCK Handle)
 {
 	/* We don't need to return ACPI_CPU_FLAGS because it's kept in the struct spinlock itself */
-	spin_lock_irqsave(Handle);
-	return 0;
+	unsigned long cpu_flags = spin_lock_irqsave(Handle);
+	return cpu_flags;
 }
 
 void AcpiOsReleaseLock(ACPI_SPINLOCK Handle, ACPI_CPU_FLAGS Flags)
 {
-	(void) Flags;
-	spin_unlock_irqrestore(Handle);
+	spin_unlock_irqrestore(Handle, Flags);
 }
 
 ACPI_OSD_HANDLER ServiceRout;

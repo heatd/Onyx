@@ -52,11 +52,11 @@ struct wait_queue_token *wait_queue_wake_unlocked(struct wait_queue *queue)
 
 void wait_queue_wake(struct wait_queue *queue)
 {
-	spin_lock_irqsave(&queue->lock);
+	unsigned long cpu_flags = spin_lock_irqsave(&queue->lock);
 
 	if(list_is_empty(&queue->token_list))
 	{
-		spin_unlock_irqrestore(&queue->lock);
+		spin_unlock_irqrestore(&queue->lock, cpu_flags);
 		return;
 	}
 	
@@ -66,12 +66,12 @@ void wait_queue_wake(struct wait_queue *queue)
 
 	thread_wake_up(t->thread);
 
-	spin_unlock_irqrestore(&queue->lock);
+	spin_unlock_irqrestore(&queue->lock, cpu_flags);
 }
 
 void wait_queue_wake_all(struct wait_queue *queue)
 {
-	spin_lock_irqsave(&queue->lock);
+	unsigned long cpu_flags = spin_lock_irqsave(&queue->lock);
 
 	while(!list_is_empty(&queue->token_list))
 	{
@@ -81,12 +81,12 @@ void wait_queue_wake_all(struct wait_queue *queue)
 		thread_wake_up(t->thread);
 	}
 
-	spin_unlock_irqrestore(&queue->lock);
+	spin_unlock_irqrestore(&queue->lock, cpu_flags);
 }
 
 void wait_queue_add(struct wait_queue *queue, struct wait_queue_token *token)
 {
-	spin_lock_irqsave(&queue->lock);
+	unsigned long cpu_flags = spin_lock_irqsave(&queue->lock);
 
 	assert(token->token_node.prev == NULL);
 
@@ -94,12 +94,12 @@ void wait_queue_add(struct wait_queue *queue, struct wait_queue_token *token)
 
 	list_assert_correct(&queue->token_list);
 
-	spin_unlock_irqrestore(&queue->lock);
+	spin_unlock_irqrestore(&queue->lock, cpu_flags);
 }
 
 void wait_queue_remove(struct wait_queue *queue, struct wait_queue_token *token)
 {
-	spin_lock_irqsave(&queue->lock);
+	unsigned long cpu_flags = spin_lock_irqsave(&queue->lock);
 	
 	struct list_head *node = &token->token_node;
 	if(node->next != LIST_REMOVE_POISON)
@@ -111,16 +111,16 @@ void wait_queue_remove(struct wait_queue *queue, struct wait_queue_token *token)
 	token->signaled = false;
 	token->context = NULL;
 
-	spin_unlock_irqrestore(&queue->lock);	
+	spin_unlock_irqrestore(&queue->lock, cpu_flags);	
 }
 
 bool wait_queue_may_delete(struct wait_queue *queue)
 {
-	spin_lock_irqsave(&queue->lock);
+	unsigned long cpu_flags = spin_lock_irqsave(&queue->lock);
 
 	bool may = list_is_empty(&queue->token_list);
 
-	spin_unlock_irqrestore(&queue->lock);
+	spin_unlock_irqrestore(&queue->lock, cpu_flags);
 
 	return may;
 }

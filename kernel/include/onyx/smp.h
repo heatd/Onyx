@@ -7,6 +7,7 @@
 #define _CARBON_SMP_H
 
 #include <stddef.h>
+#include <limits.h>
 
 #include <onyx/percpu.h>
 
@@ -36,7 +37,20 @@ extern "C"
 {
 #endif
 
-unsigned int get_cpu_nr();
+/* We define CPU_MAX as UINT_MAX - 1, because we use unsigned ints to represent CPU numbers
+ * and as such, we'll always have 1 less available to represent CPU0.
+ */
+#define CPU_MAX  (UINT_MAX - 1)
+#define MAX_NR_CPUS UINT_MAX
+
+extern unsigned int cpu_nr;
+
+__attribute__((always_inline))
+static inline unsigned int get_cpu_nr()
+{
+	return get_per_cpu(cpu_nr);
+}
+
 void smp_parse_cpus(void *madt);
 void smp_boot_cpus();
 

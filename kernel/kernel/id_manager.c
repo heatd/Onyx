@@ -13,7 +13,6 @@
 #include <onyx/id.h>
 #include <onyx/spinlock.h>
 
-#define NAME_MAX 256
 struct ids *list;
 static struct spinlock list_lock;
 static void append_to_list(struct ids *p)

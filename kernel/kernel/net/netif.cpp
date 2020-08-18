@@ -383,11 +383,11 @@ void netif_signal_rx(netif *nif)
 
 	auto queue = get_per_cpu_ptr(rx_queue);
 
-	spin_lock_irqsave(&queue->lock);
+	unsigned long cpu_flags = spin_lock_irqsave(&queue->lock);
 
 	list_add_tail(&nif->rx_queue_node, &queue->to_rx_list);
 
-	spin_unlock_irqrestore(&queue->lock);
+	spin_unlock_irqrestore(&queue->lock, cpu_flags);
 
 	softirq_raise(softirq_vector::SOFTIRQ_VECTOR_NETRX);
 }

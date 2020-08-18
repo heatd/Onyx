@@ -437,11 +437,11 @@ bool cpu_send_message(unsigned int cpu, unsigned long message, void *arg, bool s
 	
 	INIT_LIST_HEAD(&msg.node);
 
-	spin_lock_irqsave(message_queue_lock);
+	unsigned long cpu_flags = spin_lock_irqsave(message_queue_lock);
 
 	list_add_tail(&msg.node, queue);
 
-	spin_unlock_irqrestore(message_queue_lock);
+	spin_unlock_irqrestore(message_queue_lock, cpu_flags);
 
 	cpu_notify(cpu);
 
@@ -517,7 +517,7 @@ void *cpu_handle_messages(void *stack)
 	struct spinlock *cpu_msg_lock = get_per_cpu_ptr(msg_queue_lock);
 	struct list_head *list = get_per_cpu_ptr(message_queue);
 
-	spin_lock_irqsave(cpu_msg_lock);
+	unsigned long cpu_flags = spin_lock_irqsave(cpu_msg_lock);
 
 	list_for_every_safe(list)
 	{
@@ -530,7 +530,7 @@ void *cpu_handle_messages(void *stack)
 		cpu_handle_message(msg);
 	}
 
-	spin_unlock_irqrestore(cpu_msg_lock);
+	spin_unlock_irqrestore(cpu_msg_lock, cpu_flags);
 	
 	return stack;
 }

@@ -22,7 +22,7 @@ void timer_queue_clockevent(struct clockevent *ev)
 {
 	auto timer = platform_get_timer();
 
-	spin_lock_irqsave(&timer->event_list_lock);
+	unsigned long cpu_flags = spin_lock_irqsave(&timer->event_list_lock);
 
 	if(ev->flags & CLOCKEVENT_FLAG_POISON)
 		panic("Tried to queue clockevent that's already queued");
@@ -39,7 +39,7 @@ void timer_queue_clockevent(struct clockevent *ev)
 		timer->set_oneshot(ev->deadline);
 	}
 
-	spin_unlock_irqrestore(&timer->event_list_lock);
+	spin_unlock_irqrestore(&timer->event_list_lock, cpu_flags);
 }
 
 extern "C"
@@ -57,7 +57,7 @@ void timer_handle_events(struct timer *t)
 
 	auto current_time = clocksource_get_time();
 
-	spin_lock_irqsave(&t->event_list_lock);
+	unsigned long cpu_flags = spin_lock_irqsave(&t->event_list_lock);
 
 	hrtime_t lowest = UINT64_MAX;
 
@@ -106,7 +106,7 @@ void timer_handle_events(struct timer *t)
 		t->set_oneshot(lowest);
 	}
 
-	spin_unlock_irqrestore(&t->event_list_lock);
+	spin_unlock_irqrestore(&t->event_list_lock, cpu_flags);
 }
 
 void timer_remove_event(struct clockevent *ev)
@@ -124,12 +124,12 @@ void timer_remove_event(struct clockevent *ev)
 	 */
 	if(timer != nullptr)
 	{
-		spin_lock_irqsave(&timer->event_list_lock);
+		unsigned long cpu_flags = spin_lock_irqsave(&timer->event_list_lock);
 
 		if(ev->flags & CLOCKEVENT_FLAG_POISON)
 			list_remove(&ev->list_node);
 
-		spin_unlock_irqrestore(&timer->event_list_lock);
+		spin_unlock_irqrestore(&timer->event_list_lock, cpu_flags);
 	}
 }
 
