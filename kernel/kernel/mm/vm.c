@@ -1964,7 +1964,7 @@ int vm_handle_page_fault(struct fault_info *info)
 	if(!entry)
 	{
 		struct thread *ct = get_current_thread();
-		if(ct && !info->user)
+		if(ct && info->user)
 		{
 			struct process *current = get_current_process();
 			printk("Curr thread: %p\n", ct);

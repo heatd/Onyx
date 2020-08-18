@@ -1,5 +1,5 @@
 PROJECTS:=libc kernel
-SOURCE_PACKAGES:= photon libunwind libuuid init dhcpcd wserver strace devmgr singularity testsuite
+SOURCE_PACKAGES:= photon libunwind libuuid init netctld wserver strace devmgr singularity testsuite
 
 ALL_MODULES:=$(PROJECTS) $(SOURCE_PACKAGES)
 

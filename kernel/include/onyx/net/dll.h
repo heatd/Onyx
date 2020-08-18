@@ -12,7 +12,8 @@ struct netif;
 enum class tx_type
 {
 	unicast = 0,
-	broadcast
+	broadcast,
+	multicast
 };
 
 enum class tx_protocol

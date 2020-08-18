@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2017 Pedro Falcato
+* Copyright (c) 2017-2020 Pedro Falcato
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
@@ -19,26 +19,30 @@
 #include <assert.h>
 #include <stdexcept>
 
+#include <netinet/ip_icmp.h>
+
 #include <sys/syscall.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <sys/ioctl.h>
 #include <netdb.h>
+
 #include <onyx/public/netkernel.h>
+#include <onyx/public/icmp.h>
 
 #include <arpa/inet.h>
 
-#include <dhcp.h>
+#include "include/dhcp.h"
+
 #include "dhcpcd.hpp"
 
 #define DHCP_MIN_OPT_OFFSET	4
 
-char *program_name;
 void error(const char *msg, ...)
 {
 	va_list ap;
 	va_start(ap, msg);
-	fprintf(stderr, "%s: error: ", program_name);
+	fprintf(stderr, "%s: error: ", program_invocation_short_name);
 	vfprintf(stderr, msg, ap);
 	va_end(ap);
 }
@@ -47,7 +51,7 @@ void errorx(const char *msg, ...)
 {
 	va_list ap;
 	va_start(ap, msg);
-	fprintf(stderr, "%s: error: ", program_name);
+	fprintf(stderr, "%s: error: ", program_invocation_short_name);
 	vfprintf(stderr, msg, ap);
 	va_end(ap);
 	exit(1);
@@ -57,6 +61,7 @@ namespace dhcpcd
 {
 
 int rtfd = -1;
+int nkfd = -1;
 
 void init_entropy(void)
 {
@@ -249,14 +254,48 @@ std::unique_ptr<packet> instance::get_packets(std::function<bool (packet *)> pre
 
 void tcp_test()
 {
-	int sockfd, connfd; 
+	int icmp_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_ICMP);
+	if(icmp_fd < 0)
+	{
+		perror("icmpsocket");
+		exit(0);
+	}
+
+	icmphdr hdr = {};
+	hdr.code = 0;
+	hdr.type = ICMP_ECHO;
+	hdr.checksum = 0;
+
+	sockaddr_in icmp_in;
+	icmp_in.sin_family = AF_INET;
+	icmp_in.sin_port = 0;
+	icmp_in.sin_addr.s_addr = inet_addr("8.8.8.8");
+
+	icmp_filter filt;
+	filt.type = ICMP_ECHOREPLY;
+	filt.code = 0;
+
+	if(setsockopt(icmp_fd, SOL_ICMP, ICMP_ADD_FILTER, &filt, sizeof(filt)) < 0)
+	{
+		perror("icmp_setsockopt");
+		exit(0);
+	}
+
+	if(sendto(icmp_fd, &hdr, sizeof(hdr), 0, (sockaddr *) &icmp_in, sizeof(icmp_in)) < 0)
+	{
+		perror("icmp_sendto");
+		exit(0);
+	}
+
+	int sockfd, connfd;
     struct sockaddr_in servaddr, cli;
   
     // TCP test
-    sockfd = socket(AF_INET, SOCK_STREAM, 0); 
-    if (sockfd == -1) { 
-        printf("socket creation failed...\n"); 
-        exit(0); 
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if(sockfd == -1)
+	{ 
+        perror("TCP socket()"); 
+        exit(0);
     } 
     else
         printf("Socket successfully created..\n"); 
@@ -292,6 +331,35 @@ void tcp_test()
 
 int instance::setup_netif()
 {
+	/* TODO: we need to separate this into another part of the daemon,
+	 * and rename it netctld or something */
+	/* Setup a basic interface ID with EUI-64 */
+	{
+	
+	struct netkernel_ipv6_addrcfg cfg;
+	cfg.hdr.msg_type = NETKERNEL_MSG_IPV6_ADDRCFG;
+	cfg.hdr.flags = 0;
+	cfg.hdr.size = sizeof(cfg);
+	memset(&cfg.interface_id, 0, sizeof(in6_addr));
+	for(int i = 0; i < 3; i++) cfg.interface_id.s6_addr[8 + i] = mac[i];
+	cfg.interface_id.s6_addr[11] = 0xff;
+	cfg.interface_id.s6_addr[12] = 0xfe;
+	for(int i = 0; i < 3; i++) cfg.interface_id.s6_addr[13 + i] = mac[i + 3];
+
+	cfg.interface_id.s6_addr[0] ^= (1 << 7);
+	strcpy(cfg.iface, device_name.c_str() + 5);
+
+	sockaddr_nk addr;
+	addr.nk_family = AF_NETKERNEL;
+	strcpy(addr.path, "ipv6.slaac");
+
+	if(sendto(nkfd, &cfg, sizeof(cfg), 0, (sockaddr *) &addr, sizeof(addr)) < 0)
+	{
+		perror("ipv6 slaac");
+		return -1;
+	}
+
+	}
 	/* DHCP essentially works like this:
 	 * 1) The client sends a DHCP discover request through broadcast
 	 * 2) The various DHCP servers on the local network reply
@@ -467,52 +535,4 @@ int create_instance(std::string& name)
 	return 0;
 }
 
-}
-
-int main(int argc, char **argv, char **envp)
-{
-	program_name = argv[0];
-	int logfd = open("/dev/null", O_RDWR);
-	if(logfd < 0)
-	{
-		perror("could not create logfd");
-		return 1;
-	}
-
-#if 0
-	dup2(logfd, 0);
-	dup2(logfd, 1);
-	dup2(logfd, 2);
-#endif
-
-	close(logfd);
-
-	dhcpcd::rtfd = socket(AF_NETKERNEL, SOCK_DGRAM, 0);
-	if(dhcpcd::rtfd < 0)
-	{
-		perror("nksocket");
-		return 1;
-	}
-
-	sockaddr_nk nksa;
-	nksa.nk_family = AF_NETKERNEL;
-	strcpy(nksa.path, "ipv4.rt");
-	if(connect(dhcpcd::rtfd, (const sockaddr *) &nksa, sizeof(nksa)) < 0)
-	{
-		perror("nkconnect");
-		return 1;
-	}
-
-	printf("%s: Daemon initialized\n", argv[0]);
-
-	/* TODO: Discover NICs in /dev (maybe using netlink? or sysfs) */
-	
-	std::string name{"/dev/eth0"};
-	dhcpcd::init_entropy();
-
-	dhcpcd::create_instance(name);
-
-	while(1)
-		sleep(100000);
-	return 0;
 }

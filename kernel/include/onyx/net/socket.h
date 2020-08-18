@@ -111,18 +111,6 @@ public:
 struct socket : public refcountable
 {
 private:
-
-	template <typename Type>
-	static int __put_option(const Type &val, socklen_t buflen, void *option)
-	{
-		return copy_to_user(option, &val, cul::min(sizeof(val), (size_t) buflen));
-	}
-	
-	static int adjust_option_length(socklen_t *ulen, socklen_t buflen, socklen_t actual_length)
-	{
-		return buflen != actual_length ? 0 : copy_to_user(ulen, &actual_length, sizeof(actual_length));
-	}
-
 public:
 	int type;
 	int proto;
@@ -166,19 +154,13 @@ public:
 	virtual short poll(void *poll_file, short events);
 
 	template <typename Type>
-	expected<Type, int> get_socket_option(void *optval, const socklen_t *optlen)
+	expected<Type, int> get_socket_option(const void *optval, const socklen_t optlen)
 	{
-		socklen_t len;
-
-		if(copy_from_user(&len, optlen, sizeof(len)) < 0)
-			return unexpected<int>{-EFAULT};
-
-		if(len != sizeof(Type))
+		if(optlen != sizeof(Type))
 			return unexpected<int>{-EINVAL};
 
 		Type t;
-		if(copy_from_user(&t, optval, len) < 0)
-			return unexpected<int>{-EFAULT};
+		memcpy(&t, optval, optlen);
 
 		return cul::move(t);
 	}
@@ -187,12 +169,12 @@ public:
 	int setsockopt_socket_level(int optname, const void *optval, socklen_t optlen);
 
 	template <typename Type>
-	static int put_option(const Type &val, socklen_t buflen, socklen_t *ulen, void *option)
+	static int put_option(const Type &val, void *option, socklen_t *length)
 	{
-		if(__put_option(val, buflen, option) < 0)
-			return -EFAULT;
-		if(adjust_option_length(ulen, buflen, sizeof(val)) < 0)
-			return -EFAULT;
+		unsigned int length_ = min(sizeof(Type), (size_t) *length);
+		memcpy(option, &val, length_);
+		*length = length_;
+
 		return 0;
 	}
 
@@ -222,7 +204,7 @@ sockaddr &sa_generic(T &s)
 	return (sockaddr &) s;
 }
 
-#define SOL_ICMP       1
+#define SOL_ICMP       800
 #define SOL_TCP        6
 #define SOL_UDP        21
 

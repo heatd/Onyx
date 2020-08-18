@@ -14,13 +14,14 @@
 #include <onyx/byteswap.h>
 #include <onyx/softirq.h>
 #include <onyx/init.h>
+#include <onyx/vector.h>
 
 #include <onyx/net/sockets_info.hpp>
 
 #include <sys/ioctl.h>
 
 static struct spinlock netif_list_lock = {0};
-struct list_head netif_list = LIST_HEAD_INIT(netif_list);
+cul::vector<netif*> netif_list;
 
 unsigned int netif_ioctl(int request, void *argp, struct file* f)
 {
@@ -106,8 +107,8 @@ void netif_register_if(struct netif *netif)
 	device_show(d, DEVICE_NO_PATH, 0666);
 	
 	spin_lock(&netif_list_lock);
-	
-	list_add_tail(&netif->list_node, &netif_list);
+
+	assert(netif_list.push_back(netif) != false);
 
 	spin_unlock(&netif_list_lock);
 
@@ -142,9 +143,8 @@ struct netif *netif_choose(void)
 	/* TODO: Netif refcounting would be bery noice */
 	spin_lock(&netif_list_lock);
 
-	list_for_every(&netif_list)
+	for(auto n : netif_list)
 	{
-		netif *n = container_of(l, netif, list_node);
 		if(n->flags & NETIF_LINKUP && !(n->flags & NETIF_LOOPBACK))
 		{
 			spin_unlock(&netif_list_lock);
@@ -163,9 +163,8 @@ netif *netif_get_from_addr(const inet_sock_address& s, int domain)
 
 	//printk("trying to find %x\n", in->sin_addr.s_addr);
 
-	list_for_every(&netif_list)
+	for(auto n : netif_list)
 	{
-		netif *n = container_of(l, netif, list_node);
 		//printk("local %x\n", n->local_ip.sin_addr.s_addr);
 		if(domain == AF_INET && n->local_ip.sin_addr.s_addr == s.in4.s_addr)
 		{
@@ -179,11 +178,11 @@ netif *netif_get_from_addr(const inet_sock_address& s, int domain)
 	return nullptr;
 }
 
-struct list_head *netif_lock_and_get_list(void)
+cul::vector<netif*>& netif_lock_and_get_list(void)
 {
 	spin_lock(&netif_list_lock);
 
-	return &netif_list;
+	return netif_list;
 }
 
 void netif_unlock_list(void)
@@ -220,7 +219,7 @@ void netif_unlock_socks(const socket_id& id, netif *nif)
 
 void netif_print_open_sockets(netif *nif);
 
-inet_socket *netif_get_socket(const socket_id& id, netif *nif, unsigned int flags)
+inet_socket *netif_get_socket(const socket_id& id, netif *nif, unsigned int flags, unsigned int inst)
 {
 	auto socket_info = nif->sock_info;
 	auto hash = inet_socket::make_hash_from_id(id);
@@ -242,7 +241,7 @@ inet_socket *netif_get_socket(const socket_id& id, netif *nif, unsigned int flag
 	while(begin != end)
 	{
 		auto sock = *begin;
-		if(sock->is_id(id, flags))
+		if(sock->is_id(id, flags) && inst-- == 0)
 		{
 			ret = sock;
 			break;
@@ -328,9 +327,8 @@ netif *netif_from_name(const char *name)
 
 	//printk("trying to find %x\n", in->sin_addr.s_addr);
 
-	list_for_every(&netif_list)
+	for(auto n : netif_list)
 	{
-		netif *n = container_of(l, netif, list_node);
 		//printk("local %x\n", n->local_ip.sin_addr.s_addr);
 		if(!strcmp(n->name, name))
 		{

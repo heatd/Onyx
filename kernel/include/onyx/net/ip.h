@@ -13,19 +13,14 @@
 #include <onyx/packetbuf.h>
 #include <onyx/net/socket.h>
 #include <onyx/net/proto_family.h>
+#include <onyx/net/inet_proto_family.h>
 #include <onyx/net/ipv6.h>
 #include <onyx/net/inet_route.h>
+#include <onyx/net/inet_csum.h>
 
-#include <sys/socket.h>
+#include <onyx/public/socket.h>
+#include <netinet/in.h>
 #include <netinet/ip6.h>
-
-#define IPV4_ICMP 1
-#define IPV4_IGMP 2
-#define IPV4_TCP 6
-#define IPV4_UDP 17
-#define IPV4_ENCAP 41
-#define IPV4_OSPF 89
-#define IPV4_SCTP 132
 
 struct ip_header
 {
@@ -61,21 +56,6 @@ union sockaddr_in_both
 	sockaddr_in6 in6;
 };
 
-struct netif;
-
-/* These flags are in sync with netkernel_route4 flags */
-
-struct inet_socket;
-
-class inet_proto_family : public proto_family
-{
-public:
-	virtual int bind(struct sockaddr *addr, socklen_t len, inet_socket *socket) = 0;
-	virtual int bind_any(inet_socket *sock) = 0;
-	virtual expected<inet_route, int> route(const inet_sock_address& from, const inet_sock_address &to, int domain) = 0;
-	virtual void unbind_one(netif *nif, inet_socket *sock) = 0;
-};
-
 #define IPV4_MIN_HEADER_LEN			20
 
 #define IPV4_FRAG_INFO_DONT_FRAGMENT	0x4000
@@ -84,77 +64,6 @@ public:
 #define IPV4_FRAG_INFO_FLAGS(x)		(x & 0x7)
 #define IPV4_MAKE_FRAGOFF(x)		(x << 3)
 #define IPV4_GET_FRAGOFF(x)			(x >> 2)
-
-
-typedef uint32_t __attribute__((may_alias)) may_alias_uint32_t;
-typedef uint64_t __attribute__((may_alias)) may_alias_uint64_t;
-typedef uint16_t __attribute__((may_alias)) may_alias_uint16_t;
-typedef uint8_t __attribute__((may_alias)) may_alias_uint8_t;
-
-#define IS_BUFFER_ALIGNED_TO(buf, boundary)  (((unsigned long) buf) & boundary)
-
-#ifdef __x86_64__
-
-#define ADD_CARRY_64_BYTES(buf, result)  \
-__asm__ __volatile__("addq 0*8(%[buf]), %[res]\n\t" \
-					 "adcq 1*8(%[buf]), %[res]\n\t" \
-					 "adcq 2*8(%[buf]), %[res]\n\t" \
-					 "adcq 3*8(%[buf]), %[res]\n\t" \
-					 "adcq 4*8(%[buf]), %[res]\n\t" \
-					 "adcq 5*8(%[buf]), %[res]\n\t" \
-					 "adcq 6*8(%[buf]), %[res]\n\t" \
-					 "adcq 7*8(%[buf]), %[res]\n\t" \
-					 "adc $0, %[res]" : [res] "=r"(result) \
-					 : [buf] "r"(buf), "[res]" "r"(result))
-
-#define ADD_CARRY_64BIT(buf, result) \
-__asm__ __volatile__("addq (%1), %0\n\t" \
-					 "adc $0, %0\n\t" : "=r"(result) : "r"(buf), "0" "r"(result))
-
-static inline uint16_t fold32_to_16(uint32_t a) 
-{
-	uint16_t b = a >> 16; 
-	__asm__ __volatile__("addw %w2, %w0\n\t"
-                         "adcw $0, %w0\n" 
-	                     : "=r"(b)
-						 : "0"(b), "r"(a));
-	return b;
-}
-
-static inline uint32_t addcarry32(uint32_t a, uint32_t b)
-{
-	__asm__ __volatile__("addl %2, %0\n\t"
-                         "adcl $0, %0"
-                         : "=r"(a)
-                         : "0"(a), "rm"(b));
-	return a;
-}
-
-#endif
-
-using inetsum_t = uint32_t;
-
-inetsum_t do_checksum(const uint8_t *buf, size_t len);
-
-static inline inetsum_t __ipsum_unfolded(const void *addr, size_t bytes, inetsum_t starting_csum)
-{
-	return addcarry32(starting_csum, do_checksum((const uint8_t *) addr, bytes));
-}
-
-static inline inetsum_t ipsum_unfolded(const void *addr, size_t length)
-{
-	return do_checksum((const uint8_t *) addr, length);
-}
-
-static inline uint16_t ipsum_fold(inetsum_t cs)
-{
-	return ~fold32_to_16(cs);
-}
-
-static inline uint16_t ipsum(const void *addr, size_t bytes)
-{
-	return ipsum_fold(ipsum_unfolded(addr, bytes));
-}
 
 namespace ip
 {
@@ -191,6 +100,10 @@ inet_proto_family *get_v4_proto();
 
 };
 
+socket *choose_protocol_and_create(int type, int protocol);
+in_port_t allocate_ephemeral_port(netif *netif, inet_sock_address &addr,
+                                  inet_socket *sock, int domain);
+
 };
 
 inline void ipv4_to_sockaddr(in_addr_t addr, in_port_t port, sockaddr_in &in)
@@ -213,7 +126,7 @@ inline bool check_sockaddr_in(sockaddr_in *in)
 /* This routine also handles broadcast addresses and all complexity envolved with ip addresses */
 template <typename T>
 inline T *inet_resolve_socket(in_addr_t src, in_port_t port_src, in_port_t port_dst,
-                              int proto, netif *nif, bool ign_dst = false)
+                              int proto, netif *nif, bool ign_dst, unsigned int instance = 0)
 {
 	in_addr __src;
 	__src.s_addr = src;
@@ -224,7 +137,7 @@ inline T *inet_resolve_socket(in_addr_t src, in_port_t port_src, in_port_t port_
 
 	const socket_id id(proto, AF_INET, socket_src, socket_dst);
 
-	auto socket = netif_get_socket(id, nif, flags);
+	auto socket = netif_get_socket(id, nif, flags, instance);
 	
 	return static_cast<T *>(socket);
 }

@@ -57,6 +57,7 @@ shared_ptr<netkernel_object> open(std::string_view path)
 	pdata.curr_obj = root_object;
 
 	std::string_view v;
+	//printk("Path: %s\n", path.data());
 
 	while((v = get_token_from_path(pdata)).data() != nullptr)
 	{
@@ -66,7 +67,7 @@ shared_ptr<netkernel_object> open(std::string_view path)
 
 		if(!new_obj)
 			return nullptr;
-		
+		//printk("found\n");
 		pdata.curr_obj = new_obj;
 	}
 

@@ -17,7 +17,7 @@
 #include <onyx/superblock.h>
 #include <onyx/rwlock.h>
 
-#include <sys/socket.h>
+#include <onyx/public/socket.h>
 #include <sys/stat.h>
 
 #define VFS_TYPE_FILE            (1 << 0)

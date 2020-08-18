@@ -1,0 +1,5 @@
+# netctld service
+
+[Service]
+Bin=/sbin/netctld
+Type=regular

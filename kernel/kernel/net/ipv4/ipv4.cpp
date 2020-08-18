@@ -11,7 +11,7 @@
 
 #include <netinet/in.h>
 
-#include <sys/socket.h>
+#include <onyx/public/socket.h>
 
 #include <onyx/random.h>
 #include <onyx/utils.h>
@@ -375,11 +375,11 @@ int handle_packet(netif *nif, packetbuf *buf)
 	/* Adjust tail to point at the end of the ipv4 packet */
 	buf->tail = (unsigned char *) header + ntohs(header->total_len);
 
-	if(header->proto == IPV4_UDP)
+	if(header->proto == IPPROTO_UDP)
 		return udp_handle_packet(nif, buf);
-	else if(header->proto == IPV4_TCP)
+	else if(header->proto == IPPROTO_TCP)
 		return tcp_handle_packet(nif, buf);
-	else if(header->proto == IPV4_ICMP)
+	else if(header->proto == IPPROTO_ICMP)
 		return icmp::handle_packet(nif, buf);
 	else
 	{
@@ -406,60 +406,9 @@ int handle_packet(netif *nif, packetbuf *buf)
 	return 0;
 }
 
-socket *choose_protocol_and_create(int type, int protocol)
+constexpr bool is_proto_without_ports(int proto)
 {
-	switch(type)
-	{
-		case SOCK_DGRAM:
-		{
-			switch(protocol)
-			{
-				case IPPROTO_UDP:
-					return udp_create_socket(type);
-				default:
-					return nullptr;
-			}
-		}
-
-		case SOCK_STREAM:
-		{
-			case IPPROTO_TCP:
-				return tcp_create_socket(type);
-			default:
-				return nullptr;
-		}
-	}
-}
-
-/* Use linux's ephemeral ports */
-static constexpr in_port_t ephemeral_upper_bound = 61000;
-static constexpr in_port_t ephemeral_lower_bound = 32768;
-
-in_port_t allocate_ephemeral_port(netif *netif, inet_sock_address &addr, inet_socket *sock)
-{
-	while(true)
-	{
-		in_port_t port = htons(static_cast<in_port_t>(arc4random_uniform(
-			 ephemeral_upper_bound - ephemeral_lower_bound)) + ephemeral_lower_bound);
-
-		addr.port = port;
-
-		/* We pass the same address as the dst address but in reality, dst_addr isn't checked. */
-		const socket_id id{sock->proto, AF_INET, addr, addr};
-		
-		netif_lock_socks(id, netif);
-
-		auto sock = netif_get_socket(id, netif, GET_SOCKET_CHECK_EXISTENCE | GET_SOCKET_UNLOCKED);
-
-		if(!sock)
-			return port;
-		else
-		{
-			/* Let's try again, boys */
-			netif_unlock_socks(id, netif);
-		}
-	}
-
+	return proto == IPPROTO_ICMP;
 }
 
 int proto_family::bind_one(sockaddr_in *in, netif *netif, inet_socket *sock)
@@ -467,14 +416,26 @@ int proto_family::bind_one(sockaddr_in *in, netif *netif, inet_socket *sock)
 	inet_sock_address addr{*in};
 	const socket_id id(sock->proto, AF_INET, addr, addr);
 
-	if(in->sin_port != 0)
+	/* Some protocols have no concept of ports, like ICMP, for example. 
+	 * These are special cases that require that in->sin_port = 0 **and**
+	 * we do not allocate a port, like we would for standard sin_port = 0.
+	 */
+	bool proto_has_no_ports = is_proto_without_ports(sock->proto);
+
+	if(proto_has_no_ports && in->sin_port != 0)
+		return -EINVAL;
+
+	if(in->sin_port != 0 || proto_has_no_ports)
 	{
-		if(!inet_has_permission_for_port(in->sin_port))
+		if(!proto_has_no_ports && !inet_has_permission_for_port(in->sin_port))
 			return -EPERM;
 
 		netif_lock_socks(id, netif);
-		/* Check if there's any socket bound to this address yet */
-		if(netif_get_socket(id, netif, GET_SOCKET_CHECK_EXISTENCE | GET_SOCKET_UNLOCKED))
+		/* Check if there's any socket bound to this address yet, if we're not talking about ICMP.
+		 * ICMP allows you to bind multiple sockets, as they'll all receive the same packets.
+		 */
+		if(!proto_has_no_ports && netif_get_socket(id, netif,
+		                      GET_SOCKET_CHECK_EXISTENCE | GET_SOCKET_UNLOCKED))
 		{
 			netif_unlock_socks(id, netif);
 			return -EADDRINUSE;
@@ -483,7 +444,7 @@ int proto_family::bind_one(sockaddr_in *in, netif *netif, inet_socket *sock)
 	else
 	{
 		/* Lets try to allocate a new ephemeral port for us */
-		in->sin_port = allocate_ephemeral_port(netif, addr, sock);
+		in->sin_port = allocate_ephemeral_port(netif, addr, sock, AF_INET);
 	}
 
 	/* Note that we keep doing this memcpy in each bind_one() just so the socket
@@ -532,21 +493,19 @@ int proto_family::bind(sockaddr *addr, socklen_t len, inet_socket *sock)
 	}
 	else
 	{
-		auto list_start = netif_lock_and_get_list();
-		
-		list_for_every(list_start)
-		{
-			auto netif = container_of(l, struct netif, list_node);
+		auto& list = netif_lock_and_get_list();
 
+		for(auto netif : list)
+		{
 			st = bind_one(in, netif, sock);
 
 			if(st < 0)
 			{
-				auto stop = l;
+				auto stop = netif;
 
-				list_for_every(list_start)
+				for(auto n : list)
 				{
-					if(l == stop)
+					if(n == stop)
 						break;
 					panic("Implement socket un-binding");
 				}
@@ -693,7 +652,7 @@ inet_proto_family *get_v4_proto()
 
 socket *create_socket(int type, int protocol)
 {
-	auto sock = choose_protocol_and_create(type, protocol);
+	auto sock = ip::choose_protocol_and_create(type, protocol);
 
 	if(sock)
 		sock->proto_domain = &v4_protocol;
@@ -741,22 +700,28 @@ bool inet_socket::validate_sockaddr_len_pair_v4(sockaddr_in *addr, socklen_t len
 
 void inet_socket::unbind()
 {
+	if(!bound)
+		return;
+
 	bool is_inaddr_any = false;
 
 	if(domain == AF_INET)
 	{
 		is_inaddr_any = ip::v4::is_bind_any(src_addr.in4.s_addr);
 	}
+	else
+	{
+		is_inaddr_any = src_addr.in6 == in6addr_any;
+	}
 	
 	auto proto_fam = get_proto_fam();
 
 	if(likely(is_inaddr_any))
 	{
-		auto list_start = netif_lock_and_get_list();
+		auto& list = netif_lock_and_get_list();
 
-		list_for_every(list_start)
+		for(auto netif : list)
 		{
-			auto netif = container_of(l, struct netif, list_node);
 			proto_fam->unbind_one(netif, this);
 		}
 
@@ -800,21 +765,11 @@ int inet_socket::setsockopt_inet(int level, int opt, const void *optval, socklen
 
 int inet_socket::getsockopt_inet(int level, int opt, void *optval, socklen_t *len)
 {
-	socklen_t length;
-	if(copy_from_user(&length, len, sizeof(length)) < 0)
-		return -EFAULT;
-
-	/* Lessens the dupping of code */
-	auto put_opt = [&](const auto &val) -> int
-	{
-		return put_option(val, length, len, optval);
-	};
-
 	switch(opt)
 	{
 		case IP_TTL:
 			int ttl = 64;
-			return put_opt(ttl);
+			return put_option(ttl, optval, len);
 	}
 
 	return -ENOPROTOOPT;

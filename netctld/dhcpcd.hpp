@@ -12,6 +12,7 @@
 #include <fcntl.h>
 #include <list>
 #include <functional>
+#include <stdexcept>
 
 #include "include/dhcp.h"
 
@@ -22,6 +23,12 @@
 
 namespace dhcpcd
 {
+
+extern int nkfd;
+extern int rtfd;
+
+void init_entropy(void);
+int create_instance(std::string& name);
 
 struct dhcp_option
 {

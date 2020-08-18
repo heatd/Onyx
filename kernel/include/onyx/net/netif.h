@@ -12,9 +12,10 @@
 struct netif;
 #include <onyx/net/arp.h>
 #include <onyx/net/dll.h>
+#include <onyx/vector.h>
 
 #include <netinet/in.h>
-#include <sys/socket.h>
+#include <onyx/public/socket.h>
 
 #define NETIF_LINKUP							(1 << 0)
 #define NETIF_SUPPORTS_CSUM_OFFLOAD			    (1 << 1)
@@ -40,6 +41,7 @@ struct netif
 	unsigned int mtu;
 	unsigned char mac_address[6];
 	struct sockaddr_in local_ip;
+	in6_addr local_ip6;
 	int (*sendpacket)(packetbuf *buf, struct netif *nif);
 	int (*poll_rx)(struct netif *nif);
 	void (*rx_end)(struct netif *nif);
@@ -77,7 +79,7 @@ struct inet_socket;
 #define REMOVE_SOCKET_UNLOCKED             (1 << 0)
 
 
-inet_socket *netif_get_socket(const socket_id& id, netif *nif, unsigned int flags = 0);
+inet_socket *netif_get_socket(const socket_id& id, netif *nif, unsigned int flags, unsigned int inst = 0);
 void netif_lock_socks(const socket_id& id, netif *nif);
 void netif_unlock_socks(const socket_id& id, netif *nif);
 
@@ -97,7 +99,7 @@ int netif_unregister_if(struct netif *netif);
 struct netif *netif_choose(void);
 void netif_get_ipv4_addr(struct sockaddr_in *s, struct netif *netif);
 struct netif *netif_get_from_addr(const inet_sock_address& s, int domain);
-struct list_head *netif_lock_and_get_list(void);
+cul::vector<netif*>& netif_lock_and_get_list(void);
 void netif_unlock_list(void);
 struct netif *netif_from_name(const char *name);
 int netif_do_rx(void);

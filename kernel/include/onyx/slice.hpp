@@ -61,10 +61,10 @@ private:
 						slice_static<Type, length> >::type;
 public:
 	template <typename IteratorType>
-	slice(IteratorType t, size_t count) : base_class{&*t, count} {}
+	slice(IteratorType t, size_t count) : base_class{t, count} {}
 	
 	template <typename IteratorType>
-	slice(IteratorType start, IteratorType end) : base_class{&*start, &*end - &*start} {}
+	slice(IteratorType start, IteratorType end) : base_class{start, end - start} {}
 
 	slice() : base_class{} {}
 

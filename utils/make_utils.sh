@@ -1,5 +1,5 @@
 #!/bin/sh
-UTILS="dmesg login packmanager memstat"
+UTILS="dmesg login packmanager memstat ping"
 cd utils
 for UTIL in $UTILS; do
 	echo "Building $UTIL"

@@ -137,6 +137,8 @@ struct packetbuf : public refcountable
 	}
 };
 
+packetbuf *packetbuf_clone(packetbuf *original);
+
 #define PACKET_MAX_HEAD_LENGTH		128
 
 #ifdef __cplusplus

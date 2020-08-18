@@ -1,5 +1,0 @@
-# dhcpcd service
-
-[Service]
-Bin=/sbin/dhcpcd
-Type=regular

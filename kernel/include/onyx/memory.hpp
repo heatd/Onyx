@@ -247,22 +247,22 @@ ret:
 		return p;
 	}
 
-	T& operator*()
+	T& operator*() const
 	{
 		return *get_data();
 	}
 	
-	T* operator->()
+	T* operator->() const
 	{
 		return get_data();
 	}
 
-	bool operator!()
+	bool operator!() const
 	{
 		return get_data() == nullptr;
 	}
 	
-	operator bool()
+	operator bool() const
 	{
 		return get_data() != nullptr;
 	}

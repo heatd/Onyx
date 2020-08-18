@@ -7,7 +7,7 @@ extern "C" {
 
 #include <features.h>
 #include <inttypes.h>
-#include <sys/socket.h>
+#include <onyx/public/socket.h>
 
 typedef uint16_t in_port_t;
 typedef uint32_t in_addr_t;

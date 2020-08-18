@@ -9,9 +9,11 @@
 
 #include <onyx/net/inet_sock_addr.h>
 #include <onyx/net/inet_socket.h>
+#include <onyx/net/inet_proto_family.h>
+#include <onyx/net/inet_route.h>
 #include <onyx/tuple.hpp>
 
-#include <sys/socket.h>
+#include <onyx/public/socket.h>
 #include <netinet/in.h>
 
 struct ip6hdr
@@ -32,6 +34,9 @@ struct ip6hdr
 	in6_addr src_addr;
 	in6_addr dst_addr;
 } __attribute__((packed));
+
+#define IN6ADDR_ALL_ROUTERS  {0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2}
+#define IN6ADDR_ALL_NODES    {0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
 
 namespace ip
 {
@@ -54,6 +59,18 @@ namespace v6
 		       && sa->sin6_addr.s6_addr16[4] == 0 && sa->sin6_addr.s6_addr16[5] == 0xffff;
 	}
 
+	constexpr in6_addr ipv4_to_ipv4_mapped(in_addr_t addr)
+	{
+		in6_addr a;
+		a.s6_addr32[0] = 0;
+		a.s6_addr32[1] = 0;
+		a.s6_addr16[4] = 0;
+		a.s6_addr16[5] = 0xffff;
+		a.s6_addr32[3] = addr;
+
+		return a;
+	}
+
 	/* Used on IPv4-mapped IPv6 addresses */
 	constexpr in_addr sa6_to_ipv4(const sockaddr_in6 *sa)
 	{
@@ -68,8 +85,25 @@ namespace v6
 			return {inet_sock_address{*sa}, AF_INET6};
 	} 
 
-	int send_packet(const in6_addr& src, const in6_addr& dst, unsigned int type,
+	int send_packet(const inet_route& route, unsigned int type,
                      packetbuf *buf, struct netif *netif);
+
+	socket *create_socket(int type, int protocol);
+
+	bool add_route(inet6_route &route);
+
+	int netif_addrcfg(netif *nif, const in6_addr& if_id);
+
+	class proto_family : public inet_proto_family
+	{
+	private:
+		int bind_one(sockaddr_in6 *in, netif *nif, inet_socket *sock);
+	public:
+		int bind(sockaddr *addr, socklen_t len, inet_socket *socket) override;
+		int bind_any(inet_socket *sock) override;
+		expected<inet_route, int> route(const inet_sock_address& from, const inet_sock_address &to, int domain) override;
+		void unbind_one(netif *nif, inet_socket *sock) override;
+	};
 }
 
 }

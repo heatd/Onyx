@@ -34,6 +34,16 @@ struct creds *__creds_get_write(struct process *p);
 void creds_put(struct creds *c);
 void creds_put_write(struct creds *c);
 
+static inline bool is_root_user(void)
+{
+	struct creds *c = creds_get();
+
+	bool is = c->euid == 0;
+
+	creds_put(c);
+
+	return is;
+}
 
 int process_inherit_creds(struct process *new_child, struct process *parent);
 

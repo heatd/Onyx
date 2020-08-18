@@ -10,6 +10,12 @@
 
 #include <onyx/net/netif.h>
 #include <onyx/net/ip.h>
+#include <onyx/net/inet_socket.h>
+#include <onyx/scoped_lock.h>
+#include <onyx/cred.h>
+#include <onyx/expected.hpp>
+
+#include <onyx/public/icmp.h>
 
 #define ICMP_TYPE_ECHO_REPLY             0
 #define ICMP_TYPE_DEST_UNREACHABLE       3
@@ -77,6 +83,72 @@ struct dst_unreachable_info
 	{}
 };
 
+class icmp_socket : public inet_socket
+{
+private:
+	static constexpr unsigned int icmp_max_filters = 5;
+	spinlock filters_lock;
+	cul::vector<icmp_filter> filters;
+
+	int add_filter(icmp_filter&& f);
+
+	packetbuf *get_rx_head()
+	{
+		if(list_is_empty(&rx_packet_list))
+			return nullptr;
+		
+		return list_head_cpp<packetbuf>::self_from_list_head(list_first_element(&rx_packet_list));
+	}
+
+	bool has_data_available()
+	{
+		scoped_lock g{&rx_packet_list_lock};
+
+		return !list_is_empty(&rx_packet_list);
+	}
+
+	expected<packetbuf *, int> get_datagram(int flags);
+
+	int wait_for_dgrams()
+	{
+		return wait_for_event_locked_interruptible(&rx_wq, !list_is_empty(&rx_packet_list), &rx_packet_list_lock);
+	}
+
+public:
+	icmp_socket() : filters_lock{}, filters{}
+	{
+		spinlock_init(&filters_lock);
+	}
+
+	~icmp_socket() = default;
+
+	int bind(struct sockaddr *addr, socklen_t addrlen) override;
+	int connect(struct sockaddr *addr, socklen_t addrlen) override;
+	ssize_t sendmsg(const struct msghdr *msg, int flags) override;
+	int getsockopt(int level, int optname, void *val, socklen_t *len) override;
+	int setsockopt(int level, int optname, const void *val, socklen_t len) override;
+	short poll(void *poll_file, short events) override;
+	ssize_t recvmsg(msghdr *msg, int flags) override;
+
+	bool match_filter(const icmp_header *header)
+	{
+		scoped_lock g{&filters_lock};
+
+		for(const auto &f : filters)
+		{
+			if(header->type != f.type && f.type != ICMP_FILTER_TYPE_UNSPEC)
+				continue;
+			if(header->code != f.code && f.code != ICMP_FILTER_CODE_UNSPEC)
+				continue;
+			
+			return true;
+		}
+
+		return false;
+	}
+};
+
+icmp_socket *create_socket(int type);
 
 static constexpr unsigned int min_icmp_size()
 {

@@ -1,5 +1,5 @@
-PROG:= dhcpcd
-OBJS:= dhcpcd.o
+PROG:= netctld
+OBJS:= netctl.o dhcpcd.o
 CFLAGS:=-Og -g -std=c99 -D_POSIX_C_SOURCE -fstack-protector-strong -no-pie
 CPPFLAGS:=-Iinclude
 
@@ -12,7 +12,7 @@ install: $(PROG)
 	mkdir -p $(DESTDIR)/etc/init.d/targets
 	mkdir -p $(DESTDIR)/sbin/
 	cp $(PROG) $(DESTDIR)/sbin/
-	cp dhcpcd.service $(DESTDIR)/etc/init.d/targets
+	cp netctld.service $(DESTDIR)/etc/init.d/targets
 
 $(PROG): $(OBJS)
 	$(CXX) $(OBJS) $(CFLAGS) -Iinclude -o $@

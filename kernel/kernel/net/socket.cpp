@@ -20,6 +20,11 @@ socket *file_to_socket(struct file *f)
 	return static_cast<socket *>(f->f_ino->i_helper);
 }
 
+socket *file_to_socket(auto_file& f)
+{
+	return file_to_socket(f.get_file());
+}
+
 /* Most of these default values don't make much sense, but we have them as placeholders */
 int socket::listen()
 {
@@ -301,7 +306,7 @@ struct file_ops socket_ops =
 	.poll = socket_poll
 };
 
-struct file *get_socket_fd(int fd)
+auto_file get_socket_fd(int fd)
 {
 	struct file *desc = get_file_description(fd);
 	if(!desc)
@@ -326,12 +331,12 @@ int sys_connect(int sockfd, const struct sockaddr *uaddr, socklen_t addrlen)
 	if(copy_from_user(&addr, uaddr, addrlen) < 0)
 		return -EFAULT;
 
-	struct file *desc = get_socket_fd(sockfd);
+	auto desc = get_socket_fd(sockfd);
 	if(!desc)
 		return -errno;
 	
 	int ret = -EINTR;
-	socket *s = file_to_socket(desc);
+	socket *s = file_to_socket(desc.get_file());
 
 	/* See the comment below in sys_bind for explanation */
 	if(mutex_lock_interruptible(&s->connection_state_lock) < 0)
@@ -348,7 +353,6 @@ int sys_connect(int sockfd, const struct sockaddr *uaddr, socklen_t addrlen)
 out2:
 	mutex_unlock(&s->connection_state_lock);
 out:
-	fd_put(desc);
 	return ret;
 }
 
@@ -362,11 +366,11 @@ int sys_bind(int sockfd, const struct sockaddr *uaddr, socklen_t addrlen)
 	if(copy_from_user(&addr, uaddr, addrlen) < 0)
 		return -EFAULT;
 
-	struct file *desc = get_socket_fd(sockfd);
+	auto desc = get_socket_fd(sockfd);
 	if(!desc)
 		return -errno;
 
-	socket *s = file_to_socket(desc);
+	socket *s = file_to_socket(desc.get_file());
 	int ret = -EINTR;
 
 	/* We use mutex_lock_interruptible here as we can be held up for quite a
@@ -387,7 +391,6 @@ out2:
 	mutex_unlock(&s->connection_state_lock);
 
 out:
-	fd_put(desc);
 	return ret;
 }
 
@@ -395,13 +398,13 @@ extern "C"
 ssize_t sys_recvfrom(int sockfd, void *buf, size_t len, int flags,
                      struct sockaddr *src_addr, socklen_t *paddrlen)
 {
-	struct file *desc = get_socket_fd(sockfd);
+	auto_file desc = get_socket_fd(sockfd);
 	if(!desc)
 		return -errno;
 
-	socket *s = file_to_socket(desc);
+	socket *s = file_to_socket(desc.get_file());
 
-	flags |= fd_flags_to_msg_flags(desc);
+	flags |= fd_flags_to_msg_flags(desc.get_file());
 	socklen_t addrlen = 0;
 
 	sockaddr_storage sa;
@@ -434,8 +437,6 @@ ssize_t sys_recvfrom(int sockfd, void *buf, size_t len, int flags,
 
 	ssize_t ret = s->recvmsg(&msg, flags);
 
-	fd_put(desc);
-
 	if(ret < 0)
 		return ret;
 	
@@ -458,11 +459,11 @@ extern "C"
 int sys_listen(int sockfd, int backlog)
 {
 	int st = 0;
-	struct file *f = get_socket_fd(sockfd);
+	auto_file f = get_socket_fd(sockfd);
 	if(!f)
 		return -errno;
 
-	socket *sock = file_to_socket(f);
+	socket *sock = file_to_socket(f.get_file());
 
 	if(sock->type != SOCK_DGRAM || sock->type != SOCK_SEQPACKET)
 	{
@@ -508,7 +509,6 @@ int sys_listen(int sockfd, int backlog)
 out2:
 	mutex_unlock(&sock->connection_state_lock);
 out:
-	fd_put(f);
 	return st;
 }
 
@@ -524,6 +524,7 @@ int check_af_support(int domain)
 	{
 		case AF_INET:
 		case AF_UNIX:
+		case AF_INET6:
 		case AF_NETKERNEL:
 			return 0;
 		default:
@@ -592,6 +593,9 @@ socket *socket_create(int domain, int type, int protocol)
 	{
 		case AF_INET:
 			socket = ip::v4::create_socket(type, protocol);
+			break;
+		case AF_INET6:
+			socket = ip::v6::create_socket(type, protocol);
 			break;
 		case AF_UNIX:
 			// socket = unix_create_socket(type, protocol);
@@ -731,11 +735,11 @@ int sys_accept4(int sockfd, struct sockaddr *addr, socklen_t *slen, int flags)
 	if(flags & ~ACCEPT4_VALID_FLAGS)
 		return -EINVAL;
 	
-	file *f = get_socket_fd(sockfd);
+	auto f = get_socket_fd(sockfd);
 	if(!f)
 		return -errno;
 	
-	socket *sock = file_to_socket(f);
+	socket *sock = file_to_socket(f.get_file());
 	socket_conn_request *req = nullptr;
 	socket *new_socket = nullptr;
 	inode *inode = nullptr;
@@ -801,7 +805,6 @@ int sys_accept4(int sockfd, struct sockaddr *addr, socklen_t *slen, int flags)
 out:
 	mutex_unlock(&sock->connection_state_lock);
 out_no_lock:
-	fd_put(f);
 	return st;
 }
 
@@ -813,45 +816,35 @@ int sys_accept(int sockfd, struct sockaddr *addr, socklen_t *slen)
 
 int socket::getsockopt_socket_level(int optname, void *optval, socklen_t *optlen)
 {
-	socklen_t length;
-	if(copy_from_user(&length, optlen, sizeof(length)) < 0)
-		return -EFAULT;
-
-	/* Lessens the dupping of code */
-	auto put_opt = [&](const auto &val) -> int
-	{
-		return put_option(val, length, optlen, optval);
-	};
-
 	switch(optname)
 	{
 		/* TODO: Add more options */
 		case SO_ACCEPTCONN:
 		{
 			int val = (int) listening();
-			return put_opt(val);
+			return put_option(val, optval, optlen);
 		}
 
 		case SO_DOMAIN:
 		{
-			return put_opt(domain);
+			return put_option(domain, optval, optlen);
 		}
 
 		case SO_ERROR:
 		{
 			auto err = sock_err;
 			sock_err = 0;
-			return put_opt(err);
+			return put_option(err, optval, optlen);
 		}
 
 		case SO_TYPE:
 		{
-			return put_opt(type);
+			return put_option(type, optval, optlen);
 		}
 
 		case SO_PROTOCOL:
 		{
-			return put_opt(proto);
+			return put_option(proto, optval, optlen);
 		}
 
 		default:
@@ -867,25 +860,66 @@ int socket::setsockopt_socket_level(int optname, const void *optval, socklen_t o
 extern "C"
 int sys_getsockopt(int sockfd, int level, int optname, void *optval, socklen_t *optlen)
 {
-	file *f = get_socket_fd(sockfd);
+	auto f = get_socket_fd(sockfd);
 	if(!f)
 		return -errno;
+
+	socklen_t length;
+
+	if(copy_from_user(&length, optlen, sizeof(length)) < 0)
+		return -EFAULT;
+	
+	socklen_t original_length = length;
+
+	void *ptr = malloc(length);
+	if(!ptr)
+		return -ENOMEM;
 	
 	socket *sock = file_to_socket(f);
 
-	return sock->getsockopt(level, optname, optval, optlen);
+	int st = sock->getsockopt(level, optname, optval, &length);
+
+	if(st < 0)
+	{
+		free(ptr);
+		return st;
+	}
+	
+	st = copy_to_user(optval, ptr, min(original_length, length));
+	
+	free(ptr);
+
+	if(st < 0)
+		return -EFAULT;
+	
+	if(copy_to_user(optlen, &length, sizeof(length)) < 0)
+		return -EFAULT;
+
+	return st;
 }
 
 extern "C"
-int sys_setsockopt(int sockfd, int level, int optname, const void *optval, socklen_t optlen)
+int sys_setsockopt(int sockfd, int level, int optname, const void *uoptval, socklen_t optlen)
 {
-	file *f = get_socket_fd(sockfd);
+	auto f = get_socket_fd(sockfd);
 	if(!f)
 		return -errno;
 	
+	void *ptr = malloc(optlen);
+	if(!ptr)
+		return -ENOMEM;
+
+
+	if(copy_from_user(ptr, uoptval, optlen) < 0)
+		return -EFAULT;
+	
 	socket *sock = file_to_socket(f);
 
-	return sock->setsockopt(level, optname, optval, optlen);
+	int st = sock->setsockopt(level, optname, uoptval, optlen);
+
+	free(ptr);
+
+	return st;
 }
 
 #define INLINE_IOVECS            4
@@ -984,7 +1018,7 @@ extern "C"
 ssize_t sys_sendto(int sockfd, const void *buf, size_t len, int flags,
 	struct sockaddr *addr, socklen_t addrlen)
 {
-	struct file *desc = get_socket_fd(sockfd);
+	auto desc = get_socket_fd(sockfd);
 	if(!desc)
 		return -errno;
 	
@@ -1019,20 +1053,19 @@ ssize_t sys_sendto(int sockfd, const void *buf, size_t len, int flags,
 	socket *s = file_to_socket(desc);
 	ssize_t ret = s->sendmsg(&msg, flags);
 
-	fd_put(desc);
 	return ret;
 }
 
 extern "C"
 ssize_t sys_sendmsg(int sockfd, struct msghdr *msg, int flags)
 {
-	file *f = get_socket_fd(sockfd);
+	auto_file f = get_socket_fd(sockfd);
 	if(!f)
 		return -errno;
 	
 	socket *sock = file_to_socket(f);
 
-	return socket_sendmsg(sock, msg, flags | fd_flags_to_msg_flags(f));
+	return socket_sendmsg(sock, msg, flags | fd_flags_to_msg_flags(f.get_file()));
 }
 
 ssize_t socket_recvmsg(socket *sock, msghdr *umsg, int flags)
@@ -1073,11 +1106,11 @@ ssize_t socket_recvmsg(socket *sock, msghdr *umsg, int flags)
 extern "C"
 ssize_t sys_recvmsg(int sockfd, struct msghdr *msg, int flags)
 {
-	file *f = get_socket_fd(sockfd);
+	auto_file f = get_socket_fd(sockfd);
 	if(!f)
 		return -errno;
 	
 	socket *sock = file_to_socket(f);
 
-	return socket_recvmsg(sock, msg, flags | fd_flags_to_msg_flags(f));
+	return socket_recvmsg(sock, msg, flags | fd_flags_to_msg_flags(f.get_file()));
 }

@@ -31,11 +31,12 @@ utils/dmesg/dmesg
 games/pong
 utils/true/true
 utils/yes/yes
+utils/ping/ping
 autom4ate.cache
 *.m4
 utils/printenv/printenv
 utils/sleep/sleep
-dhcpcd/dhcpcd
+netctld/netctld
 utils/memstat/memstat
 *.tar*
 gen_password_hash

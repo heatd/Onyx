@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2016, 2017 Pedro Falcato
+* Copyright (c) 2016-2020 Pedro Falcato
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
@@ -12,23 +12,29 @@
 #include <onyx/net/network.h>
 #include <onyx/net/icmp.h>
 #include <onyx/net/ip.h>
+
+#include <onyx/cred.h>
 #include <onyx/packetbuf.h>
+#include <onyx/vfs.h>
 #include <onyx/memory.hpp>
 #include <onyx/byteswap.h>
+#include <onyx/poll.h>
+
+#include <onyx/public/icmp.h>
 
 #define ICMP_PACKETBUF_HEADER_SPACE  (PACKET_MAX_HEAD_LENGTH + sizeof(ip_header) + sizeof(icmp::icmp_header))
 
 namespace icmp
 {
 
-unique_ptr<packetbuf> allocate_icmp_response_packet(unsigned int extra_size = 0)
+ref_guard<packetbuf> allocate_icmp_response_packet(unsigned int extra_size = 0)
 {
-	auto buf = make_unique<packetbuf>();
+	auto buf = make_refc<packetbuf>();
 	if(!buf)
-		return nullptr;
+		return {};
 	
 	if(!buf->allocate_space(ICMP_PACKETBUF_HEADER_SPACE + extra_size))
-		return nullptr;
+		return {};
 	
 	buf->reserve_headers(ICMP_PACKETBUF_HEADER_SPACE);
 	
@@ -63,7 +69,7 @@ void send_echo_reply(ip_header *iphdr, icmp_header *icmphdr, uint16_t length, ne
 	if(res.has_error())
 		return;
 
-	ip::v4::send_packet(res.value(), IPV4_ICMP, buf.get(), nif);
+	ip::v4::send_packet(res.value(), IPPROTO_ICMP, buf.get(), nif);
 }
 
 int send_dst_unreachable(const dst_unreachable_info& info, netif *nif)
@@ -99,7 +105,7 @@ int send_dst_unreachable(const dst_unreachable_info& info, netif *nif)
 	if(res.has_error())
 		return res.error();
 
-	return ip::v4::send_packet(res.value(), IPV4_ICMP, buf.get(), nif);
+	return ip::v4::send_packet(res.value(), IPPROTO_ICMP, buf.get(), nif);
 }
 
 int handle_packet(netif *nif, packetbuf *buf)
@@ -119,7 +125,330 @@ int handle_packet(netif *nif, packetbuf *buf)
 			break;
 	}
 
+	icmp_socket *socket = nullptr;
+	unsigned int inst = 0;
+
+	do
+	{
+		socket = inet_resolve_socket<icmp_socket>(iphdr->source_ip, 0, 0, IPPROTO_ICMP, nif, true, inst);
+		if(!socket)
+			break;
+		inst++;
+
+		if(socket->match_filter(header))
+		{
+			auto pbf = packetbuf_clone(buf);
+			/* Out of memory, give up trying to clone this packet to other sockets */
+			if(!pbf)
+				break;
+
+			socket->append_inet_rx_pbuf(pbf);
+			pbf->unref();
+		}
+	
+	} while(socket != nullptr);
+
 	return 0;
+}
+
+
+int icmp_socket::bind(sockaddr *addr, socklen_t len)
+{
+	if(!validate_sockaddr_len_pair(addr, len))
+		return -EINVAL;
+
+	auto proto = get_proto_fam();
+	return proto->bind(addr, len, this);
+}
+
+int icmp_socket::connect(sockaddr *addr, socklen_t len)
+{
+	if(!validate_sockaddr_len_pair(addr, len))
+		return -EINVAL;
+	
+	auto res = sockaddr_to_isa(addr);
+	dest_addr = res.first;
+
+	bool on_ipv4_mode = res.second == AF_INET && domain == AF_INET6;
+
+	//printk("udp: Connected to address %x\n", dest_addr.in4.s_addr);
+
+	if(!bound)
+	{
+		auto fam = get_proto_fam();
+		int st = fam->bind_any(this);
+		if(st < 0)
+			return st;
+	}
+
+	ipv4_on_inet6 = on_ipv4_mode;
+
+	connected = true;
+	
+	auto route_result = get_proto_fam()->route(src_addr, dest_addr, res.second);
+	
+	/* If we've got an error, ignore it. Is this correct/sane behavior? */
+	if(route_result.has_error())
+	{
+		connected = false;
+		return 0;
+	}
+
+	route_cache = route_result.value();
+	route_cache_valid = 1;
+
+	return 0;
+}
+
+bool is_security_sensitive_icmp_packet(icmp_header *header)
+{
+	return header->type != ICMP_TYPE_ECHO_REQUEST;
+}
+
+ssize_t icmp_socket::sendmsg(const struct msghdr *msg, int flags)
+{
+	auto iovlen = iovec_count_length(msg->msg_iov, msg->msg_iovlen);
+	if(iovlen < 0)
+		return iovlen;
+
+	if(iovlen < min_icmp_size())
+		return -EINVAL;
+
+	if(iovlen > UINT16_MAX)
+		return -EINVAL;
+	
+	auto sa_dst_addr = (sockaddr *) msg->msg_name; 
+	
+	auto to = dest_addr;
+
+	if(msg->msg_name)
+	{
+		if(!validate_sockaddr_len_pair(sa_dst_addr, msg->msg_namelen))
+			return -EINVAL;
+
+		auto res = sockaddr_to_isa(sa_dst_addr);
+		to = res.first;
+	}
+	else
+	{
+		if(!connected)
+			return -ENOTCONN;
+	}
+
+	if(!bound)
+	{
+		auto fam = get_proto_fam();
+		int st = fam->bind_any(this);
+		if(st < 0)
+			return st;
+	}
+	
+	unsigned int extra_size = iovlen - min_icmp_size();
+
+	auto packet = allocate_icmp_response_packet(extra_size);
+	if(!packet)
+		return -ENOBUFS;
+
+	inet_route rt;
+
+	if(connected && route_cache_valid)
+	{
+		rt = route_cache;
+	}
+	else
+	{
+		auto proto = get_proto_fam();
+		auto st = proto->route(src_addr, to, AF_INET);
+		if(st.has_error())
+			return st.error();
+		
+		rt = st.value();
+	}
+
+	auto hdr = (icmp_header *) packet->push_header(min_icmp_size());
+	packet->put(extra_size);
+	auto p = (unsigned char *) hdr;
+
+	for(int i = 0; i < msg->msg_iovlen; i++)
+	{
+		auto &vec = msg->msg_iov[i];
+
+		if(copy_from_user(p, vec.iov_base, vec.iov_len) < 0)
+			return -EFAULT;
+		
+		p += vec.iov_len;
+	}
+
+	if(is_security_sensitive_icmp_packet(hdr) && !is_root_user())
+		return -EPERM;
+
+	hdr->checksum = 0;
+
+	hdr->checksum = ipsum(hdr, iovlen);
+
+	return ip::v4::send_packet(rt, IPPROTO_ICMP, packet.get(), rt.nif);
+}
+
+int icmp_socket::getsockopt(int level, int optname, void *val, socklen_t *len)
+{
+	if(is_inet_level(level))
+		return getsockopt_inet(level, optname, val, len);
+	if(level == SOL_SOCKET)
+		return getsockopt_socket_level(optname, val, len);
+	
+	return -ENOPROTOOPT;
+}
+
+int icmp_socket::add_filter(icmp_filter&& f)
+{
+	scoped_lock g{&filters_lock};
+
+	bool is_root = is_root_user();
+
+	if((f.type == ICMP_FILTER_TYPE_UNSPEC || f.type != ICMP_TYPE_ECHO_REQUEST) && !is_root)
+	{
+		return -EPERM;
+	}
+
+	if(filters.size() + 1 > icmp_max_filters && !is_root)
+		return -EPERM;
+	
+	return filters.push_back(cul::move(f)) ? 0 : -ENOMEM;
+}
+
+int icmp_socket::setsockopt(int level, int optname, const void *val, socklen_t len)
+{
+	if(is_inet_level(level))
+		return setsockopt_inet(level, optname, val, len);
+	if(level == SOL_SOCKET)
+		return setsockopt_socket_level(optname, val, len);
+
+	if(level != SOL_ICMP)
+		return -ENOPROTOOPT;
+
+	switch(optname)
+	{
+		case ICMP_ADD_FILTER:
+		{
+			auto res = get_socket_option<icmp_filter>(val, len);
+			if(res.has_error())
+				return res.error();
+			
+			return add_filter(cul::move(res.value()));
+		}
+	}
+
+	return -ENOPROTOOPT;
+}
+
+expected<packetbuf *, int> icmp_socket::get_datagram(int flags)
+{
+	scoped_lock g{&rx_packet_list_lock};
+
+	int st = 0;
+	packetbuf *buf = nullptr;
+
+	do
+	{
+		if(st == -EINTR)
+			return unexpected<int>{st};
+
+		buf = get_rx_head();
+		if(!buf && flags & MSG_DONTWAIT)
+			return unexpected<int>{-EWOULDBLOCK};
+
+		st = wait_for_dgrams();
+	} while(!buf);
+
+	g.keep_locked();
+
+	return buf;
+}
+
+ssize_t icmp_socket::recvmsg(msghdr *msg, int flags)
+{
+	auto iovlen = iovec_count_length(msg->msg_iov, msg->msg_iovlen);
+	if(iovlen < 0)
+		return iovlen;
+
+	auto st = get_datagram(flags);
+	if(st.has_error())
+		return st.error();
+
+	auto buf = st.value();
+	ssize_t read = iovlen;
+
+	if(iovlen < buf->length())
+		msg->msg_flags = MSG_TRUNC;
+
+	if(flags & MSG_TRUNC)
+	{
+		read = buf->length();
+	}
+
+	auto ptr = buf->data;
+
+	if(msg->msg_name)
+	{
+		const ip_header *hdr = (const ip_header *) buf->net_header;
+		sockaddr_in in;
+		explicit_bzero(&in, sizeof(in));
+
+		in.sin_family = AF_INET;
+		in.sin_port = 0;
+		in.sin_addr.s_addr = hdr->source_ip;
+
+		memcpy(msg->msg_name, &in, min(sizeof(in), (size_t) msg->msg_namelen));
+
+		msg->msg_namelen = min(sizeof(in), (size_t) msg->msg_namelen);
+	}
+
+	for(int i = 0; i < msg->msg_iovlen; i++)
+	{
+		auto iov = msg->msg_iov[i];
+		if(copy_to_user(iov.iov_base, ptr, iov.iov_len) < 0)
+		{
+			spin_unlock(&rx_packet_list_lock);
+			return -EFAULT;
+		}
+
+		ptr += iov.iov_len;
+	}
+
+	msg->msg_controllen = 0;
+
+	if(!(flags & MSG_PEEK))
+	{
+		list_remove(&buf->list_node);
+		buf->unref();
+	}
+
+	spin_unlock(&rx_packet_list_lock);
+
+	return read;
+}
+
+short icmp_socket::poll(void *poll_file, short events)
+{
+	short avail_events = POLLOUT;
+
+	if(events & POLLIN)
+	{
+		if(has_data_available())
+			avail_events |= POLLIN;
+		else
+			poll_wait_helper(poll_file, &rx_wq);
+	}
+
+	//printk("avail events: %u\n", avail_events);
+
+	return avail_events & events;
+}
+
+
+icmp_socket *create_socket(int type)
+{
+	return new icmp_socket();
 }
 
 }

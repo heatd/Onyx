@@ -15,7 +15,7 @@
 #include <onyx/net/socket.h>
 #endif
 
-#include <sys/socket.h>
+#include <onyx/public/socket.h>
 
 struct network_args
 {

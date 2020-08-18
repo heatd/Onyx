@@ -9,9 +9,8 @@
 
 #include <onyx/net/netif.h>
 #include <onyx/net/neighbour.h>
-#include <onyx/net/ip.h>
 
-#include <sys/socket.h>
+#include <onyx/public/socket.h>
 #include <netinet/in.h>
 
 /* Internal routing table entry */
@@ -20,6 +19,16 @@ struct inet4_route
 	in_addr_t dest;
 	in_addr_t mask;
 	in_addr_t gateway;
+	netif *nif;
+	int metric;
+	unsigned short flags;
+};
+
+struct inet6_route
+{
+	in6_addr dest;
+	in6_addr mask;
+	in6_addr gateway;
 	netif *nif;
 	int metric;
 	unsigned short flags;

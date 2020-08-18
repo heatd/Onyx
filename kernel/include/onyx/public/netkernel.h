@@ -7,8 +7,6 @@
 #ifndef _ONYX_PUBLIC_NETKERNEL_H
 #define _ONYX_PUBLIC_NETKERNEL_H
 
-#include <sys/socket.h>
-
 #include <netinet/in.h>
 
 struct netkernel_hdr
@@ -29,6 +27,9 @@ struct netkernel_error
 
 
 #define NETKERNEL_MSG_ROUTE4_ADD      0x1000
+#define NETKERNEL_MSG_ROUTE6_ADD      0x1010
+
+#define NETKERNEL_MSG_IPV6_ADDRCFG    0x2000
 
 #define NETKERNEL_PATH_MAX            109
 
@@ -54,6 +55,24 @@ struct netkernel_route4_add
 	char iface[IF_NAME_MAX + 1];
 };
 
+struct netkernel_route6_add
+{
+	struct netkernel_hdr hdr;
+	in6_addr dest;
+	in6_addr gateway;
+	in6_addr mask;
+	int metric;
+	unsigned short flags;
+	char iface[IF_NAME_MAX + 1];
+};
+
 #define ROUTE4_FLAG_GATEWAY      (1 << 0)
+
+struct netkernel_ipv6_addrcfg
+{
+	struct netkernel_hdr hdr;
+	in6_addr interface_id;
+	char iface[IF_NAME_MAX + 1];
+};
 
 #endif

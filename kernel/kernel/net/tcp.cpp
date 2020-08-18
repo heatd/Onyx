@@ -216,7 +216,7 @@ int tcp_send_rst_no_socket(const sockaddr_in_both& dstaddr, in_port_t srcport, i
 	if(res.has_error())
 		return res.error();
 
-	return ip::v4::send_packet(res.value(), IPV4_TCP, buf.get(), nif);
+	return ip::v4::send_packet(res.value(), IPPROTO_TCP, buf.get(), nif);
 }
 
 extern "C"
@@ -230,7 +230,7 @@ int tcp_handle_packet(netif *netif, packetbuf *buf)
 		return 0;
 
 	auto socket = inet_resolve_socket<tcp_socket>(ip_header->source_ip,
-                      header->source_port, header->dest_port, IPPROTO_TCP, netif);
+                      header->source_port, header->dest_port, IPPROTO_TCP, netif, false);
 	uint16_t tcp_payload_len = static_cast<uint16_t>(ntohs(ip_header->total_len) - ip_header_length(ip_header));
 
 	if(!socket)
@@ -260,7 +260,7 @@ int tcp_handle_packet(netif *netif, packetbuf *buf)
 uint16_t tcpv4_calculate_checksum(tcp_header *header, uint16_t packet_length, uint32_t srcip, uint32_t dstip,
                                   bool calc_data)
 {
-	uint32_t proto = ((packet_length + IPV4_TCP) << 8);
+	uint32_t proto = ((packet_length + IPPROTO_TCP) << 8);
 	uint16_t buf[2];
 	memcpy(&buf, &proto, sizeof(buf));
 
@@ -378,7 +378,7 @@ int tcp_packet::send()
 
 	socket->sequence_nr() += seqs;
 
-	int st = ip::v4::send_packet(socket->route_cache, IPV4_TCP, buf.get(),
+	int st = ip::v4::send_packet(socket->route_cache, IPPROTO_TCP, buf.get(),
 		nif);
 
 	if(st < 0)

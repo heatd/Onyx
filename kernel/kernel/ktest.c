@@ -193,7 +193,9 @@ void page_alloc_perf(void)
 	{
 		hrtime_t t0 = c->get_ns();
 
-		external_ptr = alloc_page(PAGE_ALLOC_NO_ZERO);
+		external_ptr = alloc_pages(1, PAGE_ALLOC_4GB_LIMIT | PAGE_ALLOC_NO_ZERO);
+		//external_ptr = vmalloc(16, VM_TYPE_REGULAR, VM_WRITE | VM_READ | VM_NOEXEC);
+		//vm_munmap(&kernel_address_space, external_ptr, 16);
 
 		hrtime_t t1 = c->get_ns();
 

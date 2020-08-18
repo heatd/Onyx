@@ -18,7 +18,7 @@
 
 #include <onyx/net/inet_sock_addr.h>
 
-#include <sys/socket.h>
+#include <onyx/public/socket.h>
 
 #define NEIGHBOUR_VALIDITY_STATIC   (~0UL)
 

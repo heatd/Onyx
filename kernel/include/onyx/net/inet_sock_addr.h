@@ -7,7 +7,7 @@
 #ifndef _ONYX_NET_INET_SOCK_ADDR_H
 #define _ONYX_NET_INET_SOCK_ADDR_H
 
-#include <sys/socket.h>
+#include <onyx/public/socket.h>
 
 #include <netinet/in.h>
 
@@ -18,13 +18,26 @@ constexpr bool operator==(const in_addr& lhs, const in_addr& rhs)
 
 constexpr bool operator==(const in6_addr& lhs, const in6_addr& rhs)
 {
-	for(int i = 0; i < 4; i++)
-	{
-		if(lhs.s6_addr32[i] != rhs.s6_addr32[i])
-			return false;
-	}
+	return rhs.s6_addr32[0] == lhs.s6_addr32[0] &&
+	       rhs.s6_addr32[1] == lhs.s6_addr32[1] &&
+		   rhs.s6_addr32[2] == lhs.s6_addr32[2] &&
+		   rhs.s6_addr32[3] == lhs.s6_addr32[3];
+}
 
-	return true;
+constexpr in6_addr operator&(const in6_addr& lhs, const in6_addr& rhs)
+{
+	in6_addr ret;
+	ret.s6_addr32[0] = lhs.s6_addr32[0] & rhs.s6_addr32[0];
+	ret.s6_addr32[1] = lhs.s6_addr32[1] & rhs.s6_addr32[1];
+	ret.s6_addr32[2] = lhs.s6_addr32[2] & rhs.s6_addr32[2];
+	ret.s6_addr32[3] = lhs.s6_addr32[3] & rhs.s6_addr32[3];
+
+	return ret;
+}
+
+constexpr bool operator!=(const in6_addr& lhs, const in6_addr& rhs)
+{
+	return !(lhs == rhs);
 }
 
 struct inet_sock_address

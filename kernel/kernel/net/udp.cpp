@@ -30,7 +30,7 @@
 uint16_t udpv4_calculate_checksum(udp_header_t *header, uint32_t srcip, uint32_t dstip,
                                   bool do_rest_of_packet = true)
 {
-	uint16_t proto = IPV4_UDP << 8;
+	uint16_t proto = IPPROTO_UDP << 8;
 	uint16_t packet_length = htons(header->len);
 	uint16_t __src[2];
 	uint16_t __dst[2];
@@ -103,7 +103,7 @@ int udp_socket::send_packet(const msghdr *msg, ssize_t payload_size, in_port_t s
 	else
 		udp_header->checksum = udpv4_calculate_checksum(udp_header, srcip, destip);
 
-	int ret = ip::v4::send_packet(route, IPV4_UDP, b.get(), netif);
+	int ret = ip::v4::send_packet(route, IPPROTO_UDP, b.get(), netif);
 
 	return ret;
 }
@@ -119,24 +119,34 @@ int udp_socket::connect(sockaddr *addr, socklen_t len)
 	if(!validate_sockaddr_len_pair(addr, len))
 		return -EINVAL;
 
+	auto res = sockaddr_to_isa(addr);
+	dest_addr = res.first;
+
+	bool on_ipv4_mode = res.second == AF_INET && domain == AF_INET6;
+
+	//printk("udp: Connected to address %x\n", dest_addr.in4.s_addr);
+
 	if(!bound)
 	{
+		/* TODO: Dunno if this can work */
 		auto fam = get_proto_fam();
 		int st = fam->bind_any(this);
 		if(st < 0)
 			return st;
 	}
 
-	auto res = sockaddr_to_isa(addr);
-	dest_addr = res.first;
-	//printk("udp: Connected to address %x\n", dest_addr.in4.s_addr);
+	ipv4_on_inet6 = on_ipv4_mode;
+
 	connected = true;
 	
-	auto route_result = get_proto_fam()->route(src_addr, dest_addr, domain);
+	auto route_result = get_proto_fam()->route(src_addr, dest_addr, res.second);
 	
 	/* If we've got an error, ignore it. Is this correct/sane behavior? */
 	if(route_result.has_error())
+	{
+		connected = false;
 		return 0;
+	}
 
 	route_cache = route_result.value();
 	route_cache_valid = 1;
@@ -151,7 +161,7 @@ ssize_t udp_socket::sendmsg(const msghdr *msg, int flags)
 		return -EINVAL;
 
 	inet_sock_address dest = dest_addr;
-	int our_domain = domain;
+	int our_domain = effective_domain();
 
 	auto payload_size = iovec_count_length(msg->msg_iov, msg->msg_iovlen);
 	if(payload_size < 0)
@@ -168,7 +178,7 @@ ssize_t udp_socket::sendmsg(const msghdr *msg, int flags)
 		return -ENOTCONN;
 
 	inet_route route;
-	
+
 	if(connected && route_cache_valid)
 	{
 		route = route_cache;
@@ -178,7 +188,10 @@ ssize_t udp_socket::sendmsg(const msghdr *msg, int flags)
 		auto fam = get_proto_fam();
 		auto result = fam->route(src_addr, dest, our_domain);
 		if(result.has_error())
+		{
+			printk("died with error %d\n", result.error());
 			return result.error();
+		}
 
 		route = result.value();
 	}
@@ -269,11 +282,11 @@ expected<packetbuf *, int> udp_socket::get_datagram(int flags)
 	return buf;
 }
 
-static void copy_msgname_to_user(struct msghdr *msg, packetbuf *buf)
+static void copy_msgname_to_user(struct msghdr *msg, packetbuf *buf, bool isv6)
 {
 	udp_header_t *udp_header = (udp_header_t *) buf->transport_header;
 
-	if(buf->domain == AF_INET)
+	if(buf->domain == AF_INET && !isv6)
 	{
 		const ip_header *hdr = (const ip_header *) buf->net_header;
 		sockaddr_in in;
@@ -283,9 +296,26 @@ static void copy_msgname_to_user(struct msghdr *msg, packetbuf *buf)
 		in.sin_port = udp_header->source_port;
 		in.sin_addr.s_addr = hdr->source_ip;
 
-		memcpy(msg->msg_name, &in, msg->msg_namelen);
+		memcpy(msg->msg_name, &in, min(sizeof(in), (size_t) msg->msg_namelen));
 
 		msg->msg_namelen = min(sizeof(in), (size_t) msg->msg_namelen);
+	}
+	else if(buf->domain == AF_INET && isv6)
+	{
+		const ip_header *hdr = (const ip_header *) buf->net_header;
+		/* Create a v4-mapped v6 address */
+		sockaddr_in6 in6;
+		explicit_bzero(&in6, sizeof(in6));
+
+		in6.sin6_family = AF_INET6;
+		in6.sin6_flowinfo = 0;
+		in6.sin6_port = udp_header->source_port;
+		in6.sin6_scope_id = 0;
+		in6.sin6_addr = ip::v6::ipv4_to_ipv4_mapped(hdr->source_ip);
+
+		memcpy(msg->msg_name, &in6, min(sizeof(in6), (size_t) msg->msg_namelen));
+
+		msg->msg_namelen = min(sizeof(in6), (size_t) msg->msg_namelen);
 	}
 	else // if(buf->domain == AF_INET6)
 	{
@@ -317,33 +347,38 @@ ssize_t udp_socket::recvmsg(msghdr *msg, int flags)
 		return st.error();
 
 	auto buf = st.value();
-	ssize_t read = iovlen;
+	ssize_t read = min(iovlen, (long) buf->length());
+	ssize_t was_read = 0;
+	ssize_t to_ret = read;
 
 	if(iovlen < buf->length())
 		msg->msg_flags = MSG_TRUNC;
 
 	if(flags & MSG_TRUNC)
 	{
-		read = buf->length();
+		to_ret = buf->length();
 	}
 
-	auto ptr = buf->data;
+	const unsigned char *ptr = buf->data;
 
 	if(msg->msg_name)
 	{
-		copy_msgname_to_user(msg, buf);
+		copy_msgname_to_user(msg, buf, domain == AF_INET6);
 	}
 
 	for(int i = 0; i < msg->msg_iovlen; i++)
 	{
 		auto iov = msg->msg_iov[i];
-		if(copy_to_user(iov.iov_base, ptr, iov.iov_len) < 0)
+		auto to_copy = min((ssize_t) iov.iov_len, read - was_read);
+		if(copy_to_user(iov.iov_base, ptr, to_copy) < 0)
 		{
 			spin_unlock(&rx_packet_list_lock);
 			return -EFAULT;
 		}
 
-		ptr += iov.iov_len;
+		was_read += to_copy;
+
+		ptr += to_copy;
 	}
 
 	msg->msg_controllen = 0;
@@ -356,7 +391,12 @@ ssize_t udp_socket::recvmsg(msghdr *msg, int flags)
 
 	spin_unlock(&rx_packet_list_lock);
 
-	return read;
+#if 0
+	printk("recv success %ld bytes\n", read);
+	printk("iovlen %ld\n", iovlen);
+#endif
+
+	return to_ret;
 }
 
 int udp_socket::getsockopt(int level, int optname, void *val, socklen_t *len)

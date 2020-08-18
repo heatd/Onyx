@@ -29,10 +29,10 @@
 #include <pci/pci.h>
 
 
-static constexpr size_t number_rx_desc = ((PAGE_SIZE * 2) / sizeof(e1000_tx_desc)) - 1;
+static constexpr size_t number_rx_desc = ((PAGE_SIZE * 2) / sizeof(e1000_tx_desc));
 
 /* There's a -1 here to account for the tail descriptor that's 16 bytes in size (aka the size of a desc) */
-static constexpr size_t number_tx_desc = ((PAGE_SIZE * 2) / sizeof(e1000_tx_desc)) - 1;
+static constexpr size_t number_tx_desc = ((PAGE_SIZE * 2) / sizeof(e1000_tx_desc));
 
 struct e1000_device;
 
@@ -320,7 +320,7 @@ const size_t rx_buffer_size = 2048;
 int e1000_init_rx(struct e1000_device *dev)
 {
 	int st = 0;
-	size_t needed_pages = vm_size_to_pages(sizeof(struct e1000_rx_desc) * number_rx_desc + 16);
+	size_t needed_pages = vm_size_to_pages(sizeof(struct e1000_rx_desc) * number_rx_desc);
 	struct page *rx_pages = alloc_pages(needed_pages, PAGE_ALLOC_CONTIGUOUS);
 
 	struct page_frag_alloc_info alloc_info;
@@ -397,7 +397,7 @@ int e1000_init_tx(struct e1000_device *dev)
 {
 	struct e1000_tx_desc *txdescs = NULL;
 	int st = 0;
-	size_t needed_pages = vm_size_to_pages(sizeof(struct e1000_tx_desc) * number_tx_desc + 16);
+	size_t needed_pages = vm_size_to_pages(sizeof(struct e1000_tx_desc) * number_tx_desc);
 	struct page *tx_pages = alloc_pages(needed_pages, PAGE_ALLOC_CONTIGUOUS);
 	unsigned long txd_base = 0;
 

@@ -11,6 +11,8 @@
 
 #include <onyx/packetbuf.h>
 #include <onyx/compiler.h>
+#include <onyx/memory.hpp>
+
 #include <onyx/mm/pool.hpp>
 
 memory_pool<packetbuf, MEMORY_POOL_USABLE_ON_IRQ> packetbuf_pool;
@@ -127,4 +129,30 @@ packetbuf::~packetbuf()
 		if(v.page)
 			free_page(v.page);
 	}
+}
+
+packetbuf *packetbuf_clone(packetbuf *original)
+{
+	unique_ptr buf = make_unique<packetbuf>();
+	if(!buf)
+		return nullptr;
+	
+	auto buf_len = original->buffer_start_off() + original->length();
+
+	if(!buf->allocate_space(buf_len))
+	{
+		return nullptr;
+	}
+
+	memcpy(buf->buffer_start, original->buffer_start, buf_len);
+
+	buf->reserve_headers(original->buffer_start_off());
+
+	buf->net_header = (unsigned char *) buf->buffer_start + original->net_header_off();
+	buf->transport_header = (unsigned char *) buf->buffer_start + original->transport_header_off();
+
+	buf->put(original->length());
+	buf->domain = original->domain;
+
+	return buf.release();
 }
