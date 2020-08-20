@@ -1009,7 +1009,7 @@ void *vmalloc(size_t pages, int type, int perms)
 		return NULL;
 	}
 
-	if(vm_flush(vm, 0, 0) < 0)
+	if(vm_flush(vm, VM_FLUSH_RWX_VALID, vm->rwx | VM_NOFLUSH) < 0)
 	{
 		/* FIXME: Same as above */
 		vmo_remove_mapping(vmo, vm);
@@ -1804,7 +1804,7 @@ int vm_handle_non_present_pf(struct vm_pf_context *ctx)
 	}
 
 	if(!map_pages_to_vaddr((void *) ctx->vpage,
-		page_to_phys(ctx->page), PAGE_SIZE, ctx->page_rwx))
+		page_to_phys(ctx->page), PAGE_SIZE, ctx->page_rwx | VM_NOFLUSH))
 	{
 		page_unpin(ctx->page);
 		info->error = VM_SIGSEGV;
@@ -2316,7 +2316,7 @@ void *vm_map_vmo(size_t flags, uint32_t type, size_t pages, size_t prot, struct 
 			goto ret;
 		}
 
-		if(vm_flush(reg, 0, 0) < 0)
+		if(vm_flush(reg, VM_FLUSH_RWX_VALID, reg->rwx | VM_NOFLUSH) < 0)
 		{
 			__vm_munmap(&kernel_address_space, (void *) reg->base, pages << PAGE_SHIFT);
 			goto ret;
@@ -2331,48 +2331,6 @@ void *vm_map_vmo(size_t flags, uint32_t type, size_t pages, size_t prot, struct 
 ret:
 	mutex_unlock(&mm->vm_lock);
 	return ret;
-}
-
-void *get_pages(size_t flags, uint32_t type, size_t pages, size_t prot, uintptr_t alignment)
-{
-	bool kernel = !(flags & VM_ADDRESS_USER);
-
-	struct vm_region *va = vm_allocate_virt_region(flags, pages, type, prot);
-	if(!va)
-		return NULL;
-	
-	if(vm_region_setup_backing(va, pages, false) < 0)
-	{
-		vm_munmap(va->mm, (void *) va->base, pages << PAGE_SHIFT);
-		return NULL;
-	}
-
-	if(kernel)
-	{
-		if(vmo_prefault(va->vmo, pages << PAGE_SHIFT, 0) < 0)
-		{
-			vm_munmap(&kernel_address_space, (void *) va->base, pages << PAGE_SHIFT);
-			return NULL;
-		}
-
-		if(vm_flush(va, 0, 0) < 0)
-		{
-			vmo_remove_mapping(va->vmo, va);
-			vmo_unref(va->vmo);
-			vm_destroy_mappings(va, pages);
-			return NULL;
-		}
-#ifdef CONFIG_KASAN
-		kasan_alloc_shadow(va->base, pages << PAGE_SHIFT, true);
-#endif
-	}
-
-	return (void *) va->base;
-}
-
-void *get_user_pages(uint32_t type, size_t pages, size_t prot)
-{
-	return get_pages(VM_ADDRESS_USER, type, pages, prot | VM_USER, 0);
 }
 
 struct page *vm_commit_private(size_t off, struct vm_object *vmo)
@@ -2810,8 +2768,16 @@ void vm_do_shootdown(struct tlb_shootdown *inv_data)
 
 extern struct spinlock scheduler_lock;
 
+#if CONFIG_TRACK_TLB_DELTA
+hrtime_delta_t last_inval_delta = 0;
+#endif
+
 void __vm_invalidate_range(unsigned long addr, size_t pages, struct mm_address_space *mm)
 {
+#if CONFIG_TRACK_TLB_DELTA
+	hrtime_t t0 = clocksource_get_time();
+#endif
+
 	bool is_kernel_address = is_higher_half((void *) addr);
 
 	for(unsigned int cpu = 0; cpu < get_nr_cpus(); cpu++)
@@ -2842,6 +2808,9 @@ void __vm_invalidate_range(unsigned long addr, size_t pages, struct mm_address_s
 
 		}
 	}
+#if CONFIG_TRACK_TLB_DELTA
+	last_inval_delta = clocksource_get_time() - t0;
+#endif
 }
 
 

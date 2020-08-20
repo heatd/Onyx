@@ -87,6 +87,8 @@ struct clocksource *get_main_clock(void)
 
 hrtime_t clocksource_get_time(void)
 {
+	if(unlikely(!main_clock))
+		return 0;
 	return main_clock->get_ns();
 }
 

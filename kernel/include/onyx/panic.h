@@ -20,7 +20,7 @@ ARCH_SPECIFIC void halt();
 
 /* panic - Panics the system (dumps information and halts) */
 __attribute__ ((noreturn, noinline))
-void panic(const char* msg);
+void panic(const char* msg, ...);
 
 #ifndef __cplusplus
 

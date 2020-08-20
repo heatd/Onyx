@@ -186,9 +186,6 @@ int vm_region_setup_backing(struct vm_region *region, size_t pages, bool is_file
 void vm_update_addresses(uintptr_t new_kernel_space_base);
 uintptr_t vm_randomize_address(uintptr_t base, uintptr_t bits);
 void *map_pages_to_vaddr(void *virt, void *phys, size_t size, size_t flags);
-void *get_user_pages(uint32_t type, size_t pages, size_t prot);
-void *get_pages(size_t flags, uint32_t type, size_t pages, size_t prot,
-	uintptr_t alignment);
 bool is_mapping_shared(struct vm_region *);
 bool is_file_backed(struct vm_region *);
 

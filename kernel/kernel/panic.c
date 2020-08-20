@@ -16,6 +16,7 @@
  **************************************************************************/
 #include <stdio.h>
 #include <inttypes.h>
+#include <stdarg.h>
 
 #include <onyx/cpu.h>
 #include <onyx/registers.h>
@@ -46,14 +47,25 @@ void page_print_shared(void);
 
 void vterm_panic(void);
 
+#define PANIC_STACK_BUF_SZ      1024
+
 __attribute__ ((noreturn, noinline))
-void panic(const char *msg)
+void panic(const char *msg, ...)
 {
 	/* First, disable interrupts */
-	DISABLE_INTERRUPTS();
-	char buffer[1000];
+	irq_disable();
+
+	char buffer[PANIC_STACK_BUF_SZ];
 	panicing = 1;
-	memset(buffer, 0, 1000);
+	buffer[PANIC_STACK_BUF_SZ - 1] = '\0';
+
+	va_list parameters;
+	va_start(parameters, msg);
+
+	vsnprintf(buffer, PANIC_STACK_BUF_SZ, msg, parameters);
+
+	va_end(parameters);
+
 
 	/* Turn off vterm multthreading */
 	vterm_panic();
@@ -63,7 +75,7 @@ void panic(const char *msg)
 #else
 	#error "Implement thread context printing in your arch"
 #endif
-	printk("panic: %s\n", msg);
+	printk("panic: %s\n", buffer);
 
 	module_dump();
 	printk("Stack dump: \n");

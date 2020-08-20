@@ -33,8 +33,8 @@ void set_kernel_stack(uintptr_t stack0)
 	entry->ist[0] = stack0;
 }
 
-unsigned char double_fault_stack[512];
-unsigned char *double_fault_stack_top = &double_fault_stack[511];
+unsigned char double_fault_stack[2048];
+unsigned char *double_fault_stack_top = &double_fault_stack[2047];
 
 void init_percpu_tss(uint64_t *gdt)
 {
