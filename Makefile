@@ -1,7 +1,9 @@
 PROJECTS:=libc kernel
-SOURCE_PACKAGES:= photon libunwind libuuid init netctld wserver strace devmgr singularity testsuite
+SOURCE_PACKAGES:= photon libunwind libuuid
 
-ALL_MODULES:=$(PROJECTS) $(SOURCE_PACKAGES)
+include usystem/Makefile
+
+ALL_MODULES:=$(PROJECTS) $(SOURCE_PACKAGES) $(patsubst %, usystem/%, $(USYSTEM_PROJS))
 
 .PHONY: all iso clean build-prep $(SYSTEM_HEADER_PROJECTS) $(PROJECTS) \
 $(SOURCE_PACKAGES) build-cleanup dash musl
@@ -37,7 +39,6 @@ all: iso
 
 clean:
 	for module in $(ALL_MODULES); do $(MAKE) -C $$module clean; done
-	./utils/make_utils.sh clean
 	rm -rf sysroot
 	rm -rf initrd.tar.*
 	$(MAKE) -C musl clean
@@ -73,24 +74,25 @@ singularity: musl libssp install-packages wserver
 $(SOURCE_PACKAGES): musl libssp install-packages
 	$(MAKE) -C $@ install
 
+$(USYSTEM_PROJS): musl libssp install-packages
+	$(MAKE) -C usystem/$@ install
+
 install-headers: build-prep
 	$(MAKE) -C kernel install-headers
 	$(MAKE) -C photon install-headers
 
 build-srcpackages: $(SOURCE_PACKAGES)
 
-dash: build-srcpackages
-	cd dash && $(MAKE) install
+build-usystem: build-srcpackages $(USYSTEM_PROJS)
 
-build-cleanup: dash 
-	cp kernel/kernel.config sysroot/boot
-	rm kernel/include/onyx/config.h
+build-cleanup: build-usystem 
+	cp kernel/kernel.config sysroot/boot/
+	rm -f kernel/include/onyx/config.h
 
 	# TODO: Do this in kernel/Makefile
 	$(NM) kernel/vmonyx > Kernel.map
 
 fullbuild: build-cleanup
-	./utils/make_utils.sh install
 
 iso: fullbuild
 	./iso.sh

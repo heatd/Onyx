@@ -1,8 +1,0 @@
-# Multi-user target for booting into multi-user mode
-
-[Dependencies]
-Wants=netctld.service devmgr.service
-
-[Service]
-Bin=/usr/bin/login
-Type=regular
