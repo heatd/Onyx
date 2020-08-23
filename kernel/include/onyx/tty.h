@@ -3,8 +3,8 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
-#ifndef _KERNEL_TTY_H
-#define _KERNEL_TTY_H
+#ifndef _ONYX_TTY_H
+#define _ONYX_TTY_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -20,22 +20,50 @@
 extern "C" {
 #endif
 
+struct tty;
+
+struct tty_ldisc_ops
+{
+	ssize_t (*receive_input)(char s, struct tty *tty);
+	ssize_t (*write_out)(const char *s, size_t length, struct tty *tty);
+};
+
+struct tty_line_disc
+{
+	int ldisc;
+	const struct tty_ldisc_ops *ops;
+};
+
 struct tty
 {
-	struct termios term_io;
+	/* Read only members */
 	ssize_t (*read)(void *buffer, size_t size, struct tty *tty);
-	ssize_t (*write)(void *buffer, size_t size, struct tty *tty);
+	ssize_t (*write)(const void *buffer, size_t size, struct tty *tty);
 	unsigned int (*ioctl)(int request, void *argp, struct tty *tty);
 	void *priv;
 	uintptr_t tty_num;
+	struct tty_line_disc *ldisc;
+	bool is_vterm;
+
+	/* Read mostly */
+	struct termios term_io;
+	struct tty *next;
+
+	/* Now, members that are frequently written to */
 	struct mutex lock;
+	unsigned int input_flags;
 	bool line_ready;
 	struct wait_queue read_queue;
-	struct tty *next;
-	char keyboard_buffer[2048];
-	unsigned int keyboard_pos;
-	bool is_vterm;
+	struct spinlock input_lock;
+	char input_buf[2048];
+	unsigned int input_buf_pos;
 };
+
+#define TTY_OFLAG(tty, flag)   ((tty)->term_io.c_oflag & flag)
+#define TTY_CFLAG(tty, flag)   ((tty)->term_io.c_cflag & flag)
+#define TTY_LFLAG(tty, flag)   ((tty)->term_io.c_lflag & flag)
+#define TTY_IFLAG(tty, flag)   ((tty)->term_io.c_iflag & flag)
+#define TTY_CC(tty, c)         ((tty)->term_io.c_cc[c])
 
 void tty_putchar(char c);
 void tty_write(const char *data, size_t size, struct tty *tty);
@@ -48,7 +76,6 @@ void tty_swap_framebuffers();
 void tty_init(void *priv, void (*ctor)(struct tty *tty));
 void tty_scroll();
 void tty_put_entry_at(char c, uint32_t color, size_t column, size_t row);
-char *tty_wait_for_line();
 void tty_received_character(struct tty *tty, char c);
 void tty_create_dev();
 

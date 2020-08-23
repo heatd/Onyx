@@ -21,6 +21,7 @@
 #include <onyx/init.h>
 #include <onyx/serial.h>
 #include <onyx/dpc.h>
+#include <onyx/utf8.h>
 
 #include <onyx/input/keys.h>
 #include <onyx/input/event.h>
@@ -261,7 +262,7 @@ void vterm_scroll_down(struct framebuffer *fb, struct vterm *vt)
 	}
 
 }
-void vterm_set_char(char c, unsigned int x, unsigned int y, struct color fg,
+void vterm_set_char(utf32_t c, unsigned int x, unsigned int y, struct color fg,
 	struct color bg, struct vterm *vterm)
 {
 	struct console_cell *cell = &vterm->cells[y * vterm->columns + x];
@@ -278,7 +279,7 @@ void vterm_dirty_cell(unsigned int x, unsigned int y, struct vterm *vt)
 	vterm_set_dirty(cell);
 }
 
-bool vterm_putc(char c, struct vterm *vt)
+bool vterm_putc(utf32_t c, struct vterm *vt)
 {
 	if(c == '\0')
 		return false;
@@ -300,8 +301,12 @@ bool vterm_putc(char c, struct vterm *vt)
 	if(c == '\n')
 	{
 		vterm_dirty_cell(vt->cursor_x, vt->cursor_y, vt);
-		vt->cursor_x = 0;
 		vt->cursor_y++;
+	}
+	else if(c == '\r')
+	{
+		vterm_dirty_cell(vt->cursor_x, vt->cursor_y, vt);
+		vt->cursor_x = 0;
 	}
 	else if(c == '\b')
 	{
@@ -310,6 +315,16 @@ bool vterm_putc(char c, struct vterm *vt)
 
 		vterm_dirty_cell(vt->cursor_x, vt->cursor_y, vt);
 		vt->cursor_x--;
+	}
+	else if(c == '\x7f')
+	{
+		/* Delete char */
+		if(vt->cursor_x == 0)
+			return false;
+
+		vterm_dirty_cell(vt->cursor_x, vt->cursor_y, vt);
+		vt->cursor_x--;
+		vterm_set_char(' ', vt->cursor_x, vt->cursor_y, vt->fg, vt->bg, vt);
 	}
 	else
 	{
@@ -463,7 +478,7 @@ void vterm_set_fgcolor(struct color c, struct vterm *vt)
 	vt->fg = c;
 }
 
-char *get_decimal_num(char *buf, unsigned long *num, unsigned long len)
+const char *get_decimal_num(const char *buf, unsigned long *num, unsigned long len)
 {
 	unsigned long i = 0;
 
@@ -765,7 +780,7 @@ void vterm_ansi_erase_in_display(unsigned long n, struct vterm *vt)
 
 #define ARGS_NR_ELEMS		2
 
-size_t vterm_parse_ansi(char *buffer, size_t len, struct vterm *vt)
+size_t vterm_parse_ansi(const char *buffer, size_t len, struct vterm *vt)
 {
 	/* len is the distance from the pointer to the end of the buffer
 	 * (so we don't read past it).
@@ -773,7 +788,7 @@ size_t vterm_parse_ansi(char *buffer, size_t len, struct vterm *vt)
 	buffer++;
 	size_t args_nr = 0;
 	size_t args_buf_nr = ARGS_NR_ELEMS;
-	char *orig = buffer;
+	const char *orig = buffer;
 	/* Go to the start of the escape code, while ignoring the ESC (0x1b) */
 
 	if(buffer[0] == ANSI_CSI)
@@ -926,14 +941,14 @@ size_t vterm_parse_ansi(char *buffer, size_t len, struct vterm *vt)
 extern struct serial_port com1;
 void serial_write(const char *s, size_t size, struct serial_port *port);
 
-ssize_t vterm_write_tty(void *buffer, size_t size, struct tty *tty)
+ssize_t vterm_write_tty(const void *buffer, size_t size, struct tty *tty)
 {
 	serial_write(buffer, size, &com1);
 	struct vterm *vt = tty->priv;
 
 	mutex_lock(&vt->vt_lock);
 	size_t i = 0;
-	char *data = buffer;
+	const char *data = buffer;
 	bool did_scroll = false;
 
 	for (; i < size; i++)
@@ -943,9 +958,22 @@ ssize_t vterm_write_tty(void *buffer, size_t size, struct tty *tty)
 			/* Note the -1 because of the i++ in the for loop */
 			i += vterm_parse_ansi(&data[i], size - i, vt) - 1;
 		else
-			if(vterm_putc(data[i], vt))
+		{
+			size_t codepoint_length = 0;
+			utf32_t codepoint = utf8to32((utf8_t *) data + i, size - i, &codepoint_length);
+
+			/* TODO: Detect surrogates, overlong sequences. The code I wrote before
+			 * has some weird casting and returns.
+			 */
+			if(codepoint == UTF_INVALID_CODEPOINT)
+				codepoint = '?';
+
+			if(vterm_putc(codepoint, vt))
 				did_scroll = true;
-	
+
+			/* We sub a 1 because we're incrementing on the for loop */
+			i += codepoint_length - 1;
+		}
 	}
 	
 	if(!did_scroll)
@@ -1016,7 +1044,7 @@ void vterm_init(struct tty *tty)
 	vt->tty = tty;
 }
 
-ssize_t serial_write_tty(void *s, size_t size, struct tty *tty)
+ssize_t serial_write_tty(const void *s, size_t size, struct tty *tty)
 {
 	struct serial_port *port = tty->priv;
 
@@ -1072,12 +1100,12 @@ struct key_action key_actions[] =
 {
 	{KEYMAP_KEY_A, "a", "A"},
 	{KEYMAP_KEY_B, "b", "B"},
-	{KEYMAP_KEY_C, "c", "C"},
-	{KEYMAP_KEY_D, "d", "D"},
+	{KEYMAP_KEY_C, "c", "C", "\03"},
+	{KEYMAP_KEY_D, "d", "D", "\04"},
 	{KEYMAP_KEY_E, "e", "E"},
 	{KEYMAP_KEY_F, "f", "F"},
 	{KEYMAP_KEY_G, "g", "G"},
-	{KEYMAP_KEY_H, "h", "H"},
+	{KEYMAP_KEY_H, "h", "H", "\b"},
 	{KEYMAP_KEY_I, "i", "I"},
 	{KEYMAP_KEY_J, "j", "J"},
 	{KEYMAP_KEY_K, "k", "K"},
@@ -1129,7 +1157,7 @@ struct key_action key_actions[] =
 	{KEYMAP_KEY_APOSTROPHE, "'", "\""},
 	{KEYMAP_KEY_SLASH, "/", "?"},
 	{KEYMAP_KEY_BACKSLASH, "|"},
-	{KEYMAP_KEY_BACKSPACE, "\b"},
+	{KEYMAP_KEY_BACKSPACE, "\x7f"},
 	{KEYMAP_KEY_KEYPAD_DOT, "."},
 	{KEYMAP_KEY_KEYPAD_SLASH, "/"},
 	{KEYMAP_KEY_KEYPAD_ASTERISK, "*"},
@@ -1143,12 +1171,12 @@ struct key_action pt_pt_key_actions[] =
 {
 	{KEYMAP_KEY_A, "a", "A"},
 	{KEYMAP_KEY_B, "b", "B"},
-	{KEYMAP_KEY_C, "c", "C"},
-	{KEYMAP_KEY_D, "d", "D"},
+	{KEYMAP_KEY_C, "c", "C", "\03"},
+	{KEYMAP_KEY_D, "d", "D", "\04"},
 	{KEYMAP_KEY_E, "e", "E"},
 	{KEYMAP_KEY_F, "f", "F"},
 	{KEYMAP_KEY_G, "g", "G"},
-	{KEYMAP_KEY_H, "h", "H"},
+	{KEYMAP_KEY_H, "h", "H", "\b"},
 	{KEYMAP_KEY_I, "i", "I"},
 	{KEYMAP_KEY_J, "j", "J"},
 	{KEYMAP_KEY_K, "k", "K"},
@@ -1200,7 +1228,7 @@ struct key_action pt_pt_key_actions[] =
 	{KEYMAP_KEY_APOSTROPHE, "º", "ª"},
 	{KEYMAP_KEY_SLASH, "-", "_"},
 	{KEYMAP_KEY_BACKSLASH, "|"},
-	{KEYMAP_KEY_BACKSPACE, "\b"},
+	{KEYMAP_KEY_BACKSPACE, "\x7f"},
 	{KEYMAP_KEY_KEYPAD_DOT, "."},
 	{KEYMAP_KEY_KEYPAD_SLASH, "/"},
 	{KEYMAP_KEY_KEYPAD_ASTERISK, "*"},
@@ -1222,7 +1250,7 @@ void __vterm_receive_input(void *p)
 void sched_dump_threads(void);
 
 int vterm_handle_key(struct vterm *vt, struct input_device *dev, struct input_event *ev)
-{	
+{
 	/* We have no interest in release events */
 	if(!(ev->flags & INPUT_EVENT_FLAG_PRESSED))
 		return 0;
@@ -1245,7 +1273,9 @@ int vterm_handle_key(struct vterm *vt, struct input_device *dev, struct input_ev
 
 	/* Not mapped */
 	if(!desired_action)
+	{
 		return 0;
+	}
 
 	char *action_string = NULL;
 

@@ -2,7 +2,7 @@ kern-y+= acpi.o acpi_osl.o arc4random.o binfmt.o copy.o cppnew.o cpprt.o crc32.o
 	driver.o exceptions.o font.o framebuffer.o futex.o i2c.o id_manager.o init.o initrd.o \
 	irq.o kernelinfo.o kernlog.o ktest.o modules.o object.o panic.o percpu.o \
 	power_management.o proc_event.o process.o ptrace.o random.o ref.o scheduler.o signal.o \
-	smp.o spinlock.o symbol.o time.o timer.o tty.o utils.o video.o vterm.o wait_queue.o \
+	smp.o spinlock.o symbol.o time.o timer.o utils.o video.o wait_queue.o \
 	worker.o cred.o list.o softirq.o mutex.o cputime.o
 
 kern-$(CONFIG_UBSAN)+= ubsan.o
@@ -18,3 +18,4 @@ include kernel/mm/Makefile
 include kernel/net/Makefile
 include kernel/fs/Makefile
 include kernel/input/Makefile
+include kernel/tty/Makefile

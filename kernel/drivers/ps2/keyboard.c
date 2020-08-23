@@ -8,10 +8,10 @@
 
 #include <onyx/input/keys.h>
 #include <onyx/input/event.h>
+#include <onyx/panic.h>
 
 #include "../include/ps2.h"
 
-void send_event_to_kernel(uint8_t keycode);
 unsigned int set1_keymap[] = 
 {
 	KEYMAP_NOT_MAPPED,
@@ -185,7 +185,12 @@ void ps2_on_byte(struct ps2_port *port)
 	}
 
 	if(keycode == KEYMAP_NOT_MAPPED)
+	{
+#if CONFIG_DEBUG_KEYBOARD_PANIC_ON_UNKNOWN
+		panic("BUG: keycode %u not mapped!\n", keycode);
+#endif
 		return;
+	}
 
 	struct input_event ev;
 	ev.code = keycode;
