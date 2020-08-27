@@ -168,7 +168,9 @@ void tty_write(const char *data, size_t size, struct tty *tty)
 
 void tty_received_character(struct tty *tty, char c)
 {
+	rw_lock_read(&tty->termio_lock);
 	tty->ldisc->ops->receive_input(c, tty);
+	rw_unlock_read(&tty->termio_lock);
 }
 
 ssize_t __tty_has_input_available(struct tty *tty)
@@ -311,40 +313,66 @@ size_t ttydevfs_read(size_t offset, size_t count, void *buffer, struct file *thi
 	return read;
 }
 
+void tty_flush_input(struct tty *tty)
+{
+	spin_lock(&tty->input_lock);
+
+	tty->input_buf_pos = 0;
+
+	spin_unlock(&tty->input_lock);
+}
+
+unsigned int tty_tcsets(int req, struct tty *tty,  struct termios *uterm)
+{
+	unsigned int ret = 0;
+
+	rw_lock_write(&tty->termio_lock);
+
+	if(req == TCSETSF)
+		tty_flush_input(tty);
+
+	ret = copy_from_user(&tty->term_io, uterm, sizeof(*uterm));
+
+	rw_unlock_write(&tty->termio_lock);
+
+	return ret;
+}
+
+unsigned int tty_do_tcflsh(struct tty *tty, int arg)
+{
+	if(arg == TCIFLUSH || arg == TCIOFLUSH)
+		tty_flush_input(tty);
+
+	return 0;
+}
+
 unsigned int tty_ioctl(int request, void *argp, struct file *dev)
 {
 	struct tty *tty = dev->f_ino->i_helper;
+
+	unsigned int ret = 0;
 
 	switch(request)
 	{
 		case TCGETS:
 		{
+			rw_lock_read(&tty->termio_lock);
+
 			struct termios *term = argp;
 			if(copy_to_user(term, &tty->term_io, sizeof(struct termios)) < 0)
-				return -EFAULT;
-			return 0;
+				ret = -EFAULT;
+
+			rw_unlock_read(&tty->termio_lock);
+
+			return ret;
 		}
 		case TCSETS:
-		{
-			struct termios *term = argp;
-			if(copy_from_user(&tty->term_io, term, sizeof(struct termios)) < 0)
-				return -EFAULT;
-			return 0;
-		}
 		case TCSETSW:
-		{
-			struct termios *term = argp;
-			if(copy_from_user(&tty->term_io, term, sizeof(struct termios)) < 0)
-				return -EFAULT;
-			return 0;
-		}
 		case TCSETSF:
 		{
-			struct termios *term = argp;
-			if(copy_from_user(&tty->term_io, term, sizeof(struct termios)) < 0)
-				return -EFAULT;
-			return 0;
+			return tty_tcsets(request, tty, argp);			
 		}
+
 		case TCGETA:
 		case TCSETA:
 		case TCSETAW:
@@ -407,6 +435,9 @@ unsigned int tty_ioctl(int request, void *argp, struct file *dev)
 			}		
 		}
 
+		case TCFLSH:
+			return tty_do_tcflsh(tty, (int) (unsigned long) argp);
+
 		default:	
 			return -EINVAL;
 	}
@@ -421,6 +452,9 @@ short tty_poll(void *poll_file, short events, struct file *f)
 	
 	if(events & POLLIN)
 	{
+		/* We lock termio for reading here because tty_has_input_available will touch the termio */
+		rw_lock_read(&tty->termio_lock);
+
 		spin_lock(&tty->input_lock);
 
 		if(__tty_has_input_available(tty))
@@ -429,6 +463,8 @@ short tty_poll(void *poll_file, short events, struct file *f)
 			poll_wait_helper(poll_file, &tty->read_queue);
 		
 		spin_unlock(&tty->input_lock);
+
+		rw_unlock_read(&tty->termio_lock);
 	}
 
 	return revents & events;

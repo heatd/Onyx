@@ -15,6 +15,7 @@
 #include <onyx/mutex.h>
 #include <onyx/condvar.h>
 #include <onyx/wait_queue.h>
+#include <onyx/rwlock.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -51,6 +52,7 @@ struct tty
 
 	/* Now, members that are frequently written to */
 	struct mutex lock;
+	struct rwlock termio_lock;
 	unsigned int input_flags;
 	bool line_ready;
 	struct wait_queue read_queue;
