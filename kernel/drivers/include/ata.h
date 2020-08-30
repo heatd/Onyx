@@ -12,12 +12,6 @@
 
 #include <pci/pci.h>
 
-typedef struct
-{
-	uint32_t data_buffer; // the data buffer address
-	uint16_t size; // a size of 0 means 64K
-	uint16_t res; // always 0, unless last prdt
-} prdt_entry_t;
 /* STATUS */
 #define ATA_SR_BSY     0x80    // Busy
 #define ATA_SR_DRDY    0x40    // Drive ready
@@ -64,30 +58,8 @@ typedef struct
 #define ATA_IDENT_MAX_LBA      120
 #define ATA_IDENT_COMMANDSETS  164
 #define ATA_IDENT_MAX_LBA_EXT  200
-#define ATA_REG_DATA       0x00
-#define ATA_REG_ERROR      0x01
-#define ATA_REG_FEATURES   0x01
-#define ATA_REG_SECCOUNT0  0x02
-#define ATA_REG_LBA0       0x03
-#define ATA_REG_LBA1       0x04
-#define ATA_REG_LBA2       0x05
-#define ATA_REG_HDDEVSEL   0x06
-#define ATA_REG_COMMAND    0x07
-#define ATA_REG_STATUS     0x07
-#define ATA_REG_SECCOUNT1  0x08
-#define ATA_REG_LBA3       0x09
-#define ATA_REG_LBA4       0x0A
-#define ATA_REG_LBA5       0x0B
-#define ATA_REG_CONTROL    0x0C
-#define ATA_REG_ALTSTATUS  0x0C
-#define ATA_REG_DEVADDRESS 0x0D
-#define ATA_DATA1	   0x1F0
-#define ATA_DATA2	   0x170
-#define ATA_CONTROL1	   0x3F6
-#define ATA_CONTROL2	   0x376
-#define ATA_IRQ	  14
+
 #define ATA_TYPE_ATA 1
 #define ATA_TYPE_ATAPI 2
-void ata_read_sectors(unsigned int channel, unsigned int drive, uint32_t buffer, uint16_t bytesoftransfer, uint64_t lba48);
-void ata_write_sectors(unsigned int channel, unsigned int drive, uint32_t buffer, uint16_t bytesoftransfer, uint64_t lba48);
+
 #endif

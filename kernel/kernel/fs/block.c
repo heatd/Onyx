@@ -15,6 +15,7 @@
 #include <onyx/rwlock.h>
 #include <onyx/page.h>
 #include <onyx/buffer.h>
+#include <onyx/page_iov.h>
 
 #include <partitions.h>
 
@@ -304,10 +305,23 @@ ssize_t blkdev_read(size_t offset, size_t count, void *buffer, struct blockdev *
 	
 	if(blkdev_is_partition(dev))
 		return blkdev_read(dev->offset + offset, count, buffer, dev->actual_blockdev);
-	if(!dev->read)
-		return errno = EIO, -1;
+	
+	struct page_iov v;
+	unsigned long phys = (unsigned long) virtual2phys(buffer);
 
-	return dev->read(offset, count, buffer, dev);
+	v.page = phys_to_page(phys);
+	v.length = (unsigned int) count;
+	v.page_off = phys & (PAGE_SIZE - 1);
+
+	struct bio_req r;
+	r.nr_vecs = 1;
+	r.vec = &v;
+	r.nr_vecs = 1;
+	r.sector_number = offset / dev->sector_size;
+	r.flags = BIO_REQ_READ_OP;
+	r.curr_vec_index = 0;
+
+	return bio_submit_request(dev, &r);
 }
 /* 
  * Function: size_t blkdev_write(size_t offset, size_t count, void *buffer, struct blockdev *dev);

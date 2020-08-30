@@ -29,6 +29,15 @@ struct aio_req
 static inline void aio_req_init(struct aio_req *r)
 {
 	init_wait_queue_head(&r->wake_sem);
+	r->req_start = r->req_end = 0;
+	r->cookie = NULL;
+	r->status = AIO_STATUS_OK;
+	r->signaled = false;
+}
+
+static inline int aio_wait_on_req(struct aio_req *r, hrtime_t ___timeout)
+{
+	return wait_for_event_timeout(&r->wake_sem, r->signaled == true, ___timeout);
 }
 
 #endif

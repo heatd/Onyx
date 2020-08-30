@@ -88,13 +88,16 @@ int partition_setup_disk_gpt(struct blockdev *dev)
 {
 	int st = 0;
 	gpt_partition_entry_t *part_table = NULL;
+	struct page_iov *vec = NULL;
+	struct page *part_tab_pages = NULL;
 	gpt_header_t *gpt_header = malloc(512);
 	if(!gpt_header)
 		return errno = ENOMEM, 0;
 
 	ssize_t read = blkdev_read(512, 512, gpt_header, dev);
-	if(read != 512)
+	if(read < 0)
 	{
+		printk("partition: Error reading GPT header\n");
 		st = -ENXIO;
 		goto out;
 	}
@@ -106,17 +109,49 @@ int partition_setup_disk_gpt(struct blockdev *dev)
 		goto out;
 	}
 
-	size_t count = gpt_header->num_partitions * gpt_header->part_entry_len;
-	part_table = malloc(count);
-	if(!part_table)
+	size_t count = ALIGN_TO(gpt_header->num_partitions * gpt_header->part_entry_len, dev->sector_size);
+	part_tab_pages = alloc_pages(vm_size_to_pages(count), PAGE_ALLOC_NO_ZERO | PAGE_ALLOC_CONTIGUOUS);
+	if(!part_tab_pages)
 	{
 		st = -ENOMEM;
 		goto out;
 	}
 
+	part_table = PAGE_TO_VIRT(part_tab_pages);
+
+	vec = calloc(vm_size_to_pages(count), sizeof(struct page_iov));
+	if(!vec)
+	{
+		st = -ENOMEM;
+		goto out;
+	}
+
+	struct page *p = part_tab_pages;
+
+	for(unsigned int i = 0; i < vm_size_to_pages(count); i++)
+	{
+		vec[i].page = p;
+		vec[i].length = PAGE_SIZE;
+		vec[i].page_off = 0;
+		p = p->next_un.next_allocation;
+	}
+
 	unsigned int nr_parts = 0;
 
-	blkdev_read(1024, count, part_table, dev);
+	struct bio_req r;
+	r.curr_vec_index = 0;
+	r.flags = BIO_REQ_READ_OP;
+	r.nr_vecs = vm_size_to_pages(count);
+	r.sector_number = 2;
+	r.vec = vec;
+
+	if(bio_submit_request(dev, &r) < 0)
+	{
+		printk("Error reading partition table\n");
+		st = -EIO;
+		goto out;
+	}
+
 	/* FIXME: Support actually reading partition entries */
 	for(uint32_t i = 0; i < gpt_header->num_partitions; i++)
 	{
@@ -160,12 +195,14 @@ int partition_setup_disk_gpt(struct blockdev *dev)
 			goto out;
 		}
 
+		//printk("registered! lba %lu\n", e->first_lba);
 		nr_parts++;
 	}
 
 out:
 	free(gpt_header);
-	free(part_table);
+	if(part_tab_pages) free_pages(part_tab_pages);
+	free(vec);
 	return st;
 }
 

@@ -47,22 +47,26 @@ struct page_iov_iter
 
 	void increment(unsigned int bytes)
 	{
-		unsigned int iov_elem_size = v->length;
-
-		if(iov_elem_size < offset + bytes)
-		{
-			v++;
-			offset = 0;
-		}
-		else if(iov_elem_size >= offset + bytes)
-		{
-			offset += bytes;
-		}
+		offset += bytes;
 	}
 
-	unsigned int length() const
+	int length() const
 	{
 		return v->length - offset;
+	}
+
+	page_iov_iter& operator++()
+	{
+		v++;
+		offset = 0;
+		return *this;
+	}
+
+	page_iov_iter operator++(int)
+	{
+		page_iov_iter copy(*this);
+		++(*this);
+		return copy;
 	}
 
 	bool valid() const

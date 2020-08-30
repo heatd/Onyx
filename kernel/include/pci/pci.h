@@ -19,7 +19,7 @@
 
 #define PCI_CONFIGURATION_SPACE_SIZE		256
 
-#define PCI_BAR0 				0x10
+#define PCI_BAR0 				    0x10
 #define PCI_BARx(index) 			(PCI_BAR0 + 0x4 * index)
 
 #define PCI_NR_BARS						6

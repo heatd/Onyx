@@ -18,6 +18,7 @@
 
 struct irq_context
 {
+	unsigned int irq_nr;
 	registers_t *registers;
 };
 

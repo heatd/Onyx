@@ -57,6 +57,7 @@ unsigned long irq_handler(struct registers *regs)
 
 	struct irq_context context;
 	context.registers = regs;
+	context.irq_nr = irqn;
 
 	dispatch_irq((unsigned int) irqn, &context);
 
