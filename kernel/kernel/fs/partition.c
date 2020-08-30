@@ -84,23 +84,63 @@ int partition_setup(struct dev *dev, struct blockdev *block,
 
 static uuid_t unused_type = {0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000};
 
+static struct page *read_disk(struct blockdev *dev, sector_t sector, size_t count)
+{
+	size_t nr_pages = vm_size_to_pages(count);
+
+	int st = 0;
+	struct page *pages = alloc_pages(nr_pages, PAGE_ALLOC_NO_ZERO | PAGE_ALLOC_CONTIGUOUS);
+	if(!pages)
+		return NULL;
+	
+	struct page_iov *vec = calloc(nr_pages, sizeof(struct page_iov));
+	if(!vec)
+	{
+		st = -ENOMEM;
+		goto out;
+	}
+
+	struct page *p = pages;
+	size_t c = count;
+
+	for(unsigned int i = 0; i < nr_pages; i++)
+	{
+		vec[i].page = p;
+		vec[i].length = min(c, PAGE_SIZE);
+		vec[i].page_off = 0;
+		p = p->next_un.next_allocation;
+		c -= vec[i].length;
+	}
+
+	struct bio_req r;
+	r.curr_vec_index = 0;
+	r.flags = BIO_REQ_READ_OP;
+	r.nr_vecs = nr_pages;
+	r.sector_number = sector;
+	r.vec = vec;
+
+	st = bio_submit_request(dev, &r);
+out:
+	if(st < 0) free_pages(pages);
+	free(vec);
+
+	if(st < 0)
+		errno = -st;
+
+	return st < 0 ? NULL : pages;
+}
+
 int partition_setup_disk_gpt(struct blockdev *dev)
 {
 	int st = 0;
 	gpt_partition_entry_t *part_table = NULL;
 	struct page_iov *vec = NULL;
 	struct page *part_tab_pages = NULL;
-	gpt_header_t *gpt_header = malloc(512);
-	if(!gpt_header)
-		return errno = ENOMEM, 0;
+	struct page *gpt_header_pages = read_disk(dev, 1, 512);
+	if(!gpt_header_pages)
+		return -errno;
 
-	ssize_t read = blkdev_read(512, 512, gpt_header, dev);
-	if(read < 0)
-	{
-		printk("partition: Error reading GPT header\n");
-		st = -ENXIO;
-		goto out;
-	}
+	gpt_header_t *gpt_header = PAGE_TO_VIRT(gpt_header_pages);
 
 	/* TODO: Verify the CRC32 checksum */
 	if(memcmp(gpt_header->signature, GPT_SIGNATURE, 8))
@@ -200,7 +240,7 @@ int partition_setup_disk_gpt(struct blockdev *dev)
 	}
 
 out:
-	free(gpt_header);
+	free_pages(gpt_header_pages);
 	if(part_tab_pages) free_pages(part_tab_pages);
 	free(vec);
 	return st;
@@ -209,12 +249,11 @@ out:
 int partition_setup_disk_mbr(struct blockdev *dev)
 {
 	int st = 0;
-	char *mbrbuf = malloc(512);
-	if(!mbrbuf)
-		return -ENOMEM;
+	struct page *mbr_pages = read_disk(dev, 0, 512);
+	if(!mbr_pages)
+		return -errno;
 
-	/* Read the mbr from the disk */
-	blkdev_read(0, 512, mbrbuf, dev);
+	char *mbrbuf = PAGE_TO_VIRT(mbr_pages);
 	
 	mbrpart_t *part = (mbrpart_t*) ((char *) mbrbuf + 0x1BE);
 	
@@ -266,7 +305,7 @@ int partition_setup_disk_mbr(struct blockdev *dev)
 		part++;
 	}
 out:
-	free(mbrbuf);
+	free_pages(mbr_pages);
 	return st;
 }
 
