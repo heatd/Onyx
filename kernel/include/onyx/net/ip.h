@@ -8,24 +8,28 @@
 
 #include <stdint.h>
 
+#include <onyx/packetbuf.h>
+
 #include <onyx/net/inet_sock_addr.h>
 #include <onyx/net/netif.h>
-#include <onyx/packetbuf.h>
 #include <onyx/net/socket.h>
 #include <onyx/net/proto_family.h>
 #include <onyx/net/inet_proto_family.h>
 #include <onyx/net/ipv6.h>
 #include <onyx/net/inet_route.h>
 #include <onyx/net/inet_csum.h>
+#include <onyx/net/socket_table.h>
+#include <onyx/net/inet_proto.h>
 
 #include <onyx/public/socket.h>
+
 #include <netinet/in.h>
 #include <netinet/ip6.h>
 
 struct ip_header
 {
-	/* TODO: These bitfields are screwing up the structure's size,
-	 * although I think it's an intellisense problem. The problem doesn't seem to arise when compiling the code.
+	/* These bitfields are screwing up the structure's size, although I think
+	 * it's an intellisense problem. The problem doesn't seem to arise when compiling the code.
 	 */
 #if __BYTE_ORDER == __LITTLE_ENDIAN
 	unsigned int ihl : 4;
@@ -74,12 +78,12 @@ namespace v4
 class proto_family : public inet_proto_family
 {
 private:
-	int bind_one(sockaddr_in *in, netif *nif, inet_socket *sock);
+	int bind_internal(sockaddr_in *in, inet_socket *sock);
 public:
 	int bind(sockaddr *addr, socklen_t len, inet_socket *socket) override;
 	int bind_any(inet_socket *sock) override;
 	expected<inet_route, int> route(const inet_sock_address& from, const inet_sock_address &to, int domain) override;
-	void unbind_one(netif *nif, inet_socket *sock) override;
+	void unbind(inet_socket *sock) override;
 };
 
 int send_packet(inet_route& route, unsigned int type,
@@ -101,8 +105,16 @@ inet_proto_family *get_v4_proto();
 };
 
 socket *choose_protocol_and_create(int type, int protocol);
-in_port_t allocate_ephemeral_port(netif *netif, inet_sock_address &addr,
-                                  inet_socket *sock, int domain);
+
+/**
+ * @brief Picks an ephemeral port through trial and error, using arc4random.
+ * 
+ * @param addr The inet_sock_address where the port will be put
+ * @param sock The socket to be bound
+ * @param domain The socket's domain
+ * @return in_port_t The ephemeral port
+ */
+in_port_t allocate_ephemeral_port(inet_sock_address &addr, inet_socket *sock, int domain);
 
 };
 
@@ -126,7 +138,8 @@ inline bool check_sockaddr_in(sockaddr_in *in)
 /* This routine also handles broadcast addresses and all complexity envolved with ip addresses */
 template <typename T>
 inline T *inet_resolve_socket(in_addr_t src, in_port_t port_src, in_port_t port_dst,
-                              int proto, netif *nif, bool ign_dst, unsigned int instance = 0)
+                              int proto, netif *nif, bool ign_dst, const inet_proto *proto_info,
+							  unsigned int instance = 0)
 {
 	in_addr __src;
 	__src.s_addr = src;
@@ -137,7 +150,7 @@ inline T *inet_resolve_socket(in_addr_t src, in_port_t port_src, in_port_t port_
 
 	const socket_id id(proto, AF_INET, socket_src, socket_dst);
 
-	auto socket = netif_get_socket(id, nif, flags, instance);
+	auto socket = proto_info->get_socket_table()->get_socket(id, flags, instance);
 	
 	return static_cast<T *>(socket);
 }

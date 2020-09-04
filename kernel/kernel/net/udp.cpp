@@ -13,9 +13,6 @@
 
 #include <onyx/scoped_lock.h>
 #include <onyx/dev.h>
-#include <onyx/net/ip.h>
-#include <onyx/net/udp.h>
-#include <onyx/net/netif.h>
 #include <onyx/compiler.h>
 #include <onyx/utils.h>
 #include <onyx/byteswap.h>
@@ -23,9 +20,18 @@
 #include <onyx/memory.hpp>
 #include <onyx/poll.h>
 
+#include <onyx/net/ip.h>
+#include <onyx/net/udp.h>
+#include <onyx/net/netif.h>
+#include <onyx/net/socket_table.h>
 #include <onyx/net/icmp.h>
+#include <onyx/net/inet_proto.h>
 
 #include <netinet/in.h>
+
+socket_table udp_socket_table;
+
+const inet_proto udp_proto{"udp", &udp_socket_table};
 
 uint16_t udpv4_calculate_checksum(udp_header_t *header, uint32_t srcip, uint32_t dstip,
                                   bool do_rest_of_packet = true)
@@ -208,7 +214,14 @@ ssize_t udp_socket::sendmsg(const msghdr *msg, int flags)
 
 socket *udp_create_socket(int type)
 {
-	return new udp_socket;
+	auto sock = new udp_socket;
+
+	if(sock)
+	{
+		sock->proto_info = &udp_proto;
+	}
+
+	return sock;
 }
 
 int udp_init_netif(netif *netif)
@@ -240,7 +253,7 @@ int udp_handle_packet(netif *netif, packetbuf *buf)
 
 	auto socket = inet_resolve_socket<udp_socket>(header->source_ip,
                       udp_header->source_port, udp_header->dest_port, IPPROTO_UDP,
-					  netif, true);
+					  netif, true, &udp_proto);
 	if(!socket)
 	{
 		icmp::dst_unreachable_info dst_un{ICMP_CODE_PORT_UNREACHABLE, 0,

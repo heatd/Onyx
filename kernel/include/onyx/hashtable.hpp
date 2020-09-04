@@ -115,7 +115,7 @@ class hashtable2
 private:
 	struct list_head buckets[number_entries];
 public:
-	hashtable2() : buckets()
+	constexpr hashtable2() : buckets()
 	{
 		for(auto &l : buckets)
 			INIT_LIST_HEAD(&l);
@@ -125,12 +125,17 @@ public:
 	{
 	}
 
-	bool add_element(const T& elem)
+	void add_element(const T& elem, list_head *node)
 	{
 		auto hash = hash_func(const_cast<T&>(elem));
 
 		auto index = hash % number_entries;
-		return list_add_tail(&elem.list_node, &buckets[index]);
+		list_add_tail(node, &buckets[index]);
+	}
+
+	void add_element(const T& elem)
+	{
+		add_element(elem, &elem.list_node);
 	}
 
 	size_t get_hashtable_index(hash_type hash) const
@@ -143,9 +148,14 @@ public:
 		return &buckets[index];
 	}
 
+	void remove_element(T& elem, list_head *node)
+	{
+		list_remove(node);
+	}
+
 	void remove_element(T& elem)
 	{
-		list_remove(&elem.list_node);
+		remove_element(elem, &elem.list_node);
 	}
 };
 

@@ -5,6 +5,7 @@
 */
 
 #include <onyx/net/ip.h>
+#include <onyx/net/socket_table.h>
 
 const struct in6_addr in6addr_any = IN6ADDR_ANY_INIT;
 const struct in6_addr in6addr_loopback = IN6ADDR_LOOPBACK_INIT;
@@ -66,50 +67,62 @@ int send_packet(const inet_route& route, unsigned int type,
 	return netif_send_packet(netif, buf);
 }
 
-int proto_family::bind_one(sockaddr_in6 *in, netif *netif, inet_socket *sock)
+int proto_family::bind_internal(sockaddr_in6 *in, inet_socket *sock)
 {
+	auto proto_info = sock->proto_info;
+	auto sock_table = proto_info->get_socket_table();
+
 	inet_sock_address addr{*in};
+	fnv_hash_t hash = 0;
 	const socket_id id(sock->proto, AF_INET6, addr, addr);
 
-	if(in->sin6_port != 0)
+	/* Some protocols have no concept of ports, like ICMP, for example. 
+	 * These are special cases that require that in->sin_port = 0 **and**
+	 * we do not allocate a port, like we would for standard sin_port = 0.
+	 */
+	bool proto_has_no_ports = false;
+
+	if(proto_has_no_ports && in->sin6_port != 0)
+		return -EINVAL;
+
+	if(in->sin6_port != 0 || proto_has_no_ports)
 	{
-		if(!inet_has_permission_for_port(in->sin6_port))
+		if(!proto_has_no_ports && !inet_has_permission_for_port(in->sin6_port))
 			return -EPERM;
 
-		netif_lock_socks(id, netif);
-		/* Check if there's any socket bound to this address yet */
-		if(netif_get_socket(id, netif, GET_SOCKET_CHECK_EXISTENCE | GET_SOCKET_UNLOCKED))
+		hash = inet_socket::make_hash_from_id(id);
+
+		sock_table->lock(hash);
+
+		/* Check if there's any socket bound to this address yet, if we're not talking about ICMP.
+		 * ICMP allows you to bind multiple sockets, as they'll all receive the same packets.
+		 */
+		if(!proto_has_no_ports && sock_table->get_socket(id,
+		                      GET_SOCKET_CHECK_EXISTENCE | GET_SOCKET_UNLOCKED))
 		{
-			netif_unlock_socks(id, netif);
+			sock_table->unlock(hash);
 			return -EADDRINUSE;
 		}
 	}
 	else
 	{
 		/* Lets try to allocate a new ephemeral port for us */
-		in->sin6_port = allocate_ephemeral_port(netif, addr, sock, AF_INET6);
+		in->sin6_port = allocate_ephemeral_port(addr, sock, AF_INET6);
+		hash = inet_socket::make_hash_from_id(id);
 	}
 
-	/* Note that we keep doing this memcpy in each bind_one() just so the socket
-	 * hashes properly - the state of the socket(whether it's bound or not) entirely depends on
-	 * sock->bound = true in proto_family::bind()
-	 */
 	sock->src_addr = addr;
-	sock->src_addr.in4.s_addr = netif->local_ip.sin_addr.s_addr;
 
 	/* Note: locks need to be held */
-	bool success = netif_add_socket(sock, netif, ADD_SOCKET_UNLOCKED);
+	bool success = sock_table->add_socket(sock, ADD_SOCKET_UNLOCKED);
 
-	netif_unlock_socks(id, netif);
+	sock_table->unlock(hash);
 
 	return success ? 0 : -ENOMEM;
 }
 
 static constexpr bool is_bind_any6(in6_addr addr)
 {
-	/* For historical reasons, INADDR_ANY == INADDR_BROADCAST (linux's ip(7)).
-	 * Linux isn't alone in this and we should strive for compatibility.
-	 */
 	return addr == in6addr_any;
 }
 
@@ -125,45 +138,7 @@ int proto_family::bind(sockaddr *addr, socklen_t len, inet_socket *sock)
 	if(!sock->validate_sockaddr_len_pair(addr, len))
 		return -EINVAL;
 
-	if(!is_bind_any6(in->sin6_addr))
-	{
-		auto nif = netif_get_from_addr(inet_sock_address{*in}, AF_INET6);
-		if(!nif)
-		{
-			return -EADDRNOTAVAIL;
-		}
-
-		st = bind_one(in, nif, sock);
-	}
-	else
-	{
-		auto& list = netif_lock_and_get_list();
-		
-		for(auto netif : list)
-		{
-			st = bind_one(in, netif, sock);
-
-			if(st < 0)
-			{
-				auto stop = netif;
-
-				for(auto l : list)
-				{
-					if(l == stop)
-						break;
-					panic("Implement socket un-binding");
-				}
-
-				netif_unlock_list();
-				return st;
-			}
-		}
-
-		sock->src_addr.in4.s_addr = INADDR_ANY;
-		sock->src_addr.in6 = in->sin6_addr;
-
-		netif_unlock_list();
-	}
+	st = bind_internal(in, sock);
 
 	if(st < 0)
 		return st;
@@ -182,9 +157,9 @@ int proto_family::bind_any(inet_socket *sock)
 	return bind((sockaddr *) &in, sizeof(sockaddr_in6), sock);
 }
 
-void proto_family::unbind_one(netif *nif, inet_socket *sock)
+void proto_family::unbind(inet_socket *sock)
 {
-	assert(netif_remove_socket(sock, nif, REMOVE_SOCKET_UNLOCKED) == true);
+	sock->proto_info->get_socket_table()->remove_socket(sock, 0);
 }
 
 rwlock routing_table_lock;

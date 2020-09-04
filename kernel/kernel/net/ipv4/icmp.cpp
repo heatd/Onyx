@@ -9,10 +9,6 @@
 #include <stdlib.h>
 #include <errno.h>
 
-#include <onyx/net/network.h>
-#include <onyx/net/icmp.h>
-#include <onyx/net/ip.h>
-
 #include <onyx/cred.h>
 #include <onyx/packetbuf.h>
 #include <onyx/vfs.h>
@@ -20,7 +16,19 @@
 #include <onyx/byteswap.h>
 #include <onyx/poll.h>
 
+#include <onyx/net/network.h>
+#include <onyx/net/icmp.h>
+#include <onyx/net/ip.h>
+#include <onyx/net/inet_proto.h>
+#include <onyx/net/socket_table.h>
 #include <onyx/public/icmp.h>
+
+/* TODO: Maybe a table isn't the best idea and we could just have a list here?
+ * Since this is just a list (because all ports are 0), we're just wasting a bunch of memory
+ * in all the other buckets' locks and list_head's.
+ */
+socket_table icmp_table;
+const inet_proto icmp_proto{"icmp", &icmp_table};
 
 #define ICMP_PACKETBUF_HEADER_SPACE  (PACKET_MAX_HEAD_LENGTH + sizeof(ip_header) + sizeof(icmp::icmp_header))
 
@@ -130,7 +138,8 @@ int handle_packet(netif *nif, packetbuf *buf)
 
 	do
 	{
-		socket = inet_resolve_socket<icmp_socket>(iphdr->source_ip, 0, 0, IPPROTO_ICMP, nif, true, inst);
+		socket = inet_resolve_socket<icmp_socket>(iphdr->source_ip, 0, 0, IPPROTO_ICMP,
+		                                          nif, true, &icmp_proto, inst);
 		if(!socket)
 			break;
 		inst++;
@@ -448,7 +457,14 @@ short icmp_socket::poll(void *poll_file, short events)
 
 icmp_socket *create_socket(int type)
 {
-	return new icmp_socket();
+	auto sock = new icmp_socket();
+
+	if(sock)
+	{
+		sock->proto_info = &icmp_proto;
+	}
+
+	return sock;
 }
 
 }

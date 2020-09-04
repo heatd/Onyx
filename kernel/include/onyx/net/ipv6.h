@@ -97,12 +97,12 @@ namespace v6
 	class proto_family : public inet_proto_family
 	{
 	private:
-		int bind_one(sockaddr_in6 *in, netif *nif, inet_socket *sock);
+		int bind_internal(sockaddr_in6 *in, inet_socket *sock);
 	public:
 		int bind(sockaddr *addr, socklen_t len, inet_socket *socket) override;
 		int bind_any(inet_socket *sock) override;
 		expected<inet_route, int> route(const inet_sock_address& from, const inet_sock_address &to, int domain) override;
-		void unbind_one(netif *nif, inet_socket *sock) override;
+		void unbind(inet_socket *sock) override;
 	};
 }
 

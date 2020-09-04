@@ -69,6 +69,14 @@ constexpr T align_down2(T number, U alignment)
 	return number & ~(alignment - 1);
 }
 
+#define CLASS_DISALLOW_MOVE(class_name) \
+class_name& operator=(class_name&& rhs) = delete; \
+class_name(class_name&& rhs) = delete;
+
+#define CLASS_DISALLOW_COPY(class_name) \
+class_name& operator=(const class_name& rhs) = delete; \
+class_name(const class_name& rhs) = delete;
+
 }
 
 #endif

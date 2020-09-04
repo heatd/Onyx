@@ -10,6 +10,7 @@
 #include <onyx/net/inet_sock_addr.h>
 #include <onyx/net/inet_route.h>
 #include <onyx/net/socket.h>
+#include <onyx/net/inet_proto.h>
 
 #include <onyx/byteswap.h>
 
@@ -35,6 +36,7 @@ namespace v6
 struct inet_socket : public socket
 {
 	inet_sock_address src_addr;
+	list_head_cpp<inet_socket> bind_table_node; 
 	inet_sock_address dest_addr;
 
 	inet_route route_cache;
@@ -42,13 +44,14 @@ struct inet_socket : public socket
 	struct list_head rx_packet_list;
 	struct spinlock rx_packet_list_lock;
 	wait_queue rx_wq;
+	const inet_proto *proto_info;
 
 	unsigned int ipv4_on_inet6 : 1,
 	             ipv6_only : 1,
 				 route_cache_valid : 1;
 
-	inet_socket() : socket{}, src_addr{}, dest_addr{}, ipv4_on_inet6{}, ipv6_only{},
-	                route_cache_valid{}
+	inet_socket() : socket{}, src_addr{}, bind_table_node{this}, dest_addr{}, proto_info{},
+	                ipv4_on_inet6{}, ipv6_only{}, route_cache_valid{}
 	{
 		INIT_LIST_HEAD(&rx_packet_list);
 		spinlock_init(&rx_packet_list_lock);
@@ -96,9 +99,17 @@ struct inet_socket : public socket
 
 		if(ipv6_only && id.domain == AF_INET)
 			return false;
+		
+		if(proto != id.protocol)
+			return false;
+		
+		if(!this_src.is_any(in_ipv4_mode()) && !this_src.equals(other_src, in_ipv4_mode()))
+			return false;
 
-		return proto == id.protocol && this_src.port == other_src.port &&
-		       (!(flags & GET_SOCKET_DSTADDR_VALID) || dest_addr.equals(id.dst_addr, in_ipv4_mode()));
+		if(flags & GET_SOCKET_DSTADDR_VALID && !dest_addr.equals(id.dst_addr, in_ipv4_mode()))
+			return false;
+
+		return true;
 	}
 
 	inet_proto_family *get_proto_fam()

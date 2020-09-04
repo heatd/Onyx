@@ -9,6 +9,7 @@
 #include <onyx/net/tcp.h>
 #include <onyx/net/netif.h>
 #include <onyx/net/icmp.h>
+#include <onyx/net/socket_table.h>
 
 #include <onyx/random.h>
 
@@ -48,9 +49,11 @@ socket *choose_protocol_and_create(int type, int protocol)
 static constexpr in_port_t ephemeral_upper_bound = 61000;
 static constexpr in_port_t ephemeral_lower_bound = 32768;
 
-in_port_t allocate_ephemeral_port(netif *netif, inet_sock_address &addr,
+in_port_t allocate_ephemeral_port(inet_sock_address &addr,
                                   inet_socket *sock, int domain)
 {
+	auto sock_table = sock->proto_info->get_socket_table();
+
 	while(true)
 	{
 		in_port_t port = htons(static_cast<in_port_t>(arc4random_uniform(
@@ -61,16 +64,18 @@ in_port_t allocate_ephemeral_port(netif *netif, inet_sock_address &addr,
 		/* We pass the same address as the dst address but in reality, dst_addr isn't checked. */
 		const socket_id id{sock->proto, domain, addr, addr};
 		
-		netif_lock_socks(id, netif);
+		const auto hash = inet_socket::make_hash_from_id(id);
 
-		auto sock = netif_get_socket(id, netif, GET_SOCKET_CHECK_EXISTENCE | GET_SOCKET_UNLOCKED);
+		sock_table->lock(hash);
+
+		auto sock = sock_table->get_socket(id, GET_SOCKET_CHECK_EXISTENCE | GET_SOCKET_UNLOCKED);
 
 		if(!sock)
 			return port;
 		else
 		{
 			/* Let's try again, boys */
-			netif_unlock_socks(id, netif);
+			sock_table->unlock(hash);
 		}
 	}
 

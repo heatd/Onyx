@@ -45,6 +45,11 @@ public:
 		auto l = static_cast<list_head_cpp *>(lh);
 		return l->from_list();
 	}
+
+	list_head *to_list_head()
+	{
+		return this;
+	}
 };
 
 #endif

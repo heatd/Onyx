@@ -8,9 +8,16 @@
 #include <stdio.h>
 
 #include <onyx/random.h>
+#include <onyx/byteswap.h>
+
+#include <onyx/net/socket_table.h>
+#include <onyx/net/inet_proto.h>
 #include <onyx/net/tcp.h>
 #include <onyx/net/ip.h>
-#include <onyx/byteswap.h>
+
+socket_table tcp_table;
+
+const inet_proto tcp_proto{"tcp", &tcp_table};
 
 constexpr inline uint16_t tcp_header_length_to_data_off(uint16_t len)
 {
@@ -230,7 +237,7 @@ int tcp_handle_packet(netif *netif, packetbuf *buf)
 		return 0;
 
 	auto socket = inet_resolve_socket<tcp_socket>(ip_header->source_ip,
-                      header->source_port, header->dest_port, IPPROTO_TCP, netif, false);
+                      header->source_port, header->dest_port, IPPROTO_TCP, netif, false, &tcp_proto);
 	uint16_t tcp_payload_len = static_cast<uint16_t>(ntohs(ip_header->total_len) - ip_header_length(ip_header));
 
 	if(!socket)
@@ -734,5 +741,12 @@ int tcp_socket::getsockopt(int level, int opt, void *optval, socklen_t *optlen)
 extern "C"
 struct socket *tcp_create_socket(int type)
 {
-	return new tcp_socket();
+	auto sock = new tcp_socket();
+
+	if(sock)
+	{
+		sock->proto_info = &tcp_proto;
+	}
+
+	return sock;
 }

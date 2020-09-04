@@ -28,7 +28,6 @@ struct netif;
 #define NETIF_MISSED_RX                         (1 << 8)
 
 /* Defined as an opaque struct since it's C++ TODO: Yuck. */
-struct sockets_info;
 
 struct packetbuf;
 
@@ -47,7 +46,6 @@ struct netif
 	void (*rx_end)(struct netif *nif);
 	struct list_head list_node;
 	struct list_head rx_queue_node;
-	struct sockets_info *sock_info;
 	data_link_layer_ops *dll_ops;
 };
 
@@ -77,17 +75,6 @@ struct inet_socket;
 
 #define ADD_SOCKET_UNLOCKED                (1 << 0)
 #define REMOVE_SOCKET_UNLOCKED             (1 << 0)
-
-
-inet_socket *netif_get_socket(const socket_id& id, netif *nif, unsigned int flags, unsigned int inst = 0);
-void netif_lock_socks(const socket_id& id, netif *nif);
-void netif_unlock_socks(const socket_id& id, netif *nif);
-
-bool netif_add_socket(inet_socket *sock, netif *nif, unsigned int flags = 0);
-
-void netif_print_open_sockets(netif *nif);
-
-bool netif_remove_socket(inet_socket *sock, netif *nif, unsigned int flags);
 
 int netif_send_packet(struct netif *netif, packetbuf *buf);
 

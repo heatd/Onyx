@@ -78,6 +78,14 @@ struct inet_sock_address
 		else
 			return in6 == rhs.in6;
 	}
+
+	constexpr bool is_any(bool ipv4_mode) const
+	{
+		if(ipv4_mode)
+			return in4 == in_addr{INADDR_ANY};
+		else
+			return in6 == in6addr_any;
+	}
 };
 
 #endif
