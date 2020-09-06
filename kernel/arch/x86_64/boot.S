@@ -212,6 +212,7 @@ gdt:
 	.quad 0x0000000000000000
 	.quad 0x00CF9A000000FFFF
 	.quad 0x00CF92000000FFFF
+.global gdt_begin
 gdt_begin: 
 	.quad 0x0000000000000000   # 0x0  - NULL segment
 	.quad 0x00A09A0000000000   # 0x8  - KERNEL CS
@@ -220,25 +221,25 @@ gdt_begin:
 	.quad 0x00CFF2000000FFFF   # 0x20 - 32-bit user DS
 	.quad 0x00A0FA0000000000   # 0x28 - USER CS
 	.quad 0x00A0F20000000000   # 0x30 - USER DS
-.global tss_gdt                    # 0x38 - TSS
+                               # 0x38 - TSS
 tss_gdt: 
-	.word 0x67, 0
-	.byte 0, 0xE9, 0
-	.byte 0
-	.long 0
-gdt_end: 
+	.quad 0
+	.quad 0
+.global gdt_end
+gdt_end:
+
 gdtr1: 
-	.word 40
+	.word gdt_begin - gdt - 1
 	.long gdt
 
 gdtr2: 
-	.word 76
+	.word gdt_end - gdt_begin - 1
 	.long gdt_begin
 	.long 0
 
 .global gdtr3
 gdtr3: 
-	.word 76
+	.word gdt_end - gdt_begin - 1
 	.quad gdt_begin + 0xFFFFFFFF80000000
 
 .bss

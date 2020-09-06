@@ -15,7 +15,6 @@
 #include <onyx/init.h>
 
 extern void tss_flush();
-extern int tss_gdt;
 
 void tss_init(void)
 {
@@ -40,17 +39,26 @@ void init_percpu_tss(uint64_t *gdt)
 {
 	tss_entry_t *new_tss = malloc(sizeof(tss_entry_t));
 	if(!new_tss)
-		halt();
-	memset(new_tss, 0, sizeof(tss_entry_t));
+	{
+		panic("Out of memory allocating a per-cpu TSS");
+	}
 
-	uint8_t *tss_gdtb = (uint8_t*) &gdt[7];
-	uint16_t *tss_gdtw = (uint16_t*) &gdt[7];
-	uint32_t *tss_gdtd = (uint32_t*) &gdt[7];
-	tss_gdtw[1] = (uintptr_t) new_tss & 0xFFFF;
-	tss_gdtb[4] = ((uintptr_t) new_tss >> 16) & 0xFF;
-	tss_gdtb[6] = ((uintptr_t) new_tss >> 24) & 0xFF;
-	tss_gdtb[7] = ((uintptr_t) new_tss >> 24) & 0xFF;
-	tss_gdtd[2] = ((uintptr_t) new_tss >> 32);
+	memset(new_tss, 0, sizeof(tss_entry_t));
+	uint32_t tss_limit = sizeof(tss_entry_t) - 1;
+
+	union tss_descriptor *desc = (union tss_descriptor *) &gdt[7];
+	memset(desc, 0, sizeof(*desc));
+
+	uintptr_t tss_addr = (uintptr_t) new_tss;
+	desc->type = TSS_TYPE_INACTIVE | TSS_TYPE_DPL(3) | TSS_TYPE_PRESENT;
+	desc->base_low = (uint16_t) tss_addr;
+	desc->base_16_23 = tss_addr >> 16;
+	desc->base_mid = tss_addr >> 24;
+	desc->base_high = tss_addr >> 32;
+	desc->limit_low = tss_limit;
+	desc->limit_flags = tss_limit >> 16;
+	desc->reserved = 0;
+
 	tss_flush();
 
 	write_per_cpu(tss, new_tss);

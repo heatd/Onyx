@@ -11,33 +11,38 @@
 #include <onyx/tss.h>
 #include <onyx/vm.h>
 
-#define GDT_SIZE 76
+extern unsigned char gdt_begin;
+extern unsigned char gdt_end;
+
+uint16_t gdt_get_size()
+{
+	return &gdt_end - &gdt_begin;
+}
 
 extern gdtr_t gdtr3;
 extern void gdt_flush(gdtr_t *gdtr);
 void gdt_init_percpu(void)
 {
+	uint16_t size = gdt_get_size();
 	/* Create another copy of the gdt */
-	uint64_t *gdt = malloc(GDT_SIZE);
+	uint64_t *gdt = malloc(size);
 	if(!gdt)
-		halt();
-	/* Create a gdtr */
-	gdtr_t *gdtr = malloc(sizeof(gdtr_t));
-	if(!gdtr)
 	{
-		free(gdt);
-		panic("Out of memory while allocating a percpu GDT\n");
+		panic("Out of memory while allocating a percpu GDT");
 	}
-	gdtr_t *g = (gdtr_t *)((uintptr_t) &gdtr3 + PHYS_BASE);
+
+	gdtr_t gdtr;
+
+	gdtr_t *g = PHYS_TO_VIRT(&gdtr3);
 	/* Copy the gdt */
-	memcpy(gdt, (const void*) g->ptr, GDT_SIZE);
+	memcpy(gdt, (const void*) g->ptr, size);
 
 	/* Setup the GDTR */
-	gdtr->size = GDT_SIZE - 1;
-	gdtr->ptr = (uint64_t) gdt;
+	gdtr.size = size - 1;
+	gdtr.ptr = (uint64_t) gdt;
 
 	/* Flush the GDT */
-	gdt_flush(gdtr);
+	gdt_flush(&gdtr);
 
 	init_percpu_tss(gdt);
 }
