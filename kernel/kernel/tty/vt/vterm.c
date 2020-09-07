@@ -1397,7 +1397,9 @@ INIT_LEVEL_CORE_AFTER_SCHED_ENTRY(vt_init_blink);
 void vterm_panic(void)
 {
 	primary_vterm.multithread_enabled = false;
-	primary_vterm.tty->lock.counter = 0;
+	
+	if(primary_vterm.tty)
+		primary_vterm.tty->lock.counter = 0;
 }
 
 void vterm_release_video(struct vterm *vt)

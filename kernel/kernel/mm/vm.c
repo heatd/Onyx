@@ -347,32 +347,7 @@ void do_vm_unmap(void *range, size_t pages)
 	struct vm_object *vmo = entry->vmo;
 	assert(vmo != NULL);
 
-	mutex_lock(&vmo->page_lock);
-
-	struct rb_itor it;
-	it.node = NULL;
-
-	it.tree = vmo->pages;
-	size_t off = entry->offset;
-	size_t nr_pages = entry->pages;
-
-	bool node_valid = rb_itor_search_ge(&it, (void *) off);
-	while(node_valid)
-	{
-		size_t poff = (size_t) rb_itor_key(&it);
-		
-		if(poff >= off + (nr_pages << PAGE_SHIFT))
-			break;
-		unsigned long reg_off = poff - off;
-		paging_unmap((void *) (entry->base + reg_off));
-
-		node_valid = rb_itor_next(&it);
-	}
-
-
-	mutex_unlock(&vmo->page_lock);
-
-	vm_invalidate_range((unsigned long) range, pages);
+	vm_mmu_unmap(entry->mm, range, pages);
 }
 
 void __vm_unmap_range(void *range, size_t pages)
@@ -2581,20 +2556,6 @@ int vm_add_region(struct mm_address_space *as, struct vm_region *region)
 	*res.datum_ptr = (void *) region;
 
 	return 0;
-}
-
-void vm_unmap_range_raw(void *range, size_t size)
-{
-	unsigned long addr = (unsigned long) range;
-	unsigned long end = addr + size;
-	while(addr < end)
-	{
-		paging_unmap((void *) addr);
-
-		addr += PAGE_SIZE;
-	}
-
-	vm_invalidate_range((unsigned long) range, size >> PAGE_SHIFT);
 }
 
 int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size)

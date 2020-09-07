@@ -128,7 +128,7 @@ bool physical_mem_inited = false;
 static inline void *temp_map_mem(unsigned long mem)
 {
 	if(physical_mem_inited)
-		return (void *) mem;
+		return PHYS_TO_VIRT(mem);
 	else
 		return x86_placement_map(mem);
 }
@@ -203,8 +203,8 @@ void *multiboot2_get_phys_mem_region(uintptr_t *base,
 {
 	/* Context holds an array index */
 
-	struct multiboot_tag_mmap *tag = mmap_tag;
-	size_t entries = mmap_tag->size / mmap_tag->entry_size;
+	struct multiboot_tag_mmap *tag = temp_map_mem((unsigned long) mmap_tag);
+	size_t entries = tag->size / tag->entry_size;
 	size_t curr_entry = (size_t) context;
 
 	if(curr_entry == entries)

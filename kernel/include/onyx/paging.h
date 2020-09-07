@@ -40,7 +40,6 @@ struct mm_address_space;
 struct process;
 
 void paging_init(void);
-void *paging_unmap(void* memory);
 void *paging_map_phys_to_virt_large(uintptr_t virt, uintptr_t phys, uint64_t prot);
 void *paging_map_phys_to_virt_large_early(uintptr_t virt, uintptr_t phys, uint64_t prot);
 void paging_map_all_phys(void);
@@ -55,6 +54,8 @@ void paging_protect_kernel(void);
 void paging_invalidate(void *page, size_t pages);
 void paging_free_page_tables(struct mm_address_space *mm);
 bool paging_write_protect(void *addr, struct mm_address_space *mm);
+int vm_mmu_unmap(struct mm_address_space *as, void *addr, size_t pages);
+void *paging_unmap(void* memory);
 
 #ifdef __x86_64__
 

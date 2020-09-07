@@ -17,6 +17,9 @@
 
 #include <onyx/x86/pat.h>
 
+static const unsigned int x86_paging_levels = 4;
+static const unsigned int x86_max_paging_levels = 5;
+
 #define PML_EXTRACT_ADDRESS(n) (n & 0x0FFFFFFFFFFFF000)
 #define X86_PAGING_PRESENT		(1 << 0)
 #define X86_PAGING_WRITE		(1 << 1)
@@ -132,14 +135,14 @@ typedef struct
 	uint64_t offsetFromPage : 12;
 	uint64_t pt : 9;
 	uint64_t pd : 9;
-	uint64_t pdpt :9;
-	uint64_t pml4 :9;
-	uint64_t rest :16;
+	uint64_t pdpt : 9;
+	uint64_t pml4 : 9;
+	uint64_t rest : 16;
 } decomposed_addr_t;
 
 unsigned long allocated_page_tables = 0;
 
-void *alloc_pt(void)
+PML *alloc_pt(void)
 {
 	struct page *p = alloc_page(0);
 	if(p)
@@ -147,7 +150,7 @@ void *alloc_pt(void)
 		__atomic_add_fetch(&allocated_page_tables, 1, __ATOMIC_RELAXED);
 	}
 
-	return p != NULL ? (void *) pfn_to_paddr(page_to_pfn(p)) : NULL;
+	return p != nullptr ? (PML *) pfn_to_paddr(page_to_pfn(p)) : nullptr;
 }
 
 PML *boot_pml4;
@@ -165,20 +168,24 @@ PML *get_current_pml4(void)
 #define LARGE2MB_SHIFT		21
 #define LARGE2MB_SIZE		0x200000
 
-void *__virtual2phys(PML *__pml, void *ptr)
+static void x86_addr_to_indices(unsigned long virt, unsigned int *indices)
 {
-	unsigned long virt = (unsigned long ) ptr;
-	const unsigned int paging_levels = 4;
-	unsigned int indices[paging_levels];
-	
-	for(unsigned int i = 0; i < paging_levels; i++)
+	for(unsigned int i = 0; i < x86_paging_levels; i++)
 	{
 		indices[i] = (virt >> 12) >> (i * 9) & 0x1ff;
 	}
+}
+
+void *__virtual2phys(PML *__pml, void *ptr)
+{
+	unsigned long virt = (unsigned long ) ptr;
+	unsigned int indices[x86_max_paging_levels];
+	
+	x86_addr_to_indices(virt, indices);
 
 	PML *pml = (PML*)((uint64_t) __pml + PHYS_BASE);
 	
-	for(unsigned int i = paging_levels; i != 1; i--)
+	for(unsigned int i = x86_paging_levels; i != 1; i--)
 	{
 		uint64_t entry = pml->entries[indices[i - 1]];
 		
@@ -197,7 +204,7 @@ void *__virtual2phys(PML *__pml, void *ptr)
 		}
 
 
-		pml = PHYS_TO_VIRT(PML_EXTRACT_ADDRESS(entry));
+		pml = (PML *) PHYS_TO_VIRT(PML_EXTRACT_ADDRESS(entry));
 	}
 
 	unsigned long phys = PML_EXTRACT_ADDRESS(pml->entries[indices[0]]);
@@ -248,18 +255,14 @@ void *x86_placement_map(unsigned long _phys)
 
 void x86_setup_placement_mappings(void)
 {
-	const unsigned int paging_levels = 4;
-	unsigned int indices[paging_levels];
+	unsigned int indices[x86_max_paging_levels];
 	const unsigned long virt = placement_mappings_start;
 
 	PML *pml = boot_pml4;
 
-	for(unsigned int i = 0; i < paging_levels; i++)
-	{
-		indices[i] = (virt >> 12) >> (i * 9) & 0x1ff;
-	}
+	x86_addr_to_indices(virt, indices);
 
-	for(unsigned int i = paging_levels; i != 1; i--)
+	for(unsigned int i = x86_paging_levels; i != 1; i--)
 	{
 		uint64_t entry = pml->entries[indices[i - 1]];
 		if(entry & 1)
@@ -437,8 +440,7 @@ void* paging_map_phys_to_virt(PML *__pml, uint64_t virt, uint64_t phys, uint64_t
 		as = get_current_address_space();
 
 
-	const unsigned int paging_levels = 4;
-	unsigned int indices[paging_levels];
+	unsigned int indices[x86_max_paging_levels];
 
 	/* Note: page table flags are different from page perms because a page table's
 	 * permissions apply throughout the whole table.
@@ -447,20 +449,17 @@ void* paging_map_phys_to_virt(PML *__pml, uint64_t virt, uint64_t phys, uint64_t
 	uint64_t page_table_flags = X86_PAGING_PRESENT | X86_PAGING_WRITE |
 		(user ? X86_PAGING_USER : 0);
 	
-	for(unsigned int i = 0; i < paging_levels; i++)
-	{
-		indices[i] = (virt >> 12) >> (i * 9) & 0x1ff;
-	}
+	x86_addr_to_indices(virt ,indices);
 
 	PML *pml = (PML*)((uint64_t) __pml + PHYS_BASE);
 	
-	for(unsigned int i = paging_levels; i != 1; i--)
+	for(unsigned int i = x86_paging_levels; i != 1; i--)
 	{
 		uint64_t entry = pml->entries[indices[i - 1]];
 		if(entry & X86_PAGING_PRESENT)
 		{
 			void *page = (void*) PML_EXTRACT_ADDRESS(entry);
-			pml = PHYS_TO_VIRT(page);
+			pml = (PML *) PHYS_TO_VIRT(page);
 		}
 		else
 		{
@@ -469,7 +468,7 @@ void* paging_map_phys_to_virt(PML *__pml, uint64_t virt, uint64_t phys, uint64_t
 			if(!page)
 				return NULL;
 			pml->entries[indices[i - 1]] = (uint64_t) page | page_table_flags;
-			pml = PHYS_TO_VIRT(page);
+			pml = (PML *) PHYS_TO_VIRT(page);
 		}
 	}
 	
@@ -498,9 +497,8 @@ void* paging_map_phys_to_virt(PML *__pml, uint64_t virt, uint64_t phys, uint64_t
 	return (void*) virt;
 }
 
-bool pml_is_empty(void *_pml)
+bool pml_is_empty(const PML *pml)
 {
-	PML *pml = _pml;
 	for(int i = 0; i < 512; i++)
 	{
 		if(pml->entries[i])
@@ -520,18 +518,18 @@ bool x86_get_pt_entry_with_ptables(void *addr, uint64_t **entry_ptr, struct mm_a
                                    struct pt_location location[4])
 {
 	unsigned long virt = (unsigned long) addr;
-	const unsigned int paging_levels = 4;
-	unsigned int indices[paging_levels];
+	unsigned int indices[x86_max_paging_levels];
 
-	for(unsigned int i = 0; i < paging_levels; i++)
+	for(unsigned int i = 0; i < x86_paging_levels; i++)
 	{
 		indices[i] = (virt >> 12) >> (i * 9) & 0x1ff;
+		location[4 - 1 - i].index = indices[i];
 	}
 
 	PML *pml = (PML*)((unsigned long) mm->arch_mmu.cr3 + PHYS_BASE);
 	unsigned int location_index = 0;
 	
-	for(unsigned int i = paging_levels; i != 1; i--)
+	for(unsigned int i = x86_paging_levels; i != 1; i--)
 	{
 		uint64_t entry = pml->entries[indices[i - 1]];
 		location[location_index].table = pml;
@@ -540,7 +538,7 @@ bool x86_get_pt_entry_with_ptables(void *addr, uint64_t **entry_ptr, struct mm_a
 		if(entry & X86_PAGING_PRESENT)
 		{
 			void *page = (void*) PML_EXTRACT_ADDRESS(entry);
-			pml = PHYS_TO_VIRT(page);
+			pml = (PML *) PHYS_TO_VIRT(page);
 		}
 		else
 		{
@@ -556,66 +554,12 @@ bool x86_get_pt_entry_with_ptables(void *addr, uint64_t **entry_ptr, struct mm_a
 	return true;
 }
 
-void *paging_unmap(void* memory)
-{
-	bool user = 0;
-	if ((unsigned long) memory < 0x00007fffffffffff)
-		user = true;
-
-	struct mm_address_space *as = NULL;
-	if(!user)
-		as = &kernel_address_space;
-	else
-		as = get_current_address_space();
-
-	uint64_t *entry = NULL;
-	
-	/* idx 0 - PML4 + index of 3
-	 * idx 1 - PML3 + index of 2
-	 * idx 2 - PML2 + index of 1
-	 * idx 3 - PML1 + index of page
-	 */
-	struct pt_location locations[4];
-
-	if(!x86_get_pt_entry_with_ptables(memory, &entry, as, locations))
-		return NULL;
-
-	uintptr_t address = PML_EXTRACT_ADDRESS(*entry);
-	*entry = 0;
-
-	/* Now that we've freed the destination page, work our way upwards to check if the paging structures are empty 
-	   If so, free them as well 
-	*/
-
-	for(int i = 3; i > 0; i--)
-	{
-		PML *pml = locations[i].table;
-		unsigned int upper_table_idx = locations[i - 1].index;
-
-		if(pml_is_empty(pml))
-		{
-			uint64_t *upper_level_entry = &locations[i - 1].table->entries[upper_table_idx];
-			unsigned long raw_address = PML_EXTRACT_ADDRESS(*upper_level_entry);
-			*upper_level_entry = 0;
-			
-			//printk("freeing address %lx\n", raw_address);
- 
-			free_page(phys_to_page(raw_address));
-			__atomic_sub_fetch(&allocated_page_tables, 1, __ATOMIC_RELAXED);
-		}
-	}
-
-	decrement_vm_stat(as, resident_set_size, PAGE_SIZE);
-
-	return (void*) address;
-}
-
 int paging_clone_as(struct mm_address_space *addr_space)
 {
 	PML *new_pml = alloc_pt();
 	if(!new_pml)
 		return -1;
-	PML *p = PHYS_TO_VIRT(new_pml);
+	PML *p = (PML *) PHYS_TO_VIRT(new_pml);
 	PML *curr = (PML*)((uint64_t) get_current_pml4() + PHYS_BASE);
 	/* Copy the upper 256 entries of the PML in order to map
 	 * the kernel in the process's address space
@@ -638,7 +582,7 @@ PML *paging_fork_pml(PML *pml, int entry)
 
 	pml->entries[entry] = (uint64_t) new_pt | perms;
 	PML *new_pml = (PML*) PHYS_TO_VIRT(new_pt);
-	PML *old_pml = PHYS_TO_VIRT(old_address);
+	PML *old_pml = (PML *) PHYS_TO_VIRT(old_address);
 	memcpy(new_pml, old_pml, sizeof(PML));
 	return new_pml;
 }
@@ -652,11 +596,11 @@ int paging_fork_tables(struct mm_address_space *addr_space)
 	__atomic_add_fetch(&allocated_page_tables, 1, __ATOMIC_RELAXED);
 
 	unsigned long new_pml = pfn_to_paddr(page_to_pfn(page));
-	PML *p = PHYS_TO_VIRT(new_pml);
-	PML *curr = PHYS_TO_VIRT(get_current_pml4());
+	PML *p = (PML *) PHYS_TO_VIRT(new_pml);
+	PML *curr = (PML *) PHYS_TO_VIRT(get_current_pml4());
 	memcpy(p, curr, sizeof(PML));
 
-	PML *mod_pml = PHYS_TO_VIRT(new_pml);
+	PML *mod_pml = (PML *) PHYS_TO_VIRT(new_pml);
 	/* TODO: Destroy the page tables on failure */
 	for(int i = 0; i < 256; i++)
 	{
@@ -713,23 +657,19 @@ void paging_load_cr3(PML *pml)
 bool x86_get_pt_entry(void *addr, uint64_t **entry_ptr, struct mm_address_space *mm)
 {
 	unsigned long virt = (unsigned long) addr;
-	const unsigned int paging_levels = 4;
-	unsigned int indices[paging_levels];
+	unsigned int indices[x86_max_paging_levels];
 
-	for(unsigned int i = 0; i < paging_levels; i++)
-	{
-		indices[i] = (virt >> 12) >> (i * 9) & 0x1ff;
-	}
+	x86_addr_to_indices(virt, indices);
 
 	PML *pml = (PML*)((unsigned long) mm->arch_mmu.cr3 + PHYS_BASE);
 	
-	for(unsigned int i = paging_levels; i != 1; i--)
+	for(unsigned int i = x86_paging_levels; i != 1; i--)
 	{
 		uint64_t entry = pml->entries[indices[i - 1]];
 		if(entry & X86_PAGING_PRESENT)
 		{
 			void *page = (void*) PML_EXTRACT_ADDRESS(entry);
-			pml = PHYS_TO_VIRT(page);
+			pml = (PML *) PHYS_TO_VIRT(page);
 		}
 		else
 		{
@@ -880,19 +820,22 @@ void paging_protect_kernel(void)
 	kernel_address_space.arch_mmu.cr3 = pml;
 }
 
+unsigned long total_shootdowns = 0;
+
 void paging_invalidate(void *page, size_t pages)
 {
 	uintptr_t p = (uintptr_t) page;
 
 	for(size_t i = 0; i < pages; i++, p += 4096)
 	{
+		total_shootdowns++;
 		__native_tlb_invalidate_page((void *) p);
 	}
 }
 
 void *vm_map_page(struct process *proc, uint64_t virt, uint64_t phys, uint64_t prot)
 {
-	PML *pml = proc ? proc->address_space.arch_mmu.cr3 : get_current_pml4();
+	PML *pml = proc ? (PML*) proc->address_space.arch_mmu.cr3 : get_current_pml4();
 	
 	assert(pml != NULL);
 
@@ -921,7 +864,7 @@ void paging_free_pml3(PML *pml)
 		if(pml->entries[i] & X86_PAGING_PRESENT)
 		{
 			unsigned long phys_addr = PML_EXTRACT_ADDRESS(pml->entries[i]);
-			PML *pml2 = PHYS_TO_VIRT(phys_addr);
+			PML *pml2 = (PML *) PHYS_TO_VIRT(phys_addr);
 			paging_free_pml2(pml2);
 
 			free_page(phys_to_page(phys_addr));
@@ -931,14 +874,14 @@ void paging_free_pml3(PML *pml)
 
 void paging_free_page_tables(struct mm_address_space *mm)
 {
-	PML *pml = PHYS_TO_VIRT(mm->arch_mmu.cr3);
+	PML *pml = (PML *) PHYS_TO_VIRT(mm->arch_mmu.cr3);
 
 	for(int i = 0; i < 256; i++)
 	{
 		if(pml->entries[i] & X86_PAGING_PRESENT)
 		{
 			unsigned long phys_addr = PML_EXTRACT_ADDRESS(pml->entries[i]);
-			PML *pml3 = PHYS_TO_VIRT(phys_addr);
+			PML *pml3 = (PML *) PHYS_TO_VIRT(phys_addr);
 			paging_free_pml3(pml3);
 
 			free_page(phys_to_page(phys_addr));
@@ -961,22 +904,18 @@ unsigned long get_mapping_info(void *addr)
 unsigned long __get_mapping_info(void *addr, struct mm_address_space *as)
 {
 	const unsigned long virt = (unsigned long) addr; 
-	const unsigned int paging_levels = 4;
-	unsigned int indices[paging_levels];
+	unsigned int indices[x86_max_paging_levels];
 
-	for(unsigned int i = 0; i < paging_levels; i++)
-	{
-		indices[i] = (virt >> 12) >> (i * 9) & 0x1ff;
-	}
+	x86_addr_to_indices(virt, indices);
 
 	PML *pml = (PML*)((unsigned long) as->arch_mmu.cr3 + PHYS_BASE);
-	for(unsigned int i = paging_levels; i != 1; i--)
+	for(unsigned int i = x86_paging_levels; i != 1; i--)
 	{
 		unsigned long entry = pml->entries[indices[i - 1]];
 		if(entry & X86_PAGING_PRESENT)
 		{
 			void *page = (void*) PML_EXTRACT_ADDRESS(entry);
-			pml = PHYS_TO_VIRT(page);
+			pml = (PML *) PHYS_TO_VIRT(page);
 		}
 		else
 		{
@@ -1020,7 +959,7 @@ void vm_free_arch_mmu(struct arch_mm_address_space *mm)
 
 void vm_load_arch_mmu(struct arch_mm_address_space *mm)
 {
-	paging_load_cr3(mm->cr3);
+	paging_load_cr3((PML *) mm->cr3);
 }
 
 void vm_save_current_mmu(struct mm_address_space *mm)
@@ -1073,4 +1012,267 @@ void vm_mmu_mprotect_page(struct mm_address_space *as, void *addr, int old_prots
 				((caching_bits << 3) & 0x3) |
 				(readable ? X86_PAGING_PRESENT : 0);
 	*ptentry = paddr | page_prots;
+}
+
+#define CONFIG_PT_ITERATOR_HAVE_DEBUG
+
+class page_table_iterator
+{
+private:
+	unsigned long curr_addr_;
+	size_t length_;
+
+public:
+
+#ifdef CONFIG_PT_ITERATOR_HAVE_DEBUG
+	bool debug;
+#endif
+	struct mm_address_space *as_;
+
+	page_table_iterator(unsigned long virt, size_t len, struct mm_address_space *as) :
+	      curr_addr_{virt}, length_{len}, as_{as}
+
+#ifdef CONFIG_PT_ITERATOR_HAVE_DEBUG
+	, debug{false}
+#endif
+
+	{
+	}
+
+	size_t length() const
+	{
+		return length_;
+	}
+
+	unsigned long curr_addr() const
+	{
+		return curr_addr_;
+	}
+
+	void adjust_length(size_t size)
+	{
+		if(size > length_)
+		{
+			length_ = 0;
+			curr_addr_ += length_;
+		}
+		else
+		{
+			length_ -= size;
+			curr_addr_ += size;
+		}
+	}
+};
+
+struct tlb_invalidation_tracker
+{
+	unsigned long virt_start;
+	unsigned long virt_end;
+	bool is_started, is_flushed;
+
+	explicit tlb_invalidation_tracker() : virt_start{}, virt_end{}, is_started{}, is_flushed{}
+	{}
+
+	void invalidate_tracker()
+	{
+		virt_start = 0xDEADDAD;
+		virt_end = 0xB0;
+		is_started = false;
+		is_flushed = false;
+	}
+
+	void flush()
+	{
+		if(!is_started)
+			return;
+
+		vm_invalidate_range(virt_start, (virt_end - virt_start) >> PAGE_SHIFT);
+		invalidate_tracker();
+	}
+
+	constexpr void init(unsigned long vaddr, size_t size)
+	{
+		is_started = true;
+		virt_start = vaddr;
+		virt_end = vaddr + size;
+		is_flushed = false;
+	}
+
+	void add_page(unsigned long vaddr, size_t size)
+	{
+		/* If we've already started on a run of pages and this one is contiguous, just set the tail */	
+		if(is_started && virt_end == vaddr)
+		{
+			virt_end = vaddr + size;
+		}
+		else
+		{
+			/* Else, try flushing if is_started == true and restart the page run */
+			flush();
+			init(vaddr, size);
+		}
+	}
+
+	~tlb_invalidation_tracker()
+	{
+		if(is_started && !is_flushed)
+			flush();
+	}
+};
+
+enum x86_page_table_levels : unsigned int
+{
+	PT_LEVEL,
+	PD_LEVEL,
+	PDPT_LEVEL,
+	PML4_LEVEL,
+	PML5_LEVEL
+};
+
+bool x86_is_pml5_enabled()
+{
+	return x86_paging_levels == 5;
+}
+
+static bool is_huge_page_level(unsigned int pt_level)
+{
+	constexpr unsigned int pdpt_level = PDPT_LEVEL, pd_level = PD_LEVEL;
+
+	return pt_level == pdpt_level || pt_level == pd_level;
+}
+
+constexpr unsigned int level_to_entry_shift(unsigned int level)
+{
+	return (level * 9 + PAGE_SHIFT);
+}
+
+constexpr unsigned long level_to_entry_size(unsigned int level)
+{
+	return 1UL << level_to_entry_shift(level);
+}
+
+constexpr unsigned int addr_get_index(unsigned long virt, unsigned int pt_level)
+{
+	return (virt >> 12) >> (pt_level * 9) & 0x1ff;
+}
+
+#define MMU_UNMAP_CAN_FREE_PML    1
+#define MMU_UNMAP_OK              0
+
+
+static int x86_mmu_unmap(PML *table, unsigned int pt_level, page_table_iterator& it)
+{
+	unsigned int index = addr_get_index(it.curr_addr(), pt_level);
+
+	/* Get the size that each entry represents here */
+	auto entry_size = level_to_entry_size(pt_level);
+
+	tlb_invalidation_tracker invd_tracker;
+	unsigned int i;
+
+#ifdef CONFIG_PT_ITERATOR_HAVE_DEBUG
+	if(it.debug)
+	{
+		printk("level %u - index %x\n", pt_level, index);
+	}
+#endif
+
+	for(i = index; i < PAGE_TABLE_ENTRIES && it.length(); i++)
+	{
+		auto &pt_entry = table->entries[i];
+
+		if(!(pt_entry & X86_PAGING_PRESENT))
+		{
+
+#ifdef CONFIG_X86_MMU_UNMAP_DEBUG
+			if(it.debug)
+				printk("not present @ level %u\nentry size %lu\nlength %lu\n", pt_level, entry_size, it.length());
+#endif
+			auto to_skip = entry_size - (it.curr_addr() & (entry_size-1));
+
+#ifdef CONFIG_PT_ITERATOR_HAVE_DEBUG
+			if(it.debug)
+			{
+				printk("[level %u]: Skipping from %lx to %lx\n", pt_level, it.curr_addr(), it.curr_addr() + to_skip);
+			}
+#endif
+
+			it.adjust_length(to_skip);
+			continue;
+		}
+
+		bool is_huge_page = is_huge_page_level(pt_level) && pt_entry & X86_PAGING_HUGE;
+
+		if(pt_level == PT_LEVEL || is_huge_page)
+		{
+			/* TODO: Handle huge page splitting */
+
+#ifdef CONFIG_PT_ITERATOR_HAVE_DEBUG
+			if(it.debug)
+				printk("Unmapping %lx\n", it.curr_addr());
+#endif
+
+			unsigned long val = 0;
+			__atomic_exchange(&pt_entry, &val, &val, __ATOMIC_RELEASE);
+
+			if(val & X86_PAGING_ACCESSED)
+			{
+				invd_tracker.add_page(it.curr_addr(), entry_size);
+			}
+
+			it.adjust_length(entry_size);
+
+			decrement_vm_stat(it.as_, resident_set_size, PAGE_SIZE);
+		}
+		else
+		{
+			PML *next_table = (PML *) PHYS_TO_VIRT(PML_EXTRACT_ADDRESS(pt_entry));
+			int st = x86_mmu_unmap(next_table, pt_level - 1, it);
+
+			if(st == MMU_UNMAP_CAN_FREE_PML)
+			{
+				auto page = phys_to_page(PML_EXTRACT_ADDRESS(pt_entry));
+
+				pt_entry = 0;
+
+				COMPILER_BARRIER();
+
+				free_page(page);
+				__atomic_sub_fetch(&allocated_page_tables, 1, __ATOMIC_RELAXED);
+			}
+		}
+	}
+
+	/* We can know that the table is 100% empty if we ran through the table */
+	bool unmapped_whole_table = index == 0 && i == PAGE_TABLE_ENTRIES;
+
+	/* Don't bother to free the PML or even check if it's empty if we're the top paging structure */
+	if(pt_level != x86_paging_levels - 1 && (unmapped_whole_table || pml_is_empty(table)))
+	{
+		return MMU_UNMAP_CAN_FREE_PML;
+	}
+
+#if 0
+	printk("nr entries %lu\n", nr_entries);
+
+	printk("unmapping %lu\n", it.length());
+#endif
+
+	return MMU_UNMAP_OK;
+}
+
+int vm_mmu_unmap(struct mm_address_space *as, void *addr, size_t pages)
+{
+	unsigned long virt = (unsigned long) addr;
+	size_t size = pages << PAGE_SHIFT;
+
+	page_table_iterator it{virt, size, as};
+
+	PML *first_level = (PML*) PHYS_TO_VIRT(as->arch_mmu.cr3);
+
+	x86_mmu_unmap(first_level, x86_paging_levels - 1, it);
+
+	assert(it.length() == 0);
+
+	return 0;
 }

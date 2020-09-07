@@ -245,6 +245,22 @@ static inline size_t vm_size_to_pages(size_t size)
 	return pages;
 }
 
+/**
+ * @brief Calculates the number of pages given a non-static page_size and page_shift
+ * 
+ * @param size 
+ * @param page_size 
+ * @param page_shift 
+ * @return size_t 
+ */
+static inline size_t __vm_size_to_pages(size_t size, size_t page_size, size_t page_shift)
+{
+	size_t pages = size >> page_shift;
+	if(size & (page_size - 1))
+		pages++;
+	return pages;
+}
+
 extern struct mm_address_space kernel_address_space;
 void vm_for_every_region(struct mm_address_space *as, bool (*func)(struct vm_region *region));
 
