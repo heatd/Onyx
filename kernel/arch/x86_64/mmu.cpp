@@ -20,7 +20,7 @@
 static const unsigned int x86_paging_levels = 4;
 static const unsigned int x86_max_paging_levels = 5;
 
-#define PML_EXTRACT_ADDRESS(n) (n & 0x0FFFFFFFFFFFF000)
+#define PML_EXTRACT_ADDRESS(n)  ((n) & 0x0FFFFFFFFFFFF000)
 #define X86_PAGING_PRESENT		(1 << 0)
 #define X86_PAGING_WRITE		(1 << 1)
 #define X86_PAGING_USER			(1 << 2)
@@ -265,7 +265,7 @@ void x86_setup_placement_mappings(void)
 	for(unsigned int i = x86_paging_levels; i != 1; i--)
 	{
 		uint64_t entry = pml->entries[indices[i - 1]];
-		if(entry & 1)
+		if(entry & X86_PAGING_PRESENT)
 		{
 			void *page = (void*) PML_EXTRACT_ADDRESS(entry);
 			pml = (PML*) page;
@@ -1014,8 +1014,6 @@ void vm_mmu_mprotect_page(struct mm_address_space *as, void *addr, int old_prots
 	*ptentry = paddr | page_prots;
 }
 
-#define CONFIG_PT_ITERATOR_HAVE_DEBUG
-
 class page_table_iterator
 {
 private:
@@ -1024,10 +1022,12 @@ private:
 
 public:
 
+	struct mm_address_space *as_;
+
 #ifdef CONFIG_PT_ITERATOR_HAVE_DEBUG
 	bool debug;
 #endif
-	struct mm_address_space *as_;
+
 
 	page_table_iterator(unsigned long virt, size_t len, struct mm_address_space *as) :
 	      curr_addr_{virt}, length_{len}, as_{as}
