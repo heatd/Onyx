@@ -100,6 +100,9 @@ void serial_write(const char *s, size_t size, struct serial_port *port);
 int page_node::page_add(struct page_arena *arena, void *__page,
 	struct bootmodule *modules)
 {
+	nr_global_pages++;
+	total_pages++;
+
 	if(page_is_used(__page, modules))
 	{
 		struct page *p = page_add_page(__page);
@@ -107,14 +110,11 @@ int page_node::page_add(struct page_arena *arena, void *__page,
 		return -1;
 	}
 
-	nr_global_pages++;
-
 	struct page_list *page = (struct page_list *) PHYS_TO_VIRT(__page);
 
 	page->page = page_add_page(__page);
 	page->page->flags |= PAGE_FLAG_FREE;
 	list_add(&page->list_node, &page_list);
-	total_pages++;
 
 	return 0;
 }
