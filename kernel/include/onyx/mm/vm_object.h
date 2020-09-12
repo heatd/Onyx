@@ -28,7 +28,7 @@ typedef enum vmo_status
 	VMO_STATUS_OK = 0,
 	VMO_STATUS_BUS_ERROR,
 	VMO_STATUS_OUT_OF_MEM,
-	VMO_STATUS_NON_EXISTANT
+	VMO_STATUS_NON_EXISTENT
 } vmo_status_t;
 
 static inline int vmo_status_to_errno(vmo_status_t st)

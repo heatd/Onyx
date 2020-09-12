@@ -95,7 +95,7 @@ ssize_t tmpfs_writepage(struct page *page, size_t offset, struct inode *ino)
 
 struct inode *tmpfs_open(struct dentry *dir, const char *name)
 {
-	/* This a no-op, since names are either cached or non-existant in our tmpfs */
+	/* This a no-op, since names are either cached or non-existent in our tmpfs */
 	return errno = ENOENT, nullptr;
 }
 

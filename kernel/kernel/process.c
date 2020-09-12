@@ -328,6 +328,8 @@ pid_t sys_fork(struct syscall_frame *ctx)
 
 	if(!child)
 		return -ENOMEM;
+	
+	child->address_space.process = child;
 
 	/* Fork the vmm data and the address space */
 	if(vm_fork_address_space(&child->address_space) < 0)

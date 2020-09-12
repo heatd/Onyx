@@ -39,7 +39,7 @@ static const unsigned int x86_max_paging_levels = 5;
 (X86_PAGING_GLOBAL | X86_PAGING_HUGE | X86_PAGING_USER | X86_PAGING_ACCESSED | \
 X86_PAGING_DIRTY | X86_PAGING_WRITETHROUGH | X86_PAGING_PCD | X86_PAGING_PAT)
 
-void* paging_map_phys_to_virt(PML *__pml, uint64_t virt, uint64_t phys, uint64_t prot);
+void* paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64_t phys, uint64_t prot);
 
 static inline void __native_tlb_invalidate_page(void *addr)
 {
@@ -244,9 +244,12 @@ void *x86_placement_map(unsigned long _phys)
 	unsigned long phys = _phys & ~(PAGE_SIZE - 1);
 	//printf("phys: %lx\n", phys);
 
+	/* I'm not sure that kernel_address_space has been initialised yet, so we'll fill this with the cr3 */
+	kernel_address_space.arch_mmu.cr3 = get_current_pml4();
+
 	/* Map two pages so memory that spans both pages can get accessed */
-	paging_map_phys_to_virt(get_current_pml4(), placement_mappings_start, phys, VM_WRITE);
-	paging_map_phys_to_virt(get_current_pml4(), placement_mappings_start + PAGE_SIZE, phys + PAGE_SIZE,
+	paging_map_phys_to_virt(&kernel_address_space, placement_mappings_start, phys, VM_WRITE);
+	paging_map_phys_to_virt(&kernel_address_space, placement_mappings_start + PAGE_SIZE, phys + PAGE_SIZE,
 						VM_WRITE);
 	__native_tlb_invalidate_page((void *) placement_mappings_start);
 	__native_tlb_invalidate_page((void *) (placement_mappings_start + PAGE_SIZE));
@@ -427,18 +430,18 @@ void* paging_map_phys_to_virt_large_early(uint64_t virt, uint64_t phys, uint64_t
 	return (void*) virt;
 } 
 
-void* paging_map_phys_to_virt(PML *__pml, uint64_t virt, uint64_t phys, uint64_t prot)
+void* paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64_t phys, uint64_t prot)
 {
 	bool user = 0;
 	if (virt < 0x00007fffffffffff)
 		user = true;
-
-	struct mm_address_space *as = NULL;
-	if(!user)
-		as = &kernel_address_space;
-	else
+	
+	if(!as && user)
+	{
 		as = get_current_address_space();
-
+	}
+	else if(!user)
+		as = &kernel_address_space;
 
 	unsigned int indices[x86_max_paging_levels];
 
@@ -451,7 +454,7 @@ void* paging_map_phys_to_virt(PML *__pml, uint64_t virt, uint64_t phys, uint64_t
 	
 	x86_addr_to_indices(virt ,indices);
 
-	PML *pml = (PML*)((uint64_t) __pml + PHYS_BASE);
+	PML *pml = (PML*)((uint64_t) as->arch_mmu.cr3 + PHYS_BASE);
 	
 	for(unsigned int i = x86_paging_levels; i != 1; i--)
 	{
@@ -490,9 +493,14 @@ void* paging_map_phys_to_virt(PML *__pml, uint64_t virt, uint64_t phys, uint64_t
 	if(prot & VM_DONT_MAP_OVER && pml->entries[indices[0]] & X86_PAGING_PRESENT)
 		return (void *) virt;
 	
+	uint64_t old = pml->entries[indices[0]];
+	
 	pml->entries[indices[0]] = phys | page_prots;
 
-	increment_vm_stat(as, resident_set_size, PAGE_SIZE);
+	if(old == 0)
+	{
+		increment_vm_stat(as, resident_set_size, PAGE_SIZE);
+	}
 
 	return (void*) virt;
 }
@@ -801,6 +809,8 @@ void paging_protect_kernel(void)
 	p->entries[511] = 0UL;
 	p->entries[0] = 0UL;
 
+	kernel_address_space.arch_mmu.cr3 = pml;
+
 	size_t size = (uintptr_t) &_text_end - text_start;
 	map_pages_to_vaddr((void *) text_start, (void *) (text_start - KERNEL_VIRTUAL_BASE),
 		size, 0);
@@ -816,8 +826,6 @@ void paging_protect_kernel(void)
 	percpu_map_master_copy();
 
 	__asm__ __volatile__("movq %0, %%cr3"::"r"(pml));
-
-	kernel_address_space.arch_mmu.cr3 = pml;
 }
 
 unsigned long total_shootdowns = 0;
@@ -835,11 +843,9 @@ void paging_invalidate(void *page, size_t pages)
 
 void *vm_map_page(struct process *proc, uint64_t virt, uint64_t phys, uint64_t prot)
 {
-	PML *pml = proc ? (PML*) proc->address_space.arch_mmu.cr3 : get_current_pml4();
-	
-	assert(pml != NULL);
+	struct mm_address_space *as = proc ? &proc->address_space : NULL;
 
-	return paging_map_phys_to_virt(pml, virt, phys, prot);
+	return paging_map_phys_to_virt(as, virt, phys, prot);
 }
 
 void paging_free_pml2(PML *pml)
@@ -1221,7 +1227,6 @@ static int x86_mmu_unmap(PML *table, unsigned int pt_level, page_table_iterator&
 			}
 
 			it.adjust_length(entry_size);
-
 			decrement_vm_stat(it.as_, resident_set_size, PAGE_SIZE);
 		}
 		else

@@ -432,7 +432,7 @@ bool dentry_is_symlink(dentry *d)
 	return d->d_inode->i_type == VFS_TYPE_SYMLINK;
 }
 
-bool dentry_check_for_existance(std::string_view name, dentry *d)
+bool dentry_check_for_existence(std::string_view name, dentry *d)
 {
 	dentry *res = nullptr;
 	if((res = dentry_lookup_internal(name, d, DENTRY_LOOKUP_UNLOCKED)) == nullptr)
@@ -735,7 +735,7 @@ struct create_handling : public last_name_handling
 
 		scoped_rwlock<rw_lock::write> g{dentry->d_lock};
 
-		if(dentry_check_for_existance(name, dentry))
+		if(dentry_check_for_existence(name, dentry))
 			return unexpected<int>{-EEXIST};
 	
 		auto new_dentry = dentry_create(_name, nullptr, dentry);
@@ -791,7 +791,7 @@ struct symlink_handling : public last_name_handling
 
 		scoped_rwlock<rw_lock::write> g{dentry->d_lock};
 
-		if(dentry_check_for_existance(name, dentry))
+		if(dentry_check_for_existence(name, dentry))
 			return unexpected<int>{-EEXIST};
 	
 		auto new_dentry = dentry_create(_name, nullptr, dentry);
@@ -984,7 +984,7 @@ struct link_handling : public last_name_handling
 
 		scoped_rwlock<rw_lock::write> g{dentry->d_lock};
 
-		if(dentry_check_for_existance(name, dentry))
+		if(dentry_check_for_existence(name, dentry))
 			return unexpected<int>{-EEXIST};
 
 		auto new_dentry = dentry_create(_name, dest_ino, dentry);

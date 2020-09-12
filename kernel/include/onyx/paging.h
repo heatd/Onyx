@@ -40,7 +40,6 @@ struct mm_address_space;
 struct process;
 
 void paging_init(void);
-void *paging_map_phys_to_virt_large(uintptr_t virt, uintptr_t phys, uint64_t prot);
 void *paging_map_phys_to_virt_large_early(uintptr_t virt, uintptr_t phys, uint64_t prot);
 void paging_map_all_phys(void);
 void *virtual2phys(void *ptr);

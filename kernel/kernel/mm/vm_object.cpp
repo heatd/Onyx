@@ -196,7 +196,7 @@ vmo_status_t vmo_get(vm_object *vmo, size_t off, unsigned int flags, struct page
 	}
 	else if(!p)
 	{
-		st = VMO_STATUS_NON_EXISTANT;
+		st = VMO_STATUS_NON_EXISTENT;
 		printk("offset %lu does not exist\n", off);
 	}
 
