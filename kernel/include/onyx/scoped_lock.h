@@ -124,7 +124,7 @@ public:
 	{
 		if constexpr(interruptible)
 		{
-			/* if we've failed to lock the mutex, we got -EINTR, so we don't set is_locked*/
+			/* if we've failed to lock the mutex, we got -EINTR, so we don't set is_locked */
 			if(mutex_lock_interruptible(&internal_lock) < 0)
 				return;
 		}
@@ -139,14 +139,20 @@ public:
 		is_locked = false;
 	}
 
-	explicit scoped_mutex(mutex& lock) : internal_lock(lock)
+	explicit scoped_mutex(mutex& lock) : internal_lock(lock), is_locked{false}
 	{
 		this->lock();
 	}
 
+	explicit scoped_mutex(mutex& lock, bool should_auto_lock) : internal_lock(lock), is_locked{false}
+	{
+		if(should_auto_lock)
+			this->lock();
+	}
+
 	~scoped_mutex()
 	{
-		if(is_locked)
+		if(is_locked) [[likely]]
 			unlock();
 	}
 

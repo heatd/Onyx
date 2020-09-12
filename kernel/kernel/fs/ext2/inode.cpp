@@ -188,6 +188,7 @@ expected<ext2_block_no, int> ext2_create_path(struct inode *ino, ext2_block_no b
 				dest_block_nr = curr_block[off] = block; 
 
 				ino->i_blocks += sb->block_size / 512;
+				//printk("Iblocks %lu\n", ino->i_blocks);
 				inode_update_ctime(ino);
 				inode_mark_dirty(ino);
 			}
@@ -285,7 +286,7 @@ struct ext2_block_coords
 	{
 		/* Essentially this function mirrors ext2_get_block_path. I hope it's correct. */
 		if(size == 1)
-			return coords[1] << sb->entry_shift;
+			return coords[0] << sb->block_size_shift;
 		
 		const unsigned int entries = (sb->block_size / sizeof(uint32_t));
 		unsigned int min_singly_block = direct_block_count;
@@ -331,9 +332,15 @@ ext2_trunc_indirect_block(ext2_block_no block, unsigned int indirection_level,
 		if(curr_coords == boundary)
 			return ext2_trunc_result::stop;
 
+#if 0
+		printk("Freeing block off %lu\n", block_off);
+		printk("coords %u\n", curr_coords.coords[0]);
+#endif
 		inode_truncate_range(ino, block_off, block_off + sb->block_size);
 		sb->free_block(block);
 		ino->i_blocks -= sb->block_size >> 9;
+		
+		//printk("Iblocks %lu\n", ino->i_blocks);
 
 		return ext2_trunc_result::continue_trunc;
 	}
@@ -385,6 +392,7 @@ ext2_trunc_indirect_block(ext2_block_no block, unsigned int indirection_level,
 			inode_truncate_range(ino, block_off, block_off + sb->block_size);
 			sb->free_block(blockbuf[i]);
 			ino->i_blocks -= sb->block_size >> 9;
+			//printk("Iblocks %lu\n", ino->i_blocks);
 			blockbuf[i] = 0;
 		}
 	}
@@ -407,13 +415,13 @@ int ext2_free_space(size_t new_len, inode *ino)
 
 	ext2_block_coords boundary_coords;
 
-	auto boundary_block = cul::align_down2(new_len - 1, sb->block_size) >> sb->entry_shift;
+	auto boundary_block = cul::align_down2(new_len - 1, sb->block_size) >> sb->block_size_shift;
 	
 	/* We don't have a boundary block if we're truncating to zero. See below. */
 	if(new_len == 0)
 		boundary_block = 0;
 
-	auto len = ext2_get_block_path(sb, boundary_coords.coords, boundary_block & ~(sb->block_size - 1));
+	auto len = ext2_get_block_path(sb, boundary_coords.coords, boundary_block);
 	boundary_coords.size = len;
 
 	for(int i = EXT2_NR_BLOCKS - 1; i != 0; i--)
@@ -471,7 +479,7 @@ int ext2_free_space(size_t new_len, inode *ino)
 			 * one from i_data since it's been freed.
 			 */
 
-			raw_inode->i_data[0] = EXT2_FILE_HOLE_BLOCK;
+			raw_inode->i_data[i] = EXT2_FILE_HOLE_BLOCK;
 		}
 	}
 
@@ -484,9 +492,17 @@ int ext2_free_space(size_t new_len, inode *ino)
 		if(raw_inode->i_data[0])
 		{
 			sb->free_block(raw_inode->i_data[0]);
-			ino->i_blocks -= sb->block_size >> 9; 
+			inode_truncate_range(ino, 0, sb->block_size);
+			ino->i_blocks = 0; 
+			//printk("zero Iblocks %lu\n", ino->i_blocks);
 			raw_inode->i_data[0] = 0;
 		}
+	}
+
+	if(new_len & (sb->block_size - 1))
+	{
+		auto page_off = new_len;
+		inode_truncate_range(ino, page_off, ino->i_size);
 	}
 
 	return 0;
@@ -495,13 +511,24 @@ int ext2_free_space(size_t new_len, inode *ino)
 int ext2_truncate(size_t len, inode *ino)
 {
 	int st = 0;
+
+#if 0
+	printk("truncating to %lu\n", len);
+#endif
+
 	if(ino->i_size > len)
-		st = ext2_free_space(len, ino);
+	{
+		if((st = ext2_free_space(len, ino)) < 0)
+		{
+			return st;
+		}
+	}
 	
 	/* **fallthrough**
 	 * The space freeing code will need this anyway, because you'll need to mark the inode dirty.
 	 */
 	ino->i_size = len;
+	vmo_truncate(ino->i_pages, len, VMO_TRUNCATE_DONT_PUNCH);
 	inode_mark_dirty(ino);
 	return st;
 }

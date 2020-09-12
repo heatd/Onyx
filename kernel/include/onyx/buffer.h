@@ -54,7 +54,7 @@ struct block_buf *page_add_blockbuf(struct page *page, unsigned int page_off);
 struct block_buf *sb_read_block(const struct superblock *sb, unsigned long block);
 void block_buf_free(struct block_buf *buf);
 void block_buf_writeback(struct block_buf *buf);
-struct page *bbuffer_commit(size_t off, struct vm_object *vmo);
+vmo_status_t bbuffer_commit(struct vm_object *vmo, size_t off, struct page **ppage);
 void block_buf_dirty(struct block_buf *buf);
 struct block_buf *block_buf_from_page(struct page *p);
 void page_destroy_block_bufs(struct page *page);
@@ -81,6 +81,8 @@ static inline void *block_buf_data(struct block_buf *b)
 
 #ifdef __cplusplus
 }
+
+void page_remove_block_buf(struct page *page, size_t offset, size_t end);
 
 class auto_block_buf
 {

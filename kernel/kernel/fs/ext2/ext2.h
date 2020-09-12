@@ -348,7 +348,7 @@ public:
 
 	expected<ext2_inode_no, int> allocate_inode(ext2_superblock *sb);
 	void free_inode(ext2_inode_no inode, ext2_superblock *sb);
-	expected<ext2_inode_no, int> allocate_block(ext2_superblock *sb);
+	expected<ext2_block_no, int> allocate_block(ext2_superblock *sb);
 	void free_block(ext2_block_no block, ext2_superblock *sb);
 
 	auto_block_buf get_inode_table(const ext2_superblock *sb, uint32_t off) const;
@@ -364,6 +364,7 @@ struct ext2_superblock : public superblock
 	uint32_t total_inodes;
 	uint32_t total_blocks;
 	uint32_t block_size;
+	uint32_t block_size_shift;
 	uint32_t features_compat;
 	uint32_t features_incompat;
 	uint32_t features_ro_compat;

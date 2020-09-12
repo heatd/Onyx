@@ -7,7 +7,6 @@
 #ifndef _ONYX_X86_SIGNAL_H
 #define _ONYX_X86_SIGNAL_H
 
-#define _GNU_SOURCE
 #include <ucontext.h>
 #include <signal.h>
 

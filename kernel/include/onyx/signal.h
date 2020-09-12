@@ -6,7 +6,6 @@
 #ifndef _KERNEL_SIGNAL_H
 #define _KERNEL_SIGNAL_H
 
-#define _GNU_SOURCE
 
 #include <signal.h>
 #include <stdbool.h>

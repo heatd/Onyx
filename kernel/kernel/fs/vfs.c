@@ -26,6 +26,7 @@
 #include <onyx/vm.h>
 #include <onyx/clock.h>
 #include <onyx/cpu.h>
+#include <onyx/buffer.h>
 
 struct file *fs_root = NULL;
 struct file *mount_list = NULL;
@@ -75,13 +76,14 @@ static void zero_rest_of_page(struct page *page, size_t to_read)
 	memset(buf, 0, to_zero);
 } 
 
-struct page *vmo_inode_commit(size_t off, struct vm_object *vmo)
+vmo_status_t vmo_inode_commit(struct vm_object *vmo, size_t off, struct page **ppage)
 {
 	struct inode *i = vmo->ino;
 
 	struct page *page = alloc_page(PAGE_ALLOC_NO_ZERO);
 	if(!page)
-		return NULL;
+		return VMO_STATUS_OUT_OF_MEM;
+
 	page->flags |= PAGE_FLAG_BUFFER;
 
 	size_t to_read = i->i_size - off < PAGE_SIZE ? i->i_size - off : PAGE_SIZE;
@@ -97,11 +99,12 @@ struct page *vmo_inode_commit(size_t off, struct vm_object *vmo)
 
 	if(read != (ssize_t) to_read)
 	{
+#if 0
 		printk("Error file read %lx bytes out of %lx, off %lx\n", read, to_read, off);
 		perror("file");
-		/* TODO: clean up */
+#endif
 		free_page(page);
-		return NULL;
+		return VMO_STATUS_BUS_ERROR;
 	}
 
 	zero_rest_of_page(page, to_read);
@@ -109,18 +112,40 @@ struct page *vmo_inode_commit(size_t off, struct vm_object *vmo)
 	if(!pagecache_create_cache_block(page, read, off, i))
 	{
 		free_page(page);
-		return NULL;
+		return VMO_STATUS_OUT_OF_MEM;
 	}
 
-	return page;
+	*ppage = page;
+
+	return VMO_STATUS_OK;
 }
+
+void inode_free_page(struct vm_object *vmo, struct page *page)
+{
+	struct page_cache_block *b = page->cache;
+	if(page->flags & PAGE_FLAG_DIRTY)
+	{
+		flush_sync_one(&b->fobj);
+	}
+
+	page_destroy_block_bufs(page);
+
+	page->cache = NULL;
+	free(b);
+}
+
+const struct vm_object_ops inode_vmo_ops = 
+{
+	.commit = vmo_inode_commit,
+	.free_page = inode_free_page
+};
 
 int inode_create_vmo(struct inode *ino)
 {
 	ino->i_pages = vmo_create(ino->i_size, NULL);
 	if(!ino->i_pages)
 		return -1;
-	ino->i_pages->commit = vmo_inode_commit;
+	ino->i_pages->ops = &inode_vmo_ops;
 	ino->i_pages->ino = ino;
 	return 0;
 }

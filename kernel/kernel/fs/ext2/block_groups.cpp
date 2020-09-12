@@ -117,9 +117,11 @@ expected<ext2_inode_no, int> ext2_block_group::allocate_block(ext2_superblock *s
 	return nr * sb->blocks_per_block_group + bit;
 }
 
-void ext2_block_group::free_block(ext2_inode_no inode, ext2_superblock *sb)
+void ext2_block_group::free_block(ext2_block_no block, ext2_superblock *sb)
 {
 	scoped_mutex g{block_bitmap_lock};
+
+	printk("freeing block %u\n", block);
 
 	/* The inode and block bitmaps are guaranteed to a single block in size */
 	auto_block_buf buf = sb_read_block(sb, bgd->block_usage_addr);
@@ -132,7 +134,7 @@ void ext2_block_group::free_block(ext2_inode_no inode, ext2_superblock *sb)
 
 	auto bitmap = static_cast<uint8_t *>(block_buf_data(buf));
 
-	auto bit = (inode - 1) % sb->blocks_per_block_group;
+	auto bit = block % sb->blocks_per_block_group;
 	auto byte_idx = bit / CHAR_BIT;
 	auto bit_idx = bit % CHAR_BIT;
 

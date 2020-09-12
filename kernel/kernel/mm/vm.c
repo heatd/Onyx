@@ -1658,13 +1658,25 @@ struct vm_pf_context
 	struct page *page;
 };
 
-struct page *vm_pf_get_page_from_vmo(struct vm_pf_context *ctx)
+int vmo_error_to_vm_error(vmo_status_t st)
+{
+	switch(st)
+	{
+		case VMO_STATUS_OK:
+			return VM_OK;
+		case VMO_STATUS_OUT_OF_MEM:
+			return VM_SIGSEGV;
+		default:
+			return VM_SIGBUS;
+	}
+}
+
+vmo_status_t vm_pf_get_page_from_vmo(struct vm_pf_context *ctx)
 {
 	struct vm_region *entry = ctx->entry;
 	size_t vmo_off = (ctx->vpage - entry->base) + entry->offset;
-	ctx->page = vmo_get(entry->vmo, vmo_off, VMO_GET_MAY_POPULATE);
 
-	return ctx->page;
+	return vmo_get(entry->vmo, vmo_off, VMO_GET_MAY_POPULATE, &ctx->page);
 }
 
 int vm_handle_non_present_wp(struct fault_info *info, struct vm_pf_context *ctx)
@@ -1686,16 +1698,15 @@ int vm_handle_non_present_wp(struct fault_info *info, struct vm_pf_context *ctx)
 		if(vm_mapping_requires_wb(entry))
 		{
 			/* else handle it differently(we'll need) */
-			struct page *p = vm_pf_get_page_from_vmo(ctx);
-			if(!p)
+			vmo_status_t st = vm_pf_get_page_from_vmo(ctx);
+
+			if(st != VMO_STATUS_OK)
 			{
-				info->error = VM_SIGSEGV;
+				info->error = vmo_error_to_vm_error(st);
 				return -1;
 			}
 
-			pagecache_dirty_block(p->cache);
-
-			ctx->page = p;
+			pagecache_dirty_block(ctx->page->cache);
 		}
 		else if(vm_mapping_is_anon(entry))
 		{
@@ -1741,11 +1752,13 @@ int vm_handle_non_present_copy_on_write(struct fault_info *info, struct vm_pf_co
 	printk("Faulting %lx in\n", ctx->vpage);
 #endif
 
-	struct page *page = vmo_get_cow_page(vmo, vmo_off);
-	if(!page)
+	vmo_status_t st = vmo_get_cow_page(vmo, vmo_off, &ctx->page);
+	if(st != VMO_STATUS_OK)
+	{
+		ctx->info->error = vmo_error_to_vm_error(st);
 		return -1;
+	}
 
-	ctx->page = page;
 	ctx->page_rwx &= ~VM_WRITE;
 
 	return 0;
@@ -1770,10 +1783,10 @@ int vm_handle_non_present_pf(struct vm_pf_context *ctx)
 	/* If page wasn't set before by other fault handling code, just fetch from the vmo */
 	if(ctx->page == NULL)
 	{
-		ctx->page = vm_pf_get_page_from_vmo(ctx);
-		if(!ctx->page)
+		vmo_status_t st = vm_pf_get_page_from_vmo(ctx);
+		if(st != VMO_STATUS_OK)
 		{
-			info->error = VM_SIGSEGV;
+			info->error = vmo_error_to_vm_error(st);
 			return -1;
 		}
 	}
@@ -2308,11 +2321,12 @@ ret:
 	return ret;
 }
 
-struct page *vm_commit_private(size_t off, struct vm_object *vmo)
+vmo_status_t vm_commit_private(struct vm_object *vmo, size_t off, struct page **ppage)
 {
 	struct page *p = alloc_page(0);
 	if(!p)
-		return NULL;
+		return VMO_STATUS_OUT_OF_MEM;
+
 	struct inode *ino = vmo->ino;
 	off_t file_off = (off_t) vmo->priv;
 
@@ -2326,10 +2340,12 @@ struct page *vm_commit_private(size_t off, struct vm_object *vmo)
 	if(read < 0)
 	{
 		free_page(p);
-		return NULL;
+		return VMO_STATUS_BUS_ERROR;
 	}
 
-	return p;
+	*ppage = p;
+
+	return VMO_STATUS_OK;
 }
 
 void add_vmo_to_private_list(struct mm_address_space *mm, struct vm_object *vmo)
@@ -2388,6 +2404,11 @@ bool vm_using_shared_optimization(struct vm_region *region)
 	return region->flags & VM_USING_MAP_SHARED_OPT;
 }
 
+const struct vm_object_ops vm_private_file_map_ops = 
+{
+	.commit = vm_commit_private
+};
+
 int vm_region_setup_backing(struct vm_region *region, size_t pages, bool is_file_backed)
 {
 	bool is_shared = is_mapping_shared(region);
@@ -2411,7 +2432,7 @@ int vm_region_setup_backing(struct vm_region *region, size_t pages, bool is_file
 		if(!vmo)
 			return -1;
 		vmo->ino = region->fd->f_ino;
-		vmo->commit = vm_commit_private;
+		vmo->ops = &vm_private_file_map_ops;
 		vmo_do_cow(vmo, region->fd->f_ino->i_pages);
 
 		region->offset = 0;
@@ -2589,18 +2610,17 @@ int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
 			{
 				vm_remove_region(as, region);
 
+				/* If we're shaving off from the front, we'll need to adjust
+				 * both the base, the size *and* the mapping's offset in relation to the VMO.
+				 * TODO: Punch a whole through anonymous VMOs.
+				 */
 				region->base += to_shave_off;
 				region->pages -= to_shave_off >> PAGE_SHIFT;
+				region->offset += to_shave_off;
 				
 				if(vm_add_region(as, region) < 0)
 				{
 					return -ENOMEM;
-				}
-			
-				if(!is_mapping_shared(region) && !vmo_is_shared(region->vmo))
-				{
-					vmo_truncate_beginning_and_resize(to_shave_off, region->vmo);
-					vmo_sanity_check(region->vmo);
 				}
 			}
 			else
@@ -3136,8 +3156,10 @@ struct page *vm_commit_page(void *page)
 	struct vm_object *vmo = reg->vmo;
 
 	unsigned long off = reg->offset + ((unsigned long) page - reg->base);
-	struct page *p = vmo_get(vmo, off, VMO_GET_MAY_POPULATE);
-	if(!p)
+	struct page *p;
+	
+	vmo_status_t st = vmo_get(vmo, off, VMO_GET_MAY_POPULATE, &p);
+	if(st != VMO_STATUS_OK)
 		return NULL;
 	
 	if(!map_pages_to_vaddr(page, page_to_phys(p), PAGE_SIZE, reg->rwx))

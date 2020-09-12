@@ -776,6 +776,8 @@ void vterm_ansi_erase_in_display(unsigned long n, struct vterm *vt)
 			break;
 		}
 	}
+
+	vterm_flush(vt);
 }
 
 #define ARGS_NR_ELEMS		2

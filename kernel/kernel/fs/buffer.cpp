@@ -203,11 +203,14 @@ void page_destroy_block_bufs(struct page *page)
  * block_size <= page_size here...
  */
 
-extern "C" struct page *bbuffer_commit(size_t off, vm_object *vmo)
+extern "C"
+vmo_status_t bbuffer_commit(vm_object *vmo, size_t off, page **ppage)
 {
-	struct page *p = alloc_page(PAGE_ALLOC_NO_ZERO);
+	vmo_status_t st = VMO_STATUS_BUS_ERROR;
+
+	page *p = alloc_page(PAGE_ALLOC_NO_ZERO);
 	if(!p)
-		return nullptr;
+		return VMO_STATUS_OUT_OF_MEM;
 	p->flags |= PAGE_FLAG_BUFFER;
 	
 	auto blkdev = reinterpret_cast<blockdev*>(vmo->priv);
@@ -218,7 +221,7 @@ extern "C" struct page *bbuffer_commit(size_t off, vm_object *vmo)
 	{
 		free_page(p);
 		printf("bbuffer_commit: Cannot read unaligned offset %lu\n", off);
-		return nullptr;
+		return VMO_STATUS_BUS_ERROR;
 	}
 
 	auto sb = blkdev->sb;
@@ -242,8 +245,8 @@ extern "C" struct page *bbuffer_commit(size_t off, vm_object *vmo)
 
 	size_t curr_off = 0;
 
-	int st = bio_submit_request(blkdev, &r);
-	if(st < 0)
+	int iost = bio_submit_request(blkdev, &r);
+	if(iost < 0)
 		goto error;
 	
 	for(size_t i = 0; i < nr_blocks; i++)
@@ -252,6 +255,7 @@ extern "C" struct page *bbuffer_commit(size_t off, vm_object *vmo)
 		if(!(b = page_add_blockbuf(p, curr_off)))
 		{
 			page_destroy_block_bufs(p);
+			st = VMO_STATUS_OUT_OF_MEM;
 			goto error;
 		}
 
@@ -262,12 +266,13 @@ extern "C" struct page *bbuffer_commit(size_t off, vm_object *vmo)
 		curr_off += block_size;
 	}
 
-	return p;
+	*ppage = p;
+
+	return VMO_STATUS_OK;
 
 error:
-	/* TODO: Error reporting */
 	free_page(p);
-	return nullptr;
+	return st;
 }
 
 extern "C" struct block_buf *sb_read_block(const struct superblock *sb, unsigned long block)
@@ -276,9 +281,11 @@ extern "C" struct block_buf *sb_read_block(const struct superblock *sb, unsigned
 	size_t real_off = sb->s_block_size * block;
 	size_t aligned_off = real_off & -PAGE_SIZE;
 
-	struct page *page = vmo_get(dev->vmo, aligned_off, VMO_GET_MAY_POPULATE);
+	struct page *page;
+	
+	auto st = vmo_get(dev->vmo, aligned_off, VMO_GET_MAY_POPULATE, &page);
 
-	if(!page)
+	if(st != VMO_STATUS_OK)
 		return nullptr;
 	
 	auto buf = reinterpret_cast<block_buf *>(page->priv);
@@ -315,4 +322,21 @@ extern "C" struct block_buf *sb_read_block(const struct superblock *sb, unsigned
 void block_buf_dirty(block_buf *buf)
 {
 	block_buf_set_dirty(true, &buf->flush_obj);
+}
+
+void page_remove_block_buf(struct page *page, size_t offset, size_t end)
+{
+	block_buf **pp = (block_buf **) &page->priv;
+
+	while(*pp != nullptr)
+	{
+		if((*pp)->page_off >= offset && (*pp)->page_off < end)
+		{
+			auto bbuf = *pp;
+			*pp = (*pp)->next;
+			block_buf_free(bbuf);
+		}
+		else
+			pp = &(*pp)->next;
+	}
 }

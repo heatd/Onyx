@@ -551,15 +551,16 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 	sb->total_inodes = ext2_sb->s_inodes_count;
 	sb->total_blocks = ext2_sb->s_blocks_count;
 	sb->block_size = block_size;
+	sb->block_size_shift = ilog2(block_size);
 	sb->frag_size = 1024 << ext2_sb->s_log_frag_size;
 	sb->inode_size = ext2_sb->s_inode_size;
 	sb->blocks_per_block_group = ext2_sb->s_blocks_per_group;
 	sb->inodes_per_block_group = ext2_sb->s_inodes_per_group;
 	sb->number_of_block_groups = sb->total_blocks / sb->blocks_per_block_group;
 	entries = sb->block_size / sizeof(uint32_t);
-	sb->entry_shift = 31 - __builtin_clz(entries);
+	sb->entry_shift = ilog2(entries);
 
-	if (sb->total_blocks % sb->blocks_per_block_group)
+	if(sb->total_blocks % sb->blocks_per_block_group)
 		sb->number_of_block_groups++;
 
 	for(unsigned int i = 0; i < sb->number_of_block_groups; i++)

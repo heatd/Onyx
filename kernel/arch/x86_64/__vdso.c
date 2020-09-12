@@ -7,7 +7,6 @@
 #include <stdint.h>
 
 #include <time.h>
-#define _GNU_SOURCE
 #include <unistd.h>
 
 #include <onyx/clock.h>

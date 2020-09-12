@@ -43,10 +43,12 @@ struct page_cache_block *inode_get_cache_block(struct inode *ino, size_t off, lo
 
 	if(flags & FILE_CACHING_WRITE && off >= ino->i_pages->size)
 	{
-		ino->i_pages->size += (off - ino->i_pages->size) + PAGE_SIZE;
+		vmo_truncate(ino->i_pages, off, 0);
+
 		struct page *p = alloc_page(0);
 		if(!p)
 			return nullptr;
+
 		p->flags = PAGE_FLAG_BUFFER;
 
 		auto block = pagecache_create_cache_block(p, PAGE_SIZE, off, ino);
@@ -68,9 +70,14 @@ struct page_cache_block *inode_get_cache_block(struct inode *ino, size_t off, lo
 
 	}
 
-	struct page *p = vmo_get(ino->i_pages, off, VMO_GET_MAY_POPULATE);
-	if(!p)
+	struct page *p;
+	auto st = vmo_get(ino->i_pages, off, VMO_GET_MAY_POPULATE, &p);
+
+	if(st != VMO_STATUS_OK)
+	{
+		errno = vmo_status_to_errno(st);
 		return nullptr;
+	}
 
 	return p->cache;
 }
@@ -97,18 +104,21 @@ struct page_cache_block *inode_get_page(struct inode *inode, size_t offset, long
 extern "C"
 ssize_t file_write_cache(void *buffer, size_t len, struct inode *ino, size_t offset)
 {
+	//printk("File cache write %lu off %lu\n", len, offset);
 	scoped_rwlock<rw_lock::write> g{ino->i_rwlock};
 
 	size_t wrote = 0;
 	size_t pos = offset;
-
 
 	while(wrote != len)
 	{
 		struct page_cache_block *cache = inode_get_page(ino, offset, FILE_CACHING_WRITE);
 
 		if(cache == nullptr)
-			return wrote ?: -1;
+		{
+			printk("Inode get page error\n");
+			return wrote ?: -errno;
+		}
 
 		struct page *page = cache->page;
 
@@ -121,16 +131,14 @@ ssize_t file_write_cache(void *buffer, size_t len, struct inode *ino, size_t off
 		if(int st = ino->i_fops->prepare_write(ino, page, aligned_off, cache_off, amount); st < 0)
 		{
 			page_unpin(page);
-			errno = -st;
-			return -1;
+			return st;
 		}
 
 		if(copy_from_user((char *) cache->buffer + cache_off, (char*) buffer +
 			wrote, amount) < 0)
 		{
 			page_unpin(page);
-			errno = EFAULT;
-			return -1;
+			return -EFAULT;
 		}
 	
 		if(cache->size < cache_off + amount)
@@ -145,6 +153,8 @@ ssize_t file_write_cache(void *buffer, size_t len, struct inode *ino, size_t off
 		offset += amount;
 		wrote += amount;
 		pos += amount;
+
+		//printk("pos %lu i_size %lu\n", pos, ino->i_size);
 
 		if(pos > ino->i_size)
 			inode_set_size(ino, pos);
@@ -437,54 +447,59 @@ int sys_fsync(int fd)
 	return 0;
 }
 
+void inode_add_hole_in_page(struct page *page, size_t page_offset, size_t end_offset)
+{
+#if 0
+	printk("adding hole in page, page offset %lu, end offset %lu\n", page_offset, end_offset);
+#endif
+	struct page_cache_block *b = page->cache;
+	if(page->flags & PAGE_FLAG_DIRTY)
+	{
+		flush_sync_one(&b->fobj);
+	}
+
+	page_remove_block_buf(page, page_offset, end_offset);
+	uint8_t *p = (uint8_t *) PAGE_TO_VIRT(page) + page_offset;
+	memset(p, 0, end_offset - page_offset);
+}
+
 extern "C"
 int inode_truncate_range(struct inode *inode, size_t start, size_t end)
 {
-	scoped_mutex g{inode->i_pages->page_lock};
+	bool start_misaligned = start & (PAGE_SIZE - 1);
+	bool end_misaligned = end & (PAGE_SIZE - 1);
+	auto start_aligned = cul::align_down2(start, PAGE_SIZE);
+	auto end_aligned = cul::align_down2(end, PAGE_SIZE);
 
-	struct rb_itor it;
-	it.node = NULL;
+	int st = vmo_punch_range(inode->i_pages, start, end - start);
 
-	it.tree = inode->i_pages->pages;
+	if(st < 0)
+		return st;
 
-	rb_itor_first(&it);
+	struct page *page = nullptr;
 
-	while(rb_itor_valid(&it))
+	/* That last statement is to make sure we don't try and insert a hole in the same page twice */
+	if(start_misaligned && start_aligned != end_aligned)
 	{
-		void *datum = *rb_itor_datum(&it);
-		auto this_start = (size_t) rb_itor_key(&it);
+		/* Don't try to populate it */
+		auto vmo_st = vmo_get(inode->i_pages, start_aligned, 0, &page);
 
-		struct page_cache_block *b = (page_cache_block *) datum;
-		auto this_end = this_start + b->size;
-
-		if(start > this_start && end == this_end)
+		if(vmo_st == VMO_STATUS_OK)
 		{
-			b->size -= start;
-			if(b->size == 0)
-			{
-				struct page *page = b->page;
-
-				if(page->flags & PAGE_FLAG_DIRTY)
-				{
-					flush_sync_one(&b->fobj);
-				}
-
-				page_destroy_block_bufs(page);
-
-				page->cache = NULL;
-				free(b);
-
-				rb_tree_remove(inode->i_pages->pages, (void *) start);
-			}
-
-			return 0;
+			inode_add_hole_in_page(page, start - start_aligned, PAGE_SIZE);
 		}
-		else if(start >= this_start || end <= this_end)
+	}
+
+	if(end_misaligned)
+	{
+		/* Don't try to populate it */
+		auto vmo_st = vmo_get(inode->i_pages, end_aligned, 0, &page);
+
+		if(vmo_st == VMO_STATUS_OK)
 		{
-			panic("bad truncate usage");
+			/* TODO: I don't think the end here is correct for file hole cases, TOFIX */
+			inode_add_hole_in_page(page, end - end_aligned, PAGE_SIZE);
 		}
-
-		rb_itor_next(&it);
 	}
 
 	return 0;

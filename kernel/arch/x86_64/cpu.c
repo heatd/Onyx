@@ -17,7 +17,6 @@
 #include <stdlib.h>
 #include <cpuid.h>
 #include <stdbool.h>
-#define _GNU_SOURCE
 #include <string.h>
 #include <stdio.h>
 

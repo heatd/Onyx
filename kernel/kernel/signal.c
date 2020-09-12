@@ -3,7 +3,6 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
-#define _GNU_SOURCE
 #include <signal.h>
 #include <stdio.h>
 #include <errno.h>
@@ -284,7 +283,7 @@ int force_sigsegv(struct sigpending *pending, struct registers *regs)
 void signal_unqueue(int signum, struct thread *thread)
 {
 	bool is_realtime_signal = signum >= KERNEL_SIGRTMIN;
-	bool should_delete =  true;
+	bool should_delete = true;
 
 	if(is_realtime_signal)
 	{

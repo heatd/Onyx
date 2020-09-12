@@ -262,12 +262,17 @@ size_t blkdev_write_file(size_t offset, size_t len, void* buffer, struct file *f
 
 }
 
+const struct vm_object_ops blk_vmo_ops = 
+{
+	.commit = bbuffer_commit
+};
+
 int blkdev_init(struct blockdev *blk)
 {
 	blk->vmo = vmo_create(blk->nr_sectors * blk->sector_size, blk);
 	if(!blk->vmo)
 		return -1;
-	blk->vmo->commit = bbuffer_commit;
+	blk->vmo->ops = &blk_vmo_ops;
 	blk->vmo->priv = blk;
 
 	assert(blk != NULL);
