@@ -20,6 +20,7 @@ ARCHDIR:=arch/$(HOSTARCH)
 
 include $(ARCHDIR)/make.config
 
+CXXFLAGS:=-fno-rtti -fno-exceptions -fcheck-new
 CFLAGS:=$(CFLAGS) $(ARCH_CFLAGS) -fPIC
 CPPFLAGS:=$(CPPFLAGS) $(ARCH_CPPFLAGS) -DPIC -Iinclude
 LIBK_CFLAGS:=$(LIBK_CFLAGS) $(KERNEL_ARCH_CFLAGS)
@@ -118,7 +119,7 @@ libc.so: $(OBJS)
 	$(CC) -c $< -o $@ -std=gnu11 -fPIC $(CFLAGS) $(CPPFLAGS)
 %.o: %.cpp ../kernel/kernel.config
 	echo [CXX] $<
-	$(CXX) -c $< -o $@ -std=c++14 $(CFLAGS) $(CPPFLAGS)
+	$(CXX) -c $< -o $@ -std=c++14 $(CFLAGS) $(CPPFLAGS) $(CXXFLAGS)
 
 %.libk.o: %.c ../kernel/kernel.config
 	echo [CC] $<.libk
@@ -126,7 +127,7 @@ libc.so: $(OBJS)
 
 %.libk.o: %.cpp ../kernel/kernel.config
 	echo [CXX] $<.libk
-	$(CXX) -c $< -o $@ -std=c++14 -mcmodel=kernel $(LIBK_CFLAGS) $(LIBK_CPPFLAGS)
+	$(CXX) -c $< -o $@ -std=c++14 -mcmodel=kernel $(LIBK_CFLAGS) $(LIBK_CPPFLAGS) $(CXXFLAGS)
 
 %.libk.o: %.S ../kernel/kernel.config
 	echo [AS] $<.libk

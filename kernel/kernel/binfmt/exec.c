@@ -232,13 +232,13 @@ int flush_old_exec(struct exec_state *state)
 
 	st = vm_create_brk(&curr->address_space);
 
-	/* And reset the signal disposition */
-	signal_do_execve(curr);
-
 	if(st == 0)
 	{
 		state->flushed = true;
 	}
+
+	/* And reset the signal disposition */
+	signal_do_execve(curr);
 
 	return st;
 }

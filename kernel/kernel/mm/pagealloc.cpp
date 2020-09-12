@@ -252,7 +252,14 @@ void free_page(struct page *p)
 	{
 		p->next_un.next_allocation = NULL;
 		main_node.free_page(p);
+		//printf("free pages %p, %p\n", page_to_phys(p), __builtin_return_address(0));
 	}
+#if 0
+	else
+	{
+		printf("unref pages %p(refs %lu), %p\n", page_to_phys(p), p->ref, __builtin_return_address(0));
+	}
+#endif
 }
 
 struct page *page_node::alloc_page(unsigned long flags)
@@ -323,6 +330,8 @@ struct page *page_node::allocate_pages(size_t nr_pgs, unsigned long flags)
 			ptail = p;
 		}
 	}
+
+	//printf("alloc pages %lu = %p, %p\n", nr_pgs, page_to_phys(plist), __builtin_return_address(0));
 
 	return plist;
 }
@@ -418,7 +427,6 @@ out:
 extern "C"
 struct page *alloc_pages(size_t nr_pgs, unsigned long flags)
 {
-	//printf("alloc pages %lu %p\n", nr_pgs, __builtin_return_address(0));
 	auto &node = main_node;
 
 	/* Optimise for the possibility that someone's looking to allocate '1' contiguous page */

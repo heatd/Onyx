@@ -470,6 +470,8 @@ void* paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64
 			void *page = alloc_pt();
 			if(!page)
 				return NULL;
+			
+			increment_vm_stat(as, page_tables_size, PAGE_SIZE);
 			pml->entries[indices[i - 1]] = (uint64_t) page | page_table_flags;
 			pml = (PML *) PHYS_TO_VIRT(page);
 		}
@@ -567,6 +569,9 @@ int paging_clone_as(struct mm_address_space *addr_space)
 	PML *new_pml = alloc_pt();
 	if(!new_pml)
 		return -1;
+	
+	addr_space->page_tables_size = PAGE_SIZE;
+
 	PML *p = (PML *) PHYS_TO_VIRT(new_pml);
 	PML *curr = (PML*)((uint64_t) get_current_pml4() + PHYS_BASE);
 	/* Copy the upper 256 entries of the PML in order to map
@@ -579,7 +584,7 @@ int paging_clone_as(struct mm_address_space *addr_space)
 	return 0;
 }
 
-PML *paging_fork_pml(PML *pml, int entry)
+PML *paging_fork_pml(PML *pml, int entry, struct mm_address_space *as)
 {
 	uint64_t old_address = PML_EXTRACT_ADDRESS(pml->entries[entry]);
 	uint64_t perms = pml->entries[entry] & 0xF000000000000FFF;
@@ -587,6 +592,8 @@ PML *paging_fork_pml(PML *pml, int entry)
 	void *new_pt = alloc_pt();
 	if(!new_pt)
 		return NULL;
+
+	increment_vm_stat(as, page_tables_size, PAGE_SIZE);
 
 	pml->entries[entry] = (uint64_t) new_pt | perms;
 	PML *new_pml = (PML*) PHYS_TO_VIRT(new_pt);
@@ -602,6 +609,7 @@ int paging_fork_tables(struct mm_address_space *addr_space)
 		return -1;
 	
 	__atomic_add_fetch(&allocated_page_tables, 1, __ATOMIC_RELAXED);
+	increment_vm_stat(addr_space, page_tables_size, PAGE_SIZE);
 
 	unsigned long new_pml = pfn_to_paddr(page_to_pfn(page));
 	PML *p = (PML *) PHYS_TO_VIRT(new_pml);
@@ -614,7 +622,7 @@ int paging_fork_tables(struct mm_address_space *addr_space)
 	{
 		if(mod_pml->entries[i] & X86_PAGING_PRESENT)
 		{
-			PML *pml3 = (PML*) paging_fork_pml(mod_pml, i);
+			PML *pml3 = (PML*) paging_fork_pml(mod_pml, i, addr_space);
 			if(!pml3)
 			{
 				return -1;
@@ -624,7 +632,7 @@ int paging_fork_tables(struct mm_address_space *addr_space)
 			{
 				if(pml3->entries[j] & X86_PAGING_PRESENT)
 				{
-					PML *pml2 = (PML*) paging_fork_pml((PML*) pml3, j);
+					PML *pml2 = (PML*) paging_fork_pml((PML*) pml3, j, addr_space);
 					if(!pml2)
 					{
 						return -1;
@@ -632,9 +640,10 @@ int paging_fork_tables(struct mm_address_space *addr_space)
 
 					for(int k = 0; k < PAGE_TABLE_ENTRIES; k++)
 					{
-						if(pml2->entries[k] & X86_PAGING_PRESENT && !(pml2->entries[k] & (1<<7)))
+						if(pml2->entries[k] & X86_PAGING_PRESENT &&
+						   !(pml2->entries[k] & X86_PAGING_HUGE))
 						{
-							PML *pml1 = (PML*) paging_fork_pml((PML*)pml2, k);
+							PML *pml1 = (PML*) paging_fork_pml((PML*)pml2, k, addr_space);
 							if(!pml1)
 							{
 								return -1;
@@ -841,10 +850,8 @@ void paging_invalidate(void *page, size_t pages)
 	}
 }
 
-void *vm_map_page(struct process *proc, uint64_t virt, uint64_t phys, uint64_t prot)
+void *vm_map_page(struct mm_address_space *as, uint64_t virt, uint64_t phys, uint64_t prot)
 {
-	struct mm_address_space *as = proc ? &proc->address_space : NULL;
-
 	return paging_map_phys_to_virt(as, virt, phys, prot);
 }
 
@@ -1244,6 +1251,7 @@ static int x86_mmu_unmap(PML *table, unsigned int pt_level, page_table_iterator&
 
 				free_page(page);
 				__atomic_sub_fetch(&allocated_page_tables, 1, __ATOMIC_RELAXED);
+				decrement_vm_stat(it.as_, page_tables_size, PAGE_SIZE);
 			}
 		}
 	}

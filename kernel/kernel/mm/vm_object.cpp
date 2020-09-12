@@ -197,7 +197,6 @@ vmo_status_t vmo_get(vm_object *vmo, size_t off, unsigned int flags, struct page
 	else if(!p)
 	{
 		st = VMO_STATUS_NON_EXISTENT;
-		printk("offset %lu does not exist\n", off);
 	}
 
 	if(st == VMO_STATUS_OK)
@@ -632,9 +631,13 @@ struct page *vmo_cow_on_page(vm_object *vmo, size_t off)
 	
 	copy_page_to_page(page_to_phys(new_page), page_to_phys(old_page));
 
+	//printf("COW'd page %p to vmo %p (refs %lu)\n", page_to_phys(new_page), vmo, vmo->refcount);
+
 	*datum = new_page;
 	
 	page_pin(new_page);
+
+	page_unref(old_page);
 
 	return new_page;
 out_error:

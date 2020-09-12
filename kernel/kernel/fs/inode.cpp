@@ -487,6 +487,7 @@ int inode_truncate_range(struct inode *inode, size_t start, size_t end)
 		if(vmo_st == VMO_STATUS_OK)
 		{
 			inode_add_hole_in_page(page, start - start_aligned, PAGE_SIZE);
+			page_unref(page);
 		}
 	}
 
@@ -499,6 +500,7 @@ int inode_truncate_range(struct inode *inode, size_t start, size_t end)
 		{
 			/* TODO: I don't think the end here is correct for file hole cases, TOFIX */
 			inode_add_hole_in_page(page, end - end_aligned, PAGE_SIZE);
+			page_unref(page);
 		}
 	}
 

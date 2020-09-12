@@ -137,6 +137,7 @@ struct mm_address_space
 	size_t resident_set_size;
 	size_t shared_set_size;
 	size_t page_faults;
+	size_t page_tables_size;
 
 	struct spinlock private_vmo_lock;
 	struct vm_object *vmo_head, *vmo_tail;
@@ -215,9 +216,9 @@ void *map_user(void *addr, size_t pages, uint32_t type, uint64_t prot);
 
 struct process;
 
-void *vm_map_page(struct process *proc, uint64_t virt, uint64_t phys,
+void *vm_map_page(struct mm_address_space *as, uint64_t virt, uint64_t phys,
 	uint64_t prot);
-void *__map_pages_to_vaddr(struct process *process, void *virt, void *phys,
+void *__map_pages_to_vaddr(struct mm_address_space *as, void *virt, void *phys,
 		size_t size, size_t flags);
 void *map_page_list(struct page *pl, size_t size, uint64_t prot);
 

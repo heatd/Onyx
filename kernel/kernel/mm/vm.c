@@ -133,8 +133,6 @@ struct vm_region *vm_reserve_region(struct mm_address_space *as,
 
 	*res.datum_ptr = region;
 
-	increment_vm_stat(region->mm, virtual_memory_size, size);
-
 	return region; 
 }
 
@@ -218,7 +216,14 @@ struct vm_region *vm_allocate_region(struct mm_address_space *as,
 {
 	unsigned long new_base = vm_allocate_base(as, min, size);
 
-	return vm_reserve_region(as, new_base, size);
+	struct vm_region *reg = vm_reserve_region(as, new_base, size);
+
+	if(reg)
+	{
+		increment_vm_stat(as, virtual_memory_size, size);
+	}
+
+	return reg;
 }
 
 void vm_addr_init(void)
@@ -414,8 +419,6 @@ void vm_region_destroy(struct vm_region *region)
 	}
 
 	memset_s(region, 0xfd, sizeof(struct vm_region));
-	
-	assert(vm_find_region((void *) region->base) == NULL);
 
 	free(region);
 }
@@ -573,18 +576,18 @@ struct vm_region *__vm_create_region_at(void *addr, size_t pages, uint32_t type,
 		return NULL;
 	}
 
-	struct mm_address_space *mm = &get_current_process()->address_space;
+	struct mm_address_space *mm = reserving_kernel
+	     ? &kernel_address_space : &get_current_process()->address_space;
 
-	if(reserving_kernel)
-		v = vm_reserve_region(&kernel_address_space, (unsigned long) addr, pages * PAGE_SIZE);
-	else
-		v = vm_reserve_region(mm, (unsigned long) addr, pages * PAGE_SIZE);
+	v = vm_reserve_region(mm, (unsigned long) addr, pages << PAGE_SHIFT);
 	if(!v)
 	{
 		addr = NULL;
 		errno = ENOMEM;
 		goto return_;
 	}
+
+	increment_vm_stat(mm, virtual_memory_size, pages << PAGE_SHIFT);
 
 	v->base = (unsigned long) addr;
 	v->pages = pages;
@@ -664,7 +667,7 @@ int vm_clone_as(struct mm_address_space *addr_space)
 	return 0;
 }
 
-int vm_flush_mapping(struct vm_region *mapping, struct process *proc, unsigned int flags,
+int vm_flush_mapping(struct vm_region *mapping, struct mm_address_space *mm, unsigned int flags,
                      unsigned int rwx)
 {
 	struct vm_object *vmo = mapping->vmo;
@@ -691,7 +694,7 @@ int vm_flush_mapping(struct vm_region *mapping, struct process *proc, unsigned i
 		if(poff >= off + (nr_pages << PAGE_SHIFT))
 			break;
 		unsigned long reg_off = poff - off;
-		if(!__map_pages_to_vaddr(proc, (void *) (mapping->base + reg_off), page_to_phys(p),
+		if(!__map_pages_to_vaddr(mm, (void *) (mapping->base + reg_off), page_to_phys(p),
 			PAGE_SIZE, mapping_rwx))
 		{
 			mutex_unlock(&vmo->page_lock);
@@ -707,11 +710,10 @@ int vm_flush_mapping(struct vm_region *mapping, struct process *proc, unsigned i
 
 int vm_flush(struct vm_region *entry, unsigned int flags, unsigned int rwx)
 {
-	struct process *p = entry->mm ? entry->mm->process : NULL;
 #if DEBUG_VM_FLUSH
 printk("Has process? %s\n", p ? "true" : "false");
 #endif
-	return vm_flush_mapping(entry, p, flags, rwx);
+	return vm_flush_mapping(entry, entry->mm, flags, rwx);
 }
 
 struct fork_iteration
@@ -780,6 +782,7 @@ static bool fork_vm_region(const void *key, void *datum, void *user_data)
 		new_region->vmo = find_forked_private_vmo(new_region->vmo, it->target_mm);
 		assert(new_region->vmo != NULL);
 		vmo_assign_mapping(new_region->vmo, new_region);
+		vmo_ref(new_region->vmo);
 	}
 	else
 	{
@@ -914,8 +917,11 @@ int vm_fork_address_space(struct mm_address_space *addr_space)
 		return -1;
 	}
 
-	addr_space->resident_set_size = current_mm->resident_set_size;
-	addr_space->shared_set_size = current_mm->shared_set_size;
+	/* We add the old ones here because rss will only be incremented by pages that were newly mapped,
+	 * since the old page table entries were copied in.
+	 */
+	addr_space->resident_set_size += current_mm->resident_set_size;
+	addr_space->shared_set_size += current_mm->shared_set_size;
 	addr_space->virtual_memory_size = current_mm->virtual_memory_size;
 	addr_space->mmap_base = current_mm->mmap_base;
 	addr_space->brk = current_mm->brk;
@@ -1579,7 +1585,7 @@ void vm_print_umap()
 }
 
 #define DEBUG_PRINT_MAPPING 0
-void *__map_pages_to_vaddr(struct process *process, void *virt, void *phys,
+void *__map_pages_to_vaddr(struct mm_address_space *as, void *virt, void *phys,
 		size_t size, size_t flags)
 {
 	size_t pages = vm_size_to_pages(size);
@@ -1591,7 +1597,7 @@ void *__map_pages_to_vaddr(struct process *process, void *virt, void *phys,
 	for(uintptr_t virt = (uintptr_t) ptr, _phys = (uintptr_t) phys, i = 0; i < pages; virt += PAGE_SIZE, 
 		_phys += PAGE_SIZE, ++i)
 	{
-		if(!vm_map_page(process, virt, _phys, flags))
+		if(!vm_map_page(as, virt, _phys, flags))
 			return NULL;
 	}
 
@@ -2017,6 +2023,8 @@ static void vm_destroy_area(void *key, void *datum)
 
 	do_vm_unmap(key, region->pages);
 
+	decrement_vm_stat(region->mm, virtual_memory_size, region->pages << PAGE_SHIFT);
+
 	vm_region_destroy(region);
 }
 
@@ -2028,6 +2036,11 @@ void vm_destroy_addr_space(struct mm_address_space *mm)
 	/* First, iterate through the rb tree and free/unmap stuff */
 	mutex_lock(&mm->vm_lock);
 	rb_tree_free(mm->area_tree, vm_destroy_area);
+
+	assert(mm->resident_set_size == 0);
+	assert(mm->shared_set_size == 0);
+	assert(mm->virtual_memory_size == 0);
+	assert(mm->page_tables_size == PAGE_SIZE);
 
 	/* We're going to swap our address space to init's, and free our own */
 	/* Note that we use mm explicitly, but switch to current->address_space explicitly.
@@ -2828,8 +2841,10 @@ bool vm_can_expand(struct mm_address_space *as, struct vm_region *region, size_t
 
 void __vm_expand_mapping(struct vm_region *region, size_t new_size)
 {
+	size_t diff = new_size - (region->pages << PAGE_SHIFT);
 	region->pages = new_size >> PAGE_SHIFT;
 	vmo_resize(new_size, region->vmo);
+	increment_vm_stat(region->mm, virtual_memory_size, diff);
 }
 
 int vm_expand_mapping(struct mm_address_space *as, struct vm_region *region, size_t new_size)

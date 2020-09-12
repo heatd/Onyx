@@ -25,8 +25,16 @@
 #define LOG_LEVEL_ERROR	  (1 << 2)
 #define LOG_LEVEL_FATAL   (1 << 3)
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void kernlog_set_log_level(unsigned int level);
 void kernlog_send(unsigned int level, const char *msg, ...);
 void kernlog_print(const char *msg);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
