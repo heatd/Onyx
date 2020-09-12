@@ -1,6 +1,7 @@
 PROG:= testsuite
 OBJS:= src/futex_test.o \
-	src/net_test.o
+	src/net_test.o \
+	src/fork_test.o
 
 #       src/mmap_test.o not yet finished
 

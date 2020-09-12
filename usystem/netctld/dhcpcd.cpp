@@ -206,7 +206,7 @@ std::unique_ptr<packet> instance::get_packets(std::function<bool (packet *)> pre
 	dhcp_packet_t *packet = new dhcp_packet_t();
 	p->packet = packet;
 	struct sockaddr addr;
-	socklen_t addrlen;
+	socklen_t addrlen = sizeof(addr);
 
 	auto length = recvfrom(sockfd, packet, sizeof(dhcp_packet_t), 0, &addr, &addrlen);
 

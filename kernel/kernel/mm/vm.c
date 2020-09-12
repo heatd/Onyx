@@ -1588,6 +1588,9 @@ void vm_print_umap()
 void *__map_pages_to_vaddr(struct mm_address_space *as, void *virt, void *phys,
 		size_t size, size_t flags)
 {
+	if(flags & VM_WRITE)
+		assert((unsigned long) phys != (unsigned long) page_to_phys(vm_zero_page));
+
 	size_t pages = vm_size_to_pages(size);
 	
 #if DEBUG_PRINT_MAPPING
@@ -1746,6 +1749,8 @@ int vm_handle_non_present_copy_on_write(struct fault_info *info, struct vm_pf_co
 	 */
 	if(!vmo->cow_clone)
 	{
+		assert(*(volatile int *) PAGE_TO_VIRT(vm_zero_page) == 0);
+		page_ref(vm_zero_page);
 		page_ref(vm_zero_page);
 		vmo_add_page(vmo_off, vm_zero_page, vmo);
 		ctx->page = vm_zero_page;

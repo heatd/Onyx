@@ -61,6 +61,21 @@ void *expand_heap(size_t size)
 	return alloc_start;
 }
 
+void unmap_kernel_brk(unsigned long base, unsigned long len)
+{
+	unsigned long nr_pages = len >> PAGE_SHIFT;
+
+	while(nr_pages--)
+	{
+		unsigned long info = get_mapping_info((void *) base);
+		assert(info & PAGE_PRESENT);
+		unsigned long paddr = MAPPING_INFO_PADDR(info);
+		vm_unmap_range((void *) base, 1);
+		free_page(phys_to_page(paddr));
+		base += PAGE_SIZE;
+	}
+}
+
 void *do_brk_change(intptr_t inc)
 {
 	assert(heap.brk != NULL);
@@ -77,8 +92,23 @@ void *do_brk_change(intptr_t inc)
 		if(!ptr)
 			return errno = ENOMEM, (void *) -1;
 	}
+	else if(inc < 0)
+	{
+		/* We're decrementing the brk, if it crosses a page we can unmap a bunch of memory */
+		if(heap_limit - new_brk >= PAGE_SIZE)
+		{
+			unsigned long new_limit = (new_brk + (PAGE_SIZE - 1)) & -PAGE_SIZE;
+			unsigned long to_free = heap_limit - new_limit;
+			assert(to_free & (PAGE_SIZE - 1) == 0);
+			unmap_kernel_brk(new_limit, to_free);
+			heap.size = new_limit - starting_address;
 
-	heap.brk = (void*) new_brk;
+			assert(heap.size & (PAGE_SIZE - 1) == 0);
+		}
+	}
+	
+
+	heap.brk = (void *) new_brk;
 
 	return old_brk;
 }

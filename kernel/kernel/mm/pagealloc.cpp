@@ -113,7 +113,7 @@ int page_node::page_add(struct page_arena *arena, void *__page,
 
 	page->page = page_add_page(__page);
 	page->page->flags |= PAGE_FLAG_FREE;
-	list_add_tail(&page->list_node, &page_list);
+	list_add(&page->list_node, &page_list);
 	total_pages++;
 
 	return 0;

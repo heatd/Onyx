@@ -93,7 +93,7 @@ int udp_socket::send_packet(const msghdr *msg, ssize_t payload_size, in_port_t s
 	{
 		const auto &vec = msg->msg_iov[i];
 		if(copy_from_user(ptr, vec.iov_base, vec.iov_len) < 0)
-			return -EINVAL;
+			return -EFAULT;
 		
 		ptr += vec.iov_len;
 	}

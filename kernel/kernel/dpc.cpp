@@ -3,7 +3,6 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
-#include <stdatomic.h>
 #include <assert.h>
 
 #include <onyx/dpc.h>
@@ -14,6 +13,7 @@
 #include <onyx/task_switching.h>
 #include <onyx/slab.h>
 #include <onyx/semaphore.h>
+#include <onyx/mm/pool.hpp>
 
 /* The work queue does need locks for insertion, because another CPU might try
  * to queue work in at the same time as us
@@ -22,7 +22,7 @@ static struct spinlock work_queue_locks[3];
 static struct dpc_work *work_queues[3] = {0};
 static struct semaphore dpc_work_semaphore = {0};
 static thread_t *dpc_thread = NULL;
-static slab_cache_t *dpc_pool = NULL;
+memory_pool<dpc_work, MEMORY_POOL_USABLE_ON_IRQ> dpc_pool;
 
 void dpc_do_work_on_workqueue(struct dpc_work **wq)
 {
@@ -32,7 +32,7 @@ void dpc_do_work_on_workqueue(struct dpc_work **wq)
 		struct dpc_work *to_be_freed = *wq;
 		*wq = (*wq)->next;
 
-		slab_free(dpc_pool, to_be_freed);
+		dpc_pool.free(to_be_freed);
 	}
 }
 
@@ -51,6 +51,7 @@ void dpc_do_work(void *context)
 	}
 }
 
+extern "C"
 void dpc_init(void)
 {
 	sem_init(&dpc_work_semaphore, 0);
@@ -58,21 +59,17 @@ void dpc_init(void)
 	dpc_thread = sched_create_thread(dpc_do_work, THREAD_KERNEL, NULL);
 	assert(dpc_thread != NULL);
 	dpc_thread->priority = SCHED_PRIO_VERY_HIGH;
-	
-	dpc_pool = slab_create("dpc", sizeof(struct dpc_work), 0, SLAB_FLAG_POOL, NULL, NULL);
-	assert(dpc_pool != NULL);
-
-	assert(slab_populate(dpc_pool, 200) != -1);
 
 	sched_start_thread(dpc_thread);
 }
 
+extern "C"
 int dpc_schedule_work(struct dpc_work *_work, dpc_priority prio)
 {
 	/* We'll allocate a copy of the dpc_work, and if we fail, the IRQ simply isn't handled. 
 	 * Note that we're only allocating memory here.
 	*/
-	struct dpc_work *work = slab_allocate(dpc_pool);
+	struct dpc_work *work = dpc_pool.allocate();
 	if(!work)
 	{
 		printf("slab_allocate failed: dpc work request being discarded!\n");
