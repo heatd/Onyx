@@ -1062,14 +1062,13 @@ int sys_rt_sigtimedwait(const sigset_t *set, siginfo_t *info, const struct times
 
 	st = pending->signum;
 
-	free(pending->info);
-	free(pending);
-
 	if(copy_to_user(info, pending->info, sizeof(sigset_t)) < 0)
 	{
 		st = -EFAULT;
-		goto out;
 	}
+
+	free(pending->info);
+	free(pending);
 
 out:
 	spin_unlock(&thread->sinfo.lock);
