@@ -364,6 +364,7 @@ struct inode *ext2_create_file(const char *name, mode_t mode, dev_t dev, struct 
 	inode->ctime = inode->atime = inode->mtime = (uint32_t) clock_get_posix_time();
 	
 	struct creds *c = creds_get();
+	unsigned long old = 0;
 
 	inode->uid = c->euid;
 	inode->gid = c->egid;
@@ -388,12 +389,20 @@ struct inode *ext2_create_file(const char *name, mode_t mode, dev_t dev, struct 
 
 	fs->update_inode(inode, inumber);
 	fs->update_inode(dir_inode, vfs_ino->i_inode);
+
+	old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
 	
-	if(ext2_add_direntry(name, inumber, inode, vfs_ino, fs) < 0)
+	if(int st = ext2_add_direntry(name, inumber, inode, vfs_ino, fs); st < 0)
 	{
+		thread_change_addr_limit(old);
+		printk("ext2 error %d\n", st);
 		errno = EINVAL;
 		goto free_ino_error;
 	}
+
+	if(S_ISDIR(mode)) inode_inc_nlink(vfs_ino);
+
+	thread_change_addr_limit(old);
 	
 	ino = ext2_fs_ino_to_vfs_ino(inode, inumber, fs);
 	if(!ino)
@@ -411,7 +420,7 @@ unlink_ino:
 	free(ino);
 free_ino_error:
 	free(inode);
-	fs->free_block(inumber);
+	fs->free_inode(inumber);
 
 	return nullptr;
 }
@@ -645,11 +654,14 @@ struct inode *ext2_mknod(const char *name, mode_t mode, dev_t dev, struct dentry
 
 struct inode *ext2_mkdir(const char *name, mode_t mode, struct dentry *dir)
 {
+	printk("mkdir\n");
 	struct inode *new_dir = ext2_create_file(name, (mode & 0777) | S_IFDIR, 0, dir);
 	if(!new_dir)
 	{
 		return nullptr;
 	}
+
+	new_dir->i_nlink = 2;
 	
 	/* Create the two basic links - link to self and link to parent */
 	/* FIXME: Handle failure here? */
@@ -661,6 +673,10 @@ struct inode *ext2_mkdir(const char *name, mode_t mode, struct dentry *dir)
 	uint32_t inum = (uint32_t) new_dir->i_inode;
 
 	fs->block_groups[ext2_inode_number_to_bg(inum, fs)].inc_used_dirs();
+
+	printk("gudbye\n");
+
+	inode_mark_dirty(new_dir);
 
 	return new_dir;
 }

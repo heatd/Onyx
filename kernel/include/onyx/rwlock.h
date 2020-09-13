@@ -90,6 +90,12 @@ public:
 		this->lock();
 	}
 
+	scoped_rwlock(rwlock& lock, bool autolock) : internal_lock(lock)
+	{
+		if(autolock)
+			this->lock();
+	}
+
 	~scoped_rwlock()
 	{
 		if(IsLocked)

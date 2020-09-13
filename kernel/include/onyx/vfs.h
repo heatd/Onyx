@@ -209,6 +209,8 @@ struct file *get_current_directory(void);
 
 int link_vfs(struct file *target, struct file *rel_base, const char *newpath);
 
+#define UNLINK_VFS_DONT_TEST_EMPTY          (1 << 24)
+
 int unlink_vfs(const char *name, int flags, struct file *node);
 
 char *readlink_vfs(struct file *file);
@@ -283,11 +285,13 @@ static inline void inode_set_size(struct inode *ino, size_t size)
 static inline void inode_inc_nlink(struct inode *ino)
 {
 	__atomic_add_fetch(&ino->i_nlink, 1, __ATOMIC_RELAXED);
+	inode_mark_dirty(ino);
 }
 
 static inline void inode_dec_nlink(struct inode *ino)
 {
 	__atomic_sub_fetch(&ino->i_nlink, 1, __ATOMIC_RELAXED);
+	inode_mark_dirty(ino);
 }
 
 static inline nlink_t inode_get_nlink(struct inode *ino)

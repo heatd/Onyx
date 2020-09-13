@@ -520,6 +520,9 @@ int ftruncate_vfs(off_t length, struct file *vnode)
 {
 	if(length < 0)
 		return -EINVAL;
+	
+	if(vnode->f_ino->i_type == VFS_TYPE_DIR)
+		return -EISDIR;
 
 	if((size_t) length == vnode->f_ino->i_size)
 		return 0;

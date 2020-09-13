@@ -180,7 +180,7 @@ int ext2_add_direntry(const char *name, uint32_t inum, struct ext2_inode *ino,
 			if(st < 0)
 			{
 				free(buffer);
-				return -errno;
+				return st;
 			}
 
 			for(size_t i = 0; i < fs->block_size;)
@@ -203,10 +203,10 @@ int ext2_add_direntry(const char *name, uint32_t inum, struct ext2_inode *ino,
 
 					COMPILER_BARRIER();
 
-					if(file_write_cache(buffer, fs->block_size, dir, off) < 0)
+					if(int st = file_write_cache(buffer, fs->block_size, dir, off); st < 0)
 					{
 						free(buffer);
-						return -errno;
+						return st;
 					}
 	
 					free(buffer);
@@ -221,10 +221,10 @@ int ext2_add_direntry(const char *name, uint32_t inum, struct ext2_inode *ino,
 					e->size = actual_size;
 					memcpy(d, &entry, dirent_size);
 					
-					if(file_write_cache(buffer, fs->block_size, dir, off) < 0)
+					if(int st = file_write_cache(buffer, fs->block_size, dir, off); st < 0)
 					{
 						free(buffer);
-						return -errno;
+						return st;
 					}
 	
 					free(buffer);
@@ -241,9 +241,9 @@ int ext2_add_direntry(const char *name, uint32_t inum, struct ext2_inode *ino,
 			entry.size = fs->block_size;
 			memcpy(buf, &entry, dirent_size);
 
-			if(file_write_cache(buf, fs->block_size, dir, off) < 0)
+			if(int st = file_write_cache(buf, fs->block_size, dir, off); st < 0)
 			{
-				return -errno;
+				return st;
 			}
 
 			break;
@@ -340,8 +340,10 @@ int ext2_file_present(inode *inode, const char *name, ext2_superblock *fs)
 
 	if(st < 0 && st != -ENOENT)
 		return -EIO;
-	
-	free(res.buf);
+	else if(st == 1)
+	{
+		free(res.buf);
+	}
 
 	return st != -ENOENT;
 }
@@ -418,16 +420,39 @@ int ext2_link(struct inode *target, const char *name, struct inode *dir)
 	/* Blame past me for the inconsistency in return values */
 	st = ext2_add_direntry(name, (uint32_t) target->i_inode, target_ino, dir, fs);
 
+	if(st < 0)
+	{
+		thread_change_addr_limit(old);
+		return -errno;
+	}
+
+	/* If we're linking a directory, this means we're part of a rename(). */
+	
+	if(target->i_type == VFS_TYPE_DIR && !!strcmp(name, ".") && !!strcmp(name, ".."))
+	{
+		/* Adjust .. to point to us */
+		ext2_dirent_result res;
+		st = ext2_retrieve_dirent(target, "..", fs, &res);
+
+		if(st < 0)
+		{
+			thread_change_addr_limit(old);
+			return st;
+		}
+
+		dir_entry_t *dentry = (dir_entry_t *) (res.buf + res.block_off);
+		dentry->inode = (uint32_t) dir->i_inode;
+
+		st = file_write_cache(dentry, sizeof(dir_entry_t), target, res.file_off);
+		inode_inc_nlink(dir);
+	}
+
 	thread_change_addr_limit(old);
 
 	if(st < 0)
 	{
 		return -errno;
 	}
-
-	__sync_fetch_and_add(&target_ino->hard_links, 1);
-	__sync_synchronize();
-	COMPILER_BARRIER();
 
 	fs->update_inode(target_ino, (ext2_inode_no) target->i_inode);
 
@@ -520,21 +545,26 @@ int ext2_unlink(const char *name, int flags, struct dentry *dir)
 
 	dir_entry_t *ent = (dir_entry_t *) (res.buf + res.block_off);
 	
-	struct inode *target = superblock_find_inode(ino->i_sb, ent->inode);
+	struct inode *target = ext2_get_inode(fs, ent->inode);
 
-	/* TODO: target is forced to exist; pass dentry and optimise this, maybe */
-	assert(target != nullptr);
+	if(!target)
+	{
+		free(res.buf);
+		return -ENOMEM;
+	}
 
 	if(target->i_type == VFS_TYPE_DIR)
 	{
 		if(!(flags & AT_REMOVEDIR))
 		{
+			inode_unref(target);
 			free(res.buf);
 			return -EISDIR;
 		}
 
-		if(ext2_dir_empty(target) == 0)
+		if(!(flags & UNLINK_VFS_DONT_TEST_EMPTY) && ext2_dir_empty(target) == 0)
 		{
+			inode_unref(target);
 			free(res.buf);
 			return -ENOTEMPTY;
 		}
@@ -564,11 +594,16 @@ int ext2_unlink(const char *name, int flags, struct dentry *dir)
 
 	/* Flush to disk */
 	/* TODO: Maybe we can optimize things by not flushing the whole block? */
-	if(file_write_cache(res.buf, fs->block_size, ino, res.file_off - res.block_off) < 0)
+	auto old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
+	if(int st = file_write_cache(res.buf, fs->block_size, ino, res.file_off - res.block_off); st < 0)
 	{
+		thread_change_addr_limit(old);
+		printk("ext2: error %d\n", st);
 		close_vfs(target);
 		return -EIO;
 	}
+
+	thread_change_addr_limit(old);
 
 	free(res.buf);
 

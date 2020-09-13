@@ -10,7 +10,7 @@
 #include <onyx/vm.h>
 #include <onyx/scheduler.h>
 
-void *memdup(void *ptr, size_t size)
+void *memdup(const void *ptr, size_t size)
 {
 	void *new_ptr = malloc(size);
 	if(!new_ptr)

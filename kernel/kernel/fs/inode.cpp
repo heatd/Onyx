@@ -266,8 +266,8 @@ ssize_t inode_sync(struct inode *inode)
 	while(rb_itor_valid(&it))
 	{
 		void *datum = *rb_itor_datum(&it);
-		struct page_cache_block *b = (page_cache_block *) datum;
-		struct page *page = b->page;
+		struct page *page = (struct page *) datum;
+		struct page_cache_block *b = page->cache;
 
 		if(page->flags & PAGE_FLAG_DIRTY)
 		{
@@ -281,6 +281,8 @@ ssize_t inode_sync(struct inode *inode)
 	mutex_unlock(&inode->i_pages->page_lock);
 	return 0;
 }
+
+extern "C" bool inode_is_cacheable(struct inode *file);
 
 void inode_release(struct inode *inode)
 {
@@ -298,10 +300,8 @@ void inode_release(struct inode *inode)
 	if(inode->i_flags & INODE_FLAG_DIRTY)
 		flush_remove_inode(inode);
 
-	if(inode->i_type == VFS_TYPE_FILE)
+	if(inode_is_cacheable(inode))
 		inode_sync(inode);
-
-	inode_destroy_page_caches(inode);
 
 	/* Note that we require kill_inode to be called before close, at least for now,
 	 * because close may very well free resources that are needed to free the inode.
@@ -314,6 +314,10 @@ void inode_release(struct inode *inode)
 		/* TODO: Handle failures? */
 		sb->kill_inode(inode);
 	}
+
+	/* Destroy the page cache *after* kill inode, since kill_inode might need to access the vmo */
+	inode_destroy_page_caches(inode);
+
 
 	if(inode->i_fops->close != NULL)
 		inode->i_fops->close(inode);

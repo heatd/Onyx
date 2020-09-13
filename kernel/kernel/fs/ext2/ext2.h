@@ -545,4 +545,6 @@ __atomic_sub_fetch(&var, num, __ATOMIC_RELAXED)
 
 #define EXT2_SUPPORTED_INCOMPAT   EXT2_FEATURE_INCOMPAT_FILETYPE
 
+inode *ext2_get_inode(ext2_superblock *sb, uint32_t inode_num);
+
 #endif
