@@ -73,12 +73,13 @@ _Noreturn void __pthread_exit(void *result)
 	/* Access to target the exiting thread with syscalls that use
 	 * its kernel tid is controlled by killlock. For detached threads,
 	 * any use past this point would have undefined behavior, but for
-	 * joinable threads it's a valid usage that must be handled. */
+	 * joinable threads it's a valid usage that must be handled.
+	 * Signals must be blocked since pthread_kill must be AS-safe. */
+	__block_app_sigs(&set);
 	LOCK(self->killlock);
 
-	/* The thread list lock must be AS-safe, and thus requires
-	 * application signals to be blocked before it can be taken. */
-	__block_app_sigs(&set);
+	/* The thread list lock must be AS-safe, and thus depends on
+	 * application signals being blocked above. */
 	__tl_lock();
 
 	/* If this is the only thread in the list, don't proceed with
@@ -86,19 +87,12 @@ _Noreturn void __pthread_exit(void *result)
 	 * signal state to prepare for exit to call atexit handlers. */
 	if (self->next == self) {
 		__tl_unlock();
-		__restore_sigs(&set);
 		UNLOCK(self->killlock);
+		__restore_sigs(&set);
 		exit(0);
 	}
 
-	/* At this point we are committed to thread termination. Unlink
-	 * the thread from the list. This change will not be visible
-	 * until the lock is released, which only happens after SYS_exit_thread
-	 * has been called, via the exit futex address pointing at the lock. */
-	libc.threads_minus_1--;
-	self->next->prev = self->prev;
-	self->prev->next = self->next;
-	self->prev = self->next = self;
+	/* At this point we are committed to thread termination. */
 
 	/* Process robust list in userspace to handle non-pshared mutexes
 	 * and the detached thread case where the robust list head will
@@ -121,6 +115,16 @@ _Noreturn void __pthread_exit(void *result)
 
 	__do_orphaned_stdio_locks();
 	__dl_thread_cleanup();
+
+	/* Last, unlink thread from the list. This change will not be visible
+	 * until the lock is released, which only happens after SYS_exit_thread
+	 * has been called, via the exit futex address pointing at the lock.
+	 * This needs to happen after any possible calls to LOCK() that might
+	 * skip locking if process appears single-threaded. */
+	if (!--libc.threads_minus_1) libc.need_locks = -1;
+	self->next->prev = self->prev;
+	self->prev->next = self->next;
+	self->prev = self->next = self;
 
 	/* This atomic potentially competes with a concurrent pthread_detach
 	 * call; the loser is responsible for freeing thread resources. */
@@ -344,13 +348,12 @@ int __pthread_create(pthread_t *restrict res, const pthread_attr_t *restrict att
 		~(1UL<<((SIGCANCEL-1)%(8*sizeof(long))));
 
 	__tl_lock();
-	libc.threads_minus_1++;
-
+	if (!libc.threads_minus_1++) libc.need_locks = 1;
 	struct tid_out t;
 	t.ptid = &new->tid;
 	t.ctid = (pid_t *) &__thread_list_lock;
 	ret = syscall(SYS_clone, (c11 ? start_c11 : start), stack, flags, args, &t,
-	              TP_ADJ(new));
+                  TP_ADJ(new));
 
 	/* All clone failures translate to EAGAIN. If explicit scheduling
 	 * was requested, attempt it before unlocking the thread list so
@@ -373,7 +376,7 @@ int __pthread_create(pthread_t *restrict res, const pthread_attr_t *restrict att
 		new->next->prev = new;
 		new->prev->next = new;
 	} else {
-		libc.threads_minus_1--;
+		if (!--libc.threads_minus_1) libc.need_locks = 0;
 	}
 	__tl_unlock();
 	__restore_sigs(&set);

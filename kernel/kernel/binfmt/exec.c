@@ -137,6 +137,7 @@ void *process_setup_auxv(void *buffer, char *strings_space, struct process *proc
 				break;
 			case AT_RANDOM:
 				get_entropy((char*) scratch_space, 16);
+				auxv[i].a_un.a_val = (uint64_t) scratch_space;
 				scratch_space += 16;
 				break;
 			case AT_BASE:
