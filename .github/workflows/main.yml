@@ -32,7 +32,7 @@ jobs:
           echo "::add-path::$PWD/x86_64_onyx/bin"
 
       - name: dependencies
-        run: sudo apt-get update && sudo apt-get install mtools genisoimage libfl2
+        run: sudo apt-get update && sudo apt-get install mtools genisoimage libfl2 
 
       # Runs a set of commands using the runners shell
       - name: Build Onyx
