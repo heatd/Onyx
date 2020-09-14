@@ -29,14 +29,14 @@ jobs:
         run: |
           wget -q https://github.com/heatd/onyx-toolchains/raw/master/x86_64-onyx.tar.zst
           zstd -d x86_64-onyx.tar.zst --stdout | tar x --strip-components=3
+          echo "::add-path::$PWD/x86_64_onyx/bin"
+
       - name: dependencies
-        run: sudo apt-get update && sudo apt-get install mtools genisoimage
+        run: sudo apt-get update && sudo apt-get install mtools genisoimage libfl2
 
       # Runs a set of commands using the runners shell
       - name: Build Onyx
         run: |
-          echo "::add-path::$PWD/x86_64_onyx/bin"
-          echo $PATH
           cp kernel/kernel.config.example kernel/kernel.config
           make -j $(nproc) iso
 
