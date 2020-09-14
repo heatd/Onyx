@@ -1,11 +1,11 @@
 #!/bin/sh
 
-function show_help()
+show_help()
 {
         echo "Usage: geninitrd [options] shell scripts"
 }
 
-no_symlinks=false
+no_symlinks="false"
 SHELL_SCRIPTS=""
 COMPRESSION_METHOD=xz
 
@@ -16,7 +16,7 @@ while [ "$1" != "" ]; do
                         exit 0
                         ;;
                 --no-symlinks)
-                        no_symlinks=true
+                        no_symlinks="true"
                         ;;
                 --compression-method)
                         COMPRESSION_METHOD=$2
@@ -46,7 +46,7 @@ for script in $SHELL_SCRIPTS; do
         fi
 done
 
-if [ $no_symlinks == false ]
+if [ $no_symlinks = "false" ]
 then
         cd initrd-root
         ln -sf usr/lib .
@@ -66,15 +66,15 @@ cd ..
 rm -rf initrd-root
 
 echo "Compressing it"
-if [ "$COMPRESSION_METHOD" == "xz" ]
+if [ "$COMPRESSION_METHOD" = "xz" ]
 then
 xz -5 -e -f initrd.tar
 ARCHIVE_NAME="initrd.tar.xz"
-elif [ "$COMPRESSION_METHOD" == "gz" ]
+elif [ "$COMPRESSION_METHOD" = "gz" ]
 then
 gzip -5 initrd.tar
 ARCHIVE_NAME="initrd.tar.gz"
-elif [ $COMPRESSION_METHOD == "bz" ]
+elif [ $COMPRESSION_METHOD = "bz" ]
 then
 bzip -5 initrd.tar
 ARCHIVE_NAME="initrd.tar.bz2"
