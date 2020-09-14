@@ -1,0 +1,55 @@
+# This is a basic workflow to help you get started with Actions
+
+name: CI
+
+# Controls when the action will run. Triggers the workflow on push or pull request
+# events but only for the master branch
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  release:
+    branches: [ master ]
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # This workflow contains a single job called "build"
+  build:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v2
+
+      # Runs a single command using the runners shell
+      - name: Download the toolchain
+        run: |
+          wget -q https://github.com/heatd/onyx-toolchains/raw/master/x86_64-onyx.tar.zst
+          zstd -d x86_64-onyx.tar.zst --stdout | tar x --strip-components=3
+      - name: dependencies
+        run: sudo apt-get update && sudo apt-get install mtools genisoimage
+
+      # Runs a set of commands using the runners shell
+      - name: Build Onyx
+        run: |
+          echo "::add-path::$PWD/x86_64_onyx/bin"
+          echo $PATH
+          cp kernel/kernel.config.example kernel/kernel.config
+          make -j $(nproc) iso
+
+      - name: Upload a Build Artifact(Onyx.iso)
+        uses: actions/upload-artifact@v2.1.4
+        with:
+          name: Onyx ISO
+          path: Onyx.iso
+          error: Failed to build an iso image
+
+      - name: Upload a Build Artifact(kernel/vmonyx)
+        uses: actions/upload-artifact@v2.1.4
+        with:
+          name: vmonyx
+          path: kernel/vmonyx
+          error: Failed to build the kernel          
