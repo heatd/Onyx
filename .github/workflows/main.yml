@@ -38,18 +38,22 @@ jobs:
       - name: Build Onyx
         run: |
           cp kernel/kernel.config.example kernel/kernel.config
-          make -j $(nproc) iso
+          RUN_CLANG_TIDY=0 make -j $(nproc) iso
 
       - name: Upload a Build Artifact(Onyx.iso)
         uses: actions/upload-artifact@v2.1.4
         with:
           name: Onyx ISO
           path: Onyx.iso
-          error: Failed to build an iso image
 
       - name: Upload a Build Artifact(kernel/vmonyx)
         uses: actions/upload-artifact@v2.1.4
         with:
           name: vmonyx
           path: kernel/vmonyx
-          error: Failed to build the kernel          
+
+      - name: Upload a Build Artifact(sysroot)
+        uses: actions/upload-artifact@v2.1.4
+        with:
+          name: Sysroot
+          path: sysroot/
