@@ -1,0 +1,3 @@
+[submodule "onyx-pkgs"]
+	path = onyx-pkgs
+	url = https://github.com/heatd/onyx-pkgs
