@@ -23,7 +23,7 @@ while [ "$1" != "" ]; do
                         shift
                         ;;
 		?*)
-			SHELL_SCRIPTS+="$1 "
+			SHELL_SCRIPTS="$SHELL_SCRIPTS $1 "
 			;;
         esac
         shift
@@ -39,11 +39,7 @@ mkdir $DESTDIR
 
 # Execute shell scripts
 for script in $SHELL_SCRIPTS; do
-	
-        if [[ $str == /* ]]; then $script
-        else
-	        ./$script
-        fi
+	./$script
 done
 
 if [ $no_symlinks = "false" ]
