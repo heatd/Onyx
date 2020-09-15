@@ -32,12 +32,20 @@ jobs:
           echo "::add-path::$PWD/x86_64-onyx/bin"
 
       - name: dependencies
-        run: sudo apt-get update && sudo apt-get install mtools genisoimage libfl2 clang-tidy
+        run: |
+          sudo apt-get update && sudo apt-get install mtools genisoimage libfl2 clang-tidy unzip
+          mkdir gn_bin/
+          cd gn_bin
+          wget https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/latest -o gn.zip
+          unzip gn.zip
+          echo "::add-path::$PWD"
+          cd ..
 
       # Runs a set of commands using the runners shell
       - name: Build Onyx
         run: |
           cp kernel/kernel.config.example kernel/kernel.config
+          ./scripts/setup_build.sh
           RUN_CLANG_TIDY=0 make -j $(nproc) iso
 
       - name: Upload a Build Artifact(Onyx.iso)
