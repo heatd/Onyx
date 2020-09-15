@@ -33,7 +33,7 @@ jobs:
 
       - name: dependencies
         run: |
-          sudo apt-get update && sudo apt-get install mtools genisoimage libfl2 clang-tidy unzip ninja
+          sudo apt-get update && sudo apt-get install mtools genisoimage libfl2 clang-tidy unzip ninja-build
           mkdir gn_bin/
           cd gn_bin
           wget -q https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/latest -O gn.zip
