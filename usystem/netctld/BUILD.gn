@@ -12,7 +12,7 @@ app_executable("netctld_bin") {
     output_name = "netctld"
 
     sources = [ "dhcpcd.cpp",
-              "netctl.cpp"]
+              "netctl.cpp" ]
 
     deps = ["//json"]
 }

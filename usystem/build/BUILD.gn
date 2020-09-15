@@ -1,0 +1,3 @@
+config("compiler_defaults") {
+    cflags = ["-O2", "-g"]
+}
