@@ -100,8 +100,8 @@ public:
 
 	~instance()
 	{
-		close(fd);
 		thread.join();
+		close(fd);
 	}
 
 	instance(instance&& other)

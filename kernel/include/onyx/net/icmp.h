@@ -102,8 +102,6 @@ private:
 
 	bool has_data_available()
 	{
-		scoped_lock g{&rx_packet_list_lock};
-
 		return !list_is_empty(&rx_packet_list);
 	}
 

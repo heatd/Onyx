@@ -9,6 +9,7 @@
 #include <onyx/net/tcp.h>
 #include <onyx/net/netif.h>
 #include <onyx/net/icmp.h>
+#include <onyx/net/icmpv6.h>
 #include <onyx/net/socket_table.h>
 
 #include <onyx/random.h>
@@ -30,6 +31,8 @@ socket *choose_protocol_and_create(int type, int protocol)
 					return udp_create_socket(type);
 				case IPPROTO_ICMP:
 					return icmp::create_socket(type);
+				case IPPROTO_ICMPV6:
+					return icmpv6::create_socket(type);
 				default:
 					return nullptr;
 			}

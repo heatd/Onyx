@@ -39,6 +39,7 @@ all: iso
 
 clean:
 	for module in $(ALL_MODULES); do $(MAKE) -C $$module clean; done
+	cd usystem && gn clean out/ && cd ..
 	rm -rf sysroot
 	rm -rf initrd.tar.*
 	$(MAKE) -C musl clean
@@ -83,7 +84,10 @@ install-headers: build-prep
 
 build-srcpackages: $(SOURCE_PACKAGES)
 
-build-usystem: build-srcpackages $(USYSTEM_PROJS)
+build-gn: musl libssp install-packages
+	cd usystem && ninja -C out/ system && ./copy_packages.sh && cd ..
+
+build-usystem: build-srcpackages $(USYSTEM_PROJS) build-gn
 
 build-cleanup: build-usystem 
 	cp kernel/kernel.config sysroot/boot/

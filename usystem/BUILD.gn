@@ -1,0 +1,5 @@
+group("system") {
+    deps = [
+        "//netctld"
+    ]
+}

@@ -68,6 +68,7 @@ bool packetbuf::allocate_space(size_t length)
 		pages = pages->next_un.next_allocation;
 	}
 
+#if 0
 	buffer_start = vm_map_vmo(VM_KERNEL, VM_TYPE_REGULAR, nr_pages, VM_WRITE | VM_NOEXEC | VM_READ, vmo);
 	if(!buffer_start)
 	{
@@ -83,6 +84,9 @@ bool packetbuf::allocate_space(size_t length)
 
 		return false;
 	}
+#else
+	buffer_start = PAGE_TO_VIRT(pages_head);
+#endif
 
 	net_header = transport_header = nullptr;
 	data = tail = (unsigned char *) buffer_start;
@@ -119,9 +123,9 @@ void *packetbuf::put(unsigned int size)
 
 packetbuf::~packetbuf()
 {
-	const auto mapping_length = end - (unsigned char *) buffer_start;
+	//const auto mapping_length = end - (unsigned char *) buffer_start;
 
-	if(buffer_start)   vm_munmap(&kernel_address_space, buffer_start, mapping_length);
+	//if(buffer_start)   vm_munmap(&kernel_address_space, buffer_start, mapping_length);
 	if(vmo)  vmo_unref(vmo);
 
 	for(auto &v : page_vec)

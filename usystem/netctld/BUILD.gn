@@ -1,0 +1,36 @@
+package_name = "netctld"
+
+template("app_executable") {
+    executable(target_name) {
+        
+        forward_variables_from(invoker, "*", ["output_dir"])
+        output_dir = "${root_out_dir}/packages/${package_name}/sbin"
+    }
+}
+
+app_executable("netctld_bin") {
+    output_name = "netctld"
+
+    sources = [ "dhcpcd.cpp",
+              "netctl.cpp"]
+
+    deps = ["//json"]
+}
+
+copy("netctld_rule") {
+    sources = [ "netctld.service" ]
+    outputs = [ "${root_out_dir}/packages/netctld/etc/init.d/targets/netctld.service" ]
+}
+
+copy("netctld_files") {
+    sources = [ "default-profile.json" ]
+    outputs = [ "${root_out_dir}/packages/netctld/etc/netctl/default-profile.json" ]
+}
+
+group("netctld") {
+    deps = [
+        ":netctld_bin",
+        ":netctld_rule",
+        ":netctld_files"
+    ]
+}

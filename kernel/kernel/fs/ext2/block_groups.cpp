@@ -121,7 +121,7 @@ void ext2_block_group::free_block(ext2_block_no block, ext2_superblock *sb)
 {
 	scoped_mutex g{block_bitmap_lock};
 
-	printk("freeing block %u\n", block);
+	//printk("freeing block %u\n", block);
 
 	/* The inode and block bitmaps are guaranteed to a single block in size */
 	auto_block_buf buf = sb_read_block(sb, bgd->block_usage_addr);

@@ -623,6 +623,9 @@ inet_proto_family *get_v4_proto()
 
 socket *create_socket(int type, int protocol)
 {
+	if(protocol == IPPROTO_ICMPV6)
+		return errno = EAFNOSUPPORT, nullptr;
+
 	auto sock = ip::choose_protocol_and_create(type, protocol);
 
 	if(sock)

@@ -439,6 +439,7 @@ ssize_t icmp_socket::recvmsg(msghdr *msg, int flags)
 
 short icmp_socket::poll(void *poll_file, short events)
 {
+	scoped_lock g{&rx_packet_list_lock};
 	short avail_events = POLLOUT;
 
 	if(events & POLLIN)

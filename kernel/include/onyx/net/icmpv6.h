@@ -10,6 +10,9 @@
 #include <stddef.h>
 
 #include <onyx/net/inet_route.h>
+#include <onyx/scoped_lock.h>
+#include <onyx/spinlock.h>
+#include <onyx/public/icmp.h>
 
 #define ICMPV6_DEST_UNREACHABLE   1
 #define ICMPV6_PACKET_TOO_BIG     2
@@ -41,6 +44,78 @@ struct send_data
 
 	send_data(uint8_t t, uint8_t c, const inet_route& r) : type{t}, code{c}, route{r} {}
 };
+
+class icmp6_socket : public inet_socket
+{
+private:
+	static constexpr unsigned int icmp_max_filters = 5;
+	spinlock filters_lock;
+	cul::vector<icmp_filter> filters;
+
+	int add_filter(icmp_filter&& f);
+
+	packetbuf *get_rx_head()
+	{
+		if(list_is_empty(&rx_packet_list))
+			return nullptr;
+		
+		return list_head_cpp<packetbuf>::self_from_list_head(list_first_element(&rx_packet_list));
+	}
+
+	bool has_data_available()
+	{
+		return !list_is_empty(&rx_packet_list);
+	}
+
+	expected<packetbuf *, int> get_datagram(int flags);
+
+	int wait_for_dgrams()
+	{
+		return wait_for_event_locked_interruptible(&rx_wq, !list_is_empty(&rx_packet_list), &rx_packet_list_lock);
+	}
+
+public:
+	icmp6_socket() : filters_lock{}, filters{}
+	{
+		spinlock_init(&filters_lock);
+	}
+
+	~icmp6_socket() = default;
+
+	int bind(struct sockaddr *addr, socklen_t addrlen) override;
+	int connect(struct sockaddr *addr, socklen_t addrlen) override;
+	ssize_t sendmsg(const struct msghdr *msg, int flags) override;
+	int getsockopt(int level, int optname, void *val, socklen_t *len) override;
+	int setsockopt(int level, int optname, const void *val, socklen_t len) override;
+	short poll(void *poll_file, short events) override;
+	ssize_t recvmsg(msghdr *msg, int flags) override;
+
+	bool match_filter(const icmpv6_header *header)
+	{
+		scoped_lock g{&filters_lock};
+
+		for(const auto &f : filters)
+		{
+			if(header->type != f.type && f.type != ICMP_FILTER_TYPE_UNSPEC)
+				continue;
+			if(header->code != f.code && f.code != ICMP_FILTER_CODE_UNSPEC)
+				continue;
+			
+			return true;
+		}
+
+		return false;
+	}
+};
+
+icmp6_socket *create_socket(int type);
+
+static constexpr unsigned int min_icmp6_size()
+{
+	return sizeof(icmpv6_header);
+}
+
+int handle_packet(netif *nif, packetbuf *buf);
 
 int send_packet(const send_data& data, cul::slice<unsigned char> packet_data);
 

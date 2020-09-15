@@ -1,0 +1,6 @@
+{
+	"ipv6" :
+	{
+		"addrcfg_type" : "slaac_mac"
+	}
+}

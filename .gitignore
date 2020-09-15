@@ -26,4 +26,5 @@ gen_password_hash
 hdd.img.bak.zst
 kernel/kernel.config
 *.zst
-
+out/
+*.vmdk
