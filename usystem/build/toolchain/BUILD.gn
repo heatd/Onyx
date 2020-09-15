@@ -41,7 +41,7 @@ toolchain("x86_64") {
     os_specific_option = "-Wl,-soname=$soname"
     rspfile_content = "-Wl,--whole-archive {{inputs}} {{solibs}} -Wl,--no-whole-archive {{libs}}"
 
-    command = "$ld -shared {{ldflags}} -o $sofile $os_specific_option @$rspfile"
+    command = "$ld --sysroot=$sys_root -shared {{ldflags}} -o $sofile $os_specific_option @$rspfile"
     description = "SOLINK $soname"
     # Use this for {{output_extension}} expansions unless a target manually
     # overrides it (in which case {{output_extension}} will be what the target
@@ -58,7 +58,7 @@ toolchain("x86_64") {
   tool("link") {
     outfile = "{{output_dir}}/{{target_output_name}}{{output_extension}}"
     rspfile = "$outfile.rsp"
-    command = "$ld {{ldflags}} -o $outfile -Wl,--start-group @$rspfile {{solibs}} -Wl,--end-group {{libs}}"
+    command = "$ld --sysroot=$sys_root {{ldflags}} -o $outfile -Wl,--start-group @$rspfile {{solibs}} -Wl,--end-group {{libs}}"
 
     description = "LINK $outfile"
     default_output_dir = "{{root_out_dir}}"
