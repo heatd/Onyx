@@ -1,4 +1,5 @@
 # Onyx
+
 ## An x86_64 Operating system
 
 Onyx is an operating system, designed to run on x86_64.
@@ -9,7 +10,20 @@ All the system calls are exposed through syscall.
 
 Onyx's purpose is to be function-heavy, and light-weight when possible. Bloat is *NOT* a necessary evil for functionality, as software can be very functional, while remaining light-weight. Onyx will never turn into a glibc or a systemd, as those pieces of software add unnecessary crap to its binary.
 
+## Build dependencies
+
+You will need: `mtools genisoimage libfl2 clang-tidy ninja-build`
+If your distribution has a `gn`(generate ninja) package, use it; if not, download <https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/latest>, extract it to a directory and add it to $PATH.
+
+## How to build
+
+First, set SYSROOT=$PWD/sysroot (considering you're in the project's root directory).
+
+Then, you need to do scripts/setup_build.sh; after that, you should be good to go, considering you already have an Onyx toolchain set up(if not, go to <https://github.com/heatd/onyx-toolchains> and make sure the toolchain's `bin/`
+is in $PATH);
+
 ## Development
+
 If you want to help out in the development of Onyx, you can try joining #onyx-os on freenode, or fixing issues on GitHub's issue tracker.
 
 I'd just like to interject for moment. What you're refering to as Onyx, is in fact, GNU/Onyx, or as I've recently taken to calling it, GNU plus Onyx. Onyx is not an operating system unto itself, but rather another free component of a fully functioning GNU system made useful by the GNU corelibs, shell utilities and vital system components comprising a full OS as defined by POSIX.
