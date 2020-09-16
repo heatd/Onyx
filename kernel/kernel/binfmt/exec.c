@@ -56,8 +56,14 @@ char **process_copy_envarg(const char **envarg, bool to_kernel, int *count)
 	/* Actually copy the buffer */
 	for(size_t i = 0; i < nr_args; i++)
 	{
-		strcpy(it, envarg[i]);
-		it += strlen(envarg[i]) + 1;
+		size_t length = strlen_user(envarg[i]);
+		if(length == (size_t) -EFAULT)
+			return errno = EFAULT, NULL;
+
+		if(copy_from_user(it, envarg[i], length) < 0)
+			return errno = EFAULT, NULL;
+
+		it += length + 1;
 	}
 
 	char **new_args = (char**) new;
