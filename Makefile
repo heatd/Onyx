@@ -83,6 +83,7 @@ dash: musl libssp install-packages
 	     ./configure --prefix=/ --bindir=/usr/bin --host=x86_64-onyx --enable-static 2> /dev/null \
 		 && cd ../.."
 	$(MAKE) -C usystem/$@ install
+	ln -sf dash $(DESTDIR)$(BINDIR)/sh
 
 install-headers: build-prep
 	$(MAKE) -C kernel install-headers
