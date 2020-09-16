@@ -220,11 +220,11 @@ AUTOCONF = ${SHELL} /home/pfalcato/Onyx/usystem/dash/missing autoconf
 AUTOHEADER = ${SHELL} /home/pfalcato/Onyx/usystem/dash/missing autoheader
 AUTOMAKE = ${SHELL} /home/pfalcato/Onyx/usystem/dash/missing automake-1.16
 AWK = gawk
-CC = x86_64-onyx-gcc
+CC = x86_64-onyx-gcc --sysroot=/home/pfalcato/Onyx/sysroot
 CCDEPMODE = depmode=gcc3
 CC_FOR_BUILD = cc
-CFLAGS = -g -O2
-CPP = x86_64-onyx-gcc -E
+CFLAGS = -O2 -g
+CPP = x86_64-onyx-gcc --sysroot=/home/pfalcato/Onyx/sysroot -E
 CPPFLAGS = 
 CYGPATH_W = echo
 DEFS = -DHAVE_CONFIG_H

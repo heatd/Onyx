@@ -6,7 +6,7 @@ include usystem/Makefile
 ALL_MODULES:=$(PROJECTS) $(SOURCE_PACKAGES) $(patsubst %, usystem/%, $(USYSTEM_PROJS))
 
 .PHONY: all iso clean build-prep $(SYSTEM_HEADER_PROJECTS) $(PROJECTS) \
-$(SOURCE_PACKAGES) build-cleanup dash musl
+$(SOURCE_PACKAGES) build-cleanup musl
 
 export DESTDIR:=$(PWD)/sysroot
 export HOST?=$(shell ./default-host.sh)
@@ -75,7 +75,13 @@ singularity: musl libssp install-packages wserver
 $(SOURCE_PACKAGES): musl libssp install-packages
 	$(MAKE) -C $@ install
 
-$(USYSTEM_PROJS): musl libssp install-packages
+$(USYSTEM_DFL_RULE_PROJS): musl libssp install-packages
+	$(MAKE) -C usystem/$@ install
+
+dash: musl libssp install-packages
+	test -f usystem/dash/Makefile || sh -c "cd usystem/dash && \
+	     ./configure --prefix=/ --bindir=/usr/bin --host=x86_64-onyx --enable-static 2> /dev/null \
+		 && cd ../.."
 	$(MAKE) -C usystem/$@ install
 
 install-headers: build-prep
