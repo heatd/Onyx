@@ -225,6 +225,9 @@ retry:;
 	args.state = &st;
 
 	assert(vm_create_address_space(&proc->address_space, proc) == 0);
+	
+	/* Account for the boot page table */
+	proc->address_space.page_tables_size = PAGE_SIZE;
 
 	/* Finally, load the binary */
 	void *entry = load_binary(&args);
