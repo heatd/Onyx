@@ -154,7 +154,11 @@ void *shebang_load(struct binfmt_args *args)
 		new_argv[curr++] = arg;
 	}
 
-	char **new_args = process_copy_envarg(new_argv, true, &argc);
+	unsigned long limit = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
+
+	char **new_args = process_copy_envarg((const char **) new_argv, true, &argc);
+
+	thread_change_addr_limit(limit);
 	
 	free(new_argv);
 

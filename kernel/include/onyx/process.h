@@ -119,6 +119,7 @@ struct process *process_find_tracee(struct process *tracer, pid_t pid);
 void process_exit_from_signal(int signum);
 void process_end(struct process *p);
 void process_add_thread(struct process *process, thread_t *thread);
+char **process_copy_envarg(const char **envarg, bool to_kernel, int *count);
 
 static inline void process_get(struct process *process)
 {
