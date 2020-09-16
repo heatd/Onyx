@@ -19,7 +19,6 @@ lua
 ports/*
 onyx-vdso*
 autom4ate.cache
-*.m4
 *.tar.*
 gen_password_hash
 *.vdi
