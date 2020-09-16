@@ -1,0 +1,9 @@
+import("//build/app.gni")
+
+app_executable("system_benchmark") {
+    package_name = "system_bench"
+    output_name = "$package_name"
+
+    sources = [ "src/fd_bench.cpp" ]
+    deps = [ "//benchmark" ]
+}

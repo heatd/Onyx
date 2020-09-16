@@ -115,6 +115,7 @@ int clock_gettime_kernel(clockid_t clk_id, struct timespec *tp)
 			tp->tv_nsec = clocks[clk_id].source->elapsed_ns(start, end);
 			break;
 		}
+
 		case CLOCK_MONOTONIC:
 		{
 			tp->tv_sec = clocks[clk_id].epoch;
@@ -123,9 +124,30 @@ int clock_gettime_kernel(clockid_t clk_id, struct timespec *tp)
 			tp->tv_nsec = clocks[clk_id].source->elapsed_ns(start, end);
 			break;
 		}
+
+		case CLOCK_PROCESS_CPUTIME_ID:
+		{
+			struct process *p = get_current_process();
+
+			hrtime_t total_time = p->system_time + p->user_time;
+
+			hrtime_to_timespec(total_time, tp);
+			break;
+		}
+
+		case CLOCK_THREAD_CPUTIME_ID:
+		{
+			struct thread *thr = get_current_thread();
+
+			hrtime_t total_time = thr->cputime_info.system_time + thr->cputime_info.user_time;
+			hrtime_to_timespec(total_time, tp);
+			break; 
+		}
+
 		default:
 			return -EINVAL;
 	}
+
 	return 0;
 }
 

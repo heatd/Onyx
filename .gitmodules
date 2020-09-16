@@ -4,3 +4,6 @@
 [submodule "usystem/googletest"]
 	path = usystem/googletest
 	url = https://github.com/heatd/googletest
+[submodule "usystem/benchmark"]
+	path = usystem/benchmark
+	url = https://github.com/heatd/benchmark

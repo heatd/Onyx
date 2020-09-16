@@ -92,6 +92,12 @@ static inline void hrtime_to_timeval(hrtime_t t0, struct timeval *v)
 		v->tv_usec++;
 }
 
+static inline void hrtime_to_timespec(hrtime_t t0, struct timespec *v)
+{
+	v->tv_sec = t0 / NS_PER_SEC;
+	v->tv_nsec = t0 % NS_PER_SEC;
+}
+
 static inline hrtime_t timeval_to_hrtime(const struct timeval *v)
 {
 	hrtime_t sec, usec, res;

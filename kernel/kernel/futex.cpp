@@ -20,6 +20,7 @@
 #include <onyx/fnv.h>
 #include <onyx/memory.hpp>
 #include <onyx/pagecache.h>
+#include <onyx/pair.hpp>
 
 /* This union describes the key used to match futexes with each other.
  * For private mappings, we use the mm_address_space address of the process and
@@ -43,15 +44,22 @@ struct futex_key
 		{
 			struct vm_object *vmo;
 			size_t page_offset;
+			unsigned int off;
 		} shared;
 
 		struct
 		{
 			struct mm_address_space *as;
 			int *ptr;
+			unsigned int off;
 		} private_mapping;
-		
-		unsigned int offset;
+	
+		struct
+		{
+			uint64_t data[2];
+			unsigned int offset;
+			unsigned int padding;
+		} both;
 	};
 	
 	futex_key()
@@ -61,15 +69,19 @@ struct futex_key
 		shared.page_offset = 0;
 		private_mapping.as = nullptr;
 		private_mapping.ptr = nullptr;
-		offset = 0;
+		both.offset = 0;
+		both.padding = 0;
 	}
 
 	bool operator==(const futex_key& k) const
 	{
-		if(offset != k.offset)
+		if(both.offset != k.both.offset)
+		{
+			printk("%d != %d\n", both.offset, k.both.offset);
 			return false;
+		}
 		
-		bool _private = k.offset & FUTEX_OFFSET_PRIVATE;
+		bool _private = k.both.offset & FUTEX_OFFSET_PRIVATE;
 
 		if(_private)
 		{
@@ -117,8 +129,6 @@ public:
 		list_remove(&list_node);
 	}
 
-	static futex_queue *find(futex_key& key);
-
 	futex_key& get_key()
 	{
 		return key;
@@ -128,6 +138,8 @@ public:
 	{
 		return awaken;
 	}
+
+	void requeue(const futex_key& new_key, struct list_head *new_head);
 };
 
 #if 0
@@ -147,7 +159,7 @@ uint32_t get_user_32(uint32_t *p)
 
 inline uint32_t __futex_hash(futex_key& key)
 {
-	return fnv_hash(&key, sizeof(key));
+	return fnv_hash(&key.both, sizeof(key.both));
 }
 
 uint32_t futex_hash(futex_queue& queue)
@@ -174,6 +186,52 @@ uint32_t get_hashtable(futex_key& key)
 	return index;
 }
 
+cul::pair<uint32_t, uint32_t> lock_two_hashes(futex_key& key1, futex_key& key2)
+{
+	const auto hash1 = __futex_hash(key1);
+	const auto hash2 = __futex_hash(key2);
+
+	auto index1 = futex_hashtable.get_hashtable_index(hash1);
+	auto index2 = futex_hashtable.get_hashtable_index(hash2);
+
+	if(index1 < index2)
+	{
+		spin_lock(&futex_hashtable_locks[index1]);
+		spin_lock(&futex_hashtable_locks[index2]);
+	}
+	else if(index1 > index2)
+	{
+		spin_lock(&futex_hashtable_locks[index2]);
+		spin_lock(&futex_hashtable_locks[index1]);
+	}
+	else
+	{
+		/* Only lock once if it's the same bucket */
+		spin_lock(&futex_hashtable_locks[index1]);
+	}
+
+	return {index1, index2};
+}
+
+void unlock_two_hashes(uint32_t index1, uint32_t index2)
+{
+	if(index1 > index2)
+	{
+		spin_unlock(&futex_hashtable_locks[index1]);
+		spin_unlock(&futex_hashtable_locks[index2]);
+	}
+	else if(index1 < index2)
+	{
+		spin_unlock(&futex_hashtable_locks[index2]);
+		spin_unlock(&futex_hashtable_locks[index1]);
+	}
+	else
+	{
+		/* Only lock once if it's the same bucket */
+		spin_unlock(&futex_hashtable_locks[index1]);
+	}
+}
+
 int calculate_key(int *uaddr, int flags, futex_key& out_key)
 {
 	bool private_ftx = flags & FUTEX_PRIVATE_FLAG;
@@ -190,7 +248,7 @@ int calculate_key(int *uaddr, int flags, futex_key& out_key)
 private_futex_out:
 		out_key.private_mapping.as = address_space;
 		out_key.private_mapping.ptr = uaddr;
-		out_key.offset = offset_within_page | FUTEX_OFFSET_PRIVATE;
+		out_key.both.offset = offset_within_page | FUTEX_OFFSET_PRIVATE;
 		return 0;
 	}
 
@@ -221,7 +279,7 @@ private_futex_out:
 
 	out_key.shared.page_offset = page_offset;
 	out_key.shared.vmo = vmo;
-	out_key.offset = offset_within_page | FUTEX_OFFSET_SHARED;
+	out_key.both.offset = offset_within_page | FUTEX_OFFSET_SHARED;
 
 	page_unpin(page);
 
@@ -254,6 +312,11 @@ int wait(int *uaddr, int val, int flags, const struct timespec *utimespec)
 
 	futex_queue queue{key};
 
+#if 0
+	auto hash = __futex_hash(key);
+	auto index = futex_hashtable.get_hashtable_index(hash);
+	printk("wuaddr %p index %lu\n", uaddr, index);
+#endif
 	/* After making a queue entry for this thread and this key,
 	 * we're going to atomically calculate a hash index and lock that hash index,
 	 * then check for the value(and if doesn't match, return -EAGAIN), and finally, sleep.
@@ -297,18 +360,23 @@ out:
 
 int wake(int *uaddr, int flags, int to_wake)
 {
+	if(to_wake < 0)
+		return -EINVAL;
+
 	int st = 0;
 	futex_key key{};
 
 	if((st = calculate_key(uaddr, flags, key)) < 0)
 		return st;
 
-	//printk("Shared: %s\n", key.offset & FUTEX_OFFSET_SHARED ? "yes" : "no");
+	//printk("Shared: %s\n", key.both.offset & FUTEX_OFFSET_SHARED ? "yes" : "no");
 
-	/* After making a queue entry for this thread and this key,
-	 * we're going to atomically calculate a hash index and lock that hash index,
-	 * then check for the value(and if doesn't match, return -EAGAIN), and finally, sleep.
-	 */
+#if 0
+	auto hash = __futex_hash(key);
+	auto index = futex_hashtable.get_hashtable_index(hash);
+
+	printk("uaddr %p index %lu\n", uaddr, index);
+#endif
 
 	auto hash_index = get_hashtable(key);
 	auto list_head = futex_hashtable.get_hashtable(hash_index);
@@ -337,6 +405,101 @@ int wake(int *uaddr, int flags, int to_wake)
 	return awaken;
 }
 
+void futex_queue::requeue(const futex_key& new_key, struct list_head *new_head)
+{
+	key = new_key;
+	list_remove(&list_node);
+	list_add(&list_node, new_head);
+}
+
+int cmp_requeue(int *uaddr, int flags, int to_wake, int to_requeue, int *uaddr2, int val3, bool val3_valid = true)
+{
+	//printk("requeue %p, %d, %d, %p\n", uaddr, to_wake, to_requeue, uaddr2);
+
+	if(to_wake < 0 || to_requeue < 0)
+		return -EINVAL;
+
+	int st = 0;
+	futex_key key1{};
+	futex_key key2{};
+
+	if((st = calculate_key(uaddr, flags, key1)) < 0)
+		return st;
+	
+	if((st = calculate_key(uaddr2, flags, key2)) < 0)
+		return st;
+
+	//printk("Shared: %s\n", key.offset & FUTEX_OFFSET_SHARED ? "yes" : "no");
+
+	auto [hash_index1, hash_index2] = lock_two_hashes(key1, key2);
+
+	auto wake_list = futex_hashtable.get_hashtable(hash_index1);
+	auto requeue_list = futex_hashtable.get_hashtable(hash_index2);
+
+	int awaken = 0, requeued = 0;
+
+	/* Compare val3 now that we're locked */
+	if(val3_valid)
+	{
+		unsigned int on_uaddr;
+		if(get_user32((unsigned int *) uaddr, &on_uaddr) < 0)
+		{
+			st = -EFAULT;
+			goto out;
+		}
+
+		if(on_uaddr != (unsigned int) val3)
+		{
+			st = -EAGAIN;
+			goto out;
+		}
+	}
+
+	list_for_every_safe(wake_list)
+	{
+		if(to_wake == 0 && to_requeue == 0)
+			break;
+
+		futex_queue *f = list_head_cpp<futex_queue>::self_from_list_head(l);
+		
+		if(f->get_key() == key1)
+		{
+			if(to_wake > 0)
+			{
+				f->wake();
+				to_wake--;
+				awaken++;
+			}
+			else
+			{
+				f->requeue(key2, requeue_list);
+				to_requeue--;
+				requeued++;
+			}
+		}
+	}
+
+	if(val3_valid)
+	{
+		/* If val3 is valid we know for sure that we're FUTEX_CMP_REQUEUE and not FUTEX_REQUEUE.
+		 * The semantics are slightly different: the first returns the number of waiters that
+		 * were woken up, while the second returns woken up + requeued.
+		 */
+		st = awaken + requeued;
+	}
+	else
+		st = awaken;
+
+out:
+	unlock_two_hashes(hash_index1, hash_index2);
+	return st;
+}
+
+int requeue(int *uaddr, int flags, int to_wake, int to_requeue, int *uaddr2)
+{
+	return cmp_requeue(uaddr, flags, to_wake, to_requeue, uaddr2, 0, false);
+}
+
 };
 
 extern "C" int futex_wake(int *uaddr, int nr_waiters)
@@ -350,6 +513,11 @@ extern "C" int futex_wake(int *uaddr, int nr_waiters)
 /* TODO: Add FUTEX_CLOCK_REALTIME support */
 #define FUTEX_KNOWN_FLAGS      (FUTEX_PRIVATE_FLAG)
 
+static inline int get_val2(const struct timespec *t)
+{
+	return (int) (long) t;
+}
+
 extern "C" int sys_futex(int *uaddr, int futex_op, int val, const struct timespec *timeout, int *uaddr2, int val3)
 {
 	int flags = (futex_op & ~FUTEX_OP_MASK);
@@ -361,13 +529,18 @@ extern "C" int sys_futex(int *uaddr, int futex_op, int val, const struct timespe
 	/* Bad pointer */
 	if((unsigned long) uaddr & (4 - 1))
 		return -EINVAL;
-
+		
 	switch(futex_op & FUTEX_OP_MASK)
 	{
 		case FUTEX_WAIT:
 			return futex::wait(uaddr, val, flags, timeout);
 		case FUTEX_WAKE:
 			return futex::wake(uaddr, flags, val);
+		case FUTEX_CMP_REQUEUE:
+			return futex::cmp_requeue(uaddr, flags, val, get_val2(timeout), uaddr2, val3);
+		case FUTEX_REQUEUE:
+			//printk("futex(%p, %d, %d)(op %d)\n", uaddr, futex_op, val, futex_op & FUTEX_OP_MASK);
+			return futex::requeue(uaddr, flags, val, get_val2(timeout), uaddr2);
 		default:
 			return -ENOSYS;
 	}
