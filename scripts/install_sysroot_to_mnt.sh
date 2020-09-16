@@ -2,7 +2,7 @@
 
 MNTROOT=$1
 
-if [ "$MNTROOT" == "" ]; then
+if [ "$MNTROOT" = "" ]; then
 	MNTROOT=/mnt
 fi
 
