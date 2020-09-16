@@ -1314,3 +1314,13 @@ void sched_transition_to_idle(void)
 	curr->priority = SCHED_PRIO_VERY_LOW;
 	curr->entry(NULL);
 }
+
+int sched_transition_to_user_thread(struct thread *thread)
+{
+	int st = 0;
+	if((st = arch_transform_into_user_thread(thread)) < 0)
+		return st;
+
+	thread->flags &= ~THREAD_KERNEL;
+	return st;
+}

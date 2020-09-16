@@ -155,34 +155,27 @@ char *kernel_getopt(char *opt)
 
 void dump_used_mem(void);
 
-int alloc_fd(int fdbase);
+int sys_execve(const char *p, char *argv[], char *envp[]);
 
 int find_and_exec_init(char **argv, char **envp)
 {
-	char *path = strdup("/sbin/init");
-	assert(path != NULL);
-retry:;
-	struct file *in = open_vfs(get_fs_root(), path);
-	if(!in)
-	{
-		printk("%s: Not found\n", path);
-		perror("open_vfs");
-		if(!strcmp(path, "/bin/init"))
-		{
-			perror("open");
-			panic("No init program found!\n");
-		}
-		path = "/bin/init";
-		goto retry;
-	}
-
-	struct process *proc = process_create(path, NULL, NULL);
+	struct process *proc = process_create("kernel", NULL, NULL);
 	if(!proc)
-		return errno = ENOMEM, -1;
+		return -ENOMEM;
 
 	vm_save_current_mmu(&proc->address_space);
+	if(vm_create_address_space(&proc->address_space, proc) < 0)
+	{
+		return -ENOMEM;
+	}
 
-	get_current_thread()->owner = proc;
+	proc->address_space.page_tables_size = PAGE_SIZE;
+
+	struct thread *current_thread = get_current_thread();
+	current_thread->owner = proc;
+	sched_transition_to_user_thread(current_thread);
+
+	process_add_thread(proc, current_thread);
  
 	/* Setup standard file descriptors (STDIN(0), STDOUT(1), STDERR(2)) */
 	
@@ -199,59 +192,20 @@ retry:;
 	proc->ctx.cwd = get_fs_root();
 	fd_get(proc->ctx.cwd);
 
-	/* Read the file signature */
-	unsigned char *buffer = zalloc(BINFMT_SIGNATURE_LENGTH);
-	if (!buffer)
-		return errno = ENOMEM, -1;
-
-	ssize_t bytes_read = 0;
-
-	if((bytes_read = read_vfs(0, BINFMT_SIGNATURE_LENGTH, buffer, in)) < 0)
+	const char *init_paths[] = {"/sbin/init", "/bin/init", "/bin/sh"};
+ 
+	for(unsigned int i = 0; i < sizeof(init_paths) / sizeof(init_paths[0]); i++)
 	{
-		return -1;
+		int st = sys_execve(init_paths[i], argv, envp);
+
+		if(st < 0)
+		{
+			/* Aww, it didn't work out */
+			thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
+		}
 	}
 
-	struct exec_state st;
-	st.flushed = true;
-
-	argv[0] = path;
-	/* Prepare the argument struct */
-	struct binfmt_args args = {0};
-	args.file_signature = buffer;
-	args.filename = path;
-	args.file = in;
-	args.argv = argv;
-	args.envp = envp;
-	args.state = &st;
-
-	assert(vm_create_address_space(&proc->address_space, proc) == 0);
-	
-	/* Account for the boot page table */
-	proc->address_space.page_tables_size = PAGE_SIZE;
-
-	/* Finally, load the binary */
-	void *entry = load_binary(&args);
-
-	assert(entry != NULL);
-
-	assert(vm_create_brk(get_current_address_space()) == 0);
-
-	struct stack_info si;
-	si.length = DEFAULT_USER_STACK_LEN;
-
-	assert(process_alloc_stack(&si) == 0);
-
-	process_put_entry_info(&si, argv, envp);
-
-	struct thread *main_thread = process_create_main_thread(proc, (thread_callback_t) entry, si.top);
-	
-	assert(main_thread != NULL);
-
-	sched_start_thread(main_thread);
-
-	get_current_thread()->owner = NULL;
-
-	return 0;
+	return -1;
 }
 
 #if 1
@@ -414,9 +368,8 @@ void kernel_multitasking(void *arg)
 	char *args[] = {"", root_partition, NULL};
 	char *envp[] = {"PATH=/bin:/usr/bin:/sbin:", "TERM=linux", "LANG=C", "PWD=/", NULL};
 
-	assert(find_and_exec_init(args, envp) == 0);
-
-	set_current_state(THREAD_UNINTERRUPTIBLE);
-	sched_yield();
-	panic("yield uninterruptible returned");
+	if(find_and_exec_init(args, envp) < 0)
+	{
+		panic("Failed to exec init!");
+	}
 }

@@ -19,16 +19,20 @@
 
 void exec_state_destroy(struct exec_state *);
 
-char **process_copy_envarg(char **envarg, bool to_kernel, int *count)
+char **process_copy_envarg(const char **envarg, bool to_kernel, int *count)
 {
 	/* Copy the envp/argv to another buffer */
 	/* Each buffer takes up argc * sizeof pointer + string_size + one extra pointer(to NULL terminate) */
 	size_t nr_args = 0;
 	size_t string_size = 0;
-	char **b = envarg;
+	const char **b = envarg;
 	while(*b)
 	{
-		string_size += strlen(*b) + 1;
+		size_t length = strlen_user(*b);
+		if(length == (size_t) -EFAULT)
+			return errno = EFAULT, NULL;
+
+		string_size += length + 1;
 		nr_args++;
 		b++;
 	}
@@ -272,7 +276,7 @@ bool file_is_executable(struct file *exec_file)
 }
 extern size_t used_pages;
 
-int sys_execve(char *p, char *argv[], char *envp[])
+int sys_execve(const char *p, const char *argv[], const char *envp[])
 {
 	int st;
 	struct file *exec_file = NULL;
@@ -310,6 +314,9 @@ int sys_execve(char *p, char *argv[], char *envp[])
 		st = -errno;
 		goto error;
 	}
+
+	/* We might be getting called from kernel code, so force the address limit */
+	thread_change_addr_limit(VM_USER_ADDR_LIMIT);
 
 	/* Open the file */
 	struct file *f = get_current_directory();
@@ -407,9 +414,7 @@ error_die_signal:
 	free(kenv);
 	kernel_raise_signal(SIGKILL, current, SIGNAL_FORCE, NULL);
 
-	/* This sched_yield should execute the signal handler */
-	/* TODO: This doesn't work because we're in kernel space */
-	sched_yield();
+	/* This return should execute the signal handler */
 	return -1;
 
 error: ;

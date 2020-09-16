@@ -117,7 +117,6 @@ void process_destroy_aspace(void);
 int process_attach(struct process *tracer, struct process *tracee);
 struct process *process_find_tracee(struct process *tracer, pid_t pid);
 void process_exit_from_signal(int signum);
-char **process_copy_envarg(char **envarg, bool to_kernel, int *count);
 void process_end(struct process *p);
 void process_add_thread(struct process *process, thread_t *thread);
 

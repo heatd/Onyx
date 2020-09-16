@@ -159,6 +159,8 @@ unsigned long thread_get_addr_limit(void);
 void *sched_preempt_thread(void *current_stack);
 
 void arch_context_switch(struct thread *prev, struct thread *next);
+int arch_transform_into_user_thread(struct thread *thread);
+int sched_transition_to_user_thread(struct thread *thread);
 
 #define SCHED_NO_CPU_PREFERENCE		(unsigned int) -1
 

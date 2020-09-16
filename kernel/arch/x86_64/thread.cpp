@@ -307,3 +307,20 @@ void x86_thread_put(thread *t)
 {
 	thread_put(t);
 }
+
+int arch_transform_into_user_thread(thread *thread)
+{
+	posix_memalign((void**) &thread->fpu_area, fpu_get_save_alignment(), fpu_get_save_size());
+	
+	if(!thread->fpu_area)
+		return -ENOMEM;
+
+	memset(thread->fpu_area, 0, fpu_get_save_size());
+
+	setup_fpu_area(thread->fpu_area);
+
+	signal_context_init(thread);
+
+	/* Note that we don't adjust the addr limit because the thread might be us */
+	return 0;
+}
