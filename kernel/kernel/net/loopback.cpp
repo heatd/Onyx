@@ -43,6 +43,13 @@ void loopback_init(void)
 	n->dll_ops = &eth_ops;
 
 	netif_register_if(n);
+
+	if_inet6_addr addr;
+	addr.address = in6addr_loopback;
+	addr.flags = INET6_ADDR_GLOBAL;
+	addr.prefix_len = 0;
+
+	assert(netif_add_v6_address(n, addr) == 0);
 }
 
 INIT_LEVEL_CORE_KERNEL_ENTRY(loopback_init);

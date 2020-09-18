@@ -51,6 +51,8 @@ struct if_inet6_addr
 
 #define INET6_ADDR_LOCAL       (1 << 0)
 #define INET6_ADDR_GLOBAL      (1 << 1)
+#define INET6_ADDR_HOST        (1 << 2)
+#define INET6_ADDR_SITE        (1 << 3)
 
 #define IF_INET6_DEFINED
 
