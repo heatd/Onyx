@@ -21,6 +21,8 @@
 static struct spinlock netif_list_lock = {0};
 cul::vector<netif*> netif_list;
 
+int netif_add_v6_address(netif *nif, const if_inet6_addr& addr);
+
 unsigned int netif_ioctl(int request, void *argp, struct file* f)
 {
 	auto netif = static_cast<struct netif *>(f->f_ino->i_helper);
@@ -46,19 +48,16 @@ unsigned int netif_ioctl(int request, void *argp, struct file* f)
 				return -EFAULT;
 			return 0;
 		}
-		case SIOSETINET6:
+		case SIOADDINET6ADDR:
 		{
-			return -ENOSYS;
-#if 0
-			struct if_config_inet6 *c = static_cast<if_config_inet6 *>(argp);
-			auto local = &netif->local_ip;
-			auto router = &netif->router_ip;
-			if(copy_to_user(&local->sin_addr, &c->address, sizeof(struct in6_addr)) <0)
+			if_inet6_addr *c = static_cast<if_inet6_addr *>(argp);
+
+			if_inet6_addr addr;
+
+			if(copy_from_user(&addr, c, sizeof(*c)) < 0)
 				return -EFAULT;
-			if(copy_to_user(&router->sin_addr, &c->router, sizeof(struct in6_addr)) < 0)
-				return -EFAULT;
-			return 0;
-#endif
+			
+			return netif_add_v6_address(netif, addr);
 		}
 		case SIOGETINET6:
 		{
@@ -86,6 +85,9 @@ unsigned int netif_ioctl(int request, void *argp, struct file* f)
 
 void netif_register_if(struct netif *netif)
 {
+	rwlock_init(&netif->inet6_addr_list_lock);
+	INIT_LIST_HEAD(&netif->inet6_addr_list);
+
 	assert(udp_init_netif(netif) == 0);
 	
 	assert(tcp_init_netif(netif) == 0);
@@ -320,4 +322,76 @@ int netif_do_rx(void)
 int netif_process_pbuf(netif *nif, packetbuf *buf)
 {
 	return nif->dll_ops->rx_packet(nif, buf);
+}
+
+int netif_add_v6_address(netif *nif, const if_inet6_addr& addr_)
+{
+	if(addr_.flags & ~INET6_ADDR_DEFINED_MASK)
+		return -EINVAL;
+
+	auto addr = new netif_inet6_addr;
+	if(!addr)
+		return -ENOMEM;
+	
+	addr->address = addr_.address;
+	addr->flags = addr_.flags;
+	addr->prefix_len = addr_.prefix_len;
+
+	scoped_rwlock<rw_lock::write> g{nif->inet6_addr_list_lock};
+
+	list_add_tail(&addr->list_node, &nif->inet6_addr_list);
+
+	return 0;
+}
+
+in6_addr netif_get_v6_address(netif *nif, uint16_t flags)
+{
+	scoped_rwlock<rw_lock::read> g{nif->inet6_addr_list_lock};
+
+	list_for_every(&nif->inet6_addr_list)
+	{
+		const netif_inet6_addr *addr = container_of(l, netif_inet6_addr, list_node);
+
+		if(addr->flags & flags)
+		{
+			return addr->address;
+		}
+	}
+
+	return {};
+}
+
+int netif_remove_v6_address(netif *nif, const in6_addr& addr)
+{
+	scoped_rwlock<rw_lock::read> g{nif->inet6_addr_list_lock};
+
+	list_for_every(&nif->inet6_addr_list)
+	{
+		netif_inet6_addr *a = container_of(l, netif_inet6_addr, list_node);
+
+		if(a->address == addr)
+		{
+			list_remove(&a->list_node);
+			return 0;
+		}
+	}
+
+	return -ENOENT;
+}
+
+bool netif_find_v6_address(netif *nif, const in6_addr& addr)
+{
+	scoped_rwlock<rw_lock::read> g{nif->inet6_addr_list_lock};
+
+	list_for_every(&nif->inet6_addr_list)
+	{
+		netif_inet6_addr *a = container_of(l, netif_inet6_addr, list_node);
+
+		if(a->address == addr)
+		{
+			return true;
+		}
+	}
+
+	return false;
 }

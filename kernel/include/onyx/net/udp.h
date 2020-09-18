@@ -64,7 +64,7 @@ public:
 	int getsockopt(int level, int optname, void *val, socklen_t *len) override;
 	int setsockopt(int level, int optname, const void *val, socklen_t len) override;
 	int send_packet(const msghdr *msg, ssize_t payload_size, in_port_t source_port, in_port_t dest_port,
-	                inet_route& route);
+	                inet_route& route, int msg_domain);
 	ssize_t recvmsg(msghdr *msg, int flags) override;
 
 	void rx_dgram(packetbuf *buf)

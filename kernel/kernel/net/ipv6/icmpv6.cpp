@@ -16,6 +16,7 @@
 #include <onyx/net/ip.h>
 #include <onyx/packetbuf.h>
 #include <onyx/net/icmpv6.h>
+#include <onyx/net/ndp.h>
 
 namespace icmpv6
 {
@@ -35,7 +36,7 @@ ref_guard<packetbuf> allocate_icmp_response_packet(unsigned int extra_size = 0)
 		return {};
 	
 	buf->reserve_headers(ICMPV6_PACKETBUF_HEADER_SPACE);
-	
+
 	return buf;
 }
 
@@ -64,6 +65,7 @@ int send_packet(const send_data& data, cul::slice<unsigned char> packet_data)
 	auto hdr = (icmpv6_header *) buf->push_header(sizeof(icmpv6_header));
 	hdr->type = data.type;
 	hdr->code = data.code;
+	hdr->data = data.data;
 	hdr->checksum = 0;
 
 	if(packet_data.size_bytes())
@@ -87,7 +89,7 @@ int handle_packet(netif *nif, packetbuf *buf)
 	if(buf->length() < min_icmp6_size())
 		return -EINVAL;
 
-	//ip6hdr *iphdr = (ip6hdr *) buf->net_header;
+	ip6hdr *iphdr = (ip6hdr *) buf->net_header;
 
 	auto header = (icmpv6_header *) buf->data;
 	auto header_length = buf->length();
@@ -99,6 +101,10 @@ int handle_packet(netif *nif, packetbuf *buf)
 		case ICMPV6_ECHO_REQUEST:
 			//send_echo_reply(iphdr, header, header_length, nif);
 			break;
+		case ICMPV6_NEIGHBOUR_ADVERT:
+		case ICMPV6_NEIGHBOUR_SOLICIT:
+			ndp_handle_packet(nif, buf);
+			break;
 	}
 
 	icmp6_socket *socket = nullptr;
@@ -106,10 +112,11 @@ int handle_packet(netif *nif, packetbuf *buf)
 
 	do
 	{
-		/*socket = inet_resolve_socket<icmp6_socket>(iphdr->source_ip, 0, 0, IPPROTO_ICMP,
-		                                          nif, true, &icmp_proto, inst);
+		socket = inet6_resolve_socket<icmp6_socket>(iphdr->src_addr, 0, 0, IPPROTO_ICMPV6,
+		                                          nif, true, &icmp6_proto, inst);
 		if(!socket)
-			break;*/
+			break;
+
 		inst++;
 
 		if(socket->match_filter(header))
@@ -186,6 +193,8 @@ bool is_security_sensitive_icmp_packet(icmpv6_header *header)
 
 ssize_t icmp6_socket::sendmsg(const struct msghdr *msg, int flags)
 {
+	cul::vector<ip_option> options;
+
 	auto iovlen = iovec_count_length(msg->msg_iov, msg->msg_iovlen);
 	if(iovlen < 0)
 		return iovlen;
@@ -237,7 +246,7 @@ ssize_t icmp6_socket::sendmsg(const struct msghdr *msg, int flags)
 	else
 	{
 		auto proto = get_proto_fam();
-		auto st = proto->route(src_addr, to, AF_INET);
+		auto st = proto->route(src_addr, to, AF_INET6);
 		if(st.has_error())
 			return st.error();
 		
@@ -263,9 +272,37 @@ ssize_t icmp6_socket::sendmsg(const struct msghdr *msg, int flags)
 
 	hdr->checksum = 0;
 
-	hdr->checksum = ipsum(hdr, iovlen);
+	auto csum = calculate_icmpv6_header_csum(rt.src_addr.in6, rt.dst_addr.in6, iovlen);
+	csum = __ipsum_unfolded(hdr, iovlen, csum);
 
-	return ip::v4::send_packet(rt, IPPROTO_ICMP, packet.get(), rt.nif);
+	hdr->checksum = ipsum_fold(csum);
+
+	/* TODO: Huge hack. */
+
+	if(hdr->type == ICMPV6_MLDV2_REPORT_MSG)
+	{
+		struct ip_option router_alert;
+		router_alert.option = IPV6_EXT_HEADER_HOP_BY_HOP;
+
+		/* Zeroing the router alert explicitly makes sure that it's
+		 * properly padded in option-value cases
+		 */
+		memset(router_alert.buf, 0, sizeof(router_alert.buf));
+		ipv6_router_alert ra;
+		ra.opt.len = 2;
+		ra.opt.type = 5;
+		ra.value = htons(IPV6_ROUTER_ALERT_MLD);
+		router_alert.length = cul::align_up2(sizeof(ra) + 2, 8);
+		router_alert.buf[1] = 0;
+
+		memcpy(&router_alert.buf[2], &ra, sizeof(ra));
+
+		options.push_back(router_alert);
+	}
+
+	auto slice = cul::slice<ip_option>{options.get_buf(), options.size()};
+
+	return ip::v6::send_packet(rt, IPPROTO_ICMPV6, packet.get(), rt.nif, slice);
 }
 
 int icmp6_socket::getsockopt(int level, int optname, void *val, socklen_t *len)
@@ -369,29 +406,38 @@ ssize_t icmp6_socket::recvmsg(msghdr *msg, int flags)
 
 	if(msg->msg_name)
 	{
-		const ip_header *hdr = (const ip_header *) buf->net_header;
-		sockaddr_in in;
+		const ip6hdr *hdr = (const ip6hdr *) buf->net_header;
+		sockaddr_in6 in;
 		explicit_bzero(&in, sizeof(in));
 
-		in.sin_family = AF_INET;
-		in.sin_port = 0;
-		in.sin_addr.s_addr = hdr->source_ip;
+		in.sin6_family = AF_INET6;
+		in.sin6_port = 0;
+		in.sin6_addr = hdr->src_addr;
 
 		memcpy(msg->msg_name, &in, min(sizeof(in), (size_t) msg->msg_namelen));
 
 		msg->msg_namelen = min(sizeof(in), (size_t) msg->msg_namelen);
 	}
 
-	for(int i = 0; i < msg->msg_iovlen; i++)
+	auto packet_length = buf->length();
+	auto to_read = min(read, (ssize_t) packet_length);
+	
+	if(!(flags & MSG_TRUNC))
+		read = to_read;
+
+	for(int i = 0; to_read != 0; i++)
 	{
 		auto iov = msg->msg_iov[i];
-		if(copy_to_user(iov.iov_base, ptr, iov.iov_len) < 0)
+		auto to_copy = min((ssize_t) iov.iov_len, to_read);
+
+		if(copy_to_user(iov.iov_base, ptr, to_copy) < 0)
 		{
 			spin_unlock(&rx_packet_list_lock);
 			return -EFAULT;
 		}
 
-		ptr += iov.iov_len;
+		ptr += to_copy;
+		to_read -= to_copy;
 	}
 
 	msg->msg_controllen = 0;

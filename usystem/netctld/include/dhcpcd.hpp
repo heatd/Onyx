@@ -14,7 +14,7 @@
 #include <functional>
 #include <stdexcept>
 
-#include "include/dhcp.h"
+#include <dhcp.h>
 
 #include <sys/ioctl.h>
 #include <onyx/slice.hpp>
@@ -24,7 +24,6 @@
 namespace dhcpcd
 {
 
-extern int nkfd;
 extern int rtfd;
 
 void init_entropy(void);

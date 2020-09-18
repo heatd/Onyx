@@ -99,10 +99,10 @@ struct inet_socket : public socket
 
 		if(ipv6_only && id.domain == AF_INET)
 			return false;
-		
+
 		if(proto != id.protocol)
 			return false;
-		
+
 		if(!this_src.is_any(in_ipv4_mode()) && !this_src.equals(other_src, in_ipv4_mode()))
 			return false;
 

@@ -25,4 +25,12 @@ public:
 	virtual void unbind(inet_socket *sock) = 0;
 };
 
+struct ip_option
+{
+	uint8_t option;
+	uint16_t length;
+	/* TODO: This is not optimal nor correct and we're doing it for simplicity purposes only */
+	unsigned char buf[255];
+};
+
 #endif

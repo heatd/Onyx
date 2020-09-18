@@ -124,19 +124,22 @@ struct if_config_inet
 	struct in_addr router; 
 	struct in_addr subnet; 
 };
-struct if_config_inet6
+struct if_inet6_addr
 { 
 	struct in6_addr address; 
-	struct in6_addr router; 
-	struct in6_addr subnet; 
+	uint16_t flags;
+	uint8_t prefix_len;
 };
 
-#define SIOSETINET4	0x9000
-#define SIOSETINET6	0x9001
-#define SIOGETINET4	0x9002
-#define SIOGETINET6	0x9003
-#define SIOGETMAC	0x9004
-#define SIOGETIFNAME 0x9005
-#define SIOGETINDEX	0x9006
+#define INET6_ADDR_LOCAL       (1 << 0)
+#define INET6_ADDR_GLOBAL      (1 << 1)
+
+#define SIOSETINET4             0x9000
+#define SIOADDINET6ADDR	        0x9001
+#define SIOGETINET4	            0x9002
+#define SIOGETINET6	            0x9003
+#define SIOGETMAC	            0x9004
+#define SIOGETIFNAME	        0x9005
+#define SIOGETINDEX	            0x9006
 
 #include <bits/ioctl_fix.h>

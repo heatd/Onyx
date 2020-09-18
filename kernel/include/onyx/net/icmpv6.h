@@ -13,6 +13,7 @@
 #include <onyx/scoped_lock.h>
 #include <onyx/spinlock.h>
 #include <onyx/public/icmp.h>
+#include <onyx/net/inet_socket.h>
 
 #define ICMPV6_DEST_UNREACHABLE   1
 #define ICMPV6_PACKET_TOO_BIG     2
@@ -24,6 +25,7 @@
 #define ICMPV6_ROUTER_ADVERT      134
 #define ICMPV6_NEIGHBOUR_SOLICIT  135
 #define ICMPV6_NEIGHBOUR_ADVERT   136
+#define ICMPV6_MLDV2_REPORT_MSG   143
 
 struct icmpv6_header
 {
@@ -41,8 +43,10 @@ struct send_data
 	uint8_t type;
 	uint8_t code;
 	const inet_route& route;
+	uint32_t data;
 
-	send_data(uint8_t t, uint8_t c, const inet_route& r) : type{t}, code{c}, route{r} {}
+	send_data(uint8_t t, uint8_t c, const inet_route& r, uint32_t data) : type{t}, code{c},
+	          route{r}, data{data} {}
 };
 
 class icmp6_socket : public inet_socket

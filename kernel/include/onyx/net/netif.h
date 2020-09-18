@@ -31,19 +31,52 @@ struct netif;
 
 struct packetbuf;
 
+struct netif_inet6_addr
+{
+	in6_addr address;
+	uint16_t flags;
+	uint8_t prefix_len;
+	struct list_head list_node;
+};
+
+
+#ifndef IF_INET6_DEFINED
+
+struct if_inet6_addr
+{ 
+	struct in6_addr address; 
+	uint16_t flags;
+	uint8_t prefix_len;
+};
+
+#define INET6_ADDR_LOCAL       (1 << 0)
+#define INET6_ADDR_GLOBAL      (1 << 1)
+
+#define IF_INET6_DEFINED
+
+#endif
+
+#define INET6_ADDR_DEFINED_MASK (INET6_ADDR_LOCAL | INET6_ADDR_GLOBAL)
+
 struct netif
 {
 	const char *name;
 	struct file *device_file;
 	void *priv;
+
 	unsigned int flags;
 	unsigned int mtu;
 	unsigned char mac_address[6];
+
 	struct sockaddr_in local_ip;
-	in6_addr local_ip6;
+
+	struct rwlock inet6_addr_list_lock;
+	struct list_head inet6_addr_list;
+
 	int (*sendpacket)(packetbuf *buf, struct netif *nif);
 	int (*poll_rx)(struct netif *nif);
 	void (*rx_end)(struct netif *nif);
+
 	struct list_head list_node;
 	struct list_head rx_queue_node;
 	data_link_layer_ops *dll_ops;
@@ -77,7 +110,10 @@ struct inet_socket;
 #define REMOVE_SOCKET_UNLOCKED             (1 << 0)
 
 int netif_send_packet(struct netif *netif, packetbuf *buf);
-
+int netif_add_v6_address(netif *nif, const if_inet6_addr& addr_);
+in6_addr netif_get_v6_address(netif *nif, uint16_t flags);
+int netif_remove_v6_address(netif *nif, const in6_addr& addr);
+bool netif_find_v6_address(netif *nif, const in6_addr& addr);
 
 #endif
 

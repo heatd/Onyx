@@ -97,6 +97,8 @@ int eth_dll_ops::rx_packet(netif *netif, packetbuf *buf)
 	{
 		case PROTO_IPV4:
 			return ip::v4::handle_packet(netif, buf);
+		case PROTO_IPV6:
+			return ip::v6::handle_packet(netif, buf);
 		case PROTO_ARP:
 			return arp_handle_packet(netif, buf);
 	}

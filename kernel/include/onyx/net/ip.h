@@ -87,7 +87,8 @@ public:
 };
 
 int send_packet(inet_route& route, unsigned int type,
-                     packetbuf *buf, struct netif *netif);
+                     packetbuf *buf, struct netif *netif,
+					 cul::slice<ip_option> options = {});
 
 socket *create_socket(int type, int protocol);
 
@@ -149,6 +150,24 @@ inline T *inet_resolve_socket(in_addr_t src, in_port_t port_src, in_port_t port_
 	const inet_sock_address socket_src{nif->local_ip.sin_addr, port_dst};
 
 	const socket_id id(proto, AF_INET, socket_src, socket_dst);
+
+	auto socket = proto_info->get_socket_table()->get_socket(id, flags, instance);
+	
+	return static_cast<T *>(socket);
+}
+
+template <typename T>
+inline T *inet6_resolve_socket(const in6_addr& src, in_port_t port_src, in_port_t port_dst,
+                              int proto, netif *nif, bool ign_dst, const inet_proto *proto_info,
+							  unsigned int instance = 0)
+{
+	const in6_addr& __src = src;
+	auto flags = (!ign_dst ? GET_SOCKET_DSTADDR_VALID : 0);
+
+	const inet_sock_address socket_dst{__src, port_src};
+	const inet_sock_address socket_src{nif->local_ip.sin_addr, port_dst};
+
+	const socket_id id(proto, AF_INET6, socket_src, socket_dst);
 
 	auto socket = proto_info->get_socket_table()->get_socket(id, flags, instance);
 	

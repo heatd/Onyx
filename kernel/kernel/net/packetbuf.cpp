@@ -150,10 +150,12 @@ packetbuf *packetbuf_clone(packetbuf *original)
 
 	memcpy(buf->buffer_start, original->buffer_start, buf_len);
 
+	auto nhoff = original->net_header - (unsigned char *) original->buffer_start;
+	auto thoff = original->transport_header - (unsigned char *) original->buffer_start;
 	buf->reserve_headers(original->buffer_start_off());
 
-	buf->net_header = (unsigned char *) buf->buffer_start + original->net_header_off();
-	buf->transport_header = (unsigned char *) buf->buffer_start + original->transport_header_off();
+	buf->net_header = (unsigned char *) buf->buffer_start + nhoff;
+	buf->transport_header = (unsigned char *) buf->buffer_start + thoff;
 
 	buf->put(original->length());
 	buf->domain = original->domain;

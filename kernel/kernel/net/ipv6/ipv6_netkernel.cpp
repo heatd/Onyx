@@ -75,42 +75,6 @@ public:
 	}
 };
 
-class ipv6_addrcfg : public netkernel::netkernel_object
-{
-public:
-	ipv6_addrcfg() : netkernel::netkernel_object{"slaac"} {}
-	expected<netkernel_hdr *, int> serve_request(netkernel_hdr *hdr) override
-	{
-		if(hdr->msg_type != NETKERNEL_MSG_IPV6_ADDRCFG)
-			return unexpected<int>{-ENXIO};
-		
-		netkernel_ipv6_addrcfg *cfg = (netkernel_ipv6_addrcfg *) hdr;
-
-		if(cfg->hdr.size != sizeof(*cfg))
-			return unexpected<int>{-ENXIO};
-		
-		if(!check_for_null_term(cfg->iface, sizeof(cfg->iface)))
-			return unexpected<int>{-EINVAL};
-		
-		auto nif = netif_from_name(cfg->iface);
-		if(!nif)
-			return unexpected<int>{-EINVAL};
-
-		int st = ip::v6::netif_addrcfg(nif, cfg->interface_id);
-
-		netkernel_error *h = new netkernel_error{};
-		if(!h)
-			return unexpected<int>{-ENOMEM};
-
-		memset(h, 0, sizeof(*h));
-		h->hdr.msg_type = NETKERNEL_MSG_ERROR;
-		h->hdr.size = sizeof(*h);
-		h->error = st;
-
-		return {(netkernel_hdr *) h};
-	}
-};
-
 void ipv6_init_netkernel()
 {
 	/* TODO: Add helpers */
@@ -130,12 +94,6 @@ void ipv6_init_netkernel()
 	auto generic_rt = cast<netkernel::netkernel_object, ipv6_route_table_nk>(rt);
 
 	assert(ipv6_member->add_child(generic_rt));
-
-	auto addrcfg_ = make_shared<ipv6_addrcfg>();
-	assert(addrcfg_ != nullptr);
-
-	auto _ = cast<netkernel::netkernel_object, ipv6_addrcfg>(addrcfg_);
-	assert(ipv6_member->add_child(_));
 }
 
 INIT_LEVEL_CORE_KERNEL_ENTRY(ipv6_init_netkernel);

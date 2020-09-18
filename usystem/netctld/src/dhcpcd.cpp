@@ -31,9 +31,9 @@
 
 #include <arpa/inet.h>
 
-#include "include/dhcp.h"
+#include <dhcp.h>
 
-#include "dhcpcd.hpp"
+#include <dhcpcd.hpp>
 
 #define DHCP_MIN_OPT_OFFSET	4
 
@@ -60,7 +60,6 @@ namespace dhcpcd
 {
 
 int rtfd = -1;
-int nkfd = -1;
 
 void init_entropy(void)
 {
@@ -330,35 +329,6 @@ void tcp_test()
 
 int instance::setup_netif()
 {
-	/* TODO: we need to separate this into another part of the daemon,
-	 * and rename it netctld or something */
-	/* Setup a basic interface ID with EUI-64 */
-	{
-	
-	struct netkernel_ipv6_addrcfg cfg;
-	cfg.hdr.msg_type = NETKERNEL_MSG_IPV6_ADDRCFG;
-	cfg.hdr.flags = 0;
-	cfg.hdr.size = sizeof(cfg);
-	memset(&cfg.interface_id, 0, sizeof(in6_addr));
-	for(int i = 0; i < 3; i++) cfg.interface_id.s6_addr[8 + i] = mac[i];
-	cfg.interface_id.s6_addr[11] = 0xff;
-	cfg.interface_id.s6_addr[12] = 0xfe;
-	for(int i = 0; i < 3; i++) cfg.interface_id.s6_addr[13 + i] = mac[i + 3];
-
-	cfg.interface_id.s6_addr[0] ^= (1 << 7);
-	strcpy(cfg.iface, device_name.c_str() + 5);
-
-	sockaddr_nk addr;
-	addr.nk_family = AF_NETKERNEL;
-	strcpy(addr.path, "ipv6.slaac");
-
-	if(sendto(nkfd, &cfg, sizeof(cfg), 0, (sockaddr *) &addr, sizeof(addr)) < 0)
-	{
-		perror("ipv6 slaac");
-		return -1;
-	}
-
-	}
 	/* DHCP essentially works like this:
 	 * 1) The client sends a DHCP discover request through broadcast
 	 * 2) The various DHCP servers on the local network reply

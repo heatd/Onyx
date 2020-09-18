@@ -55,14 +55,77 @@ uint16_t udpv4_calculate_checksum(udp_header_t *header, uint32_t srcip, uint32_t
 	return ipsum_fold(r);
 }
 
+static void print_v6_addr(const in6_addr& addr)
+{
+	printk("%x:%x:%x:%x:%x:%x:%x:%x\n", ntohs(addr.s6_addr16[0]),
+	       ntohs(addr.s6_addr16[1]), ntohs(addr.s6_addr16[2]), ntohs(addr.s6_addr16[3]),
+		   ntohs(addr.s6_addr16[4]), ntohs(addr.s6_addr16[5]), ntohs(addr.s6_addr16[6]), ntohs(addr.s6_addr16[7]));
+}
+
+struct pseudo_csum
+{
+	in6_addr src;
+	in6_addr dst;
+	uint32_t length;
+	uint8_t unused[3];
+	uint8_t proto;
+};
+
+inetsum_t calculate_safe(const in6_addr& src, const in6_addr& dst, uint32_t length, uint8_t proto)
+{
+	pseudo_csum c;
+	c.src = src;
+	c.dst = dst;
+	c.length = length;
+	memset(c.unused, 0, sizeof(c.unused));
+	c.proto = proto;
+
+	return __ipsum_unfolded(&c, sizeof(c), 0);
+}
+
+uint16_t udpv6_calculate_checksum(udp_header_t *header, const in6_addr& src, const in6_addr& dst,
+                                  bool do_rest_of_packet = true)
+{
+	uint32_t proto = htonl(IPPROTO_UDP);
+	uint32_t packet_length = htonl(ntohs(header->len));
+
+	auto r = __ipsum_unfolded(&src, sizeof(src), 0);
+	r = __ipsum_unfolded(&dst, sizeof(dst), r);
+	r = __ipsum_unfolded(&packet_length, sizeof(packet_length), r);
+	r = __ipsum_unfolded(&proto, sizeof(proto), r);
+
+	//assert(r == calculate_safe(src, dst, header->len, IPPROTO_UDP));
+
+	if(do_rest_of_packet)
+		r = __ipsum_unfolded(header, ntohl(packet_length), r);
+	
+	return ipsum_fold(r);
+}
+
+uint16_t udp_calculate_checksum(udp_header_t *header, const inet_route::addr& src,
+                                const inet_route::addr& dest, bool is_v6,
+                                bool do_rest_of_packet = true)
+{
+	if(is_v6)
+	{
+		return udpv6_calculate_checksum(header, src.in6, dest.in6, do_rest_of_packet);
+	}
+	else
+	{
+		return udpv4_calculate_checksum(header, src.in4.s_addr, dest.in4.s_addr, do_rest_of_packet);
+	}
+}
+
 #include <onyx/clock.h>
 
 int udp_socket::send_packet(const msghdr *msg, ssize_t payload_size, in_port_t source_port,
-	            in_port_t dest_port, inet_route& route)
+	            in_port_t dest_port, inet_route& route, int msg_domain)
 {
+	bool is_v6 = msg_domain == AF_INET6;
+
 	auto netif = route.nif;
-	auto srcip = route.src_addr.in4.s_addr;
-	auto destip = route.dst_addr.in4.s_addr;
+	auto& src = route.src_addr;
+	auto& dest = route.dst_addr;
 
 	if(payload_size > UINT16_MAX)
 		return -EMSGSIZE;
@@ -101,15 +164,20 @@ int udp_socket::send_packet(const msghdr *msg, ssize_t payload_size, in_port_t s
 	if(netif->flags & NETIF_SUPPORTS_CSUM_OFFLOAD && !needs_fragmenting(netif, b.get()))
 	{
 		/* Don't supply the 1's complement of the checksum, since the network stack expects a partial sum */
-		udp_header->checksum = ~udpv4_calculate_checksum(udp_header, srcip, destip, false);
+		udp_header->checksum = ~udp_calculate_checksum(udp_header, src, dest, is_v6, false);
 		b->csum_offset = &udp_header->checksum;
 		b->csum_start = (unsigned char *) udp_header;
 		b->needs_csum = 1;
 	}
 	else
-		udp_header->checksum = udpv4_calculate_checksum(udp_header, srcip, destip);
+		udp_header->checksum = udp_calculate_checksum(udp_header, src, dest, is_v6);
 
-	int ret = ip::v4::send_packet(route, IPPROTO_UDP, b.get(), netif);
+	int ret;
+	
+	if(is_v6)
+		ret = ip::v6::send_packet(route, IPPROTO_UDP, b.get(), netif);
+	else
+		ret = ip::v4::send_packet(route, IPPROTO_UDP, b.get(), netif);
 
 	return ret;
 }
@@ -195,16 +263,15 @@ ssize_t udp_socket::sendmsg(const msghdr *msg, int flags)
 		auto result = fam->route(src_addr, dest, our_domain);
 		if(result.has_error())
 		{
-			printk("died with error %d\n", result.error());
+			//printk("died with error %d\n", result.error());
 			return result.error();
 		}
 
 		route = result.value();
 	}
 
-	/* TODO: Connect ipv6 support up */
 	if(int st = send_packet(msg, payload_size, src_addr.port, dest.port,
-			   route); st < 0)
+			   route, our_domain); st < 0)
 	{
 		return st;
 	}

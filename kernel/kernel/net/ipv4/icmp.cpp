@@ -412,16 +412,25 @@ ssize_t icmp_socket::recvmsg(msghdr *msg, int flags)
 		msg->msg_namelen = min(sizeof(in), (size_t) msg->msg_namelen);
 	}
 
-	for(int i = 0; i < msg->msg_iovlen; i++)
+	auto packet_length = buf->length();
+	auto to_read = min(read, (ssize_t) packet_length);
+	
+	if(!(flags & MSG_TRUNC))
+		read = to_read;
+
+	for(int i = 0; to_read != 0; i++)
 	{
 		auto iov = msg->msg_iov[i];
-		if(copy_to_user(iov.iov_base, ptr, iov.iov_len) < 0)
+		auto to_copy = min((ssize_t) iov.iov_len, to_read);
+
+		if(copy_to_user(iov.iov_base, ptr, to_copy) < 0)
 		{
 			spin_unlock(&rx_packet_list_lock);
 			return -EFAULT;
 		}
 
-		ptr += iov.iov_len;
+		ptr += to_copy;
+		to_read -= to_copy;
 	}
 
 	msg->msg_controllen = 0;

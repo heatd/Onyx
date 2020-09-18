@@ -38,6 +38,24 @@ struct ip6hdr
 #define IN6ADDR_ALL_ROUTERS  {0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2}
 #define IN6ADDR_ALL_NODES    {0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
 
+#define IPV6_EXT_HEADER_HOP_BY_HOP              0
+
+struct ipv6_option
+{
+	uint8_t type;
+	uint8_t len;
+};
+
+struct ipv6_router_alert
+{
+	ipv6_option opt;
+	uint16_t value;
+};
+
+#define IPV6_ROUTER_ALERT_MLD    0
+#define IPV6_ROUTER_ALERT_RSVP   1
+#define IPV6_ROUTER_ALERT_ACTVN  2
+
 namespace ip
 {
 
@@ -86,7 +104,10 @@ namespace v6
 	} 
 
 	int send_packet(const inet_route& route, unsigned int type,
-                     packetbuf *buf, struct netif *netif);
+                     packetbuf *buf, struct netif *netif,
+					 cul::slice<ip_option> options = {});
+
+	int handle_packet(netif *nif, packetbuf *buf);
 
 	socket *create_socket(int type, int protocol);
 
@@ -104,6 +125,8 @@ namespace v6
 		expected<inet_route, int> route(const inet_sock_address& from, const inet_sock_address &to, int domain) override;
 		void unbind(inet_socket *sock) override;
 	};
+
+	proto_family *get_v6_proto();
 }
 
 }

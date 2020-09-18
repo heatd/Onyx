@@ -63,10 +63,12 @@ struct netkernel_route6_add
 	in6_addr mask;
 	int metric;
 	unsigned short flags;
+	uint8_t hop_limit;
 	char iface[IF_NAME_MAX + 1];
 };
 
 #define ROUTE4_FLAG_GATEWAY      (1 << 0)
+#define ROUTE6_FLAG_GATEWAY      ROUTE4_FLAG_GATEWAY
 
 struct netkernel_ipv6_addrcfg
 {

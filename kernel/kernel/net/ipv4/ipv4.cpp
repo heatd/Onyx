@@ -264,7 +264,7 @@ int send_fragment(inet_route& route, fragment *frag, netif *nif)
 	if(type != tx_type::broadcast) [[likely]]
 	{
 		if(route.dst_hw->flags & NEIGHBOUR_FLAG_BADENTRY)
-			return -ENETUNREACH;
+			return -EHOSTUNREACH;
 		hwaddr = route.dst_hw->hwaddr().data();
 	}
 
@@ -310,7 +310,8 @@ static uint16_t allocate_id(void)
 }
 
 int send_packet(inet_route& route, unsigned int type,
-                     packetbuf *buf, struct netif *netif)
+                packetbuf *buf, struct netif *netif,
+				cul::slice<ip_option> options)
 {
 	size_t payload_size = buf->length();
 

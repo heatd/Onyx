@@ -28,7 +28,7 @@ public:
 
 	~slice_dynamic() {}
 	
-	size_t size()
+	size_t size() const
 	{
 		return len;
 	}
@@ -44,7 +44,7 @@ public:
 	slice_static() : ptr{nullptr} {}
 	~slice_static() {}
 
-	constexpr size_t size()
+	constexpr size_t size() const
 	{
 		return length;
 	}

@@ -6,6 +6,8 @@
 
 #include <onyx/net/ip.h>
 #include <onyx/net/socket_table.h>
+#include <onyx/net/icmpv6.h>
+#include <onyx/net/ndp.h>
 
 const struct in6_addr in6addr_any = IN6ADDR_ANY_INIT;
 const struct in6_addr in6addr_loopback = IN6ADDR_LOOPBACK_INIT;
@@ -17,6 +19,12 @@ bool inet_socket::validate_sockaddr_len_pair_v6(sockaddr_in6 *addr, socklen_t le
 
 	return addr->sin6_family == AF_INET6;
 }
+
+struct ipv6_ext_header
+{
+	uint8_t next_header;
+	uint8_t header_ext_len;
+};
 
 namespace ip
 {
@@ -30,8 +38,22 @@ static constexpr tx_type ipv6_addr_to_tx_type(const in6_addr& dst)
 }
 
 int send_packet(const inet_route& route, unsigned int type,
-                     packetbuf *buf, struct netif *netif)
+                     packetbuf *buf, struct netif *netif,
+					 cul::slice<ip_option> options)
 {
+	auto next_header = type;
+	auto optlen = options.size();
+
+	for(auto it = options.cend() - 1; optlen != 0; optlen--, --it)
+	{
+		auto __next_header = next_header;
+
+		auto opt = reinterpret_cast<ipv6_ext_header *>(buf->push_header(it->length));
+		memcpy(opt, it->buf, it->length);
+		next_header = opt->next_header;
+		opt->next_header = __next_header;
+	}
+
 	const auto length = buf->length(); 
 	auto hdr = reinterpret_cast<ip6hdr *>(buf->push_header(sizeof(ip6hdr)));
 	
@@ -44,7 +66,8 @@ int send_packet(const inet_route& route, unsigned int type,
 	hdr->traffic_class = 0;
 	hdr->version = 6;
 	hdr->payload_length = htons(length);
-	hdr->next_header = type;
+	hdr->next_header = next_header;
+	hdr->hop_limit = 255;
 
 	int st = 0;
 
@@ -80,7 +103,7 @@ int proto_family::bind_internal(sockaddr_in6 *in, inet_socket *sock)
 	 * These are special cases that require that in->sin_port = 0 **and**
 	 * we do not allocate a port, like we would for standard sin_port = 0.
 	 */
-	bool proto_has_no_ports = false;
+	bool proto_has_no_ports = sock->proto == IPPROTO_ICMPV6;
 
 	if(proto_has_no_ports && in->sin6_port != 0)
 		return -EINVAL;
@@ -165,6 +188,26 @@ void proto_family::unbind(inet_socket *sock)
 rwlock routing_table_lock;
 cul::vector<shared_ptr<inet6_route>> routing_table;
 
+void print_v6_addr(const in6_addr& addr)
+{
+	printk("%x:%x:%x:%x:%x:%x:%x:%x\n", ntohs(addr.s6_addr16[0]),
+	       ntohs(addr.s6_addr16[1]), ntohs(addr.s6_addr16[2]), ntohs(addr.s6_addr16[3]),
+		   ntohs(addr.s6_addr16[4]), ntohs(addr.s6_addr16[5]), ntohs(addr.s6_addr16[6]), ntohs(addr.s6_addr16[7]));
+}
+
+uint16_t flags_from_dest(const in6_addr& dst)
+{
+	/* TODO: There should be more cases of this */
+
+	if(dst.s6_addr[0] == 0xff || (dst.s6_addr[0] == 0xfe && dst.s6_addr[1] == 0x80))
+	{
+		/* Link-local communication or multicast, we need a local address */
+		return INET6_ADDR_LOCAL;
+	}
+
+	return INET6_ADDR_GLOBAL;
+}
+
 expected<inet_route, int> proto_family::route(const inet_sock_address& from,
                                               const inet_sock_address& to, int domain)
 {
@@ -195,7 +238,9 @@ expected<inet_route, int> proto_family::route(const inet_sock_address& from,
 		 * If the result = r.dest, we can use this interface.
 		 */
 #if 0
-		printk("dest %x, mask %x, supposed dest %x\n", dest, r->mask, r->dest);
+		print_v6_addr(dest);
+		print_v6_addr(r->mask);
+		print_v6_addr(r->dest);
 #endif
 		if((dest & r->mask) != r->dest)
 			continue;
@@ -221,12 +266,14 @@ expected<inet_route, int> proto_family::route(const inet_sock_address& from,
 	rw_unlock_read(&routing_table_lock);
 
 	if(!best_route)
-		return unexpected<int>{-ENETUNREACH};
-	
+		return unexpected<int>{-EHOSTUNREACH};
+
+	auto saddr_flags = flags_from_dest(to.in6);
+ 
 	inet_route r;
 	r.dst_addr.in6 = to.in6;
 	r.nif = best_route->nif;
-	r.src_addr.in6 = r.nif->local_ip6;
+	r.src_addr.in6 = netif_get_v6_address(r.nif, saddr_flags);
 	r.flags = best_route->flags;
 	r.gateway_addr.in6 = best_route->gateway;
 
@@ -235,10 +282,16 @@ expected<inet_route, int> proto_family::route(const inet_sock_address& from,
 	if(r.flags & INET4_ROUTE_FLAG_GATEWAY)
 	{
 		to_resolve = r.gateway_addr.in6;
+		//printk("Gateway %x\n", ntohs(r.gateway_addr.in6.s6_addr16[0]));
 	}
 
-#if 0
-	auto res = arp_resolve_in(to_resolve, r.nif);
+	if(ipv6_addr_to_tx_type(to.in6) == tx_type::multicast)
+	{
+		r.dst_hw = nullptr;
+		return r;
+	}
+
+	auto res = ndp_resolve(to_resolve, r.nif);
 
 	if(res.has_error()) [[unlikely]]
 	{
@@ -246,7 +299,6 @@ expected<inet_route, int> proto_family::route(const inet_sock_address& from,
 	}
 
 	r.dst_hw = res.value();
-#endif
 
 	return r;
 }
@@ -281,9 +333,74 @@ socket *create_socket(int type, int protocol)
 	if(sock)
 		sock->proto_domain = &v6_protocol;
 
-	printk("INET6 socket!\n");
-
 	return sock;
+}
+
+bool valid_packet(const ip6hdr *header, size_t size)
+{
+	if(ntohs(header->payload_length) > size)
+		return false;
+
+	if(sizeof(struct ip_header) > size)
+		return false;
+	
+	if(header->version != 6)
+		return false;
+
+	return true;
+}
+
+int handle_packet(netif *nif, packetbuf *buf)
+{
+	ip6hdr *header = (ip6hdr *) buf->data;
+
+	if(!valid_packet(header, buf->length()))
+	{
+		return -EINVAL;
+	}
+
+	buf->net_header = (unsigned char *) header;
+	buf->domain = AF_INET6;
+	auto iphdr_len = sizeof(ip6hdr);
+
+	buf->data += iphdr_len;
+
+	/* Adjust tail to point at the end of the ipv4 packet */
+	buf->tail = (unsigned char *) header + iphdr_len + ntohs(header->payload_length);
+
+	if(header->next_header == IPPROTO_ICMPV6)
+		return icmpv6::handle_packet(nif, buf);
+	else
+	{
+		/* Oh, no, an unhandled protocol! Send an ICMP error message */
+
+#if 0
+		icmp::dst_unreachable_info dst_un;
+		dst_un.code = ICMP_CODE_PROTO_UNREACHABLE;
+		dst_un.iphdr = header;
+		unsigned char *dgram;
+		unsigned char bytes[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+		
+		/* We perform this check to make sure we don't leak memory */
+		if(buf->length() >= 8)
+			dgram = (unsigned char *) header + iphdr_len;
+		else
+			dgram = bytes;
+
+		dst_un.dgram = dgram;
+		dst_un.next_hop_mtu = 0;
+
+		icmp::send_dst_unreachable(dst_un, nif);
+#endif
+
+	}
+
+	return 0;
+}
+
+proto_family *get_v6_proto()
+{
+	return &v6_protocol;
 }
 
 }
