@@ -69,13 +69,13 @@ void free_frags(struct list_head *frag_list)
 
 struct send_info
 {
-	inet_route& route;
+	const inet_route& route;
 	unsigned int type;
 	unsigned int ttl;
 	bool frags_following;
 	uint16_t identification;
 
-	send_info(inet_route& r) : route{r} {}
+	send_info(const inet_route& r) : route{r} {}
 };
 
 #define IPV4_OFF_TO_FRAG_OFF(x)		((x) >> 3)
@@ -253,7 +253,7 @@ static tx_type detect_tx_type(const packetbuf *buf)
 	return tx_type::unicast;
 }
 
-int send_fragment(inet_route& route, fragment *frag, netif *nif)
+int send_fragment(const inet_route& route, fragment *frag, netif *nif)
 {
 	auto buf = frag->this_buf;
 	auto type = detect_tx_type(buf);
@@ -309,7 +309,7 @@ static uint16_t allocate_id(void)
 	return __atomic_fetch_add(&identification_counter, 1, __ATOMIC_CONSUME);
 }
 
-int send_packet(inet_route& route, unsigned int type,
+int send_packet(const inet_route& route, unsigned int type,
                 packetbuf *buf, struct netif *netif,
 				cul::slice<ip_option> options)
 {

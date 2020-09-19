@@ -86,7 +86,7 @@ public:
 	void unbind(inet_socket *sock) override;
 };
 
-int send_packet(inet_route& route, unsigned int type,
+int send_packet(const inet_route& route, unsigned int type,
                      packetbuf *buf, struct netif *netif,
 					 cul::slice<ip_option> options = {});
 
@@ -192,6 +192,18 @@ inline cul::pair<inet_sock_address, int> sockaddr_to_isa(const sockaddr* sa)
 		return ip::v4::sockaddr4_to_isa(reinterpret_cast<const sockaddr_in *>(sa));
 	else
 		return ip::v6::sockaddr6_to_isa(reinterpret_cast<const sockaddr_in6 *>(sa));
+}
+
+constexpr size_t inet_header_size(int domain)
+{
+	/* Add some extra bytes for options, should be enough I think */
+	size_t size = 100;
+	if(domain == AF_INET)
+		size += sizeof(ip_header);
+	else
+		size += sizeof(ip6hdr);
+
+	return size;
 }
 
 #endif

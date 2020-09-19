@@ -21,8 +21,6 @@
 static struct spinlock netif_list_lock = {0};
 cul::vector<netif*> netif_list;
 
-int netif_add_v6_address(netif *nif, const if_inet6_addr& addr);
-
 unsigned int netif_ioctl(int request, void *argp, struct file* f)
 {
 	auto netif = static_cast<struct netif *>(f->f_ino->i_helper);
@@ -151,6 +149,24 @@ struct netif *netif_choose(void)
 	spin_unlock(&netif_list_lock);
 
 	return NULL;
+}
+
+netif *netif_from_if(int oif)
+{
+	if(!oif)
+		return nullptr;
+
+	if(oif < 0)
+		return nullptr;
+
+	scoped_lock g{&netif_list_lock};
+
+	int index = oif - 1;
+
+	if(netif_list.size() < (unsigned int) index)
+		return nullptr;
+
+	return netif_list[index];
 }
 
 netif *netif_get_from_addr(const inet_sock_address& s, int domain)

@@ -88,4 +88,17 @@ struct inet_sock_address
 	}
 };
 
+template <typename AddressType>
+struct inet_domain_type { static constexpr int domain = AF_UNSPEC; };
+
+template <>
+struct inet_domain_type<in_addr> { static constexpr int domain = AF_INET; };
+
+template <>
+struct inet_domain_type<in6_addr> { static constexpr int domain = AF_INET6; };
+
+template<typename AddressType>
+inline constexpr int inet_domain_type_v = inet_domain_type<AddressType>::domain;
+
+
 #endif

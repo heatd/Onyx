@@ -16,14 +16,13 @@
 #include <onyx/net/network.h>
 
 
-typedef struct udp
+struct udphdr
 {
 	uint16_t source_port;
 	uint16_t dest_port;
 	uint16_t len;
 	uint16_t checksum;
-	uint8_t payload[0];
-} udp_header_t;
+};
 
 struct udp_packet
 {
@@ -56,6 +55,9 @@ class udp_socket : public inet_socket
 	{
 		return wait_for_event_locked_interruptible(&rx_wq, !list_is_empty(&rx_packet_list), &rx_packet_list_lock);
 	}
+
+	template <typename AddrType>
+	ssize_t udp_sendmsg(const msghdr *msg, int flags, const inet_sock_address& dst);
 
 public:
 	int bind(sockaddr *addr, socklen_t len) override;

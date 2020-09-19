@@ -124,6 +124,7 @@ int netif_unregister_if(struct netif *netif);
 struct netif *netif_choose(void);
 void netif_get_ipv4_addr(struct sockaddr_in *s, struct netif *netif);
 struct netif *netif_get_from_addr(const inet_sock_address& s, int domain);
+netif *netif_from_if(int oif);
 cul::vector<netif*>& netif_lock_and_get_list(void);
 void netif_unlock_list(void);
 struct netif *netif_from_name(const char *name);

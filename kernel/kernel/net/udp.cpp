@@ -19,6 +19,7 @@
 #include <onyx/packetbuf.h>
 #include <onyx/memory.hpp>
 #include <onyx/poll.h>
+#include <onyx/expected.hpp>
 
 #include <onyx/net/ip.h>
 #include <onyx/net/udp.h>
@@ -33,7 +34,7 @@ socket_table udp_socket_table;
 
 const inet_proto udp_proto{"udp", &udp_socket_table};
 
-uint16_t udpv4_calculate_checksum(udp_header_t *header, uint32_t srcip, uint32_t dstip,
+uint16_t udpv4_calculate_checksum(struct udphdr *header, uint32_t srcip, uint32_t dstip,
                                   bool do_rest_of_packet = true)
 {
 	uint16_t proto = IPPROTO_UDP << 8;
@@ -83,7 +84,7 @@ inetsum_t calculate_safe(const in6_addr& src, const in6_addr& dst, uint32_t leng
 	return __ipsum_unfolded(&c, sizeof(c), 0);
 }
 
-uint16_t udpv6_calculate_checksum(udp_header_t *header, const in6_addr& src, const in6_addr& dst,
+uint16_t udpv6_calculate_checksum(struct udphdr *header, const in6_addr& src, const in6_addr& dst,
                                   bool do_rest_of_packet = true)
 {
 	uint32_t proto = htonl(IPPROTO_UDP);
@@ -102,11 +103,12 @@ uint16_t udpv6_calculate_checksum(udp_header_t *header, const in6_addr& src, con
 	return ipsum_fold(r);
 }
 
-uint16_t udp_calculate_checksum(udp_header_t *header, const inet_route::addr& src,
-                                const inet_route::addr& dest, bool is_v6,
+template <int domain>
+uint16_t udp_calculate_checksum(struct udphdr *header, const inet_route::addr& src,
+                                const inet_route::addr& dest,
                                 bool do_rest_of_packet = true)
 {
-	if(is_v6)
+	if constexpr(domain == AF_INET6)
 	{
 		return udpv6_calculate_checksum(header, src.in6, dest.in6, do_rest_of_packet);
 	}
@@ -116,70 +118,18 @@ uint16_t udp_calculate_checksum(udp_header_t *header, const inet_route::addr& sr
 	}
 }
 
-#include <onyx/clock.h>
-
-int udp_socket::send_packet(const msghdr *msg, ssize_t payload_size, in_port_t source_port,
-	            in_port_t dest_port, inet_route& route, int msg_domain)
+expected<ref_guard<packetbuf>, int> udp_create_pbuf(size_t payload_size, size_t headers_len)
 {
-	bool is_v6 = msg_domain == AF_INET6;
-
-	auto netif = route.nif;
-	auto& src = route.src_addr;
-	auto& dest = route.dst_addr;
-
-	if(payload_size > UINT16_MAX)
-		return -EMSGSIZE;
-
 	auto b = make_refc<packetbuf>();
 	if(!b)
-		return -ENOMEM;
+		return unexpected{-ENOMEM};
 
-	if(!b->allocate_space(payload_size + get_headers_len() + sizeof(udp_header_t) + PACKET_MAX_HEAD_LENGTH))
-		return -ENOMEM;
+	if(!b->allocate_space(payload_size + headers_len + sizeof(udphdr) + PACKET_MAX_HEAD_LENGTH))
+		return unexpected{-ENOMEM};
 
-	b->reserve_headers(get_headers_len() + sizeof(udp_header_t) + PACKET_MAX_HEAD_LENGTH);
+	b->reserve_headers(headers_len + sizeof(udphdr) + PACKET_MAX_HEAD_LENGTH);
 
-	udp_header_t *udp_header = (udp_header_t *) b->push_header(sizeof(udp_header_t));
-
-	memset(udp_header, 0, sizeof(udp_header_t));
-
-	b->transport_header = (unsigned char *) udp_header;
-
-	udp_header->source_port = source_port;
-	udp_header->dest_port = dest_port;
-
-	udp_header->len = htons((uint16_t)(sizeof(udp_header_t) + payload_size));
-	
-	unsigned char *ptr = (unsigned char *) b->put((unsigned int) payload_size);
-
-	for(int i = 0; i < msg->msg_iovlen; i++)
-	{
-		const auto &vec = msg->msg_iov[i];
-		if(copy_from_user(ptr, vec.iov_base, vec.iov_len) < 0)
-			return -EFAULT;
-		
-		ptr += vec.iov_len;
-	}
-
-	if(netif->flags & NETIF_SUPPORTS_CSUM_OFFLOAD && !needs_fragmenting(netif, b.get()))
-	{
-		/* Don't supply the 1's complement of the checksum, since the network stack expects a partial sum */
-		udp_header->checksum = ~udp_calculate_checksum(udp_header, src, dest, is_v6, false);
-		b->csum_offset = &udp_header->checksum;
-		b->csum_start = (unsigned char *) udp_header;
-		b->needs_csum = 1;
-	}
-	else
-		udp_header->checksum = udp_calculate_checksum(udp_header, src, dest, is_v6);
-
-	int ret;
-	
-	if(is_v6)
-		ret = ip::v6::send_packet(route, IPPROTO_UDP, b.get(), netif);
-	else
-		ret = ip::v4::send_packet(route, IPPROTO_UDP, b.get(), netif);
-
-	return ret;
+	return b;
 }
 
 int udp_socket::bind(sockaddr *addr, socklen_t len)
@@ -228,30 +178,82 @@ int udp_socket::connect(sockaddr *addr, socklen_t len)
 	return 0;
 }
 
-ssize_t udp_socket::sendmsg(const msghdr *msg, int flags)
+void udp_prepare_headers(packetbuf *buf, in_port_t sport, in_port_t dport, size_t len)
 {
-	sockaddr *addr = (sockaddr *) msg->msg_name;
-	if(addr && !validate_sockaddr_len_pair(addr, msg->msg_namelen))
-		return -EINVAL;
+	auto udp_header = (udphdr *) buf->push_header(sizeof(udphdr));
 
-	inet_sock_address dest = dest_addr;
-	int our_domain = effective_domain();
+	buf->transport_header = (unsigned char *) udp_header;
 
+	udp_header->source_port = sport;
+	udp_header->dest_port = dport;
+	udp_header->len = htons((uint16_t)(sizeof(udphdr) + len));
+}
+
+int udp_put_data(packetbuf *buf, const msghdr *msg, size_t length)
+{
+	unsigned char *ptr = (unsigned char *) buf->put((unsigned int) length);
+
+	for(int i = 0; i < msg->msg_iovlen; i++)
+	{
+		const auto &vec = msg->msg_iov[i];
+		if(copy_from_user(ptr, vec.iov_base, vec.iov_len) < 0)
+			return -EFAULT;
+		
+		ptr += vec.iov_len;
+	}
+
+	return 0;
+}
+
+template <int domain>
+void udp_do_csum(packetbuf *buf, const inet_route& route)
+{
+	auto hdr = (udphdr *) buf->transport_header;
+	auto netif = route.nif;
+
+	/* TODO: Take options into account */
+	auto ip_hdr_size = inet_header_size(domain);
+
+	if(netif->flags & NETIF_SUPPORTS_CSUM_OFFLOAD && netif->mtu >= buf->length() + ip_hdr_size)
+	{
+		/* Don't supply the 1's complement of the checksum, since the network stack expects a partial sum */
+		hdr->checksum = ~udp_calculate_checksum<domain>(hdr, route.src_addr, route.dst_addr, false);
+		buf->csum_offset = &hdr->checksum;
+		buf->csum_start = (unsigned char *) hdr;
+		buf->needs_csum = 1;
+	}
+	else
+		hdr->checksum = udp_calculate_checksum<domain>(hdr, route.src_addr, route.dst_addr);
+}
+
+template <int domain>
+int udp_do_send(packetbuf *buf, const inet_route& route)
+{
+	int ret;
+	
+	if constexpr(domain == AF_INET6)
+		ret = ip::v6::send_packet(route, IPPROTO_UDP, buf, route.nif);
+	else
+		ret = ip::v4::send_packet(route, IPPROTO_UDP, buf, route.nif);
+
+	return ret;
+}
+
+template <typename AddrType>
+ssize_t udp_socket::udp_sendmsg(const msghdr *msg, int flags, const inet_sock_address& dst)
+{
 	auto payload_size = iovec_count_length(msg->msg_iov, msg->msg_iovlen);
 	if(payload_size < 0)
 		return payload_size;
-
-	if(addr)
-	{
-		auto res = sockaddr_to_isa(addr);
-		dest = res.first;
-		our_domain = res.second;
-	}
-
-	if(!connected && addr == nullptr)
-		return -ENOTCONN;
-
+	
+	if(payload_size > UINT16_MAX)
+		return -EMSGSIZE;
+	
 	inet_route route;
+
+	constexpr auto our_domain = inet_domain_type_v<AddrType>;
+	static_assert(our_domain == AF_INET || our_domain == AF_INET6,
+	              "UDP only supports INET or INET6");
 
 	if(connected && route_cache_valid)
 	{
@@ -260,7 +262,7 @@ ssize_t udp_socket::sendmsg(const msghdr *msg, int flags)
 	else
 	{
 		auto fam = get_proto_fam();
-		auto result = fam->route(src_addr, dest, our_domain);
+		auto result = fam->route(src_addr, dst, our_domain);
 		if(result.has_error())
 		{
 			//printk("died with error %d\n", result.error());
@@ -270,13 +272,49 @@ ssize_t udp_socket::sendmsg(const msghdr *msg, int flags)
 		route = result.value();
 	}
 
-	if(int st = send_packet(msg, payload_size, src_addr.port, dest.port,
-			   route, our_domain); st < 0)
-	{
+	auto pbf_st = udp_create_pbuf(payload_size, inet_header_size(our_domain));
+
+	if(pbf_st.has_error())
+		return pbf_st.error();
+	
+	auto buf = pbf_st.value();
+
+	udp_prepare_headers(buf.get(), src_addr.port, dst.port, payload_size);
+	
+	if(udp_put_data(buf.get(), msg, payload_size) < 0)
+		return -EFAULT;
+
+	udp_do_csum<our_domain>(buf.get(), route);
+
+	if(int st = udp_do_send<our_domain>(buf.get(), route); st < 0)
 		return st;
-	}
 
 	return payload_size;
+}
+
+ssize_t udp_socket::sendmsg(const msghdr *msg, int flags)
+{
+	sockaddr *addr = (sockaddr *) msg->msg_name;
+	if(addr && !validate_sockaddr_len_pair(addr, msg->msg_namelen))
+		return -EINVAL;
+
+	if(!connected && addr == nullptr)
+		return -EDESTADDRREQ;
+
+	inet_sock_address dest = dest_addr;
+	int our_domain = effective_domain();
+
+	if(addr)
+	{
+		auto res = sockaddr_to_isa(addr);
+		dest = res.first;
+		our_domain = res.second;
+	}
+	
+	if(our_domain == AF_INET)
+		return udp_sendmsg<in_addr>(msg, flags, dest);
+	else
+		return udp_sendmsg<in6_addr>(msg, flags, dest);
 }
 
 socket *udp_create_socket(int type)
@@ -296,9 +334,9 @@ int udp_init_netif(netif *netif)
 	return 0;
 }
 
-bool valid_udp_packet(udp_header_t *header, size_t length)
+bool valid_udp_packet(struct udphdr *header, size_t length)
 {
-	if(sizeof(udp_header_t) > length)
+	if(sizeof(struct udphdr) > length)
 		return false;
 	if(ntohs(header->len) > length)
 		return false;
@@ -308,7 +346,7 @@ bool valid_udp_packet(udp_header_t *header, size_t length)
 
 int udp_handle_packet(netif *netif, packetbuf *buf)
 {
-	udp_header_t *udp_header = (udp_header_t *) buf->data;
+	struct udphdr *udp_header = (struct udphdr *) buf->data;
 
 	if(!valid_udp_packet(udp_header, buf->length()))
 		return -EINVAL;
@@ -330,7 +368,7 @@ int udp_handle_packet(netif *netif, packetbuf *buf)
 	}
 
 	buf->transport_header = (unsigned char *) udp_header;
-	buf->data += sizeof(udp_header_t);
+	buf->data += sizeof(struct udphdr);
 
 	socket->rx_dgram(buf);
 
@@ -364,7 +402,7 @@ expected<packetbuf *, int> udp_socket::get_datagram(int flags)
 
 static void copy_msgname_to_user(struct msghdr *msg, packetbuf *buf, bool isv6)
 {
-	udp_header_t *udp_header = (udp_header_t *) buf->transport_header;
+	struct udphdr *udp_header = (struct udphdr *) buf->transport_header;
 
 	if(buf->domain == AF_INET && !isv6)
 	{
