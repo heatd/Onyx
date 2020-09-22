@@ -63,7 +63,7 @@
 static inline unsigned long vm_prot_to_cache_type(uint64_t prot)
 {
 	if(prot & VM_NOCACHE)
-		return __VM_CACHE_TYPE_UNCACHEABLE;
+		return __VM_CACHE_TYPE_UNCACHED;
 	else if(prot & VM_WRITETHROUGH)
 		return __VM_CACHE_TYPE_WT;
 	else if(prot & VM_WC)

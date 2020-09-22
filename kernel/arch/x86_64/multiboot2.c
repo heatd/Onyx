@@ -61,6 +61,7 @@
 #include <onyx/mm/kasan.h>
 #include <onyx/x86/kvm.h>
 #include <onyx/x86/msr.h>
+#include <onyx/x86/pat.h>
 
 #include <drivers/rtc.h>
 
@@ -375,6 +376,8 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 
 	/* Identify the CPU it's running on (bootstrap CPU) */
 	cpu_identify();
+
+	pat_init();
 
 	paging_map_all_phys();
 

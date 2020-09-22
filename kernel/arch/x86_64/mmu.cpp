@@ -20,6 +20,8 @@
 static const unsigned int x86_paging_levels = 4;
 static const unsigned int x86_max_paging_levels = 5;
 
+#define X86_CACHING_BITS(index) ((((index) & 0x3) << 3) | (((index >> 2) & 1) << 7))
+
 #define PML_EXTRACT_ADDRESS(n)  ((n) & 0x0FFFFFFFFFFFF000)
 #define X86_PAGING_PRESENT		(1 << 0)
 #define X86_PAGING_WRITE		(1 << 1)
@@ -107,26 +109,6 @@ static inline uint64_t make_pml2e(uint64_t base,
   		(pwt << 3) | \
   		(us << 2) | \
   		(rw << 1) | \
-  		p);
-}
-
-static inline uint64_t make_pml1e(uint64_t base,
-				  uint64_t nx,
-				  uint64_t avl,
-				  uint64_t glbl,
-				  uint64_t caching_bits,
-				  uint64_t us,
-				  uint64_t rw,
-				  uint64_t p)
-{
-	return (uint64_t)(
-  		(base) |
-  		(nx << 63) |
-  		(avl << 9) |
-  		(glbl << 8) |
-  		((caching_bits << 3) & 0x3) |
-  		(us << 2) |
-  		(rw << 1) |
   		p);
 }
 
@@ -230,10 +212,10 @@ unsigned long placement_mappings_start = 0xffffffffffc00000;
 volatile int __gdb_debug_counter = 0; \
 while(__gdb_debug_counter != 1)
 
-
+extern "C"
 void __native_tlb_invalidate_all(void)
 {
-	__asm__ __volatile__("mov %%cr3, %%rax\nmov %%rax, %%cr3":::"rax");
+	__asm__ __volatile__("mov %%cr3, %%rax\nmov %%rax, %%cr3":::"rax", "memory");
 }
 
 void *x86_placement_map(unsigned long _phys)
@@ -485,11 +467,11 @@ void* paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64
 	unsigned int cache_type = vm_prot_to_cache_type(prot);
 	uint8_t caching_bits = cache_to_paging_bits(cache_type);
 
-	uint64_t page_prots = 	(noexec ? X86_PAGING_NX : 0) |
+	uint64_t page_prots = (noexec ? X86_PAGING_NX : 0) |
 				(global ? X86_PAGING_GLOBAL : 0) |
 				(user ? X86_PAGING_USER : 0) |
 				(write ? X86_PAGING_WRITE : 0) |
-				((caching_bits << 3) & 0x3) |
+				X86_CACHING_BITS(caching_bits) |
 				(readable ? X86_PAGING_PRESENT : 0);
 
 	if(prot & VM_DONT_MAP_OVER && pml->entries[indices[0]] & X86_PAGING_PRESENT)
@@ -1022,7 +1004,7 @@ void vm_mmu_mprotect_page(struct mm_address_space *as, void *addr, int old_prots
 				(global ? X86_PAGING_GLOBAL : 0) |
 				(user ? X86_PAGING_USER : 0) |
 				(write ? X86_PAGING_WRITE : 0) |
-				((caching_bits << 3) & 0x3) |
+				X86_CACHING_BITS(caching_bits) |
 				(readable ? X86_PAGING_PRESENT : 0);
 	*ptentry = paddr | page_prots;
 }

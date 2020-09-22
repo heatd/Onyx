@@ -11,6 +11,7 @@
 #include <onyx/vm.h>
 
 #include <onyx/x86/msr.h>
+#include <onyx/x86/vm.h>
 
 #define PAT_WB_INDEX		0
 #define PAT_WT_INDEX		1
@@ -50,6 +51,9 @@ static void flush_pat(void)
 		| (pat_config[6] << 48) | (pat_config[7] << 56);
 
 	wrmsr(IA32_MSR_PAT, data);
+
+	__asm__ __volatile__("wbinvd");
+	__native_tlb_invalidate_all();
 }
 
 uint8_t cache_to_paging_bits(uint8_t type)

@@ -15,4 +15,14 @@ struct arch_mm_address_space
 #define vm_get_pgd(arch_mmu)      (arch_mmu)->cr3
 #define vm_set_pgd(arch_mmu, new_pgd) (arch_mmu)->cr3 = new_pgd
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void __native_tlb_invalidate_all(void);
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif
