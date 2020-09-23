@@ -66,6 +66,8 @@ struct netif
 	struct file *device_file;
 	void *priv;
 
+	uint32_t if_id;
+
 	unsigned int flags;
 	unsigned int mtu;
 	unsigned char mac_address[6];
@@ -124,7 +126,7 @@ int netif_unregister_if(struct netif *netif);
 struct netif *netif_choose(void);
 void netif_get_ipv4_addr(struct sockaddr_in *s, struct netif *netif);
 struct netif *netif_get_from_addr(const inet_sock_address& s, int domain);
-netif *netif_from_if(int oif);
+netif *netif_from_if(uint32_t oif);
 cul::vector<netif*>& netif_lock_and_get_list(void);
 void netif_unlock_list(void);
 struct netif *netif_from_name(const char *name);

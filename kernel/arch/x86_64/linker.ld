@@ -123,8 +123,6 @@ SECTIONS
 		*(COMMON)
 		*(.bss)
 		*(.gnu.linkonce.b*)
-		. = ALIGN(16);
-		*(.bootstrap_stack*)
 	} : data
 
 	. = ALIGN(0x1000);
@@ -138,5 +136,4 @@ SECTIONS
 	. = ALIGN(0x1000);
 	_vdso_sect_end = .;
 	kernel_end = .;
-
 }

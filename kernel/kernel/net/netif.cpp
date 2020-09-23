@@ -77,9 +77,19 @@ unsigned int netif_ioctl(int request, void *argp, struct file* f)
 				return -EFAULT;
 			return 0;
 		}
+
+		case SIOGETINDEX:
+		{
+			if(copy_to_user(argp, &netif->if_id, sizeof(netif->if_id)) < 0)
+				return -EFAULT;
+			return 0;
+		}
 	}
+
 	return -ENOTTY;
 }
+
+atomic<uint32_t> next_if = 1;
 
 void netif_register_if(struct netif *netif)
 {
@@ -99,6 +109,8 @@ void netif_register_if(struct netif *netif)
 	d->fops.ioctl = netif_ioctl;
 
 	device_show(d, DEVICE_NO_PATH, 0666);
+
+	netif->if_id = next_if++;
 	
 	spin_lock(&netif_list_lock);
 
@@ -151,22 +163,20 @@ struct netif *netif_choose(void)
 	return NULL;
 }
 
-netif *netif_from_if(int oif)
+netif *netif_from_if(uint32_t oif)
 {
 	if(!oif)
 		return nullptr;
 
-	if(oif < 0)
-		return nullptr;
-
 	scoped_lock g{&netif_list_lock};
 
-	int index = oif - 1;
+	for(auto &c : netif_list)
+	{
+		if(c->if_id == oif)
+			return c;
+	}
 
-	if(netif_list.size() < (unsigned int) index)
-		return nullptr;
-
-	return netif_list[index];
+	return nullptr;
 }
 
 netif *netif_get_from_addr(const inet_sock_address& s, int domain)

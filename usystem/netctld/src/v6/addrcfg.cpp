@@ -85,40 +85,6 @@ const in6_addr solicited_node_prefix = {0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1
 const in6_addr all_nodes = {0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
 const in6_addr all_routers = {0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2};
 
-void configure_local_route(netctl::instance& inst)
-{
-	/* FIXME: These should not be routes and instead should be handled by scope_id */
-	netkernel_route6_add route;
-	route.dest = local_network;
-	route.mask = {0xff, 0xff};
-	route.gateway = {};
-	route.hdr.flags = 0;
-	route.hdr.msg_type = NETKERNEL_MSG_ROUTE6_ADD;
-	route.hdr.size = sizeof(route);
-	strcpy(route.iface, inst.get_name().c_str() + 5);
-	route.metric = 100;
-	route.flags = 0;
-	
-	struct sockaddr_nk dst;
-	dst.nk_family = AF_NETKERNEL;
-	strcpy(dst.path, "ipv6.rt");
-
-	if(sendto(nkfd, (const void *) &route, sizeof(route), 0, (const sockaddr *) &dst, sizeof(dst)) < 0)
-	{
-		throw sys_error("Error adding local route");
-	}
-
-	/* Multicast */
-
-	route.dest = {0xff};
-	route.mask = {0xff};
-
-	if(sendto(nkfd, (const void *) &route, sizeof(route), 0, (const sockaddr *) &dst, sizeof(dst)) < 0)
-	{
-		throw sys_error("Error adding local route");
-	}
-}
-
 in6_addr solicited_node_address(const in6_addr &our_address)
 {
 	/* Per rfc4291, the solicited node address is formed by taking the low 24-bits of an address and 
@@ -131,7 +97,7 @@ in6_addr solicited_node_address(const in6_addr &our_address)
 	return ret;
 }
 
-void join_multicast(const in6_addr& addr, int sockfd)
+void join_multicast(const in6_addr& addr, int sockfd, std::uint32_t scope_id)
 {
 	auto report_size = mldv2_report_size(1, 0);
 	mldv2_report *report = (mldv2_report *) new uint8_t[report_size];
@@ -149,6 +115,7 @@ void join_multicast(const in6_addr& addr, int sockfd)
 	struct sockaddr_in6 all_capable = {};
 	all_capable.sin6_addr = all_mldv2_capable_routers;
 	all_capable.sin6_family = AF_INET6;
+	all_capable.sin6_scope_id = scope_id;
 	
 	if(sendto(sockfd, report, report_size, 0, (const sockaddr *) &all_capable, sizeof(all_capable)) < 0)
 	{
@@ -187,11 +154,12 @@ ssize_t wait_for_neighbour_advert(const in6_addr& addr, int sockfd)
 		return 1;
 }
 
-int perform_dad(const in6_addr& addr, int sockfd)
+int perform_dad(const in6_addr& addr, int sockfd, std::uint32_t scope_id)
 {
 	struct sockaddr_in6 solicited_nodes = {};
 	solicited_nodes.sin6_addr = solicited_node_address(addr);
 	solicited_nodes.sin6_family = AF_INET6;
+	solicited_nodes.sin6_scope_id = scope_id;
 	unsigned int i = DupAddrDetectTransmits;
 
 	while(i--)
@@ -314,6 +282,7 @@ void solicit_router(const in6_addr& addr, int sockfd, instance& inst)
 	struct sockaddr_in6 all_rtrs = {};
 	all_rtrs.sin6_addr = all_routers;
 	all_rtrs.sin6_family = AF_INET6;
+	all_rtrs.sin6_scope_id = inst.get_if_index();
 
 	if(sendto(sockfd, buf, sizeof(buf), 0, (const sockaddr *) &all_rtrs, sizeof(all_rtrs)) < 0)
 		throw sys_error("Error sending router solicit");
@@ -368,7 +337,7 @@ void solicit_router(const in6_addr& addr, int sockfd, instance& inst)
 		memcpy(&a, &p.prefix, p.prefix_len / 8);
 		memcpy(&a.s6_addr[8], &addr.s6_addr[8], 8);
 
-		if(perform_dad(a, sockfd) < 0)
+		if(perform_dad(a, sockfd, inst.get_if_index()) < 0)
 		{
 			throw std::runtime_error("duplicated address");
 		}
@@ -421,8 +390,6 @@ void configure_if(netctl::instance& instance)
 		configure_address_random(instance, addr);
 	}
 
-	configure_local_route(instance);
-
 	int sockfd = socket(AF_INET6, SOCK_DGRAM, IPPROTO_ICMPV6);
 	if(sockfd < 0)
 	{
@@ -451,10 +418,10 @@ void configure_if(netctl::instance& instance)
      * of the tentative address
 	 */
 
-	join_multicast(all_nodes, sockfd);
-	join_multicast(solicited_node_address(addr), sockfd);
+	join_multicast(all_nodes, sockfd, instance.get_if_index());
+	join_multicast(solicited_node_address(addr), sockfd, instance.get_if_index());
 
-	if(perform_dad(addr, sockfd) < 0)
+	if(perform_dad(addr, sockfd, instance.get_if_index()) < 0)
 	{
 		/* TODO: How to respond to this properly? */
 		throw std::runtime_error("duplicated address");
@@ -470,7 +437,7 @@ void configure_if(netctl::instance& instance)
 		throw sys_error("SIOSETINET6");
 	}
 
-	join_multicast(solicited_node_address(addr), sockfd);
+	join_multicast(solicited_node_address(addr), sockfd, instance.get_if_index());
 
 	filt.code = ICMP_FILTER_CODE_UNSPEC;
 	filt.type = ICMPV6_ROUTER_ADVERT;

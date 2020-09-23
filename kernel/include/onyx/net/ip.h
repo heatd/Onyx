@@ -164,8 +164,9 @@ inline T *inet6_resolve_socket(const in6_addr& src, in_port_t port_src, in_port_
 	const in6_addr& __src = src;
 	auto flags = (!ign_dst ? GET_SOCKET_DSTADDR_VALID : 0);
 
-	const inet_sock_address socket_dst{__src, port_src};
-	const inet_sock_address socket_src{nif->local_ip.sin_addr, port_dst};
+	const inet_sock_address socket_dst{__src, port_src, nif->if_id};
+	/* TODO: Fix this */
+	const inet_sock_address socket_src{in6addr_any, port_dst, nif->if_id};
 
 	const socket_id id(proto, AF_INET6, socket_src, socket_dst);
 

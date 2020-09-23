@@ -50,6 +50,7 @@ struct inet_sock_address
 	in_addr in4;
 	in6_addr in6;
 	in_port_t port;
+	uint32_t v6_scope_id{0};
 
 	inet_sock_address() = default;
 	explicit constexpr inet_sock_address(const sockaddr_in& sa) : in4{sa.sin_addr},
@@ -57,13 +58,15 @@ struct inet_sock_address
 	{}
 
 	explicit constexpr inet_sock_address(const sockaddr_in6& sa) : in4{},
-	                                                               in6{sa.sin6_addr}, port{sa.sin6_port}
+	                                                               in6{sa.sin6_addr}, port{sa.sin6_port},
+																   v6_scope_id{sa.sin6_scope_id}
 	{}
 
 	explicit constexpr inet_sock_address(const in_addr& in4, in_port_t port) : in4{in4}, in6{}, port{port}
 	{}
 
-	explicit constexpr inet_sock_address(const in6_addr& in6, in_port_t port) : in4{}, in6{in6}, port{port}
+	explicit constexpr inet_sock_address(const in6_addr& in6, in_port_t port,
+	                                     uint32_t scope) : in4{}, in6{in6}, port{port}, v6_scope_id{scope}
 	{}
 
 	constexpr bool equals(const inet_sock_address& rhs, bool ipv4_mode) const
@@ -76,7 +79,10 @@ struct inet_sock_address
 			return in4 == rhs.in4;
 		}
 		else
-			return in6 == rhs.in6;
+		{
+			bool scope_id_matters = IN6_IS_ADDR_MC_LINKLOCAL(in6.s6_addr) || IN6_IS_ADDR_LINKLOCAL(in6.s6_addr);
+			return (!scope_id_matters || v6_scope_id == rhs.v6_scope_id) && in6 == rhs.in6;
+		}
 	}
 
 	constexpr bool is_any(bool ipv4_mode) const

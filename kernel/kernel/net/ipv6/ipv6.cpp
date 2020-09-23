@@ -208,29 +208,15 @@ uint16_t flags_from_dest(const in6_addr& dst)
 	return INET6_ADDR_GLOBAL;
 }
 
-expected<inet_route, int> proto_family::route(const inet_sock_address& from,
-                                              const inet_sock_address& to, int domain)
+expected<inet_route, int> route_from_routing_table(const inet_sock_address& to, netif *required_netif)
 {
-	if(domain == AF_INET)
-		return ip::v4::get_v4_proto()->route(from, to, domain);
-
-	netif *required_netif = nullptr;
-	/* If the source address specifies an interface, we need to use that one. */
-	if(!is_bind_any6(from.in6))
-	{
-		required_netif = netif_get_from_addr(from, AF_INET6);
-		if(!required_netif)
-			return unexpected<int>{-ENETDOWN};
-	}
-
-	/* Else, we're searching through the routing table to find the best interface to use in order
-	 * to reach our destination
-	 */
 	shared_ptr<inet6_route> best_route;
 	int highest_metric = 0;
 	auto dest = to.in6;
 
-	rw_lock_read(&routing_table_lock);
+	{
+
+	scoped_rwlock<rw_lock::read> g{routing_table_lock};
 
 	for(auto &r : routing_table)
 	{
@@ -263,10 +249,10 @@ expected<inet_route, int> proto_family::route(const inet_sock_address& from,
 		}
 	}
 
-	rw_unlock_read(&routing_table_lock);
+	}
 
 	if(!best_route)
-		return unexpected<int>{-EHOSTUNREACH};
+		return unexpected<int>{-ENETUNREACH};
 
 	auto saddr_flags = flags_from_dest(to.in6);
  
@@ -277,30 +263,88 @@ expected<inet_route, int> proto_family::route(const inet_sock_address& from,
 	r.flags = best_route->flags;
 	r.gateway_addr.in6 = best_route->gateway;
 
-	auto to_resolve = r.dst_addr.in6;
+	return r;
+}
 
-	if(r.flags & INET4_ROUTE_FLAG_GATEWAY)
+bool is_link_local(const inet_sock_address& to)
+{
+	return IN6_IS_ADDR_MC_LINKLOCAL(to.in6.s6_addr) || IN6_IS_ADDR_LINKLOCAL(to.in6.s6_addr);;
+}
+
+expected<inet_route, int> route_local(const inet_sock_address& to, netif *required_netif)
+{
+	netif *dest_netif = netif_from_if(to.v6_scope_id);
+
+	if(!dest_netif)
+		return unexpected<int>{-EINVAL};
+	
+	/* What are you trying to do here? */
+	if(required_netif && required_netif != dest_netif)
+		return unexpected<int>{-EINVAL};
+	
+	inet_route rt;
+	rt.dst_addr.in6 = to.in6;
+	rt.flags = INET4_ROUTE_FLAG_SCOPE_LOCAL;
+	rt.gateway_addr = {};
+	rt.nif = dest_netif;
+	rt.src_addr.in6 = netif_get_v6_address(rt.nif, INET6_ADDR_LOCAL);
+	rt.dst_hw = nullptr;
+
+	return rt;
+}
+
+expected<inet_route, int> proto_family::route(const inet_sock_address& from,
+                                              const inet_sock_address& to, int domain)
+{
+	if(domain == AF_INET)
+		return ip::v4::get_v4_proto()->route(from, to, domain);
+
+	netif *required_netif = nullptr;
+	/* If the source address specifies an interface, we need to use that one. */
+	if(!is_bind_any6(from.in6))
 	{
-		to_resolve = r.gateway_addr.in6;
+		required_netif = netif_get_from_addr(from, AF_INET6);
+		if(!required_netif)
+			return unexpected<int>{-ENETDOWN};
+	}
+
+	auto st = is_link_local(to) ? route_local(to, required_netif) : route_from_routing_table(to, required_netif);
+	if(st.has_error())
+	{
+#if 0
+		printk("Routing error %d\n", st.error());
+		printk("Link local: %u\n", is_link_local(to));
+#endif
+		return unexpected<int>{st.error()};
+	}
+
+	auto &rt = st.value();
+
+	/* Multicast addresses don't need ndp resolution, they already have fixed hardware addresses */
+	if(ipv6_addr_to_tx_type(to.in6) == tx_type::multicast)
+	{
+		rt.dst_hw = nullptr;
+		return rt;
+	}
+
+	auto to_resolve = rt.dst_addr.in6;
+
+	if(rt.flags & INET4_ROUTE_FLAG_GATEWAY)
+	{
+		to_resolve = rt.gateway_addr.in6;
 		//printk("Gateway %x\n", ntohs(r.gateway_addr.in6.s6_addr16[0]));
 	}
 
-	if(ipv6_addr_to_tx_type(to.in6) == tx_type::multicast)
-	{
-		r.dst_hw = nullptr;
-		return r;
-	}
-
-	auto res = ndp_resolve(to_resolve, r.nif);
+	auto res = ndp_resolve(to_resolve, rt.nif);
 
 	if(res.has_error()) [[unlikely]]
 	{
-		return unexpected<int>(-ENETUNREACH);
+		return unexpected<int>{-ENETUNREACH};
 	}
 
-	r.dst_hw = res.value();
+	rt.dst_hw = res.value();
 
-	return r;
+	return rt;
 }
 
 bool add_route(inet6_route &route)

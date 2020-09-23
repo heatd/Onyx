@@ -434,7 +434,7 @@ void* paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64
 	uint64_t page_table_flags = X86_PAGING_PRESENT | X86_PAGING_WRITE |
 		(user ? X86_PAGING_USER : 0);
 	
-	x86_addr_to_indices(virt ,indices);
+	x86_addr_to_indices(virt, indices);
 
 	PML *pml = (PML*)((uint64_t) as->arch_mmu.cr3 + PHYS_BASE);
 	

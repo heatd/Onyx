@@ -137,8 +137,8 @@ int ndp_handle_ns(netif *nif, packetbuf *buf)
 	const auto &mac = nif->mac_address;
 	memcpy(&opt->hwaddr, mac, 6);
 
-	auto from = inet_sock_address{in6addr_any, 0};
-	auto to = inet_sock_address{iphdr->src_addr, 0};
+	auto from = inet_sock_address{in6addr_any, 0, nif->if_id};
+	auto to = inet_sock_address{iphdr->src_addr, 0, nif->if_id};
 
 	auto route = ip::v6::get_v6_proto()->route(from, to, AF_INET6);
 	if(route.has_error())
@@ -203,8 +203,8 @@ int ndp_submit_request(shared_ptr<neighbour>& ptr, const in6_addr& target_addr, 
 	const auto &mac = netif->mac_address;
 	memcpy(&opt->hwaddr, mac, 6);
 
-	auto from = inet_sock_address{in6addr_any, 0};
-	auto to = inet_sock_address{IN6ADDR_ALL_NODES, 0};
+	auto from = inet_sock_address{in6addr_any, 0, netif->if_id};
+	auto to = inet_sock_address{IN6ADDR_ALL_NODES, 0, netif->if_id};
 
 	auto route = ip::v6::get_v6_proto()->route(from, to, AF_INET6);
 	if(route.has_error())

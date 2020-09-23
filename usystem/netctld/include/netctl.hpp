@@ -40,6 +40,7 @@ class instance
 {
 private:
 	int fd;
+	std::uint32_t if_index;
 	const std::string name;
 	std::thread instance_thread;
 	std::array<unsigned char, 6> mac;
@@ -53,6 +54,11 @@ public:
 		if(ioctl(fd, SIOGETMAC, mac.data()) < 0)
 		{
 			throw std::runtime_error(std::string("ioctl: Could not get the local mac address: ") + strerror(errno));
+		}
+
+		if(ioctl(fd, SIOGETINDEX, &if_index) < 0)
+		{
+			throw sys_error("Failed to get the interface index");
 		}
 	}
 
@@ -120,6 +126,11 @@ public:
 	int get_fd() const
 	{
 		return fd;
+	}
+
+	std::uint32_t get_if_index() const
+	{
+		return if_index;
 	}
 };
 
