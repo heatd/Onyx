@@ -99,3 +99,9 @@ void __assert_fail(const char * assertion, const char * file, int line, const ch
 	printk(buf);
 	panic("Assertion failed!\n");
 }
+
+void abort(void)
+{
+	panic("Abort!");
+}
+

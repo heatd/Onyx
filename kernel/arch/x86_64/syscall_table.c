@@ -46,7 +46,7 @@ extern void sys_execve();
 extern pid_t sys_wait4(pid_t pid, int *wstatus, int options,
 struct rusage *rusage);
 extern ssize_t sys_read(int fd, const void *buf, size_t count);
-extern int sys_open(const char *filename, int flags);
+extern int sys_open(const char *filename, int flags, mode_t mode);
 extern int sys_close(int fd);
 extern int sys_dup(int fd);
 extern int sys_dup2(int oldfd, int newfd);
@@ -86,7 +86,7 @@ extern int sys_kill(pid_t pid, int sig);
 extern int sys_personality(unsigned long val);
 extern int sys_setuid(uid_t uid);
 extern int sys_setgid(gid_t gid);
-extern int sys_fcntl(int fd, int cmd, ...);
+extern int sys_fcntl(int fd, int cmd, unsigned long arg);
 extern int sys_stat(const char *pathname, struct stat *buf);
 extern int sys_lstat(const char *pathname, struct stat *buf);
 extern int sys_fstat(int fd, struct stat *buf);
@@ -104,8 +104,9 @@ extern int sys_openat(int dirfd, const char *path, int flags, mode_t mode);
 extern int sys_fstatat(int dirfd, const char *pathname, struct stat *buf,
 int flags);
 extern int sys_fmount(int fd, const char *path);
-extern int sys_clone(int (*fn)(void *), void *child_stack, int flags,
-void *arg, pid_t *ptid, void *tls);
+
+struct tid_out;
+int sys_clone(int (*fn)(void *), void *child_stack, int flags, void *arg, struct tid_out *out, void *tls);
 extern void sys_exit_thread(int value);
 extern int sys_sigprocmask(int how, const sigset_t *set, sigset_t *oldset);
 extern int sys_sigsuspend(const sigset_t *set);
@@ -134,7 +135,7 @@ extern int sys_ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *tim
 extern int sys_fallocate(int fd, int mode, off_t offset, off_t len);
 extern pid_t sys_gettid(void);
 int sys_mkdirat(int dirfd, const char *upath, mode_t mode);
-int sys_mkdir(int dirfd, const char *upath, mode_t mode);
+int sys_mkdir(const char *upath, mode_t mode);
 int sys_rmdir(const char *pathname);
 int sys_mknod(const char *pathname, mode_t mode, dev_t dev);
 int sys_mknodat(int dirfd, const char *pathname, mode_t mode, dev_t dev);

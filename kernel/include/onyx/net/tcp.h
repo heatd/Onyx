@@ -399,6 +399,8 @@ public:
 
 	int setsockopt(int level, int opt, const void *optval, socklen_t optlen) override;
 	int getsockopt(int level, int opt, void *optval, socklen_t *optlen) override;
+	int shutdown(int how);
+	void close() override;
 };
 
 #endif

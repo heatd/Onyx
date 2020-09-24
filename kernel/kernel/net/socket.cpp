@@ -623,8 +623,7 @@ socket *socket_create(int domain, int type, int protocol)
 void socket_close(struct inode *ino)
 {
 	socket *s = static_cast<socket *>(ino->i_helper);
-
-	s->unref();
+	s->close();
 }
 
 struct inode *socket_create_inode(socket *socket)
@@ -854,6 +853,9 @@ int socket::getsockopt_socket_level(int optname, void *optval, socklen_t *optlen
 
 int socket::setsockopt_socket_level(int optname, const void *optval, socklen_t optlen)
 {
+	if(optname == SO_REUSEADDR)
+		return 0;
+
 	return -ENOPROTOOPT;
 }
 

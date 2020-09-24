@@ -95,6 +95,8 @@ static inline int count_bits64(uint64_t num)
 
 #define OPTIMISE_DEBUG __attribute__((optimize("Og")))
 
+#define USED __attribute__((used))
+
 #ifdef __x86_64__
 
 #define write_memory_barrier()	__asm__ __volatile__("sfence" ::: "memory")

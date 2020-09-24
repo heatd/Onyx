@@ -196,6 +196,11 @@ public:
 	virtual ssize_t recvmsg(struct msghdr *msg, int flags);
 	virtual int getsockopt(int level, int optname, void *optval, socklen_t *optlen) = 0;
 	virtual int setsockopt(int level, int optname, const void *optval, socklen_t optlen) = 0;
+
+	virtual void close()
+	{
+		unref();
+	}
 };
 
 template <typename T>

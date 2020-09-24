@@ -35,6 +35,11 @@ include kernel.config
 
 CFLAGS:=$(CFLAGS) $(KERNEL_ARCH_CFLAGS)
 
+# NOT RECOMMENDED, IS BROKEN
+ifeq ($(CONFIG_LTO), y)
+CFLAGS+=-flto
+endif
+
 ifeq ($(CONFIG_KASAN), y)
 CFLAGS+=-fsanitize=kernel-address
 endif
@@ -107,9 +112,9 @@ include acpica/Makefile
 OBJS:=$(obj-y)
 
 CRTI_OBJ:=../sysroot/usr/lib/crti.o
-CRTBEGIN_OBJ:=$(shell $(CC) $(CFLAGS) -mcmodel=large $(LDFLAGS) -print-file-name=crtbegin.o)
-CRTEND_OBJ:=$(shell $(CC) $(CFLAGS) -mcmodel=large $(LDFLAGS) -print-file-name=crtend.o)
-LIBGCC_PATH:=$(shell $(CC) $(CFLAGS) -mcmodel=large $(LDFLAGS) -print-libgcc-file-name)
+CRTBEGIN_OBJ:=$(shell $(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=crtbeginS.o)
+CRTEND_OBJ:=$(shell $(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=crtendS.o)
+LIBGCC_PATH:=$(shell $(CC) $(CFLAGS)  $(LDFLAGS) -print-libgcc-file-name)
 CRTN_OBJ:=../sysroot/usr/lib/crtn.o
 
 ALL_OUR_OBJS:=\
@@ -137,7 +142,7 @@ vmonyx: $(OBJ_LINK_LIST) $(ARCHDIR)/linker.ld ../libc/libk.a
 	@echo [LD] $@
 	# Very important to note that right now, the kernel can only link using
 	# ld.bfd due to linker script weirdness. Because of that, we pass -fuse-ld=bfd
-	$(CC) -fuse-ld=bfd -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(OBJ_LINK_LIST) $(LDFLAGS) $(LIBS)
+	$(CC) -fuse-ld=bfd -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(OBJ_LINK_LIST) $(LDFLAGS) $(LIBS) -lgcc
 	cp vmonyx vmonyx-unstripped
 	strip -g vmonyx
 
@@ -147,11 +152,11 @@ acpica/%.o: acpica/%.c kernel.config
 
 kernel/mm/kasan.o: kernel/mm/kasan.c
 	@echo [CC] NOKASAN $<
-	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) $(C_ONLY_CFLAGS) -fno-sanitize=kernel-address $(CPPFLAGS)
+	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) $(C_ONLY_CFLAGS) -fno-sanitize=kernel-address -fno-lto $(CPPFLAGS)
 
 kernel/mm/malloc/%.o: kernel/mm/malloc/%.c kernel.config
 	@echo [CC] NOKASAN $<
-	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) $(C_ONLY_CFLAGS) -fno-sanitize=kernel-address $(CPPFLAGS)
+	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) $(C_ONLY_CFLAGS) -fno-sanitize=kernel-address -fno-lto $(CPPFLAGS)
 
 # I don't like this solution of having an ifeq RUN_CLANG_TIDY but I can't find a better way to do this and still pass $<
 

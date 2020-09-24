@@ -376,6 +376,38 @@ int udp_handle_packet(netif *netif, packetbuf *buf)
 	return 0;
 }
 
+int udp_handle_packet_v6(netif *netif, packetbuf *buf)
+{
+	struct udphdr *udp_header = (struct udphdr *) buf->data;
+
+	if(!valid_udp_packet(udp_header, buf->length()))
+		return -EINVAL;
+	
+	auto header = (ip6hdr *) buf->net_header;
+
+	auto socket = inet6_resolve_socket<udp_socket>(header->src_addr,
+                      udp_header->source_port, udp_header->dest_port, IPPROTO_UDP,
+					  netif, true, &udp_proto);
+	if(!socket)
+	{
+		/* TODO: Implement ICMPV6 dst unreachables, etc */
+#if 0
+		icmp::dst_unreachable_info dst_un{ICMP_CODE_PORT_UNREACHABLE, 0,
+		                (const unsigned char *) udp_header, header};
+		icmp::send_dst_unreachable(dst_un, netif);
+#endif
+		return 0;
+	}
+
+	buf->transport_header = (unsigned char *) udp_header;
+	buf->data += sizeof(struct udphdr);
+
+	socket->rx_dgram(buf);
+
+	socket->unref();
+	return 0;
+}
+
 expected<packetbuf *, int> udp_socket::get_datagram(int flags)
 {
 	scoped_lock g{&rx_packet_list_lock};

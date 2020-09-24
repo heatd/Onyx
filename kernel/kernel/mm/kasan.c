@@ -12,6 +12,7 @@
 #include <string.h>
 #include <assert.h>
 
+#include <onyx/compiler.h>
 #include <onyx/panic.h>
 #include <onyx/vm.h>
 #include <onyx/page.h>
@@ -157,22 +158,24 @@ void kasan_check_memory(unsigned long addr, size_t size, bool write)
 	kasan_is_init = true;
 }
 
-#define KASAN_LOAD(size) \
-					\
-void __asan_load##size(unsigned long addr) 	\
-{						\
-	kasan_check_memory(addr, size, false);	\
-}						\
-			\
+#define KASAN_LOAD(size)                     \
+USED                                         \
+void __asan_load##size(unsigned long addr) 	 \
+{                                            \
+	kasan_check_memory(addr, size, false);	 \
+}						                     \
+						                     \
+USED			                             \
 void __asan_load##size##_noabort(unsigned long addr) __alias(__asan_load##size);
 
-#define KASAN_STORE(size) \
- \
-void __asan_store##size(unsigned long addr) 	\
-{						\
-	kasan_check_memory(addr, size, true);	\
-}						\
- \
+#define KASAN_STORE(size)                    \
+USED                                         \
+void __asan_store##size(unsigned long addr)  \
+{						                     \
+	kasan_check_memory(addr, size, true);	 \
+}						                     \
+                                             \
+USED                                         \
 void __asan_store##size##_noabort(unsigned long addr) __alias(__asan_store##size);
 
 
@@ -188,31 +191,31 @@ KASAN_STORE(4);
 KASAN_STORE(8);
 KASAN_STORE(16);
 
-
+USED
 void __asan_loadN(unsigned long addr, size_t size)
 {
 	kasan_check_memory(addr, size, false);
 }
 
-
+USED
 void __asan_loadN_noabort(unsigned long addr, size_t size) __alias(__asan_loadN);
 
-
+USED
 void __asan_storeN(unsigned long addr, size_t size)
 {
 	kasan_check_memory(addr, size, true);
 }
 
-
+USED
 void __asan_storeN_noabort(unsigned long addr, size_t size) __alias(__asan_storeN);
 
-
+USED
 void __asan_handle_no_return(void) {}
 
-
+USED
 void __asan_before_dynamic_init(void) {}
 
-
+USED
 void __asan_after_dynamic_init(void) {}
 
 static bool asan_visit_region(struct vm_region *region)

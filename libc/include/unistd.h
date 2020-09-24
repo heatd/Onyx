@@ -32,7 +32,6 @@ extern "C" {
 
 #include <bits/alltypes.h>
 
-int pipe(int [2]);
 int pipe2(int [2], int);
 int close(int);
 int posix_close(int, int);

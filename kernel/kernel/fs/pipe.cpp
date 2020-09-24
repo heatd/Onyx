@@ -20,14 +20,20 @@
 #include <onyx/list.hpp>
 #include <onyx/utils.h>
 #include <onyx/dentry.h>
+#include <onyx/scoped_lock.h>
+#include <onyx/poll.h>
+
+#include <poll.h>
 
 static struct dev *pipedev = NULL;
 static atomic<ino_t> current_inode_number = 0; 
 
 constexpr pipe::pipe() : refcountable(2), buffer(nullptr), buf_size(0), pos(0),
-	pipe_lock{}, write_cond{}, read_cond{}, reader_count{1}, writer_count{1}
+	pipe_lock{}, can_write{}, can_read{}, reader_count{1}, writer_count{1}
 {
-	mutex_init(&pipe_lock);
+	spinlock_init(&pipe_lock);
+	init_wait_queue_head(&write_queue);
+	init_wait_queue_head(&read_queue);
 }
 
 pipe::~pipe()
@@ -61,7 +67,7 @@ ssize_t pipe::read(int flags, size_t len, void *buf)
 {
 	ssize_t been_read = 0;
 	
-	mutex_lock(&pipe_lock);
+	scoped_lock g(&pipe_lock);
 
 	while(been_read != (ssize_t) len)
 	{
@@ -69,18 +75,17 @@ ssize_t pipe::read(int flags, size_t len, void *buf)
 		{
 			if(writer_count == 0)
 			{
-				mutex_unlock(&pipe_lock);
 				return been_read;
 			}
 
 			/* buffer empty */
 			if(flags & O_NONBLOCK)
 			{
-				mutex_unlock(&pipe_lock);
-				return errno = EAGAIN, -1;
+				return -EAGAIN;
 			}
 
-			condvar_wait(&read_cond, &pipe_lock);
+			if(wait_for_event_locked_interruptible(&read_queue, can_read, &pipe_lock) == -EINTR)
+				return -EINTR;
 		}
 		else
 		{
@@ -90,22 +95,21 @@ ssize_t pipe::read(int flags, size_t len, void *buf)
 				
 				/* Note: We do need to signal writers and readers on EFAULT if we have read/written */
 				if(been_read != 0)
-					condvar_broadcast(&write_cond);
+					wake_all(&write_queue);
 
-				mutex_unlock(&pipe_lock);
-				return errno = EFAULT, -1;
+				return -EFAULT;
 			}
 
 			/* move the rest of the buffer back to the beginning if we have to */
 			if(pos - to_read != 0)
 				memmove(buffer, (const void *) ((char *) buffer + to_read), pos - to_read);
+
 			pos -= to_read;
 			been_read += to_read;
-			condvar_broadcast(&write_cond);
+			wake_all(&write_queue);
 		}
 	}
 
-	mutex_unlock(&pipe_lock);
 	return been_read;
 }
 
@@ -114,15 +118,14 @@ ssize_t pipe::write(int flags, size_t len, const void *buf)
 	bool is_atomic_write = len <= PIPE_BUF;
 	ssize_t written = 0;
 
-	mutex_lock(&pipe_lock);
+	scoped_lock g(&pipe_lock);
 
 	while(written != (ssize_t) len)
 	{
 		if(reader_count == 0)
 		{
 			kernel_raise_signal(SIGPIPE, get_current_process(), 0, NULL);
-			mutex_unlock(&pipe_lock);
-			return errno = EPIPE, -1;
+			return -EPIPE;
 		}
 
 		if((available_space() < len && is_atomic_write) || is_full())
@@ -130,16 +133,16 @@ ssize_t pipe::write(int flags, size_t len, const void *buf)
 			if(written != 0)
 			{
 				/* now that we're blocking, might as well signal readers */
-				condvar_broadcast(&read_cond);
+				wake_all(&read_queue);
 			}
 
 			if(flags & O_NONBLOCK)
 			{
-				mutex_unlock(&pipe_lock);
-				return errno = EAGAIN, -1;
+				return -EAGAIN;
 			}
 
-			condvar_wait(&write_cond, &pipe_lock);
+			if(wait_for_event_locked_interruptible(&write_queue, can_write, &pipe_lock) == -EINTR)
+				return -EINTR;
 		}
 		else
 		{
@@ -150,9 +153,8 @@ ssize_t pipe::write(int flags, size_t len, const void *buf)
 			{
 				/* Note: We do need to signal writers and readers on EFAULT if we have read/written */
 				if(written != 0)
-					condvar_broadcast(&read_cond);
-				mutex_unlock(&pipe_lock);
-				return errno = EFAULT, -1;
+					wake_all(&read_queue);
+				return -EFAULT;
 			}
 
 			pos += to_write;
@@ -161,9 +163,7 @@ ssize_t pipe::write(int flags, size_t len, const void *buf)
 	}
 
 	/* After finishing the write, signal any possible readers */
-	condvar_broadcast(&read_cond);
-
-	mutex_unlock(&pipe_lock);
+	wake_all(&read_queue);
 
 	return written;
 }
@@ -194,22 +194,18 @@ size_t pipe_write(size_t offset, size_t sizeofwrite, void* buffer, struct file* 
 void pipe::close_write_end()
 {
 	/* wake up any possibly-blocked writers */
-	mutex_lock(&pipe_lock);
+	scoped_lock g(&pipe_lock);
 	
 	if(--writer_count == 0)
-		condvar_broadcast(&read_cond);
-
-	mutex_unlock(&pipe_lock);
+		wake_all(&read_queue);
 }
 
 void pipe::close_read_end()
 {
-	mutex_lock(&pipe_lock);
+	scoped_lock g(&pipe_lock);
 	
 	if(--reader_count == 0)
-		condvar_broadcast(&write_cond);
-
-	mutex_unlock(&pipe_lock);
+		wake_all(&write_queue);
 }
 
 void pipe_close(struct inode* ino)
@@ -229,11 +225,43 @@ void pipe_close(struct inode* ino)
 	p->unref();
 }
 
+short pipe::poll(void *poll_file, short events)
+{
+	printk("pipe poll\n");
+	short revents = 0;
+	scoped_lock g{&pipe_lock};
+
+	if(events & POLLIN)
+	{
+		if(can_read)
+			revents |= POLLIN;
+		else
+			poll_wait_helper(poll_file, &read_queue);
+	}
+
+	if(events & POLLOUT)
+	{
+		if(can_write)
+			revents |= POLLOUT;
+		else
+			poll_wait_helper(poll_file, &write_queue);
+	}
+
+	return revents;
+}
+
+short pipe_poll(void *poll_file, short events, struct file *f)
+{
+	pipe *p = get_pipe(f->f_ino->i_helper);
+	return p->poll(poll_file, events);
+}
+
 struct file_ops pipe_ops = 
 {
 	.read = pipe_read,
 	.write = pipe_write,
-	.close = pipe_close
+	.close = pipe_close,
+	.poll = pipe_poll
 };
 
 int pipe_create(struct file **pipe_readable, struct file **pipe_writeable)
@@ -246,7 +274,7 @@ int pipe_create(struct file **pipe_readable, struct file **pipe_writeable)
 	node0 = inode_create(false);
 	if(!node0)
 		return errno = ENOMEM, -1;
-	
+
 	node1 = inode_create(false);
 	if(!node1)
 		goto err0;

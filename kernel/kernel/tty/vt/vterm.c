@@ -940,12 +940,12 @@ size_t vterm_parse_ansi(const char *buffer, size_t len, struct vterm *vt)
 	return (buffer - orig) + 1;
 }
 
-extern struct serial_port com1;
+void platform_serial_write(const char *s, size_t size);
 void serial_write(const char *s, size_t size, struct serial_port *port);
 
 ssize_t vterm_write_tty(const void *buffer, size_t size, struct tty *tty)
 {
-	serial_write(buffer, size, &com1);
+	platform_serial_write(buffer, size);
 	struct vterm *vt = tty->priv;
 
 	mutex_lock(&vt->vt_lock);

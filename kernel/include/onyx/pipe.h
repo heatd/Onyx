@@ -12,7 +12,7 @@
 
 #include <onyx/refcount.h>
 #include <onyx/atomic.hpp>
-#include <onyx/condvar.h>
+#include <onyx/wait_queue.h>
 #include <onyx/mutex.h>
 
 constexpr unsigned long default_pipe_size = UINT16_MAX;
@@ -23,11 +23,15 @@ private:
 	void *buffer;
 	size_t buf_size;
 	size_t pos;
-	struct mutex pipe_lock;
+	struct spinlock pipe_lock;
 	/* Is signaled when space is available in the buffer */
-	struct cond write_cond;
+	bool can_write;
 	/* Is signaled when the buffer has data in it */
-	struct cond read_cond;
+	bool can_read;
+
+	wait_queue write_queue;
+	wait_queue read_queue;
+
 public:
 	atomic<size_t> reader_count;
 	atomic<size_t> writer_count;
@@ -40,6 +44,17 @@ public:
 	size_t available_space() const;
 	void close_read_end();
 	void close_write_end();
+	short poll(void *poll_file, short events);
+
+	void wake_all(wait_queue *wq)
+	{
+		if(wq == &write_queue)
+			can_write = true;
+		else
+			can_read = true;
+		
+		wait_queue_wake_all(wq);
+	}
 };
 
 extern "C"

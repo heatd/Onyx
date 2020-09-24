@@ -8,6 +8,8 @@
 #include <onyx/net/socket_table.h>
 #include <onyx/net/icmpv6.h>
 #include <onyx/net/ndp.h>
+#include <onyx/net/udp.h>
+
 
 const struct in6_addr in6addr_any = IN6ADDR_ANY_INIT;
 const struct in6_addr in6addr_loopback = IN6ADDR_LOOPBACK_INIT;
@@ -414,6 +416,8 @@ int handle_packet(netif *nif, packetbuf *buf)
 
 	if(header->next_header == IPPROTO_ICMPV6)
 		return icmpv6::handle_packet(nif, buf);
+	else if(header->next_header == IPPROTO_UDP)
+		return udp_handle_packet_v6(nif, buf);
 	else
 	{
 		/* Oh, no, an unhandled protocol! Send an ICMP error message */

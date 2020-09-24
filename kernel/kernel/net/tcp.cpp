@@ -90,7 +90,10 @@ int tcp_socket::handle_packet(const tcp_socket::packet_handling_data& data)
 	if(flags & TCP_FLAG_SYN)
 	{
 		if(state != tcp_state::TCP_STATE_SYN_SENT)
+		{
 			return 0;
+		}
+
 		window_size = ntohs(data.header->window_size) << window_size_shift;
 
 		if(!parse_options(data.header))
@@ -260,7 +263,7 @@ int tcp_handle_packet(netif *netif, packetbuf *buf)
 	st = socket->handle_packet(handle_data);
 
 	socket->unref();
-	
+
 	return st;
 }
 
@@ -749,4 +752,15 @@ struct socket *tcp_create_socket(int type)
 	}
 
 	return sock;
+}
+
+int tcp_socket::shutdown(int how)
+{
+	return 0;
+}
+
+void tcp_socket::close()
+{
+	shutdown(SHUT_RDWR);
+	unref();
 }

@@ -47,8 +47,8 @@ struct page *phys_to_page(uintptr_t phys)
 	return page_map + pfn;
 }
 
-extern char kernel_start[0];
-extern char kernel_end[0];
+extern unsigned char kernel_start;
+extern unsigned char kernel_end;
 
 void get_kernel_limits(struct kernel_limits *l)
 {

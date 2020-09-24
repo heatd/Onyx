@@ -80,5 +80,6 @@ public:
 struct socket *udp_create_socket(int type);
 int udp_init_netif(struct netif *netif);
 int udp_handle_packet(netif *netif, packetbuf *buf);
+int udp_handle_packet_v6(netif *netif, packetbuf *buf);
 
 #endif
