@@ -55,8 +55,11 @@ static inline uint64_t rdtsc(void)
 		uint64_t value;
 		uint32_t lohi[2];
 	} v;
-	
-	__asm__ __volatile__ ("rdtscp" : "=a"(v.lohi[0]), "=d"(v.lohi[1]) :: "ecx");
+
+	/* TODO: Alternativesssssssssssssssssssssssssssssssssssssssssssssssssss
+	 * we can't use rdtscp without them.
+	 */
+	__asm__ __volatile__ ("lfence; rdtsc" : "=a"(v.lohi[0]), "=d"(v.lohi[1]) :: "ecx");
     return v.value;
 }
 
