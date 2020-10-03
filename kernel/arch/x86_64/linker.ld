@@ -31,7 +31,8 @@ SECTIONS
 		. += 0x1000;
 		pdptphysical_map = .;
 		. += 0x1000;
-		. += 0x8000;
+		pml5 = .;
+		. += 0x1000;
 	} : boot
 
 	percpu_base = .;

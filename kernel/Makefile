@@ -16,7 +16,7 @@ LIBDIR?=$(EXEC_PREFIX)/usr/lib
 CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-strong \
 -Wno-unused-parameter -Wno-unused-function \
 -Werror -Wno-error=frame-address -Wno-address-of-packed-member -Wno-cast-function-type \
--Wno-error=invalid-offsetof -fno-sanitize=pointer-overflow -fno-pie \
+-Wno-error=invalid-offsetof -fno-sanitize=pointer-overflow -fvisibility=protected \
 -Wno-missing-field-initializers -Wno-format-truncation -Wstrict-aliasing
 
 # NOTE: I don't think pointer-overflow works with kernel pointers
@@ -30,8 +30,8 @@ LDFLAGS:=$(LDFLAGS) -fkeep-inline-functions -no-pie -Wl,--build-id=none
 LIBS:=$(LIBS) -nostdlib -lk $(LIBGCC_PATH)
 ARCHDIR:=arch/$(HOSTARCH)
 
-include $(ARCHDIR)/make.config
 include kernel.config
+include $(ARCHDIR)/make.config
 
 CFLAGS:=$(CFLAGS) $(KERNEL_ARCH_CFLAGS)
 
@@ -46,11 +46,17 @@ endif
 
 ifeq ($(CONFIG_KTRACE), y)
 # mrecord-mcount breaks templates, and that's bad :/ TODO: One day, figure out if it's fixable
-C_ONLY_CFLAGS+=-pg -mnop-mcount -mfentry -mrecord-mcount -minstrument-return=nop5 -mrecord-return
+# C_ONLY_CFLAGS+=-pg -mnop-mcount -mfentry -mrecord-mcount -minstrument-return=nop5 -mrecord-return
 endif
 
 ifeq ($(CONFIG_UBSAN), y)
 CFLAGS+=-fsanitize=undefined -fno-sanitize=alignment -fno-sanitize=pointer-overflow
+endif
+
+ifeq ($(CONFIG_RELOCATABLE), y)
+CFLAGS+=-fno-plt -fPIE
+else
+CFLAGS+=-fno-pie
 endif
 
 CLANG_TIDY_CHECKS:="performance*, modernize-pass-by-value, readability*, misc*, \

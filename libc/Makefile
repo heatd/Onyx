@@ -18,6 +18,9 @@ LIBK_CPPFLAGS:=$(CPPFLAGS) -D__is_onyx_kernel
 
 ARCHDIR:=arch/$(HOSTARCH)
 
+# TODO: Might want to put libc inside kernel/, would be cleaner
+include ../kernel/kernel.config
+
 include $(ARCHDIR)/make.config
 
 CXXFLAGS:=-fno-rtti -fno-exceptions -fcheck-new

@@ -7,6 +7,19 @@
 #include <onyx/x86/control_regs.h>
 #include <onyx/x86/msr.h>
 
+#define KERNEL_VIRTUAL_BASE     0xffffffff80000000
+#define X86_PAGING_PRESENT		(1 << 0)
+#define X86_PAGING_WRITE		(1 << 1)
+#define X86_PAGING_USER			(1 << 2)
+#define X86_PAGING_WRITETHROUGH		(1 << 3)
+#define X86_PAGING_PCD			(1 << 4)
+#define X86_PAGING_ACCESSED		(1 << 5)
+#define X86_PAGING_DIRTY		(1 << 6)
+#define X86_PAGING_PAT			(1 << 7)
+#define X86_PAGING_HUGE			(1 << 7)
+#define X86_PAGING_GLOBAL		(1 << 8)
+#define X86_PAGING_NX			(1 << 63)
+
 .section .boot
 .align 4
 hdr_start: 
@@ -50,7 +63,7 @@ _start:
 
 	/* Take the time to wrmsr the default GS_BASE */
 	mov $percpu_base, %rdx
-	add $VIRT_BASE, %rdx
+	add $KERNEL_VIRTUAL_BASE, %rdx
 	mov %rdx, %r11
 	mov %edx, %eax
 	shr $32, %rdx
@@ -68,33 +81,9 @@ _start.Lhang:
 	hlt
 	jmp _start.Lhang
 
-.data
-.text
-.global initsse
-initsse: 
-	movq $0x1, %rax
-	cpuid
-	testl $1<<25, %edx
-	jz initsse.no_sse
-	movq %cr0, %rax
-	andw $0xFFFB, %ax
-	orw $0x2, %ax
-	movq %rax, %cr0
-	movq %cr4, %rax
-	or $3 << 9, %ax
-	or $1 << 18, %eax
-	movq %rax, %cr4
-	# Use 0x1F80, because it's the default and it looks reasonable
-	push $0x1F80
-	ldmxcsr (%rsp)
-	addq $8, %rsp
-	ret
-initsse.no_sse: 
-	ud2
-
 .section .boot
 protectedmode_stack:
-	.skip 32
+	.skip 128
 protectedmode_stack_top:
 
 .code32
@@ -152,45 +141,109 @@ entry_point:
 	jmp *%rax
 
 .code32
-setup_paging_and_longm: 
+
+.macro PAGE_TABLE_INDEX source_ptr, level
+
+mov $\level * 9, %cl
+mov 4(\source_ptr), %esi
+mov (\source_ptr), %ebx
+shrdl %esi, %ebx
+and $0x1ff, %ebx
+
+.endm
+
+setup_paging_and_longm:
+	/* Register allocation:
+	 * edi - Top level page table
+	 * 
+	 * Usual register allocation for the rest of the code:
+	 * eax - Page table entry
+	 * ecx - Page table index
+	 * edx - shift amount
+	 *
+	 * Stack allocation:
+	 * [off 0] = virtual pfn low
+	 * [off 4] =  virtual pfn high
+	 */
+
+	sub $8, %esp
+	# Index formula: (virt >> 12) >> (pt_level * 9) & 0x1ff;
+
+	mov $KERNEL_VIRTUAL_BASE >> 32, %ebx
+	movl $KERNEL_VIRTUAL_BASE, %ecx
+	shrdl $12, %ebx, %ecx
+	shr $12, %ebx
+	mov %ecx, (%esp)
+	mov %ebx, 4(%esp)
+
+	/* The top page level is held in %edi */
+	/* Test for PML5 */
+	mov $7, %eax
+	xor %ecx, %ecx
+	cpuid
+	test $1 << 16, %ecx
+	jz 1f
+
+	/* Enable PML5 on cr4 and set a flag */
+	mov %cr4, %eax
+	or $1 << 12, %eax
+	mov %eax, %cr4
+	mov $pml5, %edi
+
+	jmp 2f
+1:
+	mov $pml4, %edi
+2:
 	movl $pdpt, %eax
-	orl $3, %eax
-	or $1 << 2, %eax
+	orl $(X86_PAGING_PRESENT | X86_PAGING_WRITE), %eax
 	movl %eax, pml4
-	mov %eax, pml4 + 0xFF8
+
+	PAGE_TABLE_INDEX %esp, 3
+
+	mov $pml4, %esi
+	mov %eax, (%esi, %ebx, 8)
+
 	movl $pdlower, %eax
-	orl $3, %eax
-	or $1 << 8, %eax
-	or $1 << 2, %eax
+	or $(X86_PAGING_PRESENT | X86_PAGING_WRITE), %eax
 	movl %eax, pdpt
+
 	movl $pd, %eax
-	orl $3, %eax
-	or $1 << 8, %eax
-	or $1 << 2, %eax
-	mov %eax, pdpt + 0xFF0
+	or $(X86_PAGING_PRESENT | X86_PAGING_WRITE), %eax
 
-	movl $0x000083, pd
-	orl $1 << 8, pd
-	movl $0x200083, pd + 8
-	orl $1 << 8, pd + 8
-	movl $0x400083, pd + 16
-	orl $1 << 8, pd + 16
+	PAGE_TABLE_INDEX %esp, 2
 
-	/*movl $0x1000083, pd + 64
-	orl $1 << 8, pd + 64
-	movl $0x1200083, pd + 72
-	orl $1 << 8, pd + 72
-	movl $0x1400083, pd + 80
-	orl $1 << 8, pd + 80*/
+	mov $pdpt, %esi
+	mov %eax, (%esi, %ebx, 8)
 
-	movl $0x000083, pdlower + 0
-	orl $1 << 8, pdlower + 0
-	movl $0x200083, pdlower + 8
-	orl $1 << 8, pdlower + 8
+	PAGE_TABLE_INDEX %esp, 1
 
-	# Load CR3 with PML4
-	movl $pml4, %eax
-	movl %eax, %cr3
+	push %ebx
+
+	mov $pdlower, %esi
+
+	movl $0x000083, %eax
+	mov %eax, (%esi, %ebx, 8)
+	inc %ebx
+	movl $0x200083, %eax
+	mov %eax, (%esi, %ebx, 8)
+	inc %ebx
+	movl $0x400083, %eax
+	mov %eax, (%esi, %ebx, 8)
+
+	pop %ebx
+
+	mov $pd, %esi
+	movl $0x000083, %eax
+	mov %eax, (%esi, %ebx, 8)
+	inc %ebx
+	movl $0x200083, %eax
+	mov %eax, (%esi, %ebx, 8)
+	inc %ebx
+	movl $0x400083, %eax
+	mov %eax, (%esi, %ebx, 8)
+
+	# Load CR3 with the top page level
+	movl %edi, %cr3
 
 	# Enable PAE
 	movl %cr4, %eax
@@ -209,6 +262,8 @@ setup_paging_and_longm:
 	movl %cr0, %eax
 	or $(CR0_PG | CR0_WP), %eax
 	movl %eax, %cr0
+
+	add $8, %esp
 
 	ret
 gdt: 
