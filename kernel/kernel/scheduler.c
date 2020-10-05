@@ -726,23 +726,7 @@ void thread_set_state(thread_t *thread, int state)
 		return;
 	}
 
-	if(state == THREAD_RUNNABLE)
-	{
-		thread->status = state;
-
-		if(get_thread_for_cpu(thread->cpu) == thread)
-		{
-			spin_unlock_irqrestore(&thread->lock, cpu_flags);
-			sched_enable_preempt_for_cpu(thread->cpu);
-			return;
-		}
-
-		sched_append_to_queue(thread->priority, thread->cpu,
-					thread);
-		try_resched = true;
-	}
-	else
-		thread->status = state;
+	thread->status = state;
 
 	spin_unlock_irqrestore(&thread->lock, cpu_flags);
 
@@ -1063,24 +1047,18 @@ void sched_try_to_resched_if_needed(void)
 
 void sched_enable_preempt_no_softirq(void)
 {
-	unsigned long *preempt_counter = get_per_cpu_ptr(preemption_counter); 
-
-	//assert(*preempt_counter > 0);
-
-	atomic_fetch_add_explicit(preempt_counter, -1, memory_order_relaxed);
+	add_per_cpu(preemption_counter, -1);
 
 	sched_try_to_resched_if_needed();
 }
 
 void sched_enable_preempt(void)
 {
-	unsigned long *preempt_counter = get_per_cpu_ptr(preemption_counter); 
-
 	//assert(*preempt_counter > 0);
 
-	atomic_fetch_add_explicit(preempt_counter, -1, memory_order_relaxed);
+	add_per_cpu(preemption_counter, -1);
 	
-	if(*preempt_counter == 0 && !irq_is_disabled())
+	if(get_per_cpu(preemption_counter) == 0 && !irq_is_disabled())
 		softirq_try_handle();
 
 	sched_try_to_resched_if_needed();	
@@ -1088,9 +1066,7 @@ void sched_enable_preempt(void)
 
 void sched_disable_preempt(void)
 {
-	unsigned long *preempt_counter = get_per_cpu_ptr(preemption_counter); 
-
-	atomic_fetch_add_explicit(preempt_counter, 1, memory_order_relaxed);
+	add_per_cpu(preemption_counter, 1);
 }
 
 #define prepare_sleep_generic(typenm, type) 			\
