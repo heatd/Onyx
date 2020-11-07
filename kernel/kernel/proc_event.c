@@ -18,7 +18,6 @@
 #include <onyx/mutex.h>
 #include <onyx/file.h>
 #include <onyx/vfs.h>
-#include <onyx/atomic.h>
 #include <onyx/proc_event.h>
 #include <onyx/dentry.h>
 
@@ -26,7 +25,7 @@
 
 static void __append_to_list(struct proc_event_sub *s, struct process *p)
 {
-	atomic_inc(&p->nr_subs, 1);
+	__atomic_add_fetch(&p->nr_subs, 1, __ATOMIC_ACQUIRE);
 
 	spin_lock(&p->sub_queue_lock);
 	
@@ -60,7 +59,7 @@ static void __remove_from_list(struct process *p, struct proc_event_sub *s)
 		}
 	}
 
-	atomic_dec(&p->nr_subs, 1);
+	__atomic_sub_fetch(&p->nr_subs, 1, __ATOMIC_RELEASE);
 	spin_unlock(&p->sub_queue_lock);
 }
 
@@ -83,10 +82,9 @@ size_t proc_event_read(size_t offset, size_t sizeofread, void* buffer,
 	memcpy(buffer, &sub->event_buf, sizeofread);
 	sub->event_semaphore.counter = 0;
 	
-	atomic_set(&sub->has_new_event, 0);
+	__atomic_store_n(&sub->has_new_event, 0, __ATOMIC_RELEASE);
 
 	return sizeofread;
-	
 }
 
 void proc_event_close(struct inode *ino)

@@ -21,7 +21,6 @@
 #include <onyx/process.h>
 #include <onyx/pipe.h>
 #include <onyx/file.h>
-#include <onyx/atomic.h>
 #include <onyx/user.h>
 #include <onyx/panic.h>
 #include <onyx/dentry.h>

@@ -342,8 +342,6 @@ INIT_LEVEL_EARLY_PLATFORM_ENTRY(cpu_init_late);
 
 extern PML *boot_pml4;
 
-void sched_enable_pulse(void);
-
 void smpboot_main(unsigned long gs_base)
 {
 	wrmsr(GS_BASE_MSR, gs_base);

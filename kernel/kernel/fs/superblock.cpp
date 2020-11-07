@@ -5,7 +5,6 @@
 */
 #include <onyx/vfs.h>
 #include <onyx/superblock.h>
-#include <onyx/atomic.h>
 #include <onyx/block.h>
 
 extern "C"

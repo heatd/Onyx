@@ -15,7 +15,6 @@
 #include <onyx/dentry.h>
 #include <onyx/compiler.h>
 #include <onyx/slab.h>
-#include <onyx/atomic.h>
 #include <onyx/vfs.h>
 #include <onyx/file.h>
 #include <onyx/mm/pool.hpp>
@@ -121,6 +120,8 @@ void dentry_destroy(dentry *d)
 	{
 		free((void *) d->d_name);
 	}
+
+	dentry_pool.free(d);
 }
 
 void dentry_kill_unlocked(dentry *entry)
@@ -135,10 +136,12 @@ extern "C" dentry *dentry_create(const char *name, inode *inode, dentry *parent)
 	if(parent && parent->d_inode->i_type != VFS_TYPE_DIR)
 		return errno = ENOTDIR, nullptr;
 
+	/* TODO: Move a bunch of this code to a constructor and placement-new it */
 	dentry *new_dentry = dentry_pool.allocate();
 	if(!new_dentry) [[unlikely]]
 		return nullptr;
-	memset(new_dentry, 0, sizeof(dentry));
+
+	new_dentry = new (new_dentry) dentry;
 
 	new_dentry->d_ref = 1;
 	new_dentry->d_name = new_dentry->d_inline_name;
@@ -164,10 +167,11 @@ extern "C" dentry *dentry_create(const char *name, inode *inode, dentry *parent)
 	new_dentry->d_name_length = name_length;
 	new_dentry->d_name_hash = fnv_hash(new_dentry->d_name, new_dentry->d_name_length);
 	new_dentry->d_inode = inode;
+	rwlock_init(&new_dentry->d_lock);
 	
 	/* We need this if() because we might call dentry_create before retrieving an inode */
 	if(inode) inode_ref(inode);
-	new_dentry->d_parent = parent; 
+	new_dentry->d_parent = parent;
 
 	if(parent) [[likely]]
 	{
@@ -176,6 +180,9 @@ extern "C" dentry *dentry_create(const char *name, inode *inode, dentry *parent)
 	}
 
 	INIT_LIST_HEAD(&new_dentry->d_children_head);
+
+	new_dentry->d_mount_dentry = nullptr;
+	new_dentry->d_flags = 0;
 
 	return new_dentry;
 }

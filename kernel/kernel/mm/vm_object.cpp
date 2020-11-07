@@ -10,7 +10,6 @@
 #include <onyx/page.h>
 #include <onyx/vm.h>
 #include <onyx/utils.h>
-#include <onyx/atomic.h>
 #include <onyx/ioctx.h>
 #include <onyx/file.h>
 #include <onyx/panic.h>

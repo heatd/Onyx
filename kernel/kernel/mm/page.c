@@ -9,7 +9,6 @@
 #include <stdbool.h>
 #include <assert.h>
 
-#include <onyx/atomic.h>
 #include <onyx/log.h>
 #include <onyx/bootmem.h>
 #include <onyx/page.h>

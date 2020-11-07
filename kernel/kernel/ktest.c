@@ -15,6 +15,7 @@
 #include <onyx/semaphore.h>
 #include <onyx/mutex.h>
 #include <onyx/cpu.h>
+#include <libtest/libtest.h>
 
 #ifdef CONFIG_DO_TESTS
 
@@ -44,102 +45,6 @@ void test_page_alloc(void)
 
 	sched_sleep_ms(10000000);
 }
-#endif
-
-#ifdef CONFIG_KTEST_MTX
-static DECLARE_MUTEX(mtx) = {0};
-
-void sem_test_mtx(void *ctx)
-{
-	while(true)
-	{
-		mutex_lock(&mtx);
-		//printk("B");
-		mutex_unlock(&mtx);
-	}
-}
-
-void mutex_test(void)
-{
-	struct thread *t = sched_create_thread(sem_test_mtx, THREAD_KERNEL, NULL);
-	assert(t != NULL);
-	sched_start_thread(t);
-
-	while(true)
-	{
-		mutex_lock(&mtx);
-		//printk("A");
-		mutex_unlock(&mtx);
-		printk("ping");
-	}
-
-}
-
-bool waiting_for_ack = false;
-bool ack = false;
-
-void sleep_wait_for_ack(void)
-{
-	waiting_for_ack = true;
-
-	uint64_t t = get_tick_count();
-
-	while(t + 10 >= get_tick_count())
-	{
-		if(ack == true)
-		{
-			ack = false;
-			waiting_for_ack = false;
-			return;
-		}
-	}
-
-	if(ack == false)
-	{
-		panic("timed out waiting for thread, test failed\n");
-	}
-}
-
-void sleep_do_ack(void)
-{
-	waiting_for_ack = false;
-	ack = true;
-}
-
-void sleep_test_t2(void *ctx)
-{
-	unsigned int sleep_nr = 0;
-	while(true)
-	{
-		sched_sleep_ms(1);
-		sleep_do_ack();
-		sleep_nr++;
-	}
-}
-
-void sleep_test(void)
-{
-	struct thread *t = sched_create_thread(sleep_test_t2, THREAD_KERNEL, NULL);
-	assert(t != NULL);
-	sched_start_thread(t);
-	volatile unsigned int sleep_nr = 0;
-
-	while(true)
-	{
-		sched_sleep_ms(1);
-		sleep_wait_for_ack();
-		sleep_nr++;
-
-		if(sleep_nr == 500)
-		{
-			sched_remove_thread(t);
-			printk("SLEEP TEST: Passed!\n");
-			return;
-		}
-	}
-}
-
-
 #endif
 
 #ifdef CONFIG_KTEST_SPINLOCK
@@ -231,8 +136,7 @@ static void (*tests[])(void) = {
 #endif
 };
 
-
-void do_ktests(void)
+void do_ktests_old(void)
 {
 	size_t nr_tests = sizeof(tests) / sizeof(uintptr_t);
 
@@ -240,6 +144,34 @@ void do_ktests(void)
 	{
 		tests[i]();
 	}
+}
+
+extern uintptr_t __start_testcases;
+extern uintptr_t __end_testcases;
+
+int do_ktests_new(void)
+{	
+	struct libtest_test *p = (struct libtest_test *) &__start_testcases;
+	struct libtest_test *end = (struct libtest_test *) &__end_testcases;
+	while(p != end)
+	{
+		for(unsigned long i = 0; i < p->invoke; i++)
+		{
+			printk("Executing test %s [invocation %lu] = ",  p->name, i);
+			const char *result = p->func() ? "success" : "failure";
+			printk("%s\n", result);
+		}
+
+		p++;
+	}
+
+	return 0;
+}
+
+void do_ktests()
+{
+	do_ktests_old();
+	do_ktests_new();
 }
 
 #endif

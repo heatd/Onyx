@@ -10,7 +10,6 @@
 #include <onyx/compiler.h>
 #include <onyx/task_switching.h>
 #include <onyx/scheduler.h>
-#include <onyx/atomic.h>
 #include <onyx/cpu.h>
 
 __attribute__((always_inline))
@@ -93,7 +92,6 @@ int spin_try_lock(struct spinlock *lock)
 		return 1;
 	}
 
-	__sync_synchronize();
 	post_lock_actions(lock);
 	return 0;
 }

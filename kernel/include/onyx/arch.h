@@ -14,9 +14,19 @@
 size_t arch_heap_get_size(void);
 size_t arch_get_initial_heap_size(void);
 void arch_vm_init(void);
-void arch_save_thread(struct thread *thread, void *stack);
-void arch_load_thread(struct thread *thread, unsigned int cpu);
-void arch_load_process(struct process *process, struct thread *thread,
+
+#ifdef __cplusplus
+
+namespace native
+{
+
+void arch_save_thread(thread *thread, void *stack);
+void arch_load_thread(thread *thread, unsigned int cpu);
+void arch_load_process(process *process, thread *thread,
                        unsigned int cpu);
+
+};
+
+#endif
 
 #endif

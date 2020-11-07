@@ -115,7 +115,7 @@ qemu: iso
 	-object filter-dump,id=f1,netdev=u1,file=net.pcap \
 	-enable-kvm -cpu host,migratable=on,+invtsc -smp 4 -vga qxl \
 	-device usb-ehci -device usb-mouse \
-	-display gtk,gl=on -machine q35 -no-shutdown -no-reboot
+	-display gtk,gl=on -machine q35
 
 intel-passthrough-qemu: iso
 	sudo qemu-system-x86_64 -vga none -display gtk,gl=on \

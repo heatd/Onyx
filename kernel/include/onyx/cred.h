@@ -6,6 +6,8 @@
 #ifndef _ONYX_CRED_H
 #define _ONYX_CRED_H
 
+#include <string.h>
+
 #include <onyx/rwlock.h>
 
 #include <sys/types.h>
@@ -46,6 +48,13 @@ static inline bool is_root_user(void)
 }
 
 int process_inherit_creds(struct process *new_child, struct process *parent);
+
+static inline void creds_init(struct creds *c)
+{
+	/* Hacky, but works for both C and C++ */
+	memset(&c->ruid, 0, sizeof(*c) - offsetof(struct creds, ruid));
+	rwlock_init(&c->lock);
+}
 
 #ifdef __cplusplus
 }

@@ -44,13 +44,17 @@ extern __typeof (name) aliasname __attribute__ ((weak, alias (#name)));
 #define _strong_alias(name, aliasname) \
 extern __typeof (name) aliasname __attribute__ ((alias (#name)));
 
+#define strong_alias_c_name(name, aliasname) _strong_alias_c_name (name, aliasname)
+#define _strong_alias_c_name(name, aliasname) \
+extern "C" __typeof (name) aliasname __attribute__ ((alias (#name)));
+
 #define USES_FANCY_START	_Pragma("GCC push_options") \
 _Pragma("GCC target(\"sse2\", \"3dnow\", \"xsave\")")
 #define USES_FANCY_END _Pragma("GCC pop_options")
 
 static inline uint64_t rdtsc(void)
 {
-    	union
+    union
 	{
 		uint64_t value;
 		uint32_t lohi[2];

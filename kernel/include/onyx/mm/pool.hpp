@@ -18,6 +18,7 @@
 #include <onyx/enable_if.h>
 #include <onyx/scoped_lock.h>
 #include <onyx/utility.hpp>
+#include <onyx/new.h>
 
 #define OBJECT_POOL_ALLOCATE_WARM_CACHE
 

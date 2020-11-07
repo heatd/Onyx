@@ -94,9 +94,6 @@ static inline struct thread *get_current_thread(void)
 	return get_per_cpu(current_thread);
 }
 
-
-void *sched_switch_thread(void *last_stack);
-
 hrtime_t sched_sleep(unsigned long ns);
 
 void sched_yield(void);
@@ -140,7 +137,7 @@ void __sched_block(struct thread *thread, unsigned long cpuflags);
 FUNC_NO_DISCARD
 unsigned long sched_lock(struct thread *thread);
 
-void sched_die();
+void thread_exit();
 
 struct thread *get_thread_for_cpu(unsigned int cpu);
 
@@ -158,8 +155,6 @@ unsigned long thread_get_addr_limit(void);
 
 void *sched_preempt_thread(void *current_stack);
 
-void arch_context_switch(struct thread *prev, struct thread *next);
-int arch_transform_into_user_thread(struct thread *thread);
 int sched_transition_to_user_thread(struct thread *thread);
 
 #define SCHED_NO_CPU_PREFERENCE		(unsigned int) -1
@@ -180,8 +175,7 @@ do							\
 {							\
 	struct thread *__t = get_current_thread();	\
 	assert(__t != NULL);				\
-	__t->status = state;				\
-	__sync_synchronize();				\
+	__atomic_store_n(&__t->status, state, __ATOMIC_RELEASE);	\
 } while(0);
 
 static inline void thread_get(struct thread *thread)
@@ -202,8 +196,20 @@ static inline void sched_sleep_ms(unsigned long ms)
 	sched_sleep(ms * NS_PER_MS);
 }
 
+void sched_enable_pulse(void);
+
 #ifdef __cplusplus
 }
+#endif
+
+#ifdef __cplusplus
+
+namespace native
+{
+	void arch_context_switch(thread *prev, thread *next);
+	int arch_transform_into_user_thread(thread *thread);
+};
+
 #endif
 
 #endif

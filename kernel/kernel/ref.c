@@ -5,7 +5,6 @@
 */
 
 #include <onyx/ref.h>
-#include <onyx/atomic.h>
 #include <onyx/scheduler.h>
 
 void ref_init(struct ref *ref, unsigned long refcount, void (*releasefunc)(struct ref *))
@@ -16,14 +15,14 @@ void ref_init(struct ref *ref, unsigned long refcount, void (*releasefunc)(struc
 
 bool ref_grab(struct ref *ref)
 {
-	atomic_inc(&ref->refcount, 1);
+	__atomic_add_fetch(&ref->refcount, 1, __ATOMIC_ACQUIRE);
 
 	return true;
 }
 
 void ref_release(struct ref *ref)
 {
-	if(atomic_dec(&ref->refcount, 1) == 0)
+	if(__atomic_sub_fetch(&ref->refcount, 1, __ATOMIC_RELEASE) == 0)
 	{
 		if(ref->release)
 			ref->release(ref);

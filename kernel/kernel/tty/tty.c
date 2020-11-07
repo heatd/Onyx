@@ -125,6 +125,7 @@ void tty_init(void *priv, void (*ctor)(struct tty *tty))
 	tty->priv = priv;
 	mutex_init(&tty->lock);
 	spinlock_init(&tty->input_lock);
+	rwlock_init(&tty->termio_lock);
 
 	tty->tty_num = idm_get_id(tty_ids);
 
@@ -149,10 +150,9 @@ void cpu_kill_other_cpus(void);
 
 void tty_write(const char *data, size_t size, struct tty *tty)
 {
-	if(tty->lock.owner == get_current_thread() && get_current_thread() != NULL)
+	if(mutex_owner(&tty->lock) == get_current_thread() && get_current_thread() != NULL)
 	{
 		tty->lock.counter = 0;
-		tty->lock.owner = NULL;
 		const char *msg = "recursive tty lock";
 		serial_write(msg, strlen(msg), &com1);
 		cpu_kill_other_cpus();

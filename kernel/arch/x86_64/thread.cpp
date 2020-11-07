@@ -234,39 +234,8 @@ error:
 	return NULL;
 }
 
-void arch_save_thread(struct thread *thread, void *stack)
-{
-	assert(thread->canary == THREAD_STRUCT_CANARY);
-	/* No need to save the fpu context if we're a kernel thread! */
-	if(!(thread->flags & THREAD_KERNEL))
-		save_fpu(thread->fpu_area);
-}
-
 PER_CPU_VAR_NOUNUSED(unsigned long kernel_stack) = 0;
 PER_CPU_VAR_NOUNUSED(unsigned long scratch_rsp) = 0;
-
-void arch_load_thread(struct thread *thread, unsigned int cpu)
-{
-	assert(thread->canary == THREAD_STRUCT_CANARY);
-
-	write_per_cpu(kernel_stack, thread->kernel_stack_top);
-	/* Fill the TSS with a kernel stack */
-	set_kernel_stack((uintptr_t) thread->kernel_stack_top);
-
-	if(!(thread->flags & THREAD_KERNEL))
-	{
-		restore_fpu(thread->fpu_area);
-
-		wrmsr(FS_BASE_MSR, (uint64_t) thread->fs);
-		wrmsr(KERNEL_GS_BASE, (uint64_t) thread->gs);
-	}
-}
-
-void arch_load_process(struct process *process, struct thread *thread,
-                       unsigned int cpu)
-{
-	vm_load_arch_mmu(&process->address_space.arch_mmu);
-}
 
 unsigned long thread_get_addr_limit(void)
 {
@@ -295,17 +264,44 @@ extern "C"
 [[noreturn]]
 void x86_context_switch(thread *prev, unsigned char *stack, bool needs_to_kill_prev);
 
-extern "C"
+namespace native
+{
+
+void arch_save_thread(thread *thread, void *stack)
+{
+	assert(thread->canary == THREAD_STRUCT_CANARY);
+	/* No need to save the fpu context if we're a kernel thread! */
+	if(!(thread->flags & THREAD_KERNEL))
+		save_fpu(thread->fpu_area);
+}
+
+void arch_load_thread(struct thread *thread, unsigned int cpu)
+{
+	assert(thread->canary == THREAD_STRUCT_CANARY);
+
+	write_per_cpu(kernel_stack, thread->kernel_stack_top);
+	/* Fill the TSS with a kernel stack */
+	set_kernel_stack((uintptr_t) thread->kernel_stack_top);
+
+	if(!(thread->flags & THREAD_KERNEL))
+	{
+		restore_fpu(thread->fpu_area);
+
+		wrmsr(FS_BASE_MSR, (uint64_t) thread->fs);
+		wrmsr(KERNEL_GS_BASE, (uint64_t) thread->gs);
+	}
+}
+
+void arch_load_process(struct process *process, struct thread *thread,
+                       unsigned int cpu)
+{
+	vm_load_arch_mmu(&process->address_space.arch_mmu);
+}
+
 void arch_context_switch(thread *prev, thread *next)
 {
 	bool is_last_dead = prev && prev->status == THREAD_DEAD;
 	x86_context_switch(prev, (unsigned char *) next->kernel_stack, is_last_dead);
-}
-
-extern "C"
-void x86_thread_put(thread *t)
-{
-	thread_put(t);
 }
 
 int arch_transform_into_user_thread(thread *thread)
@@ -323,4 +319,12 @@ int arch_transform_into_user_thread(thread *thread)
 
 	/* Note that we don't adjust the addr limit because the thread might be us */
 	return 0;
+}
+
+}
+
+extern "C"
+void x86_thread_put(thread *t)
+{
+	thread_put(t);
 }

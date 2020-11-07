@@ -20,10 +20,9 @@ struct mutex
 	struct spinlock llock;
 	struct list_head thread_list;
 	unsigned long counter;
-	struct thread *owner;
 
 #ifdef __cplusplus
-	constexpr mutex() : llock{}, thread_list{}, counter{}, owner{}
+	constexpr mutex() : llock{}, thread_list{}, counter{}
 	{
 		mutex_init(this);
 	}
@@ -51,7 +50,6 @@ CONSTEXPR static inline void mutex_init(struct mutex *mutex)
 {
 	spinlock_init(&mutex->llock);
 	mutex->counter = 0;
-	mutex->owner = NULL;
 	INIT_LIST_HEAD(&mutex->thread_list);
 }
 
@@ -63,6 +61,7 @@ void mutex_lock(struct mutex *m);
 void mutex_unlock(struct mutex *m);
 int mutex_lock_interruptible(struct mutex *mutex);
 bool mutex_holds_lock(struct mutex *m);
+struct thread *mutex_owner(struct mutex *mtx);
 
 #define MUST_HOLD_MUTEX(m)		assert(mutex_holds_lock(m) == true)
 

@@ -318,11 +318,6 @@ void kernel_main(void)
 	if(sched_init())
 		panic("sched: failed to initialize!");
 
-#ifdef CONFIG_DO_TESTS
-	/* Execute ktests */
-	do_ktests();
-#endif
-
 	/* Initalize multitasking */
 	new_thread = sched_create_thread(kernel_multitasking, 1, NULL);
 
@@ -340,6 +335,12 @@ void kernel_main(void)
 
 void kernel_multitasking(void *arg)
 {
+
+#ifdef CONFIG_DO_TESTS
+	/* Execute ktests */
+	do_ktests();
+#endif
+
 	LOG("kernel", "Command line: %s\n", kernel_cmdline);
 
 	/* Parse the command line string to a more friendly argv-like buffer */

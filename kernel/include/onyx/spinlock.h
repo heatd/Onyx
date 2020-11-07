@@ -29,7 +29,6 @@ struct spinlock
 extern "C" {
 #endif
 
-
 void spin_lock(struct spinlock *lock);
 void spin_unlock(struct spinlock *lock);
 void spin_lock_preempt(struct spinlock *lock);
@@ -45,6 +44,8 @@ CONSTEXPR static inline void spinlock_init(struct spinlock *s)
 
 	s->lock = 0;
 }
+
+#define STATIC_SPINLOCK_INIT {}
 
 static inline FUNC_NO_DISCARD unsigned long spin_lock_irqsave(struct spinlock *lock)
 {

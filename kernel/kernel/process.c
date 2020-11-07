@@ -108,6 +108,7 @@ struct process *process_create(const char *cmd_line, struct ioctx *ctx, struct p
 	proc->pid = idm_get_id(process_ids);
 	assert(proc->pid != (pid_t) -1);
 	proc->cmd_line = strdup(cmd_line);
+	creds_init(&proc->cred);
 
 	itimer_init(proc);
 
@@ -655,7 +656,7 @@ void sys_exit_thread(int value)
 	}
 skip:	
 	/* Destroy the thread */
-	sched_die();
+	thread_exit();
 	/* aaaaand we'll never return back to user-space, so just hang on */
 	sched_yield();
 }

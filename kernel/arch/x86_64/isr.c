@@ -20,7 +20,6 @@
 #include <onyx/compiler.h>
 #include <onyx/x86/mce.h>
 #include <onyx/cpu.h>
-#include <onyx/atomic.h>
 #include <onyx/percpu.h>
 #include <onyx/exceptions.h>
 #include <onyx/x86/ktrace.h>

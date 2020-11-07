@@ -1,8 +1,9 @@
 /*
-* Copyright (c) 2016, 2017 Pedro Falcato
+* Copyright (c) 2016-2020 Pedro Falcato
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -10,7 +11,6 @@
 #include <string.h>
 #include <errno.h>
 #include <assert.h>
-#include <stdatomic.h>
 #include <stdio.h>
 
 #include <onyx/timer.h>
@@ -32,28 +32,30 @@
 #include <onyx/rwlock.h>
 #include <onyx/clock.h>
 #include <onyx/dpc.h>
+#include <onyx/arch.h>
 
 #include <libdict/rb_tree.h>
 
+#include "primitive_generic.h"
 
 static bool is_initialized = false;
 
 void sched_append_to_queue(int priority, unsigned int cpu, 
 				thread_t *thread);
-void sched_block(struct thread *thread);
+void sched_block(thread *thread);
 void __sched_append_to_queue(int priority, unsigned int cpu, 
 				thread_t *thread);
 
 int sched_rbtree_cmp(const void *t1, const void *t2);
-static struct rb_tree glbl_thread_list = {.cmp_func = sched_rbtree_cmp};
-static struct spinlock glbl_thread_list_lock;
+static rb_tree glbl_thread_list = {.cmp_func = sched_rbtree_cmp};
+static spinlock glbl_thread_list_lock;
 
-PER_CPU_VAR(struct spinlock scheduler_lock);
-PER_CPU_VAR(struct thread *thread_queues_head[NUM_PRIO]);
-PER_CPU_VAR(struct thread *thread_queues_tail[NUM_PRIO]);
-PER_CPU_VAR(struct thread *current_thread);
+PER_CPU_VAR(spinlock scheduler_lock) = STATIC_SPINLOCK_INIT;
+PER_CPU_VAR(thread *thread_queues_head[NUM_PRIO]);
+PER_CPU_VAR(thread *thread_queues_tail[NUM_PRIO]);
+PER_CPU_VAR(thread *current_thread);
 
-void thread_append_to_global_list(struct thread *t)
+void thread_append_to_global_list(thread *t)
 {
 	spin_lock(&glbl_thread_list_lock);
 
@@ -64,7 +66,7 @@ void thread_append_to_global_list(struct thread *t)
 	spin_unlock(&glbl_thread_list_lock);
 }
 
-void thread_remove_from_list(struct thread *t)
+void thread_remove_from_list(thread *t)
 {
 	spin_lock(&glbl_thread_list_lock);
 
@@ -74,7 +76,7 @@ void thread_remove_from_list(struct thread *t)
 	spin_unlock(&glbl_thread_list_lock);
 }
 
-char *thread_strings[] =
+static const char *thread_strings[] =
 {
 	"THREAD_RUNNABLE",
 	"THREAD_INTERRUPTIBLE",
@@ -87,7 +89,7 @@ char *thread_strings[] =
 
 bool _dump_thread(const void *key, void *_thread, void *of)
 {
-	struct thread *thread = _thread;
+	auto thread = (struct thread *) _thread;
 
 	printk("Thread id %d\n", thread->id);
 
@@ -97,7 +99,7 @@ bool _dump_thread(const void *key, void *_thread, void *of)
 	printk("Thread status: %s\n", thread_strings[thread->status]);
 	if(thread->status == THREAD_INTERRUPTIBLE || thread->status == THREAD_UNINTERRUPTIBLE)
 	{
-		struct registers *regs = (struct registers *) thread->kernel_stack;
+		registers *regs = (registers *) thread->kernel_stack;
 		printk("Dumping context. IP = %016lx, RBP = %016lx\n", regs->rip, regs->rbp);
 		stack_trace_ex((uint64_t *) regs->rbp);
 	}
@@ -105,7 +107,7 @@ bool _dump_thread(const void *key, void *_thread, void *of)
 	return true;
 }
 
-void vterm_panic(void);
+extern "C" void vterm_panic(void);
 
 void sched_dump_threads(void)
 {
@@ -117,16 +119,16 @@ void sched_dump_threads(void)
 	//spin_unlock(&glbl_thread_list_lock);
 }
 
-struct thread *thread_get_from_tid(int tid)
+thread *thread_get_from_tid(int tid)
 {
 	spin_lock(&glbl_thread_list_lock);
 
 	void **pp = rb_tree_search(&glbl_thread_list, (const void *) (unsigned long) tid);
 	
-	struct thread *t = NULL;
+	thread *t = NULL;
 	if(pp)
 	{
-		t = *pp;
+		t = (thread *) *pp;
 		thread_get(t);
 	}
 
@@ -136,14 +138,14 @@ struct thread *thread_get_from_tid(int tid)
 }
 
 FUNC_NO_DISCARD
-unsigned long sched_lock(struct thread *thread)
+unsigned long sched_lock(thread *thread)
 {
 	/* Order of acquisition in order to avoid a deadlock */
 	
 	/* 1st - Lock the per-cpu scheduler */
 	/* 2nd - Lock the thread */
 	
-	struct spinlock *l = get_per_cpu_ptr_any(scheduler_lock, thread->cpu);
+	spinlock *l = get_per_cpu_ptr_any(scheduler_lock, thread->cpu);
 
 	unsigned long cpu_flags = spin_lock_irqsave(l);
 	unsigned long _ =spin_lock_irqsave(&thread->lock);
@@ -152,9 +154,9 @@ unsigned long sched_lock(struct thread *thread)
 	return cpu_flags;
 }
 
-void sched_unlock(struct thread *thread, unsigned long cpu_flags)
+void sched_unlock(thread *thread, unsigned long cpu_flags)
 {
-	struct spinlock *l = get_per_cpu_ptr_any(scheduler_lock, thread->cpu);
+	spinlock *l = get_per_cpu_ptr_any(scheduler_lock, thread->cpu);
 
 	/* Do the reverse of the above */
 
@@ -170,11 +172,11 @@ thread_t *__sched_find_next(unsigned int cpu)
 		assert(spin_lock_held(&current_thread->lock) == false);
 
 	/* Note: These locks are unlocked in sched_load_thread, after loading the thread */
-	struct spinlock *sched_lock = get_per_cpu_ptr_any(scheduler_lock, cpu);
+	spinlock *sched_lock = get_per_cpu_ptr_any(scheduler_lock, cpu);
 	unsigned long _ =spin_lock_irqsave(sched_lock);
 	(void) _;
 
-	struct thread **thread_queues = (struct thread **) get_per_cpu_ptr_any(thread_queues_head, cpu);
+	thread **thread_queues = (thread **) get_per_cpu_ptr_any(thread_queues_head, cpu);
 
 	if(current_thread)
 	{
@@ -234,58 +236,58 @@ bool sched_is_preemption_disabled(void)
 	return get_per_cpu(preemption_counter) > 0;
 }
 
-void sched_save_thread(struct thread *thread, void *stack)
+void sched_save_thread(thread *thread, void *stack)
 {
-	thread->kernel_stack = stack;
+	thread->kernel_stack = (uintptr_t *) stack;
 	thread->errno_val = errno;
 
-	arch_save_thread(thread, stack);
+	native::arch_save_thread(thread, stack);
 }
 
 #define SCHED_QUANTUM		10
 
 PER_CPU_VAR(uint32_t sched_quantum) = 0;
-PER_CPU_VAR(struct clockevent sched_pulse);
+PER_CPU_VAR(clockevent sched_pulse);
 
-void sched_decrease_quantum(struct clockevent *ev)
+void sched_decrease_quantum(clockevent *ev)
 {
 	add_per_cpu(sched_quantum, -1);
 
 	if(get_per_cpu(sched_quantum) == 0)
 	{
-		struct thread *curr = get_current_thread();
+		thread *curr = get_current_thread();
 		curr->flags |= THREAD_NEEDS_RESCHED;
 	}
 
 	ev->deadline = clocksource_get_time() + NS_PER_MS;
 }
 
-void sched_load_thread(struct thread *thread, unsigned int cpu, unsigned long og_cpuflags)
+void sched_load_thread(thread *thread, unsigned int cpu, unsigned long og_cpuflags)
 {
-	write_per_cpu_any(current_thread, thread, cpu);
+	write_per_cpu(current_thread, thread);
 
 	errno = thread->errno_val;
 
-	arch_load_thread(thread, cpu);
+	native::arch_load_thread(thread, cpu);
 
 	if(thread->owner)
-		arch_load_process(thread->owner, thread, cpu);
+		native::arch_load_process(thread->owner, thread, cpu);
 
-	write_per_cpu_any(sched_quantum, SCHED_QUANTUM, cpu);
+	write_per_cpu(sched_quantum, SCHED_QUANTUM);
 
 	cputime_restart_accounting(thread);
 
 	spin_unlock_irqrestore(get_per_cpu_ptr_any(scheduler_lock, cpu), og_cpuflags);
 }
 
-void sched_load_finish(struct thread *prev_thread, struct thread *next_thread)
+void sched_load_finish(thread *prev_thread, thread *next_thread)
 {	
-	arch_context_switch(prev_thread, next_thread);
+	native::arch_context_switch(prev_thread, next_thread);
 }
 
 unsigned long st_invoked = 0;
 
-void *sched_switch_thread(void *last_stack)
+extern "C" void *sched_schedule(void *last_stack)
 {
 	if(!is_initialized || sched_is_preemption_disabled())
 	{
@@ -314,7 +316,7 @@ void *sched_switch_thread(void *last_stack)
 		do_cputime_accounting();
 	}
 
-	struct thread *source_thread = curr_thread;
+	thread *source_thread = curr_thread;
 	unsigned long original_cpuflags = irq_save_and_disable();
 
 	curr_thread = sched_find_runnable();
@@ -335,17 +337,15 @@ void *sched_switch_thread(void *last_stack)
 	panic("sched_load_finish returned");
 }
 
-strong_alias(sched_switch_thread, asm_schedule);
-
 void *sched_preempt_thread(void *current_stack)
 {
-	struct thread *t = get_current_thread();
+	thread *t = get_current_thread();
 
 	if(t) t->flags |= THREAD_ACTIVE;
 
 	COMPILER_BARRIER();
 
-	void *ret = sched_switch_thread(current_stack);
+	void *ret = sched_schedule(current_stack);
 
 	if(t) t->flags &= ~THREAD_ACTIVE;
 
@@ -365,13 +365,13 @@ void sched_idle(void *ptr)
 }
 
 void __sched_append_to_queue(int priority, unsigned int cpu, 
-				struct thread *thread)
+				thread *thread)
 {
 	MUST_HOLD_LOCK(get_per_cpu_ptr_any(scheduler_lock, cpu));
 
 	assert(thread->status == THREAD_RUNNABLE);
 
-	struct thread **thread_queues = (struct thread **) get_per_cpu_ptr_any(thread_queues_head, cpu);
+	auto thread_queues = (struct thread **) get_per_cpu_ptr_any(thread_queues_head, cpu);
 	thread_t *queue = thread_queues[priority];
 	if(!queue)
 	{
@@ -424,7 +424,7 @@ unsigned int sched_allocate_processor(void)
 
 void thread_add(thread_t *thread, unsigned int cpu_num)
 {
-	if(cpu_num == SCHED_NO_CPU_PREFERENCE)
+	if(cpu_num == SCHED_NO_CPU_PREFERENCE || cpu_num > get_nr_cpus())
 		cpu_num = sched_allocate_processor();
 
 	thread->cpu = cpu_num;
@@ -435,7 +435,7 @@ void thread_add(thread_t *thread, unsigned int cpu_num)
 
 void sched_init_cpu(unsigned int cpu)
 {
-	struct thread *t = sched_create_thread(sched_idle, THREAD_KERNEL, NULL);
+	thread *t = sched_create_thread(sched_idle, THREAD_KERNEL, NULL);
 
 	assert(t != NULL);
 
@@ -449,7 +449,7 @@ void sched_init_cpu(unsigned int cpu)
 
 void sched_enable_pulse(void)
 {
-	struct clockevent *ev = get_per_cpu_ptr(sched_pulse);
+	clockevent *ev = get_per_cpu_ptr(sched_pulse);
 	ev->callback = sched_decrease_quantum;
 	ev->deadline = clocksource_get_time() + NS_PER_MS;
 	ev->flags = CLOCKEVENT_FLAG_ATOMIC | CLOCKEVENT_FLAG_PULSE;
@@ -467,7 +467,7 @@ int sched_rbtree_cmp(const void *t1, const void *t2)
 
 int sched_init(void)
 {
-	struct thread *t = sched_create_thread(sched_idle, THREAD_KERNEL, NULL);
+	thread *t = sched_create_thread(sched_idle, THREAD_KERNEL, NULL);
 
 	assert(t != NULL);
 
@@ -482,7 +482,7 @@ int sched_init(void)
 	return 0;
 }
 
-void platform_yield(void);
+extern "C" void platform_yield(void);
 
 void sched_yield(void)
 {
@@ -492,9 +492,9 @@ void sched_yield(void)
 	platform_yield();
 }
 
-void sched_sleep_unblock(struct clockevent *v)
+void sched_sleep_unblock(clockevent *v)
 {
-	struct thread *t = v->priv;
+	thread *t = (thread *) v->priv;
 	thread_wake_up(t);
 }
 
@@ -502,12 +502,12 @@ hrtime_t sched_sleep(unsigned long ns)
 {
 	thread_t *current = get_current_thread();
 
-	struct clockevent ev;
+	clockevent ev;
 	ev.callback = sched_sleep_unblock;
 	ev.priv = current;
 
 	/* This clockevent can run atomically because it's a simple thread_wake_up,
-	 * which is save to call from atomic/interrupt context.
+	 * which is safe to call from atomic/interrupt context.
 	 */
 	ev.flags = CLOCKEVENT_FLAG_ATOMIC;
 	ev.deadline = clocksource_get_time() + ns;
@@ -536,7 +536,7 @@ hrtime_t sched_sleep(unsigned long ns)
 
 int __sched_remove_thread_from_execution(thread_t *thread, unsigned int cpu)
 {
-	struct thread **thread_queues = (struct thread **) get_per_cpu_ptr_any(thread_queues_head, cpu);
+	auto thread_queues = (struct thread **) get_per_cpu_ptr_any(thread_queues_head, cpu);
 
 	for(thread_t *t = thread_queues[thread->priority]; t; t = t->next_prio)
 	{
@@ -565,7 +565,7 @@ int sched_remove_thread_from_execution(thread_t *thread)
 {
 	unsigned int cpu = thread->cpu;
 
-	struct spinlock *s = get_per_cpu_ptr_any(scheduler_lock, cpu);
+	spinlock *s = get_per_cpu_ptr_any(scheduler_lock, cpu);
 	unsigned long cpu_flags = spin_lock_irqsave(s);
 
 	int st = __sched_remove_thread_from_execution(thread, cpu);
@@ -586,17 +586,17 @@ void set_current_thread(thread_t *t)
 	write_per_cpu(current_thread, t);
 }
 
-pid_t sys_set_tid_address(pid_t *tidptr)
+extern "C" pid_t sys_set_tid_address(pid_t *tidptr)
 {
-	struct thread *t = get_current_thread();
+	thread *t = get_current_thread();
 	t->ctid = tidptr;
 	return t->id;
 }
 
-int sys_nanosleep(const struct timespec *req, struct timespec *rem)
+extern "C" int sys_nanosleep(const timespec *req, timespec *rem)
 {
-	struct timespec ts;
-	if(copy_from_user(&ts, req, sizeof(struct timespec)) < 0)
+	timespec ts;
+	if(copy_from_user(&ts, req, sizeof(timespec)) < 0)
 		return -EFAULT;
 
 	if(!timespec_valid(&ts, false))
@@ -611,7 +611,7 @@ int sys_nanosleep(const struct timespec *req, struct timespec *rem)
 		ts.tv_sec = ns_rem / NS_PER_SEC;
 		ts.tv_nsec = ns_rem % NS_PER_SEC;
 
-		if(copy_to_user(rem, &ts, sizeof(struct timespec)) < 0)
+		if(copy_to_user(rem, &ts, sizeof(timespec)) < 0)
 			return -EFAULT;
 	}
 
@@ -621,9 +621,9 @@ int sys_nanosleep(const struct timespec *req, struct timespec *rem)
 	return 0;
 }
 
-extern void thread_finish_destruction(void*);
+extern "C" void thread_finish_destruction(void*);
 
-void thread_destroy(struct thread *thread)
+void thread_destroy(thread *thread)
 {
 	/* This function should destroy everything that we can destroy right now.
 	 * We can't destroy things like the kernel stack or the FPU area, because we'll eventually 
@@ -646,18 +646,20 @@ void thread_destroy(struct thread *thread)
 	/* We can't actually destroy the user stack because the vm regions are already destroyed */
 	
 	/* Schedule further thread destruction */
-	struct dpc_work w;
+	dpc_work w;
 	w.context = thread;
 	w.funcptr = thread_finish_destruction;
 	w.next = NULL;
 	dpc_schedule_work(&w, DPC_PRIORITY_MEDIUM);
 }
 
-void sched_die(void)
+void thread_exit(void)
 {
+	//printk("tid %u(%p) dying\n", get_current_thread()->id, get_current_thread()->entry);
+
 	sched_disable_preempt();
 
-	struct thread *current = get_current_thread();
+	thread *current = get_current_thread();
 
 	/* We need to switch to the fallback page directory while we can, because
 	 * we don't know if the current pgd will be destroyed by some other thread.
@@ -671,7 +673,7 @@ void sched_die(void)
 	sched_yield();
 }
 
-struct thread *get_thread_for_cpu(unsigned int cpu)
+thread *get_thread_for_cpu(unsigned int cpu)
 {
 	return get_per_cpu_any(current_thread, cpu);
 }
@@ -681,9 +683,9 @@ bool sched_may_resched(void)
 	return !(is_in_interrupt() || irq_is_disabled() || sched_is_preemption_disabled());
 }
 
-void sched_try_to_resched(struct thread *thread)
+void sched_try_to_resched(thread *thread)
 {
-	struct thread *current = get_current_thread();
+	auto current = get_current_thread();
 	if(!current)
 		return;
 
@@ -703,7 +705,7 @@ void sched_try_to_resched(struct thread *thread)
 	}
 	else
 	{
-		struct thread *other_thread = get_thread_for_cpu(thread->cpu);
+		auto other_thread = get_thread_for_cpu(thread->cpu);
 		int other_prio = other_thread->priority;
 		if(other_prio < thread->priority)
 		{
@@ -734,7 +736,7 @@ void thread_set_state(thread_t *thread, int state)
 		sched_try_to_resched(thread);
 }
 
-void __thread_wake_up(struct thread *thread, unsigned int cpu)
+void __thread_wake_up(thread *thread, unsigned int cpu)
 {
 	MUST_HOLD_LOCK(&thread->lock);
 	MUST_HOLD_LOCK(get_per_cpu_ptr_any(scheduler_lock, cpu));
@@ -768,7 +770,7 @@ void thread_wake_up(thread_t *thread)
 	sched_try_to_resched(thread);
 }
 
-void sched_block_self(struct thread *thread, unsigned long fl)
+void sched_block_self(thread *thread, unsigned long fl)
 {
 	MUST_HOLD_LOCK(get_per_cpu_ptr_any(scheduler_lock, thread->cpu));
 
@@ -780,15 +782,15 @@ void sched_block_self(struct thread *thread, unsigned long fl)
 	sched_yield();
 }
 
-void sched_block_other(struct thread *thread)
+void sched_block_other(thread *thread)
 {
 	panic("not implemented");
 }
 
 /* Note: __sched_block returns with everything unlocked */
-void __sched_block(struct thread *thread, unsigned long fl)
+void __sched_block(thread *thread, unsigned long fl)
 {
-	struct thread *current = get_current_thread();
+	auto current = get_current_thread();
 
 	if(current == thread)
 	{
@@ -801,7 +803,7 @@ void __sched_block(struct thread *thread, unsigned long fl)
 
 }
 
-void sched_block(struct thread *thread)
+void sched_block(thread *thread)
 {
 	unsigned long f = sched_lock(thread);
 
@@ -810,12 +812,12 @@ void sched_block(struct thread *thread)
 
 void sched_sleep_until_wake(void)
 {
-	struct thread *thread = get_current_thread();
+	thread *thread = get_current_thread();
 	
 	sched_block(thread);
 }
 
-void sched_start_thread_for_cpu(struct thread *t, unsigned int cpu)
+void sched_start_thread_for_cpu(thread *t, unsigned int cpu)
 {
 	assert(t != NULL);
 	thread_add(t, cpu);
@@ -826,64 +828,10 @@ void sched_start_thread(thread_t *thread)
 	sched_start_thread_for_cpu(thread, SCHED_NO_CPU_PREFERENCE);
 }
 
-#define enqueue_thread_generic(primitive_name, primitive_struct) 			\
-static void enqueue_thread_##primitive_name(primitive_struct *s, thread_t *thread) 	\
-{											\
-											\
-	if(!s->head)									\
-	{										\
-		s->head = s->tail = thread;						\
-		thread->sem_prev = thread->sem_next = NULL;				\
-	}										\
-	else										\
-	{										\
-		s->tail->sem_next = thread;						\
-		thread->sem_prev = s->tail;						\
-		s->tail = thread; 							\
-		thread->sem_next = NULL;						\
-	}										\
-											\
-}
+enqueue_thread_generic(condvar, cond);
+dequeue_thread_generic(condvar, cond);
 
-#define dequeue_thread_generic(primitive_name, primitive_struct)			\
-static void dequeue_thread_##primitive_name(primitive_struct *s, thread_t *thread)	\
-{											\
-	if(s->head == thread)								\
-	{										\
-		s->head = thread->sem_next;						\
-		if(thread->sem_next)							\
-		{									\
-			thread->sem_next->sem_prev = NULL;				\
-		}									\
-											\
-	}										\
-	else										\
-	{										\
-		if(thread->sem_prev) thread->sem_prev->sem_next = thread->sem_next;	\
-		if(thread->sem_next)							\
-		{									\
-			thread->sem_next->sem_prev = thread->sem_prev;			\
-		}									\
-		else									\
-		{									\
-			s->tail = thread->sem_prev;					\
-		}									\
-	}										\
-											\
-	if(s->tail == thread)								\
-	{										\
-		s->tail = thread->sem_prev;						\
-	}										\
-											\
-											\
-	thread->sem_next = thread->sem_prev = NULL;					\
-											\
-}
-
-enqueue_thread_generic(condvar, struct cond);
-dequeue_thread_generic(condvar, struct cond);
-
-void condvar_wait_unlocked(struct cond *var)
+void condvar_wait_unlocked(cond *var)
 {
 	thread_t *current = get_current_thread();
 
@@ -903,7 +851,7 @@ void condvar_wait_unlocked(struct cond *var)
 	if(!b) irq_enable();
 }
 
-void condvar_wait(struct cond *var, struct mutex *mutex)
+void condvar_wait(cond *var, mutex *mutex)
 {
 	sched_disable_preempt();
 
@@ -916,7 +864,7 @@ void condvar_wait(struct cond *var, struct mutex *mutex)
 	mutex_lock(mutex);
 }
 
-void condvar_signal(struct cond *var)
+void condvar_signal(cond *var)
 {
 	unsigned long cpu_flags = spin_lock_irqsave(&var->llock);
 
@@ -931,7 +879,7 @@ void condvar_signal(struct cond *var)
 	spin_unlock_irqrestore(&var->llock, cpu_flags);
 }
 
-void condvar_broadcast(struct cond *var)
+void condvar_broadcast(cond *var)
 {
 	unsigned long cpu_flags = spin_lock_irqsave(&var->llock);
 
@@ -950,19 +898,19 @@ void condvar_broadcast(struct cond *var)
 	spin_unlock_irqrestore(&var->llock, cpu_flags);
 }
 
-enqueue_thread_generic(sem, struct semaphore);
-dequeue_thread_generic(sem, struct semaphore);
+enqueue_thread_generic(sem, semaphore);
+dequeue_thread_generic(sem, semaphore);
 
-void sem_init(struct semaphore *sem, long counter)
+void sem_init(semaphore *sem, long counter)
 {
-	sem->counter = (atomic_long) counter;
+	sem->counter = 0;
 }
 
-void sem_do_slow_path(struct semaphore *sem)
+void sem_do_slow_path(semaphore *sem)
 {
 	while(sem->counter == 0)
 	{
-		struct thread *thread = get_current_thread();
+		thread *thread = get_current_thread();
 
 		unsigned long f = sched_lock(thread);
 
@@ -976,7 +924,7 @@ void sem_do_slow_path(struct semaphore *sem)
 	}
 }
 
-void sem_wait(struct semaphore *sem)
+void sem_wait(semaphore *sem)
 {	
 	spin_lock(&sem->lock);
 
@@ -996,7 +944,7 @@ void sem_wait(struct semaphore *sem)
 	spin_unlock(&sem->lock);
 }
 
-static void wake_up(struct semaphore *sem)
+static void wake_up(semaphore *sem)
 {
 	thread_t *target = sem->head;
 
@@ -1005,9 +953,9 @@ static void wake_up(struct semaphore *sem)
 	thread_wake_up(target);
 }
 
-void sem_signal(struct semaphore *sem)
+void sem_signal(semaphore *sem)
 {
-	atomic_fetch_add_explicit(&sem->counter, 1, memory_order_release);
+	sem->counter.add_fetch(1, mem_order::release);
 
 	unsigned long cpu_flags = spin_lock_irqsave(&sem->lock);
 
@@ -1025,18 +973,18 @@ void sched_enable_preempt_for_cpu(unsigned int cpu)
 
 	//assert(*preempt_counter > 0);
 
-	atomic_fetch_add_explicit(preempt_counter, -1, memory_order_relaxed);
+	__atomic_fetch_add(preempt_counter, -1, __ATOMIC_RELAXED);
 }
 
 void sched_disable_preempt_for_cpu(unsigned int cpu)
 {
 	unsigned long *preempt_counter = get_per_cpu_ptr_any(preemption_counter, cpu); 
-	atomic_fetch_add_explicit(preempt_counter, 1, memory_order_relaxed);
+	__atomic_fetch_add(preempt_counter, 1, __ATOMIC_RELAXED);
 }
 
 void sched_try_to_resched_if_needed(void)
 {
-	struct thread *current = get_current_thread();
+	thread *current = get_current_thread();
 
 	if(current && sched_needs_resched(current) && sched_may_resched())
 	{
@@ -1069,232 +1017,31 @@ void sched_disable_preempt(void)
 	add_per_cpu(preemption_counter, 1);
 }
 
-#define prepare_sleep_generic(typenm, type) 			\
-void prepare_sleep_##typenm(type *p, int state)			\
-{							\
-	struct thread *t = get_current_thread(); 	\
-	sched_disable_preempt();			\
-							\
-	set_current_state(state);			\
-	unsigned long __cpu_flags = spin_lock_irqsave(&p->llock);			\
-	enqueue_thread_##typenm(p, t);			\
-	spin_unlock_irqrestore(&p->llock, __cpu_flags);		\
-}
-
-void __sched_kill_other(struct thread *thread, unsigned int cpu)
+void __sched_kill_other(thread *thread, unsigned int cpu)
 {
 	MUST_HOLD_LOCK(get_per_cpu_ptr_any(scheduler_lock, thread->cpu));
 
 	cpu_send_message(cpu, CPU_KILL_THREAD, NULL, false);
 }
 
-pid_t sys_gettid(void)
+extern "C" pid_t sys_gettid(void)
 {
-	struct thread *current = get_current_thread();
+	thread *current = get_current_thread();
 	/* TODO: Should we emulate actual linux behavior? */
 	return current->id;
 }
 
-bool rw_lock_tryread(struct rwlock *lock)
-{
-	unsigned long l;
-	do
-	{
-		l = lock->lock;
-		if(l == RDWR_LOCK_WRITE - 1)
-			return errno = EAGAIN, false;
-		if(l == RDWR_LOCK_WRITE)
-			return errno = EBUSY, false;
-	} while(__sync_bool_compare_and_swap(&lock->lock, l, l+1) != true);
-	
-	__sync_synchronize();
-
-	return true;
-}
-
-bool rw_lock_trywrite(struct rwlock *lock)
-{
-	bool st = __sync_bool_compare_and_swap(&lock->lock, 0, RDWR_LOCK_WRITE);
-	__sync_synchronize();
-	
-	return st;
-}
-
-static void commit_sleep()
-{
-	sched_yield();
-}
-
-enqueue_thread_generic(rwlock, struct rwlock);
-dequeue_thread_generic(rwlock, struct rwlock);
-prepare_sleep_generic(rwlock, struct rwlock);
-
-int __rw_lock_write(struct rwlock *lock, int state)
-{
-	/* Try once before doing the whole preempt disable loop and all */
-	if(rw_lock_trywrite(lock))
-		return 0;
-
-	int ret = 0;
-	struct thread *current = get_current_thread();
-
-	bool signals_allowed = state == THREAD_INTERRUPTIBLE;
-
-	prepare_sleep_rwlock(lock, state);
-
-	while(!rw_lock_trywrite(lock))
-	{
-		if(signals_allowed && signal_is_pending())
-		{
-			ret = -EINTR;
-			break;
-		}
-
-		sched_enable_preempt();
-
-		commit_sleep();
-
-		prepare_sleep_rwlock(lock, state);
-	}
-
-	unsigned long cpu_flags = spin_lock_irqsave(&lock->llock);
-
-	dequeue_thread_rwlock(lock, current);
-
-	spin_unlock_irqrestore(&lock->llock, cpu_flags);
-
-	set_current_state(THREAD_RUNNABLE);
-
-	sched_enable_preempt();
-
-	__sync_synchronize();
-
-	return ret;
-}
-
-int __rw_lock_read(struct rwlock *lock, int state)
-{
-	/* Try once before doing the whole preempt disable loop and all */
-	if(rw_lock_tryread(lock))
-		return 0;
-
-	int ret = 0;
-	struct thread *current = get_current_thread();
-
-	bool signals_allowed = state == THREAD_INTERRUPTIBLE;
-
-	prepare_sleep_rwlock(lock, state);
-
-	while(!rw_lock_tryread(lock))
-	{
-		if(signals_allowed && signal_is_pending())
-		{
-			ret = -EINTR;
-			break;
-		}
-
-		sched_enable_preempt();
-
-		commit_sleep();
-
-		prepare_sleep_rwlock(lock, state);
-	}
-
-	unsigned long cpu_flags = spin_lock_irqsave(&lock->llock);
-
-	dequeue_thread_rwlock(lock, current);
-
-	spin_unlock_irqrestore(&lock->llock, cpu_flags);
-
-	set_current_state(THREAD_RUNNABLE);
-
-	sched_enable_preempt();
-
-	__sync_synchronize();
-
-	return ret;
-}
-
-void rw_lock_write(struct rwlock *lock)
-{
-	__rw_lock_write(lock, THREAD_UNINTERRUPTIBLE);
-}
-
-int rw_lock_write_interruptible(struct rwlock *lock)
-{
-	return __rw_lock_write(lock, THREAD_INTERRUPTIBLE);
-}
-
-void rw_lock_read(struct rwlock *lock)
-{
-	__rw_lock_read(lock, THREAD_UNINTERRUPTIBLE);
-}
-
-int rw_lock_read_interruptible(struct rwlock *lock)
-{
-	return __rw_lock_read(lock, THREAD_INTERRUPTIBLE);
-}
-
-void rw_lock_wake_up_threads(struct rwlock *lock)
-{
-	spin_lock(&lock->llock);
-
-	while(lock->head)
-	{
-		struct thread *to_wake = lock->head;
-		dequeue_thread_rwlock(lock, lock->head);
-
-		thread_wake_up(to_wake);
-	}
-
-	spin_unlock(&lock->llock);
-}
-
-void rw_lock_wake_up_thread(struct rwlock *lock)
-{
-	spin_lock(&lock->llock);
-
-	if(lock->head)
-	{
-		struct thread *to_wake = lock->head;
-		dequeue_thread_rwlock(lock, lock->head);
-
-		thread_wake_up(to_wake);
-	}
-
-	spin_unlock(&lock->llock);
-}
-
-void rw_unlock_read(struct rwlock *lock)
-{
-	/* Implementation note: If we're unlocking a read lock, only wake up a
-	 * single thread, since the write lock is exclusive, like a mutex.
-	*/
-	if(__sync_sub_and_fetch(&lock->lock, 1) == 0)
-		rw_lock_wake_up_thread(lock);
-}
-
-void rw_unlock_write(struct rwlock *lock)
-{
-	lock->lock = 0;
-	__sync_synchronize();
-	/* Implementation note: If we're unlocking a write lock, wake up every single thread
-	 * because we can have both readers and writers waiting to get woken up.
-	*/
-	rw_lock_wake_up_threads(lock);
-}
-
 void sched_transition_to_idle(void)
 {
-	struct thread *curr = get_current_thread();
+	thread *curr = get_current_thread();
 	curr->priority = SCHED_PRIO_VERY_LOW;
 	curr->entry(NULL);
 }
 
-int sched_transition_to_user_thread(struct thread *thread)
+int sched_transition_to_user_thread(thread *thread)
 {
 	int st = 0;
-	if((st = arch_transform_into_user_thread(thread)) < 0)
+	if((st = native::arch_transform_into_user_thread(thread)) < 0)
 		return st;
 
 	thread->flags &= ~THREAD_KERNEL;

@@ -12,10 +12,13 @@
 
 static struct creds kernel_creds = 
 {
-	.euid = 0,
+	.lock = rwlock{},
 	.ruid = 0,
+	.euid = 0,
 	.rgid = 0,
-	.egid = 0
+	.egid = 0,
+	.suid = 0,
+	.sgid = 0
 };
 
 static struct creds *get_default_creds(void)
@@ -87,7 +90,7 @@ int process_inherit_creds(struct process *new_child, struct process *parent)
 	return 0;
 }
 
-int sys_setuid(uid_t uid)
+extern "C" int sys_setuid(uid_t uid)
 {
 	int st = 0;
 	struct creds *c = creds_get_write();
@@ -122,7 +125,7 @@ out:
 	return st;
 }
 
-int sys_setgid(gid_t gid)
+extern "C" int sys_setgid(gid_t gid)
 {
 	int st = 0;
 	struct creds *c = creds_get_write();
@@ -156,7 +159,7 @@ out:
 	return st;
 }
 
-uid_t sys_getuid(void)
+extern "C" uid_t sys_getuid(void)
 {
 	struct creds *c = creds_get();
 
@@ -167,7 +170,7 @@ uid_t sys_getuid(void)
 	return u;
 }
 
-gid_t sys_getgid(void)
+extern "C" gid_t sys_getgid(void)
 {
 	struct creds *c = creds_get();
 

@@ -520,7 +520,7 @@ platform_yield:
 	pushaq /* General purpose registers (%rax - %r15) */
 	push $KERNEL_DS /* %ds */
 	mov %rsp, %rdi
-	call asm_schedule
+	call sched_schedule
 	mov %rax, %rsp
 	jmp x86_scheduler_exit
 .return_label:

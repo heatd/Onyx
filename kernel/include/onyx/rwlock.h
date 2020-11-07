@@ -6,16 +6,27 @@
 #ifndef _KERNEL_RWLOCK_H
 #define _KERNEL_RWLOCK_H
 
+#include <limits.h>
+
+#include <onyx/list.h>
 #include <onyx/compiler.h>
 #include <onyx/spinlock.h>
 
-#define RDWR_LOCK_WRITE			0x7fffffff
+#define RDWR_LOCK_WRITE			LONG_MAX
 
 struct rwlock
 {
 	unsigned long lock;
-	struct thread *head, *tail;
+	struct list_head waiting_list;
 	struct spinlock llock;
+
+#ifdef __cplusplus
+	constexpr rwlock() : lock{}, waiting_list{}, llock{}
+	{
+		spinlock_init(&llock);
+		INIT_LIST_HEAD(&waiting_list);
+	}
+#endif
 };
 
 #ifdef __cplusplus
@@ -33,7 +44,7 @@ void rw_unlock_write(struct rwlock *lock);
 static inline void rwlock_init(struct rwlock *lock)
 {
 	lock->lock = 0;
-	lock->head = lock->tail = NULL;
+	INIT_LIST_HEAD(&lock->waiting_list);
 	spinlock_init(&lock->llock);
 }
 

@@ -24,7 +24,6 @@
 #include <onyx/sysfs.h>
 #include <onyx/vfs.h>
 #include <onyx/spinlock.h>
-#include <onyx/atomic.h>
 #include <onyx/utils.h>
 #include <onyx/cpu.h>
 #include <onyx/arch.h>
@@ -943,7 +942,7 @@ void vm_change_perms(void *range, size_t pages, int perms)
 	else
 		as = &get_current_process()->address_space;
 
-	if(as->vm_lock.owner != get_current_thread())
+	if(mutex_owner(&as->vm_lock) != get_current_thread())
 	{
 		needs_release = true;
 		mutex_lock(&as->vm_lock);

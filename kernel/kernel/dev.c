@@ -9,7 +9,6 @@
 #include <assert.h>
 #include <stdio.h>
 
-#include <onyx/atomic.h>
 #include <onyx/panic.h>
 #include <onyx/dev.h>
 #include <onyx/sysfs.h>
@@ -252,7 +251,7 @@ void dev_create_sysfs(void)
 void driver_register_device(struct driver *driver, struct device *dev)
 {
 	dev->driver = driver;
-	atomic_inc(&driver->ref, 1);
+	__atomic_add_fetch(&driver->ref, 1, __ATOMIC_ACQUIRE);
 	
 	spin_lock(&driver->device_list_lock);
 	if(extrusive_list_add(&driver->devices, dev) < 0)

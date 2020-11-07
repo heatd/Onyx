@@ -51,7 +51,7 @@ struct blockdev *blkdev_search(const char *name)
 
 unsigned int blkdev_ioctl(int request, void *argp, struct file *f)
 {
-	struct blockdev *d = f->f_ino->i_helper;
+	auto d = (blockdev *) f->f_ino->i_helper;
 
 	(void) d;	
 	switch(request)
@@ -66,12 +66,12 @@ size_t blkdev_read_file(size_t offset, size_t len, void *buffer, struct file *f)
 	if(f->f_flags & O_NONBLOCK)
 		return errno = EWOULDBLOCK, -1;
 
-	struct blockdev *d = f->f_ino->i_helper;
+	auto d = (blockdev *) f->f_ino->i_helper;
 	/* align the offset first */
 	size_t misalignment = offset % d->sector_size;
 	ssize_t sector = offset / d->sector_size;
 	size_t read = 0;
-	char *buf = buffer;
+	char *buf = (char *) buffer;
 
 	if(misalignment != 0)
 	{
@@ -163,12 +163,11 @@ size_t blkdev_read_file(size_t offset, size_t len, void *buffer, struct file *f)
 
 size_t blkdev_write_file(size_t offset, size_t len, void* buffer, struct file *f)
 {
-	struct blockdev *d =  f->f_ino->i_helper;
-	/* align the offset first */
+	auto d = (blockdev *) f->f_ino->i_helper;	/* align the offset first */
 	size_t misalignment = offset % d->sector_size;
 	ssize_t sector = offset / d->sector_size;
 	size_t written = 0;
-	char *buf = buffer;
+	char *buf = (char *) buffer;
 
 	if(misalignment != 0)
 	{

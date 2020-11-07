@@ -6,8 +6,8 @@
 #ifndef _ONYX_SEM_H
 #define _ONYX_SEM_H
 
-#ifndef __cplusplus
-#include <stdatomic.h>
+#ifdef __cplusplus
+#include <onyx/atomic.hpp>
 #endif
 
 #include <onyx/scheduler.h>
@@ -18,8 +18,8 @@ struct semaphore
 	thread_t *head;
 	thread_t *tail;
 	struct spinlock lock;
-#ifndef __cplusplus
-	atomic_long counter;
+#ifdef __cplusplus
+	atomic<long> counter;
 #else
 	long counter;
 #endif
