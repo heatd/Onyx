@@ -101,6 +101,11 @@ struct process
 	struct process *children, *prev_sibbling, *next_sibbling;
 
 	struct itimer timers[ITIMER_COUNT];
+
+#ifdef __cplusplus
+	process();
+#endif
+
 };
 
 #ifdef __cplusplus

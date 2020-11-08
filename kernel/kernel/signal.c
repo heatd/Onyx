@@ -501,6 +501,17 @@ out:
 	return st;
 }
 
+static bool is_default_ignored(int signal)
+{
+	return signal == SIGCHLD || signal == SIGURG || signal == SIGWINCH;
+}
+
+static bool is_signal_ignored(struct process *process, int signal)
+{
+	return process->sigtable[signal].sa_handler == SIG_IGN ||
+	       (process->sigtable[signal].sa_handler == SIG_DFL && is_default_ignored(signal));
+}
+
 int kernel_tkill(int signal, struct thread *thread, unsigned int flags, siginfo_t *info)
 {
 	struct process *process = thread->owner;
@@ -532,8 +543,10 @@ int kernel_tkill(int signal, struct thread *thread, unsigned int flags, siginfo_
 		return st;
 	}
 
-	/* Don't bother to set it as pending if sig == SIG_IGN */
-	bool is_signal_ign = (process->sigtable[signal].sa_handler == SIG_IGN) && !(signal_is_unblockable(signal));
+	/* Don't bother to set it as pending if sig == SIG_IGN or it's set to the default
+	 * and the default is to ignore.
+	 */
+	bool is_signal_ign = is_signal_ignored(process, signal) && !(signal_is_unblockable(signal));
 
 	bool is_masked = sigismember(&thread->sinfo.sigmask, signal);
 

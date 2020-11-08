@@ -288,6 +288,9 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 {
 	assert(magic == MULTIBOOT2_BOOTLOADER_MAGIC);
 
+	/* First off, identify the CPU its running on */
+	cpu_identify();
+
 	idt_init();
 	vm_init();
 
@@ -373,9 +376,6 @@ void kernel_early(uintptr_t addr, uint32_t magic)
 	initrd.next = NULL;
 
 	set_alloc_boot_page(multiboot2_alloc_boot_page);
-
-	/* Identify the CPU it's running on (bootstrap CPU) */
-	cpu_identify();
 
 	pat_init();
 

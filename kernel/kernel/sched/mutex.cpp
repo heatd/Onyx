@@ -10,6 +10,7 @@
 #include <onyx/task_switching.h>
 #include <onyx/thread.h>
 #include <onyx/scoped_lock.h>
+#include <onyx/compiler.h>
 
 static unsigned long thread_to_lock_word(thread *t)
 {
@@ -19,12 +20,6 @@ static unsigned long thread_to_lock_word(thread *t)
 static thread *lock_word_to_thread(unsigned long word)
 {
 	return (thread *) (word ^ 1);
-}
-
-template <typename Type>
-inline Type read_once(const Type& t)
-{
-	return *((volatile Type *) &t);
 }
 
 thread *mutex_owner(mutex *mtx)

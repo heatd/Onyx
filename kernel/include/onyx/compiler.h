@@ -111,4 +111,20 @@ static inline int count_bits64(uint64_t num)
 
 #endif
 
+#ifdef __cplusplus
+
+template <typename Type>
+inline Type read_once(const Type& t)
+{
+	return *((volatile Type *) &t);
+}
+
+template <typename Type>
+inline void write_once(const Type& t, Type val)
+{
+	*((volatile Type *) &t) = val;
+}
+
+#endif
+
 #endif /* COMPILER_H */
