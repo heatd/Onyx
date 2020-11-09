@@ -30,7 +30,7 @@ namespace photon
 
 shared_ptr<context> device::get_context(pid_t pid)
 {
-	scoped_lock g{&context_lock};
+	scoped_lock g{context_lock};
 
 	auto it = context_list.find(pid);
 
@@ -46,7 +46,7 @@ int device::create_new_context(pid_t pid)
 	if(!ctx)
 		return -ENOMEM;
 
-	scoped_lock g{&context_lock};
+	scoped_lock g{context_lock};
 	if(!context_list.insert({pid, ctx}))
 		return -ENOMEM;
 
@@ -55,14 +55,14 @@ int device::create_new_context(pid_t pid)
 
 photon_handle context::add_object(const shared_ptr<object>& obj)
 {
-	scoped_lock g{&handle_table_lock};
+	scoped_lock g{handle_table_lock};
 
 	return handle_table.push_back(obj) ? handle_table.size() - 1 : PHOTON_INVALID_HANDLE;
 }
 
 shared_ptr<object> context::get_object(photon_handle handle)
 {
-	scoped_lock g{&handle_table_lock};
+	scoped_lock g{handle_table_lock};
 
 	if(handle >= handle_table.buf_size())
 		return nullptr;
@@ -73,7 +73,7 @@ shared_ptr<object> context::get_object(photon_handle handle)
 
 unsigned int context::close_object(photon_handle handle)
 {
-	scoped_lock g{&handle_table_lock};
+	scoped_lock g{handle_table_lock};
 
 	if(handle >= handle_table.buf_size())
 		return (unsigned int) -EINVAL;
@@ -145,7 +145,7 @@ unsigned int device::close_object(photon_handle handle, shared_ptr<context> ctx)
 
 void device::remove_object_from_named_list(object *obj)
 {
-	scoped_lock g{&named_list_lock};
+	scoped_lock g{named_list_lock};
 
 	list_remove(&obj->named_list);
 }
@@ -236,7 +236,7 @@ off_t device::do_enable_buffer_mappings(photon_handle handle)
 
 shared_ptr<mapping> context::get_mapping(off_t offset)
 {
-	scoped_lock g{&mappings_lock};
+	scoped_lock g{mappings_lock};
 	auto end = mapping_list.end();
 
 	for(auto it = mapping_list.begin(); it != end; ++it)
@@ -306,7 +306,7 @@ unsigned int device::do_ioctl_set_name(photon_set_name_args *uargs)
 		return -EFAULT;
 	}
 
-	scoped_lock g{&named_list_lock};
+	scoped_lock g{named_list_lock};
 
 	list_add(&obj->named_list, &named_list);
 
@@ -315,7 +315,7 @@ unsigned int device::do_ioctl_set_name(photon_set_name_args *uargs)
 
 expected<cul::pair<object *, scoped_lock<spinlock>>, bool> device::get_object_from_name(uint32_t name)
 {
-	scoped_lock g{&named_list_lock};
+	scoped_lock g{named_list_lock};
 
 	list_for_every(&named_list)
 	{

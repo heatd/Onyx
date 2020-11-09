@@ -40,14 +40,14 @@ public:
 
 	void append_msg(virtio_control_msg<SentType, ReceivedType> *msg)
 	{
-		scoped_lock<spinlock, true> g{&list_lock};
+		scoped_lock<spinlock, true> g{list_lock};
 
 		list_add_tail(&msg->list_node, &control_msgs);
 	}
 
 	void remove_msg(virtio_control_msg<SentType, ReceivedType> *msg)
 	{
-		scoped_lock<spinlock, true> g{&list_lock};
+		scoped_lock<spinlock, true> g{list_lock};
 
 		list_remove(&msg->list_node);
 	}
@@ -125,7 +125,7 @@ public:
 template <typename SentType, typename ReceivedType>
 void virtio_control_msg_queue<SentType, ReceivedType>::handle_used_buf(const virtq_used_elem& elem)
 {
-	scoped_lock<spinlock, true> g{&list_lock};
+	scoped_lock<spinlock, true> g{list_lock};
 
 	list_for_every_safe(&control_msgs)
 	{

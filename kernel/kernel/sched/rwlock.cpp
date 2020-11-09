@@ -49,7 +49,7 @@ static void commit_sleep()
 
 static void rwlock_prepare_sleep(rwlock *rwl, int state)
 {
-	scoped_lock g{&rwl->llock};
+	scoped_lock g{rwl->llock};
 
 	auto t = get_current_thread();
 	
@@ -60,7 +60,7 @@ static void rwlock_prepare_sleep(rwlock *rwl, int state)
 
 static void dequeue_thread_rwlock(rwlock *lock, thread *thread)
 {
-	scoped_lock g{&lock->llock};
+	scoped_lock g{lock->llock};
 
 	list_remove(&thread->wait_list_head);
 }
@@ -157,7 +157,7 @@ int rw_lock_read_interruptible(rwlock *lock)
 
 void rw_lock_wake_up_threads(rwlock *lock)
 {
-	scoped_lock g{&lock->llock};
+	scoped_lock g{lock->llock};
 
 	list_for_every(&lock->waiting_list)
 	{
@@ -169,7 +169,7 @@ void rw_lock_wake_up_threads(rwlock *lock)
 
 void rw_lock_wake_up_thread(rwlock *lock)
 {
-	scoped_lock g{&lock->llock};
+	scoped_lock g{lock->llock};
 
 	if(!list_is_empty(&lock->waiting_list))
 	{

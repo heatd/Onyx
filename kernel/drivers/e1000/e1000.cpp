@@ -105,7 +105,7 @@ struct e1000_device
 
 	void free_descs(unsigned int to_free)
 	{
-		scoped_lock<spinlock> g{&tx_lock};
+		scoped_lock g{tx_lock};
 
 		tx_used -= to_free;
 

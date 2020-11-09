@@ -426,7 +426,7 @@ public:
 
 	T *allocate()
 	{
-		scoped_lock<spinlock, usable_onirq> guard{&lock};
+		scoped_lock<spinlock, usable_onirq> guard{lock};
 
 		while(!free_chunk_head)
 		{
@@ -457,7 +457,7 @@ public:
 	{
 		auto chunk = ptr_to_chunk(ptr);
 		//std::cout << "Removing chunk " << chunk << "\n";
-		scoped_lock<spinlock, usable_onirq> guard{&lock};
+		scoped_lock<spinlock, usable_onirq> guard{lock};
 
 		chunk->next = nullptr;
 #ifdef OBJECT_CANARY
@@ -482,7 +482,7 @@ public:
 
 	void purge()
 	{
-		scoped_lock<spinlock, usable_onirq> g{&lock};
+		scoped_lock<spinlock, usable_onirq> g{lock};
 		auto s = segment_head;
 
 		while(s)

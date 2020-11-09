@@ -143,12 +143,12 @@ protected:
 	/* Number of available descriptors - can only be touched when desc_alloc_lock is held */
 	size_t avail_descs;
 	/* Descriptor allocation lock */
-	Spinlock desc_alloc_lock;
+	spinlock desc_alloc_lock;
 public:
 	bool allocate_descriptors(virtio_buf_list& buf);
 	virtual unsigned int get_queue_size() = 0;
 	virtq(vdev *dev, unsigned int nr) : device{dev}, nr{nr}, desc_bitmap{},
-                                        avail_descs(), desc_alloc_lock{} {}
+                                        avail_descs(), desc_alloc_lock{} { spinlock_init(&desc_alloc_lock); }
 	virtual ~virtq() {}
 	virtual bool init() = 0;
 	virtual bool put_buffer(virtio_buf_list& bufs, bool notify = true) = 0;

@@ -130,7 +130,7 @@ public:
 
 	bool match_filter(const icmp_header *header)
 	{
-		scoped_lock g{&filters_lock};
+		scoped_lock g{filters_lock};
 
 		for(const auto &f : filters)
 		{

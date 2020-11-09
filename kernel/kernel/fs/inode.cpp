@@ -354,7 +354,7 @@ struct inode *superblock_find_inode(struct superblock *sb, ino_t ino_nr)
 
 	auto index = inode_hashtable.get_hashtable_index(hash);
 
-	scoped_lock<spinlock> g{&inode_hashtable_locks[index]};
+	scoped_lock g{inode_hashtable_locks[index]};
 
 	auto _l = inode_hashtable.get_hashtable(index);
 
@@ -386,7 +386,7 @@ void superblock_add_inode_unlocked(struct superblock *sb, struct inode *inode)
 
 	list_add_tail(&inode->i_hash_list_node, head);
 
-	scoped_lock g{&sb->s_ilock};
+	scoped_lock g{sb->s_ilock};
 	list_add_tail(&inode->i_sb_list_node, &sb->s_inodes);
 	__atomic_add_fetch(&sb->s_ref, 1, __ATOMIC_RELAXED);
 
@@ -399,7 +399,7 @@ void superblock_add_inode(struct superblock *sb, struct inode *inode)
 {
 	auto hash = inode_hash(sb->s_devnr, inode->i_inode);
 	auto index = inode_hashtable.get_hashtable_index(hash);
-	scoped_lock g{&inode_hashtable_locks[index]};
+	scoped_lock g{inode_hashtable_locks[index]};
 	superblock_add_inode_unlocked(sb, inode);
 	
 	// Was already unlocked
@@ -409,7 +409,7 @@ void superblock_add_inode(struct superblock *sb, struct inode *inode)
 extern "C"
 void superblock_remove_inode(struct superblock *sb, struct inode *inode)
 {
-	scoped_lock g{&sb->s_ilock};
+	scoped_lock g{sb->s_ilock};
 	list_remove(&inode->i_sb_list_node);
 
 	__atomic_sub_fetch(&sb->s_ref, 1, __ATOMIC_RELAXED);

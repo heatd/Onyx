@@ -376,7 +376,7 @@ public:
 
 	void append_ack(tcp_ack *ack)
 	{
-		scoped_lock guard(&tcp_ack_list_lock);
+		scoped_lock guard{tcp_ack_list_lock};
 		ack->append(&tcp_ack_list);
 		wait_queue_wake_all(&tcp_ack_wq);
 	}

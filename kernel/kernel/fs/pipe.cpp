@@ -67,7 +67,7 @@ ssize_t pipe::read(int flags, size_t len, void *buf)
 {
 	ssize_t been_read = 0;
 	
-	scoped_lock g(&pipe_lock);
+	scoped_lock g{pipe_lock};
 
 	while(been_read != (ssize_t) len)
 	{
@@ -118,7 +118,7 @@ ssize_t pipe::write(int flags, size_t len, const void *buf)
 	bool is_atomic_write = len <= PIPE_BUF;
 	ssize_t written = 0;
 
-	scoped_lock g(&pipe_lock);
+	scoped_lock g{pipe_lock};
 
 	while(written != (ssize_t) len)
 	{
@@ -194,7 +194,7 @@ size_t pipe_write(size_t offset, size_t sizeofwrite, void* buffer, struct file* 
 void pipe::close_write_end()
 {
 	/* wake up any possibly-blocked writers */
-	scoped_lock g(&pipe_lock);
+	scoped_lock g{pipe_lock};
 	
 	if(--writer_count == 0)
 		wake_all(&read_queue);
@@ -202,7 +202,7 @@ void pipe::close_write_end()
 
 void pipe::close_read_end()
 {
-	scoped_lock g(&pipe_lock);
+	scoped_lock g{pipe_lock};
 	
 	if(--reader_count == 0)
 		wake_all(&write_queue);
@@ -227,9 +227,9 @@ void pipe_close(struct inode* ino)
 
 short pipe::poll(void *poll_file, short events)
 {
-	printk("pipe poll\n");
+	//printk("pipe poll\n");
 	short revents = 0;
-	scoped_lock g{&pipe_lock};
+	scoped_lock g{pipe_lock};
 
 	if(events & POLLIN)
 	{

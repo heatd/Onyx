@@ -372,7 +372,7 @@ bool virtq::allocate_descriptors(virtio_buf_list& buf_list)
 	} while(buf_list.nr_elems <= expected &&
             !atomic_compare_exchange_strong(&avail_descs, &expected, new_val));
 
-	scoped_spinlock guard{&desc_alloc_lock};
+	scoped_lock guard{desc_alloc_lock};
 
 	list_for_every(&buf_list.buf_list_head)
 	{
@@ -466,7 +466,7 @@ void virtq_split::handle_irq()
 			 * and unpin pages
 			 */
 
-			scoped_lock g{&desc_alloc_lock};
+			scoped_lock g{desc_alloc_lock};
 			desc_bitmap.FreeBit(elem.id);
 			avail_descs++;
 		}

@@ -32,14 +32,14 @@ void input_device_register(input_device *dev)
 		panic("Out of memory strdup'ing name");
 	dev->name = n;
 
-	scoped_lock guard{&input_dev_list_lock};
+	scoped_lock guard{input_dev_list_lock};
 	list_add_tail(&dev->list, &input_dev_list);
 }
 
 extern "C"
 void input_device_unregister(struct input_device *dev)
 {
-	scoped_lock guard{&input_dev_list_lock};
+	scoped_lock guard{input_dev_list_lock};
 	list_remove(&dev->list);
 }
 

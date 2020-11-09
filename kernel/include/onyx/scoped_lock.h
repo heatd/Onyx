@@ -16,27 +16,27 @@ class scoped_lock
 {
 private:
 	bool IsLocked;
-	LockType *internal_lock;
+	LockType& internal_lock;
 public:
 	void lock()
 	{
 		if(irq_save)
-			internal_lock->LockIrqsave();
+			internal_lock.LockIrqsave();
 		else
-			internal_lock->Lock();
+			internal_lock.Lock();
 		IsLocked = true;
 	}
 
 	void unlock()
 	{
 		if(irq_save)
-			internal_lock->UnlockIrqrestore();
+			internal_lock.UnlockIrqrestore();
 		else
-			internal_lock->Unlock();
+			internal_lock.Unlock();
 		IsLocked = false;
 	}
 
-	scoped_lock(LockType *lock) : internal_lock(lock)
+	scoped_lock(LockType& lock) : internal_lock(lock)
 	{
 		this->lock();
 	}
@@ -53,28 +53,28 @@ class scoped_lock<spinlock, irq_save>
 {
 private:
 	bool is_locked;
-	spinlock *internal_lock;
+	spinlock& internal_lock;
 	unsigned long cpu_flags; /* TODO: Optimise this out from non-irqsave locks */
 public:
 	void lock()
 	{
-		if(irq_save)
-			cpu_flags = spin_lock_irqsave(internal_lock);
+		if constexpr(irq_save)
+			cpu_flags = spin_lock_irqsave(&internal_lock);
 		else
-			spin_lock(internal_lock);
+			spin_lock(&internal_lock);
 		is_locked = true;
 	}
 
 	void unlock()
 	{
-		if(irq_save)
-			spin_unlock_irqrestore(internal_lock, cpu_flags);
+		if constexpr(irq_save)
+			spin_unlock_irqrestore(&internal_lock, cpu_flags);
 		else
-			spin_unlock(internal_lock);
+			spin_unlock(&internal_lock);
 		is_locked = false;
 	}
 
-	scoped_lock(spinlock *lock) : internal_lock(lock), cpu_flags{}
+	scoped_lock(spinlock& lock) : internal_lock(lock), cpu_flags{}
 	{
 		this->lock();
 	}
@@ -88,20 +88,16 @@ public:
 	scoped_lock(const scoped_lock& l) = delete;
 	scoped_lock& operator=(const scoped_lock& rhs) = delete;
 
-	scoped_lock(scoped_lock&& l)
+	constexpr scoped_lock(scoped_lock&& l) : is_locked{l.is_locked}, internal_lock{l.internal_lock}
 	{
-		internal_lock = l.internal_lock;
-		is_locked = l.is_locked;
 		l.is_locked = false;
-		l.internal_lock = nullptr;
 	}
 
-	scoped_lock& operator=(scoped_lock&& rhs)
+	constexpr scoped_lock& operator=(scoped_lock&& rhs)
 	{
 		internal_lock = rhs.internal_lock;
 		is_locked = rhs.is_locked;
 		rhs.is_locked = false;
-		rhs.internal_lock = nullptr;
 
 		return *this;
 	}
@@ -190,9 +186,5 @@ public:
 };
 
 class Spinlock;
-
-
-using scoped_spinlock = scoped_lock<Spinlock>;
-using scoped_spinlock_irqsave = scoped_lock<Spinlock, true>;
 
 #endif

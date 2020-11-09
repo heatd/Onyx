@@ -30,7 +30,7 @@ thread *mutex_owner(mutex *mtx)
 
 static void mutex_prepare_sleep(struct mutex *mtx, int state)
 {
-	scoped_lock g{&mtx->llock};
+	scoped_lock g{mtx->llock};
 
 	thread *t = get_current_thread();
 	
@@ -41,7 +41,7 @@ static void mutex_prepare_sleep(struct mutex *mtx, int state)
 
 static void mutex_dequeue_thread(mutex *mtx, thread *thr)
 {
-	scoped_lock g{&mtx->llock};
+	scoped_lock g{mtx->llock};
 	list_remove(&thr->wait_list_head);
 }
 
@@ -157,7 +157,7 @@ void mutex_unlock(struct mutex *mutex)
 {
 	__atomic_store_n(&mutex->counter, 0, __ATOMIC_RELEASE);
 
-	scoped_lock g{&mutex->llock};
+	scoped_lock g{mutex->llock};
 
 	if(!list_is_empty(&mutex->thread_list))
 	{

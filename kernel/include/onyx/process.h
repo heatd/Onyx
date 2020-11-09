@@ -27,6 +27,8 @@
 
 struct proc_event_sub;
 
+struct process_group;
+
 struct process
 {
 	unsigned long refcount;
@@ -101,6 +103,9 @@ struct process
 	struct process *children, *prev_sibbling, *next_sibbling;
 
 	struct itimer timers[ITIMER_COUNT];
+
+
+	struct list_head pgrp_node;
 
 #ifdef __cplusplus
 	process();

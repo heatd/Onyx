@@ -685,7 +685,7 @@ void inet_socket::unbind()
 
 void inet_socket::append_inet_rx_pbuf(packetbuf *buf)
 {
-	scoped_lock g{&rx_packet_list_lock};
+	scoped_lock g{rx_packet_list_lock};
 
 	buf->ref();
 

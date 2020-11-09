@@ -72,7 +72,7 @@ int putchar(int c)
 extern "C"
 int printf(const char *__restrict__ format, ...)
 {
-	scoped_lock<spinlock> g{&buffer_lock};
+	scoped_lock<spinlock> g{buffer_lock};
 	va_list parameters;
 	va_start(parameters, format);
 	int i = vsnprintf(buffer, 10000, format, parameters);

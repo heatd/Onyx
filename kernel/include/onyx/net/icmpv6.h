@@ -96,7 +96,7 @@ public:
 
 	bool match_filter(const icmpv6_header *header)
 	{
-		scoped_lock g{&filters_lock};
+		scoped_lock g{filters_lock};
 
 		for(const auto &f : filters)
 		{

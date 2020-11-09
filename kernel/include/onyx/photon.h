@@ -140,7 +140,7 @@ public:
 	expected<off_t, int> create_buffer_mapping(const shared_ptr<object>& obj, device *dev);
 	bool add_mapping(const shared_ptr<mapping>& obj)
 	{
-		scoped_lock g{&mappings_lock};
+		scoped_lock g{mappings_lock};
 		return mapping_list.add(obj);
 	}
 

@@ -120,7 +120,7 @@ int tcp_socket::handle_packet(const tcp_socket::packet_handling_data& data)
 
 		auto ack = ntohl(data.header->ack_number);
 
-		scoped_lock guard{&pending_out_packets_lock};
+		scoped_lock guard{pending_out_packets_lock};
 
 		bool was_acked = false;
 
@@ -706,7 +706,7 @@ ssize_t tcp_socket::sendmsg(const msghdr *msg, int flags)
 
 void tcp_socket::append_pending_out(tcp_packet *pckt)
 {
-	scoped_lock<spinlock> guard{&pending_out_packets_lock};
+	scoped_lock guard{pending_out_packets_lock};
 	list_add_tail(&pckt->pending_packet_list_node, &pending_out_packets);
 	
 	/* Don't forget to ref the packet! */
@@ -715,7 +715,7 @@ void tcp_socket::append_pending_out(tcp_packet *pckt)
 
 void tcp_socket::remove_pending_out(tcp_packet *pkt)
 {
-	scoped_lock guard{&pending_out_packets_lock};
+	scoped_lock guard{pending_out_packets_lock};
 
 	list_remove(&pkt->pending_packet_list_node);
 	

@@ -170,7 +170,7 @@ int sys_getitimer(int which, struct itimerval *curr_value)
 
 	auto &timer = current->timers[which];
 	
-	scoped_lock guard{&timer.lock};
+	scoped_lock guard{timer.lock};
 
 	if(timer.armed)
 	{
@@ -223,7 +223,7 @@ void itimer_callback(clockevent *ev)
 
 int itimer::arm(hrtime_t interval, hrtime_t initial)
 {
-	scoped_lock guard{&lock};
+	scoped_lock guard{lock};
 
 	if(armed)
 	{
@@ -246,7 +246,7 @@ int itimer::arm(hrtime_t interval, hrtime_t initial)
 
 int itimer::disarm()
 {
-	scoped_lock g{&lock};
+	scoped_lock g{lock};
 
 	if(armed)
 		timer_remove_event(&ev);

@@ -317,7 +317,7 @@ int icmp6_socket::getsockopt(int level, int optname, void *val, socklen_t *len)
 
 int icmp6_socket::add_filter(icmp_filter&& f)
 {
-	scoped_lock g{&filters_lock};
+	scoped_lock g{filters_lock};
 
 	bool is_root = is_root_user();
 
@@ -359,7 +359,7 @@ int icmp6_socket::setsockopt(int level, int optname, const void *val, socklen_t 
 
 expected<packetbuf *, int> icmp6_socket::get_datagram(int flags)
 {
-	scoped_lock g{&rx_packet_list_lock};
+	scoped_lock g{rx_packet_list_lock};
 
 	int st = 0;
 	packetbuf *buf = nullptr;
@@ -455,7 +455,7 @@ ssize_t icmp6_socket::recvmsg(msghdr *msg, int flags)
 
 short icmp6_socket::poll(void *poll_file, short events)
 {
-	scoped_lock g{&rx_packet_list_lock};
+	scoped_lock g{rx_packet_list_lock};
 	short avail_events = POLLOUT;
 
 	if(events & POLLIN)

@@ -55,7 +55,7 @@ void process_end(struct process *process);
 
 void process_append_children(process *parent, process *children)
 {
-	scoped_lock g{&parent->children_lock};
+	scoped_lock g{parent->children_lock};
 
 	process **pp = &parent->children;
 
@@ -69,7 +69,7 @@ void process_append_children(process *parent, process *children)
 
 void process_append_to_global_list(process *p)
 {
-	scoped_lock g{&process_list_lock};
+	scoped_lock g{process_list_lock};
 	
 	if(process_tail)
 	{
@@ -154,7 +154,12 @@ process *process_create(const char *cmd_line, ioctx *ctx, process *parent)
 		/* Inherit the signal handlers of the process and the
 		 * signal mask of the current thread
 		*/
+
+		{
+		scoped_lock g{proc->signal_lock};
 		memcpy(&proc->sigtable, &parent->sigtable, sizeof(k_sigaction) * _NSIG);
+		}
+
 		/* Note that the signal mask is inherited at thread creation */
 		
 		/* Note that pending signals are zero'd, as per POSIX */
@@ -176,7 +181,7 @@ process *process_create(const char *cmd_line, ioctx *ctx, process *parent)
 process *get_process_from_pid(pid_t pid)
 {
 	/* TODO: Maybe storing processes in a tree would be a good idea? */
-	scoped_lock g{&process_list_lock};
+	scoped_lock g{process_list_lock};
 
 	for(process *p = first_process; p != nullptr; p = p->next)
 	{
@@ -205,7 +210,7 @@ extern "C" pid_t sys_getppid()
 
 bool process_found_children(pid_t pid, struct process *proc)
 {
-	scoped_lock g{&proc->children_lock};
+	scoped_lock g{proc->children_lock};
 
 	if(proc->children)
 	{
@@ -281,7 +286,7 @@ extern "C" pid_t sys_wait4(pid_t pid, int *wstatus, int options, rusage *usage)
 			return -EINTR;
 		}
 
-		scoped_lock g{&current->children_lock};
+		scoped_lock g{current->children_lock};
 
 		pid_t ret;
 		errno = 0;
@@ -462,7 +467,7 @@ void process_destroy_file_descriptors(struct process *process)
 void process_remove_from_list(struct process *proc)
 {
 	{
-	scoped_lock g{&process_list_lock};
+	scoped_lock g{process_list_lock};
 	/* TODO: Make the list a doubly-linked one, so we're able to tear it down more easily */
 	if(first_process == proc)
 	{
@@ -487,7 +492,7 @@ void process_remove_from_list(struct process *proc)
 
 	/* Remove from the sibblings list */
 
-	scoped_lock g{&proc->parent->children_lock};
+	scoped_lock g{proc->parent->children_lock};
 
 	if(proc->prev_sibbling)
 		proc->prev_sibbling->next_sibbling = proc->next_sibbling;
@@ -523,7 +528,7 @@ void process_end(struct process *process)
 
 void process_reparent_children(struct process *proc)
 {
-	scoped_lock g{&proc->children_lock};
+	scoped_lock g{proc->children_lock};
 
 	/* In POSIX, reparented children get to be children of PID 1 */
 	process *new_parent = first_process;
@@ -624,7 +629,7 @@ struct process *process_find_tracee(process *tracer, pid_t pid)
 
 void process_add_thread(process *proc, thread_t *thread)
 {
-	scoped_lock g{&proc->thread_list_lock};
+	scoped_lock g{proc->thread_list_lock};
 
 	list_add_tail(&thread->thread_list_head, &proc->thread_list);
 

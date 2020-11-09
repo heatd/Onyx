@@ -561,14 +561,14 @@ void vmo_ref(vm_object *vmo)
 
 void vmo_assign_mapping(vm_object *vmo, struct vm_region *region)
 {
-	scoped_lock g{&vmo->mapping_lock};
+	scoped_lock g{vmo->mapping_lock};
 
 	list_add_tail(&region->vmo_head, &vmo->mappings);
 }
 
 void vmo_remove_mapping(vm_object *vmo, struct vm_region *region)
 {
-	scoped_lock g{&vmo->mapping_lock};
+	scoped_lock g{vmo->mapping_lock};
 
 	list_remove(&region->vmo_head);
 }

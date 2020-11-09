@@ -135,7 +135,7 @@ ssize_t recv_queue::recvfrom(void *_buf, size_t len, int flags, sockaddr *src_ad
 
 void recv_queue::clear_packets()
 {
-	scoped_lock guard{&recv_queue_lock};
+	scoped_lock guard{recv_queue_lock};
 
 	list_for_every_safe(&recv_list)
 	{
@@ -165,7 +165,7 @@ bool recv_queue::has_data_available(int msg_flags, size_t required_data)
 
 bool recv_queue::poll(void *poll_file)
 {
-	scoped_lock guard{&recv_queue_lock};
+	scoped_lock guard{recv_queue_lock};
 
 	if(has_data_available(0, 0))
 		return true;
@@ -210,7 +210,7 @@ int fd_flags_to_msg_flags(struct file *f)
 
 void recv_queue::add_packet(recv_packet *p)
 {
-	scoped_lock guard{&recv_queue_lock};
+	scoped_lock guard{recv_queue_lock};
 
 	list_add_tail(&p->list_node, &recv_list);
 	total_data_in_buffers += p->size;

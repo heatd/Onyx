@@ -40,7 +40,7 @@ public:
 
 	void lock()
 	{
-		scoped_lock g{&lock};
+		scoped_lock g{lock};
 
 		if(owned)
 			__wait_for_owned();
@@ -49,7 +49,7 @@ public:
 
 	void unlock()
 	{
-		scoped_lock g{&lock};
+		scoped_lock g{lock};
 
 		owned = 0;
 	}

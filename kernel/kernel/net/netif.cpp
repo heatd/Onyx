@@ -168,7 +168,7 @@ netif *netif_from_if(uint32_t oif)
 	if(!oif)
 		return nullptr;
 
-	scoped_lock g{&netif_list_lock};
+	scoped_lock g{netif_list_lock};
 
 	for(auto &c : netif_list)
 	{
@@ -331,7 +331,7 @@ int netif_do_rx(void)
 {
 	auto queue = get_per_cpu_ptr(rx_queue);
 
-	scoped_lock g{&queue->lock};
+	scoped_lock g{queue->lock};
 
 	list_for_every(&queue->to_rx_list)
 	{

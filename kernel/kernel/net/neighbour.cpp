@@ -19,7 +19,7 @@ void neighbour_revalidate(clockevent *ev)
 
 cul::pair<shared_ptr<neighbour>, bool> neighbour_table::add(const neigh_proto_addr& addr, bool only_lookup)
 {
-	scoped_lock g{&lock};
+	scoped_lock g{lock};
 
 	auto hash = hash_protoaddr(addr, domain);
 
@@ -52,7 +52,7 @@ cul::pair<shared_ptr<neighbour>, bool> neighbour_table::add(const neigh_proto_ad
 
 void neighbour_table::remove(neighbour* ptr)
 {
-	scoped_lock g{&lock};
+	scoped_lock g{lock};
 	auto& hw = ptr->proto_addr;
 	auto hash = hash_protoaddr(hw, domain);
 
@@ -72,7 +72,7 @@ void neighbour_table::remove(neighbour* ptr)
 
 void neighbour_table::clear_cache()
 {
-	scoped_lock g{&lock};
+	scoped_lock g{lock};
 
 	neighbour_cache.empty();
 }

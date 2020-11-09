@@ -410,7 +410,7 @@ int udp_handle_packet_v6(netif *netif, packetbuf *buf)
 
 expected<packetbuf *, int> udp_socket::get_datagram(int flags)
 {
-	scoped_lock g{&rx_packet_list_lock};
+	scoped_lock g{rx_packet_list_lock};
 
 	int st = 0;
 	packetbuf *buf = nullptr;
