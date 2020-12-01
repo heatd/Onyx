@@ -137,11 +137,9 @@ bool fd_is_cloexec(int fd, struct ioctx *ctx)
 	return ctx->cloexec_fds[long_idx] & (1 << bit_idx);
 }
 
-struct file *__get_file_description(int fd, struct process *p)
+struct file *__get_file_description_unlocked(int fd, struct process *p)
 {
 	struct ioctx *ctx = &p->ctx;
-
-	mutex_lock(&ctx->fdlock);
 
 	if(!validate_fd_number(fd, ctx))
 		goto badfd;
@@ -149,12 +147,22 @@ struct file *__get_file_description(int fd, struct process *p)
 	struct file *f = ctx->file_desc[fd];
 	fd_get(f);
 
+	return f;
+badfd:
+	return errno = EBADF, NULL;
+}
+
+struct file *__get_file_description(int fd, struct process *p)
+{
+	struct ioctx *ctx = &p->ctx;
+
+	mutex_lock(&ctx->fdlock);
+
+	struct file *f = __get_file_description_unlocked(fd, p);
+
 	mutex_unlock(&ctx->fdlock);
 
 	return f;
-badfd:
-	mutex_unlock(&ctx->fdlock);
-	return errno = EBADF, NULL;
 }
 
 int __file_close_unlocked(int fd, struct process *p)
@@ -665,14 +673,18 @@ int sys_dup2(int oldfd, int newfd)
 	struct process *current = get_current_process();
 	struct ioctx *ioctx = &current->ctx;
 
-	if(newfd < 0)
+	if(newfd < 0 || oldfd < 0)
 		return -EINVAL;
 
-	struct file *f = get_file_description(oldfd);
-	if(!f)
-		return -errno;
-
 	mutex_lock(&ioctx->fdlock);
+
+	struct file *f = __get_file_description_unlocked(oldfd, current);
+	if(!f)
+	{
+		newfd = -errno;
+		goto out;
+	}
+
 	if((unsigned int) newfd > ioctx->file_desc_entries)
 	{
 		int st = enlarge_file_descriptor_table(current, newfd + 1);
@@ -711,17 +723,21 @@ int sys_dup3(int oldfd, int newfd, int flags)
 	struct process *current = get_current_process();
 	struct ioctx *ioctx = &current->ctx;
 
-	if(newfd < 0)
+	if(newfd < 0 || oldfd < 0)
 		return -EINVAL;
 	
 	if(flags & ~O_CLOEXEC)
 		return -EINVAL;
 
-	struct file *f = get_file_description(oldfd);
-	if(!f)
-		return -errno;
-
 	mutex_lock(&ioctx->fdlock);
+
+	struct file *f = __get_file_description_unlocked(oldfd, current);
+	if(!f)
+	{
+		newfd = -errno;
+		goto out;
+	}
+
 	if((unsigned int) newfd > ioctx->file_desc_entries)
 	{
 		int st = enlarge_file_descriptor_table(current, newfd + 1);
