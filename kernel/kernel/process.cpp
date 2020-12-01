@@ -34,6 +34,7 @@
 #include <onyx/futex.h>
 #include <onyx/utils.h>
 #include <onyx/scoped_lock.h>
+#include <onyx/pgrp.h>
 
 #include <pthread_kernel.h>
 
@@ -46,12 +47,12 @@ extern PML *current_pml4;
 ids *process_ids = nullptr;
 
 process *first_process = nullptr;
-static struct process *process_tail = nullptr;
+static process *process_tail = nullptr;
 static spinlock process_list_lock;
 slab_cache_t *process_cache = nullptr;
 
 void process_destroy(thread_t *);
-void process_end(struct process *process);
+void process_end(process *process);
 
 void process_append_children(process *parent, process *children)
 {
@@ -90,8 +91,14 @@ process::process()
 	memset((void *) this, 0, sizeof(process));
 }
 
+process::~process()
+{
+	process_group->remove_process(this);
+}
+
 process *process_create(const char *cmd_line, ioctx *ctx, process *parent)
 {
+	/* FIXME: Failure here kinda sucks and is probably super leaky */
 	if(unlikely(!process_ids))
 	{
 		process_ids = idm_add("pid", 1, UINTMAX_MAX);
@@ -115,7 +122,7 @@ process *process_create(const char *cmd_line, ioctx *ctx, process *parent)
 
 	if(!proc->cmd_line)
 	{
-		free(proc);
+		delete proc;
 		return nullptr;
 	}
 
@@ -129,7 +136,7 @@ process *process_create(const char *cmd_line, ioctx *ctx, process *parent)
 		{
 			fd_put(ctx->cwd);
 			free(proc->cmd_line);
-			free(proc);
+			delete proc;
 			return nullptr;
 		}
 	}
@@ -137,7 +144,7 @@ process *process_create(const char *cmd_line, ioctx *ctx, process *parent)
 	{
 		if(allocate_file_descriptor_table(proc) < 0)
 		{
-			free(proc);
+			delete proc;
 			return nullptr;
 		}
 
@@ -167,7 +174,25 @@ process *process_create(const char *cmd_line, ioctx *ctx, process *parent)
 		process_append_children(parent, proc);
 
 		proc->parent = parent;
+
+		parent->process_group->inherit(proc);
+		proc->flags = parent->flags;
 	}
+	else
+	{
+		proc->process_group = pgrp_create(proc);
+		if(!proc->process_group)
+			return nullptr;
+
+		/* This makes me uncomfortable... We create the object(ref 1), add ourselves(ref again)
+		 * only to unref it so the reference count goes back to normal... kind of yuck.
+		 */
+
+		proc->process_group->add_process(proc);
+
+		proc->process_group->unref();
+	}
+	
 
 	proc->address_space.process = proc;
 
@@ -208,7 +233,7 @@ extern "C" pid_t sys_getppid()
 		return -1;
 }
 
-bool process_found_children(pid_t pid, struct process *proc)
+bool process_found_children(pid_t pid, process *proc)
 {
 	scoped_lock g{proc->children_lock};
 
@@ -229,9 +254,9 @@ bool process_found_children(pid_t pid, struct process *proc)
 	return false;
 }
 
-void process_remove_from_list(struct process *process);
+void process_remove_from_list(process *process);
 
-bool wait4_find_dead_process(struct process *proc, pid_t pid, int *wstatus,
+bool wait4_find_dead_process(process *proc, pid_t pid, int *wstatus,
                              rusage *user_usage, pid_t *ret)
 {
 	bool looking_for_any = pid < 0;
@@ -331,6 +356,8 @@ extern "C" pid_t sys_fork(syscall_frame *ctx)
 
 	if(!child)
 		return -ENOMEM;
+
+	child->flags |= PROCESS_FORKED;
 	
 	child->address_space.process = child;
 
@@ -442,7 +469,7 @@ void process_destroy_aspace(void)
 	vm_destroy_addr_space(&current->address_space);
 }
 
-void process_destroy_file_descriptors(struct process *process)
+void process_destroy_file_descriptors(process *process)
 {
 	ioctx *ctx = &process->ctx;
 	file **table = ctx->file_desc;
@@ -464,7 +491,7 @@ void process_destroy_file_descriptors(struct process *process)
 	mutex_unlock(&ctx->fdlock);
 }
 
-void process_remove_from_list(struct process *proc)
+void process_remove_from_list(process *proc)
 {
 	{
 	scoped_lock g{process_list_lock};
@@ -503,7 +530,7 @@ void process_remove_from_list(struct process *proc)
 		proc->next_sibbling->prev_sibbling = proc->prev_sibbling;
 }
 
-void process_wait_for_dead_threads(struct process *process)
+void process_wait_for_dead_threads(process *process)
 {
 	while(process->nr_threads)
 	{
@@ -511,7 +538,7 @@ void process_wait_for_dead_threads(struct process *process)
 	}
 }
 
-void process_end(struct process *process)
+void process_end(process *process)
 {
 	process_remove_from_list(process);
 
@@ -523,10 +550,10 @@ void process_end(struct process *process)
 	if(process->ctx.cwd)
 		fd_put(process->ctx.cwd);
 
-	free(process);
+	delete process;
 }
 
-void process_reparent_children(struct process *proc)
+void process_reparent_children(process *proc)
 {
 	scoped_lock g{proc->children_lock};
 
@@ -614,7 +641,7 @@ int process_attach(process *tracer, process *tracee)
 }
 
 /* Finds a pid that tracer is tracing */
-struct process *process_find_tracee(process *tracer, pid_t pid)
+process *process_find_tracee(process *tracer, pid_t pid)
 {
 	extrusive_list_head *list = &tracer->tracees;
 	while(list && list->ptr)
@@ -659,7 +686,7 @@ skip:
 
 void process_increment_stats(bool is_kernel)
 {
-	struct process *process = get_current_process();
+	process *process = get_current_process();
 	/* We're not in a process, return! */
 	if(!process)
 		return;

@@ -1,6 +1,7 @@
 group("system") {
     deps = [
         "//netctld",
-        "//system_benchmark"
+        "//system_benchmark",
+        "//kernel_api_tests"
     ]
 }

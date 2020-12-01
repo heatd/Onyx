@@ -400,6 +400,8 @@ int sys_execve(const char *p, const char *argv[], const char *envp[])
 
 	free(file);
 
+	current->flags &= ~PROCESS_FORKED;
+
 	struct stack_info si;
 	si.length = DEFAULT_USER_STACK_LEN;
 	

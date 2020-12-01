@@ -184,6 +184,9 @@ int sys_getsockopt(int sockfd, int level, int optname, void *optval, socklen_t *
 int sys_setsockopt(int sockfd, int level, int optname, const void *optval, socklen_t optlen);
 ssize_t sys_sendmsg(int sockfd, struct msghdr *msg, int flags);
 ssize_t sys_recvmsg(int sockfd, struct msghdr *msg, int flags);
+pid_t sys_getpgid(pid_t pid);
+int sys_setpgid(pid_t pid, pid_t pgid);
+int sys_dup3(int oldfd, int newfd, int flags);
 
 void *syscall_table_64[] =
 {
@@ -317,5 +320,10 @@ void *syscall_table_64[] =
 	[127] = (void*) sys_pwrite,
 	[128] = (void*) sys_fsync,
 	[129] = (void*) sys_sendmsg,
-	[130] = (void*) sys_recvmsg
+	[130] = (void*) sys_recvmsg,
+	[131] = (void*) sys_nosys, // sendmmsg
+	[132] = (void*) sys_nosys, // recvmmsg
+	[133] = (void*) sys_setpgid,
+	[134] = (void*) sys_getpgid,
+	[135] = (void*) sys_dup3
 };

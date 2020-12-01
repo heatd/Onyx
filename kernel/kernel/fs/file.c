@@ -159,6 +159,7 @@ badfd:
 
 int __file_close_unlocked(int fd, struct process *p)
 {
+	//printk("pid %d close %d\n", get_current_process()->pid, fd);
 	struct ioctx *ctx = &p->ctx;
 
 	if(!validate_fd_number(fd, ctx))
@@ -660,6 +661,7 @@ out_error:
 
 int sys_dup2(int oldfd, int newfd)
 {
+	//printk("pid %d oldfd %d newfd %d\n", get_current_process()->pid, oldfd, newfd);
 	struct process *current = get_current_process();
 	struct ioctx *ioctx = &current->ctx;
 
@@ -681,17 +683,73 @@ int sys_dup2(int oldfd, int newfd)
 		}
 	}
 
+	if(oldfd == newfd)
+		goto out;
+
 	if(ioctx->file_desc[newfd])
 		__file_close_unlocked(newfd, current);
 
 	ioctx->file_desc[newfd] = ioctx->file_desc[oldfd];
 	fd_set_cloexec(newfd, false, ioctx);
 	fd_set_open(newfd, true, ioctx);
+
+	//printk("refs: %lu\n", f->f_refcount);
+
 	/* Note: To avoid fd_get/fd_put, we use the ref we get from
 	 * get_file_description as the ref for newfd. Therefore, we don't
 	 * fd_get and fd_put().
 	*/
 
+out:
+	mutex_unlock(&ioctx->fdlock);
+
+	return newfd;
+}
+
+int sys_dup3(int oldfd, int newfd, int flags)
+{
+	struct process *current = get_current_process();
+	struct ioctx *ioctx = &current->ctx;
+
+	if(newfd < 0)
+		return -EINVAL;
+	
+	if(flags & ~O_CLOEXEC)
+		return -EINVAL;
+
+	struct file *f = get_file_description(oldfd);
+	if(!f)
+		return -errno;
+
+	mutex_lock(&ioctx->fdlock);
+	if((unsigned int) newfd > ioctx->file_desc_entries)
+	{
+		int st = enlarge_file_descriptor_table(current, newfd + 1);
+		if(st < 0)
+		{
+			fd_put(f);
+			return st;
+		}
+	}
+
+	if(oldfd == newfd)
+	{
+		newfd = -EINVAL;
+		goto out;
+	}
+
+	if(ioctx->file_desc[newfd])
+		__file_close_unlocked(newfd, current);
+
+	ioctx->file_desc[newfd] = ioctx->file_desc[oldfd];
+	fd_set_cloexec(newfd, flags & O_CLOEXEC, ioctx);
+	fd_set_open(newfd, true, ioctx);
+	/* Note: To avoid fd_get/fd_put, we use the ref we get from
+	 * get_file_description as the ref for newfd. Therefore, we don't
+	 * fd_get and fd_put().
+	*/
+
+out:
 	mutex_unlock(&ioctx->fdlock);
 
 	return newfd;

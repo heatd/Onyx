@@ -201,6 +201,12 @@ int main(int argc, char **argv, char **envp)
 
 	printf("\n");
 
+	if(setpgid(0, 0) < 0)
+	{
+		perror("setpgid");
+		return 1;
+	}
+
 	if(execv(user->pw_shell, args) < 0)
 	{
 		perror("exec");

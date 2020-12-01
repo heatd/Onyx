@@ -29,7 +29,7 @@ static struct dev *pipedev = NULL;
 static atomic<ino_t> current_inode_number = 0; 
 
 constexpr pipe::pipe() : refcountable(2), buffer(nullptr), buf_size(0), pos(0),
-	pipe_lock{}, can_write{}, can_read{}, reader_count{1}, writer_count{1}
+	pipe_lock{}, eof{}, broken{}, reader_count{1}, writer_count{1}
 {
 	spinlock_init(&pipe_lock);
 	init_wait_queue_head(&write_queue);
@@ -71,23 +71,7 @@ ssize_t pipe::read(int flags, size_t len, void *buf)
 
 	while(been_read != (ssize_t) len)
 	{
-		if(pos == 0)
-		{
-			if(writer_count == 0)
-			{
-				return been_read;
-			}
-
-			/* buffer empty */
-			if(flags & O_NONBLOCK)
-			{
-				return -EAGAIN;
-			}
-
-			if(wait_for_event_locked_interruptible(&read_queue, can_read, &pipe_lock) == -EINTR)
-				return -EINTR;
-		}
-		else
+		if(can_read())
 		{
 			size_t to_read = min(len - been_read, pos);
 			if(copy_to_user((void *) ((char *) buf + been_read), buffer, to_read) < 0)
@@ -108,6 +92,20 @@ ssize_t pipe::read(int flags, size_t len, void *buf)
 			been_read += to_read;
 			wake_all(&write_queue);
 		}
+		else
+		{
+			if(been_read || eof)
+				return been_read;
+
+			/* buffer empty */
+			if(flags & O_NONBLOCK)
+			{
+				return -EAGAIN;
+			}
+
+			if(wait_for_event_locked_interruptible(&read_queue, can_read_or_eof(), &pipe_lock) == -EINTR)
+				return -EINTR;
+		}
 	}
 
 	return been_read;
@@ -122,7 +120,7 @@ ssize_t pipe::write(int flags, size_t len, const void *buf)
 
 	while(written != (ssize_t) len)
 	{
-		if(reader_count == 0)
+		if(broken)
 		{
 			kernel_raise_signal(SIGPIPE, get_current_process(), 0, NULL);
 			return -EPIPE;
@@ -141,7 +139,9 @@ ssize_t pipe::write(int flags, size_t len, const void *buf)
 				return -EAGAIN;
 			}
 
-			if(wait_for_event_locked_interruptible(&write_queue, can_write, &pipe_lock) == -EINTR)
+			if(wait_for_event_locked_interruptible(&write_queue,
+			                                       available_space() >= len || broken,
+												   &pipe_lock) == -EINTR)
 				return -EINTR;
 		}
 		else
@@ -195,9 +195,12 @@ void pipe::close_write_end()
 {
 	/* wake up any possibly-blocked writers */
 	scoped_lock g{pipe_lock};
-	
+
 	if(--writer_count == 0)
+	{
+		eof = 1;
 		wake_all(&read_queue);
+	}
 }
 
 void pipe::close_read_end()
@@ -205,7 +208,10 @@ void pipe::close_read_end()
 	scoped_lock g{pipe_lock};
 	
 	if(--reader_count == 0)
+	{
+		broken = 1;
 		wake_all(&write_queue);
+	}
 }
 
 void pipe_close(struct inode* ino)
@@ -233,7 +239,7 @@ short pipe::poll(void *poll_file, short events)
 
 	if(events & POLLIN)
 	{
-		if(can_read)
+		if(can_read())
 			revents |= POLLIN;
 		else
 			poll_wait_helper(poll_file, &read_queue);
@@ -241,7 +247,7 @@ short pipe::poll(void *poll_file, short events)
 
 	if(events & POLLOUT)
 	{
-		if(can_write)
+		if(can_write())
 			revents |= POLLOUT;
 		else
 			poll_wait_helper(poll_file, &write_queue);

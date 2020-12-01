@@ -129,9 +129,9 @@
 #define __NR_recvmsg				130
 #define __NR_sendmmsg				131
 #define __NR_recvmmsg				132
-#define __NR_getpgrp				133
-#define __NR_setpgid				134
-#define __NR_getpgid				135
+#define __NR_setpgid				133
+#define __NR_getpgid				134
+#define __NR_dup3					135
 #define __NR_sysinfo			255
 #define __NR_geteuid			255
 #define __NR_getegid			255
@@ -296,7 +296,6 @@
 #define __NR_signalfd4				289
 #define __NR_eventfd2				290
 #define __NR_epoll_create1			291
-#define __NR_dup3					292
 #define __NR_pipe2					293
 #define __NR_inotify_init1			294
 #define __NR_perf_event_open		298

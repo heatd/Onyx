@@ -24,13 +24,31 @@ private:
 	size_t buf_size;
 	size_t pos;
 	struct spinlock pipe_lock;
-	/* Is signaled when space is available in the buffer */
-	bool can_write;
-	/* Is signaled when the buffer has data in it */
-	bool can_read;
 
 	wait_queue write_queue;
 	wait_queue read_queue;
+
+	unsigned int eof : 1, broken : 1;
+
+	bool can_read() const
+	{
+		return pos != 0;
+	}
+
+	bool can_read_or_eof() const
+	{
+		return can_read() || eof;
+	}
+
+	bool can_write() const
+	{
+		return pos < buf_size;
+	}
+
+	bool can_write_or_broken() const
+	{
+		return pos < buf_size || broken;
+	}
 
 public:
 	atomic<size_t> reader_count;
@@ -48,11 +66,6 @@ public:
 
 	void wake_all(wait_queue *wq)
 	{
-		if(wq == &write_queue)
-			can_write = true;
-		else
-			can_read = true;
-		
 		wait_queue_wake_all(wq);
 	}
 };

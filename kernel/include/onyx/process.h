@@ -29,9 +29,24 @@ struct proc_event_sub;
 
 struct process_group;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+static void process_get(struct process *process);
+static void process_put(struct process *process);
+
+#ifdef __cplusplus
+}
+#endif
+
+#define PROCESS_FORKED    (1 << 0)
+
 struct process
 {
 	unsigned long refcount;
+
+	unsigned long flags;
 
 	/* The next process in the linked list */
 	struct process *next;
@@ -104,11 +119,24 @@ struct process
 
 	struct itimer timers[ITIMER_COUNT];
 
-
+	struct spinlock pgrp_lock;
 	struct list_head pgrp_node;
+	struct process_group *process_group;
 
 #ifdef __cplusplus
 	process();
+	~process();
+
+	void ref()
+	{
+		process_get(this);
+	}
+
+	void unref()
+	{
+		process_put(this);
+	}
+
 #endif
 
 };
@@ -168,5 +196,13 @@ static inline struct mm_address_space *get_current_address_space()
 	struct process *proc = get_current_process();
 	return proc ? &proc->address_space : NULL;
 }
+
+#ifdef __cplusplus
+
+#include <onyx/auto_resource.h>
+
+using auto_process = auto_resource<process>;
+
+#endif
 
 #endif

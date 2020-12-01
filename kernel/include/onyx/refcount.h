@@ -62,6 +62,16 @@ public:
 
 		return was_deleted;
 	}
+
+	unsigned long __get_refcount() const
+	{
+		return __refcount.load(); 
+	}
+
+	bool is_ghost_object() const
+	{
+		return __get_refcount() == 0;
+	}
 };
 
 template <typename T>
