@@ -695,3 +695,18 @@ void process_increment_stats(bool is_kernel)
 	else
 		process->user_time++;
 }
+
+void for_every_process(process_visit_function_t func, void *ctx)
+{
+	scoped_lock g{process_list_lock};
+
+	auto p = first_process;
+
+	while(p != nullptr)
+	{
+		if(!func(p, ctx))
+			return;
+		
+		p = p->next;
+	}
+}

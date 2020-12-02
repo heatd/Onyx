@@ -15,6 +15,7 @@
 #include <onyx/task_switching.h>
 #include <onyx/wait_queue.h>
 #include <onyx/clock.h>
+#include <onyx/pgrp.h>
 
 void signal_default_term(int signum)
 {
@@ -85,33 +86,38 @@ void signal_do_stop(int signum)
 
 /* This table only handles non-realtime signals (so, from signo 1 to 31, inclusive) */
 sighandler_t dfl_signal_handlers[] = {
-	[SIGHUP] = signal_default_term,
-	[SIGINT] = signal_default_term,
-	[SIGQUIT] = signal_default_core,
-	[SIGILL] = signal_default_core,
-	[SIGTRAP] = signal_default_core,
-	[SIGABRT] = signal_default_core,
-	[SIGBUS] = signal_default_core,
-	[SIGFPE] = signal_default_core,
-	[SIGKILL] = signal_default_term,
-	[SIGUSR1] = signal_default_term,
-	[SIGSEGV] = signal_default_core,
-	[SIGUSR2] = signal_default_term,
-	[SIGPIPE] = signal_default_term,
-	[SIGALRM] = signal_default_term,
-	[SIGTERM] = signal_default_term,
-	[SIGSTKFLT] = signal_default_term,
-	[SIGCHLD] = signal_default_ignore,
-	[SIGCONT] = signal_default_ignore,
-	[SIGURG] = signal_default_ignore,
-	[SIGXCPU] = signal_default_core,
-	[SIGXFSZ] = signal_default_core,
-	[SIGVTALRM] = signal_default_term,
-	[SIGPROF] = signal_default_term,
-	[SIGWINCH] = signal_default_ignore,
-	[SIGIO] = signal_default_ignore,
-	[SIGPWR] = signal_default_ignore,
-	[SIGSYS] = signal_default_core
+	signal_default_term,
+	/*[SIGHUP] = */ signal_default_term,
+	/*[SIGINT] = */signal_default_term,
+	/*[SIGQUIT] = */ signal_default_core,
+	/*[SIGILL] = */ signal_default_core,
+	/*[SIGTRAP] = */signal_default_core,
+	/*[SIGABRT] =*/ signal_default_core,
+	/*[SIGBUS] =*/ signal_default_core,
+	/*[SIGFPE] =*/ signal_default_core,
+	/*[SIGKILL] =*/ signal_default_term,
+	/*[SIGUSR1] =*/ signal_default_term,
+	/*[SIGSEGV] =*/ signal_default_core,
+	/*[SIGUSR2] =*/ signal_default_term,
+	/*[SIGPIPE] =*/ signal_default_term,
+	/*[SIGALRM] =*/ signal_default_term,
+	/*[SIGTERM] =*/ signal_default_term,
+	/*[SIGSTKFLT] =*/ signal_default_term,
+	/*[SIGCHLD] =*/ signal_default_ignore,
+	/*[SIGCONT] =*/ signal_default_ignore,
+	/*[SIGSTOP] =*/ signal_default_ignore,
+	/*[SIGTSTP] =*/ signal_default_ignore,
+	/*[SIGTTIN] =*/ signal_default_ignore,
+	/*[SIGTTOU] =*/ signal_default_ignore,
+	/*[SIGURG] =*/ signal_default_ignore,
+	/*[SIGXCPU] =*/ signal_default_core,
+	/*[SIGXFSZ] =*/ signal_default_core,
+	/*[SIGVTALRM] =*/ signal_default_term,
+	/*[SIGPROF] =*/ signal_default_term,
+	/*[SIGWINCH] =*/ signal_default_ignore,
+	/*[SIGIO] =*/ signal_default_ignore,
+	/*[SIGPWR] =*/ signal_default_ignore,
+	/*[SIGSYS] =*/ signal_default_core
 };
 
 void signal_update_pending(struct thread *thread);
@@ -206,30 +212,30 @@ bool signal_is_empty(struct thread *thread)
 	return true;
 }
 
-void __signal_add_to_blocked_set(struct thread *current, sigset_t *new)
+void __signal_add_to_blocked_set(struct thread *current, sigset_t *s)
 {
-	if(sigismember(new, SIGKILL))
-		sigdelset(new, SIGKILL);
-	if(sigismember(new, SIGSTOP))
-		sigdelset(new, SIGSTOP);
+	if(sigismember(s, SIGKILL))
+		sigdelset(s, SIGKILL);
+	if(sigismember(s, SIGSTOP))
+		sigdelset(s, SIGSTOP);
 
-	sigorset(&current->sinfo.sigmask, new, &current->sinfo.sigmask);
+	sigorset(&current->sinfo.sigmask, s, &current->sinfo.sigmask);
 }
 
-void signal_add_to_blocked_set(struct thread *current, sigset_t *new)
+void signal_add_to_blocked_set(struct thread *current, sigset_t *s)
 {
-	__signal_add_to_blocked_set(current, new);
+	__signal_add_to_blocked_set(current, s);
 	signal_update_pending(current);
 }
 
-void signal_set_blocked_set(struct thread *current, sigset_t *new)
+void signal_set_blocked_set(struct thread *current, sigset_t *s)
 {
-	if(sigismember(new, SIGKILL))
-		sigdelset(new, SIGKILL);
-	if(sigismember(new, SIGSTOP))
-		sigdelset(new, SIGSTOP);
+	if(sigismember(s, SIGKILL))
+		sigdelset(s, SIGKILL);
+	if(sigismember(s, SIGSTOP))
+		sigdelset(s, SIGSTOP);
 	
-	memcpy(&current->sinfo.sigmask, new, sizeof(*new));
+	memcpy(&current->sinfo.sigmask, s, sizeof(*s));
 	signal_update_pending(current);
 }
 
@@ -515,6 +521,8 @@ static bool is_signal_ignored(struct process *process, int signal)
 int kernel_tkill(int signal, struct thread *thread, unsigned int flags, siginfo_t *info)
 {
 	struct process *process = thread->owner;
+	struct sigpending *pending = nullptr;
+	siginfo_t *copy_siginfo = nullptr;
 
 	if(may_kill(signal, process, info) < 0)
 		return -EPERM;
@@ -575,13 +583,13 @@ int kernel_tkill(int signal, struct thread *thread, unsigned int flags, siginfo_
 		goto success;
 	}
 
-	struct sigpending *pending = malloc(sizeof(*pending));
+	pending = new struct sigpending;
 	if(!pending)
 	{
 		goto failure_oom;
 	}
 
-	siginfo_t *copy_siginfo = malloc(sizeof(siginfo_t));
+	copy_siginfo = new siginfo_t;
 	if(!copy_siginfo)
 	{
 		free(pending);
@@ -655,10 +663,87 @@ bool is_valid_signal(int sig)
 	return sig > 0 && sig < NSIG;
 }
 
+struct send_all_info
+{
+	int signals_sent;
+	siginfo_t *info;
+	int signum;
+
+	constexpr send_all_info(siginfo_t *i, int sig) : signals_sent{}, info{i}, signum{sig} {}
+};
+
+bool pid_is_system_process(pid_t pid)
+{
+	return pid == 1;
+}
+
+int signal_send_all(int signal, int flags, siginfo_t *info)
+{
+	send_all_info i{info, signal};
+
+	for_every_process([](process *p, void *ctx) -> bool
+	{
+		/* Do not allow signalling pid 1 and ourselves. */
+		if(pid_is_system_process(p->pid) || p == get_current_process())
+			return true;
+		
+		send_all_info *c = (send_all_info *) ctx;
+	
+		if(may_kill(c->signum, p, c->info) < 0)
+			return true;
+
+		if(kernel_raise_signal(c->signum, p, 0, c->info) < 0)
+			return true;
+		
+		c->signals_sent++;
+		return true;	
+	}, &i);
+
+	return i.signals_sent != 0 ? 0 : -EPERM;
+}
+
+pgrp::auto_pgrp process_get_pgrp(process *p)
+{
+	scoped_lock g{p->pgrp_lock};
+	
+	auto pg = p->process_group;
+
+	pg->ref();
+
+	return pg;
+}
+
+int signal_kill_pg(int sig, int flags, siginfo_t *info, pid_t pid)
+{
+	bool own = pid == 0;
+	int signals_sent = 0;
+
+	auto pgrp_res = own ? process_get_pgrp(get_current_process()) : pgrp::lookup(-pid);
+
+	if(!pgrp_res)
+		return -ESRCH;
+	auto pgrp = pgrp_res.get();
+
+	pgrp->for_every_member([&](process *proc)
+	{
+		if(may_kill(sig, proc, info) < 0)
+			return;
+		if(kernel_raise_signal(sig, proc, 0, info) < 0)
+			return;
+		
+		signals_sent++;
+	});
+
+	return signals_sent != 0 ? 0 : -EPERM;
+}
+
+extern "C"
 int sys_kill(pid_t pid, int sig)
 {
 	int st = 0;
 	struct process *p = NULL;
+	struct creds *c = NULL;
+	siginfo_t info = {};
 
 	if(pid > 0)
 	{
@@ -666,10 +751,7 @@ int sys_kill(pid_t pid, int sig)
 		if(!p)
 			return -ESRCH;	
 	}
-	else
-		return -ENOSYS;
 
-	/* TODO: Handle pid < 0 */
 	if(sig == 0)
 	{
 		goto out;
@@ -681,9 +763,8 @@ int sys_kill(pid_t pid, int sig)
 		goto out;
 	}
 
-	struct creds *c = creds_get();
+	c = creds_get();
 
-	siginfo_t info = {};
 	info.si_signo = sig;
 	info.si_code = SI_USER;
 	info.si_uid = c->euid;
@@ -691,13 +772,26 @@ int sys_kill(pid_t pid, int sig)
 
 	creds_put(c);
 
-	st = kernel_raise_signal(sig, p, 0, &info);
+	if(pid <= 0)
+	{
+		if(pid == -1)
+		{
+			st = signal_send_all(sig, 0, &info);
+		}
+		else if(pid < -1 || pid == 0)
+		{
+			st = signal_kill_pg(sig, 0, &info, pid);
+		}
+	}
+	else
+		st = kernel_raise_signal(sig, p, 0, &info);
 
 out:
-	process_put(p);
+	if(p) process_put(p);
 	return st;
 }
 
+extern "C"
 int sys_sigaction(int signum, const struct k_sigaction *act, struct k_sigaction *oldact)
 {
 	int st = 0;
@@ -758,6 +852,7 @@ out:
 	return st;
 }
 
+extern "C"
 int sys_sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
 {
 	struct thread *current = get_current_thread();
@@ -813,6 +908,7 @@ bool signal_is_pending(void)
 	return t->sinfo.signal_pending;
 }
 
+extern "C"
 int sys_sigsuspend(const sigset_t *uset)
 {
 	struct thread *current = get_current_thread();
@@ -839,6 +935,7 @@ int sys_sigsuspend(const sigset_t *uset)
 	return -EINTR;
 }
 
+extern "C"
 int sys_pause(void)
 {
 	struct wait_queue wq;
@@ -861,6 +958,8 @@ void signal_context_init(struct thread *new_thread)
 int do_tgkill(int pid, int tid, int sig, unsigned int flags, siginfo_t *kinfo)
 {
 	int st = 0;
+	siginfo_t info = {};
+
 	if(tid < 0)
 		return -EINVAL;
 
@@ -889,7 +988,6 @@ int do_tgkill(int pid, int tid, int sig, unsigned int flags, siginfo_t *kinfo)
 		goto out;
 	}
 	
-	siginfo_t info = {};
 	if(!(flags & TGKILL_SIGQUEUE))
 	{
 		struct creds *c = creds_get();
@@ -914,11 +1012,13 @@ out:
 	return st;
 }
 
+extern "C"
 int sys_tkill(int tid, int sig)
 {
 	return do_tgkill(-1, tid, sig, 0, NULL);
 }
 
+extern "C"
 int sys_tgkill(int pid, int tid, int sig)
 {
 	return do_tgkill(pid, tid, sig, TGKILL_CHECK_PID, NULL);
@@ -939,6 +1039,7 @@ int sanitize_rt_sigqueueinfo(siginfo_t *info, pid_t pid)
 	return 0;
 }
 
+extern "C"
 int sys_rt_sigqueueinfo(pid_t pid, int sig, siginfo_t *uinfo)
 {
 	int st = 0;
@@ -971,6 +1072,7 @@ out:
 	return st;
 }
 
+extern "C"
 int sys_rt_tgsigqueueinfo(pid_t pid, pid_t tid, int sig, siginfo_t *uinfo)
 {
 	siginfo_t info;
@@ -1013,11 +1115,13 @@ long sigtimedwait_forever(struct wait_queue *wq)
 	return wait_for_event_interruptible(wq, false);
 }
 
+extern "C"
 int sys_rt_sigtimedwait(const sigset_t *set, siginfo_t *info, const struct timespec *utimeout, size_t sigsetlen)
 {
 	if(sigsetlen != CURRENT_SIGSETLEN)
 		return -EINVAL;
 
+	struct sigpending *pending = NULL;
 	int st = 0;
 	struct process *process = get_current_process();
 	struct thread *thread = get_current_thread();
@@ -1066,7 +1170,7 @@ int sys_rt_sigtimedwait(const sigset_t *set, siginfo_t *info, const struct times
 	}
 
 	/* As in the normal signal handling path, pop the sigpending */
-	struct sigpending *pending = signal_query_pending(signum,
+	pending = signal_query_pending(signum,
                                   SIGNAL_QUERY_POP, &thread->sinfo);
 
 	assert(pending != NULL);
@@ -1090,6 +1194,7 @@ out:
 	return st;
 }
 
+extern "C"
 int sys_rt_sigpending(sigset_t *uset, size_t sigsetlen)
 {
 	sigset_t set;
@@ -1126,6 +1231,7 @@ static int alt_stack_sp_flags(const struct syscall_frame *frame, const stack_t *
 
 #define VALID_SIGALTSTACK_FLAGS				(SS_AUTODISARM | SS_DISABLE)
 
+extern "C"
 int sys_sigaltstack(const stack_t *new_stack, stack_t *old_stack, const struct syscall_frame *frame)
 {
 	struct thread *current = get_current_thread();

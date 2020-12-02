@@ -203,6 +203,10 @@ static inline struct mm_address_space *get_current_address_space()
 
 using auto_process = auto_resource<process>;
 
+using process_visit_function_t = bool (*)(process *, void *);
+
+void for_every_process(process_visit_function_t func, void *ctx);
+
 #endif
 
 #endif

@@ -363,7 +363,8 @@ public:
 
 	~tcp_socket()
 	{
-		assert(state == tcp_state::TCP_STATE_CLOSED);
+		/* TODO: Implement shutdown code. */
+		//assert(state == tcp_state::TCP_STATE_CLOSED);
 	}
 
 	const inet_sock_address& saddr() {return src_addr;}
