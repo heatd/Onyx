@@ -243,6 +243,7 @@ void general_protection_fault(struct registers *ctx)
 	}
 
 	printk("GPF error code: %04x\n", (uint16_t) ctx->int_err_code);
+	panic("boo thread %p", current);
 
 	siginfo_t info = {};
 	info.si_code = SI_KERNEL;

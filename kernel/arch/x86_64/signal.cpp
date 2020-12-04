@@ -135,9 +135,11 @@ int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigactio
 	return 0;
 }
 
+extern "C"
 __attribute__((noreturn))
-extern void __sigret_return(struct registers *regs);
+void __sigret_return(struct registers *regs);
 
+extern "C"
 void sys_sigreturn(struct syscall_frame *sysframe)
 {
 	/* Switch the registers again */
@@ -209,7 +211,7 @@ void sys_sigreturn(struct syscall_frame *sysframe)
 	if(copy_from_user(&set, &sframe->uc.uc_sigmask, sizeof(set)) < 0)
 		return;
 	
-	signal_set_blocked_set(curr, &set);
+	curr->sinfo.set_blocked(&set);
 
 	context_tracking_exit_kernel();
 	__sigret_return(regs);
@@ -217,6 +219,7 @@ void sys_sigreturn(struct syscall_frame *sysframe)
 	__builtin_unreachable();
 }
 
+extern "C"
 void do_signal_syscall(uint64_t syscall_ret, struct syscall_frame *syscall_ctx, struct registers *regs)
 {
 	regs->cs = USER_CS;

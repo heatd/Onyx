@@ -102,15 +102,14 @@ public:
 		if(!sigmask_valid)
 			return;
 		auto thread = get_current_thread();
-		memcpy(&original_sigmask, &thread->sinfo.sigmask, sizeof(sigset_t));
-		signal_set_blocked_set(thread, &temp_sigmask);
+		original_sigmask = thread->sinfo.set_blocked(&temp_sigmask);
 	}
 
 	~auto_signal_mask()
 	{
 		if(!sigmask_valid)
 			return;
-		signal_set_blocked_set(get_current_thread(), &original_sigmask);
+		get_current_thread()->sinfo.set_blocked(&original_sigmask);
 	}
 	
 };

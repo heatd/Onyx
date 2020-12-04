@@ -22,8 +22,11 @@
 #include <onyx/syscall.h>
 #include <onyx/cred.h>
 #include <onyx/itimer.h>
+#include <onyx/wait_queue.h>
 
 #include <onyx/vm_layout.h>
+
+#include <sys/resource.h>
 
 struct proc_event_sub;
 
@@ -66,22 +69,18 @@ struct process
 	/* Process ID */
 	pid_t pid;
 	
-	/* exit(2) specific flags */
-	int has_exited;
-
-	struct semaphore wait_sem;
-	int exit_code;
-	
 	/* Process' UID and GID */
 	struct creds cred;
 
 	/* Pointer to the VDSO */
 	void *vdso;
 
-	/* Signal tables */
+	/* Signal information */
 	struct spinlock signal_lock;
 	struct k_sigaction sigtable[_NSIG];
 	unsigned int signal_group_flags;
+	struct wait_queue wait_child_event;
+	unsigned int exit_code;
 
 	/* Process personality */
 	unsigned long personality;
@@ -95,10 +94,8 @@ struct process
 	/* User time and system time consumed by the process */
 	hrtime_t user_time;
 	hrtime_t system_time;
-	/* Note that children_utime and stime are already stored in ticks, since
-	 * we don't need ns precision there. */
-	clock_t children_utime;
-	clock_t children_stime;
+	hrtime_t children_utime;
+	hrtime_t children_stime;
 
 	/* proc_event queue */
 	struct spinlock sub_queue_lock;
@@ -207,6 +204,11 @@ using process_visit_function_t = bool (*)(process *, void *);
 
 void for_every_process(process_visit_function_t func, void *ctx);
 
+
+/* I took this idea from linux :P */
+#define RUSAGE_BOTH    -2
+
+int do_rusage(int who, rusage *usage, process *p);
 #endif
 
 #endif

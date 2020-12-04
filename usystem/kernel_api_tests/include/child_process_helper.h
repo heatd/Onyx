@@ -20,7 +20,7 @@ struct ChildProcessHelper
 	Waiter w;
 	pid_t pid;
 
-	int operator()(std::function<void(const ChildProcessHelper&)> parent_code,
+	int execute_process(std::function<void(const ChildProcessHelper&)> parent_code,
 	               std::function<int(const ChildProcessHelper&)> child_code,
 				   std::function<void(const ChildProcessHelper&)> post_wake_code =
 				   std::function<void(const ChildProcessHelper&)>{[](const ChildProcessHelper&){}})
@@ -49,8 +49,24 @@ struct ChildProcessHelper
 			if(wait(&wstatus) < 0)
 				throw std::runtime_error("wait error");
 			
-			return WEXITSTATUS(wstatus);
+			return wstatus;
 		}
+	}
+
+	int operator()(std::function<void(const ChildProcessHelper&)> parent_code,
+	               std::function<int(const ChildProcessHelper&)> child_code,
+				   std::function<void(const ChildProcessHelper&)> post_wake_code =
+				   std::function<void(const ChildProcessHelper&)>{[](const ChildProcessHelper&){}})
+	{
+		auto status = execute_process(parent_code, child_code, post_wake_code);
+
+		if(!WIFEXITED(status))
+		{
+			throw std::runtime_error(std::string("wait: Child did not exit normally, exit code: ")
+			                         + std::to_string(status));
+		}
+
+		return WEXITSTATUS(status);
 	}
 };
 

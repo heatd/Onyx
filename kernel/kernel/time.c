@@ -181,11 +181,6 @@ int sys_clock_gettime(clockid_t clk_id, struct timespec *tp)
 	return 0;
 }
 
-int sys_getrusage(int who, struct rusage *usage)
-{
-	return -ENOSYS;
-}
-
 uint64_t clock_delta_calc(uint64_t start, uint64_t end)
 {
 	return end - start;

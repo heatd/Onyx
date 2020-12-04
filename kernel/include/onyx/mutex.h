@@ -8,9 +8,9 @@
 
 #include <string.h>
 
-#include <onyx/scheduler.h>
 #include <onyx/list.h>
 #include <onyx/utils.h>
+#include <onyx/spinlock.h>
 
 struct mutex;
 CONSTEXPR static inline void mutex_init(struct mutex *mutex);

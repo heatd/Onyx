@@ -80,6 +80,7 @@ void signal_do_stop(int signum)
 
 	if(first_sigstop)
 	{
+		scoped_lock g{current->signal_lock};
 		current->signal_group_flags &= ~SIGNAL_GROUP_STOP_PENDING;
 	}
 }
@@ -119,9 +120,6 @@ sighandler_t dfl_signal_handlers[] = {
 	/*[SIGPWR] =*/ signal_default_ignore,
 	/*[SIGSYS] =*/ signal_default_core
 };
-
-void signal_update_pending(struct thread *thread);
-void __signal_update_pending(struct thread *thread);
 
 #define SST_SIZE (_NSIG/8/sizeof(long))
 void signotset(sigset_t *set)
@@ -212,33 +210,6 @@ bool signal_is_empty(struct thread *thread)
 	return true;
 }
 
-void __signal_add_to_blocked_set(struct thread *current, sigset_t *s)
-{
-	if(sigismember(s, SIGKILL))
-		sigdelset(s, SIGKILL);
-	if(sigismember(s, SIGSTOP))
-		sigdelset(s, SIGSTOP);
-
-	sigorset(&current->sinfo.sigmask, s, &current->sinfo.sigmask);
-}
-
-void signal_add_to_blocked_set(struct thread *current, sigset_t *s)
-{
-	__signal_add_to_blocked_set(current, s);
-	signal_update_pending(current);
-}
-
-void signal_set_blocked_set(struct thread *current, sigset_t *s)
-{
-	if(sigismember(s, SIGKILL))
-		sigdelset(s, SIGKILL);
-	if(sigismember(s, SIGSTOP))
-		sigdelset(s, SIGSTOP);
-	
-	memcpy(&current->sinfo.sigmask, s, sizeof(*s));
-	signal_update_pending(current);
-}
-
 #define SIGNAL_QUERY_POP			(1 << 0)
 
 struct sigpending *signal_query_pending(int signum, unsigned int flags, struct signal_info *info)
@@ -305,7 +276,7 @@ void signal_unqueue(int signum, struct thread *thread)
 		sigdelset(&thread->sinfo.pending_set, signum);
 	}
 
-	__signal_update_pending(thread);
+	thread->sinfo.__update_pending();
 }
 
 void deliver_signal(int signum, struct sigpending *pending, struct registers *regs)
@@ -349,7 +320,7 @@ void deliver_signal(int signum, struct sigpending *pending, struct registers *re
 		sigaddset(&new_blocked, signum);
 	}
 
-	__signal_add_to_blocked_set(thread, &new_blocked);
+	thread->sinfo.__add_blocked(&new_blocked);
 
 	signal_unqueue(signum, thread);
 }
@@ -402,34 +373,6 @@ void handle_signal(struct registers *regs)
 	spin_unlock(&process->signal_lock);
 
 	context_tracking_exit_kernel();
-}
-
-void __signal_update_pending(struct thread *thread)
-{
-	sigset_t *set = &thread->sinfo.pending_set;
-	sigset_t *blocked_set = &thread->sinfo.sigmask;
-
-	bool is_pending = false;
-
-	for(int i = 0; i < NSIG; i++)
-	{
-		if(sigismember(set, i) && !sigismember(blocked_set, i))
-		{
-			is_pending = true;
-			break;
-		}
-	}
-
-	thread->sinfo.signal_pending = is_pending;
-}
-
-void signal_update_pending(struct thread *thread)
-{
-	spin_lock(&thread->sinfo.lock);
-
-	__signal_update_pending(thread);
-
-	spin_unlock(&thread->sinfo.lock);
 }
 
 int kernel_raise_signal(int sig, struct process *process, unsigned int flags, siginfo_t *info)
@@ -853,43 +796,50 @@ out:
 }
 
 extern "C"
-int sys_sigprocmask(int how, const sigset_t *set, sigset_t *oldset)
+int sys_sigprocmask(int how, const sigset_t *set, sigset_t *oldset, size_t sigset_size)
 {
-	struct thread *current = get_current_thread();
+	if(sigset_size != sizeof(sigset_t))
+		return -EINVAL;
 
-	if(oldset)
-	{
-		if(copy_to_user(oldset, &current->sinfo.sigmask, sizeof(sigset_t)) < 0)
-			return -EFAULT;
-	}
-	
+	struct thread *current = get_current_thread();
+	sigset_t koldset = current->sinfo.get_mask();
+
+#if 0
+	if(set) printk("sigprocmask %d %lx\n", how, set->__bits[0]);
+#endif
+
 	if(set)
 	{
 		sigset_t kset;
 		if(copy_from_user(&kset, set, sizeof(sigset_t)) < 0)
-			return -EFAULT;	
+			return -EFAULT;
+
 		switch(how)
 		{
 			case SIG_BLOCK:
 			{
-				signal_add_to_blocked_set(current, &kset);
+				current->sinfo.add_blocked(&kset);
 				break;
 			}
 			case SIG_UNBLOCK:
 			{
-				signotset(&kset);
-				sigandset(&current->sinfo.sigmask, &current->sinfo.sigmask, &kset);
-				signal_update_pending(current);
+				current->sinfo.unblock(kset);
 				break;
 			}
 			case SIG_SETMASK:
 			{
-				signal_set_blocked_set(current, &kset);
+				current->sinfo.set_blocked(&kset);
 				break;
 			}
 			default:
 				return -EINVAL;
 		}
+	}
+
+	if(oldset)
+	{
+		if(copy_to_user(oldset, &koldset, sizeof(sigset_t)) < 0)
+			return -EFAULT;
 	}
 
 	return 0;
@@ -922,7 +872,7 @@ int sys_sigsuspend(const sigset_t *uset)
 	/* First, save the old sigset */
 	memcpy(&old, &current->sinfo.sigmask, sizeof(sigset_t));
 	/* Now, set the signal mask */
-	signal_set_blocked_set(current, &set);
+	current->sinfo.set_blocked(&set);
 
 	/* Now, wait for a signal */	
 	struct wait_queue wq;
@@ -930,7 +880,7 @@ int sys_sigsuspend(const sigset_t *uset)
 
 	wait_for_event_interruptible(&wq, false);
 
-	signal_set_blocked_set(current, &old);
+	current->sinfo.set_blocked(&old);
 
 	return -EINTR;
 }
@@ -1129,7 +1079,7 @@ int sys_rt_sigtimedwait(const sigset_t *set, siginfo_t *info, const struct times
 	struct wait_queue wq;
 	init_wait_queue_head(&wq);
 
-	struct timespec timeout = {0};
+	struct timespec timeout = {};
 
 	if(utimeout && copy_from_user(&timeout, utimeout, sizeof(timeout)) < 0)
 		return -EFAULT;
@@ -1141,6 +1091,30 @@ int sys_rt_sigtimedwait(const sigset_t *set, siginfo_t *info, const struct times
 
 	if(copy_from_user(&kset, set, sizeof(kset)) < 0)
 		return -EFAULT;
+
+	/* TODO: The implementation is not quite correct */
+#if 0
+	sigset_t old;
+	/* Save the old blocked set */
+	memcpy(&old, &thread->sinfo.sigmask, sizeof(sigset_t));
+	
+	/* Silently ignore all attempts to wait for SIGKILL and SIGSTOP */
+	sigdelset(&kset, SIGKILL);
+	sigdelset(&kset, SIGSTOP);
+
+	/* We invert the sigset in order to know what we need to block, and then
+	 * we AND it with the old blocked set so we know what we're actually blocking.
+	 */
+	signotset(&kset);
+
+	{
+
+	scoped_lock g{thread->sinfo.lock};
+	sigandset(&thread->sinfo.sigmask, &old, &kset);
+	thread->sinfo.__update_pending();
+
+	}
+#endif
 
 	hrtime_t timeout_ns = timespec_to_hrtime(&timeout);
 
@@ -1179,7 +1153,7 @@ int sys_rt_sigtimedwait(const sigset_t *set, siginfo_t *info, const struct times
 
 	st = pending->signum;
 
-	if(copy_to_user(info, pending->info, sizeof(sigset_t)) < 0)
+	if(copy_to_user(info, pending->info, sizeof(siginfo_t)) < 0)
 	{
 		st = -EFAULT;
 	}
@@ -1197,14 +1171,12 @@ out:
 extern "C"
 int sys_rt_sigpending(sigset_t *uset, size_t sigsetlen)
 {
-	sigset_t set;
 	struct thread *current = get_current_thread();
 
 	if(sigsetlen != CURRENT_SIGSETLEN)
 		return -EINVAL;
-
-	memcpy(&set, &current->sinfo.pending_set, sizeof(set));
-	sigandset(&set, &set, &current->sinfo.sigmask);
+	
+	auto set = current->sinfo.get_pending_set();
 
 	if(copy_to_user(uset, &set, sizeof(set)) < 0)
 		return -EFAULT;

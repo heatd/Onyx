@@ -68,7 +68,8 @@ CLANG_TIDY_CHECKS:="performance*, modernize-pass-by-value, readability*, misc*, 
 		-misc-non-private-member-variables-in-classes, -clang-diagnostic-unknown-attributes, \
 		cppcoreguidelines-slicing, cppcoreguidelines-pro-type-const-cast, \
 		google-runtime-operator, bugprone*, -bugprone-narrowing-conversions, \
-		clang-analyzer-optin.performance.Padding, modernize-use-override"
+		clang-analyzer-optin.performance.Padding, modernize-use-override, \
+		-bugprone-reserved-identifier, -misc-no-recursion"
 
 CXXFLAGS:=-fno-rtti -fno-exceptions -fcheck-new
 CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS) -D ACPI_LIBRARY -D ACPI_DEBUG_OUTPUT=1
