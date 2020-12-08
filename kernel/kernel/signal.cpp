@@ -64,6 +64,8 @@ void signal_do_stop(int signum)
 		current->signal_group_flags |= SIGNAL_GROUP_STOPPED;
 		current->signal_group_flags &= ~SIGNAL_GROUP_CONT;
 
+		/* TODO: The last thread to stop should do this, not the first. */
+
 		notify_process_stop_cont(current, signum);
 	}
 

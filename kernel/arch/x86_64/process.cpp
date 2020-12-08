@@ -117,6 +117,17 @@ struct tid_out
 	pid_t *ctid;
 };
 
+/* Hmmm, I don't think this is 100% correct but it's good enough */
+static void inherit_signal_flags(thread *newt)
+{
+	auto current_thread = get_current_thread();
+
+	scoped_lock g{current_thread->sinfo.lock};
+	scoped_lock g2{newt->sinfo.lock};
+
+	newt->sinfo.flags |= current_thread->sinfo.flags;
+}
+
 int sys_clone(int (*fn)(void *), void *child_stack, int flags, void *arg, struct tid_out *out, void *tls)
 {
 	struct tid_out ktid_out;
@@ -148,6 +159,7 @@ int sys_clone(int (*fn)(void *), void *child_stack, int flags, void *arg, struct
 	thread->ctid = ktid_out.ctid;
 
 	process_add_thread(get_current_process(), thread);
+	inherit_signal_flags(thread);
 	sched_start_thread(thread);
 
 	return 0;
