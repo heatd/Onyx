@@ -11,6 +11,7 @@
 #include <onyx/thread.h>
 #include <onyx/scoped_lock.h>
 #include <onyx/compiler.h>
+#include <onyx/cpu.h>
 
 static unsigned long thread_to_lock_word(thread *t)
 {
@@ -75,6 +76,8 @@ bool mutex_optimistic_spin(mutex *lock)
 			return false;
 
 		last_thread = thread;
+
+		cpu_relax();
 	}
 
 	return false;
