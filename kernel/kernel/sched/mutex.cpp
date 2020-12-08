@@ -121,9 +121,9 @@ int mutex_lock_slow_path(struct mutex *mutex, int state)
 		mutex_prepare_sleep(mutex, state);
 	}
 
-	mutex_dequeue_thread(mutex, current);
-
 	set_current_state(THREAD_RUNNABLE);
+
+	mutex_dequeue_thread(mutex, current);
 
 	return ret;
 }

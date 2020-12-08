@@ -4,6 +4,7 @@ app_executable("system_benchmark") {
     package_name = "system_bench"
     output_name = "$package_name"
 
-    sources = [ "src/fd_bench.cpp" ]
+    sources = [ "src/fd_bench.cpp",
+                "src/threads.cpp" ]
     deps = [ "//benchmark" ]
 }

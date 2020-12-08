@@ -2759,8 +2759,13 @@ void vm_for_every_region(struct mm_address_space *as, bool (*func)(struct vm_reg
 	rb_tree_traverse(as->area_tree, for_every_region_visit, (void *) func);
 }
 
+PER_CPU_VAR(unsigned long tlb_nr_invals) = 0;
+PER_CPU_VAR(unsigned long nr_tlb_shootdowns) = 0;
+
 void vm_do_shootdown(struct tlb_shootdown *inv_data)
 {
+	add_per_cpu(tlb_nr_invals, 1);
+
 	paging_invalidate((void *) inv_data->addr, inv_data->pages);
 }
 
@@ -2776,12 +2781,15 @@ void __vm_invalidate_range(unsigned long addr, size_t pages, struct mm_address_s
 	hrtime_t t0 = clocksource_get_time();
 #endif
 
+	add_per_cpu(nr_tlb_shootdowns, 1);
+
 	bool is_kernel_address = is_higher_half((void *) addr);
 
 	for(unsigned int cpu = 0; cpu < get_nr_cpus(); cpu++)
 	{
 		if(cpu == get_cpu_nr())
 		{
+			add_per_cpu(tlb_nr_invals, 1);
 			paging_invalidate((void *) addr, pages);
 		}
 		else
@@ -2803,7 +2811,6 @@ void __vm_invalidate_range(unsigned long addr, size_t pages, struct mm_address_s
 			write_memory_barrier();
 
 			cpu_send_message(cpu, CPU_FLUSH_TLB, &shootdown, true);
-
 		}
 	}
 #if CONFIG_TRACK_TLB_DELTA

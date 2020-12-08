@@ -1258,7 +1258,7 @@ int vterm_handle_key(struct vterm *vt, struct input_device *dev, struct input_ev
 		return 0;
 
 	/* Don't have this enabled by default */
-	if(0 && ev->code == KEYMAP_KEY_KEYPAD_NUMLCK)
+	if(1 && ev->code == KEYMAP_KEY_KEYPAD_NUMLCK)
 		sched_dump_threads();
 
 	struct key_action *acts = pt_pt_key_actions;

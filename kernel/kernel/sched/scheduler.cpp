@@ -109,14 +109,15 @@ bool _dump_thread(const void *key, void *_thread, void *of)
 
 extern "C" void vterm_panic(void);
 
+extern "C"
 void sched_dump_threads(void)
 {
 	vterm_panic();
-	//spin_lock(&glbl_thread_list_lock);
+	spin_lock(&glbl_thread_list_lock);
 
 	rb_tree_traverse(&glbl_thread_list, _dump_thread, NULL);
 	
-	//spin_unlock(&glbl_thread_list_lock);
+	spin_unlock(&glbl_thread_list_lock);
 }
 
 thread *thread_get_from_tid(int tid)

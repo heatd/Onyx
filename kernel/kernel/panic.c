@@ -47,6 +47,8 @@ void page_print_shared(void);
 
 void vterm_panic(void);
 
+void bust_printk_lock(void);
+
 #define PANIC_STACK_BUF_SZ      1024
 
 __attribute__ ((noreturn, noinline))
@@ -69,6 +71,8 @@ void panic(const char *msg, ...)
 
 	/* Turn off vterm multthreading */
 	vterm_panic();
+
+	bust_printk_lock();
 
 	/* And dump the context to it */
 #ifdef __x86_64__
@@ -98,4 +102,3 @@ void abort(void)
 {
 	panic("Abort!");
 }
-

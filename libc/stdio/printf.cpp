@@ -99,3 +99,9 @@ int printk(const char *__restrict__ format, ...)
 
 	return 0;
 }
+
+extern "C"
+void bust_printk_lock(void)
+{
+	buffer_lock.counter = 0;
+}
