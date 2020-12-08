@@ -48,6 +48,7 @@ static process *process_tail = nullptr;
 static spinlock process_list_lock;
 slab_cache_t *process_cache = nullptr;
 
+[[noreturn]]
 void process_exit(unsigned int exit_code);
 void process_end(process *process);
 
@@ -231,7 +232,7 @@ extern "C" pid_t sys_getppid()
 	if(get_current_process()->parent)
 		return get_current_process()->parent->pid;
 	else
-		return -1;
+		return 0;
 }
 
 bool process_found_children(pid_t pid, process *proc)
@@ -425,12 +426,66 @@ bool process_wait_exit(process *child, wait_info& winfo)
 
 bool process_wait_stop(process *child, wait_info& winfo)
 {
-	return false;
+	if(!(child->signal_group_flags & SIGNAL_GROUP_STOPPED))
+		return false;
+
+	scoped_lock g{child->signal_lock};
+
+	if(!(child->signal_group_flags & SIGNAL_GROUP_STOPPED))
+		return false;
+
+	if(child->signal_group_flags & SIGNAL_GROUP_EXIT)
+		return false;
+
+	if(!(winfo.options & WSTOPPED))
+		return false;
+	
+	/* We use exit_code = 0 to know it has been reaped */
+	if(!child->exit_code)
+		return false;
+	
+	do_getrusage(RUSAGE_BOTH, &winfo.usage, child);
+
+	winfo.pid = child->pid;
+
+	winfo.wstatus = child->exit_code;
+
+	if(winfo.reap_wait())
+	{
+		child->exit_code = 0;
+	}
+
+	return true;
 }
 
 bool process_wait_cont(process *child, wait_info& winfo)
 {
-	return false;
+	if(!(child->signal_group_flags & SIGNAL_GROUP_CONT))
+		return false;
+
+	scoped_lock g{child->signal_lock};
+
+	if(!(child->signal_group_flags & SIGNAL_GROUP_CONT))
+		return false;
+	
+	if(child->signal_group_flags & SIGNAL_GROUP_EXIT)
+		return false;
+
+	if(!(winfo.options & WCONTINUED))
+		return false;
+	
+	do_getrusage(RUSAGE_BOTH, &winfo.usage, child);
+
+	winfo.pid = child->pid;
+
+	winfo.wstatus = child->exit_code;
+
+	if(winfo.reap_wait())
+	{
+		child->signal_group_flags &= ~SIGNAL_GROUP_CONT;
+	}
+
+	return true;
 }
 
 #define WINFO_STATUS_OK     1
@@ -548,11 +603,6 @@ extern "C" pid_t sys_fork(syscall_frame *ctx)
 	return child->pid;
 }
 
-bool signal_is_stopping(int sig)
-{
-	return sig == SIGSTOP || sig == SIGTSTP || sig == SIGTTIN || sig == SIGTTOU;
-}
-
 #define W_STOPPING   0x7f
 #define W_CORE_DUMPED (1 << 7)
 #define W_SIG(sig) (signum)
@@ -595,6 +645,7 @@ int make_wait4_wstatus(int signum, bool core_dumped, int exit_code)
 	return wstatus;
 }
 
+[[noreturn]]
 void process_exit_from_signal(int signum)
 {
 	process_exit(make_wait4_wstatus(signum, false, 0));
@@ -731,26 +782,37 @@ extern "C" void process_kill_other_threads(void)
 {
 	process *current = get_current_process();
 	thread *current_thread = get_current_thread();
-	unsigned long threads_to_wait_for = 0;
-	/* TODO: Fix thread killing */
-	list_for_every(&current->thread_list)
+
+	process_for_every_thread(current, [&](thread *t) -> bool
 	{
-		thread *t = container_of(l, thread, thread_list_head);
 		if(t == current_thread)
-			continue;
-		t->flags |= THREAD_SHOULD_DIE;
-		threads_to_wait_for++;
-	}
+			return true;
+
+		scoped_lock g{t->sinfo.lock};
+
+		t->sinfo.flags |= THREAD_SIGNAL_EXITING;
+
+		/* If it's in an interruptible sleep, very good. Else, it's either
+		 * in an uninterruptible sleep or it was stopped but got woken up by SIGKILL code before us.
+		 * It's impossible for a process to otherwise exit without every thread already
+		 * being SIGCONT'd.
+		 */
+		if(t->status == THREAD_INTERRUPTIBLE)
+			thread_wake_up(t);
+		
+		return true;
+	});
 
 	while(current->nr_threads != 1)
 		cpu_relax();
 }
 
+[[noreturn]]
 void process_exit(unsigned int exit_code)
 {
 	auto current_thread = get_current_thread();
 	process *current = get_current_process();
-	
+
 	if(current->pid == 1)
 	{
 		printk("Panic: %s exited with exit code %u!\n",
@@ -789,13 +851,23 @@ void process_exit(unsigned int exit_code)
 	}
 
 	siginfo_t info = {};
-	info.si_code = CLD_EXITED;
+
 	info.si_signo = SIGCHLD;
 	info.si_pid = current->pid;
 	info.si_uid = current->cred.ruid;
 	info.si_stime = current->system_time / NS_PER_MS;
 	info.si_utime = current->user_time / NS_PER_MS;
-	info.si_status = WEXITSTATUS(exit_code);
+
+	if(WIFEXITED(exit_code))
+	{
+		info.si_code = CLD_EXITED;
+		info.si_status = WEXITSTATUS(exit_code);
+	}
+	else if(WIFSIGNALED(exit_code))
+	{
+		info.si_code = CLD_KILLED;
+		info.si_status = WTERMSIG(exit_code);
+	}
 
 	kernel_raise_signal(SIGCHLD, current->parent, 0, &info);
 
@@ -891,4 +963,61 @@ void for_every_process(process_visit_function_t func, void *ctx)
 		
 		p = p->next;
 	}
+}
+
+void notify_process_stop_cont(process *proc, int signum)
+{
+	auto parent = proc->parent;
+
+	/* init might get a SIGSTOP? idk */
+	if(!parent)
+		return;
+	
+	auto code = make_wait4_wstatus(signum, false, 0);
+
+	proc->exit_code = code;
+
+	wait_queue_wake_all(&parent->wait_child_event);
+
+	siginfo_t info = {};
+	info.si_code = signal_is_stopping(signum) ? CLD_STOPPED : CLD_CONTINUED;
+	info.si_signo = SIGCHLD;
+	info.si_pid = proc->pid;
+	info.si_uid = proc->cred.ruid;
+	info.si_stime = proc->system_time / NS_PER_MS;
+	info.si_utime = proc->user_time / NS_PER_MS;
+	info.si_status = signum;
+
+	kernel_raise_signal(SIGCHLD, parent, 0, &info);
+}
+
+bool process::route_signal(struct sigpending *pend)
+{
+	scoped_lock g{thread_list_lock};
+	bool done = false;
+
+	/* Oh no, we're not going to be able to route this! */
+	if(nr_threads == 0)
+		return false;
+	
+	process_for_every_thread_unlocked(this, [&](thread *t) -> bool
+	{
+		auto& sinfo = t->sinfo;
+
+		if(sinfo.try_to_route(pend))
+		{
+			done = true;
+			return false;
+		}
+
+		return true;
+	});
+
+	auto first_elem = list_first_element(&thread_list);
+
+	assert(first_elem != nullptr);
+
+	auto first_t = container_of(first_elem, struct thread, thread_list_head);
+
+	return first_t->sinfo.add_pending(pend);
 }

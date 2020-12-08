@@ -139,7 +139,7 @@ int sys_clone(int (*fn)(void *), void *child_stack, int flags, void *arg, struct
 	if(!thread)
 		return -errno;
 
-	if(copy_to_user(out->ptid, &thread->id, sizeof(pid_t)) < 0)
+	if(copy_to_user(ktid_out.ptid, &thread->id, sizeof(pid_t)) < 0)
 	{
 		thread_destroy(thread);
 		return -errno;

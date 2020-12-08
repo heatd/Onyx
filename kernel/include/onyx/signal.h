@@ -29,7 +29,32 @@ struct sigpending
 	siginfo_t *info;
 	int signum;
 	struct list_head list_node;
+
+#ifdef __cplusplus
+	constexpr sigpending() : info{nullptr}, signum{}, list_node{} {}
+
+	~sigpending()
+	{
+		delete info;
+	}
+#endif
+
 };
+
+static inline bool signal_is_realtime(int sig)
+{
+	return sig >= KERNEL_SIGRTMIN;
+}
+
+static inline bool signal_is_standard(int sig)
+{
+	return !signal_is_realtime(sig);
+}
+
+#define THREAD_SIGNAL_STOPPING    (1 << 0)
+#define THREAD_SIGNAL_EXITING     (1 << 1)
+
+struct process;
 
 struct signal_info
 {
@@ -43,7 +68,9 @@ struct signal_info
 
 	struct list_head pending_head;
 
-	/* Symbolizes if a signal is pending or not */
+	unsigned short flags;
+
+	unsigned long times_interrupted;
 	bool signal_pending;
 
 	/* No need for a lock here since any possible changes
@@ -52,6 +79,28 @@ struct signal_info
 	stack_t altstack;
 
 #ifdef __cplusplus
+
+private:
+	bool is_signal_pending_internal() const
+	{
+		const sigset_t& set = pending_set;
+		const sigset_t& blocked_set = sigmask;
+
+		bool is_pending = false;
+
+		for(int i = 0; i < NSIG; i++)
+		{
+			if(sigismember(&set, i) && !sigismember(&blocked_set, i))
+			{
+				is_pending = true;
+				break;
+			}
+		}
+
+		return is_pending;
+	}
+
+public:
 
 	sigset_t get_mask()
 	{
@@ -118,21 +167,8 @@ struct signal_info
 	void __update_pending()
 	{
 		MUST_HOLD_LOCK(&lock);
-		const sigset_t& set = pending_set;
-		const sigset_t& blocked_set = sigmask;
 
-		bool is_pending = false;
-
-		for(int i = 0; i < NSIG; i++)
-		{
-			if(sigismember(&set, i) && !sigismember(&blocked_set, i))
-			{
-				is_pending = true;
-				break;
-			}
-		}
-
-		signal_pending = is_pending;
+		signal_pending = flags != 0 || is_signal_pending_internal();
 	}
 
 	void update_pending()
@@ -141,13 +177,49 @@ struct signal_info
 		__update_pending();
 	}
 
+	void reroute_signals(process *p);
+
+	bool add_pending(struct sigpending *pend)
+	{
+		scoped_lock g{lock};
+		
+		if(signal_is_standard(pend->signum) && sigismember(&pending_set, pend->signum))
+			return false;
+
+		list_add(&pend->list_node, &pending_head);
+
+		sigaddset(&pending_set, pend->signum);
+
+		if(!sigismember(&sigmask, pend->signum))
+			signal_pending = true;
+		
+		return true;
+	}
+
+	bool try_to_route(struct sigpending *pend)
+	{
+		scoped_lock g{lock};
+
+		if(sigismember(&sigmask, pend->signum))
+			return false;
+		
+		if(signal_is_standard(pend->signum) && sigismember(&pending_set, pend->signum))
+			return false;
+
+		list_add(&pend->list_node, &pending_head);
+		sigaddset(&pending_set, pend->signum);
+		signal_pending = true;
+
+		return true;
+	} 
+
+	~signal_info();
 #endif
 };
 
-#define SIGNAL_GROUP_STOP_PENDING               (1 << 0)
-#define SIGNAL_GROUP_CONT_PENDING               (1 << 1)
-#define SIGNAL_GROUP_EXIT                       (1 << 2)
-#define SIGNAL_GROUP_CONT                       (1 << 3)
+#define SIGNAL_GROUP_STOPPED               (1 << 0)
+#define SIGNAL_GROUP_CONT                  (1 << 1)
+#define SIGNAL_GROUP_EXIT                  (1 << 2)
 
 struct process;
 struct thread;
@@ -167,6 +239,11 @@ int kernel_raise_signal(int sig, struct process *process, unsigned int flags, si
 int kernel_tkill(int signal, struct thread *thread, unsigned int flags, siginfo_t *info);
 void signal_context_init(struct thread *new_thread);
 void signal_do_execve(struct process *proc);
+
+static inline bool signal_is_stopping(int sig)
+{
+	return sig == SIGSTOP || sig == SIGTSTP || sig == SIGTTIN || sig == SIGTTOU;
+}
 
 #ifdef __cplusplus
 }

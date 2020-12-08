@@ -151,7 +151,7 @@ void thread_finish_destruction(void *___thread)
 	memset_s(&thread->lock, 0x80, sizeof(struct spinlock));
 	((volatile struct thread *) thread)->canary = THREAD_DEAD_CANARY;
 	/* Free the thread */
-	free(thread);
+	delete thread;
 }
 
 thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs)
@@ -160,8 +160,6 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs)
 	
 	if(!new_thread)
 		return NULL;
-
-	memset(new_thread, 0, sizeof(thread));
 
 	new_thread->id = curr_id++;
 	new_thread->flags = flags;

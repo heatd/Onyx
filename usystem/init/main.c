@@ -181,46 +181,52 @@ void *func(void *f)
 	while(true) {}
 }
 
+void *sleep_func(void *f)
+{
+	sleep(100000);
+	printf("Out of sleep!\n");
+}
+
 void signal_test()
 {
 	pid_t p = fork();
 
 	if(p == 0)
 	{
-		/*pthread_t new_thread;
-		if(pthread_create(&new_thread, NULL, func, NULL) < 0)
-			perror("pthread_create");*/
+		pthread_t threads[4];
 		
-		sigset_t mask;
-		sigaddset(&mask, SIGSEGV);
-		sigprocmask(SIG_SETMASK, &mask, NULL);
-		/*struct sigaction sa;
-		sa.sa_flags = SA_SIGINFO;
-		sa.sa_sigaction = segv;
+		for(int i = 0; i < 3; i++)
+		{
+			if(pthread_create(&threads[i], NULL, func, NULL) < 0)
+				perror("pthread_create");
+		}
 
-		sigaction(SIGSEGV, &sa, NULL);*/
+		if(pthread_create(&threads[3], NULL, sleep_func, NULL) < 0)
+			perror("pthread_create");
 
-		/*sigset_t set = {};
-		siginfo_t info;
-		sigaddset(&set, SIGSEGV);
-		if(sigwaitinfo(&set, &info) < 0)
-			perror("sigwaitinfo");*/
-		//printf("Signalled - info code %d\n", info.si_code);
-		/*sleep(2);
+		sleep(1);
 
-		if(sigpending(&mask) < 0)
-			perror("sigpending");
-		printf("Is segv pending? %u\n", sigismember(&mask, SIGSEGV));*/
-		while(true) {}
+		time_t t = time(NULL);
+
+		while(true)
+		{
+			raise(SIGSTOP);
+			if(time(NULL) - t >= 98)
+				break;
+		}
+
+		printf("stopped\n");
+		sleep(100000000);
+		printf("ahhh\n");
 	}
-	else
+
+	time_t t = time(NULL);
+	while(true)
 	{
-		printf("Sleeping 2 seconds and killing our child\n");
-		sleep(1);
-		kill(p, SIGSEGV);
-		printf("Now, we're SIGCONTing it\n");
-		sleep(1);
-		//kill(p, SIGCONT);
+		kill(p, SIGCONT);
+
+		if(time(NULL) - t >= 100)
+			break;
 	}
 
 	while(true) {}

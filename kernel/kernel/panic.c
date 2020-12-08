@@ -91,13 +91,7 @@ void panic(const char *msg, ...)
 
 void __assert_fail(const char * assertion, const char * file, int line, const char * function)
 {
-	/* Turn off vterm multthreading */
-	vterm_panic();
-
-	char buf[200] = {0};
-	snprintf(buf, 200, "Assertion %s failed in %s:%u, in function %s\n", assertion, file, line, function);
-	printk(buf);
-	panic("Assertion failed!\n");
+	panic("Assertion %s failed in %s:%u, in function %s\n", assertion, file, line, function);
 }
 
 void abort(void)

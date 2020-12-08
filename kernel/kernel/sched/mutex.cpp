@@ -57,7 +57,7 @@ bool mutex_optimistic_spin(mutex *lock)
 {
 	/* The algorithm goes like this: Try to always fetch the owner thread,
 	 * and if there's none try to acquire the lock. If in fact there is a thread,
-	 * check if it's on the same CPU; if so, give up, if not , try to get the lock
+	 * check if it's on the same CPU; if so, give up, if not, try to get the lock
 	 * until we run out of budget. If the thread changes from under us, give up too.
 	 */
 	thread *last_thread = nullptr;

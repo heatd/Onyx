@@ -5,6 +5,7 @@ app_executable("kernel_api_tests") {
     output_name = "$package_name"
 
     sources = [ "src/pgrp.cpp",
-                "src/wait.cpp"]
+                "src/wait.cpp",
+                "src/exit.cpp"]
     deps = [ "//googletest:gtest_main" ]
 }

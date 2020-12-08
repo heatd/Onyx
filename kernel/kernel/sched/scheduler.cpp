@@ -144,7 +144,8 @@ unsigned long sched_lock(thread *thread)
 	
 	/* 1st - Lock the per-cpu scheduler */
 	/* 2nd - Lock the thread */
-	
+
+	assert(thread->cpu < percpu_get_nr_bases());
 	spinlock *l = get_per_cpu_ptr_any(scheduler_lock, thread->cpu);
 
 	unsigned long cpu_flags = spin_lock_irqsave(l);
@@ -234,6 +235,11 @@ PER_CPU_VAR(unsigned long preemption_counter) = 0;
 bool sched_is_preemption_disabled(void)
 {
 	return get_per_cpu(preemption_counter) > 0;
+}
+
+unsigned long sched_get_preempt_counter(void)
+{
+	return get_per_cpu(preemption_counter);
 }
 
 void sched_save_thread(thread *thread, void *stack)
@@ -487,8 +493,11 @@ extern "C" void platform_yield(void);
 void sched_yield(void)
 {
 	if(sched_is_preemption_disabled())
-		panic("Thread tried to sleep with preemption disabled");
-	
+	{
+		panic("Thread tried to sleep with preemption disabled (preemption counter %ld)",
+		      (long) sched_get_preempt_counter());
+	}
+
 	platform_yield();
 }
 
@@ -516,10 +525,11 @@ hrtime_t sched_sleep(unsigned long ns)
 	/* This is a bit of a hack but we need this in cases where we have timeout but we're not supposed to be
 	 * woken by signals. In this case, wait_for_event_* already set the current state.
 	 */
-	if(get_current_thread()->status == THREAD_RUNNABLE)
+	if(current->status == THREAD_RUNNABLE)
 		set_current_state(THREAD_INTERRUPTIBLE);
 
-	sched_yield();
+	if(current->status != THREAD_INTERRUPTIBLE || !signal_is_pending())
+		sched_yield();
 
 	/* Lets remove the event in the case where we got woken up by a signal or by another thread */
 	timer_remove_event(&ev);
@@ -623,7 +633,7 @@ extern "C" int sys_nanosleep(const timespec *req, timespec *rem)
 
 extern "C" void thread_finish_destruction(void*);
 
-void thread_destroy(thread *thread)
+void thread_destroy(struct thread *thread)
 {
 	/* This function should destroy everything that we can destroy right now.
 	 * We can't destroy things like the kernel stack or the FPU area, because we'll eventually 
@@ -633,18 +643,20 @@ void thread_destroy(thread *thread)
 
 	if(thread->owner)
 	{
-		__atomic_sub_fetch(&thread->owner->nr_threads, 1, __ATOMIC_RELAXED);
+		auto proc = thread->owner;
 
-		spin_lock(&thread->owner->thread_list_lock);
-		list_remove(&thread->thread_list_head);
-		spin_unlock(&thread->owner->thread_list_lock);
+		proc->remove_thread(thread);
+
+		if(!(thread->sinfo.flags & THREAD_SIGNAL_EXITING))
+		{
+			/* Don't bother re-routing signals if we're exiting */
+			thread->sinfo.reroute_signals(proc);
+		}
 	}
 
 	/* Remove the thread from the queue */
 	sched_remove_thread(thread);
 
-	/* We can't actually destroy the user stack because the vm regions are already destroyed */
-	
 	/* Schedule further thread destruction */
 	dpc_work w;
 	w.context = thread;
@@ -667,7 +679,6 @@ void thread_exit(void)
 	vm_switch_to_fallback_pgd();
 
 	current->status = THREAD_DEAD;
-	current->flags |= THREAD_IS_DYING;
 
 	sched_enable_preempt();
 	sched_yield();

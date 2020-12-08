@@ -16,6 +16,7 @@
 #include <onyx/wait_queue.h>
 #include <onyx/clock.h>
 #include <onyx/pgrp.h>
+#include <onyx/memory.hpp>
 
 void signal_default_term(int signum)
 {
@@ -33,56 +34,50 @@ void signal_default_ignore(int signum)
 	(void) signum;
 }
 
-void signal_stop_other_threads(int signum, struct process *current)
-{
-	spin_lock(&current->thread_list_lock);
-
-	current->signal_group_flags |= SIGNAL_GROUP_STOP_PENDING;
-
-	list_for_every(&current->thread_list)
-	{
-		struct thread *t = container_of(l, struct thread, thread_list_head);
-		
-		/* Let's not tkill ourselves */
-		if(t == get_current_thread())
-			continue;
-		
-		spin_unlock(&current->signal_lock);
-
-		kernel_tkill(signum, t, 0, NULL);
-	
-		spin_lock(&current->signal_lock);
-	}
-
-	spin_unlock(&current->thread_list_lock);
-}
+atomic<unsigned int> stopped = 0;
 
 void signal_do_stop(int signum)
 {
-	/* For every thread in the process, queue it a stop signal signal */
-
 	struct process *current = get_current_process();
+	auto current_thread = get_current_thread();
 
-	bool first_sigstop = false;
-
-	if(!(current->signal_group_flags & SIGNAL_GROUP_STOP_PENDING))
+	if(!(current_thread->sinfo.flags & THREAD_SIGNAL_STOPPING))
 	{
-		first_sigstop = true;
-		signal_stop_other_threads(signum, current);
+		/* For every thread in the process, tell it to stop */
+		process_for_every_thread(current, [&](thread *t) -> bool
+		{
+			if(t == current_thread)
+				return true;
+
+			scoped_lock g{t->sinfo.lock};
+			t->sinfo.flags |= THREAD_SIGNAL_STOPPING;
+			t->sinfo.signal_pending = true;
+
+			if(t->status == THREAD_INTERRUPTIBLE)
+				thread_wake_up(t);
+
+			return true;
+		});
+
+		current_thread->sinfo.flags |= THREAD_SIGNAL_STOPPING;
+		
+		current->signal_group_flags |= SIGNAL_GROUP_STOPPED;
+		current->signal_group_flags &= ~SIGNAL_GROUP_CONT;
+
+		notify_process_stop_cont(current, signum);
 	}
 
 	set_current_state(THREAD_STOPPED);
 
-	spin_unlock(&get_current_thread()->sinfo.lock);
+	stopped++;
+	spin_unlock(&current_thread->sinfo.lock);
 	spin_unlock(&current->signal_lock);
 
 	sched_yield();
+	stopped--;
 
-	if(first_sigstop)
-	{
-		scoped_lock g{current->signal_lock};
-		current->signal_group_flags &= ~SIGNAL_GROUP_STOP_PENDING;
-	}
+	spin_lock(&current->signal_lock);
+	spin_lock(&current_thread->sinfo.lock);
 }
 
 /* This table only handles non-realtime signals (so, from signo 1 to 31, inclusive) */
@@ -106,10 +101,10 @@ sighandler_t dfl_signal_handlers[] = {
 	/*[SIGSTKFLT] =*/ signal_default_term,
 	/*[SIGCHLD] =*/ signal_default_ignore,
 	/*[SIGCONT] =*/ signal_default_ignore,
-	/*[SIGSTOP] =*/ signal_default_ignore,
-	/*[SIGTSTP] =*/ signal_default_ignore,
-	/*[SIGTTIN] =*/ signal_default_ignore,
-	/*[SIGTTOU] =*/ signal_default_ignore,
+	/*[SIGSTOP] =*/ signal_do_stop,
+	/*[SIGTSTP] =*/ signal_do_stop,
+	/*[SIGTTIN] =*/ signal_do_stop,
+	/*[SIGTTOU] =*/ signal_do_stop,
 	/*[SIGURG] =*/ signal_default_ignore,
 	/*[SIGXCPU] =*/ signal_default_core,
 	/*[SIGXFSZ] =*/ signal_default_core,
@@ -142,43 +137,33 @@ bool signal_is_unblockable(int signum)
 
 void do_default_signal(int signum, struct sigpending *pend)
 {
-	struct process *curr = get_current_process();
-	struct thread *thread = get_current_thread();
+	auto curr = get_current_process();
+	auto thread = get_current_thread();
 
-	bool special_signal_handled = false;
-
-	switch(signum)
+	
+	/* For realtime signals (which we don't include in the dfl_signal_handlers), the default action
+	 * is to terminate the process.
+	 */
+	bool is_term = signal_is_realtime(signum)
+			|| dfl_signal_handlers[signum] == signal_default_term
+			|| dfl_signal_handlers[signum] == signal_default_core;
+	
+	if(!is_term) [[likely]]
 	{
-		case SIGSTOP:
-		case SIGTSTP:
-		case SIGTTIN:
-		case SIGTTOU:
-			special_signal_handled = true;
-			signal_do_stop(signum);
-			break;
+		dfl_signal_handlers[signum](signum);
+		return;
 	}
 
-	if(special_signal_handled)
-		goto out;
+	/* We need to unlock the signal table lock, because we're going to get killed
+	 * in a moment, and having a pending lock just isn't too pretty, you know.
+	 */
 
 	spin_unlock(&thread->sinfo.lock);
 	spin_unlock(&curr->signal_lock);
 
-	/* We need to unlock the signal table lock, because we might get killed
-	 * in a moment, and having a pending lock just isn't too pretty, you know.
-	 */
+	dfl_signal_handlers[signum](signum);
 
-	/* For realtime signals(which we don't include in the dfl_signal_handlers), the default action
-	 * is to terminate the process.
-	 */
-	if(signum < KERNEL_SIGRTMIN)
-		dfl_signal_handlers[signum](signum);
-	else
-		signal_default_term(signum);
-
-out:
-	spin_lock(&curr->signal_lock);
-	spin_lock(&thread->sinfo.lock);
+	__builtin_unreachable();
 }
 
 int signal_find(struct thread *thread)
@@ -230,7 +215,7 @@ struct sigpending *signal_query_pending(int signum, unsigned int flags, struct s
 	return NULL;
 }
 
-void deliver_signal(int signum, struct sigpending *pending, struct registers *regs);
+bool deliver_signal(int signum, struct sigpending *pending, struct registers *regs);
 
 /* Returns negative if deliver_signal shouldn't execute the rest of the code, and should return immediately */
 int force_sigsegv(struct sigpending *pending, struct registers *regs)
@@ -279,24 +264,31 @@ void signal_unqueue(int signum, struct thread *thread)
 	thread->sinfo.__update_pending();
 }
 
-void deliver_signal(int signum, struct sigpending *pending, struct registers *regs)
+bool signal_uncatcheable(int signum)
+{
+	return signal_is_stopping(signum) || signum == SIGKILL;
+}
+
+bool deliver_signal(int signum, struct sigpending *pending, struct registers *regs)
 {
 	struct thread *thread = get_current_thread();
 	struct process *process = thread->owner;
 
 	struct k_sigaction *k_sigaction = &process->sigtable[signum];
 	void (*handler)(int) = k_sigaction->sa_handler;
+	bool defer_user = false;
 
 	/* TODO: Handle SA_RESTART */
 	/* TODO: Handle SA_NOCLDWAIT */
 	/* TODO: Handle SA_NOCLDSTOP */
 
-	if(handler != SIG_DFL)
+	if(handler != SIG_DFL && !signal_uncatcheable(signum))
 	{
+		defer_user = true;
 		if(signal_setup_context(pending, k_sigaction, regs) < 0)
 		{
 			if(force_sigsegv(pending, regs) < 0)
-				return;
+				return true;
 		}
 	}
 	else
@@ -323,7 +315,11 @@ void deliver_signal(int signum, struct sigpending *pending, struct registers *re
 	thread->sinfo.__add_blocked(&new_blocked);
 
 	signal_unqueue(signum, thread);
+
+	return defer_user;
 }
+
+unsigned long sched_get_preempt_counter(void);
 
 void handle_signal(struct registers *regs)
 {
@@ -339,40 +335,50 @@ void handle_signal(struct registers *regs)
 		irq_enable();
 
 	struct thread *thread = get_current_thread();
+
+	thread->sinfo.times_interrupted++;
+
 	struct process *process = thread->owner;
-	if(thread->flags & THREAD_SHOULD_DIE)
+
+	scoped_lock g{process->signal_lock};
+
+	scoped_lock g2{thread->sinfo.lock};
+
+	/* This infinite loop should speed things up by letting us handle things
+	 * like getting SIGSTOP'd and then handling the SIGCONT in the same interruption/kernel exit.
+	 */
+	while(true)
 	{
-		thread_exit();
+		if(thread->sinfo.flags & THREAD_SIGNAL_EXITING)
+		{
+			g2.unlock();
+			g.unlock();
+			thread_exit();
+		}
+
+		if(thread->sinfo.flags & THREAD_SIGNAL_STOPPING)
+		{
+			signal_do_stop(0);
+			continue;
+		}
+
+		/* Find an available signal */
+		int signum = signal_find(thread);
+
+		/* Oh no, no more signals :(( */
+		if(signum == 0)
+			break;
+
+		auto pending = signal_query_pending(signum, SIGNAL_QUERY_POP, &thread->sinfo);
+
+		assert(pending != NULL);
+
+		if(deliver_signal(signum, pending, regs))
+			break;
 	}
-
-	spin_lock(&process->signal_lock);
-
-	spin_lock(&thread->sinfo.lock);
-
-	/* Find an available signal */
-	int signum = signal_find(thread);
-	if(signum == 0)
-	{
-		spin_unlock(&thread->sinfo.lock);
-		spin_unlock(&process->signal_lock);
-		context_tracking_exit_kernel();
-		return;
-	}
-
-	struct sigpending *pending = signal_query_pending(signum,
-                                  SIGNAL_QUERY_POP, &thread->sinfo);
-
-	assert(pending != NULL);
-
-	deliver_signal(signum, pending, regs);
-
-	free(pending->info);
-	free(pending);
-
-	spin_unlock(&thread->sinfo.lock);
-	spin_unlock(&process->signal_lock);
 
 	context_tracking_exit_kernel();
+
 }
 
 int kernel_raise_signal(int sig, struct process *process, unsigned int flags, siginfo_t *info)
@@ -452,7 +458,7 @@ out:
 
 static bool is_default_ignored(int signal)
 {
-	return signal == SIGCHLD || signal == SIGURG || signal == SIGWINCH;
+	return dfl_signal_handlers[signal] == signal_default_ignore;
 }
 
 static bool is_signal_ignored(struct process *process, int signal)
@@ -461,38 +467,101 @@ static bool is_signal_ignored(struct process *process, int signal)
 	       (process->sigtable[signal].sa_handler == SIG_DFL && is_default_ignored(signal));
 }
 
+bool signal_may_wake(int signum)
+{
+	return signum == SIGCONT || signum == SIGKILL;
+}
+
+atomic<unsigned int> woke = 0;
+
+void signal_do_special_behaviour(int signal, struct thread *thread)
+{
+	auto proc = thread->owner;
+
+	if(signal == SIGCONT)
+	{
+		/* If any stop signals are pending, unqueue them */
+		signal_unqueue(SIGSTOP, thread);
+		signal_unqueue(SIGTSTP, thread);
+		signal_unqueue(SIGTTIN, thread);
+		signal_unqueue(SIGTTOU, thread);
+
+		process_for_every_thread(proc, [&](struct thread *t) -> bool
+		{
+			bool should_lock = thread != t;
+
+			/* The locks should make this immune to races */
+			if(should_lock) spin_lock(&t->sinfo.lock);
+
+			if(t->sinfo.flags & THREAD_SIGNAL_STOPPING)
+			{
+				thread_wake_up(t);
+				woke++;
+			}
+
+			t->sinfo.flags &= ~THREAD_SIGNAL_STOPPING;
+
+			if(should_lock) spin_unlock(&t->sinfo.lock);
+
+			return true;
+		});
+
+		bool was_stopped = proc->signal_group_flags & SIGNAL_GROUP_STOPPED;
+
+		proc->signal_group_flags &= ~SIGNAL_GROUP_STOPPED;
+	
+		if(was_stopped)
+		{
+			proc->signal_group_flags |= SIGNAL_GROUP_CONT;
+			notify_process_stop_cont(proc, SIGCONT);
+		}
+	}
+	else if(signal_is_stopping(signal) && proc->sigtable[signal].sa_handler == SIG_DFL)
+	{
+		signal_unqueue(SIGCONT, thread);
+	}
+	else if(signal == SIGKILL)
+	{
+		signal_unqueue(SIGSTOP, thread);
+		signal_unqueue(SIGTSTP, thread);
+		signal_unqueue(SIGTTIN, thread);
+		signal_unqueue(SIGTTOU, thread);
+
+		process_for_every_thread(proc, [&](struct thread *t) -> bool
+		{
+			bool should_lock = thread != t;
+
+			/* The locks should make this immune to races */
+			if(should_lock) spin_lock(&t->sinfo.lock);
+
+			if(t->sinfo.flags & THREAD_SIGNAL_STOPPING)
+			{
+				thread_wake_up(t);
+				woke++;
+			}
+
+			t->sinfo.flags &= ~THREAD_SIGNAL_STOPPING;
+
+			if(should_lock) spin_unlock(&t->sinfo.lock);
+
+			return true;
+		});
+	}
+}
+
 int kernel_tkill(int signal, struct thread *thread, unsigned int flags, siginfo_t *info)
 {
 	struct process *process = thread->owner;
-	struct sigpending *pending = nullptr;
+	unique_ptr<struct sigpending> pending;
 	siginfo_t *copy_siginfo = nullptr;
 
 	if(may_kill(signal, process, info) < 0)
 		return -EPERM;
-	
-	if(signal == SIGCONT && !(flags & SIGNAL_IN_BROADCAST))
-	{
-		assert(spin_lock_held(&process->thread_list_lock) == false);
-	
-		/* This requires broadcast, so broadcast it to every thread possible */
-		spin_lock(&process->thread_list_lock);
 
-		int st = 0;
+	scoped_lock g{process->signal_lock};
+	scoped_lock g2{thread->sinfo.lock};
 
-		list_for_every(&process->thread_list)
-		{
-			struct thread *t = container_of(l, struct thread, thread_list_head);
-
-			st = kernel_tkill(signal, t, SIGNAL_IN_BROADCAST, info);
-
-			if(st < 0)
-				break;
-		}
-
-		spin_unlock(&process->thread_list_lock);
-
-		return st;
-	}
+	signal_do_special_behaviour(signal, thread);
 
 	/* Don't bother to set it as pending if sig == SIG_IGN or it's set to the default
 	 * and the default is to ignore.
@@ -516,8 +585,6 @@ int kernel_tkill(int signal, struct thread *thread, unsigned int flags, siginfo_
 		return 0;
 	}
 
-	spin_lock(&thread->sinfo.lock);
-
 	bool standard_signal = signal < KERNEL_SIGRTMIN;
 
 	if(standard_signal && sigismember(&thread->sinfo.pending_set, signal))
@@ -526,7 +593,7 @@ int kernel_tkill(int signal, struct thread *thread, unsigned int flags, siginfo_
 		goto success;
 	}
 
-	pending = new struct sigpending;
+	pending = make_unique<struct sigpending>();
 	if(!pending)
 	{
 		goto failure_oom;
@@ -535,7 +602,6 @@ int kernel_tkill(int signal, struct thread *thread, unsigned int flags, siginfo_
 	copy_siginfo = new siginfo_t;
 	if(!copy_siginfo)
 	{
-		free(pending);
 		goto failure_oom;
 	}
 
@@ -556,14 +622,7 @@ int kernel_tkill(int signal, struct thread *thread, unsigned int flags, siginfo_
 
 	list_add(&pending->list_node, &thread->sinfo.pending_head);
 
-	if(signal == SIGCONT && thread->status != THREAD_STOPPED)
-	{
-		/* If any stop signals are pending, unqueue them */
-		signal_unqueue(SIGSTOP, thread);
-		signal_unqueue(SIGTSTP, thread);
-		signal_unqueue(SIGTTIN, thread);
-		signal_unqueue(SIGTTOU, thread);
-	}
+	pending.release();
 
 	sigaddset(&thread->sinfo.pending_set, signal);
 
@@ -572,14 +631,12 @@ int kernel_tkill(int signal, struct thread *thread, unsigned int flags, siginfo_
 		thread->sinfo.signal_pending = true;
 		/* We're only waking the thread up for two reasons: It's either in an interruptible sleep
 		 * OR it's stopped and we're SIGCONT'ing it */
-		if(thread->status == THREAD_INTERRUPTIBLE || (process->signal_group_flags & SIGNAL_GROUP_STOP_PENDING
-                                                      && signal == SIGCONT))
+		if(thread->status == THREAD_INTERRUPTIBLE || (thread->status == THREAD_STOPPED
+		   && signal_may_wake(signal)))
 			thread_wake_up(thread);
 	}
 
-success:	
-	spin_unlock(&thread->sinfo.lock);
-
+success:
 	return 0;
 
 failure_oom:
@@ -591,7 +648,6 @@ failure_oom:
 		panic("SIGNAL_FORCE couldn't be done");
 	}
 
-	spin_unlock(&thread->sinfo.lock);
 	return -ENOMEM;
 }
 
@@ -748,16 +804,13 @@ int sys_sigaction(int signum, const struct k_sigaction *act, struct k_sigaction 
 	struct process *proc = get_current_process();
 
 	/* Lock the signal table */
-	spin_lock(&proc->signal_lock);
+	scoped_lock g{proc->signal_lock};
 
 	/* If old_act, save the old action */
 	if(oldact)
 	{
 		if(copy_to_user(oldact, &proc->sigtable[signum], sizeof(struct k_sigaction)) < 0)
-		{
-			st = -EFAULT;
-			goto out;
-		}
+			return -EFAULT;
 	}
 
 	/* If act, set the new action */
@@ -766,31 +819,22 @@ int sys_sigaction(int signum, const struct k_sigaction *act, struct k_sigaction 
 		struct k_sigaction sa;
 
 		if(copy_from_user(&sa, act, sizeof(struct k_sigaction)) < 0)
-		{
-			st = -EFAULT;
-			goto out;
-		}
+			return -EFAULT;
 
 		if(act->sa_handler == SIG_ERR)
-		{
-			st = -EINVAL;
-			goto out;
-		}
+			return -EINVAL;
+
 		/* Check if it's actually possible to set a handler to this signal */
 		switch(signum)
 		{
 			/* If not, return EINVAL */
 			case SIGKILL:
 			case SIGSTOP:
-				st = -EINVAL;
-				goto out;
+				return -EINVAL;
 		}
 
 		memcpy(&proc->sigtable[signum], &sa, sizeof(sa));
 	}
-
-out:
-	spin_unlock(&proc->signal_lock);
 
 	return st;
 }
@@ -1158,8 +1202,7 @@ int sys_rt_sigtimedwait(const sigset_t *set, siginfo_t *info, const struct times
 		st = -EFAULT;
 	}
 
-	free(pending->info);
-	free(pending);
+	delete pending;
 
 out:
 	spin_unlock(&thread->sinfo.lock);
@@ -1253,4 +1296,34 @@ int sys_sigaltstack(const stack_t *new_stack, stack_t *old_stack, const struct s
 	}
 
 	return 0;
+}
+
+void signal_info::reroute_signals(process *p)
+{
+	scoped_lock g{lock};
+
+	list_for_every_safe(&pending_head)
+	{
+		auto pending = container_of(l, struct sigpending, list_node);
+
+		list_remove(&pending->list_node);
+
+		if(!p->route_signal(pending))
+		{
+			delete pending;
+		}
+	}
+}
+
+signal_info::~signal_info()
+{
+	scoped_lock g{lock};
+
+	list_for_every_safe(&pending_head)
+	{
+		auto pending = container_of(l, struct sigpending, list_node);
+
+		list_remove(&pending->list_node);
+		delete pending;
+	}
 }

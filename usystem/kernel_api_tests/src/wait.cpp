@@ -77,3 +77,70 @@ TEST(SigChld, SigChldInfoExit)
 		exit(12);
 	}
 }
+
+TEST(WaitStatus, SigStopCont)
+{
+	Waiter w;
+	pid_t pid = fork();
+
+	ASSERT_NE(pid, -1);
+
+	if(pid == 0)
+	{
+		raise(SIGSTOP);
+		w.Wait();
+		exit(0);
+	}
+	else
+	{
+		int wstatus;
+		ASSERT_EQ(waitpid(pid, &wstatus, WSTOPPED), pid);
+
+		EXPECT_TRUE(WIFSTOPPED(wstatus));
+		EXPECT_TRUE(WSTOPSIG(wstatus) == SIGSTOP);
+		EXPECT_TRUE(waitpid(pid, &wstatus, WSTOPPED | WNOHANG) == 0);
+		kill(pid, SIGCONT);
+
+		EXPECT_EQ(waitpid(pid, &wstatus, WCONTINUED), pid);
+		EXPECT_TRUE(WIFCONTINUED(wstatus));
+
+		EXPECT_TRUE(waitpid(pid, &wstatus, WCONTINUED | WNOHANG) == 0);
+
+		w.Wake();
+		EXPECT_EQ(waitpid(pid, &wstatus, 0), pid);
+
+		EXPECT_TRUE(WIFEXITED(wstatus));
+		EXPECT_EQ(WEXITSTATUS(wstatus), 0);
+	}
+}
+
+TEST(WaitStatus, SigStopKill)
+{
+	Waiter w;
+	pid_t pid = fork();
+
+	ASSERT_NE(pid, -1);
+
+	if(pid == 0)
+	{
+		raise(SIGSTOP);
+		w.Wait();
+		exit(0);
+	}
+	else
+	{
+		int wstatus;
+		ASSERT_EQ(waitpid(pid, &wstatus, WSTOPPED), pid);
+
+		EXPECT_TRUE(WIFSTOPPED(wstatus));
+		EXPECT_TRUE(WSTOPSIG(wstatus) == SIGSTOP);
+		EXPECT_TRUE(waitpid(pid, &wstatus, WSTOPPED | WNOHANG) == 0);
+		kill(pid, SIGKILL);
+
+		w.Wake();
+		EXPECT_EQ(waitpid(pid, &wstatus, 0), pid);
+
+		EXPECT_TRUE(WIFSIGNALED(wstatus));
+		EXPECT_EQ(WTERMSIG(wstatus), SIGKILL);
+	}
+}

@@ -44,6 +44,11 @@ void percpu_add_percpu(unsigned long base)
 	percpu_bases[nr_bases - 1] = base;
 }
 
+unsigned long percpu_get_nr_bases()
+{
+	return nr_bases;
+}
+
 void percpu_init()
 {
 	size_t percpu_size = (unsigned long) &__percpu_end - (unsigned long) &__percpu_start;

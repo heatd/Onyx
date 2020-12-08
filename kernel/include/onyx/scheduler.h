@@ -68,6 +68,20 @@ typedef struct thread
 	void *fs;
 	void *gs;
 #endif
+
+#ifdef __cplusplus
+	thread() : refcount{}, canary{}, kernel_stack{}, kernel_stack_top{}, owner{}, entry{}, flags{}, id{},
+	           status{}, priority{}, cpu{}, next{}, prev_prio{}, next_prio{}, prev_wait{}, next_wait{},
+			   fpu_area{}, sem_prev{}, sem_next{}, lock{}, errno_val{}, sinfo{}, thread_list_head{},
+			   addr_limit{}, wait_list_head{}, ctid{}, cputime_info{}
+#ifdef __x86_64__
+	, fs{}, gs{}
+#endif
+	{
+
+	}
+#endif
+
 } thread_t;
 
 #define THREAD_KERNEL			(1 << 0)
@@ -187,6 +201,11 @@ static inline void thread_put(struct thread *thread)
 {
 	if(__atomic_sub_fetch(&thread->refcount, 1, __ATOMIC_ACQUIRE) == 0)
 		thread_destroy(thread);
+}
+
+static inline void thread_set_flag(struct thread *thread, unsigned int flag)
+{
+	__atomic_or_fetch(&thread->flags, flag, __ATOMIC_RELAXED);
 }
 
 void sched_transition_to_idle(void);

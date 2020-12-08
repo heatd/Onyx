@@ -16,7 +16,7 @@
 #include <onyx/scoped_lock.h>
 #endif
 
-static struct spinlock buffer_lock;
+static mutex buffer_lock;
 static char buffer[10000];
 int bufferPos = 0;
 void print(const char *data, size_t data_length)
@@ -72,7 +72,7 @@ int putchar(int c)
 extern "C"
 int printf(const char *__restrict__ format, ...)
 {
-	scoped_lock<spinlock> g{buffer_lock};
+	scoped_mutex<false> g{buffer_lock};
 	va_list parameters;
 	va_start(parameters, format);
 	int i = vsnprintf(buffer, 10000, format, parameters);
@@ -87,6 +87,7 @@ int printf(const char *__restrict__ format, ...)
 extern "C"
 int printk(const char *__restrict__ format, ...)
 {
+	scoped_mutex<false> g{buffer_lock};
 	va_list parameters;
 	va_start(parameters, format);
 	int i = vsnprintf(buffer, 10000, format, parameters);

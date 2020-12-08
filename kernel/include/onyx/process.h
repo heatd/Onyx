@@ -134,6 +134,17 @@ struct process
 		process_put(this);
 	}
 
+	bool route_signal(struct sigpending *pend);
+
+	void remove_thread(thread *t)
+	{
+		scoped_lock g{thread_list_lock};
+
+		nr_threads--;
+
+		list_remove(&t->thread_list_head);
+	}
+
 #endif
 
 };
@@ -151,7 +162,7 @@ struct thread *process_fork_thread(thread_t *src, struct process *dest, struct s
 void process_destroy_aspace(void);
 int process_attach(struct process *tracer, struct process *tracee);
 struct process *process_find_tracee(struct process *tracer, pid_t pid);
-void process_exit_from_signal(int signum);
+
 void process_end(struct process *p);
 void process_add_thread(struct process *process, thread_t *thread);
 char **process_copy_envarg(const char **envarg, bool to_kernel, int *count);
@@ -209,6 +220,34 @@ void for_every_process(process_visit_function_t func, void *ctx);
 #define RUSAGE_BOTH    -2
 
 int do_rusage(int who, rusage *usage, process *p);
+
+void notify_process_stop_cont(process *proc, int signum);
+
+template <typename Callable>
+void process_for_every_thread_unlocked(process *p, Callable cb)
+{
+
+	list_for_every(&p->thread_list)
+	{
+		thread *t = container_of(l, struct thread, thread_list_head);
+
+		if(!cb(t))
+			return;
+	}
+}
+
+template <typename Callable>
+void process_for_every_thread(process *p, Callable cb)
+{
+	scoped_lock g{p->thread_list_lock};
+
+	process_for_every_thread_unlocked(p, cb);
+}
+
+[[noreturn]]
+void process_exit_from_signal(int signum);
+
+
 #endif
 
 #endif
