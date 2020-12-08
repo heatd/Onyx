@@ -53,7 +53,7 @@ expected<ext2_inode_no, int> ext2_block_group::allocate_inode(ext2_superblock *s
 	static constexpr auto bits_per_long = WORD_SIZE * CHAR_BIT;
 
 	/* Set the corresponding bit */
-	bitmap[bit / bits_per_long] |= (1 << (bit % bits_per_long));
+	bitmap[bit / bits_per_long] |= (1UL << (bit % bits_per_long));
 	/* Change the block group and superblock
 	   structures in order to reflect it */
 
@@ -95,7 +95,11 @@ expected<ext2_inode_no, int> ext2_block_group::allocate_block(ext2_superblock *s
 	static constexpr auto bits_per_long = WORD_SIZE * CHAR_BIT;
 
 	/* Set the corresponding bit */
-	bitmap[bit / bits_per_long] |= (1 << (bit % bits_per_long));
+#if 0
+	printk("setting %lu on word %lu\n", (bit % bits_per_long), bit / bits_per_long);
+#endif
+
+	bitmap[bit / bits_per_long] |= (1UL << (bit % bits_per_long));
 
 	assert(ext2_scan_zero(bitmap, sb->s_block_size) != bit);
 

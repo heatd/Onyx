@@ -319,8 +319,34 @@ extern "C" struct block_buf *sb_read_block(const struct superblock *sb, unsigned
 	return buf;
 }
 
+struct sb
+{
+	uint32_t s_inodes_count;
+	uint32_t s_blocks_count;
+	uint32_t s_r_blocks_count;
+	uint32_t s_free_blocks_count;
+	uint32_t s_free_inodes_count;
+	uint32_t s_first_data_block;
+	uint32_t s_log_block_size;
+	uint32_t s_log_frag_size;
+	uint32_t s_blocks_per_group;
+	uint32_t s_frags_per_group;
+	uint32_t s_inodes_per_group;
+	uint32_t s_mtime;
+	uint32_t s_wtime;
+	uint16_t s_mnt_count;
+	uint16_t s_max_mnt_count;
+	uint16_t s_magic;
+};
+
 void block_buf_dirty(block_buf *buf)
 {
+	if(buf->block_nr == 0)
+	{
+		sb *s = (sb *) ((char *) block_buf_data(buf) + 1024);
+		assert(s->s_magic == 0xef53);
+	}
+
 	block_buf_set_dirty(true, &buf->flush_obj);
 }
 

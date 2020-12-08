@@ -600,6 +600,8 @@ int inode_init(struct inode *inode, bool is_cached)
 		}
 	}
 
+	rwlock_init(&inode->i_rwlock);
+
 	return 0;
 }
 
