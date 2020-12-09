@@ -14,6 +14,7 @@ int tolower(int c)
 	}
 	return c;
 }
+
 int toupper(int c)
 {
 	if(c > 96 && c < 123) {
@@ -21,15 +22,22 @@ int toupper(int c)
 	}
 	return c;
 }
+
 int isnum(int c)
 {
 	if(c >= 48 && c <= 57)
 		return 1;
 	return 0;
 }
+
 int isalnum(int c)
 {
 	if(isnum(c) || isalpha(c))
 		return 1;
 	return 0;	
+}
+
+int isxdigit(int c)
+{
+	return isdigit(c) || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f');
 }

@@ -96,6 +96,16 @@ size_t count_strings_len(char **ps, int *count)
 	return total_len;
 }
 
+static char *copy_string(char *restrict s1, const char *restrict s2)
+{
+	char *restrict dst = s1;
+	const char *restrict src = s2;
+	while(*src != '\0')
+		*dst++ = *src++;
+
+	return dst;
+}
+
 /* Sigh... Why doesn't C have references... */
 void process_put_strings(char ***pp, char **pstrings, char **vec)
 {
@@ -107,7 +117,7 @@ void process_put_strings(char ***pp, char **pstrings, char **vec)
 		char *s = strings;
 		/* stpcpy returns a pointer to dest, then we add one to account for the null byte */
 		//printk("Writing (%s) strlen %lu to %p\n", *vec, strlen(*vec), s);
-		strings = stpcpy(strings, *vec) + 1;
+		strings = copy_string(strings, *vec) + 1;
 		*p = s;
 		vec++;
 		p++;

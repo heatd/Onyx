@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2016, 2017 Pedro Falcato
+* Copyright (c) 2016-2020 Pedro Falcato
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
@@ -14,6 +14,19 @@ char *strcpy(char *dest, const char *src)
 	return ret;
 }
 
+char *strncpy(char *dest, const char *src, size_t count)
+{
+	char *ret = dest;
+	while(count--)
+	{
+		if(*src != '\0')
+			*dest++ = *src++;
+		else
+			*dest++ = '\0';
+	}
+
+	return ret;
+}
 
 /* musl-1.16 code */
 #include <string.h>

@@ -8,9 +8,10 @@ char *stpcpy(char *restrict s1, const char *restrict s2)
 {
 	char *restrict dst = s1;
 	const char *restrict src = s2;
-	while(*src != '\0')
+	do
 	{
 		*dst++ = *src++;
-	}
-	return dst;
+	} while(*src != '\0');
+
+	return dst - 1;
 }

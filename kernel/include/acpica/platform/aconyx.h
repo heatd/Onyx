@@ -32,8 +32,11 @@ struct spinlock;
 #define ACPI_SPINLOCK 				struct spinlock*
 #define ACPI_SEMAPHORE              struct semaphore*
 
-#undef ACPI_USE_SYSTEM_CLIBRARY
+#define ACPI_USE_SYSTEM_CLIBRARY
 #undef ACPI_USE_STANDARD_HEADERS
+
+#include <ctype.h>
+#include <string.h>
 //#undef ACPI_USE_LOCAL_CACHE
 //#undef ACPI_USE_NATIVE_DIVIDE
 
