@@ -105,13 +105,14 @@ void idt_init(void)
 	x86_reserve_vector(30, isr30);
 	x86_reserve_vector(31, isr31);
 
-	unsigned int to_reserve[] = {X86_MESSAGE_VECTOR, X86_RESCHED_VECTOR, 255};
+	const unsigned int to_reserve[] = {X86_MESSAGE_VECTOR, X86_RESCHED_VECTOR,
+	                                   X86_SYNC_CALL_VECTOR, 255};
 	unsigned int len = sizeof(to_reserve) / sizeof(unsigned int);
 
 	for(unsigned int i = 0; i < len; i++)
 	{
 		int vector = to_reserve[i] - EXCEPTION_VECTORS_END;
-		void(*irq_stub_handler)() = (void*) x86_isr_table[vector + EXCEPTION_VECTORS_END];
+		void(*irq_stub_handler)() = (void (*)()) x86_isr_table[vector + EXCEPTION_VECTORS_END];
 
 		printf("Setting up vector %u, %p\n", vector + EXCEPTION_VECTORS_END, irq_stub_handler);
 		x86_reserve_vector(vector + EXCEPTION_VECTORS_END, irq_stub_handler);

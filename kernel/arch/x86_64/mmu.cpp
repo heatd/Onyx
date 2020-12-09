@@ -16,6 +16,7 @@
 #include <onyx/cpu.h>
 
 #include <onyx/x86/pat.h>
+#include <onyx/smp.h>
 
 static const unsigned int x86_paging_levels = 4;
 static const unsigned int x86_max_paging_levels = 5;
@@ -825,7 +826,7 @@ void paging_invalidate(void *page, size_t pages)
 {
 	uintptr_t p = (uintptr_t) page;
 
-	for(size_t i = 0; i < pages; i++, p += 4096)
+	for(size_t i = 0; i < pages; i++, p += PAGE_SIZE)
 	{
 		total_shootdowns++;
 		__native_tlb_invalidate_page((void *) p);
@@ -1270,4 +1271,57 @@ int vm_mmu_unmap(struct mm_address_space *as, void *addr, size_t pages)
 	assert(it.length() == 0);
 
 	return 0;
+}
+
+static inline bool is_higher_half(unsigned long address)
+{
+	return address > VM_HIGHER_HALF;
+}
+
+PER_CPU_VAR(unsigned long tlb_nr_invals) = 0;
+PER_CPU_VAR(unsigned long nr_tlb_shootdowns) = 0;
+
+struct mm_shootdown_info
+{
+	unsigned long addr;
+	size_t pages;
+	mm_address_space *mm;
+};
+
+void x86_invalidate_tlb(void *context)
+{
+	auto info = (mm_shootdown_info *) context;
+	auto addr = info->addr;
+	auto pages = info->pages;
+	auto addr_space = info->mm;
+
+	auto curr_thread = get_current_thread();
+
+	if(is_higher_half(addr) || (curr_thread->owner && &curr_thread->owner->address_space == addr_space))
+	{
+		paging_invalidate((void *) addr, pages);
+		add_per_cpu(tlb_nr_invals, 1);
+	}
+}
+
+void mmu_invalidate_range(unsigned long addr, size_t pages, mm_address_space *mm)
+{
+	add_per_cpu(nr_tlb_shootdowns, 1);
+	mm_shootdown_info info{addr, pages, mm};
+
+	auto our_cpu = get_cpu_nr();
+	cpumask mask;
+	
+	if(addr >= VM_HIGHER_HALF)
+	{
+		mask = cpumask::all_but_one(our_cpu);
+	}
+	else
+	{
+		mask = *(cpumask *) mm->active_mask;
+		mask.remove_cpu(our_cpu);
+	}
+	
+
+	smp::sync_call_with_local(x86_invalidate_tlb, &info, mask, x86_invalidate_tlb, &info);
 }

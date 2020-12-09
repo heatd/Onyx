@@ -294,6 +294,7 @@ void arch_load_process(struct process *process, struct thread *thread,
                        unsigned int cpu)
 {
 	vm_load_arch_mmu(&process->address_space.arch_mmu);
+	((cpumask *) process->address_space.active_mask)->set_cpu_atomic(cpu);
 }
 
 void arch_context_switch(thread *prev, thread *next)

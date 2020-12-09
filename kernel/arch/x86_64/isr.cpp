@@ -243,7 +243,6 @@ void general_protection_fault(struct registers *ctx)
 	}
 
 	printk("GPF error code: %04x\n", (uint16_t) ctx->int_err_code);
-	panic("boo thread %p", current);
 
 	siginfo_t info = {};
 	info.si_code = SI_KERNEL;
@@ -523,6 +522,7 @@ unsigned long isr_handler(struct registers *ctx)
 
 void platform_send_eoi(uint64_t irq);
 
+extern "C"
 unsigned long x86_dispatch_interrupt(struct registers *regs)
 {
 	unsigned long vec_no = regs->int_no;
@@ -538,6 +538,11 @@ unsigned long x86_dispatch_interrupt(struct registers *regs)
 		result = INTERRUPT_STACK_ALIGN(cpu_handle_messages(regs));
 	else if(vec_no == X86_RESCHED_VECTOR)
 		result = INTERRUPT_STACK_ALIGN(cpu_resched(regs));
+	else if(vec_no == X86_SYNC_CALL_VECTOR)
+	{
+		smp::cpu_handle_sync_calls();		
+		result = INTERRUPT_STACK_ALIGN(regs);
+	}
 	else result = INTERRUPT_STACK_ALIGN(irq_handler(regs));
 
 	return result;

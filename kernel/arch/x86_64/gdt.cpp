@@ -20,12 +20,13 @@ uint16_t gdt_get_size()
 }
 
 extern gdtr_t gdtr3;
-extern void gdt_flush(gdtr_t *gdtr);
+extern "C" void gdt_flush(gdtr_t *gdtr);
+
 void gdt_init_percpu(void)
 {
 	uint16_t size = gdt_get_size();
 	/* Create another copy of the gdt */
-	uint64_t *gdt = malloc(size);
+	uint64_t *gdt = reinterpret_cast<uint64_t *>(malloc(size));
 	if(!gdt)
 	{
 		panic("Out of memory while allocating a percpu GDT");
@@ -33,7 +34,7 @@ void gdt_init_percpu(void)
 
 	gdtr_t gdtr;
 
-	gdtr_t *g = PHYS_TO_VIRT(&gdtr3);
+	gdtr_t *g = (gdtr_t *) PHYS_TO_VIRT(&gdtr3);
 	/* Copy the gdt */
 	memcpy(gdt, (const void*) g->ptr, size);
 

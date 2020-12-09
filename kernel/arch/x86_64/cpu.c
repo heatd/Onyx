@@ -342,7 +342,7 @@ INIT_LEVEL_EARLY_PLATFORM_ENTRY(cpu_init_late);
 
 extern PML *boot_pml4;
 
-void smpboot_main(unsigned long gs_base)
+void smpboot_main(unsigned long gs_base, volatile struct smp_header *header)
 {
 	wrmsr(GS_BASE_MSR, gs_base);
 
@@ -358,6 +358,8 @@ void smpboot_main(unsigned long gs_base)
 
 	/* Enable interrupts */
 	ENABLE_INTERRUPTS();
+
+	header->boot_done = true;
 
 	sched_transition_to_idle();
 }
@@ -412,12 +414,17 @@ void cpu_messages_init(unsigned int cpu)
 	struct spinlock *l = get_per_cpu_ptr_any(msg_queue_lock, cpu);
 	spinlock_init(l);
 
-	do_init_level(INIT_LEVEL_CORE_PERCPU_CTOR);
+	do_init_level_percpu(INIT_LEVEL_CORE_PERCPU_CTOR, cpu);
 }
 
 void cpu_send_resched(unsigned int cpu)
 {
 	apic_send_ipi(apic_get_lapic_id(cpu), 0, X86_RESCHED_VECTOR);
+}
+
+void cpu_send_sync_notif(unsigned int cpu)
+{
+	apic_send_ipi(apic_get_lapic_id(cpu), 0, X86_SYNC_CALL_VECTOR);
 }
 
 bool cpu_send_message(unsigned int cpu, unsigned long message, void *arg, bool should_wait)
@@ -492,14 +499,6 @@ void cpu_handle_message(struct cpu_message *msg)
 			str = "CPU_TRY_RESCHED";
 			cpu_try_resched();
 			msg->ack = true;
-			break;
-		case CPU_FLUSH_TLB:
-			str = "CPU_FLUSH_TLB";
-			/* The order of the ack is important here! */
-			vm_do_shootdown(msg->ptr);
-			COMPILER_BARRIER();
-			msg->ack = true;
-			write_memory_barrier();
 			break;
 	}
 

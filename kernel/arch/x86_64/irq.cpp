@@ -40,7 +40,7 @@ void check_for_resched(struct irq_context *context)
 	if(curr && sched_needs_resched(curr))
 	{
 		curr->flags &= ~THREAD_NEEDS_RESCHED;
-		context->registers = sched_preempt_thread(context->registers);
+		context->registers = (registers_t *) sched_preempt_thread(context->registers);
 	}
 }
 
@@ -49,7 +49,7 @@ unsigned long irq_handler(struct registers *regs)
 	/* Just return on the odd occasion that irqn > NR_IRQ */
 	assert(irq_is_disabled() == true);
 
-	uint64_t irqn = regs->int_no - EXCEPTION_VECTORS_END;
+	auto irqn = regs->int_no - EXCEPTION_VECTORS_END;
 
 	/* TODO: Maybe assert'ing would be better */
 	if(irqn > NR_IRQ + EXCEPTION_VECTORS_END)

@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2016, 2017 Pedro Falcato
+* Copyright (c) 2016-2020 Pedro Falcato
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
@@ -230,6 +230,7 @@ void vm_addr_init(void)
 	kernel_address_space.area_tree = rb_tree_new(vm_cmp);
 	kernel_address_space.start = KADDR_START;
 	kernel_address_space.end = UINTPTR_MAX;
+	kernel_address_space.active_mask = vm_create_active_cpus();
 	mutex_init(&kernel_address_space.vm_lock);
 	vm_save_current_mmu(&kernel_address_space);
 
@@ -926,6 +927,7 @@ int vm_fork_address_space(struct mm_address_space *addr_space)
 	addr_space->brk = current_mm->brk;
 	addr_space->start = current_mm->start;
 	addr_space->end = current_mm->end;
+	addr_space->active_mask = vm_create_active_cpus();
 	mutex_init(&addr_space->vm_lock);
 
 	__vm_unlock(false);
@@ -956,7 +958,6 @@ void vm_change_perms(void *range, size_t pages, int perms)
 	}
 
 	vm_invalidate_range((unsigned long) range, pages);
-
 	
 	if(needs_release)
 		mutex_unlock(&as->vm_lock);
@@ -2040,6 +2041,7 @@ void vm_destroy_addr_space(struct mm_address_space *mm)
 	/* First, iterate through the rb tree and free/unmap stuff */
 	mutex_lock(&mm->vm_lock);
 	rb_tree_free(mm->area_tree, vm_destroy_area);
+	free(mm->active_mask);
 
 	assert(mm->resident_set_size == 0);
 	assert(mm->shared_set_size == 0);
@@ -2536,6 +2538,7 @@ int vm_create_address_space(struct mm_address_space *mm, struct process *process
 	mm->resident_set_size = 0;
 	mm->shared_set_size = 0;
 	mm->virtual_memory_size = 0;
+	mm->active_mask = vm_create_active_cpus();
 	mutex_init(&mm->vm_lock);
 
 	mm->area_tree = rb_tree_new(vm_cmp);
@@ -2759,69 +2762,16 @@ void vm_for_every_region(struct mm_address_space *as, bool (*func)(struct vm_reg
 	rb_tree_traverse(as->area_tree, for_every_region_visit, (void *) func);
 }
 
-PER_CPU_VAR(unsigned long tlb_nr_invals) = 0;
-PER_CPU_VAR(unsigned long nr_tlb_shootdowns) = 0;
-
-void vm_do_shootdown(struct tlb_shootdown *inv_data)
-{
-	add_per_cpu(tlb_nr_invals, 1);
-
-	paging_invalidate((void *) inv_data->addr, inv_data->pages);
-}
-
 extern struct spinlock scheduler_lock;
 
 #if CONFIG_TRACK_TLB_DELTA
 hrtime_delta_t last_inval_delta = 0;
 #endif
 
-void __vm_invalidate_range(unsigned long addr, size_t pages, struct mm_address_space *mm)
-{
-#if CONFIG_TRACK_TLB_DELTA
-	hrtime_t t0 = clocksource_get_time();
-#endif
-
-	add_per_cpu(nr_tlb_shootdowns, 1);
-
-	bool is_kernel_address = is_higher_half((void *) addr);
-
-	for(unsigned int cpu = 0; cpu < get_nr_cpus(); cpu++)
-	{
-		if(cpu == get_cpu_nr())
-		{
-			add_per_cpu(tlb_nr_invals, 1);
-			paging_invalidate((void *) addr, pages);
-		}
-		else
-		{
-			/* We need to save irqs here because there might be an IRQ that
-			 * interrupts us and wants to wake a thread, and then we're deadlocked.
-			 */
-	
-			struct process *p = get_thread_for_cpu(cpu)->owner;
-
-			if(!is_kernel_address && (!p || mm != &p->address_space))
-			{
-				continue;
-			}
-	
-			struct tlb_shootdown shootdown;
-			shootdown.addr = addr;
-			shootdown.pages = pages;
-			write_memory_barrier();
-
-			cpu_send_message(cpu, CPU_FLUSH_TLB, &shootdown, true);
-		}
-	}
-#if CONFIG_TRACK_TLB_DELTA
-	last_inval_delta = clocksource_get_time() - t0;
-#endif
-}
-
 
 void vm_invalidate_range(unsigned long addr, size_t pages)
 {
-	return __vm_invalidate_range(addr, pages, get_current_address_space());
+	return mmu_invalidate_range(addr, pages, get_current_address_space());
 }
 
 bool vm_can_expand(struct mm_address_space *as, struct vm_region *region, size_t new_size)
@@ -3293,7 +3243,7 @@ void vm_wp_page(struct mm_address_space *mm, void *vaddr)
 {
 	assert(paging_write_protect(vaddr, mm) == true);
 
-	__vm_invalidate_range((unsigned long) vaddr, 1, mm);
+	mmu_invalidate_range((unsigned long) vaddr, 1, mm);
 }
 
 void vm_wp_page_for_every_region(struct page *page, size_t page_off, struct vm_object *vmo)

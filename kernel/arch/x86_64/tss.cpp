@@ -14,7 +14,7 @@
 #include <onyx/x86/gdt.h>
 #include <onyx/init.h>
 
-extern void tss_flush();
+extern "C" void tss_flush();
 
 void tss_init(void)
 {
@@ -37,7 +37,7 @@ unsigned char *double_fault_stack_top = &double_fault_stack[2047];
 
 void init_percpu_tss(uint64_t *gdt)
 {
-	tss_entry_t *new_tss = malloc(sizeof(tss_entry_t));
+	tss_entry_t *new_tss = new tss_entry_t;
 	if(!new_tss)
 	{
 		panic("Out of memory allocating a per-cpu TSS");

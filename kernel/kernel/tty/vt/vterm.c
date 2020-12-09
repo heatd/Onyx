@@ -1257,9 +1257,11 @@ int vterm_handle_key(struct vterm *vt, struct input_device *dev, struct input_ev
 	if(!(ev->flags & INPUT_EVENT_FLAG_PRESSED))
 		return 0;
 
+#ifdef CONFIG_SCHED_DUMP_THREADS_MAGIC
 	/* Don't have this enabled by default */
-	if(1 && ev->code == KEYMAP_KEY_KEYPAD_NUMLCK)
+	if(ev->code == KEYMAP_KEY_KEYPAD_NUMLCK)
 		sched_dump_threads();
+#endif
 
 	struct key_action *acts = pt_pt_key_actions;
 	struct key_action *desired_action = NULL;

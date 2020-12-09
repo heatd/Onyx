@@ -12,6 +12,9 @@
 #include <onyx/percpu.h>
 
 #ifdef __cplusplus
+
+#include <onyx/cpumask.h>
+
 namespace smp
 {
 
@@ -21,6 +24,31 @@ void boot(unsigned int cpu);
 unsigned int get_online_cpus();
 
 void boot_cpus();
+
+using sync_call_func = void (*)(void *context);
+
+/**
+ * @brief Calls f on every CPU
+ * 
+ * @param f The function to call on every cpu
+ * @param context Context to get passed to f
+ * @param mask Mask of cpus that will execute this
+ */
+void sync_call(sync_call_func f, void *context, const cpumask& mask);
+
+/**
+ * @brief Calls f on every CPU, and calls local on the local CPU
+ * 
+ * @param f The function to call on every cpu
+ * @param context Context to get passed to f
+ * @param mask Mask of cpus that will execute this
+ * @param local The function to get called on this cpu
+ * @param context2 The context for the local function
+ */
+void sync_call_with_local(sync_call_func f, void *context, const cpumask& mask,
+               sync_call_func local, void *context2);
+
+void cpu_handle_sync_calls();
 
 };
 #endif

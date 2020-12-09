@@ -200,6 +200,7 @@
 
 #define X86_MESSAGE_VECTOR		(130)
 #define X86_RESCHED_VECTOR      (131)
+#define X86_SYNC_CALL_VECTOR    (132)
 
 #define X86_CPU_MANUFACTURER_INTEL	0
 #define X86_CPU_MANUFACTURER_AMD	1
@@ -268,6 +269,7 @@ void cpu_kill_other_cpus(void);
 void cpu_kill(int cpu_num);
 bool cpu_send_message(unsigned int cpu, unsigned long message, void *arg, bool should_wait);
 void cpu_send_resched(unsigned int cpu);
+void cpu_send_sync_notif(unsigned int cpu);
 void __cpu_resched(void);
 void cpu_messages_init(unsigned int cpu);
 void *cpu_handle_messages(void *stack);

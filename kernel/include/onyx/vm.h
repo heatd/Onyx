@@ -142,6 +142,9 @@ struct mm_address_space
 	struct spinlock private_vmo_lock;
 	struct vm_object *vmo_head, *vmo_tail;
 	struct arch_mm_address_space arch_mmu;
+	
+	/* Ah yes, void * time - this in reality should be a cpumask, but C won't like it :((( */
+	void *active_mask;
 };
 
 #ifdef __cplusplus
@@ -205,7 +208,6 @@ struct tlb_shootdown
 	size_t pages;
 };
 
-void vm_do_shootdown(struct tlb_shootdown *inv_data);
 void vm_invalidate_range(unsigned long addr, size_t pages);
 
 #define VM_MMAP_PRIVATE		(1 << 0)
@@ -274,7 +276,7 @@ struct kernel_limits
 void get_kernel_limits(struct kernel_limits *l);
 struct page *vm_commit_page(void *page);
 void vm_wp_page_for_every_region(struct page *page, size_t offset, struct vm_object *vmo);
-void __vm_invalidate_range(unsigned long addr, size_t pages, struct mm_address_space *mm);
+void mmu_invalidate_range(unsigned long addr, size_t pages, struct mm_address_space *mm);
 
 #define VM_FUTURE_PAGES			(1 << 0)
 #define VM_LOCK				    (1 << 1)
@@ -313,6 +315,8 @@ void vm_mmu_mprotect_page(struct mm_address_space *as, void *addr, int old_prots
 void vm_switch_to_fallback_pgd(void);
 
 struct page *vm_get_zero_page(void);
+
+void *vm_create_active_cpus(void);
 
 #ifdef __cplusplus
 }

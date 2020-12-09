@@ -105,10 +105,10 @@ _long_mode:
 	mov $0xffffd00000000000, %rax
 	add %rax, %rdx
 	mov (%rdx), %rdi
-	# Say to the BSP that we finished
-	mov $(ap_done - _start_smp), %rbx
-	add %rax, %rbx
-	lock incb (%rbx)
+
+	mov $(smpboot_header - _start_smp), %rsi
+	add %rax, %rsi
+
 	.extern smpboot_main
 	push $smpboot_main
 	ret

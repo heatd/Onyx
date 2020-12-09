@@ -280,6 +280,19 @@ void do_init_level(unsigned int level)
 	}
 }
 
+void do_init_level_percpu(unsigned int level, unsigned int cpu)
+{
+	unsigned long *start = init_levels[level].level_start;
+	unsigned long *end = init_levels[level].level_end;
+
+	while(start != end)
+	{
+		void (*func)(unsigned int) = (void *) *start;
+		func(cpu);
+		start++;
+	}
+}
+
 void fs_init(void)
 {
 	/* Initialize the VFS */

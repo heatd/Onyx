@@ -4,7 +4,6 @@
 * check LICENSE at the root directory for more information
 */
 
-#include <onyx/x86/gs-offsets.h>
 #include <onyx/x86/syscall.h>
 
 .section .text

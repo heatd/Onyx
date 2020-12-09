@@ -254,9 +254,9 @@ struct rx_queue_percpu
 
 PER_CPU_VAR(rx_queue_percpu rx_queue);
 
-static void init_rx_queues()
+static void init_rx_queues(unsigned int cpu)
 {
-	auto q = get_per_cpu_ptr(rx_queue);
+	auto q = get_per_cpu_ptr_any(rx_queue, cpu);
 	spinlock_init(&q->lock);
 	INIT_LIST_HEAD(&q->to_rx_list);
 }

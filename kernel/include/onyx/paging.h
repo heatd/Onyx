@@ -50,7 +50,6 @@ bool paging_change_perms(void *addr, int prot);
 bool __paging_change_perms(struct mm_address_space *mm, void *addr, int prot);
 int is_invalid_arch_range(void *address, size_t pages);
 void paging_protect_kernel(void);
-void paging_invalidate(void *page, size_t pages);
 void paging_free_page_tables(struct mm_address_space *mm);
 bool paging_write_protect(void *addr, struct mm_address_space *mm);
 int vm_mmu_unmap(struct mm_address_space *as, void *addr, size_t pages);

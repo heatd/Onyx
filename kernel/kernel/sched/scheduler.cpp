@@ -288,7 +288,7 @@ void sched_load_thread(thread *thread, unsigned int cpu, unsigned long og_cpufla
 }
 
 void sched_load_finish(thread *prev_thread, thread *next_thread)
-{	
+{
 	native::arch_context_switch(prev_thread, next_thread);
 }
 
@@ -328,6 +328,14 @@ extern "C" void *sched_schedule(void *last_stack)
 
 	curr_thread = sched_find_runnable();
 	st_invoked++;
+
+	if(source_thread != curr_thread)
+	{
+		if(source_thread->owner)
+		{
+			((cpumask *) source_thread->owner->address_space.active_mask)->remove_cpu_atomic(get_cpu_nr());
+		}
+	}
 
 	sched_load_thread(curr_thread, get_cpu_nr(), original_cpuflags);
 	

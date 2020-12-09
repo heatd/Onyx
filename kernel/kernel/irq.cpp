@@ -21,9 +21,12 @@ unsigned long rogue_irqs = 0;
 
 static struct interrupt_handler *add_to_list(struct irq_line *line)
 {
-	struct interrupt_handler *handler = zalloc(sizeof(*handler));
+	auto handler = new interrupt_handler;
 	if(!handler)
 		return NULL;
+	
+	memset(handler, 0, sizeof(*handler));
+
 	spin_lock(&line->list_lock);
 
 	if(!line->irq_handlers)

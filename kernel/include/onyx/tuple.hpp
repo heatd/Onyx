@@ -61,6 +61,12 @@ public:
 
 	}
 
+	tuple(Args&... args)
+		 : _Tuple_elem<0, Args...>{args...}
+	{
+
+	}
+
 	tuple()
 	{
 

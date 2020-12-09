@@ -20,7 +20,6 @@ void ktrace_disable_int3(void);
 
 #define INTERRUPT_STACK_ALIGN(regs) (((unsigned long) regs) - 8)
 
-unsigned long isr_handler(struct registers *regs);
 unsigned long irq_handler(struct registers *regs);
 
 #ifdef __cplusplus
