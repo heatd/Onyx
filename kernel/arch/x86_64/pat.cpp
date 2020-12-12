@@ -25,12 +25,12 @@ static uint64_t pat_config[PAT_NR_ENTRIES] = {0};
 /* The translation table is already setup to a legacy encoding */
 static uint64_t translation_table[PAT_NR_ENTRIES] = 
 {
-	[__VM_CACHE_TYPE_REGULAR] = 0,
-	[__VM_CACHE_TYPE_WT] = 1,
-	[__VM_CACHE_TYPE_UNCACHED] = 2,
-	[__VM_CACHE_TYPE_UNCACHEABLE] = 3,
-	[__VM_CACHE_TYPE_WC] = 0,
-	[__VM_CACHE_TYPE_WP] = 0
+	/*[__VM_CACHE_TYPE_REGULAR] =*/ 0,
+	/*[__VM_CACHE_TYPE_UNCACHED] =*/ 2,
+	/*[__VM_CACHE_TYPE_WT] =*/ 1,
+	/*[__VM_CACHE_TYPE_WC] =*/ 0,
+	/*[__VM_CACHE_TYPE_WP] =*/ 0,
+	/*[__VM_CACHE_TYPE_UNCACHEABLE] =*/ 3,
 };
 
 static void update_translation_table(void)

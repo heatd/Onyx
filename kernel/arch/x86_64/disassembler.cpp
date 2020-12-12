@@ -17,7 +17,7 @@ int debug_opcode(uint8_t *pc, struct registers *ctx)
 	{
 		case 0xe8:
 		{
-			uintptr_t *off = (void*) (pc + 1);
+			uintptr_t *off = (uintptr_t*) (pc + 1);
 			uintptr_t target_rip = (*off) + (uintptr_t) pc + 5;
 			printk("calling %p from %lx\n", pc, target_rip);
 			break;

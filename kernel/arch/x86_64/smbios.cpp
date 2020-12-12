@@ -15,7 +15,7 @@
 static struct smbios_table *tables = NULL;
 static size_t nr_structs = 0;
 
-static inline void *__find_phys_mem(void *lower_boundary, void *upper_boundary, int alignment, char *s)
+static inline void *__find_phys_mem(void *lower_boundary, void *upper_boundary, int alignment, const char *s)
 {
 	for(size_t i = 0; i < ((uintptr_t) upper_boundary - (uintptr_t) lower_boundary) / alignment; i++)
 	{
@@ -30,19 +30,19 @@ static inline void *__find_phys_mem(void *lower_boundary, void *upper_boundary, 
 /* Finds the 32-bit entry point */
 struct smbios_entrypoint32 *smbios_find_entry32()
 {
-	return __find_phys_mem((void*) 0xF0000, (void*) 0xFFFFF, 16, "_SM_");
+	return (smbios_entrypoint32*) __find_phys_mem((void*) 0xF0000, (void*) 0xFFFFF, 16, "_SM_");
 }
 
 /* Finds the 64-bit entrypoint */
 struct smbios_entrypoint64 *smbios_find_entry64()
 {
-	return __find_phys_mem((void*) 0xF0000, (void*) 0xFFFFF, 16, "_SM3_");	
+	return (smbios_entrypoint64*)__find_phys_mem((void*) 0xF0000, (void*) 0xFFFFF, 16, "_SM3_");	
 }
 
 extern bool efi64_present;
 
 /* Finds the SMBIOS tables, independently of the entry point */
-void *smbios_find_tables(void)
+smbios_table *smbios_find_tables(void)
 {
 	/* These tables can't be found like that in non BIOS systems */
 	if(efi64_present)
@@ -55,7 +55,7 @@ void *smbios_find_tables(void)
 
 		entry64 = (struct smbios_entrypoint64*)((char*) entry64 + PHYS_BASE);
 		
-		return PHYS_TO_VIRT(entry64->addr);
+		return (smbios_table *) PHYS_TO_VIRT(entry64->addr);
 	}
 
 	if(entry32)
@@ -66,8 +66,9 @@ void *smbios_find_tables(void)
 
 		entry32 = (struct smbios_entrypoint32*)((char*) entry32 + PHYS_BASE);
 
-		return PHYS_TO_VIRT(entry32->addr);
+		return (smbios_table *) PHYS_TO_VIRT(entry32->addr);
 	}
+
 	return NULL;
 }
 

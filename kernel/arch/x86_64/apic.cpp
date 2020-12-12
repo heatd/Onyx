@@ -64,7 +64,7 @@ void lapic_init(void)
 	uint64_t addr = rdmsr(IA32_APIC_BASE);
 	addr &= 0xFFFFF000;
 	/* Map the BSP's LAPIC */
-	bsp_lapic = mmiomap((void*) addr, PAGE_SIZE, VM_WRITE | VM_NOEXEC
+	bsp_lapic = (volatile uint32_t *) mmiomap((void*) addr, PAGE_SIZE, VM_WRITE | VM_NOEXEC
 		| VM_NOCACHE);
 	
 	assert(bsp_lapic != NULL);
@@ -244,7 +244,7 @@ void ioapic_early_init(void)
 {
 	/* TODO: Detecting I/O APICs should be a good idea */
 	/* Map the I/O APIC base */
-	ioapic_base = mmiomap((void*) IOAPIC_BASE_PHYS, PAGE_SIZE,
+	ioapic_base = (volatile char *) mmiomap((void*) IOAPIC_BASE_PHYS, PAGE_SIZE,
 		VM_WRITE | VM_NOEXEC | VM_NOCACHE);
 	assert(ioapic_base != NULL);
 }
@@ -257,7 +257,7 @@ void ioapic_init()
 	set_pin_handlers();
 }
 
-volatile uint64_t boot_ticks = 0;
+static uint64_t boot_ticks = 0;
 
 void apic_update_clock_monotonic(void)
 {
@@ -334,69 +334,69 @@ struct calibration_context
 
 struct calibration_context calib = {0};
 
-void apic_calibration_setup_count(int try)
+void apic_calibration_setup_count(int try_)
 {
-	(void) try;
+	(void) try_;
 	/* 0xFFFFFFFF shouldn't overflow in 10ms */
 	lapic_write(bsp_lapic, LAPIC_TIMER_INITCNT, UINT32_MAX);
 }
 
-void tsc_calibration_setup_count(int try)
+void tsc_calibration_setup_count(int try_)
 {
-	calib.tsc_calib[try].init_tsc = rdtsc();
+	calib.tsc_calib[try_].init_tsc = rdtsc();
 }
 
-void tsc_calibration_end(int try)
+void tsc_calibration_end(int try_)
 {
-	calib.tsc_calib[try].end_tsc = rdtsc();
+	calib.tsc_calib[try_].end_tsc = rdtsc();
 }
 
-void apic_calibration_end(int try)
+void apic_calibration_end(int try_)
 {
 	/* Get the ticks that passed in the time frame */
 	uint32_t ticks = UINT32_MAX - lapic_read(bsp_lapic, LAPIC_TIMER_CURRCNT);
-	if(ticks < calib.apic_ticks[try])
-		calib.apic_ticks[try] = ticks;
+	if(ticks < calib.apic_ticks[try_])
+		calib.apic_ticks[try_] = ticks;
 }
 
-void apic_calibrate(int try)
+void apic_calibrate(int try_)
 {
-	calib.apic_ticks[try] = UINT32_MAX;
+	calib.apic_ticks[try_] = UINT32_MAX;
 
 	for(int i = 0; i < CALIBRATION_TRIALS; i++)
 	{
-		uint32_t freq = 1000 / calib.duration[try];
+		uint32_t freq = 1000 / calib.duration[try_];
 		pit_init_oneshot(freq);
 
-		apic_calibration_setup_count(try);
+		apic_calibration_setup_count(try_);
 
 		pit_wait_for_oneshot();
 
-		apic_calibration_end(try);
+		apic_calibration_end(try_);
 
 		pit_stop();
 	}
 }
 
-void tsc_calibrate(int try)
+void tsc_calibrate(int try_)
 {
-	calib.tsc_calib[try].best_delta = UINT64_MAX;
+	calib.tsc_calib[try_].best_delta = UINT64_MAX;
 
 	for(int i = 0; i < CALIBRATION_TRIALS; i++)
 	{
-		uint32_t freq = 1000 / calib.duration[try];
+		uint32_t freq = 1000 / calib.duration[try_];
 		pit_init_oneshot(freq);
 
-		tsc_calibration_setup_count(try);
+		tsc_calibration_setup_count(try_);
 
 		pit_wait_for_oneshot();
 
-		tsc_calibration_end(try);
+		tsc_calibration_end(try_);
 
-		uint64_t delta = calib.tsc_calib[try].end_tsc - calib.tsc_calib[try].init_tsc;
+		uint64_t delta = calib.tsc_calib[try_].end_tsc - calib.tsc_calib[try_].init_tsc;
 
-		if(delta < calib.tsc_calib[try].best_delta)
-			calib.tsc_calib[try].best_delta = delta;
+		if(delta < calib.tsc_calib[try_].best_delta)
+			calib.tsc_calib[try_].best_delta = delta;
 
 		pit_stop();
 	}
@@ -560,6 +560,7 @@ void signal_stuff()
 	printk("signaled\n");
 }
 
+extern "C"
 int acpi_init_timer(void);
 
 void apic_timer_init(void)

@@ -240,7 +240,7 @@ void cpu_identify(void)
 	__cpu_identify();
 }
 
-extern void syscall_ENTRY64(void);
+extern "C" void syscall_ENTRY64(void);
 
 void x86_setup_standard_control_registers(void)
 {
@@ -342,6 +342,7 @@ INIT_LEVEL_EARLY_PLATFORM_ENTRY(cpu_init_late);
 
 extern PML *boot_pml4;
 
+extern "C"
 void smpboot_main(unsigned long gs_base, volatile struct smp_header *header)
 {
 	wrmsr(GS_BASE_MSR, gs_base);

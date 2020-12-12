@@ -22,13 +22,9 @@ ARCH_SPECIFIC void halt();
 __attribute__ ((noreturn, noinline))
 void panic(const char* msg, ...);
 
-#ifndef __cplusplus
-
 /* This does not compile in C++ */
-void init_elf_symbols(struct multiboot_tag_elf_sections *restrict secs);
-void elf_sections_reserve(struct multiboot_tag_elf_sections *restrict secs);
-
-#endif
+void init_elf_symbols(struct multiboot_tag_elf_sections *secs);
+void elf_sections_reserve(struct multiboot_tag_elf_sections * secs);
 
 void stack_trace_ex(uint64_t *stack);
 

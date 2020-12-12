@@ -6,6 +6,7 @@
 
 #include <onyx/cpu.h>
 
+extern "C"
 __attribute__((noreturn, cold))
 void halt()
 {

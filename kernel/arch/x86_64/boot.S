@@ -72,7 +72,7 @@ _start:
 
 	mov %r11, %gs:__cpu_base
 
-	call kernel_early
+	call multiboot2_kernel_entry
 	call _init
 	call randomize_stack_canary
 	call kernel_main

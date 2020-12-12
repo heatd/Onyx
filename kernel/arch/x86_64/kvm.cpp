@@ -118,7 +118,7 @@ void pvclock_init(void)
 	paddr = ALIGN_TO(paddr, 4);
 	wall_clock = (struct pvclock_wall_clock *) paddr;
 
-	vsystem_time = PHYS_TO_VIRT(system_time);
+	vsystem_time = (volatile pvclock_system_time *) PHYS_TO_VIRT(system_time);
 
 	wrmsr(system_time_msr, (unsigned long) system_time | MSR_KVM_SYSTEM_TIME_ENABLE);
 

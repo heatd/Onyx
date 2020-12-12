@@ -37,7 +37,15 @@ struct framebuffer
 	struct color_info color;
 };
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct framebuffer *get_primary_framebuffer(void);
 void set_framebuffer(struct framebuffer *fb);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -115,7 +115,7 @@ void setup_fpu_area(unsigned char *address)
 
 void fpu_ptrace_getfpregs(void *__fpregs, struct user_fpregs_struct *regs)
 {
-	struct fpu_area *fpregs = __fpregs;
+	struct fpu_area *fpregs = (fpu_area *) __fpregs;
 	regs->cwd = fpregs->fcw;
 	regs->swd = fpregs->fsw;
 	regs->ftw = fpregs->ftw;
