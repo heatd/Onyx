@@ -573,6 +573,8 @@ short udp_socket::poll(void *poll_file, short events)
 {
 	short avail_events = POLLOUT;
 
+	scoped_lock g{rx_packet_list_lock};
+
 	if(events & POLLIN)
 	{
 		if(has_data_available())
