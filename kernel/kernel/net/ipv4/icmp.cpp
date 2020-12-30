@@ -76,8 +76,10 @@ void send_echo_reply(ip_header *iphdr, icmp_header *icmphdr, uint16_t length, ne
 
 	if(res.has_error())
 		return;
+	
+	iflow flow{res.value(), IPPROTO_ICMP, false};
 
-	ip::v4::send_packet(res.value(), IPPROTO_ICMP, buf.get(), nif);
+	ip::v4::send_packet(flow, buf.get());
 }
 
 int send_dst_unreachable(const dst_unreachable_info& info, netif *nif)
@@ -112,8 +114,10 @@ int send_dst_unreachable(const dst_unreachable_info& info, netif *nif)
 
 	if(res.has_error())
 		return res.error();
+	
+	iflow flow{res.value(), IPPROTO_ICMP, false};
 
-	return ip::v4::send_packet(res.value(), IPPROTO_ICMP, buf.get(), nif);
+	return ip::v4::send_packet(flow, buf.get());
 }
 
 int handle_packet(netif *nif, packetbuf *buf)
@@ -295,7 +299,9 @@ ssize_t icmp_socket::sendmsg(const struct msghdr *msg, int flags)
 
 	hdr->checksum = ipsum(hdr, iovlen);
 
-	return ip::v4::send_packet(rt, IPPROTO_ICMP, packet.get(), rt.nif);
+	iflow flow{rt, IPPROTO_ICMP, false};
+
+	return ip::v4::send_packet(flow, packet.get());
 }
 
 int icmp_socket::getsockopt(int level, int optname, void *val, socklen_t *len)

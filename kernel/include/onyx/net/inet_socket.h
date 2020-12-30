@@ -11,6 +11,7 @@
 #include <onyx/net/inet_route.h>
 #include <onyx/net/socket.h>
 #include <onyx/net/inet_proto.h>
+#include <onyx/net/inet_cork.h>
 
 #include <onyx/byteswap.h>
 
@@ -32,7 +33,6 @@ namespace v6
 
 };
 
-
 struct inet_socket : public socket
 {
 	inet_sock_address src_addr;
@@ -43,6 +43,10 @@ struct inet_socket : public socket
 
 	struct list_head rx_packet_list;
 	struct spinlock rx_packet_list_lock;
+
+	inet_cork cork;
+	int cork_pending;
+
 	wait_queue rx_wq;
 	const inet_proto *proto_info;
 
@@ -50,7 +54,7 @@ struct inet_socket : public socket
 	             ipv6_only : 1,
 				 route_cache_valid : 1;
 
-	inet_socket() : socket{}, src_addr{}, bind_table_node{this}, dest_addr{}, proto_info{},
+	inet_socket() : socket{}, src_addr{}, bind_table_node{this}, dest_addr{}, cork{}, proto_info{},
 	                ipv4_on_inet6{}, ipv6_only{}, route_cache_valid{}
 	{
 		INIT_LIST_HEAD(&rx_packet_list);

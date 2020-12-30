@@ -52,7 +52,9 @@ struct inet_sock_address
 	in_port_t port;
 	uint32_t v6_scope_id{0};
 
-	inet_sock_address() = default;
+	constexpr inet_sock_address() : in4{}, in6{}, port{}
+	{}
+
 	explicit constexpr inet_sock_address(const sockaddr_in& sa) : in4{sa.sin_addr},
                                                                   in6{}, port{sa.sin_port}
 	{}

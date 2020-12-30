@@ -226,7 +226,9 @@ int tcp_send_rst_no_socket(const sockaddr_in_both& dstaddr, in_port_t srcport, i
 	if(res.has_error())
 		return res.error();
 
-	return ip::v4::send_packet(res.value(), IPPROTO_TCP, buf.get(), nif);
+	iflow flow{res.value(), IPPROTO_TCP, false};
+
+	return ip::v4::send_packet(flow, buf.get());
 }
 
 extern "C"
@@ -388,8 +390,9 @@ int tcp_packet::send()
 
 	socket->sequence_nr() += seqs;
 
-	int st = ip::v4::send_packet(socket->route_cache, IPPROTO_TCP, buf.get(),
-		nif);
+	iflow flow{socket->route_cache, IPPROTO_TCP, false};
+
+	int st = ip::v4::send_packet(flow, buf.get());
 
 	if(st < 0)
 	{

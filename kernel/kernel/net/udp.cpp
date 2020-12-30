@@ -230,11 +230,13 @@ template <int domain>
 int udp_do_send(packetbuf *buf, const inet_route& route)
 {
 	int ret;
+
+	iflow flow{route, IPPROTO_UDP, domain == AF_INET6};
 	
 	if constexpr(domain == AF_INET6)
 		ret = ip::v6::send_packet(route, IPPROTO_UDP, buf, route.nif);
 	else
-		ret = ip::v4::send_packet(route, IPPROTO_UDP, buf, route.nif);
+		ret = ip::v4::send_packet(flow, buf);
 
 	return ret;
 }
@@ -242,6 +244,9 @@ int udp_do_send(packetbuf *buf, const inet_route& route)
 template <typename AddrType>
 ssize_t udp_socket::udp_sendmsg(const msghdr *msg, int flags, const inet_sock_address& dst)
 {
+	bool wanting_cork = wants_cork || flags & MSG_MORE;
+	bool will_append = false;
+
 	auto payload_size = iovec_count_length(msg->msg_iov, msg->msg_iovlen);
 	if(payload_size < 0)
 		return payload_size;
@@ -252,6 +257,30 @@ ssize_t udp_socket::udp_sendmsg(const msghdr *msg, int flags, const inet_sock_ad
 	inet_route route;
 
 	constexpr auto our_domain = inet_domain_type_v<AddrType>;
+
+	will_append = wanting_cork;
+
+	if(cork_pending)
+	{
+		scoped_hybrid_lock g{sock_lock, this};
+
+		if(cork_pending)
+		{
+			/* Our cork needs everything to be of the same domain, else things might
+			 * blow up a bit spectacularly.
+			 */
+			if(cork_pending != our_domain)
+			{
+				return -EINVAL;
+			}
+
+			/* If we reached here, we know we're corking, so we set will_append to true
+			 * so the following code knows this.
+			 */
+			will_append = true;
+		}
+	}
+
 	static_assert(our_domain == AF_INET || our_domain == AF_INET6,
 	              "UDP only supports INET or INET6");
 
@@ -272,22 +301,56 @@ ssize_t udp_socket::udp_sendmsg(const msghdr *msg, int flags, const inet_sock_ad
 		route = result.value();
 	}
 
-	auto pbf_st = udp_create_pbuf(payload_size, inet_header_size(our_domain));
+	/* If we're not corking, do the fast path. This path doesn't require locks since it's a simple
+	 * datagram.
+	 */
+	if(!will_append) [[likely]]
+	{
+		auto pbf_st = udp_create_pbuf(payload_size, inet_header_size(our_domain));
 
-	if(pbf_st.has_error())
-		return pbf_st.error();
+		if(pbf_st.has_error())
+			return pbf_st.error();
+
+		auto buf = pbf_st.value();
+
+		udp_prepare_headers(buf.get(), src_addr.port, dst.port, payload_size);
 	
-	auto buf = pbf_st.value();
+		if(udp_put_data(buf.get(), msg, payload_size) < 0)
+			return -EFAULT;
 
-	udp_prepare_headers(buf.get(), src_addr.port, dst.port, payload_size);
+		udp_do_csum<our_domain>(buf.get(), route);
+
+		if(int st = udp_do_send<our_domain>(buf.get(), route); st < 0)
+			return st;
 	
-	if(udp_put_data(buf.get(), msg, payload_size) < 0)
-		return -EFAULT;
+		return payload_size;
+	}
 
-	udp_do_csum<our_domain>(buf.get(), route);
+	scoped_hybrid_lock g{sock_lock, this};
 
-	if(int st = udp_do_send<our_domain>(buf.get(), route); st < 0)
+	cork_pending = our_domain;
+
+	/* Woohoo, corking path! */
+	if(int st = cork.append_data(msg->msg_iov, msg->msg_iovlen,
+	                             sizeof(udphdr), 0xffff); st < 0)
+	{
 		return st;
+	}
+
+	if(!wanting_cork)
+	{
+		iflow fl{route, src_addr, dst, IPPROTO_UDP};
+		int st = cork.send(fl, [](packetbuf *buf, const iflow &flow)
+		{
+			udp_prepare_headers(buf, flow.saddr.port, flow.daddr.port, buf->length());
+
+			//udp_do_csum<our_domain>(buf, flow.route);
+		});
+
+		cork_pending = 0;
+
+		return st < 0 ? st : payload_size;
+	}
 
 	return payload_size;
 }
@@ -555,6 +618,17 @@ int udp_socket::getsockopt(int level, int optname, void *val, socklen_t *len)
 		return getsockopt_inet(level, optname, val, len);
 	if(level == SOL_SOCKET)
 		return getsockopt_socket_level(optname, val, len);
+
+	if(level == SOL_UDP)
+	{
+		switch(optname)
+		{
+			case UDP_CORK:
+			{
+				return put_option(truthy_to_int(wants_cork), val, len);
+			}
+		}
+	}
 	
 	return -ENOPROTOOPT;
 }
@@ -565,7 +639,23 @@ int udp_socket::setsockopt(int level, int optname, const void *val, socklen_t le
 		return setsockopt_inet(level, optname, val, len);
 	if(level == SOL_SOCKET)
 		return setsockopt_socket_level(optname, val, len);
-	
+
+	if(level == SOL_UDP)
+	{
+		switch(optname)
+		{
+			case UDP_CORK:
+			{
+				auto res = get_socket_option<int>(val, len);
+				if(res.has_error())
+					return res.error();
+
+				wants_cork = int_to_truthy(res.value());
+				return 0;
+			}
+		}
+	}
+
 	return -ENOPROTOOPT;
 }
 

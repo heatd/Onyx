@@ -309,16 +309,15 @@ static uint16_t allocate_id(void)
 	return __atomic_fetch_add(&identification_counter, 1, __ATOMIC_CONSUME);
 }
 
-int send_packet(const inet_route& route, unsigned int type,
-                packetbuf *buf, struct netif *netif,
-				cul::slice<ip_option> options)
+int send_packet(const iflow &flow, packetbuf *buf, cul::slice<ip_option> options)
 {
 	size_t payload_size = buf->length();
+	auto netif = flow.nif;
 
-	struct send_info sinfo{route};
+	struct send_info sinfo{flow.route};
 	/* Dest ip and sender ip are already in network order */
-	sinfo.ttl = 64;
-	sinfo.type = type;
+	sinfo.ttl = flow.ttl;
+	sinfo.type = flow.protocol;
 	sinfo.frags_following = false;
 
 	if(needs_fragmentation(buf->length(), netif))
@@ -339,7 +338,7 @@ int send_packet(const inet_route& route, unsigned int type,
 
 	setup_fragment(&sinfo, &frag, iphdr, netif);
 
-	return send_fragment(route, &frag, netif);
+	return send_fragment(flow.route, &frag, netif);
 }
 
 /* TODO: Possibly, these basic checks across ethernet.c, ip.c, udp.c, tcp.cpp aren't enough */

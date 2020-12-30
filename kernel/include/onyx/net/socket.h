@@ -19,10 +19,13 @@
 #include <onyx/wait_queue.h>
 #include <onyx/pair.hpp>
 #include <onyx/expected.hpp>
+#include <onyx/hybrid_lock.h>
 
 #include <onyx/net/proto_family.h>
 #include <onyx/net/netif.h>
+
 #include <onyx/vector.h>
+#include <onyx/hybrid_lock.h>
 
 #define PROTOCOL_IPV4		1
 #define PROTOCOL_IPV6		2
@@ -120,11 +123,11 @@ public:
 	unsigned int flags;
 	unsigned int sock_err;
 
-	/* This mutex serialises binds, connects, listens and accepts on the socket,
-	 * as to prevent race conditions.
+	/* This lock serialises binds, connects, listens, sends, recvs, whatever, on the socket,
+	 * to prevent race conditions.
 	 */
 
-	struct mutex connection_state_lock;
+	hybrid_lock socket_lock;
 	bool bound;
 	bool connected;
 
@@ -136,13 +139,16 @@ public:
 
 	proto_family *proto_domain;
 
+	hybrid_lock sock_lock;
+	struct list_head socket_backlog;
+
 	/* Define a default constructor here */
 	socket() : type{}, proto{}, domain{}, in_band_queue{this}, oob_data_queue{this},
                flags{}, sock_err{}, bound{}, connected{},
                listener_sem{}, conn_req_list_lock{}, conn_request_list{},
-			   nr_pending{}, backlog{}, proto_domain{}
+			   nr_pending{}, backlog{}, proto_domain{}, sock_lock{}
 	{
-		mutex_init(&connection_state_lock);
+		INIT_LIST_HEAD(&socket_backlog);
 	}
 
 	virtual ~socket()
@@ -188,6 +194,11 @@ public:
 		return i != 0;
 	}
 
+	static int truthy_to_int(bool val)
+	{
+		return (int) val;
+	}
+
 	virtual int listen();
 	virtual socket *accept(socket_conn_request *req);
 	virtual int bind(sockaddr *addr, socklen_t addrlen);
@@ -200,6 +211,15 @@ public:
 	virtual void close()
 	{
 		unref();
+	}
+
+	virtual void handle_backlog()
+	{
+	}
+
+	void add_backlog(list_head *node)
+	{
+		list_add_tail(node, &socket_backlog);
 	}
 };
 

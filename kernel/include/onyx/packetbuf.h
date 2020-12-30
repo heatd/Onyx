@@ -13,7 +13,7 @@
 #include <onyx/page_iov.h>
 #include <onyx/refcount.h>
 
-#define PACKETBUF_MAX_NR_PAGES    (UINT16_MAX / PAGE_SIZE)
+#define PACKETBUF_MAX_NR_PAGES    ((UINT16_MAX + 1) / PAGE_SIZE)
 
 #define DEFAULT_HEADER_LEN        128
 
@@ -60,6 +60,20 @@ struct packetbuf : public refcountable
 
 	list_head_cpp<packetbuf> list_node;
 
+private:
+
+	/* Using put with other page vecs is bound to break something */
+	bool can_try_put() const
+	{
+		return page_vec[1].page != nullptr;
+	}
+
+	unsigned int tail_room() const
+	{
+		return end - tail;
+	}
+
+public:
 	/**
 	 * @brief Construct a new default packetbuf object.
 	 * 
@@ -108,7 +122,19 @@ struct packetbuf : public refcountable
 
 	unsigned int length() const
 	{
-		return tail - data;
+		unsigned int out_of_data_area = 0;
+
+		for(const auto &v : page_vec)
+		{
+			if(&v == (page_iov *) &page_vec)
+				continue;
+			if(!v.page)
+				break;
+	
+			out_of_data_area += v.length;
+		}
+
+		return (tail - data) + out_of_data_area;
 	}
 
 	unsigned int start_page_off() const
@@ -135,6 +161,15 @@ struct packetbuf : public refcountable
 	{
 		return data - (unsigned char *) buffer_start;
 	}
+
+	/**
+	 * @brief Expand the packet buffer, either by doing put(), expand page iters, or adding new pages 
+	 * 
+	 * @param ubuf User address of the buffer
+	 * @param len Length of the buffer
+	 * @return ssize_t The amount copied, or a negative error code if we failed to copy anything
+	 */
+	ssize_t expand_buffer(const void *ubuf, unsigned int len);
 };
 
 packetbuf *packetbuf_clone(packetbuf *original);

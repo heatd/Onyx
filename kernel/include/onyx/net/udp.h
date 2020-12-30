@@ -32,6 +32,15 @@ struct udp_packet
 	struct udp_packet *next;
 };
 
+#define UDP_CORK	1
+#define UDP_ENCAP	100
+
+#define UDP_ENCAP_ESPINUDP_NON_IKE 1
+#define UDP_ENCAP_ESPINUDP	2
+#define UDP_ENCAP_L2TPINUDP	3
+#define UDP_ENCAP_GTP0		4
+#define UDP_ENCAP_GTP1U		5
+
 class udp_socket : public inet_socket
 {
 	packetbuf *get_rx_head()
@@ -57,7 +66,11 @@ class udp_socket : public inet_socket
 	template <typename AddrType>
 	ssize_t udp_sendmsg(const msghdr *msg, int flags, const inet_sock_address& dst);
 
+	unsigned int wants_cork : 1;
+
 public:
+	udp_socket() : wants_cork{0} {}
+
 	int bind(sockaddr *addr, socklen_t len) override;
 	int connect(sockaddr *addr, socklen_t len) override;
 	ssize_t sendmsg(const msghdr *msg, int flags) override;

@@ -32,10 +32,8 @@ bool packetbuf::allocate_space(size_t length)
 	/* This should only be called once - essentially,
 	 * we allocate enough pages for the packet and fill page_vec.
 	 */
-	assert(length <= UINT16_MAX);
 
 	auto nr_pages = vm_size_to_pages(length);
-	const auto original_length = length;
 
 	page *pages = alloc_pages(nr_pages, PAGE_ALLOC_NO_ZERO);
 	if(!pages)
@@ -62,7 +60,17 @@ bool packetbuf::allocate_space(size_t length)
 		}
 
 		page_vec[i].page = pages;
-		page_vec[i].length = min(length, PAGE_SIZE);
+
+		if(i == 0)
+		{
+			page_vec[i].length = min(length, PAGE_SIZE);
+		}
+		else
+		{
+			page_vec[i].length = 0;
+		}
+		
+
 		length -= page_vec[i].length;
 		page_vec[i].page_off = 0;
 		pages = pages->next_un.next_allocation;
@@ -90,7 +98,7 @@ bool packetbuf::allocate_space(size_t length)
 
 	net_header = transport_header = nullptr;
 	data = tail = (unsigned char *) buffer_start;
-	end = (unsigned char *) buffer_start + original_length;
+	end = (unsigned char *) buffer_start + PAGE_SIZE;
 
 	return true;
 }
@@ -161,4 +169,83 @@ packetbuf *packetbuf_clone(packetbuf *original)
 	buf->domain = original->domain;
 
 	return buf.release();
+}
+
+
+static int allocate_page_vec(page_iov& v)
+{
+	page *p = alloc_page(0);
+
+	if(!p)
+		return -ENOMEM;
+	
+	v.length = 0;
+	v.page = p;
+	v.page_off = 0;
+
+	return 0;
+}
+
+ssize_t packetbuf::expand_buffer(const void *ubuf_, unsigned int len)
+{
+	//printk("len %u\n", len);
+	ssize_t ret = 0;
+	const uint8_t *ubuf = static_cast<const uint8_t *>(ubuf_);
+	/* Right now, trying to expand a packetbuf with zero copy enabled would blow up spectacularly,
+	 * since it could try to access random pages that may be allocated or something.
+	 */
+	assert(!zero_copy);
+
+	if(can_try_put())
+	{
+		if(tail_room())
+		{
+			auto to_put = min(tail_room(), len);
+			auto p = put(to_put);
+
+			if(copy_from_user(p, ubuf, to_put) < 0)
+				return -EFAULT;
+			
+			ubuf += to_put;
+			len -= to_put;
+			ret += to_put;
+		}
+	}
+
+	//printk("Put %ld bytes in put()\n", ret);
+
+	for(unsigned int i = 1; i < PACKETBUF_MAX_NR_PAGES; i++)
+	{
+		if(!len)
+			break;
+		
+		auto &v = page_vec[i];
+
+		if(!v.page)
+		{
+			if(allocate_page_vec(v) < 0)
+				return -ENOMEM;
+		}
+
+		unsigned int tail_room = PAGE_SIZE - v.length;
+
+		if(tail_room > 0)
+		{
+			auto to_put = min(tail_room, len);
+
+			uint8_t *dest_ptr = (uint8_t *) PAGE_TO_VIRT(v.page) + v.page_off + v.length;
+
+			if(copy_from_user(dest_ptr, ubuf, to_put) < 0)
+				return -EFAULT;
+			
+			//printk("Put %u bytes in page vec %u\n", to_put, i);
+
+			v.length += to_put;
+			ubuf += to_put;
+			len -= to_put;
+			ret += to_put;
+		}
+	}
+
+	return ret;
 }

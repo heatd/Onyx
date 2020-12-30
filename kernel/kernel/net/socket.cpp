@@ -338,9 +338,7 @@ int sys_connect(int sockfd, const struct sockaddr *uaddr, socklen_t addrlen)
 	int ret = -EINTR;
 	socket *s = file_to_socket(desc.get_file());
 
-	/* See the comment below in sys_bind for explanation */
-	if(mutex_lock_interruptible(&s->connection_state_lock) < 0)
-		goto out;
+	s->socket_lock.lock();
 
 	if(s->connected)
 	{
@@ -351,8 +349,7 @@ int sys_connect(int sockfd, const struct sockaddr *uaddr, socklen_t addrlen)
 	ret = s->connect((sockaddr *) &addr, addrlen);
 
 out2:
-	mutex_unlock(&s->connection_state_lock);
-out:
+	s->socket_lock.unlock();
 	return ret;
 }
 
@@ -373,11 +370,7 @@ int sys_bind(int sockfd, const struct sockaddr *uaddr, socklen_t addrlen)
 	socket *s = file_to_socket(desc.get_file());
 	int ret = -EINTR;
 
-	/* We use mutex_lock_interruptible here as we can be held up for quite a
-	 * big amount of time for things like TCP connect()s that are timing out.
-	 */
-	if(mutex_lock_interruptible(&s->connection_state_lock) < 0)
-		goto out;
+	s->socket_lock.lock();
 	
 	if(s->bound)
 	{
@@ -388,9 +381,7 @@ int sys_bind(int sockfd, const struct sockaddr *uaddr, socklen_t addrlen)
 	ret = s->bind((sockaddr *) &addr, addrlen);
 
 out2:
-	mutex_unlock(&s->connection_state_lock);
-
-out:
+	s->socket_lock.unlock();
 	return ret;
 }
 
@@ -484,11 +475,7 @@ int sys_listen(int sockfd, int backlog)
 	if(backlog > backlog_limit)
 		backlog = backlog_limit;
 	
-	if(mutex_lock_interruptible(&sock->connection_state_lock) < 0)
-	{
-		st = -EINTR;
-		goto out;
-	}
+	sock->socket_lock.lock();
 
 	/* Big note: the backlog value in the socket structure is used both to determine
 	 * the backlog size **and** if the socket is in a listening state, with != 0 repre-
@@ -507,7 +494,7 @@ int sys_listen(int sockfd, int backlog)
 	}
 
 out2:
-	mutex_unlock(&sock->connection_state_lock);
+	sock->socket_lock.unlock();
 out:
 	return st;
 }
@@ -745,11 +732,7 @@ int sys_accept4(int sockfd, struct sockaddr *addr, socklen_t *slen, int flags)
 	file *newf = nullptr;
 	int dflags = 0, fd = -1;
 
-	if(mutex_lock_interruptible(&sock->connection_state_lock) < 0)
-	{
-		st = -EINTR;
-		goto out_no_lock;
-	}
+	sock->socket_lock.lock();
 
 	if(!sock->listening())
 	{
@@ -802,8 +785,7 @@ int sys_accept4(int sockfd, struct sockaddr *addr, socklen_t *slen, int flags)
 
 	st = fd;
 out:
-	mutex_unlock(&sock->connection_state_lock);
-out_no_lock:
+	sock->socket_lock.unlock();
 	return st;
 }
 
@@ -1115,4 +1097,14 @@ ssize_t sys_recvmsg(int sockfd, struct msghdr *msg, int flags)
 	socket *sock = file_to_socket(f);
 
 	return socket_recvmsg(sock, msg, flags | fd_flags_to_msg_flags(f.get_file()));
+}
+
+void sock_do_post_work(socket *sock)
+{
+	return sock->handle_backlog();
+}
+
+bool sock_needs_work(socket *sock)
+{
+	return !list_is_empty(&sock->socket_backlog);
 }

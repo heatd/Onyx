@@ -69,6 +69,12 @@ constexpr T align_down2(T number, U alignment)
 	return number & ~(alignment - 1);
 }
 
+template <typename Type, typename Type2>
+Type2 clamp(Type t0, Type2 max)
+{
+	return t0 > max ? max : (Type2) t0;
+}
+
 #define CLASS_DISALLOW_MOVE(class_name) \
 class_name& operator=(class_name&& rhs) = delete; \
 class_name(class_name&& rhs) = delete;

@@ -20,6 +20,7 @@
 #include <onyx/net/inet_csum.h>
 #include <onyx/net/socket_table.h>
 #include <onyx/net/inet_proto.h>
+#include <onyx/net/inet_packet_flow.h>
 
 #include <onyx/public/socket.h>
 
@@ -86,9 +87,7 @@ public:
 	void unbind(inet_socket *sock) override;
 };
 
-int send_packet(const inet_route& route, unsigned int type,
-                     packetbuf *buf, struct netif *netif,
-					 cul::slice<ip_option> options = {});
+int send_packet(const iflow &flow, packetbuf *buf, cul::slice<ip_option> options = {});
 
 socket *create_socket(int type, int protocol);
 
