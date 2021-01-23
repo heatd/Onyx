@@ -133,7 +133,7 @@ public:
 		list_add_tail(node, &buckets[index]);
 	}
 
-	void add_element(const T& elem)
+	void add_element(T& elem)
 	{
 		add_element(elem, &elem.list_node);
 	}

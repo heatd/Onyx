@@ -13,6 +13,8 @@
 #include <sys/types.h>
 
 #ifdef __cplusplus
+
+#include <onyx/groups.h>
 extern "C" {
 #endif
 
@@ -25,6 +27,8 @@ struct creds
 	gid_t egid;
 	uid_t suid;
 	uid_t sgid;
+	// Type erasure because of C... Pain, all my homies know is pain.
+	void *groups;
 };
 
 struct process;
@@ -56,8 +60,74 @@ static inline void creds_init(struct creds *c)
 	rwlock_init(&c->lock);
 }
 
+bool cred_is_in_group(struct creds *c, gid_t gid);
+
 #ifdef __cplusplus
 }
+#endif
+
+#ifdef __cplusplus
+
+#include <onyx/utility.hpp>
+
+enum class CGType
+{
+	Write = 0,
+	Read
+};
+
+template <CGType type = CGType::Read>
+class creds_guard
+{
+	constexpr bool IsWrite() const
+	{
+		return type == CGType::Write;
+	}
+
+	creds *c;
+public:
+	constexpr creds_guard(creds *c) : c{c} {}
+	
+	creds_guard()
+	{
+		if(IsWrite())
+			c = creds_get_write();
+		else
+			c = creds_get();
+	}
+
+	creds_guard(creds_guard&& g) : c{g.c}
+	{
+		g.c = nullptr;
+	}
+
+	creds_guard& operator=(creds_guard&& g)
+	{
+		c = g.c;
+		g.c = nullptr;
+
+		return *this;
+	}
+
+	CLASS_DISALLOW_COPY(creds_guard);
+
+	~creds_guard()
+	{
+		if(c)
+		{
+			if(IsWrite())
+				creds_put_write(c);
+			else
+				creds_put(c);
+		}
+	}
+
+	creds *get() const
+	{
+		return c;
+	}
+};
+
 #endif
 
 #endif

@@ -76,7 +76,7 @@ out_final: ;								\
 #define __wait_for_event_with_timeout(wq, cond, state, timeout_ns, cmd)	\
 ({											\
 											\
-	hrtime_t timeout = timeout_ns;			\
+	hrtime_t ____timeout = timeout_ns;			\
 	long __ret = 0;					\
 	struct wait_queue_token token;			\
 	if(cond)								\
@@ -105,16 +105,16 @@ out_final:									\
 
 #define wait_for_event_timeout(wq, cond, _timeout)	\
         __wait_for_event_with_timeout(wq, cond, THREAD_UNINTERRUPTIBLE, _timeout, \
-		timeout = sched_sleep(timeout); if(timeout == 0) {__ret = -ETIMEDOUT; goto __out;})
+		____timeout = sched_sleep(____timeout); if(____timeout == 0) {__ret = -ETIMEDOUT; goto __out;})
 
 #define wait_for_event_timeout_interruptible(wq, cond, _timeout)	\
         __wait_for_event_with_timeout(wq, cond, THREAD_INTERRUPTIBLE, _timeout, \
-		timeout = sched_sleep(timeout); if(timeout == 0) {__ret = -ETIMEDOUT; goto __out;})
+		____timeout = sched_sleep(____timeout); if(____timeout == 0) {__ret = -ETIMEDOUT; goto __out;})
 
 #define wait_for_event_locked_timeout_interruptible(wq, cond, _timeout, lock)	\
         __wait_for_event_with_timeout(wq, cond, THREAD_INTERRUPTIBLE, _timeout, \
-		spin_unlock(lock); timeout = sched_sleep(timeout); spin_lock(lock);		\
-		if(timeout == 0) {__ret = -ETIMEDOUT; goto __out;})
+		spin_unlock(lock); ____timeout = sched_sleep(____timeout); spin_lock(lock);		\
+		if(____timeout == 0) {__ret = -ETIMEDOUT; goto __out;})
 
 #define wait_for_event(wq, cond)	__wait_for_event(wq, cond, THREAD_UNINTERRUPTIBLE, sched_yield())
 

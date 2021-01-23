@@ -170,7 +170,7 @@ process *process_create(const char *cmd_line, ioctx *ctx, process *parent)
 		}
 
 		/* Note that the signal mask is inherited at thread creation */
-		
+
 		/* Note that pending signals are zero'd, as per POSIX */
 
 		process_append_children(parent, proc);
@@ -194,7 +194,6 @@ process *process_create(const char *cmd_line, ioctx *ctx, process *parent)
 
 		proc->process_group->unref();
 	}
-	
 
 	proc->address_space.process = proc;
 

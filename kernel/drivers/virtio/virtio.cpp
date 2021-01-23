@@ -181,7 +181,7 @@ bool vdev::create_virtqueue(unsigned int nr, unsigned int queue_size)
 	if(virtqueue_list.buf_size() <= nr)
 	{
 		/* Pre-reserve the list */
-		virtqueue_list.alloc_buf(nr + 1);
+		virtqueue_list.reserve(nr + 1);
 		virtqueue_list.set_nr_elems(nr + 1);
 	}
 

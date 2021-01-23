@@ -298,9 +298,9 @@ bool inode_can_access(struct inode *file, unsigned int perms)
 	{
 		ino_perms = ((perms & FILE_ACCESS_READ) ? S_IRUSR : 0) |
                     ((perms & FILE_ACCESS_WRITE) ? S_IWUSR : 0) |
-					((perms & FILE_ACCESS_EXECUTE) ? S_IXUSR : 0);
+                    ((perms & FILE_ACCESS_EXECUTE) ? S_IXUSR : 0);
 	}
-	else if(file->i_gid == c->egid)
+	else if(file->i_gid == c->egid || cred_is_in_group(c, file->i_gid))
 	{
 		/* Case 2 - we're in the same group as the file */
 		ino_perms = ((perms & FILE_ACCESS_READ) ? S_IRGRP : 0) |

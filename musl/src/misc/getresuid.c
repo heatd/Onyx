@@ -2,7 +2,9 @@
 #include <unistd.h>
 #include "syscall.h"
 
+#include <onyx/public/cred.h>
+
 int getresuid(uid_t *ruid, uid_t *euid, uid_t *suid)
 {
-	return syscall(SYS_getresuid, ruid, euid, suid);
+	return onx_get_uids(ruid, euid, suid);
 }

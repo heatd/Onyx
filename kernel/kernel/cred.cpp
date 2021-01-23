@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2020 Pedro Falcato
+* Copyright (c) 2020, 2021 Pedro Falcato
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
@@ -9,6 +9,8 @@
 #include <onyx/cred.h>
 #include <onyx/process.h>
 #include <onyx/cred.h>
+
+#include <onyx/public/cred.h>
 
 static struct creds kernel_creds = 
 {
@@ -181,4 +183,210 @@ extern "C" gid_t sys_getgid(void)
 	return g;
 }
 
+extern "C" int sys_get_uids(uid_t *ruid, uid_t *euid, uid_t *suid)
+{
+	creds_guard<CGType::Read> g;
+	auto c = g.get();
+
+	if(ruid && copy_to_user(ruid, &c->ruid, sizeof(uid_t)) < 0)
+		return -EFAULT;
+	
+	if(euid && copy_to_user(euid, &c->euid, sizeof(uid_t)) < 0)
+		return -EFAULT;
+	
+	if(suid && copy_to_user(suid, &c->suid, sizeof(uid_t)) < 0)
+		return -EFAULT;
+
+	return 0;
+}
+
+extern "C" int sys_get_gids(gid_t *rgid, gid_t *egid, gid_t *sgid)
+{
+	creds_guard<CGType::Read> g;
+	auto c = g.get();
+
+	if(rgid && copy_to_user(rgid, &c->rgid, sizeof(gid_t)) < 0)
+		return -EFAULT;
+	
+	if(egid && copy_to_user(egid, &c->egid, sizeof(gid_t)) < 0)
+		return -EFAULT;
+	
+	if(sgid && copy_to_user(sgid, &c->sgid, sizeof(gid_t)) < 0)
+		return -EFAULT;
+
+	return 0;
+}
+
+bool may_switch_to_uid(uid_t id, creds *c)
+{
+	return id == c->euid || id == c->ruid || id == c->suid;
+}
+
+#define SET_UIDS_RUID_VALID   (1 << 0)
+#define SET_UIDS_EUID_VALID   (1 << 1)
+#define SET_UIDS_SUID_VALID   (1 << 2)
+
+extern "C" int sys_set_uids(unsigned int flags, uid_t ruid, uid_t euid, uid_t suid)
+{
+	creds_guard<CGType::Write> g;
+
+	/* We check for -1 because it's an invalid uid and POSIX uses it in
+	 * setresuid to signal a UID that shouldn't be changed.
+	 */
+	bool euid_valid = flags & SET_UIDS_EUID_VALID && euid != (uid_t) -1;
+	bool ruid_valid = flags & SET_UIDS_RUID_VALID && ruid != (uid_t) -1;
+	bool suid_valid = flags & SET_UIDS_SUID_VALID && suid != (uid_t) -1;
+
+	auto c = g.get();
+
+	if(c->euid != 0)
+	{
+		/* If euid != root, ruid, euid and suid may only be one of the current (r/e/s) uids */
+		if((euid_valid && !may_switch_to_uid(euid, c)) ||
+		   (ruid_valid && !may_switch_to_uid(ruid, c)) ||
+		   (suid_valid && !may_switch_to_uid(suid, c)))
+			return -EPERM;
+	}
+
+	if(euid_valid) c->euid = euid;
+	if(ruid_valid) c->ruid = ruid;
+	if(suid_valid) c->suid = suid;
+
+	return 0;
+}
+
+bool may_switch_to_gid(gid_t id, creds *c)
+{
+	return id == c->egid || id == c->rgid || id == c->sgid;
+}
+
+extern "C" int sys_set_gids(unsigned int flags, gid_t rgid, gid_t egid, gid_t sgid)
+{
+	creds_guard<CGType::Write> g;
+
+	/* We check for -1 because it's an invalid uid and POSIX uses it in
+	 * setresuid to signal a GID that shouldn't be changed.
+	 */
+
+	bool egid_valid = flags & SET_GIDS_EGID_VALID && egid != (gid_t) -1;
+	bool rgid_valid = flags & SET_GIDS_RGID_VALID && rgid != (gid_t) -1;
+	bool sgid_valid = flags & SET_GIDS_SGID_VALID && sgid != (gid_t) -1;
+
+	auto c = g.get();
+
+	if(c->euid != 0)
+	{
+		/* If egid != root, rgid, egid and sgid may only be one of the current (r/e/s) gids */
+		if((egid_valid && !may_switch_to_gid(egid, c)) ||
+		   (rgid_valid && !may_switch_to_gid(rgid, c)) ||
+		   (sgid_valid && !may_switch_to_gid(sgid, c)))
+			return -EPERM;
+	}
+
+	if(egid_valid) c->egid = egid;
+	if(rgid_valid) c->rgid = rgid;
+	if(sgid_valid) c->sgid = sgid;
+
+	return 0;
+}
+
+int supp_groups::set_groups(const gid_t *u_gid_list, size_t size)
+{
+	if(!groups.reserve(size))
+		return -ENOMEM;
+
+	if(copy_from_user(&groups.front(), u_gid_list, size * sizeof(gid_t)) < 0)
+		return -EFAULT;
+
+	groups.set_nr_elems(size);
+
+	return 0;
+}
+
+int supp_groups::get_groups(int _size, gid_t *ugids)
+{
+	size_t size = (size_t) _size;
+	if(size == 0)
+	{
+		/* When size = 0, getgroups returns the size of the supplementary group list */
+		return groups.size();
+	}
+
+	if(size != groups.size())
+		return -EINVAL;
+	
+	if(copy_to_user(ugids, &groups.front(), size * sizeof(gid_t)) < 0)
+		return -EFAULT;
+	
+	return 0;
+}
+
 /* TODO: Implement set/getresuid, set/getresgid, set/getgroups */
+extern "C" int sys_setgroups(size_t size, const gid_t *ugids)
+{
+	creds_guard<CGType::Write> g;
+	auto c = g.get();
+
+	if(c->euid != 0)
+		return -EPERM;
+	
+	if(size > NGROUPS_MAX)
+		return -EINVAL;
+
+	if(ugids == nullptr)
+	{
+		/* Drop the current groups */
+		reinterpret_cast<supp_groups *>(c->groups)->unref();
+		c->groups = nullptr;
+		return 0;
+	}
+
+	auto groups = new supp_groups;
+	if(!groups)
+		return -ENOMEM;
+	
+	if(int st = groups->set_groups(ugids, size); st < 0)
+	{
+		groups->unref();
+		return st;
+	}
+
+	/* ew */
+	cul::swap(groups, *reinterpret_cast<supp_groups **>(&c->groups));
+	groups->unref();
+
+	return 0;
+}
+
+extern "C" int sys_getgroups(int size, gid_t *ugids)
+{
+	if(size < 0)
+		return -EINVAL;
+	
+	creds_guard<CGType::Read> g;
+	auto c = g.get();
+
+	supp_groups *grps = reinterpret_cast<supp_groups *>(c->groups);
+	if(!grps)
+		return 0;
+	/* We don't need to increment a refcount here since we hold the creds lock */
+
+	return grps->get_groups(size, ugids);
+}
+
+bool cred_is_in_group(struct creds *c, gid_t gid)
+{
+	supp_groups *grps = reinterpret_cast<supp_groups *>(c->groups);
+	if(!grps)
+		return false;
+
+	auto &ids = grps->ids();
+
+	for(const auto &g : ids)
+	{
+		if(g == gid)
+			return true;
+	}
+
+	return false;
+}

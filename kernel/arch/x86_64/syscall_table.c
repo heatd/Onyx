@@ -187,6 +187,12 @@ ssize_t sys_recvmsg(int sockfd, struct msghdr *msg, int flags);
 pid_t sys_getpgid(pid_t pid);
 int sys_setpgid(pid_t pid, pid_t pgid);
 int sys_dup3(int oldfd, int newfd, int flags);
+int sys_get_uids(uid_t *ruid, uid_t *euid, uid_t *suid);
+int sys_get_gids(gid_t *rgid, gid_t *egid, gid_t *sgid);
+int sys_set_uids(unsigned int flags, uid_t ruid, uid_t euid, uid_t suid);
+int sys_set_gids(unsigned int flags, gid_t rgid, gid_t egid, gid_t sgid);
+int sys_setgroups(size_t size, const gid_t *ugids);
+int sys_getgroups(int size, gid_t *ugids);
 
 void *syscall_table_64[] =
 {
@@ -325,5 +331,11 @@ void *syscall_table_64[] =
 	[132] = (void*) sys_nosys, // recvmmsg
 	[133] = (void*) sys_setpgid,
 	[134] = (void*) sys_getpgid,
-	[135] = (void*) sys_dup3
+	[135] = (void*) sys_dup3,
+	[136] = (void*) sys_get_uids,
+	[137] = (void*) sys_get_gids,
+	[138] = (void*) sys_set_uids,
+	[139] = (void*) sys_set_gids,
+	[140] = (void*) sys_setgroups,
+	[141] = (void*) sys_getgroups
 };

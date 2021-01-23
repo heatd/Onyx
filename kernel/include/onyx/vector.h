@@ -148,6 +148,11 @@ public:
 		return true;
 	}
 
+	bool reserve(size_t nr_elems)
+	{
+		return alloc_buf(nr_elems * sizeof(T));
+	}
+
 	bool push_back(const T& obj)
 	{
 		if(nr_elems >= buffer_size)
@@ -260,6 +265,16 @@ public:
 	}
 
 	const T* cend() const
+	{
+		return &data[nr_elems];
+	}
+
+	const T* begin() const
+	{
+		return data;
+	}
+
+	const T* end() const
 	{
 		return &data[nr_elems];
 	}
