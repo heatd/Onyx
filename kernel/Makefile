@@ -189,7 +189,7 @@ endif
 
 $(ARCHDIR)/__vdso.o: $(ARCHDIR)/__vdso.c kernel.config
 	@echo [CC] $<
-	@$(CC) -c $< -o $@ -fpic -Iinclude/acpica -Iinclude -isystem ../libc/include -fno-zero-initialized-in-bss
+	@$(CC) -O2 -c $< -o $@ -fpic -Iinclude/acpica -Iinclude -isystem ../libc/include -fno-zero-initialized-in-bss
 
 onyx-vdso.so.0: $(ARCHDIR)/__vdso_asm.o $(ARCHDIR)/__vdso.o kernel.config
 	@echo [VDSO]
