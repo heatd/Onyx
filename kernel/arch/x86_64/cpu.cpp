@@ -266,6 +266,11 @@ void x86_setup_standard_control_registers(void)
 		cr4 |= CR4_SMAP;
 	}
 
+	if(x86_has_cap(X86_FEATURE_SMEP))
+	{
+		cr4 |= CR4_SMEP;
+	}
+
 	/* Note that CR4_PGE could only be set at this point in time since Intel
 	 * strongly recommends for it to be set after enabling paging
 	*/
