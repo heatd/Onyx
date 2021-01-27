@@ -109,6 +109,9 @@ SECTIONS
 		__start_testcases = .;
 		*(.testcases*)
 		__end_testcases = .;
+		__start_code_patch = .;
+		*(.code_patch*)
+		__end_code_patch = .;
 	} : text
 
 	_ro_end = .;

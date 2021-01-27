@@ -143,7 +143,14 @@ void *elf64_load_static(struct binfmt_args *args, Elf64_Ehdr *header)
 					}
 				}
 
-				if(to_zero) memset(bss_base, 0, bss_size);
+				if(to_zero)
+				{
+					if(user_memset(bss_base, 0, bss_size) < 0)
+					{
+						errno = EFAULT;
+						return NULL;
+					}
+				}
 			}
 
 			if(!load_addr_set)
@@ -333,7 +340,14 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 					}
 				}
 
-				if(to_zero) memset(bss_base, 0, bss_size);
+				if(to_zero)
+				{
+					if(user_memset(bss_base, 0, bss_size) < 0)
+					{
+						errno = EFAULT;
+						return NULL;
+					}
+				}
 			}
 		}
 	}

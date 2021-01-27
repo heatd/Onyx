@@ -187,8 +187,6 @@ struct stack_info
 
 int process_alloc_stack(struct stack_info *info);
 
-void process_put_entry_info(struct stack_info *info, char **argc, char **envp);
-
 #ifdef __cplusplus
 }
 #endif

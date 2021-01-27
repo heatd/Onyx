@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2016, 2017 Pedro Falcato
+* Copyright (c) 2016-2021 Pedro Falcato
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
@@ -49,6 +49,8 @@ USES_FANCY_END
 #include <onyx/x86/tsc.h>
 #include <onyx/x86/segments.h>
 #include <onyx/x86/control_regs.h>
+#include <onyx/x86/alternatives.h>
+#include <onyx/x86/ktrace.h>
 
 static cpu_t cpu;
 
@@ -95,30 +97,38 @@ void __cpu_identify(void)
 	{
 		INFO("x86cpu", "CPUID_FEATURES not supported!\n");
 	}
-	cpu.caps[0] = edx | ((uint64_t) ecx << 32);
+	else cpu.caps[0] = edx | ((uint64_t) ecx << 32);
 
 	eax = CPUID_FEATURES_EXT;
-	ecx = 0;
-	if(!__get_cpuid(CPUID_FEATURES_EXT, &eax, &ebx, &ecx, &edx))
+	if(!__get_cpuid_count(CPUID_FEATURES_EXT, 0, &eax, &ebx, &ecx, &edx))
 	{
 		INFO("x86cpu", "CPUID_FEATURES_EXT not supported!\n");
 	}
-	cpu.caps[1] = ebx | ((uint64_t) ecx << 32);
-	cpu.caps[2] = edx;
+	else
+	{
+		cpu.caps[1] = ebx | ((uint64_t) ecx << 32);
+		cpu.caps[2] = edx;
+	}
+	
 	eax = CPUID_EXTENDED_PROC_INFO;
 	if(!__get_cpuid(CPUID_EXTENDED_PROC_INFO, &eax, &ebx, &ecx, &edx))
 	{
 		INFO("x86cpu", "CPUID_EXTENDED_PROC_INFO not supported!\n");
 	}
-	cpu.caps[2] |= ((uint64_t) edx) << 32;
-	cpu.caps[3] = ecx;
+	else
+	{
+		cpu.caps[2] |= ((uint64_t) edx) << 32;
+		cpu.caps[3] = ecx;
+	}
 
 	if(!__get_cpuid(CPUID_ADVANCED_PM, &eax, &ebx, &ecx, &edx))
 	{
 		INFO("x86cpu", "CPUID_ADVANCED_PM not supported!\n");
 	}
-
-	cpu.invariant_tsc = (bool) (edx & (1 << 8));
+	else
+	{
+		cpu.invariant_tsc = (bool) (edx & (1 << 8));
+	}
 
 	/* Intel manuals 17.17 Time-Stamp Counter describes this in detail.
 	 * In short, Pentium M, Pentium 4, some Xeons and some P6's, the TSC increments with
@@ -129,7 +139,6 @@ void __cpu_identify(void)
 	 */
 	if((cpu.family == 0xf && cpu.model > 0x2) || (cpu.family == 0x6 && cpu.model >= 0xe))
 		cpu.constant_tsc = true;
-
 #if 0
 	/* TODO: Add 15h support */
 	if(__get_cpuid(0x15, &eax, &ebx, &ecx, &edx))
@@ -238,6 +247,8 @@ void cpu_identify(void)
 	cpu_get_sign();
 	INFO("cpu", "Stepping %i, Model %i, Family %i\n", cpu.stepping, cpu.model, cpu.family);
 	__cpu_identify();
+
+	x86_do_alternatives();
 }
 
 extern "C" void syscall_ENTRY64(void);
@@ -247,7 +258,14 @@ void x86_setup_standard_control_registers(void)
 	/* Note that we do not set floating point bits here, only in fpu_init and avx_init */
 	const unsigned long cr0 = CR0_PE | CR0_PG | CR0_ET | CR0_WP;
 	x86_write_cr0(cr0);
-	const unsigned long cr4 = CR4_DE | CR4_MCE | CR4_PAE | CR4_PGE | CR4_PSE;
+
+	unsigned long cr4 = CR4_DE | CR4_MCE | CR4_PAE | CR4_PGE | CR4_PSE;
+
+	if(x86_has_cap(X86_FEATURE_SMAP))
+	{
+		cr4 |= CR4_SMAP;
+	}
+
 	/* Note that CR4_PGE could only be set at this point in time since Intel
 	 * strongly recommends for it to be set after enabling paging
 	*/
@@ -542,4 +560,28 @@ void *cpu_resched(void *stack)
 	}
 
 	return stack;
+}
+
+static const uint8_t stac[] = {0x0f, 0x01, 0xcb};
+static const uint8_t clac[] = {0x0f, 0x01, 0xca};
+
+extern "C" void x86_smap_stac_patch(code_patch_location *loc)
+{
+	if(x86_has_cap(X86_FEATURE_SMAP))
+		ktrace::replace_instructions(loc->address, stac, 3, loc->size);
+	else
+	{
+		ktrace::nop_out(loc->address, loc->size);
+	}
+	
+}
+
+extern "C" void x86_smap_clac_patch(code_patch_location *loc)
+{
+	if(x86_has_cap(X86_FEATURE_SMAP))
+		ktrace::replace_instructions(loc->address, clac, 3, loc->size);
+	else
+	{
+		ktrace::nop_out(loc->address, loc->size);
+	}
 }

@@ -94,10 +94,14 @@ size_t random_get_entropy(size_t size, void *buffer)
 	{
 		if(signal_is_pending())
 			return -EINTR;
+	
 		if(current_entropy)
 		{
 			size_t r = current_entropy > to_read ? to_read : current_entropy;
-			memcpy(buf, entropy_buffer, r);
+
+			if(copy_to_user(buf, entropy_buffer, r) < 0)
+				return -EFAULT;
+
 			buf += r;
 			to_read -= r;
 		}
@@ -116,7 +120,10 @@ size_t urandom_get_entropy(size_t size, void *buffer)
 		if(current_entropy)
 		{
 			size_t r = current_entropy > to_read ? to_read : current_entropy;
-			memcpy(buf, entropy_buffer, r);
+
+			if(copy_to_user(buf, entropy_buffer, r) < 0)
+				return -EFAULT;
+
 			buf += r;
 			to_read -= r;
 		}
@@ -201,7 +208,5 @@ unsigned int get_random_int(void)
 
 int sys_getrandom(void *buf, size_t buflen, unsigned int flags)
 {
-	if(vm_check_pointer(buf, buflen) < 0)
-		return -EFAULT;
 	return (int) get_entropy_from_pool(ENTROPY_POOL_URANDOM, buflen, buf);
 }

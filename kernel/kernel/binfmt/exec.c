@@ -26,9 +26,12 @@ char **process_copy_envarg(const char **envarg, bool to_kernel, int *count)
 	size_t nr_args = 0;
 	size_t string_size = 0;
 	const char **b = envarg;
-	while(*b)
+	const char *ptr = NULL;
+	long st;
+
+	while((st = get_user64((unsigned long *) b, (unsigned long *) &ptr)) == 0 && ptr != NULL)
 	{
-		size_t length = strlen_user(*b);
+		size_t length = strlen_user(ptr);
 		if(length == (size_t) -EFAULT)
 			return errno = EFAULT, NULL;
 
@@ -36,6 +39,9 @@ char **process_copy_envarg(const char **envarg, bool to_kernel, int *count)
 		nr_args++;
 		b++;
 	}
+
+	if(st < 0)
+		return errno = EFAULT, NULL;
 
 	size_t buffer_size = (nr_args + 1) * sizeof(void*) + string_size;
 	char *new;
@@ -56,11 +62,15 @@ char **process_copy_envarg(const char **envarg, bool to_kernel, int *count)
 	/* Actually copy the buffer */
 	for(size_t i = 0; i < nr_args; i++)
 	{
-		size_t length = strlen_user(envarg[i]);
+		const char *str;
+		if(get_user64((unsigned long *) &envarg[i], (unsigned long *) &str) < 0)
+			return errno = EFAULT, NULL;
+
+		size_t length = strlen_user(str);
 		if(length == (size_t) -EFAULT)
 			return errno = EFAULT, NULL;
 
-		if(copy_from_user(it, envarg[i], length) < 0)
+		if(copy_from_user(it, str, length) < 0)
 			return errno = EFAULT, NULL;
 
 		it += length + 1;
@@ -100,17 +110,20 @@ static char *copy_string(char *restrict s1, const char *restrict s2)
 {
 	char *restrict dst = s1;
 	const char *restrict src = s2;
-	while(*src != '\0')
-		*dst++ = *src++;
+	size_t src_len = strlen(src);
 
-	return dst;
+	if(copy_to_user(dst, src, src_len) < 0)
+		return NULL;
+
+	return dst + src_len;
 }
 
 /* Sigh... Why doesn't C have references... */
-void process_put_strings(char ***pp, char **pstrings, char **vec)
+int process_put_strings(char ***pp, char **pstrings, char **vec)
 {
 	char **p = *pp;
 	char *strings = *pstrings;
+	char *null_ptr = NULL;
 
 	while(*vec)
 	{
@@ -118,14 +131,34 @@ void process_put_strings(char ***pp, char **pstrings, char **vec)
 		/* stpcpy returns a pointer to dest, then we add one to account for the null byte */
 		//printk("Writing (%s) strlen %lu to %p\n", *vec, strlen(*vec), s);
 		strings = copy_string(strings, *vec) + 1;
-		*p = s;
+		if(!strings)
+			return -EFAULT;
+
+		if(copy_to_user(p, &s, sizeof(char *)) < 0)
+			return -EFAULT;
+
 		vec++;
 		p++;
 	}
 
-	*p++ = NULL;
-	*pp = p;
+	if(copy_to_user(p, &null_ptr, sizeof(char *)) < 0)
+		return -EFAULT;
+
+	*pp = ++p;
 	*pstrings = strings;
+
+	return 0;
+}
+
+/* TODO: Hacky, we should implement this in optimised assembly! */
+static int put_user32(uint32_t *uptr, uint32_t val)
+{
+	return copy_to_user(uptr, &val, sizeof(uint32_t));
+}
+
+static int put_user64(uint64_t *uptr, uint64_t val)
+{
+	return copy_to_user(uptr, &val, sizeof(uint64_t));
 }
 
 void *process_setup_auxv(void *buffer, char *strings_space, struct process *process)
@@ -136,49 +169,61 @@ void *process_setup_auxv(void *buffer, char *strings_space, struct process *proc
 	unsigned char *scratch_space = (unsigned char *) strings_space;
 	for(int i = 0; i < 38; i++)
 	{
+		uint64_t type;
+		uint64_t val = 0;
+
 		if(i != 0)
-			auxv[i].a_type = i;
+			type = i;
 		else
-			auxv[i].a_type = 0xffff;
+			type = 0xffff;
 		if(i == 37)
-			auxv[i].a_type = 0;
+			type = 0;
+
 		switch(i)
 		{
 			case AT_PAGESZ:
-				auxv[i].a_un.a_val = PAGE_SIZE;
+				val = PAGE_SIZE;
 				break;
 			/* We're able to not grab cred because we're inside execve,
 			 * there's no race condition */
 			case AT_UID:
-				auxv[i].a_un.a_val = process->cred.euid;
+				val = process->cred.euid;
 				break;
 			case AT_GID:
-				auxv[i].a_un.a_val = process->cred.egid;
+				val = process->cred.egid;
 				break;
-			case AT_RANDOM:
-				get_entropy((char*) scratch_space, 16);
-				auxv[i].a_un.a_val = (uint64_t) scratch_space;
+			case AT_RANDOM: ;
+				char s[16];
+				get_entropy((char*) s, 16);
+
+				if(copy_to_user(scratch_space, s, 16) < 0)
+					return NULL;
+
+				val = (uint64_t) scratch_space;
 				scratch_space += 16;
 				break;
 			case AT_BASE:
-				auxv[i].a_un.a_val = (uintptr_t) process->interp_base;
+				val = (uintptr_t) process->interp_base;
 				break;
 			case AT_PHENT:
-				auxv[i].a_un.a_val = process->info.phent;
+				val = process->info.phent;
 				break;
 			case AT_PHNUM:
-				auxv[i].a_un.a_val = process->info.phnum;
+				val = process->info.phnum;
 				break;
 			case AT_PHDR:
-				auxv[i].a_un.a_val = (uintptr_t) process->info.phdr;
+				val = (uintptr_t) process->info.phdr;
 				break;
 			case AT_EXECFN:
-				auxv[i].a_un.a_val = (uintptr_t) scratch_space;
-				strcpy((char*) scratch_space, process->cmd_line);
-				scratch_space += strlen((const char*) scratch_space) + 1;
+				val = (uintptr_t) scratch_space;
+				size_t len = strlen(process->cmd_line) + 1;
+				if(copy_to_user((char*) scratch_space, process->cmd_line, len) < 0)
+					return NULL;
+
+				scratch_space += len;
 				break;
 			case AT_SYSINFO_EHDR:
-				auxv[i].a_un.a_val = (uintptr_t) process->vdso;
+				val = (uintptr_t) process->vdso;
 				break;
 			case AT_FLAGS:
 			{
@@ -187,16 +232,22 @@ void *process_setup_auxv(void *buffer, char *strings_space, struct process *proc
 
 			case AT_ENTRY:
 			{
-				auxv[i].a_un.a_val = (unsigned long) process->info.program_entry;
+				val = (unsigned long) process->info.program_entry;
 				break;
 			}
 		}
+
+		if(put_user64(&auxv[i].a_type, type) < 0)
+			return NULL;
+		
+		if(put_user64(&auxv[i].a_un.a_val, val) < 0)
+			return NULL;
 	}
 
 	return auxv;
 }
 
-void process_put_entry_info(struct stack_info *info, char **argv, char **envp)
+int process_put_entry_info(struct stack_info *info, char **argv, char **envp)
 {
 	int envc = 0;
 	int argc = 0;
@@ -218,15 +269,23 @@ void process_put_entry_info(struct stack_info *info, char **argv, char **envp)
 	__attribute__((may_alias)) char *strings_space = (char *) pointers_base + invariants;
 
 	__attribute__((may_alias)) long *pargc = (long *) pointers_base;
-	*pargc = argc;
+	if(copy_to_user(pargc, &argc, sizeof(argc)) < 0)
+		return -EFAULT;
+
 	//printk("argv at %p\n", pointers_base);
 	pointers_base = (void *)((char *) pointers_base + sizeof(long));
-	process_put_strings(&pointers_base, &strings_space, argv);
+	if(process_put_strings(&pointers_base, &strings_space, argv) < 0)
+		return -EFAULT;
+
 	//printk("envp at %p\n", pointers_base);
-	process_put_strings(&pointers_base, &strings_space, envp);
+	if(process_put_strings(&pointers_base, &strings_space, envp) < 0)
+		return -EFAULT;
 	//printk("auxv at %p\n", pointers_base);
-	process_setup_auxv(pointers_base, strings_space, get_current_process());
+	if(!process_setup_auxv(pointers_base, strings_space, get_current_process()))
+		return -EFAULT;
 	//printk("Stack pointer: %p\n", info->top);
+
+	return 0;
 }
 
 void process_kill_other_threads(void);
@@ -307,7 +366,7 @@ int sys_execve(const char *p, const char *argv[], const char *envp[])
 	char *path = strcpy_from_user(p);
 	if(!path)
 		return -errno;
-	
+
 	if((st = exec_state_create(&state)) < 0)
 	{
 		goto error;
@@ -418,7 +477,9 @@ int sys_execve(const char *p, const char *argv[], const char *envp[])
 	if(process_alloc_stack(&si) < 0)
 		goto error_die_signal;
 
-	process_put_entry_info(&si, karg, kenv);
+	if(process_put_entry_info(&si, karg, kenv) < 0)
+		goto error_die_signal;
+
 	free(karg);
 	free(kenv);
 	free(path);

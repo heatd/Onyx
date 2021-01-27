@@ -861,7 +861,7 @@ int sys_getsockopt(int sockfd, int level, int optname, void *optval, socklen_t *
 	
 	socket *sock = file_to_socket(f);
 
-	int st = sock->getsockopt(level, optname, optval, &length);
+	int st = sock->getsockopt(level, optname, ptr, &length);
 
 	if(st < 0)
 	{
@@ -899,7 +899,7 @@ int sys_setsockopt(int sockfd, int level, int optname, const void *uoptval, sock
 	
 	socket *sock = file_to_socket(f);
 
-	int st = sock->setsockopt(level, optname, uoptval, optlen);
+	int st = sock->setsockopt(level, optname, ptr, optlen);
 
 	free(ptr);
 

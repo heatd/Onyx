@@ -2289,8 +2289,7 @@ void vm_do_fatal_page_fault(struct fault_info *info)
 	}
 	else
 	{
-		printk("Kernel fatal segfault accessing %016lx at ip %lx\n", info->fault_address, info->ip);
-		panic("Unable to satisfy paging request");
+		panic("Kernel fatal segfault accessing %016lx at ip %lx\n", info->fault_address, info->ip);
 	}
 }
 

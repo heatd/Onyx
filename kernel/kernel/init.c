@@ -355,7 +355,6 @@ void kernel_multitasking(void *arg)
 #endif
 
 	LOG("kernel", "Command line: %s\n", kernel_cmdline);
-
 	/* Parse the command line string to a more friendly argv-like buffer */
 	kernel_parse_command_line(kernel_cmdline);
 

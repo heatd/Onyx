@@ -17,6 +17,8 @@ char *strcpy_from_user(const char *user);
 size_t strlen_user(const char *user);
 
 long get_user32(unsigned int *uaddr, unsigned int *dest);
+long get_user64(unsigned long *uaddr, unsigned long *dest);
+
 
 #ifdef __cplusplus
 }

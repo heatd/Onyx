@@ -68,7 +68,6 @@ void panic(const char *msg, ...)
 
 	va_end(parameters);
 
-
 	/* Turn off vterm multthreading */
 	vterm_panic();
 

@@ -121,12 +121,12 @@ public:
 
 	void wake()
 	{
+		list_remove(&list_node);
 		awaken = true;
 
 		COMPILER_BARRIER();
 
 		wait_queue_wake_all(&wq);
-		list_remove(&list_node);
 	}
 
 	futex_key& get_key()

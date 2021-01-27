@@ -252,6 +252,17 @@ void general_protection_fault(struct registers *ctx)
 
 void stack_trace_user(uintptr_t *stack);
 
+bool vm_is_smap_fault(struct registers *regs, const fault_info &info)
+{
+	if(info.fault_address >= arch_high_half)
+		return false;
+
+	if(info.user)
+		return false;
+
+	return !(regs->rflags & EFLAGS_ALIGNMENT_CHECK) && x86_has_cap(X86_FEATURE_SMAP);
+}
+
 void page_fault_handler(struct registers *ctx)
 {
 	uintptr_t fault_address = cpu_get_cr2();
@@ -265,7 +276,7 @@ void page_fault_handler(struct registers *ctx)
 	info.user = error_code & 0x4;
 	info.ip = ctx->rip;
 
-	if(vm_handle_page_fault(&info) < 0)
+	if(vm_is_smap_fault(ctx, info) || vm_handle_page_fault(&info) < 0)
 	{
 		if(!info.user)
 		{

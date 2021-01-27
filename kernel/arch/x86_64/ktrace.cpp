@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2020 Pedro Falcato
+* Copyright (c) 2020, 2021 Pedro Falcato
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
@@ -22,6 +22,11 @@ namespace ktrace
 /* We're using this byte sequence as the nop instruction to replace calls.
  * Note that it's exactly the same size as a call instruction (0xe8 + 4-byte offset). */
 const uint8_t nop_5byte[] = {0x0f, 0x1f, 0x44, 0x00, 0x00};
+const uint8_t nop_4byte[] = {0x0f, 0x1f, 0x40, 0x00};
+const uint8_t nop_3byte[] = {0x0f, 0x1f, 0x00};
+const uint8_t nop_2byte[] = {0x66, 0x90};
+const uint8_t nop_1byte[] = {0x90};
+
 constexpr size_t hotpatch_site_len = 5;
 constexpr uint8_t int3_insn = 0xcc;
 constexpr uint8_t call_insn = 0xe8;
@@ -120,6 +125,70 @@ void ktracepoint::deactivate()
 {
 	activated = false;
 	patch_code(mcount_call_addr, 0, patch_action::NOP);
+}
+
+/* NOTE: We don't need to be as careful as above because this is early boot code, without
+ * proper preemption or multi cpu stuff
+ */
+
+void __replace_instructions(void *ip, const void *instructions, size_t size)
+{
+	unsigned long f = irq_save_and_disable();
+
+	disable_writeprotect();
+
+	memcpy(ip, instructions, size);
+
+	enable_writeprotect();
+
+	irq_restore(f);
+}
+
+void nop_out(void *ip, size_t size)
+{
+	/* TODO: This could be much neater */
+	char *instr = (char *) ip;
+	while(size >= 5)
+	{
+		__replace_instructions((void *) instr, nop_5byte, 5);
+		size -= 5;
+		instr += 5;
+	}
+
+	while(size >= 4)
+	{
+		__replace_instructions((void *) instr, nop_4byte, 4);
+		size -= 4;
+		instr += 4;
+	}
+
+	while(size >= 3)
+	{
+		__replace_instructions((void *) instr, nop_3byte, 3);
+		size -= 3;
+		instr += 3;
+	}
+
+	while(size >= 2)
+	{
+		__replace_instructions((void *) instr, nop_2byte, 2);
+		size -= 2;
+		instr += 2;
+	}
+
+	while(size >= 1)
+	{
+		__replace_instructions((void *) instr, nop_1byte, 1);
+		size -= 1;
+		instr += 1;
+	}
+}
+
+void replace_instructions(void *ip, const void *instructions, size_t size, size_t max)
+{
+	assert(size <= max);
+	__replace_instructions(ip, instructions, size);
+	nop_out((void *) ((char *) ip + size), max - size);
 }
 
 }

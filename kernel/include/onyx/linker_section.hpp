@@ -20,7 +20,7 @@ public:
 	unsigned char *start;
 	unsigned char *end;
 public:
-	linker_section(unsigned char *__start, unsigned char *__end) : start(__start), end(__end)
+	constexpr linker_section(unsigned char *__start, unsigned char *__end) : start(__start), end(__end)
 	{
 	}
 

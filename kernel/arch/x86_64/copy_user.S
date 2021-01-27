@@ -4,12 +4,13 @@
 * check LICENSE at the root directory for more information
 */
 
+#include <onyx/x86/alternatives.h>
+
 # cbn_status_t copy_to_user(void *udst, const void *ksrc, size_t size);
 .section .text
 .global copy_to_user
 .balign 32
 copy_to_user:
-	
 	# Note: This is slow, but it's needed...
 	# TODO: How can we access C structs from assembly safely?
 	push %rdi
@@ -32,9 +33,11 @@ copy_to_user:
 	ja copy_to_user.handler
 	xor %rax, %rax
 	mov %rdx, %rcx
+	__ASM_ALTERNATIVE_INSTRUCTION(x86_smap_stac_patch, 3, 0, 0)
 copy_to_user.copy_instr:
 	rep movsb (%rsi), (%rdi)
 copy_to_user.function_out:
+	__ASM_ALTERNATIVE_INSTRUCTION(x86_smap_clac_patch, 3, 0, 0)
 	ret
 copy_to_user.handler:
 	# CBN_STATUS_SEGFAULT = -5
@@ -74,9 +77,11 @@ copy_from_user:
 	ja copy_from_user.handler
 	xor %rax, %rax
 	mov %rdx, %rcx
+	__ASM_ALTERNATIVE_INSTRUCTION(x86_smap_stac_patch, 3, 0, 0)
 copy_from_user.copy_instr:
 	rep movsb (%rsi), (%rdi)
 copy_from_user.function_out:
+	__ASM_ALTERNATIVE_INSTRUCTION(x86_smap_clac_patch, 3, 0, 0)
 	ret
 copy_from_user.handler:
 	# CBN_STATUS_SEGFAULT = -5
@@ -116,6 +121,7 @@ strlen_user:
 	 #define ALIGNED(x, y)       !((unsigned long) x & (y - 1))
 	 #define HASZERO(v)          (((v) - CONST1) & ~(v) & CONST2)
 	*/
+	__ASM_ALTERNATIVE_INSTRUCTION(x86_smap_stac_patch, 3, 0, 0)
 1:
 	test $7, %rdi
 	jz 5f
@@ -161,6 +167,7 @@ strlen_user:
 	jmp 3b
 
 strlen_user.function_out:
+	__ASM_ALTERNATIVE_INSTRUCTION(x86_smap_clac_patch, 3, 0, 0)
 	ret
 strlen_user.handler:
 	# CBN_STATUS_SEGFAULT = -5
@@ -190,10 +197,41 @@ get_user32:
 	# Check if src < addr_limit
 	cmp %rax, %rdi
 	ja 3f
+	__ASM_ALTERNATIVE_INSTRUCTION(x86_smap_stac_patch, 3, 0, 0)
 1:  movl (%rdi), %edx
 	movl %edx, (%rsi)
 	xor %rax, %rax
 2:
+	__ASM_ALTERNATIVE_INSTRUCTION(x86_smap_clac_patch, 3, 0, 0)
+	ret
+3:
+	mov $-14, %rax
+	jmp 2b
+.pushsection .ehtable
+	.quad 1b
+	.quad 3b
+.popsection
+
+.global get_user64
+get_user64:
+	# addr in %rdi, dest in %rsi, ret is 0 if good or -EFAULT if we faulted
+	push %rdi
+	push %rsi
+
+	call thread_get_addr_limit
+
+	pop %rsi	
+	pop %rdi
+
+	# Check if src < addr_limit
+	cmp %rax, %rdi
+	ja 3f
+	__ASM_ALTERNATIVE_INSTRUCTION(x86_smap_stac_patch, 3, 0, 0)
+1:  movq (%rdi), %rdx
+	movq %rdx, (%rsi)
+	xor %rax, %rax
+2:
+	__ASM_ALTERNATIVE_INSTRUCTION(x86_smap_clac_patch, 3, 0, 0)
 	ret
 3:
 	mov $-14, %rax
@@ -228,9 +266,13 @@ user_memset:
 	ja 3f
 	mov %si, %ax
 	mov %rdx, %rcx
+	xor %rax, %rax
+
+	__ASM_ALTERNATIVE_INSTRUCTION(x86_smap_stac_patch, 3, 0, 0)
 1:
 	rep stosb (%rdi)
 2:
+	__ASM_ALTERNATIVE_INSTRUCTION(x86_smap_clac_patch, 3, 0, 0)
 	ret
 3:
 	# CBN_STATUS_SEGFAULT = -5

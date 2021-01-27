@@ -823,7 +823,7 @@ int sys_sigaction(int signum, const struct k_sigaction *act, struct k_sigaction 
 		if(copy_from_user(&sa, act, sizeof(struct k_sigaction)) < 0)
 			return -EFAULT;
 
-		if(act->sa_handler == SIG_ERR)
+		if(sa.sa_handler == SIG_ERR)
 			return -EINVAL;
 
 		/* Check if it's actually possible to set a handler to this signal */

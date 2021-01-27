@@ -46,12 +46,15 @@ void context_tracking_enter_kernel(void)
 	auto flags = irq_save_and_disable();
 
 	auto current = get_current_thread();
-	if(current->cputime_info.context == THREAD_CONTEXT_USER)
+	if(current) [[likely]]
 	{
-		do_cputime_accounting();
-	}
+		if(current->cputime_info.context == THREAD_CONTEXT_USER)
+		{
+			do_cputime_accounting();
+		}
 
-	current->cputime_info.context++;
+		current->cputime_info.context++;
+	}
 
 	irq_restore(flags);
 }
@@ -62,12 +65,15 @@ void context_tracking_exit_kernel(void)
 	auto flags = irq_save_and_disable();
 
 	auto current = get_current_thread();
-	if(current->cputime_info.context == THREAD_CONTEXT_KERNEL_MIN)
+	if(current) [[likely]]
 	{
-		do_cputime_accounting();
-	}
+		if(current->cputime_info.context == THREAD_CONTEXT_KERNEL_MIN)
+		{
+			do_cputime_accounting();
+		}
 
-	current->cputime_info.context--;
+		current->cputime_info.context--;
+	}
 
 	irq_restore(flags);
 }
