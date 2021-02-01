@@ -10,6 +10,8 @@ $(SOURCE_PACKAGES) build-cleanup musl
 
 export DESTDIR:=$(PWD)/sysroot
 export HOST?=$(shell ./default-host.sh)
+export BUILDPKG_BIN?=$(PWD)/buildpkg/buildpkg
+export BUILDPKG_BIN_PY_WRAPPER?=$(PWD)/buildpkg/buildpkg_gn_wrapper
 
 export AR:=$(HOST)-ar
 export AS:=$(HOST)-as
@@ -92,7 +94,7 @@ install-headers: build-prep
 build-srcpackages: $(SOURCE_PACKAGES)
 
 build-gn: musl libssp install-packages
-	cd usystem && ninja -C out/ system && ./copy_packages.sh && cd ..
+	cd usystem && ninja -C out/ system && ./copy_packages.sh && ./uncompress_packages.sh && cd ..
 
 build-usystem: build-srcpackages $(USYSTEM_PROJS) build-gn
 

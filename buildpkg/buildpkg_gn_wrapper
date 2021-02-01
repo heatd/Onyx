@@ -1,0 +1,13 @@
+#!/bin/python3
+import os
+import sys
+
+buildpkg_bin = os.environ.get("BUILDPKG_BIN")
+
+if buildpkg_bin == None:
+	print("Error: Bad build environment")
+	exit(1)
+
+sys.argv[0] = buildpkg_bin
+
+os.execv(buildpkg_bin, sys.argv)

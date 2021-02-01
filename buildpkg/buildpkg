@@ -2,7 +2,41 @@
 
 # PKGDIR represents the directory where things will be put before they're completely
 # compressed into a package
+set -e
+
 PKGDIR=$(mktemp -d)
+
+TEMP=$(getopt -o 'o:' --long 'output-dir:,create-dir' -n 'buildpkg' -- "$@")
+
+echo $TEMP
+
+eval set -- "$TEMP"
+
+OUTPUT_DIR='./'
+create_dir=0
+
+unset TEMP
+
+while true; do
+	echo $1
+	case "$1" in
+		'-o'|'--output-dir')
+			echo "Using output dir '$2'"
+			OUTPUT_DIR=$2
+			shift 2
+			continue
+		;;
+		'--create-dir')
+			create_dir=1
+			shift
+			continue
+		;;
+		'--')
+			shift
+			break
+		;;
+	esac
+done
 
 # PKGSRC is the first argument and represents the place where the package actually is
 PKGSRC=$1
@@ -12,6 +46,11 @@ NUM_THREADS=$(nproc)
 MAKE="make -j${NUM_THREADS}"
 
 TASK=$2
+
+if [[ "$create_dir" = "1" ]]; then
+	echo "Creating directory $OUTPUT_DIR"
+	mkdir -p $OUTPUT_DIR
+fi
 
 if [[ $TASK != "build" && $TASK != "package" && $TASK != "build+package" ]]; then
 	echo "${0}: Error: No/invalid build task specified"
@@ -30,9 +69,10 @@ if [[ $TASK == "build" || $TASK == "build+package" ]]; then
 	popd
 fi
 
+pushd $OUTPUT_DIR
+
 if [[ $TASK == "build+package" || $TASK == "package" ]]; then
-	pushd .
-	cd $PKGSRC
+	pushd $PKGSRC
 	package
 
 	popd
@@ -41,5 +81,7 @@ if [[ $TASK == "build+package" || $TASK == "package" ]]; then
 	zstd -c -T0 --ultra -20 ${PKGNAME}-${PKGVER}.tar > ${PKGNAME}-${PKGVER}.tar.zst
 	rm ${PKGNAME}-${PKGVER}.tar
 fi
+
+popd
 
 rm -rf $PKGDIR

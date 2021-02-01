@@ -3,6 +3,7 @@ group("system") {
         "//netctld",
         "//system_benchmark",
         "//kernel_api_tests",
-        "//net_tests"
+        "//net_tests",
+        "//toybox"
     ]
 }

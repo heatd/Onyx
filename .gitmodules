@@ -7,3 +7,6 @@
 [submodule "usystem/benchmark"]
 	path = usystem/benchmark
 	url = https://github.com/heatd/benchmark
+[submodule "usystem/toybox"]
+	path = usystem/toybox
+	url = https://github.com/heatd/toybox
