@@ -154,6 +154,8 @@ int device_mknod(struct dev *d, const char *path, const char *name, mode_t mode)
 		if(!root)
 			return -errno;
 	}
+
+	assert(root != NULL);
 	
 	if(d->is_block) mode |= S_IFBLK;
 	else	mode |= S_IFCHR;

@@ -386,6 +386,17 @@ bool vm_mapping_is_anon(struct vm_region *reg)
 	return reg->fd == NULL && reg->vmo->type == VMO_ANON;
 }
 
+void vm_make_anon(struct vm_region *reg)
+{
+	if(reg->fd)
+	{
+		fd_put(reg->fd);
+		reg->fd = NULL;
+	}
+
+	reg->flags &= ~MAP_ANONYMOUS;
+}
+
 bool vm_mapping_requires_write_protect(struct vm_region *reg)
 {
 	if(vm_mapping_requires_wb(reg))

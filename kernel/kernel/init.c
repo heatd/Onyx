@@ -362,8 +362,6 @@ void kernel_multitasking(void *arg)
 
 	/* Start populating /dev */
 	tty_create_dev(); /* /dev/tty */
-	null_init(); /* /dev/null */
-	zero_init(); /* /dev/zero */
 	entropy_init_dev(); /* /dev/random and /dev/urandom */
 
 	/* Mount sysfs */

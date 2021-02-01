@@ -318,6 +318,8 @@ struct page *vm_get_zero_page(void);
 
 void *vm_create_active_cpus(void);
 
+void vm_make_anon(struct vm_region *region);
+
 #ifdef __cplusplus
 }
 #endif
