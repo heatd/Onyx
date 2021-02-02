@@ -297,10 +297,14 @@ extern "C" struct block_buf *sb_read_block(const struct superblock *sb, unsigned
 
 	if(unlikely(!buf))
 	{
-		size_t page_off = aligned_off - real_off;
+		size_t page_off = real_off - aligned_off;
 		sector_t aligned_block = aligned_off / sb->s_block_size;
-		sector_t block_nr = aligned_block + ((aligned_off - real_off) / sb->s_block_size);
-	
+#if 0
+		printk("Aligned block: %lx\n", aligned_block);
+		printk("Aligned off %lx real off %lx\n", aligned_off, real_off);
+#endif
+		sector_t block_nr = aligned_block + ((real_off - aligned_off) / sb->s_block_size);
+
 		if(!(buf = page_add_blockbuf(page, page_off)))
 		{
 			page_unref(page);
