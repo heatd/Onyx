@@ -92,6 +92,9 @@ jobs:
       - name: Install Dependencies
         if: steps.toolchain-cache.outputs.cache-hit != 'true'
         run: |
+          cp kernel/kernel.config.example kernel/kernel.config
+          SYSROOT=$PWD/sysroot ./scripts/setup_build.sh
+          make install-headers -j $(nproc)
           mkdir toolchain_binaries
           ./toolchains/download_and_patch_tools.sh toolchain_build
           cd toolchain_build
