@@ -20,7 +20,7 @@ cd usystem
 
 gn gen out/
 
-touch --reference=dash/ -c dash/*
+touch -r dash/ -c dash/*
 
 cd ..
 
