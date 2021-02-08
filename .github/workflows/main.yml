@@ -161,7 +161,7 @@ jobs:
         - name: Build toolchain
           if: steps.toolchain-cache-macos.outputs.cache-hit != 'true'
           run: |
-            brew install zstd gmp mpfr libmpc wget
+            brew install zstd gmp mpfr libmpc wget unzip make ninja
             cp kernel/kernel.config.example kernel/kernel.config
             curl -O https://storage.googleapis.com/onyx-stuffs/minimal-sysroot.tar.zst
             zstd -d minimal-sysroot.tar.zst -c | tar xvf -
@@ -170,6 +170,7 @@ jobs:
             wget -q https://chrome-infra-packages.appspot.com/dl/gn/gn/mac-amd64/+/latest -O gn.zip
             unzip gn.zip
             echo "$PWD" >> $GITHUB_PATH
+            echo "$(brew --prefix)/opt/make/libexec/gnubin" >> $GITHUB_PATH
             cd ..
             SYSROOT=$PWD/sysroot ./scripts/setup_build.sh
             make install-headers -j $(nproc)
