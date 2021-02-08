@@ -30,9 +30,9 @@ jobs:
       # Runs a single command using the runners shell
       - name: Download the toolchain
         run: |
-          wget -q https://github.com/heatd/onyx-toolchains/raw/master/x86_64-onyx.tar.zst
+          wget -q https://storage.googleapis.com/onyx-stuffs/x86_64-onyx.tar.zst
           zstd -d x86_64-onyx.tar.zst --stdout | tar x
-          echo "::add-path::$PWD/x86_64-onyx/bin"
+          echo "$PWD/x86_64-onyx/bin" >> $GITHUB_PATH
 
       - name: dependencies
         run: |
@@ -41,7 +41,7 @@ jobs:
           cd gn_bin
           wget -q https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/latest -O gn.zip
           unzip gn.zip
-          echo "::add-path::$PWD"
+          echo "$PWD" >> $GITHUB_PATH
           cd ..
 
       # Runs a set of commands using the runners shell
