@@ -1152,7 +1152,7 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
 			if(!ino->i_fops->mmap)
 			{
 				__vm_munmap(mm, (void *) area->base, pages << PAGE_SHIFT);
-				return errno = ENOSYS, nullptr;
+				return errno = ENODEV, nullptr;
 			}
 
 			void *ret = ino->i_fops->mmap(area, file);
