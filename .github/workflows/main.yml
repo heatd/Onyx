@@ -169,11 +169,13 @@ jobs:
             cd gn_bin
             wget -q https://chrome-infra-packages.appspot.com/dl/gn/gn/mac-amd64/+/latest -O gn.zip
             unzip gn.zip
+            echo $PATH
             echo "$PWD" >> $GITHUB_PATH
             echo "$(brew --prefix)/opt/make/libexec/gnubin" >> $GITHUB_PATH
+            echo "TEST: $PATH"
             cd ..
             SYSROOT=$PWD/sysroot ./scripts/setup_build.sh
-            make install-headers -j $(nproc)
+            make install-headers -j $(sysctl -n hw.logicalcpu)
             mkdir toolchain_binaries
             ./toolchains/download_and_patch_tools.sh toolchain_build
             cd toolchain_build
@@ -182,8 +184,8 @@ jobs:
             ../binutils-2.35/configure --target=x86_64-onyx --prefix=$PWD/../../toolchain_binaries \
             --with-sysroot=$PWD/../../sysroot \
             --disable-werror --disable-nls --enable-gold=default --enable-lto --enable-plugins
-            make -j $(nproc)
-            make install -j $(nproc)
+            make -j $(sysctl -n hw.logicalcpu)
+            make install -j $(sysctl -n hw.logicalcpu)
             cd ..
             mkdir gcc-build
             cd gcc-build
@@ -191,9 +193,9 @@ jobs:
             --with-sysroot=$PWD/../../sysroot --enable-languages=c,c++ --disable-nls \
             --enable-threads=posix --enable-libstdcxx-threads --enable-symvers=gnu --enable-default-pie \
             --enable-lto --enable-default-ssp --enable-shared
-            make all-gcc all-target-libgcc all-target-libstdc++-v3 -j $(nproc)
-            make install-gcc install-target-libgcc install-target-libstdc++-v3 -j $(nproc)
-            make clean -j $(nproc)
+            make all-gcc all-target-libgcc all-target-libstdc++-v3 -j $(sysctl -n hw.logicalcpu)
+            make install-gcc install-target-libgcc install-target-libstdc++-v3 -j $(sysctl -n hw.logicalcpu)
+            make clean -j $(sysctl -n hw.logicalcpu)
 
         - name: Compress toolchain
           run: |
