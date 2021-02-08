@@ -1,5 +1,5 @@
 #!/bin/sh
 
 for tarball in out/compressed/*.tar*; do
-	tar xvf $tarball -C $DESTDIR
+	zstd -d -c -T0 $tarball | tar xvf - -C $DESTDIR
 done
