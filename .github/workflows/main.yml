@@ -92,6 +92,7 @@ jobs:
       - name: Install Dependencies
         if: steps.toolchain-cache.outputs.cache-hit != 'true'
         run: |
+          sudo apt install libmpc-dev libgmp3-dev bison flex libmpfr-dev libcloog-isl-dev	libisl-dev
           cp kernel/kernel.config.example kernel/kernel.config
           SYSROOT=$PWD/sysroot ./scripts/setup_build.sh
           make install-headers -j $(nproc)
