@@ -10,3 +10,6 @@
 [submodule "usystem/toybox"]
 	path = usystem/toybox
 	url = https://github.com/heatd/toybox
+[submodule "toolchains"]
+	path = toolchains
+	url = https://github.com/heatd/toolchains.git
