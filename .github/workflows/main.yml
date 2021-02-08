@@ -137,6 +137,74 @@ jobs:
         with:
           name: x86_64-onyx-linux
           path: x86_64-onyx-linux.tar.zst
+    
+  build-toolchain-macos:
+      # The type of runner that the job will run on
+      runs-on: macos-latest
 
+      # Steps represent a sequence of tasks that will be executed as part of the job
+      steps:
+        # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+        - uses: actions/checkout@v2
+          with:
+            submodules: "recursive"
+
+        - name: Cache
+          id: toolchain-cache-macos
+          uses: actions/cache@v2.1.4
+          with:
+            # A list of files, directories, and wildcard patterns to cache and restore
+            path: toolchain_binaries/
+            # An explicit key for restoring and saving the cache
+            key: toolchain-macos
+      
+        - name: Build toolchain
+          if: steps.toolchain-cache-macos.outputs.cache-hit != 'true'
+          run: |
+            brew install zstd gmp mpfr libmpc wget
+            cp kernel/kernel.config.example kernel/kernel.config
+            curl -O https://storage.googleapis.com/onyx-stuffs/minimal-sysroot.tar.zst
+            zstd -d minimal-sysroot.tar.zst -c | tar xvf -
+            mkdir gn_bin/
+            cd gn_bin
+            wget -q https://chrome-infra-packages.appspot.com/dl/gn/gn/mac-amd64/+/latest -O gn.zip
+            unzip gn.zip
+            echo "$PWD" >> $GITHUB_PATH
+            cd ..
+            SYSROOT=$PWD/sysroot ./scripts/setup_build.sh
+            make install-headers -j $(nproc)
+            mkdir toolchain_binaries
+            ./toolchains/download_and_patch_tools.sh toolchain_build
+            cd toolchain_build
+            mkdir binutils-build
+            cd binutils-build
+            ../binutils-2.35/configure --target=x86_64-onyx --prefix=$PWD/../../toolchain_binaries \
+            --with-sysroot=$PWD/../../sysroot \
+            --disable-werror --disable-nls --enable-gold=default --enable-lto --enable-plugins
+            make -j $(nproc)
+            make install -j $(nproc)
+            cd ..
+            mkdir gcc-build
+            cd gcc-build
+            ../gcc-10.2.0/configure --target=x86_64-onyx --prefix=$PWD/../../toolchain_binaries \
+            --with-sysroot=$PWD/../../sysroot --enable-languages=c,c++ --disable-nls \
+            --enable-threads=posix --enable-libstdcxx-threads --enable-symvers=gnu --enable-default-pie \
+            --enable-lto --enable-default-ssp --enable-shared
+            make all-gcc all-target-libgcc all-target-libstdc++-v3 -j $(nproc)
+            make install-gcc install-target-libgcc install-target-libstdc++-v3 -j $(nproc)
+            make clean -j $(nproc)
+
+        - name: Compress toolchain
+          run: |
+            mv toolchain_binaries x86_64-onyx
+            tar cvf x86_64-onyx-macos.tar x86_64-onyx
+            zstd -T0 -13 x86_64-onyx-macos.tar -o x86_64-onyx-macos.tar.zst
+            mv x86_64-onyx toolchain_binaries
+
+        - name: Upload a Build Artifact (x86_64-onyx-macos)
+          uses: actions/upload-artifact@v2.1.4
+          with:
+            name: x86_64-onyx-macos
+            path: x86_64-onyx-macos.tar.zst
             
             
