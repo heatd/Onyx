@@ -93,7 +93,7 @@ jobs:
         if: steps.toolchain-cache.outputs.cache-hit != 'true'
         run: |
           mkdir toolchain_binaries
-          ./toolchain/download_and_patch_tools.sh toolchain_build
+          ./toolchains/download_and_patch_tools.sh toolchain_build
           cd toolchain_build
           mkdir binutils-build
           cd binutils-build
