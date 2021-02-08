@@ -72,6 +72,17 @@ void vm_unmap_every_region_in_range(struct mm_address_space *as, unsigned long s
 bool limits_are_contained(struct vm_region *reg, unsigned long start, unsigned long limit);
 bool vm_mapping_is_cow(struct vm_region *entry);
 
+bool vm_test_vs_rlimit(const mm_address_space *as, ssize_t diff)
+{
+	/* The kernel doesn't have resource limits */
+	if(as == &kernel_address_space)
+		return true;
+	/* Decreasing the resource usage doesn't respect limits */
+	if(diff < 0)
+		return true;
+	return as->process->get_rlimit(RLIMIT_AS).rlim_cur >= as->virtual_memory_size + (size_t) diff;
+}
+
 int imax(int x, int y)
 {
 	return x > y ? x : y;
@@ -213,6 +224,9 @@ done:
 struct vm_region *vm_allocate_region(struct mm_address_space *as,
 				     unsigned long min, size_t size)
 {
+	if(!vm_test_vs_rlimit(as, size))
+		return errno = ENOMEM, nullptr;
+
 	unsigned long new_base = vm_allocate_base(as, min, size);
 
 	struct vm_region *reg = vm_reserve_region(as, new_base, size);
@@ -348,9 +362,6 @@ void do_vm_unmap(void *range, size_t pages)
 	struct vm_region *entry = vm_find_region(range);
 	MUST_HOLD_MUTEX(&entry->mm->vm_lock);
 	assert(entry != nullptr);
-
-	struct vm_object *vmo = entry->vmo;
-	assert(vmo != nullptr);
 
 	vm_mmu_unmap(entry->mm, range, pages);
 }
@@ -589,6 +600,12 @@ struct vm_region *__vm_create_region_at(void *addr, size_t pages, uint32_t type,
 
 	struct mm_address_space *mm = reserving_kernel
 	     ? &kernel_address_space : &get_current_process()->address_space;
+	
+	if(!vm_test_vs_rlimit(mm, pages << PAGE_SHIFT))
+	{
+		return errno = ENOMEM, nullptr;
+	}
+
 
 	v = vm_reserve_region(mm, (unsigned long) addr, pages << PAGE_SHIFT);
 	if(!v)
@@ -1048,7 +1065,7 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
 	if(off & (PAGE_SIZE - 1))
 		return errno = EINVAL, nullptr;
 
-	mutex_lock(&mm->vm_lock);
+	scoped_mutex g{mm->vm_lock};
 
 	/* Calculate the pages needed for the overall size */
 	size_t pages = vm_size_to_pages(length);
@@ -1129,20 +1146,20 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
 
 		struct inode *ino = file->f_ino;
 
-		if((ino->i_type == VFS_TYPE_BLOCK_DEVICE 
+		if(ino->i_type == VFS_TYPE_BLOCK_DEVICE 
 		   || ino->i_type == VFS_TYPE_CHAR_DEVICE)
-		   && area->mapping_type == MAP_SHARED)
 		{
 			if(!ino->i_fops->mmap)
 			{
+				__vm_munmap(mm, (void *) area->base, pages << PAGE_SHIFT);
 				return errno = ENOSYS, nullptr;
 			}
 
 			void *ret = ino->i_fops->mmap(area, file);
 
-			mutex_unlock(&mm->vm_lock);
-
 			if(ret) inode_update_atime(ino);
+			else
+				__vm_munmap(mm, (void *) area->base, pages << PAGE_SHIFT);
 
 			return ret;
 		}
@@ -1150,17 +1167,15 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
 
 	if(vm_region_setup_backing(area, pages, !(flags & MAP_ANONYMOUS)) < 0)
 	{
-		vm_munmap(mm, addr, pages << PAGE_SHIFT);
+		__vm_munmap(mm, (void *) area->base, pages << PAGE_SHIFT);
 		return errno = ENOMEM, nullptr;
 	}
 
 	base = (void *) area->base;
 
-	mutex_unlock(&mm->vm_lock);
 	return base;
 
 out_error:
-	mutex_unlock(&mm->vm_lock);
 	return errno = -st, nullptr;
 }
 
@@ -2814,12 +2829,18 @@ bool vm_can_expand(struct mm_address_space *as, struct vm_region *region, size_t
 	return false;
 }
 
-void __vm_expand_mapping(struct vm_region *region, size_t new_size)
+int __vm_expand_mapping(struct vm_region *region, size_t new_size)
 {
 	size_t diff = new_size - (region->pages << PAGE_SHIFT);
+	if(!vm_test_vs_rlimit(region->mm, new_size))
+		return -ENOMEM;
+
 	region->pages = new_size >> PAGE_SHIFT;
 	vmo_resize(new_size, region->vmo);
+
 	increment_vm_stat(region->mm, virtual_memory_size, diff);
+
+	return 0;
 }
 
 int vm_expand_mapping(struct mm_address_space *as, struct vm_region *region, size_t new_size)
@@ -2831,9 +2852,7 @@ int vm_expand_mapping(struct mm_address_space *as, struct vm_region *region, siz
 		return -1;
 	}
 
-	__vm_expand_mapping(region, new_size);
-
-	return 0;
+	return __vm_expand_mapping(region, new_size);
 }
 
 int vm_expand_brk(size_t nr_pages)
@@ -2932,7 +2951,9 @@ void *vm_try_move(struct vm_region *old_region, unsigned long new_base, size_t n
 	vm_remove_region(&current->address_space, old_region);
 
 	old_region->base = new_base;
-	__vm_expand_mapping(old_region, new_size);
+	if(int st = __vm_expand_mapping(old_region, new_size); st < 0)
+		return (void *) (unsigned long) st;
+
 	/* TODO: What to do in case of a failure? */
 	vm_add_region(&current->address_space, old_region);
 	

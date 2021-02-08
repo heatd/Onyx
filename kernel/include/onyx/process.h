@@ -23,8 +23,9 @@
 #include <onyx/cred.h>
 #include <onyx/itimer.h>
 #include <onyx/wait_queue.h>
-
 #include <onyx/vm_layout.h>
+#include <onyx/rwlock.h>
+
 
 #include <sys/resource.h>
 
@@ -55,7 +56,7 @@ struct process
 	struct process *next;
 
 	unsigned long nr_threads;
-	
+
 	struct list_head thread_list;
 	struct spinlock thread_list_lock;
 
@@ -68,7 +69,7 @@ struct process
 
 	/* Process ID */
 	pid_t pid;
-	
+
 	/* Process' UID and GID */
 	struct creds cred;
 
@@ -87,7 +88,7 @@ struct process
 
 	/* This process' parent */
 	struct process *parent;
-	
+
 	/* Linked list to the processes being traced */
 	struct extrusive_list_head tracees;
 
@@ -120,6 +121,9 @@ struct process
 	struct list_head pgrp_node;
 	struct process_group *process_group;
 
+	struct rlimit rlimits[RLIM_NLIMITS + 1];
+	struct rwlock rlimit_lock;
+
 #ifdef __cplusplus
 	process();
 	~process();
@@ -145,6 +149,12 @@ struct process
 		list_remove(&t->thread_list_head);
 	}
 
+	int rlimit(int rsrc, struct rlimit *old, const struct rlimit *new_lim, unsigned int flags);
+
+	struct rlimit get_rlimit(int rsrc);
+
+	void init_default_limits();
+	void inherit_limits(process *parent);
 #endif
 
 };

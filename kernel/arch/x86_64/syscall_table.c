@@ -33,6 +33,8 @@
 #include <onyx/page.h>
 #include <onyx/poll.h>
 
+#include <sys/resource.h>
+
 uint64_t sys_nosys(void)
 {
 	return (uint64_t) -ENOSYS;
@@ -194,6 +196,9 @@ int sys_set_gids(unsigned int flags, gid_t rgid, gid_t egid, gid_t sgid);
 int sys_setgroups(size_t size, const gid_t *ugids);
 int sys_getgroups(int size, gid_t *ugids);
 
+int sys_rlimit(pid_t pid, int resource, struct rlimit *uold, const struct rlimit *unew_lim,
+                          unsigned int flags);
+
 void *syscall_table_64[] =
 {
 	[0] = (void*) sys_write,
@@ -294,7 +299,7 @@ void *syscall_table_64[] =
 	[95] = (void*) sys_lchown,
 	[96] = (void*) sys_umask,
 	[97] = (void*) sys_rename,
-	[98] = (void*) sys_nosys, // TODO: getrlimit
+	[98] = (void*) sys_rlimit,
 	[99] = (void*) sys_mkdirat,
 	[100] = (void*) sys_mknodat,
 	[101] = (void*) sys_fchownat,
@@ -337,5 +342,5 @@ void *syscall_table_64[] =
 	[138] = (void*) sys_set_uids,
 	[139] = (void*) sys_set_gids,
 	[140] = (void*) sys_setgroups,
-	[141] = (void*) sys_getgroups
+	[141] = (void*) sys_getgroups,
 };

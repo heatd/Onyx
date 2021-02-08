@@ -79,7 +79,10 @@ size_t proc_event_read(size_t offset, size_t sizeofread, void* buffer,
 
 	sem_wait(&sub->event_semaphore);
 
-	memcpy(buffer, &sub->event_buf, sizeofread);
+	if(copy_to_user(buffer, &sub->event_buf, sizeofread) < 0)
+		return -EFAULT;
+
+	/* TODO: This code all looks weird */
 	sub->event_semaphore.counter = 0;
 	
 	__atomic_store_n(&sub->has_new_event, 0, __ATOMIC_RELEASE);

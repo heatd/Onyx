@@ -60,15 +60,30 @@ TEST(DevZero, WriteTest)
 
 TEST(DevZero, MmapTest)
 {
-	int fd = open("/dev/null", O_RDONLY);
+	int fd = open("/dev/zero", O_RDONLY);
 
 	ASSERT_NE(fd, -1);
 
-	void *ptr = mmap(nullptr, 0x10000, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, fd, 0);
+	void *ptr = mmap(nullptr, 0x10000, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
 	
 	ASSERT_NE(ptr, MAP_FAILED);
 
 	memset(ptr, 0, 0x10000);
 
 	munmap(ptr, 0x10000);
+
+	close(fd);
+}
+
+TEST(DevNull, MmapFailureTest)
+{
+	int fd = open("/dev/null", O_RDONLY);
+
+	ASSERT_NE(fd, -1);
+
+	void *ptr = mmap(nullptr, 0x10000, PROT_READ | PROT_WRITE, MAP_PRIVATE, fd, 0);
+	
+	ASSERT_EQ(ptr, MAP_FAILED);
+
+	close(fd);
 }

@@ -93,7 +93,7 @@
 #define __NR_lchown				95
 #define __NR_umask				96
 #define __NR_rename				97
-#define __NR_getrlimit				98
+#define __NR_rlimit                 98
 #define __NR_mkdirat				99
 #define __NR_mknodat				100
 #define __NR_fchownat				101
@@ -168,7 +168,6 @@
 #define __NR__sysctl				156
 #define __NR_prctl					157
 #define __NR_adjtimex				159
-#define __NR_setrlimit				160
 #define __NR_chroot					161
 #define __NR_acct					163
 #define __NR_settimeofday			164
@@ -295,7 +294,6 @@
 #define __NR_perf_event_open		298
 #define __NR_fanotify_init			300
 #define __NR_fanotify_mark			301
-#define __NR_prlimit64				302
 #define __NR_name_to_handle_at			303
 #define __NR_open_by_handle_at			304
 #define __NR_clock_adjtime			305

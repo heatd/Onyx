@@ -31,7 +31,7 @@ size_t zero_write(size_t offset, size_t len, void *buf, file *f)
 void *zero_mmap(struct vm_region *area, struct file *node)
 {
 	if(vm_region_setup_backing(area, area->pages, false) < 0)
-		return NULL;
+		return nullptr;
 
 	vm_make_anon(area);
 

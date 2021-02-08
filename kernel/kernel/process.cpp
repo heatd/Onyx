@@ -91,6 +91,7 @@ process::process()
 	init_wait_queue_head(&this->wait_child_event);
 	mutex_init(&condvar_mutex);
 	mutex_init(&ctx.fdlock);
+	rwlock_init(&rlimit_lock);
 }
 
 process::~process()
@@ -179,6 +180,8 @@ process *process_create(const char *cmd_line, ioctx *ctx, process *parent)
 
 		parent->process_group->inherit(proc);
 		proc->flags = parent->flags;
+
+		proc->inherit_limits(parent);
 	}
 	else
 	{
@@ -193,6 +196,8 @@ process *process_create(const char *cmd_line, ioctx *ctx, process *parent)
 		proc->process_group->add_process(proc);
 
 		proc->process_group->unref();
+
+		proc->init_default_limits();
 	}
 
 	proc->address_space.process = proc;

@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2017 Pedro Falcato
+* Copyright (c) 2017-2021 Pedro Falcato
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
@@ -49,7 +49,7 @@ struct file *get_current_directory(void)
 	if(unlikely(!fp))
 	{
 		spin_unlock(&ctx->cwd_lock);
-		return NULL;
+		return nullptr;
 	}
 
 	fd_get(fp);
@@ -85,7 +85,7 @@ static bool validate_fd_number(int fd, struct ioctx *ctx)
 		return false;
 	}
 	
-	if(ctx->file_desc[fd] == NULL)
+	if(ctx->file_desc[fd] == nullptr)
 	{
 		return false;
 	}
@@ -142,14 +142,12 @@ struct file *__get_file_description_unlocked(int fd, struct process *p)
 	struct ioctx *ctx = &p->ctx;
 
 	if(!validate_fd_number(fd, ctx))
-		goto badfd;
+		return errno = EBADF, nullptr;
 
 	struct file *f = ctx->file_desc[fd];
 	fd_get(f);
 
 	return f;
-badfd:
-	return errno = EBADF, NULL;
 }
 
 struct file *__get_file_description(int fd, struct process *p)
@@ -171,20 +169,18 @@ int __file_close_unlocked(int fd, struct process *p)
 	struct ioctx *ctx = &p->ctx;
 
 	if(!validate_fd_number(fd, ctx))
-		goto badfd;
+		return -EBADF;
 
 	struct file *f = ctx->file_desc[fd];
 	
-	/* Decrement the ref count and set the entry to NULL */
+	/* Decrement the ref count and set the entry to nullptr */
 	/* TODO: Shrink the fd table? */
 	fd_put(f);
 
-	ctx->file_desc[fd] = NULL;
+	ctx->file_desc[fd] = nullptr;
 	fd_close_bit(fd, ctx);
 	
 	return 0;
-badfd:
-	return -EBADF;
 }
 
 int __file_close(int fd, struct process *p)
@@ -212,24 +208,23 @@ struct file *get_file_description(int fd)
 
 int copy_file_descriptors(struct process *process, struct ioctx *ctx)
 {
-	mutex_lock(&ctx->fdlock);
+	scoped_mutex g{ctx->fdlock};
 
-	process->ctx.file_desc = malloc(ctx->file_desc_entries * sizeof(void*));
+	process->ctx.file_desc = (file **) malloc(ctx->file_desc_entries * sizeof(void*));
 	process->ctx.file_desc_entries = ctx->file_desc_entries;
 	if(!process->ctx.file_desc)
 	{
-		mutex_unlock(&ctx->fdlock);
 		return -ENOMEM;
 	}
 
-	process->ctx.cloexec_fds = malloc(ctx->file_desc_entries / 8);
+	process->ctx.cloexec_fds = (unsigned long *) malloc(ctx->file_desc_entries / 8);
 	if(!process->ctx.cloexec_fds)
 	{
 		free(process->ctx.file_desc);
 		return -ENOMEM;
 	}
 
-	process->ctx.open_fds = malloc(ctx->file_desc_entries / 8);
+	process->ctx.open_fds = (unsigned long *) malloc(ctx->file_desc_entries / 8);
 	if(!process->ctx.open_fds)
 	{
 		free(process->ctx.file_desc);
@@ -247,26 +242,25 @@ int copy_file_descriptors(struct process *process, struct ioctx *ctx)
 	memcpy(process->ctx.cloexec_fds, ctx->cloexec_fds, ctx->file_desc_entries / 8);
 	memcpy(process->ctx.open_fds, ctx->open_fds, ctx->file_desc_entries / 8);
 
-	mutex_unlock(&ctx->fdlock);
 	return 0;
 }
 
 int allocate_file_descriptor_table(struct process *process)
 {
-	process->ctx.file_desc = zalloc(FILE_DESCRIPTOR_GROW_NR * sizeof(void*));
+	process->ctx.file_desc = (file **) zalloc(FILE_DESCRIPTOR_GROW_NR * sizeof(void*));
 	if(!process->ctx.file_desc)
 		return -ENOMEM;
 
 	process->ctx.file_desc_entries = FILE_DESCRIPTOR_GROW_NR;
 	
-	process->ctx.cloexec_fds = zalloc(FILE_DESCRIPTOR_GROW_NR / 8);
+	process->ctx.cloexec_fds = (unsigned long *) zalloc(FILE_DESCRIPTOR_GROW_NR / 8);
 	if(!process->ctx.cloexec_fds)
 	{
 		free(process->ctx.file_desc);
 		return -ENOMEM;
 	}
 
-	process->ctx.open_fds = zalloc(FILE_DESCRIPTOR_GROW_NR / 8);
+	process->ctx.open_fds = (unsigned long *) zalloc(FILE_DESCRIPTOR_GROW_NR / 8);
 	if(!process->ctx.open_fds)
 	{
 		free(process->ctx.file_desc);
@@ -288,15 +282,15 @@ int enlarge_file_descriptor_table(struct process *process, unsigned int new_size
 
 	process->ctx.file_desc_entries = new_size;
 
-	if(new_size > INT_MAX)
+	if(new_size > INT_MAX || new_size >= process->get_rlimit(RLIMIT_NOFILE).rlim_cur)
 		return -EMFILE;
 
 	unsigned int new_nr_fds = process->ctx.file_desc_entries;
 
-	struct file **table = malloc(process->ctx.file_desc_entries * sizeof(void*));
-	unsigned long *cloexec_fds = malloc(FD_ENTRIES_TO_FDSET_SIZE(new_nr_fds));
+	struct file **table = (file **) malloc(process->ctx.file_desc_entries * sizeof(void*));
+	unsigned long *cloexec_fds = (unsigned long *) malloc(FD_ENTRIES_TO_FDSET_SIZE(new_nr_fds));
 	/* We use zalloc here to implicitly zero free fds */
-	unsigned long *open_fds = zalloc(FD_ENTRIES_TO_FDSET_SIZE(new_nr_fds));
+	unsigned long *open_fds = (unsigned long *) zalloc(FD_ENTRIES_TO_FDSET_SIZE(new_nr_fds));
 	if(!table || !cloexec_fds || !open_fds)
 		goto error;
 	
@@ -330,7 +324,8 @@ error:
 
 int alloc_fd(int fdbase)
 {
-	struct ioctx *ioctx = &get_current_process()->ctx;
+	auto current = get_current_process();
+	struct ioctx *ioctx = &current->ctx;
 	mutex_lock(&ioctx->fdlock);
 
 	unsigned long starting_long = fdbase / FDS_PER_LONG;
@@ -358,6 +353,9 @@ int alloc_fd(int fdbase)
 					continue;
 				else
 				{
+					/* Check against the file limit */
+					if(current->get_rlimit(RLIMIT_NOFILE).rlim_cur < (unsigned long) fd)
+						return -EMFILE;
 					/* Found a free fd that we can use, let's mark it used and return it */
 					ioctx->open_fds[i] |= (1 << j);
 					/* And don't forget to reset the cloexec flag! */
@@ -369,7 +367,7 @@ int alloc_fd(int fdbase)
 
 		/* TODO: Make it so we can enlarge it directly to the size we want */
 		int new_entries = ioctx->file_desc_entries + FILE_DESCRIPTOR_GROW_NR;
-		if(enlarge_file_descriptor_table(get_current_process(), new_entries) < 0)
+		if(enlarge_file_descriptor_table(current, new_entries) < 0)
 		{
 			mutex_unlock(&ioctx->fdlock);
 			return -ENOMEM;
@@ -389,130 +387,114 @@ int file_alloc(struct file *f, struct ioctx *ioctx)
 	return filedesc;
 }
 
+extern "C"
 ssize_t sys_read(int fd, const void *buf, size_t count)
 {
-	struct file *f = get_file_description(fd);
+	auto_file f = get_file_description(fd);
 	if(!f)
-		goto error;
+		return -errno;
 	
-	if(!fd_may_access(f, FILE_ACCESS_READ))
-	{
-		errno = EBADF;
-		goto error;
-	}
-
-	ssize_t size = read_vfs(f->f_seek,
-		count, (char*) buf, f);
-	if(size == -1)
-	{
-		goto error;
-	}
-
-	/* TODO: Seek adjustments are required to be atomic */
-	__sync_add_and_fetch(&f->f_seek, size);
-	fd_put(f);
-
-	return size;
-error:
-	if(f) fd_put(f);
-	return -errno;
-}
-
-ssize_t sys_write(int fd, const void *buf, size_t count)
-{	
-	struct file *f = get_file_description(fd);
-	if(!f)
-		goto error;
-
-	if(!fd_may_access(f, FILE_ACCESS_WRITE))
-	{
-		errno = EBADF;
-		goto error;
-	}
-
-	if(f->f_flags & O_APPEND)
-		f->f_seek = f->f_ino->i_size;
+	auto fil = f.get_file();
 	
-	size_t written = write_vfs(f->f_seek,
-				   count, (void*) buf, 
-				   f);
+	if(!fd_may_access(fil, FILE_ACCESS_READ))
+		return -EBADF;
 
-	if(written == (size_t) -1)
-		goto error;
-
-	__sync_add_and_fetch(&f->f_seek, written);
-
-	fd_put(f);
-	return written;
-error:
-	if(f) fd_put(f);
-	return -errno;
-}
-
-ssize_t sys_pread(int fd, void *buf, size_t count, off_t offset)
-{
-	struct file *f = get_file_description(fd);
-	if(!f)
-		goto error;
-	
-	if(!fd_may_access(f, FILE_ACCESS_READ))
+	ssize_t size = read_vfs(fil->f_seek, count, (char*) buf, fil);
+	if(size < 0)
 	{
-		errno = EBADF;
-		goto error;
-	}
-
-	if(offset < 0)
-	{
-		errno = EINVAL;
 		return -errno;
 	}
 
-	ssize_t size = read_vfs(offset,
-		count, (char*) buf, f);
-	if(size < 0)
-	{
-		goto error;
-	}
-
-	fd_put(f);
+	/* TODO: Seek adjustments are required to be atomic */
+	__sync_add_and_fetch(&fil->f_seek, size);
 
 	return size;
-error:
-	if(f) fd_put(f);
-	return -errno;
 }
 
-ssize_t sys_pwrite(int fd, const void *buf, size_t count, off_t offset)
+extern "C"
+ssize_t sys_write(int fd, const void *buf, size_t count)
 {	
-	struct file *f = get_file_description(fd);
+	auto_file f = get_file_description(fd);
 	if(!f)
-		goto error;
+		return -errno;
+	
+	auto fil = f.get_file();
 
-	if(!fd_may_access(f, FILE_ACCESS_WRITE))
+	if(!fd_may_access(fil, FILE_ACCESS_WRITE))
 	{
-		errno = EBADF;
-		goto error;
+		return -EBADF;
+	}
+
+	if(fil->f_flags & O_APPEND)
+		fil->f_seek = fil->f_ino->i_size;
+	
+	auto written = write_vfs(fil->f_seek,
+				   count, (void*) buf, 
+				   fil);
+
+	if(written == -1)
+		return -errno;
+
+	__sync_add_and_fetch(&fil->f_seek, written);
+
+	return written;
+}
+
+extern "C"
+ssize_t sys_pread(int fd, void *buf, size_t count, off_t offset)
+{
+	auto_file f = get_file_description(fd);
+	if(!f)
+		return -errno;
+	
+	auto fil = f.get_file();
+	
+	if(!fd_may_access(fil, FILE_ACCESS_READ))
+	{
+		return -EBADF;
 	}
 
 	if(offset < 0)
 	{
-		errno = EINVAL;
-		goto error;
+		return -EINVAL;
+	}
+
+	ssize_t size = read_vfs(offset, count, (char*) buf, fil);
+	if(size < 0)
+	{
+		return -errno;
+	}
+
+	return size;
+}
+
+extern "C"
+ssize_t sys_pwrite(int fd, const void *buf, size_t count, off_t offset)
+{	
+	auto_file f = get_file_description(fd);
+	if(!f)
+		return -errno;
+	
+	auto fil = f.get_file();
+
+	if(!fd_may_access(fil, FILE_ACCESS_WRITE))
+	{
+		return -EBADF;
+	}
+
+	if(offset < 0)
+	{
+		return -EINVAL;
 	}
 	
 	ssize_t written = write_vfs(offset,
 				   count, (void*) buf, 
-				   f);
+				   fil);
 
 	if(written < 0)
-		goto error;
+		return -errno;
 
-
-	fd_put(f);
 	return written;
-error:
-	if(f) fd_put(f);
-	return -errno;
 }
 
 
@@ -540,7 +522,7 @@ static struct file *try_to_open(struct file *base, const char *filename, int fla
 		if(!file_can_access(ret, open_to_file_access_flags(flags)))
 		{
 			fd_put(ret);
-			return errno = EACCES, NULL;
+			return errno = EACCES, nullptr;
 		}
 
 		if(ret->f_ino->i_type == VFS_TYPE_DIR)
@@ -548,14 +530,14 @@ static struct file *try_to_open(struct file *base, const char *filename, int fla
 			if(flags & O_RDWR || flags & O_WRONLY || (flags & O_CREAT && !(flags & O_DIRECTORY)))
 			{
 				fd_put(ret);
-				return errno = EISDIR, NULL;
+				return errno = EISDIR, nullptr;
 			}
 		}
 
 		if(flags & O_EXCL)
 		{
 			fd_put(ret);
-			return errno = EEXIST, NULL;
+			return errno = EEXIST, nullptr;
 		}
 
 		if(flags & O_TRUNC)
@@ -564,7 +546,7 @@ static struct file *try_to_open(struct file *base, const char *filename, int fla
 			if(st < 0)
 			{
 				fd_put(ret);
-				return NULL;
+				return nullptr;
 			}
 		}
 	}
@@ -619,6 +601,7 @@ int do_sys_open(const char *filename, int flags, mode_t mode, struct file *__rel
 	return fd_num;
 }
 
+extern "C"
 int sys_open(const char *ufilename, int flags, mode_t mode)
 {
 	const char *filename = strcpy_from_user(ufilename);
@@ -633,11 +616,13 @@ int sys_open(const char *ufilename, int flags, mode_t mode)
 	return fd;
 }
 
+extern "C"
 int sys_close(int fd)
 {
 	return file_close(fd);
 }
 
+extern "C"
 int sys_dup(int fd)
 {
 	int st = 0;
@@ -667,6 +652,7 @@ out_error:
 	return st;
 }
 
+extern "C"
 int sys_dup2(int oldfd, int newfd)
 {
 	//printk("pid %d oldfd %d newfd %d\n", get_current_process()->pid, oldfd, newfd);
@@ -718,6 +704,7 @@ out:
 	return newfd;
 }
 
+extern "C"
 int sys_dup3(int oldfd, int newfd, int flags)
 {
 	struct process *current = get_current_process();
@@ -787,6 +774,7 @@ bool fd_may_access(struct file *f, unsigned int access)
 	return true;
 }
 
+extern "C"
 ssize_t sys_readv(int fd, const struct iovec *vec, int veccnt)
 {
 	size_t read = 0;
@@ -848,6 +836,7 @@ error:
 	return -errno;
 }
 
+extern "C"
 ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt)
 {
 	size_t written = 0;
@@ -910,9 +899,10 @@ error:
 	return -errno;
 }
 
+extern "C"
 ssize_t sys_preadv(int fd, const struct iovec *vec, int veccnt, off_t offset)
 {
-		size_t read = 0;
+	size_t read = 0;
 
 	struct file *f = get_file_description(fd);
 	if(!f)
@@ -972,6 +962,7 @@ error:
 	return -errno;
 }
 
+extern "C"
 ssize_t sys_pwritev(int fd, const struct iovec *vec, int veccnt, off_t offset)
 {
 	size_t written = 0;
@@ -1030,38 +1021,38 @@ error:
 	return -errno;
 }
 
+extern "C"
 unsigned int putdir(struct dirent *buf, struct dirent *ubuf, unsigned int count);
 
+extern "C"
 int sys_getdents(int fd, struct dirent *dirp, unsigned int count)
 {
 	int ret = 0;
 	if(!count)
 		return -EINVAL;
 
-	struct file *f = get_file_description(fd);
+	auto_file f = get_file_description(fd);
 	if(!f)
 	{
-		ret = -errno;
-		goto out;
+		return -errno;
 	}
+
+	auto fil = f.get_file();
 
 	struct getdents_ret ret_buf = {0};
-	ret = getdents_vfs(count, putdir, dirp, f->f_seek,
-		&ret_buf, f);
+	ret = getdents_vfs(count, putdir, dirp, fil->f_seek, &ret_buf, fil);
 	if(ret < 0)
 	{
-		ret = -errno;
-		goto out;
+		return -errno;
 	}
 
-	f->f_seek = ret_buf.new_off;
+	fil->f_seek = ret_buf.new_off;
 
 	ret = ret_buf.read;
-out:
-	if(f)	fd_put(f);
 	return ret;
 }
 
+extern "C"
 int sys_ioctl(int fd, int request, char *argp)
 {
 	struct file *f = get_file_description(fd);
@@ -1076,11 +1067,13 @@ int sys_ioctl(int fd, int request, char *argp)
 	return ret;
 }
 
+extern "C"
 int sys_truncate(const char *path, off_t length)
 {
 	return -ENOSYS;
 }
 
+extern "C"
 int sys_ftruncate(int fd, off_t length)
 {
 	struct file *f = get_file_description(fd);
@@ -1104,6 +1097,7 @@ out:
 	return ret;
 }
 
+extern "C"
 int sys_fallocate(int fd, int mode, off_t offset, off_t len)
 {
 	struct file *f = get_file_description(fd);
@@ -1119,6 +1113,7 @@ int sys_fallocate(int fd, int mode, off_t offset, off_t len)
 	return ret;
 }
 
+extern "C"
 off_t sys_lseek(int fd, off_t offset, int whence)
 {
 	/* TODO: Fix O_APPEND behavior */
@@ -1150,14 +1145,19 @@ out:
 	return ret;
 }
 
+extern "C"
 int sys_mount(const char *usource, const char *utarget, const char *ufilesystemtype,
 	      unsigned long mountflags, const void *data)
 {
-	const char *source = NULL;
-	const char *target = NULL;
-	struct file *block_file = NULL;
-	const char *filesystemtype = NULL;
+	const char *source = nullptr;
+	const char *target = nullptr;
+	struct file *block_file = nullptr;
+	const char *filesystemtype = nullptr;
 	int ret = 0;
+	filesystem_mount_t *fs = nullptr;
+	struct blockdev *d = nullptr;
+	struct inode *node = nullptr;
+	char *str = nullptr;
 
 	source = strcpy_from_user(usource);
 	if(!source)
@@ -1180,7 +1180,7 @@ int sys_mount(const char *usource, const char *utarget, const char *ufilesystemt
 		goto out;
 	}
 	/* Find the 'filesystemtype's handler */
-	filesystem_mount_t *fs = find_filesystem_handler(filesystemtype);
+	fs = find_filesystem_handler(filesystemtype);
 	if(!fs)
 	{
 		ret = -ENODEV;
@@ -1200,16 +1200,26 @@ int sys_mount(const char *usource, const char *utarget, const char *ufilesystemt
 		goto out;
 	}
 	
-	struct blockdev *d = blkdev_get_dev(block_file);
-	struct inode *node = NULL;
+	d = blkdev_get_dev(block_file);
+	node = nullptr;
 	if(!(node = fs->handler(d)))
 	{
 		ret = -EINVAL;
 		goto out;
 	}
 
-	char *str = strdup(target);
-	mount_fs(node, str);
+	str = strdup(target);
+	if(!str)
+	{
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	if(mount_fs(node, str) < 0)
+	{
+		free(str);
+	}
+
 out:
 	if(block_file) fd_put(block_file);
 	if(source)   free((void *) source);
@@ -1218,6 +1228,7 @@ out:
 	return ret;
 }
 
+extern "C"
 int sys_pipe(int upipefd[2])
 {
 	int pipefd[2] = {-1, -1};
@@ -1364,11 +1375,12 @@ int fcntl_f_setfl(int fd, struct ioctx *ctx, unsigned long arg)
 	return 0;
 }
 
+extern "C"
 int sys_fcntl(int fd, int cmd, unsigned long arg)
 {
 	/* TODO: Get new flags for file descriptors. The use of O_* is confusing since
 	 * those only apply on open calls. For example, fcntl uses FD_*. */
-	struct file *f = NULL;
+	struct file *f = nullptr;
 	struct ioctx *ctx = &get_current_process()->ctx;
 
 	int ret = 0;
@@ -1433,6 +1445,7 @@ int do_sys_stat(const char *pathname, struct stat *buf, int flags, struct file *
 	return st < 0 ? -errno : st;
 }
 
+extern "C"
 int sys_stat(const char *upathname, struct stat *ubuf)
 {
 	const char *pathname = strcpy_from_user(upathname);
@@ -1455,6 +1468,7 @@ int sys_stat(const char *upathname, struct stat *ubuf)
 	return st;
 }
 
+extern "C"
 int sys_lstat(const char *upathname, struct stat *ubuf)
 {
 	const char *pathname = strcpy_from_user(upathname);
@@ -1477,36 +1491,31 @@ int sys_lstat(const char *upathname, struct stat *ubuf)
 	return st;
 }
 
+extern "C"
 int sys_fstat(int fd, struct stat *ubuf)
 {
-	int ret = 0;
-
-	struct file *f = get_file_description(fd);
+	auto_file f = get_file_description(fd);
 	if(!f)
 	{
-		ret = -errno;
-		goto out;
+		return -errno;
 	}
 
 	struct stat buf = {0};
 
-	if(stat_vfs(&buf, f) < 0)
+	if(stat_vfs(&buf, f.get_file()) < 0)
 	{
-		ret = -errno;
-		goto out;
+		return -errno;
 	}
 
 	if(copy_to_user(ubuf, &buf, sizeof(buf)) < 0)
 	{
-		ret = -EFAULT;
-		goto out;
+		return -EFAULT;
 	}
 
-out:
-	if(f)	fd_put(f);
-	return ret;
+	return 0;
 }
 
+extern "C"
 int sys_chdir(const char *upath)
 {
 	const char *path = strcpy_from_user(upath);
@@ -1517,6 +1526,9 @@ int sys_chdir(const char *upath)
 	struct file *curr = get_current_directory();
 	struct file *base = get_fs_base(path, curr);
 	struct file *dir = open_vfs(base, path);
+	struct file *f, *old;
+	struct process *current;
+	struct ioctx *ctx;
 	
 	fd_put(curr);
 
@@ -1532,13 +1544,13 @@ int sys_chdir(const char *upath)
 		goto close_file;
 	}
 
-	struct file *f = dir;
+	f = dir;
 
-	struct process *current = get_current_process();
-	struct ioctx *ctx = &current->ctx;
+	current = get_current_process();
+	ctx = &current->ctx;
 	spin_lock(&ctx->cwd_lock);
 
-	struct file *old = ctx->cwd;
+	old = ctx->cwd;
 	ctx->cwd = f;
 
 	spin_unlock(&ctx->cwd_lock);
@@ -1556,6 +1568,7 @@ out:
 	return st;
 }
 
+extern "C"
 int sys_fchdir(int fildes)
 {
 	struct file *f = get_file_description(fildes);
@@ -1587,9 +1600,10 @@ int sys_fchdir(int fildes)
 	return 0;
 }
 
+extern "C"
 int sys_getcwd(char *path, size_t size)
 {
-	if(size == 0 && path != NULL)
+	if(size == 0 && path != nullptr)
 		return -EINVAL;
 
 	struct file *cwd = get_current_directory();
@@ -1619,12 +1633,12 @@ int sys_getcwd(char *path, size_t size)
 
 struct file *get_dirfd_file(int dirfd)
 {
-	struct file *dirfd_desc = NULL;
+	struct file *dirfd_desc = nullptr;
 	if(dirfd != AT_FDCWD)
 	{
 		dirfd_desc = get_file_description(dirfd);
 		if(!dirfd_desc)
-			return NULL;
+			return nullptr;
 	}
 	else
 		dirfd_desc = get_current_directory();
@@ -1632,9 +1646,10 @@ struct file *get_dirfd_file(int dirfd)
 	return dirfd_desc;
 }
 
+extern "C"
 int sys_openat(int dirfd, const char *upath, int flags, mode_t mode)
 {
-	struct file *dirfd_desc = NULL;
+	struct file *dirfd_desc = nullptr;
 
 	dirfd_desc = get_dirfd_file(dirfd);
 	if(!dirfd_desc)
@@ -1655,6 +1670,7 @@ int sys_openat(int dirfd, const char *upath, int flags, mode_t mode)
 	return fd;
 }
 
+extern "C"
 int sys_fstatat(int dirfd, const char *upathname, struct stat *ubuf, int flags)
 {
 	const char *pathname = strcpy_from_user(upathname);
@@ -1685,6 +1701,7 @@ out:
 	return st;
 }
 
+extern "C"
 int sys_fmount(int fd, const char *upath)
 {
 	struct file *f = get_file_description(fd);
@@ -1748,6 +1765,7 @@ int open_with_vnode(struct file *node, int flags)
 	return fd_num;
 }
 
+extern "C"
 int sys_access(const char *path, int amode)
 {
 	int st = 0;
@@ -1775,7 +1793,7 @@ int sys_access(const char *path, int amode)
 		goto out;
 	}
 out:
-	if(ino != NULL)	fd_put(ino);
+	if(ino != nullptr)	fd_put(ino);
 	free(p);
 
 	return st;
@@ -1793,10 +1811,11 @@ int do_sys_mkdir(const char *path, mode_t mode, struct file *dir)
 	return 0; 
 }
 
+extern "C"
 int sys_mkdirat(int dirfd, const char *upath, mode_t mode)
 {
 	struct file *dir;
-	struct file *dirfd_desc = NULL;
+	struct file *dirfd_desc = nullptr;
 
 	dirfd_desc = get_dirfd_file(dirfd);
 	if(!dirfd_desc)
@@ -1827,6 +1846,7 @@ int sys_mkdirat(int dirfd, const char *upath, mode_t mode)
 	return ret;
 }
 
+extern "C"
 int sys_mkdir(const char *upath, mode_t mode)
 {
 	return sys_mkdirat(AT_FDCWD, upath, mode);
@@ -1844,10 +1864,13 @@ int do_sys_mknodat(const char *path, mode_t mode, dev_t dev, struct file *dir)
 	return 0; 
 }
 
+extern "C"
+{
+
 int sys_mknodat(int dirfd, const char *upath, mode_t mode, dev_t dev)
 {
 	struct file *dir;
-	struct file *dirfd_desc = NULL;
+	struct file *dirfd_desc = nullptr;
 	
 	dirfd_desc = get_dirfd_file(dirfd);
 	if(!dirfd_desc)
@@ -1892,6 +1915,10 @@ ssize_t sys_readlinkat(int dirfd, const char *upathname, char *ubuf, size_t bufs
 	if(!pathname)
 		return -errno;
 	
+	struct file *f;
+	char *buf;
+	size_t buf_len, to_copy;
+	
 	struct file *base = get_dirfd_file(dirfd);
 	if(!base)
 	{
@@ -1899,22 +1926,22 @@ ssize_t sys_readlinkat(int dirfd, const char *upathname, char *ubuf, size_t bufs
 		goto out;
 	}
 
-	struct file *f = open_vfs_with_flags(base, pathname, OPEN_FLAG_NOFOLLOW);
+	f = open_vfs_with_flags(base, pathname, OPEN_FLAG_NOFOLLOW);
 	if(!f)
 	{
 		st = -errno;
 		goto out;
 	}
 
-	char *buf = readlink_vfs(f);
+	buf = readlink_vfs(f);
 	if(!buf)
 	{
 		st = -errno;
 		goto out1;
 	}
 
-	size_t buf_len = strlen(buf);
-	size_t to_copy = buf_len < bufsiz ? buf_len : bufsiz;
+	buf_len = strlen(buf);
+	to_copy = buf_len < bufsiz ? buf_len : bufsiz;
 
 	st = copy_to_user(ubuf, buf, to_copy);
 
@@ -1957,3 +1984,5 @@ int sys_fchownat(int dirfd, const char *pathname,
 int sys_utimensat(int dirfd, const char *pathname,
                      const struct timespec *times, int flags) {return -ENOSYS;}
 int sys_faccessat(int dirfd, const char *pathname, int mode, int flags) {return -ENOSYS;}
+
+}
