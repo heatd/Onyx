@@ -183,7 +183,7 @@ jobs:
             cd binutils-build
             ../binutils-2.35/configure --target=x86_64-onyx --prefix=$PWD/../../toolchain_binaries \
             --with-sysroot=$PWD/../../sysroot \
-            --disable-werror --disable-nls --enable-gold=default --enable-lto --enable-plugins
+            --disable-werror --disable-nls --disable-gold --enable-lto --enable-plugins
             make -j $(sysctl -n hw.logicalcpu)
             make install -j $(sysctl -n hw.logicalcpu)
             cd ..
