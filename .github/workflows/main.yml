@@ -68,3 +68,49 @@ jobs:
         with:
           name: Sysroot
           path: sysroot/
+
+  build-toolchain:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v2
+        with:
+          submodules: "recursive"
+
+      - name: Cache
+        id: toolchain-cache
+        uses: actions/cache@v2.1.4
+        with:
+          # A list of files, directories, and wildcard patterns to cache and restore
+          path: toolchain_binaries/
+          # An explicit key for restoring and saving the cache
+          key: toolchain-linux
+      
+      - name: Install Dependencies
+        if: steps.toolchain-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir toolchain_binaries
+          ./toolchain/download_and_patch_tools.sh toolchain_build
+          cd toolchain_build
+          mkdir binutils-build
+          cd binutils-build
+          ../binutils-2.35/configure --target=x86_64-onyx --prefix=$PWD/../../toolchain_binaries \
+          --with-sysroot=$PWD/../../sysroot \
+          --disable-werror --disable-nls --enable-gold=default --enable-lto --enable-plugins
+           make -j $(nproc)
+           make install -j $(nproc)
+           cd ..
+           mkdir gcc-build
+           cd gcc-build
+           ../gcc-10.2.0/configure --target=x86_64-onyx --prefix=$PWD/../../toolchain_binaries \
+           --with-sysroot=$PWD/../../sysroot --enable-languages=c,c++ --disable-nls \
+           --enable-threads=posix --enable-libstdcxx-threads --enable-symvers=gnu --enable-default-pie \
+           --enable-lto --enable-default-ssp --enable-shared
+            make all-gcc all-target-libgcc all-target-libstdc++-v3 -j $(nproc)
+            make install-gcc install-target-libgcc install-target-libstdc++-v3 -j $(nproc)
+
+            
+            
