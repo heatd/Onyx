@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2016-2020 Pedro Falcato
+* Copyright (c) 2016-2021 Pedro Falcato
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
@@ -95,16 +95,16 @@ int vm_cmp(const void* k1, const void* k2)
         return (unsigned long) k1 < (unsigned long) k2 ? -1 : 1; 
 }
 
-static struct page *vm_zero_page = NULL;
+static struct page *vm_zero_page = nullptr;
 
 struct vm_region *vm_reserve_region(struct mm_address_space *as,
 				    unsigned long start, size_t size)
 {
 	MUST_HOLD_MUTEX(&as->vm_lock);
 
-	struct vm_region *region = zalloc(sizeof(struct vm_region));
+	struct vm_region *region = (vm_region *) zalloc(sizeof(struct vm_region));
 	if(!region)
-		return NULL;
+		return nullptr;
 
 	region->base = start;
 	region->pages = vm_size_to_pages(size);
@@ -125,7 +125,7 @@ struct vm_region *vm_reserve_region(struct mm_address_space *as,
 		}
 
 		free(region);
-		return NULL;
+		return nullptr;
 	}
 
 	region->mm = as;
@@ -147,11 +147,11 @@ unsigned long vm_allocate_base(struct mm_address_space *as, unsigned long min, s
 		min = as->start;
 
 	struct rb_itor it;
-	it.node = NULL;
+	it.node = nullptr;
 	it.tree = as->area_tree;
 	bool node_valid;
 	unsigned long last_end = min;
-	struct vm_region *f = NULL;
+	struct vm_region *f = nullptr;
 
 	if(min != as->start)
 		node_valid = rb_itor_search_ge(&it, (const void *) min);
@@ -234,7 +234,7 @@ void vm_addr_init(void)
 	mutex_init(&kernel_address_space.vm_lock);
 	vm_save_current_mmu(&kernel_address_space);
 
-	assert(kernel_address_space.area_tree != NULL);
+	assert(kernel_address_space.area_tree != nullptr);
 }
 
 static inline void __vm_lock(bool kernel)
@@ -264,7 +264,7 @@ void vm_init()
 	arch_vm_init();
 }
 
-void heap_set_start(uintptr_t start);
+extern "C" void heap_set_start(uintptr_t start);
 
 void vm_late_init(void)
 {
@@ -309,7 +309,7 @@ void vm_late_init(void)
 	v->rwx = VM_WRITE;
 
 	vm_zero_page = alloc_page(0);
-	assert(vm_zero_page != NULL);
+	assert(vm_zero_page != nullptr);
 
 	mutex_unlock(&kernel_address_space.vm_lock);
 
@@ -318,7 +318,7 @@ void vm_late_init(void)
 
 struct page *vm_map_range(void *range, size_t nr_pages, uint64_t flags)
 {
-	const unsigned long mem = (const unsigned long) range;
+	const unsigned long mem = (unsigned long) range;
 	struct page *pages = alloc_pages(nr_pages, 0);
 	struct page *p = pages;
 	if(!pages)
@@ -331,7 +331,7 @@ struct page *vm_map_range(void *range, size_t nr_pages, uint64_t flags)
 	for(size_t i = 0; i < nr_pages; i++)
 	{
 		//printf("Mapping %p\n", p->paddr);
-		if(!vm_map_page(NULL, mem + (i << PAGE_SHIFT), (uintptr_t) page_to_phys(p), flags))
+		if(!vm_map_page(nullptr, mem + (i << PAGE_SHIFT), (uintptr_t) page_to_phys(p), flags))
 			goto out_of_mem;
 		p = p->next_un.next_allocation;
 	}
@@ -340,17 +340,17 @@ struct page *vm_map_range(void *range, size_t nr_pages, uint64_t flags)
 
 out_of_mem:
 	if(pages)	free_pages(pages);
-	return NULL;
+	return nullptr;
 }
 
 void do_vm_unmap(void *range, size_t pages)
 {
 	struct vm_region *entry = vm_find_region(range);
 	MUST_HOLD_MUTEX(&entry->mm->vm_lock);
-	assert(entry != NULL);
+	assert(entry != nullptr);
 
 	struct vm_object *vmo = entry->vmo;
-	assert(vmo != NULL);
+	assert(vmo != nullptr);
 
 	vm_mmu_unmap(entry->mm, range, pages);
 }
@@ -383,7 +383,7 @@ bool vm_mapping_requires_wb(struct vm_region *reg)
 
 bool vm_mapping_is_anon(struct vm_region *reg)
 {
-	return reg->fd == NULL && reg->vmo->type == VMO_ANON;
+	return reg->fd == nullptr && reg->vmo->type == VMO_ANON;
 }
 
 void vm_make_anon(struct vm_region *reg)
@@ -391,7 +391,7 @@ void vm_make_anon(struct vm_region *reg)
 	if(reg->fd)
 	{
 		fd_put(reg->fd);
-		reg->fd = NULL;
+		reg->fd = nullptr;
 	}
 
 	reg->flags &= ~MAP_ANONYMOUS;
@@ -458,13 +458,13 @@ unsigned long vm_get_base_address(uint64_t flags, uint32_t type)
 {
 	bool is_kernel_map = flags & VM_KERNEL;
 	struct process *current;
-	struct mm_address_space *mm = NULL;
+	struct mm_address_space *mm = nullptr;
 	
 	if(!is_kernel_map)
 	{
 		current = get_current_process();
-		assert(current != NULL);
-		assert(current->address_space.mmap_base != NULL);
+		assert(current != nullptr);
+		assert(current->address_space.mmap_base != nullptr);
 		mm = &current->address_space;
 	}
 
@@ -526,7 +526,7 @@ struct vm_region *__vm_allocate_virt_region(uint64_t flags, size_t pages, uint32
 struct vm_region *vm_allocate_virt_region(uint64_t flags, size_t pages, uint32_t type, uint64_t prot)
 {
 	if(pages == 0)
-		return NULL;
+		return nullptr;
 
 	/* Lock everything before allocating anything */
 	bool allocating_kernel = true;
@@ -547,14 +547,14 @@ bool vm_region_is_empty(void *addr, size_t length)
 	struct mm_address_space *mm = get_current_address_space();
 	struct rb_itor it;
 	it.tree = mm->area_tree;
-	it.node = NULL;
+	it.node = nullptr;
 	unsigned long limit = (unsigned long) addr + length;
 
 	bool node_valid = rb_itor_first(&it);
 	
 	while(node_valid)
 	{
-		struct vm_region *reg = *rb_itor_datum(&it);
+		struct vm_region *reg = (vm_region *) *rb_itor_datum(&it);
 
 		if(limits_are_contained(reg, (unsigned long) addr, limit))
 		{
@@ -572,7 +572,7 @@ bool vm_region_is_empty(void *addr, size_t length)
 struct vm_region *__vm_create_region_at(void *addr, size_t pages, uint32_t type, uint64_t prot)
 {
 	bool reserving_kernel = is_higher_half(addr);
-	struct vm_region *v = NULL;
+	struct vm_region *v = nullptr;
 
 	if(!vm_region_is_empty(addr, pages << PAGE_SHIFT))
 	{
@@ -584,7 +584,7 @@ struct vm_region *__vm_create_region_at(void *addr, size_t pages, uint32_t type,
 #endif
 
 		errno = EINVAL;
-		return NULL;
+		return nullptr;
 	}
 
 	struct mm_address_space *mm = reserving_kernel
@@ -593,7 +593,7 @@ struct vm_region *__vm_create_region_at(void *addr, size_t pages, uint32_t type,
 	v = vm_reserve_region(mm, (unsigned long) addr, pages << PAGE_SHIFT);
 	if(!v)
 	{
-		addr = NULL;
+		addr = nullptr;
 		errno = ENOMEM;
 		goto return_;
 	}
@@ -612,7 +612,7 @@ return_:
 struct vm_region *vm_create_region_at(void *addr, size_t pages, uint32_t type, uint64_t prot)
 {
 	bool reserving_kernel = is_higher_half(addr);
-	struct vm_region *v = NULL;
+	struct vm_region *v = nullptr;
 
 	__vm_lock(reserving_kernel);
 
@@ -627,15 +627,15 @@ struct vm_region *vm_create_region_at(void *addr, size_t pages, uint32_t type, u
 struct vm_region *vm_find_region_in_tree(void *addr, rb_tree *tree)
 {
 	struct rb_itor it;
-	it.node = NULL;
+	it.node = nullptr;
 	it.tree = tree;
 
 	if(!rb_itor_search_le(&it, addr))
-		return NULL;
+		return nullptr;
 	
 	while(true)
 	{
-		struct vm_region *region = *rb_itor_datum(&it);
+		struct vm_region *region = (vm_region *) *rb_itor_datum(&it);
 		if(region->base <= (unsigned long) addr
 			&& region->base + (region->pages << PAGE_SHIFT) > (unsigned long) addr)
 		{
@@ -648,13 +648,13 @@ struct vm_region *vm_find_region_in_tree(void *addr, rb_tree *tree)
 		}
 	}
 
-	return NULL;
+	return nullptr;
 }
 
 struct vm_region *vm_find_region(void *addr)
 {	
 	struct process *current = get_current_process();
-	struct vm_region *reg = NULL;
+	struct vm_region *reg = nullptr;
 	if(current)
 	{
 		reg = vm_find_region_in_tree(addr, current->address_space.area_tree);	
@@ -683,13 +683,13 @@ int vm_flush_mapping(struct vm_region *mapping, struct mm_address_space *mm, uns
 {
 	struct vm_object *vmo = mapping->vmo;
 	
-	assert(vmo != NULL);
+	assert(vmo != nullptr);
 
 	size_t nr_pages = mapping->pages;
 
 	size_t off = mapping->offset;
 	struct rb_itor it;
-	it.node = NULL;
+	it.node = nullptr;
 
 	mutex_lock(&vmo->page_lock);
 
@@ -699,7 +699,7 @@ int vm_flush_mapping(struct vm_region *mapping, struct mm_address_space *mm, uns
 	bool node_valid = rb_itor_search_ge(&it, (void *) off);
 	while(node_valid)
 	{
-		struct page *p = *rb_itor_datum(&it);
+		struct page *p = (page *) *rb_itor_datum(&it);
 		size_t poff = (size_t) rb_itor_key(&it);
 
 		if(poff >= off + (nr_pages << PAGE_SHIFT))
@@ -738,7 +738,7 @@ struct vm_object *find_forked_private_vmo(struct vm_object *old, struct mm_addre
 	spin_lock(&mm->private_vmo_lock);
 
 	struct vm_object *vmo = mm->vmo_head;
-	struct vm_object *to_ret = NULL;
+	struct vm_object *to_ret = nullptr;
 
 	while(vmo)
 	{
@@ -758,11 +758,14 @@ out:
 #define DEBUG_FORK_VM 0
 static bool fork_vm_region(const void *key, void *datum, void *user_data)
 {
-	struct fork_iteration *it = user_data;
-	struct vm_region *region = datum;
+	struct fork_iteration *it = (fork_iteration *) user_data;
+	struct vm_region *region = (vm_region *) datum;
+	dict_insert_result res;
+	bool vmo_failure, is_private, using_shared_optimization, needs_to_fork_memory;
+	unsigned int new_rwx;
 	
 
-	struct vm_region *new_region = memdup(region, sizeof(*region));
+	struct vm_region *new_region = (vm_region *) memdup(region, sizeof(*region));
 	if(!new_region)
 	{
 		goto ohno;
@@ -771,7 +774,7 @@ static bool fork_vm_region(const void *key, void *datum, void *user_data)
 #if DEBUG_FORK_VM
 	printk("Forking %p, size %lx\n", key, region->pages << PAGE_SHIFT);
 #endif
-	dict_insert_result res = rb_tree_insert(it->target_mm->area_tree, (void *) key);
+	res = rb_tree_insert(it->target_mm->area_tree, (void *) key);
 
 	if(!res.inserted)
 	{
@@ -782,16 +785,16 @@ static bool fork_vm_region(const void *key, void *datum, void *user_data)
 	if(new_region->fd) fd_get(new_region->fd);
 
 	*res.datum_ptr = new_region;
-	bool vmo_failure = false;
-	bool is_private = !is_mapping_shared(new_region);
-	bool using_shared_optimization = vm_using_shared_optimization(new_region);
-	bool needs_to_fork_memory = is_private && !using_shared_optimization;
+	vmo_failure = false;
+	is_private = !is_mapping_shared(new_region);
+	using_shared_optimization = vm_using_shared_optimization(new_region);
+	needs_to_fork_memory = is_private && !using_shared_optimization;
 
 	if(needs_to_fork_memory)
 	{
 		/* No need to ref the vmo since it was a new vmo created for us while forking. */
 		new_region->vmo = find_forked_private_vmo(new_region->vmo, it->target_mm);
-		assert(new_region->vmo != NULL);
+		assert(new_region->vmo != nullptr);
 		vmo_assign_mapping(new_region->vmo, new_region);
 		vmo_ref(new_region->vmo);
 	}
@@ -816,7 +819,7 @@ static bool fork_vm_region(const void *key, void *datum, void *user_data)
 	 * out of the flush permissions, as to map things write-protected if it's a writable mapping.
 	 */
 
-	unsigned int new_rwx = is_private ? new_region->rwx & ~VM_WRITE : new_region->rwx;
+	new_rwx = is_private ? new_region->rwx & ~VM_WRITE : new_region->rwx;
 	if(vm_flush(new_region, VM_FLUSH_RWX_VALID, new_rwx) < 0)
 	{
 		/* Let the generic addr space destruction code handle this, 
@@ -844,7 +847,7 @@ ohno:
 
 void addr_space_delete(void *key, void *value)
 {
-	struct vm_region *region = value;
+	struct vm_region *region = (vm_region *) value;
 
 	do_vm_unmap((void *) region->base, region->pages);
 
@@ -871,7 +874,7 @@ int vm_fork_private_vmos(struct mm_address_space *mm)
 
 	while(vmo)
 	{
-		struct vm_object *new_vmo = vmo_fork(vmo, false, NULL);
+		struct vm_object *new_vmo = vmo_fork(vmo, false, nullptr);
 		if(!new_vmo)
 		{
 			spin_unlock(&parent_mm->private_vmo_lock);
@@ -978,13 +981,13 @@ void *vmalloc(size_t pages, int type, int perms)
 {
 	struct vm_region *vm = vm_allocate_virt_region(VM_KERNEL, pages, type, perms);
 	if(!vm)
-		return NULL;
+		return nullptr;
 
 	struct vm_object *vmo = vmo_create_phys(pages << PAGE_SHIFT);
 	if(!vmo)
 	{
 		vm_destroy_mappings((void *) vm->base, pages);
-		return NULL;
+		return nullptr;
 	}
 
 	vmo_assign_mapping(vmo, vm);
@@ -996,9 +999,9 @@ void *vmalloc(size_t pages, int type, int perms)
 		/* FIXME: This code doesn't seem correct */
 		vmo_remove_mapping(vmo, vm);
 		vmo_unref(vmo);
-		vm->vmo = NULL;
+		vm->vmo = nullptr;
 		vm_destroy_mappings(vm, pages);
-		return NULL;
+		return nullptr;
 	}
 
 	if(vm_flush(vm, VM_FLUSH_RWX_VALID, vm->rwx | VM_NOFLUSH) < 0)
@@ -1007,7 +1010,7 @@ void *vmalloc(size_t pages, int type, int perms)
 		vmo_remove_mapping(vmo, vm);
 		vmo_unref(vmo);
 		vm_destroy_mappings(vm, pages);
-		return NULL;
+		return nullptr;
 	}
  
  #ifdef CONFIG_KASAN
@@ -1035,14 +1038,15 @@ int vm_check_pointer(void *addr, size_t needed_space)
 void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file, off_t off)
 {
 	int st = 0;
-	struct vm_region *area = NULL;
-	bool is_file_mapping = file != NULL;
+	struct vm_region *area = nullptr;
+	bool is_file_mapping = file != nullptr;
+	void *base = nullptr;
 
 	struct mm_address_space *mm = get_current_address_space();
 
 	/* We don't like this offset. */
 	if(off & (PAGE_SIZE - 1))
-		return errno = EINVAL, NULL;
+		return errno = EINVAL, nullptr;
 
 	mutex_lock(&mm->vm_lock);
 
@@ -1064,7 +1068,7 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
 			goto out_error;
 		}
 		else
-			addr = NULL;
+			addr = nullptr;
 	}
 
 
@@ -1075,7 +1079,7 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
 			st = -ENOMEM;
 			goto out_error;
 		}
-		/* Specified by POSIX, if addr == NULL, guess an address */
+		/* Specified by POSIX, if addr == nullptr, guess an address */
 		area = __vm_allocate_virt_region(VM_ADDRESS_USER, pages,
 			VM_TYPE_SHARED, vm_prot);
 	}
@@ -1131,7 +1135,7 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
 		{
 			if(!ino->i_fops->mmap)
 			{
-				return errno = ENOSYS, NULL;
+				return errno = ENOSYS, nullptr;
 			}
 
 			void *ret = ino->i_fops->mmap(area, file);
@@ -1147,25 +1151,25 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
 	if(vm_region_setup_backing(area, pages, !(flags & MAP_ANONYMOUS)) < 0)
 	{
 		vm_munmap(mm, addr, pages << PAGE_SHIFT);
-		return errno = ENOMEM, NULL;
+		return errno = ENOMEM, nullptr;
 	}
 
-	void *base = (void *) area->base;
+	base = (void *) area->base;
 
 	mutex_unlock(&mm->vm_lock);
 	return base;
 
 out_error:
 	mutex_unlock(&mm->vm_lock);
-	return errno = -st, NULL;
+	return errno = -st, nullptr;
 }
 
-void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off)
+extern "C" void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off)
 {
 	int error = 0;
 
-	struct file *file = NULL;
-	void *ret = NULL;
+	struct file *file = nullptr;
+	void *ret = nullptr;
 	bool is_file_mapping = !(flags & MAP_ANONYMOUS);
 
 	/* Ok, start the basic input sanitation for user-space inputs */
@@ -1207,7 +1211,7 @@ void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off
 
 	ret = vm_mmap(addr, length, prot, flags, file, off);
 
-	if(ret == NULL)
+	if(ret == nullptr)
 	{
 		ret = (void *)(unsigned long) -errno;
 	}
@@ -1221,7 +1225,7 @@ out_error:
 }
 
 
-int sys_munmap(void *addr, size_t length)
+extern "C" int sys_munmap(void *addr, size_t length)
 {
 	if(is_higher_half(addr))
 		return -EINVAL;
@@ -1283,14 +1287,14 @@ struct vm_region *vm_split_region(struct mm_address_space *as, struct vm_region 
 			region->offset += to_shave_off;
 			if(vm_add_region(as, region) < 0)
 			{
-				return errno = ENOMEM, NULL;
+				return errno = ENOMEM, nullptr;
 			}
 
 			struct vm_region *reg = vm_reserve_region(as, addr, to_shave_off);
 
 			if(!reg)
 			{
-				return errno = ENOMEM, NULL;
+				return errno = ENOMEM, nullptr;
 			}
 
 			/* Essentially, we create a carbon
@@ -1326,7 +1330,7 @@ struct vm_region *vm_split_region(struct mm_address_space *as, struct vm_region 
 
 			if(!new_region)
 			{
-				return errno = ENOMEM, NULL;
+				return errno = ENOMEM, nullptr;
 			}
 
 			vm_copy_region(region, new_region);
@@ -1337,7 +1341,7 @@ struct vm_region *vm_split_region(struct mm_address_space *as, struct vm_region 
 			if(!to_ret)
 			{
 				vm_remove_region(as, new_region);
-				return errno = ENOMEM, NULL;
+				return errno = ENOMEM, nullptr;
 			}
 
 			vm_copy_region(region, to_ret);
@@ -1360,7 +1364,7 @@ struct vm_region *vm_split_region(struct mm_address_space *as, struct vm_region 
 				vm_reserve_region(as, addr, to_shave_off);
 			if(!to_ret)
 			{
-				return errno = ENOMEM, NULL;
+				return errno = ENOMEM, nullptr;
 			}
 
 			vm_copy_region(region, to_ret);
@@ -1471,11 +1475,11 @@ int vm_mprotect(struct mm_address_space *as, void *__addr, size_t size, int prot
 	return 0;
 }
 
-int sys_mprotect(void *addr, size_t len, int prot)
+extern "C" int sys_mprotect(void *addr, size_t len, int prot)
 {
 	if(is_higher_half(addr))
 		return -EINVAL;
-	struct vm_region *area = NULL;
+	struct vm_region *area = nullptr;
 
 	if(!(area = vm_find_region(addr)))
 	{
@@ -1527,13 +1531,13 @@ int do_inc_brk(void *oldbrk, void *newbrk)
 	return 0;
 }
 
-uint64_t sys_brk(void *newbrk)
+extern "C" uint64_t sys_brk(void *newbrk)
 {
 	struct process *p = get_current_process();
 
 	mutex_lock(&p->address_space.vm_lock);
 
-	if(newbrk == NULL)
+	if(newbrk == nullptr)
 	{
 		uint64_t ret = (uint64_t) p->address_space.brk;
 		mutex_unlock(&p->address_space.vm_lock);
@@ -1567,7 +1571,7 @@ uint64_t sys_brk(void *newbrk)
 
 static bool vm_print(const void *key, void *datum, void *user_data)
 {
-	struct vm_region *region = datum;
+	struct vm_region *region = (vm_region *) datum;
 	bool x = !(region->rwx & VM_NOEXEC);
 	bool w = region->rwx & VM_WRITE;
 	bool file_backed = is_file_backed(region);
@@ -1587,12 +1591,12 @@ static bool vm_print(const void *key, void *datum, void *user_data)
 
 void vm_print_map(void)
 {
-	rb_tree_traverse(kernel_address_space.area_tree, vm_print, NULL);
+	rb_tree_traverse(kernel_address_space.area_tree, vm_print, nullptr);
 }
 
 void vm_print_umap()
 {
-	rb_tree_traverse(get_current_address_space()->area_tree, vm_print, NULL);
+	rb_tree_traverse(get_current_address_space()->area_tree, vm_print, nullptr);
 }
 
 #define DEBUG_PRINT_MAPPING 0
@@ -1612,7 +1616,7 @@ void *__map_pages_to_vaddr(struct mm_address_space *as, void *virt, void *phys,
 		_phys += PAGE_SIZE, ++i)
 	{
 		if(!vm_map_page(as, virt, _phys, flags))
-			return NULL;
+			return nullptr;
 	}
 
 	if(!(flags & VM_NOFLUSH)) vm_invalidate_range((unsigned long) virt, pages);
@@ -1622,7 +1626,7 @@ void *__map_pages_to_vaddr(struct mm_address_space *as, void *virt, void *phys,
 
 void *map_pages_to_vaddr(void *virt, void *phys, size_t size, size_t flags)
 {
-	return __map_pages_to_vaddr(NULL, virt, phys, size, flags);
+	return __map_pages_to_vaddr(nullptr, virt, phys, size, flags);
 }
 
 void *mmiomap(void *phys, size_t size, size_t flags)
@@ -1643,7 +1647,7 @@ void *mmiomap(void *phys, size_t size, size_t flags)
 	if(!entry)
 	{
 		printf("mmiomap: Could not allocate virtual range\n");
-		return NULL;
+		return nullptr;
 	}
 
 	u &= ~(PAGE_SIZE - 1);
@@ -1654,7 +1658,7 @@ void *mmiomap(void *phys, size_t size, size_t flags)
 	if(!p)
 	{
 		printf("map_pages_to_vaddr: Could not map pages\n");
-		return NULL;
+		return nullptr;
 	}
 #ifdef CONFIG_KASAN
 	kasan_alloc_shadow(entry->base, size, true);
@@ -1803,7 +1807,7 @@ int vm_handle_non_present_pf(struct vm_pf_context *ctx)
 	}
 	
 	/* If page wasn't set before by other fault handling code, just fetch from the vmo */
-	if(ctx->page == NULL)
+	if(ctx->page == nullptr)
 	{
 		vmo_status_t st = vm_pf_get_page_from_vmo(ctx);
 		if(st != VMO_STATUS_OK)
@@ -1921,12 +1925,12 @@ void setup_debug_register(unsigned long addr, unsigned int size, unsigned int co
 
 int __vm_handle_pf(struct vm_region *entry, struct fault_info *info)
 {
-	assert(entry->vmo != NULL);
+	assert(entry->vmo != nullptr);
 	struct vm_pf_context context;
 	context.entry = entry;
 	context.info = info;
 	context.vpage = info->fault_address & -PAGE_SIZE;
-	context.page = NULL;
+	context.page = nullptr;
 	context.page_rwx = entry->rwx;
 	context.mapping_info = get_mapping_info((void *) context.vpage);
 
@@ -2035,7 +2039,7 @@ int vm_handle_page_fault(struct fault_info *info)
 
 static void vm_destroy_area(void *key, void *datum)
 {
-	struct vm_region *region = datum;
+	struct vm_region *region = (vm_region *) datum;
 
 	do_vm_unmap(key, region->pages);
 
@@ -2130,7 +2134,7 @@ void *vm_gen_brk_base(void)
 	return (void*) brk_base;
 }
 
-int sys_memstat(struct memstat *memstat)
+extern "C" int sys_memstat(struct memstat *memstat)
 {
 	struct memstat buf;
 	page_get_stats(&buf);
@@ -2145,7 +2149,7 @@ ssize_t aslr_read(void *buffer, size_t size, off_t off)
 {
 	UNUSED(size);
 	UNUSED(off);
-	char *buf = buffer;
+	char *buf = (char *) buffer;
 	if(off == 1)
 		return 0;
 
@@ -2163,7 +2167,7 @@ ssize_t aslr_write(void *buffer, size_t size, off_t off)
 {
 	UNUSED(size);
 	UNUSED(off);
-	char *buf = buffer;
+	char *buf = (char *) buffer;
 	if(*buf == '1')
 	{
 		enable_aslr = true;
@@ -2215,22 +2219,22 @@ void vm_sysfs_init(void)
 	kmaps.read = kmaps_read;
 	kmaps.perms = 0444 | S_IFREG;
 
-	sysfs_add(&vm_obj, NULL);
+	sysfs_add(&vm_obj, nullptr);
 }
 
 struct vm_region *vm_find_region_and_writable(void *usr)
 {
 	struct vm_region *entry = vm_find_region(usr);
-	if(unlikely(!entry))	return NULL;
+	if(unlikely(!entry))	return nullptr;
 	if(likely(entry->rwx & VM_WRITE))	return entry;
 
-	return NULL;
+	return nullptr;
 }
 
 struct vm_region *vm_find_region_and_readable(void *usr)
 {
 	struct vm_region *entry = vm_find_region(usr);
-	if(unlikely(!entry))	return NULL;
+	if(unlikely(!entry))	return nullptr;
 	return entry;
 }
 
@@ -2240,19 +2244,19 @@ char *strcpy_from_user(const char *uptr)
 	if(len == (size_t) -EFAULT)
 	{
 		errno = EFAULT;
-		return NULL;
+		return nullptr;
 	}
 
-	char *buf = malloc(len + 1);
+	char *buf = (char *) malloc(len + 1);
 	if(!buf)
-		return NULL;
+		return nullptr;
 	buf[len] = '\0';
 
 	if(copy_from_user(buf, uptr, len) < 0)
 	{
 		free(buf);
 		errno = EFAULT;
-		return NULL;
+		return nullptr;
 	}
 
 	return buf;
@@ -2307,7 +2311,7 @@ void vm_do_fatal_page_fault(struct fault_info *info)
 void *vm_map_vmo(size_t flags, uint32_t type, size_t pages, size_t prot, struct vm_object *vmo)
 {
 	bool kernel = !(flags & VM_ADDRESS_USER);
-	void *ret = NULL;
+	void *ret = nullptr;
 	struct mm_address_space *mm = kernel ? &kernel_address_space :
 		&get_current_process()->address_space;
 
@@ -2361,7 +2365,7 @@ vmo_status_t vm_commit_private(struct vm_object *vmo, size_t off, struct page **
 
 	//printk("commit %lx\n", off + file_off);
 	unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
-	assert(ino->i_fops->readpage != NULL);
+	assert(ino->i_fops->readpage != nullptr);
 	ssize_t read = ino->i_fops->readpage(p, off + file_off, ino);
 
 	thread_change_addr_limit(old);
@@ -2384,14 +2388,14 @@ void add_vmo_to_private_list(struct mm_address_space *mm, struct vm_object *vmo)
 	if(!mm->vmo_head)
 	{
 		mm->vmo_head = mm->vmo_tail = vmo;
-		vmo->prev_private = vmo->next_private = NULL;
+		vmo->prev_private = vmo->next_private = nullptr;
 	}
 	else
 	{
 		struct vm_object *old_tail = mm->vmo_tail;
 		old_tail->next_private = vmo;
 		vmo->prev_private = old_tail;
-		vmo->next_private = NULL;
+		vmo->next_private = nullptr;
 		mm->vmo_tail = vmo;
 	}
 
@@ -2402,22 +2406,22 @@ void remove_vmo_from_private_list(struct mm_address_space *mm, struct vm_object 
 {
 	spin_lock(&mm->private_vmo_lock);
 
-	bool is_head = vmo->prev_private == NULL;
-	bool is_tail = vmo->next_private == NULL;
+	bool is_head = vmo->prev_private == nullptr;
+	bool is_tail = vmo->next_private == nullptr;
 
 	if(is_head && is_tail)
-		mm->vmo_head = mm->vmo_tail = NULL;
+		mm->vmo_head = mm->vmo_tail = nullptr;
 	else if(is_head)
 	{
 		mm->vmo_head = vmo->next_private;
 		if(mm->vmo_head)
-			mm->vmo_head->prev_private = NULL;
+			mm->vmo_head->prev_private = nullptr;
 	}
 	else if(is_tail)
 	{
 		mm->vmo_tail = vmo->prev_private;
 		if(mm->vmo_tail)
-			mm->vmo_tail->next_private = NULL;
+			mm->vmo_tail->next_private = nullptr;
 	}
 	else
 	{
@@ -2449,7 +2453,7 @@ int vm_region_setup_backing(struct vm_region *region, size_t pages, bool is_file
 	{
 		struct inode *ino = region->fd->f_ino;
 
-		assert(ino->i_pages != NULL);
+		assert(ino->i_pages != nullptr);
 		vmo_ref(ino->i_pages);
 		vmo = ino->i_pages;
 	}
@@ -2487,7 +2491,7 @@ int vm_region_setup_backing(struct vm_region *region, size_t pages, bool is_file
 	if(is_shared)
 		increment_vm_stat(region->mm, shared_set_size, vmo->size);
 
-	assert(region->vmo == NULL);
+	assert(region->vmo == nullptr);
 	region->vmo = vmo;
 	return 0;
 }
@@ -2506,9 +2510,9 @@ void *map_user(void *addr, size_t pages, uint32_t type, uint64_t prot)
 {
 	struct vm_region *en = vm_create_region_at(addr, pages, type, prot);
 	if(!en)
-		return NULL;
+		return nullptr;
 	if(vm_region_setup_backing(en, pages, false) < 0)
-		return NULL;
+		return nullptr;
 	return addr;
 }
 
@@ -2517,16 +2521,16 @@ void *map_page_list(struct page *pl, size_t size, uint64_t prot)
 	struct vm_region *entry = vm_allocate_virt_region(VM_KERNEL,
 		vm_size_to_pages(size), VM_TYPE_REGULAR, prot);
 	if(!entry)
-		return NULL;
+		return nullptr;
 	void *vaddr = (void *) entry->base;
 
 	uintptr_t u = (uintptr_t) vaddr;
-	while(pl != NULL)
+	while(pl != nullptr)
 	{
 		if(!map_pages_to_vaddr((void *) u, page_to_phys(pl), PAGE_SIZE, prot))
 		{
 			vm_destroy_mappings(vaddr, vm_size_to_pages(size));
-			return NULL;
+			return nullptr;
 		}
 
 		pl = pl->next_un.next_allocation;
@@ -2564,7 +2568,7 @@ int vm_create_address_space(struct mm_address_space *mm, struct process *process
 int vm_create_brk(struct mm_address_space *mm)
 {
 	mm->brk = vm_mmap(vm_gen_brk_base(), 1 << PAGE_SHIFT, PROT_WRITE,
-                      MAP_PRIVATE | MAP_FIXED | MAP_ANON, NULL, 0);
+                      MAP_PRIVATE | MAP_FIXED | MAP_ANON, nullptr, 0);
 
 	if(!mm->brk)
 	{
@@ -2790,7 +2794,7 @@ bool vm_can_expand(struct mm_address_space *as, struct vm_region *region, size_t
 	if(new_size < region->pages << PAGE_SHIFT)
 		return true;
 	struct rb_itor it;
-	it.node = NULL;
+	it.node = nullptr;
 	it.tree = as->area_tree;
 
 	assert(rb_itor_search(&it, (const void *) region->base) != false);
@@ -2800,7 +2804,7 @@ bool vm_can_expand(struct mm_address_space *as, struct vm_region *region, size_t
 	if(!node_valid)
 		return true;
 	
-	struct vm_region *second_region = *rb_itor_datum(&it);
+	struct vm_region *second_region = (vm_region *) *rb_itor_datum(&it);
 	/* Calculate the hole size, and if >= new_size, we're good */
 	size_t hole_size = second_region->base - region->base;
 
@@ -2836,7 +2840,7 @@ int vm_expand_brk(size_t nr_pages)
 {
 	struct process *p = get_current_process();
 	struct vm_region *brk_region = vm_find_region(p->address_space.brk);
-	assert(brk_region != NULL);
+	assert(brk_region != nullptr);
 	size_t new_size = (brk_region->pages + nr_pages) << PAGE_SHIFT; 
 
 	return vm_expand_mapping(&p->address_space, brk_region, new_size);
@@ -2863,7 +2867,7 @@ void *vm_remap_create_new_mapping_of_shared_pages(void *new_address, size_t new_
 	struct process *current = get_current_process();
 	void *ret = MAP_FAILED;
 	bool fixed = flags & MREMAP_FIXED;
-	struct vm_region *new_mapping = NULL;
+	struct vm_region *new_mapping = nullptr;
 
 	
 	struct vm_region *old_region = vm_find_region(old_address);
@@ -2994,7 +2998,7 @@ void vm_unmap_every_region_in_range(struct mm_address_space *as, unsigned long s
 
 begin: ;
 	struct rb_itor it;
-	it.node = NULL;
+	it.node = nullptr;
 	it.tree = as->area_tree;
 
 	bool node_valid = rb_itor_first(&it);
@@ -3002,9 +3006,9 @@ begin: ;
 	while(node_valid)
 	{
 		void **pp = rb_itor_datum(&it);
-		assert(pp != NULL);
+		assert(pp != nullptr);
 
-		struct vm_region *reg = *pp;
+		struct vm_region *reg = (vm_region *) *pp;
 
 #if	VM_UNMAP_EVERY_REGION_IN_RANGE_DEBUG
 		printk("Testing if %lx - %lx overlaps with %lx - %lx: ", reg->base,
@@ -3048,7 +3052,8 @@ begin: ;
 }
 
 /* TODO: Test things */
-void *sys_mremap(void *old_address, size_t old_size, size_t new_size, int flags, void *new_address)
+extern "C" void *sys_mremap(void *old_address, size_t old_size, size_t new_size,
+                            int flags, void *new_address)
 {
 	/* Check http://man7.org/linux/man-pages/man2/mremap.2.html for documentation */
 	struct process *current = get_current_process();
@@ -3134,10 +3139,10 @@ struct page *vm_commit_page(void *page)
 {
 	struct vm_region *reg = vm_find_region(page);
 	if(!reg)
-		return NULL;
+		return nullptr;
 	
 	if(!reg->vmo)
-		return NULL;
+		return nullptr;
 
 	struct vm_object *vmo = reg->vmo;
 
@@ -3146,12 +3151,12 @@ struct page *vm_commit_page(void *page)
 	
 	vmo_status_t st = vmo_get(vmo, off, VMO_GET_MAY_POPULATE, &p);
 	if(st != VMO_STATUS_OK)
-		return NULL;
+		return nullptr;
 	
 	if(!map_pages_to_vaddr(page, page_to_phys(p), PAGE_SIZE, reg->rwx))
 	{
 		page_unpin(p);
-		return NULL;
+		return nullptr;
 	}
 
 	page_unpin(p);
@@ -3162,12 +3167,12 @@ struct page *vm_commit_page(void *page)
 int vm_change_locks_range_in_region(struct vm_region *region,
 	unsigned long addr, unsigned long len, unsigned long flags)
 {
-	assert(region->vmo != NULL);
+	assert(region->vmo != nullptr);
 
 	mutex_lock(&region->vmo->page_lock);
 
 	struct rb_itor it;
-	it.node = NULL;
+	it.node = nullptr;
 	it.tree = region->mm->area_tree;
 	unsigned long starting_off = region->offset + (addr - region->base); 
 	unsigned long end_off = starting_off + len;
@@ -3175,7 +3180,7 @@ int vm_change_locks_range_in_region(struct vm_region *region,
 
 	while(node_valid)
 	{
-		struct page *p = *rb_itor_datum(&it);
+		struct page *p = (page *) *rb_itor_datum(&it);
 		size_t poff = (size_t) rb_itor_key(&it);
 
 		if(poff >= end_off)
