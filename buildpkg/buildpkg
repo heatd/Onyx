@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # PKGDIR represents the directory where things will be put before they're completely
 # compressed into a package
