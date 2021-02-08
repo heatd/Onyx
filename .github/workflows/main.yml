@@ -96,6 +96,12 @@ jobs:
           cp kernel/kernel.config.example kernel/kernel.config
           curl -O https://storage.googleapis.com/onyx-stuffs/minimal-sysroot.tar.zst
           zstd -d minimal-sysroot.tar.zst | tar xvf -
+          mkdir gn_bin/
+          cd gn_bin
+          wget -q https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/latest -O gn.zip
+          unzip gn.zip
+          echo "$PWD" >> $GITHUB_PATH
+          cd ..
           SYSROOT=$PWD/sysroot ./scripts/setup_build.sh
           make install-headers -j $(nproc)
           mkdir toolchain_binaries
