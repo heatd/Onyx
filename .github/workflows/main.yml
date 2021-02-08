@@ -95,7 +95,7 @@ jobs:
           sudo apt-get update && sudo apt-get install libmpc-dev libgmp3-dev bison flex libmpfr-dev zstd
           cp kernel/kernel.config.example kernel/kernel.config
           curl -O https://storage.googleapis.com/onyx-stuffs/minimal-sysroot.tar.zst
-          zstd -d minimal-sysroot.tar.zst | tar xvf -
+          zstd -d minimal-sysroot.tar.zst -c | tar xvf -
           mkdir gn_bin/
           cd gn_bin
           wget -q https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/latest -O gn.zip
