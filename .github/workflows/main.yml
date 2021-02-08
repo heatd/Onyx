@@ -92,8 +92,10 @@ jobs:
       - name: Install Dependencies
         if: steps.toolchain-cache.outputs.cache-hit != 'true'
         run: |
-          sudo apt-get update && sudo apt-get install libmpc-dev libgmp3-dev bison flex libmpfr-dev
+          sudo apt-get update && sudo apt-get install libmpc-dev libgmp3-dev bison flex libmpfr-dev zstd
           cp kernel/kernel.config.example kernel/kernel.config
+          curl -O https://storage.googleapis.com/onyx-stuffs/minimal-sysroot.tar.zst
+          zstd -d minimal-sysroot.tar.zst | tar xvf -
           SYSROOT=$PWD/sysroot ./scripts/setup_build.sh
           make install-headers -j $(nproc)
           mkdir toolchain_binaries
