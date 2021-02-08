@@ -89,6 +89,7 @@ dash: musl libssp install-packages
 
 install-headers: build-prep
 	$(MAKE) -C kernel install-headers
+	$(MAKE) -C musl install-headers
 	$(MAKE) -C photon install-headers
 
 build-srcpackages: $(SOURCE_PACKAGES)
