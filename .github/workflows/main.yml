@@ -170,8 +170,8 @@ jobs:
             wget -q https://chrome-infra-packages.appspot.com/dl/gn/gn/mac-amd64/+/latest -O gn.zip
             unzip gn.zip
             echo $PATH
-            echo "$PWD" >> $GITHUB_PATH
-            echo "$(brew --prefix)/opt/make/libexec/gnubin" >> $GITHUB_PATH
+            PATH="$PWD:$PATH"
+            PATH="$(brew --prefix)/opt/make/libexec/gnubin:$PATH"
             echo "TEST: $PATH"
             cd ..
             SYSROOT=$PWD/sysroot ./scripts/setup_build.sh
