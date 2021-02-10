@@ -101,8 +101,8 @@ void *elf64_load_static(struct binfmt_args *args, Elf64_Ehdr *header)
 				return errno = EINVAL, NULL;
 			}
 
-			int prot =
-					((phdrs[i].p_flags & PF_W) ? PROT_WRITE : 0) |
+			int prot = ((phdrs[i].p_flags & PF_R) ? PROT_READ : 0) |
+				   ((phdrs[i].p_flags & PF_W) ? PROT_WRITE : 0) |
 				   ((phdrs[i].p_flags & PF_X) ? PROT_EXEC : 0);
 			if(!vm_mmap((void *) aligned_address, pages << PAGE_SHIFT, prot, MAP_PRIVATE | MAP_FIXED, 
 			            fd, phdrs[i].p_offset - misalignment))
@@ -183,6 +183,29 @@ void *elf64_load_static(struct binfmt_args *args, Elf64_Ehdr *header)
 	return (void*) header->e_entry;
 }
 
+size_t elf_calculate_map_size(Elf64_Phdr *phdrs, size_t num)
+{
+	/* Took this idea from linux :) */
+
+	size_t first_load = -1, last_load = -1;
+	for(size_t i = 0; i < num; i++)
+	{
+		if(phdrs[i].p_type == PT_LOAD)
+		{
+			last_load = i;
+
+			if(first_load == (size_t) -1)
+				first_load = i;
+		}
+	}
+
+	if(first_load == (size_t) -1)
+		return -1;
+
+	return (phdrs[last_load].p_vaddr + phdrs[last_load].p_memsz)
+		- (unsigned long) page_align_up((void *) phdrs[first_load].p_vaddr);
+}
+
 void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 {
 	bool is_interp = args->needs_interp;
@@ -207,21 +230,6 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 	}
 
 	void *base = NULL;
-	size_t needed_size = 0;
-	size_t last_size = 0;
-	uintptr_t alignment = (uintptr_t) -1;
-	for(Elf64_Half i = 0; i < header->e_phnum; i++)
-	{
-		if(phdrs[i].p_type == PT_NULL)
-			continue;
-		if(phdrs[i].p_type == PT_LOAD)
-		{
-			needed_size += phdrs[i].p_vaddr;
-			last_size = phdrs[i].p_memsz;
-			if(alignment == (uintptr_t) -1)
-				alignment = phdrs[i].p_align;
-		}
-	}
 
 	int st;
 	if((st = flush_old_exec(args->state)) < 0)
@@ -230,15 +238,23 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 		goto error1;
 	}
 
-	/* TODO: Rework this */
+	size_t needed_size = elf_calculate_map_size(phdrs, header->e_phnum);
 
-	needed_size += last_size;
-	base = vm_mmap(NULL, vm_size_to_pages(needed_size) << PAGE_SHIFT, PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, NULL, 0);
+	if(needed_size == (size_t) -1)
+	{
+		errno = ENOEXEC;
+		goto error1;
+	}
+
+	base = vm_mmap(NULL, vm_size_to_pages(needed_size) << PAGE_SHIFT, PROT_NONE,
+	               MAP_ANONYMOUS | MAP_PRIVATE, NULL, 0);
 	if(!base)
 	{
 		errno = ENOMEM;
 		goto error1;
 	}
+
+	//printk("initial mmap %p to %p\n", base, (void *)((unsigned long) base + (vm_size_to_pages(needed_size) << PAGE_SHIFT)));
 
 	header->e_entry += (uintptr_t) base;
 
@@ -291,13 +307,11 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 				goto error2;
 			}
 
-			int prot =
+			int prot = ((phdrs[i].p_flags & PF_R) ? PROT_READ : 0) |
 				   ((phdrs[i].p_flags & PF_W) ? PROT_WRITE : 0) |
 				   ((phdrs[i].p_flags & PF_X) ? PROT_EXEC : 0);
 
-			/* Note that things are mapped VM_WRITE | VM_USER before the memcpy so 
-			 we don't PF ourselves(i.e: writing to RO memory) */
-			
+			//printk("mmaping [%lx, %lx]\n", aligned_address, aligned_address + (pages << PAGE_SHIFT));
 			if(!vm_mmap((void *) aligned_address, pages << PAGE_SHIFT, prot, MAP_PRIVATE | MAP_FIXED,
 			            fd, phdrs[i].p_offset - misalignment))
 			{
@@ -366,6 +380,7 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 		current->info.phdr = uphdrs;
 		current->info.dyn = dyn;
 		current->info.program_entry = (void *) header->e_entry;
+		//printk("phdrs: %p\n", current->info.phdr);
 	}
 	else
 	{

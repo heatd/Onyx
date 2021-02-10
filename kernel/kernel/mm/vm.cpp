@@ -2728,6 +2728,7 @@ int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
 						add_vmo_to_private_list(as, second);
 
 					new_region->vmo = second;
+					vmo_assign_mapping(region->vmo, new_region);
 					/* We should need to do this */
 					new_region->offset = 0;
 				}

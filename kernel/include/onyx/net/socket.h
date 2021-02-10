@@ -203,7 +203,7 @@ public:
 	virtual socket *accept(socket_conn_request *req);
 	virtual int bind(sockaddr *addr, socklen_t addrlen);
 	virtual int connect(sockaddr *addr, socklen_t addrlen);
-	virtual ssize_t sendmsg(const struct msghdr *msg,	int flags);
+	virtual ssize_t sendmsg(const struct msghdr *msg, int flags);
 	virtual ssize_t recvmsg(struct msghdr *msg, int flags);
 	virtual int getsockopt(int level, int optname, void *optval, socklen_t *optlen) = 0;
 	virtual int setsockopt(int level, int optname, const void *optval, socklen_t optlen) = 0;
