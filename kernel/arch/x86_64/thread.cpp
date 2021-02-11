@@ -179,8 +179,6 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs)
 	
 		setup_fpu_area(new_thread->fpu_area);
 
-		signal_context_init(new_thread);
-
 		new_thread->addr_limit = VM_USER_ADDR_LIMIT;	
 
 		new_thread->owner = get_current_process();
@@ -313,8 +311,6 @@ int arch_transform_into_user_thread(thread *thread)
 	memset(thread->fpu_area, 0, fpu_get_save_size());
 
 	setup_fpu_area(thread->fpu_area);
-
-	signal_context_init(thread);
 
 	/* Note that we don't adjust the addr limit because the thread might be us */
 	return 0;

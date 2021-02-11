@@ -213,6 +213,13 @@ public:
 		return true;
 	} 
 
+	constexpr signal_info() : sigmask{}, lock{}, pending_set{}, pending_head{}, flags{},
+	                times_interrupted{}, signal_pending{}, altstack{}
+	{
+		INIT_LIST_HEAD(&pending_head);
+		altstack.ss_flags = SS_DISABLE;
+	}
+
 	~signal_info();
 #endif
 };

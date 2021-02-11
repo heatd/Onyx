@@ -942,12 +942,6 @@ int sys_pause(void)
 	return -EINTR;
 }
 
-void signal_context_init(struct thread *new_thread)
-{
-	INIT_LIST_HEAD(&new_thread->sinfo.pending_head);
-	new_thread->sinfo.altstack.ss_flags = SS_DISABLE;
-}
-
 #define TGKILL_CHECK_PID			(1 << 0)
 #define TGKILL_SIGQUEUE				(1 << 1)
 
