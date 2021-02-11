@@ -1,9 +1,9 @@
 /*
-* Copyright (c) 2016, 2017 Pedro Falcato
+* Copyright (c) 2016-2021 Pedro Falcato
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
-/* File: acpica_port.c. It's here as the OS layer for ACPICA */
+/* File: acpi_osl.cpp, It's here as the OS layer for ACPICA */
 
 #include <stdio.h>
 #include <limits.h>
@@ -24,6 +24,9 @@
 
 #include <pci/pci.h>
 
+extern "C"
+{
+
 ACPI_STATUS AcpiOsInitialize()
 {
 	printf("ACPI initializing!\n");
@@ -42,13 +45,13 @@ ACPI_PHYSICAL_ADDRESS AcpiOsGetRootPointer()
 
 ACPI_STATUS AcpiOsPredefinedOverride(const ACPI_PREDEFINED_NAMES *PredefinedObject, ACPI_STRING *NewValue)
 {
-	*NewValue = NULL;
+	*NewValue = nullptr;
 	return AE_OK;
 }
 
 ACPI_STATUS AcpiOsTableOverride(ACPI_TABLE_HEADER *ExistingTable, ACPI_TABLE_HEADER **NewTable)
 {
-	*NewTable = NULL;
+	*NewTable = nullptr;
 	return AE_OK;
 }
 
@@ -115,7 +118,7 @@ ACPI_STATUS AcpiOsExecute(ACPI_EXECUTE_TYPE Type, ACPI_OSD_EXEC_CALLBACK Functio
 	struct dpc_work w;
 	w.context = Context;
 	w.funcptr = Function;
-	w.next = NULL;
+	w.next = nullptr;
 
 	/* TODO: Something tells me these callbacks may sleep, and henceforth they're not
 	 * okay to use in dpc contexts, where latency is key.
@@ -156,9 +159,9 @@ void AcpiOsStall(UINT32 Microseconds)
 
 ACPI_STATUS AcpiOsCreateMutex(ACPI_MUTEX *OutHandle)
 {
-	*OutHandle = AcpiOsAllocateZeroed(sizeof(struct mutex));
-	if(*OutHandle == NULL)	return AE_NO_MEMORY;
-	mutex_init(*OutHandle);
+	*OutHandle = (mutex *) AcpiOsAllocateZeroed(sizeof(struct mutex));
+	if(*OutHandle == nullptr)	return AE_NO_MEMORY;
+	mutex_init((mutex *) *OutHandle);
 	return AE_OK;
 }
 
@@ -170,19 +173,20 @@ void AcpiOsDeleteMutex(ACPI_MUTEX Handle)
 // TODO: Implement Timeout
 ACPI_STATUS AcpiOsAcquireMutex(ACPI_MUTEX Handle, UINT16 Timeout)
 {
-	mutex_lock(Handle);
+	mutex_lock((mutex *) Handle);
 	return AE_OK;
 }
 
 void AcpiOsReleaseMutex(ACPI_MUTEX Handle)
 {
-	mutex_unlock(Handle);
+	mutex_unlock((mutex *) Handle);
 }
 
-ACPI_STATUS AcpiOsCreateSemaphore(UINT32 MaxUnits, UINT32 InitialUnits, ACPI_SEMAPHORE * OutHandle)
+ACPI_STATUS AcpiOsCreateSemaphore(UINT32 MaxUnits, UINT32 InitialUnits, ACPI_SEMAPHORE *OutHandle)
 {
-	*OutHandle = AcpiOsAllocateZeroed(sizeof(struct semaphore));
-	if(*OutHandle == NULL) return AE_NO_MEMORY;
+	*OutHandle = (semaphore *) AcpiOsAllocateZeroed(sizeof(struct semaphore));
+	if(*OutHandle == nullptr) return AE_NO_MEMORY;
+	sem_init((semaphore *) *OutHandle, InitialUnits);
 	return AE_OK;
 }
 
@@ -196,7 +200,7 @@ ACPI_STATUS AcpiOsDeleteSemaphore(ACPI_SEMAPHORE Handle)
 ACPI_STATUS AcpiOsWaitSemaphore(ACPI_SEMAPHORE Handle, UINT32 Units, UINT16 Timeout)
 {
 	while(Units--)
-		sem_wait(Handle);
+		sem_wait((semaphore *) Handle);
 
 	return AE_OK;
 }
@@ -204,14 +208,16 @@ ACPI_STATUS AcpiOsWaitSemaphore(ACPI_SEMAPHORE Handle, UINT32 Units, UINT16 Time
 ACPI_STATUS AcpiOsSignalSemaphore(ACPI_SEMAPHORE Handle, UINT32 Units)
 {
 	while(Units--)
-		sem_signal(Handle);
+		sem_signal((semaphore *) Handle);
 	return AE_OK;
 }
 
 ACPI_STATUS AcpiOsCreateLock(ACPI_SPINLOCK *OutHandle)
 {
-	*OutHandle = AcpiOsAllocateZeroed(sizeof(struct spinlock));
-	if(*OutHandle == NULL) return AE_NO_MEMORY;
+	*OutHandle = (spinlock *) AcpiOsAllocateZeroed(sizeof(struct spinlock));
+	if(*OutHandle == nullptr) return AE_NO_MEMORY;
+
+	spinlock_init((spinlock *) *OutHandle);
 	return AE_OK;
 }
 
@@ -222,14 +228,12 @@ void AcpiOsDeleteLock(ACPI_SPINLOCK Handle)
 
 ACPI_CPU_FLAGS AcpiOsAcquireLock(ACPI_SPINLOCK Handle)
 {
-	/* We don't need to return ACPI_CPU_FLAGS because it's kept in the struct spinlock itself */
-	unsigned long cpu_flags = spin_lock_irqsave(Handle);
-	return cpu_flags;
+	return spin_lock_irqsave((spinlock *) Handle);
 }
 
 void AcpiOsReleaseLock(ACPI_SPINLOCK Handle, ACPI_CPU_FLAGS Flags)
 {
-	spin_unlock_irqrestore(Handle, Flags);
+	spin_unlock_irqrestore((spinlock *) Handle, Flags);
 }
 
 ACPI_OSD_HANDLER ServiceRout;
@@ -262,7 +266,7 @@ ACPI_STATUS AcpiOsInstallInterruptHandler(UINT32 InterruptLevel, ACPI_OSD_HANDLE
 ACPI_STATUS AcpiOsRemoveInterruptHandler(UINT32 InterruptNumber, ACPI_OSD_HANDLER Handler)
 {
 	free_irq(InterruptNumber, &acpi_dev);
-	ServiceRout = NULL;
+	ServiceRout = nullptr;
 	return AE_OK;
 }
 
@@ -409,7 +413,7 @@ AcpiOsCreateCache (
     UINT16                  MaxDepth,
     ACPI_CACHE_T        **ReturnCache)
 {
-	*ReturnCache = slab_create(CacheName, ObjectSize, 0, 0, NULL, NULL);
+	*ReturnCache = slab_create(CacheName, ObjectSize, 0, 0, nullptr, nullptr);
 	return AE_OK;
 }
 
@@ -446,3 +450,5 @@ AcpiOsAcquireObject (
 	return slab_allocate(Cache);
 }
 #endif
+
+}
