@@ -58,12 +58,11 @@ int add_function(const char *func)
 	if(!s)
 		return -EINVAL;
 
-	spin_lock(&tracepoint_lock);
+	scoped_lock g{tracepoint_lock};
 
 	unique_ptr<ktracepoint> p = make_unique<ktracepoint>(func, s);
 	if(!p)
 	{
-		spin_unlock(&tracepoint_lock);
 		return -ENOMEM;
 	}
 	
@@ -72,32 +71,27 @@ int add_function(const char *func)
 
 	if(!raw->find_call_addrs())
 	{
-		spin_unlock(&tracepoint_lock);
 		return false;
 	}
 
 	if(!raw->allocate_buffer())
 	{
-		spin_unlock(&tracepoint_lock);
 		return false;
 	}
 
 	if(!append_tracepoint(p))
 	{
-		spin_unlock(&tracepoint_lock);
 		return false;
 	}
 	
 	raw->activate();
-
-	spin_unlock(&tracepoint_lock);
 
 	return true;
 }
 
 void ktracepoint::put_entry(ktrace_ftrace_data& data)
 {
-	spin_lock(&buf_lock);
+	scoped_lock g{buf_lock};
 
 	size_t off = write_pointer;
 
@@ -116,8 +110,6 @@ void ktracepoint::put_entry(ktrace_ftrace_data& data)
 	memcpy(ptr, &data, sizeof(data));
 
 	write_pointer += sizeof(data);
-
-	spin_unlock(&buf_lock);
 }
 
 void ktracepoint::log_entry(unsigned long ip, unsigned long caller)
@@ -144,7 +136,7 @@ bool ktracepoint::allocate_buffer()
 
 void log_func_entry(unsigned long ip, unsigned long caller)
 {
-	spin_lock(&tracepoint_lock);
+	scoped_lock g{tracepoint_lock};
 
 	auto it = tracepoint_list.get_hash_list_begin(fnv_hash(&ip, sizeof(ip)));
 	auto end = tracepoint_list.get_hash_list_end(fnv_hash(&ip, sizeof(ip)));
@@ -160,8 +152,6 @@ void log_func_entry(unsigned long ip, unsigned long caller)
 
 		it++;
 	}
-
-	spin_unlock(&tracepoint_lock);
 }
 
 };
