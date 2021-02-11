@@ -297,7 +297,7 @@ void vm_late_init(void)
 	vm_addr_init();
 
 	heap_size = arch_heap_get_size() - (heap_addr - heap_addr_no_aslr);
-	mutex_lock(&kernel_address_space.vm_lock);
+	scoped_mutex g{kernel_address_space.vm_lock};
 
 	/* Start populating the address space */
 	struct vm_region *v = vm_reserve_region(&kernel_address_space, heap_addr, heap_size);
@@ -324,8 +324,6 @@ void vm_late_init(void)
 
 	vm_zero_page = alloc_page(0);
 	assert(vm_zero_page != nullptr);
-
-	mutex_unlock(&kernel_address_space.vm_lock);
 
 	is_initialized = true;
 }
@@ -450,7 +448,7 @@ void vm_destroy_mappings(void *range, size_t pages)
 	struct mm_address_space *mm = is_higher_half(range)
 				? &kernel_address_space : &get_current_process()->address_space;
 
-	mutex_lock(&mm->vm_lock);
+	scoped_mutex g{mm->vm_lock};
 
 	struct vm_region *reg = vm_find_region(range);
 
@@ -459,8 +457,6 @@ void vm_destroy_mappings(void *range, size_t pages)
 	rb_tree_remove(mm->area_tree, (const void *) reg->base);
 	
 	vm_region_destroy(reg);
-
-	mutex_unlock(&mm->vm_lock);
 
 	decrement_vm_stat(mm, virtual_memory_size, pages << PAGE_SHIFT);
 }
@@ -708,7 +704,7 @@ int vm_flush_mapping(struct vm_region *mapping, struct mm_address_space *mm, uns
 	struct rb_itor it;
 	it.node = nullptr;
 
-	mutex_lock(&vmo->page_lock);
+	scoped_mutex g{vmo->page_lock};
 
 	it.tree = vmo->pages;
 	int mapping_rwx = flags & VM_FLUSH_RWX_VALID ? (int) rwx : mapping->rwx; 
@@ -724,15 +720,11 @@ int vm_flush_mapping(struct vm_region *mapping, struct mm_address_space *mm, uns
 		unsigned long reg_off = poff - off;
 		if(!__map_pages_to_vaddr(mm, (void *) (mapping->base + reg_off), page_to_phys(p),
 			PAGE_SIZE, mapping_rwx))
-		{
-			mutex_unlock(&vmo->page_lock);
 			return -1;
-		}
 
 		node_valid = rb_itor_next(&it);
 	}
 
-	mutex_unlock(&vmo->page_lock);
 	return 0;
 }
 
@@ -1439,16 +1431,13 @@ int vm_mprotect(struct mm_address_space *as, void *__addr, size_t size, int prot
 	unsigned long addr = (unsigned long) __addr;
 	unsigned long limit = addr + size;
 
-	mutex_lock(&as->vm_lock);
+	scoped_mutex g{as->vm_lock};
 
 	while(addr < limit)
 	{
 		struct vm_region *region = vm_find_region_in_tree((void *) addr, as->area_tree);
 		if(!region)
-		{
-			mutex_unlock(&as->vm_lock);
 			return -EINVAL;
-		}
 
 		if(region->mapping_type == MAP_SHARED && region->fd && prot & PROT_WRITE)
 		{
@@ -1460,11 +1449,7 @@ int vm_mprotect(struct mm_address_space *as, void *__addr, size_t size, int prot
 			bool fd_has_write = fd_may_access(file, FILE_ACCESS_WRITE);
 			
 			if(!fd_has_write)
-			{
-				mutex_unlock(&as->vm_lock);
 				return -EACCES;
-			}
-
 		}
 
 		size_t to_shave_off = 0;
@@ -1474,18 +1459,13 @@ int vm_mprotect(struct mm_address_space *as, void *__addr, size_t size, int prot
 		int st = vm_mprotect_in_region(as, region, addr, size, &new_prots, &to_shave_off);
 
 		if(st < 0)
-		{
-			mutex_unlock(&as->vm_lock);
 			return st;
-		}
 
 		vm_do_mmu_mprotect(as, (void *) addr, to_shave_off >> PAGE_SHIFT, old_prots, new_prots);
 
 		addr += to_shave_off;
 		size -= to_shave_off;
 	}
-
-	mutex_unlock(&as->vm_lock);
 
 	return 0;
 }
@@ -1548,39 +1528,36 @@ int do_inc_brk(void *oldbrk, void *newbrk)
 
 extern "C" uint64_t sys_brk(void *newbrk)
 {
-	struct process *p = get_current_process();
+	mm_address_space *as = get_current_address_space();
 
-	mutex_lock(&p->address_space.vm_lock);
+	scoped_mutex g{as->vm_lock};
 
 	if(newbrk == nullptr)
 	{
-		uint64_t ret = (uint64_t) p->address_space.brk;
-		mutex_unlock(&p->address_space.vm_lock);
+		uint64_t ret = (uint64_t) as->brk;
 		return ret;
 	}
 
-	void *old_brk = p->address_space.brk;
+	void *old_brk = as->brk;
 	ptrdiff_t diff = (ptrdiff_t) newbrk - (ptrdiff_t) old_brk;
 
 	if(diff < 0)
 	{
 		/* TODO: Implement freeing memory with brk(2) */
-		p->address_space.brk = newbrk;
+		as->brk = newbrk;
 	}
 	else
 	{
 		/* Increment the program brk */
 		if(do_inc_brk(old_brk, newbrk) < 0)
-		{
-			mutex_unlock(&p->address_space.vm_lock); 
+		{ 
 			return -ENOMEM;
 		}
 
-		p->address_space.brk = newbrk;
+		as->brk = newbrk;
 	}
 
-	uint64_t ret = (uint64_t) p->address_space.brk;
-	mutex_unlock(&p->address_space.vm_lock); 
+	uint64_t ret = (uint64_t) as->brk;
 	return ret;
 }
 
@@ -1987,7 +1964,7 @@ int vm_handle_page_fault(struct fault_info *info)
 		return -1;
 	}
 
-	mutex_lock(&as->vm_lock);
+	scoped_mutex g{as->vm_lock};
 
 	struct vm_region *entry = vm_find_region((void*) info->fault_address);
 	if(!entry)
@@ -2010,7 +1987,6 @@ int vm_handle_page_fault(struct fault_info *info)
 		}
 		
 		info->error = VM_SIGSEGV;
-		mutex_unlock(&as->vm_lock);
 		return -1;
 	}
 
@@ -2026,8 +2002,6 @@ int vm_handle_page_fault(struct fault_info *info)
 	__sync_add_and_fetch(&as->page_faults, 1);
 
 	int ret = __vm_handle_pf(entry, info);
-
-	mutex_unlock(&as->vm_lock);
 
 #if 0
 	if(ret < 0)
@@ -2069,7 +2043,8 @@ void vm_destroy_addr_space(struct mm_address_space *mm)
 	bool free_pgd = true;
 
 	/* First, iterate through the rb tree and free/unmap stuff */
-	mutex_lock(&mm->vm_lock);
+	scoped_mutex g{mm->vm_lock};
+
 	rb_tree_free(mm->area_tree, vm_destroy_area);
 	free(mm->active_mask);
 
@@ -2100,8 +2075,6 @@ void vm_destroy_addr_space(struct mm_address_space *mm)
 
 	if(free_pgd)
 		vm_free_arch_mmu(&old_arch_mmu);
-
-	mutex_unlock(&mm->vm_lock);
 }
 
 void vm_switch_to_fallback_pgd(void)
@@ -2326,17 +2299,14 @@ void vm_do_fatal_page_fault(struct fault_info *info)
 void *vm_map_vmo(size_t flags, uint32_t type, size_t pages, size_t prot, struct vm_object *vmo)
 {
 	bool kernel = !(flags & VM_ADDRESS_USER);
-	void *ret = nullptr;
 	struct mm_address_space *mm = kernel ? &kernel_address_space :
 		&get_current_process()->address_space;
 
-	mutex_lock(&mm->vm_lock);
+	scoped_mutex g{mm->vm_lock};
 
 	struct vm_region *reg = __vm_allocate_virt_region(flags, pages, type, prot);
 	if(!reg)
-	{
-		goto ret;
-	}
+		return nullptr;
 
 	vmo_ref(vmo);
 
@@ -2349,13 +2319,13 @@ void *vm_map_vmo(size_t flags, uint32_t type, size_t pages, size_t prot, struct 
 		if(vmo->type == VMO_ANON && vmo_prefault(reg->vmo, pages << PAGE_SHIFT, 0) < 0)
 		{
 			__vm_munmap(&kernel_address_space, (void *) reg->base, pages << PAGE_SHIFT);
-			goto ret;
+			return nullptr;
 		}
 
 		if(vm_flush(reg, VM_FLUSH_RWX_VALID, reg->rwx | VM_NOFLUSH) < 0)
 		{
 			__vm_munmap(&kernel_address_space, (void *) reg->base, pages << PAGE_SHIFT);
-			goto ret;
+			return nullptr;
 		}
 
 #ifdef CONFIG_KASAN
@@ -2363,10 +2333,7 @@ void *vm_map_vmo(size_t flags, uint32_t type, size_t pages, size_t prot, struct 
 #endif
 	}
 
-	ret = (void *) reg->base;
-ret:
-	mutex_unlock(&mm->vm_lock);
-	return ret;
+	return (void *) reg->base;
 }
 
 vmo_status_t vm_commit_private(struct vm_object *vmo, size_t off, struct page **ppage)
@@ -2772,13 +2739,8 @@ int __vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
 
 int vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
 {
-	mutex_lock(&as->vm_lock);
-
-	int ret = __vm_munmap(as, __addr, size);
-
-	mutex_unlock(&as->vm_lock);
-
-	return ret;
+	scoped_mutex g{as->vm_lock};
+	return __vm_munmap(as, __addr, size);
 }
 
 static bool for_every_region_visit(const void *key, void *region, void *caller_data)
@@ -2941,7 +2903,6 @@ void *vm_remap_create_new_mapping_of_shared_pages(void *new_address, size_t new_
 	vm_copy_region(old_region, new_mapping);
 	ret = (void *) new_mapping->base;
 out:
-	mutex_unlock(&current->address_space.vm_lock);
 	return ret;
 }
 
@@ -3083,7 +3044,7 @@ extern "C" void *sys_mremap(void *old_address, size_t old_size, size_t new_size,
 	bool fixed = flags & MREMAP_FIXED;
 	bool wants_create_new_mapping_of_pages = old_size == 0 && may_move;
 	void *ret = MAP_FAILED;
-	mutex_lock(&current->address_space.vm_lock);
+	scoped_mutex g{current->address_space.vm_lock};
 
 	/* TODO: Unsure on what to do if new_size > old_size */
 	
@@ -3153,7 +3114,6 @@ extern "C" void *sys_mremap(void *old_address, size_t old_size, size_t new_size,
 
 
 out:
-	mutex_unlock(&current->address_space.vm_lock);
 	return ret;
 }
 
@@ -3191,7 +3151,7 @@ int vm_change_locks_range_in_region(struct vm_region *region,
 {
 	assert(region->vmo != nullptr);
 
-	mutex_lock(&region->vmo->page_lock);
+	scoped_mutex g{region->vmo->page_lock};
 
 	struct rb_itor it;
 	it.node = nullptr;
@@ -3215,8 +3175,6 @@ int vm_change_locks_range_in_region(struct vm_region *region,
 		node_valid = rb_itor_next(&it);
 	}
 
-	mutex_unlock(&region->vmo->page_lock);
-
 	return 0;
 }
 
@@ -3232,23 +3190,17 @@ int vm_change_region_locks(void *__start, unsigned long length, unsigned long fl
 	unsigned long limit = (unsigned long) __start + length;
 	unsigned long addr = (unsigned long) __start;
 
-	mutex_lock(&as->vm_lock);
+	scoped_mutex g{as->vm_lock};
 
 	while(addr < limit)
 	{
 		struct vm_region *region = vm_find_region((void *) addr);
 		if(!region)
-		{
-			mutex_unlock(&as->vm_lock);
-			return errno = ENOENT, -1;
-		}
+			return -EINVAL;
 
 		size_t len = min(length, region->pages << PAGE_SHIFT);
 		if(vm_change_locks_range_in_region(region, addr, len, flags) < 0)
-		{
-			mutex_unlock(&as->vm_lock);
-			return -1;
-		}
+			return -ENOMEM;
 
 		if(flags & VM_FUTURE_PAGES)
 		{
@@ -3262,7 +3214,6 @@ int vm_change_region_locks(void *__start, unsigned long length, unsigned long fl
 		length -= len;
 	}
 
-	mutex_unlock(&as->vm_lock);
 	return 0;
 }
 
@@ -3290,7 +3241,7 @@ void vm_wp_page_for_every_region(struct page *page, size_t page_off, struct vm_o
 	list_for_every(&vmo->mappings)
 	{
 		struct vm_region *region = container_of(l, struct vm_region, vmo_head);
-		mutex_lock(&region->mm->vm_lock);
+		scoped_mutex g{region->mm->vm_lock};
 		size_t mapping_off = (size_t) region->offset;
 		size_t mapping_size = region->pages << PAGE_SHIFT;
 
@@ -3301,8 +3252,6 @@ void vm_wp_page_for_every_region(struct page *page, size_t page_off, struct vm_o
 			unsigned long vaddr = region->base + (page_off - mapping_off);
 			vm_wp_page(region->mm, (void *) vaddr);
 		}
-
-		mutex_unlock(&region->mm->vm_lock);
 	}
 
 	spin_unlock(&vmo->mapping_lock);
@@ -3396,7 +3345,7 @@ int get_phys_pages(void *_addr, unsigned int flags, struct page **pages, size_t 
 		return ret;
 	}
 
-	mutex_lock(&as->vm_lock);
+	scoped_mutex g{as->vm_lock};
 
 	size_t pages_gotten = 0;
 
@@ -3448,8 +3397,6 @@ int get_phys_pages(void *_addr, unsigned int flags, struct page **pages, size_t 
 		page_pin(pages[i]);
 
 out:
-	mutex_unlock(&as->vm_lock);
-
 	if(ret & GPP_ACCESS_OK && had_shared_pages)
 		ret |= GPP_ACCESS_SHARED;
 
