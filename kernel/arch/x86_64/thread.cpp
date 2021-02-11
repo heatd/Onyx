@@ -39,6 +39,12 @@
 atomic<int> curr_id = 1;
 constexpr unsigned long kernel_stack_size = 0x4000;
 
+namespace x86
+{
+
+namespace internal
+{
+
 void thread_setup_stack(thread *thread, bool is_user, registers_t *regs)
 {
 	uint64_t *stack = thread->kernel_stack;
@@ -84,6 +90,19 @@ void thread_setup_stack(thread *thread, bool is_user, registers_t *regs)
 	*--stack = ds; // DS
 
 	thread->kernel_stack = stack;
+}
+
+void kernel_thread_start(void *arg)
+{
+	auto thread = get_current_thread();
+
+	thread->entry(arg);
+
+	thread_exit();
+}
+
+}
+
 }
 
 #define ARCH_SET_GS 0x1001
@@ -167,6 +186,7 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs)
 
 	bool is_user = !(flags & THREAD_KERNEL);
 	auto pages = adding_guard_page ? 6 : 4;
+	void *original_entry = (void *) regs->rip;
 
 	if(is_user)
 	{
@@ -186,6 +206,9 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs)
 	else
 	{
 		new_thread->addr_limit = VM_KERNEL_ADDR_LIMIT;
+
+		// Set trampoline as the starting RIP
+		regs->rip = (unsigned long) x86::internal::kernel_thread_start;
 	}
 
 	cputime_info_init(new_thread);
@@ -211,13 +234,21 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs)
 	new_thread->kernel_stack = reinterpret_cast<uintptr_t *>(((char*) new_thread->kernel_stack + kernel_stack_size));
 	new_thread->kernel_stack_top = new_thread->kernel_stack;
 
-	thread_setup_stack(new_thread, is_user, regs);
+	x86::internal::thread_setup_stack(new_thread, is_user, regs);
 
 	new_thread->fs = fs;
 
 	thread_append_to_global_list(new_thread);
 
 	new_thread->priority = SCHED_PRIO_NORMAL;
+
+	if(!is_user)
+	{
+		// thread_setup_stack makes the entry = %rip, but in this case, it's not true since we're
+		// using a trampoline. Therefore, we need to save the original rip up there so
+		// we can restore it.
+		new_thread->entry = reinterpret_cast<thread_callback_t>(original_entry);
+	}
 
 	return new_thread;
 
