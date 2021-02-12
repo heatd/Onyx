@@ -2046,7 +2046,10 @@ void vm_destroy_addr_space(struct mm_address_space *mm)
 	scoped_mutex g{mm->vm_lock};
 
 	rb_tree_free(mm->area_tree, vm_destroy_area);
-	free(mm->active_mask);
+
+	void *ptr = mm->active_mask;
+	mm->active_mask = NULL;
+	free(ptr);
 
 	assert(mm->resident_set_size == 0);
 	assert(mm->shared_set_size == 0);

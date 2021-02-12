@@ -425,8 +425,16 @@ void superblock_add_inode(struct superblock *sb, struct inode *inode)
 extern "C"
 void superblock_remove_inode(struct superblock *sb, struct inode *inode)
 {
-	scoped_lock g{sb->s_ilock};
+	auto hash = inode_hash(sb->s_devnr, inode->i_inode);
+
+	auto index = inode_hashtable.get_hashtable_index(hash);
+
+	scoped_lock g1{inode_hashtable_locks[index]};
+
+	scoped_lock g2{sb->s_ilock};
+
 	list_remove(&inode->i_sb_list_node);
+	list_remove(&inode->i_hash_list_node);
 
 	__atomic_sub_fetch(&sb->s_ref, 1, __ATOMIC_RELAXED);
 }

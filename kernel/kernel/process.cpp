@@ -829,6 +829,8 @@ void process_exit(unsigned int exit_code)
 
 	process_destroy_file_descriptors(current);
 
+	current->signal_group_flags |= SIGNAL_GROUP_EXIT;
+
 	/* We destroy the address space after fds because some close() routines may require address space access */
 	process_destroy_aspace();
 
@@ -847,7 +849,6 @@ void process_exit(unsigned int exit_code)
 
 	scoped_lock g{current->signal_lock};
 	current->exit_code = exit_code;
-	current->signal_group_flags |= SIGNAL_GROUP_EXIT;
 
 	/* Finally, wake up any possible concerned parents */
 	wait_queue_wake_all(&current->parent->wait_child_event);
