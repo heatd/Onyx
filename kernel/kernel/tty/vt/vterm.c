@@ -450,7 +450,7 @@ void vterm_fill_screen(struct vterm *vterm, uint32_t character,
 	{
 		for(unsigned int j = 0; j < vterm->rows; j++)
 		{
-			struct console_cell *cell = &vterm->cells[j * vterm->rows + i];
+			struct console_cell *cell = &vterm->cells[i * vterm->rows + j];
 			cell->codepoint = character;
 			cell->bg = bg;
 			cell->fg = fg;
@@ -835,7 +835,7 @@ size_t vterm_parse_ansi(const char *buffer, size_t len, struct vterm *vt)
 			free(args);
 			return len;
 		}
-	
+
 		switch(*buffer)
 		{
 			case ANSI_CURSOR_UP:
