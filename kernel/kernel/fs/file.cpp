@@ -562,12 +562,16 @@ static struct file *try_to_open(struct file *base, const char *filename, int fla
 #define VALID_OPEN_FLAGS      (O_RDONLY | O_WRONLY | O_RDWR | \
                                O_CREAT | O_DIRECTORY | O_EXCL | \
                                O_NOFOLLOW | O_NONBLOCK | O_APPEND | O_CLOEXEC | O_LARGEFILE | \
-							   O_TRUNC)
+							   O_TRUNC | O_NOCTTY | O_PATH)
 
 int do_sys_open(const char *filename, int flags, mode_t mode, struct file *__rel)
 {
 	if(flags & ~VALID_OPEN_FLAGS)
+	{
+		//printk("Open(%s): Bad flags!\n", filename);
+		//printk("Flag mask %o\n", flags & ~VALID_OPEN_FLAGS);
 		return -EINVAL;
+	}
 
 	//printk("Open(%s)\n", filename);
 	/* This function does all the open() work, open(2) and openat(2) use this */

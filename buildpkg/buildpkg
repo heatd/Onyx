@@ -78,7 +78,7 @@ if [[ $TASK == "build+package" || $TASK == "package" ]]; then
 	popd
 
 	tar -cf ${PKGNAME}-${PKGVER}.tar -C $PKGDIR .
-	zstd -c -T0 --ultra -20 ${PKGNAME}-${PKGVER}.tar > ${PKGNAME}-${PKGVER}.tar.zst
+	zstd -c -T0 --ultra -13 ${PKGNAME}-${PKGVER}.tar > ${PKGNAME}-${PKGVER}.tar.zst
 	rm ${PKGNAME}-${PKGVER}.tar
 fi
 

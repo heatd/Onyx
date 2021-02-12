@@ -658,6 +658,7 @@ int vmo_truncate(vm_object *vmo, unsigned long size, unsigned long flags)
 	scoped_mutex g{vmo->page_lock};
 
 	size = cul::align_up2(size, PAGE_SIZE);
+	//printk("New size: %lx\n", size);
 
 	if(!(flags & VMO_TRUNCATE_DONT_PUNCH))
 	{
