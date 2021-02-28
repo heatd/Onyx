@@ -3,6 +3,10 @@ template("app_executable") {
         
         forward_variables_from(invoker, "*", ["output_dir"])
 
+        if(defined(extra_configs)) {
+            configs += extra_configs
+        }
+
         if(!defined(sys_dir)) {
             sys_dir = "/usr/bin"
         }

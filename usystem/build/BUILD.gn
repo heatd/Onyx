@@ -1,6 +1,6 @@
 config("compiler_defaults") {
     cflags = ["-O2", "-g", "-Wall", "-Wextra", "-fdiagnostics-color=always", "-Wno-unused-parameter",
-              "-march=haswell"]
+              "-march=haswell", "-fstack-protector-strong"]
 
     # TODO: Add "-march=x86-64-v3" when we update the GCC version
     ldflags = cflags

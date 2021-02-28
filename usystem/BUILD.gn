@@ -6,6 +6,7 @@ group("system") {
         "//net_tests",
         "//toybox",
         "//filesystem",
-        "//utils"
+        "//utils",
+        "//init"
     ]
 }
