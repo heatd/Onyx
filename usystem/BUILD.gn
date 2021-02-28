@@ -5,6 +5,7 @@ group("system") {
         "//kernel_api_tests",
         "//net_tests",
         "//toybox",
-        "//filesystem"
+        "//filesystem",
+        "//utils"
     ]
 }

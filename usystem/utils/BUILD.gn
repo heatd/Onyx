@@ -1,0 +1,9 @@
+group("utils") {
+    deps = [
+        "dmesg",
+        "login",
+        "memstat",
+        "ping",
+        "printenv",
+    ]
+}
