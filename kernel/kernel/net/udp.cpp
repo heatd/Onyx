@@ -38,7 +38,7 @@ uint16_t udpv4_calculate_checksum(struct udphdr *header, uint32_t srcip, uint32_
                                   bool do_rest_of_packet = true)
 {
 	uint16_t proto = IPPROTO_UDP << 8;
-	uint16_t packet_length = htons(header->len);
+	uint16_t packet_length = ntohs(header->len);
 	uint16_t __src[2];
 	uint16_t __dst[2];
 
@@ -49,6 +49,7 @@ uint16_t udpv4_calculate_checksum(struct udphdr *header, uint32_t srcip, uint32_
 	r = __ipsum_unfolded(&__dst, sizeof(dstip), r);
 	r = __ipsum_unfolded(&proto, sizeof(proto), r);
 	r = __ipsum_unfolded(&header->len, sizeof(header->len), r);
+	assert(header->checksum == 0);
 
 	if(do_rest_of_packet)
 		r = __ipsum_unfolded(header, packet_length, r);
@@ -94,6 +95,7 @@ uint16_t udpv6_calculate_checksum(struct udphdr *header, const in6_addr& src, co
 	r = __ipsum_unfolded(&dst, sizeof(dst), r);
 	r = __ipsum_unfolded(&packet_length, sizeof(packet_length), r);
 	r = __ipsum_unfolded(&proto, sizeof(proto), r);
+	assert(header->checksum == 0);
 
 	//assert(r == calculate_safe(src, dst, header->len, IPPROTO_UDP));
 
@@ -187,6 +189,7 @@ void udp_prepare_headers(packetbuf *buf, in_port_t sport, in_port_t dport, size_
 	udp_header->source_port = sport;
 	udp_header->dest_port = dport;
 	udp_header->len = htons((uint16_t)(sizeof(udphdr) + len));
+	udp_header->checksum = 0;
 }
 
 int udp_put_data(packetbuf *buf, const msghdr *msg, size_t length)
@@ -224,6 +227,8 @@ void udp_do_csum(packetbuf *buf, const inet_route& route)
 	}
 	else
 		hdr->checksum = udp_calculate_checksum<domain>(hdr, route.src_addr, route.dst_addr);
+	
+	//printk("Checksum: %x\n", hdr->checksum);
 }
 
 template <int domain>

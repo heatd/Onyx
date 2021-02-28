@@ -9,6 +9,7 @@ app_executable("netctld_bin") {
     sources = [ "src/dhcpcd.cpp",
               "src/netctl.cpp",
               "src/v6/addrcfg.cpp" ]
+    sys_dir = "/sbin"
 
     deps = ["//json"]
 }

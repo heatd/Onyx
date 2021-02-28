@@ -17,6 +17,7 @@
 #include <memory>
 #include <assert.h>
 #include <stdexcept>
+#include <cstring>
 
 #include <netinet/ip_icmp.h>
 
@@ -362,7 +363,7 @@ int instance::setup_netif()
 	uint32_t router_ip = 0;
 	uint32_t assigned_ip = 0;
 	uint32_t subnet_mask = 0;
-	uint32_t dns_server = 0;
+	in_addr_t dns_server;
 	uint32_t lease_time = 0;
 
 	uint32_t our_ip = packet->packet->yiaddr;
@@ -371,28 +372,29 @@ int instance::setup_netif()
 
 	if(opt != nullptr)
 	{
-		dns_server = *(uint32_t *) opt->option.data();
+		std::memcpy(&dns_server, opt->option.data(), sizeof(dns_server));
 	}
 
 	opt = packet->get_option(DHO_ROUTERS, 4);
 
 	if(opt != nullptr)
 	{
-		router_ip = *(uint32_t *) opt->option.data();
+		std::memcpy(&router_ip, opt->option.data(), sizeof(router_ip));
 	}
 
 	opt = packet->get_option(DHO_SUBNET_MASK, 4);
 
 	if(opt != nullptr)
 	{
-		subnet_mask = *(uint32_t *) opt->option.data();
+		std::memcpy(&subnet_mask, opt->option.data(), sizeof(subnet_mask));
 	}
 
 	opt = packet->get_option(DHO_DHCP_LEASE_TIME, 4);
 
 	if(opt != nullptr)
 	{
-		lease_time = ntohl(*(uint32_t *) opt->option.data());
+		std::memcpy(&lease_time, opt->option.data(), sizeof(lease_time));
+		lease_time = ntohl(lease_time);
 	}
 
 	memset(buf, 0, sizeof(dhcp_packet_t));

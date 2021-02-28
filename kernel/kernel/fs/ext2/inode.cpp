@@ -264,6 +264,7 @@ int ext2_free_space(size_t new_len, inode *ino);
 void ext2_free_inode_space(inode *inode_, ext2_superblock *fs)
 {
 	ext2_free_space(0, inode_);
+	assert(inode_->i_blocks == 0);
 }
 
 struct ext2_block_coords

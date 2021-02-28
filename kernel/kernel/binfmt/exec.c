@@ -260,8 +260,8 @@ int process_put_entry_info(struct stack_info *info, char **argv, char **envp)
 	size_t invariants = sizeof(long) + ((argc + 1) * sizeof(void *)) + ((envc + 1) * sizeof(void *))
 	                    + 38 * sizeof(Elf64_auxv_t);
 
-	size_t total_info_len = arg_len + env_len + invariants
-	       + strlen(get_current_process()->cmd_line) + 1 + 16;
+	size_t total_info_len = ALIGN_TO(arg_len + env_len + invariants
+	       + strlen(get_current_process()->cmd_line) + 1 + 16, 16);
 	//printk("Old top: %p\n", info->top);
 	info->top = (void *) ((unsigned long) info->top - total_info_len);
 

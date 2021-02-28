@@ -4,6 +4,7 @@ group("system") {
         "//system_benchmark",
         "//kernel_api_tests",
         "//net_tests",
-        "//toybox"
+        "//toybox",
+        "//filesystem"
     ]
 }

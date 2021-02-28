@@ -1,3 +1,4 @@
 config("compiler_defaults") {
-    cflags = ["-O2", "-g"]
+    cflags = ["-O2", "-g", "-Wall", "-Wextra"]
+    ldflags = cflags
 }

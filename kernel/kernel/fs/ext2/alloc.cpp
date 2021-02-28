@@ -63,7 +63,10 @@ void ext2_superblock::free_inode(ext2_inode_no inode)
 
 ext2_block_no ext2_superblock::try_allocate_block_from_bg(ext2_block_group_no nr)
 {
-	assert(nr < number_of_block_groups);
+	if(nr >= number_of_block_groups)
+	{
+		panic("Invalid block group number %u(out of %u bgs)", nr, number_of_block_groups);
+	}
 
 	auto &bg = block_groups[nr];
 
@@ -122,7 +125,7 @@ ext2_block_no ext2_superblock::allocate_block(ext2_block_group_no preferred)
 			return block;
 
 		if(dist_end >= 0)
-           block = try_allocate_block_from_bg(dist_start);
+           block = try_allocate_block_from_bg(dist_end);
 
 		if(block != EXT2_ERR_INV_BLOCK)
 			return block;

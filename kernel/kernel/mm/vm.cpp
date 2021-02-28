@@ -455,6 +455,9 @@ void vm_destroy_mappings(void *range, size_t pages)
 	vm_unmap_range(range, pages);
 
 	rb_tree_remove(mm->area_tree, (const void *) reg->base);
+
+	if(is_mapping_shared(reg))
+		decrement_vm_stat(mm, shared_set_size, pages << PAGE_SHIFT);
 	
 	vm_region_destroy(reg);
 
@@ -2034,6 +2037,11 @@ static void vm_destroy_area(void *key, void *datum)
 
 	decrement_vm_stat(region->mm, virtual_memory_size, region->pages << PAGE_SHIFT);
 
+	if(is_mapping_shared(region))
+	{
+		decrement_vm_stat(region->mm, shared_set_size, region->pages << PAGE_SHIFT);
+	}
+
 	vm_region_destroy(region);
 }
 
@@ -2316,6 +2324,8 @@ void *vm_map_vmo(size_t flags, uint32_t type, size_t pages, size_t prot, struct 
 	reg->vmo = vmo;
 	vmo_assign_mapping(vmo, reg);
 	reg->mapping_type = MAP_SHARED;
+
+	increment_vm_stat(mm, shared_set_size, pages << PAGE_SHIFT);
 
 	if(kernel)
 	{
@@ -2805,6 +2815,8 @@ int __vm_expand_mapping(struct vm_region *region, size_t new_size)
 	vmo_resize(new_size, region->vmo);
 
 	increment_vm_stat(region->mm, virtual_memory_size, diff);
+	if(is_mapping_shared(region))
+		increment_vm_stat(region->mm, shared_set_size, diff);
 
 	return 0;
 }
