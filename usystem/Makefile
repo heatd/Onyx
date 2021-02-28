@@ -1,5 +1,5 @@
 USYSTEM_PROJS:=init wserver strace devmgr singularity testsuite
-UTILS_PROJS:=dmesg login memstat ping printenv
+UTILS_PROJS:=
 
 USYSTEM_PROJS+= $(patsubst %, utils/%, $(UTILS_PROJS))
 
