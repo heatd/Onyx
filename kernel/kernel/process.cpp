@@ -931,8 +931,8 @@ extern "C" void sys_exit_thread(int value)
 	thread *thread = get_current_thread();
 	if(thread->ctid)
 	{
-		pid_t value = 0;
-		if(copy_to_user(thread->ctid, &value, sizeof(value)) < 0)
+		pid_t to_write = 0;
+		if(copy_to_user(thread->ctid, &to_write, sizeof(to_write)) < 0)
 			goto skip;
 		futex_wake((int *) thread->ctid, INT_MAX);
 	}

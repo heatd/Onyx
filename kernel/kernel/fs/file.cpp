@@ -1392,7 +1392,7 @@ int sys_fcntl(int fd, int cmd, unsigned long arg)
 	{
 		case F_DUPFD:
 		{
-			struct file *f = get_file_description(fd);
+			f = get_file_description(fd);
 			if(!f)
 				return -errno;
 

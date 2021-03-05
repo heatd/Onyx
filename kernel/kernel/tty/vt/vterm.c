@@ -187,21 +187,21 @@ static void draw_char(uint32_t c, unsigned int x, unsigned int y,
 			else
 				color = bg;
 			
-			uint32_t c = unpack_rgba(color, fb);
+			uint32_t color_u32 = unpack_rgba(color, fb);
 			volatile uint32_t *b = (volatile uint32_t *) ((uint32_t *) buffer + j);
 			
 			/* If the bpp is 32 bits, we can just blit it out */
 			if(fb->bpp == 32)
-				__asm__ __volatile__("movnti %1, %0" : "=m" (*b) : "r" (c) : "memory");
+				__asm__ __volatile__("movnti %1, %0" : "=m" (*b) : "r" (color) : "memory");
 			else
 			{
 				volatile unsigned char *buf =
 					(volatile unsigned char *)(buffer + j);
 				int bytes = fb->bpp / 8;
-				for(int i = 0; i < bytes; i++)
+				for(int k = 0; k < bytes; k++)
 				{
-					buf[i] = c;
-					c >>= 8;
+					buf[k] = color_u32;
+					color_u32 >>= 8;
 				}
 			}
 		}
@@ -380,9 +380,9 @@ void draw_cursor(int x, int y, struct framebuffer *fb, struct color fg)
 				volatile unsigned char *buf =
 					(volatile unsigned char *)(buffer + j);
 				int bytes = fb->bpp / 8;
-				for(int i = 0; i < bytes; i++)
+				for(int k = 0; k < bytes; k++)
 				{
-					buf[i] = c;
+					buf[k] = c;
 					c >>= 8;
 				}
 			}

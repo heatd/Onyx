@@ -334,7 +334,7 @@ void paging_map_all_phys(void)
 	{
 		PML new_pml3;
 		/* Use 2MiB pages instead */
-		uint64_t *entry = &new_pml3.entries[0];
+		entry = &new_pml3.entries[0];
 		for(size_t i = 0; i < 512; i++)
 		{
 			void *ptr = alloc_boot_page(1, 0);

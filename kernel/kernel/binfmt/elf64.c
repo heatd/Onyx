@@ -131,11 +131,11 @@ void *elf64_load_static(struct binfmt_args *args, Elf64_Ehdr *header)
 
 				if(zero_pages_len)
 				{
-					size_t pages = zero_pages_len / PAGE_SIZE;
+					size_t zero_pages = zero_pages_len / PAGE_SIZE;
 					if(zero_pages_len % PAGE_SIZE)
-						pages++;
+						zero_pages++;
 
-					if(!vm_mmap(zero_pages_base, pages << PAGE_SHIFT, prot,
+					if(!vm_mmap(zero_pages_base, zero_pages << PAGE_SHIFT, prot,
 						MAP_PRIVATE | MAP_FIXED | MAP_ANON, NULL, 0))
 					{
 						errno = ENOMEM;
@@ -342,11 +342,11 @@ void *elf64_load_dyn(struct binfmt_args *args, Elf64_Ehdr *header)
 
 				if(zero_pages_len)
 				{
-					size_t pages = zero_pages_len / PAGE_SIZE;
+					size_t zero_pages = zero_pages_len / PAGE_SIZE;
 					if(zero_pages_len % PAGE_SIZE)
-						pages++;
+						zero_pages++;
 
-					if(!vm_mmap(zero_pages_base, pages << PAGE_SHIFT, prot,
+					if(!vm_mmap(zero_pages_base, zero_pages << PAGE_SHIFT, prot,
 						MAP_PRIVATE | MAP_FIXED | MAP_ANON, NULL, 0))
 					{
 						errno = ENOMEM;

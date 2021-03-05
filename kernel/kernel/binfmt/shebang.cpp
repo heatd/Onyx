@@ -147,11 +147,11 @@ void *shebang_load(struct binfmt_args *args)
 
 	for(int i = 0; i < *args->argc + 1; i++)
 	{
-		char *arg = old_kargs[i];
+		char *a = old_kargs[i];
 		if(i == 0)
-			arg = args->filename;
+			a = args->filename;
 
-		new_argv[curr++] = arg;
+		new_argv[curr++] = a;
 	}
 
 	unsigned long limit = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);

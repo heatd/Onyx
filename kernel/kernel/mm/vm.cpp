@@ -194,7 +194,7 @@ unsigned long vm_allocate_base(struct mm_address_space *as, unsigned long min, s
 	
 	while(node_valid)
 	{
-		struct vm_region *f = (struct vm_region *) *rb_itor_datum(&it);
+		f = (struct vm_region *) *rb_itor_datum(&it);
 		last_end = f->base + (f->pages << PAGE_SHIFT);
 
 		node_valid = rb_itor_next(&it);
@@ -1099,7 +1099,6 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
 	{
 		if(flags & MAP_FIXED)
 		{
-			struct mm_address_space *mm = &get_current_process()->address_space;
 			vm_unmap_every_region_in_range(mm, (unsigned long) addr, pages << PAGE_SHIFT);
 		}
 

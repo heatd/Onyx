@@ -203,7 +203,7 @@ int ext2_add_direntry(const char *name, uint32_t inum, struct ext2_inode *ino,
 
 					COMPILER_BARRIER();
 
-					if(int st = file_write_cache(buffer, fs->block_size, dir, off); st < 0)
+					if(st = file_write_cache(buffer, fs->block_size, dir, off); st < 0)
 					{
 						free(buffer);
 						return st;
@@ -221,7 +221,7 @@ int ext2_add_direntry(const char *name, uint32_t inum, struct ext2_inode *ino,
 					e->size = actual_size;
 					memcpy(d, &entry, dirent_size);
 					
-					if(int st = file_write_cache(buffer, fs->block_size, dir, off); st < 0)
+					if(st = file_write_cache(buffer, fs->block_size, dir, off); st < 0)
 					{
 						free(buffer);
 						return st;
@@ -595,7 +595,7 @@ int ext2_unlink(const char *name, int flags, struct dentry *dir)
 	/* Flush to disk */
 	/* TODO: Maybe we can optimize things by not flushing the whole block? */
 	auto old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
-	if(int st = file_write_cache(res.buf, fs->block_size, ino, res.file_off - res.block_off); st < 0)
+	if(st = file_write_cache(res.buf, fs->block_size, ino, res.file_off - res.block_off); st < 0)
 	{
 		thread_change_addr_limit(old);
 		printk("ext2: error %d\n", st);

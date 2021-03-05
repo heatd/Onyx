@@ -17,7 +17,7 @@ CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-stron
 -Wno-unused-parameter -Wno-unused-function \
 -Werror -Wno-error=frame-address -Wno-address-of-packed-member -Wno-cast-function-type \
 -Wno-error=invalid-offsetof -fno-sanitize=pointer-overflow -fvisibility=protected \
--Wno-missing-field-initializers -Wno-format-truncation -Wstrict-aliasing
+-Wno-missing-field-initializers -Wno-format-truncation -Wstrict-aliasing -Wshadow-compatible-local
 
 # NOTE: I don't think pointer-overflow works with kernel pointers
 
@@ -80,7 +80,7 @@ ACPICA_CFLAGS:=$(filter-out -fsanitize=undefined -Werror, $(CFLAGS))
 # clang-tidy doesn't recognize a bunch of compiler flags
 CLANG_TIDY_CFLAGS:=$(filter-out -mnop-mcount -mrecord-mcount -mrecord-return \
 	-Wno-error=frame-address -minstrument-return=nop5 \
-	-Wno-cast-function-type -Wno-format-truncation, $(CFLAGS))
+	-Wno-cast-function-type -Wno-format-truncation -Wshadow-compatible-local, $(CFLAGS))
 
 RUN_CLANG_TIDY?=1
 
