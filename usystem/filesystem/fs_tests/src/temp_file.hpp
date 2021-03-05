@@ -15,11 +15,22 @@ class temp_file
 {
 private:
 	int fd;
-	static constexpr std::size_t file_name_size = 16; 
+	static constexpr std::size_t file_name_size = 40; 
 	char file_name[file_name_size];
+	bool delete_file;
 public:
-	temp_file() : fd{-1}, file_name{"file-testXXXXXX"}
+	temp_file() : fd{-1}, file_name{"file-testXXXXXX"}, delete_file{true}
 	{
+		fd = mkstemp(file_name);
+		if(fd < 0)
+		{
+			throw std::system_error(errno, std::generic_category(), "Failed to create file test");
+		}
+	}
+
+	temp_file(const std::string& fname) : fd{-1}, file_name{}, delete_file{true}
+	{
+		strcpy(file_name, fname.c_str());
 		fd = mkstemp(file_name);
 		if(fd < 0)
 		{
@@ -30,7 +41,7 @@ public:
 	~temp_file()
 	{
 		sync();
-		if(unlink(file_name) < 0)
+		if(delete_file && unlink(file_name) < 0)
 			throw std::system_error(errno, std::generic_category(), "Failed to unlink");
 		close(fd);
 	}
@@ -44,5 +55,10 @@ public:
 	int get_fd() const
 	{
 		return fd;
+	}
+
+	void dont_delete()
+	{
+		delete_file = false;
 	}
 };

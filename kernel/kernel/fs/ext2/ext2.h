@@ -480,28 +480,26 @@ inline unsigned long ext2_scan_zero(unsigned long *bitmap, unsigned long size)
 	printk("Nr words: %lu\n", size);
 #endif
 
-	for(unsigned long i = 0; i < nr_words; i++)
+	unsigned long bit = 0;
+
+	for(unsigned long i = 0; i < nr_words; i++, bit += bits_per_long)
 	{
 		if(bitmap[i] == ~0UL)
 			continue;
 		
 		if(bitmap[i] == 0)
-			return i * bits_per_long;
+			return bit;
 		else
 		{
-			/* We're going to have to use builtin_clz here */
+			/* We're going to have to use __builtin_ffsl here */
 			unsigned int first_bit_unset = __builtin_ffsl(~bitmap[i]) - 1;
 
 		#if 0
-			printk("First bit unset: %u\n", first_bit_unset);
-			if(first_bit_unset > 63)
-			{
-				printk("bitmap[i]: %lx\n~bitmap[i]: %lx\n", bitmap[i], ~bitmap[i]);
-				panic("shit bit");
-			}
+			printk("First bit unset: %lu:%u\n", i, first_bit_unset);
+			printk("bitmap[i]: %lx\n~bitmap[i]: %lx\n", bitmap[i], ~bitmap[i]);
 		#endif
 
-			return i * bits_per_long + first_bit_unset;
+			return bit + first_bit_unset;
 		}
 	}
 

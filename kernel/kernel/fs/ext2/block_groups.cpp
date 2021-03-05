@@ -96,6 +96,7 @@ expected<ext2_inode_no, int> ext2_block_group::allocate_block(ext2_superblock *s
 
 	/* Set the corresponding bit */
 #if 0
+	printk("Got bit %lu\n", bit);
 	printk("setting %lu on word %lu\n", (bit % bits_per_long), bit / bits_per_long);
 #endif
 
@@ -118,7 +119,7 @@ expected<ext2_inode_no, int> ext2_block_group::allocate_block(ext2_superblock *s
 	block_buf_dirty(buf);
 	ext2_dirty_sb(sb);
 
-	return nr * sb->blocks_per_block_group + bit;
+	return nr * sb->blocks_per_block_group + bit + 1;
 }
 
 void ext2_block_group::free_block(ext2_block_no block, ext2_superblock *sb)
@@ -138,7 +139,7 @@ void ext2_block_group::free_block(ext2_block_no block, ext2_superblock *sb)
 
 	auto bitmap = static_cast<uint8_t *>(block_buf_data(buf));
 
-	auto bit = block % sb->blocks_per_block_group;
+	auto bit = (block - 1) % sb->blocks_per_block_group;
 	auto byte_idx = bit / CHAR_BIT;
 	auto bit_idx = bit % CHAR_BIT;
 

@@ -51,7 +51,7 @@ ssize_t block_buf_flush(flush_object *fo)
 	if(bio_submit_request(buf->dev, &r) < 0)
 		return -EIO;
 #if 0
-	printk("Flushed #%lu.\n", buf->block_nr);
+	printk("Flushed #%lu[sector %lu].\n", buf->block_nr, disk_sect);
 #endif
 
 	return buf->block_size;
@@ -137,6 +137,7 @@ extern "C" struct block_buf *page_add_blockbuf(struct page *page, unsigned int p
 	buf->flags = 0;
 
 	/* It's better to do this naively using O(n) as to keep memory usage per-struct page low. */
+	/* We're not likely to hit substancial n's anyway */
 	block_buf **pp = reinterpret_cast<block_buf **>(&page->priv);
 
 	while(*pp)
@@ -350,6 +351,8 @@ void block_buf_dirty(block_buf *buf)
 		sb *s = (sb *) ((char *) block_buf_data(buf) + 1024);
 		assert(s->s_magic == 0xef53);
 	}
+
+	//printk("Block number %lu dirty!\n", buf->block_nr);
 
 	block_buf_set_dirty(true, &buf->flush_obj);
 }

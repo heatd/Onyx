@@ -155,6 +155,8 @@ expected<ext2_block_no, int> ext2_create_path(struct inode *ino, ext2_block_no b
 
 				b = curr_block[off] = block;
 
+				ino->i_blocks += sb->block_size >> 9;
+
 				if(buf) block_buf_dirty(buf);
 				else
 				{
@@ -223,11 +225,13 @@ int ext2_prepare_write(inode *ino, struct page *page, size_t page_off, size_t of
 				return -ENOMEM;
 			}
 
+			//printk("Adding block for page offset %u\n", b->page_off);
+
 			b->block_nr = EXT2_FILE_HOLE_BLOCK;
 			b->block_size = sb->block_size;
 			b->dev = sb->s_bdev;
 
-			curr_off += PAGE_SIZE;
+			curr_off += sb->block_size;
 		}
 
 		bufs = block_buf_from_page(page);
@@ -244,6 +248,7 @@ int ext2_prepare_write(inode *ino, struct page *page, size_t page_off, size_t of
 			if(block_number == EXT2_FILE_HOLE_BLOCK)
 			{
 				auto res = ext2_create_path(ino, base_block + relative_block, sb);
+				//printk("creating path for poff %u file off %lu\n", bufs->page_off, offset);
 
 				if(res.has_error())
 					return res.error();
@@ -339,8 +344,6 @@ ext2_trunc_indirect_block(ext2_block_no block, unsigned int indirection_level,
 		printk("coords %u\n", curr_coords.coords[0]);
 #endif
 		inode_truncate_range(ino, block_off, block_off + sb->block_size);
-		sb->free_block(block);
-		ino->i_blocks -= sb->block_size >> 9;
 		
 		//printk("Iblocks %lu\n", ino->i_blocks);
 
@@ -366,7 +369,7 @@ ext2_trunc_indirect_block(ext2_block_no block, unsigned int indirection_level,
 	 * under us (check the indirection_level check).
 	 */
 
-	for(unsigned int i = nr_entries - 1; i != 0; i--)
+	for(int i = nr_entries - 1; i >= 0; i--)
 	{
 		curr_coords.coords[indirection_level] = i;
 
@@ -387,6 +390,7 @@ ext2_trunc_indirect_block(ext2_block_no block, unsigned int indirection_level,
 				return st;
 
 			sb->free_block(blockbuf[i]);
+			ino->i_blocks -= sb->block_size >> 9;
 			blockbuf[i] = 0;
 		}
 		else
@@ -480,7 +484,8 @@ int ext2_free_space(size_t new_len, inode *ino)
 			/* If we're told to continue going down the tables, we'll remove this
 			 * one from i_data since it's been freed.
 			 */
-
+			sb->free_block(block);
+			ino->i_blocks -= sb->block_size >> 9;
 			raw_inode->i_data[i] = EXT2_FILE_HOLE_BLOCK;
 		}
 	}

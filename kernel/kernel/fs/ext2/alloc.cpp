@@ -75,7 +75,7 @@ ext2_block_no ext2_superblock::try_allocate_block_from_bg(ext2_block_group_no nr
 
 	auto res = bg.allocate_block(this);
 
-#if 0	
+#if 0
 	printk("Allocated block %u from bg %u\n", res.value_or(EXT2_ERR_INV_BLOCK), nr);
 #endif
 	return res.value_or(EXT2_ERR_INV_BLOCK);
@@ -116,16 +116,16 @@ ext2_block_no ext2_superblock::allocate_block(ext2_block_group_no preferred)
 	for(int dist = 0; dist <= max_distance; dist++, dist_start--, dist_end--)
 	{
 		/* We're testing against dist here because if dist is zero(opening round)
-		 * we'll only need to test once.
+		 * we'll only need to try once, since both tries will point to the same block group.
 		 */
 		if(dist && dist_start >= 0)
-			block = try_allocate_block_from_bg(dist_start);
+			block = try_allocate_block_from_bg(preferred - dist);
 		
 		if(block != EXT2_ERR_INV_BLOCK)
 			return block;
 
 		if(dist_end >= 0)
-           block = try_allocate_block_from_bg(dist_end);
+           block = try_allocate_block_from_bg(preferred + dist);
 
 		if(block != EXT2_ERR_INV_BLOCK)
 			return block;
