@@ -80,7 +80,7 @@ unsigned long pvclock_get_tsc_frequency(void)
 		
 		end_version = vsystem_time->version;
 
-	} while(start_version != end_version);
+	} while(start_version != end_version || pvclock_system_time_updating(end_version));
 	
 	uint64_t tsc_freq = 1000000000UL << 32;
 	tsc_freq = tsc_freq / tsc_mul;
