@@ -1,12 +1,8 @@
 group("system") {
     deps = [
-        "//netctld",
-        "//system_benchmark",
-        "//kernel_api_tests",
-        "//net_tests",
-        "//toybox",
+        "//core",
+        "//network",
+        "//tests",
         "//filesystem",
-        "//utils",
-        "//init"
     ]
 }

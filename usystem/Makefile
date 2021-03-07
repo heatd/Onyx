@@ -1,4 +1,4 @@
-USYSTEM_PROJS:=wserver strace devmgr singularity testsuite
+USYSTEM_PROJS:=wserver strace singularity
 UTILS_PROJS:=
 
 USYSTEM_PROJS+= $(patsubst %, utils/%, $(UTILS_PROJS))

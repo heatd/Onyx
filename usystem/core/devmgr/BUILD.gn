@@ -1,0 +1,23 @@
+import("//build/app.gni")
+
+app_executable("devmgrd_bin") {
+    include_dirs = [ "include" ]
+    package_name = "devmgr"
+
+    output_name = "devmgrd"
+
+    sources = [ "src/main.cpp" ]
+    sys_dir = "/sbin"
+}
+
+copy("devmgr_rule") {
+    sources = [ "devmgr.service"]
+    outputs = [ "${root_out_dir}/packages/init/etc/init.d/targets/{{source_file_part}}" ]
+}
+
+group("devmgr") {
+    deps = [
+        ":devmgrd_bin",
+        ":devmgr_rule",
+    ]
+}

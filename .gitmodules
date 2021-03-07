@@ -8,7 +8,7 @@
 	path = usystem/benchmark
 	url = https://github.com/heatd/benchmark
 [submodule "usystem/toybox"]
-	path = usystem/toybox
+	path = usystem/core/toybox
 	url = https://github.com/heatd/toybox
 [submodule "toolchains"]
 	path = toolchains

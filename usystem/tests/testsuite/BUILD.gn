@@ -1,0 +1,11 @@
+import("//build/app.gni")
+
+app_executable("testsuite") {
+    include_dirs = [ "include" ]
+    package_name = "testsuite"
+
+    output_name = "testsuite"
+    libs = [ "test" ]
+
+    sources = [ "src/disk_driver_tests.cpp",  "src/fork_test.cpp", "src/futex_test.cpp", "src/net_test.cpp" ]
+}
