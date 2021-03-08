@@ -1,0 +1,24 @@
+import("//build/app.gni")
+
+app_executable("coredumpd_bin") {
+    include_dirs = [ "include" ]
+    package_name = "coredumpd"
+
+    output_name = "coredumpd"
+    extra_configs = [ ":init_config" ]
+
+    sources = [ "src/main.cpp" ]
+    sys_dir = "/sbin"
+}
+
+copy("coredumpd_rule") {
+    sources = [ "coredumpd.service"]
+    outputs = [ "${root_out_dir}/packages/init/etc/init.d/targets/{{source_file_part}}" ]
+}
+
+group("coredumpd") {
+	deps = [
+		":coredumpd_bin",
+		":coredumpd_rule"
+	]
+}

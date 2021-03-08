@@ -65,12 +65,6 @@ musl: install-packages
 libssp: install-packages musl
 	$(MAKE) -C $@ install
 
-libtest: musl install-packages
-	$(MAKE) -C $@ install
-
-testsuite: libtest musl install-packages
-	$(MAKE) -C $@ install
-
 singularity: musl libssp install-packages wserver
 	$(MAKE) -C $@ install
 
@@ -94,7 +88,7 @@ install-headers: build-prep
 
 build-srcpackages: $(SOURCE_PACKAGES)
 
-build-gn: musl libssp install-packages
+build-gn: musl libssp libtest install-packages
 	cd usystem && ninja -C out/ system && ./copy_packages.sh && ./uncompress_packages.sh && cd ..
 
 build-usystem: build-srcpackages $(USYSTEM_PROJS) build-gn
