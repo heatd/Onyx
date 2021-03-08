@@ -278,7 +278,7 @@ void vm_init()
 	arch_vm_init();
 }
 
-extern "C" void heap_set_start(uintptr_t start);
+void heap_set_start(uintptr_t start);
 
 void vm_late_init(void)
 {

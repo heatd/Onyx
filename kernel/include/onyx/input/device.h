@@ -18,18 +18,10 @@ struct input_device
 	struct list_head list;
 };
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct input_event;
 
 void input_device_register(struct input_device *dev);
 void input_device_unregister(struct input_device *dev);
 void input_device_submit_event(struct input_device *dev, struct input_event *ev);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

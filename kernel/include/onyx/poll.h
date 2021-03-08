@@ -230,10 +230,6 @@ public:
 	sleep_result sleep_poll(hrtime_t timeout, bool timeout_valid) const;
 };
 
-extern "C"
-{
-#endif
-
 void poll_wait_helper(void *poll_file, struct wait_queue *q);
 
 struct pselect_arg
@@ -242,12 +238,10 @@ struct pselect_arg
 	size_t length;
 };
 
+#endif
+extern "C"
 int sys_pselect(int nfds, fd_set *readfds, fd_set *writefds,
                 fd_set *exceptfds, const struct timespec *timeout,
                 struct pselect_arg *arg);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

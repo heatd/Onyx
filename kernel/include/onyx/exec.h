@@ -10,8 +10,8 @@
 
 struct exec_state
 {
-	struct mm_address_space new_address_space;
-	bool flushed;
+	struct mm_address_space new_address_space{};
+	bool flushed{false};
 };
 
 int exec_state_create(struct exec_state *state);

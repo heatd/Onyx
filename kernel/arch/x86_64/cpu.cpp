@@ -61,7 +61,7 @@ volatile unsigned int initialized_cpus = 0;
 extern volatile uint64_t boot_ticks;
 const int bits_per_long = sizeof(unsigned long) * 8;
 
-struct x86_platform_info x86_platform = {0};
+struct x86_platform_info x86_platform = {};
 
 __attribute__((hot))
 bool x86_has_cap(int cap)
@@ -159,7 +159,7 @@ char *cpu_get_name(void)
 	if(__get_cpuid(0, &eax, &ebx, &ecx, &edx) == 0)
 		panic("Odd cpuid error");
 	
-	uint32_t cpuid[4] = {0};
+	uint32_t cpuid[4] = {};
 	cpuid[0] = ebx;
 	cpuid[1] = edx;
 	cpuid[2] = ecx;

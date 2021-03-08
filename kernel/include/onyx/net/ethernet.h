@@ -42,12 +42,4 @@ public:
 
 extern eth_dll_ops eth_ops;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-
-#ifdef __cplusplus
-}
-#endif
 #endif

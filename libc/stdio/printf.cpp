@@ -29,7 +29,6 @@ void print(const char *data, size_t data_length)
 	}
 }
 
-extern "C"
 void tty_write_string_kernel(const char *s);
 
 static void __flush_print()
@@ -100,7 +99,6 @@ int printk(const char *__restrict__ format, ...)
 	return 0;
 }
 
-extern "C"
 void bust_printk_lock(void)
 {
 	buffer_lock.counter = 0;

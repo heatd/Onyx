@@ -11,7 +11,6 @@
 
 #include <onyx/clock.h>
 #include <onyx/vdso.h>
-#include <onyx/cpu.h>
 #include <fixed_point/fixed_point.h>
 
 #include <sys/time.h>

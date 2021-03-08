@@ -204,7 +204,6 @@ int vdso::update_time(clockid_t id, struct clock_time *time)
 	return 0;
 }
 
-extern "C"
 int vdso_update_time(clockid_t id, clock_time *time)
 {
 	return main_vdso.update_time(id, time);

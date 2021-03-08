@@ -86,9 +86,6 @@ static inline struct blockdev *blkdev_get_dev(struct file *f)
 	return (struct blockdev*) f->f_ino->i_helper;
 }
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 /* 
  * Function: struct blockdev *blkdev_search(const char *name);
  * Description: Search for 'name' on the linked list
@@ -134,7 +131,4 @@ int blkdev_power(int op, struct blockdev *dev);
 
 int bio_submit_request(struct blockdev *dev, struct bio_req *req);
 
-#ifdef __cplusplus
-}
-#endif
 #endif

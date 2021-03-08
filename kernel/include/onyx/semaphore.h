@@ -25,17 +25,8 @@ struct semaphore
 #endif
 };
 
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 void sem_init(struct semaphore *sem, long counter);
 void sem_signal(struct semaphore *sem);
 void sem_wait(struct semaphore *sem);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

@@ -19,10 +19,7 @@
 #define KERNEL_SIGRTMIN				32
 #define KERNEL_SIGRTMAX				64
 
-#ifdef __cplusplus
-extern "C"
 void signotset(sigset_t *set);
-#endif
 
 struct sigpending
 {
@@ -231,12 +228,10 @@ public:
 struct process;
 struct thread;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
+extern "C"
 bool signal_is_pending(void);
 int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigaction, struct registers *regs);
+extern "C"
 void handle_signal(struct registers *regs);
 
 #define SIGNAL_FORCE                            (1 << 0)
@@ -251,9 +246,5 @@ static inline bool signal_is_stopping(int sig)
 {
 	return sig == SIGSTOP || sig == SIGTSTP || sig == SIGTTIN || sig == SIGTTOU;
 }
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

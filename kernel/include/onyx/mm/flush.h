@@ -33,9 +33,6 @@ struct flush_object
 	const struct flush_ops *ops;
 };
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 /* Keep C APIs here */
 
 void flush_init(void);
@@ -47,7 +44,6 @@ ssize_t flush_sync_one(struct flush_object *obj);
 void flush_do_sync(void);
 
 #ifdef __cplusplus
-}
 
 #include <onyx/atomic.hpp>
 

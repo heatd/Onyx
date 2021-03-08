@@ -17,7 +17,6 @@
 
 #include <sys/time.h>
 
-extern "C"
 void timer_queue_clockevent(struct clockevent *ev)
 {
 	auto timer = platform_get_timer();
@@ -42,14 +41,12 @@ void timer_queue_clockevent(struct clockevent *ev)
 	spin_unlock_irqrestore(&timer->event_list_lock, cpu_flags);
 }
 
-extern "C"
 void timer_disable(struct timer *t)
 {
 	if(t->disable_timer)
 		t->disable_timer();
 }
 
-extern "C"
 void timer_handle_events(struct timer *t)
 {
 	bool atomic_context = irq_is_disabled();

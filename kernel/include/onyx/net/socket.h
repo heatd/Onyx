@@ -233,14 +233,6 @@ sockaddr &sa_generic(T &s)
 #define SOL_TCP        6
 #define SOL_UDP        21
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 void socket_init(struct socket *socket);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

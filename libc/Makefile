@@ -122,7 +122,7 @@ libc.so: $(OBJS)
 	$(CC) -c $< -o $@ -std=gnu11 -fPIC $(CFLAGS) $(CPPFLAGS)
 %.o: %.cpp ../kernel/kernel.config
 	echo [CXX] $<
-	$(CXX) -c $< -o $@ -std=c++14 $(CFLAGS) $(CPPFLAGS) $(CXXFLAGS)
+	$(CXX) -c $< -o $@ -std=c++17 $(CFLAGS) $(CPPFLAGS) $(CXXFLAGS)
 
 %.libk.o: %.c ../kernel/kernel.config
 	echo [CC] $<.libk
@@ -130,7 +130,7 @@ libc.so: $(OBJS)
 
 %.libk.o: %.cpp ../kernel/kernel.config
 	echo [CXX] $<.libk
-	$(CXX) -c $< -o $@ -std=c++14 -mcmodel=kernel $(LIBK_CFLAGS) $(LIBK_CPPFLAGS) $(CXXFLAGS)
+	$(CXX) -c $< -o $@ -std=c++17 -mcmodel=kernel $(LIBK_CFLAGS) $(LIBK_CPPFLAGS) $(CXXFLAGS)
 
 %.libk.o: %.S ../kernel/kernel.config
 	echo [AS] $<.libk

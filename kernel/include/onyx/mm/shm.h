@@ -9,7 +9,6 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <stdatomic.h>
 
 #include <onyx/page.h>
 #include <onyx/vfs.h>

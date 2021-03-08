@@ -25,15 +25,8 @@ typedef enum
 
 #define DPC_POOL_NR_OBJS	8192
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 void dpc_init(void);
 int dpc_schedule_work(struct dpc_work *work, dpc_priority prio);
 
-#ifdef __cplusplus
-}
-#endif
 
 #endif

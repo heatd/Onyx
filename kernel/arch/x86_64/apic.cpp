@@ -332,7 +332,7 @@ struct calibration_context
 	uint32_t apic_ticks[CALIBRATION_TRIALS];
 };
 
-struct calibration_context calib = {0};
+struct calibration_context calib = {};
 
 void apic_calibration_setup_count(int try_)
 {
@@ -560,7 +560,6 @@ void signal_stuff()
 	printk("signaled\n");
 }
 
-extern "C"
 int acpi_init_timer(void);
 
 void apic_timer_init(void)

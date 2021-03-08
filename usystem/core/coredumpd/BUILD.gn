@@ -5,20 +5,21 @@ app_executable("coredumpd_bin") {
     package_name = "coredumpd"
 
     output_name = "coredumpd"
-    extra_configs = [ ":init_config" ]
 
-    sources = [ "src/main.cpp" ]
+    sources = [ "src/main.cpp", "src/logger.cpp" ]
+
+    deps = ["//lib/onyx"]
     sys_dir = "/sbin"
 }
 
 copy("coredumpd_rule") {
     sources = [ "coredumpd.service"]
-    outputs = [ "${root_out_dir}/packages/init/etc/init.d/targets/{{source_file_part}}" ]
+    outputs = [ "${root_out_dir}/packages/coredumpd/etc/init.d/targets/{{source_file_part}}" ]
 }
 
 group("coredumpd") {
-	deps = [
-		":coredumpd_bin",
-		":coredumpd_rule"
-	]
+    deps = [
+        ":coredumpd_bin",
+        ":coredumpd_rule"
+    ]
 }

@@ -36,14 +36,8 @@ typedef struct
 } __attribute__((packed)) arp_request_t;
 
 struct netif;
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 expected<shared_ptr<neighbour>, int> arp_resolve_in(uint32_t ip, struct netif *netif);
 int arp_handle_packet(netif *netif, packetbuf *buf);
 
-#ifdef __cplusplus
-}
-#endif
 #endif

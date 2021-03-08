@@ -120,36 +120,52 @@ struct vm_object;
 
 struct mm_address_space
 {
-	struct process *process;
+	struct process *process{};
 	/* Virtual address space Red-black tree */
-	struct rb_tree *area_tree;
-	unsigned long start;
-	unsigned long end;
-	struct mutex vm_lock;
+	struct rb_tree *area_tree{};
+	unsigned long start{};
+	unsigned long end{};
+	struct mutex vm_lock{};
 
 	/* mmap(2) base */
-	void *mmap_base;
+	void *mmap_base{};
 
 	/* Process' brk */
-	void *brk;
+	void *brk{};
 
-	size_t virtual_memory_size;
-	size_t resident_set_size;
-	size_t shared_set_size;
-	size_t page_faults;
-	size_t page_tables_size;
+	size_t virtual_memory_size{};
+	size_t resident_set_size{};
+	size_t shared_set_size{};
+	size_t page_faults{};
+	size_t page_tables_size{};
 
-	struct spinlock private_vmo_lock;
-	struct vm_object *vmo_head, *vmo_tail;
-	struct arch_mm_address_space arch_mmu;
+	struct spinlock private_vmo_lock{};
+	struct vm_object *vmo_head{}, *vmo_tail{};
+	struct arch_mm_address_space arch_mmu{};
 	
 	/* Ah yes, void * time - this in reality should be a cpumask, but C won't like it :((( */
-	void *active_mask;
-};
+	void *active_mask{};
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+	mm_address_space& operator=(mm_address_space&& as)
+	{
+		process = as.process;
+		area_tree = as.area_tree;
+		start = as.start;
+		end = as.end;
+		mmap_base = as.mmap_base;
+		brk = as.brk;
+		virtual_memory_size = as.virtual_memory_size;
+		resident_set_size = as.resident_set_size;
+		shared_set_size = as.shared_set_size;
+		page_faults = as.page_faults;
+		page_tables_size = as.page_tables_size;
+		vmo_head = as.vmo_head;
+		vmo_tail = as.vmo_tail;
+		arch_mmu = as.arch_mmu;
+		active_mask = as.active_mask;
+		return *this;
+	}
+};
 
 #define increment_vm_stat(as, name, amount)	__sync_add_and_fetch(&as->name, amount)
 #define decrement_vm_stat(as, name, amount)	__sync_sub_and_fetch(&as->name, amount)
@@ -182,9 +198,14 @@ void *vm_gen_brk_base(void);
 void vm_sysfs_init(void);
 struct vm_region *vm_find_region_and_writable(void *usr);
 
+extern "C"
+{
+
 ssize_t copy_to_user(void *usr, const void *data, size_t len);
 ssize_t copy_from_user(void *data, const void *usr, size_t len);
 ssize_t user_memset(void *data, int val, size_t len);
+
+}
 
 int vm_region_setup_backing(struct vm_region *region, size_t pages, bool is_file_backed);
 void vm_update_addresses(uintptr_t new_kernel_space_base);
@@ -320,7 +341,4 @@ void *vm_create_active_cpus(void);
 
 void vm_make_anon(struct vm_region *region);
 
-#ifdef __cplusplus
-}
-#endif
 #endif

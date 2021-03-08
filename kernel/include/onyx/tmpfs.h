@@ -42,13 +42,8 @@ public:
 	tmpfs_inode *create_inode(mode_t mode, dev_t rdev = 0);
 };
 
-extern "C" {
 #endif
 
 int tmpfs_mount(const char *mountpoint);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

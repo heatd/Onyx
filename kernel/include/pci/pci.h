@@ -182,10 +182,6 @@ struct pci_id
 .pci_class = c, .subclass = s, .progif = p, \
 .driver_data = drv_data
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 void pci_init();
 uint16_t __pci_config_read_word (uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset);
 uint32_t __pci_config_read_dword (uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset);
@@ -217,10 +213,6 @@ void *pci_map_bar(struct pci_device *device, int index, unsigned int caching);
 int pci_enable_device(struct pci_device *device);
 int pci_reset_device(struct pci_device *device);
 uint16_t pci_get_subsys_id(struct pci_device *dev);
-
-#ifdef __cplusplus
-}
-#endif
 
 typedef void (*pci_callback_t)(struct pci_device *dev);
 typedef struct

@@ -35,17 +35,10 @@ struct sysfs_object
 	ssize_t (*read)(void *buffer, size_t size, off_t off);
 };
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 void sysfs_init(void);
 int sysfs_object_init(const char *name, struct sysfs_object *obj);
 void sysfs_add(struct sysfs_object *obj, struct sysfs_object *parent);
 int sysfs_init_and_add(const char *name, struct sysfs_object *obj, struct sysfs_object *parent);
 void sysfs_mount(void);
 
-#ifdef __cplusplus
-}
-#endif
 #endif

@@ -16,14 +16,10 @@ struct heap
 };
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
 #endif
-
 struct heap *heap_get(void);
-size_t heap_get_used_pages(void);
 
-#ifdef __cplusplus
-}
-#endif
+size_t heap_get_used_pages(void);
 
 #endif

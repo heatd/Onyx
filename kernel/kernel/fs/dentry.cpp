@@ -14,7 +14,6 @@
 #include <onyx/user.h>
 #include <onyx/dentry.h>
 #include <onyx/compiler.h>
-#include <onyx/slab.h>
 #include <onyx/vfs.h>
 #include <onyx/file.h>
 #include <onyx/mm/pool.hpp>
@@ -25,8 +24,6 @@
 static memory_pool<dentry, 0> dentry_pool;
 dentry *root_dentry = nullptr;
 
-extern "C"
-{
 
 void dentry_get(dentry *d)
 {
@@ -48,8 +45,6 @@ void dentry_put(dentry *d)
 
 	if(__atomic_sub_fetch(&d->d_ref, 1, __ATOMIC_RELAXED) == 0)
 		dentry_destroy(d);
-}
-
 }
 
 enum class fs_token_type : uint8_t
@@ -131,7 +126,7 @@ void dentry_kill_unlocked(dentry *entry)
 	dentry_destroy(entry);
 }
 
-extern "C" dentry *dentry_create(const char *name, inode *inode, dentry *parent)
+dentry *dentry_create(const char *name, inode *inode, dentry *parent)
 {
 	if(parent && parent->d_inode->i_type != VFS_TYPE_DIR)
 		return errno = ENOTDIR, nullptr;
@@ -367,7 +362,7 @@ dentry *dentry_mount(const char *mountpoint, struct inode *inode)
 	return new_d;
 }
 
-extern "C" int mount_fs(struct inode *fsroot, const char *path)
+int mount_fs(struct inode *fsroot, const char *path)
 {
 	assert(fsroot != nullptr);
 
@@ -662,7 +657,7 @@ dentry *dentry_resolve(nameidata& data)
 	return data.location;
 }
 
-extern "C" file *open_vfs_with_flags(file *f, const char *name, unsigned int open_flags)
+file *open_vfs_with_flags(file *f, const char *name, unsigned int open_flags)
 {
 	bool unref_f = false;
 	auto fs_root = get_filesystem_root();
@@ -873,9 +868,6 @@ file *file_creation_helper(dentry *base, const char *path, last_name_handling& h
 }
 
 
-extern "C"
-{
-
 file *creat_vfs(dentry *base, const char *path, int mode)
 {
 	create_handling h{{create_file_type::creat, (mode_t) mode, 0}};
@@ -970,8 +962,6 @@ error:
 	}
 
 	return nullptr;
-}
-
 }
 
 struct link_handling : public last_name_handling

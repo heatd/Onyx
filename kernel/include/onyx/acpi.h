@@ -41,10 +41,6 @@ struct acpi_dev_id
 #define ACPI_POWER_STATE_D2	2
 #define ACPI_POWER_STATE_D3	3
 
-#ifdef __cplusplus
-extern "C"{
-#endif
-
 uintptr_t acpi_get_rsdp(void);
 
 int acpi_initialize(void);
@@ -72,9 +68,5 @@ ACPI_RESOURCE *acpi_get_resource(struct acpi_device *device, uint32_t type,
 	unsigned int index);
 
 extern struct clocksource acpi_timer_source;
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

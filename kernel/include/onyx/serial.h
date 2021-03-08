@@ -16,16 +16,8 @@ struct serial_port
 	struct wait_queue rcv_wait;
 };
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct serial_port *platform_get_main_serial(void);
 void serial_write(const char *s, size_t size, struct serial_port *port);
 void platform_serial_init(void);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

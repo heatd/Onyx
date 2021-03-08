@@ -11,10 +11,6 @@
 
 #include <pci/pci-msi.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 int platform_allocate_msi_interrupts(unsigned int num_vectors, bool addr64, 
                                      struct pci_msi_data *data);
 
@@ -22,9 +18,5 @@ int platform_install_irq(unsigned int irqn, struct interrupt_handler *h);
 void platform_mask_irq(unsigned int irq);
 
 void platform_init_acpi(void);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

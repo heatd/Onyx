@@ -213,7 +213,6 @@ unsigned long placement_mappings_start = 0xffffffffffc00000;
 volatile int __gdb_debug_counter = 0; \
 while(__gdb_debug_counter != 1)
 
-extern "C"
 void __native_tlb_invalidate_all(void)
 {
 	__asm__ __volatile__("mov %%cr3, %%rax\nmov %%rax, %%cr3":::"rax", "memory");

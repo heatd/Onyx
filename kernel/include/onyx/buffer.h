@@ -44,10 +44,6 @@ struct block_buf
 
 #define MAX_BLOCK_SIZE				PAGE_SIZE
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct superblock;
 
 struct block_buf *page_add_blockbuf(struct page *page, unsigned int page_off);
@@ -80,7 +76,6 @@ static inline void *block_buf_data(struct block_buf *b)
 }
 
 #ifdef __cplusplus
-}
 
 void page_remove_block_buf(struct page *page, size_t offset, size_t end);
 

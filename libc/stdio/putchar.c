@@ -5,16 +5,8 @@
 */
 #include <stdio.h>
 
-#if defined(__is_onyx_kernel)
-#include <onyx/tty.h>
-#endif
 int putchar(int ic)
 {
-	char c = (char) ic;
-#if defined(__is_onyx_kernel)
-	tty_write_kernel(&c, sizeof(c));
-#else
-	(void)c;
-#endif
-	return ic;
+	printf("%c", ic);
+	return 1;
 }

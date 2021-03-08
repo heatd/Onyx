@@ -8,9 +8,6 @@
 
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 uint8_t mmio_readb(uint64_t address);
 uint16_t mmio_readw(uint64_t address);
 uint32_t mmio_readl(uint64_t address);
@@ -20,7 +17,5 @@ void mmio_writeb(uint64_t address, uint8_t val);
 void mmio_writew(uint64_t address, uint16_t val);
 void mmio_writel(uint64_t address, uint32_t val);
 void mmio_writeq(uint64_t address, uint64_t val);
-#ifdef __cplusplus
-}
-#endif
+
 #endif

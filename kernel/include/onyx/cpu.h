@@ -9,10 +9,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#ifndef __cplusplus
-#include <stdatomic.h>
-#endif
-
 #include <onyx/acpi.h>
 #include <onyx/scheduler.h>
 #include <onyx/compiler.h>
@@ -222,10 +218,6 @@ typedef struct cpu
 	uint64_t caps[8];
 } cpu_t;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 __attribute__((hot))
 bool x86_has_cap(int cap);
 bool x86_has_usable_tsc(void);
@@ -237,10 +229,6 @@ static inline void cpu_relax(void)
 {
 	__asm__ __volatile__("pause" ::: "memory");
 }
-
-#ifdef __cplusplus
-}
-#endif
 
 #include <onyx/x86/irq.h>
 
@@ -256,10 +244,6 @@ struct cpu_message
 	volatile bool sent;
 	struct list_head node;
 };
-
-#ifdef __cplusplus
-extern "C"{
-#endif
 
 void cpu_identify(void);
 void cpu_init_late(void);
@@ -281,10 +265,6 @@ void *cpu_resched(void *stack);
 #define CPU_FLUSH_TLB	(unsigned long)  1
 #define CPU_KILL_THREAD (unsigned long)  2
 #define CPU_FREEZE	(unsigned long)	 3
-
-#ifdef __cplusplus
-}
-#endif
 
 #ifdef __x86_64__
 

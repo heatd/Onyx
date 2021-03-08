@@ -25,7 +25,6 @@ static uintptr_t vm_calculate_virtual_address(uintptr_t bits)
 
 #define VM_SUPPORTED_VM_BITS            48
 
-extern "C"
 void arch_vm_init(void)
 {
 	unsigned int eax = 0, ebx = 0, ecx = 0, edx = 0;
@@ -43,20 +42,17 @@ void arch_vm_init(void)
 /* Dummy function to keep the kernel happy, since x86 reports every platform
  * memory region as far as I know
 */
-extern "C"
 bool platform_page_is_used(void *page)
 {
 	return false;
 }
 
-extern "C"
 size_t arch_heap_get_size(void)
 {
 	return 0x200000000000;
 }
 
 /* TODO: Is this needed? */
-extern "C"
 size_t arch_get_initial_heap_size(void)
 {
 	return 0x400000;

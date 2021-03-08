@@ -22,19 +22,16 @@
 #include <onyx/dpc.h>
 #include <onyx/net/network.h>
 #include <onyx/net/icmp.h>
-#include <onyx/slab.h>
 #include <onyx/mm/pool.hpp>
 #include <onyx/packetbuf.h>
 
 static const char *hostname = "";
 
-extern "C"
 const char *network_gethostname()
 {
 	return hostname;
 }
 
-extern "C"
 void network_sethostname(const char *name)
 {
 	if(strcmp((char*) hostname, ""))
@@ -64,7 +61,7 @@ void network_dispatch_receive(uint8_t *packet, uint16_t len, struct netif *netif
 	args->size = len;
 	args->netif = netif;
 
-	struct dpc_work work = {0};
+	struct dpc_work work = {};
 	work.funcptr = network_do_dispatch;
 	work.context = args;
 	dpc_schedule_work(&work, DPC_PRIORITY_HIGH);

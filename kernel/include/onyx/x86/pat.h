@@ -18,16 +18,7 @@
 
 #define PAT_NR_ENTRIES		8
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
 uint8_t cache_to_paging_bits(uint8_t type);
 void pat_init(void);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

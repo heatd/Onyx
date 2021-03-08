@@ -31,11 +31,6 @@ typedef struct
 
 #endif
 
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct mm_address_space;
 struct process;
 
@@ -77,7 +72,4 @@ PML *get_current_pml4(void);
 unsigned long get_mapping_info(void *addr);
 unsigned long __get_mapping_info(void *addr, struct mm_address_space *as);
 
-#ifdef __cplusplus
-}
-#endif
 #endif

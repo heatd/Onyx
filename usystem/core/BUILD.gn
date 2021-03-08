@@ -4,5 +4,6 @@ group("core") {
         "init",
         "toybox",
         "utils",
+        "coredumpd",
     ]
 }

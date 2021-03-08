@@ -132,25 +132,12 @@ void __raw_asm_add_per_cpu(size_t off, unsigned long val, size_t size);
 
 #endif
 
-#ifdef __cplusplus
-extern "C"
-#else
-extern
-#endif
-unsigned long *percpu_bases;
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+extern unsigned long *percpu_bases;
 
 void percpu_init();
 unsigned long percpu_init_for_cpu(unsigned int cpu);
 int percpu_map_master_copy();
 unsigned long percpu_get_nr_bases();
-
-#ifdef __cplusplus
-}
-#endif
 
 #define other_cpu_get_ptr(var, cpu)		((__typeof__(var) *) (percpu_bases[cpu] + (unsigned long) &var))
 #define other_cpu_get(var, cpu)			*other_cpu_get_ptr(var, cpu)

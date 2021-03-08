@@ -6,12 +6,6 @@
 #ifndef _CARBON_EXCEPTIONS_H
 #define _CARBON_EXCEPTIONS_H
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
-
 struct exception_table_data
 {
 	unsigned long ip;
@@ -20,9 +14,5 @@ struct exception_table_data
 
 #define NO_FIXUP_EXISTS		(unsigned long) -1
 unsigned long exceptions_get_fixup(unsigned long ip);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

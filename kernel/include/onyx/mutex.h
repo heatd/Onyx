@@ -53,10 +53,6 @@ CONSTEXPR static inline void mutex_init(struct mutex *mutex)
 	INIT_LIST_HEAD(&mutex->thread_list);
 }
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 void mutex_lock(struct mutex *m);
 void mutex_unlock(struct mutex *m);
 int mutex_lock_interruptible(struct mutex *mutex);
@@ -64,9 +60,5 @@ bool mutex_holds_lock(struct mutex *m);
 struct thread *mutex_owner(struct mutex *mtx);
 
 #define MUST_HOLD_MUTEX(m)		assert(mutex_holds_lock(m) == true)
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

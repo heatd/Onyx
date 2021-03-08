@@ -25,18 +25,10 @@ struct object
 
 };
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 void object_init(struct object *object, void (*releasefunc)(struct object *));
 void object_acquire(struct object *source, struct object *target);
 void object_release(struct object *source, struct object *target);
 bool object_ref(struct object *object);
 void object_unref(struct object *object);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

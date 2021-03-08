@@ -35,7 +35,6 @@ uint16_t tcpv4_calculate_checksum(tcp_header *header, uint16_t packet_length, ui
 #define TCP_MAKE_DATA_OFF(off)		(off << TCP_DATA_OFFSET_SHIFT)
 #define TCP_GET_DATA_OFF(off)		(off >> TCP_DATA_OFFSET_SHIFT)
 
-extern "C"
 int tcp_init_netif(struct netif *netif)
 {
 	return 0;
@@ -231,7 +230,6 @@ int tcp_send_rst_no_socket(const sockaddr_in_both& dstaddr, in_port_t srcport, i
 	return ip::v4::send_packet(flow, buf.get());
 }
 
-extern "C"
 int tcp_handle_packet(netif *netif, packetbuf *buf)
 {
 	auto ip_header = (struct ip_header *) buf->net_header;
@@ -744,7 +742,6 @@ int tcp_socket::getsockopt(int level, int opt, void *optval, socklen_t *optlen)
 	return -ENOPROTOOPT;
 }
 
-extern "C"
 struct socket *tcp_create_socket(int type)
 {
 	auto sock = new tcp_socket();

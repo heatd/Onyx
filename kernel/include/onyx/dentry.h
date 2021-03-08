@@ -39,11 +39,6 @@ struct dentry
 	uint16_t d_flags;
 };
 
-#ifdef __cplusplus
-extern "C"
-{
-#endif
-
 struct dentry *dentry_open(char *path, struct dentry *base);
 struct dentry *dentry_mount(const char *mountpoint, struct inode *inode);
 void dentry_init(void);
@@ -52,10 +47,6 @@ void dentry_get(struct dentry *d);
 struct inode;
 struct dentry *dentry_create(const char *name, struct inode *inode, struct dentry *parent);
 char *dentry_to_file_name(struct dentry *dentry);
-
-#ifdef __cplusplus
-}
-#endif
 
 #ifdef __cplusplus
 

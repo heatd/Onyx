@@ -9,16 +9,9 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#ifdef __cplusplus
-extern "C"{
-#endif
-
 #define BOOTMEM_FLAG_LOW_MEM			(1 << 0)
 
 void set_alloc_boot_page(void * (*f)(size_t nr, long flags));
 void *alloc_boot_page(size_t nr_pgs, long flags);
 
-#ifdef __cplusplus
-}
-#endif
 #endif

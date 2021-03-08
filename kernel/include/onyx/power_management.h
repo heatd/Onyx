@@ -9,14 +9,6 @@
 
 #include <onyx/public/power_management.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 int set_power_state(unsigned int state, unsigned int flags);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

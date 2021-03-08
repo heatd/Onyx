@@ -111,8 +111,6 @@ void kernel_thread_start(void *arg)
 #define ARCH_GET_GS 0x1004
 
 extern "C"
-{
-
 int sys_arch_prctl(int code, unsigned long *addr)
 {
 	struct thread *current = get_current_thread();
@@ -149,6 +147,7 @@ int sys_arch_prctl(int code, unsigned long *addr)
 
 constexpr bool adding_guard_page = true;
 
+extern "C"
 void thread_finish_destruction(void *___thread)
 {
 	thread *thread = static_cast<thread_t *>(___thread);
@@ -264,6 +263,7 @@ error:
 PER_CPU_VAR_NOUNUSED(unsigned long kernel_stack) = 0;
 PER_CPU_VAR_NOUNUSED(unsigned long scratch_rsp) = 0;
 
+extern "C"
 unsigned long thread_get_addr_limit(void)
 {
 	struct thread *t = get_current_thread();
@@ -283,8 +283,6 @@ thread_t *sched_create_thread(thread_callback_t callback, uint32_t flags, void* 
 
 	thread_t *t = sched_spawn_thread(&regs, flags, NULL);
 	return t;
-}
-
 }
 
 extern "C" 

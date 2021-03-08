@@ -79,9 +79,6 @@ struct getdents_ret
 	off_t new_off;
 };
 
-#ifdef __cplusplus
-extern "C"
-#endif
 int inode_init(struct inode *ino, bool is_reg);
 
 struct inode
@@ -145,10 +142,6 @@ struct file
 #define INODE_FLAG_DIRTY			(1 << 1)
 #define INODE_FLAG_NO_SEEK          (1 << 2)
 #define INODE_FLAG_DIRTYING         (1 << 3)
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 int inode_create_vmo(struct inode *ino);
 
@@ -312,9 +305,5 @@ void inode_unlock_hashtable(struct superblock *sb, ino_t ino_nr);
 void inode_update_atime(struct inode *ino);
 void inode_update_ctime(struct inode *ino);
 void inode_update_mtime(struct inode *ino);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

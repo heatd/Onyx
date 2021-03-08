@@ -1,3 +1,3 @@
-pci-y:= $(patsubst %.c, %.o, $(wildcard drivers/pci/*.c))
+pci-y:= $(patsubst %.cpp, %.o, $(wildcard drivers/pci/*.cpp))
 
 obj-y+= $(pci-y)

@@ -27,10 +27,6 @@ struct superblock
 	dev_t s_devnr;
 };
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 void superblock_init(struct superblock *sb);
 struct inode *superblock_find_inode(struct superblock *sb, ino_t inode);
 void superblock_add_inode_unlocked(struct superblock *sb, struct inode *inode);
@@ -42,9 +38,5 @@ struct page_iov;
 
 int sb_read_bio(struct superblock *sb, struct page_iov *vec, size_t nr_vecs, size_t block_number);
 int sb_write_bio(struct superblock *sb, struct page_iov *vec, size_t nr_vecs, size_t block_number);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

@@ -20,7 +20,7 @@
 #define PAT_WC_INDEX		4
 #define PAT_WP_INDEX		5
 
-static uint64_t pat_config[PAT_NR_ENTRIES] = {0};
+static uint64_t pat_config[PAT_NR_ENTRIES] = {};
 
 /* The translation table is already setup to a legacy encoding */
 static uint64_t translation_table[PAT_NR_ENTRIES] = 

@@ -13,15 +13,7 @@
 #include <onyx/timer.h>
 #include <onyx/process.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 void ktrace_init(void);
-
-#ifdef __cplusplus
-}
-#endif
 
 enum ktrace_type_entry
 {

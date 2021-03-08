@@ -18,7 +18,7 @@
 
 #include <sys/ioctl.h>
 
-static struct spinlock netif_list_lock = {0};
+static struct spinlock netif_list_lock = {};
 cul::vector<netif*> netif_list;
 
 unsigned int netif_ioctl(int request, void *argp, struct file* f)
@@ -263,7 +263,6 @@ static void init_rx_queues(unsigned int cpu)
 
 INIT_LEVEL_CORE_PERCPU_CTOR(init_rx_queues);
 
-extern "C"
 void netif_signal_rx(netif *nif)
 {
 	unsigned int flags, og_flags;
@@ -326,7 +325,6 @@ void netif_do_rxpoll(netif *nif)
 	}
 }
 
-extern "C"
 int netif_do_rx(void)
 {
 	auto queue = get_per_cpu_ptr(rx_queue);

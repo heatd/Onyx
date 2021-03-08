@@ -21,10 +21,6 @@
 #define IOAPIC_PIN_TRIGGER_LEVEL		(1 << 15)
 #define IOAPIC_PIN_MASKED			(1 << 16)
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 void ioapic_early_init(void);
 void apic_timer_init();
 void ioapic_init();
@@ -48,10 +44,6 @@ uint32_t apic_get_lapic_id(unsigned int cpu);
 void apic_set_lapic_id(unsigned int cpu, uint32_t lapic_id);
 volatile uint32_t *apic_get_lapic(unsigned int cpu);
 void lapic_init_per_cpu(void);
-
-#ifdef __cplusplus
-}
-#endif
 
 #define irq_set_irql	apic_set_irql
 #define irq_get_irql	apic_get_irql

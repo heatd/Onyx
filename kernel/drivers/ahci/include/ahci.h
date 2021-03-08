@@ -27,7 +27,7 @@ typedef enum
 	FIS_TYPE_DEV_BITS	= 0xA1,	// Set device bits FIS - device to host
 } FIS_TYPE;
 
-typedef struct
+typedef struct cfis
 {
 	uint8_t fis_type; 	// FIS Type
 
@@ -52,7 +52,7 @@ typedef struct
 	uint8_t padding[0x2C];
 } cfis_t;
 
-typedef struct
+typedef struct fisrd2h
 {
 	uint8_t fis_type; 	// FIS Type
 
@@ -77,7 +77,7 @@ typedef struct
 	uint32_t resv4;
 } fis_reg_d2h;
 
-typedef struct
+typedef struct fisdata
 {
 	uint8_t fis_type;
 
@@ -89,7 +89,7 @@ typedef struct
 	unsigned char data[0];
 } fis_data;
 
-typedef struct
+typedef struct fisps
 {
 	uint8_t fis_type;
 
@@ -112,7 +112,7 @@ typedef struct
 	uint32_t resv4; 
 } fis_pio_setup_t;
 
-typedef struct
+typedef struct fisds
 {
 	uint8_t fis_type;
 
@@ -133,14 +133,14 @@ typedef struct
 	uint32_t resv3;
 } fis_dma_setup_t;
 
-typedef struct
+typedef struct cmd____table
 {
 	cfis_t cfis;
 	uint8_t acmd[16];
 	uint8_t reserved[0x30];
 } __attribute__((packed)) command_table_t;
 
-typedef volatile struct
+typedef volatile struct cmd____list
 {
 	uint16_t desc_info;
 	uint16_t prdtl;
@@ -150,7 +150,7 @@ typedef volatile struct
 	uint32_t res[4];
 } __attribute__((packed)) command_list_t;
 
-typedef struct
+typedef struct pr_dt
 {
 	uint64_t address;
 	uint32_t res0;
@@ -164,7 +164,7 @@ typedef struct
 #define AHCI_COMMAND_LIST_BIST		(1 << 9)
 #define AHCI_COMMAND_LIST_CLEAR_BUSY	(1 << 10)
 
-typedef volatile struct
+typedef volatile struct ahci_prt
 {
 	uint32_t command_list_base_low;
 	uint32_t command_list_base_hi;
@@ -189,7 +189,7 @@ typedef volatile struct
 	uint32_t vendor[4];
 } ahci_port_t;
 
-typedef volatile struct
+typedef volatile struct ahci_hbamr
 {
 	uint32_t host_cap;
 	uint32_t ghc;
@@ -336,7 +336,7 @@ AHCI_PORT_INTERRUPT_PRCE | AHCI_PORT_INTERRUPT_IPME | AHCI_PORT_INTERRUPT_OFE \
 AHCI_PORT_INTERRUPT_HBFE | AHCI_PORT_INTERRUPT_TFEE) 
 
 uint32_t ahci_get_version(ahci_hba_memory_regs_t *hba);
-char *ahci_stringify_version(uint32_t version);
+const char *ahci_stringify_version(uint32_t version);
 bool ahci_do_command_async(struct ahci_port *ahci_port,
 	struct ahci_command_ata *buf,
 	struct aio_req *ioreq);

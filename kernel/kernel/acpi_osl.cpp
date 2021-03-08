@@ -17,12 +17,13 @@
 #include <onyx/panic.h>
 #include <onyx/task_switching.h>
 #include <onyx/timer.h>
-#include <onyx/slab.h>
 #include <onyx/acpi.h>
 #include <onyx/cpu.h>
 #include <onyx/dpc.h>
 
 #include <pci/pci.h>
+
+uint64_t __pci_read(struct pci_device *dev, uint16_t off, size_t size);
 
 extern "C"
 {
@@ -334,8 +335,6 @@ ACPI_STATUS AcpiOsWritePciConfiguration(ACPI_PCI_ID *PciId, UINT32 Register, UIN
 		__pci_write_qword(PciId->Bus, PciId->Device, PciId->Function, Register, Value);
 	return AE_OK;
 }
-
-uint64_t __pci_read(struct pci_device *dev, uint16_t off, size_t size);
 
 ACPI_STATUS AcpiOsReadPciConfiguration(ACPI_PCI_ID *PciId, UINT32 Register, UINT64 *Value, UINT32 Width)
 {

@@ -26,7 +26,8 @@ struct spinlock
 };
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
 void spin_lock(struct spinlock *lock);
@@ -34,6 +35,10 @@ void spin_unlock(struct spinlock *lock);
 void spin_lock_preempt(struct spinlock *lock);
 void spin_unlock_preempt(struct spinlock *lock);
 int spin_try_lock(struct spinlock *lock);
+
+#ifdef __cplusplus
+}
+#endif
 
 CONSTEXPR static inline void spinlock_init(struct spinlock *s)
 {
@@ -68,7 +73,6 @@ static inline bool spin_lock_held(struct spinlock *lock)
 #define MUST_HOLD_LOCK(lock)		assert(spin_lock_held(lock) != false)
 
 #ifdef __cplusplus
-}
 
 class Spinlock
 {

@@ -11,7 +11,6 @@
 #include <sys/times.h>
 
 /* This needs to run with IRQs disabled */
-extern "C"
 void do_cputime_accounting(void)
 {
 	auto current = get_current_thread();
@@ -40,7 +39,6 @@ void do_cputime_accounting(void)
 	timeinfo.last_timeslice_timestamp = now;
 }
 
-extern "C"
 void context_tracking_enter_kernel(void)
 {
 	auto flags = irq_save_and_disable();
@@ -59,7 +57,6 @@ void context_tracking_enter_kernel(void)
 	irq_restore(flags);
 }
 
-extern "C"
 void context_tracking_exit_kernel(void)
 {
 	auto flags = irq_save_and_disable();
@@ -78,7 +75,6 @@ void context_tracking_exit_kernel(void)
 	irq_restore(flags);
 }
 
-extern "C"
 void cputime_info_init(struct thread *t)
 {
 	t->cputime_info.context = t->flags & THREAD_KERNEL ? THREAD_CONTEXT_KERNEL_MIN : THREAD_CONTEXT_USER;
@@ -94,7 +90,7 @@ clock_t sys_times(struct tms *buf)
 	 */
 	struct process *current = get_current_process();
 
-	struct tms b = {0};
+	struct tms b = {};
 	b.tms_stime = current->system_time / NS_PER_MS;
 	b.tms_utime = current->user_time / NS_PER_MS;
 	b.tms_cutime = current->children_utime;

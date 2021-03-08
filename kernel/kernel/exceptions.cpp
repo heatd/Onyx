@@ -9,7 +9,6 @@
 extern "C" struct exception_table_data _ehtable_start;
 extern "C" struct exception_table_data _ehtable_end;
 
-extern "C"
 unsigned long exceptions_get_fixup(unsigned long ip)
 {
 	struct exception_table_data *d = (struct exception_table_data *) &_ehtable_start;

@@ -26,15 +26,7 @@ struct itimer
 #endif
 };
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct process;
 void itimer_init(struct process *p);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

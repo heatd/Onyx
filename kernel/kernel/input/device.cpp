@@ -21,7 +21,6 @@ static struct spinlock input_dev_list_lock;
 static struct list_head input_dev_list = LIST_HEAD_INIT(input_dev_list);
 static atomic<unsigned int> input_id = 0;
 
-extern "C"
 void input_device_register(input_device *dev)
 {
 	char new_name[64] = {};
@@ -36,17 +35,14 @@ void input_device_register(input_device *dev)
 	list_add_tail(&dev->list, &input_dev_list);
 }
 
-extern "C"
 void input_device_unregister(struct input_device *dev)
 {
 	scoped_lock guard{input_dev_list_lock};
 	list_remove(&dev->list);
 }
 
-extern "C"
 int vterm_submit_event(struct input_device *dev, struct input_event *ev);
 
-extern "C"
 void input_device_submit_event(struct input_device *dev, struct input_event *ev)
 {
 	bool pressed = ev->flags & INPUT_EVENT_FLAG_PRESSED;

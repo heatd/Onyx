@@ -28,7 +28,6 @@
 #include <onyx/page.h>
 #include <onyx/thread.h>
 #include <onyx/file.h>
-#include <onyx/slab.h>
 #include <onyx/proc_event.h>
 #include <onyx/syscall.h>
 #include <onyx/futex.h>
@@ -46,7 +45,6 @@ ids *process_ids = nullptr;
 process *first_process = nullptr;
 static process *process_tail = nullptr;
 static spinlock process_list_lock;
-slab_cache_t *process_cache = nullptr;
 
 [[noreturn]]
 void process_exit(unsigned int exit_code);
@@ -57,13 +55,17 @@ void process_append_children(process *parent, process *children)
 	scoped_lock g{parent->children_lock};
 
 	process **pp = &parent->children;
+	process *p = nullptr;
 
 	while(*pp)
-		pp = &(*pp)->next_sibbling;
-	
+	{
+		p = *pp;
+		pp = &p->next_sibbling;
+	}
+
 	*pp = children;
 
-	children->prev_sibbling = container_of(pp, process, next_sibbling);
+	children->prev_sibbling = p;
 }
 
 void process_append_to_global_list(process *p)
@@ -83,11 +85,8 @@ void process_append_to_global_list(process *p)
 	p->next = nullptr;
 }
 
-process::process()
+process::process() : pgrp_node{this}
 {
-	/* FIXME: DANGEROUS, BUT WORKS */
-	memset((void *) this, 0, sizeof(process));
-
 	init_wait_queue_head(&this->wait_child_event);
 	mutex_init(&condvar_mutex);
 	mutex_init(&ctx.fdlock);
@@ -782,7 +781,7 @@ void process_reparent_children(process *proc)
 	process_append_children(new_parent, proc->children);
 }
 
-extern "C" void process_kill_other_threads(void)
+void process_kill_other_threads(void)
 {
 	process *current = get_current_process();
 	thread *current_thread = get_current_thread();
@@ -1025,4 +1024,19 @@ bool process::route_signal(struct sigpending *pend)
 	auto first_t = container_of(first_elem, struct thread, thread_list_head);
 
 	return first_t->sinfo.add_pending(pend);
+}
+
+namespace onx
+{
+
+namespace handle
+{
+
+expected<file *, int > process_handle_opener(unsigned int rsrc_type, unsigned long id, int flags)
+{
+	return unexpected<int>{-ESRCH};	
+}
+
+}
+
 }

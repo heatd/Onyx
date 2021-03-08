@@ -406,16 +406,8 @@ public:
 
 #endif
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct socket *tcp_create_socket(int type);
 int tcp_init_netif(struct netif *netif);
 int tcp_handle_packet(netif *netif, packetbuf *buf);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

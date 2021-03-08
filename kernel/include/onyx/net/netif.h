@@ -87,7 +87,6 @@ struct netif
 };
 
 #ifdef __cplusplus
-extern "C" {
 
 struct inet_sock_address;
 
@@ -133,9 +132,5 @@ struct netif *netif_from_name(const char *name);
 int netif_do_rx(void);
 void netif_signal_rx(netif *nif);
 int netif_process_pbuf(netif *nif, packetbuf *buf);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

@@ -7,7 +7,6 @@
 #include <onyx/superblock.h>
 #include <onyx/block.h>
 
-extern "C"
 void superblock_init(struct superblock *sb)
 {
 	INIT_LIST_HEAD(&sb->s_inodes);
@@ -15,7 +14,6 @@ void superblock_init(struct superblock *sb)
 	spinlock_init(&sb->s_ilock);
 }
 
-extern "C"
 int sb_read_bio(struct superblock *sb, struct page_iov *vec, size_t nr_vecs, size_t block_number)
 {
 	struct bio_req r{};
@@ -27,7 +25,6 @@ int sb_read_bio(struct superblock *sb, struct page_iov *vec, size_t nr_vecs, siz
 	return bio_submit_request(sb->s_bdev, &r);
 }
 
-extern "C"
 int sb_write_bio(struct superblock *sb, struct page_iov *vec, size_t nr_vecs, size_t block_number)
 {
 	struct bio_req r{};

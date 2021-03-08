@@ -19,7 +19,6 @@
 #include <acpica/acpi.h>
 
 #include <onyx/debug.h>
-#include <onyx/slab.h>
 #include <onyx/vm.h>
 #include <onyx/paging.h>
 #include <onyx/x86/idt.h>
@@ -68,10 +67,9 @@
 static struct multiboot_tag_module *initrd_tag = NULL;
 struct multiboot_tag_elf_sections *secs;
 struct multiboot_tag_mmap *mmap_tag = NULL;
-ACPI_TABLE_RSDP grub2_rsdp = {0};
+ACPI_TABLE_RSDP grub2_rsdp = {};
 bool grub2_rsdp_valid = false;
 
-extern "C"
 uintptr_t get_rdsp_from_grub(void)
 {
 	if(grub2_rsdp_valid)
@@ -80,13 +78,8 @@ uintptr_t get_rdsp_from_grub(void)
 		return 0;
 }
 
-extern "C"
-{
-
 char *get_kernel_cmdline(void);
 void set_initrd_address(void *initrd_address);
-
-}
 
 static struct framebuffer fb = 
 {
@@ -139,7 +132,6 @@ static inline void *temp_map_mem(unsigned long mem)
 		return x86_placement_map(mem);
 }
 
-extern "C"
 bool page_is_used(void *__page, struct bootmodule *modules);
 
 struct bootmodule initrd;
@@ -282,7 +274,6 @@ unsigned long mb2_get_maxpfn(void)
 }
 
 
-extern "C"
 void vterm_do_init(void);
 void vm_print_map(void);
 
@@ -421,7 +412,6 @@ void multiboot2_kernel_entry(uintptr_t addr, uint32_t magic)
 	kvm_init();
 }
 
-extern "C"
 void reclaim_initrd(void)
 {
 	reclaim_pages(initrd.base, initrd.base + initrd.size);

@@ -29,10 +29,6 @@ struct rwlock
 #endif
 };
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 bool rw_lock_tryread(struct rwlock *lock);
 void rw_lock_read(struct rwlock *lock);
 void rw_lock_write(struct rwlock *lock);
@@ -47,10 +43,6 @@ static inline void rwlock_init(struct rwlock *lock)
 	INIT_LIST_HEAD(&lock->waiting_list);
 	spinlock_init(&lock->llock);
 }
-
-#ifdef __cplusplus
-}
-#endif
 
 #ifdef __cplusplus
 

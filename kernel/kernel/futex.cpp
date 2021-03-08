@@ -502,7 +502,7 @@ int requeue(int *uaddr, int flags, int to_wake, int to_requeue, int *uaddr2)
 
 };
 
-extern "C" int futex_wake(int *uaddr, int nr_waiters)
+int futex_wake(int *uaddr, int nr_waiters)
 {
 	if((unsigned long) uaddr & (4 - 1))
 		return -EINVAL;

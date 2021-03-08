@@ -29,10 +29,6 @@ struct wallclock_source
 	time_t (*get_posix_time)(void);
 };
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /* hrtime is expressed in units of nanoseconds */
 typedef uint64_t hrtime_t;
 typedef int64_t hrtime_delta_t;
@@ -118,7 +114,4 @@ static inline hrtime_t timeval_to_hrtime(const struct timeval *v)
 	return res;
 }
 
-#ifdef __cplusplus
-}
-#endif
 #endif

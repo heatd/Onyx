@@ -107,9 +107,8 @@ bool _dump_thread(const void *key, void *_thread, void *of)
 	return true;
 }
 
-extern "C" void vterm_panic(void);
+void vterm_panic(void);
 
-extern "C"
 void sched_dump_threads(void)
 {
 	vterm_panic();

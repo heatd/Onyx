@@ -12,10 +12,6 @@
 #include <onyx/vfs.h>
 #include <onyx/panic.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct ioctx;
 
 void file_do_cloexec(struct ioctx *ctx);
@@ -45,10 +41,6 @@ static inline unsigned int open_to_file_access_flags(int open_flgs)
 }
 
 bool fd_may_access(struct file *f, unsigned int access);
-
-#ifdef __cplusplus
-}
-#endif
 
 #ifdef __cplusplus
 

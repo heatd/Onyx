@@ -16,7 +16,7 @@
 #include <onyx/percpu.h>
 #include <onyx/init.h>
 
-struct irq_line irq_lines[NR_IRQ] = {0};
+struct irq_line irq_lines[NR_IRQ] = {};
 unsigned long rogue_irqs = 0;
 
 static struct interrupt_handler *add_to_list(struct irq_line *line)

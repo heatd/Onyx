@@ -26,17 +26,9 @@ typedef struct fs_mount_strct
 	fs_handler handler;
 } filesystem_mount_t;
 
-#ifdef __cplusplus
-extern "C"{
-#endif
-
 int partition_add_handler(fs_handler handler, const char *filesystem);
 filesystem_mount_t *find_filesystem_handler(const char *fsname);
 struct blockdev;
 void partition_setup_disk(struct blockdev *dev);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

@@ -111,8 +111,6 @@ struct page_cache_block *inode_get_page(struct inode *inode, size_t offset, long
 	return b;
 }
 
-
-extern "C"
 ssize_t file_write_cache(void *buffer, size_t len, struct inode *ino, size_t offset)
 {
 	//printk("File cache write %lu off %lu\n", len, offset);
@@ -179,7 +177,6 @@ ssize_t file_write_cache(void *buffer, size_t len, struct inode *ino, size_t off
 	return (ssize_t) wrote;
 }
 
-extern "C"
 ssize_t file_read_cache(void *buffer, size_t len, struct inode *file, size_t offset)
 {
 	if((size_t) offset >= file->i_size)
@@ -238,7 +235,6 @@ ssize_t file_read_cache(void *buffer, size_t len, struct inode *file, size_t off
 	return (ssize_t) read;
 }
 
-extern "C"
 int inode_special_init(struct inode *ino)
 {
 	if(ino->i_type == VFS_TYPE_BLOCK_DEVICE || ino->i_type == VFS_TYPE_CHAR_DEVICE)
@@ -253,7 +249,6 @@ int inode_special_init(struct inode *ino)
 	return 0;
 }
 
-extern "C"
 void inode_ref(struct inode *ino)
 {
 	__atomic_add_fetch(&ino->i_refc, 1, __ATOMIC_RELAXED);
@@ -298,7 +293,7 @@ ssize_t inode_sync(struct inode *inode)
 	return 0;
 }
 
-extern "C" bool inode_is_cacheable(struct inode *file);
+bool inode_is_cacheable(struct inode *file);
 
 void inode_release(struct inode *inode)
 {
@@ -363,7 +358,6 @@ void inode_unref(struct inode *ino)
 #endif
 }
 
-extern "C"
 struct inode *superblock_find_inode(struct superblock *sb, ino_t ino_nr)
 {
 	auto hash = inode_hash(sb->s_devnr, ino_nr);
@@ -390,7 +384,6 @@ struct inode *superblock_find_inode(struct superblock *sb, ino_t ino_nr)
 	return nullptr;
 }
 
-extern "C"
 void superblock_add_inode_unlocked(struct superblock *sb, struct inode *inode)
 {
 	auto hash = inode_hash(sb->s_devnr, inode->i_inode);
@@ -410,7 +403,6 @@ void superblock_add_inode_unlocked(struct superblock *sb, struct inode *inode)
 }
 
 /* Should only be used when creating new inodes(so we're sure that they don't exist). */
-extern "C"
 void superblock_add_inode(struct superblock *sb, struct inode *inode)
 {
 	auto hash = inode_hash(sb->s_devnr, inode->i_inode);
@@ -422,7 +414,6 @@ void superblock_add_inode(struct superblock *sb, struct inode *inode)
 	g.keep_locked();
 }
 
-extern "C"
 void superblock_remove_inode(struct superblock *sb, struct inode *inode)
 {
 	auto hash = inode_hash(sb->s_devnr, inode->i_inode);
@@ -439,7 +430,6 @@ void superblock_remove_inode(struct superblock *sb, struct inode *inode)
 	__atomic_sub_fetch(&sb->s_ref, 1, __ATOMIC_RELAXED);
 }
 
-extern "C"
 void superblock_kill(struct superblock *sb)
 {
 	list_for_every_safe(&sb->s_inodes)
@@ -450,7 +440,6 @@ void superblock_kill(struct superblock *sb)
 	}
 }
 
-extern "C"
 void inode_unlock_hashtable(struct superblock *sb, ino_t ino_nr)
 {
 	auto hash = inode_hash(sb->s_devnr, ino_nr);
@@ -491,7 +480,6 @@ void inode_add_hole_in_page(struct page *page, size_t page_offset, size_t end_of
 	memset(p, 0, end_offset - page_offset);
 }
 
-extern "C"
 int inode_truncate_range(struct inode *inode, size_t start, size_t end)
 {
 	bool start_misaligned = start & (PAGE_SIZE - 1);

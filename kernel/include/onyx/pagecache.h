@@ -38,10 +38,6 @@ struct page_cache_block
 #define PAGE_CACHE_SIZE PAGE_SIZE
 #define FILE_CACHING_WRITE	(1 << 0)
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct page_cache_block *pagecache_create_cache_block(struct page *page, size_t size, size_t off, struct inode *node);
 void pagecache_dirty_block(struct page_cache_block *block);
 void pagecache_init(void);
@@ -49,9 +45,5 @@ void page_cache_destroy(struct page_cache_block *block);
 size_t pagecache_get_used_pages(void);
 ssize_t file_write_cache(void *buffer, size_t len, struct inode *file, size_t offset);
 ssize_t file_read_cache(void *buffer, size_t len, struct inode *file, size_t off);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

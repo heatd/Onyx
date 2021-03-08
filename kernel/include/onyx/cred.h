@@ -12,12 +12,7 @@
 
 #include <sys/types.h>
 
-#ifdef __cplusplus
-
 #include <onyx/groups.h>
-extern "C" {
-#endif
-
 struct creds
 {
 	struct rwlock lock;
@@ -61,10 +56,6 @@ static inline void creds_init(struct creds *c)
 }
 
 bool cred_is_in_group(struct creds *c, gid_t gid);
-
-#ifdef __cplusplus
-}
-#endif
 
 #ifdef __cplusplus
 

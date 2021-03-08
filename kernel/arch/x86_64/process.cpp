@@ -9,8 +9,6 @@
 #include <onyx/process.h>
 #include <onyx/thread.h>
 
-extern "C" {
-
 struct thread *process_create_thread(struct process *proc, thread_callback_t callback, uint32_t flags)
 {
 	thread_t *thread = sched_create_thread(callback, flags, nullptr);
@@ -128,6 +126,7 @@ static void inherit_signal_flags(thread *newt)
 	newt->sinfo.flags |= current_thread->sinfo.flags;
 }
 
+extern "C"
 int sys_clone(int (*fn)(void *), void *child_stack, int flags, void *arg, struct tid_out *out, void *tls)
 {
 	struct tid_out ktid_out;
@@ -163,6 +162,4 @@ int sys_clone(int (*fn)(void *), void *child_stack, int flags, void *arg, struct
 	sched_start_thread(thread);
 
 	return 0;
-}
-
 }

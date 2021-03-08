@@ -156,7 +156,6 @@ void log_func_entry(unsigned long ip, unsigned long caller)
 
 };
 
-extern "C"
 void ktrace_init(void)
 {
 }

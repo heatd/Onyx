@@ -64,7 +64,6 @@ bool block_buf_is_dirty(flush_object *fo)
 	return buf->flags & BLOCKBUF_FLAG_DIRTY;
 }
 
-extern "C"
 block_buf *block_buf_from_page(struct page *p)
 {
 	return reinterpret_cast<block_buf *>(p->priv);
@@ -119,7 +118,7 @@ static void block_buf_set_dirty(bool dirty, flush_object *fo)
 	}
 }
 
-extern "C" struct block_buf *page_add_blockbuf(struct page *page, unsigned int page_off)
+struct block_buf *page_add_blockbuf(struct page *page, unsigned int page_off)
 {
 	assert(page->flags & PAGE_FLAG_BUFFER);
 
@@ -167,13 +166,12 @@ void block_buf_remove(struct block_buf *buf)
 	}
 }
 
-extern "C"
 void block_buf_writeback(struct block_buf *buf)
 {
 	flush_sync_one(&buf->flush_obj);
 }
 
-extern "C" void block_buf_free(struct block_buf *buf)
+void block_buf_free(struct block_buf *buf)
 {
 	if(buf->flags & BLOCKBUF_FLAG_DIRTY)
 		block_buf_writeback(buf);
@@ -183,7 +181,6 @@ extern "C" void block_buf_free(struct block_buf *buf)
 	block_buf_pool.free(buf);
 }
 
-extern "C"
 void page_destroy_block_bufs(struct page *page)
 {
 	auto b = reinterpret_cast<block_buf *>(page->priv);
@@ -204,7 +201,6 @@ void page_destroy_block_bufs(struct page *page)
  * block_size <= page_size here...
  */
 
-extern "C"
 vmo_status_t bbuffer_commit(vm_object *vmo, size_t off, page **ppage)
 {
 	vmo_status_t st = VMO_STATUS_BUS_ERROR;
@@ -276,7 +272,7 @@ error:
 	return st;
 }
 
-extern "C" struct block_buf *sb_read_block(const struct superblock *sb, unsigned long block)
+struct block_buf *sb_read_block(const struct superblock *sb, unsigned long block)
 {
 	struct blockdev *dev = sb->s_bdev;
 	size_t real_off = sb->s_block_size * block;

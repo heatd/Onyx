@@ -110,7 +110,6 @@ int vmo_punch_range(vm_object *vmo, unsigned long start, unsigned long length);
 
 int vmo_truncate(vm_object *vmo, unsigned long size, unsigned long flags);
 
-extern "C" {
 #endif
 
 struct vm_region;
@@ -155,9 +154,5 @@ static inline bool vmo_on_cow(struct vm_object *vmo)
 {
 	return vmo->cow_clone != NULL;
 }
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

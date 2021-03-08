@@ -1,0 +1,5 @@
+# Coredumping service
+
+[Service]
+Bin=/sbin/coredumpd
+Type=regular

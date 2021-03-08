@@ -20,16 +20,8 @@ struct input_state
 	unsigned long keys_pressed[2];
 };
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 void input_state_set_key_state(keycode_t key, bool pressed, struct input_state *is);
 bool input_state_key_is_pressed(keycode_t key, struct input_state *is);
 bool input_state_toggle_key(keycode_t key, struct input_state *is);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

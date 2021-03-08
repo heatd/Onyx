@@ -83,7 +83,6 @@ void poll_file::signal()
 
 constexpr short default_poll_return = (POLLIN | POLLOUT | POLLRDNORM | POLLWRNORM);
 
-extern "C"
 short default_poll(void *pf, short events, struct file *f)
 {
 	return default_poll_return & events;
@@ -241,7 +240,6 @@ int sys_ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *utimeout,
 	return nr_nonzero_revents;
 }
 
-extern "C"
 void poll_wait_helper(void *__poll_file, struct wait_queue *q)
 {
 	poll_file *pf = static_cast<poll_file *>(__poll_file);

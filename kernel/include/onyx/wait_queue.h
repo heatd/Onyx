@@ -31,10 +31,6 @@ struct wait_queue
 	struct list_head token_list;
 };
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 void wait_queue_wait(struct wait_queue *queue);
 void wait_queue_wake(struct wait_queue *queue);
 void wait_queue_wake_all(struct wait_queue *queue);
@@ -133,9 +129,5 @@ static inline void init_wait_queue_head(struct wait_queue *q)
 	memset(&q->lock, 0, sizeof(q->lock));
 	INIT_LIST_HEAD(&q->token_list);
 }
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

@@ -9,10 +9,6 @@
 
 #include <onyx/clock.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 void context_tracking_enter_kernel(void);
 void context_tracking_exit_kernel(void);
 void do_cputime_accounting(void);
@@ -44,8 +40,5 @@ struct thread_cputime_info
 
 void cputime_info_init(struct thread *t);
 
-#ifdef __cplusplus
-}
-#endif
 
 #endif

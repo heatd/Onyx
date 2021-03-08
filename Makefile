@@ -1,5 +1,5 @@
 PROJECTS:=libc kernel
-SOURCE_PACKAGES:= photon libunwind libuuid
+SOURCE_PACKAGES:= photon libunwind libuuid libtest
 
 include usystem/Makefile
 

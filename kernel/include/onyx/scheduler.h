@@ -90,10 +90,6 @@ typedef struct thread
 #define THREAD_SHOULD_DIE		(1 << 3)
 #define THREAD_ACTIVE			(1 << 4)
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 int sched_init(void);
 
 thread_t *sched_create_thread(thread_callback_t callback, uint32_t flags, void* args);
@@ -165,6 +161,7 @@ void thread_remove_from_list(struct thread *t);
 
 struct thread *thread_get_from_tid(int tid);
 
+extern "C"
 unsigned long thread_get_addr_limit(void);
 
 void *sched_preempt_thread(void *current_stack);
@@ -217,9 +214,6 @@ static inline void sched_sleep_ms(unsigned long ms)
 
 void sched_enable_pulse(void);
 
-#ifdef __cplusplus
-}
-#endif
 
 #ifdef __cplusplus
 

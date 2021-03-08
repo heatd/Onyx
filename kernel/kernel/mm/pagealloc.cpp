@@ -90,11 +90,10 @@ page_node main_node;
 
 #define ADDRESS_4GB_MARK		0x100000000
 
-extern "C"
 bool page_is_used(void *__page, struct bootmodule *modules);
 
 extern struct serial_port com1;
-extern "C"
+
 void serial_write(const char *s, size_t size, struct serial_port *port);
 
 int page_node::page_add(struct page_arena *arena, void *__page,
@@ -424,7 +423,6 @@ out:
 	return pages;
 }
 
-extern "C"
 struct page *alloc_pages(size_t nr_pgs, unsigned long flags)
 {
 	auto &node = main_node;

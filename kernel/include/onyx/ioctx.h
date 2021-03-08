@@ -17,14 +17,14 @@
 struct ioctx
 {
 	/* Current working directory */
-	struct spinlock cwd_lock;
-	struct file *cwd;
-	struct mutex fdlock;
-	struct file **file_desc;
-	unsigned int file_desc_entries;
-	unsigned long *cloexec_fds;
-	unsigned long *open_fds;
-	mode_t umask;
+	struct spinlock cwd_lock{};
+	struct file *cwd{};
+	struct mutex fdlock{};
+	struct file **file_desc{};
+	unsigned int file_desc_entries{};
+	unsigned long *cloexec_fds{};
+	unsigned long *open_fds{};
+	mode_t umask{};
 };
 
 #endif

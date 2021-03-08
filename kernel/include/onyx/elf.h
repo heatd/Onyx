@@ -1,10 +1,5 @@
 #ifndef _ELF_H
 #define _ELF_H
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include <stdint.h>
 
 #include <onyx/modules.h>
@@ -3036,10 +3031,5 @@ struct elf_info
 	Elf64_Dyn *dyn;
   void *program_entry;
 };
-
-#ifdef __cplusplus
-}
-#endif
-
 
 #endif

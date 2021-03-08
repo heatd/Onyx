@@ -1025,7 +1025,6 @@ error:
 	return -errno;
 }
 
-extern "C"
 unsigned int putdir(struct dirent *buf, struct dirent *ubuf, unsigned int count);
 
 extern "C"
@@ -1043,7 +1042,7 @@ int sys_getdents(int fd, struct dirent *dirp, unsigned int count)
 
 	auto fil = f.get_file();
 
-	struct getdents_ret ret_buf = {0};
+	struct getdents_ret ret_buf = {};
 	ret = getdents_vfs(count, putdir, dirp, fil->f_seek, &ret_buf, fil);
 	if(ret < 0)
 	{
@@ -1456,7 +1455,7 @@ int sys_stat(const char *upathname, struct stat *ubuf)
 	if(!pathname)
 		return -errno;
 	
-	struct stat buf = {0};
+	struct stat buf = {};
 	struct file *curr = get_current_directory();
 
 	int st = do_sys_stat(pathname, &buf, 0, curr);
@@ -1479,7 +1478,7 @@ int sys_lstat(const char *upathname, struct stat *ubuf)
 	if(!pathname)
 		return -errno;
 	
-	struct stat buf = {0};
+	struct stat buf = {};
 	struct file *curr = get_current_directory();
 
 	int st = do_sys_stat(pathname, &buf, STAT_FLAG_LSTAT, curr);
@@ -1504,7 +1503,7 @@ int sys_fstat(int fd, struct stat *ubuf)
 		return -errno;
 	}
 
-	struct stat buf = {0};
+	struct stat buf = {};
 
 	if(stat_vfs(&buf, f.get_file()) < 0)
 	{
@@ -1680,7 +1679,7 @@ int sys_fstatat(int dirfd, const char *upathname, struct stat *ubuf, int flags)
 	const char *pathname = strcpy_from_user(upathname);
 	if(!pathname)
 		return -errno;
-	struct stat buf = {0};
+	struct stat buf = {};
 	struct file *dir;
 	int st = 0;
 	struct file *dirfd_desc = get_dirfd_file(dirfd);

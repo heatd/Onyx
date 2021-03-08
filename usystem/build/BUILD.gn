@@ -1,6 +1,7 @@
 config("compiler_defaults") {
     cflags = ["-O2", "-g", "-Wall", "-Wextra", "-fdiagnostics-color=always", "-Wno-unused-parameter",
               "-march=haswell", "-fstack-protector-strong"]
+    cflags_cc = [ "-std=c++20" ]
 
     # TODO: Add "-march=x86-64-v3" when we update the GCC version
     ldflags = cflags

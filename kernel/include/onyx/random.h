@@ -12,15 +12,17 @@
 #define ENTROPY_POOL_RANDOM 0
 #define ENTROPY_POOL_URANDOM 1
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 void entropy_init_dev(void);
 void add_entropy(void *ent, size_t size);
-void get_entropy(char *buf, size_t s);
 void initialize_entropy();
 unsigned int get_random_int(void);
 
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
+void get_entropy(char *buf, size_t s);
 uint32_t arc4random(void);
 void arc4random_buf(void* buffer_ptr, size_t size);
 uint32_t arc4random_uniform(uint32_t upper_bound);
@@ -28,4 +30,5 @@ uint32_t arc4random_uniform(uint32_t upper_bound);
 #ifdef __cplusplus
 }
 #endif
+
 #endif

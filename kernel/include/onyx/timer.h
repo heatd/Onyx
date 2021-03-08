@@ -13,10 +13,6 @@
 #include <onyx/list.h>
 #include <onyx/spinlock.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 uint64_t get_tick_count();
 uint64_t get_microseconds();
 
@@ -62,7 +58,4 @@ void timer_queue_clockevent(struct clockevent *ev);
 void timer_handle_events(struct timer *t);
 void timer_remove_event(struct clockevent *ev);
 
-#ifdef __cplusplus
-}
-#endif
 #endif

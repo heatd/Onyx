@@ -176,13 +176,4 @@ packetbuf *packetbuf_clone(packetbuf *original);
 
 #define PACKET_MAX_HEAD_LENGTH		128
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-
-#ifdef __cplusplus
-}
-#endif
-
 #endif

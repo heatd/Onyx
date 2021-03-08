@@ -115,10 +115,6 @@ typedef struct 0
 
 #endif /* CONFIG_BUDDY_ALLOCATOR */
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 void page_get_stats(struct memstat *memstat);
 
 
@@ -225,7 +221,4 @@ void __reclaim_page(struct page *new_page);
 void reclaim_pages(unsigned long start, unsigned long end);
 void page_allocate_pagemap(unsigned long __maxpfn);
 
-#ifdef __cplusplus
-}
-#endif
 #endif

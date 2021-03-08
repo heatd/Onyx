@@ -57,7 +57,7 @@ public:
 
 		list_for_every(&member_list)
 		{
-			auto proc = container_of(l, process, pgrp_node);
+			auto proc = list_head_cpp<process>::self_from_list_head(l);
 
 			callable(proc);
 		}

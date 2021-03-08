@@ -17,10 +17,6 @@
 #include <onyx/wait_queue.h>
 #include <onyx/rwlock.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct tty;
 
 struct tty_ldisc_ops
@@ -80,10 +76,6 @@ void tty_scroll();
 void tty_put_entry_at(char c, uint32_t color, size_t column, size_t row);
 void tty_received_character(struct tty *tty, char c);
 void tty_create_dev();
-
-#ifdef __cplusplus
-}
-#endif
 
 #define ANSI_ESCAPE_CODE   		'\x1b'
 #define ANSI_CSI	   		'['

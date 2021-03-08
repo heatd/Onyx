@@ -39,16 +39,7 @@ static void (*__PASTE(func, __COUNTER__))(unsigned int) = func
 #define INIT_LEVEL_CORE_KERNEL_ENTRY(func)          __INIT_ENTRY(func, 7)
 #define INIT_LEVEL_CORE_PERCPU_CTOR(func)          __INIT_ENTRY_PERCPU(func, 8)
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 void do_init_level(unsigned int level);
 void do_init_level_percpu(unsigned int level, unsigned int cpu);
-
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

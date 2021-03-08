@@ -9,12 +9,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 uint32_t crc32_calculate(uint8_t *ptr, size_t len);
 uint32_t crc32_calculate_eth(uint8_t *ptr, size_t len);
-#ifdef __cplusplus
-}
-#endif
+
 #endif

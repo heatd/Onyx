@@ -201,7 +201,6 @@ flush::flush_dev *flush_allocate_dev()
 	return blk;
 }
 
-extern "C"
 void flush_add_buf(struct flush_object *f)
 {
 	flush::flush_dev *blk = flush_allocate_dev();
@@ -216,7 +215,6 @@ void flush_add_buf(struct flush_object *f)
 	f->blk_list = (void *) blk;
 }
 
-extern "C"
 void flush_remove_buf(struct flush_object *blk)
 {
 	flush::flush_dev *b = (flush::flush_dev *) blk->blk_list;
@@ -224,7 +222,6 @@ void flush_remove_buf(struct flush_object *blk)
 	b->remove_buf(blk);
 }
 
-extern "C"
 void flush_init(void)
 {
 	for(auto &b : flush::thread_list)
@@ -233,7 +230,7 @@ void flush_init(void)
 	}
 }
 
-extern "C" void flush_add_inode(struct inode *ino)
+void flush_add_inode(struct inode *ino)
 {
 	auto dev = flush_allocate_dev();
 
@@ -242,7 +239,7 @@ extern "C" void flush_add_inode(struct inode *ino)
 	dev->add_inode(ino);
 }
 
-extern "C" void flush_remove_inode(struct inode *ino)
+void flush_remove_inode(struct inode *ino)
 {
 	auto dev = reinterpret_cast<flush::flush_dev *>(ino->i_flush_dev);
 
@@ -258,7 +255,6 @@ ssize_t flush_sync_one(struct flush_object *obj)
 	return b->sync_one(obj);
 }
 
-extern "C"
 void flush_do_sync()
 {
 	for(auto &w : flush::thread_list)

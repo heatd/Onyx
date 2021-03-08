@@ -12,7 +12,7 @@ app_executable("devmgrd_bin") {
 
 copy("devmgr_rule") {
     sources = [ "devmgr.service"]
-    outputs = [ "${root_out_dir}/packages/init/etc/init.d/targets/{{source_file_part}}" ]
+    outputs = [ "${root_out_dir}/packages/devmgr/etc/init.d/targets/{{source_file_part}}" ]
 }
 
 group("devmgr") {

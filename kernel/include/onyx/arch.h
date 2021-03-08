@@ -11,18 +11,9 @@
 #include <onyx/thread.h>
 #include <onyx/process.h>
 
-/* TODO: Remove this when everything uses C++ */
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 size_t arch_heap_get_size(void);
 size_t arch_get_initial_heap_size(void);
 void arch_vm_init(void);
-
-#ifdef __cplusplus
-}
-#endif
 
 #ifdef __cplusplus
 

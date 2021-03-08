@@ -18,10 +18,6 @@
 
 #define IS_NATIVE_ALIGNED(d)	!(d & (NATIVE_BUFFER_ALIGNMENT - 1))
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 void __copy_non_temporal(void *d, void *s, size_t count);
 
 static inline void copy_non_temporal(void *d, void *s, size_t count)
@@ -42,9 +38,5 @@ static inline void set_non_temporal(void *d, int b, size_t count)
 
 	__set_non_temporal(d, b, count);
 }
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

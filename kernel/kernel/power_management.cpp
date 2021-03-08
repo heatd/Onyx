@@ -51,7 +51,6 @@ int do_powerctl(unsigned int state, unsigned int flags)
 	return powerctl_table[state](flags);
 }
 
-extern "C"
 int set_power_state(unsigned int state, unsigned int flags)
 {
 	switch(state)

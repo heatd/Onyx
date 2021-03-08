@@ -50,10 +50,6 @@ struct irq_line
 	struct irqstats stats;
 };
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 bool is_in_interrupt(void);
 void dispatch_irq(unsigned int irq, struct irq_context *context);
 int install_irq(unsigned int irq, irq_t handler, struct device *device,
@@ -61,7 +57,4 @@ int install_irq(unsigned int irq, irq_t handler, struct device *device,
 void free_irq(unsigned int irq, struct device *device);
 void irq_init(void);
 
-#ifdef __cplusplus
-}
-#endif
 #endif

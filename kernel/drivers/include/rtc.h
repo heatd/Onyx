@@ -31,16 +31,8 @@ typedef struct date
 	time_t unixtime;
 } date_t;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 void early_boot_rtc(void);
 time_t get_posix_time(void);
 uint64_t get_posix_time_early(void);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

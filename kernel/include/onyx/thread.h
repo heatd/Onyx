@@ -8,13 +8,6 @@
 
 #include <onyx/task_switching.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 thread_t *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs);
 
-#ifdef __cplusplus
-}
-#endif
 #endif

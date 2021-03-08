@@ -25,6 +25,7 @@
 #include <onyx/wait_queue.h>
 #include <onyx/vm_layout.h>
 #include <onyx/rwlock.h>
+#include <onyx/handle.h>
 
 
 #include <sys/resource.h>
@@ -33,96 +34,88 @@ struct proc_event_sub;
 
 struct process_group;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 static void process_get(struct process *process);
 static void process_put(struct process *process);
-
-#ifdef __cplusplus
-}
-#endif
 
 #define PROCESS_FORKED    (1 << 0)
 
 struct process
 {
-	unsigned long refcount;
+	unsigned long refcount{};
 
-	unsigned long flags;
+	unsigned long flags{};
 
 	/* The next process in the linked list */
-	struct process *next;
+	struct process *next{};
 
-	unsigned long nr_threads;
+	unsigned long nr_threads{};
 
-	struct list_head thread_list;
-	struct spinlock thread_list_lock;
+	struct list_head thread_list{};
+	struct spinlock thread_list_lock{};
 
-	struct mm_address_space address_space;
+	struct mm_address_space address_space{};
 	/* Program name*/
-	char *cmd_line;
+	char *cmd_line{};
 
 	/* IO Context of the process */
-	struct ioctx ctx;
+	struct ioctx ctx{};
 
 	/* Process ID */
-	pid_t pid;
+	pid_t pid{};
 
 	/* Process' UID and GID */
-	struct creds cred;
+	struct creds cred{};
 
 	/* Pointer to the VDSO */
-	void *vdso;
+	void *vdso{};
 
 	/* Signal information */
-	struct spinlock signal_lock;
-	struct k_sigaction sigtable[_NSIG];
-	unsigned int signal_group_flags;
-	struct wait_queue wait_child_event;
-	unsigned int exit_code;
+	struct spinlock signal_lock{};
+	struct k_sigaction sigtable[_NSIG]{};
+	unsigned int signal_group_flags{};
+	struct wait_queue wait_child_event{};
+	unsigned int exit_code{};
 
 	/* Process personality */
-	unsigned long personality;
+	unsigned long personality{};
 
 	/* This process' parent */
-	struct process *parent;
+	struct process *parent{};
 
 	/* Linked list to the processes being traced */
-	struct extrusive_list_head tracees;
+	struct extrusive_list_head tracees{};
 
 	/* User time and system time consumed by the process */
-	hrtime_t user_time;
-	hrtime_t system_time;
-	hrtime_t children_utime;
-	hrtime_t children_stime;
+	hrtime_t user_time{};
+	hrtime_t system_time{};
+	hrtime_t children_utime{};
+	hrtime_t children_stime{};
 
 	/* proc_event queue */
-	struct spinlock sub_queue_lock;
-	struct proc_event_sub *sub_queue;
-	unsigned long nr_subs;
-	unsigned long nr_acks;
+	struct spinlock sub_queue_lock{};
+	struct proc_event_sub *sub_queue{};
+	unsigned long nr_subs{};
+	unsigned long nr_acks{};
 
-	void *interp_base;
-	void *image_base;
+	void *interp_base{};
+	void *image_base{};
 
-	struct elf_info info;
+	struct elf_info info{};
 
-	struct cond syscall_cond;
-	struct mutex condvar_mutex;
+	struct cond syscall_cond{};
+	struct mutex condvar_mutex{};
 
-	struct spinlock children_lock;
-	struct process *children, *prev_sibbling, *next_sibbling;
+	struct spinlock children_lock{};
+	struct process *children{}, *prev_sibbling{}, *next_sibbling{};
 
-	struct itimer timers[ITIMER_COUNT];
+	struct itimer timers[ITIMER_COUNT]{};
 
-	struct spinlock pgrp_lock;
-	struct list_head pgrp_node;
-	struct process_group *process_group;
+	struct spinlock pgrp_lock{};
+	struct list_head_cpp<process> pgrp_node;
+	struct process_group *process_group{};
 
-	struct rlimit rlimits[RLIM_NLIMITS + 1];
-	struct rwlock rlimit_lock;
+	struct rlimit rlimits[RLIM_NLIMITS + 1]{};
+	struct rwlock rlimit_lock{};
 
 #ifdef __cplusplus
 	process();
@@ -159,10 +152,6 @@ struct process
 
 };
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct process *process_create(const char *cmd_line, struct ioctx *ctx, struct process *parent);
 
 struct thread *process_create_main_thread(struct process *proc, thread_callback_t callback, void *sp);
@@ -196,11 +185,6 @@ struct stack_info
 };
 
 int process_alloc_stack(struct stack_info *info);
-
-#ifdef __cplusplus
-}
-#endif
-
 static inline struct process *get_current_process()
 {
 	thread_t *thread = get_current_thread();

@@ -28,16 +28,8 @@ struct vdso_clock_time
 	hrtime_t tick;
 };
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 void vdso_init(void);
 void *vdso_map(void);
 int vdso_update_time(clockid_t id, struct clock_time *time);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

@@ -11,7 +11,6 @@
 #include <onyx/spinlock.h>
 #include <onyx/scheduler.h>
 #include <onyx/task_switching.h>
-#include <onyx/slab.h>
 #include <onyx/semaphore.h>
 #include <onyx/mm/pool.hpp>
 
@@ -19,8 +18,8 @@
  * to queue work in at the same time as us
 */
 static struct spinlock work_queue_locks[3];
-static struct dpc_work *work_queues[3] = {0};
-static struct semaphore dpc_work_semaphore = {0};
+static struct dpc_work *work_queues[3] = {};
+static struct semaphore dpc_work_semaphore = {};
 static thread_t *dpc_thread = NULL;
 memory_pool<dpc_work, MEMORY_POOL_USABLE_ON_IRQ> dpc_pool;
 
@@ -51,7 +50,6 @@ void dpc_do_work(void *context)
 	}
 }
 
-extern "C"
 void dpc_init(void)
 {
 	sem_init(&dpc_work_semaphore, 0);
@@ -63,7 +61,6 @@ void dpc_init(void)
 	sched_start_thread(dpc_thread);
 }
 
-extern "C"
 int dpc_schedule_work(struct dpc_work *_work, dpc_priority prio)
 {
 	/* We'll allocate a copy of the dpc_work, and if we fail, the IRQ simply isn't handled. 

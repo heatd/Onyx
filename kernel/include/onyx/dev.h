@@ -29,10 +29,6 @@ struct dev
 	struct inode *file;
 };
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 unsigned int __allocate_dynamic_major(void);
 struct dev *dev_register(unsigned int major, unsigned int minor, const char *name);
 void dev_unregister(dev_t dev);
@@ -136,7 +132,4 @@ void driver_register_device(struct driver *driver, struct device *dev);
 
 void driver_deregister_device(struct driver *driver, struct device *dev);
 
-#ifdef __cplusplus
-}
-#endif
 #endif

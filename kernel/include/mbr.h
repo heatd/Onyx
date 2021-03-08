@@ -21,13 +21,6 @@ typedef struct
 	uint32_t size_sector;
 } __attribute__((packed)) mbrpart_t;
 
-#ifdef __cplusplus
-extern "C"{
-#endif
-
 void read_partitions(void);
 
-#ifdef __cplusplus
-}
-#endif
 #endif

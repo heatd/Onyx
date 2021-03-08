@@ -157,9 +157,9 @@ acpica/%.o: acpica/%.c kernel.config
 	@echo [CC] $<
 	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) $(C_ONLY_CFLAGS) $(CPPFLAGS)
 
-kernel/mm/kasan.o: kernel/mm/kasan.c
+kernel/mm/kasan.o: kernel/mm/kasan.cpp
 	@echo [CC] NOKASAN $<
-	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) $(C_ONLY_CFLAGS) -fno-sanitize=kernel-address -fno-lto $(CPPFLAGS)
+	@$(CC) -c $< -o $@ -std=c++17 $(ACPICA_CFLAGS) $(C_ONLY_CFLAGS) -fno-sanitize=kernel-address -fno-lto $(CPPFLAGS)
 
 kernel/mm/malloc/%.o: kernel/mm/malloc/%.c kernel.config
 	@echo [CC] NOKASAN $<

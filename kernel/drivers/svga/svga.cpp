@@ -16,11 +16,7 @@
 #include <onyx/compiler.h>
 #include <onyx/scheduler.h>
 
-
-extern "C"
-{
 #include <onyx/framebuffer.h>
-}
 
 #include <pci/pci.h>
 
@@ -60,9 +56,8 @@ uint32_t SvgaDevice::read(uint16_t index)
 	return ret;
 }
 
-int svga_modeset(unsigned int width, unsigned int height, unsigned int bpp, struct video_device *dev)
+int svga_modeset(unsigned int width, unsigned int height, unsigned int bpp)
 {
-	UNUSED(dev);
 	/* To set the video mode with SVGA, we need to write the width to _REG_WIDTH, height to _REG_HEIGHT,
 	   and bpp to _REG_BITS_PER_PIXEL
 	*/
@@ -213,7 +208,7 @@ int svga_probe(struct device *_dev)
 	/* Note that we need to set the video mode right now, as if we don't,
 	 it will fallback to the lowest VGA res */
 	struct framebuffer *fb = get_primary_framebuffer();
-	svga_modeset(fb->width, fb->height, fb->bpp, NULL);
+	svga_modeset(fb->width, fb->height, fb->bpp);
 
 	/* Setup the command FIFO */
 	device->setup_fifo();

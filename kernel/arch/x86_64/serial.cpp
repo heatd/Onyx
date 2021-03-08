@@ -308,7 +308,6 @@ void serial_write(const char *s, size_t size, struct serial_port *port)
 	p->write(s, size);
 }
 
-extern "C"
 void platform_serial_write(const char *s, size_t size)
 {
 	serial_write(s, size, &com1);

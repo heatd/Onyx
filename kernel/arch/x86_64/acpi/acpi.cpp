@@ -8,7 +8,6 @@
 
 #include <onyx/x86/platform_info.h>
 
-extern "C"
 void platform_init_acpi(void)
 {
 	ACPI_TABLE_FADT *fadt = &AcpiGbl_FADT;

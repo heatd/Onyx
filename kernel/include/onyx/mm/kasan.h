@@ -11,18 +11,12 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#ifdef __cplusplus
-
-extern "C" {
-
-#endif
-
 void kasan_init(void);
 int kasan_alloc_shadow(unsigned long addr, size_t size, bool accessible);
-void kasan_set_state(unsigned long *ptr, size_t size, int state);
 
 #ifdef __cplusplus
-}
+extern "C"
 #endif
+void kasan_set_state(unsigned long *ptr, size_t size, int state);
 
 #endif

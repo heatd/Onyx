@@ -17,15 +17,7 @@
 #define WAIT_FOR_FOREVER              (1 << 4)
 #define WAIT_FOR_MATCHES_EVERYTHING   (1 << 5)
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 unsigned long wake_address(void *ptr);
 int wait_for_mask(void *val, uint64_t mask, unsigned int flags, hrtime_t timeout);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif
