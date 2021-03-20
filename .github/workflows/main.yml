@@ -32,7 +32,7 @@ jobs:
           # A list of files, directories, and wildcard patterns to cache and restore
           path: toolchain_binaries/
           # An explicit key for restoring and saving the cache
-          key: toolchain-linux-${{hashFiles toolchains/binutils-2.35.patch toolchains/gcc-10.2.0.patch}}
+          key: toolchain-linux-${{ hashFiles('toolchains/binutils-2.35.patch toolchains/gcc-10.2.0.patch') }}
       
       - name: Build toolchain
         if: steps.toolchain-cache-linux.outputs.cache-hit != 'true'
@@ -161,7 +161,7 @@ jobs:
             # A list of files, directories, and wildcard patterns to cache and restore
             path: toolchain_binaries/
             # An explicit key for restoring and saving the cache
-            key: toolchain-macos-${{hashFiles toolchains/binutils-2.35.patch toolchains/gcc-10.2.0.patch}}
+            key: toolchain-macos-${{ hashFiles('toolchains/binutils-2.35.patch toolchains/gcc-10.2.0.patch') }}
       
         - name: Build toolchain
           if: steps.toolchain-cache-macos.outputs.cache-hit != 'true'
