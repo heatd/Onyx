@@ -214,5 +214,124 @@ jobs:
           with:
             name: x86_64-onyx-macos
             path: x86_64-onyx-macos.tar.zst
-            
+  build-toolchain-llvm-linux:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v2
+        with:
+          submodules: "recursive"
+
+      - name: Cache
+        id: toolchain-cache-linux-llvm
+        uses: actions/cache@v2.1.4
+        with:
+          # A list of files, directories, and wildcard patterns to cache and restore
+          path: toolchain_binaries/
+          # An explicit key for restoring and saving the cache
+          key: toolchain-linux-llvm--${{ hashFiles('toolchains/llvm-project-11.0.0.patch') }}
+      
+      - name: Build toolchain
+        if: steps.toolchain-cache-linux-llvm.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update && sudo apt-get install libmpc-dev libgmp3-dev bison flex libmpfr-dev zstd
+          cp kernel/kernel.config.example kernel/kernel.config
+          curl -O https://storage.googleapis.com/onyx-stuffs/minimal-sysroot.tar.zst
+          zstd -d minimal-sysroot.tar.zst -c | tar xvf -
+          mkdir gn_bin/
+          cd gn_bin
+          wget -q https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/latest -O gn.zip
+          unzip gn.zip
+          echo "$PWD" >> $GITHUB_PATH
+          cd ..
+          SYSROOT=$PWD/sysroot ./scripts/setup_build.sh
+          make install-headers -j $(nproc)
+          mkdir toolchain_binaries
+          ./toolchains/download_patch_llvm.sh toolchain_build
+          
+          LLVM_SRCDIR="$PWD/toolchain_build/llvm-project-11.0.0"
+          ONYX_SRCDIR="$PWD"
+          cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DLLVM_LINK_LLVM_DYLIB=ON -DCLANG_LINK_CLANG_DYLIB=ON -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_LTO=OFF -DLINUX_x86_64-unknown-linux-gnu_SYSROOT=/ \
+          -DONYX_SRCDIR=$ONYX_SRCDIR -DCMAKE_INSTALL_PREFIX= -C ${LLVM_SRCDIR}/clang/cmake/caches/Onyx-stage2.cmake ${LLVM_SRCDIR}/llvm
+
+          ninja distribution
+          DESTDIR=$TOOLCHAIN_DEST ninja install
+
+      - name: Compress toolchain
+        run: |
+          mv toolchain_binaries onyx-llvm
+          tar cvf onyx-linux-llvm.tar onyx-llvm
+          zstd -T0 -13 onyx-linux-llvm.tar -o onyx-linux-llvm.tar.zst
+          mv onyx-llvm toolchain_binaries
+
+      - name: Upload a Build Artifact (onyx-linux-llvm)
+        uses: actions/upload-artifact@v2.1.4
+        with:
+          name: onyx-linux-llvm
+          path: onyx-linux-llvm.tar.zst
+    
+  build-toolchain-llvm-macos:
+    # The type of runner that the job will run on
+    runs-on: macos-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v2
+        with:
+          submodules: "recursive"
+
+      - name: Cache
+        id: toolchain-cache-macos-llvm
+        uses: actions/cache@v2.1.4
+        with:
+          # A list of files, directories, and wildcard patterns to cache and restore
+          path: toolchain_binaries/
+          # An explicit key for restoring and saving the cache
+          key: toolchain-linux-llvm--${{ hashFiles('toolchains/llvm-project-11.0.0.patch') }}
+      
+      - name: Build toolchain
+        if: steps.toolchain-cache-macos-llvm.outputs.cache-hit != 'true'
+        run: |
+          brew install zstd gmp mpfr libmpc wget unzip make ninja coreutils
+          cp kernel/kernel.config.example kernel/kernel.config
+          curl -O https://storage.googleapis.com/onyx-stuffs/minimal-sysroot.tar.zst
+          zstd -d minimal-sysroot.tar.zst -c | tar xvf -
+          mkdir gn_bin/
+          cd gn_bin
+          wget -q https://chrome-infra-packages.appspot.com/dl/gn/gn/mac-amd64/+/latest -O gn.zip
+          unzip gn.zip
+          echo $PATH
+          PATH="$PWD:$PATH"
+          PATH="$(brew --prefix)/opt/coreutils/libexec/gnubin:$(brew --prefix)/opt/make/libexec/gnubin:$PATH"
+          echo "TEST: $PATH"
+          cd ..
+          SYSROOT=$PWD/sysroot ./scripts/setup_build.sh
+          make install-headers -j $(sysctl -n hw.logicalcpu)
+          mkdir toolchain_binaries
+          ./toolchains/download_and_patch_tools.sh toolchain_build
+          
+          LLVM_SRCDIR="$PWD/toolchain_build/llvm-project-11.0.0"
+          ONYX_SRCDIR="$PWD"
+          cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DLLVM_LINK_LLVM_DYLIB=ON -DCLANG_LINK_CLANG_DYLIB=ON -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_LTO=OFF -DLINUX_x86_64-unknown-linux-gnu_SYSROOT=/ \
+          -DONYX_SRCDIR=$ONYX_SRCDIR -DCMAKE_INSTALL_PREFIX= -C ${LLVM_SRCDIR}/clang/cmake/caches/Onyx-stage2.cmake ${LLVM_SRCDIR}/llvm
+
+          ninja distribution
+          DESTDIR=$TOOLCHAIN_DEST ninja install
+
+      - name: Compress toolchain
+        run: |
+          mv toolchain_binaries onyx-llvm
+          tar cvf onyx-macos-llvm.tar onyx-llvm
+          zstd -T0 -13 onyx-macos-llvm.tar -o onyx-macos-llvm.tar.zst
+          mv onyx-llvm toolchain_binaries
+
+      - name: Upload a Build Artifact (onyx-macos-llvm)
+        uses: actions/upload-artifact@v2.1.4
+        with:
+          name: onyx-macos-llvm
+          path: onyx-macos-llvm.tar.zst
             
