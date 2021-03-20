@@ -317,7 +317,7 @@ jobs:
           SYSROOT=$PWD/sysroot ./scripts/setup_build.sh
           make install-headers -j $(sysctl -n hw.logicalcpu)
           mkdir toolchain_binaries
-          ./toolchains/download_and_patch_tools.sh toolchain_build
+          ./toolchains/download_patch_llvm.sh toolchain_build
           
           LLVM_SRCDIR="$PWD/toolchain_build/llvm-project-11.0.0"
           ONYX_SRCDIR="$PWD"
