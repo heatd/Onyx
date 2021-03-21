@@ -261,6 +261,7 @@ jobs:
           -DCMAKE_C_COMPILER=clang \
           -DCMAKE_CXX_COMPILER=clang++ \
           -DCMAKE_ASM_COMPILER=clang \
+          -DCMAKE_MODULE_PATH=${ONYX_SRCDIR}/toolchains/cmake \
           -DLINUX_x86_64-unknown-linux-gnu_SYSROOT=/ \
           -DONYX_SRCDIR=$ONYX_SRCDIR -DCMAKE_INSTALL_PREFIX= -C ${LLVM_SRCDIR}/clang/cmake/caches/Onyx-stage2.cmake ${LLVM_SRCDIR}/llvm
 
@@ -330,6 +331,7 @@ jobs:
           -DCMAKE_C_COMPILER=clang \
           -DCMAKE_CXX_COMPILER=clang++ \
           -DCMAKE_ASM_COMPILER=clang \
+          -DCMAKE_MODULE_PATH=${ONYX_SRCDIR}/toolchains/cmake \
           -DLINUX_x86_64-unknown-linux-gnu_SYSROOT=/ \
           -DONYX_SRCDIR=$ONYX_SRCDIR -DCMAKE_INSTALL_PREFIX= -C ${LLVM_SRCDIR}/clang/cmake/caches/Onyx-stage2.cmake ${LLVM_SRCDIR}/llvm
           ninja distribution
