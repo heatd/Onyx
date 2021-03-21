@@ -253,13 +253,14 @@ jobs:
           ./toolchains/download_patch_llvm.sh toolchain_build
           
           LLVM_SRCDIR="$PWD/toolchain_build/llvm-project-11.0.0"
+          
+          cp toolchains/Onyx.cmake ${LLVM_SRCDIR}/llvm/cmake/platforms
           ONYX_SRCDIR="$PWD"
           cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DLLVM_LINK_LLVM_DYLIB=ON \
           -DCLANG_LINK_CLANG_DYLIB=ON -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_LTO=OFF \
           -DCMAKE_C_COMPILER=clang \
           -DCMAKE_CXX_COMPILER=clang++ \
           -DCMAKE_ASM_COMPILER=clang \
-          -DCMAKE_TOOLCHAIN_FILE=${ONYX_SRCDIR}/toolchains/Onyx.cmake \
           -DLINUX_x86_64-unknown-linux-gnu_SYSROOT=/ \
           -DONYX_SRCDIR=$ONYX_SRCDIR -DCMAKE_INSTALL_PREFIX= -C ${LLVM_SRCDIR}/clang/cmake/caches/Onyx-stage2.cmake ${LLVM_SRCDIR}/llvm
 
@@ -315,19 +316,20 @@ jobs:
           PATH="$(brew --prefix)/opt/coreutils/libexec/gnubin:$(brew --prefix)/opt/make/libexec/gnubin:$PATH"
           echo "TEST: $PATH"
           cd ..
+
           SYSROOT=$PWD/sysroot ./scripts/setup_build.sh
           make install-headers -j $(sysctl -n hw.logicalcpu)
           mkdir toolchain_binaries
           ./toolchains/download_patch_llvm.sh toolchain_build
-          
+
           LLVM_SRCDIR="$PWD/toolchain_build/llvm-project-11.0.0"
+          cp toolchains/Onyx.cmake ${LLVM_SRCDIR}/llvm/cmake/platforms
           ONYX_SRCDIR="$PWD"
           cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DLLVM_LINK_LLVM_DYLIB=ON \
           -DCLANG_LINK_CLANG_DYLIB=ON -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_LTO=OFF \
           -DCMAKE_C_COMPILER=clang \
           -DCMAKE_CXX_COMPILER=clang++ \
           -DCMAKE_ASM_COMPILER=clang \
-          -DCMAKE_TOOLCHAIN_FILE=${ONYX_SRCDIR}/toolchains/Onyx.cmake \
           -DLINUX_x86_64-unknown-linux-gnu_SYSROOT=/ \
           -DONYX_SRCDIR=$ONYX_SRCDIR -DCMAKE_INSTALL_PREFIX= -C ${LLVM_SRCDIR}/clang/cmake/caches/Onyx-stage2.cmake ${LLVM_SRCDIR}/llvm
           ninja distribution
