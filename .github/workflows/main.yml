@@ -237,7 +237,7 @@ jobs:
       - name: Build toolchain
         if: steps.toolchain-cache-linux-llvm.outputs.cache-hit != 'true'
         run: |
-          sudo apt-get update && sudo apt-get install libmpc-dev libgmp3-dev bison flex libmpfr-dev zstd
+          sudo apt-get update && sudo apt-get install libmpc-dev libgmp3-dev bison flex libmpfr-dev zstd ninja-build clang lld
           cp kernel/kernel.config.example kernel/kernel.config
           curl -O https://storage.googleapis.com/onyx-stuffs/minimal-sysroot.tar.zst
           zstd -d minimal-sysroot.tar.zst -c | tar xvf -
@@ -254,7 +254,12 @@ jobs:
           
           LLVM_SRCDIR="$PWD/toolchain_build/llvm-project-11.0.0"
           ONYX_SRCDIR="$PWD"
-          cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DLLVM_LINK_LLVM_DYLIB=ON -DCLANG_LINK_CLANG_DYLIB=ON -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_LTO=OFF -DLINUX_x86_64-unknown-linux-gnu_SYSROOT=/ \
+          cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DLLVM_LINK_LLVM_DYLIB=ON \
+          -DCLANG_LINK_CLANG_DYLIB=ON -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_LTO=OFF \
+          -DCMAKE_C_COMPILER=clang \
+          -DCMAKE_CXX_COMPILER=clang++ \
+          -DCMAKE_ASM_COMPILER=clang \
+          -DLINUX_x86_64-unknown-linux-gnu_SYSROOT=/ \
           -DONYX_SRCDIR=$ONYX_SRCDIR -DCMAKE_INSTALL_PREFIX= -C ${LLVM_SRCDIR}/clang/cmake/caches/Onyx-stage2.cmake ${LLVM_SRCDIR}/llvm
 
           ninja distribution
@@ -291,12 +296,12 @@ jobs:
           # A list of files, directories, and wildcard patterns to cache and restore
           path: toolchain_binaries/
           # An explicit key for restoring and saving the cache
-          key: toolchain-linux-llvm--${{ hashFiles('toolchains/llvm-project-11.0.0.patch') }}
+          key: toolchain-macos-llvm--${{ hashFiles('toolchains/llvm-project-11.0.0.patch') }}
       
       - name: Build toolchain
         if: steps.toolchain-cache-macos-llvm.outputs.cache-hit != 'true'
         run: |
-          brew install zstd gmp mpfr libmpc wget unzip make ninja coreutils
+          brew install zstd gmp mpfr libmpc wget unzip make ninja coreutils llvm
           cp kernel/kernel.config.example kernel/kernel.config
           curl -O https://storage.googleapis.com/onyx-stuffs/minimal-sysroot.tar.zst
           zstd -d minimal-sysroot.tar.zst -c | tar xvf -
@@ -312,13 +317,17 @@ jobs:
           SYSROOT=$PWD/sysroot ./scripts/setup_build.sh
           make install-headers -j $(sysctl -n hw.logicalcpu)
           mkdir toolchain_binaries
-          ./toolchains/download_and_patch_tools.sh toolchain_build
+          ./toolchains/download_patch_llvm.sh toolchain_build
           
           LLVM_SRCDIR="$PWD/toolchain_build/llvm-project-11.0.0"
           ONYX_SRCDIR="$PWD"
-          cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DLLVM_LINK_LLVM_DYLIB=ON -DCLANG_LINK_CLANG_DYLIB=ON -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_LTO=OFF -DLINUX_x86_64-unknown-linux-gnu_SYSROOT=/ \
+          cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DLLVM_LINK_LLVM_DYLIB=ON \
+          -DCLANG_LINK_CLANG_DYLIB=ON -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_LTO=OFF \
+          -DCMAKE_C_COMPILER=clang \
+          -DCMAKE_CXX_COMPILER=clang++ \
+          -DCMAKE_ASM_COMPILER=clang \
+          -DLINUX_x86_64-unknown-linux-gnu_SYSROOT=/ \
           -DONYX_SRCDIR=$ONYX_SRCDIR -DCMAKE_INSTALL_PREFIX= -C ${LLVM_SRCDIR}/clang/cmake/caches/Onyx-stage2.cmake ${LLVM_SRCDIR}/llvm
-
           ninja distribution
           DESTDIR=$TOOLCHAIN_DEST ninja install
 
