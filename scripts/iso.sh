@@ -5,7 +5,7 @@ mkdir -p isodir
 mkdir -p isodir/boot
 mkdir -p isodir/boot/grub
 
-SYSTEM_ROOT=$DESTDIR ./geninitrd default-initrd.sh
+SYSTEM_ROOT=$DESTDIR scripts/geninitrd scripts/default-initrd.sh
 
 cp sysroot/boot/vmonyx isodir/boot/vmonyx
 INITRD_NAME=initrd.tar.xz

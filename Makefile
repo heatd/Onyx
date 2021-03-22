@@ -1,5 +1,6 @@
 PROJECTS:=libc kernel
 SOURCE_PACKAGES:= photon libunwind libuuid libtest
+export ONYX_ARCH:=$(shell scripts/onyx_arch.sh)
 
 include usystem/Makefile
 
@@ -9,7 +10,7 @@ ALL_MODULES:=$(PROJECTS) $(SOURCE_PACKAGES) $(patsubst %, usystem/%, $(USYSTEM_P
 $(SOURCE_PACKAGES) build-cleanup musl
 
 export DESTDIR:=$(PWD)/sysroot
-export HOST?=$(shell ./default-host.sh)
+export HOST?=$(shell scripts/arch-to-host.sh $(ONYX_ARCH))
 export BUILDPKG_BIN?=$(PWD)/buildpkg/buildpkg
 export BUILDPKG_BIN_PY_WRAPPER?=$(PWD)/buildpkg/buildpkg_gn_wrapper
 
@@ -46,6 +47,7 @@ clean:
 	rm -rf initrd.tar.*
 	$(MAKE) -C musl clean
 	$(MAKE) -C libssp clean
+	$(MAKE) -C dash clean
 build-prep:
 	mkdir -p sysroot
 	cd kernel && ../scripts/config_to_header.py include/onyx/config.h
@@ -60,6 +62,7 @@ kernel: libc install-headers
 	$(MAKE) -C $@ install
 
 musl: install-packages
+	scripts/check_reconf.sh musl --enable-debug --prefix=/usr
 	$(MAKE) -C $@ install
 
 libssp: install-packages musl
@@ -75,9 +78,7 @@ $(USYSTEM_DFL_RULE_PROJS): musl libssp install-packages
 	$(MAKE) -C usystem/$@ install
 
 dash: musl libssp install-packages
-	test -f usystem/dash/Makefile || sh -c "cd usystem/dash && \
-	     ./configure --prefix=/ --bindir=/usr/bin --host=x86_64-onyx --enable-static 2> /dev/null \
-		 && cd ../.."
+	./scripts/check_reconf.sh usystem/dash --prefix=/usr --enable-static
 	$(MAKE) -C usystem/$@ install
 	ln -sf dash $(DESTDIR)$(BINDIR)/sh
 
@@ -103,10 +104,10 @@ build-cleanup: build-usystem
 fullbuild: build-cleanup
 
 iso: fullbuild
-	./iso.sh
+	scripts/iso.sh
 
 qemu: iso
-	qemu-system-$(shell ./target-triplet-to-arch.sh $(HOST)) \
+	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) \
 	-s -cdrom Onyx.iso -drive file=hdd.img,format=raw,media=disk -m 512M \
 	-monitor stdio -boot d -netdev user,id=u1 -device e1000,netdev=u1 \
 	-object filter-dump,id=f1,netdev=u1,file=net.pcap \

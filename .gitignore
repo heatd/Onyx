@@ -27,3 +27,4 @@ kernel/kernel.config
 *.zst
 out/
 *.vmdk
+CONF_STAMP

@@ -1,6 +1,3 @@
-HOST?=$(shell ../default-host.sh)
-HOSTARCH:=$(shell ../target-triplet-to-arch.sh $(HOST))
-
 CFLAGS?=-O2 -g
 CPPFLAGS?=-Iinclude
 LDFLAGS?=
