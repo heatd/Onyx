@@ -373,10 +373,10 @@ void *sched_preempt_thread(void *current_stack)
 void sched_idle(void *ptr)
 {
 	(void) ptr;
-	/* This function will not do work at all, just idle using hlt */
+	/* This function will not do work at all, just idle using hlt or a similar instruction */
 	for(;;)
 	{
-		__asm__ __volatile__("hlt");
+		cpu_sleep();
 	}
 }
 

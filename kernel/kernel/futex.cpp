@@ -142,21 +142,6 @@ public:
 	void requeue(const futex_key& new_key, struct list_head *new_head);
 };
 
-#if 0
-uint32_t get_user_32(uint32_t *p)
-{
-	uint32_t ret;
-	unsigned int pagefault = 0;
-	__asm__ __volatile__("1: mov %2, %0\n"
-	                     "2: movl $-14, %1\n"
-						 ".pushsection .ehtable\n"
-						 " .quad 1b\n"
-						 " .quad 2b\n"
-						 " .previous\n" : "=r"(ret), "=m"(pagefault) : "m"(p));
-	return ret;
-}
-#endif
-
 inline uint32_t __futex_hash(futex_key& key)
 {
 	return fnv_hash(&key.both, sizeof(key.both));

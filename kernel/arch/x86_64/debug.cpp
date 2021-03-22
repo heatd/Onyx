@@ -12,7 +12,7 @@ void halt()
 {
 	DISABLE_INTERRUPTS();
 
-	while(true) __asm__ __volatile__("hlt");
+	while(true) cpu_sleep();
 
 	__builtin_unreachable();
 }

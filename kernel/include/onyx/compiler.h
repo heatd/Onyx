@@ -52,6 +52,8 @@ extern "C" __typeof (name) aliasname __attribute__ ((alias (#name)));
 _Pragma("GCC target(\"sse2\", \"3dnow\", \"xsave\")")
 #define USES_FANCY_END _Pragma("GCC pop_options")
 
+#ifdef __x86_64__
+
 static inline uint64_t rdtsc(void)
 {
     union
@@ -66,6 +68,8 @@ static inline uint64_t rdtsc(void)
 	__asm__ __volatile__ ("lfence; rdtsc" : "=a"(v.lohi[0]), "=d"(v.lohi[1]) :: "ecx");
     return v.value;
 }
+
+#endif
 
 static inline int count_bits32(uint32_t num)
 {

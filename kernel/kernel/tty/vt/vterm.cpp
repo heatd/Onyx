@@ -22,6 +22,7 @@
 #include <onyx/serial.h>
 #include <onyx/dpc.h>
 #include <onyx/utf8.h>
+#include <onyx/intrinsics.h>
 
 #include <onyx/input/keys.h>
 #include <onyx/input/event.h>
@@ -192,7 +193,7 @@ static void draw_char(uint32_t c, unsigned int x, unsigned int y,
 			
 			/* If the bpp is 32 bits, we can just blit it out */
 			if(fb->bpp == 32)
-				__asm__ __volatile__("movnti %1, %0" : "=m" (*b) : "r" (color) : "memory");
+				mov_non_temporal(b, color_u32);
 			else
 			{
 				volatile unsigned char *buf =

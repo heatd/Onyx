@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2016, 2017 Pedro Falcato
+* Copyright (c) 2016-2021 Pedro Falcato
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
@@ -228,6 +228,11 @@ uint64_t x86_get_tsc_rate(void);
 static inline void cpu_relax(void)
 {
 	__asm__ __volatile__("pause" ::: "memory");
+}
+
+static inline void cpu_sleep(void)
+{
+	__asm__ __volatile__("hlt");
 }
 
 #include <onyx/x86/irq.h>
