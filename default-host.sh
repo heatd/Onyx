@@ -11,9 +11,10 @@ if [ "$ONYX_ARCH" = "" ]; then
 			ONYX_ARCH = "arm64"
 			break
 		;;
+	esac
 fi
 
-GCC_TARGET_NAME=$ONYX_ARCH
+GCC_TARGET_NAME="$ONYX_ARCH"
 
 case $ONYX_ARCH in
 	"x86_64")
@@ -21,7 +22,7 @@ case $ONYX_ARCH in
 	;;
 
 	"arm64")
-		GCC_TARGET_NAME = "aarch64"
+		GCC_TARGET_NAME="aarch64"
 		break
 	;;
 
@@ -32,4 +33,4 @@ case $ONYX_ARCH in
 	;;
 esac
 
-echo ${GCC_TARGET_NAME}-onyx
+echo "${GCC_TARGET_NAME}-onyx"
