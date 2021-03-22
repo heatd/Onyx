@@ -6,15 +6,15 @@
 
 #include <errno.h>
 
-#include <libonyx/procfd.h>
+#include <libonyx/process.h>
+#include <libonyx/handle.h>
 
 int onx_process_open(pid_t pid, int flags)
 {
-	errno = EINVAL;
-	return -1;
+	return onx_handle_open(ONX_HANDLE_TYPE_PROCESS, (unsigned long) pid, flags);
 }
 
 void onx_process_close(int fd)
 {
-	::close(fd);
+	onx_handle_close(fd);
 }

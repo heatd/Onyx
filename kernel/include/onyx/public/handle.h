@@ -11,4 +11,6 @@
 
 #define ONX_HANDLE_CLOEXEC    (1 << 0)
 
+#define ONX_HANDLE_OPEN_GENERIC_FLAGS (ONX_HANDLE_CLOEXEC)
+
 #endif

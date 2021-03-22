@@ -1,6 +1,6 @@
 # Building an Onyx toolchain
 
-This file will describe the procedure required to build an onyx toolchain. Note that SYSROOT and PREFIX need to be defined with the path to the Onyx source tree's sysroot ($ONYX_ROOT/sysroot) and the destination for the toolchain, respectively.
+This file will describe the procedure required to build an onyx toolchain. Note that SYSROOT and PREFIX need to be defined with the path to the Onyx source tree's sysroot ($ONYX_ROOT/sysroot) and the destination for the toolchain, respectively. The SYSROOT needs to have at *least* a minimal sysroot.
 
 ## Building Binutils
 
@@ -53,3 +53,20 @@ Notes:
 ```bash
 ../binutils-2.32/configure --host=x86_64-onyx --prefix=/usr --with-sysroot= --with-build-sysroot=/mnt --disable-werror --disable-nls --enable-gold --enable-lto --enable-plugins
 ```
+
+## LLVM toolchain
+
+First, download and patch it using toolchains/download_patch_llvm.sh.
+
+Then, use the following command:
+
+```bash
+cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DLLVM_LINK_LLVM_DYLIB=ON -DCLANG_LINK_CLANG_DYLIB=ON -DLLVM_ENABLE_RTTI=ON -DLLVM_ENABLE_LTO=OFF -DLINUX_x86_64-unknown-linux-gnu_SYSROOT=/ -DONYX_SRCDIR=$ONYX_SRCDIR
+-DCMAKE_INSTALL_PREFIX= -C ${LLVM_SRCDIR}/clang/cmake/caches/Onyx-stage2.cmake ${LLVM_SRCDIR}/llvm
+
+ninja distribution
+DESTDIR=$TOOLCHAIN_DEST ninja install
+```
+
+where ONYX_SRCDIR should be your Onyx base directory, LLVM_SRCDIR should be the base directory of the llvm repo
+you just downloaded and patched and TOOLCHAIN_DEST should be the destination directory.

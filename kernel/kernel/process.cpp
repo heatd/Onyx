@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2016, 2017 Pedro Falcato
+* Copyright (c) 2016-2021 Pedro Falcato
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
@@ -95,10 +95,31 @@ process::process() : pgrp_node{this}
 
 process::~process()
 {
-	process_group->remove_process(this);
+	// We might have died before assigning the process group
+	if(process_group) [[likely]] process_group->remove_process(this);
 }
 
-process *process_create(const char *cmd_line, ioctx *ctx, process *parent)
+bool process::set_cmdline(const std::string_view& path)
+{
+	scoped_mutex g{name_lock};
+
+	cul::string p{path};
+
+	if(!p)
+		return false;
+
+	cmd_line = cul::move(p);
+
+	auto last_slash = cmd_line.rfind('/');
+	if(last_slash == std::string_view::npos)
+		last_slash = 0;
+	
+	name = std::string_view{cmd_line.cbegin() + last_slash, cmd_line.cend()};
+
+	return true;
+}
+
+process *process_create(const std::string_view& cmd_line, ioctx *ctx, process *parent)
 {
 	/* FIXME: Failure here kinda sucks and is probably super leaky */
 	if(unlikely(!process_ids))
@@ -107,24 +128,23 @@ process *process_create(const char *cmd_line, ioctx *ctx, process *parent)
 		assert(process_ids != nullptr);
 	}
 
-	auto proc = new process;
-	if(!proc)
+	auto p = make_unique<process>();
+	if(!p)
 		return errno = ENOMEM, nullptr;
+	
+	auto proc = p.get();
 	
 	/* TODO: idm_get_id doesn't wrap? POSIX COMPLIANCE */
 	proc->refcount = 1;
 	proc->pid = idm_get_id(process_ids);
 	assert(proc->pid != (pid_t) -1);
-	proc->cmd_line = strdup(cmd_line);
+
+	if(!proc->set_cmdline(cmd_line))
+		return errno = ENOMEM, nullptr;
+
 	creds_init(&proc->cred);
 
 	itimer_init(proc);
-
-	if(!proc->cmd_line)
-	{
-		delete proc;
-		return nullptr;
-	}
 
 	if(ctx)
 	{
@@ -135,18 +155,13 @@ process *process_create(const char *cmd_line, ioctx *ctx, process *parent)
 		if(copy_file_descriptors(proc, ctx) < 0)
 		{
 			fd_put(ctx->cwd);
-			free(proc->cmd_line);
-			delete proc;
 			return nullptr;
 		}
 	}
 	else
 	{
 		if(allocate_file_descriptor_table(proc) < 0)
-		{
-			delete proc;
 			return nullptr;
-		}
 
 		proc->ctx.umask = S_IWOTH | S_IWGRP;
 	}
@@ -205,7 +220,7 @@ process *process_create(const char *cmd_line, ioctx *ctx, process *parent)
 
 	INIT_LIST_HEAD(&proc->thread_list);
 
-	return proc;
+	return p.release();
 }
 
 process *get_process_from_pid(pid_t pid)
@@ -577,10 +592,16 @@ extern "C" pid_t sys_fork(syscall_frame *ctx)
 	proc = (process*) get_current_process();
 	to_be_forked = get_current_thread();	
 	/* Create a new process */
-	child = process_create(strdup(proc->cmd_line), &proc->ctx, proc);
 
-	if(!child)
-		return -ENOMEM;
+	{
+		// We need to lock here to protect against concurrent changes
+		scoped_mutex g{proc->name_lock};
+
+		child = process_create(proc->cmd_line, &proc->ctx, proc);
+
+		if(!child)
+			return -ENOMEM;
+	}
 
 	child->flags |= PROCESS_FORKED;
 	
@@ -753,9 +774,6 @@ void process_end(process *process)
 	process_remove_from_list(process);
 
 	process_wait_for_dead_threads(process);
-
-	free(process->cmd_line);
-	process->cmd_line = nullptr;
 	
 	if(process->ctx.cwd)
 		fd_put(process->ctx.cwd);
@@ -819,7 +837,7 @@ void process_exit(unsigned int exit_code)
 	if(current->pid == 1)
 	{
 		printk("Panic: %s exited with exit code %u!\n",
-			current->cmd_line, exit_code);
+			current->cmd_line.c_str(), exit_code);
 		ENABLE_INTERRUPTS();
 		for(;;);
 	}
@@ -1034,9 +1052,43 @@ namespace handle
 
 expected<file *, int > process_handle_opener(unsigned int rsrc_type, unsigned long id, int flags)
 {
-	return unexpected<int>{-ESRCH};	
+	if(flags & ~ONX_HANDLE_OPEN_GENERIC_FLAGS)
+		return unexpected<int>{-EINVAL};
+
+	auto pid = static_cast<pid_t>(id);
+
+	auto_process proc = get_process_from_pid(pid);
+
+	if(!proc)
+		return unexpected<int>{-ESRCH};
+
+	auto handle_file = create_file(proc.get());
+	if(handle_file) [[likely]]
+	{
+		// This is not ours anymore, so release it and return the file(that now owns the ref)
+		proc.release();
+		return handle_file;
+	}
+
+	return unexpected<int>{-ENOMEM};	
 }
 
 }
 
+}
+
+ssize_t process::query_get_strings(void *ubuf, ssize_t len, unsigned long what, size_t *howmany, void *arg)
+{
+	return -EINVAL;
+}
+
+ssize_t process::query(void *ubuf, ssize_t len, unsigned long what, size_t *howmany, void *arg)
+{
+	switch(what)
+	{
+		case PROCESS_GET_NAME:
+			return query_get_strings(ubuf, len, what, howmany, arg);
+		default:
+			return -EINVAL;
+	}
 }

@@ -30,7 +30,12 @@ private:
 public:
 	constexpr basic_string_view(const _CharT *str, size_type length) : data_{str}, length_{length} {}
 
+	constexpr basic_string_view(const _CharT *str) : data_{str}, length_{strlen(str)} {}
+
 	constexpr basic_string_view() : data_{}, length_{} {}
+
+	template <typename Iterator>
+	constexpr basic_string_view(Iterator begin, Iterator end) : data_{begin}, length_{(size_type)(end - begin)} {}
 
 	constexpr const_pointer data() const
 	{
@@ -108,6 +113,23 @@ public:
 					return i;
 			}
 		}
+
+		return npos;
+	}
+
+	constexpr size_type rfind(_CharT c, size_type pos = npos) const
+	{
+		if(size() == 0)
+			return npos;
+
+		if(pos >= size() - 1)
+			pos = size() - 1;
+
+		do
+		{
+			if(data_[pos] != c)
+				return pos;
+		} while(pos-- != 0);
 
 		return npos;
 	}

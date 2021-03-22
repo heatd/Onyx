@@ -1985,7 +1985,7 @@ int vm_handle_page_fault(struct fault_info *info)
 				str = "read";
 			printk("Page fault at %lx, %s, ip %lx, process name %s\n",
 				info->fault_address, str, info->ip,
-				current ? current->cmd_line : "(kernel)");
+				current ? current->cmd_line.c_str() : "(kernel)");
 		}
 		
 		info->error = VM_SIGSEGV;
@@ -2292,7 +2292,7 @@ void vm_do_fatal_page_fault(struct fault_info *info)
 		struct process *current = get_current_process();
 		printk("SEGV at %016lx at ip %lx in process %u(%s)\n", 
 			info->fault_address, info->ip,
-			current->pid, current->cmd_line);
+			current->pid, current->cmd_line.c_str());
 		printk("Program base: %p\n", current->interp_base);
 
 		siginfo_t sinfo = {};

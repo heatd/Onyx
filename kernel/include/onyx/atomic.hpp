@@ -203,4 +203,17 @@ public:
 	}
 };
 
+namespace cul
+{
+
+using atomic_uint = ::atomic<unsigned int>;
+
+}
+
+static inline void atomic_thread_fence(mem_order order)
+{
+	__atomic_thread_fence((int) order);
+}
+
+
 #endif

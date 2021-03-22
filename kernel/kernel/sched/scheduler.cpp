@@ -93,8 +93,9 @@ bool _dump_thread(const void *key, void *_thread, void *of)
 
 	printk("Thread id %d\n", thread->id);
 
+	// FIXME: Fix all instances of cmd_line.c_str() with a race-condition safe way
 	if(thread->owner)
-		printk("User space thread - owner %s\n", thread->owner->cmd_line);
+		printk("User space thread - owner %s\n", thread->owner->cmd_line.c_str());
 
 	printk("Thread status: %s\n", thread_strings[thread->status]);
 	if(thread->status == THREAD_INTERRUPTIBLE || thread->status == THREAD_UNINTERRUPTIBLE)

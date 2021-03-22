@@ -3,12 +3,12 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
-#ifndef _LIBONYX_PROCFD_H
-#define _LIBONYX_PROCFD_H
+#ifndef _LIBONYX_PROCESS_H
+#define _LIBONYX_PROCESS_H
 
 #include <unistd.h>
 
-#include <onyx/public/procfd.h>
+#include <onyx/public/process.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,7 +27,7 @@ int onx_process_open(pid_t pid, int flags);
  * @brief Closes the process handle.
  * 
  * 
- * NOTE: Conceptually, this does the same thing as close(), but is black-boxed
+ * NOTE: Conceptually, this does the same thing as onx_handle_close(), but is black-boxed
  * for extensibility reasons.
  * 
  * @param fd The handle

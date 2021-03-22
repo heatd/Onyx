@@ -200,6 +200,8 @@ int sys_getgroups(int size, gid_t *ugids);
 int sys_rlimit(pid_t pid, int resource, struct rlimit *uold, const struct rlimit *unew_lim,
                           unsigned int flags);
 
+int sys_onx_handle_open(unsigned int resource_type, unsigned long id, int flags);
+
 }
 
 void *syscall_table_64[] =
@@ -346,4 +348,5 @@ void *syscall_table_64[] =
 	[139] = (void*) sys_set_gids,
 	[140] = (void*) sys_setgroups,
 	[141] = (void*) sys_getgroups,
+	[142] = (void*) sys_onx_handle_open
 };

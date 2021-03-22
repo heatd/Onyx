@@ -5,7 +5,7 @@ config("libonyx_config") {
 }
 
 source_set("libonyx_sources") {
-    sources = [ "src/procfd.cpp" ]
+    sources = [ "src/process.cpp", "src/handle.cpp" ]
     public_configs = [":libonyx_config"]
 }
 

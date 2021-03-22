@@ -8,10 +8,12 @@
 
 #include <assert.h>
 #include <stdlib.h>
+#include <stddef.h>
 
 #include <onyx/remove_extent.h>
 #include <onyx/new.h>
 #include <onyx/utility.hpp>
+#include <onyx/enable_if.h>
 
 static constexpr unsigned char _R__refc_was_make_shared = (1 << 0);
 
@@ -274,6 +276,18 @@ class unique_ptr
 private:
 	T *p;
 	using element_type = remove_extent_t<T>;
+
+	void delete_mem()
+	{
+		if(p)
+		{
+			if constexpr(cul::is_array_v<T>)
+				delete[] p;
+			else
+				delete p;
+		}
+	}
+
 public:
 	unique_ptr() : p(nullptr) {}
 
@@ -299,7 +313,7 @@ public:
 
 	void reset(T *new_ptr)
 	{
-		delete p;
+		delete_mem();
 		p = new_ptr;
 	}
 
@@ -345,8 +359,7 @@ public:
 
 	~unique_ptr(void)
 	{
-		if(p)
-			delete p;
+		delete_mem();
 	}
 
 	T* get_data() const
@@ -410,6 +423,20 @@ template <typename T, class ... Args>
 unique_ptr<T> make_unique(Args && ... args)
 {
 	T *data = new T(args...);
+	if(!data)
+		return nullptr;
+
+	unique_ptr<T> p(data);
+	return p;
+}
+
+/* TODO: Calling this simply make_unique doesn't work because the overloads always point to regular non-array
+ * make_unique. enable_if?
+ */
+template <typename T>
+unique_ptr<T> make_unique_array(size_t n)
+{
+	T *data = new T[n]{};
 	if(!data)
 		return nullptr;
 

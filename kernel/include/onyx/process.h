@@ -26,7 +26,9 @@
 #include <onyx/vm_layout.h>
 #include <onyx/rwlock.h>
 #include <onyx/handle.h>
-
+#include <onyx/string_view.hpp>
+#include <onyx/memory.hpp>
+#include <onyx/culstring.h>
 
 #include <sys/resource.h>
 
@@ -39,9 +41,15 @@ static void process_put(struct process *process);
 
 #define PROCESS_FORKED    (1 << 0)
 
-struct process
+struct process : public onx::handle::handleable
 {
 	unsigned long refcount{};
+
+	/* Program name points to the string in cmd_line */
+	cul::string cmd_line{};
+	std::string_view name{};
+
+	mutex name_lock{};
 
 	unsigned long flags{};
 
@@ -54,8 +62,6 @@ struct process
 	struct spinlock thread_list_lock{};
 
 	struct mm_address_space address_space{};
-	/* Program name*/
-	char *cmd_line{};
 
 	/* IO Context of the process */
 	struct ioctx ctx{};
@@ -117,9 +123,8 @@ struct process
 	struct rlimit rlimits[RLIM_NLIMITS + 1]{};
 	struct rwlock rlimit_lock{};
 
-#ifdef __cplusplus
 	process();
-	~process();
+	virtual ~process();
 
 	void ref()
 	{
@@ -129,6 +134,16 @@ struct process
 	void unref()
 	{
 		process_put(this);
+	}
+
+	void handle_ref() override
+	{
+		ref();
+	}
+
+	void handle_unref() override
+	{
+		unref();
 	}
 
 	bool route_signal(struct sigpending *pend);
@@ -148,11 +163,21 @@ struct process
 
 	void init_default_limits();
 	void inherit_limits(process *parent);
-#endif
 
+	ssize_t query(void *ubuf, ssize_t len, unsigned long what, size_t *howmany, void *arg) override;
+
+	bool set_cmdline(const std::string_view& path);
+private:
+	ssize_t query_get_strings(void *ubuf, ssize_t len, unsigned long what, size_t *howmany, void *arg);
 };
 
-struct process *process_create(const char *cmd_line, struct ioctx *ctx, struct process *parent);
+enum process_query
+{
+	PROCESS_GET_PATH = 0,
+	PROCESS_GET_NAME
+};
+
+struct process *process_create(const std::string_view& cmd_line, struct ioctx *ctx, struct process *parent);
 
 struct thread *process_create_main_thread(struct process *proc, thread_callback_t callback, void *sp);
 

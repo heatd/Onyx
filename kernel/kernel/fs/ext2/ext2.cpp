@@ -654,7 +654,6 @@ struct inode *ext2_mknod(const char *name, mode_t mode, dev_t dev, struct dentry
 
 struct inode *ext2_mkdir(const char *name, mode_t mode, struct dentry *dir)
 {
-	printk("mkdir\n");
 	struct inode *new_dir = ext2_create_file(name, (mode & 0777) | S_IFDIR, 0, dir);
 	if(!new_dir)
 	{
@@ -673,8 +672,6 @@ struct inode *ext2_mkdir(const char *name, mode_t mode, struct dentry *dir)
 	uint32_t inum = (uint32_t) new_dir->i_inode;
 
 	fs->block_groups[ext2_inode_number_to_bg(inum, fs)].inc_used_dirs();
-
-	printk("gudbye\n");
 
 	inode_mark_dirty(new_dir);
 

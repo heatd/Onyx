@@ -1,11 +1,14 @@
 /*
-* Copyright (c) 2019 Pedro Falcato
+* Copyright (c) 2019, 2020, 2021 Pedro Falcato
 * This file is part of Carbon, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
 
 #ifndef _CARBON_UTILTY_H
 #define _CARBON_UTILTY_H
+
+#include <onyx/integral_constant.h>
+#include <stddef.h>
 
 namespace cul
 {
@@ -82,6 +85,23 @@ class_name(class_name&& rhs) = delete;
 #define CLASS_DISALLOW_COPY(class_name) \
 class_name& operator=(const class_name& rhs) = delete; \
 class_name(const class_name& rhs) = delete;
+
+template <typename _Ty>
+struct is_array : cul::false_type
+{
+};
+
+template <typename _Ty>
+struct is_array<_Ty[]> : cul::true_type
+{
+};
+
+template <typename _Ty, size_t _N>
+struct is_array<_Ty[_N]> : cul::true_type
+{};
+
+template <typename _Ty>
+inline constexpr bool is_array_v = is_array<_Ty>::value;
 
 }
 

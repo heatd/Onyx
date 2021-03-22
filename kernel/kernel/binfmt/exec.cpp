@@ -220,8 +220,10 @@ void *process_setup_auxv(void *buffer, char *strings_space, struct process *proc
 
 			{
 				val = (uintptr_t) scratch_space;
-				size_t len = strlen(process->cmd_line) + 1;
-				if(copy_to_user((char*) scratch_space, process->cmd_line, len) < 0)
+				// This should be safe since we're the only thread running, no race conditions I would say.
+				// TODO: Unless we ever add a way to set it from another process?
+				size_t len = process->cmd_line.length() + 1;
+				if(copy_to_user((char*) scratch_space, process->cmd_line.c_str(), len) < 0)
 					return nullptr;
 
 				scratch_space += len;
@@ -266,7 +268,7 @@ int process_put_entry_info(struct stack_info *info, char **argv, char **envp)
 	                    + 38 * sizeof(Elf64_auxv_t);
 
 	size_t total_info_len = ALIGN_TO(arg_len + env_len + invariants
-	       + strlen(get_current_process()->cmd_line) + 1 + 16, 16);
+	       + get_current_process()->cmd_line.length() + 1 + 16, 16);
 	//printk("Old top: %p\n", info->top);
 	info->top = (void *) ((unsigned long) info->top - total_info_len);
 
@@ -421,13 +423,6 @@ int sys_execve(const char *p, const char *argv[], const char *envp[])
 		st = -EACCES;
 		goto error;
 	}
-
-	current->cmd_line = strdup(path);
-	if(!current->cmd_line)
-	{
-		st = -ENOMEM;
-		goto error;
-	}
 	
 	/* Setup the binfmt args */
 	file = (uint8_t *) zalloc(BINFMT_SIGNATURE_LENGTH);
@@ -447,7 +442,7 @@ int sys_execve(const char *p, const char *argv[], const char *envp[])
 	}
 
 	args.file_signature = file;
-	args.filename = current->cmd_line;
+	args.filename = path;
 	args.argv = karg;
 	args.envp = kenv;
 	args.file = exec_file;
@@ -474,10 +469,14 @@ int sys_execve(const char *p, const char *argv[], const char *envp[])
 		goto error;
 	}
 
+
 	thread_change_addr_limit(old);
 	fd_put(exec_file);
 
 	free(file);
+
+	if(!current->set_cmdline(std::string_view(path)))
+		goto error_die_signal;
 
 	current->flags &= ~PROCESS_FORKED;
 

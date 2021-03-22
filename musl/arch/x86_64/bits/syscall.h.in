@@ -138,6 +138,8 @@
 #define __NR_set_gids               139
 #define __NR_getgroups			    140
 #define __NR_setgroups			    141
+#define __NR_onx_handle_open        142
+#define __NR_onx_handle_query    143
 #define __NR_sysinfo			255
 #define __NR_setsid				255
 #define __NR_getsid				255
@@ -151,8 +153,8 @@
 #define __NR_sysfs				255
 #define __NR_getpriority			255
 #define __NR_setpriority			255
-#define __NR_sched_setparam			142
-#define __NR_sched_getparam			143
+#define __NR_sched_setparam			255
+#define __NR_sched_getparam			255
 #define __NR_sched_setscheduler		144
 #define __NR_sched_getscheduler		145
 #define __NR_sched_get_priority_max	146
