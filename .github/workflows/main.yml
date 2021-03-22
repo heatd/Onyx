@@ -250,7 +250,7 @@ jobs:
           SYSROOT=$PWD/sysroot ./scripts/setup_build.sh
           make install-headers -j $(nproc)
           mkdir toolchain_binaries
-          ./toolchains/build_llvm.sh toolchain_build toolchain_binaries
+          ./toolchains/scripts/build_llvm.sh toolchain_build toolchain_binaries
 
       - name: Compress toolchain
         run: |
@@ -305,7 +305,7 @@ jobs:
           SYSROOT=$PWD/sysroot ./scripts/setup_build.sh
           make install-headers -j $(sysctl -n hw.logicalcpu)
           mkdir toolchain_binaries
-          ./toolchains/build_llvm.sh toolchain_build toolchain_binaries
+          ./toolchains/scripts/build_llvm.sh toolchain_build toolchain_binaries
 
       - name: Compress toolchain
         run: |
