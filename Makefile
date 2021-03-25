@@ -61,7 +61,8 @@ kernel: libc install-headers
 	$(MAKE) -C $@ install
 
 musl:
-	scripts/check_reconf.sh musl --enable-debug --prefix=/usr
+	scripts/check_reconf.sh musl --enable-debug --prefix=/usr --syslibdir=/usr/lib
+	$(MAKE) -C musl install-headers
 	$(MAKE) -C $@ install
 
 libssp: install-packages musl
@@ -83,7 +84,6 @@ dash: musl libssp install-packages
 
 install-headers: build-prep
 	$(MAKE) -C kernel install-headers
-	$(MAKE) -C musl install-headers
 	$(MAKE) -C photon install-headers
 
 build-srcpackages: $(SOURCE_PACKAGES)
