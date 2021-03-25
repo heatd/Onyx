@@ -8,7 +8,7 @@
 #include <stdio.h>
 #include <errno.h>
 
-#include <onyx/x86/syscall.h>
+#include <platform/syscall.h>
 #include <onyx/proc_event.h>
 #include <onyx/compiler.h>
 #include <onyx/cpu.h>

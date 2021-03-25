@@ -145,7 +145,7 @@ void sys_sigreturn(struct syscall_frame *sysframe)
 	/* Switch the registers again */
 	struct registers rbuf;
 	struct registers *regs = &rbuf;
-	struct sigframe *sframe = (struct sigframe *) (sysframe->user_rsp - 8);
+	struct sigframe *sframe = (struct sigframe *) (sysframe->user_sp - 8);
 
 	/* Set-up the ucontext */
 	if(copy_from_user(&regs->rax, &sframe->uc.uc_mcontext.gregs[REG_RAX], sizeof(unsigned long)) < 0)
@@ -241,7 +241,7 @@ void do_signal_syscall(uint64_t syscall_ret, struct syscall_frame *syscall_ctx, 
 	regs->rdx = syscall_ctx->rdx;
 	regs->rdi = syscall_ctx->rdi;
 	regs->rsi = syscall_ctx->rsi;
-	regs->rsp = syscall_ctx->user_rsp;
+	regs->rsp = syscall_ctx->user_sp;
 
 	handle_signal(regs);
 }

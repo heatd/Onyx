@@ -15,6 +15,8 @@
 
 #if defined(__x86_64__)
 #define OS_MACHINE "x86_64 amd64"
+#elif defined(__riscv)
+#define OS_MACHINE "riscv64"
 #else
 #error "Define a machine string for your architecture"
 #endif

@@ -326,7 +326,7 @@ void kernel_main(void)
 
 	do_init_level(INIT_LEVEL_CORE_INIT);
 
-	DISABLE_INTERRUPTS();
+	irq_disable();
 
 	/* Initialize the scheduler */
 	if(sched_init())
@@ -342,7 +342,7 @@ void kernel_main(void)
 	/* Start the new thread */
 	sched_start_thread(new_thread);
 
-	ENABLE_INTERRUPTS();
+	irq_enable();
 	
 	sched_transition_to_idle();
 }

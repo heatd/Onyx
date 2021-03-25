@@ -11,7 +11,7 @@
 #include <onyx/vm.h>
 
 #include <onyx/x86/msr.h>
-#include <onyx/x86/vm.h>
+#include <platform/vm.h>
 
 #define PAT_WB_INDEX		0
 #define PAT_WT_INDEX		1

@@ -28,6 +28,8 @@
 #include <onyx/panic.h>
 #include <onyx/modules.h>
 
+#include <platform/irq.h>
+
 const char *skull = "            _,,,,,,,_\n\
           ,88888888888,\n\
         ,888\'       \\`888,\n\
@@ -74,9 +76,11 @@ void panic(const char *msg, ...)
 	bust_printk_lock();
 
 	/* And dump the context to it */
+#if 0
 #ifdef __x86_64__
 #else
 	#error "Implement thread context printing in your arch"
+#endif
 #endif
 	printk("panic: %s\n", buffer);
 

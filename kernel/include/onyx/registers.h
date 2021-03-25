@@ -71,5 +71,22 @@ static inline bool in_kernel_space_regs(struct registers *regs)
 #define REGISTER_OFF_RSP		168
 #define REGISTER_OFF_SS			176
 
+#elif defined(__riscv)
+
+#include <stdbool.h>
+
+typedef struct registers
+{
+	unsigned long r[30];
+	unsigned long int_no;
+	unsigned long int_err_code;
+} registers_t;
+
+static inline bool in_kernel_space_regs(struct registers *regs)
+{
+	return true;
+}
+
 #endif
+
 #endif

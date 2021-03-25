@@ -32,7 +32,7 @@ struct thread *process_fork_thread(thread_t *src, struct process *dest, struct s
 	registers_t regs;
 	unsigned long rsp, rflags, ip;
 
-	rsp = ctx->user_rsp;
+	rsp = ctx->user_sp;
 	rflags = ctx->rflags;
 	ip = ctx->rip;
 

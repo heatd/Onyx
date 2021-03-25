@@ -8,7 +8,7 @@
 #include <onyx/scheduler.h>
 #include <onyx/process.h>
 #include <onyx/semaphore.h>
-#include <onyx/x86/syscall.h>
+#include <onyx/syscall.h>
 
 #include <proc_event.h>
 

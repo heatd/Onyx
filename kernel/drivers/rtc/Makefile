@@ -1,1 +1,1 @@
-obj-y+= drivers/rtc/rtc.o
+obj-$(CONFIG_X86)+= drivers/rtc/rtc.o

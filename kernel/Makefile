@@ -123,6 +123,11 @@ CRTEND_OBJ:=$(shell $(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=crtendS.o)
 LIBGCC_PATH:=$(shell $(CC) $(CFLAGS)  $(LDFLAGS) -print-libgcc-file-name)
 CRTN_OBJ:=../sysroot/usr/lib/crtn.o
 
+ifeq ($(ARCH_NO_CRTI_N), 1)
+	CRTI_OBJ:=
+	CRTN_OBJ:=
+endif
+
 ALL_OUR_OBJS:=\
 $(CRTI_OBJ) \
 $(OBJS) \

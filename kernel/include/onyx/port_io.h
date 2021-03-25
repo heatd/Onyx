@@ -9,6 +9,8 @@
 
 #ifdef __x86_64__
 #include <onyx/x86/port_io.h>
+#else
+#include <onyx/no_port_io.h>
 #endif
 
 #endif

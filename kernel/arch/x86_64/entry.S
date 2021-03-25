@@ -4,7 +4,7 @@
 * check LICENSE at the root directory for more information
 */
 
-#include <onyx/x86/syscall.h>
+#include <platform/syscall.h>
 
 .section .text
 

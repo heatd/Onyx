@@ -101,8 +101,11 @@ bool _dump_thread(const void *key, void *_thread, void *of)
 	if(thread->status == THREAD_INTERRUPTIBLE || thread->status == THREAD_UNINTERRUPTIBLE)
 	{
 		registers *regs = (registers *) thread->kernel_stack;
+		(void) regs;
+#if __x86_64__
 		printk("Dumping context. IP = %016lx, RBP = %016lx\n", regs->rip, regs->rbp);
 		stack_trace_ex((uint64_t *) regs->rbp);
+#endif
 	}
 
 	return true;

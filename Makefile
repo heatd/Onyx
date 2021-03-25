@@ -47,7 +47,6 @@ clean:
 	rm -rf initrd.tar.*
 	$(MAKE) -C musl clean
 	$(MAKE) -C libssp clean
-	$(MAKE) -C dash clean
 build-prep:
 	mkdir -p sysroot
 	cd kernel && ../scripts/config_to_header.py include/onyx/config.h
@@ -61,8 +60,9 @@ kernel: libc install-headers
 	rm -f kernel/clang-tidy.out
 	$(MAKE) -C $@ install
 
-musl: install-packages
-	scripts/check_reconf.sh musl --enable-debug --prefix=/usr
+musl:
+	scripts/check_reconf.sh musl --enable-debug --prefix=/usr --syslibdir=/usr/lib
+	$(MAKE) -C musl install-headers
 	$(MAKE) -C $@ install
 
 libssp: install-packages musl
@@ -84,7 +84,6 @@ dash: musl libssp install-packages
 
 install-headers: build-prep
 	$(MAKE) -C kernel install-headers
-	$(MAKE) -C musl install-headers
 	$(MAKE) -C photon install-headers
 
 build-srcpackages: $(SOURCE_PACKAGES)

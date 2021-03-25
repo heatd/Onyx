@@ -12,47 +12,18 @@
 #define PER_CPU_VAR(var) __attribute__((section(".percpu"), used))	var
 #define PER_CPU_VAR_NOUNUSED(var) var __attribute__((section(".percpu")))
 
+// The arch specific headers implement get_per_cpu() and *_per_cpu_N(),
+// the macros below switch statement stuff
+
+#if __x86_64__
+#include <onyx/x86/percpu.h>
+#elif __riscv
+#include <onyx/riscv/percpu.h>
+#else
+#error "Unimplemented percpu stuff!"
+#endif
+
 #if 1
-
-#define get_per_cpu(var) 			\
-({						\
-	unsigned long val;			\
-	__asm__ __volatile__("movq %%gs:" 	\
-	"%p1, %0" : "=r"(val) : "i"(&var)); 	\
-	(__typeof__(var)) val;			\
-})
-
-#define get_per_cpu_no_cast(var) 		\
-({						\
-	unsigned long val;			\
-	__asm__ __volatile__("movq %%gs:" 	\
-	"%p1, %0" : "=r"(val) : "i"(&var)); 	\
-	val;					\
-})
-
-#define write_per_cpu_1(var, val) 		\
-({						\
-	__asm__ __volatile__("movb %0, %%gs:"   \
-	"%p1":: "r"(((uint8_t) (unsigned long) val)), "i"(&var)); \
-})
-
-#define write_per_cpu_2(var, val) 		\
-({						\
-	__asm__ __volatile__("movw %0, %%gs:"   \
-	"%p1":: "r"(val), "i"(&var)); 		\
-})
-
-#define write_per_cpu_4(var, val) 		\
-({						\
-	__asm__ __volatile__("movl %0, %%gs:"   \
-	"%p1":: "r"(val), "i"(&var)); 		\
-})
-
-#define write_per_cpu_8(var, val) 		\
-({						\
-	__asm__ __volatile__("movq %0, %%gs:"   \
-	"%p1":: "r"((unsigned long) val), "i"(&var)); 		\
-})
 
 #define write_per_cpu(var, val)				\
 ({							\
@@ -71,30 +42,6 @@
 			write_per_cpu_8(var, val);	\
 			break;				\
 	}						\
-})
-
-#define add_per_cpu_1(var, val) 		\
-({						\
-	__asm__ __volatile__("addb %0, %%gs:"   \
-	"%p1":: "r"(val), "i"(&var)); 		\
-})
-
-#define add_per_cpu_2(var, val) 		\
-({						\
-	__asm__ __volatile__("addw %0, %%gs:"   \
-	"%p1":: "r"(val), "i"(&var)); 		\
-})
-
-#define add_per_cpu_4(var, val) 		\
-({						\
-	__asm__ __volatile__("addl %0, %%gs:"   \
-	"%p1":: "r"(val), "i"(&var)); 		\
-})
-
-#define add_per_cpu_8(var, val) 		\
-({						\
-	__asm__ __volatile__("addq %0, %%gs:"   \
-	"%p1":: "r"((unsigned long) val), "i"(&var)); 		\
 })
 
 #define add_per_cpu(var, val)				\

@@ -6,10 +6,6 @@
 #ifndef _ONYX_SOFTIRQ_H
 #define _ONYX_SOFTIRQ_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 enum softirq_vector
 {
 	SOFTIRQ_VECTOR_TIMER = 0,
@@ -19,9 +15,5 @@ enum softirq_vector
 void softirq_raise(enum softirq_vector vec);
 bool softirq_pending();
 void softirq_handle();
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

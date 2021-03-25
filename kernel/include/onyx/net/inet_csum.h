@@ -54,6 +54,49 @@ static inline uint32_t addcarry32(uint32_t a, uint32_t b)
 	return a;
 }
 
+#else
+
+#define ADD_CARRY_64BIT(buf, result) \
+({                                   \
+	result = __builtin_add_overflow(*buf, result, &result) + result; \
+	result; \
+})
+
+#define ADD_CARRY_64_BYTES(buf, result) \
+({                                      \
+	ADD_CARRY_64BIT(buf, result);        \
+	ADD_CARRY_64BIT(buf+1, result);      \
+	ADD_CARRY_64BIT(buf+2, result);      \
+	ADD_CARRY_64BIT(buf+3, result);      \
+	ADD_CARRY_64BIT(buf+4, result);      \
+	ADD_CARRY_64BIT(buf+5, result);      \
+	ADD_CARRY_64BIT(buf+6, result);      \
+	ADD_CARRY_64BIT(buf+7, result);      \
+})
+
+static inline uint16_t fold32_to_16(uint32_t a)
+{
+	uint16_t high = a >> 16;
+	uint16_t low = static_cast<uint16_t>(a);
+
+	uint16_t result = low + high;
+
+	if(result < (uint16_t) a)
+		result++;
+
+	return result;
+}
+
+static inline uint32_t addcarry32(uint32_t a, uint32_t b)
+{
+	uint32_t result = a + b;
+
+	if(result < (uint16_t) a)
+		result++;
+
+	return result;
+}
+
 #endif
 
 using inetsum_t = uint32_t;

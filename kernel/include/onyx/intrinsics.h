@@ -9,6 +9,8 @@
 
 #if __x86_64__
 #include <onyx/x86/intrinsics.h>
+#elif __riscv
+#include <onyx/riscv/intrinsics.h>
 #else
 #error "Intrinsics not implemented for ARCH"
 #endif

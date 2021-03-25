@@ -13,7 +13,7 @@
 
 extern bool avx_supported;
 
-#else
+#elif !defined(__riscv)
 #error "Implement FPU switching for your arch"
 #endif
 

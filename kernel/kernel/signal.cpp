@@ -1229,7 +1229,7 @@ bool executing_in_altstack(const struct syscall_frame *frm, const stack_t *stack
 	 * with a arch-dependent macro.
 	 */
 	/* TODO: This depends on whether the stack grows downwards or upwards. This logic covers the first case. */
-	unsigned long sp = frm->user_rsp;
+	unsigned long sp = frm->user_sp;
 	unsigned long alt_sp = (unsigned long) stack->ss_sp;
 	unsigned long alt_stack_limit = alt_sp + stack->ss_size;
 	return sp >= alt_sp && sp < alt_stack_limit;

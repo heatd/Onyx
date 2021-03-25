@@ -29,7 +29,7 @@
 #include <onyx/x86/segments.h>
 #include <onyx/x86/eflags.h>
 #include <onyx/x86/msr.h>
-#include <onyx/x86/vm_layout.h>
+#include <platform/vm_layout.h>
 
 #include <sys/time.h>
 

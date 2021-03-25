@@ -11,6 +11,10 @@ case $ONYX_ARCH in
 		break
 	;;
 
+	"riscv64")
+		break
+	;;
+
 	"arm64")
 		GCC_TARGET_NAME="aarch64"
 		break

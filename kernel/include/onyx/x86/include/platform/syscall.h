@@ -23,7 +23,7 @@ struct syscall_frame
 	unsigned long r12;
 	unsigned long rbp;
 	unsigned long rbx;
-	unsigned long user_rsp;
+	unsigned long user_sp;
 	
 	/* rax holds the syscall nr */
 	/* %rdi, %rsi, %rdx, %r10, %r8 and %r9 are args */

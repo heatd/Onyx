@@ -35,6 +35,7 @@
 
 uintptr_t __stack_chk_guard = STACK_CHK_GUARD;
 
+extern "C"
 void __initialize_ssp()
 {
 	#if __STDC_HOSTED__
@@ -51,6 +52,7 @@ void __initialize_ssp()
 
 }
 
+extern "C"
 void randomize_stack_canary(void)
 {
 	uintptr_t new_guard = 0;
@@ -58,6 +60,7 @@ void randomize_stack_canary(void)
 	__stack_chk_guard = new_guard;
 }
 
+extern "C"
 __attribute__((noreturn))
 void __stack_chk_fail()
 {

@@ -54,14 +54,12 @@ void softirq_handle()
 	sched_enable_preempt_no_softirq();
 }
 
-extern "C"
 void softirq_try_handle()
 {
 	if(get_per_cpu(pending_vectors) && softirq_may_handle())
 		softirq_handle();
 }
 
-extern "C"
 void softirq_raise(enum softirq_vector vec)
 {
 	unsigned int mask = (1 << vec);
