@@ -10,7 +10,7 @@
 #include <assert.h>
 
 #include <onyx/smp.h>
-#include <onyx/x86/irq.h>
+#include <platform/irq.h>
 #include <onyx/utils.h>
 #include <onyx/compiler.h>
 

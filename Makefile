@@ -47,7 +47,6 @@ clean:
 	rm -rf initrd.tar.*
 	$(MAKE) -C musl clean
 	$(MAKE) -C libssp clean
-	$(MAKE) -C dash clean
 build-prep:
 	mkdir -p sysroot
 	cd kernel && ../scripts/config_to_header.py include/onyx/config.h
@@ -61,7 +60,7 @@ kernel: libc install-headers
 	rm -f kernel/clang-tidy.out
 	$(MAKE) -C $@ install
 
-musl: install-packages
+musl:
 	scripts/check_reconf.sh musl --enable-debug --prefix=/usr
 	$(MAKE) -C $@ install
 

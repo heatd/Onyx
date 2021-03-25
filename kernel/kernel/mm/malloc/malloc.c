@@ -47,8 +47,7 @@ static inline void unlock_bin(int i)
 
 static inline int a_ctz_64(uint64_t x)
 {
-	__asm__( "bsf %1,%0" : "=r"(x) : "r"(x) );
-	return x;
+	return __builtin_ctzl(x);
 }
 
 static int first_set(uint64_t x)

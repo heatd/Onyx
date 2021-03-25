@@ -25,7 +25,7 @@ static size_t current_entropy = 0;
 
 void add_entropy(void *ent, size_t size)
 {
-	spin_lock(&entropy_lock);
+	scoped_lock g{entropy_lock};
 	if(current_entropy == max_entropy || current_entropy + size > max_entropy)
 	{}
 	else
@@ -33,8 +33,6 @@ void add_entropy(void *ent, size_t size)
 		memcpy(&entropy_buffer[current_entropy], ent, size);
 		current_entropy += size;
 	}
-
-	spin_unlock(&entropy_lock);
 }
 
 void entropy_refill(void)
@@ -43,7 +41,7 @@ void entropy_refill(void)
 	size_t nr_refills = max_entropy / sizeof(unsigned int);
 	for(size_t i = 0; i < nr_refills; i++)
 	{
-		*buf++ = clock_get_posix_time() << 28 | get_microseconds() << 24 | ((rdtsc() << 20) ^ rand());
+		*buf++ = clock_get_posix_time() << 28 | ((entropy::platform::get_hwrandom() << 20) ^ rand());
 	}
 
 	current_entropy = max_entropy;
@@ -52,7 +50,7 @@ void entropy_refill(void)
 extern "C"
 void get_entropy(char *buf, size_t s)
 {
-	spin_lock(&entropy_lock);
+	scoped_lock g{entropy_lock};
 
 	for(size_t i = 0; i < s; i++)
 	{
@@ -62,8 +60,6 @@ void get_entropy(char *buf, size_t s)
 		current_entropy--;
 		memmove(entropy_buffer, &entropy_buffer[1], current_entropy);
 	}
-
-	spin_unlock(&entropy_lock);
 }
 
 size_t ent_read(size_t off, size_t count, void *buffer, struct file *node)
@@ -74,12 +70,13 @@ size_t ent_read(size_t off, size_t count, void *buffer, struct file *node)
 
 void initialize_entropy(void)
 {
-	/* Use get_posix_time as entropy, together with the TSC */
+	entropy::platform::init_random();
+	/* Use get_posix_time as entropy, together with the platform's seed */
 	uint64_t p = get_posix_time_early();
 	add_entropy(&p, sizeof(uint64_t));
-	uint64_t tsc = rdtsc();
-	add_entropy(&tsc, sizeof(uint32_t));
-	srand((unsigned int) (tsc | ~p));
+	auto seed = entropy::platform::get_seed();
+	add_entropy(&seed, sizeof(uint64_t));
+	srand((unsigned int) (seed | ~p));
 	for(size_t i = current_entropy; i < max_entropy; i+= sizeof(int))
 	{
 		int r = rand();
@@ -141,7 +138,7 @@ size_t get_entropy_from_pool(int pool, size_t size, void *buffer)
 	assert(pool == ENTROPY_POOL_RANDOM || pool == ENTROPY_POOL_URANDOM);
 	size_t ret = (size_t) -EINVAL;
 
-	spin_lock(&entropy_lock);
+	scoped_lock g{entropy_lock};
 
 	switch(pool)
 	{
@@ -157,8 +154,6 @@ size_t get_entropy_from_pool(int pool, size_t size, void *buffer)
 			break;
 		}
 	}
-
-	spin_unlock(&entropy_lock);
 
 	return ret;
 }
@@ -202,9 +197,9 @@ void entropy_init_dev(void)
 
 unsigned int get_random_int(void)
 {
-	unsigned int result = rand();
-	result |= (get_tick_count() | get_microseconds()) + rdtsc();
-	return result;
+	auto num = entropy::platform::get_hwrandom();
+
+	return (unsigned int) num ^ (num >> 32);
 }
 
 extern "C"

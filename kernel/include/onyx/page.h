@@ -20,9 +20,9 @@
 
 /* The default physical allocator is the buddy allocator */
 #define CONFIG_BUDDY_ALLOCATOR		1
-#if defined(__x86_64__)
+#if defined(__x86_64__) || defined(__riscv)
 
-#include <onyx/x86/page.h>
+#include <platform/page.h>
 
 #define PAGES_PER_AREA 512
 #define MAX_ORDER 11

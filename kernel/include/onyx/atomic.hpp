@@ -17,7 +17,10 @@ enum class mem_order : int
 	acq_rel = __ATOMIC_ACQ_REL,
 	acquire = __ATOMIC_ACQUIRE,
 	consume = __ATOMIC_CONSUME,
-#ifndef __clang__
+	// I don't quite understand how these two HLE_ defines work. They don't seem
+	// to be defined in clang, and they're not defined in certain targets for GCC
+	// like riscv64, for example.
+#if defined(__ATOMIC_HLE_ACQUIRE) && defined(__ATOMIC_HLE_RELEASE)
 	hle_acquire = __ATOMIC_HLE_ACQUIRE,
 	hle_release = __ATOMIC_HLE_RELEASE,
 #endif

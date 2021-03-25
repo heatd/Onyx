@@ -70,7 +70,7 @@ static const ACPI_EXCEPTION_INFO    AcpiGbl_ExceptionNames_Env[] =
 uint32_t acpi_shutdown(void)
 {
 	AcpiEnterSleepStatePrep(5);
-	DISABLE_INTERRUPTS();
+	irq_save_and_disable();
 	AcpiEnterSleepState(5);
 
 	panic("ACPI: Failed to enter sleep state! Panic'ing!");
@@ -85,7 +85,7 @@ unsigned int acpi_suspend(void)
 	ACPI_STATUS st = AcpiEnterSleepStatePrep(2);
 	if(ACPI_FAILURE(st))
 		return -EIO;
-	DISABLE_INTERRUPTS();
+	irq_save_and_disable();
 	/* We'll need to enter assembly in order to correctly save and restore
 	 * registers
 	*/
@@ -479,11 +479,14 @@ static DECLARE_MUTEX(cpu_enum_lock);
 
 static size_t __ndx = 0;
 
+// TODO: Parts of this are arch specific
+
 ACPI_STATUS acpi_enumerate_per_cpu(ACPI_HANDLE object, UINT32 nestingLevel, void *context, void **returnvalue)
 {
 	ACPI_BUFFER buffer = { ACPI_ALLOCATE_BUFFER, NULL};
 	struct acpi_processor *processor = &((struct acpi_processor *) context)[__ndx++];
 	uint32_t apic_id = (uint32_t) -1;
+	(void) apic_id;
 
 	/* _MAT returns a segment of the MADT table */
 	if(ACPI_FAILURE(AcpiEvaluateObject(object, (char *) "_MAT", NULL, &buffer)))
@@ -500,7 +503,11 @@ ACPI_STATUS acpi_enumerate_per_cpu(ACPI_HANDLE object, UINT32 nestingLevel, void
 	}
 
 	processor->object = object;
+
+#if __x86_64__
 	processor->apic_id = apic_id;
+#endif
+
 	ACPI_FREE(buffer.Pointer);
 	return AE_OK;
 }

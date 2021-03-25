@@ -4,6 +4,7 @@
 * check LICENSE at the root directory for more information
 */
 #include <assert.h>
+#include <stdio.h>
 
 #include <onyx/dpc.h>
 #include <onyx/vm.h>

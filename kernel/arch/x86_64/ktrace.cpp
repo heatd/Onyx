@@ -9,7 +9,7 @@
 #include <onyx/ktrace.h>
 #include <onyx/cpu.h>
 #include <onyx/registers.h>
-#include <onyx/x86/irq.h>
+#include <platform/irq.h>
 #include <onyx/x86/control_regs.h>
 #include <onyx/panic.h>
 

@@ -113,6 +113,11 @@ static inline int count_bits64(uint64_t num)
 #define write_memory_barrier()	__asm__ __volatile__("sfence" ::: "memory")
 #define read_memory_barrier()	__asm__ __volatile__("lfence" ::: "memory")
 
+#elif defined(__riscv)
+
+#define write_memory_barrier()	__asm__ __volatile__("fence" ::: "memory")
+#define read_memory_barrier()	__asm__ __volatile__("fence" ::: "memory")
+
 #endif
 
 #ifdef __cplusplus

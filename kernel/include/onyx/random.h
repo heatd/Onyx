@@ -18,6 +18,24 @@ void initialize_entropy();
 unsigned int get_random_int(void);
 
 #ifdef __cplusplus
+
+namespace entropy
+{
+
+namespace platform
+{
+
+unsigned long get_seed();
+unsigned long get_hwrandom();
+void init_random();
+
+}
+
+}
+
+#endif
+
+#ifdef __cplusplus
 extern "C"
 {
 #endif

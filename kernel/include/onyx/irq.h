@@ -11,12 +11,13 @@
 #include <stdint.h>
 
 #include <onyx/registers.h>
+#include <onyx/spinlock.h>
 
 #ifdef __x86_64__
 #include <onyx/x86/apic.h>
-#include <onyx/x86/irq.h>
 #endif
 
+#include <platform/irq.h>
 
 #define IRQ_HANDLED	0
 #define IRQ_UNHANDLED	-1

@@ -1,4 +1,3 @@
-#include <cpuid.h>
 #include <stdint.h>
 
 int seed = 0x1A1A1A1A;

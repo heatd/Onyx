@@ -235,7 +235,19 @@ static inline void cpu_sleep(void)
 	__asm__ __volatile__("hlt");
 }
 
-#include <onyx/x86/irq.h>
+#include <platform/irq.h>
+
+#elif __riscv
+
+static inline void cpu_relax()
+{
+	__asm__ __volatile__("":::"memory");
+}
+
+static inline void cpu_sleep()
+{
+	__asm__ __volatile__("wfi");
+}
 
 #endif
 

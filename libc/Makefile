@@ -11,7 +11,7 @@ EXEC_PREFIX?=$(PREFIX)
 INCLUDEDIR?=$(PREFIX)/usr/include
 LIBDIR?=$(EXEC_PREFIX)/usr/lib
 
-CFLAGS:=$(CFLAGS) -mtune=generic -Wno-error -fno-omit-frame-pointer -fno-pie -fno-builtin
+CFLAGS:=$(CFLAGS) -Wno-error -fno-omit-frame-pointer -fno-pie -fno-builtin
 LIBK_CFLAGS:=$(CFLAGS) -ffreestanding
 LIBK_CPPFLAGS:=$(CPPFLAGS) -D__is_onyx_kernel
 
@@ -99,7 +99,7 @@ posix/process.o \
 posix/uio.o
 LIBK_OBJS:=$(FREEOBJS:.o=.libk.o) \
 
-BINARIES=libg.a libk.a $(ARCHDIR)/crti.o $(ARCHDIR)/crtn.o $(ARCHDIR)/crt0.o $(ARCHDIR)/Scrt0.o
+BINARIES=libg.a libk.a $(ARCH_EXTRA_OBJS) $(ARCHDIR)/crt0.o $(ARCHDIR)/Scrt0.o
 
 all: $(BINARIES)
 
@@ -125,11 +125,11 @@ libc.so: $(OBJS)
 
 %.libk.o: %.c ../kernel/kernel.config
 	echo [CC] $<.libk
-	$(CC) -c $< -o $@ -std=gnu11 -mcmodel=kernel $(LIBK_CFLAGS) $(LIBK_CPPFLAGS)
+	$(CC) -c $< -o $@ -std=gnu11 $(LIBK_CFLAGS) $(LIBK_CPPFLAGS)
 
 %.libk.o: %.cpp ../kernel/kernel.config
 	echo [CXX] $<.libk
-	$(CXX) -c $< -o $@ -std=c++17 -mcmodel=kernel $(LIBK_CFLAGS) $(LIBK_CPPFLAGS) $(CXXFLAGS)
+	$(CXX) -c $< -o $@ -std=c++17 $(LIBK_CFLAGS) $(LIBK_CPPFLAGS) $(CXXFLAGS)
 
 %.libk.o: %.S ../kernel/kernel.config
 	echo [AS] $<.libk

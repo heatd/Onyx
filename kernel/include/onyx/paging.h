@@ -10,6 +10,8 @@
 #include <string.h>
 #include <onyx/bootmem.h>
 
+#include <platform/page.h>
+
 #define PHYS_BASE               (0xffffd00000000000)
 #define PHYS_BASE_LIMIT         (0xffffd08000000000)
 
@@ -40,7 +42,6 @@ void paging_map_all_phys(void);
 void *virtual2phys(void *ptr);
 int paging_clone_as(struct mm_address_space *addr_space);
 int paging_fork_tables(struct mm_address_space *addr_space);
-void paging_load_cr3(PML *pml);
 bool paging_change_perms(void *addr, int prot);
 bool __paging_change_perms(struct mm_address_space *mm, void *addr, int prot);
 int is_invalid_arch_range(void *address, size_t pages);
@@ -55,8 +56,6 @@ void *paging_unmap(void* memory);
 void *x86_placement_map(unsigned long _phys);
 
 #endif
-
-PML *get_current_pml4(void);
 
 #define PAGE_PRESENT 		(1 << 0)
 #define PAGE_GLOBAL 		(1 << 1)

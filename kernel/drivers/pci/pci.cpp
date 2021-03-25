@@ -370,17 +370,16 @@ uint16_t pci_get_intn(struct pci_device *dev)
 	pin--;
 
 	uint16_t intn = dev->pin_to_gsi[pin].gsi;
+
+	// TODO: Separate this or something like that
+	// Also, what's up with all the magic numbers above?
+#if __x86_64__
 	ioapic_set_pin(dev->pin_to_gsi[pin].active_high,
 		       dev->pin_to_gsi[pin].level, intn);
+#endif
 
 	return intn;
 }
-
-struct bus b =
-{
-	.name = "test",
-	.device_list_head = LIST_HEAD_INIT(b.device_list_head)
-};
 
 void pci_init(void)
 {
@@ -392,8 +391,6 @@ void pci_init(void)
 	else
 	{
 		assert(bus_init(&pci_bus) == 0);
-		bus_init(&b);
-		bus_register(&b);
 		/* Check every pci device and add it onto the bus */
 		pci_enumerate_devices();
 		/* Register the PCI bus */

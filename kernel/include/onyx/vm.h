@@ -17,18 +17,17 @@
 #include <onyx/scheduler.h>
 #include <onyx/mutex.h>
 
-#ifdef __x86_64__
-#include <onyx/x86/page.h>
-#include <onyx/x86/vm_layout.h>
-#include <onyx/x86/vm.h>
-#endif
+#include <platform/page.h>
+
+#include <platform/vm.h>
+#include <platform/vm_layout.h>
 
 #include <sys/types.h>
 #include <sys/mman.h>
 
 #if defined (__i386__)
 	#define KERNEL_VIRTUAL_BASE 0xC0000000
-#elif defined (__x86_64__)
+#elif defined (__x86_64__) || defined(__riscv)
 	#define KERNEL_VIRTUAL_BASE 0xFFFFFFFF80000000
 #endif
 

@@ -39,7 +39,6 @@
 
 #include <sys/wait.h>
 
-extern PML *current_pml4;
 ids *process_ids = nullptr;
 
 process *first_process = nullptr;
@@ -838,7 +837,7 @@ void process_exit(unsigned int exit_code)
 	{
 		printk("Panic: %s exited with exit code %u!\n",
 			current->cmd_line.c_str(), exit_code);
-		ENABLE_INTERRUPTS();
+		irq_enable();
 		for(;;);
 	}
 

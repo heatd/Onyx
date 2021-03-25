@@ -44,6 +44,11 @@ if [ "$NEEDS_CONFIG" = 0 ]; then
 	exit 0
 fi
 
-./configure --host=$HOST --sysroot=$SYSROOT "$@"
+# Try and make clean/make distclean because some makefiles are kind of buggy **cough cough musl**
+if [ -f Makefile ]; then
+	make distclean || make clean || true
+fi
+
+./configure --host=$HOST --with-sysroot=$SYSROOT "$@"
 
 echo "ARCH=${ONYX_ARCH}" > CONF_STAMP

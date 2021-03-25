@@ -7,10 +7,6 @@
 #ifndef _VMLAYOUT_KERNEL_H
 #define _VMLAYOUT_KERNEL_H
 
-#ifdef __x86_64__
-#include <onyx/x86/vm_layout.h>
-#else
-#error "No vm layout provided for the current architecture"
-#endif
+#include <platform/vm_layout.h>
 
 #endif

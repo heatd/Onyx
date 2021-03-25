@@ -15,6 +15,9 @@
  *
  **************************************************************************/
 #include <stddef.h>
+
+#ifdef __x86_64__
+
 void *__tls_get_addr(size_t *v)
 {
 	(void) v;
@@ -22,3 +25,5 @@ void *__tls_get_addr(size_t *v)
 	__asm__ __volatile__("movq %%fs:0x0, %0"::"r"(ret));
 	return ret;
 }
+
+#endif
