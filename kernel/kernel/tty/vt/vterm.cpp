@@ -43,12 +43,6 @@ struct color
 	uint8_t a;
 };
 
-const struct color vterm_default_red = {.r = 0xff};
-const struct color vterm_default_green = {.g = 0xff};
-const struct color vterm_default_blue = {.b = 0xff};
-const struct color vterm_default_yellow = {.r = 0xff, .g = 0xff};
-const struct color vterm_default_magenta = {.r = 0xff, .b = 0xff};
-const struct color vterm_default_cyan = {.r = 0, .g = 0xff, .b = 0xff};
 static struct color default_fg = {.r = 0xaa, .g = 0xaa, .b = 0xaa};
 static struct color default_bg = {};
 
@@ -477,6 +471,11 @@ static void fb_fill_color(uint32_t color, struct framebuffer *frameb)
 void vterm_set_fgcolor(struct color c, struct vterm *vt)
 {
 	vt->fg = c;
+}
+
+int isdigit(int c)
+{
+	return c - '0' < 10;
 }
 
 const char *get_decimal_num(const char *buf, unsigned long *num, unsigned long len)

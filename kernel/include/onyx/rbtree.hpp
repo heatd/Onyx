@@ -5,7 +5,7 @@
 */
 
 #ifndef _CARBON_RBTREE_HPP
-#define _CARBON_HBTREE_HPP
+#define _CARBON_RBTREE_HPP
 
 #if 0
 #include <utility>

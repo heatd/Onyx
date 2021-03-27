@@ -25,10 +25,7 @@
 
 #include <onyx/x86/pat.h>
 #include <onyx/compiler.h>
-USES_FANCY_START
 #include <x86intrin.h>
-#include <xmmintrin.h>
-USES_FANCY_END
 #include <onyx/log.h>
 #include <onyx/cpu.h>
 #include <onyx/x86/gdt.h>

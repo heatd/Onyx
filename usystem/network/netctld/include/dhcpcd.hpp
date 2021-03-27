@@ -42,7 +42,7 @@ struct dhcp_option
 
 struct packet
 {
-	dhcp_packet_t *packet;
+	dhcp_packet_t *packet_;
 	size_t length;
 	struct sockaddr src;
 	socklen_t len;
@@ -52,7 +52,7 @@ struct packet
 
 	~packet()
 	{
-		delete packet;
+		delete packet_;
 	}
 
 	dhcp_option* get_option(uint8_t type, uint8_t length)
@@ -94,7 +94,7 @@ public:
 			throw std::runtime_error(std::string("ioctl: Could not get the local mac address: ") + strerror(errno));
 		}
 
-		thread = std::move(std::thread{&instance::run, this});
+		thread = std::thread{&instance::run, this};
 	}
 
 	~instance()
@@ -107,7 +107,7 @@ public:
 	{
 		device_name = std::move(other.device_name);
 		fd = std::move(other.fd);
-		thread = std::move(thread);
+		thread = std::move(other.thread);
 		sockfd = std::move(other.sockfd);
 	}
 };

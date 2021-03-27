@@ -117,7 +117,7 @@ struct process : public onx::handle::handleable
 	struct itimer timers[ITIMER_COUNT]{};
 
 	struct spinlock pgrp_lock{};
-	struct list_head_cpp<process> pgrp_node;
+	list_head_cpp<process> pgrp_node;
 	struct process_group *process_group{};
 
 	struct rlimit rlimits[RLIM_NLIMITS + 1]{};

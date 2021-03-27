@@ -20,7 +20,7 @@
 #define X86_PAGING_GLOBAL		(1 << 8)
 #define X86_PAGING_NX			(1 << 63)
 
-.section .boot
+.section .boot, "aw"
 .align 4
 hdr_start: 
 	.long 0xe85250d6
@@ -63,7 +63,6 @@ _start:
 
 	/* Take the time to wrmsr the default GS_BASE */
 	mov $percpu_base, %rdx
-	add $KERNEL_VIRTUAL_BASE, %rdx
 	mov %rdx, %r11
 	mov %edx, %eax
 	shr $32, %rdx
@@ -74,6 +73,7 @@ _start:
 
 	call multiboot2_kernel_entry
 	call _init
+	call runtime_call_constructors
 	call randomize_stack_canary
 	call kernel_main
 	cli
@@ -81,7 +81,7 @@ _start.Lhang:
 	hlt
 	jmp _start.Lhang
 
-.section .boot
+.section .boot, "aw"
 protectedmode_stack:
 	.skip 128
 protectedmode_stack_top:

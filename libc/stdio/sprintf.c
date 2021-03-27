@@ -197,7 +197,7 @@ static char *fmt_u(uintmax_t x, char *s)
 
 static int fmt_fp(char *f, long double y, int w, int p, int fl, int t)
 {
-	return;
+	return 0;
 	uint32_t big[(LDBL_MAX_EXP+LDBL_MANT_DIG)/9+1];
 	uint32_t *a, *d, *r, *z;
 	int e2=0, e, i, j, l;

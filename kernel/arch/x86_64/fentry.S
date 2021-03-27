@@ -51,7 +51,7 @@ __fentry__:
 	/* Setup a struct registers on the stack */
 	push $KERNEL_DS /* %ss */
 	push %rsp	/* %rsp */
-	add $24, (%rsp) /* adjust regs->rsp to point to the stack before the call */
+	addq $24, (%rsp) /* adjust regs->rsp to point to the stack before the call */
 	pushf		/* rflags */
 	push $KERNEL_CS /* %cs */
 	push 8(%rbp)	/* %rip */

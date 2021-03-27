@@ -6,8 +6,16 @@ if [ "$MNTROOT" = "" ]; then
 	MNTROOT=/mnt
 fi
 
-sudo cp -rTv sysroot/ $MNTROOT
+export ONYX_ARCH=$(./scripts/onyx_arch.sh)
+export HOST=$(./scripts/arch-to-host.sh)
+export STRIP=$CLANG_PATH/bin/llvm-strip
 
-toolchain=$(dirname `which x86_64-onyx-gcc`)/..
+mkdir -p temp_sysroot
 
-sudo ./scripts/install_gcc_slibs.sh $toolchain $MNTROOT
+cp -rTv sysroot/ $PWD/temp_sysroot
+
+./scripts/install_compiler_slibs.sh $PWD/temp_sysroot
+
+sudo cp -rTv $PWD/temp_sysroot $MNTROOT
+
+rm -rf temp_sysroot

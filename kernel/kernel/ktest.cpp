@@ -15,6 +15,8 @@
 #include <onyx/semaphore.h>
 #include <onyx/mutex.h>
 #include <onyx/cpu.h>
+#include <onyx/linker_section.hpp>
+
 #include <libtest/libtest.h>
 
 #ifdef CONFIG_DO_TESTS
@@ -146,23 +148,23 @@ void do_ktests_old(void)
 	}
 }
 
-extern uintptr_t __start_testcases;
-extern uintptr_t __end_testcases;
+DEFINE_LINKER_SECTION_SYMS(__start_testcases, __end_testcases);
+
+linker_section testcase_section{&__start_testcases, &__end_testcases};
 
 int do_ktests_new(void)
-{	
-	struct libtest_test *p = (struct libtest_test *) &__start_testcases;
-	struct libtest_test *end = (struct libtest_test *) &__end_testcases;
-	while(p != end)
+{
+	libtest_test *p = testcase_section.as<libtest_test>();
+	auto elems = testcase_section.size() / sizeof(libtest_test);
+
+	for(size_t i = 0; i < elems; i++, p++)
 	{
-		for(unsigned long i = 0; i < p->invoke; i++)
+		for(unsigned long j = 0; j < p->invoke; j++)
 		{
-			printk("Executing test %s [invocation %lu] = ",  p->name, i);
+			printk("Executing test %s [invocation %lu] = ",  p->name, j);
 			const char *result = p->func() ? "success" : "failure";
 			printk("%s\n", result);
 		}
-
-		p++;
 	}
 
 	return 0;

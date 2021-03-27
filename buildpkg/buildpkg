@@ -8,8 +8,6 @@ PKGDIR=$(mktemp -d)
 
 TEMP=$(getopt -o 'o:' --long 'output-dir:,create-dir' -n 'buildpkg' -- "$@")
 
-echo $TEMP
-
 eval set -- "$TEMP"
 
 OUTPUT_DIR='./'

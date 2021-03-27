@@ -3,7 +3,7 @@ kern-y+= acpi.o acpi_osl.o arc4random.o binfmt.o copy.o cppnew.o cpprt.o crc32.o
 	irq.o kernelinfo.o kernlog.o ktest.o modules.o object.o panic.o percpu.o \
 	power_management.o proc_event.o process.o pgrp.o ptrace.o random.o ref.o signal.o \
 	smp.o spinlock.o symbol.o time.o timer.o utils.o wait_queue.o \
-	worker.o cred.o list.o softirq.o cputime.o rlimit.o handle.o
+	worker.o cred.o list.o softirq.o cputime.o rlimit.o handle.o ctor.o
 
 kern-$(CONFIG_UBSAN)+= ubsan.o
 

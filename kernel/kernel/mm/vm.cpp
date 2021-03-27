@@ -1915,8 +1915,6 @@ int vm_handle_present_pf(struct vm_pf_context *ctx)
 	return 0;
 }
 
-void setup_debug_register(unsigned long addr, unsigned int size, unsigned int condition);
-
 int __vm_handle_pf(struct vm_region *entry, struct fault_info *info)
 {
 	assert(entry->vmo != nullptr);

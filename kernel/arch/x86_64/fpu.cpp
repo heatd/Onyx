@@ -3,11 +3,6 @@
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
-#include <onyx/compiler.h>		/* For USES_FANCY_* */
-USES_FANCY_START
-#include <immintrin.h>
-#include <x86intrin.h>
-USES_FANCY_END
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
@@ -20,34 +15,33 @@ USES_FANCY_END
 
 bool avx_supported = false;
 
-USES_FANCY_START
+
+#define EDX_EAX(var)  "d"((uint32_t) (var >> 32)), "a"((uint32_t) var)
 
 void do_xsave(void *address, long xcr0)
 {
-	_xsave(address, xcr0);
+	__asm__ __volatile__("xsave %0" : "+m"(*(unsigned long *) address) : EDX_EAX(xcr0) : "memory");
 }
 
 void do_fxsave(void *address)
 {
-	_fxsave(address);
+	__asm__ __volatile__("fxsave %0" : "=m"(*(unsigned long *) address) :: "memory");
 }
 
 void do_xrstor(void *address, long xcr0)
 {
-	_xrstor(address, xcr0);
+	__asm__ __volatile__("xrstor %0" :: "m"(*(unsigned long *) address), EDX_EAX(xcr0) : "memory");
 }
 
 void do_fxrstor(void *address)
 {
-	_fxrstor(address);
+	__asm__ __volatile__("fxrstor %0" :: "m"(*(unsigned long *) address) : "memory");
 }
 
 void do_ldmxcsr(unsigned int a)
 {
-	_mm_setcsr(a);
+	__asm__ __volatile__("ldmxcsr %0" :: "m"(a));
 }
-
-USES_FANCY_END
 
 #define FXSAVE_AREA_SIZE         512
 #define FXSAVE_AREA_ALIGNMENT    16
@@ -144,5 +138,4 @@ void fpu_init(void)
 
 	x86_write_cr4(cr4);
 	do_ldmxcsr(0x1F80);
-
 }

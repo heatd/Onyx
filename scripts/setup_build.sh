@@ -16,7 +16,17 @@ export SYSROOT
 export BUILDPKG_BIN
 export BUILDPKG_BIN_PY_WRAPPER
 
+GN_ARGS="target_cpu = \"$ONYX_ARCH\"\ntarget_os=\"onyx\"\n"
+
+if [ "$CLANG_PATH" != "" ]; then
+	GN_ARGS="$GN_ARGS clang_path = \"$CLANG_PATH\"\n"
+fi
+
 cd usystem
+
+if [ "$GN_ARGS" != "" ]; then
+	printf "$GN_ARGS" > out/args.gn
+fi
 
 gn gen out/
 

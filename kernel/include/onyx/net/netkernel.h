@@ -31,7 +31,7 @@ public:
 	{
 		domain = AF_NETKERNEL;
 		proto = NETKERNEL_PROTO;
-		type = type;
+		this->type = type;
 	}
 
 	int getsockopt(int level, int optname, void *optval, socklen_t *optlen) override;

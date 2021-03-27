@@ -30,11 +30,6 @@ static inline void *elf_get_pointer(void *file, Elf64_Off offset)
 	return (void*)(char*)file + offset;
 }
 
-static inline Elf64_Sym *elf_get_sym(size_t idx, elf_object_t *obj)
-{
-	return &obj->symtab[idx];
-}
-
 int verify_elf(void *file)
 {
 	Elf64_Ehdr *header = (Elf64_Ehdr *) file;

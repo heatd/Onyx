@@ -14,9 +14,25 @@ LIBDIR?=$(EXEC_PREFIX)/usr/lib
 
 CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-strong \
 -Wno-unused-parameter -Wno-unused-function \
--Werror -Wno-error=frame-address -Wno-address-of-packed-member -Wno-cast-function-type \
+-Werror -Wno-error=frame-address -Wno-address-of-packed-member \
 -Wno-error=invalid-offsetof -fno-sanitize=pointer-overflow -fvisibility=protected \
--Wno-missing-field-initializers -Wno-format-truncation -Wstrict-aliasing -Wshadow-compatible-local
+-Wno-missing-field-initializers -Wstrict-aliasing
+
+ifneq ($(ONYX_USING_CLANG), yes)
+# TODO: Find suitable alternatives for clang
+CFLAGS:=$(CFLAGS) -Wno-format-truncation -Wshadow-compatible-local
+else
+
+# Explanation for these options:
+# -Wno-null-pointer-arithmetic: ACPICA triggers this with ACPI_ROOT_OBJECT
+### TODO: Update ACPICA?
+# -Wno-unknown-attributes: as of llvm 11.0.0, it doesn't recognize [[likely]] and [[unlikely]], which we do
+#     use quite often.
+# -Wno-missing-braces: Seems broken? At least it started spitting out weird ones for IPv6 code(IN6ADDR_ALL_NODES)
+#	  in onyx/net/ipv6.h
+CFLAGS:=$(CFLAGS) -Wno-null-pointer-arithmetic -Wno-unknown-attributes -Wno-error=unused-private-field \
+	-Wno-missing-braces -Wno-c99-designator
+endif
 
 # NOTE: I don't think pointer-overflow works with kernel pointers
 
@@ -25,7 +41,7 @@ CPPFLAGS:=$(CPPFLAGS) -D__is_onyx_kernel -D_POSIX_C_SOURCE -D_BSD_SOURCE -D_GNU_
 -DKERNEL_BRANCH='"$(KERNEL_BRANCH)"' -DKERNEL_ARCH='"$(KERNEL_ARCH)"' -imacros \
 include/onyx/config.h
 
-LDFLAGS:=$(LDFLAGS) -fkeep-inline-functions -no-pie -Wl,--build-id=none
+LDFLAGS:=$(LDFLAGS) -fkeep-inline-functions -Wl,--build-id=none
 LIBS:=$(LIBS) -nostdlib -lk $(LIBGCC_PATH)
 ARCHDIR:=arch/$(HOSTARCH)
 
@@ -118,8 +134,16 @@ include acpica/Makefile
 OBJS:=$(obj-y)
 
 CRTI_OBJ:=../sysroot/usr/lib/crti.o
+
+ifneq ($(ONYX_USING_CLANG), yes)
 CRTBEGIN_OBJ:=$(shell $(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=crtbeginS.o)
 CRTEND_OBJ:=$(shell $(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=crtendS.o)
+LDFLAGS:=$(LDFLAGS) -no-pie
+LIBS:=$(LIBS) -lgcc
+else
+LDFLAGS:=$(LDFLAGS) -fno-sanitize-link-runtime -Wl,-no-pie
+endif
+
 LIBGCC_PATH:=$(shell $(CC) $(CFLAGS)  $(LDFLAGS) -print-libgcc-file-name)
 CRTN_OBJ:=../sysroot/usr/lib/crtn.o
 
@@ -143,7 +167,13 @@ $(CRTN_OBJ) \
 VDSO_LDFLAGS:= -Wl,-Bsymbolic -shared \
 -Wl,-soname=onyx-vdso.so.0 -fpic \
 -z max-page-size=0x1000 -z common-page-size=0x1000 \
--T $(ARCHDIR)/vdso.ld
+-Wl,-T $(ARCHDIR)/vdso.ld
+
+# Very important to note that right now, the vdso can only link on gcc using
+# ld.bfd due to linker script weirdness. Because of that, we pass -fuse-ld=bfd if we're gcc
+ifneq ($(ONYX_USING_CLANG), yes)
+VDSO_LDFLAGS:=$(VDSO_LDFLAGS) -fuse-ld=bfd
+endif
 
 all: onyx-vdso.so.0 vmonyx
 
@@ -151,9 +181,7 @@ all: onyx-vdso.so.0 vmonyx
 
 vmonyx: $(OBJ_LINK_LIST) $(ARCHDIR)/linker.ld ../libc/libk.a
 	@echo [LD] $@
-	# Very important to note that right now, the kernel can only link using
-	# ld.bfd due to linker script weirdness. Because of that, we pass -fuse-ld=bfd
-	$(CC) -fuse-ld=bfd -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(OBJ_LINK_LIST) $(LDFLAGS) $(LIBS) -lgcc
+	$(CC) $(LDFLAGS) -Wl,-T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(OBJ_LINK_LIST) $(LIBS)
 	cp vmonyx vmonyx-unstripped
 	strip -g vmonyx
 
@@ -193,12 +221,13 @@ endif
 
 $(ARCHDIR)/__vdso.o: $(ARCHDIR)/__vdso.c kernel.config
 	@echo [CC] $<
-	@$(CC) -O2 -c $< -o $@ -fpic -Iinclude/acpica -Iinclude -isystem ../libc/include -fno-zero-initialized-in-bss
+	@$(CC) -O2 -c $< -o $@ -fpic -Iinclude/acpica -Iinclude -isystem ../libc/include \
+	-fno-stack-protector -fno-zero-initialized-in-bss
 
 onyx-vdso.so.0: $(ARCHDIR)/__vdso_asm.o $(ARCHDIR)/__vdso.o kernel.config
 	@echo [VDSO]
 	$(CC) $(VDSO_LDFLAGS) $(ARCHDIR)/__vdso_asm.o $(ARCHDIR)/__vdso.o -o $@ -ffreestanding \
-	 -nostdlib -Iinclude -I../libc/include -Wl,--hash-style=both -fuse-ld=bfd
+	 -nostdlib -Iinclude -I../libc/include -Wl,--hash-style=both
 
 clean: clean-modules
 	rm -f vmonyx $(OBJS) $(ALL_OUR_OBJS) *.o */*.o */*/*.o

@@ -16,6 +16,8 @@
 #include <onyx/vdso.h>
 #include <onyx/compiler.h>
 #include <onyx/clock.h>
+#include <onyx/panic.h>
+
 #include <onyx/mm/vm_object.h>
 
 #include <onyx/x86/tsc.h>

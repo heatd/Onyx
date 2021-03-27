@@ -93,9 +93,9 @@ off_t dhcp_close_options(dhcp_packet_t *pkt, off_t off)
 
 bool packet::decode()
 {
-	unsigned char *limit = (unsigned char *) packet + length;
+	unsigned char *limit = (unsigned char *) packet_ + length;
  
-	unsigned char *opt = (unsigned char *) &packet->options;
+	unsigned char *opt = (unsigned char *) &packet_->options;
 
 	if(length <= DHCP_FIXED_NON_UDP)
 		return false;
@@ -203,7 +203,7 @@ std::unique_ptr<packet> instance::get_packets(std::function<bool (packet *)> pre
 	std::unique_ptr<packet> p = std::make_unique<packet>();
 
 	dhcp_packet_t *packet = new dhcp_packet_t();
-	p->packet = packet;
+	p->packet_ = packet;
 	struct sockaddr addr;
 	socklen_t addrlen = sizeof(addr);
 
@@ -225,7 +225,7 @@ std::unique_ptr<packet> instance::get_packets(std::function<bool (packet *)> pre
 	}
 
 	/* Probably not for us */
-	if(p->packet->xid != xid)
+	if(p->packet_->xid != xid)
 		return nullptr;
 
 	auto message_type = p->get_option(DHO_DHCP_MESSAGE_TYPE, 1);
@@ -366,7 +366,7 @@ int instance::setup_netif()
 	in_addr_t dns_server;
 	uint32_t lease_time = 0;
 
-	uint32_t our_ip = packet->packet->yiaddr;
+	uint32_t our_ip = packet->packet_->yiaddr;
 
 	dhcp_option *opt = packet->get_option(DHO_DOMAIN_NAME_SERVERS, 4);
 

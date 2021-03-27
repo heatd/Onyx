@@ -47,7 +47,9 @@ jobs:
           unzip gn.zip
           echo "$PWD" >> $GITHUB_PATH
           cd ..
-          SYSROOT=$PWD/sysroot ./scripts/setup_build.sh
+          export SYSROOT=$PWD/sysroot
+          export ONYX_ARCH=x86_64
+          ./scripts/setup_build.sh
           make install-headers -j $(nproc)
           mkdir toolchain_binaries
           ./toolchains/download_and_patch_tools.sh toolchain_build
@@ -122,7 +124,9 @@ jobs:
       - name: Build Onyx
         run: |
           cp kernel/kernel.config.example kernel/kernel.config
-          SYSROOT=$PWD/sysroot ./scripts/setup_build.sh
+          export SYSROOT=$PWD/sysroot
+          export ONYX_ARCH=x86_64
+          ./scripts/setup_build.sh
           RUN_CLANG_TIDY=0 make -j $(nproc) iso
 
       - name: Upload a Build Artifact(Onyx.iso)
@@ -179,7 +183,9 @@ jobs:
             PATH="$(brew --prefix)/opt/coreutils/libexec/gnubin:$(brew --prefix)/opt/make/libexec/gnubin:$PATH"
             echo "TEST: $PATH"
             cd ..
-            SYSROOT=$PWD/sysroot ./scripts/setup_build.sh
+            export SYSROOT=$PWD/sysroot
+            export ONYX_ARCH=x86_64
+            ./scripts/setup_build.sh
             make install-headers -j $(sysctl -n hw.logicalcpu)
             mkdir toolchain_binaries
             ./toolchains/download_and_patch_tools.sh toolchain_build
@@ -247,7 +253,9 @@ jobs:
           unzip gn.zip
           echo "$PWD" >> $GITHUB_PATH
           cd ..
-          SYSROOT=$PWD/sysroot ./scripts/setup_build.sh
+          export SYSROOT=$PWD/sysroot
+          export ONYX_ARCH=x86_64
+          ./scripts/setup_build.sh
           make install-headers -j $(nproc)
           mkdir toolchain_binaries
           ./toolchains/scripts/build_llvm.sh toolchain_build toolchain_binaries

@@ -11,7 +11,7 @@
 #include <onyx/conditional.h>
 #include <onyx/scoped_lock.h>
 
-class socket;
+struct socket;
 void sock_do_post_work(socket *sock);
 bool sock_needs_work(socket *sock);
 /**

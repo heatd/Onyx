@@ -1,14 +1,10 @@
 
 sys_root = getenv("SYSROOT")
 
-toolchain("x86_64") {
+template("base_toolchain") {
+  toolchain(target_name) {
 
-  toolprefix = "x86_64-onyx-"
-  cc = "${toolprefix}gcc"
-  cxx = "${toolprefix}g++"
-
-  ar = "${toolprefix}ar"
-  ld = cxx
+  forward_variables_from(invoker, "*", ["output_dir"])
 
   tool("cc") {
     depfile = "{{output}}.d"
@@ -73,4 +69,37 @@ toolchain("x86_64") {
     command = "cp -af {{source}} {{output}}"
     description = "COPY {{source}} {{output}}"
   }
+}
+}
+
+template("gcc_toolchain") {
+  base_toolchain(target_name) {
+    forward_variables_from(invoker, "*", ["output_dir"])
+    toolprefix = "${gcc_target}"
+    cc = "${toolprefix}-gcc"
+    cxx = "${toolprefix}-g++"
+
+    ar = "${toolprefix}-ar"
+    ld = cxx
+  }
+}
+
+gcc_toolchain("x86_64-gcc") {
+  gcc_target = "x86_64-onyx"
+}
+
+template("clang_toolchain") {
+  base_toolchain(target_name) {
+    forward_variables_from(invoker, "*", ["output_dir"])
+    toolprefix = "${clang_path}/bin/"
+    cc = "${toolprefix}clang --target=${target_cpu}-unknown-${target_os}"
+    cxx = "${toolprefix}clang++ --target=${target_cpu}-unknown-${target_os}"
+
+    ar = "${toolprefix}llvm-ar"
+    ld = cxx
+  }
+}
+
+clang_toolchain("clang") {
+  clang_path = clang_path
 }

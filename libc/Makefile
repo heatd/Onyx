@@ -134,6 +134,11 @@ libc.so: $(OBJS)
 %.libk.o: %.S ../kernel/kernel.config
 	echo [AS] $<.libk
 	$(CC) -c $(CFLAGS) $(CPPFLAGS) $< -o $@
+
+ssp/ssp.libk.o: ssp/ssp.cpp ../kernel/kernel.config
+	echo [CXX] $<.libk
+	$(CXX) -c $< -o $@ -std=c++17 -fno-stack-protector $(LIBK_CFLAGS) $(LIBK_CPPFLAGS) $(CXXFLAGS)
+
 %.o: %.S ../kernel/kernel.config
 	echo [AS] $<
 	$(CC) -c $(CFLAGS) $(CPPFLAGS) $< -o $@

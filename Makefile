@@ -14,13 +14,34 @@ export HOST?=$(shell scripts/arch-to-host.sh $(ONYX_ARCH))
 export BUILDPKG_BIN?=$(PWD)/buildpkg/buildpkg
 export BUILDPKG_BIN_PY_WRAPPER?=$(PWD)/buildpkg/buildpkg_gn_wrapper
 
+ifneq ($(CLANG_PATH),)
+
+export CLANG_ARGUMENTS:=--target=$(ONYX_ARCH)-unknown-onyx
+export CLANG_BIN:=$(CLANG_PATH)/bin
+export AR:=$(CLANG_BIN)/llvm-ar
+export CC:=$(CLANG_BIN)/clang $(CLANG_ARGUMENTS)
+export CC_BARE_PATH:=$(CLANG_BIN)/clang
+export AS:=$(CC)
+export CXX:=$(CLANG_BIN)/clang++ $(CLANG_ARGUMENTS)
+export NM:=$(CLANG_BIN)/llvm-nm
+export LD:=$(CLANG_BIN)/ld
+export STRIP:=$(CLANG_BIN)/llvm-strip
+
+export ONYX_USING_CLANG:=yes
+
+else
+
 export AR:=$(HOST)-ar
 export AS:=$(HOST)-as
 export CC:=$(HOST)-gcc
+export CC_BARE_PATH:=$(shell which $(CC))
 export CXX:=$(HOST)-g++
 export NM:=$(HOST)-nm
 export LD:=$(HOST)-ld.bfd
-export HOST_CC:=gcc
+export STRIP:=$(HOST)-strip
+
+endif
+
 export PREFIX:=/usr
 export EXEC_PREFIX:=$(PREFIX)
 export BOOTDIR:=/boot

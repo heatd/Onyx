@@ -406,7 +406,17 @@ void __ubsan_handle_nonnull_return(void* data_raw)
 	ubsan_abort(&data->location, "null return");
 }
 
+void __ubsan_handle_nonnull_return_v1(void* data_raw)
+{
+	struct ubsan_nonnull_return_data* data =
+		(struct ubsan_nonnull_return_data*) data_raw;
+	ubsan_abort(&data->location, "null return");
+}
+
 ABORT_VARIANT_VP(nonnull_return);
+
+ABORT_VARIANT_VP(nonnull_return_v1);
+
 
 struct ubsan_nonnull_arg_data
 {

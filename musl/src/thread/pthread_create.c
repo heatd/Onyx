@@ -331,6 +331,7 @@ int __pthread_create(pthread_t *restrict res, const pthread_attr_t *restrict att
 	stack -= (uintptr_t)stack % sizeof(uintptr_t);
 	stack -= sizeof(struct start_args);
 	struct start_args *args = (void *)stack;
+	stack -= sizeof(uintptr_t);
 	args->start_func = entry;
 	args->start_arg = arg;
 	args->control = attr._a_sched ? 1 : 0;

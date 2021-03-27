@@ -95,8 +95,6 @@ void div0_exception(struct registers *ctx)
 	kernel_tkill(SIGFPE, current, SIGNAL_FORCE, &info);
 }
 
-void setup_debug_register(unsigned long addr, unsigned int size, unsigned int condition);
-
 void debug_trap(struct registers *ctx)
 {
 	if(is_kernel_exception(ctx))
@@ -240,6 +238,8 @@ void general_protection_fault(struct registers *ctx)
 	{
 		printk("Image base: %lx\n", image_base);
 		printk("Adjusted ip: %lx\n", ctx->rip - image_base);
+		//printk("Adjusted to interp(%p): %lx\n", current->owner->interp_base, ctx->rip - (unsigned long) current->owner->interp_base);
+		//printk("Process: %s\n", current->owner->cmd_line.c_str());
 	}
 
 	printk("GPF error code: %04x\n", (uint16_t) ctx->int_err_code);

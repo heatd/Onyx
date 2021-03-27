@@ -42,8 +42,6 @@
 
 #define PIT_STATUS_OUTPUT_HIGH		(1 << 7)
 
-static volatile uint64_t timer_ticks = 0;
-
 struct driver pit_driver = 
 {
 	.name = "pit"

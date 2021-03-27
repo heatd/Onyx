@@ -137,7 +137,7 @@ int sys_clone(int (*fn)(void *), void *child_stack, int flags, void *arg, struct
 		return -EINVAL;
 	if(flags & CLONE_FORK)
 		return -EINVAL; /* TODO: Add CLONE_FORK */
-	thread_callback_t start = (thread_callback_t) fn;
+	thread_callback_t start = (thread_callback_t) (void *) fn;
 
 	registers_t regs = {};
 	regs.rsp = (unsigned long) child_stack;

@@ -81,9 +81,9 @@ int percpu_map_master_copy()
 {
 	size_t percpu_size = (unsigned long) &__percpu_end - (unsigned long) &__percpu_start;
 	size_t nr_pages = vm_size_to_pages(percpu_size);
-	unsigned long percpu_virtual_start = (unsigned long) &percpu_base + KERNEL_VIRTUAL_BASE;
-
-	auto ret = map_pages_to_vaddr((void *) percpu_virtual_start, (void *) &percpu_base,
+	unsigned long percpu_virtual_start = (unsigned long) &percpu_base;
+	auto phys_base = ((unsigned long) &percpu_base) - KERNEL_VIRTUAL_BASE;
+	auto ret = map_pages_to_vaddr((void *) percpu_virtual_start, (void *) phys_base,
 	                              nr_pages, VM_WRITE | VM_NOEXEC);
 	return ret ? 0 : -1;
 }
