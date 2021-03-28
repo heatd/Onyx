@@ -26,6 +26,7 @@ export CXX:=$(CLANG_BIN)/clang++ $(CLANG_ARGUMENTS)
 export NM:=$(CLANG_BIN)/llvm-nm
 export LD:=$(CLANG_BIN)/ld
 export STRIP:=$(CLANG_BIN)/llvm-strip
+export RANLIB:=$(CLANG_BIN)/llvm-ranlib
 
 export ONYX_USING_CLANG:=yes
 
@@ -39,6 +40,7 @@ export CXX:=$(HOST)-g++
 export NM:=$(HOST)-nm
 export LD:=$(HOST)-ld.bfd
 export STRIP:=$(HOST)-strip
+export RANLIB:=$(HOST)-ranlib
 
 endif
 
