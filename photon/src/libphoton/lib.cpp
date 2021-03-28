@@ -20,7 +20,7 @@ static const std::string photon_path{"/dev/photon"};
 extern "C"
 {
 
-int photon_list_devices(photon_list_device_instance *device_instances, int length) noexcept try
+int photon_list_devices(photon_list_device_instance *device_instances, int length) try
 {
 	int found_devices = 0;
 	auto inst = device_instances;
