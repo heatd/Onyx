@@ -24,11 +24,18 @@ fi
 
 cd usystem
 
-if [ "$GN_ARGS" != "" ]; then
+if [ "$GN_ARGS" != "" ] && [ -f out/args.gn ]; then
 	printf "$GN_ARGS" > out/args.gn
+	done_stuff="1"
 fi
 
 gn gen out/
+
+if [ "$GN_ARGS" != "" ] && [ "$done_stuff" != "1" ]; then
+	printf "$GN_ARGS" > out/args.gn
+
+	gn gen out/
+fi
 
 touch -r dash/ -c dash/*
 
