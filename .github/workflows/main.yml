@@ -146,6 +146,67 @@ jobs:
         with:
           name: Sysroot
           path: sysroot/
+  
+  build-llvm:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+    needs: build-toolchain-llvm-linux
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v2
+        with:
+          submodules: "recursive"
+        
+
+      # Runs a single command using the runners shell
+      - name: Download the onyx-linux-llvm toolchain
+        uses: actions/download-artifact@v2.0.8
+        with:
+          # Artifact name
+          name: x86_64-onyx-linux-llvm
+
+      - name: Extract Toolchain
+        run: |
+          zstd -d onyx-linux-llvm.tar.zst --stdout | tar x
+  
+      - name: Install dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install mtools genisoimage libfl2 clang-tidy unzip ninja-build
+          mkdir gn_bin/
+          cd gn_bin
+          wget -q https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/latest -O gn.zip
+          unzip gn.zip
+          echo "$PWD" >> $GITHUB_PATH
+          cd ..
+
+      # Runs a set of commands using the runners shell
+      - name: Build Onyx
+        run: |
+          cp kernel/kernel.config.example kernel/kernel.config
+          export CLANG_PATH=$PWD/onyx-llvm
+          export SYSROOT=$PWD/sysroot
+          export ONYX_ARCH=x86_64
+          ./scripts/setup_build.sh
+          RUN_CLANG_TIDY=0 make -j $(nproc) iso
+
+      - name: Upload a Build Artifact(Onyx.iso)
+        uses: actions/upload-artifact@v2.1.4
+        with:
+          name: Onyx-iso-llvm
+          path: Onyx.iso
+
+      - name: Upload a Build Artifact(kernel/vmonyx)
+        uses: actions/upload-artifact@v2.1.4
+        with:
+          name: vmonyx-llvm
+          path: kernel/vmonyx
+
+      - name: Upload a Build Artifact(sysroot-llvm)
+        uses: actions/upload-artifact@v2.1.4
+        with:
+          name: Sysroot-llvm
+          path: sysroot/
     
   build-toolchain-macos:
       # The type of runner that the job will run on
