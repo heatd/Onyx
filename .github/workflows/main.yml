@@ -164,7 +164,7 @@ jobs:
         uses: actions/download-artifact@v2.0.8
         with:
           # Artifact name
-          name: x86_64-onyx-linux-llvm
+          name: onyx-linux-llvm
 
       - name: Extract Toolchain
         run: |
