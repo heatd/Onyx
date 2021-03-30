@@ -375,6 +375,7 @@ int ext2_retrieve_dirent(inode *inode, const char *name, ext2_superblock *fs,
 		for(char *b = buf; b < buf + fs->block_size; )
 		{
 			dir_entry_t *entry = (dir_entry_t *) b;
+			assert(entry->size != 0);
 
 			if(entry->lsbit_namelen == strlen(name) && 
 		  	   !memcmp(entry->name, name, entry->lsbit_namelen))
