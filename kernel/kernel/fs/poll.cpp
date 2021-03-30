@@ -327,9 +327,9 @@ int sys_pselect(int nfds, fd_set *ureadfds, fd_set *uwritefds,
 	 */
 	for(int i = 0; i < nfds; i++)
 	{		
-		short events = (FD_ISSET(i, &readfds) ? POLL_IN : 0) |
-		               (FD_ISSET(i, &writefds) ? POLL_OUT : 0) |
-					   (FD_ISSET(i, &exceptfds) ? POLL_PRI : 0);
+		short events = (FD_ISSET(i, &readfds) ? POLLIN : 0) |
+		               (FD_ISSET(i, &writefds) ? POLLOUT : 0) |
+					   (FD_ISSET(i, &exceptfds) ? POLLPRI : 0);
 		/* FD not set, continue... */
 		if(!events)
 			continue;

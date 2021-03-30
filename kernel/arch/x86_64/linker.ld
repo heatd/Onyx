@@ -97,7 +97,6 @@ SECTIONS
 		*(.code_patch*)
 		__end_code_patch = .;
 		*(.modinfo*)
-		*(.eh_frame*)
 	} : rodata
 
 	.note.gnu.build-id :
@@ -106,6 +105,11 @@ SECTIONS
         *(.note.gnu.build-id)
         PROVIDE_HIDDEN(__build_id_note_end = .);
     } :rodata :note
+
+	.ehframe : AT(ADDR(.ehframe) - VIRT_BASE)
+	{
+		*(.eh_frame*)
+	} : eh_frame
 
 	_ro_end = .;
 	. = ALIGN(0x1000);
@@ -156,6 +160,7 @@ PHDRS
 	boot PT_LOAD FLAGS(5);
 	text PT_LOAD FLAGS(5);
 	rodata PT_LOAD FLAGS(4);
+	eh_frame PT_LOAD FLAGS(4);
 	data PT_LOAD FLAGS(6);
 	percpu PT_LOAD FLAGS(6);
 	vdso PT_LOAD FLAGS(7);

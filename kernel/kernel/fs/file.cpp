@@ -97,14 +97,14 @@ static inline bool fd_is_open(int fd, struct ioctx *ctx)
 {
 	unsigned long long_idx = fd / FDS_PER_LONG;
 	unsigned long bit_idx = fd % FDS_PER_LONG;
-	return ctx->open_fds[long_idx] & (1 << bit_idx);
+	return ctx->open_fds[long_idx] & (1UL << bit_idx);
 }
 
 static inline void fd_close_bit(int fd, struct ioctx *ctx)
 {
 	unsigned long long_idx = fd / FDS_PER_LONG;
 	unsigned long bit_idx = fd % FDS_PER_LONG;
-	ctx->open_fds[long_idx] &= ~(1 << bit_idx);
+	ctx->open_fds[long_idx] &= ~(1UL << bit_idx);
 }
 
 void fd_set_cloexec(int fd, bool toggle, struct ioctx *ctx)
@@ -113,9 +113,9 @@ void fd_set_cloexec(int fd, bool toggle, struct ioctx *ctx)
 	unsigned long bit_idx = fd % FDS_PER_LONG;
 
 	if(toggle)
-		ctx->cloexec_fds[long_idx] |= (1 << bit_idx);
+		ctx->cloexec_fds[long_idx] |= (1UL << bit_idx);
 	else
-		ctx->cloexec_fds[long_idx] &= ~(1 << bit_idx);
+		ctx->cloexec_fds[long_idx] &= ~(1UL << bit_idx);
 }
 
 void fd_set_open(int fd, bool toggle, struct ioctx *ctx)
@@ -124,9 +124,9 @@ void fd_set_open(int fd, bool toggle, struct ioctx *ctx)
 	unsigned long bit_idx = fd % FDS_PER_LONG;
 
 	if(toggle)
-		ctx->open_fds[long_idx] |= (1 << bit_idx);
+		ctx->open_fds[long_idx] |= (1UL << bit_idx);
 	else
-		ctx->open_fds[long_idx] &= ~(1 << bit_idx);
+		ctx->open_fds[long_idx] &= ~(1UL << bit_idx);
 }
 
 bool fd_is_cloexec(int fd, struct ioctx *ctx)
@@ -134,7 +134,7 @@ bool fd_is_cloexec(int fd, struct ioctx *ctx)
 	unsigned long long_idx = fd / FDS_PER_LONG;
 	unsigned long bit_idx = fd % FDS_PER_LONG;
 
-	return ctx->cloexec_fds[long_idx] & (1 << bit_idx);
+	return ctx->cloexec_fds[long_idx] & (1UL << bit_idx);
 }
 
 struct file *__get_file_description_unlocked(int fd, struct process *p)
@@ -346,7 +346,7 @@ int alloc_fd(int fdbase)
 			{
 				int fd = FDS_PER_LONG * i + j;
 
-				if(ioctx->open_fds[i] & (1 << j))
+				if(ioctx->open_fds[i] & (1UL << j))
 					continue;
 
 				if(fd < fdbase)
@@ -357,7 +357,7 @@ int alloc_fd(int fdbase)
 					if(current->get_rlimit(RLIMIT_NOFILE).rlim_cur < (unsigned long) fd)
 						return -EMFILE;
 					/* Found a free fd that we can use, let's mark it used and return it */
-					ioctx->open_fds[i] |= (1 << j);
+					ioctx->open_fds[i] |= (1UL << j);
 					/* And don't forget to reset the cloexec flag! */
 					fd_set_cloexec(fd, false, ioctx); 
 					return fd;
@@ -659,7 +659,7 @@ out_error:
 extern "C"
 int sys_dup2(int oldfd, int newfd)
 {
-	//printk("pid %d oldfd %d newfd %d\n", get_current_process()->pid, oldfd, newfd);
+	// printk("pid %d oldfd %d newfd %d\n", get_current_process()->pid, oldfd, newfd);
 	struct process *current = get_current_process();
 	struct ioctx *ioctx = &current->ctx;
 
@@ -1769,37 +1769,41 @@ int open_with_vnode(struct file *node, int flags)
 }
 
 extern "C"
-int sys_access(const char *path, int amode)
+int sys_faccessat(int dirfd, const char *upath, int amode, int flags)
 {
-	int st = 0;
-	char *p = strcpy_from_user(path);
-	if(!p)
-		return -errno;
+	// TODO: Implement flags, we're doing the check wrong(it should be with ruid
+	// instead of euid by default)
+	user_string path;
+	auto_file f;
 
-	struct file *f = get_current_directory();
+	if(int st = f.from_dirfd(dirfd); st < 0)
+		return st;
 
-	struct file *ino = open_vfs(get_fs_base(p, f), p);
-	fd_put(f);
+	if(auto res = path.from_user(upath); res.has_error())
+		return -EFAULT;
+
+	struct file *ino = open_vfs(f.get_file(), path.data());
 
 	unsigned int mask = ((amode & R_OK) ? FILE_ACCESS_READ : 0) |
                         ((amode & X_OK) ? FILE_ACCESS_EXECUTE : 0) |
                         ((amode & W_OK) ? FILE_ACCESS_WRITE : 0);
 	if(!ino)
 	{
-		st = -errno;
-		goto out;
+		return -errno;
 	}
 
 	if(!file_can_access(ino, mask))
 	{
-		st = -EACCES;
-		goto out;
+		return -EACCES;
 	}
-out:
-	if(ino != nullptr)	fd_put(ino);
-	free(p);
 
-	return st;
+	return 0;
+}
+
+extern "C"
+int sys_access(const char *path, int amode)
+{
+	return sys_faccessat(AT_FDCWD, path, amode, 0);
 }
 
 int do_sys_mkdir(const char *path, mode_t mode, struct file *dir)
@@ -1986,6 +1990,5 @@ int sys_fchownat(int dirfd, const char *pathname,
 
 int sys_utimensat(int dirfd, const char *pathname,
                      const struct timespec *times, int flags) {return -ENOSYS;}
-int sys_faccessat(int dirfd, const char *pathname, int mode, int flags) {return -ENOSYS;}
 
 }

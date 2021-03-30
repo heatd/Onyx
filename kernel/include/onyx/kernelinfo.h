@@ -14,7 +14,7 @@
 #define OS_VERSION "SMP " __DATE__ " " __TIME__
 
 #if defined(__x86_64__)
-#define OS_MACHINE "x86_64 amd64"
+#define OS_MACHINE "x86_64"
 #elif defined(__riscv)
 #define OS_MACHINE "riscv64"
 #else

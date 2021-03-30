@@ -17,6 +17,7 @@
 #include <onyx/scoped_lock.h>
 #include <onyx/pair.hpp>
 #include <onyx/expected.hpp>
+#include <onyx/dentry.h>
 
 #include <onyx/buffer.h>
 #include <sys/stat.h>
@@ -549,5 +550,7 @@ __atomic_sub_fetch(&var, num, __ATOMIC_RELAXED)
 #define EXT2_SUPPORTED_INCOMPAT   EXT2_FEATURE_INCOMPAT_FILETYPE
 
 inode *ext2_get_inode(ext2_superblock *sb, uint32_t inode_num);
+inode *ext2_create_file(const char *name, mode_t mode, dev_t dev, dentry *dir);
+int ext2_unlink(const char *name, int flags, dentry *dir);
 
 #endif

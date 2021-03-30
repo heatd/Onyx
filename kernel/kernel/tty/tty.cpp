@@ -86,7 +86,7 @@ void init_default_tty_termios(struct tty *tty)
 	tty->term_io.c_lflag = ISIG | ICANON | IEXTEN | ECHO | ECHOE | ECHOK | ECHOCTL | ECHOKE;
 	tty->term_io.c_cc[VINTR] = 003;
 	tty->term_io.c_cc[VQUIT] = 034;
-	tty->term_io.c_cc[VERASE] = '\b';
+	tty->term_io.c_cc[VERASE] = '\x7f';
 	tty->term_io.c_cc[VKILL] = 025;
 	tty->term_io.c_cc[VEOF] = 004;
 	tty->term_io.c_cc[VEOL] = tty->term_io.c_cc[VEOL2] = '\0';
@@ -170,6 +170,16 @@ void tty_received_character(struct tty *tty, char c)
 {
 	rw_lock_read(&tty->termio_lock);
 	tty->ldisc->ops->receive_input(c, tty);
+	rw_unlock_read(&tty->termio_lock);
+}
+
+void tty_received_characters(struct tty *tty, char *c)
+{
+	rw_lock_read(&tty->termio_lock);
+
+	while(*c)
+		tty->ldisc->ops->receive_input(*c++, tty);
+
 	rw_unlock_read(&tty->termio_lock);
 }
 

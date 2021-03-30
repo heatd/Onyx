@@ -43,6 +43,7 @@ ssize_t ext2_readpage(struct page *page, size_t off, struct inode *ino);
 ssize_t ext2_writepage(struct page *page, size_t off, struct inode *ino);
 int ext2_prepare_write(inode *ino, struct page *page, size_t page_off, size_t offset, size_t len);
 int ext2_link(struct inode *target, const char *name, struct inode *dir);
+inode *ext2_symlink(const char *name, const char *dest, dentry *dir);
 
 struct file_ops ext2_ops = 
 {
@@ -51,6 +52,7 @@ struct file_ops ext2_ops =
 	.getdirent = ext2_getdirent,
 	.creat = ext2_creat,
 	.link = ext2_link_fops,
+	.symlink = ext2_symlink,
 	.ftruncate = ext2_ftruncate,
 	.mkdir = ext2_mkdir,
 	.mknod = ext2_mknod,
@@ -416,7 +418,7 @@ struct inode *ext2_create_file(const char *name, mode_t mode, dev_t dev, struct 
 	return ino;
 
 unlink_ino:
-	/* TODO: add ext2_unlink() */
+	ext2_unlink(name, 0, dir);
 	free(ino);
 free_ino_error:
 	free(inode);

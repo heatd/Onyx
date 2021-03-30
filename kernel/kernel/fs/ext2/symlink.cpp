@@ -84,3 +84,51 @@ char *ext2_readlink(struct file *f)
 
 	return ext2_read_symlink(f->f_ino, fs);
 }
+
+int ext2_set_symlink(inode *ino, const char *dest)
+{
+	auto length = strlen(dest);
+	auto raw_ino = ext2_get_inode_from_node(ino);
+
+	if(length <= 60)
+	{
+		memcpy(&raw_ino->i_data, dest, length);
+	}
+	else
+	{
+		unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
+
+		// TODO: Kind of dumb that it's not a const void *, fix?
+		ssize_t read = file_write_cache((void *) dest, length, ino, 0);
+
+		thread_change_addr_limit(old);
+	
+		if(read != (ssize_t) length)
+		{
+			return -errno;
+		}
+	}
+
+	ext2_set_inode_size(raw_ino, length);
+
+	inode_mark_dirty(ino);
+
+	return 0;
+}
+
+inode *ext2_symlink(const char *name, const char *dest, dentry *dir)
+{
+	auto inode = ext2_create_file(name, S_IFLNK | S_IRWXG | S_IRWXO | S_IRWXU, 0, dir);
+	if(!inode)
+		return nullptr;
+	
+	if(auto st = ext2_set_symlink(inode, dest); st < 0)
+	{
+		ext2_unlink(name, 0, dir);
+		delete inode;
+		errno = -st;
+		return nullptr;
+	}
+
+	return inode;
+}

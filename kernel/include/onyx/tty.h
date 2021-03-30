@@ -75,6 +75,7 @@ void tty_init(void *priv, void (*ctor)(struct tty *tty));
 void tty_scroll();
 void tty_put_entry_at(char c, uint32_t color, size_t column, size_t row);
 void tty_received_character(struct tty *tty, char c);
+void tty_received_characters(struct tty *tty, char *c);
 void tty_create_dev();
 
 #define ANSI_ESCAPE_CODE   		'\x1b'
@@ -95,7 +96,8 @@ void tty_create_dev();
 #define ANSI_SGR			'm'
 #define ANSI_SAVE_CURSOR		's'
 #define ANSI_RESTORE_CURSOR		'u'
-
+#define CSI_DELETE_CHARS    'P'
+#define CSI_INSERT_BLANK    '@'
 
 #define ANSI_SGR_RESET		0
 #define ANSI_SGR_BOLD		1

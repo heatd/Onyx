@@ -25,17 +25,20 @@ static ssize_t get_entropy(void *ptr, size_t size)
 __attribute__((constructor))
 static void __initialize_ssp(void)
 {
-	if(get_entropy(&__stack_chk_guard, sizeof(uintptr_t)) < 0)
+	uintptr_t guard;
+	if(get_entropy(&guard, sizeof(uintptr_t)) < 0)
 	{
 		/* If getentropy failed for some reason, use /dev/urandom */
 		int fd = open("/dev/urandom", O_RDONLY);
 		if(fd < 0)
 			abort();
 		/* Don't bother closing fd if it failed */
-		if(read(fd, &__stack_chk_guard, sizeof(uintptr_t)) < 0)
+		if(read(fd, &guard, sizeof(uintptr_t)) < 0)
 			abort();
 		close(fd);
 	}
+
+	__stack_chk_guard = guard;
 }
 
 static void die(void)

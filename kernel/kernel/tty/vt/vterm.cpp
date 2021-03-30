@@ -23,6 +23,7 @@
 #include <onyx/dpc.h>
 #include <onyx/utf8.h>
 #include <onyx/intrinsics.h>
+#include <onyx/utility.hpp>
 
 #include <onyx/input/keys.h>
 #include <onyx/input/event.h>
@@ -95,6 +96,7 @@ struct vterm_message
 	struct vterm_message *next;
 };
 
+#define MAX_ARGS     4           
 struct vterm
 {
 	struct mutex vt_lock;
@@ -115,6 +117,30 @@ struct vterm
 	struct cond condvar;
 	struct mutex condvar_mutex;
 	struct vterm_message *msgs;
+
+	// Buffer used for any multibyte buffering for utf8
+	char multibyte_buffer[10];
+
+	bool in_escape;
+	bool seq_finished;
+	bool in_csi;
+	
+	struct
+	{
+		bool dec_private;
+		bool in_arg;
+		unsigned long args[MAX_ARGS];
+		size_t nr_args;
+		char escape_character;
+	} csi_data;
+
+	size_t do_escape(const char *buffer, size_t length);
+
+private:
+	void process_escape_char(char c);
+	void reset_escape_status();
+	void process_csi_char(char c);
+	void insert_blank(unsigned long nr);
 };
 
 void vterm_append_msg(struct vterm *vterm, struct vterm_message *msg)
@@ -277,6 +303,10 @@ void vterm_dirty_cell(unsigned int x, unsigned int y, struct vterm *vt)
 bool vterm_putc(utf32_t c, struct vterm *vt)
 {
 	if(c == '\0')
+		return false;
+	
+	// TODO: Special behavior?
+	if(c == '\a')
 		return false;
 
 	if(c == '\t')
@@ -476,24 +506,6 @@ void vterm_set_fgcolor(struct color c, struct vterm *vt)
 int isdigit(int c)
 {
 	return c - '0' < 10;
-}
-
-const char *get_decimal_num(const char *buf, unsigned long *num, unsigned long len)
-{
-	unsigned long i = 0;
-
-	while(isdigit(*buf) && len)
-	{
-		len--;
-		i *= 10;
-		i += *buf - '0';
-		buf++;
-		len--;
-	}
-
-	*num = i;
-
-	return buf;
 }
 
 void vterm_ansi_adjust_cursor(char code, unsigned long relative, struct vterm *vt)
@@ -780,167 +792,307 @@ void vterm_ansi_erase_in_display(unsigned long n, struct vterm *vt)
 	vterm_flush(vt);
 }
 
-#define ARGS_NR_ELEMS		2
-
-size_t vterm_parse_ansi(const char *buffer, size_t len, struct vterm *vt)
+void vterm_csi_delete_chars(unsigned long chars, struct vterm *vt)
 {
-	/* len is the distance from the pointer to the end of the buffer
-	 * (so we don't read past it).
-	*/
-	buffer++;
-	size_t args_nr = 0;
-	size_t args_buf_nr = ARGS_NR_ELEMS;
-	const char *orig = buffer;
-	/* Go to the start of the escape code, while ignoring the ESC (0x1b) */
+	unsigned int x = vt->cursor_x;
 
-	if(buffer[0] == ANSI_CSI)
-	{
-		buffer++;
-		unsigned long *args = (unsigned long *) zalloc(sizeof(unsigned long) * args_buf_nr);
-
-		buffer = get_decimal_num(buffer, &args[0], len - (buffer - orig));
-
-		args_nr++;
+	if(chars > vt->columns - x)
+		chars = vt->columns - x; 
 	
-		while(*buffer == ';' && (unsigned long) (buffer - orig) < len)
+	memcpy(&vt->cells[vt->cursor_y * vt->columns + x],
+	       &vt->cells[vt->cursor_y * vt->columns + x + chars],
+		   sizeof(console_cell) * (vt->columns - x - chars));
+
+	for(unsigned int i = 0; i < vt->columns; i++)
+	{
+		struct console_cell *c = &vt->cells[vt->cursor_y * vt->columns + i];
+		
+		if(i >= vt->columns - chars)
 		{
-			/* We have an argument */
-			buffer++;
-
-			if(args_nr == args_buf_nr)
-			{
-				args_buf_nr += ARGS_NR_ELEMS;
-				unsigned long *old = args;
-				args = (unsigned long *) realloc(args, sizeof(unsigned long) * args_buf_nr);
-
-				if(!args)
-				{
-					free(old);
-					/* uh oh, no memory, return 1 so we
-					 * don't fall into the escape code again.
-					 * It'll just print garbage the next
-					 * time the loop runs
-					*/
-					return 1;
-				}
-			}
-
-			buffer = get_decimal_num(buffer, &args[args_nr], len - (buffer - orig));
-			args_nr++;
-
+			c->codepoint = ' ';
+			c->fg = vt->fg;
+			c->bg = vt->bg;
 		}
 
-		if((unsigned long) (buffer - orig) == len)
-		{
-			free(args);
-			return len;
-		}
-
-		switch(*buffer)
-		{
-			case ANSI_CURSOR_UP:
-			case ANSI_CURSOR_DOWN:
-			case ANSI_CURSOR_FORWARD:
-			case ANSI_CURSOR_BACK:
-			{
-				vterm_ansi_adjust_cursor(*buffer, args[0], vt);
-				break;
-			}
-
-			case ANSI_CURSOR_PREVIOUS:
-			{
-				/* Do a ANSI_CURSOR_UP and set x to 0 (beginning of line) */
-				vterm_ansi_adjust_cursor(ANSI_CURSOR_UP, args[0], vt);
-				vt->cursor_x = 0;
-				break;
-			}
-
-			case ANSI_CURSOR_NEXT_LINE:
-			{
-				/* Do a ANSI_CURSOR_DOWN and set x to 0 (beginning of line) */
-				vterm_ansi_adjust_cursor(ANSI_CURSOR_DOWN, args[0], vt);
-				vt->cursor_x = 0;
-				break;
-			}
-
-			case ANSI_CURSOR_HORIZONTAL_ABS:
-			{
-				if(args[0] > vt->columns - 1)
-					args[0] = vt->columns - 1;
-				vt->cursor_x = args[0];
-				break;
-			}
-
-			case ANSI_CURSOR_POS:
-			case ANSI_HVP:
-			{
-				if(args[0] == 0)
-					args[0] = 1;
-				if(args[1] == 0)
-					args[1] = 1;
-
-				vterm_ansi_do_cup(args[1], args[0], vt);
-				break;
-			}
-
-			case ANSI_SCROLL_UP:
-			{
-				for(unsigned long i = 0; i < args[0]; i++)
-					vterm_scroll(vt->fb, vt);
-				vterm_flush_all(vt);
-				break;
-			}
-
-			case ANSI_SCROLL_DOWN:
-			{
-				for(unsigned long i = 0; i < args[0]; i++)
-					vterm_scroll_down(vt->fb, vt);
-				vterm_flush_all(vt);
-				break;
-			}
-
-			case ANSI_SGR:
-			{
-				for(size_t i = 0; i < args_nr; i++)
-					vterm_ansi_do_sgr(args[i], vt);
-				break;
-			}
-			
-			case ANSI_ERASE_IN_LINE:
-			{
-				vterm_ansi_erase_in_line(args[0], vt);
-				break;
-			}
-
-			case ANSI_ERASE_IN_DISPLAY:
-			{
-				vterm_ansi_erase_in_display(args[0], vt);
-				break;
-			}
-
-			case ANSI_SAVE_CURSOR:
-			{
-				vt->saved_x = vt->cursor_x;
-				vt->saved_y = vt->cursor_y;
-				break;
-			}
-
-			case ANSI_RESTORE_CURSOR:
-			{
-				vt->cursor_x = vt->saved_x;
-				vt->cursor_y = vt->saved_y;
-				break;
-			}
-		}
-		buffer++;
-
-		free(args);
+		vterm_set_dirty(c);
 	}
+}
 
-	return (buffer - orig) + 1;
+void vterm::insert_blank(unsigned long nr)
+{
+	auto x = cursor_x;
+	auto to_blank = cul::min((unsigned int) nr, columns - x);
+	memmove(&cells[cursor_y * columns + x + to_blank], &cells[cursor_y * columns + x],
+	       sizeof(console_cell) * (columns - nr - x));
+
+	for(unsigned int i = x; i < columns; i++)
+	{
+		auto &cell = cells[cursor_y * columns + i];
+		if(i < x + to_blank)
+		{
+			cell.codepoint = ' ';
+			cell.fg = fg;
+			cell.bg = bg;
+		}
+
+		vterm_set_dirty(&cell);
+	}
 }
 
 void platform_serial_write(const char *s, size_t size);
+
+void vterm::reset_escape_status()
+{
+	in_escape = false;
+
+	if(in_csi)
+	{
+		for(auto &n : csi_data.args)
+			n = 0;
+		
+		csi_data.nr_args = 0;
+		csi_data.escape_character = '\0';
+		csi_data.in_arg = false;
+		csi_data.dec_private = false;
+	}
+
+	seq_finished = false;
+}
+
+void vterm::process_csi_char(char c)
+{
+	if(isdigit(c))
+	{
+		unsigned int digit = c - '0';
+		// This is surely part of an argument, or the beginning of one
+		if(csi_data.in_arg)
+		{
+			auto &arg = csi_data.args[csi_data.nr_args - 1];
+			// We add space for another digit in the variable and add it in
+			// TODO: Can an overflow here be an attack vector?
+			arg *= 10;
+			arg += digit;
+		}
+		else
+		{
+			// Consume the character but don't add it, as we've hit the hard limit
+			if(csi_data.nr_args == MAX_ARGS - 1)
+				return;
+
+			csi_data.nr_args++;
+			csi_data.args[csi_data.nr_args - 1] = digit; 
+			csi_data.in_arg = true;
+		}
+	}
+	else if(c == ';')
+	{
+		if(!csi_data.in_arg)
+		{
+			// Consume the character but don't add it, as we've hit the hard limit
+			if(csi_data.nr_args == MAX_ARGS - 1)
+				return;
+			// This is the codepath that catches stuff like [;2 where the
+			// first arg should be 0 and the second 2
+			csi_data.args[csi_data.nr_args] = 0;
+			csi_data.nr_args++;
+		}
+
+		csi_data.in_arg = false;
+	}
+	else if(c == '?')
+	{
+		csi_data.dec_private = true;
+	}
+	else
+	{
+		csi_data.escape_character = c;
+		seq_finished = true;
+	}
+}
+
+void vterm::process_escape_char(char c)
+{
+	switch(c)
+	{
+		case ANSI_ESCAPE_CODE:
+		{
+			if(in_escape)
+			{
+				//platform_serial_write("Reset", strlen("Reset"));
+				reset_escape_status();
+			}
+
+			//platform_serial_write("InEsc", strlen("InEsc"));
+		
+			in_escape = true;
+			break;
+		}
+
+		case ANSI_CSI:
+		{
+			// We should have only gotten here if we got an escape character before
+			// so we don't need to check for in_escape
+			in_csi = true;
+			break;
+		}
+
+		default:
+		{
+			if(in_csi)
+				process_csi_char(c);
+			
+			break;
+		}
+	}
+}
+
+size_t vterm::do_escape(const char *buffer, size_t len)
+{
+	size_t processed = 0;
+	for(size_t i = 0; i < len; i++)
+	{
+		process_escape_char(buffer[i]);
+		processed++;
+
+		if(seq_finished)
+			break;
+	}
+
+	if(!seq_finished)
+		return processed;
+
+	auto &args = csi_data.args;
+
+	char escape = csi_data.escape_character;
+
+#if 0
+	char buf[50];
+	snprintf(buf, 50, "Seq: %c args {%lu, %lu}\n", escape, args[0], args[1]);
+	platform_serial_write(buf, strlen(buf));
+	//platform_serial_write("Seq: ", strlen("Seq: "));
+	//platform_serial_write(&escape, 1);
+	//platform_serial_write("\n", 1);
+#endif
+
+	switch(escape)
+	{
+		case ANSI_CURSOR_UP:
+		case ANSI_CURSOR_DOWN:
+		case ANSI_CURSOR_FORWARD:
+		case ANSI_CURSOR_BACK:
+		{
+			vterm_ansi_adjust_cursor(escape, csi_data.args[0], this);
+			break;
+		}
+
+		case ANSI_CURSOR_PREVIOUS:
+		{
+			/* Do a ANSI_CURSOR_UP and set x to 0 (beginning of line) */
+			vterm_ansi_adjust_cursor(ANSI_CURSOR_UP, args[0], this);
+			cursor_x = 0;
+			break;
+		}
+
+		case ANSI_CURSOR_NEXT_LINE:
+		{
+			/* Do a ANSI_CURSOR_DOWN and set x to 0 (beginning of line) */
+			vterm_ansi_adjust_cursor(ANSI_CURSOR_DOWN, args[0], this);
+			cursor_x = 0;
+			break;
+		}
+
+		case ANSI_CURSOR_HORIZONTAL_ABS:
+		{
+			if(args[0] > columns - 1)
+				args[0] = columns - 1;
+			cursor_x = args[0];
+			break;
+		}
+
+		case ANSI_CURSOR_POS:
+		case ANSI_HVP:
+		{
+			if(args[0] == 0)
+				args[0] = 1;
+			if(args[1] == 0)
+				args[1] = 1;
+
+			vterm_ansi_do_cup(args[1], args[0], this);
+			break;
+		}
+
+		case ANSI_SCROLL_UP:
+		{
+			for(unsigned long i = 0; i < args[0]; i++)
+				vterm_scroll(fb, this);
+			vterm_flush_all(this);
+			break;
+		}
+
+		case ANSI_SCROLL_DOWN:
+		{
+			for(unsigned long i = 0; i < args[0]; i++)
+				vterm_scroll_down(fb, this);
+			vterm_flush_all(this);
+			break;
+		}
+
+		case ANSI_SGR:
+		{
+			for(size_t i = 0; i < csi_data.nr_args; i++)
+				vterm_ansi_do_sgr(args[i], this);
+			break;
+		}
+			
+		case ANSI_ERASE_IN_LINE:
+		{
+			vterm_ansi_erase_in_line(args[0], this);
+			break;
+		}
+
+		case ANSI_ERASE_IN_DISPLAY:
+		{
+			vterm_ansi_erase_in_display(args[0], this);
+			break;
+		}
+
+		case ANSI_SAVE_CURSOR:
+		{
+			saved_x = cursor_x;
+			saved_y = cursor_y;
+			break;
+		}
+
+		case ANSI_RESTORE_CURSOR:
+		{
+			cursor_x = saved_x;
+			cursor_y = saved_y;
+			break;
+		}
+
+		case CSI_DELETE_CHARS:
+		{
+			if(args[0] == 0)
+				args[0] = 1;
+			vterm_csi_delete_chars(args[0], this);
+			break;
+		}
+
+		case CSI_INSERT_BLANK:
+		{
+			if(args[0] == 0)
+				args[0] = 1;
+			
+			insert_blank(args[0]);
+			break;
+		}
+	}
+
+	reset_escape_status();
+
+	return processed;
+}
+
 void serial_write(const char *s, size_t size, struct serial_port *port);
 
 ssize_t vterm_write_tty(const void *buffer, size_t size, struct tty *tty)
@@ -956,9 +1108,9 @@ ssize_t vterm_write_tty(const void *buffer, size_t size, struct tty *tty)
 	for (; i < size; i++)
 	{
 		/* Parse ANSI terminal escape codes */
-		if(data[i] == ANSI_ESCAPE_CODE)
+		if(data[i] == ANSI_ESCAPE_CODE || vt->in_escape)
 			/* Note the -1 because of the i++ in the for loop */
-			i += vterm_parse_ansi(&data[i], size - i, vt) - 1;
+			i += vt->do_escape(&data[i], size - i) - 1;
 		else
 		{
 			size_t codepoint_length = 0;
@@ -969,7 +1121,11 @@ ssize_t vterm_write_tty(const void *buffer, size_t size, struct tty *tty)
 			 */
 			if(codepoint == UTF_INVALID_CODEPOINT)
 				codepoint = '?';
-
+#if 0			
+			char x[9];
+			snprintf(x, 9, "%x\n", codepoint);
+			platform_serial_write(x, strlen(x));
+#endif
 			if(vterm_putc(codepoint, vt))
 				did_scroll = true;
 
@@ -1083,7 +1239,7 @@ int vterm_receive_input(char *c)
 	if(!vt)
 		return -1;
 
-	tty_received_character(vt->tty, *c);
+	tty_received_characters(vt->tty, c);
 
 	return 0;
 }
@@ -1166,7 +1322,11 @@ struct key_action key_actions[] =
 	{KEYMAP_KEY_KEYPAD_MINUS, "-"},
 	{KEYMAP_KEY_KEYPAD_PLUS, "+"},
 	{KEYMAP_KEY_KEYPAD_ENTER, "\n"},
-	{KEYMAP_KEY_SPACE, " ", " "}
+	{KEYMAP_KEY_SPACE, " ", " "},
+	{KEYMAP_KEY_ARROW_LEFT, "\033[D"},
+	{KEYMAP_KEY_ARROW_UP, "\033[A"},
+	{KEYMAP_KEY_ARROW_DOWN, "\033[B"},
+	{KEYMAP_KEY_ARROW_RIGHT, "\033[C"},
 };
 
 struct key_action pt_pt_key_actions[] = 
@@ -1238,7 +1398,11 @@ struct key_action pt_pt_key_actions[] =
 	{KEYMAP_KEY_KEYPAD_PLUS, "+"},
 	{KEYMAP_KEY_KEYPAD_ENTER, "\n"},
 	{KEYMAP_KEY_SPACE, " ", " "},
-	{KEYMAP_102ND, "<", ">"}
+	{KEYMAP_102ND, "<", ">"},
+	{KEYMAP_KEY_ARROW_LEFT, "\033[D"},
+	{KEYMAP_KEY_ARROW_UP, "\033[A"},
+	{KEYMAP_KEY_ARROW_DOWN, "\033[B"},
+	{KEYMAP_KEY_ARROW_RIGHT, "\033[C"},
 };
 
 const size_t nr_actions = sizeof(key_actions) / sizeof(key_actions[0]);

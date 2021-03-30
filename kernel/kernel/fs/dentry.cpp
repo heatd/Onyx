@@ -507,7 +507,8 @@ int __dentry_resolve_path(nameidata& data)
 		if(is_last_name && data.handler)
 		{
 			//printk("^^ is last name\n");
-			auto ex = (*data.handler)(data, v);
+			//printk("data.handler: %p\n", data.handler);
+			auto ex = data.handler->operator()(data, v);
 			if(ex.has_value())
 			{
 				dentry_put(data.location);
@@ -813,8 +814,7 @@ struct symlink_handling : public last_name_handling
 			return unexpected<int>{-errno};
 		}
 
-		new_dentry->d_inode = new_ino;
-		
+		new_dentry->d_inode = new_ino;		
 		return new_dentry;
 	}
 };
@@ -849,6 +849,7 @@ dentry *dentry_do_open(dentry *base, const char *path, unsigned int lookup_flags
 
 file *file_creation_helper(dentry *base, const char *path, last_name_handling& h)
 {
+	//assert((void *) &h.operator() != nullptr);
 	auto dent = generic_last_name_helper(base, path, h);
 	if(!dent)
 		return nullptr;

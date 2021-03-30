@@ -22,7 +22,7 @@ struct tty_line_disc ntty_disc = {.ldisc = N_TTY, .ops = &ntty_ops};
 
 int iscntrl(int c)
 {
-	return (unsigned int) c < 0x20 || c == 0x7f;
+	return (unsigned int) c < 0x20 || c == 0x7f || c == '\033';
 }
 
 struct tty_echo_args
@@ -41,7 +41,7 @@ static inline bool should_print_special(char c)
 
 void n_tty_receive_control_input(struct tty_echo_args *args, char c, struct tty *tty)
 {
-	if(c == '\x7f')
+	if(c == TTY_CC(tty, VERASE))
 	{
 		if(tty->input_buf_pos <= 0)
 		{
@@ -92,7 +92,7 @@ static ssize_t n_tty_receive_input(char c, struct tty *tty)
 
 	spin_lock(&tty->input_lock);
 
-	if(iscntrl(c))
+	if(iscntrl(c) && TTY_LFLAG(tty, ICANON))
 		n_tty_receive_control_input(&args, c, tty);
 	else
 	{
