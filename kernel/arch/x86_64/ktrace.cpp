@@ -144,44 +144,22 @@ void __replace_instructions(void *ip, const void *instructions, size_t size)
 	irq_restore(f);
 }
 
+#define REPLACE_INSTR_N(N) \
+while(size >= N)            \
+{                           \
+	__replace_instructions((void *) instr, __PASTE(__PASTE(nop_, N), byte), N); \
+	size -= N;             \
+	instr += N;            \
+}
+
 void nop_out(void *ip, size_t size)
 {
-	/* TODO: This could be much neater */
 	char *instr = (char *) ip;
-	while(size >= 5)
-	{
-		__replace_instructions((void *) instr, nop_5byte, 5);
-		size -= 5;
-		instr += 5;
-	}
-
-	while(size >= 4)
-	{
-		__replace_instructions((void *) instr, nop_4byte, 4);
-		size -= 4;
-		instr += 4;
-	}
-
-	while(size >= 3)
-	{
-		__replace_instructions((void *) instr, nop_3byte, 3);
-		size -= 3;
-		instr += 3;
-	}
-
-	while(size >= 2)
-	{
-		__replace_instructions((void *) instr, nop_2byte, 2);
-		size -= 2;
-		instr += 2;
-	}
-
-	while(size >= 1)
-	{
-		__replace_instructions((void *) instr, nop_1byte, 1);
-		size -= 1;
-		instr += 1;
-	}
+	REPLACE_INSTR_N(5);
+	REPLACE_INSTR_N(4);
+	REPLACE_INSTR_N(3);
+	REPLACE_INSTR_N(2);
+	REPLACE_INSTR_N(1);
 }
 
 void replace_instructions(void *ip, const void *instructions, size_t size, size_t max)

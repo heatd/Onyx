@@ -147,9 +147,6 @@ syscall_ENTRY64:
 	add $8, %rsp
 	pop %rax
 
-	# TODO: Can the cli be pushed down?
-	cli
-
 	pop %rcx
 	mov %cx, %ds
 	mov %cx, %es
@@ -162,6 +159,9 @@ syscall_ENTRY64:
 	pop %r10
 	pop %rdx
 	pop %rsi
+
+	# Disable the interrupts since we're about to do some naughty stuff with the stack
+	cli
 
 	# Save the user rsp really quickly, since no one will touch the stack
 	push %rdi

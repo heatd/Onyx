@@ -310,9 +310,7 @@ void pcie_enumerate_device(uint8_t bus, uint8_t device, uint8_t function, struct
 	bus_add_device(&pcie_bus, (struct device*) dev);
 	
 	/* It's pointless to enumerate subfunctions since functions can't have them */
-	/* TODO: Running qemu with -machine q35 returned 0x80 on pci headers with functions != 0
-	   Is this a qemu bug or is it our fault?
-	*/
+
 	if(function != 0)
 		return;
 	for(int i = 1; i < 8; i++)
