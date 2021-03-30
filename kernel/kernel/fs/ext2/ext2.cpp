@@ -334,8 +334,6 @@ int ext2_ino_type_to_vfs_type(uint16_t mode)
 	else if(EXT2_GET_FILE_TYPE(mode) == EXT2_INO_TYPE_UNIX_SOCK)
 		return VFS_TYPE_UNIX_SOCK;
 
-	/* FIXME: Signal the filesystem as corrupted through the superblock,
-	 and don't panic */
 	return VFS_TYPE_UNK;
 }
 

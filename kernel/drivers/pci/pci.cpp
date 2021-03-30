@@ -362,7 +362,7 @@ void *pci_map_bar(struct pci_device *device, int index, unsigned int caching)
 
 uint16_t pci_get_intn(struct pci_device *dev)
 {
-	uint8_t pin = pci_read(dev, 0x3C, sizeof(uint16_t)) >> 8;
+	uint8_t pin = pci_read(dev, PCI_REGISTER_INTN, sizeof(uint16_t)) >> 8;
 	if(pin == 0xff)
 		return UINT16_MAX;
 
