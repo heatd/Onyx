@@ -33,7 +33,7 @@ int igd_is_valid_vbt(struct igpu_device *dev, struct vbt_header *header)
 		return -1;
 	}
 
-	struct bdb_header *bdb = (void *) ((char *) header + header->bdb_off);
+	struct bdb_header *bdb = (bdb_header *) ((char *) header + header->bdb_off);
 	
 	if(bdb->header_size < sizeof(struct bdb_header))
 	{
@@ -80,7 +80,7 @@ struct bdb_block_header *igd_find_bdb_block(struct bdb_header *bdb,
 
 	while(pointer + sizeof(struct bdb_block_header) < size)
 	{
-		struct bdb_block_header *blk = (void *) ((uint8_t *) bdb + pointer);
+		struct bdb_block_header *blk = (bdb_block_header *) ((uint8_t *) bdb + pointer);
 
 		if(blk->block_id == id)
 			return blk;
@@ -119,14 +119,14 @@ int igd_get_integrated_panel_settings(struct igpu_device *dev)
 
 	assert(blk != NULL);
 
-	struct bdb_lvds_lfp_data_ptrs *ptrs = (void *) &blk->data;
+	struct bdb_lvds_lfp_data_ptrs *ptrs = (bdb_lvds_lfp_data_ptrs *) &blk->data;
 
 	uint32_t lfp_data_size =
 	    ptrs->ptr[1].fp_timing_offset - ptrs->ptr[0].fp_timing_offset;
 
 	struct bdb_lvds_lfp_data *data = (struct bdb_lvds_lfp_data *) &block->data;
 
-	struct bdb_lvds_lfp_data_entry *entry = (void *)((uint8_t *) data->data +
+	struct bdb_lvds_lfp_data_entry *entry = (bdb_lvds_lfp_data_entry *)((uint8_t *) data->data +
 					lfp_data_size * panel_type);
 	dev->lfp_data = entry;
 
@@ -139,7 +139,7 @@ int igd_parse_vbt(struct igpu_device *dev)
 	if(!block)
 		return 0;
 	
-	struct bdb_general_definitions *defs = (void *) &block->data;
+	struct bdb_general_definitions *defs = (bdb_general_definitions *) &block->data;
 	(void) defs;
 
 	return igd_get_integrated_panel_settings(dev);
@@ -170,7 +170,7 @@ int igd_get_ddi_info(struct igpu_device *dev)
 	struct bdb_block_header *block = igd_find_bdb_block(dev->igd_vbt_bdb, BDB_GENERAL_DEFINITIONS);
 	if(!block)
 		return 0;
-	struct bdb_general_definitions *defs = (void *) &block->data;
+	struct bdb_general_definitions *defs = (bdb_general_definitions *) &block->data;
 	
 
 	uint16_t num_configs = (block->block_size - sizeof(struct bdb_general_definitions)) /
@@ -178,7 +178,7 @@ int igd_get_ddi_info(struct igpu_device *dev)
 
 	for(uint16_t i = 0; i < num_configs; i++)
 	{
-		struct child_device_config *cfg = (void *) (((uint8_t *) &defs->devices)
+		struct child_device_config *cfg = (child_device_config *) (((uint8_t *) &defs->devices)
 			+ i * defs->child_dev_size);
 		
 		enum DDI port = dvo_port_to_ddi(cfg->dvo_port);

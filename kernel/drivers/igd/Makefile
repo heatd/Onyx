@@ -1,4 +1,4 @@
-igd-y:= $(patsubst %.c, %.o, $(wildcard drivers/igd/*.c))
+igd-y:= $(patsubst %.cpp, %.o, $(wildcard drivers/igd/*.cpp))
 
 module-name:=igd
 

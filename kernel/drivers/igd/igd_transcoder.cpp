@@ -28,7 +28,7 @@ int igd_init_transcoders(struct igpu_device *dev)
 {
 	for(unsigned int i = 0; i < NR_TRANSCODERS; i++)
 	{
-		struct igd_transcoder *trans = zalloc(sizeof(*trans));
+		struct igd_transcoder *trans = (igd_transcoder *) zalloc(sizeof(*trans));
 		
 		if(!trans)
 			return -1;

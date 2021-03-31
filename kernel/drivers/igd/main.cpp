@@ -119,7 +119,7 @@ int ihdgpu_probe(struct device *dev)
 		"ID %04x:%04x\n", device->segment, device->bus, device->device,
 		device->function, device->vendorID, device->deviceID);
 	
-	struct igpu_device *d = zalloc(sizeof(*d));
+	struct igpu_device *d = (igpu_device *) zalloc(sizeof(*d));
 	if(!d)
 		return -1;
 

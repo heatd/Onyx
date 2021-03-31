@@ -12,7 +12,7 @@ int igd_init_primary_planes(struct igpu_device *device)
 {
 	for(unsigned int i = 0; i < NR_PRI_PLANES; i++)
 	{
-		struct igd_primary_plane *plane = zalloc(sizeof(struct igd_primary_plane));
+		struct igd_primary_plane *plane = (igd_primary_plane *) zalloc(sizeof(struct igd_primary_plane));
 		if(!plane)
 			return -1;
 		plane->name = (enum PRI_PLANE_NAME) i;

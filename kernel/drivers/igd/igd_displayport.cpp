@@ -16,8 +16,8 @@
 int ddaux_do_transfers(struct i2c_adapter *adapter,
 				     struct i2c_message *messages, size_t nr);
 
-#define LITTLE_TO_BIG32(n) ((n >> 24) & 0xFF) | ((n << 8) & 0xFF0000) | \
-			   ((n >> 8) & 0xFF00) | ((n << 24) & 0xFF000000)
+#define LITTLE_TO_BIG32(n) (((n) >> 24) & 0xFF) | (((n) << 8) & 0xFF0000) | \
+			   (((n) >> 8) & 0xFF00) | (((n) << 24) & 0xFF000000)
 
 
 #define DDI_AUX_REPLY_AUX_ACK 0
@@ -29,7 +29,7 @@ int ddaux_do_transfers(struct i2c_adapter *adapter,
 int ddaux_do_transfer(struct i2c_adapter *adapter,
 				     struct i2c_message *message)
 {
-	struct igd_displayport *port = adapter->priv;
+	struct igd_displayport *port = (igd_displayport *) adapter->priv;
 
 	uint8_t data[20];
 	uint8_t cmd;
@@ -163,7 +163,7 @@ int igd_init_displayport(struct igpu_device *dev)
 {
 	for(unsigned int i = 0; i < NR_DISPLAY_PORTS; i++)
 	{
-		dev->dports[i] = zalloc(sizeof(*dev->dports[i]));
+		dev->dports[i] = (igd_displayport *) zalloc(sizeof(*dev->dports[i]));
 		if(!dev->dports[i])
 		{
 			return -ENOMEM;
@@ -176,7 +176,7 @@ int igd_init_displayport(struct igpu_device *dev)
 		dev->dports[i]->device = dev;
 
 		/* Allocate a buffer (size for DDIX + '\0' = 5) */
-		char *buf = malloc(5);
+		char *buf = (char *) malloc(5);
 		if(!buf)
 		{
 			return -ENOMEM;

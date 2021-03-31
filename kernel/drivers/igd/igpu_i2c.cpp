@@ -165,7 +165,7 @@ int igpu_i2c_do_message(struct igpu_device *dev, struct i2c_message *msg)
 int igpu_transaction(struct i2c_adapter *adapter, struct i2c_message *msgs,
 		     size_t nr)
 {
-	struct igpu_device *dev = adapter->priv;
+	struct igpu_device *dev = (igpu_device *) adapter->priv;
 
 	for(size_t i = 0; i < nr; i++)
 	{

@@ -16,7 +16,7 @@ int igd_init_pipes(struct igpu_device *device)
 {
 	for(unsigned int i = 0; i < NR_PIPES; i++)
 	{
-		struct igd_pipe *pipe = zalloc(sizeof(*pipe));
+		struct igd_pipe *pipe = (igd_pipe *) zalloc(sizeof(*pipe));
 
 		if(!pipe)
 			return -1;

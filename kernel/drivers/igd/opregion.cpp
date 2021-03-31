@@ -67,7 +67,7 @@ int igd_opregion_init(struct igpu_device *dev)
 		return -1;
 	}
 
-	struct vbt_header *header = (void *) &dev->opregion->mailbox4;
+	struct vbt_header *header = (vbt_header *) &dev->opregion->mailbox4;
 
 	if(igd_is_valid_vbt(dev, header) < 0)
 	{

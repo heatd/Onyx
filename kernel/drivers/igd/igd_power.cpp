@@ -153,7 +153,7 @@ int igd_enable_power_haswell(struct igpu_device *dev)
 
 int igd_enable_power(struct igpu_device *dev)
 {
-	struct igpu_driver_data *data = dev->device->driver_data;
+	struct igpu_driver_data *data = (igpu_driver_data *) dev->device->driver_data;
 
 	assert(data->enable_power != NULL);
 

@@ -138,14 +138,14 @@ qemu: iso
 	-display gtk,gl=on -machine q35
 
 intel-passthrough-qemu: iso
-	sudo qemu-system-x86_64 -vga none -display gtk,gl=on \
+	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) \
+	-s -cdrom Onyx.iso -drive file=hdd.img,format=raw,media=disk -m 512M \
+	-monitor stdio -boot d -netdev user,id=u1 -device e1000,netdev=u1 \
+	-object filter-dump,id=f1,netdev=u1,file=net.pcap \
+	-enable-kvm -cpu host,migratable=on,+invtsc -smp 4 -vga none -display gtk,gl=on \
 	-device vfio-pci,sysfsdev=/sys/devices/pci0000\:00/0000\:00\:02.0/d507ce65-255a-4b85-88b5-0090410c0b5c,display=on,x-igd-opregion=on,\
 	ramfb=on,driver=vfio-pci-nohotplug \
-	-enable-kvm -s -cdrom Onyx.iso \
-	-machine q35 -drive file=hdd.img,format=raw,media=disk -m 512M \
-	-boot d -netdev user,id=u1 -device virtio-net,netdev=u1 \
-	-object filter-dump,id=f1,netdev=u1,file=net.pcap \
-	-smp 2 -cpu host,migratable=on,+invtsc
+	-device usb-ehci -device usb-mouse
 
 virtualbox: iso
 	virtualbox --startvm Onyx --dbg
