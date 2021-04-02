@@ -15,6 +15,7 @@
 #include <onyx/spinlock.h>
 #include <onyx/list.h>
 #include <onyx/sysfs.h>
+#include <onyx/list.h>
 
 #define MAJOR_DEVICE_HASHTABLE 255
 
@@ -40,12 +41,6 @@ int device_create_dir(const char *path);
 int device_mknod(struct dev *d, const char *path, const char *name, mode_t mode);
 int device_show(struct dev *d, const char *path, mode_t mode);
 
-void devfs_init(void);
-void null_init(void);
-void zero_init(void);
-
-extern struct file *slashdev;
-
 struct bus;
 struct device;
 
@@ -58,49 +53,120 @@ struct driver
 	unsigned long ref;
 	void *devids;
 
-	int (*probe)(struct device *dev);
-	void (*shutdown)(struct device *dev);
-	void (*resume)(struct device *dev);
-	void (*suspend)(struct device *dev);
+	int (*probe)(device *dev);
+	void (*shutdown)(device *dev);
+	void (*resume)(device *dev);
+	void (*suspend)(device *dev);
 
-	struct driver *next_bus;
+	list_head_cpp<driver> bus_type_node;
 };
 
 struct device
 {
-	struct device *parent;
+	device *parent;
 	const char *name;
 	struct bus *bus;
-	struct driver *driver;
-	struct sysfs_object device_sysfs;
+	driver *driver_;
+	sysfs_object device_sysfs;
 	void *priv;
 
-	struct extrusive_list_head children;
-	struct list_head device_list_node;
+	extrusive_list_head children;
+	list_head_cpp<device> device_list_node;
+
+	device(const char *name, struct bus *bus, device *parent) : parent{parent}, name{name}, bus{bus},
+           driver_{nullptr}, device_sysfs{}, priv{}, children{}, device_list_node{this}
+	{
+	
+	}
+
+	virtual int shutdown()
+	{
+		return 0;
+	}
+
+	virtual int resume()
+	{
+		return 0;
+	}
+
+	virtual int suspend()
+	{
+		return 0;
+	}
 };
+
+struct bus;
+
+/* bus_init - Initialize a bus structure */
+int bus_init(struct bus *bus);
 
 struct bus
 {
 	/* Name of the bus */
 	const char *name;
-	struct spinlock bus_lock;
+	spinlock bus_lock;
 	/* List of every device connected to this bus */
-	struct list_head device_list_head;
-	struct driver *registered_drivers;
-	struct sysfs_object bus_sysfs;
+	list_head device_list_head;
+	list_head child_buses;
+	sysfs_object bus_sysfs;
 
-	int (*shutdown)(struct device *);
-	int (*resume)(struct device *);
-	int (*suspend)(struct device *);
+	int (*shutdown_bus)(bus *);
+	int (*suspend_bus)(bus *);
+	int (*resume_bus)(bus *);
+	list_head_cpp<bus> bus_list_node;
+	list_head_cpp<bus> bus_type_node;
+	list_head_cpp<bus> child_buses_node;
 
-	int (*shutdown_bus)(struct bus *);
-	int (*suspend_bus)(struct bus *);
-	int (*resume_bus)(struct bus *);
-	struct list_head bus_list_node;
+	virtual void probe(driver *drv)
+	{
+		list_for_every(&device_list_head)
+		{
+			auto dev = list_head_cpp<device>::self_from_list_head(l);
+			(void) dev;
+			// TODO
+		}
+	}
+
+	template <typename Callable>
+	void for_every_device(Callable cb)
+	{
+		scoped_lock g{bus_lock};
+		list_for_every(&device_list_head)
+		{
+			auto dev = list_head_cpp<device>::self_from_list_head(l);
+			if(!cb(dev))
+				return;
+		}
+	}
+
+	bus(const char *name) : name{name}, bus_lock{}, device_list_head{}, bus_sysfs{},
+              shutdown_bus{}, suspend_bus{}, resume_bus{}, bus_list_node{this}, bus_type_node{this},
+			  child_buses_node{this}
+	{
+		memset(&bus_sysfs, 0, sizeof(bus_sysfs));
+		INIT_LIST_HEAD(&device_list_head);
+		INIT_LIST_HEAD(&child_buses);
+		bus_init(this);
+	}
+
+	void add_bus(bus *b)
+	{
+		scoped_lock g{bus_lock};
+		list_add_tail(&b->child_buses_node, &child_buses);
+	}
+
+	template <typename Callable>
+	void for_every_child_bus(Callable cb)
+	{
+		scoped_lock g{bus_lock};
+		list_for_every(&child_buses)
+		{
+			auto b = list_head_cpp<bus>::self_from_list_head(l);
+			if(!cb(b))
+				return;
+		}
+	}
 };
-
-/* bus_init - Initialize a bus structure */
-int bus_init(struct bus *bus);
 
 /* bus_init - Initialize a device structure */
 int device_init(struct device *dev);

@@ -25,13 +25,13 @@ struct usb_periodic_frame
 class ehci_controller
 {
 private:
-	struct pci_device *pcidev;
+	pci::pci_device *pcidev;
 	mmio_range host_controller_space;
 	mmio_range operational_reg_space;
 	struct page *periodic_list_page;
 	struct usb_periodic_frame *periodic_list;
 public:
-	constexpr ehci_controller(struct pci_device *d, volatile void *base) :
+	constexpr ehci_controller(pci::pci_device *d, volatile void *base) :
 		pcidev(d), host_controller_space{base}, operational_reg_space{},
 		periodic_list_page{}, periodic_list{} {}
 	~ehci_controller();

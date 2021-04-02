@@ -685,8 +685,6 @@ parse_command_args(char **argv, const char **path)
 /*
  * Execute a simple command.
  */
-/* GCC7 shits itself while optimizing this, odd. */
- __attribute__((optimize("O0")))
 STATIC int
 #ifdef notyet
 evalcommand(union node *cmd, int flags, struct backcmd *backcmd)

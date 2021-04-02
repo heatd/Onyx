@@ -110,12 +110,12 @@ class ide_dev
 	ide_drive ide_drives[4];
 	prdt_entry_t *prdt;
 	page *prdt_page;
-	pci_device *dev;
+	pci::pci_device *dev;
 	uint16_t busmaster_reg;
 	mutex io_op_lock;
 
 public:
-	explicit ide_dev(pci_device *dev) : ata_buses{},
+	explicit ide_dev(pci::pci_device *dev) : ata_buses{},
 										ide_drives{ata_buses[0], ata_buses[0], ata_buses[1], ata_buses[1]},
 										prdt{}, prdt_page{}, dev{dev},
 	                                    busmaster_reg{}, io_op_lock{}
@@ -159,22 +159,28 @@ public:
 void ide_dev::enable_pci()
 {
 	/* Enable PCI Busmastering and PCI IDE mode */
-	pci_enable_device(dev);
-	pci_enable_busmastering(dev);
-	pci_write(dev, 14, PCI_REGISTER_INTN, sizeof(uint16_t));
-	pci_set_barx(dev->bus, dev->device, dev->function, 0, IDE_DATA1, 1, 0);
+	dev->enable_device();
+	dev->enable_busmastering();
+	dev->write(14, PCI_REGISTER_INTN, sizeof(uint16_t));
+
+#if 0 
+	// TODO: Is this needed?
+	dev->set_bar(dev->bus, dev->device, dev->function, 0, IDE_DATA1, 1, 0);
 	pci_set_barx(dev->bus, dev->device, dev->function, 1, IDE_CONTROL1, 1, 0);
 	pci_set_barx(dev->bus, dev->device, dev->function, 2, IDE_DATA2, 1, 0);
 	pci_set_barx(dev->bus, dev->device, dev->function, 3, IDE_CONTROL2, 1, 0);
+#endif
 
 	ata_buses[0].control_reg = IDE_CONTROL1;
 	ata_buses[1].control_reg = IDE_CONTROL2;
 	ata_buses[0].data_reg = IDE_DATA1;
 	ata_buses[1].data_reg = IDE_DATA2;
 
-	struct pci_bar bar;
+	auto st = dev->get_bar(4);
+	assert(st.has_error() == false);
 
-	assert(pci_get_bar(dev, 4, &bar) == 0);
+	auto bar = st.value();
+
 	busmaster_reg = bar.address;
 
 	ata_buses[0].busmaster_reg = busmaster_reg;
@@ -417,7 +423,7 @@ int ide_drive::probe()
 	return 1;
 }
 
-struct pci_id ata_devs[] =
+struct pci::pci_id ata_devs[] =
 {
 	{PCI_ID_CLASS(CLASS_MASS_STORAGE_CONTROLLER, 1, PCI_ANY_ID, NULL)},
 	{PCI_ID_CLASS(CLASS_MASS_STORAGE_CONTROLLER, 6, PCI_ANY_ID, NULL)},
@@ -426,7 +432,7 @@ struct pci_id ata_devs[] =
 
 int ata_probe(struct device *d)
 {
-	struct pci_device *device = (struct pci_device *) d;
+	pci::pci_device *device = (pci::pci_device *) d;
 
 	unique_ptr<ide_dev> dev = make_unique<ide_dev>(device);
 	if(!dev)
@@ -444,7 +450,8 @@ struct driver ata_driver =
 {
 	.name = "ata",
 	.devids = &ata_devs,
-	.probe = ata_probe
+	.probe = ata_probe,
+	.bus_type_node = {&ata_driver}
 };
 
 int ata_init(void)
@@ -453,7 +460,7 @@ int ata_init(void)
 	if(!ata_ids)
 		return -1;
 
-	pci_bus_register_driver(&ata_driver);
+	pci::register_driver(&ata_driver);
 
 	return 0;
 }

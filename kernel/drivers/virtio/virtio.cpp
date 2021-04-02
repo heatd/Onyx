@@ -50,21 +50,27 @@ bool vdev::find_structures()
 	size_t cap_off = 0;
 	int instance_nr = 0;
 
-	while((cap_off = pci_find_capability(dev, PCI_CAP_ID_VENDOR, instance_nr)) != 0)
+	while((cap_off = dev->find_capability(PCI_CAP_ID_VENDOR, instance_nr)) != 0)
 	{
 		instance_nr++;
-		uint8_t cfg_type = pci_read(dev, cap_off + virtio::cfg_type_off, sizeof(uint8_t));
-		uint8_t bar = pci_read(dev, cap_off + virtio::bar_off, sizeof(uint8_t));
-		uint32_t offset = pci_read(dev, cap_off + virtio::offset_off, sizeof(uint32_t));
-		uint32_t length = pci_read(dev, cap_off + virtio::length_off, sizeof(uint32_t));
-		struct pci_bar bar_info;
+		uint8_t cfg_type = dev->read(cap_off + virtio::cfg_type_off, sizeof(uint8_t));
+		uint8_t bar = dev->read(cap_off + virtio::bar_off, sizeof(uint8_t));
+		uint32_t offset = dev->read(cap_off + virtio::offset_off, sizeof(uint32_t));
+		uint32_t length = dev->read(cap_off + virtio::length_off, sizeof(uint32_t));
+		pci::pci_bar bar_info;
 	
-		pci_get_bar(dev, bar, &bar_info);
+		auto st = dev->get_bar(bar);
+
+		if(st.has_error())
+			return false;
+		
+		bar_info = st.value();
+
 		auto *structure = &structures[cfg_type - 1];
 
 		if(cfg_type == virtio::vendor_pci_cap::notify)
 		{
-			structure->notify_off_mult = pci_read(dev, cap_off + virtio::notify_off_multiplier, sizeof(uint32_t));
+			structure->notify_off_mult = dev->read(cap_off + virtio::notify_off_multiplier, sizeof(uint32_t));
 		}
 
 		if(structure->initialized)
@@ -86,7 +92,7 @@ bool vdev::find_structures()
 			if(!mapping)
 			{
 				/* Create a mapping of the bar */
-				mapping = bars[bar] = pci_map_bar(dev, bar, VM_NOCACHE);
+				mapping = bars[bar] = dev->map_bar(bar, VM_NOCACHE);
 				if(!mapping)
 				{
 					return false;
@@ -512,7 +518,7 @@ irqstatus_t vdev::handle_irq()
 
 }
 
-struct pci_id virtio_pci_ids[] = 
+struct pci::pci_id virtio_pci_ids[] = 
 {
 	{ PCI_ID_DEVICE(VIRTIO_VENDOR_ID, PCI_ANY_ID, NULL) },
 	{ PCI_ID_DEVICE(VIRTIO_VENDOR_ID2, PCI_ANY_ID, NULL) },
@@ -528,23 +534,25 @@ irqstatus_t virtio_handle_irq(struct irq_context *context, void *cookie)
 
 int virtio_probe(struct device *_dev)
 {
-	struct pci_device *device = (struct pci_device *) _dev;
+	pci::pci_device *device = (pci::pci_device *) _dev;
 	unique_ptr<virtio::vdev> virtio_device;
 
-	if(device->deviceID < virtio::pci_device_id_base_transitional ||
-	   device->deviceID > virtio::pci_device_id_max)
+	if(device->did() < virtio::pci_device_id_base_transitional ||
+	   device->did() > virtio::pci_device_id_max)
 	{
 		/* Not a virtio device */
 		return -1;
 	}
 
+	auto addr = device->addr();
+
 	MPRINTF("Found virtio device at %04x:%02x:%02x:%02x\n",
-		device->segment, device->bus, device->device,
-		device->function);
+		addr.segment, addr.bus, addr.device,
+		addr.function);
 
-	MPRINTF("Device ID %04x\n", device->deviceID);
+	MPRINTF("Device ID %04x\n", device->did());
 
-	auto device_subsystem = virtio::get_virtio_devid(device->deviceID);
+	auto device_subsystem = virtio::get_virtio_devid(device->did());
 
 	switch(device_subsystem)
 	{
@@ -562,7 +570,7 @@ int virtio_probe(struct device *_dev)
 			return -1;
 	}
 
-	assert(install_irq(pci_get_intn(device), virtio_handle_irq, _dev, IRQ_FLAG_REGULAR,
+	assert(install_irq(device->get_intn(), virtio_handle_irq, _dev, IRQ_FLAG_REGULAR,
            virtio_device.get_data()) == 0);
 
 	virtio_device->perform_base_virtio_initialization();
@@ -577,13 +585,14 @@ struct driver virtio_driver =
 {
 	.name = "virtio",
 	.devids = &virtio_pci_ids,
-	.probe = virtio_probe
+	.probe = virtio_probe,
+	.bus_type_node = {&virtio_driver}
 };
 
 extern "C"
 int virtio_init(void)
 {
-	pci_bus_register_driver(&virtio_driver);
+	pci::register_driver(&virtio_driver);
 	return 0;
 }
 

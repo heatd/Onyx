@@ -114,7 +114,7 @@ int igpu_read_edid(struct igpu_device *dev)
 int ihdgpu_probe(struct device *dev)
 {
 	/* TODO: Replace free(d) with actual device destruction */
-	struct pci_device *device = (struct pci_device *) dev;
+	pci::pci_device *device = (pci::pci_device *) dev;
 	MPRINTF("Found suitable Intel HD Graphics GPU at %04x:%02x:%02x:%02x\n"
 		"ID %04x:%04x\n", device->segment, device->bus, device->device,
 		device->function, device->vendorID, device->deviceID);
@@ -234,12 +234,13 @@ struct driver ihdgpu_driver =
 {
 	.name = "ihdgpu",
 	.devids = &ihdgpu_pci_ids,
-	.probe = ihdgpu_probe
+	.probe = ihdgpu_probe,
+	.bus_type_node = {&ihdgpu_driver}
 };
 
 int ihdgpu_init(void)
 {
-	pci_bus_register_driver(&ihdgpu_driver);
+	pci::register_driver(&ihdgpu_driver);
 	return 0;
 }
 

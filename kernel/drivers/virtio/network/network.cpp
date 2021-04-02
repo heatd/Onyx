@@ -242,7 +242,7 @@ network_vdev::~network_vdev()
 	if(rx_pages)  free_pages(rx_pages);
 }
 
-unique_ptr<vdev> create_network_device(pci_device *dev)
+unique_ptr<vdev> create_network_device(pci::pci_device *dev)
 {
 	return make_unique<network_vdev>(dev);
 }

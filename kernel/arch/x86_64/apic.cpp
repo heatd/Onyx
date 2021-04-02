@@ -306,15 +306,13 @@ uint64_t get_microseconds(void)
 	return (apic_rate - lapic_read(get_per_cpu(lapic), LAPIC_TIMER_CURRCNT)) / us_apic_rate;
 }
 
-struct driver apic_driver =
+driver apic_driver =
 {
-	.name = "apic-timer"
+	.name = "apic-timer",
+	.bus_type_node = {&apic_driver}
 };
 
-struct device apic_timer_dev = 
-{
-	.name = "apic-timer"
-};
+device apic_timer_dev{"apic-timer", nullptr, nullptr};
 
 struct tsc_calib_context
 {

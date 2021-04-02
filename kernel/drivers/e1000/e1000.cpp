@@ -59,7 +59,7 @@ struct e1000_device
 	page *rx_pages;
 	page *tx_pages;
 	page *rx_buf_pages;
-	pci_device *nicdev;
+	pci::pci_device *nicdev;
 	netif *nic_netif;
 	unsigned char e1000_internal_mac_address[6];
 	unsigned int irq_nr;
@@ -124,7 +124,7 @@ struct e1000_device
 
 static void e1000_init_busmastering(struct e1000_device *dev)
 {
-	pci_enable_busmastering(dev->nicdev);
+	dev->nicdev->enable_busmastering();
 }
 
 int e1000_process_packet(netif *nif, e1000_rx_desc& desc)
@@ -447,7 +447,7 @@ int e1000_init_descs(struct e1000_device *dev)
 
 void e1000_enable_interrupts(struct e1000_device *dev)
 {
-	dev->irq_nr = pci_get_intn(dev->nicdev);
+	dev->irq_nr = dev->nicdev->get_intn();
 	
 	// Get the IRQ number and install its handler
 	INFO("e1000", "using IRQ number %u\n", dev->irq_nr);
@@ -691,8 +691,8 @@ void e1000_clear_stats(struct e1000_device *dev)
 void e1000_reset_device(struct e1000_device *dev)
 {
 	/* Disable busmastering and interrupts before resetting the NIC */
-	pci_disable_busmastering(dev->nicdev);
-	pci_disable_irq(dev->nicdev);
+	dev->nicdev->disable_busmastering();
+	dev->nicdev->disable_irq();
 
 	/* Also disable rx/tx */
 	e1000_disable_rxtx(dev);
@@ -738,10 +738,10 @@ void e1000_reset_device(struct e1000_device *dev)
 	/* Clear statistical registers */
 	e1000_clear_stats(dev);
 
-	pci_enable_irq(dev->nicdev);
+	dev->nicdev->enable_irq();
 }
 
-struct pci_id e1000_pci_ids[] = 
+struct pci::pci_id e1000_pci_ids[] = 
 {
 	{ PCI_ID_DEVICE(INTEL_VENDOR, E1000_DEV, NULL) },
 	{ PCI_ID_DEVICE(INTEL_VENDOR, E1000_I217, NULL) },
@@ -750,13 +750,15 @@ struct pci_id e1000_pci_ids[] =
 
 int e1000_probe(struct device *__dev)
 {
-	struct pci_device *dev = (struct pci_device *) __dev;
+	pci::pci_device *dev = (pci::pci_device *) __dev;
+
+	auto addr = dev->addr();
 
 	INFO("e1000", "Found suitable e1000 device at %04x:%02x:%02x:%02x\n"
-		"ID %04x:%04x\n", dev->segment, dev->bus, dev->device,
-		dev->function, dev->vendorID, dev->deviceID);
+		"ID %04x:%04x\n", addr.segment, addr.bus, addr.device,
+		addr.function, dev->vid(), dev->did());
 	
-	char *mem_space = (char *) pci_map_bar(dev, 0, VM_NOCACHE);
+	char *mem_space = (char *) dev->map_bar(0, VM_NOCACHE);
 	if(!mem_space)
 	{
 		ERROR("e1000", "Sorry! This driver only supports e1000 register access through MMIO, "
@@ -815,12 +817,13 @@ struct driver e1000_driver =
 {
 	.name = "e1000",
 	.devids = &e1000_pci_ids,
-	.probe = e1000_probe
+	.probe = e1000_probe,
+	.bus_type_node = {&e1000_driver}
 };
 
 int e1000_init(void)
 {
-	pci_bus_register_driver(&e1000_driver);
+	pci::register_driver(&e1000_driver);
 	return 0;
 }
 

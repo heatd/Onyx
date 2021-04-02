@@ -250,7 +250,8 @@ struct driver rtc_driver =
 {
 	.name = "rtc",
 	.devids = &rtc_dev_table,
-	.probe = rtc_probe
+	.probe = rtc_probe,
+	.bus_type_node = {&rtc_driver}
 };
 
 int init_rtc(void)

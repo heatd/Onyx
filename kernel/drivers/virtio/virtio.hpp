@@ -276,11 +276,11 @@ public:
 
 };
 
-/* TODO: Hide pci_device (since it may or may not be a pci_device) with a virtual class */
+/* TODO: Hide pci::pci_device (since it may or may not be a pci::pci_device) with a virtual class */
 class vdev
 {
 protected:
-	struct pci_device *dev;
+	pci::pci_device *dev;
 	void *bars[PCI_NR_BARS];
 	virtio_structure structures[5];
 	cul::vector<unique_ptr<virtq> > virtqueue_list;
@@ -313,7 +313,7 @@ protected:
 	}
 
 public:
-	vdev(struct pci_device *dev) : dev(dev), bars{}, structures{}, feature_cache{} {}
+	vdev(pci::pci_device *dev) : dev(dev), bars{}, structures{}, feature_cache{} {}
 	virtual ~vdev() {}
 	vdev(const vdev& rhs) = delete;
 	vdev(vdev&& rhs) = delete;
@@ -407,10 +407,10 @@ enum device_status : uint8_t
 };
 
 #ifdef CONFIG_VIRTIO_NET
-unique_ptr<vdev> create_network_device(pci_device *dev);
+unique_ptr<vdev> create_network_device(pci::pci_device *dev);
 #endif
 #ifdef CONFIG_VIRTIO_GPU
-unique_ptr<vdev> create_gpu_device(pci_device *dev);
+unique_ptr<vdev> create_gpu_device(pci::pci_device *dev);
 #endif
 };
 

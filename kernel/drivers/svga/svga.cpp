@@ -80,7 +80,7 @@ int svga_modeset(unsigned int width, unsigned int height, unsigned int bpp)
 	return 0;
 }
 
-int SvgaDevice::add_bar(struct pci_bar bar, int index)
+int SvgaDevice::add_bar(pci::pci_bar bar, int index)
 {
 	switch(index)
 	{
@@ -171,20 +171,28 @@ extern "C"
 
 int svga_probe(struct device *_dev)
 {
-	struct pci_device *dev = (struct pci_device *) _dev;
+	pci::pci_device *dev = (pci::pci_device *) _dev;
 
 	device = make_unique<SvgaDevice>(dev);
 	if(!device)
 		return 1;
 	/* Now, get the needed bars (0, 1 and 2, respectively) */
-	struct pci_bar iospace_bar, framebuffer_bar, command_buffer_bar;
+	struct pci::pci_bar iospace_bar, framebuffer_bar, command_buffer_bar;
 
-	if(pci_get_bar(dev, SVGAII_IO_SPACE_BAR, &iospace_bar) < 0)
-		return -1;
-	if(pci_get_bar(dev, SVGAII_FRAMEBUFFER_BAR, &framebuffer_bar) < 0)
-		return -1;
-	if(pci_get_bar(dev, SVGAII_COMMAND_BUFFER_BAR, &command_buffer_bar) < 0)
-		return -1;
+	auto st = dev->get_bar(SVGAII_IO_SPACE_BAR);
+	if(st.has_error())
+		return st.error();
+	iospace_bar = st.value();
+
+	st = dev->get_bar(SVGAII_FRAMEBUFFER_BAR);
+	if(st.has_error())
+		return st.error();
+	framebuffer_bar = st.value();
+
+	st = dev->get_bar(SVGAII_COMMAND_BUFFER_BAR);
+	if(st.has_error())
+		return st.error();
+	command_buffer_bar = st.value();
 
 	
 	if(device->add_bar(iospace_bar, SVGAII_IO_SPACE_BAR) < 0)
@@ -220,7 +228,7 @@ int svga_probe(struct device *_dev)
 	return 0;
 }
 
-static struct pci_id svga_dev_ids[] = 
+static struct pci::pci_id svga_dev_ids[] = 
 {
 	{ PCI_ID_DEVICE(VMWARE_SVGAII_PCI_VENDOR, VMWARE_SVGAII_PCI_DEVICE, NULL) },
 	{ 0 }
@@ -230,14 +238,15 @@ static struct driver svga_driver
 {
 	.name = "svga",
 	.devids = &svga_dev_ids,
-	.probe = svga_probe
+	.probe = svga_probe,
+	.bus_type_node = {&svga_driver}
 };
 
 static int svga_init(void)
 {
 	MPRINTF("initializing\n");
 
-	pci_bus_register_driver(&svga_driver);
+	pci::register_driver(&svga_driver);
 	return 0;
 }
 

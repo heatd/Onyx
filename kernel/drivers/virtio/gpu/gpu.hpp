@@ -94,7 +94,7 @@ private:
 	using virtio_gpu_control_msg = virtio_control_msg<virtio_gpu_ctrl_hdr, uint8_t>;
 	virtio_control_msg_queue<virtio_gpu_ctrl_hdr, uint8_t> controlq_msgs;
 public:
-	gpu_vdev(struct pci_device *d) : vdev(d), controlq_msgs{this, controlq_nr} {}
+	gpu_vdev(pci::pci_device *d) : vdev(d), controlq_msgs{this, controlq_nr} {}
 	~gpu_vdev() {}
 
 	bool perform_subsystem_initialization() override;

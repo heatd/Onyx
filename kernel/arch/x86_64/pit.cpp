@@ -42,15 +42,13 @@
 
 #define PIT_STATUS_OUTPUT_HIGH		(1 << 7)
 
-struct driver pit_driver = 
+driver pit_driver = 
 {
-	.name = "pit"
+	.name = "pit",
+	.bus_type_node = {&pit_driver}
 };
 
-struct device pit_dev = 
-{
-	.name = "pit"
-};
+device pit_dev{"pit", nullptr, nullptr};
 
 void pit_init_oneshot(uint32_t frequency)
 {

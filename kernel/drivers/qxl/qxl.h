@@ -18,7 +18,7 @@ struct qxl_device
 	struct pci_bar rom_bar;
 	struct pci_bar iorange_bar;
 	void *vram_mapping;
-	struct pci_device *device;
+	pci::pci_device *device;
 	void *surface_mapping;
 	struct qxl_rom *rom;
 	struct qxl_ram_header *ram_header;

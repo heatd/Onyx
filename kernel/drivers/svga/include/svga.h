@@ -97,14 +97,14 @@ private:
 	struct mutex mtx;
 	struct mutex fifo_lock;
 	struct video_mode mode;
-	struct pci_device *dev;
+	pci::pci_device *dev;
 public:
 	void write_index(uint16_t index);
 	void write_value(uint32_t value);
 	void write(uint16_t index, uint32_t value);
 	uint32_t read(uint16_t index);
 	int modeset(unsigned int width, unsigned int height, unsigned int bpp);
-	SvgaDevice(struct pci_device *dev) : dev(dev)
+	SvgaDevice(pci::pci_device *dev) : dev(dev)
 	{
 		mutex_init(&mtx);
 		mutex_init(&fifo_lock);
@@ -114,7 +114,7 @@ public:
 	void setup_fifo();
 	void wait_for_fifo(size_t len);
 	void send_command_fifo(void *command, size_t len);
-	int add_bar(struct pci_bar bar, int index);
+	int add_bar(pci::pci_bar bar, int index);
 	void *get_framebuffer()
 	{
 		return framebuffer;

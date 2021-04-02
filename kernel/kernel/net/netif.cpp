@@ -102,7 +102,7 @@ void netif_register_if(struct netif *netif)
 		
 	struct dev *d = dev_register(0, 0, (char*) netif->name);
 	if(!d)
-		return;
+		panic("netif_register_if failed");
 
 	d->priv = netif;
 

@@ -73,7 +73,7 @@ int bga_modeset(unsigned int width, unsigned int height, unsigned int bpp)
 	return 0;
 }
 
-static struct pci_id pci_bga_devids[] = 
+static struct pci::pci_id pci_bga_devids[] = 
 {
 	{ PCI_ID_DEVICE(BOCHSVGA_PCI_VENDORID, BOCHSVGA_PCI_DEVICEID, NULL) },
 	{ 0 }
@@ -81,9 +81,9 @@ static struct pci_id pci_bga_devids[] =
 
 int bga_probe(struct device *dev)
 {
-	struct pci_device *device = (struct pci_device *) dev;
+	pci::pci_device *device = (pci::pci_device *) dev;
 
-	if(pci_enable_device(device) < 0)
+	if(device->enable_device() < 0)
 		return -1;
 
 	return 0;
@@ -92,12 +92,13 @@ static struct driver bga_driver =
 {
 	.name = "bga",
 	.devids = &pci_bga_devids,
-	.probe = bga_probe
+	.probe = bga_probe,
+	.bus_type_node = {&bga_driver}
 };
 
 static int bga_init(void)
 {
-	pci_bus_register_driver(&bga_driver);
+	pci::register_driver(&bga_driver);
 	return 0;
 }
 

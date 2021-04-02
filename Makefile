@@ -135,7 +135,11 @@ qemu: iso
 	-object filter-dump,id=f1,netdev=u1,file=net.pcap \
 	-enable-kvm -cpu host,migratable=on,+invtsc -smp 4 -vga qxl \
 	-device usb-ehci -device usb-mouse \
-	-display gtk,gl=on -machine q35
+	-display gtk,gl=on -machine q35 
+
+# -device pci-bridge,id=pci_b0,bus=pcie.0,chassis_nr=2,addr=10
+# -device ati-vga,bus=pci_b0,addr=1 -device pxb-pcie,id=pcie.1,bus_nr=0x40
+#-device ioh3420,id=root_port1,bus=pcie.1 -device ati-vga,bus=root_port1
 
 intel-passthrough-qemu: iso
 	sudo qemu-system-x86_64 -vga none -display gtk,gl=on \

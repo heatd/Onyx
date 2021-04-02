@@ -37,7 +37,10 @@ bool can_use_msi(void)
 	return x86_platform.has_msi;
 }
 
-int pci_enable_msi(struct pci_device *dev, irq_t handler, void *cookie)
+namespace pci
+{
+
+int pci_device::enable_msi(irq_t handler, void *cookie)
 {
 	if(!can_use_msi())
 		return errno = EIO, -1;
@@ -45,16 +48,15 @@ int pci_enable_msi(struct pci_device *dev, irq_t handler, void *cookie)
 	bool msix = false;
 	(void) msix;
 	/* TODO: Try to prioritize finding MSI-X capabiltiies */
-	size_t offset = pci_find_capability(dev, PCI_CAP_ID_MSI, 0);
+	size_t offset = find_capability(PCI_CAP_ID_MSI, 0);
 	if(offset == 0)
 	{
 		msix = false;
-		if((offset = pci_find_capability(dev, PCI_CAP_ID_MSI, 0)) == 0)
+		if((offset = find_capability(PCI_CAP_ID_MSI, 0)) == 0)
 			return -1; 
 	}
 
-	uint16_t message_control = pci_read(dev,
-		offset + PCI_MSI_MESSAGE_CONTROL_OFF, sizeof(uint16_t));
+	uint16_t message_control = read(offset + PCI_MSI_MESSAGE_CONTROL_OFF, sizeof(uint16_t));
 
 	bool addr64 = message_control & PCI_MSI_MSGCTRL_64BIT;
 
@@ -76,8 +78,7 @@ int pci_enable_msi(struct pci_device *dev, irq_t handler, void *cookie)
 
 	for(unsigned int i = 0; i < num_vecs; i++)
 	{
-		assert(install_irq(irq_offset + i, handler,
-			(struct device *) dev, IRQ_FLAG_REGULAR, cookie) == 0);
+		assert(install_irq(irq_offset + i, handler, this, IRQ_FLAG_REGULAR, cookie) == 0);
 	}
 
 
@@ -90,11 +91,12 @@ int pci_enable_msi(struct pci_device *dev, irq_t handler, void *cookie)
 	off_t message_data_off = addr64 ? offset + PCI_MSI_MESSAGE_ADDRESS_OFF + 8 
                                  : offset + PCI_MSI_MESSAGE_ADDRESS_OFF + 4;
 	/* Now write everything back */
-	pci_write(dev, message_addr, offset + PCI_MSI_MESSAGE_ADDRESS_OFF, sizeof(uint32_t));
-	if(addr64)	pci_write(dev, message_addr_hi, offset + 
-	                          PCI_MSI_MESSAGE_ADDRESS_OFF + 4, sizeof(uint32_t));
-	pci_write(dev, message_data, message_data_off, sizeof(uint16_t));
-	pci_write(dev, message_control, offset + PCI_MSI_MESSAGE_CONTROL_OFF, sizeof(uint16_t));
+	write(message_addr, offset + PCI_MSI_MESSAGE_ADDRESS_OFF, sizeof(uint32_t));
+	if(addr64)	write(message_addr_hi, offset + PCI_MSI_MESSAGE_ADDRESS_OFF + 4, sizeof(uint32_t));
+	write(message_data, message_data_off, sizeof(uint16_t));
+	write(message_control, offset + PCI_MSI_MESSAGE_CONTROL_OFF, sizeof(uint16_t));
 
 	return 0;
+}
+
 }
