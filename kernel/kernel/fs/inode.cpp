@@ -268,7 +268,7 @@ ssize_t inode_sync(struct inode *inode)
 {
 	struct rb_itor it;
 	it.node = NULL;
-	mutex_lock(&inode->i_pages->page_lock);
+	scoped_mutex g{inode->i_pages->page_lock};
 
 	it.tree = inode->i_pages->pages;
 
@@ -288,8 +288,6 @@ ssize_t inode_sync(struct inode *inode)
 		rb_itor_next(&it);
 	}
 
-	/* TODO: Return errors */
-	mutex_unlock(&inode->i_pages->page_lock);
 	return 0;
 }
 
