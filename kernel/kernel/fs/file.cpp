@@ -73,6 +73,13 @@ void fd_put(struct file *fd)
 	}
 }
 
+static inline bool fd_is_open(int fd, struct ioctx *ctx)
+{
+	unsigned long long_idx = fd / FDS_PER_LONG;
+	unsigned long bit_idx = fd % FDS_PER_LONG;
+	return ctx->open_fds[long_idx] & (1UL << bit_idx);
+}
+
 static bool validate_fd_number(int fd, struct ioctx *ctx)
 {
 	if(fd < 0)
@@ -85,19 +92,12 @@ static bool validate_fd_number(int fd, struct ioctx *ctx)
 		return false;
 	}
 	
-	if(ctx->file_desc[fd] == nullptr)
+	if(!fd_is_open(fd, ctx))
 	{
 		return false;
 	}
 
 	return true;
-}
-
-static inline bool fd_is_open(int fd, struct ioctx *ctx)
-{
-	unsigned long long_idx = fd / FDS_PER_LONG;
-	unsigned long bit_idx = fd % FDS_PER_LONG;
-	return ctx->open_fds[long_idx] & (1UL << bit_idx);
 }
 
 static inline void fd_close_bit(int fd, struct ioctx *ctx)
@@ -320,6 +320,28 @@ error:
 	process->ctx.file_desc_entries = old_nr_fds;
 
 	return -ENOMEM;
+}
+
+void process_destroy_file_descriptors(process *process)
+{
+	ioctx *ctx = &process->ctx;
+	file **table = ctx->file_desc;
+	mutex_lock(&ctx->fdlock);
+
+	for(unsigned int i = 0; i < ctx->file_desc_entries; i++)
+	{
+		if(!fd_is_open(i, ctx))
+			continue;
+
+		fd_put(table[i]);
+	}
+
+	free(table);
+
+	ctx->file_desc = nullptr;
+	ctx->file_desc_entries = 0;
+
+	mutex_unlock(&ctx->fdlock);
 }
 
 int alloc_fd(int fdbase)

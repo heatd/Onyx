@@ -22,6 +22,7 @@ void fd_put(struct file *fd);
 int allocate_file_descriptor_table(struct process *process);
 int copy_file_descriptors(struct process *process, struct ioctx *ctx);
 struct file *get_dirfd_file(int dirfd);
+void process_destroy_file_descriptors(process *process);
 
 #define OPEN_FLAGS_ACCESS_MODE(flags)	(flags & 0x3)
 

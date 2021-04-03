@@ -1121,7 +1121,7 @@ ssize_t vterm_write_tty(const void *buffer, size_t size, struct tty *tty)
 			 */
 			if(codepoint == UTF_INVALID_CODEPOINT)
 				codepoint = '?';
-#if 0			
+#if 0
 			char x[9];
 			snprintf(x, 9, "%x\n", codepoint);
 			platform_serial_write(x, strlen(x));

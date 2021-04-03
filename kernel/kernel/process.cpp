@@ -699,28 +699,6 @@ void process_destroy_aspace(void)
 	vm_destroy_addr_space(&current->address_space);
 }
 
-void process_destroy_file_descriptors(process *process)
-{
-	ioctx *ctx = &process->ctx;
-	file **table = ctx->file_desc;
-	mutex_lock(&ctx->fdlock);
-
-	for(unsigned int i = 0; i < ctx->file_desc_entries; i++)
-	{
-		if(!table[i])
-			continue;
-
-		fd_put(table[i]);
-	}
-
-	free(table);
-
-	ctx->file_desc = nullptr;
-	ctx->file_desc_entries = 0;
-
-	mutex_unlock(&ctx->fdlock);
-}
-
 void process_remove_from_list(process *proc)
 {
 	{
