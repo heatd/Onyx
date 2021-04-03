@@ -362,7 +362,7 @@ int alloc_fd(int fdbase)
 				continue;
 			
 			/* We speed it up by doing an ffz. */
-			unsigned int first_free = __builtin_ctz(~ioctx->open_fds[i]);
+			unsigned int first_free = __builtin_ctzl(~ioctx->open_fds[i]);
 	
 			for(unsigned int j = first_free; j < FDS_PER_LONG; j++)
 			{
