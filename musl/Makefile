@@ -213,11 +213,14 @@ $(DESTDIR)$(includedir)/%: $(srcdir)/include/%
 $(DESTDIR)$(LDSO_PATHNAME): $(DESTDIR)$(libdir)/libc.so
 	$(INSTALL) -D -l libc.so $@ || true
 
+$(DESTDIR)$(bindir)/ldd: $(DESTDIR)$(LDSO_PATHNAME)
+	$(INSTALL) -D -l $(LDSO_PATHNAME) $@ || true
+
 install-libs: $(ALL_LIBS:lib/%=$(DESTDIR)$(libdir)/%) $(if $(SHARED_LIBS),$(DESTDIR)$(LDSO_PATHNAME),)
 
 install-headers: $(ALL_INCLUDES:include/%=$(DESTDIR)$(includedir)/%)
 
-install-tools: $(ALL_TOOLS:obj/%=$(DESTDIR)$(bindir)/%)
+install-tools: $(ALL_TOOLS:obj/%=$(DESTDIR)$(bindir)/%) $(DESTDIR)$(bindir)/ldd
 
 install: install-libs install-headers install-tools
 

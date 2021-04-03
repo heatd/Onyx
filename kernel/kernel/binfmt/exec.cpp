@@ -324,6 +324,9 @@ int flush_old_exec(struct exec_state *state)
 		state->flushed = true;
 	}
 
+	curr->interp_base = nullptr;
+	curr->image_base = nullptr;
+
 	/* And reset the signal disposition */
 	signal_do_execve(curr);
 
