@@ -216,8 +216,6 @@ tmpfs_inode *tmpfs_superblock::create_inode(mode_t mode, dev_t rdev)
 
 	ino->i_nlink = 1;
 
-	inode_ref(ino);
-
 	/* We're currently holding two refs: one for the user, and another for the simple fact
 	 * that we need this inode to remain in memory.
 	 */

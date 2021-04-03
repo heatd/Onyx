@@ -99,7 +99,9 @@ struct nameidata
 
 void dentry_destroy(dentry *d)
 {
-	if(d->d_inode) close_vfs(d->d_inode);
+	if(d->d_inode)
+		close_vfs(d->d_inode);
+
 	if(d->d_parent) dentry_put(d->d_parent);
 	//printk("Dentry %s dead\n", d->d_name);
 
@@ -1076,6 +1078,7 @@ void dentry_do_unlink(dentry *entry)
 	entry->d_parent = nullptr;
 
 	inode_dec_nlink(entry->d_inode);
+	//printk("unlink %s nlink: %lu nref %lu\n", entry->d_name, entry->d_inode->i_nlink, entry->d_ref);
 
 	if(dentry_is_dir(entry))
 	{

@@ -68,6 +68,7 @@ void fd_put(struct file *fd)
 	if(__sync_sub_and_fetch(&fd->f_refcount, 1) == 0)
 	{
 		close_vfs(fd->f_ino);
+		//printk("file %s dentry refs %lu\n", fd->f_dentry->d_name, fd->f_dentry->d_ref);
 		dentry_put(fd->f_dentry);
 		free(fd);
 	}
@@ -1804,17 +1805,17 @@ int sys_faccessat(int dirfd, const char *upath, int amode, int flags)
 	if(auto res = path.from_user(upath); res.has_error())
 		return -EFAULT;
 
-	struct file *ino = open_vfs(f.get_file(), path.data());
+	auto_file file = open_vfs(f.get_file(), path.data());
 
 	unsigned int mask = ((amode & R_OK) ? FILE_ACCESS_READ : 0) |
                         ((amode & X_OK) ? FILE_ACCESS_EXECUTE : 0) |
                         ((amode & W_OK) ? FILE_ACCESS_WRITE : 0);
-	if(!ino)
+	if(!file)
 	{
 		return -errno;
 	}
 
-	if(!file_can_access(ino, mask))
+	if(!file_can_access(file.get_file(), mask))
 	{
 		return -EACCES;
 	}

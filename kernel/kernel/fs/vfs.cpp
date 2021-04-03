@@ -132,6 +132,8 @@ void inode_free_page(struct vm_object *vmo, struct page *page)
 
 	page->cache = nullptr;
 	free(b);
+
+	free_page(page);
 }
 
 const struct vm_object_ops inode_vmo_ops = 

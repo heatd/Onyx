@@ -621,9 +621,6 @@ void vterm_blink_thread(void *ctx)
 
 void vterm_ansi_do_sgr(unsigned long n, struct vterm *vt)
 {
-	char args[20];
-	snprintf(args, 20, "m arg %lu\n", n);
-	platform_serial_write(args, strlen(args));
 	switch(n)
 	{
 		case ANSI_SGR_RESET:
@@ -968,7 +965,7 @@ size_t vterm::do_escape(const char *buffer, size_t len)
 
 	char escape = csi_data.escape_character;
 
-#if 1
+#if 0
 	char buf[50];
 	snprintf(buf, 50, "Seq: %c nargs %lu args {%lu, %lu}\n", escape, csi_data.nr_args, args[0], args[1]);
 	platform_serial_write(buf, strlen(buf));

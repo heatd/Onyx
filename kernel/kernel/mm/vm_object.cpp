@@ -211,6 +211,8 @@ void vmo_rb_delete_func(void *key, void *data)
 {
 	struct page *p = (page *) data;
 
+	// TODO: Memory leak here! We might be a special kind of VMO that needs to free other structures.
+	// A good example of an object like this is inode vmos.
 	free_page(p);
 }
 

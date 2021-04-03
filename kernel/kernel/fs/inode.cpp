@@ -298,8 +298,7 @@ bool inode_is_cacheable(struct inode *file);
 void inode_release(struct inode *inode)
 {
 	bool should_die = inode_get_nlink(inode) == 0;
-	//printk("Releasing inode %p\n", inode);
-
+	//printk("Should die %u\n", should_die);
 	if(inode->i_sb)
 	{
 		assert(inode->i_sb != NULL);
@@ -348,14 +347,10 @@ void inode_unref(struct inode *ino)
 	}
 #endif
 
-	if(!refs && inode_should_die(ino))
+	if(!refs)
 	{
 		inode_release(ino);
 	}
-#if 0
-	if(ino->i_inode == 3549)
-		printk("inode_unref(%lu) from %p\n", ino->i_refc, __builtin_return_address(0));
-#endif
 }
 
 struct inode *superblock_find_inode(struct superblock *sb, ino_t ino_nr)
