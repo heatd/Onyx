@@ -232,15 +232,15 @@ int copy_file_descriptors(struct process *process, struct ioctx *ctx)
 		return -ENOMEM;
 	}
 
+	memcpy(process->ctx.cloexec_fds, ctx->cloexec_fds, ctx->file_desc_entries / 8);
+	memcpy(process->ctx.open_fds, ctx->open_fds, ctx->file_desc_entries / 8);
+
 	for(unsigned int i = 0; i < process->ctx.file_desc_entries; i++)
 	{
 		process->ctx.file_desc[i] = ctx->file_desc[i];
-		if(ctx->file_desc[i])
+		if(fd_is_open(i, &process->ctx))
 			fd_get(ctx->file_desc[i]);
 	}
-
-	memcpy(process->ctx.cloexec_fds, ctx->cloexec_fds, ctx->file_desc_entries / 8);
-	memcpy(process->ctx.open_fds, ctx->open_fds, ctx->file_desc_entries / 8);
 
 	return 0;
 }
