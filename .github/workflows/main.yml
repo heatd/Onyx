@@ -299,7 +299,7 @@ jobs:
           # A list of files, directories, and wildcard patterns to cache and restore
           path: toolchain_binaries/
           # An explicit key for restoring and saving the cache
-          key: toolchain-linux-llvm--${{ hashFiles('toolchains/llvm-project-11.0.0.patch toolchains/scripts/build_llvm.sh') }}
+          key: toolchain-linux-llvm-${{ hashFiles('toolchains/llvm-project-11.0.0.patch toolchains/scripts/build_llvm.sh') }}
       
       - name: Build toolchain
         if: steps.toolchain-cache-linux-llvm.outputs.cache-hit != 'true'
@@ -318,6 +318,7 @@ jobs:
           export ONYX_ARCH=x86_64
           ./scripts/setup_build.sh
           make install-headers -j $(nproc)
+          rm -rf toolchain_binaries
           mkdir toolchain_binaries
           ./toolchains/scripts/build_llvm.sh toolchain_build toolchain_binaries
 
