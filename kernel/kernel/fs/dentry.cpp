@@ -29,20 +29,10 @@ void dentry_get(dentry *d)
 {
 	/* Must hold parent's d_lock */
 	__atomic_add_fetch(&d->d_ref, 1, __ATOMIC_RELAXED);
-
-#if 0
-	if(d->d_inode && d->d_inode->i_inode == 3549)
-		printk("dentry_get from %p\n", __builtin_return_address(0));
-#endif
 }
 
 void dentry_put(dentry *d)
 {
-#if 0
-	if(d->d_inode && d->d_inode->i_inode == 3549)
-		printk("dentry_put from %p\n", __builtin_return_address(0));
-#endif
-
 	if(__atomic_sub_fetch(&d->d_ref, 1, __ATOMIC_RELAXED) == 0)
 		dentry_destroy(d);
 }
@@ -111,11 +101,14 @@ void dentry_destroy(dentry *d)
 {
 	if(d->d_inode) close_vfs(d->d_inode);
 	if(d->d_parent) dentry_put(d->d_parent);
+	printk("Dentry %s dead\n", d->d_name);
+
 	if(d->d_name_length > INLINE_NAME_MAX)
 	{
 		free((void *) d->d_name);
 	}
 
+	d->~dentry();
 	dentry_pool.free(d);
 }
 
@@ -773,9 +766,10 @@ struct create_handling : public last_name_handling
 		}
 
 		new_dentry->d_inode = new_inode;
-#if 0
+#if 1
 		printk("cinode refs: %lu\n", new_inode->i_refc);
 		printk("cdentry refs: %lu\n", new_dentry->d_ref);
+		printk("pdentry refs: %lu\n", dentry->d_ref);
 #endif
 		return new_dentry;
 	}
@@ -1091,11 +1085,11 @@ void dentry_do_unlink(dentry *entry)
 
 	rw_unlock_write(&entry->d_lock);
 
+	// We can do this because we're holding the parent dir's lock
 	list_remove(&entry->d_parent_dir_node);
 
 	/* Lastly, release the references */
 	dentry_put(entry);
-	dentry_put(parent);
 }
 
 bool dentry_involved_with_mount(dentry *d)
@@ -1130,8 +1124,7 @@ struct unlink_handling : public last_name_handling
 		 */
 		scoped_rwlock<rw_lock::write> g{dentry->d_lock};
 
-		auto child = dentry_lookup_internal(name, dentry,
-                        DENTRY_LOOKUP_UNLOCKED);
+		auto child = dentry_lookup_internal(name, dentry, DENTRY_LOOKUP_UNLOCKED);
 		if(!child)
 			return unexpected<int>{-errno};
 

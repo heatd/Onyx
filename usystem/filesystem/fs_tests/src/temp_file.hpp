@@ -41,8 +41,14 @@ public:
 	~temp_file()
 	{
 		sync();
-		if(delete_file && unlink(file_name) < 0)
-			throw std::system_error(errno, std::generic_category(), "Failed to unlink");
+		if(delete_file)
+		{
+			unlink(file_name);
+			struct stat buf;
+			assert(::stat(file_name, &buf) == -1);
+			assert(errno == ENOENT);
+		}
+
 		close(fd);
 	}
 
@@ -60,5 +66,10 @@ public:
 	void dont_delete()
 	{
 		delete_file = false;
+	}
+
+	char *get_file_name()
+	{
+		return file_name;
 	}
 };

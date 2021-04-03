@@ -3050,6 +3050,8 @@ begin: ;
 extern "C" void *sys_mremap(void *old_address, size_t old_size, size_t new_size,
                             int flags, void *new_address)
 {
+	// TODO: This is broken.
+	return (void *) -ENOSYS;
 	/* Check http://man7.org/linux/man-pages/man2/mremap.2.html for documentation */
 	struct process *current = get_current_process();
 	bool may_move = flags & MREMAP_MAYMOVE;
