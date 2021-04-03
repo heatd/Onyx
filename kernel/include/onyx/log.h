@@ -16,7 +16,11 @@
 #define LOG INFO
 #define SUBMIT_BUG_REPORT(x) printf("If you want this bug/feature to be fixed, open an issue at the repo's issue tracker(https://github.com/heatd/Onyx/issues) with a title along the lines of \"%s: Fix x bug\". Thanks!\n", x);
 
-#define LOG_BUF_SHIFT 	18
+#ifdef CONFIG_LOG_BUF_MINIMAL
+#define LOG_BUF_SHIFT   12
+#else
+#define LOG_BUF_SHIFT 	16
+#endif
 #define LOG_BUF_SIZE	(1 << LOG_BUF_SHIFT)
 
 

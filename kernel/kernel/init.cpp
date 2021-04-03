@@ -69,6 +69,7 @@
 #include <onyx/ktrace.h>
 #include <onyx/exec.h>
 #include <onyx/init.h>
+#include <onyx/linker_section.hpp>
 
 #include <pci/pci.h>
 
@@ -235,26 +236,17 @@ struct init_level_info
 	unsigned long *level_end;
 };
 
-extern unsigned long __init_level0_start;
-extern unsigned long __init_level0_end;
-extern unsigned long __init_level1_start;
-extern unsigned long __init_level1_end;
-extern unsigned long __init_level2_start;
-extern unsigned long __init_level2_end;
-extern unsigned long __init_level3_start;
-extern unsigned long __init_level3_end;
-extern unsigned long __init_level4_start;
-extern unsigned long __init_level4_end;
-extern unsigned long __init_level5_start;
-extern unsigned long __init_level5_end;
-extern unsigned long __init_level6_start;
-extern unsigned long __init_level6_end;
-extern unsigned long __init_level7_start;
-extern unsigned long __init_level7_end;
-extern unsigned long __init_level8_start;
-extern unsigned long __init_level8_end;
+DEFINE_LINKER_SECTION_SYMS(__init_level0_start, __init_level0_end);
+DEFINE_LINKER_SECTION_SYMS(__init_level1_start, __init_level1_end);
+DEFINE_LINKER_SECTION_SYMS(__init_level2_start, __init_level2_end);
+DEFINE_LINKER_SECTION_SYMS(__init_level3_start, __init_level3_end);
+DEFINE_LINKER_SECTION_SYMS(__init_level4_start, __init_level4_end);
+DEFINE_LINKER_SECTION_SYMS(__init_level5_start, __init_level5_end);
+DEFINE_LINKER_SECTION_SYMS(__init_level6_start, __init_level6_end);
+DEFINE_LINKER_SECTION_SYMS(__init_level7_start, __init_level7_end);
+DEFINE_LINKER_SECTION_SYMS(__init_level8_start, __init_level8_end);
 
-static struct init_level_info init_levels[INIT_LEVEL_CORE_PERCPU_CTOR + 1] = {
+static linker_section init_levels[INIT_LEVEL_CORE_PERCPU_CTOR + 1] = {
 	{&__init_level0_start, &__init_level0_end},
 	{&__init_level1_start, &__init_level1_end},
 	{&__init_level2_start, &__init_level2_end},
@@ -269,27 +261,21 @@ static struct init_level_info init_levels[INIT_LEVEL_CORE_PERCPU_CTOR + 1] = {
 
 void do_init_level(unsigned int level)
 {
-	unsigned long *start = init_levels[level].level_start;
-	unsigned long *end = init_levels[level].level_end;
-
-	while(start != end)
+	auto nr = init_levels[level].size() / sizeof(void *);
+	auto func = init_levels[level].as<void (*)()>();
+	for(size_t i = 0; i < nr; i++, func++)
 	{
-		void (*func)() = (void (*)()) *start;
-		func();
-		start++;
+		(*func)();
 	}
 }
 
 void do_init_level_percpu(unsigned int level, unsigned int cpu)
 {
-	unsigned long *start = init_levels[level].level_start;
-	unsigned long *end = init_levels[level].level_end;
-
-	while(start != end)
+	auto nr = init_levels[level].size() / sizeof(void *);
+	auto func = init_levels[level].as<void (*)(unsigned int)>();
+	for(size_t i = 0; i < nr; i++, func++)
 	{
-		void (*func)(unsigned int) = (void (*)(unsigned int)) *start;
-		func(cpu);
-		start++;
+		(*func)(cpu);
 	}
 }
 

@@ -21,6 +21,7 @@
 #define X86_PAGING_NX			(1 << 63)
 
 .section .boot, "aw"
+jmp entry_point
 .align 4
 hdr_start: 
 	.long 0xe85250d6

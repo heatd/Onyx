@@ -48,6 +48,7 @@ extern __typeof (name) aliasname __attribute__ ((alias (#name)));
 #define _strong_alias_c_name(name, aliasname) \
 extern "C" __typeof (name) aliasname __attribute__ ((alias (#name)));
 
+#define USED_FUNC  __attribute__((used))
 #ifdef __x86_64__
 
 static inline uint64_t rdtsc(void)

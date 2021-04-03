@@ -576,6 +576,8 @@ socket *unix_create_socket(int type, int protocol);
 socket *socket_create(int domain, int type, int protocol)
 {
 	socket *socket = nullptr;
+
+#ifdef CONFIG_NET
 	switch(domain)
 	{
 		case AF_INET:
@@ -595,6 +597,7 @@ socket *socket_create(int domain, int type, int protocol)
 		default:
 			return errno = EAFNOSUPPORT, nullptr;
 	}
+#endif
 
 	if(!socket)
 		return nullptr;

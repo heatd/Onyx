@@ -41,11 +41,13 @@ void softirq_handle()
 		pending &= ~(1 << SOFTIRQ_VECTOR_TIMER);
 	}
 
+#ifdef CONFIG_NET
 	if(pending & (1 << SOFTIRQ_VECTOR_NETRX))
 	{
 		netif_do_rx();
 		pending &= ~(1 << SOFTIRQ_VECTOR_NETRX);
 	}
+#endif
 
 	write_per_cpu(pending_vectors, pending);
 

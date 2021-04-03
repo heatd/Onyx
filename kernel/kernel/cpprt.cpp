@@ -17,11 +17,13 @@
 #include <onyx/panic.h>
 #include <onyx/mutex.h>
 #include <onyx/condvar.h>
+#include <onyx/compiler.h>
 
 extern "C"
 {
 
 /* Gets called when a virtual function isn't found */
+USED_FUNC
 void __cxa_pure_virtual(void)
 {
 	/* Just panic */
@@ -77,6 +79,7 @@ void guard_unlock(guard_type *g)
 	*g = un.guard;
 }
 
+USED_FUNC
 int __cxa_guard_acquire(guard_type *g) 
 {
 	if(guard_is_initialised(g))
@@ -99,6 +102,7 @@ int __cxa_guard_acquire(guard_type *g)
 	return !result;
 }
 
+USED_FUNC
 void __cxa_guard_release(guard_type *g)
 {
 	scoped_mutex g_{guard_lock};
@@ -107,6 +111,7 @@ void __cxa_guard_release(guard_type *g)
 	guard_unlock(g);
 }
 
+USED_FUNC
 void __cxa_guard_abort(guard_type *g)
 {
 	*(char *)g = 0;

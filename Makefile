@@ -135,7 +135,7 @@ qemu: iso
 	-object filter-dump,id=f1,netdev=u1,file=net.pcap \
 	-enable-kvm -cpu host,migratable=on,+invtsc -smp 4 -vga qxl \
 	-device usb-ehci -device usb-mouse \
-	-display gtk,gl=on -machine q35 
+	-display gtk,gl=on -machine q35 -no-shutdown -no-reboot 
 
 # -device pci-bridge,id=pci_b0,bus=pcie.0,chassis_nr=2,addr=10
 # -device ati-vga,bus=pci_b0,addr=1 -device pxb-pcie,id=pcie.1,bus_nr=0x40
