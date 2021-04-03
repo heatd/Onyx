@@ -20,12 +20,12 @@
 #include <onyx/panic.h>
 #include <onyx/log.h>
 #include <onyx/cpu.h>
-#include <onyx/pnp.h>
 #include <onyx/dev.h>
 #include <onyx/x86/apic.h>
 #include <onyx/clock.h>
 #include <onyx/platform.h>
 #include <onyx/init.h>
+#include <onyx/bus_type.h>
 
 #include <fixed_point/fixed_point.h>
 
@@ -44,8 +44,8 @@ static const ACPI_EXCEPTION_INFO    AcpiGbl_ExceptionNames_Env[] =
     EXCEP_TXT ((char*)"AE_NOT_EXIST",                  (char*)"A required entity does not exist"),
     EXCEP_TXT ((char*)"AE_ALREADY_EXISTS",             (char*)"An entity already exists"),
     EXCEP_TXT ((char*)"AE_TYPE",                       (char*)"The object type is incorrect"),
-    EXCEP_TXT ((char*)"AE_NULL_OBJECT",               (char*) "A required object was missing"),
-    EXCEP_TXT ((char*)"AE_NULL_ENTRY",                 (char*)"The requested object does not exist"),
+    EXCEP_TXT ((char*)"AE_nullptr_OBJECT",               (char*) "A required object was missing"),
+    EXCEP_TXT ((char*)"AE_nullptr_ENTRY",                 (char*)"The requested object does not exist"),
     EXCEP_TXT ((char*)"AE_BUFFER_OVERFLOW",            (char*)"The buffer provided is too small"),
     EXCEP_TXT ((char*)"AE_STACK_OVERFLOW",             (char*)"An internal stack overflowed"),
     EXCEP_TXT ((char*)"AE_STACK_UNDERFLOW",            (char*)"An internal stack underflowed"),
@@ -94,37 +94,8 @@ unsigned int acpi_suspend(void)
 	return 0;
 }
 
-static ACPI_HANDLE root_bridge;
-static ACPI_DEVICE_INFO *root_bridge_info;
 int acpi_shutdown_device(struct device *dev);
-static struct bus acpi_bus = 
-{
-	.name = "acpi",
-	.device_list_head = LIST_HEAD_INIT(acpi_bus.device_list_head),
-	.shutdown = acpi_shutdown_device
-};
-
-ACPI_STATUS acpi_walk_irq(ACPI_HANDLE object, UINT32 nestingLevel,
-	void *context, void **returnvalue)
-{
-	ACPI_DEVICE_INFO *devinfo;
-	ACPI_STATUS st = AcpiGetObjectInfo(object, &devinfo);
-
-	if(ACPI_FAILURE(st))
-	{
-		ERROR("acpi", "Error: AcpiGetObjectInfo failed!\n");
-		return AE_ERROR;
-	}
-
-	if(devinfo->Flags & ACPI_PCI_ROOT_BRIDGE)
-	{
-		root_bridge = object;
-		root_bridge_info = devinfo;
-	}
-	else
-		free(devinfo);
-	return AE_OK;
-}
+struct bus acpi_bus{"acpi"};
 
 uint32_t acpi_execute_pic(int value)
 {
@@ -136,90 +107,13 @@ uint32_t acpi_execute_pic(int value)
 	list.Count = 1;
 	list.Pointer = &arg;
 
-	return AcpiEvaluateObject(ACPI_ROOT_OBJECT, (char*)"_PIC", &list, NULL);
+	return AcpiEvaluateObject(ACPI_ROOT_OBJECT, (char*)"_PIC", &list, nullptr);
 }
 
-int enumerate_pci_irq_routing(ACPI_PCI_ROUTING_TABLE *table, struct bus *bus,
-	ACPI_HANDLE handle)
+namespace acpi
 {
-	/* TODO: Refactor and improve this */
-	ACPI_PCI_ROUTING_TABLE *it = table;
-	for(; it->Length != 0; it = (ACPI_PCI_ROUTING_TABLE*) ACPI_NEXT_RESOURCE(it))
-	{
-		uint8_t device = it->Address >> 16;
-		struct pci_device_address addr = {};
-		addr.device = device;
-		struct pci_device *dev = pci_get_dev(&addr);
-		if(!dev)
-			continue;
 
-		uint32_t pin = it->Pin;
-		uint32_t gsi = -1;
-		bool level = true;
-		bool active_high = false;
-
-		if(it->Source[0] == 0)
-		{
-			gsi = it->SourceIndex;
-		}
-		else
-		{
-			ACPI_HANDLE link_obj;
-			ACPI_STATUS st = AcpiGetHandle(handle, it->Source,
-				&link_obj);
-
-			if(ACPI_FAILURE(st))
-			{
-				ERROR("acpi", "Error while calling "
-				"AcpiGetHandle: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
-				return -1;
-			}
-			ACPI_BUFFER buf;
-			buf.Length = ACPI_ALLOCATE_BUFFER;
-			buf.Pointer = NULL;
-
-			st = AcpiGetCurrentResources(link_obj, &buf);
-			if(ACPI_FAILURE(st))
-			{
-				ERROR("acpi", "Error while calling "
-				"AcpiGetCurrentResources: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
-				return -1;
-			}
-			
-			for(ACPI_RESOURCE *res = (ACPI_RESOURCE*) buf.Pointer;
-				res->Type != ACPI_RESOURCE_TYPE_END_TAG; res =
-				ACPI_NEXT_RESOURCE(res))
-			{
-				if(res->Type == ACPI_RESOURCE_TYPE_IRQ)
-				{
-					level = res->Data.Irq.Polarity == 0;
-					active_high = res->Data.Irq.Triggering == 0;
-					gsi = res->Data.Irq.Interrupts[it->SourceIndex];
-					break;
-				}
-				else if(res->Type == ACPI_RESOURCE_TYPE_EXTENDED_IRQ)
-				{
-					level = res->Data.ExtendedIrq.Polarity == 0;
-					active_high = res->Data.ExtendedIrq.Triggering == 0;
-					gsi = res->Data.ExtendedIrq.Interrupts[it->SourceIndex];
-					break;
-				}
-			}
-			free(buf.Pointer);
-		}
-
-		printf("acpi: 00:%02x:00: pin INT%c ==> GSI %u\n", device,
-		       'A' + pin, gsi);
-		dev->pin_to_gsi[pin].level = level;
-		dev->pin_to_gsi[pin].active_high = active_high;
-		dev->pin_to_gsi[pin].gsi = gsi;
-	}
-	return 0;
-}
-
-
-ACPI_STATUS acpi_find_pci_buses(ACPI_HANDLE object, UINT32 nestingLevel,
-	void *context, void **returnvalue)
+ACPI_STATUS find_pci_buses(ACPI_HANDLE object, UINT32 nestingLevel, void *context, void **ret)
 {
 	ACPI_DEVICE_INFO *devinfo;
 	ACPI_STATUS st = AcpiGetObjectInfo(object, &devinfo);
@@ -232,40 +126,77 @@ ACPI_STATUS acpi_find_pci_buses(ACPI_HANDLE object, UINT32 nestingLevel,
 
 	if(devinfo->Flags & ACPI_PCI_ROOT_BRIDGE)
 	{
-		ACPI_BUFFER buffer = {};
-		buffer.Length = ACPI_ALLOCATE_BUFFER;
-		if((st = AcpiGetIrqRoutingTable(object, &buffer)) != AE_OK)
+		find_root_pci_bus_t callback = (find_root_pci_bus_t) context;
+		ACPI_BUFFER buf;
+		uint64_t segment, bus;
+		ACPI_OBJECT val;
+		val.Type = ACPI_TYPE_INTEGER;
+		buf.Pointer = &val;
+		buf.Length = sizeof(val);
+
+		if(auto st = AcpiEvaluateObject(object, (char *) "_SEG", nullptr, &buf); ACPI_FAILURE(st))
 		{
-			ERROR("acpi", "Error: AcpiGetIrqRoutingTable failed!\n");
-			return st;
+			if(st == AE_NOT_FOUND)
+			{
+				// The spec says that if the method isn't found, we assume the segment is 0
+				val.Integer.Value = 0;
+			}
+			else
+			{
+				ERROR("acpi", "Error evaluating _SEG for root bridge\n");
+				free(devinfo);
+				return st;
+			}
 		}
 
-		ACPI_PCI_ROUTING_TABLE *rout = (ACPI_PCI_ROUTING_TABLE *) buffer.Pointer;
-		enumerate_pci_irq_routing(rout, (bus *) context, object);
-		free(rout);
+		segment = val.Integer.Value;
+
+		buf.Pointer = &val;
+		buf.Length = sizeof(val);
+
+		if(auto st = AcpiEvaluateObject(object, (char *) "_BBN", nullptr, &buf); ACPI_FAILURE(st))
+		{
+			if(st == AE_NOT_FOUND)
+			{
+				// Linux seems to assume the bus is 0
+				val.Integer.Value = 0;
+			}
+			else
+			{
+				ERROR("acpi", "Error evaluating _BBN for root bridge status %x\n", st);
+				free(devinfo);
+				return st;
+			}
+		}
+
+		bus = val.Integer.Value;
+
+		//printk("Root bridge %04x:%02x\n", (uint16_t) segment, (uint8_t) bus);
+
+		if(callback((uint16_t) segment, (uint8_t) bus, object) < 0)
+		{
+			free(devinfo);
+			return AE_ERROR;
+		}
 	}
 
 	free(devinfo);
-	return AE_OK;
+	return st;
 }
 
-int acpi_get_irq_routing_tables(struct bus *bus)
+int find_root_pci_buses(find_root_pci_bus_t callback)
 {
 	void* retval;
-	ACPI_STATUS st = AcpiGetDevices(NULL, acpi_find_pci_buses, bus, &retval);
+	ACPI_STATUS st = AcpiGetDevices(nullptr, find_pci_buses, (void *) callback, &retval);
 	if(ACPI_FAILURE(st))
 	{
 		ERROR("acpi", "Error while calling AcpiGetDevices: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
-		return 1;
+		return -EIO;
 	}
+
 	return 0;
 }
 
-int acpi_get_irq_routing_info(struct bus *bus)
-{
-	if(acpi_get_irq_routing_tables(bus))
-		return -1;
-	return 0;
 }
 
 static uintptr_t rsdp = 0;
@@ -297,7 +228,7 @@ ACPI_RESOURCE *acpi_get_resource(struct acpi_device *device, uint32_t type,
 			return res;
 	}
 
-	return NULL;
+	return nullptr;
 }
 
 ACPI_RESOURCE *acpi_get_resources(ACPI_HANDLE object)
@@ -305,11 +236,11 @@ ACPI_RESOURCE *acpi_get_resources(ACPI_HANDLE object)
 	ACPI_STATUS st = 0;
 	ACPI_BUFFER buf;
 	buf.Length = ACPI_ALLOCATE_BUFFER;
-	buf.Pointer = NULL;
+	buf.Pointer = nullptr;
 
 	if(ACPI_FAILURE((st = AcpiGetCurrentResources(object, &buf))))
 	{
-		return NULL;
+		return nullptr;
 	}
 
 	return (ACPI_RESOURCE *) buf.Pointer;
@@ -327,7 +258,7 @@ ACPI_STATUS acpi_add_device(ACPI_HANDLE object, UINT32 nestingLevel, void *conte
 		return AE_ERROR;
 	}
 
-	const char *id = NULL;
+	const char *id = nullptr;
 	if(info->Valid & ACPI_VALID_HID)
 		id = info->HardwareId.String;
 	else if (info->Valid & ACPI_VALID_UID)
@@ -338,7 +269,7 @@ ACPI_STATUS acpi_add_device(ACPI_HANDLE object, UINT32 nestingLevel, void *conte
 	{
 		ACPI_BUFFER buf;
 		buf.Length = ACPI_ALLOCATE_BUFFER;
-		buf.Pointer = NULL;
+		buf.Pointer = nullptr;
 
 		st = AcpiGetName(object, ACPI_FULL_PATHNAME, &buf);
 		if(ACPI_FAILURE(st))
@@ -359,17 +290,14 @@ ACPI_STATUS acpi_add_device(ACPI_HANDLE object, UINT32 nestingLevel, void *conte
 
 	ACPI_RESOURCE *resources = acpi_get_resources(object);
 
-	struct acpi_device *device = (acpi_device *) malloc(sizeof(struct acpi_device));
+	auto device = new acpi_device{name, &acpi_bus, nullptr, object, info, resources};
 	if(!device)
+	{
+		free((void *) name);
 		return AE_ERROR;
-	memset(device, 0, sizeof(struct acpi_device));
+	}
 
-	device->dev.name = name;
-	device->object = object;
-	device->info = info;
-	device->resources = resources;
-
-	assert(device_init(&device->dev) == 0);
+	assert(device_init(device) == 0);
 	
 	bus_add_device(&acpi_bus, (struct device*) device);
 
@@ -385,7 +313,7 @@ void acpi_enumerate_devices(void)
 	st = AcpiWalkNamespace(ACPI_TYPE_DEVICE, ACPI_ROOT_OBJECT,
 				    ACPI_UINT32_MAX,
 				    acpi_add_device,
-				    NULL, NULL, NULL);
+				    nullptr, nullptr, nullptr);
 	if(ACPI_FAILURE(st))
 	{
 		ERROR("acpi", "Failed to walk the namespace\n");
@@ -411,10 +339,10 @@ ACPI_STATUS acpi_init_power(void)
 	if(ACPI_FAILURE((st = AcpiEnableEvent(ACPI_EVENT_POWER_BUTTON, 0))))
 		return st;
 
-	if(ACPI_FAILURE((st = AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON, acpi_power_event_handler, NULL))))
+	if(ACPI_FAILURE((st = AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON, acpi_power_event_handler, nullptr))))
 		return st;
 
-	if(ACPI_FAILURE((st = AcpiInstallFixedEventHandler(ACPI_EVENT_SLEEP_BUTTON, acpi_suspend_event_handler, NULL))))
+	if(ACPI_FAILURE((st = AcpiInstallFixedEventHandler(ACPI_EVENT_SLEEP_BUTTON, acpi_suspend_event_handler, nullptr))))
 		return st;
 	
 	return AE_OK;
@@ -430,7 +358,7 @@ void acpi_initialise(void)
 		panic("ACPI subsystem initialization failed!");
 	}
 
-	st = AcpiInitializeTables(NULL, 32, true);
+	st = AcpiInitializeTables(nullptr, 32, true);
 	if(ACPI_FAILURE(st))
 	{
 		printk("Error: %s\n", AcpiGbl_ExceptionNames_Env[st].Name);
@@ -483,13 +411,13 @@ static size_t __ndx = 0;
 
 ACPI_STATUS acpi_enumerate_per_cpu(ACPI_HANDLE object, UINT32 nestingLevel, void *context, void **returnvalue)
 {
-	ACPI_BUFFER buffer = { ACPI_ALLOCATE_BUFFER, NULL};
+	ACPI_BUFFER buffer = { ACPI_ALLOCATE_BUFFER, nullptr};
 	struct acpi_processor *processor = &((struct acpi_processor *) context)[__ndx++];
 	uint32_t apic_id = (uint32_t) -1;
 	(void) apic_id;
 
 	/* _MAT returns a segment of the MADT table */
-	if(ACPI_FAILURE(AcpiEvaluateObject(object, (char *) "_MAT", NULL, &buffer)))
+	if(ACPI_FAILURE(AcpiEvaluateObject(object, (char *) "_MAT", nullptr, &buffer)))
 		return AE_ERROR;
 	/* Get the APIC ID */
 	ACPI_OBJECT *obj = (ACPI_OBJECT*) buffer.Pointer;
@@ -517,7 +445,7 @@ struct acpi_processor *acpi_enumerate_cpus(void)
 	acpi_processor *processors = (acpi_processor *) malloc(sizeof(acpi_processor) * get_nr_cpus());
 	if(!processors)
 	{
-		return NULL;
+		return nullptr;
 	}
 
 	memset(processors, 0, sizeof(struct acpi_processor) * get_nr_cpus());
@@ -529,7 +457,7 @@ struct acpi_processor *acpi_enumerate_cpus(void)
 	AcpiWalkNamespace(ACPI_TYPE_PROCESSOR, ACPI_ROOT_OBJECT,
 				    ACPI_UINT32_MAX,
 				    acpi_enumerate_per_cpu,
-				    NULL, processors, NULL);
+				    nullptr, processors, nullptr);
 
 	mutex_unlock(&cpu_enum_lock);
 	return processors;
@@ -550,7 +478,7 @@ const char *power_states[] =
 
 int acpi_set_device_power_state(struct acpi_device *device, unsigned int power_state)
 {
-	ACPI_STATUS st = AcpiEvaluateObject(device->object, (char *) power_states[power_state], NULL, NULL);
+	ACPI_STATUS st = AcpiEvaluateObject(device->object, (char *) power_states[power_state], nullptr, nullptr);
 	if(ACPI_FAILURE(st))
 	{
 		return 1;
@@ -690,7 +618,7 @@ bool acpi_driver_supports_device(struct driver *driver, struct device *device)
 {
 	struct acpi_dev_id *dev_table = (acpi_dev_id *) driver->devids;
 
-	for(; dev_table->devid != NULL; dev_table++)
+	for(; dev_table->devid != nullptr; dev_table++)
 	{
 		if(!strcmp(device->name, dev_table->devid))
 		{
@@ -701,29 +629,16 @@ bool acpi_driver_supports_device(struct driver *driver, struct device *device)
 	return false;
 }
 
+bus_type acpi_type{"acpi"};
+
 void acpi_bus_register_driver(struct driver *driver)
 {
-	spin_lock(&acpi_bus.bus_lock);
+	acpi_type.add_driver(driver);
 
-	if(!acpi_bus.registered_drivers)
-	{
-		acpi_bus.registered_drivers = driver;
-	}
-	else
-	{
-		struct driver *d;
-		for(d = acpi_bus.registered_drivers; d->next_bus;
-			d = d->next_bus);
-		d->next_bus = driver;
-	}
-
-	driver->next_bus = NULL;
-
-	spin_unlock(&acpi_bus.bus_lock);
-
+	// TODO: Move this to the bus implementation
 	list_for_every(&acpi_bus.device_list_head)
 	{
-		struct device *dev = container_of(l, struct device, device_list_node);
+		struct device *dev = list_head_cpp<device>::self_from_list_head(l);
 		if(acpi_driver_supports_device(driver, dev))
 		{
 			driver_register_device(driver, dev);

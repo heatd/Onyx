@@ -31,7 +31,7 @@ void *rx_buffer = NULL;
 struct tx_buffer tx_buffers[RTL_NR_TX] = {0};
 static struct spinlock tx_lock = {0};
 static int tx = 0;
-static struct pci_device *device = NULL;
+static pci::pci_device *device = NULL;
 static uint16_t io_base = 0;
 static volatile uint8_t *memory_base = NULL;
 static size_t rx_buf_seek = 0;
@@ -302,7 +302,7 @@ static struct pci_id pci_rtl_devids[] =
 
 int rtl_probe(struct device *dev)
 {
-	device = (struct pci_device *) dev;
+	device = (pci::pci_device *) dev;
 
 	/* Enable PCI busmastering */
 	pci_enable_busmastering(device);
@@ -355,12 +355,13 @@ static struct driver rtl_driver =
 {
 	.name = "rtl",
 	.devids = &pci_rtl_devids,
-	.probe = rtl_probe
+	.probe = rtl_probe,
+	.bus_type_node = {&rtl_driver}
 };
 
 static int rtl8139_init()
 {
-	pci_bus_register_driver(&rtl_driver);
+	pci::register_driver(&rtl_driver);
 	return 0;
 }
 

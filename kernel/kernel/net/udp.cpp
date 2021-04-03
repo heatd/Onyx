@@ -167,11 +167,11 @@ int udp_socket::connect(sockaddr *addr, socklen_t len)
 	
 	auto route_result = get_proto_fam()->route(src_addr, dest_addr, res.second);
 	
-	/* If we've got an error, ignore it. Is this correct/sane behavior? */
 	if(route_result.has_error())
 	{
+		printk("error %d\n", route_result.error());
 		connected = false;
-		return 0;
+		return route_result.error();
 	}
 
 	route_cache = route_result.value();

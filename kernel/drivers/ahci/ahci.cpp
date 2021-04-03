@@ -590,7 +590,7 @@ const char *ahci_get_if_speed(ahci_hba_memory_regs_t *hba)
 	}
 }
 
-int ahci_check_caps(ahci_hba_memory_regs_t *hba, struct pci_device *ahci_dev)
+int ahci_check_caps(ahci_hba_memory_regs_t *hba, pci::pci_device *ahci_dev)
 {
 	MPRINTF("supported features: ");
 	if(hba->host_cap & AHCI_CAP_SXS)
@@ -629,9 +629,11 @@ int ahci_check_caps(ahci_hba_memory_regs_t *hba, struct pci_device *ahci_dev)
 		printf("64-bit addressing ");
 	printf("\n");
 
-	MPRINTF("version %s device at %x:%x:%x running at speed %s\n",
-		ahci_stringify_version(ahci_get_version(hba)), ahci_dev->bus, 
-		ahci_dev->device, ahci_dev->function, ahci_get_if_speed(hba));
+	auto addr = ahci_dev->addr();
+
+	MPRINTF("version %s device at %x:%x:%x:%x running at speed %s\n",
+		ahci_stringify_version(ahci_get_version(hba)), addr.segment, addr.bus, 
+		addr.device, addr.function, ahci_get_if_speed(hba));
 	return 0;
 }
 
@@ -1018,7 +1020,7 @@ int ahci_initialize(struct ahci_device *device)
 	return 0;
 }
 
-struct pci_id pci_ahci_devids[] = 
+struct pci::pci_id pci_ahci_devids[] = 
 {
 	{ PCI_ID_CLASS(CLASS_MASS_STORAGE_CONTROLLER, 6, PCI_ANY_ID, nullptr) },
 	{ 0 }
@@ -1029,18 +1031,14 @@ int ahci_probe(struct device *dev)
 {
 	int status = 0;
 	int irq = -1;
-	struct pci_device *ahci_dev = (struct pci_device *) dev;
+	pci::pci_device *ahci_dev = (pci::pci_device *) dev;
 
-	if(pci_enable_device(ahci_dev) < 0)
+	if(ahci_dev->enable_device() < 0)
 		return -1;
 
-	/* Get BAR5 of the device BARs */
-	struct pci_bar bar;
-	if(pci_get_bar(ahci_dev, 5, &bar) < 0)
-		return -1;
+	/* Map BAR5 of the device BARs */
 
-	ahci_hba_memory_regs_t *hba = (ahci_hba_memory_regs_t *) mmiomap((void *) bar.address, bar.size,
-										  VM_WRITE | VM_NOCACHE | VM_NOEXEC);
+	ahci_hba_memory_regs_t *hba = (ahci_hba_memory_regs_t *) ahci_dev->map_bar(5, VM_NOCACHE);
 
 	assert(hba != nullptr);
 
@@ -1052,10 +1050,8 @@ int ahci_probe(struct device *dev)
 	device->pci_dev = ahci_dev;
 	device->hba = hba;
 
-	pci_enable_device(ahci_dev);
-
 	/* Enable PCI busmastering */
-	pci_enable_busmastering(ahci_dev);
+	ahci_dev->enable_busmastering();
 	
 	if(ahci_check_caps(hba, ahci_dev) < 0)
 	{
@@ -1063,12 +1059,12 @@ int ahci_probe(struct device *dev)
 		goto ret;
 	}
 	
-	if(pci_enable_msi(ahci_dev, ahci_irq, device))
+	if(ahci_dev->enable_msi(ahci_irq, device))
 	{
 		/* If we couldn't enable MSI, use normal I/O APIC pins */
 
 		/* Get the interrupt number */
-		irq = pci_get_intn(ahci_dev);
+		irq = ahci_dev->get_intn();
 		printf("IRQ: %u\n", irq);
 		/* and install a handler */
 		assert(install_irq(irq, ahci_irq, (struct device *) ahci_dev,
@@ -1097,14 +1093,15 @@ struct driver ahci_driver =
 {
 	.name = "ahci",
 	.devids = &pci_ahci_devids,
-	.probe = ahci_probe
+	.probe = ahci_probe,
+	.bus_type_node = {&ahci_driver}
 };
 
 static int ahci_init(void)
 {
 	MPRINTF("initializing!\n");
 
-	pci_bus_register_driver(&ahci_driver);
+	pci::register_driver(&ahci_driver);
 
 	return 0;
 }

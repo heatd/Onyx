@@ -70,6 +70,7 @@ int __vdso_clock_gettime(clockid_t clk_id, struct timespec *tp)
 			break;
 		}
 		case CLOCK_MONOTONIC:
+		case CLOCK_MONOTONIC_RAW:
 		{
 			clk = &clock_monotonic;
 			break;

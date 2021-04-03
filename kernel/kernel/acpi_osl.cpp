@@ -23,7 +23,7 @@
 
 #include <pci/pci.h>
 
-uint64_t __pci_read(struct pci_device *dev, uint16_t off, size_t size);
+uint64_t __pci_read(pci::pci_device *dev, uint16_t off, size_t size);
 
 extern "C"
 {
@@ -247,17 +247,16 @@ irqstatus_t acpi_sci_irq(struct irq_context *ctx, void *cookie)
 
 struct driver acpi_driver =
 {
-	.name = "acpi"
+	.name = "acpi",
+	.bus_type_node = {&acpi_driver}
 };
 
-static struct device acpi_dev =
-{
-	.name = "acpi_sci",
-	.driver = &acpi_driver
-};
+extern bus acpi_bus;
+static struct device acpi_dev{"acpi_sci", &acpi_bus, nullptr};
 
 ACPI_STATUS AcpiOsInstallInterruptHandler(UINT32 InterruptLevel, ACPI_OSD_HANDLER Handler, void *Context)
 {
+	acpi_dev.driver_ = &acpi_driver;
 	assert(install_irq(InterruptLevel, acpi_sci_irq, &acpi_dev, IRQ_FLAG_REGULAR, Context) == 0);
 	ServiceRout = Handler;
 
@@ -325,39 +324,25 @@ ACPI_STATUS AcpiOsWritePort(ACPI_IO_ADDRESS Address, UINT32 Value, UINT32 Width)
 
 ACPI_STATUS AcpiOsWritePciConfiguration(ACPI_PCI_ID *PciId, UINT32 Register, UINT64 Value, UINT32 Width)
 {
-	if(Width == 8)
-		__pci_write_byte(PciId->Bus, PciId->Device, PciId->Function, Register, (uint8_t) Value);
-	if(Width == 16)
-		__pci_write_word(PciId->Bus, PciId->Device, PciId->Function, Register, (uint16_t) Value);
-	if(Width == 32)
-		__pci_write_dword(PciId->Bus, PciId->Device, PciId->Function, Register, (uint32_t) Value);
-	if(Width == 64)
-		__pci_write_qword(PciId->Bus, PciId->Device, PciId->Function, Register, Value);
+	pci::device_address addr;
+	addr.segment = PciId->Segment;
+	addr.bus = (uint8_t) PciId->Bus;
+	addr.device = (uint8_t) PciId->Device;
+	addr.function = (uint8_t) PciId->Function;
+
+	pci::write_config(addr, Value, Register, Width / 8);
 	return AE_OK;
 }
 
 ACPI_STATUS AcpiOsReadPciConfiguration(ACPI_PCI_ID *PciId, UINT32 Register, UINT64 *Value, UINT32 Width)
 {
-	struct pci_device_address addr;
+	pci::device_address addr;
 	addr.segment = PciId->Segment;
 	addr.bus = (uint8_t) PciId->Bus;
 	addr.device = (uint8_t) PciId->Device;
 	addr.function = (uint8_t) PciId->Function;
-	struct pci_device *dev = pci_get_dev(&addr);
-	if(!dev)
-	{
-		struct pci_device fake_dev;
-		fake_dev.segment = addr.segment;
-		fake_dev.bus = addr.bus;
-		fake_dev.device = addr.device;
-		fake_dev.function = addr.function;
-		fake_dev.read = __pci_read;
-		*Value = pci_read(&fake_dev, (uint16_t) Register, Width / 8);
-
-		return AE_OK;
-	}
 	
-	*Value = pci_read(dev, (uint16_t) Register, Width / 8);
+	*Value = pci::read_config(addr, (uint16_t) Register, Width / 8);
 	return AE_OK;
 }
 

@@ -16,6 +16,9 @@
 #include <onyx/compiler.h>
 #include <onyx/dev.h>
 #include <onyx/irq.h>
+#include <onyx/expected.hpp>
+
+#define PCI_NR_DEV     32
 
 #define PCI_CONFIGURATION_SPACE_SIZE		256
 
@@ -33,6 +36,7 @@
 #define PCI_REGISTER_PROGIF			0x9
 #define PCI_REGISTER_SUBCLASS			0xa
 #define PCI_REGISTER_CLASS			0xb
+#define PCI_REGISTER_SECONDARY_BUS      0x1a
 #define PCI_REGISTER_SUBSYSTEM_VID		0x2c
 #define PCI_REGISTER_SUBSYSTEM_ID		0x2e
 #define PCI_REGISTER_CAPABILTIES_POINTER	0x34
@@ -116,6 +120,9 @@
 #define PCI_POWER_STATE_D2	(1 << 2)
 #define PCI_POWER_STATE_D3	(1 << 3)
 
+namespace pci
+{
+
 struct pci_irq
 {
 	bool level;
@@ -123,40 +130,19 @@ struct pci_irq
 	uint32_t gsi;
 };
 
-struct pci_device_address
+struct device_address
 {
 	uint16_t segment;
 	uint8_t bus;
 	uint8_t device;
 	uint8_t function;
 };
-
-struct pci_device
-{
-	struct device dev;
-	uint16_t deviceID, vendorID;
-	uint8_t bus, device, function;
-	uint8_t pciClass, subClass, progIF;
-	int type;
-	bool has_power_management;
-	uint8_t pm_cap_off;
-	/* Given by PCI, we just cache it here */
-	int supported_power_states;
-	int current_power_state;
-	uint16_t segment;
-	uint64_t (*read)(struct pci_device *dev, uint16_t offset, size_t size);
-	void (*write)(struct pci_device *dev, uint64_t val, uint16_t offset, size_t size);
-	struct pci_device *next __align_cache;
-	struct pci_irq pin_to_gsi[4];
-	void *driver_data;
-};
-
 struct pci_bar
 {
 	uint64_t address;
+	size_t size;
 	bool is_iorange;
 	bool may_prefetch;
-	size_t size;
 };
 
 #define PCI_ID_BY_CLASS		0
@@ -174,6 +160,116 @@ struct pci_id
 	void *driver_data;
 };
 
+class pci_device : public device
+{
+protected:
+	uint16_t device_id, vendor_id;
+	device_address address;
+	uint8_t pci_class_, sub_class_, prog_if_;
+	int type;
+	bool has_power_management;
+	uint8_t pm_cap_off;
+	/* Given by PCI, we just cache it here */
+	int supported_power_states;
+	int current_power_state;
+	pci_device *next;
+	struct pci_irq pin_to_gsi[4];
+	void *driver_data;
+	pcie_allocation *alloc;
+
+	void find_supported_capabilities();
+	int wait_for_tp(off_t cap_start);
+	int set_power_state(int power_state);
+
+public:
+	pci_device(const char *name, struct bus *b, device *parent, uint16_t did_,
+	           uint16_t vid_, const device_address& addr) : device{name, b, parent}, device_id{did_},
+	           vendor_id{vid_}, address{addr}, pci_class_{}, sub_class_{}, prog_if_{}, type{},
+			   has_power_management{}, pm_cap_off{}, supported_power_states{}, current_power_state{},
+			   next{}, pin_to_gsi{}, driver_data{}, alloc{}
+	{
+	}
+
+	virtual ~pci_device() {}
+
+	uint16_t did() const
+	{
+		return device_id;
+	}
+
+	uint16_t vid() const
+	{
+		return vendor_id;
+	}
+
+	uint8_t pci_class() const
+	{
+		return pci_class_;
+	}
+
+	uint8_t sub_class() const
+	{
+		return sub_class_;
+	}
+
+	uint8_t prog_if() const
+	{
+		return prog_if_;
+	}
+
+	void init();
+
+	uint64_t read(uint16_t off, size_t size) const;
+	void write(uint64_t value, uint16_t off, size_t size) const;
+
+	uint16_t get_subsystem_id() const
+	{
+		return static_cast<uint16_t>(read(PCI_REGISTER_SUBSYSTEM_ID, sizeof(uint16_t)));
+	}
+
+	int reset_device();
+	int enable_device();
+
+	uint16_t get_intn() const;
+
+	void enable_busmastering();
+	void disable_busmastering();
+	void enable_irq();
+	void disable_irq();
+	size_t find_capability(uint8_t cap, int instance = 0);
+	int enable_msi(irq_t handler, void *cookie);
+	expected<pci_bar, int> get_bar(unsigned int index);
+	void *map_bar(unsigned int index, unsigned int caching);
+	void set_bar(const pci_bar& bar, unsigned int index);
+
+	device_address addr() const
+	{
+		return address;
+	}
+
+	uint16_t get_status() const;
+
+	auto get_pin_to_gsi() 
+	{
+		return pin_to_gsi;
+	}
+
+	void set_driver_data(void *data)
+	{
+		driver_data = data;
+	}
+
+	uint16_t header_type() const
+	{
+		return (uint16_t) read(PCI_REGISTER_HEADER, sizeof(uint16_t));
+	}
+
+	void set_alloc(pcie_allocation *alloc)
+	{
+		this->alloc = alloc; 
+	}
+};
+
 #define PCI_ID_DEVICE(vendor, dev, drv_data) \
 .device_id = dev, .vendor_id = vendor, .pci_class = PCI_ANY_ID, \
 .subclass = PCI_ANY_ID, .progif = PCI_ANY_ID, .driver_data = drv_data
@@ -183,45 +279,12 @@ struct pci_id
 .pci_class = c, .subclass = s, .progif = p, \
 .driver_data = drv_data
 
-void pci_init();
-uint16_t __pci_config_read_word (uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset);
-uint32_t __pci_config_read_dword (uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset);
-void __pci_write_byte(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint8_t data);
-void __pci_write_word(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint16_t data);
-void __pci_write_dword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint32_t data);
-void __pci_write_qword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint64_t data);
-void pci_check_devices();
-const char* pci_identify_common_vendors(uint16_t vendorID);
-const char* pci_identify_device_type(uint16_t headerType);
-const char* pci_identify_device_function(uint8_t pciClass, uint8_t subClass, uint8_t progIF);
-uint16_t pci_get_intn(struct pci_device *dev);
+pci_device *get_device(const device_address& addr);
 
-struct pci_device *pci_get_dev(struct pci_device_address *addr);
+uint64_t read_config(const device_address& addr, uint16_t off, size_t size);
+void write_config(const device_address& addr, uint64_t value, uint16_t off, size_t size);
 
-void pci_set_barx(uint8_t slot, uint8_t device, uint8_t function, uint8_t index, uint32_t address, uint8_t is_io, uint8_t is_prefetch);
-void pci_write(struct pci_device *dev, uint64_t value, uint16_t off, size_t size);
-uint64_t pci_read(struct pci_device *dev, uint16_t off, size_t size);
-void pci_enable_busmastering(struct pci_device *dev);
-void pci_disable_busmastering(struct pci_device *dev);
-void pci_disable_irq(struct pci_device *dev);
-void pci_enable_irq(struct pci_device *dev);
-size_t pci_find_capability(struct pci_device *dev, uint8_t cap, int instance);
-int pci_enable_msi(struct pci_device *dev, irq_t handler, void *cookie);
-void pci_bus_register_driver(struct driver *driver);
-int pci_get_bar(struct pci_device *dev, int index, struct pci_bar *bar);
-void *pci_map_bar(struct pci_device *device, int index, unsigned int caching);
-
-int pci_enable_device(struct pci_device *device);
-int pci_reset_device(struct pci_device *device);
-uint16_t pci_get_subsys_id(struct pci_device *dev);
-
-typedef void (*pci_callback_t)(struct pci_device *dev);
-typedef struct
-{
-	uint16_t deviceID, vendorID;
-	uint8_t pciClass, subClass, progIF;
-	uint8_t driver_type;
-	pci_callback_t cb;
-} pci_driver_t;
+void register_driver(struct driver *driver);
+}
 
 #endif

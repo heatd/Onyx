@@ -155,7 +155,7 @@ int qxl_init_device(struct qxl_device *device)
 
 int qxl_probe(struct device *_dev)
 {
-	struct pci_device *device = (struct pci_device *) _dev;
+	pci::pci_device *device = (pci::pci_device *) _dev;
 
 	return -1;
 
@@ -189,12 +189,13 @@ struct driver qxl_driver =
 {
 	.name = "qxl",
 	.devids = &qxl_pci_ids,
-	.probe = qxl_probe
+	.probe = qxl_probe,
+	.bus_type_node = {&qxl_driver}
 };
 
 int qxl_init(void)
 {
-	pci_bus_register_driver(&qxl_driver);
+	pci::register_driver(&qxl_driver);
 	return 0;
 }
 

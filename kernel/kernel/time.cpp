@@ -118,11 +118,17 @@ int clock_gettime_kernel(clockid_t clk_id, struct timespec *tp)
 		}
 
 		case CLOCK_MONOTONIC:
+		case CLOCK_MONOTONIC_RAW:
 		{
-			tp->tv_sec = clocks[clk_id].epoch;
-			uint64_t start = clocks[clk_id].tick;
-			uint64_t end = clocks[clk_id].source->get_ticks();
-			tp->tv_nsec = clocks[clk_id].source->elapsed_ns(start, end);
+			// TODO: This is not conforming
+			if(clk_id == CLOCK_MONOTONIC_RAW)
+			{
+				clk_id = CLOCK_MONOTONIC;
+			}
+
+			auto t0 = clocksource_get_time();
+			tp->tv_sec = t0 / NS_PER_SEC;
+			tp->tv_nsec = t0 % NS_PER_SEC;
 			break;
 		}
 
@@ -191,6 +197,9 @@ uint64_t clock_delta_calc(uint64_t start, uint64_t end)
 
 void time_set(clockid_t clock, struct clock_time *val)
 {
+	if(clocks[clock].epoch == val->epoch)
+		return;
+
 	clocks[clock] = *val;
 	vdso_update_time(clock, val);
 }

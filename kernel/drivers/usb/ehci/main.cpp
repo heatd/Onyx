@@ -76,12 +76,14 @@ ehci_controller::~ehci_controller()
 
 int ehci_probe(struct device *__dev)
 {
-	auto dev = reinterpret_cast<struct pci_device *>(__dev);
+	auto dev = reinterpret_cast<pci::pci_device *>(__dev);
+
+	auto addr = dev->addr();
 
 	printk("EHCI device found at %04x:%02x:%02x:%02x!\n",
-		dev->segment, dev->bus, dev->device, dev->function);
+		addr.segment, addr.bus, addr.device, addr.function);
 	
-	void *buffer = pci_map_bar(dev, PCI_USB2_HOST_CONTROLLER_REGISTER_SPACE_BAR, VM_NOCACHE);
+	void *buffer = dev->map_bar(PCI_USB2_HOST_CONTROLLER_REGISTER_SPACE_BAR, VM_NOCACHE);
 	if(!buffer)
 	{
 		printk("ehci: failed to map bar\n");
@@ -112,12 +114,13 @@ struct driver ehci_driver_struct
 {
 	.name = "ehci",
 	.devids = &ehci_pci_ids,
-	.probe = ehci_probe
+	.probe = ehci_probe,
+	.bus_type_node = {&ehci_driver_struct}
 };
 
 int ehci_init()
 {
 	printk("ehci init\n");
-	pci_bus_register_driver(&ehci_driver_struct);
+	pci::register_driver(&ehci_driver_struct);
 	return 0;
 }

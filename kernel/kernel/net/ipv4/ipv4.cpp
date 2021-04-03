@@ -569,8 +569,10 @@ expected<inet_route, int> proto_family::route(const inet_sock_address& from,
 	rw_unlock_read(&routing_table_lock);
 
 	if(!best_route)
+	{
 		return unexpected<int>{-ENETUNREACH};
-	
+	}
+
 	inet_route r;
 	r.dst_addr.in4 = to.in4;
 	r.nif = best_route->nif;

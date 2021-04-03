@@ -66,7 +66,7 @@ int install_irq(unsigned int irq, irq_t handler, struct device *device,
 	
 	platform_install_irq(irq, h);
 
-	printf("Installed handler (driver %s) for IRQ%u\n", device->driver->name, irq);
+	printf("Installed handler (driver %s) for IRQ%u\n", device->driver_->name, irq);
 
 	return 0;
 }

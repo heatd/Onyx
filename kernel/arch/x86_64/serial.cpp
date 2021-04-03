@@ -73,12 +73,13 @@ enum class uart8250_register
 extern "C"
 int vterm_receive_input(char c);
 
-struct driver serial_platform_driver = 
+driver serial_platform_driver = 
 {
-	.name = "uart8250"
+	.name = "uart8250",
+	.bus_type_node = {&serial_platform_driver}
 };
 
-struct device uart8250_platform_device = {.name = "uart8250"};
+device uart8250_platform_device{"uart8250", nullptr, nullptr};
 
 class uart8250_port : public serial_port
 {
@@ -282,7 +283,7 @@ void uart8250_port::late_init()
 {
 	auto int_no = com_nr == 1 || com_nr == 3  ? 4 : 3;
 
-	uart8250_platform_device.driver = &serial_platform_driver;
+	uart8250_platform_device.driver_ = &serial_platform_driver;
 	install_irq(int_no, uart8250_irq, &uart8250_platform_device, IRQ_FLAG_REGULAR, this);
 }
 

@@ -379,17 +379,18 @@ unsigned int device::do_ioctl_get_info(photon_info *uinfo)
 
 unsigned int device::do_ioctl_get_bus_info_pci(photon_bus_info& info)
 {
-	pci_device *pdev = reinterpret_cast<pci_device *>(underlying_dev);
+	pci::pci_device *pdev = reinterpret_cast<pci::pci_device *>(underlying_dev);
 
 	auto &pci_info = info.info.pci_info;
+	auto addr = pdev->addr();
 
-	pci_info.addr.bus = pdev->bus;
-	pci_info.addr.device = pdev->device;
-	pci_info.addr.segment = pdev->segment;
-	pci_info.addr.function = pdev->function;
-	pci_info.device_id = pdev->deviceID;
-	pci_info.vendor_id = pdev->vendorID;
-	pci_info.subsystem_id = pci_get_subsys_id(pdev);
+	pci_info.addr.bus = addr.bus;
+	pci_info.addr.device = addr.device;
+	pci_info.addr.segment = addr.segment;
+	pci_info.addr.function = addr.function;
+	pci_info.device_id = pdev->did();
+	pci_info.vendor_id = pdev->vid();
+	pci_info.subsystem_id = pdev->get_subsystem_id();
 
 	return 0;
 }

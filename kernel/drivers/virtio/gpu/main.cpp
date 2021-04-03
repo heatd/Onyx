@@ -60,7 +60,7 @@ bool gpu_vdev::perform_subsystem_initialization()
 	return true;
 }
 
-unique_ptr<vdev> create_gpu_device(pci_device *dev)
+unique_ptr<vdev> create_gpu_device(pci::pci_device *dev)
 {
 	return make_unique<gpu_vdev>(dev);
 }

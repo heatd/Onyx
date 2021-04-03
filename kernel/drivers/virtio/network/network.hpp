@@ -47,7 +47,7 @@ private:
 	
 	int send_packet(packetbuf *buf);
 public:
-	network_vdev(struct pci_device *d) : vdev(d) {}
+	network_vdev(pci::pci_device *d) : vdev(d) {}
 	~network_vdev();
 	
 	bool perform_subsystem_initialization() override;

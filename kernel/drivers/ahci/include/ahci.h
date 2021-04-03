@@ -12,6 +12,8 @@
 #include <onyx/spinlock.h>
 #include <onyx/async_io.h>
 
+#include <pci/pci.h>
+
 #define	SATA_SIG_ATA	0x00000101	// SATA drive
 #define	SATA_SIG_ATAPI	0xEB140101	// SATAPI drive
 
@@ -242,7 +244,7 @@ struct ahci_port
 
 struct ahci_device
 {
-	struct pci_device *pci_dev;
+	pci::pci_device *pci_dev;
 	ahci_hba_memory_regs_t *hba;
 	struct ahci_port ports[32];
 };

@@ -84,6 +84,13 @@ struct netif
 	struct list_head list_node;
 	struct list_head rx_queue_node;
 	data_link_layer_ops *dll_ops;
+
+	netif() : name{}, device_file{}, priv{}, if_id{}, flags{}, mtu{}, mac_address{},
+	          local_ip{}, inet6_addr_list_lock{}, inet6_addr_list{}, sendpacket{}, poll_rx{}, rx_end{},
+			  list_node{}, rx_queue_node{}, dll_ops{}
+	{
+		INIT_LIST_HEAD(&inet6_addr_list);
+	}
 };
 
 #ifdef __cplusplus

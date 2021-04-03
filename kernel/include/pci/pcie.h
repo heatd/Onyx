@@ -6,27 +6,27 @@
 #ifndef _PCIE_H
 #define _PCIE_H
 
+#include <stdint.h>
 #include <stdbool.h>
 
 struct pcie_allocation
 {
-	/* Mappings of the pcie allocation's configuration address space 
-	 * Generally, it's phys_address + PHYS_BASE 
-	*/
+	/* Mapping of the pcie allocation's configuration address space */
 	volatile void *address;
 	/* Segment number */
 	uint16_t segment;
 	/* Start and end buses */
 	uint8_t start_bus, end_bus;
-	struct pcie_allocation *next;
 };
 
-struct pci_device_address;
+namespace pci
+{
 
 int pcie_get_mcfg(void);
 bool pcie_is_enabled(void);
 int pcie_init(void);
+pcie_allocation *find_alloc_for_root(uint16_t segment, uint8_t nbus);
 
-struct pci_device *get_pciedev(struct pci_device_address *addr);
+}
 
 #endif

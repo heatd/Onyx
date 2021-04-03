@@ -158,7 +158,7 @@ struct igpu_device
 {
 	volatile void *mmio_regs;
 	volatile void *gpu_memory;
-	struct pci_device *device;
+	pci::pci_device *device;
 	struct igpu_gmbus gmbus;
 	uint32_t gpio_regs_off;
 	struct i2c_adapter i2c_adapter;

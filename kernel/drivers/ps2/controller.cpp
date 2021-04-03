@@ -446,7 +446,8 @@ struct driver ps2_keyboard_driver =
 {
 	.name = "ps2keyb",
 	.devids = &acpi_keyboard_ids,
-	.probe = ps2_probe_keyboard
+	.probe = ps2_probe_keyboard,
+	.bus_type_node = {&ps2_keyboard_driver}
 };
 
 struct driver ps2_mouse_driver = 
@@ -454,14 +455,16 @@ struct driver ps2_mouse_driver =
 	.name = "ps2mouse",
 	.devids = &acpi_mouse_ids,
 	.probe = ps2_probe_mouse,
+	.bus_type_node = {&ps2_mouse_driver}
 };
 
 struct driver ps2_platform_driver = 
 {
-	.name = "ps2"
+	.name = "ps2",
+	.bus_type_node = {&ps2_platform_driver}
 };
 
-struct device ps2_platform_device = {.name = "ps2"};
+struct device ps2_platform_device{"ps2", nullptr, nullptr};
 
 int ps2_probe_keyboard(struct device *device)
 {
@@ -531,7 +534,7 @@ int ps2_init(void)
 	if(x86_platform.i8042 == I8042_PLATFORM_ABSENT)
 			return -1;
 
-	ps2_platform_device.driver = &ps2_platform_driver;
+	ps2_platform_device.driver_ = &ps2_platform_driver;
 
 	acpi_bus_register_driver(&ps2_keyboard_driver);
 	acpi_bus_register_driver(&ps2_mouse_driver);
