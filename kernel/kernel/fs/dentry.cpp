@@ -101,7 +101,7 @@ void dentry_destroy(dentry *d)
 {
 	if(d->d_inode) close_vfs(d->d_inode);
 	if(d->d_parent) dentry_put(d->d_parent);
-	printk("Dentry %s dead\n", d->d_name);
+	//printk("Dentry %s dead\n", d->d_name);
 
 	if(d->d_name_length > INLINE_NAME_MAX)
 	{
@@ -766,7 +766,7 @@ struct create_handling : public last_name_handling
 		}
 
 		new_dentry->d_inode = new_inode;
-#if 1
+#if 0
 		printk("cinode refs: %lu\n", new_inode->i_refc);
 		printk("cdentry refs: %lu\n", new_dentry->d_ref);
 		printk("pdentry refs: %lu\n", dentry->d_ref);

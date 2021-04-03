@@ -460,6 +460,8 @@ void do_vterm_flush(struct vterm *vterm)
 	}
 }
 
+void platform_serial_write(const char *s, size_t size);
+
 void vterm_flush(struct vterm *vterm)
 {
 	if(vterm->multithread_enabled)
@@ -619,6 +621,9 @@ void vterm_blink_thread(void *ctx)
 
 void vterm_ansi_do_sgr(unsigned long n, struct vterm *vt)
 {
+	char args[20];
+	snprintf(args, 20, "m arg %lu\n", n);
+	platform_serial_write(args, strlen(args));
 	switch(n)
 	{
 		case ANSI_SGR_RESET:
@@ -839,8 +844,6 @@ void vterm::insert_blank(unsigned long nr)
 	}
 }
 
-void platform_serial_write(const char *s, size_t size);
-
 void vterm::reset_escape_status()
 {
 	in_escape = false;
@@ -965,9 +968,9 @@ size_t vterm::do_escape(const char *buffer, size_t len)
 
 	char escape = csi_data.escape_character;
 
-#if 0
+#if 1
 	char buf[50];
-	snprintf(buf, 50, "Seq: %c args {%lu, %lu}\n", escape, args[0], args[1]);
+	snprintf(buf, 50, "Seq: %c nargs %lu args {%lu, %lu}\n", escape, csi_data.nr_args, args[0], args[1]);
 	platform_serial_write(buf, strlen(buf));
 	//platform_serial_write("Seq: ", strlen("Seq: "));
 	//platform_serial_write(&escape, 1);
@@ -1039,6 +1042,13 @@ size_t vterm::do_escape(const char *buffer, size_t len)
 
 		case ANSI_SGR:
 		{
+			// If no args are given, CSI m = CSI 0 m (reset)
+			if(!csi_data.nr_args)
+			{
+				args[0] = 0;
+				csi_data.nr_args = 1;
+			}
+
 			for(size_t i = 0; i < csi_data.nr_args; i++)
 				vterm_ansi_do_sgr(args[i], this);
 			break;
