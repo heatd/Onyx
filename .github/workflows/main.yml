@@ -299,7 +299,7 @@ jobs:
           # A list of files, directories, and wildcard patterns to cache and restore
           path: toolchain_binaries/
           # An explicit key for restoring and saving the cache
-          key: toolchain-linux-llvm--${{ hashFiles('toolchains/llvm-project-11.0.0.patch') }}
+          key: toolchain-linux-llvm--${{ hashFiles('toolchains/llvm-project-11.0.0.patch toolchains/scripts/build_llvm.sh') }}
       
       - name: Build toolchain
         if: steps.toolchain-cache-linux-llvm.outputs.cache-hit != 'true'
