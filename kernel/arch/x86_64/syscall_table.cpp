@@ -41,11 +41,12 @@ uint64_t sys_nosys(void)
 }
 
 extern "C" {
-extern void sys_exit();
-extern void sys_fork();
-extern void sys_getppid();
-extern void sys_getpid();
-extern void sys_execve();
+
+extern void sys_exit(int status);
+extern pid_t sys_fork(syscall_frame *ctx);
+extern pid_t sys_getppid();
+extern pid_t sys_getpid();
+extern int sys_execve(const char *p, const char *argv[], const char *envp[]);
 extern pid_t sys_wait4(pid_t pid, int *wstatus, int options,
 struct rusage *rusage);
 extern ssize_t sys_read(int fd, const void *buf, size_t count);
@@ -111,7 +112,7 @@ extern int sys_fmount(int fd, const char *path);
 struct tid_out;
 int sys_clone(int (*fn)(void *), void *child_stack, int flags, void *arg, struct tid_out *out, void *tls);
 extern void sys_exit_thread(int value);
-extern int sys_sigprocmask(int how, const sigset_t *set, sigset_t *oldset);
+extern int sys_sigprocmask(int how, const sigset_t *set, sigset_t *oldset, size_t sigset_size);
 extern int sys_sigsuspend(const sigset_t *set);
 extern int sys_pause(void);
 extern int sys_futex(int *uaddr, int futex_op, int val,

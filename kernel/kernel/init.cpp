@@ -156,9 +156,9 @@ const char *kernel_getopt(const char *opt)
 void dump_used_mem(void);
 
 extern "C"
-int sys_execve(const char *p, char *argv[], char *envp[]);
+int sys_execve(const char *p, const char *argv[], const char *envp[]);
 
-int find_and_exec_init(char **argv, char **envp)
+int find_and_exec_init(const char **argv, const char **envp)
 {
 	struct process *proc = process_create("kernel", NULL, NULL);
 	if(!proc)
@@ -363,9 +363,8 @@ void kernel_multitasking(void *arg)
 		panic("--root wasn't specified in the kernel arguments");
 
 	/* Pass the root partition to init */
-	char *args[] = {(char *) "", (char *) root_partition, NULL};
-	char *envp[] = {(char *) "PATH=/bin:/usr/bin:/sbin:", (char *) "TERM=linux",
-	                (char *) "LANG=C", (char *) "PWD=/", NULL};
+	const char *args[] = {(char *) "", (char *) root_partition, NULL};
+	const char *envp[] = {"PATH=/bin:/usr/bin:/sbin:", "TERM=linux", "LANG=C", "PWD=/", NULL};
 
 	if(find_and_exec_init(args, envp) < 0)
 	{

@@ -680,7 +680,7 @@ extern "C" void sys_exit(int status)
 	process_exit(make_wait4_wstatus(0, false, status));
 }
 
-extern "C" uint64_t sys_getpid(void)
+extern "C" pid_t sys_getpid(void)
 {
 	return get_current_process()->pid;
 }
