@@ -1,0 +1,7 @@
+{
+	"files" :
+	[
+		{"resource/coredumpd.service" : "etc/init.d/targets/coredumpd.service"},
+		{"coredumpd" : "sbin/coredumpd"}	
+	]
+}

@@ -1,35 +1,36 @@
-import("//build/app.gni")
+import("//build/package.gni")
 
 config("init_config") {
     cflags = ["-static"]
     ldflags = ["-static"]
 }
 
-app_executable("initd_bin") {
+executable("initd_bin") {
     include_dirs = [ "include" ]
-    package_name = "init"
 
     output_name = "init"
-    extra_configs = [ ":init_config" ]
+    configs += [ ":init_config" ]
 
     sources = [ "daemon.c", "main.c" ]
-    sys_dir = "/sbin"
 }
 
-copy("initd_rule") {
-    sources = [ "multi-user.target", "default.target"]
-    outputs = [ "${root_out_dir}/packages/init/etc/init.d/targets/{{source_file_part}}" ]
+resource("initd_rule") {
+    sources = [ "multi-user.target", "default.target" ]
+    outputs = [ "etc/init.d/targets/{{source_file_part}}" ]
 }
 
-copy("initd_docs") {
+resource("initd_docs") {
     sources = [ "init.8" ]
-    outputs = [ "${root_out_dir}/packages/init/usr/share/man/man8/init.8" ]
+    outputs = [ "usr/share/man/man8/init.8" ]
 }
 
-group("init") {
+package("init") {
     deps = [
         ":initd_bin",
         ":initd_rule",
         ":initd_docs"
     ]
+
+    is_system_binary = true
+    executables = [ "init" ]
 }

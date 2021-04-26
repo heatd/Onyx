@@ -1,0 +1,7 @@
+{
+	"files" :
+	[
+		{"resource/devmgr.service" : "etc/init.d/targets/devmgr.service"},
+		{"devmgr" : "sbin/devmgr"}	
+	]
+}

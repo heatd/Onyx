@@ -1,0 +1,9 @@
+{
+	"files" :
+	[
+		{"resource/multi-user.target" : "etc/init.d/targets/multi-user.target"},
+		{"resource/default.target" : "etc/init.d/targets/default.target"},
+		{"init" : "sbin/init"},
+		{"resource/man/init.8" : "usr/share/man/man8/init.8"}
+	]
+}

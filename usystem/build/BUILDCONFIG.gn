@@ -2,6 +2,7 @@ set_default_toolchain("//build/toolchain:x86_64-gcc")
 
 declare_args() {
   clang_path = ""
+  strip_binaries = true
 }
 
 if(clang_path != "") {

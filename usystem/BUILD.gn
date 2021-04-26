@@ -1,8 +1,32 @@
-group("system") {
+group("system_packages") {
     deps = [
         "//core",
         "//network",
         "//tests",
         "//filesystem",
     ]
+}
+
+generated_file("build_sys_image_manifest") {
+    deps = [ ":system_packages" ]
+    data_keys = [ "system_image_file" ]
+    output_conversion = "json"
+    outputs = [ "$target_out_dir/sys_image_manifest.json" ]
+}
+
+action("build_sys_image") {
+    deps = [ ":build_sys_image_manifest" ]
+    manifest = "$target_out_dir/sys_image_manifest.json"
+    sources = [ manifest ]
+    script = "//build/image/make_sys_image.py"
+
+    sysroot_path = "$target_out_dir/sysroot-${target_cpu}/"
+
+    outputs = [sysroot_path]
+
+    args = ["--manifest", rebase_path(manifest, root_build_dir), "-o", rebase_path(sysroot_path, root_build_dir)]
+}
+
+group("system") {
+    deps = [ ":build_sys_image" ]
 }

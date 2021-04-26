@@ -1,25 +1,22 @@
-import("//build/app.gni")
+import("//build/package.gni")
 
-app_executable("coredumpd_bin") {
+executable("coredumpd_bin") {
     include_dirs = [ "include" ]
-    package_name = "coredumpd"
 
     output_name = "coredumpd"
 
     sources = [ "src/main.cpp", "src/logger.cpp" ]
 
     deps = ["//lib/onyx"]
-    sys_dir = "/sbin"
 }
 
-copy("coredumpd_rule") {
-    sources = [ "coredumpd.service"]
-    outputs = [ "${root_out_dir}/packages/coredumpd/etc/init.d/targets/{{source_file_part}}" ]
+resource("coredumpd_files") {
+    sources = ["coredumpd.service"]
+    outputs = ["etc/init.d/targets/{{source_file_part}}"]
 }
 
-group("coredumpd") {
-    deps = [
-        ":coredumpd_bin",
-        ":coredumpd_rule"
-    ]
+package("coredumpd") {
+    is_system_binary = true
+    executables = [ "coredumpd" ]
+    deps = [":coredumpd_bin", ":coredumpd_files"]
 }
