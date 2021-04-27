@@ -299,7 +299,7 @@ jobs:
           # A list of files, directories, and wildcard patterns to cache and restore
           path: toolchain_binaries/
           # An explicit key for restoring and saving the cache
-          key: toolchain-linux-llvm-${{ hashFiles('toolchains/llvm-project-11.0.0.patch toolchains/scripts/build_llvm.sh') }}
+          key: toolchain-linux-llvm-${{ hashFiles('toolchains/llvm-project-12.0.0.patch toolchains/scripts/build_llvm.sh') }}
       
       - name: Build toolchain
         if: steps.toolchain-cache-linux-llvm.outputs.cache-hit != 'true'
@@ -326,7 +326,7 @@ jobs:
         run: |
           mv toolchain_binaries onyx-llvm
           tar cvf onyx-linux-llvm.tar onyx-llvm
-          zstd -T0 -13 onyx-linux-llvm.tar -o onyx-linux-llvm.tar.zst
+          zstd -T0 -17 onyx-linux-llvm.tar -o onyx-linux-llvm.tar.zst
           mv onyx-llvm toolchain_binaries
 
       - name: Upload a Build Artifact (onyx-linux-llvm)
