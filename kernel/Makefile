@@ -157,11 +157,13 @@ $(CRTI_OBJ) \
 $(OBJS) \
 $(CRTN_OBJ) \
 
+OBJ_DEPS:=$(CRTBEGIN_OBJ) \
+$(OBJS) \
+$(CRTEND_OBJ)
+
 OBJ_LINK_LIST:=\
 $(CRTI_OBJ) \
-$(CRTBEGIN_OBJ) \
-$(OBJS) \
-$(CRTEND_OBJ) \
+$(OBJ_DEPS) \
 $(CRTN_OBJ) \
 
 VDSO_LDFLAGS:= -Wl,-Bsymbolic -shared \
@@ -179,7 +181,7 @@ all: onyx-vdso.so.0 vmonyx
 
 .PHONY: all clean install install-headers install-kernel kernel-modules
 
-vmonyx: $(OBJ_LINK_LIST) $(ARCHDIR)/linker.ld ../libc/libk.a
+vmonyx: $(OBJ_DEPS) $(ARCHDIR)/linker.ld ../libc/libk.a kernel.config
 	@echo [LD] $@
 	$(CC) $(LDFLAGS) -Wl,-T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(OBJ_LINK_LIST) $(LIBS)
 	cp vmonyx vmonyx-unstripped
