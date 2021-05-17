@@ -1,5 +1,5 @@
 PROJECTS:=libc kernel
-SOURCE_PACKAGES:= photon libunwind libtest
+SOURCE_PACKAGES:= photon libtest
 export ONYX_ARCH:=$(shell scripts/onyx_arch.sh)
 
 include usystem/Makefile
@@ -69,7 +69,6 @@ clean:
 	rm -rf sysroot
 	rm -rf initrd.tar.*
 	$(MAKE) -C musl clean
-	$(MAKE) -C libssp clean
 build-prep:
 	mkdir -p sysroot
 	cd kernel && ../scripts/config_to_header.py include/onyx/config.h
@@ -88,19 +87,16 @@ musl:
 	$(MAKE) -C musl install-headers
 	$(MAKE) -C $@ install
 
-libssp: install-packages musl
+singularity: musl install-packages wserver
 	$(MAKE) -C $@ install
 
-singularity: musl libssp install-packages wserver
+$(SOURCE_PACKAGES): musl install-packages
 	$(MAKE) -C $@ install
 
-$(SOURCE_PACKAGES): musl libssp install-packages
-	$(MAKE) -C $@ install
-
-$(USYSTEM_DFL_RULE_PROJS): musl libssp install-packages
+$(USYSTEM_DFL_RULE_PROJS): musl install-packages
 	$(MAKE) -C usystem/$@ install
 
-dash: musl libssp install-packages
+dash: musl install-packages
 	./scripts/check_reconf.sh usystem/dash --prefix=/usr --enable-static
 	$(MAKE) -C usystem/$@ install
 	ln -sf dash $(DESTDIR)$(BINDIR)/sh
@@ -111,7 +107,7 @@ install-headers: build-prep
 
 build-srcpackages: $(SOURCE_PACKAGES)
 
-build-gn: musl libssp libtest install-packages
+build-gn: musl libtest install-packages
 	cd usystem && ninja -C out/ system && ./copy_packages.sh && ./uncompress_packages.sh && cd ..
 
 build-usystem: build-srcpackages $(USYSTEM_PROJS) build-gn
