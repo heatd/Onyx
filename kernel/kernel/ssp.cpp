@@ -32,7 +32,7 @@
 uintptr_t __stack_chk_guard = STACK_CHK_GUARD;
 
 extern "C"
-__attribute__((noreturn, no_stack_protector, used))
+__attribute__((noreturn, used))
 void __stack_chk_fail()
 {
 	panic("Stack smashing detected");
@@ -42,7 +42,7 @@ namespace abi
 {
 
 extern "C"
-__attribute__((no_stack_protector, used))
+__attribute__((used))
 void init_ssp_for_cpu(unsigned int cpu_nr)
 {
 	uintptr_t new_guard = 0;

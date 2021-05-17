@@ -364,7 +364,6 @@ INIT_LEVEL_EARLY_PLATFORM_ENTRY(cpu_init_late);
 extern PML *boot_pml4;
 
 extern "C"
-__attribute__((no_stack_protector))
 void smpboot_main(unsigned long gs_base, volatile struct smp_header *header)
 {
 	lapic_init_per_cpu();
