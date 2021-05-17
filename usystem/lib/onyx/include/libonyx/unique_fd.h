@@ -31,7 +31,7 @@ public:
 	{
 	}
 
-	constexpr unique_fd& operator=(unique_fd&& f) noexcept
+	unique_fd& operator=(unique_fd&& f) noexcept
 	{
 		reset(f.release());
 		return *this;
