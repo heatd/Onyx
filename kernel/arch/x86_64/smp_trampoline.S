@@ -109,6 +109,28 @@ _long_mode:
 	mov $(smpboot_header - _start_smp), %rsi
 	add %rax, %rsi
 
+	/* Note: This cannot be done in C++ code because LTO likes to get funky and add stack protector stuff where
+	 * there wasn't any, when inlining. This caused a mov %gs:0x28, reg to exist before the
+	 * wrmsr and init_ssp_for_cpu.
+	 */
+	/* Take the time to wrmsr the gs base, before we enter any C/C++ code */
+	mov %rdi, %rdx
+	mov %rdx, %r11
+	mov %edx, %eax
+	shr $32, %rdx
+	mov $GS_BASE_MSR, %ecx
+	wrmsr
+
+	push %rdi
+	push %rsi
+
+	/* And call init_ssp_for_cpu too! */
+	movl %gs:cpu_nr, %edi
+	call init_ssp_for_cpu
+
+	pop %rsi
+	pop %rdi
+
 	.extern smpboot_main
 	push $smpboot_main
 	ret

@@ -23,7 +23,7 @@ CPPFLAGS =
 LDFLAGS = 
 LDFLAGS_AUTO = -Wl,--sort-section,alignment -Wl,--sort-common -Wl,--gc-sections -Wl,--hash-style=both -Wl,--no-undefined -Wl,--exclude-libs=ALL -Wl,--dynamic-list=./dynamic.list
 CROSS_COMPILE = x86_64-onyx-
-LIBCC = /data/toolchains/onyx-clang/lib/clang/11.0.0/lib/x86_64-unknown-onyx/libclang_rt.builtins.a
+LIBCC = /data/toolchains/onyx-clang/lib/clang/12.0.0/lib/x86_64-unknown-onyx/libclang_rt.builtins.a
 OPTIMIZE_GLOBS = 
 ALL_TOOLS = 
 TOOL_LIBS = 

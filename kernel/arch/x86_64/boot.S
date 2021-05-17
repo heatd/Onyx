@@ -75,7 +75,9 @@ _start:
 	call multiboot2_kernel_entry
 	call _init
 	call runtime_call_constructors
-	call randomize_stack_canary
+	# rdi = cpu nr
+	xor %rdi, %rdi
+	call init_ssp_for_cpu
 	call kernel_main
 	cli
 _start.Lhang: 

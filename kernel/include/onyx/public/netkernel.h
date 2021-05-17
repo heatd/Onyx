@@ -33,6 +33,8 @@ struct netkernel_error
 
 #define NETKERNEL_PATH_MAX            109
 
+#define NETKERNEL_MSG_NETIF_GET_NETIFS      0x1000
+
 struct sockaddr_nk
 {
 	sa_family_t nk_family;
@@ -47,9 +49,9 @@ struct sockaddr_nk
 struct netkernel_route4_add
 {
 	struct netkernel_hdr hdr;
-	in_addr dest;
-	in_addr gateway;
-	in_addr mask;
+	struct in_addr dest;
+	struct in_addr gateway;
+	struct in_addr mask;
 	int metric;
 	unsigned short flags;
 	char iface[IF_NAME_MAX + 1];
@@ -58,13 +60,29 @@ struct netkernel_route4_add
 struct netkernel_route6_add
 {
 	struct netkernel_hdr hdr;
-	in6_addr dest;
-	in6_addr gateway;
-	in6_addr mask;
+	struct in6_addr dest;
+	struct in6_addr gateway;
+	struct in6_addr mask;
 	int metric;
 	unsigned short flags;
 	uint8_t hop_limit;
 	char iface[IF_NAME_MAX + 1];
+};
+
+struct netkernel_get_nif_interface
+{
+	unsigned int if_index;
+	char iface[IF_NAME_MAX + 1];
+};
+
+struct netkernel_get_nifs_response
+{
+	struct netkernel_hdr hdr;
+	// Number of interfaces that follow the header
+	unsigned int nr_ifs;
+
+	// Followed by $nr_ifs netkernel_get_nif_interfaces
+	struct netkernel_get_nif_interface interfaces[];
 };
 
 #define ROUTE4_FLAG_GATEWAY      (1 << 0)
@@ -73,7 +91,7 @@ struct netkernel_route6_add
 struct netkernel_ipv6_addrcfg
 {
 	struct netkernel_hdr hdr;
-	in6_addr interface_id;
+	struct in6_addr interface_id;
 	char iface[IF_NAME_MAX + 1];
 };
 

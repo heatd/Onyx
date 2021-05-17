@@ -17,6 +17,6 @@ static_library("libonyx_static") {
 app_shared_library("onyx") {
     package_name = "libonyx"
     output_name = "libonyx"
-    deps = [ ":libonyx_sources" ]
+    public_deps = [ ":libonyx_sources" ]
 }
 

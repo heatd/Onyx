@@ -132,7 +132,6 @@ int netkernel_socket::connect(sockaddr *addr, socklen_t addrlen)
 		return -ECONNREFUSED;
 	
 	dst = obj;
-
 	connected = true;
 
 	return 0;
@@ -212,9 +211,6 @@ ssize_t netkernel_socket::sendmsg(const struct msghdr *msg, int flags)
 
 socket *create_socket(int type)
 {
-	if(type != SOCK_DGRAM)
-		return errno = EINVAL, nullptr;
-
 	return new netkernel_socket{type};
 }
 

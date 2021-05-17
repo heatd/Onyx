@@ -1,0 +1,14 @@
+import("//build/package.gni")
+
+executable("uuidgen_exec") {
+    sources = [ "uuidgen.cpp" ]
+    deps = [ "//lib/libuuid" ]
+    output_name = "uuidgen"
+}
+
+package("uuidgen") {
+    deps = [ ":uuidgen_exec" ]
+
+    executables = [ "uuidgen" ]
+}
+

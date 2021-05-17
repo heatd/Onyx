@@ -40,6 +40,7 @@
 #include <onyx/fpu.h>
 #include <onyx/percpu.h>
 #include <onyx/init.h>
+#include <onyx/internal_abi.h>
 
 #include <onyx/x86/msr.h>
 #include <onyx/x86/platform_info.h>
@@ -363,10 +364,9 @@ INIT_LEVEL_EARLY_PLATFORM_ENTRY(cpu_init_late);
 extern PML *boot_pml4;
 
 extern "C"
+__attribute__((no_stack_protector))
 void smpboot_main(unsigned long gs_base, volatile struct smp_header *header)
 {
-	wrmsr(GS_BASE_MSR, gs_base);
-
 	lapic_init_per_cpu();
 
 	sched_enable_pulse();

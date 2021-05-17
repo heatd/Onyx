@@ -39,7 +39,6 @@ string/memcmp.o \
 string/memmove.o \
 string/memset.o \
 string/strlen.o \
-ssp/ssp.o \
 string/strcpy.o \
 string/strcmp.o \
 string/strcat.o \
@@ -134,10 +133,6 @@ libc.so: $(OBJS)
 %.libk.o: %.S ../kernel/kernel.config
 	echo [AS] $<.libk
 	$(CC) -c $(CFLAGS) $(CPPFLAGS) $< -o $@
-
-ssp/ssp.libk.o: ssp/ssp.cpp ../kernel/kernel.config
-	echo [CXX] $<.libk
-	$(CXX) -c $< -o $@ -std=c++17 -fno-stack-protector $(LIBK_CFLAGS) $(LIBK_CPPFLAGS) $(CXXFLAGS)
 
 %.o: %.S ../kernel/kernel.config
 	echo [AS] $<

@@ -10,6 +10,8 @@
 #include <onyx/compiler.h>
 
 #define PER_CPU_VAR(var) __attribute__((section(".percpu"), used))	var
+#define PER_CPU_VAR_ABI(var) __attribute__((section(".percpu.abi"), used))	var
+
 #define PER_CPU_VAR_NOUNUSED(var) var __attribute__((section(".percpu")))
 
 // The arch specific headers implement get_per_cpu() and *_per_cpu_N(),

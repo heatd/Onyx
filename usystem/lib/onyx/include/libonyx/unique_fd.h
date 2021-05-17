@@ -27,13 +27,14 @@ public:
 			::close(fd);
 	}
 
-	constexpr unique_fd(unique_fd&& f) : fd{f.release()} noexcept
+	constexpr unique_fd(unique_fd&& f) noexcept : fd{f.release()}
 	{
 	}
 
 	constexpr unique_fd& operator=(unique_fd&& f) noexcept
 	{
 		reset(f.release());
+		return *this;
 	}
 
 	// Delete the copy ctor/operator

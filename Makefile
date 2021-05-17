@@ -1,5 +1,5 @@
 PROJECTS:=libc kernel
-SOURCE_PACKAGES:= photon libunwind libuuid libtest
+SOURCE_PACKAGES:= photon libunwind libtest
 export ONYX_ARCH:=$(shell scripts/onyx_arch.sh)
 
 include usystem/Makefile

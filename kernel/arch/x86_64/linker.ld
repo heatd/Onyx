@@ -136,6 +136,7 @@ SECTIONS
 	.percpu 0 : AT(percpu_base - VIRT_BASE)
 	{
 		__percpu_start = .;
+		*(.percpu.abi*)
 		*(.percpu*)
 		__percpu_end = .;
 	} : percpu

@@ -11,6 +11,10 @@ template("package") {
         }
         else
         {
+            if(!defined(is_system_binary)) {
+                is_system_binary = false
+            }
+
             if(is_system_binary) {
                 bin_install_path = "sbin/"
             }
@@ -43,7 +47,7 @@ template("package") {
                 system_image_file += [
                     {
                         source = rebase_path(target_out_dir + "/" + lib, root_build_dir)
-                        destination = lib_install_path + exec
+                        destination = lib_install_path + lib
                     }
                 ]
             }

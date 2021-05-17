@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2017 Pedro Falcato
+* Copyright (c) 2017-2021 Pedro Falcato
 * This file is part of Onyx, and is released under the terms of the MIT License
 * check LICENSE at the root directory for more information
 */
@@ -15,6 +15,9 @@
 #include <onyx/softirq.h>
 #include <onyx/init.h>
 #include <onyx/vector.h>
+
+
+#include <onyx/net/netkernel.h>
 
 #include <sys/ioctl.h>
 
@@ -135,11 +138,9 @@ void netif_register_if(struct netif *netif)
 
 int netif_unregister_if(struct netif *netif)
 {
-	spin_lock(&netif_list_lock);
+	scoped_lock g{netif_list_lock};
 	
 	list_remove(&netif->list_node);
-
-	spin_unlock(&netif_list_lock);
 
 	return 0;
 }
@@ -147,18 +148,15 @@ int netif_unregister_if(struct netif *netif)
 struct netif *netif_choose(void)
 {
 	/* TODO: Netif refcounting would be bery noice */
-	spin_lock(&netif_list_lock);
+	scoped_lock g{netif_list_lock};
 
 	for(auto n : netif_list)
 	{
 		if(n->flags & NETIF_LINKUP && !(n->flags & NETIF_LOOPBACK))
 		{
-			spin_unlock(&netif_list_lock);
 			return n;
 		}
 	}
-
-	spin_unlock(&netif_list_lock);
 
 	return NULL;
 }
@@ -181,7 +179,7 @@ netif *netif_from_if(uint32_t oif)
 
 netif *netif_get_from_addr(const inet_sock_address& s, int domain)
 {
-	spin_lock(&netif_list_lock);
+	scoped_lock g{netif_list_lock};
 
 	//printk("trying to find %x\n", in->sin_addr.s_addr);
 
@@ -190,12 +188,9 @@ netif *netif_get_from_addr(const inet_sock_address& s, int domain)
 		//printk("local %x\n", n->local_ip.sin_addr.s_addr);
 		if(domain == AF_INET && n->local_ip.sin_addr.s_addr == s.in4.s_addr)
 		{
-			spin_unlock(&netif_list_lock);
 			return n;
 		}
 	}
-
-	spin_unlock(&netif_list_lock);
 
 	return nullptr;
 }
@@ -227,7 +222,7 @@ void netif_get_ipv4_addr(struct sockaddr_in *s, struct netif *netif)
 
 netif *netif_from_name(const char *name)
 {
-	spin_lock(&netif_list_lock);
+	scoped_lock g{netif_list_lock};
 
 	//printk("trying to find %x\n", in->sin_addr.s_addr);
 
@@ -236,12 +231,9 @@ netif *netif_from_name(const char *name)
 		//printk("local %x\n", n->local_ip.sin_addr.s_addr);
 		if(!strcmp(n->name, name))
 		{
-			spin_unlock(&netif_list_lock);
 			return n;
 		}
 	}
-
-	spin_unlock(&netif_list_lock);
 
 	return nullptr;
 }
@@ -419,3 +411,68 @@ bool netif_find_v6_address(netif *nif, const in6_addr& addr)
 
 	return false;
 }
+class netif_table_nk : public netkernel::netkernel_object
+{
+public:
+	netif_table_nk() : netkernel::netkernel_object{"netif_table"} {}
+	expected<netkernel_hdr *, int> serve_request(netkernel_hdr *hdr) override
+	{
+		if(hdr->msg_type != NETKERNEL_MSG_NETIF_GET_NETIFS)
+			return unexpected<int>{-ENXIO};
+
+		cul::vector<netkernel_get_nif_interface> interface_response;
+		const auto &interfaces = netif_lock_and_get_list();
+
+		for(const auto &nif : interfaces)
+		{
+			netkernel_get_nif_interface i;
+			i.if_index = nif->if_id;
+			strcpy(i.iface, nif->name);
+
+			if(!interface_response.push_back(i))
+			{
+				netif_unlock_list();
+				return unexpected<int>{-ENOMEM};
+			}
+		}
+	
+		netif_unlock_list();
+
+		auto buf_size = sizeof(netkernel_get_nifs_response) +
+		                interface_response.size() * sizeof(netkernel_get_nif_interface);
+		netkernel_get_nifs_response *header = (netkernel_get_nifs_response *) malloc(buf_size);
+		if(!header)
+			return unexpected<int>{-ENOMEM};
+		
+		header->nr_ifs = interface_response.size();
+		memcpy(header->interfaces, interface_response.begin(),
+		       interface_response.size() * sizeof(netkernel_get_nif_interface));
+		header->hdr.msg_type = NETKERNEL_MSG_NETIF_GET_NETIFS;
+		header->hdr.flags = 0;
+		header->hdr.size = buf_size;
+
+		return &header->hdr;
+	}
+};
+
+void netif_init_netkernel()
+{
+	auto root = netkernel::open({"", 0});
+
+	auto nif_member = make_shared<netkernel::netkernel_object>("netif");
+
+	assert(nif_member != nullptr);
+
+	nif_member->set_flags(NETKERNEL_OBJECT_PATH_ELEMENT);
+
+	assert(root->add_child(nif_member) == true);
+
+	auto nt = make_shared<netif_table_nk>();
+	assert(nt != nullptr);
+
+	auto generic_nt = cast<netkernel::netkernel_object, netif_table_nk>(nt);
+
+	assert(nif_member->add_child(generic_nt));
+}
+
+INIT_LEVEL_CORE_KERNEL_ENTRY(netif_init_netkernel);

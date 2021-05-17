@@ -6,6 +6,8 @@
 #ifndef _LIBUUID_UUID_H
 #define _LIBUUID_UUID_H
 
+#include <sys/types.h>
+
 typedef unsigned char uuid_t[16];
 
 #ifdef __cplusplus
@@ -16,6 +18,9 @@ void uuid_generate_time(uuid_t out);
 int uuid_generate_time_safe(uuid_t out);
 void uuid_generate(uuid_t out);
 void uuid_generate_random(uuid_t out);
+void uuid_unparse(const uuid_t uu, char *out);
+void uuid_unparse_upper(const uuid_t uu, char *out);
+void uuid_unparse_lower(const uuid_t uu, char *out);
 
 #ifdef __cplusplus
 }

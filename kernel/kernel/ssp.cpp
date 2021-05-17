@@ -17,15 +17,11 @@
 
 #include <stdint.h>
 #include <stdlib.h>
-#ifdef __is_onyx_kernel
+
 #include <onyx/panic.h>
 #include <onyx/random.h>
-
-#endif
-#include <math.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <time.h>
+#include <onyx/compiler.h>
+#include <onyx/internal_abi.h>
 
 #if UINT32_MAX == UINTPTR_MAX
 #define STACK_CHK_GUARD 0xdeadc0de
@@ -36,37 +32,30 @@
 uintptr_t __stack_chk_guard = STACK_CHK_GUARD;
 
 extern "C"
-void __initialize_ssp()
+__attribute__((noreturn, no_stack_protector, used))
+void __stack_chk_fail()
 {
-	#if __STDC_HOSTED__
-	/* If in user-space, seed ssp ourselves */
-	/*TODO: Implement /dev/urandom and start using it, as /dev/random might block 
-	 *TODO: Fix the kernel's entropy generator 
-	*/
-	/*int fd = open("/dev/random", O_RDONLY);
-	read(fd, &__stack_chk_guard, 8);
-	close(fd);*/
-	srand(time(NULL));
-	__stack_chk_guard = (uint64_t) rand() << 32 | rand();
-	#endif
-
+	panic("Stack smashing detected");
 }
 
+namespace abi
+{
+
 extern "C"
-void randomize_stack_canary(void)
+__attribute__((no_stack_protector, used))
+void init_ssp_for_cpu(unsigned int cpu_nr)
 {
 	uintptr_t new_guard = 0;
 	arc4random_buf(&new_guard, sizeof(uintptr_t));
-	__stack_chk_guard = new_guard;
+
+	auto abi_details = get_abi_data();
+
+	if(cpu_nr == 0)
+	{
+		__stack_chk_guard = new_guard;
+	}
+
+	abi_details->canary = new_guard;
 }
 
-extern "C"
-__attribute__((noreturn))
-void __stack_chk_fail()
-{
-#if __STDC_HOSTED__
-	abort(); // abort() right away, its unsafe!
-#elif __is_onyx_kernel
-	panic("Stack smashing detected");
-#endif
 }

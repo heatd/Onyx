@@ -191,13 +191,17 @@ acpica/%.o: acpica/%.c kernel.config
 	@echo [CC] $<
 	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) $(C_ONLY_CFLAGS) $(CPPFLAGS)
 
-kernel/mm/kasan.o: kernel/mm/kasan.cpp
+kernel/mm/kasan.o: kernel/mm/kasan.cpp kernel.config
 	@echo [CC] NOKASAN $<
 	@$(CC) -c $< -o $@ -std=c++17 $(ACPICA_CFLAGS) $(C_ONLY_CFLAGS) -fno-sanitize=kernel-address -fno-lto $(CPPFLAGS)
 
 kernel/mm/malloc/%.o: kernel/mm/malloc/%.c kernel.config
 	@echo [CC] NOKASAN $<
 	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) $(C_ONLY_CFLAGS) -fno-sanitize=kernel-address -fno-lto $(CPPFLAGS)
+
+kernel/ssp.o: kernel/ssp.cpp kernel.config
+	@echo [CC] NOKASAN $<
+	@$(CC) -c $< -o $@ -std=c++2a $(CFLAGS) $(CXXFLAGS) -fno-stack-protector $(CPPFLAGS)
 
 # I don't like this solution of having an ifeq RUN_CLANG_TIDY but I can't find a better way to do this and still pass $<
 
