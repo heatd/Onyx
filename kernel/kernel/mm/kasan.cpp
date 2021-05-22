@@ -212,6 +212,16 @@ void __asan_storeN(unsigned long addr, size_t size)
 USED
 void __asan_storeN_noabort(unsigned long addr, size_t size) __alias(__asan_storeN);
 
+USED void __asan_report_store_n_noabort(unsigned long addr, size_t size)
+{
+	kasan_check_memory(addr, size, true);
+}
+
+USED void __asan_report_load_n_noabort(unsigned long addr, size_t size)
+{
+	kasan_check_memory(addr, size, false);
+}
+
 USED
 void __asan_handle_no_return(void) {}
 
@@ -220,6 +230,90 @@ void __asan_before_dynamic_init(void) {}
 
 USED
 void __asan_after_dynamic_init(void) {}
+
+USED void __asan_register_globals(){}
+USED void __asan_unregister_globals(){}
+
+#define ASAN_REPORT_ERROR(type, is_write, size)                       \
+                                                                       \
+	USED void __asan_report_##type##size(unsigned long addr) {                   \
+		kasan_check_memory(addr, size, is_write);    \
+	}                                                                   \
+	USED void __asan_report_exp_##type##size(unsigned long addr, uint32_t exp) { \
+		kasan_check_memory(addr, size, is_write);    \
+	}                                                                   \
+	                                                                    \
+	USED void __asan_report_##type##size##_noabort(unsigned long addr) {         \
+		kasan_check_memory(addr, size, is_write);    \
+  	}
+
+ASAN_REPORT_ERROR(load, false, 1)
+ASAN_REPORT_ERROR(load, false, 2)
+ASAN_REPORT_ERROR(load, false, 4)
+ASAN_REPORT_ERROR(load, false, 8)
+ASAN_REPORT_ERROR(load, false, 16)
+ASAN_REPORT_ERROR(store, true, 1)
+ASAN_REPORT_ERROR(store, true, 2)
+ASAN_REPORT_ERROR(store, true, 4)
+ASAN_REPORT_ERROR(store, true, 8)
+ASAN_REPORT_ERROR(store, true, 16)
+
+USED
+int __asan_option_detect_stack_use_after_return = 0;
+USED unsigned long __asan_shadow_memory_dynamic_address = kasan_space;
+
+#define DEFINE_ASAN_SET_SHADOW(byte) \
+USED \
+void __asan_set_shadow_##byte(const void *addr, size_t size)	\
+{								\
+	memset((void *)addr, 0x##byte, size);			\
+}								\
+
+DEFINE_ASAN_SET_SHADOW(00);
+DEFINE_ASAN_SET_SHADOW(f1);
+DEFINE_ASAN_SET_SHADOW(f2);
+DEFINE_ASAN_SET_SHADOW(f3);
+DEFINE_ASAN_SET_SHADOW(f5);
+DEFINE_ASAN_SET_SHADOW(f8);
+
+USED
+void __asan_init() {}
+USED
+void __asan_version_mismatch_check_v8() {}
+
+USED
+void* __asan_memcpy(void* dst, const void* src, size_t n)
+{
+	if(n == 0)
+		return dst;
+	
+	kasan_check_memory((unsigned long) dst, n, true);
+	kasan_check_memory((unsigned long) src, n, false);
+
+	return memcpy(dst, src, n);
+}
+
+USED
+void* __asan_memmove(void* dst, const void* src, size_t n)
+{
+	if(n == 0)
+		return dst;
+	
+	kasan_check_memory((unsigned long) dst, n, true);
+	kasan_check_memory((unsigned long) src, n, false);
+
+	return memmove(dst, src, n);
+}
+
+USED
+void* __asan_memset(void* dst, int c, size_t n)
+{
+	if(n == 0)
+		return dst;
+	
+	kasan_check_memory((unsigned long) dst, n, true);
+	return memset(dst, c, n);
+}
 
 }
 

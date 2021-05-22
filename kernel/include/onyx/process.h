@@ -29,12 +29,11 @@
 #include <onyx/string_view.hpp>
 #include <onyx/memory.hpp>
 #include <onyx/culstring.h>
+#include <onyx/pid.h>
 
 #include <sys/resource.h>
 
 struct proc_event_sub;
-
-struct process_group;
 
 static void process_get(struct process *process);
 static void process_put(struct process *process);
@@ -67,7 +66,7 @@ struct process : public onx::handle::handleable
 	struct ioctx ctx{};
 
 	/* Process ID */
-	pid_t pid{};
+	pid_t pid_{};
 
 	/* Process' UID and GID */
 	struct creds cred{};
@@ -116,9 +115,11 @@ struct process : public onx::handle::handleable
 
 	struct itimer timers[ITIMER_COUNT]{};
 
+	pid::auto_pid pid_struct{};
+
 	struct spinlock pgrp_lock{};
 	list_head_cpp<process> pgrp_node;
-	struct process_group *process_group{};
+	pid::auto_pid process_group{};
 
 	struct rlimit rlimits[RLIM_NLIMITS + 1]{};
 	struct rwlock rlimit_lock{};
@@ -155,6 +156,11 @@ struct process : public onx::handle::handleable
 		nr_threads--;
 
 		list_remove(&t->thread_list_head);
+	}
+
+	pid_t get_pid() const
+	{
+		return pid_;
 	}
 
 	int rlimit(int rsrc, struct rlimit *old, const struct rlimit *new_lim, unsigned int flags);

@@ -2290,7 +2290,7 @@ void vm_do_fatal_page_fault(struct fault_info *info)
 		struct process *current = get_current_process();
 		printk("SEGV at %016lx at ip %lx in process %u(%s)\n", 
 			info->fault_address, info->ip,
-			current->pid, current->cmd_line.c_str());
+			current->get_pid(), current->cmd_line.c_str());
 		printk("Program base: %p\n", current->interp_base);
 
 		siginfo_t sinfo = {};

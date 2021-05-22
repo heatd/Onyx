@@ -92,7 +92,7 @@ unsigned int context::close_object(photon_handle handle)
 
 shared_ptr<context> device::get_default_context()
 {
-	return get_context(get_current_process()->pid);
+	return get_context(get_current_process()->get_pid());
 }
 
 photon_handle device::add_object(const shared_ptr<object>& object, shared_ptr<context> ctx)
@@ -182,7 +182,7 @@ int device::on_open()
 	/* On open(), create a new process context
 	 * if it doesn't exist already
 	*/
-	pid_t pid = get_current_process()->pid;
+	pid_t pid = get_current_process()->get_pid();
 
 	if(get_context(pid))
 		return 0;

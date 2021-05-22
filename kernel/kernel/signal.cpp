@@ -15,7 +15,7 @@
 #include <onyx/task_switching.h>
 #include <onyx/wait_queue.h>
 #include <onyx/clock.h>
-#include <onyx/pgrp.h>
+#include <onyx/pid.h>
 #include <onyx/memory.hpp>
 
 void signal_default_term(int signum)
@@ -685,7 +685,7 @@ int signal_send_all(int signal, int flags, siginfo_t *info)
 	for_every_process([](process *p, void *ctx) -> bool
 	{
 		/* Do not allow signalling pid 1 and ourselves. */
-		if(pid_is_system_process(p->pid) || p == get_current_process())
+		if(pid_is_system_process(p->get_pid()) || p == get_current_process())
 			return true;
 		
 		send_all_info *c = (send_all_info *) ctx;
@@ -703,7 +703,7 @@ int signal_send_all(int signal, int flags, siginfo_t *info)
 	return i.signals_sent != 0 ? 0 : -EPERM;
 }
 
-pgrp::auto_pgrp process_get_pgrp(process *p)
+pid::auto_pid process_get_pgrp(process *p)
 {
 	scoped_lock g{p->pgrp_lock};
 	
@@ -719,7 +719,7 @@ int signal_kill_pg(int sig, int flags, siginfo_t *info, pid_t pid)
 	bool own = pid == 0;
 	int signals_sent = 0;
 
-	auto pgrp_res = own ? process_get_pgrp(get_current_process()) : pgrp::lookup(-pid);
+	pid::auto_pid pgrp_res = own ? process_get_pgrp(get_current_process()) : pid::lookup(-pid);
 
 	if(!pgrp_res)
 		return -ESRCH;
@@ -769,7 +769,7 @@ int sys_kill(pid_t pid, int sig)
 	info.si_signo = sig;
 	info.si_code = SI_USER;
 	info.si_uid = c->euid;
-	info.si_pid = get_current_process()->pid;
+	info.si_pid = get_current_process()->get_pid();
 
 	creds_put(c);
 
@@ -966,7 +966,7 @@ int do_tgkill(int pid, int tid, int sig, unsigned int flags, siginfo_t *kinfo)
 		goto out;
 	}
 
-	if(flags & TGKILL_CHECK_PID && t->owner->pid != pid)
+	if(flags & TGKILL_CHECK_PID && t->owner->get_pid() != pid)
 	{
 		st = -ESRCH;
 		goto out;
@@ -985,7 +985,7 @@ int do_tgkill(int pid, int tid, int sig, unsigned int flags, siginfo_t *kinfo)
 		info.si_signo = sig;
 		info.si_code = SI_TKILL;
 		info.si_uid = c->euid;
-		info.si_pid = get_current_process()->pid;
+		info.si_pid = get_current_process()->get_pid();
 
 		creds_put(c);
 	}
@@ -1018,7 +1018,7 @@ int sanitize_rt_sigqueueinfo(siginfo_t *info, pid_t pid)
 {
 	struct process *current = get_current_process();
 
-	if(current->pid == pid)
+	if(current->get_pid() == pid)
 		return 0;
 	
 	if(info->si_code >= 0)

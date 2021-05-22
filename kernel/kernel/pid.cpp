@@ -4,42 +4,40 @@
 * check LICENSE at the root directory for more information
 */
 
-#include <onyx/pgrp.h>
+#include <onyx/pid.h>
 #include <onyx/hashtable.hpp>
+#include <onyx/process.h>
 
-namespace pgrp
+static cul::hashtable2<pid, 16, fnv_hash_t, pid::hash> pid_ht;
+static spinlock pid_ht_locks[16];
+
+void pid::add_to_hashtable(pid& p)
 {
+	auto hash = pid::hash(p);
+	scoped_lock g{pid_ht_locks[pid_ht.get_hashtable_index(hash)]};
 
-static cul::hashtable2<process_group, 16, fnv_hash_t, process_group::hash> pgrp_ht;
-static spinlock pgrp_ht_locks[16];
-
-void add_to_hashtable(process_group& pgrp)
-{
-	auto hash = process_group::hash(pgrp);
-	scoped_lock g{pgrp_ht_locks[pgrp_ht.get_hashtable_index(hash)]};
-
-	pgrp_ht.add_element(pgrp, &pgrp.hashtable_node());
+	pid_ht.add_element(p, &p.hashtable_node());
 }
 
-void remove_from_hashtable(process_group& pgrp)
+void pid::remove_from_hashtable(pid& p)
 {
-	auto hash = process_group::hash(pgrp);
-	scoped_lock g{pgrp_ht_locks[pgrp_ht.get_hashtable_index(hash)]};
+	auto hash = pid::hash(p);
+	scoped_lock g{pid_ht_locks[pid_ht.get_hashtable_index(hash)]};
 
-	pgrp_ht.remove_element(pgrp, &pgrp.hashtable_node());
+	pid_ht.remove_element(p, &p.hashtable_node());
 }
 
-process_group* lookup(pid_t pid)
+pid::auto_pid pid::lookup(pid_t pid)
 {
-	auto hash = process_group::hash_pid(pid);
-	auto index = pgrp_ht.get_hashtable_index(hash);
-	scoped_lock g{pgrp_ht_locks[index]};
+	auto hash = pid::hash_pid(pid);
+	auto index = pid_ht.get_hashtable_index(hash);
+	scoped_lock g{pid_ht_locks[index]};
 
-	auto list = pgrp_ht.get_hashtable(index);
+	auto list = pid_ht.get_hashtable(index);
 
 	list_for_every(list)
 	{
-		auto pg = list_head_cpp<process_group>::self_from_list_head(l);
+		auto pg = list_head_cpp<class pid>::self_from_list_head(l);
 
 		/* If we're looking at a ghostly process group
 		 * that's about to get destroyed, ignore it. BOO!
@@ -54,8 +52,6 @@ process_group* lookup(pid_t pid)
 	return nullptr;
 }
 
-}
-
 extern "C"
 int sys_setpgid(pid_t pid, pid_t pgid)
 {
@@ -65,7 +61,7 @@ int sys_setpgid(pid_t pid, pid_t pgid)
 	/* If pid == 0, pid = our pid; if pgid == 0, pgid = pid */
 
 	if(!pid)
-		pid = current->pid;
+		pid = current->get_pid();
 
 	if(!pgid)
 		pgid = pid;
@@ -92,34 +88,30 @@ int sys_setpgid(pid_t pid, pid_t pgid)
 
 	scoped_lock g{target->pgrp_lock};
 
-	pgrp::auto_pgrp pgrp;
+	pid::auto_pid pgrp_;
 
 	if(pgid != pid)
 	{
-		pgrp = pgrp::lookup(pgid);
+		pgrp_ = pid::lookup(pgid);
 
 		/* If we're moving a process from one process group to another,
 		 * the process group is required to exist. */
 
-		if(!pgrp)
+		if(!pgrp_)
 			return -EPERM;
 	}
 	else
 	{
-		pgrp = pgrp::lookup(pgid);
-		if(!pgrp)
+		pgrp_ = pid::lookup(pgid);
+		if(!pgrp_)
 		{
-			/* If the process group doesn't exist yet, create it */
-			if(!(pgrp = pgrp_create(target)))
-			{
-				return -ENOMEM;
-			}
+			return -ESRCH;
 		}
 	}
 
-	auto process_group = pgrp.get();
+	auto pgrp = pgrp_.get();
 
-	if(process_group != target->process_group)
+	if(pgrp != target->process_group)
 	{
 		auto old_pgrp = target->process_group;
 		if(old_pgrp)
@@ -127,9 +119,9 @@ int sys_setpgid(pid_t pid, pid_t pgid)
 			old_pgrp->remove_process(target);
 		}
 
-		process_group->add_process(target);
+		pgrp->add_process(target);
 
-		target->process_group = process_group;
+		target->process_group = pgrp;
 
 		assert(target->process_group != nullptr);
 	}
@@ -146,7 +138,7 @@ pid_t sys_getpgid(pid_t pid)
 	/* If pid == 0, pid = us */
 	if(!pid)
 	{
-		pid = current->pid;
+		pid = current->get_pid();
 	}
 
 	target = get_process_from_pid(pid);
@@ -163,9 +155,57 @@ pid_t sys_getpgid(pid_t pid)
 	return ret;
 }
 
-void process_group::inherit(process *proc)
+void pid::inherit(process *proc)
 {
 	scoped_lock g{proc->pgrp_lock};
 
 	add_process(proc);
+}
+
+void pid::remove_process(process *p, pid_type type)
+{
+	scoped_lock g{lock};
+
+	if(type == PIDTYPE_PGRP)
+	{
+		list_remove(&p->pgrp_node);
+		p->process_group = nullptr;
+	}
+	else if(type == PIDTYPE_SID)
+	{
+		// TODO
+	}
+	/* Unlock it before unrefing so we don't destroy the object and
+	 * then call the dtor on a dead object.
+	 */
+	
+	g.unlock();
+
+	unref();
+}
+
+void pid::add_process(process *p, pid_type type)
+{
+	scoped_lock g{lock};
+
+	if(type == PIDTYPE_PGRP)
+	{
+		list_add_tail(&p->pgrp_node, &member_list[type]);
+		p->process_group = this;
+	}
+	else if(type == PIDTYPE_SID)
+	{
+		// TODO
+	}
+
+	ref();
+}
+
+pid::pid(process *leader) : pid_{leader->get_pid()}, _hashtable_node{this}
+{
+	spinlock_init(&lock);
+	
+	for(int i = 0; i < PIDTYPE_MAX; i++)
+		INIT_LIST_HEAD(&member_list[i]);
+	add_to_hashtable(*this);
 }

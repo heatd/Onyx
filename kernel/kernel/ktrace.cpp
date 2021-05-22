@@ -119,7 +119,7 @@ void ktracepoint::log_entry(unsigned long ip, unsigned long caller)
 	struct thread *current_thread = get_current_thread();
 	struct process *curr_process = get_current_process();
 
-	if(curr_process) data.pid = curr_process->pid;
+	if(curr_process) data.pid = curr_process->get_pid();
 	if(current_thread) data.tid = current_thread->id;
 	data.timestamp = get_main_clock()->get_ns();
 	data.type = KTRACE_TYPE_ENTRY;

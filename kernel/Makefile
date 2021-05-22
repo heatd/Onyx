@@ -56,7 +56,18 @@ CFLAGS+=-flto
 endif
 
 ifeq ($(CONFIG_KASAN), y)
-CFLAGS+=-fsanitize=kernel-address
+CFLAGS+=-fsanitize=address
+
+ifeq ($(ONYX_USING_CLANG), yes)
+
+# Note: clang tries really hard to access the linear map, but we don't have a linear map (just yet!)
+# Therefore, we disable it for now
+CFLAGS+=-mllvm -asan-instrumentation-with-call-threshold=0 -mllvm -asan-globals-live-support=false
+CFLAGS+=-mllvm -asan-stack=0 -mllvm -asan-globals=0
+else
+CFLAGS+=--param asan-globals=0 --param asan-instrumentation-with-call-threshold=0 --param asan-stack=0 --param asan-globals=0
+endif
+
 endif
 
 ifeq ($(CONFIG_KTRACE), y)
@@ -135,6 +146,8 @@ OBJS:=$(obj-y)
 
 CRTI_OBJ:=../sysroot/usr/lib/crti.o
 
+CFLAGS_FOR_LINK:=$(CFLAGS)
+
 ifneq ($(ONYX_USING_CLANG), yes)
 CRTBEGIN_OBJ:=$(shell $(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=crtbeginS.o)
 CRTEND_OBJ:=$(shell $(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=crtendS.o)
@@ -142,6 +155,7 @@ LDFLAGS:=$(LDFLAGS) -no-pie
 LIBS:=$(LIBS) -lgcc
 else
 LDFLAGS:=$(LDFLAGS) -fno-sanitize-link-runtime -Wl,-no-pie
+CFLAGS_FOR_LINK:=$(filter-out -mllvm -asan-instrumentation-with-call-threshold=0, $(CFLAGS_FOR_LINK))
 endif
 
 LIBGCC_PATH:=$(shell $(CC) $(CFLAGS)  $(LDFLAGS) -print-libgcc-file-name)
@@ -183,7 +197,7 @@ all: onyx-vdso.so.0 vmonyx
 
 vmonyx: $(OBJ_DEPS) $(ARCHDIR)/linker.ld ../libc/libk.a kernel.config
 	@echo [LD] $@
-	$(CC) $(LDFLAGS) -Wl,-T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(OBJ_LINK_LIST) $(LIBS)
+	$(CC) $(LDFLAGS) -Wl,-T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS_FOR_LINK) $(OBJ_LINK_LIST) $(LIBS) -Wno-error
 	cp vmonyx vmonyx-unstripped
 	strip -g vmonyx
 
@@ -193,11 +207,15 @@ acpica/%.o: acpica/%.c kernel.config
 
 kernel/mm/kasan.o: kernel/mm/kasan.cpp kernel.config
 	@echo [CC] NOKASAN $<
-	@$(CC) -c $< -o $@ -std=c++17 $(ACPICA_CFLAGS) $(C_ONLY_CFLAGS) -fno-sanitize=kernel-address -fno-lto $(CPPFLAGS)
+	@$(CC) -c $< -o $@ -std=c++17 $(ACPICA_CFLAGS) $(C_ONLY_CFLAGS) -fno-sanitize=address -fno-lto $(CPPFLAGS)
 
 kernel/mm/malloc/%.o: kernel/mm/malloc/%.c kernel.config
 	@echo [CC] NOKASAN $<
-	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) $(C_ONLY_CFLAGS) -fno-sanitize=kernel-address -fno-lto $(CPPFLAGS)
+	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) $(C_ONLY_CFLAGS) -fno-sanitize=address -fno-lto $(CPPFLAGS)
+
+kernel/mm/malloc/%.o: kernel/mm/malloc/%.cpp kernel.config
+	@echo [CC] NOKASAN $<
+	@$(CXX) -c $< -o $@ -std=c++20 $(ACPICA_CFLAGS) $(C_ONLY_CFLAGS) $(CXXFLAGS) -fno-sanitize=address -fno-lto $(CPPFLAGS)
 
 kernel/ssp.o: kernel/ssp.cpp kernel.config
 	@echo [CC] NOKASAN $<

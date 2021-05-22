@@ -222,7 +222,7 @@ void proc_event_enter_syscall(struct syscall_frame *regs, uintptr_t rax)
 	{
 #if __x86_64__
 		s->event_buf.type = PROC_EVENT_SYSCALL_ENTER;
-		s->event_buf.pid = current->pid;
+		s->event_buf.pid = current->get_pid();
 		s->event_buf.thread = get_current_thread()->id;
 		s->event_buf.e_un.syscall.cs = USER_CS;
 		s->event_buf.e_un.syscall.ds = regs->ds;
@@ -274,7 +274,7 @@ void proc_event_exit_syscall(long retval, long syscall_nr)
 	{
 #if __x86_64__
 		s->event_buf.type = PROC_EVENT_SYSCALL_EXIT;
-		s->event_buf.pid = current->pid;
+		s->event_buf.pid = current->get_pid();
 		s->event_buf.e_un.syscall_exit.retval = retval;
 		s->event_buf.e_un.syscall_exit.syscall_nr = syscall_nr;
 		s->event_buf.thread = get_current_thread()->id;

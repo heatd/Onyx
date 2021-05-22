@@ -43,4 +43,7 @@ struct bin {
 
 void __bin_chunk(struct chunk *);
 
+void *__vmalloc(size_t len);
+void __vmunmap(void *addr, size_t len);
+
 #endif

@@ -33,7 +33,7 @@
 #include <onyx/futex.h>
 #include <onyx/utils.h>
 #include <onyx/scoped_lock.h>
-#include <onyx/pgrp.h>
+#include <onyx/pid.h>
 
 #include <pthread_kernel.h>
 
@@ -135,8 +135,8 @@ process *process_create(const std::string_view& cmd_line, ioctx *ctx, process *p
 	
 	/* TODO: idm_get_id doesn't wrap? POSIX COMPLIANCE */
 	proc->refcount = 1;
-	proc->pid = idm_get_id(process_ids);
-	assert(proc->pid != (pid_t) -1);
+	proc->pid_ = idm_get_id(process_ids);
+	assert(proc->pid_ != (pid_t) -1);
 
 	if(!proc->set_cmdline(cmd_line))
 		return errno = ENOMEM, nullptr;
@@ -144,6 +144,11 @@ process *process_create(const std::string_view& cmd_line, ioctx *ctx, process *p
 	creds_init(&proc->cred);
 
 	itimer_init(proc);
+
+	proc->pid_struct = pid_create(proc);
+
+	if(!proc->pid_struct)
+		return errno = ENOMEM, nullptr;
 
 	if(ctx)
 	{
@@ -198,7 +203,7 @@ process *process_create(const std::string_view& cmd_line, ioctx *ctx, process *p
 	}
 	else
 	{
-		proc->process_group = pgrp_create(proc);
+		proc->process_group = proc->pid_struct;
 		if(!proc->process_group)
 			return nullptr;
 
@@ -229,7 +234,7 @@ process *get_process_from_pid(pid_t pid)
 
 	for(process *p = first_process; p != nullptr; p = p->next)
 	{
-		if(p->pid == pid)
+		if(p->get_pid() == pid)
 		{
 			process_get(p);
 			return p;
@@ -247,7 +252,7 @@ void unlock_process_list(void)
 extern "C" pid_t sys_getppid()
 {
 	if(get_current_process()->parent)
-		return get_current_process()->parent->pid;
+		return get_current_process()->parent->get_pid();
 	else
 		return 0;
 }
@@ -264,7 +269,7 @@ bool process_found_children(pid_t pid, process *proc)
 
 	for(process *p = proc->children; p != nullptr; p = p->next_sibbling)
 	{
-		if(p->pid == pid)
+		if(p->get_pid() == pid)
 		{
 			return true;
 		}
@@ -349,7 +354,7 @@ bool wait_matches_process(const wait_info& info, process *proc)
 	if(info.flags & WAIT_INFO_MATCH_PGID && process_get_pgid(proc) == info.pid)
 		return true;
 
-	if(info.pid == proc->pid)
+	if(info.pid == proc->get_pid())
 		return true;
 
 	return false;
@@ -424,7 +429,7 @@ bool process_wait_exit(process *child, wait_info& winfo)
 
 	do_getrusage(RUSAGE_BOTH, &winfo.usage, child);
 
-	winfo.pid = child->pid;
+	winfo.pid = child->get_pid();
 
 	winfo.wstatus = child->exit_code;
 
@@ -463,7 +468,7 @@ bool process_wait_stop(process *child, wait_info& winfo)
 	
 	do_getrusage(RUSAGE_BOTH, &winfo.usage, child);
 
-	winfo.pid = child->pid;
+	winfo.pid = child->get_pid();
 
 	winfo.wstatus = child->exit_code;
 
@@ -493,7 +498,7 @@ bool process_wait_cont(process *child, wait_info& winfo)
 	
 	do_getrusage(RUSAGE_BOTH, &winfo.usage, child);
 
-	winfo.pid = child->pid;
+	winfo.pid = child->get_pid();
 
 	winfo.wstatus = child->exit_code;
 
@@ -623,7 +628,7 @@ extern "C" pid_t sys_fork(syscall_frame *ctx)
 	sched_start_thread(new_thread);
 
 	// Return the pid to the caller
-	return child->pid;
+	return child->get_pid();
 }
 
 #define W_STOPPING   0x7f
@@ -682,7 +687,7 @@ extern "C" void sys_exit(int status)
 
 extern "C" pid_t sys_getpid(void)
 {
-	return get_current_process()->pid;
+	return get_current_process()->get_pid();
 }
 
 extern "C" int sys_personality(unsigned long val)
@@ -811,7 +816,7 @@ void process_exit(unsigned int exit_code)
 	auto current_thread = get_current_thread();
 	process *current = get_current_process();
 
-	if(current->pid == 1)
+	if(current->get_pid() == 1)
 	{
 		printk("Panic: %s exited with exit code %u!\n",
 			current->cmd_line.c_str(), exit_code);
@@ -852,7 +857,7 @@ void process_exit(unsigned int exit_code)
 	siginfo_t info = {};
 
 	info.si_signo = SIGCHLD;
-	info.si_pid = current->pid;
+	info.si_pid = current->get_pid();
 	info.si_uid = current->cred.ruid;
 	info.si_stime = current->system_time / NS_PER_MS;
 	info.si_utime = current->user_time / NS_PER_MS;
@@ -900,7 +905,7 @@ process *process_find_tracee(process *tracer, pid_t pid)
 	while(list && list->ptr)
 	{
 		process *tracee = (process *) list->ptr;
-		if(tracee->pid == pid)
+		if(tracee->get_pid() == pid)
 			return tracee;
 		list = list->next;
 	}
@@ -981,7 +986,7 @@ void notify_process_stop_cont(process *proc, int signum)
 	siginfo_t info = {};
 	info.si_code = signal_is_stopping(signum) ? CLD_STOPPED : CLD_CONTINUED;
 	info.si_signo = SIGCHLD;
-	info.si_pid = proc->pid;
+	info.si_pid = proc->get_pid();
 	info.si_uid = proc->cred.ruid;
 	info.si_stime = proc->system_time / NS_PER_MS;
 	info.si_utime = proc->user_time / NS_PER_MS;

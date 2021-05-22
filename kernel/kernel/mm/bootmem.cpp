@@ -19,8 +19,6 @@
 #include <string.h>
 #include <stdbool.h>
 
-#include <multiboot2.h>
-
 #include <onyx/panic.h>
 #include <onyx/bootmem.h>
 #include <onyx/paging.h>

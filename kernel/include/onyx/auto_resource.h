@@ -97,6 +97,16 @@ public:
 	{
 		return !valid_resource();
 	}
+
+	ResourceType *operator->() const
+	{
+		return get();
+	}
+
+	operator ResourceType*() const
+	{
+		return get();
+	}
 };
 
 #endif

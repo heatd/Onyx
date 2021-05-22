@@ -86,7 +86,7 @@ extern "C" int sys_rlimit(pid_t pid, int resource, rlimit *uold, const rlimit *u
 		return -EINVAL;
 
 	if(!pid)
-		pid = get_current_process()->pid;
+		pid = get_current_process()->get_pid();
 
 	auto_process ap = get_process_from_pid(pid);
 

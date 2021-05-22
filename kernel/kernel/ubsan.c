@@ -406,6 +406,7 @@ void __ubsan_handle_nonnull_return(void* data_raw)
 	ubsan_abort(&data->location, "null return");
 }
 
+USED
 void __ubsan_handle_nonnull_return_v1(void* data_raw)
 {
 	struct ubsan_nonnull_return_data* data =

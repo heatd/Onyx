@@ -292,7 +292,13 @@ void *malloc(size_t n)
 	if (adjust_size(&n) < 0) return 0;
 
 	if (n > MMAP_THRESHOLD) {
-		panic("malloc: Allocation too big.");
+		size_t len = n + OVERHEAD + PAGE_SIZE - 1 & -PAGE_SIZE;
+		char *base = __vmalloc(len);
+		if (!base) return 0;
+		c = (void *)(base + SIZE_ALIGN - OVERHEAD);
+		c->csize = len - (SIZE_ALIGN - OVERHEAD);
+		c->psize = SIZE_ALIGN - OVERHEAD;
+		return CHUNK_TO_MEM(c);
 	}
 
 	i = bin_index_up(n);
@@ -393,13 +399,26 @@ void *realloc(void *p, size_t n)
 	return new;
 }
 
+static void unmap_chunk(struct chunk *self)
+{
+	size_t extra = self->psize;
+	char *base = (char *)self - extra;
+	size_t len = CHUNK_SIZE(self) + extra;
+	/* Crash on double free */
+	if (extra & 1) panic("unmap_chunk: Double free");
+	__vmunmap(base, len);
+}
+
 void free(void *p)
 {
 	if(!p)
 		return;
 
 	struct chunk *self = MEM_TO_CHUNK(p);
-	return __bin_chunk(self);
+	if(IS_MMAPPED(self))
+		unmap_chunk(self);
+	else
+		__bin_chunk(self);
 }
 
 void __bin_chunk(struct chunk *self)
