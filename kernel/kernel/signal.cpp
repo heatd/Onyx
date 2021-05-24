@@ -721,25 +721,13 @@ pid::auto_pid process_get_pgrp(process *p)
 int signal_kill_pg(int sig, int flags, siginfo_t *info, pid_t pid)
 {
 	bool own = pid == 0;
-	int signals_sent = 0;
 
 	pid::auto_pid pgrp_res = own ? process_get_pgrp(get_current_process()) : pid::lookup(-pid);
 
 	if(!pgrp_res)
 		return -ESRCH;
-	auto pgrp = pgrp_res.get();
-
-	pgrp->for_every_member([&](process *proc)
-	{
-		if(may_kill(sig, proc, info) < 0)
-			return;
-		if(kernel_raise_signal(sig, proc, 0, info) < 0)
-			return;
-		
-		signals_sent++;
-	});
-
-	return signals_sent != 0 ? 0 : -EPERM;
+	
+	return pgrp_res->kill_pgrp(sig, flags, info);
 }
 
 extern "C"

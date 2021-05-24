@@ -757,12 +757,28 @@ void process_end(process *process)
 	delete process;
 }
 
+void kill_orphaned_pgrp(process *proc)
+{
+	scoped_lock g{proc->pgrp_lock};
+
+	auto pgrp = proc->process_group;
+
+	if(pgrp->is_orphaned_and_has_stopped_jobs(proc))
+	{
+		pgrp->kill_pgrp(SIGHUP, 0, nullptr);
+		pgrp->kill_pgrp(SIGCONT, 0, nullptr);
+	}
+}
+
 void process_reparent_children(process *proc)
 {
 	scoped_lock g{proc->children_lock};
 
 	/* In POSIX, reparented children get to be children of PID 1 */
 	process *new_parent = first_process;
+	
+	// I think this is enough? I'm not sure though, Linux does it again on reparenting.
+	kill_orphaned_pgrp(proc);
 
 	if(!proc->children)
 	{

@@ -257,3 +257,50 @@ bool pid::is_in_session(pid *session)
 
 	return proc->session.get() == session;
 }
+
+int pid::kill_pgrp(int sig, int flags, siginfo_t *info) const
+{
+	int signals_sent = 0;
+	for_every_member([&](process *proc)
+	{
+		if(may_kill(sig, proc, info) < 0)
+			return;
+		if(kernel_raise_signal(sig, proc, 0, info) < 0)
+			return;
+	
+		signals_sent++;
+	});
+
+	return signals_sent != 0 ? 0 : -EPERM;
+}
+
+bool pid::is_orphaned_and_has_stopped_jobs(process *ignore) const
+{
+	// Definition of orphaned process group:
+	// "A process group in which the parent of every member is
+	// either itself a member of the group or is not a member of the group's session."
+
+	bool has_stopped = false;
+	bool is_orphaned = true;
+
+	// TODO: Our for_every_member can't break early
+	for_every_member([&](process *p)
+	{
+		if(p == ignore)
+			return;
+
+		if(p->signal_group_flags & SIGNAL_GROUP_STOPPED)
+			has_stopped = true;
+			
+		// Ignore init, since it has no parent
+		if(!p->parent)
+			return;
+
+		scoped_lock g{p->parent->pgrp_lock};
+
+		if(p->parent->process_group != this || p->parent->session == ignore->session)
+			is_orphaned = false;
+	}, PIDTYPE_PGRP);
+
+	return has_stopped && is_orphaned;
+}

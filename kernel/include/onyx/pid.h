@@ -8,6 +8,7 @@
 #define _ONYX_PGRP_H
 
 #include <stdio.h>
+#include <signal.h>
 
 #include <sys/types.h>
 
@@ -106,6 +107,10 @@ public:
 	using auto_pid = auto_resource<pid>;
 
 	static auto_pid lookup(pid_t pid);
+
+	bool is_orphaned_and_has_stopped_jobs(process *ignore) const;
+
+	int kill_pgrp(int sig, int flags, siginfo_t *info) const;
 };
 
 static inline pid::auto_pid pid_create(process *leader)
