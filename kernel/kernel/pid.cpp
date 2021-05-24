@@ -84,46 +84,36 @@ int sys_setpgid(pid_t pid, pid_t pgid)
 		return -EACCES;
 	}
 
-	/* TODO: Deal with sessions when we add them. */
-
 	scoped_lock g{target->pgrp_lock};
 
-	pid::auto_pid pgrp_;
+	pid::auto_pid pgrp;
 
-	if(pgid != pid)
+	pgrp = pid::lookup(pgid);
+	if(!pgrp)
 	{
-		pgrp_ = pid::lookup(pgid);
-
-		/* If we're moving a process from one process group to another,
-		 * the process group is required to exist. */
-
-		if(!pgrp_)
-			return -EPERM;
-	}
-	else
-	{
-		pgrp_ = pid::lookup(pgid);
-		if(!pgrp_)
-		{
-			return -ESRCH;
-		}
+		return -ESRCH;
 	}
 
-	auto pgrp = pgrp_.get();
+	if(target->session != current->session)
+		return -EPERM;
 
 	if(pgrp != target->process_group)
 	{
+		if(target->is_session_leader_unlocked())
+			return -EPERM;
+		
+		if(pgid != pid && !pgrp->is_in_session(target->session))
+			return -EPERM;
+
 		auto old_pgrp = target->process_group;
 		if(old_pgrp)
 		{
-			old_pgrp->remove_process(target);
+			old_pgrp->remove_process(target, PIDTYPE_PGRP);
 		}
 
-		pgrp->add_process(target);
+		pgrp->add_process(target, PIDTYPE_PGRP);
 
 		target->process_group = pgrp;
-
-		assert(target->process_group != nullptr);
 	}
 
 	return 0;
@@ -132,6 +122,9 @@ int sys_setpgid(pid_t pid, pid_t pgid)
 extern "C"
 pid_t sys_getpgid(pid_t pid)
 {
+	if(pid < 0)
+		return -EINVAL;
+
 	auto current = get_current_process();
 	auto_process target;
 
@@ -155,11 +148,11 @@ pid_t sys_getpgid(pid_t pid)
 	return ret;
 }
 
-void pid::inherit(process *proc)
+void pid::inherit(process *proc, pid_type type)
 {
 	scoped_lock g{proc->pgrp_lock};
 
-	add_process(proc);
+	add_process(proc, type);
 }
 
 void pid::remove_process(process *p, pid_type type)
@@ -173,7 +166,8 @@ void pid::remove_process(process *p, pid_type type)
 	}
 	else if(type == PIDTYPE_SID)
 	{
-		// TODO
+		list_remove(&p->session_node);
+		p->session = nullptr;
 	}
 	/* Unlock it before unrefing so we don't destroy the object and
 	 * then call the dtor on a dead object.
@@ -195,7 +189,8 @@ void pid::add_process(process *p, pid_type type)
 	}
 	else if(type == PIDTYPE_SID)
 	{
-		// TODO
+		list_add_tail(&p->session_node, &member_list[type]);
+		p->session = this;
 	}
 
 	ref();
@@ -208,4 +203,57 @@ pid::pid(process *leader) : pid_{leader->get_pid()}, _hashtable_node{this}
 	for(int i = 0; i < PIDTYPE_MAX; i++)
 		INIT_LIST_HEAD(&member_list[i]);
 	add_to_hashtable(*this);
+}
+
+extern "C"
+pid_t sys_setsid()
+{
+	auto current = get_current_process();
+
+	if(current->process_group == current->pid_struct)
+	{
+		// Oops, we're process group leader, can't call setsid
+		return -EPERM;
+	}
+
+	scoped_lock g{current->pgrp_lock};
+
+	// TODO: These look like good candidates for separate functions
+	// Lets make ourselves process group leaders
+	current->process_group->remove_process(current, PIDTYPE_PGRP);
+	current->process_group = current->pid_struct;
+	current->process_group->add_process(current, PIDTYPE_PGRP);
+
+	// and create a session on our pid
+	current->session->remove_process(current, PIDTYPE_SID);
+	current->session = current->pid_struct;
+	current->session->add_process(current, PIDTYPE_SID);
+
+	return current->session->get_pid();
+}
+
+extern "C"
+pid_t sys_getsid(pid_t pid)
+{
+	if(!pid)
+		pid = get_current_process()->get_pid();
+	
+	auto_process proc = get_process_from_pid(pid);
+	if(!proc)
+		return -ESRCH;
+	
+	scoped_lock g{proc->pgrp_lock};
+	return proc->session->get_pid();
+}
+
+bool pid::is_in_session(pid *session)
+{
+	scoped_lock g{lock};
+	if(list_is_empty(&member_list[PIDTYPE_PGRP]))
+		return false;
+
+	auto head = list_first_element(&member_list[PIDTYPE_PGRP]);
+	auto proc = list_head_cpp<process>::self_from_list_head(head);
+
+	return proc->session.get() == session;
 }

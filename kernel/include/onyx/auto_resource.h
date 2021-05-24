@@ -33,6 +33,9 @@ public:
 
 	auto_resource& operator=(const auto_resource& ar)
 	{
+		if(valid_resource())
+			unref();
+
 		res = ar.res;
 
 		if(valid_resource())
@@ -106,6 +109,11 @@ public:
 	operator ResourceType*() const
 	{
 		return get();
+	}
+
+	bool operator==(const auto_resource<ResourceType>& rhs) const
+	{
+		return get() == rhs.get();
 	}
 };
 

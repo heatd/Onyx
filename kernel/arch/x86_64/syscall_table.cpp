@@ -202,6 +202,10 @@ int sys_rlimit(pid_t pid, int resource, struct rlimit *uold, const struct rlimit
                           unsigned int flags);
 
 int sys_onx_handle_open(unsigned int resource_type, unsigned long id, int flags);
+ssize_t sys_onx_handle_query(int handle, void *buffer, ssize_t len, unsigned long what, size_t *howmany,
+                                        void *arg);
+pid_t sys_setsid();
+pid_t sys_getsid(pid_t pid);
 
 }
 
@@ -349,5 +353,8 @@ void *syscall_table_64[] =
 	[139] = (void*) sys_set_gids,
 	[140] = (void*) sys_setgroups,
 	[141] = (void*) sys_getgroups,
-	[142] = (void*) sys_onx_handle_open
+	[142] = (void*) sys_onx_handle_open,
+	[143] = (void*) sys_onx_handle_query,
+	[144] = (void*) sys_setsid,
+	[145] = (void*) sys_getsid
 };

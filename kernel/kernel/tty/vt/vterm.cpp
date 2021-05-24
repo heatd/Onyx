@@ -1226,8 +1226,6 @@ void serial_tty_init(struct tty *tty)
 
 void vterm_do_init(void)
 {
-	platform_serial_init();
-
 	struct framebuffer *fb = get_primary_framebuffer();
 	if(fb)
 		tty_init(&primary_vterm, vterm_init);

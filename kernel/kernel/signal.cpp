@@ -177,11 +177,12 @@ int signal_find(struct thread *thread)
 	{
 		if(sigismember(set, i) && !sigismember(blocked_set, i))
 		{
+			assert(i != 0);
 			return i;
 		}
 	}
 
-	return 0;
+	return -1;
 }
 
 bool signal_is_empty(struct thread *thread)
@@ -368,7 +369,7 @@ void handle_signal(struct registers *regs)
 		int signum = signal_find(thread);
 
 		/* Oh no, no more signals :(( */
-		if(signum == 0)
+		if(signum < 0)
 			break;
 
 		auto pending = signal_query_pending(signum, SIGNAL_QUERY_POP, &thread->sinfo);
@@ -503,6 +504,8 @@ void signal_do_special_behaviour(int signal, struct thread *thread)
 
 			t->sinfo.flags &= ~THREAD_SIGNAL_STOPPING;
 
+			t->sinfo.__update_pending();
+
 			if(should_lock) spin_unlock(&t->sinfo.lock);
 
 			return true;
@@ -543,6 +546,7 @@ void signal_do_special_behaviour(int signal, struct thread *thread)
 			}
 
 			t->sinfo.flags &= ~THREAD_SIGNAL_STOPPING;
+			t->sinfo.__update_pending();
 
 			if(should_lock) spin_unlock(&t->sinfo.lock);
 
@@ -1174,7 +1178,7 @@ int sys_rt_sigtimedwait(const sigset_t *set, siginfo_t *info, const struct times
 
 	/* Find a pending signal */
 	int signum = signal_find(thread);
-	assert(signum != 0);
+	assert(signum > 0);
 
 	/* If it's not a member of set, error out with EINTR(it will be handled on syscall return). */
 	if(!sigismember(&kset, signum))

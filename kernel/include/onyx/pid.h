@@ -7,6 +7,8 @@
 #ifndef _ONYX_PGRP_H
 #define _ONYX_PGRP_H
 
+#include <stdio.h>
+
 #include <sys/types.h>
 
 #include <onyx/list.h>
@@ -63,7 +65,7 @@ public:
 	 * @param p Process
 	 * @param type Context of the usage of the pid
 	 */
-	void add_process(process *p, pid_type type = PIDTYPE_PGRP);
+	void add_process(process *p, pid_type type);
 
 	/**
 	 * @brief Removes a process from the process group(usually either
@@ -72,9 +74,9 @@ public:
 	 * @param p Process
 	 * @param type Context of the usage of the pid
 	 */
-	void remove_process(process *p, pid_type type = PIDTYPE_PGRP);
+	void remove_process(process *p, pid_type type);
 
-	void inherit(process *proc);
+	void inherit(process *proc, pid_type type);
 
 	list_head& hashtable_node()
 	{
@@ -98,6 +100,8 @@ public:
 
 	static void add_to_hashtable(pid& p);
 	static void remove_from_hashtable(pid& p);
+
+	bool is_in_session(pid *session);
 
 	using auto_pid = auto_resource<pid>;
 

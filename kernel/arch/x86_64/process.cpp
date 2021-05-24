@@ -124,6 +124,7 @@ static void inherit_signal_flags(thread *newt)
 	scoped_lock g2{newt->sinfo.lock};
 
 	newt->sinfo.flags |= current_thread->sinfo.flags;
+	newt->sinfo.__update_pending();
 }
 
 extern "C"

@@ -8,6 +8,7 @@ app_executable("kernel_api_tests") {
                 "src/wait.cpp",
                 "src/exit.cpp",
                 "src/nullzero.cpp",
-                "src/rlimit.cpp"]
+                "src/rlimit.cpp",
+                "src/sid.cpp",]
     deps = [ "//googletest:gtest_main" ]
 }

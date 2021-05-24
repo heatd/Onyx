@@ -120,6 +120,8 @@ struct process : public onx::handle::handleable
 	struct spinlock pgrp_lock{};
 	list_head_cpp<process> pgrp_node;
 	pid::auto_pid process_group{};
+	list_head_cpp<process> session_node;
+	pid::auto_pid session{};
 
 	struct rlimit rlimits[RLIM_NLIMITS + 1]{};
 	struct rwlock rlimit_lock{};
@@ -173,6 +175,17 @@ struct process : public onx::handle::handleable
 	ssize_t query(void *ubuf, ssize_t len, unsigned long what, size_t *howmany, void *arg) override;
 
 	bool set_cmdline(const std::string_view& path);
+
+	bool is_session_leader_unlocked() const
+	{
+		return session == pid_struct;
+	}
+
+	bool is_pgrp_leader_unlocked() const
+	{
+		return process_group == pid_struct;
+	}
+
 private:
 	ssize_t query_get_strings(void *ubuf, ssize_t len, unsigned long what, size_t *howmany, void *arg);
 };

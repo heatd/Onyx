@@ -18,6 +18,7 @@
 #include <onyx/page.h>
 #include <onyx/vm_layout.h>
 #include <onyx/mm/kasan.h>
+#include <onyx/utility.hpp>
 
 #include <onyx/percpu.h>
 
@@ -26,11 +27,11 @@
 
 #define __alias(symbol)                 __attribute__((__alias__(#symbol)))
 
-#define KASAN_SHIFT		3
-#define KASAN_N_MASK		0x7
+#define KASAN_SHIFT         3
+#define KASAN_N_MASK		((1 << KASAN_SHIFT) - 1)
 #define KASAN_ACCESSIBLE	0x0
-#define KASAN_REDZONE		-1
-#define KASAN_FREED		-2
+#define KASAN_REDZONE       0xff
+#define KASAN_FREED         0xfe
 
 
 bool kasan_is_init = false;
@@ -66,7 +67,7 @@ void kasan_fail(unsigned long addr, size_t size, bool write, unsigned char b)
 	const char *event;
 	const char *thing_accessed = "Accessed zone not marked as accessible";
 
-	switch((char) b)
+	switch((unsigned char) b)
 	{
 		case KASAN_FREED:
 			event = "use-after-free";
@@ -89,13 +90,13 @@ void kasan_fail(unsigned long addr, size_t size, bool write, unsigned char b)
 	panic(buffer);
 }
 
-#define KASAN_MISALIGNMENT(x)	(x & (8-1))
+#define KASAN_MISALIGNMENT(x)	((x) & KASAN_N_MASK)
 
 void kasan_check_memory_fast(unsigned long addr, size_t size, bool write)
 {
 	char b = *kasan_get_ptr(addr);
 
-	unsigned int n = addr & KASAN_N_MASK;
+	unsigned int n = KASAN_MISALIGNMENT(addr);
 
 	if(b == KASAN_ACCESSIBLE)
 		return;
@@ -116,14 +117,14 @@ void kasan_check_memory(unsigned long addr, size_t size, bool write)
 	if(!kasan_is_init)
 		return;
 
-	size_t n = KASAN_MISALIGNMENT(addr);
+	size_t n_ = KASAN_MISALIGNMENT(addr);
 
 	if(kasan_is_cleared_access(addr, size))
 	{
 		return;
 	}
 
-	if(n + size <= 8 && n == 0)
+	if(n_ + size <= 8 && n_ == 0)
 	{
 		kasan_check_memory_fast(addr, size, write);
 		return;
@@ -368,29 +369,119 @@ int kasan_alloc_shadow(unsigned long addr, size_t size, bool accessible)
 	return 0;
 }
 
+void platform_serial_write(const char *s, size_t size);
+
+extern "C"
+void asan_poison_shadow(unsigned long addr, size_t size, uint8_t value)
+{
+
+#if 0
+	if()
+	{
+		char buf[100];
+		snprintf(buf, 100, "poisoning [%lx, %lx]\n", addr, addr + size);
+
+		platform_serial_write(buf, strlen(buf));
+	}
+#endif
+
+	auto shadow_start = kasan_get_ptr(addr);
+	auto shadow_end = kasan_get_ptr(addr + size);
+
+	uint8_t offset = KASAN_MISALIGNMENT(addr);
+	uint8_t end_leftover = KASAN_MISALIGNMENT(addr + size);
+
+	if(shadow_start == shadow_end)
+	{
+		// We're only poisoning a single byte of shadow
+		// See if any part of the byte was already poisoned or not, and if so extend it
+
+		auto shadow_val = *shadow_start;
+		if(shadow_val > 0)
+		{
+			// This byte is partially poisoned, lets check if there's no holes in our new poisoning.
+			if(offset + size == (uint8_t) shadow_val)
+			{
+				// This works! Check for a partial poisoning vs a complete one
+				*shadow_start = offset == 0 ? value : offset;
+			}
+			else
+			{
+				// Is this valid?
+				panic("bug?");
+			}
+		}
+		else if(shadow_val > 0 && offset != 0)
+		{
+			// Is this valid?
+			panic("bug?");
+		}
+
+		return;
+	}
+
+	if(offset != 0)
+	{
+		// same question as above
+		assert(offset + size >= sizeof(uint8_t));
+		// Lets poison the first byte like we did up there
+		if(shadow_start[0] == 0)
+			shadow_start[0] = offset;
+		else if(shadow_start[0] > 0)
+		{
+			shadow_start[0] = cul::min(offset, (uint8_t) shadow_start[0]);
+		}
+
+		shadow_start++;
+	}
+
+	memset(shadow_start, value, shadow_end - shadow_start);
+
+	if(end_leftover != 0)
+	{
+		// Check for a partial poisoning at the end, and try to do it if we can complete the byte
+		auto val = shadow_end[0];
+		if(val > 0 && end_leftover == val)
+		{
+			shadow_end[0] = value;
+		}
+	}
+}
+
+void asan_unpoison_shadow(unsigned long addr, size_t size)
+{
+	auto shadow_start = kasan_get_ptr(addr);
+	auto shadow_end = kasan_get_ptr(addr + size);
+
+	uint8_t offset = KASAN_MISALIGNMENT(addr);
+	uint8_t end_leftover = KASAN_MISALIGNMENT(addr + size);
+
+	assert(offset == 0);
+
+	memset(shadow_start, 0, shadow_end - shadow_start);
+
+	if(end_leftover != 0)
+	{
+		// entire byte is poisoned, unpoison the start
+		if(shadow_end[0] < 0)
+		{
+			shadow_end[0] = offset;
+		}
+		else if(shadow_end[0] > 0)
+		{
+			// try to increse the unpoisoned region
+			shadow_end[0] = cul::max(offset, (uint8_t) shadow_end[0]);
+		}
+	}
+}
+
 extern "C"
 void kasan_set_state(unsigned long *__ptr, size_t size, int state)
 {
 	unsigned long addr = (unsigned long) __ptr;
-	/* State: 0 = Accessible, -1 = redzone, 1 = freed */
-	while(size)
-	{
-		size_t n = KASAN_MISALIGNMENT(addr);
-		size_t to_set = size < 8 - n ? size : 8 - n;
 
-		char *ptr = kasan_get_ptr(addr);
-		unsigned char byte;
-
-		if(state == 0)
-			byte = to_set != 8 ? to_set : KASAN_ACCESSIBLE;
-		else if(state < 0)
-			byte = KASAN_REDZONE;
-		else
-			byte = KASAN_FREED;
-
-		*ptr = byte;
-
-		size -= to_set;
-		addr += to_set;
-	}
+	if(state == 0)
+		asan_unpoison_shadow(addr, size);
+	else
+		asan_poison_shadow(addr, size, state == 1 ? KASAN_FREED : KASAN_REDZONE);
 }

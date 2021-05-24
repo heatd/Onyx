@@ -100,3 +100,44 @@ TEST(SetPgrpTest, HandlesNegativeInput)
 	EXPECT_EQ(setpgid(0, -1), -1);
 	EXPECT_EQ(errno, EINVAL);
 }
+
+TEST(SetPgrpTest, HandlesEPerm)
+{
+	// Create multiple children
+	Waiter w;
+	Waiter parent_wake;
+
+	pid_t pid = fork();
+
+	ASSERT_NE(pid, -1);
+
+	if(pid == 0)
+	{
+		parent_wake.CloseReadEnd();
+		w.CloseWriteEnd();
+		w.Wait();
+
+		// Create a new session
+		EXPECT_EQ(setsid(), getpid());
+
+		parent_wake.Wake();
+		w.Wait();
+
+		exit(0);
+	}
+
+	w.CloseReadEnd();
+	w.Wake();
+
+	parent_wake.Wait();
+
+	// We're in a different session
+	// Testing all EPERMs
+	// TODO: Add separate tests for the separate EPERM conditions?
+	EXPECT_EQ(setpgid(pid, getpid()), -1);
+	EXPECT_EQ(errno, EPERM);
+
+	w.Wake();
+
+	wait(nullptr);
+}

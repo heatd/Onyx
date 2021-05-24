@@ -84,7 +84,7 @@ void process_append_to_global_list(process *p)
 	p->next = nullptr;
 }
 
-process::process() : pgrp_node{this}
+process::process() : pgrp_node{this}, session_node{this}
 {
 	init_wait_queue_head(&this->wait_child_event);
 	mutex_init(&condvar_mutex);
@@ -95,7 +95,8 @@ process::process() : pgrp_node{this}
 process::~process()
 {
 	// We might have died before assigning the process group
-	if(process_group) [[likely]] process_group->remove_process(this);
+	if(process_group) [[likely]] process_group->remove_process(this, PIDTYPE_PGRP);
+	if(session) [[likely]] session->remove_process(this, PIDTYPE_SID);
 }
 
 bool process::set_cmdline(const std::string_view& path)
@@ -196,24 +197,17 @@ process *process_create(const std::string_view& cmd_line, ioctx *ctx, process *p
 
 		proc->parent = parent;
 
-		parent->process_group->inherit(proc);
+		parent->process_group->inherit(proc, PIDTYPE_PGRP);
 		proc->flags = parent->flags;
 
 		proc->inherit_limits(parent);
+
+		parent->session->inherit(proc, PIDTYPE_SID);
 	}
 	else
 	{
-		proc->process_group = proc->pid_struct;
-		if(!proc->process_group)
-			return nullptr;
-
-		/* This makes me uncomfortable... We create the object(ref 1), add ourselves(ref again)
-		 * only to unref it so the reference count goes back to normal... kind of yuck.
-		 */
-
-		proc->process_group->add_process(proc);
-
-		proc->process_group->unref();
+		proc->pid_struct->add_process(proc, PIDTYPE_PGRP);
+		proc->pid_struct->add_process(proc, PIDTYPE_SID);
 
 		proc->init_default_limits();
 	}

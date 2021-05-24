@@ -520,6 +520,8 @@ void sched_sleep_unblock(clockevent *v)
 	thread_wake_up(t);
 }
 
+int signal_find(struct thread *thread);
+
 hrtime_t sched_sleep(unsigned long ns)
 {
 	thread_t *current = get_current_thread();
@@ -554,7 +556,7 @@ hrtime_t sched_sleep(unsigned long ns)
 	if(t1 > ev.deadline)
 		rem = 0;
 
-	return rem;
+	return -rem;
 }
 
 int __sched_remove_thread_from_execution(thread_t *thread, unsigned int cpu)
@@ -633,7 +635,6 @@ extern "C" int sys_nanosleep(const timespec *req, timespec *rem)
 	{
 		ts.tv_sec = ns_rem / NS_PER_SEC;
 		ts.tv_nsec = ns_rem % NS_PER_SEC;
-
 		if(copy_to_user(rem, &ts, sizeof(timespec)) < 0)
 			return -EFAULT;
 	}

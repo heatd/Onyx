@@ -61,6 +61,7 @@
 #include <onyx/x86/kvm.h>
 #include <onyx/x86/msr.h>
 #include <onyx/x86/pat.h>
+#include <onyx/serial.h>
 
 #include <drivers/rtc.h>
 
@@ -356,6 +357,8 @@ void multiboot2_kernel_entry(uintptr_t addr, uint32_t magic)
 			}
 		}
 	}
+
+	platform_serial_init();
 
 	total_mem = mb2_count_mem();
 	max_pfn = mb2_get_maxpfn();

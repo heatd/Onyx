@@ -85,6 +85,7 @@ class uart8250_port : public serial_port
 {
 	uint16_t io_port;
 	int com_nr;
+	spinlock lock_;
 
 	static constexpr uint32_t serial_clock = 115200;
 	static constexpr uint16_t default_baud_rate = 38400;
@@ -135,7 +136,7 @@ class uart8250_port : public serial_port
 
 	void dispatch_rx();
 public:
-	uart8250_port(uint16_t io_port, int com_nr) : io_port(io_port), com_nr(com_nr)
+	uart8250_port(uint16_t io_port, int com_nr) : io_port(io_port), com_nr(com_nr), lock_{}
 	{
 		init_wait_queue_head(&rcv_wait);
 	}
@@ -227,6 +228,7 @@ void uart8250_port::write_byte(uint8_t c)
 
 void uart8250_port::write(const char *s, size_t size)
 {
+	scoped_lock g{lock_};
 	for(size_t i = 0; i < size; i++)
 	{
 		write_byte(static_cast<uint8_t>(*(s + i)));

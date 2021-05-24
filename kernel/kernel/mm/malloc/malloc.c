@@ -286,6 +286,7 @@ static void trim(struct chunk *self, size_t n)
 void *malloc(size_t n)
 {
 	size_t orig_size = n;
+	(void) orig_size;
 	struct chunk *c;
 	int i, j;
 
@@ -349,6 +350,7 @@ void *__malloc0(size_t n)
 void *realloc(void *p, size_t n)
 {
 	size_t orig_size = n;
+	(void) orig_size;
 	struct chunk *self, *next;
 	size_t n0, n1;
 	void *new;
@@ -430,6 +432,11 @@ void __bin_chunk(struct chunk *self)
 
 	final_size = new_size = CHUNK_SIZE(self);
 	size_t kasan_size = CHUNK_SIZE(self) - OVERHEAD;
+	(void) kasan_size;
+
+#ifdef CONFIG_KASAN
+	kasan_set_state(CHUNK_TO_MEM(self), kasan_size, 1);
+#endif
 
 	next = NEXT_CHUNK(self);
 
@@ -484,8 +491,6 @@ void __bin_chunk(struct chunk *self)
 		uintptr_t b = ((uintptr_t)next - SIZE_ALIGN) & -PAGE_SIZE;
 		memset((void *) a, 0, b - a);
 	}
-#ifdef CONFIG_KASAN
-	kasan_set_state(CHUNK_TO_MEM(self), kasan_size, 1);
-#endif
+
 	unlock_bin(i);
 }
