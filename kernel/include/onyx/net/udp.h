@@ -68,8 +68,9 @@ class udp_socket : public inet_socket
 
 	unsigned int wants_cork : 1;
 
+	inet_cork cork;
 public:
-	udp_socket() : wants_cork{0} {}
+	udp_socket() : wants_cork{0}, cork{SOCK_DGRAM} {}
 
 	int bind(sockaddr *addr, socklen_t len) override;
 	int connect(sockaddr *addr, socklen_t len) override;

@@ -233,12 +233,16 @@ ssize_t packetbuf::expand_buffer(const void *ubuf_, unsigned int len)
 		{
 			auto to_put = min(tail_room, len);
 
+#if DEBUG_PACKETBUF_GROW
+			printk("length %u + tail room %u = %u", length(), tail_room, length() + tail_room);
+#endif
 			uint8_t *dest_ptr = (uint8_t *) PAGE_TO_VIRT(v.page) + v.page_off + v.length;
 
 			if(copy_from_user(dest_ptr, ubuf, to_put) < 0)
 				return -EFAULT;
-			
-			//printk("Put %u bytes in page vec %u\n", to_put, i);
+#if DEBUG_PACKETBUF_GROW
+			printk("Put %u bytes in page vec %u\n", to_put, i);
+#endif
 
 			v.length += to_put;
 			ubuf += to_put;

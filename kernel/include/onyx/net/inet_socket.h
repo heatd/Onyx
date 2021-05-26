@@ -31,6 +31,8 @@ namespace v6
 	class proto_family;
 }
 
+void copy_msgname_to_user(struct msghdr *msg, packetbuf *buf, bool isv6, in_port_t port);
+
 };
 
 struct inet_socket : public socket
@@ -44,9 +46,6 @@ struct inet_socket : public socket
 	struct list_head rx_packet_list;
 	struct spinlock rx_packet_list_lock;
 
-	inet_cork cork;
-	int cork_pending;
-
 	wait_queue rx_wq;
 	const inet_proto *proto_info;
 
@@ -54,7 +53,7 @@ struct inet_socket : public socket
 	             ipv6_only : 1,
 				 route_cache_valid : 1;
 
-	inet_socket() : socket{}, src_addr{}, bind_table_node{this}, dest_addr{}, cork{}, proto_info{},
+	inet_socket() : socket{}, src_addr{}, bind_table_node{this}, dest_addr{}, proto_info{},
 	                ipv4_on_inet6{}, ipv6_only{}, route_cache_valid{}
 	{
 		INIT_LIST_HEAD(&rx_packet_list);

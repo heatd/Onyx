@@ -15,6 +15,8 @@
 #include <onyx/net/tcp.h>
 #include <onyx/net/ip.h>
 
+#include <onyx/poll.h>
+
 socket_table tcp_table;
 
 const inet_proto tcp_proto{"tcp", &tcp_table};
@@ -169,23 +171,14 @@ int tcp_socket::handle_packet(const tcp_socket::packet_handling_data& data)
 
 	if(data_size || flags & TCP_FLAG_FIN)
 	{
-		recv_packet *p = new recv_packet();
-		if(!p)
-			return -1;
-		
-		p->addr_len = domain == AF_INET ? sizeof(sockaddr_in) : sizeof(sockaddr_in6);
-		memcpy(&p->src_addr.in4, data.src_addr, p->addr_len);
-		p->payload = memdup(buf.data(), buf.size_bytes());
-		if(!p->payload)
+		if(!(flags & TCP_FLAG_FIN))
 		{
-			delete p;
-			return -1;
+			auto buf = data.buffer;
+			buf->transport_header = (unsigned char *) data.header;
+			buf->data += header_size;
+			append_inet_rx_pbuf(buf);
 		}
 
-		p->size = buf.size_bytes();
-
-		in_band_queue.add_packet(p);
-	
 		tcp_packet pkt{{}, this, TCP_FLAG_ACK, src_addr};
 		pkt.send();
 	}
@@ -258,7 +251,7 @@ int tcp_handle_packet(netif *netif, packetbuf *buf)
 	sockaddr_in_both both;
 	ipv4_to_sockaddr(ip_header->source_ip, header->source_port, both.in4);
 
-	const tcp_socket::packet_handling_data handle_data{header, tcp_payload_len, &both, AF_INET}; 
+	const tcp_socket::packet_handling_data handle_data{buf, header, tcp_payload_len, &both, AF_INET}; 
 
 	st = socket->handle_packet(handle_data);
 
@@ -661,6 +654,8 @@ void tcp_socket::try_to_send()
 		auto netif = fam->route(src_addr, dest_addr, domain);
 		/* TODO: Support TCP segmentation instead of relying on IPv4 segmentation */
 		cul::slice<const uint8_t> data{send_buffer.begin(), current_pos};
+		current_pos = 0;
+
 		tcp_packet *packet = new tcp_packet{data, this, TCP_FLAG_ACK | TCP_FLAG_PSH, src_addr};
 		if(!packet)
 			return;
@@ -763,4 +758,116 @@ void tcp_socket::close()
 {
 	shutdown(SHUT_RDWR);
 	unref();
+}
+
+expected<packetbuf *, int> tcp_socket::get_segment(int flags)
+{
+	scoped_lock g{rx_packet_list_lock};
+
+	int st = 0;
+	packetbuf *buf = nullptr;
+
+	do
+	{
+		if(st == -EINTR)
+			return unexpected<int>{st};
+
+		buf = get_rx_head();
+		if(!buf && flags & MSG_DONTWAIT)
+			return unexpected<int>{-EWOULDBLOCK};
+
+		st = wait_for_segments();
+	} while(!buf);
+
+	g.keep_locked();
+
+	return buf;
+}
+
+ssize_t tcp_socket::recvmsg(msghdr *msg, int flags)
+{
+	auto iovlen = iovec_count_length(msg->msg_iov, msg->msg_iovlen);
+	if(iovlen < 0)
+		return iovlen;
+
+	auto st = get_segment(flags);
+	if(st.has_error())
+		return st.error();
+
+	auto buf = st.value();
+	ssize_t read = min(iovlen, (long) buf->length());
+	ssize_t was_read = 0;
+	ssize_t to_ret = read;
+
+	if(iovlen < buf->length())
+		msg->msg_flags = MSG_TRUNC;
+
+	if(flags & MSG_TRUNC)
+	{
+		to_ret = buf->length();
+	}
+
+	const unsigned char *ptr = buf->data;
+
+	if(msg->msg_name)
+	{
+		auto hdr = (tcp_header *) buf->transport_header;
+		ip::copy_msgname_to_user(msg, buf, domain == AF_INET6, hdr->source_port);
+	}
+
+	for(int i = 0; i < msg->msg_iovlen; i++)
+	{
+		auto iov = msg->msg_iov[i];
+		auto to_copy = min((ssize_t) iov.iov_len, read - was_read);
+		if(copy_to_user(iov.iov_base, ptr, to_copy) < 0)
+		{
+			spin_unlock(&rx_packet_list_lock);
+			return -EFAULT;
+		}
+
+		was_read += to_copy;
+
+		ptr += to_copy;
+
+		buf->data += to_copy;
+	}
+
+	msg->msg_controllen = 0;
+
+	if(!(flags & MSG_PEEK))
+	{
+		if(buf->length() == 0)
+		{
+			list_remove(&buf->list_node);
+			buf->unref();
+		}
+	}
+
+	spin_unlock(&rx_packet_list_lock);
+
+#if 0
+	printk("recv success %ld bytes\n", read);
+	printk("iovlen %ld\n", iovlen);
+#endif
+
+	return to_ret;
+}
+
+short tcp_socket::poll(void *poll_file, short events)
+{
+	short avail_events = POLLOUT;
+
+	scoped_lock g{rx_packet_list_lock};
+
+	if(events & POLLIN)
+	{
+		if(has_data_available())
+			avail_events |= POLLIN;
+		else
+			poll_wait_helper(poll_file, &rx_wq);
+	}
+
+	//printk("avail events: %u\n", avail_events);
+
+	return avail_events & events;
 }

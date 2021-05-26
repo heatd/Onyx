@@ -19,11 +19,17 @@ class inet_cork
 {
 protected:
 	list_head packet_list;
+	size_t packet_list_len;
+	int pending_;
 
-	int alloc_and_append(const iovec *vec, size_t vec_len, size_t proto_hdr_len, size_t max_packet_len);
+	// Needed so we can check whether or not to let us have more datagrams
+	int sock_type;
+
+	int alloc_and_append(const iovec *vec, size_t vec_len, size_t proto_hdr_len,
+	                     size_t max_packet_len, size_t skip_first);
 public:
 
-	inet_cork()
+	inet_cork(int sock_type) : pending_{AF_UNSPEC}, sock_type{sock_type}
 	{
 		INIT_LIST_HEAD(&packet_list);
 	}
@@ -32,6 +38,16 @@ public:
 	                size_t max_packet_len);
 
 	int send(const iflow &flow, void (*prepare_headers)(packetbuf *buf, const iflow &flow));
+
+	list_head& get_packet_list()
+	{
+		return packet_list;
+	}
+
+	int& pending()
+	{
+		return pending_;
+	}
 };
 
 #endif

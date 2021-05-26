@@ -13,7 +13,7 @@
 #include <onyx/page_iov.h>
 #include <onyx/refcount.h>
 
-#define PACKETBUF_MAX_NR_PAGES    ((UINT16_MAX + 1) / PAGE_SIZE)
+#define PACKETBUF_MAX_NR_PAGES    (((UINT16_MAX + 1) / PAGE_SIZE) + 1)
 
 #define DEFAULT_HEADER_LEN        128
 

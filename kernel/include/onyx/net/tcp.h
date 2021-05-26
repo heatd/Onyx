@@ -327,16 +327,38 @@ private:
 
 	void append_pending_out(tcp_packet *packet);
 	void remove_pending_out(tcp_packet *packet);
+
+	packetbuf *get_rx_head()
+	{
+		if(list_is_empty(&rx_packet_list))
+			return nullptr;
+		
+		return list_head_cpp<packetbuf>::self_from_list_head(list_first_element(&rx_packet_list));
+	}
+
+	bool has_data_available()
+	{
+		return !list_is_empty(&rx_packet_list);
+	}
+
+	expected<packetbuf *, int> get_segment(int flags);
+
+	int wait_for_segments()
+	{
+		return wait_for_event_locked_interruptible(&rx_wq, !list_is_empty(&rx_packet_list), &rx_packet_list_lock);
+	}
+
 public:
 	struct packet_handling_data
 	{
+		packetbuf *buffer;
 		tcp_header *header;
 		uint16_t tcp_segment_size;
 		sockaddr_in_both *src_addr;
 		int domain;
 
-		packet_handling_data(tcp_header *header, uint16_t segm_size, sockaddr_in_both *b, int domain)
-		                     : header(header), tcp_segment_size(segm_size), src_addr(b), domain{domain}
+		packet_handling_data(packetbuf *buffer, tcp_header *header, uint16_t segm_size, sockaddr_in_both *b, int domain)
+		                     : buffer{buffer}, header(header), tcp_segment_size(segm_size), src_addr(b), domain{domain}
 		{}
 	};
 
@@ -402,6 +424,8 @@ public:
 	int getsockopt(int level, int opt, void *optval, socklen_t *optlen) override;
 	int shutdown(int how);
 	void close() override;
+	ssize_t recvmsg(msghdr *msg, int flags) override;
+	short poll(void *poll_file, short events) override;
 };
 
 #endif

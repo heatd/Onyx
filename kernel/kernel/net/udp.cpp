@@ -265,6 +265,8 @@ ssize_t udp_socket::udp_sendmsg(const msghdr *msg, int flags, const inet_sock_ad
 
 	will_append = wanting_cork;
 
+	auto &cork_pending = cork.pending();
+
 	if(cork_pending)
 	{
 		scoped_hybrid_lock g{sock_lock, this};
@@ -342,6 +344,11 @@ ssize_t udp_socket::udp_sendmsg(const msghdr *msg, int flags, const inet_sock_ad
 		return st;
 	}
 
+#if DEBUG_UDP_CORK
+	printk("appending %lu, total len %u\n", msg->msg_iov[0].iov_len,
+	       list_head_cpp<packetbuf>::self_from_list_head(list_first_element(&cork.get_packet_list()))->length());
+#endif
+
 	if(!wanting_cork)
 	{
 		iflow fl{route, src_addr, dst, IPPROTO_UDP};
@@ -349,10 +356,8 @@ ssize_t udp_socket::udp_sendmsg(const msghdr *msg, int flags, const inet_sock_ad
 		{
 			udp_prepare_headers(buf, flow.saddr.port, flow.daddr.port, buf->length());
 
-			//udp_do_csum<our_domain>(buf, flow.route);
+			udp_do_csum<our_domain>(buf, flow.route);
 		});
-
-		cork_pending = 0;
 
 		return st < 0 ? st : payload_size;
 	}
@@ -500,60 +505,6 @@ expected<packetbuf *, int> udp_socket::get_datagram(int flags)
 	return buf;
 }
 
-static void copy_msgname_to_user(struct msghdr *msg, packetbuf *buf, bool isv6)
-{
-	struct udphdr *udp_header = (struct udphdr *) buf->transport_header;
-
-	if(buf->domain == AF_INET && !isv6)
-	{
-		const ip_header *hdr = (const ip_header *) buf->net_header;
-		sockaddr_in in;
-		explicit_bzero(&in, sizeof(in));
-
-		in.sin_family = AF_INET;
-		in.sin_port = udp_header->source_port;
-		in.sin_addr.s_addr = hdr->source_ip;
-
-		memcpy(msg->msg_name, &in, min(sizeof(in), (size_t) msg->msg_namelen));
-
-		msg->msg_namelen = min(sizeof(in), (size_t) msg->msg_namelen);
-	}
-	else if(buf->domain == AF_INET && isv6)
-	{
-		const ip_header *hdr = (const ip_header *) buf->net_header;
-		/* Create a v4-mapped v6 address */
-		sockaddr_in6 in6;
-		explicit_bzero(&in6, sizeof(in6));
-
-		in6.sin6_family = AF_INET6;
-		in6.sin6_flowinfo = 0;
-		in6.sin6_port = udp_header->source_port;
-		in6.sin6_scope_id = 0;
-		in6.sin6_addr = ip::v6::ipv4_to_ipv4_mapped(hdr->source_ip);
-
-		memcpy(msg->msg_name, &in6, min(sizeof(in6), (size_t) msg->msg_namelen));
-
-		msg->msg_namelen = min(sizeof(in6), (size_t) msg->msg_namelen);
-	}
-	else // if(buf->domain == AF_INET6)
-	{
-		const ip6hdr *hdr = (const ip6hdr *) buf->net_header;
-
-		sockaddr_in6 in6;
-		explicit_bzero(&in6, sizeof(in6));
-
-		in6.sin6_family = AF_INET6;
-		/* TODO: Probably not correct */
-		in6.sin6_flowinfo = hdr->flow_label[0] | hdr->flow_label[1] << 8 | hdr->flow_label[2] << 16;;
-		in6.sin6_port = udp_header->source_port;
-		memcpy(&in6.sin6_addr, &hdr->src_addr, sizeof(hdr->src_addr));
-
-		memcpy(msg->msg_name, &in6, msg->msg_namelen);
-
-		msg->msg_namelen = min(sizeof(in6), (size_t) msg->msg_namelen);
-	}
-}
-
 ssize_t udp_socket::recvmsg(msghdr *msg, int flags)
 {
 	auto iovlen = iovec_count_length(msg->msg_iov, msg->msg_iovlen);
@@ -581,7 +532,8 @@ ssize_t udp_socket::recvmsg(msghdr *msg, int flags)
 
 	if(msg->msg_name)
 	{
-		copy_msgname_to_user(msg, buf, domain == AF_INET6);
+		auto hdr = (udphdr *) buf->transport_header;
+		ip::copy_msgname_to_user(msg, buf, domain == AF_INET6, hdr->source_port);
 	}
 
 	for(int i = 0; i < msg->msg_iovlen; i++)
