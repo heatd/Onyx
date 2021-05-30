@@ -418,6 +418,14 @@ void virtq_split::put_buffer(const virtio_allocation_info &info, bool should_not
 		notify();
 }
 
+void virtq::resubmit_buffer(uint32_t desc, bool should_notify)
+{
+	virtio_allocation_info info;
+	info.first_desc = desc;
+
+	put_buffer(info, should_notify);
+}
+
 void virtq_split::notify()
 {
 	device->notify_cfg().write<uint32_t>(eff_queue_notify_off, nr);

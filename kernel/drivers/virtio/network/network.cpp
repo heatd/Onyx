@@ -12,6 +12,7 @@
 
 #include <onyx/net/network.h>
 #include <onyx/net/ethernet.h>
+#include <onyx/cpu.h>
 
 struct page_frag_alloc_info
 {
@@ -81,62 +82,50 @@ int network_vdev::poll_rx()
 
 int network_vdev::send_packet(packetbuf *buf)
 {
-	int st = 0;
-
 	auto hdr = reinterpret_cast<virtio_net_hdr *>(buf->push_header(sizeof(virtio_net_hdr)));
 	memset(hdr, 0, sizeof(*hdr));
 	hdr->gso_type = VIRTIO_NET_HDR_GSO_NONE;
+	if(buf->needs_csum)
+	{
+		hdr->flags |= VIRTIO_NET_HDR_F_NEEDS_CSUM;
+		hdr->csum_start = buf->csum_start - buf->data;
+		hdr->csum_offset = buf->csum_offset_bytes();
+	}
 	auto &transmit = virtqueue_list[network_transmitq];
 
-	virtio_buf_list list{transmit};
+	virtio_completion completion;
+	virtio_allocation_info info;
+	info.completion = &completion;
+	info.vec = buf->page_vec;
+	info.context = (void *) buf;
+	info.alloc_flags = 0;
 
-	unsigned int vec_index = 0;
-
-	for(const auto &v_ : buf->page_vec)
+	info.nr_vecs = buf->count_page_vecs();
+	info.fill_function = [](size_t vec_nr, virtio_allocation_info& info_) -> virtio_desc_info
 	{
-		// We make a copy because we might need to offset the start of the page when we're on the
-		// first entry, due to header offsetting 
-		page_iov v = v_;
-		if(!vec_index)
+		page_iov v = info_.vec[vec_nr];
+		auto pbuf = (packetbuf *) info_.context;
+
+		if(vec_nr == 0)
 		{
-			auto start = buf->buffer_start_off();
-			v.page_off += start;
-			v.length -= start;
+			v.page_off += pbuf->buffer_start_off();
+			v.length -= pbuf->buffer_start_off();
 		}
 
-		if(!v.page)
-			break;
+		return {v, info_.alloc_flags};
+	};
 
-		// TODO: This seems like a not-very-solid design
-		v.page->priv = (unsigned long) &list;
 
-		if(!list.prepare(v, false))
-		{
-			return -ENOMEM;
-		}
+	transmit->allocate_descriptors(info, true);
 
-		vec_index++;
-	}
-	
-	if(!transmit->allocate_descriptors(list))
-	{
-		st = -EIO;
-		goto out_error;
-	}
-
-	if(!transmit->put_buffer(list))
-	{
-		st = -EIO;
-		goto out_error;
-	}
+	transmit->put_buffer(info, true);
 
 	// arghhh, busy sleeping... we can't do a wait in networking code
 	// FIXME: Redesign?
-	while(!list.all_bufs_used());
+	while(!completion.empty())
+		cpu_relax();
 
 	return 0;
-out_error:
-	return st;
 }
 
 static constexpr unsigned int rx_buf_size = 1526;
@@ -161,19 +150,23 @@ bool network_vdev::setup_rx()
 	{
 		auto [page, off] = page_frag_alloc(&alloc_info, rx_buf_size);
 
-		virtio_buf_list l{vq};
+		virtio_allocation_info info;
 
-		if(!l.prepare((char *) PAGE_TO_VIRT(page) + off, rx_buf_size, true))
-			return false;
+		page_iov v;
+		v.page = page;
+		v.page_off = off;
+		v.length = rx_buf_size;
 
-		if(!vq->allocate_descriptors(l))
-			return false;
+		info.vec = &v;
+		info.nr_vecs = 1;
+		info.alloc_flags = VIRTIO_ALLOCATION_FLAG_WRITE;
+
+		vq->allocate_descriptors(info, true);
 
 		bool is_last = i == qsize - 1;
 
 		/* Only notify the buffer if it's the last one, as to avoid redudant notifications */
-		if(!vq->put_buffer(l, is_last))
-			return false;
+		vq->put_buffer(info, is_last);
 	}
 
 	return true;
@@ -212,14 +205,14 @@ void network_vdev::handle_used_buffer(const virtq_used_elem &elem, virtq *vq)
 	{
 		auto [paddr, len] = vq->get_buf_from_id(elem.id);
 		process_packet(paddr, len);
+
+		vq->resubmit_buffer(elem.id, true);
 	}
 	else if(nr == network_transmitq)
 	{
-		auto [paddr, len] = vq->get_buf_from_id(elem.id);
-		page *p = phys_to_page(paddr);
+		auto completion = vq->get_completion(elem.id);
 
-		// arrrg, I don't like this 'using priv' thing: refer to the other TODO
-		((virtio_buf_list *) p->priv)->increment_used();
+		completion->wake();
 	}
 }
 

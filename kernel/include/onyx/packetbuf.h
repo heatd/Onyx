@@ -170,6 +170,17 @@ public:
 	 * @return ssize_t The amount copied, or a negative error code if we failed to copy anything
 	 */
 	ssize_t expand_buffer(const void *ubuf, unsigned int len);
+
+	unsigned int count_page_vecs() const
+	{
+		for(unsigned int i = 0; i < PACKETBUF_MAX_NR_PAGES + 1; i++)
+		{
+			if(!page_vec[i].page)
+				return i;
+		}
+
+		__builtin_unreachable();
+	}
 };
 
 packetbuf *packetbuf_clone(packetbuf *original);

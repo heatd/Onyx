@@ -20,6 +20,8 @@
 #include <onyx/pair.hpp>
 #include <onyx/irq.h>
 #include <onyx/wait_queue.h>
+#include <onyx/spinlock.h>
+#include <onyx/scoped_lock.h>
 
 #include <onyx/net/netif.h>
 #include <onyx/packetbuf.h>
@@ -101,24 +103,30 @@ class virtq;
 
 struct virtio_completion
 {
-	atomic<size_t> descs_pending;
+	// We need this lock because there might be a race between the woken task freeing up the structure
+	// and wait_queue_wake_all doing the stuffs
+	spinlock lock_;
+	size_t descs_pending;
 	wait_queue wq;
 
 	[[nodiscard]]
-	bool empty() const
+	bool empty()
 	{
+		scoped_lock<spinlock, true> g{lock_};
 		return descs_pending == 0;
 	}
 
 	virtual void wake()
 	{
+		scoped_lock<spinlock, true> g{lock_};
 		descs_pending = 0;
 		wait_queue_wake_all(&wq);
 	}
 
-	virtio_completion() : descs_pending{}, wq{}
+	virtio_completion() : lock_{}, descs_pending{}, wq{}
 	{
 		init_wait_queue_head(&wq);
+		spinlock_init(&lock_);
 	}
 
 	void wait()
@@ -146,7 +154,10 @@ struct virtio_allocation_info
 
 	virtio_completion *completion;
 
-	virtio_allocation_info() = default;
+	constexpr virtio_allocation_info() : vec{}, nr_vecs{}, alloc_flags{},
+	                                     first_desc{}, fill_function{}, context{}, completion{}
+	{
+	}
 };
 
 class virtq
@@ -209,6 +220,13 @@ public:
 	{
 		completions[index] = nullptr;
 	}
+
+	/**
+	 * @brief Resubmits an already-set up buffer to the available queue 
+	 * 
+	 * @param desc Descriptor head
+	 */
+	void resubmit_buffer(uint32_t desc, bool should_notify);
 };
 
 class virtq_split : public virtq
