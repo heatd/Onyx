@@ -60,6 +60,7 @@ public:
 	void handle_used_buf(const virtq_used_elem& elem);
 };
 
+#if 0
 template <typename SentType, typename ReceivedType>
 class virtio_control_msg
 {
@@ -136,6 +137,8 @@ void virtio_control_msg_queue<SentType, ReceivedType>::handle_used_buf(const vir
 		}
 	}
 }
+
+#endif
 
 }
 

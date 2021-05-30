@@ -271,6 +271,11 @@ bool virtq_split::init()
 	desc_bitmap.SetSize(queue_size);
 	if(!desc_bitmap.AllocateBitmap())
 		return false;
+	
+	if(!completions.reserve(queue_size))
+		return false;
+	
+	completions.set_nr_elems(queue_size);
 
 	vq_pages = alloc_pages(total_pages, PAGE_ALLOC_CONTIGUOUS);
 	if(!vq_pages)
@@ -305,143 +310,90 @@ bool virtq_split::init()
 	return true;
 }
 
-void virtio_buf_list::tear_down_bufs()
+bool virtq::has_available_descriptors(size_t nr) const
 {
-	list_for_every_safe(&buf_list_head)
-	{
-		virtio_buf *b = container_of(l, virtio_buf, buf_list_memb);
-
-		delete b;
-	}
+	return avail_descs >= nr;
 }
 
-bool virtio_buf_list::prepare(const page_iov& iov, bool writable)
+void virtq::allocate_descriptors(virtio_allocation_info &info, bool irq_context)
 {
-	if(nr_elems + 1 > vq->get_queue_size())
+	// Ergh, using spin_lock_irqrestore here is tough since we need to coordinate with wait_for_event_locked 
+	auto flags = irq_save_and_disable();
+	spin_lock(&desc_alloc_lock);
+
+	auto nr_descs = info.nr_vecs;
+
+	if(!irq_context)
 	{
-		return false;
+		wait_for_event_locked(&desc_alloc_wq, has_available_descriptors(nr_descs), &desc_alloc_lock);
+	}
+	else
+	{
+		while(!has_available_descriptors(nr_descs))
+			cpu_relax();
 	}
 
-	virtio_buf *b = new virtio_buf((unsigned long) page_to_phys(iov.page) + iov.page_off, iov.length);
-	if(!b)
-	{
-		return false;
-	}
+	allocate_buffer_list(info);
 
-	b->write = writable;
+	spin_unlock(&desc_alloc_lock);
 
-	list_add_tail(&b->buf_list_memb, &buf_list_head);
-	nr_elems++;
-
-	return true;
+	irq_restore(flags);
 }
 
-bool virtio_buf_list::prepare(const void *addr, size_t length, bool writable)
+unsigned int virtq::alloc_descriptor_internal()
 {
-	struct phys_ranges r;
-	if(dma_get_ranges(addr, length, UINT32_MAX, &r) < 0)
-		return false;
-	
-	if(nr_elems + r.nr_ranges > vq->get_queue_size())
-	{
-		dma_destroy_ranges(&r);
-		return false;
-	}
+	unsigned long desc;
+	assert(desc_bitmap.FindFreeBit(&desc) == true);
+	avail_descs--;
 
-	for(size_t i = 0; i < r.nr_ranges; i++)
-	{
-		auto range = r.ranges[i];
-		virtio_buf *b = new virtio_buf(range->addr, range->size);
-		if(!b)
-		{
-			dma_destroy_ranges(&r);
-			return false;
-		}
-
-		b->write = writable;
-
-		list_add_tail(&b->buf_list_memb, &buf_list_head);
-		nr_elems++;
-	}
-
-	dma_destroy_ranges(&r);
-
-	return true;
+	return (unsigned int) desc;
 }
 
-#define atomic_compare_exchange_strong_explicit(PTR, VAL, DES, SUC, FAIL) \
-  __extension__								\
-  ({									\
-    auto __atomic_compare_exchange_ptr = (PTR);			\
-    __typeof__ (*__atomic_compare_exchange_ptr) __atomic_compare_exchange_tmp \
-      = (DES);								\
-    __atomic_compare_exchange (__atomic_compare_exchange_ptr, (VAL),	\
-			       &__atomic_compare_exchange_tmp, 0,	\
-			       (SUC), (FAIL));				\
-  })
-
-#define atomic_compare_exchange_strong(PTR, VAL, DES) 			   \
-  atomic_compare_exchange_strong_explicit (PTR, VAL, DES, __ATOMIC_SEQ_CST, \
-					   __ATOMIC_SEQ_CST)
-
-bool virtq::allocate_descriptors(virtio_buf_list& buf_list)
+void virtq_split::allocate_buffer_list(virtio_allocation_info &info)
 {
-	size_t expected, new_val;
-
-	do
-	{
-		expected = avail_descs;
-		new_val = expected - buf_list.nr_elems;
-		if(buf_list.nr_elems > expected)
-			continue;
-
-	} while(buf_list.nr_elems <= expected &&
-            !atomic_compare_exchange_strong(&avail_descs, &expected, new_val));
-
-	scoped_lock guard{desc_alloc_lock};
-
-	list_for_every(&buf_list.buf_list_head)
-	{
-		auto buf = container_of(l, virtio_buf, buf_list_memb);
-		unsigned long d = 0;
-		assert(desc_bitmap.FindFreeBit(&d));
-
-		buf->index = static_cast<uint16_t>(d);
-	}
-
-	return true;
-}
-
-uint16_t virtq_split::prepare_descriptors(virtio_buf_list& bufs)
-{
-	assert(!list_is_empty(&bufs.buf_list_head));
-
+	MUST_HOLD_LOCK(&desc_alloc_lock);
 	uint16_t desc_head = 0;
 	uint16_t seq = 0;
+	uint16_t index = alloc_descriptor_internal();
+	auto vec = info.vec;
 
-	list_for_every(&bufs.buf_list_head)
+	for(size_t i = 0; i < info.nr_vecs; i++, vec++)
 	{
-		virtio_buf *buf = container_of(l, virtio_buf, buf_list_memb);
-
 		if(seq++ == 0)
 		{
-			desc_head = buf->index;
+			desc_head = index;
 		}
 
-		virtq_desc *desc = descs + buf->index;
+		virtio_desc_info dinfo;
 
-		desc->paddr = buf->addr;
-		desc->length = static_cast<uint32_t>(buf->length);
+		if(info.fill_function)
+		{
+			dinfo = info.fill_function(i, info);
+		}
+		else
+		{
+			dinfo.v = *vec;
+			dinfo.flags = info.alloc_flags;
+		}
 
-		bool has_next_desc = l->next != &bufs.buf_list_head;
+		auto v = &dinfo.v;
+
+		virtq_desc *desc = descs + index;
+
+		desc->paddr = (unsigned long) page_to_phys(v->page) + v->page_off;
+		desc->length = v->length;
+
+		if(seq - 1 == 0) completions[index] = info.completion;
+
+		bool has_next_desc = i + 1 != info.nr_vecs;
 	
-		desc->flags = (has_next_desc ? VIRTQ_DESC_F_NEXT : 0) | (buf->write ? VIRTQ_DESC_F_WRITE : 0);
-		
+		desc->flags = (has_next_desc ? VIRTQ_DESC_F_NEXT : 0) |
+		              (dinfo.flags & VIRTIO_ALLOCATION_FLAG_WRITE ? VIRTQ_DESC_F_WRITE : 0);
+
 		if(has_next_desc)
 		{
-			/* Peek ahead and write its descriptor index */
-			virtio_buf *nbuf = container_of(l->next, virtio_buf, buf_list_memb);
-			desc->next = nbuf->index;
+			index = alloc_descriptor_internal();
+			desc->next = index;
 		}
 		else
 		{
@@ -449,25 +401,21 @@ uint16_t virtq_split::prepare_descriptors(virtio_buf_list& bufs)
 		}
 	}
 
-
-	return desc_head;
+	info.first_desc = desc_head;
+	if(info.completion) info.completion->descs_pending = info.nr_vecs;
 }
 
-bool virtq_split::put_buffer(virtio_buf_list& list, bool should_notify)
+void virtq_split::put_buffer(const virtio_allocation_info &info, bool should_notify)
 {
-	auto descs = prepare_descriptors(list);
-
 	write_memory_barrier();
 
-	avail->ring[avail->idx % this->queue_size] = descs;
+	avail->ring[avail->idx % this->queue_size] = info.first_desc;
 	avail->idx++;
 
 	write_memory_barrier();
 	
 	if(should_notify) [[likely]]
 		notify();
-
-	return true;
 }
 
 void virtq_split::notify()
@@ -480,21 +428,40 @@ cul::pair<unsigned long, size_t> virtq_split::get_buf_from_id(uint16_t id) const
 	return {descs[id].paddr, descs[id].length};
 }
 
+void virtq_split::free_chain(uint32_t id)
+{
+	size_t processed = 0;
+	while(true)
+	{
+		processed++;
+		auto desc = get_desc(id);
+
+		desc_bitmap.FreeBit(id);
+		avail_descs++;
+
+		if(!(desc->flags & VIRTQ_DESC_F_NEXT))
+			break;
+		
+		id = desc->next;
+	}
+
+	if(processed == 1)
+		wait_queue_wake(&desc_alloc_wq);
+	else
+		wait_queue_wake_all(&desc_alloc_wq);
+}
+
 void virtq_split::handle_irq()
 {
 	while(used->idx != last_seen_used_idx)
 	{
-		auto &elem = used->ring[last_seen_used_idx];
+		auto &elem = used->ring[last_seen_used_idx % this->queue_size];
 
 		device->handle_used_buffer(elem, this);
-		{
-			/* TODO: This should be more involved, less buggy, use wait queues,
-			 * and unpin pages
-			 */
-
-			scoped_lock g{desc_alloc_lock};
-			desc_bitmap.FreeBit(elem.id);
-			avail_descs++;
+		{	
+			scoped_lock<spinlock, true> g{desc_alloc_lock};
+			reset_completion(elem.id);
+			free_chain(elem.id);
 		}
 
 		last_seen_used_idx++;
@@ -595,6 +562,11 @@ int virtio_probe(struct device *_dev)
 #ifdef CONFIG_VIRTIO_GPU
 		case virtio::gpu_pci_subsys:
 			virtio_device = virtio::create_gpu_device(device);
+			break;
+#endif
+#ifdef CONFIG_VIRTIO_BLK
+		case virtio::block_pci_subsys:
+			virtio_device = virtio::create_blk_device(device);
 			break;
 #endif
 		default:

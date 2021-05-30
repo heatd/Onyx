@@ -6,3 +6,4 @@ obj-$(CONFIG_VIRTIO)+= $(virtio-y)
 
 include drivers/virtio/network/Makefile
 include drivers/virtio/gpu/Makefile
+include drivers/virtio/blk/Makefile

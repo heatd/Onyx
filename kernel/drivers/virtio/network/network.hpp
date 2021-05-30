@@ -60,7 +60,7 @@ public:
 	bool perform_subsystem_initialization() override;
 	bool setup_rx();
 
-	void handle_used_buffer(const virtq_used_elem &elem, const virtq *vq) override;
+	void handle_used_buffer(const virtq_used_elem &elem, virtq *vq) override;
 	handle_vq_irq_result driver_handle_vq_irq(unsigned int nr) override;
 };
 

@@ -17,6 +17,7 @@
 #include <onyx/page.h>
 #include <onyx/page.h>
 #include <onyx/page_iov.h>
+#include <onyx/slice.hpp>
 
 /* Power management operations*/
 #define BLKDEV_PM_SLEEP 1
@@ -130,5 +131,26 @@ int blkdev_flush(struct blockdev *dev);
 int blkdev_power(int op, struct blockdev *dev);
 
 int bio_submit_request(struct blockdev *dev, struct bio_req *req);
+
+static inline bool block_get_device_letter_from_id(unsigned int id, cul::slice<char> buffer)
+{
+	if(id > 26)
+	{
+		buffer[0] = 'A' + id / 26;
+		buffer[1] = 'a' + id % 26;
+		
+		if(buffer[1] > 'z')
+			return false;
+	}
+	else
+	{
+		buffer[0] = 'a' + id;
+		buffer[1] = '\0';
+	}
+
+	buffer[2] = '\0';
+
+	return true;
+}
 
 #endif

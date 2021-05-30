@@ -98,7 +98,7 @@ public:
 	~gpu_vdev() {}
 
 	bool perform_subsystem_initialization() override;
-	void handle_used_buffer(const virtq_used_elem &elem, const virtq *vq) override;
+	void handle_used_buffer(const virtq_used_elem &elem, virtq *vq) override;
 };
 
 namespace gpu_regs

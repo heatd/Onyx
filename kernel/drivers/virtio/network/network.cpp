@@ -204,7 +204,7 @@ void network_vdev::process_packet(unsigned long paddr, unsigned long len)
 	netif_process_pbuf(nif.get(), pckt.get());
 }
 
-void network_vdev::handle_used_buffer(const virtq_used_elem &elem, const virtq *vq)
+void network_vdev::handle_used_buffer(const virtq_used_elem &elem, virtq *vq)
 {
 	auto nr = vq->get_nr();
 
@@ -239,7 +239,7 @@ handle_vq_irq_result network_vdev::driver_handle_vq_irq(unsigned int nr)
 	return handle_vq_irq_result::HANDLE;
 }
 
-virtio::network_features supported_features[] =
+static virtio::network_features supported_features[] =
 {
 	network_features::csum,
 	/*network_features::guest_csum,
