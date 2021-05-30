@@ -44,8 +44,15 @@ private:
 	struct page *rx_pages;
 
 	static int __sendpacket(packetbuf *buf, netif *nif);
+	static void __rx_end(netif *nif);
+	static int __poll_rx(netif *nif);
 	
 	int send_packet(packetbuf *buf);
+
+	void rx_end();
+	int poll_rx();
+
+	void process_packet(unsigned long paddr, unsigned long len);
 public:
 	network_vdev(pci::pci_device *d) : vdev(d) {}
 	~network_vdev();
@@ -54,6 +61,7 @@ public:
 	bool setup_rx();
 
 	void handle_used_buffer(const virtq_used_elem &elem, const virtq *vq) override;
+	handle_vq_irq_result driver_handle_vq_irq(unsigned int nr) override;
 };
 
 enum network_registers

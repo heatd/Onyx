@@ -19,10 +19,12 @@
 #include <onyx/bitmap.h>
 #include <onyx/pair.hpp>
 #include <onyx/irq.h>
+#include <onyx/wait_queue.h>
 
 #include <onyx/net/netif.h>
 #include <onyx/packetbuf.h>
 #include <onyx/pair.hpp>
+#include <onyx/atomic.hpp>
 
 #include <pci/pci.h>
 
@@ -34,7 +36,7 @@
 namespace virtio
 {
 
-/* Device-independent features*/
+/* Device-independent features */
 enum device_features
 {
 	ring_indirect_desc = 28,
@@ -119,10 +121,13 @@ public:
 	struct list_head buf_list_head;
 	const unique_ptr<virtq> &vq;
 	size_t nr_elems;
+	atomic<size_t> used_count;
+	wait_queue wq;
 
-	virtio_buf_list(const unique_ptr<virtq> &v) : buf_list_head{}, vq(v), nr_elems{}
+	virtio_buf_list(const unique_ptr<virtq> &v) : buf_list_head{}, vq(v), nr_elems{}, used_count{}
 	{
 		INIT_LIST_HEAD(&buf_list_head);
+		init_wait_queue_head(&wq);
 	}
 
 	~virtio_buf_list()
@@ -131,6 +136,18 @@ public:
 	}
 
 	bool prepare(const void *addr, size_t length, bool writeable);
+	bool prepare(const page_iov& iov, bool writeable);
+
+	void increment_used()
+	{
+		if(++used_count == nr_elems)
+			wait_queue_wake_all(&wq);
+	}
+
+	bool all_bufs_used() const
+	{
+		return used_count == nr_elems;
+	}
 };
 
 class virtq
@@ -156,6 +173,8 @@ public:
 	virtual void handle_irq() = 0;
 	unsigned int get_nr() const {return nr;}
 	virtual cul::pair<unsigned long, size_t> get_buf_from_id(uint16_t id) const = 0;
+	virtual void disable_interrupts() = 0;
+	virtual void enable_interrupts() = 0;
 };
 
 class virtq_split : public virtq
@@ -196,6 +215,9 @@ public:
 	void handle_irq() override;
 
 	cul::pair<unsigned long, size_t> get_buf_from_id(uint16_t id) const override;
+
+	void disable_interrupts() override;
+	void enable_interrupts() override;
 };
 
 class virtio_structure
@@ -274,6 +296,12 @@ public:
 		}
 	}
 
+};
+
+enum class handle_vq_irq_result
+{
+	HANDLE = 0,
+	DELAY
 };
 
 /* TODO: Hide pci::pci_device (since it may or may not be a pci::pci_device) with a virtual class */
@@ -389,6 +417,11 @@ public:
 
 	virtual void handle_used_buffer(const virtq_used_elem &elem, const virtq *vq)
 	{}
+
+	virtual handle_vq_irq_result driver_handle_vq_irq(unsigned int nr)
+	{
+		return handle_vq_irq_result::HANDLE;
+	}
 
 	const unique_ptr<virtq>& get_vq(int nr)
 	{

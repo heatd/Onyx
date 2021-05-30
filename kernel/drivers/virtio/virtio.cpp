@@ -184,7 +184,7 @@ bool vdev::create_virtqueue(unsigned int nr, unsigned int queue_size)
 		assert(virtqueue_list[nr] == nullptr);
 	}
 
-	if(virtqueue_list.buf_size() <= nr)
+	if(virtqueue_list.size() <= nr)
 	{
 		/* Pre-reserve the list */
 		virtqueue_list.reserve(nr + 1);
@@ -315,13 +315,34 @@ void virtio_buf_list::tear_down_bufs()
 	}
 }
 
+bool virtio_buf_list::prepare(const page_iov& iov, bool writable)
+{
+	if(nr_elems + 1 > vq->get_queue_size())
+	{
+		return false;
+	}
+
+	virtio_buf *b = new virtio_buf((unsigned long) page_to_phys(iov.page) + iov.page_off, iov.length);
+	if(!b)
+	{
+		return false;
+	}
+
+	b->write = writable;
+
+	list_add_tail(&b->buf_list_memb, &buf_list_head);
+	nr_elems++;
+
+	return true;
+}
+
 bool virtio_buf_list::prepare(const void *addr, size_t length, bool writable)
 {
 	struct phys_ranges r;
 	if(dma_get_ranges(addr, length, UINT32_MAX, &r) < 0)
 		return false;
 	
-	if(r.nr_ranges > vq->get_queue_size())
+	if(nr_elems + r.nr_ranges > vq->get_queue_size())
 	{
 		dma_destroy_ranges(&r);
 		return false;
@@ -333,7 +354,6 @@ bool virtio_buf_list::prepare(const void *addr, size_t length, bool writable)
 		virtio_buf *b = new virtio_buf(range->addr, range->size);
 		if(!b)
 		{
-			tear_down_bufs();
 			dma_destroy_ranges(&r);
 			return false;
 		}
@@ -481,11 +501,22 @@ void virtq_split::handle_irq()
 	}
 }
 
+void virtq_split::disable_interrupts()
+{
+	avail->flags |= VIRTQ_AVAIL_F_NO_INTERRUPT;
+}
+
+void virtq_split::enable_interrupts()
+{
+	avail->flags &= ~VIRTQ_AVAIL_F_NO_INTERRUPT;
+}
+
 void vdev::handle_vq_irq()
 {
 	for(auto &c : virtqueue_list)
 	{
-		c->handle_irq();
+		if(driver_handle_vq_irq(c->get_nr()) == handle_vq_irq_result::HANDLE)
+			c->handle_irq();
 	}
 }
 

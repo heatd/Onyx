@@ -46,8 +46,38 @@ int network_vdev::__sendpacket(packetbuf *buf, netif *nif)
 	return dev->send_packet(buf);
 }
 
+void network_vdev::__rx_end(netif *nif)
+{
+	auto dev = static_cast<network_vdev *>(nif->priv);
+
+	dev->rx_end();
+}
+
+int network_vdev::__poll_rx(netif *nif)
+{
+	auto dev = static_cast<network_vdev *>(nif->priv);
+
+	return dev->poll_rx();
+}
+
+
 static constexpr unsigned int network_receiveq = 0;
 static constexpr unsigned int network_transmitq = 1;
+
+void network_vdev::rx_end()
+{
+	auto &vq = get_vq(network_receiveq);
+
+	vq->enable_interrupts(); 
+}
+
+int network_vdev::poll_rx()
+{
+	auto &vq = get_vq(network_receiveq);
+
+	vq->handle_irq();
+	return 0;
+}
 
 int network_vdev::send_packet(packetbuf *buf)
 {
@@ -58,16 +88,34 @@ int network_vdev::send_packet(packetbuf *buf)
 	hdr->gso_type = VIRTIO_NET_HDR_GSO_NONE;
 	auto &transmit = virtqueue_list[network_transmitq];
 
-	/* TODO: Add proper sg-list support to virtio_buf_list */
-	/* FIXME: Tx and Rx logic is broken. Fix. For example, transmit frees a page it shouldn't free,
-	 * and RX code is outdated.
-	 */
 	virtio_buf_list list{transmit};
-	auto addr = buf->page_vec[0].to_iter(buf->start_page_off()).to_pointer<uint8_t *>();
-	if(!list.prepare(addr, buf->length(), false))
+
+	unsigned int vec_index = 0;
+
+	for(const auto &v_ : buf->page_vec)
 	{
-		st = -EIO;
-		goto out_error;
+		// We make a copy because we might need to offset the start of the page when we're on the
+		// first entry, due to header offsetting 
+		page_iov v = v_;
+		if(!vec_index)
+		{
+			auto start = buf->buffer_start_off();
+			v.page_off += start;
+			v.length -= start;
+		}
+
+		if(!v.page)
+			break;
+
+		// TODO: This seems like a not-very-solid design
+		v.page->priv = (unsigned long) &list;
+
+		if(!list.prepare(v, false))
+		{
+			return -ENOMEM;
+		}
+
+		vec_index++;
 	}
 	
 	if(!transmit->allocate_descriptors(list))
@@ -81,6 +129,10 @@ int network_vdev::send_packet(packetbuf *buf)
 		st = -EIO;
 		goto out_error;
 	}
+
+	// arghhh, busy sleeping... we can't do a wait in networking code
+	// FIXME: Redesign?
+	while(!list.all_bufs_used());
 
 	return 0;
 out_error:
@@ -127,6 +179,31 @@ bool network_vdev::setup_rx()
 	return true;
 }
 
+void network_vdev::process_packet(unsigned long paddr, unsigned long len)
+{
+	auto packet_base = PHYS_TO_VIRT(paddr);
+	auto pckt = make_refc<packetbuf>(); 
+	if(!pckt)
+		return;
+
+	auto real_len = len - sizeof(virtio_net_hdr);
+	auto header = (virtio_net_hdr*) packet_base;
+
+	if(!pckt->allocate_space(real_len))
+		return;
+
+	if(header->flags & VIRTIO_NET_HDR_F_NEEDS_CSUM)
+	{
+		pckt->needs_csum = 1;
+	}
+
+	void *p = pckt->put(real_len);
+
+	memcpy(p, header + 1, real_len);
+
+	netif_process_pbuf(nif.get(), pckt.get());
+}
+
 void network_vdev::handle_used_buffer(const virtq_used_elem &elem, const virtq *vq)
 {
 	auto nr = vq->get_nr();
@@ -134,16 +211,32 @@ void network_vdev::handle_used_buffer(const virtq_used_elem &elem, const virtq *
 	if(nr == network_receiveq)
 	{
 		auto [paddr, len] = vq->get_buf_from_id(elem.id);
-		auto packet_base = paddr + PHYS_BASE + sizeof(virtio_net_hdr);
-		network_dispatch_receive((uint8_t *) packet_base, elem.length - sizeof(virtio_net_hdr),
-		                          nif.get_data());
+		process_packet(paddr, len);
 	}
 	else if(nr == network_transmitq)
 	{
 		auto [paddr, len] = vq->get_buf_from_id(elem.id);
 		page *p = phys_to_page(paddr);
-		free_page(p);
+
+		// arrrg, I don't like this 'using priv' thing: refer to the other TODO
+		((virtio_buf_list *) p->priv)->increment_used();
 	}
+}
+
+handle_vq_irq_result network_vdev::driver_handle_vq_irq(unsigned int nr)
+{
+	if(nr == network_receiveq)
+	{
+		const auto &vq = get_vq(nr);
+
+		netif_signal_rx(nif.get());
+
+		vq->disable_interrupts();
+
+		return handle_vq_irq_result::DELAY;
+	}
+
+	return handle_vq_irq_result::HANDLE;
 }
 
 virtio::network_features supported_features[] =
@@ -152,10 +245,10 @@ virtio::network_features supported_features[] =
 	/*network_features::guest_csum,
 	network_features::guest_tso4,
 	network_features::guest_tso6,*/
-	network_features::host_tso4,
-	network_features::host_tso6,
+	//network_features::host_tso4,
+	//network_features::host_tso6,
 	//network_features::guest_ufo,
-	network_features::host_ufo
+	//network_features::host_ufo
 };
 
 bool network_vdev::perform_subsystem_initialization()
@@ -227,6 +320,8 @@ bool network_vdev::perform_subsystem_initialization()
 	nif->priv = this;
 	nif->sendpacket = virtio::network_vdev::__sendpacket;
 	nif->mtu = 1500;
+	nif->poll_rx = virtio::network_vdev::__poll_rx;
+	nif->rx_end = virtio::network_vdev::__rx_end;
 	nif->dll_ops = &eth_ops;
 
 	cul::slice<uint8_t, 6> m{nif->mac_address, 6};
