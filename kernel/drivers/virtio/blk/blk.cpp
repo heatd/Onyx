@@ -223,7 +223,7 @@ bool blk_vdev::perform_subsystem_initialization()
 	if(!p)
 	{
 		free(dev);
-		return errno = ENOMEM;
+		return errno = ENOMEM, false;
 	}
 
 	memset(p, 0, strlen("/dev/") + strlen(path) + 1);
