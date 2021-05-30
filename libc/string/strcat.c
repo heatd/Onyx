@@ -18,3 +18,19 @@ char *strcat(char * restrict dest, const char * restrict src)
 	
 	return ret;
 }
+
+char *strncat(char * restrict dest, const char * restrict src, size_t n)
+{
+	char *ret = dest;
+	size_t dst_len = strlen(dest);
+
+	dest += dst_len;
+
+
+	while(*src != '\0' && n-- != 0)
+		*dest++ = *src++; 
+
+	*dest = '\0';
+	
+	return ret;
+}

@@ -4,9 +4,117 @@
  *
  *****************************************************************************/
 
-/*
- * Copyright (C) 2000 - 2017, Intel Corp.
+/******************************************************************************
+ *
+ * 1. Copyright Notice
+ *
+ * Some or all of this work - Copyright (c) 1999 - 2021, Intel Corp.
  * All rights reserved.
+ *
+ * 2. License
+ *
+ * 2.1. This is your license from Intel Corp. under its intellectual property
+ * rights. You may have additional license terms from the party that provided
+ * you this software, covering your right to use that party's intellectual
+ * property rights.
+ *
+ * 2.2. Intel grants, free of charge, to any person ("Licensee") obtaining a
+ * copy of the source code appearing in this file ("Covered Code") an
+ * irrevocable, perpetual, worldwide license under Intel's copyrights in the
+ * base code distributed originally by Intel ("Original Intel Code") to copy,
+ * make derivatives, distribute, use and display any portion of the Covered
+ * Code in any form, with the right to sublicense such rights; and
+ *
+ * 2.3. Intel grants Licensee a non-exclusive and non-transferable patent
+ * license (with the right to sublicense), under only those claims of Intel
+ * patents that are infringed by the Original Intel Code, to make, use, sell,
+ * offer to sell, and import the Covered Code and derivative works thereof
+ * solely to the minimum extent necessary to exercise the above copyright
+ * license, and in no event shall the patent license extend to any additions
+ * to or modifications of the Original Intel Code. No other license or right
+ * is granted directly or by implication, estoppel or otherwise;
+ *
+ * The above copyright and patent license is granted only if the following
+ * conditions are met:
+ *
+ * 3. Conditions
+ *
+ * 3.1. Redistribution of Source with Rights to Further Distribute Source.
+ * Redistribution of source code of any substantial portion of the Covered
+ * Code or modification with rights to further distribute source must include
+ * the above Copyright Notice, the above License, this list of Conditions,
+ * and the following Disclaimer and Export Compliance provision. In addition,
+ * Licensee must cause all Covered Code to which Licensee contributes to
+ * contain a file documenting the changes Licensee made to create that Covered
+ * Code and the date of any change. Licensee must include in that file the
+ * documentation of any changes made by any predecessor Licensee. Licensee
+ * must include a prominent statement that the modification is derived,
+ * directly or indirectly, from Original Intel Code.
+ *
+ * 3.2. Redistribution of Source with no Rights to Further Distribute Source.
+ * Redistribution of source code of any substantial portion of the Covered
+ * Code or modification without rights to further distribute source must
+ * include the following Disclaimer and Export Compliance provision in the
+ * documentation and/or other materials provided with distribution. In
+ * addition, Licensee may not authorize further sublicense of source of any
+ * portion of the Covered Code, and must include terms to the effect that the
+ * license from Licensee to its licensee is limited to the intellectual
+ * property embodied in the software Licensee provides to its licensee, and
+ * not to intellectual property embodied in modifications its licensee may
+ * make.
+ *
+ * 3.3. Redistribution of Executable. Redistribution in executable form of any
+ * substantial portion of the Covered Code or modification must reproduce the
+ * above Copyright Notice, and the following Disclaimer and Export Compliance
+ * provision in the documentation and/or other materials provided with the
+ * distribution.
+ *
+ * 3.4. Intel retains all right, title, and interest in and to the Original
+ * Intel Code.
+ *
+ * 3.5. Neither the name Intel nor any other trademark owned or controlled by
+ * Intel shall be used in advertising or otherwise to promote the sale, use or
+ * other dealings in products derived from or relating to the Covered Code
+ * without prior written authorization from Intel.
+ *
+ * 4. Disclaimer and Export Compliance
+ *
+ * 4.1. INTEL MAKES NO WARRANTY OF ANY KIND REGARDING ANY SOFTWARE PROVIDED
+ * HERE. ANY SOFTWARE ORIGINATING FROM INTEL OR DERIVED FROM INTEL SOFTWARE
+ * IS PROVIDED "AS IS," AND INTEL WILL NOT PROVIDE ANY SUPPORT, ASSISTANCE,
+ * INSTALLATION, TRAINING OR OTHER SERVICES. INTEL WILL NOT PROVIDE ANY
+ * UPDATES, ENHANCEMENTS OR EXTENSIONS. INTEL SPECIFICALLY DISCLAIMS ANY
+ * IMPLIED WARRANTIES OF MERCHANTABILITY, NONINFRINGEMENT AND FITNESS FOR A
+ * PARTICULAR PURPOSE.
+ *
+ * 4.2. IN NO EVENT SHALL INTEL HAVE ANY LIABILITY TO LICENSEE, ITS LICENSEES
+ * OR ANY OTHER THIRD PARTY, FOR ANY LOST PROFITS, LOST DATA, LOSS OF USE OR
+ * COSTS OF PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES, OR FOR ANY INDIRECT,
+ * SPECIAL OR CONSEQUENTIAL DAMAGES ARISING OUT OF THIS AGREEMENT, UNDER ANY
+ * CAUSE OF ACTION OR THEORY OF LIABILITY, AND IRRESPECTIVE OF WHETHER INTEL
+ * HAS ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES. THESE LIMITATIONS
+ * SHALL APPLY NOTWITHSTANDING THE FAILURE OF THE ESSENTIAL PURPOSE OF ANY
+ * LIMITED REMEDY.
+ *
+ * 4.3. Licensee shall not export, either directly or indirectly, any of this
+ * software or system incorporating such software without first obtaining any
+ * required license or other approval from the U. S. Department of Commerce or
+ * any other agency or department of the United States Government. In the
+ * event Licensee exports any such software from the United States or
+ * re-exports any such software from a foreign destination, Licensee shall
+ * ensure that the distribution and export/re-export of the software is in
+ * compliance with all laws, regulations, orders, or other restrictions of the
+ * U.S. Export Administration Regulations. Licensee agrees that neither it nor
+ * any of its subsidiaries will export/re-export any technical data, process,
+ * software, or service, directly or indirectly, to any country for which the
+ * United States government or any agency thereof requires an export license,
+ * other governmental approval, or letter of assurance, without first obtaining
+ * such license, approval or letter.
+ *
+ *****************************************************************************
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
+ * following license:
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -23,23 +131,23 @@
  *    of any contributors may be used to endorse or promote products derived
  *    from this software without specific prior written permission.
  *
- * Alternatively, this software may be distributed under the terms of the
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Alternatively, you may choose to be licensed under the terms of the
  * GNU General Public License ("GPL") version 2 as published by the Free
  * Software Foundation.
  *
- * NO WARRANTY
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTIBILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * HOLDERS OR CONTRIBUTORS BE LIABLE FOR SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT,
- * STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
- * IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGES.
- */
+ *****************************************************************************/
 
 #ifndef __ACTYPES_H__
 #define __ACTYPES_H__
@@ -168,6 +276,7 @@ typedef UINT64                          ACPI_PHYSICAL_ADDRESS;
 #define ACPI_MAX_PTR                    ACPI_UINT64_MAX
 #define ACPI_SIZE_MAX                   ACPI_UINT64_MAX
 #define ACPI_USE_NATIVE_DIVIDE          /* Has native 64-bit integer support */
+#define ACPI_USE_NATIVE_MATH64          /* Has native 64-bit integer support */
 
 /*
  * In the case of the Itanium Processor Family (IPF), the hardware does not
@@ -411,7 +520,7 @@ typedef UINT64                          ACPI_PHYSICAL_ADDRESS;
 
 /* Names within the namespace are 4 bytes long */
 
-#define ACPI_NAME_SIZE                  4
+#define ACPI_NAMESEG_SIZE               4           /* Fixed by ACPI spec */
 #define ACPI_PATH_SEGMENT_LENGTH        5           /* 4 chars for name + 1 char for separator */
 #define ACPI_PATH_SEPARATOR             '.'
 
@@ -477,11 +586,13 @@ typedef void *                          ACPI_HANDLE;    /* Actually a ptr to a N
 #define ACPI_NSEC_PER_MSEC              1000000L
 #define ACPI_NSEC_PER_SEC               1000000000L
 
+#define ACPI_TIME_AFTER(a, b)           ((INT64)((b) - (a)) < 0)
+
 
 /* Owner IDs are used to track namespace nodes for selective deletion */
 
-typedef UINT8                           ACPI_OWNER_ID;
-#define ACPI_OWNER_ID_MAX               0xFF
+typedef UINT16                          ACPI_OWNER_ID;
+#define ACPI_OWNER_ID_MAX               0xFFF   /* 4095 possible owner IDs */
 
 
 #define ACPI_INTEGER_BIT_SIZE           64
@@ -494,7 +605,7 @@ typedef UINT8                           ACPI_OWNER_ID;
 /*
  * Constants with special meanings
  */
-#define ACPI_ROOT_OBJECT                ACPI_ADD_PTR (ACPI_HANDLE, NULL, ACPI_MAX_PTR)
+#define ACPI_ROOT_OBJECT                ((ACPI_HANDLE) ACPI_TO_POINTER (ACPI_MAX_PTR))
 #define ACPI_WAIT_FOREVER               0xFFFF  /* UINT16, as per ACPI spec */
 #define ACPI_DO_NOT_WAIT                0
 
@@ -542,30 +653,42 @@ typedef UINT64                          ACPI_INTEGER;
 #define ACPI_CAST_INDIRECT_PTR(t, p)    ((t **) (ACPI_UINTPTR_T) (p))
 #define ACPI_ADD_PTR(t, a, b)           ACPI_CAST_PTR (t, (ACPI_CAST_PTR (UINT8, (a)) + (ACPI_SIZE)(b)))
 #define ACPI_SUB_PTR(t, a, b)           ACPI_CAST_PTR (t, (ACPI_CAST_PTR (UINT8, (a)) - (ACPI_SIZE)(b)))
-#define ACPI_PTR_DIFF(a, b)             (ACPI_SIZE) (ACPI_CAST_PTR (UINT8, (a)) - ACPI_CAST_PTR (UINT8, (b)))
+#define ACPI_PTR_DIFF(a, b)             ((ACPI_SIZE) (ACPI_CAST_PTR (UINT8, (a)) - ACPI_CAST_PTR (UINT8, (b))))
 
 /* Pointer/Integer type conversions */
 
-#define ACPI_TO_POINTER(i)              ACPI_ADD_PTR (void, (void *) NULL,(ACPI_SIZE) i)
-#define ACPI_TO_INTEGER(p)              ACPI_PTR_DIFF (p, (void *) NULL)
-#define ACPI_OFFSET(d, f)               ACPI_PTR_DIFF (&(((d *) 0)->f), (void *) NULL)
+#define ACPI_TO_POINTER(i)              ACPI_CAST_PTR (void, (ACPI_SIZE) (i))
+#define ACPI_TO_INTEGER(p)              ACPI_PTR_DIFF (p, (void *) 0)
+#define ACPI_OFFSET(d, f)               ACPI_PTR_DIFF (&(((d *) 0)->f), (void *) 0)
 #define ACPI_PHYSADDR_TO_PTR(i)         ACPI_TO_POINTER(i)
 #define ACPI_PTR_TO_PHYSADDR(i)         ACPI_TO_INTEGER(i)
 
 /* Optimizations for 4-character (32-bit) ACPI_NAME manipulation */
 
 #ifndef ACPI_MISALIGNMENT_NOT_SUPPORTED
-#define ACPI_COMPARE_NAME(a,b)          (*ACPI_CAST_PTR (UINT32, (a)) == *ACPI_CAST_PTR (UINT32, (b)))
-#define ACPI_MOVE_NAME(dest,src)        (*ACPI_CAST_PTR (UINT32, (dest)) = *ACPI_CAST_PTR (UINT32, (src)))
+#define ACPI_COMPARE_NAMESEG(a,b)       (*ACPI_CAST_PTR (UINT32, (a)) == *ACPI_CAST_PTR (UINT32, (b)))
+#define ACPI_COPY_NAMESEG(dest,src)     (*ACPI_CAST_PTR (UINT32, (dest)) = *ACPI_CAST_PTR (UINT32, (src)))
 #else
-#define ACPI_COMPARE_NAME(a,b)          (!strncmp (ACPI_CAST_PTR (char, (a)), ACPI_CAST_PTR (char, (b)), ACPI_NAME_SIZE))
-#define ACPI_MOVE_NAME(dest,src)        (strncpy (ACPI_CAST_PTR (char, (dest)), ACPI_CAST_PTR (char, (src)), ACPI_NAME_SIZE))
+#define ACPI_COMPARE_NAMESEG(a,b)       (!strncmp (ACPI_CAST_PTR (char, (a)), ACPI_CAST_PTR (char, (b)), ACPI_NAMESEG_SIZE))
+#define ACPI_COPY_NAMESEG(dest,src)     (strncpy (ACPI_CAST_PTR (char, (dest)), ACPI_CAST_PTR (char, (src)), ACPI_NAMESEG_SIZE))
 #endif
 
 /* Support for the special RSDP signature (8 characters) */
 
 #define ACPI_VALIDATE_RSDP_SIG(a)       (!strncmp (ACPI_CAST_PTR (char, (a)), ACPI_SIG_RSDP, 8))
 #define ACPI_MAKE_RSDP_SIG(dest)        (memcpy (ACPI_CAST_PTR (char, (dest)), ACPI_SIG_RSDP, 8))
+
+/* Support for OEMx signature (x can be any character) */
+#define ACPI_IS_OEM_SIG(a)        (!strncmp (ACPI_CAST_PTR (char, (a)), ACPI_OEM_NAME, 3) &&\
+                                      strnlen (a, ACPI_NAMESEG_SIZE) == ACPI_NAMESEG_SIZE)
+
+/*
+ * Algorithm to obtain access bit or byte width.
+ * Can be used with AccessSize field of ACPI_GENERIC_ADDRESS and
+ * ACPI_RESOURCE_GENERIC_REGISTER.
+ */
+#define ACPI_ACCESS_BIT_WIDTH(AccessSize)   (1 << ((AccessSize) + 2))
+#define ACPI_ACCESS_BYTE_WIDTH(AccessSize)  (1 << ((AccessSize) - 1))
 
 
 /*******************************************************************************
@@ -575,17 +698,17 @@ typedef UINT64                          ACPI_INTEGER;
  ******************************************************************************/
 
 /*
- * Initialization sequence
+ * Initialization sequence options
  */
-#define ACPI_FULL_INITIALIZATION        0x00
-#define ACPI_NO_ADDRESS_SPACE_INIT      0x01
-#define ACPI_NO_HARDWARE_INIT           0x02
-#define ACPI_NO_EVENT_INIT              0x04
-#define ACPI_NO_HANDLER_INIT            0x08
-#define ACPI_NO_ACPI_ENABLE             0x10
-#define ACPI_NO_DEVICE_INIT             0x20
-#define ACPI_NO_OBJECT_INIT             0x40
-#define ACPI_NO_FACS_INIT               0x80
+#define ACPI_FULL_INITIALIZATION        0x0000
+#define ACPI_NO_FACS_INIT               0x0001
+#define ACPI_NO_ACPI_ENABLE             0x0002
+#define ACPI_NO_HARDWARE_INIT           0x0004
+#define ACPI_NO_EVENT_INIT              0x0008
+#define ACPI_NO_HANDLER_INIT            0x0010
+#define ACPI_NO_OBJECT_INIT             0x0020
+#define ACPI_NO_DEVICE_INIT             0x0040
+#define ACPI_NO_ADDRESS_SPACE_INIT      0x0080
 
 /*
  * Initialization state
@@ -645,8 +768,9 @@ typedef UINT64                          ACPI_INTEGER;
 #define ACPI_NOTIFY_SHUTDOWN_REQUEST    (UINT8) 0x0C
 #define ACPI_NOTIFY_AFFINITY_UPDATE     (UINT8) 0x0D
 #define ACPI_NOTIFY_MEMORY_UPDATE       (UINT8) 0x0E
+#define ACPI_NOTIFY_DISCONNECT_RECOVER  (UINT8) 0x0F
 
-#define ACPI_GENERIC_NOTIFY_MAX         0x0E
+#define ACPI_GENERIC_NOTIFY_MAX         0x0F
 #define ACPI_SPECIFIC_NOTIFY_MAX        0x84
 
 /*
@@ -788,7 +912,7 @@ typedef UINT32                          ACPI_EVENT_STATUS;
  *   |  | | |  +-- Type of dispatch:to method, handler, notify, or none
  *   |  | | +----- Interrupt type: edge or level triggered
  *   |  | +------- Is a Wake GPE
- *   |  +--------- Is GPE masked by the software GPE masking mechanism
+ *   |  +--------- Has been enabled automatically at init time
  *   +------------ <Reserved>
  */
 #define ACPI_GPE_DISPATCH_NONE          (UINT8) 0x00
@@ -804,6 +928,8 @@ typedef UINT32                          ACPI_EVENT_STATUS;
 #define ACPI_GPE_XRUPT_TYPE_MASK        (UINT8) 0x08
 
 #define ACPI_GPE_CAN_WAKE               (UINT8) 0x10
+#define ACPI_GPE_AUTO_ENABLED           (UINT8) 0x20
+#define ACPI_GPE_INITIALIZED            (UINT8) 0x40
 
 /*
  * Flags for GPE and Lock interfaces
@@ -842,15 +968,16 @@ typedef UINT8                           ACPI_ADR_SPACE_TYPE;
 #define ACPI_ADR_SPACE_GPIO             (ACPI_ADR_SPACE_TYPE) 8
 #define ACPI_ADR_SPACE_GSBUS            (ACPI_ADR_SPACE_TYPE) 9
 #define ACPI_ADR_SPACE_PLATFORM_COMM    (ACPI_ADR_SPACE_TYPE) 10
+#define ACPI_ADR_SPACE_PLATFORM_RT      (ACPI_ADR_SPACE_TYPE) 11
 
-#define ACPI_NUM_PREDEFINED_REGIONS     11
+#define ACPI_NUM_PREDEFINED_REGIONS     12
 
 /*
  * Special Address Spaces
  *
  * Note: A Data Table region is a special type of operation region
  * that has its own AML opcode. However, internally, the AML
- * interpreter simply creates an operation region with an an address
+ * interpreter simply creates an operation region with an address
  * space type of ACPI_ADR_SPACE_DATA_TABLE.
  */
 #define ACPI_ADR_SPACE_DATA_TABLE       (ACPI_ADR_SPACE_TYPE) 0x7E /* Internal to ACPICA only */
@@ -1252,7 +1379,7 @@ typedef struct acpi_pnp_device_id_list
 {
     UINT32                          Count;              /* Number of IDs in Ids array */
     UINT32                          ListSize;           /* Size of list, including ID strings */
-    ACPI_PNP_DEVICE_ID              Ids[1];             /* ID array */
+    ACPI_PNP_DEVICE_ID              Ids[];              /* ID array */
 
 } ACPI_PNP_DEVICE_ID_LIST;
 
@@ -1270,7 +1397,6 @@ typedef struct acpi_device_info
     UINT8                           Flags;              /* Miscellaneous info */
     UINT8                           HighestDstates[4];  /* _SxD values: 0xFF indicates not valid */
     UINT8                           LowestDstates[5];   /* _SxW values: 0xFF indicates not valid */
-    UINT32                          CurrentStatus;      /* _STA value */
     UINT64                          Address;            /* _ADR value */
     ACPI_PNP_DEVICE_ID              HardwareId;         /* _HID value */
     ACPI_PNP_DEVICE_ID              UniqueId;           /* _UID value */
@@ -1285,7 +1411,6 @@ typedef struct acpi_device_info
 
 /* Flags for Valid field above (AcpiGetObjectInfo) */
 
-#define ACPI_VALID_STA                  0x0001
 #define ACPI_VALID_ADR                  0x0002
 #define ACPI_VALID_HID                  0x0004
 #define ACPI_VALID_UID                  0x0008
@@ -1315,13 +1440,21 @@ typedef struct acpi_pci_id
 
 } ACPI_PCI_ID;
 
+typedef struct acpi_mem_mapping
+{
+    ACPI_PHYSICAL_ADDRESS           PhysicalAddress;
+    UINT8                           *LogicalAddress;
+    ACPI_SIZE                       Length;
+    struct acpi_mem_mapping         *NextMm;
+
+} ACPI_MEM_MAPPING;
+
 typedef struct acpi_mem_space_context
 {
     UINT32                          Length;
     ACPI_PHYSICAL_ADDRESS           Address;
-    ACPI_PHYSICAL_ADDRESS           MappedPhysicalAddress;
-    UINT8                           *MappedLogicalAddress;
-    ACPI_SIZE                       MappedLength;
+    ACPI_MEM_MAPPING                *CurMm;
+    ACPI_MEM_MAPPING                *FirstMm;
 
 } ACPI_MEM_SPACE_CONTEXT;
 
@@ -1390,12 +1523,24 @@ typedef enum
 #define ACPI_OSI_WIN_VISTA_SP2          0x0A
 #define ACPI_OSI_WIN_7                  0x0B
 #define ACPI_OSI_WIN_8                  0x0C
-#define ACPI_OSI_WIN_10                 0x0D
+#define ACPI_OSI_WIN_8_1                0x0D
+#define ACPI_OSI_WIN_10                 0x0E
+#define ACPI_OSI_WIN_10_RS1             0x0F
+#define ACPI_OSI_WIN_10_RS2             0x10
+#define ACPI_OSI_WIN_10_RS3             0x11
+#define ACPI_OSI_WIN_10_RS4             0x12
+#define ACPI_OSI_WIN_10_RS5             0x13
+#define ACPI_OSI_WIN_10_19H1            0x14
 
 
 /* Definitions of getopt */
 
 #define ACPI_OPT_END                    -1
 
+/* Definitions for explicit fallthrough */
+
+#ifndef ACPI_FALLTHROUGH
+#define ACPI_FALLTHROUGH do {} while(0)
+#endif
 
 #endif /* __ACTYPES_H__ */

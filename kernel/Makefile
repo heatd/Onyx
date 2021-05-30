@@ -98,7 +98,7 @@ CLANG_TIDY_CHECKS:="performance*, modernize-pass-by-value, readability*, misc*, 
 		-bugprone-reserved-identifier, -misc-no-recursion"
 
 CXXFLAGS:=-fno-rtti -fno-exceptions -fcheck-new
-CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS) -D ACPI_LIBRARY -D ACPI_DEBUG_OUTPUT=1
+CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS) -D ACPI_LIBRARY
 LDFLAGS:=$(LDFLAGS) $(KERNEL_ARCH_LDFLAGS)
 LIBS:=$(LIBS) $(KERNEL_ARCH_LIBS)
 ACPICA_CFLAGS:=$(filter-out -fsanitize=undefined -Werror, $(CFLAGS))

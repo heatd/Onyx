@@ -69,17 +69,26 @@ int putchar(int c)
 #endif
 
 extern "C"
-int printf(const char *__restrict__ format, ...)
+int vprintf(const char *__restrict__ format, va_list va)
 {
 	scoped_mutex<false> g{buffer_lock};
-	va_list parameters;
-	va_start(parameters, format);
-	int i = vsnprintf(buffer, 10000, format, parameters);
+
+	int i = vsnprintf(buffer, 10000, format, va);
 	if(i < 0)
 		return -1;
 	__flush_print();
-	va_end(parameters);
 
+	return i;
+}
+
+extern "C"
+int printf(const char *__restrict__ format, ...)
+{
+	va_list va;
+	va_start(va, format);
+	int i = vprintf(format, va);
+
+	va_end(va);
 	return i;
 }
 
