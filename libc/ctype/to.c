@@ -41,3 +41,16 @@ int isxdigit(int c)
 {
 	return isdigit(c) || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f');
 }
+
+#undef isprint
+
+int isprint(int c)
+{
+	return (unsigned)c-0x20 < 0x5f;
+}
+
+#undef isalpha
+int isalpha(int c)
+{
+	return ((unsigned)c|32)-'a' < 26;
+}

@@ -25,7 +25,7 @@ include $(ARCHDIR)/make.config
 CXXFLAGS:=-fno-rtti -fno-exceptions -fcheck-new
 CFLAGS:=$(CFLAGS) $(ARCH_CFLAGS) -fPIC
 CPPFLAGS:=$(CPPFLAGS) $(ARCH_CPPFLAGS) -DPIC -Iinclude
-LIBK_CFLAGS:=$(LIBK_CFLAGS) $(KERNEL_ARCH_CFLAGS)
+LIBK_CFLAGS:=$(LIBK_CFLAGS) $(KERNEL_ARCH_CFLAGS) -fno-unwind-tables -fno-asynchronous-unwind-tables
 LIBK_CPPFLAGS:=$(LIBK_CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS) -Iinclude -I $(realpath ../kernel/include/acpica) \
 -imacros ../kernel/include/onyx/config.h
 
