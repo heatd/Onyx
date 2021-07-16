@@ -108,8 +108,8 @@ int network_vdev::send_packet(packetbuf *buf)
 
 		if(vec_nr == 0)
 		{
-			v.page_off += pbuf->buffer_start_off();
-			v.length -= pbuf->buffer_start_off();
+			v.page_off += pbuf->start_page_off();
+			v.length -= pbuf->start_page_off();
 		}
 
 		return {v, info_.alloc_flags};

@@ -23,6 +23,32 @@ struct vm_object;
 #define PACKETBUF_GSO_TSO6          (1 << 1)
 #define PACKETBUF_GSO_UFO           (1 << 2)
 
+/**
+ * @brief The packetbuf is the data structure used to transport data up and
+ * down the network stack. Its design is inspired by linux's sk_buff but adapted
+ * to be more versatile and easier to use from the driver's point of view, by adopting
+ * a full page_iov design.
+ *
+ * The packetbuf consists of two areas:
+ *
+ * 1) The head area: This is corresponds to the first page_vec entry and is directly 
+ *    accessible by put() and push_header(). The headers' placement is limited by the head area.
+ *
+ * 2) The data area: This corresponds to the rest of the page_vec and holds any data that doesn't
+ *    fit in the head area.
+ *
+ *
+ * Future design considerations:
+ * 1) Future implementations of zero copy networking may need to reserve the first iov. It is then
+ *    unclear if there are going to limitations in the packet's physical fragmentation of memory.
+ *
+ * 2) The packetbufs don't yet account for memory. It's noteworthy that packetbufs have huge internal
+ *    fragmentation, since every page_iov has a single PAGE_SIZE'd page that may consume a lot more memory
+ *    than the actual packet's size. We should either: 1) Ignore any wastefulness(provides less accurate
+ *    bookkeeping) or 2) Add some kmalloc-like-thing that allocates a chunk of physically contiguous memory.
+ *    This would possibly require a new page allocator in an efficient implementation. 
+ * 
+ */
 struct packetbuf : public refcountable
 {
 	/* Reasoning behind this - We're going to need at
@@ -83,6 +109,10 @@ public:
 				  vmo{}, header_length{}, gso_size{}, gso_flags{}, needs_csum{0}, zero_copy{0},
 				  domain{0}, list_node{this} {}
 	
+	/**
+	 * @brief Destroy the packetbuf object and free the backing pages.s
+	 * 
+	 */
 	~packetbuf();
 
 	void *operator new(size_t length);
@@ -92,34 +122,43 @@ public:
 	 * @brief Reserve space for the packet.
 	 * This function is only meant to be called once, at initialisation,
 	 * and calling it again may make the kernel crash and burn.
-	 * @param length the maximum length of the whole packet(including headers and footers)
-	 * @return true if it was successful, false if it was not.
+	 *
+	 * @param length The maximum length of the whole packet(including headers and footers)
+	 *
+	 * @return Returns true if it was successful, false if it was not.
 	 */
 	bool allocate_space(size_t length);
 
 	/**
 	 * @brief Reserve space for the headers.
 	 * 
-	 * @param header_length length of the headers 
+	 * @param header_length Length of the headers 
 	 */
 	void reserve_headers(unsigned int header_length);
 
 	/**
-	 * @brief Get space for a networking header, and adjust data to point to the start of the header
+	 * @brief Get space for a networking header, and adjust data to point to the start of the header.
 	 * 
-	 * @param size size of the header
-	 * @return void* the address of the new header
+	 * @param size Size of the header.
+	 *
+	 * @return void* The address of the new header.
 	 */
 	void *push_header(unsigned int size);
 
 	/**
-	 * @brief Get space for data, and advance tail by size
+	 * @brief Get space for data, and advance tail by size.
 	 * 
-	 * @param size the length of the data
-	 * @return void* the address of the new data
+	 * @param size The length of the data.
+	 *
+	 * @return void* The address of the new data.
 	 */
 	void *put(unsigned int size);
 
+	/**
+	 * @brief Calculates the total length of the buffer.
+	 * 
+	 * @return The length of the packetbuf, in bytes.
+	 */
 	unsigned int length() const
 	{
 		unsigned int out_of_data_area = 0;
@@ -137,40 +176,64 @@ public:
 		return (tail - data) + out_of_data_area;
 	}
 
-	unsigned int start_page_off() const
-	{
-		return data - (unsigned char *) buffer_start;
-	}
-
+	/**
+	 * @brief Calculates the offset of the transport header, from the start
+	 * of the packet.
+	 * 
+	 * @return Offset of the transport header. 
+	 */
 	unsigned int transport_header_off() const
 	{
 		return transport_header - data; 
 	}
 
+	/**
+	 * @brief Calculates the offset of the network header, from the start
+	 * of the packet.
+	 * 
+	 * @return Offset of the network header. 
+	 */
 	unsigned int net_header_off() const
 	{
 		return net_header - data;
 	}
 
+	/**
+	 * @brief Calculates the offset of the checksum field in the packet, for
+	 * checksum offloading purposes.
+	 * 
+	 * @return Offset of the checksum field. 
+	 */
 	unsigned int csum_offset_bytes() const
 	{
 		return (unsigned char *) csum_offset - data;
 	}
 
-	unsigned int buffer_start_off() const
+	/**
+	 * @brief Calculates the offset of the start of the packet from the start of
+	 * the first page.
+	 * 
+	 * @return Offset of the start of the packet. 
+	 */
+	unsigned int start_page_off() const
 	{
 		return data - (unsigned char *) buffer_start;
 	}
 
 	/**
-	 * @brief Expand the packet buffer, either by doing put(), expand page iters, or adding new pages 
+	 * @brief Expands the packet buffer, either by doing put(), expanding page iters, or adding new pages.
 	 * 
-	 * @param ubuf User address of the buffer
-	 * @param len Length of the buffer
-	 * @return ssize_t The amount copied, or a negative error code if we failed to copy anything
+	 * @param ubuf User address of the buffer.
+	 * @param len Length of the buffer.
+	 * @return The amount copied, or a negative error code if we failed to copy anything.
 	 */
 	ssize_t expand_buffer(const void *ubuf, unsigned int len);
 
+	/**
+	 * @brief Counts all valid page vector entries.
+	 * 
+	 * @return Number of valid page vector entries in the packetbuf.
+	 */
 	unsigned int count_page_vecs() const
 	{
 		for(unsigned int i = 0; i < PACKETBUF_MAX_NR_PAGES + 1; i++)
@@ -183,6 +246,12 @@ public:
 	}
 };
 
+/**
+ * @brief Clones a packetbuf and returns a metadata-identical and data-identical copy.
+ * 
+ * @param original The original packetbuf.
+ * @return The new packetbuf, or NULL if we ran out of memory.
+ */
 packetbuf *packetbuf_clone(packetbuf *original);
 
 #define PACKET_MAX_HEAD_LENGTH		128

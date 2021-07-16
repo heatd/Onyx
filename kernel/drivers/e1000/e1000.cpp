@@ -488,7 +488,7 @@ unsigned int e1000_device::prepare_legacy_descs(packetbuf *buf)
 		/* Account header overhead that might exist here */
 		if(!xmited)
 		{
-			buffer_start_off = buf->buffer_start_off();
+			buffer_start_off = buf->start_page_off();
 			length -= buffer_start_off;
 		}
 
