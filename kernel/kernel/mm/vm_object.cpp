@@ -28,6 +28,13 @@ static int page_cmp(const void* k1, const void* k2)
 	return (unsigned long) k1 < (unsigned long) k2 ? -1 : 1; 
 }
 
+/**
+ * @brief Creates a new VMO.
+ * 
+ * @param size The size of the VMO. 
+ * @param priv Pointer to private, optional.
+ * @return A pointer to the new VMO, or NULL if out of memory.
+ */
 vm_object *vmo_create(size_t size, void *priv)
 {
 	vm_object *vmo = (vm_object *) zalloc(sizeof(*vmo));
@@ -70,9 +77,13 @@ const struct vm_object_ops vmo_phys_ops =
 	.commit = vmo_commit_phys_page
 };
 
-/*
- * Creates a VMO with a physical memory backing(instead of a file backing, etc)
-*/
+/**
+ * @brief Creates a new anonymously backed VMO.
+ * 
+ * @param size The size of the VMO. 
+ *
+ * @return A pointer to the new VMO, or NULL if out of memory.
+ */
 vm_object *vmo_create_phys(size_t size)
 {
 	vm_object *vmo = vmo_create(size, nullptr);
@@ -126,6 +137,15 @@ vmo_status_t vmo_populate(vm_object *vmo, size_t off, page **ppage)
 	return VMO_STATUS_OK;
 }
 
+/**
+ * @brief Fetch a page from a VM object
+ * 
+ * @param vmo 
+ * @param off The offset inside the vm object
+ * @param flags The valid flags are defined above (may populate, may not implicit cow)
+ * @param ppage Pointer to where the struct page will be placed 
+ * @return The vm_status_t of the request
+ */
 vmo_status_t vmo_get(vm_object *vmo, size_t off, unsigned int flags, struct page **ppage)
 {
 	vmo_status_t st = VMO_STATUS_OK;
@@ -260,6 +280,14 @@ int vmo_fork_pages(vm_object *vmo)
 	return 0;
 }
 
+/**
+ * @brief Forks the VMO, performing any COW tricks that may be required.
+ * 
+ * @param vmo The VMO to be forked.
+ * @param shared True if the region is shared. This makes it skip all the work.
+ * @param reg The new forked region. 
+ * @return The vm object to be refed and used by the new region.
+ */
 vm_object *vmo_fork(vm_object *vmo, bool shared, struct vm_region *reg)
 {
 	vm_object *new_vmo;
@@ -323,6 +351,16 @@ static void vmo_rollback_pages(struct page *begin, struct page *end, vm_object *
 	}
 }
 
+/**
+ * @brief Prefaults a region of a vm object with anonymous pages.
+ * This is only used by kernel vm objects, that are forced to not have any non-anon
+ * backing.
+ * 
+ * @param vmo The VMO to be prefaulted. 
+ * @param size The size of the prefault.
+ * @param offset The offset of the region to be prefaulted.
+ * @return 0 on success, -1 on error.
+ */
 int vmo_prefault(vm_object *vmo, size_t size, size_t offset)
 {
 	size_t pages = vm_size_to_pages(size);
@@ -352,6 +390,13 @@ int vmo_prefault(vm_object *vmo, size_t size, size_t offset)
 	return 0;
 }
 
+/**
+ * @brief Destroys the VMO, disregarding any refcount.
+ * This should not be called arbitrarily and only in cases where it's certain
+ * that we hold the only reference.
+ *
+ * @param vmo The VMO to be destroyed. 
+ */
 void vmo_destroy(vm_object *vmo)
 {
 	scoped_mutex g{vmo->page_lock};
@@ -366,6 +411,14 @@ void vmo_destroy(vm_object *vmo)
 	free(vmo);
 }
 
+/**
+ * @brief Maps a page into the VMO.
+ * 
+ * @param off Offset of the page inside the VMO.
+ * @param p Page to be mapped on the vmo.
+ * @param vmo The VMO.
+ * @return 0 on success, -1 on failure to map. 
+ */
 int vmo_add_page(size_t off, struct page *p, vm_object *vmo)
 {
 	scoped_mutex g{vmo->page_lock};
@@ -381,6 +434,12 @@ int vmo_add_page(size_t off, struct page *p, vm_object *vmo)
 	return 0;
 }
 
+/**
+ * @brief Releases the vmo, and destroys it if it was the last reference.
+ * 
+ * @param vmo The VMO to be unrefed.
+ * @return True if it was destroyed, false if it's still alive.
+ */
 bool vmo_unref(vm_object *vmo)
 {
 	if(__sync_sub_and_fetch(&vmo->refcount, 1) == 0)
@@ -492,6 +551,14 @@ vm_object *vmo_create_copy(vm_object *vmo)
 	return copy;
 }
 
+/**
+ * @brief Creates a new vmo and moves all pages in [split_point, split_point + hole_size] to it.
+ * 
+ * @param split_point The start of the split point.
+ * @param hole_size The size of the hole.
+ * @param vmo The VMO to be split.
+ * @return The new vmo populated with all pre-existing vmo pages in the range.
+ */
 vm_object *vmo_split(size_t split_point, size_t hole_size, vm_object *vmo)
 {
 	vm_object *second_vmo = vmo_create_copy(vmo);
@@ -527,6 +594,12 @@ vm_object *vmo_split(size_t split_point, size_t hole_size, vm_object *vmo)
 	return second_vmo;
 }
 
+/**
+ * @brief Does a brief sanity check on the VMO.
+ * This is only present for debugging purposes and should not be called.
+ * 
+ * @param vmo The VMO.
+ */
 void vmo_sanity_check(vm_object *vmo)
 {
 	scoped_mutex g{vmo->page_lock};
@@ -556,30 +629,59 @@ void vmo_sanity_check(vm_object *vmo)
 	}
 }
 
+/**
+ * @brief Increments the reference counter on the VMO.
+ * 
+ * @param vmo The VMO.
+ */
 void vmo_ref(vm_object *vmo)
 {
 	__sync_add_and_fetch(&vmo->refcount, 1);
 }
 
-void vmo_assign_mapping(vm_object *vmo, struct vm_region *region)
+/**
+ * @brief Registers a new mapping on the VMO.
+ * 
+ * @param vmo The target VMO.
+ * @param region The mapping's region.
+ */
+void vmo_assign_mapping(vm_object *vmo, vm_region *region)
 {
 	scoped_lock g{vmo->mapping_lock};
 
 	list_add_tail(&region->vmo_head, &vmo->mappings);
 }
 
-void vmo_remove_mapping(vm_object *vmo, struct vm_region *region)
+/**
+ * @brief Removes a mapping on the VMO.
+ * 
+ * @param vmo The target VMO.
+ * @param region The mapping's region.
+ */
+void vmo_remove_mapping(vm_object *vmo, vm_region *region)
 {
 	scoped_lock g{vmo->mapping_lock};
 
 	list_remove(&region->vmo_head);
 }
 
+/**
+ * @brief Determines whether or not the VMO is currently being shared.
+ * 
+ * @param vmo The VMO.
+ * @return True if it is, false if not.
+ */
 bool vmo_is_shared(vm_object *vmo)
 {
 	return vmo->refcount != 1;
 }
 
+/**
+ * @brief Does copy-on-write for MAP_PRIVATE mappings.
+ * 
+ * @param vmo The new VMO. 
+ * @param target The copy-on-write master.
+ */
 void vmo_do_cow(vm_object *vmo, vm_object *target)
 {
 	assert(vmo->cow_clone == nullptr);
@@ -588,6 +690,14 @@ void vmo_do_cow(vm_object *vmo, vm_object *target)
 	vmo->cow_clone = target;
 }
 
+/**
+ * @brief Gets a page from the copy-on-write master.
+ * 
+ * @param vmo The VMO.
+ * @param off Offset of the page.
+ * @param ppage Pointer to a page * where the result will be placed.
+ * @return Status of the vmo get(). 
+ */
 vmo_status_t vmo_get_cow_page(vm_object *vmo, size_t off, struct page **ppage)
 {
 	size_t vmo_off = (off_t) vmo->priv;
@@ -609,12 +719,25 @@ vmo_status_t vmo_get_cow_page(vm_object *vmo, size_t off, struct page **ppage)
 	return st;
 }
 
+/**
+ * @brief Un-COW's a VMO.
+ * 
+ * @param vmo The VMO to be uncowed.
+ */
 void vmo_uncow(vm_object *vmo)
 {
+	// FIXME: This is weird. It never gets called.
 	vmo_unref(vmo->cow_clone);
 	vmo->cow_clone = nullptr;
 }
 
+/**
+ * @brief Does copy-on-write of a page that is present and just got written to.
+ * 
+ * @param vmo The VMO.
+ * @param off Offset of the page.
+ * @return The struct page of the new copied-to page.
+ */
 struct page *vmo_cow_on_page(vm_object *vmo, size_t off)
 {
 	scoped_mutex g{vmo->page_lock};
@@ -645,16 +768,35 @@ out_error:
 	return nullptr;
 }
 
+/**
+ * @brief Punches a hole into the given vmo, using the optional parameter `func` as a free page callback.
+ * 
+ * @param vmo The VMO
+ * @param start The start of the hole
+ * @param length The length of the hole
+ * @param func The function callback for freeing pages, IS OPTIONAL
+ * @return int 0 on success, negative error codes
+ */
 int vmo_punch_range(vm_object *vmo, unsigned long start, unsigned long length)
 {
 	return vmo_purge_pages(start, start + length, PURGE_SHOULD_FREE, nullptr, vmo);
 }
 
-int vmo_punch_range(vm_object *vmo, unsigned long start, unsigned long length, unsigned int flags)
+static int vmo_punch_range(vm_object *vmo, unsigned long start, unsigned long length, unsigned int flags)
 {
 	return vmo_purge_pages(start, start + length, PURGE_SHOULD_FREE | flags, nullptr, vmo);
 }
 
+/**
+ * @brief Truncates the VMO.
+ * 
+ * @param vmo The VMO to be truncated.
+ * @param size The desired size.
+ * @param flags Flags; Valid flags:
+ *        VMO_TRUNCATE_DONT_PUNCH: Don't bother punching the range if we truncate
+ *                                 the file to a smaller size.
+ * @return 0 on success, negative error codes.
+ */
 int vmo_truncate(vm_object *vmo, unsigned long size, unsigned long flags)
 {
 	scoped_mutex g{vmo->page_lock};
