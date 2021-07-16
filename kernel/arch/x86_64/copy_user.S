@@ -6,9 +6,19 @@
 
 #include <onyx/x86/alternatives.h>
 
-# cbn_status_t copy_to_user(void *udst, const void *ksrc, size_t size);
+/**
+ * @brief Copies data to user space.
+ * 
+ * @param usr The destination user space pointer.
+ * @param data The source kernel pointer.
+ * @param len The length of the copy, in bytes.
+ * @return 0 if successful, negative error codes if error'd.
+ *         At the time of writing, the only possible error return is -EFAULT.
+ */
+# ssize_t copy_to_user(void *user, const void *data, size_t size);
 .section .text
 .global copy_to_user
+.type copy_to_user, @function
 .balign 32
 copy_to_user:
 	# Note: This is slow, but it's needed...
@@ -51,8 +61,18 @@ copy_to_user.handler:
 	.quad copy_to_user.handler
 .popsection
 
-# cbn_status_t copy_from_user(void *kdst, const void *usrc, size_t size);
+/**
+ * @brief Copies data from user space.
+ * 
+ * @param data The destionation kernel pointer.
+ * @param usr The source user space pointer.
+ * @param len The length of the copy, in bytes.
+ * @return 0 if successful, negative error codes if error'd.
+ *         At the time of writing, the only possible error return is -EFAULT.
+ */
+# ssize_t copy_from_user(void *data, const void *usr, size_t size);
 .global copy_from_user
+.type copy_from_user, @function
 .balign 32
 copy_from_user:
 	# Note: This is slow, but it's needed...
@@ -94,6 +114,7 @@ copy_from_user.handler:
 .popsection
 
 .global strlen_user
+.type strlen_user, @function
 .balign 32
 strlen_user:
 	# Note: This is slow, but it's needed...
@@ -184,6 +205,7 @@ strlen_user.handler:
 .popsection
 
 .global get_user32
+.type get_user32, @function
 get_user32:
 	# addr in %rdi, dest in %rsi, ret is 0 if good or -EFAULT if we faulted
 	push %rdi
@@ -213,6 +235,7 @@ get_user32:
 .popsection
 
 .global get_user64
+.type get_user64, @function
 get_user64:
 	# addr in %rdi, dest in %rsi, ret is 0 if good or -EFAULT if we faulted
 	push %rdi
@@ -241,6 +264,15 @@ get_user64:
 	.quad 3b
 .popsection
 
+/**
+ * @brief Memsets user spce memory.
+ * 
+ * @param data The destionation user space pointer.
+ * @param data The destionation kernel pointer.
+ * @param len The length of the copy, in bytes.
+ * @return 0 if successful, negative error codes if error'd.
+ *         At the time of writing, the only possible error return is -EFAULT.
+ */
 # ssize_t user_memset(void *data, int val, size_t len);
 .global user_memset
 .type user_memset, @function

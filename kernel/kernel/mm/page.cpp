@@ -48,6 +48,11 @@ struct page *phys_to_page(uintptr_t phys)
 extern unsigned char kernel_start;
 extern unsigned char kernel_end;
 
+/**
+ * @brief Retrieves the kernel's limits in physical memory and virtual memory.
+ * 
+ * @param l A pointer to a kernel_limits object where the limits will be placed.
+ */
 void get_kernel_limits(struct kernel_limits *l)
 {
 	uintptr_t start_virt = (uintptr_t) &kernel_start;

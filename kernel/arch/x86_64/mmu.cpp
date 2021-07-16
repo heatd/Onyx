@@ -832,6 +832,15 @@ void paging_invalidate(void *page, size_t pages)
 	}
 }
 
+/**
+ * @brief Directly maps a page into the paging tables.
+ * 
+ * @param as The target address space.
+ * @param virt The virtual address.
+ * @param phys The physical address of the page.
+ * @param prot Desired protection flags.
+ * @return NULL if out of memory, else virt.
+ */
 void *vm_map_page(struct mm_address_space *as, uint64_t virt, uint64_t phys, uint64_t prot)
 {
 	return paging_map_phys_to_virt(as, virt, phys, prot);
@@ -947,21 +956,48 @@ unsigned long __get_mapping_info(void *addr, struct mm_address_space *as)
 	return ret;
 }
 
+/**
+ * @brief Free the architecture dependent parts of the address space.
+ * Called on address space destruction.
+ *
+ * @param mm The to-be-destroyed address space.
+ */
 void vm_free_arch_mmu(struct arch_mm_address_space *mm)
 {
 	free_page(phys_to_page((unsigned long) mm->cr3));
 }
 
+/**
+ * @brief Loads a new address space.
+ * 
+ * @param mm The to-be-loaded address space.
+ */
 void vm_load_arch_mmu(struct arch_mm_address_space *mm)
 {
 	paging_load_cr3((PML *) mm->cr3);
 }
 
+/**
+ * @brief Saves the current address space in \p mm
+ * 
+ * @param mm A pointer to a valid mm_address_space.
+ */
 void vm_save_current_mmu(struct mm_address_space *mm)
 {
 	mm->arch_mmu.cr3 = get_current_pml4();
 }
 
+/**
+ * @brief Directly mprotect a page in the paging tables.
+ * Called by core MM code and should not be used outside of it.
+ * This function handles any edge cases like trying to re-apply write perms on
+ * a write-protected page.
+ *
+ * @param as The target address space. 
+ * @param addr The virtual address of the page.
+ * @param old_prots The old protection flags.
+ * @param new_prots The new protection flags.
+ */
 void vm_mmu_mprotect_page(struct mm_address_space *as, void *addr, int old_prots, int new_prots)
 {
 	uint64_t *ptentry;
@@ -1303,6 +1339,13 @@ void x86_invalidate_tlb(void *context)
 	}
 }
 
+/**
+ * @brief Invalidates a memory range.
+ * 
+ * @param addr The start of the memory range.
+ * @param pages The size of the memory range, in pages.
+ * @param mm The target address space.
+ */
 void mmu_invalidate_range(unsigned long addr, size_t pages, mm_address_space *mm)
 {
 	add_per_cpu(nr_tlb_shootdowns, 1);
