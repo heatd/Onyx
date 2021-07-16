@@ -16,6 +16,7 @@
 #include <onyx/mm/vm_object.h>
 #include <onyx/scheduler.h>
 #include <onyx/mutex.h>
+#include <onyx/utility.hpp>
 
 #include <platform/page.h>
 
@@ -141,9 +142,8 @@ struct mm_address_space
 	struct spinlock private_vmo_lock{};
 	struct vm_object *vmo_head{}, *vmo_tail{};
 	struct arch_mm_address_space arch_mmu{};
-	
-	/* Ah yes, void * time - this in reality should be a cpumask, but C won't like it :((( */
-	void *active_mask{};
+
+	cpumask active_mask{};
 
 	mm_address_space& operator=(mm_address_space&& as)
 	{
@@ -161,7 +161,7 @@ struct mm_address_space
 		vmo_head = as.vmo_head;
 		vmo_tail = as.vmo_tail;
 		arch_mmu = as.arch_mmu;
-		active_mask = as.active_mask;
+		active_mask = cul::move(as.active_mask);
 		return *this;
 	}
 };
@@ -335,8 +335,6 @@ void vm_mmu_mprotect_page(struct mm_address_space *as, void *addr, int old_prots
 void vm_switch_to_fallback_pgd(void);
 
 struct page *vm_get_zero_page(void);
-
-void *vm_create_active_cpus(void);
 
 void vm_make_anon(struct vm_region *region);
 

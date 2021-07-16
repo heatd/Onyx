@@ -28,3 +28,6 @@ kernel/kernel.config
 out/
 *.vmdk
 CONF_STAMP
+.cache
+compile_commands.json
+kernel/include/onyx/config.h

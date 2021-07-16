@@ -114,7 +114,6 @@ build-usystem: build-srcpackages $(USYSTEM_PROJS) build-gn
 
 build-cleanup: build-usystem 
 	cp kernel/kernel.config sysroot/boot/
-	rm -f kernel/include/onyx/config.h
 
 	# TODO: Do this in kernel/Makefile
 	$(NM) kernel/vmonyx > Kernel.map

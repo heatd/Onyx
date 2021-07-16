@@ -1,6 +1,6 @@
 mm-y:= bootmem.o page.o pagealloc.o vm_object.o vm.o malloc/aligned_alloc.o malloc/calloc.o \
 	malloc/expand_heap.o malloc/malloc_usable_size.o malloc/malloc.o malloc/memalign.o \
-	malloc/posix_memalign.o malloc/onyx.o flush.o vm_active.o
+	malloc/posix_memalign.o malloc/onyx.o flush.o
 
 mm-$(CONFIG_KASAN)+= asan/asan.o
 

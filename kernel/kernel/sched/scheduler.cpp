@@ -336,8 +336,7 @@ extern "C" void *sched_schedule(void *last_stack)
 	{
 		if(source_thread->owner)
 		{
-			if(source_thread->owner->address_space.active_mask)
-				((cpumask *) source_thread->owner->address_space.active_mask)->remove_cpu_atomic(get_cpu_nr());
+			source_thread->owner->address_space.active_mask.remove_cpu_atomic(get_cpu_nr());
 		}
 	}
 

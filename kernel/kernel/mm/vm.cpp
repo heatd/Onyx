@@ -244,7 +244,7 @@ void vm_addr_init(void)
 	kernel_address_space.area_tree = rb_tree_new(vm_cmp);
 	kernel_address_space.start = KADDR_START;
 	kernel_address_space.end = UINTPTR_MAX;
-	kernel_address_space.active_mask = vm_create_active_cpus();
+
 	mutex_init(&kernel_address_space.vm_lock);
 	vm_save_current_mmu(&kernel_address_space);
 
@@ -953,7 +953,9 @@ int vm_fork_address_space(struct mm_address_space *addr_space)
 	addr_space->brk = current_mm->brk;
 	addr_space->start = current_mm->start;
 	addr_space->end = current_mm->end;
-	addr_space->active_mask = vm_create_active_cpus();
+	
+	assert(addr_space->active_mask.is_empty());
+
 	mutex_init(&addr_space->vm_lock);
 
 	__vm_unlock(false);
@@ -2052,10 +2054,6 @@ void vm_destroy_addr_space(struct mm_address_space *mm)
 
 	rb_tree_free(mm->area_tree, vm_destroy_area);
 
-	void *ptr = mm->active_mask;
-	mm->active_mask = NULL;
-	free(ptr);
-
 	assert(mm->resident_set_size == 0);
 	assert(mm->shared_set_size == 0);
 	assert(mm->virtual_memory_size == 0);
@@ -2544,7 +2542,9 @@ int vm_create_address_space(struct mm_address_space *mm, struct process *process
 	mm->resident_set_size = 0;
 	mm->shared_set_size = 0;
 	mm->virtual_memory_size = 0;
-	mm->active_mask = vm_create_active_cpus();
+	
+	assert(mm->active_mask.is_empty() == true);
+
 	mutex_init(&mm->vm_lock);
 
 	mm->area_tree = rb_tree_new(vm_cmp);

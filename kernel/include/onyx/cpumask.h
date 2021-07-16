@@ -188,6 +188,17 @@ public:
 	{
 		return mask;
 	}
+
+	constexpr bool is_empty() const
+	{
+		for(const auto &v : mask)
+		{
+			if(v != 0)
+				return false;
+		}
+
+		return true;
+	}
 };
 
 #endif
