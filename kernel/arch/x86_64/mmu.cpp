@@ -282,7 +282,7 @@ void x86_setup_placement_mappings(void)
 void paging_init(void)
 {
 	/* Get the current PML and store it */
-	__asm__ __volatile__("movq %%cr3, %%rax\t\nmovq %%rax, %0":"=r"(boot_pml4));
+	__asm__ __volatile__("movq %%cr3, %%rax\t\nmovq %%rax, %0" : "=r"(boot_pml4) :: "rax", "memory");
 
 	/* Bootstrap the first 1GB */
 	uintptr_t virt = PHYS_BASE;
