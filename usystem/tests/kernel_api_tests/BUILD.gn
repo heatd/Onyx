@@ -9,6 +9,10 @@ app_executable("kernel_api_tests") {
                 "src/exit.cpp",
                 "src/nullzero.cpp",
                 "src/rlimit.cpp",
-                "src/sid.cpp",]
-    deps = [ "//googletest:gtest_main" ]
+                "src/sid.cpp",
+                "src/vm.cpp",
+                "src/process_handle.cpp"
+                ]
+    deps = [ "//googletest:gtest_main",
+             "//lib/onyx" ]
 }

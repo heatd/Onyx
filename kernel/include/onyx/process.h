@@ -30,6 +30,7 @@
 #include <onyx/memory.hpp>
 #include <onyx/culstring.h>
 #include <onyx/pid.h>
+#include <onyx/public/process.h>
 
 #include <sys/resource.h>
 
@@ -188,12 +189,19 @@ struct process : public onx::handle::handleable
 
 private:
 	ssize_t query_get_strings(void *ubuf, ssize_t len, unsigned long what, size_t *howmany, void *arg);
-};
 
-enum process_query
-{
-	PROCESS_GET_PATH = 0,
-	PROCESS_GET_NAME
+	/**
+      * @brief Handles the PROCESS_GET_MM_INFO query.
+      * 
+      * @param ubuf User pointer to the buffer.
+      * @param len Length of the buffer, in bytes.
+      * @param what What query is this.
+      * @param howmany Pointer to a variable that will be updated with the number of
+      *                written or to-write bytes. 
+      * @param arg Unused in query_mm_info.
+      * @return Number of bytes written, or negative error code.
+      */
+	ssize_t query_mm_info(void *ubuf, ssize_t len, unsigned long what, size_t *howmany, void *arg);
 };
 
 struct process *process_create(const std::string_view& cmd_line, struct ioctx *ctx, struct process *parent);

@@ -127,7 +127,7 @@ public:
 
 		do
 		{
-			if(data_[pos] != c)
+			if(data_[pos] == c)
 				return pos;
 		} while(pos-- != 0);
 

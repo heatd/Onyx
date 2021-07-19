@@ -113,6 +113,11 @@ bool process::set_cmdline(const std::string_view& path)
 	auto last_slash = cmd_line.rfind('/');
 	if(last_slash == std::string_view::npos)
 		last_slash = 0;
+	else
+	{
+		// The name starts *after* the last slash
+		last_slash++;
+	}
 	
 	name = std::string_view{cmd_line.cbegin() + last_slash, cmd_line.cend()};
 
@@ -1071,7 +1076,91 @@ expected<file *, int > process_handle_opener(unsigned int rsrc_type, unsigned lo
 
 ssize_t process::query_get_strings(void *ubuf, ssize_t len, unsigned long what, size_t *howmany, void *arg)
 {
+	switch(what)
+	{
+		case PROCESS_GET_NAME:
+		{
+			scoped_mutex g{name_lock};
+			ssize_t length = (ssize_t) name.length() + 1;
+			*howmany = length;
+
+			if(len < length)
+			{
+				return -ENOSPC;
+			}
+
+			if(copy_to_user(ubuf, name.data(), name.length()) < 0)
+			{
+				return -EFAULT;
+			}
+
+			// Don't forget to null-terminate the buffer!
+			if(user_memset((void *) ((char *) ubuf + length - 1), '\0', 1) < 0)
+			{
+				return -EFAULT;
+			}
+
+			return length;
+		}
+
+		case PROCESS_GET_PATH:
+		{
+			ssize_t length = (ssize_t) cmd_line.length() + 1;
+			*howmany = length;
+			
+			if(len < length)
+			{
+				return -ENOSPC;
+			}
+
+			if(copy_to_user(ubuf, cmd_line.c_str(), length) < 0)
+			{
+				return -EFAULT;
+			}
+
+			return length;
+		}
+	}
+
 	return -EINVAL;
+}
+
+/**
+ * @brief Handles the PROCESS_GET_MM_INFO query.
+ * 
+ * @param ubuf User pointer to the buffer.
+ * @param len Length of the buffer, in bytes.
+ * @param what What query is this.
+ * @param howmany Pointer to a variable that will be updated with the number of
+ *                written or to-write bytes. 
+ * @param arg Unused in query_mm_info.
+ * @return Number of bytes written, or negative error code.
+ */
+ssize_t process::query_mm_info(void *ubuf, ssize_t len, unsigned long what, size_t *howmany, void *arg)
+{
+	auto mm = get_current_address_space();
+
+	*howmany = sizeof(onx_process_mm_info);
+
+	if(len < (ssize_t) sizeof(onx_process_mm_info))
+		return -ENOSPC;
+	
+	onx_process_mm_info info;
+
+	info.brk = (uint64_t) mm->brk;
+	info.start = mm->start;
+	info.end = mm->end;
+	info.mmap_base = (uint64_t) mm->mmap_base;
+	info.virtual_memory_size = mm->virtual_memory_size;
+	info.shared_set_size = mm->shared_set_size;
+	info.resident_set_size = mm->resident_set_size;
+	info.page_faults = mm->page_faults;
+	info.page_tables_size = mm->page_tables_size;
+	
+	if(copy_to_user(ubuf, &info, sizeof(info)) < 0)
+		return -EFAULT;
+	
+	return sizeof(info);
 }
 
 ssize_t process::query(void *ubuf, ssize_t len, unsigned long what, size_t *howmany, void *arg)
@@ -1079,7 +1168,10 @@ ssize_t process::query(void *ubuf, ssize_t len, unsigned long what, size_t *howm
 	switch(what)
 	{
 		case PROCESS_GET_NAME:
+		case PROCESS_GET_PATH:
 			return query_get_strings(ubuf, len, what, howmany, arg);
+		case PROCESS_GET_MM_INFO:
+			return query_mm_info(ubuf, len, what, howmany, arg);
 		default:
 			return -EINVAL;
 	}
