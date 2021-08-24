@@ -700,7 +700,7 @@ int ahci_wait_bit(volatile uint32_t *reg, uint32_t mask, unsigned long timeout, 
 	}
 }
 
-void ahci_port_set_idle(ahci_port_t *port)
+int ahci_port_set_idle(ahci_port_t *port)
 {
 	/* To set the AHCI port to idle, clear the start bit */
 	port->pxcmd = port->pxcmd & ~AHCI_PORT_CMD_START;
@@ -708,8 +708,7 @@ void ahci_port_set_idle(ahci_port_t *port)
 	if(ahci_wait_bit(&port->pxcmd, AHCI_PORT_CMD_CR, 500, true) < 0)
 	{
 		MPRINTF("error: Timeout waiting for AHCI_PORT_CMD_CR\n");
-		/* TODO: Handle this correctly */
-		return;
+		return -ETIMEDOUT;
 	}
 
 	if(port->pxcmd & AHCI_PORT_CMD_FRE)
@@ -719,10 +718,11 @@ void ahci_port_set_idle(ahci_port_t *port)
 		if(ahci_wait_bit(&port->pxcmd, AHCI_PORT_CMD_FR, 500, true) < 0)
 		{
 			MPRINTF("error: Timeout waiting for AHCI_PORT_CMD_FR\n");
-			/* TODO: Handle this correctly */
-			return;
+			return -ETIMEDOUT;
 		}
 	}
+
+	return 0;
 }
 
 int ahci_allocate_port_lists(ahci_hba_memory_regs_t *hba, ahci_port_t *port,
@@ -971,8 +971,13 @@ int ahci_initialize(struct ahci_device *device)
 			if(!ahci_port_is_idle(&hba->ports[i]))
 			{
 				/* If not, put it in idle mode */
-				ahci_port_set_idle(&hba->ports[i]);
-				/* TODO: Handle a failure to idle correctly */
+				int st = ahci_port_set_idle(&hba->ports[i]);
+				
+				if(st < 0)
+				{
+					ERROR("ahci", "failed to set port to idle\n");
+					return st;
+				}
 			}
 
 			/* Do not create a device until we've checked the port has some device behind it */
