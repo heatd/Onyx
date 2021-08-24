@@ -733,10 +733,13 @@ int ahci_allocate_port_lists(ahci_hba_memory_regs_t *hba, ahci_port_t *port,
 	void *fisb = nullptr;
 	void *command_list = nullptr;
 	void *virtual_fisb = nullptr;
+	unsigned long alloc_page_flags = addr64_supported ? PAGE_ALLOC_4GB_LIMIT : 0;
 	/* The command list is 4k in size, with 4k in alignment */
-	struct page *command_list_page = alloc_page(0);
+	struct page *command_list_page = alloc_page(alloc_page_flags);
+
 	if(!command_list_page)
 		goto error;
+
 	command_list = page_to_phys(command_list_page);
 	if(!command_list)
 		goto error;
@@ -749,10 +752,7 @@ int ahci_allocate_port_lists(ahci_hba_memory_regs_t *hba, ahci_port_t *port,
 	virtual_fisb = fisb;
 	fisb = virtual2phys(fisb);
 
-	if((uintptr_t) command_list & 0xFFFFFFFF00000000 && addr64_supported == false)
-		goto error;
-
-	if((uintptr_t) fisb & 0xFFFFFFFF00000000 && addr64_supported == false)
+	if((uintptr_t) fisb > UINT32_MAX && addr64_supported == false)
 		goto error;
 
 	_port->clist = (command_list_t *) mmiomap(command_list, PAGE_SIZE, VM_WRITE | VM_NOEXEC);
@@ -763,9 +763,9 @@ int ahci_allocate_port_lists(ahci_hba_memory_regs_t *hba, ahci_port_t *port,
 
 	/* Set FB and CB */
 	port->command_list_base_low = (uintptr_t) command_list & 0xFFFFFFFF;
-	port->command_list_base_hi = ((unsigned long) command_list) >> 32;
+	if(addr64_supported) port->command_list_base_hi = ((unsigned long) command_list) >> 32;
 	port->fis_list_base_low = (uintptr_t) fisb & 0xFFFFFFFF;
-	port->fis_list_base_hi = ((unsigned long) fisb) >> 32;
+	if(addr64_supported) port->fis_list_base_hi = ((unsigned long) fisb) >> 32;
 	
 	return 0;
 error:
