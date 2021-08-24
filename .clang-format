@@ -1,0 +1,17 @@
+BasedOnStyle: Microsoft
+Standard: Latest
+IndentWidth: 4
+AccessModifierOffset: 0
+AlignAfterOpenBracket: true
+AlignConsecutiveMacros: Consecutive
+AlignEscapedNewlines: Left
+AlignTrailingComments: true
+AllowAllConstructorInitializersOnNextLine: true
+SortIncludes: true
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+DerivePointerAlignment: true
+PointerAlignment: Right
+ColumnLimit: 100
+ForEachMacros: ['list_for_every','list_for_every_safe']
+IncludeBlocks: Regroup
