@@ -50,8 +50,6 @@ int igd_change_cdclk_magic_sequence(struct igpu_device *dev)
 
 
 		/* Should wait only 150us */
-		/* TODO: When we add high resolution timing support to the kernel,
-		 * adjust this interface */
 		if(igpu_wait_bit(dev, GT_DRIVER_MAILBOX_INTERFACE, GT_DRIVER_MAILBOX_INTERFACE_RUN_BIT,
 			150 * NS_PER_US, true) < 0)
 			return -ETIMEDOUT;

@@ -62,7 +62,6 @@ int igpu_wait_bit(struct igpu_device *dev, uint32_t reg, uint32_t mask,
 				return 0;
 		}
 
-		/* TODO: Use a sleep when we implement clock events */
 		cpu_relax();
 	}
 
