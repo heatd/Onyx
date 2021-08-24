@@ -36,12 +36,26 @@ volatile uint32_t *bsp_lapic = NULL;
 volatile uint64_t core_stack = 0;
 PER_CPU_VAR(uint32_t lapic_id) = 0;
 
+/**
+ * @brief Writes to a LAPIC register.
+ * 
+ * @param lapic LAPIC base.
+ * @param addr Register to be written..
+ * @param val Value to be written.
+ */
 void lapic_write(volatile uint32_t *lapic, uint32_t addr, uint32_t val)
 {
 	volatile uint32_t *laddr = (volatile uint32_t *)((volatile char*) lapic + addr);
 	*laddr = val;
 }
 
+/**
+ * @brief Reads from a LAPIC register.
+ * 
+ * @param lapic LAPIC base.
+ * @param addr Register to be read..
+ * @return The value of the register.
+ */
 uint32_t lapic_read(volatile uint32_t *lapic, uint32_t addr)
 {
 	volatile uint32_t *laddr = (volatile uint32_t *)((volatile char*) lapic + addr);
@@ -50,6 +64,10 @@ uint32_t lapic_read(volatile uint32_t *lapic, uint32_t addr)
 
 PER_CPU_VAR(volatile uint32_t *lapic) = NULL;
 
+/**
+ * @brief Sends an EOI (end of interrupt) to the current LAPIC.
+ * 
+ */
 void lapic_send_eoi()
 {
 	lapic_write(get_per_cpu(lapic), LAPIC_EOI, 0);
@@ -58,6 +76,11 @@ void lapic_send_eoi()
 extern struct clocksource tsc_clock;
 
 static bool tsc_deadline_supported = false;
+
+/**
+ * @brief Initialises the current CPU's LAPIC.
+ * 
+ */
 void lapic_init(void)
 {
 	/* Get the BSP's LAPIC base address from the msr's */
@@ -90,6 +113,12 @@ void lapic_init(void)
 volatile char *ioapic_base = NULL;
 ACPI_TABLE_MADT *madt = NULL;
 
+/**
+ * @brief Reads an IO APIC register.
+ * 
+ * @param reg Register to be read.
+ * @return Value of the register.
+ */
 uint32_t read_io_apic(uint32_t reg)
 {
 	uint32_t volatile *ioapic = (uint32_t volatile*) ioapic_base;
@@ -97,6 +126,12 @@ uint32_t read_io_apic(uint32_t reg)
 	return ioapic[4];
 }
 
+/**
+ * @brief Writes to an IO APIC register.
+ * 
+ * @param reg Register to be written to.
+ * @param value Value to write.
+ */
 void write_io_apic(uint32_t reg, uint32_t value)
 {
 	uint32_t volatile *ioapic = (uint32_t volatile*) ioapic_base;
@@ -104,6 +139,12 @@ void write_io_apic(uint32_t reg, uint32_t value)
 	ioapic[4] = value;
 }
 
+/**
+ * @brief Reads an IO APIC pin's redirection entry.
+ * 
+ * @param pin Interrupt pin.
+ * @return The pin's redirection entry.
+ */
 uint64_t read_redirection_entry(uint32_t pin)
 {
 	uint64_t ret;
@@ -112,6 +153,12 @@ uint64_t read_redirection_entry(uint32_t pin)
 	return ret;
 }
 
+/**
+ * @brief Writes to an IO APIC pin's redirection entry.
+ * 
+ * @param pin Interrupt pin.
+ * @param value Redirection entry to write.
+ */
 void write_redirection_entry(uint32_t pin, uint64_t value)
 {
 	write_io_apic(0x10 + pin * 2, value & 0x00000000FFFFFFFF);
@@ -120,6 +167,13 @@ void write_redirection_entry(uint32_t pin, uint64_t value)
 
 static int irqs;
 
+/**
+ * @brief Sets up the redirection entry of a pin.
+ * 
+ * @param active_high Whether the interrupt pin should be active high.
+ * @param level Whether the interrupt pin should be level triggered(instead of edge).
+ * @param pin Interrupt pin to set up.
+ */
 void ioapic_set_pin(bool active_high, bool level, uint32_t pin)
 {
 	uint64_t entry = 0;
@@ -139,6 +193,11 @@ void ioapic_set_pin(bool active_high, bool level, uint32_t pin)
 	write_redirection_entry(pin, entry);
 }
 
+/**
+ * @brief Unmasks an interrupt pin.
+ * 
+ * @param pin Pin to unmask.
+ */
 void ioapic_unmask_pin(uint32_t pin)
 {
 	/*printk("Unmasking pin %u\n", pin);*/
@@ -147,6 +206,11 @@ void ioapic_unmask_pin(uint32_t pin)
 	write_redirection_entry(pin, entry);
 }
 
+/**
+ * @brief Masks an interrupt pin.
+ * 
+ * @param pin Pin to mask.
+ */
 void ioapic_mask_pin(uint32_t pin)
 {
 	/*printk("Masking pin %u\n", pin);*/
@@ -592,7 +656,6 @@ void apic_timer_init(void)
 
 	platform_init_clockevents();
 
-	/* TODO: Do this generically */
 	tsc_init();
 
 	acpi_init_timer();
@@ -624,7 +687,6 @@ uint64_t get_tick_count(void)
 	return boot_ticks;
 }
 
-/* TODO: Does this work well? */
 void boot_send_ipi(uint8_t id, uint32_t type, uint32_t page)
 {
 	lapic_write(bsp_lapic, LAPIC_IPIID, (uint32_t)id << 24);
@@ -776,7 +838,6 @@ struct timer *platform_get_timer(void)
 	if(!get_per_cpu(timer_initialised))
 	{
 		/* This is for clocksources that register themselves earlier than the platform timers */
-		/* TODO: Maybe do initialisation earlier in the boot and avoid this? */
 		INIT_LIST_HEAD(&this_timer->event_list);
 		this_timer->next_event = TIMER_NEXT_EVENT_NOT_PENDING;
 		write_per_cpu(defer_events, true);

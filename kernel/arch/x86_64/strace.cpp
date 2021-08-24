@@ -223,7 +223,7 @@ static struct symbol *iterate_symbols_elf_tables(struct symbol_walk_context *c)
 	if(!closest_sym)
 		return NULL;
 
-	/* TODO: I don't feel comfortable allocating memory in stack traces */
+	/* I don't feel comfortable allocating memory in stack traces */
 	struct symbol *s = (symbol *) zalloc(sizeof(*s));
 
 	if(!s)

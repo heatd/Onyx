@@ -51,9 +51,8 @@ unsigned long irq_handler(struct registers *regs)
 
 	auto irqn = regs->int_no - EXCEPTION_VECTORS_END;
 
-	/* TODO: Maybe assert'ing would be better */
 	if(irqn > NR_IRQ + EXCEPTION_VECTORS_END)
-		return (unsigned long) regs;
+		panic("Invalid IRQ %u received\n", irqn);
 
 	struct irq_context context;
 	context.registers = regs;
