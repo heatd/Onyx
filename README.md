@@ -1,26 +1,25 @@
 # Onyx
 
-## An x86_64 Operating system
+## A POSIX-like operating system
 
-Onyx is an operating system, designed to run on x86_64.
+Onyx is a POSIX-like operating system.
 
-It's designed to comply to the POSIX standard, implement some of the standard Unix API's while learning from the mistakes UNIX did. It follows the System V ABI.
+Right now, the only supported architecture is x86_64.
 
-All the system calls are exposed through syscall.
-
-Onyx's purpose is to be function-heavy, and light-weight when possible. Bloat is *NOT* a necessary evil for functionality, as software can be very functional, while remaining light-weight. Onyx will never turn into a glibc or a systemd, as those pieces of software add unnecessary crap to its binary.
+It's designed to comply to the POSIX standard, implement some of the standard Unix API's while learning from the mistakes the past POSIX OSes made. It follows the System V ABI.
 
 ## Build dependencies
 
 You will need: `mtools genisoimage libfl2 clang-tidy ninja-build`
-If your distribution has a `gn`(generate ninja) package, use it; if not, download <https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/latest>, extract it to a directory and add it to $PATH.
+If your distribution has a `gn` (generate ninja) package, use it; if not, download from gn's [upstream](https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/latest), extract it to a directory and add it to `$PATH`.
 
 ## How to build
 
-First, set SYSROOT=$PWD/sysroot (considering you're in the project's root directory).
+Look at `doc/building.md` for more information.
 
-Then, you need to do scripts/setup_build.sh; after that, you should be good to go, considering you already have an Onyx toolchain set up(if not, go to <https://github.com/heatd/onyx-toolchains> and make sure the toolchain's `bin/`
-is in $PATH);
+## How to use
+
+Look at `doc/getting_started.md` for more information.
 
 ## Development
 
