@@ -1310,7 +1310,7 @@ int vm_mmu_unmap(struct mm_address_space *as, void *addr, size_t pages)
 
 static inline bool is_higher_half(unsigned long address)
 {
-	return address > VM_HIGHER_HALF;
+	return address >= VM_HIGHER_HALF;
 }
 
 PER_CPU_VAR(unsigned long tlb_nr_invals) = 0;
