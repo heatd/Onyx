@@ -12,6 +12,9 @@ Be sure to export `SYSROOT=$PWD/sysroot` and `ONYX_ARCH=x86_64` (right now, only
 
 ## Step 1: Get the toolchains
 
+If you so desire, you can find prebuilts for Linux and macOS in the project's github action artifacts,
+under `build-toolchain-${os}` or `build-toolchain-llvm-${os}`. Note that macOS LLVM builds are broken.
+
 You can find two scripts, `build_gcc.sh` and `build_llvm.sh`, under `toolchains/scripts`. These build a
 GCC and LLVM toolchain for Onyx, respectively. Use these and install the toolchains to a known location.
 Note: $GCC_TOOLCHAIN/bin needs to be on the system's $PATH. LLVM has no such requirement.
