@@ -5,7 +5,7 @@
 */
 #pragma once
 
-#include "hwregister.hpp"
+#include <onyx/hwregister.hpp>
 
 enum ehci_cap_regs : mmio_range::register_offset
 {

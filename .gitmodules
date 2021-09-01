@@ -13,3 +13,4 @@
 [submodule "toolchains"]
 	path = toolchains
 	url = https://github.com/heatd/toolchains.git
+	branch = master

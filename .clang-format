@@ -1,9 +1,10 @@
 BasedOnStyle: Microsoft
 Standard: Latest
 IndentWidth: 4
-AccessModifierOffset: 0
+AccessModifierOffset: -4
+AlwaysBreakTemplateDeclarations: Yes
 AlignAfterOpenBracket: true
-AlignConsecutiveMacros: Consecutive
+AlignConsecutiveMacros: AcrossComments
 AlignEscapedNewlines: Left
 AlignTrailingComments: true
 AllowAllConstructorInitializersOnNextLine: true
