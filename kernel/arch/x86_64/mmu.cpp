@@ -730,7 +730,8 @@ int is_invalid_arch_range(void *address, size_t pages)
 {
 	for(uintptr_t addr = (uintptr_t) address, i = 0; i < pages; ++i, addr += PAGE_SIZE)
 	{
-		if(addr > 0x00007fffffffffff && addr < VM_HIGHER_HALF)
+		// Non canonical
+		if(addr > arch_low_half_max && addr < VM_HIGHER_HALF)
 			return -1;
 	}
 	return 0;
