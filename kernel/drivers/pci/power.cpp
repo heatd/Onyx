@@ -67,8 +67,11 @@ int pci_device::set_power_state(int power_state)
 			panic("pci: Invalid target power state\n");
 	}
 	/* And set them in PMCSR, writing them back */
+	// Zero out the old bits
+	pmcsr &= ~((1 << 2) - 1);
+	// OR the new power state
 	pmcsr |= p;
-	write(p, pmcsr_off, sizeof(uint16_t));
+	write(pmcsr, pmcsr_off, sizeof(uint16_t));
 	return 0;
 }
 
