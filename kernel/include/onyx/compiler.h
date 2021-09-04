@@ -72,7 +72,7 @@ static inline uint64_t rdtsc(void)
 template <typename Type>
 unsigned int count_bits(Type val)
 {
-	static_assert(cul::is_integral_v<Type>);
+	static_assert(is_integral_v<Type>);
 
 	if constexpr(sizeof(Type) == sizeof(unsigned long))
 	{
@@ -115,8 +115,6 @@ unsigned int count_bits(Type val)
 
 #endif
 
-#ifdef __cplusplus
-
 template <typename Type>
 inline Type read_once(const Type& t)
 {
@@ -128,7 +126,5 @@ inline void write_once(const Type& t, Type val)
 {
     *((volatile Type*)&t) = val;
 }
-
-#endif
 
 #endif /* COMPILER_H */
