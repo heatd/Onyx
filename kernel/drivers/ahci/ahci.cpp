@@ -1083,7 +1083,7 @@ int ahci_probe(struct device *dev)
 		goto ret;
 	}
 
-	ahci_probe_ports(count_bits32(hba->ports_implemented), hba);
+	ahci_probe_ports(count_bits<uint32_t>(hba->ports_implemented), hba);
 ret:
 	if(status != 0)
 	{
