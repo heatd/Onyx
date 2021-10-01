@@ -6,7 +6,7 @@
 #ifndef _KERNEL_RWLOCK_H
 #define _KERNEL_RWLOCK_H
 
-#include <limits.h>
+#include <onyx/limits.h>
 
 #include <onyx/list.h>
 #include <onyx/compiler.h>

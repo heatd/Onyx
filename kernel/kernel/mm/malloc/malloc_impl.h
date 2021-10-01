@@ -46,4 +46,8 @@ void __bin_chunk(struct chunk *);
 void *__vmalloc(size_t len);
 void __vmunmap(void *addr, size_t len);
 
+#define weak_alias(name, aliasname) _weak_alias(name, aliasname)
+#define _weak_alias(name, aliasname) \
+    extern __typeof(name) aliasname __attribute__((weak, alias(#name)));
+
 #endif

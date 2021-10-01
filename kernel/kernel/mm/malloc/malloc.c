@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include <string.h>
-#include <limits.h>
+#include <onyx/limits.h>
 #include <stdint.h>
 #include <errno.h>
 #include <stdio.h>

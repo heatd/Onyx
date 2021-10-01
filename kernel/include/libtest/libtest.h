@@ -8,16 +8,13 @@
 #define _LIBTEST_H
 
 #include <stdbool.h>
-
+#include <onyx/compiler.h>
 struct libtest_test
 {
 	bool (*func)();
 	const char *name;
 	unsigned long invoke;
 };
-
-#define ___PASTE(a,b) a##b
-#define __PASTE(a,b) ___PASTE(a,b)
 
 #define STRINGIFY(x) #x
 

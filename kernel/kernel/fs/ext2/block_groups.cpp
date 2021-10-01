@@ -6,7 +6,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
-#include <limits.h>
+#include <onyx/limits.h>
 
 #include <onyx/compiler.h>
 

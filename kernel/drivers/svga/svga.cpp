@@ -5,7 +5,7 @@
 */
 #include <stdio.h>
 #include "include/svga.h"
-#include <limits.h>
+#include <onyx/limits.h>
 
 #include <onyx/memory.hpp>
 #include <onyx/mutex.h>

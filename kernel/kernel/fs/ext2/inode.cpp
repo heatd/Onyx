@@ -5,7 +5,7 @@
 */
 
 #include <assert.h>
-#include <limits.h>
+#include <onyx/limits.h>
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>

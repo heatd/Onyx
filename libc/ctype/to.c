@@ -1,11 +1,14 @@
 /*
-* Copyright (c) 2016, 2017 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2016 - 2021 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
 #include <ctype.h>
-/* Damn thats a long macro name... */
+
 #define ASCII_DIFF_BETWEEN_LOWER_AND_UPPER 32
+
 int tolower(int c)
 {
 	/* If the ascii character code is between 91 and 64, its uppercase */
@@ -53,4 +56,10 @@ int isprint(int c)
 int isalpha(int c)
 {
 	return ((unsigned)c|32)-'a' < 26;
+}
+
+#undef isspace
+int isspace(int _c)
+{
+	return _c == ' ' || (unsigned)_c-'\t' < 5;
 }

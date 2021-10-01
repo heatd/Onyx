@@ -7,7 +7,7 @@
 #define _CARBON_SMP_H
 
 #include <stddef.h>
-#include <limits.h>
+#include <onyx/limits.h>
 
 #include <onyx/percpu.h>
 

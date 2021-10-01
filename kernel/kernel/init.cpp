@@ -1,8 +1,11 @@
 /*
-* Copyright (c) 2016, 2017 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2016 - 2021 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
 /**************************************************************************
  *
  *
@@ -70,6 +73,7 @@
 #include <onyx/exec.h>
 #include <onyx/init.h>
 #include <onyx/linker_section.hpp>
+#include <onyx/cmdline.h>
 
 #include <pci/pci.h>
 
@@ -80,7 +84,6 @@ extern uintptr_t _end_smp;
 void *initrd_addr = NULL;
 void *tramp = NULL;
 void *phys_fb = NULL;
-char kernel_cmdline[256];
 uintptr_t address = 0;
 
 extern void libc_late_init();
@@ -122,35 +125,9 @@ void kernel_parse_command_line(char *cmd)
 	}
 }
 
-char *get_kernel_cmdline(void)
-{
-	return kernel_cmdline;
-}
-
 void set_initrd_address(void *initrd_address)
 {
 	initrd_addr = initrd_address;
-}
-
-const char *kernel_getopt(const char *opt)
-{
-	for(int i = 0; i < kernel_argc; i++)
-	{
-		if(memcmp(kernel_arguments[i], opt, strlen(opt)) == 0)
-		{
-			/* We found the argument, retrieve the value */
-			if(strlen(opt) == strlen(kernel_arguments[i])) /* if len(opt) == len(kargs[i]),
-			 the argument has no value (or the caller fucked up) */
-				return opt;
-			char *parse = kernel_arguments[i] + strlen(opt);
-			if(*parse == '=')
-				return ++parse;
-			if(*parse == ' ')
-				return ++parse;
-		}
-	}
-	ERROR("kernel", "%s: no such argument\n", opt);
-	return NULL;
 }
 
 void dump_used_mem(void);
@@ -298,6 +275,7 @@ void fs_init(void)
 extern "C"
 void kernel_main(void)
 {
+	cmdline::init();
 	do_init_level(INIT_LEVEL_VERY_EARLY_CORE);
 
 	do_init_level(INIT_LEVEL_VERY_EARLY_PLATFORM);
@@ -341,10 +319,6 @@ void kernel_multitasking(void *arg)
 	do_ktests();
 #endif
 
-	LOG("kernel", "Command line: %s\n", kernel_cmdline);
-	/* Parse the command line string to a more friendly argv-like buffer */
-	kernel_parse_command_line(kernel_cmdline);
-
 	do_init_level(INIT_LEVEL_CORE_KERNEL);
 
 	/* Start populating /dev */
@@ -357,13 +331,8 @@ void kernel_multitasking(void *arg)
 	/* Populate /sys */
 	vm_sysfs_init();
 
-	/* Mount the root partition */
-	const char *root_partition = kernel_getopt("--root");
-	if(!root_partition)
-		panic("--root wasn't specified in the kernel arguments");
-
 	/* Pass the root partition to init */
-	const char *args[] = {(char *) "", (char *) root_partition, NULL};
+	const char *args[] = {(char *) "", NULL};
 	const char *envp[] = {"PATH=/bin:/usr/bin:/sbin:", "TERM=linux", "LANG=C", "PWD=/", NULL};
 
 	if(find_and_exec_init(args, envp) < 0)

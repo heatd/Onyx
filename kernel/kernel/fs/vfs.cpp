@@ -9,7 +9,7 @@
 #include <stdarg.h>
 #include <assert.h>
 #include <libgen.h>
-#include <limits.h>
+#include <onyx/limits.h>
 
 #include <onyx/panic.h>
 #include <onyx/vfs.h>

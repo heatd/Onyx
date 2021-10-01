@@ -1,8 +1,10 @@
 /*
-* Copyright (c) 2016, 2017, 2018 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2016 - 2021 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
 #include <onyx/irq.h>
 #include <onyx/port_io.h>
 #include <onyx/panic.h>
@@ -14,7 +16,7 @@
 
 #include <onyx/x86/platform_info.h>
 
-#include "../include/ps2.h"
+#include "ps2.h"
 
 extern void send_event_to_kernel(unsigned char keycode);
 

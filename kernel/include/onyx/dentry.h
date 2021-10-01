@@ -9,7 +9,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include <limits.h>
+#include <onyx/limits.h>
 
 #include <onyx/vfs.h>
 #include <onyx/rwlock.h>

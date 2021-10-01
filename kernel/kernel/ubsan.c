@@ -21,7 +21,9 @@
 #include <string.h>
 
 #include <onyx/panic.h>
-#include <onyx/compiler.h>
+
+// TODO: Remove this and include onyx/compiler.h
+#define USED __attribute__((used))
 
 struct ubsan_source_location
 {

@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
-#include <limits.h>
+#include <onyx/limits.h>
 
 #include <onyx/vfs.h>
 #include <onyx/dev.h>

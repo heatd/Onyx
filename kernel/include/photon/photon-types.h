@@ -7,7 +7,7 @@
 #define _PHOTON_PHOTON_TYPES_H
 
 #include <stdint.h>
-#include <limits.h>
+#include <onyx/limits.h>
 
 #include <sys/types.h>
 

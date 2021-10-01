@@ -6,7 +6,7 @@
 /* File: acpi_osl.cpp, It's here as the OS layer for ACPICA */
 
 #include <stdio.h>
-#include <limits.h>
+#include <onyx/limits.h>
 #include <assert.h>
 
 #include <onyx/scheduler.h>

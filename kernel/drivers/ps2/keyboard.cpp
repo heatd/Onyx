@@ -1,8 +1,11 @@
 /*
-* Copyright (c) 2018 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2018 - 2021 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
 #include <stdio.h>
 #include <onyx/port_io.h>
 
@@ -10,7 +13,7 @@
 #include <onyx/input/event.h>
 #include <onyx/panic.h>
 
-#include "../include/ps2.h"
+#include "ps2.h"
 
 unsigned int set1_keymap[] = 
 {

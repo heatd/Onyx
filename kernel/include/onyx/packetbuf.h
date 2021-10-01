@@ -7,7 +7,7 @@
 #define _ONYX_PACKETBUF_H
 
 #include <stddef.h>
-#include <limits.h>
+#include <onyx/limits.h>
 
 #include <onyx/page.h>
 #include <onyx/page_iov.h>

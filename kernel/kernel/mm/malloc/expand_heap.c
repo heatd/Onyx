@@ -1,9 +1,10 @@
-#include <limits.h>
+#include <onyx/limits.h>
 #include <stdint.h>
 #include <errno.h>
 #include <sys/mman.h>
 #include "syscall.h"
 #include <onyx/heap.h>
+#include <onyx/limits.h>
 
 /* Expand the heap in-place if brk can be used, or otherwise via mmap,
  * using an exponential lower bound on growth by mmap to make

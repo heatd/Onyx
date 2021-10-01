@@ -4,7 +4,7 @@
 * check LICENSE at the root directory for more information
 */
 #define _POSIX_SOURCE
-#include <limits.h>
+#include <onyx/limits.h>
 #include <mbr.h>
 #include <partitions.h>
 #include <stdio.h>

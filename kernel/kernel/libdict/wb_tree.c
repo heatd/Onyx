@@ -31,7 +31,7 @@
 
 #include <libdict/wb_tree.h>
 
-#include <limits.h>
+#include <onyx/limits.h>
 #include "dict_private.h"
 #include <libdict/tree_common.h>
 

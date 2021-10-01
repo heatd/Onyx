@@ -62,6 +62,7 @@
 #include <onyx/x86/msr.h>
 #include <onyx/x86/pat.h>
 #include <onyx/serial.h>
+#include <onyx/cmdline.h>
 
 #include <drivers/rtc.h>
 
@@ -79,7 +80,6 @@ uintptr_t get_rdsp_from_grub(void)
 		return 0;
 }
 
-char *get_kernel_cmdline(void);
 void set_initrd_address(void *initrd_address);
 
 static struct framebuffer fb = 
@@ -332,7 +332,7 @@ void multiboot2_kernel_entry(uintptr_t addr, uint32_t magic)
 			case MULTIBOOT_TAG_TYPE_CMDLINE:
 			{
 				struct multiboot_tag_string *t = (struct multiboot_tag_string *) vtag;
-				strcpy(get_kernel_cmdline(), t->string);
+				set_kernel_cmdline(t->string);
 				break;
 			}
 			case MULTIBOOT_TAG_TYPE_ACPI_NEW:

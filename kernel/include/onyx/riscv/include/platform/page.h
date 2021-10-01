@@ -9,7 +9,7 @@
 
 #define PAGE_SHIFT	12
 
-// Note that page size may already be defined by some other weird header, like limits.h!
+// Note that page size may already be defined by some other weird header, like onyx/limits.h!
 #undef PAGE_SIZE
 #define PAGE_SIZE 4096UL
 

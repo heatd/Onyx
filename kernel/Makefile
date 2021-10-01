@@ -25,7 +25,6 @@ else
 
 # Explanation for these options:
 # -Wno-null-pointer-arithmetic: ACPICA triggers this with ACPI_ROOT_OBJECT
-### TODO: Update ACPICA?
 # -Wno-unknown-attributes: as of llvm 11.0.0, it doesn't recognize [[likely]] and [[unlikely]], which we do
 #     use quite often.
 # -Wno-missing-braces: Seems broken? At least it started spitting out weird ones for IPv6 code(IN6ADDR_ALL_NODES)
@@ -36,8 +35,9 @@ endif
 
 # NOTE: I don't think pointer-overflow works with kernel pointers
 
-CPPFLAGS:=$(CPPFLAGS) -D__is_onyx_kernel -D_POSIX_C_SOURCE -D_BSD_SOURCE -D_GNU_SOURCE -Iinclude \
--Iinclude/acpica -isystem ../libc/include -DKERNEL_VERSION='"$(KERNEL_VERSION)"' \
+CPPFLAGS:=$(CPPFLAGS) --sysroot=../libc -D__is_onyx_kernel -D_POSIX_C_SOURCE \
+-D_BSD_SOURCE -D_GNU_SOURCE -Iinclude \
+-Iinclude/acpica -DKERNEL_VERSION='"$(KERNEL_VERSION)"' \
 -DKERNEL_BRANCH='"$(KERNEL_BRANCH)"' -DKERNEL_ARCH='"$(KERNEL_ARCH)"' -imacros \
 include/onyx/config.h
 
@@ -119,22 +119,6 @@ CLANG_TIDY:=true
 CLANG_TIDY_ARGS:=
 endif
 
-
-#OBJS:=\
-#$(patsubst %.c,%.o,$(wildcard drivers/*/*.c)) \
-#$(patsubst %.cpp,%.o,$(wildcard drivers/*/*.cpp)) \
-#$(patsubst %.c,%.o,$(wildcard kernel/*.c)) \
-#$(patsubst %.c,%.o,$(wildcard crypt/*.c)) \
-#$(patsubst %.cpp,%.o,$(wildcard kernel/*.cpp)) \
-#$(patsubst %.c,%.o,$(wildcard kernel/*/*.c)) \
-#$(patsubst %.c,%.o,$(wildcard kernel/*/*/*.c)) \
-#$(patsubst %.cpp,%.o,$(wildcard kernel/*/*.cpp)) \
-#$filter-out $(ARCHDIR)/__vdso.o, $(patsubst %.c,%.o,$(wildcard $(ARCHDIR)/*.c))) \
-#$(patsubst %.c,%.o,$(wildcard $(ARCHDIR)/*/*.c)) \
-#$(patsubst %.cpp,%.o,$(wildcard $(ARCHDIR)/*.cpp)) \
-#$(patsubst %.cpp,%.o,$(wildcard $(ARCHDIR)/*/*.cpp)) \
-#$(filter-out acpica/components/disassembler/%, $(patsubst %.c,%.o,$(wildcard acpica/components/*/*.c))) \
-#$(filter-out $(ARCHDIR)/crti.o $(ARCHDIR)/__vdso_asm.S, $(patsubst %.S,%.o,$(wildcard $(ARCHDIR)/*.S)))
 
 include kernel/Makefile
 include $(ARCHDIR)/Makefile
@@ -262,7 +246,6 @@ install: install-headers install-kernel
 install-headers:
 	mkdir -p $(DESTDIR)$(INCLUDEDIR)
 	cp -RTv include $(DESTDIR)$(INCLUDEDIR)
-	cp -RTv drivers/include $(DESTDIR)$(INCLUDEDIR)/drivers
 
 
 CPPFLAGS_MODULES:= $(CPPFLAGS) -D __KERNEL_MODULE__

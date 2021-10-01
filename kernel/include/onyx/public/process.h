@@ -8,7 +8,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include <limits.h>
+#include <onyx/limits.h>
 
 enum process_query
 {

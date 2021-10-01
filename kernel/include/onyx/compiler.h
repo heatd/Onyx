@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2016, 2017 Pedro Falcato
+ * Copyright (c) 2016 - 2021 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 /**************************************************************************
  *
@@ -14,11 +16,14 @@
  *
  *
  **************************************************************************/
-#ifndef COMPILER_H
-#define COMPILER_H
+#ifndef _ONYX_COMPILER_H
+#define _ONYX_COMPILER_H
 
 #include <stdint.h>
+
+#ifdef __cplusplus
 #include <onyx/is_integral.h>
+#endif
 
 #ifndef __GNUC__
 #error "The OS needs to be compiled using GCC/clang"
@@ -69,6 +74,8 @@ static inline uint64_t rdtsc(void)
 
 #endif
 
+#ifdef __cplusplus
+
 template <typename Type>
 unsigned int count_bits(Type val)
 {
@@ -89,6 +96,8 @@ unsigned int count_bits(Type val)
 		return __builtin_popcount(val);
 	}
 }
+
+#endif
 
 #define add_check_overflow(op1, op2, res) __builtin_add_overflow(op1, op2, res)
 
@@ -115,6 +124,8 @@ unsigned int count_bits(Type val)
 
 #endif
 
+#ifdef __cplusplus
+
 template <typename Type>
 inline Type read_once(const Type& t)
 {
@@ -126,5 +137,9 @@ inline void write_once(const Type& t, Type val)
 {
     *((volatile Type*)&t) = val;
 }
+
+#endif
+
+#define UNREACHABLE()  __builtin_unreachable()
 
 #endif /* COMPILER_H */

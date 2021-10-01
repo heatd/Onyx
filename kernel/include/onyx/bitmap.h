@@ -8,7 +8,7 @@
 
 #include <stddef.h>
 #include <string.h>
-#include <limits.h>
+#include <onyx/limits.h>
 #include <stdlib.h>
 
 #include <onyx/spinlock.h>

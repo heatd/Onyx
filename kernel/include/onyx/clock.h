@@ -10,11 +10,11 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <time.h>
-#include <limits.h>
-
-#include <sys/time.h>
+#include <onyx/limits.h>
 
 #include <onyx/compiler.h>
+
+#include <sys/time.h>
 
 #include <fixed_point/fixed_point.h>
 

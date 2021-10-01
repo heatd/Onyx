@@ -1,19 +1,23 @@
 /*
-* Copyright (c) 2016, 2017 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
-#ifndef _PANIC_H
-#define _PANIC_H
+ * Copyright (c) 2016 - 2021 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
+#ifndef _ONYX_PANIC_H
+#define _ONYX_PANIC_H
 
+#include <stdint.h>
 #include <multiboot2.h>
-#include <onyx/compiler.h>
 #include <onyx/registers.h>
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-ARCH_SPECIFIC void halt();
+void halt();
 /* The functions halt and get_thread_ctx are architecture dependent, as they require manual assembly.
  * As so, its left for the architecture to implement these functions. The kernel expects them to be hooked.
  */
