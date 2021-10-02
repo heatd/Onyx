@@ -1,19 +1,11 @@
 /*
-* Copyright (c) 2016-2021 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
-/**************************************************************************
+ * Copyright (c) 2016 - 2021 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
  *
- *
- * File: cpu.c
- *
- * Description: Contains CPU identification routines on the x86 architecture
- *
- * Date: 6/4/2016
- *
- *
- **************************************************************************/
+ * SPDX-License-Identifier: MIT
+ */
+
 #include <stdlib.h>
 #include <cpuid.h>
 #include <stdbool.h>
