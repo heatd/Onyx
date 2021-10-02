@@ -1,8 +1,10 @@
 /*
-* Copyright (c) 2019 Pedro Falcato
-* This file is part of Carbon, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2019 - 2021 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
 
 #include <onyx/x86/alternatives.h>
 
@@ -40,25 +42,25 @@ copy_to_user:
 	add %rdx, %r8
 	cmp %rax, %r8
 
-	ja copy_to_user.handler
+	ja 3f
 	xor %rax, %rax
 	mov %rdx, %rcx
 	__ASM_ALTERNATIVE_INSTRUCTION(x86_smap_stac_patch, 3, 0, 0)
-copy_to_user.copy_instr:
+1:
 	rep movsb (%rsi), (%rdi)
-copy_to_user.function_out:
+2:
 	__ASM_ALTERNATIVE_INSTRUCTION(x86_smap_clac_patch, 3, 0, 0)
 	ret
-copy_to_user.handler:
+3:
 	# CBN_STATUS_SEGFAULT = -5
 	# These pieces of code were ported from Carbon but the principle applies
 	# We're returning -EFAULT = -14
 	mov $-14, %rax
-	jmp copy_to_user.function_out
+	jmp 2b
 
 .pushsection .ehtable
-	.quad copy_to_user.copy_instr
-	.quad copy_to_user.handler
+	.quad 1b
+	.quad 3b
 .popsection
 
 /**
@@ -94,23 +96,23 @@ copy_from_user:
 	add %rdx, %r8
 	cmp %rax, %r8
 
-	ja copy_from_user.handler
+	ja 3f
 	xor %rax, %rax
 	mov %rdx, %rcx
 	__ASM_ALTERNATIVE_INSTRUCTION(x86_smap_stac_patch, 3, 0, 0)
-copy_from_user.copy_instr:
+1:
 	rep movsb (%rsi), (%rdi)
-copy_from_user.function_out:
+2:
 	__ASM_ALTERNATIVE_INSTRUCTION(x86_smap_clac_patch, 3, 0, 0)
 	ret
-copy_from_user.handler:
+3:
 	# CBN_STATUS_SEGFAULT = -5
 	mov $-14, %rax
-	jmp copy_from_user.function_out
+	jmp 2b
 
 .pushsection .ehtable
-	.quad copy_from_user.copy_instr
-	.quad copy_from_user.handler
+	.quad 1b
+	.quad 3b
 .popsection
 
 .global strlen_user
@@ -128,7 +130,7 @@ strlen_user:
 	# Check if src < addr_limit
 	cmp %rax, %rdi
 
-	ja strlen_user.handler
+	ja 7f
 
 	xor %rax, %rax
 	/* Basically we want do to here what we do in strlen(), we're using a
@@ -149,7 +151,7 @@ strlen_user:
 
 4:
 	cmpb $0, (%rdi)
-	jz strlen_user.function_out
+	jz 6f
 
 	/* We also need to increment %rax here */
 	inc %rax
@@ -182,26 +184,26 @@ strlen_user:
 	/* This is the good ol' for-loop-based strlen that we're using here to search these 8 bytes */
 3:
 	cmpb $0, (%rdi)
-	je strlen_user.function_out
+	je 6f
 	inc %rax
 	inc %rdi
 	jmp 3b
 
-strlen_user.function_out:
+6:
 	__ASM_ALTERNATIVE_INSTRUCTION(x86_smap_clac_patch, 3, 0, 0)
 	ret
-strlen_user.handler:
+7:
 	# CBN_STATUS_SEGFAULT = -5
 	mov $-14, %rax
-	jmp strlen_user.function_out
+	jmp 6b
 
 .pushsection .ehtable
 	.quad 2b
-	.quad strlen_user.handler
+	.quad 7b
 	.quad 3b
-	.quad strlen_user.handler
+	.quad 7b
 	.quad 4b
-	.quad strlen_user.handler
+	.quad 7b
 .popsection
 
 .global get_user32
