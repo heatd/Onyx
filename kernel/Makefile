@@ -21,6 +21,14 @@ CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-stron
 ifneq ($(ONYX_USING_CLANG), yes)
 # TODO: Find suitable alternatives for clang
 CFLAGS:=$(CFLAGS) -Wno-format-truncation -Wshadow-compatible-local
+
+# Note: We need to define _GLIBCXX_INCLUDE_NEXT_C_HEADERS so the shenanigans in the
+# compiler (in this case, only GCC)'s stdlib.h C++ wrappers get bypassed. If we let stdlib.h include cstdlib,
+# like it wants to when (__cplusplus || _GLIBCXX_INCLUDE_NEXT_C_HEADERS) is false, it inlines a bunch of
+# functions with __builtin_*(), which in many cases have double and float arguments and GCC breaks due to
+# floating point being disabled
+
+CPPFLAGS:=$(CPPFLAGS) -D_GLIBCXX_INCLUDE_NEXT_C_HEADERS
 else
 
 # Explanation for these options:
