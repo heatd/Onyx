@@ -7,7 +7,7 @@ if [ "$MNTROOT" = "" ]; then
 fi
 
 export ONYX_ARCH=$(./scripts/onyx_arch.sh)
-export HOST=$(./scripts/arch-to-host.sh)
+export HOST=$(./scripts/arch-to-host.sh $ONYX_ARCH)
 export STRIP=$CLANG_PATH/bin/llvm-strip
 
 mkdir -p temp_sysroot
