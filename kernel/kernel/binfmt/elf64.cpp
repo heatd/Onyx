@@ -1,8 +1,10 @@
 /*
-* Copyright (c) 2017 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2017 - 2021 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
 
 #include <errno.h>
 #include <stdio.h>
@@ -123,8 +125,10 @@ static void *elf_load(struct binfmt_args *args, Elf64_Ehdr *header)
 		}
 	}
 
-	//printk("initial mmap %p to %p\n", base, (void *)((unsigned long) base + (vm_size_to_pages(needed_size) << PAGE_SHIFT)));
-
+#if 0
+	printk("initial mmap %p to %p\n", base,
+	       (void *)((unsigned long) base + (vm_size_to_pages(needed_size) << PAGE_SHIFT)));
+#endif
 	header->e_entry += (uintptr_t) base;
 
 	for(Elf64_Half i = 0; i < header->e_phnum; i++)
@@ -136,12 +140,19 @@ static void *elf_load(struct binfmt_args *args, Elf64_Ehdr *header)
 		{
 			/* The interpreter can't have an interpreter of its own */
 			if(is_interp)
-				return errno = ENOEXEC, nullptr;
+			{
+				errno = ENOEXEC;
+				goto error2;
+			}
 
 			/* We allocate one more byte for the nullptr byte so we don't get buffer overflow'd */
 			args->interp_path = (char *) malloc(phdrs[i].p_filesz + 1);
 			if(!args->interp_path)
-				return errno = ENOMEM, nullptr;
+			{
+				errno = ENOMEM;
+				goto error2;
+			}
+
 			args->interp_path[phdrs[i].p_filesz] = '\0';
 
 			read_vfs(phdrs[i].p_offset, phdrs[i].p_filesz,
@@ -215,7 +226,7 @@ static void *elf_load(struct binfmt_args *args, Elf64_Ehdr *header)
 						MAP_PRIVATE | MAP_FIXED | MAP_ANON, nullptr, 0))
 					{
 						errno = ENOMEM;
-						return nullptr;
+						goto error2;
 					}
 				}
 
@@ -224,7 +235,7 @@ static void *elf_load(struct binfmt_args *args, Elf64_Ehdr *header)
 					if(user_memset(bss_base, 0, bss_size) < 0)
 					{
 						errno = EFAULT;
-						return nullptr;
+						goto error2;
 					}
 				}
 			}
@@ -236,7 +247,10 @@ static void *elf_load(struct binfmt_args *args, Elf64_Ehdr *header)
 	phdrs = nullptr;
 
 	if(!load_address)
-		return errno = ENOEXEC, nullptr;
+	{
+		errno = ENOEXEC;
+		goto error2;
+	}
 
 	if(is_interp) current->interp_base = (void*) base;
 	else
