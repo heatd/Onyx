@@ -1,8 +1,10 @@
 /*
-* Copyright (c) 2017 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2017 - 2021 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
 
 #define _GNU_SOURCE
 #include <stdbool.h>
@@ -27,7 +29,6 @@
 #include <sys/mount.h>
 
 #include "init.h"
-extern char **environ;
 
 void load_modules(void);
 void setup_hostname(void);
@@ -167,102 +168,6 @@ func_exit:
 
 bool fail_on_mount_error = true;
 
-void segv(int sig, siginfo_t *info, void *ucontext)
-{
-	ucontext_t *ctx = ucontext;
-	//printf("Fault at %lx\n", info->si_addr);
-	//printf("Sent from %d\n", info->si_code);
-}
-
-#include <pthread.h>
-
-void *func(void *f)
-{
-	while(true) {}
-}
-
-void *sleep_func(void *f)
-{
-	sleep(100000);
-	printf("Out of sleep!\n");
-}
-
-void signal_test()
-{
-	pid_t p = fork();
-
-	if(p == 0)
-	{
-		pthread_t threads[4];
-		
-		for(int i = 0; i < 3; i++)
-		{
-			if(pthread_create(&threads[i], NULL, func, NULL) < 0)
-				perror("pthread_create");
-		}
-
-		if(pthread_create(&threads[3], NULL, sleep_func, NULL) < 0)
-			perror("pthread_create");
-
-		sleep(1);
-
-		time_t t = time(NULL);
-
-		while(true)
-		{
-			raise(SIGSTOP);
-			if(time(NULL) - t >= 98)
-				break;
-		}
-
-		printf("stopped\n");
-		sleep(100000000);
-		printf("ahhh\n");
-	}
-
-	time_t t = time(NULL);
-	while(true)
-	{
-		kill(p, SIGCONT);
-
-		if(time(NULL) - t >= 100)
-			break;
-	}
-
-	while(true) {}
-}
-
-void mmap_test(void)
-{
-	int fd = open("/etc/init.d/targets/default.target", O_RDONLY);
-	if(fd < 0)
-	{
-		perror("bad open");
-		return;
-	}
-
-	volatile void *addr = mmap(NULL, 4096, PROT_READ, MAP_PRIVATE, fd, 0);
-	if(addr == MAP_FAILED)
-	{
-		perror("mmap");
-		return;
-	}
-
-	printf("Here address %p, %s\n", addr, addr);
-
-	if(mprotect(addr, 4096, PROT_WRITE | PROT_READ) < 0)
-	{
-		perror("mprotect");
-		return;
-	}
-
-	memset(addr, 0, 4096);
-
-	printf("Done testing\n");
-}
-
-#include <onyx/public/memstat.h>
-
 int main(int argc, char **argv, char **envp)
 {
 	int c;
@@ -343,13 +248,39 @@ int main(int argc, char **argv, char **envp)
 	sigfillset(&set);
 	sigprocmask(SIG_SETMASK, &set, NULL);
 
-	while(1)
+	for(;;)
 	{
-		if(waitpid(-1, NULL, WEXITED) < 0)
+
+		int wstatus;
+		pid_t pid;
+
+		if((pid = waitpid(-1, &wstatus, WEXITED)) < 0)
 		{
 			perror("waitpid");
 			return 1;
 		}
+
+		struct daemon *daemon_info = get_daemon_from_pid(pid);
+
+		if (!daemon_info)
+		{
+			// Not a registered daemon, ignore the exit status.
+			continue;
+		}
+
+		if (WIFEXITED(wstatus) && WEXITSTATUS(wstatus) != 0)
+		{
+			fprintf(stderr, "init: pid %d (%s) exited with fatal status %d\n",
+			        pid, daemon_info->name, WEXITSTATUS(wstatus));
+		}
+		else if (WIFSIGNALED(wstatus))
+		{
+			int termsig = WTERMSIG(wstatus);
+			fprintf(stderr, "init: pid %d (%s) exited with fatal signal %d (%s)\n",
+			        pid, daemon_info->name, termsig, strsignal(termsig));
+		}
+
+		// TODO: Deregister the daemon
 	}
 	return 0;
 }
@@ -398,7 +329,7 @@ void load_modules(void)
 	fclose(file);
 }
 
-void setup_hostname()
+void setup_hostname(void)
 {
 	/* Open the /etc/hostname file */
 	FILE *file = fopen("/etc/hostname", "r");

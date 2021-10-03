@@ -1,8 +1,10 @@
 /*
-* Copyright (c) 2017 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2017 - 2021 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -34,6 +36,31 @@ struct daemon *add_daemon(void)
 	}
 	return d;
 }
+
+/**
+ * @brief Retrieves daemon information of a given pid.
+ * 
+ * @param pid Process ID to check
+ * @return Pointer to the daemon's information, or NULL if its not
+ *         a registered daemon.
+ */
+struct daemon* get_daemon_from_pid(pid_t pid)
+{
+	struct daemon *d = daemons;
+
+	while (d != NULL)
+	{
+		if (d->pid == pid)
+		{
+			return d;
+		}
+
+		d = d->next;
+	}
+
+	return NULL;
+}
+
 
 void destroy_property_struct(struct property *prop)
 {
@@ -106,6 +133,7 @@ struct subproperty *get_subproperty(struct property *p, const char *name)
 	return NULL;
 }
 
+
 int execute_program(const char *path, const char *type)
 {
 	bool do_daemon_things = false;
@@ -113,6 +141,7 @@ int execute_program(const char *path, const char *type)
 	{
 		do_daemon_things = true;
 	}
+
 	pid_t pid = fork();
 	
 	if(pid < 0)
