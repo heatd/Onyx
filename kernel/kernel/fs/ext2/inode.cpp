@@ -412,10 +412,32 @@ ext2_trunc_indirect_block(ext2_block_no block, unsigned int indirection_level,
 	return ext2_trunc_result::continue_trunc;
 }
 
+/**
+ * @brief Checks if the ext2 inode has data blocks.
+ * In ext2, several types of inodes (namely, symlinks and devices) can simply only have
+ * inline data.
+ * 
+ * @param ino     Pointer to the inode struct
+ * @param raw_ino Pointer to the ext2 inode
+ * @param sb      Pointer to the ext2 superblock
+ * @return True if it has data blocks, else false.
+ */
+bool ext2_has_data_blocks(inode *ino, ext2_inode *raw_ino, ext2_superblock *sb)
+{
+	int ea_blocks = raw_ino->i_file_acl ? (sb->block_size >> 9) : 0;
+	return ino->i_blocks - ea_blocks != 0;
+}
+
 int ext2_free_space(size_t new_len, inode *ino)
 {
 	auto sb = ext2_superblock_from_inode(ino);
 	auto raw_inode = ext2_get_inode_from_node(ino);
+
+	// If the inode only has inline data, just return success.
+	if (!ext2_has_data_blocks(ino, raw_inode, sb))
+	{
+		return 0;
+	}
 
 	ext2_block_coords curr_coords{};
 

@@ -138,7 +138,7 @@ void ext2_superblock::free_block(ext2_block_no block)
 {
 	assert(block != EXT2_ERR_INV_BLOCK);
 
-	auto block_group = block / blocks_per_block_group;
+	auto block_group = (block - first_data_block()) / blocks_per_block_group;
 
 	assert(block_group < number_of_block_groups);
 

@@ -14,7 +14,13 @@
 
 #include "ext2.h"
 
-/* According to Linux and e2fs, this is how you detect fast symlinks */
+/**
+ * @brief Detects if a symlink is a fast symlink
+ * 
+ * @param inode Pointer to ext2_inode struct
+ * @param fs Pointer to ext2_superblock struct
+ * @return True if a fast symlink, else false.
+ */
 bool ext2_is_fast_symlink(struct ext2_inode *inode, struct ext2_superblock *fs)
 {
 	/* Essentially, we're comparing the extended attribute blocks

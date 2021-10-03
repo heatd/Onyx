@@ -397,6 +397,10 @@ public:
 
 	int read_blocks(ext2_block_no block, ext2_block_no number_of_blocks, auto_block_buf *bufs);
 
+	ext2_block_no first_data_block() const
+	{
+		return sb->s_first_data_block;
+	}
 };
 
 struct ext2_inode_info
@@ -552,5 +556,14 @@ __atomic_sub_fetch(&var, num, __ATOMIC_RELAXED)
 inode *ext2_get_inode(ext2_superblock *sb, uint32_t inode_num);
 inode *ext2_create_file(const char *name, mode_t mode, dev_t dev, dentry *dir);
 int ext2_unlink(const char *name, int flags, dentry *dir);
+
+/**
+ * @brief Detects if a symlink is a fast symlink
+ * 
+ * @param inode Pointer to ext2_inode struct
+ * @param fs Pointer to ext2_superblock struct
+ * @return True if a fast symlink, else false.
+ */
+bool ext2_is_fast_symlink(struct ext2_inode *inode, struct ext2_superblock *fs);
 
 #endif
