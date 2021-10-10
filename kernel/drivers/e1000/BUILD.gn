@@ -1,0 +1,5 @@
+import("//build/kernel/driver.gni")
+
+driver("e1000") {
+  sources = [ "e1000.cpp" ]
+}

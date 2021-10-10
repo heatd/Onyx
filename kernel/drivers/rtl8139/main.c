@@ -24,7 +24,7 @@
 #include <onyx/dpc.h>
 #include <onyx/net/network.h>
 
-#include <drivers/mmio.h>
+#include <onyx/mmio.h>
 #include <pci/pci.h>
 
 void *rx_buffer = NULL;

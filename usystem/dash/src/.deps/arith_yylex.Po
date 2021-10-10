@@ -1,0 +1,101 @@
+arith_yylex.o: arith_yylex.c ../config.h \
+  /data/toolchains/onyx-clang/lib/clang/12.0.0/include/inttypes.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/inttypes.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/features.h \
+  /data/toolchains/onyx-clang/lib/clang/12.0.0/include/stdint.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/stdint.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/bits/alltypes.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/bits/stdint.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/stdlib.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/alloca.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/string.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/strings.h arith_yacc.h \
+  expand.h error.h /home/pfalcato/Onyx/sysroot/usr/include/setjmp.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/bits/setjmp.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/signal.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/bits/signal.h shell.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/sys/param.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/sys/resource.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/sys/time.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/sys/select.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/bits/resource.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/endian.h \
+  /data/toolchains/onyx-clang/lib/clang/12.0.0/include/limits.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/limits.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/bits/limits.h memalloc.h \
+  /data/toolchains/onyx-clang/lib/clang/12.0.0/include/stddef.h \
+  /data/toolchains/onyx-clang/lib/clang/12.0.0/include/__stddef_max_align_t.h \
+  syntax.h /home/pfalcato/Onyx/sysroot/usr/include/ctype.h system.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/sys/types.h
+
+../config.h:
+
+/data/toolchains/onyx-clang/lib/clang/12.0.0/include/inttypes.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/inttypes.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/features.h:
+
+/data/toolchains/onyx-clang/lib/clang/12.0.0/include/stdint.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/stdint.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/bits/alltypes.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/bits/stdint.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/stdlib.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/alloca.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/string.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/strings.h:
+
+arith_yacc.h:
+
+expand.h:
+
+error.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/setjmp.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/bits/setjmp.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/signal.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/bits/signal.h:
+
+shell.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/sys/param.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/sys/resource.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/sys/time.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/sys/select.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/bits/resource.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/endian.h:
+
+/data/toolchains/onyx-clang/lib/clang/12.0.0/include/limits.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/limits.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/bits/limits.h:
+
+memalloc.h:
+
+/data/toolchains/onyx-clang/lib/clang/12.0.0/include/stddef.h:
+
+/data/toolchains/onyx-clang/lib/clang/12.0.0/include/__stddef_max_align_t.h:
+
+syntax.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/ctype.h:
+
+system.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/sys/types.h:

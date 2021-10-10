@@ -1,7 +1,0 @@
-group("tests") {
-    deps = [
-        "kernel_api_tests",
-        "system_benchmark",
-        "testsuite",
-    ]
-}

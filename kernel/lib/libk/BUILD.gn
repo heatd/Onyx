@@ -1,0 +1,62 @@
+import("//build/kernel/kernel_sources.gni")
+
+config("libk_headers") {
+  include_dirs = [ "include" ]
+}
+
+kernel_static_library("k") {
+  sources = [
+    "ctype/to.c",
+    "errno/errno.c",
+    "misc/basename.c",
+    "misc/dirname.c",
+    "posix/sigaddset.c",
+    "posix/sigandset.c",
+    "posix/sigdelset.c",
+    "posix/sigemptyset.c",
+    "posix/sigfillset.c",
+    "posix/sigisemptyset.c",
+    "posix/sigismember.c",
+    "posix/sigorset.c",
+    "stdio/perror.c",
+    "stdio/printf.cpp",
+    "stdio/putchar.c",
+    "stdio/puts.c",
+    "stdio/sprintf.c",
+    "stdlib/abort.c",
+    "stdlib/malloc.cpp",
+    "stdlib/qsort.c",
+    "stdlib/rand.c",
+    "string/memccpy.c",
+    "string/memchr.c",
+    "string/memcmp.c",
+    "string/memcpy.c",
+    "string/memmove.c",
+    "string/memset.c",
+    "string/stpcpy.c",
+    "string/strcat.c",
+    "string/strchr.c",
+    "string/strchrnul.c",
+    "string/strcmp.c",
+    "string/strcpy.c",
+    "string/strcspn.c",
+    "string/strdup.c",
+    "string/strerror.c",
+    "string/strlen.cpp",
+    "string/strspn.c",
+    "string/strtok.c",
+    "string/wmemcpy.c",
+  ]
+
+  needs_crti_n = target_cpu == "x86_64"
+  if (needs_crti_n) {
+    # Used by gcc on certain architectures
+    sources += [
+      "arch/x86_64/crti.S",
+      "arch/x86_64/crtn.S",
+    ]
+  }
+
+  public_configs = [ ":libk_headers" ]
+  disable_werror = true
+}

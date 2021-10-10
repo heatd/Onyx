@@ -1,0 +1,37 @@
+import("//build/app.gni")
+
+app_executable("netctld_bin") {
+  include_dirs = [ "include" ]
+  package_name = "netctld"
+
+  output_name = "netctld"
+
+  sources = [
+    "src/dhcpcd.cpp",
+    "src/netctl.cpp",
+    "src/v6/addrcfg.cpp",
+  ]
+  sys_dir = "/sbin"
+
+  deps = [ "//src/json" ]
+}
+
+copy("netctld_rule") {
+  sources = [ "netctld.service" ]
+  outputs =
+      [ "${root_out_dir}/packages/netctld/etc/init.d/targets/netctld.service" ]
+}
+
+copy("netctld_files") {
+  sources = [ "default-profile.json" ]
+  outputs =
+      [ "${root_out_dir}/packages/netctld/etc/netctl/default-profile.json" ]
+}
+
+group("netctld") {
+  deps = [
+    ":netctld_bin",
+    ":netctld_files",
+    ":netctld_rule",
+  ]
+}

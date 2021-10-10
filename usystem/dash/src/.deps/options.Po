@@ -1,0 +1,121 @@
+options.o: options.c ../config.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/signal.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/features.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/bits/alltypes.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/bits/signal.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/unistd.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/bits/posix.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/stdlib.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/alloca.h shell.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/sys/param.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/sys/resource.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/sys/time.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/sys/select.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/bits/resource.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/endian.h \
+  /data/toolchains/onyx-clang/lib/clang/12.0.0/include/limits.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/limits.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/bits/limits.h options.h \
+  nodes.h eval.h jobs.h \
+  /data/toolchains/onyx-clang/lib/clang/12.0.0/include/inttypes.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/inttypes.h \
+  /data/toolchains/onyx-clang/lib/clang/12.0.0/include/stdint.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/stdint.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/bits/stdint.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/sys/types.h input.h output.h \
+  /data/toolchains/onyx-clang/lib/clang/12.0.0/include/stdarg.h trap.h \
+  var.h memalloc.h \
+  /data/toolchains/onyx-clang/lib/clang/12.0.0/include/stddef.h \
+  /data/toolchains/onyx-clang/lib/clang/12.0.0/include/__stddef_max_align_t.h \
+  error.h /home/pfalcato/Onyx/sysroot/usr/include/setjmp.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/bits/setjmp.h mystring.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/string.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/strings.h show.h
+
+../config.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/signal.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/features.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/bits/alltypes.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/bits/signal.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/unistd.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/bits/posix.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/stdlib.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/alloca.h:
+
+shell.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/sys/param.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/sys/resource.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/sys/time.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/sys/select.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/bits/resource.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/endian.h:
+
+/data/toolchains/onyx-clang/lib/clang/12.0.0/include/limits.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/limits.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/bits/limits.h:
+
+options.h:
+
+nodes.h:
+
+eval.h:
+
+jobs.h:
+
+/data/toolchains/onyx-clang/lib/clang/12.0.0/include/inttypes.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/inttypes.h:
+
+/data/toolchains/onyx-clang/lib/clang/12.0.0/include/stdint.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/stdint.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/bits/stdint.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/sys/types.h:
+
+input.h:
+
+output.h:
+
+/data/toolchains/onyx-clang/lib/clang/12.0.0/include/stdarg.h:
+
+trap.h:
+
+var.h:
+
+memalloc.h:
+
+/data/toolchains/onyx-clang/lib/clang/12.0.0/include/stddef.h:
+
+/data/toolchains/onyx-clang/lib/clang/12.0.0/include/__stddef_max_align_t.h:
+
+error.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/setjmp.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/bits/setjmp.h:
+
+mystring.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/string.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/strings.h:
+
+show.h:

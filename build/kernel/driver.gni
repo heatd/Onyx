@@ -1,0 +1,8 @@
+import("//build/kernel/kernel_sources.gni")
+
+template("driver") {
+  # TODO: Add module support
+  kernel_source_set(target_name) {
+    forward_variables_from(invoker, "*")
+  }
+}

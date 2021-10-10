@@ -1,0 +1,54 @@
+system.o: system.c ../config.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/signal.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/features.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/bits/alltypes.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/bits/signal.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/string.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/strings.h error.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/setjmp.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/bits/setjmp.h output.h \
+  /data/toolchains/onyx-clang/lib/clang/12.0.0/include/stdarg.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/sys/types.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/endian.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/sys/select.h system.h \
+  /data/toolchains/onyx-clang/lib/clang/12.0.0/include/limits.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/limits.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/bits/limits.h
+
+../config.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/signal.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/features.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/bits/alltypes.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/bits/signal.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/string.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/strings.h:
+
+error.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/setjmp.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/bits/setjmp.h:
+
+output.h:
+
+/data/toolchains/onyx-clang/lib/clang/12.0.0/include/stdarg.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/sys/types.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/endian.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/sys/select.h:
+
+system.h:
+
+/data/toolchains/onyx-clang/lib/clang/12.0.0/include/limits.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/limits.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/bits/limits.h:

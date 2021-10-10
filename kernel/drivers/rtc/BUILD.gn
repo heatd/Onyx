@@ -1,0 +1,5 @@
+import("//build/kernel/driver.gni")
+
+driver("rtc") {
+  sources = [ "rtc.cpp" ]
+}

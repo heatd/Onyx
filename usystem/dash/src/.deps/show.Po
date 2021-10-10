@@ -1,0 +1,78 @@
+show.o: show.c ../config.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/stdio.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/features.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/bits/alltypes.h \
+  /data/toolchains/onyx-clang/lib/clang/12.0.0/include/stdarg.h shell.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/sys/param.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/sys/resource.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/sys/time.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/sys/select.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/bits/resource.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/endian.h \
+  /data/toolchains/onyx-clang/lib/clang/12.0.0/include/limits.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/limits.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/bits/limits.h parser.h token.h \
+  nodes.h mystring.h \
+  /data/toolchains/onyx-clang/lib/clang/12.0.0/include/inttypes.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/inttypes.h \
+  /data/toolchains/onyx-clang/lib/clang/12.0.0/include/stdint.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/stdint.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/bits/stdint.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/string.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/strings.h show.h options.h
+
+../config.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/stdio.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/features.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/bits/alltypes.h:
+
+/data/toolchains/onyx-clang/lib/clang/12.0.0/include/stdarg.h:
+
+shell.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/sys/param.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/sys/resource.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/sys/time.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/sys/select.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/bits/resource.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/endian.h:
+
+/data/toolchains/onyx-clang/lib/clang/12.0.0/include/limits.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/limits.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/bits/limits.h:
+
+parser.h:
+
+token.h:
+
+nodes.h:
+
+mystring.h:
+
+/data/toolchains/onyx-clang/lib/clang/12.0.0/include/inttypes.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/inttypes.h:
+
+/data/toolchains/onyx-clang/lib/clang/12.0.0/include/stdint.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/stdint.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/bits/stdint.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/string.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/strings.h:
+
+show.h:
+
+options.h:

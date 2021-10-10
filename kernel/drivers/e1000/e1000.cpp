@@ -24,7 +24,8 @@
 #include <onyx/scoped_lock.h>
 #include <onyx/cpu.h>
 
-#include <drivers/mmio.h>
+#include <onyx/mmio.h>
+
 #include "e1000.h"
 #include <pci/pci.h>
 

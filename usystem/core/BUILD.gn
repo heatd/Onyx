@@ -1,9 +1,0 @@
-group("core") {
-    deps = [
-        "devmgr",
-        "init",
-        "toybox",
-        "utils",
-        "coredumpd",
-    ]
-}

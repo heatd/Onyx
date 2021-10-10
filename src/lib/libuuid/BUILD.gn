@@ -1,0 +1,43 @@
+import("//build/package.gni")
+
+config("libuuid_config") {
+  include_dirs = [ "include" ]
+}
+
+config("libuuid_private") {
+  defines = [ "_POSIX_SOURCE" ]
+}
+
+source_set("libuuid_sources") {
+  sources = [
+    "src/parse.cpp",
+    "src/uuid.cpp",
+  ]
+  public_configs = [ ":libuuid_config" ]
+  configs += [ ":libuuid_private" ]
+}
+
+static_library("libuuid_static") {
+  deps += [ ":libuuid_sources" ]
+  public_configs = [ ":libuuid_config" ]
+  output_name = "libuuid"
+}
+
+shared_library("libuuid_shared") {
+  deps += [ ":libuuid_sources" ]
+  output_name = "libuuid"
+}
+
+resource("libuuid_headers") {
+  sources = [ "include/uuid/uuid.h" ]
+  outputs = [ "usr/include/uuid/{{source_file_part}}" ]
+}
+
+package("libuuid") {
+  public_deps = [
+    ":libuuid_headers",
+    ":libuuid_shared",
+  ]
+  public_configs = [ ":libuuid_config" ]
+  libraries = [ "libuuid.so" ]
+}

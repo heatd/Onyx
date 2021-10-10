@@ -1,0 +1,9 @@
+import("//build/kernel/kernel_sources.gni")
+kernel_source_set("binfmt") {
+  sources = [
+    "elf.cpp",
+    "elf64.cpp",
+    "exec.cpp",
+    "shebang.cpp",
+  ]
+}

@@ -1,0 +1,10 @@
+import("//build/kernel/driver.gni")
+
+#TODO: Separate the various virtio devices in their own drivers
+driver("virtio") {
+  sources = [
+    "blk/blk.cpp",
+    "network/network.cpp",
+    "virtio.cpp",
+  ]
+}

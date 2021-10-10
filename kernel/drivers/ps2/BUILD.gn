@@ -1,0 +1,8 @@
+import("//build/kernel/driver.gni")
+
+driver("ps2") {
+  sources = [
+    "controller.cpp",
+    "keyboard.cpp",
+  ]
+}

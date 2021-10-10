@@ -199,7 +199,7 @@ vmonyx: $(OBJ_DEPS) $(ARCHDIR)/linker.ld ../libc/libk.a kernel.config
 	@echo [LD] $@
 	$(CC) $(LDFLAGS) -Wl,-T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS_FOR_LINK) $(OBJ_LINK_LIST) $(LIBS) -Wno-error
 	cp vmonyx vmonyx-unstripped
-	strip -g vmonyx
+	$(STRIP) -g vmonyx
 
 acpica/%.o: acpica/%.c kernel.config
 	@echo [CC] $<

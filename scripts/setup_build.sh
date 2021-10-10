@@ -22,22 +22,16 @@ if [ "$CLANG_PATH" != "" ]; then
 	GN_ARGS="$GN_ARGS clang_path = \"$CLANG_PATH\"\n"
 fi
 
-cd usystem
-
-if [ "$GN_ARGS" != "" ] && [ -f out/args.gn ]; then
-	printf "$GN_ARGS" > out/args.gn
+if [ "$GN_ARGS" != "" ] && [ -f out/Default/args.gn ]; then
+	printf "$GN_ARGS" > out/Default/args.gn
 	done_stuff="1"
 fi
 
-gn gen out/
+gn gen out/Default --export-compile-commands
 
 if [ "$GN_ARGS" != "" ] && [ "$done_stuff" != "1" ]; then
-	printf "$GN_ARGS" > out/args.gn
+	printf "$GN_ARGS" > out/Default/args.gn
 
-	gn gen out/
+	gn gen out/Default --export-compile-commands
 fi
-
-touch -r dash/ -c dash/*
-
-cd ..
 

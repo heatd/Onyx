@@ -1,0 +1,148 @@
+#
+# Copyright (c) 2021 Pedro Falcato
+# This file is part of Onyx, and is released under the terms of the MIT License
+# check LICENSE at the root directory for more information
+#
+
+import("//build/sysroot.gni")
+
+template("base_toolchain") {
+  toolchain(target_name) {
+    forward_variables_from(invoker, "*", [ "output_dir", "base_system_toolchain" ])
+
+    default_output_dir = "{{target_out_dir}}"
+
+    tool("cc") {
+      depfile = "{{output}}.d"
+      command = "$cc --sysroot=$sysroot_path -MMD -MF $depfile {{defines}} {{include_dirs}} {{cflags}} {{cflags_c}} -c {{source}} -o {{output}}"
+      depsformat = "gcc"
+      description = "CC {{output}}"
+      outputs =
+          [ "{{source_out_dir}}/{{target_output_name}}.{{source_name_part}}.o" ]
+    }
+
+    tool("cxx") {
+      depfile = "{{output}}.d"
+      command = "$cxx --sysroot=$sysroot_path -MMD -MF $depfile {{defines}} {{include_dirs}} {{cflags}} {{cflags_cc}} -c {{source}} -o {{output}}"
+      depsformat = "gcc"
+      description = "CXX {{output}}"
+      outputs =
+          [ "{{source_out_dir}}/{{target_output_name}}.{{source_name_part}}.o" ]
+    }
+
+    tool("alink") {
+      command = "rm -f {{output}} && $ar rcs {{output}} {{inputs}}"
+      description = "AR {{target_output_name}}{{output_extension}}"
+      outputs =
+          [ "{{target_out_dir}}/{{target_output_name}}{{output_extension}}" ]
+      default_output_extension = ".a"
+      output_prefix = "lib"
+    }
+
+    tool("solink") {
+      soname = "{{target_output_name}}{{output_extension}}"  # e.g. "libfoo.so".
+      sofile = "{{output_dir}}/$soname"
+      rspfile = soname + ".rsp"
+      os_specific_option = "-Wl,-soname=$soname"
+      rspfile_content = "-Wl,--whole-archive {{inputs}} {{solibs}} -Wl,--no-whole-archive {{libs}}"
+
+      command = "$ld --sysroot=$sysroot_path -shared {{ldflags}} -o $sofile $os_specific_option @$rspfile"
+      description = "SOLINK $soname"
+
+      # Use this for {{output_extension}} expansions unless a target manually
+      # overrides it (in which case {{output_extension}} will be what the target
+      # specifies).
+      default_output_extension = ".so"
+
+      # Use this for {{output_dir}} expansions unless a target manually overrides
+      # it (in which case {{output_dir}} will be what the target specifies).
+      outputs = [ sofile ]
+      link_output = sofile
+      depend_output = sofile
+      output_prefix = "lib"
+    }
+
+    tool("link") {
+      outfile = "{{output_dir}}/{{target_output_name}}{{output_extension}}"
+      rspfile = "$outfile.rsp"
+      command = "$ld --sysroot=$sysroot_path {{ldflags}} -o $outfile -Wl,--start-group @$rspfile {{solibs}} -Wl,--end-group {{libs}}"
+
+      description = "LINK $outfile"
+      rspfile_content = "{{inputs}}"
+      outputs = [ outfile ]
+    }
+
+    tool("stamp") {
+      command = "touch {{output}}"
+      description = "STAMP {{output}}"
+    }
+
+    tool("copy") {
+      command = "cp -af {{source}} {{output}}"
+      description = "COPY {{source}} {{output}}"
+    }
+
+    tool("asm") {
+      depfile = "{{output}}.d"
+      command = "$cc --sysroot=$sysroot_path  -MD -MF $depfile {{defines}} {{include_dirs}} {{asmflags}} -c {{source}} -o {{output}}"
+      depsformat = "gcc"
+      description = "ASM {{output}}"
+      outputs =
+          [ "{{source_out_dir}}/{{target_output_name}}.{{source_file_part}}.o" ]
+    }
+
+    if (defined(invoker.base_system_toolchain) && invoker.base_system_toolchain != false) {
+    
+      toolchain_args = {
+        base_system_toolchain = true
+      }
+
+    }
+  }
+}
+
+template("gcc_toolchain") {
+  base_toolchain(target_name) {
+    forward_variables_from(invoker, "*", [ "output_dir" ])
+    toolprefix = "${gcc_target}-"
+    cc = "${toolprefix}gcc"
+    cxx = "${toolprefix}g++"
+
+    ar = "${toolprefix}ar"
+
+    #strip = "${toolprefix}strip"
+    ld = cxx
+  }
+}
+
+template("clang_toolchain") {
+  base_toolchain(target_name) {
+    forward_variables_from(invoker, "*", [ "output_dir" ])
+    toolprefix = "${clang_path}/bin/"
+    cc = "${toolprefix}clang --target=${target_cpu}-unknown-${target_os}"
+    cxx = "${toolprefix}clang++ --target=${target_cpu}-unknown-${target_os}"
+
+    ar = "${toolprefix}llvm-ar"
+
+    #strip = "${toolprefix}llvm-strip"
+    ld = cxx
+  }
+}
+
+template("base_system_toolchain") {
+  forward_variables_from(invoker, "*", [ "output_dir" ])
+  if(is_clang) {
+    clang_toolchain("${target_cpu}-$target_name") {
+      toolprefix = clang_path
+      base_system_toolchain = true
+    }
+  }
+  else
+  {
+    gcc_toolchain("${target_cpu}-$target_name")
+    {
+      gcc_target = "${target_cpu}-onyx"
+      base_system_toolchain = true
+    }
+  }
+}

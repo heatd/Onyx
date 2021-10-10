@@ -1,0 +1,8 @@
+import("//build/app.gni")
+
+app_executable("ping") {
+  package_name = "ping"
+  output_name = "$package_name"
+
+  sources = [ "ping.cpp" ]
+}

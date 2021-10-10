@@ -1,8 +1,0 @@
-import("//build/app.gni")
-
-app_executable("memstat") {
-    package_name = "memstat"
-    output_name = "$package_name"
-
-    sources = [ "main.c" ]
-}

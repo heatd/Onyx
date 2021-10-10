@@ -1,0 +1,16 @@
+#
+# Copyright (c) 2021 Pedro Falcato
+# This file is part of Onyx, and is released under the terms of the MIT License
+# check LICENSE at the root directory for more information
+#
+
+import("//build/toolchain/base_system_toolchain.gni")
+
+gcc_toolchain("x86_64-gcc") {
+  gcc_target = "x86_64-onyx"
+}
+
+clang_toolchain("clang") {
+  clang_path = clang_path
+}
+

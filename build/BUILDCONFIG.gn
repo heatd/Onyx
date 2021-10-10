@@ -1,0 +1,68 @@
+#
+# Copyright (c) 2021 Pedro Falcato
+# This file is part of Onyx, and is released under the terms of the MIT License
+# check LICENSE at the root directory for more information
+#
+
+declare_args() {
+  clang_path = ""
+  strip_binaries = true
+
+  CONFIG_KASAN = false
+  CONFIG_UBSAN = false
+
+  toolchain_args = {
+
+  }
+
+  base_system_toolchain = false
+}
+
+is_gcc = false
+is_clang = false
+
+if (clang_path != "") {
+  set_default_toolchain("//build/toolchain:clang")
+  is_clang = true
+} else {
+  set_default_toolchain("//build/toolchain:${target_cpu}-gcc")
+  is_gcc = true
+}
+
+default_compiler_configs = [ "//build:compiler_defaults" ]
+
+set_defaults("executable") {
+
+  if(base_system_toolchain == false) {
+    deps = [ "//src/core/base_sdk" ]
+  }
+
+  configs = default_compiler_configs
+}
+
+set_defaults("static_library") {
+
+  if(base_system_toolchain == false) {
+    deps = [ "//src/core/base_sdk" ]
+  }
+
+  configs = default_compiler_configs
+}
+
+set_defaults("shared_library") {
+
+  if(base_system_toolchain == false) {
+    deps = [ "//src/core/base_sdk" ]
+  }
+
+  configs = default_compiler_configs
+}
+
+set_defaults("source_set") {
+
+  if(base_system_toolchain == false) {
+    deps = [ "//src/core/base_sdk" ]
+  }
+
+  configs = default_compiler_configs
+}

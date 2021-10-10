@@ -1,7 +1,0 @@
-group("network") {
-    deps = [
-        "netctld",
-        "net_tests",
-        "iptools"
-    ]
-}

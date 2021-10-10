@@ -1,5 +1,0 @@
-group("filesystem") {
-    deps = [
-        "//filesystem/fs_tests"    
-    ]
-}

@@ -1,0 +1,77 @@
+template("kernel_source_set") {
+  source_set(target_name) {
+    forward_variables_from(invoker, "*")
+
+    configs += [ "//kernel:kernel_config" ]
+
+    if (!defined(disable_werror)) {
+      disable_werror = false
+    }
+
+    if (!disable_werror) {
+      configs += [ "//kernel:werror_config" ]
+    }
+
+    if (!defined(no_asan)) {
+      no_asan = false
+    }
+
+    if (no_asan) {
+      configs += [ "//kernel:asan_config" ]
+      configs -= [ "//kernel:asan_config" ]
+    }
+
+    if (!defined(no_ubsan)) {
+      no_ubsan = false
+    }
+
+    if (no_ubsan) {
+      configs += [ "//kernel:ubsan_config" ]
+      configs -= [ "//kernel:ubsan_config" ]
+    }
+
+    if (!defined(deps)) {
+      deps = []
+    }
+
+    deps += [ "//kernel/lib/libk:k" ]
+  }
+}
+
+template("kernel_static_library") {
+  static_library(target_name) {
+    forward_variables_from(invoker, "*")
+
+    configs += [ "//kernel:kernel_config" ]
+
+    if (!defined(disable_werror)) {
+      disable_werror = false
+    }
+
+    if (!disable_werror) {
+      configs += [ "//kernel:werror_config" ]
+    }
+
+    if (!defined(no_asan)) {
+      no_asan = false
+    }
+
+    if (no_asan) {
+      configs += [ "//kernel:asan_config" ]
+      configs -= [ "//kernel:asan_config" ]
+    }
+
+    if (!defined(no_ubsan)) {
+      no_ubsan = false
+    }
+
+    if (no_ubsan) {
+      configs += [ "//kernel:ubsan_config" ]
+      configs -= [ "//kernel:ubsan_config" ]
+    }
+
+    if (!defined(deps)) {
+      deps = []
+    }
+  }
+}

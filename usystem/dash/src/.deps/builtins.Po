@@ -1,0 +1,40 @@
+builtins.o: builtins.c ../config.h shell.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/sys/param.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/sys/resource.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/features.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/sys/time.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/sys/select.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/bits/alltypes.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/bits/resource.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/endian.h \
+  /data/toolchains/onyx-clang/lib/clang/12.0.0/include/limits.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/limits.h \
+  /home/pfalcato/Onyx/sysroot/usr/include/bits/limits.h builtins.h
+
+../config.h:
+
+shell.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/sys/param.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/sys/resource.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/features.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/sys/time.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/sys/select.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/bits/alltypes.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/bits/resource.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/endian.h:
+
+/data/toolchains/onyx-clang/lib/clang/12.0.0/include/limits.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/limits.h:
+
+/home/pfalcato/Onyx/sysroot/usr/include/bits/limits.h:
+
+builtins.h:

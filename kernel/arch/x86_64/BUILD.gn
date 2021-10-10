@@ -1,0 +1,124 @@
+config("arch_config") {
+  cflags = [
+    "-mno-red-zone",
+    "-fno-omit-frame-pointer",
+    "-mcmodel=kernel",
+  ]
+  ldflags = [
+    "-mcmodel=kernel",
+    "-z",
+    "max-page-size=0x1000",
+    "-mno-red-zone"
+  ]
+
+  include_dirs = [ "//kernel/include/onyx/x86/include" ]
+}
+
+import("//build/kernel/kernel_sources.gni")
+
+shared_library("vdso_so") {
+  output_name = "onyx-vdso"
+  output_extension = "so.0"
+  sources = [
+    "__vdso.c",
+    "__vdso_asm.S",
+  ]
+  inputs = [ "vdso.ld" ]
+  output_prefix_override = true
+
+  cflags = [
+    "-fno-stack-protector",
+    "-fno-zero-initialized-in-bss",
+    "-fpic",
+  ]
+
+  configs += [
+    "//kernel/lib/libk:libk_headers",
+    "//kernel:kernel_headers",
+  ]
+
+  ldflags = [
+    "-Wl,--hash-style=both",
+    "-ffreestanding",
+    "-nostdlib",
+    "-Wl,-Bsymbolic",
+    "-shared",
+    "-Wl,-soname=onyx-vdso.so.0",
+    "-fpic",
+    "-z",
+    "max-page-size=0x1000",
+    "-z",
+    "common-page-size=0x1000",
+  ]
+}
+
+action("gen_vdso") {
+  public_deps = [ ":vdso_so" ]
+  vdso_name =
+      get_label_info(":vdso_so", "target_out_dir") + "/" + "onyx-vdso.so.0"
+  inputs = [ vdso_name ]
+  script = "//build/kernel/gen_vdso.py"
+  outputs = [ "$target_gen_dir/vdso_helper.S" ]
+  args = [
+    "-o",
+    rebase_path(outputs[0], root_build_dir),
+    rebase_path(inputs[0]),
+  ]
+}
+
+kernel_source_set("vdso") {
+  deps = [ ":gen_vdso" ]
+  sources = get_target_outputs(":gen_vdso")
+}
+
+kernel_source_set("arch_sources") {
+  sources = [
+    "acpi/acpi.cpp",
+    "alternatives.cpp",
+    "apic.cpp",
+    "avx.cpp",
+    "boot.S",
+    "copy.S",
+    "copy_user.S",
+    "cpu.cpp",
+    "debug.cpp",
+    "desc_load.S",
+    "disassembler.cpp",
+    "entry.S",
+    "exit.S",
+    "fentry.S",
+    "fpu.cpp",
+    "gdt.cpp",
+    "idt.cpp",
+    "interrupts.S",
+    "irq.cpp",
+    "isr.cpp",
+    "ktrace.cpp",
+    "kvm.cpp",
+    "mce.cpp",
+    "mmu.cpp",
+    "multiboot2.cpp",
+    "pat.cpp",
+    "pic.cpp",
+    "pit.cpp",
+    "powerctl.cpp",
+    "process.cpp",
+    "ptrace.cpp",
+    "random.cpp",
+    "serial.cpp",
+    "signal.cpp",
+    "smbios.cpp",
+    "smp.cpp",
+    "smp_trampoline.S",
+    "spinlock.S",
+    "strace.cpp",
+    "syscall.cpp",
+    "syscall_table.cpp",
+    "thread.cpp",
+    "tsc.cpp",
+    "tss.cpp",
+    "vdso.cpp",
+    "vm.cpp",
+  ]
+  deps = [ ":vdso" ]
+}

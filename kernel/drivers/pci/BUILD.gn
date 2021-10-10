@@ -1,0 +1,12 @@
+import("//build/kernel/driver.gni")
+
+driver("pci") {
+  sources = [
+    "legacy/config.cpp",
+    "pci-msi.cpp",
+    "pci.cpp",
+    "pci_bus.cpp",
+    "pcie.cpp",
+    "power.cpp",
+  ]
+}

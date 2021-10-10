@@ -15,8 +15,8 @@
 #include <onyx/clock.h>
 #include <onyx/panic.h>
 
-#include <drivers/nmi.h>
-#include <drivers/rtc.h>
+#include <onyx/x86/nmi.h>
+#include "../drivers/include/rtc.h"
 
 #define RTC_STATUS_B_UEI           (1 << 4)
 #define RTC_STATUS_B_PI            (1 << 6)

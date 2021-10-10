@@ -1,0 +1,24 @@
+import("//build/package.gni")
+
+executable("devmgrd_bin") {
+  include_dirs = [ "include" ]
+
+  output_name = "devmgrd"
+
+  sources = [ "src/main.cpp" ]
+}
+
+resource("devmgr_rule") {
+  sources = [ "devmgr.service" ]
+  outputs = [ "etc/init.d/targets/devmgr.service" ]
+}
+
+package("devmgr") {
+  deps = [
+    ":devmgr_rule",
+    ":devmgrd_bin",
+  ]
+
+  is_system_binary = true
+  executables = [ "devmgrd" ]
+}
