@@ -1,0 +1,17 @@
+import("//build/app.gni")
+
+app_executable("pkgman") {
+  package_name = "pkgman"
+  output_name = "$package_name"
+
+  include_dirs = [ "include" ]
+
+  deps += [ "//src/json" ]
+
+  sources = [
+    "src/install.cpp",
+    "src/list.cpp",
+    "src/main.cpp",
+    "src/query.cpp",
+  ]
+}

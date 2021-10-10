@@ -1,0 +1,32 @@
+declare_args() {
+  CONFIG_EXT2 = true
+}
+
+import("//build/kernel/kernel_sources.gni")
+kernel_source_set("fs") {
+  sources = [
+    "block.cpp",
+    "buffer.cpp",
+    "dentry.cpp",
+    "dev.cpp",
+    "file.cpp",
+    "inode.cpp",
+    "mtable.cpp",
+    "null.cpp",
+    "pagecache.cpp",
+    "partition.cpp",
+    "pipe.cpp",
+    "poll.cpp",
+    "pseudo.cpp",
+    "superblock.cpp",
+    "sysfs.cpp",
+    "tmpfs.cpp",
+    "vfs.cpp",
+    "zero.cpp",
+  ]
+
+  public_deps = []
+  if (CONFIG_EXT2) {
+    public_deps += [ "ext2" ]
+  }
+}

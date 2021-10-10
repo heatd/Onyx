@@ -1,0 +1,19 @@
+import("//build/app.gni")
+
+app_executable("kernel_api_tests") {
+    package_name = "kernel_api_tests"
+    output_name = "$package_name"
+
+    sources = [ "src/pgrp.cpp",
+                "src/wait.cpp",
+                "src/exit.cpp",
+                "src/nullzero.cpp",
+                "src/rlimit.cpp",
+                "src/sid.cpp",
+                "src/vm.cpp",
+                "src/process_handle.cpp"
+                ]
+    deps = [ "//googletest:gtest_main",
+             "//lib/onyx" ]
+}
+

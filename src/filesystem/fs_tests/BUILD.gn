@@ -1,0 +1,12 @@
+import("//build/app.gni")
+
+app_executable("fs_tests") {
+  package_name = "fs_tests"
+  output_name = "$package_name"
+
+  sources = [
+    "src/crypto/sha256.c",
+    "src/file.cpp",
+  ]
+  deps = [ "//src/googletest:gtest_main" ]
+}

@@ -1,0 +1,78 @@
+#
+# Copyright (c) 2021 Pedro Falcato
+# This file is part of Onyx, and is released under the terms of the MIT License
+# check LICENSE at the root directory for more information
+#
+
+import("//build/resource.gni")
+
+template("sdk_resource") {
+  forward_variables_from(invoker, "*")
+
+  group(target_name) {
+    # Essentially, the idea is that we store the source path and image path in metadata, and then
+    # another target can read this metadata and either export it to a file or copy it straight away.
+    # I don't know which approach I'm going to take just yet.
+    metadata = {
+      sdk_image_file = []
+
+      foreach(source, sources) {
+        foreach(target, process_file_template([ source ], outputs)) {
+          sdk_image_file += [
+            {
+              source = rebase_path(source)
+              destination = target
+            },
+          ]
+        }
+      }
+    }
+  }
+}
+
+template("package") {
+  forward_variables_from(invoker, "*")
+
+  group(target_name) {
+    if (!defined(executables)) {
+      executables = []
+    } else {
+      if (!defined(is_system_binary)) {
+        is_system_binary = false
+      }
+
+      if (is_system_binary) {
+        bin_install_path = "sbin/"
+      } else {
+        bin_install_path = "usr/bin/"
+      }
+    }
+
+    if (!defined(libraries)) {
+      libraries = []
+    } else {
+      lib_install_path = "usr/lib/"
+    }
+
+    metadata = {
+      sdk_image_file = []
+      foreach(exec, executables) {
+        sdk_image_file += [
+          {
+            source = rebase_path(target_out_dir + "/" + exec, root_build_dir)
+            destination = bin_install_path + exec
+          },
+        ]
+      }
+
+      foreach(lib, libraries) {
+        sdk_image_file += [
+          {
+            source = rebase_path(target_out_dir + "/" + lib, root_build_dir)
+            destination = lib_install_path + lib
+          },
+        ]
+      }
+    }
+  }
+}

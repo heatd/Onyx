@@ -1,0 +1,32 @@
+#
+# Copyright (c) 2021 Pedro Falcato
+# This file is part of Onyx, and is released under the terms of the MIT License
+# check LICENSE at the root directory for more information
+#
+
+import("//build/sysroot.gni")
+
+generated_file("build_sdk_manifest") {
+  deps = [ "//kernel:headers" ]
+  data_keys = [ "sdk_image_file" ]
+  output_conversion = "json"
+  outputs = [ "$target_out_dir/sdk_image_manifest.json" ]
+}
+
+action("base_sdk") {
+  deps = [ ":build_sdk_manifest" ]
+  manifest = "$target_out_dir/sdk_image_manifest.json"
+  sources = [ manifest ]
+  script = "//build/image/make_sys_image.py"
+
+  sysroot_path = sysroot
+
+  outputs = [ sysroot_path ]
+
+  args = [
+    "--manifest",
+    rebase_path(manifest, root_build_dir),
+    "-o",
+    rebase_path(sysroot_path, root_build_dir),
+  ]
+}

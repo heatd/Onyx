@@ -1,0 +1,11 @@
+import("//build/kernel/kernel_sources.gni")
+kernel_source_set("ext2") {
+  sources = [
+    "alloc.cpp",
+    "block_groups.cpp",
+    "ext2.cpp",
+    "ext2_ll.cpp",
+    "inode.cpp",
+    "symlink.cpp",
+  ]
+}

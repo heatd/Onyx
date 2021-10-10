@@ -2,13 +2,13 @@
 	path = onyx-pkgs
 	url = https://github.com/heatd/onyx-pkgs
 [submodule "usystem/googletest"]
-	path = usystem/googletest
+	path = src/googletest
 	url = https://github.com/heatd/googletest
 [submodule "usystem/benchmark"]
-	path = usystem/benchmark
+	path = src/benchmark
 	url = https://github.com/heatd/benchmark
 [submodule "usystem/toybox"]
-	path = usystem/core/toybox
+	path = src/core/toybox
 	url = https://github.com/heatd/toybox
 [submodule "toolchains"]
 	path = toolchains

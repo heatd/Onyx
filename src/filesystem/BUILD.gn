@@ -1,0 +1,3 @@
+group("filesystem") {
+  deps = [ "fs_tests" ]
+}

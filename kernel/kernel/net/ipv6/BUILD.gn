@@ -1,0 +1,9 @@
+import("//build/kernel/kernel_sources.gni")
+kernel_source_set("ipv6") {
+  sources = [
+    "icmpv6.cpp",
+    "ipv6.cpp",
+    "ipv6_netkernel.cpp",
+    "ndp.cpp",
+  ]
+}

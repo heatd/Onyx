@@ -1,0 +1,43 @@
+declare_args() {
+  CONFIG_PCI = true
+  CONFIG_E1000 = true
+  CONFIG_ATA = true
+  CONFIG_AHCI = true
+  CONFIG_PS2 = true
+  CONFIG_RTC = true
+  CONFIG_VIRTIO = true
+}
+
+# TODO: Add module support to the build system
+
+group("drivers") {
+  deps = []
+
+  if (CONFIG_PCI) {
+    deps += [ "pci" ]
+  }
+
+  if (CONFIG_E1000) {
+    deps += [ "e1000" ]
+  }
+
+  if (CONFIG_ATA) {
+    deps += [ "ata" ]
+  }
+
+  if (CONFIG_AHCI) {
+    deps += [ "ahci" ]
+  }
+
+  if (CONFIG_PS2) {
+    deps += [ "ps2" ]
+  }
+
+  if (CONFIG_RTC) {
+    deps += [ "rtc" ]
+  }
+
+  if (CONFIG_VIRTIO) {
+    deps += [ "virtio" ]
+  }
+}

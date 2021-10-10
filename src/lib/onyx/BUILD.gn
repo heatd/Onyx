@@ -1,0 +1,24 @@
+import("//build/app.gni")
+
+config("libonyx_config") {
+  include_dirs = [ "include" ]
+}
+
+source_set("libonyx_sources") {
+  sources = [
+    "src/handle.cpp",
+    "src/process.cpp",
+  ]
+  public_configs = [ ":libonyx_config" ]
+}
+
+static_library("libonyx_static") {
+  deps += [ ":libonyx_sources" ]
+  output_name = "libonyx"
+}
+
+app_shared_library("onyx") {
+  package_name = "libonyx"
+  output_name = "libonyx"
+  public_deps = [ ":libonyx_sources" ]
+}

@@ -1,0 +1,8 @@
+import("//build/kernel/kernel_sources.gni")
+kernel_source_set("libdict") {
+  sources = [
+    "rb_tree.c",
+    "tree_common.c",
+    "wb_tree.c",
+  ]
+}

@@ -1,0 +1,34 @@
+declare_args() {
+  CONFIG_NET = true
+}
+
+import("//build/kernel/kernel_sources.gni")
+kernel_source_set("net") {
+  sources = [
+    "hostname.cpp",
+    "network.cpp",
+    "socket.cpp",
+  ]
+
+  if (CONFIG_NET) {
+    sources += [
+      "checksum.cpp",
+      "ethernet.cpp",
+      "inet.cpp",
+      "inet_cork.cpp",
+      "loopback.cpp",
+      "neighbour.cpp",
+      "netif.cpp",
+      "netkernel.cpp",
+      "packetbuf.cpp",
+      "socket_table.cpp",
+      "tcp.cpp",
+      "udp.cpp",
+    ]
+
+    public_deps = [
+      "ipv4",
+      "ipv6",
+    ]
+  }
+}

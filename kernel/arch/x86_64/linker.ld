@@ -40,8 +40,6 @@ SECTIONS
 	{
 		*(.text*)
 		*(.gnu.linkonce.t*)
-		*(.init)
-		*(.fini)
 		*(.jcr)
 		*(.dtors)
 		*(.ctors)

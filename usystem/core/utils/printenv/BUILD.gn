@@ -1,8 +1,0 @@
-import("//build/app.gni")
-
-app_executable("printenv") {
-    package_name = "printenv"
-    output_name = "$package_name"
-
-    sources = [ "main.c" ]
-}

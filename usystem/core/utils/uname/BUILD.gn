@@ -1,8 +1,0 @@
-import("//build/app.gni")
-
-app_executable("uname") {
-    package_name = "uname"
-    output_name = "$package_name"
-
-    sources = [ "main.c"]
-}

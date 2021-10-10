@@ -1,0 +1,18 @@
+import("//build/package.gni")
+
+executable("ip") {
+  sources = [
+    "src/address.cpp",
+    "src/link.cpp",
+    "src/main.cpp",
+    "src/object.cpp",
+  ]
+  include_dirs = [ "include" ]
+  deps += [ "//src/lib/onyx" ]
+}
+
+package("iptools") {
+  executables = [ "ip" ]
+
+  deps = [ ":ip" ]
+}

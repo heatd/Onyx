@@ -1,0 +1,7 @@
+group("network") {
+  deps = [
+    "iptools",
+    "net_tests",
+    "netctld",
+  ]
+}

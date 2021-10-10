@@ -1,0 +1,9 @@
+import("//build/app.gni")
+
+app_executable("net_tests") {
+  package_name = "net_tests"
+  output_name = "$package_name"
+
+  sources = [ "src/udp.cpp" ]
+  deps = [ "//src/googletest:gtest_main" ]
+}
