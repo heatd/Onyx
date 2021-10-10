@@ -16,7 +16,7 @@
 #include <onyx/panic.h>
 
 #include <onyx/x86/nmi.h>
-#include "../drivers/include/rtc.h"
+#include <drivers/rtc.h>
 
 #define RTC_STATUS_B_UEI           (1 << 4)
 #define RTC_STATUS_B_PI            (1 << 6)

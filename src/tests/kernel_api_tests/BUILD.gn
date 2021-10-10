@@ -13,7 +13,7 @@ app_executable("kernel_api_tests") {
                 "src/vm.cpp",
                 "src/process_handle.cpp"
                 ]
-    deps = [ "//googletest:gtest_main",
-             "//lib/onyx" ]
+    deps = [ "//src/googletest:gtest_main",
+             "//src/lib/onyx" ]
 }
 

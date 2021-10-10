@@ -5,6 +5,7 @@ kernel_source_set("kernel") {
     "acpi_osl.cpp",
     "arc4random.c",
     "binfmt.cpp",
+    "cmdline.cpp",
     "copy.cpp",
     "cppnew.cpp",
     "cpprt.cpp",

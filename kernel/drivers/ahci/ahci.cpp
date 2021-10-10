@@ -29,7 +29,7 @@
 #include <onyx/cpu.h>
 
 #include <pci/pci.h>
-#include "../drivers/include/ata.h"
+#include <drivers/ata.h>
 
 #define NUM_PRDT_PER_TABLE	56
 

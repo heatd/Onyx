@@ -6,7 +6,6 @@ kernel_source_set("mm") {
     "page.cpp",
     "pagealloc.cpp",
     "vm.cpp",
-    "vm_active.cpp",
     "vm_object.cpp",
   ]
 

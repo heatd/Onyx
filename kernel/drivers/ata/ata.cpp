@@ -28,7 +28,7 @@
 #include <onyx/async_io.h>
 #include <onyx/scoped_lock.h>
 
-#include "../drivers/include/ata.h"
+#include <drivers/ata.h>
 
 #include "ide.h"
 

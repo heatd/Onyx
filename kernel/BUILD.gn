@@ -52,7 +52,8 @@ config("kernel_config") {
     "-fno-unwind-tables",
     "-fno-asynchronous-unwind-tables",
     "-static",
-    "-frecord-gcc-switches"
+    "-frecord-gcc-switches",
+    "-Wno-error=deprecated-declarations"
   ]
 
   cflags_cc = [

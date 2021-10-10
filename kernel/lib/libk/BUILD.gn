@@ -1,7 +1,8 @@
 import("//build/kernel/kernel_sources.gni")
 
 config("libk_headers") {
-  include_dirs = [ "include" ]
+  cflags = ["--sysroot=" + rebase_path("usr")]
+  asmflags = ["--sysroot=" + rebase_path("usr")]
 }
 
 kernel_static_library("k") {

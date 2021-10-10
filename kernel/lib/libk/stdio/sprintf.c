@@ -6,13 +6,15 @@
 
 #include <errno.h>
 #include <ctype.h>
-#include <limits.h>
+#include <onyx/limits.h>
 #include <string.h>
 #include <stdarg.h>
 #include <wchar.h>
 #include <inttypes.h>
 #include <math.h>
 #include <float.h>
+
+#define NL_ARGMAX 9
 
 struct sprintf_buf
 {
