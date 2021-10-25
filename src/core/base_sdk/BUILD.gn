@@ -7,7 +7,7 @@
 import("//build/sysroot.gni")
 
 generated_file("build_sdk_manifest") {
-  deps = [ "//kernel:headers" ]
+  deps = [ "//kernel:headers", "//musl" ]
   data_keys = [ "sdk_image_file" ]
   output_conversion = "json"
   outputs = [ "$target_out_dir/sdk_image_manifest.json" ]
