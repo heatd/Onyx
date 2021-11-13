@@ -8,16 +8,13 @@ GCC_TARGET_NAME="$ONYX_ARCH"
 
 case $ONYX_ARCH in
 	"x86_64")
-		break
 	;;
 
 	"riscv64")
-		break
 	;;
 
 	"arm64")
 		GCC_TARGET_NAME="aarch64"
-		break
 	;;
 
 	*)
