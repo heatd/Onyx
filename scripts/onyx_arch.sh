@@ -6,8 +6,7 @@ if [ "$ONYX_ARCH" = "" ]; then
 	# We need to convert from linux uname -m values to Onyx architectures
 	case $ONYX_ARCH in
 		"aarch64")
-			ONYX_ARCH = "arm64"
-			break
+			ONYX_ARCH="arm64"
 		;;
 	esac
 fi
