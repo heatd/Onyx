@@ -197,7 +197,7 @@ jobs:
         uses: actions/cache@v2.1.4
         with:
           # A list of files, directories, and wildcard patterns to cache and restore
-          path: toolchain_binaries/
+          path: toolchain_binaries-gnu/
           # An explicit key for restoring and saving the cache
           key: ${{ matrix.target_arch }}-toolchain-${{ matrix.os }}-${{ hashFiles('toolchains/binutils-2.35.patch', 'toolchains/gcc-10.2.0.patch',
                 'toolchains/scripts/build_toolchain.sh') }}
@@ -208,7 +208,7 @@ jobs:
         uses: actions/cache@v2.1.4
         with:
           # A list of files, directories, and wildcard patterns to cache and restore
-          path: toolchain_binaries/
+          path: toolchain_binaries-llvm/
           # An explicit key for restoring and saving the cache
           key: ${{ matrix.target_arch }}-toolchain-${{ matrix.os }}-${{ hashFiles('toolchains/llvm-project-12.0.0.patch',
                 'toolchains/scripts/build_toolchain.sh') }}
@@ -231,16 +231,17 @@ jobs:
           export ONYX_ARCH=${{ matrix.target_arch }}
           ./scripts/setup_build.sh
           make install-headers -j 2
-          mkdir toolchain_binaries
-          ./toolchains/scripts/build_toolchain.sh toolchain_build toolchain_binaries -a ${{ matrix.target_arch }} --toolchain=${{ matrix.toolchain }}
+          mkdir toolchain_binaries-${{ matrix.toolchain }}
+          ./toolchains/scripts/build_toolchain.sh toolchain_build toolchain_binaries-${{ matrix.toolchain }} \
+          -a ${{ matrix.target_arch }} --toolchain=${{ matrix.toolchain }}
 
       - name: Compress toolchain
         run: |
-          mv toolchain_binaries ${{ env.toolchain_id_no_os }}
+          mv toolchain_binaries-${{ matrix.toolchain }} ${{ env.toolchain_id_no_os }}
           tar cvf ${{ env.toolchain_id }}.tar ${{ env.toolchain_id_no_os }}
           zstd -T0 -13 ${{ env.toolchain_id }}.tar -o ${{ env.toolchain_id }}.tar.zst
-          # We move the binaries back to toolchain_binaries due to the cache we previously set up
-          mv ${{ env.toolchain_id_no_os }} toolchain_binaries
+          # We move the binaries back to toolchain_binaries-${{ matrix.toolchain }} due to the cache we previously set up
+          mv ${{ env.toolchain_id_no_os }} toolchain_binaries-${{ matrix.toolchain }}
 
       - name: Upload the toolchain
         uses: actions/upload-artifact@v2.1.4
