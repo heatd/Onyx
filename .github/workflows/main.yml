@@ -52,7 +52,7 @@ jobs:
           ./scripts/setup_build.sh
           make install-headers -j $(nproc)
           mkdir toolchain_binaries
-          ./toolchains/scripts/build_gcc.sh toolchain_build toolchain_binaries
+          ./toolchains/scripts/build_gcc.sh toolchain_build toolchain_binaries -a x86_64
 
       - name: Compress toolchain
         run: |
@@ -231,7 +231,7 @@ jobs:
             ./scripts/setup_build.sh
             make install-headers -j $(sysctl -n hw.logicalcpu)
             mkdir toolchain_binaries
-            ./toolchains/scripts/build_gcc.sh toolchain_build toolchain_binaries
+            ./toolchains/scripts/build_gcc.sh toolchain_build toolchain_binaries -a x86_64
 
         - name: Compress toolchain
           run: |
