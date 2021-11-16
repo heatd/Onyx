@@ -14,64 +14,11 @@ on:
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  build-toolchain-linux:
-    # The type of runner that the job will run on
-    runs-on: ubuntu-latest
-
-    # Steps represent a sequence of tasks that will be executed as part of the job
-    steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v2
-        with:
-          submodules: "recursive"
-
-      - name: Cache
-        id: toolchain-cache-linux
-        uses: actions/cache@v2.1.4
-        with:
-          # A list of files, directories, and wildcard patterns to cache and restore
-          path: toolchain_binaries/
-          # An explicit key for restoring and saving the cache
-          key: toolchain-linux-${{ hashFiles('toolchains/binutils-2.35.patch', 'toolchains/gcc-10.2.0.patch') }}
-      
-      - name: Build toolchain
-        if: steps.toolchain-cache-linux.outputs.cache-hit != 'true'
-        run: |
-          sudo apt-get update && sudo apt-get install libmpc-dev libgmp3-dev bison flex libmpfr-dev zstd
-          cp kernel/kernel.config.example kernel/kernel.config
-          curl -O https://storage.googleapis.com/onyx-stuffs/minimal-sysroot-x86_64.tar.zst
-          zstd -d minimal-sysroot-x86_64.tar.zst -c | tar xvf -
-          mkdir gn_bin/
-          cd gn_bin
-          wget -q https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/latest -O gn.zip
-          unzip gn.zip
-          echo "$PWD" >> $GITHUB_PATH
-          cd ..
-          export SYSROOT=$PWD/sysroot
-          export ONYX_ARCH=x86_64
-          ./scripts/setup_build.sh
-          make install-headers -j $(nproc)
-          mkdir toolchain_binaries
-          ./toolchains/scripts/build_gcc.sh toolchain_build toolchain_binaries -a x86_64
-
-      - name: Compress toolchain
-        run: |
-          mv toolchain_binaries x86_64-onyx
-          tar cvf x86_64-onyx-linux.tar x86_64-onyx
-          zstd -T0 -13 x86_64-onyx-linux.tar -o x86_64-onyx-linux.tar.zst
-          mv x86_64-onyx toolchain_binaries
-
-      - name: Upload a Build Artifact (x86_64-onyx-linux)
-        uses: actions/upload-artifact@v2.1.4
-        with:
-          name: x86_64-onyx-linux
-          path: x86_64-onyx-linux.tar.zst
-
   # This workflow contains a single job called "build"
   build:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
-    needs: build-toolchain-linux
+    needs: build-toolchains
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
@@ -132,7 +79,7 @@ jobs:
   build-llvm:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
-    needs: build-toolchain-llvm-linux
+    needs: build-toolchains
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
@@ -142,15 +89,15 @@ jobs:
         
 
       # Runs a single command using the runners shell
-      - name: Download the onyx-linux-llvm toolchain
+      - name: Download the onyx-llvm-linux toolchain
         uses: actions/download-artifact@v2.0.8
         with:
           # Artifact name
-          name: onyx-linux-llvm
+          name: onyx-llvm-linux
 
       - name: Extract Toolchain
         run: |
-          zstd -d onyx-linux-llvm.tar.zst --stdout | tar x
+          zstd -d onyx-llvm-linux.tar.zst --stdout | tar x
   
       - name: Install dependencies
         run: |
@@ -189,65 +136,24 @@ jobs:
         with:
           name: Sysroot-llvm
           path: sysroot/
-    
-  build-toolchain-macos:
-      # The type of runner that the job will run on
-      runs-on: macos-latest
 
-      # Steps represent a sequence of tasks that will be executed as part of the job
-      steps:
-        # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-        - uses: actions/checkout@v2
-          with:
-            submodules: "recursive"
+  build-toolchains:
+    runs-on: ${{ matrix.os }}
 
-        - name: Cache
-          id: toolchain-cache-macos
-          uses: actions/cache@v2.1.4
-          with:
-            # A list of files, directories, and wildcard patterns to cache and restore
-            path: toolchain_binaries/
-            # An explicit key for restoring and saving the cache
-            key: toolchain-macos-${{ hashFiles('toolchains/binutils-2.35.patch', 'toolchains/gcc-10.2.0.patch') }}
-      
-        - name: Build toolchain
-          if: steps.toolchain-cache-macos.outputs.cache-hit != 'true'
-          run: |
-            brew install zstd gmp mpfr libmpc wget unzip make ninja coreutils gnu-getopt
-            cp kernel/kernel.config.example kernel/kernel.config
-            curl -O https://storage.googleapis.com/onyx-stuffs/minimal-sysroot-x86_64.tar.zst
-            zstd -d minimal-sysroot-x86_64.tar.zst -c | tar xvf -
-            mkdir gn_bin/
-            cd gn_bin
-            wget -q https://chrome-infra-packages.appspot.com/dl/gn/gn/mac-amd64/+/latest -O gn.zip
-            unzip gn.zip
-            echo $PATH
-            PATH="$PWD:$PATH"
-            PATH="/usr/local/opt/gnu-getopt/bin:$(brew --prefix)/opt/coreutils/libexec/gnubin:$(brew --prefix)/opt/make/libexec/gnubin:$PATH"
-            echo "TEST: $PATH"
-            cd ..
-            export SYSROOT=$PWD/sysroot
-            export ONYX_ARCH=x86_64
-            ./scripts/setup_build.sh
-            make install-headers -j $(sysctl -n hw.logicalcpu)
-            mkdir toolchain_binaries
-            ./toolchains/scripts/build_gcc.sh toolchain_build toolchain_binaries -a x86_64
-
-        - name: Compress toolchain
-          run: |
-            mv toolchain_binaries x86_64-onyx
-            tar cvf x86_64-onyx-macos.tar x86_64-onyx
-            zstd -T0 -13 x86_64-onyx-macos.tar -o x86_64-onyx-macos.tar.zst
-            mv x86_64-onyx toolchain_binaries
-
-        - name: Upload a Build Artifact (x86_64-onyx-macos)
-          uses: actions/upload-artifact@v2.1.4
-          with:
-            name: x86_64-onyx-macos
-            path: x86_64-onyx-macos.tar.zst
-  build-toolchain-llvm-linux:
-    # The type of runner that the job will run on
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-18.04, macos-latest]
+        target_arch: [x86_64, riscv64]
+        toolchain: [gnu, llvm]
+        exclude:
+          # macOS can't build LLVM just yet
+          - os: macos-latest
+            toolchain: llvm
+          # LLVM should build for all targets, since it's a cross compiler by nature, but right now, it doesn't do that.
+          # In fact, there's no onyx llvm port for riscv64 right now.
+          - target_arch: riscv64
+            toolchain: llvm
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -255,98 +161,89 @@ jobs:
       - uses: actions/checkout@v2
         with:
           submodules: "recursive"
+      
+      - run: |
+          # Add a modifier to ubuntu 18.04 LTS    
+          if [ "${{ matrix.os }}" = "ubuntu-18.04" ]; then
+            os_name_modifier="-ubuntu-18.04"
+          fi
 
-      - name: Cache
-        id: toolchain-cache-linux-llvm
+          case "${{ runner.os }}" in
+          Linux)
+            os_name="linux$os_name_modifier"
+            ;;
+          macOS)
+            os_name="macos"
+            ;;
+          esac
+
+          case "${{ matrix.toolchain }}" in
+          gnu)
+            toolchain_id_no_os="${{ matrix.target_arch }}-onyx"
+            ;;
+          llvm)
+            toolchain_id_no_os="onyx-llvm"
+            ;;
+          esac
+
+          echo "os_name=$os_name" >> $GITHUB_ENV
+          echo "toolchain_id_no_os=$toolchain_id_no_os" >> $GITHUB_ENV
+          echo "toolchain_id=${toolchain_id_no_os}-${os_name}" >> $GITHUB_ENV
+
+
+      - name: Cache (GNU toolchain)
+        if: ${{ matrix.toolchain }} = 'gnu'
+        id: toolchain-cache-gnu
         uses: actions/cache@v2.1.4
         with:
           # A list of files, directories, and wildcard patterns to cache and restore
           path: toolchain_binaries/
           # An explicit key for restoring and saving the cache
-          key: toolchain-linux-llvm-${{ hashFiles('toolchains/llvm-project-12.0.0.patch', 'toolchains/scripts/build_llvm.sh') }}
+          key: ${{ matrix.target_arch }}-toolchain-${{ matrix.os }}-${{ hashFiles('toolchains/binutils-2.35.patch', 'toolchains/gcc-10.2.0.patch',
+                'toolchains/scripts/build_toolchain.sh') }}
       
-      - name: Build toolchain
-        if: steps.toolchain-cache-linux-llvm.outputs.cache-hit != 'true'
-        run: |
-          sudo apt-get update && sudo apt-get install libmpc-dev libgmp3-dev bison flex libmpfr-dev zstd ninja-build clang lld
-          cp kernel/kernel.config.example kernel/kernel.config
-          curl -O https://storage.googleapis.com/onyx-stuffs/minimal-sysroot-x86_64.tar.zst
-          zstd -d minimal-sysroot-x86_64.tar.zst -c | tar xvf -
-          mkdir gn_bin/
-          cd gn_bin
-          wget -q https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/latest -O gn.zip
-          unzip gn.zip
-          echo "$PWD" >> $GITHUB_PATH
-          cd ..
-          export SYSROOT=$PWD/sysroot
-          export ONYX_ARCH=x86_64
-          ./scripts/setup_build.sh
-          make install-headers -j $(nproc)
-          rm -rf toolchain_binaries
-          mkdir toolchain_binaries
-          ./toolchains/scripts/build_llvm.sh toolchain_build toolchain_binaries
-
-      - name: Compress toolchain
-        run: |
-          mv toolchain_binaries onyx-llvm
-          tar cvf onyx-linux-llvm.tar onyx-llvm
-          zstd -T0 -17 onyx-linux-llvm.tar -o onyx-linux-llvm.tar.zst
-          mv onyx-llvm toolchain_binaries
-
-      - name: Upload a Build Artifact (onyx-linux-llvm)
-        uses: actions/upload-artifact@v2.1.4
-        with:
-          name: onyx-linux-llvm
-          path: onyx-linux-llvm.tar.zst
-  build-riscv64-toolchain-linux:
-    # The type of runner that the job will run on
-    runs-on: ubuntu-latest
-
-    # Steps represent a sequence of tasks that will be executed as part of the job
-    steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v2
-        with:
-          submodules: "recursive"
-
-      - name: Cache
-        id: toolchain-cache-linux
+      - name: Cache (LLVM toolchain)
+        if: ${{ matrix.toolchain }} = 'llvm'
+        id: toolchain-cache-llvm
         uses: actions/cache@v2.1.4
         with:
           # A list of files, directories, and wildcard patterns to cache and restore
           path: toolchain_binaries/
           # An explicit key for restoring and saving the cache
-          key: toolchain-linux-${{ hashFiles('toolchains/binutils-2.35.patch', 'toolchains/gcc-10.2.0.patch') }}
-      
+          key: ${{ matrix.target_arch }}-toolchain-${{ matrix.os }}-${{ hashFiles('toolchains/llvm-project-12.0.0.patch',
+                'toolchains/scripts/build_toolchain.sh') }}
+  
       - name: Build toolchain
-        if: steps.toolchain-cache-linux.outputs.cache-hit != 'true'
+        if: (steps.toolchain-cache-gnu.outputs.cache-hit != 'true' && ${{ matrix.toolchain }} == 'gnu') ||
+            (steps.toolchain-cache-llvm.outputs.cache-hit != 'true' && ${{ matrix.toolchain }} == 'llvm')
         run: |
-          sudo apt-get update && sudo apt-get install libmpc-dev libgmp3-dev bison flex libmpfr-dev zstd
+          scripts/ci/install_github_ci_deps.sh
           cp kernel/kernel.config.example kernel/kernel.config
-          curl -O https://storage.googleapis.com/onyx-stuffs/minimal-sysroot-riscv64.tar.zst
-          zstd -d minimal-sysroot-riscv64.tar.zst -c | tar xvf -
-          mkdir gn_bin/
-          cd gn_bin
-          wget -q https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/latest -O gn.zip
-          unzip gn.zip
-          echo "$PWD" >> $GITHUB_PATH
-          cd ..
+          curl -O https://storage.googleapis.com/onyx-stuffs/minimal-sysroot-${{ matrix.target_arch }}.tar.zst
+          zstd -d minimal-sysroot-${{ matrix.target_arch }}.tar.zst -c | tar xvf -
+          echo "$PWD/gn_bin" >> $GITHUB_PATH
+
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            export PATH="/usr/local/opt/gnu-getopt/bin:$(brew --prefix)/opt/coreutils/libexec/gnubin:$(brew --prefix)/opt/make/libexec/gnubin:$PATH"
+          fi
+
           export SYSROOT=$PWD/sysroot
-          export ONYX_ARCH=riscv64
+          export ONYX_ARCH=${{ matrix.target_arch }}
           ./scripts/setup_build.sh
-          make install-headers -j $(nproc)
+          make install-headers -j 2
           mkdir toolchain_binaries
-          ./toolchains/scripts/build_gcc.sh toolchain_build toolchain_binaries -a riscv64
+          ./toolchains/scripts/build_toolchain.sh toolchain_build toolchain_binaries -a ${{ matrix.target_arch }} --toolchain=${{ matrix.toolchain }}
 
       - name: Compress toolchain
         run: |
-          mv toolchain_binaries riscv64-onyx
-          tar cvf riscv64-onyx-linux.tar riscv64-onyx
-          zstd -T0 -13 riscv64-onyx-linux.tar -o riscv64-onyx-linux.tar.zst
-          mv riscv64-onyx toolchain_binaries
+          mv toolchain_binaries ${{ env.toolchain_id_no_os }}
+          tar cvf ${{ env.toolchain_id }}.tar ${{ env.toolchain_id_no_os }}
+          zstd -T0 -13 ${{ env.toolchain_id }}.tar -o ${{ env.toolchain_id }}.tar.zst
+          # We move the binaries back to toolchain_binaries due to the cache we previously set up
+          mv ${{ env.toolchain_id_no_os }} toolchain_binaries
 
-      - name: Upload a Build Artifact (riscv64-onyx-linux)
+      - name: Upload the toolchain
         uses: actions/upload-artifact@v2.1.4
         with:
-          name: riscv64-onyx-linux
-          path: riscv64-onyx-linux.tar.zst
+          name: ${{ env.toolchain_id }}
+          path: ${{ env.toolchain_id }}.tar.zst
