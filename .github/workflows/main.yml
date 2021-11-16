@@ -39,8 +39,8 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install libmpc-dev libgmp3-dev bison flex libmpfr-dev zstd
           cp kernel/kernel.config.example kernel/kernel.config
-          curl -O https://storage.googleapis.com/onyx-stuffs/minimal-sysroot.tar.zst
-          zstd -d minimal-sysroot.tar.zst -c | tar xvf -
+          curl -O https://storage.googleapis.com/onyx-stuffs/minimal-sysroot-x86_64.tar.zst
+          zstd -d minimal-sysroot-x86_64.tar.zst -c | tar xvf -
           mkdir gn_bin/
           cd gn_bin
           wget -q https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/latest -O gn.zip
@@ -215,8 +215,8 @@ jobs:
           run: |
             brew install zstd gmp mpfr libmpc wget unzip make ninja coreutils
             cp kernel/kernel.config.example kernel/kernel.config
-            curl -O https://storage.googleapis.com/onyx-stuffs/minimal-sysroot.tar.zst
-            zstd -d minimal-sysroot.tar.zst -c | tar xvf -
+            curl -O https://storage.googleapis.com/onyx-stuffs/minimal-sysroot-x86_64.tar.zst
+            zstd -d minimal-sysroot-x86_64.tar.zst -c | tar xvf -
             mkdir gn_bin/
             cd gn_bin
             wget -q https://chrome-infra-packages.appspot.com/dl/gn/gn/mac-amd64/+/latest -O gn.zip
@@ -270,8 +270,8 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install libmpc-dev libgmp3-dev bison flex libmpfr-dev zstd ninja-build clang lld
           cp kernel/kernel.config.example kernel/kernel.config
-          curl -O https://storage.googleapis.com/onyx-stuffs/minimal-sysroot.tar.zst
-          zstd -d minimal-sysroot.tar.zst -c | tar xvf -
+          curl -O https://storage.googleapis.com/onyx-stuffs/minimal-sysroot-x86_64.tar.zst
+          zstd -d minimal-sysroot-x86_64.tar.zst -c | tar xvf -
           mkdir gn_bin/
           cd gn_bin
           wget -q https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/latest -O gn.zip
@@ -298,3 +298,55 @@ jobs:
         with:
           name: onyx-linux-llvm
           path: onyx-linux-llvm.tar.zst
+  build-riscv64-toolchain-linux:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v2
+        with:
+          submodules: "recursive"
+
+      - name: Cache
+        id: toolchain-cache-linux
+        uses: actions/cache@v2.1.4
+        with:
+          # A list of files, directories, and wildcard patterns to cache and restore
+          path: toolchain_binaries/
+          # An explicit key for restoring and saving the cache
+          key: toolchain-linux-${{ hashFiles('toolchains/binutils-2.35.patch', 'toolchains/gcc-10.2.0.patch') }}
+      
+      - name: Build toolchain
+        if: steps.toolchain-cache-linux.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update && sudo apt-get install libmpc-dev libgmp3-dev bison flex libmpfr-dev zstd
+          cp kernel/kernel.config.example kernel/kernel.config
+          curl -O https://storage.googleapis.com/onyx-stuffs/minimal-sysroot-riscv64.tar.zst
+          zstd -d minimal-sysroot-riscv64.tar.zst -c | tar xvf -
+          mkdir gn_bin/
+          cd gn_bin
+          wget -q https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/latest -O gn.zip
+          unzip gn.zip
+          echo "$PWD" >> $GITHUB_PATH
+          cd ..
+          export SYSROOT=$PWD/sysroot
+          export ONYX_ARCH=riscv64
+          ./scripts/setup_build.sh
+          make install-headers -j $(nproc)
+          mkdir toolchain_binaries
+          ./toolchains/scripts/build_gcc.sh toolchain_build toolchain_binaries -a riscv64
+
+      - name: Compress toolchain
+        run: |
+          mv toolchain_binaries riscv64-onyx
+          tar cvf riscv64-onyx-linux.tar riscv64-onyx
+          zstd -T0 -13 riscv64-onyx-linux.tar -o riscv64-onyx-linux.tar.zst
+          mv riscv64-onyx toolchain_binaries
+
+      - name: Upload a Build Artifact (riscv64-onyx-linux)
+        uses: actions/upload-artifact@v2.1.4
+        with:
+          name: riscv64-onyx-linux
+          path: riscv64-onyx-linux.tar.zst
