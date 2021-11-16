@@ -3,14 +3,14 @@
 name: CI
 
 # Controls when the action will run. Triggers the workflow on push or pull request
-# events but only for the master branch
+# events but only for the master branch and riscv
 on:
   push:
-    branches: [ master ]
+    branches: [ master, riscv]
   pull_request:
-    branches: [ master ]
+    branches: [ master, riscv]
   release:
-    branches: [ master ]
+    branches: [ master, riscv]
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -213,7 +213,7 @@ jobs:
         - name: Build toolchain
           if: steps.toolchain-cache-macos.outputs.cache-hit != 'true'
           run: |
-            brew install zstd gmp mpfr libmpc wget unzip make ninja coreutils
+            brew install zstd gmp mpfr libmpc wget unzip make ninja coreutils gnu-getopt
             cp kernel/kernel.config.example kernel/kernel.config
             curl -O https://storage.googleapis.com/onyx-stuffs/minimal-sysroot-x86_64.tar.zst
             zstd -d minimal-sysroot-x86_64.tar.zst -c | tar xvf -
@@ -223,7 +223,7 @@ jobs:
             unzip gn.zip
             echo $PATH
             PATH="$PWD:$PATH"
-            PATH="$(brew --prefix)/opt/coreutils/libexec/gnubin:$(brew --prefix)/opt/make/libexec/gnubin:$PATH"
+            PATH="/usr/local/opt/gnu-getopt/bin:$(brew --prefix)/opt/coreutils/libexec/gnubin:$(brew --prefix)/opt/make/libexec/gnubin:$PATH"
             echo "TEST: $PATH"
             cd ..
             export SYSROOT=$PWD/sysroot
