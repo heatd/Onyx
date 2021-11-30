@@ -50,6 +50,8 @@ CPPFLAGS:=$(CPPFLAGS) --sysroot=../libc -D__is_onyx_kernel -D_POSIX_C_SOURCE \
 include/onyx/config.h
 
 LDFLAGS:=$(LDFLAGS) -fkeep-inline-functions -Wl,--build-id=none
+LIBGCC_PATH:=$(shell $(CC) $(CFLAGS)  $(LDFLAGS) -print-libgcc-file-name)
+
 LIBS:=$(LIBS) -nostdlib -lk $(LIBGCC_PATH)
 ARCHDIR:=arch/$(HOSTARCH)
 
@@ -116,7 +118,7 @@ CLANG_TIDY_CFLAGS:=$(filter-out -mnop-mcount -mrecord-mcount -mrecord-return \
 	-Wno-error=frame-address -minstrument-return=nop5 \
 	-Wno-cast-function-type -Wno-format-truncation -Wshadow-compatible-local, $(CFLAGS))
 
-RUN_CLANG_TIDY?=1
+RUN_CLANG_TIDY?=0
 
 ifeq ($(RUN_CLANG_TIDY), 1)
 CLANG_TIDY:=@-clang-tidy --color -checks=$(CLANG_TIDY_CHECKS)
@@ -141,16 +143,15 @@ CRTI_OBJ:=../sysroot/usr/lib/crti.o
 CFLAGS_FOR_LINK:=$(CFLAGS)
 
 ifneq ($(ONYX_USING_CLANG), yes)
+# NOTE: We may not really want this
 CRTBEGIN_OBJ:=$(shell $(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=crtbeginS.o)
 CRTEND_OBJ:=$(shell $(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=crtendS.o)
 LDFLAGS:=$(LDFLAGS) -no-pie
-LIBS:=$(LIBS) -lgcc
 else
 LDFLAGS:=$(LDFLAGS) -fno-sanitize-link-runtime -Wl,-no-pie
 CFLAGS_FOR_LINK:=$(filter-out -mllvm -asan-instrumentation-with-call-threshold=0, $(CFLAGS_FOR_LINK))
 endif
 
-LIBGCC_PATH:=$(shell $(CC) $(CFLAGS)  $(LDFLAGS) -print-libgcc-file-name)
 CRTN_OBJ:=../sysroot/usr/lib/crtn.o
 
 ifeq ($(ARCH_NO_CRTI_N), 1)
@@ -225,7 +226,7 @@ kernel/ssp.o: kernel/ssp.cpp kernel.config
 
 %.o: %.S kernel.config
 	@echo [AS] $<
-	@$(CC) -c $(CPPFLAGS) -o $@ $<
+	@$(CC) -c $(CFLAGS) $(CPPFLAGS) -o $@ $<
 
 %.o: %.cpp kernel.config
 	@echo [CXX] $<
