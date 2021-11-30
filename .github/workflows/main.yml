@@ -12,22 +12,17 @@ on:
   release:
     branches: [ master, riscv]
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
   build:
-    # The type of runner that the job will run on
     runs-on: ubuntu-latest
     needs: build-toolchains
-    # Steps represent a sequence of tasks that will be executed as part of the job
+
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
         with:
           submodules: "recursive"
         
 
-      # Runs a single command using the runners shell
       - name: Download the x86_64-onyx-linux toolchain
         uses: actions/download-artifact@v2.0.8
         with:
@@ -136,9 +131,73 @@ jobs:
         with:
           name: Sysroot-llvm
           path: sysroot/
+  
+  # Builds a minimal sysroot, with headers and the libc. Supposed to be used when building a toolchain.
+  # In this case, we limit ourselves to building a stage 1 GNU toolchain since LLVM is far slower to build,
+  # and I'm not sure if it even supports building without a sysroot.
+  build-minimal-sysroots:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        target_arch: [x86_64, riscv64]
+  
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: "recursive"
+
+      - name: Cache (GNU toolchain)
+        id: toolchain-cache-gnu
+        uses: actions/cache@v2.1.4
+        with:
+          # A list of files, directories, and wildcard patterns to cache and restore
+          path: toolchain_binaries-gnu-stage1/
+          # An explicit key for restoring and saving the cache
+          key: ${{ matrix.target_arch }}-toolchain-${{ hashFiles('toolchains/binutils-2.35.patch', 'toolchains/gcc-10.2.0.patch',
+                'toolchains/scripts/build_toolchain.sh') }}
+
+      - name: Setup environment
+        run: |
+          scripts/ci/install_github_ci_deps.sh
+
+          echo "$PWD/gn_bin" >> $GITHUB_PATH
+          echo "$PWD/toolchain_binaries-gnu-stage1/bin" >> $GITHUB_PATH
+
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            echo "/usr/local/opt/gnu-getopt/bin:$(brew --prefix)/opt/coreutils/libexec/gnubin:$(brew --prefix)/opt/make/libexec/gnubin" >> $GITHUB_PATH
+          fi
+
+      - name: Build toolchain
+        if: steps.toolchain-cache-gnu.outputs.cache-hit != 'true'
+        run: |
+          export SYSROOT=$PWD/sysroot
+          export ONYX_ARCH=${{ matrix.target_arch }}
+          mkdir toolchain_binaries-gnu-stage1
+          ./toolchains/scripts/build_toolchain.sh --no-libc toolchain_build toolchain_binaries-gnu-stage1 \
+          -a ${{ matrix.target_arch }}
+
+      - name: Build sysroot
+        run: |
+          export ONYX_ARCH=${{ matrix.target_arch }}
+          cp kernel/kernel.config.example kernel/kernel.config
+          ./scripts/setup_build.sh
+          make install-headers -j $(nproc)
+          ./scripts/build_libc_for_toolchain.sh
+          tar cvf minimal-sysroot-${{ matrix.target_arch }}.tar sysroot/
+          zstd -T0 -15 minimal-sysroot-${{ matrix.target_arch }}.tar
+
+      - name: Upload the minimal sysroot
+        uses: actions/upload-artifact@v2.1.4
+        with:
+          name: minimal-sysroot-${{ matrix.target_arch }}
+          path: minimal-sysroot-${{ matrix.target_arch }}.tar.zst
+
 
   build-toolchains:
     runs-on: ${{ matrix.os }}
+    needs: build-minimal-sysroots
 
     strategy:
       fail-fast: false
@@ -154,13 +213,21 @@ jobs:
           # In fact, there's no onyx llvm port for riscv64 right now.
           - target_arch: riscv64
             toolchain: llvm
-
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
         with:
           submodules: "recursive"
+      
+      - name: Download the minimal sysroot
+        uses: actions/download-artifact@v2.0.8
+        with:
+          # Artifact name
+          name: minimal-sysroot-${{ matrix.target_arch}}
+
+      - name: Extract minimal sysroot
+        run: |
+          zstd -d minimal-sysroot-${{ matrix.target_arch}}.tar.zst --stdout | tar x
       
       - run: |
           # Add a modifier to ubuntu 18.04 LTS    
@@ -189,38 +256,38 @@ jobs:
           echo "os_name=$os_name" >> $GITHUB_ENV
           echo "toolchain_id_no_os=$toolchain_id_no_os" >> $GITHUB_ENV
           echo "toolchain_id=${toolchain_id_no_os}-${os_name}" >> $GITHUB_ENV
+          echo "cache-version=\"-v2\"" >> $GITHUB_ENV  # Used to invalidate previous caches, when needed.
 
 
       - name: Cache (GNU toolchain)
-        if: ${{ matrix.toolchain }} = 'gnu'
+        if: matrix.toolchain == 'gnu'
         id: toolchain-cache-gnu
         uses: actions/cache@v2.1.4
         with:
           # A list of files, directories, and wildcard patterns to cache and restore
           path: toolchain_binaries-gnu/
           # An explicit key for restoring and saving the cache
-          key: ${{ matrix.target_arch }}-toolchain-${{ matrix.os }}-${{ hashFiles('toolchains/binutils-2.35.patch', 'toolchains/gcc-10.2.0.patch',
-                'toolchains/scripts/build_toolchain.sh') }}
+          key: ${{ matrix.target_arch }}-toolchain-${{ matrix.os }}${{ env.cache-version }}-${{ hashFiles('toolchains/binutils-2.35.patch',
+                'toolchains/gcc-10.2.0.patch', 'toolchains/scripts/build_toolchain.sh') }}
       
       - name: Cache (LLVM toolchain)
-        if: ${{ matrix.toolchain }} = 'llvm'
+        if: matrix.toolchain == 'llvm'
         id: toolchain-cache-llvm
         uses: actions/cache@v2.1.4
         with:
           # A list of files, directories, and wildcard patterns to cache and restore
           path: toolchain_binaries-llvm/
           # An explicit key for restoring and saving the cache
-          key: ${{ matrix.target_arch }}-toolchain-${{ matrix.os }}-${{ hashFiles('toolchains/llvm-project-12.0.0.patch',
+          key: ${{ matrix.target_arch }}-toolchain-${{ matrix.os }}${{ env.cache-version }}-${{ hashFiles('toolchains/llvm-project-12.0.0.patch',
                 'toolchains/scripts/build_toolchain.sh') }}
   
       - name: Build toolchain
-        if: (steps.toolchain-cache-gnu.outputs.cache-hit != 'true' && ${{ matrix.toolchain }} == 'gnu') ||
-            (steps.toolchain-cache-llvm.outputs.cache-hit != 'true' && ${{ matrix.toolchain }} == 'llvm')
+        if: (steps.toolchain-cache-gnu.outputs.cache-hit != 'true' && matrix.toolchain == 'gnu') ||
+            (steps.toolchain-cache-llvm.outputs.cache-hit != 'true' && matrix.toolchain == 'llvm')
         run: |
           scripts/ci/install_github_ci_deps.sh
           cp kernel/kernel.config.example kernel/kernel.config
-          curl -O https://storage.googleapis.com/onyx-stuffs/minimal-sysroot-${{ matrix.target_arch }}.tar.zst
-          zstd -d minimal-sysroot-${{ matrix.target_arch }}.tar.zst -c | tar xvf -
+          export PATH="$PATH:$PWD/gn_bin"
           echo "$PWD/gn_bin" >> $GITHUB_PATH
 
           if [ "$RUNNER_OS" = "macOS" ]; then
@@ -230,10 +297,12 @@ jobs:
           export SYSROOT=$PWD/sysroot
           export ONYX_ARCH=${{ matrix.target_arch }}
           ./scripts/setup_build.sh
-          make install-headers -j 2
           mkdir toolchain_binaries-${{ matrix.toolchain }}
-          ./toolchains/scripts/build_toolchain.sh toolchain_build toolchain_binaries-${{ matrix.toolchain }} \
-          -a ${{ matrix.target_arch }} --toolchain=${{ matrix.toolchain }}
+          if ! ./toolchains/scripts/build_toolchain.sh toolchain_build toolchain_binaries-${{ matrix.toolchain }} \
+            -a ${{ matrix.target_arch }} --toolchain=${{ matrix.toolchain }}; then
+            rm -rf toolchain_binaries-${{ matrix.toolchain }}
+            exit 1
+          fi
 
       - name: Compress toolchain
         run: |

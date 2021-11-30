@@ -14,14 +14,14 @@
 #define get_per_cpu(var) 			\
 ({						\
 	unsigned long val;			\
-	__asm__ __volatile__(RISCV_PREPARE_TLS_ADDRESS " ld %0, a0" : "=r"(val) : "i"(&var) : "a0"); 	\
+	__asm__ __volatile__(RISCV_PREPARE_TLS_ADDRESS " ld %0, (a0)" : "=r"(val) : "i"(&var) : "a0"); 	\
 	(__typeof__(var)) val;			\
 })
 
 #define get_per_cpu_no_cast(var) 			\
 ({						\
 	unsigned long val;			\
-	__asm__ __volatile__(RISCV_PREPARE_TLS_ADDRESS " ld %0, a0" : "=r"(val) : "i"(&var) : "a0"); 	\
+	__asm__ __volatile__(RISCV_PREPARE_TLS_ADDRESS " ld %0, (a0)" : "=r"(val) : "i"(&var) : "a0"); 	\
 	val;			\
 })
 

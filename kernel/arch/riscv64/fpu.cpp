@@ -6,6 +6,7 @@
 
 #include <onyx/fpu.h>
 
+// FIXME: STUB
 void setup_fpu_area(unsigned char *address){}
 void save_fpu(void *address){}
 void restore_fpu(void *address){}

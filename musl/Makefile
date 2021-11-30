@@ -74,7 +74,7 @@ ALL_TOOLS = obj/musl-gcc
 WRAPCC_GCC = gcc
 WRAPCC_CLANG = clang
 
-LDSO_PATHNAME = $(syslibdir)/ld-onyx.so
+LDSO_PATHNAME = $(syslibdir)/ld-onyx-$(ARCH)$(SUBARCH).so
 
 -include config.mak
 -include $(srcdir)/arch/$(ARCH)/arch.mak
@@ -211,7 +211,7 @@ $(DESTDIR)$(includedir)/%: $(srcdir)/include/%
 	$(INSTALL) -D -m 644 $< $@
 
 $(DESTDIR)$(LDSO_PATHNAME): $(DESTDIR)$(libdir)/libc.so
-	$(INSTALL) -D -l libc.so $@ || true
+	$(INSTALL) -D -l "${libc_so_prefix}libc.so" $@ || true
 
 $(DESTDIR)$(bindir)/ldd: $(DESTDIR)$(LDSO_PATHNAME)
 	$(INSTALL) -D -l $(LDSO_PATHNAME) $@ || true
