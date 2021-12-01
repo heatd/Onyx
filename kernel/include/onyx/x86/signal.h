@@ -20,6 +20,7 @@
 struct __sigcontext
 {
 	unsigned long uc_flags;
+	void *uc_unused_link;
 	stack_t uc_stack;
 	mcontext_t uc_mcontext;
 	sigset_t uc_sigmask;
