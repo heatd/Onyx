@@ -139,9 +139,6 @@ bool signal_is_unblockable(int signum)
 
 void do_default_signal(int signum, struct sigpending *pend)
 {
-	auto curr = get_current_process();
-	auto thread = get_current_thread();
-
 	
 	/* For realtime signals (which we don't include in the dfl_signal_handlers), the default action
 	 * is to terminate the process.
@@ -155,13 +152,6 @@ void do_default_signal(int signum, struct sigpending *pend)
 		dfl_signal_handlers[signum](signum);
 		return;
 	}
-
-	/* We need to unlock the signal table lock, because we're going to get killed
-	 * in a moment, and having a pending lock just isn't too pretty, you know.
-	 */
-
-	spin_unlock(&thread->sinfo.lock);
-	spin_unlock(&curr->signal_lock);
 
 	dfl_signal_handlers[signum](signum);
 
@@ -315,6 +305,9 @@ bool deliver_signal(int signum, struct sigpending *pending, struct registers *re
 		sigaddset(&new_blocked, signum);
 	}
 
+	// Re-lock it
+	scoped_lock g{thread->sinfo.lock};
+
 	thread->sinfo.__add_blocked(&new_blocked);
 
 	signal_unqueue(signum, thread);
@@ -376,7 +369,16 @@ void handle_signal(struct registers *regs)
 
 		assert(pending != NULL);
 
-		if(deliver_signal(signum, pending, regs))
+		// We need to unlock and relock the process and thread signal locks due to copy_to/from_user, which may sleep
+		g2.unlock();
+		g.unlock();
+
+		bool defer = deliver_signal(signum, pending, regs);
+		
+		g.lock();
+		g2.lock();
+		
+		if (defer)
 			break;
 	}
 
