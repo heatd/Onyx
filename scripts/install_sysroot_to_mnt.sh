@@ -16,6 +16,6 @@ cp -rTv sysroot/ $PWD/temp_sysroot
 
 ./scripts/install_compiler_slibs.sh $PWD/temp_sysroot
 
-sudo cp -rTv $PWD/temp_sysroot $MNTROOT
+cp -rTv $PWD/temp_sysroot $MNTROOT
 
 rm -rf temp_sysroot

@@ -6,5 +6,6 @@ group("utils") {
         "ping",
         "printenv",
         "uuidgen",
+        "pmap",
     ]
 }

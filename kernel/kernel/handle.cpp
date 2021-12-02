@@ -143,7 +143,7 @@ extern "C" ssize_t sys_onx_handle_query(int handle, void *buffer, ssize_t len, u
 
 	auto st = handleable->query(buffer, len, what, &howmany_kernel, arg);
 
-	if(st == -ENOSPC && howmany != nullptr)
+	if(howmany != nullptr)
 	{
 		if(copy_to_user(howmany, &howmany_kernel, sizeof(size_t)) < 0)
 			return -EFAULT;

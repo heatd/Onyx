@@ -107,7 +107,9 @@ CLANG_TIDY_CHECKS:="performance*, modernize-pass-by-value, readability*, misc*, 
 		clang-analyzer-optin.performance.Padding, modernize-use-override, \
 		-bugprone-reserved-identifier, -misc-no-recursion"
 
-CXXFLAGS:=-fno-rtti -fno-exceptions -fcheck-new
+# TODO: Fix -Wno-mismatched-new-delete cases
+CXXFLAGS:=-fno-rtti -fno-exceptions -fcheck-new -Wno-mismatched-new-delete
+
 CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS) -D ACPI_LIBRARY -Wno-error=deprecated-declarations
 LDFLAGS:=$(LDFLAGS) $(KERNEL_ARCH_LDFLAGS)
 LIBS:=$(LIBS) $(KERNEL_ARCH_LIBS)

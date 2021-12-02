@@ -34,6 +34,7 @@
 #include <onyx/utils.h>
 #include <onyx/scoped_lock.h>
 #include <onyx/pid.h>
+#include <onyx/dentry.h>
 
 #include <pthread_kernel.h>
 
@@ -1172,7 +1173,116 @@ ssize_t process::query(void *ubuf, ssize_t len, unsigned long what, size_t *howm
 			return query_get_strings(ubuf, len, what, howmany, arg);
 		case PROCESS_GET_MM_INFO:
 			return query_mm_info(ubuf, len, what, howmany, arg);
+		case PROCESS_GET_VM_REGIONS:
+			return query_vm_regions(ubuf, len, what, howmany, arg);
 		default:
 			return -EINVAL;
 	}
+}
+
+/**
+  * @brief Handles the PROCESS_GET_VM_REGIONS query.
+  * 
+  * @param ubuf User pointer to the buffer.
+  * @param len Length of the buffer, in bytes.
+  * @param what What query is this.
+  * @param howmany Pointer to a variable that will be updated with the number of
+  *                written or to-write bytes. 
+  * @param arg Unused in query_mm_info.
+  * @return Number of bytes written, or negative error code.
+  */
+ssize_t process::query_vm_regions(void *ubuf, ssize_t len, unsigned long what, size_t *howmany, void *arg)
+{
+	scoped_mutex g{address_space.vm_lock};
+	size_t needed_len = 0;
+
+	vm_for_every_region(address_space, [&](vm_region *region) -> bool
+	{
+		needed_len += sizeof(onx_process_vm_region);
+
+		if (is_file_backed(region))
+		{
+			auto path = dentry_to_file_name(region->fd->f_dentry);
+
+			needed_len += strlen(path) + 1;
+			free(path);
+		}
+
+		if (needed_len % alignof(onx_process_vm_region))
+		{
+			needed_len = ALIGN_TO(needed_len, alignof(onx_process_vm_region));
+		}
+
+		return true;
+	});
+
+	*howmany = needed_len;
+
+	if ((size_t) len < needed_len)
+	{
+		return -ENOSPC;
+	}
+
+	// Allocate a big buffer to serve as a temporary buffer.
+	// Note that we can't copy things directly, because we hold the address space lock and
+	// a copy_to_user may trigger a page fault, and then we would not be able to resolve it,
+	// as the page fault handling code needs to hold the lock as well.
+	cul::vector<char> buf;
+	if (!buf.resize(needed_len))
+		return -ENOMEM;
+
+	// Note: since we hold the lock, the underlying data structure doesn't change,
+	// and so, we have no risk of overflowing the buffer with more data.
+	char *ptr = &buf[0];
+
+	vm_for_every_region(address_space, [&](vm_region *region) -> bool
+	{
+		onx_process_vm_region *reg = (onx_process_vm_region *) ptr;
+		reg->size = sizeof(onx_process_vm_region);
+		reg->mapping_type = region->mapping_type;
+		reg->protection = 0;
+
+		if (region->rwx & VM_READ)
+			reg->protection |= VM_REGION_PROT_READ;
+		if (region->rwx & VM_WRITE)
+			reg->protection |= VM_REGION_PROT_WRITE;
+		if (!(region->rwx & VM_NOEXEC))
+			reg->protection |= VM_REGION_PROT_EXEC;
+		if (region->rwx & VM_NOCACHE)
+			reg->protection |= VM_REGION_PROT_NOCACHE;
+		if (region->rwx & VM_WRITETHROUGH)
+			reg->protection |= VM_REGION_PROT_WRITETHROUGH;
+		if (region->rwx & VM_WC)
+			reg->protection |= VM_REGION_PROT_WC;
+		if (region->rwx & VM_WP)
+			reg->protection |= VM_REGION_PROT_WP;
+		
+		reg->offset = region->offset;
+		reg->start = region->base;
+		reg->length = region->pages << PAGE_SHIFT;
+
+		if (is_file_backed(region))
+		{
+			auto path = dentry_to_file_name(region->fd->f_dentry);
+			strcpy(reg->name, path);
+			reg->size += strlen(path) + 1;
+		}
+		
+		if (reg->size % alignof(onx_process_vm_region))
+		{
+			reg->size = ALIGN_TO(reg->size, alignof(onx_process_vm_region));
+		}
+
+		ptr += reg->size;
+
+		return true;
+	});
+
+	// We can't hold the lock anymore, due to the aforementioned reason.
+	g.unlock();
+
+	if (copy_to_user(ubuf, buf.begin(), needed_len) < 0)
+		return -EFAULT;
+
+	return needed_len;
 }

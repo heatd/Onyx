@@ -6,6 +6,9 @@
 #ifndef _LIBONYX_HANDLE_H
 #define _LIBONYX_HANDLE_H
 
+#include <stddef.h>
+#include <unistd.h>
+
 #include <onyx/public/handle.h>
 
 #ifdef __cplusplus
@@ -38,7 +41,7 @@ void onx_handle_close(int handle);
  * @param buffer The destination buffer
  * @param len The length of the buffer
  * @param what Implementation defined
- * @param howmany How many elements there where to be retrieved
+ * @param howmany How many elements there were to be retrieved
  * @param arg Implementation defined
  * @return ssize_t The length written, or -1 on error
  */

@@ -99,7 +99,7 @@ class linked_list
 private:
 	linked_list_node<T> *head, *tail;
 public:
-	linked_list<T>() : head(nullptr), tail(nullptr){}
+	linked_list() : head(nullptr), tail(nullptr){}
 
 	/* Low-level-ish interface to the linked list */
 	linked_list_node<T> *get_head() const

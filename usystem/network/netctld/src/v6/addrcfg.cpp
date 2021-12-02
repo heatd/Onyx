@@ -291,6 +291,7 @@ void solicit_router(const in6_addr& addr, int sockfd, instance& inst)
 	ssize_t len = 0;
 
 	struct sockaddr_in6 router_addr;
+	char buffer[200];
 	socklen_t ra_len = sizeof(router_addr);
 
 	while(true)
@@ -307,8 +308,6 @@ void solicit_router(const in6_addr& addr, int sockfd, instance& inst)
 		{
 			throw std::runtime_error("Timed out waiting for a router advertisement");
 		}
-
-		char buffer[200];
 
 		len = recvfrom(sockfd, buffer, sizeof(buffer), 0, (sockaddr *) &router_addr, &ra_len);
 		if(len < 0)
