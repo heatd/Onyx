@@ -331,7 +331,7 @@ static bool asan_visit_region(struct vm_region *region)
 
 void kasan_init(void)
 {
-	vm_for_every_region(&kernel_address_space, asan_visit_region);
+	vm_for_every_region(kernel_address_space, asan_visit_region);
 	kasan_is_init = true;
 }
 

@@ -108,8 +108,10 @@ struct vm_region
 };
 
 #define VM_OK			0x0
-#define VM_SIGBUS		0x1
-#define VM_SIGSEGV		0x2
+#define VM_SIGBUS		SIGBUS
+#define VM_SIGSEGV		SIGSEGV
+
+#define VM_BAD_PERMISSIONS    (1 << 0)
 
 struct fault_info
 {
@@ -119,7 +121,8 @@ struct fault_info
 	bool exec;
 	bool user;
 	uintptr_t ip;
-	int error;
+	int signal;
+	int error_info;
 };
 
 struct rb_tree;
@@ -828,5 +831,24 @@ struct page *vm_get_zero_page(void);
  * @param region A pointer to the vm_region.
  */
 void vm_make_anon(vm_region *region);
+
+template <typename Callable>
+static bool for_every_region_visit(const void *key, void *region, void *caller_data)
+{
+	Callable &c = *(Callable *) caller_data;
+	return c((vm_region *) region);
+}
+
+/**
+ * @brief Calls the specified function \p func on every region of the address space \p as.
+ * 
+ * @param as A reference to the target address space.
+ * @param func The callback.
+ */
+template <typename Callable>
+inline void vm_for_every_region(mm_address_space &as, Callable func)
+{
+	rb_tree_traverse(as.area_tree, for_every_region_visit<Callable>, &func);
+}
 
 #endif

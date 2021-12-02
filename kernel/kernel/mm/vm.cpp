@@ -1896,7 +1896,7 @@ int vm_handle_non_present_wp(struct fault_info *info, struct vm_pf_context *ctx)
 
 			if(st != VMO_STATUS_OK)
 			{
-				info->error = vmo_error_to_vm_error(st);
+				info->signal = vmo_error_to_vm_error(st);
 				return -1;
 			}
 
@@ -1951,7 +1951,7 @@ int vm_handle_non_present_copy_on_write(struct fault_info *info, struct vm_pf_co
 	vmo_status_t st = vmo_get_cow_page(vmo, vmo_off, &ctx->page);
 	if(st != VMO_STATUS_OK)
 	{
-		ctx->info->error = vmo_error_to_vm_error(st);
+		ctx->info->signal = vmo_error_to_vm_error(st);
 		return -1;
 	}
 
@@ -1982,7 +1982,7 @@ int vm_handle_non_present_pf(struct vm_pf_context *ctx)
 		vmo_status_t st = vm_pf_get_page_from_vmo(ctx);
 		if(st != VMO_STATUS_OK)
 		{
-			info->error = vmo_error_to_vm_error(st);
+			info->signal = vmo_error_to_vm_error(st);
 			return -1;
 		}
 	}
@@ -1991,7 +1991,7 @@ int vm_handle_non_present_pf(struct vm_pf_context *ctx)
 		page_to_phys(ctx->page), PAGE_SIZE, ctx->page_rwx | VM_NOFLUSH))
 	{
 		page_unpin(ctx->page);
-		info->error = VM_SIGSEGV;
+		info->signal = VM_SIGSEGV;
 		return -1;
 	}
 
@@ -2043,7 +2043,7 @@ int vm_handle_present_cow(struct vm_pf_context *ctx)
 	struct page *new_page = vmo_cow_on_page(vmo, vmo_off);
 	if(!new_page)
 	{
-		info->error = VM_SIGSEGV;
+		info->signal = VM_SIGSEGV;
 		return -1;
 	}
 
@@ -2051,7 +2051,7 @@ int vm_handle_present_cow(struct vm_pf_context *ctx)
 				page_to_phys(new_page), PAGE_SIZE, ctx->page_rwx))
 	{
 		page_unpin(new_page);
-		info->error = VM_SIGSEGV;
+		info->signal = VM_SIGSEGV;
 		return -1;
 	}
 
@@ -2142,7 +2142,7 @@ int vm_handle_page_fault(struct fault_info *info)
 	/* Surrender immediately if there's no user address space or the fault was inside vm code */
 	if(!as || mutex_holds_lock(&as->vm_lock))
 	{
-		info->error = VM_SIGSEGV;
+		info->signal = VM_SIGSEGV;
 		return -1;
 	}
 
@@ -2168,9 +2168,11 @@ int vm_handle_page_fault(struct fault_info *info)
 				current ? current->cmd_line.c_str() : "(kernel)");
 		}
 		
-		info->error = VM_SIGSEGV;
+		info->signal = VM_SIGSEGV;
 		return -1;
 	}
+
+	info->error_info = VM_BAD_PERMISSIONS;
 
 	if(info->write && !(entry->rwx & VM_WRITE))
 		return -1;
@@ -2180,31 +2182,13 @@ int vm_handle_page_fault(struct fault_info *info)
 		return -1;
 	if(info->read && !(entry->rwx & VM_READ))
 		return -1;
+	
+	info->error_info = 0;
 
 	__sync_add_and_fetch(&as->page_faults, 1);
 
 	int ret = __vm_handle_pf(entry, info);
 
-#if 0
-	if(ret < 0)
-	{
-		/* Lets send a signal */
-		unsigned int sig;
-		
-		switch(info->error)
-		{
-			case VM_SIGBUS:
-				sig = SIGBUS;
-				break;
-			case VM_SIGSEGV:
-			default:
-				sig = SIGSEGV;
-				break;
-		}
-
-		kernel_tkill(sig, get_current_thread());
-	}
-#endif
 	return ret;
 }
 
@@ -2511,15 +2495,22 @@ void vm_do_fatal_page_fault(struct fault_info *info)
 	if(is_user_mode)
 	{
 		struct process *current = get_current_process();
-		printk("SEGV at %016lx at ip %lx in process %u(%s)\n", 
+		printf("SEGV at %016lx at ip %lx in process %u(%s)\n", 
 			info->fault_address, info->ip,
 			current->get_pid(), current->cmd_line.c_str());
-		printk("Program base: %p\n", current->interp_base);
+		printf("Program base: %p\n", current->interp_base);
 
 		siginfo_t sinfo = {};
-		sinfo.si_code = SI_KERNEL;
+
+		if (info->signal == SIGSEGV) {
+			sinfo.si_code = info->error_info & VM_BAD_PERMISSIONS ? SEGV_ACCERR : SEGV_MAPERR;
+		} else if (info->signal == SIGBUS) {
+			// TODO: Add si_codes for sigbus
+			sinfo.si_code = SI_KERNEL;
+		}
+	
 		sinfo.si_addr = (void *) info->fault_address;
-		kernel_tkill(SIGSEGV, get_current_thread(), SIGNAL_FORCE, &sinfo);
+		kernel_tkill(info->signal, get_current_thread(), SIGNAL_FORCE, &sinfo);
 	}
 	else
 	{
@@ -3033,23 +3024,6 @@ int vm_munmap(struct mm_address_space *as, void *__addr, size_t size)
 {
 	scoped_mutex g{as->vm_lock};
 	return __vm_munmap(as, __addr, size);
-}
-
-static bool for_every_region_visit(const void *key, void *region, void *caller_data)
-{
-	bool (*func)(struct vm_region *) = (bool(*) (struct vm_region *)) caller_data;
-	return func((struct vm_region *) region);
-}
-
-/**
- * @brief Calls the specified function \p func on every region of the address space \p as.
- * 
- * @param as A pointer to the target address space.
- * @param func The callback.
- */
-void vm_for_every_region(struct mm_address_space *as, bool (*func)(struct vm_region *region))
-{
-	rb_tree_traverse(as->area_tree, for_every_region_visit, (void *) func);
 }
 
 #if CONFIG_TRACK_TLB_DELTA
@@ -3590,7 +3564,7 @@ int get_phys_pages_direct(unsigned long addr, unsigned int flags, struct page **
 int gpp_try_to_fault_in(unsigned long addr, struct vm_region *entry, unsigned int flags)
 {
 	struct fault_info finfo;
-	finfo.error = 0;
+	finfo.signal = 0;
 	finfo.exec = false;
 	finfo.fault_address = addr;
 	finfo.ip = 0;

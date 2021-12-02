@@ -132,7 +132,7 @@ void overflow_trap(struct registers *ctx)
 	struct thread *current = get_current_thread();
 
 	siginfo_t info = {};
-	info.si_code = SI_KERNEL;
+	info.si_code = SEGV_BNDERR;
 
 	kernel_tkill(SIGSEGV, current, SIGNAL_FORCE, &info);
 }
@@ -210,7 +210,7 @@ void stack_segment_fault(struct registers *ctx)
 	struct thread *current = get_current_thread();
 
 	siginfo_t info = {};
-	info.si_code = SI_KERNEL;
+	info.si_code = SEGV_BNDERR;
 
 	kernel_tkill(SIGSEGV, current, SIGNAL_FORCE, &info);
 }
@@ -247,7 +247,7 @@ void general_protection_fault(struct registers *ctx)
 	printk("GPF error code: %04x\n", (uint16_t) ctx->int_err_code);
 
 	siginfo_t info = {};
-	info.si_code = SI_KERNEL;
+	info.si_code = SEGV_MAPERR;
 
 	kernel_tkill(SIGSEGV, current, SIGNAL_FORCE, &info);
 }
@@ -271,6 +271,7 @@ void page_fault_handler(struct registers *ctx)
 	uint16_t error_code = ctx->int_err_code;
 
 	struct fault_info info;
+	info.signal = VM_SIGSEGV;
 	info.fault_address = fault_address;
 	info.write = error_code & 0x2;
 	info.read = info.write ? 0 : 1;
@@ -324,7 +325,7 @@ void alignment_check_excp(struct registers *ctx)
 	struct thread *current = get_current_thread();
 
 	siginfo_t info = {};
-	info.si_code = SI_KERNEL;
+	info.si_code = SEGV_ACCERR;
 
 	kernel_tkill(SIGSEGV, current, SIGNAL_FORCE, &info);
 }

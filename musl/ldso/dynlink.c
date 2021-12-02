@@ -1536,6 +1536,12 @@ static void update_tls_size()
 	tls_align);
 }
 
+void _dl_get_tls_static_info(size_t *size, size_t *align)
+{
+	*size = libc.tls_size;
+	*align = libc.tls_align;
+}
+
 static void install_new_tls(void)
 {
 	sigset_t set;

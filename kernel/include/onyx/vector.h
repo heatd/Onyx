@@ -153,6 +153,16 @@ public:
 		return alloc_buf(nr_elems * sizeof(T));
 	}
 
+	bool resize(size_t nr_elems)
+	{
+		if (!alloc_buf(nr_elems * sizeof(T)))
+			return false;
+
+		this->nr_elems = nr_elems;
+
+		return true;
+	}
+
 	bool push_back(const T& obj)
 	{
 		if(nr_elems >= buffer_size)
