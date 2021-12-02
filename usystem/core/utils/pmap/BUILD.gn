@@ -1,0 +1,14 @@
+import("//build/package.gni")
+
+executable("pmap_exec") {
+    sources = [ "pmap.cpp" ]
+    deps = [ "//lib/onyx" ]
+    output_name = "pmap"
+}
+
+package("pmap") {
+    deps = [ ":pmap_exec" ]
+
+    executables = [ "pmap" ]
+}
+

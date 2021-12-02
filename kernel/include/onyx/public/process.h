@@ -40,6 +40,8 @@ struct onx_process_mm_info
 
 struct onx_process_vm_region
 {
+    // onx_process_vm_region is variable in size
+    size_t size;
     uint64_t start;
     uint64_t length;
 
@@ -47,9 +49,10 @@ struct onx_process_vm_region
     uint32_t mapping_type;
     uint64_t offset;
 
-    char name[NAME_MAX + 1];
     // sha256 hash of the pointer
     unsigned char vmo_identifier[32];
+
+    char name[];
 };
 
 #define VM_REGION_PROT_READ 			(1 << 0)
