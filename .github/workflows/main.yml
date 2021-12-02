@@ -155,7 +155,7 @@ jobs:
           # A list of files, directories, and wildcard patterns to cache and restore
           path: toolchain_binaries-gnu-stage1/
           # An explicit key for restoring and saving the cache
-          key: ${{ matrix.target_arch }}-toolchain-${{ hashFiles('toolchains/binutils-2.35.patch', 'toolchains/gcc-10.2.0.patch',
+          key: ${{ matrix.target_arch }}-toolchain-${{ hashFiles('toolchains/binutils-2.37.patch', 'toolchains/gcc-11.2.0.patch',
                 'toolchains/scripts/build_toolchain.sh') }}
 
       - name: Setup environment
@@ -267,8 +267,8 @@ jobs:
           # A list of files, directories, and wildcard patterns to cache and restore
           path: toolchain_binaries-gnu/
           # An explicit key for restoring and saving the cache
-          key: ${{ matrix.target_arch }}-toolchain-${{ matrix.os }}${{ env.cache-version }}-${{ hashFiles('toolchains/binutils-2.35.patch',
-                'toolchains/gcc-10.2.0.patch', 'toolchains/scripts/build_toolchain.sh') }}
+          key: ${{ matrix.target_arch }}-toolchain-${{ matrix.os }}${{ env.cache-version }}-${{ hashFiles('toolchains/binutils-2.37.patch',
+                'toolchains/gcc-11.2.0.patch', 'toolchains/scripts/build_toolchain.sh') }}
       
       - name: Cache (LLVM toolchain)
         if: matrix.toolchain == 'llvm'
