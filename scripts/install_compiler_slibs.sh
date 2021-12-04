@@ -1,10 +1,10 @@
 #!/bin/sh
-
+set -e
 TEMP=$(getopt -o "s" --long 'strip,no-c++' -n 'install_compiler_slibs.sh' -- "$@")
 
 eval set -- "$TEMP"
 
-strip_libs=0
+strip_libs="0"
 no_cxx=0
 
 unset TEMP
@@ -14,18 +14,13 @@ while true; do
 		'-s'|'--strip')
 			strip_libs="1"
 			shift
-			continue
 		;;
 		'--no-c++')
 			no_cxx="1"
 			shift
-			continue
 		;;
 		'--')
 			shift
-			break
-		;;
-		*)
 			break
 		;;
 	esac
@@ -34,19 +29,7 @@ done
 
 DEST_PATH=$1
 
-COMPILER_TYPE="gcc"
-TOOLCHAIN_PATH=""
-
-if [ "$CLANG_PATH" != "" ]; then
-	TOOLCHAIN_PATH=$CLANG_PATH
-	COMPILER_TYPE="clang"
-else
-	# TODO: We should store the current toolchain's path somewhere, this sucks
-	
-	# Auto-detect the toolchain path from $HOST-gcc
-	TOOLCHAIN_PATH=$(dirname $(which $HOST-gcc))/..
-	COMPILER_TYPE="gcc"
-fi
+. scripts/toolchain/detect_toolchain.sh
 
 if [ "$COMPILER_TYPE" = "gcc" ]; then
 	LIB_PATH="$TOOLCHAIN_PATH/$HOST/lib/"
@@ -77,10 +60,12 @@ copy_libs() {
 		continue
 	fi
 
-	install -D -v $lib $2/$libname
+	mkdir -p --parents $(dirname $2/$libname)
+
+	cp -av $lib $2/$libname
 	if [ "$strip_libs" = "1" ]; then
-		#$STRIP $2/$libname
-		echo
+		$STRIP $2/$libname || true
+		echo "Stripped $libname"
 	fi
 done
 }
