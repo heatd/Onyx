@@ -837,7 +837,8 @@ void process_exit(unsigned int exit_code)
 		printk("Panic: %s exited with exit code %u!\n",
 			current->cmd_line.c_str(), exit_code);
 		irq_enable();
-		for(;;);
+		for(;;)
+			sched_sleep_ms(10000);
 	}
 
 	process_kill_other_threads();

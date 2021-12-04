@@ -49,11 +49,13 @@ else
 fi
 
 if [ "$COMPILER_TYPE" = "gcc" ]; then
-	LIB_PATH=$TOOLCHAIN_PATH/$HOST/lib
+	LIB_PATH="$TOOLCHAIN_PATH/$HOST/lib/"
 	LIBSTDCPP_NAME="libstdc++.so*"
 else
 	target_name="$ONYX_ARCH-unknown-onyx"
-	LIB_PATH=$TOOLCHAIN_PATH/lib/$target_name/c++
+	LIB_PATH="$TOOLCHAIN_PATH/lib/$target_name/"
+	CLANG_VERSION=$($TOOLCHAIN_PATH/bin/clang -dumpversion)
+	RUNTIME_LIBS="$TOOLCHAIN_PATH/lib/clang/$CLANG_VERSION/lib/$target_name/"
 	LIBSTDCPP_NAME="libc++.so*"
 	LIBCXXABI_NAME="libc++abi.so*"
 fi
@@ -61,8 +63,9 @@ fi
 DESTLIB=$DEST_PATH/usr/lib
 
 copy_libs() {
-	for lib in $1/*.so*; do
-	libname=$(basename $lib)
+	libs=$(find $1 -name "*.so*") 
+	for lib in $libs; do
+	libname=$(echo "$lib" | grep -oP "^$1\K.*")
 
 	# TODO: Match cxxabi.so
 
@@ -74,7 +77,7 @@ copy_libs() {
 		continue
 	fi
 
-	cp -v $lib $2
+	install -D -v $lib $2/$libname
 	if [ "$strip_libs" = "1" ]; then
 		#$STRIP $2/$libname
 		echo
@@ -85,13 +88,5 @@ done
 copy_libs $LIB_PATH $DESTLIB
 
 if [ "$COMPILER_TYPE" = "clang" ]; then
-	# We need to compile the sub-configurations we support
-	# Right now, it should only be asan/, noexcept and asan+noexcept, but we do
-	# it using a loop for extensibility
-	for dir in $LIB_PATH/*/; do
-		directory=$(realpath --relative-to=$LIB_PATH $dir)
-		mkdir -p $DESTLIB/$directory
-		copy_libs $dir $DESTLIB/$directory
-	done
-
+	copy_libs $RUNTIME_LIBS $DESTLIB
 fi

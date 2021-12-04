@@ -16,5 +16,5 @@ config("compiler_defaults") {
     # TODO: Add "-march=x86-64-v3" when we update the GCC version
     ldflags = cflags
 
-    configs = [":ubsan", ":asan"]
+    #configs = [":ubsan", ":asan"]
 }
