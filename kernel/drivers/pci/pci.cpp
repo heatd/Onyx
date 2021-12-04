@@ -413,6 +413,9 @@ void __pci_bus_register(struct driver *driver, struct bus *bus)
 			dev->addr().segment, dev->addr().bus, dev->addr().device, dev->addr().function,
 			dev->did(), dev->vid());
 #endif
+		// Bound, skip.
+		if(dev->driver_)
+			continue;
 
 		if((id = pci_driver_supports_device(driver, dev)))
 		{
