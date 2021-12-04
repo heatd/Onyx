@@ -100,12 +100,12 @@ yes | mkfs.$fs_type -L "Onyx.root" -d new_fs "$part_name"
 if [ "$no_disk" = "0" ]; then
     gpt_blocks="20"
     part_size=$(stat -c %s "$part_name")
-    nr_blocks=$(("$part_size" / 1024 + "$gpt_blocks"))
+    nr_blocks=$((part_size / 1024 + gpt_blocks))
     onyx_root_start_mb="1"
 
     if [ "$bootable" = "efi" ]; then
         ./scripts/build_grub_efi_image.sh
-        onyx_root_start_mb=$(("$onyx_root_start_mb" + 10))
+        onyx_root_start_mb=$((onyx_root_start_mb + 10))
         fallocate -l 10MiB esp.part
         mkfs.fat -n "ESP" esp.part
         mmd -i esp.part EFI

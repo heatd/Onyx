@@ -52,6 +52,7 @@ jobs:
           export ONYX_ARCH=x86_64
           ./scripts/setup_build.sh
           RUN_CLANG_TIDY=0 make -j $(nproc) iso
+          ./scripts/create_disk_image.sh disk-image.img --bootable efi
 
       - name: Upload a Build Artifact(Onyx.iso)
         uses: actions/upload-artifact@v2.1.4
@@ -65,11 +66,11 @@ jobs:
           name: vmonyx
           path: kernel/vmonyx
 
-      - name: Upload a Build Artifact(sysroot)
+      - name: Upload a Build Artifact(Disk image)
         uses: actions/upload-artifact@v2.1.4
         with:
-          name: Sysroot
-          path: sysroot/
+          name: Disk-image.img
+          path: disk-image.img
   
   build-llvm:
     # The type of runner that the job will run on
@@ -113,6 +114,7 @@ jobs:
           export ONYX_ARCH=x86_64
           ./scripts/setup_build.sh
           RUN_CLANG_TIDY=0 make -j $(nproc) iso
+          ./scripts/create_disk_image.sh disk-image-llvm.img --bootable efi
 
       - name: Upload a Build Artifact(Onyx.iso)
         uses: actions/upload-artifact@v2.1.4
@@ -126,11 +128,11 @@ jobs:
           name: vmonyx-llvm
           path: kernel/vmonyx
 
-      - name: Upload a Build Artifact(sysroot-llvm)
+      - name: Upload a Build Artifact(disk-image-llvm)
         uses: actions/upload-artifact@v2.1.4
         with:
-          name: Sysroot-llvm
-          path: sysroot/
+          name: Disk-image-llvm.img
+          path: disk-image-llvm.img
   
   # Builds a minimal sysroot, with headers and the libc. Supposed to be used when building a toolchain.
   # In this case, we limit ourselves to building a stage 1 GNU toolchain since LLVM is far slower to build,
