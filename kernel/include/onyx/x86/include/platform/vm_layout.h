@@ -15,7 +15,7 @@
 
 typedef enum
 {
-	arch_low_half_min  	= 0x400000,
+	arch_low_half_min  	= 0x200000,
 	arch_brk_base		= 0x80000000,
 	arch_mmap_base		= 0x0000550000000000,
 	arch_low_half_max  	= 0x00007fffffffffff,

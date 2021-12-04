@@ -730,12 +730,11 @@ bool paging_write_protect(void *addr, struct mm_address_space *mm)
 
 int is_invalid_arch_range(void *address, size_t pages)
 {
-	for(uintptr_t addr = (uintptr_t) address, i = 0; i < pages; ++i, addr += PAGE_SIZE)
-	{
-		// Non canonical
-		if(addr > arch_low_half_max && addr < VM_HIGHER_HALF)
-			return -1;
-	}
+	unsigned long addr = (unsigned long) address;
+	auto limit = addr + (pages << PAGE_SHIFT);
+
+	if (addr <= arch_low_half_max && limit >= VM_HIGHER_HALF)
+		return -1;
 	return 0;
 }
 

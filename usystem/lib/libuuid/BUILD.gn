@@ -6,6 +6,7 @@ config("libuuid_config") {
 
 config("libuuid_private") {
     defines = ["_POSIX_SOURCE"]
+    cflags = ["-fPIC"]
 }
 
 source_set("libuuid_sources") {

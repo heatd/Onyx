@@ -1,7 +1,7 @@
 import("//build/package.gni")
 
 config("init_config") {
-    cflags = ["-static", "-fno-sanitize=address"]
+    cflags = ["-static", "-fno-sanitize=address", "-fno-sanitize=undefined", "-static-libsan"]
     ldflags = cflags
 }
 
