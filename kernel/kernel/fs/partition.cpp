@@ -237,7 +237,6 @@ int partition_setup_disk_gpt(struct blockdev *dev)
 			goto out;
 		}
 
-		//printk("registered! lba %lu\n", e->first_lba);
 		nr_parts++;
 	}
 

@@ -112,6 +112,12 @@ irqstatus_t ahci_irq(struct irq_context *ctx, void *cookie)
 
 		if(ports & (1U << i))
 		{
+			if(!port->port)
+			{
+				panic("what? panic at the disco #%u", i);
+				return IRQ_UNHANDLED;
+			}
+
 			uint32_t port_is = port->port->interrupt_status;
 			port->port->interrupt_status = port_is;
 			dev->hba->interrupt_status = (1U << i);
@@ -901,6 +907,9 @@ void ahci_init_port(struct ahci_port *ahci_port)
 	struct ahci_device *device = ahci_port->dev;
 	ahci_hba_memory_regs_t *hba = device->hba;
 
+	// ACK old interrupts that might've gotten stuck
+	uint32_t port_is = port->interrupt_status;
+	port->interrupt_status = port_is;
 	/* Enable interrupts */
 	ahci_enable_interrupts_for_port(port);
 	
@@ -945,7 +954,7 @@ void ahci_init_port(struct ahci_port *ahci_port)
 
 	port->pxcmd = port->pxcmd | AHCI_PORT_CMD_START;
 
-	ahci_do_identify(ahci_port);
+	//ahci_do_identify(ahci_port);
 }
 
 int ahci_initialize(struct ahci_device *device)
@@ -954,9 +963,6 @@ int ahci_initialize(struct ahci_device *device)
 
 	/* Firstly, set the AE bit on the GHC register to indicate we're AHCI aware */
 	hba->ghc = hba->ghc | AHCI_GHC_AHCI_ENABLE;
-
-	/* Now, enable interrupts in the HBA */
-	hba->ghc = hba->ghc | AHCI_GHC_INTERRUPTS_ENABLE;
 
 	int nr_ports = AHCI_CAP_NR_PORTS(hba->host_cap);
 	if(nr_ports == 0)	nr_ports = 1;
@@ -1015,12 +1021,15 @@ int ahci_initialize(struct ahci_device *device)
 			device->ports[i].port_nr = i; 
 			device->ports[i].port = &hba->ports[i];
 			device->ports[i].dev = device;
+			device->ports[i].bdev = dev;
 
 			ahci_init_port(&device->ports[i]);
-
-			blkdev_init(dev);
 		}
 	}
+
+	hba->interrupt_status = hba->interrupt_status;
+	/* Now, enable interrupts in the HBA */
+	hba->ghc = hba->ghc | AHCI_GHC_INTERRUPTS_ENABLE;
 
 	return 0;
 }
@@ -1036,6 +1045,7 @@ int ahci_probe(struct device *dev)
 {
 	int status = 0;
 	int irq = -1;
+	int nr_ports;
 	pci::pci_device *ahci_dev = (pci::pci_device *) dev;
 
 	if(ahci_dev->enable_device() < 0)
@@ -1063,7 +1073,15 @@ int ahci_probe(struct device *dev)
 		status = -1;
 		goto ret;
 	}
-	
+
+	/* Initialize AHCI */
+	if(ahci_initialize(device) < 0)
+	{
+		MPRINTF("Failed to initialize the AHCI controller\n");
+		status = -1;
+		goto ret;
+	}
+
 	if(ahci_dev->enable_msi(ahci_irq, device))
 	{
 		/* If we couldn't enable MSI, use normal I/O APIC pins */
@@ -1075,12 +1093,19 @@ int ahci_probe(struct device *dev)
 		assert(install_irq(irq, ahci_irq, (struct device *) ahci_dev,
 			IRQ_FLAG_REGULAR, device) == 0);
 	}
-	/* Initialize AHCI */
-	if(ahci_initialize(device) < 0)
+
+	nr_ports = AHCI_CAP_NR_PORTS(hba->host_cap);
+	if(nr_ports == 0)	nr_ports = 1;
+
+	// For every port in the controller, see if we have initialised it. If so, do identify and blkdev_init
+	for (int i = 0; i < nr_ports; i++)
 	{
-		MPRINTF("Failed to initialize the AHCI controller\n");
-		status = -1;
-		goto ret;
+		if (!device->ports[i].bdev)
+			continue;
+		
+		ahci_do_identify(&device->ports[i]);
+
+		blkdev_init(device->ports[i].bdev);
 	}
 
 	ahci_probe_ports(count_bits<uint32_t>(hba->ports_implemented), hba);

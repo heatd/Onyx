@@ -17,6 +17,7 @@
 #include <fcntl.h>
 #include <time.h>
 #include <ctype.h>
+#include <getopt.h>
 
 #include <sys/stat.h>
 #include <netinet/in.h>
@@ -78,8 +79,33 @@ int fmount(int fd, char *path)
 	return 0;
 }
 
+const char *root = NULL;
+
+int mount_autodetect(const char *dev, const char *mpoint)
+{
+	const char *fs_type[] = {"ext2"};
+
+	for (int i = 0; i < 1; i++)
+	{
+		if (mount(dev, mpoint, fs_type[i], 0, NULL) == 0)
+			return 1;
+	}
+
+	return 0;
+}
+
 int mount_filesystems(void)
 {
+	// We try to directly mount root
+	// This is basically glued together with tape
+	// FIXME: Pass the kernel argument instead of hardcoding it *in the exec call*
+	
+	int fd = open("/dev", O_RDONLY);
+	int sysfs_fd = open("/sys", O_RDONLY);
+
+	int root_mounted = 0;
+	if (root)
+		root_mounted = mount_autodetect(root, "/");
 	FILE *fp = fopen("/etc/fstab", "r");
 	if(!fp)
 	{
@@ -96,8 +122,6 @@ int mount_filesystems(void)
 	}
 
 	memset(read_buffer, 0, 1024);
-	int fd = open("/dev", O_RDONLY);
-	int sysfs_fd = open("/sys", O_RDONLY);
 
 	while(fgets(read_buffer, 1024, fp) != NULL)
 	{
@@ -140,6 +164,9 @@ int mount_filesystems(void)
 			str = strtok(NULL, " \t");
 		}
 
+		if(root_mounted && !strcmp(target, "/"))
+			continue;
+
 		if(mount(source, target, filesystem_type, 0, NULL) < 0)
 		{
 			printf("init: failed to mount %s\n", source);
@@ -168,10 +195,19 @@ func_exit:
 
 bool fail_on_mount_error = true;
 
+struct option long_opts[] = 
+{
+	{"root", required_argument, NULL, 0}
+};
+
 int main(int argc, char **argv, char **envp)
 {
 	int c;
-	while((c = getopt(argc, argv, "m")) != -1)
+	int long_idx;
+
+	// FIXME: Don't pass rootdev as a regular argument 
+
+	while((c = getopt_long_only(argc, argv, "m", long_opts, &long_idx)) != -1)
 	{
 		switch(c)
 		{
@@ -182,6 +218,9 @@ int main(int argc, char **argv, char **envp)
 			}
 		}
 	}
+
+	if (argc > 1)
+		root = argv[1];
 
 	/* Check if we're actually the first process */
 	pid_t p = getpid();
