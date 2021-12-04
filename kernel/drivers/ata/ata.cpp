@@ -434,6 +434,11 @@ int ata_probe(struct device *d)
 {
 	pci::pci_device *device = (pci::pci_device *) d;
 
+	// If this is a SATA controller with a valid BAR5 (AHCI HBA BAR), skip this
+	// and defer to AHCI.
+	if (device->sub_class() == 6 && device->get_bar(5).has_value())
+		return -1;
+
 	unique_ptr<ide_dev> dev = make_unique<ide_dev>(device);
 	if(!dev)
 		return -ENOMEM;
