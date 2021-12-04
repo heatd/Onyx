@@ -30,7 +30,7 @@ $STRIP -g --strip-all $DESTDIR/sbin/init
 cp $SYSTEM_ROOT/usr/lib/modules/* $DESTDIR/usr/lib/modules
 #strip -g --strip-unneeded $DESTDIR/usr/lib/modules/*.ko
 #du -smh $DESTDIR/usr/lib/modules/*.ko
-ln -sf libc.so $DESTDIR/usr/lib/ld-onyx.so
+cp -a $SYSTEM_ROOT/usr/lib/ld-onyx* $DESTDIR/usr/lib/
 
 ./scripts/install_compiler_slibs.sh $DESTDIR --strip --no-c++
 

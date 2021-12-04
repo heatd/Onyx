@@ -86,45 +86,6 @@ void *tramp = NULL;
 void *phys_fb = NULL;
 uintptr_t address = 0;
 
-extern void libc_late_init();
-
-char *kernel_arguments[200];
-int kernel_argc = 0;
-
-void kernel_parse_command_line(char *cmd)
-{
-	char *original_string = cmd;
-	while(*cmd)
-	{
-		if(*cmd == '-') /* Found an argument */
-		{
-			char *token = strchr(cmd, ' ');
-			if(!token)
-				token = original_string + strlen(original_string);
-			size_t size_token = (size_t)(token - cmd);
-			char *new_string = (char *) malloc(size_token + 1);
-			if(!new_string)
-			{
-				ERROR("kernel", "failed parsing: out of memory\n");
-			}
-
-			memset(new_string, 0, size_token + 1);
-			memcpy(new_string, cmd, size_token);
-			
-			if(kernel_argc == 200)
-			{
-				panic("kernel: too many arguments passed to the kernel");
-			}
-
-			kernel_arguments[kernel_argc] = new_string;
-			kernel_argc++;
-			cmd += size_token - 1;
-		}
-
-		cmd++;
-	}
-}
-
 void set_initrd_address(void *initrd_address)
 {
 	initrd_addr = initrd_address;
@@ -332,7 +293,7 @@ void kernel_multitasking(void *arg)
 	vm_sysfs_init();
 
 	/* Pass the root partition to init */
-	const char *args[] = {(char *) "", NULL};
+	const char *args[] = {(char *) "", "/dev/sda2", NULL};
 	const char *envp[] = {"PATH=/bin:/usr/bin:/sbin:", "TERM=linux", "LANG=C", "PWD=/", NULL};
 
 	if(find_and_exec_init(args, envp) < 0)

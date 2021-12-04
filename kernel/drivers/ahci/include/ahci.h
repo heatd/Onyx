@@ -240,6 +240,7 @@ struct ahci_port
 	struct wait_queue list_wq;
 	unsigned char identify[512];
 	uint32_t issued;
+	blockdev *bdev;
 };
 
 struct ahci_device
