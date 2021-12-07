@@ -2714,7 +2714,7 @@ int vm_region_setup_backing(struct vm_region *region, size_t pages, bool is_file
 	}
 
 	if(is_shared)
-		increment_vm_stat(region->mm, shared_set_size, vmo->size);
+		increment_vm_stat(region->mm, shared_set_size, region->pages << PAGE_SHIFT);
 
 	assert(region->vmo == nullptr);
 	region->vmo = vmo;
