@@ -142,6 +142,7 @@
 #define __NR_onx_handle_query       143
 #define __NR_setsid				144
 #define __NR_getsid				145
+#define __NR_msync              146
 #define __NR_sysinfo			255
 #define __NR_capget				255
 #define __NR_capset				255
@@ -259,7 +260,6 @@
 #define __NR_msgget				255
 #define __NR_msgrcv				255
 #define __NR_msgsnd				255
-#define __NR_msync				255
 #define __NR_sched_yield			255
 #define __NR_semctl				255
 #define __NR_semget				255
