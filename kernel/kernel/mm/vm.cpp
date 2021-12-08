@@ -3706,3 +3706,11 @@ struct page *vm_get_zero_page(void)
 {
 	return vm_zero_page;
 }
+
+extern "C" int sys_msync(void *ptr, size_t length, int flags)
+{
+	if (flags & MS_ASYNC || !flags)
+		return 0; // NOOP
+
+	return -ENOSYS;
+}
