@@ -208,6 +208,7 @@ ssize_t sys_onx_handle_query(int handle, void *buffer, ssize_t len, unsigned lon
                                         void *arg);
 pid_t sys_setsid();
 pid_t sys_getsid(pid_t pid);
+int sys_msync(void *ptr, size_t length, int flags);
 
 }
 
@@ -358,5 +359,6 @@ void *syscall_table_64[] =
 	[142] = (void*) sys_onx_handle_open,
 	[143] = (void*) sys_onx_handle_query,
 	[144] = (void*) sys_setsid,
-	[145] = (void*) sys_getsid
+	[145] = (void*) sys_getsid,
+	[146] = (void*) sys_msync
 };
