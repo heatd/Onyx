@@ -6,6 +6,8 @@ set -e
 
 PKGDIR=$(mktemp -d)
 
+trap 'rm -rf $PKGDIR' EXIT
+
 TEMP=$(getopt -o 'o:' --long 'output-dir:,create-dir' -n 'buildpkg' -- "$@")
 
 eval set -- "$TEMP"
@@ -36,6 +38,8 @@ while true; do
 	esac
 done
 
+OUTPUT_DIR=$(realpath "$OUTPUT_DIR")
+
 # PKGSRC is the first argument and represents the place where the package actually is
 PKGSRC=$1
 
@@ -52,13 +56,37 @@ fi
 
 if [[ $TASK != "build" && $TASK != "package" && $TASK != "build+package" ]]; then
 	echo "${0}: Error: No/invalid build task specified"
-	rm -rf $PKGDIR
 	exit 1
 fi
 
+if [ -z "$STRIP" ]; then
+echo "\$STRIP not specified, not stripping"
+STRIP="true"
+fi
 # This system was totally not inspired by no one *cough cough Arch Linux cough cough*
 
-. ${1}/PKGBUILD
+cd "$1"
+
+patch_package() {
+	true
+}
+
+. PKGBUILD
+
+if [ -n "$tarball" ] && [ ! -f "${1}/PKGBUILD.stamp" ]; then
+	tarball_name="$(basename "$tarball")"
+
+	wget "$tarball"
+	tar xvf "$tarball_name"
+	rm "$tarball_name"
+
+	pushd .
+	patch_package
+	popd
+
+	touch "${1}/PKGBUILD.stamp"
+fi
+
 if [[ $TASK == "build" || $TASK == "build+package" ]]; then
 	pushd .
 	cd $PKGSRC
@@ -75,11 +103,16 @@ if [[ $TASK == "build+package" || $TASK == "package" ]]; then
 
 	popd
 
+	echo "Stripping binaries..."
+
+	find "$PKGDIR/usr/bin" -type f -exec sh -c '(! echo {} | grep -q .*.o) && (file {} | grep -q ELF)' \; -exec $STRIP {} \; || true
+	find "$PKGDIR/usr/libexec" -type f -exec sh -c '(! echo {} | grep -q .*.o) && (file {} | grep -q ELF)' \; -exec $STRIP {} \; || true
+	find "$PKGDIR/usr/lib" -type f -exec sh -c '(! echo {} | grep -q .*.o) && (file {} | grep -q ELF)' \; -exec $STRIP {} \; || true
+	echo "done."
+
 	tar -cf ${PKGNAME}-${PKGVER}.tar -C $PKGDIR .
 	zstd -c -T0 --ultra -13 ${PKGNAME}-${PKGVER}.tar > ${PKGNAME}-${PKGVER}.tar.zst
 	rm ${PKGNAME}-${PKGVER}.tar
 fi
 
 popd
-
-rm -rf $PKGDIR

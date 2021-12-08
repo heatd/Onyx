@@ -32,7 +32,7 @@ bootable=
 
 while true; do
 	case "$1" in
-		'-l|--size')
+		'-l'|'--size')
             size=$2
             shift 2
         ;;
@@ -93,9 +93,12 @@ cat >> new_fs/boot/grub/grub.cfg << EOF
     }
 EOF
 
-sed -i -e 's/sda1/sda2/g' new_fs/etc/fstab
+if [ "$bootable" = "efi" ]; then
+    sed -i -e 's/sda1/sda2/g' new_fs/etc/fstab
+fi
+
 # mkfs has a confirmation prompt, so we need the yes
-yes | mkfs.$fs_type -L "Onyx.root" -d new_fs "$part_name"
+yes | mkfs.$fs_type -t $fs_type -L "Onyx.root" -d new_fs "$part_name"
 
 if [ "$no_disk" = "0" ]; then
     gpt_blocks="20"
@@ -113,7 +116,7 @@ if [ "$no_disk" = "0" ]; then
         mcopy -i esp.part bootx64.efi ::/EFI/BOOT
 
         rm bootx64.efi
-        EXTRA_PARTITIONS="$EXTRA_PARTITIONS mkpart \"EFI System Partition\" fat32 1MiB 11MiB"
+        EXTRA_PARTITIONS="$EXTRA_PARTITIONS mkpart \"EFI System Partition\" fat32 1MiB 11MiB set 1 esp on"
     fi
 
     echo "Enlarging the disk to $nr_blocks blocks"

@@ -91,6 +91,9 @@ class Package:
 		global onyx_root
 		os.environ["ONYX_ROOT"] = onyx_root
 		os.environ["SYSROOT"] = os.path.join(onyx_root, "sysroot")
+		os.environ["ONYX_TARGET"] = os.environ["ONYX_ARCH"] + "-onyx"
+		os.environ["ONYX_CONFIGURE_OPTIONS"] = f'--host={os.environ["ONYX_TARGET"]}'
+		os.environ["ONYX_CMAKE_OPTIONS"] = f'-DCMAKE_MODULE_PATH={os.path.join(onyx_root, "toolchains/cmake")}'
 		buildhelper = os.path.join(onyx_root, "buildpkg/build_sys-helper.sh")
 
 		if os.system(f'{buildhelper} {self.package_path}') != 0:
