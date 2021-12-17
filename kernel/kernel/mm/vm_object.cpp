@@ -399,16 +399,33 @@ int vmo_prefault(vm_object *vmo, size_t size, size_t offset)
  */
 void vmo_destroy(vm_object *vmo)
 {
-	scoped_mutex g{vmo->page_lock};
-
+	// No need to hold the lock considering we're the last reference.
 	if(vmo->cow_clone) vmo_unref(vmo->cow_clone);
 
 	rb_tree_free(vmo->pages, vmo_rb_delete_func);
 
-	/* Unlock explicitly since we're sweeping the object under us */
-	g.unlock();
-
 	free(vmo);
+}
+
+/**
+ * @brief Maps a page into the VMO, without holding the VMO lock.
+ * 
+ * @param off Offset of the page inside the VMO.
+ * @param p Page to be mapped on the vmo.
+ * @param vmo The VMO.
+ * @return 0 on success, -1 on failure to map. 
+ */
+int vmo_add_page_unlocked(size_t off, page *p, vm_object *vmo)
+{
+	dict_insert_result res = rb_tree_insert(vmo->pages, (void *) off);
+	if(!res.inserted)
+	{
+		return -1;
+	}
+
+	*res.datum_ptr = p;
+
+	return 0;
 }
 
 /**
@@ -422,16 +439,7 @@ void vmo_destroy(vm_object *vmo)
 int vmo_add_page(size_t off, struct page *p, vm_object *vmo)
 {
 	scoped_mutex g{vmo->page_lock};
-
-	dict_insert_result res = rb_tree_insert(vmo->pages, (void *) off);
-	if(!res.inserted)
-	{
-		return -1;
-	}
-
-	*res.datum_ptr = p;
-
-	return 0;
+	return vmo_add_page_unlocked(off, p, vmo);
 }
 
 /**

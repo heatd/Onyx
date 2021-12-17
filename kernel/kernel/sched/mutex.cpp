@@ -1,8 +1,10 @@
 /*
-* Copyright (c) 2020 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2020 - 2021 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
 #include <errno.h>
 
 #include <onyx/mutex.h>
@@ -12,6 +14,7 @@
 #include <onyx/scoped_lock.h>
 #include <onyx/compiler.h>
 #include <onyx/cpu.h>
+#include <onyx/panic.h>
 
 static unsigned long thread_to_lock_word(thread *t)
 {
@@ -132,8 +135,18 @@ static inline void mutex_postlock(mutex *mtx)
 {
 }
 
+void must_not_sleep()
+{
+	if(sched_is_preemption_disabled())
+	{
+		halt();
+		panic("Mutexes may not be used under disabled preemption");
+	}
+}
+
 int __mutex_lock(struct mutex *mutex, int state)
 {
+	//must_not_sleep();
 	int ret = 0;
 	if(!mutex_trylock(mutex)) [[unlikely]]
 		ret = mutex_lock_slow_path(mutex, state);

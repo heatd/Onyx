@@ -61,7 +61,7 @@ bool packetbuf::allocate_space(size_t length)
 	{
 		page_ref(pages);
 
-		if(vmo_add_page(i << PAGE_SHIFT, pages, vmo) < 0)
+		if(vmo_add_page_unlocked(i << PAGE_SHIFT, pages, vmo) < 0)
 		{
 			free_pages(pages_head);
 			vmo_destroy(vmo);

@@ -508,26 +508,14 @@ void dump_stack(uintptr_t *__rsp)
 	printk("\n");
 }
 
-#include <onyx/x86/msr.h>
-
 unsigned long isr_handler(struct registers *ctx)
 {
 	int int_no = ctx->int_no;
-
-	//enter_isr_handler();
-#if 0
-	unsigned long gsbase = rdmsr(GS_BASE_MSR);
-
-	if(gsbase == 0)
-		__asm__ __volatile("cli\t\nhlt");
-#endif
 
 	context_tracking_enter_kernel();
 
 	irq_restore(ctx->rflags);
 	int_handlers[int_no](ctx);
-
-	//exit_isr_handler();
 
 	context_tracking_exit_kernel();
 

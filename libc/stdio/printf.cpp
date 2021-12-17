@@ -18,26 +18,18 @@
 
 static mutex buffer_lock;
 static char buffer[10000];
-int bufferPos = 0;
-void print(const char *data, size_t data_length)
-{
-	size_t i;
-	for ( i = 0; i < data_length; i++)
-	{
-		buffer[bufferPos] = data[i];
-		bufferPos++;
-	}
-}
 
 void tty_write_string_kernel(const char *s);
+
+static spinlock log_buffer_lock;
+static char log_temp_buffer[10000];
 
 static void __flush_print()
 {
 	#ifdef __is_onyx_kernel
-	kernlog_print(buffer);
+	kernlog_print(log_temp_buffer);
 	#endif
-	memset(buffer, 0, sizeof(buffer));
-	bufferPos = 0;
+	memset(buffer, 0, sizeof(log_temp_buffer));
 }
 
 void __flush_print_screen()
@@ -46,14 +38,8 @@ void __flush_print_screen()
 	tty_write_string_kernel(buffer);
 #endif
 	memset(buffer, 0, sizeof(buffer));
-	bufferPos = 0;
 }
 
-bool is_init = false;
-void libc_late_init()
-{
-	is_init = true;
-}
 #ifdef __is_onyx_kernel
 extern int panicing;
 
@@ -71,9 +57,9 @@ int putchar(int c)
 extern "C"
 int vprintf(const char *__restrict__ format, va_list va)
 {
-	scoped_mutex<false> g{buffer_lock};
+	scoped_lock g{log_buffer_lock};
 
-	int i = vsnprintf(buffer, 10000, format, va);
+	int i = vsnprintf(log_temp_buffer, 10000, format, va);
 	if(i < 0)
 		return -1;
 	__flush_print();
