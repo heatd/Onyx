@@ -838,7 +838,7 @@ struct fork_iteration
 
 struct vm_object *find_forked_private_vmo(struct vm_object *old, struct mm_address_space *mm)
 {
-	spin_lock(&mm->private_vmo_lock);
+	scoped_mutex<false> g{mm->private_vmo_lock};
 
 	struct vm_object *vmo = mm->vmo_head;
 	struct vm_object *to_ret = nullptr;
@@ -854,7 +854,6 @@ struct vm_object *find_forked_private_vmo(struct vm_object *old, struct mm_addre
 	}
 
 out:
-	spin_unlock(&mm->private_vmo_lock);
 	return to_ret;
 }
 
@@ -971,7 +970,7 @@ void tear_down_addr_space(struct mm_address_space *addr_space)
 int vm_fork_private_vmos(struct mm_address_space *mm)
 {
 	struct mm_address_space *parent_mm = get_current_address_space();
-	spin_lock(&parent_mm->private_vmo_lock);
+	scoped_mutex<false> g{parent_mm->private_vmo_lock};
 
 	struct vm_object *vmo = parent_mm->vmo_head;
 
@@ -980,7 +979,6 @@ int vm_fork_private_vmos(struct mm_address_space *mm)
 		struct vm_object *new_vmo = vmo_fork(vmo, false, nullptr);
 		if(!new_vmo)
 		{
-			spin_unlock(&parent_mm->private_vmo_lock);
 			return -1;
 		}
 
@@ -990,7 +988,6 @@ int vm_fork_private_vmos(struct mm_address_space *mm)
 		vmo = vmo->next_private;
 	}
 
-	spin_unlock(&parent_mm->private_vmo_lock);
 	return 0;
 }
 
@@ -2600,7 +2597,7 @@ vmo_status_t vm_commit_private(struct vm_object *vmo, size_t off, struct page **
 
 void add_vmo_to_private_list(struct mm_address_space *mm, struct vm_object *vmo)
 {
-	spin_lock(&mm->private_vmo_lock);
+	scoped_mutex<false> g{mm->private_vmo_lock};
 
 	if(!mm->vmo_head)
 	{
@@ -2615,13 +2612,11 @@ void add_vmo_to_private_list(struct mm_address_space *mm, struct vm_object *vmo)
 		vmo->next_private = nullptr;
 		mm->vmo_tail = vmo;
 	}
-
-	spin_unlock(&mm->private_vmo_lock);
 }
 
 void remove_vmo_from_private_list(struct mm_address_space *mm, struct vm_object *vmo)
 {
-	spin_lock(&mm->private_vmo_lock);
+	scoped_mutex<false> g{mm->private_vmo_lock};
 
 	bool is_head = vmo->prev_private == nullptr;
 	bool is_tail = vmo->next_private == nullptr;
@@ -2645,8 +2640,6 @@ void remove_vmo_from_private_list(struct mm_address_space *mm, struct vm_object 
 		vmo->prev_private->next_private = vmo->next_private;
 		vmo->next_private->prev_private = vmo->prev_private;
 	}
-
-	spin_unlock(&mm->private_vmo_lock);
 }
 
 bool vm_using_shared_optimization(struct vm_region *region)

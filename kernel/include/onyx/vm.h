@@ -155,7 +155,7 @@ struct mm_address_space
 	size_t page_faults{};
 	size_t page_tables_size{};
 
-	struct spinlock private_vmo_lock{};
+	struct mutex private_vmo_lock{};
 	struct vm_object *vmo_head{}, *vmo_tail{};
 	struct arch_mm_address_space arch_mmu{};
 

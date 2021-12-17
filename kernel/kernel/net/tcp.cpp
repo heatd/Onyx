@@ -819,6 +819,7 @@ ssize_t tcp_socket::recvmsg(msghdr *msg, int flags)
 	{
 		auto iov = msg->msg_iov[i];
 		auto to_copy = min((ssize_t) iov.iov_len, read - was_read);
+		// TODO: Replace rx_packet_list_lock with the socket hybrid lock
 		if(copy_to_user(iov.iov_base, ptr, to_copy) < 0)
 		{
 			spin_unlock(&rx_packet_list_lock);

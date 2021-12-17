@@ -239,6 +239,16 @@ void vmo_destroy(vm_object *vmo);
 int vmo_add_page(size_t off, page *p, vm_object *vmo);
 
 /**
+ * @brief Maps a page into the VMO, without holding the VMO lock.
+ * 
+ * @param off Offset of the page inside the VMO.
+ * @param p Page to be mapped on the vmo.
+ * @param vmo The VMO.
+ * @return 0 on success, -1 on failure to map. 
+ */
+int vmo_add_page_unlocked(size_t off, page *p, vm_object *vmo);
+
+/**
  * @brief Increments the reference counter on the VMO.
  * 
  * @param vmo The VMO.
