@@ -19,7 +19,6 @@
 struct sysfs_object sysfs_root =
 {
 	.name = (char *) "",
-	.dentries = LIST_HEAD_INIT(sysfs_root.dentries),
 	.inode = (ino_t) &sysfs_root,
 	.perms = 0644 | S_IFDIR,
 };
