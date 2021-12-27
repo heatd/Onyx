@@ -240,7 +240,7 @@ netif *netif_from_name(const char *name)
 
 struct rx_queue_percpu
 {
-	struct list_head to_rx_list;
+	struct list_head to_rx_list{nullptr, nullptr};
 	struct spinlock lock;
 };
 

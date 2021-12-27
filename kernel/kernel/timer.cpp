@@ -21,7 +21,8 @@ void timer_queue_clockevent(struct clockevent *ev)
 {
 	auto timer = platform_get_timer();
 
-	unsigned long cpu_flags = spin_lock_irqsave(&timer->event_list_lock);
+	scoped_lock<spinlock, true> g2{ev->lock};
+	scoped_lock<spinlock, true> g{timer->event_list_lock};
 
 	if(ev->flags & CLOCKEVENT_FLAG_POISON)
 		panic("Tried to queue clockevent that's already queued");
@@ -37,8 +38,6 @@ void timer_queue_clockevent(struct clockevent *ev)
 		timer->next_event = ev->deadline;
 		timer->set_oneshot(ev->deadline);
 	}
-
-	spin_unlock_irqrestore(&timer->event_list_lock, cpu_flags);
 }
 
 void timer_disable(struct timer *t)
@@ -106,12 +105,9 @@ void timer_handle_events(struct timer *t)
 	spin_unlock_irqrestore(&t->event_list_lock, cpu_flags);
 }
 
-void timer_remove_event(struct clockevent *ev)
+void timer_cancel_event(struct clockevent *ev)
 {
-	/* TODO: Should we have a lock inside clockevent instead of requiring
-	 * the user to have to lock themselves?
-	 */
-
+	scoped_lock<spinlock, true> g{ev->lock};
 	auto timer = ev->timer;
 
 	/* ev->timer is set after list_remove up there, therefore we check first
@@ -124,7 +120,10 @@ void timer_remove_event(struct clockevent *ev)
 		unsigned long cpu_flags = spin_lock_irqsave(&timer->event_list_lock);
 
 		if(ev->flags & CLOCKEVENT_FLAG_POISON)
+		{
 			list_remove(&ev->list_node);
+			ev->flags &= ~CLOCKEVENT_FLAG_POISON;
+		}
 
 		spin_unlock_irqrestore(&timer->event_list_lock, cpu_flags);
 	}
@@ -224,7 +223,7 @@ int itimer::arm(hrtime_t interval, hrtime_t initial)
 
 	if(armed)
 	{
-		timer_remove_event(&ev);
+		timer_cancel_event(&ev);
 	}
 
 	interval_delta = interval;
@@ -246,7 +245,7 @@ int itimer::disarm()
 	scoped_lock g{lock};
 
 	if(armed)
-		timer_remove_event(&ev);
+		timer_cancel_event(&ev);
 	return 0;
 }
 

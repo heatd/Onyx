@@ -16,6 +16,12 @@
 struct list_head
 {
 	struct list_head *prev, *next;
+
+	constexpr list_head() : prev{this}, next{this}
+	{}
+
+	constexpr list_head(list_head *prev, list_head *next) : prev{prev}, next{next}
+	{}
 };
 
 #ifdef __cplusplus

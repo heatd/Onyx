@@ -546,7 +546,7 @@ hrtime_t sched_sleep(unsigned long ns)
 		sched_yield();
 
 	/* Lets remove the event in the case where we got woken up by a signal or by another thread */
-	timer_remove_event(&ev);
+	timer_cancel_event(&ev);
 
 	hrtime_t t1 = clocksource_get_time();
 	hrtime_t rem = t1 - ev.deadline;
