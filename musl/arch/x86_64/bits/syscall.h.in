@@ -20,6 +20,7 @@
 #define __NR_time				20
 #define __NR_gettimeofday			21
 #define __NR_set_power_state	22
+#define __NR_shutdown				23
 #define __NR_readv				24
 #define __NR_writev				25
 #define __NR_preadv				26
@@ -269,7 +270,6 @@
 #define __NR_shmctl				255
 #define __NR_shmdt				255
 #define __NR_shmget				255
-#define __NR_shutdown				255
 #define __NR_socketpair				255
 #define __NR_flock				255
 #define __NR_fdatasync				255
