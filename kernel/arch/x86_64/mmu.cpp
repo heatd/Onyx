@@ -51,6 +51,11 @@ static inline void __native_tlb_invalidate_page(void *addr)
 	__asm__ __volatile__("invlpg (%0)" : : "b"(addr) : "memory");
 }
 
+bool x86_pte_empty(uint64_t pte)
+{
+	return pte == 0;
+}
+
 bool x86_get_pt_entry(void *addr, uint64_t **entry_ptr, struct mm_address_space *mm);
 
 static inline uint64_t make_pml4e(uint64_t base,
@@ -483,7 +488,7 @@ void* paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64
 	
 	pml->entries[indices[0]] = phys | page_prots;
 
-	if(old == 0)
+	if (x86_pte_empty(old))
 	{
 		increment_vm_stat(as, resident_set_size, PAGE_SIZE);
 	}
@@ -1213,15 +1218,16 @@ static int x86_mmu_unmap(PML *table, unsigned int pt_level, page_table_iterator&
 	for(i = index; i < PAGE_TABLE_ENTRIES && it.length(); i++)
 	{
 		auto &pt_entry = table->entries[i];
+		bool pte_empty = x86_pte_empty(pt_entry);
 
-		if(!(pt_entry & X86_PAGING_PRESENT))
+		if (pte_empty)
 		{
 
 #ifdef CONFIG_X86_MMU_UNMAP_DEBUG
 			if(it.debug)
 				printk("not present @ level %u\nentry size %lu\nlength %lu\n", pt_level, entry_size, it.length());
 #endif
-			auto to_skip = entry_size - (it.curr_addr() & (entry_size-1));
+			auto to_skip = entry_size - (it.curr_addr() & (entry_size - 1));
 
 #ifdef CONFIG_PT_ITERATOR_HAVE_DEBUG
 			if(it.debug)
@@ -1254,10 +1260,11 @@ static int x86_mmu_unmap(PML *table, unsigned int pt_level, page_table_iterator&
 			}
 
 			it.adjust_length(entry_size);
-			decrement_vm_stat(it.as_, resident_set_size, PAGE_SIZE);
+			decrement_vm_stat(it.as_, resident_set_size, entry_size);
 		}
 		else
 		{
+			assert((pt_entry & X86_PAGING_PRESENT) != 0);
 			PML *next_table = (PML *) PHYS_TO_VIRT(PML_EXTRACT_ADDRESS(pt_entry));
 			int st = x86_mmu_unmap(next_table, pt_level - 1, it);
 
@@ -1368,4 +1375,58 @@ void mmu_invalidate_range(unsigned long addr, size_t pages, mm_address_space *mm
 	
 
 	smp::sync_call_with_local(x86_invalidate_tlb, &info, mask, x86_invalidate_tlb, &info);
+}
+
+struct mmu_acct
+{
+	size_t page_table_size;
+	size_t resident_set_size;
+	mm_address_space *as;
+};
+
+/**
+ * @brief MMU accounting verifier helper. Takes a look at each page table.
+ * 
+ * @param pt Pointer to page table.
+ * @param level PT level we're at.
+ * @param acct Reference mmu_acct structure.
+ */
+static void mmu_acct_page_table(PML *pt, x86_page_table_levels level, mmu_acct &acct)
+{
+	acct.page_table_size += PAGE_SIZE;
+
+	for (const auto pte : pt->entries)
+	{
+		if (x86_pte_empty(pte))
+			continue;
+		
+		if (!(pte & X86_PAGING_USER))
+			continue;
+		
+		if (level != PT_LEVEL)
+		{
+			mmu_acct_page_table((PML *) PHYS_TO_VIRT(PML_EXTRACT_ADDRESS(pte)), (x86_page_table_levels) (level - 1), acct);
+		}
+		else
+		{
+			acct.resident_set_size += level_to_entry_size(level);
+		}
+	}
+}
+
+/**
+ * @brief Verifies the address space's accounting (RSS, PT Size)
+ * 
+ * @param as The address space to verify.
+ */
+void mmu_verify_address_space_accounting(mm_address_space *as)
+{
+	mmu_acct acct{};
+	acct.as = as;
+	mmu_acct_page_table((PML *) PHYS_TO_VIRT(as->arch_mmu.cr3),
+	                    x86_is_pml5_enabled() ? PML5_LEVEL : PML4_LEVEL,
+						acct);
+
+	assert(acct.page_table_size == as->page_tables_size);
+	assert(acct.resident_set_size == as->resident_set_size);	
 }

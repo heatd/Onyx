@@ -851,4 +851,11 @@ inline void vm_for_every_region(mm_address_space &as, Callable func)
 	rb_tree_traverse(as.area_tree, for_every_region_visit<Callable>, &func);
 }
 
+/**
+ * @brief Verifies the address space's accounting (RSS, PT Size)
+ * 
+ * @param as The address space to verify.
+ */
+void mmu_verify_address_space_accounting(mm_address_space *as);
+
 #endif

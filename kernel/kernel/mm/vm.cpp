@@ -1001,6 +1001,9 @@ int vm_fork_address_space(struct mm_address_space *addr_space)
 {
 	__vm_lock(false);
 
+#if CONFIG_DEBUG_ADDRESS_SPACE_ACCT
+	mmu_verify_address_space_accounting(get_current_address_space());
+#endif
 	if(vm_fork_private_vmos(addr_space) < 0)
 	{
 		__vm_unlock(false);
@@ -1028,6 +1031,10 @@ int vm_fork_address_space(struct mm_address_space *addr_space)
 		return -1;
 	}
 
+	addr_space->resident_set_size = current_mm->resident_set_size;
+	addr_space->shared_set_size = current_mm->shared_set_size;
+	addr_space->virtual_memory_size = current_mm->virtual_memory_size;
+
 	rb_tree_traverse(current_mm->area_tree, fork_vm_region, (void *) &it);
 
 	if(!it.success)
@@ -1040,14 +1047,15 @@ int vm_fork_address_space(struct mm_address_space *addr_space)
 	/* We add the old ones here because rss will only be incremented by pages that were newly mapped,
 	 * since the old page table entries were copied in.
 	 */
-	addr_space->resident_set_size += current_mm->resident_set_size;
-	addr_space->shared_set_size += current_mm->shared_set_size;
-	addr_space->virtual_memory_size = current_mm->virtual_memory_size;
 	addr_space->mmap_base = current_mm->mmap_base;
 	addr_space->brk = current_mm->brk;
 	addr_space->start = current_mm->start;
 	addr_space->end = current_mm->end;
-	
+
+#if CONFIG_DEBUG_ADDRESS_SPACE_ACCT
+	mmu_verify_address_space_accounting(addr_space);
+#endif
+
 	assert(addr_space->active_mask.is_empty());
 
 	mutex_init(&addr_space->vm_lock);
