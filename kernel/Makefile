@@ -57,7 +57,7 @@ ARCHDIR:=arch/$(HOSTARCH)
 
 GENERATED_HEADERS:=include/onyx/config.h include/onyx/gen/syscall.h
 
-include/onyx/config.h: ../scripts/config_to_header.py
+include/onyx/config.h: ../scripts/config_to_header.py kernel.config
 	../scripts/config_to_header.py include/onyx/config.h
 
 include kernel.config
