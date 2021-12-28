@@ -2,3 +2,4 @@
 vmonyx*
 *.ko
 *.so*
+*.d

@@ -12,7 +12,7 @@ BOOTDIR?=$(EXEC_PREFIX)/boot
 INCLUDEDIR?=$(PREFIX)/usr/include
 LIBDIR?=$(EXEC_PREFIX)/usr/lib
 
-CFLAGS:=$(CFLAGS) -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-strong \
+CFLAGS:=$(CFLAGS) -MMD -ffreestanding -fbuiltin -Wall -Wextra -fstack-protector-strong \
 -Wno-unused-parameter -Wno-unused-function \
 -Werror -Wno-error=frame-address -Wno-address-of-packed-member \
 -Wno-error=invalid-offsetof -fno-sanitize=pointer-overflow -fvisibility=protected \
@@ -54,6 +54,11 @@ LIBGCC_PATH:=$(shell $(CC) $(CFLAGS)  $(LDFLAGS) -print-libgcc-file-name)
 
 LIBS:=$(LIBS) -nostdlib -lk $(LIBGCC_PATH)
 ARCHDIR:=arch/$(HOSTARCH)
+
+GENERATED_HEADERS:=include/onyx/config.h include/onyx/gen/syscall.h
+
+include/onyx/config.h: ../scripts/config_to_header.py
+	../scripts/config_to_header.py include/onyx/config.h
 
 include kernel.config
 include $(ARCHDIR)/make.config
@@ -140,6 +145,10 @@ include acpica/Makefile
 
 OBJS:=$(obj-y)
 
+DEPS:=$(OBJS:%.o=%.d)
+
+-include $(DEPS)
+
 CRTI_OBJ:=../sysroot/usr/lib/crti.o
 
 CFLAGS_FOR_LINK:=$(CFLAGS)
@@ -190,35 +199,35 @@ all: onyx-vdso.so.0 vmonyx
 
 .PHONY: all clean install install-headers install-kernel kernel-modules
 
-vmonyx: $(OBJ_DEPS) $(ARCHDIR)/linker.ld ../libc/libk.a kernel.config
+vmonyx: $(OBJ_DEPS) $(ARCHDIR)/linker.ld ../libc/libk.a $(GENERATED_HEADERS)
 	@echo [LD] $@
 	$(CC) $(LDFLAGS) -Wl,-T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS_FOR_LINK) $(OBJ_LINK_LIST) $(LIBS) -Wno-error
 	cp vmonyx vmonyx-unstripped
 	$(STRIP) -g vmonyx
 
-acpica/%.o: acpica/%.c kernel.config
+acpica/%.o: acpica/%.c $(GENERATED_HEADERS)
 	@echo [CC] $<
 	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) $(C_ONLY_CFLAGS) $(CPPFLAGS)
 
-kernel/mm/kasan.o: kernel/mm/kasan.cpp kernel.config
+kernel/mm/kasan.o: kernel/mm/kasan.cpp $(GENERATED_HEADERS)
 	@echo [CC] NOKASAN $<
 	@$(CC) -c $< -o $@ -std=c++17 $(ACPICA_CFLAGS) $(C_ONLY_CFLAGS) -fno-sanitize=address -fno-lto $(CPPFLAGS)
 
-kernel/mm/malloc/%.o: kernel/mm/malloc/%.c kernel.config
+kernel/mm/malloc/%.o: kernel/mm/malloc/%.c $(GENERATED_HEADERS)
 	@echo [CC] NOKASAN $<
 	@$(CC) -c $< -o $@ -std=c11 $(ACPICA_CFLAGS) $(C_ONLY_CFLAGS) -fno-sanitize=address -fno-lto $(CPPFLAGS)
 
-kernel/mm/malloc/%.o: kernel/mm/malloc/%.cpp kernel.config
+kernel/mm/malloc/%.o: kernel/mm/malloc/%.cpp $(GENERATED_HEADERS)
 	@echo [CC] NOKASAN $<
 	@$(CXX) -c $< -o $@ -std=c++20 $(ACPICA_CFLAGS) $(C_ONLY_CFLAGS) $(CXXFLAGS) -fno-sanitize=address -fno-lto $(CPPFLAGS)
 
-kernel/ssp.o: kernel/ssp.cpp kernel.config
+kernel/ssp.o: kernel/ssp.cpp $(GENERATED_HEADERS)
 	@echo [CC] NOKASAN $<
 	@$(CC) -c $< -o $@ -std=c++2a $(CFLAGS) $(CXXFLAGS) -fno-stack-protector $(CPPFLAGS)
 
 # I don't like this solution of having an ifeq RUN_CLANG_TIDY but I can't find a better way to do this and still pass $<
 
-%.o: %.c kernel.config
+%.o: %.c $(GENERATED_HEADERS)
 	@echo [CC] $<
 
 #ifeq ($(RUN_CLANG_TIDY), 1)
@@ -226,11 +235,11 @@ kernel/ssp.o: kernel/ssp.cpp kernel.config
 #endif
 	@$(CC) -c $< -o $@ -std=c11 $(CFLAGS) $(CPPFLAGS) $(C_ONLY_CFLAGS) -Wno-error=deprecated-declarations
 
-%.o: %.S kernel.config
+%.o: %.S $(GENERATED_HEADERS)
 	@echo [AS] $<
 	@$(CC) -c $(CFLAGS) $(CPPFLAGS) -o $@ $<
 
-%.o: %.cpp kernel.config
+%.o: %.cpp $(GENERATED_HEADERS)
 	@echo [CXX] $<
 	@$(CXX) -c $< -o $@ -std=c++20 $(CFLAGS) $(CPPFLAGS) $(CXXFLAGS)
 
@@ -238,18 +247,18 @@ ifeq ($(RUN_CLANG_TIDY), 1)
 	$(CLANG_TIDY) $< $(CLANG_TIDY_ARGS)
 endif
 
-$(ARCHDIR)/__vdso.o: $(ARCHDIR)/__vdso.c kernel.config
+$(ARCHDIR)/__vdso.o: $(ARCHDIR)/__vdso.c $(GENERATED_HEADERS)
 	@echo [CC] $<
 	@$(CC) -O2 -c $< -o $@ -fpic -Iinclude/acpica -Iinclude -isystem ../libc/include \
 	-fno-stack-protector -fno-zero-initialized-in-bss
 
-onyx-vdso.so.0: $(ARCHDIR)/__vdso_asm.o $(ARCHDIR)/__vdso.o kernel.config
+onyx-vdso.so.0: $(ARCHDIR)/__vdso_asm.o $(ARCHDIR)/__vdso.o $(GENERATED_HEADERS)
 	@echo [VDSO]
 	$(CC) $(VDSO_LDFLAGS) $(ARCHDIR)/__vdso_asm.o $(ARCHDIR)/__vdso.o -o $@ -ffreestanding \
 	 -nostdlib -Iinclude -I../libc/include -Wl,--hash-style=both
 
 clean: clean-modules
-	rm -f vmonyx $(OBJS) $(ALL_OUR_OBJS) *.o */*.o */*/*.o
+	rm -f vmonyx $(OBJS) $(DEPS) $(ALL_OUR_OBJS) *.o */*.o */*/*.o
 	rm -f clang-tidy.out
 
 install: install-headers install-kernel

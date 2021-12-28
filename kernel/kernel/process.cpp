@@ -1287,3 +1287,13 @@ ssize_t process::query_vm_regions(void *ubuf, ssize_t len, unsigned long what, s
 
 	return needed_len;
 }
+
+/**
+ * @brief Not-implemented syscall handler
+ * 
+ */
+extern "C"
+int sys_nosys(void)
+{
+	return -ENOSYS;
+}
