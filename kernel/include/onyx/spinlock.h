@@ -31,16 +31,6 @@ struct spinlock
 #ifdef CONFIG_SPINLOCK_DEBUG
     unsigned long holder;
 #endif
-
-#ifdef __cplusplus
-    constexpr spinlock()
-    {
-        lock = 0;
-    #ifdef CONFIG_SPINLOCK_DEBUG
-        holder = 0xDEADCAFEDEADCAFE;
-    #endif
-    }
-#endif
 };
 
 #ifdef __cplusplus

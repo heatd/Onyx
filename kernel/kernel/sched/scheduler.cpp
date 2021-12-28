@@ -257,7 +257,7 @@ void sched_save_thread(thread *thread, void *stack)
 #define SCHED_QUANTUM		10
 
 PER_CPU_VAR(uint32_t sched_quantum) = 0;
-PER_CPU_VAR(clockevent sched_pulse);
+PER_CPU_VAR(clockevent *sched_pulse);
 
 void sched_decrease_quantum(clockevent *ev)
 {
@@ -463,11 +463,17 @@ void sched_init_cpu(unsigned int cpu)
 	write_per_cpu_any(current_thread, t, cpu);
 	write_per_cpu_any(sched_quantum, SCHED_QUANTUM, cpu);
 	write_per_cpu_any(preemption_counter, 0, cpu);
+
+	auto cev = new clockevent;
+	
+	assert(cev != nullptr);
+
+	write_per_cpu_any(sched_pulse, cev, cpu);
 }
 
 void sched_enable_pulse(void)
 {
-	clockevent *ev = get_per_cpu_ptr(sched_pulse);
+	clockevent *ev = get_per_cpu(sched_pulse);
 	ev->callback = sched_decrease_quantum;
 	ev->deadline = clocksource_get_time() + NS_PER_MS;
 	ev->flags = CLOCKEVENT_FLAG_ATOMIC | CLOCKEVENT_FLAG_PULSE;
@@ -494,6 +500,13 @@ int sched_init(void)
 
 	write_per_cpu(sched_quantum, SCHED_QUANTUM);
 	set_current_thread(t);
+
+	auto cev = new clockevent;
+	
+	assert(cev != nullptr);
+
+	write_per_cpu(sched_pulse, cev);
+
 	sched_enable_pulse();
 
 	is_initialized = true;

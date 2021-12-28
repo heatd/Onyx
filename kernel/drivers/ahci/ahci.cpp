@@ -489,8 +489,6 @@ bool ahci_do_command(struct ahci_port *ahci_port, struct ahci_command_ata *buf)
 	req.req_start = get_main_clock()->get_ns();
 	struct wait_queue_token wait_token = {};
 	
-	memset(&wait_token, 0, sizeof(wait_token));
-
 	wait_token.thread = get_current_thread();
 	wait_token.context = &req;
 	wait_token.callback = nullptr;

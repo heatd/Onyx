@@ -88,8 +88,6 @@ void wait_queue_add(struct wait_queue *queue, struct wait_queue_token *token)
 {
 	unsigned long cpu_flags = spin_lock_irqsave(&queue->lock);
 
-	assert(token->token_node.prev == NULL);
-
 	list_add_tail(&token->token_node, &queue->token_list);
 
 	list_assert_correct(&queue->token_list);

@@ -101,7 +101,7 @@ void sync_call_cntrlblk::wait(sync_call_func local, void *context)
 struct sync_call_queue
 {
 	struct spinlock lock;
-	struct list_head elem_list{nullptr, nullptr};
+	struct list_head elem_list;
 
 	void init()
 	{

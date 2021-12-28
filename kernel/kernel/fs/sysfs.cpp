@@ -145,6 +145,7 @@ size_t sysfs_write(size_t offset, size_t sizeofwrite, void *buffer, struct file 
 
 void sysfs_init(void)
 {
+	INIT_LIST_HEAD(&sysfs_root.dentries);
 	/* If this_ function fails, just panic. sysfs is crucial */
 	struct inode *root = inode_create(false);
 	assert(root != nullptr);
@@ -268,8 +269,6 @@ int sysfs_object_init(const char *name, struct sysfs_object *obj)
 	char *namedup = strdup(name);
 	if(!namedup)
 		return -ENOMEM;
-
-	memset(obj, 0, sizeof(*obj));
 	
 	object_init(&obj->obj, sysfs_release);
 

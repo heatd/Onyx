@@ -22,7 +22,9 @@ struct wait_queue_token
 	void (*callback)(void *context, struct wait_queue_token *token);
 	void *context;
 	bool signaled;
-	struct list_head token_node{nullptr, nullptr};
+	struct list_head token_node;
+
+	constexpr wait_queue_token() : thread{}, callback{}, context{}, signaled{}, token_node{} {}
 };
 
 struct wait_queue
@@ -52,7 +54,6 @@ bool signal_is_pending();
 	set_current_state(state);				\
 	while(true)								\
 	{										\
-		memset(&token, 0, sizeof(token));		\
 		token.thread = get_current_thread();	\
 		wait_queue_add(wq, &token);			\
 		if(cond)							\
@@ -82,7 +83,6 @@ out_final: ;								\
 	set_current_state(state);				\
 	while(true)								\
 	{										\
-		memset(&token, 0, sizeof(token));		\
 		token.thread = get_current_thread();	\
 		wait_queue_add(wq, &token);			\
 		if(cond)							\
@@ -126,7 +126,6 @@ out_final:									\
 
 static inline void init_wait_queue_head(struct wait_queue *q)
 {
-	memset(&q->lock, 0, sizeof(q->lock));
 	INIT_LIST_HEAD(&q->token_list);
 }
 
