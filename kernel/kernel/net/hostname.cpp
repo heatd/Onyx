@@ -40,19 +40,3 @@ int sys_sethostname(const void *name, size_t len)
 	
 	return 0;
 }
-
-extern "C"
-int sys_gethostname(char *name, size_t len)
-{
-	if((ssize_t) len < 0)
-		return -EINVAL;
-	
-	size_t str_len = strlen(network_gethostname());
-	if(len < str_len)
-		return -EINVAL;
-	
-	if(copy_to_user(name, network_gethostname(), str_len) < 0)
-		return -EFAULT;
-	
-	return 0;
-}
