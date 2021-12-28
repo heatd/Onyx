@@ -3,3 +3,6 @@ vmonyx*
 *.ko
 *.so*
 *.d
+kernel/syscall_thunk.cpp
+include/onyx/gen/*
+

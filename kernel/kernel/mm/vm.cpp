@@ -1301,7 +1301,7 @@ out_error:
 	return errno = -st, nullptr;
 }
 
-extern "C" void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off)
+void *sys_mmap(void *addr, size_t length, int prot, int flags, int fd, off_t off)
 {
 	int error = 0;
 
@@ -1361,8 +1361,7 @@ out_error:
 	return (void *) (unsigned long) error;
 }
 
-
-extern "C" int sys_munmap(void *addr, size_t length)
+int sys_munmap(void *addr, size_t length)
 {
 	if(is_higher_half(addr))
 		return -EINVAL;
@@ -1610,7 +1609,7 @@ int vm_mprotect(struct mm_address_space *as, void *__addr, size_t size, int prot
 	return 0;
 }
 
-extern "C" int sys_mprotect(void *addr, size_t len, int prot)
+int sys_mprotect(void *addr, size_t len, int prot)
 {
 	if(is_higher_half(addr))
 		return -EINVAL;
@@ -1666,7 +1665,7 @@ int do_inc_brk(void *oldbrk, void *newbrk)
 	return 0;
 }
 
-extern "C" uint64_t sys_brk(void *newbrk)
+uint64_t sys_brk(void *newbrk)
 {
 	mm_address_space *as = get_current_address_space();
 
@@ -2325,7 +2324,7 @@ void *vm_gen_brk_base(void)
 	return (void*) brk_base;
 }
 
-extern "C" int sys_memstat(struct memstat *memstat)
+int sys_memstat(struct memstat *memstat)
 {
 	struct memstat buf;
 	page_get_stats(&buf);
@@ -3314,7 +3313,7 @@ begin: ;
 }
 
 /* TODO: Test things */
-extern "C" void *sys_mremap(void *old_address, size_t old_size, size_t new_size,
+void *sys_mremap(void *old_address, size_t old_size, size_t new_size,
                             int flags, void *new_address)
 {
 	// TODO: This is broken.
@@ -3708,7 +3707,7 @@ struct page *vm_get_zero_page(void)
 	return vm_zero_page;
 }
 
-extern "C" int sys_msync(void *ptr, size_t length, int flags)
+int sys_msync(void *ptr, size_t length, int flags)
 {
 	if (flags & MS_ASYNC || !flags)
 		return 0; // NOOP

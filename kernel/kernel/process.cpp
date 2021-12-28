@@ -249,7 +249,7 @@ void unlock_process_list(void)
 	spin_unlock(&process_list_lock);
 }
 
-extern "C" pid_t sys_getppid()
+pid_t sys_getppid()
 {
 	if(get_current_process()->parent)
 		return get_current_process()->parent->get_pid();
@@ -391,7 +391,6 @@ int do_getrusage(int who, rusage *usage, process *proc)
 	return 0;
 }
 
-extern "C"
 int sys_getrusage(int who, rusage *user_usage)
 {
 	/* do_getrusage understands this flag but it isn't supposed to be exposed */
@@ -548,7 +547,7 @@ bool wait_handle_processes(process *proc, wait_info& winfo)
 
 #define VALID_WAIT4_OPTIONS  (WNOHANG | WUNTRACED | WSTOPPED | WEXITED | WCONTINUED | WNOWAIT)
 
-extern "C" pid_t sys_wait4(pid_t pid, int *wstatus, int options, rusage *usage)
+pid_t sys_wait4(pid_t pid, int *wstatus, int options, rusage *usage)
 {
 	auto current = get_current_process();
 
@@ -587,7 +586,7 @@ void process_copy_current_sigmask(thread *dest)
 	memcpy(&dest->sinfo.sigmask, &get_current_thread()->sinfo.sigmask, sizeof(sigset_t));
 }
 
-extern "C" pid_t sys_fork(syscall_frame *ctx)
+pid_t sys_fork(syscall_frame *ctx)
 {
 	process *proc;
 	process *child;
@@ -679,18 +678,18 @@ void process_exit_from_signal(int signum)
 	process_exit(make_wait4_wstatus(signum, false, 0));
 }
 
-extern "C" void sys_exit(int status)
+void sys_exit(int status)
 {
 	status &= 0xff;
 	process_exit(make_wait4_wstatus(0, false, status));
 }
 
-extern "C" pid_t sys_getpid(void)
+pid_t sys_getpid(void)
 {
 	return get_current_process()->get_pid();
 }
 
-extern "C" int sys_personality(unsigned long val)
+int sys_personality(unsigned long val)
 {
 	// TODO: Use this syscall for something. This might be potentially very useful
 	get_current_process()->personality = val;
@@ -938,7 +937,7 @@ void process_add_thread(process *proc, thread_t *thread)
 	proc->nr_threads++;
 }
 
-extern "C" void sys_exit_thread(int value)
+void sys_exit_thread(int value)
 {
 	/* Okay, so the libc called us. That means we can start destroying the thread */
 	/* NOTE: I'm not really sure if musl destroyed the user stack and fs,
@@ -1292,7 +1291,6 @@ ssize_t process::query_vm_regions(void *ubuf, ssize_t len, unsigned long what, s
  * @brief Not-implemented syscall handler
  * 
  */
-extern "C"
 int sys_nosys(void)
 {
 	return -ENOSYS;

@@ -202,7 +202,6 @@ unsigned int get_random_int(void)
 	return (unsigned int) num ^ (num >> 32);
 }
 
-extern "C"
 int sys_getrandom(void *buf, size_t buflen, unsigned int flags)
 {
 	return (int) get_entropy_from_pool(ENTROPY_POOL_URANDOM, buflen, buf);

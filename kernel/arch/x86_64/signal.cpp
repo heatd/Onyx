@@ -141,8 +141,7 @@ extern "C"
 __attribute__((noreturn))
 void __sigret_return(struct registers *regs);
 
-extern "C"
-void sys_sigreturn(struct syscall_frame *sysframe)
+void sys_sigreturn(syscall_frame *sysframe)
 {
 	/* Switch the registers again */
 	struct registers rbuf;

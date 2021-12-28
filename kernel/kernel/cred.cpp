@@ -92,7 +92,7 @@ int process_inherit_creds(struct process *new_child, struct process *parent)
 	return 0;
 }
 
-extern "C" int sys_setuid(uid_t uid)
+int sys_setuid(uid_t uid)
 {
 	int st = 0;
 	struct creds *c = creds_get_write();
@@ -127,7 +127,7 @@ out:
 	return st;
 }
 
-extern "C" int sys_setgid(gid_t gid)
+int sys_setgid(gid_t gid)
 {
 	int st = 0;
 	struct creds *c = creds_get_write();
@@ -161,7 +161,7 @@ out:
 	return st;
 }
 
-extern "C" uid_t sys_getuid(void)
+uid_t sys_getuid(void)
 {
 	struct creds *c = creds_get();
 
@@ -172,7 +172,7 @@ extern "C" uid_t sys_getuid(void)
 	return u;
 }
 
-extern "C" gid_t sys_getgid(void)
+gid_t sys_getgid(void)
 {
 	struct creds *c = creds_get();
 
@@ -183,7 +183,7 @@ extern "C" gid_t sys_getgid(void)
 	return g;
 }
 
-extern "C" int sys_get_uids(uid_t *ruid, uid_t *euid, uid_t *suid)
+int sys_get_uids(uid_t *ruid, uid_t *euid, uid_t *suid)
 {
 	creds_guard<CGType::Read> g;
 	auto c = g.get();
@@ -200,7 +200,7 @@ extern "C" int sys_get_uids(uid_t *ruid, uid_t *euid, uid_t *suid)
 	return 0;
 }
 
-extern "C" int sys_get_gids(gid_t *rgid, gid_t *egid, gid_t *sgid)
+int sys_get_gids(gid_t *rgid, gid_t *egid, gid_t *sgid)
 {
 	creds_guard<CGType::Read> g;
 	auto c = g.get();
@@ -226,7 +226,7 @@ bool may_switch_to_uid(uid_t id, creds *c)
 #define SET_UIDS_EUID_VALID   (1 << 1)
 #define SET_UIDS_SUID_VALID   (1 << 2)
 
-extern "C" int sys_set_uids(unsigned int flags, uid_t ruid, uid_t euid, uid_t suid)
+int sys_set_uids(unsigned int flags, uid_t ruid, uid_t euid, uid_t suid)
 {
 	creds_guard<CGType::Write> g;
 
@@ -260,7 +260,7 @@ bool may_switch_to_gid(gid_t id, creds *c)
 	return id == c->egid || id == c->rgid || id == c->sgid;
 }
 
-extern "C" int sys_set_gids(unsigned int flags, gid_t rgid, gid_t egid, gid_t sgid)
+int sys_set_gids(unsigned int flags, gid_t rgid, gid_t egid, gid_t sgid)
 {
 	creds_guard<CGType::Write> g;
 
@@ -322,7 +322,7 @@ int supp_groups::get_groups(int _size, gid_t *ugids)
 }
 
 /* TODO: Implement set/getresuid, set/getresgid, set/getgroups */
-extern "C" int sys_setgroups(size_t size, const gid_t *ugids)
+int sys_setgroups(size_t size, const gid_t *ugids)
 {
 	creds_guard<CGType::Write> g;
 	auto c = g.get();
@@ -358,7 +358,7 @@ extern "C" int sys_setgroups(size_t size, const gid_t *ugids)
 	return 0;
 }
 
-extern "C" int sys_getgroups(int size, gid_t *ugids)
+int sys_getgroups(int size, gid_t *ugids)
 {
 	if(size < 0)
 		return -EINVAL;

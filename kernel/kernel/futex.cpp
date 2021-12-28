@@ -503,7 +503,7 @@ static inline int get_val2(const struct timespec *t)
 	return (int) (long) t;
 }
 
-extern "C" int sys_futex(int *uaddr, int futex_op, int val, const struct timespec *timeout, int *uaddr2, int val3)
+int sys_futex(int *uaddr, int futex_op, int val, const struct timespec *timeout, int *uaddr2, int val3)
 {
 	int flags = (futex_op & ~FUTEX_OP_MASK);
 

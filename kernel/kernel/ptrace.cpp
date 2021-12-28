@@ -16,7 +16,6 @@
 #include <sys/ptrace.h>
 #include <sys/user.h>
 
-extern "C"
 long sys_ptrace(long request, pid_t pid, void *addr, void *data, void *addr2)
 {
 	struct process *process = get_current_process();

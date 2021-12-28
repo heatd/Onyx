@@ -63,7 +63,6 @@ void kernlog_clear(void)
 #define SYSLOG_ACTION_CLEAR		5
 #define SYSLOG_ACTION_SIZE_BUFFER 	10
 
-extern "C"
 int sys_syslog(int type, char *buffer, int len)
 {
 	if(type == SYSLOG_ACTION_SIZE_BUFFER)

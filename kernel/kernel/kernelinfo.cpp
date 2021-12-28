@@ -15,7 +15,7 @@
 const char *network_gethostname();
 void network_sethostname(const char *);
 
-extern "C" int sys_uname(struct utsname *ubuf)
+int sys_uname(struct utsname *ubuf)
 {
 	struct utsname buf = {};
 	strcpy(buf.sysname, OS_NAME);

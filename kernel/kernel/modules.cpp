@@ -287,7 +287,6 @@ uintptr_t get_common_block(const char *name, size_t size)
 	return (uintptr_t) b->buf;
 }
 
-extern "C"
 int sys_insmod(const char *path, const char *name)
 {
 	int st = 0;

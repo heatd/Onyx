@@ -154,7 +154,6 @@ static bool valid_itimer_which(int which)
 	return true;
 }
 
-extern "C"
 int sys_getitimer(int which, struct itimerval *curr_value)
 {
 	if(!valid_itimer_which(which))
@@ -249,7 +248,7 @@ int itimer::disarm()
 	return 0;
 }
 
-extern "C" int sys_setitimer(int which, const struct itimerval *new_value, struct itimerval *old_value)
+int sys_setitimer(int which, const struct itimerval *new_value, struct itimerval *old_value)
 {
 	if(!valid_itimer_which(which))
 		return -EINVAL;

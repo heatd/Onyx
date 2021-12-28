@@ -410,7 +410,6 @@ int file_alloc(struct file *f, struct ioctx *ioctx)
 	return filedesc;
 }
 
-extern "C"
 ssize_t sys_read(int fd, const void *buf, size_t count)
 {
 	auto_file f = get_file_description(fd);
@@ -434,7 +433,6 @@ ssize_t sys_read(int fd, const void *buf, size_t count)
 	return size;
 }
 
-extern "C"
 ssize_t sys_write(int fd, const void *buf, size_t count)
 {	
 	auto_file f = get_file_description(fd);
@@ -463,7 +461,6 @@ ssize_t sys_write(int fd, const void *buf, size_t count)
 	return written;
 }
 
-extern "C"
 ssize_t sys_pread(int fd, void *buf, size_t count, off_t offset)
 {
 	auto_file f = get_file_description(fd);
@@ -491,7 +488,6 @@ ssize_t sys_pread(int fd, void *buf, size_t count, off_t offset)
 	return size;
 }
 
-extern "C"
 ssize_t sys_pwrite(int fd, const void *buf, size_t count, off_t offset)
 {	
 	auto_file f = get_file_description(fd);
@@ -628,7 +624,6 @@ int do_sys_open(const char *filename, int flags, mode_t mode, struct file *__rel
 	return fd_num;
 }
 
-extern "C"
 int sys_open(const char *ufilename, int flags, mode_t mode)
 {
 	const char *filename = strcpy_from_user(ufilename);
@@ -643,13 +638,11 @@ int sys_open(const char *ufilename, int flags, mode_t mode)
 	return fd;
 }
 
-extern "C"
 int sys_close(int fd)
 {
 	return file_close(fd);
 }
 
-extern "C"
 int sys_dup(int fd)
 {
 	int st = 0;
@@ -679,7 +672,6 @@ out_error:
 	return st;
 }
 
-extern "C"
 int sys_dup2(int oldfd, int newfd)
 {
 	// printk("pid %d oldfd %d newfd %d\n", get_current_process()->pid, oldfd, newfd);
@@ -731,7 +723,6 @@ out:
 	return newfd;
 }
 
-extern "C"
 int sys_dup3(int oldfd, int newfd, int flags)
 {
 	struct process *current = get_current_process();
@@ -801,7 +792,6 @@ bool fd_may_access(struct file *f, unsigned int access)
 	return true;
 }
 
-extern "C"
 ssize_t sys_readv(int fd, const struct iovec *vec, int veccnt)
 {
 	size_t read = 0;
@@ -863,7 +853,6 @@ error:
 	return -errno;
 }
 
-extern "C"
 ssize_t sys_writev(int fd, const struct iovec *vec, int veccnt)
 {
 	size_t written = 0;
@@ -926,7 +915,6 @@ error:
 	return -errno;
 }
 
-extern "C"
 ssize_t sys_preadv(int fd, const struct iovec *vec, int veccnt, off_t offset)
 {
 	size_t read = 0;
@@ -989,7 +977,6 @@ error:
 	return -errno;
 }
 
-extern "C"
 ssize_t sys_pwritev(int fd, const struct iovec *vec, int veccnt, off_t offset)
 {
 	size_t written = 0;
@@ -1050,7 +1037,6 @@ error:
 
 unsigned int putdir(struct dirent *buf, struct dirent *ubuf, unsigned int count);
 
-extern "C"
 int sys_getdents(int fd, struct dirent *dirp, unsigned int count)
 {
 	int ret = 0;
@@ -1078,7 +1064,6 @@ int sys_getdents(int fd, struct dirent *dirp, unsigned int count)
 	return ret;
 }
 
-extern "C"
 int sys_ioctl(int fd, int request, char *argp)
 {
 	struct file *f = get_file_description(fd);
@@ -1093,13 +1078,11 @@ int sys_ioctl(int fd, int request, char *argp)
 	return ret;
 }
 
-extern "C"
 int sys_truncate(const char *path, off_t length)
 {
 	return -ENOSYS;
 }
 
-extern "C"
 int sys_ftruncate(int fd, off_t length)
 {
 	struct file *f = get_file_description(fd);
@@ -1123,7 +1106,6 @@ out:
 	return ret;
 }
 
-extern "C"
 int sys_fallocate(int fd, int mode, off_t offset, off_t len)
 {
 	struct file *f = get_file_description(fd);
@@ -1139,7 +1121,6 @@ int sys_fallocate(int fd, int mode, off_t offset, off_t len)
 	return ret;
 }
 
-extern "C"
 off_t sys_lseek(int fd, off_t offset, int whence)
 {
 	/* TODO: Fix O_APPEND behavior */
@@ -1171,7 +1152,6 @@ out:
 	return ret;
 }
 
-extern "C"
 int sys_mount(const char *usource, const char *utarget, const char *ufilesystemtype,
 	      unsigned long mountflags, const void *data)
 {
@@ -1254,8 +1234,7 @@ out:
 	return ret;
 }
 
-extern "C"
-int sys_pipe(int upipefd[2])
+int sys_pipe(int *upipefd)
 {
 	int pipefd[2] = {-1, -1};
 	int st = 0;
@@ -1401,7 +1380,6 @@ int fcntl_f_setfl(int fd, struct ioctx *ctx, unsigned long arg)
 	return 0;
 }
 
-extern "C"
 int sys_fcntl(int fd, int cmd, unsigned long arg)
 {
 	/* TODO: Get new flags for file descriptors. The use of O_* is confusing since
@@ -1471,7 +1449,6 @@ int do_sys_stat(const char *pathname, struct stat *buf, int flags, struct file *
 	return st < 0 ? -errno : st;
 }
 
-extern "C"
 int sys_stat(const char *upathname, struct stat *ubuf)
 {
 	const char *pathname = strcpy_from_user(upathname);
@@ -1494,7 +1471,6 @@ int sys_stat(const char *upathname, struct stat *ubuf)
 	return st;
 }
 
-extern "C"
 int sys_lstat(const char *upathname, struct stat *ubuf)
 {
 	const char *pathname = strcpy_from_user(upathname);
@@ -1517,7 +1493,6 @@ int sys_lstat(const char *upathname, struct stat *ubuf)
 	return st;
 }
 
-extern "C"
 int sys_fstat(int fd, struct stat *ubuf)
 {
 	auto_file f = get_file_description(fd);
@@ -1541,7 +1516,6 @@ int sys_fstat(int fd, struct stat *ubuf)
 	return 0;
 }
 
-extern "C"
 int sys_chdir(const char *upath)
 {
 	const char *path = strcpy_from_user(upath);
@@ -1594,7 +1568,6 @@ out:
 	return st;
 }
 
-extern "C"
 int sys_fchdir(int fildes)
 {
 	struct file *f = get_file_description(fildes);
@@ -1626,7 +1599,6 @@ int sys_fchdir(int fildes)
 	return 0;
 }
 
-extern "C"
 int sys_getcwd(char *path, size_t size)
 {
 	if(size == 0 && path != nullptr)
@@ -1672,7 +1644,6 @@ struct file *get_dirfd_file(int dirfd)
 	return dirfd_desc;
 }
 
-extern "C"
 int sys_openat(int dirfd, const char *upath, int flags, mode_t mode)
 {
 	struct file *dirfd_desc = nullptr;
@@ -1696,7 +1667,6 @@ int sys_openat(int dirfd, const char *upath, int flags, mode_t mode)
 	return fd;
 }
 
-extern "C"
 int sys_fstatat(int dirfd, const char *upathname, struct stat *ubuf, int flags)
 {
 	const char *pathname = strcpy_from_user(upathname);
@@ -1727,7 +1697,6 @@ out:
 	return st;
 }
 
-extern "C"
 int sys_fmount(int fd, const char *upath)
 {
 	struct file *f = get_file_description(fd);
@@ -1791,7 +1760,6 @@ int open_with_vnode(struct file *node, int flags)
 	return fd_num;
 }
 
-extern "C"
 int sys_faccessat(int dirfd, const char *upath, int amode, int flags)
 {
 	// TODO: Implement flags, we're doing the check wrong(it should be with ruid
@@ -1823,7 +1791,6 @@ int sys_faccessat(int dirfd, const char *upath, int amode, int flags)
 	return 0;
 }
 
-extern "C"
 int sys_access(const char *path, int amode)
 {
 	return sys_faccessat(AT_FDCWD, path, amode, 0);
@@ -1841,7 +1808,6 @@ int do_sys_mkdir(const char *path, mode_t mode, struct file *dir)
 	return 0; 
 }
 
-extern "C"
 int sys_mkdirat(int dirfd, const char *upath, mode_t mode)
 {
 	struct file *dir;
@@ -1876,7 +1842,6 @@ int sys_mkdirat(int dirfd, const char *upath, mode_t mode)
 	return ret;
 }
 
-extern "C"
 int sys_mkdir(const char *upath, mode_t mode)
 {
 	return sys_mkdirat(AT_FDCWD, upath, mode);
@@ -1893,9 +1858,6 @@ int do_sys_mknodat(const char *path, mode_t mode, dev_t dev, struct file *dir)
 	fd_put(i);
 	return 0; 
 }
-
-extern "C"
-{
 
 int sys_mknodat(int dirfd, const char *upath, mode_t mode, dev_t dev)
 {
@@ -2013,5 +1975,3 @@ int sys_fchownat(int dirfd, const char *pathname,
 
 int sys_utimensat(int dirfd, const char *pathname,
                      const struct timespec *times, int flags) {return -ENOSYS;}
-
-}

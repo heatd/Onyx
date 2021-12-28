@@ -52,7 +52,6 @@ pid::auto_pid pid::lookup(pid_t pid)
 	return nullptr;
 }
 
-extern "C"
 int sys_setpgid(pid_t pid, pid_t pgid)
 {
 	auto current = get_current_process();
@@ -119,7 +118,6 @@ int sys_setpgid(pid_t pid, pid_t pgid)
 	return 0;
 }
 
-extern "C"
 pid_t sys_getpgid(pid_t pid)
 {
 	if(pid < 0)
@@ -205,7 +203,6 @@ pid::pid(process *leader) : pid_{leader->get_pid()}, _hashtable_node{this}
 	add_to_hashtable(*this);
 }
 
-extern "C"
 pid_t sys_setsid()
 {
 	auto current = get_current_process();
@@ -232,7 +229,6 @@ pid_t sys_setsid()
 	return current->session->get_pid();
 }
 
-extern "C"
 pid_t sys_getsid(pid_t pid)
 {
 	if(!pid)

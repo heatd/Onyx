@@ -263,7 +263,6 @@ void flush_do_sync()
 	}
 }
 
-extern "C"
 void sys_sync()
 {
 	flush_do_sync();

@@ -67,7 +67,6 @@ int set_power_state(unsigned int state, unsigned int flags)
 
 #define VALID_SET_POWER_STATE_FLAGS POWER_STATE_FLAG_NO_SYNC
 
-extern "C"
 int sys_set_power_state(unsigned int state, unsigned int flags)
 {
 	auto c = creds_get();

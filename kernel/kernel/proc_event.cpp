@@ -133,7 +133,6 @@ struct file_ops proc_event_ops =
 	.ioctl = proc_event_ioctl
 };
 
-extern "C"
 int sys_proc_event_attach(pid_t pid, unsigned long flags)
 {
 	struct proc_event_sub *new_sub = (proc_event_sub *) zalloc(sizeof(*new_sub));

@@ -364,8 +364,7 @@ bool file_is_executable(struct file *exec_file)
 }
 extern size_t used_pages;
 
-extern "C"
-int sys_execve(const char *p, const char *argv[], const char *envp[])
+int sys_execve(const char *p, const char **argv, const char **envp)
 {
 	int st;
 	struct file *exec_file = nullptr;

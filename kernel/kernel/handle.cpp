@@ -38,27 +38,6 @@ int handle_open_flags_to_open(int handle_open_fl)
 	return fl;
 }
 
-extern "C" int sys_onx_handle_open(unsigned int resource_type, unsigned long id, int flags)
-{
-	if(flags & ~VALID_HANDLE_OPEN_FLAGS)
-		return -EINVAL;
-
-	if(resource_type >= (sizeof(handle_open_handlers) / sizeof(handle_open_handlers[0])))
-		return -EINVAL;
-
-	auto handle = handle_open_handlers[resource_type](resource_type, id, flags);
-
-	if(handle.has_error())
-		return handle.error();
-	
-	int fd = open_with_vnode(handle.value(), handle_open_flags_to_open(flags));
-
-	// This fd_put is unconditional since open_with_vnode increments the ref on success
-	fd_put(handle.value());
-
-	return fd;
-}
-
 handleable *handle_from_inode(const inode *ino)
 {
 	return (handleable *) ino->i_helper;
@@ -121,7 +100,33 @@ bool file_is_handlefd(file *f)
 	return f->f_ino->i_fops == &handle_ops;
 }
 
-extern "C" ssize_t sys_onx_handle_query(int handle, void *buffer, ssize_t len, unsigned long what, size_t *howmany,
+}
+
+}
+
+
+int sys_onx_handle_open(unsigned int resource_type, unsigned long id, int flags)
+{
+	if(flags & ~VALID_HANDLE_OPEN_FLAGS)
+		return -EINVAL;
+
+	if(resource_type >= (sizeof(onx::handle::handle_open_handlers) / sizeof(onx::handle::handle_open_handlers[0])))
+		return -EINVAL;
+
+	auto handle = onx::handle::handle_open_handlers[resource_type](resource_type, id, flags);
+
+	if(handle.has_error())
+		return handle.error();
+	
+	int fd = open_with_vnode(handle.value(), onx::handle::handle_open_flags_to_open(flags));
+
+	// This fd_put is unconditional since open_with_vnode increments the ref on success
+	fd_put(handle.value());
+
+	return fd;
+}
+
+ssize_t sys_onx_handle_query(int handle, void *buffer, ssize_t len, unsigned long what, size_t *howmany,
                                         void *arg)
 {
 	if(len < 0)
@@ -134,10 +139,10 @@ extern "C" ssize_t sys_onx_handle_query(int handle, void *buffer, ssize_t len, u
 
 	/* Test if this is a handle fd before going any further */
 
-	if(!file_is_handlefd(f.get_file()))
+	if(!onx::handle::file_is_handlefd(f.get_file()))
 		return -EBADF;
 
-	auto handleable = handle_from_file(f.get_file());
+	auto handleable = onx::handle::handle_from_file(f.get_file());
 
 	size_t howmany_kernel = 0xabababab;
 
@@ -150,8 +155,4 @@ extern "C" ssize_t sys_onx_handle_query(int handle, void *buffer, ssize_t len, u
 	}
 
 	return st;
-}
-
-}
-
 }

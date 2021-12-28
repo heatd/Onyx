@@ -732,7 +732,6 @@ int signal_kill_pg(int sig, int flags, siginfo_t *info, pid_t pid)
 	return pgrp_res->kill_pgrp(sig, flags, info);
 }
 
-extern "C"
 int sys_kill(pid_t pid, int sig)
 {
 	int st = 0;
@@ -786,7 +785,6 @@ out:
 	return st;
 }
 
-extern "C"
 int sys_sigaction(int signum, const struct k_sigaction *act, struct k_sigaction *oldact)
 {
 	int st = 0;
@@ -835,7 +833,6 @@ int sys_sigaction(int signum, const struct k_sigaction *act, struct k_sigaction 
 	return st;
 }
 
-extern "C"
 int sys_sigprocmask(int how, const sigset_t *set, sigset_t *oldset, size_t sigset_size)
 {
 	if(sigset_size != sizeof(sigset_t))
@@ -898,7 +895,6 @@ bool signal_is_pending(void)
 	return t->sinfo.signal_pending;
 }
 
-extern "C"
 int sys_sigsuspend(const sigset_t *uset)
 {
 	struct thread *current = get_current_thread();
@@ -925,7 +921,6 @@ int sys_sigsuspend(const sigset_t *uset)
 	return -EINTR;
 }
 
-extern "C"
 int sys_pause(void)
 {
 	struct wait_queue wq;
@@ -996,13 +991,11 @@ out:
 	return st;
 }
 
-extern "C"
 int sys_tkill(int tid, int sig)
 {
 	return do_tgkill(-1, tid, sig, 0, NULL);
 }
 
-extern "C"
 int sys_tgkill(int pid, int tid, int sig)
 {
 	return do_tgkill(pid, tid, sig, TGKILL_CHECK_PID, NULL);
@@ -1023,7 +1016,6 @@ int sanitize_rt_sigqueueinfo(siginfo_t *info, pid_t pid)
 	return 0;
 }
 
-extern "C"
 int sys_rt_sigqueueinfo(pid_t pid, int sig, siginfo_t *uinfo)
 {
 	int st = 0;
@@ -1056,7 +1048,6 @@ out:
 	return st;
 }
 
-extern "C"
 int sys_rt_tgsigqueueinfo(pid_t pid, pid_t tid, int sig, siginfo_t *uinfo)
 {
 	siginfo_t info;
@@ -1099,7 +1090,6 @@ long sigtimedwait_forever(struct wait_queue *wq)
 	return wait_for_event_interruptible(wq, false);
 }
 
-extern "C"
 int sys_rt_sigtimedwait(const sigset_t *set, siginfo_t *info, const struct timespec *utimeout, size_t sigsetlen)
 {
 	if(sigsetlen != CURRENT_SIGSETLEN)
@@ -1201,7 +1191,6 @@ out:
 	return st;
 }
 
-extern "C"
 int sys_rt_sigpending(sigset_t *uset, size_t sigsetlen)
 {
 	struct thread *current = get_current_thread();
@@ -1236,7 +1225,6 @@ static int alt_stack_sp_flags(const struct syscall_frame *frame, const stack_t *
 
 #define VALID_SIGALTSTACK_FLAGS				(SS_AUTODISARM | SS_DISABLE)
 
-extern "C"
 int sys_sigaltstack(const stack_t *new_stack, stack_t *old_stack, const struct syscall_frame *frame)
 {
 	struct thread *current = get_current_thread();
