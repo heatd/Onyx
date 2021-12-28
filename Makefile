@@ -74,8 +74,11 @@ build-prep:
 
 install-packages: $(PROJECTS)
 
-libc: install-headers
+libc: install-headers kernel-config-h
 	$(MAKE) -C $@ install
+
+kernel-config-h:
+	$(MAKE) -C kernel/ include/onyx/config.h
 
 kernel: libc install-headers
 	rm -f kernel/clang-tidy.out
