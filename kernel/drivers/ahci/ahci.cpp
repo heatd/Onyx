@@ -483,7 +483,6 @@ void ahci_wake_callback(void *cb, struct wait_queue_token *token)
 bool ahci_do_command(struct ahci_port *ahci_port, struct ahci_command_ata *buf)
 {
 	struct aio_req req = {};
-	memset(&req, 0, sizeof(req));
 	aio_req_init(&req);
 
 	req.req_start = get_main_clock()->get_ns();
