@@ -31,6 +31,11 @@ struct wait_queue
 {
 	struct spinlock lock;
 	struct list_head token_list;
+
+	constexpr wait_queue() : lock{}, token_list{}
+	{
+		INIT_LIST_HEAD(&token_list);
+	}
 };
 
 void wait_queue_wait(struct wait_queue *queue);
