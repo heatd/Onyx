@@ -143,7 +143,6 @@ struct bus
               shutdown_bus{}, suspend_bus{}, resume_bus{}, bus_list_node{this}, bus_type_node{this},
 			  child_buses_node{this}
 	{
-		memset(&bus_sysfs, 0, sizeof(bus_sysfs));
 		INIT_LIST_HEAD(&device_list_head);
 		INIT_LIST_HEAD(&child_buses);
 		bus_init(this);
