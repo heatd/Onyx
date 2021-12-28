@@ -4,7 +4,7 @@ kern-y+= acpi.o acpi_osl.o arc4random.o binfmt.o copy.o cppnew.o cpprt.o crc32.o
 	power_management.o proc_event.o process.o pid.o ptrace.o random.o ref.o signal.o \
 	smp.o spinlock.o symbol.o time.o timer.o utils.o wait_queue.o \
 	worker.o cred.o list.o softirq.o cputime.o rlimit.o handle.o ctor.o internal_abi.o ssp.o \
-	cmdline.o
+	cmdline.o syscall_thunk.o
 
 kern-$(CONFIG_UBSAN)+= ubsan.o
 
@@ -21,3 +21,9 @@ include kernel/fs/Makefile
 include kernel/input/Makefile
 include kernel/tty/Makefile
 include kernel/sched/Makefile
+
+kernel/syscall_thunk.cpp: generate_syscall_bits.py $(ARCHDIR)/syscall_table.json
+	mkdir -p include/onyx/gen
+	python3 generate_syscall_bits.py $(ARCHDIR)/syscall_table.json kernel/syscall_thunk.cpp include/onyx/gen/syscall.h
+
+include/onyx/gen/syscall.h: kernel/syscall_thunk.cpp

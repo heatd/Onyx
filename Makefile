@@ -71,7 +71,6 @@ clean:
 	$(MAKE) -C musl clean
 build-prep:
 	mkdir -p sysroot
-	cd kernel && ../scripts/config_to_header.py include/onyx/config.h
 
 install-packages: $(PROJECTS)
 

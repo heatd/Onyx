@@ -9,10 +9,6 @@
 #ifndef _ONYX_X86_SYSCALL_H
 #define _ONYX_X86_SYSCALL_H
 
-#include <sys/syscall.h>
-
-#define NR_SYSCALL_MAX		146
-
 #ifndef __ASSEMBLER__
 struct syscall_frame
 {

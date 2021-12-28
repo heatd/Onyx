@@ -130,7 +130,7 @@ static void inherit_signal_flags(thread *newt)
 }
 
 extern "C"
-int sys_clone(int (*fn)(void *), void *child_stack, int flags, void *arg, struct tid_out *out, void *tls)
+int sys_clone(void *fn, void *child_stack, int flags, void *arg, struct tid_out *out, void *tls)
 {
 	struct tid_out ktid_out;
 	if(copy_from_user(&ktid_out, out, sizeof(ktid_out)) < 0)
@@ -140,7 +140,7 @@ int sys_clone(int (*fn)(void *), void *child_stack, int flags, void *arg, struct
 		return -EINVAL;
 	if(flags & CLONE_FORK)
 		return -EINVAL; /* TODO: Add CLONE_FORK */
-	thread_callback_t start = (thread_callback_t) (void *) fn;
+	thread_callback_t start = (thread_callback_t) fn;
 
 	registers_t regs = {};
 	regs.rsp = (unsigned long) child_stack;

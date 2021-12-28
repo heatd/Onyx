@@ -1,0 +1,2566 @@
+[
+    {
+        "name": "write",
+        "nr": 0,
+        "nr_args": 3,
+        "args": [
+            [
+                "int",
+                "fd"
+            ],
+            [
+                "const void *",
+                "buf"
+            ],
+            [
+                "int",
+                "count"
+            ]
+        ],
+        "return_type": "ssize_t"
+    },
+    {
+        "name": "read",
+        "nr": 1,
+        "nr_args": 3,
+        "args": [
+            [
+                "int",
+                "fd"
+            ],
+            [
+                "const void *",
+                "buf"
+            ],
+            [
+                "int",
+                "count"
+            ]
+        ],
+        "return_type": "ssize_t"
+    },
+    {
+        "name": "open",
+        "nr": 2,
+        "nr_args": 3,
+        "args": [
+            [
+                "const char *",
+                "filename"
+            ],
+            [
+                "int",
+                "flags"
+            ],
+            [
+                "mode_t",
+                "mode"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "close",
+        "nr": 3,
+        "nr_args": 1,
+        "args": [
+            [
+                "int",
+                "fd"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "dup",
+        "nr": 4,
+        "nr_args": 1,
+        "args": [
+            [
+                "int",
+                "fd"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "dup2",
+        "nr": 5,
+        "nr_args": 2,
+        "args": [
+            [
+                "int",
+                "oldfd"
+            ],
+            [
+                "int",
+                "newfd"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "getpid",
+        "nr": 6,
+        "nr_args": 0,
+        "args": [],
+        "return_type": "pid_t"
+    },
+    {
+        "name": "lseek",
+        "nr": 7,
+        "nr_args": 3,
+        "args": [
+            [
+                "int",
+                "fd"
+            ],
+            [
+                "off_t",
+                "offset"
+            ],
+            [
+                "int",
+                "whence"
+            ]
+        ],
+        "return_type": "off_t"
+    },
+    {
+        "name": "exit",
+        "nr": 8,
+        "nr_args": 1,
+        "args": [
+            [
+                "int",
+                "status"
+            ]
+        ],
+        "return_type": "void"
+    },
+    {
+        "name": "fork",
+        "nr": 10,
+        "nr_args": 1,
+        "args": [
+            [
+                "int *",
+                "ctx"
+            ]
+        ],
+        "return_type": "pid_t"
+    },
+    {
+        "name": "mmap",
+        "nr": 11,
+        "nr_args": 6,
+        "args": [
+            [
+                "void *",
+                "addr"
+            ],
+            [
+                "int",
+                "length"
+            ],
+            [
+                "int",
+                "prot"
+            ],
+            [
+                "int",
+                "flags"
+            ],
+            [
+                "int",
+                "fd"
+            ],
+            [
+                "off_t",
+                "offset"
+            ]
+        ],
+        "return_type": "void *"
+    },
+    {
+        "name": "munmap",
+        "nr": 12,
+        "nr_args": 2,
+        "args": [
+            [
+                "void *",
+                "addr"
+            ],
+            [
+                "int",
+                "length"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "mprotect",
+        "nr": 13,
+        "nr_args": 3,
+        "args": [
+            [
+                "void *",
+                "addr"
+            ],
+            [
+                "int",
+                "len"
+            ],
+            [
+                "int",
+                "prot"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "mount",
+        "nr": 14,
+        "nr_args": 5,
+        "args": [
+            [
+                "const char *",
+                "source"
+            ],
+            [
+                "const char *",
+                "target"
+            ],
+            [
+                "const char *",
+                "filesystemtype"
+            ],
+            [
+                "unsigned long",
+                "mountflags"
+            ],
+            [
+                "const void *",
+                "data"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "execve",
+        "nr": 15,
+        "nr_args": 3,
+        "args": [
+            [
+                "const char *",
+                "p"
+            ],
+            [
+                "const char **",
+                "argv"
+            ],
+            [
+                "const char **",
+                "envp"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "brk",
+        "nr": 16,
+        "nr_args": 1,
+        "args": [
+            [
+                "void *",
+                "addr"
+            ]
+        ],
+        "return_type": "uint64_t"
+    },
+    {
+        "name": "kill",
+        "nr": 17,
+        "nr_args": 2,
+        "args": [
+            [
+                "pid_t",
+                "pid"
+            ],
+            [
+                "int",
+                "sig"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "getppid",
+        "nr": 18,
+        "nr_args": 0,
+        "args": [],
+        "return_type": "pid_t"
+    },
+    {
+        "name": "wait4",
+        "nr": 19,
+        "nr_args": 4,
+        "args": [
+            [
+                "pid_t",
+                "pid"
+            ],
+            [
+                "int *",
+                "wstatus"
+            ],
+            [
+                "int",
+                "options"
+            ],
+            [
+                "struct rusage *",
+                "rusage"
+            ]
+        ],
+        "return_type": "pid_t"
+    },
+    {
+        "name": "time",
+        "nr": 20,
+        "nr_args": 1,
+        "args": [
+            [
+                "time_t *",
+                "s"
+            ]
+        ],
+        "return_type": "time_t"
+    },
+    {
+        "name": "gettimeofday",
+        "nr": 21,
+        "nr_args": 2,
+        "args": [
+            [
+                "struct timeval *",
+                "tv"
+            ],
+            [
+                "struct timezone *",
+                "tz"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "set_power_state",
+        "nr": 22,
+        "nr_args": 2,
+        "args": [
+            [
+                "unsigned int",
+                "state"
+            ],
+            [
+                "unsigned int",
+                "flags"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "shutdown",
+        "nr": 23,
+        "nr_args": 2,
+        "args": [
+            [
+                "int",
+                "sockfd"
+            ],
+            [
+                "int",
+                "how"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "readv",
+        "nr": 24,
+        "nr_args": 3,
+        "args": [
+            [
+                "int",
+                "fd"
+            ],
+            [
+                "const struct iovec *",
+                "vec"
+            ],
+            [
+                "int",
+                "veccnt"
+            ]
+        ],
+        "return_type": "ssize_t"
+    },
+    {
+        "name": "writev",
+        "nr": 25,
+        "nr_args": 3,
+        "args": [
+            [
+                "int",
+                "fd"
+            ],
+            [
+                "const struct iovec *",
+                "vec"
+            ],
+            [
+                "int",
+                "veccnt"
+            ]
+        ],
+        "return_type": "ssize_t"
+    },
+    {
+        "name": "preadv",
+        "nr": 26,
+        "nr_args": 4,
+        "args": [
+            [
+                "int",
+                "fd"
+            ],
+            [
+                "const struct iovec *",
+                "vec"
+            ],
+            [
+                "int",
+                "veccnt"
+            ],
+            [
+                "off_t",
+                "offset"
+            ]
+        ],
+        "return_type": "ssize_t"
+    },
+    {
+        "name": "pwritev",
+        "nr": 27,
+        "nr_args": 4,
+        "args": [
+            [
+                "int",
+                "fd"
+            ],
+            [
+                "const struct iovec *",
+                "vec"
+            ],
+            [
+                "int",
+                "veccnt"
+            ],
+            [
+                "off_t",
+                "offset"
+            ]
+        ],
+        "return_type": "ssize_t"
+    },
+    {
+        "name": "getdents",
+        "nr": 28,
+        "nr_args": 3,
+        "args": [
+            [
+                "int",
+                "fd"
+            ],
+            [
+                "struct dirent *",
+                "dirp"
+            ],
+            [
+                "unsigned int",
+                "count"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "ioctl",
+        "nr": 29,
+        "nr_args": 3,
+        "args": [
+            [
+                "int",
+                "fd"
+            ],
+            [
+                "int",
+                "request"
+            ],
+            [
+                "char *",
+                "argp"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "truncate",
+        "nr": 30,
+        "nr_args": 2,
+        "args": [
+            [
+                "const char *",
+                "path"
+            ],
+            [
+                "off_t",
+                "length"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "ftruncate",
+        "nr": 31,
+        "nr_args": 2,
+        "args": [
+            [
+                "int",
+                "fd"
+            ],
+            [
+                "off_t",
+                "length"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "personality",
+        "nr": 32,
+        "nr_args": 1,
+        "args": [
+            [
+                "unsigned long",
+                "val"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "setuid",
+        "nr": 33,
+        "nr_args": 1,
+        "args": [
+            [
+                "uid_t",
+                "uid"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "setgid",
+        "nr": 34,
+        "nr_args": 1,
+        "args": [
+            [
+                "gid_t",
+                "gid"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "mremap",
+        "nr": 36,
+        "nr_args": 5,
+        "args": [
+            [
+                "void *",
+                "old_address"
+            ],
+            [
+                "int",
+                "old_size"
+            ],
+            [
+                "int",
+                "new_size"
+            ],
+            [
+                "int",
+                "flags"
+            ],
+            [
+                "void *",
+                "new_address"
+            ]
+        ],
+        "return_type": "void *"
+    },
+    {
+        "name": "sigreturn",
+        "nr": 37,
+        "nr_args": 1,
+        "args": [
+            [
+                "void *",
+                "ret"
+            ]
+        ],
+        "return_type": "void"
+    },
+    {
+        "name": "insmod",
+        "nr": 38,
+        "nr_args": 2,
+        "args": [
+            [
+                "const char *",
+                "path"
+            ],
+            [
+                "const char *",
+                "name"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "uname",
+        "nr": 39,
+        "nr_args": 1,
+        "args": [
+            [
+                "struct utsname *",
+                "buf"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "sethostname",
+        "nr": 41,
+        "nr_args": 2,
+        "args": [
+            [
+                "const void *",
+                "name"
+            ],
+            [
+                "int",
+                "len"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "clock_gettime",
+        "nr": 42,
+        "nr_args": 2,
+        "args": [
+            [
+                "clockid_t",
+                "clk_id"
+            ],
+            [
+                "struct timespec *",
+                "tp"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "nanosleep",
+        "nr": 43,
+        "nr_args": 2,
+        "args": [
+            [
+                "const struct timespec *",
+                "req"
+            ],
+            [
+                "struct timespec *",
+                "rem"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "arch_prctl",
+        "nr": 44,
+        "nr_args": 2,
+        "args": [
+            [
+                "int",
+                "code"
+            ],
+            [
+                "unsigned long *",
+                "addr"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "set_tid_address",
+        "nr": 45,
+        "nr_args": 1,
+        "args": [
+            [
+                "pid_t *",
+                "tidptr"
+            ]
+        ],
+        "return_type": "pid_t"
+    },
+    {
+        "name": "syslog",
+        "nr": 46,
+        "nr_args": 3,
+        "args": [
+            [
+                "int",
+                "type"
+            ],
+            [
+                "char *",
+                "buffer"
+            ],
+            [
+                "int",
+                "len"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "fcntl",
+        "nr": 47,
+        "nr_args": 3,
+        "args": [
+            [
+                "int",
+                "fd"
+            ],
+            [
+                "int",
+                "cmd"
+            ],
+            [
+                "unsigned long",
+                "arg"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "sync",
+        "nr": 48,
+        "nr_args": 0,
+        "args": [],
+        "return_type": "void"
+    },
+    {
+        "name": "stat",
+        "nr": 49,
+        "nr_args": 2,
+        "args": [
+            [
+                "const char *",
+                "pathname"
+            ],
+            [
+                "struct stat *",
+                "buf"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "fstat",
+        "nr": 50,
+        "nr_args": 2,
+        "args": [
+            [
+                "int",
+                "fd"
+            ],
+            [
+                "struct stat *",
+                "buf"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "lstat",
+        "nr": 51,
+        "nr_args": 2,
+        "args": [
+            [
+                "const char *",
+                "pathname"
+            ],
+            [
+                "struct stat *",
+                "buf"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "sigaction",
+        "nr": 52,
+        "nr_args": 3,
+        "args": [
+            [
+                "int",
+                "signum"
+            ],
+            [
+                "const struct k_sigaction *",
+                "act"
+            ],
+            [
+                "struct k_sigaction *",
+                "oldact"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "pipe",
+        "nr": 53,
+        "nr_args": 1,
+        "args": [
+            [
+                "int *",
+                "pipefd"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "memstat",
+        "nr": 54,
+        "nr_args": 1,
+        "args": [
+            [
+                "struct memstat *",
+                "memstat"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "chdir",
+        "nr": 55,
+        "nr_args": 1,
+        "args": [
+            [
+                "const char *",
+                "path"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "fchdir",
+        "nr": 56,
+        "nr_args": 1,
+        "args": [
+            [
+                "int",
+                "fildes"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "getcwd",
+        "nr": 57,
+        "nr_args": 2,
+        "args": [
+            [
+                "char *",
+                "path"
+            ],
+            [
+                "int",
+                "size"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "getuid",
+        "nr": 58,
+        "nr_args": 0,
+        "args": [],
+        "return_type": "uid_t"
+    },
+    {
+        "name": "getgid",
+        "nr": 59,
+        "nr_args": 0,
+        "args": [],
+        "return_type": "gid_t"
+    },
+    {
+        "name": "openat",
+        "nr": 60,
+        "nr_args": 4,
+        "args": [
+            [
+                "int",
+                "dirfd"
+            ],
+            [
+                "const char *",
+                "path"
+            ],
+            [
+                "int",
+                "flags"
+            ],
+            [
+                "mode_t",
+                "mode"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "fstatat",
+        "nr": 61,
+        "nr_args": 4,
+        "args": [
+            [
+                "int",
+                "dirfd"
+            ],
+            [
+                "const char *",
+                "pathname"
+            ],
+            [
+                "struct stat *",
+                "buf"
+            ],
+            [
+                "int",
+                "flags"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "fmount",
+        "nr": 62,
+        "nr_args": 2,
+        "args": [
+            [
+                "int",
+                "fd"
+            ],
+            [
+                "const char *",
+                "path"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "clone",
+        "nr": 63,
+        "nr_args": 6,
+        "args": [
+            [
+                "void *",
+                "fn"
+            ],
+            [
+                "void *",
+                "child_stack"
+            ],
+            [
+                "int",
+                "flags"
+            ],
+            [
+                "void *",
+                "arg"
+            ],
+            [
+                "struct tid_out *",
+                "out"
+            ],
+            [
+                "void *",
+                "tls"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "exit_thread",
+        "nr": 64,
+        "nr_args": 1,
+        "args": [
+            [
+                "int",
+                "value"
+            ]
+        ],
+        "return_type": "void"
+    },
+    {
+        "name": "sigprocmask",
+        "nr": 65,
+        "nr_args": 4,
+        "args": [
+            [
+                "int",
+                "how"
+            ],
+            [
+                "const sigset_t *",
+                "set"
+            ],
+            [
+                "sigset_t *",
+                "oldset"
+            ],
+            [
+                "int",
+                "sigset_size"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "sigsuspend",
+        "nr": 66,
+        "nr_args": 1,
+        "args": [
+            [
+                "const sigset_t *",
+                "set"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "pause",
+        "nr": 67,
+        "nr_args": 0,
+        "args": [],
+        "return_type": "int"
+    },
+    {
+        "name": "futex",
+        "nr": 68,
+        "nr_args": 6,
+        "args": [
+            [
+                "int *",
+                "uaddr"
+            ],
+            [
+                "int",
+                "futex_op"
+            ],
+            [
+                "int",
+                "val"
+            ],
+            [
+                "const struct timespec *",
+                "timeout"
+            ],
+            [
+                "int *",
+                "uaddr2"
+            ],
+            [
+                "int",
+                "val3"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "getrandom",
+        "nr": 69,
+        "nr_args": 3,
+        "args": [
+            [
+                "void *",
+                "buf"
+            ],
+            [
+                "int",
+                "buflen"
+            ],
+            [
+                "unsigned int",
+                "flags"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "socket",
+        "nr": 70,
+        "nr_args": 3,
+        "args": [
+            [
+                "int",
+                "domain"
+            ],
+            [
+                "int",
+                "type"
+            ],
+            [
+                "int",
+                "protocol"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "sendto",
+        "nr": 71,
+        "nr_args": 6,
+        "args": [
+            [
+                "int",
+                "sockfd"
+            ],
+            [
+                "const void *",
+                "buf"
+            ],
+            [
+                "int",
+                "len"
+            ],
+            [
+                "int",
+                "flags"
+            ],
+            [
+                "struct sockaddr *",
+                "addr"
+            ],
+            [
+                "socklen_t",
+                "addrlen"
+            ]
+        ],
+        "return_type": "ssize_t"
+    },
+    {
+        "name": "bind",
+        "nr": 72,
+        "nr_args": 3,
+        "args": [
+            [
+                "int",
+                "sockfd"
+            ],
+            [
+                "const struct sockaddr *",
+                "addr"
+            ],
+            [
+                "socklen_t",
+                "addrlen"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "connect",
+        "nr": 73,
+        "nr_args": 3,
+        "args": [
+            [
+                "int",
+                "sockfd"
+            ],
+            [
+                "const struct sockaddr *",
+                "addr"
+            ],
+            [
+                "socklen_t",
+                "addrlen"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "recvfrom",
+        "nr": 74,
+        "nr_args": 6,
+        "args": [
+            [
+                "int",
+                "sockfd"
+            ],
+            [
+                "void *",
+                "buf"
+            ],
+            [
+                "int",
+                "len"
+            ],
+            [
+                "int",
+                "flags"
+            ],
+            [
+                "struct sockaddr *",
+                "src_addr"
+            ],
+            [
+                "socklen_t *",
+                "addrlen"
+            ]
+        ],
+        "return_type": "ssize_t"
+    },
+    {
+        "name": "times",
+        "nr": 75,
+        "nr_args": 1,
+        "args": [
+            [
+                "struct tms *",
+                "buf"
+            ]
+        ],
+        "return_type": "clock_t"
+    },
+    {
+        "name": "getrusage",
+        "nr": 76,
+        "nr_args": 2,
+        "args": [
+            [
+                "int",
+                "who"
+            ],
+            [
+                "struct rusage *",
+                "usage"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "ptrace",
+        "nr": 77,
+        "nr_args": 5,
+        "args": [
+            [
+                "long",
+                "request"
+            ],
+            [
+                "pid_t",
+                "pid"
+            ],
+            [
+                "void *",
+                "addr"
+            ],
+            [
+                "void *",
+                "data"
+            ],
+            [
+                "void *",
+                "addr2"
+            ]
+        ],
+        "return_type": "long"
+    },
+    {
+        "name": "ppoll",
+        "nr": 78,
+        "nr_args": 5,
+        "args": [
+            [
+                "struct pollfd *",
+                "fds"
+            ],
+            [
+                "int",
+                "nfds"
+            ],
+            [
+                "const struct timespec *",
+                "timeout"
+            ],
+            [
+                "const sigset_t *",
+                "sigmask"
+            ],
+            [
+                "int",
+                "sigsetsize"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "proc_event_attach",
+        "nr": 80,
+        "nr_args": 2,
+        "args": [
+            [
+                "pid_t",
+                "pid"
+            ],
+            [
+                "unsigned long",
+                "flags"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "access",
+        "nr": 81,
+        "nr_args": 2,
+        "args": [
+            [
+                "const char *",
+                "path"
+            ],
+            [
+                "int",
+                "amode"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "fallocate",
+        "nr": 82,
+        "nr_args": 4,
+        "args": [
+            [
+                "int",
+                "fd"
+            ],
+            [
+                "int",
+                "mode"
+            ],
+            [
+                "off_t",
+                "offset"
+            ],
+            [
+                "off_t",
+                "len"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "gettid",
+        "nr": 83,
+        "nr_args": 0,
+        "args": [],
+        "return_type": "pid_t"
+    },
+    {
+        "name": "mkdir",
+        "nr": 84,
+        "nr_args": 2,
+        "args": [
+            [
+                "const char *",
+                "upath"
+            ],
+            [
+                "mode_t",
+                "mode"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "rmdir",
+        "nr": 85,
+        "nr_args": 1,
+        "args": [
+            [
+                "const char *",
+                "pathname"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "mknod",
+        "nr": 86,
+        "nr_args": 3,
+        "args": [
+            [
+                "const char *",
+                "pathname"
+            ],
+            [
+                "mode_t",
+                "mode"
+            ],
+            [
+                "dev_t",
+                "dev"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "link",
+        "nr": 87,
+        "nr_args": 2,
+        "args": [
+            [
+                "const char *",
+                "oldpath"
+            ],
+            [
+                "const char *",
+                "newpath"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "unlink",
+        "nr": 88,
+        "nr_args": 1,
+        "args": [
+            [
+                "const char *",
+                "pathname"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "symlink",
+        "nr": 89,
+        "nr_args": 2,
+        "args": [
+            [
+                "const char *",
+                "target"
+            ],
+            [
+                "const char *",
+                "linkpath"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "readlink",
+        "nr": 90,
+        "nr_args": 3,
+        "args": [
+            [
+                "const char *",
+                "pathname"
+            ],
+            [
+                "char *",
+                "buf"
+            ],
+            [
+                "int",
+                "bufsiz"
+            ]
+        ],
+        "return_type": "ssize_t"
+    },
+    {
+        "name": "chmod",
+        "nr": 91,
+        "nr_args": 2,
+        "args": [
+            [
+                "const char *",
+                "pathname"
+            ],
+            [
+                "mode_t",
+                "mode"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "fchmod",
+        "nr": 92,
+        "nr_args": 2,
+        "args": [
+            [
+                "int",
+                "fd"
+            ],
+            [
+                "mode_t",
+                "mode"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "chown",
+        "nr": 93,
+        "nr_args": 3,
+        "args": [
+            [
+                "const char *",
+                "pathname"
+            ],
+            [
+                "uid_t",
+                "owner"
+            ],
+            [
+                "gid_t",
+                "group"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "fchown",
+        "nr": 94,
+        "nr_args": 3,
+        "args": [
+            [
+                "int",
+                "fd"
+            ],
+            [
+                "uid_t",
+                "owner"
+            ],
+            [
+                "gid_t",
+                "group"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "lchown",
+        "nr": 95,
+        "nr_args": 3,
+        "args": [
+            [
+                "const char *",
+                "pathname"
+            ],
+            [
+                "uid_t",
+                "owner"
+            ],
+            [
+                "gid_t",
+                "group"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "umask",
+        "nr": 96,
+        "nr_args": 1,
+        "args": [
+            [
+                "mode_t",
+                "mask"
+            ]
+        ],
+        "return_type": "mode_t"
+    },
+    {
+        "name": "rename",
+        "nr": 97,
+        "nr_args": 2,
+        "args": [
+            [
+                "const char *",
+                "oldpath"
+            ],
+            [
+                "const char *",
+                "newpath"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "rlimit",
+        "nr": 98,
+        "nr_args": 5,
+        "args": [
+            [
+                "pid_t",
+                "pid"
+            ],
+            [
+                "int",
+                "resource"
+            ],
+            [
+                "struct rlimit *",
+                "uold"
+            ],
+            [
+                "const struct rlimit *",
+                "unew_lim"
+            ],
+            [
+                "unsigned int",
+                "flags"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "mkdirat",
+        "nr": 99,
+        "nr_args": 3,
+        "args": [
+            [
+                "int",
+                "dirfd"
+            ],
+            [
+                "const char *",
+                "upath"
+            ],
+            [
+                "mode_t",
+                "mode"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "mknodat",
+        "nr": 100,
+        "nr_args": 4,
+        "args": [
+            [
+                "int",
+                "dirfd"
+            ],
+            [
+                "const char *",
+                "pathname"
+            ],
+            [
+                "mode_t",
+                "mode"
+            ],
+            [
+                "dev_t",
+                "dev"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "fchownat",
+        "nr": 101,
+        "nr_args": 5,
+        "args": [
+            [
+                "int",
+                "dirfd"
+            ],
+            [
+                "const char *",
+                "pathname"
+            ],
+            [
+                "uid_t",
+                "owner"
+            ],
+            [
+                "gid_t",
+                "group"
+            ],
+            [
+                "int",
+                "flags"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "utimensat",
+        "nr": 102,
+        "nr_args": 4,
+        "args": [
+            [
+                "int",
+                "dirfd"
+            ],
+            [
+                "const char *",
+                "pathname"
+            ],
+            [
+                "const struct timespec *",
+                "times"
+            ],
+            [
+                "int",
+                "flags"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "unlinkat",
+        "nr": 103,
+        "nr_args": 3,
+        "args": [
+            [
+                "int",
+                "dirfd"
+            ],
+            [
+                "const char *",
+                "pathname"
+            ],
+            [
+                "int",
+                "flags"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "renameat",
+        "nr": 104,
+        "nr_args": 4,
+        "args": [
+            [
+                "int",
+                "olddirfd"
+            ],
+            [
+                "const char *",
+                "oldpath"
+            ],
+            [
+                "int",
+                "newdirfd"
+            ],
+            [
+                "const char *",
+                "newpath"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "linkat",
+        "nr": 105,
+        "nr_args": 5,
+        "args": [
+            [
+                "int",
+                "olddirfd"
+            ],
+            [
+                "const char *",
+                "oldpath"
+            ],
+            [
+                "int",
+                "newdirfd"
+            ],
+            [
+                "const char *",
+                "newpath"
+            ],
+            [
+                "int",
+                "flags"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "symlinkat",
+        "nr": 106,
+        "nr_args": 3,
+        "args": [
+            [
+                "const char *",
+                "target"
+            ],
+            [
+                "int",
+                "newdirfd"
+            ],
+            [
+                "const char *",
+                "linkpath"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "readlinkat",
+        "nr": 107,
+        "nr_args": 4,
+        "args": [
+            [
+                "int",
+                "dirfd"
+            ],
+            [
+                "const char *",
+                "pathname"
+            ],
+            [
+                "char *",
+                "buf"
+            ],
+            [
+                "int",
+                "bufsiz"
+            ]
+        ],
+        "return_type": "ssize_t"
+    },
+    {
+        "name": "fchmodat",
+        "nr": 108,
+        "nr_args": 4,
+        "args": [
+            [
+                "int",
+                "dirfd"
+            ],
+            [
+                "const char *",
+                "pathname"
+            ],
+            [
+                "mode_t",
+                "mode"
+            ],
+            [
+                "int",
+                "flags"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "faccessat",
+        "nr": 109,
+        "nr_args": 4,
+        "args": [
+            [
+                "int",
+                "dirfd"
+            ],
+            [
+                "const char *",
+                "pathname"
+            ],
+            [
+                "int",
+                "mode"
+            ],
+            [
+                "int",
+                "flags"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "listen",
+        "nr": 110,
+        "nr_args": 2,
+        "args": [
+            [
+                "int",
+                "sockfd"
+            ],
+            [
+                "int",
+                "backlog"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "accept",
+        "nr": 111,
+        "nr_args": 3,
+        "args": [
+            [
+                "int",
+                "sockfd"
+            ],
+            [
+                "struct sockaddr *",
+                "addr"
+            ],
+            [
+                "socklen_t *",
+                "slen"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "accept4",
+        "nr": 112,
+        "nr_args": 4,
+        "args": [
+            [
+                "int",
+                "sockfd"
+            ],
+            [
+                "struct sockaddr *",
+                "addr"
+            ],
+            [
+                "socklen_t *",
+                "slen"
+            ],
+            [
+                "int",
+                "flags"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "rt_sigqueueinfo",
+        "nr": 113,
+        "nr_args": 3,
+        "args": [
+            [
+                "pid_t",
+                "tgid"
+            ],
+            [
+                "int",
+                "sig"
+            ],
+            [
+                "siginfo_t *",
+                "info"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "rt_tgsigqueueinfo",
+        "nr": 114,
+        "nr_args": 4,
+        "args": [
+            [
+                "pid_t",
+                "tgid"
+            ],
+            [
+                "pid_t",
+                "tid"
+            ],
+            [
+                "int",
+                "sig"
+            ],
+            [
+                "siginfo_t *",
+                "info"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "tkill",
+        "nr": 115,
+        "nr_args": 2,
+        "args": [
+            [
+                "int",
+                "tid"
+            ],
+            [
+                "int",
+                "sig"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "tgkill",
+        "nr": 116,
+        "nr_args": 3,
+        "args": [
+            [
+                "int",
+                "pid"
+            ],
+            [
+                "int",
+                "tid"
+            ],
+            [
+                "int",
+                "sig"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "rt_sigpending",
+        "nr": 117,
+        "nr_args": 2,
+        "args": [
+            [
+                "sigset_t *",
+                "set"
+            ],
+            [
+                "int",
+                "sigsetlen"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "rt_sigtimedwait",
+        "nr": 118,
+        "nr_args": 4,
+        "args": [
+            [
+                "const sigset_t *",
+                "set"
+            ],
+            [
+                "siginfo_t *",
+                "info"
+            ],
+            [
+                "const struct timespec *",
+                "timeout"
+            ],
+            [
+                "int",
+                "sigsetlen"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "setsockopt",
+        "nr": 119,
+        "nr_args": 5,
+        "args": [
+            [
+                "int",
+                "sockfd"
+            ],
+            [
+                "int",
+                "level"
+            ],
+            [
+                "int",
+                "optname"
+            ],
+            [
+                "const void *",
+                "optval"
+            ],
+            [
+                "socklen_t",
+                "optlen"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "getsockopt",
+        "nr": 120,
+        "nr_args": 5,
+        "args": [
+            [
+                "int",
+                "sockfd"
+            ],
+            [
+                "int",
+                "level"
+            ],
+            [
+                "int",
+                "optname"
+            ],
+            [
+                "void *",
+                "optval"
+            ],
+            [
+                "socklen_t *",
+                "optlen"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "sigaltstack",
+        "nr": 123,
+        "nr_args": 3,
+        "args": [
+            [
+                "const stack_t *",
+                "new_stack"
+            ],
+            [
+                "stack_t *",
+                "old_stack"
+            ],
+            [
+                "const struct syscall_frame *",
+                "frame"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "setitimer",
+        "nr": 124,
+        "nr_args": 3,
+        "args": [
+            [
+                "int",
+                "which"
+            ],
+            [
+                "const struct itimerval *",
+                "new_value"
+            ],
+            [
+                "struct itimerval *",
+                "old_value"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "getitimer",
+        "nr": 125,
+        "nr_args": 2,
+        "args": [
+            [
+                "int",
+                "which"
+            ],
+            [
+                "struct itimerval *",
+                "curr_value"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "pread",
+        "nr": 126,
+        "nr_args": 4,
+        "args": [
+            [
+                "int",
+                "fd"
+            ],
+            [
+                "void *",
+                "buf"
+            ],
+            [
+                "int",
+                "count"
+            ],
+            [
+                "off_t",
+                "offset"
+            ]
+        ],
+        "return_type": "ssize_t"
+    },
+    {
+        "name": "pwrite",
+        "nr": 127,
+        "nr_args": 4,
+        "args": [
+            [
+                "int",
+                "fd"
+            ],
+            [
+                "const void *",
+                "buf"
+            ],
+            [
+                "int",
+                "count"
+            ],
+            [
+                "off_t",
+                "offset"
+            ]
+        ],
+        "return_type": "ssize_t"
+    },
+    {
+        "name": "fsync",
+        "nr": 128,
+        "nr_args": 1,
+        "args": [
+            [
+                "int",
+                "fd"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "sendmsg",
+        "nr": 129,
+        "nr_args": 3,
+        "args": [
+            [
+                "int",
+                "sockfd"
+            ],
+            [
+                "struct msghdr *",
+                "msg"
+            ],
+            [
+                "int",
+                "flags"
+            ]
+        ],
+        "return_type": "ssize_t"
+    },
+    {
+        "name": "recvmsg",
+        "nr": 130,
+        "nr_args": 3,
+        "args": [
+            [
+                "int",
+                "sockfd"
+            ],
+            [
+                "struct msghdr *",
+                "msg"
+            ],
+            [
+                "int",
+                "flags"
+            ]
+        ],
+        "return_type": "ssize_t"
+    },
+    {
+        "name": "setpgid",
+        "nr": 133,
+        "nr_args": 2,
+        "args": [
+            [
+                "pid_t",
+                "pid"
+            ],
+            [
+                "pid_t",
+                "pgid"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "getpgid",
+        "nr": 134,
+        "nr_args": 1,
+        "args": [
+            [
+                "pid_t",
+                "pid"
+            ]
+        ],
+        "return_type": "pid_t"
+    },
+    {
+        "name": "dup3",
+        "nr": 135,
+        "nr_args": 3,
+        "args": [
+            [
+                "int",
+                "oldfd"
+            ],
+            [
+                "int",
+                "newfd"
+            ],
+            [
+                "int",
+                "flags"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "get_uids",
+        "nr": 136,
+        "nr_args": 3,
+        "args": [
+            [
+                "uid_t *",
+                "ruid"
+            ],
+            [
+                "uid_t *",
+                "euid"
+            ],
+            [
+                "uid_t *",
+                "suid"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "get_gids",
+        "nr": 137,
+        "nr_args": 3,
+        "args": [
+            [
+                "gid_t *",
+                "rgid"
+            ],
+            [
+                "gid_t *",
+                "egid"
+            ],
+            [
+                "gid_t *",
+                "sgid"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "set_uids",
+        "nr": 138,
+        "nr_args": 4,
+        "args": [
+            [
+                "unsigned int",
+                "flags"
+            ],
+            [
+                "uid_t",
+                "ruid"
+            ],
+            [
+                "uid_t",
+                "euid"
+            ],
+            [
+                "uid_t",
+                "suid"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "set_gids",
+        "nr": 139,
+        "nr_args": 4,
+        "args": [
+            [
+                "unsigned int",
+                "flags"
+            ],
+            [
+                "gid_t",
+                "rgid"
+            ],
+            [
+                "gid_t",
+                "egid"
+            ],
+            [
+                "gid_t",
+                "sgid"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "getgroups",
+        "nr": 140,
+        "nr_args": 2,
+        "args": [
+            [
+                "int",
+                "size"
+            ],
+            [
+                "gid_t *",
+                "ugids"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "setgroups",
+        "nr": 141,
+        "nr_args": 2,
+        "args": [
+            [
+                "int",
+                "size"
+            ],
+            [
+                "const gid_t *",
+                "ugids"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "onx_handle_open",
+        "nr": 142,
+        "nr_args": 3,
+        "args": [
+            [
+                "unsigned int",
+                "resource_type"
+            ],
+            [
+                "unsigned long",
+                "id"
+            ],
+            [
+                "int",
+                "flags"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "onx_handle_query",
+        "nr": 143,
+        "nr_args": 6,
+        "args": [
+            [
+                "int",
+                "handle"
+            ],
+            [
+                "void *",
+                "buffer"
+            ],
+            [
+                "ssize_t",
+                "len"
+            ],
+            [
+                "unsigned long",
+                "what"
+            ],
+            [
+                "int *",
+                "howmany"
+            ],
+            [
+                "void *",
+                "arg"
+            ]
+        ],
+        "return_type": "ssize_t"
+    },
+    {
+        "name": "setsid",
+        "nr": 144,
+        "nr_args": 0,
+        "args": [],
+        "return_type": "pid_t"
+    },
+    {
+        "name": "getsid",
+        "nr": 145,
+        "nr_args": 1,
+        "args": [
+            [
+                "pid_t",
+                "pid"
+            ]
+        ],
+        "return_type": "pid_t"
+    },
+    {
+        "name": "msync",
+        "nr": 146,
+        "nr_args": 3,
+        "args": [
+            [
+                "void *",
+                "ptr"
+            ],
+            [
+                "int",
+                "length"
+            ],
+            [
+                "int",
+                "flags"
+            ]
+        ],
+        "return_type": "int"
+    }
+]

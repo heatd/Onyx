@@ -22,7 +22,7 @@ struct wait_queue_token
 	void (*callback)(void *context, struct wait_queue_token *token);
 	void *context;
 	bool signaled;
-	struct list_head token_node;
+	struct list_head token_node{nullptr, nullptr};
 };
 
 struct wait_queue
