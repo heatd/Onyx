@@ -113,7 +113,6 @@ public:
 	
 };
 
-extern "C"
 int sys_ppoll(struct pollfd *fds, nfds_t nfds, const struct timespec *utimeout,
                      const sigset_t *usigmask, size_t sigsetsize)
 {
@@ -246,7 +245,6 @@ void poll_wait_helper(void *__poll_file, struct wait_queue *q)
 	pf->wait(q);
 }
 
-extern "C"
 int sys_pselect(int nfds, fd_set *ureadfds, fd_set *uwritefds,
                 fd_set *uexceptfds, const struct timespec *utimeout,
                 struct pselect_arg *uarg)

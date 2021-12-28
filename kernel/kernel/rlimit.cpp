@@ -76,7 +76,7 @@ void process::inherit_limits(process *parent)
 #define VALID_RLIMIT_FLAGS 0
 
 /* prlimit(2) inspired, but with more sanity and better naming */
-extern "C" int sys_rlimit(pid_t pid, int resource, rlimit *uold, const rlimit *unew_lim,
+int sys_rlimit(pid_t pid, int resource, rlimit *uold, const rlimit *unew_lim,
                           unsigned int flags)
 {
 	if(flags & ~VALID_RLIMIT_FLAGS)

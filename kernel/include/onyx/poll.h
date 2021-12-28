@@ -239,7 +239,7 @@ struct pselect_arg
 };
 
 #endif
-extern "C"
+
 int sys_pselect(int nfds, fd_set *readfds, fd_set *writefds,
                 fd_set *exceptfds, const struct timespec *timeout,
                 struct pselect_arg *arg);

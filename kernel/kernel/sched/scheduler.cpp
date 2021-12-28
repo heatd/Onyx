@@ -610,14 +610,14 @@ void set_current_thread(thread_t *t)
 	write_per_cpu(current_thread, t);
 }
 
-extern "C" pid_t sys_set_tid_address(pid_t *tidptr)
+pid_t sys_set_tid_address(pid_t *tidptr)
 {
 	thread *t = get_current_thread();
 	t->ctid = tidptr;
 	return t->id;
 }
 
-extern "C" int sys_nanosleep(const timespec *req, timespec *rem)
+int sys_nanosleep(const timespec *req, timespec *rem)
 {
 	timespec ts;
 	if(copy_from_user(&ts, req, sizeof(timespec)) < 0)
@@ -1048,7 +1048,7 @@ void __sched_kill_other(thread *thread, unsigned int cpu)
 	cpu_send_message(cpu, CPU_KILL_THREAD, NULL, false);
 }
 
-extern "C" pid_t sys_gettid(void)
+pid_t sys_gettid(void)
 {
 	thread *current = get_current_thread();
 	/* TODO: Should we emulate actual linux behavior? */

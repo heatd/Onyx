@@ -111,7 +111,6 @@ void kernel_thread_start(void *arg)
 #define ARCH_GET_FS 0x1003
 #define ARCH_GET_GS 0x1004
 
-extern "C"
 int sys_arch_prctl(int code, unsigned long *addr)
 {
 	struct thread *current = get_current_thread();

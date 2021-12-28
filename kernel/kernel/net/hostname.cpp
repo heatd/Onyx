@@ -16,7 +16,6 @@
 
 /* FIXME: 98% sure there's a race condition here, TOFIX */
 
-extern "C"
 int sys_sethostname(const void *name, size_t len)
 {
 	if(len > 65)

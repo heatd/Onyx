@@ -1057,12 +1057,12 @@ int do_sys_link(int olddirfd, const char *uoldpath, int newdirfd,
 	return link_vfs(src_file.get_file(), newdir.get_file()->f_dentry, newpath.data());
 }
 
-extern "C" int sys_link(const char *oldpath, const char *newpath)
+int sys_link(const char *oldpath, const char *newpath)
 {
 	return do_sys_link(AT_FDCWD, oldpath, AT_FDCWD, newpath, 0);
 }
 
-extern "C" int sys_linkat(int olddirfd, const char *oldpath,
+int sys_linkat(int olddirfd, const char *oldpath,
                int newdirfd, const char *newpath, int flags)
 {
 	return do_sys_link(olddirfd, oldpath, newdirfd, newpath, flags);
@@ -1189,24 +1189,24 @@ int do_sys_unlink(int dirfd, const char *upathname, int flags)
 	return unlink_vfs(pathname.data(), flags, dir.get_file());
 }
 
-extern "C" int sys_unlink(const char *pathname)
+int sys_unlink(const char *pathname)
 {
 	return do_sys_unlink(AT_FDCWD, pathname, 0);
 }
 
-extern "C" int sys_unlinkat(int dirfd, const char *pathname, int flags)
+int sys_unlinkat(int dirfd, const char *pathname, int flags)
 {
 	return do_sys_unlink(dirfd, pathname, flags);
 }
 
-extern "C" int sys_rmdir(const char *pathname)
+int sys_rmdir(const char *pathname)
 {
 	/* Thankfully we can implement rmdir with unlinkat semantics 
 	 * Thanks POSIX for this really nice and thoughtful API! */
 	return do_sys_unlink(AT_FDCWD, pathname, AT_REMOVEDIR); 
 }
 
-extern "C" int sys_symlinkat(const char *utarget, int newdirfd, const char *ulinkpath)
+int sys_symlinkat(const char *utarget, int newdirfd, const char *ulinkpath)
 {
 	auto_file dir;
 	user_string target, linkpath;
@@ -1226,7 +1226,7 @@ extern "C" int sys_symlinkat(const char *utarget, int newdirfd, const char *ulin
 	return 0;
 }
 
-extern "C" int sys_symlink(const char *target, const char *linkpath)
+int sys_symlink(const char *target, const char *linkpath)
 {
 	return sys_symlinkat(target, AT_FDCWD, linkpath);
 }
@@ -1466,7 +1466,7 @@ struct rename_handling : public last_name_handling
 	}
 };
 
-extern "C" int sys_renameat(int olddirfd, const char *uoldpath,
+int sys_renameat(int olddirfd, const char *uoldpath,
                     int newdirfd, const char *unewpath)
 {
 	auto_file olddir, newdir;
@@ -1503,7 +1503,7 @@ extern "C" int sys_renameat(int olddirfd, const char *uoldpath,
 	return 0;
 }
 
-extern "C" int sys_rename(const char *oldpath, const char *newpath)
+int sys_rename(const char *oldpath, const char *newpath)
 {
 	return sys_renameat(AT_FDCWD, oldpath, AT_FDCWD, newpath);
 }

@@ -93,8 +93,7 @@ void set_initrd_address(void *initrd_address)
 
 void dump_used_mem(void);
 
-extern "C"
-int sys_execve(const char *p, const char *argv[], const char *envp[]);
+int sys_execve(const char *p, const char **argv, const char **envp);
 
 int find_and_exec_init(const char **argv, const char **envp)
 {

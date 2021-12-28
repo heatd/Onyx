@@ -92,7 +92,6 @@ hrtime_t clocksource_get_time(void)
 	return main_clock->get_ns();
 }
 
-extern "C"
 time_t sys_time(time_t *s)
 {
 	if(s)
@@ -158,7 +157,6 @@ int clock_gettime_kernel(clockid_t clk_id, struct timespec *tp)
 	return 0;
 }
 
-extern "C"
 int sys_gettimeofday(struct timeval *tv, struct timezone *tz)
 {
 	if(tv)
@@ -176,7 +174,6 @@ int sys_gettimeofday(struct timeval *tv, struct timezone *tz)
 	return 0;
 }
 
-extern "C"
 int sys_clock_gettime(clockid_t clk_id, struct timespec *tp)
 {
 	struct timespec t;

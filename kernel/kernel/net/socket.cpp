@@ -321,7 +321,6 @@ auto_file get_socket_fd(int fd)
 	return desc;
 }
 
-extern "C"
 int sys_connect(int sockfd, const struct sockaddr *uaddr, socklen_t addrlen)
 {
 	sockaddr_storage addr;
@@ -353,7 +352,6 @@ out2:
 	return ret;
 }
 
-extern "C"
 int sys_bind(int sockfd, const struct sockaddr *uaddr, socklen_t addrlen)
 {
 	sockaddr_storage addr;
@@ -385,7 +383,6 @@ out2:
 	return ret;
 }
 
-extern "C"
 ssize_t sys_recvfrom(int sockfd, void *buf, size_t len, int flags,
                      struct sockaddr *src_addr, socklen_t *paddrlen)
 {
@@ -446,7 +443,6 @@ ssize_t sys_recvfrom(int sockfd, void *buf, size_t len, int flags,
 #define BACKLOG_FOR_LISTEN_0			16
 const int backlog_limit = 4096;
 
-extern "C"
 int sys_listen(int sockfd, int backlog)
 {
 	int st = 0;
@@ -499,7 +495,6 @@ out:
 	return st;
 }
 
-extern "C"
 int sys_shutdown(int sockfd, int how)
 {
 	return 0;
@@ -649,7 +644,6 @@ file *socket_inode_to_file(inode *ino)
 	return f;
 }
 
-extern "C"
 int sys_socket(int domain, int type, int protocol)
 {
 	int dflags;
@@ -717,7 +711,6 @@ socket_conn_request *dequeue_conn_request(socket *sock)
 	return req;
 }
 
-extern "C"
 int sys_accept4(int sockfd, struct sockaddr *addr, socklen_t *slen, int flags)
 {
 	int st = 0;
@@ -792,7 +785,6 @@ out:
 	return st;
 }
 
-extern "C"
 int sys_accept(int sockfd, struct sockaddr *addr, socklen_t *slen)
 {
 	return sys_accept4(sockfd, addr, slen, 0);
@@ -844,7 +836,6 @@ int socket::setsockopt_socket_level(int optname, const void *optval, socklen_t o
 	return -ENOPROTOOPT;
 }
 
-extern "C"
 int sys_getsockopt(int sockfd, int level, int optname, void *optval, socklen_t *optlen)
 {
 	auto f = get_socket_fd(sockfd);
@@ -885,7 +876,6 @@ int sys_getsockopt(int sockfd, int level, int optname, void *optval, socklen_t *
 	return st;
 }
 
-extern "C"
 int sys_setsockopt(int sockfd, int level, int optname, const void *uoptval, socklen_t optlen)
 {
 	auto f = get_socket_fd(sockfd);
@@ -1001,7 +991,6 @@ ssize_t socket_sendmsg(socket *sock, msghdr *umsg, int flags)
 	return sock->sendmsg(&msg, flags);
 }
 
-extern "C"
 ssize_t sys_sendto(int sockfd, const void *buf, size_t len, int flags,
 	struct sockaddr *addr, socklen_t addrlen)
 {
@@ -1043,7 +1032,6 @@ ssize_t sys_sendto(int sockfd, const void *buf, size_t len, int flags,
 	return ret;
 }
 
-extern "C"
 ssize_t sys_sendmsg(int sockfd, struct msghdr *msg, int flags)
 {
 	auto_file f = get_socket_fd(sockfd);
@@ -1090,7 +1078,6 @@ ssize_t socket_recvmsg(socket *sock, msghdr *umsg, int flags)
 	return st;
 }
 
-extern "C"
 ssize_t sys_recvmsg(int sockfd, struct msghdr *msg, int flags)
 {
 	auto_file f = get_socket_fd(sockfd);

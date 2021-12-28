@@ -129,7 +129,6 @@ static void inherit_signal_flags(thread *newt)
 	newt->sinfo.__update_pending();
 }
 
-extern "C"
 int sys_clone(void *fn, void *child_stack, int flags, void *arg, struct tid_out *out, void *tls)
 {
 	struct tid_out ktid_out;

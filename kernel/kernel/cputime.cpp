@@ -82,7 +82,6 @@ void cputime_info_init(struct thread *t)
 	t->cputime_info.last_timeslice_timestamp = 0;
 }
 
-extern "C"
 clock_t sys_times(struct tms *buf)
 {
 	/* Thankfully, since we've entered kernel mode a few ns/us ago, we

@@ -13,7 +13,7 @@
                 "buf"
             ],
             [
-                "int",
+                "size_t",
                 "count"
             ]
         ],
@@ -33,7 +33,7 @@
                 "buf"
             ],
             [
-                "int",
+                "size_t",
                 "count"
             ]
         ],
@@ -144,7 +144,7 @@
         "nr_args": 1,
         "args": [
             [
-                "int *",
+                "syscall_frame *",
                 "ctx"
             ]
         ],
@@ -160,7 +160,7 @@
                 "addr"
             ],
             [
-                "int",
+                "size_t",
                 "length"
             ],
             [
@@ -192,7 +192,7 @@
                 "addr"
             ],
             [
-                "int",
+                "size_t",
                 "length"
             ]
         ],
@@ -208,7 +208,7 @@
                 "addr"
             ],
             [
-                "int",
+                "size_t",
                 "len"
             ],
             [
@@ -591,11 +591,11 @@
                 "old_address"
             ],
             [
-                "int",
+                "size_t",
                 "old_size"
             ],
             [
-                "int",
+                "size_t",
                 "new_size"
             ],
             [
@@ -615,8 +615,8 @@
         "nr_args": 1,
         "args": [
             [
-                "void *",
-                "ret"
+                "syscall_frame *",
+                "frame"
             ]
         ],
         "return_type": "void"
@@ -659,7 +659,7 @@
                 "name"
             ],
             [
-                "int",
+                "size_t",
                 "len"
             ]
         ],
@@ -898,7 +898,7 @@
                 "path"
             ],
             [
-                "int",
+                "size_t",
                 "size"
             ]
         ],
@@ -1044,7 +1044,7 @@
                 "oldset"
             ],
             [
-                "int",
+                "size_t",
                 "sigset_size"
             ]
         ],
@@ -1111,7 +1111,7 @@
                 "buf"
             ],
             [
-                "int",
+                "size_t",
                 "buflen"
             ],
             [
@@ -1155,7 +1155,7 @@
                 "buf"
             ],
             [
-                "int",
+                "size_t",
                 "len"
             ],
             [
@@ -1227,7 +1227,7 @@
                 "buf"
             ],
             [
-                "int",
+                "size_t",
                 "len"
             ],
             [
@@ -1311,7 +1311,7 @@
                 "fds"
             ],
             [
-                "int",
+                "nfds_t",
                 "nfds"
             ],
             [
@@ -1323,7 +1323,7 @@
                 "sigmask"
             ],
             [
-                "int",
+                "size_t",
                 "sigsetsize"
             ]
         ],
@@ -1498,7 +1498,7 @@
                 "buf"
             ],
             [
-                "int",
+                "size_t",
                 "bufsiz"
             ]
         ],
@@ -1858,7 +1858,7 @@
                 "buf"
             ],
             [
-                "int",
+                "size_t",
                 "bufsiz"
             ]
         ],
@@ -2062,7 +2062,7 @@
                 "set"
             ],
             [
-                "int",
+                "size_t",
                 "sigsetlen"
             ]
         ],
@@ -2086,7 +2086,7 @@
                 "timeout"
             ],
             [
-                "int",
+                "size_t",
                 "sigsetlen"
             ]
         ],
@@ -2218,7 +2218,7 @@
                 "buf"
             ],
             [
-                "int",
+                "size_t",
                 "count"
             ],
             [
@@ -2242,7 +2242,7 @@
                 "buf"
             ],
             [
-                "int",
+                "size_t",
                 "count"
             ],
             [
@@ -2462,7 +2462,7 @@
         "nr_args": 2,
         "args": [
             [
-                "int",
+                "size_t",
                 "size"
             ],
             [
@@ -2514,7 +2514,7 @@
                 "what"
             ],
             [
-                "int *",
+                "size_t *",
                 "howmany"
             ],
             [
@@ -2553,7 +2553,7 @@
                 "ptr"
             ],
             [
-                "int",
+                "size_t",
                 "length"
             ],
             [

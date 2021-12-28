@@ -442,7 +442,6 @@ void inode_unlock_hashtable(struct superblock *sb, ino_t ino_nr)
 	spin_unlock(&inode_hashtable_locks[index]);
 }
 
-extern "C"
 int sys_fsync(int fd)
 {
 	auto_file f;
