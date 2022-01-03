@@ -12,6 +12,7 @@ $(eval $(call INCLUDE_IF_ENABLED,CONFIG_USB,usb))
 $(eval $(call INCLUDE_IF_ENABLED,CONFIG_VIRTIO,virtio))
 
 include drivers/mmio_utils/Makefile
+include drivers/serial/Makefile
 
 ifeq ($(CONFIG_X86), y)
 

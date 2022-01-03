@@ -36,6 +36,7 @@
 #include <onyx/panic.h>
 #include <onyx/dev.h>
 #include <onyx/condvar.h>
+#include <onyx/serial.h>
 #include <onyx/poll.h>
 
 void vterm_release_video(void *vterm);
@@ -143,9 +144,6 @@ void tty_init(void *priv, void (*ctor)(struct tty *tty))
 	printf("tty: Added tty%lu\n", tty->tty_num);
 }
 
-extern struct serial_port com1;
-void serial_write(const char *s, size_t size, struct serial_port *port);
-
 void cpu_kill_other_cpus(void);
 
 void tty_write(const char *data, size_t size, struct tty *tty)
@@ -153,8 +151,6 @@ void tty_write(const char *data, size_t size, struct tty *tty)
 	if(mutex_owner(&tty->lock) == get_current_thread() && get_current_thread() != NULL)
 	{
 		tty->lock.counter = 0;
-		const char *msg = "recursive tty lock";
-		serial_write(msg, strlen(msg), &com1);
 		cpu_kill_other_cpus();
 		halt();
 	}
