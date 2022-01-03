@@ -92,10 +92,6 @@ page_node main_node;
 
 bool page_is_used(void *__page, struct bootmodule *modules);
 
-extern struct serial_port com1;
-
-void serial_write(const char *s, size_t size, struct serial_port *port);
-
 int page_node::page_add(struct page_arena *arena, void *__page,
 	struct bootmodule *modules)
 {

@@ -1100,8 +1100,6 @@ size_t vterm::do_escape(const char *buffer, size_t len)
 	return processed;
 }
 
-void serial_write(const char *s, size_t size, struct serial_port *port);
-
 ssize_t vterm_write_tty(const void *buffer, size_t size, struct tty *tty)
 {
 	platform_serial_write((const char *) buffer, size);
@@ -1209,28 +1207,11 @@ void vterm_init(struct tty *tty)
 	vt->tty = tty;
 }
 
-ssize_t serial_write_tty(const void *s, size_t size, struct tty *tty)
-{
-	struct serial_port *port = (serial_port *) tty->priv;
-
-	serial_write((const char *) s, size, port);
-
-	return size;
-}
-
-void serial_tty_init(struct tty *tty)
-{
-	tty->write = serial_write_tty;
-	tty->priv = platform_get_main_serial();
-}
-
 void vterm_do_init(void)
 {
 	struct framebuffer *fb = get_primary_framebuffer();
 	if(fb)
 		tty_init(&primary_vterm, vterm_init);
-	else
-		tty_init(NULL, serial_tty_init);
 }
 
 struct vterm *get_current_vt(void)
