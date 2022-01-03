@@ -11,29 +11,29 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdio.h>
+#include <assert.h>
+#include <x86intrin.h>
 
 #include <onyx/acpi.h>
-#include <assert.h>
-
-#include <onyx/x86/pat.h>
 #include <onyx/compiler.h>
-#include <x86intrin.h>
 #include <onyx/log.h>
 #include <onyx/cpu.h>
-#include <onyx/x86/gdt.h>
 #include <onyx/panic.h>
-#include <onyx/x86/apic.h>
-#include <onyx/x86/pic.h>
 #include <onyx/acpi.h>
 #include <onyx/spinlock.h>
 #include <onyx/registers.h>
-#include <onyx/x86/avx.h>
 #include <onyx/irq.h>
 #include <onyx/fpu.h>
 #include <onyx/percpu.h>
 #include <onyx/init.h>
 #include <onyx/internal_abi.h>
+#include <onyx/serial.h>
 
+#include <onyx/x86/avx.h>
+#include <onyx/x86/pat.h>
+#include <onyx/x86/gdt.h>
+#include <onyx/x86/apic.h>
+#include <onyx/x86/pic.h>
 #include <onyx/x86/msr.h>
 #include <onyx/x86/platform_info.h>
 #include <onyx/x86/tsc.h>
@@ -411,9 +411,6 @@ void cpu_wait_for_msg_ack(volatile struct cpu_message *msg)
 		cpu_relax();
 	msg->ack = false;
 }
-
-extern struct serial_port com1;
-void serial_write(const char *s, size_t size, struct serial_port *port);
 
 PER_CPU_VAR(struct spinlock msg_queue_lock);
 PER_CPU_VAR(struct list_head message_queue);
