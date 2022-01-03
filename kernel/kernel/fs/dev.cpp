@@ -1,8 +1,11 @@
 /*
-* Copyright (c) 2016, 2017 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2016 - 2021 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,6 +21,7 @@
 #include <onyx/tmpfs.h>
 #include <onyx/vfs.h>
 #include <onyx/init.h>
+#include <onyx/file.h>
 
 static struct dev *devices[MAJOR_DEVICE_HASHTABLE];
 
@@ -147,12 +151,14 @@ INIT_LEVEL_CORE_AFTER_SCHED_ENTRY(devfs_init);
 int device_mknod(struct dev *d, const char *path, const char *name, mode_t mode)
 {
 	struct file *root = dev_root;
+	bool opened = false;
 
 	if(strcmp(path, DEVICE_NO_PATH) != 0)
 	{
 		root = open_vfs(root, path);
 		if(!root)
 			return -errno;
+		opened = true;
 	}
 
 	assert(root != nullptr);
@@ -161,7 +167,15 @@ int device_mknod(struct dev *d, const char *path, const char *name, mode_t mode)
 	else	mode |= S_IFCHR;
 	 
 
-	return mknod_vfs(name, mode, d->majorminor, root->f_dentry) == nullptr;
+	auto ret = mknod_vfs(name, mode, d->majorminor, root->f_dentry);
+
+	if (opened)
+		fd_put(root);
+	
+	if (ret)
+		fd_put(ret);
+	
+	return ret == nullptr ? -errno : 0;
 }
 
 int device_show(struct dev *d, const char *path, mode_t mode)
