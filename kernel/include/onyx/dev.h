@@ -1,10 +1,13 @@
 /*
-* Copyright (c) 2016, 2017 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
-#ifndef _KERNEL_DEV_H
-#define _KERNEL_DEV_H
+ * Copyright (c) 2016 - 2021 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
+#ifndef _ONYX_DEV_H
+#define _ONYX_DEV_H
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -16,6 +19,7 @@
 #include <onyx/list.h>
 #include <onyx/sysfs.h>
 #include <onyx/list.h>
+#include <onyx/dev_resource.h>
 
 #define MAJOR_DEVICE_HASHTABLE 255
 
@@ -73,11 +77,18 @@ struct device
 	extrusive_list_head children;
 	list_head_cpp<device> device_list_node;
 
+	spinlock resource_list_lock_;
+	list_head resource_list_;
+
 	device(const char *name, struct bus *bus, device *parent) : parent{parent}, name{name}, bus{bus},
-           driver_{nullptr}, device_sysfs{}, priv{}, children{}, device_list_node{this}
+           driver_{nullptr}, device_sysfs{}, priv{}, children{}, device_list_node{this}, resource_list_lock_{}, resource_list_{}
 	{
-	
+		spinlock_init(&resource_list_lock_);
+		INIT_LIST_HEAD(&resource_list_);
 	}
+
+	virtual ~device()
+	{}
 
 	virtual int shutdown()
 	{
@@ -92,6 +103,75 @@ struct device
 	virtual int suspend()
 	{
 		return 0;
+	}
+
+	/**
+	 * @brief Adds a resource to the device
+	 * 
+	 * @param resource Pointer to the resource
+	 */
+	void add_resource(dev_resource *resource)
+	{
+		scoped_lock g{resource_list_lock_};
+
+		list_add_tail(&resource->resource_list_node_, &resource_list_);
+	}
+
+	/**
+	 * @brief Removes a resource from the device
+	 * 
+	 * @param resource Pointer to the resource
+	 */
+	void remove_resource(dev_resource *resource)
+	{
+		scoped_lock g{resource_list_lock_};
+
+		list_remove(&resource->resource_list_node_);
+	}
+
+	/**
+	 * @brief Calls a function for every resource in the device
+	 * 
+	 * @tparam Callable Callable function type
+	 * @param c Callable function
+	 */
+	template <typename Callable>
+	void for_every_resource(Callable c)
+	{
+		scoped_lock g{resource_list_lock_};
+
+		list_for_every(&resource_list_)
+		{
+			auto resource = list_head_cpp<dev_resource>::self_from_list_head(l);
+
+			if (!c(resource))
+				return;
+		}
+	}
+
+	/**
+	 * @brief Retrieves a device's resource
+	 * 
+	 * @param type Type of the device (see dev_resource.h's flags)
+	 * @param index Index of the resource inside the list of the resource type
+     *              e.g: index 0 is the first of the IRQ resources of the device
+	 * @return Pointer to the dev_resource found, or nullptr if not found. 
+	 */
+	dev_resource *get_resource(uint32_t type, unsigned int index = 0)
+	{
+		dev_resource *r = nullptr;
+		for_every_resource([&](dev_resource *resource) -> bool
+		{
+			if ((resource->flags() & type) == type && index-- == 0)
+			{
+				r = resource;
+				return false;
+			}
+
+			return true;
+		});
+
+		return r;
 	}
 };
 
