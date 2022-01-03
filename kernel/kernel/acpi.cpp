@@ -26,6 +26,7 @@
 #include <onyx/platform.h>
 #include <onyx/init.h>
 #include <onyx/bus_type.h>
+#include <onyx/memory.hpp>
 
 #include <fixed_point/fixed_point.h>
 
@@ -246,6 +247,114 @@ ACPI_RESOURCE *acpi_get_resources(ACPI_HANDLE object)
 	return (ACPI_RESOURCE *) buf.Pointer;
 }
 
+/**
+ * @brief Checks if the dev_resource code supports this ACPI_RESOURCE
+ * 
+ * @param res Pointer to the ACPI resource
+ * @return True if supported, else false.
+ */
+bool acpi_supports_resource_type(ACPI_RESOURCE *res)
+{
+	switch(res->Type)
+	{
+		// fallthrough
+		case ACPI_RESOURCE_TYPE_ADDRESS16:
+		case ACPI_RESOURCE_TYPE_ADDRESS32:
+		case ACPI_RESOURCE_TYPE_ADDRESS64:
+		case ACPI_RESOURCE_TYPE_EXTENDED_ADDRESS64:
+		case ACPI_RESOURCE_TYPE_MEMORY24:
+		case ACPI_RESOURCE_TYPE_MEMORY32:
+		case ACPI_RESOURCE_TYPE_FIXED_MEMORY32:
+		case ACPI_RESOURCE_TYPE_IRQ:
+		case ACPI_RESOURCE_TYPE_EXTENDED_IRQ:
+		case ACPI_RESOURCE_TYPE_IO:
+		case ACPI_RESOURCE_TYPE_FIXED_IO:
+			return true;
+		
+		default:
+			return false;
+	}
+}
+
+/**
+ * @brief Converts an ACPI_RESOURCE into a dev_resource
+ * Note: Doesn't handle IRQ resources since those are peculiar
+ * in the sense that one ACPI_RESOURCE can describe multiple separate
+ * IRQ vectors.
+ * 
+ * @param acpires Pointer to the ACPI resource
+ * @param res     Pointer to the dev_resource to be filled
+ */
+void acpi_resource_to_dev_resource(const ACPI_RESOURCE *acpires, dev_resource *res)
+{
+	// TODO: Collect information for each resource (irq polarity, decode, cacheability, etc)
+	ACPI_RESOURCE_ADDRESS64 res64;
+	switch(acpires->Type)
+	{
+		case ACPI_RESOURCE_TYPE_ADDRESS16:
+		case ACPI_RESOURCE_TYPE_ADDRESS32:
+		case ACPI_RESOURCE_TYPE_ADDRESS64:
+			AcpiResourceToAddress64((ACPI_RESOURCE *) acpires, &res64);
+			res->set_limits(res64.Address.Minimum, res64.Address.Maximum);
+			if (res64.ResourceType == ACPI_MEMORY_RANGE)
+				res->flags() |= DEV_RESOURCE_FLAG_MEM;
+			else if (res64.ResourceType == ACPI_IO_RANGE)
+				res->flags() |= DEV_RESOURCE_FLAG_IO_PORT;
+
+			break;
+		case ACPI_RESOURCE_TYPE_EXTENDED_ADDRESS64:
+			res->set_limits(acpires->Data.ExtAddress64.Address.Minimum, acpires->Data.ExtAddress64.Address.Maximum); 
+			if (acpires->Data.ExtAddress64.ResourceType == ACPI_MEMORY_RANGE)
+				res->flags() |= DEV_RESOURCE_FLAG_MEM;
+			else if (acpires->Data.ExtAddress64.ResourceType == ACPI_IO_RANGE)
+				res->flags() |= DEV_RESOURCE_FLAG_IO_PORT;
+			break;
+		case ACPI_RESOURCE_TYPE_MEMORY24:
+			res->set_limits(acpires->Data.Memory24.Minimum, acpires->Data.Memory24.Maximum);
+			res->flags() |= DEV_RESOURCE_FLAG_MEM;
+			break;
+		case ACPI_RESOURCE_TYPE_MEMORY32:
+			res->set_limits(acpires->Data.Memory32.Minimum, acpires->Data.Memory32.Maximum);
+			res->flags() |= DEV_RESOURCE_FLAG_MEM;
+			break;
+		case ACPI_RESOURCE_TYPE_FIXED_MEMORY32:
+			res->set_limits(acpires->Data.FixedMemory32.Address,
+			                acpires->Data.FixedMemory32.Address + acpires->Data.FixedMemory32.AddressLength - 1);
+			res->flags() |= DEV_RESOURCE_FLAG_MEM;
+			break;
+		case ACPI_RESOURCE_TYPE_IO:
+			res->set_limits(acpires->Data.Io.Minimum, acpires->Data.Io.Maximum);
+			res->flags() |= DEV_RESOURCE_FLAG_IO_PORT;
+			break;
+		case ACPI_RESOURCE_TYPE_FIXED_IO:
+			res->set_limits(acpires->Data.FixedIo.Address,
+			                acpires->Data.FixedIo.Address + acpires->Data.FixedIo.AddressLength - 1);
+			res->flags() |= DEV_RESOURCE_FLAG_IO_PORT;
+			break;
+	}
+}
+
+/**
+ * @brief Converts an IRQ/Extended IRQ ACPI_RESOURCE into a dev_resource
+ * 
+ * @param acpires Pointer to the ACPI resource
+ * @param res     Pointer to the dev_resource to be filled
+ * @param index   Index of the interrupt inside the acpi resource
+ */
+void acpi_irq_resource_to_dev_resource(const ACPI_RESOURCE *acpires, dev_resource *res, uint8_t index)
+{
+	res->flags() |= DEV_RESOURCE_FLAG_IRQ;
+	switch(acpires->Type)
+	{
+		case ACPI_RESOURCE_TYPE_IRQ:
+			res->set_limits(acpires->Data.Irq.Interrupts[index], acpires->Data.Irq.Interrupts[index]);
+			break;
+		case ACPI_RESOURCE_TYPE_EXTENDED_IRQ:
+			res->set_limits(acpires->Data.ExtendedIrq.Interrupts[index], acpires->Data.ExtendedIrq.Interrupts[index]);
+			break;
+	}
+}
+
 ACPI_STATUS acpi_add_device(ACPI_HANDLE object, UINT32 nestingLevel, void *context, void **returnvalue)
 {
 	bool free_id = false;
@@ -290,11 +399,52 @@ ACPI_STATUS acpi_add_device(ACPI_HANDLE object, UINT32 nestingLevel, void *conte
 
 	ACPI_RESOURCE *resources = acpi_get_resources(object);
 
+	// TODO: Resource releasing here is sloppy
 	auto device = new acpi_device{name, &acpi_bus, nullptr, object, info, resources};
 	if(!device)
 	{
 		free((void *) name);
 		return AE_ERROR;
+	}
+
+	ACPI_RESOURCE *res = device->resources;
+
+	for(; res && res->Type != ACPI_RESOURCE_TYPE_END_TAG; res =
+		ACPI_NEXT_RESOURCE(res))
+	{
+		if (!acpi_supports_resource_type(res))
+			continue;
+		
+		if (res->Type == ACPI_RESOURCE_TYPE_IRQ || res->Type == ACPI_RESOURCE_TYPE_EXTENDED_IRQ)
+		{
+			auto nr = res->Type == ACPI_RESOURCE_TYPE_IRQ ? res->Data.Irq.InterruptCount :
+			          res->Data.ExtendedIrq.InterruptCount;
+			
+			for (uint8_t i = 0; i < nr; i++)
+			{
+				unique_ptr<dev_resource> devres = make_unique<dev_resource>(0, 0, 0);
+				if (!devres)
+				{
+					delete device;
+					return AE_NO_MEMORY;
+				}
+
+				acpi_irq_resource_to_dev_resource(res, devres.get(), i);
+
+				device->add_resource(devres.release());
+			}
+		}
+
+		unique_ptr<dev_resource> devres = make_unique<dev_resource>(0, 0, 0);
+		if (!devres)
+		{
+			delete device;
+			return AE_NO_MEMORY;
+		}
+
+		acpi_resource_to_dev_resource(res, devres.get());
+	
+		device->add_resource(devres.release());
 	}
 
 	assert(device_init(device) == 0);
