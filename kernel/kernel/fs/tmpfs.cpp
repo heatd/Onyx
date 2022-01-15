@@ -21,8 +21,7 @@
 #include <onyx/dentry.h>
 #include <onyx/atomic.hpp>
 #include <onyx/cred.h>
-
-#include <partitions.h>
+#include <onyx/fs_mount.h>
 
 // TODO: Parts of this should definitely be separated as they're generic enough
 // for every pseudo filesystem we might want to stick in Onyx

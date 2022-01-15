@@ -21,13 +21,11 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <mbr.h>
 #include <multiboot2.h>
 #include <errno.h>
 #include <string.h>
 #include <fcntl.h>
 #include <pthread_kernel.h>
-#include <partitions.h>
 #include <assert.h>
 
 #include <sys/mman.h>
