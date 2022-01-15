@@ -240,7 +240,7 @@ int main(int argc, char **argv, char **envp)
 
 	for(int i = 0; i < 3; i++)
 	{
-		int fd = open("/dev/tty", O_RDWR);
+		int fd = open("/dev/tty", flags[i]);
 
 		if (fd < 0)
 			return 1;
