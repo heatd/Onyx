@@ -115,7 +115,7 @@ void init_initrd(void *initrd)
 	printf("Found %lu files in the Initrd\n", n_files);
 	
 	/* Mount a new instance of a tmpfs at / */
-	tmpfs_mount("/");
+	tmpfs_kern_mount("/");
 	
 	initrd_mount();
 }

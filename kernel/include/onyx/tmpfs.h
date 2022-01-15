@@ -57,6 +57,12 @@ public:
 	}
 };
 
-int tmpfs_mount(const char *mountpoint);
+/**
+ * @brief Tmpfs mount kernel helper function
+ * 
+ * @param mountpoint Path where to mount the new tmpfs instance
+ * @return 0 on success, else negative error codes
+ */
+int tmpfs_kern_mount(const char *mountpoint);
 
 #endif
