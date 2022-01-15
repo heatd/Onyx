@@ -31,3 +31,4 @@ CONF_STAMP
 .cache
 compile_commands.json
 kernel/include/onyx/config.h
+onyx-package-tree/
