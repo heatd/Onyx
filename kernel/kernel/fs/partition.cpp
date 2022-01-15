@@ -13,7 +13,10 @@
 #include <mbr.h>
 #include <gpt.h>
 
+#include <onyx/log.h>
 #include <onyx/block.h>
+#include <onyx/crc32.h>
+
 
 static list_head fs_mount_list = LIST_HEAD_INIT(fs_mount_list);
 static spinlock fs_mount_list_lock;
@@ -191,16 +194,36 @@ int partition_setup_disk_gpt(struct blockdev *dev)
 	struct page *p = nullptr;
 	unsigned int nr_parts = 1;
 	struct page *part_tab_pages = NULL;
-	struct page *gpt_header_pages = read_disk(dev, 1, 512);
+	struct page *gpt_header_pages = read_disk(dev, 1, dev->sector_size);
 	if(!gpt_header_pages)
 		return -errno;
 
 	gpt_header_t *gpt_header = (gpt_header_t *) PAGE_TO_VIRT(gpt_header_pages);
+	auto csum = gpt_header->crc32_checksum;
+	uint32_t actual_csum = 0;
 
-	/* TODO: Verify the CRC32 checksum */
+
 	if(memcmp(gpt_header->signature, GPT_SIGNATURE, 8))
 	{
 		st = -ENOENT;
+		goto out;
+	}
+
+
+	gpt_header->crc32_checksum = 0;
+
+	if (gpt_header->header_size > dev->sector_size)
+	{
+		ERROR("gpt", "disk %s has invalid GPT table (bad header size\n", dev->name.c_str());
+		st = -EINVAL;
+		goto out;
+	}
+
+	actual_csum = crc32_calculate((uint8_t *) gpt_header, gpt_header->header_size);
+	if (le32toh(csum) != actual_csum)
+	{
+		ERROR("gpt", "disk %s has wrong GPT header checksum\n", dev->name.c_str());
+		st = -EINVAL;
 		goto out;
 	}
 
@@ -242,6 +265,17 @@ int partition_setup_disk_gpt(struct blockdev *dev)
 	{
 		printk("Error reading partition table\n");
 		st = -EIO;
+		goto out;
+	}
+
+	csum = gpt_header->partition_array_crc32;
+
+	actual_csum = crc32_calculate((uint8_t *) part_table, count);
+
+	if (le32toh(csum) != actual_csum)
+	{
+		ERROR("gpt", "disk %s has wrong GPT partition table checksum\n", dev->name.c_str());
+		st = -EINVAL;
 		goto out;
 	}
 
