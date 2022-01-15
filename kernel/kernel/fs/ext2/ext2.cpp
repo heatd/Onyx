@@ -469,6 +469,11 @@ int ext2_kill_inode(struct inode *inode)
 	return 0;
 }
 
+int ext2_statfs(struct statfs *buf, superblock *sb)
+{
+	return ((ext2_superblock *) sb)->stat_fs(buf);
+}
+
 struct inode *ext2_mount_partition(struct blockdev *dev)
 {
 	LOG("ext2", "mounting ext2 partition on block device %s\n", dev->name.c_str());
@@ -592,6 +597,7 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 	superblock_add_inode(sb, root_inode);
 	sb->flush_inode = ext2_flush_inode;
 	sb->kill_inode = ext2_kill_inode;
+	sb->statfs = ext2_statfs;
 
 	sb->sb->s_mtime = clock_get_posix_time();
 	sb->sb->s_mnt_count++;
@@ -694,4 +700,17 @@ void ext2_superblock::error(const char *str) const
 		panic("ext2: Panic from previous filesystem error");
 	
 	/* TODO: Add (re)mouting read-only */
+}
+
+int ext2_superblock::stat_fs(struct statfs *buf)
+{
+	buf->f_type = EXT2_SIGNATURE;
+	buf->f_bsize = block_size;
+	buf->f_blocks = sb->s_blocks_count;
+	buf->f_bfree = sb->s_free_blocks_count;
+	buf->f_bavail = sb->s_free_blocks_count - sb->s_r_blocks_count;
+	buf->f_files = sb->s_inodes_count;
+	buf->f_ffree = sb->s_free_inodes_count;
+
+	return 0;
 }

@@ -1984,3 +1984,68 @@ int sys_fchownat(int dirfd, const char *pathname,
 
 int sys_utimensat(int dirfd, const char *pathname,
                      const struct timespec *times, int flags) {return -ENOSYS;}
+
+/**
+ * @brief Retrieve statistics about a specific file's filesystem
+ * 
+ * @param f Pointer to the file
+ * @param buf Pointer to the statfs buffer (kernel pointer)
+ * @return 0 on success, else negative error code
+ */
+int kernel_statfs(file *f, struct statfs *buf)
+{
+	auto ino = f->f_ino;
+	auto sb = ino->i_sb;
+
+	// Not supported
+	if (!sb || !sb->statfs)
+		return -ENOSYS;
+
+	// Prevent any accidental leak by zeroing it all explicitly
+	memset(buf, 0, sizeof(*buf));
+
+	// Provide safe defaults for statfs
+	// All these are safely overridable by filesystem code
+	buf->f_namelen = NAME_MAX;
+	buf->f_frsize = 0;
+
+	// Unsure about this, but this is not going to be a security hazard anyway
+	buf->f_fsid.__val[0] = (int) sb->s_devnr;
+	buf->f_fsid.__val[1] = (int) (sb->s_devnr >> 32);
+
+	return sb->statfs(buf, sb);
+}
+
+int core_statfs(file *f, struct statfs *ubuf)
+{
+	struct statfs buf;
+
+	if (int st = kernel_statfs(f, &buf); st < 0)
+		return st;
+	
+	return copy_to_user(ubuf, &buf, sizeof(buf));
+}
+
+int sys_statfs(const char *upath, struct statfs *ubuf)
+{
+	user_string path;
+	if(auto ex = path.from_user(upath); ex.has_error())
+		return ex.error();
+
+	auto_file cwd = get_current_directory();
+	auto_file f = open_vfs(cwd.get_file(), path.data());
+	if (!f)
+		return -errno;
+	
+	return core_statfs(f.get_file(), ubuf);
+}
+
+int sys_fstatfs(int fd, struct statfs *ubuf)
+{
+	auto_file f = get_file_description(fd);
+
+	if (!f)
+		return -errno;
+	
+	return core_statfs(f.get_file(), ubuf);
+}

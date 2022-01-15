@@ -1,11 +1,13 @@
 /*
-* Copyright (c) 2016, 2017 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2016 - 2022 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
 
-#ifndef _VFS_H
-#define _VFS_H
+#ifndef _ONYX_VFS_H
+#define _ONYX_VFS_H
 
 #include <stdint.h>
 #include <string.h>
@@ -18,6 +20,7 @@
 #include <onyx/rwlock.h>
 
 #include <onyx/public/socket.h>
+
 #include <sys/stat.h>
 
 #define VFS_TYPE_FILE            (1 << 0)
@@ -69,7 +72,6 @@ struct file_ops
 	ssize_t (*readpage)(struct page *page, size_t offset, struct inode *ino);
 	ssize_t (*writepage)(struct page *page, size_t offset, struct inode *ino);
 	int (*prepare_write)(struct inode *ino, struct page *page, size_t page_off, size_t offset, size_t len);
-
 };
 
 struct getdents_ret

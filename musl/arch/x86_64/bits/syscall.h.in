@@ -144,14 +144,14 @@
 #define __NR_setsid				144
 #define __NR_getsid				145
 #define __NR_msync              146
+#define __NR_statfs				147
+#define __NR_fstatfs			148
 #define __NR_sysinfo			255
 #define __NR_capget				255
 #define __NR_capset				255
 #define __NR_utime				255
 #define __NR_uselib				255
 #define __NR_ustat				255
-#define __NR_statfs				255
-#define __NR_fstatfs			255
 #define __NR_sysfs				255
 #define __NR_getpriority			255
 #define __NR_setpriority			255

@@ -403,6 +403,8 @@ public:
 	{
 		return sb->s_first_data_block;
 	}
+
+	int stat_fs(struct statfs *buf);
 };
 
 struct ext2_inode_info

@@ -2562,5 +2562,37 @@
             ]
         ],
         "return_type": "int"
+    },
+    {
+        "name": "statfs",
+        "nr": 147,
+        "nr_args": 2,
+        "args": [
+            [
+                "const char *",
+                "path"
+            ],
+            [
+                "struct statfs *",
+                "buf"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "fstatfs",
+        "nr": 148,
+        "nr_args": 2,
+        "args": [
+            [
+                "int",
+                "fd"
+            ],
+            [
+                "struct statfs *",
+                "buf"
+            ]
+        ],
+        "return_type": "int"
     }
 ]
