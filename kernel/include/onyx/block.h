@@ -168,4 +168,7 @@ unique_ptr<blockdev> blkdev_create_scsi_like_dev();
 // Read-write user and group, no permissions to others
 #define BLOCK_DEVICE_PERMISSIONS 0660
 
+struct blockdev;
+void partition_setup_disk(struct blockdev *dev);
+
 #endif

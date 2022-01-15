@@ -47,7 +47,4 @@ int fs_mount_add(fs_sb_mount handler, unsigned int flags, cul::string name);
  */
 fs_mount *fs_mount_get(const char *fsname);
 
-struct blockdev;
-void partition_setup_disk(struct blockdev *dev);
-
 #endif

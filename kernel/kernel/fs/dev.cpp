@@ -24,7 +24,7 @@
 #include <onyx/file.h>
 #include <onyx/hashtable.hpp>
 #include <onyx/fnv.h>
-#include <partitions.h>
+#include <onyx/fs_mount.h>
 #include <onyx/tmpfs.h>
 #include <onyx/dentry.h>
 

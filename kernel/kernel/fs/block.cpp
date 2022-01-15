@@ -19,8 +19,6 @@
 #include <onyx/buffer.h>
 #include <onyx/page_iov.h>
 
-#include <partitions.h>
-
 static struct rwlock dev_list_lock;
 static struct list_head dev_list = LIST_HEAD_INIT(dev_list);
 

@@ -9,13 +9,12 @@
 #include <errno.h>
 #include <stdbool.h>
 
-#include <partitions.h>
-#include <mbr.h>
-#include <gpt.h>
-
 #include <onyx/log.h>
 #include <onyx/block.h>
 #include <onyx/crc32.h>
+#include <onyx/fs_mount.h>
+#include <onyx/mbr.h>
+#include <onyx/gpt.h>
 
 
 static list_head fs_mount_list = LIST_HEAD_INIT(fs_mount_list);

@@ -1,8 +1,11 @@
 /*
-* Copyright (c) 2017-2021 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2017 - 2022 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
@@ -13,8 +16,6 @@
 #include <assert.h>
 #include <onyx/limits.h>
 
-#include <partitions.h>
-
 #include <onyx/compiler.h>
 #include <onyx/vm.h>
 #include <onyx/vfs.h>
@@ -24,6 +25,7 @@
 #include <onyx/user.h>
 #include <onyx/panic.h>
 #include <onyx/dentry.h>
+#include <onyx/fs_mount.h>
 
 #include <libgen.h>
 

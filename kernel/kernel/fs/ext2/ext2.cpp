@@ -7,8 +7,6 @@
  */
 
 #include <onyx/limits.h>
-#include <mbr.h>
-#include <partitions.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -27,6 +25,8 @@
 #include <onyx/buffer.h>
 #include <onyx/dentry.h>
 #include <onyx/pagecache.h>
+#include <onyx/fs_mount.h>
+
 
 #include "ext2.h"
 
