@@ -22,6 +22,8 @@
 #include <onyx/atomic.hpp>
 #include <onyx/cred.h>
 
+#include <partitions.h>
+
 // TODO: Parts of this should definitely be separated as they're generic enough
 // for every pseudo filesystem we might want to stick in Onyx
 
@@ -128,7 +130,7 @@ off_t tmpfs_getdirent(struct dirent *buf, off_t off, struct file *file)
 		off_t c = 0;
 		list_for_every(&dent->d_children_head)
 		{
-			if((c++) - 2 != off)
+			if (off > c++ + 2)
 				continue;
 			
 			auto d = container_of(l, dentry, d_parent_dir_node);
@@ -254,13 +256,19 @@ tmpfs_superblock *tmpfs_create_sb(void)
 	return new_fs;
 }
 
-int tmpfs_mount(const char *mountpoint)
+/**
+ * @brief Mount a tmpfs instance
+ * 
+ * @param dev Traditionally a pointer to blockdev, but our case, unused.
+ * @return Pointer to the root inode, or nullptr in case of an error
+ */
+inode *tmpfs_mount(blockdev *bdev)
 {
-	LOG("tmpfs", "Mounting on %s\n", mountpoint);
+	LOG("tmpfs", "Mounting a new instance of tmpfs\n");
 
 	auto new_sb = tmpfs_create_sb();
 	if(!new_sb)
-		return -ENOMEM;
+		return errno = ENOMEM, nullptr;
 
 	char name[NAME_MAX + 1];
 	snprintf(name, NAME_MAX, "tmpfs-%lu", new_sb->fs_minor);
@@ -268,7 +276,7 @@ int tmpfs_mount(const char *mountpoint)
 	auto ex = dev_register_blockdevs(0, 1, 0, nullptr, name);
 
 	if(ex.has_error())
-		return ex.error();
+		return errno = -ex.error(), nullptr;
 
 	auto blockdev = ex.value();
 
@@ -279,20 +287,39 @@ int tmpfs_mount(const char *mountpoint)
 	{
 		dev_unregister_dev(blockdev, true);
 		delete new_sb;
-		return -ENOMEM;
+		return errno = ENOMEM, nullptr;
 	}
+
+	return node;
+}
+
+/**
+ * @brief Tmpfs mount kernel helper function
+ * 
+ * @param mountpoint Path where to mount the new tmpfs instance
+ * @return 0 on success, else negative error codes
+ */
+int tmpfs_kern_mount(const char *mountpoint)
+{
+	LOG("tmpfs", "Mounting on %s\n", mountpoint);
+
+	auto node = tmpfs_mount(nullptr);
+
+	if (!node)
+		return -errno;
 
 	if(mount_fs(node, mountpoint) < 0)
 	{
-		dev_unregister_dev(blockdev, true);
-		superblock_kill(new_sb);
-		delete new_sb;
-		/* We need to unref the inode two times, one for our ref
-		 * and another one for the persistence. */
-		close_vfs(node);
-		close_vfs(node);
+		// TODO: Destroy the filesystem or something
 		return -errno;
 	}
 
 	return 0;
+}
+
+
+__init void tmpfs_init()
+{
+	if(auto st = fs_mount_add(tmpfs_mount, FS_MOUNT_PSEUDO_FS, "tmpfs"); st < 0)
+		ERROR("tmpfs", "Failed to register tmpfs - error %d", st);
 }
