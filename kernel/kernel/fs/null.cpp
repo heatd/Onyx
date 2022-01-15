@@ -31,16 +31,19 @@ size_t null_read(size_t offset, size_t len, void *buf, file *f)
 	return 0;
 }
 
+const struct file_ops null_ops =
+{
+	.read = null_read,
+	.write = null_write
+};
+
 void null_init(void)
 {	
-	struct dev *min = dev_register(0, 0, "null");
-	if(!min)
-		panic("Could not create a device ID for /dev/null!\n");
-
-	min->fops.write = null_write;
-	min->fops.read = null_read;
+	auto dev = dev_register_chardevs(0, 1, 0, &null_ops, cul::string{"null"});
+	if(!dev)
+		panic("Could not create a device for /dev/null!\n");
 	
-	device_show(min, DEVICE_NO_PATH, 0666);
+	dev.value()->show(0666);
 }
 
 INIT_LEVEL_CORE_KERNEL_ENTRY(null_init);

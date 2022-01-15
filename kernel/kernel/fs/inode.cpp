@@ -1,8 +1,11 @@
 /*
-* Copyright (c) 2020 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2020 - 2021 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
 #include <errno.h>
 #include <stdio.h>
 
@@ -237,13 +240,14 @@ ssize_t file_read_cache(void *buffer, size_t len, struct inode *file, size_t off
 
 int inode_special_init(struct inode *ino)
 {
-	if(ino->i_type == VFS_TYPE_BLOCK_DEVICE || ino->i_type == VFS_TYPE_CHAR_DEVICE)
+	if (S_ISBLK(ino->i_mode) || S_ISCHR(ino->i_mode))
 	{
-		struct dev *d = dev_find(ino->i_rdev);
-		if(!d)
+		gendev *dev = S_ISBLK(ino->i_mode) ? (gendev *) dev_find_block(ino->i_rdev) : (gendev *) dev_find_chr(ino->i_rdev);
+		if (!dev)
 			return -ENODEV;
-		ino->i_fops = &d->fops;
-		ino->i_helper = d->priv;
+
+		ino->i_fops = const_cast<file_ops *>(dev->fops());
+		ino->i_helper = dev->private_;
 	}
 
 	return 0;

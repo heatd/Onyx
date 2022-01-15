@@ -32,7 +32,6 @@
 
 struct inode;
 struct file;
-struct dev;
 struct dentry;
 
 typedef size_t (*__read)(size_t offset, size_t sizeofread, void* buffer, struct file* file);
@@ -216,13 +215,21 @@ int inode_flush(struct inode *ino);
 
 int inode_special_init(struct inode *ino);
 
-static inline bool inode_is_special(struct inode *ino)
+/**
+ * @brief Test if the inode requires special handling.
+ * The only inode types that require special handling are chr/blk devices,
+ * fifos and sockets.
+ * 
+ * @param ino Pointer to the inode
+ * @return True if special, else false
+ */
+static inline bool inode_is_special(inode *ino)
 {
-	if(ino->i_type == VFS_TYPE_BLOCK_DEVICE || ino->i_type == VFS_TYPE_CHAR_DEVICE ||
-	   ino->i_type == VFS_TYPE_FIFO || ino->i_type == VFS_TYPE_UNIX_SOCK)
-	   	return true;
+	auto mode = ino->i_mode;
+	if (S_ISREG(mode) || S_ISDIR(mode) || S_ISLNK(mode))
+	   	return false;
 	else
-		return false;
+		return true;
 }
 
 #define FILE_ACCESS_READ    (1 << 0)
@@ -305,5 +312,14 @@ void inode_unlock_hashtable(struct superblock *sb, ino_t ino_nr);
 void inode_update_atime(struct inode *ino);
 void inode_update_ctime(struct inode *ino);
 void inode_update_mtime(struct inode *ino);
+
+/**
+ * @brief Getdirent helper
+ * 
+ * @param buf Pointer to struct dirent
+ * @param dentry Pointer to dentry
+ * @param special_name Special name if the current dentry is "." or ".."
+ */
+void put_dentry_to_dirent(struct dirent *buf, dentry *dentry, const char *special_name = nullptr);
 
 #endif

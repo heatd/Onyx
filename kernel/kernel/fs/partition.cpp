@@ -1,8 +1,10 @@
 /*
-* Copyright (c) 2016, 2017 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2016 - 2022 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
 #include <stdio.h>
 #include <errno.h>
 #include <stdbool.h>
@@ -13,60 +15,73 @@
 
 #include <onyx/block.h>
 
-static filesystem_mount_t *filesystems = NULL;
+static list_head fs_mount_list = LIST_HEAD_INIT(fs_mount_list);
+static spinlock fs_mount_list_lock;
 
-void insert_filesystem_mount(filesystem_mount_t *m)
+/**
+ * @brief Add a fs mount object to the kernel's registry
+ * After this call, mount(2) can try and mount these types of filesystems
+ * 
+ * @param handler Callback to the mount handler
+ * @param flags Flags (see FS_MOUNT_*)
+ * @param name Name of the filesystem, passed by mount(2)
+ * @return 0 on success, else negative error codes
+ */
+int fs_mount_add(fs_sb_mount handler, unsigned int flags, cul::string name)
 {
-	if(!filesystems)
-	{
-		filesystems = m;
-	}
-	else
-	{
-		filesystem_mount_t *mounts = filesystems;
-		for(; mounts->next; mounts = mounts->next);
+	scoped_lock g{fs_mount_list_lock};
+	auto mount = make_unique<fs_mount>();
 
-		mounts->next = m;
-	}
-}
+	if (!mount)
+		return -ENOMEM;
+	
+	mount->mount = handler;
+	mount->flags = flags;
+	mount->name = cul::move(name);
 
-filesystem_mount_t *find_filesystem_handler(const char *fsname)
-{
-	if(!filesystems)
-		return NULL;
-	for(filesystem_mount_t *m = filesystems; m; m = m->next)
-	{
-		if(!strcmp(m->filesystem, (char*) fsname))
-			return m;
-	}
-	return NULL;
-}
+	list_add_tail(&mount->list_node, &fs_mount_list);
 
-int partition_add_handler(fs_handler handler, const char *filesystem)
-{	
-	filesystem_mount_t *mount = (filesystem_mount_t *) zalloc(sizeof(filesystem_mount_t));
-	if(!mount)
-		return -1;
-	mount->handler = handler;
-	mount->filesystem = filesystem;
-
-	/* Insert into the linked list */
-	insert_filesystem_mount(mount);
-
+	mount.release();
 	return 0;
 }
 
+/**
+ * @brief Find the fs_mount from the name
+ * 
+ * @param fsname Name of the filesystem, passed by mount(2)
+ * @return Pointer to the fs_mount, or NULL
+ */
+fs_mount *fs_mount_get(const char *fsname)
+{
+	scoped_lock g{fs_mount_list_lock};
 
-int partition_setup(struct dev *dev, struct blockdev *block,
+	list_for_every(&fs_mount_list)
+	{
+		auto mount = container_of(l, fs_mount, list_node);
+
+		if (mount->name == fsname)
+			return mount;
+	}
+
+	return nullptr;
+}
+
+int partition_setup(cul::string name, struct blockdev *block,
 		    size_t first_sector, size_t last_sector)
 {
-	struct blockdev *d = (blockdev *) zalloc(sizeof(struct blockdev));
+	blockdev *d = new blockdev;
 	if(!d)
 		return -ENOMEM;
 	
-	d->dev = dev;
 	d->offset = first_sector * block->sector_size;
-	d->name = dev->name;
+	d->name = name;
+
+	if (!d->name)
+	{
+		delete d;
+		return -ENOMEM;
+	}
+
 	d->sector_size = block->sector_size;
 	d->nr_sectors = (last_sector - first_sector) + 1;
 	d->actual_blockdev = block;
@@ -131,6 +146,42 @@ out:
 	return st < 0 ? NULL : pages;
 }
 
+/**
+ * @brief Add a partition to a block device
+ * 
+ * @param dev Pointer to the blockdev
+ * @param nr_partition Number of the partition
+ * @param first_lba First LBA
+ * @param last_lba Last LBA
+ * @return Negative error code or 0 for success
+ */
+int partition_add(blockdev *dev, int nr_partition, uint64_t first_lba, uint64_t last_lba)
+{
+	// Arbitrary length but should be safe because of snprintf
+	char partition_num[6];
+	if (snprintf(partition_num, sizeof(partition_num), "%d", nr_partition) >= (int) sizeof(partition_num))
+		return -EINVAL;
+
+	cul::string name = dev->name;
+	if (!name)
+	{
+		return -ENOMEM;
+	}
+
+	// Append the partition number
+	if (!name.append(std::string_view{partition_num, strlen(partition_num)}))
+	{
+		return -ENOMEM;
+	}
+
+	if(partition_setup(name, dev, first_lba, last_lba) < 0)
+	{
+		return -errno;
+	}
+
+	return 0;
+}
+
 int partition_setup_disk_gpt(struct blockdev *dev)
 {
 	int st = 0;
@@ -138,7 +189,7 @@ int partition_setup_disk_gpt(struct blockdev *dev)
 	struct page_iov *vec = NULL;
 	size_t count = 0;
 	struct page *p = nullptr;
-	unsigned int nr_parts = 0;
+	unsigned int nr_parts = 1;
 	struct page *part_tab_pages = NULL;
 	struct page *gpt_header_pages = read_disk(dev, 1, 512);
 	if(!gpt_header_pages)
@@ -194,46 +245,15 @@ int partition_setup_disk_gpt(struct blockdev *dev)
 		goto out;
 	}
 
-	/* FIXME: Support actually reading partition entries */
 	for(uint32_t i = 0; i < gpt_header->num_partitions; i++)
 	{
 		gpt_partition_entry_t *e = &part_table[i];
 		
 		if(!memcmp(e->partition_type, unused_type, sizeof(uuid_t)))
 			continue;
-		char nr = '1' + nr_parts;
-
-		/* FIXME: Support partition numbers > 9 */
-		if(nr_parts + 1 > 9)
+		
+		if ((st = partition_add(dev, nr_parts, e->first_lba, e->last_lba)) < 0)
 		{
-			st = -E2BIG;
-			goto out;
-		}
-
-		size_t name_len = strlen(dev->name);
-		char *name = (char *) malloc(name_len + 2);
-		if(!name)
-		{
-			st = -ENOMEM;
-			goto out;
-		}
-	
-		strcpy(name, dev->name);
-		name[name_len] = nr;
-		name[name_len + 1] = '\0';
-
-		struct dev *d = dev_register(MAJOR(dev->dev->majorminor), nr_parts + 1, name);
-		if(!d)
-		{
-			free(name);
-			st = -errno;
-			goto out;
-		}
-
-		if(partition_setup(d, dev, e->first_lba, e->last_lba) < 0)
-		{
-			st = -errno;
-			dev_unregister(d->majorminor);
 			goto out;
 		}
 
@@ -258,45 +278,14 @@ int partition_setup_disk_mbr(struct blockdev *dev)
 	
 	mbrpart_t *part = (mbrpart_t*) ((char *) mbrbuf + 0x1BE);
 	
-	unsigned int nr_parts = 0;
+	unsigned int nr_parts = 1;
 	/* Cycle through all the partitions */
 	for(int i = 0; i < 4; i++)
 	{
 		if(part->part_type != 0)
 		{
-			char nr = '1' + nr_parts;
-
-			/* FIXME: Support partition numbers > 9 */
-			if(nr_parts + 1 > 9)
+			if ((st = partition_add(dev, nr_parts, part->sector, part->sector + part->size_sector - 1)) < 0)
 			{
-				st = -E2BIG;
-				goto out;
-			}
-
-			size_t name_len = strlen(dev->name);
-			char *name = (char *) malloc(name_len + 2);
-			if(!name)
-			{
-				st = -ENOMEM;
-				goto out;
-			}
-		
-			strcpy(name, dev->name);
-			name[name_len] = nr;
-			name[name_len + 1] = '\0';
-
-			struct dev *d = dev_register(MAJOR(dev->dev->majorminor), nr_parts + 1, name);
-			if(!d)
-			{
-				free(name);
-				st = -errno;
-				goto out;
-			}
-
-			if(partition_setup(d, dev, part->sector, part->sector + part->size_sector) < 0)
-			{
-				st = -errno;
-				dev_unregister(d->majorminor);
 				goto out;
 			}
 

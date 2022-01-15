@@ -471,7 +471,7 @@ int ext2_kill_inode(struct inode *inode)
 
 struct inode *ext2_mount_partition(struct blockdev *dev)
 {
-	LOG("ext2", "mounting ext2 partition on block device %s\n", dev->name);
+	LOG("ext2", "mounting ext2 partition on block device %s\n", dev->name.c_str());
 	ext2_superblock *sb = new ext2_superblock;
 	if(!sb)
 		return nullptr;
@@ -554,7 +554,7 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 		goto error;
 	}
 
-	sb->s_devnr = sb->s_bdev->dev->majorminor;
+	sb->s_devnr = sb->s_bdev->dev->dev();
 	sb->sb_bb = b;
 	sb->sb = ext2_sb;
 	sb->major = ext2_sb->s_rev_level;
@@ -610,8 +610,8 @@ error:
 
 __init void init_ext2drv()
 {
-	if(partition_add_handler(ext2_mount_partition, "ext2") == -1)
-		FATAL("ext2", "error initializing the handler data\n");
+	if(fs_mount_add(ext2_mount_partition, 0, "ext2") < 0)
+		FATAL("ext2", "error initializing the fs mount data\n");
 }
 
 off_t ext2_getdirent(struct dirent *buf, off_t off, struct file *f)

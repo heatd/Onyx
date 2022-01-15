@@ -59,10 +59,10 @@ public:
 		return !_has_value;
 	}
 
-	constexpr _Type& value()
+	constexpr _Type&& value()
 	{
 		assert(has_value() == true);
-		return t;
+		return cul::move(t);
 	}
 
 	constexpr _ErrorType& error()

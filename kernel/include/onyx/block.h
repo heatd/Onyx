@@ -1,10 +1,12 @@
 /*
-* Copyright (c) 2016, 2017 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
-#ifndef _KERNEL_BLOCK_H
-#define _KERNEL_BLOCK_H
+ * Copyright (c) 2016 - 2022 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
+#ifndef _ONYX_BLOCK_H
+#define _ONYX_BLOCK_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -18,6 +20,7 @@
 #include <onyx/page.h>
 #include <onyx/page_iov.h>
 #include <onyx/slice.hpp>
+#include <onyx/culstring.h>
 
 /* Power management operations*/
 #define BLKDEV_PM_SLEEP 1
@@ -61,12 +64,11 @@ struct blockdev
 	__blkwrite write;
 	__blkflush flush;
 	__blkpowermanagement power;
-	const char *name;
+	cul::string name;
 	unsigned int sector_size;
 	/* Explicitly use uint64_t here to support LBA > 32, like the extremely popular LBA48 */
 	uint64_t nr_sectors;
 	void *device_info;
-	struct dev *dev;
 	struct list_head block_dev_head;
 	struct blockdev *actual_blockdev;	// isn't null when blockdev is a partition
 	size_t offset;
@@ -75,6 +77,8 @@ struct blockdev
 	struct vm_object *vmo;
 	/* This will have the mounted superblock here if this block device is mounted */
 	struct superblock *sb;
+
+	blkdev *dev;
 };
 
 static inline bool blkdev_is_partition(struct blockdev *dev)
@@ -152,5 +156,16 @@ static inline bool block_get_device_letter_from_id(unsigned int id, cul::slice<c
 
 	return true;
 }
+
+/**
+ * @brief Create a SCSI-like(sdX) block device
+ * 
+ * @return Pointer to blockdev or NULL with errno set
+ */
+unique_ptr<blockdev> blkdev_create_scsi_like_dev();
+
+
+// Read-write user and group, no permissions to others
+#define BLOCK_DEVICE_PERMISSIONS 0660
 
 #endif

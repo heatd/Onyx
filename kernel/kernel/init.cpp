@@ -114,7 +114,9 @@ int find_and_exec_init(const char **argv, const char **envp)
 	sched_transition_to_user_thread(current_thread);
 
 	process_add_thread(proc, current_thread);
- 
+
+	// TODO: Should we open some sort of logging device (akin to /dev/console) by default?
+#if 0
 	/* Setup standard file descriptors (STDIN(0), STDOUT(1), STDERR(2)) */
 	
 	unsigned int flags[3] = {O_RDONLY, O_WRONLY, O_WRONLY};
@@ -126,7 +128,7 @@ int find_and_exec_init(const char **argv, const char **envp)
 		assert(open_with_vnode(streams, flags[i]) == i);
 		fd_put(streams);
 	}
-
+#endif
 	proc->ctx.cwd = get_fs_root();
 	fd_get(proc->ctx.cwd);
 

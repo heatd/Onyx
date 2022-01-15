@@ -1,8 +1,11 @@
 /*
-* Copyright (c) 2017 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2017 - 2021 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -163,11 +166,14 @@ void sysfs_init(void)
 	root->i_type = sysfs_type_to_vfs_type(sysfs_root.perms);
 
 	sysfs_root_ino = root;
-	struct dev *minor = dev_register(0, 0, "sysfs");
-	
-	assert(minor != nullptr);
 
-	root->i_dev = minor->majorminor;
+	auto ex = dev_register_blockdevs(0, 1, 0, nullptr, "sysfs");
+	if (ex.has_error())
+		return;
+
+	auto dev = ex.value();
+
+	root->i_dev = dev->dev();
 	sysfs_setup_fops(root);
 	
 	/* Spawn the standard sysfs directories */

@@ -1,12 +1,16 @@
 /*
-* Copyright (c) 2016, 2017 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
-#ifndef _MBR_H
-#define _MBR_H
+ * Copyright (c) 2016 - 2022 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
+#ifndef _ONYX_MBR_H
+#define _ONYX_MBR_H
 
 #include <stdint.h>
+
 typedef struct
 {
 	uint8_t status;
@@ -20,7 +24,5 @@ typedef struct
 	uint32_t sector;
 	uint32_t size_sector;
 } __attribute__((packed)) mbrpart_t;
-
-void read_partitions(void);
 
 #endif

@@ -1,8 +1,10 @@
 /*
-* Copyright (c) 2016, 2017, 2018 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2016 - 2022 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -964,7 +966,6 @@ int ahci_initialize(struct ahci_device *device)
 	int nr_ports = AHCI_CAP_NR_PORTS(hba->host_cap);
 	if(nr_ports == 0)	nr_ports = 1;
 
-	char device_letter = 'a';
 	MPRINTF("Number of ports: %d\n", nr_ports);
 	for(int i = 0; i < nr_ports; i++)
 	{
@@ -986,39 +987,25 @@ int ahci_initialize(struct ahci_device *device)
 			/* Do not create a device until we've checked the port has some device behind it */
 			if(ahci_port_has_device(&hba->ports[i]) == false)
 				continue;
-	
-			/* Create the device */
-			char path[255];
-			memset(path, 0, 255);
-			strcpy(path, "/dev/sd");
-			path[strlen(path)] = device_letter;
-			char buf[255];
-			memset(buf, 0, 255);
-			strcpy(buf, "sd");
-			buf[strlen(buf)] = device_letter++;
 
-			/* Allocate a major-minor pair for a device */
-			struct dev *min = dev_register(0, 0, strdup(buf));
-			assert(min != nullptr);			
-
-			struct blockdev *dev = (blockdev *) zalloc(sizeof(struct blockdev));
-			assert(dev != nullptr);
-
-			dev->name = strdup(buf);
-			assert(dev->name != nullptr);
+			auto dev = blkdev_create_scsi_like_dev();
+			if (!dev)
+			{
+				ERROR("ahci", "blkdev_create_scsi_like_dev failed");
+				return -errno;
+			}
 
 			dev->device_info = &device->ports[i];
-			dev->dev = min;
 			dev->read = ahci_read;
 			dev->write = ahci_write;
 			dev->submit_request = ahci_submit_request;
 			dev->sector_size = 512;
 
-			MPRINTF("Created %s for port %d\n", path, i);
+			MPRINTF("Created %s for port %d\n", dev->name.c_str(), i);
 			device->ports[i].port_nr = i; 
 			device->ports[i].port = &hba->ports[i];
 			device->ports[i].dev = device;
-			device->ports[i].bdev = dev;
+			device->ports[i].bdev = cul::move(dev);
 
 			ahci_init_port(&device->ports[i]);
 		}
@@ -1102,7 +1089,7 @@ int ahci_probe(struct device *dev)
 		
 		ahci_do_identify(&device->ports[i]);
 
-		blkdev_init(device->ports[i].bdev);
+		blkdev_init(device->ports[i].bdev.get());
 	}
 
 	ahci_probe_ports(count_bits<uint32_t>(hba->ports_implemented), hba);

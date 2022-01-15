@@ -1,8 +1,10 @@
 /*
-* Copyright (c) 2021 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2021 - 2022 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
 
 #include <onyx/log.h>
 #include <onyx/id.h>
@@ -154,10 +156,6 @@ int blk_submit_request(struct blockdev *dev, struct bio_req *req)
 
 }
 
-static char devname[] = "sdxx";
-static char dev_name[] = "sd";
-
-static unsigned int next_id = 0;
 bool blk_vdev::perform_subsystem_initialization()
 {
     for(auto f : supported_features)
@@ -181,60 +179,18 @@ bool blk_vdev::perform_subsystem_initialization()
 
     finalise_driver_init();
 
-    char *path = (char *) zalloc(strlen(devname) + 1);
-	if(!path)
-		return false;
+    auto dev = blkdev_create_scsi_like_dev();
 
-    auto id = next_id++;
+    if (!dev)
+        return false;
 
-	strcpy(path, dev_name);
-	char buf[3];
-    block_get_device_letter_from_id(id, {buf, 3});
-	strcat(path, buf);
+    dev->submit_request = blk::blk_submit_request;
+    dev->sector_size = 512;
 
-	/* Create /dev/sdxx */
-
-	/* Allocate a major-minor pair for a device */
-	struct dev *min = dev_register(0, 0, path);
-	if(!min)
-	{
-		free(path);
-		FATAL("virtio-blk", "could not create a device ID for %s\n", path);
-		return 0;
-	}
-
-	memset(&min->fops, 0, sizeof(struct file_ops));
-
-	/* Add to the block device layer */
-	blockdev *dev = (blockdev *) malloc(sizeof(struct blockdev));
-
-	if(!dev)
-	{
-		FATAL("virtio-blk", "could not create a block device\n");
-		dev_unregister(min->majorminor);
-		return 1;	
-	}
-
-	memset(dev, 0, sizeof(struct blockdev));
-
-	dev->device_info = this;
-	dev->dev = min;
-	char *p = (char *) malloc(strlen("/dev/") + strlen(path) + 1);
-	if(!p)
-	{
-		free(dev);
-		return errno = ENOMEM, false;
-	}
-
-	memset(p, 0, strlen("/dev/") + strlen(path) + 1);
-	strcpy(p, "/dev/");
-	strcat(p, path);
-	dev->name = p;
-	dev->submit_request = blk::blk_submit_request;
-	dev->sector_size = 512;
-	min->priv = dev;
-
-	blkdev_init(dev);
+	if (blkdev_init(dev.get()) < 0)
+        return false;
+    
+    dev.release();
     return true;
 }
 
