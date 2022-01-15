@@ -1,8 +1,10 @@
 /*
-* Copyright (c) 2017 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2017 - 2022 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
 
 #ifndef _ONYX_SUPERBLOCK_H
 #define _ONYX_SUPERBLOCK_H
@@ -10,6 +12,9 @@
 #include <sys/types.h>
 
 #include <onyx/spinlock.h>
+#include <onyx/list.h>
+
+#include <sys/statfs.h>
 
 struct file;
 
@@ -22,6 +27,7 @@ struct superblock
 	void *s_helper;
 	int (*flush_inode)(struct inode *inode);
 	int (*kill_inode)(struct inode *inode);
+	int (*statfs)(struct statfs *buf, superblock *sb);
 	unsigned int s_block_size;
 	struct blockdev *s_bdev;
 	dev_t s_devnr;

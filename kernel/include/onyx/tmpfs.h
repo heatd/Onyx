@@ -5,8 +5,8 @@
  *
  * SPDX-License-Identifier: MIT
  */
-#ifndef _KERNEL_TMPFS_H
-#define _KERNEL_TMPFS_H
+#ifndef _ONYX_TMPFS_H
+#define _ONYX_TMPFS_H
 
 #include <onyx/mutex.h>
 #include <onyx/vfs.h>
