@@ -38,19 +38,20 @@ void *zero_mmap(struct vm_region *area, struct file *node)
 	return (void *) area->base;
 }
 
+const file_ops zero_fileops =
+{
+	.read = zero_read,
+	.write = zero_write,
+	.mmap = zero_mmap,
+};
+
 void zero_init(void)
 {	
-	struct dev *min = dev_register(0, 0, "zero");
+	auto min = dev_register_chardevs(0, 1, 0, &zero_fileops, "zero");
 	if(!min)
-		panic("Could not create a device ID for /dev/zero!\n");
+		panic("Could not create a character device for /dev/zero!\n");
 	
-	memset(&min->fops, 0, sizeof(file_ops));
-
-	min->fops.read = zero_read;
-	min->fops.mmap = zero_mmap;
-	min->fops.write = zero_write;
-	
-	device_show(min, DEVICE_NO_PATH, 0666);
+	min.value()->show(0666);
 }
 
 INIT_LEVEL_CORE_KERNEL_ENTRY(zero_init);

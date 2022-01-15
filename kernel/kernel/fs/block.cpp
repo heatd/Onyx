@@ -1,8 +1,10 @@
 /*
-* Copyright (c) 2016, 2017 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2016 - 2022 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -37,7 +39,7 @@ struct blockdev *blkdev_search(const char *name)
 	list_for_every(&dev_list)
 	{
 		struct blockdev *blk = container_of(l, struct blockdev, block_dev_head);
-		if(!strcmp(blk->name, name))
+		if(blk->name == name)
 		{
 			rw_unlock_read(&dev_list_lock);
 			return blk;
@@ -266,15 +268,20 @@ const struct vm_object_ops blk_vmo_ops =
 	.commit = bbuffer_commit
 };
 
+const struct file_ops blkdev_ops = 
+{
+	.read = blkdev_read_file,
+	.write = blkdev_write_file,
+	.ioctl = blkdev_ioctl,
+};
+
 int blkdev_init(struct blockdev *blk)
 {
 	blk->vmo = vmo_create(blk->nr_sectors * blk->sector_size, blk);
 	if(!blk->vmo)
-		return -1;
+		return -ENOMEM;
 	blk->vmo->ops = &blk_vmo_ops;
 	blk->vmo->priv = blk;
-
-	assert(blk != NULL);
 
 	rw_lock_write(&dev_list_lock);
 
@@ -282,14 +289,19 @@ int blkdev_init(struct blockdev *blk)
 
 	rw_unlock_write(&dev_list_lock);
 
-	struct dev *dev = blk->dev;
-	dev->is_block = true;
-	dev->fops.ioctl = blkdev_ioctl;
-	dev->fops.read = blkdev_read_file;
-	dev->fops.write = blkdev_write_file;
-	dev->priv = blk;
+	auto ex = dev_register_blockdevs(0, 1, 0, &blkdev_ops, cul::string{blk->name});
 
-	device_show(dev, DEVICE_NO_PATH, 0600);
+	if (ex.has_error())
+	{
+		return ex.error();
+	}
+
+	auto dev = ex.value();
+
+	dev->private_ = blk;
+	dev->show(BLOCK_DEVICE_PERMISSIONS);
+
+	blk->dev = dev;
 
 	if(!blkdev_is_partition(blk))
 		partition_setup_disk(blk);
@@ -383,4 +395,35 @@ int bio_submit_request(struct blockdev *dev, struct bio_req *req)
 		return -EIO;
 	
 	return dev->submit_request(dev, req);
+}
+
+atomic<unsigned int> next_scsi_dev_num = 0;
+/**
+ * @brief Create a SCSI-like(sdX) block device
+ * 
+ * @return Pointer to blockdev or NULL with errno set
+ */
+unique_ptr<blockdev> blkdev_create_scsi_like_dev()
+{
+	unique_ptr<blockdev> dev = make_unique<blockdev>();
+
+	if (!dev)
+		return nullptr;
+
+	auto number = next_scsi_dev_num++;
+
+	// A SCSI node can have at max 3 characters (Zz)
+	char numbuf[3];
+
+	// If block_get_device_letter_from_id returns false, it means that it couldn't fit the
+	// device number in the two alphabetic chars
+	if (!block_get_device_letter_from_id(number, cul::slice<char>{numbuf, 3}))
+		return errno = ENODEV, nullptr;
+	
+	dev->name = "sd";
+
+	if (!dev->name || !dev->name.append(std::string_view{numbuf}))
+		return errno = ENOMEM, nullptr;
+
+	return cul::move(dev);
 }

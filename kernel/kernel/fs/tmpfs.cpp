@@ -1,8 +1,10 @@
 /*
-* Copyright (c) 2016, 2017 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2016 - 2022 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
 
 #include <stdlib.h>
 #include <string.h>
@@ -20,9 +22,11 @@
 #include <onyx/atomic.hpp>
 #include <onyx/cred.h>
 
+// TODO: Parts of this should definitely be separated as they're generic enough
+// for every pseudo filesystem we might want to stick in Onyx
+
 static DECLARE_MUTEX(tmpfs_list_lock);
 static struct list_head filesystems = LIST_HEAD_INIT(filesystems);
-struct dev *master_tmpfs = nullptr;
 
 atomic<ino_t> tmpfs_superblock::curr_minor_number{1};
 
@@ -99,37 +103,6 @@ struct inode *tmpfs_open(struct dentry *dir, const char *name)
 	return errno = ENOENT, nullptr;
 }
 
-void put_dentry_to_dirent(struct dirent *buf, dentry *dentry, const char *special_name = nullptr)
-{
-	auto ino = dentry->d_inode;
-
-	const char *name = special_name ?: dentry->d_name;
-
-	buf->d_ino = ino->i_inode;
-	auto len = strlen(name);
-	memcpy(buf->d_name, name, len);
-	buf->d_name[len] = '\0';
-	buf->d_reclen = sizeof(dirent) - (256 - (len + 1));
-	
-	if(S_ISDIR(ino->i_mode))
-		buf->d_type = DT_DIR;
-	else if(S_ISBLK(ino->i_mode))
-		buf->d_type = DT_BLK;
-	else if(S_ISCHR(ino->i_mode))
-		buf->d_type = DT_CHR;
-	else if(S_ISLNK(ino->i_mode))
-		buf->d_type = DT_LNK;
-	else if(S_ISREG(ino->i_mode))
-		buf->d_type = DT_REG;
-	else if(S_ISSOCK(ino->i_mode))
-		buf->d_type = DT_SOCK;
-	else if(S_ISFIFO(ino->i_mode))
-		buf->d_type = DT_FIFO;
-	else
-		buf->d_type = DT_UNKNOWN;
-
-}
-
 off_t tmpfs_getdirent(struct dirent *buf, off_t off, struct file *file)
 {
 	auto dent = file->f_dentry;
@@ -174,12 +147,20 @@ int tmpfs_prepare_write(inode *ino, struct page *page, size_t page_off, size_t o
 	return 0;
 }
 
+void tmpfs_close(inode *file)
+{
+	tmpfs_inode *ino = (tmpfs_inode *) file;
+
+	if (ino->link)
+		free((void *) ino->link);
+}
+
 struct file_ops tmpfs_fops = 
 {
 	.read = nullptr,
 	.write = nullptr,
 	.open = tmpfs_open,
-	.close = nullptr,
+	.close = tmpfs_close,
 	.getdirent = tmpfs_getdirent,
 	.ioctl = nullptr,
 	.creat = tmpfs_creat,
@@ -202,27 +183,22 @@ struct file_ops tmpfs_fops =
 
 tmpfs_inode *tmpfs_superblock::create_inode(mode_t mode, dev_t rdev)
 {
-	tmpfs_inode *ino = new tmpfs_inode();
+	auto ino = make_unique<tmpfs_inode>();
 	if(!ino)
-		return ino;
+		return nullptr;
 
 	if(ino->init(mode) < 0)
 	{
-		delete ino;
 		return nullptr;
 	}
 	
-	ino->i_fops = &tmpfs_fops;
+	ino->i_fops = tmpfs_ops_;
 
 	ino->i_nlink = 1;
 
 	/* We're currently holding two refs: one for the user, and another for the simple fact
 	 * that we need this inode to remain in memory.
 	 */
-
-	superblock_add_inode(this, ino);
-
-	/* Now, refcount should equal 3, because the inode cache just grabbed it... */
 
 	auto c = creds_get();
 
@@ -240,18 +216,21 @@ tmpfs_inode *tmpfs_superblock::create_inode(mode_t mode, dev_t rdev)
 	ino->i_rdev = rdev;
 	ino->i_blocks = 0;
 
-	if(inode_is_special(ino))
+	if(inode_is_special(ino.get()))
 	{
-		int st = inode_special_init(ino);
+		int st = inode_special_init(ino.get());
 		if(st < 0)
 		{
 			errno = -st;
-			/* TODO: Cleanup */
 			return nullptr;
 		}
 	}
 
-	return ino;
+	superblock_add_inode(this, ino.get());
+
+	/* Now, refcount should equal 3, because the inode cache just grabbed it... */
+
+	return ino.release();
 }
 
 static void tmpfs_append(tmpfs_superblock *fs)
@@ -267,7 +246,7 @@ tmpfs_superblock *tmpfs_create_sb(void)
 {
 	tmpfs_superblock *new_fs = new tmpfs_superblock{};
 	if(!new_fs)
-		return NULL;
+		return nullptr;
 
 	superblock_init(new_fs);
 
@@ -286,28 +265,26 @@ int tmpfs_mount(const char *mountpoint)
 	char name[NAME_MAX + 1];
 	snprintf(name, NAME_MAX, "tmpfs-%lu", new_sb->fs_minor);
 
-	auto minor = MINOR(master_tmpfs->majorminor) + new_sb->fs_minor;
+	auto ex = dev_register_blockdevs(0, 1, 0, nullptr, name);
 
-	auto new_dev = dev_register(MAJOR(master_tmpfs->majorminor), minor, name);
-	if(!new_dev)
-	{
-		delete new_sb;
-		return -ENOMEM;
-	}
+	if(ex.has_error())
+		return ex.error();
 
-	new_sb->s_devnr = new_dev->majorminor;
+	auto blockdev = ex.value();
+
+	new_sb->s_devnr = blockdev->dev();
 	
 	auto node = new_sb->create_inode(S_IFDIR | S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH);
 	if(!node)
 	{
-		dev_unregister(new_sb->s_devnr);
+		dev_unregister_dev(blockdev, true);
 		delete new_sb;
 		return -ENOMEM;
 	}
 
 	if(mount_fs(node, mountpoint) < 0)
 	{
-		dev_unregister(new_sb->s_devnr);
+		dev_unregister_dev(blockdev, true);
 		superblock_kill(new_sb);
 		delete new_sb;
 		/* We need to unref the inode two times, one for our ref
@@ -318,11 +295,4 @@ int tmpfs_mount(const char *mountpoint)
 	}
 
 	return 0;
-}
-
-__init void tmpfs_init()
-{
-	/* We need to allocate a range of devices for tmpfs usage*/
-	master_tmpfs = dev_register(0, 0, "tmpfs");
-	assert(master_tmpfs != nullptr);
 }

@@ -476,17 +476,22 @@ short tty_poll(void *poll_file, short events, struct file *f)
 	return revents & events;
 }
 
+const struct file_ops tty_fops = 
+{
+	.read = ttydevfs_read,
+	.write = ttydevfs_write,
+	.ioctl = tty_ioctl,
+	.poll = tty_poll
+};
+
 void tty_create_dev(void)
 {
-	struct dev *minor = dev_register(0, 0, "tty");
-	if(!minor)
-		panic("Could not allocate a device ID!\n");	
+	auto ex = dev_register_chardevs(0, 1, 0, &tty_fops, "tty");
+	if(ex.has_error())
+		panic("Could not allocate a character device!\n");	
 
-	minor->fops.write = ttydevfs_write;
-	minor->fops.read = ttydevfs_read;
-	minor->fops.ioctl = tty_ioctl;
-	minor->fops.poll = tty_poll;
-
-	minor->priv = main_tty;
-	device_show(minor, DEVICE_NO_PATH, 0666);
+	auto dev = ex.value();
+	
+	dev->private_ = main_tty;
+	dev->show(0666);
 }

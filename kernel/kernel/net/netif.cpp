@@ -94,6 +94,11 @@ unsigned int netif_ioctl(int request, void *argp, struct file* f)
 
 atomic<uint32_t> next_if = 1;
 
+const struct file_ops netif_fops =
+{
+	.ioctl = netif_ioctl
+};
+
 void netif_register_if(struct netif *netif)
 {
 	rwlock_init(&netif->inet6_addr_list_lock);
@@ -103,15 +108,13 @@ void netif_register_if(struct netif *netif)
 	
 	assert(tcp_init_netif(netif) == 0);
 		
-	struct dev *d = dev_register(0, 0, (char*) netif->name);
-	if(!d)
+	auto ex = dev_register_chardevs(0, 1, 0, &netif_fops, netif->name);
+	if(ex.has_error())
 		panic("netif_register_if failed");
 
-	d->priv = netif;
-
-	d->fops.ioctl = netif_ioctl;
-
-	device_show(d, DEVICE_NO_PATH, 0666);
+	auto cdev = ex.value();
+	cdev->private_ = netif;
+	cdev->show(0660);
 
 	netif->if_id = next_if++;
 	

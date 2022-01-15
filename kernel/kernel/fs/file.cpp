@@ -1160,7 +1160,7 @@ int sys_mount(const char *usource, const char *utarget, const char *ufilesystemt
 	struct file *block_file = nullptr;
 	const char *filesystemtype = nullptr;
 	int ret = 0;
-	filesystem_mount_t *fs = nullptr;
+	fs_mount *fs = nullptr;
 	struct blockdev *d = nullptr;
 	struct inode *node = nullptr;
 	char *str = nullptr;
@@ -1186,29 +1186,38 @@ int sys_mount(const char *usource, const char *utarget, const char *ufilesystemt
 		goto out;
 	}
 	/* Find the 'filesystemtype's handler */
-	fs = find_filesystem_handler(filesystemtype);
+	fs = fs_mount_get(filesystemtype);
 	if(!fs)
 	{
 		ret = -ENODEV;
 		goto out;
 	}
 
-	block_file = open_vfs(get_fs_root(), source);
-	if(!block_file)
+	if (fs->flags & FS_MOUNT_PSEUDO_FS)
 	{
-		ret = -ENOENT;
-		goto out;
+		// Pseudo fs's dont have a backing block device
+		block_file = nullptr;
+		d = nullptr;
+	}
+	else
+	{
+		block_file = open_vfs(get_fs_root(), source);
+		if(!block_file)
+		{
+			ret = -ENOENT;
+			goto out;
+		}
+
+		if(!S_ISBLK(block_file->f_ino->i_mode))
+		{
+			ret = -ENOTBLK;
+			goto out;
+		}
+	
+		d = blkdev_get_dev(block_file);
 	}
 
-	if(block_file->f_ino->i_type != VFS_TYPE_BLOCK_DEVICE)
-	{
-		ret = -ENOTBLK;
-		goto out;
-	}
-	
-	d = blkdev_get_dev(block_file);
-	node = nullptr;
-	if(!(node = fs->handler(d)))
+	if(!(node = fs->mount(d)))
 	{
 		ret = -EINVAL;
 		goto out;

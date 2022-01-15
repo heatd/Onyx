@@ -226,6 +226,32 @@ int main(int argc, char **argv, char **envp)
 	pid_t p = getpid();
 	if(p != 1)
 		return 1;
+	
+	// First, (try to) create /dev if it doesn't exist
+	mkdir("/dev", 0755);
+
+	// Mount devfs
+	if(mount("none", "/dev", "devfs", 0, NULL) < 0)
+		return 1;
+	
+	// Open fd 0, 1, 2
+	
+	int flags[] = {O_RDONLY, O_WRONLY, O_WRONLY};
+
+	for(int i = 0; i < 3; i++)
+	{
+		int fd = open("/dev/tty", O_RDWR);
+
+		if (fd < 0)
+			return 1;
+	
+		dup2(fd, i);
+
+		if (fd != i)
+			close(fd);
+	}
+
+	// Standard streams set up!
 
 #if 0
 	struct memstat ostat;

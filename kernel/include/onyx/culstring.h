@@ -284,6 +284,8 @@ public:
 			return false;
 		
 		memcpy(data_ + len, sv.data(), sv.length());
+		// Re-null terminate the string
+		data_[len + sv.length()] = '\0';
 		length_ = len + sv.length();
 
 		return true;
@@ -328,6 +330,11 @@ public:
 	{
 		return std::basic_string_view<_Ty>(*this).rfind(c, pos);
 	}
+
+	bool operator==(std::basic_string_view<_Ty> sv) const
+	{
+		return sv.compare(*this) == 0;
+	}	
 };
 
 using string = basic_string<char>;

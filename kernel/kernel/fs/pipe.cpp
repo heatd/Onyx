@@ -1,8 +1,11 @@
 /*
-* Copyright (c) 2017 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2017 - 2021 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -22,10 +25,11 @@
 #include <onyx/dentry.h>
 #include <onyx/scoped_lock.h>
 #include <onyx/poll.h>
+#include <onyx/init.h>
 
 #include <poll.h>
 
-static struct dev *pipedev = NULL;
+static chardev *pipedev = nullptr;
 static atomic<ino_t> current_inode_number = 0; 
 
 constexpr pipe::pipe() : refcountable(2), buffer(nullptr), buf_size(0), pos(0),
@@ -296,7 +300,7 @@ int pipe_create(struct file **pipe_readable, struct file **pipe_writeable)
 		goto err1;
 	}
 
-	node0->i_dev = pipedev->majorminor;
+	node0->i_dev = pipedev->dev();
 	node0->i_type = VFS_TYPE_CHAR_DEVICE;
 	node0->i_flags = INODE_FLAG_NO_SEEK;
 	node0->i_inode = current_inode_number++;
@@ -349,9 +353,13 @@ err0:
 	return -1;
 }
 
-__init void pipe_register_device(void)
+void pipe_register_device(void)
 {
-	pipedev = dev_register(0, 0, (char *) "pipe");
-	if(!pipedev)
-		panic("could not allocate pipedev!\n");
+	auto ex = dev_register_chardevs(0, 1, 0, nullptr, cul::string{"pipe"});
+	if(!ex)
+		panic("Could not allocate pipedev!\n");
+	
+	pipedev = ex.value();
 }
+
+INIT_LEVEL_CORE_KERNEL_ENTRY(pipe_register_device);

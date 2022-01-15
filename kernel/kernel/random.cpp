@@ -1,8 +1,11 @@
 /*
-* Copyright (c) 2016, 2017 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2016 - 2021 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -168,31 +171,59 @@ size_t urandom_read(size_t offset, size_t sizeofreading, void *buffer, struct fi
 	return get_entropy_from_pool(ENTROPY_POOL_URANDOM, sizeofreading, buffer);
 }
 
-void init_random_dev(void)
-{
-	struct dev *dev = dev_register(0, 0, "random");
-	assert(dev);
+#define DEV_RANDOM_MINOR   0
+#define DEV_URANDOM_MINOR  1
 
-	dev->fops.read = random_read;
+const file_ops random_fops = 
+{
+	.read = random_read
+};
+
+const file_ops urandom_fops = 
+{
+	.read = urandom_read
+};
+
+static chardev *random_dev, *urandom_dev;
+
+static int init_random_dev(dev_t *major)
+{
+	auto ex = dev_register_chardevs(DEV_RANDOM_MINOR, 1, 0,
+	                                 &random_fops, cul::string{"random"});
 	
-	device_show(dev, DEVICE_NO_PATH, 0666);
+	if (ex.has_error())
+		return ex.error();
+	
+	random_dev = ex.value();
+	random_dev->show(0666);
+	*major = MAJOR(random_dev->dev());
+
+	return 0;
 }
 
-void init_urandom_dev(void)
+static int init_urandom_dev(dev_t major_nr)
 {
-	struct dev *dev = dev_register(0, 0, "urandom");
-	assert(dev);
-	
+	auto ex = dev_register_chardevs(0, 1, 0,
+	                                 &urandom_fops, cul::string{"urandom"});
+	if (ex.has_error())
+		return ex.error();
 
-	dev->fops.read = urandom_read;
-	
-	device_show(dev, DEVICE_NO_PATH, 0666);
+	urandom_dev = ex.value();
+	urandom_dev->show(0666);
+
+	return 0;
 }
 
 void entropy_init_dev(void)
 {
-	init_random_dev();
-	init_urandom_dev();
+	// random registration is responsible for getting the major number for random and urandom
+	// This is kind of not very pretty honestly...
+	dev_t random_devs_major = 0;
+
+	if(init_random_dev(&random_devs_major) < 0)
+		return;
+
+	init_urandom_dev(random_devs_major);
 }
 
 unsigned int get_random_int(void)

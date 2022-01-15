@@ -1,8 +1,11 @@
 /*
-* Copyright (c) 2016, 2017 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2016 - 2022 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -288,10 +291,6 @@ irqstatus_t ide_irq(struct irq_context *ctx, void *cookie)
 	return IRQ_HANDLED;
 }
 
-static int num_drives = 0;
-static char devname[] = "sdxx";
-static char dev_name[] = "sd";
-
 ide_drive *ide_drive_from_blockdev(blockdev *dev)
 {
 	return (ide_drive *) dev->device_info;
@@ -357,69 +356,31 @@ int ide_drive::probe()
 		*ptr = data;
 	}
 
-	char *path = (char *) zalloc(strlen(devname) + 1);
-	if(!path)
-		return 0;
-
-	strcpy(path, dev_name);
-	const char *id = idm_get_device_letter(ata_ids);
-	assert(id != NULL);
-	strcat(path, id);
-
-	/* Create /dev/sdxx */
-
-	/* Allocate a major-minor pair for a device */
-	struct dev *min = dev_register(0, 0, path);
-	if(!min)
-	{
-		free(path);
-		FATAL("ata", "could not create a device ID for %s\n", path);
-		return 0;
-	}
-
-	memset(&min->fops, 0, sizeof(struct file_ops));
-
-	num_drives++;
-
 	if(buffer[0] == 0)
 		type = ATA_TYPE_ATAPI;
 	else
 		type = ATA_TYPE_ATA;
 
 	/* Add to the block device layer */
-	blockdev *dev = (blockdev *) malloc(sizeof(struct blockdev));
+	auto dev = blkdev_create_scsi_like_dev();
 
 	if(!dev)
 	{
 		FATAL("ata", "could not create a block device\n");
-		dev_unregister(min->majorminor);
-		return 1;	
+		return -ENODEV;
 	}
-
-	memset(dev, 0, sizeof(struct blockdev));
 
 	dev->device_info = this;
-	dev->dev = min;
-	char *p = (char *) malloc(strlen("/dev/") + strlen(path) + 1);
-	if(!p)
-	{
-		free(dev);
-		return errno = ENOMEM;
-	}
-
-	memset(p, 0, strlen("/dev/") + strlen(path) + 1);
-	strcpy(p, "/dev/");
-	strcat(p, path);
-	dev->name = p;
 	dev->flush = ata_flush;
 	dev->power = ata_pm;
 	dev->submit_request = ata_submit_request;
 	dev->sector_size = 512;
-	min->priv = dev;
 
-	blkdev_init(dev);
+	if (blkdev_init(dev.get()) < 0)
+		return -ENOMEM;
 	
-	INFO("ata", "Created %s for drive %u\n", path, num_drives);
+	dev.release();
+
 	return 1;
 }
 

@@ -1,8 +1,10 @@
 /*
-* Copyright (c) 2020 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2020 - 2021 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
 
 #include <assert.h>
 #include <stdlib.h>
@@ -549,21 +551,26 @@ void *photon_mmap(struct vm_region *area, struct file *f)
 
 static atomic<unsigned int> id_num;
 
+const file_ops photon_fileops = 
+{
+	.ioctl = photon_ioctl,
+	.mmap = photon_mmap,
+	.on_open = photon_on_open
+};
+
 int register_device(device *device)
 {
 	char name[NAME_MAX] = {0};
 	snprintf(name, NAME_MAX, "photon%u", id_num++);
 
-	struct dev *dev = dev_register(0, 0, name);
-	if(!dev)
+	auto ex = dev_register_chardevs(0, 1, 0, &photon_fileops, name);
+	if(ex.has_error())
 		return -ENOMEM;
-
-	dev->fops.on_open = photon_on_open;
-	dev->fops.ioctl = photon_ioctl;
-	dev->fops.mmap = photon_mmap;
-	MPRINTF("%s devid %lx:%lx\n", name, MAJOR(dev->majorminor), MINOR(dev->majorminor));
 	
-	assert(device_show(dev, "photon", 0666) == 0);
+	auto dev = ex.value();
+	dev->show(0666);
+
+	MPRINTF("%s devid %x:%x\n", name, MAJOR(dev->dev()), MINOR(dev->dev()));
 
 	device->set_dev(dev);
 	return 0;
@@ -577,12 +584,6 @@ int add_device(device *device)
 void photon_init(void)
 {
 	MPRINTF("Initializing the photon subsystem\n");
-
-	if(device_create_dir("photon") < 0)
-	{
-		perror("device_create_dir");
-		return;
-	}
 }
 
 INIT_LEVEL_CORE_KERNEL_ENTRY(photon_init);

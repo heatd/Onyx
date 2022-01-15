@@ -1,8 +1,10 @@
 /*
-* Copyright (c) 2018 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2018 - 2021 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
 
 #ifndef _ONYX_PHOTON_H
 #define _ONYX_PHOTON_H
@@ -18,6 +20,7 @@
 #include <onyx/expected.hpp>
 #include <onyx/atomic.hpp>
 #include <onyx/scoped_lock.h>
+#include <onyx/dev.h>
 
 #include <photon/photon-types.h>
 
@@ -154,7 +157,7 @@ constexpr const char *photon_version_string = "Photon 1.0-dev";
 class device
 {
 protected:
-	::dev *dev;
+	chardev *dev;
 	device *underlying_dev;
 	const char *driver_name;
 	const char *driver_version;
@@ -212,7 +215,7 @@ public:
 	unsigned int do_ioctls(int request, void *argp);
 	void *do_mmap(struct vm_region *area, struct file *f);
 
-	void set_dev(::dev *d)
+	void set_dev(chardev *d)
 	{
 		dev = d;
 	}

@@ -1,8 +1,10 @@
 /*
-* Copyright (c) 2020 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2020 - 2021 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
 
 #include <onyx/net/ip.h>
 #include <onyx/net/socket_table.h>
@@ -320,7 +322,7 @@ expected<inet_route, int> proto_family::route(const inet_sock_address& from,
 		return unexpected<int>{st.error()};
 	}
 
-	auto &rt = st.value();
+	auto rt = st.value();
 
 	/* Multicast addresses don't need ndp resolution, they already have fixed hardware addresses */
 	if(ipv6_addr_to_tx_type(to.in6) == tx_type::multicast)

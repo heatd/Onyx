@@ -682,3 +682,40 @@ struct file *inode_to_file(struct inode *ino)
 
 	return f;
 }
+
+/**
+ * @brief Getdirent helper
+ * 
+ * @param buf Pointer to struct dirent
+ * @param dentry Pointer to dentry
+ * @param special_name Special name if the current dentry is "." or ".."
+ */
+void put_dentry_to_dirent(struct dirent *buf, dentry *dentry, const char *special_name)
+{
+	auto ino = dentry->d_inode;
+
+	const char *name = special_name ?: dentry->d_name;
+
+	buf->d_ino = ino->i_inode;
+	auto len = strlen(name);
+	memcpy(buf->d_name, name, len);
+	buf->d_name[len] = '\0';
+	buf->d_reclen = sizeof(dirent) - (256 - (len + 1));
+	
+	if(S_ISDIR(ino->i_mode))
+		buf->d_type = DT_DIR;
+	else if(S_ISBLK(ino->i_mode))
+		buf->d_type = DT_BLK;
+	else if(S_ISCHR(ino->i_mode))
+		buf->d_type = DT_CHR;
+	else if(S_ISLNK(ino->i_mode))
+		buf->d_type = DT_LNK;
+	else if(S_ISREG(ino->i_mode))
+		buf->d_type = DT_REG;
+	else if(S_ISSOCK(ino->i_mode))
+		buf->d_type = DT_SOCK;
+	else if(S_ISFIFO(ino->i_mode))
+		buf->d_type = DT_FIFO;
+	else
+		buf->d_type = DT_UNKNOWN;
+}

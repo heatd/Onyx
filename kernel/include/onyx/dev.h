@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2021 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -20,30 +20,208 @@
 #include <onyx/sysfs.h>
 #include <onyx/list.h>
 #include <onyx/dev_resource.h>
+#include <onyx/culstring.h>
+#include <onyx/expected.hpp>
+#include <onyx/memory.hpp>
 
-#define MAJOR_DEVICE_HASHTABLE 255
-
-struct dev
+/**
+ * @brief Represents a generic char/block device inside the kernel
+ * Each gendev represents N devices from a specific MAJOR:MINOR pair until MAJOR:MINOR+N
+ */
+class gendev
 {
-	struct dev *next;
-	dev_t majorminor;
-	struct file_ops fops;
-	char *name;
-	void *priv;
-	bool is_block;
-	struct inode *file;
+protected:
+	dev_t dev_;
+	unsigned int nr_devs_;
+	cul::string name_;
+	const file_ops *fops_;
+	bool is_character_dev_;
+public:
+	void *private_;
+	gendev() = default;
+
+	gendev(dev_t dev, unsigned int nr, const cul::string& name, const file_ops *fops) : dev_{dev}, nr_devs_{nr}, name_{name},
+	                                                                                     fops_{fops}, is_character_dev_{}, private_{}
+	{
+	}
+
+	/**
+	 * @brief Return the device number of the gendev
+	 * 
+	 * @return The device number
+	 */
+	dev_t dev() const
+	{
+		return dev_;
+	}
+
+	/**
+	 * @brief Return the number of devices that are backed by this gendev
+	 * 
+	 * @return The number of devices corresponding to this gendev
+	 */
+	unsigned int nr_devs() const
+	{
+		return nr_devs_;
+	}
+
+	/**
+	 * @brief Return the name
+	 * 
+	 * @return A const ref to the name 
+	 */
+	const cul::string& name() const
+	{
+		return name_;
+	}
+
+	/**
+	 * @brief Return the file_ops corresponding to the gendev
+	 * 
+	 * @return A pointer to the file_ops
+	 */
+	const file_ops *fops() const
+	{
+		return fops_;
+	}
+
+	/**
+	 * @brief Set the dev
+	 * 
+	 * @param d The device number
+	 */
+	void set_dev(dev_t d)
+	{
+		dev_ = d;
+	}
+
+	/**
+	 * @brief Set the number of devices
+	 * 
+	 * @param nr_devs Number of devices 
+	 */
+	void set_nr_devs(unsigned int nr_devs)
+	{
+		nr_devs_ = nr_devs;
+	}
+
+	/**
+	 * @brief Set the name of the gendev
+	 * 
+	 * @param name Const ref to the name string
+	 * @return True if succesful, false if OOM on copying
+	 */
+	bool set_name(const cul::string& name)
+	{
+		name_ = name;
+
+		return !name_.empty();
+	}
+
+	/**
+	 * @brief Set the file_ops of the gendev
+	 * 
+	 * @param f Pointer to const file_ops
+	 */
+	void set_fops(const file_ops *f)
+	{
+		fops_ = f;
+	}
+
+	/**
+	 * @brief See if this generic device is a character or block device
+	 * 
+	 * @return True if character device, else false (and block dev)
+	 */
+	bool is_chrdev() const
+	{
+		return is_character_dev_;
+	}
+
+	/**
+	 * @brief Publish the character/block device to user-space and devfs
+	 * 
+	 * @return 0 on success, else negative error codes
+	 */
+	int show(mode_t mode);
 };
 
-unsigned int __allocate_dynamic_major(void);
-struct dev *dev_register(unsigned int major, unsigned int minor, const char *name);
-void dev_unregister(dev_t dev);
-struct dev *dev_find(dev_t dev);
+class chardev : public gendev
+{
+public:
+	chardev() = default;
 
-#define DEVICE_NO_PATH			""
+	chardev(dev_t dev, unsigned int nr, const cul::string& name, const file_ops *fops) : gendev{dev, nr, name, fops}
+	{
+		is_character_dev_ = true;
+	}
+};
 
-int device_create_dir(const char *path);
-int device_mknod(struct dev *d, const char *path, const char *name, mode_t mode);
-int device_show(struct dev *d, const char *path, mode_t mode);
+class blkdev : public gendev
+{
+public:
+	blkdev() = default;
+
+	blkdev(dev_t dev, unsigned int nr, const cul::string& name, const file_ops *fops) : gendev{dev, nr, name, fops}
+	{
+		is_character_dev_ = false;
+	}
+};
+
+#define DEV_REGISTER_STATIC_DEV       (1 << 0) // dev is a valid device that is desired by the user
+
+/**
+ * @brief Register a character device with the kernel
+ * 
+ * @param dev             If flags & DEV_REGISTER_STATIC_DEV, this specifies the desired
+ *                        (major, minor) device number; else, specifies the base minor number.
+ * @param nr_devices      The number of desired minor character devices
+ * @param flags           Flags, see above
+ * @param fops            A pointer to the file_ops of the character device.
+ * @param name            A rvalue reference of the name
+ * @return Expected object containing either a chardev* or the int error code
+ */
+expected<chardev *, int> dev_register_chardevs(dev_t dev, unsigned int nr_devices, unsigned int flags,
+                                               const file_ops *fops, cul::string&& name);
+
+/**
+ * @brief Register a block device with the kernel
+ * 
+ * @param dev             If flags & DEV_REGISTER_STATIC_DEV, this specifies the desired
+ *                        (major, minor) device number; else, specifies the base minor number.
+ * @param nr_devices      The number of desired minor block devices
+ * @param flags           Flags, see above
+ * @param fops            A pointer to the file_ops of the block device.
+ * @param name            A rvalue reference of the name
+ * @return Expected object containing either a chardev *or the int error code
+ */
+expected<blkdev *, int> dev_register_blockdevs(dev_t dev, unsigned int nr_devices, unsigned int flags,
+                                               const file_ops *fops, cul::string&& name);
+
+/**
+ * @brief Find a chardev by device number
+ * TODO: This function is not safe for unloading
+ * @param dev Device number
+ * @return A pointer to the chardev, or NULL
+ */
+chardev *dev_find_chr(dev_t dev);
+
+/**
+ * @brief Find a blockdev by device number
+ * TODO: This function is not safe for unloading
+ * @param dev Device number
+ * @return A pointer to the blockdev, or NULL
+ */
+blkdev *dev_find_block(dev_t dev);
+
+/**
+ * @brief Unregister a character/block device from the kernel
+ * 
+ * @param dev Pointer to the generic device
+ * @param is_block True if it's a block device, else false. Defaults to false
+ * @return 0 on success, else negative error code
+ */
+int dev_unregister_dev(gendev *dev, bool is_block = false);
 
 struct bus;
 struct device;
