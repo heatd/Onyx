@@ -27,7 +27,7 @@ export OBJDUMP="${CLANG_PATH}/bin/llvm-objdump"
 export RANLIB="${CLANG_PATH}/bin/llvm-ranlib"
 export ONYX_USING_LLVM="yes"
 export CFLAGS="$ONYX_CLANG_ARGS"
-export CPPFLAGS=$ONYX_CLANG_ARGS
+export CPPFLAGS="$ONYX_CLANG_ARGS"
 export CXXFLAGS="$ONYX_CLANG_ARGS"
 export LDFLAGS="--sysroot=$SYSROOT"
 export ONYX_CROSS_COMPILE_PREFIX="${CLANG_PATH}/bin/"
