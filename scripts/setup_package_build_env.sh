@@ -33,3 +33,6 @@ export LDFLAGS="--sysroot=$SYSROOT"
 export ONYX_CROSS_COMPILE_PREFIX="${CLANG_PATH}/bin/"
 
 fi
+
+export PKG_CONFIG=$SYSROOT/../buildpkg/onyx-pkg-config
+export PKG_CONFIG_FOR_BUILD=pkg-config
