@@ -5,8 +5,8 @@ name: Nightly builds
 # Controls when the action will run. Triggers the workflow on push or pull request
 # events but only for the master branch and riscv
 on:
-  schedule:
-    - cron: "0 0 * * *" # Run at midnight, every day
+  schedule: # Run at midnight, every day
+    - cron: '30 0 * * *'
 
 jobs:
   build:
