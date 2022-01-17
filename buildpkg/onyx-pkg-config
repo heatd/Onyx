@@ -1,4 +1,10 @@
 #!/bin/sh
+
+if [ -z "$SYSROOT" ]; then
+    echo "Error: onyx-pkg-config: SYSROOT not set"
+    exit 1
+fi
+
 export PKG_CONFIG_SYSROOT_DIR=$SYSROOT
 export PKG_CONFIG_LIBDIR=$SYSROOT/usr/lib/pkgconfig
 
