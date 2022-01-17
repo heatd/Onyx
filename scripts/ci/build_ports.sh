@@ -11,11 +11,13 @@ PACKAGES=""
 cd onyx-package-tree
 
 for d in */ ; do
+    # Note that we need to trim the trailing slashes
+    package=$(echo "$d" | sed 's:/*$::')
     # GCC can't build with LLVM (see issue #1 of the package tree)
-    if [ "$1" = "llvm" ] && [ "$d" = "gcc" ]; then
+    if [ "$1" = "llvm" ] && [ "$package" = "gcc" ]; then
         true
     else
-        PACKAGES="$PACKAGES $d"
+        PACKAGES="$PACKAGES $package"
     fi
 done
 
