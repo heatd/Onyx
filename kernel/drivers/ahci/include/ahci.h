@@ -338,6 +338,10 @@ AHCI_PORT_INTERRUPT_PRCE | AHCI_PORT_INTERRUPT_IPME | AHCI_PORT_INTERRUPT_OFE \
 | AHCI_PORT_INTERRUPT_INFE | AHCI_PORT_INTERRUPT_IFE | AHCI_PORT_INTERRUPT_HBDE | \
 AHCI_PORT_INTERRUPT_HBFE | AHCI_PORT_INTERRUPT_TFEE) 
 
+#define AHCI_PORT_ENABLED_INTERRUPTS (AHCI_PORT_INTERRUPT_DHRE | AHCI_INTST_ERROR | \
+                                      AHCI_PORT_INTERRUPT_SDBE | AHCI_PORT_INTERRUPT_PSE | \
+									  AHCI_PORT_INTERRUPT_DSE  | AHCI_PORT_INTERRUPT_DPE)
+
 uint32_t ahci_get_version(ahci_hba_memory_regs_t *hba);
 const char *ahci_stringify_version(uint32_t version);
 bool ahci_do_command_async(struct ahci_port *ahci_port,

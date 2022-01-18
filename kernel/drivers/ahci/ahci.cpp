@@ -43,6 +43,12 @@ void ahci_destroy_aio(struct ahci_port *port, struct aio_req *req);
 
 #define MPRINTF(...) printf("ahci: " __VA_ARGS__)
 
+#ifndef CONFIG_AHCI_DEBUG
+#define VERBOSE_MPRINTF(...)
+#else
+#define VERBOSE_MPRINTF(...) do{ printk("ahci: " __VA_ARGS__); } while(0);
+#endif
+
 void ahci_wake_io(void *ctx)
 {
 	struct aio_req *req = (aio_req *) ctx;
@@ -195,6 +201,9 @@ static uint8_t bio_req_to_ata_command(struct bio_req *req)
 int ahci_submit_request(struct blockdev *dev, struct bio_req *req)
 {
 	struct ahci_port *port = (ahci_port *) dev->device_info;
+	if(port->port->sig != SATA_SIG_ATA)
+		return -ENXIO;
+
 	sector_t sector = req->sector_number + (dev->offset / 512);
 
 	//printk("req: %lu.%lu\n", req->curr_vec_index, req->nr_vecs);
@@ -454,7 +463,10 @@ bool ahci_do_command_async(struct ahci_port *ahci_port,
 	ahci_set_lba(lba, &table->cfis);
 
 	/* We need to set bit 6 to enable the LBA mode */
-	table->cfis.device = (1 << 6);
+	if(buf->cmd == ATA_CMD_READ_DMA_EXT || buf->cmd == ATA_CMD_WRITE_DMA_EXT)
+		table->cfis.device = (1 << 6);
+	else
+		table->cfis.device = 0;
 
 	size_t num_sectors = buf->size / 512;
 	table->cfis.count = (uint16_t) num_sectors;
@@ -785,14 +797,12 @@ bool ahci_port_has_device(ahci_port_t *port)
 
 	uint32_t det = AHCI_PORT_STATUS_DET(status);
 
-	if(det != 0)
-		return true;
-	return false;
+	return det != 0;
 }
 
 void ahci_enable_interrupts_for_port(ahci_port_t *port)
 {
-	port->pxie = AHCI_PORT_INTERRUPT_DHRE;
+	port->pxie = AHCI_PORT_ENABLED_INTERRUPTS;
 }
 
 void ahci_free_list(struct ahci_port *port, size_t idx)
@@ -923,23 +933,24 @@ void ahci_init_port(struct ahci_port *ahci_port)
 	port->error = UINT32_MAX;
 
 	unsigned int ncs = AHCI_CAP_NCS(device->hba->host_cap);
-	printf("ahci: AHCI controller supports %u command list slots\n", ncs);
+	MPRINTF("AHCI controller supports %u command list slots\n", ncs);
 	ahci_port->list_bitmap = -(1 << ncs);
 	// wait queue debugging value: ~((1 << 1) - 1); true: -(1 << ncs)
 	if(ahci_allocate_port_lists(hba, port, ahci_port) < 0)
 	{
-		MPRINTF("Failed to allocate the command and FIS lists for port %p\n", port);
+		VERBOSE_MPRINTF("Failed to allocate the command and FIS lists for port %p\n", port);
 		return;
 	}
 
 	if(ahci_configure_port_dma(ahci_port, ncs) < 0)
 	{
-		MPRINTF("Failed to configure command tables\n");
+		VERBOSE_MPRINTF("Failed to configure command tables\n");
 		return;
 	}
 
 	if(port->pxcmd & AHCI_PORT_CMD_CR)
 	{
+		VERBOSE_MPRINTF("Waiting for PXCMD_CR to clear\n");
 		if(ahci_wait_bit(&port->pxcmd, AHCI_PORT_CMD_CR, 500, true) < 0)
 		{
 			MPRINTF("error: timeout waiting for PXCMD_CR to clear");
@@ -953,7 +964,7 @@ void ahci_init_port(struct ahci_port *ahci_port)
 
 	port->pxcmd = port->pxcmd | AHCI_PORT_CMD_START;
 
-	//ahci_do_identify(ahci_port);
+	VERBOSE_MPRINTF("ahci_init_port done\n");
 }
 
 int ahci_initialize(struct ahci_device *device)
@@ -966,11 +977,18 @@ int ahci_initialize(struct ahci_device *device)
 	int nr_ports = AHCI_CAP_NR_PORTS(hba->host_cap);
 	if(nr_ports == 0)	nr_ports = 1;
 
-	MPRINTF("Number of ports: %d\n", nr_ports);
+	VERBOSE_MPRINTF("Number of ports: %d\n", nr_ports);
+	VERBOSE_MPRINTF("Ports implemented: %08x\n", hba->ports_implemented);
 	for(int i = 0; i < nr_ports; i++)
 	{
 		if(hba->ports_implemented & (1 << i))
 		{
+			VERBOSE_MPRINTF("Looking at port %d...\n", i);
+			/* Do not create a device until we've checked the port has some device behind it */
+			if(ahci_port_has_device(&hba->ports[i]) == false)
+				continue;
+			VERBOSE_MPRINTF("Port %d has device, continuing...\n", i);
+
 			/* If this port is implemented, check if it's idle. */
 			if(!ahci_port_is_idle(&hba->ports[i]))
 			{
@@ -984,9 +1002,7 @@ int ahci_initialize(struct ahci_device *device)
 				}
 			}
 
-			/* Do not create a device until we've checked the port has some device behind it */
-			if(ahci_port_has_device(&hba->ports[i]) == false)
-				continue;
+			VERBOSE_MPRINTF("Port is idle\n");
 
 			auto dev = blkdev_create_scsi_like_dev();
 			if (!dev)
@@ -1072,7 +1088,6 @@ int ahci_probe(struct device *dev)
 
 		/* Get the interrupt number */
 		irq = ahci_dev->get_intn();
-		printf("IRQ: %u\n", irq);
 		/* and install a handler */
 		assert(install_irq(irq, ahci_irq, (struct device *) ahci_dev,
 			IRQ_FLAG_REGULAR, device) == 0);
@@ -1086,10 +1101,15 @@ int ahci_probe(struct device *dev)
 	{
 		if (!device->ports[i].bdev)
 			continue;
-		
+
+		VERBOSE_MPRINTF("Identify on %s\n", device->ports[i].bdev->name.c_str());
+
 		ahci_do_identify(&device->ports[i]);
 
+		VERBOSE_MPRINTF("Identify done on %s\n", device->ports[i].bdev->name.c_str());
 		blkdev_init(device->ports[i].bdev.get());
+
+		VERBOSE_MPRINTF("blkdev_init done on %s\n", device->ports[i].bdev->name.c_str());
 	}
 
 	ahci_probe_ports(count_bits<uint32_t>(hba->ports_implemented), hba);
