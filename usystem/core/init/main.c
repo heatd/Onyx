@@ -283,6 +283,7 @@ int main(int argc, char **argv, char **envp)
 		{
 			printf("init: Failed to mount filesystems - dumping into dash shell\n");
 			chdir("/");
+			tcsetpgrp(0, getpid());
 			if(execl("/bin/dash", "-/bin/dash", NULL) < 0)
 			{
 				perror("exec error");
