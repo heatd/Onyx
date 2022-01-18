@@ -38,6 +38,7 @@
 #include <onyx/condvar.h>
 #include <onyx/serial.h>
 #include <onyx/poll.h>
+#include <onyx/process.h>
 
 void vterm_release_video(void *vterm);
 void vterm_get_video(void *vt);
@@ -455,6 +456,17 @@ unsigned int tty_ioctl(int request, void *argp, struct file *dev)
 		case TCFLSH:
 			return tty_do_tcflsh(tty, (int) (unsigned long) argp);
 
+		case TIOCSPGRP:
+		{
+			auto pgrp = get_current_process()->process_group;
+			tty->foreground_pgrp = pgrp->get_pid();
+			return 0;
+		}
+
+		case TIOCGPGRP:
+		{
+			return copy_to_user(argp, &tty->foreground_pgrp, sizeof(pid_t));
+		}
 		default:	
 			return -EINVAL;
 	}

@@ -104,6 +104,8 @@ int main(int argc, char **argv, char **envp)
 	fflush(stdout);
 	struct passwd *user;
 
+	tcsetpgrp(0, getpid());
+
 	while(true)
 	{
 		std::string username;

@@ -239,6 +239,7 @@ void handle_signal(struct registers *regs);
 
 int kernel_raise_signal(int sig, struct process *process, unsigned int flags, siginfo_t *info);
 int kernel_tkill(int signal, struct thread *thread, unsigned int flags, siginfo_t *info);
+int signal_kill_pg(int sig, int flags, siginfo_t *info, pid_t pid);
 void signal_context_init(struct thread *new_thread);
 void signal_do_execve(struct process *proc);
 int may_kill(int signum, struct process *target, siginfo_t *info);

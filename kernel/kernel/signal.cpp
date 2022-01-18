@@ -72,14 +72,9 @@ void signal_do_stop(int signum)
 	set_current_state(THREAD_STOPPED);
 
 	stopped++;
-	spin_unlock(&current_thread->sinfo.lock);
-	spin_unlock(&current->signal_lock);
 
 	sched_yield();
 	stopped--;
-
-	spin_lock(&current->signal_lock);
-	spin_lock(&current_thread->sinfo.lock);
 }
 
 /* This table only handles non-realtime signals (so, from signo 1 to 31, inclusive) */
@@ -354,7 +349,11 @@ void handle_signal(struct registers *regs)
 
 		if(thread->sinfo.flags & THREAD_SIGNAL_STOPPING)
 		{
+			g2.unlock();
+			g.unlock();
 			signal_do_stop(0);
+			g.lock();
+			g2.lock();
 			continue;
 		}
 

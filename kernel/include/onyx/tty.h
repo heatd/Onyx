@@ -57,6 +57,8 @@ struct tty
 	unsigned int input_buf_pos;
 
 	char *response;
+
+	pid_t foreground_pgrp;
 };
 
 #define TTY_OFLAG(tty, flag)   ((tty)->term_io.c_oflag & flag)
@@ -113,6 +115,9 @@ void tty_send_response(struct tty *tty, const char *str);
 #define ANSI_RESTORE_CURSOR		'u'
 #define CSI_DELETE_CHARS    'P'
 #define CSI_INSERT_BLANK    '@'
+#define CSI_INSERT_LINE     'L'
+#define CSI_DELETE_LINE     'M'
+#define CSI_REP             'b'
 #define CSI_DEVICE_ATTRIBUTES 'c'
 #define CSI_DEVICE_STATUS_REPORT 'n'
 #define DEC_DECALN '8'

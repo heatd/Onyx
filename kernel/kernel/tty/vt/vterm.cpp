@@ -136,6 +136,7 @@ struct vterm
 	} csi_data;
 
 	size_t do_escape(const char *buffer, size_t length);
+	utf32_t last_char; // for REP (CSI Ps b)
 
 private:
 	void process_escape_char(char c);
@@ -148,6 +149,8 @@ private:
 	void do_dec_command(char c);
 	void do_csi_command(char escape);
 	void do_generic_escape(char escape);
+	void insert_lines(unsigned long nr);
+	void repeat_last(unsigned long nr);
 };
 
 void vterm_append_msg(struct vterm *vterm, struct vterm_message *msg)
@@ -309,6 +312,7 @@ void vterm_dirty_cell(unsigned int x, unsigned int y, struct vterm *vt)
 
 bool vterm_putc(utf32_t c, struct vterm *vt)
 {
+	vt->last_char = c;
 	if(c == '\0')
 		return false;
 	
@@ -1214,6 +1218,70 @@ void vterm::do_csi_command(char escape)
 			vterm_cursor_set_line(args[0], this);
 			break;
 		}
+
+		case CSI_INSERT_LINE:
+		{
+			if(args[0] == 0)
+				args[0] = 1;
+			
+			insert_lines(args[0]);
+			break;
+		}
+
+		case CSI_DELETE_LINE:
+		{
+			if(args[0] == 0)
+				args[0] = 1;
+			
+			//delete_lines(args[0]);
+			break;
+		}
+
+		case CSI_REP:
+		{
+			if (args[0] == 0)
+				args[0] = 1;
+			repeat_last(args[0]);
+			break;
+		}
+	}
+}
+
+void vterm::repeat_last(unsigned long nr)
+{
+	char c = (char) last_char;
+	if (!isprint(c))
+		return;
+	
+	for(unsigned long i = 0; i < nr; i++) vterm_putc(c, this);
+}
+
+void vterm::insert_lines(unsigned long nr)
+{
+	auto possible_lines_to_insert = rows - cursor_y - 1;
+
+	if (nr > possible_lines_to_insert) nr = possible_lines_to_insert;
+
+	auto moved_y = cursor_y + nr;
+	auto to_keep = rows - moved_y;
+	auto cell = &cells[cursor_y];
+	memcpy(&cells[moved_y], cell, sizeof(console_cell) * columns * to_keep);
+
+	for(unsigned int i = 0; i < columns; i++)
+	{
+		cell[i].bg = bg;
+		cell[i].fg = fg;
+		cell[i].codepoint = ' ';
+		cell[i].flags = 0;
+		vterm_set_dirty(&cell[i]);
+	}
+
+	for (unsigned int i = moved_y; i < rows; i++)
+	{
+		for (unsigned int j = 0; j < columns; j++)
+		{
+			vterm_set_dirty(&cells[i * columns + j]);
+		}
 	}
 }
 
@@ -1234,10 +1302,10 @@ size_t vterm::do_escape(const char *buffer, size_t len)
 
 	char escape = csi_data.escape_character;
 
-#if 0
+#if 1
 	char buf[50];
-	snprintf(buf, 50, "Seq: %c nargs %lu args {%lu, %lu}\n", escape, csi_data.nr_args, csi_data.args[0], csi_data.args[1]);
-	platform_serial_write(buf, strlen(buf));
+	if(in_csi) snprintf(buf, 50, "Seq: %c nargs %lu args {%lu, %lu}\n", escape, csi_data.nr_args, csi_data.args[0], csi_data.args[1]);
+	if(in_csi && !csi_data.dec_private) platform_serial_write(buf, strlen(buf));
 	//platform_serial_write("Seq: ", strlen("Seq: "));
 	//platform_serial_write(&escape, 1);
 	//platform_serial_write("\n", 1);
@@ -1263,7 +1331,7 @@ size_t vterm::do_escape(const char *buffer, size_t len)
 
 ssize_t vterm_write_tty(const void *buffer, size_t size, struct tty *tty)
 {
-	platform_serial_write((const char *) buffer, size);
+	//platform_serial_write((const char *) buffer, size);
 	struct vterm *vt = (vterm *) tty->priv;
 
 	mutex_lock(&vt->vt_lock);

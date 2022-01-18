@@ -164,6 +164,8 @@ int execute_program(const char *path, const char *type)
 			dup2(fd, STDERR_FILENO);
 			chdir("/");
 		}
+
+		setpgrp();
 		/* Pass path as argv[0] */
 		if(execl(path, path, NULL) < 0)
 		{

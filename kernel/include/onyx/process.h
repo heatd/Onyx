@@ -40,6 +40,7 @@
 #include <sys/resource.h>
 
 struct proc_event_sub;
+struct tty;
 
 static void process_get(struct process *process);
 static void process_put(struct process *process);
@@ -131,6 +132,8 @@ struct process : public onx::handle::handleable
 
 	struct rlimit rlimits[RLIM_NLIMITS + 1]{};
 	struct rwlock rlimit_lock{};
+
+	struct tty *ctty{};
 
 	process();
 	virtual ~process();

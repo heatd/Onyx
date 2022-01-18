@@ -67,6 +67,21 @@ void n_tty_receive_control_input(struct tty_echo_args *args, char c, struct tty 
 		return;
 	}
 
+	if (c == TTY_CC(tty, VINTR))
+	{
+		signal_kill_pg(SIGINT, 0, nullptr, -tty->foreground_pgrp);
+	}
+
+	if (c == TTY_CC(tty, VSUSP))
+	{
+		signal_kill_pg(SIGTSTP, 0, nullptr, -tty->foreground_pgrp);
+	}
+
+	if (c == TTY_CC(tty, VQUIT))
+	{
+		signal_kill_pg(SIGQUIT, 0, nullptr, -tty->foreground_pgrp);
+	}
+
 	if(TTY_LFLAG(tty, ECHOCTL) && should_print_special(c))
 	{
 		args->inline_echo_buf[0] = '^';
@@ -76,10 +91,12 @@ void n_tty_receive_control_input(struct tty_echo_args *args, char c, struct tty 
 		args->ctl_echo_setup = true;
 	}
 
-	tty->input_buf[tty->input_buf_pos++] = c;
-
 	if(c == TTY_CC(tty, VEOF))
 		args->do_not_print = true;
+
+	if (c != TTY_CC(tty, VINTR) && c != TTY_CC(tty, VKILL) &&
+	    c != TTY_CC(tty, VQUIT) && c != TTY_CC(tty, VSUSP))
+		tty->input_buf[tty->input_buf_pos++] = c;
 }
 
 static ssize_t n_tty_receive_input(char c, struct tty *tty)
