@@ -202,7 +202,6 @@ void ioapic_set_pin(bool active_high, bool level, uint32_t pin)
  */
 void ioapic_unmask_pin(uint32_t pin)
 {
-	/*printk("Unmasking pin %u\n", pin);*/
 	uint64_t entry = read_redirection_entry(pin);
 	entry &= ~IOAPIC_PIN_MASKED;
 	write_redirection_entry(pin, entry);
@@ -267,13 +266,13 @@ void set_pin_handlers(void)
 			* - Fixed delivery mode
 			* They might be overwriten by the ISO descriptors in the MADT
 			*/
-			uint64_t entry = read_redirection_entry(i);
+			uint64_t entry = IOAPIC_PIN_MASKED;
 			entry = entry | (irqs + i);
 			write_redirection_entry(i, entry);
 		}
 
-		uint64_t entry = read_redirection_entry(i);
-		write_redirection_entry(i, entry | (32 + i));
+		uint64_t entry = IOAPIC_PIN_MASKED;
+		write_redirection_entry(i, entry | (irqs + i));
 	}
 
 	for(ACPI_SUBTABLE_HEADER *i = first; i < (ACPI_SUBTABLE_HEADER*)((char*)madt + madt->Header.Length); i = 
@@ -292,8 +291,7 @@ void set_pin_handlers(void)
 			else
 				red &= ~(1 << 13);
 		
-			if((mio->IntiFlags & ACPI_MADT_TRIGGER_LEVEL)
-				== ACPI_MADT_TRIGGER_LEVEL)
+			if((mio->IntiFlags & ACPI_MADT_TRIGGER_LEVEL) == ACPI_MADT_TRIGGER_LEVEL)
 				red |= (1 << 15);
 			else
 				red &= ~(1 << 15);
