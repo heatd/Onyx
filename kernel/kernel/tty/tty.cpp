@@ -127,6 +127,7 @@ void tty_init(void *priv, void (*ctor)(struct tty *tty))
 	mutex_init(&tty->lock);
 	spinlock_init(&tty->input_lock);
 	rwlock_init(&tty->termio_lock);
+	tty->response = nullptr;
 
 	tty->tty_num = idm_get_id(tty_ids);
 
@@ -158,6 +159,20 @@ void tty_write(const char *data, size_t size, struct tty *tty)
 	mutex_lock(&tty->lock);
 
 	tty->ldisc->ops->write_out(data, size, tty);
+
+	// Handle a pending response
+	if (tty->response)
+	{
+		auto resp = tty->response;
+		// We'll need to release the lock as tty_received_characters internal code locks the tty
+		tty->response = nullptr;
+		mutex_unlock(&tty->lock);
+		tty_received_characters(tty, resp);
+		free(resp);
+		
+		// Early return as to not double free the lock
+		return;
+	}
 
 	mutex_unlock(&tty->lock);
 }
@@ -201,10 +216,6 @@ ssize_t __tty_has_input_available(struct tty *tty)
 ssize_t tty_has_input_available(unsigned int flags, struct tty *tty)
 {
 	ssize_t ret = __tty_has_input_available(tty);
-
-	if(ret == 0 && flags & O_NONBLOCK)
-		ret = -EAGAIN;
-
 	return ret;
 }
 
@@ -494,4 +505,24 @@ void tty_create_dev(void)
 	
 	dev->private_ = main_tty;
 	dev->show(0666);
+}
+
+/**
+ * @brief Send a response to a command to the tty
+ * Requires the internal tty lock to be held.
+ * Limitation: Only one response can be sent per ->write().
+ * 
+ * @param tty Pointer to the tty
+ * @param str String of characters to send
+ */
+void tty_send_response(struct tty *tty, const char *str)
+{
+	// If we already have an active response, go away
+	if (tty->response != nullptr)
+		return;
+
+	tty->response = strdup(str);
+
+	if (!tty->response)
+		return;
 }

@@ -124,6 +124,7 @@ struct vterm
 	bool in_escape;
 	bool seq_finished;
 	bool in_csi;
+	bool in_dec;
 	
 	struct
 	{
@@ -140,7 +141,13 @@ private:
 	void process_escape_char(char c);
 	void reset_escape_status();
 	void process_csi_char(char c);
+	void process_dec_char(char c);
 	void insert_blank(unsigned long nr);
+	void do_device_attributes(unsigned long nr);
+	void do_device_status_report(unsigned long nr);
+	void do_dec_command(char c);
+	void do_csi_command(char escape);
+	void do_generic_escape(char escape);
 };
 
 void vterm_append_msg(struct vterm *vterm, struct vterm_message *msg)
@@ -308,6 +315,12 @@ bool vterm_putc(utf32_t c, struct vterm *vt)
 	// TODO: Special behavior?
 	if(c == '\a')
 		return false;
+	
+	if (c == '\016' || c == '\017')
+	{
+		// Shift in and shift out do nothing right now
+		return false;
+	}
 
 	if(c == '\t')
 	{
@@ -513,7 +526,7 @@ int isdigit(int c)
 void vterm_ansi_adjust_cursor(char code, unsigned long relative, struct vterm *vt)
 {
 	vterm_dirty_cell(vt->cursor_x, vt->cursor_y, vt);
-	if(relative == 0)
+	if(relative == 0 || relative == 1)
 		relative = 1;
 
 	switch(code)
@@ -533,6 +546,7 @@ void vterm_ansi_adjust_cursor(char code, unsigned long relative, struct vterm *v
 			break;
 		}
 		case ANSI_CURSOR_DOWN:
+		case CSI_VPR:
 		{
 			unsigned int cy = vt->cursor_y;
 			unsigned int result = cy + relative;
@@ -567,6 +581,18 @@ void vterm_ansi_adjust_cursor(char code, unsigned long relative, struct vterm *v
 			break;
 		}
 	}
+}
+
+void vterm_cursor_set_line(unsigned long line, struct vterm *vt)
+{
+	vterm_dirty_cell(vt->cursor_x, vt->cursor_y, vt);
+
+	line--;
+
+	if(line >= vt->rows)
+		line = vt->rows - 1;
+	
+	vt->cursor_y = line;
 }
 
 void vterm_ansi_do_cup(unsigned long x, unsigned long y, struct vterm *vt)
@@ -761,6 +787,8 @@ void vterm_ansi_erase_in_display(unsigned long n, struct vterm *vt)
 			{
 				struct console_cell *c = &vt->cells[cidx + i];
 				c->codepoint = ' ';
+				c->fg = vt->fg;
+				c->bg = vt->bg;
 				vterm_set_dirty(c);
 			}
 
@@ -776,6 +804,8 @@ void vterm_ansi_erase_in_display(unsigned long n, struct vterm *vt)
 			{
 				struct console_cell *c = &vt->cells[i];
 				c->codepoint = ' ';
+				c->fg = vt->fg;
+				c->bg = vt->bg;
 				vterm_set_dirty(c);
 			}
 
@@ -841,11 +871,78 @@ void vterm::insert_blank(unsigned long nr)
 	}
 }
 
+void vterm::do_dec_command(char c)
+{
+	switch(c)
+	{
+		case DEC_DECALN:
+			vterm_fill_screen(this, 'E', fg, bg);
+	}
+}
+
+void vterm::do_generic_escape(char escape)
+{
+	switch(escape)
+	{
+		case 'D':
+		{
+			vterm_ansi_adjust_cursor(ANSI_CURSOR_DOWN, 1, this);
+			break;
+		}
+		case 'M':
+		{
+			vterm_ansi_adjust_cursor(ANSI_CURSOR_UP, 1, this);
+			break;
+		}
+		case 'E':
+		{
+			vterm_ansi_adjust_cursor(ANSI_CURSOR_DOWN, 1, this);
+			cursor_x = 0;
+			break;
+		}
+	}
+}
+
+void vterm::do_device_attributes(unsigned long nr)
+{
+	if (nr != 0)
+		return; // Unrecognized command
+	
+	// c with nr = 5 is a "who are you" command
+	// Return Base VT100, no options in stdin
+	tty_send_response(tty, (char *) "\x1b[?1;0c");
+}
+
+void vterm::do_device_status_report(unsigned long nr)
+{
+	switch(nr)
+	{
+		// Command from host – Please report status (using a DSR control sequence)
+		case 5:
+		{
+			// Only two responses possible
+			// Ps = 0 -> terminal is fine
+			// Ps = 3 -> malfunction
+			// As we are a virtual terminal I don't see a usecase for malfunction here.
+			tty_send_response(tty, (char *) "\x1b[0n");
+			break;
+		}
+		// Command from host - Please report active position (using a CPR control sequence)
+		case 6:
+		{
+			char buffer[20];
+			snprintf(buffer, 20, "\x1b[%u;%uR", cursor_y + 1, cursor_x + 1);
+			tty_send_response(tty, buffer);
+			break;
+		}
+	}
+}
+
 void vterm::reset_escape_status()
 {
 	in_escape = false;
 
-	if(in_csi)
+	if(in_csi || in_dec)
 	{
 		for(auto &n : csi_data.args)
 			n = 0;
@@ -856,7 +953,19 @@ void vterm::reset_escape_status()
 		csi_data.dec_private = false;
 	}
 
+	in_dec = false;
+	in_csi = false;
+
 	seq_finished = false;
+}
+
+void vterm::process_dec_char(char c)
+{
+	// DEC commands have the format
+	// ESC #<n> where n is a digit	
+	csi_data.escape_character = c;
+
+	seq_finished = true;
 }
 
 void vterm::process_csi_char(char c)
@@ -936,50 +1045,42 @@ void vterm::process_escape_char(char c)
 			break;
 		}
 
+		case DEC_CSI:
+		{
+			in_dec = true;
+			break;
+		}
+
 		default:
 		{
 			if(in_csi)
 				process_csi_char(c);
-			
+			else if(in_dec)
+				process_dec_char(c);
+			else
+			{
+				csi_data.escape_character = c;
+				seq_finished = true;
+			}
+
 			break;
 		}
 	}
 }
 
-size_t vterm::do_escape(const char *buffer, size_t len)
+void vterm::do_csi_command(char escape)
 {
-	size_t processed = 0;
-	for(size_t i = 0; i < len; i++)
-	{
-		process_escape_char(buffer[i]);
-		processed++;
-
-		if(seq_finished)
-			break;
-	}
-
-	if(!seq_finished)
-		return processed;
+	if (csi_data.dec_private)
+		return;
 
 	auto &args = csi_data.args;
-
-	char escape = csi_data.escape_character;
-
-#if 0
-	char buf[50];
-	snprintf(buf, 50, "Seq: %c nargs %lu args {%lu, %lu}\n", escape, csi_data.nr_args, args[0], args[1]);
-	platform_serial_write(buf, strlen(buf));
-	//platform_serial_write("Seq: ", strlen("Seq: "));
-	//platform_serial_write(&escape, 1);
-	//platform_serial_write("\n", 1);
-#endif
-
 	switch(escape)
 	{
 		case ANSI_CURSOR_UP:
 		case ANSI_CURSOR_DOWN:
 		case ANSI_CURSOR_FORWARD:
 		case ANSI_CURSOR_BACK:
+		case CSI_VPR:
 		{
 			vterm_ansi_adjust_cursor(escape, csi_data.args[0], this);
 			break;
@@ -1093,6 +1194,66 @@ size_t vterm::do_escape(const char *buffer, size_t len)
 			insert_blank(args[0]);
 			break;
 		}
+
+		case CSI_DEVICE_ATTRIBUTES:
+		{
+			do_device_attributes(args[0]);
+			break;
+		}
+
+		case CSI_DEVICE_STATUS_REPORT:
+		{
+			do_device_status_report(args[0]);
+			break;
+		}
+
+		case CSI_VPA:
+		{
+			if (!args[0])
+				args[0] = 1;
+			vterm_cursor_set_line(args[0], this);
+			break;
+		}
+	}
+}
+
+size_t vterm::do_escape(const char *buffer, size_t len)
+{
+	size_t processed = 0;
+	for(size_t i = 0; i < len; i++)
+	{
+		process_escape_char(buffer[i]);
+		processed++;
+
+		if(seq_finished)
+			break;
+	}
+
+	if(!seq_finished)
+		return processed;
+
+	char escape = csi_data.escape_character;
+
+#if 0
+	char buf[50];
+	snprintf(buf, 50, "Seq: %c nargs %lu args {%lu, %lu}\n", escape, csi_data.nr_args, csi_data.args[0], csi_data.args[1]);
+	platform_serial_write(buf, strlen(buf));
+	//platform_serial_write("Seq: ", strlen("Seq: "));
+	//platform_serial_write(&escape, 1);
+	//platform_serial_write("\n", 1);
+#endif
+
+	if (in_dec)
+	{
+		do_dec_command(escape);
+	}
+	else if (in_csi)
+	{
+		do_csi_command(escape);
+	}
+	else
+	{
+		do_generic_escape(escape);
 	}
 
 	reset_escape_status();
@@ -1112,6 +1273,8 @@ ssize_t vterm_write_tty(const void *buffer, size_t size, struct tty *tty)
 
 	for (; i < size; i++)
 	{
+		if (data[i] == '\0')
+			continue;
 		/* Parse ANSI terminal escape codes */
 		if(data[i] == ANSI_ESCAPE_CODE || vt->in_escape)
 			/* Note the -1 because of the i++ in the for loop */
@@ -1131,6 +1294,7 @@ ssize_t vterm_write_tty(const void *buffer, size_t size, struct tty *tty)
 			snprintf(x, 9, "%x\n", codepoint);
 			platform_serial_write(x, strlen(x));
 #endif
+			//platform_serial_write(data + i, 1);
 			if(vterm_putc(codepoint, vt))
 				did_scroll = true;
 
@@ -1242,32 +1406,32 @@ struct key_action
 
 struct key_action key_actions[] = 
 {
-	{KEYMAP_KEY_A, "a", "A"},
-	{KEYMAP_KEY_B, "b", "B"},
+	{KEYMAP_KEY_A, "a", "A", "\01"},
+	{KEYMAP_KEY_B, "b", "B", "\02"},
 	{KEYMAP_KEY_C, "c", "C", "\03"},
 	{KEYMAP_KEY_D, "d", "D", "\04"},
-	{KEYMAP_KEY_E, "e", "E"},
-	{KEYMAP_KEY_F, "f", "F"},
-	{KEYMAP_KEY_G, "g", "G"},
-	{KEYMAP_KEY_H, "h", "H", "\b"},
-	{KEYMAP_KEY_I, "i", "I"},
-	{KEYMAP_KEY_J, "j", "J"},
-	{KEYMAP_KEY_K, "k", "K"},
-	{KEYMAP_KEY_L, "l", "L"},
-	{KEYMAP_KEY_M, "m", "M"},
-	{KEYMAP_KEY_N, "n", "N"},
-	{KEYMAP_KEY_O, "o", "O"},
-	{KEYMAP_KEY_P, "p", "P"},
-	{KEYMAP_KEY_Q, "q", "Q"},
-	{KEYMAP_KEY_R, "r", "R"},
-	{KEYMAP_KEY_S, "s", "S"},
-	{KEYMAP_KEY_T, "t", "T"},
-	{KEYMAP_KEY_U, "u", "U"},
-	{KEYMAP_KEY_V, "v", "V"},
-	{KEYMAP_KEY_X, "x", "X"},
-	{KEYMAP_KEY_W, "w", "W"},
-	{KEYMAP_KEY_Y, "y", "Y"},
-	{KEYMAP_KEY_Z, "z", "Z"},
+	{KEYMAP_KEY_E, "e", "E", "\05"},
+	{KEYMAP_KEY_F, "f", "F", "\06"},
+	{KEYMAP_KEY_G, "g", "G", "\07"},
+	{KEYMAP_KEY_H, "h", "H", "\010"},
+	{KEYMAP_KEY_I, "i", "I", "\011"},
+	{KEYMAP_KEY_J, "j", "J", "\012"},
+	{KEYMAP_KEY_K, "k", "K", "\013"},
+	{KEYMAP_KEY_L, "l", "L", "\014"},
+	{KEYMAP_KEY_M, "m", "M", "\015"},
+	{KEYMAP_KEY_N, "n", "N", "\016"},
+	{KEYMAP_KEY_O, "o", "O", "\017"},
+	{KEYMAP_KEY_P, "p", "P", "\020"},
+	{KEYMAP_KEY_Q, "q", "Q", "\021"},
+	{KEYMAP_KEY_R, "r", "R", "\022"},
+	{KEYMAP_KEY_S, "s", "S", "\023"},
+	{KEYMAP_KEY_T, "t", "T", "\024"},
+	{KEYMAP_KEY_U, "u", "U", "\025"},
+	{KEYMAP_KEY_V, "v", "V", "\026"},
+	{KEYMAP_KEY_W, "w", "W", "\027"},
+	{KEYMAP_KEY_X, "x", "X", "\030"},
+	{KEYMAP_KEY_Y, "y", "Y", "\031"},
+	{KEYMAP_KEY_Z, "z", "Z", "\032"},
 	{KEYMAP_KEY_0, "0", ")"},
 	{KEYMAP_KEY_1, "1", "!"},
 	{KEYMAP_KEY_2, "2", "@"},
@@ -1294,7 +1458,7 @@ struct key_action key_actions[] =
 	{KEYMAP_KEY_EQUALS, "=", "+"},
 	{KEYMAP_KEY_LEFTBRACE, "[", "{"},
 	{KEYMAP_KEY_RIGHTBRACE, "]", "}"},
-	{KEYMAP_KEY_ENTER, "\n"},
+	{KEYMAP_KEY_ENTER, "\r"},
 	{KEYMAP_KEY_SEMICOLON, ";", ":"},
 	{KEYMAP_KEY_GRAVE, "`", "~"},
 	{KEYMAP_KEY_TAB, "\t"},
@@ -1313,36 +1477,37 @@ struct key_action key_actions[] =
 	{KEYMAP_KEY_ARROW_UP, "\033[A"},
 	{KEYMAP_KEY_ARROW_DOWN, "\033[B"},
 	{KEYMAP_KEY_ARROW_RIGHT, "\033[C"},
+	{KEYMAP_KEY_ESC, "\033"},
 };
 
 struct key_action pt_pt_key_actions[] = 
 {
-	{KEYMAP_KEY_A, "a", "A"},
-	{KEYMAP_KEY_B, "b", "B"},
+	{KEYMAP_KEY_A, "a", "A", "\01"},
+	{KEYMAP_KEY_B, "b", "B", "\02"},
 	{KEYMAP_KEY_C, "c", "C", "\03"},
 	{KEYMAP_KEY_D, "d", "D", "\04"},
-	{KEYMAP_KEY_E, "e", "E"},
-	{KEYMAP_KEY_F, "f", "F"},
-	{KEYMAP_KEY_G, "g", "G"},
-	{KEYMAP_KEY_H, "h", "H", "\b"},
-	{KEYMAP_KEY_I, "i", "I"},
-	{KEYMAP_KEY_J, "j", "J"},
-	{KEYMAP_KEY_K, "k", "K"},
-	{KEYMAP_KEY_L, "l", "L"},
-	{KEYMAP_KEY_M, "m", "M"},
-	{KEYMAP_KEY_N, "n", "N"},
-	{KEYMAP_KEY_O, "o", "O"},
-	{KEYMAP_KEY_P, "p", "P"},
-	{KEYMAP_KEY_Q, "q", "Q"},
-	{KEYMAP_KEY_R, "r", "R"},
-	{KEYMAP_KEY_S, "s", "S"},
-	{KEYMAP_KEY_T, "t", "T"},
-	{KEYMAP_KEY_U, "u", "U"},
-	{KEYMAP_KEY_V, "v", "V"},
-	{KEYMAP_KEY_X, "x", "X"},
-	{KEYMAP_KEY_W, "w", "W"},
-	{KEYMAP_KEY_Y, "y", "Y"},
-	{KEYMAP_KEY_Z, "z", "Z"},
+	{KEYMAP_KEY_E, "e", "E", "\05"},
+	{KEYMAP_KEY_F, "f", "F", "\06"},
+	{KEYMAP_KEY_G, "g", "G", "\07"},
+	{KEYMAP_KEY_H, "h", "H", "\010"},
+	{KEYMAP_KEY_I, "i", "I", "\011"},
+	{KEYMAP_KEY_J, "j", "J", "\012"},
+	{KEYMAP_KEY_K, "k", "K", "\013"},
+	{KEYMAP_KEY_L, "l", "L", "\014"},
+	{KEYMAP_KEY_M, "m", "M", "\015"},
+	{KEYMAP_KEY_N, "n", "N", "\016"},
+	{KEYMAP_KEY_O, "o", "O", "\017"},
+	{KEYMAP_KEY_P, "p", "P", "\020"},
+	{KEYMAP_KEY_Q, "q", "Q", "\021"},
+	{KEYMAP_KEY_R, "r", "R", "\022"},
+	{KEYMAP_KEY_S, "s", "S", "\023"},
+	{KEYMAP_KEY_T, "t", "T", "\024"},
+	{KEYMAP_KEY_U, "u", "U", "\025"},
+	{KEYMAP_KEY_V, "v", "V", "\026"},
+	{KEYMAP_KEY_W, "w", "W", "\027"},
+	{KEYMAP_KEY_X, "x", "X", "\030"},
+	{KEYMAP_KEY_Y, "y", "Y", "\031"},
+	{KEYMAP_KEY_Z, "z", "Z", "\032"},
 	{KEYMAP_KEY_0, "0", "=", NULL, "}"},
 	{KEYMAP_KEY_1, "1", "!"},
 	{KEYMAP_KEY_2, "2", "\"", NULL, "@"},
@@ -1369,7 +1534,7 @@ struct key_action pt_pt_key_actions[] =
 	{KEYMAP_KEY_EQUALS, "«", "»"},
 	{KEYMAP_KEY_LEFTBRACE, "+", "*"},
 	{KEYMAP_KEY_RIGHTBRACE, "´", "`"},
-	{KEYMAP_KEY_ENTER, "\n"},
+	{KEYMAP_KEY_ENTER, "\r"},
 	{KEYMAP_KEY_SEMICOLON, "ç", "Ç"},
 	{KEYMAP_KEY_GRAVE, "\\", "|"},
 	{KEYMAP_KEY_TAB, "\t"},
@@ -1389,6 +1554,7 @@ struct key_action pt_pt_key_actions[] =
 	{KEYMAP_KEY_ARROW_UP, "\033[A"},
 	{KEYMAP_KEY_ARROW_DOWN, "\033[B"},
 	{KEYMAP_KEY_ARROW_RIGHT, "\033[C"},
+	{KEYMAP_KEY_ESC, "\033"},
 };
 
 const size_t nr_actions = sizeof(key_actions) / sizeof(key_actions[0]);

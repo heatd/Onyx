@@ -55,6 +55,8 @@ struct tty
 	struct spinlock input_lock;
 	char input_buf[2048];
 	unsigned int input_buf_pos;
+
+	char *response;
 };
 
 #define TTY_OFLAG(tty, flag)   ((tty)->term_io.c_oflag & flag)
@@ -78,12 +80,25 @@ void tty_received_character(struct tty *tty, char c);
 void tty_received_characters(struct tty *tty, char *c);
 void tty_create_dev();
 
+/**
+ * @brief Send a response to a command to the tty
+ * Requires the internal tty lock to be held.
+ * Limitation: Only one response can be sent per ->write().
+ * 
+ * @param tty Pointer to the tty
+ * @param str String of characters to send
+ */
+void tty_send_response(struct tty *tty, const char *str);
+
 #define ANSI_ESCAPE_CODE   		'\x1b'
+#define DEC_CSI             '#'
 #define ANSI_CSI	   		'['
 #define ANSI_CURSOR_UP	   		'A'
 #define ANSI_CURSOR_DOWN		'B'
 #define ANSI_CURSOR_FORWARD		'C'
 #define ANSI_CURSOR_BACK		'D'
+#define CSI_VPA 'd'  // Vertical position absolute
+#define CSI_VPR 'e' // Vertical position relative
 #define ANSI_CURSOR_NEXT_LINE		'E'
 #define ANSI_CURSOR_PREVIOUS		'F'
 #define ANSI_CURSOR_HORIZONTAL_ABS 	'G'
@@ -98,6 +113,9 @@ void tty_create_dev();
 #define ANSI_RESTORE_CURSOR		'u'
 #define CSI_DELETE_CHARS    'P'
 #define CSI_INSERT_BLANK    '@'
+#define CSI_DEVICE_ATTRIBUTES 'c'
+#define CSI_DEVICE_STATUS_REPORT 'n'
+#define DEC_DECALN '8'
 
 #define ANSI_SGR_RESET		0
 #define ANSI_SGR_BOLD		1

@@ -90,7 +90,13 @@ static ssize_t n_tty_receive_input(char c, struct tty *tty)
 	args.ctl_echo_setup = false;
 	args.do_not_print = false;
 
+	if (TTY_IFLAG(tty, IGNCR) && c == '\r')
+		return 0;
+
 	spin_lock(&tty->input_lock);
+
+	if (TTY_IFLAG(tty, ICRNL) && c == '\r')
+		c = '\n';
 
 	if(iscntrl(c) && TTY_LFLAG(tty, ICANON))
 		n_tty_receive_control_input(&args, c, tty);
