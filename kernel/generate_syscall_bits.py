@@ -43,7 +43,7 @@ def output_syscall_thunk(syscall, output_file):
     thunk_name = f'__sys_{syscall.name}_thunk'
 
     thunk_function = f'''unsigned long {thunk_name}(unsigned long arg0, unsigned long arg1, unsigned long arg2, 
- unsigned long arg3, unsigned long arg4, unsigned long arg5)\n{{\n    '''
+ unsigned long arg3, unsigned long arg4, unsigned long arg5, unsigned long arg6)\n{{\n    '''
     # Note: If the return type is void, we can't have a return statement
 
     if syscall.return_type != "void":
@@ -83,7 +83,7 @@ def output_thunk_file_prologue(syscall_thunk):
 def output_syscall_table(output_file, syscall_nr_to_thunk_table, max_syscall):
     output_file.write('''typedef unsigned long (*syscall_callback_t)(unsigned long a0, unsigned long a1,
 				   unsigned long a2, unsigned long a3,
-				   unsigned long a4, unsigned long a5);\n''')
+				   unsigned long a4, unsigned long a5, unsigned long a6);\n''')
 
     # TODO: Assuming syscall_table_64 is weird if we ever port Onyx to 32-bit
     output_file.write("syscall_callback_t syscall_table_64[] = \n{\n")

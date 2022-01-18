@@ -1330,6 +1330,38 @@
         "return_type": "int"
     },
     {
+        "name": "pselect",
+        "nr": 79,
+        "nr_args": 6,
+        "args": [
+            [
+                "int",
+                "nfds"
+            ],
+            [
+                "fd_set *",
+                "ureadfds"
+            ],
+            [
+                "fd_set *",
+                "uwritefds"
+            ],
+            [
+                "fd_set *",
+                "uexceptfds"
+            ],
+            [
+                "const struct timespec *",
+                "utimeout"
+            ],
+            [
+                "struct pselect_arg *",
+                "uarg"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
         "name": "proc_event_attach",
         "nr": 80,
         "nr_args": 2,
