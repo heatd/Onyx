@@ -210,14 +210,10 @@ void ps2_set_typematic_rate(struct ps2_port *port)
 
 	do
 	{
-		if(ps2_send_command_to_device(port, 0xf3, true, &response)
-			== PS2_CMD_TIMEOUT)
+		if(ps2_send_command_to_device(port, 0xf3, true, &response) == PS2_CMD_TIMEOUT)
 			return;
-		ps2_wait_for_input_buffer(port->controller);
-		outb(port->controller->data_port, rate);
-
-		ps2_wait_for_input_buffer(port->controller);
-		response = inb(port->controller->data_port);
+		if(ps2_send_command_to_device(port, rate, true, &response) == PS2_CMD_TIMEOUT)
+			return;
 	} while(response == 0xfe);
 }
 

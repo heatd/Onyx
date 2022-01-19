@@ -41,6 +41,8 @@
 #define PS2_CMD_DISABLE_FIRST_PORT	0xad
 #define PS2_CMD_READ_INTERNAL_RAM	0x20
 #define PS2_CMD_WRITE_INTERNAL_RAM	0x60
+#define PS2_CMD_DISABLE_SCAN        0xf5
+#define PS2_CMD_ENABLE_SCAN         0xf4
 
 #define PS2_PORT1_IRQ 	1
 #define PS2_PORT2_IRQ	12
@@ -76,5 +78,6 @@ uint8_t ps2_send_command_to_device(struct ps2_port *port, uint8_t command,
 	bool get_response, uint8_t *response);
 void ps2_wait_for_input_buffer(struct ps2_controller *controller);
 uint8_t ps2_read_data(struct ps2_port *port);
+void ps2_wait_for_byte(struct ps2_controller *controller);
 
 #endif

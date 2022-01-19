@@ -42,33 +42,37 @@ uint8_t ps2_send_command(struct ps2_controller *controller, uint8_t command,
 {
 	mutex_lock(&controller->controller_lock);
 
-	while(inb(controller->command_port) & PS2_STATUS_INPUT_BUFFER_FULL)
-		cpu_relax();
+	ps2_wait_for_input_buffer(controller);
 
 	outb(controller->command_port, command);
+
+	if (!get_response)
+	{
+		mutex_unlock(&controller->controller_lock);
+		return PS2_CMD_OK;
+	}
 
 	uint64_t t = get_tick_count();
 	uint64_t future = t + 100;
 
-	if(get_response)
+	/* Wait until the output buffer is full to read the response
+	 * from the data port
+	 */
+	while(!(inb(controller->command_port)
+		& PS2_STATUS_OUTPUT_BUFFER_FULL))
 	{
-		/* Wait until the output buffer is full to read the response
-		 * from the data port
-		*/
-		while(!(inb(controller->command_port)
-			& PS2_STATUS_OUTPUT_BUFFER_FULL))
+		if(future <= get_tick_count())
 		{
-			if(future <= get_tick_count())
-			{
-				mutex_unlock(&controller->controller_lock);
-				return PS2_CMD_TIMEOUT;
-			}
-
-			cpu_relax();
+			mutex_unlock(&controller->controller_lock);
+			return PS2_CMD_TIMEOUT;
 		}
-
-		*response = inb(controller->data_port);
+		
+		cpu_relax();
 	}
+
+	auto resp = inb(controller->data_port);
+
+	*response = resp;
 
 	mutex_unlock(&controller->controller_lock);
 
@@ -132,6 +136,12 @@ void ps2_wait_for_input_buffer(struct ps2_controller *controller)
 		cpu_relax();
 }
 
+void ps2_wait_for_byte(struct ps2_controller *controller)
+{
+	while(inb(controller->command_port) & PS2_STATUS_OUTPUT_BUFFER_FULL)
+		cpu_relax();
+}
+
 void ps2_write_internal_ram(struct ps2_controller *controller, uint8_t index,
 	uint8_t val)
 {
@@ -171,6 +181,8 @@ void ps2_flush_output(struct ps2_controller *controller)
 
 bool ps2_do_self_test(struct ps2_controller *controller)
 {
+	// Broken on certain controllers
+#if 0
 	uint8_t response;
 	if(ps2_send_command(controller,
 		PS2_CMD_TEST_CONTROLLER, true, &response) == PS2_CMD_TIMEOUT)
@@ -185,7 +197,7 @@ bool ps2_do_self_test(struct ps2_controller *controller)
 			response);
 		return false;
 	}
-
+#endif
 	return true;
 }
 
@@ -218,7 +230,7 @@ int ps2_enable_irqs(struct ps2_controller *controller)
 {
 	uint8_t byte = ps2_read_controller_config(controller);
 
-	byte |= PS2_CTRLR_CONFIG_FIRST_PORT_IRQ  |
+	byte |= PS2_CTRLR_CONFIG_FIRST_PORT_IRQ |
 		PS2_CTRLR_CONFIG_SECOND_PORT_IRQ |
 		PS2_CTRLR_CONFIG_FIRST_PORT_TRANSLATION;
 
@@ -226,8 +238,7 @@ int ps2_enable_irqs(struct ps2_controller *controller)
 
 	for(unsigned int i = 0; i < controller->nr_ports; i++)
 		if(install_irq(controller->ports[i].irq, ps2_irq,
-			controller->device, 0, &controller->ports[i])
-			< 0)
+			controller->device, 0, &controller->ports[i]) < 0)
 				return -1;
 
 	return 0;
@@ -245,17 +256,14 @@ int ps2_reset_device(struct ps2_port *port)
 		return -1;
 	}
 
-	if(response == 0xfc || response == 0xfd)
+	if(response != 0xfa)
 	{
 		printf("PS2 reset bad response\n");
 		return -1;
 	}
 
-
-	ps2_wait_for_input_buffer(port->controller);
-
-	while((response = inb(port->controller->data_port)) == 0xfa)
-		ps2_wait_for_input_buffer(port->controller);
+	while ((response = ps2_read_data(port)) == 0xfa)
+		ps2_wait_for_byte(port->controller);
 
 	if(response != 0xaa)
 	{
@@ -267,7 +275,7 @@ int ps2_reset_device(struct ps2_port *port)
 	if(port->port_number == 2)
 	{
 		/* The mouse outputs another byte */
-		ps2_wait_for_input_buffer(port->controller);
+		ps2_wait_for_byte(port->controller);
 		inb(port->controller->data_port);
 	}
 
@@ -279,17 +287,21 @@ int ps2_reset_device(struct ps2_port *port)
 int ps2_enable_port(struct ps2_port *port)
 {
 	if(port->port_number == 1)
-		ps2_send_command(port->controller,
-			PS2_CMD_ENABLE_FIRST_PORT, false, NULL);
+		ps2_send_command(port->controller, PS2_CMD_ENABLE_FIRST_PORT, false, NULL);
 	else
-		ps2_send_command(port->controller, PS2_CMD_ENABLE_SECOND_PORT,
-			false, NULL);
-	return ps2_reset_device(port);
+		ps2_send_command(port->controller, PS2_CMD_ENABLE_SECOND_PORT, false, NULL);
+
+	port->has_device = true;
+	// Note: resetting the device doesn't work
+	return 0;
 }
 
 bool ps2_init_port(struct ps2_port *port)
 {
 	uint8_t response = 0;
+
+	ps2_enable_port(port);
+
 	if(port->port_number == 1)
 	{
 		if(ps2_send_command(port->controller,
@@ -313,13 +325,6 @@ bool ps2_init_port(struct ps2_port *port)
 	{
 		printf("ps2: PS/2 test failed on port %u,"
 		       "with response %u\n", port->port_number, response);
-		return false;
-	}
-
-	if(ps2_enable_port(port) < 0)
-	{
-		printf("ps2: Failed to enable port %u\n", port->port_number);
-
 		return false;
 	}
 
@@ -351,10 +356,6 @@ bool i8042_found_pnp = false;
 
 int ps2_probe(struct device *device)
 {
-	/* TODO: Support other types of PS/2 controllers that are not
-	 * necessarily ISA PS/2 controllers with the default I/O port
-	 * and IRQ setup */
-
 	struct ps2_controller *controller = (ps2_controller *) zalloc(sizeof(*controller));
 	
 	if(!controller)
@@ -392,10 +393,10 @@ int ps2_probe(struct device *device)
 
 	if(controller->ports[0].has_device)
 		ps2_keyboard_init(&controller->ports[0]);
-	
+
 	if(ps2_enable_irqs(controller) < 0)
 		printf("ps2: Could not enable irqs\n");
-	/* TODO: Add a mouse driver */
+
 	return 0;
 }
 
@@ -414,8 +415,8 @@ static struct acpi_dev_id acpi_keyboard_ids[] =
 	{"PNP0305"},
 	{"PNP0306"},
 	{"PNP0309"},
-	{"PNP030a"},
-	{"PNP030b"},
+	{"PNP030A"},
+	{"PNP030B"},
 	{"PNP0320"},
 	{"PNP0343"},
 	{"PNP0344"},
@@ -429,13 +430,13 @@ static struct acpi_dev_id acpi_mouse_ids[] =
 	{"AUI0200"},
 	{"FCJ6000"},
 	{"FCJ6001"},
-	{"PNP0f03"},
-	{"PNP0f0b"},
-	{"PNP0f0e"},
-	{"PNP0f12"},
-	{"PNP0f13"},
-	{"PNP0f19"},
-	{"PNP0f1c"},
+	{"PNP0F03"},
+	{"PNP0F0B"},
+	{"PNP0F0E"},
+	{"PNP0F12"},
+	{"PNP0F13"},
+	{"PNP0F19"},
+	{"PNP0F1C"},
 	{"SYN0801"},
 	{NULL},
 };
@@ -468,25 +469,20 @@ struct driver ps2_platform_driver =
 
 struct device ps2_platform_device{"ps2", nullptr, nullptr};
 
-int ps2_probe_keyboard(struct device *device)
+int ps2_probe_keyboard(device *device)
 {
-	struct acpi_device *dev = (struct acpi_device *) device;
+	acpi_device *dev = (acpi_device *) device;
 
-	ACPI_RESOURCE *data_port, *command_port, *irq_res, *eirq_res;
-
-	data_port = acpi_get_resource(dev, ACPI_RESOURCE_TYPE_IO, 0);
-	command_port = acpi_get_resource(dev, ACPI_RESOURCE_TYPE_IO, 1);
-	irq_res = acpi_get_resource(dev, ACPI_RESOURCE_TYPE_IRQ, 0);
-	eirq_res = acpi_get_resource(dev, ACPI_RESOURCE_TYPE_EXTENDED_IRQ, 0);
+	auto data_port = dev->get_resource(DEV_RESOURCE_FLAG_IO_PORT);
+	auto command_port = dev->get_resource(DEV_RESOURCE_FLAG_IO_PORT, 1);
+	auto irq = dev->get_resource(DEV_RESOURCE_FLAG_IRQ);
 
 	if(data_port)
-		i8042_data_port = data_port->Data.Io.Minimum;
+		i8042_data_port = data_port->start();
 	if(command_port)
-		i8042_command_port = command_port->Data.Io.Minimum;
-	if(irq_res)
-		i8042_keyboard_irq = irq_res->Data.Irq.Interrupts[0];
-	else if(eirq_res)
-		i8042_keyboard_irq = eirq_res->Data.ExtendedIrq.Interrupts[0];
+		i8042_command_port = command_port->start();
+	if(irq)
+		i8042_keyboard_irq = irq->start();
 
 	i8042_found_pnp = true;
 	return 0;
