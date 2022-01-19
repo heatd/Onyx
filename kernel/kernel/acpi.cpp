@@ -370,10 +370,8 @@ ACPI_STATUS acpi_add_device(ACPI_HANDLE object, UINT32 nestingLevel, void *conte
 	const char *id = nullptr;
 	if(info->Valid & ACPI_VALID_HID)
 		id = info->HardwareId.String;
-	else if (info->Valid & ACPI_VALID_UID)
-		id = info->UniqueId.String;
-	else if(info->Valid & ACPI_VALID_CID)
-		id = info->ClassCode.String;
+	else if(info->Valid & ACPI_VALID_CID && info->CompatibleIdList.Count)
+		id = info->CompatibleIdList.Ids[0].String;
 	else
 	{
 		ACPI_BUFFER buf;
@@ -764,12 +762,29 @@ hrtime_t acpi_timer_get_elapsed_ns(hrtime_t _old_ticks, hrtime_t _new_ticks)
 	return delta_time;
 }
 
-bool acpi_driver_supports_device(struct driver *driver, struct device *device)
+bool acpi_driver_supports_device(driver *driver, acpi_device *device)
 {
 	struct acpi_dev_id *dev_table = (acpi_dev_id *) driver->devids;
 
 	for(; dev_table->devid != nullptr; dev_table++)
 	{
+		// Test the hardware id and class id for equality
+		auto device_info = device->info;
+		if (device_info->Valid & ACPI_VALID_HID)
+		{
+			if (!strcmp(device_info->HardwareId.String, dev_table->devid))
+				return true;
+		}
+
+		if (device_info->Valid & ACPI_VALID_CID)
+		{
+			for (unsigned int i = 0; i < device_info->CompatibleIdList.Count; i++)
+			{
+				if (!strcmp(device_info->CompatibleIdList.Ids[i].String, dev_table->devid))
+					return true;
+			}
+		}
+
 		if(!strcmp(device->name, dev_table->devid))
 		{
 			return true;
@@ -788,7 +803,7 @@ void acpi_bus_register_driver(struct driver *driver)
 	// TODO: Move this to the bus implementation
 	list_for_every(&acpi_bus.device_list_head)
 	{
-		struct device *dev = list_head_cpp<device>::self_from_list_head(l);
+		acpi_device *dev = list_head_cpp<acpi_device>::self_from_list_head(l);
 		if(acpi_driver_supports_device(driver, dev))
 		{
 			driver_register_device(driver, dev);
