@@ -409,14 +409,21 @@ void __pci_bus_register(struct driver *driver, struct bus *bus)
 		auto dev = list_head_cpp<pci_device>::self_from_list_head(l);
 		struct pci_id *id;
 #if 0
-		printk("%04x:%02x:%02x:%02x -> %04x:%04x\n",
+		printk("%04x:%02x:%02x:%02x -> %04x:%04x ",
 			dev->addr().segment, dev->addr().bus, dev->addr().device, dev->addr().function,
 			dev->did(), dev->vid());
 #endif
 		// Bound, skip.
 		if(dev->driver_)
+		{
+#if 0
+			printk(" bound\n");
+#endif
 			continue;
-
+		}
+#if 0
+		printk("\n");
+#endif
 		if((id = pci_driver_supports_device(driver, dev)))
 		{
 			dev->set_driver_data(id->driver_data);

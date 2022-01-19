@@ -49,6 +49,10 @@ pci_device *pci_bus::enumerate_device(const device_address& addr, pcie_allocatio
 			panic("Out of memory allocating pci bus");
 		
 		bus->discover();
+
+		add_bus(bus);
+
+		pci::add_bus(bus);
 	}
 
 	return raw_dev;
