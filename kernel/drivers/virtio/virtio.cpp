@@ -528,7 +528,7 @@ struct pci::pci_id virtio_pci_ids[] =
 {
 	{ PCI_ID_DEVICE(VIRTIO_VENDOR_ID, PCI_ANY_ID, NULL) },
 	{ PCI_ID_DEVICE(VIRTIO_VENDOR_ID2, PCI_ANY_ID, NULL) },
-	{}
+	{ 0 }
 };
 
 irqstatus_t virtio_handle_irq(struct irq_context *context, void *cookie)

@@ -66,7 +66,7 @@ part_name="${image_name}.part"
 
 rm -f "$part_name"
 
-./scripts/create_standard_fs.sh new_fs
+./scripts/create_standard_fs.sh new_fs --no-strip
 
 if [ "$size" = "adaptive" ]; then
     ./scripts/create_adaptive_disk_image.py "$(du -s new_fs/ | cut -f1)" "$part_name"

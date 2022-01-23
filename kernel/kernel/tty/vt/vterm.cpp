@@ -1302,7 +1302,7 @@ size_t vterm::do_escape(const char *buffer, size_t len)
 
 	char escape = csi_data.escape_character;
 
-#if 1
+#if 0
 	char buf[50];
 	if(in_csi) snprintf(buf, 50, "Seq: %c nargs %lu args {%lu, %lu}\n", escape, csi_data.nr_args, csi_data.args[0], csi_data.args[1]);
 	if(in_csi && !csi_data.dec_private) platform_serial_write(buf, strlen(buf));
@@ -1756,7 +1756,7 @@ void vterm_switch_to_multithread(struct vterm *vt)
 
 	assert(vt->render_thread != NULL);
 
-	vt->multithread_enabled = true;
+	vt->multithread_enabled = false;
 
 	vt->render_thread->priority = SCHED_PRIO_NORMAL;
 

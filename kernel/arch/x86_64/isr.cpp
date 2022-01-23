@@ -244,6 +244,16 @@ void general_protection_fault(struct registers *ctx)
 		//printk("Process: %s\n", current->owner->cmd_line.c_str());
 	}
 
+	unsigned char instr[16];
+	memset(instr, 0, sizeof(instr));
+	if(copy_from_user(instr, (void *) ctx->rip, sizeof(instr)) >= 0)
+	{
+		printk("Instruction (16 raw bytes): ");
+		for (int i = 0; i < 16; i++)
+			printk("%x ", instr[i]);
+		printk("\n");
+	}
+
 	printk("GPF error code: %04x\n", (uint16_t) ctx->int_err_code);
 
 	siginfo_t info = {};
@@ -290,7 +300,7 @@ void page_fault_handler(struct registers *ctx)
 				return;
 			}
 		}
-		
+
 		vm_do_fatal_page_fault(&info);
 	}
 }

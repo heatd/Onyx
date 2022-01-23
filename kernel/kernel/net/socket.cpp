@@ -15,6 +15,8 @@
 #include <onyx/net/netkernel.h>
 #include <onyx/scoped_lock.h>
 
+#include <sys/ioctl.h>
+
 socket *file_to_socket(struct file *f)
 {
 	return static_cast<socket *>(f->f_ino->i_helper);
@@ -298,12 +300,33 @@ short socket_poll(void *poll_file, short events, struct file *node)
 
 void socket_close(struct inode *ino);
 
+unsigned int socket_ioctl(int request, void *argp, struct file* file)
+{
+	if (request == FIONBIO)
+	{
+		int on;
+
+		if (copy_from_user(&on, argp, sizeof(on)) < 0)
+			return -EFAULT;
+		
+		if (on)
+			file->f_flags |= O_NONBLOCK;
+		else
+			file->f_flags &= ~O_NONBLOCK;
+		
+		return 0;
+	}
+
+	return -ENOTTY;
+}
+
 struct file_ops socket_ops = 
 {
 	.read = socket_read,
 	.write = socket_write,
 	.close = socket_close,
-	.poll = socket_poll
+	.ioctl = socket_ioctl,
+	.poll = socket_poll,
 };
 
 auto_file get_socket_fd(int fd)

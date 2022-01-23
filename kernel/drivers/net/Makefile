@@ -1,0 +1,2 @@
+$(eval $(call INCLUDE_IF_ENABLED,CONFIG_E1000,net/e1000))
+$(eval $(call INCLUDE_IF_ENABLED,CONFIG_RTL8168,net/rtl8168))

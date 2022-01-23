@@ -23,7 +23,8 @@ struct pci_id ehci_pci_ids[] =
 {
 	{ PCI_ID_CLASS(CLASS_SERIAL_BUS_CONTROLLER,
 		PCI_USB_HOST_CONTROLLER_SUBCLASS,
-		PCI_USB2_HOST_CONTROLLER_PROGIF, NULL) }
+		PCI_USB2_HOST_CONTROLLER_PROGIF, NULL) },
+	{ 0 }
 };
 
 void ehci_controller::stop_commands()

@@ -48,7 +48,7 @@ extern "C" long do_syscall64(struct syscall_frame *frame)
 	}
 	else
 		ret = -ENOSYS;
-	
+
 #if 0
 	if(ret == -ENOSYS)
 		printk("Error doing syscall %ld\n", syscall_nr);

@@ -58,7 +58,7 @@ ln -sf usr/bin $MNTROOT/bin
 
 cp defaults/* $MNTROOT/etc
 
-cp -rv sysroot/* "$MNTROOT"
+cp -r sysroot/* "$MNTROOT"
 
 COMPILER_SLIBS_ARGS=
 
