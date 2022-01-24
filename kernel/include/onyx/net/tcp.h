@@ -426,6 +426,9 @@ public:
 	void close() override;
 	ssize_t recvmsg(msghdr *msg, int flags) override;
 	short poll(void *poll_file, short events) override;
+
+	int getsockname(sockaddr *addr, socklen_t *len) override;
+	int getpeername(sockaddr *addr, socklen_t *len) override;
 };
 
 #endif

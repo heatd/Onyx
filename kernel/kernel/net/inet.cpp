@@ -137,3 +137,40 @@ void copy_msgname_to_user(struct msghdr *msg, packetbuf *buf, bool isv6, in_port
 }
 
 }
+
+/**
+ * @brief Copy an internal inet_sock_address to a generic sockaddr
+ * 
+ * @param addr Const reference to an ISA
+ * @param dst_addr Pointer to a destination sockaddr (should be sockaddr_storage wide)
+ * @param len Pointer to wher eto put the length
+ */
+void inet_socket::copy_addr_to_sockaddr(const inet_sock_address &addr, sockaddr *dst_addr, socklen_t *len)
+{
+	auto domain = effective_domain();
+
+	if (domain == AF_INET)
+	{
+		sockaddr_in addr;
+		addr.sin_family = effective_domain();
+		addr.sin_port = src_addr.port;
+		memset(addr.sin_zero, 0, sizeof(addr.sin_zero));
+
+		// Note that memcpy is the only valid way to tell the compiler that we're not violating
+		// any aliasing rules
+		memcpy(dst_addr, &addr, sizeof(addr));
+		*len = sizeof(addr);
+	}
+	else if (domain == AF_INET6)
+	{
+		sockaddr_in6 addr;
+		addr.sin6_family = effective_domain();
+		addr.sin6_port = src_addr.port;
+		addr.sin6_addr = src_addr.in6;
+		addr.sin6_flowinfo = 0; // TODO: Why do we not keep flowinfo?
+		addr.sin6_scope_id = src_addr.v6_scope_id;
+
+		memcpy(dst_addr, &addr, sizeof(addr));
+		*len = sizeof(addr);
+	}
+}

@@ -60,6 +60,20 @@ ssize_t socket::sendmsg(const struct msghdr *msg, int flags)
 	return -EIO;
 }
 
+int socket::getsockname(sockaddr *addr, socklen_t *addrlen)
+{
+	(void) addr;
+	(void) addrlen;
+	return -EOPNOTSUPP;
+}
+
+int socket::getpeername(sockaddr *addr, socklen_t *addrlen)
+{
+	(void) addr;
+	(void) addrlen;
+	return -EOPNOTSUPP;
+}
+
 ssize_t recv_queue::recvfrom(void *_buf, size_t len, int flags, sockaddr *src_addr, socklen_t *slen)
 {
 	char *buf = (char *) _buf;
@@ -1120,4 +1134,74 @@ void sock_do_post_work(socket *sock)
 bool sock_needs_work(socket *sock)
 {
 	return !list_is_empty(&sock->socket_backlog);
+}
+
+/**
+ * @brief Copies a sockaddr over to userspace using the regular BSD socket semantics.
+ * 
+ * @param kaddr Pointer to kernel-space sockaddr
+ * @param kaddrlen Length of the sockaddr we want to copy
+ * @param uaddr Pointer to user-space sockaddr buffer
+ * @param uaddrlen Pointer to length of uspace buffer (In the end of the call, it has the actual size (kaddrlen))
+ * @return 0 on success, negative error codes
+ */
+int copy_sockaddr(const sockaddr *kaddr, socklen_t kaddrlen, sockaddr *uaddr, socklen_t *uaddrlen)
+{
+	socklen_t user_len;
+
+	if (copy_from_user(&user_len, uaddrlen, sizeof(socklen_t)) < 0)
+		return -EFAULT;
+	
+	// See if we need to truncate the address
+
+	const auto final_size = min(user_len, kaddrlen);
+
+	if (copy_to_user(uaddr, kaddr, final_size) < 0)
+		return -EFAULT;
+	
+	if (copy_to_user(uaddrlen, &user_len, sizeof(socklen_t)) < 0)
+		return -EFAULT;
+	
+	return 0;
+}
+
+int sys_getsockname(int sockfd, struct sockaddr *addr,
+                       socklen_t *addrlen)
+{
+	sockaddr_storage kaddr;
+	socklen_t kaddrlen;
+	auto_file f = get_socket_fd(sockfd);
+	if(!f)
+		return -errno;
+	
+	socket *sock = file_to_socket(f);
+
+	int st = sock->getsockname((sockaddr *) &kaddr, &kaddrlen);
+
+	if (st < 0)
+		return st;
+	
+	return copy_sockaddr((sockaddr *) &kaddr, kaddrlen, addr, addrlen);
+}
+
+int sys_getpeername(int sockfd, struct sockaddr *addr,
+                       socklen_t *addrlen)
+{
+	sockaddr_storage kaddr;
+	socklen_t kaddrlen;
+	auto_file f = get_socket_fd(sockfd);
+	if(!f)
+		return -errno;
+	
+	socket *sock = file_to_socket(f);
+
+	if (!sock->connected)
+		return -ENOTCONN;
+
+	int st = sock->getpeername((sockaddr *) &kaddr, &kaddrlen);
+
+	if (st < 0)
+		return st;
+	
+	return copy_sockaddr((sockaddr *) &kaddr, kaddrlen, addr, addrlen);
 }

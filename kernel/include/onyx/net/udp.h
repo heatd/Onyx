@@ -87,6 +87,9 @@ public:
 	}
 
 	short poll(void *poll_file, short events) override;
+
+	int getsockname(sockaddr *addr, socklen_t *len) override;
+	int getpeername(sockaddr *addr, socklen_t *len) override;
 };
 
 struct socket *udp_create_socket(int type);

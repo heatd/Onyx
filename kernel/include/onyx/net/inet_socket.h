@@ -147,6 +147,15 @@ protected:
 	/* Modifies *addr too */
 	bool validate_sockaddr_len_pair(sockaddr *addr, socklen_t len);
 	void unbind();
+
+	/**
+	 * @brief Copy an internal inet_sock_address to a generic sockaddr
+	 * 
+	 * @param addr Const reference to an ISA
+	 * @param dst_addr Pointer to a destination sockaddr (should be sockaddr_storage wide)
+	 * @param len Pointer to wher eto put the length
+	 */
+	void copy_addr_to_sockaddr(const inet_sock_address &addr, sockaddr *dst_addr, socklen_t *len);
 };
 
 #endif

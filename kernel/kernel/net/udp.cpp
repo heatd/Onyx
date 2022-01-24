@@ -634,3 +634,16 @@ short udp_socket::poll(void *poll_file, short events)
 
 	return avail_events & events;
 }
+
+int udp_socket::getsockname(sockaddr *addr, socklen_t *len)
+{
+	copy_addr_to_sockaddr(src_addr, addr, len);
+
+	return 0;
+}
+
+int udp_socket::getpeername(sockaddr *addr, socklen_t *len)
+{
+	copy_addr_to_sockaddr(dest_addr, addr, len);
+	return 0;
+}

@@ -242,8 +242,11 @@ int tcp_handle_packet(netif *netif, packetbuf *buf)
 		addr.in4.sin_addr.s_addr = ip_header->source_ip;
 		addr.in4.sin_family = AF_INET;
 		addr.in4.sin_port = header->source_port;
+		
+		auto flags = htons(header->data_offset_and_flags);
 
-		tcp_send_rst_no_socket(addr, header->dest_port, AF_INET, netif);
+		if (!(flags & TCP_FLAG_RST))
+			tcp_send_rst_no_socket(addr, header->dest_port, AF_INET, netif);
 		/* No socket bound, bad packet. */
 		return 0;
 	}
@@ -871,4 +874,17 @@ short tcp_socket::poll(void *poll_file, short events)
 	//printk("avail events: %u\n", avail_events);
 
 	return avail_events & events;
+}
+
+int tcp_socket::getsockname(sockaddr *addr, socklen_t *len)
+{
+	copy_addr_to_sockaddr(src_addr, addr, len);
+
+	return 0;
+}
+
+int tcp_socket::getpeername(sockaddr *addr, socklen_t *len)
+{
+	copy_addr_to_sockaddr(dest_addr, addr, len);
+	return 0;
 }

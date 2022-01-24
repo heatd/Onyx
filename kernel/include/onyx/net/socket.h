@@ -205,6 +205,8 @@ public:
 	virtual int connect(sockaddr *addr, socklen_t addrlen);
 	virtual ssize_t sendmsg(const struct msghdr *msg, int flags);
 	virtual ssize_t recvmsg(struct msghdr *msg, int flags);
+	virtual int getsockname(sockaddr *addr, socklen_t *addrlen);
+	virtual int getpeername(sockaddr *addr, socklen_t *addrlen);
 	virtual int getsockopt(int level, int optname, void *optval, socklen_t *optlen) = 0;
 	virtual int setsockopt(int level, int optname, const void *optval, socklen_t optlen) = 0;
 

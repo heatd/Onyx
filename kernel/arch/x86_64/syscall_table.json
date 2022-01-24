@@ -2181,6 +2181,46 @@
         "return_type": "int"
     },
     {
+        "name": "getpeername",
+        "nr": 121,
+        "nr_args": 3,
+        "args": [
+            [
+                "int",
+                "sockfd"
+            ],
+            [
+                "sockaddr *",
+                "addr"
+            ],
+            [
+                "socklen_t *",
+                "addrlen"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
+        "name": "getsockname",
+        "nr": 122,
+        "nr_args": 3,
+        "args": [
+            [
+                "int",
+                "sockfd"
+            ],
+            [
+                "sockaddr *",
+                "addr"
+            ],
+            [
+                "socklen_t *",
+                "addrlen"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
         "name": "sigaltstack",
         "nr": 123,
         "nr_args": 3,
