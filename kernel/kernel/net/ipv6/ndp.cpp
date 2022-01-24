@@ -170,6 +170,20 @@ int ndp_handle_packet(netif *netif, packetbuf *buf)
 	return 0;
 }
 
+const in6_addr solicited_node_prefix = {0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0xff, 0x00};
+
+in6_addr solicited_node_address(const in6_addr &our_address)
+{
+	/* Per rfc4291, the solicited node address is formed by taking the low 24-bits of an address and 
+	 * appending them to the solicited_node_prefix(see above).
+	 */
+	auto ret = solicited_node_prefix;
+	for(int i = 0; i < 3; i++)
+		ret.s6_addr[13 + i] = our_address.s6_addr[13 + i];
+	
+	return ret;
+}
+
 int ndp_submit_request(shared_ptr<neighbour>& ptr, const in6_addr& target_addr, struct netif *netif)
 {
 	if(target_addr == in6addr_loopback || netif->flags & NETIF_LOOPBACK)
@@ -204,7 +218,7 @@ int ndp_submit_request(shared_ptr<neighbour>& ptr, const in6_addr& target_addr, 
 	memcpy(&opt->hwaddr, mac, 6);
 
 	auto from = inet_sock_address{in6addr_any, 0, netif->if_id};
-	auto to = inet_sock_address{IN6ADDR_ALL_NODES, 0, netif->if_id};
+	auto to = inet_sock_address{solicited_node_address(target_addr), 0, netif->if_id};
 
 	auto route = ip::v6::get_v6_proto()->route(from, to, AF_INET6);
 	if(route.has_error())
