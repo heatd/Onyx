@@ -81,7 +81,9 @@ int send_packet(const send_data& data, cul::slice<unsigned char> packet_data)
 
 	hdr->checksum = ipsum_fold(csum);
 
-	return ip::v6::send_packet(data.route, IPPROTO_ICMPV6, buf.get(), data.route.nif);
+	iflow flow{data.route, IPPROTO_ICMPV6, true};
+	flow.ttl = 255;
+	return ip::v6::send_packet(flow, buf.get());
 }
 
 int handle_packet(netif *nif, packetbuf *buf)
@@ -277,8 +279,13 @@ ssize_t icmp6_socket::sendmsg(const struct msghdr *msg, int flags)
 
 	hdr->checksum = ipsum_fold(csum);
 
-	/* TODO: Huge hack. */
+	iflow flow{rt, IPPROTO_ICMPV6, true};
 
+	// Hack! Router advertisements need a TTL of 255, and because we don't have an implementation of IP_TTL,
+	// we need to hardcode it here :(
+	flow.ttl = 255;
+
+	/* TODO: Huge hack. */
 	if(hdr->type == ICMPV6_MLDV2_REPORT_MSG)
 	{
 		struct ip_option router_alert;
@@ -300,9 +307,8 @@ ssize_t icmp6_socket::sendmsg(const struct msghdr *msg, int flags)
 		options.push_back(router_alert);
 	}
 
-	auto slice = cul::slice<ip_option>{options.get_buf(), options.size()};
-
-	return ip::v6::send_packet(rt, IPPROTO_ICMPV6, packet.get(), rt.nif, slice);
+	flow.options = cul::slice<ip_option>{options.get_buf(), options.size()};
+	return ip::v6::send_packet(flow, packet.get());
 }
 
 int icmp6_socket::getsockopt(int level, int optname, void *val, socklen_t *len)

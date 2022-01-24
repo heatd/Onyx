@@ -41,11 +41,13 @@ static constexpr tx_type ipv6_addr_to_tx_type(const in6_addr& dst)
 	return dst.s6_addr[0] == 0xff ? tx_type::multicast : tx_type::unicast;
 }
 
-int send_packet(const inet_route& route, unsigned int type,
-                     packetbuf *buf, struct netif *netif,
-					 cul::slice<ip_option> options)
+int send_packet(const iflow &flow, packetbuf *buf)
 {
-	auto next_header = type;
+	const auto &route = flow.route;
+	auto netif = flow.nif;
+	const auto &options = flow.options;
+
+	auto next_header = flow.protocol;
 	auto optlen = options.size();
 
 	for(auto it = options.cend() - 1; optlen != 0; optlen--, --it)
@@ -71,7 +73,7 @@ int send_packet(const inet_route& route, unsigned int type,
 	hdr->version = 6;
 	hdr->payload_length = htons(length);
 	hdr->next_header = next_header;
-	hdr->hop_limit = 255;
+	hdr->hop_limit = flow.ttl;
 
 	int st = 0;
 

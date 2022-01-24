@@ -14,6 +14,8 @@
 
 #include <netinet/in.h>
 
+struct ip_option;
+
 struct iflow
 {
 	inet_sock_address saddr;
@@ -32,8 +34,10 @@ struct iflow
 	uint8_t protocol;
 	uint8_t tos;
 
+	cul::slice<ip_option> options;
+
 	constexpr iflow(const inet_route& route, uint8_t protocol, bool is_v6)
-	          : nif{route.nif}, route{route}, ttl{64}, df{}, protocol{protocol}, tos{}
+	          : nif{route.nif}, route{route}, ttl{64}, df{}, protocol{protocol}, tos{}, options{}
 	{
 		if(!is_v6)
 		{

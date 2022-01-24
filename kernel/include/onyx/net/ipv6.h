@@ -103,9 +103,7 @@ namespace v6
 			return {inet_sock_address{*sa}, AF_INET6};
 	} 
 
-	int send_packet(const inet_route& route, unsigned int type,
-                     packetbuf *buf, struct netif *netif,
-					 cul::slice<ip_option> options = {});
+	int send_packet(const iflow &flow, packetbuf *buf);
 
 	int handle_packet(netif *nif, packetbuf *buf);
 

@@ -146,8 +146,10 @@ int inet_cork::send(const iflow &flow, void (*prepare_headers)(packetbuf *buf, c
 		{
 			st = ip::v4::send_packet(flow, pbf);
 		}
-
-		// TODO: IPv6
+		else if (pending == AF_INET6)
+		{
+			st = ip::v6::send_packet(flow, pbf);
+		}
 
 		delete pbf;
 
