@@ -26,6 +26,8 @@ void ndelay(unsigned int ns);
 
 struct timer;
 
+void timer_cancel_event(struct clockevent *ev);
+
 struct clockevent
 {
 	/* This lock protects the whole structure from concurrent access */
@@ -36,6 +38,12 @@ struct clockevent
 	void (*callback)(struct clockevent *ev);
 	struct list_head list_node;
 	struct timer *timer;
+
+	~clockevent()
+	{
+		if (timer)
+			timer_cancel_event(this);
+	}
 };
 
 #define TIMER_NEXT_EVENT_NOT_PENDING			UINT64_MAX
@@ -56,6 +64,5 @@ struct timer
 struct timer *platform_get_timer(void);
 void timer_queue_clockevent(struct clockevent *ev);
 void timer_handle_events(struct timer *t);
-void timer_cancel_event(struct clockevent *ev);
 
 #endif

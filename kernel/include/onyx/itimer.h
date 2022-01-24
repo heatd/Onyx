@@ -23,6 +23,11 @@ struct itimer
 #ifdef __cplusplus
 	int arm(hrtime_t interval, hrtime_t initial);
 	int disarm();
+
+	~itimer()
+	{
+		disarm();
+	}
 #endif
 };
 
