@@ -26,15 +26,60 @@ static constexpr hrtime_t arp_response_timeout = 250 * NS_PER_MS;
 /* 20 minutes in milis */
 static constexpr unsigned long arp_validity_time_ms = 1200000;
 
+int arp_do_request(netif *netif, packetbuf *packet)
+{
+	auto arp_hdr = (arp_request_t *) packet->data;
+
+	auto target_addr = arp_hdr->target_proto_address;
+	uint8_t hw_address[6];
+
+	if (netif->local_ip.sin_addr.s_addr == target_addr)
+	{
+		memcpy(hw_address, netif->mac_address, 6);
+	}
+	else
+		return 0; // Don't handle it
+
+	auto buf = make_unique<packetbuf>();
+	if(!buf)
+		return -ENOMEM;
+	
+	if(!buf->allocate_space(sizeof(arp_request_t) + PACKET_MAX_HEAD_LENGTH))
+		return -ENOMEM;
+	
+	buf->reserve_headers(sizeof(arp_request_t) + PACKET_MAX_HEAD_LENGTH);
+
+	auto arp = reinterpret_cast<arp_request_t *>(buf->push_header(sizeof(arp_request_t)));
+	memset(arp, 0, sizeof(arp_request_t));
+	arp->htype = htons(ARP_ETHERNET);
+	arp->ptype = 0x0008;
+	arp->hlen = ARP_HLEN_ETHERNET;
+	arp->plen = ARP_PLEN_IPV4;
+	arp->operation = htons(ARP_OP_REPLY);
+	
+	memcpy(arp->target_hw_address, arp_hdr->sender_hw_address, 6);
+	arp->sender_proto_address = target_addr;
+	memcpy(arp->sender_hw_address, hw_address, 6);
+	arp->target_proto_address = arp_hdr->sender_proto_address;
+	if(int st = netif->dll_ops->setup_header(buf.get(),
+	            tx_type::unicast, tx_protocol::arp, netif, arp_hdr->sender_hw_address); st < 0)
+		return st;
+
+	return netif_send_packet(netif, buf.get());
+}
+
 int arp_handle_packet(netif *netif, packetbuf *buf)
 {
 	auto arp = (arp_request_t *) buf->data;
 
 	if(buf->length() < sizeof(arp_request_t))
 		return -EINVAL;
+	auto op = htons(arp->operation);
 
-	/* We're not interested in handling requests right now. TODO: Maybe add this? */
-	if(htons(arp->operation) != ARP_OP_REPLY)
+	if (op == ARP_OP_REQUEST)
+		return arp_do_request(netif, buf);
+
+	if(op != ARP_OP_REPLY)
 		return 0;
 
 	in_addr_t req_ip = arp->sender_proto_address;
