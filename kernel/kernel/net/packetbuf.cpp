@@ -1,8 +1,10 @@
 /*
-* Copyright (c) 2020 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2020 - 2022 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
 
 #include <stdlib.h>
 #include <errno.h>
@@ -255,9 +257,10 @@ ssize_t packetbuf::expand_buffer(const void *ubuf_, unsigned int len)
 			len -= to_put;
 			ret += to_put;
 		}
+#if DEBUG_PACKETBUF_GROW
+		printk("Put %ld bytes in put()\n", ret);
+#endif
 	}
-
-	//printk("Put %ld bytes in put()\n", ret);
 
 	for(unsigned int i = 1; i < PACKETBUF_MAX_NR_PAGES; i++)
 	{

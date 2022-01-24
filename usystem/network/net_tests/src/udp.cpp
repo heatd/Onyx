@@ -1,11 +1,14 @@
 /*
-* Copyright (c) 2020 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2020 - 2022 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
 
 #include <gtest/gtest.h>
 #include <limits>
+#include <memory>
 
 #include <sys/socket.h>
 
@@ -30,12 +33,19 @@ TEST(Udp, Inet4CorkWorks)
 	ASSERT_NE(setsockopt(sock, SOL_IP, IP_MTU_DISCOVER, &off, sizeof(off)), -1);
 #endif
 
-	void *ptr = new char[std::numeric_limits<uint16_t>::max()];
-
 	constexpr auto max_size = UINT16_MAX - 8 /* sizeof udphdr */ - sizeof(iphdr);
+	constexpr auto actual_size = max_size / sizeof(int) * sizeof(int);
+
+	std::unique_ptr<int[]> ptr{new int[max_size / sizeof(int)]};
+
+	for (unsigned int i = 0; i < max_size / sizeof(int); i++)
+	{
+		ptr[i] = i;
+	}
+
 	iovec v;
-	v.iov_base = ptr;
-	v.iov_len = max_size / 16;
+	v.iov_base = ptr.get();
+	v.iov_len = actual_size / 16;
 
 	msghdr msg;
 	msg.msg_control = nullptr;
@@ -47,6 +57,7 @@ TEST(Udp, Inet4CorkWorks)
 	sa.sin_addr.s_addr = inet_addr("198.51.100.0");
 	msg.msg_name = &sa;
 	msg.msg_namelen = sizeof(sa);
+	size_t consumed = 0;
 
 	for(int i = 0; i < 16; i++)
 	{
@@ -54,6 +65,11 @@ TEST(Udp, Inet4CorkWorks)
 		if(i == 15)
 			flags &= ~MSG_MORE;
 		
+		v.iov_base = (char *) ptr.get() + consumed;
+		v.iov_len = std::min(actual_size - consumed, actual_size / 16);
+
+		consumed += v.iov_len;
+ 
 		int st = sendmsg(sock, &msg, flags);
 		if(st < 0)
 		{
