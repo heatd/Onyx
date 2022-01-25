@@ -345,7 +345,7 @@ int icmp6_socket::setsockopt(int level, int optname, const void *val, socklen_t 
 	if(level == SOL_SOCKET)
 		return setsockopt_socket_level(optname, val, len);
 
-	if(level != SOL_ICMP)
+	if(level != SOL_ICMPV6)
 		return -ENOPROTOOPT;
 
 	switch(optname)

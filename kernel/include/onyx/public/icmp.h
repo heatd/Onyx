@@ -26,4 +26,10 @@ struct icmp_filter
 
 #endif
 
+#ifndef SOL_ICMPV6
+
+#define SOL_ICMPV6	58
+
+#endif
+
 #endif

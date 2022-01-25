@@ -1088,7 +1088,7 @@ ssize_t socket_recvmsg(socket *sock, msghdr *umsg, int flags)
 	if(int st = copy_msghdr_from_user(&msg, umsg, g); st < 0)
 		return st;
 	
-	auto st = sock->sendmsg(&msg, flags);
+	auto st = sock->recvmsg(&msg, flags);
 
 	if(st < 0)
 		return st;

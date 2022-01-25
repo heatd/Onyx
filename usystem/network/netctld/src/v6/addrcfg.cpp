@@ -399,7 +399,7 @@ void configure_if(netctl::instance& instance)
 	filt.code = ICMP_FILTER_CODE_UNSPEC;
 	filt.type = ICMPV6_NEIGHBOUR_SOLICIT;
 
-	if(setsockopt(sockfd, SOL_ICMP, ICMP_ADD_FILTER, &filt, sizeof(filt)) < 0)
+	if(setsockopt(sockfd, SOL_ICMPV6, ICMP_ADD_FILTER, &filt, sizeof(filt)) < 0)
 	{
 		throw sys_error("Error adding ICMPv6 filter");
 	}
@@ -407,7 +407,7 @@ void configure_if(netctl::instance& instance)
 	filt.code = ICMP_FILTER_CODE_UNSPEC;
 	filt.type = ICMPV6_NEIGHBOUR_ADVERT;
 
-	if(setsockopt(sockfd, SOL_ICMP, ICMP_ADD_FILTER, &filt, sizeof(filt)) < 0)
+	if(setsockopt(sockfd, SOL_ICMPV6, ICMP_ADD_FILTER, &filt, sizeof(filt)) < 0)
 	{
 		throw sys_error("Error adding ICMPv6 filter");
 	}
@@ -441,7 +441,7 @@ void configure_if(netctl::instance& instance)
 	filt.code = ICMP_FILTER_CODE_UNSPEC;
 	filt.type = ICMPV6_ROUTER_ADVERT;
 
-	if(setsockopt(sockfd, SOL_ICMP, ICMP_ADD_FILTER, &filt, sizeof(filt)) < 0)
+	if(setsockopt(sockfd, SOL_ICMPV6, ICMP_ADD_FILTER, &filt, sizeof(filt)) < 0)
 	{
 		throw sys_error("Error adding ICMPv6 filter");
 	}
