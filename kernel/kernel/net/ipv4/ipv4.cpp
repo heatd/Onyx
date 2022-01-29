@@ -708,21 +708,51 @@ inet_socket::~inet_socket()
 	}
 }
 
-int inet_socket::setsockopt_inet(int level, int opt, const void *optval, socklen_t len)
-{
-	return -ENOPROTOOPT;
-}
-
-int inet_socket::getsockopt_inet(int level, int opt, void *optval, socklen_t *len)
+int inet_socket::setsockopt_inet4(int level, int opt, const void *optval, socklen_t len)
 {
 	switch(opt)
 	{
 		case IP_TTL:
-			int ttl = 64;
+		{
+			auto ex = get_socket_option<int>(optval, len);
+
+			if (ex.has_error())
+				return ex.error();
+			
+			auto ttl = ex.value();
+
+			if (ttl < 0 || ttl > 255)
+				return -EINVAL;
+			
+			this->ttl = ttl;
+			return 0;
+		}
+	}
+
+	return -ENOPROTOOPT;
+}
+
+int inet_socket::getsockopt_inet4(int level, int opt, void *optval, socklen_t *len)
+{
+	switch(opt)
+	{
+		case IP_TTL:
 			return put_option(ttl, optval, len);
 	}
 
 	return -ENOPROTOOPT;
+}
+
+int inet_socket::setsockopt_inet(int level, int opt, const void *optval, socklen_t len)
+{
+	return domain == AF_INET ? setsockopt_inet4(level, opt, optval, len) : 
+	       setsockopt_inet6(level, opt, optval, len); 
+}
+
+int inet_socket::getsockopt_inet(int level, int opt, void *optval, socklen_t *len)
+{
+	return domain == AF_INET ? getsockopt_inet4(level, opt, optval, len) : 
+	       getsockopt_inet6(level, opt, optval, len); 
 }
 
 size_t inet_socket::get_headers_len() const

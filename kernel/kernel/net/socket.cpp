@@ -860,6 +860,21 @@ int socket::getsockopt_socket_level(int optname, void *optval, socklen_t *optlen
 			return put_option(proto, optval, optlen);
 		}
 
+		case SO_RCVBUF:
+		{
+			return put_option(rx_max_buf, optval, optlen);
+		}
+
+		case SO_SNDBUF:
+		{
+			return put_option(tx_max_buf, optval, optlen);
+		}
+
+		case SO_REUSEADDR:
+		{
+			return put_option<int>(reuse_addr, optval, optlen);
+		}
+
 		default:
 			return -ENOPROTOOPT;
 	}
@@ -867,8 +882,41 @@ int socket::getsockopt_socket_level(int optname, void *optval, socklen_t *optlen
 
 int socket::setsockopt_socket_level(int optname, const void *optval, socklen_t optlen)
 {
-	if(optname == SO_REUSEADDR)
-		return 0;
+	switch(optname)
+	{
+		case SO_RCVBUF:
+		{
+			auto ex = get_socket_option<unsigned int>(optval, optlen);
+
+			if (ex.has_error())
+				return ex.error();
+			
+			rx_max_buf = ex.value();
+			return 0;
+		}
+
+		case SO_SNDBUF:
+		{
+			auto ex = get_socket_option<unsigned int>(optval, optlen);
+
+			if (ex.has_error())
+				return ex.error();
+			
+			tx_max_buf = ex.value();
+			return 0;
+		}
+
+		case SO_REUSEADDR:
+		{
+			auto ex = get_socket_option<int>(optval, optlen);
+
+			if (ex.has_error())
+				return ex.error();
+			
+			reuse_addr = ex.value();
+			return 0;
+		}
+	}
 
 	return -ENOPROTOOPT;
 }

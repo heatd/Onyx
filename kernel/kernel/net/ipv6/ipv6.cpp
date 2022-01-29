@@ -458,3 +458,44 @@ proto_family *get_v6_proto()
 }
 
 }
+
+int inet_socket::setsockopt_inet6(int level, int opt, const void *optval, socklen_t len)
+{
+	// TODO: Multicast hops
+	switch(opt)
+	{
+		case IPV6_MULTICAST_HOPS:
+		case IPV6_UNICAST_HOPS:
+		{
+			auto ex = get_socket_option<int>(optval, len);
+
+			if (ex.has_error())
+				return ex.error();
+
+			auto ttl = ex.value();
+
+			if (ttl == -1)
+				ttl = INET_DEFAULT_TTL;
+
+			if (ttl < 0 || ttl > 255)
+				return -EINVAL;
+			
+			this->ttl = ttl;
+			return 0;
+		}
+	}
+
+	return -ENOPROTOOPT;
+}
+
+int inet_socket::getsockopt_inet6(int level, int opt, void *optval, socklen_t *len)
+{
+	switch(opt)
+	{
+		case IPV6_MULTICAST_HOPS:
+		case IPV6_UNICAST_HOPS:
+			return put_option(ttl, optval, len);
+	}
+
+	return -ENOPROTOOPT;
+}

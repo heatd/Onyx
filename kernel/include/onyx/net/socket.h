@@ -33,6 +33,9 @@
 #define PROTOCOL_TCP		4
 #define PROTOCOL_UNIX		5
 
+#define DEFAULT_RX_MAX_BUF UINT16_MAX
+#define DEFAULT_TX_MAX_BUF UINT16_MAX
+
 struct socket_conn_request
 {
 	struct sockaddr saddr;
@@ -142,11 +145,20 @@ public:
 	hybrid_lock sock_lock;
 	struct list_head socket_backlog;
 
+	unsigned int rx_max_buf;
+	unsigned int tx_max_buf;
+
+	bool reuse_addr : 1;
+
+	hrtime_t rcv_timeout;
+	hrtime_t snd_timeout;
+
 	/* Define a default constructor here */
 	socket() : type{}, proto{}, domain{}, in_band_queue{this}, oob_data_queue{this},
                flags{}, sock_err{}, bound{}, connected{},
                listener_sem{}, conn_req_list_lock{}, conn_request_list{},
-			   nr_pending{}, backlog{}, proto_domain{}, sock_lock{}
+			   nr_pending{}, backlog{}, proto_domain{}, sock_lock{}, rx_max_buf{DEFAULT_RX_MAX_BUF},
+			   tx_max_buf{DEFAULT_TX_MAX_BUF}, reuse_addr{false}, rcv_timeout{0}, snd_timeout{0}
 	{
 		INIT_LIST_HEAD(&socket_backlog);
 	}

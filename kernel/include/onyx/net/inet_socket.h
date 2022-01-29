@@ -15,6 +15,9 @@
 
 #include <onyx/byteswap.h>
 
+// Pretty solid TTL default
+#define INET_DEFAULT_TTL  64
+
 class inet_proto_family;
 
 /* Forward declaration of ip::v4/v6::proto_family for inet_socket friendship */
@@ -52,9 +55,10 @@ struct inet_socket : public socket
 	unsigned int ipv4_on_inet6 : 1,
 	             ipv6_only : 1,
 				 route_cache_valid : 1;
+	int ttl;
 
 	inet_socket() : socket{}, src_addr{}, bind_table_node{this}, dest_addr{}, proto_info{},
-	                ipv4_on_inet6{}, ipv6_only{}, route_cache_valid{}
+	                ipv4_on_inet6{}, ipv6_only{}, route_cache_valid{}, ttl{INET_DEFAULT_TTL}
 	{
 		INIT_LIST_HEAD(&rx_packet_list);
 		spinlock_init(&rx_packet_list_lock);
@@ -126,6 +130,12 @@ struct inet_socket : public socket
 
 	int setsockopt_inet(int level, int opt, const void *optval, socklen_t len);
 	int getsockopt_inet(int level, int opt, void *optval, socklen_t *len);
+
+	int setsockopt_inet4(int level, int opt, const void *optval, socklen_t len);
+	int getsockopt_inet4(int level, int opt, void *optval, socklen_t *len);
+
+	int setsockopt_inet6(int level, int opt, const void *optval, socklen_t len);
+	int getsockopt_inet6(int level, int opt, void *optval, socklen_t *len);
 
 	bool is_inet_level(int level) const
 	{

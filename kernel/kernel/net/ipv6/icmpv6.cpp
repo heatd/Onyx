@@ -281,9 +281,7 @@ ssize_t icmp6_socket::sendmsg(const struct msghdr *msg, int flags)
 
 	iflow flow{rt, IPPROTO_ICMPV6, true};
 
-	// Hack! Router advertisements need a TTL of 255, and because we don't have an implementation of IP_TTL,
-	// we need to hardcode it here :(
-	flow.ttl = 255;
+	flow.ttl = ttl;
 
 	/* TODO: Huge hack. */
 	if(hdr->type == ICMPV6_MLDV2_REPORT_MSG)

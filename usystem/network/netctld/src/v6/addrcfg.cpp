@@ -395,6 +395,18 @@ void configure_if(netctl::instance& instance)
 		throw sys_error("Could not create icmpv6 socket");
 	}
 
+	const int hops = 255;
+
+	if (setsockopt(sockfd, SOL_IPV6, IPV6_UNICAST_HOPS, &hops, sizeof(hops)) < 0)
+	{
+		throw sys_error("Error setting hops for socket");
+	}
+
+	if (setsockopt(sockfd, SOL_IPV6, IPV6_MULTICAST_HOPS, &hops, sizeof(hops)) < 0)
+	{
+		throw sys_error("Error setting hops for socket");
+	}
+
 	icmp_filter filt;
 	filt.code = ICMP_FILTER_CODE_UNSPEC;
 	filt.type = ICMPV6_NEIGHBOUR_SOLICIT;

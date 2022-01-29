@@ -239,7 +239,7 @@ int udp_do_send(packetbuf *buf, const inet_route& route)
 	int ret;
 
 	iflow flow{route, IPPROTO_UDP, domain == AF_INET6};
-	
+
 	if constexpr(domain == AF_INET6)
 		ret = ip::v6::send_packet(flow, buf);
 	else
