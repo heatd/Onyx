@@ -50,9 +50,10 @@ CPPFLAGS:=$(CPPFLAGS) --sysroot=../libc -D__is_onyx_kernel -D_POSIX_C_SOURCE \
 include/onyx/config.h
 
 LDFLAGS:=$(LDFLAGS) -fkeep-inline-functions -Wl,--build-id=none
-LIBGCC_PATH:=$(shell $(CC) $(CFLAGS)  $(LDFLAGS) -print-libgcc-file-name)
 
-LIBS:=$(LIBS) -nostdlib -lk $(LIBGCC_PATH)
+include lib/compiler-rt/builtins/Makefile
+
+LIBS:=$(LIBS) -nostdlib -lk
 ARCHDIR:=arch/$(HOSTARCH)
 
 GENERATED_HEADERS:=include/onyx/config.h include/onyx/gen/syscall.h
@@ -62,6 +63,14 @@ include/onyx/config.h: ../scripts/config_to_header.py kernel.config
 
 include kernel.config
 include $(ARCHDIR)/make.config
+
+
+ifeq ($(CONFIG_RISCV), y)
+
+include lib/libfdt/Makefile
+include lib/device_tree/Makefile
+
+endif
 
 CFLAGS:=$(CFLAGS) $(KERNEL_ARCH_CFLAGS)
 
@@ -249,7 +258,12 @@ endif
 
 $(ARCHDIR)/__vdso.o: $(ARCHDIR)/__vdso.c $(GENERATED_HEADERS)
 	@echo [CC] $<
-	@$(CC) -O2 -c $< -o $@ -fpic -Iinclude/acpica -Iinclude -isystem ../libc/include \
+	$(CC) -O2 -c $< -o $@ -fpic -Iinclude -isystem ../libc/include \
+	-fno-stack-protector -fno-zero-initialized-in-bss
+
+$(ARCHDIR)/__vdso_asm.o: $(ARCHDIR)/__vdso_asm.S $(GENERATED_HEADERS)
+	@echo [AS] $<
+	$(CC) -O2 -c $< -o $@ -fpic -Iinclude -isystem ../libc/include \
 	-fno-stack-protector -fno-zero-initialized-in-bss
 
 onyx-vdso.so.0: $(ARCHDIR)/__vdso_asm.o $(ARCHDIR)/__vdso.o $(GENERATED_HEADERS)
@@ -260,6 +274,8 @@ onyx-vdso.so.0: $(ARCHDIR)/__vdso_asm.o $(ARCHDIR)/__vdso.o $(GENERATED_HEADERS)
 clean: clean-modules
 	rm -f vmonyx $(OBJS) $(DEPS) $(ALL_OUR_OBJS) *.o */*.o */*/*.o
 	rm -f clang-tidy.out
+	rm -f kernel/syscall_thunk.cpp
+	rm -rf include/onyx/gen
 
 install: install-headers install-kernel
 

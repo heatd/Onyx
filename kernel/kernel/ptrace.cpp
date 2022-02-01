@@ -16,6 +16,7 @@
 #include <sys/ptrace.h>
 #include <sys/user.h>
 
+#ifdef __x86_64__
 long sys_ptrace(long request, pid_t pid, void *addr, void *data, void *addr2)
 {
 	struct process *process = get_current_process();
@@ -95,3 +96,5 @@ long sys_ptrace(long request, pid_t pid, void *addr, void *data, void *addr2)
 			return -EINVAL;
 	}
 }
+
+#endif

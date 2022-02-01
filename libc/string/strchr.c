@@ -25,3 +25,19 @@ char *strnchr(const char *s, size_t len, int c)
 	if(len == 0 || *s == '\0')		return NULL;
 	return (char *) s;
 }
+
+char *strrchr(const char *s, int c)
+{
+	size_t len = strlen(s);
+
+	const char *end = s + len - 1;
+
+	while(len--)
+	{
+		if (*s == c)
+			return (char *) s;
+		s--;
+	}
+
+	return NULL;
+}

@@ -1,5 +1,3 @@
-HOSTARCH:=$(shell ../scripts/target-triplet-to-arch.sh $(HOST))
-
 CFLAGS?=-O2 -g
 CPPFLAGS?=-D__is_onyx_libc
 LDFLAGS?=
@@ -15,7 +13,7 @@ CFLAGS:=$(CFLAGS) -Wno-error -fno-omit-frame-pointer -fno-pie -fno-builtin
 LIBK_CFLAGS:=$(CFLAGS) -ffreestanding
 LIBK_CPPFLAGS:=$(CPPFLAGS) -D__is_onyx_kernel
 
-ARCHDIR:=arch/$(HOSTARCH)
+ARCHDIR:=arch/$(ONYX_ARCH)
 
 # TODO: Might want to put libc inside kernel/, would be cleaner
 include ../kernel/kernel.config
@@ -85,7 +83,8 @@ posix/sigfillset.o \
 posix/sigisemptyset.o \
 posix/sigismember.o \
 posix/sigorset.o \
-string/strchr.o
+string/strchr.o \
+string/strtoul.o
 
 OBJS:=\
 $(FREEOBJS) \

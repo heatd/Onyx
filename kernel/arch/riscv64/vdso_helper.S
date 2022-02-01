@@ -5,8 +5,6 @@
  *
  * SPDX-License-Identifier: MIT
  */
-.code64
-
 .section .vdso, "aw"
 
 .global __vdso_start

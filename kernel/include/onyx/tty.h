@@ -73,7 +73,6 @@ void tty_write_string(const char *data, struct tty *tty);
 void tty_write_kernel(const char *data, size_t size);
 void tty_write_string_kernel(const char *data);
 void tty_set_color(int color);
-int tty_create_pty_and_switch(void*);
 void tty_swap_framebuffers();
 void tty_init(void *priv, void (*ctor)(struct tty *tty));
 void tty_scroll();
@@ -91,6 +90,12 @@ void tty_create_dev();
  * @param str String of characters to send
  */
 void tty_send_response(struct tty *tty, const char *str);
+
+/**
+ * @brief Create a kernel console tty
+ * 
+ */
+void console_init();
 
 #define ANSI_ESCAPE_CODE   		'\x1b'
 #define DEC_CSI             '#'

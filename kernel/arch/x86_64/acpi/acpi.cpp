@@ -42,3 +42,8 @@ void platform_init_acpi(void)
 			ACPI_FADT_NO_CMOS_RTC);
 	}
 }
+
+bool platform_has_msi()
+{
+	return x86_platform.has_msi;
+}

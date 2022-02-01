@@ -22,7 +22,9 @@
 
 #include <onyx/mm/vm_object.h>
 
+#ifdef __x86_64__
 #include <onyx/x86/tsc.h>
+#endif
 
 #include <sys/time.h>
 
@@ -155,10 +157,11 @@ bool vdso::init()
 	if(!create_vmo())
 		return false;
 
+#ifdef __x86_64__
 	auto time = lookup_symbol<vdso_time *>("__time");
-
 	/* Configure the vdso with tsc stuff */
 	tsc_setup_vdso(time);
+#endif
 
 	clock_monotonic = lookup_symbol<clock_time *>("clock_monotonic");
 	clock_realtime = lookup_symbol<clock_time *>("clock_realtime");

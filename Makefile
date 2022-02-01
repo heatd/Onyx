@@ -89,6 +89,9 @@ musl:
 	$(MAKE) -C musl install-headers
 	$(MAKE) -C $@ install
 
+wserver: $(SOURCE_PACKAGES)
+	$(MAKE) -C $@ install
+ 
 singularity: musl install-packages wserver
 	$(MAKE) -C $@ install
 
@@ -125,6 +128,9 @@ fullbuild: build-cleanup
 iso: fullbuild
 	scripts/iso.sh
 
+kernel-test: kernel
+	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) -kernel kernel/vmonyx -m 512M -machine virt \
+	-monitor stdio -s -d mmu,int -no-reboot -no-shutdown
 qemu: iso
 	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) \
 	-s -cdrom Onyx.iso -drive file=hdd.img,format=raw,media=disk -m 512M \

@@ -126,10 +126,11 @@ struct bootmodule
 };
 
 extern struct page *page_map;
+extern unsigned long base_pfn;
 
 static inline unsigned long page_to_pfn(struct page *p)
 {
-	return p - page_map;
+	return (p - page_map) - base_pfn;
 }
 
 static inline unsigned long pfn_to_paddr(unsigned long pfn)

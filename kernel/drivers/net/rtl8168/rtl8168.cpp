@@ -6,6 +6,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <stdio.h>
 #include <onyx/driver.h>
 #include <onyx/dev.h>
 #include <pci/pci.h>

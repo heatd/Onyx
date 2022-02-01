@@ -28,8 +28,10 @@
 
 #if defined (__i386__)
 	#define KERNEL_VIRTUAL_BASE 0xC0000000
-#elif defined (__x86_64__) || defined(__riscv)
+#elif defined (__x86_64__)
 	#define KERNEL_VIRTUAL_BASE 0xFFFFFFFF80000000
+#elif defined(__riscv)
+	#define KERNEL_VIRTUAL_BASE 0xffffffff00000000
 #endif
 
 #define VM_TYPE_REGULAR		(0)

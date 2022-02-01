@@ -10,10 +10,13 @@ config("asan") {
 
 config("compiler_defaults") {
     cflags = ["-O2", "-g", "-Wall", "-Wextra", "-fdiagnostics-color=always", "-Wno-unused-parameter",
-              "-march=haswell", "-fstack-protector-strong"]
+              "-fstack-protector-strong"]
+    
+    if (target_cpu == "x86_64") {
+        cflags += ["-march=x86-64-v3"]
+    }
     cflags_cc = [ "-std=c++20" ]
     # TODO: Add -flto when we iron out problems in the build with GCC
-    # TODO: Add "-march=x86-64-v3" when we update the GCC version
     ldflags = cflags
 
     #configs = [":ubsan", ":asan"]

@@ -19,6 +19,7 @@
 struct page *page_map = NULL;
 static size_t num_pages = 0;
 static unsigned long maxpfn = 0;
+unsigned long base_pfn = 0;
 
 struct page *page_add_page(void *paddr)
 {
@@ -35,14 +36,14 @@ struct page *page_add_page(void *paddr)
 void page_allocate_pagemap(unsigned long __maxpfn)
 {
 	maxpfn = __maxpfn;
-	page_map = (page *) __ksbrk(maxpfn * sizeof(struct page));
+	page_map = (page *) __ksbrk((maxpfn - base_pfn) * sizeof(struct page));
 }
 
 struct page *phys_to_page(uintptr_t phys)
 {
 	unsigned long pfn = phys >> PAGE_SHIFT;
 	assert(pfn <= maxpfn);
-	return page_map + pfn;
+	return page_map + pfn - base_pfn;
 }
 
 extern unsigned char kernel_start;
@@ -113,7 +114,9 @@ bool page_is_used(void *__page, struct bootmodule *modules)
 	for(struct used_pages *p = used_pages_list; p; p = p->next)
 	{
 		if(page >= p->start && p->end > page)
+		{
 			return true;
+		}
 	}
 
 	if(check_kernel_limits(__page) == true)

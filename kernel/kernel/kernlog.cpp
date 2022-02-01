@@ -14,7 +14,9 @@
 #include <onyx/vm.h>
 #include <onyx/panic.h>
 
+#ifdef __x86_64__
 #define VBOX_DEBUG
+#endif
 
 #ifdef VBOX_DEBUG
 #include <onyx/port_io.h>

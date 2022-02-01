@@ -1,56 +1,32 @@
-ENTRY(_start)
+/*
+ * Copyright (c) 2016 - 2021 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
 
-VIRT_BASE = 0xffffffff80000000;
-PHYS_BASE = 0x100000;
+ENTRY(entry_point)
 
-PHDRS
-{
-	boot PT_LOAD FLAGS(7);
-	percpu PT_LOAD FLAGS(6);
-	text PT_LOAD FLAGS(5);
-	data PT_LOAD FLAGS(6);
-	vdso PT_LOAD FLAGS(7);
-}
+VIRT_BASE = 0xffffffff00000000;
+PHYS_BASE = 0x80080000;
 
 SECTIONS
 {
 	. = PHYS_BASE;
 	kernel_start = VIRT_BASE + .;
 	_text_start = . + VIRT_BASE;
-	.boot ALIGN(0x1000) : AT(PHYS_BASE)
+	.boot ALIGN(0x1000) :
 	{
 		*(.boot)
 		. = ALIGN(4096);
-		pml4 = .;
-		. += 0x1000;
-		pdpt = .;
-		. += 0x1000;
-		pd = .;
-		. += 0x1000;
-		pdlower = .;
-		. += 0x1000;
-		pdptphysical_map = .;
-		. += 0x1000;
-		pml5 = .;
-		. += 0x1000;
+		boot_page_tables = .;
+		. += 0x8000;
 	} : boot
 
-	percpu_base = .;
-	. = 0;
+	. = ADDR(.boot) + SIZEOF(.boot) + VIRT_BASE;
 
-	.percpu : AT(percpu_base)
-	{
-		__percpu_start = .;
-		*(.percpu*)
-		__percpu_end = .;
-	} : percpu
-	
-	. += percpu_base;
-	. = ALIGN(0x1000);
-
-	. += VIRT_BASE;
-
-	.text ALIGN(0x1000) : AT(ADDR(.text) - VIRT_BASE)
+	.text : AT(ADDR(.text) - VIRT_BASE)
 	{
 		*(.text*)
 		*(.gnu.linkonce.t*)
@@ -65,6 +41,12 @@ SECTIONS
 
 	.rodata ALIGN(0x1000) : AT(ADDR(.rodata) - VIRT_BASE)
 	{
+		PROVIDE_HIDDEN(__init_array_start = .);
+		*(.init_array*)
+		PROVIDE_HIDDEN(__init_array_end = .);
+		PROVIDE_HIDDEN(__fini_array_start = .);
+		*(.fini_array*)
+		PROVIDE_HIDDEN(__fini_array_end = .);
 		*(.rodata*)
 		*(.gnu.linkonce.r*)
 		_driver_init_start = .;
@@ -112,30 +94,61 @@ SECTIONS
 		__start_code_patch = .;
 		*(.code_patch*)
 		__end_code_patch = .;
-	} : text
+		*(.modinfo*)
+		*(.eh_frame_hdr)
+		*(.eh_frame)
+	} : rodata
+
+	.note.gnu.build-id :
+	{
+        PROVIDE_HIDDEN(__build_id_note_start = .);
+        *(.note.gnu.build-id)
+        PROVIDE_HIDDEN(__build_id_note_end = .);
+    } :rodata :note
 
 	_ro_end = .;
 	. = ALIGN(0x1000);
 
 	_text_end = .;
 	_data_start = .;
+	.sdata ALIGN(0x1000) : AT(ADDR(.sdata) - VIRT_BASE)
+	{
+		__global_pointer$ = . + 0x800;
+		*(.srodata.cst16) *(.srodata.cst8) *(.srodata.cst4) *(.srodata.cst2) *(.srodata .srodata.*)
+		*(.sdata .sdata.* .gnu.linkonce.s.*)
+	} : data
+
 	.data ALIGN(0x1000) : AT(ADDR(.data) - VIRT_BASE)
 	{
 		*(.data*)
 		*(.gnu.linkonce.d*)
 	} : data
 
-	.bss ALIGN(0x1000) : AT(ADDR(.bss) - VIRT_BASE)
+	.bss : AT(ADDR(.bss) - VIRT_BASE)
 	{
-		*(COMMON)
-		*(.bss)
+		*(COMMON*)
+		*(.bss*)
 		*(.gnu.linkonce.b*)
 	} : data
 
 	. = ALIGN(0x1000);
+
+	percpu_base = .;
+
+	.percpu 0 : AT(percpu_base - VIRT_BASE)
+	{
+		__percpu_start = .;
+		*(.percpu.abi*)
+		*(.percpu*)
+		__percpu_end = .;
+	} : percpu
+
+	. = ABSOLUTE(percpu_base) + SIZEOF(.percpu);
+
+	. = ALIGN(0x1000);
 	_data_end = .;
 	_vdso_sect_start = .;
-	.vdso ALIGN(0x1000) : AT(ADDR(.vdso) - VIRT_BASE)
+	.vdso : AT(ADDR(.vdso) - VIRT_BASE)
 	{
 		*vdso_helper.o(*.vdso)
 	} : vdso
@@ -143,4 +156,19 @@ SECTIONS
 	. = ALIGN(0x1000);
 	_vdso_sect_end = .;
 	kernel_end = .;
+	PROVIDE_HIDDEN(_start_smp = .);
+	PROVIDE_HIDDEN(_end_smp = .);
+	PROVIDE_HIDDEN(__kernel_size = kernel_end - kernel_start);
+}
+
+PHDRS
+{
+	boot PT_LOAD FLAGS(5);
+	text PT_LOAD FLAGS(5);
+	rodata PT_LOAD FLAGS(4);
+	eh_frame PT_LOAD FLAGS(4);
+	data PT_LOAD FLAGS(6);
+	percpu PT_LOAD FLAGS(6);
+	vdso PT_LOAD FLAGS(7);
+	note PT_NOTE FLAGS(0);
 }

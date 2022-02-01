@@ -31,13 +31,23 @@ typedef struct
 	uint64_t entries[512];
 } PML;
 
+#elif __riscv
+
+#undef PAGE_SIZE
+#define PAGE_SIZE 4096UL
+
+
+typedef struct
+{
+	uint64_t entries[512];
+} PML;
+
 #endif
 
 struct mm_address_space;
 struct process;
 
 void paging_init(void);
-void *paging_map_phys_to_virt_large_early(uintptr_t virt, uintptr_t phys, uint64_t prot);
 void paging_map_all_phys(void);
 void *virtual2phys(void *ptr);
 int paging_clone_as(struct mm_address_space *addr_space);

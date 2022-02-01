@@ -1,6 +1,6 @@
 PROG:= singularity
 OBJS:= main.o
-CFLAGS:=-O2 -g -std=c++17 -march=sandybridge -fstack-protector-strong
+CFLAGS:=-O2 -g -std=c++17 -fstack-protector-strong
 CPPFLAGS:=-Iinclude -D_POSIX_C_SOURCE
 
 clean:

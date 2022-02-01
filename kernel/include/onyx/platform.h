@@ -1,10 +1,13 @@
 /*
-* Copyright (c) 2017 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
-#ifndef _KERNEL_PLATFORM_H
-#define _KERNEL_PLATFORM_H
+ * Copyright (c) 2017 - 2021 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
+#ifndef _ONYX_PLATFORM_H
+#define _ONYX_PLATFORM_H
 #include <stdbool.h>
 
 #include <onyx/irq.h>
@@ -18,5 +21,7 @@ int platform_install_irq(unsigned int irqn, struct interrupt_handler *h);
 void platform_mask_irq(unsigned int irq);
 
 void platform_init_acpi(void);
+
+bool platform_has_msi();
 
 #endif

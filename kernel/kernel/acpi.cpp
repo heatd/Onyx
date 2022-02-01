@@ -517,7 +517,10 @@ void acpi_initialise(void)
 	if(ACPI_FAILURE(st))
 		panic("AcpiLoadTables failed!");
 
+#ifdef __x86_64__
 	ioapic_early_init();
+#endif
+
 	st = AcpiEnableSubsystem(ACPI_FULL_INITIALIZATION);
 	if (ACPI_FAILURE(st))
 	{

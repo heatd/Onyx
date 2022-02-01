@@ -39,3 +39,17 @@ size_t strlen(const char *s)
 	for(; *s; s++);
 	return s - start;
 }
+
+size_t strnlen(const char *s, size_t maxlen)
+{
+	size_t length = 0;
+	// Can we optimise it as above? Maybe, who knows
+	for (size_t i = 0; i < maxlen; i++)
+	{
+		if (s[i] == '\0')
+			break;
+		length++;
+	}
+
+	return length;
+}

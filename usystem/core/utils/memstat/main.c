@@ -20,14 +20,15 @@ int main(int argc, char **argv)
 		perror("memstat");
 		return 1;
 	}
+	size_t page_size = sysconf(_SC_PAGE_SIZE);
 
 	printf("Memory statistics:\n");
-	printf("Total memory: %lu pages(%lu bytes)\n", stat.total_pages, stat.total_pages * PAGESIZE);
-	printf("Used memory: %lu pages(%lu bytes)\n", stat.allocated_pages, stat.allocated_pages * PAGESIZE);
+	printf("Total memory: %lu pages(%lu bytes)\n", stat.total_pages, stat.total_pages * page_size);
+	printf("Used memory: %lu pages(%lu bytes)\n", stat.allocated_pages, stat.allocated_pages * page_size);
 	unsigned long free_pages = stat.total_pages - stat.allocated_pages;
-	printf("Free memory: %lu pages(%lu bytes)\n", free_pages, free_pages * PAGESIZE);
-	printf("Page cache memory: %lu pages(%lu bytes)\n", stat.page_cache_pages, stat.page_cache_pages * PAGESIZE);
-	printf("Kernel heap memory: %lu pages(%lu bytes)\n", stat.kernel_heap_pages, stat.kernel_heap_pages * PAGESIZE);
+	printf("Free memory: %lu pages(%lu bytes)\n", free_pages, free_pages * page_size);
+	printf("Page cache memory: %lu pages(%lu bytes)\n", stat.page_cache_pages, stat.page_cache_pages * page_size);
+	printf("Kernel heap memory: %lu pages(%lu bytes)\n", stat.kernel_heap_pages, stat.kernel_heap_pages * page_size);
 
 	double memory_pressure = (double) stat.allocated_pages / (double) stat.total_pages;
 	printf("Memory pressure: %f(%f%%)\n", memory_pressure, memory_pressure * 100);

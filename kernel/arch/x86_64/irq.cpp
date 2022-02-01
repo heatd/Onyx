@@ -96,6 +96,20 @@ int platform_allocate_msi_interrupts(unsigned int num_vectors, bool addr64,
 	data->address_high = 0;
 	data->data = data_val;
 	data->vector_start = vecs;
+
+	size_t irq_stub_size = 12;
+	unsigned int irq_offset = vecs - 32;
+
+	data->irq_offset = irq_offset;
+
+	for(unsigned int i = 0; i < num_vectors; i++)
+	{
+		int vector = vecs + i;
+		void(*irq_stub_handler)() = (void (*)())((char*) &irq0 + irq_stub_size * 
+		                            (irq_offset + i));
+		x86_reserve_vector(vector, irq_stub_handler);
+	}
+
 	return 0;
 }
 

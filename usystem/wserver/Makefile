@@ -1,7 +1,7 @@
 PROG:= wserver
 LIB:=libwserver.so
 OBJS:= main.o display.o buffer.o server.o window.o client.o
-CFLAGS:=-O2 -g -std=c++17 -march=sandybridge -fstack-protector-strong -lpthread
+CFLAGS:=-O2 -g -std=c++17 -fstack-protector-strong -lpthread
 CPPFLAGS:=-Iinclude -D_POSIX_C_SOURCE
 
 clean:
@@ -32,7 +32,7 @@ $(PROG): $(OBJS)
 	$(CXX) $(OBJS) $(CFLAGS) -o $@ -lphoton
 
 libwserver/lib.o: libwserver/lib.c 
-	$(CC) -c $< -march=sandybridge -fstack-protector-strong -std=c11 $(CPPFLAGS) -o $@ -fPIC -DPIC
+	$(CC) -c $< -fstack-protector-strong -std=c11 $(CPPFLAGS) -o $@ -fPIC -DPIC
 
 $(LIB): $(PROG) libwserver/lib.o
 	$(CC) -shared libwserver/lib.o -lphoton -o $@

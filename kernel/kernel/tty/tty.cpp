@@ -538,3 +538,23 @@ void tty_send_response(struct tty *tty, const char *str)
 	if (!tty->response)
 		return;
 }
+
+ssize_t kernel_console_write(const void *buffer, size_t size, struct tty *tty)
+{
+	platform_serial_write((const char *) buffer, size);
+	return size;
+}
+
+static void kernel_console_ctor(struct tty *tty)
+{
+	// TODO: Determine the best console we have
+	tty->write = kernel_console_write;
+}
+/**
+ * @brief Create a kernel console tty
+ * 
+ */
+void console_init()
+{
+	tty_init(nullptr, kernel_console_ctor);
+}

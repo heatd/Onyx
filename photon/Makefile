@@ -1,5 +1,5 @@
 LIBS:=libphoton.so libphoton.a
-CXXFLAGS:=-O2 -g -std=c++20 -march=sandybridge -fstack-protector-strong -fPIC -DPIC -D_GNU_SOURCE
+CXXFLAGS:=-O2 -g -std=c++20 -fstack-protector-strong -fPIC -DPIC -D_GNU_SOURCE
 CPPFLAGS:=-Iinclude -D_POSIX_C_SOURCE
 
 BINARIES:= $(LIBS)
@@ -20,3 +20,6 @@ install-headers:
 install: $(BINARIES)
 	mkdir -p $(DESTDIR)$(LIBDIR)
 	cp $(BINARIES) $(DESTDIR)$(LIBDIR)
+
+clean:
+	rm -f $(libphoton_objs) $(BINARIES)

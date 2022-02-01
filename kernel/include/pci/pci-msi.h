@@ -1,10 +1,13 @@
 /*
-* Copyright (c) 2017 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
-#ifndef _KERNEL_PCI_MSI_H
-#define _KERNEL_PCI_MSI_H
+ * Copyright (c) 2017 - 2021 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
+#ifndef _ONYX_PCI_MSI_H
+#define _ONYX_PCI_MSI_H
 #include <stdint.h>
 
 #define PCI_MSI_MESSAGE_CONTROL_OFF		2
@@ -29,5 +32,7 @@ struct pci_msi_data
 	uint32_t address_high;
 	uint32_t data;
 	uint32_t vector_start;
+	uint32_t irq_offset; // Note: This is hacky and should be replaced by something like IRQ domains or something
 };
+
 #endif
