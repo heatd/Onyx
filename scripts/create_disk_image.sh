@@ -98,12 +98,12 @@ if [ "$bootable" = "efi" ]; then
 fi
 
 # mkfs has a confirmation prompt, so we need the yes
-yes | mkfs.$fs_type -t $fs_type -L "Onyx.root" -d new_fs "$part_name"
+yes | mkfs.$fs_type -b 1024 -t $fs_type -L "Onyx.root" -d new_fs "$part_name"
 
 if [ "$no_disk" = "0" ]; then
-    gpt_blocks="20"
+    gpt_blocks="40"
     part_size=$(stat -c %s "$part_name")
-    nr_blocks=$((part_size / 1024 + gpt_blocks))
+    disk_size=$((part_size + gpt_blocks * 512))
     onyx_root_start_mb="1"
 
     if [ "$bootable" = "efi" ]; then
@@ -123,13 +123,14 @@ if [ "$no_disk" = "0" ]; then
     # Reserve the GPT space at the start and end of the disk image, for GPT
     # Should be plenty of GPT space for everyone :)
     # Note that we need to start at 1MiB for optimal alignment
-    fallocate -l "${nr_blocks}KiB" "$part_name"
-    fallocate -i -l ${onyx_root_start_mb}MiB "$part_name"
-
+    fallocate -l "${disk_size}" "$part_name" 
+    fallocate -i -o 0 -l ${onyx_root_start_mb}MiB "$part_name"
+    root_partition_size=$((part_size + onyx_root_start_mb * 1048576)) # 1048576 = 1MiB in bytes
+    echo "Partition table size $root_partition_size_sectors"
     parted "$part_name" -- \
     mktable gpt \
     "$EXTRA_PARTITIONS" \
-    mkpart "Onyx.root" $fs_type ${onyx_root_start_mb}MiB 100%
+    mkpart "Onyx.root" $fs_type ${onyx_root_start_mb}MiB ${root_partition_size}B
 
     if [ "$bootable" = "efi" ]; then
         dd if=esp.part of=$part_name bs=1MiB seek=1 count=10 conv=notrunc

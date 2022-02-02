@@ -260,7 +260,7 @@ void close_vfs(struct inode *this_)
 
 char *readlink_vfs(struct file *file)
 {
-    if (file->f_ino->i_type != VFS_TYPE_SYMLINK)
+    if (!S_ISLNK(file->f_ino->i_mode))
         return errno = EINVAL, nullptr;
 
     if (file->f_ino->i_fops->readlink)

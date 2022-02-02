@@ -105,7 +105,15 @@ void dentry_destroy(dentry *d)
         close_vfs(d->d_inode);
 
     if (d->d_parent)
+    {
+        {
+            scoped_rwlock<rw_lock::write> g{d->d_parent->d_lock};
+            list_remove(&d->d_parent_dir_node);
+        }
+
         dentry_put(d->d_parent);
+    }
+
     // printk("Dentry %s dead\n", d->d_name);
 
     if (d->d_name_length > INLINE_NAME_MAX)
@@ -120,7 +128,14 @@ void dentry_destroy(dentry *d)
 void dentry_kill_unlocked(dentry *entry)
 {
     assert(entry->d_ref == 1);
-    list_remove(&entry->d_parent_dir_node);
+
+    if (entry->d_parent)
+    {
+        list_remove(&entry->d_parent_dir_node);
+        dentry_put(entry->d_parent);
+        entry->d_parent = nullptr;
+    }
+
     dentry_destroy(entry);
 }
 
@@ -757,6 +772,7 @@ struct create_handling : public last_name_handling
         auto new_dentry = dentry_create(_name, nullptr, dentry);
         if (!new_dentry)
             return unexpected<int>{-ENOMEM};
+        // printk("Creating %s(%p)\n", _name, new_dentry);
 
         struct inode *new_inode = nullptr;
 
@@ -816,6 +832,7 @@ struct symlink_handling : public last_name_handling
         auto new_dentry = dentry_create(_name, nullptr, dentry);
         if (!new_dentry)
             return unexpected<int>{-ENOMEM};
+        // printk("Symlinking %s(%p)\n", _name, new_dentry);
 
         auto new_ino = inode->i_fops->symlink(_name, dest, dentry);
 
