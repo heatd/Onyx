@@ -1,18 +1,19 @@
 /*
-* Copyright (c) 2021 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2021 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ */
 
 #ifndef _VIRTIO_BLK_HPP
 #define _VIRTIO_BLK_HPP
 
 #include <stdint.h>
-#include <onyx/slice.hpp>
-#include <onyx/memory.hpp>
+
 #include <onyx/block.h>
 
 #include "../virtio.hpp"
+#include <onyx/memory.hpp>
+#include <onyx/slice.hpp>
 
 namespace virtio
 {
@@ -61,38 +62,41 @@ private:
     size_t block_size;
     size_t disk_size;
     size_t size_max, seg_max;
-public:
-	blk_vdev(pci::pci_device *d) : vdev(d), block_size{512}, disk_size{}, size_max{0}, seg_max{0} {}
-	~blk_vdev();
-	
-	bool perform_subsystem_initialization() override;
 
-	void handle_used_buffer(const virtq_used_elem &elem, virtq *vq) override;
+public:
+    blk_vdev(pci::pci_device *d) : vdev(d), block_size{512}, disk_size{}, size_max{0}, seg_max{0}
+    {
+    }
+    ~blk_vdev();
+
+    bool perform_subsystem_initialization() override;
+
+    void handle_used_buffer(const virtq_used_elem &elem, virtq *vq) override;
     int submit_request(struct bio_req *req);
 };
 
 struct virtio_blk_request
-{ 
+{
     uint32_t type;
-    uint32_t reserved; 
-    uint64_t sector;   
-}; 
+    uint32_t reserved;
+    uint64_t sector;
+};
 
 struct virtio_blk_tail
 {
     uint8_t status;
 };
 
-#define VIRTIO_BLK_T_IN           0 
-#define VIRTIO_BLK_T_OUT          1 
-#define VIRTIO_BLK_T_FLUSH        4 
-#define VIRTIO_BLK_T_DISCARD      11 
+#define VIRTIO_BLK_T_IN           0
+#define VIRTIO_BLK_T_OUT          1
+#define VIRTIO_BLK_T_FLUSH        4
+#define VIRTIO_BLK_T_DISCARD      11
 #define VIRTIO_BLK_T_WRITE_ZEROES 13
 
-#define VIRTIO_BLK_S_OK        0 
-#define VIRTIO_BLK_S_IOERR     1 
-#define VIRTIO_BLK_S_UNSUPP    2
+#define VIRTIO_BLK_S_OK     0
+#define VIRTIO_BLK_S_IOERR  1
+#define VIRTIO_BLK_S_UNSUPP 2
 
-}
+} // namespace virtio
 
 #endif

@@ -7,27 +7,26 @@
  */
 
 #define _GNU_SOURCE
+#include <ctype.h>
+#include <fcntl.h>
+#include <getopt.h>
+#include <netinet/in.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <signal.h>
-#include <unwind.h>
-#include <fcntl.h>
-#include <time.h>
-#include <ctype.h>
-#include <getopt.h>
-
-#include <sys/stat.h>
-#include <netinet/in.h>
-#include <sys/time.h>
-#include <sys/wait.h>
-#include <sys/syscall.h>
-#include <sys/utsname.h>
-#include <sys/socket.h>
 #include <sys/mman.h>
 #include <sys/mount.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/syscall.h>
+#include <sys/time.h>
+#include <sys/utsname.h>
+#include <sys/wait.h>
+#include <time.h>
+#include <unistd.h>
+#include <unwind.h>
 
 #include "init.h"
 
@@ -39,219 +38,215 @@ char *prefix = "/etc/init.d/rcx.d";
 
 int tonum(int c)
 {
-	return c - '0';
+    return c - '0';
 }
 
 int isnum(int c)
 {
-	if(c >= 48 && c <= 57)
-		return 1;
-	return 0;
+    if (c >= 48 && c <= 57)
+        return 1;
+    return 0;
 }
 
 char *copy_until_newline(char *s)
 {
-	char *str = s;
-	size_t len = 0;
-	while(*str != '\n' && *str != '\0')
-	{
-		len++;
-		str++;
-	}
-	char *buffer = malloc(len + 1);
-	memset(buffer, 0, len + 1);
-	char *ret = buffer;
-	str = s;
-	for(; len; len--)
-		*buffer++ = *str++;
-	return ret;
+    char *str = s;
+    size_t len = 0;
+    while (*str != '\n' && *str != '\0')
+    {
+        len++;
+        str++;
+    }
+    char *buffer = malloc(len + 1);
+    memset(buffer, 0, len + 1);
+    char *ret = buffer;
+    str = s;
+    for (; len; len--)
+        *buffer++ = *str++;
+    return ret;
 }
 
 void insmod(const char *path, const char *name)
 {
-	syscall(SYS_insmod, path, name);
+    syscall(SYS_insmod, path, name);
 }
 
 int fmount(int fd, char *path)
 {
-	if(syscall(SYS_fmount, fd, path))
-		return -1;
-	return 0;
+    if (syscall(SYS_fmount, fd, path))
+        return -1;
+    return 0;
 }
 
 const char *root = NULL;
 
 int mount_autodetect(const char *dev, const char *mpoint)
 {
-	const char *fs_type[] = {"ext2"};
+    const char *fs_type[] = {"ext2"};
 
-	for (int i = 0; i < 1; i++)
-	{
-		if (mount(dev, mpoint, fs_type[i], 0, NULL) == 0)
-			return 1;
-	}
+    for (int i = 0; i < 1; i++)
+    {
+        if (mount(dev, mpoint, fs_type[i], 0, NULL) == 0)
+            return 1;
+    }
 
-	return 0;
+    return 0;
 }
 
 int mount_filesystems(void)
 {
-	// We try to directly mount root
-	// This is basically glued together with tape
-	// FIXME: Pass the kernel argument instead of hardcoding it *in the exec call*
-	
-	int fd = open("/dev", O_RDONLY);
-	int sysfs_fd = open("/sys", O_RDONLY);
+    // We try to directly mount root
+    // This is basically glued together with tape
+    // FIXME: Pass the kernel argument instead of hardcoding it *in the exec call*
 
-	int root_mounted = 0;
-	if (root)
-		root_mounted = mount_autodetect(root, "/");
-	FILE *fp = fopen("/etc/fstab", "r");
-	if(!fp)
-	{
-		perror("/etc/fstab");
-		return 1;
-	}
+    int fd = open("/dev", O_RDONLY);
+    int sysfs_fd = open("/sys", O_RDONLY);
 
-	char *read_buffer = malloc(1024);
-	if(!read_buffer)
-	{
-		perror(__func__);
-		fclose(fp);
-		return 1;
-	}
+    int root_mounted = 0;
+    if (root)
+        root_mounted = mount_autodetect(root, "/");
+    FILE *fp = fopen("/etc/fstab", "r");
+    if (!fp)
+    {
+        perror("/etc/fstab");
+        return 1;
+    }
 
-	memset(read_buffer, 0, 1024);
+    char *read_buffer = malloc(1024);
+    if (!read_buffer)
+    {
+        perror(__func__);
+        fclose(fp);
+        return 1;
+    }
 
-	while(fgets(read_buffer, 1024, fp) != NULL)
-	{
-		int arg_num = 0;
-		char *pos;
-		char *source = NULL;
-		char *target = NULL;
-		char *filesystem_type = NULL;
-		/* If this line is a comment, ignore it */
-		if(*read_buffer == '#')
-			continue;
-		if(strlen(read_buffer) == '\0')
-			goto func_exit;
-		/* Delete the \n that might exist */
-		if((pos = strchr(read_buffer, '\n')))
-    			*pos = '\0';
-		char *str = strtok(read_buffer, " \t");
-		while(str != NULL)
-		{
-			if(arg_num == 0)
-			{
-				source = str;
-			}
-			else if(arg_num == 1)
-			{
-				target = str;
-			}
-			else if(arg_num == 2)
-			{
-				filesystem_type = str;
-			}
-			else
-			{
-				printf("init: /etc/fstab: malformed line\n");
-				free(read_buffer);
-				fclose(fp);
-				return 1;
-			}
-			arg_num++;
-			str = strtok(NULL, " \t");
-		}
+    memset(read_buffer, 0, 1024);
 
-		if(root_mounted && !strcmp(target, "/"))
-			continue;
+    while (fgets(read_buffer, 1024, fp) != NULL)
+    {
+        int arg_num = 0;
+        char *pos;
+        char *source = NULL;
+        char *target = NULL;
+        char *filesystem_type = NULL;
+        /* If this line is a comment, ignore it */
+        if (*read_buffer == '#')
+            continue;
+        if (strlen(read_buffer) == '\0')
+            goto func_exit;
+        /* Delete the \n that might exist */
+        if ((pos = strchr(read_buffer, '\n')))
+            *pos = '\0';
+        char *str = strtok(read_buffer, " \t");
+        while (str != NULL)
+        {
+            if (arg_num == 0)
+            {
+                source = str;
+            }
+            else if (arg_num == 1)
+            {
+                target = str;
+            }
+            else if (arg_num == 2)
+            {
+                filesystem_type = str;
+            }
+            else
+            {
+                printf("init: /etc/fstab: malformed line\n");
+                free(read_buffer);
+                fclose(fp);
+                return 1;
+            }
+            arg_num++;
+            str = strtok(NULL, " \t");
+        }
 
-		if(mount(source, target, filesystem_type, 0, NULL) < 0)
-		{
-			printf("init: failed to mount %s\n", source);
-			perror("mount");
-			free(read_buffer);
-			fclose(fp);
-			close(sysfs_fd);
-			close(fd);
-			return 1;
-		}
-	}
-	/* Now, mount /dev on root again */
-	fmount(fd, "/dev");
-	/* Remount /sys too */
-	fmount(sysfs_fd, "/sys");
+        if (root_mounted && !strcmp(target, "/"))
+            continue;
 
-	/* Create /dev/shm */
-	mkdir("/dev/shm", 0666);
+        if (mount(source, target, filesystem_type, 0, NULL) < 0)
+        {
+            printf("init: failed to mount %s\n", source);
+            perror("mount");
+            free(read_buffer);
+            fclose(fp);
+            close(sysfs_fd);
+            close(fd);
+            return 1;
+        }
+    }
+    /* Now, mount /dev on root again */
+    fmount(fd, "/dev");
+    /* Remount /sys too */
+    fmount(sysfs_fd, "/sys");
+
+    /* Create /dev/shm */
+    mkdir("/dev/shm", 0666);
 func_exit:
-	free(read_buffer);
-	close(fd);
-	close(sysfs_fd);
-	fclose(fp);
-	return 0;
+    free(read_buffer);
+    close(fd);
+    close(sysfs_fd);
+    fclose(fp);
+    return 0;
 }
 
 bool fail_on_mount_error = true;
 
-struct option long_opts[] = 
-{
-	{"root", required_argument, NULL, 0}
-};
+struct option long_opts[] = {{"root", required_argument, NULL, 0}};
 
 int main(int argc, char **argv, char **envp)
 {
-	int c;
-	int long_idx;
+    int c;
+    int long_idx;
 
-	// FIXME: Don't pass rootdev as a regular argument 
+    // FIXME: Don't pass rootdev as a regular argument
 
-	while((c = getopt_long_only(argc, argv, "m", long_opts, &long_idx)) != -1)
-	{
-		switch(c)
-		{
-			case 'm':
-			{
-				fail_on_mount_error = false;
-				break;
-			}
-		}
-	}
+    while ((c = getopt_long_only(argc, argv, "m", long_opts, &long_idx)) != -1)
+    {
+        switch (c)
+        {
+        case 'm': {
+            fail_on_mount_error = false;
+            break;
+        }
+        }
+    }
 
-	if (argc > 1)
-		root = argv[1];
+    if (argc > 1)
+        root = argv[1];
 
-	/* Check if we're actually the first process */
-	pid_t p = getpid();
-	if(p != 1)
-		return 1;
-	
-	// First, (try to) create /dev if it doesn't exist
-	mkdir("/dev", 0755);
+    /* Check if we're actually the first process */
+    pid_t p = getpid();
+    if (p != 1)
+        return 1;
 
-	// Mount devfs
-	if(mount("none", "/dev", "devfs", 0, NULL) < 0)
-		return 1;
-	
-	// Open fd 0, 1, 2
-	
-	int flags[] = {O_RDONLY, O_WRONLY, O_WRONLY};
+    // First, (try to) create /dev if it doesn't exist
+    mkdir("/dev", 0755);
 
-	for(int i = 0; i < 3; i++)
-	{
-		int fd = open("/dev/tty", flags[i]);
+    // Mount devfs
+    if (mount("none", "/dev", "devfs", 0, NULL) < 0)
+        return 1;
 
-		if (fd < 0)
-			return 1;
-	
-		dup2(fd, i);
+    // Open fd 0, 1, 2
 
-		if (fd != i)
-			close(fd);
-	}
+    int flags[] = {O_RDONLY, O_WRONLY, O_WRONLY};
 
-	// Standard streams set up!
+    for (int i = 0; i < 3; i++)
+    {
+        int fd = open("/dev/tty", flags[i]);
+
+        if (fd < 0)
+            return 1;
+
+        dup2(fd, i);
+
+        if (fd != i)
+            close(fd);
+    }
+
+    // Standard streams set up!
 
 #if 0
 	struct memstat ostat;
@@ -273,164 +268,164 @@ int main(int argc, char **argv, char **envp)
 	}
 #endif
 
-	/* Load the needed kernel modules */
-	load_modules();
+    /* Load the needed kernel modules */
+    load_modules();
 
-	/* Mount filesystems */
-	if(mount_filesystems() == 1)
-	{
-		if(fail_on_mount_error)
-		{
-			printf("init: Failed to mount filesystems - dumping into dash shell\n");
-			chdir("/");
-			tcsetpgrp(0, getpid());
-			if(execl("/bin/dash", "-/bin/dash", NULL) < 0)
-			{
-				perror("exec error");
-				return 1;
-			}
-		}
-		else
-			printf("mount errors: proceeding carefully.\n");
-	}
+    /* Mount filesystems */
+    if (mount_filesystems() == 1)
+    {
+        if (fail_on_mount_error)
+        {
+            printf("init: Failed to mount filesystems - dumping into dash shell\n");
+            chdir("/");
+            tcsetpgrp(0, getpid());
+            if (execl("/bin/dash", "-/bin/dash", NULL) < 0)
+            {
+                perror("exec error");
+                return 1;
+            }
+        }
+        else
+            printf("mount errors: proceeding carefully.\n");
+    }
 
-	/* Setup the hostname */
-	setup_hostname();
+    /* Setup the hostname */
+    setup_hostname();
 
-	//signal_test();
-	//mmap_test();
+    // signal_test();
+    // mmap_test();
 
-	/* Execute daemons */
-	int st;
+    /* Execute daemons */
+    int st;
 
-	if((st = exec_daemons()) != 0)
-	{
-		printf("exec_daemons: error %d\n", st);
-		return 1;
-	}
+    if ((st = exec_daemons()) != 0)
+    {
+        printf("exec_daemons: error %d\n", st);
+        return 1;
+    }
 
-	/* Mask every signal */
-	sigset_t set;
-	sigfillset(&set);
-	sigprocmask(SIG_SETMASK, &set, NULL);
+    /* Mask every signal */
+    sigset_t set;
+    sigfillset(&set);
+    sigprocmask(SIG_SETMASK, &set, NULL);
 
-	for(;;)
-	{
+    for (;;)
+    {
 
-		int wstatus;
-		pid_t pid;
+        int wstatus;
+        pid_t pid;
 
-		if((pid = waitpid(-1, &wstatus, WEXITED)) < 0)
-		{
-			perror("waitpid");
-			return 1;
-		}
+        if ((pid = waitpid(-1, &wstatus, WEXITED)) < 0)
+        {
+            perror("waitpid");
+            return 1;
+        }
 
-		struct daemon *daemon_info = get_daemon_from_pid(pid);
+        struct daemon *daemon_info = get_daemon_from_pid(pid);
 
-		if (!daemon_info)
-		{
-			// Not a registered daemon, ignore the exit status.
-			continue;
-		}
+        if (!daemon_info)
+        {
+            // Not a registered daemon, ignore the exit status.
+            continue;
+        }
 
-		if (WIFEXITED(wstatus) && WEXITSTATUS(wstatus) != 0)
-		{
-			fprintf(stderr, "init: pid %d (%s) exited with fatal status %d\n",
-			        pid, daemon_info->name, WEXITSTATUS(wstatus));
-		}
-		else if (WIFSIGNALED(wstatus))
-		{
-			int termsig = WTERMSIG(wstatus);
-			fprintf(stderr, "init: pid %d (%s) exited with fatal signal %d (%s)\n",
-			        pid, daemon_info->name, termsig, strsignal(termsig));
-		}
+        if (WIFEXITED(wstatus) && WEXITSTATUS(wstatus) != 0)
+        {
+            fprintf(stderr, "init: pid %d (%s) exited with fatal status %d\n", pid,
+                    daemon_info->name, WEXITSTATUS(wstatus));
+        }
+        else if (WIFSIGNALED(wstatus))
+        {
+            int termsig = WTERMSIG(wstatus);
+            fprintf(stderr, "init: pid %d (%s) exited with fatal signal %d (%s)\n", pid,
+                    daemon_info->name, termsig, strsignal(termsig));
+        }
 
-		// TODO: Deregister the daemon
-	}
-	return 0;
+        // TODO: Deregister the daemon
+    }
+    return 0;
 }
 
 void load_modules(void)
 {
-	/* Open the modules file */
-	FILE *file = fopen("/etc/modules.load", "r");
-	if(!file)
-	{
-		perror("/etc/modules.load");
-		return;
-	}
+    /* Open the modules file */
+    FILE *file = fopen("/etc/modules.load", "r");
+    if (!file)
+    {
+        perror("/etc/modules.load");
+        return;
+    }
 
-	char *buf = malloc(1024);
-	if(!buf)
-	{
-		fclose(file);
-		return;
-	}
-	memset(buf, 0, 1024);
+    char *buf = malloc(1024);
+    if (!buf)
+    {
+        fclose(file);
+        return;
+    }
+    memset(buf, 0, 1024);
 
-	/* At every line there's a module name. Get it, and insmod it */
-	while(fgets(buf, 1024, file) != NULL)
-	{
-		buf[strlen(buf)-1] = '\0';
-		if(buf[0] == '\0')
-			continue;
+    /* At every line there's a module name. Get it, and insmod it */
+    while (fgets(buf, 1024, file) != NULL)
+    {
+        buf[strlen(buf) - 1] = '\0';
+        if (buf[0] == '\0')
+            continue;
 
-		char *path = malloc(strlen(MODULE_PREFIX) + strlen(buf) + 1 + strlen(MODULE_EXT));
-		if(!path)
-		{
-			free(buf);
-			fclose(file);
-			return;
-		}
+        char *path = malloc(strlen(MODULE_PREFIX) + strlen(buf) + 1 + strlen(MODULE_EXT));
+        if (!path)
+        {
+            free(buf);
+            fclose(file);
+            return;
+        }
 
-		strcpy(path, MODULE_PREFIX);
-		strcat(path, buf);
-		strcat(path, MODULE_EXT);
-		printf("Loading %s (path %s)\n", buf, path);
-		insmod(path, buf);
-	}
+        strcpy(path, MODULE_PREFIX);
+        strcat(path, buf);
+        strcat(path, MODULE_EXT);
+        printf("Loading %s (path %s)\n", buf, path);
+        insmod(path, buf);
+    }
 
-	free(buf);
-	fclose(file);
+    free(buf);
+    fclose(file);
 }
 
 void setup_hostname(void)
 {
-	/* Open the /etc/hostname file */
-	FILE *file = fopen("/etc/hostname", "r");
-	if(!file)
-	{
-		perror("/etc/hostname");
+    /* Open the /etc/hostname file */
+    FILE *file = fopen("/etc/hostname", "r");
+    if (!file)
+    {
+        perror("/etc/hostname");
 
-		printf("Hostname not found - using 'localhost'\n");
-		sethostname("localhost", strlen("localhost"));
+        printf("Hostname not found - using 'localhost'\n");
+        sethostname("localhost", strlen("localhost"));
 
-		return;
-	}
-	char *buf = malloc(1024);
-	if(!buf)
-	{
-		fclose(file);
-		return;
-	}
-	memset(buf, 0, 1024);
-	/* There should only be one line in the file(that contains the hostname itself),
-		so we only need one fgets() */
-	fgets(buf, 1024, file);
+        return;
+    }
+    char *buf = malloc(1024);
+    if (!buf)
+    {
+        fclose(file);
+        return;
+    }
+    memset(buf, 0, 1024);
+    /* There should only be one line in the file(that contains the hostname itself),
+        so we only need one fgets() */
+    fgets(buf, 1024, file);
 
-	buf[strlen(buf)-1] = '\0';	
-	if(buf[0] == '\0')
-	{
-		printf("Bad /etc/localhost - using 'localhost'\n");
-		sethostname("localhost", strlen("localhost"));
-		setenv("HOSTNAME", "localhost", 1);
-	}
-	else
-	{
-		sethostname(buf, strlen(buf));
-		setenv("HOSTNAME", buf, 1);
-	}
-	fclose(file);
-	free(buf);
+    buf[strlen(buf) - 1] = '\0';
+    if (buf[0] == '\0')
+    {
+        printf("Bad /etc/localhost - using 'localhost'\n");
+        sethostname("localhost", strlen("localhost"));
+        setenv("HOSTNAME", "localhost", 1);
+    }
+    else
+    {
+        sethostname(buf, strlen(buf));
+        setenv("HOSTNAME", buf, 1);
+    }
+    fclose(file);
+    free(buf);
 }

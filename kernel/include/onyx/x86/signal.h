@@ -9,9 +9,8 @@
 #ifndef _ONYX_X86_SIGNAL_H
 #define _ONYX_X86_SIGNAL_H
 
-#include <ucontext.h>
 #include <signal.h>
-
+#include <ucontext.h>
 
 /* This struct needs to be exactly like user-space's ucontext_t, but without
  * __fpregs_mem which is a huge 512-byte member designed for makecontext, etc.
@@ -19,19 +18,19 @@
  */
 struct __sigcontext
 {
-	unsigned long uc_flags;
-	void *uc_unused_link;
-	stack_t uc_stack;
-	mcontext_t uc_mcontext;
-	sigset_t uc_sigmask;
+    unsigned long uc_flags;
+    void *uc_unused_link;
+    stack_t uc_stack;
+    mcontext_t uc_mcontext;
+    sigset_t uc_sigmask;
 };
 
 struct sigframe
 {
-	void *retaddr;
-	struct __sigcontext uc;
-	siginfo_t sinfo;
-	char fpregs[0];
+    void *retaddr;
+    struct __sigcontext uc;
+    siginfo_t sinfo;
+    char fpregs[0];
 };
 
 #endif

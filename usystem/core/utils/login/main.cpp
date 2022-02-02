@@ -1,219 +1,220 @@
 /*
-* Copyright (c) 2017-2019 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2017-2019 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ */
 
+#include <errno.h>
+#include <fcntl.h>
+#include <pwd.h>
+#include <shadow.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <errno.h>
-#include <unistd.h>
 #include <string.h>
-#include <fcntl.h>
-#include <termios.h>
-#include <string>
-#include <shadow.h>
-#include <pwd.h>
-
 #include <sys/syscall.h>
+#include <termios.h>
+#include <unistd.h>
+
+#include <string>
 
 char *program_name = NULL;
 
 /* Set the uid and gid */
 void switch_users(gid_t gid, uid_t uid)
 {
-	syscall(SYS_setuid, uid);
-	syscall(SYS_setgid, gid);
+    syscall(SYS_setuid, uid);
+    syscall(SYS_setgid, gid);
 }
 
 static struct termios old_termios;
 
 int hide_stdin(void)
 {
-	struct termios attr;
-	tcgetattr(STDIN_FILENO, &attr);
-	memcpy(&old_termios, &attr, sizeof(struct termios));
-	attr.c_lflag &= ~ECHO; /* Clear ECHO */
-	tcsetattr(STDIN_FILENO, TCSAFLUSH, &attr);
+    struct termios attr;
+    tcgetattr(STDIN_FILENO, &attr);
+    memcpy(&old_termios, &attr, sizeof(struct termios));
+    attr.c_lflag &= ~ECHO; /* Clear ECHO */
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &attr);
 
-	return 0;
+    return 0;
 }
 
 int reset_terminal(void)
 {
-	tcsetattr(STDIN_FILENO, TCSAFLUSH, &old_termios);
-	return 0;
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &old_termios);
+    return 0;
 }
 
-#define TEMP_BUF_SIZE		1024
-int get_input(std::string& str)
+#define TEMP_BUF_SIZE 1024
+int get_input(std::string &str)
 {
-	char *buf = (char *) malloc(TEMP_BUF_SIZE);
-	if(!buf)
-		return -1;
-	bzero(buf, TEMP_BUF_SIZE);
-	bool should_stop = false;
-	while(!should_stop && fgets(buf, TEMP_BUF_SIZE, stdin))
-	{
-		char *pos;
-		if((pos = strchr(buf, '\n')))
-    	{
-			should_stop = true;
-			*pos = '\0';
-		}
-	
-		str += buf;
-	}
+    char *buf = (char *)malloc(TEMP_BUF_SIZE);
+    if (!buf)
+        return -1;
+    bzero(buf, TEMP_BUF_SIZE);
+    bool should_stop = false;
+    while (!should_stop && fgets(buf, TEMP_BUF_SIZE, stdin))
+    {
+        char *pos;
+        if ((pos = strchr(buf, '\n')))
+        {
+            should_stop = true;
+            *pos = '\0';
+        }
 
-	explicit_bzero(buf, TEMP_BUF_SIZE);
-	free(buf);
+        str += buf;
+    }
 
-	return 0;
+    explicit_bzero(buf, TEMP_BUF_SIZE);
+    free(buf);
+
+    return 0;
 }
 
-bool compare_passwords(struct spwd *spwd, std::string& password)
+bool compare_passwords(struct spwd *spwd, std::string &password)
 {
-	/* Hash format: $algorithm$salt$hash */
-	std::string password_hash(spwd->sp_pwdp);
-	
-	std::size_t algo_pos = password_hash.find('$');
-	auto salt_pos = password_hash.find('$', algo_pos + 1);
-	auto hash_pos = password_hash.find('$', salt_pos + 1);
-	if(algo_pos == std::string::npos || salt_pos == std::string::npos || hash_pos == std::string::npos)
-	{
-		printf("Malformed shadow file.\n");
-		return false;
-	}
+    /* Hash format: $algorithm$salt$hash */
+    std::string password_hash(spwd->sp_pwdp);
 
-	std::string salt;
-	salt.assign(password_hash, algo_pos, hash_pos - algo_pos);
+    std::size_t algo_pos = password_hash.find('$');
+    auto salt_pos = password_hash.find('$', algo_pos + 1);
+    auto hash_pos = password_hash.find('$', salt_pos + 1);
+    if (algo_pos == std::string::npos || salt_pos == std::string::npos ||
+        hash_pos == std::string::npos)
+    {
+        printf("Malformed shadow file.\n");
+        return false;
+    }
 
-	const char *resulting_hash = crypt(password.c_str(), salt.c_str());
+    std::string salt;
+    salt.assign(password_hash, algo_pos, hash_pos - algo_pos);
 
-	if(!strcmp(password_hash.c_str(), resulting_hash))
-		return true;
-	return false;
+    const char *resulting_hash = crypt(password.c_str(), salt.c_str());
+
+    if (!strcmp(password_hash.c_str(), resulting_hash))
+        return true;
+    return false;
 }
 
 int main(int argc, char **argv, char **envp)
 {
-	(void) argc;
-	(void) envp;
-	program_name = argv[0];
-	printf("%s: ", argv[0]);
-	fflush(stdout);
-	struct passwd *user;
+    (void)argc;
+    (void)envp;
+    program_name = argv[0];
+    printf("%s: ", argv[0]);
+    fflush(stdout);
+    struct passwd *user;
 
-	tcsetpgrp(0, getpid());
+    tcsetpgrp(0, getpid());
 
-	while(true)
-	{
-		std::string username;
-		std::string password;
+    while (true)
+    {
+        std::string username;
+        std::string password;
 
-		printf("username:");
-		fflush(stdout);
+        printf("username:");
+        fflush(stdout);
 
-		if(get_input(username) < 0)
-		{
-			perror("get_input");
-			return 1;
-		}
+        if (get_input(username) < 0)
+        {
+            perror("get_input");
+            return 1;
+        }
 
-		printf("password:");
-		fflush(stdout);
+        printf("password:");
+        fflush(stdout);
 
-		hide_stdin();
+        hide_stdin();
 
-		if(get_input(password) < 0)
-		{
-			reset_terminal();
-			perror("get_input");
-			return 1;
-		}
-	
-		user = getpwnam(username.c_str());
-		if(!user)
-		{
-			reset_terminal();
-			printf("\nLogin invalid. Try again\n");
-			continue;
-		}
+        if (get_input(password) < 0)
+        {
+            reset_terminal();
+            perror("get_input");
+            return 1;
+        }
 
-		if(!user->pw_name[0])
-			break;
+        user = getpwnam(username.c_str());
+        if (!user)
+        {
+            reset_terminal();
+            printf("\nLogin invalid. Try again\n");
+            continue;
+        }
 
-		if(user->pw_name[0] == '!' || user->pw_name[0] == '*')
-		{
-			reset_terminal();
-			printf("\nLogin invalid. Try again\n");
-			continue;
-		}
+        if (!user->pw_name[0])
+            break;
 
-		auto pass_ent = getspnam(username.c_str());
-		if(!pass_ent)
-		{
-			reset_terminal();
-			printf("\nLogin invalid. Try again\n");
-			continue;
-		}
-		
-		if(!compare_passwords(pass_ent, password))
-		{
-			reset_terminal();
-			printf("\nLogin invalid. Try again\n");
-			continue;
-		}
+        if (user->pw_name[0] == '!' || user->pw_name[0] == '*')
+        {
+            reset_terminal();
+            printf("\nLogin invalid. Try again\n");
+            continue;
+        }
 
-		break;
-	}
+        auto pass_ent = getspnam(username.c_str());
+        if (!pass_ent)
+        {
+            reset_terminal();
+            printf("\nLogin invalid. Try again\n");
+            continue;
+        }
 
-	switch_users(user->pw_gid, user->pw_uid);
-	/* Set $USER */
-	setenv("USER", user->pw_name, 1);
-	/* Set $LOGNAME */
-	setenv("LOGNAME", user->pw_name, 1);
-	/* Set $HOME */
-	setenv("HOME", user->pw_dir, 1);
-	/* Set $SHELL */
-	setenv("SHELL", user->pw_shell, 1);
+        if (!compare_passwords(pass_ent, password))
+        {
+            reset_terminal();
+            printf("\nLogin invalid. Try again\n");
+            continue;
+        }
 
-	if(chdir(user->pw_dir) < 0)
-	{
-		printf("\nFailed to switch home directories to %s.\n", user->pw_dir);
-		perror("chdir");
-		reset_terminal();
-		return 1;
-	}
+        break;
+    }
 
-	char *args[] = {NULL, NULL};
-	/* The first character of argv[0] needs to be -, in order to be a login shell */
-	args[0] = (char *) malloc(strlen(user->pw_shell) + 2);
-	if(!args[0])
-	{
-		perror("login");
-		reset_terminal();
-		return 1;
-	}
-	memset(args[0], 0, strlen(user->pw_shell) + 2);
-	strcat(args[0], "-");
-	strcat(args[0], user->pw_shell);
-	
-	reset_terminal();
+    switch_users(user->pw_gid, user->pw_uid);
+    /* Set $USER */
+    setenv("USER", user->pw_name, 1);
+    /* Set $LOGNAME */
+    setenv("LOGNAME", user->pw_name, 1);
+    /* Set $HOME */
+    setenv("HOME", user->pw_dir, 1);
+    /* Set $SHELL */
+    setenv("SHELL", user->pw_shell, 1);
 
-	printf("\n");
+    if (chdir(user->pw_dir) < 0)
+    {
+        printf("\nFailed to switch home directories to %s.\n", user->pw_dir);
+        perror("chdir");
+        reset_terminal();
+        return 1;
+    }
 
-	if(setpgid(0, 0) < 0)
-	{
-		perror("setpgid");
-		return 1;
-	}
+    char *args[] = {NULL, NULL};
+    /* The first character of argv[0] needs to be -, in order to be a login shell */
+    args[0] = (char *)malloc(strlen(user->pw_shell) + 2);
+    if (!args[0])
+    {
+        perror("login");
+        reset_terminal();
+        return 1;
+    }
+    memset(args[0], 0, strlen(user->pw_shell) + 2);
+    strcat(args[0], "-");
+    strcat(args[0], user->pw_shell);
 
-	if(execv(user->pw_shell, args) < 0)
-	{
-		perror("exec");
-		return 1;
-	}
+    reset_terminal();
 
-	return 0;
+    printf("\n");
+
+    if (setpgid(0, 0) < 0)
+    {
+        perror("setpgid");
+        return 1;
+    }
+
+    if (execv(user->pw_shell, args) < 0)
+    {
+        perror("exec");
+        return 1;
+    }
+
+    return 0;
 }

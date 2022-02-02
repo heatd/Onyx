@@ -1,68 +1,61 @@
 /*
-* Copyright (c) 2017-2021 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2017-2021 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ */
 #include <assert.h>
 #include <errno.h>
-
-#include <onyx/net/netif.h>
-#include <onyx/spinlock.h>
-#include <onyx/dev.h>
-#include <onyx/net/udp.h>
-#include <onyx/net/tcp.h>
-#include <onyx/byteswap.h>
-#include <onyx/softirq.h>
-#include <onyx/init.h>
-#include <onyx/vector.h>
-
-
-#include <onyx/net/netkernel.h>
-
 #include <sys/ioctl.h>
 
+#include <onyx/byteswap.h>
+#include <onyx/dev.h>
+#include <onyx/init.h>
+#include <onyx/net/netif.h>
+#include <onyx/net/netkernel.h>
+#include <onyx/net/tcp.h>
+#include <onyx/net/udp.h>
+#include <onyx/softirq.h>
+#include <onyx/spinlock.h>
+#include <onyx/vector.h>
+
 static struct spinlock netif_list_lock = {};
-cul::vector<netif*> netif_list;
+cul::vector<netif *> netif_list;
 
-unsigned int netif_ioctl(int request, void *argp, struct file* f)
+unsigned int netif_ioctl(int request, void *argp, struct file *f)
 {
-	auto netif = static_cast<struct netif *>(f->f_ino->i_helper);
-	assert(netif != nullptr);
-	switch(request)
-	{
-		case SIOSETINET4:
-		{
-			struct if_config_inet *c = static_cast<if_config_inet *>(argp);
+    auto netif = static_cast<struct netif *>(f->f_ino->i_helper);
+    assert(netif != nullptr);
+    switch (request)
+    {
+    case SIOSETINET4: {
+        struct if_config_inet *c = static_cast<if_config_inet *>(argp);
 
-			struct if_config_inet i;
-			if(copy_from_user(&i, c, sizeof(struct if_config_inet)) < 0)
-				return -EFAULT;
-			auto local = &netif->local_ip;
-			memcpy(&local->sin_addr, &i.address, sizeof(struct in_addr));
-			return 0;
-		}
-		case SIOGETINET4:
-		{
-			struct if_config_inet *c = static_cast<if_config_inet *>(argp);
-			auto local = &netif->local_ip;
-			if(copy_to_user(&c->address, &local->sin_addr, sizeof(struct in_addr)) < 0)
-				return -EFAULT;
-			return 0;
-		}
-		case SIOADDINET6ADDR:
-		{
-			if_inet6_addr *c = static_cast<if_inet6_addr *>(argp);
+        struct if_config_inet i;
+        if (copy_from_user(&i, c, sizeof(struct if_config_inet)) < 0)
+            return -EFAULT;
+        auto local = &netif->local_ip;
+        memcpy(&local->sin_addr, &i.address, sizeof(struct in_addr));
+        return 0;
+    }
+    case SIOGETINET4: {
+        struct if_config_inet *c = static_cast<if_config_inet *>(argp);
+        auto local = &netif->local_ip;
+        if (copy_to_user(&c->address, &local->sin_addr, sizeof(struct in_addr)) < 0)
+            return -EFAULT;
+        return 0;
+    }
+    case SIOADDINET6ADDR: {
+        if_inet6_addr *c = static_cast<if_inet6_addr *>(argp);
 
-			if_inet6_addr addr;
+        if_inet6_addr addr;
 
-			if(copy_from_user(&addr, c, sizeof(*c)) < 0)
-				return -EFAULT;
-			
-			return netif_add_v6_address(netif, addr);
-		}
-		case SIOGETINET6:
-		{
-			return -ENOSYS;
+        if (copy_from_user(&addr, c, sizeof(*c)) < 0)
+            return -EFAULT;
+
+        return netif_add_v6_address(netif, addr);
+    }
+    case SIOGETINET6: {
+        return -ENOSYS;
 #if 0
 			struct if_config_inet6 *c = static_cast<if_config_inet6 *>(argp);
 			auto local = &netif->local_ip;
@@ -73,409 +66,405 @@ unsigned int netif_ioctl(int request, void *argp, struct file* f)
 				return -EFAULT;
 			return 0;
 #endif
-		}
-		case SIOGETMAC:
-		{
-			if(copy_to_user(argp, &netif->mac_address, 6) < 0)
-				return -EFAULT;
-			return 0;
-		}
+    }
+    case SIOGETMAC: {
+        if (copy_to_user(argp, &netif->mac_address, 6) < 0)
+            return -EFAULT;
+        return 0;
+    }
 
-		case SIOGETINDEX:
-		{
-			if(copy_to_user(argp, &netif->if_id, sizeof(netif->if_id)) < 0)
-				return -EFAULT;
-			return 0;
-		}
-	}
+    case SIOGETINDEX: {
+        if (copy_to_user(argp, &netif->if_id, sizeof(netif->if_id)) < 0)
+            return -EFAULT;
+        return 0;
+    }
+    }
 
-	return -ENOTTY;
+    return -ENOTTY;
 }
 
 atomic<uint32_t> next_if = 1;
 
-const struct file_ops netif_fops =
-{
-	.ioctl = netif_ioctl
-};
+const struct file_ops netif_fops = {.ioctl = netif_ioctl};
 
 void netif_register_if(struct netif *netif)
 {
-	rwlock_init(&netif->inet6_addr_list_lock);
-	INIT_LIST_HEAD(&netif->inet6_addr_list);
+    rwlock_init(&netif->inet6_addr_list_lock);
+    INIT_LIST_HEAD(&netif->inet6_addr_list);
 
-	assert(udp_init_netif(netif) == 0);
-	
-	assert(tcp_init_netif(netif) == 0);
-		
-	auto ex = dev_register_chardevs(0, 1, 0, &netif_fops, netif->name);
-	if(ex.has_error())
-		panic("netif_register_if failed");
+    assert(udp_init_netif(netif) == 0);
 
-	auto cdev = ex.value();
-	cdev->private_ = netif;
-	cdev->show(0660);
+    assert(tcp_init_netif(netif) == 0);
 
-	netif->if_id = next_if++;
-	
-	spin_lock(&netif_list_lock);
+    auto ex = dev_register_chardevs(0, 1, 0, &netif_fops, netif->name);
+    if (ex.has_error())
+        panic("netif_register_if failed");
 
-	assert(netif_list.push_back(netif) != false);
+    auto cdev = ex.value();
+    cdev->private_ = netif;
+    cdev->show(0660);
 
-	spin_unlock(&netif_list_lock);
+    netif->if_id = next_if++;
 
-	bool is_loopback = netif->flags & NETIF_LOOPBACK;
+    spin_lock(&netif_list_lock);
 
-	struct inet4_route route;
-	
-	route.mask = is_loopback ? htonl(0xff000000) : 0;
-	route.dest = is_loopback ? htonl(INADDR_LOOPBACK) : 0;
-	route.dest &= route.mask;
-	route.gateway = 0;
-	route.nif = netif;
-	route.metric = is_loopback ? 1000 : 10;
-	route.flags = INET4_ROUTE_FLAG_SCOPE_LOCAL;
+    assert(netif_list.push_back(netif) != false);
 
-	assert(ip::v4::add_route(route) == true);
+    spin_unlock(&netif_list_lock);
+
+    bool is_loopback = netif->flags & NETIF_LOOPBACK;
+
+    struct inet4_route route;
+
+    route.mask = is_loopback ? htonl(0xff000000) : 0;
+    route.dest = is_loopback ? htonl(INADDR_LOOPBACK) : 0;
+    route.dest &= route.mask;
+    route.gateway = 0;
+    route.nif = netif;
+    route.metric = is_loopback ? 1000 : 10;
+    route.flags = INET4_ROUTE_FLAG_SCOPE_LOCAL;
+
+    assert(ip::v4::add_route(route) == true);
 }
 
 int netif_unregister_if(struct netif *netif)
 {
-	scoped_lock g{netif_list_lock};
-	
-	list_remove(&netif->list_node);
+    scoped_lock g{netif_list_lock};
 
-	return 0;
+    list_remove(&netif->list_node);
+
+    return 0;
 }
 
 struct netif *netif_choose(void)
 {
-	/* TODO: Netif refcounting would be bery noice */
-	scoped_lock g{netif_list_lock};
+    /* TODO: Netif refcounting would be bery noice */
+    scoped_lock g{netif_list_lock};
 
-	for(auto n : netif_list)
-	{
-		if(n->flags & NETIF_LINKUP && !(n->flags & NETIF_LOOPBACK))
-		{
-			return n;
-		}
-	}
+    for (auto n : netif_list)
+    {
+        if (n->flags & NETIF_LINKUP && !(n->flags & NETIF_LOOPBACK))
+        {
+            return n;
+        }
+    }
 
-	return NULL;
+    return NULL;
 }
 
 netif *netif_from_if(uint32_t oif)
 {
-	if(!oif)
-		return nullptr;
+    if (!oif)
+        return nullptr;
 
-	scoped_lock g{netif_list_lock};
+    scoped_lock g{netif_list_lock};
 
-	for(auto &c : netif_list)
-	{
-		if(c->if_id == oif)
-			return c;
-	}
+    for (auto &c : netif_list)
+    {
+        if (c->if_id == oif)
+            return c;
+    }
 
-	return nullptr;
+    return nullptr;
 }
 
-netif *netif_get_from_addr(const inet_sock_address& s, int domain)
+netif *netif_get_from_addr(const inet_sock_address &s, int domain)
 {
-	scoped_lock g{netif_list_lock};
+    scoped_lock g{netif_list_lock};
 
-	//printk("trying to find %x\n", in->sin_addr.s_addr);
+    // printk("trying to find %x\n", in->sin_addr.s_addr);
 
-	for(auto n : netif_list)
-	{
-		//printk("local %x\n", n->local_ip.sin_addr.s_addr);
-		if(domain == AF_INET && n->local_ip.sin_addr.s_addr == s.in4.s_addr)
-		{
-			return n;
-		}
-	}
+    for (auto n : netif_list)
+    {
+        // printk("local %x\n", n->local_ip.sin_addr.s_addr);
+        if (domain == AF_INET && n->local_ip.sin_addr.s_addr == s.in4.s_addr)
+        {
+            return n;
+        }
+    }
 
-	return nullptr;
+    return nullptr;
 }
 
-cul::vector<netif*>& netif_lock_and_get_list(void)
+cul::vector<netif *> &netif_lock_and_get_list(void)
 {
-	spin_lock(&netif_list_lock);
+    spin_lock(&netif_list_lock);
 
-	return netif_list;
+    return netif_list;
 }
 
 void netif_unlock_list(void)
 {
-	spin_unlock(&netif_list_lock);
+    spin_unlock(&netif_list_lock);
 }
 
 int netif_send_packet(netif *netif, packetbuf *buf)
 {
-	assert(netif != nullptr);
-	if(netif->sendpacket)
-		return netif->sendpacket(buf, netif);
-	return -ENODEV;
+    assert(netif != nullptr);
+    if (netif->sendpacket)
+        return netif->sendpacket(buf, netif);
+    return -ENODEV;
 }
 
 void netif_get_ipv4_addr(struct sockaddr_in *s, struct netif *netif)
 {
-	memcpy(&s, &netif->local_ip, sizeof(struct sockaddr));
+    memcpy(&s, &netif->local_ip, sizeof(struct sockaddr));
 }
 
 netif *netif_from_name(const char *name)
 {
-	scoped_lock g{netif_list_lock};
+    scoped_lock g{netif_list_lock};
 
-	//printk("trying to find %x\n", in->sin_addr.s_addr);
+    // printk("trying to find %x\n", in->sin_addr.s_addr);
 
-	for(auto n : netif_list)
-	{
-		//printk("local %x\n", n->local_ip.sin_addr.s_addr);
-		if(!strcmp(n->name, name))
-		{
-			return n;
-		}
-	}
+    for (auto n : netif_list)
+    {
+        // printk("local %x\n", n->local_ip.sin_addr.s_addr);
+        if (!strcmp(n->name, name))
+        {
+            return n;
+        }
+    }
 
-	return nullptr;
+    return nullptr;
 }
 
 struct rx_queue_percpu
 {
-	struct list_head to_rx_list;
-	struct spinlock lock;
+    struct list_head to_rx_list;
+    struct spinlock lock;
 };
 
 PER_CPU_VAR(rx_queue_percpu rx_queue);
 
 static void init_rx_queues(unsigned int cpu)
 {
-	auto q = get_per_cpu_ptr_any(rx_queue, cpu);
-	spinlock_init(&q->lock);
-	INIT_LIST_HEAD(&q->to_rx_list);
+    auto q = get_per_cpu_ptr_any(rx_queue, cpu);
+    spinlock_init(&q->lock);
+    INIT_LIST_HEAD(&q->to_rx_list);
 }
 
 INIT_LEVEL_CORE_PERCPU_CTOR(init_rx_queues);
 
 void netif_signal_rx(netif *nif)
 {
-	unsigned int flags, og_flags;
+    unsigned int flags, og_flags;
 
-	do
-	{
-		flags = nif->flags;
-		og_flags = flags;
+    do
+    {
+        flags = nif->flags;
+        og_flags = flags;
 
-		flags |= NETIF_HAS_RX_AVAILABLE;
+        flags |= NETIF_HAS_RX_AVAILABLE;
 
-		if(og_flags & NETIF_DOING_RX_POLL)
-			flags |= NETIF_MISSED_RX;
-		
+        if (og_flags & NETIF_DOING_RX_POLL)
+            flags |= NETIF_MISSED_RX;
 
-	} while(!__atomic_compare_exchange_n(&nif->flags, &og_flags, flags,
-		                               false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED));
-	
-	if(og_flags & NETIF_HAS_RX_AVAILABLE)
-		return;
+    } while (!__atomic_compare_exchange_n(&nif->flags, &og_flags, flags, false, __ATOMIC_ACQUIRE,
+                                          __ATOMIC_RELAXED));
 
-	auto queue = get_per_cpu_ptr(rx_queue);
+    if (og_flags & NETIF_HAS_RX_AVAILABLE)
+        return;
 
-	unsigned long cpu_flags = spin_lock_irqsave(&queue->lock);
+    auto queue = get_per_cpu_ptr(rx_queue);
 
-	list_add_tail(&nif->rx_queue_node, &queue->to_rx_list);
+    unsigned long cpu_flags = spin_lock_irqsave(&queue->lock);
 
-	spin_unlock_irqrestore(&queue->lock, cpu_flags);
+    list_add_tail(&nif->rx_queue_node, &queue->to_rx_list);
 
-	softirq_raise(softirq_vector::SOFTIRQ_VECTOR_NETRX);
+    spin_unlock_irqrestore(&queue->lock, cpu_flags);
+
+    softirq_raise(softirq_vector::SOFTIRQ_VECTOR_NETRX);
 }
 
 void netif_do_rxpoll(netif *nif)
 {
-	__atomic_or_fetch(&nif->flags, NETIF_DOING_RX_POLL, __ATOMIC_RELAXED);
+    __atomic_or_fetch(&nif->flags, NETIF_DOING_RX_POLL, __ATOMIC_RELAXED);
 
-	while(true)
-	{
-		nif->poll_rx(nif);
+    while (true)
+    {
+        nif->poll_rx(nif);
 
-		unsigned int flags, og_flags;
+        unsigned int flags, og_flags;
 
-		do
-		{
-			og_flags = flags = nif->flags;
+        do
+        {
+            og_flags = flags = nif->flags;
 
-			if(!(og_flags & NETIF_MISSED_RX))
-			{
-				nif->rx_end(nif);
-				flags &= ~(NETIF_HAS_RX_AVAILABLE | NETIF_DOING_RX_POLL);
-			}
-			
-			flags &= ~NETIF_MISSED_RX;
+            if (!(og_flags & NETIF_MISSED_RX))
+            {
+                nif->rx_end(nif);
+                flags &= ~(NETIF_HAS_RX_AVAILABLE | NETIF_DOING_RX_POLL);
+            }
 
-		} while(!__atomic_compare_exchange_n(&nif->flags, &og_flags, flags,
-		                               false, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED));
-		
-		if(!(flags & NETIF_DOING_RX_POLL))
-			break;
-	}
+            flags &= ~NETIF_MISSED_RX;
+
+        } while (!__atomic_compare_exchange_n(&nif->flags, &og_flags, flags, false,
+                                              __ATOMIC_ACQUIRE, __ATOMIC_RELAXED));
+
+        if (!(flags & NETIF_DOING_RX_POLL))
+            break;
+    }
 }
 
 int netif_do_rx(void)
 {
-	auto queue = get_per_cpu_ptr(rx_queue);
+    auto queue = get_per_cpu_ptr(rx_queue);
 
-	scoped_lock g{queue->lock};
+    scoped_lock g{queue->lock};
 
-	list_for_every(&queue->to_rx_list)
-	{
-		netif *n = container_of(l, netif, rx_queue_node);
+    list_for_every (&queue->to_rx_list)
+    {
+        netif *n = container_of(l, netif, rx_queue_node);
 
-		netif_do_rxpoll(n);
-	}
+        netif_do_rxpoll(n);
+    }
 
-	list_reset(&queue->to_rx_list);
+    list_reset(&queue->to_rx_list);
 
-	return 0;
+    return 0;
 }
 
 int netif_process_pbuf(netif *nif, packetbuf *buf)
 {
-	return nif->dll_ops->rx_packet(nif, buf);
+    return nif->dll_ops->rx_packet(nif, buf);
 }
 
-int netif_add_v6_address(netif *nif, const if_inet6_addr& addr_)
+int netif_add_v6_address(netif *nif, const if_inet6_addr &addr_)
 {
-	if(addr_.flags & ~INET6_ADDR_DEFINED_MASK)
-		return -EINVAL;
+    if (addr_.flags & ~INET6_ADDR_DEFINED_MASK)
+        return -EINVAL;
 
-	auto addr = new netif_inet6_addr;
-	if(!addr)
-		return -ENOMEM;
-	
-	addr->address = addr_.address;
-	addr->flags = addr_.flags;
-	addr->prefix_len = addr_.prefix_len;
+    auto addr = new netif_inet6_addr;
+    if (!addr)
+        return -ENOMEM;
 
-	scoped_rwlock<rw_lock::write> g{nif->inet6_addr_list_lock};
+    addr->address = addr_.address;
+    addr->flags = addr_.flags;
+    addr->prefix_len = addr_.prefix_len;
 
-	list_add_tail(&addr->list_node, &nif->inet6_addr_list);
+    scoped_rwlock<rw_lock::write> g{nif->inet6_addr_list_lock};
 
-	return 0;
+    list_add_tail(&addr->list_node, &nif->inet6_addr_list);
+
+    return 0;
 }
 
 in6_addr netif_get_v6_address(netif *nif, uint16_t flags)
 {
-	scoped_rwlock<rw_lock::read> g{nif->inet6_addr_list_lock};
+    scoped_rwlock<rw_lock::read> g{nif->inet6_addr_list_lock};
 
-	list_for_every(&nif->inet6_addr_list)
-	{
-		const netif_inet6_addr *addr = container_of(l, netif_inet6_addr, list_node);
+    list_for_every (&nif->inet6_addr_list)
+    {
+        const netif_inet6_addr *addr = container_of(l, netif_inet6_addr, list_node);
 
-		if(addr->flags & flags)
-		{
-			return addr->address;
-		}
-	}
+        if (addr->flags & flags)
+        {
+            return addr->address;
+        }
+    }
 
-	return {};
+    return {};
 }
 
-int netif_remove_v6_address(netif *nif, const in6_addr& addr)
+int netif_remove_v6_address(netif *nif, const in6_addr &addr)
 {
-	scoped_rwlock<rw_lock::read> g{nif->inet6_addr_list_lock};
+    scoped_rwlock<rw_lock::read> g{nif->inet6_addr_list_lock};
 
-	list_for_every(&nif->inet6_addr_list)
-	{
-		netif_inet6_addr *a = container_of(l, netif_inet6_addr, list_node);
+    list_for_every (&nif->inet6_addr_list)
+    {
+        netif_inet6_addr *a = container_of(l, netif_inet6_addr, list_node);
 
-		if(a->address == addr)
-		{
-			list_remove(&a->list_node);
-			return 0;
-		}
-	}
+        if (a->address == addr)
+        {
+            list_remove(&a->list_node);
+            return 0;
+        }
+    }
 
-	return -ENOENT;
+    return -ENOENT;
 }
 
-bool netif_find_v6_address(netif *nif, const in6_addr& addr)
+bool netif_find_v6_address(netif *nif, const in6_addr &addr)
 {
-	scoped_rwlock<rw_lock::read> g{nif->inet6_addr_list_lock};
+    scoped_rwlock<rw_lock::read> g{nif->inet6_addr_list_lock};
 
-	list_for_every(&nif->inet6_addr_list)
-	{
-		netif_inet6_addr *a = container_of(l, netif_inet6_addr, list_node);
+    list_for_every (&nif->inet6_addr_list)
+    {
+        netif_inet6_addr *a = container_of(l, netif_inet6_addr, list_node);
 
-		if(a->address == addr)
-		{
-			return true;
-		}
-	}
+        if (a->address == addr)
+        {
+            return true;
+        }
+    }
 
-	return false;
+    return false;
 }
 class netif_table_nk : public netkernel::netkernel_object
 {
 public:
-	netif_table_nk() : netkernel::netkernel_object{"netif_table"} {}
-	expected<netkernel_hdr *, int> serve_request(netkernel_hdr *hdr) override
-	{
-		if(hdr->msg_type != NETKERNEL_MSG_NETIF_GET_NETIFS)
-			return unexpected<int>{-ENXIO};
+    netif_table_nk() : netkernel::netkernel_object{"netif_table"}
+    {
+    }
+    expected<netkernel_hdr *, int> serve_request(netkernel_hdr *hdr) override
+    {
+        if (hdr->msg_type != NETKERNEL_MSG_NETIF_GET_NETIFS)
+            return unexpected<int>{-ENXIO};
 
-		cul::vector<netkernel_get_nif_interface> interface_response;
-		const auto &interfaces = netif_lock_and_get_list();
+        cul::vector<netkernel_get_nif_interface> interface_response;
+        const auto &interfaces = netif_lock_and_get_list();
 
-		for(const auto &nif : interfaces)
-		{
-			netkernel_get_nif_interface i;
-			i.if_index = nif->if_id;
-			strcpy(i.iface, nif->name);
+        for (const auto &nif : interfaces)
+        {
+            netkernel_get_nif_interface i;
+            i.if_index = nif->if_id;
+            strcpy(i.iface, nif->name);
 
-			if(!interface_response.push_back(i))
-			{
-				netif_unlock_list();
-				return unexpected<int>{-ENOMEM};
-			}
-		}
-	
-		netif_unlock_list();
+            if (!interface_response.push_back(i))
+            {
+                netif_unlock_list();
+                return unexpected<int>{-ENOMEM};
+            }
+        }
 
-		auto buf_size = sizeof(netkernel_get_nifs_response) +
-		                interface_response.size() * sizeof(netkernel_get_nif_interface);
-		netkernel_get_nifs_response *header = (netkernel_get_nifs_response *) malloc(buf_size);
-		if(!header)
-			return unexpected<int>{-ENOMEM};
-		
-		header->nr_ifs = interface_response.size();
-		memcpy(header->interfaces, interface_response.begin(),
-		       interface_response.size() * sizeof(netkernel_get_nif_interface));
-		header->hdr.msg_type = NETKERNEL_MSG_NETIF_GET_NETIFS;
-		header->hdr.flags = 0;
-		header->hdr.size = buf_size;
+        netif_unlock_list();
 
-		return &header->hdr;
-	}
+        auto buf_size = sizeof(netkernel_get_nifs_response) +
+                        interface_response.size() * sizeof(netkernel_get_nif_interface);
+        netkernel_get_nifs_response *header = (netkernel_get_nifs_response *)malloc(buf_size);
+        if (!header)
+            return unexpected<int>{-ENOMEM};
+
+        header->nr_ifs = interface_response.size();
+        memcpy(header->interfaces, interface_response.begin(),
+               interface_response.size() * sizeof(netkernel_get_nif_interface));
+        header->hdr.msg_type = NETKERNEL_MSG_NETIF_GET_NETIFS;
+        header->hdr.flags = 0;
+        header->hdr.size = buf_size;
+
+        return &header->hdr;
+    }
 };
 
 void netif_init_netkernel()
 {
-	auto root = netkernel::open({"", 0});
+    auto root = netkernel::open({"", 0});
 
-	auto nif_member = make_shared<netkernel::netkernel_object>("netif");
+    auto nif_member = make_shared<netkernel::netkernel_object>("netif");
 
-	assert(nif_member != nullptr);
+    assert(nif_member != nullptr);
 
-	nif_member->set_flags(NETKERNEL_OBJECT_PATH_ELEMENT);
+    nif_member->set_flags(NETKERNEL_OBJECT_PATH_ELEMENT);
 
-	assert(root->add_child(nif_member) == true);
+    assert(root->add_child(nif_member) == true);
 
-	auto nt = make_shared<netif_table_nk>();
-	assert(nt != nullptr);
+    auto nt = make_shared<netif_table_nk>();
+    assert(nt != nullptr);
 
-	auto generic_nt = cast<netkernel::netkernel_object, netif_table_nk>(nt);
+    auto generic_nt = cast<netkernel::netkernel_object, netif_table_nk>(nt);
 
-	assert(nif_member->add_child(generic_nt));
+    assert(nif_member->add_child(generic_nt));
 }
 
 INIT_LEVEL_CORE_KERNEL_ENTRY(netif_init_netkernel);

@@ -10,39 +10,38 @@
 #define _RTL8168_H
 
 // The ID registers (0 through 5) contain the MAC address of the NIC
-#define RTL8168_IDR0     0x0
-#define RTL8168_IDRx(x)  (RTL8168_IDR0 + x)
+#define RTL8168_IDR0    0x0
+#define RTL8168_IDRx(x) (RTL8168_IDR0 + x)
 
 // Multicast address register - these registers go downwards
-#define RTL8168_MAR7     0x8
-#define RTL8168_MARx(x)  ((0x8 + 7) - x)
+#define RTL8168_MAR7    0x8
+#define RTL8168_MARx(x) ((0x8 + 7) - x)
 
 // Dump tally command register - for stats
-#define RTL8168_DTCCR    0x10
+#define RTL8168_DTCCR 0x10
 
 // Note that the TX descriptor start addresses need to be 256-byte aligned
 // Holds the start address of the TX descriptors for normal priority
-#define RTL8168_TNPDS    0x20
+#define RTL8168_TNPDS 0x20
 
 // Start address for high priority
-#define RTL8168_THPDS    0x28
+#define RTL8168_THPDS 0x28
 
 // Command register
-#define RTL8168_CR       0x37
+#define RTL8168_CR 0x37
 
 // Interrupt mask register
-#define RTL8168_IMR      0x3c
+#define RTL8168_IMR 0x3c
 
 // Interrupt status register
-#define RTL8118_ISR      0x3e
-
+#define RTL8118_ISR 0x3e
 
 // TX configuration register
-#define RTL8168_TCR      0x40
+#define RTL8168_TCR 0x40
 
 // RX configuration register
-#define RTL8168_RCR      0x44
+#define RTL8168_RCR 0x44
 
 // C+ command register
-#define RTL8168_CPLUS    0xe0
+#define RTL8168_CPLUS 0xe0
 #endif

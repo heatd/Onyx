@@ -1,563 +1,573 @@
 /*
-* Copyright (c) 2020 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2020 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ */
 
 #ifndef _CARBON_RBTREE_HPP
 #define _CARBON_RBTREE_HPP
 
 #if 0
-#include <utility>
-#include <stdexcept>
 #include <iostream>
+#include <stdexcept>
+#include <utility>
 #endif
 
-#include <onyx/utility.hpp>
-#include <onyx/pair.hpp>
-
 #include <assert.h>
+
+#include <onyx/pair.hpp>
+#include <onyx/utility.hpp>
 
 namespace cul
 {
 
 enum class rb_color
 {
-	red = 0,
-	black 
+    red = 0,
+    black
 };
 
 template <typename Key, typename T>
 class rb_node
 {
 public:
-	rb_node *parent, *left {nullptr}, *right {nullptr};
-	Key key;
-	T data;
-	rb_color color;
+    rb_node *parent, *left{nullptr}, *right{nullptr};
+    Key key;
+    T data;
+    rb_color color;
 
-	rb_node(rb_node *parent, Key key, const T& d) : parent(parent), key(key),
-						data(d), color(rb_color::red) {}
-	rb_node(rb_node *parent, Key key, T&& d) : parent(parent), key(key),
-						data(d), color(rb_color::red) {}
-	rb_node(rb_node *parent, Key key) : parent(parent), key(key), data{},
-						color(rb_color::red) {}
-	~rb_node() = default;
+    rb_node(rb_node *parent, Key key, const T &d)
+        : parent(parent), key(key), data(d), color(rb_color::red)
+    {
+    }
+    rb_node(rb_node *parent, Key key, T &&d)
+        : parent(parent), key(key), data(d), color(rb_color::red)
+    {
+    }
+    rb_node(rb_node *parent, Key key) : parent(parent), key(key), data{}, color(rb_color::red)
+    {
+    }
+    ~rb_node() = default;
 
-	rb_color get_color()
-	{
-		return color;
-	}
+    rb_color get_color()
+    {
+        return color;
+    }
 
-	void set_color(rb_color new_color)
-	{
-		color = new_color;
-	}
+    void set_color(rb_color new_color)
+    {
+        color = new_color;
+    }
 
-	void recolor()
-	{
-		if(color == rb_color::red)
-			color = rb_color::black;
-		else
-			color = rb_color::red;
-	}
+    void recolor()
+    {
+        if (color == rb_color::red)
+            color = rb_color::black;
+        else
+            color = rb_color::red;
+    }
 
-	bool is_root()
-	{
-		return parent == nullptr;
-	}
+    bool is_root()
+    {
+        return parent == nullptr;
+    }
 
-	rb_node<Key, T> *get_grandparent()
-	{
-		if(!parent)
-			return nullptr;
-		return parent->parent;
-	}
+    rb_node<Key, T> *get_grandparent()
+    {
+        if (!parent)
+            return nullptr;
+        return parent->parent;
+    }
 
-	rb_node<Key, T> *get_uncle()
-	{
-		auto grandparent = get_grandparent();
-		if(!grandparent)
-			return nullptr;
+    rb_node<Key, T> *get_uncle()
+    {
+        auto grandparent = get_grandparent();
+        if (!grandparent)
+            return nullptr;
 
-		rb_node<Key, T> *uncle;
+        rb_node<Key, T> *uncle;
 
-		if(grandparent->left == parent)
-			uncle = grandparent->right;
-		else
-			uncle = grandparent->left;
-		
-		return uncle;
-	}
+        if (grandparent->left == parent)
+            uncle = grandparent->right;
+        else
+            uncle = grandparent->left;
 
-	bool triangle()
-	{
-		auto grandparent = get_grandparent();
-		if(!grandparent)
-			return false;
+        return uncle;
+    }
 
-		return (parent->left == this && grandparent->right == parent) ||
-		       (parent->right == this && grandparent->left == parent);
-	}
+    bool triangle()
+    {
+        auto grandparent = get_grandparent();
+        if (!grandparent)
+            return false;
 
-	bool line()
-	{
-		auto grandparent = get_grandparent();
-		if(!grandparent)
-			return false;
+        return (parent->left == this && grandparent->right == parent) ||
+               (parent->right == this && grandparent->left == parent);
+    }
 
-		return (parent->left == this && grandparent->left == parent) ||
-		       (parent->right == this && grandparent->right == parent);
-	}
+    bool line()
+    {
+        auto grandparent = get_grandparent();
+        if (!grandparent)
+            return false;
 
-	void swap(rb_node<Key, T> *node)
-	{
-		auto tmp_key = cul::move(node->key);
-		auto tmp_data = cul::move(node->data);
+        return (parent->left == this && grandparent->left == parent) ||
+               (parent->right == this && grandparent->right == parent);
+    }
 
-		node->key = cul::move(key);
-		node->data = cul::move(data);
+    void swap(rb_node<Key, T> *node)
+    {
+        auto tmp_key = cul::move(node->key);
+        auto tmp_data = cul::move(node->data);
 
-		key = cul::move(tmp_key);
-		data = cul::move(tmp_data);
-	}
+        node->key = cul::move(key);
+        node->data = cul::move(data);
 
-	rb_node<Key, T> *max()
-	{
-		auto n = this;
+        key = cul::move(tmp_key);
+        data = cul::move(tmp_data);
+    }
 
-		while(n->right) n = n->right;
+    rb_node<Key, T> *max()
+    {
+        auto n = this;
 
-		return n;
-	}
+        while (n->right)
+            n = n->right;
 
-	rb_node<Key, T> *min()
-	{
-		auto n = this;
+        return n;
+    }
 
-		while(n->left) n = n->left;
+    rb_node<Key, T> *min()
+    {
+        auto n = this;
 
-		return n;
-	}
+        while (n->left)
+            n = n->left;
 
-	rb_node<Key, T> *prev()
-	{
-		if(left)
-			return left->max();
-		
-		auto p = parent;
-		auto node = this;
+        return n;
+    }
 
-		while(p && p->left == node)
-		{
-			node = p;
-			p = node->parent;
-		}
+    rb_node<Key, T> *prev()
+    {
+        if (left)
+            return left->max();
 
-		return parent;
-	}
+        auto p = parent;
+        auto node = this;
 
-	rb_node<Key, T> *next()
-	{
-		if(right)
-			return right->min();
-		
-		auto p = parent;
-		auto node = this;
+        while (p && p->left == node)
+        {
+            node = p;
+            p = node->parent;
+        }
 
-		while(p && p->right == node)
-		{
-			node = p;
-			p = node->parent;
-		}
+        return parent;
+    }
 
-		return parent;
-	}
+    rb_node<Key, T> *next()
+    {
+        if (right)
+            return right->min();
+
+        auto p = parent;
+        auto node = this;
+
+        while (p && p->right == node)
+        {
+            node = p;
+            p = node->parent;
+        }
+
+        return parent;
+    }
 };
 
 template <typename Key, typename T>
 class rb_tree
 {
 private:
-	rb_node<Key, T> *root;
-	rb_node<Key, T>** __get_pointer_to_change(rb_node<Key, T> *node)
-	{
-		if(!node->parent)
-			return &root;
-		if(node->parent->left == node)
-			return &node->parent->left;
-		return &node->parent->right;
-	}
+    rb_node<Key, T> *root;
+    rb_node<Key, T> **__get_pointer_to_change(rb_node<Key, T> *node)
+    {
+        if (!node->parent)
+            return &root;
+        if (node->parent->left == node)
+            return &node->parent->left;
+        return &node->parent->right;
+    }
 
-	void rotate_left(rb_node<Key, T> *node)
-	{
-		auto pp = __get_pointer_to_change(node);
+    void rotate_left(rb_node<Key, T> *node)
+    {
+        auto pp = __get_pointer_to_change(node);
 
-		*pp = node->right;
-		
-		auto right_node = node->right;
+        *pp = node->right;
 
-		right_node->parent = node->parent;
-		node->parent = right_node;
+        auto right_node = node->right;
 
-		node->right = right_node->left;
-		if(node->right)
-			node->right->parent = node;
-		right_node->left = node;
-	}
+        right_node->parent = node->parent;
+        node->parent = right_node;
 
-	void rotate_right(rb_node<Key, T> *node)
-	{
-		auto pp = __get_pointer_to_change(node);
+        node->right = right_node->left;
+        if (node->right)
+            node->right->parent = node;
+        right_node->left = node;
+    }
 
-		*pp = node->left;
-		
-		auto left_node = node->left;
+    void rotate_right(rb_node<Key, T> *node)
+    {
+        auto pp = __get_pointer_to_change(node);
 
-		left_node->parent = node->parent;
-		node->parent = left_node;
+        *pp = node->left;
 
-		node->left = left_node->right;
-		if(node->left)
-			node->left->parent = node;
-		left_node->right = node;
-	}
+        auto left_node = node->left;
 
-	rb_color get_color_for_node(rb_node<Key, T> *n)
-	{
-		if(!n)
-			return rb_color::black;
-		return n->get_color();
-	}
+        left_node->parent = node->parent;
+        node->parent = left_node;
 
-	void rebalance_node(rb_node<Key, T> *n)
-	{
-		//std::cout << "Rebalancing " << n->key << "\n";
-		if(n->is_root() && n->get_color() == rb_color::red)
-		{
-			//std::cout << "case0\n";
-			/* Case 0: n is root */
-			/* Just recolor it black */
-			n->set_color(rb_color::black);
-		}
-		else if(n->get_uncle() && n->get_uncle()->color == rb_color::red)
-		{
-			//std::cout << "case1\n";
-			/* Case 1: n's uncle is red */
-			/* Recolor the parent, uncle, and grandparent */
-			auto uncle = n->get_uncle();
-			n->parent->recolor();
-			uncle->recolor();
-			n->get_grandparent()->recolor();
-		}
-		else
-		{
-			auto uncle = n->get_uncle();
+        node->left = left_node->right;
+        if (node->left)
+            node->left->parent = node;
+        left_node->right = node;
+    }
 
-			if(get_color_for_node(uncle) == rb_color::black)
-			{
-				/* Case 2: n's uncle is black and n, n's parent and n's
-					grandparent form a triangle */
-				if(n->triangle())
-				{
-					//std::cout << "case2\n";
-					/* In this case, rotate to the direction opposite to us(n) */
-					if(n->parent->left == n)
-						rotate_right(n->parent);
-					else
-						rotate_left(n->parent);
-				}
-				else if(n->line())
-				{
-					//std::cout << "case3\n";
-					auto grandparent = n->get_grandparent();
-					auto p = n->parent;
-					/* Case 3: n's uncle is black and n, n's parent and
-					 * gp form a line */
-					/* Rotate the grandparent to the opposite direction of us */
-					if(n->parent->left == n)
-						rotate_right(grandparent);
-					else
-						rotate_left(grandparent);
-					
-					/* We'll also need to recolor the original
-					 * parent and grandparent */
-					grandparent->recolor();
-					p->recolor();
-				}
-			}
-		}
+    rb_color get_color_for_node(rb_node<Key, T> *n)
+    {
+        if (!n)
+            return rb_color::black;
+        return n->get_color();
+    }
 
-	}
+    void rebalance_node(rb_node<Key, T> *n)
+    {
+        // std::cout << "Rebalancing " << n->key << "\n";
+        if (n->is_root() && n->get_color() == rb_color::red)
+        {
+            // std::cout << "case0\n";
+            /* Case 0: n is root */
+            /* Just recolor it black */
+            n->set_color(rb_color::black);
+        }
+        else if (n->get_uncle() && n->get_uncle()->color == rb_color::red)
+        {
+            // std::cout << "case1\n";
+            /* Case 1: n's uncle is red */
+            /* Recolor the parent, uncle, and grandparent */
+            auto uncle = n->get_uncle();
+            n->parent->recolor();
+            uncle->recolor();
+            n->get_grandparent()->recolor();
+        }
+        else
+        {
+            auto uncle = n->get_uncle();
 
-	void rebalance(rb_node<Key, T> *n)
-	{
-		while(n->parent &&
-			n->parent->get_color() == rb_color::red)
-		{
-			auto parent = n->parent;
-			if(n->get_color() == rb_color::red)
-				rebalance_node(n);
-			n = parent;
-		}
+            if (get_color_for_node(uncle) == rb_color::black)
+            {
+                /* Case 2: n's uncle is black and n, n's parent and n's
+                    grandparent form a triangle */
+                if (n->triangle())
+                {
+                    // std::cout << "case2\n";
+                    /* In this case, rotate to the direction opposite to us(n) */
+                    if (n->parent->left == n)
+                        rotate_right(n->parent);
+                    else
+                        rotate_left(n->parent);
+                }
+                else if (n->line())
+                {
+                    // std::cout << "case3\n";
+                    auto grandparent = n->get_grandparent();
+                    auto p = n->parent;
+                    /* Case 3: n's uncle is black and n, n's parent and
+                     * gp form a line */
+                    /* Rotate the grandparent to the opposite direction of us */
+                    if (n->parent->left == n)
+                        rotate_right(grandparent);
+                    else
+                        rotate_left(grandparent);
 
-		root->set_color(rb_color::black);
-	}
+                    /* We'll also need to recolor the original
+                     * parent and grandparent */
+                    grandparent->recolor();
+                    p->recolor();
+                }
+            }
+        }
+    }
 
-	rb_node<Key, T> *__find(const Key k) const
-	{
-		auto n = root;
+    void rebalance(rb_node<Key, T> *n)
+    {
+        while (n->parent && n->parent->get_color() == rb_color::red)
+        {
+            auto parent = n->parent;
+            if (n->get_color() == rb_color::red)
+                rebalance_node(n);
+            n = parent;
+        }
 
-		while(n != nullptr)
-		{
-			if(n->key < k)
-				n = n->right;
-			else if(n->key > k)
-				n = n->left;
-			else
-				return n;
-		}
+        root->set_color(rb_color::black);
+    }
 
-		return nullptr;
-	}
+    rb_node<Key, T> *__find(const Key k) const
+    {
+        auto n = root;
 
-	static inline bool node_is_black(rb_node<Key, T> *node)
-	{
-		return !node || node->get_color() == rb_color::black;
-	}
+        while (n != nullptr)
+        {
+            if (n->key < k)
+                n = n->right;
+            else if (n->key > k)
+                n = n->left;
+            else
+                return n;
+        }
 
-	void rb_delete_fixup(rb_node<Key, T> *node, rb_node<Key, T> *p, bool left)
-	{
-		while(node != root && node_is_black(node))
-		{
-			if(left)
-			{
-				auto w = p->right;
-				if(w->get_color() == rb_color::red)
-				{
-					//std::cout << "case1 left\n";
-					/* Case 1 -  Recolor w, w's parent and rotate the
-					 parent to the left */
-					w->set_color(rb_color::black);
-					p->set_color(rb_color::red);
-					rotate_left(p);
-					w = p->right;
-				}
+        return nullptr;
+    }
 
-				if(node_is_black(w->left) && node_is_black(w->right))
-				{
-					//std::cout << "case2 left\n";
-					/* Case 2 - Both nodes are black - (Re)color w as red */
-					w->set_color(rb_color::red);
-					node = p;
-					p = node->parent;
-					left = p && p->left == node; 
-				}
-				else
-				{
-					if(node_is_black(w->right))
-					{
-						//std::cout << "case3 left\n";
-						/* Case 3 - Recolor w and w.left */
-						w->left->set_color(rb_color::black);
-						w->set_color(rb_color::red);
-						rotate_right(w);
-						w = p->right;
-					}
+    static inline bool node_is_black(rb_node<Key, T> *node)
+    {
+        return !node || node->get_color() == rb_color::black;
+    }
 
-					//std::cout << "case4 left\n";
+    void rb_delete_fixup(rb_node<Key, T> *node, rb_node<Key, T> *p, bool left)
+    {
+        while (node != root && node_is_black(node))
+        {
+            if (left)
+            {
+                auto w = p->right;
+                if (w->get_color() == rb_color::red)
+                {
+                    // std::cout << "case1 left\n";
+                    /* Case 1 -  Recolor w, w's parent and rotate the
+                     parent to the left */
+                    w->set_color(rb_color::black);
+                    p->set_color(rb_color::red);
+                    rotate_left(p);
+                    w = p->right;
+                }
 
-					/* Case 4 */
+                if (node_is_black(w->left) && node_is_black(w->right))
+                {
+                    // std::cout << "case2 left\n";
+                    /* Case 2 - Both nodes are black - (Re)color w as red */
+                    w->set_color(rb_color::red);
+                    node = p;
+                    p = node->parent;
+                    left = p && p->left == node;
+                }
+                else
+                {
+                    if (node_is_black(w->right))
+                    {
+                        // std::cout << "case3 left\n";
+                        /* Case 3 - Recolor w and w.left */
+                        w->left->set_color(rb_color::black);
+                        w->set_color(rb_color::red);
+                        rotate_right(w);
+                        w = p->right;
+                    }
 
-					w->set_color(p->get_color());
+                    // std::cout << "case4 left\n";
 
-					if(w->right)	w->right->set_color(rb_color::black);
-					p->set_color(rb_color::black);
-					rotate_left(p);
-					break;
-				}
-			}
-			else
-			{
-				auto w = p->left;
-				if(w->get_color() == rb_color::red)
-				{
-					//std::cout << "case1 right\n";
-					/* Case 1 -  Recolor w, w's parent and rotate the
-					 parent to the left */
-					w->set_color(rb_color::black);
-					p->set_color(rb_color::red);
-					rotate_right(p);
-					w = p->left;
-				}
+                    /* Case 4 */
 
-				if(node_is_black(w->left) && node_is_black(w->right))
-				{
-					//std::cout << "case2 right\n";
-					/* Case 2 - Both nodes are black - (Re)color w as red */
-					w->set_color(rb_color::red);
-					node = p;
-					p = node->parent;
-					left = p && p->left == node; 
-				}
-				else
-				{
-					if(node_is_black(w->left))
-					{
-						//std::cout << "case3 right\n";
-						/* Case 3 - Recolor w and w.right */
-						w->right->set_color(rb_color::black);
-						w->set_color(rb_color::red);
-						rotate_left(w);
-						w = p->left;
-					}
+                    w->set_color(p->get_color());
 
-					//std::cout << "case4 right\n";
-					/* Case 4 */
+                    if (w->right)
+                        w->right->set_color(rb_color::black);
+                    p->set_color(rb_color::black);
+                    rotate_left(p);
+                    break;
+                }
+            }
+            else
+            {
+                auto w = p->left;
+                if (w->get_color() == rb_color::red)
+                {
+                    // std::cout << "case1 right\n";
+                    /* Case 1 -  Recolor w, w's parent and rotate the
+                     parent to the left */
+                    w->set_color(rb_color::black);
+                    p->set_color(rb_color::red);
+                    rotate_right(p);
+                    w = p->left;
+                }
 
-					w->set_color(p->get_color());
+                if (node_is_black(w->left) && node_is_black(w->right))
+                {
+                    // std::cout << "case2 right\n";
+                    /* Case 2 - Both nodes are black - (Re)color w as red */
+                    w->set_color(rb_color::red);
+                    node = p;
+                    p = node->parent;
+                    left = p && p->left == node;
+                }
+                else
+                {
+                    if (node_is_black(w->left))
+                    {
+                        // std::cout << "case3 right\n";
+                        /* Case 3 - Recolor w and w.right */
+                        w->right->set_color(rb_color::black);
+                        w->set_color(rb_color::red);
+                        rotate_left(w);
+                        w = p->left;
+                    }
 
-					if(w->left)	w->left->set_color(rb_color::black);
-					p->set_color(rb_color::black);
-					rotate_right(p);
-					break;
-				}
-			}
-		}
+                    // std::cout << "case4 right\n";
+                    /* Case 4 */
 
-		if(node)
-			node->set_color(rb_color::black);
-	}
+                    w->set_color(p->get_color());
 
-	rb_node<Key, T> *min()
-	{
-		auto node = root;
+                    if (w->left)
+                        w->left->set_color(rb_color::black);
+                    p->set_color(rb_color::black);
+                    rotate_right(p);
+                    break;
+                }
+            }
+        }
 
-		if(!node)
-			return nullptr;
-		
-		return node->min();
-	}
+        if (node)
+            node->set_color(rb_color::black);
+    }
 
-	rb_node<Key, T> *max()
-	{
-		auto node = root;
+    rb_node<Key, T> *min()
+    {
+        auto node = root;
 
-		if(!node)
-			return nullptr;
-		
-		return node->max();
-	}
+        if (!node)
+            return nullptr;
+
+        return node->min();
+    }
+
+    rb_node<Key, T> *max()
+    {
+        auto node = root;
+
+        if (!node)
+            return nullptr;
+
+        return node->max();
+    }
+
 public:
+    rb_tree() : root(nullptr)
+    {
+    }
 
-	rb_tree() : root(nullptr) {}
+    bool insert(const cul::pair<const Key, T> &vals)
+    {
+        auto &key = vals.first;
 
-	bool insert(const cul::pair<const Key, T>& vals)
-	{ 
-		auto& key = vals.first;
+        auto *pp = &root;
+        rb_node<Key, T> *parent = nullptr;
 
-		auto *pp = &root;
-		rb_node<Key, T> *parent = nullptr;
-	 
-		while(*pp != nullptr)
-		{
-			parent = *pp;
-			if(key < (*pp)->key)
-			{
-				pp = &(*pp)->left;
-			}
-			else if(key > (*pp)->key)
-			{
-				pp = &(*pp)->right;
-			}
-			else
-			{
-				return false;
-			}
-		}
+        while (*pp != nullptr)
+        {
+            parent = *pp;
+            if (key < (*pp)->key)
+            {
+                pp = &(*pp)->left;
+            }
+            else if (key > (*pp)->key)
+            {
+                pp = &(*pp)->right;
+            }
+            else
+            {
+                return false;
+            }
+        }
 
-		auto new_node = new rb_node<Key, T>{parent, key, vals.second};
-		if(!new_node)
-			return false;
+        auto new_node = new rb_node<Key, T>{parent, key, vals.second};
+        if (!new_node)
+            return false;
 
-		*pp = new_node;
+        *pp = new_node;
 
-		rebalance(new_node);
+        rebalance(new_node);
 
-		return true;
-	}
+        return true;
+    }
 
-	bool remove(const Key k)
-	{
-		auto node = __find(k);
-		if(!node)
-			return false;
+    bool remove(const Key k)
+    {
+        auto node = __find(k);
+        if (!node)
+            return false;
 
-		auto y = node;
-	
-		if(node->left && node->right)
-		{
-			y = node->right;
-			y = y->min();
-			y->swap(node);
-		}
-		else
-		{
-			y = node;
-		}
+        auto y = node;
 
-		auto x = y->left != nullptr ? y->left : y->right;
+        if (node->left && node->right)
+        {
+            y = node->right;
+            y = y->min();
+            y->swap(node);
+        }
+        else
+        {
+            y = node;
+        }
 
-		if(x) x->parent = y->parent;
+        auto x = y->left != nullptr ? y->left : y->right;
 
-		bool left = y->parent != nullptr && y->parent->left == y;
+        if (x)
+            x->parent = y->parent;
 
-		if(!y->parent)
-			root =  x;
-		else if(left)
-			y->parent->left = x;
-		else
-			y->parent->right = x;
-		
-		if(y->get_color() == rb_color::black && root)
-			rb_delete_fixup(x, y->parent, left);
+        bool left = y->parent != nullptr && y->parent->left == y;
 
-		delete y;
-	
-		return true;
-	}
+        if (!y->parent)
+            root = x;
+        else if (left)
+            y->parent->left = x;
+        else
+            y->parent->right = x;
 
-	#include "rbtree_iterator.hpp"
+        if (y->get_color() == rb_color::black && root)
+            rb_delete_fixup(x, y->parent, left);
 
-	rb_tree_iterator begin() const
-	{
-		return rb_tree_iterator{this};
-	}
+        delete y;
 
-	rb_tree_iterator end() const
-	{
-		return rb_tree_iterator{};
-	}
+        return true;
+    }
 
-	const rb_tree_iterator cbegin() const
-	{
-		return rb_tree_iterator{this};
-	}
+#include "rbtree_iterator.hpp"
 
-	const rb_tree_iterator cend() const
-	{
-		return rb_tree_iterator{};
-	}
+    rb_tree_iterator begin() const
+    {
+        return rb_tree_iterator{this};
+    }
 
-	rb_tree_iterator find(const Key k) const
-	{
-		auto node = __find(k);
-		if(!node)
-			return end();
-		return rb_tree_iterator{node};
-	}
+    rb_tree_iterator end() const
+    {
+        return rb_tree_iterator{};
+    }
+
+    const rb_tree_iterator cbegin() const
+    {
+        return rb_tree_iterator{this};
+    }
+
+    const rb_tree_iterator cend() const
+    {
+        return rb_tree_iterator{};
+    }
+
+    rb_tree_iterator find(const Key k) const
+    {
+        auto node = __find(k);
+        if (!node)
+            return end();
+        return rb_tree_iterator{node};
+    }
 };
 
-}
+} // namespace cul
 
 #endif

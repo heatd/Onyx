@@ -12,7 +12,7 @@
 #ifndef __ASSEMBLER__
 struct syscall_frame
 {
-	unsigned long user_sp;
+    unsigned long user_sp;
 };
 
 #endif

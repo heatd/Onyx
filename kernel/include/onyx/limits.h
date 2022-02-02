@@ -22,20 +22,20 @@
 
 #ifndef PIPE_BUF
 
-#define PIPE_BUF 4096
-#define FILESIZEBITS 64
-#define NAME_MAX 255
-#define SYMLINK_MAX 255
-#define PATH_MAX 4096
-#define NZERO 20
-#define NGROUPS_MAX INT_MAX
-#define ARG_MAX 131072
-#define IOV_MAX 1024
-#define SYMLOOP_MAX 40
-#define WORD_BIT 32
-#define SSIZE_MAX LONG_MAX
-#define TZNAME_MAX 6
-#define TTY_NAME_MAX 32
+#define PIPE_BUF      4096
+#define FILESIZEBITS  64
+#define NAME_MAX      255
+#define SYMLINK_MAX   255
+#define PATH_MAX      4096
+#define NZERO         20
+#define NGROUPS_MAX   INT_MAX
+#define ARG_MAX       131072
+#define IOV_MAX       1024
+#define SYMLOOP_MAX   40
+#define WORD_BIT      32
+#define SSIZE_MAX     LONG_MAX
+#define TZNAME_MAX    6
+#define TTY_NAME_MAX  32
 #define HOST_NAME_MAX 255
 
 // TODO: This is incorrect and is only here for .c files in mm/malloc/

@@ -1,13 +1,12 @@
 /*
-* Copyright (c) 2021 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2021 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ */
 
 #include <onyx/vm.h>
 
-extern "C"
-{
+extern "C" {
 
 void *__vmalloc(size_t len)
 {
@@ -18,5 +17,4 @@ void __vmunmap(void *addr, size_t len)
 {
     vm_munmap(&kernel_address_space, addr, len);
 }
-
 }

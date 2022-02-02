@@ -1,16 +1,16 @@
 /*
-* Copyright (c) 2017 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2017 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ */
 #ifndef _ONYX_FILE_H
 #define _ONYX_FILE_H
 
-#include <fcntl.h>
 #include <errno.h>
+#include <fcntl.h>
 
-#include <onyx/vfs.h>
 #include <onyx/panic.h>
+#include <onyx/vfs.h>
 
 struct ioctx;
 
@@ -24,21 +24,21 @@ int copy_file_descriptors(struct process *process, struct ioctx *ctx);
 struct file *get_dirfd_file(int dirfd);
 void process_destroy_file_descriptors(process *process);
 
-#define OPEN_FLAGS_ACCESS_MODE(flags)	(flags & 0x3)
+#define OPEN_FLAGS_ACCESS_MODE(flags) (flags & 0x3)
 
 static inline unsigned int open_to_file_access_flags(int open_flgs)
 {
-	unsigned int last_two_bits = OPEN_FLAGS_ACCESS_MODE(open_flgs);
-	if(last_two_bits == O_RDONLY)
-		return FILE_ACCESS_READ;
-	else if(last_two_bits == O_RDWR)
-		return FILE_ACCESS_READ | FILE_ACCESS_WRITE;
-	else if(last_two_bits == O_WRONLY)
-		return FILE_ACCESS_WRITE;
-	else
-	{
-		panic("Unsanitized open flags");
-	}
+    unsigned int last_two_bits = OPEN_FLAGS_ACCESS_MODE(open_flgs);
+    if (last_two_bits == O_RDONLY)
+        return FILE_ACCESS_READ;
+    else if (last_two_bits == O_RDWR)
+        return FILE_ACCESS_READ | FILE_ACCESS_WRITE;
+    else if (last_two_bits == O_WRONLY)
+        return FILE_ACCESS_WRITE;
+    else
+    {
+        panic("Unsanitized open flags");
+    }
 }
 
 bool fd_may_access(struct file *f, unsigned int access);
@@ -48,125 +48,128 @@ bool fd_may_access(struct file *f, unsigned int access);
 class auto_file
 {
 private:
-	struct file *f;
+    struct file *f;
 
-	void ref() const
-	{
-		if(f) fd_get(f);
-	}
+    void ref() const
+    {
+        if (f)
+            fd_get(f);
+    }
 
-	void unref() const
-	{
-		if(f) fd_put(f);
-	}
+    void unref() const
+    {
+        if (f)
+            fd_put(f);
+    }
 
 public:
+    auto_file() : f{nullptr}
+    {
+    }
 
-	auto_file() : f{nullptr}
-	{
-		
-	}
+    auto_file(file *_f) : f{_f}
+    {
+    }
 
-	auto_file(file *_f) : f{_f} {}
+    ~auto_file()
+    {
+        if (f)
+            fd_put(f);
+    }
 
-	~auto_file()
-	{
-		if(f) fd_put(f);
-	}
+    auto_file &operator=(const auto_file &rhs)
+    {
+        if (&rhs == this)
+            return *this;
 
-	auto_file& operator=(const auto_file& rhs)
-	{
-		if(&rhs == this)
-			return *this;
-		
-		unref();
+        unref();
 
-		if(rhs.f)
-		{
-			rhs.ref();
-			f = rhs.f;
-		}
+        if (rhs.f)
+        {
+            rhs.ref();
+            f = rhs.f;
+        }
 
-		return *this;
-	}
+        return *this;
+    }
 
-	auto_file(const auto_file& rhs)
-	{
-		if(&rhs == this)
-			return;
-		
-		unref();
+    auto_file(const auto_file &rhs)
+    {
+        if (&rhs == this)
+            return;
 
-		if(rhs.f)
-		{
-			rhs.ref();
-			f = rhs.f;
-		}
-	}
+        unref();
 
-	auto_file& operator=(auto_file&& rhs)
-	{
-		if(&rhs == this)
-			return *this;
-		
-		f = rhs.f;
-		rhs.f = nullptr;
+        if (rhs.f)
+        {
+            rhs.ref();
+            f = rhs.f;
+        }
+    }
 
-		return *this;
-	}
+    auto_file &operator=(auto_file &&rhs)
+    {
+        if (&rhs == this)
+            return *this;
 
-	auto_file(auto_file&& rhs)
-	{
-		if(&rhs == this)
-			return;
-		
-		f = rhs.f;
-		rhs.f = nullptr;
-	}
+        f = rhs.f;
+        rhs.f = nullptr;
 
-	file *get_file()
-	{
-		return f;
-	}
+        return *this;
+    }
 
-	file *release()
-	{
-		auto ret = f;
-		f = nullptr;
-		return ret;
-	}
+    auto_file(auto_file &&rhs)
+    {
+        if (&rhs == this)
+            return;
 
-	int from_fd(int fd)
-	{
-		f = get_file_description(fd);
-		if(!f)
-			return -errno;
-		return 0;
-	}
+        f = rhs.f;
+        rhs.f = nullptr;
+    }
 
-	int from_dirfd(int dirfd)
-	{
-		f = get_dirfd_file(dirfd);
-		if(!f)
-			return -errno;
-		return 0;
-	}
+    file *get_file()
+    {
+        return f;
+    }
 
-	operator bool() const
-	{
-		return f != nullptr;
-	}
+    file *release()
+    {
+        auto ret = f;
+        f = nullptr;
+        return ret;
+    }
 
-	bool is_dir() const
-	{
-		return f->f_ino->i_type == VFS_TYPE_DIR;
-	}
+    int from_fd(int fd)
+    {
+        f = get_file_description(fd);
+        if (!f)
+            return -errno;
+        return 0;
+    }
+
+    int from_dirfd(int dirfd)
+    {
+        f = get_dirfd_file(dirfd);
+        if (!f)
+            return -errno;
+        return 0;
+    }
+
+    operator bool() const
+    {
+        return f != nullptr;
+    }
+
+    bool is_dir() const
+    {
+        return f->f_ino->i_type == VFS_TYPE_DIR;
+    }
 };
 
 template <typename Type>
-bool is_absolute_pathname(const Type& t)
+bool is_absolute_pathname(const Type &t)
 {
-	return t[0] == '/';
+    return t[0] == '/';
 }
 
 #endif

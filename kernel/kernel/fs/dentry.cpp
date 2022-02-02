@@ -1,1509 +1,1531 @@
 /*
-* Copyright (c) 2020 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
-#include <stdlib.h>
+ * Copyright (c) 2020 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ */
 #include <assert.h>
-#include <string.h>
 #include <errno.h>
 #include <libgen.h>
 #include <stdio.h>
-#include <errno.h>
+#include <stdlib.h>
+#include <string.h>
 
-#include <onyx/user.h>
-#include <onyx/dentry.h>
 #include <onyx/compiler.h>
-#include <onyx/vfs.h>
+#include <onyx/dentry.h>
 #include <onyx/file.h>
-#include <onyx/mm/pool.hpp>
 #include <onyx/mtable.h>
-#include <onyx/string_view.hpp>
+#include <onyx/user.h>
+#include <onyx/vfs.h>
+
 #include <onyx/expected.hpp>
+#include <onyx/mm/pool.hpp>
+#include <onyx/string_view.hpp>
 
 static memory_pool<dentry, 0> dentry_pool;
 dentry *root_dentry = nullptr;
 
-
 void dentry_get(dentry *d)
 {
-	/* Must hold parent's d_lock */
-	__atomic_add_fetch(&d->d_ref, 1, __ATOMIC_RELAXED);
+    /* Must hold parent's d_lock */
+    __atomic_add_fetch(&d->d_ref, 1, __ATOMIC_RELAXED);
 }
 
 void dentry_put(dentry *d)
 {
-	if(__atomic_sub_fetch(&d->d_ref, 1, __ATOMIC_RELAXED) == 0)
-		dentry_destroy(d);
+    if (__atomic_sub_fetch(&d->d_ref, 1, __ATOMIC_RELAXED) == 0)
+        dentry_destroy(d);
 }
 
 enum class fs_token_type : uint8_t
 {
-	REGULAR_TOKEN = 0,
-	LAST_NAME_IN_PATH
+    REGULAR_TOKEN = 0,
+    LAST_NAME_IN_PATH
 };
 
 struct last_name_handling
 {
-	virtual expected<dentry *, int> operator()(nameidata& data, std::string_view &name) = 0;
+    virtual expected<dentry *, int> operator()(nameidata &data, std::string_view &name) = 0;
 };
 
 struct nameidata
 {
-	/* Data needed to resolve filesystem names: 
-	 * view - Contains the pathname;
-	 * pos - Contains the offset in the parsing of the pathname;
-	 * root - Contains the lookup's filesystem root;
-	 * location - Contains the current relative location and
-	 * starts at whatever was passed as the relative dir(controlled with
-	 * chdir or *at, or purely through kernel-side use).
-	 */
-	std::string_view view;
-	size_t pos;
-	/* Note: root and location always hold a reference to the underlying object */
-	dentry *root;
-	dentry *location;
-	fs_token_type token_type;
+    /* Data needed to resolve filesystem names:
+     * view - Contains the pathname;
+     * pos - Contains the offset in the parsing of the pathname;
+     * root - Contains the lookup's filesystem root;
+     * location - Contains the current relative location and
+     * starts at whatever was passed as the relative dir(controlled with
+     * chdir or *at, or purely through kernel-side use).
+     */
+    std::string_view view;
+    size_t pos;
+    /* Note: root and location always hold a reference to the underlying object */
+    dentry *root;
+    dentry *location;
+    fs_token_type token_type;
 
-	static constexpr const size_t max_loops = SYMLOOP_MAX;
-	/* Number of symbolic links found while looking up -
-	 * if it reaches max_symlinks, the lookup fails with -ELOOP.
-	 */
-	int nloops;
+    static constexpr const size_t max_loops = SYMLOOP_MAX;
+    /* Number of symbolic links found while looking up -
+     * if it reaches max_symlinks, the lookup fails with -ELOOP.
+     */
+    int nloops;
 
-	last_name_handling *handler;
+    last_name_handling *handler;
 
-	unsigned int lookup_flags;
+    unsigned int lookup_flags;
 
-	nameidata(std::string_view view, dentry *root, dentry *rel, last_name_handling *h = nullptr) :
-	          view{view}, pos{}, root{root}, location{rel},
-			  token_type{fs_token_type::REGULAR_TOKEN}, nloops{0}, handler{h}, lookup_flags{0}
-	{}
+    nameidata(std::string_view view, dentry *root, dentry *rel, last_name_handling *h = nullptr)
+        : view{view}, pos{}, root{root}, location{rel},
+          token_type{fs_token_type::REGULAR_TOKEN}, nloops{0}, handler{h}, lookup_flags{0}
+    {
+    }
 
-	nameidata for_symlink_resolution(std::string_view path) const
-	{
-		nameidata n{path, root, location};
-		if(root) dentry_get(root);
-		if(location) dentry_get(location);
-		n.nloops = nloops;
+    nameidata for_symlink_resolution(std::string_view path) const
+    {
+        nameidata n{path, root, location};
+        if (root)
+            dentry_get(root);
+        if (location)
+            dentry_get(location);
+        n.nloops = nloops;
 
-		return n;
-	}
+        return n;
+    }
 
-	/* Used after resolving a symlink in path resolution */
-	void track_symlink_count(nameidata& d)
-	{
-		nloops = d.nloops;
-	}
+    /* Used after resolving a symlink in path resolution */
+    void track_symlink_count(nameidata &d)
+    {
+        nloops = d.nloops;
+    }
 };
 
 void dentry_destroy(dentry *d)
 {
-	if(d->d_inode)
-		close_vfs(d->d_inode);
+    if (d->d_inode)
+        close_vfs(d->d_inode);
 
-	if(d->d_parent) dentry_put(d->d_parent);
-	//printk("Dentry %s dead\n", d->d_name);
+    if (d->d_parent)
+        dentry_put(d->d_parent);
+    // printk("Dentry %s dead\n", d->d_name);
 
-	if(d->d_name_length > INLINE_NAME_MAX)
-	{
-		free((void *) d->d_name);
-	}
+    if (d->d_name_length > INLINE_NAME_MAX)
+    {
+        free((void *)d->d_name);
+    }
 
-	d->~dentry();
-	dentry_pool.free(d);
+    d->~dentry();
+    dentry_pool.free(d);
 }
 
 void dentry_kill_unlocked(dentry *entry)
 {
-	assert(entry->d_ref == 1);
-	list_remove(&entry->d_parent_dir_node);
-	dentry_destroy(entry);
+    assert(entry->d_ref == 1);
+    list_remove(&entry->d_parent_dir_node);
+    dentry_destroy(entry);
 }
 
 dentry *dentry_create(const char *name, inode *inode, dentry *parent)
 {
-	if(parent && parent->d_inode->i_type != VFS_TYPE_DIR)
-		return errno = ENOTDIR, nullptr;
+    if (parent && parent->d_inode->i_type != VFS_TYPE_DIR)
+        return errno = ENOTDIR, nullptr;
 
-	/* TODO: Move a bunch of this code to a constructor and placement-new it */
-	dentry *new_dentry = dentry_pool.allocate();
-	if(!new_dentry) [[unlikely]]
-		return nullptr;
+    /* TODO: Move a bunch of this code to a constructor and placement-new it */
+    dentry *new_dentry = dentry_pool.allocate();
+    if (!new_dentry) [[unlikely]]
+        return nullptr;
 
-	new_dentry = new (new_dentry) dentry;
+    new_dentry = new (new_dentry) dentry;
 
-	new_dentry->d_ref = 1;
-	new_dentry->d_name = new_dentry->d_inline_name;
-	
-	size_t name_length = strlen(name);
+    new_dentry->d_ref = 1;
+    new_dentry->d_name = new_dentry->d_inline_name;
 
-	if(name_length <= INLINE_NAME_MAX)
-	{
-		strlcpy(new_dentry->d_name, name, INLINE_NAME_MAX);
-	}
-	else
-	{
-		char *dname = (char *) memdup((void *) name, name_length);
-		if(!dname)
-		{
-			dentry_pool.free(new_dentry);
-			return nullptr;
-		}
+    size_t name_length = strlen(name);
 
-		new_dentry->d_name = dname;
-	}
+    if (name_length <= INLINE_NAME_MAX)
+    {
+        strlcpy(new_dentry->d_name, name, INLINE_NAME_MAX);
+    }
+    else
+    {
+        char *dname = (char *)memdup((void *)name, name_length);
+        if (!dname)
+        {
+            dentry_pool.free(new_dentry);
+            return nullptr;
+        }
 
-	new_dentry->d_name_length = name_length;
-	new_dentry->d_name_hash = fnv_hash(new_dentry->d_name, new_dentry->d_name_length);
-	new_dentry->d_inode = inode;
-	rwlock_init(&new_dentry->d_lock);
-	
-	/* We need this if() because we might call dentry_create before retrieving an inode */
-	if(inode) inode_ref(inode);
-	new_dentry->d_parent = parent;
+        new_dentry->d_name = dname;
+    }
 
-	if(parent) [[likely]]
-	{
-		list_add_tail(&new_dentry->d_parent_dir_node, &parent->d_children_head);
-		dentry_get(parent);
-	}
+    new_dentry->d_name_length = name_length;
+    new_dentry->d_name_hash = fnv_hash(new_dentry->d_name, new_dentry->d_name_length);
+    new_dentry->d_inode = inode;
+    rwlock_init(&new_dentry->d_lock);
 
-	INIT_LIST_HEAD(&new_dentry->d_children_head);
+    /* We need this if() because we might call dentry_create before retrieving an inode */
+    if (inode)
+        inode_ref(inode);
+    new_dentry->d_parent = parent;
 
-	new_dentry->d_mount_dentry = nullptr;
-	new_dentry->d_flags = 0;
+    if (parent) [[likely]]
+    {
+        list_add_tail(&new_dentry->d_parent_dir_node, &parent->d_children_head);
+        dentry_get(parent);
+    }
 
-	return new_dentry;
+    INIT_LIST_HEAD(&new_dentry->d_children_head);
+
+    new_dentry->d_mount_dentry = nullptr;
+    new_dentry->d_flags = 0;
+
+    return new_dentry;
 }
 
 bool dentry_is_dir(dentry *d)
 {
-	return d->d_inode->i_type == VFS_TYPE_DIR;
+    return d->d_inode->i_type == VFS_TYPE_DIR;
 }
 
 dentry *__dentry_try_to_open(std::string_view name, dentry *dir)
 {
-	if(auto d = dentry_lookup_internal(name, dir,
-	                 DENTRY_LOOKUP_UNLOCKED | DENTRY_LOOKUP_DONT_TRY_TO_RESOLVE))
-		return d;
+    if (auto d = dentry_lookup_internal(name, dir,
+                                        DENTRY_LOOKUP_UNLOCKED | DENTRY_LOOKUP_DONT_TRY_TO_RESOLVE))
+        return d;
 
-	//printk("trying to open %.*s in %s\n", (int) name.length(), name.data(), dir->d_name);
+    // printk("trying to open %.*s in %s\n", (int) name.length(), name.data(), dir->d_name);
 
-	char _name[NAME_MAX + 1] = {};
-	memcpy(_name, name.data(), name.length());
+    char _name[NAME_MAX + 1] = {};
+    memcpy(_name, name.data(), name.length());
 
-	inode *ino = dir->d_inode->i_fops->open(dir, _name);
-	if(!ino)
-	{
-		//printk("failed\n");
-		return nullptr;
-	}
+    inode *ino = dir->d_inode->i_fops->open(dir, _name);
+    if (!ino)
+    {
+        // printk("failed\n");
+        return nullptr;
+    }
 
-	auto ret = dentry_create(_name, ino, dir);
-	close_vfs(ino);
+    auto ret = dentry_create(_name, ino, dir);
+    close_vfs(ino);
 
-	if(ret)
-	{
-		dentry_get(ret);
-		if(dentry_is_dir(ret)) ino->i_dentry = ret;
-	}
+    if (ret)
+    {
+        dentry_get(ret);
+        if (dentry_is_dir(ret))
+            ino->i_dentry = ret;
+    }
 
-	return ret;
+    return ret;
 }
 
 dentry *dentry_try_to_open_locked(std::string_view name, dentry *dir)
 {
-	scoped_rwlock<rw_lock::write> g{dir->d_lock};
-	return __dentry_try_to_open(name, dir);
+    scoped_rwlock<rw_lock::write> g{dir->d_lock};
+    return __dentry_try_to_open(name, dir);
 }
 
 dentry *__dentry_parent(dentry *dir)
 {
-	auto ret = dir->d_parent;
-	
-	if(ret) dentry_get(ret);
+    auto ret = dir->d_parent;
 
-	return ret;
+    if (ret)
+        dentry_get(ret);
+
+    return ret;
 }
 
 dentry *dentry_parent(dentry *dir)
 {
-	scoped_rwlock<rw_lock::read> g{dir->d_lock};
+    scoped_rwlock<rw_lock::read> g{dir->d_lock};
 
-	return __dentry_parent(dir);
+    return __dentry_parent(dir);
 }
 
-bool dentry_compare_name(dentry *dent, std::string_view& to_cmp)
+bool dentry_compare_name(dentry *dent, std::string_view &to_cmp)
 {
-	std::string_view dent_name{dent->d_name, dent->d_name_length};
+    std::string_view dent_name{dent->d_name, dent->d_name_length};
 
-	return dent_name.compare(to_cmp) == 0;
+    return dent_name.compare(to_cmp) == 0;
 }
 
 dentry *dentry_lookup_internal(std::string_view v, dentry *dir, dentry_lookup_flags_t flags)
 {
-	bool lock = !(flags & DENTRY_LOOKUP_UNLOCKED);
-	bool resolve = !(flags & DENTRY_LOOKUP_DONT_TRY_TO_RESOLVE);
+    bool lock = !(flags & DENTRY_LOOKUP_UNLOCKED);
+    bool resolve = !(flags & DENTRY_LOOKUP_DONT_TRY_TO_RESOLVE);
 
-	fnv_hash_t hash = fnv_hash(v.data(), v.length());
+    fnv_hash_t hash = fnv_hash(v.data(), v.length());
 
-	if(!v.compare("."))
-	{
-		dentry_get(dir);
-		return dir;
-	}
+    if (!v.compare("."))
+    {
+        dentry_get(dir);
+        return dir;
+    }
 
-	if(!dentry_is_dir(dir))
-	{
-		return errno = ENOTDIR, nullptr;
-	}
+    if (!dentry_is_dir(dir))
+    {
+        return errno = ENOTDIR, nullptr;
+    }
 
-	if(lock) [[likely]]
-		rw_lock_read(&dir->d_lock);
+    if (lock) [[likely]]
+        rw_lock_read(&dir->d_lock);
 
-	if(!v.compare(".."))
-	{
-		auto ret = dir->d_parent ? dir->d_parent : dir;
-		dentry_get(ret);
-		if(lock) [[likely]] rw_unlock_read(&dir->d_lock);
-		return ret;
-	}
+    if (!v.compare(".."))
+    {
+        auto ret = dir->d_parent ? dir->d_parent : dir;
+        dentry_get(ret);
+        if (lock) [[likely]]
+            rw_unlock_read(&dir->d_lock);
+        return ret;
+    }
 
-	list_for_every(&dir->d_children_head)
-	{
-		dentry *d = container_of(l, dentry, d_parent_dir_node);
-		if(d->d_name_hash == hash && dentry_compare_name(d, v))
-		{
-			dentry_get(d);
-			if(lock) [[likely]] rw_unlock_read(&dir->d_lock);
-			return d;
-		}
-	}
+    list_for_every (&dir->d_children_head)
+    {
+        dentry *d = container_of(l, dentry, d_parent_dir_node);
+        if (d->d_name_hash == hash && dentry_compare_name(d, v))
+        {
+            dentry_get(d);
+            if (lock) [[likely]]
+                rw_unlock_read(&dir->d_lock);
+            return d;
+        }
+    }
 
-	if(lock) [[likely]] rw_unlock_read(&dir->d_lock);
-	return resolve ?
-	      (lock ? dentry_try_to_open_locked(v, dir) : __dentry_try_to_open(v, dir))
-		  : nullptr;
+    if (lock) [[likely]]
+        rw_unlock_read(&dir->d_lock);
+    return resolve ? (lock ? dentry_try_to_open_locked(v, dir) : __dentry_try_to_open(v, dir))
+                   : nullptr;
 }
 
 dentry *dentry_mount(const char *mountpoint, struct inode *inode)
 {
-	if(!strcmp(mountpoint, "/")) [[unlikely]]
-	{
-		/* shortpath: We're creating the absolute root inode */
-		auto d = (root_dentry = dentry_create(mountpoint, inode, nullptr));
-		if(d)
-			d->d_flags |= DENTRY_FLAG_MOUNT_ROOT;
-		return d;
-	}
+    if (!strcmp(mountpoint, "/")) [[unlikely]]
+    {
+        /* shortpath: We're creating the absolute root inode */
+        auto d = (root_dentry = dentry_create(mountpoint, inode, nullptr));
+        if (d)
+            d->d_flags |= DENTRY_FLAG_MOUNT_ROOT;
+        return d;
+    }
 
-	char *path = strdup(mountpoint);
-	if(!path)
-		return nullptr;
-	
-	auto fs_root = get_filesystem_root();
-	dentry_get(fs_root->file->f_dentry);
-	std::string_view name{mountpoint, strlen(mountpoint)};
-	nameidata namedata{name, fs_root->file->f_dentry, nullptr};
+    char *path = strdup(mountpoint);
+    if (!path)
+        return nullptr;
 
-	auto base_dentry = dentry_resolve(namedata);
-	if(!base_dentry)
-	{
-		free((void *) path);
-		return nullptr;
-	}
+    auto fs_root = get_filesystem_root();
+    dentry_get(fs_root->file->f_dentry);
+    std::string_view name{mountpoint, strlen(mountpoint)};
+    nameidata namedata{name, fs_root->file->f_dentry, nullptr};
 
-	if(!dentry_is_dir(base_dentry))
-	{
-		free((void *) path);
-		dentry_put(base_dentry);
-		errno = ENOTDIR;
-		return nullptr;
-	}
+    auto base_dentry = dentry_resolve(namedata);
+    if (!base_dentry)
+    {
+        free((void *)path);
+        return nullptr;
+    }
 
-	dentry *new_d = inode->i_dentry ?: dentry_create(basename(path), inode, base_dentry);
+    if (!dentry_is_dir(base_dentry))
+    {
+        free((void *)path);
+        dentry_put(base_dentry);
+        errno = ENOTDIR;
+        return nullptr;
+    }
 
-	if(inode->i_dentry)
-	{
-		/* TODO: I don't believe it's adjusting d_parent properly */
-		dentry_put(inode->i_dentry->d_parent);
-		dentry_get(base_dentry);
-		inode->i_dentry->d_parent = base_dentry;
-	}
+    dentry *new_d = inode->i_dentry ?: dentry_create(basename(path), inode, base_dentry);
 
-	if(new_d)
-	{
-		rw_lock_write(&base_dentry->d_lock);
-		if(base_dentry->d_flags & DENTRY_FLAG_MOUNTPOINT)
-		{
-			free((void *) path);
-			rw_unlock_write(&base_dentry->d_lock);
-			return errno = EBUSY, nullptr;
-		}
+    if (inode->i_dentry)
+    {
+        /* TODO: I don't believe it's adjusting d_parent properly */
+        dentry_put(inode->i_dentry->d_parent);
+        dentry_get(base_dentry);
+        inode->i_dentry->d_parent = base_dentry;
+    }
 
-		base_dentry->d_mount_dentry = new_d;
-		base_dentry->d_flags |= DENTRY_FLAG_MOUNTPOINT;
-		dentry_get(new_d);
-		new_d->d_flags |= DENTRY_FLAG_MOUNT_ROOT;
-		inode->i_dentry = new_d;
+    if (new_d)
+    {
+        rw_lock_write(&base_dentry->d_lock);
+        if (base_dentry->d_flags & DENTRY_FLAG_MOUNTPOINT)
+        {
+            free((void *)path);
+            rw_unlock_write(&base_dentry->d_lock);
+            return errno = EBUSY, nullptr;
+        }
 
-		rw_unlock_write(&base_dentry->d_lock);
-	}
+        base_dentry->d_mount_dentry = new_d;
+        base_dentry->d_flags |= DENTRY_FLAG_MOUNTPOINT;
+        dentry_get(new_d);
+        new_d->d_flags |= DENTRY_FLAG_MOUNT_ROOT;
+        inode->i_dentry = new_d;
 
-	free((void *) path);
-	dentry_put(base_dentry);
+        rw_unlock_write(&base_dentry->d_lock);
+    }
 
-	return new_d;
+    free((void *)path);
+    dentry_put(base_dentry);
+
+    return new_d;
 }
 
 int mount_fs(struct inode *fsroot, const char *path)
 {
-	assert(fsroot != nullptr);
+    assert(fsroot != nullptr);
 
-	printf("mount_fs: Mounting on %s\n", path);
-	
-	if(!strcmp(path, "/"))
-	{
-		file *f = (file *) zalloc(sizeof(*f));
-		if(!f)
-			return -ENOMEM;
-		f->f_ino = fsroot;
-		f->f_refcount = 1;
-		f->f_dentry = dentry_mount("/", fsroot);
-		assert(f->f_dentry != nullptr);
+    printf("mount_fs: Mounting on %s\n", path);
 
-		auto fs_root = get_filesystem_root();
-		if(fs_root->file)
-		{
-			fd_put(fs_root->file);
-		}
+    if (!strcmp(path, "/"))
+    {
+        file *f = (file *)zalloc(sizeof(*f));
+        if (!f)
+            return -ENOMEM;
+        f->f_ino = fsroot;
+        f->f_refcount = 1;
+        f->f_dentry = dentry_mount("/", fsroot);
+        assert(f->f_dentry != nullptr);
 
-		fs_root->file = f;	
-	}
-	else
-	{
-		dentry *d;
-		if(!(d = dentry_mount(path, fsroot)))
-			return -errno;
-		dentry_put(d);
-	}
+        auto fs_root = get_filesystem_root();
+        if (fs_root->file)
+        {
+            fd_put(fs_root->file);
+        }
 
-	return 0;
+        fs_root->file = f;
+    }
+    else
+    {
+        dentry *d;
+        if (!(d = dentry_mount(path, fsroot)))
+            return -errno;
+        dentry_put(d);
+    }
+
+    return 0;
 }
 
-std::string_view get_token_from_path(nameidata& namedata)
+std::string_view get_token_from_path(nameidata &namedata)
 {
-	const auto &view = namedata.view;
-	while(true)
-	{
-		namedata.pos = view.find_first_not_of('/', namedata.pos);
-		if(namedata.pos == std::string_view::npos)
-			break;
+    const auto &view = namedata.view;
+    while (true)
+    {
+        namedata.pos = view.find_first_not_of('/', namedata.pos);
+        if (namedata.pos == std::string_view::npos)
+            break;
 
-		auto path_elem_end = view.find('/', namedata.pos);
-		//std::cout << "end at pos " << path_elem_end << "\n";
-		//std::cout << "pos: " << pos << "\n";
-		bool is_last_element = false;
-		if(path_elem_end == std::string_view::npos) [[unlikely]]
-		{
-			is_last_element = true;
-			path_elem_end = view.length();
-		}
-		else if(view.find_first_not_of('/', path_elem_end) == std::string_view::npos)
-		{
-			is_last_element = true;
-		}
+        auto path_elem_end = view.find('/', namedata.pos);
+        // std::cout << "end at pos " << path_elem_end << "\n";
+        // std::cout << "pos: " << pos << "\n";
+        bool is_last_element = false;
+        if (path_elem_end == std::string_view::npos) [[unlikely]]
+        {
+            is_last_element = true;
+            path_elem_end = view.length();
+        }
+        else if (view.find_first_not_of('/', path_elem_end) == std::string_view::npos)
+        {
+            is_last_element = true;
+        }
 
-		namedata.token_type = is_last_element ?
-		                      fs_token_type::LAST_NAME_IN_PATH : fs_token_type::REGULAR_TOKEN;
+        namedata.token_type =
+            is_last_element ? fs_token_type::LAST_NAME_IN_PATH : fs_token_type::REGULAR_TOKEN;
 
-		//std::cout << "Elem size: " << path_elem_end - pos << "\n";
-		std::string_view v = view.substr(namedata.pos, path_elem_end - namedata.pos);
-		namedata.pos += v.length() + 1;
-		//std::cout << "Path element: " << v << "\n";
+        // std::cout << "Elem size: " << path_elem_end - pos << "\n";
+        std::string_view v = view.substr(namedata.pos, path_elem_end - namedata.pos);
+        namedata.pos += v.length() + 1;
+        // std::cout << "Path element: " << v << "\n";
 
-		return v;
-	}
+        return v;
+    }
 
-	return {};
+    return {};
 }
 
 bool dentry_is_symlink(dentry *d)
 {
-	return d->d_inode->i_type == VFS_TYPE_SYMLINK;
+    return d->d_inode->i_type == VFS_TYPE_SYMLINK;
 }
 
 bool dentry_check_for_existence(std::string_view name, dentry *d)
 {
-	dentry *res = nullptr;
-	if((res = dentry_lookup_internal(name, d, DENTRY_LOOKUP_UNLOCKED)) == nullptr)
-		return false;
-	dentry_put(res);
-	return true;
+    dentry *res = nullptr;
+    if ((res = dentry_lookup_internal(name, d, DENTRY_LOOKUP_UNLOCKED)) == nullptr)
+        return false;
+    dentry_put(res);
+    return true;
 }
 
 bool dentry_is_mountpoint(dentry *dir)
 {
-	return dir->d_flags & DENTRY_FLAG_MOUNTPOINT;
+    return dir->d_flags & DENTRY_FLAG_MOUNTPOINT;
 }
 
-expected<dentry *, int> dentry_follow_symlink(nameidata& data, dentry *symlink)
+expected<dentry *, int> dentry_follow_symlink(nameidata &data, dentry *symlink)
 {
-	file f;
-	f.f_ino = symlink->d_inode;
+    file f;
+    f.f_ino = symlink->d_inode;
 
-	/* Oops - We hit the max symlink count */
-	if(data.nloops++ == nameidata::max_loops)
-	{
-		return unexpected<int>{-ELOOP};
-	}
+    /* Oops - We hit the max symlink count */
+    if (data.nloops++ == nameidata::max_loops)
+    {
+        return unexpected<int>{-ELOOP};
+    }
 
-	auto target_str = readlink_vfs(&f);
-	if(!target_str)
-	{
-		return unexpected<int>{-errno};
-	}
+    auto target_str = readlink_vfs(&f);
+    if (!target_str)
+    {
+        return unexpected<int>{-errno};
+    }
 
-	/* Create a new nameidata for the new path, **with the current nloop**. 
-	 * This makes it so we properly keep track of nloop.
-	 */
+    /* Create a new nameidata for the new path, **with the current nloop**.
+     * This makes it so we properly keep track of nloop.
+     */
 
-	auto new_nameidata = data.for_symlink_resolution({target_str, strlen(target_str)});
+    auto new_nameidata = data.for_symlink_resolution({target_str, strlen(target_str)});
 
-	auto symlink_target = dentry_resolve(new_nameidata);
+    auto symlink_target = dentry_resolve(new_nameidata);
 
-	free((void *) target_str);
+    free((void *)target_str);
 
-	if(!symlink_target)
-	{
-		return unexpected<int>{-errno};
-	}
+    if (!symlink_target)
+    {
+        return unexpected<int>{-errno};
+    }
 
-	/* We need to track the new structure's nloop as to keep a lookup-global count */
-	data.track_symlink_count(new_nameidata);
+    /* We need to track the new structure's nloop as to keep a lookup-global count */
+    data.track_symlink_count(new_nameidata);
 
-	return symlink_target;
+    return symlink_target;
 }
 
-int __dentry_resolve_path(nameidata& data)
+int __dentry_resolve_path(nameidata &data)
 {
-	std::string_view v;
-	//printk("Resolving %s\n", data.view.data());
-	bool dont_follow_last = data.lookup_flags & OPEN_FLAG_NOFOLLOW;
+    std::string_view v;
+    // printk("Resolving %s\n", data.view.data());
+    bool dont_follow_last = data.lookup_flags & OPEN_FLAG_NOFOLLOW;
 
-	while((v = get_token_from_path(data)).data() != nullptr)
-	{
-		if(v.length() > NAME_MAX)
-			return -ENAMETOOLONG;
-		
-		bool is_last_name = data.token_type == fs_token_type::LAST_NAME_IN_PATH;
-		//printk("%.*s\n", (int) v.length(), v.data());
-		if(is_last_name && data.handler)
-		{
-			//printk("^^ is last name\n");
-			//printk("data.handler: %p\n", data.handler);
-			auto ex = data.handler->operator()(data, v);
-			if(ex.has_value())
-			{
-				dentry_put(data.location);
-				data.location = ex.value();
-				return 0;
-			}
+    while ((v = get_token_from_path(data)).data() != nullptr)
+    {
+        if (v.length() > NAME_MAX)
+            return -ENAMETOOLONG;
 
-			return ex.error();
-		}
+        bool is_last_name = data.token_type == fs_token_type::LAST_NAME_IN_PATH;
+        // printk("%.*s\n", (int) v.length(), v.data());
+        if (is_last_name && data.handler)
+        {
+            // printk("^^ is last name\n");
+            // printk("data.handler: %p\n", data.handler);
+            auto ex = data.handler->operator()(data, v);
+            if (ex.has_value())
+            {
+                dentry_put(data.location);
+                data.location = ex.value();
+                return 0;
+            }
 
-		file f;
-		f.f_ino = data.location->d_inode;
-		if(!file_can_access(&f, FILE_ACCESS_EXECUTE))
-		{
-			return -EACCES;
-		}
+            return ex.error();
+        }
 
-		dentry *new_found = nullptr;
-		if(data.location == data.root && !v.compare("..")) [[unlikely]]
-		{
-			/* Stop from escaping the chroot */
-			continue;
-		}
-		else
-		{
-			new_found = dentry_lookup_internal(v, data.location);
-			if(!new_found)
-			{
-				return -errno;
-			}
-		}
+        file f;
+        f.f_ino = data.location->d_inode;
+        if (!file_can_access(&f, FILE_ACCESS_EXECUTE))
+        {
+            return -EACCES;
+        }
 
-		if(dentry_is_symlink(new_found))
-		{
-			/* Posix states that paths that end in a trailing slash are required to be the same as /.
-			 * For example: open("/usr/bin/") == open("/usr/bin/.").
-			 * Therefore, we have to special case that.
-			 */
+        dentry *new_found = nullptr;
+        if (data.location == data.root && !v.compare("..")) [[unlikely]]
+        {
+            /* Stop from escaping the chroot */
+            continue;
+        }
+        else
+        {
+            new_found = dentry_lookup_internal(v, data.location);
+            if (!new_found)
+            {
+                return -errno;
+            }
+        }
 
-			const bool must_be_dir = data.lookup_flags & LOOKUP_FLAG_INTERNAL_TRAILING_SLASH;
-			const bool should_follow_symlink = !dont_follow_last || must_be_dir;
-			
-			//printk("Following symlink for path elem %s\n", v.data());
-			if(is_last_name && (data.lookup_flags & OPEN_FLAG_FAIL_IF_LINK))
-			{
-				dentry_put(new_found);
-				return -ELOOP;
-			}
-			else if(is_last_name && !should_follow_symlink)
-			{
-				//printk("Cannot follow symlink. Trailing slash: %s\n", must_be_dir ? "yes" : "no");
-			}
-			else [[likely]]
-			{
-				auto result = dentry_follow_symlink(data, new_found);
-				dentry_put(new_found);
+        if (dentry_is_symlink(new_found))
+        {
+            /* Posix states that paths that end in a trailing slash are required to be the same as
+             * /. For example: open("/usr/bin/") == open("/usr/bin/."). Therefore, we have to
+             * special case that.
+             */
 
-				if(!result)
-					return result.error();
-				else
-					new_found = result.value();
-			}
-		}
+            const bool must_be_dir = data.lookup_flags & LOOKUP_FLAG_INTERNAL_TRAILING_SLASH;
+            const bool should_follow_symlink = !dont_follow_last || must_be_dir;
 
-		if(dentry_is_mountpoint(new_found))
-		{
-			auto dest = new_found->d_mount_dentry;
-			dentry_put(new_found);
-			new_found = dest;
-			dentry_get(dest);
-		}
+            // printk("Following symlink for path elem %s\n", v.data());
+            if (is_last_name && (data.lookup_flags & OPEN_FLAG_FAIL_IF_LINK))
+            {
+                dentry_put(new_found);
+                return -ELOOP;
+            }
+            else if (is_last_name && !should_follow_symlink)
+            {
+                // printk("Cannot follow symlink. Trailing slash: %s\n", must_be_dir ? "yes" :
+                // "no");
+            }
+            else [[likely]]
+            {
+                auto result = dentry_follow_symlink(data, new_found);
+                dentry_put(new_found);
 
-		dentry_put(data.location);
-		data.location = new_found;
-	}
+                if (!result)
+                    return result.error();
+                else
+                    new_found = result.value();
+            }
+        }
 
-	return 0;
+        if (dentry_is_mountpoint(new_found))
+        {
+            auto dest = new_found->d_mount_dentry;
+            dentry_put(new_found);
+            new_found = dest;
+            dentry_get(dest);
+        }
+
+        dentry_put(data.location);
+        data.location = new_found;
+    }
+
+    return 0;
 }
 
-int dentry_resolve_path(nameidata& data)
+int dentry_resolve_path(nameidata &data)
 {
-	auto &pathname = data.view;
+    auto &pathname = data.view;
 
-	auto pathname_length = pathname.length();
-	if(pathname_length == 0)
-	{
-		if(data.lookup_flags & OPEN_FLAG_EMPTY_PATH)
-		{
-			assert(data.location != nullptr);
-			dentry_get(data.location);
-			return 0;
-		}
+    auto pathname_length = pathname.length();
+    if (pathname_length == 0)
+    {
+        if (data.lookup_flags & OPEN_FLAG_EMPTY_PATH)
+        {
+            assert(data.location != nullptr);
+            dentry_get(data.location);
+            return 0;
+        }
 
-		return -ENOENT;
-	}
+        return -ENOENT;
+    }
 
-	//std::cout << "Total pathname: " << pathname << "\n";
+    // std::cout << "Total pathname: " << pathname << "\n";
 
-	bool absolute = pathname[0] == '/';
-	/*if(absolute)
-		std::cout << "Pathname type: Absolute\n";
-	else
-		std::cout << "Pathname type: Relative\n";
-	*/
+    bool absolute = pathname[0] == '/';
+    /*if(absolute)
+        std::cout << "Pathname type: Absolute\n";
+    else
+        std::cout << "Pathname type: Relative\n";
+    */
 
-	if(pathname[pathname.length() - 1] == '/')
-		data.lookup_flags |= LOOKUP_FLAG_INTERNAL_TRAILING_SLASH;
-	bool must_be_dir = data.lookup_flags & (LOOKUP_FLAG_INTERNAL_TRAILING_SLASH | OPEN_FLAG_MUST_BE_DIR);
+    if (pathname[pathname.length() - 1] == '/')
+        data.lookup_flags |= LOOKUP_FLAG_INTERNAL_TRAILING_SLASH;
+    bool must_be_dir =
+        data.lookup_flags & (LOOKUP_FLAG_INTERNAL_TRAILING_SLASH | OPEN_FLAG_MUST_BE_DIR);
 
-	if(absolute)
-	{
-		if(data.location)
-			dentry_put(data.location);
-		data.location = data.root;
-		dentry_get(data.root);
-	}
+    if (absolute)
+    {
+        if (data.location)
+            dentry_put(data.location);
+        data.location = data.root;
+        dentry_get(data.root);
+    }
 
-	data.view = std::string_view(&pathname[(int) absolute], pathname_length - (int) absolute);
+    data.view = std::string_view(&pathname[(int)absolute], pathname_length - (int)absolute);
 
-	auto st = __dentry_resolve_path(data);
+    auto st = __dentry_resolve_path(data);
 
-	if(absolute)
-	{
-		dentry_put(data.root);
-	}
+    if (absolute)
+    {
+        dentry_put(data.root);
+    }
 
-	if(st < 0)
-	{
-		dentry_put(data.location);
-		return st;
-	}
+    if (st < 0)
+    {
+        dentry_put(data.location);
+        return st;
+    }
 
-	if(!dentry_is_dir(data.location) && must_be_dir)
-	{
-		dentry_put(data.location);
-		return -ENOTDIR;
-	}
+    if (!dentry_is_dir(data.location) && must_be_dir)
+    {
+        dentry_put(data.location);
+        return -ENOTDIR;
+    }
 
-	return 0;
+    return 0;
 }
 
-dentry *dentry_resolve(nameidata& data)
+dentry *dentry_resolve(nameidata &data)
 {
-	int st = dentry_resolve_path(data);
-	if(st < 0)
-		return errno = -st, nullptr;
-	return data.location;
+    int st = dentry_resolve_path(data);
+    if (st < 0)
+        return errno = -st, nullptr;
+    return data.location;
 }
 
 file *open_vfs_with_flags(file *f, const char *name, unsigned int open_flags)
 {
-	bool unref_f = false;
-	auto fs_root = get_filesystem_root();
+    bool unref_f = false;
+    auto fs_root = get_filesystem_root();
 
-	if(!f) [[unlikely]]
-	{
-		f = get_current_directory();
-		unref_f = true;
-		fd_get(f);
-	}
+    if (!f) [[unlikely]]
+    {
+        f = get_current_directory();
+        unref_f = true;
+        fd_get(f);
+    }
 
-	dentry_get(fs_root->file->f_dentry);
-	dentry_get(f->f_dentry);
+    dentry_get(fs_root->file->f_dentry);
+    dentry_get(f->f_dentry);
 
-	nameidata namedata{std::string_view{name, strlen(name)},
-					   fs_root->file->f_dentry, f->f_dentry};
+    nameidata namedata{std::string_view{name, strlen(name)}, fs_root->file->f_dentry, f->f_dentry};
 
-	namedata.lookup_flags = open_flags;
+    namedata.lookup_flags = open_flags;
 
-	auto dent = dentry_resolve(namedata);
+    auto dent = dentry_resolve(namedata);
 
-	if(unref_f) [[unlikely]]
-		fd_put(f);
+    if (unref_f) [[unlikely]]
+        fd_put(f);
 
-	if(!dent)
-		return nullptr;
+    if (!dent)
+        return nullptr;
 
-	auto new_file = inode_to_file(dent->d_inode);
-	if(!new_file)
-	{
-		dentry_put(dent);
-		return nullptr;
-	}
+    auto new_file = inode_to_file(dent->d_inode);
+    if (!new_file)
+    {
+        dentry_put(dent);
+        return nullptr;
+    }
 
-	inode_ref(dent->d_inode);
-	new_file->f_dentry = dent;
+    inode_ref(dent->d_inode);
+    new_file->f_dentry = dent;
 
-	return new_file;
+    return new_file;
 }
 
 struct file *open_vfs(struct file *dir, const char *path)
 {
-	return open_vfs_with_flags(dir, path, 0);
+    return open_vfs_with_flags(dir, path, 0);
 }
 
-
-void dentry_init(void) {}
+void dentry_init(void)
+{
+}
 
 enum class create_file_type
 {
-	creat,
-	mknod,
-	mkdir
+    creat,
+    mknod,
+    mkdir
 };
 
 struct create_file_info
 {
-	create_file_type type;
-	mode_t mode;
-	dev_t dev;
+    create_file_type type;
+    mode_t mode;
+    dev_t dev;
 };
 
 struct create_handling : public last_name_handling
 {
-	create_file_info in;
-	create_handling(create_file_info info) : in{info} {}
+    create_file_info in;
+    create_handling(create_file_info info) : in{info}
+    {
+    }
 
-	expected<dentry *, int> operator()(nameidata& data, std::string_view &name) override
-	{
-		//printk("Here.\n");
-		auto dentry = data.location;
-		auto inode = dentry->d_inode;
+    expected<dentry *, int> operator()(nameidata &data, std::string_view &name) override
+    {
+        // printk("Here.\n");
+        auto dentry = data.location;
+        auto inode = dentry->d_inode;
 
-		if(!inode_can_access(inode, FILE_ACCESS_WRITE))
-			return unexpected<int>{-EACCES};
+        if (!inode_can_access(inode, FILE_ACCESS_WRITE))
+            return unexpected<int>{-EACCES};
 
-		char _name[NAME_MAX + 1] = {};
-		memcpy(_name, name.data(), name.length());
+        char _name[NAME_MAX + 1] = {};
+        memcpy(_name, name.data(), name.length());
 
-		if(in.type != create_file_type::mkdir && data.lookup_flags & LOOKUP_FLAG_INTERNAL_TRAILING_SLASH)
-			return unexpected<int>{-ENOTDIR};
+        if (in.type != create_file_type::mkdir &&
+            data.lookup_flags & LOOKUP_FLAG_INTERNAL_TRAILING_SLASH)
+            return unexpected<int>{-ENOTDIR};
 
-		scoped_rwlock<rw_lock::write> g{dentry->d_lock};
+        scoped_rwlock<rw_lock::write> g{dentry->d_lock};
 
-		if(dentry_check_for_existence(name, dentry))
-			return unexpected<int>{-EEXIST};
-	
-		auto new_dentry = dentry_create(_name, nullptr, dentry);
-		if(!new_dentry)
-			return unexpected<int>{-ENOMEM};
-	
-		struct inode *new_inode = nullptr;
-	
-		if(in.type == create_file_type::creat)
-			new_inode = inode->i_fops->creat(_name, (int) in.mode, dentry);
-		else if(in.type == create_file_type::mkdir)
-			new_inode = inode->i_fops->mkdir(_name, in.mode, dentry);
-		else if(in.type == create_file_type::mknod)
-			new_inode = inode->i_fops->mknod(_name, in.mode, in.dev, dentry);
+        if (dentry_check_for_existence(name, dentry))
+            return unexpected<int>{-EEXIST};
 
-		if(!new_inode)
-		{
-			dentry_kill_unlocked(new_dentry);
-			return unexpected<int>{-errno};
-		}
+        auto new_dentry = dentry_create(_name, nullptr, dentry);
+        if (!new_dentry)
+            return unexpected<int>{-ENOMEM};
 
-		dentry_get(new_dentry);
+        struct inode *new_inode = nullptr;
 
-		if(in.type == create_file_type::mkdir)
-		{
-			new_inode->i_dentry = new_dentry;
-		}
+        if (in.type == create_file_type::creat)
+            new_inode = inode->i_fops->creat(_name, (int)in.mode, dentry);
+        else if (in.type == create_file_type::mkdir)
+            new_inode = inode->i_fops->mkdir(_name, in.mode, dentry);
+        else if (in.type == create_file_type::mknod)
+            new_inode = inode->i_fops->mknod(_name, in.mode, in.dev, dentry);
 
-		new_dentry->d_inode = new_inode;
+        if (!new_inode)
+        {
+            dentry_kill_unlocked(new_dentry);
+            return unexpected<int>{-errno};
+        }
+
+        dentry_get(new_dentry);
+
+        if (in.type == create_file_type::mkdir)
+        {
+            new_inode->i_dentry = new_dentry;
+        }
+
+        new_dentry->d_inode = new_inode;
 #if 0
 		printk("cinode refs: %lu\n", new_inode->i_refc);
 		printk("cdentry refs: %lu\n", new_dentry->d_ref);
 		printk("pdentry refs: %lu\n", dentry->d_ref);
 #endif
-		return new_dentry;
-	}
+        return new_dentry;
+    }
 };
 
 struct symlink_handling : public last_name_handling
 {
-	const char *dest;
-	symlink_handling(const char *d) : dest{d} {}
+    const char *dest;
+    symlink_handling(const char *d) : dest{d}
+    {
+    }
 
-	expected<dentry *, int> operator()(nameidata& data, std::string_view &name) override
-	{
-		auto dentry = data.location;
-		auto inode = dentry->d_inode;
+    expected<dentry *, int> operator()(nameidata &data, std::string_view &name) override
+    {
+        auto dentry = data.location;
+        auto inode = dentry->d_inode;
 
-		if(!inode_can_access(inode, FILE_ACCESS_WRITE))
-			return unexpected<int>{-EACCES};
+        if (!inode_can_access(inode, FILE_ACCESS_WRITE))
+            return unexpected<int>{-EACCES};
 
-		char _name[NAME_MAX + 1] = {};
-		memcpy(_name, name.data(), name.length());
+        char _name[NAME_MAX + 1] = {};
+        memcpy(_name, name.data(), name.length());
 
-		scoped_rwlock<rw_lock::write> g{dentry->d_lock};
+        scoped_rwlock<rw_lock::write> g{dentry->d_lock};
 
-		if(dentry_check_for_existence(name, dentry))
-			return unexpected<int>{-EEXIST};
-	
-		auto new_dentry = dentry_create(_name, nullptr, dentry);
-		if(!new_dentry)
-			return unexpected<int>{-ENOMEM};
+        if (dentry_check_for_existence(name, dentry))
+            return unexpected<int>{-EEXIST};
 
-		auto new_ino = inode->i_fops->symlink(_name, dest, dentry);
+        auto new_dentry = dentry_create(_name, nullptr, dentry);
+        if (!new_dentry)
+            return unexpected<int>{-ENOMEM};
 
-		if(!new_ino)
-		{
-			dentry_kill_unlocked(new_dentry);
-			return unexpected<int>{-errno};
-		}
+        auto new_ino = inode->i_fops->symlink(_name, dest, dentry);
 
-		new_dentry->d_inode = new_ino;		
-		return new_dentry;
-	}
+        if (!new_ino)
+        {
+            dentry_kill_unlocked(new_dentry);
+            return unexpected<int>{-errno};
+        }
+
+        new_dentry->d_inode = new_ino;
+        return new_dentry;
+    }
 };
 
-dentry *generic_last_name_helper(dentry *base, const char *path, last_name_handling& h)
+dentry *generic_last_name_helper(dentry *base, const char *path, last_name_handling &h)
 {
-	auto fs_root = get_filesystem_root();
+    auto fs_root = get_filesystem_root();
 
-	dentry_get(fs_root->file->f_dentry);
-	dentry_get(base);
+    dentry_get(fs_root->file->f_dentry);
+    dentry_get(base);
 
-	nameidata namedata{std::string_view{path, strlen(path)},
-					   fs_root->file->f_dentry, base, &h};
+    nameidata namedata{std::string_view{path, strlen(path)}, fs_root->file->f_dentry, base, &h};
 
-	return dentry_resolve(namedata);
+    return dentry_resolve(namedata);
 }
 
 /* Helper to open specific dentries */
 dentry *dentry_do_open(dentry *base, const char *path, unsigned int lookup_flags = 0)
 {
-	auto fs_root = get_filesystem_root();
+    auto fs_root = get_filesystem_root();
 
-	dentry_get(fs_root->file->f_dentry);
-	dentry_get(base);
+    dentry_get(fs_root->file->f_dentry);
+    dentry_get(base);
 
-	nameidata namedata{std::string_view{path, strlen(path)},
-					   fs_root->file->f_dentry, base};
-	namedata.lookup_flags = lookup_flags;
+    nameidata namedata{std::string_view{path, strlen(path)}, fs_root->file->f_dentry, base};
+    namedata.lookup_flags = lookup_flags;
 
-	return dentry_resolve(namedata);
+    return dentry_resolve(namedata);
 }
 
-file *file_creation_helper(dentry *base, const char *path, last_name_handling& h)
+file *file_creation_helper(dentry *base, const char *path, last_name_handling &h)
 {
-	//assert((void *) &h.operator() != nullptr);
-	auto dent = generic_last_name_helper(base, path, h);
-	if(!dent)
-		return nullptr;
+    // assert((void *) &h.operator() != nullptr);
+    auto dent = generic_last_name_helper(base, path, h);
+    if (!dent)
+        return nullptr;
 
-	auto new_file = inode_to_file(dent->d_inode);
-	if(!new_file)
-	{
-		dentry_put(dent);
-		return nullptr;
-	}
+    auto new_file = inode_to_file(dent->d_inode);
+    if (!new_file)
+    {
+        dentry_put(dent);
+        return nullptr;
+    }
 
-	inode_ref(dent->d_inode);
-	
-	new_file->f_dentry = dent;
+    inode_ref(dent->d_inode);
 
-	return new_file;
+    new_file->f_dentry = dent;
+
+    return new_file;
 }
-
 
 file *creat_vfs(dentry *base, const char *path, int mode)
 {
-	create_handling h{{create_file_type::creat, (mode_t) mode, 0}};
-	return file_creation_helper(base, path, h);
+    create_handling h{{create_file_type::creat, (mode_t)mode, 0}};
+    return file_creation_helper(base, path, h);
 }
 
 file *mknod_vfs(const char *path, mode_t mode, dev_t dev, struct dentry *dir)
 {
-	create_handling h{{create_file_type::mknod, mode, dev}};
-	return file_creation_helper(dir, path, h);
+    create_handling h{{create_file_type::mknod, mode, dev}};
+    return file_creation_helper(dir, path, h);
 }
 
 file *mkdir_vfs(const char *path, mode_t mode, struct dentry *dir)
 {
-	create_handling h{{create_file_type::mkdir, mode, 0}};
-	return file_creation_helper(dir, path, h);
+    create_handling h{{create_file_type::mkdir, mode, 0}};
+    return file_creation_helper(dir, path, h);
 }
 
 struct file *symlink_vfs(const char *path, const char *dest, struct dentry *dir)
 {
-	symlink_handling h{dest};
-	return file_creation_helper(dir, path, h);
+    symlink_handling h{dest};
+    return file_creation_helper(dir, path, h);
 }
 
 struct path_element
 {
-	dentry *d;
-	struct list_head node;
+    dentry *d;
+    struct list_head node;
 };
 
 char *dentry_to_file_name(struct dentry *dentry)
 {
-	/* Calculate the initial length as / + the null terminator */
-	size_t buf_len = 2;
-	char *buf = nullptr;
-	char *s = nullptr;
-	auto fs_root = get_filesystem_root()->file->f_dentry;
+    /* Calculate the initial length as / + the null terminator */
+    size_t buf_len = 2;
+    char *buf = nullptr;
+    char *s = nullptr;
+    auto fs_root = get_filesystem_root()->file->f_dentry;
 
-	dentry_get(fs_root);
+    dentry_get(fs_root);
 
-	auto d = dentry;
-	struct list_head element_list;
-	INIT_LIST_HEAD(&element_list);
+    auto d = dentry;
+    struct list_head element_list;
+    INIT_LIST_HEAD(&element_list);
 
-	/* Get another ref here to have prettier code */
-	dentry_get(d);
+    /* Get another ref here to have prettier code */
+    dentry_get(d);
 
-	/* TODO: Is this logic safe from race conditions? */
-	while(d != fs_root && d != nullptr)
-	{
-		path_element *p = new path_element;
-		if(!p)
-			goto error;
-		p->d = d;
-		/* Add 1 to the len because of the separator */
-		buf_len += d->d_name_length + 1;
-		list_add(&p->node, &element_list);
-		
-		d = dentry_parent(d);
-	}
+    /* TODO: Is this logic safe from race conditions? */
+    while (d != fs_root && d != nullptr)
+    {
+        path_element *p = new path_element;
+        if (!p)
+            goto error;
+        p->d = d;
+        /* Add 1 to the len because of the separator */
+        buf_len += d->d_name_length + 1;
+        list_add(&p->node, &element_list);
 
-	/* Remove one from the end to avoid trailing slashes */
-	buf_len--;
+        d = dentry_parent(d);
+    }
 
-	buf = (char *) malloc(buf_len);
-	if(!buf)
-		goto error;
-	buf[0] = '/';
-	s = &buf[1];
-	
-	list_for_every_safe(&element_list)
-	{
-		auto elem = container_of(l, struct path_element, node);
-		auto dent = elem->d;
-		memcpy(s, dent->d_name, dent->d_name_length);
-		s += dent->d_name_length;
-		*s++ = '/';
-		dentry_put(dent);
-		delete elem;
-	}
+    /* Remove one from the end to avoid trailing slashes */
+    buf_len--;
 
-	buf[buf_len - 1] = '\0';
+    buf = (char *)malloc(buf_len);
+    if (!buf)
+        goto error;
+    buf[0] = '/';
+    s = &buf[1];
 
-	return buf;
+    list_for_every_safe (&element_list)
+    {
+        auto elem = container_of(l, struct path_element, node);
+        auto dent = elem->d;
+        memcpy(s, dent->d_name, dent->d_name_length);
+        s += dent->d_name_length;
+        *s++ = '/';
+        dentry_put(dent);
+        delete elem;
+    }
+
+    buf[buf_len - 1] = '\0';
+
+    return buf;
 
 error:
-	list_for_every_safe(&element_list)
-	{
-		auto elem = container_of(l, struct path_element, node);
-		dentry_put(elem->d);
-		delete elem;
-	}
+    list_for_every_safe (&element_list)
+    {
+        auto elem = container_of(l, struct path_element, node);
+        dentry_put(elem->d);
+        delete elem;
+    }
 
-	return nullptr;
+    return nullptr;
 }
 
 struct link_handling : public last_name_handling
 {
-	file *dest;
-	link_handling(struct file *d) : dest{d} {}
+    file *dest;
+    link_handling(struct file *d) : dest{d}
+    {
+    }
 
-	expected<dentry *, int> operator()(nameidata& data, std::string_view &name) override
-	{
-		auto dentry = data.location;
-		auto inode = dentry->d_inode;
-		auto dest_ino = dest->f_ino;
+    expected<dentry *, int> operator()(nameidata &data, std::string_view &name) override
+    {
+        auto dentry = data.location;
+        auto inode = dentry->d_inode;
+        auto dest_ino = dest->f_ino;
 
-		if(!inode_can_access(inode, FILE_ACCESS_WRITE))
-			return unexpected<int>{-EACCES};
+        if (!inode_can_access(inode, FILE_ACCESS_WRITE))
+            return unexpected<int>{-EACCES};
 
-		if(inode->i_dev != dest_ino->i_dev)
-			return unexpected<int>{-EXDEV};
+        if (inode->i_dev != dest_ino->i_dev)
+            return unexpected<int>{-EXDEV};
 
-		char _name[NAME_MAX + 1] = {};
-		memcpy(_name, name.data(), name.length());
+        char _name[NAME_MAX + 1] = {};
+        memcpy(_name, name.data(), name.length());
 
-		scoped_rwlock<rw_lock::write> g{dentry->d_lock};
+        scoped_rwlock<rw_lock::write> g{dentry->d_lock};
 
-		if(dentry_check_for_existence(name, dentry))
-			return unexpected<int>{-EEXIST};
+        if (dentry_check_for_existence(name, dentry))
+            return unexpected<int>{-EEXIST};
 
-		auto new_dentry = dentry_create(_name, dest_ino, dentry);
-		if(!new_dentry)
-			return unexpected<int>{-ENOMEM};
+        auto new_dentry = dentry_create(_name, dest_ino, dentry);
+        if (!new_dentry)
+            return unexpected<int>{-ENOMEM};
 
-		auto st = inode->i_fops->link(dest, _name, dentry);
+        auto st = inode->i_fops->link(dest, _name, dentry);
 
-		if(st < 0)
-		{
-			dentry_kill_unlocked(new_dentry);
-			return unexpected<int>{st};
-		}
+        if (st < 0)
+        {
+            dentry_kill_unlocked(new_dentry);
+            return unexpected<int>{st};
+        }
 
-		inode_inc_nlink(dest_ino);
+        inode_inc_nlink(dest_ino);
 
-		return new_dentry;
-	}
+        return new_dentry;
+    }
 };
 
 int link_vfs(struct file *target, dentry *rel_base, const char *newpath)
 {
-	link_handling h{target};
-	auto_dentry f = generic_last_name_helper(rel_base, newpath, h);
-	if(!f)
-		return -errno;
+    link_handling h{target};
+    auto_dentry f = generic_last_name_helper(rel_base, newpath, h);
+    if (!f)
+        return -errno;
 
-	return 0;
+    return 0;
 }
 
 #define VALID_LINKAT_FLAGS (AT_SYMLINK_FOLLOW | AT_EMPTY_PATH)
 
-int do_sys_link(int olddirfd, const char *uoldpath, int newdirfd,
-		const char *unewpath, int flags)
+int do_sys_link(int olddirfd, const char *uoldpath, int newdirfd, const char *unewpath, int flags)
 {
-	if(flags & ~VALID_LINKAT_FLAGS)
-		return -EINVAL;
+    if (flags & ~VALID_LINKAT_FLAGS)
+        return -EINVAL;
 
-	unsigned int lookup_flags = OPEN_FLAG_NOFOLLOW;
+    unsigned int lookup_flags = OPEN_FLAG_NOFOLLOW;
 
-	if(flags & AT_EMPTY_PATH)
-		lookup_flags |= OPEN_FLAG_EMPTY_PATH;
+    if (flags & AT_EMPTY_PATH)
+        lookup_flags |= OPEN_FLAG_EMPTY_PATH;
 
-	user_string oldpath, newpath;
+    user_string oldpath, newpath;
 
-	if(auto res = oldpath.from_user(uoldpath); !res.has_value())
-		return res.error();
-	
-	if(auto res = newpath.from_user(unewpath); !res.has_value())
-		return res.error();
+    if (auto res = oldpath.from_user(uoldpath); !res.has_value())
+        return res.error();
 
-	auto_file olddir, newdir;
+    if (auto res = newpath.from_user(unewpath); !res.has_value())
+        return res.error();
 
-	if(auto st = olddir.from_dirfd(olddirfd); st != 0)
-		return st;
+    auto_file olddir, newdir;
 
-	if(auto st = newdir.from_dirfd(newdirfd); st != 0)
-		return st;
+    if (auto st = olddir.from_dirfd(olddirfd); st != 0)
+        return st;
 
-	if(flags & AT_SYMLINK_FOLLOW)
-		lookup_flags &= ~OPEN_FLAG_NOFOLLOW;
+    if (auto st = newdir.from_dirfd(newdirfd); st != 0)
+        return st;
 
-	auto_file src_file = open_vfs_with_flags(olddir.get_file(), oldpath.data(), lookup_flags);
+    if (flags & AT_SYMLINK_FOLLOW)
+        lookup_flags &= ~OPEN_FLAG_NOFOLLOW;
 
-	if(!src_file)
-		return -errno;
+    auto_file src_file = open_vfs_with_flags(olddir.get_file(), oldpath.data(), lookup_flags);
 
-	if(src_file.is_dir())
-		return -EPERM;
+    if (!src_file)
+        return -errno;
 
-	return link_vfs(src_file.get_file(), newdir.get_file()->f_dentry, newpath.data());
+    if (src_file.is_dir())
+        return -EPERM;
+
+    return link_vfs(src_file.get_file(), newdir.get_file()->f_dentry, newpath.data());
 }
 
 int sys_link(const char *oldpath, const char *newpath)
 {
-	return do_sys_link(AT_FDCWD, oldpath, AT_FDCWD, newpath, 0);
+    return do_sys_link(AT_FDCWD, oldpath, AT_FDCWD, newpath, 0);
 }
 
-int sys_linkat(int olddirfd, const char *oldpath,
-               int newdirfd, const char *newpath, int flags)
+int sys_linkat(int olddirfd, const char *oldpath, int newdirfd, const char *newpath, int flags)
 {
-	return do_sys_link(olddirfd, oldpath, newdirfd, newpath, flags);
+    return do_sys_link(olddirfd, oldpath, newdirfd, newpath, flags);
 }
 
 void dentry_do_unlink(dentry *entry)
 {
-	/* Perform the actual unlink, by write-locking, nulling d_parent */
-	rw_lock_write(&entry->d_lock);
+    /* Perform the actual unlink, by write-locking, nulling d_parent */
+    rw_lock_write(&entry->d_lock);
 
-	auto parent = entry->d_parent;
+    auto parent = entry->d_parent;
 
-	entry->d_parent = nullptr;
+    entry->d_parent = nullptr;
 
-	inode_dec_nlink(entry->d_inode);
-	//printk("unlink %s nlink: %lu nref %lu\n", entry->d_name, entry->d_inode->i_nlink, entry->d_ref);
+    inode_dec_nlink(entry->d_inode);
+    // printk("unlink %s nlink: %lu nref %lu\n", entry->d_name, entry->d_inode->i_nlink,
+    // entry->d_ref);
 
-	if(dentry_is_dir(entry))
-	{
-		inode_dec_nlink(parent->d_inode);
-		inode_dec_nlink(entry->d_inode);
-	}
+    if (dentry_is_dir(entry))
+    {
+        inode_dec_nlink(parent->d_inode);
+        inode_dec_nlink(entry->d_inode);
+    }
 
-	rw_unlock_write(&entry->d_lock);
+    rw_unlock_write(&entry->d_lock);
 
-	// We can do this because we're holding the parent dir's lock
-	list_remove(&entry->d_parent_dir_node);
+    // We can do this because we're holding the parent dir's lock
+    list_remove(&entry->d_parent_dir_node);
 
-	/* Lastly, release the references */
-	dentry_put(entry);
+    /* Lastly, release the references */
+    dentry_put(entry);
 }
 
 bool dentry_involved_with_mount(dentry *d)
 {
-	return d->d_flags & (DENTRY_FLAG_MOUNTPOINT | DENTRY_FLAG_MOUNT_ROOT);
+    return d->d_flags & (DENTRY_FLAG_MOUNTPOINT | DENTRY_FLAG_MOUNT_ROOT);
 }
 
 struct unlink_handling : public last_name_handling
 {
-	int flags;
-	unlink_handling(int _flags) : flags{_flags} {}
+    int flags;
+    unlink_handling(int _flags) : flags{_flags}
+    {
+    }
 
-	expected<dentry *, int> operator()(nameidata& data, std::string_view &name) override
-	{
-		/* Don't let the user unlink these two special entries */
-		if(!name.compare(".") || !name.compare(".."))
-			return unexpected<int>{-EINVAL};
+    expected<dentry *, int> operator()(nameidata &data, std::string_view &name) override
+    {
+        /* Don't let the user unlink these two special entries */
+        if (!name.compare(".") || !name.compare(".."))
+            return unexpected<int>{-EINVAL};
 
-		auto dentry = data.location;
-		auto inode = dentry->d_inode;
+        auto dentry = data.location;
+        auto inode = dentry->d_inode;
 
-		if(!inode_can_access(inode, FILE_ACCESS_WRITE))
-			return unexpected<int>{-EACCES};
+        if (!inode_can_access(inode, FILE_ACCESS_WRITE))
+            return unexpected<int>{-EACCES};
 
-		char _name[NAME_MAX + 1] = {};
-		memcpy(_name, name.data(), name.length());
+        char _name[NAME_MAX + 1] = {};
+        memcpy(_name, name.data(), name.length());
 
-		/* The idea behind this piece of code is: While we're holding the write lock,
-		 * no one can perform opens to this dentry we're trying to unlink. Because of that,
-		 * we do everything we can do avoid having to cache the dentry in, just to kill it
-		 * a few seconds later.
-		 */
-		scoped_rwlock<rw_lock::write> g{dentry->d_lock};
+        /* The idea behind this piece of code is: While we're holding the write lock,
+         * no one can perform opens to this dentry we're trying to unlink. Because of that,
+         * we do everything we can do avoid having to cache the dentry in, just to kill it
+         * a few seconds later.
+         */
+        scoped_rwlock<rw_lock::write> g{dentry->d_lock};
 
-		auto child = dentry_lookup_internal(name, dentry, DENTRY_LOOKUP_UNLOCKED);
-		if(!child)
-			return unexpected<int>{-errno};
+        auto child = dentry_lookup_internal(name, dentry, DENTRY_LOOKUP_UNLOCKED);
+        if (!child)
+            return unexpected<int>{-errno};
 
-		/* Can't do that... Note that dentry always exists if it's a mountpoint */
-		if(child && dentry_involved_with_mount(child))
-		{
-			dentry_put(child);
-			return unexpected<int>{-EBUSY};
-		}
+        /* Can't do that... Note that dentry always exists if it's a mountpoint */
+        if (child && dentry_involved_with_mount(child))
+        {
+            dentry_put(child);
+            return unexpected<int>{-EBUSY};
+        }
 
-		/* Do the actual fs unlink */
-		auto st = inode->i_fops->unlink(_name, flags, dentry);
+        /* Do the actual fs unlink */
+        auto st = inode->i_fops->unlink(_name, flags, dentry);
 
-		if(st < 0)
-		{
-			dentry_put(child);
-			return unexpected<int>{st};
-		}
+        if (st < 0)
+        {
+            dentry_put(child);
+            return unexpected<int>{st};
+        }
 
-		/* The fs unlink succeeded! Lets change the dcache now that we can't fail! */
-		if(child)
-		{
-			dentry_do_unlink(child);
-			
-			/* Release the reference that we got from dentry_lookup_internal */
-			dentry_put(child);
-		}
+        /* The fs unlink succeeded! Lets change the dcache now that we can't fail! */
+        if (child)
+        {
+            dentry_do_unlink(child);
 
-		/* Return the parent directory as a cookie so the calling code doesn't crash and die */
-		return dentry;
-	}
+            /* Release the reference that we got from dentry_lookup_internal */
+            dentry_put(child);
+        }
+
+        /* Return the parent directory as a cookie so the calling code doesn't crash and die */
+        return dentry;
+    }
 };
 
 int unlink_vfs(const char *path, int flags, struct file *node)
 {
-	unlink_handling h{flags};
-	auto dent = generic_last_name_helper(node->f_dentry, path, h);
-	if(!dent)
-		return -errno;
-	dentry_put(dent);
-	return 0;
+    unlink_handling h{flags};
+    auto dent = generic_last_name_helper(node->f_dentry, path, h);
+    if (!dent)
+        return -errno;
+    dentry_put(dent);
+    return 0;
 }
 
-#define VALID_UNLINKAT_FLAGS         AT_REMOVEDIR
+#define VALID_UNLINKAT_FLAGS AT_REMOVEDIR
 
 int do_sys_unlink(int dirfd, const char *upathname, int flags)
 {
-	auto_file dir;
-	user_string pathname;
-	
-	if(flags & ~VALID_UNLINKAT_FLAGS)
-		return -EINVAL;
+    auto_file dir;
+    user_string pathname;
 
-	if(auto st = dir.from_dirfd(dirfd); st != 0)
-		return st;
-	
-	if(auto res = pathname.from_user(upathname); !res.has_value())
-		return res.error();
-	return unlink_vfs(pathname.data(), flags, dir.get_file());
+    if (flags & ~VALID_UNLINKAT_FLAGS)
+        return -EINVAL;
+
+    if (auto st = dir.from_dirfd(dirfd); st != 0)
+        return st;
+
+    if (auto res = pathname.from_user(upathname); !res.has_value())
+        return res.error();
+    return unlink_vfs(pathname.data(), flags, dir.get_file());
 }
 
 int sys_unlink(const char *pathname)
 {
-	return do_sys_unlink(AT_FDCWD, pathname, 0);
+    return do_sys_unlink(AT_FDCWD, pathname, 0);
 }
 
 int sys_unlinkat(int dirfd, const char *pathname, int flags)
 {
-	return do_sys_unlink(dirfd, pathname, flags);
+    return do_sys_unlink(dirfd, pathname, flags);
 }
 
 int sys_rmdir(const char *pathname)
 {
-	/* Thankfully we can implement rmdir with unlinkat semantics 
-	 * Thanks POSIX for this really nice and thoughtful API! */
-	return do_sys_unlink(AT_FDCWD, pathname, AT_REMOVEDIR); 
+    /* Thankfully we can implement rmdir with unlinkat semantics
+     * Thanks POSIX for this really nice and thoughtful API! */
+    return do_sys_unlink(AT_FDCWD, pathname, AT_REMOVEDIR);
 }
 
 int sys_symlinkat(const char *utarget, int newdirfd, const char *ulinkpath)
 {
-	auto_file dir;
-	user_string target, linkpath;
+    auto_file dir;
+    user_string target, linkpath;
 
-	if(auto res = target.from_user(utarget); !res.has_value())
-		return res.error();
-	if(auto res = linkpath.from_user(ulinkpath); !res.has_value())
-		return res.error();
-	if(auto st = dir.from_dirfd(newdirfd); st < 0)
-		return st;
-	
-	auto f = symlink_vfs(linkpath.data(), target.data(), dir.get_file()->f_dentry);
-	if(!f)
-		return -errno;
+    if (auto res = target.from_user(utarget); !res.has_value())
+        return res.error();
+    if (auto res = linkpath.from_user(ulinkpath); !res.has_value())
+        return res.error();
+    if (auto st = dir.from_dirfd(newdirfd); st < 0)
+        return st;
 
-	fd_put(f);
-	return 0;
+    auto f = symlink_vfs(linkpath.data(), target.data(), dir.get_file()->f_dentry);
+    if (!f)
+        return -errno;
+
+    fd_put(f);
+    return 0;
 }
 
 int sys_symlink(const char *target, const char *linkpath)
 {
-	return sys_symlinkat(target, AT_FDCWD, linkpath);
+    return sys_symlinkat(target, AT_FDCWD, linkpath);
 }
 
 bool dentry_does_not_have_parent(dentry *dir, dentry *to_not_have)
 {
-	auto_dentry fs_root = get_filesystem_root()->file->f_dentry;
+    auto_dentry fs_root = get_filesystem_root()->file->f_dentry;
 
-	auto_dentry d = dir;
+    auto_dentry d = dir;
 
-	/* Get another ref here to have prettier code */
-	dentry_get(d.get_dentry());
+    /* Get another ref here to have prettier code */
+    dentry_get(d.get_dentry());
 
-	/* TODO: Is this logic safe from race conditions? */
-	while(d.get_dentry() != fs_root.get_dentry() && d.get_dentry() != nullptr)
-	{
-		if(d.get_dentry() == to_not_have)
-		{
-			return false;
-		}
-	
-		d =  __dentry_parent(d.get_dentry());
-	}
+    /* TODO: Is this logic safe from race conditions? */
+    while (d.get_dentry() != fs_root.get_dentry() && d.get_dentry() != nullptr)
+    {
+        if (d.get_dentry() == to_not_have)
+        {
+            return false;
+        }
 
-	return true;
+        d = __dentry_parent(d.get_dentry());
+    }
+
+    return true;
 }
 
 void dentry_move(dentry *target, dentry *new_parent)
 {
-	list_remove(&target->d_parent_dir_node);
+    list_remove(&target->d_parent_dir_node);
 
-	list_add_tail(&target->d_parent_dir_node, &new_parent->d_children_head);
+    list_add_tail(&target->d_parent_dir_node, &new_parent->d_children_head);
 
-	auto old = target->d_parent;
-	target->d_parent = new_parent;
-	
-	if(dentry_is_dir(target)) inode_dec_nlink(old->d_inode);
+    auto old = target->d_parent;
+    target->d_parent = new_parent;
 
-	dentry_get(old);
+    if (dentry_is_dir(target))
+        inode_dec_nlink(old->d_inode);
+
+    dentry_get(old);
 }
 
 void dentry_rename(dentry *dent, const char *name)
 {
-	size_t name_length = strlen(name);
+    size_t name_length = strlen(name);
 
-	if(name_length <= INLINE_NAME_MAX)
-	{
-		strlcpy(dent->d_name, name, INLINE_NAME_MAX);
+    if (name_length <= INLINE_NAME_MAX)
+    {
+        strlcpy(dent->d_name, name, INLINE_NAME_MAX);
 
-		/* It's in this exact order so we don't accidentally touch free'd memory or
-		 * an invalid d_name that resulted from a non-filled inline d_name.
-		 */
-		if(dent->d_name != dent->d_inline_name)
-		{
-			auto old = dent->d_name;
-			dent->d_name = dent->d_inline_name;
-			free(old);
-		}
-	}
-	else
-	{
-		char *dname = (char *) memdup(name, name_length);
-		/* TODO: Ugh, how do I handle this? */
-		assert(dname != nullptr);
+        /* It's in this exact order so we don't accidentally touch free'd memory or
+         * an invalid d_name that resulted from a non-filled inline d_name.
+         */
+        if (dent->d_name != dent->d_inline_name)
+        {
+            auto old = dent->d_name;
+            dent->d_name = dent->d_inline_name;
+            free(old);
+        }
+    }
+    else
+    {
+        char *dname = (char *)memdup(name, name_length);
+        /* TODO: Ugh, how do I handle this? */
+        assert(dname != nullptr);
 
-		auto old = dent->d_name;
+        auto old = dent->d_name;
 
-		dent->d_name = dname;
+        dent->d_name = dname;
 
-		if(old != dent->d_inline_name)
-		{
-			free(old);
-		}
-	}
+        if (old != dent->d_inline_name)
+        {
+            free(old);
+        }
+    }
 
-	dent->d_name_length = name_length;
-	dent->d_name_hash = fnv_hash(dent->d_name, dent->d_name_length);
+    dent->d_name_length = name_length;
+    dent->d_name_hash = fnv_hash(dent->d_name, dent->d_name_length);
 }
 
 struct rename_handling : public last_name_handling
 {
-	dentry *old;
-	rename_handling(dentry *_old) : old{_old} {}
+    dentry *old;
+    rename_handling(dentry *_old) : old{_old}
+    {
+    }
 
-	expected<dentry *, int> operator()(nameidata& data, std::string_view &name) override
-	{
-		//printk("Here\n");
-		/* Don't let the user rename these two special entries */
-		if(!name.compare(".") || !name.compare(".."))
-			return unexpected<int>{-EINVAL};
+    expected<dentry *, int> operator()(nameidata &data, std::string_view &name) override
+    {
+        // printk("Here\n");
+        /* Don't let the user rename these two special entries */
+        if (!name.compare(".") || !name.compare(".."))
+            return unexpected<int>{-EINVAL};
 
-		auto dir = data.location;
-		//printk("location %s\n", dir->d_name);
-		//printk("last name %.*s\n", (int) name.length(), name.data());
-		auto inode = dir->d_inode;
+        auto dir = data.location;
+        // printk("location %s\n", dir->d_name);
+        // printk("last name %.*s\n", (int) name.length(), name.data());
+        auto inode = dir->d_inode;
 
-		if(dir->d_inode->i_dev != old->d_inode->i_dev)
-			return unexpected<int>{-EXDEV};
+        if (dir->d_inode->i_dev != old->d_inode->i_dev)
+            return unexpected<int>{-EXDEV};
 
-		if(old->d_inode == dir->d_inode)
-			return unexpected<int>{-EINVAL};
+        if (old->d_inode == dir->d_inode)
+            return unexpected<int>{-EINVAL};
 
-		if(!inode_can_access(inode, FILE_ACCESS_WRITE))
-			return unexpected<int>{-EACCES};
+        if (!inode_can_access(inode, FILE_ACCESS_WRITE))
+            return unexpected<int>{-EACCES};
 
-		char _name[NAME_MAX + 1] = {};
-		memcpy(_name, name.data(), name.length());
+        char _name[NAME_MAX + 1] = {};
+        memcpy(_name, name.data(), name.length());
 
-		/* We've got multiple cases to handle here:
-		 * 1) name exists: We atomically replace them.
-		 * 2) oldpath and newpath are the same inode: We return success.
-		 * 3) Name doesn't exist: just link() the dentry.
-		 */
+        /* We've got multiple cases to handle here:
+         * 1) name exists: We atomically replace them.
+         * 2) oldpath and newpath are the same inode: We return success.
+         * 3) Name doesn't exist: just link() the dentry.
+         */
 
-		dentry *__dir1, *__dir2;
+        dentry *__dir1, *__dir2;
 
-		/* Establish a locking order to avoid deadlocks */
+        /* Establish a locking order to avoid deadlocks */
 
-		if((unsigned long) dir < (unsigned long) old)
-		{
-			__dir1 = dir;
-			__dir2 = old;
-		}
-		else
-		{
-			__dir1 = old;
-			__dir2 = dir;
-		}
+        if ((unsigned long)dir < (unsigned long)old)
+        {
+            __dir1 = dir;
+            __dir2 = old;
+        }
+        else
+        {
+            __dir1 = old;
+            __dir2 = dir;
+        }
 
-		//printk("dir1 %s dir2 %s\n", __dir1->d_name, __dir2->d_name);
+        // printk("dir1 %s dir2 %s\n", __dir1->d_name, __dir2->d_name);
 
-		scoped_rwlock<rw_lock::write> g{__dir1->d_lock};
-		scoped_rwlock<rw_lock::write> g2{__dir2->d_lock};
+        scoped_rwlock<rw_lock::write> g{__dir1->d_lock};
+        scoped_rwlock<rw_lock::write> g2{__dir2->d_lock};
 
-		//printk("lookup0\n");
-		dentry *dest = dentry_lookup_internal(name, dir, DENTRY_LOOKUP_UNLOCKED);
-		//printk("lookup1\n");
+        // printk("lookup0\n");
+        dentry *dest = dentry_lookup_internal(name, dir, DENTRY_LOOKUP_UNLOCKED);
+        // printk("lookup1\n");
 
-		/* Can't do that... Note that dentry always exists if it's a mountpoint */
-		if(dest && dentry_involved_with_mount(dest))
-		{
-			dentry_put(dest);
-			return unexpected<int>{-EBUSY};
-		}
+        /* Can't do that... Note that dentry always exists if it's a mountpoint */
+        if (dest && dentry_involved_with_mount(dest))
+        {
+            dentry_put(dest);
+            return unexpected<int>{-EBUSY};
+        }
 
-		if(dest)
-		{
-			/* Case 2: dest inode = source inode */
-			if(dest->d_inode == old->d_inode)
-			{
-				return dest;
-			}
+        if (dest)
+        {
+            /* Case 2: dest inode = source inode */
+            if (dest->d_inode == old->d_inode)
+            {
+                return dest;
+            }
 
-			/* Not sure if this is 100% correct */
-			if(dentry_is_dir(old) ^ dentry_is_dir(dest))
-			{
-				dentry_put(dest);
-				return unexpected<int>{-EISDIR};
-			}
-		}
+            /* Not sure if this is 100% correct */
+            if (dentry_is_dir(old) ^ dentry_is_dir(dest))
+            {
+                dentry_put(dest);
+                return unexpected<int>{-EISDIR};
+            }
+        }
 
-		/* It's invalid to try to make a directory be a subdirectory of itself */
-		if(!dentry_does_not_have_parent(dir, old))
-		{
-			if(dest) dentry_put(dest);
-			return unexpected<int>{-EINVAL};
-		}
+        /* It's invalid to try to make a directory be a subdirectory of itself */
+        if (!dentry_does_not_have_parent(dir, old))
+        {
+            if (dest)
+                dentry_put(dest);
+            return unexpected<int>{-EINVAL};
+        }
 
-		/* Do the actual fs unlink(if dest exists) + link + unlink */
-		/* The overall strategy here is to do everything that may fail first - so, for example,
-		 * everything that involves I/O or memory allocation. After that, we're left with the
-		 * bookkeeping, which can't fail.
-		 */
-		int st = 0;
+        /* Do the actual fs unlink(if dest exists) + link + unlink */
+        /* The overall strategy here is to do everything that may fail first - so, for example,
+         * everything that involves I/O or memory allocation. After that, we're left with the
+         * bookkeeping, which can't fail.
+         */
+        int st = 0;
 
-		//printk("Here3\n");
+        // printk("Here3\n");
 
-		if(dest)
-		{
-			/* Unlink the name on disk first */
-			/* Note that i_fops->unlink() checks if the directory is empty, if it is one. */
-			st = inode->i_fops->unlink(_name, AT_REMOVEDIR, dir);
-		}
+        if (dest)
+        {
+            /* Unlink the name on disk first */
+            /* Note that i_fops->unlink() checks if the directory is empty, if it is one. */
+            st = inode->i_fops->unlink(_name, AT_REMOVEDIR, dir);
+        }
 
-		//printk("(may have) unlinked\n");
+        // printk("(may have) unlinked\n");
 
-		if(st < 0)
-		{
-			if(dest) dentry_put(dest);
-			return unexpected<int>{st};
-		}
+        if (st < 0)
+        {
+            if (dest)
+                dentry_put(dest);
+            return unexpected<int>{st};
+        }
 
-		struct file f;
-		f.f_ino = old->d_inode;
-		f.f_dentry = old;
+        struct file f;
+        f.f_ino = old->d_inode;
+        f.f_dentry = old;
 
-		/* Now link the name on disk */
-		st = inode->i_fops->link(&f, _name, dir);
+        /* Now link the name on disk */
+        st = inode->i_fops->link(&f, _name, dir);
 
-		//printk("linked\n");
+        // printk("linked\n");
 
-		auto old_parent = __dentry_parent(old);
+        auto old_parent = __dentry_parent(old);
 
-		assert(old_parent != nullptr);
+        assert(old_parent != nullptr);
 
-		//printk("unlinking\n");
+        // printk("unlinking\n");
 
-		/* rename allows us to move a non-empty dir. Because of that we
-		 * pass a special flag (UNLINK_VFS_DONT_TEST_EMPTY) to the fs, that allows us to do that.
-		 */
-		st = old_parent->d_inode->i_fops->unlink(old->d_name,
-		             AT_REMOVEDIR | UNLINK_VFS_DONT_TEST_EMPTY, old_parent);
+        /* rename allows us to move a non-empty dir. Because of that we
+         * pass a special flag (UNLINK_VFS_DONT_TEST_EMPTY) to the fs, that allows us to do that.
+         */
+        st = old_parent->d_inode->i_fops->unlink(
+            old->d_name, AT_REMOVEDIR | UNLINK_VFS_DONT_TEST_EMPTY, old_parent);
 
-		//printk("done\n");
-		
-		/* TODO: What should we do if we fail in the middle? */
-		if(st < 0)
-		{
-			if(dest) dentry_put(dest);
-			return unexpected<int>{st};
-		}
+        // printk("done\n");
 
-		/* The fs unlink succeeded! Lets change the dcache now that we can't fail! */
-		if(dest) dentry_do_unlink(dest);
+        /* TODO: What should we do if we fail in the middle? */
+        if (st < 0)
+        {
+            if (dest)
+                dentry_put(dest);
+            return unexpected<int>{st};
+        }
 
-		//printk("doing move\n");
-		/* No need to move if we're already under the same parent. */
-		if(old_parent != dir)
-			dentry_move(old, dir);
-		
-		//printk("done\n");
+        /* The fs unlink succeeded! Lets change the dcache now that we can't fail! */
+        if (dest)
+            dentry_do_unlink(dest);
 
-		dentry_rename(old, _name);
+        // printk("doing move\n");
+        /* No need to move if we're already under the same parent. */
+        if (old_parent != dir)
+            dentry_move(old, dir);
 
-		/* Return the parent directory as a cookie so the calling code doesn't crash and die */
-		return dir;
-	}
+        // printk("done\n");
+
+        dentry_rename(old, _name);
+
+        /* Return the parent directory as a cookie so the calling code doesn't crash and die */
+        return dir;
+    }
 };
 
-int sys_renameat(int olddirfd, const char *uoldpath,
-                    int newdirfd, const char *unewpath)
+int sys_renameat(int olddirfd, const char *uoldpath, int newdirfd, const char *unewpath)
 {
-	auto_file olddir, newdir;
-	user_string oldpath, newpath;
+    auto_file olddir, newdir;
+    user_string oldpath, newpath;
 
-	if(auto res = oldpath.from_user(uoldpath); res.has_error())
-		return res.error();
-	if(auto res = newpath.from_user(unewpath); res.has_error())
-		return res.error();
-	
-	if(int st = olddir.from_dirfd(olddirfd); st < 0)
-		return st;
+    if (auto res = oldpath.from_user(uoldpath); res.has_error())
+        return res.error();
+    if (auto res = newpath.from_user(unewpath); res.has_error())
+        return res.error();
 
-	if(int st = newdir.from_dirfd(newdirfd); st < 0)
-		return st;
+    if (int st = olddir.from_dirfd(olddirfd); st < 0)
+        return st;
 
-	/* rename operates on the old and new symlinks and not their destination */
-	auto_dentry old = dentry_do_open(olddir.get_file()->f_dentry, oldpath.data(), OPEN_FLAG_NOFOLLOW);
-	if(!old)
-		return -errno;
-	
-	/* Although this doesn't need to be an error, we're considering it as one in the meanwhile */
-	if(dentry_involved_with_mount(old.get_dentry()))
-		return -EBUSY;
-	
-	if(!inode_can_access(old.get_dentry()->d_inode, FILE_ACCESS_WRITE))
-			return -EACCES;
+    if (int st = newdir.from_dirfd(newdirfd); st < 0)
+        return st;
 
-	rename_handling h{old.get_dentry()};
+    /* rename operates on the old and new symlinks and not their destination */
+    auto_dentry old =
+        dentry_do_open(olddir.get_file()->f_dentry, oldpath.data(), OPEN_FLAG_NOFOLLOW);
+    if (!old)
+        return -errno;
 
-	auto_dentry dent = generic_last_name_helper(newdir.get_file()->f_dentry, newpath.data(), h);
-	if(!dent)
-		return -errno;
-	return 0;
+    /* Although this doesn't need to be an error, we're considering it as one in the meanwhile */
+    if (dentry_involved_with_mount(old.get_dentry()))
+        return -EBUSY;
+
+    if (!inode_can_access(old.get_dentry()->d_inode, FILE_ACCESS_WRITE))
+        return -EACCES;
+
+    rename_handling h{old.get_dentry()};
+
+    auto_dentry dent = generic_last_name_helper(newdir.get_file()->f_dentry, newpath.data(), h);
+    if (!dent)
+        return -errno;
+    return 0;
 }
 
 int sys_rename(const char *oldpath, const char *newpath)
 {
-	return sys_renameat(AT_FDCWD, oldpath, AT_FDCWD, newpath);
+    return sys_renameat(AT_FDCWD, oldpath, AT_FDCWD, newpath);
 }

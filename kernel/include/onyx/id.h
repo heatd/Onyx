@@ -1,8 +1,8 @@
 /*
-* Copyright (c) 2017 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2017 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ */
 #ifndef _KERNEL_ID_H
 #define _KERNEL_ID_H
 #include <stdint.h>
@@ -11,9 +11,9 @@
 
 struct ids
 {
-	char *name;
-	atomic<uintmax_t> id, upper_limit;
-	struct ids *next;
+    char *name;
+    atomic<uintmax_t> id, upper_limit;
+    struct ids *next;
 };
 
 struct ids *idm_add(const char *name, uintmax_t min_id, uintmax_t upper_limit);

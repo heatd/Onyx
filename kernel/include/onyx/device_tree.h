@@ -15,11 +15,11 @@ namespace device_tree
 
 /**
  * @brief Initialise the device tree subsystem of the kernel
- * 
+ *
  * @param fdt Pointer to the flattened device tree
  */
 void init(void *fdt);
 
-}
+} // namespace device_tree
 
 #endif

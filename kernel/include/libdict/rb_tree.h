@@ -28,84 +28,85 @@
 #ifndef LIBDICT_RB_TREE_H__
 #define LIBDICT_RB_TREE_H__
 
-#include "dict.h"
-
 #include <libdict/tree_common.h>
+
+#include "dict.h"
 
 BEGIN_DECL
 
 typedef struct rb_node rb_node;
-struct rb_node {
-    void*	    key;
-    void*	    datum;
-    intptr_t	    color;
-    rb_node*	    llink;
-    rb_node*	    rlink;
+struct rb_node
+{
+    void* key;
+    void* datum;
+    intptr_t color;
+    rb_node* llink;
+    rb_node* rlink;
 };
 
-#define RB_RED		    0
-#define RB_BLACK	    1
+#define RB_RED   0
+#define RB_BLACK 1
 
-#define PARENT(node)	    ((rb_node*)((node)->color & ~RB_BLACK))
-#define COLOR(node)	    ((node)->color & RB_BLACK)
+#define PARENT(node) ((rb_node*)((node)->color & ~RB_BLACK))
+#define COLOR(node)  ((node)->color & RB_BLACK)
 
-#define SET_RED(node)	    (node)->color &= (~(intptr_t)RB_BLACK)
-#define SET_BLACK(node)	    (node)->color |= ((intptr_t)RB_BLACK)
-#define SET_PARENT(node,p)  (node)->color = COLOR(node) | (intptr_t)(p)
+#define SET_RED(node)       (node)->color &= (~(intptr_t)RB_BLACK)
+#define SET_BLACK(node)     (node)->color |= ((intptr_t)RB_BLACK)
+#define SET_PARENT(node, p) (node)->color = COLOR(node) | (intptr_t)(p)
 
-typedef struct rb_tree {
+typedef struct rb_tree
+{
     TREE_FIELDS(rb_node);
 } rb_tree;
 
-struct rb_itor {
+struct rb_itor
+{
     TREE_ITERATOR_FIELDS(rb_tree, rb_node);
 };
 
-rb_tree*	rb_tree_new(dict_compare_func cmp_func);
-dict*		rb_dict_new(dict_compare_func cmp_func);
-size_t		rb_tree_free(rb_tree* tree, dict_delete_func delete_func);
+rb_tree* rb_tree_new(dict_compare_func cmp_func);
+dict* rb_dict_new(dict_compare_func cmp_func);
+size_t rb_tree_free(rb_tree* tree, dict_delete_func delete_func);
 
-dict_insert_result
-		rb_tree_insert(rb_tree* tree, void* key);
-void**		rb_tree_search(rb_tree* tree, const void* key);
-void**		rb_tree_search_le(rb_tree* tree, const void* key);
-void**		rb_tree_search_lt(rb_tree* tree, const void* key);
-void**		rb_tree_search_ge(rb_tree* tree, const void* key);
-void**		rb_tree_search_gt(rb_tree* tree, const void* key);
-dict_remove_result
-		rb_tree_remove(rb_tree* tree, const void* key);
-size_t		rb_tree_clear(rb_tree* tree, dict_delete_func delete_func);
-size_t		rb_tree_traverse(rb_tree* tree, dict_visit_func visit, void* user_data);
-bool		rb_tree_select(rb_tree* tree, size_t n, const void** key, void** datum);
-size_t		rb_tree_count(const rb_tree* tree);
-size_t		rb_tree_min_path_length(const rb_tree* tree);
-size_t		rb_tree_max_path_length(const rb_tree* tree);
-size_t		rb_tree_total_path_length(const rb_tree* tree);
-bool		rb_tree_verify(const rb_tree* tree);
+dict_insert_result rb_tree_insert(rb_tree* tree, void* key);
+void** rb_tree_search(rb_tree* tree, const void* key);
+void** rb_tree_search_le(rb_tree* tree, const void* key);
+void** rb_tree_search_lt(rb_tree* tree, const void* key);
+void** rb_tree_search_ge(rb_tree* tree, const void* key);
+void** rb_tree_search_gt(rb_tree* tree, const void* key);
+dict_remove_result rb_tree_remove(rb_tree* tree, const void* key);
+size_t rb_tree_clear(rb_tree* tree, dict_delete_func delete_func);
+size_t rb_tree_traverse(rb_tree* tree, dict_visit_func visit, void* user_data);
+bool rb_tree_select(rb_tree* tree, size_t n, const void** key, void** datum);
+size_t rb_tree_count(const rb_tree* tree);
+size_t rb_tree_min_path_length(const rb_tree* tree);
+size_t rb_tree_max_path_length(const rb_tree* tree);
+size_t rb_tree_total_path_length(const rb_tree* tree);
+bool rb_tree_verify(const rb_tree* tree);
 
 typedef struct rb_itor rb_itor;
 
-rb_itor*	rb_itor_new(rb_tree* tree);
-dict_itor*	rb_dict_itor_new(rb_tree* tree);
-void		rb_itor_free(rb_itor* tree);
+rb_itor* rb_itor_new(rb_tree* tree);
+dict_itor* rb_dict_itor_new(rb_tree* tree);
+void rb_itor_free(rb_itor* tree);
 
-bool		rb_itor_valid(const rb_itor* itor);
-void		rb_itor_invalidate(rb_itor* itor);
-bool		rb_itor_next(rb_itor* itor);
-bool		rb_itor_prev(rb_itor* itor);
-bool		rb_itor_nextn(rb_itor* itor, size_t count);
-bool		rb_itor_prevn(rb_itor* itor, size_t count);
-bool		rb_itor_first(rb_itor* itor);
-bool		rb_itor_last(rb_itor* itor);
-bool		rb_itor_search(rb_itor* itor, const void* key);
-bool		rb_itor_search_le(rb_itor* itor, const void* key);
-bool		rb_itor_search_lt(rb_itor* itor, const void* key);
-bool		rb_itor_search_ge(rb_itor* itor, const void* key);
-bool		rb_itor_search_gt(rb_itor* itor, const void* key);
-const void*	rb_itor_key(const rb_itor* itor);
-void**		rb_itor_datum(rb_itor* itor);
-int             rb_itor_compare(const rb_itor* i1, const rb_itor* i2);
-bool		rb_itor_remove(rb_itor* itor);
+bool rb_itor_valid(const rb_itor* itor);
+void rb_itor_invalidate(rb_itor* itor);
+bool rb_itor_next(rb_itor* itor);
+bool rb_itor_prev(rb_itor* itor);
+bool rb_itor_nextn(rb_itor* itor, size_t count);
+bool rb_itor_prevn(rb_itor* itor, size_t count);
+bool rb_itor_first(rb_itor* itor);
+bool rb_itor_last(rb_itor* itor);
+bool rb_itor_search(rb_itor* itor, const void* key);
+bool rb_itor_search_le(rb_itor* itor, const void* key);
+bool rb_itor_search_lt(rb_itor* itor, const void* key);
+bool rb_itor_search_ge(rb_itor* itor, const void* key);
+bool rb_itor_search_gt(rb_itor* itor, const void* key);
+const void* rb_itor_key(const rb_itor* itor);
+void** rb_itor_datum(rb_itor* itor);
+int rb_itor_compare(const rb_itor* i1, const rb_itor* i2);
+bool rb_itor_remove(rb_itor* itor);
 
 END_DECL
 

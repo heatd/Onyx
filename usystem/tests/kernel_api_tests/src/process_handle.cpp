@@ -1,16 +1,16 @@
 /*
-* Copyright (c) 2020 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2020 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ */
 
-#include <string>
 #include <unistd.h>
 
-#include <gtest/gtest.h>
+#include <string>
 
-#include <libonyx/process.h>
+#include <gtest/gtest.h>
 #include <libonyx/handle.h>
+#include <libonyx/process.h>
 
 TEST(ProcHandle, CanOpenHandle)
 {
@@ -29,7 +29,8 @@ TEST(ProcHandle, CanGetName)
 
     char name_buf[NAME_MAX + 1];
 
-    ASSERT_NE(onx_handle_query(handle, name_buf, NAME_MAX + 1, PROCESS_GET_NAME, nullptr, nullptr), -1);
+    ASSERT_NE(onx_handle_query(handle, name_buf, NAME_MAX + 1, PROCESS_GET_NAME, nullptr, nullptr),
+              -1);
 
     std::string name{name_buf};
 

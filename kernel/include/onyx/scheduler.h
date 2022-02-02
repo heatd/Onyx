@@ -1,98 +1,102 @@
 /*
-* Copyright (c) 2016, 2017 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2016, 2017 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ */
 #ifndef _KERNEL_SCHEDULER_H
 #define _KERNEL_SCHEDULER_H
 
-#include <stdint.h>
-#include <stdbool.h>
 #include <assert.h>
+#include <stdbool.h>
+#include <stdint.h>
 
-#include <onyx/spinlock.h>
-#include <onyx/signal.h>
-#include <onyx/list.h>
-#include <onyx/percpu.h>
 #include <onyx/clock.h>
 #include <onyx/cputime.h>
+#include <onyx/list.h>
+#include <onyx/percpu.h>
+#include <onyx/signal.h>
+#include <onyx/spinlock.h>
 
 #define NUM_PRIO 40
 
-#define SCHED_PRIO_VERY_LOW	0
-#define SCHED_PRIO_LOW		10
-#define SCHED_PRIO_NORMAL	20
-#define SCHED_PRIO_HIGH		30
-#define SCHED_PRIO_VERY_HIGH	39
+#define SCHED_PRIO_VERY_LOW  0
+#define SCHED_PRIO_LOW       10
+#define SCHED_PRIO_NORMAL    20
+#define SCHED_PRIO_HIGH      30
+#define SCHED_PRIO_VERY_HIGH 39
 
-typedef void (*thread_callback_t)(void*);
+typedef void (*thread_callback_t)(void *);
 struct process;
 
-#define THREAD_STRUCT_CANARY   0xcacacacafdfddead
-#define THREAD_DEAD_CANARY     0xdeadbeefbeefdead
+#define THREAD_STRUCT_CANARY 0xcacacacafdfddead
+#define THREAD_DEAD_CANARY   0xdeadbeefbeefdead
 
 typedef struct thread
 {
-	unsigned long refcount;
-	unsigned long canary;
-	/* Put arch-independent stuff right here */
-	uintptr_t *kernel_stack;
-	uintptr_t *kernel_stack_top;
-	struct process *owner;
-	thread_callback_t entry;
-	uint32_t flags;
-	int id;
-	int status;
-	int priority;
-	unsigned int cpu;
-	struct thread *next;
-	struct thread *prev_prio, *next_prio;
-	struct thread *prev_wait, *next_wait;
-	unsigned char *fpu_area;
-	struct thread *sem_prev;
-	struct thread *sem_next;
-	struct spinlock lock;
-	int errno_val;
-	struct signal_info sinfo;
-	struct list_head thread_list_head;
-	unsigned long addr_limit;
-	struct list_head wait_list_head;
-	/* Clear child tid address - It's set by sys_set_tid_address or by sys_clone itself 
-	 * and it's used to futex_wake any threads blocked by join.
-	 */
-	void *ctid;
+    unsigned long refcount;
+    unsigned long canary;
+    /* Put arch-independent stuff right here */
+    uintptr_t *kernel_stack;
+    uintptr_t *kernel_stack_top;
+    struct process *owner;
+    thread_callback_t entry;
+    uint32_t flags;
+    int id;
+    int status;
+    int priority;
+    unsigned int cpu;
+    struct thread *next;
+    struct thread *prev_prio, *next_prio;
+    struct thread *prev_wait, *next_wait;
+    unsigned char *fpu_area;
+    struct thread *sem_prev;
+    struct thread *sem_next;
+    struct spinlock lock;
+    int errno_val;
+    struct signal_info sinfo;
+    struct list_head thread_list_head;
+    unsigned long addr_limit;
+    struct list_head wait_list_head;
+    /* Clear child tid address - It's set by sys_set_tid_address or by sys_clone itself
+     * and it's used to futex_wake any threads blocked by join.
+     */
+    void *ctid;
 
-	struct thread_cputime_info cputime_info;
-	/* And arch dependent stuff in this ifdef */
+    struct thread_cputime_info cputime_info;
+    /* And arch dependent stuff in this ifdef */
 #ifdef __x86_64__
-	void *fs;
-	void *gs;
+    void *fs;
+    void *gs;
 #endif
 
 #ifdef __cplusplus
-	thread() : refcount{}, canary{}, kernel_stack{}, kernel_stack_top{}, owner{}, entry{}, flags{}, id{},
-	           status{}, priority{}, cpu{}, next{}, prev_prio{}, next_prio{}, prev_wait{}, next_wait{},
-			   fpu_area{}, sem_prev{}, sem_next{}, lock{}, errno_val{}, sinfo{}, thread_list_head{},
-			   addr_limit{}, wait_list_head{}, ctid{}, cputime_info{}
+    thread()
+        : refcount{}, canary{}, kernel_stack{}, kernel_stack_top{}, owner{}, entry{}, flags{}, id{},
+          status{}, priority{}, cpu{}, next{}, prev_prio{}, next_prio{}, prev_wait{}, next_wait{},
+          fpu_area{}, sem_prev{}, sem_next{}, lock{}, errno_val{}, sinfo{}, thread_list_head{},
+          addr_limit{}, wait_list_head{}, ctid{}, cputime_info
+    {
+    }
 #ifdef __x86_64__
-	, fs{}, gs{}
+    , fs{}, gs
+    {
+    }
 #endif
-	{
-
-	}
+    {
+    }
 #endif
 
 } thread_t;
 
-#define THREAD_KERNEL			(1 << 0)
-#define THREAD_NEEDS_RESCHED	(1 << 1)
-#define THREAD_IS_DYING			(1 << 2)
-#define THREAD_SHOULD_DIE		(1 << 3)
-#define THREAD_ACTIVE			(1 << 4)
+#define THREAD_KERNEL        (1 << 0)
+#define THREAD_NEEDS_RESCHED (1 << 1)
+#define THREAD_IS_DYING      (1 << 2)
+#define THREAD_SHOULD_DIE    (1 << 3)
+#define THREAD_ACTIVE        (1 << 4)
 
 int sched_init(void);
 
-thread_t *sched_create_thread(thread_callback_t callback, uint32_t flags, void* args);
+thread_t *sched_create_thread(thread_callback_t callback, uint32_t flags, void *args);
 
 void sched_remove_thread(thread_t *thread);
 
@@ -101,7 +105,7 @@ extern struct thread *current_thread;
 
 static inline struct thread *get_current_thread(void)
 {
-	return get_per_cpu(current_thread);
+    return get_per_cpu(current_thread);
 }
 
 hrtime_t sched_sleep(unsigned long ns);
@@ -161,67 +165,66 @@ void thread_remove_from_list(struct thread *t);
 
 struct thread *thread_get_from_tid(int tid);
 
-extern "C"
-unsigned long thread_get_addr_limit(void);
+extern "C" unsigned long thread_get_addr_limit(void);
 
 void *sched_preempt_thread(void *current_stack);
 
 int sched_transition_to_user_thread(struct thread *thread);
 
-#define SCHED_NO_CPU_PREFERENCE		(unsigned int) -1
+#define SCHED_NO_CPU_PREFERENCE (unsigned int)-1
 
 static inline bool sched_needs_resched(struct thread *thread)
 {
-	return thread->flags & THREAD_NEEDS_RESCHED;
+    return thread->flags & THREAD_NEEDS_RESCHED;
 }
 
 static inline void sched_should_resched(void)
 {
-	struct thread *t = get_current_thread();
-	if(t) t->flags |= THREAD_NEEDS_RESCHED;
+    struct thread *t = get_current_thread();
+    if (t)
+        t->flags |= THREAD_NEEDS_RESCHED;
 }
 
-#define set_current_state(state) 			\
-do							\
-{							\
-	struct thread *__t = get_current_thread();	\
-	assert(__t != NULL);				\
-	__atomic_store_n(&__t->status, state, __ATOMIC_RELEASE);	\
-} while(0);
+#define set_current_state(state)                                 \
+    do                                                           \
+    {                                                            \
+        struct thread *__t = get_current_thread();               \
+        assert(__t != NULL);                                     \
+        __atomic_store_n(&__t->status, state, __ATOMIC_RELEASE); \
+    } while (0);
 
 static inline void thread_get(struct thread *thread)
 {
-	__atomic_add_fetch(&thread->refcount, 1, __ATOMIC_ACQUIRE);
+    __atomic_add_fetch(&thread->refcount, 1, __ATOMIC_ACQUIRE);
 }
 
 static inline void thread_put(struct thread *thread)
 {
-	if(__atomic_sub_fetch(&thread->refcount, 1, __ATOMIC_ACQUIRE) == 0)
-		thread_destroy(thread);
+    if (__atomic_sub_fetch(&thread->refcount, 1, __ATOMIC_ACQUIRE) == 0)
+        thread_destroy(thread);
 }
 
 static inline void thread_set_flag(struct thread *thread, unsigned int flag)
 {
-	__atomic_or_fetch(&thread->flags, flag, __ATOMIC_RELAXED);
+    __atomic_or_fetch(&thread->flags, flag, __ATOMIC_RELAXED);
 }
 
 void sched_transition_to_idle(void);
 
 static inline void sched_sleep_ms(unsigned long ms)
 {
-	sched_sleep(ms * NS_PER_MS);
+    sched_sleep(ms * NS_PER_MS);
 }
 
 void sched_enable_pulse(void);
-
 
 #ifdef __cplusplus
 
 namespace native
 {
-	void arch_context_switch(thread *prev, thread *next);
-	int arch_transform_into_user_thread(thread *thread);
-};
+void arch_context_switch(thread *prev, thread *next);
+int arch_transform_into_user_thread(thread *thread);
+}; // namespace native
 
 #endif
 

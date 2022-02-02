@@ -7,9 +7,10 @@
  */
 
 #include <onyx/acpi.h>
-#include <onyx/hwregister.hpp>
 #include <onyx/init.h>
 #include <onyx/log.h>
+
+#include <onyx/hwregister.hpp>
 #include <onyx/memory.hpp>
 
 #define HPET_EVENT_BLOCK_LENGTH 1024
@@ -25,11 +26,11 @@
 
 #define HPET_ETB_GENERAL_CFG 0x0010
 // Allows timer interrupts if enabled, and allows the main counter to run
-#define HPET_GCFG_ENABLE_CNF           (1 << 0)
+#define HPET_GCFG_ENABLE_CNF (1 << 0)
 // Supports LegacyReplacement route
 // In LegacyReplacement route, Timer 0 is routed to IRQ2 and Timer 1 is routed to IRQ8
 // (in the IO APIC)
-#define HPET_GCFG_LEG_RT_CNF           (1 << 1)
+#define HPET_GCFG_LEG_RT_CNF (1 << 1)
 
 #define HPET_ETB_GENERAL_INT_STS       0x0020
 // When the timer is set to level triggered, this bit is set by hardware if the timer
@@ -150,7 +151,6 @@ bool hpet_timer::init()
     INFO("hpet", "Vendor id %x\n", HPET_ETB_CAP_VENDOR_ID(id_register));
     nr_timers = HPET_ETB_CAP_NUM_TIM_CAP(id_register);
 
-    
     return true;
 }
 

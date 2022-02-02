@@ -13,16 +13,16 @@
 
 typedef struct
 {
-	uint8_t status;
-	uint8_t head;
-	uint8_t sect;
-	uint8_t cylinder;
-	uint8_t part_type;
-	uint8_t end_head;
-	uint8_t end_sector;
-	uint8_t end_cylinder;
-	uint32_t sector;
-	uint32_t size_sector;
+    uint8_t status;
+    uint8_t head;
+    uint8_t sect;
+    uint8_t cylinder;
+    uint8_t part_type;
+    uint8_t end_head;
+    uint8_t end_sector;
+    uint8_t end_cylinder;
+    uint32_t sector;
+    uint32_t size_sector;
 } __attribute__((packed)) mbrpart_t;
 
 #endif

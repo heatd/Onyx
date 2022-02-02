@@ -34,51 +34,49 @@ BEGIN_DECL
 
 typedef struct wb_tree wb_tree;
 
-wb_tree*	wb_tree_new(dict_compare_func cmp_func);
-dict*		wb_dict_new(dict_compare_func cmp_func);
-size_t		wb_tree_free(wb_tree* tree, dict_delete_func delete_func);
+wb_tree* wb_tree_new(dict_compare_func cmp_func);
+dict* wb_dict_new(dict_compare_func cmp_func);
+size_t wb_tree_free(wb_tree* tree, dict_delete_func delete_func);
 
-dict_insert_result
-		wb_tree_insert(wb_tree* tree, void* key);
-void**		wb_tree_search(wb_tree* tree, const void* key);
-void**		wb_tree_search_le(wb_tree* tree, const void* key);
-void**		wb_tree_search_lt(wb_tree* tree, const void* key);
-void**		wb_tree_search_ge(wb_tree* tree, const void* key);
-void**		wb_tree_search_gt(wb_tree* tree, const void* key);
-dict_remove_result
-		wb_tree_remove(wb_tree* tree, const void* key);
-size_t		wb_tree_clear(wb_tree* tree, dict_delete_func delete_func);
-size_t		wb_tree_traverse(wb_tree* tree, dict_visit_func visit, void* user_data);
-bool		wb_tree_select(wb_tree* tree, size_t n, const void** key, void** datum);
-size_t		wb_tree_count(const wb_tree* tree);
-size_t		wb_tree_min_path_length(const wb_tree* tree);
-size_t		wb_tree_max_path_length(const wb_tree* tree);
-size_t		wb_tree_total_path_length(const wb_tree* tree);
-bool		wb_tree_verify(const wb_tree* tree);
+dict_insert_result wb_tree_insert(wb_tree* tree, void* key);
+void** wb_tree_search(wb_tree* tree, const void* key);
+void** wb_tree_search_le(wb_tree* tree, const void* key);
+void** wb_tree_search_lt(wb_tree* tree, const void* key);
+void** wb_tree_search_ge(wb_tree* tree, const void* key);
+void** wb_tree_search_gt(wb_tree* tree, const void* key);
+dict_remove_result wb_tree_remove(wb_tree* tree, const void* key);
+size_t wb_tree_clear(wb_tree* tree, dict_delete_func delete_func);
+size_t wb_tree_traverse(wb_tree* tree, dict_visit_func visit, void* user_data);
+bool wb_tree_select(wb_tree* tree, size_t n, const void** key, void** datum);
+size_t wb_tree_count(const wb_tree* tree);
+size_t wb_tree_min_path_length(const wb_tree* tree);
+size_t wb_tree_max_path_length(const wb_tree* tree);
+size_t wb_tree_total_path_length(const wb_tree* tree);
+bool wb_tree_verify(const wb_tree* tree);
 
 typedef struct wb_itor wb_itor;
 
-wb_itor*	wb_itor_new(wb_tree* tree);
-dict_itor*	wb_dict_itor_new(wb_tree* tree);
-void		wb_itor_free(wb_itor* tree);
+wb_itor* wb_itor_new(wb_tree* tree);
+dict_itor* wb_dict_itor_new(wb_tree* tree);
+void wb_itor_free(wb_itor* tree);
 
-bool		wb_itor_valid(const wb_itor* itor);
-void		wb_itor_invalidate(wb_itor* itor);
-bool		wb_itor_next(wb_itor* itor);
-bool		wb_itor_prev(wb_itor* itor);
-bool		wb_itor_nextn(wb_itor* itor, size_t count);
-bool		wb_itor_prevn(wb_itor* itor, size_t count);
-bool		wb_itor_first(wb_itor* itor);
-bool		wb_itor_last(wb_itor* itor);
-bool		wb_itor_search(wb_itor* itor, const void* key);
-bool		wb_itor_search_le(wb_itor* itor, const void* key);
-bool		wb_itor_search_lt(wb_itor* itor, const void* key);
-bool		wb_itor_search_ge(wb_itor* itor, const void* key);
-bool		wb_itor_search_gt(wb_itor* itor, const void* key);
-const void*	wb_itor_key(const wb_itor* itor);
-void**		wb_itor_datum(wb_itor* itor);
-int		wb_itor_compare(const wb_itor* i1, const wb_itor* i2);
-bool		wb_itor_remove(wb_itor* itor);
+bool wb_itor_valid(const wb_itor* itor);
+void wb_itor_invalidate(wb_itor* itor);
+bool wb_itor_next(wb_itor* itor);
+bool wb_itor_prev(wb_itor* itor);
+bool wb_itor_nextn(wb_itor* itor, size_t count);
+bool wb_itor_prevn(wb_itor* itor, size_t count);
+bool wb_itor_first(wb_itor* itor);
+bool wb_itor_last(wb_itor* itor);
+bool wb_itor_search(wb_itor* itor, const void* key);
+bool wb_itor_search_le(wb_itor* itor, const void* key);
+bool wb_itor_search_lt(wb_itor* itor, const void* key);
+bool wb_itor_search_ge(wb_itor* itor, const void* key);
+bool wb_itor_search_gt(wb_itor* itor, const void* key);
+const void* wb_itor_key(const wb_itor* itor);
+void** wb_itor_datum(wb_itor* itor);
+int wb_itor_compare(const wb_itor* i1, const wb_itor* i2);
+bool wb_itor_remove(wb_itor* itor);
 
 END_DECL
 

@@ -1,20 +1,20 @@
 /*
-* Copyright (c) 2020 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2020 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ */
 
 #ifndef _VIRTIO_UTILS_HPP_
 #define _VIRTIO_UTILS_HPP_
 
-#include <onyx/wait_queue.h>
 #include <onyx/list.h>
-#include <onyx/memory.hpp>
-#include <onyx/tuple.hpp>
-#include <onyx/pair.hpp>
 #include <onyx/scoped_lock.h>
+#include <onyx/wait_queue.h>
 
 #include "virtio.hpp"
+#include <onyx/memory.hpp>
+#include <onyx/pair.hpp>
+#include <onyx/tuple.hpp>
 
 namespace virtio
 {
@@ -26,38 +26,42 @@ template <typename SentType, typename ReceivedType>
 class virtio_control_msg_queue
 {
 private:
-	struct list_head control_msgs;
-	int vq_nr;
-	spinlock list_lock;
-	vdev *dev;
+    struct list_head control_msgs;
+    int vq_nr;
+    spinlock list_lock;
+    vdev *dev;
+
 public:
-	virtio_control_msg_queue(vdev *dev, int vq_nr) : control_msgs{}, vq_nr{vq_nr}, list_lock{}, dev{dev}
-	{
-		INIT_LIST_HEAD(&control_msgs);
-	}
+    virtio_control_msg_queue(vdev *dev, int vq_nr)
+        : control_msgs{}, vq_nr{vq_nr}, list_lock{}, dev{dev}
+    {
+        INIT_LIST_HEAD(&control_msgs);
+    }
 
-	~virtio_control_msg_queue(){}
+    ~virtio_control_msg_queue()
+    {
+    }
 
-	void append_msg(virtio_control_msg<SentType, ReceivedType> *msg)
-	{
-		scoped_lock<spinlock, true> g{list_lock};
+    void append_msg(virtio_control_msg<SentType, ReceivedType> *msg)
+    {
+        scoped_lock<spinlock, true> g{list_lock};
 
-		list_add_tail(&msg->list_node, &control_msgs);
-	}
+        list_add_tail(&msg->list_node, &control_msgs);
+    }
 
-	void remove_msg(virtio_control_msg<SentType, ReceivedType> *msg)
-	{
-		scoped_lock<spinlock, true> g{list_lock};
+    void remove_msg(virtio_control_msg<SentType, ReceivedType> *msg)
+    {
+        scoped_lock<spinlock, true> g{list_lock};
 
-		list_remove(&msg->list_node);
-	}
+        list_remove(&msg->list_node);
+    }
 
-	const unique_ptr<virtq>& get_vq()
-	{
-		return dev->get_vq(vq_nr);
-	}
+    const unique_ptr<virtq> &get_vq()
+    {
+        return dev->get_vq(vq_nr);
+    }
 
-	void handle_used_buf(const virtq_used_elem& elem);
+    void handle_used_buf(const virtq_used_elem &elem);
 };
 
 #if 0
@@ -140,6 +144,6 @@ void virtio_control_msg_queue<SentType, ReceivedType>::handle_used_buf(const vir
 
 #endif
 
-}
+} // namespace virtio
 
 #endif

@@ -11,10 +11,10 @@
 
 struct arch_mm_address_space
 {
-	void *top_pt;
+    void *top_pt;
 };
 
-#define vm_get_pgd(arch_mmu)      (arch_mmu)->top_pt
+#define vm_get_pgd(arch_mmu)          (arch_mmu)->top_pt
 #define vm_set_pgd(arch_mmu, new_pgd) (arch_mmu)->top_pt = new_pgd
 
 void __native_tlb_invalidate_all(void);

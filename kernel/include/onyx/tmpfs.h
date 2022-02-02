@@ -8,20 +8,19 @@
 #ifndef _ONYX_TMPFS_H
 #define _ONYX_TMPFS_H
 
-#include <onyx/mutex.h>
-#include <onyx/vfs.h>
-#include <onyx/superblock.h>
-#include <onyx/list.h>
-
 #include <sys/types.h>
 
+#include <onyx/list.h>
+#include <onyx/mutex.h>
+#include <onyx/superblock.h>
+#include <onyx/vfs.h>
 
 #include <onyx/atomic.hpp>
 
 struct tmpfs_inode : public inode
 {
-	/* Used to store the symlink, if it is one */
-	const char *link;
+    /* Used to store the symlink, if it is one */
+    const char *link;
 };
 
 extern file_ops tmpfs_fops;
@@ -29,37 +28,40 @@ extern file_ops tmpfs_fops;
 class tmpfs_superblock : public superblock
 {
 private:
-	atomic<ino_t> curr_inode;
+    atomic<ino_t> curr_inode;
+
 public:
-	static atomic<dev_t> curr_minor_number;
+    static atomic<dev_t> curr_minor_number;
 
-	dev_t fs_minor;
+    dev_t fs_minor;
 
-	list_head_cpp<tmpfs_superblock> fs_list_node;
+    list_head_cpp<tmpfs_superblock> fs_list_node;
 
-	file_ops *tmpfs_ops_;
+    file_ops *tmpfs_ops_;
 
-	tmpfs_superblock() : superblock{}, curr_inode{}, fs_minor{++curr_minor_number}, fs_list_node{this}, tmpfs_ops_{&tmpfs_fops}
-	{
-		s_block_size = PAGE_SIZE;
-	}
+    tmpfs_superblock()
+        : superblock{}, curr_inode{}, fs_minor{++curr_minor_number}, fs_list_node{this},
+          tmpfs_ops_{&tmpfs_fops}
+    {
+        s_block_size = PAGE_SIZE;
+    }
 
-	tmpfs_inode *create_inode(mode_t mode, dev_t rdev = 0);
+    tmpfs_inode *create_inode(mode_t mode, dev_t rdev = 0);
 
-	/**
-	 * @brief Set the file_ops for all the inodes of this filesystem
-	 * 
-	 * @param ops Pointer to file_ops
-	 */
-	void override_file_ops(file_ops *ops)
-	{
-		tmpfs_ops_ = ops;
-	}
+    /**
+     * @brief Set the file_ops for all the inodes of this filesystem
+     *
+     * @param ops Pointer to file_ops
+     */
+    void override_file_ops(file_ops *ops)
+    {
+        tmpfs_ops_ = ops;
+    }
 };
 
 /**
  * @brief Tmpfs mount kernel helper function
- * 
+ *
  * @param mountpoint Path where to mount the new tmpfs instance
  * @return 0 on success, else negative error codes
  */

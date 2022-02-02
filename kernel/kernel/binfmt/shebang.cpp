@@ -15,38 +15,38 @@
 
 static char *find_space_or_tab(const char *str, size_t len)
 {
-	while(len--)
-	{
-		if(*str == ' ' || *str == '\t')
-			return (char *) str;
-		str++;
-	}
+    while (len--)
+    {
+        if (*str == ' ' || *str == '\t')
+            return (char *)str;
+        str++;
+    }
 
-	return NULL;
+    return NULL;
 }
 
 static char *find_space_or_tab_or_zero(const char *str, size_t len)
 {
-	while(len--)
-	{
-		if(*str == ' ' || *str == '\t' || *str == '\0')
-			return (char *) str;
-		str++;
-	}
+    while (len--)
+    {
+        if (*str == ' ' || *str == '\t' || *str == '\0')
+            return (char *)str;
+        str++;
+    }
 
-	return NULL;
+    return NULL;
 }
 
 static char *find_not_space_nor_tab(const char *str, size_t len)
 {
-	while(len--)
-	{
-		if(*str != ' ' && *str != '\t')
-			return (char *) str;
-		str++;
-	}
+    while (len--)
+    {
+        if (*str != ' ' && *str != '\t')
+            return (char *)str;
+        str++;
+    }
 
-	return NULL;
+    return NULL;
 }
 
 #if 0
@@ -67,139 +67,140 @@ void dump_argv(char **argv)
 
 void *shebang_load(struct binfmt_args *args)
 {
-	char *buf = (char *) args->file_signature;
-	char *end = buf + BINFMT_SIGNATURE_LENGTH;
+    char *buf = (char *)args->file_signature;
+    char *end = buf + BINFMT_SIGNATURE_LENGTH;
 
-	char *p = strnchr(buf, BINFMT_SIGNATURE_LENGTH, '\n');
-	if(!p)
-	{
-		/* If we don't have a newline in the buffer, check for a space or tab.
-		 * If we can find it, the interpreter path isn't truncated, so we can continue.
-		 */
-		p = find_not_space_nor_tab(buf + 2, BINFMT_SIGNATURE_LENGTH - 2);
-		
-		/* The entire buffer is spaces/tabs, so it's a bad executable */
-		if(!p)
-			return errno = ENOEXEC, nullptr;
-		
-		/* Interpreter path truncated. */
-		if(!find_space_or_tab_or_zero(p, end - p))
-			return errno = ENOEXEC, nullptr;
-		p = end - 1;
-	}
+    char *p = strnchr(buf, BINFMT_SIGNATURE_LENGTH, '\n');
+    if (!p)
+    {
+        /* If we don't have a newline in the buffer, check for a space or tab.
+         * If we can find it, the interpreter path isn't truncated, so we can continue.
+         */
+        p = find_not_space_nor_tab(buf + 2, BINFMT_SIGNATURE_LENGTH - 2);
 
-	/* Now we need to null terminate the buffer and overwrite spaces/tabs at the end with zeroes */
-	*p = '\0';
-	p--;
+        /* The entire buffer is spaces/tabs, so it's a bad executable */
+        if (!p)
+            return errno = ENOEXEC, nullptr;
 
-	while(p > buf)
-	{
-		if(*p == ' ' || *p == '\t')
-			*p = '\0';
-		else
-			break;
-		p--;
-	}
+        /* Interpreter path truncated. */
+        if (!find_space_or_tab_or_zero(p, end - p))
+            return errno = ENOEXEC, nullptr;
+        p = end - 1;
+    }
 
-	/* Point to buf + 2(the length of #!) and go past the initial spaces/tabs */
-	char *interp = buf + 2;
+    /* Now we need to null terminate the buffer and overwrite spaces/tabs at the end with zeroes */
+    *p = '\0';
+    p--;
 
-	while(*interp == ' ' || *interp == '\t')
-		interp++;
+    while (p > buf)
+    {
+        if (*p == ' ' || *p == '\t')
+            *p = '\0';
+        else
+            break;
+        p--;
+    }
 
-	/* There's no path :( */
-	if(*interp == '\0')
-		return errno = ENOEXEC, nullptr;
+    /* Point to buf + 2(the length of #!) and go past the initial spaces/tabs */
+    char *interp = buf + 2;
 
-	char *arg = find_space_or_tab_or_zero(interp, end - interp);
-	if(*arg != '\0')
-	{
-		while(*arg == ' ' || *arg == '\t')
-			*arg++ = '\0';
-	}
-	else
-		arg = nullptr;
+    while (*interp == ' ' || *interp == '\t')
+        interp++;
 
-	interp = strdup(interp);
-	if(!interp)
-		return errno = ENOMEM, nullptr;
+    /* There's no path :( */
+    if (*interp == '\0')
+        return errno = ENOEXEC, nullptr;
 
-	char **old_kargs = args->argv;
+    char *arg = find_space_or_tab_or_zero(interp, end - interp);
+    if (*arg != '\0')
+    {
+        while (*arg == ' ' || *arg == '\t')
+            *arg++ = '\0';
+    }
+    else
+        arg = nullptr;
 
-	bool argc_is_zero = *args->argc == 0;
+    interp = strdup(interp);
+    if (!interp)
+        return errno = ENOMEM, nullptr;
 
-	/* Calculate the new argc */
-	int argc = *args->argc + (arg != nullptr ? 2 : 1);
+    char **old_kargs = args->argv;
 
-	if(argc_is_zero) argc++;
+    bool argc_is_zero = *args->argc == 0;
 
-	char **new_argv = (char **) calloc(sizeof(void *), argc + 1);
-	if(!new_argv)
-	{
-		free(interp);
-		return errno = ENOMEM, nullptr;
-	}
+    /* Calculate the new argc */
+    int argc = *args->argc + (arg != nullptr ? 2 : 1);
 
-	int curr = 0;
-	new_argv[curr++] = interp;
-	if(arg)  new_argv[curr++] = arg;
-	
-	/* We take the time to insert an argv[0] with the script's name forcefully. */
-	if(argc_is_zero) new_argv[curr++] = args->filename;
+    if (argc_is_zero)
+        argc++;
 
-	for(int i = 0; i < *args->argc + 1; i++)
-	{
-		char *a = old_kargs[i];
-		if(i == 0)
-			a = args->filename;
+    char **new_argv = (char **)calloc(sizeof(void *), argc + 1);
+    if (!new_argv)
+    {
+        free(interp);
+        return errno = ENOMEM, nullptr;
+    }
 
-		new_argv[curr++] = a;
-	}
+    int curr = 0;
+    new_argv[curr++] = interp;
+    if (arg)
+        new_argv[curr++] = arg;
 
-	unsigned long limit = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
+    /* We take the time to insert an argv[0] with the script's name forcefully. */
+    if (argc_is_zero)
+        new_argv[curr++] = args->filename;
 
-	char **new_args = process_copy_envarg((const char **) new_argv, true, &argc);
+    for (int i = 0; i < *args->argc + 1; i++)
+    {
+        char *a = old_kargs[i];
+        if (i == 0)
+            a = args->filename;
 
-	thread_change_addr_limit(limit);
-	
-	free(new_argv);
+        new_argv[curr++] = a;
+    }
 
-	if(!new_args)
-	{
-		free(interp);
-		return errno = ENOMEM, nullptr;
-	}
+    unsigned long limit = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
 
-	args->argv = new_args;
-	*args->argc = argc;
+    char **new_args = process_copy_envarg((const char **)new_argv, true, &argc);
 
-	free(old_kargs);
+    thread_change_addr_limit(limit);
 
-	args->interp_path = interp;
-	args->needs_interp = false;
+    free(new_argv);
 
-	void *entry = bin_do_interp(args);
+    if (!new_args)
+    {
+        free(interp);
+        return errno = ENOMEM, nullptr;
+    }
 
-	free(interp);
-	args->interp_path = NULL;
+    args->argv = new_args;
+    *args->argc = argc;
 
-	return entry;
+    free(old_kargs);
+
+    args->interp_path = interp;
+    args->needs_interp = false;
+
+    void *entry = bin_do_interp(args);
+
+    free(interp);
+    args->interp_path = NULL;
+
+    return entry;
 }
 
 bool shebang_is_valid(uint8_t *signature)
 {
-	return memcmp(signature, "#!", 2) == 0;
+    return memcmp(signature, "#!", 2) == 0;
 }
 
-struct binfmt shebang_binfmt = {
-	.signature = (unsigned char *) "#!",
-	.size_signature = 2,
-	.is_valid_exec = shebang_is_valid,
-	.callback = shebang_load,
-	.next = NULL
-};
+struct binfmt shebang_binfmt = {.signature = (unsigned char *)"#!",
+                                .size_signature = 2,
+                                .is_valid_exec = shebang_is_valid,
+                                .callback = shebang_load,
+                                .next = NULL};
 
 __init static void __shebang_init()
 {
-	install_binfmt(&shebang_binfmt);
+    install_binfmt(&shebang_binfmt);
 }

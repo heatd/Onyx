@@ -1,8 +1,8 @@
 /*
-* Copyright (c) 2020 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2020 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ */
 #ifndef _ONYX_EXEC_H
 #define _ONYX_EXEC_H
 
@@ -10,8 +10,10 @@
 
 struct exec_state
 {
-	struct mm_address_space new_address_space{};
-	bool flushed{false};
+    struct mm_address_space new_address_space
+    {
+    };
+    bool flushed{false};
 };
 
 int exec_state_create(struct exec_state *state);

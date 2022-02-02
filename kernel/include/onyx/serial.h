@@ -11,43 +11,44 @@
 
 #include <stdint.h>
 
-#include <onyx/wait_queue.h>
 #include <onyx/tty.h>
+#include <onyx/wait_queue.h>
 
 class serial_port
 {
 private:
-	unsigned int nr;
+    unsigned int nr;
 
-	/**
-	 * @brief Allocates an index to the serial port,
-	 *        so it can be used by i.e ttyS(N)
-	 * 
-	 * @return New index
-	 */
-	unsigned int allocate_serial_index();
+    /**
+     * @brief Allocates an index to the serial port,
+     *        so it can be used by i.e ttyS(N)
+     *
+     * @return New index
+     */
+    unsigned int allocate_serial_index();
+
 protected:
-	tty *tty_;
-	/**
-	 * @brief Sets the baud rate
-	 * 
-	 * @param rate Baud rate 
-	 */
-	virtual void set_baud_rate(uint16_t rate) = 0;
+    tty *tty_;
+    /**
+     * @brief Sets the baud rate
+     *
+     * @param rate Baud rate
+     */
+    virtual void set_baud_rate(uint16_t rate) = 0;
 
 public:
-	serial_port() : tty_{}
-	{
-		nr = allocate_serial_index();
-	}
+    serial_port() : tty_{}
+    {
+        nr = allocate_serial_index();
+    }
 
-	/**
-	 * @brief Initialises the serial port
-	 * and creates the tty.
-	 * 
-	 * @return True on success, else false.
-	 */
-	bool init();
+    /**
+     * @brief Initialises the serial port
+     * and creates the tty.
+     *
+     * @return True on success, else false.
+     */
+    bool init();
 };
 
 void platform_serial_init(void);

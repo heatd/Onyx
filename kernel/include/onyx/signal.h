@@ -1,11 +1,10 @@
 /*
-* Copyright (c) 2016-2020 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2016-2020 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ */
 #ifndef _ONYX_SIGNAL_H
 #define _ONYX_SIGNAL_H
-
 
 #include <signal.h>
 #include <stdbool.h>
@@ -16,226 +15,229 @@
 #include <onyx/scoped_lock.h>
 #endif
 
-#define KERNEL_SIGRTMIN				32
-#define KERNEL_SIGRTMAX				64
+#define KERNEL_SIGRTMIN 32
+#define KERNEL_SIGRTMAX 64
 
 void signotset(sigset_t *set);
 
 struct sigpending
 {
-	siginfo_t *info;
-	int signum;
-	struct list_head list_node;
+    siginfo_t *info;
+    int signum;
+    struct list_head list_node;
 
 #ifdef __cplusplus
-	constexpr sigpending() : info{nullptr}, signum{}, list_node{} {}
+    constexpr sigpending() : info{nullptr}, signum{}, list_node{}
+    {
+    }
 
-	~sigpending()
-	{
-		delete info;
-	}
+    ~sigpending()
+    {
+        delete info;
+    }
 #endif
-
 };
 
 static inline bool signal_is_realtime(int sig)
 {
-	return sig >= KERNEL_SIGRTMIN;
+    return sig >= KERNEL_SIGRTMIN;
 }
 
 static inline bool signal_is_standard(int sig)
 {
-	return !signal_is_realtime(sig);
+    return !signal_is_realtime(sig);
 }
 
-#define THREAD_SIGNAL_STOPPING    (1 << 0)
-#define THREAD_SIGNAL_EXITING     (1 << 1)
+#define THREAD_SIGNAL_STOPPING (1 << 0)
+#define THREAD_SIGNAL_EXITING  (1 << 1)
 
 struct process;
 
 struct signal_info
 {
-	/* Signal mask */
-	sigset_t sigmask;
+    /* Signal mask */
+    sigset_t sigmask;
 
-	struct spinlock lock;
-	
-	/* Pending signal set */
-	sigset_t pending_set;
+    struct spinlock lock;
 
-	struct list_head pending_head;
+    /* Pending signal set */
+    sigset_t pending_set;
 
-	unsigned short flags;
+    struct list_head pending_head;
 
-	unsigned long times_interrupted;
-	bool signal_pending;
+    unsigned short flags;
 
-	/* No need for a lock here since any possible changes
-	 * to this variable happen in kernel mode, in this exact thread.
-	 */
-	stack_t altstack;
+    unsigned long times_interrupted;
+    bool signal_pending;
+
+    /* No need for a lock here since any possible changes
+     * to this variable happen in kernel mode, in this exact thread.
+     */
+    stack_t altstack;
 
 #ifdef __cplusplus
 
 private:
-	bool is_signal_pending_internal() const
-	{
-		const sigset_t& set = pending_set;
-		const sigset_t& blocked_set = sigmask;
+    bool is_signal_pending_internal() const
+    {
+        const sigset_t &set = pending_set;
+        const sigset_t &blocked_set = sigmask;
 
-		bool is_pending = false;
+        bool is_pending = false;
 
-		for(int i = 0; i < NSIG; i++)
-		{
-			if(sigismember(&set, i) && !sigismember(&blocked_set, i))
-			{
-				is_pending = true;
-				break;
-			}
-		}
+        for (int i = 0; i < NSIG; i++)
+        {
+            if (sigismember(&set, i) && !sigismember(&blocked_set, i))
+            {
+                is_pending = true;
+                break;
+            }
+        }
 
-		return is_pending;
-	}
+        return is_pending;
+    }
 
 public:
+    sigset_t get_mask()
+    {
+        scoped_lock g{lock};
+        return sigmask;
+    }
 
-	sigset_t get_mask()
-	{
-		scoped_lock g{lock};
-		return sigmask;
-	}
+    sigset_t get_pending_set()
+    {
+        scoped_lock g{lock};
+        return pending_set;
+    }
 
-	sigset_t get_pending_set()
-	{
-		scoped_lock g{lock};
-		return pending_set;
-	}
+    sigset_t get_effective_pending()
+    {
+        scoped_lock g{lock};
+        auto set = get_pending_set();
+        auto blocked_set = get_mask();
+        sigandset(&set, &set, &blocked_set);
 
-	sigset_t get_effective_pending()
-	{
-		scoped_lock g{lock};
-		auto set = get_pending_set();
-		auto blocked_set = get_mask();
-		sigandset(&set, &set, &blocked_set);
+        return set;
+    }
 
-		return set;
-	}
+    sigset_t __add_blocked(const sigset_t *blocked, bool update_pending = true)
+    {
+        auto old = sigmask;
+        sigorset(&sigmask, &sigmask, blocked);
+        sigdelset(&sigmask, SIGKILL);
+        sigdelset(&sigmask, SIGSTOP);
 
-	sigset_t __add_blocked(const sigset_t *blocked, bool update_pending = true)
-	{
-		auto old = sigmask;
-		sigorset(&sigmask, &sigmask, blocked);
-		sigdelset(&sigmask, SIGKILL);
-		sigdelset(&sigmask, SIGSTOP);
+        if (update_pending)
+            __update_pending();
+        return old;
+    }
 
-		if(update_pending) __update_pending();
-		return old;
-	}
+    sigset_t add_blocked(const sigset_t *blocked, bool update_pending = true)
+    {
+        scoped_lock g{lock};
+        return __add_blocked(blocked, update_pending);
+    }
 
-	sigset_t add_blocked(const sigset_t *blocked, bool update_pending = true)
-	{
-		scoped_lock g{lock};
-		return __add_blocked(blocked, update_pending);
-	}
+    sigset_t set_blocked(const sigset_t *blocked, bool update_pending = true)
+    {
+        scoped_lock g{lock};
+        auto old = sigmask;
+        memcpy(&sigmask, blocked, sizeof(sigset_t));
+        sigdelset(&sigmask, SIGKILL);
+        sigdelset(&sigmask, SIGSTOP);
 
-	sigset_t set_blocked(const sigset_t *blocked, bool update_pending = true)
-	{
-		scoped_lock g{lock};
-		auto old = sigmask;
-		memcpy(&sigmask, blocked, sizeof(sigset_t));
-		sigdelset(&sigmask, SIGKILL);
-		sigdelset(&sigmask, SIGSTOP);
+        if (update_pending)
+            __update_pending();
+        return old;
+    }
 
-		if(update_pending) __update_pending();
-		return old;
-	}
+    sigset_t unblock(sigset_t &mask, bool update_pending = true)
+    {
+        scoped_lock g{lock};
+        auto old = sigmask;
+        signotset(&mask);
+        sigandset(&sigmask, &sigmask, &mask);
 
-	sigset_t unblock(sigset_t& mask, bool update_pending = true)
-	{
-		scoped_lock g{lock};
-		auto old = sigmask;
-		signotset(&mask);
-		sigandset(&sigmask, &sigmask, &mask);
+        if (update_pending)
+            __update_pending();
+        return old;
+    }
 
-		if(update_pending) __update_pending();
-		return old;
-	}
+    void __update_pending()
+    {
+        MUST_HOLD_LOCK(&lock);
 
-	void __update_pending()
-	{
-		MUST_HOLD_LOCK(&lock);
+        signal_pending = flags != 0 || is_signal_pending_internal();
+    }
 
-		signal_pending = flags != 0 || is_signal_pending_internal();
-	}
+    void update_pending()
+    {
+        scoped_lock g{lock};
+        __update_pending();
+    }
 
-	void update_pending()
-	{
-		scoped_lock g{lock};
-		__update_pending();
-	}
+    void reroute_signals(process *p);
 
-	void reroute_signals(process *p);
+    bool add_pending(struct sigpending *pend)
+    {
+        scoped_lock g{lock};
 
-	bool add_pending(struct sigpending *pend)
-	{
-		scoped_lock g{lock};
-		
-		if(signal_is_standard(pend->signum) && sigismember(&pending_set, pend->signum))
-			return false;
+        if (signal_is_standard(pend->signum) && sigismember(&pending_set, pend->signum))
+            return false;
 
-		list_add(&pend->list_node, &pending_head);
+        list_add(&pend->list_node, &pending_head);
 
-		sigaddset(&pending_set, pend->signum);
+        sigaddset(&pending_set, pend->signum);
 
-		if(!sigismember(&sigmask, pend->signum))
-			signal_pending = true;
-		
-		return true;
-	}
+        if (!sigismember(&sigmask, pend->signum))
+            signal_pending = true;
 
-	bool try_to_route(struct sigpending *pend)
-	{
-		scoped_lock g{lock};
+        return true;
+    }
 
-		if(sigismember(&sigmask, pend->signum))
-			return false;
-		
-		if(signal_is_standard(pend->signum) && sigismember(&pending_set, pend->signum))
-			return false;
+    bool try_to_route(struct sigpending *pend)
+    {
+        scoped_lock g{lock};
 
-		list_add(&pend->list_node, &pending_head);
-		sigaddset(&pending_set, pend->signum);
-		signal_pending = true;
+        if (sigismember(&sigmask, pend->signum))
+            return false;
 
-		return true;
-	} 
+        if (signal_is_standard(pend->signum) && sigismember(&pending_set, pend->signum))
+            return false;
 
-	constexpr signal_info() : sigmask{}, lock{}, pending_set{}, pending_head{}, flags{},
-	                times_interrupted{}, signal_pending{}, altstack{}
-	{
-		INIT_LIST_HEAD(&pending_head);
-		altstack.ss_flags = SS_DISABLE;
-	}
+        list_add(&pend->list_node, &pending_head);
+        sigaddset(&pending_set, pend->signum);
+        signal_pending = true;
 
-	~signal_info();
+        return true;
+    }
+
+    constexpr signal_info()
+        : sigmask{}, lock{}, pending_set{}, pending_head{}, flags{}, times_interrupted{},
+          signal_pending{}, altstack{}
+    {
+        INIT_LIST_HEAD(&pending_head);
+        altstack.ss_flags = SS_DISABLE;
+    }
+
+    ~signal_info();
 #endif
 };
 
-#define SIGNAL_GROUP_STOPPED               (1 << 0)
-#define SIGNAL_GROUP_CONT                  (1 << 1)
-#define SIGNAL_GROUP_EXIT                  (1 << 2)
+#define SIGNAL_GROUP_STOPPED (1 << 0)
+#define SIGNAL_GROUP_CONT    (1 << 1)
+#define SIGNAL_GROUP_EXIT    (1 << 2)
 
 struct process;
 struct thread;
 
-extern "C"
-bool signal_is_pending(void);
-int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigaction, struct registers *regs);
-extern "C"
-void handle_signal(struct registers *regs);
+extern "C" bool signal_is_pending(void);
+int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigaction,
+                         struct registers *regs);
+extern "C" void handle_signal(struct registers *regs);
 
-#define SIGNAL_FORCE                            (1 << 0)
-#define SIGNAL_IN_BROADCAST               (1 << 1)
+#define SIGNAL_FORCE        (1 << 0)
+#define SIGNAL_IN_BROADCAST (1 << 1)
 
 int kernel_raise_signal(int sig, struct process *process, unsigned int flags, siginfo_t *info);
 int kernel_tkill(int signal, struct thread *thread, unsigned int flags, siginfo_t *info);
@@ -246,7 +248,7 @@ int may_kill(int signum, struct process *target, siginfo_t *info);
 
 static inline bool signal_is_stopping(int sig)
 {
-	return sig == SIGSTOP || sig == SIGTSTP || sig == SIGTTIN || sig == SIGTTOU;
+    return sig == SIGSTOP || sig == SIGTSTP || sig == SIGTTIN || sig == SIGTTOU;
 }
 
 #endif

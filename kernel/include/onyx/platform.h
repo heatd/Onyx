@@ -14,7 +14,7 @@
 
 #include <pci/pci-msi.h>
 
-int platform_allocate_msi_interrupts(unsigned int num_vectors, bool addr64, 
+int platform_allocate_msi_interrupts(unsigned int num_vectors, bool addr64,
                                      struct pci_msi_data *data);
 
 int platform_install_irq(unsigned int irqn, struct interrupt_handler *h);

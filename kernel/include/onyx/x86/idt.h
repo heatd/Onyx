@@ -8,26 +8,25 @@
 #ifndef _ONYX_X86_IDT_H
 #define _ONYX_X86_IDT_H
 
-#include <stdlib.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 typedef struct idt_ptr
 {
-	uint16_t limit;
-	uint64_t base;
+    uint16_t limit;
+    uint64_t base;
 } __attribute__((packed)) idt_ptr_t;
 
 typedef struct idt_entry
 {
-	uint16_t offset_low;
-	uint16_t selector;
-	uint8_t zero;/* unused, set to 0 */
-	uint8_t type_attr;
-	uint16_t offset_high;
-	uint32_t offset_top;
-	uint32_t res;
+    uint16_t offset_low;
+    uint16_t selector;
+    uint8_t zero; /* unused, set to 0 */
+    uint8_t type_attr;
+    uint16_t offset_high;
+    uint32_t offset_top;
+    uint32_t res;
 } __attribute__((packed)) idt_entry_t;
-
 
 #ifdef __cplusplus
 extern "C" {

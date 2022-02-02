@@ -1,8 +1,8 @@
 /*
-* Copyright (c) 2018 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2018 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ */
 #ifndef _ONYX_SEM_H
 #define _ONYX_SEM_H
 
@@ -15,13 +15,13 @@
 
 struct semaphore
 {
-	thread_t *head;
-	thread_t *tail;
-	struct spinlock lock;
+    thread_t *head;
+    thread_t *tail;
+    struct spinlock lock;
 #ifdef __cplusplus
-	atomic<long> counter;
+    atomic<long> counter;
 #else
-	long counter;
+    long counter;
 #endif
 };
 

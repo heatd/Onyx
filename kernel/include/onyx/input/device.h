@@ -1,21 +1,20 @@
 /*
-* Copyright (c) 2020 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2020 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ */
 #ifndef _ONYX_INPUT_DEVICE_H
 #define _ONYX_INPUT_DEVICE_H
 
-#include <onyx/list.h>
-
 #include <onyx/input/state.h>
+#include <onyx/list.h>
 
 struct input_device
 {
-	const char *name;
-	struct inode *devfs_inode;
-	struct input_state state;
-	struct list_head list;
+    const char *name;
+    struct inode *devfs_inode;
+    struct input_state state;
+    struct list_head list;
 };
 
 struct input_event;

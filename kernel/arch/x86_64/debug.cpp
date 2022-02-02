@@ -8,13 +8,12 @@
 
 #include <onyx/cpu.h>
 
-extern "C"
-__attribute__((noreturn, cold))
-void halt()
+extern "C" __attribute__((noreturn, cold)) void halt()
 {
-	DISABLE_INTERRUPTS();
+    DISABLE_INTERRUPTS();
 
-	while(true) cpu_sleep();
+    while (true)
+        cpu_sleep();
 
-	__builtin_unreachable();
+    __builtin_unreachable();
 }

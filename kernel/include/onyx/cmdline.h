@@ -10,11 +10,14 @@
 #define _ONYX_CMDLINE_H
 
 #include <ctype.h>
-#include <onyx/expected.hpp>
+
+#include <type_traits>
+
 #include <onyx/fnv.h>
 #include <onyx/list.h>
 #include <onyx/string_parsing.h>
-#include <type_traits>
+
+#include <onyx/expected.hpp>
 
 #define COMMAND_LINE_LENGTH 1024
 

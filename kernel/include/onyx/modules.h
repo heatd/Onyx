@@ -1,8 +1,8 @@
 /*
-* Copyright (c) 2016, 2017 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2016, 2017 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ */
 #ifndef _KERNEL_MODULES_H
 #define _KERNEL_MODULES_H
 
@@ -14,13 +14,13 @@
 
 struct module_layout
 {
-	unsigned long base;
-	unsigned long start_text;
-	unsigned long text_size;
-	unsigned long start_data;
-	unsigned long data_size;
-	unsigned long start_ro;
-	unsigned long ro_size;
+    unsigned long base;
+    unsigned long start_text;
+    unsigned long text_size;
+    unsigned long start_data;
+    unsigned long data_size;
+    unsigned long start_ro;
+    unsigned long ro_size;
 };
 
 typedef int (*module_init_t)(void);
@@ -28,29 +28,28 @@ typedef int (*module_fini_t)(void);
 
 struct module
 {
-	const char *path;
-	const char *name;
-	struct module_layout layout;
-	size_t size;
-	struct module *prev, *next;
-	size_t nr_symtable_entries;
-	struct symbol *symtable;
-	module_fini_t fini;
+    const char *path;
+    const char *name;
+    struct module_layout layout;
+    size_t size;
+    struct module *prev, *next;
+    size_t nr_symtable_entries;
+    struct symbol *symtable;
+    module_fini_t fini;
 };
 
 struct symbol;
 
-#define SYMBOL_RESOLVE_MAY_BE_STATIC		(1 << 0)
+#define SYMBOL_RESOLVE_MAY_BE_STATIC (1 << 0)
 
 struct module_resolve_ctx
 {
-	const char *sym_name;
-	bool success;
-	struct symbol *sym;
-	unsigned long flags;
-	bool weak_sym;
+    const char *sym_name;
+    bool success;
+    struct symbol *sym;
+    unsigned long flags;
+    bool weak_sym;
 };
-
 
 extern struct module core_kernel;
 

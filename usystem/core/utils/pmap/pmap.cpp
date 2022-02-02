@@ -5,12 +5,13 @@
  *
  * SPDX-License-Identifier: MIT
  */
+#include <errno.h>
+
 #include <cstdio>
 #include <cstdlib>
-#include <vector>
-#include <string>
 #include <iostream>
-#include <errno.h>
+#include <string>
+#include <vector>
 
 #include <libonyx/handle.h>
 #include <libonyx/process.h>
@@ -41,28 +42,29 @@ int main(int argc, char **argv)
         vec_size = quantity;
         data.resize(vec_size);
 
-        auto status = onx_handle_query(handle, data.data(), vec_size, PROCESS_GET_VM_REGIONS, &quantity, nullptr);
+        auto status = onx_handle_query(handle, data.data(), vec_size, PROCESS_GET_VM_REGIONS,
+                                       &quantity, nullptr);
 
         if (status == -1 && errno != ENOSPC)
         {
             std::perror("onx_handle_query PROCESS_GET_VM_REGIONS");
             return 1;
         }
-        
+
     } while (vec_size != quantity);
 
-    for(size_t i = 0; i < vec_size;)
+    for (size_t i = 0; i < vec_size;)
     {
-        const onx_process_vm_region *reg = (const onx_process_vm_region *) &data[i];
+        const onx_process_vm_region *reg = (const onx_process_vm_region *)&data[i];
         i += reg->size;
         std::printf("%016lx - %016lx\t", reg->start, reg->start + reg->length);
 
         std::printf("%s", (reg->protection & VM_REGION_PROT_READ ? "r" : "-"));
         std::printf("%s", (reg->protection & VM_REGION_PROT_WRITE ? "w" : "-"));
         std::printf("%s", (reg->protection & VM_REGION_PROT_EXEC ? "x" : "-"));
-        
+
         std::string name = "[anon]";
-        if(reg->size - sizeof(onx_process_vm_region) > 0)
+        if (reg->size - sizeof(onx_process_vm_region) > 0)
         {
             // We have a name! set it
             name = reg->name;

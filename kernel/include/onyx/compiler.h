@@ -79,22 +79,22 @@ static inline uint64_t rdtsc(void)
 template <typename Type>
 unsigned int count_bits(Type val)
 {
-	static_assert(is_integral_v<Type>);
+    static_assert(is_integral_v<Type>);
 
-	if constexpr(sizeof(Type) == sizeof(unsigned long))
-	{
-		return __builtin_popcountl(val);
-	}
-	else if constexpr(sizeof(Type) == sizeof(unsigned long long))
-	{
-		return __builtin_popcountll(val);
-	}
-	else
-	{
-		// Anything smaller than unsigned long gets converted to an unsigned
-		// int, as it's the smallest type.
-		return __builtin_popcount(val);
-	}
+    if constexpr (sizeof(Type) == sizeof(unsigned long))
+    {
+        return __builtin_popcountl(val);
+    }
+    else if constexpr (sizeof(Type) == sizeof(unsigned long long))
+    {
+        return __builtin_popcountll(val);
+    }
+    else
+    {
+        // Anything smaller than unsigned long gets converted to an unsigned
+        // int, as it's the smallest type.
+        return __builtin_popcount(val);
+    }
 }
 
 #endif
@@ -140,6 +140,6 @@ inline void write_once(const Type& t, Type val)
 
 #endif
 
-#define UNREACHABLE()  __builtin_unreachable()
+#define UNREACHABLE() __builtin_unreachable()
 
 #endif /* COMPILER_H */

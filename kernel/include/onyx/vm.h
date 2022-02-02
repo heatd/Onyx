@@ -1,130 +1,128 @@
 /*
-* Copyright (c) 2016, 2017 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2016, 2017 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ */
 #ifndef _VM_H
 #define _VM_H
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdbool.h>
+#include <sys/mman.h>
+#include <sys/types.h>
 
-#include <onyx/paging.h>
-#include <onyx/spinlock.h>
 #include <onyx/list.h>
 #include <onyx/mm/vm_object.h>
-#include <onyx/scheduler.h>
 #include <onyx/mutex.h>
-#include <onyx/utility.hpp>
+#include <onyx/paging.h>
+#include <onyx/scheduler.h>
+#include <onyx/spinlock.h>
 
 #include <platform/page.h>
-
 #include <platform/vm.h>
 #include <platform/vm_layout.h>
 
-#include <sys/types.h>
-#include <sys/mman.h>
+#include <onyx/utility.hpp>
 
-#if defined (__i386__)
-	#define KERNEL_VIRTUAL_BASE 0xC0000000
-#elif defined (__x86_64__)
-	#define KERNEL_VIRTUAL_BASE 0xFFFFFFFF80000000
+#if defined(__i386__)
+#define KERNEL_VIRTUAL_BASE 0xC0000000
+#elif defined(__x86_64__)
+#define KERNEL_VIRTUAL_BASE 0xFFFFFFFF80000000
 #elif defined(__riscv)
-	#define KERNEL_VIRTUAL_BASE 0xffffffff00000000
+#define KERNEL_VIRTUAL_BASE 0xffffffff00000000
 #endif
 
-#define VM_TYPE_REGULAR		(0)
-#define VM_TYPE_STACK 		(1)
-#define VM_TYPE_SHARED 		(2)
-#define VM_TYPE_HEAP 		(3)
-#define VM_TYPE_HW 		(4)
-#define VM_TYPE_FILE_BACKED	(5)
-#define VM_TYPE_MODULE		(6)
+#define VM_TYPE_REGULAR     (0)
+#define VM_TYPE_STACK       (1)
+#define VM_TYPE_SHARED      (2)
+#define VM_TYPE_HEAP        (3)
+#define VM_TYPE_HW          (4)
+#define VM_TYPE_FILE_BACKED (5)
+#define VM_TYPE_MODULE      (6)
 
-#define VM_WRITE 			(1 << 0)
-#define VM_NOEXEC 			(1 << 1)
-#define VM_USER 			(1 << 2)
-#define VM_NOCACHE			(1 << 3)
-#define VM_WRITETHROUGH		(1 << 4)
-#define VM_WC				(1 << 5)
-#define VM_WP				(1 << 6)
-#define VM_DONT_MAP_OVER	(1 << 7)
-#define VM_READ             (1 << 8)
-#define VM_NOFLUSH          (1 << 9)
+#define VM_WRITE         (1 << 0)
+#define VM_NOEXEC        (1 << 1)
+#define VM_USER          (1 << 2)
+#define VM_NOCACHE       (1 << 3)
+#define VM_WRITETHROUGH  (1 << 4)
+#define VM_WC            (1 << 5)
+#define VM_WP            (1 << 6)
+#define VM_DONT_MAP_OVER (1 << 7)
+#define VM_READ          (1 << 8)
+#define VM_NOFLUSH       (1 << 9)
 
 /* Internal flags used by the mm code */
-#define __VM_CACHE_TYPE_REGULAR 	0
-#define __VM_CACHE_TYPE_UNCACHED	1
-#define __VM_CACHE_TYPE_WT		2
-#define __VM_CACHE_TYPE_WC		3
-#define __VM_CACHE_TYPE_WP		4
-#define __VM_CACHE_TYPE_UNCACHEABLE 	5
-
+#define __VM_CACHE_TYPE_REGULAR     0
+#define __VM_CACHE_TYPE_UNCACHED    1
+#define __VM_CACHE_TYPE_WT          2
+#define __VM_CACHE_TYPE_WC          3
+#define __VM_CACHE_TYPE_WP          4
+#define __VM_CACHE_TYPE_UNCACHEABLE 5
 
 static inline unsigned long vm_prot_to_cache_type(uint64_t prot)
 {
-	if(prot & VM_NOCACHE)
-		return __VM_CACHE_TYPE_UNCACHED;
-	else if(prot & VM_WRITETHROUGH)
-		return __VM_CACHE_TYPE_WT;
-	else if(prot & VM_WC)
-		return __VM_CACHE_TYPE_WC;
-	else if(prot & VM_WP)
-		return __VM_CACHE_TYPE_WP;
-	else
-		return __VM_CACHE_TYPE_REGULAR;
+    if (prot & VM_NOCACHE)
+        return __VM_CACHE_TYPE_UNCACHED;
+    else if (prot & VM_WRITETHROUGH)
+        return __VM_CACHE_TYPE_WT;
+    else if (prot & VM_WC)
+        return __VM_CACHE_TYPE_WC;
+    else if (prot & VM_WP)
+        return __VM_CACHE_TYPE_WP;
+    else
+        return __VM_CACHE_TYPE_REGULAR;
 }
 
-#define VM_KERNEL 		(1)
-#define VM_ADDRESS_USER		(1 << 1)
+#define VM_KERNEL       (1)
+#define VM_ADDRESS_USER (1 << 1)
 
-#define VM_HIGHER_HALF 0xffff800000000000
-#define PHYS_TO_VIRT(x) (void*)((uintptr_t) (x) + PHYS_BASE)
+#define VM_HIGHER_HALF  0xffff800000000000
+#define PHYS_TO_VIRT(x) (void *)((uintptr_t)(x) + PHYS_BASE)
 
-#define VM_PFNMAP                   (1 << 1)
-#define VM_USING_MAP_SHARED_OPT		(1 << 2)
+#define VM_PFNMAP               (1 << 1)
+#define VM_USING_MAP_SHARED_OPT (1 << 2)
 
 /**
  * @brief A VM region is a segment of an address space which is mapped and has some
  * particular metadata in common. These are stored in an mm_address_space and are managed by
  * mmap-like functions(like vm_mmap or vmalloc), mprotect-like functions(like vm_mprotect) and
  * munmap like functions (like vm_munmap).
- * 
+ *
  */
 struct vm_region
 {
-	uintptr_t base;
-	size_t pages;
-	int rwx;
-	int type;
-	int mapping_type;
-	struct file *fd;
-	off_t offset;
-	int flags;
-	struct vm_object *vmo;
-	struct mm_address_space *mm;
+    uintptr_t base;
+    size_t pages;
+    int rwx;
+    int type;
+    int mapping_type;
+    struct file *fd;
+    off_t offset;
+    int flags;
+    struct vm_object *vmo;
+    struct mm_address_space *mm;
 
-	struct list_head vmo_head;
-	uintptr_t caller;
+    struct list_head vmo_head;
+    uintptr_t caller;
 };
 
-#define VM_OK			0x0
-#define VM_SIGBUS		SIGBUS
-#define VM_SIGSEGV		SIGSEGV
+#define VM_OK      0x0
+#define VM_SIGBUS  SIGBUS
+#define VM_SIGSEGV SIGSEGV
 
-#define VM_BAD_PERMISSIONS    (1 << 0)
+#define VM_BAD_PERMISSIONS (1 << 0)
 
 struct fault_info
 {
-	uintptr_t fault_address;
-	bool write;
-	bool read;
-	bool exec;
-	bool user;
-	uintptr_t ip;
-	int signal;
-	int error_info;
+    uintptr_t fault_address;
+    bool write;
+    bool read;
+    bool exec;
+    bool user;
+    uintptr_t ip;
+    int signal;
+    int error_info;
 };
 
 struct rb_tree;
@@ -134,86 +132,92 @@ struct vm_object;
  * @brief An mm_address_space represents an address space inside the kernel and stores
  * all kinds of relevant data on it, like the owner process, a tree of vm_regions, locks
  * various statistics, etc.
- * 
+ *
  */
 struct mm_address_space
 {
-	struct process *process{};
-	/* Virtual address space Red-black tree */
-	struct rb_tree *area_tree{};
-	unsigned long start{};
-	unsigned long end{};
-	struct mutex vm_lock{};
+    struct process *process{};
+    /* Virtual address space Red-black tree */
+    struct rb_tree *area_tree{};
+    unsigned long start{};
+    unsigned long end{};
+    struct mutex vm_lock
+    {
+    };
 
-	/* mmap(2) base */
-	void *mmap_base{};
+    /* mmap(2) base */
+    void *mmap_base{};
 
-	/* Process' brk */
-	void *brk{};
+    /* Process' brk */
+    void *brk{};
 
-	size_t virtual_memory_size{};
-	size_t resident_set_size{};
-	size_t shared_set_size{};
-	size_t page_faults{};
-	size_t page_tables_size{};
+    size_t virtual_memory_size{};
+    size_t resident_set_size{};
+    size_t shared_set_size{};
+    size_t page_faults{};
+    size_t page_tables_size{};
 
-	struct mutex private_vmo_lock{};
-	struct vm_object *vmo_head{}, *vmo_tail{};
-	struct arch_mm_address_space arch_mmu{};
+    struct mutex private_vmo_lock
+    {
+    };
+    struct vm_object *vmo_head{}, *vmo_tail{};
+    struct arch_mm_address_space arch_mmu
+    {
+    };
 
-	// The active mask keeps track of where the address space is running.
-	// This serves as an optimisation when doing a TLB shootdown, as it lets us
-	// limit the shootdowns to CPUs where the address space is active instead of every CPU.
-	cpumask active_mask{};
+    // The active mask keeps track of where the address space is running.
+    // This serves as an optimisation when doing a TLB shootdown, as it lets us
+    // limit the shootdowns to CPUs where the address space is active instead of every CPU.
+    cpumask active_mask{};
 
-	mm_address_space& operator=(mm_address_space&& as)
-	{
-		process = as.process;
-		area_tree = as.area_tree;
-		start = as.start;
-		end = as.end;
-		mmap_base = as.mmap_base;
-		brk = as.brk;
-		virtual_memory_size = as.virtual_memory_size;
-		resident_set_size = as.resident_set_size;
-		shared_set_size = as.shared_set_size;
-		page_faults = as.page_faults;
-		page_tables_size = as.page_tables_size;
-		vmo_head = as.vmo_head;
-		vmo_tail = as.vmo_tail;
-		arch_mmu = as.arch_mmu;
-		active_mask = cul::move(as.active_mask);
-		return *this;
-	}
+    mm_address_space &operator=(mm_address_space &&as)
+    {
+        process = as.process;
+        area_tree = as.area_tree;
+        start = as.start;
+        end = as.end;
+        mmap_base = as.mmap_base;
+        brk = as.brk;
+        virtual_memory_size = as.virtual_memory_size;
+        resident_set_size = as.resident_set_size;
+        shared_set_size = as.shared_set_size;
+        page_faults = as.page_faults;
+        page_tables_size = as.page_tables_size;
+        vmo_head = as.vmo_head;
+        vmo_tail = as.vmo_tail;
+        arch_mmu = as.arch_mmu;
+        active_mask = cul::move(as.active_mask);
+        return *this;
+    }
 };
 
-#define increment_vm_stat(as, name, amount)	__sync_add_and_fetch(&as->name, amount)
-#define decrement_vm_stat(as, name, amount)	__sync_sub_and_fetch(&as->name, amount)
+#define increment_vm_stat(as, name, amount) __sync_add_and_fetch(&as->name, amount)
+#define decrement_vm_stat(as, name, amount) __sync_sub_and_fetch(&as->name, amount)
 
 /**
  * @brief Initialises the early architecture dependent parts of the VM subsystem.
- * 
+ *
  */
 void vm_init(void);
 
 /**
  * @brief Initialises the architecture independent parts of the VM subsystem.
- * 
+ *
  */
 void vm_late_init(void);
 
 /**
  * @brief Allocates a new virtual region in the current address space.
  * This should *NOT* be used by non-mm code.
- * 
+ *
  * @param flags Flags for the allocation (VM_KERNEL, VM_ADDRESS_USER).
  * @param pages Number of pages required.
  * @param type Type of the vm region; this affects the placement.
  * @param prot Protection of the vm region (VM_WRITE, NOEXEC, etc).
  * @return A pointer to the new vm region.
  */
-struct vm_region *vm_allocate_virt_region(uint64_t flags, size_t pages,
-	uint32_t type, uint64_t prot);
+struct vm_region *vm_allocate_virt_region(uint64_t flags, size_t pages, uint32_t type,
+                                          uint64_t prot);
 
 /**
  * @brief Maps a range of memory with freshly allocated anonymous pages.
@@ -221,13 +225,13 @@ struct vm_region *vm_allocate_virt_region(uint64_t flags, size_t pages,
  * @param range Virtual address.
  * @param pages Number of pages to be mapped.
  * @param flags Protection on the mappings.
- * @return The list of allocated pages, or NULL if there was an out of memory scenario. 
+ * @return The list of allocated pages, or NULL if there was an out of memory scenario.
  */
 struct page *vm_map_range(void *range, size_t pages, uint64_t flags);
 
 /**
  * @brief Unmaps a range of pages on the current address space.
- * 
+ *
  * @param range The start of the virtual range.
  * @param pages The number of pages.
  */
@@ -236,29 +240,27 @@ void vm_unmap_range(void *range, size_t pages);
 /**
  * @brief Unmaps a region under a specified range.
  * Note: This function is deprecated.
- * 
+ *
  * @param range Start of the range.
  * @param pages Number of pages.
  */
-[[deprecated]]
-void vm_destroy_mappings(void *range, size_t pages);
+[[deprecated]] void vm_destroy_mappings(void *range, size_t pages);
 
 /**
  * @brief Creates a new vm region at a specified address.
  * Should only be used by core MM code.
- * 
+ *
  * @param addr Address of the mapping.
  * @param pages Number of pages.
  * @param type Type of the mapping.
  * @param prot Protection flags.
  * @return The new vm_region, or NULL in case of failure (check errno).
  */
-vm_region *vm_create_region_at(void *addr, size_t pages, uint32_t type,
-	uint64_t prot);
+vm_region *vm_create_region_at(void *addr, size_t pages, uint32_t type, uint64_t prot);
 
 /**
  * @brief Finds a vm region.
- * 
+ *
  * @param addr An address inside the region.
  * @return A pointer to the region, or NULL if it doesn't exist.
  */
@@ -266,15 +268,15 @@ vm_region *vm_find_region(void *addr);
 
 /**
  * @brief Creats a new address space.
- * 
+ *
  * @param addr_space A pointer to the new address space.
  * @return 0 on success, negative on error.
  */
 int vm_clone_as(struct mm_address_space *addr_space);
 
 /**
- * @brief Fork the current address space into a new address space. 
- * 
+ * @brief Fork the current address space into a new address space.
+ *
  * @param addr_space The new address space.
  * @return 0 on success, negative on error.
  */
@@ -287,8 +289,7 @@ int vm_fork_address_space(struct mm_address_space *addr_space);
  * @param pages Number of pages.
  * @param perms New permissions.
  */
-[[deprecated]]
-void vm_change_perms(void *range, size_t pages, int perms);
+[[deprecated]] void vm_change_perms(void *range, size_t pages, int perms);
 
 /**
  * @brief Retrieves the fallback paging directories.
@@ -301,8 +302,8 @@ void *vm_get_fallback_pgd(void);
 
 /**
  * @brief Allocates a range of virtual memory for kernel purposes.
- * This memory is all prefaulted and cannot be demand paged nor paged out. 
- * 
+ * This memory is all prefaulted and cannot be demand paged nor paged out.
+ *
  * @param pages The number of pages.
  * @param type The type of allocation.
  * @param perms The permissions on the allocation.
@@ -312,7 +313,7 @@ void *vmalloc(size_t pages, int type, int perms);
 
 /**
  * @brief Frees a region of memory previously allocated by vmalloc.
- * 
+ *
  * @param ptr A pointer to the allocation.
  * @param pages The number of pages it consists in.
  */
@@ -320,7 +321,7 @@ void vfree(void *ptr, size_t pages);
 
 /**
  * @brief Handles a page fault.
- * 
+ *
  * @param info A pointer to a fault_info structure.
  * @return 0 on success or negative error codes.
  */
@@ -329,7 +330,7 @@ int vm_handle_page_fault(struct fault_info *info);
 /**
  * @brief Does the fatal page fault procedure.
  * When a user fault, kills the process; else, panics.
- * 
+ *
  * @param info A pointer to a fault_info structure.
  */
 void vm_do_fatal_page_fault(struct fault_info *info);
@@ -337,7 +338,7 @@ void vm_do_fatal_page_fault(struct fault_info *info);
 /**
  * @brief Creates a mapping of MMIO memory.
  * Note: This function does not add any implicit caching behaviour by default.
- * 
+ *
  * @param phys The start of the physical range.
  * @param size The size of the physical range.
  * @param flags Permissions on the new region.
@@ -347,7 +348,7 @@ void *mmiomap(void *phys, size_t size, size_t flags);
 
 /**
  * @brief Destroys an address space.
- * 
+ *
  * @param mm A pointer to a valid mm_address_space.
  */
 void vm_destroy_addr_space(struct mm_address_space *mm);
@@ -357,7 +358,7 @@ void vm_destroy_addr_space(struct mm_address_space *mm);
  * It does so by comparing it with a number of invalid ranges of
  * virtual memory, some of which may be arch dependent.
  * To be used by program loaders.
- * 
+ *
  * @param address The address to-be-tested.
  * @param pages The size of the desired range.
  * @return 0 if it's valid, negative if not.
@@ -365,8 +366,9 @@ void vm_destroy_addr_space(struct mm_address_space *mm);
 int vm_sanitize_address(void *address, size_t pages);
 
 /**
- * @brief Generates a new mmap base, taking into account arch-dependent addresses and possibly KASLR.
- * 
+ * @brief Generates a new mmap base, taking into account arch-dependent addresses and possibly
+ * KASLR.
+ *
  * @return The new mmap base. Note: This is not a valid pointer, but the starting point
  *         for mmap allocations.
  */
@@ -374,7 +376,7 @@ void *vm_gen_mmap_base(void);
 
 /**
  * @brief Generates a new brk base, taking into account arch-dependent addresses and possibly KASLR.
- * 
+ *
  * @return The new brk base. Note: This is not a valid pointer, but the starting point
  *         for brk allocations.
  */
@@ -382,16 +384,15 @@ void *vm_gen_brk_base(void);
 
 /**
  * @brief Initialises sysfs nodes for the vm subsystem.
- * 
+ *
  */
 void vm_sysfs_init(void);
 
-extern "C"
-{
+extern "C" {
 
 /**
  * @brief Copies data to user space.
- * 
+ *
  * @param usr The destination user space pointer.
  * @param data The source kernel pointer.
  * @param len The length of the copy, in bytes.
@@ -402,7 +403,7 @@ ssize_t copy_to_user(void *usr, const void *data, size_t len);
 
 /**
  * @brief Copies data from user space.
- * 
+ *
  * @param data The destionation kernel pointer.
  * @param usr The source user space pointer.
  * @param len The length of the copy, in bytes.
@@ -413,7 +414,7 @@ ssize_t copy_from_user(void *data, const void *usr, size_t len);
 
 /**
  * @brief Memsets user spce memory.
- * 
+ *
  * @param data The destionation user space pointer.
  * @param data The destionation kernel pointer.
  * @param len The length of the copy, in bytes.
@@ -421,12 +422,11 @@ ssize_t copy_from_user(void *data, const void *usr, size_t len);
  *         At the time of writing, the only possible error return is -EFAULT.
  */
 ssize_t user_memset(void *data, int val, size_t len);
-
 }
 
 /**
  * @brief Sets up backing for a newly-mmaped region.
- * 
+ *
  * @param region A pointer to a vm_region.
  * @param pages The size of the region, in pages.
  * @param is_file_backed True if file backed.
@@ -437,9 +437,9 @@ int vm_region_setup_backing(struct vm_region *region, size_t pages, bool is_file
 /**
  * @brief Updates the memory map's ranges.
  * Used in arch dependent early boot procedures when architectures
- * have variable address space sizes. See example uses of this 
+ * have variable address space sizes. See example uses of this
  * function in arch/x86_64.
- * 
+ *
  * @param new_kernel_space_base The new virtual memory base.
  */
 void vm_update_addresses(uintptr_t new_kernel_space_base);
@@ -447,7 +447,7 @@ void vm_update_addresses(uintptr_t new_kernel_space_base);
 /**
  * @brief Generate a ASLR'd address.
  * Takes into account base and bits.
- * 
+ *
  * @param base The base address.
  * @param bits The number of bits that can be randomised.
  * @return The randomised address.
@@ -458,8 +458,8 @@ uintptr_t vm_randomize_address(uintptr_t base, uintptr_t bits);
  * @brief Map a specific number of pages onto a virtual address.
  * Should only be used by MM code since it does not touch vm_regions, only
  * MMU page tables.
- * 
- * @param virt The virtual address. 
+ *
+ * @param virt The virtual address.
  * @param phys The start of the physical range.
  * @param size The size of the mapping, in bytes.
  * @param flags The permissions on the mapping.
@@ -472,21 +472,20 @@ void *map_pages_to_vaddr(void *virt, void *phys, size_t size, size_t flags);
  * @brief Map a specific number of pages onto a virtual address.
  * Should only be used by MM code since it does not touch vm_regions, only
  * MMU page tables.
- * 
+ *
  * @param as   The target address space.
- * @param virt The virtual address. 
+ * @param virt The virtual address.
  * @param phys The start of the physical range.
  * @param size The size of the mapping, in bytes.
  * @param flags The permissions on the mapping.
  *
  * @return NULL on error, virt on success.
  */
-void *__map_pages_to_vaddr(mm_address_space *as, void *virt, void *phys,
-		size_t size, size_t flags);
+void *__map_pages_to_vaddr(mm_address_space *as, void *virt, void *phys, size_t size, size_t flags);
 
 /**
  * @brief Determines if a mapping is shared.
- * 
+ *
  * @param region A pointer to the vm_region.
  * @return True if shared, false if not.
  */
@@ -494,20 +493,20 @@ bool is_mapping_shared(struct vm_region *region);
 
 /**
  * @brief Determines if a mapping is file backed.
- * 
+ *
  * @param region A pointer to the vm_region.
  * @return True if file backed, false if not.
  */
 bool is_file_backed(struct vm_region *region);
 
-#define VM_FLUSH_RWX_VALID			(1 << 0)
+#define VM_FLUSH_RWX_VALID (1 << 0)
 /**
  * @brief Remaps an entire vm_region.
  * Using flags, it remaps the entire vm_region by iterating through every page and
  * re-mapping it. If VM_FLUSH_RWX_VALID, rwx is a valid combination of permission
  * flags and rwx overrides the pre-existing permissions in the vm_region (used in COW fork).
  * Should only be used by MM code.
- * 
+ *
  * @param entry A pointer to the vm_region.
  * @param flags Flag bitmask. Valid flags are (VM_FLUSH_RWX_VALID).
  * @param rwx If VM_FLUSH_RWX_VALID, rwx is a valid combination of permission flags.
@@ -517,19 +516,19 @@ int vm_flush(struct vm_region *entry, unsigned int flags, unsigned int rwx);
 
 /**
  * @brief Traverses the kernel's memory map and prints information.
- * 
+ *
  */
 void vm_print_map(void);
 
 /**
  * @brief Traverses the current process's memory map and prints information.
- * 
+ *
  */
 void vm_print_umap();
 
 /**
  * @brief Changes memory protection of a memory range.
- * 
+ *
  * @param as The target address space.
  * @param __addr The pointer to the start of the memory range.
  * @param size The size of the memory range, in bytes.
@@ -543,8 +542,8 @@ struct file;
 /**
  * @brief Creates a new user-space mapping.
  * Note: This is mmap(2)'s backend and therefore, most semantics are shared
- * between the two. 
- * 
+ * between the two.
+ *
  * @param addr An optional address hint.
  * @param length The length of the mapping, in bytes.
  * @param prot The desired protection flags (see PROT_* as in mmap(2)).
@@ -557,14 +556,14 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
 
 struct tlb_shootdown
 {
-	unsigned long addr;
-	size_t pages;
+    unsigned long addr;
+    size_t pages;
 };
 
 /**
  * @brief Invalidates a range of memory in the current address space.
  * This function handles TLB shootdowns on its own.
- * 
+ *
  * @param addr The start of the range.
  * @param pages The size of the range, in pages.
  */
@@ -574,19 +573,18 @@ struct process;
 
 /**
  * @brief Directly maps a page into the paging tables.
- * 
+ *
  * @param as The target address space.
  * @param virt The virtual address.
  * @param phys The physical address of the page.
  * @param prot Desired protection flags.
  * @return NULL if out of memory, else virt.
  */
-void *vm_map_page(struct mm_address_space *as, uint64_t virt, uint64_t phys,
-	uint64_t prot);
+void *vm_map_page(struct mm_address_space *as, uint64_t virt, uint64_t phys, uint64_t prot);
 
 /**
  * @brief Allocates a new mapping and maps a list of pages.
- * 
+ *
  * @param pl The list of pages.
  * @param size The size of the mapping, in bytes.
  * @param prot The desired protection flags.
@@ -596,7 +594,7 @@ void *map_page_list(struct page *pl, size_t size, uint64_t prot);
 
 /**
  * @brief Sets up a new address space on \p mm
- * 
+ *
  * @param mm A pointer to the new address space.
  * @param process A pointer to the process that owns the address space.
  * @return 0 on success, negative error codes.
@@ -613,21 +611,21 @@ void vm_free_arch_mmu(struct arch_mm_address_space *mm);
 
 /**
  * @brief Loads a new address space.
- * 
+ *
  * @param mm The to-be-loaded address space.
  */
 void vm_load_arch_mmu(struct arch_mm_address_space *mm);
 
 /**
  * @brief Saves the current address space in \p mm
- * 
+ *
  * @param mm A pointer to a valid mm_address_space.
  */
 void vm_save_current_mmu(struct mm_address_space *mm);
 
 /**
  * @brief Unmaps a memory range.
- * 
+ *
  * @param as The target address space.
  * @param __addr The start of the memory range.
  * @param size The size of the memory range, in bytes.
@@ -637,7 +635,7 @@ int vm_munmap(struct mm_address_space *as, void *__addr, size_t size);
 
 /**
  * @brief Sets up the brk region for a new process.
- * 
+ *
  * @param mm The target address space.
  * @return 0 on success, or negative error codes.
  */
@@ -645,52 +643,52 @@ int vm_create_brk(struct mm_address_space *mm);
 
 /**
  * @brief Aligns a pointer to the next page boundary.
- * 
+ *
  * @param ptr The target pointer.
  * @return A page aligned pointer.
  */
 static inline void *page_align_up(void *ptr)
 {
-	uintptr_t i = (uintptr_t) ptr;
-	i = (i + PAGE_SIZE-1) & -PAGE_SIZE;
-	return (void *) i;
+    uintptr_t i = (uintptr_t)ptr;
+    i = (i + PAGE_SIZE - 1) & -PAGE_SIZE;
+    return (void *)i;
 }
 
 /**
  * @brief Calculates the number of pages given a number of bytes.
- * 
+ *
  * @param size The number of bytes.
  * @return A number of pages.
  */
 static inline size_t vm_size_to_pages(size_t size)
 {
-	size_t pages = size >> PAGE_SHIFT;
-	if(size & (PAGE_SIZE-1))
-		pages++;
-	return pages;
+    size_t pages = size >> PAGE_SHIFT;
+    if (size & (PAGE_SIZE - 1))
+        pages++;
+    return pages;
 }
 
 /**
  * @brief Calculates the number of pages given a non-static page_size and page_shift
- * 
+ *
  * @param size The number of bytes.
  * @param page_size The page size (must be power of 2).
  * @param page_shift The page shift.
- * @return The number of pages. 
+ * @return The number of pages.
  */
 static inline size_t __vm_size_to_pages(size_t size, size_t page_size, size_t page_shift)
 {
-	size_t pages = size >> page_shift;
-	if(size & (page_size - 1))
-		pages++;
-	return pages;
+    size_t pages = size >> page_shift;
+    if (size & (page_size - 1))
+        pages++;
+    return pages;
 }
 
 extern struct mm_address_space kernel_address_space;
 
 /**
  * @brief Calls the specified function \p func on every region of the address space \p as.
- * 
+ *
  * @param as A pointer to the target address space.
  * @param func The callback.
  */
@@ -698,29 +696,28 @@ void vm_for_every_region(struct mm_address_space *as, bool (*func)(struct vm_reg
 
 struct kernel_limits
 {
-	uintptr_t start_phys, start_virt;
-	uintptr_t end_phys, end_virt;
+    uintptr_t start_phys, start_virt;
+    uintptr_t end_phys, end_virt;
 };
 
 /**
  * @brief Retrieves the kernel's limits in physical memory and virtual memory.
- * 
+ *
  * @param l A pointer to a kernel_limits object where the limits will be placed.
  */
 void get_kernel_limits(struct kernel_limits *l);
 
 /**
  * @brief Commits a virtual page.
- * 
+ *
  * @param page Pointer to the virtual address to be committed.
  * @return A pointer to the backing struct page.
  */
- [[deprecated]]
-struct page *vm_commit_page(void *page);
+[[deprecated]] struct page *vm_commit_page(void *page);
 
 /**
  * @brief Write-protects a page in each of its mappings.
- * 
+ *
  * @param page The page that needs to be write-protected.
  * @param offset The offset of the page in the VMO.
  * @param vmo A pointer to its VMO.
@@ -729,35 +726,35 @@ void vm_wp_page_for_every_region(page *page, size_t offset, vm_object *vmo);
 
 /**
  * @brief Invalidates a memory range.
- * 
+ *
  * @param addr The start of the memory range.
  * @param pages The size of the memory range, in pages.
  * @param mm The target address space.
  */
 void mmu_invalidate_range(unsigned long addr, size_t pages, struct mm_address_space *mm);
 
-#define VM_FUTURE_PAGES			(1 << 0)
-#define VM_LOCK				    (1 << 1)
-#define VM_UNLOCK			    (1 << 2)
+#define VM_FUTURE_PAGES (1 << 0)
+#define VM_LOCK         (1 << 1)
+#define VM_UNLOCK       (1 << 2)
 
 /**
  * @brief Changes the current address limit.
  * The address limit is the largest address the user memory primitives (e.g copy_to_user,
  * copy_from_user) can touch.
- * 
+ *
  * @param limit The new address limit.
  * @return The old address limit.
  */
 static inline unsigned long thread_change_addr_limit(unsigned long limit)
 {
-	struct thread *t = get_current_thread();
-	if(!t)
-		return VM_KERNEL_ADDR_LIMIT;
+    struct thread *t = get_current_thread();
+    if (!t)
+        return VM_KERNEL_ADDR_LIMIT;
 
-	unsigned long r = t->addr_limit;
-	t->addr_limit = limit;
+    unsigned long r = t->addr_limit;
+    t->addr_limit = limit;
 
-	return r;
+    return r;
 }
 
 /**
@@ -773,25 +770,25 @@ static inline unsigned long thread_change_addr_limit(unsigned long limit)
  */
 void *vm_map_vmo(size_t flags, uint32_t type, size_t pages, size_t prot, vm_object *vmo);
 
-#define GPP_READ                   (1 << 0)
-#define GPP_WRITE                  (1 << 1)
-#define GPP_USER                   (1 << 2)
+#define GPP_READ  (1 << 0)
+#define GPP_WRITE (1 << 1)
+#define GPP_USER  (1 << 2)
 
 // GPP_ACCESS flags documentation
 
 // The GPP access was a success
-#define GPP_ACCESS_OK              (1 << 0)
+#define GPP_ACCESS_OK     (1 << 0)
 // There was a fault(the permissions don't match or we ran out of memory) accessing the pages
-#define GPP_ACCESS_FAULT           (1 << 1)
+#define GPP_ACCESS_FAULT  (1 << 1)
 // One or more pages are not normal memory
-#define GPP_ACCESS_PFNMAP          (1 << 2)
+#define GPP_ACCESS_PFNMAP (1 << 2)
 // One or more pages are part of a shared region
-#define GPP_ACCESS_SHARED          (1 << 3)
+#define GPP_ACCESS_SHARED (1 << 3)
 
 /**
  * @brief Gets the physical pages that map to a virtual region.
  * This function also handles COW.
- * 
+ *
  * @param addr The desired virtual address.
  * @param flags Flags (see GPP_READ, WRITE and USER).
  * @param pages A pointer to an array of struct page *.
@@ -807,7 +804,7 @@ int get_phys_pages(void *addr, unsigned int flags, struct page **pages, size_t n
  * This function handles any edge cases like trying to re-apply write perms on
  * a write-protected page.
  *
- * @param as The target address space. 
+ * @param as The target address space.
  * @param addr The virtual address of the page.
  * @param old_prots The old protection flags.
  * @param new_prots The new protection flags.
@@ -816,20 +813,20 @@ void vm_mmu_mprotect_page(struct mm_address_space *as, void *addr, int old_prots
 
 /**
  * @brief Loads the fallback paging tables.
- * 
+ *
  */
 void vm_switch_to_fallback_pgd(void);
 
 /**
  * @brief Retrieves a pointer to the zero page.
- * 
+ *
  * @return Pointer to the zero page's struct page.
  */
 struct page *vm_get_zero_page(void);
 
 /**
  * @brief Transforms a file-backed region into an anonymously backed one.
- * 
+ *
  * @param region A pointer to the vm_region.
  */
 void vm_make_anon(vm_region *region);
@@ -837,25 +834,25 @@ void vm_make_anon(vm_region *region);
 template <typename Callable>
 static bool for_every_region_visit(const void *key, void *region, void *caller_data)
 {
-	Callable &c = *(Callable *) caller_data;
-	return c((vm_region *) region);
+    Callable &c = *(Callable *)caller_data;
+    return c((vm_region *)region);
 }
 
 /**
  * @brief Calls the specified function \p func on every region of the address space \p as.
- * 
+ *
  * @param as A reference to the target address space.
  * @param func The callback.
  */
 template <typename Callable>
 inline void vm_for_every_region(mm_address_space &as, Callable func)
 {
-	rb_tree_traverse(as.area_tree, for_every_region_visit<Callable>, &func);
+    rb_tree_traverse(as.area_tree, for_every_region_visit<Callable>, &func);
 }
 
 /**
  * @brief Verifies the address space's accounting (RSS, PT Size)
- * 
+ *
  * @param as The address space to verify.
  */
 void mmu_verify_address_space_accounting(mm_address_space *as);

@@ -1,13 +1,12 @@
 /*
-* Copyright (c) 2016, 2017 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2016, 2017 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ */
 #ifndef _FPU_H
 #define _FPU_H
 
 #include <stdbool.h>
-
 #include <sys/user.h>
 #ifdef __x86_64__
 

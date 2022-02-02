@@ -11,14 +11,14 @@
 
 #include <stdint.h>
 
-#define PAT_UNCACHEABLE		0
-#define PAT_WC			1
-#define PAT_WT			4
-#define PAT_WP			5
-#define PAT_WB			6
-#define PAT_UNCACHED		7
+#define PAT_UNCACHEABLE 0
+#define PAT_WC          1
+#define PAT_WT          4
+#define PAT_WP          5
+#define PAT_WB          6
+#define PAT_UNCACHED    7
 
-#define PAT_NR_ENTRIES		8
+#define PAT_NR_ENTRIES 8
 
 uint8_t cache_to_paging_bits(uint8_t type);
 void pat_init(void);

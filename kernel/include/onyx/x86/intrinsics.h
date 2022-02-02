@@ -12,8 +12,7 @@
 template <typename Type>
 static inline void mov_non_temporal(volatile Type *p, Type val)
 {
-	__asm__ __volatile__("movnti %1, %0" : "=m" (*p) : "r" (val) : "memory");
+    __asm__ __volatile__("movnti %1, %0" : "=m"(*p) : "r"(val) : "memory");
 }
-
 
 #endif

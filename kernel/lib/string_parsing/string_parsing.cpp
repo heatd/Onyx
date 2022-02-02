@@ -7,6 +7,7 @@
  */
 
 #include <ctype.h>
+
 #include <onyx/string_parsing.h>
 
 namespace parser

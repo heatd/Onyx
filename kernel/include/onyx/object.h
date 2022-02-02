@@ -1,8 +1,8 @@
 /*
-* Copyright (c) 2018 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2018 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ */
 
 #ifndef _ONYX_OBJECT_H
 #define _ONYX_OBJECT_H
@@ -13,16 +13,15 @@ struct ref;
 
 struct object
 {
-	const char *name;
-	unsigned long flags;
-	struct ref ref;
+    const char *name;
+    unsigned long flags;
+    struct ref ref;
 
-	/* Each object stores acquired objects in here. */
-	/* This helps keeping track of reference counts */
-	struct object *acquired_objects;
+    /* Each object stores acquired objects in here. */
+    /* This helps keeping track of reference counts */
+    struct object *acquired_objects;
 
-	void (*release)(struct object *object);
-
+    void (*release)(struct object *object);
 };
 
 void object_init(struct object *object, void (*releasefunc)(struct object *));

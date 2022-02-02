@@ -6,11 +6,10 @@
  * SPDX-License-Identifier: MIT
  */
 
-
+#include <onyx/ktrace.h>
+#include <onyx/panic.h>
 #include <onyx/platform.h>
 #include <onyx/vm.h>
-#include <onyx/panic.h>
-#include <onyx/ktrace.h>
 
 #define UNIMPLEMENTED panic("Not implemented!")
 
@@ -21,14 +20,17 @@ bool platform_has_msi()
 
 void halt()
 {
-    while (true) {}
+    while (true)
+    {
+    }
 }
 
 void cpu_kill_other_cpus()
 {
 }
 
-int platform_allocate_msi_interrupts(unsigned int num_vectors, bool addr64, struct pci_msi_data *data)
+int platform_allocate_msi_interrupts(unsigned int num_vectors, bool addr64,
+                                     struct pci_msi_data *data)
 {
     UNIMPLEMENTED;
 }
@@ -57,7 +59,8 @@ int process_alloc_stack(struct stack_info *info)
     UNIMPLEMENTED;
 }
 
-int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigaction, struct registers *regs)
+int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigaction,
+                         struct registers *regs)
 {
     UNIMPLEMENTED;
 }
@@ -67,14 +70,12 @@ struct timer *platform_get_timer()
     UNIMPLEMENTED;
 }
 
-extern "C"
-void platform_yield()
+extern "C" void platform_yield()
 {
     UNIMPLEMENTED;
 }
 
-extern "C"
-void thread_finish_destruction(thread *t)
+extern "C" void thread_finish_destruction(thread *t)
 {
     UNIMPLEMENTED;
 }
@@ -97,8 +98,7 @@ void boot(unsigned int nr)
     UNIMPLEMENTED;
 }
 
-}
-
+} // namespace smp
 
 void cpu_send_sync_notif(unsigned int cpu)
 {
@@ -133,39 +133,34 @@ int arch_transform_into_user_thread(thread *thread)
     UNIMPLEMENTED;
 }
 
-}
+} // namespace native
 
 thread *process_fork_thread(thread_t *src, struct process *dest, struct syscall_frame *ctx)
 {
     UNIMPLEMENTED;
 }
 
-extern "C"
-int do_machine_reboot(unsigned int flags)
+extern "C" int do_machine_reboot(unsigned int flags)
 {
-	UNIMPLEMENTED;
+    UNIMPLEMENTED;
 }
 
-extern "C"
-int do_machine_shutdown(unsigned int flags)
+extern "C" int do_machine_shutdown(unsigned int flags)
 {
-	UNIMPLEMENTED;
+    UNIMPLEMENTED;
 }
 
-extern "C"
-int do_machine_halt(unsigned int flags)
+extern "C" int do_machine_halt(unsigned int flags)
 {
-	UNIMPLEMENTED;
+    UNIMPLEMENTED;
 }
 
-extern "C"
-int do_machine_suspend(unsigned int flags)
+extern "C" int do_machine_suspend(unsigned int flags)
 {
-	return -EIO;
+    return -EIO;
 }
 
-extern "C"
-int return_from_execve(void *entry, void *stack)
+extern "C" int return_from_execve(void *entry, void *stack)
 {
     UNIMPLEMENTED;
 }
@@ -185,8 +180,7 @@ void cpu_send_message(unsigned int cpu, unsigned long message, void *arg, bool s
     UNIMPLEMENTED;
 }
 
-extern "C"
-void __enter_sleep_state()
+extern "C" void __enter_sleep_state()
 {
     UNIMPLEMENTED;
 }
@@ -211,7 +205,8 @@ uint64_t get_posix_time_early()
 }
 
 void setup_kernel_symbols(struct module *m)
-{}
+{
+}
 
 namespace entropy
 {
@@ -221,21 +216,21 @@ namespace platform
 
 unsigned long get_seed()
 {
-	return 0;
+    return 0;
 }
 
 unsigned long get_hwrandom()
 {
-	return 0;
+    return 0;
 }
 
 void init_random()
 {
 }
 
-}
+} // namespace platform
 
-}
+} // namespace entropy
 
 void platform_init_acpi()
 {
@@ -255,5 +250,4 @@ void ktracepoint::deactivate()
     UNIMPLEMENTED;
 }
 
-
-}
+} // namespace ktrace

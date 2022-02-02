@@ -11,10 +11,10 @@
 
 struct arch_mm_address_space
 {
-	void *cr3;
+    void *cr3;
 };
 
-#define vm_get_pgd(arch_mmu)      (arch_mmu)->cr3
+#define vm_get_pgd(arch_mmu)          (arch_mmu)->cr3
 #define vm_set_pgd(arch_mmu, new_pgd) (arch_mmu)->cr3 = new_pgd
 
 void __native_tlb_invalidate_all(void);

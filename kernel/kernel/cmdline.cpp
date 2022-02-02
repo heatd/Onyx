@@ -6,12 +6,15 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include <onyx/cmdline.h>
-#include <onyx/hashtable.hpp>
-#include <onyx/log.h>
-#include <onyx/string_view.hpp>
 #include <string.h>
+
 #include <cstddef>
+
+#include <onyx/cmdline.h>
+#include <onyx/log.h>
+
+#include <onyx/hashtable.hpp>
+#include <onyx/string_view.hpp>
 
 char kernel_cmdline[COMMAND_LINE_LENGTH + 1];
 
@@ -56,7 +59,7 @@ void init()
 
     bool in_quotes = false;
 
-    printk("args: %.*s\n", (int) sv.length(), sv.data());
+    printk("args: %.*s\n", (int)sv.length(), sv.data());
 
     for (size_t i = 0; i < sv.length(); i++)
     {

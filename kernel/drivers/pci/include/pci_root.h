@@ -1,8 +1,8 @@
 /*
-* Copyright (c) 2021 Pedro Falcato
-* This file is part of Onyx, and is released under the terms of the MIT License
-* check LICENSE at the root directory for more information
-*/
+ * Copyright (c) 2021 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
+ * check LICENSE at the root directory for more information
+ */
 #ifndef _PCI_INTERNAL_PCI_ROOT_H
 #define _PCI_INTERNAL_PCI_ROOT_H
 
@@ -20,19 +20,24 @@ namespace pci
 
 class pci_root : public pci_bus
 {
-	uint16_t segment_;
+    uint16_t segment_;
+
 public:
-	pci_root(uint16_t segment, uint8_t bus_nr) : pci_bus{bus_nr, nullptr, this}, segment_{segment} {}
-	virtual ~pci_root(){}
+    pci_root(uint16_t segment, uint8_t bus_nr) : pci_bus{bus_nr, nullptr, this}, segment_{segment}
+    {
+    }
+    virtual ~pci_root()
+    {
+    }
 
-	uint16_t get_segment() const
-	{
-		return segment_;
-	}
+    uint16_t get_segment() const
+    {
+        return segment_;
+    }
 
-	void route_irqs(ACPI_HANDLE bus_object);
+    void route_irqs(ACPI_HANDLE bus_object);
 };
 
-}
+} // namespace pci
 
 #endif

@@ -14,11 +14,13 @@
 
 #ifndef __ONLY_INCLUDE_BASIC_C_DEFS
 #include <assert.h>
+#include <stdbool.h>
+
 #include <onyx/compiler.h>
 #include <onyx/smp.h>
 #include <onyx/utils.h>
+
 #include <platform/irq.h>
-#include <stdbool.h>
 
 #endif
 
@@ -34,8 +36,7 @@ struct spinlock
 };
 
 #ifdef __cplusplus
-extern "C"
-{
+extern "C" {
 #endif
 
 void spin_lock(struct spinlock *lock);
@@ -59,7 +60,9 @@ CONSTEXPR static inline void spinlock_init(struct spinlock *s)
     s->lock = 0;
 }
 
-#define STATIC_SPINLOCK_INIT {}
+#define STATIC_SPINLOCK_INIT \
+    {                        \
+    }
 
 static inline FUNC_NO_DISCARD unsigned long spin_lock_irqsave(struct spinlock *lock)
 {

@@ -6,25 +6,26 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include <stdio.h>
 #include <libfdt.h>
+#include <stdio.h>
 
+#include <onyx/device_tree.h>
+#include <onyx/paging.h>
+#include <onyx/percpu.h>
+#include <onyx/random.h>
 #include <onyx/serial.h>
 #include <onyx/tty.h>
-#include <onyx/paging.h>
-#include <onyx/device_tree.h>
-#include <onyx/random.h>
 #include <onyx/vm.h>
-#include <onyx/percpu.h>
 
 static char buffer[1000];
 
-#define budget_printk(...) snprintf(buffer, sizeof(buffer), __VA_ARGS__); platform_serial_write(buffer, strlen(buffer))
+#define budget_printk(...)                         \
+    snprintf(buffer, sizeof(buffer), __VA_ARGS__); \
+    platform_serial_write(buffer, strlen(buffer))
 
 extern char percpu_base;
 
-extern "C"
-void kernel_entry(void *fdt)
+extern "C" void kernel_entry(void *fdt)
 {
     write_per_cpu(__cpu_base, &percpu_base);
     platform_serial_init();
@@ -44,13 +45,13 @@ void kernel_entry(void *fdt)
 
     vm_late_init();
 
-	paging_protect_kernel();
+    paging_protect_kernel();
 
     console_init();
 
     printk("Hello World %p\n", fdt);
 
-    while(1)
+    while (1)
     {
         __asm__ __volatile("wfi");
     }

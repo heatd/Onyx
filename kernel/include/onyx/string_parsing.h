@@ -9,10 +9,12 @@
 #ifndef _ONYX_STRING_PARSING_H
 #define _ONYX_STRING_PARSING_H
 
+#include <type_traits>
+
 #include <onyx/compiler.h>
+
 #include <onyx/expected.hpp>
 #include <onyx/string_view.hpp>
-#include <type_traits>
 
 namespace parser
 {

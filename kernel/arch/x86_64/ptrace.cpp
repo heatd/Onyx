@@ -5,37 +5,36 @@
  *
  * SPDX-License-Identifier: MIT
  */
-#include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <stddef.h>
-#include <stdbool.h>
 #include <errno.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/ptrace.h>
 
-#include <onyx/process.h>
+#include <onyx/fpu.h>
 #include <onyx/paging.h>
+#include <onyx/panic.h>
+#include <onyx/process.h>
 #include <onyx/ptrace.h>
 #include <onyx/vm.h>
-#include <onyx/fpu.h>
-#include <onyx/panic.h>
-
-#include <sys/ptrace.h>
 
 int ptrace_peek(struct process *process, void *addr, ptrace_word_t *word)
 {
-	return errno = EFAULT, -1;
+    return errno = EFAULT, -1;
 }
 
 int ptrace_poke(struct process *process, void *addr, ptrace_word_t word)
 {
-	return errno = EFAULT, -1;
+    return errno = EFAULT, -1;
 }
 
 int ptrace_getregs(struct process *process, struct user_regs_struct *regs)
 {
-	/* TODO: We currently don't support multi-threaded ptracing, since in Onyx processes have threads
-	 * (instead of linux's threads each have a process hack) */
-	return errno = EFAULT, -1;
+    /* TODO: We currently don't support multi-threaded ptracing, since in Onyx processes have
+     * threads (instead of linux's threads each have a process hack) */
+    return errno = EFAULT, -1;
 #if 0
 	thread_t *main_thread = process->threads[0];
 
@@ -69,7 +68,7 @@ int ptrace_getregs(struct process *process, struct user_regs_struct *regs)
 }
 int ptrace_getfpregs(struct process *process, struct user_fpregs_struct *regs)
 {
-	panic("implement");
-	//fpu_ptrace_getfpregs((void*) process->threads[0]->fpu_area, regs);
-	return 0;
+    panic("implement");
+    // fpu_ptrace_getfpregs((void*) process->threads[0]->fpu_area, regs);
+    return 0;
 }

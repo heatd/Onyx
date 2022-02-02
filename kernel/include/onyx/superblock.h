@@ -9,28 +9,27 @@
 #ifndef _ONYX_SUPERBLOCK_H
 #define _ONYX_SUPERBLOCK_H
 
+#include <sys/statfs.h>
 #include <sys/types.h>
 
-#include <onyx/spinlock.h>
 #include <onyx/list.h>
-
-#include <sys/statfs.h>
+#include <onyx/spinlock.h>
 
 struct file;
 
 struct blockdev;
 struct superblock
 {
-	struct list_head s_inodes;
-	struct spinlock s_ilock;
-	unsigned long s_ref;
-	void *s_helper;
-	int (*flush_inode)(struct inode *inode);
-	int (*kill_inode)(struct inode *inode);
-	int (*statfs)(struct statfs *buf, superblock *sb);
-	unsigned int s_block_size;
-	struct blockdev *s_bdev;
-	dev_t s_devnr;
+    struct list_head s_inodes;
+    struct spinlock s_ilock;
+    unsigned long s_ref;
+    void *s_helper;
+    int (*flush_inode)(struct inode *inode);
+    int (*kill_inode)(struct inode *inode);
+    int (*statfs)(struct statfs *buf, superblock *sb);
+    unsigned int s_block_size;
+    struct blockdev *s_bdev;
+    dev_t s_devnr;
 };
 
 void superblock_init(struct superblock *sb);
