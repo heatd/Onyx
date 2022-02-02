@@ -19,11 +19,6 @@ bool platform_has_msi()
     return false;
 }
 
-uint64_t get_tick_count()
-{
-    return 0xdeadbeef;
-}
-
 void halt()
 {
     while (true) {}

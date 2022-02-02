@@ -695,11 +695,11 @@ bool ahci_port_is_idle(ahci_port_t *port)
 
 int ahci_wait_bit(volatile uint32_t *reg, uint32_t mask, unsigned long timeout, bool clear)
 {
-	uint64_t last = get_tick_count();
+	uint64_t last = clocksource_get_time();
 	while(true)
 	{
 		/* If the time is up, return a timeout */
-		if(get_tick_count() - last >= timeout)
+		if(clocksource_get_time() - last >= (timeout * NS_PER_MS))
 			return errno = ETIMEDOUT, -1;
 
 		if(clear)

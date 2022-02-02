@@ -365,11 +365,6 @@ irqstatus_t apic_timer_irq(struct irq_context *ctx, void *cookie)
 unsigned long apic_rate = 0;
 unsigned long us_apic_rate = 0;
 
-uint64_t get_microseconds(void)
-{
-	return (apic_rate - lapic_read(get_per_cpu(lapic), LAPIC_TIMER_CURRCNT)) / us_apic_rate;
-}
-
 driver apic_driver =
 {
 	.name = "apic-timer",
@@ -680,11 +675,6 @@ void apic_timer_smp_init(volatile uint32_t *lapic)
 	lapic_write(lapic, LAPIC_TIMER_DIV, 3);
 
 	platform_init_clockevents();
-}
-
-uint64_t get_tick_count(void)
-{
-	return boot_ticks;
 }
 
 void boot_send_ipi(uint8_t id, uint32_t type, uint32_t page)

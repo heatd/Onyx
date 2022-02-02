@@ -36,20 +36,24 @@ void kernlog_print(const char *msg)
 		m++;
 	}
 #endif
+
+	const auto nanoseconds = clocksource_get_time();
+	const auto seconds = nanoseconds / NS_PER_SEC;
+	const auto milis = (nanoseconds % NS_PER_SEC) / NS_PER_MS;
 	if(log_position + strlen(msg) + 13 + 1 <= LOG_BUF_SIZE)
 	{
 		/* If there's clearly enough space, it's straight forward to do */
 		/* Compose a message containing a timestamp */
 		/* TODO: This strlen(msg) + 13 + 2 math is off */
 		memset(&_log_buf[log_position], 0, strlen(msg) + 13 + 2);
-		snprintf(&_log_buf[log_position], 200, "[%05lu.%05lu] %s", get_tick_count() / 1000, get_tick_count() % 1000, msg);
+		snprintf(&_log_buf[log_position], 200, "[%05lu.%05lu] %s", seconds, milis, msg);
 		log_position += strlen(msg) + 13 + 1;
 	}
 	else
 	{
 		/* else start overwriting the buffer head */
 		log_position = 0;
-		snprintf(&_log_buf[log_position], 200, "[%lu.%lu] %s", get_tick_count() / 1000, get_tick_count() % 1000, msg);
+		snprintf(&_log_buf[log_position], 200, "[%lu.%lu] %s", seconds, milis, msg);
 		log_position += strlen(msg) + 13 + 1;
 	}
 }

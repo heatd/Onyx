@@ -13,9 +13,6 @@
 #include <onyx/list.h>
 #include <onyx/spinlock.h>
 
-uint64_t get_tick_count();
-uint64_t get_microseconds();
-
 void udelay(unsigned int us);
 void ndelay(unsigned int ns);
 
