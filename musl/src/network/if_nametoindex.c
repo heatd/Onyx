@@ -4,7 +4,6 @@
 #include <sys/ioctl.h>
 #include <string.h>
 #include "syscall.h"
-#include <errno.h>
 
 unsigned if_nametoindex(const char *name)
 {
@@ -13,9 +12,7 @@ unsigned if_nametoindex(const char *name)
 
 	if ((fd = socket(AF_UNIX, SOCK_DGRAM|SOCK_CLOEXEC, 0)) < 0) return 0;
 	strncpy(ifr.ifr_name, name, sizeof ifr.ifr_name);
-	r = -EINVAL;
-	errno = EINVAL;
-	//ioctl(fd, SIOCGIFINDEX, &ifr);
+	r = ioctl(fd, SIOCGIFINDEX, &ifr);
 	__syscall(SYS_close, fd);
 	return r < 0 ? 0 : ifr.ifr_ifindex;
 }

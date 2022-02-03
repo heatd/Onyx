@@ -34,3 +34,4 @@ IncludeCategories:
   # Local headers: "foo/bar.h"
   - Regex:           '^("[.a-zA-Z0-9_/-]+\.h*")'
     Priority:        6
+SpaceAfterCStyleCast: True

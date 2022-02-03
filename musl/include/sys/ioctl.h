@@ -4,6 +4,8 @@
 extern "C" {
 #endif
 
+#define __NEED_struct_winsize
+
 #include <bits/alltypes.h>
 #include <bits/ioctl.h>
 
@@ -109,13 +111,6 @@ extern "C" {
 
 #define SIOCDEVPRIVATE     0x89F0
 #define SIOCPROTOPRIVATE   0x89E0
-
-struct winsize {
-	unsigned short ws_row;
-	unsigned short ws_col;
-	unsigned short ws_xpixel;
-	unsigned short ws_ypixel;
-};
 
 int ioctl (int, int, ...);
 

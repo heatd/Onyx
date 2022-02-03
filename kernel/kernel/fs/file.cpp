@@ -88,7 +88,7 @@ static bool validate_fd_number(int fd, struct ioctx *ctx)
         return false;
     }
 
-    if ((unsigned int)fd >= ctx->file_desc_entries)
+    if ((unsigned int) fd >= ctx->file_desc_entries)
     {
         return false;
     }
@@ -211,21 +211,21 @@ int copy_file_descriptors(struct process *process, struct ioctx *ctx)
 {
     scoped_mutex g{ctx->fdlock};
 
-    process->ctx.file_desc = (file **)malloc(ctx->file_desc_entries * sizeof(void *));
+    process->ctx.file_desc = (file **) malloc(ctx->file_desc_entries * sizeof(void *));
     process->ctx.file_desc_entries = ctx->file_desc_entries;
     if (!process->ctx.file_desc)
     {
         return -ENOMEM;
     }
 
-    process->ctx.cloexec_fds = (unsigned long *)malloc(ctx->file_desc_entries / 8);
+    process->ctx.cloexec_fds = (unsigned long *) malloc(ctx->file_desc_entries / 8);
     if (!process->ctx.cloexec_fds)
     {
         free(process->ctx.file_desc);
         return -ENOMEM;
     }
 
-    process->ctx.open_fds = (unsigned long *)malloc(ctx->file_desc_entries / 8);
+    process->ctx.open_fds = (unsigned long *) malloc(ctx->file_desc_entries / 8);
     if (!process->ctx.open_fds)
     {
         free(process->ctx.file_desc);
@@ -248,20 +248,20 @@ int copy_file_descriptors(struct process *process, struct ioctx *ctx)
 
 int allocate_file_descriptor_table(struct process *process)
 {
-    process->ctx.file_desc = (file **)zalloc(FILE_DESCRIPTOR_GROW_NR * sizeof(void *));
+    process->ctx.file_desc = (file **) zalloc(FILE_DESCRIPTOR_GROW_NR * sizeof(void *));
     if (!process->ctx.file_desc)
         return -ENOMEM;
 
     process->ctx.file_desc_entries = FILE_DESCRIPTOR_GROW_NR;
 
-    process->ctx.cloexec_fds = (unsigned long *)zalloc(FILE_DESCRIPTOR_GROW_NR / 8);
+    process->ctx.cloexec_fds = (unsigned long *) zalloc(FILE_DESCRIPTOR_GROW_NR / 8);
     if (!process->ctx.cloexec_fds)
     {
         free(process->ctx.file_desc);
         return -ENOMEM;
     }
 
-    process->ctx.open_fds = (unsigned long *)zalloc(FILE_DESCRIPTOR_GROW_NR / 8);
+    process->ctx.open_fds = (unsigned long *) zalloc(FILE_DESCRIPTOR_GROW_NR / 8);
     if (!process->ctx.open_fds)
     {
         free(process->ctx.file_desc);
@@ -288,10 +288,10 @@ int enlarge_file_descriptor_table(struct process *process, unsigned int new_size
 
     unsigned int new_nr_fds = process->ctx.file_desc_entries;
 
-    struct file **table = (file **)malloc(process->ctx.file_desc_entries * sizeof(void *));
-    unsigned long *cloexec_fds = (unsigned long *)malloc(FD_ENTRIES_TO_FDSET_SIZE(new_nr_fds));
+    struct file **table = (file **) malloc(process->ctx.file_desc_entries * sizeof(void *));
+    unsigned long *cloexec_fds = (unsigned long *) malloc(FD_ENTRIES_TO_FDSET_SIZE(new_nr_fds));
     /* We use zalloc here to implicitly zero free fds */
-    unsigned long *open_fds = (unsigned long *)zalloc(FD_ENTRIES_TO_FDSET_SIZE(new_nr_fds));
+    unsigned long *open_fds = (unsigned long *) zalloc(FD_ENTRIES_TO_FDSET_SIZE(new_nr_fds));
     if (!table || !cloexec_fds || !open_fds)
         goto error;
 
@@ -377,7 +377,7 @@ int alloc_fd(int fdbase)
                 else
                 {
                     /* Check against the file limit */
-                    if (current->get_rlimit(RLIMIT_NOFILE).rlim_cur < (unsigned long)fd)
+                    if (current->get_rlimit(RLIMIT_NOFILE).rlim_cur < (unsigned long) fd)
                         return -EMFILE;
                     /* Found a free fd that we can use, let's mark it used and return it */
                     ioctx->open_fds[i] |= (1UL << j);
@@ -421,7 +421,7 @@ ssize_t sys_read(int fd, const void *buf, size_t count)
     if (!fd_may_access(fil, FILE_ACCESS_READ))
         return -EBADF;
 
-    ssize_t size = read_vfs(fil->f_seek, count, (char *)buf, fil);
+    ssize_t size = read_vfs(fil->f_seek, count, (char *) buf, fil);
     if (size < 0)
     {
         return -errno;
@@ -449,7 +449,7 @@ ssize_t sys_write(int fd, const void *buf, size_t count)
     if (fil->f_flags & O_APPEND)
         fil->f_seek = fil->f_ino->i_size;
 
-    auto written = write_vfs(fil->f_seek, count, (void *)buf, fil);
+    auto written = write_vfs(fil->f_seek, count, (void *) buf, fil);
 
     if (written == -1)
         return -errno;
@@ -477,7 +477,7 @@ ssize_t sys_pread(int fd, void *buf, size_t count, off_t offset)
         return -EINVAL;
     }
 
-    ssize_t size = read_vfs(offset, count, (char *)buf, fil);
+    ssize_t size = read_vfs(offset, count, (char *) buf, fil);
     if (size < 0)
     {
         return -errno;
@@ -504,7 +504,7 @@ ssize_t sys_pwrite(int fd, const void *buf, size_t count, off_t offset)
         return -EINVAL;
     }
 
-    ssize_t written = write_vfs(offset, count, (void *)buf, fil);
+    ssize_t written = write_vfs(offset, count, (void *) buf, fil);
 
     if (written < 0)
         return -errno;
@@ -581,8 +581,8 @@ int do_sys_open(const char *filename, int flags, mode_t mode, struct file *__rel
 {
     if (flags & ~VALID_OPEN_FLAGS)
     {
-        // printk("Open(%s): Bad flags!\n", filename);
-        // printk("Flag mask %o\n", flags & ~VALID_OPEN_FLAGS);
+        printk("Open(%s): Bad flags!\n", filename);
+        printk("Flag mask %o\n", flags & ~VALID_OPEN_FLAGS);
         return -EINVAL;
     }
 
@@ -627,7 +627,7 @@ int sys_open(const char *ufilename, int flags, mode_t mode)
     /* TODO: Unify open and openat better */
     /* open(2) does relative opens using the current working directory */
     int fd = do_sys_open(filename, flags, mode, cwd);
-    free((char *)filename);
+    free((char *) filename);
     fd_put(cwd);
     return fd;
 }
@@ -684,7 +684,7 @@ int sys_dup2(int oldfd, int newfd)
         goto out;
     }
 
-    if ((unsigned int)newfd > ioctx->file_desc_entries)
+    if ((unsigned int) newfd > ioctx->file_desc_entries)
     {
         int st = enlarge_file_descriptor_table(current, newfd + 1);
         if (st < 0)
@@ -737,7 +737,7 @@ int sys_dup3(int oldfd, int newfd, int flags)
         goto out;
     }
 
-    if ((unsigned int)newfd > ioctx->file_desc_entries)
+    if ((unsigned int) newfd > ioctx->file_desc_entries)
     {
         int st = enlarge_file_descriptor_table(current, newfd + 1);
         if (st < 0)
@@ -832,7 +832,7 @@ ssize_t sys_readv(int fd, const struct iovec *vec, int veccnt)
         read += was_read;
         f->f_seek += was_read;
 
-        if ((size_t)was_read != v.iov_len)
+        if ((size_t) was_read != v.iov_len)
         {
             goto out;
         }
@@ -957,7 +957,7 @@ ssize_t sys_preadv(int fd, const struct iovec *vec, int veccnt, off_t offset)
         read += was_read;
         offset += was_read;
 
-        if ((size_t)was_read != v.iov_len)
+        if ((size_t) was_read != v.iov_len)
         {
             goto out;
         }
@@ -1234,11 +1234,11 @@ out:
     if (block_file)
         fd_put(block_file);
     if (source)
-        free((void *)source);
+        free((void *) source);
     if (target)
-        free((void *)target);
+        free((void *) target);
     if (filesystemtype)
-        free((void *)filesystemtype);
+        free((void *) filesystemtype);
     return ret;
 }
 
@@ -1403,7 +1403,7 @@ int sys_fcntl(int fd, int cmd, unsigned long arg)
         if (!f)
             return -errno;
 
-        ret = do_dupfd(f, (int)arg, false);
+        ret = do_dupfd(f, (int) arg, false);
         break;
     }
 
@@ -1412,7 +1412,7 @@ int sys_fcntl(int fd, int cmd, unsigned long arg)
         if (!f)
             return -errno;
 
-        ret = do_dupfd(f, (int)arg, true);
+        ret = do_dupfd(f, (int) arg, true);
         break;
     }
 
@@ -1472,7 +1472,7 @@ int sys_stat(const char *upathname, struct stat *ubuf)
         st = -errno;
     }
 
-    free((void *)pathname);
+    free((void *) pathname);
     return st;
 }
 
@@ -1494,7 +1494,7 @@ int sys_lstat(const char *upathname, struct stat *ubuf)
         st = -errno;
     }
 
-    free((void *)pathname);
+    free((void *) pathname);
     return st;
 }
 
@@ -1570,7 +1570,7 @@ close_file:
         fd_put(dir);
 out:
     if (path)
-        free((void *)path);
+        free((void *) path);
     return st;
 }
 
@@ -1667,7 +1667,7 @@ int sys_openat(int dirfd, const char *upath, int flags, mode_t mode)
 
     int fd = do_sys_open(path, flags, mode, dirfd_desc);
 
-    free((char *)path);
+    free((char *) path);
     if (dirfd_desc)
         fd_put(dirfd_desc);
 
@@ -1701,7 +1701,7 @@ int sys_fstatat(int dirfd, const char *upathname, struct stat *ubuf, int flags)
 out:
     if (dirfd_desc)
         fd_put(dirfd_desc);
-    free((void *)pathname);
+    free((void *) pathname);
     return st;
 }
 
@@ -1720,7 +1720,7 @@ int sys_fmount(int fd, const char *upath)
 
     int st = mount_fs(f->f_ino, path);
 
-    free((void *)path);
+    free((void *) path);
     fd_put(f);
     return st;
 }
@@ -1846,7 +1846,7 @@ int sys_mkdirat(int dirfd, const char *upath, mode_t mode)
 
     int ret = do_sys_mkdir(path, mode, dir);
 
-    free((char *)path);
+    free((char *) path);
     if (dirfd_desc)
         fd_put(dirfd_desc);
 
@@ -1900,7 +1900,7 @@ int sys_mknodat(int dirfd, const char *upath, mode_t mode, dev_t dev)
 
     int ret = do_sys_mknodat(path, mode, dev, dir);
 
-    free((char *)path);
+    free((char *) path);
     if (dirfd_desc)
         fd_put(dirfd_desc);
 
@@ -1914,7 +1914,7 @@ int sys_mknod(const char *pathname, mode_t mode, dev_t dev)
 
 ssize_t sys_readlinkat(int dirfd, const char *upathname, char *ubuf, size_t bufsiz)
 {
-    if ((ssize_t)bufsiz < 0)
+    if ((ssize_t) bufsiz < 0)
         return -EINVAL;
     ssize_t st = 0;
     char *pathname = strcpy_from_user(upathname);
@@ -2038,8 +2038,8 @@ int kernel_statfs(file *f, struct statfs *buf)
     buf->f_frsize = 0;
 
     // Unsure about this, but this is not going to be a security hazard anyway
-    buf->f_fsid.__val[0] = (int)sb->s_devnr;
-    buf->f_fsid.__val[1] = (int)(sb->s_devnr >> 32);
+    buf->f_fsid.__val[0] = (int) sb->s_devnr;
+    buf->f_fsid.__val[1] = (int) (sb->s_devnr >> 32);
 
     return sb->statfs(buf, sb);
 }

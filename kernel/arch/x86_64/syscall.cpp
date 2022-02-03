@@ -28,11 +28,11 @@ extern "C" long do_syscall64(struct syscall_frame *frame)
 
     /* In case of a fork or sigreturn, adjust %rdi so it points to the frame */
     if (frame->rax == SYS_fork || frame->rax == SYS_sigreturn)
-        frame->rdi = (unsigned long)frame;
+        frame->rdi = (unsigned long) frame;
 
     /* sigaltstack's implementation requires the syscall frame as the 3rd argument */
     if (frame->rax == SYS_sigaltstack)
-        frame->rdx = (unsigned long)frame;
+        frame->rdx = (unsigned long) frame;
 
     long syscall_nr = frame->rax;
     long ret = 0;
@@ -48,8 +48,8 @@ extern "C" long do_syscall64(struct syscall_frame *frame)
         ret = -ENOSYS;
 
 #if 0
-	if(ret == -ENOSYS)
-		printk("Error doing syscall %ld\n", syscall_nr);
+    if (ret < 0)
+        printk("Error doing syscall %ld = %ld (%s)\n", syscall_nr, ret, strerror(-ret));
 #endif
     proc_event_exit_syscall(ret, syscall_nr);
 

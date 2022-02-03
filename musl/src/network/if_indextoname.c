@@ -13,7 +13,7 @@ char *if_indextoname(unsigned index, char *name)
 
 	if ((fd = socket(AF_UNIX, SOCK_DGRAM|SOCK_CLOEXEC, 0)) < 0) return 0;
 	ifr.ifr_ifindex = index;
-	r = -ENOSYS;   // TODO: Implement this correctly: ioctl(fd, SIOCGIFNAME, &ifr);
+	r = ioctl(fd, SIOCGIFNAME, &ifr);
 	__syscall(SYS_close, fd);
 	if (r < 0) {
 		if (errno == ENODEV) errno = ENXIO;

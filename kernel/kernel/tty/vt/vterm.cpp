@@ -166,7 +166,7 @@ void vterm_append_msg(struct vterm *vterm, struct vterm_message *msg)
 
 void vterm_send_message(struct vterm *vterm, unsigned long message, void *ctx)
 {
-    struct vterm_message *msg = (vterm_message *)zalloc(sizeof(*msg));
+    struct vterm_message *msg = (vterm_message *) zalloc(sizeof(*msg));
 
     /* TODO: Maybe don't crash here? */
     assert(msg != NULL);
@@ -199,7 +199,7 @@ static void draw_char(uint32_t c, unsigned int x, unsigned int y, struct framebu
     if (c >= font->chars)
         c = '?';
 
-    volatile char *buffer = (volatile char *)fb->framebuffer;
+    volatile char *buffer = (volatile char *) fb->framebuffer;
 
     buffer += y * fb->pitch + x * (fb->bpp / 8);
 
@@ -216,14 +216,14 @@ static void draw_char(uint32_t c, unsigned int x, unsigned int y, struct framebu
                 color = bg;
 
             uint32_t color_u32 = unpack_rgba(color, fb);
-            volatile uint32_t *b = (volatile uint32_t *)((uint32_t *)buffer + j);
+            volatile uint32_t *b = (volatile uint32_t *) ((uint32_t *) buffer + j);
 
             /* If the bpp is 32 bits, we can just blit it out */
             if (fb->bpp == 32)
                 mov_non_temporal(b, color_u32);
             else
             {
-                volatile unsigned char *buf = (volatile unsigned char *)(buffer + j);
+                volatile unsigned char *buf = (volatile unsigned char *) (buffer + j);
                 int bytes = fb->bpp / 8;
                 for (int k = 0; k < bytes; k++)
                 {
@@ -233,7 +233,7 @@ static void draw_char(uint32_t c, unsigned int x, unsigned int y, struct framebu
             }
         }
 
-        buffer = (volatile char *)(((char *)buffer) + fb->pitch);
+        buffer = (volatile char *) (((char *) buffer) + fb->pitch);
     }
 }
 
@@ -387,7 +387,7 @@ bool vterm_putc(utf32_t c, struct vterm *vt)
 void draw_cursor(int x, int y, struct framebuffer *fb, struct color fg)
 {
     struct font *font = get_font_data();
-    volatile char *buffer = (volatile char *)fb->framebuffer;
+    volatile char *buffer = (volatile char *) fb->framebuffer;
 
     buffer += y * fb->pitch + x * (fb->bpp / 8);
 
@@ -404,14 +404,14 @@ void draw_cursor(int x, int y, struct framebuffer *fb, struct color fg)
                 color = fg;
 
             uint32_t c = unpack_rgba(color, fb);
-            volatile uint32_t *b = (volatile uint32_t *)((uint32_t *)buffer + j);
+            volatile uint32_t *b = (volatile uint32_t *) ((uint32_t *) buffer + j);
 
             /* If the bpp is 32 bits, we can just blit it out */
             if (fb->bpp == 32)
                 *b = c;
             else
             {
-                volatile unsigned char *buf = (volatile unsigned char *)(buffer + j);
+                volatile unsigned char *buf = (volatile unsigned char *) (buffer + j);
                 int bytes = fb->bpp / 8;
                 for (int k = 0; k < bytes; k++)
                 {
@@ -421,7 +421,7 @@ void draw_cursor(int x, int y, struct framebuffer *fb, struct color fg)
             }
         }
 
-        buffer = (volatile char *)(((char *)buffer) + fb->pitch);
+        buffer = (volatile char *) (((char *) buffer) + fb->pitch);
     }
 }
 
@@ -497,13 +497,13 @@ struct vterm primary_vterm = {};
 
 static void fb_fill_color(uint32_t color, struct framebuffer *frameb)
 {
-    volatile uint32_t *fb = (volatile uint32_t *)frameb->framebuffer;
+    volatile uint32_t *fb = (volatile uint32_t *) frameb->framebuffer;
 
     for (size_t i = 0; i < frameb->height; i++)
     {
         for (size_t j = 0; j < frameb->width; j++)
             fb[j] = color;
-        fb = (volatile uint32_t *)((char *)fb + frameb->pitch);
+        fb = (volatile uint32_t *) ((char *) fb + frameb->pitch);
     }
 }
 
@@ -604,7 +604,7 @@ void vterm_ansi_do_cup(unsigned long x, unsigned long y, struct vterm *vt)
 
 void vterm_blink_thread(void *ctx)
 {
-    struct vterm *vt = (vterm *)ctx;
+    struct vterm *vt = (vterm *) ctx;
 
     while (true)
     {
@@ -829,7 +829,7 @@ void vterm_csi_delete_chars(unsigned long chars, struct vterm *vt)
 void vterm::insert_blank(unsigned long nr)
 {
     auto x = cursor_x;
-    auto to_blank = cul::min((unsigned int)nr, columns - x);
+    auto to_blank = cul::min((unsigned int) nr, columns - x);
     memmove(&cells[cursor_y * columns + x + to_blank], &cells[cursor_y * columns + x],
             sizeof(console_cell) * (columns - nr - x));
 
@@ -883,7 +883,7 @@ void vterm::do_device_attributes(unsigned long nr)
 
     // c with nr = 5 is a "who are you" command
     // Return Base VT100, no options in stdin
-    tty_send_response(tty, (char *)"\x1b[?1;0c");
+    tty_send_response(tty, (char *) "\x1b[?1;0c");
 }
 
 void vterm::do_device_status_report(unsigned long nr)
@@ -896,7 +896,7 @@ void vterm::do_device_status_report(unsigned long nr)
         // Ps = 0 -> terminal is fine
         // Ps = 3 -> malfunction
         // As we are a virtual terminal I don't see a usecase for malfunction here.
-        tty_send_response(tty, (char *)"\x1b[0n");
+        tty_send_response(tty, (char *) "\x1b[0n");
         break;
     }
     // Command from host - Please report active position (using a CPR control sequence)
@@ -1192,7 +1192,7 @@ void vterm::do_csi_command(char escape)
 
 void vterm::repeat_last(unsigned long nr)
 {
-    char c = (char)last_char;
+    char c = (char) last_char;
     if (!isprint(c))
         return;
 
@@ -1276,12 +1276,12 @@ size_t vterm::do_escape(const char *buffer, size_t len)
 
 ssize_t vterm_write_tty(const void *buffer, size_t size, struct tty *tty)
 {
-    // platform_serial_write((const char *) buffer, size);
-    struct vterm *vt = (vterm *)tty->priv;
+    platform_serial_write((const char *) buffer, size);
+    struct vterm *vt = (vterm *) tty->priv;
 
     mutex_lock(&vt->vt_lock);
     size_t i = 0;
-    const char *data = (const char *)buffer;
+    const char *data = (const char *) buffer;
     bool did_scroll = false;
 
     for (; i < size; i++)
@@ -1295,7 +1295,7 @@ ssize_t vterm_write_tty(const void *buffer, size_t size, struct tty *tty)
         else
         {
             size_t codepoint_length = 0;
-            utf32_t codepoint = utf8to32((utf8_t *)data + i, size - i, &codepoint_length);
+            utf32_t codepoint = utf8to32((utf8_t *) data + i, size - i, &codepoint_length);
 
             /* TODO: Detect surrogates, overlong sequences. The code I wrote before
              * has some weird casting and returns.
@@ -1328,12 +1328,12 @@ ssize_t vterm_write_tty(const void *buffer, size_t size, struct tty *tty)
 
 unsigned int vterm_ioctl_tty(int request, void *argp, struct tty *tty)
 {
-    struct vterm *vt = (vterm *)tty->priv;
+    struct vterm *vt = (vterm *) tty->priv;
 
     switch (request)
     {
     case TIOCGWINSZ: {
-        struct winsize *win = (winsize *)argp;
+        struct winsize *win = (winsize *) argp;
         struct winsize kwin = {};
         kwin.ws_row = vt->rows;
         kwin.ws_col = vt->columns;
@@ -1350,7 +1350,7 @@ unsigned int vterm_ioctl_tty(int request, void *argp, struct tty *tty)
 
 void vterm_init(struct tty *tty)
 {
-    struct vterm *vt = (vterm *)tty->priv;
+    struct vterm *vt = (vterm *) tty->priv;
 
     mutex_init(&vt->vt_lock);
     mutex_init(&vt->condvar_mutex);
@@ -1362,8 +1362,8 @@ void vterm_init(struct tty *tty)
     vt->rows = fb->height / font->height;
     vt->fb = fb;
     vt->cells =
-        (console_cell *)vmalloc(vm_size_to_pages(vt->columns * vt->rows * sizeof(*vt->cells)),
-                                VM_TYPE_REGULAR, VM_WRITE | VM_NOEXEC);
+        (console_cell *) vmalloc(vm_size_to_pages(vt->columns * vt->rows * sizeof(*vt->cells)),
+                                 VM_TYPE_REGULAR, VM_WRITE | VM_NOEXEC);
     assert(vt->cells != NULL);
 
     vt->fg = default_fg;
@@ -1536,7 +1536,7 @@ const size_t nr_actions = sizeof(key_actions) / sizeof(key_actions[0]);
 
 void __vterm_receive_input(void *p)
 {
-    char *s = (char *)p;
+    char *s = (char *) p;
     vterm_receive_input(s);
 }
 
@@ -1594,7 +1594,7 @@ int vterm_handle_key(struct vterm *vt, struct input_device *dev, struct input_ev
     if (likely(action_string))
     {
         struct dpc_work w;
-        w.context = (void *)action_string;
+        w.context = (void *) action_string;
         w.funcptr = __vterm_receive_input;
         w.next = NULL;
         dpc_schedule_work(&w, DPC_PRIORITY_MEDIUM);
@@ -1646,7 +1646,7 @@ void vterm_handle_messages(struct vterm *vt)
 
 void vterm_render_thread(void *arg)
 {
-    struct vterm *vt = (vterm *)arg;
+    struct vterm *vt = (vterm *) arg;
 
     mutex_lock(&vt->condvar_mutex);
 
@@ -1698,7 +1698,7 @@ void vterm_panic(void)
 
 void vterm_release_video(void *vt_)
 {
-    struct vterm *vt = (vterm *)vt_;
+    struct vterm *vt = (vterm *) vt_;
     mutex_lock(&vt->vt_lock);
 
     vt->blink_die = true;
@@ -1717,7 +1717,7 @@ void vterm_release_video(void *vt_)
 
 void vterm_get_video(void *vt_)
 {
-    struct vterm *vt = (vterm *)vt_;
+    struct vterm *vt = (vterm *) vt_;
     mutex_lock(&vt->vt_lock);
 
     vt->blink_die = false;
