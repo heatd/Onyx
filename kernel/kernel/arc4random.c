@@ -52,13 +52,13 @@ struct chacha
 
 static inline uint32_t chacha_read_little_uint32(const unsigned char* buf)
 {
-    return (uint32_t)buf[0] << 0 | (uint32_t)buf[1] << 8 | (uint32_t)buf[2] << 16 |
-           (uint32_t)buf[3] << 24;
+    return (uint32_t) buf[0] << 0 | (uint32_t) buf[1] << 8 | (uint32_t) buf[2] << 16 |
+           (uint32_t) buf[3] << 24;
 }
 
 static void chacha_keysetup(struct chacha* ctx, const unsigned char* key)
 {
-    const unsigned char* sigma = (const unsigned char*)"expand 32-byte k";
+    const unsigned char* sigma = (const unsigned char*) "expand 32-byte k";
 
     ctx->input[0] = chacha_read_little_uint32(sigma + 0 * sizeof(uint32_t));
     ctx->input[1] = chacha_read_little_uint32(sigma + 1 * sizeof(uint32_t));
@@ -158,7 +158,7 @@ static struct spinlock random_lock;
 void arc4random_buf(void* buffer_ptr, size_t size)
 {
     unsigned char entropy[KEYSZ + IVSZ];
-    unsigned char* buffer = (unsigned char*)buffer_ptr;
+    unsigned char* buffer = (unsigned char*) buffer_ptr;
 
     spin_lock(&random_lock);
 
@@ -183,7 +183,7 @@ void arc4random_buf(void* buffer_ptr, size_t size)
 
         if (rs_count == 0)
         {
-            get_entropy((char*)entropy, sizeof(entropy));
+            get_entropy((char*) entropy, sizeof(entropy));
 
             if (rs_initialized)
             {

@@ -95,7 +95,7 @@ std::pair<std::unique_ptr<unsigned char[]>, size_t> icmp_header(bool v6, std::ui
     std::unique_ptr<unsigned char[]> ptr{new unsigned char[header_size]};
     if (v6)
     {
-        icmp6_hdr *hdr = (icmp6_hdr *)ptr.get();
+        icmp6_hdr *hdr = (icmp6_hdr *) ptr.get();
         hdr->icmp6_type = ICMP6_ECHO_REQUEST;
         hdr->icmp6_code = 0;
         hdr->icmp6_dataun.icmp6_un_data16[0] = id;
@@ -103,7 +103,7 @@ std::pair<std::unique_ptr<unsigned char[]>, size_t> icmp_header(bool v6, std::ui
     }
     else
     {
-        icmphdr *hdr = (icmphdr *)ptr.get();
+        icmphdr *hdr = (icmphdr *) ptr.get();
         hdr->type = ICMP_ECHO;
         hdr->code = 0;
         hdr->un.echo.id = id;
@@ -119,7 +119,7 @@ std::unique_ptr<unsigned char[]> create_icmp_payload(std::mt19937 &rng)
 
     for (size_t i = 0; i < payload_size; i++)
     {
-        ptr[i] = (std::uint8_t)rng();
+        ptr[i] = (std::uint8_t) rng();
     }
 
     return ptr;
@@ -138,7 +138,7 @@ icmp_pkt_check_res icmp_check_response(unsigned char *header, unsigned char *pay
 {
     if (v6)
     {
-        icmp6_hdr *hdr = (icmp6_hdr *)header;
+        icmp6_hdr *hdr = (icmp6_hdr *) header;
         if (hdr->icmp6_dataun.icmp6_un_data16[0] != id)
             return ICMP_PKT_CHECK_NOT_OURS;
 
@@ -147,7 +147,7 @@ icmp_pkt_check_res icmp_check_response(unsigned char *header, unsigned char *pay
     }
     else
     {
-        icmphdr *hdr = (icmphdr *)header;
+        icmphdr *hdr = (icmphdr *) header;
         if (hdr->un.echo.id != id)
             return ICMP_PKT_CHECK_NOT_OURS;
 
@@ -195,11 +195,11 @@ int do_ping(const char *dst)
 
     if (isv6)
     {
-        ntop_addr = &((sockaddr_in6 *)result->ai_addr)->sin6_addr;
+        ntop_addr = &((sockaddr_in6 *) result->ai_addr)->sin6_addr;
     }
     else
     {
-        ntop_addr = &((sockaddr_in *)result->ai_addr)->sin_addr;
+        ntop_addr = &((sockaddr_in *) result->ai_addr)->sin_addr;
     }
 
     if (!inet_ntop(result->ai_family, ntop_addr, text_address, sizeof(text_address)))
@@ -214,7 +214,7 @@ int do_ping(const char *dst)
     std::mt19937 rng(dev());
     std::uniform_int_distribution<std::mt19937::result_type> dist(0, UINT16_MAX);
 
-    std::uint16_t id = (std::uint16_t)dist(rng);
+    std::uint16_t id = (std::uint16_t) dist(rng);
 
     std::uint16_t seq = 0;
     printf("PING %s (%s)\n", dst, text_address);
@@ -268,7 +268,7 @@ int do_ping(const char *dst)
 
             last_read = st;
 
-            auto res = icmp_check_response(header.get(), payload.get(), seq, (size_t)st, id,
+            auto res = icmp_check_response(header.get(), payload.get(), seq, (size_t) st, id,
                                            original_payload, isv6);
 
             if (res == ICMP_PKT_CHECK_NOT_OURS)

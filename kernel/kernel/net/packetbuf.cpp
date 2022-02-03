@@ -106,8 +106,8 @@ bool packetbuf::allocate_space(size_t length)
 #endif
 
     net_header = transport_header = nullptr;
-    data = tail = (unsigned char *)buffer_start;
-    end = (unsigned char *)buffer_start + PAGE_SIZE;
+    data = tail = (unsigned char *) buffer_start;
+    end = (unsigned char *) buffer_start + PAGE_SIZE;
 
     return true;
 }
@@ -132,11 +132,11 @@ void packetbuf::reserve_headers(unsigned int header_length)
  */
 void *packetbuf::push_header(unsigned int header_length)
 {
-    assert((unsigned long)data >= (unsigned long)buffer_start);
+    assert((unsigned long) data >= (unsigned long) buffer_start);
 
     data -= header_length;
 
-    return (void *)data;
+    return (void *) data;
 }
 
 /**
@@ -152,7 +152,7 @@ void *packetbuf::put(unsigned int size)
 
     tail += size;
 
-    assert((unsigned long)tail <= (unsigned long)end);
+    assert((unsigned long) tail <= (unsigned long) end);
 
     return to_ret;
 }
@@ -197,12 +197,12 @@ packetbuf *packetbuf_clone(packetbuf *original)
 
     memcpy(buf->buffer_start, original->buffer_start, buf_len);
 
-    auto nhoff = original->net_header - (unsigned char *)original->buffer_start;
-    auto thoff = original->transport_header - (unsigned char *)original->buffer_start;
+    auto nhoff = original->net_header - (unsigned char *) original->buffer_start;
+    auto thoff = original->transport_header - (unsigned char *) original->buffer_start;
     buf->reserve_headers(original->start_page_off());
 
-    buf->net_header = (unsigned char *)buf->buffer_start + nhoff;
-    buf->transport_header = (unsigned char *)buf->buffer_start + thoff;
+    buf->net_header = (unsigned char *) buf->buffer_start + nhoff;
+    buf->transport_header = (unsigned char *) buf->buffer_start + thoff;
 
     buf->put(original->length());
     buf->domain = original->domain;
@@ -283,7 +283,7 @@ ssize_t packetbuf::expand_buffer(const void *ubuf_, unsigned int len)
 #if DEBUG_PACKETBUF_GROW
             printk("length %u + tail room %u = %u", length(), tail_room, length() + tail_room);
 #endif
-            uint8_t *dest_ptr = (uint8_t *)PAGE_TO_VIRT(v.page) + v.page_off + v.length;
+            uint8_t *dest_ptr = (uint8_t *) PAGE_TO_VIRT(v.page) + v.page_off + v.length;
 
             if (copy_from_user(dest_ptr, ubuf, to_put) < 0)
                 return -EFAULT;

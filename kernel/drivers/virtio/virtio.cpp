@@ -348,7 +348,7 @@ unsigned int virtq::alloc_descriptor_internal()
     assert(desc_bitmap.FindFreeBit(&desc) == true);
     avail_descs--;
 
-    return (unsigned int)desc;
+    return (unsigned int) desc;
 }
 
 void virtq_split::allocate_buffer_list(virtio_allocation_info &info)
@@ -382,7 +382,7 @@ void virtq_split::allocate_buffer_list(virtio_allocation_info &info)
 
         virtq_desc *desc = descs + index;
 
-        desc->paddr = (unsigned long)page_to_phys(v->page) + v->page_off;
+        desc->paddr = (unsigned long) page_to_phys(v->page) + v->page_off;
         desc->length = v->length;
 
         if (seq - 1 == 0)
@@ -541,7 +541,7 @@ irqstatus_t virtio_handle_irq(struct irq_context *context, void *cookie)
 
 int virtio_probe(struct device *_dev)
 {
-    pci::pci_device *device = (pci::pci_device *)_dev;
+    pci::pci_device *device = (pci::pci_device *) _dev;
     unique_ptr<virtio::vdev> virtio_device;
 
     if (device->did() < virtio::pci_device_id_base_transitional ||

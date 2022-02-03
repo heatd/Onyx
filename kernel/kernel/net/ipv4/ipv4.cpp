@@ -107,7 +107,7 @@ int create_fragments(struct list_head *frag_list, packetbuf *buf, size_t payload
     if (buf->needs_csum)
     {
         auto starting_csum = *buf->csum_offset;
-        *(volatile may_alias_uint16_t *)buf->csum_offset = 0;
+        *(volatile may_alias_uint16_t *) buf->csum_offset = 0;
         auto csum = __ipsum_unfolded(buf->csum_start, buf->tail - buf->csum_start, starting_csum);
 
         *buf->csum_offset = ipsum_fold(csum);
@@ -207,8 +207,8 @@ int create_fragments(struct list_head *frag_list, packetbuf *buf, size_t payload
             frag->this_buf = new_buf;
         }
 
-        struct ip_header *header = (ip_header *)frag->this_buf->push_header(sizeof(ip_header));
-        frag->this_buf->net_header = (unsigned char *)header;
+        struct ip_header *header = (ip_header *) frag->this_buf->push_header(sizeof(ip_header));
+        frag->this_buf->net_header = (unsigned char *) header;
 
         sinfo->frags_following = !(payload_size == this_payload_size);
         setup_fragment(sinfo, frag, header, netif);
@@ -225,7 +225,7 @@ int create_fragments(struct list_head *frag_list, packetbuf *buf, size_t payload
 
     buf->tail = buf->data + first_frag->length + sizeof(ip_header);
 
-    buf->page_vec[0].length = buf->tail - (unsigned char *)buf->buffer_start;
+    buf->page_vec[0].length = buf->tail - (unsigned char *) buf->buffer_start;
 
 #if 0
 	printk("vec length: %u\n", buf->page_vec[0].length - buf->buffer_start_off());
@@ -329,14 +329,14 @@ int send_packet(const iflow &flow, packetbuf *buf, cul::slice<ip_option> options
         return do_fragmentation(&sinfo, payload_size, buf, netif);
     }
 
-    ip_header *iphdr = (ip_header *)buf->push_header(sizeof(ip_header));
+    ip_header *iphdr = (ip_header *) buf->push_header(sizeof(ip_header));
 
     /* Let's reuse code by creating a single fragment struct on the stack */
     struct fragment frag;
     frag.length = payload_size;
     frag.packet_off = 0;
     frag.this_buf = buf;
-    buf->net_header = (unsigned char *)iphdr;
+    buf->net_header = (unsigned char *) iphdr;
 
     setup_fragment(&sinfo, &frag, iphdr, netif);
 
@@ -363,21 +363,21 @@ bool valid_packet(struct ip_header *header, size_t size)
 
 int handle_packet(netif *nif, packetbuf *buf)
 {
-    struct ip_header *header = (ip_header *)buf->data;
+    struct ip_header *header = (ip_header *) buf->data;
 
     if (!valid_packet(header, buf->length()))
     {
         return -EINVAL;
     }
 
-    buf->net_header = (unsigned char *)header;
+    buf->net_header = (unsigned char *) header;
     buf->domain = AF_INET;
     auto iphdr_len = ip_header_length(header);
 
     buf->data += iphdr_len;
 
     /* Adjust tail to point at the end of the ipv4 packet */
-    buf->tail = (unsigned char *)header + ntohs(header->total_len);
+    buf->tail = (unsigned char *) header + ntohs(header->total_len);
 
     if (header->proto == IPPROTO_UDP)
         return udp_handle_packet(nif, buf);
@@ -397,7 +397,7 @@ int handle_packet(netif *nif, packetbuf *buf)
 
         /* We perform this check to make sure we don't leak memory */
         if (buf->length() >= 8)
-            dgram = (unsigned char *)header + iphdr_len;
+            dgram = (unsigned char *) header + iphdr_len;
         else
             dgram = bytes;
 
@@ -482,7 +482,7 @@ int proto_family::bind(sockaddr *addr, socklen_t len, inet_socket *sock)
     if (len != sizeof(sockaddr_in))
         return -EINVAL;
 
-    sockaddr_in *in = (sockaddr_in *)addr;
+    sockaddr_in *in = (sockaddr_in *) addr;
 
     int st = 0;
 
@@ -505,7 +505,7 @@ int proto_family::bind_any(inet_socket *sock)
     in.sin_addr.s_addr = INADDR_ANY;
     in.sin_port = 0;
 
-    return bind((sockaddr *)&in, sizeof(sockaddr_in), sock);
+    return bind((sockaddr *) &in, sizeof(sockaddr_in), sock);
 }
 
 void proto_family::unbind(inet_socket *sock)
@@ -520,7 +520,7 @@ expected<inet_route, int> proto_family::route(const inet_sock_address &from,
                                               const inet_sock_address &to, int domain)
 {
     /* domain only matters for IPv6 sockets that need to check if it's running on ipv4-mapped */
-    (void)domain;
+    (void) domain;
     netif *required_netif = nullptr;
     /* If the source address specifies an interface, we need to use that one. */
     if (!is_bind_any(from.in4.s_addr))

@@ -57,15 +57,15 @@ private:
             return false;
         }
 
-        uintptr_t page = (uintptr_t)&__vdso_start;
-        size_t vdso_size = (uintptr_t)&__vdso_end - page;
+        uintptr_t page = (uintptr_t) &__vdso_start;
+        size_t vdso_size = (uintptr_t) &__vdso_end - page;
         size_t vdso_pages = vm_size_to_pages(vdso_size);
 
         page -= KERNEL_VIRTUAL_BASE;
 
         for (size_t i = 0; i < vdso_pages; i++, page += PAGE_SIZE)
         {
-            auto p = page_add_page((void *)page);
+            auto p = page_add_page((void *) page);
 
             /* We ref 2 times - one for the vmo, and one because it's part of the kernel image */
             page_ref_many(p, 2);
@@ -107,9 +107,9 @@ public:
         Elf64_Sym *s = vdso_symtab;
         for (size_t i = 0; i < nr_sym; i++, s++)
         {
-            const char *symname = (const char *)elf_get_name(s->st_name, vdso_strtab);
+            const char *symname = (const char *) elf_get_name(s->st_name, vdso_strtab);
             if (!strcmp(symname, name))
-                return (Type)(vdso_base + s->st_value);
+                return (Type) (vdso_base + s->st_value);
         }
 
         return nullptr;
@@ -126,23 +126,23 @@ static vdso main_vdso{};
 
 #else
 
-static vdso main_vdso{&__vdso_start, (unsigned long)&__vdso_end - (unsigned long)&__vdso_start};
+static vdso main_vdso{&__vdso_start, (unsigned long) &__vdso_end - (unsigned long) &__vdso_start};
 
 #endif
 
 __attribute__((no_sanitize_undefined)) bool vdso::init()
 {
-    char *file = (char *)&__vdso_start;
-    Elf64_Ehdr *header = (Elf64_Ehdr *)&__vdso_start;
+    char *file = (char *) &__vdso_start;
+    Elf64_Ehdr *header = (Elf64_Ehdr *) &__vdso_start;
 
     assert(header->e_ident[EI_MAG0] == '\x7f');
 
-    Elf64_Shdr *s = (Elf64_Shdr *)(file + header->e_shoff);
+    Elf64_Shdr *s = (Elf64_Shdr *) (file + header->e_shoff);
     Elf64_Shdr *shname = &s[header->e_shstrndx];
-    Elf64_Phdr *ph = (Elf64_Phdr *)(file + header->e_phoff);
-    vdso_base = (uintptr_t)file + ph->p_offset;
+    Elf64_Phdr *ph = (Elf64_Phdr *) (file + header->e_phoff);
+    vdso_base = (uintptr_t) file + ph->p_offset;
 
-    char *shname_buf = (char *)(file + shname->sh_offset);
+    char *shname_buf = (char *) (file + shname->sh_offset);
     for (Elf64_Half i = 0; i < header->e_shnum; i++)
     {
         char *name = elf_get_name(s[i].sh_name, shname_buf);
@@ -222,15 +222,15 @@ int vdso_update_time(clockid_t id, clock_time *time)
 /* Ubsan is being stupid so I need to shut it up */
 void vdso_init()
 {
-    uintptr_t page = (uintptr_t)&__vdso_start;
-    size_t vdso_size = (uintptr_t)&__vdso_end - page;
+    uintptr_t page = (uintptr_t) &__vdso_start;
+    size_t vdso_size = (uintptr_t) &__vdso_end - page;
     size_t vdso_pages = vm_size_to_pages(vdso_size);
 
     page -= KERNEL_VIRTUAL_BASE;
 
     for (size_t i = 0; i < vdso_pages; i++, page += PAGE_SIZE)
     {
-        auto p = page_add_page((void *)page);
+        auto p = page_add_page((void *) page);
         page_ref(p);
     }
 

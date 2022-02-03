@@ -76,9 +76,9 @@
 // Register that stores FSB/MSI interrupt data (addr + val)
 #define HPET_ETB_Tn_FSB_INT(x)         (HPET_ETB_TIMER_REG_BASE(x) + 0x10)
 // Address to where the FSB int message should be written to
-#define HPET_ETB_Tn_FSB_INT_ADDR(addr) (((uint64_t)addr) << 32)
+#define HPET_ETB_Tn_FSB_INT_ADDR(addr) (((uint64_t) addr) << 32)
 // Value that gets written during the FSB int message
-#define HPET_ETB_Tn_FSB_INT_VAL(val)   ((uint32_t)val)
+#define HPET_ETB_Tn_FSB_INT_VAL(val)   ((uint32_t) val)
 
 class hpet_timer
 {
@@ -105,7 +105,7 @@ public:
         if (range != nullptr)
         {
             // Was mapped, unmap it
-            vm_munmap(&kernel_address_space, (void *)range, HPET_EVENT_BLOCK_LENGTH);
+            vm_munmap(&kernel_address_space, (void *) range, HPET_EVENT_BLOCK_LENGTH);
         }
     }
 
@@ -136,7 +136,7 @@ hpet_timer::hpet_timer(const ACPI_TABLE_HPET *hpet_table) : hpet_{hpet_table}, e
  */
 bool hpet_timer::init()
 {
-    volatile void *evt_block = mmiomap((void *)hpet_->Address.Address, HPET_EVENT_BLOCK_LENGTH,
+    volatile void *evt_block = mmiomap((void *) hpet_->Address.Address, HPET_EVENT_BLOCK_LENGTH,
                                        VM_READ | VM_WRITE | VM_NOEXEC | VM_NOCACHE);
 
     if (!evt_block)
@@ -164,7 +164,7 @@ static void hpet_init()
 {
     ACPI_TABLE_HPET *hpet_table;
 
-    auto st = AcpiGetTable((char *)ACPI_SIG_HPET, 0, (ACPI_TABLE_HEADER **)&hpet_table);
+    auto st = AcpiGetTable((char *) ACPI_SIG_HPET, 0, (ACPI_TABLE_HEADER **) &hpet_table);
 
     if (ACPI_FAILURE(st))
     {

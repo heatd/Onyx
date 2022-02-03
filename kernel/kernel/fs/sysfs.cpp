@@ -20,8 +20,8 @@
 #include <onyx/vfs.h>
 
 struct sysfs_object sysfs_root = {
-    .name = (char *)"",
-    .inode = (ino_t)&sysfs_root,
+    .name = (char *) "",
+    .inode = (ino_t) &sysfs_root,
     .perms = 0644 | S_IFDIR,
 };
 
@@ -60,7 +60,7 @@ struct inode *sysfs_create_inode_for_file(struct sysfs_object *f)
     ino->i_mode = f->perms;
     ino->i_sb = sysfs_root_ino->i_sb;
     ino->i_dev = sysfs_root_ino->i_dev;
-    ino->i_inode = (ino_t)f;
+    ino->i_inode = (ino_t) f;
     ino->i_flags = INODE_FLAG_DONT_CACHE;
 
     sysfs_setup_fops(ino);
@@ -98,7 +98,7 @@ struct sysfs_object *sysfs_get_obj(struct sysfs_object *file, const char *name)
 struct inode *sysfs_open(struct dentry *dir, const char *name)
 {
     struct inode *node = dir->d_inode;
-    struct sysfs_object *file = (struct sysfs_object *)node->i_inode;
+    struct sysfs_object *file = (struct sysfs_object *) node->i_inode;
     assert(file != nullptr);
 
     if (!(node->i_type & VFS_TYPE_DIR))
@@ -127,24 +127,24 @@ struct inode *sysfs_open(struct dentry *dir, const char *name)
 
 size_t sysfs_read(size_t offset, size_t sizeofread, void *buffer, struct file *this_)
 {
-    struct sysfs_object *file = (struct sysfs_object *)this_->f_ino->i_inode;
+    struct sysfs_object *file = (struct sysfs_object *) this_->f_ino->i_inode;
     assert(file != nullptr);
 
     if (file->read)
         return file->read(buffer, sizeofread, offset);
     else
-        return errno = ENOSYS, (size_t)-1;
+        return errno = ENOSYS, (size_t) -1;
 }
 
 size_t sysfs_write(size_t offset, size_t sizeofwrite, void *buffer, struct file *this_)
 {
-    struct sysfs_object *file = (struct sysfs_object *)this_->f_ino->i_inode;
+    struct sysfs_object *file = (struct sysfs_object *) this_->f_ino->i_inode;
     assert(file != nullptr);
 
     if (file->write)
         return file->write(buffer, sizeofwrite, offset);
     else
-        return errno = ENOSYS, (size_t)-1;
+        return errno = ENOSYS, (size_t) -1;
 }
 
 void sysfs_init(void)
@@ -154,14 +154,14 @@ void sysfs_init(void)
     struct inode *root = inode_create(false);
     assert(root != nullptr);
 
-    struct superblock *sb = (superblock *)zalloc(sizeof(*sb));
+    struct superblock *sb = (superblock *) zalloc(sizeof(*sb));
 
     assert(sb != nullptr);
 
     superblock_init(sb);
 
     root->i_sb = sb;
-    root->i_inode = (ino_t)&sysfs_root;
+    root->i_inode = (ino_t) &sysfs_root;
     root->i_nlink = 1;
 
     root->i_type = sysfs_type_to_vfs_type(sysfs_root.perms);
@@ -194,7 +194,7 @@ void sysfs_mount(void)
 
 off_t sysfs_getdirent(struct dirent *buf, off_t off, struct file *_file)
 {
-    struct sysfs_object *file = (struct sysfs_object *)_file->f_ino->i_inode;
+    struct sysfs_object *file = (struct sysfs_object *) _file->f_ino->i_inode;
     assert(file != nullptr);
 
     spin_lock(&file->dentry_lock);
@@ -243,7 +243,7 @@ int sysfs_stat(struct stat *buf, struct file *node)
 {
     memset(buf, 0, sizeof(struct stat));
 
-    struct sysfs_object *file = (struct sysfs_object *)node->f_ino->i_inode;
+    struct sysfs_object *file = (struct sysfs_object *) node->f_ino->i_inode;
     buf->st_mode = file->perms;
 
     buf->st_ino = node->f_ino->i_inode;
@@ -281,7 +281,7 @@ int sysfs_object_init(const char *name, struct sysfs_object *obj)
     obj->name = namedup;
 
     /* TODO: Init obj->inode properly, without address leaks */
-    obj->inode = (ino_t)obj;
+    obj->inode = (ino_t) obj;
 
     INIT_LIST_HEAD(&obj->dentries);
 

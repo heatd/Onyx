@@ -79,7 +79,7 @@ unsigned int context::close_object(photon_handle handle)
     scoped_lock g{handle_table_lock};
 
     if (handle >= handle_table.buf_size())
-        return (unsigned int)-EINVAL;
+        return (unsigned int) -EINVAL;
 
     /* If the handle is under buf_size but was deleted, it's nullptr anyway, so it all works out. */
     auto &ptr = handle_table[handle];
@@ -462,19 +462,19 @@ unsigned int device::do_ioctls(int request, void *argp)
     }
 
     case PHOTON_IOCTL_SET_NAME:
-        return do_ioctl_set_name((photon_set_name_args *)argp);
+        return do_ioctl_set_name((photon_set_name_args *) argp);
 
     case PHOTON_IOCTL_OPEN_FROM_NAME:
-        return do_ioctl_open_from_name((photon_open_from_name_args *)argp);
+        return do_ioctl_open_from_name((photon_open_from_name_args *) argp);
 
     case PHOTON_IOCTL_CLOSE_OBJECT:
-        return do_ioctl_close_handle((photon_close_handle_args *)argp);
+        return do_ioctl_close_handle((photon_close_handle_args *) argp);
 
     case PHOTON_IOCTL_GET_INFO:
-        return do_ioctl_get_info((photon_info *)argp);
+        return do_ioctl_get_info((photon_info *) argp);
 
     case PHOTON_IOCTL_GET_BUS_INFO:
-        return do_ioctl_get_bus_info((photon_bus_info *)argp);
+        return do_ioctl_get_bus_info((photon_bus_info *) argp);
 
     case PHOTON_IOCTL_PLATFORM_MIN ... PHOTON_IOCTL_PLATFORM_MAX:
         return handle_platform_ioctls(request, argp);
@@ -499,7 +499,7 @@ void *device::do_mmap(struct vm_region *area, struct file *f)
     if (!mapping)
         return nullptr;
 
-    struct file *fd = (file *)zalloc(sizeof(*fd));
+    struct file *fd = (file *) zalloc(sizeof(*fd));
 
     if (!fd)
         return nullptr;
@@ -511,7 +511,7 @@ void *device::do_mmap(struct vm_region *area, struct file *f)
     auto dbuf = cast<dumb_buffer, object>(mapping->buf());
     auto buf_size = dbuf->get_size();
     auto pages = dbuf->get_pages();
-    struct vm_object *vmo = vmo_create(buf_size, (void *)dbuf.get_data());
+    struct vm_object *vmo = vmo_create(buf_size, (void *) dbuf.get_data());
 
     if (!vmo)
         return nullptr;
@@ -538,7 +538,7 @@ void *device::do_mmap(struct vm_region *area, struct file *f)
 
     area->vmo = vmo;
 
-    return (void *)area->base;
+    return (void *) area->base;
 }
 
 void *photon_mmap(struct vm_region *area, struct file *f)

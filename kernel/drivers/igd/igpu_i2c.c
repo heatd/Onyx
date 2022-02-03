@@ -74,7 +74,7 @@ int igpu_i2c_read(struct igpu_device *dev, uint8_t addr, uint8_t *buf, uint8_t c
 
         printk("Reading.\n");
 
-        uint32_t *ptr = (uint32_t *)buf;
+        uint32_t *ptr = (uint32_t *) buf;
 
         *ptr = igpu_gpio_read(dev, GMBUS3);
         buf += 4;
@@ -98,7 +98,7 @@ int igpu_i2c_write(struct igpu_device *dev, uint8_t addr, uint8_t *buf, uint8_t 
     igpu_dump_gmbus_regs(dev);
     while (count != 0)
     {
-        igpu_gpio_write(dev, GMBUS3, *(uint32_t *)buf);
+        igpu_gpio_write(dev, GMBUS3, *(uint32_t *) buf);
 
         if (igpu_i2c_hw_rdy(dev) < 0)
         {
@@ -140,11 +140,11 @@ int igpu_i2c_do_message(struct igpu_device *dev, struct i2c_message *msg)
     int st = 0;
     if (!msg->write)
     {
-        st = igpu_i2c_read(dev, (uint8_t)msg->addr, msg->buffer, (uint8_t)msg->length);
+        st = igpu_i2c_read(dev, (uint8_t) msg->addr, msg->buffer, (uint8_t) msg->length);
     }
     else
     {
-        st = igpu_i2c_write(dev, (uint8_t)msg->addr, msg->buffer, (uint8_t)msg->length);
+        st = igpu_i2c_write(dev, (uint8_t) msg->addr, msg->buffer, (uint8_t) msg->length);
     }
 
     igpu_i2c_finish_transaction(dev);

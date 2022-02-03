@@ -26,7 +26,7 @@
 
 void __test_page_alloc(void *arg)
 {
-    (void)arg;
+    (void) arg;
     void *ptr = alloc_page(0);
 
     for (; ptr; ptr = alloc_page(0))

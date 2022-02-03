@@ -42,7 +42,7 @@ TEST(DevZero, ReadTest)
     int fd = open("/dev/zero", O_RDONLY);
     ASSERT_NE(fd, -1);
 
-    EXPECT_EQ(read(fd, (void *)&num, sizeof(unsigned int)), sizeof(unsigned int));
+    EXPECT_EQ(read(fd, (void *) &num, sizeof(unsigned int)), sizeof(unsigned int));
     close(fd);
 
     EXPECT_EQ(num, 0);

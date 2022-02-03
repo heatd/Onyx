@@ -252,7 +252,7 @@ retry:
     if (date.seconds >= 60 || date.minutes >= 60 || date.hours >= 24 || date.day > 31 ||
         date.month > 12)
         goto retry;
-    date.unixtime = get_unix_time((const date_t *)&date);
+    date.unixtime = get_unix_time((const date_t *) &date);
     return date.unixtime;
 }
 

@@ -275,11 +275,11 @@ void *cpu_handle_messages(void *stack);
 void *cpu_resched(void *stack);
 
 /* CPU messages */
-#define CPU_KILL        (unsigned long)-1
-#define CPU_TRY_RESCHED (unsigned long)0
-#define CPU_FLUSH_TLB   (unsigned long)1
-#define CPU_KILL_THREAD (unsigned long)2
-#define CPU_FREEZE      (unsigned long)3
+#define CPU_KILL        (unsigned long) -1
+#define CPU_TRY_RESCHED (unsigned long) 0
+#define CPU_FLUSH_TLB   (unsigned long) 1
+#define CPU_KILL_THREAD (unsigned long) 2
+#define CPU_FREEZE      (unsigned long) 3
 
 #ifdef __x86_64__
 

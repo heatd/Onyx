@@ -20,7 +20,7 @@ struct tty_line_disc ntty_disc = {.ldisc = N_TTY, .ops = &ntty_ops};
 
 int iscntrl(int c)
 {
-    return (unsigned int)c < 0x20 || c == 0x7f || c == '\033';
+    return (unsigned int) c < 0x20 || c == 0x7f || c == '\033';
 }
 
 struct tty_echo_args

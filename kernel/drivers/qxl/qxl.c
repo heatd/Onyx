@@ -136,7 +136,7 @@ int qxl_init_device(struct qxl_device *device)
     if (qxl_check_rom(device) < 0)
         return -1;
 
-    device->ram_header = (void *)((char *)device->vram_mapping + device->rom->ram_header_offset);
+    device->ram_header = (void *) ((char *) device->vram_mapping + device->rom->ram_header_offset);
 
     if (qxl_check_ram(device) < 0)
         return -1;
@@ -151,7 +151,7 @@ int qxl_init_device(struct qxl_device *device)
 
 int qxl_probe(struct device *_dev)
 {
-    pci::pci_device *device = (pci::pci_device *)_dev;
+    pci::pci_device *device = (pci::pci_device *) _dev;
 
     return -1;
 

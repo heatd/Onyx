@@ -159,7 +159,7 @@ int proto_family::bind(sockaddr *addr, socklen_t len, inet_socket *sock)
     if (len != sizeof(sockaddr_in6))
         return -EINVAL;
 
-    sockaddr_in6 *in = (sockaddr_in6 *)addr;
+    sockaddr_in6 *in = (sockaddr_in6 *) addr;
 
     int st = 0;
 
@@ -182,7 +182,7 @@ int proto_family::bind_any(inet_socket *sock)
     in.sin6_addr = IN6ADDR_ANY_INIT;
     in.sin6_port = 0;
 
-    return bind((sockaddr *)&in, sizeof(sockaddr_in6), sock);
+    return bind((sockaddr *) &in, sizeof(sockaddr_in6), sock);
 }
 
 void proto_family::unbind(inet_socket *sock)
@@ -403,21 +403,21 @@ bool valid_packet(const ip6hdr *header, size_t size)
 
 int handle_packet(netif *nif, packetbuf *buf)
 {
-    ip6hdr *header = (ip6hdr *)buf->data;
+    ip6hdr *header = (ip6hdr *) buf->data;
 
     if (!valid_packet(header, buf->length()))
     {
         return -EINVAL;
     }
 
-    buf->net_header = (unsigned char *)header;
+    buf->net_header = (unsigned char *) header;
     buf->domain = AF_INET6;
     auto iphdr_len = sizeof(ip6hdr);
 
     buf->data += iphdr_len;
 
     /* Adjust tail to point at the end of the ipv4 packet */
-    buf->tail = (unsigned char *)header + iphdr_len + ntohs(header->payload_length);
+    buf->tail = (unsigned char *) header + iphdr_len + ntohs(header->payload_length);
 
     if (header->next_header == IPPROTO_ICMPV6)
         return icmpv6::handle_packet(nif, buf);

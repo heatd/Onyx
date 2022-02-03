@@ -32,10 +32,10 @@ char **process_copy_envarg(const char **envarg, bool to_kernel, int *count)
     const char *ptr = nullptr;
     long st;
 
-    while ((st = get_user64((unsigned long *)b, (unsigned long *)&ptr)) == 0 && ptr != nullptr)
+    while ((st = get_user64((unsigned long *) b, (unsigned long *) &ptr)) == 0 && ptr != nullptr)
     {
         size_t length = strlen_user(ptr);
-        if (length == (size_t)-EFAULT)
+        if (length == (size_t) -EFAULT)
             return errno = EFAULT, nullptr;
 
         string_size += length + 1;
@@ -50,7 +50,7 @@ char **process_copy_envarg(const char **envarg, bool to_kernel, int *count)
     char *new_;
     if (to_kernel)
     {
-        new_ = (char *)zalloc(buffer_size);
+        new_ = (char *) zalloc(buffer_size);
         if (!new_)
             return nullptr;
     }
@@ -59,18 +59,18 @@ char **process_copy_envarg(const char **envarg, bool to_kernel, int *count)
         panic("old code");
     }
 
-    char *strings = (char *)new_ + (nr_args + 1) * sizeof(void *);
+    char *strings = (char *) new_ + (nr_args + 1) * sizeof(void *);
     char *it = strings;
 
     /* Actually copy the buffer */
     for (size_t i = 0; i < nr_args; i++)
     {
         const char *str;
-        if (get_user64((unsigned long *)&envarg[i], (unsigned long *)&str) < 0)
+        if (get_user64((unsigned long *) &envarg[i], (unsigned long *) &str) < 0)
             return errno = EFAULT, nullptr;
 
         size_t length = strlen_user(str);
-        if (length == (size_t)-EFAULT)
+        if (length == (size_t) -EFAULT)
             return errno = EFAULT, nullptr;
 
         if (copy_from_user(it, str, length) < 0)
@@ -79,10 +79,10 @@ char **process_copy_envarg(const char **envarg, bool to_kernel, int *count)
         it += length + 1;
     }
 
-    char **new_args = (char **)new_;
+    char **new_args = (char **) new_;
     for (size_t i = 0; i < nr_args; i++)
     {
-        new_args[i] = (char *)strings;
+        new_args[i] = (char *) strings;
         strings += strlen(new_args[i]) + 1;
     }
 
@@ -168,8 +168,8 @@ void *process_setup_auxv(void *buffer, char *strings_space, struct process *proc
 {
     process->vdso = vdso_map();
     /* Setup the auxv at the stack bottom */
-    Elf64_auxv_t *auxv = (Elf64_auxv_t *)buffer;
-    unsigned char *scratch_space = (unsigned char *)strings_space;
+    Elf64_auxv_t *auxv = (Elf64_auxv_t *) buffer;
+    unsigned char *scratch_space = (unsigned char *) strings_space;
     for (int i = 0; i < 38; i++)
     {
         uint64_t type;
@@ -198,17 +198,17 @@ void *process_setup_auxv(void *buffer, char *strings_space, struct process *proc
         case AT_RANDOM:;
             {
                 char s[16];
-                get_entropy((char *)s, 16);
+                get_entropy((char *) s, 16);
 
                 if (copy_to_user(scratch_space, s, 16) < 0)
                     return nullptr;
 
-                val = (uint64_t)scratch_space;
+                val = (uint64_t) scratch_space;
                 scratch_space += 16;
             }
             break;
         case AT_BASE:
-            val = (uintptr_t)process->interp_base;
+            val = (uintptr_t) process->interp_base;
             break;
         case AT_PHENT:
             val = process->info.phent;
@@ -217,31 +217,31 @@ void *process_setup_auxv(void *buffer, char *strings_space, struct process *proc
             val = process->info.phnum;
             break;
         case AT_PHDR:
-            val = (uintptr_t)process->info.phdr;
+            val = (uintptr_t) process->info.phdr;
             break;
         case AT_EXECFN:
 
         {
-            val = (uintptr_t)scratch_space;
+            val = (uintptr_t) scratch_space;
             // This should be safe since we're the only thread running, no race conditions I would
             // say.
             // TODO: Unless we ever add a way to set it from another process?
             size_t len = process->cmd_line.length() + 1;
-            if (copy_to_user((char *)scratch_space, process->cmd_line.c_str(), len) < 0)
+            if (copy_to_user((char *) scratch_space, process->cmd_line.c_str(), len) < 0)
                 return nullptr;
 
             scratch_space += len;
         }
         break;
         case AT_SYSINFO_EHDR:
-            val = (uintptr_t)process->vdso;
+            val = (uintptr_t) process->vdso;
             break;
         case AT_FLAGS: {
             break;
         }
 
         case AT_ENTRY: {
-            val = (unsigned long)process->info.program_entry;
+            val = (unsigned long) process->info.program_entry;
             break;
         }
         }
@@ -272,17 +272,17 @@ int process_put_entry_info(struct stack_info *info, char **argv, char **envp)
     size_t total_info_len = ALIGN_TO(
         arg_len + env_len + invariants + get_current_process()->cmd_line.length() + 1 + 16, 16);
     // printk("Old top: %p\n", info->top);
-    info->top = (void *)((unsigned long)info->top - total_info_len);
+    info->top = (void *) ((unsigned long) info->top - total_info_len);
 
-    __attribute__((may_alias)) char **pointers_base = (char **)info->top;
-    __attribute__((may_alias)) char *strings_space = (char *)pointers_base + invariants;
+    __attribute__((may_alias)) char **pointers_base = (char **) info->top;
+    __attribute__((may_alias)) char *strings_space = (char *) pointers_base + invariants;
 
-    __attribute__((may_alias)) long *pargc = (long *)pointers_base;
+    __attribute__((may_alias)) long *pargc = (long *) pointers_base;
     if (copy_to_user(pargc, &argc, sizeof(argc)) < 0)
         return -EFAULT;
 
     // printk("argv at %p\n", pointers_base);
-    pointers_base = (char **)((char *)pointers_base + sizeof(long));
+    pointers_base = (char **) ((char *) pointers_base + sizeof(long));
     if (process_put_strings(&pointers_base, &strings_space, argv) < 0)
         return -EFAULT;
 
@@ -431,7 +431,7 @@ int sys_execve(const char *p, const char **argv, const char **envp)
     }
 
     /* Setup the binfmt args */
-    file = (uint8_t *)zalloc(BINFMT_SIGNATURE_LENGTH);
+    file = (uint8_t *) zalloc(BINFMT_SIGNATURE_LENGTH);
     if (!file)
     {
         st = -ENOMEM;

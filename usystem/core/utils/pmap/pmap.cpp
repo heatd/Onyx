@@ -55,7 +55,7 @@ int main(int argc, char **argv)
 
     for (size_t i = 0; i < vec_size;)
     {
-        const onx_process_vm_region *reg = (const onx_process_vm_region *)&data[i];
+        const onx_process_vm_region *reg = (const onx_process_vm_region *) &data[i];
         i += reg->size;
         std::printf("%016lx - %016lx\t", reg->start, reg->start + reg->length);
 

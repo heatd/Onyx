@@ -52,7 +52,7 @@ bool kasan_is_cleared_access(unsigned long addr, size_t size)
 
 static inline char *kasan_get_ptr(unsigned long addr)
 {
-    return (char *)(kasan_space + ((addr - arch_high_half) >> KASAN_SHIFT));
+    return (char *) (kasan_space + ((addr - arch_high_half) >> KASAN_SHIFT));
 }
 
 void vterm_panic(void);
@@ -66,7 +66,7 @@ void kasan_fail(unsigned long addr, size_t size, bool write, unsigned char b)
     const char *event;
     const char *thing_accessed = "Accessed zone not marked as accessible";
 
-    switch ((unsigned char)b)
+    switch ((unsigned char) b)
     {
     case KASAN_FREED:
         event = "use-after-free";
@@ -91,7 +91,7 @@ void kasan_fail(unsigned long addr, size_t size, bool write, unsigned char b)
     panic(buffer);
 }
 
-#define KASAN_MISALIGNMENT(x) ((x)&KASAN_N_MASK)
+#define KASAN_MISALIGNMENT(x) ((x) &KASAN_N_MASK)
 
 void kasan_check_memory_fast(unsigned long addr, size_t size, bool write)
 {
@@ -266,7 +266,7 @@ USED unsigned long __asan_shadow_memory_dynamic_address = kasan_space;
 #define DEFINE_ASAN_SET_SHADOW(byte)                                  \
     USED void __asan_set_shadow_##byte(const void *addr, size_t size) \
     {                                                                 \
-        memset((void *)addr, 0x##byte, size);                         \
+        memset((void *) addr, 0x##byte, size);                        \
     }
 
 DEFINE_ASAN_SET_SHADOW(00);
@@ -288,8 +288,8 @@ USED void *__asan_memcpy(void *dst, const void *src, size_t n)
     if (n == 0)
         return dst;
 
-    kasan_check_memory((unsigned long)dst, n, true);
-    kasan_check_memory((unsigned long)src, n, false);
+    kasan_check_memory((unsigned long) dst, n, true);
+    kasan_check_memory((unsigned long) src, n, false);
 
     return memcpy(dst, src, n);
 }
@@ -299,8 +299,8 @@ USED void *__asan_memmove(void *dst, const void *src, size_t n)
     if (n == 0)
         return dst;
 
-    kasan_check_memory((unsigned long)dst, n, true);
-    kasan_check_memory((unsigned long)src, n, false);
+    kasan_check_memory((unsigned long) dst, n, true);
+    kasan_check_memory((unsigned long) src, n, false);
 
     return memmove(dst, src, n);
 }
@@ -310,7 +310,7 @@ USED void *__asan_memset(void *dst, int c, size_t n)
     if (n == 0)
         return dst;
 
-    kasan_check_memory((unsigned long)dst, n, true);
+    kasan_check_memory((unsigned long) dst, n, true);
     return memset(dst, c, n);
 }
 }
@@ -334,8 +334,8 @@ void kasan_init(void)
 
 int kasan_alloc_shadow(unsigned long addr, size_t size, bool accessible)
 {
-    unsigned long kasan_start = (unsigned long)kasan_get_ptr(addr);
-    unsigned long kasan_end = (unsigned long)kasan_get_ptr(addr + size);
+    unsigned long kasan_start = (unsigned long) kasan_get_ptr(addr);
+    unsigned long kasan_end = (unsigned long) kasan_get_ptr(addr + size);
 
     unsigned long actual_start = kasan_start, actual_end = kasan_end;
 
@@ -352,7 +352,7 @@ int kasan_alloc_shadow(unsigned long addr, size_t size, bool accessible)
     printf("Kasan end: %lx\n", kasan_end);
     printf("Actual start: %lx\nActual end: %lx\n", actual_start, actual_end);*/
     /* TODO: This is a huge memory leak right now. */
-    assert(vm_map_range((void *)kasan_start, (kasan_end - kasan_start) >> PAGE_SHIFT,
+    assert(vm_map_range((void *) kasan_start, (kasan_end - kasan_start) >> PAGE_SHIFT,
                         VM_WRITE | VM_NOEXEC | VM_DONT_MAP_OVER) != NULL);
     /* Mask excess bytes as redzones */
     /* memset((void *) kasan_start, KASAN_REDZONE, actual_start - kasan_start);
@@ -360,7 +360,7 @@ int kasan_alloc_shadow(unsigned long addr, size_t size, bool accessible)
 
     if (!accessible)
     {
-        memset((void *)actual_start, (unsigned char)KASAN_REDZONE, actual_end - actual_start);
+        memset((void *) actual_start, (unsigned char) KASAN_REDZONE, actual_end - actual_start);
     }
 
     return 0;
@@ -396,7 +396,7 @@ extern "C" void asan_poison_shadow(unsigned long addr, size_t size, uint8_t valu
         if (shadow_val > 0)
         {
             // This byte is partially poisoned, lets check if there's no holes in our new poisoning.
-            if (offset + size == (uint8_t)shadow_val)
+            if (offset + size == (uint8_t) shadow_val)
             {
                 // This works! Check for a partial poisoning vs a complete one
                 *shadow_start = offset == 0 ? value : offset;
@@ -425,7 +425,7 @@ extern "C" void asan_poison_shadow(unsigned long addr, size_t size, uint8_t valu
             shadow_start[0] = offset;
         else if (shadow_start[0] > 0)
         {
-            shadow_start[0] = cul::min(offset, (uint8_t)shadow_start[0]);
+            shadow_start[0] = cul::min(offset, (uint8_t) shadow_start[0]);
         }
 
         shadow_start++;
@@ -466,14 +466,14 @@ void asan_unpoison_shadow(unsigned long addr, size_t size)
         else if (shadow_end[0] > 0)
         {
             // try to increse the unpoisoned region
-            shadow_end[0] = cul::max(offset, (uint8_t)shadow_end[0]);
+            shadow_end[0] = cul::max(offset, (uint8_t) shadow_end[0]);
         }
     }
 }
 
 extern "C" void kasan_set_state(unsigned long *__ptr, size_t size, int state)
 {
-    unsigned long addr = (unsigned long)__ptr;
+    unsigned long addr = (unsigned long) __ptr;
 
     if (state == 0)
         asan_unpoison_shadow(addr, size);

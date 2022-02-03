@@ -171,7 +171,7 @@ void *sched_preempt_thread(void *current_stack);
 
 int sched_transition_to_user_thread(struct thread *thread);
 
-#define SCHED_NO_CPU_PREFERENCE (unsigned int)-1
+#define SCHED_NO_CPU_PREFERENCE (unsigned int) -1
 
 static inline bool sched_needs_resched(struct thread *thread)
 {

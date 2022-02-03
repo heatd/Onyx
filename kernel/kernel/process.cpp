@@ -141,7 +141,7 @@ process *process_create(const std::string_view &cmd_line, ioctx *ctx, process *p
     /* TODO: idm_get_id doesn't wrap? POSIX COMPLIANCE */
     proc->refcount = 1;
     proc->pid_ = idm_get_id(process_ids);
-    assert(proc->pid_ != (pid_t)-1);
+    assert(proc->pid_ != (pid_t) -1);
 
     if (!proc->set_cmdline(cmd_line))
         return errno = ENOMEM, nullptr;
@@ -550,7 +550,7 @@ pid_t sys_wait4(pid_t pid, int *wstatus, int options, rusage *usage)
     if (options & ~VALID_WAIT4_OPTIONS)
         return -EINVAL;
 
-    wait_info w{pid, (unsigned int)options};
+    wait_info w{pid, (unsigned int) options};
 
     int st =
         wait_for_event_interruptible(&current->wait_child_event, wait_handle_processes(current, w));
@@ -589,7 +589,7 @@ pid_t sys_fork(syscall_frame *ctx)
     process *child;
     thread_t *to_be_forked;
 
-    proc = (process *)get_current_process();
+    proc = (process *) get_current_process();
     to_be_forked = get_current_thread();
     /* Create a new process */
 
@@ -914,7 +914,7 @@ process *process_find_tracee(process *tracer, pid_t pid)
     extrusive_list_head *list = &tracer->tracees;
     while (list && list->ptr)
     {
-        process *tracee = (process *)list->ptr;
+        process *tracee = (process *) list->ptr;
         if (tracee->get_pid() == pid)
             return tracee;
         list = list->next;
@@ -943,7 +943,7 @@ void sys_exit_thread(int value)
         pid_t to_write = 0;
         if (copy_to_user(thread->ctid, &to_write, sizeof(to_write)) < 0)
             goto skip;
-        futex_wake((int *)thread->ctid, INT_MAX);
+        futex_wake((int *) thread->ctid, INT_MAX);
     }
 skip:
     /* Destroy the thread */
@@ -1075,7 +1075,7 @@ ssize_t process::query_get_strings(void *ubuf, ssize_t len, unsigned long what, 
     {
     case PROCESS_GET_NAME: {
         scoped_mutex g{name_lock};
-        ssize_t length = (ssize_t)name.length() + 1;
+        ssize_t length = (ssize_t) name.length() + 1;
         *howmany = length;
 
         if (len < length)
@@ -1089,7 +1089,7 @@ ssize_t process::query_get_strings(void *ubuf, ssize_t len, unsigned long what, 
         }
 
         // Don't forget to null-terminate the buffer!
-        if (user_memset((void *)((char *)ubuf + length - 1), '\0', 1) < 0)
+        if (user_memset((void *) ((char *) ubuf + length - 1), '\0', 1) < 0)
         {
             return -EFAULT;
         }
@@ -1098,7 +1098,7 @@ ssize_t process::query_get_strings(void *ubuf, ssize_t len, unsigned long what, 
     }
 
     case PROCESS_GET_PATH: {
-        ssize_t length = (ssize_t)cmd_line.length() + 1;
+        ssize_t length = (ssize_t) cmd_line.length() + 1;
         *howmany = length;
 
         if (len < length)
@@ -1136,15 +1136,15 @@ ssize_t process::query_mm_info(void *ubuf, ssize_t len, unsigned long what, size
 
     *howmany = sizeof(onx_process_mm_info);
 
-    if (len < (ssize_t)sizeof(onx_process_mm_info))
+    if (len < (ssize_t) sizeof(onx_process_mm_info))
         return -ENOSPC;
 
     onx_process_mm_info info;
 
-    info.brk = (uint64_t)mm->brk;
+    info.brk = (uint64_t) mm->brk;
     info.start = mm->start;
     info.end = mm->end;
-    info.mmap_base = (uint64_t)mm->mmap_base;
+    info.mmap_base = (uint64_t) mm->mmap_base;
     info.virtual_memory_size = mm->virtual_memory_size;
     info.shared_set_size = mm->shared_set_size;
     info.resident_set_size = mm->resident_set_size;
@@ -1211,7 +1211,7 @@ ssize_t process::query_vm_regions(void *ubuf, ssize_t len, unsigned long what, s
 
     *howmany = needed_len;
 
-    if ((size_t)len < needed_len)
+    if ((size_t) len < needed_len)
     {
         return -ENOSPC;
     }
@@ -1229,7 +1229,7 @@ ssize_t process::query_vm_regions(void *ubuf, ssize_t len, unsigned long what, s
     char *ptr = &buf[0];
 
     vm_for_every_region(address_space, [&](vm_region *region) -> bool {
-        onx_process_vm_region *reg = (onx_process_vm_region *)ptr;
+        onx_process_vm_region *reg = (onx_process_vm_region *) ptr;
         reg->size = sizeof(onx_process_vm_region);
         reg->mapping_type = region->mapping_type;
         reg->protection = 0;

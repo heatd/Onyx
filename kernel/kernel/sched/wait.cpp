@@ -31,16 +31,16 @@ bool wait_token::complete() const
     switch (len)
     {
     case 1:
-        val = *(uint8_t *)addr;
+        val = *(uint8_t *) addr;
         break;
     case 2:
-        val = *(uint16_t *)addr;
+        val = *(uint16_t *) addr;
         break;
     case 4:
-        val = *(uint32_t *)addr;
+        val = *(uint32_t *) addr;
         break;
     case 8:
-        val = *(uint64_t *)addr;
+        val = *(uint64_t *) addr;
         break;
     default:
         __builtin_unreachable();

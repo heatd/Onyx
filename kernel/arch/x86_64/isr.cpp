@@ -68,7 +68,7 @@ void dump_interrupt_context(struct registers *ctx)
            ctx->ds, ctx->cs);
 
     if (ctx->cs == 0x08)
-        stack_trace_ex((uint64_t *)ctx->rbp);
+        stack_trace_ex((uint64_t *) ctx->rbp);
 }
 
 static bool is_kernel_exception(struct registers *ctx)
@@ -225,14 +225,14 @@ void general_protection_fault(struct registers *ctx)
         }
 
         dump_interrupt_context(ctx);
-        printk("GPF error code: %04x\n", (uint16_t)ctx->int_err_code);
+        printk("GPF error code: %04x\n", (uint16_t) ctx->int_err_code);
         panic("General protection fault");
     }
 
     struct thread *current = get_current_thread();
-    (void)current;
+    (void) current;
     dump_interrupt_context(ctx);
-    unsigned long image_base = (unsigned long)current->owner->image_base;
+    unsigned long image_base = (unsigned long) current->owner->image_base;
 
     if (image_base)
     {
@@ -245,7 +245,7 @@ void general_protection_fault(struct registers *ctx)
 
     unsigned char instr[16];
     memset(instr, 0, sizeof(instr));
-    if (copy_from_user(instr, (void *)ctx->rip, sizeof(instr)) >= 0)
+    if (copy_from_user(instr, (void *) ctx->rip, sizeof(instr)) >= 0)
     {
         printk("Instruction (16 raw bytes): ");
         for (int i = 0; i < 16; i++)
@@ -253,7 +253,7 @@ void general_protection_fault(struct registers *ctx)
         printk("\n");
     }
 
-    printk("GPF error code: %04x\n", (uint16_t)ctx->int_err_code);
+    printk("GPF error code: %04x\n", (uint16_t) ctx->int_err_code);
 
     siginfo_t info = {};
     info.si_code = SEGV_MAPERR;
@@ -509,7 +509,7 @@ static void enter_isr_handler(void)
 
 void dump_stack(uintptr_t *__rsp)
 {
-    unsigned char *rsp = (unsigned char *)__rsp;
+    unsigned char *rsp = (unsigned char *) __rsp;
     printk("Stack dump: ");
     /* Lets dump a comfortable number of bytes */
     for (int i = 0; i < 20; i++, rsp--)

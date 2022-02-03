@@ -24,7 +24,7 @@ bool ext2_block_group::init(ext2_superblock *sb)
     if (!buf)
         return false;
 
-    bgd = (block_group_desc_t *)((char *)block_buf_data(buf) + bgdt_offset);
+    bgd = (block_group_desc_t *) ((char *) block_buf_data(buf) + bgdt_offset);
 
     return true;
 }

@@ -139,5 +139,5 @@ char *strerror(int errnum)
         return "Unknown error";
     if (errnum > 131)
         return "Unknown error";
-    return (char *)errno_table[errnum - 1];
+    return (char *) errno_table[errnum - 1];
 }

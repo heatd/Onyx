@@ -18,7 +18,7 @@ static char *find_space_or_tab(const char *str, size_t len)
     while (len--)
     {
         if (*str == ' ' || *str == '\t')
-            return (char *)str;
+            return (char *) str;
         str++;
     }
 
@@ -30,7 +30,7 @@ static char *find_space_or_tab_or_zero(const char *str, size_t len)
     while (len--)
     {
         if (*str == ' ' || *str == '\t' || *str == '\0')
-            return (char *)str;
+            return (char *) str;
         str++;
     }
 
@@ -42,7 +42,7 @@ static char *find_not_space_nor_tab(const char *str, size_t len)
     while (len--)
     {
         if (*str != ' ' && *str != '\t')
-            return (char *)str;
+            return (char *) str;
         str++;
     }
 
@@ -67,7 +67,7 @@ void dump_argv(char **argv)
 
 void *shebang_load(struct binfmt_args *args)
 {
-    char *buf = (char *)args->file_signature;
+    char *buf = (char *) args->file_signature;
     char *end = buf + BINFMT_SIGNATURE_LENGTH;
 
     char *p = strnchr(buf, BINFMT_SIGNATURE_LENGTH, '\n');
@@ -134,7 +134,7 @@ void *shebang_load(struct binfmt_args *args)
     if (argc_is_zero)
         argc++;
 
-    char **new_argv = (char **)calloc(sizeof(void *), argc + 1);
+    char **new_argv = (char **) calloc(sizeof(void *), argc + 1);
     if (!new_argv)
     {
         free(interp);
@@ -161,7 +161,7 @@ void *shebang_load(struct binfmt_args *args)
 
     unsigned long limit = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
 
-    char **new_args = process_copy_envarg((const char **)new_argv, true, &argc);
+    char **new_args = process_copy_envarg((const char **) new_argv, true, &argc);
 
     thread_change_addr_limit(limit);
 
@@ -194,7 +194,7 @@ bool shebang_is_valid(uint8_t *signature)
     return memcmp(signature, "#!", 2) == 0;
 }
 
-struct binfmt shebang_binfmt = {.signature = (unsigned char *)"#!",
+struct binfmt shebang_binfmt = {.signature = (unsigned char *) "#!",
                                 .size_signature = 2,
                                 .is_valid_exec = shebang_is_valid,
                                 .callback = shebang_load,

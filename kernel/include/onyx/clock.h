@@ -101,10 +101,10 @@ static inline hrtime_t timeval_to_hrtime(const struct timeval *v)
      * then check for overflow while adding both seconds in ns and us in ns.
      */
 
-    if (unlikely(__builtin_umull_overflow((unsigned long)v->tv_sec, NS_PER_SEC, &sec)))
+    if (unlikely(__builtin_umull_overflow((unsigned long) v->tv_sec, NS_PER_SEC, &sec)))
         return HRTIME_MAX;
 
-    if (unlikely(__builtin_umull_overflow((unsigned long)v->tv_usec, NS_PER_US, &usec)))
+    if (unlikely(__builtin_umull_overflow((unsigned long) v->tv_usec, NS_PER_US, &usec)))
         return HRTIME_MAX;
 
     if (unlikely(__builtin_uaddl_overflow(sec, usec, &res)))

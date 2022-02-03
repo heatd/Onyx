@@ -54,7 +54,7 @@ public:
     {
         pci_device *ret = nullptr;
         for_every_device([&](device *dev_) -> bool {
-            pci_device *pdev = (pci_device *)dev_;
+            pci_device *pdev = (pci_device *) dev_;
 
             auto addr = pdev->addr();
 
@@ -75,7 +75,7 @@ public:
     {
         pci_bus *ret = nullptr;
         for_every_child_bus([&](bus *b) -> bool {
-            pci_bus *pbus = (pci_bus *)b;
+            pci_bus *pbus = (pci_bus *) b;
 
             if (pbus->get_bus_nr() == nbus)
             {

@@ -117,8 +117,8 @@ int sys_arch_prctl(int code, unsigned long *addr)
     switch (code)
     {
     case ARCH_SET_FS: {
-        current->fs = (void *)addr;
-        wrmsr(FS_BASE_MSR, (uintptr_t)current->fs);
+        current->fs = (void *) addr;
+        wrmsr(FS_BASE_MSR, (uintptr_t) current->fs);
         break;
     }
     case ARCH_GET_FS: {
@@ -127,8 +127,8 @@ int sys_arch_prctl(int code, unsigned long *addr)
         break;
     }
     case ARCH_SET_GS: {
-        current->gs = (void *)addr;
-        wrmsr(KERNEL_GS_BASE, (uintptr_t)current->gs);
+        current->gs = (void *) addr;
+        wrmsr(KERNEL_GS_BASE, (uintptr_t) current->gs);
         break;
     }
     case ARCH_GET_GS: {
@@ -149,12 +149,12 @@ extern "C" void thread_finish_destruction(void *___thread)
 
 #if 1
     /* Destroy the kernel stack */
-    unsigned long stack_base = ((unsigned long)thread->kernel_stack_top) - kernel_stack_size;
+    unsigned long stack_base = ((unsigned long) thread->kernel_stack_top) - kernel_stack_size;
     if (adding_guard_page)
         stack_base -= PAGE_SIZE;
     auto pages = adding_guard_page ? 6 : 4;
 
-    vfree((void *)stack_base, pages);
+    vfree((void *) stack_base, pages);
 #endif
     /* Free the fpu area */
     free(thread->fpu_area);
@@ -162,7 +162,7 @@ extern "C" void thread_finish_destruction(void *___thread)
     thread_remove_from_list(thread);
 
     memset_s(&thread->lock, 0x80, sizeof(struct spinlock));
-    ((volatile struct thread *)thread)->canary = THREAD_DEAD_CANARY;
+    ((volatile struct thread *) thread)->canary = THREAD_DEAD_CANARY;
     /* Free the thread */
     delete thread;
 }
@@ -180,11 +180,11 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs)
 
     bool is_user = !(flags & THREAD_KERNEL);
     auto pages = adding_guard_page ? 6 : 4;
-    void *original_entry = (void *)regs->rip;
+    void *original_entry = (void *) regs->rip;
 
     if (is_user)
     {
-        posix_memalign((void **)&new_thread->fpu_area, fpu_get_save_alignment(),
+        posix_memalign((void **) &new_thread->fpu_area, fpu_get_save_alignment(),
                        fpu_get_save_size());
 
         if (!new_thread->fpu_area)
@@ -203,7 +203,7 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs)
         new_thread->addr_limit = VM_KERNEL_ADDR_LIMIT;
 
         // Set trampoline as the starting RIP
-        regs->rip = (unsigned long)x86::internal::kernel_thread_start;
+        regs->rip = (unsigned long) x86::internal::kernel_thread_start;
     }
 
     cputime_info_init(new_thread);
@@ -220,15 +220,15 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *fs)
 
     if (adding_guard_page)
     {
-        unsigned char *p = (unsigned char *)new_thread->kernel_stack;
+        unsigned char *p = (unsigned char *) new_thread->kernel_stack;
 
         vm_mprotect(&kernel_address_space, new_thread->kernel_stack, PAGE_SIZE, 0);
         vm_mprotect(&kernel_address_space, p + PAGE_SIZE + kernel_stack_size, PAGE_SIZE, 0);
-        new_thread->kernel_stack = (uintptr_t *)(p + PAGE_SIZE);
+        new_thread->kernel_stack = (uintptr_t *) (p + PAGE_SIZE);
     }
 
     new_thread->kernel_stack =
-        reinterpret_cast<uintptr_t *>(((char *)new_thread->kernel_stack + kernel_stack_size));
+        reinterpret_cast<uintptr_t *>(((char *) new_thread->kernel_stack + kernel_stack_size));
     new_thread->kernel_stack_top = new_thread->kernel_stack;
 
     x86::internal::thread_setup_stack(new_thread, is_user, regs);
@@ -274,8 +274,8 @@ thread_t *sched_create_thread(thread_callback_t callback, uint32_t flags, void *
 {
     /* Create the thread context (aka the real work) */
     registers_t regs = {};
-    regs.rip = (unsigned long)callback;
-    regs.rdi = (unsigned long)args;
+    regs.rip = (unsigned long) callback;
+    regs.rdi = (unsigned long) args;
     regs.rflags = default_rflags;
 
     thread_t *t = sched_spawn_thread(&regs, flags, NULL);
@@ -302,14 +302,14 @@ void arch_load_thread(struct thread *thread, unsigned int cpu)
 
     write_per_cpu(kernel_stack, thread->kernel_stack_top);
     /* Fill the TSS with a kernel stack */
-    set_kernel_stack((uintptr_t)thread->kernel_stack_top);
+    set_kernel_stack((uintptr_t) thread->kernel_stack_top);
 
     if (!(thread->flags & THREAD_KERNEL))
     {
         restore_fpu(thread->fpu_area);
 
-        wrmsr(FS_BASE_MSR, (uint64_t)thread->fs);
-        wrmsr(KERNEL_GS_BASE, (uint64_t)thread->gs);
+        wrmsr(FS_BASE_MSR, (uint64_t) thread->fs);
+        wrmsr(KERNEL_GS_BASE, (uint64_t) thread->gs);
     }
 }
 
@@ -322,12 +322,12 @@ void arch_load_process(struct process *process, struct thread *thread, unsigned 
 void arch_context_switch(thread *prev, thread *next)
 {
     bool is_last_dead = prev && prev->status == THREAD_DEAD;
-    x86_context_switch(prev, (unsigned char *)next->kernel_stack, is_last_dead);
+    x86_context_switch(prev, (unsigned char *) next->kernel_stack, is_last_dead);
 }
 
 int arch_transform_into_user_thread(thread *thread)
 {
-    posix_memalign((void **)&thread->fpu_area, fpu_get_save_alignment(), fpu_get_save_size());
+    posix_memalign((void **) &thread->fpu_area, fpu_get_save_alignment(), fpu_get_save_size());
 
     if (!thread->fpu_area)
         return -ENOMEM;

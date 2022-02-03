@@ -46,7 +46,7 @@ expected<bool, bool> parse_bool_from_string(std::string_view str)
             return unexpected<bool>{false};
         }
 
-        return (bool)num;
+        return (bool) num;
     }
 
     // Parse any truthy-falsy text

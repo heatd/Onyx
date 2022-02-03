@@ -171,7 +171,7 @@ public:
 
         for (const auto &v : page_vec)
         {
-            if (&v == (page_iov *)&page_vec)
+            if (&v == (page_iov *) &page_vec)
                 continue;
             if (!v.page)
                 break;
@@ -212,7 +212,7 @@ public:
      */
     unsigned int csum_offset_bytes() const
     {
-        return (unsigned char *)csum_offset - data;
+        return (unsigned char *) csum_offset - data;
     }
 
     /**
@@ -223,7 +223,7 @@ public:
      */
     unsigned int start_page_off() const
     {
-        return data - (unsigned char *)buffer_start;
+        return data - (unsigned char *) buffer_start;
     }
 
     /**

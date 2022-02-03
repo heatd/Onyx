@@ -27,18 +27,18 @@
 #define MAX_ORDER      11
 #define HUGE_PAGE_SIZE 0x200000
 
-#define DMA_UPPER_LIMIT   (void *)0x1000000
+#define DMA_UPPER_LIMIT   (void *) 0x1000000
 #define HIGH_MEM_FLOOR    DMA_UPPER_LIMIT
-#define HIGH_MEM_LIMIT    (void *)0xFFFFFFFF
+#define HIGH_MEM_LIMIT    (void *) 0xFFFFFFFF
 #define HIGH_MEM_64_FLOOR HIGH_MEM_LIMIT
-#define HIGH_MEM_64_LIMIT (void *)-1
+#define HIGH_MEM_64_LIMIT (void *) -1
 
 #else
 #error "Define PAGES_PER_AREA and/or MAX_ORDER"
 #endif
 
 #define NR_ZONES            3
-#define IS_HUGE_ALIGNED(x)  (((unsigned long)x % HUGE_PAGE_SIZE) ? 0 : 1)
+#define IS_HUGE_ALIGNED(x)  (((unsigned long) x % HUGE_PAGE_SIZE) ? 0 : 1)
 #define IS_DMA_PTR(x)       x < DMA_UPPER_LIMIT
 #define IS_HIGHMEM_PTR(x)   x > HIGH_MEM_FLOOR &&x < HIGH_MEM_LIMIT
 #define IS_HIGHMEM64_PTR(x) x > HIGH_MEM_64_FLOOR &&x < HIGH_MEM_64_LIMIT
@@ -135,9 +135,9 @@ static inline unsigned long pfn_to_paddr(unsigned long pfn)
     return pfn << PAGE_SHIFT;
 }
 
-#define page_to_phys(page) (void *)(pfn_to_paddr(page_to_pfn(page)))
+#define page_to_phys(page) (void *) (pfn_to_paddr(page_to_pfn(page)))
 
-#define PAGE_TO_VIRT(page) ((void *)(pfn_to_paddr(page_to_pfn(page)) + PHYS_BASE))
+#define PAGE_TO_VIRT(page) ((void *) (pfn_to_paddr(page_to_pfn(page)) + PHYS_BASE))
 
 void page_init(size_t memory_size, unsigned long maxpfn,
                void *(*get_phys_mem_region)(uintptr_t *base, uintptr_t *size, void *context),

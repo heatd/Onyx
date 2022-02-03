@@ -17,13 +17,13 @@ __attribute__((no_sanitize_undefined)) int debug_opcode(uint8_t *pc, struct regi
     switch (*pc)
     {
     case 0xe8: {
-        uintptr_t *off = (uintptr_t *)(pc + 1);
-        uintptr_t target_rip = (*off) + (uintptr_t)pc + 5;
+        uintptr_t *off = (uintptr_t *) (pc + 1);
+        uintptr_t target_rip = (*off) + (uintptr_t) pc + 5;
         printk("calling %p from %lx\n", pc, target_rip);
         break;
     }
     case 0xc3: {
-        printk("returning to %lx\n", *(uintptr_t *)ctx->rsp);
+        printk("returning to %lx\n", *(uintptr_t *) ctx->rsp);
         break;
     }
     }

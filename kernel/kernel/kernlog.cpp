@@ -72,7 +72,7 @@ void kernlog_clear(void)
 int sys_syslog(int type, char *buffer, int len)
 {
     if (type == SYSLOG_ACTION_SIZE_BUFFER)
-        return (int)log_position;
+        return (int) log_position;
     switch (type)
     {
     case SYSLOG_ACTION_READ: {

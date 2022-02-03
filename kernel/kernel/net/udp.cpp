@@ -182,19 +182,19 @@ int udp_socket::connect(sockaddr *addr, socklen_t len)
 
 void udp_prepare_headers(packetbuf *buf, in_port_t sport, in_port_t dport, size_t len)
 {
-    auto udp_header = (udphdr *)buf->push_header(sizeof(udphdr));
+    auto udp_header = (udphdr *) buf->push_header(sizeof(udphdr));
 
-    buf->transport_header = (unsigned char *)udp_header;
+    buf->transport_header = (unsigned char *) udp_header;
 
     udp_header->source_port = sport;
     udp_header->dest_port = dport;
-    udp_header->len = htons((uint16_t)(sizeof(udphdr) + len));
+    udp_header->len = htons((uint16_t) (sizeof(udphdr) + len));
     udp_header->checksum = 0;
 }
 
 int udp_put_data(packetbuf *buf, const msghdr *msg, size_t length)
 {
-    unsigned char *ptr = (unsigned char *)buf->put((unsigned int)length);
+    unsigned char *ptr = (unsigned char *) buf->put((unsigned int) length);
 
     for (int i = 0; i < msg->msg_iovlen; i++)
     {
@@ -211,7 +211,7 @@ int udp_put_data(packetbuf *buf, const msghdr *msg, size_t length)
 template <int domain>
 void udp_do_csum(packetbuf *buf, const inet_route &route)
 {
-    auto hdr = (udphdr *)buf->transport_header;
+    auto hdr = (udphdr *) buf->transport_header;
     auto netif = route.nif;
 
     /* TODO: Take options into account */
@@ -223,7 +223,7 @@ void udp_do_csum(packetbuf *buf, const inet_route &route)
          * partial sum */
         hdr->checksum = ~udp_calculate_checksum<domain>(hdr, route.src_addr, route.dst_addr, false);
         buf->csum_offset = &hdr->checksum;
-        buf->csum_start = (unsigned char *)hdr;
+        buf->csum_start = (unsigned char *) hdr;
         buf->needs_csum = 1;
     }
     else
@@ -368,7 +368,7 @@ ssize_t udp_socket::udp_sendmsg(const msghdr *msg, int flags, const inet_sock_ad
 
 ssize_t udp_socket::sendmsg(const msghdr *msg, int flags)
 {
-    sockaddr *addr = (sockaddr *)msg->msg_name;
+    sockaddr *addr = (sockaddr *) msg->msg_name;
     if (addr && !validate_sockaddr_len_pair(addr, msg->msg_namelen))
         return -EINVAL;
 
@@ -420,12 +420,12 @@ bool valid_udp_packet(struct udphdr *header, size_t length)
 
 int udp_handle_packet(netif *netif, packetbuf *buf)
 {
-    struct udphdr *udp_header = (struct udphdr *)buf->data;
+    struct udphdr *udp_header = (struct udphdr *) buf->data;
 
     if (!valid_udp_packet(udp_header, buf->length()))
         return -EINVAL;
 
-    auto header = (ip_header *)buf->net_header;
+    auto header = (ip_header *) buf->net_header;
 
     sockaddr_in socket_dst;
     ipv4_to_sockaddr(header->source_ip, udp_header->source_port, socket_dst);
@@ -436,12 +436,12 @@ int udp_handle_packet(netif *netif, packetbuf *buf)
     if (!socket)
     {
         icmp::dst_unreachable_info dst_un{ICMP_CODE_PORT_UNREACHABLE, 0,
-                                          (const unsigned char *)udp_header, header};
+                                          (const unsigned char *) udp_header, header};
         icmp::send_dst_unreachable(dst_un, netif);
         return 0;
     }
 
-    buf->transport_header = (unsigned char *)udp_header;
+    buf->transport_header = (unsigned char *) udp_header;
     buf->data += sizeof(struct udphdr);
 
     socket->rx_dgram(buf);
@@ -452,12 +452,12 @@ int udp_handle_packet(netif *netif, packetbuf *buf)
 
 int udp_handle_packet_v6(netif *netif, packetbuf *buf)
 {
-    struct udphdr *udp_header = (struct udphdr *)buf->data;
+    struct udphdr *udp_header = (struct udphdr *) buf->data;
 
     if (!valid_udp_packet(udp_header, buf->length()))
         return -EINVAL;
 
-    auto header = (ip6hdr *)buf->net_header;
+    auto header = (ip6hdr *) buf->net_header;
 
     auto socket = inet6_resolve_socket<udp_socket>(header->src_addr, udp_header->source_port,
                                                    udp_header->dest_port, IPPROTO_UDP, netif, true,
@@ -473,7 +473,7 @@ int udp_handle_packet_v6(netif *netif, packetbuf *buf)
         return 0;
     }
 
-    buf->transport_header = (unsigned char *)udp_header;
+    buf->transport_header = (unsigned char *) udp_header;
     buf->data += sizeof(struct udphdr);
 
     socket->rx_dgram(buf);
@@ -517,7 +517,7 @@ ssize_t udp_socket::recvmsg(msghdr *msg, int flags)
         return st.error();
 
     auto buf = st.value();
-    ssize_t read = min(iovlen, (long)buf->length());
+    ssize_t read = min(iovlen, (long) buf->length());
     ssize_t was_read = 0;
     ssize_t to_ret = read;
 
@@ -533,14 +533,14 @@ ssize_t udp_socket::recvmsg(msghdr *msg, int flags)
 
     if (msg->msg_name)
     {
-        auto hdr = (udphdr *)buf->transport_header;
+        auto hdr = (udphdr *) buf->transport_header;
         ip::copy_msgname_to_user(msg, buf, domain == AF_INET6, hdr->source_port);
     }
 
     for (int i = 0; i < msg->msg_iovlen; i++)
     {
         auto iov = msg->msg_iov[i];
-        auto to_copy = min((ssize_t)iov.iov_len, read - was_read);
+        auto to_copy = min((ssize_t) iov.iov_len, read - was_read);
         if (copy_to_user(iov.iov_base, ptr, to_copy) < 0)
         {
             spin_unlock(&rx_packet_list_lock);

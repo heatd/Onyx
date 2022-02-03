@@ -37,9 +37,9 @@ int ddaux_do_transfer(struct i2c_adapter *adapter, struct i2c_message *message)
     else
         cmd = DP_AUX_I2C_READ;
 
-    data[0] = (uint8_t)((cmd << 4) | ((message->addr >> 16) & 0xf));
-    data[1] = (uint8_t)((message->addr >> 8));
-    data[2] = (uint8_t)((message->addr));
+    data[0] = (uint8_t) ((cmd << 4) | ((message->addr >> 16) & 0xf));
+    data[1] = (uint8_t) ((message->addr >> 8));
+    data[2] = (uint8_t) ((message->addr));
     data[3] = (size - 1);
 
     if (message->write)
@@ -50,7 +50,7 @@ int ddaux_do_transfer(struct i2c_adapter *adapter, struct i2c_message *message)
 
     for (unsigned int i = 0; i < size; i += 4)
     {
-        uint32_t *ptr = (uint32_t *)(&data[i]);
+        uint32_t *ptr = (uint32_t *) (&data[i]);
         igpu_mmio_write(port->device, port->data_base_reg + i, LITTLE_TO_BIG32(*ptr));
     }
 
@@ -107,7 +107,7 @@ int ddaux_do_transfer(struct i2c_adapter *adapter, struct i2c_message *message)
     printk("%x\n", igpu_mmio_read(port->device, port->ctl_reg));
     for (unsigned int i = 0; i < msg_size; i += 4)
     {
-        uint32_t *ptr = (uint32_t *)&data[i];
+        uint32_t *ptr = (uint32_t *) &data[i];
         *ptr = LITTLE_TO_BIG32(igpu_mmio_read(port->device, port->data_base_reg + i));
         printk("data[%u]: %x\n", i, *ptr);
     }

@@ -42,7 +42,7 @@ private:
         if (!new_data)
             return false;
 
-        data_ = (_Ty*)new_data;
+        data_ = (_Ty*) new_data;
 
         return true;
     }
@@ -214,7 +214,7 @@ public:
     {
         if (!is_small()) [[unlikely]]
         {
-            free((void*)data_);
+            free((void*) data_);
             data_ = nullptr;
             capacity_ = 0;
         }

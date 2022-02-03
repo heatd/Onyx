@@ -369,7 +369,7 @@ expected<ext2_trunc_result, int> ext2_trunc_indirect_block(ext2_block_no block,
 
     buf_dirty_trigger dirty_trig{buf};
 
-    uint32_t *blockbuf = (uint32_t *)block_buf_data(buf);
+    uint32_t *blockbuf = (uint32_t *) block_buf_data(buf);
 
     unsigned int nr_entries = sb->block_size / sizeof(uint32_t);
 

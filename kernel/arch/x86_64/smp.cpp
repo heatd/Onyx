@@ -27,14 +27,14 @@ void boot(unsigned int cpu)
 {
     printf("smpboot: booting cpu%u\n", cpu);
     /* Get the actual header through some sneaky math */
-    unsigned long start_smp = (unsigned long)&_start_smp;
-    unsigned long smpboot_header_start = (unsigned long)&smpboot_header;
+    unsigned long start_smp = (unsigned long) &_start_smp;
+    unsigned long smpboot_header_start = (unsigned long) &smpboot_header;
 
     unsigned long off = smpboot_header_start - start_smp;
 
     unsigned long actual_smpboot_header = PHYS_BASE + off;
 
-    struct smp_header *s = (struct smp_header *)actual_smpboot_header;
+    struct smp_header *s = (struct smp_header *) actual_smpboot_header;
 
     s->gs_base = percpu_init_for_cpu(cpu);
     s->boot_done = false;
@@ -45,7 +45,7 @@ void boot(unsigned int cpu)
 
     cpu_messages_init(cpu);
 
-    s->thread_stack = (unsigned long)get_thread_for_cpu(cpu)->kernel_stack_top;
+    s->thread_stack = (unsigned long) get_thread_for_cpu(cpu)->kernel_stack_top;
 
     apic_set_lapic_id(cpu, lapic_ids[cpu]);
 
@@ -60,14 +60,14 @@ extern "C" void smp_parse_cpus(void *__madt)
 {
     ACPI_TABLE_MADT *madt = static_cast<ACPI_TABLE_MADT *>(__madt);
     unsigned int nr_cpus = 0;
-    auto first = (ACPI_SUBTABLE_HEADER *)(madt + 1);
+    auto first = (ACPI_SUBTABLE_HEADER *) (madt + 1);
     for (ACPI_SUBTABLE_HEADER *i = first;
-         i < (ACPI_SUBTABLE_HEADER *)((char *)madt + madt->Header.Length);
-         i = (ACPI_SUBTABLE_HEADER *)((uint64_t)i + (uint64_t)i->Length))
+         i < (ACPI_SUBTABLE_HEADER *) ((char *) madt + madt->Header.Length);
+         i = (ACPI_SUBTABLE_HEADER *) ((uint64_t) i + (uint64_t) i->Length))
     {
         if (i->Type == ACPI_MADT_TYPE_LOCAL_APIC)
         {
-            ACPI_MADT_LOCAL_APIC *la = (ACPI_MADT_LOCAL_APIC *)i;
+            ACPI_MADT_LOCAL_APIC *la = (ACPI_MADT_LOCAL_APIC *) i;
 
             assert(smp::lapic_ids.push_back(la->Id) != false);
             nr_cpus++;

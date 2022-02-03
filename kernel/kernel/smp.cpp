@@ -49,8 +49,8 @@ void set_online(unsigned int cpu)
 void boot_cpus()
 {
     printf("smpboot: booting cpus\n");
-    memcpy((void *)(PHYS_BASE + (uintptr_t)smp_trampoline_phys), &_start_smp,
-           (uintptr_t)&_end_smp - (uintptr_t)&_start_smp);
+    memcpy((void *) (PHYS_BASE + (uintptr_t) smp_trampoline_phys), &_start_smp,
+           (uintptr_t) &_end_smp - (uintptr_t) &_start_smp);
 
     for (unsigned int i = 0; i < nr_cpus; i++)
     {

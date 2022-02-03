@@ -29,7 +29,7 @@ atomic<size_t> used_pages = 0;
 
 static inline unsigned long pow2(int exp)
 {
-    return (1UL << (unsigned long)exp);
+    return (1UL << (unsigned long) exp);
 }
 
 struct page_list
@@ -106,7 +106,7 @@ int page_node::page_add(struct page_arena *arena, void *__page, struct bootmodul
         return -1;
     }
 
-    struct page_list *page = (struct page_list *)PHYS_TO_VIRT(__page);
+    struct page_list *page = (struct page_list *) PHYS_TO_VIRT(__page);
 
     page->page = page_add_page(__page);
     page->page->flags |= PAGE_FLAG_FREE;
@@ -120,17 +120,17 @@ void page_node::add_region(uintptr_t base, size_t size, struct bootmodule *modul
     while (size)
     {
         size_t area_size = min(size, arena_default_size);
-        struct page_arena *arena = (struct page_arena *)__ksbrk(sizeof(struct page_arena));
+        struct page_arena *arena = (struct page_arena *) __ksbrk(sizeof(struct page_arena));
         assert(arena != NULL);
         memset_s(arena, 0, sizeof(struct page_arena));
 
-        arena->start_arena = (void *)base;
-        arena->end_arena = (void *)(base + area_size);
+        arena->start_arena = (void *) base;
+        arena->end_arena = (void *) (base + area_size);
 
         for (size_t i = 0; i < area_size; i += PAGE_SIZE)
         {
             /* If the page is being used, decrement the free_pages counter */
-            if (page_add(arena, (void *)(base + i), module) < 0)
+            if (page_add(arena, (void *) (base + i), module) < 0)
             {
                 used_pages++;
                 ::used_pages++;
@@ -168,7 +168,7 @@ void page_init(size_t memory_size, unsigned long maxpfn,
         halt();
     }
 
-    __kbrk(PHYS_TO_VIRT(ptr), (void *)((unsigned long)PHYS_TO_VIRT(ptr) + needed_memory));
+    __kbrk(PHYS_TO_VIRT(ptr), (void *) ((unsigned long) PHYS_TO_VIRT(ptr) + needed_memory));
     page_allocate_pagemap(maxpfn);
 
     /* The context cookie is supposed to be used as a way for the
@@ -211,9 +211,9 @@ static void *kernel_break_limit = NULL;
 __attribute__((malloc)) void *__ksbrk(long inc)
 {
     void *ret = kernel_break;
-    kernel_break = (char *)kernel_break + inc;
+    kernel_break = (char *) kernel_break + inc;
 
-    assert((unsigned long)kernel_break <= (unsigned long)kernel_break_limit);
+    assert((unsigned long) kernel_break <= (unsigned long) kernel_break_limit);
     return ret;
 }
 
@@ -331,8 +331,8 @@ struct page *page_node::allocate_pages(size_t nr_pgs, unsigned long flags)
 
 struct page *page_arena::alloc_contiguous(size_t nr_pgs, unsigned long flags)
 {
-    unsigned long start = (unsigned long)start_arena;
-    unsigned long end = (unsigned long)end_arena & -(PAGE_SIZE - 1);
+    unsigned long start = (unsigned long) start_arena;
+    unsigned long end = (unsigned long) end_arena & -(PAGE_SIZE - 1);
     auto current = start;
     struct page *first_page = nullptr;
 
@@ -373,7 +373,7 @@ struct page *page_arena::alloc_contiguous(size_t nr_pgs, unsigned long flags)
     for (size_t i = 0; i < nr_pgs; i++)
     {
         auto page = first_page + i;
-        auto page_list_struct = (page_list *)PAGE_TO_VIRT(page);
+        auto page_list_struct = (page_list *) PAGE_TO_VIRT(page);
         list_remove(&page_list_struct->list_node);
         page->flags &= ~PAGE_FLAG_FREE;
 
@@ -405,7 +405,7 @@ struct page *page_node::alloc_contiguous(size_t nr_pgs, unsigned long flags)
     {
         page_arena *arena = container_of(l, page_arena, arena_list_node);
 
-        if (flags & PAGE_ALLOC_4GB_LIMIT && (unsigned long)arena->start_arena >= ADDRESS_4GB_MARK)
+        if (flags & PAGE_ALLOC_4GB_LIMIT && (unsigned long) arena->start_arena >= ADDRESS_4GB_MARK)
             goto out;
         pages = arena->alloc_contiguous(nr_pgs, flags);
 
@@ -452,7 +452,7 @@ void page_node::free_page(struct page *p)
 
     p->flags |= PAGE_FLAG_FREE;
 
-    auto page_list_node = (struct page_list *)PAGE_TO_VIRT(p);
+    auto page_list_node = (struct page_list *) PAGE_TO_VIRT(p);
     page_list_node->page = p;
 
     /* Add it at the beginning since it might be fresh in the cache */

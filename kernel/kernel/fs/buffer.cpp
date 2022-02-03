@@ -348,7 +348,7 @@ void block_buf_dirty(block_buf *buf)
 {
     if (buf->block_nr == 0)
     {
-        sb *s = (sb *)((char *)block_buf_data(buf) + 1024);
+        sb *s = (sb *) ((char *) block_buf_data(buf) + 1024);
         assert(s->s_magic == 0xef53);
     }
 
@@ -359,7 +359,7 @@ void block_buf_dirty(block_buf *buf)
 
 void page_remove_block_buf(struct page *page, size_t offset, size_t end)
 {
-    block_buf **pp = (block_buf **)&page->priv;
+    block_buf **pp = (block_buf **) &page->priv;
 
     while (*pp != nullptr)
     {

@@ -58,7 +58,7 @@ bool ehci_controller::init()
     printk("revision number: %04x\n",
            host_controller_space.read<uint16_t>(ehci_cap_regs::HCIVERSION));
     auto op_offset = host_controller_space.read<uint8_t>(ehci_cap_regs::CAPLENGTH);
-    unsigned long operational_base = (unsigned long)host_controller_space.as_ptr() + op_offset;
+    unsigned long operational_base = (unsigned long) host_controller_space.as_ptr() + op_offset;
 
     operational_reg_space.set_base(reinterpret_cast<volatile void *>(operational_base));
 

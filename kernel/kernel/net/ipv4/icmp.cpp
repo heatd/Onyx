@@ -62,7 +62,7 @@ void send_echo_reply(ip_header *iphdr, icmp_header *icmphdr, uint16_t length, ne
     if (!buf)
         return;
 
-    auto response_icmp = (icmp_header *)buf->push_header(min_icmp_size());
+    auto response_icmp = (icmp_header *) buf->push_header(min_icmp_size());
 
     response_icmp->type = ICMP_TYPE_ECHO_REPLY;
     response_icmp->code = 0;
@@ -93,7 +93,7 @@ int send_dst_unreachable(const dst_unreachable_info &info, netif *nif)
     if (!buf)
         return -ENOMEM;
 
-    auto response_icmp = (icmp_header *)buf->push_header(sizeof(icmp_header));
+    auto response_icmp = (icmp_header *) buf->push_header(sizeof(icmp_header));
 
     response_icmp->type = ICMP_TYPE_DEST_UNREACHABLE;
     response_icmp->code = info.code;
@@ -126,9 +126,9 @@ int handle_packet(netif *nif, packetbuf *buf)
     if (buf->length() < min_icmp_size())
         return -EINVAL;
 
-    ip_header *iphdr = (ip_header *)buf->net_header;
+    ip_header *iphdr = (ip_header *) buf->net_header;
 
-    auto header = (icmp_header *)buf->data;
+    auto header = (icmp_header *) buf->data;
     auto header_length = buf->length();
 
     switch (header->type)
@@ -230,7 +230,7 @@ ssize_t icmp_socket::sendmsg(const struct msghdr *msg, int flags)
     if (iovlen > UINT16_MAX)
         return -EINVAL;
 
-    auto sa_dst_addr = (sockaddr *)msg->msg_name;
+    auto sa_dst_addr = (sockaddr *) msg->msg_name;
 
     auto to = dest_addr;
 
@@ -278,9 +278,9 @@ ssize_t icmp_socket::sendmsg(const struct msghdr *msg, int flags)
         rt = st.value();
     }
 
-    auto hdr = (icmp_header *)packet->push_header(min_icmp_size());
+    auto hdr = (icmp_header *) packet->push_header(min_icmp_size());
     packet->put(extra_size);
-    auto p = (unsigned char *)hdr;
+    auto p = (unsigned char *) hdr;
 
     for (int i = 0; i < msg->msg_iovlen; i++)
     {
@@ -404,7 +404,7 @@ ssize_t icmp_socket::recvmsg(msghdr *msg, int flags)
 
     if (msg->msg_name)
     {
-        const ip_header *hdr = (const ip_header *)buf->net_header;
+        const ip_header *hdr = (const ip_header *) buf->net_header;
         sockaddr_in in;
         explicit_bzero(&in, sizeof(in));
 
@@ -412,13 +412,13 @@ ssize_t icmp_socket::recvmsg(msghdr *msg, int flags)
         in.sin_port = 0;
         in.sin_addr.s_addr = hdr->source_ip;
 
-        memcpy(msg->msg_name, &in, min(sizeof(in), (size_t)msg->msg_namelen));
+        memcpy(msg->msg_name, &in, min(sizeof(in), (size_t) msg->msg_namelen));
 
-        msg->msg_namelen = min(sizeof(in), (size_t)msg->msg_namelen);
+        msg->msg_namelen = min(sizeof(in), (size_t) msg->msg_namelen);
     }
 
     auto packet_length = buf->length();
-    auto to_read = min(read, (ssize_t)packet_length);
+    auto to_read = min(read, (ssize_t) packet_length);
 
     if (!(flags & MSG_TRUNC))
         read = to_read;
@@ -426,7 +426,7 @@ ssize_t icmp_socket::recvmsg(msghdr *msg, int flags)
     for (int i = 0; to_read != 0; i++)
     {
         auto iov = msg->msg_iov[i];
-        auto to_copy = min((ssize_t)iov.iov_len, to_read);
+        auto to_copy = min((ssize_t) iov.iov_len, to_read);
 
         if (copy_to_user(iov.iov_base, ptr, to_copy) < 0)
         {

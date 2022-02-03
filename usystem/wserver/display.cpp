@@ -22,15 +22,15 @@ void display_fill_rect(void *_fb, unsigned int x, unsigned int y, unsigned int w
                        unsigned int height, uint32_t color)
 {
     size_t bits_per_row = width * (32 / 8);
-    volatile unsigned char *__fb = (volatile unsigned char *)_fb;
+    volatile unsigned char *__fb = (volatile unsigned char *) _fb;
     __fb += (y * bits_per_row) + x * (32 / 8);
-    volatile uint32_t *fb = (volatile uint32_t *)__fb;
+    volatile uint32_t *fb = (volatile uint32_t *) __fb;
 
     for (size_t i = 0; i < height; i++)
     {
         for (size_t j = 0; j < width; j++)
             fb[j] = color;
-        fb = (volatile uint32_t *)((char *)fb + bits_per_row);
+        fb = (volatile uint32_t *) ((char *) fb + bits_per_row);
     }
 }
 
@@ -117,7 +117,7 @@ void Display::Clear(uint32_t color)
 void Display::copy(std::shared_ptr<Buffer> buffer, unsigned int x, unsigned int y)
 {
     void *buffer_raw = buffer->mapping;
-    char *fb_mapping = (char *)framebuffer_map->mapping;
+    char *fb_mapping = (char *) framebuffer_map->mapping;
 
     auto stride = framebuffer_map->get_stride();
     auto bytespp = framebuffer_map->get_bpp() / 8;
@@ -125,13 +125,13 @@ void Display::copy(std::shared_ptr<Buffer> buffer, unsigned int x, unsigned int 
     auto buffer_width = buffer->get_width();
 
     fb_mapping += (y * stride) + x * bytespp;
-    volatile uint32_t *fb = (volatile uint32_t *)fb_mapping;
-    volatile uint32_t *backbuffer = (volatile uint32_t *)buffer_raw;
+    volatile uint32_t *fb = (volatile uint32_t *) fb_mapping;
+    volatile uint32_t *backbuffer = (volatile uint32_t *) buffer_raw;
 
     for (size_t i = 0; i < buffer_height; i++)
     {
         for (size_t j = 0; j < buffer_width; j++)
             fb[j] = *backbuffer++;
-        fb = (volatile uint32_t *)((char *)fb + stride);
+        fb = (volatile uint32_t *) ((char *) fb + stride);
     }
 }

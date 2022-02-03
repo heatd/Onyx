@@ -52,7 +52,7 @@ INIT_LEVEL_CORE_AFTER_SCHED_ENTRY(worker_init);
 int worker_schedule(struct work_request *work, int priority)
 {
     /* Create a duplicate of work(so we're able to easily free things) */
-    work = (work_request *)memdup(work, sizeof(struct work_request));
+    work = (work_request *) memdup(work, sizeof(struct work_request));
     if (!work)
         return errno = ENOMEM, -1;
 

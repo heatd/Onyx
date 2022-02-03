@@ -15,7 +15,7 @@ typedef uint64_t __attribute__((may_alias)) may_alias_uint64_t;
 typedef uint16_t __attribute__((may_alias)) may_alias_uint16_t;
 typedef uint8_t __attribute__((may_alias)) may_alias_uint8_t;
 
-#define IS_BUFFER_ALIGNED_TO(buf, boundary) (((unsigned long)buf) & boundary)
+#define IS_BUFFER_ALIGNED_TO(buf, boundary) (((unsigned long) buf) & boundary)
 
 #ifdef __x86_64__
 
@@ -86,7 +86,7 @@ static inline uint16_t fold32_to_16(uint32_t a)
 
     uint16_t result = low + high;
 
-    if (result < (uint16_t)a)
+    if (result < (uint16_t) a)
         result++;
 
     return result;
@@ -96,7 +96,7 @@ static inline uint32_t addcarry32(uint32_t a, uint32_t b)
 {
     uint32_t result = a + b;
 
-    if (result < (uint16_t)a)
+    if (result < (uint16_t) a)
         result++;
 
     return result;
@@ -110,12 +110,12 @@ inetsum_t do_checksum(const uint8_t *buf, size_t len);
 
 static inline inetsum_t __ipsum_unfolded(const void *addr, size_t bytes, inetsum_t starting_csum)
 {
-    return addcarry32(starting_csum, do_checksum((const uint8_t *)addr, bytes));
+    return addcarry32(starting_csum, do_checksum((const uint8_t *) addr, bytes));
 }
 
 static inline inetsum_t ipsum_unfolded(const void *addr, size_t length)
 {
-    return do_checksum((const uint8_t *)addr, length);
+    return do_checksum((const uint8_t *) addr, length);
 }
 
 static inline uint16_t ipsum_fold(inetsum_t cs)

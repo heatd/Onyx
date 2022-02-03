@@ -32,7 +32,7 @@ void signal_default_core(int signum)
 
 void signal_default_ignore(int signum)
 {
-    (void)signum;
+    (void) signum;
 }
 
 atomic<unsigned int> stopped = 0;
@@ -663,7 +663,7 @@ failure_oom:
 bool signal_is_masked(struct thread *thread, int sig)
 {
     sigset_t *set = &thread->sinfo.sigmask;
-    return (bool)sigismember(set, sig);
+    return (bool) sigismember(set, sig);
 }
 
 bool is_valid_signal(int sig)
@@ -697,7 +697,7 @@ int signal_send_all(int signal, int flags, siginfo_t *info)
             if (pid_is_system_process(p->get_pid()) || p == get_current_process())
                 return true;
 
-            send_all_info *c = (send_all_info *)ctx;
+            send_all_info *c = (send_all_info *) ctx;
 
             if (may_kill(c->signum, p, c->info) < 0)
                 return true;
@@ -1216,7 +1216,7 @@ bool executing_in_altstack(const struct syscall_frame *frm, const stack_t *stack
     /* TODO: This depends on whether the stack grows downwards or upwards. This logic covers the
      * first case. */
     unsigned long sp = frm->user_sp;
-    unsigned long alt_sp = (unsigned long)stack->ss_sp;
+    unsigned long alt_sp = (unsigned long) stack->ss_sp;
     unsigned long alt_stack_limit = alt_sp + stack->ss_size;
     return sp >= alt_sp && sp < alt_stack_limit;
 }

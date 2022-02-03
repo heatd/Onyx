@@ -160,8 +160,8 @@ enum
 #define QXL_IOBASE_BAR    3
 #define QXL_SURFACE64_BAR 4
 
-#define QXL_ROM_MAGIC (*(uint32_t *)"QXRO")
-#define QXL_RAM_MAGIC (*(uint32_t *)"QXRA")
+#define QXL_ROM_MAGIC (*(uint32_t *) "QXRO")
+#define QXL_RAM_MAGIC (*(uint32_t *) "QXRA")
 
 enum
 {
@@ -885,9 +885,9 @@ enum qxl_bitmap_flags
     QXL_BITMAP_TOP_DOWN = (1 << 2), /* == SPICE_BITMAP_FLAGS_TOP_DOWN */
 };
 
-#define QXL_SET_IMAGE_ID(image, _group, _unique)                       \
-    {                                                                  \
-        (image)->descriptor.id = (((uint64_t)_unique) << 32) | _group; \
+#define QXL_SET_IMAGE_ID(image, _group, _unique)                        \
+    {                                                                   \
+        (image)->descriptor.id = (((uint64_t) _unique) << 32) | _group; \
     }
 
 struct qxl_image_descriptor

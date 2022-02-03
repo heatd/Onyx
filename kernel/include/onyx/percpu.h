@@ -71,11 +71,11 @@ extern "C" unsigned long __raw_asm_get_per_cpu(size_t off, size_t size);
 extern "C" void __raw_asm_write_per_cpu(size_t off, unsigned long val, size_t size);
 extern "C" void __raw_asm_add_per_cpu(size_t off, unsigned long val, size_t size);
 
-#define get_per_cpu_no_cast(var) __raw_asm_get_per_cpu((size_t)&var, sizeof(var))
-#define get_per_cpu(var)         ((__typeof__(var))__raw_asm_get_per_cpu((size_t)&var, sizeof(var)))
+#define get_per_cpu_no_cast(var) __raw_asm_get_per_cpu((size_t) &var, sizeof(var))
+#define get_per_cpu(var)         ((__typeof__(var)) __raw_asm_get_per_cpu((size_t) &var, sizeof(var)))
 #define write_per_cpu(var, val) \
-    __raw_asm_write_per_cpu((size_t)&var, (unsigned long)val, sizeof(var))
-#define add_per_cpu(var, val) __raw_asm_add_per_cpu((size_t)&var, (unsigned long)val, sizeof(var))
+    __raw_asm_write_per_cpu((size_t) &var, (unsigned long) val, sizeof(var))
+#define add_per_cpu(var, val) __raw_asm_add_per_cpu((size_t) &var, (unsigned long) val, sizeof(var))
 
 #endif
 
@@ -86,7 +86,7 @@ unsigned long percpu_init_for_cpu(unsigned int cpu);
 int percpu_map_master_copy();
 unsigned long percpu_get_nr_bases();
 
-#define other_cpu_get_ptr(var, cpu)    ((__typeof__(var) *)(percpu_bases[cpu] + (unsigned long)&var))
+#define other_cpu_get_ptr(var, cpu)    ((__typeof__(var) *) (percpu_bases[cpu] + (unsigned long) &var))
 #define other_cpu_get(var, cpu)        *other_cpu_get_ptr(var, cpu)
 #define other_cpu_write(var, val, cpu) *other_cpu_get_ptr(var, cpu) = val
 #define other_cpu_add(var, val, cpu)   *other_cpu_get_ptr(var, cpu) += val
@@ -123,9 +123,9 @@ extern
 #define get_per_cpu_ptr_no_cast(var)                                 \
     ({                                                               \
         unsigned long ___cpu_base = get_per_cpu_no_cast(__cpu_base); \
-        ((unsigned long)&var + ___cpu_base);                         \
+        ((unsigned long) &var + ___cpu_base);                        \
     })
 
-#define get_per_cpu_ptr(var) ({ (__typeof__(var) *)get_per_cpu_ptr_no_cast(var); })
+#define get_per_cpu_ptr(var) ({ (__typeof__(var) *) get_per_cpu_ptr_no_cast(var); })
 
 #endif

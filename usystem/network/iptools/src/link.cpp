@@ -65,7 +65,7 @@ int link_show(const char **argv, int argc)
     msg.flags = 0;
     msg.size = sizeof(netkernel_hdr);
 
-    if (sendto(fd.get(), (const void *)&msg, sizeof(msg), 0, (const sockaddr *)&addr,
+    if (sendto(fd.get(), (const void *) &msg, sizeof(msg), 0, (const sockaddr *) &addr,
                sizeof(addr)) < 0)
     {
         std::perror("netkernel error");

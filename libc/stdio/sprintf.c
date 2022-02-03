@@ -191,7 +191,7 @@ static const unsigned char states[]['z' - 'A' + 1] = {
         S('n') = PTR,
     }};
 
-#define OOB(x) ((unsigned)(x) - 'A' > 'z' - 'A')
+#define OOB(x) ((unsigned) (x) - 'A' > 'z' - 'A')
 
 union arg {
     uintmax_t i;
@@ -202,7 +202,7 @@ union arg {
 static void pop_arg(union arg *arg, int type, va_list *ap)
 {
     /* Give the compiler a hint for optimizing the switch. */
-    if ((unsigned)type > MAXSTATE)
+    if ((unsigned) type > MAXSTATE)
         return;
     switch (type)
     {
@@ -227,16 +227,16 @@ static void pop_arg(union arg *arg, int type, va_list *ap)
         arg->i = va_arg(*ap, unsigned long long);
         break;
     case SHORT:
-        arg->i = (short)va_arg(*ap, int);
+        arg->i = (short) va_arg(*ap, int);
         break;
     case USHORT:
-        arg->i = (unsigned short)va_arg(*ap, int);
+        arg->i = (unsigned short) va_arg(*ap, int);
         break;
     case CHAR:
-        arg->i = (signed char)va_arg(*ap, int);
+        arg->i = (signed char) va_arg(*ap, int);
         break;
     case UCHAR:
-        arg->i = (unsigned char)va_arg(*ap, int);
+        arg->i = (unsigned char) va_arg(*ap, int);
 #ifdef ODD_TYPES
         break;
     case LLONG:
@@ -255,7 +255,7 @@ static void pop_arg(union arg *arg, int type, va_list *ap)
         arg->i = va_arg(*ap, ptrdiff_t);
         break;
     case UIPTR:
-        arg->i = (uintptr_t)va_arg(*ap, void *);
+        arg->i = (uintptr_t) va_arg(*ap, void *);
 #endif
     }
 }
@@ -316,7 +316,7 @@ static int getint(char **s)
 static int printf_core(struct sprintf_buf *f, const char *fmt, va_list *ap, union arg *nl_arg,
                        int *nl_type)
 {
-    char *a, *z, *s = (char *)fmt;
+    char *a, *z, *s = (char *) fmt;
     unsigned l10n = 0, fl;
     int w, p;
     union arg arg;
@@ -370,7 +370,7 @@ static int printf_core(struct sprintf_buf *f, const char *fmt, va_list *ap, unio
         }
 
         /* Read modifier flags */
-        for (fl = 0; (unsigned)*s - ' ' < 32 && (FLAGMASK & (1U << *s - ' ')); s++)
+        for (fl = 0; (unsigned) *s - ' ' < 32 && (FLAGMASK & (1U << *s - ' ')); s++)
             fl |= 1U << *s - ' ';
 
         /* Read field width */
@@ -473,25 +473,25 @@ static int printf_core(struct sprintf_buf *f, const char *fmt, va_list *ap, unio
             switch (ps)
             {
             case BARE:
-                *(int *)arg.p = cnt;
+                *(int *) arg.p = cnt;
                 break;
             case LPRE:
-                *(long *)arg.p = cnt;
+                *(long *) arg.p = cnt;
                 break;
             case LLPRE:
-                *(long long *)arg.p = cnt;
+                *(long long *) arg.p = cnt;
                 break;
             case HPRE:
-                *(unsigned short *)arg.p = cnt;
+                *(unsigned short *) arg.p = cnt;
                 break;
             case HHPRE:
-                *(unsigned char *)arg.p = cnt;
+                *(unsigned char *) arg.p = cnt;
                 break;
             case ZTPRE:
-                *(size_t *)arg.p = cnt;
+                *(size_t *) arg.p = cnt;
                 break;
             case JPRE:
-                *(uintmax_t *)arg.p = cnt;
+                *(uintmax_t *) arg.p = cnt;
                 break;
             }
             continue;
@@ -641,25 +641,25 @@ size_t wcrtomb(char *restrict s, wchar_t wc, mbstate_t *restrict st)
 {
     if (!s)
         return 1;
-    if ((unsigned)wc < 0x80)
+    if ((unsigned) wc < 0x80)
     {
         *s = wc;
         return 1;
     }
-    else if ((unsigned)wc < 0x800)
+    else if ((unsigned) wc < 0x800)
     {
         *s++ = 0xc0 | (wc >> 6);
         *s = 0x80 | (wc & 0x3f);
         return 2;
     }
-    else if ((unsigned)wc < 0xd800 || (unsigned)wc - 0xe000 < 0x2000)
+    else if ((unsigned) wc < 0xd800 || (unsigned) wc - 0xe000 < 0x2000)
     {
         *s++ = 0xe0 | (wc >> 12);
         *s++ = 0x80 | ((wc >> 6) & 0x3f);
         *s = 0x80 | (wc & 0x3f);
         return 3;
     }
-    else if ((unsigned)wc - 0x10000 < 0x100000)
+    else if ((unsigned) wc - 0x10000 < 0x100000)
     {
         *s++ = 0xf0 | (wc >> 18);
         *s++ = 0x80 | ((wc >> 12) & 0x3f);

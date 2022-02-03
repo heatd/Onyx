@@ -432,7 +432,7 @@ public:
 
         auto buf_size = sizeof(netkernel_get_nifs_response) +
                         interface_response.size() * sizeof(netkernel_get_nif_interface);
-        netkernel_get_nifs_response *header = (netkernel_get_nifs_response *)malloc(buf_size);
+        netkernel_get_nifs_response *header = (netkernel_get_nifs_response *) malloc(buf_size);
         if (!header)
             return unexpected<int>{-ENOMEM};
 

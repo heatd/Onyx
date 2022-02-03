@@ -59,7 +59,7 @@ void init()
 
     bool in_quotes = false;
 
-    printk("args: %.*s\n", (int)sv.length(), sv.data());
+    printk("args: %.*s\n", (int) sv.length(), sv.data());
 
     for (size_t i = 0; i < sv.length(); i++)
     {

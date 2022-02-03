@@ -53,7 +53,7 @@ static inline char *elf_get_string(struct elf_loader_context *context, Elf64_Wor
 
 static inline char *elf_get_shstring(struct elf_loader_context *context, Elf64_Word off)
 {
-    return (char *)context->shstrtab + off;
+    return (char *) context->shstrtab + off;
 }
 
 static Elf64_Sym *elf_get_sym(struct elf_loader_context *ctx, char *symname)
@@ -114,7 +114,7 @@ uintptr_t elf_resolve_symbol(struct elf_loader_context *ctx, size_t sym_idx)
     else
     {
         Elf64_Shdr *tar = &ctx->sections[symbol->st_shndx];
-        return (uintptr_t)ctx->header + symbol->st_value + tar->sh_offset;
+        return (uintptr_t) ctx->header + symbol->st_value + tar->sh_offset;
     }
 
     return 1;
@@ -134,18 +134,18 @@ __attribute__((no_sanitize_undefined)) int elf_relocate_addend(struct elf_loader
     /* Target section->sh_offset's were adjust as to represent the relation
      * between the load address and the ctx->header address */
 
-    uintptr_t addr = (uintptr_t)((char *)ctx->header + target_section->sh_offset);
+    uintptr_t addr = (uintptr_t) ((char *) ctx->header + target_section->sh_offset);
 
     // printk("Addr: %lx\n", addr);
 
-    uintptr_t *p = (uintptr_t *)(addr + rela->r_offset);
+    uintptr_t *p = (uintptr_t *) (addr + rela->r_offset);
 
     // printk("P: %p\n", p);
 
     size_t sym_idx = ELF64_R_SYM(rela->r_info);
 
-    int32_t *ptr32s = (int32_t *)p;
-    uint32_t *ptr32u = (uint32_t *)p;
+    int32_t *ptr32s = (int32_t *) p;
+    uint32_t *ptr32u = (uint32_t *) p;
     if (sym_idx != SHN_UNDEF)
     {
         uintptr_t sym = elf_resolve_symbol(ctx, sym_idx);
@@ -165,7 +165,7 @@ __attribute__((no_sanitize_undefined)) int elf_relocate_addend(struct elf_loader
             break;
         case R_X86_64_PC32:
         case R_X86_64_PLT32:
-            *ptr32u = RELOCATE_R_X86_64_PC32(sym, rela->r_addend, (uintptr_t)p);
+            *ptr32u = RELOCATE_R_X86_64_PC32(sym, rela->r_addend, (uintptr_t) p);
             break;
         default:
             printk("Unsuported relocation %lu!\n", ELF64_R_TYPE(rela->r_info));
@@ -244,12 +244,12 @@ bool elf_validate_modinfo(struct elf_loader_context *ctx)
             modinfo_found = true;
 
             char *parse;
-            char *buf = parse = (char *)malloc(section->sh_size);
+            char *buf = parse = (char *) malloc(section->sh_size);
             if (!parse)
                 return false;
 
             if (read_vfs(section->sh_offset, section->sh_size, parse, ctx->file) !=
-                (ssize_t)section->sh_size)
+                (ssize_t) section->sh_size)
             {
                 free(parse);
                 return false;
@@ -380,7 +380,7 @@ bool elf_load_module_sections(struct elf_loader_context *ctx, struct module *mod
     if (!mem)
         return false;
 
-    *addr_p = (unsigned long)mem;
+    *addr_p = (unsigned long) mem;
 
     /* Enable write, we'll fix this up in a moment */
     vm_change_perms(mem, vm_size_to_pages(region_size), VM_WRITE);
@@ -403,12 +403,12 @@ bool elf_load_module_sections(struct elf_loader_context *ctx, struct module *mod
             }
             else
             {
-                if (read_vfs(section->sh_offset, section->sh_size, (void *)addr, ctx->file) !=
-                    (ssize_t)section->sh_size)
+                if (read_vfs(section->sh_offset, section->sh_size, (void *) addr, ctx->file) !=
+                    (ssize_t) section->sh_size)
                     return false;
             }
 
-            section->sh_offset = (Elf64_Off)addr - (Elf64_Off)ctx->header;
+            section->sh_offset = (Elf64_Off) addr - (Elf64_Off) ctx->header;
 
             addr += section->sh_size;
         }
@@ -419,13 +419,13 @@ bool elf_load_module_sections(struct elf_loader_context *ctx, struct module *mod
 
 void elf_restore_module_perms(struct module *module)
 {
-    vm_change_perms((void *)module->layout.start_text, vm_size_to_pages(module->layout.text_size),
+    vm_change_perms((void *) module->layout.start_text, vm_size_to_pages(module->layout.text_size),
                     module_prots[ELF_MODULE_TEXT]);
 
-    vm_change_perms((void *)module->layout.start_ro, vm_size_to_pages(module->layout.ro_size),
+    vm_change_perms((void *) module->layout.start_ro, vm_size_to_pages(module->layout.ro_size),
                     module_prots[ELF_MODULE_RO]);
 
-    vm_change_perms((void *)module->layout.start_data, vm_size_to_pages(module->layout.data_size),
+    vm_change_perms((void *) module->layout.start_data, vm_size_to_pages(module->layout.data_size),
                     module_prots[ELF_MODULE_DATA]);
 }
 
@@ -444,7 +444,7 @@ bool elf_setup_symtable(struct elf_loader_context *ctx, struct module *module)
             nr_symbols++;
     }
 
-    struct symbol *symbol_table = (symbol *)zalloc(sizeof(struct symbol) * nr_symbols);
+    struct symbol *symbol_table = (symbol *) zalloc(sizeof(struct symbol) * nr_symbols);
     if (!symbol_table)
         return false;
 
@@ -495,7 +495,7 @@ void *elf_load_kernel_module(struct file *file, struct module *module)
 
     Elf64_Ehdr header;
 
-    if (read_vfs(0, sizeof(Elf64_Ehdr), &header, file) != (ssize_t)sizeof(Elf64_Ehdr))
+    if (read_vfs(0, sizeof(Elf64_Ehdr), &header, file) != (ssize_t) sizeof(Elf64_Ehdr))
         return nullptr;
 
     /* Check if its elf64 file is invalid */
@@ -503,12 +503,12 @@ void *elf_load_kernel_module(struct file *file, struct module *module)
         return errno = EINVAL, nullptr;
 
     ctx.header = &header;
-    Elf64_Shdr *sections = (Elf64_Shdr *)malloc(header.e_shentsize * header.e_shnum);
+    Elf64_Shdr *sections = (Elf64_Shdr *) malloc(header.e_shentsize * header.e_shnum);
     if (!sections)
         return nullptr;
 
     if (read_vfs(header.e_shoff, header.e_shentsize * header.e_shnum, sections, file) !=
-        (ssize_t)(header.e_shentsize * header.e_shnum))
+        (ssize_t) (header.e_shentsize * header.e_shnum))
     {
         free(sections);
         return nullptr;
@@ -524,14 +524,14 @@ void *elf_load_kernel_module(struct file *file, struct module *module)
     const char *symbols_to_lookup[2] = {"module_init", "module_fini"};
     unsigned long sym_values[2] = {0, 0};
 
-    ctx.shstrtab = (char *)malloc(shstrtab->sh_size);
+    ctx.shstrtab = (char *) malloc(shstrtab->sh_size);
     if (!ctx.shstrtab)
     {
         goto out_error;
     }
 
     if (read_vfs(shstrtab->sh_offset, shstrtab->sh_size, ctx.shstrtab, file) !=
-        (ssize_t)shstrtab->sh_size)
+        (ssize_t) shstrtab->sh_size)
     {
         goto out_error;
     }
@@ -552,14 +552,15 @@ void *elf_load_kernel_module(struct file *file, struct module *module)
 
     ctx.strtab = strtab;
     ctx.symtab = symtab;
-    ctx.strings = (char *)malloc(strtab->sh_size);
+    ctx.strings = (char *) malloc(strtab->sh_size);
     if (!ctx.strings)
         goto out_error;
 
-    if (read_vfs(strtab->sh_offset, strtab->sh_size, ctx.strings, file) != (ssize_t)strtab->sh_size)
+    if (read_vfs(strtab->sh_offset, strtab->sh_size, ctx.strings, file) !=
+        (ssize_t) strtab->sh_size)
         goto out_error;
 
-    ctx.syms = (Elf64_Sym *)malloc(symtab->sh_size);
+    ctx.syms = (Elf64_Sym *) malloc(symtab->sh_size);
     if (!ctx.syms)
     {
         goto out_error;
@@ -569,18 +570,18 @@ void *elf_load_kernel_module(struct file *file, struct module *module)
     if (ctx.symtab->sh_link > header.e_shnum)
         goto out_error;
 
-    if (read_vfs(symtab->sh_offset, symtab->sh_size, ctx.syms, file) != (ssize_t)symtab->sh_size)
+    if (read_vfs(symtab->sh_offset, symtab->sh_size, ctx.syms, file) != (ssize_t) symtab->sh_size)
     {
         goto out_error;
     }
 
     sec = &sections[ctx.symtab->sh_link];
 
-    ctx.symstrtab = (char *)malloc(sec->sh_size);
+    ctx.symstrtab = (char *) malloc(sec->sh_size);
     if (!ctx.symstrtab)
         goto out_error;
 
-    if (read_vfs(sec->sh_offset, sec->sh_size, ctx.symstrtab, file) != (ssize_t)sec->sh_size)
+    if (read_vfs(sec->sh_offset, sec->sh_size, ctx.symstrtab, file) != (ssize_t) sec->sh_size)
         goto out_error;
 
     modinfo_valid = elf_validate_modinfo(&ctx);
@@ -609,14 +610,14 @@ void *elf_load_kernel_module(struct file *file, struct module *module)
         Elf64_Shdr *section = &sections[i];
         if (section->sh_type == SHT_RELA)
         {
-            Elf64_Rela *r = (Elf64_Rela *)malloc(section->sh_size);
+            Elf64_Rela *r = (Elf64_Rela *) malloc(section->sh_size);
             if (!r)
             {
                 goto out_error;
             }
 
             if (read_vfs(section->sh_offset, section->sh_size, r, file) !=
-                (ssize_t)section->sh_size)
+                (ssize_t) section->sh_size)
             {
                 free(r);
                 goto out_error;
@@ -661,9 +662,9 @@ void *elf_load_kernel_module(struct file *file, struct module *module)
             sym_values[i] = res.sym->value;
     }
 
-    module->fini = (module_fini_t)((void *)sym_values[1]);
+    module->fini = (module_fini_t) ((void *) sym_values[1]);
 
-    ret = (void *)sym_values[0];
+    ret = (void *) sym_values[0];
 
     /* Exit re-used between the error path and normal exit path */
 out_error:
@@ -678,11 +679,11 @@ out_error:
 
 bool elf_is_valid_exec(uint8_t *file)
 {
-    return elf_is_valid((Elf64_Ehdr *)file);
+    return elf_is_valid((Elf64_Ehdr *) file);
 }
 
-struct binfmt elf_binfmt = {.signature = (unsigned char *)"\x7f"
-                                                          "ELF",
+struct binfmt elf_binfmt = {.signature = (unsigned char *) "\x7f"
+                                                           "ELF",
                             .size_signature = 4,
                             .is_valid_exec = elf_is_valid_exec,
                             .callback = elf_load,

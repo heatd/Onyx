@@ -26,7 +26,7 @@ struct page_iov
     void reset()
     {
         page = nullptr;
-        length = page_off = (unsigned int)-1;
+        length = page_off = (unsigned int) -1;
     }
 #endif
 };
@@ -79,7 +79,7 @@ struct page_iov_iter
     template <typename Type>
     Type *to_pointer()
     {
-        return (Type *)((unsigned long)PAGE_TO_VIRT(v->page) + v->page_off + offset);
+        return (Type *) ((unsigned long) PAGE_TO_VIRT(v->page) + v->page_off + offset);
     }
 };
 

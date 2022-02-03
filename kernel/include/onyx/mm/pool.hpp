@@ -204,7 +204,7 @@ public:
         if (is_large_object())
         {
             return cul::align_up2(size_of_inline_segment() + size_of_chunk() * 24,
-                                  (size_t)PAGE_SIZE);
+                                  (size_t) PAGE_SIZE);
         }
         else
             return default_pool_size;
@@ -219,7 +219,7 @@ public:
     {
         memory_chunk<T> *prev = nullptr;
         memory_chunk<T> *curr =
-            reinterpret_cast<memory_chunk<T> *>((unsigned char *)this + size_of_inline_segment());
+            reinterpret_cast<memory_chunk<T> *>((unsigned char *) this + size_of_inline_segment());
         auto first = curr;
         auto nr_objs = number_of_objects();
 

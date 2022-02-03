@@ -51,17 +51,17 @@ int isxdigit(int c)
 
 int isprint(int c)
 {
-    return (unsigned)c - 0x20 < 0x5f;
+    return (unsigned) c - 0x20 < 0x5f;
 }
 
 #undef isalpha
 int isalpha(int c)
 {
-    return ((unsigned)c | 32) - 'a' < 26;
+    return ((unsigned) c | 32) - 'a' < 26;
 }
 
 #undef isspace
 int isspace(int _c)
 {
-    return _c == ' ' || (unsigned)_c - '\t' < 5;
+    return _c == ' ' || (unsigned) _c - '\t' < 5;
 }

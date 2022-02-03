@@ -44,7 +44,7 @@ extern "C" void x86_ktrace_entry(struct registers *regs)
 {
     unsigned long caller = 0;
 
-    caller = *(unsigned long *)regs->rsp;
+    caller = *(unsigned long *) regs->rsp;
 
     ktrace::log_func_entry(regs->rip - hotpatch_site_len, caller);
 }
@@ -80,7 +80,7 @@ void patch_code(unsigned long __ip, unsigned long func, patch_action action)
 
     disable_writeprotect();
 
-    volatile unsigned char *ip = (unsigned char *)__ip;
+    volatile unsigned char *ip = (unsigned char *) __ip;
 
     /* Firstly, patch the ip so it triggers an int3 - this ensures the replace
      * is definitely done atomically */
@@ -121,7 +121,7 @@ void patch_code(unsigned long __ip, unsigned long func, patch_action action)
 void ktracepoint::activate()
 {
     activated = true;
-    patch_code(mcount_call_addr, (unsigned long)&__fentry__, patch_action::CALL);
+    patch_code(mcount_call_addr, (unsigned long) &__fentry__, patch_action::CALL);
 }
 
 void ktracepoint::deactivate()
@@ -147,17 +147,17 @@ void __replace_instructions(void *ip, const void *instructions, size_t size)
     irq_restore(f);
 }
 
-#define REPLACE_INSTR_N(N)                                                         \
-    while (size >= N)                                                              \
-    {                                                                              \
-        __replace_instructions((void *)instr, __PASTE(__PASTE(nop_, N), byte), N); \
-        size -= N;                                                                 \
-        instr += N;                                                                \
+#define REPLACE_INSTR_N(N)                                                          \
+    while (size >= N)                                                               \
+    {                                                                               \
+        __replace_instructions((void *) instr, __PASTE(__PASTE(nop_, N), byte), N); \
+        size -= N;                                                                  \
+        instr += N;                                                                 \
     }
 
 void nop_out(void *ip, size_t size)
 {
-    char *instr = (char *)ip;
+    char *instr = (char *) ip;
     REPLACE_INSTR_N(5);
     REPLACE_INSTR_N(4);
     REPLACE_INSTR_N(3);
@@ -169,7 +169,7 @@ void replace_instructions(void *ip, const void *instructions, size_t size, size_
 {
     assert(size <= max);
     __replace_instructions(ip, instructions, size);
-    nop_out((void *)((char *)ip + size), max - size);
+    nop_out((void *) ((char *) ip + size), max - size);
 }
 
 } // namespace ktrace

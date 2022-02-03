@@ -122,7 +122,7 @@ void tty_init(void *priv, void (*ctor)(struct tty *tty))
         assert(tty_ids != NULL);
     }
 
-    struct tty *tty = (struct tty *)zalloc(sizeof(*tty));
+    struct tty *tty = (struct tty *) zalloc(sizeof(*tty));
 
     assert(tty != NULL);
 
@@ -265,11 +265,11 @@ void tty_write_string_kernel(const char *data)
 
 size_t ttydevfs_write(size_t offset, size_t len, void *ubuffer, struct file *f)
 {
-    struct tty *tty = (struct tty *)f->f_ino->i_helper;
+    struct tty *tty = (struct tty *) f->f_ino->i_helper;
 
-    char *buffer = (char *)malloc(len);
+    char *buffer = (char *) malloc(len);
     if (!buffer)
-        return (size_t)-ENOMEM;
+        return (size_t) -ENOMEM;
 
     if (copy_from_user(buffer, ubuffer, len) < 0)
     {
@@ -320,12 +320,12 @@ ssize_t tty_consume_input(void *ubuf, size_t len, size_t buflen, struct tty *tty
 
 size_t ttydevfs_read(size_t offset, size_t count, void *buffer, struct file *this_)
 {
-    struct tty *tty = (struct tty *)this_->f_ino->i_helper;
+    struct tty *tty = (struct tty *) this_->f_ino->i_helper;
 
     int st = tty_wait_for_line(this_->f_flags, tty);
 
     if (st < 0)
-        return (size_t)st;
+        return (size_t) st;
 
     size_t len = __tty_has_input_available(tty);
     size_t read = tty_consume_input(buffer, count, len, tty);
@@ -370,7 +370,7 @@ unsigned int tty_do_tcflsh(struct tty *tty, int arg)
 
 unsigned int tty_ioctl(int request, void *argp, struct file *dev)
 {
-    struct tty *tty = (struct tty *)dev->f_ino->i_helper;
+    struct tty *tty = (struct tty *) dev->f_ino->i_helper;
 
     unsigned int ret = 0;
 
@@ -379,7 +379,7 @@ unsigned int tty_ioctl(int request, void *argp, struct file *dev)
     case TCGETS: {
         rw_lock_read(&tty->termio_lock);
 
-        struct termios *term = (termios *)argp;
+        struct termios *term = (termios *) argp;
         if (copy_to_user(term, &tty->term_io, sizeof(struct termios)) < 0)
             ret = -EFAULT;
 
@@ -390,7 +390,7 @@ unsigned int tty_ioctl(int request, void *argp, struct file *dev)
     case TCSETS:
     case TCSETSW:
     case TCSETSF: {
-        return tty_tcsets(request, tty, (termios *)argp);
+        return tty_tcsets(request, tty, (termios *) argp);
     }
 
     case TCGETA:
@@ -418,13 +418,13 @@ unsigned int tty_ioctl(int request, void *argp, struct file *dev)
         return 0;
     }
     case TIOCINQ: {
-        int *arg = (int *)argp;
-        if (copy_to_user(arg, (const void *)&tty->input_buf_pos, sizeof(int)) < 0)
+        int *arg = (int *) argp;
+        if (copy_to_user(arg, (const void *) &tty->input_buf_pos, sizeof(int)) < 0)
             return -EFAULT;
         return 0;
     }
     case TIOONYXCTL: {
-        int arg = (int)(unsigned long)argp;
+        int arg = (int) (unsigned long) argp;
 
         switch (arg)
         {
@@ -450,7 +450,7 @@ unsigned int tty_ioctl(int request, void *argp, struct file *dev)
     }
 
     case TCFLSH:
-        return tty_do_tcflsh(tty, (int)(unsigned long)argp);
+        return tty_do_tcflsh(tty, (int) (unsigned long) argp);
 
     case TIOCSPGRP: {
         auto pgrp = get_current_process()->process_group;
@@ -469,7 +469,7 @@ unsigned int tty_ioctl(int request, void *argp, struct file *dev)
 
 short tty_poll(void *poll_file, short events, struct file *f)
 {
-    struct tty *tty = (struct tty *)f->f_ino->i_helper;
+    struct tty *tty = (struct tty *) f->f_ino->i_helper;
 
     short revents = POLLOUT;
 
@@ -530,7 +530,7 @@ void tty_send_response(struct tty *tty, const char *str)
 
 ssize_t kernel_console_write(const void *buffer, size_t size, struct tty *tty)
 {
-    platform_serial_write((const char *)buffer, size);
+    platform_serial_write((const char *) buffer, size);
     return size;
 }
 

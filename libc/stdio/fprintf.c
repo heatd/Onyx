@@ -14,5 +14,5 @@ int fprintf(FILE* file, const char* string, ...)
     char buffer[strlen(string) + 250];
     vsprintf(buffer, string, varg);
     va_end(varg);
-    return fwrite((const void*)&buffer, strlen(buffer), sizeof(char), file);
+    return fwrite((const void*) &buffer, strlen(buffer), sizeof(char), file);
 }

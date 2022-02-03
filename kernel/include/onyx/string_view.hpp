@@ -44,7 +44,7 @@ public:
 
     template <typename Iterator>
     constexpr basic_string_view(Iterator begin, Iterator end)
-        : data_{begin}, length_{(size_type)(end - begin)}
+        : data_{begin}, length_{(size_type) (end - begin)}
     {
     }
 

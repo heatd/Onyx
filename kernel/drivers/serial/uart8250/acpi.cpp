@@ -25,7 +25,7 @@ int uart8250_acpi_probe(device *dev);
 
 static driver uart8250_acpi_driver = {
     .name = "uart8250-acpi",
-    .devids = (void *)uart8250_acpi_devids,
+    .devids = (void *) uart8250_acpi_devids,
     .probe = uart8250_acpi_probe,
     .bus_type_node = {&uart8250_acpi_driver},
 };
@@ -38,7 +38,7 @@ static driver uart8250_acpi_driver = {
  */
 int uart8250_acpi_probe(device *fake_dev)
 {
-    auto dev = (acpi_device *)fake_dev;
+    auto dev = (acpi_device *) fake_dev;
 
     // Find IRQ, IO resources
     auto irq_rc = dev->get_resource(DEV_RESOURCE_FLAG_IRQ);

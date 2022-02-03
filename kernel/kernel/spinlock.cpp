@@ -15,7 +15,7 @@
 __attribute__((always_inline)) static inline void post_lock_actions(struct spinlock *lock)
 {
 #ifdef CONFIG_SPINLOCK_DEBUG
-    lock->holder = (unsigned long)__builtin_return_address(1);
+    lock->holder = (unsigned long) __builtin_return_address(1);
 #endif
 }
 

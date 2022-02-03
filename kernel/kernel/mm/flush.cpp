@@ -21,7 +21,7 @@ array<flush::flush_dev, nr_wb_threads> thread_list;
 
 void flush_dev::init()
 {
-    thread = sched_create_thread(flush_thr_init, THREAD_KERNEL, (void *)this);
+    thread = sched_create_thread(flush_thr_init, THREAD_KERNEL, (void *) this);
     assert(thread != nullptr);
     sched_start_thread(thread);
 }
@@ -211,12 +211,12 @@ void flush_add_buf(struct flush_object *f)
     if (!blk->add_buf(f))
         return;
 
-    f->blk_list = (void *)blk;
+    f->blk_list = (void *) blk;
 }
 
 void flush_remove_buf(struct flush_object *blk)
 {
-    flush::flush_dev *b = (flush::flush_dev *)blk->blk_list;
+    flush::flush_dev *b = (flush::flush_dev *) blk->blk_list;
 
     b->remove_buf(blk);
 }
@@ -249,7 +249,7 @@ void flush_remove_inode(struct inode *ino)
 
 ssize_t flush_sync_one(struct flush_object *obj)
 {
-    flush::flush_dev *b = (flush::flush_dev *)obj->blk_list;
+    flush::flush_dev *b = (flush::flush_dev *) obj->blk_list;
 
     return b->sync_one(obj);
 }

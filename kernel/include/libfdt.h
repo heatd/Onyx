@@ -121,7 +121,7 @@ const void *fdt_offset_ptr(const void *fdt, int offset, unsigned int checklen);
 #endif
 static inline void *fdt_offset_ptr_w(void *fdt, int offset, int checklen)
 {
-    return (void *)(uintptr_t)fdt_offset_ptr(fdt, offset, checklen);
+    return (void *) (uintptr_t) fdt_offset_ptr(fdt, offset, checklen);
 }
 
 uint32_t fdt_next_tag(const void *fdt, int offset, int *nextoffset);
@@ -133,14 +133,14 @@ uint32_t fdt_next_tag(const void *fdt, int offset, int *nextoffset);
  */
 static inline uint32_t fdt32_ld(const fdt32_t *p)
 {
-    const uint8_t *bp = (const uint8_t *)p;
+    const uint8_t *bp = (const uint8_t *) p;
 
-    return ((uint32_t)bp[0] << 24) | ((uint32_t)bp[1] << 16) | ((uint32_t)bp[2] << 8) | bp[3];
+    return ((uint32_t) bp[0] << 24) | ((uint32_t) bp[1] << 16) | ((uint32_t) bp[2] << 8) | bp[3];
 }
 
 static inline void fdt32_st(void *property, uint32_t value)
 {
-    uint8_t *bp = (uint8_t *)property;
+    uint8_t *bp = (uint8_t *) property;
 
     bp[0] = value >> 24;
     bp[1] = (value >> 16) & 0xff;
@@ -150,16 +150,16 @@ static inline void fdt32_st(void *property, uint32_t value)
 
 static inline uint64_t fdt64_ld(const fdt64_t *p)
 {
-    const uint8_t *bp = (const uint8_t *)p;
+    const uint8_t *bp = (const uint8_t *) p;
 
-    return ((uint64_t)bp[0] << 56) | ((uint64_t)bp[1] << 48) | ((uint64_t)bp[2] << 40) |
-           ((uint64_t)bp[3] << 32) | ((uint64_t)bp[4] << 24) | ((uint64_t)bp[5] << 16) |
-           ((uint64_t)bp[6] << 8) | bp[7];
+    return ((uint64_t) bp[0] << 56) | ((uint64_t) bp[1] << 48) | ((uint64_t) bp[2] << 40) |
+           ((uint64_t) bp[3] << 32) | ((uint64_t) bp[4] << 24) | ((uint64_t) bp[5] << 16) |
+           ((uint64_t) bp[6] << 8) | bp[7];
 }
 
 static inline void fdt64_st(void *property, uint64_t value)
 {
-    uint8_t *bp = (uint8_t *)property;
+    uint8_t *bp = (uint8_t *) property;
 
     bp[0] = value >> 56;
     bp[1] = (value >> 48) & 0xff;
@@ -227,7 +227,7 @@ int fdt_next_subnode(const void *fdt, int offset);
 /**********************************************************************/
 /* General functions                                                  */
 /**********************************************************************/
-#define fdt_get_header(fdt, field) (fdt32_ld(&((const struct fdt_header *)(fdt))->field))
+#define fdt_get_header(fdt, field) (fdt32_ld(&((const struct fdt_header *) (fdt))->field))
 #define fdt_magic(fdt)             (fdt_get_header(fdt, magic))
 #define fdt_totalsize(fdt)         (fdt_get_header(fdt, totalsize))
 #define fdt_off_dt_struct(fdt)     (fdt_get_header(fdt, off_dt_struct))
@@ -242,7 +242,7 @@ int fdt_next_subnode(const void *fdt, int offset);
 #define fdt_set_hdr_(name)                                     \
     static inline void fdt_set_##name(void *fdt, uint32_t val) \
     {                                                          \
-        struct fdt_header *fdth = (struct fdt_header *)fdt;    \
+        struct fdt_header *fdth = (struct fdt_header *) fdt;   \
         fdth->name = cpu_to_fdt32(val);                        \
     }
 fdt_set_hdr_(magic);
@@ -384,7 +384,7 @@ static inline uint32_t fdt_get_max_phandle(const void *fdt)
 
     err = fdt_find_max_phandle(fdt, &phandle);
     if (err < 0)
-        return (uint32_t)-1;
+        return (uint32_t) -1;
 
     return phandle;
 }
@@ -691,7 +691,7 @@ const struct fdt_property *fdt_get_property(const void *fdt, int nodeoffset, con
 static inline struct fdt_property *fdt_get_property_w(void *fdt, int nodeoffset, const char *name,
                                                       int *lenp)
 {
-    return (struct fdt_property *)(uintptr_t)fdt_get_property(fdt, nodeoffset, name, lenp);
+    return (struct fdt_property *) (uintptr_t) fdt_get_property(fdt, nodeoffset, name, lenp);
 }
 
 /**
@@ -748,7 +748,7 @@ const void *fdt_getprop_namelen(const void *fdt, int nodeoffset, const char *nam
 static inline void *fdt_getprop_namelen_w(void *fdt, int nodeoffset, const char *name, int namelen,
                                           int *lenp)
 {
-    return (void *)(uintptr_t)fdt_getprop_namelen(fdt, nodeoffset, name, namelen, lenp);
+    return (void *) (uintptr_t) fdt_getprop_namelen(fdt, nodeoffset, name, namelen, lenp);
 }
 #endif
 
@@ -783,7 +783,7 @@ static inline void *fdt_getprop_namelen_w(void *fdt, int nodeoffset, const char 
 const void *fdt_getprop(const void *fdt, int nodeoffset, const char *name, int *lenp);
 static inline void *fdt_getprop_w(void *fdt, int nodeoffset, const char *name, int *lenp)
 {
-    return (void *)(uintptr_t)fdt_getprop(fdt, nodeoffset, name, lenp);
+    return (void *) (uintptr_t) fdt_getprop(fdt, nodeoffset, name, lenp);
 }
 
 /**

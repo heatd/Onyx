@@ -33,13 +33,13 @@ struct bin
 
 #define CHUNK_SIZE(c)   ((c)->csize & -2)
 #define CHUNK_PSIZE(c)  ((c)->psize & -2)
-#define PREV_CHUNK(c)   ((struct chunk *)((char *)(c)-CHUNK_PSIZE(c)))
-#define NEXT_CHUNK(c)   ((struct chunk *)((char *)(c) + CHUNK_SIZE(c)))
-#define MEM_TO_CHUNK(p) (struct chunk *)((char *)(p)-OVERHEAD)
-#define CHUNK_TO_MEM(c) (void *)((char *)(c) + OVERHEAD)
+#define PREV_CHUNK(c)   ((struct chunk *) ((char *) (c) -CHUNK_PSIZE(c)))
+#define NEXT_CHUNK(c)   ((struct chunk *) ((char *) (c) + CHUNK_SIZE(c)))
+#define MEM_TO_CHUNK(p) (struct chunk *) ((char *) (p) -OVERHEAD)
+#define CHUNK_TO_MEM(c) (void *) ((char *) (c) + OVERHEAD)
 #define BIN_TO_CHUNK(i) (MEM_TO_CHUNK(&mal.bins[i].head))
 
-#define C_INUSE ((size_t)1)
+#define C_INUSE ((size_t) 1)
 
 #define IS_MMAPPED(c) !((c)->csize & (C_INUSE))
 

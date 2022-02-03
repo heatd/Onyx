@@ -10,7 +10,7 @@
 #include <onyx/superblock.h>
 #include <onyx/vfs.h>
 
-#define PSEUDO_FILE(inode) ((void *)inode->i_inode)
+#define PSEUDO_FILE(inode) ((void *) inode->i_inode)
 
 struct pseudo_mount;
 

@@ -24,13 +24,13 @@ static const uint16_t eth_proto_table[] = {PROTO_IPV4, PROTO_IPV6, PROTO_ARP};
 
 auto tx_proto_to_eth_proto(tx_protocol proto)
 {
-    return eth_proto_table[(int)proto];
+    return eth_proto_table[(int) proto];
 }
 
 int eth_dll_ops::setup_header(packetbuf *buf, tx_type type, tx_protocol proto, netif *nif,
                               const void *dst_hw)
 {
-    auto hdr = (struct eth_header *)buf->push_header(sizeof(struct eth_header));
+    auto hdr = (struct eth_header *) buf->push_header(sizeof(struct eth_header));
 
     memset(hdr, 0, sizeof(struct eth_header));
 
@@ -46,7 +46,7 @@ int eth_dll_ops::setup_header(packetbuf *buf, tx_type type, tx_protocol proto, n
             /* IPv6 addresses have a multicast mac of 33-33 and then the rest is filled with
              * the lower 32 bits of the IPv6 address.
              */
-            const in6_addr *addr = (const in6_addr *)dst_hw;
+            const in6_addr *addr = (const in6_addr *) dst_hw;
             hdr->mac_dest[0] = 0x33;
             hdr->mac_dest[1] = 0x33;
 
@@ -62,7 +62,7 @@ int eth_dll_ops::setup_header(packetbuf *buf, tx_type type, tx_protocol proto, n
              * we need to mask out the first bit of the first byte.
              */
 
-            const unsigned char *addr = (const unsigned char *)dst_hw + 1;
+            const unsigned char *addr = (const unsigned char *) dst_hw + 1;
             hdr->mac_dest[0] = 01;
             hdr->mac_dest[1] = 00;
             hdr->mac_dest[2] = 0x5e;
@@ -78,7 +78,7 @@ int eth_dll_ops::setup_header(packetbuf *buf, tx_type type, tx_protocol proto, n
 
 extern "C" int eth_dll_ops::rx_packet(netif *netif, packetbuf *buf)
 {
-    struct eth_header *hdr = (struct eth_header *)buf->data;
+    struct eth_header *hdr = (struct eth_header *) buf->data;
 
     /* Bad packet */
     if (sizeof(struct eth_header) >= buf->length())

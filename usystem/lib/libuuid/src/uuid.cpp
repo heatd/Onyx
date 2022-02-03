@@ -73,7 +73,7 @@ int get_mac_address(std::array<unsigned char, 6> &mac)
         if (a->ifa_addr->sa_family == AF_PACKET)
         {
             sockaddr_ll addr;
-            std::memcpy((void *)&addr, (const void *)a->ifa_addr, sizeof(sockaddr_ll));
+            std::memcpy((void *) &addr, (const void *) a->ifa_addr, sizeof(sockaddr_ll));
 
             // Skip if its not a MAC address
             if (addr.sll_halen != 6)
@@ -116,9 +116,9 @@ int uuid_generate_time_safe(uuid_t out)
 
     // Convert seconds into 100 nanosecond units and add tv_nsec/10
     std::uint64_t timestamp = (seconds_since_gregorian * 10000000) + (time.tv_nsec / 10);
-    uuid_representation *v1 = (uuid_representation *)out;
+    uuid_representation *v1 = (uuid_representation *) out;
     std::memcpy(&v1->format.node_id, mac.data(), mac.size());
-    v1->format.time_low = (std::uint32_t)timestamp;
+    v1->format.time_low = (std::uint32_t) timestamp;
     v1->format.time_mid = (std::uint16_t)(timestamp >> 32);
     v1->format.time_hi_and_version = (std::uint16_t)(timestamp >> 48);
 
@@ -133,8 +133,8 @@ void uuid_generate(uuid_t out)
 
 void uuid_generate_random(uuid_t out)
 {
-    uuid_representation *v4 = (uuid_representation *)out;
-    get_entropy((void *)v4, sizeof(uuid_t));
+    uuid_representation *v4 = (uuid_representation *) out;
+    get_entropy((void *) v4, sizeof(uuid_t));
 
     set_version_and_variant(v4, 4, 1);
 }

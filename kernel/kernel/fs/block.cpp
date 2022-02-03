@@ -51,9 +51,9 @@ struct blockdev *blkdev_search(const char *name)
 
 unsigned int blkdev_ioctl(int request, void *argp, struct file *f)
 {
-    auto d = (blockdev *)f->f_ino->i_helper;
+    auto d = (blockdev *) f->f_ino->i_helper;
 
-    (void)d;
+    (void) d;
     switch (request)
     {
     default:
@@ -66,12 +66,12 @@ size_t blkdev_read_file(size_t offset, size_t len, void *buffer, struct file *f)
     if (f->f_flags & O_NONBLOCK)
         return errno = EWOULDBLOCK, -1;
 
-    auto d = (blockdev *)f->f_ino->i_helper;
+    auto d = (blockdev *) f->f_ino->i_helper;
     /* align the offset first */
     size_t misalignment = offset % d->sector_size;
     ssize_t sector = offset / d->sector_size;
     size_t read = 0;
-    char *buf = (char *)buffer;
+    char *buf = (char *) buffer;
 
     if (misalignment != 0)
     {
@@ -97,7 +97,7 @@ size_t blkdev_read_file(size_t offset, size_t len, void *buffer, struct file *f)
             return -1;
         }
 
-        memcpy(buf, (char *)virt + misalignment, to_copy);
+        memcpy(buf, (char *) virt + misalignment, to_copy);
 
         free_page(p);
 
@@ -147,7 +147,7 @@ size_t blkdev_read_file(size_t offset, size_t len, void *buffer, struct file *f)
             return -1;
         }
 
-        memcpy(buf, (char *)virt, len);
+        memcpy(buf, (char *) virt, len);
 
         free_page(p);
 
@@ -162,11 +162,11 @@ size_t blkdev_read_file(size_t offset, size_t len, void *buffer, struct file *f)
 
 size_t blkdev_write_file(size_t offset, size_t len, void *buffer, struct file *f)
 {
-    auto d = (blockdev *)f->f_ino->i_helper; /* align the offset first */
+    auto d = (blockdev *) f->f_ino->i_helper; /* align the offset first */
     size_t misalignment = offset % d->sector_size;
     ssize_t sector = offset / d->sector_size;
     size_t written = 0;
-    char *buf = (char *)buffer;
+    char *buf = (char *) buffer;
 
     if (misalignment != 0)
     {
@@ -189,7 +189,7 @@ size_t blkdev_write_file(size_t offset, size_t len, void *buffer, struct file *f
             return -1;
         }
 
-        memcpy((char *)virt + misalignment, buf, to_copy);
+        memcpy((char *) virt + misalignment, buf, to_copy);
 
         s = blkdev_write(sector * d->sector_size, d->sector_size, virt, d);
         free_page(p);
@@ -240,7 +240,7 @@ size_t blkdev_write_file(size_t offset, size_t len, void *buffer, struct file *f
             return -1;
         }
 
-        memcpy(buf, (char *)virt, len);
+        memcpy(buf, (char *) virt, len);
 
         s = blkdev_write(sector * d->sector_size, d->sector_size, virt, d);
         free_page(p);
@@ -315,10 +315,10 @@ ssize_t blkdev_read(size_t offset, size_t count, void *buffer, struct blockdev *
         return blkdev_read(dev->offset + offset, count, buffer, dev->actual_blockdev);
 
     struct page_iov v;
-    unsigned long phys = (unsigned long)virtual2phys(buffer);
+    unsigned long phys = (unsigned long) virtual2phys(buffer);
 
     v.page = phys_to_page(phys);
-    v.length = (unsigned int)count;
+    v.length = (unsigned int) count;
     v.page_off = phys & (PAGE_SIZE - 1);
 
     struct bio_req r;

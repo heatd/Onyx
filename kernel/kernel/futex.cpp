@@ -224,7 +224,7 @@ int calculate_key(int *uaddr, int flags, futex_key &out_key)
 {
     bool private_ftx = flags & FUTEX_PRIVATE_FLAG;
     auto address_space = get_current_address_space();
-    auto offset_within_page = (unsigned long)uaddr & (PAGE_SIZE - 1);
+    auto offset_within_page = (unsigned long) uaddr & (PAGE_SIZE - 1);
     bool is_shared = false;
 
     /* If it was already specified to be a private futex(thanks user-space!),
@@ -317,13 +317,13 @@ int wait(int *uaddr, int val, int flags, const struct timespec *utimespec)
 
     unsigned int curr_val = 0;
 
-    if (get_user32((unsigned int *)uaddr, &curr_val) < 0)
+    if (get_user32((unsigned int *) uaddr, &curr_val) < 0)
     {
         st = -EFAULT;
         goto out;
     }
 
-    if (curr_val != (unsigned int)val)
+    if (curr_val != (unsigned int) val)
     {
         st = -EAGAIN;
         goto out;
@@ -433,13 +433,13 @@ int cmp_requeue(int *uaddr, int flags, int to_wake, int to_requeue, int *uaddr2,
     if (val3_valid)
     {
         unsigned int on_uaddr;
-        if (get_user32((unsigned int *)uaddr, &on_uaddr) < 0)
+        if (get_user32((unsigned int *) uaddr, &on_uaddr) < 0)
         {
             st = -EFAULT;
             goto out;
         }
 
-        if (on_uaddr != (unsigned int)val3)
+        if (on_uaddr != (unsigned int) val3)
         {
             st = -EAGAIN;
             goto out;
@@ -495,7 +495,7 @@ int requeue(int *uaddr, int flags, int to_wake, int to_requeue, int *uaddr2)
 
 int futex_wake(int *uaddr, int nr_waiters)
 {
-    if ((unsigned long)uaddr & (4 - 1))
+    if ((unsigned long) uaddr & (4 - 1))
         return -EINVAL;
 
     return futex::wake(uaddr, 0, nr_waiters);
@@ -506,7 +506,7 @@ int futex_wake(int *uaddr, int nr_waiters)
 
 static inline int get_val2(const struct timespec *t)
 {
-    return (int)(long)t;
+    return (int) (long) t;
 }
 
 int sys_futex(int *uaddr, int futex_op, int val, const struct timespec *timeout, int *uaddr2,
@@ -519,7 +519,7 @@ int sys_futex(int *uaddr, int futex_op, int val, const struct timespec *timeout,
         return -EINVAL;
 
     /* Bad pointer */
-    if ((unsigned long)uaddr & (4 - 1))
+    if ((unsigned long) uaddr & (4 - 1))
         return -EINVAL;
 
     switch (futex_op & FUTEX_OP_MASK)

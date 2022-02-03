@@ -34,8 +34,8 @@ const char *network_gethostname()
 
 void network_sethostname(const char *name)
 {
-    if (strcmp((char *)hostname, ""))
-        free((void *)hostname);
+    if (strcmp((char *) hostname, ""))
+        free((void *) hostname);
     hostname = name;
 }
 

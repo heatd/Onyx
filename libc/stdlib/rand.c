@@ -9,17 +9,17 @@
 int seed = 1;
 void srand(unsigned int s)
 {
-    seed = (int)s;
+    seed = (int) s;
 }
 
 int rand_r(unsigned int *seed)
 {
     // Use an LCG
     *seed = ((*seed * 1103515245) + 123456);
-    return (int)*seed;
+    return (int) *seed;
 }
 
 int rand()
 {
-    return rand_r((unsigned int *)&seed);
+    return rand_r((unsigned int *) &seed);
 }

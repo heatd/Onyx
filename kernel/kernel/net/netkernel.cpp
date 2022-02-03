@@ -120,7 +120,7 @@ int netkernel_socket::connect(sockaddr *addr, socklen_t addrlen)
     if (!validate_sockaddr(addr, addrlen))
         return -EINVAL;
 
-    sockaddr_nk *nk = (sockaddr_nk *)addr;
+    sockaddr_nk *nk = (sockaddr_nk *) addr;
 
     auto res = nk_look_at_sa_path(nk);
     if (res.has_error())
@@ -141,7 +141,7 @@ int netkernel_socket::connect(sockaddr *addr, socklen_t addrlen)
 
 ssize_t netkernel_socket::sendmsg(const struct msghdr *msg, int flags)
 {
-    auto addr = (const sockaddr *)msg->msg_name;
+    auto addr = (const sockaddr *) msg->msg_name;
     auto addrlen = msg->msg_namelen;
     if (!addr && !connected)
         return -ENOTCONN;
@@ -156,7 +156,7 @@ ssize_t netkernel_socket::sendmsg(const struct msghdr *msg, int flags)
     {
         if (!validate_sockaddr(addr, addrlen))
             return -EINVAL;
-        sockaddr_nk *nk = (sockaddr_nk *)addr;
+        sockaddr_nk *nk = (sockaddr_nk *) addr;
 
         auto res = nk_look_at_sa_path(nk);
         if (res.has_error())
@@ -183,15 +183,15 @@ ssize_t netkernel_socket::sendmsg(const struct msghdr *msg, int flags)
         bufp += vec.iov_len;
     }
 
-    auto hdr = (netkernel_hdr *)buf;
+    auto hdr = (netkernel_hdr *) buf;
 
-    if (hdr->flags & ~NETKERNEL_HDR_VALID_FLAGS_MASK || hdr->size > (size_t)len)
+    if (hdr->flags & ~NETKERNEL_HDR_VALID_FLAGS_MASK || hdr->size > (size_t) len)
     {
         delete[] buf;
         return -EINVAL;
     }
 
-    auto result = obj->serve_request((netkernel_hdr *)buf);
+    auto result = obj->serve_request((netkernel_hdr *) buf);
 
     if (result.has_error())
         return result.error();

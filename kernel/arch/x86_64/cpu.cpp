@@ -85,7 +85,7 @@ void __cpu_identify(void)
         INFO("x86cpu", "CPUID_FEATURES not supported!\n");
     }
     else
-        cpu.caps[0] = edx | ((uint64_t)ecx << 32);
+        cpu.caps[0] = edx | ((uint64_t) ecx << 32);
 
     eax = CPUID_FEATURES_EXT;
     if (!__get_cpuid_count(CPUID_FEATURES_EXT, 0, &eax, &ebx, &ecx, &edx))
@@ -94,7 +94,7 @@ void __cpu_identify(void)
     }
     else
     {
-        cpu.caps[1] = ebx | ((uint64_t)ecx << 32);
+        cpu.caps[1] = ebx | ((uint64_t) ecx << 32);
         cpu.caps[2] = edx;
     }
 
@@ -105,7 +105,7 @@ void __cpu_identify(void)
     }
     else
     {
-        cpu.caps[2] |= ((uint64_t)edx) << 32;
+        cpu.caps[2] |= ((uint64_t) edx) << 32;
         cpu.caps[3] = ecx;
     }
 
@@ -115,7 +115,7 @@ void __cpu_identify(void)
     }
     else
     {
-        cpu.invariant_tsc = (bool)(edx & (1 << 8));
+        cpu.invariant_tsc = (bool) (edx & (1 << 8));
     }
 
     /* Intel manuals 17.17 Time-Stamp Counter describes this in detail.
@@ -294,8 +294,8 @@ void x86_init_percpu(void)
     efer |= IA32_EFER_SCE;
     wrmsr(IA32_EFER, efer);
     /* and finally, syscall instruction MSRs */
-    wrmsr(IA32_MSR_STAR, (((uint64_t)((USER32_CS) << 16) | KERNEL_CS) << 32));
-    wrmsr(IA32_MSR_LSTAR, (uint64_t)syscall_ENTRY64);
+    wrmsr(IA32_MSR_STAR, (((uint64_t) ((USER32_CS) << 16) | KERNEL_CS) << 32));
+    wrmsr(IA32_MSR_LSTAR, (uint64_t) syscall_ENTRY64);
     wrmsr(IA32_MSR_SFMASK,
           EFLAGS_INT_ENABLED | EFLAGS_DIRECTION | EFLAGS_TRAP | EFLAGS_ALIGNMENT_CHECK);
 
@@ -449,7 +449,7 @@ bool cpu_send_message(unsigned int cpu, unsigned long message, void *arg, bool s
 
     cpu_notify(cpu);
 
-    cpu_wait_for_msg_ack((volatile struct cpu_message *)&msg);
+    cpu_wait_for_msg_ack((volatile struct cpu_message *) &msg);
 
     return true;
 }
@@ -502,8 +502,8 @@ void cpu_handle_message(struct cpu_message *msg)
         break;
     }
 
-    (void)this_cpu;
-    (void)str;
+    (void) this_cpu;
+    (void) str;
     // printf("cpu#%u handling %p, message type %s\n", this_cpu, msg, str);
 }
 

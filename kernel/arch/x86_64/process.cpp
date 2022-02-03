@@ -81,7 +81,7 @@ int process_alloc_stack(struct stack_info *info)
     if (!ptr)
         return -ENOMEM;
     info->base = ptr;
-    info->top = reinterpret_cast<void *>((unsigned long)ptr + info->length);
+    info->top = reinterpret_cast<void *>((unsigned long) ptr + info->length);
 
     return 0;
 }
@@ -142,13 +142,13 @@ int sys_clone(void *fn, void *child_stack, int flags, void *arg, struct tid_out 
         return -EINVAL;
     if (flags & CLONE_FORK)
         return -EINVAL; /* TODO: Add CLONE_FORK */
-    thread_callback_t start = (thread_callback_t)fn;
+    thread_callback_t start = (thread_callback_t) fn;
 
     registers_t regs = {};
-    regs.rsp = (unsigned long)child_stack;
+    regs.rsp = (unsigned long) child_stack;
     regs.rflags = default_rflags;
-    regs.rip = (unsigned long)start;
-    regs.rdi = (unsigned long)arg;
+    regs.rip = (unsigned long) start;
+    regs.rdi = (unsigned long) arg;
 
     thread_t *thread = sched_spawn_thread(&regs, 0, tls);
     if (!thread)

@@ -111,7 +111,7 @@ void __cxa_guard_release(guard_type *g)
 USED_FUNC
 void __cxa_guard_abort(guard_type *g)
 {
-    *(char *)g = 0;
+    *(char *) g = 0;
 }
 }
 

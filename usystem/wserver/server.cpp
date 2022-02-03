@@ -37,7 +37,7 @@ Server::Server(std::shared_ptr<Display> display) : display(display), window_list
     addr.sun_family = AF_UNIX;
     memcpy(addr.sun_path, SERVER_SOCKET_PATH, sizeof(SERVER_SOCKET_PATH));
 
-    if (bind(socket_fd, (struct sockaddr *)&addr,
+    if (bind(socket_fd, (struct sockaddr *) &addr,
              sizeof(sa_family_t) + sizeof(SERVER_SOCKET_PATH)) < 0)
     {
         throw std::runtime_error("bind failed");
@@ -267,9 +267,9 @@ void Server::handle_events()
     socklen_t len = sizeof(client_addr);
 
     while (recvfrom(socket_fd, &msg, sizeof(struct server_message), 0,
-                    (struct sockaddr *)&client_addr, &len))
+                    (struct sockaddr *) &client_addr, &len))
     {
-        handle_message(&msg, (struct sockaddr *)&client_addr, len);
+        handle_message(&msg, (struct sockaddr *) &client_addr, len);
     }
 
     perror("recvfrom");

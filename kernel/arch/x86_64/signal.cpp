@@ -38,7 +38,7 @@ int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigactio
      */
     if (k_sigaction->sa_flags & SA_ONSTACK && !(sinfo->altstack.ss_flags & SS_DISABLE))
     {
-        sp = (unsigned long)sinfo->altstack.ss_sp + sinfo->altstack.ss_size;
+        sp = (unsigned long) sinfo->altstack.ss_sp + sinfo->altstack.ss_size;
         if (sinfo->altstack.ss_flags & SS_AUTODISARM)
         {
             sinfo->altstack.ss_sp = NULL;
@@ -56,7 +56,7 @@ int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigactio
     unsigned long sframe_location = sp - sizeof(struct sigframe) - fpu_size;
     sframe_location &= -16;
 
-    struct sigframe *sframe = (struct sigframe *)sframe_location;
+    struct sigframe *sframe = (struct sigframe *) sframe_location;
 
     if (copy_to_user(&sframe->retaddr, &k_sigaction->sa_restorer, sizeof(void *)) < 0)
         return -EFAULT;
@@ -124,14 +124,14 @@ int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigactio
         return -EFAULT;
 
     /* Align the stack to 16 bytes, specified by the ABI */
-    regs->rsp = (unsigned long)sframe;
-    regs->rip = (unsigned long)k_sigaction->sa_handler;
+    regs->rsp = (unsigned long) sframe;
+    regs->rip = (unsigned long) k_sigaction->sa_handler;
     regs->rdi = sig;
 
     if (k_sigaction->sa_flags & SA_SIGINFO)
     {
-        regs->rsi = (unsigned long)&sframe->sinfo;
-        regs->rdx = (unsigned long)&sframe->uc;
+        regs->rsi = (unsigned long) &sframe->sinfo;
+        regs->rdx = (unsigned long) &sframe->uc;
     }
 
     regs->rflags &= ~(EFLAGS_TRAP | EFLAGS_DIRECTION);
@@ -146,7 +146,7 @@ void sys_sigreturn(syscall_frame *sysframe)
     /* Switch the registers again */
     struct registers rbuf;
     struct registers *regs = &rbuf;
-    struct sigframe *sframe = (struct sigframe *)(sysframe->user_sp - 8);
+    struct sigframe *sframe = (struct sigframe *) (sysframe->user_sp - 8);
 
     /* Set-up the ucontext */
     if (copy_from_user(&regs->rax, &sframe->uc.uc_mcontext.gregs[REG_RAX], sizeof(unsigned long)) <

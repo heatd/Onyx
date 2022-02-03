@@ -46,7 +46,7 @@ extern int panicing;
 int putchar(int c)
 {
     char buf[2];
-    buf[0] = (char)c;
+    buf[0] = (char) c;
     buf[1] = 0;
 
     kernlog_print(buf);

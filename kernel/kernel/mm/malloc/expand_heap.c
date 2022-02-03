@@ -17,7 +17,7 @@
 
 unsigned long get_brk()
 {
-    return (unsigned long)heap_get()->brk;
+    return (unsigned long) heap_get()->brk;
 }
 
 void *sbrk(intptr_t);
@@ -40,11 +40,11 @@ void *__expand_heap(size_t *pn)
         brk += -brk & (PAGE_SIZE - 1);
     }
 
-    if (n < SIZE_MAX - brk && sbrk(n) != (void *)-1)
+    if (n < SIZE_MAX - brk && sbrk(n) != (void *) -1)
     {
         *pn = n;
         brk += n;
-        return (void *)(brk - n);
+        return (void *) (brk - n);
     }
 
     return 0;

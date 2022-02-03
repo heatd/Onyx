@@ -72,7 +72,7 @@ unsigned long strtoul(const char *nptr, char **endptr, int base)
         {
             if (endptr)
             {
-                *endptr = (char *)nptr;
+                *endptr = (char *) nptr;
             }
             break;
         }

@@ -265,7 +265,7 @@ public:
 
     uint16_t header_type() const
     {
-        return (uint16_t)read(PCI_REGISTER_HEADER, sizeof(uint16_t));
+        return (uint16_t) read(PCI_REGISTER_HEADER, sizeof(uint16_t));
     }
 
     void set_alloc(pcie_allocation *alloc)

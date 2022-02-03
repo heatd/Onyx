@@ -33,7 +33,7 @@ int igd_init_transcoders(struct igpu_device *dev)
         if (!trans)
             return -1;
 
-        trans->name = (enum TRANSCODER_NAME)i;
+        trans->name = (enum TRANSCODER_NAME) i;
         igd_set_trans_regs(trans);
         dev->transcoders[i] = trans;
     }

@@ -101,7 +101,7 @@ in6_addr solicited_node_address(const in6_addr &our_address)
 void join_multicast(const in6_addr &addr, int sockfd, std::uint32_t scope_id)
 {
     auto report_size = mldv2_report_size(1, 0);
-    mldv2_report *report = (mldv2_report *)new uint8_t[report_size];
+    mldv2_report *report = (mldv2_report *) new uint8_t[report_size];
 
     memset(report, 0, report_size);
 
@@ -118,7 +118,7 @@ void join_multicast(const in6_addr &addr, int sockfd, std::uint32_t scope_id)
     all_capable.sin6_family = AF_INET6;
     all_capable.sin6_scope_id = scope_id;
 
-    if (sendto(sockfd, report, report_size, 0, (const sockaddr *)&all_capable,
+    if (sendto(sockfd, report, report_size, 0, (const sockaddr *) &all_capable,
                sizeof(all_capable)) < 0)
     {
         throw sys_error("Error sending MLDv2 report");
@@ -171,7 +171,7 @@ int perform_dad(const in6_addr &addr, int sockfd, std::uint32_t scope_id)
         sol.nd_ns_hdr.icmp6_type = ICMPV6_NEIGHBOUR_SOLICIT;
         sol.nd_ns_target = addr;
 
-        if (sendto(sockfd, &sol, sizeof(sol), 0, (const sockaddr *)&solicited_nodes,
+        if (sendto(sockfd, &sol, sizeof(sol), 0, (const sockaddr *) &solicited_nodes,
                    sizeof(solicited_nodes)) < 0)
             throw sys_error("Error sending neighbour discovery");
 
@@ -230,13 +230,13 @@ void parse_rt_advertisement(const nd_router_advert *adv, size_t len,
         throw std::runtime_error("Oh no, this router is managed only!");
     }
 
-    const char *optptr = (const char *)(adv + 1);
+    const char *optptr = (const char *) (adv + 1);
     ssize_t options_len = len - sizeof(nd_router_advert);
 
     /* Each option is at least 8 bytes long */
     while (options_len >= 8)
     {
-        auto hdr = (const icmp6_opt_header *)optptr;
+        auto hdr = (const icmp6_opt_header *) optptr;
         auto length = hdr->length << 3;
         if (length > options_len)
         {
@@ -247,7 +247,7 @@ void parse_rt_advertisement(const nd_router_advert *adv, size_t len,
         switch (hdr->type)
         {
         case ND_OPT_PREFIX_INFORMATION: {
-            auto info = (const nd_opt_prefix_info *)hdr;
+            auto info = (const nd_opt_prefix_info *) hdr;
             if (length != sizeof(nd_opt_prefix_info))
             {
                 throw std::runtime_error("Invalid option length");
@@ -287,7 +287,7 @@ void solicit_router(const in6_addr &addr, int sockfd, instance &inst)
     all_rtrs.sin6_family = AF_INET6;
     all_rtrs.sin6_scope_id = inst.get_if_index();
 
-    if (sendto(sockfd, buf, sizeof(buf), 0, (const sockaddr *)&all_rtrs, sizeof(all_rtrs)) < 0)
+    if (sendto(sockfd, buf, sizeof(buf), 0, (const sockaddr *) &all_rtrs, sizeof(all_rtrs)) < 0)
         throw sys_error("Error sending router solicit");
 
     nd_router_advert *adv = nullptr;
@@ -312,11 +312,11 @@ void solicit_router(const in6_addr &addr, int sockfd, instance &inst)
             throw std::runtime_error("Timed out waiting for a router advertisement");
         }
 
-        len = recvfrom(sockfd, buffer, sizeof(buffer), 0, (sockaddr *)&router_addr, &ra_len);
+        len = recvfrom(sockfd, buffer, sizeof(buffer), 0, (sockaddr *) &router_addr, &ra_len);
         if (len < 0)
             throw sys_error("Error receiving packet");
 
-        adv = (nd_router_advert *)buffer;
+        adv = (nd_router_advert *) buffer;
 
         if (adv->nd_ra_hdr.icmp6_type != ICMPV6_ROUTER_ADVERT)
             continue;
@@ -371,8 +371,8 @@ void solicit_router(const in6_addr &addr, int sockfd, instance &inst)
     dst.nk_family = AF_NETKERNEL;
     strcpy(dst.path, "ipv6.rt");
 
-    if (sendto(nkfd, (const void *)&route, sizeof(route), 0, (const sockaddr *)&dst, sizeof(dst)) <
-        0)
+    if (sendto(nkfd, (const void *) &route, sizeof(route), 0, (const sockaddr *) &dst,
+               sizeof(dst)) < 0)
     {
         throw sys_error("Error adding local route");
     }

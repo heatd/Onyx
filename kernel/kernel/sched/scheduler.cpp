@@ -56,7 +56,7 @@ void thread_append_to_global_list(thread *t)
 {
     spin_lock(&glbl_thread_list_lock);
 
-    dict_insert_result res = rb_tree_insert(&glbl_thread_list, (void *)(unsigned long)t->id);
+    dict_insert_result res = rb_tree_insert(&glbl_thread_list, (void *) (unsigned long) t->id);
     assert(res.inserted == true);
     *res.datum_ptr = t;
 
@@ -67,7 +67,7 @@ void thread_remove_from_list(thread *t)
 {
     spin_lock(&glbl_thread_list_lock);
 
-    dict_remove_result res = rb_tree_remove(&glbl_thread_list, (void *)(unsigned long)t->id);
+    dict_remove_result res = rb_tree_remove(&glbl_thread_list, (void *) (unsigned long) t->id);
     assert(res.removed != false);
 
     spin_unlock(&glbl_thread_list_lock);
@@ -79,7 +79,7 @@ static const char *thread_strings[] = {
 
 bool _dump_thread(const void *key, void *_thread, void *of)
 {
-    auto thread = (struct thread *)_thread;
+    auto thread = (struct thread *) _thread;
 
     printk("Thread id %d\n", thread->id);
 
@@ -90,11 +90,11 @@ bool _dump_thread(const void *key, void *_thread, void *of)
     printk("Thread status: %s\n", thread_strings[thread->status]);
     if (thread->status == THREAD_INTERRUPTIBLE || thread->status == THREAD_UNINTERRUPTIBLE)
     {
-        registers *regs = (registers *)thread->kernel_stack;
-        (void)regs;
+        registers *regs = (registers *) thread->kernel_stack;
+        (void) regs;
 #if __x86_64__
         printk("Dumping context. IP = %016lx, RBP = %016lx\n", regs->rip, regs->rbp);
-        stack_trace_ex((uint64_t *)regs->rbp);
+        stack_trace_ex((uint64_t *) regs->rbp);
 #endif
     }
 
@@ -117,12 +117,12 @@ thread *thread_get_from_tid(int tid)
 {
     spin_lock(&glbl_thread_list_lock);
 
-    void **pp = rb_tree_search(&glbl_thread_list, (const void *)(unsigned long)tid);
+    void **pp = rb_tree_search(&glbl_thread_list, (const void *) (unsigned long) tid);
 
     thread *t = NULL;
     if (pp)
     {
-        t = (thread *)*pp;
+        t = (thread *) *pp;
         thread_get(t);
     }
 
@@ -144,7 +144,7 @@ unsigned long sched_lock(thread *thread)
 
     unsigned long cpu_flags = spin_lock_irqsave(l);
     unsigned long _ = spin_lock_irqsave(&thread->lock);
-    (void)_;
+    (void) _;
 
     return cpu_flags;
 }
@@ -169,9 +169,9 @@ thread_t *__sched_find_next(unsigned int cpu)
     /* Note: These locks are unlocked in sched_load_thread, after loading the thread */
     spinlock *sched_lock = get_per_cpu_ptr_any(scheduler_lock, cpu);
     unsigned long _ = spin_lock_irqsave(sched_lock);
-    (void)_;
+    (void) _;
 
-    thread **thread_queues = (thread **)get_per_cpu_ptr_any(thread_queues_head, cpu);
+    thread **thread_queues = (thread **) get_per_cpu_ptr_any(thread_queues_head, cpu);
 
     if (current_thread)
     {
@@ -236,7 +236,7 @@ unsigned long sched_get_preempt_counter(void)
 
 void sched_save_thread(thread *thread, void *stack)
 {
-    thread->kernel_stack = (uintptr_t *)stack;
+    thread->kernel_stack = (uintptr_t *) stack;
     thread->errno_val = errno;
 
     native::arch_save_thread(thread, stack);
@@ -364,7 +364,7 @@ void *sched_preempt_thread(void *current_stack)
 
 void sched_idle(void *ptr)
 {
-    (void)ptr;
+    (void) ptr;
     /* This function will not do work at all, just idle using hlt or a similar instruction */
     for (;;)
     {
@@ -378,7 +378,7 @@ void __sched_append_to_queue(int priority, unsigned int cpu, thread *thread)
 
     assert(thread->status == THREAD_RUNNABLE);
 
-    auto thread_queues = (struct thread **)get_per_cpu_ptr_any(thread_queues_head, cpu);
+    auto thread_queues = (struct thread **) get_per_cpu_ptr_any(thread_queues_head, cpu);
     thread_t *queue = thread_queues[priority];
     if (!queue)
     {
@@ -473,8 +473,8 @@ void sched_enable_pulse(void)
 
 int sched_rbtree_cmp(const void *t1, const void *t2)
 {
-    int tid0 = (int)(unsigned long)t1;
-    int tid1 = (int)(unsigned long)t2;
+    int tid0 = (int) (unsigned long) t1;
+    int tid1 = (int) (unsigned long) t2;
     return tid1 - tid0;
 }
 
@@ -509,7 +509,7 @@ void sched_yield(void)
     if (sched_is_preemption_disabled())
     {
         panic("Thread tried to sleep with preemption disabled (preemption counter %ld)",
-              (long)sched_get_preempt_counter());
+              (long) sched_get_preempt_counter());
     }
 
     platform_yield();
@@ -517,7 +517,7 @@ void sched_yield(void)
 
 void sched_sleep_unblock(clockevent *v)
 {
-    thread *t = (thread *)v->priv;
+    thread *t = (thread *) v->priv;
     thread_wake_up(t);
 }
 
@@ -563,7 +563,7 @@ hrtime_t sched_sleep(unsigned long ns)
 
 int __sched_remove_thread_from_execution(thread_t *thread, unsigned int cpu)
 {
-    auto thread_queues = (struct thread **)get_per_cpu_ptr_any(thread_queues_head, cpu);
+    auto thread_queues = (struct thread **) get_per_cpu_ptr_any(thread_queues_head, cpu);
 
     for (thread_t *t = thread_queues[thread->priority]; t; t = t->next_prio)
     {
@@ -864,7 +864,7 @@ void condvar_wait_unlocked(cond *var)
     bool b = irq_is_disabled();
 
     unsigned long _ = spin_lock_irqsave(&var->llock);
-    (void)_;
+    (void) _;
 
     unsigned long f = sched_lock(current);
 

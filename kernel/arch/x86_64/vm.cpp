@@ -19,7 +19,7 @@
 static uintptr_t vm_calculate_virtual_address(uintptr_t bits)
 {
     /* The bits reported by CPUID are 1-based */
-    return -((uintptr_t)1 << (bits - 1));
+    return -((uintptr_t) 1 << (bits - 1));
 }
 
 /* We don't support more than 48-bits(PML5) right now. */
@@ -34,9 +34,9 @@ void arch_vm_init(void)
     /* Layout of %eax: 7-0 Physical Addr bits implemented;
      * 16-8 Virtual Addr bits implemented, rest is reserved
      */
-    uint8_t vm_bits = (uint8_t)(eax >> 8);
+    uint8_t vm_bits = (uint8_t) (eax >> 8);
 
-    (void)vm_bits;
+    (void) vm_bits;
     vm_update_addresses(vm_calculate_virtual_address(VM_SUPPORTED_VM_BITS));
 }
 

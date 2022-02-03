@@ -163,7 +163,7 @@ static size_t utf32to8(struct utf8_output *out, utf32_t codepoint)
 
     if (nr_bytes == 1)
     {
-        out->bytes[0] = (utf8_t)codepoint;
+        out->bytes[0] = (utf8_t) codepoint;
         return 1;
     }
     else if (nr_bytes == 2)

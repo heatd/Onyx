@@ -13,7 +13,7 @@
     ({                                                                   \
         unsigned long val;                                               \
         __asm__ __volatile__("movq %%gs:%1, %0" : "=r"(val) : "m"(var)); \
-        (__typeof__(var))val;                                            \
+        (__typeof__(var)) val;                                           \
     })
 
 #define get_per_cpu_no_cast(var)          \
@@ -26,11 +26,11 @@
         val;                              \
     })
 
-#define write_per_cpu_1(var, val)                                       \
-    ({                                                                  \
-        __asm__ __volatile__("movb %0, %%gs:"                           \
-                             "%1" ::"r"(((uint8_t)(unsigned long)val)), \
-                             "m"(var));                                 \
+#define write_per_cpu_1(var, val)                                         \
+    ({                                                                    \
+        __asm__ __volatile__("movb %0, %%gs:"                             \
+                             "%1" ::"r"(((uint8_t) (unsigned long) val)), \
+                             "m"(var));                                   \
     })
 
 #define write_per_cpu_2(var, val)             \
@@ -47,11 +47,11 @@
                              "m"(var));       \
     })
 
-#define write_per_cpu_8(var, val)                            \
-    ({                                                       \
-        __asm__ __volatile__("movq %0, %%gs:"                \
-                             "%1" ::"r"((unsigned long)val), \
-                             "m"(var));                      \
+#define write_per_cpu_8(var, val)                             \
+    ({                                                        \
+        __asm__ __volatile__("movq %0, %%gs:"                 \
+                             "%1" ::"r"((unsigned long) val), \
+                             "m"(var));                       \
     })
 
 #define add_per_cpu_1(var, val)               \
@@ -75,11 +75,11 @@
                              "m"(var));       \
     })
 
-#define add_per_cpu_8(var, val)                              \
-    ({                                                       \
-        __asm__ __volatile__("addq %0, %%gs:"                \
-                             "%1" ::"r"((unsigned long)val), \
-                             "m"(var));                      \
+#define add_per_cpu_8(var, val)                               \
+    ({                                                        \
+        __asm__ __volatile__("addq %0, %%gs:"                 \
+                             "%1" ::"r"((unsigned long) val), \
+                             "m"(var));                       \
     })
 
 #endif

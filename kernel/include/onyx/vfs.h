@@ -279,7 +279,7 @@ static inline int mode_to_vfs_type(mode_t mode)
 static inline void inode_set_size(struct inode *ino, size_t size)
 {
     ino->i_size = size;
-    ino->i_pages->size = (size_t)page_align_up((void *)size);
+    ino->i_pages->size = (size_t) page_align_up((void *) size);
     inode_mark_dirty(ino);
 }
 

@@ -43,7 +43,7 @@ PER_CPU_VAR(uint32_t lapic_id) = 0;
  */
 void lapic_write(volatile uint32_t *lapic, uint32_t addr, uint32_t val)
 {
-    volatile uint32_t *laddr = (volatile uint32_t *)((volatile char *)lapic + addr);
+    volatile uint32_t *laddr = (volatile uint32_t *) ((volatile char *) lapic + addr);
     *laddr = val;
 }
 
@@ -56,7 +56,7 @@ void lapic_write(volatile uint32_t *lapic, uint32_t addr, uint32_t val)
  */
 uint32_t lapic_read(volatile uint32_t *lapic, uint32_t addr)
 {
-    volatile uint32_t *laddr = (volatile uint32_t *)((volatile char *)lapic + addr);
+    volatile uint32_t *laddr = (volatile uint32_t *) ((volatile char *) lapic + addr);
     return *laddr;
 }
 
@@ -86,7 +86,7 @@ void lapic_init(void)
     addr &= 0xFFFFF000;
     /* Map the BSP's LAPIC */
     bsp_lapic =
-        (volatile uint32_t *)mmiomap((void *)addr, PAGE_SIZE, VM_WRITE | VM_NOEXEC | VM_NOCACHE);
+        (volatile uint32_t *) mmiomap((void *) addr, PAGE_SIZE, VM_WRITE | VM_NOEXEC | VM_NOCACHE);
 
     assert(bsp_lapic != NULL);
 
@@ -120,7 +120,7 @@ ACPI_TABLE_MADT *madt = NULL;
  */
 uint32_t read_io_apic(uint32_t reg)
 {
-    uint32_t volatile *ioapic = (uint32_t volatile *)ioapic_base;
+    uint32_t volatile *ioapic = (uint32_t volatile *) ioapic_base;
     ioapic[0] = (reg & 0xFF);
     return ioapic[4];
 }
@@ -133,7 +133,7 @@ uint32_t read_io_apic(uint32_t reg)
  */
 void write_io_apic(uint32_t reg, uint32_t value)
 {
-    uint32_t volatile *ioapic = (uint32_t volatile *)ioapic_base;
+    uint32_t volatile *ioapic = (uint32_t volatile *) ioapic_base;
     ioapic[0] = (reg & 0xFF);
     ioapic[4] = value;
 }
@@ -147,8 +147,8 @@ void write_io_apic(uint32_t reg, uint32_t value)
 uint64_t read_redirection_entry(uint32_t pin)
 {
     uint64_t ret;
-    ret = (uint64_t)read_io_apic(0x10 + pin * 2);
-    ret |= (uint64_t)read_io_apic(0x10 + pin * 2 + 1) << 32;
+    ret = (uint64_t) read_io_apic(0x10 + pin * 2);
+    ret |= (uint64_t) read_io_apic(0x10 + pin * 2 + 1) << 32;
     return ret;
 }
 
@@ -246,11 +246,11 @@ void set_pin_handlers(void)
     x86_reserve_vector(irqs + 22, irq22);
     x86_reserve_vector(irqs + 23, irq23);
     // The MADT's signature is "APIC"
-    ACPI_STATUS st = AcpiGetTable((ACPI_STRING) "APIC", 0, (ACPI_TABLE_HEADER **)&madt);
+    ACPI_STATUS st = AcpiGetTable((ACPI_STRING) "APIC", 0, (ACPI_TABLE_HEADER **) &madt);
     if (ACPI_FAILURE(st))
         panic("Failed to get the MADT");
 
-    ACPI_SUBTABLE_HEADER *first = (ACPI_SUBTABLE_HEADER *)(madt + 1);
+    ACPI_SUBTABLE_HEADER *first = (ACPI_SUBTABLE_HEADER *) (madt + 1);
     for (int i = 0; i < 24; i++)
     {
         if (i <= 19)
@@ -273,12 +273,12 @@ void set_pin_handlers(void)
     }
 
     for (ACPI_SUBTABLE_HEADER *i = first;
-         i < (ACPI_SUBTABLE_HEADER *)((char *)madt + madt->Header.Length);
-         i = (ACPI_SUBTABLE_HEADER *)((uint64_t)i + (uint64_t)i->Length))
+         i < (ACPI_SUBTABLE_HEADER *) ((char *) madt + madt->Header.Length);
+         i = (ACPI_SUBTABLE_HEADER *) ((uint64_t) i + (uint64_t) i->Length))
     {
         if (i->Type == ACPI_MADT_TYPE_INTERRUPT_OVERRIDE)
         {
-            ACPI_MADT_INTERRUPT_OVERRIDE *mio = (ACPI_MADT_INTERRUPT_OVERRIDE *)i;
+            ACPI_MADT_INTERRUPT_OVERRIDE *mio = (ACPI_MADT_INTERRUPT_OVERRIDE *) i;
             INFO("apic", "Interrupt override for GSI %d to %d\n", mio->SourceIrq, mio->GlobalIrq);
             uint64_t red = read_redirection_entry(mio->GlobalIrq);
             red |= 32 + mio->GlobalIrq;
@@ -303,8 +303,8 @@ void ioapic_early_init(void)
 {
     /* TODO: Detecting I/O APICs should be a good idea */
     /* Map the I/O APIC base */
-    ioapic_base = (volatile char *)mmiomap((void *)IOAPIC_BASE_PHYS, PAGE_SIZE,
-                                           VM_WRITE | VM_NOEXEC | VM_NOCACHE);
+    ioapic_base = (volatile char *) mmiomap((void *) IOAPIC_BASE_PHYS, PAGE_SIZE,
+                                            VM_WRITE | VM_NOEXEC | VM_NOCACHE);
     assert(ioapic_base != NULL);
 }
 
@@ -384,7 +384,7 @@ struct calibration_context calib = {};
 
 void apic_calibration_setup_count(int try_)
 {
-    (void)try_;
+    (void) try_;
     /* 0xFFFFFFFF shouldn't overflow in 10ms */
     lapic_write(bsp_lapic, LAPIC_TIMER_INITCNT, UINT32_MAX);
 }
@@ -546,7 +546,7 @@ void apic_set_oneshot_apic(hrtime_t deadline)
     if (counter64 >> 32)
         counter64 = UINT32_MAX;
 
-    uint32_t counter = (uint32_t)counter64;
+    uint32_t counter = (uint32_t) counter64;
     if (counter == 0)
     {
         /* Fire it now. */
@@ -670,10 +670,10 @@ void apic_timer_smp_init(volatile uint32_t *lapic)
 
 void boot_send_ipi(uint8_t id, uint32_t type, uint32_t page)
 {
-    lapic_write(bsp_lapic, LAPIC_IPIID, (uint32_t)id << 24);
+    lapic_write(bsp_lapic, LAPIC_IPIID, (uint32_t) id << 24);
     uint64_t icr = type << 8 | (page & 0xff);
     icr |= (1 << 14);
-    lapic_write(bsp_lapic, LAPIC_ICR, (uint32_t)icr);
+    lapic_write(bsp_lapic, LAPIC_ICR, (uint32_t) icr);
 }
 
 PER_CPU_VAR(struct spinlock ipi_lock);
@@ -696,10 +696,10 @@ void apic_send_ipi(uint8_t id, uint32_t type, uint32_t page)
     while (lapic_read(this_lapic, LAPIC_ICR) & (1 << 12))
         cpu_relax();
 
-    lapic_write(this_lapic, LAPIC_IPIID, (uint32_t)id << 24);
+    lapic_write(this_lapic, LAPIC_IPIID, (uint32_t) id << 24);
     uint64_t icr = type << 8 | (page & 0xff);
     icr |= (1 << 14);
-    lapic_write(this_lapic, LAPIC_ICR, (uint32_t)icr);
+    lapic_write(this_lapic, LAPIC_ICR, (uint32_t) icr);
 
     spin_unlock_irqrestore(lock, cpu_flags);
 }
@@ -755,7 +755,7 @@ void apic_set_irql(int irql)
 int apic_get_irql(void)
 {
     volatile uint32_t *this_lapic = get_per_cpu(lapic);
-    return (int)lapic_read(this_lapic, LAPIC_TSKPRI);
+    return (int) lapic_read(this_lapic, LAPIC_TSKPRI);
 }
 
 uint32_t apic_get_lapic_id(unsigned int cpu)
@@ -774,7 +774,7 @@ void lapic_init_per_cpu(void)
     addr &= 0xFFFFF000;
     /* Map the BSP's LAPIC */
     uintptr_t _lapic =
-        (uintptr_t)mmiomap((void *)addr, PAGE_SIZE, VM_WRITE | VM_NOEXEC | VM_NOCACHE);
+        (uintptr_t) mmiomap((void *) addr, PAGE_SIZE, VM_WRITE | VM_NOEXEC | VM_NOCACHE);
     assert(_lapic != 0);
 
     write_per_cpu(lapic, _lapic);

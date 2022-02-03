@@ -21,7 +21,7 @@ int igd_init_pipes(struct igpu_device *device)
         if (!pipe)
             return -1;
 
-        pipe->name = (enum PIPE_NAME)i;
+        pipe->name = (enum PIPE_NAME) i;
         pipe->srcsz_reg = PIPE_SRCSZ + PIPE_OFFSET_PER_PIPE * i;
         device->pipes[i] = pipe;
     }
@@ -45,8 +45,8 @@ void igd_update_pipe_mode(struct igd_pipe *pipe, struct igpu_device *dev)
     uint32_t vblank_reg;
     uint32_t hblank_reg;
 
-    (void)hblank_reg;
-    (void)vblank_reg;
+    (void) hblank_reg;
+    (void) vblank_reg;
 
     htotal_reg = igpu_mmio_read(dev, pipe->transcoder->htotal_reg);
     vtotal_reg = igpu_mmio_read(dev, pipe->transcoder->vtotal_reg);

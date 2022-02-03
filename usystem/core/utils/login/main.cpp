@@ -48,7 +48,7 @@ int reset_terminal(void)
 #define TEMP_BUF_SIZE 1024
 int get_input(std::string &str)
 {
-    char *buf = (char *)malloc(TEMP_BUF_SIZE);
+    char *buf = (char *) malloc(TEMP_BUF_SIZE);
     if (!buf)
         return -1;
     bzero(buf, TEMP_BUF_SIZE);
@@ -98,8 +98,8 @@ bool compare_passwords(struct spwd *spwd, std::string &password)
 
 int main(int argc, char **argv, char **envp)
 {
-    (void)argc;
-    (void)envp;
+    (void) argc;
+    (void) envp;
     program_name = argv[0];
     printf("%s: ", argv[0]);
     fflush(stdout);
@@ -189,7 +189,7 @@ int main(int argc, char **argv, char **envp)
 
     char *args[] = {NULL, NULL};
     /* The first character of argv[0] needs to be -, in order to be a login shell */
-    args[0] = (char *)malloc(strlen(user->pw_shell) + 2);
+    args[0] = (char *) malloc(strlen(user->pw_shell) + 2);
     if (!args[0])
     {
         perror("login");

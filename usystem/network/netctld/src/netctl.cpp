@@ -142,7 +142,7 @@ int main(int argc, char **argv, char **envp)
     sockaddr_nk nksa;
     nksa.nk_family = AF_NETKERNEL;
     strcpy(nksa.path, "ipv4.rt");
-    if (connect(dhcpcd::rtfd, (const sockaddr *)&nksa, sizeof(nksa)) < 0)
+    if (connect(dhcpcd::rtfd, (const sockaddr *) &nksa, sizeof(nksa)) < 0)
     {
         perror("nkconnect");
         return 1;

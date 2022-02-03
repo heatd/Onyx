@@ -46,7 +46,7 @@ void clocksource_calc_max_idle(struct clocksource *clk)
 
 void clocksource_unidle(struct clockevent *ev)
 {
-    struct clocksource *s = (clocksource *)ev->priv;
+    struct clocksource *s = (clocksource *) ev->priv;
     s->get_ns();
     ev->deadline = clocksource_get_time() + s->max_idle_ns;
 }
@@ -62,7 +62,7 @@ void register_clock_source(struct clocksource *clk)
         main_clock = clk;
 
     clocksource_calc_max_idle(clk);
-    struct clockevent *ev = (clockevent *)zalloc(sizeof(*ev));
+    struct clockevent *ev = (clockevent *) zalloc(sizeof(*ev));
     assert(ev != NULL);
 
     /* For very nice timesources like the x86's TSC, this will possibly overflow.
@@ -222,7 +222,7 @@ void udelay(unsigned int us)
 
 bool timespec_valid(const struct timespec *ts, bool may_be_negative)
 {
-    if (ts->tv_nsec >= (long)NS_PER_SEC)
+    if (ts->tv_nsec >= (long) NS_PER_SEC)
         return false;
 
     if (may_be_negative)
@@ -238,7 +238,7 @@ bool timespec_valid(const struct timespec *ts, bool may_be_negative)
 
 bool timeval_valid(const struct timeval *tv, bool may_be_negative)
 {
-    if (tv->tv_usec >= (long)US_PER_SEC)
+    if (tv->tv_usec >= (long) US_PER_SEC)
         return false;
 
     if (may_be_negative)

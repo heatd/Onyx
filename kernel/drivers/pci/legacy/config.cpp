@@ -20,21 +20,21 @@ struct spinlock pci_lock;
 void __pci_write_qword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint64_t data)
 {
     uint32_t address;
-    uint32_t lbus = (uint32_t)bus;
-    uint32_t lslot = (uint32_t)slot;
-    uint32_t lfunc = (uint32_t)func;
+    uint32_t lbus = (uint32_t) bus;
+    uint32_t lslot = (uint32_t) slot;
+    uint32_t lfunc = (uint32_t) func;
 
     /* create configuration address */
-    address = (uint32_t)((lbus << 16) | (lslot << 11) | (lfunc << 8) | (offset & 0xfc) |
-                         ((uint32_t)0x80000000));
+    address = (uint32_t) ((lbus << 16) | (lslot << 11) | (lfunc << 8) | (offset & 0xfc) |
+                          ((uint32_t) 0x80000000));
 
     scoped_lock g{pci_lock};
     /* write out the address */
     outl(CONFIG_ADDRESS, address);
     /* Write out the lower half of the data */
     outl(CONFIG_DATA, data & 0xFFFFFFFF);
-    address = (uint32_t)((lbus << 16) | (lslot << 11) | (lfunc << 8) | ((offset + 4) & 0xfc) |
-                         ((uint32_t)0x80000000));
+    address = (uint32_t) ((lbus << 16) | (lslot << 11) | (lfunc << 8) | ((offset + 4) & 0xfc) |
+                          ((uint32_t) 0x80000000));
 
     /* write out the address */
     outl(CONFIG_ADDRESS, address);
@@ -44,13 +44,13 @@ void __pci_write_qword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, 
 uint32_t __pci_config_read_dword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset)
 {
     uint32_t address;
-    uint32_t lbus = (uint32_t)bus;
-    uint32_t lslot = (uint32_t)slot;
-    uint32_t lfunc = (uint32_t)func;
+    uint32_t lbus = (uint32_t) bus;
+    uint32_t lslot = (uint32_t) slot;
+    uint32_t lfunc = (uint32_t) func;
     uint32_t tmp = 0;
 
-    address = (uint32_t)((lbus << 16) | (lslot << 11) | (lfunc << 8) | (offset & 0xfc) |
-                         ((uint32_t)0x80000000));
+    address = (uint32_t) ((lbus << 16) | (lslot << 11) | (lfunc << 8) | (offset & 0xfc) |
+                          ((uint32_t) 0x80000000));
 
     scoped_lock g{pci_lock};
     /* write out the address */
@@ -74,12 +74,12 @@ __attribute__((no_sanitize_undefined)) uint16_t __pci_config_read_word(uint8_t b
 void __pci_write_dword(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset, uint32_t data)
 {
     uint32_t address;
-    uint32_t lbus = (uint32_t)bus;
-    uint32_t lslot = (uint32_t)slot;
-    uint32_t lfunc = (uint32_t)func;
+    uint32_t lbus = (uint32_t) bus;
+    uint32_t lslot = (uint32_t) slot;
+    uint32_t lfunc = (uint32_t) func;
 
-    address = (uint32_t)((lbus << 16) | (lslot << 11) | (lfunc << 8) | (offset & 0xfc) |
-                         ((uint32_t)0x80000000));
+    address = (uint32_t) ((lbus << 16) | (lslot << 11) | (lfunc << 8) | (offset & 0xfc) |
+                          ((uint32_t) 0x80000000));
 
     scoped_lock g{pci_lock};
     /* write out the address */
@@ -93,12 +93,12 @@ void __pci_write_word_aligned(uint8_t bus, uint8_t slot, uint8_t func, uint8_t o
                               uint16_t data)
 {
     uint32_t address;
-    uint32_t lbus = (uint32_t)bus;
-    uint32_t lslot = (uint32_t)slot;
-    uint32_t lfunc = (uint32_t)func;
+    uint32_t lbus = (uint32_t) bus;
+    uint32_t lslot = (uint32_t) slot;
+    uint32_t lfunc = (uint32_t) func;
 
-    address = (uint32_t)((lbus << 16) | (lslot << 11) | (lfunc << 8) | (offset & 0xfc) |
-                         ((uint32_t)0x80000000));
+    address = (uint32_t) ((lbus << 16) | (lslot << 11) | (lfunc << 8) | (offset & 0xfc) |
+                          ((uint32_t) 0x80000000));
 
     scoped_lock g{pci_lock};
     /* write out the address */
@@ -190,13 +190,13 @@ public:
         switch (size)
         {
         case sizeof(uint8_t):
-            __pci_write_byte(addr.bus, addr.device, addr.function, off, (uint8_t)value);
+            __pci_write_byte(addr.bus, addr.device, addr.function, off, (uint8_t) value);
             break;
         case sizeof(uint16_t):
-            __pci_write_word(addr.bus, addr.device, addr.function, off, (uint16_t)value);
+            __pci_write_word(addr.bus, addr.device, addr.function, off, (uint16_t) value);
             break;
         case sizeof(uint32_t):
-            __pci_write_dword(addr.bus, addr.device, addr.function, off, (uint32_t)value);
+            __pci_write_dword(addr.bus, addr.device, addr.function, off, (uint32_t) value);
             break;
         case sizeof(uint64_t):
             __pci_write_qword(addr.bus, addr.device, addr.function, off, value);

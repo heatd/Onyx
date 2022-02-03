@@ -22,11 +22,11 @@ struct _IO_FILE *__stdio_open(const char *path, const char *attrb)
         return errno = ENOMEM, NULL;
     memset(file, 0, sizeof(struct _IO_FILE));
     int open_perms = O_RDONLY;
-    if (strcmp((char *)attrb, "r") == 0)
+    if (strcmp((char *) attrb, "r") == 0)
         open_perms = O_RDONLY;
-    else if (strcmp((char *)attrb, "w") == 0)
+    else if (strcmp((char *) attrb, "w") == 0)
         open_perms = O_WRONLY;
-    else if (strcmp((char *)attrb, "rw") == 0)
+    else if (strcmp((char *) attrb, "rw") == 0)
         open_perms = O_RDWR;
     file->fd = open(path, open_perms);
     if (file->fd == -1)
@@ -40,7 +40,7 @@ size_t __stdio_write(const void *ptr, size_t size, size_t nmemb, struct _IO_FILE
 {
     int fd = stream->fd;
     size_t passed_size = size * nmemb;
-    size_t ret = write(fd, (void *)ptr, passed_size);
+    size_t ret = write(fd, (void *) ptr, passed_size);
     return ret;
 }
 size_t __stdio_read(const void *ptr, size_t size, size_t nmemb, struct _IO_FILE *stream)
@@ -57,9 +57,9 @@ size_t __stdio_read(const void *ptr, size_t size, size_t nmemb, struct _IO_FILE 
     }
     struct iovec v[2] = {0};
     size_t passed_size = size * nmemb;
-    v[0].iov_base = (void *)stream->buf;
+    v[0].iov_base = (void *) stream->buf;
     v[0].iov_len = passed_size;
-    v[1].iov_base = (void *)ptr;
+    v[1].iov_base = (void *) ptr;
     v[1].iov_len = passed_size;
     size_t r = readv(fd, v, 2);
     return r;
@@ -67,7 +67,7 @@ size_t __stdio_read(const void *ptr, size_t size, size_t nmemb, struct _IO_FILE 
 int __stdio_fseek(struct _IO_FILE *stream, long offset, int whence)
 {
     off_t off = lseek(stream->fd, offset, whence);
-    if (off == (off_t)-1)
+    if (off == (off_t) -1)
     {
         return -1;
     }

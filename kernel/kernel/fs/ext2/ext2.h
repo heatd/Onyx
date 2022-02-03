@@ -217,7 +217,7 @@ private:
     spinlock lock_{};
 
 public:
-    ext2_block_group() : buf{}, nr{(ext2_block_group_no)-1}
+    ext2_block_group() : buf{}, nr{(ext2_block_group_no) -1}
     {
         mutex_init(&inode_bitmap_lock);
         mutex_init(&block_bitmap_lock);
@@ -415,7 +415,7 @@ struct ext2_inode_info
 static inline struct ext2_inode *ext2_get_inode_from_node(struct inode *ino)
 {
     assert(ino->i_helper != NULL);
-    return ((struct ext2_inode_info *)ino->i_helper)->inode;
+    return ((struct ext2_inode_info *) ino->i_helper)->inode;
 }
 
 #define EXT2_TYPE_DIRECT_BLOCK 0
@@ -429,7 +429,7 @@ static inline struct ext2_inode *ext2_get_inode_from_node(struct inode *ino)
 #define EXT2_FILE_HOLE_BLOCK 0
 
 #define EXT2_GET_FILE_TYPE(mode)   (mode & S_IFMT)
-#define EXT2_CALCULATE_SIZE64(ino) (((uint64_t)ino->size_hi << 32) | ino->size_lo)
+#define EXT2_CALCULATE_SIZE64(ino) (((uint64_t) ino->size_hi << 32) | ino->size_lo)
 
 extern const unsigned int direct_block_count;
 
@@ -464,7 +464,7 @@ struct inode *ext2_load_inode_from_disk(uint32_t inum, ext2_superblock *fs);
 
 static inline ext2_superblock *ext2_superblock_from_inode(inode *ino)
 {
-    return (ext2_superblock *)ino->i_sb;
+    return (ext2_superblock *) ino->i_sb;
 }
 
 #define WORD_SIZE sizeof(unsigned long)

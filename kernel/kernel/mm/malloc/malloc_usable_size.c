@@ -10,7 +10,7 @@ struct chunk
 
 #define OVERHEAD        (2 * sizeof(size_t))
 #define CHUNK_SIZE(c)   ((c)->csize & -2)
-#define MEM_TO_CHUNK(p) (struct chunk *)((char *)(p)-OVERHEAD)
+#define MEM_TO_CHUNK(p) (struct chunk *) ((char *) (p) -OVERHEAD)
 
 size_t malloc_usable_size(void *p)
 {

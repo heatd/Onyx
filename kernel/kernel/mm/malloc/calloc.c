@@ -5,7 +5,7 @@ void *__malloc0(size_t);
 
 void *calloc(size_t m, size_t n)
 {
-    if (n && m > (size_t)-1 / n)
+    if (n && m > (size_t) -1 / n)
     {
         errno = ENOMEM;
         return 0;

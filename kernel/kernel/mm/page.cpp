@@ -23,7 +23,7 @@ unsigned long base_pfn = 0;
 
 struct page *page_add_page(void *paddr)
 {
-    struct page *page = phys_to_page((unsigned long)paddr);
+    struct page *page = phys_to_page((unsigned long) paddr);
 
     assert(page != NULL);
     memset(page, 0, sizeof(struct page));
@@ -36,7 +36,7 @@ struct page *page_add_page(void *paddr)
 void page_allocate_pagemap(unsigned long __maxpfn)
 {
     maxpfn = __maxpfn;
-    page_map = (page *)__ksbrk((maxpfn - base_pfn) * sizeof(struct page));
+    page_map = (page *) __ksbrk((maxpfn - base_pfn) * sizeof(struct page));
 }
 
 struct page *phys_to_page(uintptr_t phys)
@@ -56,8 +56,8 @@ extern unsigned char kernel_end;
  */
 void get_kernel_limits(struct kernel_limits *l)
 {
-    uintptr_t start_virt = (uintptr_t)&kernel_start;
-    uintptr_t end_virt = (uintptr_t)&kernel_end;
+    uintptr_t start_virt = (uintptr_t) &kernel_start;
+    uintptr_t end_virt = (uintptr_t) &kernel_end;
 
     l->start_virt = start_virt;
     l->end_virt = end_virt;
@@ -71,7 +71,7 @@ bool klimits_present = false;
 bool check_kernel_limits(void *__page)
 {
     static struct kernel_limits l;
-    uintptr_t page = (uintptr_t)__page;
+    uintptr_t page = (uintptr_t) __page;
 
     if (!klimits_present)
     {
@@ -103,7 +103,7 @@ bool platform_page_is_used(void *page);
 
 bool page_is_used(void *__page, struct bootmodule *modules)
 {
-    uintptr_t page = (uintptr_t)__page;
+    uintptr_t page = (uintptr_t) __page;
 
     for (struct bootmodule *m = modules; m != NULL; m = m->next)
     {
@@ -127,13 +127,13 @@ bool page_is_used(void *__page, struct bootmodule *modules)
 
 void reclaim_pages(unsigned long start, unsigned long end)
 {
-    unsigned long page_start = (unsigned long)page_align_up((void *)start);
+    unsigned long page_start = (unsigned long) page_align_up((void *) start);
 
     end &= ~(PAGE_SIZE - 1);
     size_t nr_pages = (end - page_start) / PAGE_SIZE;
     for (size_t i = 0; i < nr_pages; i++)
     {
-        struct page *p = page_add_page((void *)page_start);
+        struct page *p = page_add_page((void *) page_start);
 
         __reclaim_page(p);
         page_start += PAGE_SIZE;

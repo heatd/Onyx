@@ -36,13 +36,13 @@ void gdt_init_percpu(void)
 
     gdtr_t gdtr;
 
-    gdtr_t *g = (gdtr_t *)PHYS_TO_VIRT(&gdtr3);
+    gdtr_t *g = (gdtr_t *) PHYS_TO_VIRT(&gdtr3);
     /* Copy the gdt */
-    memcpy(gdt, (const void *)g->ptr, size);
+    memcpy(gdt, (const void *) g->ptr, size);
 
     /* Setup the GDTR */
     gdtr.size = size - 1;
-    gdtr.ptr = (uint64_t)gdt;
+    gdtr.ptr = (uint64_t) gdt;
 
     /* Flush the GDT */
     gdt_flush(&gdtr);

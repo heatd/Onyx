@@ -38,7 +38,7 @@ inetsum_t do_checksum(const uint8_t *buf, size_t length)
         /* Step 1: Align to a dword boundary if we're not already */
         if (IS_BUFFER_ALIGNED_TO(buf, 2))
         {
-            sum += *(may_alias_uint16_t *)buf;
+            sum += *(may_alias_uint16_t *) buf;
             buf += 2;
             length -= 2;
             nr_blocks--;
@@ -51,7 +51,7 @@ inetsum_t do_checksum(const uint8_t *buf, size_t length)
         {
             if (IS_BUFFER_ALIGNED_TO(buf, 4))
             {
-                sum += *(may_alias_uint32_t *)buf;
+                sum += *(may_alias_uint32_t *) buf;
                 buf += 4;
                 length -= 4;
                 nr_blocks--;
@@ -92,14 +92,14 @@ inetsum_t do_checksum(const uint8_t *buf, size_t length)
 
             if (length & 4)
             {
-                sum += *(may_alias_uint32_t *)buf;
+                sum += *(may_alias_uint32_t *) buf;
                 buf += 4;
             }
         }
 
         if (length & 2)
         {
-            sum += *(may_alias_uint16_t *)buf;
+            sum += *(may_alias_uint16_t *) buf;
             buf += 2;
         }
     }

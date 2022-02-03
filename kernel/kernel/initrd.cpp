@@ -25,7 +25,7 @@ size_t tar_parse(uintptr_t address)
 
     for (i = 0;; i++)
     {
-        tar_header_t *header = (tar_header_t *)address;
+        tar_header_t *header = (tar_header_t *) address;
         if (header->filename[0] == '\0')
             break;
         /* Remove the trailing slash */
@@ -83,7 +83,7 @@ void initrd_mount(void)
             struct file *file = creat_vfs(node->f_dentry, filename, 0666);
             assert(file != NULL);
 
-            char *buffer = (char *)iter[i] + 512;
+            char *buffer = (char *) iter[i] + 512;
             size_t size = tar_get_size(iter[i]->size);
             ssize_t st = write_vfs(0, size, buffer, file);
 
@@ -102,7 +102,7 @@ void initrd_mount(void)
         }
         else if (iter[i]->typeflag == TAR_TYPE_SYMLNK)
         {
-            char *buffer = (char *)iter[i]->linkname;
+            char *buffer = (char *) iter[i]->linkname;
             struct file *file = symlink_vfs(filename, buffer, node->f_dentry);
             assert(file != NULL);
         }
@@ -112,7 +112,7 @@ void initrd_mount(void)
 void init_initrd(void *initrd)
 {
     printf("Found an Initrd at %p\n", initrd);
-    n_files = tar_parse((uintptr_t)initrd);
+    n_files = tar_parse((uintptr_t) initrd);
     printf("Found %lu files in the Initrd\n", n_files);
 
     /* Mount a new instance of a tmpfs at / */

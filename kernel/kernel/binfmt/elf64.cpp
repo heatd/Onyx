@@ -44,16 +44,16 @@ size_t elf_calculate_map_size(Elf64_Phdr *phdrs, size_t num)
         {
             last_load = i;
 
-            if (first_load == (size_t)-1)
+            if (first_load == (size_t) -1)
                 first_load = i;
         }
     }
 
-    if (first_load == (size_t)-1)
+    if (first_load == (size_t) -1)
         return -1;
 
     return (phdrs[last_load].p_vaddr + phdrs[last_load].p_memsz) -
-           (unsigned long)page_align_up((void *)phdrs[first_load].p_vaddr);
+           (unsigned long) page_align_up((void *) phdrs[first_load].p_vaddr);
 }
 
 static void *elf_load_address(Elf64_Phdr *phdrs, Elf64_Half phnum)
@@ -62,7 +62,7 @@ static void *elf_load_address(Elf64_Phdr *phdrs, Elf64_Half phnum)
     {
         if (phdrs->p_type == PT_LOAD)
         {
-            return (void *)(phdrs->p_vaddr - phdrs->p_offset);
+            return (void *) (phdrs->p_vaddr - phdrs->p_offset);
         }
     }
 
@@ -84,7 +84,7 @@ static void *elf_load(struct binfmt_args *args, Elf64_Ehdr *header)
 
     int st = 0;
 
-    Elf64_Phdr *phdrs = (Elf64_Phdr *)malloc(program_headers_size);
+    Elf64_Phdr *phdrs = (Elf64_Phdr *) malloc(program_headers_size);
     if (!phdrs)
     {
         errno = ENOMEM;
@@ -93,7 +93,7 @@ static void *elf_load(struct binfmt_args *args, Elf64_Ehdr *header)
 
     /* Read the program headers */
     if (read_vfs(header->e_phoff, program_headers_size, phdrs, args->file) !=
-        (ssize_t)program_headers_size)
+        (ssize_t) program_headers_size)
     {
         errno = EIO;
         goto error1;
@@ -107,7 +107,7 @@ static void *elf_load(struct binfmt_args *args, Elf64_Ehdr *header)
 
     needed_size = elf_calculate_map_size(phdrs, header->e_phnum);
 
-    if (needed_size == (size_t)-1)
+    if (needed_size == (size_t) -1)
     {
         errno = ENOEXEC;
         goto error1;
@@ -130,7 +130,7 @@ static void *elf_load(struct binfmt_args *args, Elf64_Ehdr *header)
 	printk("initial mmap %p to %p\n", base,
 	       (void *)((unsigned long) base + (vm_size_to_pages(needed_size) << PAGE_SHIFT)));
 #endif
-    header->e_entry += (uintptr_t)base;
+    header->e_entry += (uintptr_t) base;
 
     for (Elf64_Half i = 0; i < header->e_phnum; i++)
     {
@@ -147,7 +147,7 @@ static void *elf_load(struct binfmt_args *args, Elf64_Ehdr *header)
             }
 
             /* We allocate one more byte for the nullptr byte so we don't get buffer overflow'd */
-            args->interp_path = (char *)malloc(phdrs[i].p_filesz + 1);
+            args->interp_path = (char *) malloc(phdrs[i].p_filesz + 1);
             if (!args->interp_path)
             {
                 errno = ENOMEM;
@@ -162,24 +162,24 @@ static void *elf_load(struct binfmt_args *args, Elf64_Ehdr *header)
 
         if (phdrs[i].p_type == PT_DYNAMIC)
         {
-            dyn = (Elf64_Dyn *)(phdrs[i].p_vaddr + (uintptr_t)base);
+            dyn = (Elf64_Dyn *) (phdrs[i].p_vaddr + (uintptr_t) base);
         }
 
         if (phdrs[i].p_type == PT_PHDR)
         {
-            uphdrs = (Elf64_Phdr *)(phdrs[i].p_vaddr + (uintptr_t)base);
+            uphdrs = (Elf64_Phdr *) (phdrs[i].p_vaddr + (uintptr_t) base);
         }
 
         if (phdrs[i].p_type == PT_LOAD)
         {
-            phdrs[i].p_vaddr += (uintptr_t)base;
+            phdrs[i].p_vaddr += (uintptr_t) base;
             uintptr_t aligned_address = phdrs[i].p_vaddr & ~(PAGE_SIZE - 1);
             size_t total_size = phdrs[i].p_memsz + (phdrs[i].p_vaddr - aligned_address);
             size_t pages = vm_size_to_pages(total_size);
             size_t misalignment = phdrs[i].p_vaddr - aligned_address;
 
             /* Sanitize the address first */
-            if (vm_sanitize_address((void *)aligned_address, pages) < 0)
+            if (vm_sanitize_address((void *) aligned_address, pages) < 0)
             {
                 errno = EINVAL;
                 goto error2;
@@ -191,7 +191,7 @@ static void *elf_load(struct binfmt_args *args, Elf64_Ehdr *header)
 
             // printk("mmaping [%lx, %lx]\n", aligned_address, aligned_address + (pages <<
             // PAGE_SHIFT));
-            if (!vm_mmap((void *)aligned_address, pages << PAGE_SHIFT, prot,
+            if (!vm_mmap((void *) aligned_address, pages << PAGE_SHIFT, prot,
                          MAP_PRIVATE | MAP_FIXED, fd, phdrs[i].p_offset - misalignment))
             {
                 goto error2;
@@ -208,8 +208,8 @@ static void *elf_load(struct binfmt_args *args, Elf64_Ehdr *header)
                     goto error2;
                 }
 
-                uint8_t *bss_base = (uint8_t *)(phdrs[i].p_vaddr + phdrs[i].p_filesz);
-                uint8_t *zero_pages_base = (uint8_t *)page_align_up(bss_base);
+                uint8_t *bss_base = (uint8_t *) (phdrs[i].p_vaddr + phdrs[i].p_filesz);
+                uint8_t *zero_pages_base = (uint8_t *) page_align_up(bss_base);
                 size_t bss_size = phdrs[i].p_memsz - phdrs[i].p_filesz;
                 size_t to_zero = zero_pages_base - bss_base;
                 if (to_zero > bss_size)
@@ -254,9 +254,9 @@ static void *elf_load(struct binfmt_args *args, Elf64_Ehdr *header)
     }
 
     if (is_interp)
-        current->interp_base = (void *)base;
+        current->interp_base = (void *) base;
     else
-        current->image_base = (void *)base;
+        current->image_base = (void *) base;
 
     if (!is_interp)
     {
@@ -264,12 +264,12 @@ static void *elf_load(struct binfmt_args *args, Elf64_Ehdr *header)
         current->info.phnum = header->e_phnum;
         if (!uphdrs)
         {
-            uphdrs = (Elf64_Phdr *)((unsigned long)load_address + header->e_phoff);
+            uphdrs = (Elf64_Phdr *) ((unsigned long) load_address + header->e_phoff);
         }
 
         current->info.phdr = uphdrs;
         current->info.dyn = dyn;
-        current->info.program_entry = (void *)header->e_entry;
+        current->info.program_entry = (void *) header->e_entry;
         // printk("phdrs: %p\n", current->info.phdr);
     }
     else
@@ -279,7 +279,7 @@ static void *elf_load(struct binfmt_args *args, Elf64_Ehdr *header)
 
     /* TODO: Unmap holes */
 
-    return (void *)header->e_entry;
+    return (void *) header->e_entry;
 error2:
     if (base)
         vm_munmap(get_current_address_space(), base, needed_size);

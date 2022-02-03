@@ -27,7 +27,7 @@ const unsigned int direct_block_count = 12;
 
 static inline void __ext2_update_ctime(struct ext2_inode *ino)
 {
-    ino->ctime = (uint32_t)clock_get_posix_time();
+    ino->ctime = (uint32_t) clock_get_posix_time();
 }
 
 int ext2_superblock::read_blocks(ext2_block_no block, ext2_block_no number_of_blocks,
@@ -69,12 +69,12 @@ ext2_inode *ext2_superblock::get_inode(ext2_inode_no inode) const
         return nullptr;
     }
 
-    ext2_inode *ino = (ext2_inode *)malloc(inode_size);
+    ext2_inode *ino = (ext2_inode *) malloc(inode_size);
 
     if (!ino)
         return nullptr;
 
-    ext2_inode *on_disk = (ext2_inode *)((char *)block_buf_data(buf) + off);
+    ext2_inode *on_disk = (ext2_inode *) ((char *) block_buf_data(buf) + off);
 
     memcpy(ino, on_disk, inode_size);
 
@@ -101,7 +101,7 @@ void ext2_superblock::update_inode(ext2_inode *ino, ext2_inode_no inode_no)
         return;
     }
 
-    ext2_inode *on_disk = (ext2_inode *)((char *)block_buf_data(buf) + off);
+    ext2_inode *on_disk = (ext2_inode *) ((char *) block_buf_data(buf) + off);
 
     memcpy(on_disk, ino, inode_size);
 
@@ -149,7 +149,7 @@ int ext2_add_direntry(const char *name, uint32_t inum, struct ext2_inode *ino, i
                       ext2_superblock *fs)
 {
     uint8_t *buffer;
-    uint8_t *buf = buffer = (uint8_t *)zalloc(fs->block_size);
+    uint8_t *buf = buffer = (uint8_t *) zalloc(fs->block_size);
     if (!buf)
         return errno = ENOMEM, -1;
 
@@ -185,7 +185,7 @@ int ext2_add_direntry(const char *name, uint32_t inum, struct ext2_inode *ino, i
 
             for (size_t i = 0; i < fs->block_size;)
             {
-                dir_entry_t *e = (dir_entry_t *)buf;
+                dir_entry_t *e = (dir_entry_t *) buf;
 
                 size_t actual_size = ext2_calculate_dirent_size(e->lsbit_namelen);
 
@@ -215,7 +215,7 @@ int ext2_add_direntry(const char *name, uint32_t inum, struct ext2_inode *ino, i
                 }
                 else if (e->size > actual_size && e->size - actual_size >= dirent_size)
                 {
-                    dir_entry_t *d = (dir_entry_t *)(buf + actual_size);
+                    dir_entry_t *d = (dir_entry_t *) (buf + actual_size);
                     entry.size = e->size - actual_size;
                     e->size = actual_size;
                     memcpy(d, &entry, dirent_size);
@@ -261,7 +261,7 @@ void ext2_unlink_dirent(dir_entry_t *before, dir_entry_t *entry)
     /* If we're not the first dirent on the block, adjust the reclen
      * so it points to the next dirent(or the end of the block).
      */
-    dir_entry_t *next = (dir_entry_t *)((char *)entry + entry->size);
+    dir_entry_t *next = (dir_entry_t *) ((char *) entry + entry->size);
 
     if (before)
     {
@@ -269,7 +269,7 @@ void ext2_unlink_dirent(dir_entry_t *before, dir_entry_t *entry)
 		printk("Old size: %u\n", before->size);
 		printk("Next: %p\nBefore: %p\n", next, before);
 #endif
-        before->size = (unsigned long)next - (unsigned long)before;
+        before->size = (unsigned long) next - (unsigned long) before;
 #if 0
 		printk("New size: %u\n", before->size);
 #endif
@@ -283,7 +283,7 @@ int ext2_remove_direntry(uint32_t inum, struct inode *dir, struct ext2_superbloc
 {
     int st = -ENOENT;
     uint8_t *buf_start;
-    uint8_t *buf = buf_start = (uint8_t *)zalloc(fs->block_size);
+    uint8_t *buf = buf_start = (uint8_t *) zalloc(fs->block_size);
     if (!buf)
         return errno = ENOMEM, -1;
 
@@ -300,7 +300,7 @@ int ext2_remove_direntry(uint32_t inum, struct inode *dir, struct ext2_superbloc
         dir_entry_t *before = nullptr;
         for (size_t i = 0; i < fs->block_size;)
         {
-            dir_entry_t *e = (dir_entry_t *)buf;
+            dir_entry_t *e = (dir_entry_t *) buf;
 
             if (e->inode == inum)
             {
@@ -373,7 +373,7 @@ int ext2_retrieve_dirent(inode *inode, const char *name, ext2_superblock *fs,
 
         for (char *b = buf; b < buf + fs->block_size;)
         {
-            dir_entry_t *entry = (dir_entry_t *)b;
+            dir_entry_t *entry = (dir_entry_t *) b;
             assert(entry->size != 0);
 
             if (entry->lsbit_namelen == strlen(name) &&
@@ -419,7 +419,7 @@ int ext2_link(struct inode *target, const char *name, struct inode *dir)
     unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
 
     /* Blame past me for the inconsistency in return values */
-    st = ext2_add_direntry(name, (uint32_t)target->i_inode, target_ino, dir, fs);
+    st = ext2_add_direntry(name, (uint32_t) target->i_inode, target_ino, dir, fs);
 
     if (st < 0)
     {
@@ -441,8 +441,8 @@ int ext2_link(struct inode *target, const char *name, struct inode *dir)
             return st;
         }
 
-        dir_entry_t *dentry = (dir_entry_t *)(res.buf + res.block_off);
-        dentry->inode = (uint32_t)dir->i_inode;
+        dir_entry_t *dentry = (dir_entry_t *) (res.buf + res.block_off);
+        dentry->inode = (uint32_t) dir->i_inode;
 
         st = file_write_cache(dentry, sizeof(dir_entry_t), target, res.file_off);
         inode_inc_nlink(dir);
@@ -455,7 +455,7 @@ int ext2_link(struct inode *target, const char *name, struct inode *dir)
         return -errno;
     }
 
-    fs->update_inode(target_ino, (ext2_inode_no)target->i_inode);
+    fs->update_inode(target_ino, (ext2_inode_no) target->i_inode);
 
     return 0;
 }
@@ -495,7 +495,7 @@ int ext2_dir_empty(struct inode *ino)
     struct ext2_superblock *fs = ext2_superblock_from_inode(ino);
 
     int st = 1;
-    char *buf = (char *)zalloc(fs->block_size);
+    char *buf = (char *) zalloc(fs->block_size);
     if (!buf)
         return -ENOMEM;
 
@@ -512,7 +512,7 @@ int ext2_dir_empty(struct inode *ino)
 
         for (char *b = buf; b < buf + fs->block_size;)
         {
-            dir_entry_t *entry = (dir_entry_t *)b;
+            dir_entry_t *entry = (dir_entry_t *) b;
 
             if (entry->inode != 0 && !ext2_is_standard_dir_link(entry))
             {
@@ -544,7 +544,7 @@ int ext2_unlink(const char *name, int flags, struct dentry *dir)
         return st;
     }
 
-    dir_entry_t *ent = (dir_entry_t *)(res.buf + res.block_off);
+    dir_entry_t *ent = (dir_entry_t *) (res.buf + res.block_off);
 
     struct inode *target = ext2_get_inode(fs, ent->inode);
 
@@ -578,7 +578,7 @@ int ext2_unlink(const char *name, int flags, struct dentry *dir)
     {
         for (char *b = res.buf; b < res.buf + res.block_off;)
         {
-            dir_entry_t *dir = (dir_entry_t *)b;
+            dir_entry_t *dir = (dir_entry_t *) b;
             if ((b - res.buf) + dir->size == res.block_off)
             {
                 before = dir;
@@ -591,7 +591,7 @@ int ext2_unlink(const char *name, int flags, struct dentry *dir)
         assert(before != nullptr);
     }
 
-    ext2_unlink_dirent(before, (dir_entry_t *)(res.buf + res.block_off));
+    ext2_unlink_dirent(before, (dir_entry_t *) (res.buf + res.block_off));
 
     /* Flush to disk */
     /* TODO: Maybe we can optimize things by not flushing the whole block? */

@@ -51,84 +51,86 @@ public:
 
     type load(mem_order order = mem_order::seq_cst) const
     {
-        return __atomic_load_n(&val, (int)order);
+        return __atomic_load_n(&val, (int) order);
     }
 
     void store(type t, mem_order order = mem_order::seq_cst)
     {
-        __atomic_store_n(&val, t, (int)order);
+        __atomic_store_n(&val, t, (int) order);
     }
 
     type add_fetch(type v, mem_order order = mem_order::seq_cst)
     {
-        return __atomic_add_fetch(&val, v, (int)order);
+        return __atomic_add_fetch(&val, v, (int) order);
     }
 
     type fetch_add(type v, mem_order order = mem_order::seq_cst)
     {
-        return __atomic_fetch_add(&val, v, (int)order);
+        return __atomic_fetch_add(&val, v, (int) order);
     }
 
     type sub_fetch(type v, mem_order order = mem_order::seq_cst)
     {
-        return __atomic_sub_fetch(&val, v, (int)order);
+        return __atomic_sub_fetch(&val, v, (int) order);
     }
 
     type fetch_sub(type v, mem_order order = mem_order::seq_cst)
     {
-        return __atomic_fetch_sub(&val, v, (int)order);
+        return __atomic_fetch_sub(&val, v, (int) order);
     }
 
     type and_fetch(type v, mem_order order = mem_order::seq_cst)
     {
-        return __atomic_and_fetch(&val, v, (int)order);
+        return __atomic_and_fetch(&val, v, (int) order);
     }
 
     type fetch_and(type v, mem_order order = mem_order::seq_cst)
     {
-        return __atomic_fetch_and(&val, v, (int)order);
+        return __atomic_fetch_and(&val, v, (int) order);
     }
 
     type or_fetch(type v, mem_order order = mem_order::seq_cst)
     {
-        return __atomic_or_fetch(&val, v, (int)order);
+        return __atomic_or_fetch(&val, v, (int) order);
     }
 
     type fetch_or(type v, mem_order order = mem_order::seq_cst)
     {
-        return __atomic_fetch_or(&val, v, (int)order);
+        return __atomic_fetch_or(&val, v, (int) order);
     }
 
     type xor_fetch(type v, mem_order order = mem_order::seq_cst)
     {
-        return __atomic_xor_fetch(&val, v, (int)order);
+        return __atomic_xor_fetch(&val, v, (int) order);
     }
 
     type fetch_xor(type v, mem_order order = mem_order::seq_cst)
     {
-        return __atomic_fetch_xor(&val, v, (int)order);
+        return __atomic_fetch_xor(&val, v, (int) order);
     }
 
     bool compare_exchange_weak(type& expected, type desired, mem_order success, mem_order failure)
     {
-        return __atomic_compare_exchange_n(&val, &expected, desired, true, (int)success,
-                                           (int)failure);
+        return __atomic_compare_exchange_n(&val, &expected, desired, true, (int) success,
+                                           (int) failure);
     }
 
     bool compare_exchange_weak(type& expected, type desired, mem_order order = mem_order::seq_cst)
     {
-        return __atomic_compare_exchange_n(&val, &expected, desired, true, (int)order, (int)order);
+        return __atomic_compare_exchange_n(&val, &expected, desired, true, (int) order,
+                                           (int) order);
     }
 
     bool compare_exchange_strong(type& expected, type desired, mem_order success, mem_order failure)
     {
-        return __atomic_compare_exchange_n(&val, &expected, desired, false, (int)success,
-                                           (int)failure);
+        return __atomic_compare_exchange_n(&val, &expected, desired, false, (int) success,
+                                           (int) failure);
     }
 
     bool compare_exchange_strong(type& expected, type desired, mem_order order = mem_order::seq_cst)
     {
-        return __atomic_compare_exchange_n(&val, &expected, desired, false, (int)order, (int)order);
+        return __atomic_compare_exchange_n(&val, &expected, desired, false, (int) order,
+                                           (int) order);
     }
 };
 
@@ -225,7 +227,7 @@ using atomic_uint = ::atomic<unsigned int>;
 
 static inline void atomic_thread_fence(mem_order order)
 {
-    __atomic_thread_fence((int)order);
+    __atomic_thread_fence((int) order);
 }
 
 #endif

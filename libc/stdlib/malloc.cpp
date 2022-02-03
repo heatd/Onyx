@@ -36,7 +36,7 @@ size_t heap_get_used_pages(void)
 void heap_set_start(uintptr_t heap_start)
 {
     starting_address = heap_start;
-    heap.starting_address = (void *)heap_start;
+    heap.starting_address = (void *) heap_start;
     heap.brk = heap.starting_address;
     heap.size = 0;
 }
@@ -48,7 +48,7 @@ void *expand_heap(size_t size)
 {
     size_t nr_pages = (size >> PAGE_SHIFT) + 3;
 
-    void *alloc_start = (void *)((char *)heap.starting_address + heap.size);
+    void *alloc_start = (void *) ((char *) heap.starting_address + heap.size);
 
     // printk("Expanding heap from %p to %lx\n", alloc_start, (unsigned long) alloc_start +
     // (nr_pages << PAGE_SHIFT));
@@ -57,7 +57,7 @@ void *expand_heap(size_t size)
 
     heap.size += nr_pages << PAGE_SHIFT;
 #ifdef CONFIG_KASAN
-    kasan_alloc_shadow((unsigned long)alloc_start, nr_pages << PAGE_SHIFT, false);
+    kasan_alloc_shadow((unsigned long) alloc_start, nr_pages << PAGE_SHIFT, false);
 #endif
     return alloc_start;
 }
@@ -68,10 +68,10 @@ void unmap_kernel_brk(unsigned long base, unsigned long len)
 
     while (nr_pages--)
     {
-        unsigned long info = get_mapping_info((void *)base);
+        unsigned long info = get_mapping_info((void *) base);
         assert(info & PAGE_PRESENT);
         unsigned long paddr = MAPPING_INFO_PADDR(info);
-        vm_unmap_range((void *)base, 1);
+        vm_unmap_range((void *) base, 1);
         free_page(phys_to_page(paddr));
         base += PAGE_SIZE;
     }
@@ -82,8 +82,8 @@ void *do_brk_change(intptr_t inc)
     assert(heap.brk != NULL);
     void *old_brk = heap.brk;
 
-    uintptr_t new_brk = (uintptr_t)heap.brk + inc;
-    uintptr_t starting_address = (uintptr_t)heap.starting_address;
+    uintptr_t new_brk = (uintptr_t) heap.brk + inc;
+    uintptr_t starting_address = (uintptr_t) heap.starting_address;
     unsigned long heap_limit = starting_address + heap.size;
     if (new_brk >= heap_limit)
     {
@@ -91,7 +91,7 @@ void *do_brk_change(intptr_t inc)
 
         void *ptr = expand_heap(size);
         if (!ptr)
-            return errno = ENOMEM, (void *)-1;
+            return errno = ENOMEM, (void *) -1;
     }
     else if (inc < 0)
     {
@@ -108,7 +108,7 @@ void *do_brk_change(intptr_t inc)
         }
     }
 
-    heap.brk = (void *)new_brk;
+    heap.brk = (void *) new_brk;
 
     return old_brk;
 }

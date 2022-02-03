@@ -18,37 +18,37 @@
 
 #include <onyx/crypt/sha256.h>
 
-#define WPA_GET_BE32(a)                                                                    \
-    ((((uint32_t)(a)[0]) << 24) | (((uint32_t)(a)[1]) << 16) | (((uint32_t)(a)[2]) << 8) | \
-     ((uint32_t)(a)[3]))
+#define WPA_GET_BE32(a)                                                                       \
+    ((((uint32_t) (a)[0]) << 24) | (((uint32_t) (a)[1]) << 16) | (((uint32_t) (a)[2]) << 8) | \
+     ((uint32_t) (a)[3]))
 
-#define WPA_PUT_LE16(a, val)               \
-    do                                     \
-    {                                      \
-        (a)[1] = ((uint16_t)(val)) >> 8;   \
-        (a)[0] = ((uint16_t)(val)) & 0xff; \
+#define WPA_PUT_LE16(a, val)                \
+    do                                      \
+    {                                       \
+        (a)[1] = ((uint16_t) (val)) >> 8;   \
+        (a)[0] = ((uint16_t) (val)) & 0xff; \
     } while (0)
 
-#define WPA_PUT_BE32(a, val)                                  \
-    do                                                        \
-    {                                                         \
-        (a)[0] = (uint8_t)((((uint32_t)(val)) >> 24) & 0xff); \
-        (a)[1] = (uint8_t)((((uint32_t)(val)) >> 16) & 0xff); \
-        (a)[2] = (uint8_t)((((uint32_t)(val)) >> 8) & 0xff);  \
-        (a)[3] = (uint8_t)(((uint32_t)(val)) & 0xff);         \
+#define WPA_PUT_BE32(a, val)                                    \
+    do                                                          \
+    {                                                           \
+        (a)[0] = (uint8_t) ((((uint32_t) (val)) >> 24) & 0xff); \
+        (a)[1] = (uint8_t) ((((uint32_t) (val)) >> 16) & 0xff); \
+        (a)[2] = (uint8_t) ((((uint32_t) (val)) >> 8) & 0xff);  \
+        (a)[3] = (uint8_t) (((uint32_t) (val)) & 0xff);         \
     } while (0)
 
-#define WPA_PUT_BE64(a, val)                          \
-    do                                                \
-    {                                                 \
-        (a)[0] = (uint8_t)(((uint64_t)(val)) >> 56);  \
-        (a)[1] = (uint8_t)(((uint64_t)(val)) >> 48);  \
-        (a)[2] = (uint8_t)(((uint64_t)(val)) >> 40);  \
-        (a)[3] = (uint8_t)(((uint64_t)(val)) >> 32);  \
-        (a)[4] = (uint8_t)(((uint64_t)(val)) >> 24);  \
-        (a)[5] = (uint8_t)(((uint64_t)(val)) >> 16);  \
-        (a)[6] = (uint8_t)(((uint64_t)(val)) >> 8);   \
-        (a)[7] = (uint8_t)(((uint64_t)(val)) & 0xff); \
+#define WPA_PUT_BE64(a, val)                            \
+    do                                                  \
+    {                                                   \
+        (a)[0] = (uint8_t) (((uint64_t) (val)) >> 56);  \
+        (a)[1] = (uint8_t) (((uint64_t) (val)) >> 48);  \
+        (a)[2] = (uint8_t) (((uint64_t) (val)) >> 40);  \
+        (a)[3] = (uint8_t) (((uint64_t) (val)) >> 32);  \
+        (a)[4] = (uint8_t) (((uint64_t) (val)) >> 24);  \
+        (a)[5] = (uint8_t) (((uint64_t) (val)) >> 16);  \
+        (a)[6] = (uint8_t) (((uint64_t) (val)) >> 8);   \
+        (a)[7] = (uint8_t) (((uint64_t) (val)) & 0xff); \
     } while (0)
 
 /**
@@ -84,14 +84,14 @@ static const unsigned long K[64] = {
     0x5b9cca4fUL, 0x682e6ff3UL, 0x748f82eeUL, 0x78a5636fUL, 0x84c87814UL, 0x8cc70208UL,
     0x90befffaUL, 0xa4506cebUL, 0xbef9a3f7UL, 0xc67178f2UL};
 /* Various logical functions */
-#define RORc(x, y)                                                     \
-    (((((unsigned long)(x)&0xFFFFFFFFUL) >> (unsigned long)((y)&31)) | \
-      ((unsigned long)(x) << (unsigned long)(32 - ((y)&31)))) &        \
+#define RORc(x, y)                                                         \
+    (((((unsigned long) (x) &0xFFFFFFFFUL) >> (unsigned long) ((y) &31)) | \
+      ((unsigned long) (x) << (unsigned long) (32 - ((y) &31)))) &         \
      0xFFFFFFFFUL)
 #define Ch(x, y, z)  (z ^ (x & (y ^ z)))
 #define Maj(x, y, z) (((x | y) & z) | (x & y))
 #define S(x, n)      RORc((x), (n))
-#define R(x, n)      (((x)&0xFFFFFFFFUL) >> (n))
+#define R(x, n)      (((x) &0xFFFFFFFFUL) >> (n))
 #define Sigma0(x)    (S(x, 2) ^ S(x, 13) ^ S(x, 22))
 #define Sigma1(x)    (S(x, 6) ^ S(x, 11) ^ S(x, 25))
 #define Gamma0(x)    (S(x, 7) ^ S(x, 18) ^ R(x, 3))
@@ -176,7 +176,7 @@ int sha256_process(struct sha256_state *md, const unsigned char *in, unsigned lo
     {
         if (md->curlen == 0 && inlen >= block_size)
         {
-            if (sha256_compress(md, (unsigned char *)in) < 0)
+            if (sha256_compress(md, (unsigned char *) in) < 0)
                 return -1;
             md->length += block_size * 8;
             in += block_size;
@@ -214,7 +214,7 @@ int sha256_done(struct sha256_state *md, unsigned char *out)
     /* increase the length of the message */
     md->length += md->curlen * 8;
     /* append the '1' bit */
-    md->buf[md->curlen++] = (unsigned char)0x80;
+    md->buf[md->curlen++] = (unsigned char) 0x80;
     /* if the length is currently above 56 bytes we append zeros
      * then compress.  Then we can fall back to padding zeros and length
      * encoding like normal.
@@ -223,7 +223,7 @@ int sha256_done(struct sha256_state *md, unsigned char *out)
     {
         while (md->curlen < 64)
         {
-            md->buf[md->curlen++] = (unsigned char)0;
+            md->buf[md->curlen++] = (unsigned char) 0;
         }
         sha256_compress(md, md->buf);
         md->curlen = 0;
@@ -231,7 +231,7 @@ int sha256_done(struct sha256_state *md, unsigned char *out)
     /* pad upto 56 bytes of zeroes */
     while (md->curlen < 56)
     {
-        md->buf[md->curlen++] = (unsigned char)0;
+        md->buf[md->curlen++] = (unsigned char) 0;
     }
     /* store length */
     WPA_PUT_BE64(md->buf + 56, md->length);

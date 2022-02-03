@@ -35,7 +35,7 @@ void *zero_mmap(struct vm_region *area, struct file *node)
 
     vm_make_anon(area);
 
-    return (void *)area->base;
+    return (void *) area->base;
 }
 
 const file_ops zero_fileops = {

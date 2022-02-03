@@ -321,18 +321,18 @@ public:
             switch (sizeof(T))
             {
             case 1:
-                return inb((uint16_t)(unsigned long)bar + eoff);
+                return inb((uint16_t) (unsigned long) bar + eoff);
             case 2:
-                return inw((uint16_t)(unsigned long)bar + eoff);
+                return inw((uint16_t) (unsigned long) bar + eoff);
             case 4:
-                return inl((uint16_t)(unsigned long)bar + eoff);
+                return inl((uint16_t) (unsigned long) bar + eoff);
             case 8:
                 __builtin_unreachable();
             }
         }
         else
         {
-            auto p = reinterpret_cast<volatile T *>((uint8_t *)bar + eoff);
+            auto p = reinterpret_cast<volatile T *>((uint8_t *) bar + eoff);
             return *p;
         }
     }
@@ -347,13 +347,13 @@ public:
             switch (sizeof(T))
             {
             case 1:
-                outb((uint16_t)(unsigned long)bar + eoff, val);
+                outb((uint16_t) (unsigned long) bar + eoff, val);
                 break;
             case 2:
-                outw((uint16_t)(unsigned long)bar + eoff, val);
+                outw((uint16_t) (unsigned long) bar + eoff, val);
                 break;
             case 4:
-                outl((uint16_t)(unsigned long)bar + eoff, val);
+                outl((uint16_t) (unsigned long) bar + eoff, val);
                 break;
             case 8:
                 __builtin_unreachable();
@@ -361,7 +361,7 @@ public:
         }
         else
         {
-            auto p = reinterpret_cast<volatile T *>((uint8_t *)bar + eoff);
+            auto p = reinterpret_cast<volatile T *>((uint8_t *) bar + eoff);
             *p = val;
         }
     }

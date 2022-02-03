@@ -63,7 +63,7 @@ void stack_trace_user(uintptr_t *stack)
 
         printk("<%d> %016lx\n", i++, rip);
 
-        rbp = (uintptr_t *)get_ulong_user(rbp, &error);
+        rbp = (uintptr_t *) get_ulong_user(rbp, &error);
 
         if (error == true)
             return;
@@ -92,10 +92,10 @@ __attribute__((no_sanitize_undefined)) void stack_trace_ex(uint64_t *stack)
                 break;
         }*/
 
-        if (!(void *)*(rbp + 1))
+        if (!(void *) *(rbp + 1))
             break;
 
-        char *s = resolve_sym((void *)*(rbp + 1));
+        char *s = resolve_sym((void *) *(rbp + 1));
         if (!s)
             break;
 
@@ -103,7 +103,7 @@ __attribute__((no_sanitize_undefined)) void stack_trace_ex(uint64_t *stack)
 
         free(s);
 
-        rbp = (uint64_t *)*rbp;
+        rbp = (uint64_t *) *rbp;
         if (!rbp)
             break;
 
@@ -139,7 +139,7 @@ struct symbol_walk_context
 
 static bool sym_iterate_each_module(struct module *m, void *p)
 {
-    struct symbol_walk_context *c = (symbol_walk_context *)p;
+    struct symbol_walk_context *c = (symbol_walk_context *) p;
 
     const size_t nr_syms = m->nr_symtable_entries;
 
@@ -153,7 +153,7 @@ static bool sym_iterate_each_module(struct module *m, void *p)
 
         /* Check if it's inside the bounds of the symbol */
 
-        if (!((unsigned long)c->addr >= s->value && (unsigned long)c->addr < s->value + s->size))
+        if (!((unsigned long) c->addr >= s->value && (unsigned long) c->addr < s->value + s->size))
             continue;
 
         long diff = c->addr - s->value;
@@ -197,11 +197,11 @@ static struct symbol *iterate_symbols_elf_tables(struct symbol_walk_context *c)
     if (!symtab)
         return NULL;
     const size_t num = symtab->sh_size / symtab->sh_entsize;
-    Elf64_Sym *syms = (Elf64_Sym *)(symtab->sh_addr + PHYS_BASE);
+    Elf64_Sym *syms = (Elf64_Sym *) (symtab->sh_addr + PHYS_BASE);
 
     Elf64_Sym *closest_sym = NULL;
     long diff = LONG_MAX;
-    Elf64_Addr addr = (Elf64_Addr)c->addr;
+    Elf64_Addr addr = (Elf64_Addr) c->addr;
 
     for (size_t i = 1; i < num; i++)
     {
@@ -224,7 +224,7 @@ static struct symbol *iterate_symbols_elf_tables(struct symbol_walk_context *c)
         return NULL;
 
     /* I don't feel comfortable allocating memory in stack traces */
-    struct symbol *s = (symbol *)zalloc(sizeof(*s));
+    struct symbol *s = (symbol *) zalloc(sizeof(*s));
 
     if (!s)
         return NULL;
@@ -253,7 +253,7 @@ static struct symbol *iterate_symbols(struct symbol_walk_context *c)
 char *resolve_sym(void *address)
 {
     struct symbol_walk_context c = {};
-    c.addr = (unsigned long)address;
+    c.addr = (unsigned long) address;
 
     if (!iterate_symbols(&c))
         return NULL;
@@ -271,7 +271,7 @@ char *resolve_sym(void *address)
 
         size_t buffer_size = strlen(module_prefix) + strlen("::") + strlen(symbol_name) +
                              strlen("<>") + strlen(" + ") + strlen("0xffffffffffffffff") + 1;
-        char *buf = (char *)zalloc(buffer_size);
+        char *buf = (char *) zalloc(buffer_size);
         if (!buf)
             goto out;
         snprintf(buf, buffer_size, "<%s::%s + %lx>", module_prefix, symbol_name, c.diff);
@@ -282,7 +282,7 @@ char *resolve_sym(void *address)
     {
         size_t buffer_size =
             strlen(module_prefix) + strlen("::") + strlen(symbol_name) + strlen("<>") + 1;
-        char *buf = (char *)zalloc(buffer_size);
+        char *buf = (char *) zalloc(buffer_size);
         if (!buf)
             goto out;
         snprintf(buf, buffer_size, "<%s::%s>", module_prefix, symbol_name);
@@ -300,10 +300,10 @@ out:
 __attribute__((no_sanitize_undefined)) void init_elf_symbols(
     struct multiboot_tag_elf_sections *secs)
 {
-    secs = (struct multiboot_tag_elf_sections *)((unsigned long)secs + PHYS_BASE);
-    Elf64_Shdr *sections = (Elf64_Shdr *)(secs->sections);
+    secs = (struct multiboot_tag_elf_sections *) ((unsigned long) secs + PHYS_BASE);
+    Elf64_Shdr *sections = (Elf64_Shdr *) (secs->sections);
     strtabs = &sections[secs->shndx];
-    strtab = (char *)(strtabs->sh_addr + PHYS_BASE);
+    strtab = (char *) (strtabs->sh_addr + PHYS_BASE);
 
     for (unsigned int i = 0; i < secs->num; i++)
     {
@@ -313,7 +313,7 @@ __attribute__((no_sanitize_undefined)) void init_elf_symbols(
         }
         if (!strcmp(".strtab", elf_get_string(sections[i].sh_name)))
         {
-            strtab = (char *)(sections[i].sh_addr + PHYS_BASE);
+            strtab = (char *) (sections[i].sh_addr + PHYS_BASE);
         }
     }
 }
@@ -323,7 +323,7 @@ void reclaim_elf_sections_memory(void);
 void setup_kernel_symbols(struct module *m)
 {
     const size_t num = symtab->sh_size / symtab->sh_entsize;
-    Elf64_Sym *syms = (Elf64_Sym *)(symtab->sh_addr + PHYS_BASE);
+    Elf64_Sym *syms = (Elf64_Sym *) (symtab->sh_addr + PHYS_BASE);
     size_t useful_syms = 0;
 
     for (size_t i = 0; i < num; i++)
@@ -335,7 +335,7 @@ void setup_kernel_symbols(struct module *m)
         useful_syms++;
     }
 
-    struct symbol *symtab = (symbol *)zalloc(sizeof(struct symbol) * useful_syms);
+    struct symbol *symtab = (symbol *) zalloc(sizeof(struct symbol) * useful_syms);
 
     assert(symtab != NULL);
 
@@ -367,28 +367,28 @@ static unsigned long symtab_start, symtab_end = 0;
 
 void elf_sections_reserve(struct multiboot_tag_elf_sections *__secs)
 {
-    auto secs = (multiboot_tag_elf_sections *)x86_placement_map((unsigned long)__secs);
+    auto secs = (multiboot_tag_elf_sections *) x86_placement_map((unsigned long) __secs);
     uint32_t num_secs = secs->num;
-    Elf64_Shdr *sections = (Elf64_Shdr *)(__secs->sections);
-    strtabs = (Elf64_Shdr *)x86_placement_map((unsigned long)&sections[secs->shndx]);
+    Elf64_Shdr *sections = (Elf64_Shdr *) (__secs->sections);
+    strtabs = (Elf64_Shdr *) x86_placement_map((unsigned long) &sections[secs->shndx]);
 
     shstrtab_pages.start = strtabs->sh_addr & ~(PAGE_SIZE - 1);
-    shstrtab_pages.end = (uintptr_t)page_align_up((void *)(strtabs->sh_addr + strtabs->sh_size));
+    shstrtab_pages.end = (uintptr_t) page_align_up((void *) (strtabs->sh_addr + strtabs->sh_size));
     page_add_used_pages(&shstrtab_pages);
 
     for (unsigned int i = 0; i < num_secs; i++)
     {
-        Elf64_Shdr *section = (Elf64_Shdr *)x86_placement_map((unsigned long)(sections + i));
+        Elf64_Shdr *section = (Elf64_Shdr *) x86_placement_map((unsigned long) (sections + i));
         Elf64_Word name = section->sh_name;
 
-        strtab = (char *)x86_placement_map(strtabs->sh_addr);
+        strtab = (char *) x86_placement_map(strtabs->sh_addr);
 
         if (!strcmp(".symtab", elf_get_string(name)))
         {
-            section = (Elf64_Shdr *)x86_placement_map((unsigned long)(sections + i));
+            section = (Elf64_Shdr *) x86_placement_map((unsigned long) (sections + i));
             symtab_pages.start = section->sh_addr & ~(PAGE_SIZE - 1);
             symtab_pages.end =
-                (uintptr_t)page_align_up((void *)(section->sh_size + section->sh_addr));
+                (uintptr_t) page_align_up((void *) (section->sh_size + section->sh_addr));
             symtab_start = section->sh_addr;
             symtab_end = section->sh_addr + section->sh_size;
 
@@ -397,10 +397,10 @@ void elf_sections_reserve(struct multiboot_tag_elf_sections *__secs)
         }
         if (!strcmp(".strtab", elf_get_string(name)))
         {
-            section = (Elf64_Shdr *)x86_placement_map((unsigned long)(sections + i));
+            section = (Elf64_Shdr *) x86_placement_map((unsigned long) (sections + i));
             strtab_pages.start = section->sh_addr & ~(PAGE_SIZE - 1);
             strtab_pages.end =
-                (uintptr_t)page_align_up((void *)(section->sh_size + section->sh_addr));
+                (uintptr_t) page_align_up((void *) (section->sh_size + section->sh_addr));
             strtab_start = section->sh_addr;
             strtab_end = section->sh_addr + section->sh_size;
             strtab_pages.next = NULL;

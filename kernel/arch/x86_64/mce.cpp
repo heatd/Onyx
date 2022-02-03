@@ -34,7 +34,7 @@ void do_machine_check(struct registers *ctx)
 
     dump_interrupt_context(ctx);
 
-    printk("Machine check info: Bank 0: %08x\n", (uint32_t)mc0.value);
+    printk("Machine check info: Bank 0: %08x\n", (uint32_t) mc0.value);
 
     uint32_t eax = 0;
     uint32_t ebx = 0;

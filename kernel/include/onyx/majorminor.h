@@ -13,8 +13,8 @@
 #define MAJOR_SHIFT 16
 #define MINOR_MASK  0x0000ffff
 
-#define MAJOR(x) (unsigned int)((x & 0xffff0000) >> MAJOR_SHIFT)
-#define MINOR(x) (unsigned int)(x & 0x0000ffff)
+#define MAJOR(x) (unsigned int) ((x & 0xffff0000) >> MAJOR_SHIFT)
+#define MINOR(x) (unsigned int) (x & 0x0000ffff)
 
 #define MKDEV(major, minor) ((major << MAJOR_SHIFT) | minor)
 

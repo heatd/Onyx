@@ -137,7 +137,7 @@ struct un_name *un_find_name(char *address, size_t namelen)
 int un_get_address(const struct sockaddr_un *un, socklen_t addrlen, char **name, size_t *pnamelen,
                    bool *is_abstract_address)
 {
-    char *address = (char *)un->sun_path;
+    char *address = (char *) un->sun_path;
     bool _is_abstract_address = false;
 
     if (addrlen == sizeof(sa_family_t))
@@ -201,14 +201,14 @@ int un_do_bind(const struct sockaddr_un *un, socklen_t addrlen, struct un_socket
 
 int un_bind(struct sockaddr *addr, socklen_t addrlen, struct socket *s)
 {
-    struct un_socket *socket = (struct un_socket *)s;
+    struct un_socket *socket = (struct un_socket *) s;
     if (socket->bound)
         return -EINVAL;
 
     if (addrlen > sizeof(struct sockaddr_un))
         return -EINVAL;
 
-    struct sockaddr_un *un = (struct sockaddr_un *)addr;
+    struct sockaddr_un *un = (struct sockaddr_un *) addr;
 
     int st = un_do_bind(un, addrlen, socket);
     if (st == 0)
@@ -243,9 +243,9 @@ int un_bind_ephemeral(struct un_socket *socket)
 
 int un_connect(struct sockaddr *addr, socklen_t addrlen, struct socket *s)
 {
-    struct un_socket *socket = (struct un_socket *)s;
+    struct un_socket *socket = (struct un_socket *) s;
 
-    struct sockaddr_un *un = (struct sockaddr_un *)addr;
+    struct sockaddr_un *un = (struct sockaddr_un *) addr;
     char *address;
     size_t namelen;
     bool is_abstract;
@@ -295,7 +295,7 @@ ssize_t un_do_sendto(const void *buf, size_t len, struct un_socket *dest, struct
         return -ENOMEM;
     }
 
-    packet->buffer = memdup((void *)buf, len);
+    packet->buffer = memdup((void *) buf, len);
     if (!packet->buffer)
     {
         free(packet);
@@ -337,8 +337,8 @@ ssize_t un_sendto(const void *buf, size_t len, int flags, struct sockaddr *_addr
             return -EFAULT;
     }
 
-    struct sockaddr *addr = (struct sockaddr *)&a;
-    struct un_socket *socket = (struct un_socket *)s;
+    struct sockaddr *addr = (struct sockaddr *) &a;
+    struct un_socket *socket = (struct un_socket *) s;
 
     spin_lock(&socket->socket_lock);
 
@@ -358,7 +358,7 @@ ssize_t un_sendto(const void *buf, size_t len, int flags, struct sockaddr *_addr
     else if (not_conn)
     {
         int status = 0;
-        if ((status = un_get_address((struct sockaddr_un *)addr, addrlen, &address, &namelen,
+        if ((status = un_get_address((struct sockaddr_un *) addr, addrlen, &address, &namelen,
                                      &is_abstract)) < 0)
         {
             spin_unlock(&socket->socket_lock);
@@ -402,7 +402,7 @@ ssize_t un_sendto(const void *buf, size_t len, int flags, struct sockaddr *_addr
 
 void un_dispose_packet(struct unix_packet *packet)
 {
-    free((void *)packet->buffer);
+    free((void *) packet->buffer);
     free(packet);
 }
 
@@ -450,13 +450,13 @@ ssize_t un_do_recvfrom(struct un_socket *socket, void *buf, size_t len, int flag
 
     mutex_unlock(&socket->packet_list_lock);
 
-    return (ssize_t)to_read;
+    return (ssize_t) to_read;
 }
 
 ssize_t un_recvfrom(void *buf, size_t len, int flags, struct sockaddr *addr, socklen_t *slen,
                     struct socket *s)
 {
-    struct un_socket *socket = (struct un_socket *)s;
+    struct un_socket *socket = (struct un_socket *) s;
     struct sockaddr_un kaddr = {0};
     socklen_t addrlen = sizeof(struct sockaddr_un);
     socklen_t kaddrlen;
@@ -509,7 +509,7 @@ static struct sock_ops un_ops = {
 
 void unix_socket_dtor(struct socket *socket)
 {
-    struct un_socket *un = (struct un_socket *)socket;
+    struct un_socket *un = (struct un_socket *) socket;
     if (un->abstr_name)
         un->abstr_name->bound_socket = NULL;
 }
@@ -523,5 +523,5 @@ struct socket *unix_create_socket(int type, int protocol)
     mutex_init(&socket->packet_list_lock);
     socket->type = type;
 
-    return (struct socket *)socket;
+    return (struct socket *) socket;
 }

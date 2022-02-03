@@ -26,7 +26,7 @@ TEST(Udp, Inet4CorkWorks)
     sa.sin_port = htons(1066);
     sa.sin_family = AF_INET;
 
-    ASSERT_NE(bind(sock, (const sockaddr *)&sa, sizeof(sa)), -1);
+    ASSERT_NE(bind(sock, (const sockaddr *) &sa, sizeof(sa)), -1);
 
 #if 0
 	int off = IP_PMTUDISC_DONT;
@@ -65,7 +65,7 @@ TEST(Udp, Inet4CorkWorks)
         if (i == 15)
             flags &= ~MSG_MORE;
 
-        v.iov_base = (char *)ptr.get() + consumed;
+        v.iov_base = (char *) ptr.get() + consumed;
         v.iov_len = std::min(actual_size - consumed, actual_size / 16);
 
         consumed += v.iov_len;
@@ -94,7 +94,7 @@ TEST(Udp, Inet4CorkEMsgSize)
     sa.sin_port = htons(1066);
     sa.sin_family = AF_INET;
 
-    ASSERT_NE(bind(sock, (const sockaddr *)&sa, sizeof(sa)), -1);
+    ASSERT_NE(bind(sock, (const sockaddr *) &sa, sizeof(sa)), -1);
 
 #if 0
 	int off = IP_PMTUDISC_DONT;

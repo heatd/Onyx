@@ -118,7 +118,7 @@ void dentry_destroy(dentry *d)
 
     if (d->d_name_length > INLINE_NAME_MAX)
     {
-        free((void *)d->d_name);
+        free((void *) d->d_name);
     }
 
     d->~dentry();
@@ -162,7 +162,7 @@ dentry *dentry_create(const char *name, inode *inode, dentry *parent)
     }
     else
     {
-        char *dname = (char *)memdup((void *)name, name_length);
+        char *dname = (char *) memdup((void *) name, name_length);
         if (!dname)
         {
             dentry_pool.free(new_dentry);
@@ -333,13 +333,13 @@ dentry *dentry_mount(const char *mountpoint, struct inode *inode)
     auto base_dentry = dentry_resolve(namedata);
     if (!base_dentry)
     {
-        free((void *)path);
+        free((void *) path);
         return nullptr;
     }
 
     if (!dentry_is_dir(base_dentry))
     {
-        free((void *)path);
+        free((void *) path);
         dentry_put(base_dentry);
         errno = ENOTDIR;
         return nullptr;
@@ -360,7 +360,7 @@ dentry *dentry_mount(const char *mountpoint, struct inode *inode)
         rw_lock_write(&base_dentry->d_lock);
         if (base_dentry->d_flags & DENTRY_FLAG_MOUNTPOINT)
         {
-            free((void *)path);
+            free((void *) path);
             rw_unlock_write(&base_dentry->d_lock);
             return errno = EBUSY, nullptr;
         }
@@ -374,7 +374,7 @@ dentry *dentry_mount(const char *mountpoint, struct inode *inode)
         rw_unlock_write(&base_dentry->d_lock);
     }
 
-    free((void *)path);
+    free((void *) path);
     dentry_put(base_dentry);
 
     return new_d;
@@ -388,7 +388,7 @@ int mount_fs(struct inode *fsroot, const char *path)
 
     if (!strcmp(path, "/"))
     {
-        file *f = (file *)zalloc(sizeof(*f));
+        file *f = (file *) zalloc(sizeof(*f));
         if (!f)
             return -ENOMEM;
         f->f_ino = fsroot;
@@ -496,7 +496,7 @@ expected<dentry *, int> dentry_follow_symlink(nameidata &data, dentry *symlink)
 
     auto symlink_target = dentry_resolve(new_nameidata);
 
-    free((void *)target_str);
+    free((void *) target_str);
 
     if (!symlink_target)
     {
@@ -646,7 +646,7 @@ int dentry_resolve_path(nameidata &data)
         dentry_get(data.root);
     }
 
-    data.view = std::string_view(&pathname[(int)absolute], pathname_length - (int)absolute);
+    data.view = std::string_view(&pathname[(int) absolute], pathname_length - (int) absolute);
 
     auto st = __dentry_resolve_path(data);
 
@@ -777,7 +777,7 @@ struct create_handling : public last_name_handling
         struct inode *new_inode = nullptr;
 
         if (in.type == create_file_type::creat)
-            new_inode = inode->i_fops->creat(_name, (int)in.mode, dentry);
+            new_inode = inode->i_fops->creat(_name, (int) in.mode, dentry);
         else if (in.type == create_file_type::mkdir)
             new_inode = inode->i_fops->mkdir(_name, in.mode, dentry);
         else if (in.type == create_file_type::mknod)
@@ -896,7 +896,7 @@ file *file_creation_helper(dentry *base, const char *path, last_name_handling &h
 
 file *creat_vfs(dentry *base, const char *path, int mode)
 {
-    create_handling h{{create_file_type::creat, (mode_t)mode, 0}};
+    create_handling h{{create_file_type::creat, (mode_t) mode, 0}};
     return file_creation_helper(base, path, h);
 }
 
@@ -958,7 +958,7 @@ char *dentry_to_file_name(struct dentry *dentry)
     /* Remove one from the end to avoid trailing slashes */
     buf_len--;
 
-    buf = (char *)malloc(buf_len);
+    buf = (char *) malloc(buf_len);
     if (!buf)
         goto error;
     buf[0] = '/';
@@ -1321,7 +1321,7 @@ void dentry_rename(dentry *dent, const char *name)
     }
     else
     {
-        char *dname = (char *)memdup(name, name_length);
+        char *dname = (char *) memdup(name, name_length);
         /* TODO: Ugh, how do I handle this? */
         assert(dname != nullptr);
 
@@ -1380,7 +1380,7 @@ struct rename_handling : public last_name_handling
 
         /* Establish a locking order to avoid deadlocks */
 
-        if ((unsigned long)dir < (unsigned long)old)
+        if ((unsigned long) dir < (unsigned long) old)
         {
             __dir1 = dir;
             __dir2 = old;

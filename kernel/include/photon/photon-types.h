@@ -13,7 +13,7 @@
 
 typedef uint64_t photon_handle;
 
-#define PHOTON_INVALID_HANDLE ((photon_handle)-1)
+#define PHOTON_INVALID_HANDLE ((photon_handle) -1)
 
 #define PHOTON_IOCTL_CREATE_DUMB_BUF 0x00000000
 #define PHOTON_IOCTL_SWAP_BUFS       0x00000001
@@ -30,8 +30,8 @@ typedef uint64_t photon_handle;
  * gpu driver.
  */
 #define PHOTON_IOCTL_GENERIC_MAX  0x7fffffff
-#define PHOTON_IOCTL_PLATFORM_MIN (int)(((unsigned int)PHOTON_IOCTL_GENERIC_MAX + 1))
-#define PHOTON_IOCTL_PLATFORM_MAX ((int)0xffffffff)
+#define PHOTON_IOCTL_PLATFORM_MIN (int) (((unsigned int) PHOTON_IOCTL_GENERIC_MAX + 1))
+#define PHOTON_IOCTL_PLATFORM_MAX ((int) 0xffffffff)
 #define __PHOTON_INFO_MAX         80
 
 struct photon_info

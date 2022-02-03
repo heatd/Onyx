@@ -71,7 +71,7 @@ static inline void block_buf_put(struct block_buf *buf)
 
 static inline void *block_buf_data(struct block_buf *b)
 {
-    return (void *)(((unsigned long)PAGE_TO_VIRT(b->this_page)) + b->page_off);
+    return (void *) (((unsigned long) PAGE_TO_VIRT(b->this_page)) + b->page_off);
 }
 
 #ifdef __cplusplus

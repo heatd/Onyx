@@ -90,9 +90,9 @@ off_t dhcp_close_options(dhcp_packet_t *pkt, off_t off)
 
 bool packet::decode()
 {
-    unsigned char *limit = (unsigned char *)packet_ + length;
+    unsigned char *limit = (unsigned char *) packet_ + length;
 
-    unsigned char *opt = (unsigned char *)&packet_->options;
+    unsigned char *opt = (unsigned char *) &packet_->options;
 
     if (length <= DHCP_FIXED_NON_UDP)
         return false;
@@ -277,7 +277,7 @@ void tcp_test()
         exit(0);
     }
 
-    if (sendto(icmp_fd, &hdr, sizeof(hdr), 0, (sockaddr *)&icmp_in, sizeof(icmp_in)) < 0)
+    if (sendto(icmp_fd, &hdr, sizeof(hdr), 0, (sockaddr *) &icmp_in, sizeof(icmp_in)) < 0)
     {
         perror("icmp_sendto");
         exit(0);
@@ -305,12 +305,12 @@ void tcp_test()
         exit(0);
     }
 
-    struct in_addr **address_list = (struct in_addr **)ent->h_addr_list;
+    struct in_addr **address_list = (struct in_addr **) ent->h_addr_list;
     servaddr.sin_family = AF_INET;
     servaddr.sin_addr.s_addr = address_list[0]->s_addr;
     servaddr.sin_port = htons(80);
 
-    connect(sockfd, (const struct sockaddr *)&servaddr, sizeof(struct sockaddr_in));
+    connect(sockfd, (const struct sockaddr *) &servaddr, sizeof(struct sockaddr_in));
     perror("connect");
     send(sockfd, "GET / HTTP/1.0\r\n\r\n", strlen("GET / HTTP/1.0\r\n\r\n"), 0);
     perror("send");
@@ -395,7 +395,7 @@ int instance::setup_netif()
 
     memset(buf, 0, sizeof(dhcp_packet_t));
 
-    struct sockaddr_in *inaddr = (struct sockaddr_in *)&packet->src;
+    struct sockaddr_in *inaddr = (struct sockaddr_in *) &packet->src;
     send_request(our_ip, inaddr->sin_addr.s_addr);
 
     while (!(packet = get_packets([](dhcpcd::packet *data) -> bool {
@@ -466,7 +466,7 @@ void instance::run()
     sockaddr.sin_family = AF_INET;
     sockaddr.sin_port = htons(68);
 
-    if (bind(sockfd, (const struct sockaddr *)&sockaddr, sizeof(struct sockaddr)) < 0)
+    if (bind(sockfd, (const struct sockaddr *) &sockaddr, sizeof(struct sockaddr)) < 0)
     {
         throw std::runtime_error(std::string("bind: ") + strerror(errno));
     }
@@ -474,7 +474,7 @@ void instance::run()
     sockaddr.sin_port = htons(67);
     sockaddr.sin_addr.s_addr = htonl(INADDR_BROADCAST);
 
-    if (connect(sockfd, (const struct sockaddr *)&sockaddr, sizeof(struct sockaddr)) < 0)
+    if (connect(sockfd, (const struct sockaddr *) &sockaddr, sizeof(struct sockaddr)) < 0)
     {
         throw std::runtime_error(std::string("connect: ") + strerror(errno));
     }

@@ -90,7 +90,7 @@ static inline void list_add_tail(struct list_head *_new, struct list_head *head)
     __list_add(_new, head->prev, head);
 }
 
-#define LIST_REMOVE_POISON ((struct list_head *)0xDEAD)
+#define LIST_REMOVE_POISON ((struct list_head *) 0xDEAD)
 
 static inline void list_remove_bulk(struct list_head *prev, struct list_head *next)
 {
@@ -143,7 +143,7 @@ struct extrusive_list_head
 static inline int extrusive_list_add(struct extrusive_list_head *list, void *ptr)
 {
     struct extrusive_list_head *new_item =
-        (struct extrusive_list_head *)malloc(sizeof(struct extrusive_list_head));
+        (struct extrusive_list_head *) malloc(sizeof(struct extrusive_list_head));
     if (!new_item)
         return -1;
     new_item->ptr = ptr;
@@ -165,7 +165,7 @@ static inline void *extrusive_list_get_element(struct extrusive_list_head *list,
     }
     else
     {
-        struct extrusive_list_head *current = (struct extrusive_list_head *)*saveptr;
+        struct extrusive_list_head *current = (struct extrusive_list_head *) *saveptr;
         struct extrusive_list_head *next = current->next;
         *saveptr = next;
         if (!next)
@@ -207,7 +207,7 @@ struct list
 
 static inline int list_add_node(struct list *l, void *ptr)
 {
-    struct list_node *node = (struct list_node *)malloc(sizeof(struct list_node));
+    struct list_node *node = (struct list_node *) malloc(sizeof(struct list_node));
     if (!node)
         return -1;
 

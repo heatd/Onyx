@@ -23,7 +23,7 @@ irqstatus_t ps2_irq(struct irq_context *ctx, void *cookie)
 {
     unsigned char status;
 
-    struct ps2_port *port = (ps2_port *)cookie;
+    struct ps2_port *port = (ps2_port *) cookie;
 
     status = inb(port->controller->command_port);
 
@@ -345,7 +345,7 @@ bool i8042_found_pnp = false;
 
 int ps2_probe(struct device *device)
 {
-    struct ps2_controller *controller = (ps2_controller *)zalloc(sizeof(*controller));
+    struct ps2_controller *controller = (ps2_controller *) zalloc(sizeof(*controller));
 
     if (!controller)
         return -1;
@@ -427,7 +427,7 @@ struct device ps2_platform_device
 
 int ps2_probe_keyboard(device *device)
 {
-    acpi_device *dev = (acpi_device *)device;
+    acpi_device *dev = (acpi_device *) device;
 
     auto data_port = dev->get_resource(DEV_RESOURCE_FLAG_IO_PORT);
     auto command_port = dev->get_resource(DEV_RESOURCE_FLAG_IO_PORT, 1);
@@ -446,7 +446,7 @@ int ps2_probe_keyboard(device *device)
 
 int ps2_probe_mouse(struct device *device)
 {
-    struct acpi_device *dev = (struct acpi_device *)device;
+    struct acpi_device *dev = (struct acpi_device *) device;
 
     ACPI_RESOURCE *data_port, *command_port, *irq_res, *eirq_res;
 

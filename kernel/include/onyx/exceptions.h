@@ -12,7 +12,7 @@ struct exception_table_data
     unsigned long fixup;
 } __attribute__((packed));
 
-#define NO_FIXUP_EXISTS (unsigned long)-1
+#define NO_FIXUP_EXISTS (unsigned long) -1
 unsigned long exceptions_get_fixup(unsigned long ip);
 
 #endif

@@ -147,7 +147,7 @@ ssize_t file_write_cache(void *buffer, size_t len, struct inode *ino, size_t off
             return st;
         }
 
-        if (copy_from_user((char *)cache->buffer + cache_off, (char *)buffer + wrote, amount) < 0)
+        if (copy_from_user((char *) cache->buffer + cache_off, (char *) buffer + wrote, amount) < 0)
         {
             page_unpin(page);
             return -EFAULT;
@@ -177,12 +177,12 @@ ssize_t file_write_cache(void *buffer, size_t len, struct inode *ino, size_t off
             printk("New size: %lu\n", ino->i_size);*/
     }
 
-    return (ssize_t)wrote;
+    return (ssize_t) wrote;
 }
 
 ssize_t file_read_cache(void *buffer, size_t len, struct inode *file, size_t offset)
 {
-    if ((size_t)offset >= file->i_size)
+    if ((size_t) offset >= file->i_size)
         return 0;
 
     size_t read = 0;
@@ -201,12 +201,13 @@ ssize_t file_read_cache(void *buffer, size_t len, struct inode *file, size_t off
 
         assert(rest > 0);
 
-        size_t amount = len - read < (size_t)rest ? len - read : (size_t)rest;
+        size_t amount = len - read < (size_t) rest ? len - read : (size_t) rest;
 
         if (offset + amount > file->i_size)
         {
             amount = file->i_size - offset;
-            if (copy_to_user((char *)buffer + read, (char *)cache->buffer + cache_off, amount) < 0)
+            if (copy_to_user((char *) buffer + read, (char *) cache->buffer + cache_off, amount) <
+                0)
             {
                 page_unpin(page);
                 errno = EFAULT;
@@ -218,7 +219,8 @@ ssize_t file_read_cache(void *buffer, size_t len, struct inode *file, size_t off
         }
         else
         {
-            if (copy_to_user((char *)buffer + read, (char *)cache->buffer + cache_off, amount) < 0)
+            if (copy_to_user((char *) buffer + read, (char *) cache->buffer + cache_off, amount) <
+                0)
             {
                 page_unpin(page);
                 errno = EFAULT;
@@ -232,15 +234,15 @@ ssize_t file_read_cache(void *buffer, size_t len, struct inode *file, size_t off
         page_unpin(page);
     }
 
-    return (ssize_t)read;
+    return (ssize_t) read;
 }
 
 int inode_special_init(struct inode *ino)
 {
     if (S_ISBLK(ino->i_mode) || S_ISCHR(ino->i_mode))
     {
-        gendev *dev = S_ISBLK(ino->i_mode) ? (gendev *)dev_find_block(ino->i_rdev)
-                                           : (gendev *)dev_find_chr(ino->i_rdev);
+        gendev *dev = S_ISBLK(ino->i_mode) ? (gendev *) dev_find_block(ino->i_rdev)
+                                           : (gendev *) dev_find_chr(ino->i_rdev);
         if (!dev)
             return -ENODEV;
 
@@ -279,7 +281,7 @@ ssize_t inode_sync(struct inode *inode)
     while (rb_itor_valid(&it))
     {
         void *datum = *rb_itor_datum(&it);
-        struct page *page = (struct page *)datum;
+        struct page *page = (struct page *) datum;
         struct page_cache_block *b = page->cache;
 
         if (page->flags & PAGE_FLAG_DIRTY)
@@ -469,7 +471,7 @@ void inode_add_hole_in_page(struct page *page, size_t page_offset, size_t end_of
     }
 
     page_remove_block_buf(page, page_offset, end_offset);
-    uint8_t *p = (uint8_t *)PAGE_TO_VIRT(page) + page_offset;
+    uint8_t *p = (uint8_t *) PAGE_TO_VIRT(page) + page_offset;
     memset(p, 0, end_offset - page_offset);
 }
 

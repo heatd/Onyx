@@ -217,7 +217,7 @@ void fs_init(void)
     if (!initrd_addr)
         panic("Initrd not found");
 
-    initrd_addr = (void *)((char *)initrd_addr + PHYS_BASE);
+    initrd_addr = (void *) ((char *) initrd_addr + PHYS_BASE);
 
     /* Initialize the initrd */
     init_initrd(initrd_addr);
@@ -284,7 +284,7 @@ void kernel_multitasking(void *arg)
     vm_sysfs_init();
 
     /* Pass the root partition to init */
-    const char *args[] = {(char *)"", "/dev/sda2", NULL};
+    const char *args[] = {(char *) "", "/dev/sda2", NULL};
     const char *envp[] = {"PATH=/bin:/usr/bin:/sbin:", "TERM=linux", "LANG=C", "PWD=/", NULL};
 
     if (find_and_exec_init(args, envp) < 0)

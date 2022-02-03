@@ -185,7 +185,7 @@ int execute_program(const char *path, const char *type)
             fprintf(stderr, "%s: %s: %s\n", __func__, "add_daemon", strerror(errno));
             return -1;
         }
-        daemon->name = strdup((const char *)basename((char *)path));
+        daemon->name = strdup((const char *) basename((char *) path));
         daemon->pid = pid;
     }
 

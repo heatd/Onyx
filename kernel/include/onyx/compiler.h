@@ -40,7 +40,7 @@
 #define prefetch(...)               __builtin_prefetch(__VA_ARGS__)
 #define ASSUME_ALIGNED(x, y)        __builtin_assume_aligned(x, y)
 #define ARCH_SPECIFIC               extern
-#define UNUSED_PARAMETER(x)         (void)x
+#define UNUSED_PARAMETER(x)         (void) x
 #define UNUSED(x)                   UNUSED_PARAMETER(x)
 #define __init                      __attribute__((constructor))
 #define weak_alias(name, aliasname) _weak_alias(name, aliasname)
@@ -105,8 +105,8 @@ unsigned int count_bits(Type val)
 #define __PASTE(a, b)  ___PASTE(a, b)
 
 #define COMPILER_BARRIER() __asm__ __volatile__("" ::: "memory")
-#define ilog2(X)           ((unsigned)(8 * sizeof(unsigned long long) - __builtin_clzll((X)) - 1))
-#define ALIGN_TO(x, y)     (((unsigned long)x + (y - 1)) & -y)
+#define ilog2(X)           ((unsigned) (8 * sizeof(unsigned long long) - __builtin_clzll((X)) - 1))
+#define ALIGN_TO(x, y)     (((unsigned long) x + (y - 1)) & -y)
 
 #define OPTIMISE_DEBUG __attribute__((optimize("Og")))
 
@@ -129,13 +129,13 @@ unsigned int count_bits(Type val)
 template <typename Type>
 inline Type read_once(const Type& t)
 {
-    return *((volatile Type*)&t);
+    return *((volatile Type*) &t);
 }
 
 template <typename Type>
 inline void write_once(const Type& t, Type val)
 {
-    *((volatile Type*)&t) = val;
+    *((volatile Type*) &t) = val;
 }
 
 #endif

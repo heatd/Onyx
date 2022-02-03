@@ -21,7 +21,7 @@ void ktrace_disable_int3(void);
 
 #define EXCEPTION_VECTORS_END 32
 
-#define INTERRUPT_STACK_ALIGN(regs) (((unsigned long)regs) - 8)
+#define INTERRUPT_STACK_ALIGN(regs) (((unsigned long) regs) - 8)
 
 unsigned long irq_handler(struct registers *regs);
 

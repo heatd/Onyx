@@ -17,22 +17,22 @@ void strace_print_event(struct proc_event *event);
 
 int proc_event_attach(pid_t pid, unsigned long flags)
 {
-    return (int)syscall(SYS_proc_event_attach, pid, flags);
+    return (int) syscall(SYS_proc_event_attach, pid, flags);
 }
 
 void do_trace(pid_t p);
 
 void *do_pt_trace(void *arg)
 {
-    do_trace((pid_t)(unsigned long)arg);
+    do_trace((pid_t) (unsigned long) arg);
 
-    return (void *)0;
+    return (void *) 0;
 }
 
 void do_child_trace(pid_t pid)
 {
     pthread_t thread;
-    if (pthread_create(&thread, NULL, do_pt_trace, (void *)(unsigned long)pid) < 0)
+    if (pthread_create(&thread, NULL, do_pt_trace, (void *) (unsigned long) pid) < 0)
     {
         perror("pthread_create");
         return;

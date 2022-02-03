@@ -29,7 +29,7 @@ static uint32_t bio_req_to_virtio_blk_type(uint8_t op)
     case BIO_REQ_WRITE_OP:
         return VIRTIO_BLK_T_OUT;
     default:
-        return (uint32_t)-1;
+        return (uint32_t) -1;
     }
 }
 
@@ -44,12 +44,12 @@ int blk_vdev::submit_request(struct bio_req *req)
     if (!meta_page)
         return -ENOMEM;
 
-    virtio_blk_request *breq = (virtio_blk_request *)PAGE_TO_VIRT(meta_page);
-    virtio_blk_tail *btail = (virtio_blk_tail *)(breq + 1);
+    virtio_blk_request *breq = (virtio_blk_request *) PAGE_TO_VIRT(meta_page);
+    virtio_blk_tail *btail = (virtio_blk_tail *) (breq + 1);
 
     breq->type = bio_req_to_virtio_blk_type(op);
 
-    if (breq->type == (uint32_t)-1)
+    if (breq->type == (uint32_t) -1)
     {
         free_page(meta_page);
         return -EIO;
@@ -72,8 +72,8 @@ int blk_vdev::submit_request(struct bio_req *req)
     alloc_info.fill_function = [](size_t vec_nr,
                                   virtio_allocation_info &context) -> virtio_desc_info {
         page_iov v;
-        auto meta_page = (page *)context.context;
-        virtio_blk_request *req = (virtio_blk_request *)PAGE_TO_VIRT(meta_page);
+        auto meta_page = (page *) context.context;
+        virtio_blk_request *req = (virtio_blk_request *) PAGE_TO_VIRT(meta_page);
         bool write = req->type == VIRTIO_BLK_T_IN;
 
         if (vec_nr == 0)

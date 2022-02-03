@@ -11,7 +11,7 @@
 
 int onx_process_open(pid_t pid, int flags)
 {
-    return onx_handle_open(ONX_HANDLE_TYPE_PROCESS, (unsigned long)pid, flags);
+    return onx_handle_open(ONX_HANDLE_TYPE_PROCESS, (unsigned long) pid, flags);
 }
 
 void onx_process_close(int fd)

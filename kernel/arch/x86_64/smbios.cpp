@@ -20,12 +20,13 @@ static size_t nr_structs = 0;
 static inline void *__find_phys_mem(void *lower_boundary, void *upper_boundary, int alignment,
                                     const char *s)
 {
-    for (size_t i = 0; i < ((uintptr_t)upper_boundary - (uintptr_t)lower_boundary) / alignment; i++)
+    for (size_t i = 0; i < ((uintptr_t) upper_boundary - (uintptr_t) lower_boundary) / alignment;
+         i++)
     {
-        if (!memcmp((void *)(((uintptr_t)lower_boundary + PHYS_BASE) + i * alignment), s,
+        if (!memcmp((void *) (((uintptr_t) lower_boundary + PHYS_BASE) + i * alignment), s,
                     strlen(s)))
         {
-            return (void *)((uintptr_t)lower_boundary + i * alignment);
+            return (void *) ((uintptr_t) lower_boundary + i * alignment);
         }
     }
     return NULL;
@@ -34,13 +35,13 @@ static inline void *__find_phys_mem(void *lower_boundary, void *upper_boundary, 
 /* Finds the 32-bit entry point */
 struct smbios_entrypoint32 *smbios_find_entry32()
 {
-    return (smbios_entrypoint32 *)__find_phys_mem((void *)0xF0000, (void *)0xFFFFF, 16, "_SM_");
+    return (smbios_entrypoint32 *) __find_phys_mem((void *) 0xF0000, (void *) 0xFFFFF, 16, "_SM_");
 }
 
 /* Finds the 64-bit entrypoint */
 struct smbios_entrypoint64 *smbios_find_entry64()
 {
-    return (smbios_entrypoint64 *)__find_phys_mem((void *)0xF0000, (void *)0xFFFFF, 16, "_SM3_");
+    return (smbios_entrypoint64 *) __find_phys_mem((void *) 0xF0000, (void *) 0xFFFFF, 16, "_SM3_");
 }
 
 extern bool efi64_present;
@@ -57,9 +58,9 @@ smbios_table *smbios_find_tables(void)
     {
         LOG("smbios", "64-bit table: %p\n", entry64);
 
-        entry64 = (struct smbios_entrypoint64 *)((char *)entry64 + PHYS_BASE);
+        entry64 = (struct smbios_entrypoint64 *) ((char *) entry64 + PHYS_BASE);
 
-        return (smbios_table *)PHYS_TO_VIRT(entry64->addr);
+        return (smbios_table *) PHYS_TO_VIRT(entry64->addr);
     }
 
     if (entry32)
@@ -68,9 +69,9 @@ smbios_table *smbios_find_tables(void)
 
         /* Find the address and the size of the tables */
 
-        entry32 = (struct smbios_entrypoint32 *)((char *)entry32 + PHYS_BASE);
+        entry32 = (struct smbios_entrypoint32 *) ((char *) entry32 + PHYS_BASE);
 
-        return (smbios_table *)PHYS_TO_VIRT(entry32->addr);
+        return (smbios_table *) PHYS_TO_VIRT(entry32->addr);
     }
 
     return NULL;
@@ -85,21 +86,21 @@ struct smbios_table *smbios_get_table(int type)
     {
         if (tab->type == type)
             return tab;
-        char *a = (char *)tab + tab->len;
+        char *a = (char *) tab + tab->len;
         uint16_t zero = 0;
         while (memcmp(a, &zero, 2))
         {
             a++;
         }
         a += 2;
-        tab = (struct smbios_table *)a;
+        tab = (struct smbios_table *) a;
     }
     return NULL;
 }
 
 char *smbios_get_string(struct smbios_table *t, uint8_t strndx)
 {
-    char *strtab = ((char *)t + t->len);
+    char *strtab = ((char *) t + t->len);
     uint8_t i = 0;
     while (i != strndx - 1)
     {
@@ -119,7 +120,7 @@ void smbios_init(void)
         return;
 
     struct smbios_table_bios_info *info =
-        (struct smbios_table_bios_info *)smbios_get_table(SMBIOS_TYPE_BIOS_INFO);
+        (struct smbios_table_bios_info *) smbios_get_table(SMBIOS_TYPE_BIOS_INFO);
 
     if (info)
     {

@@ -99,7 +99,7 @@ ext2_block_no ext2_superblock::allocate_block(ext2_block_group_no preferred)
             return EXT2_ERR_INV_BLOCK;
     }
 
-    if (preferred == (ext2_block_group_no)-1)
+    if (preferred == (ext2_block_group_no) -1)
         preferred = 0;
 
     /* Our algorithm works like this: We take the preferred block group, and then we'll

@@ -43,7 +43,7 @@ CONSTEXPR static inline fnv_hash_t __fnv_hash_cont(const uint8_t *data, size_t s
     return hash;
 }
 
-#define fnv_hash(data, size)            __fnv_hash((const uint8_t *)data, size)
-#define fnv_hash_cont(data, size, hash) __fnv_hash_cont((const uint8_t *)data, size, hash)
+#define fnv_hash(data, size)            __fnv_hash((const uint8_t *) data, size)
+#define fnv_hash_cont(data, size, hash) __fnv_hash_cont((const uint8_t *) data, size, hash)
 
 #endif

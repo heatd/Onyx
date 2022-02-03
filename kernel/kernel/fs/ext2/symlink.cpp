@@ -39,7 +39,7 @@ bool ext2_is_fast_symlink(struct ext2_inode *inode, struct ext2_superblock *fs)
 char *ext2_do_fast_symlink(struct ext2_inode *inode)
 {
     /* Fast symlinks have 60 bytes and we allocate one more for the null byte */
-    char *buf = (char *)malloc(EXT2_FAST_SYMLINK_SIZE + 1);
+    char *buf = (char *) malloc(EXT2_FAST_SYMLINK_SIZE + 1);
     if (!buf)
         return NULL;
     memcpy(buf, &inode->i_data, EXT2_FAST_SYMLINK_SIZE);
@@ -51,7 +51,7 @@ char *ext2_do_fast_symlink(struct ext2_inode *inode)
 char *ext2_do_slow_symlink(struct inode *inode)
 {
     size_t len = inode->i_size;
-    char *buf = (char *)malloc(len + 1);
+    char *buf = (char *) malloc(len + 1);
     if (!buf)
         return NULL;
 
@@ -61,7 +61,7 @@ char *ext2_do_slow_symlink(struct inode *inode)
 
     thread_change_addr_limit(old);
 
-    if (read != (ssize_t)len)
+    if (read != (ssize_t) len)
     {
         free(buf);
         return NULL;
@@ -107,11 +107,11 @@ int ext2_set_symlink(inode *ino, const char *dest)
         unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
 
         // TODO: Kind of dumb that it's not a const void *, fix?
-        ssize_t read = file_write_cache((void *)dest, length, ino, 0);
+        ssize_t read = file_write_cache((void *) dest, length, ino, 0);
 
         thread_change_addr_limit(old);
 
-        if (read != (ssize_t)length)
+        if (read != (ssize_t) length)
         {
             return -errno;
         }

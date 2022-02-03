@@ -31,12 +31,12 @@ public:
 template <typename T>
 static bool is_unmapped(T *p, size_t size)
 {
-    unsigned long start = (unsigned long)p;
+    unsigned long start = (unsigned long) p;
     unsigned long end = start + size;
 
     while (start != end)
     {
-        if (virtual2phys((void *)start))
+        if (virtual2phys((void *) start))
             return false;
         start += PAGE_SIZE;
     }
@@ -58,7 +58,7 @@ public:
 
     bool check_for_present_pages(void *ptr)
     {
-        char *p = (char *)ptr + 0x2000;
+        char *p = (char *) ptr + 0x2000;
         if (!is_unmapped(p, 0x3000))
         {
             printk("vm_munmap did not unmap!\n");
@@ -67,7 +67,7 @@ public:
 
         auto reg = vm_find_region(ptr);
         assert(reg != nullptr);
-        if (reg->base + (reg->pages << PAGE_SHIFT) != (unsigned long)p)
+        if (reg->base + (reg->pages << PAGE_SHIFT) != (unsigned long) p)
         {
             printk("math does not check out\n");
             return false;
@@ -82,14 +82,14 @@ public:
         page_get_stats(&stat);
         // printk("used_pages: %lu\n", stat.allocated_mem / 4096);
 
-        char *p = (char *)ptr + 0x2000;
-        if (vm_munmap(&kernel_address_space, (void *)(p + 0x3000), 1019 << PAGE_SHIFT) < 0)
+        char *p = (char *) ptr + 0x2000;
+        if (vm_munmap(&kernel_address_space, (void *) (p + 0x3000), 1019 << PAGE_SHIFT) < 0)
         {
             printk("vm_munmap failed\n");
             return false;
         }
 
-        if (vm_munmap(&kernel_address_space, (void *)ptr, 2 << PAGE_SHIFT) < 0)
+        if (vm_munmap(&kernel_address_space, (void *) ptr, 2 << PAGE_SHIFT) < 0)
         {
             printk("vm_munmap failed\n");
             return false;
@@ -173,8 +173,8 @@ bool vm_unmap_tests::is_not_present_in_vmo(struct vm_object *vmo, unsigned long 
     bool node_valid = rb_itor_first(&it);
     while (node_valid)
     {
-        struct page *page = (struct page *)*rb_itor_datum(&it);
-        size_t off = (size_t)rb_itor_key(&it);
+        struct page *page = (struct page *) *rb_itor_datum(&it);
+        size_t off = (size_t) rb_itor_key(&it);
 
         if (off >= lower && off < higher)
         {
@@ -198,11 +198,11 @@ bool vm_unmap_tests::execute_shared()
     auto vm = do_mapping_shared();
     if (!vm)
         return false;
-    void *ptr = (void *)vm->base;
+    void *ptr = (void *) vm->base;
     auto vmo = vm->vmo;
 
-    char *p = (char *)ptr + 0x2000;
-    auto st = vm_munmap(&kernel_address_space, (void *)p, 0x3000);
+    char *p = (char *) ptr + 0x2000;
+    auto st = vm_munmap(&kernel_address_space, (void *) p, 0x3000);
     if (st < 0)
     {
         printk("vm_munmap failed with %u\n", st);
@@ -227,8 +227,8 @@ bool vm_unmap_tests::execute_private()
     if (!ptr)
         return false;
 
-    char *p = (char *)ptr + 0x2000;
-    auto st = vm_munmap(&kernel_address_space, (void *)p, 0x3000);
+    char *p = (char *) ptr + 0x2000;
+    auto st = vm_munmap(&kernel_address_space, (void *) p, 0x3000);
     if (st < 0)
     {
         printk("vm_munmap failed with %u\n", st);
@@ -278,9 +278,9 @@ bool vm_protect_tests::execute()
 
     vm_print_map();
 
-    auto p = (unsigned long)ptr + 0x4000;
-    vm_mprotect(&kernel_address_space, (void *)p, 10 << PAGE_SHIFT, VM_WRITE);
-    printk("mprotecting from %lx to %lx\n", p, (unsigned long)p + (10 << PAGE_SHIFT));
+    auto p = (unsigned long) ptr + 0x4000;
+    vm_mprotect(&kernel_address_space, (void *) p, 10 << PAGE_SHIFT, VM_WRITE);
+    printk("mprotecting from %lx to %lx\n", p, (unsigned long) p + (10 << PAGE_SHIFT));
     vm_print_map();
 
     return true;

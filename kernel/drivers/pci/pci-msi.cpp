@@ -28,7 +28,7 @@ int pci_device::enable_msi(irq_t handler, void *cookie)
         return errno = EIO, -1;
 
     bool msix = false;
-    (void)msix;
+    (void) msix;
     /* TODO: Try to prioritize finding MSI-X capabiltiies */
     size_t offset = find_capability(PCI_CAP_ID_MSI, 0);
     if (offset == 0)

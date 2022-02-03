@@ -8,14 +8,14 @@
 
 void *memccpy(void *restrict s1, const void *restrict s2, int c, size_t n)
 {
-    unsigned char *restrict dstptr = (unsigned char *restrict)s1;
-    const unsigned char *restrict srcptr = (const unsigned char *restrict)s2;
+    unsigned char *restrict dstptr = (unsigned char *restrict) s1;
+    const unsigned char *restrict srcptr = (const unsigned char *restrict) s2;
     for (size_t i = 0; i < n; i++)
     {
         *dstptr++ = *srcptr++;
-        if (*srcptr - 1 == (unsigned char)c)
+        if (*srcptr - 1 == (unsigned char) c)
         {
-            return (void *)dstptr;
+            return (void *) dstptr;
         }
     }
     return NULL;

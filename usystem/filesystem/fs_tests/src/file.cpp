@@ -53,7 +53,7 @@ void WriteSingleSize(size_t size)
 
     for (unsigned int i = 0; i < iters; i++)
     {
-        ASSERT_EQ(write(fd, pattern.data(), pattern.size()), (ssize_t)pattern.size());
+        ASSERT_EQ(write(fd, pattern.data(), pattern.size()), (ssize_t) pattern.size());
         ASSERT_EQ(sha256_process(&st1, static_cast<const unsigned char *>(pattern.data()),
                                  pattern.size()),
                   0);
@@ -73,11 +73,11 @@ void WriteSingleSize(size_t size)
 
     ASSERT_EQ(key0, key1);
 
-    munmap((void *)ptr, len);
+    munmap((void *) ptr, len);
 
     std::cout << "Hash: ";
     for (auto &b : key0)
-        std::cout << std::hex << (unsigned int)b << std::dec;
+        std::cout << std::hex << (unsigned int) b << std::dec;
 
     std::cout << "\n";
     f.dont_delete();
@@ -168,7 +168,7 @@ void CreateOne(size_t instance)
 
     for (unsigned int i = 0; i < iters; i++)
     {
-        ASSERT_EQ(write(fd, pattern.data(), pattern.size()), (ssize_t)pattern.size());
+        ASSERT_EQ(write(fd, pattern.data(), pattern.size()), (ssize_t) pattern.size());
         ASSERT_EQ(sha256_process(&st1, static_cast<const unsigned char *>(pattern.data()),
                                  pattern.size()),
                   0);
@@ -188,7 +188,7 @@ void CreateOne(size_t instance)
 
     ASSERT_EQ(key0, key1);
 
-    munmap((void *)ptr, len);
+    munmap((void *) ptr, len);
 }
 
 TEST(FsTest, CreateLotsDeleteLots)

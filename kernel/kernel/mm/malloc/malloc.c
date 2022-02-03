@@ -156,13 +156,13 @@ static struct chunk *expand_heap(size_t n)
     {
         /* Valid/safe because of the prologue increment. */
         n -= SIZE_ALIGN;
-        p = (char *)p + SIZE_ALIGN;
+        p = (char *) p + SIZE_ALIGN;
         w = MEM_TO_CHUNK(p);
         w->psize = 0 | C_INUSE;
     }
 
     /* Record new heap end and fill in footer. */
-    end = (char *)p + n;
+    end = (char *) p + n;
     w = MEM_TO_CHUNK(end);
     w->psize = n | C_INUSE;
     w->csize = 0 | C_INUSE;
@@ -272,7 +272,7 @@ static int pretrim(struct chunk *self, size_t n, int i, int j)
         return 0;
 
     next = NEXT_CHUNK(self);
-    split = (void *)((char *)self + n);
+    split = (void *) ((char *) self + n);
 
     split->prev = self->prev;
     split->next = self->next;
@@ -294,7 +294,7 @@ static void trim(struct chunk *self, size_t n)
         return;
 
     next = NEXT_CHUNK(self);
-    split = (void *)((char *)self + n);
+    split = (void *) ((char *) self + n);
 
     split->psize = n | C_INUSE;
     split->csize = (n1 - n) | C_INUSE;
@@ -307,7 +307,7 @@ static void trim(struct chunk *self, size_t n)
 void *malloc(size_t n)
 {
     size_t orig_size = n;
-    (void)orig_size;
+    (void) orig_size;
     struct chunk *c;
     int i, j;
 
@@ -320,7 +320,7 @@ void *malloc(size_t n)
         char *base = __vmalloc(len);
         if (!base)
             return 0;
-        c = (void *)(base + SIZE_ALIGN - OVERHEAD);
+        c = (void *) (base + SIZE_ALIGN - OVERHEAD);
         c->csize = len - (SIZE_ALIGN - OVERHEAD);
         c->psize = SIZE_ALIGN - OVERHEAD;
         return CHUNK_TO_MEM(c);
@@ -382,7 +382,7 @@ void *__malloc0(size_t n)
 void *realloc(void *p, size_t n)
 {
     size_t orig_size = n;
-    (void)orig_size;
+    (void) orig_size;
     struct chunk *self, *next;
     size_t n0, n1;
     void *new;
@@ -443,7 +443,7 @@ void *realloc(void *p, size_t n)
 static void unmap_chunk(struct chunk *self)
 {
     size_t extra = self->psize;
-    char *base = (char *)self - extra;
+    char *base = (char *) self - extra;
     size_t len = CHUNK_SIZE(self) + extra;
     /* Crash on double free */
     if (extra & 1)
@@ -472,7 +472,7 @@ void __bin_chunk(struct chunk *self)
 
     final_size = new_size = CHUNK_SIZE(self);
     size_t kasan_size = CHUNK_SIZE(self) - OVERHEAD;
-    (void)kasan_size;
+    (void) kasan_size;
 
 #ifdef CONFIG_KASAN
     kasan_set_state(CHUNK_TO_MEM(self), kasan_size, 1);
@@ -533,9 +533,9 @@ void __bin_chunk(struct chunk *self)
     /* Replace middle of large chunks with fresh zero pages */
     if (reclaim)
     {
-        uintptr_t a = ((uintptr_t)self + SIZE_ALIGN + PAGE_SIZE - 1) & -PAGE_SIZE;
-        uintptr_t b = ((uintptr_t)next - SIZE_ALIGN) & -PAGE_SIZE;
-        memset((void *)a, 0, b - a);
+        uintptr_t a = ((uintptr_t) self + SIZE_ALIGN + PAGE_SIZE - 1) & -PAGE_SIZE;
+        uintptr_t b = ((uintptr_t) next - SIZE_ALIGN) & -PAGE_SIZE;
+        memset((void *) a, 0, b - a);
     }
 
     unlock_bin(i);

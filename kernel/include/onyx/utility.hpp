@@ -85,7 +85,7 @@ constexpr T align_down2(T number, U alignment)
 template <typename Type, typename Type2>
 Type2 clamp(Type t0, Type2 max)
 {
-    return t0 > max ? max : (Type2)t0;
+    return t0 > max ? max : (Type2) t0;
 }
 
 #define CLASS_DISALLOW_MOVE(class_name)               \

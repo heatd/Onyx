@@ -30,7 +30,7 @@ static constexpr unsigned long arp_validity_time_ms = 1200000;
 
 int arp_do_request(netif *netif, packetbuf *packet)
 {
-    auto arp_hdr = (arp_request_t *)packet->data;
+    auto arp_hdr = (arp_request_t *) packet->data;
 
     auto target_addr = arp_hdr->target_proto_address;
     uint8_t hw_address[6];
@@ -73,7 +73,7 @@ int arp_do_request(netif *netif, packetbuf *packet)
 
 int arp_handle_packet(netif *netif, packetbuf *buf)
 {
-    auto arp = (arp_request_t *)buf->data;
+    auto arp = (arp_request_t *) buf->data;
 
     if (buf->length() < sizeof(arp_request_t))
         return -EINVAL;

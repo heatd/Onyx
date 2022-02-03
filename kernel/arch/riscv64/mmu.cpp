@@ -75,7 +75,7 @@ PML *alloc_pt(void)
         __atomic_add_fetch(&allocated_page_tables, 1, __ATOMIC_RELAXED);
     }
 
-    return p != nullptr ? (PML *)pfn_to_paddr(page_to_pfn(p)) : nullptr;
+    return p != nullptr ? (PML *) pfn_to_paddr(page_to_pfn(p)) : nullptr;
 }
 
 PML *boot_pt;
@@ -85,7 +85,7 @@ PML *get_current_page_tables(void)
     struct process *p = get_current_process();
     if (!p)
         return boot_pt;
-    return (PML *)p->address_space.arch_mmu.top_pt;
+    return (PML *) p->address_space.arch_mmu.top_pt;
 }
 
 #define VERYHUGE512GB_SHIFT 39
@@ -110,19 +110,19 @@ static bool pt_entry_is_huge(unsigned long pt_entry)
 
 void *__virtual2phys(PML *__pml, void *ptr)
 {
-    unsigned long virt = (unsigned long)ptr;
+    unsigned long virt = (unsigned long) ptr;
     unsigned int indices[riscv_max_paging_levels];
 
     addr_to_indices(virt, indices);
 
-    PML *pml = (PML *)((uint64_t)__pml + PHYS_BASE);
+    PML *pml = (PML *) ((uint64_t) __pml + PHYS_BASE);
 
     for (unsigned int i = riscv_paging_levels; i != 1; i--)
     {
         uint64_t entry = pml->entries[indices[i - 1]];
 
         if (!(entry & RISCV_MMU_VALID))
-            return (void *)-1;
+            return (void *) -1;
 
         if (pt_entry_is_huge(entry))
         {
@@ -132,16 +132,16 @@ void *__virtual2phys(PML *__pml, void *ptr)
             unsigned long size = is_1gb ? HUGE1GB_SIZE : LARGE2MB_SIZE;
             unsigned long page_base = PML_EXTRACT_ADDRESS(entry);
             unsigned long page_off = virt & (size - 1);
-            return (void *)(page_base + page_off);
+            return (void *) (page_base + page_off);
         }
 
-        pml = (PML *)PHYS_TO_VIRT(PML_EXTRACT_ADDRESS(entry));
+        pml = (PML *) PHYS_TO_VIRT(PML_EXTRACT_ADDRESS(entry));
     }
 
     unsigned long phys = PML_EXTRACT_ADDRESS(pml->entries[indices[0]]);
     unsigned long page_off = virt & (PAGE_SIZE - 1);
 
-    return (void *)(phys + page_off);
+    return (void *) (phys + page_off);
 }
 
 void *virtual2phys(void *ptr)
@@ -165,12 +165,12 @@ PML *riscv_get_top_page_table()
 {
     unsigned long satp = riscv_read_csr(RISCV_SATP);
 
-    return (PML *)((satp & RISCV_SATP_ROOT_PT_MASK) << PAGE_SHIFT);
+    return (PML *) ((satp & RISCV_SATP_ROOT_PT_MASK) << PAGE_SHIFT);
 }
 
 unsigned long riscv_make_pt_entry_page_table(PML *next_pt)
 {
-    return ((unsigned long)next_pt >> PAGE_SHIFT) << 10 | RISCV_MMU_VALID;
+    return ((unsigned long) next_pt >> PAGE_SHIFT) << 10 | RISCV_MMU_VALID;
 }
 
 unsigned long riscv_pt_page_mapping(unsigned long paddr)
@@ -181,7 +181,7 @@ unsigned long riscv_pt_page_mapping(unsigned long paddr)
 void paging_init(void)
 {
     /* Get the current PML and store it */
-    boot_pt = (PML *)riscv_get_top_page_table();
+    boot_pt = (PML *) riscv_get_top_page_table();
     /* Bootstrap the first 1GB */
     uintptr_t virt = PHYS_BASE;
 
@@ -212,13 +212,13 @@ void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64
 
     uint64_t *ptentry;
 
-    if (!riscv_get_pt_entry((void *)virt, &ptentry, true, as))
+    if (!riscv_get_pt_entry((void *) virt, &ptentry, true, as))
         return nullptr;
 
     uint64_t page_prots = vm_prots_to_mmu(prot);
 
     if (prot & VM_DONT_MAP_OVER && *ptentry & RISCV_MMU_VALID)
-        return (void *)virt;
+        return (void *) virt;
 
     uint64_t old = *ptentry;
 
@@ -229,7 +229,7 @@ void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64
         increment_vm_stat(as, resident_set_size, PAGE_SIZE);
     }
 
-    return (void *)virt;
+    return (void *) virt;
 }
 
 bool pml_is_empty(const PML *pml)
@@ -252,7 +252,7 @@ struct pt_location
 bool riscv_get_pt_entry_with_ptables(void *addr, uint64_t **entry_ptr, struct mm_address_space *mm,
                                      struct pt_location location[4])
 {
-    unsigned long virt = (unsigned long)addr;
+    unsigned long virt = (unsigned long) addr;
     unsigned int indices[riscv_max_paging_levels];
 
     for (unsigned int i = 0; i < riscv_paging_levels; i++)
@@ -261,7 +261,7 @@ bool riscv_get_pt_entry_with_ptables(void *addr, uint64_t **entry_ptr, struct mm
         location[4 - 1 - i].index = indices[i];
     }
 
-    PML *pml = (PML *)((unsigned long)mm->arch_mmu.top_pt + PHYS_BASE);
+    PML *pml = (PML *) ((unsigned long) mm->arch_mmu.top_pt + PHYS_BASE);
     unsigned int location_index = 0;
 
     for (unsigned int i = riscv_paging_levels; i != 1; i--)
@@ -272,8 +272,8 @@ bool riscv_get_pt_entry_with_ptables(void *addr, uint64_t **entry_ptr, struct mm
 
         if (entry & RISCV_MMU_VALID)
         {
-            void *page = (void *)PML_EXTRACT_ADDRESS(entry);
-            pml = (PML *)PHYS_TO_VIRT(page);
+            void *page = (void *) PML_EXTRACT_ADDRESS(entry);
+            pml = (PML *) PHYS_TO_VIRT(page);
         }
         else
         {
@@ -297,8 +297,8 @@ int paging_clone_as(struct mm_address_space *addr_space)
 
     addr_space->page_tables_size = PAGE_SIZE;
 
-    PML *p = (PML *)PHYS_TO_VIRT(new_pml);
-    PML *curr = (PML *)((uint64_t)get_current_page_tables() + PHYS_BASE);
+    PML *p = (PML *) PHYS_TO_VIRT(new_pml);
+    PML *curr = (PML *) ((uint64_t) get_current_page_tables() + PHYS_BASE);
     /* Copy the upper 256 entries of the PML in order to map
      * the kernel in the process's address space
      */
@@ -320,9 +320,9 @@ PML *paging_fork_pml(PML *pml, int entry, struct mm_address_space *as)
 
     increment_vm_stat(as, page_tables_size, PAGE_SIZE);
 
-    pml->entries[entry] = (uint64_t)new_pt | perms;
-    PML *new_pml = (PML *)PHYS_TO_VIRT(new_pt);
-    PML *old_pml = (PML *)PHYS_TO_VIRT(old_address);
+    pml->entries[entry] = (uint64_t) new_pt | perms;
+    PML *new_pml = (PML *) PHYS_TO_VIRT(new_pt);
+    PML *old_pml = (PML *) PHYS_TO_VIRT(old_address);
     memcpy(new_pml, old_pml, sizeof(PML));
     return new_pml;
 }
@@ -337,17 +337,17 @@ int paging_fork_tables(struct mm_address_space *addr_space)
     increment_vm_stat(addr_space, page_tables_size, PAGE_SIZE);
 
     unsigned long new_pml = pfn_to_paddr(page_to_pfn(page));
-    PML *p = (PML *)PHYS_TO_VIRT(new_pml);
-    PML *curr = (PML *)PHYS_TO_VIRT(get_current_page_tables());
+    PML *p = (PML *) PHYS_TO_VIRT(new_pml);
+    PML *curr = (PML *) PHYS_TO_VIRT(get_current_page_tables());
     memcpy(p, curr, sizeof(PML));
 
-    PML *mod_pml = (PML *)PHYS_TO_VIRT(new_pml);
+    PML *mod_pml = (PML *) PHYS_TO_VIRT(new_pml);
     /* TODO: Destroy the page tables on failure */
     for (int i = 0; i < 256; i++)
     {
         if (mod_pml->entries[i] & RISCV_MMU_VALID)
         {
-            PML *pml3 = (PML *)paging_fork_pml(mod_pml, i, addr_space);
+            PML *pml3 = (PML *) paging_fork_pml(mod_pml, i, addr_space);
             if (!pml3)
             {
                 return -1;
@@ -357,7 +357,7 @@ int paging_fork_tables(struct mm_address_space *addr_space)
             {
                 if (pml3->entries[j] & RISCV_MMU_VALID)
                 {
-                    PML *pml2 = (PML *)paging_fork_pml((PML *)pml3, j, addr_space);
+                    PML *pml2 = (PML *) paging_fork_pml((PML *) pml3, j, addr_space);
                     if (!pml2)
                     {
                         return -1;
@@ -368,7 +368,7 @@ int paging_fork_tables(struct mm_address_space *addr_space)
                         if (pml2->entries[k] & RISCV_MMU_VALID &&
                             !pt_entry_is_huge(pml2->entries[k]))
                         {
-                            PML *pml1 = (PML *)paging_fork_pml((PML *)pml2, k, addr_space);
+                            PML *pml1 = (PML *) paging_fork_pml((PML *) pml2, k, addr_space);
                             if (!pml1)
                             {
                                 return -1;
@@ -380,33 +380,33 @@ int paging_fork_tables(struct mm_address_space *addr_space)
         }
     }
 
-    addr_space->arch_mmu.top_pt = (void *)new_pml;
+    addr_space->arch_mmu.top_pt = (void *) new_pml;
     return 0;
 }
 
 void paging_load_top_pt(PML *pml)
 {
-    unsigned long new_satp = RISCV_SATP_4LEVEL_MMU | (unsigned long)pml >> PAGE_SHIFT;
+    unsigned long new_satp = RISCV_SATP_4LEVEL_MMU | (unsigned long) pml >> PAGE_SHIFT;
     riscv_write_csr(RISCV_SATP, new_satp);
 }
 
 bool riscv_get_pt_entry(void *addr, uint64_t **entry_ptr, bool may_create_path,
                         struct mm_address_space *mm)
 {
-    unsigned long virt = (unsigned long)addr;
+    unsigned long virt = (unsigned long) addr;
     unsigned int indices[riscv_max_paging_levels];
 
     addr_to_indices(virt, indices);
 
-    PML *pml = (PML *)((unsigned long)mm->arch_mmu.top_pt + PHYS_BASE);
+    PML *pml = (PML *) ((unsigned long) mm->arch_mmu.top_pt + PHYS_BASE);
 
     for (unsigned int i = riscv_paging_levels; i != 1; i--)
     {
         uint64_t entry = pml->entries[indices[i - 1]];
         if (entry & RISCV_MMU_VALID)
         {
-            void *page = (void *)PML_EXTRACT_ADDRESS(entry);
-            pml = (PML *)PHYS_TO_VIRT(page);
+            void *page = (void *) PML_EXTRACT_ADDRESS(entry);
+            pml = (PML *) PHYS_TO_VIRT(page);
         }
         else
         {
@@ -455,7 +455,7 @@ bool __paging_change_perms(struct mm_address_space *mm, void *addr, int prot)
 bool paging_change_perms(void *addr, int prot)
 {
     struct mm_address_space *as = &kernel_address_space;
-    if ((unsigned long)addr < VM_HIGHER_HALF)
+    if ((unsigned long) addr < VM_HIGHER_HALF)
         as = get_current_address_space();
 
     return __paging_change_perms(as, addr, prot);
@@ -474,7 +474,7 @@ bool paging_write_protect(void *addr, struct mm_address_space *mm)
 
 int is_invalid_arch_range(void *address, size_t pages)
 {
-    unsigned long addr = (unsigned long)address;
+    unsigned long addr = (unsigned long) address;
     auto limit = addr + (pages << PAGE_SHIFT);
 
     if (addr <= arch_low_half_max && limit >= VM_HIGHER_HALF)
@@ -498,27 +498,27 @@ void paging_protect_kernel(void)
     assert(pml != NULL);
     boot_pt = pml;
 
-    uintptr_t text_start = (uintptr_t)&_text_start;
-    uintptr_t data_start = (uintptr_t)&_data_start;
-    uintptr_t vdso_start = (uintptr_t)&_vdso_sect_start;
+    uintptr_t text_start = (uintptr_t) &_text_start;
+    uintptr_t data_start = (uintptr_t) &_data_start;
+    uintptr_t vdso_start = (uintptr_t) &_vdso_sect_start;
 
-    memcpy((PML *)((uintptr_t)pml + PHYS_BASE), (PML *)((uintptr_t)original_pml + PHYS_BASE),
+    memcpy((PML *) ((uintptr_t) pml + PHYS_BASE), (PML *) ((uintptr_t) original_pml + PHYS_BASE),
            sizeof(PML));
-    PML *p = (PML *)((uintptr_t)pml + PHYS_BASE);
+    PML *p = (PML *) ((uintptr_t) pml + PHYS_BASE);
     p->entries[511] = 0UL;
     p->entries[0] = 0UL;
 
     kernel_address_space.arch_mmu.top_pt = pml;
 
-    size_t size = (uintptr_t)&_text_end - text_start;
-    map_pages_to_vaddr((void *)text_start, (void *)(text_start - KERNEL_VIRTUAL_BASE), size, 0);
+    size_t size = (uintptr_t) &_text_end - text_start;
+    map_pages_to_vaddr((void *) text_start, (void *) (text_start - KERNEL_VIRTUAL_BASE), size, 0);
 
-    size = (uintptr_t)&_data_end - data_start;
-    map_pages_to_vaddr((void *)data_start, (void *)(data_start - KERNEL_VIRTUAL_BASE), size,
+    size = (uintptr_t) &_data_end - data_start;
+    map_pages_to_vaddr((void *) data_start, (void *) (data_start - KERNEL_VIRTUAL_BASE), size,
                        VM_WRITE | VM_NOEXEC);
 
-    size = (uintptr_t)&_vdso_sect_end - vdso_start;
-    map_pages_to_vaddr((void *)vdso_start, (void *)(vdso_start - KERNEL_VIRTUAL_BASE), size,
+    size = (uintptr_t) &_vdso_sect_end - vdso_start;
+    map_pages_to_vaddr((void *) vdso_start, (void *) (vdso_start - KERNEL_VIRTUAL_BASE), size,
                        VM_WRITE);
 
     percpu_map_master_copy();
@@ -530,12 +530,12 @@ unsigned long total_shootdowns = 0;
 
 void paging_invalidate(void *page, size_t pages)
 {
-    uintptr_t p = (uintptr_t)page;
+    uintptr_t p = (uintptr_t) page;
 
     for (size_t i = 0; i < pages; i++, p += PAGE_SIZE)
     {
         total_shootdowns++;
-        __native_tlb_invalidate_page((void *)p);
+        __native_tlb_invalidate_page((void *) p);
     }
 }
 
@@ -584,7 +584,7 @@ void paging_free_pml3(PML *pml)
         if (pml->entries[i] & RISCV_MMU_VALID)
         {
             unsigned long phys_addr = PML_EXTRACT_ADDRESS(pml->entries[i]);
-            PML *pml2 = (PML *)PHYS_TO_VIRT(phys_addr);
+            PML *pml2 = (PML *) PHYS_TO_VIRT(phys_addr);
             paging_free_pml2(pml2);
 
             free_page(phys_to_page(phys_addr));
@@ -594,14 +594,14 @@ void paging_free_pml3(PML *pml)
 
 void paging_free_page_tables(struct mm_address_space *mm)
 {
-    PML *pml = (PML *)PHYS_TO_VIRT(mm->arch_mmu.top_pt);
+    PML *pml = (PML *) PHYS_TO_VIRT(mm->arch_mmu.top_pt);
 
     for (int i = 0; i < 256; i++)
     {
         if (pml->entries[i] & RISCV_MMU_VALID)
         {
             unsigned long phys_addr = PML_EXTRACT_ADDRESS(pml->entries[i]);
-            PML *pml3 = (PML *)PHYS_TO_VIRT(phys_addr);
+            PML *pml3 = (PML *) PHYS_TO_VIRT(phys_addr);
             paging_free_pml3(pml3);
 
             free_page(phys_to_page(phys_addr));
@@ -609,13 +609,13 @@ void paging_free_page_tables(struct mm_address_space *mm)
         }
     }
 
-    free_page(phys_to_page((unsigned long)mm->arch_mmu.top_pt));
+    free_page(phys_to_page((unsigned long) mm->arch_mmu.top_pt));
 }
 
 unsigned long get_mapping_info(void *addr)
 {
     struct mm_address_space *as = &kernel_address_space;
-    if ((unsigned long)addr < VM_HIGHER_HALF)
+    if ((unsigned long) addr < VM_HIGHER_HALF)
         as = get_current_address_space();
 
     return __get_mapping_info(addr, as);
@@ -664,7 +664,7 @@ unsigned long __get_mapping_info(void *addr, struct mm_address_space *as)
  */
 void vm_free_arch_mmu(struct arch_mm_address_space *mm)
 {
-    free_page(phys_to_page((unsigned long)mm->top_pt));
+    free_page(phys_to_page((unsigned long) mm->top_pt));
 }
 
 /**
@@ -674,7 +674,7 @@ void vm_free_arch_mmu(struct arch_mm_address_space *mm)
  */
 void vm_load_arch_mmu(struct arch_mm_address_space *mm)
 {
-    paging_load_top_pt((PML *)mm->top_pt);
+    paging_load_top_pt((PML *) mm->top_pt);
 }
 
 /**
@@ -946,7 +946,7 @@ static int riscv_mmu_unmap(PML *table, unsigned int pt_level, page_table_iterato
         else
         {
             assert((pt_entry & RISCV_MMU_VALID) != 0);
-            PML *next_table = (PML *)PHYS_TO_VIRT(PML_EXTRACT_ADDRESS(pt_entry));
+            PML *next_table = (PML *) PHYS_TO_VIRT(PML_EXTRACT_ADDRESS(pt_entry));
             int st = riscv_mmu_unmap(next_table, pt_level - 1, it);
 
             if (st == MMU_UNMAP_CAN_FREE_PML)
@@ -984,12 +984,12 @@ static int riscv_mmu_unmap(PML *table, unsigned int pt_level, page_table_iterato
 
 int vm_mmu_unmap(struct mm_address_space *as, void *addr, size_t pages)
 {
-    unsigned long virt = (unsigned long)addr;
+    unsigned long virt = (unsigned long) addr;
     size_t size = pages << PAGE_SHIFT;
 
     page_table_iterator it{virt, size, as};
 
-    PML *first_level = (PML *)PHYS_TO_VIRT(as->arch_mmu.top_pt);
+    PML *first_level = (PML *) PHYS_TO_VIRT(as->arch_mmu.top_pt);
 
     riscv_mmu_unmap(first_level, riscv_paging_levels - 1, it);
 
@@ -1015,7 +1015,7 @@ struct mm_shootdown_info
 
 void riscv_invalidate_tlb(void *context)
 {
-    auto info = (mm_shootdown_info *)context;
+    auto info = (mm_shootdown_info *) context;
     auto addr = info->addr;
     auto pages = info->pages;
     auto addr_space = info->mm;
@@ -1025,7 +1025,7 @@ void riscv_invalidate_tlb(void *context)
     if (is_higher_half(addr) ||
         (curr_thread->owner && &curr_thread->owner->address_space == addr_space))
     {
-        paging_invalidate((void *)addr, pages);
+        paging_invalidate((void *) addr, pages);
         add_per_cpu(tlb_nr_invals, 1);
     }
 }
@@ -1086,8 +1086,8 @@ static void mmu_acct_page_table(PML *pt, page_table_levels level, mmu_acct &acct
 
         if (level != PT_LEVEL)
         {
-            mmu_acct_page_table((PML *)PHYS_TO_VIRT(PML_EXTRACT_ADDRESS(pte)),
-                                (page_table_levels)(level - 1), acct);
+            mmu_acct_page_table((PML *) PHYS_TO_VIRT(PML_EXTRACT_ADDRESS(pte)),
+                                (page_table_levels) (level - 1), acct);
         }
         else
         {
@@ -1105,7 +1105,7 @@ void mmu_verify_address_space_accounting(mm_address_space *as)
 {
     mmu_acct acct{};
     acct.as = as;
-    mmu_acct_page_table((PML *)PHYS_TO_VIRT(as->arch_mmu.top_pt), PML4_LEVEL, acct);
+    mmu_acct_page_table((PML *) PHYS_TO_VIRT(as->arch_mmu.top_pt), PML4_LEVEL, acct);
 
     assert(acct.page_table_size == as->page_tables_size);
     assert(acct.resident_set_size == as->resident_set_size);

@@ -19,7 +19,7 @@
 
 int rtl8168_probe(device *dev_)
 {
-    auto dev = (pci::pci_device *)dev_;
+    auto dev = (pci::pci_device *) dev_;
 
     auto addr = dev->addr();
 

@@ -138,7 +138,7 @@ public:
         : pid{pid}, handle_table{}, handle_table_lock{}, curr_fake_offset{}, mappings_lock{},
           mapping_list{}
     {
-        (void)pid;
+        (void) pid;
     }
 
     ~context() = default;

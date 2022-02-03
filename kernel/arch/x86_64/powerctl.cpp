@@ -60,7 +60,7 @@ extern "C" int do_machine_reboot(unsigned int flags)
             p.base = 0;
             p.limit = 0;
 
-            idt_flush((uint64_t)&p);
+            idt_flush((uint64_t) &p);
 
             __asm__ __volatile__("ud2");
 

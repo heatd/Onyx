@@ -48,7 +48,7 @@ static inline ssize_t iovec_count_length(iovec *vec, unsigned int n)
 
     while (n--)
     {
-        if ((ssize_t)vec->iov_len < 0)
+        if ((ssize_t) vec->iov_len < 0)
             return -EINVAL;
 
         if (__builtin_saddl_overflow(length, vec->iov_len, &length))
@@ -188,7 +188,7 @@ public:
     template <typename Type>
     static int put_option(const Type &val, void *option, socklen_t *length)
     {
-        unsigned int length_ = min(sizeof(Type), (size_t)*length);
+        unsigned int length_ = min(sizeof(Type), (size_t) *length);
         memcpy(option, &val, length_);
         *length = length_;
 
@@ -207,7 +207,7 @@ public:
 
     static int truthy_to_int(bool val)
     {
-        return (int)val;
+        return (int) val;
     }
 
     virtual int listen();
@@ -239,7 +239,7 @@ public:
 template <typename T>
 sockaddr &sa_generic(T &s)
 {
-    return (sockaddr &)s;
+    return (sockaddr &) s;
 }
 
 #define SOL_ICMP   800

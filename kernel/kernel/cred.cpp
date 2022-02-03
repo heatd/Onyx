@@ -223,9 +223,9 @@ int sys_set_uids(unsigned int flags, uid_t ruid, uid_t euid, uid_t suid)
     /* We check for -1 because it's an invalid uid and POSIX uses it in
      * setresuid to signal a UID that shouldn't be changed.
      */
-    bool euid_valid = flags & SET_UIDS_EUID_VALID && euid != (uid_t)-1;
-    bool ruid_valid = flags & SET_UIDS_RUID_VALID && ruid != (uid_t)-1;
-    bool suid_valid = flags & SET_UIDS_SUID_VALID && suid != (uid_t)-1;
+    bool euid_valid = flags & SET_UIDS_EUID_VALID && euid != (uid_t) -1;
+    bool ruid_valid = flags & SET_UIDS_RUID_VALID && ruid != (uid_t) -1;
+    bool suid_valid = flags & SET_UIDS_SUID_VALID && suid != (uid_t) -1;
 
     auto c = g.get();
 
@@ -261,9 +261,9 @@ int sys_set_gids(unsigned int flags, gid_t rgid, gid_t egid, gid_t sgid)
      * setresuid to signal a GID that shouldn't be changed.
      */
 
-    bool egid_valid = flags & SET_GIDS_EGID_VALID && egid != (gid_t)-1;
-    bool rgid_valid = flags & SET_GIDS_RGID_VALID && rgid != (gid_t)-1;
-    bool sgid_valid = flags & SET_GIDS_SGID_VALID && sgid != (gid_t)-1;
+    bool egid_valid = flags & SET_GIDS_EGID_VALID && egid != (gid_t) -1;
+    bool rgid_valid = flags & SET_GIDS_RGID_VALID && rgid != (gid_t) -1;
+    bool sgid_valid = flags & SET_GIDS_SGID_VALID && sgid != (gid_t) -1;
 
     auto c = g.get();
 
@@ -301,7 +301,7 @@ int supp_groups::set_groups(const gid_t *u_gid_list, size_t size)
 
 int supp_groups::get_groups(int _size, gid_t *ugids)
 {
-    size_t size = (size_t)_size;
+    size_t size = (size_t) _size;
     if (size == 0)
     {
         /* When size = 0, getgroups returns the size of the supplementary group list */

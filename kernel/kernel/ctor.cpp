@@ -25,7 +25,7 @@ extern "C" void runtime_call_constructors()
     {
         ctor ct = *(ctors + i);
 
-        if (!ct || ct == (ctor)-1)
+        if (!ct || ct == (ctor) -1)
             continue;
 
         ct();

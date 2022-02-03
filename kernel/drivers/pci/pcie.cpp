@@ -46,7 +46,7 @@ pcie_allocation *find_alloc_for_root(uint16_t segment, uint8_t nbus)
 int pcie_get_mcfg(void)
 {
     ACPI_STATUS st;
-    if (ACPI_FAILURE((st = AcpiGetTable((char *)"MCFG", 0, (ACPI_TABLE_HEADER **)&mcfg))))
+    if (ACPI_FAILURE((st = AcpiGetTable((char *) "MCFG", 0, (ACPI_TABLE_HEADER **) &mcfg))))
     {
         printf("pcie: MCFG not found - proceeding with conventional pci.\n");
         return 0;
@@ -71,18 +71,18 @@ struct pcie_address
 
 static inline uint32_t __pcie_config_read_dword(const pcie_address &addr)
 {
-    uintptr_t ptr = (uintptr_t)addr.alloc->address + ((addr.bus - addr.alloc->start_bus) << 20 |
-                                                      addr.device << 15 | addr.function << 12);
-    volatile uint32_t *data = (volatile uint32_t *)(ptr + addr.offset);
+    uintptr_t ptr = (uintptr_t) addr.alloc->address + ((addr.bus - addr.alloc->start_bus) << 20 |
+                                                       addr.device << 15 | addr.function << 12);
+    volatile uint32_t *data = (volatile uint32_t *) (ptr + addr.offset);
 
     return *data;
 }
 
 static inline void __pcie_config_write_dword(const pcie_address &addr, uint32_t data)
 {
-    uintptr_t ptr = (uintptr_t)addr.alloc->address + ((addr.bus - addr.alloc->start_bus) << 20 |
-                                                      addr.device << 15 | addr.function << 12);
-    volatile uint32_t *uptr = (volatile uint32_t *)(ptr + addr.offset);
+    uintptr_t ptr = (uintptr_t) addr.alloc->address + ((addr.bus - addr.alloc->start_bus) << 20 |
+                                                       addr.device << 15 | addr.function << 12);
+    volatile uint32_t *uptr = (volatile uint32_t *) (ptr + addr.offset);
 
     *uptr = data;
 }
@@ -95,7 +95,7 @@ void __pcie_config_write_byte(pcie_address &addr, uint8_t data)
     addr.offset = aligned_offset;
     uint32_t dword = __pcie_config_read_dword(addr);
 
-    dword = (dword & ~write_mask) | (uint32_t)data << (write_offset * 8);
+    dword = (dword & ~write_mask) | (uint32_t) data << (write_offset * 8);
 
     __pcie_config_write_dword(addr, dword);
 }
@@ -127,9 +127,9 @@ uint16_t __pcie_config_read_word(pcie_address &addr)
 
 void __pcie_config_write_word_aligned(const pcie_address &addr, uint16_t data)
 {
-    uintptr_t ptr = (uintptr_t)addr.alloc->address + ((addr.bus - addr.alloc->start_bus) << 20 |
-                                                      addr.device << 15 | addr.function << 12);
-    volatile uint16_t *uptr = (volatile uint16_t *)(ptr + addr.offset);
+    uintptr_t ptr = (uintptr_t) addr.alloc->address + ((addr.bus - addr.alloc->start_bus) << 20 |
+                                                       addr.device << 15 | addr.function << 12);
+    volatile uint16_t *uptr = (volatile uint16_t *) (ptr + addr.offset);
 
     *uptr = data;
 }
@@ -149,7 +149,7 @@ void __pcie_config_write_word(pcie_address &addr, uint16_t data)
         return;
     }
 
-    uint32_t byte_mask = (uint32_t)0xffff << (bshift * 8);
+    uint32_t byte_mask = (uint32_t) 0xffff << (bshift * 8);
     addr.offset = aligned_offset;
     uint32_t dword = __pcie_config_read_dword(addr);
     dword = (dword & ~byte_mask) | (data << (bshift * 8));
@@ -175,7 +175,7 @@ uint64_t pcie_read_config(pcie_address &addr, uint16_t off, size_t size)
     case sizeof(uint64_t):
         val = __pcie_config_read_dword(addr);
         addr.offset += 4;
-        val |= (uint64_t)__pcie_config_read_dword(addr) << 32;
+        val |= (uint64_t) __pcie_config_read_dword(addr) << 32;
         break;
     }
 
@@ -189,18 +189,18 @@ void pcie_write_config(pcie_address &addr, uint64_t value, uint16_t off, size_t 
     switch (size)
     {
     case sizeof(uint8_t):
-        __pcie_config_write_byte(addr, (uint8_t)value);
+        __pcie_config_write_byte(addr, (uint8_t) value);
         break;
     case sizeof(uint16_t):
-        __pcie_config_write_word(addr, (uint16_t)value);
+        __pcie_config_write_word(addr, (uint16_t) value);
         break;
     case sizeof(uint32_t):
-        __pcie_config_write_dword(addr, (uint32_t)value);
+        __pcie_config_write_dword(addr, (uint32_t) value);
         break;
     case sizeof(uint64_t):
-        __pcie_config_write_byte(addr, (uint32_t)value);
+        __pcie_config_write_byte(addr, (uint32_t) value);
         addr.offset += 4;
-        __pcie_config_write_dword(addr, (uint32_t)(value >> 32));
+        __pcie_config_write_dword(addr, (uint32_t) (value >> 32));
         break;
     default:
         INFO("pcie", "pcie_write_device_from_segment: Invalid size\n");
@@ -269,7 +269,7 @@ int pcie_init(void)
      * To read every MCFG allocation, we get the end of the table. The allocations
      * start there, and there are x number of them
      */
-    ACPI_MCFG_ALLOCATION *alloc = (ACPI_MCFG_ALLOCATION *)(mcfg + 1);
+    ACPI_MCFG_ALLOCATION *alloc = (ACPI_MCFG_ALLOCATION *) (mcfg + 1);
     size_t nr_allocs =
         (mcfg->Header.Length - sizeof(ACPI_TABLE_MCFG)) / sizeof(ACPI_MCFG_ALLOCATION);
     while (nr_allocs--)
@@ -281,7 +281,7 @@ int pcie_init(void)
         size_t size = nr_buses << 20;
 
         allocation.address =
-            mmiomap((void *)alloc->Address, size, VM_WRITE | VM_NOEXEC | VM_NOCACHE);
+            mmiomap((void *) alloc->Address, size, VM_WRITE | VM_NOEXEC | VM_NOCACHE);
 
         if (!allocation.address)
             return -ENOMEM;
@@ -292,7 +292,7 @@ int pcie_init(void)
 
         if (!allocations.push_back(cul::move(allocation)))
         {
-            vm_munmap(&kernel_address_space, (void *)allocation.address, size);
+            vm_munmap(&kernel_address_space, (void *) allocation.address, size);
             return -ENOMEM;
         }
 

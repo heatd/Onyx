@@ -9,12 +9,12 @@
 #include <stdint.h>
 #include <string.h>
 
-#define CONST1 ((size_t)0x0101010101010101ULL)
-#define CONST2 ((size_t)0x8080808080808080ULL)
+#define CONST1 ((size_t) 0x0101010101010101ULL)
+#define CONST2 ((size_t) 0x8080808080808080ULL)
 
 #define WORD_SIZE     (sizeof(size_t))
-#define ALIGNED(x, y) !((unsigned long)x & (y - 1))
-#define HASZERO(v)    (((v)-CONST1) & ~(v)&CONST2)
+#define ALIGNED(x, y) !((unsigned long) x & (y - 1))
+#define HASZERO(v)    (((v) -CONST1) & ~(v) &CONST2)
 
 typedef size_t __attribute__((__may_alias__)) word_t;
 
@@ -34,7 +34,7 @@ extern "C" size_t strlen(const char *s)
     for (; !HASZERO(*ptr); ptr++)
         ;
 
-    s = (const char *)ptr;
+    s = (const char *) ptr;
     for (; *s; s++)
         ;
     return s - start;

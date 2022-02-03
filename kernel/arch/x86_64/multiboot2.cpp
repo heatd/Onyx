@@ -72,7 +72,7 @@ bool grub2_rsdp_valid = false;
 uintptr_t get_rdsp_from_grub(void)
 {
     if (grub2_rsdp_valid)
-        return ((uintptr_t)&grub2_rsdp) - KERNEL_VIRTUAL_BASE;
+        return ((uintptr_t) &grub2_rsdp) - KERNEL_VIRTUAL_BASE;
     else
         return 0;
 }
@@ -94,7 +94,7 @@ void init_multiboot2_framebuffer(struct multiboot_tag_framebuffer *tagfb)
     fb.framebuffer_size = framebuffer_size;
 
     fb.framebuffer =
-        mmiomap((void *)fb.framebuffer_phys, framebuffer_size, VM_WRITE | VM_NOEXEC | VM_WC);
+        mmiomap((void *) fb.framebuffer_phys, framebuffer_size, VM_WRITE | VM_NOEXEC | VM_WC);
 
     if (!fb.framebuffer)
     {
@@ -132,7 +132,7 @@ bool range_is_used(unsigned long addr, size_t nr_pages)
     unsigned long l = addr;
     for (size_t j = 0; j < nr_pages; j++)
     {
-        if (page_is_used((void *)(l), &initrd))
+        if (page_is_used((void *) (l), &initrd))
         {
             return true;
         }
@@ -145,14 +145,14 @@ bool range_is_used(unsigned long addr, size_t nr_pages)
 
 void *multiboot2_alloc_boot_page_high(size_t nr_pages)
 {
-    auto vmmap_tag = (multiboot_tag_mmap *)temp_map_mem((unsigned long)mmap_tag);
+    auto vmmap_tag = (multiboot_tag_mmap *) temp_map_mem((unsigned long) mmap_tag);
     size_t entries = vmmap_tag->size / vmmap_tag->entry_size;
     size_t i = 0;
 
     for (; i < entries; i++)
     {
-        auto phys_mmap = (struct multiboot_mmap_entry *)mmap_tag->entries + entries - 1 - i;
-        auto mmap = (multiboot_mmap_entry *)x86_placement_map((unsigned long)phys_mmap);
+        auto phys_mmap = (struct multiboot_mmap_entry *) mmap_tag->entries + entries - 1 - i;
+        auto mmap = (multiboot_mmap_entry *) x86_placement_map((unsigned long) phys_mmap);
 
         if (mmap->type != MULTIBOOT_MEMORY_AVAILABLE)
             continue;
@@ -165,14 +165,14 @@ void *multiboot2_alloc_boot_page_high(size_t nr_pages)
                 mmap->addr += nr_pages << PAGE_SHIFT;
                 mmap->len -= nr_pages << PAGE_SHIFT;
                 // printf("allocated %lx\n", ret);
-                return (void *)ret;
+                return (void *) ret;
             }
             else if (!range_is_used(mmap->addr + mmap->len - (nr_pages << PAGE_SHIFT), nr_pages))
             {
                 unsigned long ret = mmap->addr + mmap->len - (nr_pages << PAGE_SHIFT);
                 mmap->len -= nr_pages << PAGE_SHIFT;
                 // printf("allocated %lx\n", ret);
-                return (void *)ret;
+                return (void *) ret;
             }
         }
     }
@@ -189,12 +189,12 @@ void *multiboot2_get_phys_mem_region(uintptr_t *base, uintptr_t *size, void *con
 {
     /* Context holds an array index */
 
-    auto tag = (multiboot_tag_mmap *)temp_map_mem((unsigned long)mmap_tag);
+    auto tag = (multiboot_tag_mmap *) temp_map_mem((unsigned long) mmap_tag);
     size_t entries = tag->size / tag->entry_size;
-    size_t curr_entry = (size_t)context;
+    size_t curr_entry = (size_t) context;
 
     if (curr_entry == entries)
-        return (void *)0;
+        return (void *) 0;
 
     struct multiboot_mmap_entry *entry = &tag->entries[curr_entry];
 
@@ -210,12 +210,12 @@ void *multiboot2_get_phys_mem_region(uintptr_t *base, uintptr_t *size, void *con
             break;
     }
 
-    return (void *)curr_entry;
+    return (void *) curr_entry;
 }
 
 static size_t mb2_count_mem(void)
 {
-    auto vmmap_tag = (multiboot_tag_mmap *)temp_map_mem((unsigned long)mmap_tag);
+    auto vmmap_tag = (multiboot_tag_mmap *) temp_map_mem((unsigned long) mmap_tag);
     size_t entries = vmmap_tag->size / vmmap_tag->entry_size;
 
     size_t memory = 0;
@@ -223,7 +223,7 @@ static size_t mb2_count_mem(void)
     for (size_t i = 0; i < entries; i++)
     {
         auto mmap =
-            (multiboot_mmap_entry *)x86_placement_map((unsigned long)(mmap_tag->entries + i));
+            (multiboot_mmap_entry *) x86_placement_map((unsigned long) (mmap_tag->entries + i));
         if (mmap->type != MULTIBOOT_MEMORY_AVAILABLE)
             continue;
         memory += mmap->len;
@@ -241,16 +241,16 @@ static size_t mb2_count_mem(void)
 
 unsigned long mb2_get_maxpfn(void)
 {
-    auto vmmap_tag = (multiboot_tag_mmap *)temp_map_mem((unsigned long)mmap_tag);
+    auto vmmap_tag = (multiboot_tag_mmap *) temp_map_mem((unsigned long) mmap_tag);
     size_t entries = vmmap_tag->size / vmmap_tag->entry_size;
-    struct multiboot_mmap_entry *phys_mmap = (struct multiboot_mmap_entry *)vmmap_tag->entries;
+    struct multiboot_mmap_entry *phys_mmap = (struct multiboot_mmap_entry *) vmmap_tag->entries;
 
     size_t maxpfn = 0;
 
     for (size_t i = 0; i < entries; i++, phys_mmap++)
     {
         auto mmap =
-            (multiboot_mmap_entry *)x86_placement_map((unsigned long)(mmap_tag->entries + i));
+            (multiboot_mmap_entry *) x86_placement_map((unsigned long) (mmap_tag->entries + i));
 
         if (mmap->type == MULTIBOOT_MEMORY_BADRAM || mmap->type == MULTIBOOT_MEMORY_RESERVED)
             continue;
@@ -285,43 +285,43 @@ extern "C" void multiboot2_kernel_entry(uintptr_t addr, uint32_t magic)
 
     struct multiboot_tag *tag;
     struct multiboot_tag *vtag;
-    for (tag = (struct multiboot_tag *)(addr + 8),
-        vtag = (multiboot_tag *)x86_placement_map(addr + 8);
+    for (tag = (struct multiboot_tag *) (addr + 8),
+        vtag = (multiboot_tag *) x86_placement_map(addr + 8);
          vtag->type != MULTIBOOT_TAG_TYPE_END;
-         tag = (struct multiboot_tag *)((multiboot_uint8_t *)tag + ALIGN_TO(vtag->size, 8)),
-        vtag = (multiboot_tag *)x86_placement_map((unsigned long)tag))
+         tag = (struct multiboot_tag *) ((multiboot_uint8_t *) tag + ALIGN_TO(vtag->size, 8)),
+        vtag = (multiboot_tag *) x86_placement_map((unsigned long) tag))
     {
         switch (vtag->type)
         {
         case MULTIBOOT_TAG_TYPE_MMAP: {
-            mmap_tag = (struct multiboot_tag_mmap *)tag;
+            mmap_tag = (struct multiboot_tag_mmap *) tag;
             break;
         }
         case MULTIBOOT_TAG_TYPE_FRAMEBUFFER: {
-            tagfb = (struct multiboot_tag_framebuffer *)tag;
+            tagfb = (struct multiboot_tag_framebuffer *) tag;
             break;
         }
         case MULTIBOOT_TAG_TYPE_MODULE: {
-            initrd_tag = (struct multiboot_tag_module *)tag;
+            initrd_tag = (struct multiboot_tag_module *) tag;
             break;
         }
         case MULTIBOOT_TAG_TYPE_ELF_SECTIONS: {
-            secs = (struct multiboot_tag_elf_sections *)tag;
+            secs = (struct multiboot_tag_elf_sections *) tag;
             break;
         }
         case MULTIBOOT_TAG_TYPE_CMDLINE: {
-            struct multiboot_tag_string *t = (struct multiboot_tag_string *)vtag;
+            struct multiboot_tag_string *t = (struct multiboot_tag_string *) vtag;
             set_kernel_cmdline(t->string);
             break;
         }
         case MULTIBOOT_TAG_TYPE_ACPI_NEW: {
-            struct multiboot_tag_new_acpi *acpi = (struct multiboot_tag_new_acpi *)vtag;
+            struct multiboot_tag_new_acpi *acpi = (struct multiboot_tag_new_acpi *) vtag;
             memcpy(&grub2_rsdp, &acpi->rsdp, sizeof(ACPI_TABLE_RSDP));
             grub2_rsdp_valid = true;
             break;
         }
         case MULTIBOOT_TAG_TYPE_ACPI_OLD: {
-            struct multiboot_tag_old_acpi *acpi = (struct multiboot_tag_old_acpi *)vtag;
+            struct multiboot_tag_old_acpi *acpi = (struct multiboot_tag_old_acpi *) vtag;
             memcpy(&grub2_rsdp, &acpi->rsdp, sizeof(ACPI_TABLE_RSDP));
             grub2_rsdp_valid = true;
             break;
@@ -339,15 +339,15 @@ extern "C" void multiboot2_kernel_entry(uintptr_t addr, uint32_t magic)
     total_mem = mb2_count_mem();
     max_pfn = mb2_get_maxpfn();
 
-    multiboot_struct_used.start = ((uintptr_t)addr) & ~(PAGE_SIZE - 1);
+    multiboot_struct_used.start = ((uintptr_t) addr) & ~(PAGE_SIZE - 1);
 
-    multiboot_struct_used.end = (uintptr_t)page_align_up((void *)tag);
+    multiboot_struct_used.end = (uintptr_t) page_align_up((void *) tag);
     multiboot_struct_used.next = NULL;
     page_add_used_pages(&multiboot_struct_used);
 
     elf_sections_reserve(secs);
 
-    auto vinitrd_tag = (multiboot_tag_module *)x86_placement_map((unsigned long)initrd_tag);
+    auto vinitrd_tag = (multiboot_tag_module *) x86_placement_map((unsigned long) initrd_tag);
     initrd.base = vinitrd_tag->mod_start;
     initrd.size = vinitrd_tag->mod_end - vinitrd_tag->mod_start;
     initrd.next = NULL;
@@ -360,7 +360,7 @@ extern "C" void multiboot2_kernel_entry(uintptr_t addr, uint32_t magic)
 
     physical_mem_inited = true;
 
-    set_initrd_address((void *)(uintptr_t)initrd.base);
+    set_initrd_address((void *) (uintptr_t) initrd.base);
 
     page_init(total_mem, max_pfn, multiboot2_get_phys_mem_region, &initrd);
 
@@ -377,7 +377,7 @@ extern "C" void multiboot2_kernel_entry(uintptr_t addr, uint32_t magic)
     if (tagfb)
     {
         init_multiboot2_framebuffer(
-            (multiboot_tag_framebuffer *)x86_placement_map((unsigned long)tagfb));
+            (multiboot_tag_framebuffer *) x86_placement_map((unsigned long) tagfb));
     }
 
     vterm_do_init();

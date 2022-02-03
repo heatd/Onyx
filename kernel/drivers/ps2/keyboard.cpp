@@ -195,7 +195,7 @@ void ps2_on_byte(struct ps2_port *port)
     }
 
     struct input_event ev;
-    ev.code = (keycode_t)keycode;
+    ev.code = (keycode_t) keycode;
     ev.flags = (!release ? INPUT_EVENT_FLAG_PRESSED : 0);
     ev.type = INPUT_EVENT_TYPE_KEYBOARD;
 

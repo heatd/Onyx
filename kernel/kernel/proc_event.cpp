@@ -64,12 +64,12 @@ static void __remove_from_list(struct process *p, struct proc_event_sub *s)
 size_t proc_event_read(size_t offset, size_t sizeofread, void *buffer, struct file *file)
 {
     struct inode *ino = file->f_ino;
-    struct proc_event_sub *sub = (proc_event_sub *)ino->i_helper;
+    struct proc_event_sub *sub = (proc_event_sub *) ino->i_helper;
 
     if (sub->valid_sub == false)
     {
         free(sub);
-        return errno = ESRCH, (size_t)-1;
+        return errno = ESRCH, (size_t) -1;
     }
 
     if (!sub->has_new_event && file->f_flags & O_NONBLOCK)
@@ -90,7 +90,7 @@ size_t proc_event_read(size_t offset, size_t sizeofread, void *buffer, struct fi
 
 void proc_event_close(struct inode *ino)
 {
-    struct proc_event_sub *sub = (proc_event_sub *)ino->i_helper;
+    struct proc_event_sub *sub = (proc_event_sub *) ino->i_helper;
 
     if (sub->valid_sub == false)
     {
@@ -110,7 +110,7 @@ unsigned int proc_event_ioctl(int request, void *argp, struct file *file)
     switch (request)
     {
     case PROCEVENT_ACK: {
-        struct proc_event_sub *sub = (proc_event_sub *)ino->i_helper;
+        struct proc_event_sub *sub = (proc_event_sub *) ino->i_helper;
 
         if (sub->valid_sub)
         {
@@ -128,7 +128,7 @@ struct file_ops proc_event_ops = {
 
 int sys_proc_event_attach(pid_t pid, unsigned long flags)
 {
-    struct proc_event_sub *new_sub = (proc_event_sub *)zalloc(sizeof(*new_sub));
+    struct proc_event_sub *new_sub = (proc_event_sub *) zalloc(sizeof(*new_sub));
 
     if (!new_sub)
         return -ENOMEM;
@@ -221,9 +221,9 @@ void proc_event_enter_syscall(struct syscall_frame *regs, uintptr_t rax)
         s->event_buf.e_un.syscall.eflags = regs->rflags;
         s->event_buf.e_un.syscall.es = regs->ds;
         s->event_buf.e_un.syscall.fs = regs->ds;
-        s->event_buf.e_un.syscall.fs_base = (unsigned long)get_current_thread()->fs;
+        s->event_buf.e_un.syscall.fs_base = (unsigned long) get_current_thread()->fs;
         s->event_buf.e_un.syscall.gs = regs->ds;
-        s->event_buf.e_un.syscall.gs_base = (unsigned long)get_current_thread()->gs;
+        s->event_buf.e_un.syscall.gs_base = (unsigned long) get_current_thread()->gs;
         s->event_buf.e_un.syscall.orig_rax = rax;
         s->event_buf.e_un.syscall.ss = regs->ds;
         s->event_buf.e_un.syscall.r10 = regs->r10;
@@ -235,7 +235,7 @@ void proc_event_enter_syscall(struct syscall_frame *regs, uintptr_t rax)
         s->event_buf.e_un.syscall.rax = rax;
         s->event_buf.e_un.syscall.r8 = regs->r8;
         s->event_buf.e_un.syscall.r9 = regs->r9;
-        s->event_buf.e_un.syscall.rsp = (unsigned long)regs->user_sp;
+        s->event_buf.e_un.syscall.rsp = (unsigned long) regs->user_sp;
         s->event_buf.e_un.syscall.rbx = regs->rbx;
         s->event_buf.e_un.syscall.rbp = regs->rbp;
         s->event_buf.e_un.syscall.rcx = regs->r10;

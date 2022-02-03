@@ -33,44 +33,44 @@
 int acpi_init_timer(void);
 
 static const ACPI_EXCEPTION_INFO AcpiGbl_ExceptionNames_Env[] = {
-    EXCEP_TXT((char *)"AE_OK", (char *)"No error"),
-    EXCEP_TXT((char *)"AE_ERROR", (char *)"Unspecified error"),
-    EXCEP_TXT((char *)"AE_NO_ACPI_TABLES", (char *)"ACPI tables could not be found"),
-    EXCEP_TXT((char *)"AE_NO_NAMESPACE", (char *)"A namespace has not been loaded"),
-    EXCEP_TXT((char *)"AE_NO_MEMORY", (char *)"Insufficient dynamic memory"),
-    EXCEP_TXT((char *)"AE_NOT_FOUND", (char *)"A requested entity is not found"),
-    EXCEP_TXT((char *)"AE_NOT_EXIST", (char *)"A required entity does not exist"),
-    EXCEP_TXT((char *)"AE_ALREADY_EXISTS", (char *)"An entity already exists"),
-    EXCEP_TXT((char *)"AE_TYPE", (char *)"The object type is incorrect"),
-    EXCEP_TXT((char *)"AE_NULL_OBJECT", (char *)"A required object was missing"),
-    EXCEP_TXT((char *)"AE_NULL_ENTRY", (char *)"The requested object does not exist"),
-    EXCEP_TXT((char *)"AE_BUFFER_OVERFLOW", (char *)"The buffer provided is too small"),
-    EXCEP_TXT((char *)"AE_STACK_OVERFLOW", (char *)"An internal stack overflowed"),
-    EXCEP_TXT((char *)"AE_STACK_UNDERFLOW", (char *)"An internal stack underflowed"),
-    EXCEP_TXT((char *)"AE_NOT_IMPLEMENTED", (char *)"The feature is not implemented"),
-    EXCEP_TXT((char *)"AE_SUPPORT", (char *)"The feature is not supported"),
-    EXCEP_TXT((char *)"AE_LIMIT", (char *)"A predefined limit was exceeded"),
-    EXCEP_TXT((char *)"AE_TIME", (char *)"A time limit or timeout expired"),
-    EXCEP_TXT((char *)"AE_ACQUIRE_DEADLOCK",
-              (char *)"Internal error, attempt was made to acquire a mutex in improper order"),
-    EXCEP_TXT((char *)"AE_RELEASE_DEADLOCK",
-              (char *)"Internal error, attempt was made to release a mutex in improper order"),
-    EXCEP_TXT((char *)"AE_NOT_ACQUIRED",
-              (char *)"An attempt to release a mutex or Global Lock without a previous acquire"),
-    EXCEP_TXT((char *)"AE_ALREADY_ACQUIRED",
-              (char *)"Internal error, attempt was made to acquire a mutex twice"),
-    EXCEP_TXT((char *)"AE_NO_HARDWARE_RESPONSE",
-              (char *)"Hardware did not respond after an I/O operation"),
-    EXCEP_TXT((char *)"AE_NO_GLOBAL_LOCK", (char *)"There is no FACS Global Lock"),
-    EXCEP_TXT((char *)"AE_ABORT_METHOD", (char *)"A control method was aborted"),
-    EXCEP_TXT((char *)"AE_SAME_HANDLER",
-              (char *)"Attempt was made to install the same handler that is already installed"),
-    EXCEP_TXT((char *)"AE_NO_HANDLER", (char *)"A handler for the operation is not installed"),
-    EXCEP_TXT((char *)"AE_OWNER_ID_LIMIT",
-              (char *)"There are no more Owner IDs available for ACPI tables or control methods"),
-    EXCEP_TXT((char *)"AE_NOT_CONFIGURED",
-              (char *)"The interface is not part of the current subsystem configuration"),
-    EXCEP_TXT((char *)"AE_ACCESS", (char *)"Permission denied for the requested operation")};
+    EXCEP_TXT((char *) "AE_OK", (char *) "No error"),
+    EXCEP_TXT((char *) "AE_ERROR", (char *) "Unspecified error"),
+    EXCEP_TXT((char *) "AE_NO_ACPI_TABLES", (char *) "ACPI tables could not be found"),
+    EXCEP_TXT((char *) "AE_NO_NAMESPACE", (char *) "A namespace has not been loaded"),
+    EXCEP_TXT((char *) "AE_NO_MEMORY", (char *) "Insufficient dynamic memory"),
+    EXCEP_TXT((char *) "AE_NOT_FOUND", (char *) "A requested entity is not found"),
+    EXCEP_TXT((char *) "AE_NOT_EXIST", (char *) "A required entity does not exist"),
+    EXCEP_TXT((char *) "AE_ALREADY_EXISTS", (char *) "An entity already exists"),
+    EXCEP_TXT((char *) "AE_TYPE", (char *) "The object type is incorrect"),
+    EXCEP_TXT((char *) "AE_NULL_OBJECT", (char *) "A required object was missing"),
+    EXCEP_TXT((char *) "AE_NULL_ENTRY", (char *) "The requested object does not exist"),
+    EXCEP_TXT((char *) "AE_BUFFER_OVERFLOW", (char *) "The buffer provided is too small"),
+    EXCEP_TXT((char *) "AE_STACK_OVERFLOW", (char *) "An internal stack overflowed"),
+    EXCEP_TXT((char *) "AE_STACK_UNDERFLOW", (char *) "An internal stack underflowed"),
+    EXCEP_TXT((char *) "AE_NOT_IMPLEMENTED", (char *) "The feature is not implemented"),
+    EXCEP_TXT((char *) "AE_SUPPORT", (char *) "The feature is not supported"),
+    EXCEP_TXT((char *) "AE_LIMIT", (char *) "A predefined limit was exceeded"),
+    EXCEP_TXT((char *) "AE_TIME", (char *) "A time limit or timeout expired"),
+    EXCEP_TXT((char *) "AE_ACQUIRE_DEADLOCK",
+              (char *) "Internal error, attempt was made to acquire a mutex in improper order"),
+    EXCEP_TXT((char *) "AE_RELEASE_DEADLOCK",
+              (char *) "Internal error, attempt was made to release a mutex in improper order"),
+    EXCEP_TXT((char *) "AE_NOT_ACQUIRED",
+              (char *) "An attempt to release a mutex or Global Lock without a previous acquire"),
+    EXCEP_TXT((char *) "AE_ALREADY_ACQUIRED",
+              (char *) "Internal error, attempt was made to acquire a mutex twice"),
+    EXCEP_TXT((char *) "AE_NO_HARDWARE_RESPONSE",
+              (char *) "Hardware did not respond after an I/O operation"),
+    EXCEP_TXT((char *) "AE_NO_GLOBAL_LOCK", (char *) "There is no FACS Global Lock"),
+    EXCEP_TXT((char *) "AE_ABORT_METHOD", (char *) "A control method was aborted"),
+    EXCEP_TXT((char *) "AE_SAME_HANDLER",
+              (char *) "Attempt was made to install the same handler that is already installed"),
+    EXCEP_TXT((char *) "AE_NO_HANDLER", (char *) "A handler for the operation is not installed"),
+    EXCEP_TXT((char *) "AE_OWNER_ID_LIMIT",
+              (char *) "There are no more Owner IDs available for ACPI tables or control methods"),
+    EXCEP_TXT((char *) "AE_NOT_CONFIGURED",
+              (char *) "The interface is not part of the current subsystem configuration"),
+    EXCEP_TXT((char *) "AE_ACCESS", (char *) "Permission denied for the requested operation")};
 
 uint32_t acpi_shutdown(void)
 {
@@ -115,7 +115,7 @@ uint32_t acpi_execute_pic(int value)
     list.Count = 1;
     list.Pointer = &arg;
 
-    return AcpiEvaluateObject(ACPI_ROOT_OBJECT, (char *)"_PIC", &list, nullptr);
+    return AcpiEvaluateObject(ACPI_ROOT_OBJECT, (char *) "_PIC", &list, nullptr);
 }
 
 namespace acpi
@@ -134,7 +134,7 @@ ACPI_STATUS find_pci_buses(ACPI_HANDLE object, UINT32 nestingLevel, void *contex
 
     if (devinfo->Flags & ACPI_PCI_ROOT_BRIDGE)
     {
-        find_root_pci_bus_t callback = (find_root_pci_bus_t)context;
+        find_root_pci_bus_t callback = (find_root_pci_bus_t) context;
         ACPI_BUFFER buf;
         uint64_t segment, bus;
         ACPI_OBJECT val;
@@ -142,7 +142,7 @@ ACPI_STATUS find_pci_buses(ACPI_HANDLE object, UINT32 nestingLevel, void *contex
         buf.Pointer = &val;
         buf.Length = sizeof(val);
 
-        if (auto st = AcpiEvaluateObject(object, (char *)"_SEG", nullptr, &buf); ACPI_FAILURE(st))
+        if (auto st = AcpiEvaluateObject(object, (char *) "_SEG", nullptr, &buf); ACPI_FAILURE(st))
         {
             if (st == AE_NOT_FOUND)
             {
@@ -162,7 +162,7 @@ ACPI_STATUS find_pci_buses(ACPI_HANDLE object, UINT32 nestingLevel, void *contex
         buf.Pointer = &val;
         buf.Length = sizeof(val);
 
-        if (auto st = AcpiEvaluateObject(object, (char *)"_BBN", nullptr, &buf); ACPI_FAILURE(st))
+        if (auto st = AcpiEvaluateObject(object, (char *) "_BBN", nullptr, &buf); ACPI_FAILURE(st))
         {
             if (st == AE_NOT_FOUND)
             {
@@ -181,7 +181,7 @@ ACPI_STATUS find_pci_buses(ACPI_HANDLE object, UINT32 nestingLevel, void *contex
 
         // printk("Root bridge %04x:%02x\n", (uint16_t) segment, (uint8_t) bus);
 
-        if (callback((uint16_t)segment, (uint8_t)bus, object) < 0)
+        if (callback((uint16_t) segment, (uint8_t) bus, object) < 0)
         {
             free(devinfo);
             return AE_ERROR;
@@ -195,7 +195,7 @@ ACPI_STATUS find_pci_buses(ACPI_HANDLE object, UINT32 nestingLevel, void *contex
 int find_root_pci_buses(find_root_pci_bus_t callback)
 {
     void *retval;
-    ACPI_STATUS st = AcpiGetDevices(nullptr, find_pci_buses, (void *)callback, &retval);
+    ACPI_STATUS st = AcpiGetDevices(nullptr, find_pci_buses, (void *) callback, &retval);
     if (ACPI_FAILURE(st))
     {
         ERROR("acpi", "Error while calling AcpiGetDevices: %s\n",
@@ -250,7 +250,7 @@ ACPI_RESOURCE *acpi_get_resources(ACPI_HANDLE object)
         return nullptr;
     }
 
-    return (ACPI_RESOURCE *)buf.Pointer;
+    return (ACPI_RESOURCE *) buf.Pointer;
 }
 
 /**
@@ -300,7 +300,7 @@ void acpi_resource_to_dev_resource(const ACPI_RESOURCE *acpires, dev_resource *r
     case ACPI_RESOURCE_TYPE_ADDRESS16:
     case ACPI_RESOURCE_TYPE_ADDRESS32:
     case ACPI_RESOURCE_TYPE_ADDRESS64:
-        AcpiResourceToAddress64((ACPI_RESOURCE *)acpires, &res64);
+        AcpiResourceToAddress64((ACPI_RESOURCE *) acpires, &res64);
         res->set_limits(res64.Address.Minimum, res64.Address.Maximum);
         if (res64.ResourceType == ACPI_MEMORY_RANGE)
             res->flags() |= DEV_RESOURCE_FLAG_MEM;
@@ -397,10 +397,10 @@ ACPI_STATUS acpi_add_device(ACPI_HANDLE object, UINT32 nestingLevel, void *conte
         }
         free_id = true;
 
-        id = (const char *)buf.Pointer;
+        id = (const char *) buf.Pointer;
     }
 
-    char *name = (char *)zalloc(PATH_MAX);
+    char *name = (char *) zalloc(PATH_MAX);
     if (!name)
         return AE_ERROR;
 
@@ -412,7 +412,7 @@ ACPI_STATUS acpi_add_device(ACPI_HANDLE object, UINT32 nestingLevel, void *conte
     auto device = new acpi_device{name, &acpi_bus, nullptr, object, info, resources};
     if (!device)
     {
-        free((void *)name);
+        free((void *) name);
         return AE_ERROR;
     }
 
@@ -457,10 +457,10 @@ ACPI_STATUS acpi_add_device(ACPI_HANDLE object, UINT32 nestingLevel, void *conte
 
     assert(device_init(device) == 0);
 
-    bus_add_device(&acpi_bus, (struct device *)device);
+    bus_add_device(&acpi_bus, (struct device *) device);
 
     if (free_id)
-        free((void *)id);
+        free((void *) id);
     return AE_OK;
 }
 
@@ -478,13 +478,13 @@ void acpi_enumerate_devices(void)
 
 unsigned int acpi_power_event_handler(void *context)
 {
-    (void)context;
+    (void) context;
     return acpi_shutdown();
 }
 
 unsigned int acpi_suspend_event_handler(void *context)
 {
-    (void)context;
+    (void) context;
     return acpi_suspend();
 }
 
@@ -561,7 +561,7 @@ INIT_LEVEL_VERY_EARLY_PLATFORM_ENTRY(acpi_initialise);
 
 uint32_t acpi_get_apic_id_lapic(ACPI_SUBTABLE_HEADER *madt)
 {
-    return ((ACPI_MADT_LOCAL_APIC *)madt)->Id;
+    return ((ACPI_MADT_LOCAL_APIC *) madt)->Id;
 }
 
 static DECLARE_MUTEX(cpu_enum_lock);
@@ -574,16 +574,16 @@ ACPI_STATUS acpi_enumerate_per_cpu(ACPI_HANDLE object, UINT32 nestingLevel, void
                                    void **returnvalue)
 {
     ACPI_BUFFER buffer = {ACPI_ALLOCATE_BUFFER, nullptr};
-    struct acpi_processor *processor = &((struct acpi_processor *)context)[__ndx++];
-    uint32_t apic_id = (uint32_t)-1;
-    (void)apic_id;
+    struct acpi_processor *processor = &((struct acpi_processor *) context)[__ndx++];
+    uint32_t apic_id = (uint32_t) -1;
+    (void) apic_id;
 
     /* _MAT returns a segment of the MADT table */
-    if (ACPI_FAILURE(AcpiEvaluateObject(object, (char *)"_MAT", nullptr, &buffer)))
+    if (ACPI_FAILURE(AcpiEvaluateObject(object, (char *) "_MAT", nullptr, &buffer)))
         return AE_ERROR;
     /* Get the APIC ID */
-    ACPI_OBJECT *obj = (ACPI_OBJECT *)buffer.Pointer;
-    ACPI_SUBTABLE_HEADER *madt_table = (ACPI_SUBTABLE_HEADER *)obj->Buffer.Pointer;
+    ACPI_OBJECT *obj = (ACPI_OBJECT *) buffer.Pointer;
+    ACPI_SUBTABLE_HEADER *madt_table = (ACPI_SUBTABLE_HEADER *) obj->Buffer.Pointer;
 
     switch (madt_table->Type)
     {
@@ -604,7 +604,7 @@ ACPI_STATUS acpi_enumerate_per_cpu(ACPI_HANDLE object, UINT32 nestingLevel, void
 
 struct acpi_processor *acpi_enumerate_cpus(void)
 {
-    acpi_processor *processors = (acpi_processor *)malloc(sizeof(acpi_processor) * get_nr_cpus());
+    acpi_processor *processors = (acpi_processor *) malloc(sizeof(acpi_processor) * get_nr_cpus());
     if (!processors)
     {
         return nullptr;
@@ -625,7 +625,7 @@ struct acpi_processor *acpi_enumerate_cpus(void)
 
 struct acpi_device *acpi_get_device(const char *id)
 {
-    return (struct acpi_device *)bus_find_device(&acpi_bus, id);
+    return (struct acpi_device *) bus_find_device(&acpi_bus, id);
 }
 
 const char *power_states[] = {"_PS0", "_PS1", "_PS2", "_PS3"};
@@ -633,7 +633,7 @@ const char *power_states[] = {"_PS0", "_PS1", "_PS2", "_PS3"};
 int acpi_set_device_power_state(struct acpi_device *device, unsigned int power_state)
 {
     ACPI_STATUS st =
-        AcpiEvaluateObject(device->object, (char *)power_states[power_state], nullptr, nullptr);
+        AcpiEvaluateObject(device->object, (char *) power_states[power_state], nullptr, nullptr);
     if (ACPI_FAILURE(st))
     {
         return 1;
@@ -645,7 +645,7 @@ int acpi_set_device_power_state(struct acpi_device *device, unsigned int power_s
 int acpi_shutdown_device(struct device *dev)
 {
     assert(dev);
-    return acpi_set_device_power_state((struct acpi_device *)dev, ACPI_POWER_STATE_D3);
+    return acpi_set_device_power_state((struct acpi_device *) dev, ACPI_POWER_STATE_D3);
 }
 
 uint64_t acpi_timer_get_ticks(void);
@@ -712,7 +712,7 @@ int acpi_init_timer(void)
 
     hrtime_t t0 = clocksource_get_time();
 
-    (void)t0;
+    (void) t0;
     // while(true) {}
     return 0;
 }
@@ -732,8 +732,8 @@ hrtime_t acpi_timer_get_elapsed_ns(hrtime_t _old_ticks, hrtime_t _new_ticks)
     uint32_t delta = 0;
 
     /* Convert these to uint32_t's since the timer's resolution is 32-bit max. */
-    uint32_t old_ticks = (uint32_t)_old_ticks;
-    uint32_t new_ticks = (uint32_t)_new_ticks;
+    uint32_t old_ticks = (uint32_t) _old_ticks;
+    uint32_t new_ticks = (uint32_t) _new_ticks;
 
     if (old_ticks < new_ticks)
     {
@@ -768,7 +768,7 @@ hrtime_t acpi_timer_get_elapsed_ns(hrtime_t _old_ticks, hrtime_t _new_ticks)
 
 bool acpi_driver_supports_device(driver *driver, acpi_device *device)
 {
-    struct acpi_dev_id *dev_table = (acpi_dev_id *)driver->devids;
+    struct acpi_dev_id *dev_table = (acpi_dev_id *) driver->devids;
 
     for (; dev_table->devid != nullptr; dev_table++)
     {

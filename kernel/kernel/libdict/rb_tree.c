@@ -38,40 +38,40 @@
 
 static const dict_vtable rb_tree_vtable = {
     true,
-    (dict_inew_func)rb_dict_itor_new,
-    (dict_dfree_func)rb_tree_free,
-    (dict_insert_func)rb_tree_insert,
-    (dict_search_func)tree_search,
-    (dict_search_func)tree_search_le,
-    (dict_search_func)tree_search_lt,
-    (dict_search_func)tree_search_ge,
-    (dict_search_func)tree_search_gt,
-    (dict_remove_func)rb_tree_remove,
-    (dict_clear_func)rb_tree_clear,
-    (dict_traverse_func)rb_tree_traverse,
-    (dict_select_func)rb_tree_select,
-    (dict_count_func)tree_count,
-    (dict_verify_func)rb_tree_verify,
+    (dict_inew_func) rb_dict_itor_new,
+    (dict_dfree_func) rb_tree_free,
+    (dict_insert_func) rb_tree_insert,
+    (dict_search_func) tree_search,
+    (dict_search_func) tree_search_le,
+    (dict_search_func) tree_search_lt,
+    (dict_search_func) tree_search_ge,
+    (dict_search_func) tree_search_gt,
+    (dict_remove_func) rb_tree_remove,
+    (dict_clear_func) rb_tree_clear,
+    (dict_traverse_func) rb_tree_traverse,
+    (dict_select_func) rb_tree_select,
+    (dict_count_func) tree_count,
+    (dict_verify_func) rb_tree_verify,
 };
 
-static const itor_vtable rb_tree_itor_vtable = {(dict_ifree_func)rb_itor_free,
-                                                (dict_valid_func)rb_itor_valid,
-                                                (dict_invalidate_func)rb_itor_invalidate,
-                                                (dict_next_func)rb_itor_next,
-                                                (dict_prev_func)rb_itor_prev,
-                                                (dict_nextn_func)rb_itor_nextn,
-                                                (dict_prevn_func)rb_itor_prevn,
-                                                (dict_first_func)rb_itor_first,
-                                                (dict_last_func)rb_itor_last,
-                                                (dict_key_func)rb_itor_key,
-                                                (dict_datum_func)rb_itor_datum,
-                                                (dict_isearch_func)rb_itor_search,
-                                                (dict_isearch_func)rb_itor_search_le,
-                                                (dict_isearch_func)rb_itor_search_lt,
-                                                (dict_isearch_func)rb_itor_search_ge,
-                                                (dict_isearch_func)rb_itor_search_gt,
-                                                (dict_iremove_func)rb_itor_remove,
-                                                (dict_icompare_func)tree_iterator_compare};
+static const itor_vtable rb_tree_itor_vtable = {(dict_ifree_func) rb_itor_free,
+                                                (dict_valid_func) rb_itor_valid,
+                                                (dict_invalidate_func) rb_itor_invalidate,
+                                                (dict_next_func) rb_itor_next,
+                                                (dict_prev_func) rb_itor_prev,
+                                                (dict_nextn_func) rb_itor_nextn,
+                                                (dict_prevn_func) rb_itor_prevn,
+                                                (dict_first_func) rb_itor_first,
+                                                (dict_last_func) rb_itor_last,
+                                                (dict_key_func) rb_itor_key,
+                                                (dict_datum_func) rb_itor_datum,
+                                                (dict_isearch_func) rb_itor_search,
+                                                (dict_isearch_func) rb_itor_search_le,
+                                                (dict_isearch_func) rb_itor_search_lt,
+                                                (dict_isearch_func) rb_itor_search_ge,
+                                                (dict_isearch_func) rb_itor_search_gt,
+                                                (dict_iremove_func) rb_itor_remove,
+                                                (dict_icompare_func) tree_iterator_compare};
 
 static void rot_left(rb_tree* tree, rb_node* node);
 static void rot_right(rb_tree* tree, rb_node* node);
@@ -501,7 +501,7 @@ static rb_node* node_new(void* key)
     rb_node* node = MALLOC(sizeof(*node));
     if (node)
     {
-        ASSERT((((intptr_t)node) & 1) == 0); /* Ensure malloc returns aligned result. */
+        ASSERT((((intptr_t) node) & 1) == 0); /* Ensure malloc returns aligned result. */
         node->key = key;
         node->datum = NULL;
         node->color = RB_RED; /* Also initializes parent to NULL */

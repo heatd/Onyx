@@ -33,7 +33,7 @@ public:
         if (hdr->msg_type != NETKERNEL_MSG_ROUTE4_ADD)
             return unexpected<int>{-ENXIO};
 
-        netkernel_route4_add *ra = (netkernel_route4_add *)hdr;
+        netkernel_route4_add *ra = (netkernel_route4_add *) hdr;
 
         if (ra->hdr.size != sizeof(*ra))
             return unexpected<int>{-ENXIO};
@@ -71,7 +71,7 @@ public:
         h->hdr.size = sizeof(*h);
         h->error = 0;
 
-        return (netkernel_hdr *)h;
+        return (netkernel_hdr *) h;
     }
 };
 

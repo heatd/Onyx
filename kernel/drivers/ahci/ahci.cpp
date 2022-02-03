@@ -56,7 +56,7 @@ void ahci_destroy_aio(struct ahci_port *port, struct aio_req *req);
 
 void ahci_wake_io(void *ctx)
 {
-    struct aio_req *req = (aio_req *)ctx;
+    struct aio_req *req = (aio_req *) ctx;
     req->signaled = true;
     wait_queue_wake_all(&req->wake_sem);
 }
@@ -108,7 +108,7 @@ void ahci_do_port_irqs(struct ahci_port *port)
 irqstatus_t ahci_irq(struct irq_context *ctx, void *cookie)
 {
     UNUSED(ctx);
-    struct ahci_device *dev = (ahci_device *)cookie;
+    struct ahci_device *dev = (ahci_device *) cookie;
 
     uint32_t ports = dev->hba->interrupt_status;
 
@@ -147,14 +147,14 @@ irqstatus_t ahci_irq(struct irq_context *ctx, void *cookie)
 
 ssize_t ahci_read(size_t offset, size_t count, void *buffer, struct blockdev *blkd)
 {
-    struct ahci_port *p = (ahci_port *)blkd->device_info;
+    struct ahci_port *p = (ahci_port *) blkd->device_info;
 
     size_t to_read = count;
 
     uint64_t lba = offset / 512;
     assert(offset % 512 == 0);
     assert(count % 512 == 0);
-    uint8_t *buf = (uint8_t *)buffer;
+    uint8_t *buf = (uint8_t *) buffer;
 
     /* TODO: Implement other types of devices */
     if (p->port->sig != SATA_SIG_ATA)
@@ -203,7 +203,7 @@ static uint8_t bio_req_to_ata_command(struct bio_req *req)
 
 int ahci_submit_request(struct blockdev *dev, struct bio_req *req)
 {
-    struct ahci_port *port = (ahci_port *)dev->device_info;
+    struct ahci_port *port = (ahci_port *) dev->device_info;
     if (port->port->sig != SATA_SIG_ATA)
         return -ENXIO;
 
@@ -245,12 +245,12 @@ int ahci_submit_request(struct blockdev *dev, struct bio_req *req)
 
 ssize_t ahci_write(size_t offset, size_t count, void *buffer, struct blockdev *blkd)
 {
-    struct ahci_port *p = (ahci_port *)blkd->device_info;
+    struct ahci_port *p = (ahci_port *) blkd->device_info;
 
     size_t to_read = count;
 
     uint64_t lba = offset / 512;
-    uint8_t *buf = (uint8_t *)buffer;
+    uint8_t *buf = (uint8_t *) buffer;
     assert(offset % 512 == 0);
     assert(count % 512 == 0);
 
@@ -330,7 +330,7 @@ command_list_t *ahci_allocate_command_list(struct ahci_port *ahci_port, size_t *
 
     clist = clist + pos;
 
-    *index = (size_t)pos;
+    *index = (size_t) pos;
 
     return clist;
 }
@@ -381,7 +381,7 @@ long ahci_setup_prdt_bio(prdt_t *prdt, struct bio_req *r, size_t *size)
         if (i == NUM_PRDT_PER_TABLE)
             break;
         prdt_t *prd = prdt + i;
-        unsigned long paddr = (unsigned long)page_to_phys(v->page) + v->page_off;
+        unsigned long paddr = (unsigned long) page_to_phys(v->page) + v->page_off;
 
         /* Addresses need to be word-aligned :/ */
         if (paddr & (2 - 1))
@@ -415,17 +415,17 @@ bool ahci_do_command_async(struct ahci_port *ahci_port, struct ahci_command_ata 
     list->desc_info = fis_len | (buf->write ? AHCI_COMMAND_LIST_WRITE : 0);
     list->prdbc = 0;
 
-    command_table_t *table = (command_table_t *)PHYS_TO_VIRT(ahci_port->ctables[list_index]);
+    command_table_t *table = (command_table_t *) PHYS_TO_VIRT(ahci_port->ctables[list_index]);
 
     memset(table, 0, sizeof(command_table_t));
 
-    prdt_t *prdt = (prdt_t *)(table + 1);
+    prdt_t *prdt = (prdt_t *) (table + 1);
 
     long nr_prdt = 0;
 
     if (buf->flags & AHCI_COMMAND_BIO_REQ)
     {
-        struct bio_req *req = (bio_req *)buf->buffer;
+        struct bio_req *req = (bio_req *) buf->buffer;
         if ((nr_prdt = ahci_setup_prdt_bio(prdt, req, &buf->size)) < 0)
         {
             ioreq->status = AIO_STATUS_EIO;
@@ -443,7 +443,7 @@ bool ahci_do_command_async(struct ahci_port *ahci_port, struct ahci_command_ata 
             return false;
         }
 
-        nr_prdt = (long)ahci_setup_prdt(prdt, &ranges);
+        nr_prdt = (long) ahci_setup_prdt(prdt, &ranges);
 
         /* TODO: Calling destroy ranges here isn't safe */
         dma_destroy_ranges(&ranges);
@@ -469,13 +469,13 @@ bool ahci_do_command_async(struct ahci_port *ahci_port, struct ahci_command_ata 
         table->cfis.device = 0;
 
     size_t num_sectors = buf->size / 512;
-    table->cfis.count = (uint16_t)num_sectors;
+    table->cfis.count = (uint16_t) num_sectors;
     table->cfis.command = buf->cmd;
 
     struct command_list *l = &ahci_port->cmdslots[list_index];
 
     l->req = ioreq;
-    ioreq->cookie = (void *)list_index;
+    ioreq->cookie = (void *) list_index;
 
     unsigned long cpu_flags = spin_lock_irqsave(&ahci_port->port_lock);
 
@@ -490,7 +490,7 @@ bool ahci_do_command_async(struct ahci_port *ahci_port, struct ahci_command_ata 
 
 void ahci_wake_callback(void *cb, struct wait_queue_token *token)
 {
-    struct aio_req *req = (aio_req *)cb;
+    struct aio_req *req = (aio_req *) cb;
     req->signaled = true;
 }
 
@@ -769,22 +769,22 @@ int ahci_allocate_port_lists(ahci_hba_memory_regs_t *hba, ahci_port_t *port,
     virtual_fisb = fisb;
     fisb = virtual2phys(fisb);
 
-    if ((uintptr_t)fisb > UINT32_MAX && addr64_supported == false)
+    if ((uintptr_t) fisb > UINT32_MAX && addr64_supported == false)
         goto error;
 
-    _port->clist = (command_list_t *)mmiomap(command_list, PAGE_SIZE, VM_WRITE | VM_NOEXEC);
+    _port->clist = (command_list_t *) mmiomap(command_list, PAGE_SIZE, VM_WRITE | VM_NOEXEC);
     if (!_port->clist)
         goto error;
 
     _port->fisb = virtual_fisb;
 
     /* Set FB and CB */
-    port->command_list_base_low = (uintptr_t)command_list & 0xFFFFFFFF;
+    port->command_list_base_low = (uintptr_t) command_list & 0xFFFFFFFF;
     if (addr64_supported)
-        port->command_list_base_hi = ((unsigned long)command_list) >> 32;
-    port->fis_list_base_low = (uintptr_t)fisb & 0xFFFFFFFF;
+        port->command_list_base_hi = ((unsigned long) command_list) >> 32;
+    port->fis_list_base_low = (uintptr_t) fisb & 0xFFFFFFFF;
     if (addr64_supported)
-        port->fis_list_base_hi = ((unsigned long)fisb) >> 32;
+        port->fis_list_base_hi = ((unsigned long) fisb) >> 32;
 
     return 0;
 error:
@@ -835,7 +835,7 @@ void ahci_free_list(struct ahci_port *port, size_t idx)
 
 void ahci_destroy_aio(struct ahci_port *port, struct aio_req *req)
 {
-    ahci_free_list(port, (size_t)req->cookie);
+    ahci_free_list(port, (size_t) req->cookie);
 }
 
 int ahci_do_identify(struct ahci_port *port)
@@ -868,7 +868,7 @@ int ahci_do_identify(struct ahci_port *port)
 int ahci_configure_port_dma(struct ahci_port *port, unsigned int ncs)
 {
     /* Allocate the pointer table */
-    port->ctables = (command_table_t **)calloc(ncs, sizeof(void *));
+    port->ctables = (command_table_t **) calloc(ncs, sizeof(void *));
 
     if (!port->ctables)
         return -1;
@@ -897,14 +897,14 @@ int ahci_configure_port_dma(struct ahci_port *port, unsigned int ncs)
             if (!current_buf_page)
                 return -1;
 
-            buf = (uint8_t *)page_to_phys(current_buf_page);
+            buf = (uint8_t *) page_to_phys(current_buf_page);
             curr = 0;
         }
 
-        port->ctables[i] = (command_table_t *)buf;
-        port->clist[i].base_address_lo = (uint32_t)(uintptr_t)buf;
+        port->ctables[i] = (command_table_t *) buf;
+        port->clist[i].base_address_lo = (uint32_t) (uintptr_t) buf;
         if (port->dev->hba->host_cap & AHCI_CAP_ADDR64)
-            port->clist[i].base_address_hi = ((uintptr_t)buf) >> 32;
+            port->clist[i].base_address_hi = ((uintptr_t) buf) >> 32;
         buf += allocation_size;
         curr++;
     }
@@ -1045,19 +1045,19 @@ int ahci_probe(struct device *dev)
     int status = 0;
     int irq = -1;
     int nr_ports;
-    pci::pci_device *ahci_dev = (pci::pci_device *)dev;
+    pci::pci_device *ahci_dev = (pci::pci_device *) dev;
 
     if (ahci_dev->enable_device() < 0)
         return -1;
 
     /* Map BAR5 of the device BARs */
 
-    ahci_hba_memory_regs_t *hba = (ahci_hba_memory_regs_t *)ahci_dev->map_bar(5, VM_NOCACHE);
+    ahci_hba_memory_regs_t *hba = (ahci_hba_memory_regs_t *) ahci_dev->map_bar(5, VM_NOCACHE);
 
     assert(hba != nullptr);
 
     /* Allocate a struct ahci_device and fill it */
-    struct ahci_device *device = (ahci_device *)zalloc(sizeof(struct ahci_device));
+    struct ahci_device *device = (ahci_device *) zalloc(sizeof(struct ahci_device));
     if (!device)
         return -1;
 
@@ -1088,7 +1088,7 @@ int ahci_probe(struct device *dev)
         /* Get the interrupt number */
         irq = ahci_dev->get_intn();
         /* and install a handler */
-        assert(install_irq(irq, ahci_irq, (struct device *)ahci_dev, IRQ_FLAG_REGULAR, device) ==
+        assert(install_irq(irq, ahci_irq, (struct device *) ahci_dev, IRQ_FLAG_REGULAR, device) ==
                0);
     }
 
@@ -1118,7 +1118,7 @@ ret:
     if (status != 0)
     {
         free(device);
-        free_irq(irq, (struct device *)ahci_dev);
+        free_irq(irq, (struct device *) ahci_dev);
         device = nullptr;
     }
 

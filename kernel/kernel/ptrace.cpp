@@ -54,7 +54,7 @@ long sys_ptrace(long request, pid_t pid, void *addr, void *data, void *addr2)
         struct process *tracee = process_find_tracee(get_current_process(), pid);
         if (!tracee)
             return -ESRCH;
-        if (ptrace_poke(tracee, addr, (ptrace_word_t)data) < 0)
+        if (ptrace_poke(tracee, addr, (ptrace_word_t) data) < 0)
             return -errno;
         return 0;
     }
@@ -63,7 +63,7 @@ long sys_ptrace(long request, pid_t pid, void *addr, void *data, void *addr2)
         if (!tracee)
             return -ESRCH;
 
-        if (ptrace_getregs(tracee, (user_regs_struct *)data) < 0)
+        if (ptrace_getregs(tracee, (user_regs_struct *) data) < 0)
             return -errno;
         return 0;
     }
@@ -72,7 +72,7 @@ long sys_ptrace(long request, pid_t pid, void *addr, void *data, void *addr2)
         if (!tracee)
             return -ESRCH;
 
-        if (ptrace_getfpregs(tracee, (user_fpregs_struct *)data) < 0)
+        if (ptrace_getfpregs(tracee, (user_fpregs_struct *) data) < 0)
             return -errno;
         return 0;
     }

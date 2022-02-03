@@ -408,7 +408,7 @@ template <typename T, class... Args>
 shared_ptr<T> make_shared(Args&&... args)
 {
     auto refc_part_size = cul::align_up2(sizeof(refcount<T>), alignof(T));
-    char* buf = (char*)malloc(refc_part_size + sizeof(T));
+    char* buf = (char*) malloc(refc_part_size + sizeof(T));
     if (!buf)
         return nullptr;
 
@@ -426,7 +426,7 @@ shared_ptr<T> cast(const shared_ptr<U>& s)
 {
     auto ref = s.__get_refc();
     shared_ptr<T> p{};
-    p.__set_refc((refcount<T>*)ref);
+    p.__set_refc((refcount<T>*) ref);
     return p;
 }
 

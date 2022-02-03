@@ -28,14 +28,14 @@ static_assert(sizeof(struct edid_data) == 128, "bad edid data");
 uint32_t igpu_mmio_read(struct igpu_device *dev, uint32_t offset)
 {
     offset /= 4;
-    volatile uint32_t *mmio_regs = (volatile uint32_t *)dev->mmio_regs;
+    volatile uint32_t *mmio_regs = (volatile uint32_t *) dev->mmio_regs;
 
     return mmio_regs[offset];
 }
 
 void igpu_mmio_write(struct igpu_device *dev, uint32_t offset, uint32_t data)
 {
-    volatile uint32_t *mmio_regs = (volatile uint32_t *)dev->mmio_regs;
+    volatile uint32_t *mmio_regs = (volatile uint32_t *) dev->mmio_regs;
 
     mmio_regs[offset / 4] = data;
 }
@@ -104,7 +104,7 @@ int igpu_read_edid(struct igpu_device *dev)
 int ihdgpu_probe(struct device *dev)
 {
     /* TODO: Replace free(d) with actual device destruction */
-    pci::pci_device *device = (pci::pci_device *)dev;
+    pci::pci_device *device = (pci::pci_device *) dev;
     MPRINTF("Found suitable Intel HD Graphics GPU at %04x:%02x:%02x:%02x\n"
             "ID %04x:%04x\n",
             device->segment, device->bus, device->device, device->function, device->vendorID,
@@ -150,8 +150,8 @@ int ihdgpu_probe(struct device *dev)
     }
 
     d->device = device;
-    d->mmio_regs = (volatile void *)device_registers;
-    d->gpu_memory = (volatile void *)gpu_memory;
+    d->mmio_regs = (volatile void *) device_registers;
+    d->gpu_memory = (volatile void *) gpu_memory;
 
     if (igd_enable_power(d) < 0)
     {

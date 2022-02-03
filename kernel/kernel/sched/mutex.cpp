@@ -18,12 +18,12 @@
 
 static unsigned long thread_to_lock_word(thread *t)
 {
-    return (unsigned long)t ^ 1;
+    return (unsigned long) t ^ 1;
 }
 
 static thread *lock_word_to_thread(unsigned long word)
 {
-    return (thread *)(word ^ 1);
+    return (thread *) (word ^ 1);
 }
 
 thread *mutex_owner(mutex *mtx)
@@ -209,7 +209,7 @@ static thread *to_wake_up = nullptr;
 
 void mutex_thread_entry(void *arg)
 {
-    bool incs = (unsigned int)(unsigned long)arg % 2;
+    bool incs = (unsigned int) (unsigned long) arg % 2;
     for (long i = 0; i < 0xffffff; i++)
     {
         {
@@ -248,7 +248,7 @@ bool mutex_test(void)
     for (unsigned int i = 0; i < 4; i++)
     {
         auto thread =
-            sched_create_thread(mutex_thread_entry, THREAD_KERNEL, (void *)(unsigned long)i);
+            sched_create_thread(mutex_thread_entry, THREAD_KERNEL, (void *) (unsigned long) i);
 
         assert(thread != nullptr);
 

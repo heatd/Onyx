@@ -12,7 +12,7 @@ char *strchr(const char *s, int c)
 
     if (*s == '\0')
         return NULL;
-    return (char *)s;
+    return (char *) s;
 }
 
 char *strnchr(const char *s, size_t len, int c)
@@ -25,7 +25,7 @@ char *strnchr(const char *s, size_t len, int c)
 
     if (len == 0 || *s == '\0')
         return NULL;
-    return (char *)s;
+    return (char *) s;
 }
 
 char *strrchr(const char *s, int c)
@@ -37,7 +37,7 @@ char *strrchr(const char *s, int c)
     while (len--)
     {
         if (*s == c)
-            return (char *)s;
+            return (char *) s;
         s--;
     }
 

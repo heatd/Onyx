@@ -17,8 +17,8 @@ extern uintptr_t __stop_testcases;
 
 int main(void)
 {
-    struct libtest_test *p = (struct libtest_test *)&__start_testcases;
-    struct libtest_test *end = (struct libtest_test *)&__stop_testcases;
+    struct libtest_test *p = (struct libtest_test *) &__start_testcases;
+    struct libtest_test *end = (struct libtest_test *) &__stop_testcases;
     while (p != end)
     {
         for (unsigned long i = 0; i < p->invoke; i++)

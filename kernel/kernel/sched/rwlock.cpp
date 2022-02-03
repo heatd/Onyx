@@ -246,7 +246,7 @@ static void rwlock_read(void *ctx)
 void rwlock_write(void *__is_master)
 {
     rw_alive_threads++;
-    bool is_master = (bool)__is_master;
+    bool is_master = (bool) __is_master;
 
     while (true)
     {
@@ -303,7 +303,7 @@ bool rwlock_test(void)
     sched_start_thread(read1);
     sched_start_thread(read2);
 
-    rwlock_write((void *)1);
+    rwlock_write((void *) 1);
 
     while (rw_alive_threads != 0)
         cpu_relax();

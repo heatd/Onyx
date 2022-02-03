@@ -4,7 +4,7 @@
 #include <string.h>
 
 #define BITOP(a, b, op) \
-    ((a)[(size_t)(b) / (8 * sizeof *(a))] op(size_t) 1 << ((size_t)(b) % (8 * sizeof *(a))))
+    ((a)[(size_t) (b) / (8 * sizeof *(a))] op(size_t) 1 << ((size_t) (b) % (8 * sizeof *(a))))
 
 size_t strspn(const char *s, const char *c)
 {
@@ -20,9 +20,9 @@ size_t strspn(const char *s, const char *c)
         return s - a;
     }
 
-    for (; *c && BITOP(byteset, *(unsigned char *)c, |=); c++)
+    for (; *c && BITOP(byteset, *(unsigned char *) c, |=); c++)
         ;
-    for (; *s && BITOP(byteset, *(unsigned char *)s, &); s++)
+    for (; *s && BITOP(byteset, *(unsigned char *) s, &); s++)
         ;
     return s - a;
 }

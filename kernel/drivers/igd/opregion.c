@@ -24,7 +24,7 @@ int igd_get_opregion(struct igpu_device *dev)
         return -ENOENT;
     }
 
-    void *opregion_map = mmiomap((void *)opregion, OPREGION_SIZE, VM_WRITE | VM_NOEXEC);
+    void *opregion_map = mmiomap((void *) opregion, OPREGION_SIZE, VM_WRITE | VM_NOEXEC);
 
     if (!opregion_map)
     {
@@ -32,14 +32,14 @@ int igd_get_opregion(struct igpu_device *dev)
         return -1;
     }
 
-    dev->opregion = (volatile struct igd_opregion *)opregion_map;
+    dev->opregion = (volatile struct igd_opregion *) opregion_map;
 
     return 0;
 }
 
 int igd_validate_opregion(struct igpu_device *dev)
 {
-    if (memcmp((const void *)&dev->opregion->header.signature, OPREGION_SIGNATURE,
+    if (memcmp((const void *) &dev->opregion->header.signature, OPREGION_SIGNATURE,
                OPREGION_SIGNATURE_LEN))
     {
         printk("igd: Invalid OpRegion Signature %.16s\n", dev->opregion->header.signature);
@@ -65,7 +65,7 @@ int igd_opregion_init(struct igpu_device *dev)
         return -1;
     }
 
-    struct vbt_header *header = (void *)&dev->opregion->mailbox4;
+    struct vbt_header *header = (void *) &dev->opregion->mailbox4;
 
     if (igd_is_valid_vbt(dev, header) < 0)
     {

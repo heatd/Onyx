@@ -78,7 +78,7 @@ static inline unsigned long vm_prot_to_cache_type(uint64_t prot)
 #define VM_ADDRESS_USER (1 << 1)
 
 #define VM_HIGHER_HALF  0xffff800000000000
-#define PHYS_TO_VIRT(x) (void *)((uintptr_t)(x) + PHYS_BASE)
+#define PHYS_TO_VIRT(x) (void *) ((uintptr_t) (x) + PHYS_BASE)
 
 #define VM_PFNMAP               (1 << 1)
 #define VM_USING_MAP_SHARED_OPT (1 << 2)
@@ -649,9 +649,9 @@ int vm_create_brk(struct mm_address_space *mm);
  */
 static inline void *page_align_up(void *ptr)
 {
-    uintptr_t i = (uintptr_t)ptr;
+    uintptr_t i = (uintptr_t) ptr;
     i = (i + PAGE_SIZE - 1) & -PAGE_SIZE;
-    return (void *)i;
+    return (void *) i;
 }
 
 /**
@@ -834,8 +834,8 @@ void vm_make_anon(vm_region *region);
 template <typename Callable>
 static bool for_every_region_visit(const void *key, void *region, void *caller_data)
 {
-    Callable &c = *(Callable *)caller_data;
-    return c((vm_region *)region);
+    Callable &c = *(Callable *) caller_data;
+    return c((vm_region *) region);
 }
 
 /**

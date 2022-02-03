@@ -84,9 +84,9 @@ void tsc_init(void)
     INFO("tsc", "Frequency: %lu Hz\n", freq);
     assert(freq <= UINT32_MAX);
 
-    fp_32_64_div_32_32(&ns_per_tick, (uint32_t)freq, NS_PER_SEC);
+    fp_32_64_div_32_32(&ns_per_tick, (uint32_t) freq, NS_PER_SEC);
 
-    fp_32_64_div_32_32(&ticks_per_ns, NS_PER_SEC, (uint32_t)freq);
+    fp_32_64_div_32_32(&ticks_per_ns, NS_PER_SEC, (uint32_t) freq);
 
     // printk("ticks per ns: %lu/%lu\n", ticks_per_ns.numerator, ticks_per_ns.denominator);
 

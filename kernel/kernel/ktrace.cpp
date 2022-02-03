@@ -106,7 +106,7 @@ void ktracepoint::put_entry(ktrace_ftrace_data &data)
         nr_overruns++;
     }
 
-    uint8_t *ptr = ((uint8_t *)PAGE_TO_VIRT(ring_buffer)) + off;
+    uint8_t *ptr = ((uint8_t *) PAGE_TO_VIRT(ring_buffer)) + off;
     memcpy(ptr, &data, sizeof(data));
 
     write_pointer += sizeof(data);
@@ -114,7 +114,7 @@ void ktracepoint::put_entry(ktrace_ftrace_data &data)
 
 void ktracepoint::log_entry(unsigned long ip, unsigned long caller)
 {
-    (void)ip;
+    (void) ip;
     ktrace_ftrace_data data;
     struct thread *current_thread = get_current_thread();
     struct process *curr_process = get_current_process();

@@ -32,7 +32,7 @@ public:
     {
         if (index >= nr_elem)
             panic_bounds_check(this, false, index);
-        return (const T&)data[index];
+        return (const T&) data[index];
     }
 
     unsigned long size() const

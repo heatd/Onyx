@@ -67,7 +67,7 @@ struct e1000_device
     template <typename Type>
     Type &tx_descriptor(unsigned int idx)
     {
-        return *(Type *)(tx_descs + idx * tx_desc_size);
+        return *(Type *) (tx_descs + idx * tx_desc_size);
     }
 
     e1000_device()
@@ -153,7 +153,7 @@ int e1000_process_packet(netif *nif, e1000_rx_desc &desc)
 
 int e1000_pollrx(netif *nif)
 {
-    e1000_device *dev = (e1000_device *)nif->priv;
+    e1000_device *dev = (e1000_device *) nif->priv;
 
     uint16_t old_cur = 0;
     while ((dev->rx_descs[dev->rx_cur].status & RSTA_DD))
@@ -175,7 +175,7 @@ int e1000_pollrx(netif *nif)
 
 void e1000_rxend(netif *nif)
 {
-    e1000_device *dev = (e1000_device *)nif->priv;
+    e1000_device *dev = (e1000_device *) nif->priv;
 
     e1000_write(REG_IMS, IMS_TXDW | IMS_TXQE | IMS_RXT0, dev);
 }
@@ -184,7 +184,7 @@ unsigned int e1000_irqs = 0;
 
 irqstatus_t e1000_irq(struct irq_context *ctx, void *cookie)
 {
-    auto device = (e1000_device *)cookie;
+    auto device = (e1000_device *) cookie;
 
     volatile uint32_t status = e1000_read(REG_ICR, device);
     if (status & ICR_RXT0)
@@ -199,12 +199,12 @@ irqstatus_t e1000_irq(struct irq_context *ctx, void *cookie)
 
 void e1000_write(uint16_t addr, uint32_t val, e1000_device *dev)
 {
-    mmio_writel((uintptr_t)(dev->mmio_space + addr), val);
+    mmio_writel((uintptr_t) (dev->mmio_space + addr), val);
 }
 
 uint32_t e1000_read(uint16_t addr, const e1000_device *dev)
 {
-    return mmio_readl((uintptr_t)(dev->mmio_space + addr));
+    return mmio_readl((uintptr_t) (dev->mmio_space + addr));
 }
 
 void e1000_detect_eeprom(struct e1000_device *dev)
@@ -228,18 +228,18 @@ uint32_t e1000_eeprom_read(uint8_t addr, struct e1000_device *dev)
     uint32_t tmp = 0;
     if (dev->eeprom_exists)
     {
-        e1000_write(REG_EEPROM, (1) | ((uint32_t)(addr) << 8), dev);
+        e1000_write(REG_EEPROM, (1) | ((uint32_t) (addr) << 8), dev);
         while (!((tmp = e1000_read(REG_EEPROM, dev)) & (1 << 4)))
             ;
     }
     else
     {
-        e1000_write(REG_EEPROM, (1) | ((uint32_t)(addr) << 2), dev);
+        e1000_write(REG_EEPROM, (1) | ((uint32_t) (addr) << 2), dev);
         while (!((tmp = e1000_read(REG_EEPROM, dev)) & (1 << 1)))
             ;
     }
 
-    data = (uint16_t)((tmp >> 16) & 0xFFFF);
+    data = (uint16_t) ((tmp >> 16) & 0xFFFF);
     return data;
 }
 
@@ -261,8 +261,8 @@ int e1000_read_mac_address(struct e1000_device *dev)
     }
     else
     {
-        uint8_t *mem_base_mac_8 = (uint8_t *)(dev->mmio_space + 0x5400);
-        uint32_t *mem_base_mac_32 = (uint32_t *)(dev->mmio_space + 0x5400);
+        uint8_t *mem_base_mac_8 = (uint8_t *) (dev->mmio_space + 0x5400);
+        uint32_t *mem_base_mac_32 = (uint32_t *) (dev->mmio_space + 0x5400);
         if (mem_base_mac_32[0] != 0)
         {
             for (int i = 0; i < 6; i++)
@@ -342,8 +342,8 @@ int e1000_init_rx(struct e1000_device *dev)
     alloc_info.curr = alloc_info.page_list = rx_buf_pages;
     alloc_info.off = 0;
 
-    rxdescs = (e1000_rx_desc *)map_page_list(rx_pages, needed_pages << PAGE_SHIFT,
-                                             VM_WRITE | VM_NOEXEC | VM_READ);
+    rxdescs = (e1000_rx_desc *) map_page_list(rx_pages, needed_pages << PAGE_SHIFT,
+                                              VM_WRITE | VM_NOEXEC | VM_READ);
     if (!rxdescs)
     {
         st = -ENOMEM;
@@ -357,15 +357,15 @@ int e1000_init_rx(struct e1000_device *dev)
         if (!res.page)
             panic("OOM allocating rx buffers");
 
-        rxdescs[i].addr = (uint64_t)page_to_phys(res.page) + res.off;
+        rxdescs[i].addr = (uint64_t) page_to_phys(res.page) + res.off;
 
         rxdescs[i].status = 0;
     }
 
-    rxd_base = (unsigned long)page_to_phys(rx_pages);
+    rxd_base = (unsigned long) page_to_phys(rx_pages);
 
-    e1000_write(REG_RXDESCLO, (uint32_t)rxd_base, dev);
-    e1000_write(REG_RXDESCHI, (uint32_t)(rxd_base >> 32), dev);
+    e1000_write(REG_RXDESCLO, (uint32_t) rxd_base, dev);
+    e1000_write(REG_RXDESCHI, (uint32_t) (rxd_base >> 32), dev);
 
     e1000_write(REG_RXDESCLEN, number_rx_desc * 16, dev);
 
@@ -407,16 +407,16 @@ int e1000_init_tx(struct e1000_device *dev)
         return -ENOMEM;
 
     txdescs =
-        (e1000_tx_desc *)map_page_list(tx_pages, needed_pages << PAGE_SHIFT, VM_WRITE | VM_NOEXEC);
+        (e1000_tx_desc *) map_page_list(tx_pages, needed_pages << PAGE_SHIFT, VM_WRITE | VM_NOEXEC);
     if (!txdescs)
     {
         st = -ENOMEM;
         goto error0;
     }
 
-    txd_base = (unsigned long)page_to_phys(tx_pages);
-    e1000_write(REG_TXDESCLO, (uint32_t)txd_base, dev);
-    e1000_write(REG_TXDESCHI, (uint32_t)(txd_base >> 32), dev);
+    txd_base = (unsigned long) page_to_phys(tx_pages);
+    e1000_write(REG_TXDESCLO, (uint32_t) txd_base, dev);
+    e1000_write(REG_TXDESCHI, (uint32_t) (txd_base >> 32), dev);
 
     e1000_write(REG_TXDESCLEN, number_tx_desc * 16, dev);
 
@@ -432,7 +432,7 @@ int e1000_init_tx(struct e1000_device *dev)
 
     dev->tx_cur = 0;
     dev->tx_pages = tx_pages;
-    dev->tx_descs = (unsigned char *)txdescs;
+    dev->tx_descs = (unsigned char *) txdescs;
 
     return 0;
 error0:
@@ -457,7 +457,7 @@ void e1000_enable_interrupts(struct e1000_device *dev)
     // Get the IRQ number and install its handler
     INFO("e1000", "using IRQ number %u\n", dev->irq_nr);
 
-    assert(install_irq(dev->irq_nr, e1000_irq, (struct device *)dev->nicdev, IRQ_FLAG_REGULAR,
+    assert(install_irq(dev->irq_nr, e1000_irq, (struct device *) dev->nicdev, IRQ_FLAG_REGULAR,
                        dev) == 0);
 
     e1000_write(REG_IMS, IMS_TXDW | IMS_TXQE | IMS_RXT0, dev);
@@ -501,16 +501,16 @@ unsigned int e1000_device::prepare_legacy_descs(packetbuf *buf)
 
         auto &desc = tx_descriptor<e1000_tx_desc>(tx_cur);
 
-        desc.addr = ((uint64_t)page_to_phys(vec.page)) + buffer_start_off;
+        desc.addr = ((uint64_t) page_to_phys(vec.page)) + buffer_start_off;
         desc.length = length;
         desc.cmd = CMD_IFCS | CMD_RS | CMD_RPS | (buf->needs_csum ? CMD_IC : 0);
         desc.status = 0;
 
         if (buf->needs_csum)
         {
-            auto offset = (unsigned char *)buf->csum_offset - buf->data;
-            desc.cso = (uint8_t)offset;
-            desc.css = (uint8_t)(buf->csum_start - buf->data);
+            auto offset = (unsigned char *) buf->csum_offset - buf->data;
+            desc.cso = (uint8_t) offset;
+            desc.css = (uint8_t) (buf->csum_start - buf->data);
         }
         else
         {
@@ -605,14 +605,14 @@ unsigned int e1000_device::prepare_extended_descs(packetbuf *buf)
         /* Account header overhead that might exist here */
         if (!xmited)
         {
-            buffer_start_off = (buf->data - (unsigned char *)buf->buffer_start);
+            buffer_start_off = (buf->data - (unsigned char *) buf->buffer_start);
             length -= buffer_start_off;
             desc.popts = (buf->needs_csum ? POPTS_TXSM : 0);
         }
 
         buffer_start_off += vec.page_off;
 
-        desc.address = ((uint64_t)page_to_phys(vec.page)) + buffer_start_off;
+        desc.address = ((uint64_t) page_to_phys(vec.page)) + buffer_start_off;
         desc.datalen = length;
         desc.dtype = E1000_TX_TCPIP_DATA_DESC;
         desc.dcmd = CMD_RS | CMD_DEXT;
@@ -669,7 +669,7 @@ int e1000_device::send_packet_extended_tx(packetbuf *buf)
 
 int e1000_send_packet(packetbuf *buf, netif *nif)
 {
-    auto dev = (e1000_device *)nif->priv;
+    auto dev = (e1000_device *) nif->priv;
     return dev->send_packet_extended_tx(buf);
 }
 
@@ -754,7 +754,7 @@ struct pci::pci_id e1000_pci_ids[] = {{PCI_ID_DEVICE(INTEL_VENDOR, E1000_DEV, NU
 
 int e1000_probe(struct device *__dev)
 {
-    pci::pci_device *dev = (pci::pci_device *)__dev;
+    pci::pci_device *dev = (pci::pci_device *) __dev;
 
     auto addr = dev->addr();
 
@@ -763,7 +763,7 @@ int e1000_probe(struct device *__dev)
          "ID %04x:%04x\n",
          addr.segment, addr.bus, addr.device, addr.function, dev->vid(), dev->did());
 
-    char *mem_space = (char *)dev->map_bar(0, VM_NOCACHE);
+    char *mem_space = (char *) dev->map_bar(0, VM_NOCACHE);
     if (!mem_space)
     {
         ERROR("e1000",

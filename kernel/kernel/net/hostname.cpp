@@ -20,7 +20,7 @@ int sys_sethostname(const void *name, size_t len)
     if (len > 65)
         return -EINVAL;
 
-    if ((ssize_t)len < 0)
+    if ((ssize_t) len < 0)
         return -EINVAL;
 
     /* We need to copy the name, since the user pointer isn't safe */

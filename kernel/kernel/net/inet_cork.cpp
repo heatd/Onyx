@@ -30,7 +30,7 @@ int inet_cork::append_data(const iovec *vec, size_t vec_len, size_t proto_hdr_si
         if (packet->length() + proto_hdr_size < max_packet_len)
         {
             /* OOOH, we've got some room, let's expand! */
-            const uint8_t *ubuf = (uint8_t *)vec->iov_base + read_in_vec;
+            const uint8_t *ubuf = (uint8_t *) vec->iov_base + read_in_vec;
             auto len = vec->iov_len - read_in_vec;
             auto to_expand = cul::clamp(len, UINT_MAX);
 #if DEBUG_INET_CORK
@@ -92,7 +92,7 @@ int inet_cork::alloc_and_append(const iovec *vec, size_t vec_len, size_t proto_h
 
         auto to_alloc = cul::clamp(iov_len - added_from_vec, max_packet_len);
 
-        auto ubuf = (const uint8_t *)vec->iov_base + added_from_vec;
+        auto ubuf = (const uint8_t *) vec->iov_base + added_from_vec;
 
         if (!packet->allocate_space(to_alloc))
         {
@@ -108,7 +108,7 @@ int inet_cork::alloc_and_append(const iovec *vec, size_t vec_len, size_t proto_h
         printk("expand buffer %ld", st);
 #endif
 
-        assert((size_t)st == to_alloc);
+        assert((size_t) st == to_alloc);
 
         added_from_vec += to_alloc;
 

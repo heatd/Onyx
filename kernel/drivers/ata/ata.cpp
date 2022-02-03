@@ -189,8 +189,8 @@ void ide_dev::enable_pci()
     /* The secondary bus' busmaster reg is offset by 0x8 bytes */
     ata_buses[1].busmaster_reg = busmaster_reg + 0x8;
 
-    assert(install_irq(14, ide_irq, (struct device *)dev, IRQ_FLAG_REGULAR, this) == 0);
-    assert(install_irq(15, ide_irq, (struct device *)dev, IRQ_FLAG_REGULAR, this) == 0);
+    assert(install_irq(14, ide_irq, (struct device *) dev, IRQ_FLAG_REGULAR, this) == 0);
+    assert(install_irq(15, ide_irq, (struct device *) dev, IRQ_FLAG_REGULAR, this) == 0);
 }
 
 int ide_dev::probe()
@@ -200,8 +200,8 @@ int ide_dev::probe()
         return -ENOMEM;
 
     /* Allocate PRDT base */
-    prdt = (prdt_entry_t *)mmiomap(page_to_phys(prdt_page), prdt_nr_pages << PAGE_SHIFT,
-                                   VM_WRITE | VM_NOEXEC);
+    prdt = (prdt_entry_t *) mmiomap(page_to_phys(prdt_page), prdt_nr_pages << PAGE_SHIFT,
+                                    VM_WRITE | VM_NOEXEC);
     if (!prdt)
     {
         ERROR("ata", "Could not allocate a PRDT\n");
@@ -257,7 +257,7 @@ unsigned long total_irq_ide = 0;
 
 irqstatus_t ide_irq(struct irq_context *ctx, void *cookie)
 {
-    auto device = (ide_dev *)cookie;
+    auto device = (ide_dev *) cookie;
 
     int bus_idx = 0;
 
@@ -291,7 +291,7 @@ irqstatus_t ide_irq(struct irq_context *ctx, void *cookie)
 
 ide_drive *ide_drive_from_blockdev(blockdev *dev)
 {
-    return (ide_drive *)dev->device_info;
+    return (ide_drive *) dev->device_info;
 }
 
 int ata_flush(struct blockdev *blkd)
@@ -351,7 +351,7 @@ int ide_drive::probe()
     for (int i = 0; i < 256; i++)
     {
         uint16_t data = inw(bus.data_reg);
-        uint16_t *ptr = (uint16_t *)&buffer[i * 2];
+        uint16_t *ptr = (uint16_t *) &buffer[i * 2];
         *ptr = data;
     }
 
@@ -389,7 +389,7 @@ struct pci::pci_id ata_devs[] = {{PCI_ID_CLASS(CLASS_MASS_STORAGE_CONTROLLER, 1,
 
 int ata_probe(struct device *d)
 {
-    pci::pci_device *device = (pci::pci_device *)d;
+    pci::pci_device *device = (pci::pci_device *) d;
 
     // If this is a SATA controller with a valid BAR5 (AHCI HBA BAR), skip this
     // and defer to AHCI.
@@ -433,7 +433,7 @@ static unsigned int look_at_bio_req(const bio_req *req, bool &needs_bounce)
         /* Oh yeah boyy, bounce buffer time.
          * please shoot me. old hw = garbage
          */
-        if ((unsigned long)page_to_phys(vec.page) >= UINT32_MAX)
+        if ((unsigned long) page_to_phys(vec.page) >= UINT32_MAX)
         {
             needs_bounce = true;
         }
@@ -449,7 +449,7 @@ void fill_bounce_buf_vec(page_iov *hw_vec, size_t nr_pages, page *pages, size_t 
     for (size_t i = 0; i < nr_pages; i++)
     {
         hw_vec[i].page = pages;
-        hw_vec[i].length = cul::min(len, (unsigned long)PAGE_SIZE);
+        hw_vec[i].length = cul::min(len, (unsigned long) PAGE_SIZE);
         hw_vec[i].page_off = 0;
         pages = pages->next_un.next_allocation;
         len -= hw_vec[i].length;
@@ -472,7 +472,7 @@ void fill_bounce_buf(page_iov *hw_vec, size_t vec_size, bio_req *req)
                 ++it;
 
             const auto page_source =
-                (unsigned char *)((unsigned long)PAGE_TO_VIRT(vec.page) + vec.page_off + copied);
+                (unsigned char *) ((unsigned long) PAGE_TO_VIRT(vec.page) + vec.page_off + copied);
             const auto to_copy = min(vec.length, it.v->length);
             memcpy(it.to_pointer<unsigned char>(), page_source, to_copy);
             it.increment(vec.length);
@@ -493,9 +493,9 @@ void ide_dev::fill_prdt_from_hwvec(const page_iov *vec, size_t nr_vecs)
          */
         bool is_last_entry = nr_vecs == 0;
 
-        prd->address = (uint32_t)(unsigned long)page_to_phys(vec->page) + vec->page_off;
+        prd->address = (uint32_t) (unsigned long) page_to_phys(vec->page) + vec->page_off;
         prd->flags = is_last_entry ? PRD_FLAG_END : 0;
-        prd->size = (uint16_t)vec->length;
+        prd->size = (uint16_t) vec->length;
 
         ++prd;
         ++vec;
@@ -509,7 +509,7 @@ void ide_ata_bus::start_dma(bool write)
 
 void ide_ata_bus::prepare_dma(struct page *prdt_page, bool write)
 {
-    uint32_t prdt_phys = (uint32_t)(unsigned long)page_to_phys(prdt_page);
+    uint32_t prdt_phys = (uint32_t) (unsigned long) page_to_phys(prdt_page);
     outl(busmaster_reg + IDE_BMR_REG_PRDT_ADDR, prdt_phys);
     outb(busmaster_reg + IDE_BMR_REG_COMMAND, (write ? IDE_BMR_CMD_WRITE : 0));
     outb(busmaster_reg + IDE_BMR_REG_STATUS, IDE_BMR_ST_IRQ_GEN | IDE_BMR_ST_DMA_ERR);
@@ -544,7 +544,7 @@ int ide_dev::submit_request(bio_req *req, ide_drive *drive)
             return -ENOMEM;
 
         bounce_buffer_pages = pages;
-        hw_vec = (page_iov *)calloc(nr_pages, sizeof(page_iov));
+        hw_vec = (page_iov *) calloc(nr_pages, sizeof(page_iov));
         if (!hw_vec)
         {
             free_pages(pages);

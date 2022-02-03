@@ -110,7 +110,7 @@ static struct page *read_disk(struct blockdev *dev, sector_t sector, size_t coun
     if (!pages)
         return NULL;
 
-    struct page_iov *vec = (page_iov *)calloc(nr_pages, sizeof(struct page_iov));
+    struct page_iov *vec = (page_iov *) calloc(nr_pages, sizeof(struct page_iov));
     if (!vec)
     {
         st = -ENOMEM;
@@ -162,7 +162,7 @@ int partition_add(blockdev *dev, int nr_partition, uint64_t first_lba, uint64_t 
     // Arbitrary length but should be safe because of snprintf
     char partition_num[6];
     if (snprintf(partition_num, sizeof(partition_num), "%d", nr_partition) >=
-        (int)sizeof(partition_num))
+        (int) sizeof(partition_num))
         return -EINVAL;
 
     cul::string name = dev->name;
@@ -198,7 +198,7 @@ int partition_setup_disk_gpt(struct blockdev *dev)
     if (!gpt_header_pages)
         return -errno;
 
-    gpt_header_t *gpt_header = (gpt_header_t *)PAGE_TO_VIRT(gpt_header_pages);
+    gpt_header_t *gpt_header = (gpt_header_t *) PAGE_TO_VIRT(gpt_header_pages);
     auto csum = gpt_header->crc32_checksum;
     uint32_t actual_csum = 0;
 
@@ -217,7 +217,7 @@ int partition_setup_disk_gpt(struct blockdev *dev)
         goto out;
     }
 
-    actual_csum = crc32_calculate((uint8_t *)gpt_header, gpt_header->header_size);
+    actual_csum = crc32_calculate((uint8_t *) gpt_header, gpt_header->header_size);
     if (le32toh(csum) != actual_csum)
     {
         ERROR("gpt", "disk %s has wrong GPT header checksum\n", dev->name.c_str());
@@ -234,9 +234,9 @@ int partition_setup_disk_gpt(struct blockdev *dev)
         goto out;
     }
 
-    part_table = (gpt_partition_entry_t *)PAGE_TO_VIRT(part_tab_pages);
+    part_table = (gpt_partition_entry_t *) PAGE_TO_VIRT(part_tab_pages);
 
-    vec = (page_iov *)calloc(vm_size_to_pages(count), sizeof(struct page_iov));
+    vec = (page_iov *) calloc(vm_size_to_pages(count), sizeof(struct page_iov));
     if (!vec)
     {
         st = -ENOMEM;
@@ -269,7 +269,7 @@ int partition_setup_disk_gpt(struct blockdev *dev)
 
     csum = gpt_header->partition_array_crc32;
 
-    actual_csum = crc32_calculate((uint8_t *)part_table, count);
+    actual_csum = crc32_calculate((uint8_t *) part_table, count);
 
     if (le32toh(csum) != actual_csum)
     {
@@ -308,9 +308,9 @@ int partition_setup_disk_mbr(struct blockdev *dev)
     if (!mbr_pages)
         return -errno;
 
-    char *mbrbuf = (char *)PAGE_TO_VIRT(mbr_pages);
+    char *mbrbuf = (char *) PAGE_TO_VIRT(mbr_pages);
 
-    mbrpart_t *part = (mbrpart_t *)((char *)mbrbuf + 0x1BE);
+    mbrpart_t *part = (mbrpart_t *) ((char *) mbrbuf + 0x1BE);
 
     unsigned int nr_parts = 1;
     /* Cycle through all the partitions */

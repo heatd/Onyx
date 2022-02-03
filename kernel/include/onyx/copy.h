@@ -21,9 +21,9 @@ void __copy_non_temporal(void *d, void *s, size_t count);
 
 static inline void copy_non_temporal(void *d, void *s, size_t count)
 {
-    assert(likely(IS_NATIVE_ALIGNED((uintptr_t)d)));
-    assert(likely(IS_NATIVE_ALIGNED((uintptr_t)s)));
-    assert(likely(IS_NATIVE_ALIGNED((uintptr_t)count)));
+    assert(likely(IS_NATIVE_ALIGNED((uintptr_t) d)));
+    assert(likely(IS_NATIVE_ALIGNED((uintptr_t) s)));
+    assert(likely(IS_NATIVE_ALIGNED((uintptr_t) count)));
 
     __copy_non_temporal(d, s, count);
 }
@@ -32,8 +32,8 @@ void __set_non_temporal(void *d, int b, size_t count);
 
 static inline void set_non_temporal(void *d, int b, size_t count)
 {
-    assert(likely(IS_NATIVE_ALIGNED((uintptr_t)d)));
-    assert(likely(IS_NATIVE_ALIGNED((uintptr_t)count)));
+    assert(likely(IS_NATIVE_ALIGNED((uintptr_t) d)));
+    assert(likely(IS_NATIVE_ALIGNED((uintptr_t) count)));
 
     __set_non_temporal(d, b, count);
 }

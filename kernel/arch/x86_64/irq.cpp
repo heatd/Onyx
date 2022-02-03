@@ -42,7 +42,7 @@ void check_for_resched(struct irq_context *context)
     if (curr && sched_needs_resched(curr))
     {
         curr->flags &= ~THREAD_NEEDS_RESCHED;
-        context->registers = (registers_t *)sched_preempt_thread(context->registers);
+        context->registers = (registers_t *) sched_preempt_thread(context->registers);
     }
 }
 
@@ -60,7 +60,7 @@ unsigned long irq_handler(struct registers *regs)
     context.registers = regs;
     context.irq_nr = irqn;
 
-    dispatch_irq((unsigned int)irqn, &context);
+    dispatch_irq((unsigned int) irqn, &context);
 
     /* It's implicit that irqs are enabled since we are in a handler */
     if (!sched_is_preemption_disabled() && softirq_pending())
@@ -70,7 +70,7 @@ unsigned long irq_handler(struct registers *regs)
 
     check_for_resched(&context);
 
-    return (unsigned long)context.registers;
+    return (unsigned long) context.registers;
 }
 
 int platform_allocate_msi_interrupts(unsigned int num_vectors, bool addr64,
@@ -105,7 +105,8 @@ int platform_allocate_msi_interrupts(unsigned int num_vectors, bool addr64,
     for (unsigned int i = 0; i < num_vectors; i++)
     {
         int vector = vecs + i;
-        void (*irq_stub_handler)() = (void (*)())((char *)&irq0 + irq_stub_size * (irq_offset + i));
+        void (*irq_stub_handler)() =
+            (void (*)())((char *) &irq0 + irq_stub_size * (irq_offset + i));
         x86_reserve_vector(vector, irq_stub_handler);
     }
 

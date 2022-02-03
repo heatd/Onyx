@@ -47,7 +47,7 @@ int mtable_mount(struct file *mountpoint, struct file *rootfs)
     mutex_lock(&mtable_lock);
     nr_mtable_entries++;
 
-    mountpoint_t *new_mtable = (mountpoint_t *)malloc(nr_mtable_entries * sizeof(mountpoint_t));
+    mountpoint_t *new_mtable = (mountpoint_t *) malloc(nr_mtable_entries * sizeof(mountpoint_t));
     if (!new_mtable)
     {
         nr_mtable_entries--;

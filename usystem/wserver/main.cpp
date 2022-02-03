@@ -28,7 +28,7 @@
 
 void *server_thread_entry(void *ptr)
 {
-    Server *sv = (Server *)ptr;
+    Server *sv = (Server *) ptr;
 
     sv->handle_events();
 

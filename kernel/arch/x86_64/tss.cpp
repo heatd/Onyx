@@ -48,12 +48,12 @@ void init_percpu_tss(uint64_t *gdt)
     memset(new_tss, 0, sizeof(tss_entry_t));
     uint32_t tss_limit = sizeof(tss_entry_t) - 1;
 
-    union tss_descriptor *desc = (union tss_descriptor *)&gdt[7];
+    union tss_descriptor *desc = (union tss_descriptor *) &gdt[7];
     memset(desc, 0, sizeof(*desc));
 
-    uintptr_t tss_addr = (uintptr_t)new_tss;
+    uintptr_t tss_addr = (uintptr_t) new_tss;
     desc->type = TSS_TYPE_INACTIVE | TSS_TYPE_DPL(3) | TSS_TYPE_PRESENT;
-    desc->base_low = (uint16_t)tss_addr;
+    desc->base_low = (uint16_t) tss_addr;
     desc->base_16_23 = tss_addr >> 16;
     desc->base_mid = tss_addr >> 24;
     desc->base_high = tss_addr >> 32;
@@ -65,5 +65,5 @@ void init_percpu_tss(uint64_t *gdt)
 
     write_per_cpu(tss, new_tss);
 
-    new_tss->ist[1] = (unsigned long)double_fault_stack_top;
+    new_tss->ist[1] = (unsigned long) double_fault_stack_top;
 }

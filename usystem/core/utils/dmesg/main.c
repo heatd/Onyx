@@ -13,7 +13,7 @@
 
 int main(int argc, char **argv)
 {
-    int size = (int)syscall(SYS_syslog, 10, NULL, -1);
+    int size = (int) syscall(SYS_syslog, 10, NULL, -1);
     char *buf = malloc(size);
     if (!buf)
     {

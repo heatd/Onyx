@@ -33,14 +33,14 @@ int main(int argc, char **argv)
     printf("Kernel heap memory: %lu pages(%lu bytes)\n", stat.kernel_heap_pages,
            stat.kernel_heap_pages * page_size);
 
-    double memory_pressure = (double)stat.allocated_pages / (double)stat.total_pages;
+    double memory_pressure = (double) stat.allocated_pages / (double) stat.total_pages;
     printf("Memory pressure: %f(%f%%)\n", memory_pressure, memory_pressure * 100);
 
     double ratios[3];
-    ratios[0] = (double)stat.page_cache_pages / (double)stat.allocated_pages;
-    ratios[1] = (double)stat.kernel_heap_pages / (double)stat.allocated_pages;
-    ratios[2] = (double)(stat.allocated_pages - (stat.kernel_heap_pages + stat.page_cache_pages)) /
-                (double)stat.allocated_pages;
+    ratios[0] = (double) stat.page_cache_pages / (double) stat.allocated_pages;
+    ratios[1] = (double) stat.kernel_heap_pages / (double) stat.allocated_pages;
+    ratios[2] = (double) (stat.allocated_pages - (stat.kernel_heap_pages + stat.page_cache_pages)) /
+                (double) stat.allocated_pages;
 
     printf("Allocated memory ratios(page cache - kernel heap - other): %f-%f-%f\n", ratios[0],
            ratios[1], ratios[2]);

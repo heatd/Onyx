@@ -90,7 +90,7 @@ private:
 public:
     instance(int fd, std::string& name)
         : fd(fd), device_name(name), thread{}, sockfd{-1}, mac{}, buf{new dhcp_packet_t},
-          got_dhcp_offer{false}, xid((uint32_t)random())
+          got_dhcp_offer{false}, xid((uint32_t) random())
     {
         if (ioctl(fd, SIOGETMAC, mac.data()) < 0)
         {

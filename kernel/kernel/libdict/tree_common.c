@@ -58,7 +58,7 @@ void tree_node_rot_left(void* Tree, void* Node)
     tree_node* p = n->parent;
     n->parent = nr;
     nr->parent = p;
-    *(p == NULL ? &((tree*)Tree)->root : p->llink == n ? &p->llink : &p->rlink) = nr;
+    *(p == NULL ? &((tree*) Tree)->root : p->llink == n ? &p->llink : &p->rlink) = nr;
 }
 
 void tree_node_rot_right(void* Tree, void* Node)
@@ -73,7 +73,7 @@ void tree_node_rot_right(void* Tree, void* Node)
     tree_node* const p = n->parent;
     n->parent = nl;
     nl->parent = p;
-    *(p == NULL ? &((tree*)Tree)->root : p->llink == n ? &p->llink : &p->rlink) = nl;
+    *(p == NULL ? &((tree*) Tree)->root : p->llink == n ? &p->llink : &p->rlink) = nl;
 }
 
 void* tree_node_prev(void* Node)
@@ -306,7 +306,7 @@ bool tree_select(void* Tree, size_t n, const void** key, void** datum)
 
 size_t tree_count(const void* Tree)
 {
-    return ((const tree*)Tree)->count;
+    return ((const tree*) Tree)->count;
 }
 
 size_t tree_clear(void* Tree, dict_delete_func delete_func)
@@ -383,12 +383,12 @@ size_t tree_total_path_length(const void* Tree)
 
 bool tree_iterator_valid(const void* Iterator)
 {
-    return ((const tree_iterator*)Iterator)->node != NULL;
+    return ((const tree_iterator*) Iterator)->node != NULL;
 }
 
 void tree_iterator_invalidate(void* Iterator)
 {
-    ((tree_iterator*)Iterator)->node = NULL;
+    ((tree_iterator*) Iterator)->node = NULL;
 }
 
 void tree_iterator_free(void* Iterator)

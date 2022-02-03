@@ -49,7 +49,7 @@
 
 static inline void wrmsr(uint32_t msr, uint64_t val)
 {
-    uint32_t lo = (uint32_t)val;
+    uint32_t lo = (uint32_t) val;
     uint32_t hi = val >> 32;
     __asm__ __volatile__("wrmsr" ::"a"(lo), "d"(hi), "c"(msr) : "memory");
 }
@@ -59,7 +59,7 @@ static inline uint64_t rdmsr(uint32_t msr)
     uint32_t lo, hi;
     __asm__ __volatile__("rdmsr" : "=a"(lo), "=d"(hi) : "c"(msr));
 
-    return (uint64_t)lo | ((uint64_t)hi << 32);
+    return (uint64_t) lo | ((uint64_t) hi << 32);
 }
 
 #endif

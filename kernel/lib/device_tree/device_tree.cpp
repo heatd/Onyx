@@ -45,7 +45,7 @@ unsigned long maxpfn = 0;
 
 void *get_physical_memory_region(uintptr_t *start, size_t *size, void *context)
 {
-    int index = (int)(unsigned long)context;
+    int index = (int) (unsigned long) context;
 
     *start = memory_ranges[index].start;
     *size = memory_ranges[index].size;
@@ -53,7 +53,7 @@ void *get_physical_memory_region(uintptr_t *start, size_t *size, void *context)
     if (++index == nr_memory_ranges)
         return nullptr;
 
-    return (void *)(unsigned long)index;
+    return (void *) (unsigned long) index;
 }
 
 bool range_is_used(unsigned long addr, size_t nr_pages)
@@ -61,7 +61,7 @@ bool range_is_used(unsigned long addr, size_t nr_pages)
     unsigned long l = addr;
     for (size_t j = 0; j < nr_pages; j++)
     {
-        if (page_is_used((void *)(l), nullptr))
+        if (page_is_used((void *) (l), nullptr))
         {
             return true;
         }
@@ -88,14 +88,14 @@ void *devtree_mm_alloc_boot_page_high(size_t nr_pages)
                 range.start += nr_pages << PAGE_SHIFT;
                 range.size -= nr_pages << PAGE_SHIFT;
                 // printf("allocated %lx\n", ret);
-                return (void *)ret;
+                return (void *) ret;
             }
             else if (!range_is_used(range.start + range.size - (nr_pages << PAGE_SHIFT), nr_pages))
             {
                 unsigned long ret = range.start + range.size - (nr_pages << PAGE_SHIFT);
                 range.size -= nr_pages << PAGE_SHIFT;
                 // printf("allocated %lx\n", ret);
-                return (void *)ret;
+                return (void *) ret;
             }
         }
     }
@@ -134,7 +134,7 @@ void process_reservations()
         used_pages &p = reserved_ranges[i];
 
         p.start = address & ~PAGE_SIZE;
-        p.end = (uintptr_t)page_align_up((void *)(address + size));
+        p.end = (uintptr_t) page_align_up((void *) (address + size));
         page_add_used_pages(&p);
     }
 
@@ -150,7 +150,7 @@ int fdt_get_cells(const void *fdt, int nodeoffset, const char *name)
     uint32_t val;
     int len;
 
-    c = (const fdt32_t *)fdt_getprop(fdt, nodeoffset, name, &len);
+    c = (const fdt32_t *) fdt_getprop(fdt, nodeoffset, name, &len);
     if (!c)
         return len;
 
@@ -161,7 +161,7 @@ int fdt_get_cells(const void *fdt, int nodeoffset, const char *name)
     if (val > FDT_MAX_NCELLS)
         return -FDT_ERR_BADNCELLS;
 
-    return (int)val;
+    return (int) val;
 }
 
 /**
@@ -170,8 +170,8 @@ int fdt_get_cells(const void *fdt, int nodeoffset, const char *name)
  */
 uint64_t read_reg(const void *reg, int reg_offset, int cell_size)
 {
-    auto reg32 = (const uint32_t *)((char *)reg + (reg_offset * sizeof(uint32_t)));
-    auto reg64 = (const uint64_t *)((char *)reg + (reg_offset * sizeof(uint32_t)));
+    auto reg32 = (const uint32_t *) ((char *) reg + (reg_offset * sizeof(uint32_t)));
+    auto reg64 = (const uint64_t *) ((char *) reg + (reg_offset * sizeof(uint32_t)));
 
     switch (cell_size)
     {
@@ -306,8 +306,8 @@ void init(void *fdt)
         return;
     }
 
-    fdt_used_pages.start = (uintptr_t)fdt & ~PAGE_SIZE;
-    fdt_used_pages.end = (uintptr_t)page_align_up((char *)fdt + fdt_totalsize(fdt));
+    fdt_used_pages.start = (uintptr_t) fdt & ~PAGE_SIZE;
+    fdt_used_pages.end = (uintptr_t) page_align_up((char *) fdt + fdt_totalsize(fdt));
     // Reserve the FDT in case the device tree hasn't done that
     page_add_used_pages(&fdt_used_pages);
 

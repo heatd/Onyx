@@ -4656,6 +4656,6 @@ static unsigned int font_mask[8] = {128, 64, 32, 16, 8, 4, 2, 1};
 struct font boot_font = {.width = 8,
                          .height = 16,
                          .chars = 256,
-                         .font_bitmap = (void *)__font_bitmap__,
+                         .font_bitmap = (void *) __font_bitmap__,
                          .mask = font_mask,
-                         .cursor_bitmap = (void *)__cursor__bitmap};
+                         .cursor_bitmap = (void *) __cursor__bitmap};

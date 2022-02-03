@@ -13,7 +13,7 @@ void *memdup(const void *ptr, size_t size);
 void *copy_page(void *vaddr, void *p2);
 void *copy_page_to_page(void *p1, void *p2);
 
-#define container_of(ptr, type, member) ((type *)((char *)ptr - offsetof(type, member)))
+#define container_of(ptr, type, member) ((type *) ((char *) ptr - offsetof(type, member)))
 
 #ifndef __cplusplus
 #define min(x, y) (x < y ? x : y)
@@ -29,7 +29,7 @@ Type min(Type t1, Type t2)
 
 static inline bool array_overflows(size_t n, size_t elem_size)
 {
-    return n > (size_t)-1 / elem_size;
+    return n > (size_t) -1 / elem_size;
 }
 
 #ifdef __cplusplus

@@ -88,12 +88,12 @@ void module_remove_from_list(struct module *mod)
 void setup_core_kernel_module(void)
 {
     core_kernel.name = "<kernel>";
-    core_kernel.layout.start_text = (unsigned long)&_text_start;
-    core_kernel.layout.start_data = (unsigned long)&_data_start;
-    core_kernel.layout.start_ro = (unsigned long)&_ro_start;
-    core_kernel.layout.text_size = (uintptr_t)&_text_end - (uintptr_t)&_text_start;
-    core_kernel.layout.data_size = (uintptr_t)&_data_end - (uintptr_t)&_data_start;
-    core_kernel.layout.ro_size = (uintptr_t)&_ro_end - (uintptr_t)&_ro_start;
+    core_kernel.layout.start_text = (unsigned long) &_text_start;
+    core_kernel.layout.start_data = (unsigned long) &_data_start;
+    core_kernel.layout.start_ro = (unsigned long) &_ro_start;
+    core_kernel.layout.text_size = (uintptr_t) &_text_end - (uintptr_t) &_text_start;
+    core_kernel.layout.data_size = (uintptr_t) &_data_end - (uintptr_t) &_data_start;
+    core_kernel.layout.ro_size = (uintptr_t) &_ro_end - (uintptr_t) &_ro_start;
     core_kernel.layout.base = KERNEL_VIRTUAL_BASE;
     core_kernel.path = "/vmonyx";
 
@@ -113,7 +113,7 @@ bool symbol_is_exported(struct symbol *s)
 
 bool module_try_resolve(struct module *m, void *ctx)
 {
-    struct module_resolve_ctx *c = (module_resolve_ctx *)ctx;
+    struct module_resolve_ctx *c = (module_resolve_ctx *) ctx;
 
     fnv_hash_t hash = fnv_hash(c->sym_name, strlen(c->sym_name));
 
@@ -156,18 +156,18 @@ void module_unmap(struct module *module)
 {
     if (module->layout.start_text)
     {
-        vm_munmap(&kernel_address_space, (void *)module->layout.start_text,
+        vm_munmap(&kernel_address_space, (void *) module->layout.start_text,
                   module->layout.text_size);
     }
 
     if (module->layout.start_ro)
     {
-        vm_munmap(&kernel_address_space, (void *)module->layout.start_ro, module->layout.ro_size);
+        vm_munmap(&kernel_address_space, (void *) module->layout.start_ro, module->layout.ro_size);
     }
 
     if (module->layout.start_data)
     {
-        vm_munmap(&kernel_address_space, (void *)module->layout.start_data,
+        vm_munmap(&kernel_address_space, (void *) module->layout.start_data,
                   module->layout.data_size);
     }
 }
@@ -177,9 +177,9 @@ void module_remove(struct module *m, bool unmap_sections)
     if (m->symtable)
         free(m->symtable);
     if (m->path)
-        free((char *)m->path);
+        free((char *) m->path);
     if (m->name)
-        free((char *)m->name);
+        free((char *) m->name);
 
     if (unmap_sections)
         module_unmap(m);
@@ -192,7 +192,7 @@ void module_remove(struct module *m, bool unmap_sections)
 int load_module(const char *path, const char *name)
 {
     struct file *file = NULL;
-    struct module *mod = (module *)zalloc(sizeof(struct module));
+    struct module *mod = (module *) zalloc(sizeof(struct module));
     if (!mod)
         return -1;
     void *entry = nullptr;
@@ -219,7 +219,7 @@ int load_module(const char *path, const char *name)
         goto error_path;
     }
 
-    init = (module_init_t)entry;
+    init = (module_init_t) entry;
 
     /* TODO: Should we remove the module if init() < 0? */
     init();
@@ -266,10 +266,10 @@ uintptr_t get_common_block(const char *name, size_t size)
     for (; h != NULL; h = h->next)
     {
         if (!strcmp(h->symbol, name))
-            return (uintptr_t)h->buf;
+            return (uintptr_t) h->buf;
     }
 
-    struct common_block *b = (common_block *)zalloc(sizeof(struct common_block));
+    struct common_block *b = (common_block *) zalloc(sizeof(struct common_block));
     if (!b)
         return 0;
 
@@ -283,7 +283,7 @@ uintptr_t get_common_block(const char *name, size_t size)
         i = &(*i)->next;
     *i = b;
 
-    return (uintptr_t)b->buf;
+    return (uintptr_t) b->buf;
 }
 
 int sys_insmod(const char *path, const char *name)
@@ -314,8 +314,8 @@ int sys_insmod(const char *path, const char *name)
     if (st < 0)
         st = -errno;
 out:
-    free((char *)kpath);
-    free((char *)kname);
+    free((char *) kpath);
+    free((char *) kname);
     creds_put(c);
     return st;
 }

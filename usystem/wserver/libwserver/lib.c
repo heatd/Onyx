@@ -29,7 +29,7 @@ int wserver_connect(void)
     addr.sun_family = AF_UNIX;
     memcpy(addr.sun_path, SERVER_SOCKET_PATH, sizeof(SERVER_SOCKET_PATH));
 
-    if (connect(client_fd, (struct sockaddr *)&addr,
+    if (connect(client_fd, (struct sockaddr *) &addr,
                 sizeof(addr.sun_family) + sizeof(SERVER_SOCKET_PATH)) < 0)
     {
         perror("wserver_connect: connect");

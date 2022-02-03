@@ -40,7 +40,7 @@ ACPI_STATUS AcpiOsShutdown()
 
 ACPI_PHYSICAL_ADDRESS AcpiOsGetRootPointer()
 {
-    return (ACPI_PHYSICAL_ADDRESS)acpi_get_rsdp();
+    return (ACPI_PHYSICAL_ADDRESS) acpi_get_rsdp();
 }
 
 ACPI_STATUS AcpiOsPredefinedOverride(const ACPI_PREDEFINED_NAMES *PredefinedObject,
@@ -63,7 +63,7 @@ void *AcpiOsMapMemory(ACPI_PHYSICAL_ADDRESS PhysicalAddress, ACPI_SIZE Length)
 #if DEBUG_ACPICA
     printf("map %lx", PhysicalAddress);
 #endif
-    void *addrl = (void *)(PhysicalAddress + PHYS_BASE);
+    void *addrl = (void *) (PhysicalAddress + PHYS_BASE);
     return addrl;
 }
 
@@ -72,12 +72,12 @@ void AcpiOsUnmapMemory(void *where, ACPI_SIZE Length)
     size_t pages = Length / 4096;
     if (Length % 4096)
         pages++;
-    (void)where;
+    (void) where;
 }
 
 ACPI_STATUS AcpiOsGetPhysicalAddress(void *LogicalAddress, ACPI_PHYSICAL_ADDRESS *PhysicalAddress)
 {
-    *PhysicalAddress = (ACPI_PHYSICAL_ADDRESS)virtual2phys(LogicalAddress);
+    *PhysicalAddress = (ACPI_PHYSICAL_ADDRESS) virtual2phys(LogicalAddress);
     return AE_OK;
 }
 
@@ -160,10 +160,10 @@ void AcpiOsStall(UINT32 Microseconds)
 
 ACPI_STATUS AcpiOsCreateMutex(ACPI_MUTEX *OutHandle)
 {
-    *OutHandle = (mutex *)AcpiOsAllocateZeroed(sizeof(struct mutex));
+    *OutHandle = (mutex *) AcpiOsAllocateZeroed(sizeof(struct mutex));
     if (*OutHandle == nullptr)
         return AE_NO_MEMORY;
-    mutex_init((mutex *)*OutHandle);
+    mutex_init((mutex *) *OutHandle);
     return AE_OK;
 }
 
@@ -175,21 +175,21 @@ void AcpiOsDeleteMutex(ACPI_MUTEX Handle)
 // TODO: Implement Timeout
 ACPI_STATUS AcpiOsAcquireMutex(ACPI_MUTEX Handle, UINT16 Timeout)
 {
-    mutex_lock((mutex *)Handle);
+    mutex_lock((mutex *) Handle);
     return AE_OK;
 }
 
 void AcpiOsReleaseMutex(ACPI_MUTEX Handle)
 {
-    mutex_unlock((mutex *)Handle);
+    mutex_unlock((mutex *) Handle);
 }
 
 ACPI_STATUS AcpiOsCreateSemaphore(UINT32 MaxUnits, UINT32 InitialUnits, ACPI_SEMAPHORE *OutHandle)
 {
-    *OutHandle = (semaphore *)AcpiOsAllocateZeroed(sizeof(struct semaphore));
+    *OutHandle = (semaphore *) AcpiOsAllocateZeroed(sizeof(struct semaphore));
     if (*OutHandle == nullptr)
         return AE_NO_MEMORY;
-    sem_init((semaphore *)*OutHandle, InitialUnits);
+    sem_init((semaphore *) *OutHandle, InitialUnits);
     return AE_OK;
 }
 
@@ -203,7 +203,7 @@ ACPI_STATUS AcpiOsDeleteSemaphore(ACPI_SEMAPHORE Handle)
 ACPI_STATUS AcpiOsWaitSemaphore(ACPI_SEMAPHORE Handle, UINT32 Units, UINT16 Timeout)
 {
     while (Units--)
-        sem_wait((semaphore *)Handle);
+        sem_wait((semaphore *) Handle);
 
     return AE_OK;
 }
@@ -211,17 +211,17 @@ ACPI_STATUS AcpiOsWaitSemaphore(ACPI_SEMAPHORE Handle, UINT32 Units, UINT16 Time
 ACPI_STATUS AcpiOsSignalSemaphore(ACPI_SEMAPHORE Handle, UINT32 Units)
 {
     while (Units--)
-        sem_signal((semaphore *)Handle);
+        sem_signal((semaphore *) Handle);
     return AE_OK;
 }
 
 ACPI_STATUS AcpiOsCreateLock(ACPI_SPINLOCK *OutHandle)
 {
-    *OutHandle = (spinlock *)AcpiOsAllocateZeroed(sizeof(struct spinlock));
+    *OutHandle = (spinlock *) AcpiOsAllocateZeroed(sizeof(struct spinlock));
     if (*OutHandle == nullptr)
         return AE_NO_MEMORY;
 
-    spinlock_init((spinlock *)*OutHandle);
+    spinlock_init((spinlock *) *OutHandle);
     return AE_OK;
 }
 
@@ -232,12 +232,12 @@ void AcpiOsDeleteLock(ACPI_SPINLOCK Handle)
 
 ACPI_CPU_FLAGS AcpiOsAcquireLock(ACPI_SPINLOCK Handle)
 {
-    return spin_lock_irqsave((spinlock *)Handle);
+    return spin_lock_irqsave((spinlock *) Handle);
 }
 
 void AcpiOsReleaseLock(ACPI_SPINLOCK Handle, ACPI_CPU_FLAGS Flags)
 {
-    spin_unlock_irqrestore((spinlock *)Handle, Flags);
+    spin_unlock_irqrestore((spinlock *) Handle, Flags);
 }
 
 ACPI_OSD_HANDLER ServiceRout;
@@ -277,7 +277,7 @@ ACPI_STATUS AcpiOsReadMemory(ACPI_PHYSICAL_ADDRESS Address, UINT64 *Value, UINT3
 {
     void *ptr;
     ptr = AcpiOsMapMemory(Address, 4096);
-    *Value = *(UINT64 *)ptr;
+    *Value = *(UINT64 *) ptr;
     if (Width == 8)
         *Value &= 0xFF;
     else if (Width == 16)
@@ -291,7 +291,7 @@ ACPI_STATUS AcpiOsReadMemory(ACPI_PHYSICAL_ADDRESS Address, UINT64 *Value, UINT3
 ACPI_STATUS AcpiOsWriteMemory(ACPI_PHYSICAL_ADDRESS Address, UINT64 Value, UINT32 Width)
 {
     UINT64 *ptr;
-    ptr = (UINT64 *)AcpiOsMapMemory(Address, 4096);
+    ptr = (UINT64 *) AcpiOsMapMemory(Address, 4096);
     if (Width == 8)
         *ptr = Value & 0xFF;
     else if (Width == 16)
@@ -317,9 +317,9 @@ ACPI_STATUS AcpiOsReadPort(ACPI_IO_ADDRESS Address, UINT32 *Value, UINT32 Width)
 ACPI_STATUS AcpiOsWritePort(ACPI_IO_ADDRESS Address, UINT32 Value, UINT32 Width)
 {
     if (Width == 8)
-        outb(Address, (uint8_t)Value);
+        outb(Address, (uint8_t) Value);
     else if (Width == 16)
-        outw(Address, (uint16_t)Value);
+        outw(Address, (uint16_t) Value);
     else if (Width == 32)
         outl(Address, Value);
     return AE_OK;
@@ -330,9 +330,9 @@ ACPI_STATUS AcpiOsWritePciConfiguration(ACPI_PCI_ID *PciId, UINT32 Register, UIN
 {
     pci::device_address addr;
     addr.segment = PciId->Segment;
-    addr.bus = (uint8_t)PciId->Bus;
-    addr.device = (uint8_t)PciId->Device;
-    addr.function = (uint8_t)PciId->Function;
+    addr.bus = (uint8_t) PciId->Bus;
+    addr.device = (uint8_t) PciId->Device;
+    addr.function = (uint8_t) PciId->Function;
 
     pci::write_config(addr, Value, Register, Width / 8);
     return AE_OK;
@@ -343,11 +343,11 @@ ACPI_STATUS AcpiOsReadPciConfiguration(ACPI_PCI_ID *PciId, UINT32 Register, UINT
 {
     pci::device_address addr;
     addr.segment = PciId->Segment;
-    addr.bus = (uint8_t)PciId->Bus;
-    addr.device = (uint8_t)PciId->Device;
-    addr.function = (uint8_t)PciId->Function;
+    addr.bus = (uint8_t) PciId->Bus;
+    addr.device = (uint8_t) PciId->Device;
+    addr.function = (uint8_t) PciId->Function;
 
-    *Value = pci::read_config(addr, (uint16_t)Register, Width / 8);
+    *Value = pci::read_config(addr, (uint16_t) Register, Width / 8);
     return AE_OK;
 }
 

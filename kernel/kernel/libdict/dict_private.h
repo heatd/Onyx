@@ -93,7 +93,7 @@
 extern long random(void);
 static inline unsigned dict_rand()
 {
-    return (unsigned)random();
+    return (unsigned) random();
 }
 
 #endif /* !LIBDICT_DICT_PRIVATE_H__ */

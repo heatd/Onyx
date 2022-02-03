@@ -46,7 +46,7 @@ struct ids *idm_add(const char *name, uintmax_t min_id, uintmax_t upper_limit)
 
     assert(min_id < upper_limit);
     assert(name != NULL);
-    id = (ids *)zalloc(sizeof(struct ids));
+    id = (ids *) zalloc(sizeof(struct ids));
     if (!id)
         goto cleanup_and_error;
     if (!(id->name = strdup(name)))
@@ -89,7 +89,7 @@ const char *idm_get_device_letter(struct ids *ids)
     char buffer[3];
     assert(ids != NULL);
     uintmax_t id = idm_get_id(ids);
-    if (id == (uintmax_t)-1)
+    if (id == (uintmax_t) -1)
         return NULL;
     if (id > 26)
     {

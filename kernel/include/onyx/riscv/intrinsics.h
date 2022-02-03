@@ -27,6 +27,6 @@ static inline void mov_non_temporal(volatile Type *p, Type val)
     })
 
 #define riscv_write_csr(register, val) \
-    ({ __asm__ __volatile__("csrw " register ", %0" ::"r"((unsigned long)val)); })
+    ({ __asm__ __volatile__("csrw " register ", %0" ::"r"((unsigned long) val)); })
 
 #endif

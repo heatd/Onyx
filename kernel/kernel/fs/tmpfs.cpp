@@ -34,7 +34,7 @@ atomic<ino_t> tmpfs_superblock::curr_minor_number{1};
 tmpfs_inode *tmpfs_create_inode(mode_t mode, struct dentry *dir, dev_t rdev = 0)
 {
     auto dir_inode = dir->d_inode;
-    auto sb = (tmpfs_superblock *)dir_inode->i_sb;
+    auto sb = (tmpfs_superblock *) dir_inode->i_sb;
     return sb->create_inode(mode, rdev);
 }
 
@@ -57,7 +57,7 @@ inode *tmpfs_symlink(const char *name, const char *dest, struct dentry *dir)
     auto new_ino = tmpfs_create_inode(S_IFLNK | 0777, dir);
     if (!new_ino)
     {
-        free((void *)link_name);
+        free((void *) link_name);
         return nullptr;
     }
 
@@ -150,10 +150,10 @@ int tmpfs_prepare_write(inode *ino, struct page *page, size_t page_off, size_t o
 
 void tmpfs_close(inode *file)
 {
-    tmpfs_inode *ino = (tmpfs_inode *)file;
+    tmpfs_inode *ino = (tmpfs_inode *) file;
 
     if (ino->link)
-        free((void *)ino->link);
+        free((void *) ino->link);
 }
 
 struct file_ops tmpfs_fops = {.read = nullptr,

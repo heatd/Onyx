@@ -40,7 +40,7 @@ int handle_open_flags_to_open(int handle_open_fl)
 
 handleable *handle_from_inode(const inode *ino)
 {
-    return (handleable *)ino->i_helper;
+    return (handleable *) ino->i_helper;
 }
 
 handleable *handle_from_file(const file *f)

@@ -30,7 +30,7 @@ long __vdso_syscall(long number, ...);
 
 static struct vdso_info *__vdso_get_vdso_info(void)
 {
-    return (struct vdso_info *)&info;
+    return (struct vdso_info *) &info;
 }
 
 uint64_t clock_delta_calc(uint64_t start, uint64_t end)

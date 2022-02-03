@@ -33,7 +33,7 @@ typedef enum
 #define BRK_ASLR_BITS     30
 
 #define VM_USER_ADDR_LIMIT   arch_low_half_max
-#define VM_KERNEL_ADDR_LIMIT ((unsigned long)-1)
+#define VM_KERNEL_ADDR_LIMIT ((unsigned long) -1)
 
 #define DEFAULT_USER_STACK_LEN (0x100000)
 

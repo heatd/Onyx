@@ -16,26 +16,26 @@
 
 bool avx_supported = false;
 
-#define EDX_EAX(var) "d"((uint32_t)(var >> 32)), "a"((uint32_t)var)
+#define EDX_EAX(var) "d"((uint32_t) (var >> 32)), "a"((uint32_t) var)
 
 void do_xsave(void *address, long xcr0)
 {
-    __asm__ __volatile__("xsave %0" : "+m"(*(unsigned long *)address) : EDX_EAX(xcr0) : "memory");
+    __asm__ __volatile__("xsave %0" : "+m"(*(unsigned long *) address) : EDX_EAX(xcr0) : "memory");
 }
 
 void do_fxsave(void *address)
 {
-    __asm__ __volatile__("fxsave %0" : "=m"(*(unsigned long *)address)::"memory");
+    __asm__ __volatile__("fxsave %0" : "=m"(*(unsigned long *) address)::"memory");
 }
 
 void do_xrstor(void *address, long xcr0)
 {
-    __asm__ __volatile__("xrstor %0" ::"m"(*(unsigned long *)address), EDX_EAX(xcr0) : "memory");
+    __asm__ __volatile__("xrstor %0" ::"m"(*(unsigned long *) address), EDX_EAX(xcr0) : "memory");
 }
 
 void do_fxrstor(void *address)
 {
-    __asm__ __volatile__("fxrstor %0" ::"m"(*(unsigned long *)address) : "memory");
+    __asm__ __volatile__("fxrstor %0" ::"m"(*(unsigned long *) address) : "memory");
 }
 
 void do_ldmxcsr(unsigned int a)
@@ -103,13 +103,13 @@ struct fpu_area
 
 void setup_fpu_area(unsigned char *address)
 {
-    struct fpu_area *area = (struct fpu_area *)address;
+    struct fpu_area *area = (struct fpu_area *) address;
     area->mxcsr = 0x1F80;
 }
 
 void fpu_ptrace_getfpregs(void *__fpregs, struct user_fpregs_struct *regs)
 {
-    struct fpu_area *fpregs = (fpu_area *)__fpregs;
+    struct fpu_area *fpregs = (fpu_area *) __fpregs;
     regs->cwd = fpregs->fcw;
     regs->swd = fpregs->fsw;
     regs->ftw = fpregs->ftw;

@@ -45,7 +45,7 @@ public:
 
     ~user_string()
     {
-        free((void *)buf);
+        free((void *) buf);
     }
 
     expected<char *, int> from_user(const char *ustring)

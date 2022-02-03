@@ -38,7 +38,7 @@ int pci_device::set_power_state(int power_state)
         return -EINVAL; /* If not, just return */
 
     /* Set its children's power state as well */
-    while ((element = (pci_device *)extrusive_list_get_element(&children, &saveptr)))
+    while ((element = (pci_device *) extrusive_list_get_element(&children, &saveptr)))
     {
         element->set_power_state(power_state);
     }

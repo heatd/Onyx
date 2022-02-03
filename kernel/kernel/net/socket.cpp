@@ -33,48 +33,48 @@ int socket::listen()
 
 socket *socket::accept(socket_conn_request *req)
 {
-    (void)req;
+    (void) req;
     return errno = EIO, nullptr;
 }
 
 int socket::bind(struct sockaddr *addr, socklen_t addrlen)
 {
-    (void)addr;
-    (void)addrlen;
+    (void) addr;
+    (void) addrlen;
     return -EIO;
 }
 
 int socket::connect(struct sockaddr *addr, socklen_t addrlen)
 {
-    (void)addr;
-    (void)addrlen;
+    (void) addr;
+    (void) addrlen;
     return -EIO;
 }
 
 ssize_t socket::sendmsg(const struct msghdr *msg, int flags)
 {
-    (void)msg;
-    (void)flags;
+    (void) msg;
+    (void) flags;
     return -EIO;
 }
 
 int socket::getsockname(sockaddr *addr, socklen_t *addrlen)
 {
-    (void)addr;
-    (void)addrlen;
+    (void) addr;
+    (void) addrlen;
     return -EOPNOTSUPP;
 }
 
 int socket::getpeername(sockaddr *addr, socklen_t *addrlen)
 {
-    (void)addr;
-    (void)addrlen;
+    (void) addr;
+    (void) addrlen;
     return -EOPNOTSUPP;
 }
 
 ssize_t recv_queue::recvfrom(void *_buf, size_t len, int flags, sockaddr *src_addr, socklen_t *slen)
 {
-    char *buf = (char *)_buf;
+    char *buf = (char *) _buf;
     bool storing_src = src_addr != nullptr;
     bool remove_data = !(flags & MSG_PEEK);
     ssize_t total_read = 0;
@@ -116,7 +116,7 @@ ssize_t recv_queue::recvfrom(void *_buf, size_t len, int flags, sockaddr *src_ad
 
         ssize_t to_copy = min(len, avail);
 
-        if (copy_to_user(buf, (char *)packet->payload + packet->read, to_copy) < 0)
+        if (copy_to_user(buf, (char *) packet->payload + packet->read, to_copy) < 0)
         {
             spin_unlock(&recv_queue_lock);
             return -EFAULT;
@@ -139,7 +139,7 @@ ssize_t recv_queue::recvfrom(void *_buf, size_t len, int flags, sockaddr *src_ad
             }
         }
 
-        if (total_read == (ssize_t)len || sock->type == SOCK_DGRAM)
+        if (total_read == (ssize_t) len || sock->type == SOCK_DGRAM)
             break;
     }
 
@@ -379,7 +379,7 @@ int sys_connect(int sockfd, const struct sockaddr *uaddr, socklen_t addrlen)
         goto out2;
     }
 
-    ret = s->connect((sockaddr *)&addr, addrlen);
+    ret = s->connect((sockaddr *) &addr, addrlen);
 
 out2:
     s->socket_lock.unlock();
@@ -410,7 +410,7 @@ int sys_bind(int sockfd, const struct sockaddr *uaddr, socklen_t addrlen)
         goto out2;
     }
 
-    ret = s->bind((sockaddr *)&addr, addrlen);
+    ret = s->bind((sockaddr *) &addr, addrlen);
 
 out2:
     s->socket_lock.unlock();
@@ -553,7 +553,7 @@ static const int sock_flag_mask = ~type_mask;
 
 int net_check_type_support(int type)
 {
-    (void)sock_flag_mask;
+    (void) sock_flag_mask;
     return 1;
 }
 
@@ -826,7 +826,7 @@ int socket::getsockopt_socket_level(int optname, void *optval, socklen_t *optlen
     {
     /* TODO: Add more options */
     case SO_ACCEPTCONN: {
-        int val = (int)listening();
+        int val = (int) listening();
         return put_option(val, optval, optlen);
     }
 
@@ -1123,7 +1123,7 @@ ssize_t socket_recvmsg(socket *sock, msghdr *umsg, int flags)
         return st;
 
     msg.msg_control = g.ucontrol;
-    msg.msg_iov = (iovec *)g.uiov;
+    msg.msg_iov = (iovec *) g.uiov;
     msg.msg_name = g.uname;
 
     if (msg.msg_control)
@@ -1205,12 +1205,12 @@ int sys_getsockname(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
 
     socket *sock = file_to_socket(f);
 
-    int st = sock->getsockname((sockaddr *)&kaddr, &kaddrlen);
+    int st = sock->getsockname((sockaddr *) &kaddr, &kaddrlen);
 
     if (st < 0)
         return st;
 
-    return copy_sockaddr((sockaddr *)&kaddr, kaddrlen, addr, addrlen);
+    return copy_sockaddr((sockaddr *) &kaddr, kaddrlen, addr, addrlen);
 }
 
 int sys_getpeername(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
@@ -1226,10 +1226,10 @@ int sys_getpeername(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
     if (!sock->connected)
         return -ENOTCONN;
 
-    int st = sock->getpeername((sockaddr *)&kaddr, &kaddrlen);
+    int st = sock->getpeername((sockaddr *) &kaddr, &kaddrlen);
 
     if (st < 0)
         return st;
 
-    return copy_sockaddr((sockaddr *)&kaddr, kaddrlen, addr, addrlen);
+    return copy_sockaddr((sockaddr *) &kaddr, kaddrlen, addr, addrlen);
 }

@@ -87,7 +87,7 @@ static inline bool blkdev_is_partition(struct blockdev *dev)
 
 static inline struct blockdev *blkdev_get_dev(struct file *f)
 {
-    return (struct blockdev *)f->f_ino->i_helper;
+    return (struct blockdev *) f->f_ino->i_helper;
 }
 
 /*

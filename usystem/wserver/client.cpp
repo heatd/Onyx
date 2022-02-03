@@ -36,7 +36,7 @@ void Client::DeleteWindow(size_t wid)
 std::shared_ptr<Window> Client::get_window(WINDOW handle)
 {
     std::scoped_lock guard{client_windows_lock};
-    size_t index = (size_t)handle;
+    size_t index = (size_t) handle;
 
     if (index >= client_windows.size())
         return nullptr;
@@ -48,5 +48,5 @@ WINDOW Client::create_window(std::shared_ptr<Window> window)
 {
     std::scoped_lock guard{client_windows_lock};
     client_windows.push_back(window);
-    return (void *)(client_windows.size() - 1);
+    return (void *) (client_windows.size() - 1);
 }

@@ -74,7 +74,7 @@ static size_t partition(unsigned char* base, size_t element_size, size_t num_ele
 void qsort_r(void* base_ptr, size_t num_elements, size_t element_size,
              int (*compare)(const void*, const void*, void*), void* arg)
 {
-    unsigned char* base = (unsigned char*)base_ptr;
+    unsigned char* base = (unsigned char*) base_ptr;
 
     if (!element_size || num_elements < 2)
         return;
@@ -92,11 +92,11 @@ void qsort_r(void* base_ptr, size_t num_elements, size_t element_size,
 
 static int compare_wrapper(const void* a, const void* b, void* arg)
 {
-    return ((int (*)(const void*, const void*))arg)(a, b);
+    return ((int (*)(const void*, const void*)) arg)(a, b);
 }
 
 void qsort(void* base_ptr, size_t num_elements, size_t element_size,
            int (*compare)(const void*, const void*))
 {
-    qsort_r(base_ptr, num_elements, element_size, compare_wrapper, (void*)compare);
+    qsort_r(base_ptr, num_elements, element_size, compare_wrapper, (void*) compare);
 }

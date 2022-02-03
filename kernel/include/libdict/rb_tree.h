@@ -47,12 +47,12 @@ struct rb_node
 #define RB_RED   0
 #define RB_BLACK 1
 
-#define PARENT(node) ((rb_node*)((node)->color & ~RB_BLACK))
+#define PARENT(node) ((rb_node*) ((node)->color & ~RB_BLACK))
 #define COLOR(node)  ((node)->color & RB_BLACK)
 
-#define SET_RED(node)       (node)->color &= (~(intptr_t)RB_BLACK)
-#define SET_BLACK(node)     (node)->color |= ((intptr_t)RB_BLACK)
-#define SET_PARENT(node, p) (node)->color = COLOR(node) | (intptr_t)(p)
+#define SET_RED(node)       (node)->color &= (~(intptr_t) RB_BLACK)
+#define SET_BLACK(node)     (node)->color |= ((intptr_t) RB_BLACK)
+#define SET_PARENT(node, p) (node)->color = COLOR(node) | (intptr_t) (p)
 
 typedef struct rb_tree
 {

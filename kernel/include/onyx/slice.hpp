@@ -14,7 +14,7 @@
 namespace cul
 {
 
-constexpr size_t dynamic_extent = (size_t)-1;
+constexpr size_t dynamic_extent = (size_t) -1;
 
 template <typename Type, size_t length>
 class slice_dynamic

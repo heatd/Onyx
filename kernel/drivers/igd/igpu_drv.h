@@ -186,9 +186,9 @@ struct igd_displayport
 
 typedef uint32_t igd_gtt_entry_t;
 
-#define igd_get_arch(dev) (((struct igpu_driver_data *)dev->device->driver_data)->architecture)
+#define igd_get_arch(dev) (((struct igpu_driver_data *) dev->device->driver_data)->architecture)
 #define HAS_GMCH_DISPLAY(dev) \
-    (((struct igpu_driver_data *)dev->device->driver_data)->has_gmch_display)
+    (((struct igpu_driver_data *) dev->device->driver_data)->has_gmch_display)
 
 uint32_t igpu_mmio_read(struct igpu_device *dev, uint32_t offset);
 void igpu_mmio_write(struct igpu_device *dev, uint32_t offset, uint32_t data);

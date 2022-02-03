@@ -13,9 +13,9 @@
 #include <onyx/net/netif.h>
 #include <onyx/packetbuf.h>
 
-#define PROTO_IPV4 ((uint16_t)0x800)
-#define PROTO_ARP  ((uint16_t)0x806)
-#define PROTO_IPV6 ((uint16_t)0x86DD)
+#define PROTO_IPV4 ((uint16_t) 0x800)
+#define PROTO_ARP  ((uint16_t) 0x806)
+#define PROTO_IPV6 ((uint16_t) 0x86DD)
 
 #define ETH_ALEN 6
 

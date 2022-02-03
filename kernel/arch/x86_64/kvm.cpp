@@ -114,15 +114,15 @@ void pvclock_init(void)
     if (!p)
         return;
 
-    unsigned long paddr = (unsigned long)page_to_phys(p);
+    unsigned long paddr = (unsigned long) page_to_phys(p);
 
-    system_time = (struct pvclock_system_time *)paddr;
+    system_time = (struct pvclock_system_time *) paddr;
     paddr = ALIGN_TO(paddr, 4);
-    wall_clock = (struct pvclock_wall_clock *)paddr;
+    wall_clock = (struct pvclock_wall_clock *) paddr;
 
-    vsystem_time = (volatile pvclock_system_time *)PHYS_TO_VIRT(system_time);
+    vsystem_time = (volatile pvclock_system_time *) PHYS_TO_VIRT(system_time);
 
-    wrmsr(system_time_msr, (unsigned long)system_time | MSR_KVM_SYSTEM_TIME_ENABLE);
+    wrmsr(system_time_msr, (unsigned long) system_time | MSR_KVM_SYSTEM_TIME_ENABLE);
 
     x86_set_tsc_rate(pvclock_get_tsc_frequency());
 }

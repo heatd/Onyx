@@ -25,14 +25,14 @@ device uart8250_platform_device{"uart8250", nullptr, nullptr};
 
 void do_dispatch(void *ctx)
 {
-    (void)ctx;
+    (void) ctx;
 }
 
 void uart8250_port::dispatch_rx()
 {
     auto data = read<uint8_t>(uart8250_register::data);
     struct dpc_work work;
-    work.context = (void *)(unsigned long)data;
+    work.context = (void *) (unsigned long) data;
 
     work.funcptr = do_dispatch;
     work.next = NULL;

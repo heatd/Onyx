@@ -39,7 +39,7 @@ public:
 
     Server &operator=(const Server &a)
     {
-        return (Server &)a;
+        return (Server &) a;
     }
 
     std::shared_ptr<Window> create_window(unsigned int height, unsigned int width, unsigned int x,

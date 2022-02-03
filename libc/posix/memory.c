@@ -13,15 +13,15 @@
 void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
 
-    return (void *)MAP_FAILED;
+    return (void *) MAP_FAILED;
 }
 int munmap(void *addr, size_t length)
 {
-    return (int)-1;
+    return (int) -1;
 }
 int mprotect(void *addr, size_t len, int prot)
 {
-    return (int)-1;
+    return (int) -1;
 }
 uint64_t brk(void *addr)
 {
@@ -35,12 +35,12 @@ void *sbrk(unsigned long long incr)
 {
     if (current_position == NULL)
     {
-        current_position = (void *)brk(NULL);
+        current_position = (void *) brk(NULL);
         char *ret = current_position;
         current_position += incr;
         return ret;
     }
-    else if (((uint64_t)current_position % 4096) == 0)
+    else if (((uint64_t) current_position % 4096) == 0)
     {
         current_position = mmap(NULL, 4096, PROT_WRITE | PROT_READ, MAP_ANONYMOUS, 0, 0);
         brk(current_position);

@@ -81,7 +81,7 @@ int tcp_socket::handle_packet(const tcp_socket::packet_handling_data &data)
 #endif
 
     uint16_t data_size = data.tcp_segment_size - header_size;
-    cul::slice<uint8_t> buf{(uint8_t *)data.header + header_size, data_size};
+    cul::slice<uint8_t> buf{(uint8_t *) data.header + header_size, data_size};
 
     auto flags = htons(data.header->data_offset_and_flags);
 
@@ -143,7 +143,7 @@ int tcp_socket::handle_packet(const tcp_socket::packet_handling_data &data)
 
         guard.unlock();
 
-        (void)was_acked;
+        (void) was_acked;
 
         last_ack_number = ack;
         /* ack_number holds the other side of the connection's sequence number */
@@ -172,7 +172,7 @@ int tcp_socket::handle_packet(const tcp_socket::packet_handling_data &data)
         if (!(flags & TCP_FLAG_FIN))
         {
             auto buf = data.buffer;
-            buf->transport_header = (unsigned char *)data.header;
+            buf->transport_header = (unsigned char *) data.header;
             buf->data += header_size;
             append_inet_rx_pbuf(buf);
         }
@@ -198,7 +198,7 @@ int tcp_send_rst_no_socket(const sockaddr_in_both &dstaddr, in_port_t srcport, i
 
     buf->reserve_headers(MAX_TCP_HEADER_LENGTH + ip_size);
 
-    auto hdr = (tcp_header *)buf->push_header(sizeof(tcp_header));
+    auto hdr = (tcp_header *) buf->push_header(sizeof(tcp_header));
 
     memset(hdr, 0, sizeof(tcp_header));
     hdr->dest_port = dstaddr.in4.sin_port;
@@ -224,7 +224,7 @@ int tcp_send_rst_no_socket(const sockaddr_in_both &dstaddr, in_port_t srcport, i
 
 int tcp_handle_packet(netif *netif, packetbuf *buf)
 {
-    auto ip_header = (struct ip_header *)buf->net_header;
+    auto ip_header = (struct ip_header *) buf->net_header;
     int st = 0;
     auto header = reinterpret_cast<tcp_header *>(buf->data);
 
@@ -326,9 +326,9 @@ int tcp_packet::send()
     uint16_t options_len = options_length();
     auto header_size = sizeof(tcp_header) + options_len;
 
-    tcp_header *header = (tcp_header *)buf->push_header(header_size);
+    tcp_header *header = (tcp_header *) buf->push_header(header_size);
 
-    buf->transport_header = (unsigned char *)header;
+    buf->transport_header = (unsigned char *) header;
 
     memset(header, 0, header_size);
 
@@ -369,7 +369,7 @@ int tcp_packet::send()
             ~tcpv4_calculate_checksum(header, static_cast<uint16_t>(header_size + length),
                                       route.src_addr.in4.s_addr, route.dst_addr.in4.s_addr, false);
         buf->csum_offset = &header->checksum;
-        buf->csum_start = (unsigned char *)header;
+        buf->csum_start = (unsigned char *) header;
         buf->needs_csum = 1;
     }
     else
@@ -419,7 +419,7 @@ bool tcp_socket::parse_options(tcp_header *packet)
     auto flags = ntohs(packet->data_offset_and_flags);
 
     bool syn_set = flags & TCP_FLAG_SYN;
-    (void)syn_set;
+    (void) syn_set;
 
     uint16_t data_off = flags >> TCP_DATA_OFFSET_SHIFT;
 
@@ -456,7 +456,7 @@ bool tcp_socket::parse_options(tcp_header *packet)
             if (!syn_set)
                 return false;
 
-            mss = *(uint16_t *)(options + 2);
+            mss = *(uint16_t *) (options + 2);
             mss = ntohs(mss);
             break;
         case TCP_OPTION_WINDOW_SCALE:
@@ -586,8 +586,8 @@ int tcp_socket::connect(struct sockaddr *addr, socklen_t addrlen)
     if (!validate_sockaddr_len_pair(addr, addrlen))
         return -EINVAL;
 
-    struct sockaddr_in *in = (struct sockaddr_in *)addr;
-    struct sockaddr_in6 *in6 = (sockaddr_in6 *)addr;
+    struct sockaddr_in *in = (struct sockaddr_in *) addr;
+    struct sockaddr_in6 *in6 = (sockaddr_in6 *) addr;
 
     if (domain == AF_INET)
         dest_addr = inet_sock_address{*in};
@@ -692,7 +692,7 @@ ssize_t tcp_socket::sendmsg(const msghdr *msg, int flags)
 
     mutex_lock(&send_lock);
 
-    auto st = queue_data(msg->msg_iov, msg->msg_iovlen, (size_t)len);
+    auto st = queue_data(msg->msg_iov, msg->msg_iovlen, (size_t) len);
     if (st < 0)
     {
         mutex_unlock(&send_lock);
@@ -801,7 +801,7 @@ ssize_t tcp_socket::recvmsg(msghdr *msg, int flags)
         return st.error();
 
     auto buf = st.value();
-    ssize_t read = min(iovlen, (long)buf->length());
+    ssize_t read = min(iovlen, (long) buf->length());
     ssize_t was_read = 0;
     ssize_t to_ret = read;
 
@@ -817,14 +817,14 @@ ssize_t tcp_socket::recvmsg(msghdr *msg, int flags)
 
     if (msg->msg_name)
     {
-        auto hdr = (tcp_header *)buf->transport_header;
+        auto hdr = (tcp_header *) buf->transport_header;
         ip::copy_msgname_to_user(msg, buf, domain == AF_INET6, hdr->source_port);
     }
 
     for (int i = 0; i < msg->msg_iovlen; i++)
     {
         auto iov = msg->msg_iov[i];
-        auto to_copy = min((ssize_t)iov.iov_len, read - was_read);
+        auto to_copy = min((ssize_t) iov.iov_len, read - was_read);
         // TODO: Replace rx_packet_list_lock with the socket hybrid lock
         if (copy_to_user(iov.iov_base, ptr, to_copy) < 0)
         {

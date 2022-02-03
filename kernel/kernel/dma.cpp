@@ -46,12 +46,12 @@ uintptr_t dma_commit_page(uintptr_t virtual_buf, size_t size)
 {
     /* TODO: Pin stuff. Applies to below too */
     uintptr_t page = virtual_buf & ~(PAGE_SIZE - 1);
-    struct page *p = vm_commit_page((void *)page);
+    struct page *p = vm_commit_page((void *) page);
 
     if (!p)
         return -1;
 
-    return (uintptr_t)pfn_to_paddr(page_to_pfn(p)) + (virtual_buf & (PAGE_SIZE - 1));
+    return (uintptr_t) pfn_to_paddr(page_to_pfn(p)) + (virtual_buf & (PAGE_SIZE - 1));
 }
 
 int __dma_add_range(uintptr_t virtual_buf, size_t size, size_t max_size, struct phys_ranges *ranges)
@@ -60,10 +60,10 @@ int __dma_add_range(uintptr_t virtual_buf, size_t size, size_t max_size, struct 
 
     unsigned long vpage_off = virtual_buf & (PAGE_SIZE - 1);
 
-    if (get_phys_pages((void *)(virtual_buf - vpage_off), GPP_WRITE, &p, 1) < 0)
+    if (get_phys_pages((void *) (virtual_buf - vpage_off), GPP_WRITE, &p, 1) < 0)
         return -1;
 
-    unsigned long phys_buf = (unsigned long)page_to_phys(p) + vpage_off;
+    unsigned long phys_buf = (unsigned long) page_to_phys(p) + vpage_off;
 
     if (try_to_merge(phys_buf, size, max_size, ranges) == true)
         return 0;
@@ -75,9 +75,9 @@ int __dma_add_range(uintptr_t virtual_buf, size_t size, size_t max_size, struct 
     if (!n)
         return -1;
 
-    ranges->ranges = (struct phys_range **)n;
+    ranges->ranges = (struct phys_range **) n;
 
-    ranges->ranges[idx] = (phys_range *)malloc(sizeof(struct phys_range));
+    ranges->ranges[idx] = (phys_range *) malloc(sizeof(struct phys_range));
 
     if (!ranges->ranges[idx])
         return -1;
@@ -91,7 +91,7 @@ int __dma_add_range(uintptr_t virtual_buf, size_t size, size_t max_size, struct 
 
 int dma_get_ranges(const void *vbuf, size_t buf_size, size_t max_range, struct phys_ranges *ranges)
 {
-    uintptr_t buf = (uintptr_t)vbuf;
+    uintptr_t buf = (uintptr_t) vbuf;
     ranges->nr_ranges = 0;
     ranges->ranges = NULL;
 

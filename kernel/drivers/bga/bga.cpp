@@ -78,7 +78,7 @@ static struct pci::pci_id pci_bga_devids[] = {
 
 int bga_probe(struct device *dev)
 {
-    pci::pci_device *device = (pci::pci_device *)dev;
+    pci::pci_device *device = (pci::pci_device *) dev;
 
     if (device->enable_device() < 0)
         return -1;

@@ -157,7 +157,7 @@ int main(int argc, char **argv)
 
     // Discard the arguments before optind, including the object name itself
 
-    return object->handle((const char **)argv + optind + 1, argc - optind - 1);
+    return object->handle((const char **) argv + optind + 1, argc - optind - 1);
 }
 
 // Here's the object list, add the objects in the order of priorities.

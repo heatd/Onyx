@@ -38,13 +38,13 @@ bool net_loopback_test()
     char c = 'x';
     char recved = 0;
 
-    if (bind(fd, (sockaddr *)&in, sizeof(sockaddr_in)) < 0)
+    if (bind(fd, (sockaddr *) &in, sizeof(sockaddr_in)) < 0)
     {
         perror("bind");
         goto close_everything;
     }
 
-    if (connect(clientfd, (sockaddr *)&in, sizeof(sockaddr_in)) < 0)
+    if (connect(clientfd, (sockaddr *) &in, sizeof(sockaddr_in)) < 0)
     {
         perror("connect");
         goto close_everything;

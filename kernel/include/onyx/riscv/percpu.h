@@ -18,7 +18,7 @@
                              : "=r"(val)                              \
                              : "i"(&var)                              \
                              : "a0");                                 \
-        (__typeof__(var))val;                                         \
+        (__typeof__(var)) val;                                        \
     })
 
 #define get_per_cpu_no_cast(var)                                      \

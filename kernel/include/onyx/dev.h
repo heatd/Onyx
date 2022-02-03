@@ -385,7 +385,7 @@ struct bus
         list_for_every (&device_list_head)
         {
             auto dev = list_head_cpp<device>::self_from_list_head(l);
-            (void)dev;
+            (void) dev;
             // TODO
         }
     }

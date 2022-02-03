@@ -235,7 +235,7 @@ struct inode *ext2_open(struct dentry *dir, const char *name)
         return errno = -st, nullptr;
     }
 
-    dir_entry_t *dentry = (dir_entry_t *)(res.buf + res.block_off);
+    dir_entry_t *dentry = (dir_entry_t *) (res.buf + res.block_off);
 
     inode_num = dentry->inode;
 
@@ -359,7 +359,7 @@ struct inode *ext2_create_file(const char *name, mode_t mode, dev_t dev, struct 
         return nullptr;
 
     memset(inode, 0, sizeof(struct ext2_inode));
-    inode->ctime = inode->atime = inode->mtime = (uint32_t)clock_get_posix_time();
+    inode->ctime = inode->atime = inode->mtime = (uint32_t) clock_get_posix_time();
 
     struct creds *c = creds_get();
     unsigned long old = 0;
@@ -371,7 +371,7 @@ struct inode *ext2_create_file(const char *name, mode_t mode, dev_t dev, struct 
 
     inode->hard_links = 1;
     uint16_t ext2_file_type = ext2_mode_to_ino_type(mode);
-    if (ext2_file_type == (uint16_t)-1)
+    if (ext2_file_type == (uint16_t) -1)
     {
         errno = EINVAL;
         goto free_ino_error;
@@ -444,16 +444,16 @@ int ext2_flush_inode(struct inode *inode)
     ino->atime = inode->i_atime;
     ino->ctime = inode->i_ctime;
     ino->mtime = inode->i_mtime;
-    ino->size_lo = (uint32_t)inode->i_size;
-    ino->size_hi = (uint32_t)(inode->i_size >> 32);
+    ino->size_lo = (uint32_t) inode->i_size;
+    ino->size_hi = (uint32_t) (inode->i_size >> 32);
     ino->gid = inode->i_gid;
     ino->uid = inode->i_uid;
-    ino->hard_links = (uint16_t)inode->i_nlink;
-    ino->i_blocks = (uint32_t)inode->i_blocks;
+    ino->hard_links = (uint16_t) inode->i_nlink;
+    ino->i_blocks = (uint32_t) inode->i_blocks;
     ino->mode = inode->i_mode;
     ino->uid = inode->i_uid;
 
-    fs->update_inode(ino, (ext2_inode_no)inode->i_inode);
+    fs->update_inode(ino, (ext2_inode_no) inode->i_inode);
 
     return 0;
 }
@@ -462,13 +462,13 @@ int ext2_kill_inode(struct inode *inode)
 {
     struct ext2_superblock *fs = ext2_superblock_from_inode(inode);
 
-    ext2_delete_inode(inode, (uint32_t)inode->i_inode, fs);
+    ext2_delete_inode(inode, (uint32_t) inode->i_inode, fs);
     return 0;
 }
 
 int ext2_statfs(struct statfs *buf, superblock *sb)
 {
-    return ((ext2_superblock *)sb)->stat_fs(buf);
+    return ((ext2_superblock *) sb)->stat_fs(buf);
 }
 
 struct inode *ext2_mount_partition(struct blockdev *dev)
@@ -492,7 +492,7 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
 
     struct block_buf *b = sb_read_block(sb, 1);
 
-    superblock_t *ext2_sb = (superblock_t *)block_buf_data(b);
+    superblock_t *ext2_sb = (superblock_t *) block_buf_data(b);
 
     if (ext2_sb->s_magic == EXT2_SIGNATURE)
         LOG("ext2", "valid ext2 signature detected!\n");
@@ -534,7 +534,7 @@ struct inode *ext2_mount_partition(struct blockdev *dev)
         goto error;
     }
 
-    ext2_sb = (superblock_t *)((char *)block_buf_data(b) + sb_off);
+    ext2_sb = (superblock_t *) ((char *) block_buf_data(b) + sb_off);
 
     if (ext2_sb->s_rev_level == EXT2_DYNAMIC_REV)
     {
@@ -674,7 +674,7 @@ struct inode *ext2_mkdir(const char *name, mode_t mode, struct dentry *dir)
 
     struct ext2_superblock *fs = ext2_superblock_from_inode(dir->d_inode);
 
-    uint32_t inum = (uint32_t)new_dir->i_inode;
+    uint32_t inum = (uint32_t) new_dir->i_inode;
 
     fs->block_groups[ext2_inode_number_to_bg(inum, fs)].inc_used_dirs();
 

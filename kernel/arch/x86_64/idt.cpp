@@ -18,7 +18,7 @@ idt_entry_t idt_entries[256];
 void x86_reserve_vector(int vector, void (*handler)())
 {
     assert(vector < 256);
-    idt_create_descriptor(vector, (uintptr_t)handler, 0x08, 0x8E);
+    idt_create_descriptor(vector, (uintptr_t) handler, 0x08, 0x8E);
 }
 
 int x86_allocate_vector(void (*handler)())
@@ -113,7 +113,7 @@ void idt_init(void)
     for (unsigned int i = 0; i < len; i++)
     {
         int vector = to_reserve[i] - EXCEPTION_VECTORS_END;
-        void (*irq_stub_handler)() = (void (*)())x86_isr_table[vector + EXCEPTION_VECTORS_END];
+        void (*irq_stub_handler)() = (void (*)()) x86_isr_table[vector + EXCEPTION_VECTORS_END];
 
         printf("Setting up vector %u, %p\n", vector + EXCEPTION_VECTORS_END, irq_stub_handler);
         x86_reserve_vector(vector + EXCEPTION_VECTORS_END, irq_stub_handler);
@@ -151,6 +151,6 @@ void idt_set_system_gate(uint8_t entry, uint64_t offset, uint16_t selector, uint
 void idt_load()
 {
     idt_ptr.limit = sizeof(idt_entry_t) * 256 - 1;
-    idt_ptr.base = (uintptr_t)&idt_entries;
-    idt_flush((uintptr_t)&idt_ptr);
+    idt_ptr.base = (uintptr_t) &idt_entries;
+    idt_flush((uintptr_t) &idt_ptr);
 }

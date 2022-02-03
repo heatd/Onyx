@@ -96,13 +96,13 @@ int network_vdev::send_packet(packetbuf *buf)
     virtio_allocation_info info;
     info.completion = &completion;
     info.vec = buf->page_vec;
-    info.context = (void *)buf;
+    info.context = (void *) buf;
     info.alloc_flags = 0;
 
     info.nr_vecs = buf->count_page_vecs();
     info.fill_function = [](size_t vec_nr, virtio_allocation_info &info_) -> virtio_desc_info {
         page_iov v = info_.vec[vec_nr];
-        auto pbuf = (packetbuf *)info_.context;
+        auto pbuf = (packetbuf *) info_.context;
 
         if (vec_nr == 0)
         {
@@ -176,7 +176,7 @@ void network_vdev::process_packet(unsigned long paddr, unsigned long len)
         return;
 
     auto real_len = len - sizeof(virtio_net_hdr);
-    auto header = (virtio_net_hdr *)packet_base;
+    auto header = (virtio_net_hdr *) packet_base;
 
     if (!pckt->allocate_space(real_len))
         return;

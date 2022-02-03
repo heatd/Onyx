@@ -65,7 +65,7 @@ void pci_device::find_supported_capabilities()
          * fact that the capability exists
          */
         has_power_management = true;
-        pm_cap_off = (uint8_t)pm_off;
+        pm_cap_off = (uint8_t) pm_off;
         /* Now, grab the PMC and cache the available power states
          * The PMC is at pm_off + 2, and is 16 bits in size
          */
@@ -81,12 +81,12 @@ void pci_device::find_supported_capabilities()
 
 void pci_device::init()
 {
-    uint32_t word = (uint32_t)read_config(address, PCI_REGISTER_REVISION_ID, sizeof(uint32_t));
+    uint32_t word = (uint32_t) read_config(address, PCI_REGISTER_REVISION_ID, sizeof(uint32_t));
     prog_if_ = (word >> 8) & 0xFF;
     sub_class_ = (word >> 16) & 0xFF;
     pci_class_ = (word >> 24) & 0xFF;
 
-    uint16_t header = (uint16_t)read_config(address, PCI_REGISTER_HEADER, sizeof(uint16_t));
+    uint16_t header = (uint16_t) read_config(address, PCI_REGISTER_HEADER, sizeof(uint16_t));
 
     current_power_state = PCI_POWER_STATE_D0;
     type = header & PCI_TYPE_MASK;
@@ -112,7 +112,7 @@ expected<pci_bar, int> pci_device::get_bar(unsigned int index)
 
     uint16_t offset = PCI_BARx(index);
 
-    uint32_t word = (uint32_t)read(offset, sizeof(word));
+    uint32_t word = (uint32_t) read(offset, sizeof(word));
     uint32_t upper_half = 0;
 
     b.is_iorange = word & PCI_BAR_IO_RANGE;
@@ -132,7 +132,7 @@ expected<pci_bar, int> pci_device::get_bar(unsigned int index)
     }
 
     b.address = word & mask;
-    b.address |= ((uint64_t)upper_half << 32);
+    b.address |= ((uint64_t) upper_half << 32);
 
     /* Get the size */
     write(0xffffffff, offset, sizeof(uint32_t));
@@ -167,7 +167,7 @@ void *pci_device::map_bar(unsigned int index, unsigned int caching)
 	printf("Mapping bar%d %lx %lx\n", index, bar.address, bar.size);
 #endif
 
-    return mmiomap((void *)bar.address, bar.size, VM_WRITE | VM_NOEXEC | caching);
+    return mmiomap((void *) bar.address, bar.size, VM_WRITE | VM_NOEXEC | caching);
 }
 
 uint16_t pci_device::get_intn() const
@@ -238,39 +238,39 @@ void pci_root::route_irqs(ACPI_HANDLE bus_object)
         if (AcpiGetObjectInfo(handle, &info) != AE_OK)
             continue;
 
-        uint8_t bridge_device = (uint8_t)(info->Address >> 16);
-        uint8_t bridge_func = (uint8_t)(info->Address & 0xff);
+        uint8_t bridge_device = (uint8_t) (info->Address >> 16);
+        uint8_t bridge_func = (uint8_t) (info->Address & 0xff);
 
         auto dev = find_device(bridge_device, bridge_func);
         if (!dev)
         {
             ERROR("pci", "Firmware tables reference non-existent bridge %04x:%02x:%02x.%02x\n",
                   parent_root->get_segment(), nbus, bridge_device, bridge_func);
-            free((void *)info);
+            free((void *) info);
             continue;
         }
 
         if ((dev->header_type() & PCI_TYPE_MASK) != PCI_TYPE_BRIDGE)
         {
             // Not a bridge, go on
-            free((void *)info);
+            free((void *) info);
             continue;
         }
 
         // TODO: Keeping a reference to the pci_bus in pci_device might be a good idea?
-        auto bus_nr = (uint8_t)(dev->read(PCI_REGISTER_SECONDARY_BUS, sizeof(uint8_t)));
+        auto bus_nr = (uint8_t) (dev->read(PCI_REGISTER_SECONDARY_BUS, sizeof(uint8_t)));
 
         auto bus = find_child_bus(bus_nr);
         if (!bus)
         {
             ERROR("pci", "Child bus %x does not exist.\n", bus_nr);
-            free((void *)info);
+            free((void *) info);
             continue;
         }
 
         bus->route_bus_irqs(handle);
 
-        free((void *)info);
+        free((void *) info);
     }
 }
 
@@ -306,19 +306,19 @@ INIT_LEVEL_CORE_AFTER_SCHED_ENTRY(pci_init);
 
 void pci_device::set_bar(const pci_bar &bar, unsigned int index)
 {
-    uint32_t bar_word = (uint32_t)bar.address | bar.is_iorange | (bar.may_prefetch << 2);
+    uint32_t bar_word = (uint32_t) bar.address | bar.is_iorange | (bar.may_prefetch << 2);
     write(bar_word, PCI_BARx(index), sizeof(bar_word));
 }
 
 void pci_device::enable_busmastering()
 {
-    uint32_t command_register = (uint32_t)read(PCI_REGISTER_COMMAND, sizeof(uint32_t));
+    uint32_t command_register = (uint32_t) read(PCI_REGISTER_COMMAND, sizeof(uint32_t));
     write(command_register | PCI_COMMAND_BUS_MASTER, PCI_REGISTER_COMMAND, sizeof(uint32_t));
 }
 
 uint16_t pci_device::get_status() const
 {
-    return (uint16_t)read(PCI_REGISTER_STATUS, sizeof(uint16_t));
+    return (uint16_t) read(PCI_REGISTER_STATUS, sizeof(uint16_t));
 }
 
 size_t pci_device::find_capability(uint8_t cap, int instance)
@@ -327,7 +327,7 @@ size_t pci_device::find_capability(uint8_t cap, int instance)
     if (!(status & PCI_STATUS_CAP_LIST_SUPPORTED))
         return 0;
 
-    uint8_t offset = (uint8_t)read(PCI_REGISTER_CAPABILTIES_POINTER, sizeof(uint8_t)) & ~3;
+    uint8_t offset = (uint8_t) read(PCI_REGISTER_CAPABILTIES_POINTER, sizeof(uint8_t)) & ~3;
 
     while (offset)
     {
@@ -336,7 +336,7 @@ size_t pci_device::find_capability(uint8_t cap, int instance)
         if ((_cap & 0xFF) == cap && instance-- == 0)
             return offset;
 
-        offset = ((uint8_t)(_cap >> 8)) & ~3;
+        offset = ((uint8_t) (_cap >> 8)) & ~3;
     }
 
     return 0;
@@ -344,25 +344,25 @@ size_t pci_device::find_capability(uint8_t cap, int instance)
 
 void pci_device::disable_busmastering()
 {
-    uint32_t command_register = (uint32_t)read(PCI_REGISTER_COMMAND, sizeof(uint32_t));
+    uint32_t command_register = (uint32_t) read(PCI_REGISTER_COMMAND, sizeof(uint32_t));
     write(command_register & ~PCI_COMMAND_BUS_MASTER, PCI_REGISTER_COMMAND, sizeof(uint32_t));
 }
 
 void pci_device::disable_irq()
 {
-    uint32_t command_register = (uint32_t)read(PCI_REGISTER_COMMAND, sizeof(uint32_t));
+    uint32_t command_register = (uint32_t) read(PCI_REGISTER_COMMAND, sizeof(uint32_t));
     write(command_register | PCI_COMMAND_INTR_DISABLE, PCI_REGISTER_COMMAND, sizeof(uint32_t));
 }
 
 void pci_device::enable_irq()
 {
-    uint32_t command_register = (uint32_t)read(PCI_REGISTER_COMMAND, sizeof(uint32_t));
+    uint32_t command_register = (uint32_t) read(PCI_REGISTER_COMMAND, sizeof(uint32_t));
     write(command_register & ~PCI_COMMAND_INTR_DISABLE, PCI_REGISTER_COMMAND, sizeof(uint32_t));
 }
 
 struct pci_id *pci_driver_supports_device(struct driver *driver, pci_device *dev)
 {
-    struct pci_id *dev_table = (pci_id *)driver->devids;
+    struct pci_id *dev_table = (pci_id *) driver->devids;
 
     for (; dev_table->vendor_id != 0; dev_table++)
     {
@@ -459,7 +459,7 @@ int pci_device::enable_device()
     }
 
     /* Enable the IO and MMIO of the device */
-    uint16_t command = (uint16_t)read(PCI_REGISTER_COMMAND, sizeof(uint16_t));
+    uint16_t command = (uint16_t) read(PCI_REGISTER_COMMAND, sizeof(uint16_t));
     command |= PCI_COMMAND_MEMORY_SPACE | PCI_COMMAND_IOSPACE;
 
     write(command, PCI_REGISTER_COMMAND, sizeof(uint16_t));

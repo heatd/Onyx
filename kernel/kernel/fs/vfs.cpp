@@ -69,7 +69,7 @@ uint32_t crc32_calculate(uint8_t *ptr, size_t len);
  */
 static void zero_rest_of_page(struct page *page, size_t to_read)
 {
-    unsigned char *buf = (unsigned char *)PAGE_TO_VIRT(page) + to_read;
+    unsigned char *buf = (unsigned char *) PAGE_TO_VIRT(page) + to_read;
 
     size_t to_zero = PAGE_SIZE - to_read;
 
@@ -97,7 +97,7 @@ vmo_status_t vmo_inode_commit(struct vm_object *vmo, size_t off, struct page **p
 
     thread_change_addr_limit(old);
 
-    if (read != (ssize_t)to_read)
+    if (read != (ssize_t) to_read)
     {
 #if 0
 		printk("Error file read %lx bytes out of %lx, off %lx\n", read, to_read, off);
@@ -177,7 +177,7 @@ ssize_t do_actual_read(size_t offset, size_t len, void *buf, struct file *file)
 
 bool is_invalid_length(size_t len)
 {
-    return ((ssize_t)len) < 0;
+    return ((ssize_t) len) < 0;
 }
 
 size_t clamp_length(size_t len)
@@ -249,7 +249,7 @@ ssize_t write_vfs(size_t offset, size_t len, void *buffer, struct file *f)
 int ioctl_vfs(int request, char *argp, struct file *this_)
 {
     if (this_->f_ino->i_fops->ioctl != nullptr)
-        return this_->f_ino->i_fops->ioctl(request, (void *)argp, this_);
+        return this_->f_ino->i_fops->ioctl(request, (void *) argp, this_);
     return -ENOTTY;
 }
 
@@ -399,7 +399,7 @@ int getdents_vfs(unsigned int count, putdir_t putdir, struct dirent *dirp, off_t
         /* Put the dirent in the user-space buffer */
         unsigned int written = putdir(&buf, dirp, count - pos);
         /* Error, most likely out of buffer space */
-        if (written == (unsigned int)-1)
+        if (written == (unsigned int) -1)
         {
             // printk("Buf: %p\n", dirp);
             if (!pos)
@@ -411,7 +411,7 @@ int getdents_vfs(unsigned int count, putdir_t putdir, struct dirent *dirp, off_t
         // printk("Written: %u\n", written);
 
         pos += written;
-        dirp = (dirent *)((char *)dirp + written);
+        dirp = (dirent *) ((char *) dirp + written);
         off = of;
         ret->read = pos;
         ret->new_off = off;
@@ -484,14 +484,14 @@ int default_ftruncate(off_t length, struct file *f)
         return -EINVAL;
     struct inode *vnode = f->f_ino;
 
-    if ((size_t)length <= vnode->i_size)
+    if ((size_t) length <= vnode->i_size)
     {
         /* Possible memory/disk leak, but filesystems should handle it */
-        vnode->i_size = (size_t)length;
+        vnode->i_size = (size_t) length;
         return 0;
     }
 
-    char *page = (char *)zalloc(PAGE_SIZE);
+    char *page = (char *) zalloc(PAGE_SIZE);
     if (!page)
     {
         return -ENOMEM;
@@ -499,7 +499,7 @@ int default_ftruncate(off_t length, struct file *f)
 
     printk("Default ftruncate\n");
 
-    size_t length_diff = (size_t)length - vnode->i_size;
+    size_t length_diff = (size_t) length - vnode->i_size;
     size_t off = vnode->i_size;
 
     while (length_diff != 0)
@@ -533,7 +533,7 @@ int ftruncate_vfs(off_t length, struct file *vnode)
     if (vnode->f_ino->i_type == VFS_TYPE_DIR)
         return -EISDIR;
 
-    if ((size_t)length == vnode->f_ino->i_size)
+    if ((size_t) length == vnode->f_ino->i_size)
         return 0;
 
     rw_lock_write(&vnode->f_ino->i_rwlock);
@@ -557,13 +557,13 @@ int default_fallocate(int mode, off_t offset, off_t len, struct file *file)
     if (mode != 0)
         return -EINVAL;
 
-    char *page = (char *)zalloc(PAGE_SIZE);
+    char *page = (char *) zalloc(PAGE_SIZE);
     if (!page)
     {
         return -ENOMEM;
     }
 
-    size_t length_diff = (size_t)len;
+    size_t length_diff = (size_t) len;
     size_t off = offset;
     while (length_diff != 0)
     {
@@ -574,7 +574,7 @@ int default_fallocate(int mode, off_t offset, off_t len, struct file *file)
         if (written != to_write)
         {
             free(page);
-            return (int)written;
+            return (int) written;
         }
 
         off += to_write;
@@ -616,7 +616,7 @@ int inode_init(struct inode *inode, bool is_cached)
 
 struct inode *inode_create(bool is_cached)
 {
-    struct inode *inode = (struct inode *)zalloc(sizeof(*inode));
+    struct inode *inode = (struct inode *) zalloc(sizeof(*inode));
 
     if (!inode)
         return nullptr;
@@ -668,7 +668,7 @@ int inode_flush(struct inode *ino)
 
 struct file *inode_to_file(struct inode *ino)
 {
-    struct file *f = (file *)zalloc(sizeof(struct file));
+    struct file *f = (file *) zalloc(sizeof(struct file));
     if (!f)
         return nullptr;
     f->f_ino = ino;

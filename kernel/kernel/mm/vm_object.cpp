@@ -25,7 +25,7 @@ static int page_cmp(const void *k1, const void *k2)
     if (k1 == k2)
         return 0;
 
-    return (unsigned long)k1 < (unsigned long)k2 ? -1 : 1;
+    return (unsigned long) k1 < (unsigned long) k2 ? -1 : 1;
 }
 
 /**
@@ -37,7 +37,7 @@ static int page_cmp(const void *k1, const void *k2)
  */
 vm_object *vmo_create(size_t size, void *priv)
 {
-    vm_object *vmo = (vm_object *)zalloc(sizeof(*vmo));
+    vm_object *vmo = (vm_object *) zalloc(sizeof(*vmo));
     if (!vmo)
         return nullptr;
 
@@ -118,7 +118,7 @@ vmo_status_t vmo_populate(vm_object *vmo, size_t off, page **ppage)
     }
 
     // hrtime_t end = get_main_clock()->get_ns();
-    dict_insert_result res = rb_tree_insert(vmo->pages, (void *)off);
+    dict_insert_result res = rb_tree_insert(vmo->pages, (void *) off);
     if (!res.inserted)
     {
         free_page(page);
@@ -163,11 +163,11 @@ vmo_status_t vmo_get(vm_object *vmo, size_t off, unsigned int flags, struct page
 
     scoped_mutex g{vmo->page_lock};
 
-    void **pp = rb_tree_search(vmo->pages, (const void *)off);
+    void **pp = rb_tree_search(vmo->pages, (const void *) off);
 
     if (pp)
     {
-        p = (page *)*pp;
+        p = (page *) *pp;
     }
 
     if (!p && is_cow && !may_not_implicit_cow)
@@ -178,7 +178,7 @@ vmo_status_t vmo_get(vm_object *vmo, size_t off, unsigned int flags, struct page
             return VMO_STATUS_OUT_OF_MEM;
         }
 
-        size_t vmo_off = (off_t)vmo->priv;
+        size_t vmo_off = (off_t) vmo->priv;
         struct page *old_page;
 
         // printk("clone size: %lx\n", vmo->cow_clone->ino->i_size);
@@ -195,7 +195,7 @@ vmo_status_t vmo_get(vm_object *vmo, size_t off, unsigned int flags, struct page
 
         page_unpin(old_page);
 
-        dict_insert_result res = rb_tree_insert(vmo->pages, (void *)off);
+        dict_insert_result res = rb_tree_insert(vmo->pages, (void *) off);
         if (!res.inserted)
         {
             free_page(new_page);
@@ -227,7 +227,7 @@ vmo_status_t vmo_get(vm_object *vmo, size_t off, unsigned int flags, struct page
 
 void vmo_rb_delete_func(void *key, void *data)
 {
-    struct page *p = (page *)data;
+    struct page *p = (page *) data;
 
     // TODO: Memory leak here! We might be a special kind of VMO that needs to free other
     // structures. A good example of an object like this is inode vmos.
@@ -257,10 +257,10 @@ int vmo_fork_pages(vm_object *vmo)
 
     while (node_valid)
     {
-        struct page *old_p = (page *)*rb_itor_datum(it);
-        size_t off = (size_t)rb_itor_key(it);
+        struct page *old_p = (page *) *rb_itor_datum(it);
+        size_t off = (size_t) rb_itor_key(it);
 
-        dict_insert_result res = rb_tree_insert(new_tree, (void *)off);
+        dict_insert_result res = rb_tree_insert(new_tree, (void *) off);
         if (!res.inserted)
         {
             rb_itor_free(it);
@@ -344,7 +344,7 @@ static void vmo_rollback_pages(struct page *begin, struct page *end, vm_object *
     size_t off = 0;
     while (p != end)
     {
-        rb_tree_remove(vmo->pages, (const void *)off);
+        rb_tree_remove(vmo->pages, (const void *) off);
         p = p->next_un.next_allocation;
         off += PAGE_SIZE;
     }
@@ -374,7 +374,7 @@ int vmo_prefault(vm_object *vmo, size_t size, size_t offset)
     struct page *_p = p;
     for (size_t i = 0; i < pages; i++, offset += PAGE_SIZE)
     {
-        dict_insert_result res = rb_tree_insert(vmo->pages, (void *)offset);
+        dict_insert_result res = rb_tree_insert(vmo->pages, (void *) offset);
         if (!res.inserted)
         {
             vmo_rollback_pages(p, _p, vmo);
@@ -417,7 +417,7 @@ void vmo_destroy(vm_object *vmo)
  */
 int vmo_add_page_unlocked(size_t off, page *p, vm_object *vmo)
 {
-    dict_insert_result res = rb_tree_insert(vmo->pages, (void *)off);
+    dict_insert_result res = rb_tree_insert(vmo->pages, (void *) off);
     if (!res.inserted)
     {
         return -1;
@@ -506,13 +506,13 @@ int vmo_purge_pages(size_t lower_bound, size_t upper_bound, unsigned int flags, 
 
     while (node_valid)
     {
-        struct page *p = (page *)*rb_itor_datum(&it);
-        size_t off = (size_t)rb_itor_key(&it);
+        struct page *p = (page *) *rb_itor_datum(&it);
+        size_t off = (size_t) rb_itor_key(&it);
 
         if (compare_function(lower_bound, upper_bound, off))
         {
             rb_itor_remove(&it);
-            node_valid = rb_itor_search_ge(&it, (const void *)off);
+            node_valid = rb_itor_search_ge(&it, (const void *) off);
 
             struct page *old_p = p;
 
@@ -548,7 +548,7 @@ int vmo_resize(size_t new_size, vm_object *vmo)
 
 vm_object *vmo_create_copy(vm_object *vmo)
 {
-    vm_object *copy = (vm_object *)memdup(vmo, sizeof(*vmo));
+    vm_object *copy = (vm_object *) memdup(vmo, sizeof(*vmo));
 
     if (!copy)
         return nullptr;
@@ -620,8 +620,8 @@ void vmo_sanity_check(vm_object *vmo)
     bool node_valid = rb_itor_next(it);
     while (node_valid)
     {
-        struct page *p = (page *)*rb_itor_datum(it);
-        size_t poff = (size_t)rb_itor_key(it);
+        struct page *p = (page *) *rb_itor_datum(it);
+        size_t poff = (size_t) rb_itor_key(it);
         if (poff > vmo->size)
         {
             printk("Bad vmobject: p->off > nr_pages << PAGE_SHIFT.\n");
@@ -711,7 +711,7 @@ void vmo_do_cow(vm_object *vmo, vm_object *target)
  */
 vmo_status_t vmo_get_cow_page(vm_object *vmo, size_t off, struct page **ppage)
 {
-    size_t vmo_off = (off_t)vmo->priv;
+    size_t vmo_off = (off_t) vmo->priv;
     struct page *p;
 
     auto st = vmo_get(vmo->cow_clone, vmo_off + off, VMO_GET_MAY_POPULATE, &p);
@@ -753,12 +753,12 @@ struct page *vmo_cow_on_page(vm_object *vmo, size_t off)
 {
     scoped_mutex g{vmo->page_lock};
 
-    void **datum = rb_tree_search(vmo->pages, (void *)off);
+    void **datum = rb_tree_search(vmo->pages, (void *) off);
 
     if (datum == nullptr)
         panic("Fatal COW bug - page not found in VMO");
 
-    struct page *old_page = (page *)*datum;
+    struct page *old_page = (page *) *datum;
 
     struct page *new_page = alloc_page(PAGE_ALLOC_NO_ZERO);
     if (!new_page)

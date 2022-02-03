@@ -52,7 +52,7 @@ int ndp_handle_na(netif *netif, packetbuf *buf)
     if (buf->length() < sizeof(nd_neighbor_advert))
         return -EINVAL;
 
-    auto ndp = (struct nd_neighbor_advert *)buf->data;
+    auto ndp = (struct nd_neighbor_advert *) buf->data;
 
     neigh_proto_addr addr;
     addr.in6addr = ndp->nd_na_target;
@@ -61,14 +61,14 @@ int ndp_handle_na(netif *netif, packetbuf *buf)
     if (!ptr)
         return 0;
 
-    const char *optptr = (const char *)(ndp + 1);
+    const char *optptr = (const char *) (ndp + 1);
     ssize_t options_len = buf->length() - sizeof(nd_neighbor_solicit);
 
     const unsigned char *target = nullptr;
     /* Each option is at least 8 bytes long */
     while (options_len >= 8)
     {
-        auto hdr = (const icmp6_opt_header *)optptr;
+        auto hdr = (const icmp6_opt_header *) optptr;
         auto length = hdr->length << 3;
         if (length > options_len)
         {
@@ -80,7 +80,7 @@ int ndp_handle_na(netif *netif, packetbuf *buf)
         case ND_OPT_TARGET_LINKADDR: {
             if (length != 8)
                 return -EINVAL;
-            target = (const unsigned char *)optptr + 2;
+            target = (const unsigned char *) optptr + 2;
         }
         }
 
@@ -108,9 +108,9 @@ int ndp_handle_ns(netif *nif, packetbuf *buf)
     if (buf->length() < sizeof(nd_neighbor_solicit))
         return -EINVAL;
 
-    auto iphdr = (const ip6hdr *)buf->net_header;
+    auto iphdr = (const ip6hdr *) buf->net_header;
 
-    auto ndp = (struct nd_neighbor_solicit *)buf->data;
+    auto ndp = (struct nd_neighbor_solicit *) buf->data;
 
     neigh_proto_addr addr;
     addr.in6addr = ndp->nd_ns_target;
@@ -147,7 +147,7 @@ int ndp_handle_ns(netif *nif, packetbuf *buf)
 
     icmpv6::send_data data{ICMPV6_NEIGHBOUR_ADVERT, 0, route.value(), sol->nd_na_flags_reserved};
 
-    return icmpv6::send_packet(data, cul::slice<unsigned char>{(unsigned char *)&sol->nd_na_target,
+    return icmpv6::send_packet(data, cul::slice<unsigned char>{(unsigned char *) &sol->nd_na_target,
                                                                sizeof(buf_) - sizeof(icmp6_hdr)});
 }
 
@@ -156,7 +156,7 @@ int ndp_handle_packet(netif *netif, packetbuf *buf)
     if (buf->length() < sizeof(icmpv6_header))
         return -EINVAL;
 
-    auto icmp_header = (const icmpv6_header *)buf->data;
+    auto icmp_header = (const icmpv6_header *) buf->data;
 
     if (icmp_header->type == ICMPV6_NEIGHBOUR_ADVERT)
         return ndp_handle_na(netif, buf);
@@ -225,7 +225,7 @@ int ndp_submit_request(shared_ptr<neighbour> &ptr, const in6_addr &target_addr, 
 
     icmpv6::send_data data{ICMPV6_NEIGHBOUR_SOLICIT, 0, route.value(), 0};
 
-    return icmpv6::send_packet(data, cul::slice<unsigned char>{(unsigned char *)&sol->nd_ns_target,
+    return icmpv6::send_packet(data, cul::slice<unsigned char>{(unsigned char *) &sol->nd_ns_target,
                                                                sizeof(buf_) - sizeof(icmp6_hdr)});
 }
 

@@ -202,7 +202,7 @@ expected<chardev *, int> dev_register_chardevs(dev_t dev, unsigned int nr_device
     if (ex.has_error())
         return unexpected<int>{ex.error()};
 
-    return (chardev *)ex.value();
+    return (chardev *) ex.value();
 }
 
 /**
@@ -226,7 +226,7 @@ expected<blkdev *, int> dev_register_blockdevs(dev_t dev, unsigned int nr_device
     if (ex.has_error())
         return unexpected<int>{ex.error()};
 
-    return (blkdev *)ex.value();
+    return (blkdev *) ex.value();
 }
 
 /**
@@ -267,7 +267,7 @@ static gendev *dev_find_generic(dev_registry &reg, dev_t dev)
  */
 chardev *dev_find_chr(dev_t dev)
 {
-    return (chardev *)dev_find_generic(chardevs, dev);
+    return (chardev *) dev_find_generic(chardevs, dev);
 }
 
 /**
@@ -278,7 +278,7 @@ chardev *dev_find_chr(dev_t dev)
  */
 blkdev *dev_find_block(dev_t dev)
 {
-    return (blkdev *)dev_find_generic(blockdevs, dev);
+    return (blkdev *) dev_find_generic(blockdevs, dev);
 }
 
 /**
@@ -393,7 +393,7 @@ inode *devfs_open(dentry *dir, const char *name)
         return errno = ENOENT, nullptr;
     }
 
-    auto sb = (tmpfs_superblock *)dir->d_inode->i_sb;
+    auto sb = (tmpfs_superblock *) dir->d_inode->i_sb;
 
     auto ino = sb->create_inode(reg->mode, reg->dev);
 

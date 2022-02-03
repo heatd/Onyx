@@ -84,7 +84,7 @@ const struct flush_ops pagecache_flush_ops = {
 struct page_cache_block *pagecache_create_cache_block(struct page *page, size_t size, size_t offset,
                                                       struct inode *file)
 {
-    struct page_cache_block *c = (page_cache_block *)zalloc(sizeof(struct page_cache_block));
+    struct page_cache_block *c = (page_cache_block *) zalloc(sizeof(struct page_cache_block));
     if (!c)
         return NULL;
 

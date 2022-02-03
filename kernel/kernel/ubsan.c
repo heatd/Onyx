@@ -95,8 +95,8 @@ struct ubsan_type_mismatch_data_v1
 
 USED void __ubsan_handle_type_mismatch(void* data_raw, void* pointer_raw)
 {
-    struct ubsan_type_mismatch_data* data = (struct ubsan_type_mismatch_data*)data_raw;
-    ubsan_value_handle_t pointer = (ubsan_value_handle_t)pointer_raw;
+    struct ubsan_type_mismatch_data* data = (struct ubsan_type_mismatch_data*) data_raw;
+    ubsan_value_handle_t pointer = (ubsan_value_handle_t) pointer_raw;
     const char* violation = "type mismatch";
     if (!pointer)
         violation = "null pointer access";
@@ -160,11 +160,11 @@ struct ubsan_overflow_data
 
 USED void __ubsan_handle_add_overflow(void* data_raw, void* lhs_raw, void* rhs_raw)
 {
-    struct ubsan_overflow_data* data = (struct ubsan_overflow_data*)data_raw;
-    ubsan_value_handle_t lhs = (ubsan_value_handle_t)lhs_raw;
-    ubsan_value_handle_t rhs = (ubsan_value_handle_t)rhs_raw;
-    (void)lhs;
-    (void)rhs;
+    struct ubsan_overflow_data* data = (struct ubsan_overflow_data*) data_raw;
+    ubsan_value_handle_t lhs = (ubsan_value_handle_t) lhs_raw;
+    ubsan_value_handle_t rhs = (ubsan_value_handle_t) rhs_raw;
+    (void) lhs;
+    (void) rhs;
     ubsan_abort(&data->location, "addition overflow");
 }
 
@@ -172,11 +172,11 @@ ABORT_VARIANT_VP_VP_VP(add_overflow);
 
 USED void __ubsan_handle_sub_overflow(void* data_raw, void* lhs_raw, void* rhs_raw)
 {
-    struct ubsan_overflow_data* data = (struct ubsan_overflow_data*)data_raw;
-    ubsan_value_handle_t lhs = (ubsan_value_handle_t)lhs_raw;
-    ubsan_value_handle_t rhs = (ubsan_value_handle_t)rhs_raw;
-    (void)lhs;
-    (void)rhs;
+    struct ubsan_overflow_data* data = (struct ubsan_overflow_data*) data_raw;
+    ubsan_value_handle_t lhs = (ubsan_value_handle_t) lhs_raw;
+    ubsan_value_handle_t rhs = (ubsan_value_handle_t) rhs_raw;
+    (void) lhs;
+    (void) rhs;
     ubsan_abort(&data->location, "subtraction overflow");
 }
 
@@ -184,11 +184,11 @@ ABORT_VARIANT_VP_VP_VP(sub_overflow);
 
 USED void __ubsan_handle_mul_overflow(void* data_raw, void* lhs_raw, void* rhs_raw)
 {
-    struct ubsan_overflow_data* data = (struct ubsan_overflow_data*)data_raw;
-    ubsan_value_handle_t lhs = (ubsan_value_handle_t)lhs_raw;
-    ubsan_value_handle_t rhs = (ubsan_value_handle_t)rhs_raw;
-    (void)lhs;
-    (void)rhs;
+    struct ubsan_overflow_data* data = (struct ubsan_overflow_data*) data_raw;
+    ubsan_value_handle_t lhs = (ubsan_value_handle_t) lhs_raw;
+    ubsan_value_handle_t rhs = (ubsan_value_handle_t) rhs_raw;
+    (void) lhs;
+    (void) rhs;
     ubsan_abort(&data->location, "multiplication overflow");
 }
 
@@ -196,9 +196,9 @@ ABORT_VARIANT_VP_VP_VP(mul_overflow);
 
 USED void __ubsan_handle_negate_overflow(void* data_raw, void* old_value_raw)
 {
-    struct ubsan_overflow_data* data = (struct ubsan_overflow_data*)data_raw;
-    ubsan_value_handle_t old_value = (ubsan_value_handle_t)old_value_raw;
-    (void)old_value;
+    struct ubsan_overflow_data* data = (struct ubsan_overflow_data*) data_raw;
+    ubsan_value_handle_t old_value = (ubsan_value_handle_t) old_value_raw;
+    (void) old_value;
     ubsan_abort(&data->location, "negation overflow");
 }
 
@@ -206,11 +206,11 @@ ABORT_VARIANT_VP_VP(negate_overflow);
 
 USED void __ubsan_handle_divrem_overflow(void* data_raw, void* lhs_raw, void* rhs_raw)
 {
-    struct ubsan_overflow_data* data = (struct ubsan_overflow_data*)data_raw;
-    ubsan_value_handle_t lhs = (ubsan_value_handle_t)lhs_raw;
-    ubsan_value_handle_t rhs = (ubsan_value_handle_t)rhs_raw;
-    (void)lhs;
-    (void)rhs;
+    struct ubsan_overflow_data* data = (struct ubsan_overflow_data*) data_raw;
+    ubsan_value_handle_t lhs = (ubsan_value_handle_t) lhs_raw;
+    ubsan_value_handle_t rhs = (ubsan_value_handle_t) rhs_raw;
+    (void) lhs;
+    (void) rhs;
     ubsan_abort(&data->location, "division remainder overflow");
 }
 
@@ -225,11 +225,11 @@ struct ubsan_shift_out_of_bounds_data
 
 USED void __ubsan_handle_shift_out_of_bounds(void* data_raw, void* lhs_raw, void* rhs_raw)
 {
-    struct ubsan_shift_out_of_bounds_data* data = (struct ubsan_shift_out_of_bounds_data*)data_raw;
-    ubsan_value_handle_t lhs = (ubsan_value_handle_t)lhs_raw;
-    ubsan_value_handle_t rhs = (ubsan_value_handle_t)rhs_raw;
-    (void)lhs;
-    (void)rhs;
+    struct ubsan_shift_out_of_bounds_data* data = (struct ubsan_shift_out_of_bounds_data*) data_raw;
+    ubsan_value_handle_t lhs = (ubsan_value_handle_t) lhs_raw;
+    ubsan_value_handle_t rhs = (ubsan_value_handle_t) rhs_raw;
+    (void) lhs;
+    (void) rhs;
     ubsan_abort(&data->location, "shift out of bounds");
 }
 
@@ -244,9 +244,9 @@ struct ubsan_out_of_bounds_data
 
 USED void __ubsan_handle_out_of_bounds(void* data_raw, void* index_raw)
 {
-    struct ubsan_out_of_bounds_data* data = (struct ubsan_out_of_bounds_data*)data_raw;
-    ubsan_value_handle_t index = (ubsan_value_handle_t)index_raw;
-    (void)index;
+    struct ubsan_out_of_bounds_data* data = (struct ubsan_out_of_bounds_data*) data_raw;
+    ubsan_value_handle_t index = (ubsan_value_handle_t) index_raw;
+    (void) index;
     ubsan_abort(&data->location, "out of bounds");
 }
 
@@ -259,13 +259,13 @@ struct ubsan_unreachable_data
 
 __attribute__((noreturn, used)) void __ubsan_handle_builtin_unreachable(void* data_raw)
 {
-    struct ubsan_unreachable_data* data = (struct ubsan_unreachable_data*)data_raw;
+    struct ubsan_unreachable_data* data = (struct ubsan_unreachable_data*) data_raw;
     ubsan_abort(&data->location, "reached unreachable");
 }
 
 __attribute__((noreturn, used)) void __ubsan_handle_missing_return(void* data_raw)
 {
-    struct ubsan_unreachable_data* data = (struct ubsan_unreachable_data*)data_raw;
+    struct ubsan_unreachable_data* data = (struct ubsan_unreachable_data*) data_raw;
     ubsan_abort(&data->location, "missing return");
 }
 
@@ -277,9 +277,9 @@ struct ubsan_vla_bound_data
 
 USED void __ubsan_handle_vla_bound_not_positive(void* data_raw, void* bound_raw)
 {
-    struct ubsan_vla_bound_data* data = (struct ubsan_vla_bound_data*)data_raw;
-    ubsan_value_handle_t bound = (ubsan_value_handle_t)bound_raw;
-    (void)bound;
+    struct ubsan_vla_bound_data* data = (struct ubsan_vla_bound_data*) data_raw;
+    ubsan_value_handle_t bound = (ubsan_value_handle_t) bound_raw;
+    (void) bound;
     ubsan_abort(&data->location, "negative variable array length");
 }
 
@@ -300,13 +300,13 @@ struct ubsan_float_cast_overflow_data
 
 USED void __ubsan_handle_float_cast_overflow(void* data_raw, void* from_raw)
 {
-    struct ubsan_float_cast_overflow_data* data = (struct ubsan_float_cast_overflow_data*)data_raw;
-    ubsan_value_handle_t from = (ubsan_value_handle_t)from_raw;
-    (void)from;
+    struct ubsan_float_cast_overflow_data* data = (struct ubsan_float_cast_overflow_data*) data_raw;
+    ubsan_value_handle_t from = (ubsan_value_handle_t) from_raw;
+    (void) from;
 #if !(defined(__GNUC__) && __GNUC__ < 6)
     ubsan_abort(&data->location, "float cast overflow");
 #else
-    ubsan_abort(((void)data, &unknown_location), "float cast overflow");
+    ubsan_abort(((void) data, &unknown_location), "float cast overflow");
 #endif
 }
 
@@ -320,9 +320,9 @@ struct ubsan_invalid_value_data
 
 USED void __ubsan_handle_load_invalid_value(void* data_raw, void* value_raw)
 {
-    struct ubsan_invalid_value_data* data = (struct ubsan_invalid_value_data*)data_raw;
-    ubsan_value_handle_t value = (ubsan_value_handle_t)value_raw;
-    (void)value;
+    struct ubsan_invalid_value_data* data = (struct ubsan_invalid_value_data*) data_raw;
+    ubsan_value_handle_t value = (ubsan_value_handle_t) value_raw;
+    (void) value;
     ubsan_abort(&data->location, "invalid value load");
 }
 
@@ -337,9 +337,9 @@ struct ubsan_function_type_mismatch_data
 USED void __ubsan_handle_function_type_mismatch(void* data_raw, void* value_raw)
 {
     struct ubsan_function_type_mismatch_data* data =
-        (struct ubsan_function_type_mismatch_data*)data_raw;
-    ubsan_value_handle_t value = (ubsan_value_handle_t)value_raw;
-    (void)value;
+        (struct ubsan_function_type_mismatch_data*) data_raw;
+    ubsan_value_handle_t value = (ubsan_value_handle_t) value_raw;
+    (void) value;
     ubsan_abort(&data->location, "function type mismatch");
 }
 
@@ -353,13 +353,13 @@ struct ubsan_nonnull_return_data
 
 USED void __ubsan_handle_nonnull_return(void* data_raw)
 {
-    struct ubsan_nonnull_return_data* data = (struct ubsan_nonnull_return_data*)data_raw;
+    struct ubsan_nonnull_return_data* data = (struct ubsan_nonnull_return_data*) data_raw;
     ubsan_abort(&data->location, "null return");
 }
 
 USED void __ubsan_handle_nonnull_return_v1(void* data_raw)
 {
-    struct ubsan_nonnull_return_data* data = (struct ubsan_nonnull_return_data*)data_raw;
+    struct ubsan_nonnull_return_data* data = (struct ubsan_nonnull_return_data*) data_raw;
     ubsan_abort(&data->location, "null return");
 }
 
@@ -375,7 +375,7 @@ struct ubsan_nonnull_arg_data
 
 USED void __ubsan_handle_nonnull_arg(void* data_raw)
 {
-    struct ubsan_nonnull_arg_data* data = (struct ubsan_nonnull_arg_data*)data_raw;
+    struct ubsan_nonnull_arg_data* data = (struct ubsan_nonnull_arg_data*) data_raw;
     ubsan_abort(&data->location, "null argument");
 }
 
@@ -389,9 +389,9 @@ struct ubsan_cfi_bad_icall_data
 
 USED void __ubsan_handle_cfi_bad_icall(void* data_raw, void* value_raw)
 {
-    struct ubsan_cfi_bad_icall_data* data = (struct ubsan_cfi_bad_icall_data*)data_raw;
-    ubsan_value_handle_t value = (ubsan_value_handle_t)value_raw;
-    (void)value;
+    struct ubsan_cfi_bad_icall_data* data = (struct ubsan_cfi_bad_icall_data*) data_raw;
+    ubsan_value_handle_t value = (ubsan_value_handle_t) value_raw;
+    (void) value;
     ubsan_abort(&data->location, "control flow integrity check failure during indirect call");
 }
 

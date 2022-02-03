@@ -43,7 +43,7 @@ constexpr pipe::pipe()
 
 pipe::~pipe()
 {
-    free((void *)buffer);
+    free((void *) buffer);
 }
 
 bool pipe::allocate_pipe_buffer(unsigned long buf_size)
@@ -74,12 +74,12 @@ ssize_t pipe::read(int flags, size_t len, void *buf)
 
     scoped_lock g{pipe_lock};
 
-    while (been_read != (ssize_t)len)
+    while (been_read != (ssize_t) len)
     {
         if (can_read())
         {
             size_t to_read = min(len - been_read, pos);
-            if (copy_to_user((void *)((char *)buf + been_read), buffer, to_read) < 0)
+            if (copy_to_user((void *) ((char *) buf + been_read), buffer, to_read) < 0)
             {
 
                 /* Note: We do need to signal writers and readers on EFAULT if we have read/written
@@ -92,7 +92,7 @@ ssize_t pipe::read(int flags, size_t len, void *buf)
 
             /* move the rest of the buffer back to the beginning if we have to */
             if (pos - to_read != 0)
-                memmove(buffer, (const void *)((char *)buffer + to_read), pos - to_read);
+                memmove(buffer, (const void *) ((char *) buffer + to_read), pos - to_read);
 
             pos -= to_read;
             been_read += to_read;
@@ -125,7 +125,7 @@ ssize_t pipe::write(int flags, size_t len, const void *buf)
 
     scoped_lock g{pipe_lock};
 
-    while (written != (ssize_t)len)
+    while (written != (ssize_t) len)
     {
         if (broken)
         {
@@ -154,8 +154,8 @@ ssize_t pipe::write(int flags, size_t len, const void *buf)
         {
             size_t to_write = min(len - written, available_space());
             /* sigh - sometimes C++ really gets in the way */
-            if (copy_from_user((void *)((char *)buffer + pos),
-                               (const void *)((char *)buf + written), to_write) < 0)
+            if (copy_from_user((void *) ((char *) buffer + pos),
+                               (const void *) ((char *) buf + written), to_write) < 0)
             {
                 /* Note: We do need to signal writers and readers on EFAULT if we have read/written
                  */
@@ -179,21 +179,21 @@ ssize_t pipe::write(int flags, size_t len, const void *buf)
 
 pipe *get_pipe(void *helper)
 {
-    unsigned long raw = (unsigned long)helper;
+    unsigned long raw = (unsigned long) helper;
 
-    return (pipe *)((void *)(raw & ~PIPE_WRITEABLE));
+    return (pipe *) ((void *) (raw & ~PIPE_WRITEABLE));
 }
 
 size_t pipe_read(size_t offset, size_t sizeofread, void *buffer, struct file *file)
 {
-    (void)offset;
+    (void) offset;
     pipe *p = get_pipe(file->f_ino->i_helper);
     return p->read(file->f_flags, sizeofread, buffer);
 }
 
 size_t pipe_write(size_t offset, size_t sizeofwrite, void *buffer, struct file *file)
 {
-    (void)offset;
+    (void) offset;
     pipe *p = get_pipe(file->f_ino->i_helper);
     return p->write(file->f_flags, sizeofwrite, buffer);
 }
@@ -223,7 +223,7 @@ void pipe::close_read_end()
 
 void pipe_close(struct inode *ino)
 {
-    bool is_writeable = ((unsigned long)ino->i_helper) & PIPE_WRITEABLE;
+    bool is_writeable = ((unsigned long) ino->i_helper) & PIPE_WRITEABLE;
     pipe *p = get_pipe(ino->i_helper);
 
     if (is_writeable)
@@ -302,7 +302,7 @@ int pipe_create(struct file **pipe_readable, struct file **pipe_writeable)
     node0->i_type = VFS_TYPE_CHAR_DEVICE;
     node0->i_flags = INODE_FLAG_NO_SEEK;
     node0->i_inode = current_inode_number++;
-    node0->i_helper = (void *)new_pipe;
+    node0->i_helper = (void *) new_pipe;
     node0->i_fops = &pipe_ops;
 
     /* TODO: This memcpy seems unsafe, at least... */
@@ -336,7 +336,7 @@ int pipe_create(struct file **pipe_readable, struct file **pipe_writeable)
     *pipe_writeable = wr;
 
     /* Since malloc returns 16-byte aligned memory we can use the lower bits for stuff like this */
-    node1->i_helper = (void *)((unsigned long)new_pipe | PIPE_WRITEABLE);
+    node1->i_helper = (void *) ((unsigned long) new_pipe | PIPE_WRITEABLE);
     return 0;
 err2:
     dentry_put(write_dent);
