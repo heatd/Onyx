@@ -40,9 +40,9 @@ thread *sched_create_thread(thread_callback_t callback, uint32_t flags, void *ar
     UNIMPLEMENTED;
 }
 
-size_t arch_heap_get_size()
+size_t arch_heap_get_size(void)
 {
-    UNIMPLEMENTED;
+    return 0x200000000000;
 }
 
 void arch_vm_init()

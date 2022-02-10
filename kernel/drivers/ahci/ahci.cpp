@@ -772,7 +772,8 @@ int ahci_allocate_port_lists(ahci_hba_memory_regs_t *hba, ahci_port_t *port,
     if ((uintptr_t) fisb > UINT32_MAX && addr64_supported == false)
         goto error;
 
-    _port->clist = (command_list_t *) mmiomap(command_list, PAGE_SIZE, VM_WRITE | VM_NOEXEC);
+    _port->clist =
+        (command_list_t *) mmiomap(command_list, PAGE_SIZE, VM_READ | VM_WRITE | VM_NOEXEC);
     if (!_port->clist)
         goto error;
 

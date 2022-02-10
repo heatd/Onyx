@@ -52,7 +52,7 @@ void *expand_heap(size_t size)
 
     // printk("Expanding heap from %p to %lx\n", alloc_start, (unsigned long) alloc_start +
     // (nr_pages << PAGE_SHIFT));
-    if (!vm_map_range(alloc_start, nr_pages, VM_WRITE | VM_NOEXEC | VM_DONT_MAP_OVER))
+    if (!vm_map_range(alloc_start, nr_pages, VM_READ | VM_WRITE | VM_NOEXEC | VM_DONT_MAP_OVER))
         return NULL;
 
     heap.size += nr_pages << PAGE_SHIFT;

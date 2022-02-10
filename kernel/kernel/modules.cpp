@@ -274,7 +274,7 @@ uintptr_t get_common_block(const char *name, size_t size)
         return 0;
 
     b->symbol = strdup(name);
-    b->buf = module_allocate_pages(size, VM_WRITE);
+    b->buf = module_allocate_pages(size, VM_READ | VM_WRITE);
     b->size = size;
 
     struct common_block **i = &blocks;

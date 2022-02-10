@@ -195,9 +195,10 @@ void *x86_placement_map(unsigned long _phys)
     kernel_address_space.arch_mmu.cr3 = get_current_pml4();
 
     /* Map two pages so memory that spans both pages can get accessed */
-    paging_map_phys_to_virt(&kernel_address_space, placement_mappings_start, phys, VM_WRITE);
+    paging_map_phys_to_virt(&kernel_address_space, placement_mappings_start, phys,
+                            VM_READ | VM_WRITE);
     paging_map_phys_to_virt(&kernel_address_space, placement_mappings_start + PAGE_SIZE,
-                            phys + PAGE_SIZE, VM_WRITE);
+                            phys + PAGE_SIZE, VM_READ | VM_WRITE);
     __native_tlb_invalidate_page((void *) placement_mappings_start);
     __native_tlb_invalidate_page((void *) (placement_mappings_start + PAGE_SIZE));
     return (void *) (placement_mappings_start + (_phys - phys));
@@ -714,15 +715,16 @@ void paging_protect_kernel(void)
     kernel_address_space.arch_mmu.cr3 = pml;
 
     size_t size = (uintptr_t) &_text_end - text_start;
-    map_pages_to_vaddr((void *) text_start, (void *) (text_start - KERNEL_VIRTUAL_BASE), size, 0);
+    map_pages_to_vaddr((void *) text_start, (void *) (text_start - KERNEL_VIRTUAL_BASE), size,
+                       VM_READ);
 
     size = (uintptr_t) &_data_end - data_start;
     map_pages_to_vaddr((void *) data_start, (void *) (data_start - KERNEL_VIRTUAL_BASE), size,
-                       VM_WRITE | VM_NOEXEC);
+                       VM_WRITE | VM_READ | VM_NOEXEC);
 
     size = (uintptr_t) &_vdso_sect_end - vdso_start;
     map_pages_to_vaddr((void *) vdso_start, (void *) (vdso_start - KERNEL_VIRTUAL_BASE), size,
-                       VM_WRITE);
+                       VM_READ | VM_WRITE);
 
     percpu_map_master_copy();
 

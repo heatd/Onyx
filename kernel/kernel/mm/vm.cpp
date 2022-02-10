@@ -313,7 +313,7 @@ void vm_late_init(void)
     }
 
     v->type = VM_TYPE_HEAP;
-    v->rwx = VM_NOEXEC | VM_WRITE;
+    v->rwx = VM_NOEXEC | VM_WRITE | VM_READ;
 
     struct kernel_limits l;
     get_kernel_limits(&l);
@@ -326,7 +326,7 @@ void vm_late_init(void)
     }
 
     v->type = VM_TYPE_REGULAR;
-    v->rwx = VM_WRITE;
+    v->rwx = VM_WRITE | VM_READ;
 
     vm_zero_page = alloc_page(0);
     assert(vm_zero_page != nullptr);

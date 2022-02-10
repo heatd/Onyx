@@ -1363,7 +1363,7 @@ void vterm_init(struct tty *tty)
     vt->fb = fb;
     vt->cells =
         (console_cell *) vmalloc(vm_size_to_pages(vt->columns * vt->rows * sizeof(*vt->cells)),
-                                 VM_TYPE_REGULAR, VM_WRITE | VM_NOEXEC);
+                                 VM_TYPE_REGULAR, VM_READ | VM_WRITE | VM_NOEXEC);
     assert(vt->cells != NULL);
 
     vt->fg = default_fg;

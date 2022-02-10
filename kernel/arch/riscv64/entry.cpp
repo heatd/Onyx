@@ -43,9 +43,9 @@ extern "C" void kernel_entry(void *fdt)
 
     vm_update_addresses(arch_high_half);
 
-    vm_late_init();
-
     paging_protect_kernel();
+
+    vm_late_init();
 
     console_init();
 

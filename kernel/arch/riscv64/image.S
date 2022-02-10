@@ -17,6 +17,10 @@ stack_bottom:
 
 stack_top:
 
+.skip 8
+
+booted: .word 0
+
 #include <onyx/image.h>
 
 .global entry_point
@@ -47,6 +51,13 @@ entry:
 
 	mv s1, a1
 
+	# Stop possible infinite loops of boots from happening
+	lw t1, booted
+	bnez t1, 2f
+
+	li t1, 1
+	sw t1, booted, t2
+
 	lla sp, stack_top
 	call early_paging_setup
 
@@ -60,4 +71,9 @@ entry:
 	lla tp, percpu_base
 	mv a0, s1
 	lla ra, kernel_entry
+	# Adjust the stack to point to a virtual address
+	li t1, 0xffffffff00000000
+	add sp, sp, t1
 	ret
+2:
+	j 2b

@@ -35,13 +35,20 @@ static const unsigned int riscv_max_paging_levels = 5;
 
 #define RISCV_PAGING_PROT_BITS ((1 << 8) - 1)
 
+#include <onyx/serial.h>
+static char buffer[1000];
+
+#define budget_printk(...)                         \
+    snprintf(buffer, sizeof(buffer), __VA_ARGS__); \
+    platform_serial_write(buffer, strlen(buffer))
+
 static unsigned long vm_prots_to_mmu(unsigned int prots)
 {
     auto flags = (prots & VM_NOEXEC ? 0 : RISCV_MMU_EXECUTE) |
                  (prots & VM_WRITE ? RISCV_MMU_WRITE : 0) | (prots & VM_READ ? RISCV_MMU_READ : 0) |
                  (prots & VM_USER ? RISCV_MMU_USER : RISCV_MMU_GLOBAL) | RISCV_MMU_VALID;
 
-    if (!(prots & (VM_READ | VM_WRITE)))
+    if (!(prots & (VM_READ | VM_WRITE)) && prots & VM_NOEXEC)
         flags &= ~RISCV_MMU_VALID;
 
     return flags;
@@ -398,6 +405,7 @@ bool riscv_get_pt_entry(void *addr, uint64_t **entry_ptr, bool may_create_path,
 
     addr_to_indices(virt, indices);
 
+    budget_printk("Top page table %p\n", mm->arch_mmu.top_pt);
     PML *pml = (PML *) ((unsigned long) mm->arch_mmu.top_pt + PHYS_BASE);
 
     for (unsigned int i = riscv_paging_levels; i != 1; i--)
@@ -405,6 +413,7 @@ bool riscv_get_pt_entry(void *addr, uint64_t **entry_ptr, bool may_create_path,
         uint64_t entry = pml->entries[indices[i - 1]];
         if (entry & RISCV_MMU_VALID)
         {
+            budget_printk("Valid mmu entry %016lx\n", PML_EXTRACT_ADDRESS(entry));
             void *page = (void *) PML_EXTRACT_ADDRESS(entry);
             pml = (PML *) PHYS_TO_VIRT(page);
         }
@@ -419,6 +428,8 @@ bool riscv_get_pt_entry(void *addr, uint64_t **entry_ptr, bool may_create_path,
                 return false;
 
             pml->entries[indices[i - 1]] = riscv_make_pt_entry_page_table(pt);
+
+            pml = pt;
         }
     }
 
@@ -506,21 +517,21 @@ void paging_protect_kernel(void)
            sizeof(PML));
     PML *p = (PML *) ((uintptr_t) pml + PHYS_BASE);
     p->entries[511] = 0UL;
-    p->entries[0] = 0UL;
+    //  p->entries[0] = 0UL;
 
     kernel_address_space.arch_mmu.top_pt = pml;
 
     size_t size = (uintptr_t) &_text_end - text_start;
-    map_pages_to_vaddr((void *) text_start, (void *) (text_start - KERNEL_VIRTUAL_BASE), size, 0);
+    map_pages_to_vaddr((void *) text_start, (void *) (text_start - KERNEL_VIRTUAL_BASE), size,
+                       VM_READ);
 
     size = (uintptr_t) &_data_end - data_start;
     map_pages_to_vaddr((void *) data_start, (void *) (data_start - KERNEL_VIRTUAL_BASE), size,
-                       VM_WRITE | VM_NOEXEC);
+                       VM_READ | VM_WRITE | VM_NOEXEC);
 
     size = (uintptr_t) &_vdso_sect_end - vdso_start;
     map_pages_to_vaddr((void *) vdso_start, (void *) (vdso_start - KERNEL_VIRTUAL_BASE), size,
-                       VM_WRITE);
-
+                       VM_READ | VM_WRITE);
     percpu_map_master_copy();
 
     paging_load_top_pt(pml);
@@ -538,13 +549,6 @@ void paging_invalidate(void *page, size_t pages)
         __native_tlb_invalidate_page((void *) p);
     }
 }
-
-#include <onyx/serial.h>
-static char buffer[1000];
-
-#define budget_printk(...)                         \
-    snprintf(buffer, sizeof(buffer), __VA_ARGS__); \
-    platform_serial_write(buffer, strlen(buffer))
 
 /**
  * @brief Directly maps a page into the paging tables.

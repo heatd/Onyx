@@ -353,7 +353,7 @@ int kasan_alloc_shadow(unsigned long addr, size_t size, bool accessible)
     printf("Actual start: %lx\nActual end: %lx\n", actual_start, actual_end);*/
     /* TODO: This is a huge memory leak right now. */
     assert(vm_map_range((void *) kasan_start, (kasan_end - kasan_start) >> PAGE_SHIFT,
-                        VM_WRITE | VM_NOEXEC | VM_DONT_MAP_OVER) != NULL);
+                        VM_READ | VM_WRITE | VM_NOEXEC | VM_DONT_MAP_OVER) != NULL);
     /* Mask excess bytes as redzones */
     /* memset((void *) kasan_start, KASAN_REDZONE, actual_start - kasan_start);
     memset((void *) actual_end, KASAN_REDZONE, kasan_end - actual_end);*/

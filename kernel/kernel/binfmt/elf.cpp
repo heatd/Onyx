@@ -346,7 +346,7 @@ void elf_create_module_layout(struct elf_loader_context *ctx, struct module *mod
 #define ELF_MODULE_RO   1
 #define ELF_MODULE_DATA 2
 
-const int module_prots[] = {0, VM_NOEXEC, VM_WRITE | VM_NOEXEC};
+const int module_prots[] = {0, VM_READ | VM_NOEXEC, VM_READ | VM_WRITE | VM_NOEXEC};
 
 bool elf_load_module_sections(struct elf_loader_context *ctx, struct module *module, int type)
 {
@@ -383,7 +383,7 @@ bool elf_load_module_sections(struct elf_loader_context *ctx, struct module *mod
     *addr_p = (unsigned long) mem;
 
     /* Enable write, we'll fix this up in a moment */
-    vm_change_perms(mem, vm_size_to_pages(region_size), VM_WRITE);
+    vm_change_perms(mem, vm_size_to_pages(region_size), VM_READ | VM_WRITE);
 
     unsigned long addr = *addr_p;
     for (size_t i = 0; i < ctx->header->e_shnum; i++)

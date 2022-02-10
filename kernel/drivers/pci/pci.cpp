@@ -167,7 +167,7 @@ void *pci_device::map_bar(unsigned int index, unsigned int caching)
 	printf("Mapping bar%d %lx %lx\n", index, bar.address, bar.size);
 #endif
 
-    return mmiomap((void *) bar.address, bar.size, VM_WRITE | VM_NOEXEC | caching);
+    return mmiomap((void *) bar.address, bar.size, VM_READ | VM_WRITE | VM_NOEXEC | caching);
 }
 
 uint16_t pci_device::get_intn() const

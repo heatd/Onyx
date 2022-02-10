@@ -343,7 +343,7 @@ int e1000_init_rx(struct e1000_device *dev)
     alloc_info.off = 0;
 
     rxdescs = (e1000_rx_desc *) map_page_list(rx_pages, needed_pages << PAGE_SHIFT,
-                                              VM_WRITE | VM_NOEXEC | VM_READ);
+                                              VM_READ | VM_WRITE | VM_NOEXEC | VM_READ);
     if (!rxdescs)
     {
         st = -ENOMEM;
@@ -406,8 +406,8 @@ int e1000_init_tx(struct e1000_device *dev)
     if (!tx_pages)
         return -ENOMEM;
 
-    txdescs =
-        (e1000_tx_desc *) map_page_list(tx_pages, needed_pages << PAGE_SHIFT, VM_WRITE | VM_NOEXEC);
+    txdescs = (e1000_tx_desc *) map_page_list(tx_pages, needed_pages << PAGE_SHIFT,
+                                              VM_READ | VM_WRITE | VM_NOEXEC);
     if (!txdescs)
     {
         st = -ENOMEM;

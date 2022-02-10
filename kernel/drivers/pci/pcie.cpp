@@ -281,7 +281,7 @@ int pcie_init(void)
         size_t size = nr_buses << 20;
 
         allocation.address =
-            mmiomap((void *) alloc->Address, size, VM_WRITE | VM_NOEXEC | VM_NOCACHE);
+            mmiomap((void *) alloc->Address, size, VM_READ | VM_WRITE | VM_NOEXEC | VM_NOCACHE);
 
         if (!allocation.address)
             return -ENOMEM;

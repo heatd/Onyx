@@ -91,7 +91,7 @@ int SvgaDevice::add_bar(pci::pci_bar bar, int index)
     }
     case SVGAII_FRAMEBUFFER_BAR: {
         framebuffer_raw = (void *) bar.address;
-        framebuffer = mmiomap(framebuffer_raw, bar.size, VM_WRITE | VM_NOEXEC | VM_WC);
+        framebuffer = mmiomap(framebuffer_raw, bar.size, VM_READ | VM_WRITE | VM_NOEXEC | VM_WC);
         if (!framebuffer)
             return -1;
         framebuffer_size = bar.size;
@@ -99,7 +99,7 @@ int SvgaDevice::add_bar(pci::pci_bar bar, int index)
     }
     case SVGAII_COMMAND_BUFFER_BAR: {
         command_buffer = (uint32_t *) mmiomap((void *) (uintptr_t) bar.address, bar.size,
-                                              VM_WRITE | VM_NOEXEC | VM_NOCACHE);
+                                              VM_READ | VM_WRITE | VM_NOEXEC | VM_NOCACHE);
         if (!command_buffer)
             return -1;
         command_buffer_size = bar.size;

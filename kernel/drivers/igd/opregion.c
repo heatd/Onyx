@@ -24,7 +24,7 @@ int igd_get_opregion(struct igpu_device *dev)
         return -ENOENT;
     }
 
-    void *opregion_map = mmiomap((void *) opregion, OPREGION_SIZE, VM_WRITE | VM_NOEXEC);
+    void *opregion_map = mmiomap((void *) opregion, OPREGION_SIZE, VM_READ | VM_WRITE | VM_NOEXEC);
 
     if (!opregion_map)
     {
