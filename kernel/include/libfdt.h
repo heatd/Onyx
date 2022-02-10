@@ -6,8 +6,11 @@
  * Copyright (C) 2006 David Gibson, IBM Corporation.
  */
 
-#include <fdt.h>
+// clang-format off
 #include <libfdt_env.h>
+#include <fdt.h>
+
+//clang-format on
 
 #ifdef __cplusplus
 extern "C" {

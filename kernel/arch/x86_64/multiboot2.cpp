@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 - 2021 Pedro Falcato
+ * Copyright (c) 2018 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -123,95 +123,7 @@ static inline void *temp_map_mem(unsigned long mem)
         return x86_placement_map(mem);
 }
 
-bool page_is_used(void *__page, struct bootmodule *modules);
-
 struct bootmodule initrd;
-
-bool range_is_used(unsigned long addr, size_t nr_pages)
-{
-    unsigned long l = addr;
-    for (size_t j = 0; j < nr_pages; j++)
-    {
-        if (page_is_used((void *) (l), &initrd))
-        {
-            return true;
-        }
-
-        l += PAGE_SIZE;
-    }
-
-    return false;
-}
-
-void *multiboot2_alloc_boot_page_high(size_t nr_pages)
-{
-    auto vmmap_tag = (multiboot_tag_mmap *) temp_map_mem((unsigned long) mmap_tag);
-    size_t entries = vmmap_tag->size / vmmap_tag->entry_size;
-    size_t i = 0;
-
-    for (; i < entries; i++)
-    {
-        auto phys_mmap = (struct multiboot_mmap_entry *) mmap_tag->entries + entries - 1 - i;
-        auto mmap = (multiboot_mmap_entry *) x86_placement_map((unsigned long) phys_mmap);
-
-        if (mmap->type != MULTIBOOT_MEMORY_AVAILABLE)
-            continue;
-
-        if (mmap->len >> PAGE_SHIFT >= nr_pages)
-        {
-            if (!range_is_used(mmap->addr, nr_pages))
-            {
-                uintptr_t ret = mmap->addr;
-                mmap->addr += nr_pages << PAGE_SHIFT;
-                mmap->len -= nr_pages << PAGE_SHIFT;
-                // printf("allocated %lx\n", ret);
-                return (void *) ret;
-            }
-            else if (!range_is_used(mmap->addr + mmap->len - (nr_pages << PAGE_SHIFT), nr_pages))
-            {
-                unsigned long ret = mmap->addr + mmap->len - (nr_pages << PAGE_SHIFT);
-                mmap->len -= nr_pages << PAGE_SHIFT;
-                // printf("allocated %lx\n", ret);
-                return (void *) ret;
-            }
-        }
-    }
-
-    return NULL;
-}
-
-void *multiboot2_alloc_boot_page(size_t nr_pages, long flags)
-{
-    return multiboot2_alloc_boot_page_high(nr_pages);
-}
-
-void *multiboot2_get_phys_mem_region(uintptr_t *base, uintptr_t *size, void *context)
-{
-    /* Context holds an array index */
-
-    auto tag = (multiboot_tag_mmap *) temp_map_mem((unsigned long) mmap_tag);
-    size_t entries = tag->size / tag->entry_size;
-    size_t curr_entry = (size_t) context;
-
-    if (curr_entry == entries)
-        return (void *) 0;
-
-    struct multiboot_mmap_entry *entry = &tag->entries[curr_entry];
-
-    printf("Adding physical memory region %llx - %llx\n", entry->addr, entry->addr + entry->len);
-    *base = entry->addr;
-    *size = entry->len;
-
-    curr_entry++;
-
-    for (; curr_entry != entries; ++curr_entry)
-    {
-        if (tag->entries[curr_entry].type == MULTIBOOT_MEMORY_AVAILABLE)
-            break;
-    }
-
-    return (void *) curr_entry;
-}
 
 static size_t mb2_count_mem(void)
 {
@@ -234,6 +146,9 @@ static size_t mb2_count_mem(void)
         }
 
         printf("MEMMAP [%llx - %llx]\n", mmap->addr, mmap->addr + mmap->len);
+        // Add memory as well
+
+        bootmem_add_range(mmap->addr, mmap->len);
     }
 
     return memory;
@@ -339,11 +254,7 @@ extern "C" void multiboot2_kernel_entry(uintptr_t addr, uint32_t magic)
     total_mem = mb2_count_mem();
     max_pfn = mb2_get_maxpfn();
 
-    multiboot_struct_used.start = ((uintptr_t) addr) & ~(PAGE_SIZE - 1);
-
-    multiboot_struct_used.end = (uintptr_t) page_align_up((void *) tag);
-    multiboot_struct_used.next = NULL;
-    page_add_used_pages(&multiboot_struct_used);
+    bootmem_reserve(addr, (unsigned long) tag - addr);
 
     elf_sections_reserve(secs);
 
@@ -351,8 +262,7 @@ extern "C" void multiboot2_kernel_entry(uintptr_t addr, uint32_t magic)
     initrd.base = vinitrd_tag->mod_start;
     initrd.size = vinitrd_tag->mod_end - vinitrd_tag->mod_start;
     initrd.next = NULL;
-
-    set_alloc_boot_page(multiboot2_alloc_boot_page);
+    bootmem_reserve(initrd.base, initrd.size);
 
     pat_init();
 
@@ -362,7 +272,7 @@ extern "C" void multiboot2_kernel_entry(uintptr_t addr, uint32_t magic)
 
     set_initrd_address((void *) (uintptr_t) initrd.base);
 
-    page_init(total_mem, max_pfn, multiboot2_get_phys_mem_region, &initrd);
+    page_init(total_mem, max_pfn);
 
     /* We need to get some early boot rtc data and initialize the entropy,
      * as it's vital to initialize some entropy sources for the memory map

@@ -359,9 +359,6 @@ void setup_kernel_symbols(struct module *m)
     reclaim_elf_sections_memory();
 }
 
-struct used_pages symtab_pages;
-struct used_pages strtab_pages;
-struct used_pages shstrtab_pages;
 static unsigned long strtab_start, strtab_end = 0;
 static unsigned long symtab_start, symtab_end = 0;
 
@@ -372,9 +369,7 @@ void elf_sections_reserve(struct multiboot_tag_elf_sections *__secs)
     Elf64_Shdr *sections = (Elf64_Shdr *) (__secs->sections);
     strtabs = (Elf64_Shdr *) x86_placement_map((unsigned long) &sections[secs->shndx]);
 
-    shstrtab_pages.start = strtabs->sh_addr & ~(PAGE_SIZE - 1);
-    shstrtab_pages.end = (uintptr_t) page_align_up((void *) (strtabs->sh_addr + strtabs->sh_size));
-    page_add_used_pages(&shstrtab_pages);
+    bootmem_reserve(strtabs->sh_addr, strtabs->sh_size);
 
     for (unsigned int i = 0; i < num_secs; i++)
     {
@@ -386,25 +381,17 @@ void elf_sections_reserve(struct multiboot_tag_elf_sections *__secs)
         if (!strcmp(".symtab", elf_get_string(name)))
         {
             section = (Elf64_Shdr *) x86_placement_map((unsigned long) (sections + i));
-            symtab_pages.start = section->sh_addr & ~(PAGE_SIZE - 1);
-            symtab_pages.end =
-                (uintptr_t) page_align_up((void *) (section->sh_size + section->sh_addr));
             symtab_start = section->sh_addr;
             symtab_end = section->sh_addr + section->sh_size;
 
-            symtab_pages.next = NULL;
-            page_add_used_pages(&symtab_pages);
+            bootmem_reserve(symtab_start, section->sh_size);
         }
         if (!strcmp(".strtab", elf_get_string(name)))
         {
             section = (Elf64_Shdr *) x86_placement_map((unsigned long) (sections + i));
-            strtab_pages.start = section->sh_addr & ~(PAGE_SIZE - 1);
-            strtab_pages.end =
-                (uintptr_t) page_align_up((void *) (section->sh_size + section->sh_addr));
             strtab_start = section->sh_addr;
             strtab_end = section->sh_addr + section->sh_size;
-            strtab_pages.next = NULL;
-            page_add_used_pages(&strtab_pages);
+            bootmem_reserve(strtab_start, section->sh_size);
         }
     }
 }

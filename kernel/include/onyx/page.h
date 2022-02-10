@@ -139,9 +139,7 @@ static inline unsigned long pfn_to_paddr(unsigned long pfn)
 
 #define PAGE_TO_VIRT(page) ((void *) (pfn_to_paddr(page_to_pfn(page)) + PHYS_BASE))
 
-void page_init(size_t memory_size, unsigned long maxpfn,
-               void *(*get_phys_mem_region)(uintptr_t *base, uintptr_t *size, void *context),
-               struct bootmodule *modules);
+void page_init(size_t memory_size, unsigned long maxpfn);
 
 unsigned int page_hash(uintptr_t p);
 struct page *phys_to_page(uintptr_t phys);

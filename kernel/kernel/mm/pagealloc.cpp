@@ -57,7 +57,7 @@ private:
     unsigned long used_pages;
     unsigned long total_pages;
 
-    int page_add(struct page_arena *arena, void *__page, struct bootmodule *modules);
+    int page_add(struct page_arena *arena, void *__page);
 
 public:
     constexpr page_node()
@@ -76,7 +76,7 @@ public:
         INIT_LIST_HEAD(&page_list);
     }
 
-    void add_region(unsigned long base, size_t size, struct bootmodule *module);
+    void add_region(unsigned long base, size_t size);
     struct page *allocate_pages(unsigned long nr_pages, unsigned long flags);
     struct page *alloc_page(unsigned long flags);
     struct page *alloc_contiguous(unsigned long nr_pages, unsigned long flags);
@@ -92,19 +92,10 @@ page_node main_node;
 
 #define ADDRESS_4GB_MARK 0x100000000
 
-bool page_is_used(void *__page, struct bootmodule *modules);
-
-int page_node::page_add(struct page_arena *arena, void *__page, struct bootmodule *modules)
+int page_node::page_add(struct page_arena *arena, void *__page)
 {
     nr_global_pages++;
     total_pages++;
-
-    if (page_is_used(__page, modules))
-    {
-        struct page *p = page_add_page(__page);
-        p->ref = 1;
-        return -1;
-    }
 
     struct page_list *page = (struct page_list *) PHYS_TO_VIRT(__page);
 
@@ -115,8 +106,9 @@ int page_node::page_add(struct page_arena *arena, void *__page, struct bootmodul
     return 0;
 }
 
-void page_node::add_region(uintptr_t base, size_t size, struct bootmodule *module)
+void page_node::add_region(uintptr_t base, size_t size)
 {
+    printf("pagealloc: Adding region %lx, %016lx\n", base, base + size - 1);
     while (size)
     {
         size_t area_size = min(size, arena_default_size);
@@ -129,12 +121,7 @@ void page_node::add_region(uintptr_t base, size_t size, struct bootmodule *modul
 
         for (size_t i = 0; i < area_size; i += PAGE_SIZE)
         {
-            /* If the page is being used, decrement the free_pages counter */
-            if (page_add(arena, (void *) (base + i), module) < 0)
-            {
-                used_pages++;
-                ::used_pages++;
-            }
+            page_add(arena, (void *) (base + i));
         }
 
         list_add_tail(&arena->arena_list_node, &arena_list);
@@ -144,13 +131,8 @@ void page_node::add_region(uintptr_t base, size_t size, struct bootmodule *modul
     }
 }
 
-void page_init(size_t memory_size, unsigned long maxpfn,
-               void *(*get_phys_mem_region)(uintptr_t *base, uintptr_t *size, void *context),
-               struct bootmodule *modules)
+void page_init(size_t memory_size, unsigned long maxpfn)
 {
-    uintptr_t region_base;
-    uintptr_t region_size;
-    void *context_cookie = NULL;
     main_node.init();
 
     printf("page: Memory size: %lu\n", memory_size);
@@ -180,14 +162,12 @@ void page_init(size_t memory_size, unsigned long maxpfn,
      * (we must have reached the end)
      */
 
-    while ((context_cookie = get_phys_mem_region(&region_base, &region_size, context_cookie)) !=
-           NULL)
-    {
+    for_every_phys_region([](unsigned long start, size_t size) {
         /* page_add_region can't return an error value since it halts
          * on failure
          */
-        main_node.add_region(region_base, region_size, modules);
-    }
+        main_node.add_region(start, size);
+    });
 
     page_is_initialized = true;
 }
@@ -275,10 +255,9 @@ struct page *page_node::alloc_page(unsigned long flags)
 
     list_remove(&p->list_node);
 
-    p->page->ref = 1;
-
     assert(p->page->flags & PAGE_FLAG_FREE);
 
+    p->page->ref = 1;
     p->page->flags &= ~PAGE_FLAG_FREE;
     ret = p->page;
 

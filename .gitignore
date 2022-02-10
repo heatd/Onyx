@@ -33,3 +33,4 @@ compile_commands.json
 kernel/include/onyx/config.h
 onyx-package-tree/
 *.qcow2
+sysroots

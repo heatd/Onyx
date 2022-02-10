@@ -100,11 +100,11 @@ void *do_brk_change(intptr_t inc)
         {
             unsigned long new_limit = (new_brk + (PAGE_SIZE - 1)) & -PAGE_SIZE;
             unsigned long to_free = heap_limit - new_limit;
-            assert(to_free & (PAGE_SIZE - 1) == 0);
+            assert((to_free & (PAGE_SIZE - 1)) == 0);
             unmap_kernel_brk(new_limit, to_free);
             heap.size = new_limit - starting_address;
 
-            assert(heap.size & (PAGE_SIZE - 1) == 0);
+            assert((heap.size & (PAGE_SIZE - 1)) == 0);
         }
     }
 

@@ -272,6 +272,12 @@ void vm_init()
 {
     paging_init();
     arch_vm_init();
+
+    // Reserve the kernel in the boot memory map
+    struct kernel_limits limits;
+    get_kernel_limits(&limits);
+
+    bootmem_reserve(limits.start_phys, limits.end_phys - limits.start_phys);
 }
 
 void heap_set_start(uintptr_t start);

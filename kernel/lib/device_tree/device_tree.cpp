@@ -19,94 +19,16 @@ static char buffer[1000];
     snprintf(buffer, sizeof(buffer), __VA_ARGS__); \
     platform_serial_write(buffer, strlen(buffer))
 
-bool page_is_used(void *__page, struct bootmodule *modules);
-
 namespace device_tree
 {
 
 void *fdt_ = nullptr;
 
-#define RESERVED_RANGES_MAX   20
 #define DEVICE_TREE_MAX_DEPTH 32
-
-struct used_pages fdt_used_pages;
-struct used_pages reserved_ranges[RESERVED_RANGES_MAX];
-int nr_reserved_ranges = 0;
-
-struct memory_range
-{
-    uint64_t start;
-    uint64_t size;
-} memory_ranges[32];
 
 int nr_memory_ranges = 0;
 size_t memory_size = 0;
 unsigned long maxpfn = 0;
-
-void *get_physical_memory_region(uintptr_t *start, size_t *size, void *context)
-{
-    int index = (int) (unsigned long) context;
-
-    *start = memory_ranges[index].start;
-    *size = memory_ranges[index].size;
-
-    if (++index == nr_memory_ranges)
-        return nullptr;
-
-    return (void *) (unsigned long) index;
-}
-
-bool range_is_used(unsigned long addr, size_t nr_pages)
-{
-    unsigned long l = addr;
-    for (size_t j = 0; j < nr_pages; j++)
-    {
-        if (page_is_used((void *) (l), nullptr))
-        {
-            return true;
-        }
-
-        l += PAGE_SIZE;
-    }
-
-    return false;
-}
-
-// Adapted from multiboot2.cpp
-
-void *devtree_mm_alloc_boot_page_high(size_t nr_pages)
-{
-    for (int i = 0; i < nr_memory_ranges; i++)
-    {
-        auto &range = memory_ranges[nr_memory_ranges - i - 1];
-
-        if (range.size >> PAGE_SHIFT >= nr_pages)
-        {
-            if (!range_is_used(range.start, nr_pages))
-            {
-                uintptr_t ret = range.start;
-                range.start += nr_pages << PAGE_SHIFT;
-                range.size -= nr_pages << PAGE_SHIFT;
-                // printf("allocated %lx\n", ret);
-                return (void *) ret;
-            }
-            else if (!range_is_used(range.start + range.size - (nr_pages << PAGE_SHIFT), nr_pages))
-            {
-                unsigned long ret = range.start + range.size - (nr_pages << PAGE_SHIFT);
-                range.size -= nr_pages << PAGE_SHIFT;
-                // printf("allocated %lx\n", ret);
-                return (void *) ret;
-            }
-        }
-    }
-
-    return NULL;
-}
-
-void *devtree_mm_alloc_boot_page(size_t nr_pages, long flags)
-{
-    return devtree_mm_alloc_boot_page_high(nr_pages);
-}
 
 /**
  * @brief Process any possible memory reservations in the device tree
@@ -115,11 +37,6 @@ void *devtree_mm_alloc_boot_page(size_t nr_pages, long flags)
 void process_reservations()
 {
     int nr = fdt_num_mem_rsv(fdt_);
-    if (nr > RESERVED_RANGES_MAX)
-    {
-        panic("device_tree: memory reservations are too big for our buffer (%d > %d)", nr,
-              RESERVED_RANGES_MAX);
-    }
 
     for (int i = 0; i < nr; i++)
     {
@@ -131,11 +48,7 @@ void process_reservations()
 
         printf("device_tree: Memory reservation [%016lx, %016lx]\n", address, address + size - 1);
 
-        used_pages &p = reserved_ranges[i];
-
-        p.start = address & ~PAGE_SIZE;
-        p.end = (uintptr_t) page_align_up((void *) (address + size));
-        page_add_used_pages(&p);
+        bootmem_reserve(address, size);
     }
 
     printf("device_tree: Added %d memory reservations\n", nr);
@@ -214,8 +127,7 @@ void handle_memory_node(int offset, int addr_cells, int size_cells)
 
         budget_printk("start %016lx\n", start);
 
-        memory_ranges[nr_memory_ranges++] = memory_range{start, size};
-
+        bootmem_add_range(start, size);
         memory_size += size;
 
         maxpfn = cul::max((start + size) >> PAGE_SHIFT, maxpfn);
@@ -306,18 +218,14 @@ void init(void *fdt)
         return;
     }
 
-    fdt_used_pages.start = (uintptr_t) fdt & ~PAGE_SIZE;
-    fdt_used_pages.end = (uintptr_t) page_align_up((char *) fdt + fdt_totalsize(fdt));
     // Reserve the FDT in case the device tree hasn't done that
-    page_add_used_pages(&fdt_used_pages);
+    bootmem_reserve((unsigned long) fdt, fdt_totalsize(fdt_));
 
     process_reservations();
 
     walk();
 
-    set_alloc_boot_page(devtree_mm_alloc_boot_page);
-
-    page_init(memory_size, maxpfn, get_physical_memory_region, nullptr);
+    page_init(memory_size, maxpfn);
 }
 
 } // namespace device_tree

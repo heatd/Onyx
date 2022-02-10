@@ -40,14 +40,6 @@ void arch_vm_init(void)
     vm_update_addresses(vm_calculate_virtual_address(VM_SUPPORTED_VM_BITS));
 }
 
-/* Dummy function to keep the kernel happy, since x86 reports every platform
- * memory region as far as I know
- */
-bool platform_page_is_used(void *page)
-{
-    return false;
-}
-
 size_t arch_heap_get_size(void)
 {
     return 0x200000000000;

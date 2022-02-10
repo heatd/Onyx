@@ -87,44 +87,6 @@ bool check_kernel_limits(void *__page)
     return false;
 }
 
-struct used_pages *used_pages_list = NULL;
-
-void page_add_used_pages(struct used_pages *pages)
-{
-    struct used_pages **pp = &used_pages_list;
-
-    while (*pp != NULL)
-        pp = &(*pp)->next;
-
-    *pp = pages;
-}
-
-bool platform_page_is_used(void *page);
-
-bool page_is_used(void *__page, struct bootmodule *modules)
-{
-    uintptr_t page = (uintptr_t) __page;
-
-    for (struct bootmodule *m = modules; m != NULL; m = m->next)
-    {
-        if (page >= m->base && m->base + m->size > page)
-            return true;
-    }
-
-    for (struct used_pages *p = used_pages_list; p; p = p->next)
-    {
-        if (page >= p->start && p->end > page)
-        {
-            return true;
-        }
-    }
-
-    if (check_kernel_limits(__page) == true)
-        return true;
-
-    return platform_page_is_used(__page);
-}
-
 void reclaim_pages(unsigned long start, unsigned long end)
 {
     unsigned long page_start = (unsigned long) page_align_up((void *) start);

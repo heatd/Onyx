@@ -40,11 +40,6 @@ thread *sched_create_thread(thread_callback_t callback, uint32_t flags, void *ar
     UNIMPLEMENTED;
 }
 
-bool platform_page_is_used(void *page)
-{
-    return false;
-}
-
 size_t arch_heap_get_size()
 {
     UNIMPLEMENTED;

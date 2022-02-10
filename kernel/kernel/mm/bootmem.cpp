@@ -1,19 +1,10 @@
 /*
- * Copyright (c) 2016, 2017 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
-/**************************************************************************
- *
- *
- * File: bootmem.c
- *
- * Description: Contains the implementation of the kernel's boot memory manager
- *
- * Date: 4/12/2016
- *
- *
- **************************************************************************/
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -23,35 +14,166 @@
 #include <onyx/page.h>
 #include <onyx/paging.h>
 #include <onyx/panic.h>
+#include <onyx/serial.h>
 
-void *(*alloc_boot_page_func)(size_t nr_pgs, long flags);
+#define DEFAULT_NR_MEMORY_RANGES 128
 
-void set_alloc_boot_page(void *(*f)(size_t nr, long flags))
+struct memory_range
 {
-    alloc_boot_page_func = f;
+    unsigned long start;
+    size_t size;
+};
+
+memory_range phys_ranges[DEFAULT_NR_MEMORY_RANGES];
+unsigned int nr_phys_ranges = 0;
+
+memory_range resv_ranges[DEFAULT_NR_MEMORY_RANGES];
+unsigned int nr_resv_ranges = 0;
+
+void for_every_phys_region(void (*callback)(unsigned long start, size_t size))
+{
+    for (unsigned int i = 0; i < nr_phys_ranges; i++)
+        callback(phys_ranges[i].start, phys_ranges[i].size);
 }
 
-void *alloc_boot_page(size_t nr_pgs, long flags)
+void __bootmem_add_range(unsigned long start, size_t size)
 {
-    if (!alloc_boot_page_func)
+    if (nr_phys_ranges == DEFAULT_NR_MEMORY_RANGES)
     {
-        printf("Early boot panic: No alloc_boot_page");
-        halt();
+        panic("Out of space for memory range [%016lx, %016lx]", start, start + size - 1);
     }
 
-    void *ret = alloc_boot_page_func(nr_pgs, flags);
+    phys_ranges[nr_phys_ranges++] = memory_range{start, size};
+}
 
-    if (ret != NULL)
+void bootmem_re_reserve_memory();
+
+void bootmem_add_range(unsigned long start, size_t size)
+{
+    __bootmem_add_range(start, size);
+
+    // We need to run this because we might already have memory reservations registered
+    bootmem_re_reserve_memory();
+}
+
+void bootmem_remove_range(unsigned int index)
+{
+    auto tail_ranges = nr_phys_ranges - index - 1;
+    memcpy(&phys_ranges[index], &phys_ranges[index + 1], tail_ranges * sizeof(phys_ranges));
+    nr_phys_ranges--;
+}
+
+static void bootmem_add_reserve(unsigned long start, size_t size)
+{
+    if (nr_resv_ranges == DEFAULT_NR_MEMORY_RANGES)
     {
-        /*printf("alloc_boot_page: allocated boot pages from %p to %lx (%lu pages)\n", ret,
-            (uintptr_t) ret + (nr_pgs << PAGE_SHIFT), nr_pgs); */
-    }
-    else
-    {
-        printf("Alloc boot page failed\n");
-        while (1)
-            ;
+        panic("Out of space for reserved memory range [%016lx, %016lx]", start, start + size - 1);
     }
 
-    return ret;
+    printf("bootmem: Added reserved memory range [%016lx, %016lx]\n", start, start + size - 1);
+
+    resv_ranges[nr_resv_ranges++] = memory_range{start, size};
+}
+
+static void bootmem_reserve_memory_ranges(unsigned long start, size_t size)
+{
+    for (unsigned int i = 0; i < nr_phys_ranges; i++)
+    {
+        auto &range = phys_ranges[i];
+        bool overlaps =
+            check_for_overlap(start, start + size - 1, range.start, range.start + range.size - 1);
+
+        if (!overlaps)
+        {
+            continue;
+        }
+
+        if (range.start >= start)
+        {
+            unsigned long offset = range.start - start;
+            const auto tail_size = (size - offset) > range.size ? 0 : range.size - (size - offset);
+
+            if (!tail_size)
+            {
+                // If we end up not having a tail, remove the range altogether
+                bootmem_remove_range(i);
+            }
+            else
+            {
+                // Trim the start of the range
+                range.size = tail_size;
+                range.start = range.start + (size - offset);
+            }
+        }
+        else if (range.start < start)
+        {
+            unsigned long offset = start - range.start;
+            unsigned long remainder = range.size - offset;
+            auto to_shave_off = size < remainder ? size : remainder;
+
+            if (to_shave_off == range.size)
+            {
+                range.size -= to_shave_off;
+            }
+            else
+            {
+                unsigned long second_region_start = start + to_shave_off;
+                unsigned long second_region_size = remainder - to_shave_off;
+
+                range.size = offset;
+                __bootmem_add_range(second_region_start, second_region_size);
+            }
+        }
+    }
+}
+
+/**
+ * @brief Run the reservation code on all the memory that has been registered
+ *
+ */
+void bootmem_re_reserve_memory()
+{
+    for (unsigned int i = 0; i < nr_resv_ranges; i++)
+    {
+        bootmem_reserve_memory_ranges(resv_ranges[i].start, resv_ranges[i].size);
+    }
+}
+
+void bootmem_reserve(unsigned long start, size_t size)
+{
+    // Reservations align downwards on the start and upwards on the size
+    start &= -PAGE_SIZE;
+    size = (size_t) page_align_up((void *) size);
+
+    bootmem_add_reserve(start, size);
+    bootmem_reserve_memory_ranges(start, size);
+}
+
+void *alloc_boot_page(size_t nr_pages, long flags)
+{
+    size_t size = nr_pages << PAGE_SHIFT;
+    for (unsigned int i = 0; i < nr_phys_ranges; i++)
+    {
+        auto &ranges = phys_ranges[i];
+
+        if (ranges.size >= size)
+        {
+            auto ret = (void *) ranges.start;
+            ranges.start += size;
+            ranges.size -= size;
+
+            if (!ranges.size)
+            {
+                // Clean up if we allocated the whole range
+                bootmem_remove_range(i);
+            }
+#ifdef CONFIG_BOOTMEM_DEBUG
+            printf("alloc_boot_page: Allocated [%016lx, %016lx]\n", (unsigned long) ret,
+                   (unsigned long) ret + size);
+#endif
+            return ret;
+        }
+    }
+
+    panic("alloc_boot_page of %lu pages failed", nr_pages);
 }
