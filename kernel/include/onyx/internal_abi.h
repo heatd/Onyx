@@ -9,10 +9,12 @@
 
 #include <platform/internal_abi.h>
 
+#ifndef __ASSEMBLER__
 namespace abi
 {
 internal_abi_layout *get_abi_data();
 extern "C" void init_ssp_for_cpu(unsigned int cpu_nr);
 } // namespace abi
 
+#endif
 #endif

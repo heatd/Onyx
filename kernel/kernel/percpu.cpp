@@ -11,7 +11,6 @@
 #include <onyx/init.h>
 #include <onyx/percpu.h>
 #include <onyx/vm.h>
-#include <onyx/x86/msr.h>
 
 extern unsigned char __percpu_start;
 extern unsigned char __percpu_end;

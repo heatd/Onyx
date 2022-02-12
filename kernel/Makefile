@@ -43,7 +43,7 @@ endif
 
 # NOTE: I don't think pointer-overflow works with kernel pointers
 
-CPPFLAGS:=$(CPPFLAGS) --sysroot=../libc -D__is_onyx_kernel -D_POSIX_C_SOURCE \
+CPPFLAGS:=$(CPPFLAGS) --sysroot=lib/libk -D__is_onyx_kernel -D_POSIX_C_SOURCE \
 -D_BSD_SOURCE -D_GNU_SOURCE -Iinclude \
 -Iinclude/acpica -DKERNEL_VERSION='"$(KERNEL_VERSION)"' \
 -DKERNEL_BRANCH='"$(KERNEL_BRANCH)"' -DKERNEL_ARCH='"$(KERNEL_ARCH)"' -imacros \
@@ -53,7 +53,7 @@ LDFLAGS:=$(LDFLAGS) -fkeep-inline-functions -Wl,--build-id=none
 
 include lib/compiler-rt/builtins/Makefile
 
-LIBS:=$(LIBS) -nostdlib -lk
+LIBS:=$(LIBS) -nostdlib
 ARCHDIR:=arch/$(HOSTARCH)
 
 GENERATED_HEADERS:=include/onyx/config.h include/onyx/gen/syscall.h
@@ -71,6 +71,8 @@ include lib/libfdt/Makefile
 include lib/device_tree/Makefile
 
 endif
+
+include lib/libk/Makefile
 
 CFLAGS:=$(CFLAGS) $(KERNEL_ARCH_CFLAGS)
 
@@ -158,7 +160,7 @@ DEPS:=$(OBJS:%.o=%.d)
 
 -include $(DEPS)
 
-CRTI_OBJ:=../sysroot/usr/lib/crti.o
+CRTI_OBJ:=lib/libk/$(ARCHDIR)/crti.o
 
 CFLAGS_FOR_LINK:=$(CFLAGS)
 
@@ -172,7 +174,7 @@ LDFLAGS:=$(LDFLAGS) -fno-sanitize-link-runtime -Wl,-no-pie
 CFLAGS_FOR_LINK:=$(filter-out -mllvm -asan-instrumentation-with-call-threshold=0, $(CFLAGS_FOR_LINK))
 endif
 
-CRTN_OBJ:=../sysroot/usr/lib/crtn.o
+CRTN_OBJ:=lib/libk/$(ARCHDIR)/crtn.o
 
 ifeq ($(ARCH_NO_CRTI_N), 1)
 	CRTI_OBJ:=
@@ -208,9 +210,12 @@ all: onyx-vdso.so.0 vmonyx
 
 .PHONY: all clean install install-headers install-kernel kernel-modules
 
-vmonyx: $(OBJ_DEPS) $(ARCHDIR)/linker.ld ../libc/libk.a $(GENERATED_HEADERS)
+lib/libk/libk.a: $(libk-objs)
+	$(AR) rcs $@ $(libk-objs)
+
+vmonyx: $(OBJ_DEPS) $(EXTRA_LIBK_OBJS) $(ARCHDIR)/linker.ld $(kernel-archives) $(GENERATED_HEADERS)
 	@echo [LD] $@
-	$(CC) $(LDFLAGS) -Wl,-T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS_FOR_LINK) $(OBJ_LINK_LIST) $(LIBS) -Wno-error
+	$(CC) $(LDFLAGS) -Wl,-T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS_FOR_LINK) $(OBJ_LINK_LIST) $(LIBS) -Wno-error $(kernel-archives)
 	cp vmonyx vmonyx-unstripped
 	$(STRIP) -g vmonyx
 
@@ -258,24 +263,29 @@ endif
 
 $(ARCHDIR)/__vdso.o: $(ARCHDIR)/__vdso.c $(GENERATED_HEADERS)
 	@echo [CC] $<
-	$(CC) -O2 -c $< -o $@ -fpic -Iinclude -isystem ../libc/include \
+	$(CC) -O2 $(VDSO_CFLAGS) -c $< -o $@ -fpic -Iinclude -isystem lib/libk/include \
 	-fno-stack-protector -fno-zero-initialized-in-bss
 
 $(ARCHDIR)/__vdso_asm.o: $(ARCHDIR)/__vdso_asm.S $(GENERATED_HEADERS)
 	@echo [AS] $<
-	$(CC) -O2 -c $< -o $@ -fpic -Iinclude -isystem ../libc/include \
+	$(CC) -O2 -c $< -o $@ $(VDSO_CFLAGS) -fpic -Iinclude -isystem lib/libk/include \
 	-fno-stack-protector -fno-zero-initialized-in-bss
 
 onyx-vdso.so.0: $(ARCHDIR)/__vdso_asm.o $(ARCHDIR)/__vdso.o $(GENERATED_HEADERS)
 	@echo [VDSO]
 	$(CC) $(VDSO_LDFLAGS) $(ARCHDIR)/__vdso_asm.o $(ARCHDIR)/__vdso.o -o $@ -ffreestanding \
-	 -nostdlib -Iinclude -I../libc/include -Wl,--hash-style=both
+	 -nostdlib -Iinclude -Ilib/libk/include -Wl,--hash-style=both
+
+
+$(info $(allkernelarchives))
 
 clean: clean-modules
 	rm -f vmonyx $(OBJS) $(DEPS) $(ALL_OUR_OBJS) *.o */*.o */*/*.o
 	rm -f clang-tidy.out
 	rm -f kernel/syscall_thunk.cpp
 	rm -rf include/onyx/gen
+	rm -f $(kernel-archives)
+	rm -f $(libk-objs)
 
 install: install-headers install-kernel
 

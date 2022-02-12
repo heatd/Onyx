@@ -9,7 +9,7 @@ __cxa_atexit:
 	li a0, 0
 	ret
 
-.section .boot
+.section .bss
 .align 16
 
 stack_bottom:
@@ -17,10 +17,11 @@ stack_bottom:
 
 stack_top:
 
-.skip 8
+.section .boot,"ax"
 
 booted: .word 0
 
+virtual_entry: .dword riscv_virtual_entry
 #include <onyx/image.h>
 
 .global entry_point
@@ -59,6 +60,7 @@ entry:
 	sw t1, booted, t2
 
 	lla sp, stack_top
+	lla a0, boot_page_tables
 	call early_paging_setup
 
 	lla t0, boot_page_tables
@@ -67,13 +69,23 @@ entry:
 	or t1, t1, t5
 
 	csrw satp, t1
-1:
-	lla tp, percpu_base
-	mv a0, s1
-	lla ra, kernel_entry
-	# Adjust the stack to point to a virtual address
-	li t1, 0xffffffff00000000
-	add sp, sp, t1
+	ld ra, virtual_entry
 	ret
 2:
 	j 2b
+
+.global riscv_virtual_entry
+riscv_virtual_entry:
+	# Reload the gp, sp registers
+.option push
+.option norelax
+	lla gp, __global_pointer$
+.option pop
+	lla sp, stack_top
+	lla tp, percpu_base
+	mv a0, s1
+	call kernel_entry
+1:
+	wfi
+	j 1b
+

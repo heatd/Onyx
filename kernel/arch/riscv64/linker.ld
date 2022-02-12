@@ -13,18 +13,16 @@ PHYS_BASE = 0x80080000;
 
 SECTIONS
 {
-	. = PHYS_BASE;
-	kernel_start = VIRT_BASE + .;
-	_text_start = . + VIRT_BASE;
-	.boot ALIGN(0x1000) :
+	. = PHYS_BASE + VIRT_BASE;
+	kernel_start = .;
+	_text_start = .;
+	.boot ALIGN(0x1000) : AT(ADDR(.boot) - VIRT_BASE)
 	{
 		*(.boot)
 		. = ALIGN(4096);
 		boot_page_tables = .;
 		. += 0x8000;
 	} : boot
-
-	. = ADDR(.boot) + SIZEOF(.boot) + VIRT_BASE;
 
 	.text : AT(ADDR(.text) - VIRT_BASE)
 	{
@@ -39,6 +37,7 @@ SECTIONS
 	
 	_ro_start = .;
 
+	PROVIDE(__dso_handle = .);
 	.rodata ALIGN(0x1000) : AT(ADDR(.rodata) - VIRT_BASE)
 	{
 		PROVIDE_HIDDEN(__init_array_start = .);

@@ -13,8 +13,9 @@
 #include <stdint.h>
 
 #include <onyx/serial.h>
+#include <onyx/vm.h>
 
-volatile uint8_t *uart_base = (volatile uint8_t *) 0x10000000;
+volatile uint8_t *uart_base = (volatile uint8_t *) PHYS_TO_VIRT(0x10000000);
 
 static inline uint8_t uart_read_8(size_t offset)
 {

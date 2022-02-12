@@ -10,6 +10,6 @@ int sigaddset(sigset_t *set, int sig)
         return -1;
     }
 
-    set->__bits[s / _NSIG_PER_WORD] |= (1 << (s % _NSIG_PER_WORD));
+    set->__bits[s / _NSIG_PER_WORD] |= (1UL << (s % _NSIG_PER_WORD));
     return 0;
 }

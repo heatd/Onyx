@@ -8,10 +8,8 @@
 
 #include <stdint.h>
 
-extern uint64_t boot_page_tables[];
-
 __attribute__((section(".boot"))) __attribute__((no_sanitize("undefined"))) void
-early_paging_setup()
+early_paging_setup(uint64_t *boot_page_tables)
 {
     uint64_t *top_page_table = boot_page_tables;
     uint64_t *second_level[2] = {&boot_page_tables[512], &boot_page_tables[1024]};

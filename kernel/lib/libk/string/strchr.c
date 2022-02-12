@@ -32,8 +32,6 @@ char *strrchr(const char *s, int c)
 {
     size_t len = strlen(s);
 
-    const char *end = s + len - 1;
-
     while (len--)
     {
         if (*s == c)

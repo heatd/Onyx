@@ -1,4 +1,4 @@
-PROJECTS:=libc kernel
+PROJECTS:=kernel
 SOURCE_PACKAGES:= photon libtest
 export ONYX_ARCH:=$(shell scripts/onyx_arch.sh)
 
@@ -74,13 +74,10 @@ build-prep:
 
 install-packages: $(PROJECTS)
 
-libc: install-headers kernel-config-h
-	$(MAKE) -C $@ install
-
 kernel-config-h:
 	$(MAKE) -C kernel/ include/onyx/config.h
 
-kernel: libc install-headers
+kernel: install-headers
 	rm -f kernel/clang-tidy.out
 	$(MAKE) -C $@ install
 

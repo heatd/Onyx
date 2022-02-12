@@ -204,8 +204,9 @@ void proc_event_do_ack(struct process *process)
     }
 }
 
+#if __x86_64__
 #include <onyx/x86/msr.h>
-
+#endif
 void proc_event_enter_syscall(struct syscall_frame *regs, uintptr_t rax)
 {
     struct process *current = get_current_process();

@@ -1,4 +1,4 @@
-
+#define _POSIX_SOURCE
 #include <ctype.h>
 #include <errno.h>
 #include <float.h>
@@ -11,11 +11,25 @@
 #include <string.h>
 #include <wchar.h>
 
+#define NL_ARGMAX 9
+
+#pragma GCC diagnostic ignored "-Wsign-compare"
+
+#ifdef __clang__
+#pragma GCC diagnostic ignored "-Wshift-op-parentheses"
+#else
+// GCC warnings
+#pragma GCC diagnostic ignored "-Wparentheses"
+#pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
+#endif
+
 struct sprintf_buf
 {
     char *buf;
     size_t pos;
 };
+
+int wctomb(char *s, wchar_t wc);
 
 /* Some useful macros */
 
@@ -27,12 +41,12 @@ struct sprintf_buf
 /* Convenient bit representation for modifier flags, which all fall
  * within 31 codepoints of the space character. */
 
-#define ALT_FORM (1U << '#' - ' ')
-#define ZERO_PAD (1U << '0' - ' ')
-#define LEFT_ADJ (1U << '-' - ' ')
-#define PAD_POS  (1U << ' ' - ' ')
-#define MARK_POS (1U << '+' - ' ')
-#define GROUPED  (1U << '\'' - ' ')
+#define ALT_FORM (1U << ('#' - ' '))
+#define ZERO_PAD (1U << ('0' - ' '))
+#define LEFT_ADJ (1U << ('-' - ' '))
+#define PAD_POS  (1U << (' ' - ' '))
+#define MARK_POS (1U << ('+' - ' '))
+#define GROUPED  (1U << ('\'' - ' '))
 
 #define FLAGMASK (ALT_FORM | ZERO_PAD | LEFT_ADJ | PAD_POS | MARK_POS | GROUPED)
 

@@ -34,6 +34,8 @@ char *strncpy(char *dest, const char *src, size_t count)
 #include <stdlib.h>
 #include <string.h>
 
+#pragma GCC diagnostic ignored "-Wparentheses"
+
 #define ALIGN      (sizeof(size_t) - 1)
 #define ONES       ((size_t) -1 / UCHAR_MAX)
 #define HIGHS      (ONES * (UCHAR_MAX / 2 + 1))

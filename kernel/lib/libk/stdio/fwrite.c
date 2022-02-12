@@ -11,7 +11,7 @@
 size_t fwrite(const void *ptr, size_t size, size_t nmemb, FILE *stream)
 {
 #ifdef __is_onyx_kernel
-    printk(ptr);
+    printk("%s", (const char *) ptr);
 #endif
     return __stdio_write(ptr, size, nmemb, stream);
 }

@@ -39,13 +39,30 @@
 
 // Clang objects if you redefine a builtin.  This little hack allows us to
 // define a function with the same name as an intrinsic.
-#pragma redefine_extname __atomic_load_n_c SYMBOL_NAME(__atomic_load_n)
-#pragma redefine_extname __atomic_store_n_c SYMBOL_NAME(__atomic_store_n)
-#pragma redefine_extname __atomic_exchange_n_c SYMBOL_NAME(__atomic_exchange_n)
-#pragma redefine_extname __atomic_compare_exchange_n_c SYMBOL_NAME(              \
-    __atomic_compare_exchange_n)
+#pragma redefine_extname __atomic_load_c SYMBOL_NAME(__atomic_load)
+#pragma redefine_extname __atomic_store_c SYMBOL_NAME(__atomic_store)
+#pragma redefine_extname __atomic_exchange_c SYMBOL_NAME(__atomic_exchange)
+#pragma redefine_extname __atomic_compare_exchange_c SYMBOL_NAME(              \
+    __atomic_compare_exchange)
 #pragma redefine_extname __atomic_is_lock_free_c SYMBOL_NAME(                  \
     __atomic_is_lock_free)
+
+#ifndef __clang__
+// GCC only code
+#define __c11_atomic_store __atomic_store_n
+#define __c11_atomic_thread_fence __atomic_thread_fence
+#define __c11_atomic_fetch_or __atomic_fetch_or
+#define __c11_atomic_fetch_xor __atomic_fetch_xor
+#define __c11_atomic_fetch_and __atomic_fetch_and
+#define __c11_atomic_fetch_add __atomic_fetch_add
+#define __c11_atomic_fetch_sub __atomic_fetch_sub
+#define __c11_atomic_exchange __atomic_exchange_n
+#define __c11_atomic_load __atomic_load_n
+#define __c11_atomic_compare_exchange_strong(ptr, expected, desired, success, failure) \
+__atomic_compare_exchange_n(ptr, expected, desired, false, success, failure)
+#define __c11_atomic_compare_exchange_weak(ptr, expected, desired, success, failure) \
+__atomic_compare_exchange_n(ptr, expected, desired, true, success, failure)
+#endif
 
 /// Number of locks.  This allocates one page on 32-bit platforms, two on
 /// 64-bit.  This can be specified externally if a different trade between
@@ -69,15 +86,15 @@ static const long SPINLOCK_MASK = SPINLOCK_COUNT - 1;
 // clang-format on
 typedef struct _usem Lock;
 __inline static void unlock(Lock *l) {
-  __atomic_store_n((_Atomic(uint32_t) *)&l->_count, 1, __ATOMIC_RELEASE);
-  __atomic_thread_fence(__ATOMIC_SEQ_CST);
+  __c11_atomic_store((_Atomic(uint32_t) *)&l->_count, 1, __ATOMIC_RELEASE);
+  __c11_atomic_thread_fence(__ATOMIC_SEQ_CST);
   if (l->_has_waiters)
     _umtx_op(l, UMTX_OP_SEM_WAKE, 1, 0, 0);
 }
 __inline static void lock(Lock *l) {
   uint32_t old = 1;
-  while (!__atomic_compare_exchange_n((_Atomic(uint32_t) *)&l->_count,
-                                             &old, 0, true, __ATOMIC_ACQUIRE,
+  while (!__c11_atomic_compare_exchange_weak((_Atomic(uint32_t) *)&l->_count,
+                                             &old, 0, __ATOMIC_ACQUIRE,
                                              __ATOMIC_RELAXED)) {
     _umtx_op(l, UMTX_OP_SEM_WAIT, 0, 0, 0);
     old = 1;
@@ -99,13 +116,13 @@ static Lock locks[SPINLOCK_COUNT]; // initialized to OS_SPINLOCK_INIT which is 0
 typedef _Atomic(uintptr_t) Lock;
 /// Unlock a lock.  This is a release operation.
 __inline static void unlock(Lock *l) {
-  __atomic_store_n(l, 0, __ATOMIC_RELEASE);
+  __c11_atomic_store(l, 0, __ATOMIC_RELEASE);
 }
 /// Locks a lock.  In the current implementation, this is potentially
 /// unbounded in the contended case.
 __inline static void lock(Lock *l) {
   uintptr_t old = 0;
-  while (!__atomic_compare_exchange_n(l, &old, 1, true, __ATOMIC_ACQUIRE,
+  while (!__c11_atomic_compare_exchange_weak(l, &old, 1, __ATOMIC_ACQUIRE,
                                              __ATOMIC_RELAXED))
     old = 0;
 }
@@ -177,9 +194,9 @@ bool __atomic_is_lock_free_c(size_t size, void *ptr) {
 
 /// An atomic load operation.  This is atomic with respect to the source
 /// pointer only.
-void __atomic_load_n_c(int size, void *src, void *dest, int model) {
+void __atomic_load_c(int size, void *src, void *dest, int model) {
 #define LOCK_FREE_ACTION(type)                                                 \
-  *((type *)dest) = __atomic_load_n((_Atomic(type) *)src, model);            \
+  *((type *)dest) = __c11_atomic_load((_Atomic(type) *)src, model);            \
   return;
   LOCK_FREE_CASES(src);
 #undef LOCK_FREE_ACTION
@@ -191,9 +208,9 @@ void __atomic_load_n_c(int size, void *src, void *dest, int model) {
 
 /// An atomic store operation.  This is atomic with respect to the destination
 /// pointer only.
-void __atomic_store_n_c(int size, void *dest, void *src, int model) {
+void __atomic_store_c(int size, void *dest, void *src, int model) {
 #define LOCK_FREE_ACTION(type)                                                 \
-  __atomic_store_n((_Atomic(type) *)dest, *(type *)src, model);              \
+  __c11_atomic_store((_Atomic(type) *)dest, *(type *)src, model);              \
   return;
   LOCK_FREE_CASES(dest);
 #undef LOCK_FREE_ACTION
@@ -211,8 +228,8 @@ void __atomic_store_n_c(int size, void *dest, void *src, int model) {
 int __atomic_compare_exchange_c(int size, void *ptr, void *expected,
                                 void *desired, int success, int failure) {
 #define LOCK_FREE_ACTION(type)                                                 \
-  return __atomic_compare_exchange_n(                                 \
-      (_Atomic(type) *)ptr, (type *)expected, *(type *)desired, false, success,       \
+  return __c11_atomic_compare_exchange_strong(                                 \
+      (_Atomic(type) *)ptr, (type *)expected, *(type *)desired, success,       \
       failure)
   LOCK_FREE_CASES(ptr);
 #undef LOCK_FREE_ACTION
@@ -230,10 +247,10 @@ int __atomic_compare_exchange_c(int size, void *ptr, void *expected,
 
 /// Performs an atomic exchange operation between two pointers.  This is atomic
 /// with respect to the target address.
-void __atomic_exchange_n_c(int size, void *ptr, void *val, void *old, int model) {
+void __atomic_exchange_c(int size, void *ptr, void *val, void *old, int model) {
 #define LOCK_FREE_ACTION(type)                                                 \
   *(type *)old =                                                               \
-      __atomic_exchange_n((_Atomic(type) *)ptr, *(type *)val, model);        \
+      __c11_atomic_exchange((_Atomic(type) *)ptr, *(type *)val, model);        \
   return;
   LOCK_FREE_CASES(ptr);
 #undef LOCK_FREE_ACTION
@@ -264,9 +281,9 @@ void __atomic_exchange_n_c(int size, void *ptr, void *val, void *old, int model)
 #endif
 
 #define OPTIMISED_CASE(n, lockfree, type)                                      \
-  type __atomic_load_n_##n(type *src, int model) {                               \
+  type __atomic_load_##n(type *src, int model) {                               \
     if (lockfree(src))                                                         \
-      return __atomic_load_n((_Atomic(type) *)src, model);                   \
+      return __c11_atomic_load((_Atomic(type) *)src, model);                   \
     Lock *l = lock_for_pointer(src);                                           \
     lock(l);                                                                   \
     type val = *src;                                                           \
@@ -277,9 +294,9 @@ OPTIMISED_CASES
 #undef OPTIMISED_CASE
 
 #define OPTIMISED_CASE(n, lockfree, type)                                      \
-  void __atomic_store_n_##n(type *dest, type val, int model) {                   \
+  void __atomic_store_##n(type *dest, type val, int model) {                   \
     if (lockfree(dest)) {                                                      \
-      __atomic_store_n((_Atomic(type) *)dest, val, model);                   \
+      __c11_atomic_store((_Atomic(type) *)dest, val, model);                   \
       return;                                                                  \
     }                                                                          \
     Lock *l = lock_for_pointer(dest);                                          \
@@ -292,9 +309,9 @@ OPTIMISED_CASES
 #undef OPTIMISED_CASE
 
 #define OPTIMISED_CASE(n, lockfree, type)                                      \
-  type __atomic_exchange_n_##n(type *dest, type val, int model) {                \
+  type __atomic_exchange_##n(type *dest, type val, int model) {                \
     if (lockfree(dest))                                                        \
-      return __atomic_exchange_n((_Atomic(type) *)dest, val, model);         \
+      return __c11_atomic_exchange((_Atomic(type) *)dest, val, model);         \
     Lock *l = lock_for_pointer(dest);                                          \
     lock(l);                                                                   \
     type tmp = *dest;                                                          \
@@ -309,8 +326,8 @@ OPTIMISED_CASES
   bool __atomic_compare_exchange_##n(type *ptr, type *expected, type desired,  \
                                      int success, int failure) {               \
     if (lockfree(ptr))                                                         \
-      return __atomic_compare_exchange_n(                             \
-          (_Atomic(type) *)ptr, expected, desired, false, success, failure);          \
+      return __c11_atomic_compare_exchange_strong(                             \
+          (_Atomic(type) *)ptr, expected, desired, success, failure);          \
     Lock *l = lock_for_pointer(ptr);                                           \
     lock(l);                                                                   \
     if (*ptr == *expected) {                                                   \
@@ -331,7 +348,7 @@ OPTIMISED_CASES
 #define ATOMIC_RMW(n, lockfree, type, opname, op)                              \
   type __atomic_fetch_##opname##_##n(type *ptr, type val, int model) {         \
     if (lockfree(ptr))                                                         \
-      return __atomic_fetch_##opname((_Atomic(type) *)ptr, val, model);    \
+      return __c11_atomic_fetch_##opname((_Atomic(type) *)ptr, val, model);    \
     Lock *l = lock_for_pointer(ptr);                                           \
     lock(l);                                                                   \
     type tmp = *ptr;                                                           \

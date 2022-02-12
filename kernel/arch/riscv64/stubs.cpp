@@ -22,6 +22,7 @@ void halt()
 {
     while (true)
     {
+        __asm__ __volatile__("wfi");
     }
 }
 

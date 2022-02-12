@@ -17,7 +17,8 @@ static inline void mov_non_temporal(volatile Type *p, Type val)
     *p = val;
 }
 
-#define RISCV_SATP "satp"
+#define RISCV_SATP  "satp"
+#define RISCV_STVEC "stvec"
 
 #define riscv_read_csr(register)                               \
     ({                                                         \

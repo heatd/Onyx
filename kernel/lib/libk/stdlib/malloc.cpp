@@ -43,7 +43,6 @@ void heap_set_start(uintptr_t heap_start)
 
 #include <stdio.h>
 
-static struct spinlock heap_lock;
 void *expand_heap(size_t size)
 {
     size_t nr_pages = (size >> PAGE_SHIFT) + 3;

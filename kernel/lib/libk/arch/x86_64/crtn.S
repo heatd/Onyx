@@ -1,6 +1,7 @@
 .section .init
-	pop %rbp
+	pop %rax
 	ret
+
 .section .fini
-	pop %rbp
+	pop %rax
 	ret

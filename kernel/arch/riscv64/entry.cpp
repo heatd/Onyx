@@ -17,25 +17,16 @@
 #include <onyx/tty.h>
 #include <onyx/vm.h>
 
-static char buffer[1000];
-
-#define budget_printk(...)                         \
-    snprintf(buffer, sizeof(buffer), __VA_ARGS__); \
-    platform_serial_write(buffer, strlen(buffer))
-
 extern char percpu_base;
+
+void riscv_setup_trap_handling();
 
 extern "C" void kernel_entry(void *fdt)
 {
     write_per_cpu(__cpu_base, &percpu_base);
-    platform_serial_init();
-
-    platform_serial_write("Hello", strlen("Hello"));
-
     paging_init();
 
-    platform_serial_write("Hello2", strlen("Hello2"));
-    budget_printk("FDT: %p\n", fdt);
+    platform_serial_init();
 
     device_tree::init(fdt);
 
@@ -50,6 +41,8 @@ extern "C" void kernel_entry(void *fdt)
     console_init();
 
     printk("Hello World %p\n", fdt);
+
+    riscv_setup_trap_handling();
 
     while (1)
     {

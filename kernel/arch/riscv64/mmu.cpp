@@ -429,7 +429,7 @@ bool riscv_get_pt_entry(void *addr, uint64_t **entry_ptr, bool may_create_path,
 
             pml->entries[indices[i - 1]] = riscv_make_pt_entry_page_table(pt);
 
-            pml = pt;
+            pml = (PML *) PHYS_TO_VIRT(pt);
         }
     }
 
@@ -517,13 +517,13 @@ void paging_protect_kernel(void)
            sizeof(PML));
     PML *p = (PML *) ((uintptr_t) pml + PHYS_BASE);
     p->entries[511] = 0UL;
-    //  p->entries[0] = 0UL;
+    p->entries[0] = 0UL;
 
     kernel_address_space.arch_mmu.top_pt = pml;
 
     size_t size = (uintptr_t) &_text_end - text_start;
     map_pages_to_vaddr((void *) text_start, (void *) (text_start - KERNEL_VIRTUAL_BASE), size,
-                       VM_READ);
+                       VM_READ | VM_WRITE);
 
     size = (uintptr_t) &_data_end - data_start;
     map_pages_to_vaddr((void *) data_start, (void *) (data_start - KERNEL_VIRTUAL_BASE), size,
