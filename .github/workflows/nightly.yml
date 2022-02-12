@@ -211,15 +211,11 @@ jobs:
       matrix:
         os: [ubuntu-latest, ubuntu-18.04, macos-latest]
         target_arch: [x86_64, riscv64]
-        toolchain: [gnu, llvm]
-        exclude:
-          # macOS can't build LLVM just yet
-          - os: macos-latest
+        toolchain: [gnu]
+        include:
+          - os: ubuntu-latest
             toolchain: llvm
-          # LLVM should build for all targets, since it's a cross compiler by nature, but right now, it doesn't do that.
-          # In fact, there's no onyx llvm port for riscv64 right now.
-          - target_arch: riscv64
-            toolchain: llvm
+            target_arch: all
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
@@ -228,13 +224,10 @@ jobs:
       
       - name: Download the minimal sysroot
         uses: actions/download-artifact@v2.0.8
-        with:
-          # Artifact name
-          name: minimal-sysroot-${{ matrix.target_arch}}
 
       - name: Extract minimal sysroot
         run: |
-          zstd -d minimal-sysroot-${{ matrix.target_arch}}.tar.zst --stdout | tar x
+          ./scripts/ci/setup_sysroots.sh ${{ matrix.toolchain }} ${{ matrix.target_arch }}
       
       - run: |
           # Add a modifier to ubuntu 18.04 LTS    
@@ -275,7 +268,7 @@ jobs:
           path: toolchain_binaries-gnu/
           # An explicit key for restoring and saving the cache
           key: ${{ matrix.target_arch }}-toolchain-${{ matrix.os }}${{ env.cache-version }}-${{ hashFiles('toolchains/binutils-2.37.patch',
-                'toolchains/gcc-11.2.0.patch', 'toolchains/scripts/build_toolchain.sh') }}
+                'toolchains/gcc-11.2.0.patch', 'toolchains/scripts/build_toolchain.sh') }}-nightly
       
       - name: Cache (LLVM toolchain)
         if: matrix.toolchain == 'llvm'
@@ -285,8 +278,8 @@ jobs:
           # A list of files, directories, and wildcard patterns to cache and restore
           path: toolchain_binaries-llvm/
           # An explicit key for restoring and saving the cache
-          key: ${{ matrix.target_arch }}-toolchain-${{ matrix.os }}${{ env.cache-version }}-${{ hashFiles('toolchains/llvm-project-12.0.0.patch',
-                'toolchains/scripts/build_toolchain.sh') }}
+          key: ${{ matrix.target_arch }}-toolchain-${{ matrix.os }}${{ env.cache-version }}-${{ hashFiles('toolchains/llvm-project-13.0.0.patch',
+                'toolchains/scripts/build_toolchain.sh') }}-nightly
   
       - name: Build toolchain
         if: (steps.toolchain-cache-gnu.outputs.cache-hit != 'true' && matrix.toolchain == 'gnu') ||
