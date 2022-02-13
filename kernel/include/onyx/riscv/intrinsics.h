@@ -31,9 +31,15 @@ static inline void mov_non_temporal(volatile Type *p, Type val)
 #define riscv_write_csr(register, val) \
     ({ __asm__ __volatile__("csrw " register ", %0" ::"r"((unsigned long) val)); })
 
-#define RISCV_SSTATUS_SPP (1 << 8) // 1 = exception happened in supervisor mode, else user
-#define RISCV_SSTATUS_SIE (1 << 1) // 1 = Interrupts enabled in supervisor mode
+#define riscv_or_csr(register, val) \
+    ({ __asm__ __volatile__("csrs " register ", %0" ::"r"((unsigned long) val)); })
 
+#define riscv_clear_csr(register, val) \
+    ({ __asm__ __volatile__("csrc " register ", %0" ::"r"((unsigned long) val)); })
+
+#define RISCV_SSTATUS_SPP      (1 << 8)  // 1 = exception happened in supervisor mode, else user
+#define RISCV_SSTATUS_SIE      (1 << 1)  // 1 = Interrupts enabled in supervisor mode
+#define RISCV_SSTATUS_SUM      (1 << 18) // 1 = Permit supervisor user memory access
 #define RISCV_SCAUSE_INTERRUPT (1UL << 63)
 
 #endif

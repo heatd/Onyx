@@ -116,26 +116,26 @@ int sys_arch_prctl(int code, unsigned long *addr)
     struct thread *current = get_current_thread();
     switch (code)
     {
-    case ARCH_SET_FS: {
-        current->fs = (void *) addr;
-        wrmsr(FS_BASE_MSR, (uintptr_t) current->fs);
-        break;
-    }
-    case ARCH_GET_FS: {
-        if (copy_to_user(addr, &current->fs, sizeof(unsigned long)) < 0)
-            return -EFAULT;
-        break;
-    }
-    case ARCH_SET_GS: {
-        current->gs = (void *) addr;
-        wrmsr(KERNEL_GS_BASE, (uintptr_t) current->gs);
-        break;
-    }
-    case ARCH_GET_GS: {
-        if (copy_to_user(addr, current->gs, sizeof(unsigned long)) < 0)
-            return -EFAULT;
-        break;
-    }
+        case ARCH_SET_FS: {
+            current->fs = (void *) addr;
+            wrmsr(FS_BASE_MSR, (uintptr_t) current->fs);
+            break;
+        }
+        case ARCH_GET_FS: {
+            if (copy_to_user(addr, &current->fs, sizeof(unsigned long)) < 0)
+                return -EFAULT;
+            break;
+        }
+        case ARCH_SET_GS: {
+            current->gs = (void *) addr;
+            wrmsr(KERNEL_GS_BASE, (uintptr_t) current->gs);
+            break;
+        }
+        case ARCH_GET_GS: {
+            if (copy_to_user(addr, current->gs, sizeof(unsigned long)) < 0)
+                return -EFAULT;
+            break;
+        }
     }
 
     return 0;
@@ -260,15 +260,6 @@ error:
 
 PER_CPU_VAR_NOUNUSED(unsigned long kernel_stack) = 0;
 PER_CPU_VAR_NOUNUSED(unsigned long scratch_rsp) = 0;
-
-extern "C" unsigned long thread_get_addr_limit(void)
-{
-    struct thread *t = get_current_thread();
-    if (!t) [[unlikely]]
-        return VM_KERNEL_ADDR_LIMIT;
-    assert(t->addr_limit != 0);
-    return t->addr_limit;
-}
 
 thread_t *sched_create_thread(thread_callback_t callback, uint32_t flags, void *args)
 {

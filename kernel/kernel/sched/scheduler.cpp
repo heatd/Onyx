@@ -1074,3 +1074,12 @@ int sched_transition_to_user_thread(thread *thread)
     thread->flags &= ~THREAD_KERNEL;
     return st;
 }
+
+extern "C" unsigned long thread_get_addr_limit(void)
+{
+    struct thread *t = get_current_thread();
+    if (!t) [[unlikely]]
+        return VM_KERNEL_ADDR_LIMIT;
+    assert(t->addr_limit != 0);
+    return t->addr_limit;
+}

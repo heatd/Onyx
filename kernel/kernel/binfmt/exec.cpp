@@ -34,8 +34,8 @@ char **process_copy_envarg(const char **envarg, bool to_kernel, int *count)
 
     while ((st = get_user64((unsigned long *) b, (unsigned long *) &ptr)) == 0 && ptr != nullptr)
     {
-        size_t length = strlen_user(ptr);
-        if (length == (size_t) -EFAULT)
+        ssize_t length = strlen_user(ptr);
+        if (length == -EFAULT)
             return errno = EFAULT, nullptr;
 
         string_size += length + 1;
@@ -69,8 +69,8 @@ char **process_copy_envarg(const char **envarg, bool to_kernel, int *count)
         if (get_user64((unsigned long *) &envarg[i], (unsigned long *) &str) < 0)
             return errno = EFAULT, nullptr;
 
-        size_t length = strlen_user(str);
-        if (length == (size_t) -EFAULT)
+        ssize_t length = strlen_user(str);
+        if (length == -EFAULT)
             return errno = EFAULT, nullptr;
 
         if (copy_from_user(it, str, length) < 0)
@@ -184,66 +184,66 @@ void *process_setup_auxv(void *buffer, char *strings_space, struct process *proc
 
         switch (i)
         {
-        case AT_PAGESZ:
-            val = PAGE_SIZE;
-            break;
-        /* We're able to not grab cred because we're inside execve,
-         * there's no race condition */
-        case AT_UID:
-            val = process->cred.euid;
-            break;
-        case AT_GID:
-            val = process->cred.egid;
-            break;
-        case AT_RANDOM:;
-            {
-                char s[16];
-                get_entropy((char *) s, 16);
+            case AT_PAGESZ:
+                val = PAGE_SIZE;
+                break;
+            /* We're able to not grab cred because we're inside execve,
+             * there's no race condition */
+            case AT_UID:
+                val = process->cred.euid;
+                break;
+            case AT_GID:
+                val = process->cred.egid;
+                break;
+            case AT_RANDOM:;
+                {
+                    char s[16];
+                    get_entropy((char *) s, 16);
 
-                if (copy_to_user(scratch_space, s, 16) < 0)
+                    if (copy_to_user(scratch_space, s, 16) < 0)
+                        return nullptr;
+
+                    val = (uint64_t) scratch_space;
+                    scratch_space += 16;
+                }
+                break;
+            case AT_BASE:
+                val = (uintptr_t) process->interp_base;
+                break;
+            case AT_PHENT:
+                val = process->info.phent;
+                break;
+            case AT_PHNUM:
+                val = process->info.phnum;
+                break;
+            case AT_PHDR:
+                val = (uintptr_t) process->info.phdr;
+                break;
+            case AT_EXECFN:
+
+            {
+                val = (uintptr_t) scratch_space;
+                // This should be safe since we're the only thread running, no race conditions I
+                // would say.
+                // TODO: Unless we ever add a way to set it from another process?
+                size_t len = process->cmd_line.length() + 1;
+                if (copy_to_user((char *) scratch_space, process->cmd_line.c_str(), len) < 0)
                     return nullptr;
 
-                val = (uint64_t) scratch_space;
-                scratch_space += 16;
+                scratch_space += len;
             }
             break;
-        case AT_BASE:
-            val = (uintptr_t) process->interp_base;
-            break;
-        case AT_PHENT:
-            val = process->info.phent;
-            break;
-        case AT_PHNUM:
-            val = process->info.phnum;
-            break;
-        case AT_PHDR:
-            val = (uintptr_t) process->info.phdr;
-            break;
-        case AT_EXECFN:
+            case AT_SYSINFO_EHDR:
+                val = (uintptr_t) process->vdso;
+                break;
+            case AT_FLAGS: {
+                break;
+            }
 
-        {
-            val = (uintptr_t) scratch_space;
-            // This should be safe since we're the only thread running, no race conditions I would
-            // say.
-            // TODO: Unless we ever add a way to set it from another process?
-            size_t len = process->cmd_line.length() + 1;
-            if (copy_to_user((char *) scratch_space, process->cmd_line.c_str(), len) < 0)
-                return nullptr;
-
-            scratch_space += len;
-        }
-        break;
-        case AT_SYSINFO_EHDR:
-            val = (uintptr_t) process->vdso;
-            break;
-        case AT_FLAGS: {
-            break;
-        }
-
-        case AT_ENTRY: {
-            val = (unsigned long) process->info.program_entry;
-            break;
-        }
+            case AT_ENTRY: {
+                val = (unsigned long) process->info.program_entry;
+                break;
+            }
         }
 
         if (put_user64(&auxv[i].a_type, type) < 0)

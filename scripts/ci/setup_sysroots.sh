@@ -7,7 +7,7 @@ for sysroot in minimal-sysroot-*/; do
     arch=$(echo $sysroot | grep -Po '(?<=minimal-sysroot-)[^/]*')
     sysroot=${sysroot%/}
     mkdir -p sysroots/$arch
-    zstd -d "$sysroot/${sysroot}.tar.zst" --stdout | tar x -C sysroots/$arch
+    zstd -d "$sysroot/${sysroot}.tar.zst" --stdout | tar x -C sysroots/$arch --strip-components=1
 done
 
 ln -s x86_64 sysroots/i386

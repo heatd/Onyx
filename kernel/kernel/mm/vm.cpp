@@ -512,27 +512,27 @@ unsigned long vm_get_base_address(uint64_t flags, uint32_t type)
 
     switch (type)
     {
-    case VM_TYPE_SHARED:
-    case VM_TYPE_STACK: {
-        if (is_kernel_map)
-            return kstacks_addr;
-        else
-            return (uintptr_t) mm->mmap_base;
-    }
+        case VM_TYPE_SHARED:
+        case VM_TYPE_STACK: {
+            if (is_kernel_map)
+                return kstacks_addr;
+            else
+                return (uintptr_t) mm->mmap_base;
+        }
 
-    case VM_TYPE_MODULE: {
-        assert(is_kernel_map == true);
+        case VM_TYPE_MODULE: {
+            assert(is_kernel_map == true);
 
-        return KERNEL_VIRTUAL_BASE;
-    }
+            return KERNEL_VIRTUAL_BASE;
+        }
 
-    default:
-    case VM_TYPE_REGULAR: {
-        if (is_kernel_map)
-            return vmalloc_space;
-        else
-            return (uintptr_t) mm->mmap_base;
-    }
+        default:
+        case VM_TYPE_REGULAR: {
+            if (is_kernel_map)
+                return vmalloc_space;
+            else
+                return (uintptr_t) mm->mmap_base;
+        }
     }
 }
 
@@ -1849,12 +1849,12 @@ int vmo_error_to_vm_error(vmo_status_t st)
 {
     switch (st)
     {
-    case VMO_STATUS_OK:
-        return VM_OK;
-    case VMO_STATUS_OUT_OF_MEM:
-        return VM_SIGSEGV;
-    default:
-        return VM_SIGBUS;
+        case VMO_STATUS_OK:
+            return VM_OK;
+        case VMO_STATUS_OUT_OF_MEM:
+            return VM_SIGSEGV;
+        default:
+            return VM_SIGBUS;
     }
 }
 
@@ -2415,8 +2415,8 @@ struct vm_region *vm_find_region_and_readable(void *usr)
 
 char *strcpy_from_user(const char *uptr)
 {
-    size_t len = strlen_user(uptr);
-    if (len == (size_t) -EFAULT)
+    ssize_t len = strlen_user(uptr);
+    if (len < 0)
     {
         errno = EFAULT;
         return nullptr;

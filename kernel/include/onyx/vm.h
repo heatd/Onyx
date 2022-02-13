@@ -413,7 +413,7 @@ ssize_t copy_to_user(void *usr, const void *data, size_t len);
 ssize_t copy_from_user(void *data, const void *usr, size_t len);
 
 /**
- * @brief Memsets user spce memory.
+ * @brief Memsets user space memory.
  *
  * @param data The destionation user space pointer.
  * @param data The destionation kernel pointer.

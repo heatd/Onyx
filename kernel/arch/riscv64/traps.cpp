@@ -6,6 +6,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <onyx/exceptions.h>
 #include <onyx/panic.h>
 #include <onyx/registers.h>
 #include <onyx/riscv/intrinsics.h>
@@ -31,6 +32,23 @@ static const char *exception_msg[] = {
     nullptr,
     "Store page fault",
 };
+
+#define INSTRUCTION_PAGE_FAULT 12
+#define LOAD_PAGE_FAULT        13
+#define STORE_PAGE_FAULT       15
+
+bool exception_has_special_handling(unsigned long cause)
+{
+    switch (cause)
+    {
+        case INSTRUCTION_PAGE_FAULT:
+        case LOAD_PAGE_FAULT:
+        case STORE_PAGE_FAULT:
+            return true;
+    }
+
+    return false;
+}
 
 void panic_interrupt_context(registers *ctx)
 {
@@ -145,6 +163,7 @@ static void store_access_fault(registers_t *ctx)
 
 static void do_page_fault(registers_t *ctx, unsigned long pf_flags)
 {
+    printk("TP: %016lx\n", ctx->tp);
     uintptr_t fault_address = ctx->tval;
 
     struct fault_info info;
@@ -153,22 +172,21 @@ static void do_page_fault(registers_t *ctx, unsigned long pf_flags)
     info.write = pf_flags & PF_W;
     info.read = pf_flags & PF_R;
     info.exec = pf_flags & PF_X;
-    info.user = in_kernel_space_regs(ctx);
+    info.user = !in_kernel_space_regs(ctx);
     info.ip = ctx->epc;
 
     if (vm_handle_page_fault(&info) < 0)
     {
-#if 0
+
         if (!info.user)
         {
             unsigned long fixup;
             if ((fixup = exceptions_get_fixup(info.ip)) != NO_FIXUP_EXISTS)
             {
-                ctx->rip = fixup;
+                ctx->epc = fixup;
                 return;
             }
         }
-#endif
 
         vm_do_fatal_page_fault(&info);
     }
@@ -208,12 +226,13 @@ void (*const user_trap_table[])(registers *ctx) = {instruction_address_misaligne
 
 extern "C" void riscv_handle_trap(registers_t *regs)
 {
-    auto is_exception = !(regs->cause & RISCV_SCAUSE_INTERRUPT);
+    const auto is_exception = !(regs->cause & RISCV_SCAUSE_INTERRUPT);
+    const auto cause = regs->cause & ~RISCV_SCAUSE_INTERRUPT;
 
-    if (is_exception && in_kernel_space_regs(regs))
+    if (is_exception && in_kernel_space_regs(regs) && !exception_has_special_handling(cause))
         panic_interrupt_context(regs);
 
-    user_trap_table[regs->cause & ~RISCV_SCAUSE_INTERRUPT](regs);
+    user_trap_table[cause](regs);
 }
 
 extern "C" void riscv_trap_entry();

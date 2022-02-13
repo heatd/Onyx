@@ -56,10 +56,9 @@
     sd x30, 232(sp)
     sd x31, 240(sp)
 
-    # Zero-out scratch when entering the kernel, but swap it out with the user tp
-    li a0, 0
-    csrrw a0, sscratch, a0
-    sd a0, 24(sp)
+    # Zero-out scratch when entering the kernel
+    csrw sscratch, zero
+    sd tp, 24(sp)
 
     csrr a0, sepc
     sd a0, 248(sp)

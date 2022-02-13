@@ -4,6 +4,7 @@ IndentWidth: 4
 AccessModifierOffset: -4
 AlwaysBreakTemplateDeclarations: Yes
 AlignAfterOpenBracket: true
+IndentCaseLabels: true
 AlignConsecutiveMacros: AcrossComments
 AlignEscapedNewlines: Left
 AlignTrailingComments: true

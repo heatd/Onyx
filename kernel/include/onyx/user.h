@@ -1,20 +1,23 @@
 /*
- * Copyright (c) 2017 Pedro Falcato
+ * Copyright (c) 2017 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 
-#ifndef _KERNEL_USER_H
-#define _KERNEL_USER_H
+#ifndef _ONYX_USER_H
+#define _ONYX_USER_H
 
 #include <stddef.h>
+#include <sys/types.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 char *strcpy_from_user(const char *user);
-size_t strlen_user(const char *user);
+ssize_t strlen_user(const char *user);
 
 long get_user32(unsigned int *uaddr, unsigned int *dest);
 long get_user64(unsigned long *uaddr, unsigned long *dest);
