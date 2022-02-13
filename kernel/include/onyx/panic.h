@@ -11,8 +11,6 @@
 #include <multiboot2.h>
 #include <stdint.h>
 
-#include <onyx/registers.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif

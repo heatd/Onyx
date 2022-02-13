@@ -13,7 +13,7 @@
     sd sp, ABI_USER_STACK_OFFSET(tp)
     ld sp, ABI_KERNEL_STACK_OFFSET(sp)
 .endif
-    addi sp, sp, -272
+    addi sp, sp, -280
     sd x1, 0(sp)
     csrrw tp, sscratch, tp
 
@@ -23,7 +23,7 @@
     ld x1, ABI_USER_STACK_OFFSET(tp)
     sd x1, 8(sp)
 .else
-    addi x1, sp, 272
+    addi x1, sp, 280
     sd x1, 8(sp)
 .endif
 
@@ -67,6 +67,8 @@
     sd a0, 256(sp)
     csrr a0, stval
     sd a0, 264(sp)
+    csrr a0, sstatus
+    sd a0, 272(sp)
 .endm
 
 .macro RISCV_RESTORE_CONTEXT
@@ -101,12 +103,14 @@
     ld x30, 232(sp)
     ld x31, 240(sp)
 
-    csrr a0, sepc
-    sd a0, 248(sp)
-    csrr a0, scause
-    sd a0, 256(sp)
-    csrr a0, stval
-    sd a0, 264(sp)
+    ld a0, 248(sp)
+    csrw sepc, a0
+    ld a0, 256(sp)
+    csrw scause, a0
+    ld a0, 264(sp)
+    csrw stval, a0
+    ld a0, 272(sp)
+    csrw sstatus, a0
     ld x4, 24(sp)
     ld sp, 8(sp)
 .endm
@@ -132,7 +136,13 @@ riscv_trap_entry:
     la gp, __global_pointer$
 .option pop
     mv a0, sp
+    mv s0, sp # So we can restore the stack after the call (to unalign it)
+    # The RISCV ABI says the stack must be 16 byte aligned in a procedure call
+    andi sp, sp, -16
     call riscv_handle_trap
+
+    # We have saved the sp on s0, so use it to restore the stack (so we can properly unwind it)
+    mv sp, s0
 
     RISCV_RESTORE_CONTEXT
     sret

@@ -17,8 +17,9 @@ static inline void mov_non_temporal(volatile Type *p, Type val)
     *p = val;
 }
 
-#define RISCV_SATP  "satp"
-#define RISCV_STVEC "stvec"
+#define RISCV_SATP    "satp"
+#define RISCV_STVEC   "stvec"
+#define RISCV_SSTATUS "sstatus"
 
 #define riscv_read_csr(register)                               \
     ({                                                         \
@@ -29,5 +30,10 @@ static inline void mov_non_temporal(volatile Type *p, Type val)
 
 #define riscv_write_csr(register, val) \
     ({ __asm__ __volatile__("csrw " register ", %0" ::"r"((unsigned long) val)); })
+
+#define RISCV_SSTATUS_SPP (1 << 8) // 1 = exception happened in supervisor mode, else user
+#define RISCV_SSTATUS_SIE (1 << 1) // 1 = Interrupts enabled in supervisor mode
+
+#define RISCV_SCAUSE_INTERRUPT (1UL << 63)
 
 #endif

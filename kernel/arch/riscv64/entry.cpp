@@ -44,6 +44,8 @@ extern "C" void kernel_entry(void *fdt)
 
     riscv_setup_trap_handling();
 
+    __builtin_trap();
+
     while (1)
     {
         __asm__ __volatile("wfi");

@@ -78,6 +78,8 @@ static inline bool in_kernel_space_regs(struct registers *regs)
 
 #include <stdbool.h>
 
+#include <onyx/riscv/intrinsics.h>
+
 typedef struct registers
 {
     union {
@@ -122,11 +124,12 @@ typedef struct registers
     unsigned long epc;
     unsigned long cause;
     unsigned long tval;
+    unsigned long status;
 } registers_t;
 
 static inline bool in_kernel_space_regs(struct registers *regs)
 {
-    return true;
+    return regs->status & RISCV_SSTATUS_SPP;
 }
 
 #endif
