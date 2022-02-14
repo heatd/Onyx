@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Pedro Falcato
+ * Copyright (c) 2021 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -10,6 +10,7 @@
 #define _ONYX_RISCV_PLATFORM_IRQ_H
 
 #include <onyx/registers.h>
+#include <onyx/riscv/intrinsics.h>
 
 // TODO: Correct values
 #define NR_IRQ                   223
@@ -29,24 +30,33 @@ void softirq_try_handle(void);
 
 static inline unsigned long irq_save_and_disable()
 {
-    return 0;
+    unsigned long status = riscv_read_csr(RISCV_SSTATUS);
+    riscv_clear_csr(RISCV_SSTATUS, RISCV_SSTATUS_SIE);
+    return status;
 }
 
 static inline void irq_restore(unsigned long flags)
 {
+    if (flags & RISCV_SSTATUS_SIE)
+        riscv_or_csr(RISCV_SSTATUS, RISCV_SSTATUS_SIE);
+    else
+        riscv_clear_csr(RISCV_SSTATUS, RISCV_SSTATUS_SIE);
 }
 
 static inline void irq_enable(void)
 {
+    riscv_or_csr(RISCV_SSTATUS, RISCV_SSTATUS_SIE);
 }
 
 static inline void irq_disable(void)
 {
+    riscv_clear_csr(RISCV_SSTATUS, RISCV_SSTATUS_SIE);
 }
 
 inline bool irq_is_disabled()
 {
-    return false;
+    unsigned long status = riscv_read_csr(RISCV_SSTATUS);
+    return status & RISCV_SSTATUS_SIE;
 }
 
 #endif

@@ -35,13 +35,6 @@ static const unsigned int riscv_max_paging_levels = 5;
 
 #define RISCV_PAGING_PROT_BITS ((1 << 8) - 1)
 
-#include <onyx/serial.h>
-static char buffer[1000];
-
-#define budget_printk(...)                         \
-    snprintf(buffer, sizeof(buffer), __VA_ARGS__); \
-    platform_serial_write(buffer, strlen(buffer))
-
 static unsigned long vm_prots_to_mmu(unsigned int prots)
 {
     auto flags = (prots & VM_NOEXEC ? 0 : RISCV_MMU_EXECUTE) |
@@ -405,7 +398,6 @@ bool riscv_get_pt_entry(void *addr, uint64_t **entry_ptr, bool may_create_path,
 
     addr_to_indices(virt, indices);
 
-    budget_printk("Top page table %p\n", mm->arch_mmu.top_pt);
     PML *pml = (PML *) ((unsigned long) mm->arch_mmu.top_pt + PHYS_BASE);
 
     for (unsigned int i = riscv_paging_levels; i != 1; i--)
@@ -413,7 +405,6 @@ bool riscv_get_pt_entry(void *addr, uint64_t **entry_ptr, bool may_create_path,
         uint64_t entry = pml->entries[indices[i - 1]];
         if (entry & RISCV_MMU_VALID)
         {
-            budget_printk("Valid mmu entry %016lx\n", PML_EXTRACT_ADDRESS(entry));
             void *page = (void *) PML_EXTRACT_ADDRESS(entry);
             pml = (PML *) PHYS_TO_VIRT(page);
         }
@@ -561,7 +552,6 @@ void paging_invalidate(void *page, size_t pages)
  */
 void *vm_map_page(struct mm_address_space *as, uint64_t virt, uint64_t phys, uint64_t prot)
 {
-    budget_printk("Mapping %016lx\n", virt);
     return paging_map_phys_to_virt(as, virt, phys, prot);
 }
 

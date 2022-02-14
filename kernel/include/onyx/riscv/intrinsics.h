@@ -20,6 +20,8 @@ static inline void mov_non_temporal(volatile Type *p, Type val)
 #define RISCV_SATP    "satp"
 #define RISCV_STVEC   "stvec"
 #define RISCV_SSTATUS "sstatus"
+#define RISCV_TIME    "time"
+#define RISCV_SIE     "sie"
 
 #define riscv_read_csr(register)                               \
     ({                                                         \
@@ -41,5 +43,14 @@ static inline void mov_non_temporal(volatile Type *p, Type val)
 #define RISCV_SSTATUS_SIE      (1 << 1)  // 1 = Interrupts enabled in supervisor mode
 #define RISCV_SSTATUS_SUM      (1 << 18) // 1 = Permit supervisor user memory access
 #define RISCV_SCAUSE_INTERRUPT (1UL << 63)
+
+static inline uint64_t riscv_get_time()
+{
+    return riscv_read_csr(RISCV_TIME);
+}
+
+#define RISCV_SIE_SSIE (1 << 1)
+#define RISCV_SIE_STIE (1 << 5)
+#define RISCV_SIE_SEIE (1 << 9)
 
 #endif

@@ -1,4 +1,5 @@
-riscv-y:= image.o fpu.o copy_user.o stubs.o vdso_helper.o early_paging.o entry.o virt-uart.o mmu.o interrupts.o traps.o usercopy.o
+riscv-y:= image.o fpu.o copy_user.o stubs.o vdso_helper.o early_paging.o entry.o virt-uart.o mmu.o interrupts.o traps.o usercopy.o sbi.o \
+          power.o time.o
 
 obj-y+= $(patsubst %, arch/riscv64/%, $(riscv-y))
 

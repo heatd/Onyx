@@ -10,6 +10,8 @@
 
 #include <libfdt.h>
 
+#include <onyx/culstring.h>
+#include <onyx/vector.h>
 namespace device_tree
 {
 
@@ -19,6 +21,101 @@ namespace device_tree
  * @param fdt Pointer to the flattened device tree
  */
 void init(void *fdt);
+
+template <typename Type>
+Type fdt_to_cpu(Type x);
+
+template <>
+inline uint8_t fdt_to_cpu<uint8_t>(uint8_t x)
+{
+    return x;
+}
+
+template <>
+inline uint16_t fdt_to_cpu<uint16_t>(uint16_t x)
+{
+    return fdt16_to_cpu(x);
+}
+
+template <>
+inline uint32_t fdt_to_cpu<uint32_t>(uint32_t x)
+{
+    return fdt32_to_cpu(x);
+}
+
+/**
+ * @brief Enumerate the device tree
+ *        Note: Requires dynamic memory allocation
+ */
+void enumerate();
+
+struct node
+{
+    cul::string name;
+    cul::vector<node *> children;
+    node *parent;
+    int offset, depth;
+
+    int address_cells, size_cells;
+
+    node(cul::string &&name, int offset, int depth, node *parent = nullptr)
+        : name{name}, children{}, parent{parent}, offset{offset}, depth{depth}, address_cells{2},
+          size_cells{1}
+    {
+    }
+
+    /**
+     * @brief Gets a property of the node from the device tree
+     *
+     * @param name Name of the property
+     * @param buf Pointer to a buffer
+     * @param length Size of the buffer (needs to be the same as the length of the property)
+     * @return 0 on success, negative error codes
+     */
+    int get_property(const char *name, void *buf, size_t length);
+
+    template <typename T>
+    int get_property(const char *name, T *ptr)
+    {
+        int st = get_property(name, ptr, sizeof(T));
+
+        if (st == 0)
+            *ptr = fdt_to_cpu(*ptr);
+        return st;
+    }
+
+    /**
+     * @brief Open a child node
+     *
+     * @param name Name of the node
+     * @return Pointer to the node, or nullptr
+     */
+    node *open_node(std::string_view name)
+    {
+        for (const auto &n : children)
+        {
+            if (n->name == name)
+                return n;
+        }
+
+        return nullptr;
+    }
+};
+
+/**
+ * @brief Get the root dt node
+ *
+ * @return Pointer to the root node
+ */
+node *get_root();
+
+/**
+ * @brief Open a device tree node
+ *
+ * @param path Path of the node
+ * @return Pointer to the node
+ */
+node *open_node(std::string_view path, node *base_node = nullptr);
 
 } // namespace device_tree
 

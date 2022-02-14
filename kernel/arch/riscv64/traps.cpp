@@ -60,7 +60,7 @@ void panic_interrupt_context(registers *ctx)
 
     if (!str)
     {
-        snprintf(tempbuf, sizeof(tempbuf), "Unknown exception %u", num);
+        snprintf(tempbuf, sizeof(tempbuf), "Unknown exception %lu", num);
         str = tempbuf;
     }
 
@@ -163,7 +163,6 @@ static void store_access_fault(registers_t *ctx)
 
 static void do_page_fault(registers_t *ctx, unsigned long pf_flags)
 {
-    printk("TP: %016lx\n", ctx->tp);
     uintptr_t fault_address = ctx->tval;
 
     struct fault_info info;
@@ -224,15 +223,51 @@ void (*const user_trap_table[])(registers *ctx) = {instruction_address_misaligne
                                                    panic_interrupt_context,
                                                    store_page_fault};
 
-extern "C" void riscv_handle_trap(registers_t *regs)
+void riscv_handle_exception(registers_t *regs, unsigned long cause)
+{
+    if (in_kernel_space_regs(regs) && !exception_has_special_handling(cause))
+        panic_interrupt_context(regs);
+
+    user_trap_table[cause](regs);
+}
+
+static void check_for_resched(registers_t **context)
+{
+    struct thread *curr = get_current_thread();
+    if (curr && sched_needs_resched(curr))
+    {
+        curr->flags &= ~THREAD_NEEDS_RESCHED;
+        *context = (registers_t *) sched_preempt_thread(*context);
+    }
+}
+
+void riscv_timer_irq();
+
+void riscv_handle_interrupt(registers_t *regs, unsigned long cause)
+{
+    if (cause == 5)
+    {
+        // Supervisor timer interrupt
+        riscv_timer_irq();
+    }
+}
+
+extern "C" unsigned long riscv_handle_trap(registers_t *regs)
 {
     const auto is_exception = !(regs->cause & RISCV_SCAUSE_INTERRUPT);
     const auto cause = regs->cause & ~RISCV_SCAUSE_INTERRUPT;
 
-    if (is_exception && in_kernel_space_regs(regs) && !exception_has_special_handling(cause))
-        panic_interrupt_context(regs);
+    if (is_exception)
+        riscv_handle_exception(regs, cause);
+    else
+        riscv_handle_interrupt(regs, cause);
 
-    user_trap_table[cause](regs);
+    check_for_resched(&regs);
+
+    if (signal_is_pending())
+        handle_signal(regs);
+
+    return (unsigned long) regs;
 }
 
 extern "C" void riscv_trap_entry();

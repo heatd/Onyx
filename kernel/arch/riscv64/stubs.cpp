@@ -6,6 +6,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <onyx/irq.h>
 #include <onyx/ktrace.h>
 #include <onyx/panic.h>
 #include <onyx/platform.h>
@@ -20,6 +21,7 @@ bool platform_has_msi()
 
 void halt()
 {
+    irq_disable();
     while (true)
     {
         __asm__ __volatile__("wfi");
@@ -57,11 +59,6 @@ int process_alloc_stack(struct stack_info *info)
 
 int signal_setup_context(struct sigpending *pend, struct k_sigaction *k_sigaction,
                          struct registers *regs)
-{
-    UNIMPLEMENTED;
-}
-
-struct timer *platform_get_timer()
 {
     UNIMPLEMENTED;
 }
@@ -134,26 +131,6 @@ int arch_transform_into_user_thread(thread *thread)
 thread *process_fork_thread(thread_t *src, struct process *dest, struct syscall_frame *ctx)
 {
     UNIMPLEMENTED;
-}
-
-extern "C" int do_machine_reboot(unsigned int flags)
-{
-    UNIMPLEMENTED;
-}
-
-extern "C" int do_machine_shutdown(unsigned int flags)
-{
-    UNIMPLEMENTED;
-}
-
-extern "C" int do_machine_halt(unsigned int flags)
-{
-    UNIMPLEMENTED;
-}
-
-extern "C" int do_machine_suspend(unsigned int flags)
-{
-    return -EIO;
 }
 
 extern "C" int return_from_execve(void *entry, void *stack)

@@ -135,13 +135,12 @@ riscv_trap_entry:
     la gp, __global_pointer$
 .option pop
     mv a0, sp
-    mv s0, sp # So we can restore the stack after the call (to unalign it)
     # The RISCV ABI says the stack must be 16 byte aligned in a procedure call
     andi sp, sp, -16
     call riscv_handle_trap
-
-    # We have saved the sp on s0, so use it to restore the stack (so we can properly unwind it)
-    mv sp, s0
+    # The stack (or new stack if we switched threads) is returned by riscv_handle_trap
+    j .
+    mv sp, a0
 
     RISCV_RESTORE_CONTEXT
     sret

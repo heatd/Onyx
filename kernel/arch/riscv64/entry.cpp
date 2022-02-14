@@ -13,6 +13,7 @@
 #include <onyx/paging.h>
 #include <onyx/percpu.h>
 #include <onyx/random.h>
+#include <onyx/riscv/sbi.h>
 #include <onyx/serial.h>
 #include <onyx/tty.h>
 #include <onyx/vm.h>
@@ -20,6 +21,7 @@
 extern char percpu_base;
 
 void riscv_setup_trap_handling();
+void time_init();
 
 extern "C" void kernel_entry(void *fdt)
 {
@@ -44,6 +46,11 @@ extern "C" void kernel_entry(void *fdt)
 
     riscv_setup_trap_handling();
 
+    sbi_init();
+
+    device_tree::enumerate();
+
+    time_init();
     __builtin_trap();
 
     while (1)

@@ -88,6 +88,7 @@ ssize_t strlen_user(const char *user)
 
 long get_user32(unsigned int *uaddr, unsigned int *dest)
 {
+#ifdef __clang__
     DO_USER_POINTER_CHECKS(uaddr, sizeof(uint32_t));
     ALLOW_USER_MEMORY_ACCESS;
     __asm__ goto("%=: lw t1, 0(%1)\n\t"
@@ -103,10 +104,14 @@ long get_user32(unsigned int *uaddr, unsigned int *dest)
 fault:
     CLEAR_USER_MEMORY_ACCESS;
     return -EFAULT;
+#else
+    return -EFAULT;
+#endif
 }
 
 long get_user64(unsigned long *uaddr, unsigned long *dest)
 {
+#ifdef __clang__
     DO_USER_POINTER_CHECKS(uaddr, sizeof(uint64_t));
     ALLOW_USER_MEMORY_ACCESS;
     __asm__ goto("%=: ld t1, 0(%1)\n\t"
@@ -122,4 +127,7 @@ long get_user64(unsigned long *uaddr, unsigned long *dest)
 fault:
     CLEAR_USER_MEMORY_ACCESS;
     return -EFAULT;
+#else
+    return -EFAULT;
+#endif
 }

@@ -127,7 +127,7 @@ iso: fullbuild
 
 kernel-test: kernel
 	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) -kernel kernel/vmonyx -m 512M -machine virt \
-	-monitor stdio -s -d int -no-reboot -no-shutdown
+	-monitor stdio -s -d int
 qemu: iso
 	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) \
 	-s -cdrom Onyx.iso -drive file=hdd.img,format=raw,media=disk -m 512M \
