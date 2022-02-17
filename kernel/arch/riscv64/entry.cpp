@@ -10,12 +10,15 @@
 #include <stdio.h>
 
 #include <onyx/device_tree.h>
+#include <onyx/init.h>
+#include <onyx/mm/kasan.h>
 #include <onyx/paging.h>
 #include <onyx/percpu.h>
 #include <onyx/random.h>
 #include <onyx/riscv/sbi.h>
 #include <onyx/serial.h>
 #include <onyx/tty.h>
+#include <onyx/vdso.h>
 #include <onyx/vm.h>
 
 extern char percpu_base;
@@ -40,9 +43,11 @@ extern "C" void kernel_entry(void *fdt)
 
     vm_late_init();
 
-    console_init();
+#ifdef CONFIG_KASAN
+    kasan_init();
+#endif
 
-    printk("Hello World %p\n", fdt);
+    console_init();
 
     riscv_setup_trap_handling();
 
@@ -51,10 +56,11 @@ extern "C" void kernel_entry(void *fdt)
     device_tree::enumerate();
 
     time_init();
-    __builtin_trap();
-
-    while (1)
-    {
-        __asm__ __volatile("wfi");
-    }
 }
+
+void init_arch_vdso()
+{
+    vdso_init();
+}
+
+INIT_LEVEL_EARLY_CORE_KERNEL_ENTRY(init_arch_vdso);

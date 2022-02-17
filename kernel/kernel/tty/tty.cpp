@@ -376,93 +376,95 @@ unsigned int tty_ioctl(int request, void *argp, struct file *dev)
 
     switch (request)
     {
-    case TCGETS: {
-        rw_lock_read(&tty->termio_lock);
+        case TCGETS: {
+            rw_lock_read(&tty->termio_lock);
 
-        struct termios *term = (termios *) argp;
-        if (copy_to_user(term, &tty->term_io, sizeof(struct termios)) < 0)
-            ret = -EFAULT;
+            struct termios *term = (termios *) argp;
+            if (copy_to_user(term, &tty->term_io, sizeof(struct termios)) < 0)
+                ret = -EFAULT;
 
-        rw_unlock_read(&tty->termio_lock);
+            rw_unlock_read(&tty->termio_lock);
 
-        return ret;
-    }
-    case TCSETS:
-    case TCSETSW:
-    case TCSETSF: {
-        return tty_tcsets(request, tty, (termios *) argp);
-    }
+            return ret;
+        }
+        case TCSETS:
+        case TCSETSW:
+        case TCSETSF: {
+            return tty_tcsets(request, tty, (termios *) argp);
+        }
 
-    case TCGETA:
-    case TCSETA:
-    case TCSETAW:
-    case TCSETAF:
-        return 0;
-    case TIOCGLCKTRMIOS:
-    case TIOCSLCKTRMIOS:
-        return 0;
-    case TIOCGWINSZ: {
-        return tty->ioctl(request, argp, tty);
-    }
-    case TIOCSWINSZ: {
-        /* We don't support this_ yet */
-        return 0;
-    }
-    case TCSBRK:
-    case TCSBRKP:
-    case TIOCSBRK:
-    case TIOCCBRK:
-        return 0;
-    case TCXONC: {
-        /* TODO */
-        return 0;
-    }
-    case TIOCINQ: {
-        int *arg = (int *) argp;
-        if (copy_to_user(arg, (const void *) &tty->input_buf_pos, sizeof(int)) < 0)
-            return -EFAULT;
-        return 0;
-    }
-    case TIOONYXCTL: {
-        int arg = (int) (unsigned long) argp;
-
-        switch (arg)
-        {
-        case TIO_ONYX_GET_OWNERSHIP_OF_TTY:
-            /* Disable canon and echo */
-            tty->term_io.c_lflag &= ~(ICANON | ECHO);
-            if (tty->is_vterm)
-            {
-                vterm_release_video(tty->priv);
-            }
+        case TCGETA:
+        case TCSETA:
+        case TCSETAW:
+        case TCSETAF:
             return 0;
-        case TIO_ONYX_RELEASE_OWNERSHIP_OF_TTY: {
-            tty->term_io.c_lflag |= ICANON | ECHO;
-            if (tty->is_vterm)
-            {
-                vterm_get_video(tty->priv);
-            }
+        case TIOCGLCKTRMIOS:
+        case TIOCSLCKTRMIOS:
             return 0;
+        case TIOCGWINSZ: {
+            if (tty->ioctl)
+                return tty->ioctl(request, argp, tty);
+            return user_memset(argp, 0, sizeof(winsize));
+        }
+        case TIOCSWINSZ: {
+            /* We don't support this_ yet */
+            return 0;
+        }
+        case TCSBRK:
+        case TCSBRKP:
+        case TIOCSBRK:
+        case TIOCCBRK:
+            return 0;
+        case TCXONC: {
+            /* TODO */
+            return 0;
+        }
+        case TIOCINQ: {
+            int *arg = (int *) argp;
+            if (copy_to_user(arg, (const void *) &tty->input_buf_pos, sizeof(int)) < 0)
+                return -EFAULT;
+            return 0;
+        }
+        case TIOONYXCTL: {
+            int arg = (int) (unsigned long) argp;
+
+            switch (arg)
+            {
+                case TIO_ONYX_GET_OWNERSHIP_OF_TTY:
+                    /* Disable canon and echo */
+                    tty->term_io.c_lflag &= ~(ICANON | ECHO);
+                    if (tty->is_vterm)
+                    {
+                        vterm_release_video(tty->priv);
+                    }
+                    return 0;
+                case TIO_ONYX_RELEASE_OWNERSHIP_OF_TTY: {
+                    tty->term_io.c_lflag |= ICANON | ECHO;
+                    if (tty->is_vterm)
+                    {
+                        vterm_get_video(tty->priv);
+                    }
+                    return 0;
+                }
+                default:
+                    return -EINVAL;
+            }
+        }
+
+        case TCFLSH:
+            return tty_do_tcflsh(tty, (int) (unsigned long) argp);
+
+        case TIOCSPGRP: {
+            auto pgrp = get_current_process()->process_group;
+            tty->foreground_pgrp = pgrp->get_pid();
+            return 0;
+        }
+
+        case TIOCGPGRP: {
+            return copy_to_user(argp, &tty->foreground_pgrp, sizeof(pid_t));
         }
         default:
             return -EINVAL;
-        }
-    }
-
-    case TCFLSH:
-        return tty_do_tcflsh(tty, (int) (unsigned long) argp);
-
-    case TIOCSPGRP: {
-        auto pgrp = get_current_process()->process_group;
-        tty->foreground_pgrp = pgrp->get_pid();
-        return 0;
-    }
-
-    case TIOCGPGRP: {
-        return copy_to_user(argp, &tty->foreground_pgrp, sizeof(pid_t));
-    }
-    default:
-        return -EINVAL;
     }
     return -EINVAL;
 }

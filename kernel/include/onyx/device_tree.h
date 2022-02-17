@@ -11,7 +11,10 @@
 #include <libfdt.h>
 
 #include <onyx/culstring.h>
+#include <onyx/dev.h>
+#include <onyx/driver.h>
 #include <onyx/vector.h>
+
 namespace device_tree
 {
 
@@ -58,9 +61,11 @@ struct node
 
     int address_cells, size_cells;
 
+    driver *driver_;
+
     node(cul::string &&name, int offset, int depth, node *parent = nullptr)
         : name{name}, children{}, parent{parent}, offset{offset}, depth{depth}, address_cells{2},
-          size_cells{1}
+          size_cells{1}, driver_{}
     {
     }
 
@@ -116,6 +121,19 @@ node *get_root();
  * @return Pointer to the node
  */
 node *open_node(std::string_view path, node *base_node = nullptr);
+
+struct dev_id
+{
+    // This is matched against the node's 'compatible' property, if it exists
+    const char *compatible;
+};
+
+/**
+ * @brief Register a driver with the device tree subsystem
+ *
+ * @param driver_
+ */
+void register_driver(driver *driver_);
 
 } // namespace device_tree
 

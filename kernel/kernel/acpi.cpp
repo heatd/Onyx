@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2016, 2017 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <assert.h>
 #include <errno.h>
@@ -31,6 +33,7 @@
 #include <onyx/memory.hpp>
 
 int acpi_init_timer(void);
+static bool acpi_enabled = false;
 
 static const ACPI_EXCEPTION_INFO AcpiGbl_ExceptionNames_Env[] = {
     EXCEP_TXT((char *) "AE_OK", (char *) "No error"),
@@ -121,6 +124,11 @@ uint32_t acpi_execute_pic(int value)
 namespace acpi
 {
 
+bool is_enabled()
+{
+    return acpi_enabled;
+}
+
 ACPI_STATUS find_pci_buses(ACPI_HANDLE object, UINT32 nestingLevel, void *context, void **ret)
 {
     ACPI_DEVICE_INFO *devinfo;
@@ -194,6 +202,9 @@ ACPI_STATUS find_pci_buses(ACPI_HANDLE object, UINT32 nestingLevel, void *contex
 
 int find_root_pci_buses(find_root_pci_bus_t callback)
 {
+    if (!is_enabled())
+        return 0;
+
     void *retval;
     ACPI_STATUS st = AcpiGetDevices(nullptr, find_pci_buses, (void *) callback, &retval);
     if (ACPI_FAILURE(st))
@@ -214,10 +225,12 @@ uint8_t AcpiTbChecksum(uint8_t *buffer, uint32_t len);
 
 void acpi_find_rsdp(void)
 {
+#ifdef __x86_64__
     if (ACPI_FAILURE(AcpiFindRootPointer(&rsdp)))
     {
         rsdp = get_rdsp_from_grub();
     }
+#endif
 }
 
 uintptr_t acpi_get_rsdp(void)
@@ -263,22 +276,22 @@ bool acpi_supports_resource_type(ACPI_RESOURCE *res)
 {
     switch (res->Type)
     {
-    // fallthrough
-    case ACPI_RESOURCE_TYPE_ADDRESS16:
-    case ACPI_RESOURCE_TYPE_ADDRESS32:
-    case ACPI_RESOURCE_TYPE_ADDRESS64:
-    case ACPI_RESOURCE_TYPE_EXTENDED_ADDRESS64:
-    case ACPI_RESOURCE_TYPE_MEMORY24:
-    case ACPI_RESOURCE_TYPE_MEMORY32:
-    case ACPI_RESOURCE_TYPE_FIXED_MEMORY32:
-    case ACPI_RESOURCE_TYPE_IRQ:
-    case ACPI_RESOURCE_TYPE_EXTENDED_IRQ:
-    case ACPI_RESOURCE_TYPE_IO:
-    case ACPI_RESOURCE_TYPE_FIXED_IO:
-        return true;
+        // fallthrough
+        case ACPI_RESOURCE_TYPE_ADDRESS16:
+        case ACPI_RESOURCE_TYPE_ADDRESS32:
+        case ACPI_RESOURCE_TYPE_ADDRESS64:
+        case ACPI_RESOURCE_TYPE_EXTENDED_ADDRESS64:
+        case ACPI_RESOURCE_TYPE_MEMORY24:
+        case ACPI_RESOURCE_TYPE_MEMORY32:
+        case ACPI_RESOURCE_TYPE_FIXED_MEMORY32:
+        case ACPI_RESOURCE_TYPE_IRQ:
+        case ACPI_RESOURCE_TYPE_EXTENDED_IRQ:
+        case ACPI_RESOURCE_TYPE_IO:
+        case ACPI_RESOURCE_TYPE_FIXED_IO:
+            return true;
 
-    default:
-        return false;
+        default:
+            return false;
     }
 }
 
@@ -297,48 +310,49 @@ void acpi_resource_to_dev_resource(const ACPI_RESOURCE *acpires, dev_resource *r
     ACPI_RESOURCE_ADDRESS64 res64;
     switch (acpires->Type)
     {
-    case ACPI_RESOURCE_TYPE_ADDRESS16:
-    case ACPI_RESOURCE_TYPE_ADDRESS32:
-    case ACPI_RESOURCE_TYPE_ADDRESS64:
-        AcpiResourceToAddress64((ACPI_RESOURCE *) acpires, &res64);
-        res->set_limits(res64.Address.Minimum, res64.Address.Maximum);
-        if (res64.ResourceType == ACPI_MEMORY_RANGE)
-            res->flags() |= DEV_RESOURCE_FLAG_MEM;
-        else if (res64.ResourceType == ACPI_IO_RANGE)
-            res->flags() |= DEV_RESOURCE_FLAG_IO_PORT;
+        case ACPI_RESOURCE_TYPE_ADDRESS16:
+        case ACPI_RESOURCE_TYPE_ADDRESS32:
+        case ACPI_RESOURCE_TYPE_ADDRESS64:
+            AcpiResourceToAddress64((ACPI_RESOURCE *) acpires, &res64);
+            res->set_limits(res64.Address.Minimum, res64.Address.Maximum);
+            if (res64.ResourceType == ACPI_MEMORY_RANGE)
+                res->flags() |= DEV_RESOURCE_FLAG_MEM;
+            else if (res64.ResourceType == ACPI_IO_RANGE)
+                res->flags() |= DEV_RESOURCE_FLAG_IO_PORT;
 
-        break;
-    case ACPI_RESOURCE_TYPE_EXTENDED_ADDRESS64:
-        res->set_limits(acpires->Data.ExtAddress64.Address.Minimum,
-                        acpires->Data.ExtAddress64.Address.Maximum);
-        if (acpires->Data.ExtAddress64.ResourceType == ACPI_MEMORY_RANGE)
+            break;
+        case ACPI_RESOURCE_TYPE_EXTENDED_ADDRESS64:
+            res->set_limits(acpires->Data.ExtAddress64.Address.Minimum,
+                            acpires->Data.ExtAddress64.Address.Maximum);
+            if (acpires->Data.ExtAddress64.ResourceType == ACPI_MEMORY_RANGE)
+                res->flags() |= DEV_RESOURCE_FLAG_MEM;
+            else if (acpires->Data.ExtAddress64.ResourceType == ACPI_IO_RANGE)
+                res->flags() |= DEV_RESOURCE_FLAG_IO_PORT;
+            break;
+        case ACPI_RESOURCE_TYPE_MEMORY24:
+            res->set_limits(acpires->Data.Memory24.Minimum, acpires->Data.Memory24.Maximum);
             res->flags() |= DEV_RESOURCE_FLAG_MEM;
-        else if (acpires->Data.ExtAddress64.ResourceType == ACPI_IO_RANGE)
+            break;
+        case ACPI_RESOURCE_TYPE_MEMORY32:
+            res->set_limits(acpires->Data.Memory32.Minimum, acpires->Data.Memory32.Maximum);
+            res->flags() |= DEV_RESOURCE_FLAG_MEM;
+            break;
+        case ACPI_RESOURCE_TYPE_FIXED_MEMORY32:
+            res->set_limits(acpires->Data.FixedMemory32.Address,
+                            acpires->Data.FixedMemory32.Address +
+                                acpires->Data.FixedMemory32.AddressLength - 1);
+            res->flags() |= DEV_RESOURCE_FLAG_MEM;
+            break;
+        case ACPI_RESOURCE_TYPE_IO:
+            res->set_limits(acpires->Data.Io.Minimum, acpires->Data.Io.Maximum);
             res->flags() |= DEV_RESOURCE_FLAG_IO_PORT;
-        break;
-    case ACPI_RESOURCE_TYPE_MEMORY24:
-        res->set_limits(acpires->Data.Memory24.Minimum, acpires->Data.Memory24.Maximum);
-        res->flags() |= DEV_RESOURCE_FLAG_MEM;
-        break;
-    case ACPI_RESOURCE_TYPE_MEMORY32:
-        res->set_limits(acpires->Data.Memory32.Minimum, acpires->Data.Memory32.Maximum);
-        res->flags() |= DEV_RESOURCE_FLAG_MEM;
-        break;
-    case ACPI_RESOURCE_TYPE_FIXED_MEMORY32:
-        res->set_limits(acpires->Data.FixedMemory32.Address,
-                        acpires->Data.FixedMemory32.Address +
-                            acpires->Data.FixedMemory32.AddressLength - 1);
-        res->flags() |= DEV_RESOURCE_FLAG_MEM;
-        break;
-    case ACPI_RESOURCE_TYPE_IO:
-        res->set_limits(acpires->Data.Io.Minimum, acpires->Data.Io.Maximum);
-        res->flags() |= DEV_RESOURCE_FLAG_IO_PORT;
-        break;
-    case ACPI_RESOURCE_TYPE_FIXED_IO:
-        res->set_limits(acpires->Data.FixedIo.Address,
-                        acpires->Data.FixedIo.Address + acpires->Data.FixedIo.AddressLength - 1);
-        res->flags() |= DEV_RESOURCE_FLAG_IO_PORT;
-        break;
+            break;
+        case ACPI_RESOURCE_TYPE_FIXED_IO:
+            res->set_limits(acpires->Data.FixedIo.Address, acpires->Data.FixedIo.Address +
+                                                               acpires->Data.FixedIo.AddressLength -
+                                                               1);
+            res->flags() |= DEV_RESOURCE_FLAG_IO_PORT;
+            break;
     }
 }
 
@@ -355,13 +369,14 @@ void acpi_irq_resource_to_dev_resource(const ACPI_RESOURCE *acpires, dev_resourc
     res->flags() |= DEV_RESOURCE_FLAG_IRQ;
     switch (acpires->Type)
     {
-    case ACPI_RESOURCE_TYPE_IRQ:
-        res->set_limits(acpires->Data.Irq.Interrupts[index], acpires->Data.Irq.Interrupts[index]);
-        break;
-    case ACPI_RESOURCE_TYPE_EXTENDED_IRQ:
-        res->set_limits(acpires->Data.ExtendedIrq.Interrupts[index],
-                        acpires->Data.ExtendedIrq.Interrupts[index]);
-        break;
+        case ACPI_RESOURCE_TYPE_IRQ:
+            res->set_limits(acpires->Data.Irq.Interrupts[index],
+                            acpires->Data.Irq.Interrupts[index]);
+            break;
+        case ACPI_RESOURCE_TYPE_EXTENDED_IRQ:
+            res->set_limits(acpires->Data.ExtendedIrq.Interrupts[index],
+                            acpires->Data.ExtendedIrq.Interrupts[index]);
+            break;
     }
 }
 
@@ -509,6 +524,10 @@ ACPI_STATUS acpi_init_power(void)
 void acpi_initialise(void)
 {
     acpi_find_rsdp();
+
+    // ACPI is not available
+    if (!rsdp)
+        return;
     ACPI_STATUS st = AcpiInitializeSubsystem();
     if (ACPI_FAILURE(st))
     {
@@ -555,6 +574,8 @@ void acpi_initialise(void)
     platform_init_acpi();
 
     acpi_init_power();
+
+    acpi_enabled = true;
 }
 
 INIT_LEVEL_VERY_EARLY_PLATFORM_ENTRY(acpi_initialise);
@@ -587,9 +608,9 @@ ACPI_STATUS acpi_enumerate_per_cpu(ACPI_HANDLE object, UINT32 nestingLevel, void
 
     switch (madt_table->Type)
     {
-    case ACPI_MADT_TYPE_LOCAL_APIC:
-        apic_id = acpi_get_apic_id_lapic(madt_table);
-        break;
+        case ACPI_MADT_TYPE_LOCAL_APIC:
+            apic_id = acpi_get_apic_id_lapic(madt_table);
+            break;
     }
 
     processor->object = object;

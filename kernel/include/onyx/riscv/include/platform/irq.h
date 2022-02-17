@@ -56,7 +56,7 @@ static inline void irq_disable(void)
 inline bool irq_is_disabled()
 {
     unsigned long status = riscv_read_csr(RISCV_SSTATUS);
-    return status & RISCV_SSTATUS_SIE;
+    return !(status & RISCV_SSTATUS_SIE);
 }
 
 #endif

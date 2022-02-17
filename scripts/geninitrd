@@ -74,6 +74,8 @@ elif [ $COMPRESSION_METHOD = "bz" ]
 then
 bzip -5 initrd.tar
 ARCHIVE_NAME="initrd.tar.bz2"
+elif [ "$COMPRESSION_METHOD" = "none" ]; then
+true
 else
 echo "Unknown compression method $COMPRESSION_METHOD"
 exit 0

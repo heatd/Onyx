@@ -22,8 +22,12 @@ long ptrace(int req, ...)
 	va_end(ap);
 
 	if (req-1U < 3) data = &result;
+#ifdef SYS_ptrace
 	ret = syscall(SYS_ptrace, req, pid, addr, data, addr2);
-
+#else
+	errno = ENOSYS;
+	ret = -1;
+#endif
 	if (ret < 0 || req-1U >= 3) return ret;
 	return result;
 }

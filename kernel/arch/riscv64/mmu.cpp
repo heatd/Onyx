@@ -105,7 +105,7 @@ static void addr_to_indices(unsigned long virt, unsigned int *indices)
 
 static bool pt_entry_is_huge(unsigned long pt_entry)
 {
-    return !(pt_entry & (RISCV_MMU_READ | RISCV_MMU_WRITE | RISCV_MMU_EXECUTE));
+    return pt_entry & (RISCV_MMU_READ | RISCV_MMU_WRITE | RISCV_MMU_EXECUTE);
 }
 
 void *__virtual2phys(PML *__pml, void *ptr)
@@ -417,6 +417,7 @@ bool riscv_get_pt_entry(void *addr, uint64_t **entry_ptr, bool may_create_path,
 
             if (!pt)
                 return false;
+            increment_vm_stat(mm, page_tables_size, PAGE_SIZE);
 
             pml->entries[indices[i - 1]] = riscv_make_pt_entry_page_table(pt);
 

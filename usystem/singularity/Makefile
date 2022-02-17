@@ -1,6 +1,6 @@
 PROG:= singularity
 OBJS:= main.o
-CFLAGS:=-O2 -g -std=c++17 -fstack-protector-strong
+CXXFLAGS+=-std=c++17
 CPPFLAGS:=-Iinclude -D_POSIX_C_SOURCE
 
 clean:
@@ -14,7 +14,7 @@ install: $(PROG)
 	$(CC) -c $< $(CFLAGS) $(CPPFLAGS) -o $@
 
 %.o: %.cpp
-	$(CXX) -c $< $(CFLAGS) $(CPPFLAGS) -o $@
+	$(CXX) -c $< $(CFLAGS) $(CXXFLAGS) $(CPPFLAGS) -o $@
 
 $(PROG): $(OBJS)
 	$(CXX) $(OBJS) $(CFLAGS) -o $@ -lwserver

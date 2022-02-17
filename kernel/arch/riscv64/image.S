@@ -85,6 +85,13 @@ riscv_virtual_entry:
 	lla tp, percpu_base
 	mv a0, s1
 	call kernel_entry
+
+	call runtime_call_constructors
+	# rdi = cpu nr
+	li a0, 0
+	call init_ssp_for_cpu
+
+	call kernel_main
 1:
 	wfi
 	j 1b

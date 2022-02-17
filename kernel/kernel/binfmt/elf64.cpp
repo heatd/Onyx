@@ -296,10 +296,10 @@ void *elf64_load(struct binfmt_args *args, Elf64_Ehdr *header)
 
     switch (header->e_type)
     {
-    case ET_DYN:
-    case ET_EXEC:
-        return elf_load(args, header);
-    default:
-        return errno = ENOEXEC, nullptr;
+        case ET_DYN:
+        case ET_EXEC:
+            return elf_load(args, header);
+        default:
+            return errno = ENOEXEC, nullptr;
     }
 }

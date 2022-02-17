@@ -326,7 +326,7 @@ int sys_setgroups(size_t size, const gid_t *ugids)
     if (c->euid != 0)
         return -EPERM;
 
-    if (size > NGROUPS_MAX)
+    if (size > INT_MAX)
         return -EINVAL;
 
     if (ugids == nullptr)

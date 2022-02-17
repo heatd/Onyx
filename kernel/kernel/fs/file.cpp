@@ -1398,40 +1398,40 @@ int sys_fcntl(int fd, int cmd, unsigned long arg)
     int ret = 0;
     switch (cmd)
     {
-    case F_DUPFD: {
-        f = get_file_description(fd);
-        if (!f)
-            return -errno;
+        case F_DUPFD: {
+            f = get_file_description(fd);
+            if (!f)
+                return -errno;
 
-        ret = do_dupfd(f, (int) arg, false);
-        break;
-    }
+            ret = do_dupfd(f, (int) arg, false);
+            break;
+        }
 
-    case F_DUPFD_CLOEXEC: {
-        f = get_file_description(fd);
-        if (!f)
-            return -errno;
+        case F_DUPFD_CLOEXEC: {
+            f = get_file_description(fd);
+            if (!f)
+                return -errno;
 
-        ret = do_dupfd(f, (int) arg, true);
-        break;
-    }
+            ret = do_dupfd(f, (int) arg, true);
+            break;
+        }
 
-    case F_GETFD: {
-        return fcntl_f_getfd(fd, ctx);
-    }
+        case F_GETFD: {
+            return fcntl_f_getfd(fd, ctx);
+        }
 
-    case F_SETFD: {
-        return fcntl_f_setfd(fd, arg, ctx);
-    }
+        case F_SETFD: {
+            return fcntl_f_setfd(fd, arg, ctx);
+        }
 
-    case F_GETFL:
-        return fcntl_f_getfl(fd, ctx);
-    case F_SETFL:
-        return fcntl_f_setfl(fd, ctx, arg);
+        case F_GETFL:
+            return fcntl_f_getfl(fd, ctx);
+        case F_SETFL:
+            return fcntl_f_setfl(fd, ctx, arg);
 
-    default:
-        ret = -EINVAL;
-        break;
+        default:
+            ret = -EINVAL;
+            break;
     }
 
     if (f)

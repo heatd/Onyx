@@ -17,11 +17,12 @@ static inline void mov_non_temporal(volatile Type *p, Type val)
     *p = val;
 }
 
-#define RISCV_SATP    "satp"
-#define RISCV_STVEC   "stvec"
-#define RISCV_SSTATUS "sstatus"
-#define RISCV_TIME    "time"
-#define RISCV_SIE     "sie"
+#define RISCV_SATP     "satp"
+#define RISCV_STVEC    "stvec"
+#define RISCV_SSTATUS  "sstatus"
+#define RISCV_TIME     "time"
+#define RISCV_SIE      "sie"
+#define RISCV_SSCRATCH "sscratch"
 
 #define riscv_read_csr(register)                               \
     ({                                                         \
@@ -41,6 +42,7 @@ static inline void mov_non_temporal(volatile Type *p, Type val)
 
 #define RISCV_SSTATUS_SPP      (1 << 8)  // 1 = exception happened in supervisor mode, else user
 #define RISCV_SSTATUS_SIE      (1 << 1)  // 1 = Interrupts enabled in supervisor mode
+#define RISCV_SSTATUS_SPIE     (1 << 5)  // 1 = Interrupts were enabled prior to trapping
 #define RISCV_SSTATUS_SUM      (1 << 18) // 1 = Permit supervisor user memory access
 #define RISCV_SCAUSE_INTERRUPT (1UL << 63)
 

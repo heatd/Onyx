@@ -122,9 +122,9 @@ bool signal_is_unblockable(int signum)
 {
     switch (signum)
     {
-    case SIGSTOP:
-    case SIGKILL:
-        return true;
+        case SIGSTOP:
+        case SIGKILL:
+            return true;
     }
 
     return false;
@@ -826,10 +826,10 @@ int sys_sigaction(int signum, const struct k_sigaction *act, struct k_sigaction 
         /* Check if it's actually possible to set a handler to this signal */
         switch (signum)
         {
-        /* If not, return EINVAL */
-        case SIGKILL:
-        case SIGSTOP:
-            return -EINVAL;
+            /* If not, return EINVAL */
+            case SIGKILL:
+            case SIGSTOP:
+                return -EINVAL;
         }
 
         memcpy(&proc->sigtable[signum], &sa, sizeof(sa));
@@ -858,20 +858,20 @@ int sys_sigprocmask(int how, const sigset_t *set, sigset_t *oldset, size_t sigse
 
         switch (how)
         {
-        case SIG_BLOCK: {
-            current->sinfo.add_blocked(&kset);
-            break;
-        }
-        case SIG_UNBLOCK: {
-            current->sinfo.unblock(kset);
-            break;
-        }
-        case SIG_SETMASK: {
-            current->sinfo.set_blocked(&kset);
-            break;
-        }
-        default:
-            return -EINVAL;
+            case SIG_BLOCK: {
+                current->sinfo.add_blocked(&kset);
+                break;
+            }
+            case SIG_UNBLOCK: {
+                current->sinfo.unblock(kset);
+                break;
+            }
+            case SIG_SETMASK: {
+                current->sinfo.set_blocked(&kset);
+                break;
+            }
+            default:
+                return -EINVAL;
         }
     }
 
@@ -1215,7 +1215,11 @@ bool executing_in_altstack(const struct syscall_frame *frm, const stack_t *stack
      */
     /* TODO: This depends on whether the stack grows downwards or upwards. This logic covers the
      * first case. */
+#ifdef __x86_64__
     unsigned long sp = frm->user_sp;
+#elif defined(__riscv)
+    unsigned long sp = frm->regs.sp;
+#endif
     unsigned long alt_sp = (unsigned long) stack->ss_sp;
     unsigned long alt_stack_limit = alt_sp + stack->ss_size;
     return sp >= alt_sp && sp < alt_stack_limit;

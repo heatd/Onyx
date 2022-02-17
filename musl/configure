@@ -537,6 +537,9 @@ tryflag CFLAGS_AUTO -Werror=discarded-array-qualifiers
 #
 test "$cc_family" = clang && tryflag CFLAGS_AUTO -Qunused-arguments
 
+# LLD cant do relaxation, so disable it if we're clang
+test "$cc_family" = clang && tryflag CFLAGS -mno-relax
+
 if test "x$warnings" = xyes ; then
 tryflag CFLAGS_AUTO -Waddress
 tryflag CFLAGS_AUTO -Warray-bounds

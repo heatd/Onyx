@@ -192,14 +192,14 @@ int itimer_which_to_signal(itimer *t)
 {
     switch (t->which)
     {
-    case ITIMER_REAL:
-        return SIGALRM;
-    case ITIMER_VIRTUAL:
-        return SIGVTALRM;
-    case ITIMER_PROF:
-        return SIGPROF;
-    default:
-        __builtin_unreachable();
+        case ITIMER_REAL:
+            return SIGALRM;
+        case ITIMER_VIRTUAL:
+            return SIGVTALRM;
+        case ITIMER_PROF:
+            return SIGPROF;
+        default:
+            __builtin_unreachable();
     }
 }
 

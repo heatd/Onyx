@@ -15,6 +15,10 @@ config("compiler_defaults") {
     if (target_cpu == "x86_64") {
         cflags += ["-march=x86-64-v3"]
     }
+
+    if (target_cpu == "riscv64" && clang_path != "") {
+        cflags += ["-mno-relax"]
+    }
     cflags_cc = [ "-std=c++20" ]
     # TODO: Add -flto when we iron out problems in the build with GCC
     ldflags = cflags

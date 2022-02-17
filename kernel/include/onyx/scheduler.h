@@ -1,10 +1,12 @@
 /*
- * Copyright (c) 2016, 2017 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
-#ifndef _KERNEL_SCHEDULER_H
-#define _KERNEL_SCHEDULER_H
+#ifndef _ONYX_SCHEDULER_H
+#define _ONYX_SCHEDULER_H
 
 #include <assert.h>
 #include <stdbool.h>
@@ -67,6 +69,8 @@ typedef struct thread
 #ifdef __x86_64__
     void *fs;
     void *gs;
+#elif defined(__riscv)
+    void *tp;
 #endif
 
 #ifdef __cplusplus

@@ -8,10 +8,13 @@
 
 #include <stdio.h>
 
+#include <onyx/bus_type.h>
 #include <onyx/device_tree.h>
 #include <onyx/page.h>
 #include <onyx/panic.h>
 #include <onyx/serial.h>
+
+void set_initrd_address(void *initrd_address);
 
 namespace device_tree
 {
@@ -153,6 +156,45 @@ void handle_memory_node(int offset, int addr_cells, int size_cells)
     }
 }
 
+void figure_out_initrd_from_chosen(int offset)
+{
+    int len;
+    uint64_t start, end;
+
+    const void *startp = (const fdt64_t *) fdt_getprop(fdt_, offset, "linux,initrd-start", &len);
+
+    switch (len)
+    {
+        case 4:
+            start = fdt32_to_cpu(*(const fdt32_t *) startp);
+            break;
+        case 8:
+            start = fdt64_to_cpu(*(const fdt64_t *) startp);
+            break;
+        default:
+            // handles no linux,initrd-{start, end} errors + weird lengths
+            return;
+    }
+
+    const void *endp = (const fdt64_t *) fdt_getprop(fdt_, offset, "linux,initrd-end", &len);
+
+    switch (len)
+    {
+        case 4:
+            end = fdt32_to_cpu(*(const fdt32_t *) endp);
+            break;
+        case 8:
+            end = fdt64_to_cpu(*(const fdt64_t *) endp);
+            break;
+        default:
+            // handles no linux,initrd-{start, end} errors + weird lengths
+            return;
+    }
+
+    bootmem_reserve(start, end);
+
+    set_initrd_address((void *) start);
+}
 /**
  * @brief Walk the device tree and look for interesting things
  *
@@ -216,6 +258,10 @@ void early_walk()
         {
             handle_memory_node(offset, address_cell_stack[depth], size_cell_stack[depth]);
         }
+        else if (!strncmp(name, "chosen", strlen("chosen")))
+        {
+            figure_out_initrd_from_chosen(offset);
+        }
     }
 }
 
@@ -255,12 +301,18 @@ node *get_root()
     return root_node;
 }
 
+bus_type *dt_bus;
+
 /**
  * @brief Enumerate the device tree
  *        Note: Requires dynamic memory allocation
  */
 void enumerate()
 {
+    dt_bus = new bus_type{"device-tree"};
+    if (!dt_bus)
+        panic("Failed to allocate bus type structure for dt");
+
     root_node = new node{"", 0, 0};
     if (!root_node)
         panic("Failed to allocate a device tree node");
@@ -329,6 +381,50 @@ void enumerate()
 
         parents[depth] = dev_node;
     }
+}
+
+#if 0
+void devtree_driver_register(struct driver *driver, struct bus *bus)
+{
+    list_for_every (&bus->device_list_head)
+    {
+        auto dev = list_head_cpp<pci_device>::self_from_list_head(l);
+        struct pci_id *id;
+#if 0
+		printk("%04x:%02x:%02x:%02x -> %04x:%04x ",
+			dev->addr().segment, dev->addr().bus, dev->addr().device, dev->addr().function,
+			dev->did(), dev->vid());
+#endif
+        // Bound, skip.
+        if (dev->driver_)
+        {
+#if 0
+			printk(" bound\n");
+#endif
+            continue;
+        }
+#if 0
+		printk("\n");
+#endif
+        if ((id = pci_driver_supports_device(driver, dev)))
+        {
+            dev->set_driver_data(id->driver_data);
+            driver_register_device(driver, dev);
+            if (driver->probe(dev) < 0)
+                driver_deregister_device(driver, dev);
+        }
+    }
+}
+
+#endif
+/**
+ * @brief Register a driver with the device tree subsystem
+ *
+ * @param driver_
+ */
+void register_driver(driver *driver_)
+{
+    dt_bus->add_driver(driver_);
 }
 
 /**

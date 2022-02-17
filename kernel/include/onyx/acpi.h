@@ -74,9 +74,12 @@ extern struct clocksource acpi_timer_source;
 
 namespace acpi
 {
+
 using find_root_pci_bus_t = int (*)(uint16_t seg, uint8_t nbus, ACPI_HANDLE bus);
 int find_root_pci_buses(find_root_pci_bus_t callback);
 int route_irqs(bus *bus);
+bool is_enabled();
+
 } // namespace acpi
 
 #endif

@@ -10,9 +10,11 @@
 #define _ONYX_RISCV_PLATFORM_SYSCALL_H
 
 #ifndef __ASSEMBLER__
+#include <onyx/registers.h>
+
 struct syscall_frame
 {
-    unsigned long user_sp;
+    registers_t regs;
 };
 
 #endif

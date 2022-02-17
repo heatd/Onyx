@@ -103,11 +103,6 @@ void riscv_timer_irq()
     timer_handle_events(get_per_cpu_ptr(riscv_timer));
 }
 
-void test_ev(clockevent *ev)
-{
-    printk("1 second\n");
-}
-
 /**
  * @brief Initialise timekeeping and timer functionality in RISCV
  *
@@ -144,16 +139,4 @@ void time_init()
     register_clock_source(&riscv_clock);
 
     riscv_or_csr(RISCV_SIE, RISCV_SIE_STIE);
-    printk("Waiting a second\n");
-    clockevent ev;
-    ev.callback = test_ev;
-    ev.deadline = clocksource_get_time() + NS_PER_SEC;
-    ev.flags = 0;
-
-    timer_queue_clockevent(&ev);
-
-    while (true)
-    {
-        __asm__ __volatile__("wfi");
-    }
 }

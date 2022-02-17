@@ -29,7 +29,7 @@ ssize_t strlen_user_internal(const char *user);
 
 #define DO_USER_POINTER_CHECK_NO_SIZE(user)       \
     const auto limit__ = thread_get_addr_limit(); \
-    if (limit__ > (unsigned long) user)           \
+    if (limit__ < (unsigned long) user)           \
         return -EFAULT;
 
 /**

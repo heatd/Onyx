@@ -12,6 +12,7 @@
 #include <onyx/riscv/intrinsics.h>
 #include <onyx/scheduler.h>
 #include <onyx/signal.h>
+#include <onyx/softirq.h>
 #include <onyx/vm.h>
 
 static const char *exception_msg[] = {
@@ -186,7 +187,8 @@ static void do_page_fault(registers_t *ctx, unsigned long pf_flags)
                 return;
             }
         }
-
+        panic("Fatal addr %lx, ip %lx, return address %lx\n", info.fault_address, ctx->epc,
+              ctx->ra);
         vm_do_fatal_page_fault(&info);
     }
 }
@@ -198,12 +200,12 @@ static void instruction_page_fault(registers_t *ctx)
 
 static void load_page_fault(registers_t *ctx)
 {
-    do_page_fault(ctx, PF_X);
+    do_page_fault(ctx, PF_R);
 }
 
 static void store_page_fault(registers_t *ctx)
 {
-    do_page_fault(ctx, PF_X);
+    do_page_fault(ctx, PF_W);
 }
 
 void (*const user_trap_table[])(registers *ctx) = {instruction_address_misaligned,
@@ -223,10 +225,26 @@ void (*const user_trap_table[])(registers *ctx) = {instruction_address_misaligne
                                                    panic_interrupt_context,
                                                    store_page_fault};
 
+long do_syscall64(registers_t *frame);
+
 void riscv_handle_exception(registers_t *regs, unsigned long cause)
 {
+    // cause 8 is syscall from user-mode
+    if (cause == 8)
+    {
+        irq_enable();
+        long ret = do_syscall64(regs);
+        regs->a0 = ret;
+        regs->epc += 4;
+        return;
+    }
+
     if (in_kernel_space_regs(regs) && !exception_has_special_handling(cause))
         panic_interrupt_context(regs);
+
+    // Restore IRQs
+    if (regs->status & RISCV_SSTATUS_SPIE)
+        irq_enable();
 
     user_trap_table[cause](regs);
 }
@@ -245,15 +263,28 @@ void riscv_timer_irq();
 
 void riscv_handle_interrupt(registers_t *regs, unsigned long cause)
 {
+    // IRQs run with interrupts disabled
+    const auto flags = irq_save_and_disable();
+
     if (cause == 5)
     {
         // Supervisor timer interrupt
         riscv_timer_irq();
     }
+
+    // Run softirqs if we can
+    if (!sched_is_preemption_disabled() && softirq_pending())
+    {
+        softirq_handle();
+    }
+
+    irq_restore(flags);
 }
 
 extern "C" unsigned long riscv_handle_trap(registers_t *regs)
 {
+    context_tracking_enter_kernel();
+
     const auto is_exception = !(regs->cause & RISCV_SCAUSE_INTERRUPT);
     const auto cause = regs->cause & ~RISCV_SCAUSE_INTERRUPT;
 
@@ -262,7 +293,13 @@ extern "C" unsigned long riscv_handle_trap(registers_t *regs)
     else
         riscv_handle_interrupt(regs, cause);
 
-    check_for_resched(&regs);
+    context_tracking_exit_kernel();
+
+    if (regs->status & RISCV_SSTATUS_SPIE && !sched_is_preemption_disabled())
+    {
+        // If preemption is enabled and interrupts are enabled, try to do a resched
+        check_for_resched(&regs);
+    }
 
     if (signal_is_pending())
         handle_signal(regs);

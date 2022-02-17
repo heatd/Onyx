@@ -45,7 +45,7 @@
 #define NAME_MAX 255
 #endif
 #define PATH_MAX 4096
-#define NGROUPS_MAX INT_MAX
+#define NGROUPS_MAX 32
 #define ARG_MAX 131072
 #define IOV_MAX 1024
 #define SYMLOOP_MAX 40

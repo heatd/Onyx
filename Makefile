@@ -52,7 +52,14 @@ export INCLUDEDIR:=$(PREFIX)/include
 export BINDIR:=$(PREFIX)/bin
 export MANDIR:=/usr/share/man
 export PKGDIR:=/pkg
-export CFLAGS?=-O2 -g
+
+ifeq ($(ONYX_ARCH), riscv64)
+ifeq ($(ONYX_USING_CLANG), yes)
+export EXTRA_CFLAGS:=-mno-relax
+endif
+endif
+
+export CFLAGS?=-O2 -g $(EXTRA_CFLAGS)
 export CPPFLAGS:=
 
 export SYSROOT=$(PWD)/sysroot
@@ -125,9 +132,13 @@ fullbuild: build-cleanup
 iso: fullbuild
 	scripts/iso.sh
 
-kernel-test: kernel
+fullbuild-plus-initrd: fullbuild
+	SYSTEM_ROOT=$(SYSROOT) scripts/geninitrd --compression-method none scripts/default-initrd.sh
+
+qemu-riscv: fullbuild-plus-initrd
 	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) -kernel kernel/vmonyx -m 512M -machine virt \
-	-monitor stdio -s -d int
+	-monitor stdio -s -initrd initrd.tar
+
 qemu: iso
 	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) \
 	-s -cdrom Onyx.iso -drive file=hdd.img,format=raw,media=disk -m 512M \

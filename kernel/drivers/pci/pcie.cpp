@@ -45,6 +45,10 @@ pcie_allocation *find_alloc_for_root(uint16_t segment, uint8_t nbus)
 
 int pcie_get_mcfg(void)
 {
+    // TODO: Add pcie regions with device tree
+    if (!acpi::is_enabled())
+        return 0;
+
     ACPI_STATUS st;
     if (ACPI_FAILURE((st = AcpiGetTable((char *) "MCFG", 0, (ACPI_TABLE_HEADER **) &mcfg))))
     {
@@ -163,20 +167,20 @@ uint64_t pcie_read_config(pcie_address &addr, uint16_t off, size_t size)
 
     switch (size)
     {
-    case sizeof(uint8_t):
-        val = __pcie_config_read_byte(addr);
-        break;
-    case sizeof(uint16_t):
-        val = __pcie_config_read_word(addr);
-        break;
-    case sizeof(uint32_t):
-        val = __pcie_config_read_dword(addr);
-        break;
-    case sizeof(uint64_t):
-        val = __pcie_config_read_dword(addr);
-        addr.offset += 4;
-        val |= (uint64_t) __pcie_config_read_dword(addr) << 32;
-        break;
+        case sizeof(uint8_t):
+            val = __pcie_config_read_byte(addr);
+            break;
+        case sizeof(uint16_t):
+            val = __pcie_config_read_word(addr);
+            break;
+        case sizeof(uint32_t):
+            val = __pcie_config_read_dword(addr);
+            break;
+        case sizeof(uint64_t):
+            val = __pcie_config_read_dword(addr);
+            addr.offset += 4;
+            val |= (uint64_t) __pcie_config_read_dword(addr) << 32;
+            break;
     }
 
     return val;
@@ -188,23 +192,23 @@ void pcie_write_config(pcie_address &addr, uint64_t value, uint16_t off, size_t 
 
     switch (size)
     {
-    case sizeof(uint8_t):
-        __pcie_config_write_byte(addr, (uint8_t) value);
-        break;
-    case sizeof(uint16_t):
-        __pcie_config_write_word(addr, (uint16_t) value);
-        break;
-    case sizeof(uint32_t):
-        __pcie_config_write_dword(addr, (uint32_t) value);
-        break;
-    case sizeof(uint64_t):
-        __pcie_config_write_byte(addr, (uint32_t) value);
-        addr.offset += 4;
-        __pcie_config_write_dword(addr, (uint32_t) (value >> 32));
-        break;
-    default:
-        INFO("pcie", "pcie_write_device_from_segment: Invalid size\n");
-        return;
+        case sizeof(uint8_t):
+            __pcie_config_write_byte(addr, (uint8_t) value);
+            break;
+        case sizeof(uint16_t):
+            __pcie_config_write_word(addr, (uint16_t) value);
+            break;
+        case sizeof(uint32_t):
+            __pcie_config_write_dword(addr, (uint32_t) value);
+            break;
+        case sizeof(uint64_t):
+            __pcie_config_write_byte(addr, (uint32_t) value);
+            addr.offset += 4;
+            __pcie_config_write_dword(addr, (uint32_t) (value >> 32));
+            break;
+        default:
+            INFO("pcie", "pcie_write_device_from_segment: Invalid size\n");
+            return;
     }
 }
 
