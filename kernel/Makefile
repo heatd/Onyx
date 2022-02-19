@@ -147,7 +147,6 @@ CLANG_TIDY:=true
 CLANG_TIDY_ARGS:=
 endif
 
-
 include kernel/Makefile
 include $(ARCHDIR)/Makefile
 include crypt/Makefile

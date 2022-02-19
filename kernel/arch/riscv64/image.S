@@ -69,6 +69,7 @@ entry:
 	or t1, t1, t5
 
 	csrw satp, t1
+	sfence.vma zero, zero
 	ld ra, virtual_entry
 	ret
 2:

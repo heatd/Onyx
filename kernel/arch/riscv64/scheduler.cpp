@@ -32,7 +32,7 @@ void thread_setup_stack(thread *thread, bool is_user, const registers_t *regs)
 
     if (is_user)
     {
-        kregs->status = RISCV_SSTATUS_SPIE;
+        kregs->status = RISCV_SSTATUS_SPIE | /* FS state = initial */ 1 << 13;
     }
     else
     {
@@ -92,6 +92,7 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *tp)
     new_thread->id = curr_id++;
     new_thread->flags = flags;
     new_thread->canary = THREAD_STRUCT_CANARY;
+    new_thread->fpu_area = nullptr;
 
     bool is_user = !(flags & THREAD_KERNEL);
     auto pages = adding_guard_page ? 6 : 4;
@@ -99,10 +100,10 @@ thread *sched_spawn_thread(registers_t *regs, unsigned int flags, void *tp)
 
     if (is_user)
     {
-        posix_memalign((void **) &new_thread->fpu_area, fpu_get_save_alignment(),
-                       fpu_get_save_size());
+        int st = posix_memalign((void **) &new_thread->fpu_area, fpu_get_save_alignment(),
+                                fpu_get_save_size());
 
-        if (!new_thread->fpu_area)
+        if (st != 0)
             goto error;
 
         memset(new_thread->fpu_area, 0, fpu_get_save_size());
@@ -212,17 +213,19 @@ void arch_load_thread(thread *thread, unsigned int cpu)
 {
     auto data = abi::get_abi_data();
     data->kernel_stack = (unsigned long) thread->kernel_stack_top;
+    auto regs = (registers_t *) thread->kernel_stack;
 
     if (!(thread->flags & THREAD_KERNEL))
     {
         restore_fpu(thread->fpu_area);
-        // Note: We know that abi data is guaranteed to be the first member
-        riscv_write_csr(RISCV_SSCRATCH, data);
     }
-    else
-    {
+
+    // Note: We know that abi data is guaranteed to be the first member of tp, so we can use it as
+    // an address
+    if (in_kernel_space_regs(regs))
         riscv_write_csr(RISCV_SSCRATCH, 0);
-    }
+    else
+        riscv_write_csr(RISCV_SSCRATCH, data);
 }
 
 void arch_load_process(process *process, thread *thread, unsigned int cpu)
@@ -248,9 +251,10 @@ void arch_context_switch(thread *prev, thread *next)
 
 int arch_transform_into_user_thread(thread *thread)
 {
-    posix_memalign((void **) &thread->fpu_area, fpu_get_save_alignment(), fpu_get_save_size());
+    int st =
+        posix_memalign((void **) &thread->fpu_area, fpu_get_save_alignment(), fpu_get_save_size());
 
-    if (!thread->fpu_area)
+    if (st != 0)
         return -ENOMEM;
 
     memset(thread->fpu_area, 0, fpu_get_save_size());

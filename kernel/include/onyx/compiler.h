@@ -40,8 +40,8 @@
 #define prefetch(...)               __builtin_prefetch(__VA_ARGS__)
 #define ASSUME_ALIGNED(x, y)        __builtin_assume_aligned(x, y)
 #define ARCH_SPECIFIC               extern
-#define UNUSED_PARAMETER(x)         (void) x
-#define UNUSED(x)                   UNUSED_PARAMETER(x)
+#define UNUSED(x)                   (void) x
+#define UNUSED_PARAMETER            __attribute__((unused))
 #define __init                      __attribute__((constructor))
 #define weak_alias(name, aliasname) _weak_alias(name, aliasname)
 #define _weak_alias(name, aliasname) \

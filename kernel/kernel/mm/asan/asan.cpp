@@ -41,8 +41,6 @@ const unsigned long kasan_space = arch_high_half + arch_kasan_off;
 
 bool kasan_is_cleared_access(unsigned long addr, size_t size)
 {
-    if (addr + size <= arch_low_half_max && addr < arch_low_half_max)
-        return true;
     if (addr >= PHYS_BASE && addr + size <= PHYS_BASE + 0x80000000000)
         return true;
     if (addr >= kasan_space && addr + size <= kasan_space + ADDR_SPACE_SIZE)
@@ -68,16 +66,16 @@ void kasan_fail(unsigned long addr, size_t size, bool write, unsigned char b)
 
     switch ((unsigned char) b)
     {
-    case KASAN_FREED:
-        event = "use-after-free";
-        thing_accessed = "Accessed zone marked KASAN_FREED";
-        break;
-    case KASAN_REDZONE:
-        thing_accessed = "Accessed zone marked KASAN_REDZONE";
-        __attribute__((fallthrough));
-    default:
-        event = "invalid access";
-        break;
+        case KASAN_FREED:
+            event = "use-after-free";
+            thing_accessed = "Accessed zone marked KASAN_FREED";
+            break;
+        case KASAN_REDZONE:
+            thing_accessed = "Accessed zone marked KASAN_REDZONE";
+            __attribute__((fallthrough));
+        default:
+            event = "invalid access";
+            break;
     };
 
     printk("\n====================================================================================="
@@ -124,6 +122,9 @@ void kasan_check_memory(unsigned long addr, size_t size, bool write)
     {
         return;
     }
+
+    if ((unsigned long) kasan_get_ptr(addr) < kasan_space)
+        panic("Bad kasan pointer %lx\n", addr);
 
     if (n_ + size <= 8 && n_ == 0)
     {

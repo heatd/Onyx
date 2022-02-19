@@ -295,9 +295,6 @@ void vm_late_init(void)
     vmalloc_space = vm_randomize_address(vmalloc_space, VMALLOC_ASLR_BITS);
     heap_addr = vm_randomize_address(heap_addr, HEAP_ASLR_BITS);
 
-#ifdef CONFIG_KASAN
-    kasan_alloc_shadow(heap_addr, arch_get_initial_heap_size(), false);
-#endif
     heap_set_start(heap_addr);
 
     vm_addr_init();

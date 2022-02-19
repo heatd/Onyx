@@ -191,7 +191,7 @@ void figure_out_initrd_from_chosen(int offset)
             return;
     }
 
-    bootmem_reserve(start, end);
+    bootmem_reserve(start, end - start);
 
     set_initrd_address((void *) start);
 }
@@ -463,4 +463,17 @@ node *open_node(std::string_view path, node *base_node)
 
     return base_node;
 }
+
+/**
+ * @brief Gets a property of the node from the device tree
+ *
+ * @param name Name of the property
+ * @param length Pointer to the length, or negative error codes
+ * @return Pointer to property
+ */
+const void *node::get_property(const char *name, int *length)
+{
+    return fdt_getprop(fdt_, offset, name, length);
+}
+
 } // namespace device_tree

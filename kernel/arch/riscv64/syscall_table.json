@@ -955,6 +955,38 @@
         "return_type": "int"
     },
     {
+        "name": "clone",
+        "nr": 63,
+        "nr_args": 6,
+        "args": [
+            [
+                "void *",
+                "fn"
+            ],
+            [
+                "void *",
+                "child_stack"
+            ],
+            [
+                "int",
+                "flags"
+            ],
+            [
+                "void *",
+                "arg"
+            ],
+            [
+                "struct tid_out *",
+                "out"
+            ],
+            [
+                "void *",
+                "tls"
+            ]
+        ],
+        "return_type": "int"
+    },
+    {
         "name": "exit_thread",
         "nr": 64,
         "nr_args": 1,

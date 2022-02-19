@@ -14,20 +14,6 @@
 
 #define UNIMPLEMENTED panic("Not implemented!")
 
-bool platform_has_msi()
-{
-    return false;
-}
-
-void halt()
-{
-    irq_disable();
-    while (true)
-    {
-        __asm__ __volatile__("wfi");
-    }
-}
-
 void cpu_kill_other_cpus()
 {
 }
@@ -74,11 +60,6 @@ void boot(unsigned int nr)
 } // namespace smp
 
 void cpu_send_sync_notif(unsigned int cpu)
-{
-    UNIMPLEMENTED;
-}
-
-thread *process_fork_thread(thread_t *src, struct process *dest, struct syscall_frame *ctx)
 {
     UNIMPLEMENTED;
 }

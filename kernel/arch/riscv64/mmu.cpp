@@ -55,6 +55,7 @@ void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64
 
 static inline void __native_tlb_invalidate_page(void *addr)
 {
+    __asm__ __volatile__("sfence.vma %0, zero" ::"r"(addr));
 }
 
 bool pte_empty(uint64_t pte)
@@ -228,6 +229,10 @@ void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64
     {
         increment_vm_stat(as, resident_set_size, PAGE_SIZE);
     }
+    else
+    {
+        __native_tlb_invalidate_page((void *) PML_EXTRACT_ADDRESS(*ptentry));
+    }
 
     return (void *) virt;
 }
@@ -388,6 +393,7 @@ void paging_load_top_pt(PML *pml)
 {
     unsigned long new_satp = RISCV_SATP_4LEVEL_MMU | (unsigned long) pml >> PAGE_SHIFT;
     riscv_write_csr(RISCV_SATP, new_satp);
+    __asm__ __volatile__("sfence.vma zero, zero");
 }
 
 bool riscv_get_pt_entry(void *addr, uint64_t **entry_ptr, bool may_create_path,
@@ -420,6 +426,7 @@ bool riscv_get_pt_entry(void *addr, uint64_t **entry_ptr, bool may_create_path,
             increment_vm_stat(mm, page_tables_size, PAGE_SIZE);
 
             pml->entries[indices[i - 1]] = riscv_make_pt_entry_page_table(pt);
+            __asm__ __volatile__("sfence.vma zero, zero");
 
             pml = (PML *) PHYS_TO_VIRT(pt);
         }
@@ -470,7 +477,7 @@ bool paging_write_protect(void *addr, struct mm_address_space *mm)
     if (!riscv_get_pt_entry(addr, &ptentry, false, mm))
         return false;
 
-    *ptentry = *ptentry & RISCV_MMU_WRITE;
+    *ptentry = *ptentry & ~RISCV_MMU_WRITE;
 
     return true;
 }
@@ -724,7 +731,7 @@ void vm_mmu_mprotect_page(struct mm_address_space *as, void *addr, int old_prots
     unsigned long paddr = PML_EXTRACT_ADDRESS(*ptentry);
 
     uint64_t page_prots = vm_prots_to_mmu(new_prots);
-    *ptentry = paddr | page_prots;
+    *ptentry = riscv_pt_page_mapping(paddr) | page_prots;
 }
 
 class page_table_iterator

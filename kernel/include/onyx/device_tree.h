@@ -90,6 +90,15 @@ struct node
     }
 
     /**
+     * @brief Gets a property of the node from the device tree
+     *
+     * @param name Name of the property
+     * @param length Pointer to the length, or negative error codes
+     * @return Pointer to property
+     */
+    const void *get_property(const char *name, int *length);
+
+    /**
      * @brief Open a child node
      *
      * @param name Name of the node

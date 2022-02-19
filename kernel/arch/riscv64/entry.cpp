@@ -25,6 +25,7 @@ extern char percpu_base;
 
 void riscv_setup_trap_handling();
 void time_init();
+void riscv_cpu_init();
 
 extern "C" void kernel_entry(void *fdt)
 {
@@ -32,6 +33,8 @@ extern "C" void kernel_entry(void *fdt)
     paging_init();
 
     platform_serial_init();
+
+    riscv_setup_trap_handling();
 
     device_tree::init(fdt);
 
@@ -49,13 +52,13 @@ extern "C" void kernel_entry(void *fdt)
 
     console_init();
 
-    riscv_setup_trap_handling();
-
     sbi_init();
 
     device_tree::enumerate();
 
     time_init();
+
+    riscv_cpu_init();
 }
 
 void init_arch_vdso()

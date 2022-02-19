@@ -322,7 +322,7 @@ USED void __ubsan_handle_load_invalid_value(void* data_raw, void* value_raw)
 {
     struct ubsan_invalid_value_data* data = (struct ubsan_invalid_value_data*) data_raw;
     ubsan_value_handle_t value = (ubsan_value_handle_t) value_raw;
-    (void) value;
+    printk("Value: %lx\n", value);
     ubsan_abort(&data->location, "invalid value load");
 }
 

@@ -9,4 +9,4 @@
 *.o
 *~
 Makefile
-
+src/token_vars.h
