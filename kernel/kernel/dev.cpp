@@ -247,4 +247,5 @@ void driver_deregister_device(struct driver *driver, struct device *dev)
 {
     scoped_lock g{driver->device_list_lock};
     extrusive_list_remove(&driver->devices, dev);
+    dev->driver_ = nullptr;
 }

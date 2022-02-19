@@ -9,11 +9,39 @@
 #ifndef _ONYX_X86_PERCPU_H
 #define _ONYX_X86_PERCPU_H
 
-#define get_per_cpu(var)                                                 \
-    ({                                                                   \
-        unsigned long val;                                               \
-        __asm__ __volatile__("movq %%gs:%1, %0" : "=r"(val) : "m"(var)); \
-        (__typeof__(var)) val;                                           \
+#include <stdint.h>
+
+#define get_per_cpu_x86_internal(var, suffix, type)                               \
+    ({                                                                            \
+        type val;                                                                 \
+        __asm__ __volatile__("mov" suffix " %%gs:%1, %0" : "=r"(val) : "m"(var)); \
+        (__typeof__(var)) (unsigned long) val;                                    \
+    })
+
+#define get_per_cpu_1(var) get_per_cpu_x86_internal(var, "b", uint8_t)
+#define get_per_cpu_2(var) get_per_cpu_x86_internal(var, "w", uint16_t)
+#define get_per_cpu_4(var) get_per_cpu_x86_internal(var, "l", uint32_t)
+#define get_per_cpu_8(var) get_per_cpu_x86_internal(var, "q", uint64_t)
+
+#define get_per_cpu(var)                \
+    ({                                  \
+        __typeof__(var) v;              \
+        switch (sizeof(var))            \
+        {                               \
+            case 1:                     \
+                v = get_per_cpu_1(var); \
+                break;                  \
+            case 2:                     \
+                v = get_per_cpu_2(var); \
+                break;                  \
+            case 4:                     \
+                v = get_per_cpu_4(var); \
+                break;                  \
+            case 8:                     \
+                v = get_per_cpu_8(var); \
+                break;                  \
+        }                               \
+        v;                              \
     })
 
 #define get_per_cpu_no_cast(var)          \

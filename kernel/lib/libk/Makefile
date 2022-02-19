@@ -1,8 +1,6 @@
 LIBK_OBJS:=\
 stdio/printf.o \
-stdio/putchar.o \
 stdio/puts.o \
-stdlib/abort.o \
 string/memcmp.o \
 string/memmove.o \
 string/memset.o \
@@ -10,7 +8,6 @@ string/strlen.o \
 string/strcpy.o \
 string/strcmp.o \
 string/strcat.o \
-errno/errno.o \
 ctype/to.o \
 string/memchr.o \
 stdlib/qsort.o \
@@ -22,13 +19,7 @@ string/memccpy.o \
 string/strerror.o \
 string/stpcpy.o \
 string/strdup.o \
-stdlib/_Exit.o \
-stdio/fprintf.o \
-stdio/fread.o \
-stdio/fwrite.o \
 stdio/sprintf.o \
-stdio/stdio.o \
-stdio/stdstream.o \
 stdio/perror.o \
 stdlib/rand.o \
 libc/__tls_get_addr.o \
@@ -62,4 +53,3 @@ libk-objs:=$(patsubst %, lib/libk/%, $(LIBK_OBJS))
 kernel-archives:=$(kernel-archives) lib/libk/libk.a
 
 EXTRA_LIBK_OBJS:=$(patsubst %, lib/libk/%, $(LIBK_EXTRA_OBJ))
- 

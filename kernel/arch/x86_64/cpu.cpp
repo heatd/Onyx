@@ -490,16 +490,16 @@ void cpu_handle_message(struct cpu_message *msg)
     const char *str = "";
     switch (msg->message)
     {
-    case CPU_KILL:
-        str = "CPU_KILL";
-        msg->ack = true;
-        cpu_handle_kill();
-        break;
-    case CPU_TRY_RESCHED:
-        str = "CPU_TRY_RESCHED";
-        cpu_try_resched();
-        msg->ack = true;
-        break;
+        case CPU_KILL:
+            str = "CPU_KILL";
+            msg->ack = true;
+            cpu_handle_kill();
+            break;
+        case CPU_TRY_RESCHED:
+            str = "CPU_TRY_RESCHED";
+            cpu_try_resched();
+            msg->ack = true;
+            break;
     }
 
     (void) this_cpu;

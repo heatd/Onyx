@@ -571,7 +571,6 @@ void apic_set_oneshot(hrtime_t deadline)
     /* defer events is set in early boot so we don't fault trying to touch a
      * lapic mapping that doesn't exist
      */
-
     if (get_per_cpu(defer_events))
         return;
 
@@ -798,6 +797,9 @@ void platform_init_clockevents(void)
 
     this_timer->name = "lapic timer";
 
+    write_per_cpu(timer_initialised, true);
+    write_per_cpu(defer_events, false);
+
     if (this_timer->next_event)
     {
         this_timer->set_oneshot(this_timer->next_event);
@@ -807,9 +809,6 @@ void platform_init_clockevents(void)
         this_timer->next_event = TIMER_NEXT_EVENT_NOT_PENDING;
         INIT_LIST_HEAD(&this_timer->event_list);
     }
-
-    write_per_cpu(timer_initialised, true);
-    write_per_cpu(defer_events, false);
 }
 
 struct timer *platform_get_timer(void)

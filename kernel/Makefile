@@ -74,11 +74,20 @@ endif
 
 include lib/libk/Makefile
 
+LIBK_LINK:=lib/libk/libk.a
+
 CFLAGS:=$(CFLAGS) $(KERNEL_ARCH_CFLAGS)
 
-# NOT RECOMMENDED, IS BROKEN
 ifeq ($(CONFIG_LTO), y)
 CFLAGS+=-flto
+
+ifneq ($(ONYX_USING_CLANG), yes)
+# GCC behaves weirdly when linking fat and non-fat lto object files together
+CFLAGS+=-ffat-lto-objects
+AR:=$(ONYX_ARCH)-onyx-gcc-ar
+LIBK_LINK:=$(libk-objs)
+endif
+
 endif
 
 ifeq ($(CONFIG_KASAN), y)
@@ -214,7 +223,7 @@ lib/libk/libk.a: $(libk-objs)
 
 vmonyx: $(OBJ_DEPS) $(EXTRA_LIBK_OBJS) $(ARCHDIR)/linker.ld $(kernel-archives) $(GENERATED_HEADERS)
 	@echo [LD] $@
-	$(CC) $(LDFLAGS) -Wl,-T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS_FOR_LINK) $(OBJ_LINK_LIST) $(LIBS) -Wno-error $(kernel-archives)
+	$(CC) $(LDFLAGS) -Wl,-T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS_FOR_LINK) $(OBJ_LINK_LIST) $(LIBS) -Wno-error $(LIBK_LINK)
 	cp vmonyx vmonyx-unstripped
 	$(STRIP) -g vmonyx
 

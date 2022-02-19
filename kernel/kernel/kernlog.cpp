@@ -14,6 +14,8 @@
 #include <onyx/timer.h>
 #include <onyx/vm.h>
 
+#include "onyx/serial.h"
+
 #ifdef __x86_64__
 #define VBOX_DEBUG
 #endif
@@ -22,8 +24,8 @@
 #include <onyx/port_io.h>
 #endif
 
-static char _log_buf[LOG_BUF_SIZE];
-static size_t log_position = 0;
+USED char _log_buf[LOG_BUF_SIZE];
+USED size_t log_position = 0;
 
 void kernlog_print(const char *msg)
 {
@@ -75,24 +77,25 @@ int sys_syslog(int type, char *buffer, int len)
         return (int) log_position;
     switch (type)
     {
-    case SYSLOG_ACTION_READ: {
-        if (copy_to_user(buffer, _log_buf, len) < 0)
-            return -EFAULT;
-        break;
-    }
-    case SYSLOG_ACTION_READ_CLEAR: {
-        if (copy_to_user(buffer, _log_buf, len) < 0)
-            return -EFAULT;
-        kernlog_clear();
-        break;
-    }
-    case SYSLOG_ACTION_CLEAR: {
-        kernlog_clear();
-        break;
-    }
+        case SYSLOG_ACTION_READ: {
+            if (copy_to_user(buffer, _log_buf, len) < 0)
+                return -EFAULT;
+            break;
+        }
+        case SYSLOG_ACTION_READ_CLEAR: {
+            if (copy_to_user(buffer, _log_buf, len) < 0)
+                return -EFAULT;
+            kernlog_clear();
+            break;
+        }
+        case SYSLOG_ACTION_CLEAR: {
+            kernlog_clear();
+            break;
+        }
     }
     return 0;
 }
+
 void kernlog_dump(void)
 {
     printk("%s\n", _log_buf);
