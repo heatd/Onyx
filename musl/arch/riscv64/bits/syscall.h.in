@@ -256,7 +256,6 @@
 #define __NR_msgget				255
 #define __NR_msgrcv				255
 #define __NR_msgsnd				255
-#define __NR_msync				255
 #define __NR_sched_yield			255
 #define __NR_semctl				255
 #define __NR_semget				255
@@ -266,7 +265,6 @@
 #define __NR_shmctl				255
 #define __NR_shmdt				255
 #define __NR_shmget				255
-#define __NR_shutdown				255
 #define __NR_socketpair				255
 #define __NR_flock				255
 #define __NR_fdatasync				255

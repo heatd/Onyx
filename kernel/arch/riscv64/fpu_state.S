@@ -6,7 +6,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-.attribute arch, "rv64fd"
+.attribute arch, "rv64imafdc"
 
 .macro DEFINE_SAVE_FPU name, suffix, width
     .global save_fpu_\name

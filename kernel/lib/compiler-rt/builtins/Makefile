@@ -127,3 +127,5 @@ riscv64_builtins-y:=riscv/muldi3.o \
 builtins-y:= $(generic-builtins-y) $($(ONYX_ARCH)_builtins-y)
 
 obj-y+= $(patsubst %, lib/compiler-rt/builtins/%, $(builtins-y))
+
+lib/compiler-rt/builtins/%.o: CFLAGS+=-fno-builtin -fno-lto
