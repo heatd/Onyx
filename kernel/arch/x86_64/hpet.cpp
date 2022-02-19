@@ -137,7 +137,7 @@ hpet_timer::hpet_timer(const ACPI_TABLE_HPET *hpet_table) : hpet_{hpet_table}, e
 bool hpet_timer::init()
 {
     volatile void *evt_block = mmiomap((void *) hpet_->Address.Address, HPET_EVENT_BLOCK_LENGTH,
-                                       VM_READ | VM_WRITE | VM_NOEXEC | VM_NOCACHE);
+                                       VM_READ | VM_WRITE | VM_NOCACHE);
 
     if (!evt_block)
     {

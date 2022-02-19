@@ -42,7 +42,7 @@
 #define VM_TYPE_MODULE      (6)
 
 #define VM_WRITE         (1 << 0)
-#define VM_NOEXEC        (1 << 1)
+#define VM_EXEC          (1 << 1)
 #define VM_USER          (1 << 2)
 #define VM_NOCACHE       (1 << 3)
 #define VM_WRITETHROUGH  (1 << 4)

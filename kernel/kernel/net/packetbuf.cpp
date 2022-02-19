@@ -86,7 +86,7 @@ bool packetbuf::allocate_space(size_t length)
     }
 
 #if 0
-	buffer_start = vm_map_vmo(VM_KERNEL, VM_TYPE_REGULAR, nr_pages, VM_WRITE | VM_NOEXEC | VM_READ, vmo);
+	buffer_start = vm_map_vmo(VM_KERNEL, VM_TYPE_REGULAR, nr_pages, VM_WRITE | VM_READ, vmo);
 	if(!buffer_start)
 	{
 		free_pages(pages_head);

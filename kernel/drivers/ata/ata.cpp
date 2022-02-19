@@ -201,7 +201,7 @@ int ide_dev::probe()
 
     /* Allocate PRDT base */
     prdt = (prdt_entry_t *) mmiomap(page_to_phys(prdt_page), prdt_nr_pages << PAGE_SHIFT,
-                                    VM_READ | VM_WRITE | VM_NOEXEC);
+                                    VM_READ | VM_WRITE);
     if (!prdt)
     {
         ERROR("ata", "Could not allocate a PRDT\n");

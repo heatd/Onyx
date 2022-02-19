@@ -10,7 +10,7 @@ extern "C" {
 
 void *__vmalloc(size_t len)
 {
-    return vmalloc(vm_size_to_pages(len), VM_TYPE_REGULAR, VM_WRITE | VM_READ | VM_NOEXEC);
+    return vmalloc(vm_size_to_pages(len), VM_TYPE_REGULAR, VM_WRITE | VM_READ);
 }
 
 void __vmunmap(void *addr, size_t len)

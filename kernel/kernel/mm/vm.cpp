@@ -310,7 +310,7 @@ void vm_late_init(void)
     }
 
     v->type = VM_TYPE_HEAP;
-    v->rwx = VM_NOEXEC | VM_WRITE | VM_READ;
+    v->rwx = VM_WRITE | VM_READ;
 
     struct kernel_limits l;
     get_kernel_limits(&l);
@@ -323,7 +323,7 @@ void vm_late_init(void)
     }
 
     v->type = VM_TYPE_REGULAR;
-    v->rwx = VM_WRITE | VM_READ;
+    v->rwx = VM_WRITE | VM_READ | VM_EXEC;
 
     vm_zero_page = alloc_page(0);
     assert(vm_zero_page != nullptr);
@@ -551,7 +551,7 @@ struct vm_region *__vm_allocate_virt_region(uint64_t flags, size_t pages, uint32
 
     if (region)
     {
-        if (prot & VM_WRITE || !(prot & VM_NOEXEC))
+        if (prot & (VM_WRITE | VM_EXEC))
             prot |= VM_READ;
         region->rwx = prot;
         region->type = type;
@@ -1193,7 +1193,7 @@ void *vm_mmap(void *addr, size_t length, int prot, int flags, struct file *file,
         prot |= PROT_READ;
 
     int vm_prot = VM_USER | ((prot & PROT_READ) ? VM_READ : 0) |
-                  ((prot & PROT_WRITE) ? VM_WRITE : 0) | ((!(prot & PROT_EXEC)) ? VM_NOEXEC : 0);
+                  ((prot & PROT_WRITE) ? VM_WRITE : 0) | ((prot & PROT_EXEC) ? VM_EXEC : 0);
 
     if (is_higher_half(addr)) /* User addresses can't be on the kernel's address space */
     {
@@ -1619,7 +1619,7 @@ int sys_mprotect(void *addr, size_t len, int prot)
         return -EINVAL;
 
     int vm_prot = VM_USER | ((prot & PROT_WRITE) ? VM_WRITE : 0) |
-                  ((!(prot & PROT_EXEC)) ? VM_NOEXEC : 0) | ((prot & PROT_READ) ? VM_READ : 0);
+                  ((prot & PROT_EXEC) ? VM_EXEC : 0) | ((prot & PROT_READ) ? VM_READ : 0);
 
     if (prot & PROT_WRITE)
         vm_prot |= VM_READ;
@@ -1691,7 +1691,7 @@ uint64_t sys_brk(void *newbrk)
 static bool vm_print(const void *key, void *datum, void *user_data)
 {
     struct vm_region *region = (vm_region *) datum;
-    bool x = !(region->rwx & VM_NOEXEC);
+    bool x = region->rwx & VM_EXEC;
     bool w = region->rwx & VM_WRITE;
     bool file_backed = is_file_backed(region);
     struct file *fd = region->fd;
@@ -2164,7 +2164,7 @@ int vm_handle_page_fault(struct fault_info *info)
 
     if (info->write && !(entry->rwx & VM_WRITE))
         return -1;
-    if (info->exec && entry->rwx & VM_NOEXEC)
+    if (info->exec && !(entry->rwx & VM_EXEC))
         return -1;
     if (info->user && !(entry->rwx & VM_USER))
         return -1;

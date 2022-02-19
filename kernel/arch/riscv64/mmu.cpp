@@ -37,11 +37,11 @@ static const unsigned int riscv_max_paging_levels = 5;
 
 static unsigned long vm_prots_to_mmu(unsigned int prots)
 {
-    auto flags = (prots & VM_NOEXEC ? 0 : RISCV_MMU_EXECUTE) |
+    auto flags = (prots & VM_EXEC ? RISCV_MMU_EXECUTE : 0) |
                  (prots & VM_WRITE ? RISCV_MMU_WRITE : 0) | (prots & VM_READ ? RISCV_MMU_READ : 0) |
                  (prots & VM_USER ? RISCV_MMU_USER : RISCV_MMU_GLOBAL) | RISCV_MMU_VALID;
 
-    if (!(prots & (VM_READ | VM_WRITE)) && prots & VM_NOEXEC)
+    if (!(prots & (VM_READ | VM_WRITE | VM_EXEC)))
         flags &= ~RISCV_MMU_VALID;
 
     return flags;
@@ -451,8 +451,8 @@ bool __paging_change_perms(struct mm_address_space *mm, void *addr, int prot)
     uint64_t perms = pt_entry & RISCV_MMU_FLAGS_TO_SAVE_ON_MPROTECT;
     uint64_t page = PML_EXTRACT_ADDRESS(pt_entry);
 
-    if (prot & VM_NOEXEC)
-        perms &= ~RISCV_MMU_EXECUTE;
+    if (prot & VM_EXEC)
+        perms |= RISCV_MMU_EXECUTE;
     if (prot & VM_WRITE)
         perms |= RISCV_MMU_WRITE;
     if (prot & VM_READ)
@@ -522,11 +522,11 @@ void paging_protect_kernel(void)
 
     size_t size = (uintptr_t) &_text_end - text_start;
     map_pages_to_vaddr((void *) text_start, (void *) (text_start - KERNEL_VIRTUAL_BASE), size,
-                       VM_READ | VM_WRITE);
+                       VM_READ | VM_WRITE | VM_EXEC);
 
     size = (uintptr_t) &_data_end - data_start;
     map_pages_to_vaddr((void *) data_start, (void *) (data_start - KERNEL_VIRTUAL_BASE), size,
-                       VM_READ | VM_WRITE | VM_NOEXEC);
+                       VM_READ | VM_WRITE);
 
     size = (uintptr_t) &_vdso_sect_end - vdso_start;
     map_pages_to_vaddr((void *) vdso_start, (void *) (vdso_start - KERNEL_VIRTUAL_BASE), size,

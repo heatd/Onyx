@@ -120,8 +120,8 @@ public:
         assert(vmo != nullptr);
         vmo->commit = commit;
 
-        struct vm_region *vm = vm_allocate_virt_region(VM_KERNEL, 1024, VM_TYPE_REGULAR,
-                                                       VM_READ | VM_WRITE | VM_NOEXEC);
+        struct vm_region *vm =
+            vm_allocate_virt_region(VM_KERNEL, 1024, VM_TYPE_REGULAR, VM_READ | VM_WRITE);
         if (!vm)
             return NULL;
 
@@ -141,7 +141,7 @@ public:
 
     void *do_mapping_regular()
     {
-        void *ptr = vmalloc(1024, VM_TYPE_REGULAR, VM_READ | VM_WRITE | VM_NOEXEC);
+        void *ptr = vmalloc(1024, VM_TYPE_REGULAR, VM_READ | VM_WRITE);
         if (!ptr)
         {
             printk("vmalloc failed\n");
@@ -266,7 +266,7 @@ public:
 
 bool vm_protect_tests::execute()
 {
-    void *ptr = vmalloc(1024, VM_TYPE_SHARED, VM_NOEXEC);
+    void *ptr = vmalloc(1024, VM_TYPE_SHARED, VM_READ);
     assert(ptr != nullptr);
 
     struct vm_region *vm = vm_find_region(ptr);

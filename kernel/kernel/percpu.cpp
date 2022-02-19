@@ -81,6 +81,6 @@ int percpu_map_master_copy()
     unsigned long percpu_virtual_start = (unsigned long) &percpu_base;
     auto phys_base = ((unsigned long) &percpu_base) - KERNEL_VIRTUAL_BASE;
     auto ret = map_pages_to_vaddr((void *) percpu_virtual_start, (void *) phys_base, nr_pages,
-                                  VM_READ | VM_WRITE | VM_NOEXEC);
+                                  VM_READ | VM_WRITE);
     return ret ? 0 : -1;
 }

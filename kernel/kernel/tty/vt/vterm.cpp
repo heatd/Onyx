@@ -525,51 +525,51 @@ void vterm_ansi_adjust_cursor(char code, unsigned long relative, struct vterm *v
 
     switch (code)
     {
-    case ANSI_CURSOR_UP: {
-        unsigned int cy = vt->cursor_y;
-        unsigned int result = cy - relative;
+        case ANSI_CURSOR_UP: {
+            unsigned int cy = vt->cursor_y;
+            unsigned int result = cy - relative;
 
-        /* Clamp the result */
-        if (cy < result)
-        {
-            vt->cursor_y = 0;
+            /* Clamp the result */
+            if (cy < result)
+            {
+                vt->cursor_y = 0;
+            }
+            else
+                vt->cursor_y = result;
+            break;
         }
-        else
+        case ANSI_CURSOR_DOWN:
+        case CSI_VPR: {
+            unsigned int cy = vt->cursor_y;
+            unsigned int result = cy + relative;
+
+            if (result > vt->rows - 1)
+                result = vt->rows - 1;
             vt->cursor_y = result;
-        break;
-    }
-    case ANSI_CURSOR_DOWN:
-    case CSI_VPR: {
-        unsigned int cy = vt->cursor_y;
-        unsigned int result = cy + relative;
-
-        if (result > vt->rows - 1)
-            result = vt->rows - 1;
-        vt->cursor_y = result;
-        break;
-    }
-    case ANSI_CURSOR_FORWARD: {
-        unsigned int cx = vt->cursor_x;
-        unsigned int result = cx + relative;
-
-        if (result > vt->columns - 1)
-            result = vt->columns - 1;
-        vt->cursor_x = result;
-        break;
-    }
-    case ANSI_CURSOR_BACK: {
-        unsigned int cx = vt->cursor_x;
-        unsigned int result = cx - relative;
-
-        /* Clamp the result */
-        if (cx < result)
-        {
-            vt->cursor_x = 0;
+            break;
         }
-        else
+        case ANSI_CURSOR_FORWARD: {
+            unsigned int cx = vt->cursor_x;
+            unsigned int result = cx + relative;
+
+            if (result > vt->columns - 1)
+                result = vt->columns - 1;
             vt->cursor_x = result;
-        break;
-    }
+            break;
+        }
+        case ANSI_CURSOR_BACK: {
+            unsigned int cx = vt->cursor_x;
+            unsigned int result = cx - relative;
+
+            /* Clamp the result */
+            if (cx < result)
+            {
+                vt->cursor_x = 0;
+            }
+            else
+                vt->cursor_x = result;
+            break;
+        }
     }
 }
 
@@ -638,65 +638,65 @@ void vterm_ansi_do_sgr(unsigned long n, struct vterm *vt)
 {
     switch (n)
     {
-    case ANSI_SGR_RESET: {
-        vt->bg = default_bg;
-        vt->fg = default_fg;
-        break;
-    }
-
-    case ANSI_SGR_REVERSE: {
-        struct color temp = vt->bg;
-        vt->bg = vt->fg;
-        vt->fg = temp;
-        break;
-    }
-
-    case ANSI_SGR_DEFAULTBG: {
-        vt->bg = default_bg;
-        break;
-    }
-
-    case ANSI_SGR_DEFAULTFG: {
-        vt->fg = default_fg;
-        break;
-    }
-
-    case ANSI_SGR_SLOWBLINK:
-    case ANSI_SGR_RAPIDBLINK: {
-        /* NOTE: We only support one blink speed, which is
-         * 2 times/s, 120 times per minute
-         */
-        /*if(!vt->blink_thread)
-        {
-            vt->blink_status = false;
-            vt->blink_thread =
-                sched_create_thread(vterm_blink_thread,
-                            THREAD_KERNEL, vt);
-            if(vt->blink_thread) sched_start_thread(vt->blink_thread);
-        }*/
-
-        /* TODO: We need a blink for text, fix */
-        break;
-    }
-
-    case ANSI_SGR_BLINKOFF: {
-        if (vt->blink_thread)
-            thread_destroy(vt->blink_thread);
-        break;
-    }
-
-    default: {
-        if (n >= ANSI_SGR_SETBGMIN && n <= ANSI_SGR_SETBGMAX)
-        {
-            int index = n - ANSI_SGR_SETBGMIN;
-            vt->bg = color_table[index];
+        case ANSI_SGR_RESET: {
+            vt->bg = default_bg;
+            vt->fg = default_fg;
+            break;
         }
-        else if (n >= ANSI_SGR_SETFGMIN && n <= ANSI_SGR_SETFGMAX)
-        {
-            int index = n - ANSI_SGR_SETFGMIN;
-            vt->fg = color_table[index];
+
+        case ANSI_SGR_REVERSE: {
+            struct color temp = vt->bg;
+            vt->bg = vt->fg;
+            vt->fg = temp;
+            break;
         }
-    }
+
+        case ANSI_SGR_DEFAULTBG: {
+            vt->bg = default_bg;
+            break;
+        }
+
+        case ANSI_SGR_DEFAULTFG: {
+            vt->fg = default_fg;
+            break;
+        }
+
+        case ANSI_SGR_SLOWBLINK:
+        case ANSI_SGR_RAPIDBLINK: {
+            /* NOTE: We only support one blink speed, which is
+             * 2 times/s, 120 times per minute
+             */
+            /*if(!vt->blink_thread)
+            {
+                vt->blink_status = false;
+                vt->blink_thread =
+                    sched_create_thread(vterm_blink_thread,
+                                THREAD_KERNEL, vt);
+                if(vt->blink_thread) sched_start_thread(vt->blink_thread);
+            }*/
+
+            /* TODO: We need a blink for text, fix */
+            break;
+        }
+
+        case ANSI_SGR_BLINKOFF: {
+            if (vt->blink_thread)
+                thread_destroy(vt->blink_thread);
+            break;
+        }
+
+        default: {
+            if (n >= ANSI_SGR_SETBGMIN && n <= ANSI_SGR_SETBGMAX)
+            {
+                int index = n - ANSI_SGR_SETBGMIN;
+                vt->bg = color_table[index];
+            }
+            else if (n >= ANSI_SGR_SETFGMIN && n <= ANSI_SGR_SETFGMAX)
+            {
+                int index = n - ANSI_SGR_SETFGMIN;
+                vt->fg = color_table[index];
+            }
+        }
     }
 }
 
@@ -704,46 +704,46 @@ void vterm_ansi_erase_in_line(unsigned long n, struct vterm *vt)
 {
     switch (n)
     {
-    /* Clear from cursor to end */
-    case 0: {
-        for (unsigned int i = vt->cursor_x; i < vt->columns; i++)
-        {
-            struct console_cell *c = &vt->cells[vt->cursor_y * vt->columns + i];
-            c->codepoint = ' ';
-            c->fg = vt->fg;
-            c->bg = vt->bg;
-            vterm_set_dirty(c);
+        /* Clear from cursor to end */
+        case 0: {
+            for (unsigned int i = vt->cursor_x; i < vt->columns; i++)
+            {
+                struct console_cell *c = &vt->cells[vt->cursor_y * vt->columns + i];
+                c->codepoint = ' ';
+                c->fg = vt->fg;
+                c->bg = vt->bg;
+                vterm_set_dirty(c);
+            }
+            break;
         }
-        break;
-    }
 
-    /* Clear from cursor to beginning */
-    case 1: {
-        unsigned int x = vt->cursor_x;
+        /* Clear from cursor to beginning */
+        case 1: {
+            unsigned int x = vt->cursor_x;
 
-        for (unsigned int i = 0; i <= x; i++)
-        {
-            struct console_cell *c = &vt->cells[vt->cursor_y * vt->columns + i];
-            c->codepoint = ' ';
-            c->fg = vt->fg;
-            c->bg = vt->bg;
-            vterm_set_dirty(c);
+            for (unsigned int i = 0; i <= x; i++)
+            {
+                struct console_cell *c = &vt->cells[vt->cursor_y * vt->columns + i];
+                c->codepoint = ' ';
+                c->fg = vt->fg;
+                c->bg = vt->bg;
+                vterm_set_dirty(c);
+            }
+            break;
         }
-        break;
-    }
 
-    /* Clear entire line */
-    case 2: {
-        for (unsigned int i = 0; i < vt->columns; i++)
-        {
-            struct console_cell *c = &vt->cells[vt->cursor_y * vt->columns + i];
-            c->codepoint = ' ';
-            c->fg = vt->fg;
-            c->bg = vt->bg;
-            vterm_set_dirty(c);
+        /* Clear entire line */
+        case 2: {
+            for (unsigned int i = 0; i < vt->columns; i++)
+            {
+                struct console_cell *c = &vt->cells[vt->cursor_y * vt->columns + i];
+                c->codepoint = ' ';
+                c->fg = vt->fg;
+                c->bg = vt->bg;
+                vterm_set_dirty(c);
+            }
+            break;
         }
-        break;
-    }
     }
 }
 
@@ -751,50 +751,50 @@ void vterm_ansi_erase_in_display(unsigned long n, struct vterm *vt)
 {
     switch (n)
     {
-    /* Cursor to end of display */
-    case 0: {
-        /* Calculate the cidx, then loop through until the end of the array */
-        unsigned int cidx = vt->cursor_y * vt->columns + vt->cursor_x;
-        unsigned int max = vt->rows * vt->columns;
-        if (cidx + 1 < cidx)
+        /* Cursor to end of display */
+        case 0: {
+            /* Calculate the cidx, then loop through until the end of the array */
+            unsigned int cidx = vt->cursor_y * vt->columns + vt->cursor_x;
+            unsigned int max = vt->rows * vt->columns;
+            if (cidx + 1 < cidx)
+                break;
+
+            unsigned int iters = max - cidx;
+
+            for (unsigned int i = 0; i < iters; i++)
+            {
+                struct console_cell *c = &vt->cells[cidx + i];
+                c->codepoint = ' ';
+                c->fg = vt->fg;
+                c->bg = vt->bg;
+                vterm_set_dirty(c);
+            }
+
             break;
-
-        unsigned int iters = max - cidx;
-
-        for (unsigned int i = 0; i < iters; i++)
-        {
-            struct console_cell *c = &vt->cells[cidx + i];
-            c->codepoint = ' ';
-            c->fg = vt->fg;
-            c->bg = vt->bg;
-            vterm_set_dirty(c);
         }
 
-        break;
-    }
+        /* Cursor to start of display */
+        case 1: {
+            unsigned int cidx = vt->cursor_y * vt->columns + vt->cursor_x;
 
-    /* Cursor to start of display */
-    case 1: {
-        unsigned int cidx = vt->cursor_y * vt->columns + vt->cursor_x;
+            for (unsigned int i = 0; i <= cidx; i++)
+            {
+                struct console_cell *c = &vt->cells[i];
+                c->codepoint = ' ';
+                c->fg = vt->fg;
+                c->bg = vt->bg;
+                vterm_set_dirty(c);
+            }
 
-        for (unsigned int i = 0; i <= cidx; i++)
-        {
-            struct console_cell *c = &vt->cells[i];
-            c->codepoint = ' ';
-            c->fg = vt->fg;
-            c->bg = vt->bg;
-            vterm_set_dirty(c);
+            break;
         }
 
-        break;
-    }
-
-    /* Whole screen */
-    case 2:
-    case 3: {
-        vterm_fill_screen(vt, ' ', vt->fg, vt->bg);
-        break;
-    }
+        /* Whole screen */
+        case 2:
+        case 3: {
+            vterm_fill_screen(vt, ' ', vt->fg, vt->bg);
+            break;
+        }
     }
 
     vterm_flush(vt);
@@ -851,8 +851,8 @@ void vterm::do_dec_command(char c)
 {
     switch (c)
     {
-    case DEC_DECALN:
-        vterm_fill_screen(this, 'E', fg, bg);
+        case DEC_DECALN:
+            vterm_fill_screen(this, 'E', fg, bg);
     }
 }
 
@@ -860,19 +860,19 @@ void vterm::do_generic_escape(char escape)
 {
     switch (escape)
     {
-    case 'D': {
-        vterm_ansi_adjust_cursor(ANSI_CURSOR_DOWN, 1, this);
-        break;
-    }
-    case 'M': {
-        vterm_ansi_adjust_cursor(ANSI_CURSOR_UP, 1, this);
-        break;
-    }
-    case 'E': {
-        vterm_ansi_adjust_cursor(ANSI_CURSOR_DOWN, 1, this);
-        cursor_x = 0;
-        break;
-    }
+        case 'D': {
+            vterm_ansi_adjust_cursor(ANSI_CURSOR_DOWN, 1, this);
+            break;
+        }
+        case 'M': {
+            vterm_ansi_adjust_cursor(ANSI_CURSOR_UP, 1, this);
+            break;
+        }
+        case 'E': {
+            vterm_ansi_adjust_cursor(ANSI_CURSOR_DOWN, 1, this);
+            cursor_x = 0;
+            break;
+        }
     }
 }
 
@@ -890,22 +890,22 @@ void vterm::do_device_status_report(unsigned long nr)
 {
     switch (nr)
     {
-    // Command from host – Please report status (using a DSR control sequence)
-    case 5: {
-        // Only two responses possible
-        // Ps = 0 -> terminal is fine
-        // Ps = 3 -> malfunction
-        // As we are a virtual terminal I don't see a usecase for malfunction here.
-        tty_send_response(tty, (char *) "\x1b[0n");
-        break;
-    }
-    // Command from host - Please report active position (using a CPR control sequence)
-    case 6: {
-        char buffer[20];
-        snprintf(buffer, 20, "\x1b[%u;%uR", cursor_y + 1, cursor_x + 1);
-        tty_send_response(tty, buffer);
-        break;
-    }
+        // Command from host – Please report status (using a DSR control sequence)
+        case 5: {
+            // Only two responses possible
+            // Ps = 0 -> terminal is fine
+            // Ps = 3 -> malfunction
+            // As we are a virtual terminal I don't see a usecase for malfunction here.
+            tty_send_response(tty, (char *) "\x1b[0n");
+            break;
+        }
+        // Command from host - Please report active position (using a CPR control sequence)
+        case 6: {
+            char buffer[20];
+            snprintf(buffer, 20, "\x1b[%u;%uR", cursor_y + 1, cursor_x + 1);
+            tty_send_response(tty, buffer);
+            break;
+        }
     }
 }
 
@@ -994,44 +994,44 @@ void vterm::process_escape_char(char c)
 {
     switch (c)
     {
-    case ANSI_ESCAPE_CODE: {
-        if (in_escape)
-        {
-            // platform_serial_write("Reset", strlen("Reset"));
-            reset_escape_status();
+        case ANSI_ESCAPE_CODE: {
+            if (in_escape)
+            {
+                // platform_serial_write("Reset", strlen("Reset"));
+                reset_escape_status();
+            }
+
+            // platform_serial_write("InEsc", strlen("InEsc"));
+
+            in_escape = true;
+            break;
         }
 
-        // platform_serial_write("InEsc", strlen("InEsc"));
-
-        in_escape = true;
-        break;
-    }
-
-    case ANSI_CSI: {
-        // We should have only gotten here if we got an escape character before
-        // so we don't need to check for in_escape
-        in_csi = true;
-        break;
-    }
-
-    case DEC_CSI: {
-        in_dec = true;
-        break;
-    }
-
-    default: {
-        if (in_csi)
-            process_csi_char(c);
-        else if (in_dec)
-            process_dec_char(c);
-        else
-        {
-            csi_data.escape_character = c;
-            seq_finished = true;
+        case ANSI_CSI: {
+            // We should have only gotten here if we got an escape character before
+            // so we don't need to check for in_escape
+            in_csi = true;
+            break;
         }
 
-        break;
-    }
+        case DEC_CSI: {
+            in_dec = true;
+            break;
+        }
+
+        default: {
+            if (in_csi)
+                process_csi_char(c);
+            else if (in_dec)
+                process_dec_char(c);
+            else
+            {
+                csi_data.escape_character = c;
+                seq_finished = true;
+            }
+
+            break;
+        }
     }
 }
 
@@ -1043,150 +1043,150 @@ void vterm::do_csi_command(char escape)
     auto &args = csi_data.args;
     switch (escape)
     {
-    case ANSI_CURSOR_UP:
-    case ANSI_CURSOR_DOWN:
-    case ANSI_CURSOR_FORWARD:
-    case ANSI_CURSOR_BACK:
-    case CSI_VPR: {
-        vterm_ansi_adjust_cursor(escape, csi_data.args[0], this);
-        break;
-    }
-
-    case ANSI_CURSOR_PREVIOUS: {
-        /* Do a ANSI_CURSOR_UP and set x to 0 (beginning of line) */
-        vterm_ansi_adjust_cursor(ANSI_CURSOR_UP, args[0], this);
-        cursor_x = 0;
-        break;
-    }
-
-    case ANSI_CURSOR_NEXT_LINE: {
-        /* Do a ANSI_CURSOR_DOWN and set x to 0 (beginning of line) */
-        vterm_ansi_adjust_cursor(ANSI_CURSOR_DOWN, args[0], this);
-        cursor_x = 0;
-        break;
-    }
-
-    case ANSI_CURSOR_HORIZONTAL_ABS: {
-        if (args[0] > columns - 1)
-            args[0] = columns - 1;
-        cursor_x = args[0];
-        break;
-    }
-
-    case ANSI_CURSOR_POS:
-    case ANSI_HVP: {
-        if (args[0] == 0)
-            args[0] = 1;
-        if (args[1] == 0)
-            args[1] = 1;
-
-        vterm_ansi_do_cup(args[1], args[0], this);
-        break;
-    }
-
-    case ANSI_SCROLL_UP: {
-        for (unsigned long i = 0; i < args[0]; i++)
-            vterm_scroll(fb, this);
-        vterm_flush_all(this);
-        break;
-    }
-
-    case ANSI_SCROLL_DOWN: {
-        for (unsigned long i = 0; i < args[0]; i++)
-            vterm_scroll_down(fb, this);
-        vterm_flush_all(this);
-        break;
-    }
-
-    case ANSI_SGR: {
-        // If no args are given, CSI m = CSI 0 m (reset)
-        if (!csi_data.nr_args)
-        {
-            args[0] = 0;
-            csi_data.nr_args = 1;
+        case ANSI_CURSOR_UP:
+        case ANSI_CURSOR_DOWN:
+        case ANSI_CURSOR_FORWARD:
+        case ANSI_CURSOR_BACK:
+        case CSI_VPR: {
+            vterm_ansi_adjust_cursor(escape, csi_data.args[0], this);
+            break;
         }
 
-        for (size_t i = 0; i < csi_data.nr_args; i++)
-            vterm_ansi_do_sgr(args[i], this);
-        break;
-    }
+        case ANSI_CURSOR_PREVIOUS: {
+            /* Do a ANSI_CURSOR_UP and set x to 0 (beginning of line) */
+            vterm_ansi_adjust_cursor(ANSI_CURSOR_UP, args[0], this);
+            cursor_x = 0;
+            break;
+        }
 
-    case ANSI_ERASE_IN_LINE: {
-        vterm_ansi_erase_in_line(args[0], this);
-        break;
-    }
+        case ANSI_CURSOR_NEXT_LINE: {
+            /* Do a ANSI_CURSOR_DOWN and set x to 0 (beginning of line) */
+            vterm_ansi_adjust_cursor(ANSI_CURSOR_DOWN, args[0], this);
+            cursor_x = 0;
+            break;
+        }
 
-    case ANSI_ERASE_IN_DISPLAY: {
-        vterm_ansi_erase_in_display(args[0], this);
-        break;
-    }
+        case ANSI_CURSOR_HORIZONTAL_ABS: {
+            if (args[0] > columns - 1)
+                args[0] = columns - 1;
+            cursor_x = args[0];
+            break;
+        }
 
-    case ANSI_SAVE_CURSOR: {
-        saved_x = cursor_x;
-        saved_y = cursor_y;
-        break;
-    }
+        case ANSI_CURSOR_POS:
+        case ANSI_HVP: {
+            if (args[0] == 0)
+                args[0] = 1;
+            if (args[1] == 0)
+                args[1] = 1;
 
-    case ANSI_RESTORE_CURSOR: {
-        cursor_x = saved_x;
-        cursor_y = saved_y;
-        break;
-    }
+            vterm_ansi_do_cup(args[1], args[0], this);
+            break;
+        }
 
-    case CSI_DELETE_CHARS: {
-        if (args[0] == 0)
-            args[0] = 1;
-        vterm_csi_delete_chars(args[0], this);
-        break;
-    }
+        case ANSI_SCROLL_UP: {
+            for (unsigned long i = 0; i < args[0]; i++)
+                vterm_scroll(fb, this);
+            vterm_flush_all(this);
+            break;
+        }
 
-    case CSI_INSERT_BLANK: {
-        if (args[0] == 0)
-            args[0] = 1;
+        case ANSI_SCROLL_DOWN: {
+            for (unsigned long i = 0; i < args[0]; i++)
+                vterm_scroll_down(fb, this);
+            vterm_flush_all(this);
+            break;
+        }
 
-        insert_blank(args[0]);
-        break;
-    }
+        case ANSI_SGR: {
+            // If no args are given, CSI m = CSI 0 m (reset)
+            if (!csi_data.nr_args)
+            {
+                args[0] = 0;
+                csi_data.nr_args = 1;
+            }
 
-    case CSI_DEVICE_ATTRIBUTES: {
-        do_device_attributes(args[0]);
-        break;
-    }
+            for (size_t i = 0; i < csi_data.nr_args; i++)
+                vterm_ansi_do_sgr(args[i], this);
+            break;
+        }
 
-    case CSI_DEVICE_STATUS_REPORT: {
-        do_device_status_report(args[0]);
-        break;
-    }
+        case ANSI_ERASE_IN_LINE: {
+            vterm_ansi_erase_in_line(args[0], this);
+            break;
+        }
 
-    case CSI_VPA: {
-        if (!args[0])
-            args[0] = 1;
-        vterm_cursor_set_line(args[0], this);
-        break;
-    }
+        case ANSI_ERASE_IN_DISPLAY: {
+            vterm_ansi_erase_in_display(args[0], this);
+            break;
+        }
 
-    case CSI_INSERT_LINE: {
-        if (args[0] == 0)
-            args[0] = 1;
+        case ANSI_SAVE_CURSOR: {
+            saved_x = cursor_x;
+            saved_y = cursor_y;
+            break;
+        }
 
-        insert_lines(args[0]);
-        break;
-    }
+        case ANSI_RESTORE_CURSOR: {
+            cursor_x = saved_x;
+            cursor_y = saved_y;
+            break;
+        }
 
-    case CSI_DELETE_LINE: {
-        if (args[0] == 0)
-            args[0] = 1;
+        case CSI_DELETE_CHARS: {
+            if (args[0] == 0)
+                args[0] = 1;
+            vterm_csi_delete_chars(args[0], this);
+            break;
+        }
 
-        // delete_lines(args[0]);
-        break;
-    }
+        case CSI_INSERT_BLANK: {
+            if (args[0] == 0)
+                args[0] = 1;
 
-    case CSI_REP: {
-        if (args[0] == 0)
-            args[0] = 1;
-        repeat_last(args[0]);
-        break;
-    }
+            insert_blank(args[0]);
+            break;
+        }
+
+        case CSI_DEVICE_ATTRIBUTES: {
+            do_device_attributes(args[0]);
+            break;
+        }
+
+        case CSI_DEVICE_STATUS_REPORT: {
+            do_device_status_report(args[0]);
+            break;
+        }
+
+        case CSI_VPA: {
+            if (!args[0])
+                args[0] = 1;
+            vterm_cursor_set_line(args[0], this);
+            break;
+        }
+
+        case CSI_INSERT_LINE: {
+            if (args[0] == 0)
+                args[0] = 1;
+
+            insert_lines(args[0]);
+            break;
+        }
+
+        case CSI_DELETE_LINE: {
+            if (args[0] == 0)
+                args[0] = 1;
+
+            // delete_lines(args[0]);
+            break;
+        }
+
+        case CSI_REP: {
+            if (args[0] == 0)
+                args[0] = 1;
+            repeat_last(args[0]);
+            break;
+        }
     }
 }
 
@@ -1332,19 +1332,19 @@ unsigned int vterm_ioctl_tty(int request, void *argp, struct tty *tty)
 
     switch (request)
     {
-    case TIOCGWINSZ: {
-        struct winsize *win = (winsize *) argp;
-        struct winsize kwin = {};
-        kwin.ws_row = vt->rows;
-        kwin.ws_col = vt->columns;
-        kwin.ws_xpixel = vt->fb->width;
-        kwin.ws_ypixel = vt->fb->height;
-        if (copy_to_user(win, &kwin, sizeof(struct winsize)) < 0)
-            return -EFAULT;
-        return 0;
-    }
-    default:
-        return -EINVAL;
+        case TIOCGWINSZ: {
+            struct winsize *win = (winsize *) argp;
+            struct winsize kwin = {};
+            kwin.ws_row = vt->rows;
+            kwin.ws_col = vt->columns;
+            kwin.ws_xpixel = vt->fb->width;
+            kwin.ws_ypixel = vt->fb->height;
+            if (copy_to_user(win, &kwin, sizeof(struct winsize)) < 0)
+                return -EFAULT;
+            return 0;
+        }
+        default:
+            return -EINVAL;
     }
 }
 
@@ -1363,7 +1363,7 @@ void vterm_init(struct tty *tty)
     vt->fb = fb;
     vt->cells =
         (console_cell *) vmalloc(vm_size_to_pages(vt->columns * vt->rows * sizeof(*vt->cells)),
-                                 VM_TYPE_REGULAR, VM_READ | VM_WRITE | VM_NOEXEC);
+                                 VM_TYPE_REGULAR, VM_READ | VM_WRITE);
     assert(vt->cells != NULL);
 
     vt->fg = default_fg;
@@ -1616,16 +1616,16 @@ void vterm_handle_message(struct vterm_message *msg, struct vterm *vt)
 {
     switch (msg->message)
     {
-    case VTERM_MESSAGE_FLUSH:
-        do_vterm_flush(vt);
-        break;
-    case VTERM_MESSAGE_FLUSH_ALL:
-        do_vterm_flush_all(vt);
-        break;
-    case VTERM_MESSAGE_DIE:
-        sched_sleep_until_wake();
-        do_vterm_flush_all(vt);
-        break;
+        case VTERM_MESSAGE_FLUSH:
+            do_vterm_flush(vt);
+            break;
+        case VTERM_MESSAGE_FLUSH_ALL:
+            do_vterm_flush_all(vt);
+            break;
+        case VTERM_MESSAGE_DIE:
+            sched_sleep_until_wake();
+            do_vterm_flush_all(vt);
+            break;
     }
 }
 

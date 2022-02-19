@@ -366,22 +366,22 @@ int do_getrusage(int who, rusage *usage, process *proc)
 
     switch (who)
     {
-    case RUSAGE_BOTH:
-    case RUSAGE_CHILDREN:
-        utime = proc->children_utime;
-        stime = proc->children_stime;
+        case RUSAGE_BOTH:
+        case RUSAGE_CHILDREN:
+            utime = proc->children_utime;
+            stime = proc->children_stime;
 
-        if (who == RUSAGE_CHILDREN)
+            if (who == RUSAGE_CHILDREN)
+                break;
+
+            [[fallthrough]];
+        case RUSAGE_SELF:
+            utime += proc->user_time;
+            stime += proc->system_time;
             break;
 
-        [[fallthrough]];
-    case RUSAGE_SELF:
-        utime += proc->user_time;
-        stime += proc->system_time;
-        break;
-
-    default:
-        return -EINVAL;
+        default:
+            return -EINVAL;
     }
 
     hrtime_to_timeval(utime, &usage->ru_utime);
@@ -1073,46 +1073,46 @@ ssize_t process::query_get_strings(void *ubuf, ssize_t len, unsigned long what, 
 {
     switch (what)
     {
-    case PROCESS_GET_NAME: {
-        scoped_mutex g{name_lock};
-        ssize_t length = (ssize_t) name.length() + 1;
-        *howmany = length;
+        case PROCESS_GET_NAME: {
+            scoped_mutex g{name_lock};
+            ssize_t length = (ssize_t) name.length() + 1;
+            *howmany = length;
 
-        if (len < length)
-        {
-            return -ENOSPC;
+            if (len < length)
+            {
+                return -ENOSPC;
+            }
+
+            if (copy_to_user(ubuf, name.data(), name.length()) < 0)
+            {
+                return -EFAULT;
+            }
+
+            // Don't forget to null-terminate the buffer!
+            if (user_memset((void *) ((char *) ubuf + length - 1), '\0', 1) < 0)
+            {
+                return -EFAULT;
+            }
+
+            return length;
         }
 
-        if (copy_to_user(ubuf, name.data(), name.length()) < 0)
-        {
-            return -EFAULT;
+        case PROCESS_GET_PATH: {
+            ssize_t length = (ssize_t) cmd_line.length() + 1;
+            *howmany = length;
+
+            if (len < length)
+            {
+                return -ENOSPC;
+            }
+
+            if (copy_to_user(ubuf, cmd_line.c_str(), length) < 0)
+            {
+                return -EFAULT;
+            }
+
+            return length;
         }
-
-        // Don't forget to null-terminate the buffer!
-        if (user_memset((void *) ((char *) ubuf + length - 1), '\0', 1) < 0)
-        {
-            return -EFAULT;
-        }
-
-        return length;
-    }
-
-    case PROCESS_GET_PATH: {
-        ssize_t length = (ssize_t) cmd_line.length() + 1;
-        *howmany = length;
-
-        if (len < length)
-        {
-            return -ENOSPC;
-        }
-
-        if (copy_to_user(ubuf, cmd_line.c_str(), length) < 0)
-        {
-            return -EFAULT;
-        }
-
-        return length;
-    }
     }
 
     return -EINVAL;
@@ -1161,15 +1161,15 @@ ssize_t process::query(void *ubuf, ssize_t len, unsigned long what, size_t *howm
 {
     switch (what)
     {
-    case PROCESS_GET_NAME:
-    case PROCESS_GET_PATH:
-        return query_get_strings(ubuf, len, what, howmany, arg);
-    case PROCESS_GET_MM_INFO:
-        return query_mm_info(ubuf, len, what, howmany, arg);
-    case PROCESS_GET_VM_REGIONS:
-        return query_vm_regions(ubuf, len, what, howmany, arg);
-    default:
-        return -EINVAL;
+        case PROCESS_GET_NAME:
+        case PROCESS_GET_PATH:
+            return query_get_strings(ubuf, len, what, howmany, arg);
+        case PROCESS_GET_MM_INFO:
+            return query_mm_info(ubuf, len, what, howmany, arg);
+        case PROCESS_GET_VM_REGIONS:
+            return query_vm_regions(ubuf, len, what, howmany, arg);
+        default:
+            return -EINVAL;
     }
 }
 
@@ -1238,7 +1238,7 @@ ssize_t process::query_vm_regions(void *ubuf, ssize_t len, unsigned long what, s
             reg->protection |= VM_REGION_PROT_READ;
         if (region->rwx & VM_WRITE)
             reg->protection |= VM_REGION_PROT_WRITE;
-        if (!(region->rwx & VM_NOEXEC))
+        if (region->rwx & VM_EXEC)
             reg->protection |= VM_REGION_PROT_EXEC;
         if (region->rwx & VM_NOCACHE)
             reg->protection |= VM_REGION_PROT_NOCACHE;

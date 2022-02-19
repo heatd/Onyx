@@ -309,8 +309,8 @@ public:
 
         if constexpr (using_vm)
         {
-            void *vmalloc_seg = vmalloc(allocation_size >> PAGE_SHIFT, VM_TYPE_REGULAR,
-                                        VM_READ | VM_WRITE | VM_NOEXEC);
+            void *vmalloc_seg =
+                vmalloc(allocation_size >> PAGE_SHIFT, VM_TYPE_REGULAR, VM_READ | VM_WRITE);
             if (!vmalloc_seg)
                 return false;
             seg.set_vmalloc_seg(vmalloc_seg);

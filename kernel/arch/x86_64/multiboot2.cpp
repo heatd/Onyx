@@ -93,8 +93,8 @@ void init_multiboot2_framebuffer(struct multiboot_tag_framebuffer *tagfb)
     size_t framebuffer_size = fb.width * fb.height * (fb.bpp / CHAR_BIT);
     fb.framebuffer_size = framebuffer_size;
 
-    fb.framebuffer = mmiomap((void *) fb.framebuffer_phys, framebuffer_size,
-                             VM_READ | VM_WRITE | VM_NOEXEC | VM_WC);
+    fb.framebuffer =
+        mmiomap((void *) fb.framebuffer_phys, framebuffer_size, VM_READ | VM_WRITE | VM_WC);
 
     if (!fb.framebuffer)
     {
@@ -208,44 +208,44 @@ extern "C" void multiboot2_kernel_entry(uintptr_t addr, uint32_t magic)
     {
         switch (vtag->type)
         {
-        case MULTIBOOT_TAG_TYPE_MMAP: {
-            mmap_tag = (struct multiboot_tag_mmap *) tag;
-            break;
-        }
-        case MULTIBOOT_TAG_TYPE_FRAMEBUFFER: {
-            tagfb = (struct multiboot_tag_framebuffer *) tag;
-            break;
-        }
-        case MULTIBOOT_TAG_TYPE_MODULE: {
-            initrd_tag = (struct multiboot_tag_module *) tag;
-            break;
-        }
-        case MULTIBOOT_TAG_TYPE_ELF_SECTIONS: {
-            secs = (struct multiboot_tag_elf_sections *) tag;
-            break;
-        }
-        case MULTIBOOT_TAG_TYPE_CMDLINE: {
-            struct multiboot_tag_string *t = (struct multiboot_tag_string *) vtag;
-            set_kernel_cmdline(t->string);
-            break;
-        }
-        case MULTIBOOT_TAG_TYPE_ACPI_NEW: {
-            struct multiboot_tag_new_acpi *acpi = (struct multiboot_tag_new_acpi *) vtag;
-            memcpy(&grub2_rsdp, &acpi->rsdp, sizeof(ACPI_TABLE_RSDP));
-            grub2_rsdp_valid = true;
-            break;
-        }
-        case MULTIBOOT_TAG_TYPE_ACPI_OLD: {
-            struct multiboot_tag_old_acpi *acpi = (struct multiboot_tag_old_acpi *) vtag;
-            memcpy(&grub2_rsdp, &acpi->rsdp, sizeof(ACPI_TABLE_RSDP));
-            grub2_rsdp_valid = true;
-            break;
-        }
-        case MULTIBOOT_TAG_TYPE_EFI64: {
-            efi64_present = true;
-            memcpy(&efi64_mb2, vtag, sizeof(struct multiboot_tag_efi64));
-            break;
-        }
+            case MULTIBOOT_TAG_TYPE_MMAP: {
+                mmap_tag = (struct multiboot_tag_mmap *) tag;
+                break;
+            }
+            case MULTIBOOT_TAG_TYPE_FRAMEBUFFER: {
+                tagfb = (struct multiboot_tag_framebuffer *) tag;
+                break;
+            }
+            case MULTIBOOT_TAG_TYPE_MODULE: {
+                initrd_tag = (struct multiboot_tag_module *) tag;
+                break;
+            }
+            case MULTIBOOT_TAG_TYPE_ELF_SECTIONS: {
+                secs = (struct multiboot_tag_elf_sections *) tag;
+                break;
+            }
+            case MULTIBOOT_TAG_TYPE_CMDLINE: {
+                struct multiboot_tag_string *t = (struct multiboot_tag_string *) vtag;
+                set_kernel_cmdline(t->string);
+                break;
+            }
+            case MULTIBOOT_TAG_TYPE_ACPI_NEW: {
+                struct multiboot_tag_new_acpi *acpi = (struct multiboot_tag_new_acpi *) vtag;
+                memcpy(&grub2_rsdp, &acpi->rsdp, sizeof(ACPI_TABLE_RSDP));
+                grub2_rsdp_valid = true;
+                break;
+            }
+            case MULTIBOOT_TAG_TYPE_ACPI_OLD: {
+                struct multiboot_tag_old_acpi *acpi = (struct multiboot_tag_old_acpi *) vtag;
+                memcpy(&grub2_rsdp, &acpi->rsdp, sizeof(ACPI_TABLE_RSDP));
+                grub2_rsdp_valid = true;
+                break;
+            }
+            case MULTIBOOT_TAG_TYPE_EFI64: {
+                efi64_present = true;
+                memcpy(&efi64_mb2, vtag, sizeof(struct multiboot_tag_efi64));
+                break;
+            }
         }
     }
 

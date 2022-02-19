@@ -192,12 +192,12 @@ static uint8_t bio_req_to_ata_command(struct bio_req *req)
 
     switch (op)
     {
-    case BIO_REQ_READ_OP:
-        return ATA_CMD_READ_DMA_EXT;
-    case BIO_REQ_WRITE_OP:
-        return ATA_CMD_WRITE_DMA_EXT;
-    default:
-        return ATA_CMD_ERR_BAD_REQ;
+        case BIO_REQ_READ_OP:
+            return ATA_CMD_READ_DMA_EXT;
+        case BIO_REQ_WRITE_OP:
+            return ATA_CMD_WRITE_DMA_EXT;
+        default:
+            return ATA_CMD_ERR_BAD_REQ;
     }
 }
 
@@ -575,12 +575,12 @@ void ahci_probe_ports(int n_ports, ahci_hba_memory_regs_t *hba)
             {
                 switch (type)
                 {
-                case SATA_SIG_ATA:
-                    MPRINTF("Found a SATA drive on port %u\n", i);
-                    break;
-                case SATA_SIG_ATAPI:
-                    MPRINTF("Found a SATAPI drive on port %u\n", i);
-                    break;
+                    case SATA_SIG_ATA:
+                        MPRINTF("Found a SATA drive on port %u\n", i);
+                        break;
+                    case SATA_SIG_ATAPI:
+                        MPRINTF("Found a SATAPI drive on port %u\n", i);
+                        break;
                 }
             }
         }
@@ -594,16 +594,16 @@ const char *ahci_get_if_speed(ahci_hba_memory_regs_t *hba)
     unsigned int interface_speed = AHCI_CAP_INTERFACE_SPEED(hba->host_cap);
     switch (interface_speed)
     {
-    case 0:
-        return "<invalid>";
-    case 1:
-        return "Gen 1(1.5 Gbps)";
-    case 2:
-        return "Gen 2(3 Gbps)";
-    case 3:
-        return "Gen 3(6 Gbps)";
-    default:
-        return "<invalid>";
+        case 0:
+            return "<invalid>";
+        case 1:
+            return "Gen 1(1.5 Gbps)";
+        case 2:
+            return "Gen 2(3 Gbps)";
+        case 3:
+            return "Gen 3(6 Gbps)";
+        default:
+            return "<invalid>";
     }
 }
 
@@ -663,20 +663,20 @@ const char *ahci_stringify_version(uint32_t version)
 {
     switch (version)
     {
-    case 0x00000905:
-        return "0.95";
-    case 0x00010000:
-        return "1.0";
-    case 0x00010100:
-        return "1.1";
-    case 0x00010200:
-        return "1.2";
-    case 0x00010300:
-        return "1.3";
-    case 0x00010301:
-        return "1.3.1";
-    default:
-        return "unknown";
+        case 0x00000905:
+            return "0.95";
+        case 0x00010000:
+            return "1.0";
+        case 0x00010100:
+            return "1.1";
+        case 0x00010200:
+            return "1.2";
+        case 0x00010300:
+            return "1.3";
+        case 0x00010301:
+            return "1.3.1";
+        default:
+            return "unknown";
     }
 }
 
@@ -772,8 +772,7 @@ int ahci_allocate_port_lists(ahci_hba_memory_regs_t *hba, ahci_port_t *port,
     if ((uintptr_t) fisb > UINT32_MAX && addr64_supported == false)
         goto error;
 
-    _port->clist =
-        (command_list_t *) mmiomap(command_list, PAGE_SIZE, VM_READ | VM_WRITE | VM_NOEXEC);
+    _port->clist = (command_list_t *) mmiomap(command_list, PAGE_SIZE, VM_READ | VM_WRITE);
     if (!_port->clist)
         goto error;
 
@@ -843,25 +842,25 @@ int ahci_do_identify(struct ahci_port *port)
 {
     switch (port->port->sig)
     {
-    case SATA_SIG_ATA: {
-        struct ahci_command_ata command = {};
-        command.size = 512;
-        command.write = false;
-        command.lba = 0;
-        command.cmd = ATA_CMD_IDENTIFY;
-        command.buffer = &port->identify;
+        case SATA_SIG_ATA: {
+            struct ahci_command_ata command = {};
+            command.size = 512;
+            command.write = false;
+            command.lba = 0;
+            command.cmd = ATA_CMD_IDENTIFY;
+            command.buffer = &port->identify;
 
-        if (!ahci_do_command(port, &command))
-        {
-            printf("ATA_CMD_IDENTIFY failed!\n");
-            perror("error");
-            return -1;
+            if (!ahci_do_command(port, &command))
+            {
+                printf("ATA_CMD_IDENTIFY failed!\n");
+                perror("error");
+                return -1;
+            }
+
+            break;
         }
-
-        break;
-    }
-    default:
-        return -1;
+        default:
+            return -1;
     }
     return 0;
 }

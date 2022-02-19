@@ -85,8 +85,8 @@ void lapic_init(void)
     uint64_t addr = rdmsr(IA32_APIC_BASE);
     addr &= 0xFFFFF000;
     /* Map the BSP's LAPIC */
-    bsp_lapic = (volatile uint32_t *) mmiomap((void *) addr, PAGE_SIZE,
-                                              VM_READ | VM_WRITE | VM_NOEXEC | VM_NOCACHE);
+    bsp_lapic =
+        (volatile uint32_t *) mmiomap((void *) addr, PAGE_SIZE, VM_READ | VM_WRITE | VM_NOCACHE);
 
     assert(bsp_lapic != NULL);
 
@@ -304,7 +304,7 @@ void ioapic_early_init(void)
     /* TODO: Detecting I/O APICs should be a good idea */
     /* Map the I/O APIC base */
     ioapic_base = (volatile char *) mmiomap((void *) IOAPIC_BASE_PHYS, PAGE_SIZE,
-                                            VM_READ | VM_WRITE | VM_NOEXEC | VM_NOCACHE);
+                                            VM_READ | VM_WRITE | VM_NOCACHE);
     assert(ioapic_base != NULL);
 }
 
@@ -774,7 +774,7 @@ void lapic_init_per_cpu(void)
     addr &= 0xFFFFF000;
     /* Map the BSP's LAPIC */
     uintptr_t _lapic =
-        (uintptr_t) mmiomap((void *) addr, PAGE_SIZE, VM_READ | VM_WRITE | VM_NOEXEC | VM_NOCACHE);
+        (uintptr_t) mmiomap((void *) addr, PAGE_SIZE, VM_READ | VM_WRITE | VM_NOCACHE);
     assert(_lapic != 0);
 
     write_per_cpu(lapic, _lapic);

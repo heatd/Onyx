@@ -375,7 +375,7 @@ void *paging_map_phys_to_virt(struct mm_address_space *as, uint64_t virt, uint64
         }
     }
 
-    bool noexec = prot & VM_NOEXEC ? true : false;
+    bool noexec = !(prot & VM_EXEC);
     bool global = prot & VM_USER ? false : true;
     user = prot & VM_USER ? true : false;
     bool write = prot & VM_WRITE ? true : false;
@@ -607,7 +607,7 @@ bool __paging_change_perms(struct mm_address_space *mm, void *addr, int prot)
     uint64_t perms = pt_entry & X86_PAGING_FLAGS_TO_SAVE_ON_MPROTECT;
     uint64_t page = PML_EXTRACT_ADDRESS(pt_entry);
 
-    if (prot & VM_NOEXEC)
+    if (!(prot & VM_EXEC))
         perms |= X86_PAGING_NX;
     if (prot & VM_WRITE)
         perms |= X86_PAGING_WRITE;
@@ -716,11 +716,11 @@ void paging_protect_kernel(void)
 
     size_t size = (uintptr_t) &_text_end - text_start;
     map_pages_to_vaddr((void *) text_start, (void *) (text_start - KERNEL_VIRTUAL_BASE), size,
-                       VM_READ);
+                       VM_READ | VM_EXEC);
 
     size = (uintptr_t) &_data_end - data_start;
     map_pages_to_vaddr((void *) data_start, (void *) (data_start - KERNEL_VIRTUAL_BASE), size,
-                       VM_WRITE | VM_READ | VM_NOEXEC);
+                       VM_WRITE | VM_READ);
 
     size = (uintptr_t) &_vdso_sect_end - vdso_start;
     map_pages_to_vaddr((void *) vdso_start, (void *) (vdso_start - KERNEL_VIRTUAL_BASE), size,
@@ -939,7 +939,7 @@ void vm_mmu_mprotect_page(struct mm_address_space *as, void *addr, int old_prots
     // printk("new prots: %x\n", new_prots);
 
     unsigned long paddr = PML_EXTRACT_ADDRESS(*ptentry);
-    bool noexec = new_prots & VM_NOEXEC ? true : false;
+    bool noexec = !(new_prots & VM_EXEC);
     bool global = new_prots & VM_USER ? false : true;
     bool user = new_prots & VM_USER ? true : false;
     bool write = new_prots & VM_WRITE ? true : false;

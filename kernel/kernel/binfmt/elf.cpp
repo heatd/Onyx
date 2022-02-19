@@ -152,24 +152,24 @@ __attribute__((no_sanitize_undefined)) int elf_relocate_addend(struct elf_loader
 
         switch (ELF64_R_TYPE(rela->r_info))
         {
-        case R_X86_64_NONE:
-            break;
-        case R_X86_64_64:
-            *p = RELOCATE_R_X86_64_64(sym, rela->r_addend);
-            break;
-        case R_X86_64_32S:
-            *ptr32s = RELOCATE_R_X86_64_32S(sym, rela->r_addend);
-            break;
-        case R_X86_64_32:
-            *ptr32u = RELOCATE_R_X86_64_32(sym, rela->r_addend);
-            break;
-        case R_X86_64_PC32:
-        case R_X86_64_PLT32:
-            *ptr32u = RELOCATE_R_X86_64_PC32(sym, rela->r_addend, (uintptr_t) p);
-            break;
-        default:
-            printk("Unsuported relocation %lu!\n", ELF64_R_TYPE(rela->r_info));
-            return -1;
+            case R_X86_64_NONE:
+                break;
+            case R_X86_64_64:
+                *p = RELOCATE_R_X86_64_64(sym, rela->r_addend);
+                break;
+            case R_X86_64_32S:
+                *ptr32s = RELOCATE_R_X86_64_32S(sym, rela->r_addend);
+                break;
+            case R_X86_64_32:
+                *ptr32u = RELOCATE_R_X86_64_32(sym, rela->r_addend);
+                break;
+            case R_X86_64_PC32:
+            case R_X86_64_PLT32:
+                *ptr32u = RELOCATE_R_X86_64_PC32(sym, rela->r_addend, (uintptr_t) p);
+                break;
+            default:
+                printk("Unsuported relocation %lu!\n", ELF64_R_TYPE(rela->r_info));
+                return -1;
         }
     }
     return 0;
@@ -210,13 +210,13 @@ void *elf_load(struct binfmt_args *args)
     void *entry = nullptr;
     switch (header->e_ident[EI_CLASS])
     {
-    case ELFCLASS32:
-        free(header);
-        /* TODO: Add an elf32 loader */
-        return errno = EINVAL, nullptr;
-    case ELFCLASS64:
-        entry = elf64_load(args, header);
-        break;
+        case ELFCLASS32:
+            free(header);
+            /* TODO: Add an elf32 loader */
+            return errno = EINVAL, nullptr;
+        case ELFCLASS64:
+            entry = elf64_load(args, header);
+            break;
     }
 
     free(header);
@@ -346,7 +346,7 @@ void elf_create_module_layout(struct elf_loader_context *ctx, struct module *mod
 #define ELF_MODULE_RO   1
 #define ELF_MODULE_DATA 2
 
-const int module_prots[] = {0, VM_READ | VM_NOEXEC, VM_READ | VM_WRITE | VM_NOEXEC};
+const int module_prots[] = {VM_EXEC, VM_READ, VM_READ | VM_WRITE};
 
 bool elf_load_module_sections(struct elf_loader_context *ctx, struct module *module, int type)
 {

@@ -85,26 +85,26 @@ int SvgaDevice::add_bar(pci::pci_bar bar, int index)
 {
     switch (index)
     {
-    case SVGAII_IO_SPACE_BAR: {
-        io_space = bar.address;
-        return 0;
-    }
-    case SVGAII_FRAMEBUFFER_BAR: {
-        framebuffer_raw = (void *) bar.address;
-        framebuffer = mmiomap(framebuffer_raw, bar.size, VM_READ | VM_WRITE | VM_NOEXEC | VM_WC);
-        if (!framebuffer)
-            return -1;
-        framebuffer_size = bar.size;
-        return 0;
-    }
-    case SVGAII_COMMAND_BUFFER_BAR: {
-        command_buffer = (uint32_t *) mmiomap((void *) (uintptr_t) bar.address, bar.size,
-                                              VM_READ | VM_WRITE | VM_NOEXEC | VM_NOCACHE);
-        if (!command_buffer)
-            return -1;
-        command_buffer_size = bar.size;
-        return 0;
-    }
+        case SVGAII_IO_SPACE_BAR: {
+            io_space = bar.address;
+            return 0;
+        }
+        case SVGAII_FRAMEBUFFER_BAR: {
+            framebuffer_raw = (void *) bar.address;
+            framebuffer = mmiomap(framebuffer_raw, bar.size, VM_READ | VM_WRITE | VM_WC);
+            if (!framebuffer)
+                return -1;
+            framebuffer_size = bar.size;
+            return 0;
+        }
+        case SVGAII_COMMAND_BUFFER_BAR: {
+            command_buffer = (uint32_t *) mmiomap((void *) (uintptr_t) bar.address, bar.size,
+                                                  VM_READ | VM_WRITE | VM_NOCACHE);
+            if (!command_buffer)
+                return -1;
+            command_buffer_size = bar.size;
+            return 0;
+        }
     }
     return 0;
 }

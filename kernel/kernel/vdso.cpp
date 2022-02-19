@@ -180,7 +180,8 @@ __attribute__((no_sanitize_undefined)) bool vdso::init()
 
 void *vdso::map()
 {
-    return vm_map_vmo(VM_ADDRESS_USER, VM_TYPE_SHARED, vm_size_to_pages(length), VM_USER, vmo);
+    return vm_map_vmo(VM_ADDRESS_USER, VM_TYPE_SHARED, vm_size_to_pages(length),
+                      VM_USER | VM_READ | VM_EXEC, vmo);
 }
 
 void *vdso_map(void)
