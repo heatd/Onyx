@@ -187,8 +187,7 @@ static void do_page_fault(registers_t *ctx, unsigned long pf_flags)
                 return;
             }
         }
-        panic("Fatal addr %lx, ip %lx, return address %lx\n", info.fault_address, ctx->epc,
-              ctx->ra);
+
         vm_do_fatal_page_fault(&info);
     }
 }
