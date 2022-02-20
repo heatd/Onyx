@@ -28,6 +28,10 @@ case "$ONYX_ARCH" in
 "riscv64")
     libc_configs="$libc_configs sp"
     ;;
+"arm64")
+    # Musl uses aarch64
+    ONYX_ARCH="aarch64"
+    ;;
 esac
 
 mkdir -p out/

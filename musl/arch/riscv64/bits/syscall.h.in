@@ -70,6 +70,7 @@
 #define __NR_recvfrom    74
 #define __NR_times    75
 #define __NR_getrusage    76
+#define __NR_ptrace				77
 #define __NR_ppoll    78
 #define __NR_pselect6    79
 #define __NR_proc_event_attach    80

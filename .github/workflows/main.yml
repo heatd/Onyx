@@ -263,7 +263,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target_arch: [x86_64, riscv64]
+        target_arch: [x86_64, riscv64, arm64]
   
     steps:
       - uses: actions/checkout@v2
@@ -325,7 +325,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, ubuntu-18.04, macos-latest]
-        target_arch: [x86_64, riscv64]
+        target_arch: [x86_64, riscv64, arm64]
         toolchain: [gnu]
         include:
           - os: ubuntu-latest

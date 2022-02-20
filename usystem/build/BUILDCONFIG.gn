@@ -1,4 +1,10 @@
-default_toolchain = "//build/toolchain:" + target_cpu + "-gcc"
+gcc_target = target_cpu
+
+if (gcc_target == "arm64") {
+  gcc_target = "aarch64"
+}
+
+default_toolchain = "//build/toolchain:" + gcc_target + "-gcc"
 set_default_toolchain(default_toolchain)
 
 declare_args() {

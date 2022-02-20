@@ -99,6 +99,10 @@ gcc_toolchain("riscv64-gcc") {
   gcc_target = "riscv64-onyx"
 }
 
+gcc_toolchain("aarch64-gcc") {
+  gcc_target = "aarch64-onyx"
+}
+
 template("clang_toolchain") {
   base_toolchain(target_name) {
     forward_variables_from(invoker, "*", ["output_dir"])
