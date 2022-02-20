@@ -139,6 +139,117 @@ jobs:
           name: Disk-image-llvm.img
           path: disk-image-llvm.img
   
+  build-riscv:
+    runs-on: ubuntu-latest
+    needs: build-toolchains
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: "recursive"
+      
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.10.1' # Require the same version of python as Onyx builds, in order to ease the build
+        
+
+      - name: Download the riscv64-onyx-linux toolchain
+        uses: actions/download-artifact@v2.0.8
+        with:
+          # Artifact name
+          name: riscv64-onyx-linux
+
+      - name: Extract Toolchain
+        run: |
+          zstd -d riscv64-onyx-linux.tar.zst --stdout | tar x
+          echo "$PWD/riscv64-onyx/bin" >> $GITHUB_PATH
+  
+      - name: Install dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install mtools genisoimage libfl2 clang-tidy unzip ninja-build
+          mkdir gn_bin/
+          cd gn_bin
+          wget -q https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/latest -O gn.zip
+          unzip gn.zip
+          echo "$PWD" >> $GITHUB_PATH
+          cd ..
+
+      - name: Build Onyx
+        run: |
+          cp kernel/configs/kernel.config.riscv kernel/kernel.config
+          export SYSROOT=$PWD/sysroot
+          export ONYX_ARCH=riscv64
+          ./scripts/setup_build.sh
+          RUN_CLANG_TIDY=0 make -j $(nproc) fullbuild-plus-initrd
+          mkdir -p boot
+          cp kernel/vmonyx boot/
+          cp initrd.tar boot/
+          tar cvf riscv64-onyx-image.tar boot/
+          zstd -T0 -15 riscv64-onyx-image.tar
+
+      - name: Upload the riscv64 boot image
+        uses: actions/upload-artifact@v2.1.4
+        with:
+          name: Onyx boot image (riscv64)
+          path: riscv64-onyx-image.tar.zst
+  
+  build-llvm-riscv64:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-latest
+    needs: build-toolchains
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v2
+        with:
+          submodules: "recursive"
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.10.1' # Require the same version of python as Onyx builds, in order to ease the build
+        
+
+      # Runs a single command using the runners shell
+      - name: Download the onyx-llvm-linux toolchain
+        uses: actions/download-artifact@v2.0.8
+        with:
+          # Artifact name
+          name: onyx-llvm-linux
+
+      - name: Extract Toolchain
+        run: |
+          zstd -d onyx-llvm-linux.tar.zst --stdout | tar x
+  
+      - name: Install dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install mtools genisoimage libfl2 clang-tidy unzip ninja-build
+          mkdir gn_bin/
+          cd gn_bin
+          wget -q https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/latest -O gn.zip
+          unzip gn.zip
+          echo "$PWD" >> $GITHUB_PATH
+          cd ..
+
+      # Runs a set of commands using the runners shell
+      - name: Build Onyx
+        run: |
+          cp kernel/configs/kernel.config.riscv kernel/kernel.config
+          export CLANG_PATH=$PWD/onyx-llvm
+          export SYSROOT=$PWD/sysroot
+          export ONYX_ARCH=riscv64
+          ./scripts/setup_build.sh
+          make -j $(nproc) fullbuild-plus-initrd
+          mkdir -p boot
+          cp kernel/vmonyx boot/
+          cp initrd.tar boot/
+          tar cvf riscv64-onyx-image-llvm.tar boot/
+          zstd -T0 -15 riscv64-onyx-image-llvm.tar
+
+      - name: Upload the riscv64 boot image (LLVM)
+        uses: actions/upload-artifact@v2.1.4
+        with:
+          name: Onyx boot image (riscv64) (llvm)
+          path: riscv64-onyx-image-llvm.tar.zst
   # Builds a minimal sysroot, with headers and the libc. Supposed to be used when building a toolchain.
   # In this case, we limit ourselves to building a stage 1 GNU toolchain since LLVM is far slower to build,
   # and I'm not sure if it even supports building without a sysroot.
