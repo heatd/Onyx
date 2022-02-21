@@ -122,6 +122,11 @@ unsigned int count_bits(Type val)
 #define write_memory_barrier() __asm__ __volatile__("fence" ::: "memory")
 #define read_memory_barrier()  __asm__ __volatile__("fence" ::: "memory")
 
+#elif defined(__aarch64__)
+
+#define write_memory_barrier() __asm__ __volatile__("" ::: "memory")
+#define read_memory_barrier()  __asm__ __volatile__("" ::: "memory")
+
 #endif
 
 #ifdef __cplusplus

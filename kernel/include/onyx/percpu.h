@@ -21,48 +21,50 @@
 #include <onyx/x86/percpu.h>
 #elif __riscv
 #include <onyx/riscv/percpu.h>
+#elif __aarch64__
+#include <onyx/arm64/percpu.h>
 #else
 #error "Unimplemented percpu stuff!"
 #endif
 
 #if 1
 
-#define write_per_cpu(var, val)        \
-    ({                                 \
-        switch (sizeof(var))           \
-        {                              \
-        case 1:                        \
-            write_per_cpu_1(var, val); \
-            break;                     \
-        case 2:                        \
-            write_per_cpu_2(var, val); \
-            break;                     \
-        case 4:                        \
-            write_per_cpu_4(var, val); \
-            break;                     \
-        case 8:                        \
-            write_per_cpu_8(var, val); \
-            break;                     \
-        }                              \
+#define write_per_cpu(var, val)            \
+    ({                                     \
+        switch (sizeof(var))               \
+        {                                  \
+            case 1:                        \
+                write_per_cpu_1(var, val); \
+                break;                     \
+            case 2:                        \
+                write_per_cpu_2(var, val); \
+                break;                     \
+            case 4:                        \
+                write_per_cpu_4(var, val); \
+                break;                     \
+            case 8:                        \
+                write_per_cpu_8(var, val); \
+                break;                     \
+        }                                  \
     })
 
-#define add_per_cpu(var, val)        \
-    ({                               \
-        switch (sizeof(var))         \
-        {                            \
-        case 1:                      \
-            add_per_cpu_1(var, val); \
-            break;                   \
-        case 2:                      \
-            add_per_cpu_2(var, val); \
-            break;                   \
-        case 4:                      \
-            add_per_cpu_4(var, val); \
-            break;                   \
-        case 8:                      \
-            add_per_cpu_8(var, val); \
-            break;                   \
-        }                            \
+#define add_per_cpu(var, val)            \
+    ({                                   \
+        switch (sizeof(var))             \
+        {                                \
+            case 1:                      \
+                add_per_cpu_1(var, val); \
+                break;                   \
+            case 2:                      \
+                add_per_cpu_2(var, val); \
+                break;                   \
+            case 4:                      \
+                add_per_cpu_4(var, val); \
+                break;                   \
+            case 8:                      \
+                add_per_cpu_8(var, val); \
+                break;                   \
+        }                                \
     })
 
 #else

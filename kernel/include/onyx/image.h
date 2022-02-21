@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Pedro Falcato
+ * Copyright (c) 2021 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  */
@@ -13,6 +13,8 @@
 #define RISCV_HEADER_VERSION (0 << 16 | 2)
 
 #define RISCV_LOAD_ADDRESS 0x80080000
+
+#define ARM64_IMAGE_MAGIC "ARM\x64"
 
 #ifndef __ASSEMBLER__
 

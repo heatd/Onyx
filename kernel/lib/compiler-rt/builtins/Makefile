@@ -15,8 +15,6 @@ generic-builtins-y:=absvdi2.o \
   	clzti2.o \
   	cmpdi2.o \
   	cmpti2.o \
-  	comparedf2.o \
-  	comparesf2.o \
   	ctzdi2.o \
   	ctzsi2.o \
   	ctzti2.o \
@@ -114,7 +112,9 @@ soft-float-y: \
 	muldf3.o \
 	mulsf3.o \
 	subdf3.o \
-  	subsf3.o
+  	subsf3.o \
+	comparedf2.o \
+  	comparesf2.o
 
 x86_64_builtins-y:=cpu_model.o \
 	muldi3.o
@@ -123,6 +123,8 @@ riscv64_builtins-y:=riscv/muldi3.o \
 	riscv/save.o \
 	riscv/restore.o \
 	atomic.o
+
+arm64_builtins-y:=aarch64/fp_mode.o
 
 builtins-y:= $(generic-builtins-y) $($(ONYX_ARCH)_builtins-y)
 

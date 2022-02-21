@@ -29,3 +29,9 @@ ifeq ($(CONFIG_RISCV), y)
 include drivers/pci/Makefile
 
 endif
+
+ifeq ($(CONFIG_ARM64), y)
+
+include drivers/pci/Makefile
+
+endif

@@ -17,6 +17,8 @@
 #define OS_MACHINE "x86_64"
 #elif defined(__riscv)
 #define OS_MACHINE "riscv64"
+#elif defined(__aarch64__)
+#define OS_MACHINE "arm64"
 #else
 #error "Define a machine string for your architecture"
 #endif

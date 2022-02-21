@@ -31,6 +31,8 @@
 #define KERNEL_VIRTUAL_BASE 0xFFFFFFFF80000000
 #elif defined(__riscv)
 #define KERNEL_VIRTUAL_BASE 0xffffffff00000000
+#elif defined(__aarch64__)
+#define KERNEL_VIRTUAL_BASE 0xffffffff00000000
 #endif
 
 #define VM_TYPE_REGULAR     (0)

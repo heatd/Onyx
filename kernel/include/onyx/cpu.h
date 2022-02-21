@@ -247,6 +247,18 @@ static inline void cpu_sleep()
     __asm__ __volatile__("wfi");
 }
 
+#elif __aarch64__
+
+static inline void cpu_relax()
+{
+    __asm__ __volatile__("" ::: "memory");
+}
+
+static inline void cpu_sleep()
+{
+    __asm__ __volatile__("wfi");
+}
+
 #endif
 
 #define CPU_OUTGOING_MAX 5

@@ -15,7 +15,11 @@ typedef __builtin_va_list __isoc_va_list;
 
 #ifndef __cplusplus
 #if defined(__NEED_wchar_t) && !defined(__DEFINED_wchar_t)
+#ifdef __aarch64__
+typedef unsigned int wchar_t;
+#else
 typedef int wchar_t;
+#endif
 #define __DEFINED_wchar_t
 #endif
 

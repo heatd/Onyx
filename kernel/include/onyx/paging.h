@@ -40,6 +40,16 @@ typedef struct
     uint64_t entries[512];
 } PML;
 
+#elif __aarch64__
+
+#undef PAGE_SIZE
+#define PAGE_SIZE 4096UL
+
+typedef struct
+{
+    uint64_t entries[512];
+} PML;
+
 #endif
 
 struct mm_address_space;

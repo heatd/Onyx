@@ -132,6 +132,19 @@ static inline bool in_kernel_space_regs(struct registers *regs)
     return regs->status & RISCV_SSTATUS_SPP;
 }
 
+#elif defined(__aarch64__)
+
+typedef struct registers
+{
+    unsigned long x[32];
+    unsigned long sp;
+} registers_t;
+
+static inline bool in_kernel_space_regs(struct registers *regs)
+{
+    return true;
+}
+
 #endif
 
 #endif

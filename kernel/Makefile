@@ -72,6 +72,15 @@ include lib/device_tree/Makefile
 
 endif
 
+ifeq ($(CONFIG_ARM64), y)
+
+include lib/libfdt/Makefile
+include lib/device_tree/Makefile
+
+KERNEL_REQUIRES_FLATTENING:=yes
+
+endif
+
 include lib/libk/Makefile
 
 LIBK_LINK:=lib/libk/libk.a
@@ -84,7 +93,6 @@ CFLAGS+=-flto
 ifneq ($(ONYX_USING_CLANG), yes)
 # GCC behaves weirdly when linking fat and non-fat lto object files together
 CFLAGS+=-ffat-lto-objects
-AR:=$(ONYX_ARCH)-onyx-gcc-ar
 LIBK_LINK:=$(libk-objs)
 endif
 
@@ -182,6 +190,12 @@ LDFLAGS:=$(LDFLAGS) -fno-sanitize-link-runtime -Wl,-no-pie
 CFLAGS_FOR_LINK:=$(filter-out -mllvm -asan-instrumentation-with-call-threshold=0, $(CFLAGS_FOR_LINK))
 endif
 
+ifeq ($(ONYX_ARCH), arm64)
+# ARM64 doesn't link with begin/endS
+CRTBEGIN_OBJ:=
+CRTEND_OBJ:=
+endif
+
 CRTN_OBJ:=lib/libk/$(ARCHDIR)/crtn.o
 
 ifeq ($(ARCH_NO_CRTI_N), 1)
@@ -226,6 +240,11 @@ vmonyx: $(OBJ_DEPS) $(EXTRA_LIBK_OBJS) $(ARCHDIR)/linker.ld $(kernel-archives) $
 	$(CC) $(LDFLAGS) -Wl,-T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS_FOR_LINK) $(OBJ_LINK_LIST) $(LIBS) -Wno-error $(LIBK_LINK)
 	cp vmonyx vmonyx-unstripped
 	$(STRIP) -g vmonyx
+
+ifeq ($(KERNEL_REQUIRES_FLATTENING), yes)
+# For arm64 and others
+		$(OBJCOPY) -O binary vmonyx vmonyx
+endif
 
 acpica/%.o: acpica/%.c $(GENERATED_HEADERS)
 	@echo [CC] $<

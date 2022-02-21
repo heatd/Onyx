@@ -139,6 +139,10 @@ qemu-riscv: fullbuild-plus-initrd
 	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) -kernel kernel/vmonyx -m 512M -machine virt \
 	-monitor stdio -s -initrd initrd.tar
 
+qemu-arm64: kernel
+	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) -kernel kernel/vmonyx -m 512M -machine virt \
+	-monitor stdio -cpu cortex-a53
+
 qemu: iso
 	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) \
 	-s -cdrom Onyx.iso -drive file=hdd.img,format=raw,media=disk -m 512M \

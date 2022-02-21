@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2021 Pedro Falcato
+ * Copyright (c) 2021 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  */
@@ -11,6 +11,8 @@
 #include <onyx/x86/intrinsics.h>
 #elif __riscv
 #include <onyx/riscv/intrinsics.h>
+#elif __aarch64__
+#include <onyx/arm64/intrinsics.h>
 #else
 #error "Intrinsics not implemented for ARCH"
 #endif

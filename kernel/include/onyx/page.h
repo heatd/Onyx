@@ -19,7 +19,7 @@
 
 /* The default physical allocator is the buddy allocator */
 #define CONFIG_BUDDY_ALLOCATOR 1
-#if defined(__x86_64__) || defined(__riscv)
+#if defined(__x86_64__) || defined(__riscv) || defined(__aarch64__)
 
 #include <platform/page.h>
 

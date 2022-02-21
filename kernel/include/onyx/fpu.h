@@ -1,19 +1,21 @@
 /*
- * Copyright (c) 2016, 2017 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
-#ifndef _FPU_H
-#define _FPU_H
+
+#ifndef _ONYX_FPU_H
+#define _ONYX_FPU_H
 
 #include <stdbool.h>
 #include <sys/user.h>
+
 #ifdef __x86_64__
 
 extern bool avx_supported;
 
-#elif !defined(__riscv)
-#error "Implement FPU switching for your arch"
 #endif
 
 void setup_fpu_area(unsigned char *address);

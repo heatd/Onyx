@@ -1219,6 +1219,8 @@ bool executing_in_altstack(const struct syscall_frame *frm, const stack_t *stack
     unsigned long sp = frm->user_sp;
 #elif defined(__riscv)
     unsigned long sp = frm->regs.sp;
+#elif defined(__aarch64__)
+    unsigned long sp = frm->regs.sp;
 #endif
     unsigned long alt_sp = (unsigned long) stack->ss_sp;
     unsigned long alt_stack_limit = alt_sp + stack->ss_size;
