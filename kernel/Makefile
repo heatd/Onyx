@@ -240,10 +240,9 @@ vmonyx: $(OBJ_DEPS) $(EXTRA_LIBK_OBJS) $(ARCHDIR)/linker.ld $(kernel-archives) $
 	$(CC) $(LDFLAGS) -Wl,-T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS_FOR_LINK) $(OBJ_LINK_LIST) $(LIBS) -Wno-error $(LIBK_LINK)
 	cp vmonyx vmonyx-unstripped
 	$(STRIP) -g vmonyx
-
 ifeq ($(KERNEL_REQUIRES_FLATTENING), yes)
 # For arm64 and others
-		$(OBJCOPY) -O binary vmonyx vmonyx
+	$(OBJCOPY) -O binary vmonyx vmonyx
 endif
 
 acpica/%.o: acpica/%.c $(GENERATED_HEADERS)

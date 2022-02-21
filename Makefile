@@ -27,7 +27,7 @@ export NM:=$(CLANG_BIN)/llvm-nm
 export LD:=$(CLANG_BIN)/ld
 export STRIP:=$(CLANG_BIN)/llvm-strip
 export RANLIB:=$(CLANG_BIN)/llvm-ranlib
-
+export OBJCOPY:=$(CLANG_BIN)/llvm-objcopy
 export ONYX_USING_CLANG:=yes
 
 else
@@ -41,6 +41,7 @@ export NM:=$(HOST)-nm
 export LD:=$(HOST)-ld.bfd
 export STRIP:=$(HOST)-strip
 export RANLIB:=$(HOST)-ranlib
+export OBJCOPY:=$(HOST)-objcopy
 
 endif
 
@@ -141,7 +142,7 @@ qemu-riscv: fullbuild-plus-initrd
 
 qemu-arm64: kernel
 	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) -kernel kernel/vmonyx -m 512M -machine virt \
-	-monitor stdio -cpu cortex-a53
+	-monitor stdio -cpu cortex-a53 -d int,mmu,cpu
 
 qemu: iso
 	qemu-system-$(shell scripts/target-triplet-to-arch.sh $(HOST)) \

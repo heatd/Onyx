@@ -252,3 +252,8 @@ void ktracepoint::deactivate()
 }
 
 } // namespace ktrace
+
+void platform_serial_write(const char *s, size_t size)
+{
+    UNIMPLEMENTED;
+}

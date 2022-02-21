@@ -24,7 +24,7 @@ entry_point:
 	.quad 0
 	.quad 0
 	.quad __kernel_size
-	.quad 0 /* flags */
+	.quad (1 << 3) /* flags. bit 3 = anywhere in physical memory, 2MB aligned */
 	/* Reserved */
     .quad 0 
 	.quad 0
@@ -33,10 +33,18 @@ entry_point:
 	.long 0
 
 entry:
+	mrs x9, sctlr_el1
+	orr x9, x9, #(1 << 23) /* SPAN */
+	orr x9, x9, #(1 << 12) /* Instruction cacheability */
+	orr x9, x9, #(1 << 4)
+	orr x9, x9, #(1 << 3) /* Alignment check for the stack at EL0 and 1 */
+	orr x9, x9, #(1 << 2) /* Data cacheability */
+	bic x9, x9, #(1 << 1) /* No alignment checking for data accesses at EL0 and 1 */
+	msr sctlr_el1, x9
     wfi
     b entry
 
-.align 16
+.balign 16
 
 stack_bottom:
 .skip 4096
