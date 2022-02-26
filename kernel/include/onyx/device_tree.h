@@ -52,7 +52,7 @@ inline uint32_t fdt_to_cpu<uint32_t>(uint32_t x)
  */
 void enumerate();
 
-struct node
+struct node : public device
 {
     cul::string name;
     cul::vector<node *> children;
@@ -63,9 +63,11 @@ struct node
 
     driver *driver_;
 
+    list_head_cpp<node> list_node;
+
     node(cul::string &&name, int offset, int depth, node *parent = nullptr)
-        : name{name}, children{}, parent{parent}, offset{offset}, depth{depth}, address_cells{2},
-          size_cells{1}, driver_{}
+        : device{"", nullptr, parent}, name{name}, children{}, parent{parent}, offset{offset},
+          depth{depth}, address_cells{2}, size_cells{1}, driver_{}, list_node{this}
     {
     }
 
@@ -114,6 +116,12 @@ struct node
 
         return nullptr;
     }
+
+    /**
+     * @brief Enumerate the device node's resources
+     *
+     */
+    void enumerate_resources();
 };
 
 /**

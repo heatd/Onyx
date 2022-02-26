@@ -26,6 +26,7 @@ extern char percpu_base;
 void riscv_setup_trap_handling();
 void time_init();
 void riscv_cpu_init();
+void plic_init();
 
 extern "C" void kernel_entry(void *fdt)
 {
@@ -59,6 +60,8 @@ extern "C" void kernel_entry(void *fdt)
     time_init();
 
     riscv_cpu_init();
+
+    plic_init();
 }
 
 void init_arch_vdso()

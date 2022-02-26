@@ -125,6 +125,51 @@ int node::get_property(const char *name, void *buf, size_t length)
 }
 
 /**
+ * @brief Enumerate the device node's resources
+ *
+ */
+void node::enumerate_resources()
+{
+    int addr_cells = parent->address_cells;
+    int size_cells = parent->size_cells;
+    int reg_len;
+    const void *reg;
+    if (reg = fdt_getprop(fdt_, offset, "reg", &reg_len); !reg)
+    {
+        panic("device_tree: error parsing memory node: %s\n", fdt_strerror(reg_len));
+    }
+
+    int nr_ranges = reg_len / ((addr_cells + size_cells) * sizeof(uint32_t));
+    unsigned int reg_offset = 0;
+    for (int i = 0; i < nr_ranges; i++)
+    {
+        uint64_t start, size;
+        start = read_reg(reg, reg_offset, addr_cells);
+        size = read_reg(reg, reg_offset + addr_cells, size_cells);
+
+        // TODO: How to autodetect if the region in reg is MMIO, IO ports (since you *can* have
+        // device trees in x86)? Is it even possible?
+
+        dev_resource *res = new dev_resource{start, size, DEV_RESOURCE_FLAG_MEM};
+
+        if (!res)
+            panic("Could not allocate a device resource descriptor");
+
+        // TODO: Map resources onto parent ranges
+        // It turns out that device trees aren't really simple and nodes can map child address
+        // spaces into other areas of the address space, and then it keeps going all the way up to
+        // the root node, where you're guaranteed to deal with CPU physical addresses(since there's
+        // no one above you that can map you somewhere)
+        // See 2.3.8 of the device tree spec 0.4rc1 for more info
+        add_resource(res);
+
+        reg_offset += addr_cells + size_cells;
+    }
+
+    // TODO: IRQs
+}
+
+/**
  * @brief Handle memory@ nodes in the device tree
  *
  */
@@ -302,6 +347,7 @@ node *get_root()
 }
 
 bus_type *dt_bus;
+list_head device_list = LIST_HEAD_INIT(device_list);
 
 /**
  * @brief Enumerate the device tree
@@ -373,9 +419,12 @@ void enumerate()
 
         if (!dev_node)
             panic("Failed to allocate a device tree node");
+        list_add_tail(&dev_node->list_node, &device_list);
 
         dev_node->address_cells = address_cell_stack[depth];
         dev_node->size_cells = size_cell_stack[depth];
+        dev_node->enumerate_resources();
+
         if (!parents[depth - 1]->children.push_back(dev_node))
             panic("Failed to allocate memory for the device tree");
 
@@ -383,32 +432,46 @@ void enumerate()
     }
 }
 
-#if 0
-void devtree_driver_register(struct driver *driver, struct bus *bus)
+bool dev_tree_driver_supports_device(driver *drv, node *node)
 {
-    list_for_every (&bus->device_list_head)
+    int length;
+    const char *compat_strings = (const char *) node->get_property("compatible", &length);
+    const char *s = compat_strings;
+    if (!compat_strings)
+        return false;
+
+    int i = 0;
+    while (i < length)
     {
-        auto dev = list_head_cpp<pci_device>::self_from_list_head(l);
-        struct pci_id *id;
-#if 0
-		printk("%04x:%02x:%02x:%02x -> %04x:%04x ",
-			dev->addr().segment, dev->addr().bus, dev->addr().device, dev->addr().function,
-			dev->did(), dev->vid());
-#endif
-        // Bound, skip.
-        if (dev->driver_)
+        size_t string_size = strnlen(s, length - i);
+        std::string_view compat_str{s, string_size};
+        s += string_size + 1;
+        i += string_size + 1;
+
+        const char **compat_string_array = (const char **) drv->devids;
+
+        while (*compat_string_array)
         {
-#if 0
-			printk(" bound\n");
-#endif
-            continue;
+            const char *str = *compat_string_array++;
+
+            if (compat_str == str)
+            {
+                return true;
+            }
         }
-#if 0
-		printk("\n");
-#endif
-        if ((id = pci_driver_supports_device(driver, dev)))
+    }
+
+    return false;
+}
+
+void devtree_driver_register(struct driver *driver)
+{
+    list_for_every (&device_list)
+    {
+        auto dev = list_head_cpp<node>::self_from_list_head(l);
+
+        if (dev_tree_driver_supports_device(driver, dev))
         {
-            dev->set_driver_data(id->driver_data);
             driver_register_device(driver, dev);
             if (driver->probe(dev) < 0)
                 driver_deregister_device(driver, dev);
@@ -416,7 +479,6 @@ void devtree_driver_register(struct driver *driver, struct bus *bus)
     }
 }
 
-#endif
 /**
  * @brief Register a driver with the device tree subsystem
  *
@@ -425,6 +487,7 @@ void devtree_driver_register(struct driver *driver, struct bus *bus)
 void register_driver(driver *driver_)
 {
     dt_bus->add_driver(driver_);
+    devtree_driver_register(driver_);
 }
 
 /**
