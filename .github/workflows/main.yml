@@ -296,7 +296,7 @@ jobs:
         run: |
           export SYSROOT=$PWD/sysroot
           export ONYX_ARCH=${{ matrix.target_arch }}
-          mkdir toolchain_binaries-gnu-stage1
+          mkdir -p toolchain_binaries-gnu-stage1
           ./toolchains/scripts/build_toolchain.sh --no-libc toolchain_build toolchain_binaries-gnu-stage1 \
           -a ${{ matrix.target_arch }}
 
@@ -412,7 +412,7 @@ jobs:
           export SYSROOT=$PWD/sysroot
           export ONYX_ARCH=${{ matrix.target_arch }}
           ./scripts/setup_build.sh
-          mkdir toolchain_binaries-${{ matrix.toolchain }}
+          mkdir -p toolchain_binaries-${{ matrix.toolchain }}
           if ! ./toolchains/scripts/build_toolchain.sh toolchain_build toolchain_binaries-${{ matrix.toolchain }} \
             -a ${{ matrix.target_arch }} --toolchain=${{ matrix.toolchain }}; then
             rm -rf toolchain_binaries-${{ matrix.toolchain }}
