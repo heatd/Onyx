@@ -4,7 +4,7 @@
 
 Onyx is a POSIX-like operating system.
 
-Right now, the only supported architecture is x86_64.
+Right now, the only supported architectures are x86_64 and riscv64.
 
 It's designed to comply to the POSIX standard, implement some of the standard Unix API's while learning from the mistakes the past POSIX OSes made. It follows the System V ABI.
 
