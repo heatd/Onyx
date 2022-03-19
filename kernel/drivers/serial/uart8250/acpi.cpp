@@ -48,8 +48,9 @@ int uart8250_acpi_probe(device *fake_dev)
 
     auto io_resource = dev->get_resource(DEV_RESOURCE_FLAG_IO_PORT);
 
-    // IO resources need to have a size of 8 at least
-    if (!io_resource || io_resource->size() < 8)
+    // Note: IO resources should need to have a size of 8 at least
+    // but some, like qemu's uart8250, don't. weird.
+    if (!io_resource)
         return -1;
 
     unique_ptr<uart8250_port> port =

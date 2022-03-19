@@ -14,6 +14,7 @@
 #include <onyx/dpc.h>
 #include <onyx/driver.h>
 #include <onyx/irq.h>
+#include <onyx/panic.h>
 #include <onyx/port_io.h>
 #include <onyx/serial.h>
 #include <onyx/tty.h>
@@ -23,23 +24,6 @@ static driver serial_platform_driver = {.name = "uart8250-platform",
 
 device uart8250_platform_device{"uart8250", nullptr, nullptr};
 
-void do_dispatch(void *ctx)
-{
-    (void) ctx;
-}
-
-void uart8250_port::dispatch_rx()
-{
-    auto data = read<uint8_t>(uart8250_register::data);
-    struct dpc_work work;
-    work.context = (void *) (unsigned long) data;
-
-    work.funcptr = do_dispatch;
-    work.next = NULL;
-
-    dpc_schedule_work(&work, DPC_PRIORITY_HIGH);
-}
-
 irqstatus_t uart8250_port::on_irq()
 {
     auto st = read<uint8_t>(uart8250_register::interrupt_identification);
@@ -48,9 +32,10 @@ irqstatus_t uart8250_port::on_irq()
         return IRQ_UNHANDLED;
 
     auto reason = UART8250_IIR_REASON(st);
-    if (reason == UART8250_IIR_RX_DATA_AVL)
+    if (reason & UART8250_IIR_RX_DATA_AVL)
     {
-        dispatch_rx();
+        auto data = read<uint8_t>(uart8250_register::data);
+        receive_byte(data);
         return IRQ_HANDLED;
     }
 
@@ -111,7 +96,8 @@ void uart8250_port::write(const char *s, size_t size, bool is_debug_console)
     }
 }
 
-uart8250_port com1{0x3f8, 4, &uart8250_platform_device};
+[[aligned(alignof(uart8250_port))]] static char com1_buf[sizeof(uart8250_port)];
+uart8250_port *com1;
 
 bool uart8250_port::present()
 {
@@ -163,6 +149,19 @@ bool uart8250_port::early_init()
 }
 
 /**
+ * @brief Write bytes to the serial port
+ *
+ * @param buffer Buffer
+ * @param size Length
+ * @return Positive byte count or negative error code
+ */
+ssize_t uart8250_port::write_serial(const void *buffer, size_t size)
+{
+    write((const char *) buffer, size);
+    return size;
+}
+
+/**
  * @brief Initialises the serial port as a standard serial port
  *
  * @return True if success, else false
@@ -177,16 +176,17 @@ bool uart8250_port::init()
     /* Re-enable interrupts */
     write<uint8_t>(uart8250_register::interrupt_enable, UART8250_IER_DATA_AVAIL);
 
-    return true;
+    return init_tty();
 }
 
 void platform_serial_init(void)
 {
-    com1.early_init();
+    com1 = new (com1_buf) uart8250_port{0x3f8, 4, &uart8250_platform_device};
+    com1->early_init();
     uart8250_platform_device.driver_ = &serial_platform_driver;
 }
 
 void platform_serial_write(const char *s, size_t size)
 {
-    com1.write(s, size, true);
+    com1->write(s, size, true);
 }

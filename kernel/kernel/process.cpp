@@ -207,6 +207,9 @@ process *process_create(const std::string_view &cmd_line, ioctx *ctx, process *p
         proc->inherit_limits(parent);
 
         parent->session->inherit(proc, PIDTYPE_SID);
+
+        // Inherit the controlling terminal
+        proc->ctty = parent->ctty;
     }
     else
     {

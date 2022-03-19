@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <ctype.h>
 #include <sys/ioctl.h>
@@ -67,17 +69,20 @@ void n_tty_receive_control_input(struct tty_echo_args *args, char c, struct tty 
 
     if (c == TTY_CC(tty, VINTR))
     {
-        signal_kill_pg(SIGINT, 0, nullptr, -tty->foreground_pgrp);
+        if (tty->foreground_pgrp)
+            signal_kill_pg(SIGINT, 0, nullptr, -tty->foreground_pgrp);
     }
 
     if (c == TTY_CC(tty, VSUSP))
     {
-        signal_kill_pg(SIGTSTP, 0, nullptr, -tty->foreground_pgrp);
+        if (tty->foreground_pgrp)
+            signal_kill_pg(SIGTSTP, 0, nullptr, -tty->foreground_pgrp);
     }
 
     if (c == TTY_CC(tty, VQUIT))
     {
-        signal_kill_pg(SIGQUIT, 0, nullptr, -tty->foreground_pgrp);
+        if (tty->foreground_pgrp)
+            signal_kill_pg(SIGQUIT, 0, nullptr, -tty->foreground_pgrp);
     }
 
     if (TTY_LFLAG(tty, ECHOCTL) && should_print_special(c))
@@ -130,7 +135,7 @@ static ssize_t n_tty_receive_input(char c, struct tty *tty)
 
     if (TTY_LFLAG(tty, ECHO) && !args.do_not_print)
     {
-        if (!iscntrl(c) || !should_print_special(c))
+        if (!iscntrl(c) || !should_print_special(c) || c == TTY_CC(tty, VERASE))
         {
             tty_write(args.to_echo, args.len, tty);
         }
@@ -154,17 +159,17 @@ static ssize_t try_process_write(const char *s, size_t len, struct tty *tty)
 
         switch (c)
         {
-        case '\n': {
-            if (TTY_OFLAG(tty, ONLCR))
-                goto write_and_process;
-            break;
-        }
+            case '\n': {
+                if (TTY_OFLAG(tty, ONLCR))
+                    goto write_and_process;
+                break;
+            }
 
-        case '\r': {
-            if (TTY_OFLAG(tty, OCRNL))
-                goto write_and_process;
-            break;
-        }
+            case '\r': {
+                if (TTY_OFLAG(tty, OCRNL))
+                    goto write_and_process;
+                break;
+            }
         }
 
         i++;
@@ -180,26 +185,26 @@ static void n_tty_output_char(char c, struct tty *tty)
 {
     switch (c)
     {
-    case '\n': {
-        if (TTY_OFLAG(tty, ONLCR))
-        {
-            tty->write("\r\n", 2, tty);
-            return;
-        }
+        case '\n': {
+            if (TTY_OFLAG(tty, ONLCR))
+            {
+                tty->write("\r\n", 2, tty);
+                return;
+            }
 
-        break;
-    }
-
-    case '\r': {
-        if (TTY_OFLAG(tty, OCRNL))
-        {
-            c = '\n';
             break;
         }
 
-        /* TODO: ONOCR, OLCUC */
-        break;
-    }
+        case '\r': {
+            if (TTY_OFLAG(tty, OCRNL))
+            {
+                c = '\n';
+                break;
+            }
+
+            /* TODO: ONOCR, OLCUC */
+            break;
+        }
     }
 
     tty->write(&c, 1, tty);

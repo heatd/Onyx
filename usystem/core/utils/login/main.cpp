@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2017-2019 Pedro Falcato
+ * Copyright (c) 2017 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 
 #include <errno.h>
@@ -15,6 +17,7 @@
 #include <termios.h>
 #include <unistd.h>
 
+#include <filesystem>
 #include <string>
 
 char *program_name = NULL;
@@ -96,10 +99,64 @@ bool compare_passwords(struct spwd *spwd, std::string &password)
     return false;
 }
 
+static void self_exec(const std::string &name)
+{
+    pid_t pid = fork();
+
+    if (pid < 0)
+    {
+        perror("fork");
+        abort();
+    }
+
+    if (pid == 0)
+    {
+        execl("/bin/login", "/bin/login", name.c_str(), nullptr);
+        perror("execl");
+        abort();
+    }
+}
+
+void self_exec_for_every_tty()
+{
+    for (const auto &entry : std::filesystem::directory_iterator("/dev"))
+    {
+        auto name = entry.path().filename().string();
+        if (name.starts_with("tty") && name.length() > 3)
+        {
+            self_exec(std::string("/dev/" + name));
+        }
+    }
+
+    // HACK: Make sure we don't take any of our possible session members with us by sleeping 10
+    // seconds
+    sleep(10);
+    exit(0);
+}
+
 int main(int argc, char **argv, char **envp)
 {
-    (void) argc;
-    (void) envp;
+    setsid();
+
+    if (argc < 2)
+        self_exec_for_every_tty();
+
+    const char *tty = argv[1];
+
+    int flags[] = {O_RDONLY, O_WRONLY, O_WRONLY};
+
+    close(0);
+    close(1);
+    close(2);
+
+    for (int i = 0; i < 3; i++)
+    {
+        int fd = open(tty, flags[i]);
+
+        if (fd < 0)
+            return 1;
+    }
+
     program_name = argv[0];
     printf("%s: ", argv[0]);
     fflush(stdout);

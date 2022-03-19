@@ -1276,7 +1276,7 @@ size_t vterm::do_escape(const char *buffer, size_t len)
 
 ssize_t vterm_write_tty(const void *buffer, size_t size, struct tty *tty)
 {
-    platform_serial_write((const char *) buffer, size);
+    // platform_serial_write((const char *) buffer, size);
     struct vterm *vt = (vterm *) tty->priv;
 
     mutex_lock(&vt->vt_lock);

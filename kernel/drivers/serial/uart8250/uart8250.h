@@ -75,7 +75,7 @@ enum class uart8250_register
 #define UART8250_IIR_REASON(x)   (x & (0x7 << 1))
 #define UART8250_IIR_RX_DATA_AVL (1 << 2)
 
-class uart8250_port
+class uart8250_port : public serial_port
 {
     uint16_t io_port;
     unsigned int irq_;
@@ -124,7 +124,7 @@ class uart8250_port
     bool rx_rdy();
 
     void write_byte(uint8_t byte);
-    void set_baud_rate(uint16_t rate);
+    void set_baud_rate(uint16_t rate) override;
 
     bool present();
     bool test();
@@ -134,6 +134,10 @@ class uart8250_port
 public:
     uart8250_port(uint16_t io_port, unsigned int irq, device *dev)
         : io_port{io_port}, irq_{irq}, lock_{}, dev_{dev}
+    {
+    }
+
+    virtual ~uart8250_port()
     {
     }
 
@@ -152,6 +156,15 @@ public:
     bool init();
 
     void write(const char *s, size_t length, bool is_debug_console = false);
+
+    /**
+     * @brief Write bytes to the serial port
+     *
+     * @param buffer Buffer
+     * @param size Length
+     * @return Positive byte count or negative error code
+     */
+    ssize_t write_serial(const void *buffer, size_t size) override;
 
     irqstatus_t on_irq();
 };

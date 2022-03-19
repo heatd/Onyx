@@ -274,7 +274,6 @@ void kernel_multitasking(void *arg)
     do_init_level(INIT_LEVEL_CORE_KERNEL);
 
     /* Start populating /dev */
-    tty_create_dev();   /* /dev/tty */
     entropy_init_dev(); /* /dev/random and /dev/urandom */
 
     /* Mount sysfs */

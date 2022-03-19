@@ -227,6 +227,9 @@ pid_t sys_setsid()
     current->session = current->pid_struct;
     current->session->add_process(current, PIDTYPE_SID);
 
+    // Initially, we won't have a controlling terminal
+    current->ctty = nullptr;
+
     return current->session->get_pid();
 }
 
@@ -291,8 +294,6 @@ bool pid::is_orphaned_and_has_stopped_jobs(process *ignore) const
             // Ignore init, since it has no parent
             if (!p->parent)
                 return;
-
-            scoped_lock g{p->parent->pgrp_lock};
 
             if (p->parent->process_group != this || p->parent->session == ignore->session)
                 is_orphaned = false;

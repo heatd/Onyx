@@ -55,7 +55,7 @@ public:
     cul::hashtable2<internal_dev_registry_struct, 256, fnv_hash_t, internal_chardev_reg_hash>
         gendevs_;
 
-    dev_registry() : gendev_lock_{}, gendevs_{}
+    constexpr dev_registry() : gendev_lock_{}, gendevs_{}
     {
     }
 

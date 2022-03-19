@@ -235,7 +235,7 @@ int main(int argc, char **argv, char **envp)
 
     for (int i = 0; i < 3; i++)
     {
-        int fd = open("/dev/tty", flags[i]);
+        int fd = open("/dev/console", flags[i] | O_NOCTTY);
 
         if (fd < 0)
             return 1;

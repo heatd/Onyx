@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2016, 2017 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 /**************************************************************************
  *
@@ -29,6 +31,7 @@
 #include <onyx/dev.h>
 #include <onyx/framebuffer.h>
 #include <onyx/id.h>
+#include <onyx/init.h>
 #include <onyx/mutex.h>
 #include <onyx/panic.h>
 #include <onyx/poll.h>
@@ -113,6 +116,8 @@ void init_default_tty_termios(struct tty *tty)
 
 extern struct tty_line_disc ntty_disc;
 
+void tty_create_dev(tty *tty, const char *override_name = nullptr);
+
 void tty_init(void *priv, void (*ctor)(struct tty *tty))
 {
     if (!tty_ids)
@@ -146,6 +151,13 @@ void tty_init(void *priv, void (*ctor)(struct tty *tty))
     tty_add(tty);
 
     printf("tty: Added tty%lu\n", tty->tty_num);
+    tty_create_dev(tty);
+
+    if (main_tty == tty)
+    {
+        // Create /dev/console for this tty
+        tty_create_dev(tty, "console");
+    }
 }
 
 void cpu_kill_other_cpus(void);
@@ -368,6 +380,91 @@ unsigned int tty_do_tcflsh(struct tty *tty, int arg)
     return 0;
 }
 
+void tty_clear_session(tty *tty)
+{
+    tty->session->for_every_member(
+        [](process *proc) -> void {
+            scoped_lock g{proc->pgrp_lock};
+            proc->ctty = nullptr;
+        },
+        PIDTYPE_SID);
+}
+
+void tty_set_ctty_unlocked(tty *tty)
+{
+    auto current = get_current_process();
+
+    tty->session = current->session;
+    tty->foreground_pgrp = current->process_group->get_pid();
+    current->ctty = tty;
+}
+
+unsigned int do_tty_csctty(tty *tty, int force)
+{
+    scoped_mutex g2{tty->lock};
+    auto current = get_current_process();
+
+    if (force != 0 && force != 1)
+        return -EINVAL;
+
+    scoped_lock g{current->pgrp_lock};
+
+    // The process must be a session leader
+    if (!current->is_session_leader_unlocked())
+        return -EPERM;
+
+    // ...and not have a controlling terminal
+    if (current->ctty)
+        return -EPERM;
+
+    if (tty->session)
+    {
+        if (force == 1 && is_root_user())
+        {
+            // If the terminal is already the ctty for a session, but we're forcing it and have
+            // proper privs clear the tty from every process belonging to the session and steal it
+            tty_clear_session(tty);
+        }
+        else
+            return -EPERM;
+    }
+
+    tty_set_ctty_unlocked(tty);
+
+    return 0;
+}
+
+dev_t ctty_dev = 0;
+
+unsigned int do_tty_cnotty(tty *tty)
+{
+    scoped_mutex g{tty->lock};
+    auto current = get_current_process();
+    scoped_lock g2{current->pgrp_lock};
+
+    // Nothing to do if we're not the ctty of the current process
+    if (tty != current->ctty)
+        return -ENOTTY;
+
+    // If we're not the session leader, we just clear our own ctty
+    // and return. Easy.
+    if (!current->is_session_leader_unlocked())
+    {
+        current->ctty = nullptr;
+        return 0;
+    }
+    else
+    {
+        // Get the tty's foreground pgrp and send SIGHUP + SIGCONT
+        signal_kill_pg(SIGHUP, 0, nullptr, -tty->foreground_pgrp);
+        signal_kill_pg(SIGCONT, 0, nullptr, -tty->foreground_pgrp);
+
+        tty_clear_session(tty);
+    }
+
+    return 0;
+}
+
 unsigned int tty_ioctl(int request, void *argp, struct file *dev)
 {
     struct tty *tty = (struct tty *) dev->f_ino->i_helper;
@@ -376,6 +473,16 @@ unsigned int tty_ioctl(int request, void *argp, struct file *dev)
 
     switch (request)
     {
+        case TIOCSCTTY: {
+            return do_tty_csctty(tty, (int) (unsigned long) argp);
+        }
+
+        case TIOCNOTTY: {
+            if (dev->f_ino->i_dev != ctty_dev)
+                return -ENOTTY;
+            return do_tty_cnotty(tty);
+        }
+
         case TCGETS: {
             rw_lock_read(&tty->termio_lock);
 
@@ -455,14 +562,27 @@ unsigned int tty_ioctl(int request, void *argp, struct file *dev)
             return tty_do_tcflsh(tty, (int) (unsigned long) argp);
 
         case TIOCSPGRP: {
+            scoped_mutex g{tty->lock};
             auto pgrp = get_current_process()->process_group;
             tty->foreground_pgrp = pgrp->get_pid();
             return 0;
         }
 
         case TIOCGPGRP: {
+            scoped_mutex g{tty->lock};
             return copy_to_user(argp, &tty->foreground_pgrp, sizeof(pid_t));
         }
+
+        case TIOCGSID: {
+            scoped_mutex g{tty->lock};
+            auto session = tty->session;
+            if (!session)
+                return -ENOTTY;
+            auto sid = session->get_pid();
+
+            return copy_to_user(argp, &sid, sizeof(pid_t));
+        }
+
         default:
             return -EINVAL;
     }
@@ -495,20 +615,108 @@ short tty_poll(void *poll_file, short events, struct file *f)
     return revents & events;
 }
 
-const struct file_ops tty_fops = {
-    .read = ttydevfs_read, .write = ttydevfs_write, .ioctl = tty_ioctl, .poll = tty_poll};
-
-void tty_create_dev(void)
+int ttyopen_try_to_set_ctty(tty *tty)
 {
-    auto ex = dev_register_chardevs(0, 1, 0, &tty_fops, "tty");
+    auto current = get_current_process();
+    scoped_lock g{current->pgrp_lock};
+
+    if (current->is_session_leader_unlocked() && !current->ctty && !tty->session)
+    {
+        // If we're a session leader without a tty, and this tty has no session
+        // set our ctty to this one
+        tty_set_ctty_unlocked(tty);
+    }
+
+    return 0;
+}
+
+int ttydev_open(file *f)
+{
+    struct tty *tty = (struct tty *) f->f_ino->i_helper;
+    scoped_mutex g{tty->lock};
+
+    bool noctty = f->f_flags & O_NOCTTY;
+
+    if (!noctty)
+        return ttyopen_try_to_set_ctty((struct tty *) f->f_ino->i_helper);
+
+    return 0;
+}
+
+const struct file_ops tty_fops = {
+    .read = ttydevfs_read,
+    .write = ttydevfs_write,
+    .ioctl = tty_ioctl,
+    .on_open = ttydev_open,
+    .poll = tty_poll,
+};
+
+void tty_create_dev(tty *tty, const char *override_name)
+{
+    char name[20];
+
+    if (!override_name)
+        sprintf(name, "tty%lu", tty->tty_num);
+    else
+        sprintf(name, "%s", override_name);
+
+    auto ex = dev_register_chardevs(0, 1, 0, &tty_fops, name);
     if (ex.has_error())
         panic("Could not allocate a character device!\n");
 
     auto dev = ex.value();
 
-    dev->private_ = main_tty;
+    dev->private_ = tty;
     dev->show(0666);
 }
+
+int ctty_open(file *f);
+
+const file_ops ctty_fops = {.on_open = ctty_open};
+
+int ctty_open(file *f)
+{
+    auto current_process = get_current_process();
+    scoped_lock g{current_process->pgrp_lock};
+
+    if (!current_process->ctty)
+    {
+        return -EIO;
+    }
+
+    // Release the proper /dev/tty inode and replace it with a fake inode
+    // that has the ctty's fops and private.
+    // Note that we don't touch the dentry, so backtracking code will still find
+    // /dev/tty as the path
+    auto new_inode = inode_create(false);
+
+    if (!new_inode)
+        return -ENOMEM;
+
+    new_inode->i_dev = f->f_ino->i_dev;
+    new_inode->i_helper = current_process->ctty;
+    new_inode->i_fops = (file_ops *) &tty_fops;
+
+    inode_unref(f->f_ino);
+    f->f_ino = new_inode;
+
+    return 0;
+}
+
+void tty_create_dev_tty()
+{
+    // Creates /dev/tty, which opens the controlling terminal of the process
+    auto ex = dev_register_chardevs(0, 1, 0, &ctty_fops, "tty");
+    if (ex.has_error())
+        panic("Could not allocate a character device!\n");
+
+    auto dev = ex.value();
+    ctty_dev = dev->dev();
+
+    dev->show(0666);
+}
+
+INIT_LEVEL_CORE_INIT_ENTRY(tty_create_dev_tty);
 
 /**
  * @brief Send a response to a command to the tty

@@ -13,6 +13,7 @@
 
 #include <onyx/condvar.h>
 #include <onyx/mutex.h>
+#include <onyx/pid.h>
 #include <onyx/rwlock.h>
 #include <onyx/wait_queue.h>
 
@@ -58,6 +59,7 @@ struct tty
     char *response;
 
     pid_t foreground_pgrp;
+    pid::auto_pid session;
 };
 
 #define TTY_OFLAG(tty, flag) ((tty)->term_io.c_oflag & flag)
