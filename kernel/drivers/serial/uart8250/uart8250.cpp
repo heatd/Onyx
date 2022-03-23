@@ -96,7 +96,7 @@ void uart8250_port::write(const char *s, size_t size, bool is_debug_console)
     }
 }
 
-[[aligned(alignof(uart8250_port))]] static char com1_buf[sizeof(uart8250_port)];
+alignas(uart8250_port) static char com1_buf[sizeof(uart8250_port)];
 uart8250_port *com1;
 
 bool uart8250_port::present()
