@@ -255,7 +255,10 @@ size_t socket_write(size_t offset, size_t len, void *buffer, struct file *file)
     msg.msg_name = nullptr;
     msg.msg_namelen = 0;
 
-    return s->sendmsg(&msg, fd_flags_to_msg_flags(file));
+    ssize_t res = s->sendmsg(&msg, fd_flags_to_msg_flags(file));
+    if (res < 0)
+        return errno = -res, -1;
+    return res;
 }
 
 size_t socket_read(size_t offset, size_t len, void *buffer, file *file)
@@ -275,7 +278,11 @@ size_t socket_read(size_t offset, size_t len, void *buffer, file *file)
     msg.msg_name = nullptr;
     msg.msg_namelen = 0;
 
-    return s->recvmsg(&msg, fd_flags_to_msg_flags(file));
+    ssize_t res = s->recvmsg(&msg, fd_flags_to_msg_flags(file));
+
+    if (res < 0)
+        return errno = -res, -1;
+    return res;
 }
 
 short socket::poll(void *poll_file, short events)
