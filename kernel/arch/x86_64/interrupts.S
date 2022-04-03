@@ -197,7 +197,7 @@ x86_interrupt_common:
 	CFI_INTERRUPT_FRAME_BEFORE_DS
 	cld
 
-	mov %ds, %ax
+	mov %ds, %rax
 	push %rax
 	CFI_INTERRUPT_FRAME_ADJUST_DS
 	mov $KERNEL_DS, %ax

@@ -916,7 +916,7 @@ static bool fork_vm_region(const void *key, void *datum, void *user_data)
      */
 
     new_rwx = is_private ? new_region->rwx & ~VM_WRITE : new_region->rwx;
-    if (vm_flush(new_region, VM_FLUSH_RWX_VALID, new_rwx) < 0)
+    if (vm_flush(new_region, VM_FLUSH_RWX_VALID, new_rwx | VM_NOFLUSH) < 0)
     {
         /* Let the generic addr space destruction code handle this,
          * since there's everything's set now */
@@ -1358,6 +1358,8 @@ out_error:
 
 int sys_munmap(void *addr, size_t length)
 {
+    //printk("munmap [%p, %lx]\n", addr, (unsigned long) addr + length - 1);
+
     if (is_higher_half(addr))
         return -EINVAL;
 
@@ -2154,6 +2156,10 @@ int vm_handle_page_fault(struct fault_info *info)
                 str = "read";
             printk("Page fault at %lx, %s, ip %lx, process name %s\n", info->fault_address, str,
                    info->ip, current ? current->cmd_line.c_str() : "(kernel)");
+#if 0
+            vm_print_umap();
+            panic("pid %ld page fault", current->pid_);
+#endif
         }
 
         info->signal = VM_SIGSEGV;

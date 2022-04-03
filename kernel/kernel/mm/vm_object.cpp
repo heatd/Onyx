@@ -727,6 +727,7 @@ vmo_status_t vmo_get_cow_page(vm_object *vmo, size_t off, struct page **ppage)
     if (vmo_add_page(off, p, vmo) < 0)
         page_unpin(p);
 
+    *ppage = p;
     return st;
 }
 
@@ -759,6 +760,13 @@ struct page *vmo_cow_on_page(vm_object *vmo, size_t off)
         panic("Fatal COW bug - page not found in VMO");
 
     struct page *old_page = (page *) *datum;
+
+    if (old_page->ref == 1)
+    {
+        page_ref(old_page);
+        // Great, we're the only ref, bail out and return this page
+        return old_page;
+    }
 
     struct page *new_page = alloc_page(PAGE_ALLOC_NO_ZERO);
     if (!new_page)

@@ -180,7 +180,6 @@ syscall_ENTRY64:
 
 	# Now get the stack
 	mov -40(%rsp), %rsp
-	
 	# and finally, swap back to the user gs
 	swapgs
 

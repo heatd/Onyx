@@ -249,7 +249,7 @@ void general_protection_fault(struct registers *ctx)
     {
         printk("Instruction (16 raw bytes): ");
         for (int i = 0; i < 16; i++)
-            printk("%x ", instr[i]);
+            printk("%02x ", instr[i]);
         printk("\n");
     }
 
