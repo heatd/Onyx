@@ -2,9 +2,54 @@
 import os
 import argparse
 import json
+import tempfile
 
 package_tree = ""
 onyx_root = ""
+
+def generate_meson_cross(clang_path, onyx_arch):
+	global onyx_root
+	onyx_triple = onyx_arch + "-onyx"
+	cc = onyx_triple + "-gcc"
+	cxx = onyx_triple + "-g++"
+	strip = onyx_triple + "-strip"
+	sysroot = os.path.join(onyx_root, "sysroot")
+	pkgconfig = os.path.join(onyx_root, "buildpkg/onyx-pkg-config")
+	cflags = f"'--sysroot={sysroot}'"
+
+	if clang_path != None:
+		cc = os.path.join(clang_path, "bin/clang")
+		cxx = os.path.join(clang_path, "bin/clang++")
+		strip = os.path.join(clang_path, "bin/llvm-strip")
+		cflags += f", '--target={onyx_arch}-unknown-onyx'"
+	
+	pkg_config_libdir = os.path.join(sysroot, "usr/lib/pkgconfig")
+ 
+	temp = tempfile.NamedTemporaryFile()
+	temp.write(f"""[host_machine]
+system = 'onyx'
+cpu_family = '{onyx_arch}'
+cpu = '{onyx_arch}'
+endian = 'little'
+[constants]
+arch = '{onyx_triple}'
+common_flags = [{cflags}]
+[properties]
+sys_root = '{sysroot}'
+pkg_config_libdir = '{pkg_config_libdir}'
+c_args = common_flags
+cpp_args = common_flags
+c_link_args = common_flags
+[binaries]
+c = '{cc}'
+cpp = '{cxx}'
+strip = '{strip}'
+pkgconfig = '{pkgconfig}'
+""".encode())
+
+	temp.flush()
+	return temp
+
 
 def check_version(package_version, dep_version_string):
 	may_be_greater = dep_version_string.startswith(">=")
@@ -93,16 +138,22 @@ class Package:
 		os.environ["SYSROOT"] = os.path.join(onyx_root, "sysroot")
 		os.environ["ONYX_TARGET"] = os.environ["ONYX_ARCH"] + "-onyx"
 		os.environ["ONYX_CONFIGURE_OPTIONS"] = f'--host={os.environ["ONYX_TARGET"]}'
-		os.environ["ONYX_CMAKE_OPTIONS"] = f'-DCMAKE_MODULE_PATH={os.path.join(onyx_root, "toolchains/cmake")}'
-		buildhelper = os.path.join(onyx_root, "buildpkg/build_sys-helper.sh")
+		os.environ["ONYX_CMAKE_OPTIONS"] = f'-DCMAKE_MODULE_PATH={os.path.join(onyx_root, "toolchains/cmake")} -DCMAKE_SYSTEM_NAME=Onyx'
 
-		if os.system(f'{buildhelper} {self.package_path}') != 0:
-			print(f'Error: buildpkg exited with status code != 0')
-			raise Exception
-		
-		tarball_name = f'{self.name}-{self.get_version()}.tar.zst'
+		with  generate_meson_cross(os.getenv("CLANG_PATH"), os.getenv("ONYX_ARCH")) as meson_cross:
 
-		os.system(f'tar xf {tarball_name} -C {os.path.join(onyx_root, "sysroot")}')
+			os.environ["ONYX_MESON_OPTIONS"] = f'--cross-file {meson_cross.name}'
+
+			buildhelper = os.path.join(onyx_root, "buildpkg/build_sys-helper.sh")
+
+			if os.system(f'{buildhelper} {self.package_path}') != 0:
+				print(f'Error: buildpkg exited with status code != 0')
+				raise Exception
+
+			tarball_name = f'{self.name}-{self.get_version()}.tar.zst'
+
+			os.system(f'tar xf {tarball_name} -C {os.path.join(onyx_root, "sysroot")}')
+
 
 
 def ensure_deps_are_resolved(package_list):
@@ -111,7 +162,7 @@ def ensure_deps_are_resolved(package_list):
 			continue
 		pkg.check_deps(package_list)
 
-def resolve_packages(to_build, package_list):
+def resolve_packages(to_build, package_list, skip_deps):
 	
 	# For each package in to_build, look at its metadata and see what it depends on
 	# or what its members are, if it's a package group 
@@ -121,6 +172,9 @@ def resolve_packages(to_build, package_list):
 		package_list[pkg_name] = pkg
 		pkg_deps = pkg.get_deps()
 
+		if skip_deps:
+			continue
+
 		for dep in pkg_deps:
 			if dep["name"] not in to_build:
 				to_build.append(dep["name"])
@@ -128,15 +182,16 @@ def resolve_packages(to_build, package_list):
 	print(package_list)
 	print(to_build)
 
-	ensure_deps_are_resolved(package_list)
+	if not skip_deps:
+		ensure_deps_are_resolved(package_list)
 
-def build_packages(packages):
+def build_packages(packages, skip_deps):
 	
 	while len(packages) != 0:
 		to_delete = []
 		for package in packages.values():
 			#print(f'Package {package.name} deps {package.get_deps()}')
-			if len(package.get_deps()) == 0:
+			if skip_deps or len(package.get_deps()) == 0:
 				print(f'Building {package.name}!')
 
 				if not package.is_pkg_group():
@@ -159,6 +214,7 @@ def main():
 	parser.add_argument("onyx_root", metavar = "onyx-root", help = "Path to the Onyx root directory", type = str)
 	parser.add_argument("packages", metavar = "package", type = str, nargs = "+", help = "Package(s) to build")
 	parser.add_argument("--install-all", help = "Installs every package, even if they're not strict dependencies of a package")
+	parser.add_argument("--skip-deps", action='store_true', help = "Skip building dependencies")
 	args = parser.parse_args()
 
 	to_build = args.packages
@@ -173,9 +229,10 @@ def main():
 	global onyx_root
 	onyx_root = os.path.abspath(args.onyx_root)
 
-	resolve_packages(to_build, packages)
 
-	build_packages(packages)
+	resolve_packages(to_build, packages, args.skip_deps)
+
+	build_packages(packages, args.skip_deps)
 
 
 if __name__ == "__main__":
