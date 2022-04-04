@@ -40,10 +40,17 @@ def main():
 
 		# Skip the copying if dest is newer or of the same age as src
 		if os.path.exists(dest):
-			if os.stat(dest).st_mtime >= os.stat(src).st_mtime:
+			if os.lstat(dest).st_mtime >= os.lstat(src).st_mtime:
 				continue
-
+		
 		ensure_exists(directory)
+		
+		if os.path.islink(src):
+			dst = os.readlink(src)
+			if os.path.exists(destfile):
+				os.unlink(destfile)
+			os.symlink(dst, destfile)
+			continue
 
 		shutil.copyfile(src, destfile)
 		shutil.copystat(src, destfile)

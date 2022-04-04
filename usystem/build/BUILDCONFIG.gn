@@ -18,9 +18,13 @@ if(clang_path != "") {
 
 dest_dir = getenv("DESTDIR")
 
-default_compiler_configs = [ "//build:compiler_defaults" ]
+default_compiler_configs = [ "//build:compiler_defaults", "//build:wall_extra" ]
 
 set_defaults("executable") {
+  configs = default_compiler_configs
+}
+
+set_defaults("app_executable") {
   configs = default_compiler_configs
 }
 

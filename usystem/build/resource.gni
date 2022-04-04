@@ -24,3 +24,57 @@ template("resource") {
         }
     }
 }
+
+# Taken from LLVM, apache 2.0 licensed
+# Creates a symlink (or, on Windows, copies).
+# Args:
+#   source: Path to link to.
+#   output: Where to create the symlink.
+template("symlink_or_copy") {
+  action(target_name) {
+    forward_variables_from(invoker, [ "deps" ])
+
+    # Make a stamp file the output to work around
+    # https://github.com/ninja-build/ninja/issues/1186
+    stamp =
+        "$target_gen_dir/" + get_path_info(invoker.output, "file") + ".stamp"
+    outputs = [
+      stamp,
+    ]
+    script = "//build/symlink_or_copy.py"
+    args = [
+      "--stamp",
+      rebase_path(stamp, root_out_dir),
+      invoker.source,
+      rebase_path(invoker.output, root_out_dir),
+    ]
+  }
+}
+
+template("symlink") {
+    forward_variables_from(invoker, [ "deps" ])
+
+    symlink_deps = []
+
+    foreach(file_source, invoker.sources) {
+        foreach(target, process_file_template([ file_source ], invoker.targets)) {
+            symlink_or_copy("symlink_" + file_source + "_to_" + target) {
+                source = target
+                output = "$target_out_dir/" + file_source
+            }
+
+            symlink_deps += [":symlink_" + file_source + "_to_" + target]
+
+            resource("symlink_resource_" + file_source + "_to_" + target) {
+                sources = ["$target_out_dir/" + file_source]
+                outputs = [ file_source ]
+            }
+
+            symlink_deps += [":symlink_resource_" + file_source + "_to_" + target]
+        }
+    }
+
+    group(target_name) {  
+        deps = symlink_deps      
+    }
+}
