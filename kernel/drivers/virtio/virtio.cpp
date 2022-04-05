@@ -437,6 +437,7 @@ void virtq_split::notify()
 
 cul::pair<unsigned long, size_t> virtq_split::get_buf_from_id(uint16_t id) const
 {
+    assert(id < queue_size);
     return {descs[id].paddr, descs[id].length};
 }
 

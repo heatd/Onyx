@@ -125,7 +125,7 @@ int network_vdev::send_packet(packetbuf *buf)
     return 0;
 }
 
-static constexpr unsigned int rx_buf_size = 1526;
+static constexpr unsigned int rx_buf_size = 2048;
 
 bool network_vdev::setup_rx()
 {
