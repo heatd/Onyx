@@ -36,12 +36,7 @@ jobs:
       - name: Install dependencies
         run: |
           scripts/ci/install_github_ci_deps.sh
-          mkdir gn_bin/
-          cd gn_bin
-          wget -q https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/latest -O gn.zip
-          unzip gn.zip
-          echo "$PWD" >> $GITHUB_PATH
-          cd ..
+          echo "$PWD/gn_bin" >> $GITHUB_PATH
 
       # Runs a set of commands using the runners shell
       - name: Build Onyx
@@ -102,12 +97,7 @@ jobs:
       - name: Install dependencies
         run: |
           scripts/ci/install_github_ci_deps.sh
-          mkdir gn_bin/
-          cd gn_bin
-          wget -q https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/latest -O gn.zip
-          unzip gn.zip
-          echo "$PWD" >> $GITHUB_PATH
-          cd ..
+          echo "$PWD/gn_bin" >> $GITHUB_PATH
 
       # Runs a set of commands using the runners shell
       - name: Build Onyx
@@ -167,12 +157,7 @@ jobs:
       - name: Install dependencies
         run: |
           scripts/ci/install_github_ci_deps.sh
-          mkdir gn_bin/
-          cd gn_bin
-          wget -q https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/latest -O gn.zip
-          unzip gn.zip
-          echo "$PWD" >> $GITHUB_PATH
-          cd ..
+          echo "$PWD/gn_bin" >> $GITHUB_PATH
 
       - name: Build Onyx
         run: |
@@ -223,12 +208,7 @@ jobs:
       - name: Install dependencies
         run: |
           scripts/ci/install_github_ci_deps.sh
-          mkdir gn_bin/
-          cd gn_bin
-          wget -q https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/latest -O gn.zip
-          unzip gn.zip
-          echo "$PWD" >> $GITHUB_PATH
-          cd ..
+          echo "$PWD/gn_bin" >> $GITHUB_PATH
 
       # Runs a set of commands using the runners shell
       - name: Build Onyx
