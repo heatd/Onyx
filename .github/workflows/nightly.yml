@@ -35,7 +35,7 @@ jobs:
   
       - name: Install dependencies
         run: |
-          sudo apt-get update && sudo apt-get install mtools genisoimage libfl2 clang-tidy unzip ninja-build
+          scripts/ci/install_github_ci_deps.sh
           mkdir gn_bin/
           cd gn_bin
           wget -q https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/latest -O gn.zip
@@ -101,7 +101,7 @@ jobs:
   
       - name: Install dependencies
         run: |
-          sudo apt-get update && sudo apt-get install mtools genisoimage libfl2 clang-tidy unzip ninja-build
+          scripts/ci/install_github_ci_deps.sh
           mkdir gn_bin/
           cd gn_bin
           wget -q https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/latest -O gn.zip
@@ -166,7 +166,7 @@ jobs:
   
       - name: Install dependencies
         run: |
-          sudo apt-get update && sudo apt-get install mtools genisoimage libfl2 clang-tidy unzip ninja-build
+          scripts/ci/install_github_ci_deps.sh
           mkdir gn_bin/
           cd gn_bin
           wget -q https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/latest -O gn.zip
@@ -222,7 +222,7 @@ jobs:
   
       - name: Install dependencies
         run: |
-          sudo apt-get update && sudo apt-get install mtools genisoimage libfl2 clang-tidy unzip ninja-build
+          scripts/ci/install_github_ci_deps.sh
           mkdir gn_bin/
           cd gn_bin
           wget -q https://chrome-infra-packages.appspot.com/dl/gn/gn/linux-amd64/+/latest -O gn.zip
