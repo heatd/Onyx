@@ -31,15 +31,12 @@ system = 'onyx'
 cpu_family = '{onyx_arch}'
 cpu = '{onyx_arch}'
 endian = 'little'
-[constants]
-arch = '{onyx_triple}'
-common_flags = [{cflags}]
 [properties]
 sys_root = '{sysroot}'
 pkg_config_libdir = '{pkg_config_libdir}'
-c_args = common_flags
-cpp_args = common_flags
-c_link_args = common_flags
+c_args = [{cflags}]
+cpp_args = [{cflags}]
+c_link_args = [{cflags}]
 [binaries]
 c = '{cc}'
 cpp = '{cxx}'
