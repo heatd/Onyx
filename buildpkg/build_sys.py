@@ -129,6 +129,17 @@ class Package:
 				      f' but it cannot be satisfied.')
 				raise Exception
 	
+	def get_build_options(self):
+		metabuild_path = os.path.join(self.package_path, "meta_build.json")
+		if not os.path.isfile(metabuild_path):
+			return
+		
+		with open(metabuild_path) as metafile:
+			metabuild_options = json.load(metafile)
+
+			if metabuild_options.get("no_force_cc_env") == "true":
+				os.environ["ONYX_DONT_FORCE_CC_ENV"] = "true"
+
 	def build(self):
 		global onyx_root
 		os.environ["ONYX_ROOT"] = onyx_root
@@ -136,8 +147,9 @@ class Package:
 		os.environ["ONYX_TARGET"] = os.environ["ONYX_ARCH"] + "-onyx"
 		os.environ["ONYX_CONFIGURE_OPTIONS"] = f'--host={os.environ["ONYX_TARGET"]}'
 		os.environ["ONYX_CMAKE_OPTIONS"] = f'-DCMAKE_MODULE_PATH={os.path.join(onyx_root, "toolchains/cmake")} -DCMAKE_SYSTEM_NAME=Onyx'
-
-		with  generate_meson_cross(os.getenv("CLANG_PATH"), os.getenv("ONYX_ARCH")) as meson_cross:
+		self.get_build_options()
+	
+		with generate_meson_cross(os.getenv("CLANG_PATH"), os.getenv("ONYX_ARCH")) as meson_cross:
 
 			os.environ["ONYX_MESON_OPTIONS"] = f'--cross-file {meson_cross.name}'
 
