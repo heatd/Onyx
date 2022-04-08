@@ -59,7 +59,7 @@ void bootmem_add_range(unsigned long start, size_t size)
 void bootmem_remove_range(unsigned int index)
 {
     auto tail_ranges = nr_phys_ranges - index - 1;
-    memcpy(&phys_ranges[index], &phys_ranges[index + 1], tail_ranges * sizeof(memory_range));
+    memmove(&phys_ranges[index], &phys_ranges[index + 1], tail_ranges * sizeof(memory_range));
     nr_phys_ranges--;
 }
 
