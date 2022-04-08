@@ -307,6 +307,13 @@ static inline struct mm_address_space *get_current_address_space()
     return proc ? &proc->address_space : NULL;
 }
 
+/**
+ * @brief Get the number of active processes
+ * 
+ * @return The number of active processes
+ */
+pid_t process_get_active_processes();
+
 #ifdef __cplusplus
 
 #include <onyx/auto_resource.h>

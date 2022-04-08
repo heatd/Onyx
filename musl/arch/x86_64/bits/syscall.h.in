@@ -146,7 +146,7 @@
 #define __NR_msync              146
 #define __NR_statfs				147
 #define __NR_fstatfs			148
-#define __NR_sysinfo			255
+#define __NR_sysinfo			149
 #define __NR_capget				255
 #define __NR_capset				255
 #define __NR_utime				255

@@ -2578,5 +2578,17 @@
             ]
         ],
         "return_type": "int"
+    },
+    {
+        "name": "sysinfo",
+        "nr": 149,
+        "nr_args": 1,
+        "args": [
+            [
+                "struct sysinfo *",
+                "info"
+            ]
+        ],
+        "return_type": "int"
     }
 ]

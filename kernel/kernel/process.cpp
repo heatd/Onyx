@@ -81,12 +81,25 @@ void process_append_to_global_list(process *p)
     p->next = nullptr;
 }
 
+atomic<pid_t> active_processes = 0;
+
+/**
+ * @brief Get the number of active processes
+ * 
+ * @return The number of active processes
+ */
+pid_t process_get_active_processes()
+{
+    return active_processes;
+}
+
 process::process() : pgrp_node{this}, session_node{this}
 {
     init_wait_queue_head(&this->wait_child_event);
     mutex_init(&condvar_mutex);
     mutex_init(&ctx.fdlock);
     rwlock_init(&rlimit_lock);
+    active_processes++;
 }
 
 process::~process()
@@ -96,6 +109,7 @@ process::~process()
         process_group->remove_process(this, PIDTYPE_PGRP);
     if (session) [[likely]]
         session->remove_process(this, PIDTYPE_SID);
+    active_processes--;
 }
 
 bool process::set_cmdline(const std::string_view &path)

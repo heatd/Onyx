@@ -115,6 +115,7 @@ int clock_gettime_kernel(clockid_t clk_id, struct timespec *tp)
     }
 
     case CLOCK_MONOTONIC:
+    case CLOCK_BOOTTIME:
     case CLOCK_MONOTONIC_RAW: {
         // TODO: This is not conforming
         if (clk_id == CLOCK_MONOTONIC_RAW)
