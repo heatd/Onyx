@@ -33,3 +33,20 @@ template("app_shared_library") {
         output_dir = "${root_out_dir}/packages/${package_name}${sys_dir}"
     }
 }
+
+template("app_static_library") {
+    static_library(target_name) {
+
+        forward_variables_from(invoker, "*", ["output_dir"])
+
+        if(defined(extra_configs)) {
+            configs += extra_configs
+        }
+
+        if(!defined(sys_dir)) {
+            sys_dir = "/usr/lib"
+        }
+
+        output_dir = "${root_out_dir}/packages/${package_name}${sys_dir}"
+    }
+}

@@ -42,14 +42,15 @@ def main():
 		if os.path.exists(dest):
 			if os.lstat(dest).st_mtime >= os.lstat(src).st_mtime:
 				continue
-		
+
 		ensure_exists(directory)
 		
 		if os.path.islink(src):
 			dst = os.readlink(src)
-			if os.path.exists(destfile):
+			if os.path.lexists(destfile):
 				os.unlink(destfile)
 			os.symlink(dst, destfile)
+			print(dst + " + " + destfile)
 			continue
 
 		shutil.copyfile(src, destfile)
