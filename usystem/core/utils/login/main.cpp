@@ -136,14 +136,19 @@ void self_exec_for_every_tty()
 
 int main(int argc, char **argv, char **envp)
 {
-    setsid();
-
     if (argc < 2)
         self_exec_for_every_tty();
 
     const char *tty = argv[1];
 
     int flags[] = {O_RDONLY, O_WRONLY, O_WRONLY};
+
+    // Become a session leader, so we can get a new controlling terminal
+    if (setsid() < 0)
+    {
+        perror("setsid");
+        return 1;
+    }
 
     close(0);
     close(1);

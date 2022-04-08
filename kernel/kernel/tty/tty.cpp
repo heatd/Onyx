@@ -117,6 +117,7 @@ void init_default_tty_termios(struct tty *tty)
 extern struct tty_line_disc ntty_disc;
 
 void tty_create_dev(tty *tty, const char *override_name = nullptr);
+void tty_create_dev_console(tty *tty);
 
 void tty_init(void *priv, void (*ctor)(struct tty *tty))
 {
@@ -156,7 +157,7 @@ void tty_init(void *priv, void (*ctor)(struct tty *tty))
     if (main_tty == tty)
     {
         // Create /dev/console for this tty
-        tty_create_dev(tty, "console");
+        tty_create_dev_console(tty);
     }
 }
 
@@ -638,7 +639,7 @@ int ttydev_open(file *f)
     bool noctty = f->f_flags & O_NOCTTY;
 
     if (!noctty)
-        return ttyopen_try_to_set_ctty((struct tty *) f->f_ino->i_helper);
+        return ttyopen_try_to_set_ctty(tty);
 
     return 0;
 }
@@ -701,6 +702,46 @@ int ctty_open(file *f)
     f->f_ino = new_inode;
 
     return 0;
+}
+
+int console_open(file *f)
+{
+    auto new_inode = inode_create(false);
+
+    if (!new_inode)
+        return -ENOMEM;
+
+    new_inode->i_dev = f->f_ino->i_dev;
+    new_inode->i_helper = f->f_ino->i_helper;
+    new_inode->i_fops = (file_ops *) &tty_fops;
+
+    inode_unref(f->f_ino);
+    f->f_ino = new_inode;
+
+    // Not great, but works!
+    // /dev/console can never control a tty, so set O_NOCTTY temporarily
+    int old_flags = f->f_flags;
+    f->f_flags |= O_NOCTTY;
+
+    int st = ttydev_open(f);
+    f->f_flags = old_flags;
+
+    return st;
+}
+
+const file_ops console_fops = {.on_open = console_open};
+
+void tty_create_dev_console(tty *tty)
+{
+    // Creates /dev/console, which opens a console that *cannot* be a ctty
+    auto ex = dev_register_chardevs(0, 1, 0, &console_fops, "console");
+    if (ex.has_error())
+        panic("Could not allocate a character device!\n");
+
+    auto dev = ex.value();
+    dev->private_ = (void *) tty;
+
+    dev->show(0666);
 }
 
 void tty_create_dev_tty()

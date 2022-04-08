@@ -85,7 +85,7 @@ atomic<pid_t> active_processes = 0;
 
 /**
  * @brief Get the number of active processes
- * 
+ *
  * @return The number of active processes
  */
 pid_t process_get_active_processes()

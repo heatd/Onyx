@@ -50,7 +50,6 @@ def main():
 			if os.path.lexists(destfile):
 				os.unlink(destfile)
 			os.symlink(dst, destfile)
-			print(dst + " + " + destfile)
 			continue
 
 		shutil.copyfile(src, destfile)
