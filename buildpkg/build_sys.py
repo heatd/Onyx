@@ -3,6 +3,7 @@ import os
 import argparse
 import json
 import tempfile
+import subprocess
 
 package_tree = ""
 onyx_root = ""
@@ -131,23 +132,27 @@ class Package:
 	
 	def get_build_options(self):
 		metabuild_path = os.path.join(self.package_path, "meta_build.json")
+		extra_env = {}
 		if not os.path.isfile(metabuild_path):
-			return
+			return extra_env
 		
 		with open(metabuild_path) as metafile:
 			metabuild_options = json.load(metafile)
 
 			if metabuild_options.get("no_force_cc_env") == "true":
-				os.environ["ONYX_DONT_FORCE_CC_ENV"] = "true"
+				extra_env["ONYX_DONT_FORCE_CC_ENV"] = "true"
+		
+		return extra_env
 
 	def build(self):
 		global onyx_root
 		os.environ["ONYX_ROOT"] = onyx_root
-		os.environ["SYSROOT"] = os.path.join(onyx_root, "sysroot")
+		sysroot = os.path.join(onyx_root, "sysroot")
+		os.environ["SYSROOT"] = sysroot
 		os.environ["ONYX_TARGET"] = os.environ["ONYX_ARCH"] + "-onyx"
 		os.environ["ONYX_CONFIGURE_OPTIONS"] = f'--host={os.environ["ONYX_TARGET"]}'
 		os.environ["ONYX_CMAKE_OPTIONS"] = f'-DCMAKE_MODULE_PATH={os.path.join(onyx_root, "toolchains/cmake")} -DCMAKE_SYSTEM_NAME=Onyx'
-		self.get_build_options()
+		extra_env = self.get_build_options()
 	
 		with generate_meson_cross(os.getenv("CLANG_PATH"), os.getenv("ONYX_ARCH")) as meson_cross:
 
@@ -155,13 +160,18 @@ class Package:
 
 			buildhelper = os.path.join(onyx_root, "buildpkg/build_sys-helper.sh")
 
-			if os.system(f'{buildhelper} {self.package_path}') != 0:
-				print(f'Error: buildpkg exited with status code != 0')
+			ret = subprocess.run([buildhelper, self.package_path], env={**dict(os.environ), **extra_env})
+
+			if ret.returncode != 0:
+				print(f'Error: buildpkg {self.name} exited with status code {ret.returncode} != 0')
 				raise Exception
 
 			tarball_name = f'{self.name}-{self.get_version()}.tar.zst'
 
-			os.system(f'tar xf {tarball_name} -C {os.path.join(onyx_root, "sysroot")}')
+			ret = subprocess.run(["tar", "xf", tarball_name, "-C", sysroot])
+			if ret.returncode != 0:
+				print(f'Error: Failed to extract package {self.name} exited with status code {ret.returncode} != 0')
+				raise Exception
 
 
 
