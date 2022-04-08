@@ -24,7 +24,6 @@ def main():
     if sys.platform != 'win32':
         try:
             dir = os.path.dirname(args.output)
-            print(args.output)
             if len(dir) != 0 and not os.path.exists(dir):
                 os.makedirs(dir)
             os.symlink(args.source, args.output)
