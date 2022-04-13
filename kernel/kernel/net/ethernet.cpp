@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2016, 2017 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 
 #include <errno.h>
@@ -90,12 +92,12 @@ extern "C" int eth_dll_ops::rx_packet(netif *netif, packetbuf *buf)
 
     switch (ethertype)
     {
-    case PROTO_IPV4:
-        return ip::v4::handle_packet(netif, buf);
-    case PROTO_IPV6:
-        return ip::v6::handle_packet(netif, buf);
-    case PROTO_ARP:
-        return arp_handle_packet(netif, buf);
+        case PROTO_IPV4:
+            return ip::v4::handle_packet(netif, buf);
+        case PROTO_IPV6:
+            return ip::v6::handle_packet(netif, buf);
+        case PROTO_ARP:
+            return arp_handle_packet(netif, buf);
     }
 
     return 0;
