@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2021 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -235,7 +235,7 @@ struct inode *ext2_open(struct dentry *dir, const char *name)
         return errno = -st, nullptr;
     }
 
-    dir_entry_t *dentry = (dir_entry_t *) (res.buf + res.block_off);
+    ext2_dir_entry_t *dentry = (ext2_dir_entry_t *) (res.buf + res.block_off);
 
     inode_num = dentry->inode;
 
@@ -620,13 +620,13 @@ __init void init_ext2drv()
 off_t ext2_getdirent(struct dirent *buf, off_t off, struct file *f)
 {
     off_t new_off;
-    dir_entry_t entry;
+    ext2_dir_entry_t entry;
     ssize_t read;
 
     unsigned long old = thread_change_addr_limit(VM_KERNEL_ADDR_LIMIT);
 
     /* Read a dir entry from the offset */
-    read = file_read_cache(&entry, sizeof(dir_entry_t), f->f_ino, off);
+    read = file_read_cache(&entry, sizeof(ext2_dir_entry_t), f->f_ino, off);
     if (read < 0)
         return read;
 
@@ -640,14 +640,14 @@ off_t ext2_getdirent(struct dirent *buf, off_t off, struct file *f)
     if (!entry.inode)
         return 0;
 
-    memcpy(buf->d_name, entry.name, entry.lsbit_namelen);
-    buf->d_name[entry.lsbit_namelen] = '\0';
+    memcpy(buf->d_name, entry.name, entry.name_len);
+    buf->d_name[entry.name_len] = '\0';
     buf->d_ino = entry.inode;
     buf->d_off = off;
-    buf->d_reclen = sizeof(struct dirent) - (256 - (entry.lsbit_namelen + 1));
-    buf->d_type = entry.type_indic;
+    buf->d_reclen = sizeof(struct dirent) - (256 - (entry.name_len + 1));
+    buf->d_type = entry.file_type;
 
-    new_off = off + entry.size;
+    new_off = off + entry.rec_len;
 
     return new_off;
 }
@@ -683,6 +683,11 @@ struct inode *ext2_mkdir(const char *name, mode_t mode, struct dentry *dir)
     return new_dir;
 }
 
+/**
+ * @brief Reports a filesystem error
+ *
+ * @param str Error Message
+ */
 void ext2_superblock::error(const char *str) const
 {
     printk("ext2_error: %s\n", str);
@@ -699,6 +704,12 @@ void ext2_superblock::error(const char *str) const
     /* TODO: Add (re)mouting read-only */
 }
 
+/**
+ * @brief Does statfs
+ *
+ * @param buf statfs struct to fill
+ * @return 0 on success, negative error codes (in our case, always succesful)
+ */
 int ext2_superblock::stat_fs(struct statfs *buf)
 {
     buf->f_type = EXT2_SIGNATURE;

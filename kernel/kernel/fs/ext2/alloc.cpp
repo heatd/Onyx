@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2021 Pedro Falcato
+ * Copyright (c) 2017 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -17,6 +17,12 @@
 
 #include "ext2.h"
 
+/**
+ * @brief Alocates an inode
+ *
+ * @return Expected consisting of a pair of the inode number and a ext2_inode *, or an
+ * unexpected negative error code
+ */
 expected<cul::pair<ext2_inode_no, ext2_inode *>, int> ext2_superblock::allocate_inode()
 {
     /* TODO: Add a good algorithm that can locally pick an inode */
@@ -53,6 +59,11 @@ expected<cul::pair<ext2_inode_no, ext2_inode *>, int> ext2_superblock::allocate_
     return unexpected<int>{-ENOSPC};
 }
 
+/**
+ * @brief Frees the inode
+ *
+ * @param ino Inode number
+ */
 void ext2_superblock::free_inode(ext2_inode_no inode)
 {
     uint32_t bg_no = ext2_inode_number_to_bg(inode, this);
@@ -82,6 +93,12 @@ ext2_block_no ext2_superblock::try_allocate_block_from_bg(ext2_block_group_no nr
     return res.value_or(EXT2_ERR_INV_BLOCK);
 }
 
+/**
+ * @brief Allocates a block, taking into account the preferred block group
+ *
+ * @param preferred The preferred block group. If -1, no preferrence
+ * @return Block number, or EXT2_ERR_INV_BLOCK if we couldn't allocate one.
+ */
 ext2_block_no ext2_superblock::allocate_block(ext2_block_group_no preferred)
 {
     if (sb->s_free_blocks_count == 0) [[unlikely]]
@@ -134,6 +151,11 @@ ext2_block_no ext2_superblock::allocate_block(ext2_block_group_no preferred)
     return EXT2_ERR_INV_BLOCK;
 }
 
+/**
+ * @brief Frees a block
+ *
+ * @param block Block number to free
+ */
 void ext2_superblock::free_block(ext2_block_no block)
 {
     assert(block != EXT2_ERR_INV_BLOCK);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016 - 2021 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -189,14 +189,18 @@ struct ext2_inode
     uint32_t os_spec_val[3];
 };
 
+#define EXT2_NAME_LEN 255
+
 typedef struct
 {
     uint32_t inode;
-    uint16_t size;
-    uint8_t lsbit_namelen;
-    uint8_t type_indic;
-    char name[255];
-} dir_entry_t;
+    uint16_t rec_len;
+    uint8_t name_len;
+    uint8_t file_type;
+    char name[EXT2_NAME_LEN];
+} ext2_dir_entry_t;
+
+#define EXT2_MIN_DIR_ENTRY_LEN 8
 
 struct ext2_superblock;
 
@@ -386,24 +390,95 @@ public:
         superblock_init(this);
     }
 
+    /**
+     * @brief Alocates an inode
+     *
+     * @return Expected consisting of a pair of the inode number and a ext2_inode *, or an
+     * unexpected negative error code
+     */
     expected<cul::pair<ext2_inode_no, ext2_inode *>, int> allocate_inode();
+
+    /**
+     * @brief Frees the inode
+     *
+     * @param ino Inode number
+     */
     void free_inode(ext2_inode_no ino);
+
+    /**
+     * @brief Reports a filesystem error
+     *
+     * @param str Error Message
+     */
     void error(const char *str) const;
 
+    /**
+     * @brief Allocates a block, taking into account the preferred block group
+     *
+     * @param preferred The preferred block group. If -1, no preferrence
+     * @return Block number, or EXT2_ERR_INV_BLOCK if we couldn't allocate one.
+     */
     ext2_block_no allocate_block(ext2_block_group_no preferred = -1);
+
+    /**
+     * @brief Frees a block
+     *
+     * @param block Block number to free
+     */
     void free_block(ext2_block_no block);
 
+    /**
+     * @brief Read an ext2_inode from disk
+     *
+     * @param nr The inode number
+     * @return A pointer to the inode number
+     */
     ext2_inode *get_inode(ext2_inode_no nr) const;
-    void update_inode(ext2_inode *ino, ext2_inode_no inode_no);
 
+    /**
+     * @brief Updates an inode on disk
+     *
+     * @param ino Pointer to ext2_inode
+     * @param inode_no Inode number
+     */
+    void update_inode(const ext2_inode *ino, ext2_inode_no inode_no);
+
+    /**
+     * @brief Reads metadata blocks from the filesystem using sb_read_block
+     *
+     * @param block Starting block
+     * @param number_of_blocks Number of blocks
+     * @param bufs Pointer to an array of N auto_block_buf's
+     * @return 0 on success, negative error codes
+     */
     int read_blocks(ext2_block_no block, ext2_block_no number_of_blocks, auto_block_buf *bufs);
 
+    /**
+     * @brief Get the first data block of the fs
+     *
+     * @return The first data block
+     */
     ext2_block_no first_data_block() const
     {
         return sb->s_first_data_block;
     }
 
+    /**
+     * @brief Does statfs
+     *
+     * @param buf statfs struct to fill
+     * @return 0 on success, negative error codes (in our case, always succesful)
+     */
     int stat_fs(struct statfs *buf);
+
+    /**
+     * @brief Tries to validate the directory entry as much as possible
+     *
+     * @param entry Pointer to a dir entry
+     * @param offset Offset of the directory entry, inside the block
+     * @return True if valid, else false.
+     */
+    bool valid_dirent(const ext2_dir_entry_t *dentry, size_t offset);
 };
 
 struct ext2_inode_info
@@ -471,8 +546,6 @@ static inline ext2_superblock *ext2_superblock_from_inode(inode *ino)
 typedef uint8_t __attribute__((__may_alias__)) __bitmap_byte;
 
 #define SCAN_ZERO_NOT_FOUND ~0UL
-
-#include <stdio.h>
 
 inline unsigned long ext2_scan_zero(unsigned long *bitmap, unsigned long size)
 {
