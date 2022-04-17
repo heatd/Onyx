@@ -167,26 +167,53 @@ typedef struct
 #define EXT2_NR_BLOCKS  15
 
 #define EXT2_GOOD_OLD_INODE_SIZE 128
+
+struct ext2_osd2_linux
+{
+    uint16_t l_i_blocks_high;
+    uint16_t l_i_file_acl_high;
+    uint16_t l_i_uid_high;
+    uint16_t l_i_gid_high;
+    uint16_t l_i_checksum_lo;
+    uint16_t l_i_reserved;
+};
+
+struct ext2_osd2_hurd
+{
+    uint16_t h_i_reserved1;
+    uint16_t h_i_mode_high;
+    uint16_t h_i_uid_high;
+    uint16_t h_i_gid_high;
+    uint16_t h_i_author;
+};
+
+union ext2_osd2 {
+    // Note: Toolchain-specific defines (such as "linux") stops us from using simpler names down
+    // here.
+    ext2_osd2_linux data_linux;
+    ext2_osd2_hurd data_hurd;
+};
+
 struct ext2_inode
 {
-    uint16_t mode;
-    uint16_t uid;
-    uint32_t size_lo;
-    uint32_t atime;
-    uint32_t ctime;
-    uint32_t mtime;
-    uint32_t dtime;
-    uint16_t gid;
-    uint16_t hard_links;
+    uint16_t i_mode;
+    uint16_t i_uid;
+    uint32_t i_size_lo;
+    uint32_t i_atime;
+    uint32_t i_ctime;
+    uint32_t i_mtime;
+    uint32_t i_dtime;
+    uint16_t i_gid;
+    uint16_t i_links;
     uint32_t i_blocks;
-    uint32_t flags;
-    uint32_t os_spec;
+    uint32_t i_flags;
+    uint32_t i_os_spec;
     uint32_t i_data[EXT2_NR_BLOCKS];
     uint32_t i_generation;
     uint32_t i_file_acl;
-    uint32_t size_hi;
+    uint32_t i_size_hi;
     uint32_t i_faddr;
-    uint32_t os_spec_val[3];
+    union ext2_osd2 i_osd2;
 };
 
 #define EXT2_NAME_LEN 255
@@ -504,7 +531,7 @@ static inline struct ext2_inode *ext2_get_inode_from_node(struct inode *ino)
 #define EXT2_FILE_HOLE_BLOCK 0
 
 #define EXT2_GET_FILE_TYPE(mode)   (mode & S_IFMT)
-#define EXT2_CALCULATE_SIZE64(ino) (((uint64_t) ino->size_hi << 32) | ino->size_lo)
+#define EXT2_CALCULATE_SIZE64(ino) (((uint64_t) ino->i_size_hi << 32) | ino->i_size_lo)
 
 extern const unsigned int direct_block_count;
 

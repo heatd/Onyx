@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017 - 2021 Pedro Falcato
+ * Copyright (c) 2017 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
  *
@@ -21,8 +21,8 @@
 
 void ext2_set_inode_size(struct ext2_inode *inode, size_t size)
 {
-    inode->size_hi = size >> 32;
-    inode->size_lo = size & 0xFFFFFFFF;
+    inode->i_size_hi = size >> 32;
+    inode->i_size_lo = size & 0xFFFFFFFF;
 }
 
 unsigned int ext2_detect_block_type(uint32_t block, struct ext2_superblock *fs)

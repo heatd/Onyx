@@ -65,15 +65,15 @@ void ext2_delete_inode(struct inode *inode_, uint32_t inum, struct ext2_superblo
 {
     struct ext2_inode *inode = ext2_get_inode_from_node(inode_);
 
-    inode->dtime = clock_get_posix_time();
+    inode->i_dtime = clock_get_posix_time();
     ext2_free_inode_space(inode_, fs);
 
-    inode->hard_links = 0;
+    inode->i_links = 0;
     fs->update_inode(inode, inum);
 
     uint32_t block_group = (inum - 1) / fs->inodes_per_block_group;
 
-    if (S_ISDIR(inode->mode))
+    if (S_ISDIR(inode->i_mode))
         fs->block_groups[block_group].dec_used_dirs();
 
     fs->free_inode(inum);
@@ -249,7 +249,7 @@ struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber,
 {
     /* Create a file */
     struct inode *ino =
-        inode_create(S_ISDIR(inode->mode) || S_ISREG(inode->mode) || S_ISLNK(inode->mode));
+        inode_create(S_ISDIR(inode->i_mode) || S_ISREG(inode->i_mode) || S_ISLNK(inode->i_mode));
 
     if (!ino)
     {
@@ -265,8 +265,8 @@ struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber,
 
     ino->i_inode = inumber;
     /* Detect the file type */
-    ino->i_type = ext2_ino_type_to_vfs_type(inode->mode);
-    ino->i_mode = inode->mode;
+    ino->i_type = ext2_ino_type_to_vfs_type(inode->i_mode);
+    ino->i_mode = inode->i_mode;
 
     /* We're storing dev in dbp[0] in the same format as dev_t */
     ino->i_rdev = inode->i_data[0];
@@ -275,12 +275,12 @@ struct inode *ext2_fs_ino_to_vfs_ino(struct ext2_inode *inode, uint32_t inumber,
     if (ino->i_type == VFS_TYPE_FILE)
         ino->i_pages->size = ino->i_size;
 
-    ino->i_uid = inode->uid;
-    ino->i_gid = inode->gid;
-    ino->i_atime = inode->atime;
-    ino->i_ctime = inode->ctime;
-    ino->i_mtime = inode->mtime;
-    ino->i_nlink = inode->hard_links;
+    ino->i_uid = inode->i_uid;
+    ino->i_gid = inode->i_gid;
+    ino->i_atime = inode->i_atime;
+    ino->i_ctime = inode->i_ctime;
+    ino->i_mtime = inode->i_mtime;
+    ino->i_nlink = inode->i_links;
     ino->i_blocks = inode->i_blocks;
 
     ino->i_helper = ext2_cache_inode_info(ino, inode);
@@ -359,17 +359,17 @@ struct inode *ext2_create_file(const char *name, mode_t mode, dev_t dev, struct 
         return nullptr;
 
     memset(inode, 0, sizeof(struct ext2_inode));
-    inode->ctime = inode->atime = inode->mtime = (uint32_t) clock_get_posix_time();
+    inode->i_ctime = inode->i_atime = inode->i_mtime = (uint32_t) clock_get_posix_time();
 
     struct creds *c = creds_get();
     unsigned long old = 0;
 
-    inode->uid = c->euid;
-    inode->gid = c->egid;
+    inode->i_uid = c->euid;
+    inode->i_gid = c->egid;
 
     creds_put(c);
 
-    inode->hard_links = 1;
+    inode->i_links = 1;
     uint16_t ext2_file_type = ext2_mode_to_ino_type(mode);
     if (ext2_file_type == (uint16_t) -1)
     {
@@ -377,7 +377,7 @@ struct inode *ext2_create_file(const char *name, mode_t mode, dev_t dev, struct 
         goto free_ino_error;
     }
 
-    inode->mode = ext2_file_type | (mode & ~S_IFMT);
+    inode->i_mode = ext2_file_type | (mode & ~S_IFMT);
 
     if (S_ISBLK(mode) || S_ISCHR(mode))
     {
@@ -441,17 +441,17 @@ int ext2_flush_inode(struct inode *inode)
     struct ext2_superblock *fs = ext2_superblock_from_inode(inode);
 
     /* Refresh the on-disk struct with the vfs inode data */
-    ino->atime = inode->i_atime;
-    ino->ctime = inode->i_ctime;
-    ino->mtime = inode->i_mtime;
-    ino->size_lo = (uint32_t) inode->i_size;
-    ino->size_hi = (uint32_t) (inode->i_size >> 32);
-    ino->gid = inode->i_gid;
-    ino->uid = inode->i_uid;
-    ino->hard_links = (uint16_t) inode->i_nlink;
+    ino->i_atime = inode->i_atime;
+    ino->i_ctime = inode->i_ctime;
+    ino->i_mtime = inode->i_mtime;
+    ino->i_size_lo = (uint32_t) inode->i_size;
+    ino->i_size_hi = (uint32_t) (inode->i_size >> 32);
+    ino->i_gid = inode->i_gid;
+    ino->i_uid = inode->i_uid;
+    ino->i_links = (uint16_t) inode->i_nlink;
     ino->i_blocks = (uint32_t) inode->i_blocks;
-    ino->mode = inode->i_mode;
-    ino->uid = inode->i_uid;
+    ino->i_mode = inode->i_mode;
+    ino->i_uid = inode->i_uid;
 
     fs->update_inode(ino, (ext2_inode_no) inode->i_inode);
 

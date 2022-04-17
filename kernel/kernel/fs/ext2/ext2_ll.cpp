@@ -27,7 +27,7 @@ const unsigned int direct_block_count = 12;
 
 static inline void __ext2_update_ctime(struct ext2_inode *ino)
 {
-    ino->ctime = (uint32_t) clock_get_posix_time();
+    ino->i_ctime = (uint32_t) clock_get_posix_time();
 }
 
 /**
@@ -218,7 +218,7 @@ int ext2_add_direntry(const char *name, uint32_t inum, struct ext2_inode *ino, i
     entry.inode = inum;
     entry.name_len = strlen(name);
 
-    entry.file_type = ext2_file_type_to_type_indicator(ino->mode);
+    entry.file_type = ext2_file_type_to_type_indicator(ino->i_mode);
 
     strlcpy(entry.name, name, sizeof(entry.name));
 
