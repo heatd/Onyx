@@ -1,15 +1,18 @@
 /*
- * Copyright (c) 2017 Pedro Falcato
+ * Copyright (c) 2017 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
-#ifndef _KERNEL_LIST_H
-#define _KERNEL_LIST_H
+#ifndef _ONYX_LIST_H
+#define _ONYX_LIST_H
 
 #include <stdbool.h>
 #include <stdlib.h>
 
 #include <onyx/compiler.h>
+#include <onyx/panic.h>
 #include <onyx/utils.h>
 
 /* Implementation of struct list_head like linux, so circular */
@@ -100,6 +103,10 @@ static inline void list_remove_bulk(struct list_head *prev, struct list_head *ne
 
 static inline void list_remove(struct list_head *node)
 {
+#if DEBUG_LIST
+    if (node->prev == LIST_REMOVE_POISON || node->next == LIST_REMOVE_POISON)
+        panic("oh no");
+#endif
     list_remove_bulk(node->prev, node->next);
     node->prev = node->next = LIST_REMOVE_POISON;
 }

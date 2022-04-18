@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #ifndef _ONYX_NET_TCP_H
 #define _ONYX_NET_TCP_H
@@ -58,6 +60,8 @@ struct tcp_header
 #define TCP_OPTION_SACK_PERMITTED (4)
 #define TCP_OPTION_SACK           (5)
 #define TCP_OPTION_TIMESTAMP      (8)
+
+#define TCP_GET_DATA_OFF(off) (off >> TCP_DATA_OFFSET_SHIFT)
 
 #ifdef __cplusplus
 
@@ -234,7 +238,7 @@ public:
         return false;
     }
 
-    int send();
+    ref_guard<packetbuf> result();
 
     constexpr bool should_wait_for_ack()
     {
@@ -258,6 +262,10 @@ public:
     }
 };
 
+constexpr unsigned int tcp_retransmission_max = 5;
+
+struct tcp_pending_out;
+
 class tcp_socket : public inet_socket
 {
 private:
@@ -269,7 +277,6 @@ private:
     struct spinlock tcp_ack_list_lock;
     struct list_head tcp_ack_list;
     struct list_head pending_out_packets;
-    struct spinlock pending_out_packets_lock;
     wait_queue tcp_ack_wq;
     uint32_t seq_number;
     uint32_t ack_number;
@@ -284,6 +291,8 @@ private:
     uint8_t our_window_shift;
     uint32_t expected_ack;
     /* TODO: Add a lock for this stuff up here */
+    struct list_head pending_accept_node;
+    struct list_head pending_accept_list;
 
     template <typename pred>
     tcp_ack *find_ack(pred predicate)
@@ -326,8 +335,8 @@ private:
     bool parse_options(tcp_header *packet);
     ssize_t get_max_payload_len(uint16_t tcp_header_len);
 
-    void append_pending_out(tcp_packet *packet);
-    void remove_pending_out(tcp_packet *packet);
+    void append_pending_out(tcp_pending_out *packet);
+    void remove_pending_out(tcp_pending_out *packet);
 
     packetbuf *get_rx_head()
     {
@@ -351,6 +360,8 @@ private:
     }
 
 public:
+    struct spinlock pending_out_lock;
+
     struct packet_handling_data
     {
         packetbuf *buffer;
@@ -367,6 +378,22 @@ public:
         }
     };
 
+    /**
+     * @brief Handle packet recv on SYN_SENT
+     *
+     * @param data Packet handling data
+     * @return 0 on success, negative error codes
+     */
+    int do_receive_syn_sent(const packet_handling_data &data);
+
+    /**
+     * @brief Handle packet recv on ESTABLISHED
+     *
+     * @param data Packet handling data
+     * @return 0 on success, negative error codes
+     */
+    int do_established_rcv(const packet_handling_data &data);
+
     int handle_packet(const packet_handling_data &data);
 
     friend class tcp_packet;
@@ -377,15 +404,17 @@ public:
     tcp_socket()
         : inet_socket{}, state(tcp_state::TCP_STATE_CLOSED),
           type(SOCK_STREAM), packet_semaphore{}, packet_list_head{}, packet_lock{},
-          tcp_ack_list_lock{}, pending_out_packets{}, pending_out_packets_lock{}, tcp_ack_wq{},
-          seq_number{0}, ack_number{0}, send_lock{}, send_buffer{}, current_pos{}, mss{default_mss},
+          tcp_ack_list_lock{}, pending_out_packets{}, tcp_ack_wq{}, seq_number{0},
+          ack_number{0}, send_lock{}, send_buffer{}, current_pos{}, mss{default_mss},
           window_size{0}, window_size_shift{default_window_size_shift}, our_window_size{UINT16_MAX},
-          our_window_shift{default_window_size_shift}, expected_ack{0}
+          our_window_shift{default_window_size_shift}, expected_ack{0}, pending_accept_list{},
+          pending_out_lock{}
     {
         INIT_LIST_HEAD(&tcp_ack_list);
         mutex_init(&send_lock);
         init_wait_queue_head(&tcp_ack_wq);
         INIT_LIST_HEAD(&pending_out_packets);
+        INIT_LIST_HEAD(&pending_accept_list);
     }
 
     ~tcp_socket()
@@ -440,6 +469,125 @@ public:
 
     int getsockname(sockaddr *addr, socklen_t *len) override;
     int getpeername(sockaddr *addr, socklen_t *len) override;
+
+    int listen() override;
+
+    /**
+     * @brief Sends a packetbuf
+     *
+     * @param buf Packetbuf to send
+     * @param noack True if no ack is needed
+     * @return Expected of a ref_guard to a tcp_pending_out, or a negative error code
+     */
+    expected<ref_guard<tcp_pending_out>, int> sendpbuf(ref_guard<packetbuf> buf,
+                                                       bool noack = false);
+
+    /**
+     * @brief Does acknowledgement of packets
+     *
+     * @param buf Packetbuf of the ack packet we got
+     */
+    void do_ack(packetbuf *buf);
+};
+
+constexpr inline uint16_t tcp_header_length_to_data_off(uint16_t len)
+{
+    return len >> 2;
+}
+
+constexpr inline uint16_t tcp_header_data_off_to_length(uint16_t len)
+{
+    return len << 2;
+}
+
+/**
+ * @brief Describes a packet that is pending out
+ *
+ */
+struct tcp_pending_out : public refcountable
+{
+    ref_guard<packetbuf> buf;
+    struct clockevent timer;
+    list_head_cpp<tcp_pending_out> node;
+    unsigned int transmission_try{};
+    tcp_socket *sock;
+    bool acked{};
+    bool reset{};
+    wait_queue wq;
+
+    tcp_pending_out(tcp_socket *s) : refcountable(), node{this}, transmission_try{}, sock{s}
+    {
+        init_wait_queue_head(&wq);
+    }
+
+    /**
+     * @brief Tests if we need to wait longer for the pending out
+     *
+     * @return true
+     * @return false
+     */
+    bool done() const
+    {
+        return reset || acked || transmission_try == tcp_retransmission_max;
+    }
+
+    /**
+     * @brief Wait for a packet's ack
+     *
+     * @return 0 on success, -EINTR if interrupted, -ETIMEDOUT if timed out, -ECONNRESET if the
+     * connection was reset
+     */
+    int wait()
+    {
+        scoped_lock g{sock->pending_out_lock};
+        int st = wait_for_event_locked_interruptible(&wq, done(), &sock->pending_out_lock);
+
+        if (st == -EINTR)
+            remove();
+
+        return st == -EINTR
+                   ? st
+                   : (transmission_try == tcp_retransmission_max ? -ETIMEDOUT
+                                                                 : (reset ? -ECONNRESET : 0));
+    }
+
+    /**
+     * @brief Remove the tcp_pending_out from the list, and drop our ref
+     * Note: socket lock held
+     *
+     */
+    void remove()
+    {
+        timer_cancel_event(&timer);
+        list_remove(&node);
+    }
+
+    /**
+     * @brief Test if an ack was for this packet
+     *
+     * @param last_ack Last ack we got
+     * @param this_ack This ack
+     * @return True if this ack acks this packet, else false
+     */
+    bool ack_for_packet(uint32_t last_ack, uint32_t this_ack) const
+    {
+        const auto tcphdr = (const tcp_header *) buf->transport_header;
+        uint32_t header_len =
+            tcp_header_data_off_to_length(TCP_GET_DATA_OFF(ntohs(tcphdr->data_offset_and_flags)));
+        uint32_t ack_length = buf->tail - buf->transport_header - header_len;
+
+        auto flags = ntohs(tcphdr->data_offset_and_flags);
+        if (flags & TCP_FLAG_SYN)
+            ack_length++;
+        if (flags & TCP_FLAG_FIN)
+            ack_length++;
+
+        auto starting_seq_number = ntohl(tcphdr->sequence_number);
+        if (starting_seq_number >= last_ack && this_ack >= starting_seq_number + ack_length)
+            return true;
+
+        return false;
+    }
 };
 
 #endif

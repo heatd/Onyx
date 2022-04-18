@@ -270,7 +270,7 @@ ssize_t udp_socket::udp_sendmsg(const msghdr *msg, int flags, const inet_sock_ad
 
     if (cork_pending)
     {
-        scoped_hybrid_lock g{sock_lock, this};
+        scoped_hybrid_lock g{socket_lock, this};
 
         if (cork_pending)
         {
@@ -334,7 +334,7 @@ ssize_t udp_socket::udp_sendmsg(const msghdr *msg, int flags, const inet_sock_ad
         return payload_size;
     }
 
-    scoped_hybrid_lock g{sock_lock, this};
+    scoped_hybrid_lock g{socket_lock, this};
 
     cork_pending = our_domain;
 
@@ -581,9 +581,9 @@ int udp_socket::getsockopt(int level, int optname, void *val, socklen_t *len)
     {
         switch (optname)
         {
-        case UDP_CORK: {
-            return put_option(truthy_to_int(wants_cork), val, len);
-        }
+            case UDP_CORK: {
+                return put_option(truthy_to_int(wants_cork), val, len);
+            }
         }
     }
 
@@ -601,14 +601,14 @@ int udp_socket::setsockopt(int level, int optname, const void *val, socklen_t le
     {
         switch (optname)
         {
-        case UDP_CORK: {
-            auto res = get_socket_option<int>(val, len);
-            if (res.has_error())
-                return res.error();
+            case UDP_CORK: {
+                auto res = get_socket_option<int>(val, len);
+                if (res.has_error())
+                    return res.error();
 
-            wants_cork = int_to_truthy(res.value());
-            return 0;
-        }
+                wants_cork = int_to_truthy(res.value());
+                return 0;
+            }
         }
     }
 

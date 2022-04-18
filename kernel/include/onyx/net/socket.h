@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2018 Pedro Falcato
+ * Copyright (c) 2018 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 
 #ifndef _ONYX_NET_SOCKET_H
@@ -141,7 +143,6 @@ public:
 
     proto_family *proto_domain;
 
-    hybrid_lock sock_lock;
     struct list_head socket_backlog;
 
     unsigned int rx_max_buf;
@@ -155,9 +156,10 @@ public:
     /* Define a default constructor here */
     socket()
         : type{}, proto{}, domain{}, in_band_queue{this}, oob_data_queue{this}, flags{}, sock_err{},
-          bound{}, connected{}, listener_sem{}, conn_req_list_lock{}, conn_request_list{},
-          nr_pending{}, backlog{}, proto_domain{}, sock_lock{}, rx_max_buf{DEFAULT_RX_MAX_BUF},
-          tx_max_buf{DEFAULT_TX_MAX_BUF}, reuse_addr{false}, rcv_timeout{0}, snd_timeout{0}
+          socket_lock{}, bound{}, connected{}, listener_sem{}, conn_req_list_lock{},
+          conn_request_list{}, nr_pending{}, backlog{}, proto_domain{},
+          rx_max_buf{DEFAULT_RX_MAX_BUF}, tx_max_buf{DEFAULT_TX_MAX_BUF}, reuse_addr{false},
+          rcv_timeout{0}, snd_timeout{0}
     {
         INIT_LIST_HEAD(&socket_backlog);
     }

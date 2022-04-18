@@ -32,9 +32,12 @@ auto tx_proto_to_eth_proto(tx_protocol proto)
 int eth_dll_ops::setup_header(packetbuf *buf, tx_type type, tx_protocol proto, netif *nif,
                               const void *dst_hw)
 {
-    auto hdr = (struct eth_header *) buf->push_header(sizeof(struct eth_header));
+    auto hdr = buf->link_header ? (eth_header *) buf->link_header
+                                : (struct eth_header *) buf->push_header(sizeof(struct eth_header));
 
     memset(hdr, 0, sizeof(struct eth_header));
+
+    buf->link_header = (unsigned char *) hdr;
 
     hdr->ethertype = htons(tx_proto_to_eth_proto(proto));
     if (type == tx_type::unicast)

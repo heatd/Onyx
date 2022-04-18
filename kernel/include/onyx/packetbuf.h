@@ -67,6 +67,8 @@ struct packetbuf : public refcountable
 
     struct page_iov page_vec[PACKETBUF_MAX_NR_PAGES + 2];
 
+    unsigned char *phy_header;
+    unsigned char *link_header;
     unsigned char *net_header;
     unsigned char *transport_header;
     unsigned char *data;
@@ -108,9 +110,10 @@ public:
      *
      */
     packetbuf()
-        : refcountable{}, page_vec{}, net_header{}, transport_header{}, data{}, tail{}, end{},
-          buffer_start{}, csum_offset{nullptr}, csum_start{nullptr}, vmo{}, header_length{},
-          gso_size{}, gso_flags{}, needs_csum{0}, zero_copy{0}, domain{0}, list_node{this}
+        : refcountable{}, page_vec{}, phy_header{}, link_header{}, net_header{},
+          transport_header{}, data{}, tail{}, end{}, buffer_start{}, csum_offset{nullptr},
+          csum_start{nullptr}, vmo{}, header_length{}, gso_size{}, gso_flags{},
+          needs_csum{0}, zero_copy{0}, domain{0}, list_node{this}
     {
     }
 

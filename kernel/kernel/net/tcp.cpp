@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 
 #include <errno.h>
@@ -14,26 +16,16 @@
 #include <onyx/net/tcp.h>
 #include <onyx/poll.h>
 #include <onyx/random.h>
+#include <onyx/timer.h>
 
 socket_table tcp_table;
 
 const inet_proto tcp_proto{"tcp", &tcp_table};
 
-constexpr inline uint16_t tcp_header_length_to_data_off(uint16_t len)
-{
-    return len >> 2;
-}
-
-constexpr inline uint16_t tcp_header_data_off_to_length(uint16_t len)
-{
-    return len << 2;
-}
-
 uint16_t tcpv4_calculate_checksum(tcp_header *header, uint16_t packet_length, uint32_t srcip,
                                   uint32_t dstip, bool calc_data = true);
 
 #define TCP_MAKE_DATA_OFF(off) (off << TCP_DATA_OFFSET_SHIFT)
-#define TCP_GET_DATA_OFF(off)  (off >> TCP_DATA_OFFSET_SHIFT)
 
 int tcp_init_netif(struct netif *netif)
 {
@@ -66,11 +58,167 @@ bool validate_tcp_packet(const tcp_header *header, size_t size)
     return true;
 }
 
+/**
+ * @brief Handle packet recv on SYN_SENT
+ *
+ * @param data Packet handling data
+ * @return 0 on success, negative error codes
+ */
+int tcp_socket::do_receive_syn_sent(const packet_handling_data &data)
+{
+    auto tcphdr = data.header;
+    const auto flags = htons(tcphdr->data_offset_and_flags);
+    constexpr int valid_flags = TCP_FLAG_SYN | TCP_FLAG_ACK;
+    if ((flags & 0xff) != valid_flags)
+        return -1;
+
+    window_size = ntohs(tcphdr->window_size) << window_size_shift;
+
+    if (!parse_options(tcphdr))
+    {
+        /* Invalid packet */
+        state = tcp_state::TCP_STATE_CLOSED;
+        return -EIO;
+    }
+
+    auto starting_seq_number = ntohl(tcphdr->sequence_number);
+    uint32_t seqs = 1;
+    ack_number = starting_seq_number + seqs;
+
+    do_ack(data.buffer);
+
+    tcp_packet pkt{{}, this, TCP_FLAG_ACK, src_addr};
+
+    auto res = pkt.result();
+
+    if (!res)
+    {
+        state = tcp_state::TCP_STATE_CLOSED;
+        sock_err = ENOBUFS;
+        return -ENOBUFS;
+    }
+
+    auto ex = sendpbuf(res, true);
+
+    if (ex.has_error())
+    {
+        state = tcp_state::TCP_STATE_CLOSED;
+        sock_err = -ex.error();
+        return ex.error();
+    }
+
+    state = tcp_state::TCP_STATE_ESTABLISHED;
+
+    return 0;
+}
+
+/**
+ * @brief Does acknowledgement of packets
+ *
+ * @param buf Packetbuf of the ack packet we got
+ */
+void tcp_socket::do_ack(packetbuf *buf)
+{
+    tcp_header *tcphdr = (tcp_header *) buf->transport_header;
+    auto ack = ntohl(tcphdr->ack_number);
+
+    scoped_lock g{pending_out_lock};
+
+    list_for_every_safe (&pending_out_packets)
+    {
+        auto pkt = list_head_cpp<tcp_pending_out>::self_from_list_head(l);
+
+        if (!pkt->ack_for_packet(last_ack_number, ack))
+            continue;
+
+        pkt->acked = true;
+
+        wait_queue_wake_all(&pkt->wq);
+
+        pkt->remove();
+
+        /* Unref *must* be the last thing we do */
+        pkt->unref();
+    }
+
+    last_ack_number = ack;
+
+    g.unlock();
+}
+
+/**
+ * @brief Handle packet recv on ESTABLISHED
+ *
+ * @param data Packet handling data
+ * @return 0 on success, negative error codes
+ */
+int tcp_socket::do_established_rcv(const packet_handling_data &data)
+{
+    const auto tcphdr = (const tcp_header *) data.header;
+    auto flags = htons(tcphdr->data_offset_and_flags);
+
+    if (!(flags & TCP_FLAG_ACK))
+    {
+        // Every segment received after established needs to have ACK set
+        return 0;
+    }
+
+    if (flags & TCP_FLAG_SYN)
+    {
+        // SYN is not a valid flag in this state
+        return 0;
+    }
+
+    /* ack_number holds the other side of the connection's sequence number */
+    auto starting_seq_number = ntohl(data.header->sequence_number);
+    auto data_off = TCP_GET_DATA_OFF(ntohs(data.header->data_offset_and_flags));
+    uint16_t data_size = data.tcp_segment_size - tcp_header_data_off_to_length(data_off);
+    uint32_t seqs = data_size;
+    if (flags & TCP_FLAG_FIN)
+        seqs++;
+
+    ack_number = starting_seq_number + seqs;
+
+    if (data_size || flags & TCP_FLAG_FIN)
+    {
+        // If this wasn't a FIN packet, it has data
+        // so append it to the receive buffers
+        if (!(flags & TCP_FLAG_FIN))
+        {
+            auto buf = data.buffer;
+            append_inet_rx_pbuf(buf);
+        }
+
+        // Now ack it
+
+        tcp_packet pkt{{}, this, TCP_FLAG_ACK, src_addr};
+        auto pbuf = pkt.result();
+
+        if (!pbuf)
+        {
+            sock_err = ENOBUFS;
+            return 0;
+        }
+
+        if (auto ex = sendpbuf(pbuf, true); ex.has_error())
+        {
+            sock_err = ex.error();
+            return 0;
+        }
+    }
+    else if (data_size == 0 && (flags & 0xff) == TCP_FLAG_ACK)
+    {
+        // Process the ACK
+        do_ack(data.buffer);
+    }
+
+    return 0;
+}
+
 int tcp_socket::handle_packet(const tcp_socket::packet_handling_data &data)
 {
     auto data_off = TCP_GET_DATA_OFF(ntohs(data.header->data_offset_and_flags));
     uint16_t header_size = tcp_header_data_off_to_length(data_off);
-    auto seq_number = ntohl(data.header->sequence_number);
 
     if (data.tcp_segment_size < header_size)
         return -1;
@@ -81,104 +229,57 @@ int tcp_socket::handle_packet(const tcp_socket::packet_handling_data &data)
 #endif
 
     uint16_t data_size = data.tcp_segment_size - header_size;
+    data.buffer->data += header_size;
     cul::slice<uint8_t> buf{(uint8_t *) data.header + header_size, data_size};
 
     auto flags = htons(data.header->data_offset_and_flags);
 
-    /* TODO: Send RST on bad packets */
-    if (flags & TCP_FLAG_SYN)
+    if (flags & TCP_FLAG_RST)
     {
-        if (state != tcp_state::TCP_STATE_SYN_SENT)
-        {
-            return 0;
-        }
+        sock_err = ECONNRESET;
 
-        window_size = ntohs(data.header->window_size) << window_size_shift;
-
-        if (!parse_options(data.header))
-        {
-            /* Invalid packet */
-            state = tcp_state::TCP_STATE_CLOSED;
-            return -EIO;
-        }
-    }
-
-    if (flags & TCP_FLAG_ACK)
-    {
-        if (state == tcp_state::TCP_STATE_LISTEN || state == tcp_state::TCP_STATE_CLOSED)
-            return 0;
-
-        /* Filter out out-of-order packets by checking the seq number */
-        if (!(flags & TCP_FLAG_SYN) && seq_number != ack_number)
-        {
-#if 0
-			printk("seq number %u - ack %u\n", seq_number, ack_number);
-#endif
-            return -1;
-        }
-
-        auto ack = ntohl(data.header->ack_number);
-
-        scoped_lock guard{pending_out_packets_lock};
-
-        bool was_acked = false;
+        scoped_lock g{pending_out_lock};
 
         list_for_every_safe (&pending_out_packets)
         {
-            auto pkt = list_head_cpp<tcp_packet>::self_from_list_head(l);
-            if (!pkt->ack_for_packet(last_ack_number, ack))
-                continue;
-#if 0
-			printk("Packet: %p\n", pkt);
-#endif
-            was_acked = true;
-            pkt->acked = true;
-            wait_queue_wake_all(&pkt->ack_wq);
-
-            list_remove(&pkt->pending_packet_list_node);
+            auto pkt = list_head_cpp<tcp_pending_out>::self_from_list_head(l);
+            pkt->reset = true;
+            wait_queue_wake_all(&pkt->wq);
+            pkt->remove();
 
             /* Unref *must* be the last thing we do */
             pkt->unref();
         }
 
-        guard.unlock();
-
-        (void) was_acked;
-
-        last_ack_number = ack;
-        /* ack_number holds the other side of the connection's sequence number */
-        {
-            /* ack_number holds the other side of the connection's sequence number */
-            auto starting_seq_number = ntohl(data.header->sequence_number);
-            uint32_t seqs = data_size;
-            if (flags & TCP_FLAG_SYN)
-                seqs++;
-            if (flags & TCP_FLAG_FIN)
-                seqs++;
-
-#if 0
-			printk("These seqs: %u\n", seqs);
-#endif
-            ack_number = starting_seq_number + seqs;
-        }
+        return 0;
     }
 
-#if 0
-	printk("next ack number %u\n", ack_number);
-#endif
+    if (state == tcp_state::TCP_STATE_SYN_SENT)
+        return do_receive_syn_sent(data);
 
-    if (data_size || flags & TCP_FLAG_FIN)
+    if (state == tcp_state::TCP_STATE_ESTABLISHED)
+        return do_established_rcv(data);
+
+    if (flags & TCP_FLAG_SYN)
     {
-        if (!(flags & TCP_FLAG_FIN))
+        if (state == tcp_state::TCP_STATE_LISTEN)
         {
-            auto buf = data.buffer;
-            buf->transport_header = (unsigned char *) data.header;
-            buf->data += header_size;
-            append_inet_rx_pbuf(buf);
-        }
+            // TODO
+#if 0
+            // Only syn should be set
+            if (flags & ~TCP_FLAG_SYN)
+                return -1;
 
-        tcp_packet pkt{{}, this, TCP_FLAG_ACK, src_addr};
-        pkt.send();
+            tcp_socket *sock = new tcp_socket();
+
+            if (!sock)
+                return -1;
+
+            sock->state = tcp_state::TCP_STATE_SYN_RECEIVED;
+            sock->connect(struct sockaddr *addr, socklen_t addrlen)
+#endif
+            return 0;
+        }
     }
 
     return 0;
@@ -219,7 +320,7 @@ int tcp_send_rst_no_socket(const sockaddr_in_both &dstaddr, in_port_t srcport, i
 
     iflow flow{res.value(), IPPROTO_TCP, false};
 
-    return ip::v4::send_packet(flow, buf.get());
+    return netif_send_packet(flow.nif, buf.get());
 }
 
 int tcp_handle_packet(netif *netif, packetbuf *buf)
@@ -230,6 +331,8 @@ int tcp_handle_packet(netif *netif, packetbuf *buf)
 
     if (!validate_tcp_packet(header, buf->length())) [[unlikely]]
         return 0;
+
+    buf->transport_header = (unsigned char *) header;
 
     auto socket =
         inet_resolve_socket<tcp_socket>(ip_header->source_ip, header->source_port,
@@ -258,8 +361,9 @@ int tcp_handle_packet(netif *netif, packetbuf *buf)
     const tcp_socket::packet_handling_data handle_data{buf, header, tcp_payload_len, &both,
                                                        AF_INET};
 
+    socket->socket_lock.lock_bh();
     st = socket->handle_packet(handle_data);
-
+    socket->socket_lock.unlock_bh();
     socket->unref();
 
     return st;
@@ -312,15 +416,15 @@ void tcp_packet::put_options(char *opts)
     }
 }
 
-int tcp_packet::send()
+ref_guard<packetbuf> tcp_packet::result()
 {
     buf = make_refc<packetbuf>();
     if (!buf)
-        return -ENOMEM;
+        return {};
 
     if (!buf->allocate_space(payload.size_bytes() + socket->get_headers_len() +
                              MAX_TCP_HEADER_LENGTH))
-        return -ENOMEM;
+        return {};
     buf->reserve_headers(socket->get_headers_len() + MAX_TCP_HEADER_LENGTH);
 
     uint16_t options_len = options_length();
@@ -379,9 +483,6 @@ int tcp_packet::send()
                                      route.src_addr.in4.s_addr, route.dst_addr.in4.s_addr);
     }
 
-    if (should_wait_for_ack())
-        socket->append_pending_out(this);
-
     starting_seq_number = socket->sequence_nr();
     uint32_t seqs = length;
     if (flags & TCP_FLAG_SYN)
@@ -389,17 +490,7 @@ int tcp_packet::send()
 
     socket->sequence_nr() += seqs;
 
-    iflow flow{socket->route_cache, IPPROTO_TCP, false};
-
-    int st = ip::v4::send_packet(flow, buf.get());
-
-    if (st < 0)
-    {
-        socket->remove_pending_out(this);
-        return st;
-    }
-
-    return 0;
+    return buf;
 }
 
 int tcp_packet::wait_for_ack()
@@ -452,20 +543,20 @@ bool tcp_socket::parse_options(tcp_header *packet)
 
         switch (opt_byte)
         {
-        case TCP_OPTION_MSS:
-            if (!syn_set)
-                return false;
+            case TCP_OPTION_MSS:
+                if (!syn_set)
+                    return false;
 
-            mss = *(uint16_t *) (options + 2);
-            mss = ntohs(mss);
-            break;
-        case TCP_OPTION_WINDOW_SCALE:
-            if (!syn_set)
-                return false;
+                mss = *(uint16_t *) (options + 2);
+                mss = ntohs(mss);
+                break;
+            case TCP_OPTION_WINDOW_SCALE:
+                if (!syn_set)
+                    return false;
 
-            uint8_t wss = *(options + 2);
-            window_size_shift = wss;
-            break;
+                uint8_t wss = *(options + 2);
+                window_size_shift = wss;
+                break;
         }
 
         options += length;
@@ -477,6 +568,88 @@ bool tcp_socket::parse_options(tcp_header *packet)
 /* TODO: This doesn't apply to IPv6 */
 constexpr uint16_t tcp_headers_overhead =
     sizeof(struct tcp_header) + sizeof(struct eth_header) + IPV4_MIN_HEADER_LEN;
+
+void tcp_out_timeout(clockevent *ev)
+{
+    tcp_pending_out *t = (tcp_pending_out *) ev->priv;
+
+    if (t->acked)
+    {
+        ev->flags &= ~CLOCKEVENT_FLAG_PULSE;
+        return;
+    }
+
+    if (t->transmission_try == tcp_retransmission_max)
+    {
+        wait_queue_wake_all(&t->wq);
+        ev->flags &= ~CLOCKEVENT_FLAG_PULSE;
+        scoped_lock g{t->sock->pending_out_lock};
+        list_remove(&t->node);
+        return;
+    }
+
+    t->transmission_try++;
+
+    iflow flow{t->sock->route_cache, IPPROTO_TCP, false};
+
+    // Since the packet has already been pre-prepared by the network stack
+    // we can just send it straight through the network interface
+    int st = netif_send_packet(flow.nif, t->buf.get());
+    // TODO: signal error
+    (void) st;
+    hrtime_t next_timeout = 200;
+    for (unsigned int i = 0; i < t->transmission_try; i++)
+    {
+        next_timeout *= 2;
+    }
+
+    ev->deadline = clocksource_get_time() + next_timeout * NS_PER_MS;
+}
+
+/**
+ * @brief Sends a packetbuf
+ *
+ * @param buf Packetbuf to send
+ * @param noack True if no ack is needed
+ * @return Expected of a ref_guard to a tcp_pending_out, or a negative error code
+ */
+expected<ref_guard<tcp_pending_out>, int> tcp_socket::sendpbuf(ref_guard<packetbuf> buf, bool noack)
+{
+    iflow flow{route_cache, IPPROTO_TCP, false};
+    ref_guard<tcp_pending_out> pending;
+    if (!noack)
+    {
+        scoped_lock g{pending_out_lock};
+
+        pending = make_refc<tcp_pending_out>(this);
+        if (!pending)
+        {
+            return unexpected{-ENOBUFS};
+        }
+
+        pending->buf = buf;
+        pending->timer.deadline = clocksource_get_time() + 200 * NS_PER_MS;
+        pending->timer.priv = pending.get();
+        pending->timer.flags = CLOCKEVENT_FLAG_PULSE;
+        pending->timer.callback = tcp_out_timeout;
+        append_pending_out(pending.get());
+    }
+
+    int st = ip::v4::send_packet(flow, buf.get());
+
+    if (st < 0)
+        return unexpected{st};
+
+    if (!noack)
+    {
+        timer_queue_clockevent(&pending->timer);
+    }
+
+    if (noack)
+        return ref_guard<tcp_pending_out>{};
+
+    return pending;
+}
 
 int tcp_socket::start_handshake(netif *nif)
 {
@@ -490,15 +663,24 @@ int tcp_socket::start_handshake(netif *nif)
 
     first_packet.append_option(&opt);
 
-    int st = first_packet.send();
+    auto buf = first_packet.result();
 
-    if (st < 0)
-        return st;
+    if (!buf)
+        return -ENOBUFS;
+
+    auto ex = sendpbuf(buf);
+
+    if (ex.has_error())
+        return ex.error();
+
+    auto val = ex.value();
 
     state = tcp_state::TCP_STATE_SYN_SENT;
 
-    /* TODO: Timeouts */
-    st = first_packet.wait_for_ack();
+    int st = val->wait();
+
+    if (st < 0)
+        return st;
 
 #if 0
 	printk("ack received\n");
@@ -540,7 +722,7 @@ int tcp_socket::finish_handshake(netif *nif)
     tcp_packet packet{{}, this, TCP_FLAG_ACK, src_addr};
     packet.set_packet_flags(TCP_PACKET_FLAG_ON_STACK);
 
-    return packet.send();
+    return 0;
 }
 
 int tcp_socket::start_connection()
@@ -662,18 +844,21 @@ void tcp_socket::try_to_send()
         cul::slice<const uint8_t> data{send_buffer.begin(), current_pos};
         current_pos = 0;
 
-        tcp_packet *packet = new tcp_packet{data, this, TCP_FLAG_ACK | TCP_FLAG_PSH, src_addr};
-        if (!packet)
-            return;
+        tcp_packet packet{data, this, TCP_FLAG_ACK | TCP_FLAG_PSH, src_addr};
 
-        /* TODO: Return errors from this */
-        auto st = packet->send();
-        if (st < 0)
+        auto buf = packet.result();
+        if (!buf)
         {
+            sock_err = ENOBUFS;
             return;
         }
 
-        packet->unref();
+        auto ex = sendpbuf(buf);
+
+        if (ex.has_error())
+        {
+            sock_err = -ex.error();
+        }
     }
 }
 
@@ -706,20 +891,17 @@ ssize_t tcp_socket::sendmsg(const msghdr *msg, int flags)
     return len;
 }
 
-void tcp_socket::append_pending_out(tcp_packet *pckt)
+void tcp_socket::append_pending_out(tcp_pending_out *pckt)
 {
-    scoped_lock guard{pending_out_packets_lock};
-    list_add_tail(&pckt->pending_packet_list_node, &pending_out_packets);
+    list_add_tail(&pckt->node, &pending_out_packets);
 
     /* Don't forget to ref the packet! */
     pckt->ref();
 }
 
-void tcp_socket::remove_pending_out(tcp_packet *pkt)
+void tcp_socket::remove_pending_out(tcp_pending_out *pkt)
 {
-    scoped_lock guard{pending_out_packets_lock};
-
-    list_remove(&pkt->pending_packet_list_node);
+    list_remove(&pkt->node);
 
     /* And also don't forget to unref it back! */
     pkt->unref();
@@ -889,5 +1071,23 @@ int tcp_socket::getsockname(sockaddr *addr, socklen_t *len)
 int tcp_socket::getpeername(sockaddr *addr, socklen_t *len)
 {
     copy_addr_to_sockaddr(dest_addr, addr, len);
+    return 0;
+}
+
+int tcp_socket::listen()
+{
+    if (!bound)
+    {
+        int st = get_proto_fam()->bind_any(this);
+
+        if (st < 0)
+            return -EADDRINUSE;
+    }
+
+    if (connected)
+        return -EINVAL;
+
+    state = tcp_state::TCP_STATE_LISTEN;
+
     return 0;
 }

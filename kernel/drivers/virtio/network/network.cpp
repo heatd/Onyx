@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include "network.hpp"
 
@@ -81,7 +83,10 @@ int network_vdev::poll_rx()
 
 int network_vdev::send_packet(packetbuf *buf)
 {
-    auto hdr = reinterpret_cast<virtio_net_hdr *>(buf->push_header(sizeof(virtio_net_hdr)));
+    auto hdr = reinterpret_cast<virtio_net_hdr *>(
+        buf->phy_header ? buf->phy_header : buf->push_header(sizeof(virtio_net_hdr)));
+
+    buf->phy_header = (unsigned char *) hdr;
     memset(hdr, 0, sizeof(*hdr));
     hdr->gso_type = VIRTIO_NET_HDR_GSO_NONE;
     if (buf->needs_csum)

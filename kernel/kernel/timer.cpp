@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2019 Pedro Falcato
- * This file is part of Carbon, and is released under the terms of the MIT License
+ * Copyright (c) 2019 - 2022 Pedro Falcato
+ * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <errno.h>
 #include <string.h>
@@ -49,6 +51,8 @@ void timer_handle_events(struct timer *t)
 {
     bool atomic_context = irq_is_disabled();
     bool has_raised_softirq = false;
+    struct list_head to_handle;
+    INIT_LIST_HEAD(&to_handle);
 
     auto current_time = clocksource_get_time();
 
@@ -65,19 +69,24 @@ void timer_handle_events(struct timer *t)
             continue;
         }
 
-        if (!atomic_context || ev->flags & CLOCKEVENT_FLAG_ATOMIC)
+        if (ev->flags & CLOCKEVENT_FLAG_ATOMIC)
         {
             ev->callback(ev);
             if (!(ev->flags & CLOCKEVENT_FLAG_PULSE))
             {
                 ev->flags &= ~CLOCKEVENT_FLAG_POISON;
                 list_remove(&ev->list_node);
-                ev->timer = nullptr;
             }
             else
             {
                 lowest = lowest < ev->deadline ? lowest : ev->deadline;
             }
+        }
+        else if (!atomic_context)
+        {
+            ev->timer = nullptr;
+            list_remove(&ev->list_node);
+            list_add_tail(&ev->list_node, &to_handle);
         }
         else
         {
@@ -102,6 +111,31 @@ void timer_handle_events(struct timer *t)
     }
 
     spin_unlock_irqrestore(&t->event_list_lock, cpu_flags);
+
+    if (!atomic_context)
+    {
+        // Handle non-atomic contexts
+        list_for_every_safe (&to_handle)
+        {
+            struct clockevent *ev = container_of(l, struct clockevent, list_node);
+
+            ev->callback(ev);
+
+            ev->flags &= ~CLOCKEVENT_FLAG_PENDING;
+            if (!(ev->flags & CLOCKEVENT_FLAG_PULSE))
+            {
+                ev->flags &= ~CLOCKEVENT_FLAG_POISON;
+                list_remove(&to_handle);
+                ev->timer = nullptr;
+            }
+            else
+            {
+                ev->flags &= ~CLOCKEVENT_FLAG_POISON;
+                timer_queue_clockevent(ev);
+                lowest = lowest < ev->deadline ? lowest : ev->deadline;
+            }
+        }
+    }
 }
 
 void timer_cancel_event(struct clockevent *ev)
@@ -114,7 +148,7 @@ void timer_cancel_event(struct clockevent *ev)
      * If it's set, we lock the event list, and recheck for CLOCKEVENT_POISON; if it's set,
      * the event is still in there and we need to list_remove it.
      */
-    if (timer != nullptr)
+    if (timer != nullptr && ev->flags & CLOCKEVENT_FLAG_POISON)
     {
         unsigned long cpu_flags = spin_lock_irqsave(&timer->event_list_lock);
 

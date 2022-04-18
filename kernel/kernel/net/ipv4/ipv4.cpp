@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2016-2020 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <errno.h>
 #include <netinet/in.h>
@@ -329,7 +331,9 @@ int send_packet(const iflow &flow, packetbuf *buf, cul::slice<ip_option> options
         return do_fragmentation(&sinfo, payload_size, buf, netif);
     }
 
-    ip_header *iphdr = (ip_header *) buf->push_header(sizeof(ip_header));
+    ip_header *iphdr = (ip_header *) buf->net_header;
+    if (!iphdr)
+        iphdr = (ip_header *) buf->push_header(sizeof(ip_header));
 
     /* Let's reuse code by creating a single fragment struct on the stack */
     struct fragment frag;
@@ -422,7 +426,12 @@ int proto_family::bind_internal(sockaddr_in *in, inet_socket *sock)
 
     inet_sock_address addr{*in};
     fnv_hash_t hash = 0;
-    const socket_id id(sock->proto, AF_INET, addr, addr);
+    int extra_flags = sock->connected ? GET_SOCKET_DSTADDR_VALID : 0;
+
+    // For non-connected sockets that just called bind(), sock->dest_addr will be all 0's
+    // For listening sockets that just got created, the sock->dest_addr will be filled,
+    // and therefore will not conflict
+    const socket_id id(sock->proto, AF_INET, addr, sock->connected ? sock->dest_addr : addr);
 
     /* Some protocols have no concept of ports, like ICMP, for example.
      * These are special cases that require that in->sin_port = 0 **and**
@@ -446,7 +455,8 @@ int proto_family::bind_internal(sockaddr_in *in, inet_socket *sock)
          * ICMP allows you to bind multiple sockets, as they'll all receive the same packets.
          */
         if (!proto_has_no_ports &&
-            sock_table->get_socket(id, GET_SOCKET_CHECK_EXISTENCE | GET_SOCKET_UNLOCKED))
+            sock_table->get_socket(id,
+                                   GET_SOCKET_CHECK_EXISTENCE | GET_SOCKET_UNLOCKED | extra_flags))
         {
             sock_table->unlock(hash);
             return -EADDRINUSE;
@@ -714,20 +724,20 @@ int inet_socket::setsockopt_inet4(int level, int opt, const void *optval, sockle
 {
     switch (opt)
     {
-    case IP_TTL: {
-        auto ex = get_socket_option<int>(optval, len);
+        case IP_TTL: {
+            auto ex = get_socket_option<int>(optval, len);
 
-        if (ex.has_error())
-            return ex.error();
+            if (ex.has_error())
+                return ex.error();
 
-        auto ttl = ex.value();
+            auto ttl = ex.value();
 
-        if (ttl < 0 || ttl > 255)
-            return -EINVAL;
+            if (ttl < 0 || ttl > 255)
+                return -EINVAL;
 
-        this->ttl = ttl;
-        return 0;
-    }
+            this->ttl = ttl;
+            return 0;
+        }
     }
 
     return -ENOPROTOOPT;
@@ -737,8 +747,8 @@ int inet_socket::getsockopt_inet4(int level, int opt, void *optval, socklen_t *l
 {
     switch (opt)
     {
-    case IP_TTL:
-        return put_option(ttl, optval, len);
+        case IP_TTL:
+            return put_option(ttl, optval, len);
     }
 
     return -ENOPROTOOPT;
