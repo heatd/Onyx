@@ -560,6 +560,7 @@ int ide_dev::submit_request(bio_req *req, ide_drive *drive)
 
     bool write = req_code == BIO_REQ_WRITE_OP;
     uint8_t command = write ? ATA_CMD_WRITE_DMA_EXT : ATA_CMD_READ_DMA_EXT;
+    bool prdt_write = !write;
 
     scoped_mutex g{io_op_lock};
 
@@ -576,7 +577,7 @@ int ide_dev::submit_request(bio_req *req, ide_drive *drive)
     outb(bus.busmaster_reg + 2, 4);*/
     // printk("ATA status %x\n", inb(bus.control_reg + ATA_REG_ALTSTATUS));
 
-    bus.prepare_dma(prdt_page, write);
+    bus.prepare_dma(prdt_page, prdt_write);
 
     bus.select_drive(drive->drive);
 
@@ -593,7 +594,7 @@ int ide_dev::submit_request(bio_req *req, ide_drive *drive)
 
     outb(bus.data_reg + ATA_REG_COMMAND, command);
 
-    bus.start_dma(write);
+    bus.start_dma(prdt_write);
 
     // printk("op %u sector %lu num_sec %u\n", req_code, sect, num_secs);
 
