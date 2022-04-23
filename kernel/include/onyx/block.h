@@ -78,6 +78,12 @@ struct blockdev
     struct superblock *sb;
 
     blkdev *dev;
+
+    constexpr blockdev()
+        : read{}, write{}, flush{}, power{}, name{}, sector_size{}, nr_sectors{}, device_info{},
+          actual_blockdev{}, offset{}, submit_request{}, vmo{}, sb{}, dev{}
+    {
+    }
 };
 
 static inline bool blkdev_is_partition(struct blockdev *dev)

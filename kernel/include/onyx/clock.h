@@ -1,21 +1,28 @@
 /*
- * Copyright (c) 2017 Pedro Falcato
+ * Copyright (c) 2017 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 
-#ifndef _KERNEL_CLOCK_H
-#define _KERNEL_CLOCK_H
+#ifndef _ONYX_CLOCK_H
+#define _ONYX_CLOCK_H
 
+#include <errno.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <sys/time.h>
 #include <time.h>
 
+#include <type_traits>
+
 #include <onyx/compiler.h>
 #include <onyx/limits.h>
 
 #include <fixed_point/fixed_point.h>
+
+#include <onyx/expected.hpp>
 
 #define US_PER_SEC 1000000UL
 #define NS_PER_SEC 1000000000UL
@@ -111,6 +118,28 @@ static inline hrtime_t timeval_to_hrtime(const struct timeval *v)
         return HRTIME_MAX;
 
     return res;
+}
+
+template <typename Callable, typename... Args>
+int do_with_timeout(Callable c, Args &&...args, hrtime_t timeout)
+{
+    hrtime_t t0 = clocksource_get_time();
+
+    do
+    {
+        auto ex = c(args...);
+
+        if (ex.has_error())
+            return ex.error();
+
+        int st = ex.value();
+
+        if (st == 0)
+            return st;
+
+    } while (clocksource_get_time() - t0 < timeout);
+
+    return -ETIMEDOUT;
 }
 
 #endif
