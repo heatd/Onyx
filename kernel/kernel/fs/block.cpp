@@ -56,8 +56,8 @@ unsigned int blkdev_ioctl(int request, void *argp, struct file *f)
     (void) d;
     switch (request)
     {
-    default:
-        return -EINVAL;
+        default:
+            return -EINVAL;
     }
 }
 

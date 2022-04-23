@@ -32,8 +32,8 @@ typedef struct
 #define ATA_REG_COMMAND   0x07
 #define ATA_REG_STATUS    0x07
 
-#define ATA_REG_CONTROL   0x0C
-#define ATA_REG_ALTSTATUS 0x0
+#define ATA_REG_CONTROL   0
+#define ATA_REG_ALTSTATUS 0
 
 #define IDE_REG_DEVCTL 0
 

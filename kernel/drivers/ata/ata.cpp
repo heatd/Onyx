@@ -13,6 +13,7 @@
 
 #include <onyx/async_io.h>
 #include <onyx/block.h>
+#include <onyx/byteswap.h>
 #include <onyx/clock.h>
 #include <onyx/compiler.h>
 #include <onyx/dev.h>
@@ -95,13 +96,44 @@ struct ide_drive
     ide_ata_bus &bus;
     int drive;
     ide_dev *dev;
-    unsigned char buffer[512];
+    ata_identify_response identify_buf;
 
     ide_drive(ide_ata_bus &bus)
-        : exists{false}, lba28{}, lba48{}, type{}, bus{bus}, drive{}, buffer{}
+        : exists{false}, lba28{}, lba48{}, type{}, bus{bus}, drive{}, identify_buf{}
     {
     }
     int probe();
+
+    /**
+     * @brief Waits for DRQ and BSY to be clear
+     *
+     * @return 0 on success, -EIO on device error and -ETIMEDOUT on timeout
+     */
+    int wait_for_drq_bsy_clear();
+
+    /**
+     * @brief Reads alt status
+     *
+     * @return Alt status
+     */
+    uint8_t read_alt_status() const
+    {
+        return inb(bus.control_reg + ATA_REG_ALTSTATUS);
+    }
+
+    /**
+     * @brief Wait for BSY to be clear
+     *
+     * @return 0 on success, -ETIMEDOUT on timeout
+     */
+    int wait_for_bsy_clear();
+
+    /**
+     * @brief Do identify
+     *
+     * @return 0 on success, negative error codes
+     */
+    int do_identify();
 };
 
 class ide_dev
@@ -217,17 +249,6 @@ int ide_dev::probe()
     /* Enable interrupts */
     enable_irqs();
 
-#if 0
-	struct page *read_buffer_pgs = alloc_pages(2, PAGE_ALLOC_CONTIGUOUS);
-	struct page *write_buffer_pgs = alloc_pages(2, PAGE_ALLOC_CONTIGUOUS);
-
-	assert(read_buffer_pgs != NULL);
-	assert(write_buffer_pgs != NULL);
-
-	read_buffer = (void *) pfn_to_paddr(page_to_pfn(read_buffer_pgs));
-	write_buffer = (void *) pfn_to_paddr(page_to_pfn(write_buffer_pgs));
-#endif
-
     unsigned int i = 0;
 
     for (auto &drive : ide_drives)
@@ -235,13 +256,13 @@ int ide_dev::probe()
         drive.drive = i++;
         auto st = drive.probe();
 
-        if (st < 0)
+        if (st < 0 && st != -ENOENT)
         {
             ERROR("ata", "Error probing drive: %d\n", st);
-            return -1;
+            continue;
         }
         else if (st == 0)
-            INFO("ata", "Found ATA drive at %d:%d\n", drive.drive / 2, drive.drive % 2);
+            INFO("ata", "Found ATA drive at %d:%d\n", drive.drive % 2, drive.drive / 2);
     }
 
     return 0;
@@ -272,8 +293,8 @@ irqstatus_t ide_irq(struct irq_context *ctx, void *cookie)
 
     auto status = inw(bus.busmaster_reg + IDE_BMR_REG_STATUS);
 
-    /*if(!(status & IDE_BMR_ST_IRQ_GEN) || !bus.req)
-        return IRQ_UNHANDLED;*/
+    if (!(status & IDE_BMR_ST_IRQ_GEN) || !bus.req)
+        return IRQ_UNHANDLED;
 
     bool had_error = status & IDE_BMR_ST_DMA_ERR;
     inb(bus.data_reg + ATA_REG_STATUS);
@@ -319,46 +340,152 @@ int ata_pm(int op, struct blockdev *blkd)
 
 int ata_submit_request(blockdev *dev, bio_req *req);
 
-int ide_drive::probe()
+/**
+ * @brief Waits for DRQ and BSY to be clear
+ *
+ * @return 0 on success, -EIO on device error and -ETIMEDOUT on timeout
+ */
+int ide_drive::wait_for_drq_bsy_clear()
 {
-    bus.select_drive(drive);
+    return do_with_timeout(
+        [&]() -> expected<int, int> {
+            auto altstatus = read_alt_status();
+            if (altstatus & ATA_SR_BSY)
+                return 1;
 
-    auto status = inb(bus.data_reg + ATA_REG_STATUS);
-    if (status != 0)
-        exists = true;
-    else
+            if (altstatus & ATA_SR_DRQ)
+                return unexpected<int>{-EIO};
+
+            return 0;
+        },
+        10 * NS_PER_MS);
+}
+
+/**
+ * @brief Waits for BSY to be clear
+ *
+ * @return 0 on success, -ETIMEDOUT on timeout
+ */
+int ide_drive::wait_for_bsy_clear()
+{
+    return do_with_timeout(
+        [&]() -> expected<int, int> {
+            auto altstatus = read_alt_status();
+            if (altstatus & ATA_SR_BSY)
+                return 1;
+
+            return 0;
+        },
+        10 * NS_PER_MS);
+}
+
+// Strings are byte-flipped in pairs.
+void string_fix(uint16_t *buf, size_t size)
+{
+    for (size_t i = 0; i < (size / 2); i++)
     {
-        return 0;
+        buf[i] = bswap16(buf[i]);
     }
+}
 
+int ide_drive::do_identify()
+{
     struct aio_req r;
     aio_req_init(&r);
 
     bus.req = &r;
 
+    int st = wait_for_bsy_clear();
+
+    if (st < 0)
+    {
+        printf("Wait for BSY clear error: %d\n", st);
+        return 1;
+    }
+
     outb(bus.data_reg + ATA_REG_COMMAND, ATA_CMD_IDENTIFY);
 
     bus.delay_400ns();
 
+    st = wait_for_bsy_clear();
+
+    if (st < 0)
+    {
+        printf("ide: Wait for BSY clear error: %d\n", st);
+        return st;
+    }
+
     if (aio_wait_on_req(&r, ATA_IDENTIFY_TIMEOUT) == -ETIMEDOUT)
     {
-        return 0;
+        return -ETIMEDOUT;
     }
 
     while (!wait_queue_may_delete(&r.wake_sem))
         ;
 
+    auto status = read_alt_status();
+
+    if (status & ATA_SR_ERR)
+    {
+        printf("ata: Error in ATA IDENTIFY\n");
+    }
+
     for (int i = 0; i < 256; i++)
     {
         uint16_t data = inw(bus.data_reg);
-        uint16_t *ptr = (uint16_t *) &buffer[i * 2];
-        *ptr = data;
+        memcpy(((uint16_t *) &identify_buf) + i, &data, sizeof(uint16_t));
     }
 
-    if (buffer[0] == 0)
-        type = ATA_TYPE_ATAPI;
-    else
+    string_fix(identify_buf.serial.word, sizeof(identify_buf.serial.word));
+    string_fix(identify_buf.model_id.word, sizeof(identify_buf.model_id.word));
+    string_fix(identify_buf.firmware_rev.word, sizeof(identify_buf.firmware_rev.word));
+
+    return 0;
+}
+
+int ide_drive::probe()
+{
+    struct aio_req r;
+    aio_req_init(&r);
+
+    bus.req = &r;
+    // Inspired by EDK2's MdeModulePkg/Bus/Ata/AtaAtapiPassThru/IdeMode.c
+    // The probing process looks pretty undocumented so this is the best
+    // reference I got.
+    bus.select_drive(drive);
+
+    outb(bus.data_reg + ATA_REG_COMMAND, ATA_CMD_EXEC_DRIVE_DIAG);
+
+    if (wait_for_bsy_clear() < 0)
+    {
+        return -ETIMEDOUT;
+    }
+
+    bus.select_drive(drive);
+
+    const auto sector_count = inb(bus.data_reg + ATA_REG_SECCOUNT0);
+    const auto lba_low = inb(bus.data_reg + ATA_REG_LBA0);
+    const auto lba_mid = inb(bus.data_reg + ATA_REG_LBA1);
+    const auto lba_hi = inb(bus.data_reg + ATA_REG_LBA2);
+
+    if (sector_count == 1 && lba_low == 1 && lba_mid == 0 && lba_hi == 0)
+    {
         type = ATA_TYPE_ATA;
+    }
+    else if (lba_mid == 0x14 && lba_hi == 0xeb)
+    {
+        type = ATA_TYPE_ATAPI;
+        printf("ide: Found ATAPI device: not yet implemented\n");
+        return 0;
+    }
+    else
+        return -ENOENT;
+
+    if (int st = do_identify(); st < 0)
+    {
+        printf("ide: ATA_CMD_IDENTIFY failed\n");
+        return st;
+    }
 
     /* Add to the block device layer */
     auto dev = blkdev_create_scsi_like_dev();
@@ -380,7 +507,7 @@ int ide_drive::probe()
 
     dev.release();
 
-    return 1;
+    return 0;
 }
 
 struct pci::pci_id ata_devs[] = {{PCI_ID_CLASS(CLASS_MASS_STORAGE_CONTROLLER, 1, PCI_ANY_ID, NULL)},
@@ -579,7 +706,23 @@ int ide_dev::submit_request(bio_req *req, ide_drive *drive)
 
     bus.prepare_dma(prdt_page, prdt_write);
 
+    int st = drive->wait_for_bsy_clear();
+
+    if (st < 0)
+    {
+        printf("ata: wait_for_bsy_clear failed: %d\n", st);
+        return st;
+    }
+
     bus.select_drive(drive->drive);
+
+    st = drive->wait_for_bsy_clear();
+
+    if (st < 0)
+    {
+        printf("ata: wait_for_bsy_clear failed: %d\n", st);
+        return st;
+    }
 
     const auto sect = req->sector_number;
     const uint16_t num_secs = len / 512;
@@ -596,9 +739,7 @@ int ide_dev::submit_request(bio_req *req, ide_drive *drive)
 
     bus.start_dma(prdt_write);
 
-    // printk("op %u sector %lu num_sec %u\n", req_code, sect, num_secs);
-
-    auto st = aio_wait_on_req(&r, ATA_TIMEOUT);
+    st = aio_wait_on_req(&r, ATA_TIMEOUT);
 
     bus.stop_dma();
     // printk("st %d\n", st);
