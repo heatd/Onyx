@@ -848,7 +848,7 @@ int ahci_do_identify(struct ahci_port *port)
             command.write = false;
             command.lba = 0;
             command.cmd = ATA_CMD_IDENTIFY;
-            command.buffer = &port->identify;
+            command.buffer = (void *) &port->identify;
 
             if (!ahci_do_command(port, &command))
             {
@@ -856,6 +856,14 @@ int ahci_do_identify(struct ahci_port *port)
                 perror("error");
                 return -1;
             }
+
+            string_fix(port->identify.serial.word, sizeof(port->identify.serial.word));
+            string_fix(port->identify.model_id.word, sizeof(port->identify.model_id.word));
+            string_fix(port->identify.firmware_rev.word, sizeof(port->identify.firmware_rev.word));
+
+            port->bdev->nr_sectors = port->identify.lba_capacity2 != 0
+                                         ? port->identify.lba_capacity2
+                                         : port->identify.lba_capacity;
 
             break;
         }

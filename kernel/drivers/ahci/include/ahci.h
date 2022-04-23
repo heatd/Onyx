@@ -1,10 +1,12 @@
 /*
- * Copyright (c) 2016, 2017 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
-#ifndef _AHCI_H
-#define _AHCI_H
+#ifndef _ONYX_AHCI_H
+#define _ONYX_AHCI_H
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -12,6 +14,7 @@
 #include <onyx/async_io.h>
 #include <onyx/spinlock.h>
 
+#include <drivers/ata.h>
 #include <pci/pci.h>
 
 #define SATA_SIG_ATA   0x00000101 // SATA drive
@@ -238,7 +241,7 @@ struct ahci_port
     uint32_t list_bitmap;
     struct spinlock bitmap_spl;
     struct wait_queue list_wq;
-    unsigned char identify[512];
+    ata_identify_response identify;
     uint32_t issued;
     unique_ptr<blockdev> bdev;
 };

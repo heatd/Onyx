@@ -12,6 +12,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <onyx/byteswap.h>
+
 #include <pci/pci.h>
 
 /* ATA status bits */
@@ -169,5 +171,14 @@ struct ata_identify_response
     uint16_t _reserved_236[19];         // 236-254
     uint16_t checksum;                  // 255
 } __attribute__((packed));
+
+// Strings are byte-flipped in pairs.
+static inline void string_fix(uint16_t *buf, size_t size)
+{
+    for (size_t i = 0; i < (size / 2); i++)
+    {
+        buf[i] = bswap16(buf[i]);
+    }
+}
 
 #endif

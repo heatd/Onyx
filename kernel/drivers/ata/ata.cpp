@@ -13,7 +13,6 @@
 
 #include <onyx/async_io.h>
 #include <onyx/block.h>
-#include <onyx/byteswap.h>
 #include <onyx/clock.h>
 #include <onyx/compiler.h>
 #include <onyx/dev.h>
@@ -377,15 +376,6 @@ int ide_drive::wait_for_bsy_clear()
             return 0;
         },
         10 * NS_PER_MS);
-}
-
-// Strings are byte-flipped in pairs.
-void string_fix(uint16_t *buf, size_t size)
-{
-    for (size_t i = 0; i < (size / 2); i++)
-    {
-        buf[i] = bswap16(buf[i]);
-    }
 }
 
 int ide_drive::do_identify()
