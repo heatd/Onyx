@@ -501,6 +501,8 @@ int ide_drive::probe()
     dev->power = ata_pm;
     dev->submit_request = ata_submit_request;
     dev->sector_size = 512;
+    dev->nr_sectors =
+        identify_buf.lba_capacity2 != 0 ? identify_buf.lba_capacity2 : identify_buf.lba_capacity;
 
     if (blkdev_init(dev.get()) < 0)
         return -ENOMEM;
