@@ -76,8 +76,16 @@ bool uart8250_port::rx_rdy()
 
 void uart8250_port::write_byte(uint8_t c)
 {
-    while (!tx_empty())
-        ;
+    int st = do_with_timeout(
+        [&]() -> expected<int, int> {
+            if (tx_empty())
+                return 0;
+            return 1;
+        },
+        NS_PER_MS);
+
+    if (st < 0)
+        return;
 
     write<uint8_t>(uart8250_register::data, c);
 }
