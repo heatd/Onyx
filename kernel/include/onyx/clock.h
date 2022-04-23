@@ -15,14 +15,10 @@
 #include <sys/time.h>
 #include <time.h>
 
-#include <type_traits>
-
 #include <onyx/compiler.h>
 #include <onyx/limits.h>
 
 #include <fixed_point/fixed_point.h>
-
-#include <onyx/expected.hpp>
 
 #define US_PER_SEC 1000000UL
 #define NS_PER_SEC 1000000000UL
@@ -120,6 +116,11 @@ static inline hrtime_t timeval_to_hrtime(const struct timeval *v)
     return res;
 }
 
+// TODO: Needed because arch/x86_64/__vdso.c
+#ifdef __cplusplus
+
+#include <onyx/expected.hpp>
+
 template <typename Callable, typename... Args>
 int do_with_timeout(Callable c, Args &&...args, hrtime_t timeout)
 {
@@ -141,5 +142,7 @@ int do_with_timeout(Callable c, Args &&...args, hrtime_t timeout)
 
     return -ETIMEDOUT;
 }
+
+#endif
 
 #endif
