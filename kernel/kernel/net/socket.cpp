@@ -864,7 +864,13 @@ int socket::getsockopt_socket_level(int optname, void *optval, socklen_t *optlen
         }
 
         case SO_REUSEADDR: {
-            return put_option<int>(reuse_addr, optval, optlen);
+            const int raddr = (int) reuse_addr;
+            return put_option<int>(raddr, optval, optlen);
+        }
+
+        case SO_BROADCAST: {
+            const int bcast_allowed = (int) broadcast_allowed;
+            return put_option<int>(bcast_allowed, optval, optlen);
         }
 
         default:
@@ -903,6 +909,16 @@ int socket::setsockopt_socket_level(int optname, const void *optval, socklen_t o
                 return ex.error();
 
             reuse_addr = ex.value();
+            return 0;
+        }
+
+        case SO_BROADCAST: {
+            auto ex = get_socket_option<int>(optval, optlen);
+
+            if (ex.has_error())
+                return ex.error();
+
+            broadcast_allowed = ex.value() != 0;
             return 0;
         }
     }

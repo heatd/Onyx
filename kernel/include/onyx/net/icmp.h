@@ -157,7 +157,7 @@ static constexpr unsigned int min_icmp_size()
     return 8;
 }
 
-int handle_packet(netif *nif, packetbuf *buf);
+int handle_packet(const inet_route &route, packetbuf *buf);
 
 int send_dst_unreachable(const dst_unreachable_info &info, netif *nif);
 

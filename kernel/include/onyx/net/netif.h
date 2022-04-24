@@ -1,10 +1,14 @@
 /*
- * Copyright (c) 2017-2020 Pedro Falcato
+ * Copyright (c) 2017 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
+
 #ifndef _ONYX_NET_NETIF_H
 #define _ONYX_NET_NETIF_H
+
 #include <stdint.h>
 
 #include <onyx/spinlock.h>
@@ -26,8 +30,6 @@ struct netif;
 #define NETIF_HAS_RX_AVAILABLE      (1 << 6)
 #define NETIF_DOING_RX_POLL         (1 << 7)
 #define NETIF_MISSED_RX             (1 << 8)
-
-/* Defined as an opaque struct since it's C++ TODO: Yuck. */
 
 struct packetbuf;
 

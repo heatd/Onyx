@@ -270,6 +270,7 @@ expected<inet_route, int> route_from_routing_table(const inet_sock_address &to,
     inet_route r;
     r.dst_addr.in6 = to.in6;
     r.nif = best_route->nif;
+    r.mask.in6 = best_route->mask;
     r.src_addr.in6 = netif_get_v6_address(r.nif, saddr_flags);
     r.flags = best_route->flags;
     r.gateway_addr.in6 = best_route->gateway;
@@ -280,7 +281,6 @@ expected<inet_route, int> route_from_routing_table(const inet_sock_address &to,
 bool is_link_local(const inet_sock_address &to)
 {
     return IN6_IS_ADDR_MC_LINKLOCAL(to.in6.s6_addr) || IN6_IS_ADDR_LINKLOCAL(to.in6.s6_addr);
-    ;
 }
 
 expected<inet_route, int> route_local(const inet_sock_address &to, netif *required_netif)
@@ -299,6 +299,7 @@ expected<inet_route, int> route_local(const inet_sock_address &to, netif *requir
     rt.flags = INET4_ROUTE_FLAG_SCOPE_LOCAL;
     rt.gateway_addr = {};
     rt.nif = dest_netif;
+    rt.mask.in6 = in6addr_any;
     rt.src_addr.in6 = netif_get_v6_address(rt.nif, INET6_ADDR_LOCAL);
     rt.dst_hw = nullptr;
 
@@ -336,6 +337,7 @@ expected<inet_route, int> proto_family::route(const inet_sock_address &from,
     /* Multicast addresses don't need ndp resolution, they already have fixed hardware addresses */
     if (ipv6_addr_to_tx_type(to.in6) == tx_type::multicast)
     {
+        rt.flags |= INET4_ROUTE_FLAG_MULTICAST;
         rt.dst_hw = nullptr;
         return rt;
     }

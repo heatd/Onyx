@@ -124,7 +124,7 @@ int send_dst_unreachable(const dst_unreachable_info &info, netif *nif)
     return ip::v4::send_packet(flow, buf.get());
 }
 
-int handle_packet(netif *nif, packetbuf *buf)
+int handle_packet(const inet_route &route, packetbuf *buf)
 {
     if (buf->length() < min_icmp_size())
         return -EINVAL;
@@ -137,7 +137,7 @@ int handle_packet(netif *nif, packetbuf *buf)
     switch (header->type)
     {
         case ICMP_TYPE_ECHO_REQUEST:
-            send_echo_reply(iphdr, header, header_length, nif);
+            send_echo_reply(iphdr, header, header_length, route.nif);
             break;
     }
 
@@ -146,8 +146,8 @@ int handle_packet(netif *nif, packetbuf *buf)
 
     do
     {
-        socket = inet_resolve_socket<icmp_socket>(iphdr->source_ip, 0, 0, IPPROTO_ICMP, nif, true,
-                                                  &icmp_proto, inst);
+        socket = inet_resolve_socket<icmp_socket>(iphdr->source_ip, 0, 0, IPPROTO_ICMP, route.nif,
+                                                  true, &icmp_proto, inst);
         if (!socket)
             break;
         inst++;
@@ -162,6 +162,8 @@ int handle_packet(netif *nif, packetbuf *buf)
             socket->append_inet_rx_pbuf(pbf);
             pbf->unref();
         }
+
+        socket->unref();
 
     } while (socket != nullptr);
 

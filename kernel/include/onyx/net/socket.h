@@ -150,6 +150,8 @@ public:
 
     bool reuse_addr : 1;
 
+    bool broadcast_allowed : 1;
+
     hrtime_t rcv_timeout;
     hrtime_t snd_timeout;
 

@@ -27,35 +27,35 @@ unsigned int netif_ioctl(int request, void *argp, struct file *f)
     assert(netif != nullptr);
     switch (request)
     {
-    case SIOSETINET4: {
-        struct if_config_inet *c = static_cast<if_config_inet *>(argp);
+        case SIOSETINET4: {
+            struct if_config_inet *c = static_cast<if_config_inet *>(argp);
 
-        struct if_config_inet i;
-        if (copy_from_user(&i, c, sizeof(struct if_config_inet)) < 0)
-            return -EFAULT;
-        auto local = &netif->local_ip;
-        memcpy(&local->sin_addr, &i.address, sizeof(struct in_addr));
-        return 0;
-    }
-    case SIOGETINET4: {
-        struct if_config_inet *c = static_cast<if_config_inet *>(argp);
-        auto local = &netif->local_ip;
-        if (copy_to_user(&c->address, &local->sin_addr, sizeof(struct in_addr)) < 0)
-            return -EFAULT;
-        return 0;
-    }
-    case SIOADDINET6ADDR: {
-        if_inet6_addr *c = static_cast<if_inet6_addr *>(argp);
+            struct if_config_inet i;
+            if (copy_from_user(&i, c, sizeof(struct if_config_inet)) < 0)
+                return -EFAULT;
+            auto local = &netif->local_ip;
+            memcpy(&local->sin_addr, &i.address, sizeof(struct in_addr));
+            return 0;
+        }
+        case SIOGETINET4: {
+            struct if_config_inet *c = static_cast<if_config_inet *>(argp);
+            auto local = &netif->local_ip;
+            if (copy_to_user(&c->address, &local->sin_addr, sizeof(struct in_addr)) < 0)
+                return -EFAULT;
+            return 0;
+        }
+        case SIOADDINET6ADDR: {
+            if_inet6_addr *c = static_cast<if_inet6_addr *>(argp);
 
-        if_inet6_addr addr;
+            if_inet6_addr addr;
 
-        if (copy_from_user(&addr, c, sizeof(*c)) < 0)
-            return -EFAULT;
+            if (copy_from_user(&addr, c, sizeof(*c)) < 0)
+                return -EFAULT;
 
-        return netif_add_v6_address(netif, addr);
-    }
-    case SIOGETINET6: {
-        return -ENOSYS;
+            return netif_add_v6_address(netif, addr);
+        }
+        case SIOGETINET6: {
+            return -ENOSYS;
 #if 0
 			struct if_config_inet6 *c = static_cast<if_config_inet6 *>(argp);
 			auto local = &netif->local_ip;
@@ -66,18 +66,18 @@ unsigned int netif_ioctl(int request, void *argp, struct file *f)
 				return -EFAULT;
 			return 0;
 #endif
-    }
-    case SIOGETMAC: {
-        if (copy_to_user(argp, &netif->mac_address, 6) < 0)
-            return -EFAULT;
-        return 0;
-    }
+        }
+        case SIOGETMAC: {
+            if (copy_to_user(argp, &netif->mac_address, 6) < 0)
+                return -EFAULT;
+            return 0;
+        }
 
-    case SIOGETINDEX: {
-        if (copy_to_user(argp, &netif->if_id, sizeof(netif->if_id)) < 0)
-            return -EFAULT;
-        return 0;
-    }
+        case SIOGETINDEX: {
+            if (copy_to_user(argp, &netif->if_id, sizeof(netif->if_id)) < 0)
+                return -EFAULT;
+            return 0;
+        }
     }
 
     return -ENOTTY;
@@ -116,15 +116,18 @@ void netif_register_if(struct netif *netif)
 
     struct inet4_route route;
 
-    route.mask = is_loopback ? htonl(0xff000000) : 0;
-    route.dest = is_loopback ? htonl(INADDR_LOOPBACK) : 0;
-    route.dest &= route.mask;
-    route.gateway = 0;
-    route.nif = netif;
-    route.metric = is_loopback ? 1000 : 10;
-    route.flags = INET4_ROUTE_FLAG_SCOPE_LOCAL;
+    if (is_loopback)
+    {
+        route.mask = is_loopback ? htonl(0xff000000) : 0;
+        route.dest = is_loopback ? htonl(INADDR_LOOPBACK) : 0;
+        route.dest &= route.mask;
+        route.gateway = 0;
+        route.nif = netif;
+        route.metric = is_loopback ? 1000 : 10;
+        route.flags = INET4_ROUTE_FLAG_SCOPE_LOCAL;
 
-    assert(ip::v4::add_route(route) == true);
+        assert(ip::v4::add_route(route) == true);
+    }
 }
 
 int netif_unregister_if(struct netif *netif)

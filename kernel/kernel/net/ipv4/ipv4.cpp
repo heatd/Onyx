@@ -244,19 +244,20 @@ int create_fragments(struct list_head *frag_list, packetbuf *buf, size_t payload
     return 0;
 }
 
-static tx_type detect_tx_type(const packetbuf *buf)
+static tx_type detect_tx_type(const inet_route &route)
 {
-    auto iphdr = reinterpret_cast<ip_header *>(buf->net_header);
-
-    if (iphdr->dest_ip == INADDR_BROADCAST) [[unlikely]]
+    if (route.flags & INET4_ROUTE_FLAG_BROADCAST) [[unlikely]]
         return tx_type::broadcast;
+    if (route.flags & INET4_ROUTE_FLAG_MULTICAST) [[unlikely]]
+        return tx_type::multicast;
+
     return tx_type::unicast;
 }
 
 int send_fragment(const inet_route &route, fragment *frag, netif *nif)
 {
     auto buf = frag->this_buf;
-    auto type = detect_tx_type(buf);
+    auto type = detect_tx_type(route);
     int st = 0;
 
     const void *hwaddr = nullptr;
@@ -347,7 +348,6 @@ int send_packet(const iflow &flow, packetbuf *buf, cul::slice<ip_option> options
     return send_fragment(flow.route, &frag, netif);
 }
 
-/* TODO: Possibly, these basic checks across ethernet.c, ip.c, udp.c, tcp.cpp aren't enough */
 bool valid_packet(struct ip_header *header, size_t size)
 {
     if (ntohs(header->total_len) > size)
@@ -363,6 +363,57 @@ bool valid_packet(struct ip_header *header, size_t size)
         return false;
 
     return true;
+}
+
+/**
+ * @brief Checks if an address is a multicast addr
+ * Does it by checking the most signficant 8 bits
+ * for a class D address
+ *
+ * @param addr IPv4 address
+ * @returns True if multicast, else false
+ */
+constexpr bool addr_is_multicast(in_addr_t addr)
+{
+    return (addr & 0b11110000) == 0b11100000;
+}
+
+/**
+ * @brief Checks if addr is the local broadcast addr
+ *
+ * @param addr IPv4 address
+ * @returns True if local broadcast (255.255.255.255), else false
+ */
+constexpr bool addr_is_local_broadcast(in_addr_t addr)
+{
+    return addr == INADDR_BROADCAST;
+}
+
+/**
+ * @brief Checks if addr is a directed broadcast address
+ * These addresses are the all-ones address in a subnet
+ * e.g: 192.168.1.0/24 subnet, 192.168.1.255 is the broadcast addr.
+ *
+ * @param addr IPv4 addr
+ * @param r Route
+ * @returns True if directed broadcast addr, else false
+ */
+constexpr bool addr_is_directed_broadcast(in_addr_t addr, const inet_route &r)
+{
+    in_addr_t broadcast_mask = ~r.mask.in4.s_addr;
+    return (r.dst_addr.in4.s_addr & broadcast_mask) == broadcast_mask;
+}
+
+/**
+ * @brief Checks if the address is a broadcast address in general
+ *
+ * @param addr IPv4 address
+ * @param r Route
+ * @returns True if broadcast, else false
+ */
+constexpr bool addr_is_broadcast(in_addr_t addr, const inet_route &r)
+{
+    return addr_is_local_broadcast(addr) || addr_is_directed_broadcast(addr, r);
 }
 
 int handle_packet(netif *nif, packetbuf *buf)
@@ -383,12 +434,29 @@ int handle_packet(netif *nif, packetbuf *buf)
     /* Adjust tail to point at the end of the ipv4 packet */
     buf->tail = (unsigned char *) header + ntohs(header->total_len);
 
+    inet_route route;
+    route.dst_addr.in4.s_addr = header->dest_ip;
+    route.gateway_addr = {};
+    route.src_addr.in4.s_addr = header->source_ip;
+    route.nif = nif;
+    route.mask.in4.s_addr = 0xffffffff;
+    route.flags = 0;
+
+    if (addr_is_multicast(header->dest_ip))
+    {
+        route.flags |= INET4_ROUTE_FLAG_MULTICAST;
+    }
+    else if (addr_is_broadcast(header->dest_ip, route))
+    {
+        route.flags |= INET4_ROUTE_FLAG_BROADCAST;
+    }
+
     if (header->proto == IPPROTO_UDP)
-        return udp_handle_packet(nif, buf);
+        return udp_handle_packet(route, buf);
     else if (header->proto == IPPROTO_TCP)
-        return tcp_handle_packet(nif, buf);
+        return tcp_handle_packet(route, buf);
     else if (header->proto == IPPROTO_ICMP)
-        return icmp::handle_packet(nif, buf);
+        return icmp::handle_packet(route, buf);
     else
     {
         /* Oh, no, an unhandled protocol! Send an ICMP error message */
@@ -547,6 +615,23 @@ expected<inet_route, int> proto_family::route(const inet_sock_address &from,
     int highest_metric = 0;
     auto dest = to.in4.s_addr;
 
+    // TODO: Multicast
+    if (addr_is_local_broadcast(dest))
+    {
+        inet_route r;
+        r.dst_addr.in4.s_addr = dest;
+        r.src_addr.in4.s_addr = from.in4.s_addr;
+        r.flags = INET4_ROUTE_FLAG_BROADCAST;
+        r.mask.in4.s_addr = INADDR_BROADCAST;
+        r.gateway_addr.in4 = {};
+        r.nif = required_netif ? required_netif : netif_choose();
+
+        if (!r.nif)
+            return unexpected<int>{-ENETDOWN};
+
+        return r;
+    }
+
     rw_lock_read(&routing_table_lock);
 
     for (auto &r : routing_table)
@@ -588,9 +673,19 @@ expected<inet_route, int> proto_family::route(const inet_sock_address &from,
     inet_route r;
     r.dst_addr.in4 = to.in4;
     r.nif = best_route->nif;
+    r.mask.in4.s_addr = best_route->mask;
     r.src_addr.in4.s_addr = r.nif->local_ip.sin_addr.s_addr;
     r.flags = best_route->flags;
     r.gateway_addr.in4.s_addr = best_route->gateway;
+
+    if (addr_is_broadcast(to.in4.s_addr, r))
+    {
+        r.flags |= INET4_ROUTE_FLAG_BROADCAST;
+    }
+    else if (addr_is_multicast(to.in4.s_addr))
+    {
+        r.flags |= INET4_ROUTE_FLAG_MULTICAST;
+    }
 
     auto to_resolve = r.dst_addr.in4.s_addr;
 
@@ -768,10 +863,7 @@ int inet_socket::getsockopt_inet(int level, int opt, void *optval, socklen_t *le
 
 size_t inet_socket::get_headers_len() const
 {
-    /* TODO: For all of inet_sockets code, we need to properly detect if we're
-     * an inet6 socket working as an inet4 one, or not.
-     */
-    if (domain == AF_INET6)
+    if (effective_domain() == AF_INET6)
         return sizeof(ip6hdr); /* TODO: Extensions */
     else
         return sizeof(ip_header);

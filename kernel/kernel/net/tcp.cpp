@@ -323,7 +323,7 @@ int tcp_send_rst_no_socket(const sockaddr_in_both &dstaddr, in_port_t srcport, i
     return netif_send_packet(flow.nif, buf.get());
 }
 
-int tcp_handle_packet(netif *netif, packetbuf *buf)
+int tcp_handle_packet(const inet_route &route, packetbuf *buf)
 {
     auto ip_header = (struct ip_header *) buf->net_header;
     int st = 0;
@@ -334,9 +334,13 @@ int tcp_handle_packet(netif *netif, packetbuf *buf)
 
     buf->transport_header = (unsigned char *) header;
 
-    auto socket =
-        inet_resolve_socket<tcp_socket>(ip_header->source_ip, header->source_port,
-                                        header->dest_port, IPPROTO_TCP, netif, false, &tcp_proto);
+    // TCP connections don't run on broadcast/mcast
+    if (route.flags & (INET4_ROUTE_FLAG_BROADCAST | INET4_ROUTE_FLAG_MULTICAST))
+        return 0;
+
+    auto socket = inet_resolve_socket<tcp_socket>(ip_header->source_ip, header->source_port,
+                                                  header->dest_port, IPPROTO_TCP, route.nif, false,
+                                                  &tcp_proto);
     uint16_t tcp_payload_len =
         static_cast<uint16_t>(ntohs(ip_header->total_len) - ip_header_length(ip_header));
 
@@ -350,7 +354,7 @@ int tcp_handle_packet(netif *netif, packetbuf *buf)
         auto flags = htons(header->data_offset_and_flags);
 
         if (!(flags & TCP_FLAG_RST))
-            tcp_send_rst_no_socket(addr, header->dest_port, AF_INET, netif);
+            tcp_send_rst_no_socket(addr, header->dest_port, AF_INET, route.nif);
         /* No socket bound, bad packet. */
         return 0;
     }
@@ -744,6 +748,14 @@ int tcp_socket::start_connection(int flags)
         return result.error();
 
     route_cache = result.value();
+
+    if (route_cache.flags & (INET4_ROUTE_FLAG_BROADCAST | INET4_ROUTE_FLAG_MULTICAST))
+    {
+        // Not a valid TCP connection
+        // Linux seems to return ENETUNREACH here.
+        return -ENETUNREACH;
+    }
+
     route_cache_valid = 1;
 
     window_size = UINT16_MAX;

@@ -462,6 +462,13 @@ void instance::run()
         throw std::runtime_error(std::string("socket: ") + strerror(errno));
     }
 
+    int bcast_allowed = 1;
+
+    if (setsockopt(sockfd, SOL_SOCKET, SO_BROADCAST, &bcast_allowed, sizeof(bcast_allowed)) < 0)
+    {
+        throw std::runtime_error(std::string("setsockopt: ") + strerror(errno));
+    }
+
     struct sockaddr_in sockaddr = {0};
     sockaddr.sin_family = AF_INET;
     sockaddr.sin_port = htons(68);

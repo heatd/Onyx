@@ -36,6 +36,8 @@ struct inet6_route
 
 #define INET4_ROUTE_FLAG_GATEWAY     (1 << 0)
 #define INET4_ROUTE_FLAG_SCOPE_LOCAL (1 << 1)
+#define INET4_ROUTE_FLAG_MULTICAST   (1 << 2)
+#define INET4_ROUTE_FLAG_BROADCAST   (1 << 3)
 
 /* Cached information of the route the packet should take from here to the dst.
  */
@@ -48,6 +50,7 @@ struct inet_route
 
     addr src_addr;
     addr dst_addr;
+    addr mask;
 
     /* Only valid if flags & INET4_ROUTE_FLAG_GATEWAY */
     addr gateway_addr;

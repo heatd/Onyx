@@ -74,18 +74,6 @@ struct pseudo_csum
     uint8_t proto;
 };
 
-inetsum_t calculate_safe(const in6_addr &src, const in6_addr &dst, uint32_t length, uint8_t proto)
-{
-    pseudo_csum c;
-    c.src = src;
-    c.dst = dst;
-    c.length = length;
-    memset(c.unused, 0, sizeof(c.unused));
-    c.proto = proto;
-
-    return __ipsum_unfolded(&c, sizeof(c), 0);
-}
-
 uint16_t udpv6_calculate_checksum(struct udphdr *header, const in6_addr &src, const in6_addr &dst,
                                   bool do_rest_of_packet = true)
 {
@@ -97,8 +85,6 @@ uint16_t udpv6_calculate_checksum(struct udphdr *header, const in6_addr &src, co
     r = __ipsum_unfolded(&packet_length, sizeof(packet_length), r);
     r = __ipsum_unfolded(&proto, sizeof(proto), r);
     assert(header->checksum == 0);
-
-    // assert(r == calculate_safe(src, dst, header->len, IPPROTO_UDP));
 
     if (do_rest_of_packet)
         r = __ipsum_unfolded(header, ntohl(packet_length), r);
@@ -163,19 +149,24 @@ int udp_socket::connect(sockaddr *addr, socklen_t len, int flags)
 
     ipv4_on_inet6 = on_ipv4_mode;
 
-    connected = true;
-
     auto route_result = get_proto_fam()->route(src_addr, dest_addr, res.second);
 
     if (route_result.has_error())
     {
-        printk("error %d\n", route_result.error());
-        connected = false;
         return route_result.error();
     }
 
     route_cache = route_result.value();
+
+    if (route_cache.flags & (INET4_ROUTE_FLAG_BROADCAST | INET4_ROUTE_FLAG_MULTICAST) &&
+        !broadcast_allowed)
+    {
+        return -EACCES;
+    }
+
     route_cache_valid = 1;
+
+    connected = true;
 
     return 0;
 }
@@ -418,7 +409,46 @@ bool valid_udp_packet(struct udphdr *header, size_t length)
     return true;
 }
 
-int udp_handle_packet(netif *netif, packetbuf *buf)
+/**
+ * @brief Handle receive of a multicast/broadcast packet
+ *
+ * @param route Inet route
+ * @param buf Packetbuf
+ * @return 0 on success, negative error codes
+ */
+int udp_handle_packet_mcast_bcast(const inet_route &route, packetbuf *buf)
+{
+    struct udphdr *udp_header = (struct udphdr *) buf->data;
+
+    auto header = (ip_header *) buf->net_header;
+    buf->transport_header = (unsigned char *) udp_header;
+    buf->data += sizeof(struct udphdr);
+
+    sockaddr_in socket_dst;
+    ipv4_to_sockaddr(header->source_ip, udp_header->source_port, socket_dst);
+
+    unsigned int instance = 0;
+    while (true)
+    {
+        auto socket = inet_resolve_socket<udp_socket>(header->source_ip, udp_header->source_port,
+                                                      udp_header->dest_port, IPPROTO_UDP, route.nif,
+                                                      true, &udp_proto, instance++);
+        if (!socket)
+            break;
+
+        // Only SO_BROADCAST sockets can get broadcast packets
+        if (route.flags & INET4_ROUTE_FLAG_BROADCAST && !socket->broadcast_allowed) [[unlikely]]
+            continue;
+
+        // I don't think we need to copy here?
+        socket->rx_dgram(buf);
+        socket->unref();
+    }
+
+    return 0;
+}
+
+int udp_handle_packet(const inet_route &route, packetbuf *buf)
 {
     struct udphdr *udp_header = (struct udphdr *) buf->data;
 
@@ -430,14 +460,20 @@ int udp_handle_packet(netif *netif, packetbuf *buf)
     sockaddr_in socket_dst;
     ipv4_to_sockaddr(header->source_ip, udp_header->source_port, socket_dst);
 
+    if (route.flags & (INET4_ROUTE_FLAG_BROADCAST | INET4_ROUTE_FLAG_MULTICAST))
+    {
+        return udp_handle_packet_mcast_bcast(route, buf);
+    }
+
     auto socket = inet_resolve_socket<udp_socket>(header->source_ip, udp_header->source_port,
-                                                  udp_header->dest_port, IPPROTO_UDP, netif, true,
-                                                  &udp_proto);
+                                                  udp_header->dest_port, IPPROTO_UDP, route.nif,
+                                                  true, &udp_proto);
     if (!socket)
     {
+        // Note: We only send ICMP messages for unicast addresses
         icmp::dst_unreachable_info dst_un{ICMP_CODE_PORT_UNREACHABLE, 0,
                                           (const unsigned char *) udp_header, header};
-        icmp::send_dst_unreachable(dst_un, netif);
+        icmp::send_dst_unreachable(dst_un, route.nif);
         return 0;
     }
 
