@@ -290,6 +290,7 @@ private:
     uint32_t our_window_size;
     uint8_t our_window_shift;
     uint32_t expected_ack;
+    bool connection_pending;
     /* TODO: Add a lock for this stuff up here */
     struct list_head pending_accept_node;
     struct list_head pending_accept_list;
@@ -329,8 +330,13 @@ private:
         return ack;
     }
 
-    int start_handshake(netif *nif);
-    int finish_handshake(netif *nif);
+    int start_handshake(netif *nif, int flags);
+
+    /**
+     * @brief Finish a connection
+     *
+     */
+    void finish_conn();
 
     bool parse_options(tcp_header *packet);
     ssize_t get_max_payload_len(uint16_t tcp_header_len);
@@ -407,8 +413,8 @@ public:
           tcp_ack_list_lock{}, pending_out_packets{}, tcp_ack_wq{}, seq_number{0},
           ack_number{0}, send_lock{}, send_buffer{}, current_pos{}, mss{default_mss},
           window_size{0}, window_size_shift{default_window_size_shift}, our_window_size{UINT16_MAX},
-          our_window_shift{default_window_size_shift}, expected_ack{0}, pending_accept_list{},
-          pending_out_lock{}
+          our_window_shift{default_window_size_shift}, expected_ack{0}, connection_pending{},
+          pending_accept_list{}, pending_out_lock{}
     {
         INIT_LIST_HEAD(&tcp_ack_list);
         mutex_init(&send_lock);
@@ -433,9 +439,9 @@ public:
     }
 
     int bind(struct sockaddr *addr, socklen_t addrlen) override;
-    int connect(struct sockaddr *addr, socklen_t addrlen) override;
+    int connect(struct sockaddr *addr, socklen_t addrlen, int flags) override;
 
-    int start_connection();
+    int start_connection(int flags);
 
     void append_ack(tcp_ack *ack)
     {
@@ -488,6 +494,13 @@ public:
      * @param buf Packetbuf of the ack packet we got
      */
     void do_ack(packetbuf *buf);
+
+    /**
+     * @brief Fail a connection attempt
+     *
+     * @param error Error it failed with
+     */
+    void conn_fail(int error);
 };
 
 constexpr inline uint16_t tcp_header_length_to_data_off(uint16_t len)
@@ -514,8 +527,11 @@ struct tcp_pending_out : public refcountable
     bool acked{};
     bool reset{};
     wait_queue wq;
+    void (*fail)(tcp_pending_out *out);
+    void (*done_callback)(tcp_pending_out *out);
 
-    tcp_pending_out(tcp_socket *s) : refcountable(), node{this}, transmission_try{}, sock{s}
+    tcp_pending_out(tcp_socket *s)
+        : refcountable(), node{this}, transmission_try{}, sock{s}, fail{}, done_callback{}
     {
         init_wait_queue_head(&wq);
     }
@@ -587,6 +603,17 @@ struct tcp_pending_out : public refcountable
             return true;
 
         return false;
+    }
+
+    /**
+     * @brief Do the ACK
+     *
+     */
+    void do_ack()
+    {
+        acked = true;
+        if (done_callback)
+            done_callback(this);
     }
 };
 

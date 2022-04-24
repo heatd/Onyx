@@ -44,7 +44,7 @@ int socket::bind(struct sockaddr *addr, socklen_t addrlen)
     return -EIO;
 }
 
-int socket::connect(struct sockaddr *addr, socklen_t addrlen)
+int socket::connect(struct sockaddr *addr, socklen_t addrlen, int flags)
 {
     (void) addr;
     (void) addrlen;
@@ -386,7 +386,7 @@ int sys_connect(int sockfd, const struct sockaddr *uaddr, socklen_t addrlen)
         goto out2;
     }
 
-    ret = s->connect((sockaddr *) &addr, addrlen);
+    ret = s->connect((sockaddr *) &addr, addrlen, desc.get_file()->f_flags);
 
 out2:
     s->socket_lock.unlock();
@@ -545,13 +545,13 @@ int check_af_support(int domain)
 {
     switch (domain)
     {
-    case AF_INET:
-    case AF_UNIX:
-    case AF_INET6:
-    case AF_NETKERNEL:
-        return 0;
-    default:
-        return -1;
+        case AF_INET:
+        case AF_UNIX:
+        case AF_INET6:
+        case AF_NETKERNEL:
+            return 0;
+        default:
+            return -1;
     }
 }
 
@@ -573,31 +573,31 @@ int net_autodetect_protocol(int type, int domain)
 
     switch (type & type_mask)
     {
-    case SOCK_DGRAM: {
-        if (domain == AF_UNIX)
-            return PROTOCOL_UNIX;
-        else if (domain == AF_INET || domain == AF_INET6)
-            return IPPROTO_UDP;
-        else
-            return -1;
-    }
+        case SOCK_DGRAM: {
+            if (domain == AF_UNIX)
+                return PROTOCOL_UNIX;
+            else if (domain == AF_INET || domain == AF_INET6)
+                return IPPROTO_UDP;
+            else
+                return -1;
+        }
 
-    case SOCK_RAW: {
-        if (domain == AF_INET)
-            return IPPROTO_IP;
-        else if (domain == AF_INET6)
-            return IPPROTO_IPV6;
-        else if (domain == AF_UNIX)
-            return PROTOCOL_UNIX;
-        return -1;
-    }
-
-    case SOCK_STREAM: {
-        if (domain == AF_INET || domain == AF_INET6)
-            return IPPROTO_TCP;
-        else
+        case SOCK_RAW: {
+            if (domain == AF_INET)
+                return IPPROTO_IP;
+            else if (domain == AF_INET6)
+                return IPPROTO_IPV6;
+            else if (domain == AF_UNIX)
+                return PROTOCOL_UNIX;
             return -1;
-    }
+        }
+
+        case SOCK_STREAM: {
+            if (domain == AF_INET || domain == AF_INET6)
+                return IPPROTO_TCP;
+            else
+                return -1;
+        }
     }
 
     return -1;
@@ -612,22 +612,22 @@ socket *socket_create(int domain, int type, int protocol)
 #ifdef CONFIG_NET
     switch (domain)
     {
-    case AF_INET:
-        socket = ip::v4::create_socket(type, protocol);
-        break;
-    case AF_INET6:
-        socket = ip::v6::create_socket(type, protocol);
-        break;
-    case AF_UNIX:
-        // socket = unix_create_socket(type, protocol);
-        /* TODO: Fix unix sockets */
-        socket = nullptr;
-        break;
-    case AF_NETKERNEL:
-        socket = netkernel::create_socket(type);
-        break;
-    default:
-        return errno = EAFNOSUPPORT, nullptr;
+        case AF_INET:
+            socket = ip::v4::create_socket(type, protocol);
+            break;
+        case AF_INET6:
+            socket = ip::v6::create_socket(type, protocol);
+            break;
+        case AF_UNIX:
+            // socket = unix_create_socket(type, protocol);
+            /* TODO: Fix unix sockets */
+            socket = nullptr;
+            break;
+        case AF_NETKERNEL:
+            socket = netkernel::create_socket(type);
+            break;
+        default:
+            return errno = EAFNOSUPPORT, nullptr;
     }
 #endif
 
@@ -831,44 +831,44 @@ int socket::getsockopt_socket_level(int optname, void *optval, socklen_t *optlen
 {
     switch (optname)
     {
-    /* TODO: Add more options */
-    case SO_ACCEPTCONN: {
-        int val = (int) listening();
-        return put_option(val, optval, optlen);
-    }
+        /* TODO: Add more options */
+        case SO_ACCEPTCONN: {
+            int val = (int) listening();
+            return put_option(val, optval, optlen);
+        }
 
-    case SO_DOMAIN: {
-        return put_option(domain, optval, optlen);
-    }
+        case SO_DOMAIN: {
+            return put_option(domain, optval, optlen);
+        }
 
-    case SO_ERROR: {
-        auto err = sock_err;
-        sock_err = 0;
-        return put_option(err, optval, optlen);
-    }
+        case SO_ERROR: {
+            auto err = sock_err;
+            sock_err = 0;
+            return put_option(err, optval, optlen);
+        }
 
-    case SO_TYPE: {
-        return put_option(type, optval, optlen);
-    }
+        case SO_TYPE: {
+            return put_option(type, optval, optlen);
+        }
 
-    case SO_PROTOCOL: {
-        return put_option(proto, optval, optlen);
-    }
+        case SO_PROTOCOL: {
+            return put_option(proto, optval, optlen);
+        }
 
-    case SO_RCVBUF: {
-        return put_option(rx_max_buf, optval, optlen);
-    }
+        case SO_RCVBUF: {
+            return put_option(rx_max_buf, optval, optlen);
+        }
 
-    case SO_SNDBUF: {
-        return put_option(tx_max_buf, optval, optlen);
-    }
+        case SO_SNDBUF: {
+            return put_option(tx_max_buf, optval, optlen);
+        }
 
-    case SO_REUSEADDR: {
-        return put_option<int>(reuse_addr, optval, optlen);
-    }
+        case SO_REUSEADDR: {
+            return put_option<int>(reuse_addr, optval, optlen);
+        }
 
-    default:
-        return -ENOPROTOOPT;
+        default:
+            return -ENOPROTOOPT;
     }
 }
 
@@ -876,35 +876,35 @@ int socket::setsockopt_socket_level(int optname, const void *optval, socklen_t o
 {
     switch (optname)
     {
-    case SO_RCVBUF: {
-        auto ex = get_socket_option<unsigned int>(optval, optlen);
+        case SO_RCVBUF: {
+            auto ex = get_socket_option<unsigned int>(optval, optlen);
 
-        if (ex.has_error())
-            return ex.error();
+            if (ex.has_error())
+                return ex.error();
 
-        rx_max_buf = ex.value();
-        return 0;
-    }
+            rx_max_buf = ex.value();
+            return 0;
+        }
 
-    case SO_SNDBUF: {
-        auto ex = get_socket_option<unsigned int>(optval, optlen);
+        case SO_SNDBUF: {
+            auto ex = get_socket_option<unsigned int>(optval, optlen);
 
-        if (ex.has_error())
-            return ex.error();
+            if (ex.has_error())
+                return ex.error();
 
-        tx_max_buf = ex.value();
-        return 0;
-    }
+            tx_max_buf = ex.value();
+            return 0;
+        }
 
-    case SO_REUSEADDR: {
-        auto ex = get_socket_option<int>(optval, optlen);
+        case SO_REUSEADDR: {
+            auto ex = get_socket_option<int>(optval, optlen);
 
-        if (ex.has_error())
-            return ex.error();
+            if (ex.has_error())
+                return ex.error();
 
-        reuse_addr = ex.value();
-        return 0;
-    }
+            reuse_addr = ex.value();
+            return 0;
+        }
     }
 
     return -ENOPROTOOPT;

@@ -131,7 +131,7 @@ void tcp_socket::do_ack(packetbuf *buf)
         if (!pkt->ack_for_packet(last_ack_number, ack))
             continue;
 
-        pkt->acked = true;
+        pkt->do_ack();
 
         wait_queue_wake_all(&pkt->wq);
 
@@ -583,6 +583,8 @@ void tcp_out_timeout(clockevent *ev)
     {
         wait_queue_wake_all(&t->wq);
         ev->flags &= ~CLOCKEVENT_FLAG_PULSE;
+        if (t->fail)
+            t->fail(t);
         scoped_lock g{t->sock->pending_out_lock};
         list_remove(&t->node);
         return;
@@ -651,7 +653,17 @@ expected<ref_guard<tcp_pending_out>, int> tcp_socket::sendpbuf(ref_guard<packetb
     return pending;
 }
 
-int tcp_socket::start_handshake(netif *nif)
+/**
+ * @brief Fail a connection attempt
+ *
+ */
+void tcp_socket::conn_fail(int error)
+{
+    sock_err = error;
+    state = tcp_state::TCP_STATE_CLOSED;
+}
+
+int tcp_socket::start_handshake(netif *nif, int flags)
 {
     tcp_packet first_packet{{}, this, TCP_FLAG_SYN, src_addr};
     first_packet.set_packet_flags(TCP_PACKET_FLAG_ON_STACK | TCP_PACKET_FLAG_WANTS_ACK_HEADER);
@@ -677,14 +689,24 @@ int tcp_socket::start_handshake(netif *nif)
 
     state = tcp_state::TCP_STATE_SYN_SENT;
 
+    // TODO: sendpbuf shold set fail and done_callback directly, as to avoid races
+    if (flags & O_NONBLOCK)
+    {
+        val->fail = [](tcp_pending_out *pending) {
+            pending->sock->conn_fail(pending->reset ? ECONNRESET : ETIMEDOUT);
+        };
+
+        val->done_callback = [](tcp_pending_out *pending) { pending->sock->finish_conn(); };
+
+        connection_pending = true;
+
+        return -EINPROGRESS;
+    }
+
     int st = val->wait();
 
     if (st < 0)
         return st;
-
-#if 0
-	printk("ack received\n");
-#endif
 
     if (st < 0)
     {
@@ -693,39 +715,24 @@ int tcp_socket::start_handshake(netif *nif)
         return st;
     }
 
-    state = tcp_state::TCP_STATE_SYN_RECEIVED;
-
-#if 0
-	/* TODO: Add this */
-	auto packet = ack->get_packet();
-
-	ack_number = ntohl(packet->sequence_number);
-	seq_number++;
-	window_size = ntohs(packet->window_size) << window_size_shift;
-
-	if(!parse_options(packet))
-	{
-		delete ack;
-		/* Invalid packet */
-		state = tcp_state::TCP_STATE_CLOSED;
-		return -EIO;
-	}
-
-	delete ack;
-#endif
-
     return 0;
 }
 
-int tcp_socket::finish_handshake(netif *nif)
+/**
+ * @brief Finish a connection
+ *
+ */
+void tcp_socket::finish_conn()
 {
-    tcp_packet packet{{}, this, TCP_FLAG_ACK, src_addr};
-    packet.set_packet_flags(TCP_PACKET_FLAG_ON_STACK);
-
-    return 0;
+    // Race?
+    state = tcp_state::TCP_STATE_ESTABLISHED;
+    connection_pending = false;
+    expected_ack = ack_number;
+    connected = true;
+    sock_err = 0;
 }
 
-int tcp_socket::start_connection()
+int tcp_socket::start_connection(int flags)
 {
     seq_number = arc4random();
 
@@ -739,20 +746,18 @@ int tcp_socket::start_connection()
     route_cache = result.value();
     route_cache_valid = 1;
 
-    int st = start_handshake(route_cache.nif);
+    window_size = UINT16_MAX;
+
+    int st = start_handshake(route_cache.nif, flags);
     if (st < 0)
         return st;
 
-    st = finish_handshake(route_cache.nif);
-
-    state = tcp_state::TCP_STATE_ESTABLISHED;
-
-    expected_ack = ack_number;
+    finish_conn();
 
     return st;
 }
 
-int tcp_socket::connect(struct sockaddr *addr, socklen_t addrlen)
+int tcp_socket::connect(struct sockaddr *addr, socklen_t addrlen, int flags)
 {
     if (!bound)
     {
@@ -765,6 +770,9 @@ int tcp_socket::connect(struct sockaddr *addr, socklen_t addrlen)
     if (connected)
         return -EISCONN;
 
+    if (connection_pending)
+        return -EALREADY;
+
     if (!validate_sockaddr_len_pair(addr, addrlen))
         return -EINVAL;
 
@@ -775,9 +783,8 @@ int tcp_socket::connect(struct sockaddr *addr, socklen_t addrlen)
         dest_addr = inet_sock_address{*in};
     else
         dest_addr = inet_sock_address{*in6};
-    connected = true;
 
-    return start_connection();
+    return start_connection(flags);
 }
 
 ssize_t tcp_socket::queue_data(iovec *vec, int vlen, size_t len)

@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2016-2020 Pedro Falcato
+ * Copyright (c) 2016 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #ifndef _ONYX_NET_ICMP_H
 #define _ONYX_NET_ICMP_H
@@ -123,7 +125,7 @@ public:
     ~icmp_socket() = default;
 
     int bind(struct sockaddr *addr, socklen_t addrlen) override;
-    int connect(struct sockaddr *addr, socklen_t addrlen) override;
+    int connect(struct sockaddr *addr, socklen_t addrlen, int flags) override;
     ssize_t sendmsg(const struct msghdr *msg, int flags) override;
     int getsockopt(int level, int optname, void *val, socklen_t *len) override;
     int setsockopt(int level, int optname, const void *val, socklen_t len) override;

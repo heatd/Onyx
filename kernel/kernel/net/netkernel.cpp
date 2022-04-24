@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 
 #include <onyx/init.h>
@@ -115,7 +117,7 @@ static expected<size_t, int> nk_look_at_sa_path(const sockaddr_nk *nk)
     return unexpected<int>{-EINVAL};
 }
 
-int netkernel_socket::connect(sockaddr *addr, socklen_t addrlen)
+int netkernel_socket::connect(sockaddr *addr, socklen_t addrlen, int flags)
 {
     if (!validate_sockaddr(addr, addrlen))
         return -EINVAL;

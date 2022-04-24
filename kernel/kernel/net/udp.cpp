@@ -140,7 +140,7 @@ int udp_socket::bind(sockaddr *addr, socklen_t len)
     return fam->bind(addr, len, this);
 }
 
-int udp_socket::connect(sockaddr *addr, socklen_t len)
+int udp_socket::connect(sockaddr *addr, socklen_t len, int flags)
 {
     if (!validate_sockaddr_len_pair(addr, len))
         return -EINVAL;

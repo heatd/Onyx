@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 
 #ifndef _ONYX_NET_NETKERNEL_H
@@ -35,7 +37,7 @@ public:
 
     int getsockopt(int level, int optname, void *optval, socklen_t *optlen) override;
     int setsockopt(int level, int optname, const void *optval, socklen_t optlen) override;
-    int connect(sockaddr *addr, socklen_t addrlen) override;
+    int connect(sockaddr *addr, socklen_t addrlen, int flags) override;
     ssize_t sendmsg(const struct msghdr *msg, int flags) override;
 };
 

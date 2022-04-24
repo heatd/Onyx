@@ -215,7 +215,7 @@ public:
     virtual int listen();
     virtual socket *accept(socket_conn_request *req);
     virtual int bind(sockaddr *addr, socklen_t addrlen);
-    virtual int connect(sockaddr *addr, socklen_t addrlen);
+    virtual int connect(sockaddr *addr, socklen_t addrlen, int flags);
     virtual ssize_t sendmsg(const struct msghdr *msg, int flags);
     virtual ssize_t recvmsg(struct msghdr *msg, int flags);
     virtual int getsockname(sockaddr *addr, socklen_t *addrlen);

@@ -90,7 +90,7 @@ public:
     ~icmp6_socket() = default;
 
     int bind(struct sockaddr *addr, socklen_t addrlen) override;
-    int connect(struct sockaddr *addr, socklen_t addrlen) override;
+    int connect(struct sockaddr *addr, socklen_t addrlen, int flags) override;
     ssize_t sendmsg(const struct msghdr *msg, int flags) override;
     int getsockopt(int level, int optname, void *val, socklen_t *len) override;
     int setsockopt(int level, int optname, const void *val, socklen_t len) override;

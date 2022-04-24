@@ -1,7 +1,9 @@
 /*
- * Copyright (c) 2020 Pedro Falcato
+ * Copyright (c) 2020 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <errno.h>
 
@@ -101,13 +103,13 @@ int handle_packet(netif *nif, packetbuf *buf)
 
     switch (header->type)
     {
-    case ICMPV6_ECHO_REQUEST:
-        // send_echo_reply(iphdr, header, header_length, nif);
-        break;
-    case ICMPV6_NEIGHBOUR_ADVERT:
-    case ICMPV6_NEIGHBOUR_SOLICIT:
-        ndp_handle_packet(nif, buf);
-        break;
+        case ICMPV6_ECHO_REQUEST:
+            // send_echo_reply(iphdr, header, header_length, nif);
+            break;
+        case ICMPV6_NEIGHBOUR_ADVERT:
+        case ICMPV6_NEIGHBOUR_SOLICIT:
+            ndp_handle_packet(nif, buf);
+            break;
     }
 
     icmp6_socket *socket = nullptr;
@@ -147,7 +149,7 @@ int icmp6_socket::bind(sockaddr *addr, socklen_t len)
     return proto->bind(addr, len, this);
 }
 
-int icmp6_socket::connect(sockaddr *addr, socklen_t len)
+int icmp6_socket::connect(sockaddr *addr, socklen_t len, int flags)
 {
     if (!validate_sockaddr_len_pair(addr, len))
         return -EINVAL;
@@ -348,13 +350,13 @@ int icmp6_socket::setsockopt(int level, int optname, const void *val, socklen_t 
 
     switch (optname)
     {
-    case ICMP_ADD_FILTER: {
-        auto res = get_socket_option<icmp_filter>(val, len);
-        if (res.has_error())
-            return res.error();
+        case ICMP_ADD_FILTER: {
+            auto res = get_socket_option<icmp_filter>(val, len);
+            if (res.has_error())
+                return res.error();
 
-        return add_filter(cul::move(res.value()));
-    }
+            return add_filter(cul::move(res.value()));
+        }
     }
 
     return -ENOPROTOOPT;
