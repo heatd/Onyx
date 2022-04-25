@@ -7,7 +7,7 @@ extern "C" {
 
 #include <inttypes.h>
 #include <sys/types.h>
-#include <sys/socket.h>
+#include <onyx/public/socket.h>
 
 #define MAX_ADDR_LEN	7
 

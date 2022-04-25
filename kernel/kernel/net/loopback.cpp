@@ -35,7 +35,7 @@ void loopback_init(void)
 {
     netif *n = new netif{};
     n->flags = NETIF_LINKUP | NETIF_LOOPBACK;
-    n->name = "loopback";
+    n->name = "lo";
     n->mtu = UINT16_MAX;
     n->local_ip.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     n->sendpacket = loopback_send_packet;

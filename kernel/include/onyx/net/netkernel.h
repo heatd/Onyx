@@ -25,13 +25,51 @@ class netkernel_object;
 
 class netkernel_socket : public socket
 {
+private:
+    spinlock rx_packet_list_lock;
+    struct list_head rx_packet_list;
+    wait_queue rx_wq;
+
+    packetbuf *get_rx_head()
+    {
+        if (list_is_empty(&rx_packet_list))
+            return nullptr;
+
+        return list_head_cpp<packetbuf>::self_from_list_head(list_first_element(&rx_packet_list));
+    }
+
+    bool has_data_available()
+    {
+        return !list_is_empty(&rx_packet_list);
+    }
+
+    int wait_for_dgrams()
+    {
+        return wait_for_event_locked_interruptible(&rx_wq, !list_is_empty(&rx_packet_list),
+                                                   &rx_packet_list_lock);
+    }
+
+    void rx_pbuf(packetbuf *buf)
+    {
+        scoped_lock g{rx_packet_list_lock};
+
+        buf->ref();
+
+        list_add_tail(&buf->list_node, &rx_packet_list);
+
+        wait_queue_wake_all(&rx_wq);
+    }
+
 public:
     shared_ptr<netkernel_object> dst;
 
-    netkernel_socket(int type) : socket{}, dst{}
+    netkernel_socket(int type) : socket{}, rx_packet_list_lock{}, rx_packet_list{}, rx_wq{}, dst{}
     {
         domain = AF_NETKERNEL;
         proto = NETKERNEL_PROTO;
+        INIT_LIST_HEAD(&rx_packet_list);
+        spinlock_init(&rx_packet_list_lock);
+        init_wait_queue_head(&rx_wq);
         this->type = type;
     }
 
@@ -39,6 +77,31 @@ public:
     int setsockopt(int level, int optname, const void *optval, socklen_t optlen) override;
     int connect(sockaddr *addr, socklen_t addrlen, int flags) override;
     ssize_t sendmsg(const struct msghdr *msg, int flags) override;
+    ssize_t recvmsg(struct msghdr *msg, int flags) override;
+
+    expected<packetbuf *, int> get_datagram(int flags)
+    {
+        scoped_lock g{rx_packet_list_lock};
+
+        int st = 0;
+        packetbuf *buf = nullptr;
+
+        do
+        {
+            if (st == -EINTR)
+                return unexpected<int>{st};
+
+            buf = get_rx_head();
+            if (!buf && flags & MSG_DONTWAIT)
+                return unexpected<int>{-EWOULDBLOCK};
+
+            st = wait_for_dgrams();
+        } while (!buf);
+
+        g.keep_locked();
+
+        return buf;
+    }
 };
 
 /**

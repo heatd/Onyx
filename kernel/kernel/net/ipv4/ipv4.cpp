@@ -439,7 +439,8 @@ int handle_packet(netif *nif, packetbuf *buf)
     route.gateway_addr = {};
     route.src_addr.in4.s_addr = header->source_ip;
     route.nif = nif;
-    route.mask.in4.s_addr = 0xffffffff;
+    route.mask.in4.s_addr =
+        0xffffff00; // NOT CORRECT. but will do for now. We need ipv4 addresses with subnets
     route.flags = 0;
 
     if (addr_is_multicast(header->dest_ip))

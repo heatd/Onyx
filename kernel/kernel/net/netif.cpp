@@ -1,10 +1,14 @@
 /*
- * Copyright (c) 2017-2021 Pedro Falcato
+ * Copyright (c) 2017 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <assert.h>
 #include <errno.h>
+#include <net/if.h>
+#include <net/if_arp.h>
 #include <sys/ioctl.h>
 
 #include <onyx/byteswap.h>
@@ -404,6 +408,7 @@ bool netif_find_v6_address(netif *nif, const in6_addr &addr)
 
     return false;
 }
+
 class netif_table_nk : public netkernel::netkernel_object
 {
 public:
@@ -415,14 +420,44 @@ public:
         if (hdr->msg_type != NETKERNEL_MSG_NETIF_GET_NETIFS)
             return unexpected<int>{-ENXIO};
 
-        cul::vector<netkernel_get_nif_interface> interface_response;
+        cul::vector<netkernel_nif_interface> interface_response;
         const auto &interfaces = netif_lock_and_get_list();
 
         for (const auto &nif : interfaces)
         {
-            netkernel_get_nif_interface i;
+            netkernel_nif_interface i;
             i.if_index = nif->if_id;
-            strcpy(i.iface, nif->name);
+            strcpy(i.if_name, nif->name);
+            i.if_mtu = nif->mtu;
+            i.if_flags = 0;
+
+            if (nif->flags & NETIF_LINKUP)
+                i.if_flags |= IFF_UP;
+            if (nif->flags & NETIF_LOOPBACK)
+                i.if_flags |= IFF_LOOPBACK;
+
+            // We're only supporting loopback and ethernet for now
+            if (nif->flags & NETIF_LOOPBACK)
+            {
+                i.if_hwaddr.sa_family = ARPHRD_LOOPBACK;
+                i.if_brdaddr.sa_family = ARPHRD_LOOPBACK;
+            }
+            else
+            {
+                i.if_hwaddr.sa_family = ARPHRD_ETHER;
+                i.if_brdaddr.sa_family = ARPHRD_ETHER;
+            }
+
+            for (int j = 0; j < 6; j++)
+            {
+                i.if_hwaddr.sa_data[j] = nif->mac_address[j];
+            }
+
+            for (int j = 0; j < 6; j++)
+            {
+                // TODO: Support other broadcast addresses?
+                i.if_brdaddr.sa_data[j] = 0xff;
+            }
 
             if (!interface_response.push_back(i))
             {
@@ -434,14 +469,15 @@ public:
         netif_unlock_list();
 
         auto buf_size = sizeof(netkernel_get_nifs_response) +
-                        interface_response.size() * sizeof(netkernel_get_nif_interface);
+                        interface_response.size() * sizeof(netkernel_nif_interface);
         netkernel_get_nifs_response *header = (netkernel_get_nifs_response *) malloc(buf_size);
         if (!header)
             return unexpected<int>{-ENOMEM};
 
         header->nr_ifs = interface_response.size();
-        memcpy(header->interfaces, interface_response.begin(),
-               interface_response.size() * sizeof(netkernel_get_nif_interface));
+        memcpy(header + 1, interface_response.begin(),
+               interface_response.size() * sizeof(netkernel_nif_interface));
+
         header->hdr.msg_type = NETKERNEL_MSG_NETIF_GET_NETIFS;
         header->hdr.flags = 0;
         header->hdr.size = buf_size;

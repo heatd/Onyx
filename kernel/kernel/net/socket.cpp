@@ -1,9 +1,12 @@
 /*
- * Copyright (c) 2018 Pedro Falcato
+ * Copyright (c) 2018 - 2022 Pedro Falcato
  * This file is part of Onyx, and is released under the terms of the MIT License
  * check LICENSE at the root directory for more information
+ *
+ * SPDX-License-Identifier: MIT
  */
 #include <errno.h>
+#include <net/if.h>
 #include <sys/ioctl.h>
 
 #include <onyx/dentry.h>
@@ -319,21 +322,175 @@ short socket_poll(void *poll_file, short events, struct file *node)
 
 void socket_close(struct inode *ino);
 
+int do_siocgifname(struct ifreq *req)
+{
+    struct ifreq r;
+    if (copy_from_user(&r, req, sizeof(r)) < 0)
+        return -EFAULT;
+
+    auto nif = netif_from_if(r.ifr_ifindex);
+
+    if (!nif)
+        return -ENXIO;
+
+    strlcpy(r.ifr_ifrn.ifrn_name, nif->name, IF_NAMESIZE);
+
+    return copy_to_user(req, &r, sizeof(r));
+}
+
+int do_siocgifconf(struct ifconf *uconf)
+{
+    struct ifconf conf;
+
+    if (copy_from_user(&conf, uconf, sizeof(conf)) < 0)
+        return -EFAULT;
+
+    size_t n_entries = conf.ifc_len / sizeof(conf);
+
+    const auto &netif_list = netif_lock_and_get_list();
+    int off = 0;
+
+    for (auto &nif : netif_list)
+    {
+        // only exit on n_entries == 0 if we're actually copying stuff
+        if (conf.ifc_buf && n_entries == 0)
+            break;
+
+        if (!nif->local_ip.sin_addr.s_addr)
+            continue;
+
+        struct ifreq req;
+
+        char *ubuf = conf.ifc_buf + off;
+
+        if (conf.ifc_buf == nullptr)
+        {
+            // We're only getting the number of bytes we need
+            off += sizeof(struct ifreq);
+            continue;
+        }
+
+        if (copy_from_user(&req, conf.ifc_buf + off, sizeof(req)) < 0)
+        {
+            netif_unlock_list();
+            return -EFAULT;
+        }
+
+        // We only return AF_INET addresses because of compatibility issues
+        sockaddr_in in;
+        in.sin_family = AF_INET;
+        in.sin_port = 0;
+        memset(in.sin_zero, 0, sizeof(in.sin_zero));
+        in.sin_addr.s_addr = nif->local_ip.sin_addr.s_addr;
+        memcpy(&req.ifr_addr, &in, sizeof(in));
+
+        strlcpy(req.ifr_name, nif->name, IF_NAMESIZE);
+
+        if (copy_to_user(ubuf, &req, sizeof(req)) < 0)
+        {
+            netif_unlock_list();
+            return -EFAULT;
+        }
+
+        off += sizeof(struct ifreq);
+        n_entries--;
+    }
+
+    conf.ifc_len = off;
+
+    netif_unlock_list();
+
+    return copy_to_user(uconf, &conf, sizeof(conf));
+}
+
+unsigned int do_siocgifaddr(struct ifreq *ureq)
+{
+    struct ifreq req;
+    if (copy_from_user(&req, ureq, sizeof(req)) < 0)
+        return -EFAULT;
+
+    // Make sure the name is null terminated
+    req.ifr_name[IFNAMSIZ - 1] = '\0';
+
+    auto nif = netif_from_name(req.ifr_name);
+
+    if (!nif)
+        return -ENODEV;
+
+    if (nif->local_ip.sin_addr.s_addr == 0)
+        return -EADDRNOTAVAIL;
+
+    sockaddr_in in;
+    in.sin_family = AF_INET;
+    in.sin_port = 0;
+    memset(in.sin_zero, 0, sizeof(in.sin_zero));
+    in.sin_addr.s_addr = nif->local_ip.sin_addr.s_addr;
+
+    memcpy(&req.ifr_addr, &in, sizeof(in));
+
+    return copy_to_user(ureq, &req, sizeof(req));
+}
+
+unsigned int do_siocsifaddr(struct ifreq *ureq)
+{
+    struct ifreq req;
+    if (copy_from_user(&req, ureq, sizeof(req)) < 0)
+        return -EFAULT;
+
+    // Make sure the name is null terminated
+    req.ifr_name[IFNAMSIZ - 1] = '\0';
+
+    auto nif = netif_from_name(req.ifr_name);
+
+    if (!nif)
+        return -ENODEV;
+
+    sockaddr_in in;
+    memcpy(&in, &req.ifr_addr, sizeof(in));
+
+    if (in.sin_family != AF_INET)
+        return -EINVAL;
+
+    nif->local_ip.sin_addr.s_addr = in.sin_addr.s_addr;
+
+    memcpy(&req.ifr_addr, &in, sizeof(in));
+
+    return copy_to_user(ureq, &req, sizeof(req));
+}
+
 unsigned int socket_ioctl(int request, void *argp, struct file *file)
 {
-    if (request == FIONBIO)
+    switch (request)
     {
-        int on;
+        case FIONBIO: {
+            int on;
 
-        if (copy_from_user(&on, argp, sizeof(on)) < 0)
-            return -EFAULT;
+            if (copy_from_user(&on, argp, sizeof(on)) < 0)
+                return -EFAULT;
 
-        if (on)
-            file->f_flags |= O_NONBLOCK;
-        else
-            file->f_flags &= ~O_NONBLOCK;
+            if (on)
+                file->f_flags |= O_NONBLOCK;
+            else
+                file->f_flags &= ~O_NONBLOCK;
 
-        return 0;
+            return 0;
+        }
+
+        case SIOCGIFNAME: {
+            return do_siocgifname((struct ifreq *) argp);
+        }
+
+        case SIOCGIFCONF: {
+            return do_siocgifconf((struct ifconf *) argp);
+        }
+
+        case SIOCGIFADDR: {
+            return do_siocgifaddr((struct ifreq *) argp);
+        }
+
+        case SIOCSIFADDR: {
+            return do_siocsifaddr((struct ifreq *) argp);
+        }
     }
 
     return -ENOTTY;

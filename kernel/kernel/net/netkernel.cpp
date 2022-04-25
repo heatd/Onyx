@@ -196,20 +196,106 @@ ssize_t netkernel_socket::sendmsg(const struct msghdr *msg, int flags)
     auto result = obj->serve_request((netkernel_hdr *) buf);
 
     if (result.has_error())
+    {
+        panic("nksend");
         return result.error();
+    }
 
-    /* TODO: Have a way to delete result... The easiest way is to switch to packetbufs all the way
-     */
-    /* FIXME: recv_packet isn't the best...................... */
-    recv_packet *p = new recv_packet{};
-    if (!p)
-        return -EINVAL;
-    p->payload = result.value();
-    p->size = result.value()->size;
+    auto result_buf = result.value();
 
-    in_band_queue.add_packet(p);
+    if (!result_buf)
+    {
+        // No answer
+        return len;
+    }
+
+    packetbuf *pbuf = new packetbuf;
+
+    if (!pbuf)
+    {
+        delete[] result_buf;
+        return -ENOBUFS;
+    }
+
+    auto rx_len = result.value()->size;
+
+    if (!pbuf->allocate_space(rx_len))
+    {
+        delete[] result_buf;
+        delete pbuf;
+        return -ENOBUFS;
+    }
+
+    void *ptr = pbuf->put(rx_len);
+    memcpy(ptr, result.value(), rx_len);
+    rx_pbuf(pbuf);
+
+    delete[] result_buf;
 
     return len;
+}
+
+ssize_t netkernel_socket::recvmsg(struct msghdr *msg, int flags)
+{
+    auto iovlen = iovec_count_length(msg->msg_iov, msg->msg_iovlen);
+    if (iovlen < 0)
+        return iovlen;
+
+    auto st = get_datagram(flags);
+    if (st.has_error())
+        return st.error();
+
+    auto buf = st.value();
+    ssize_t read = min(iovlen, (long) buf->length());
+    ssize_t was_read = 0;
+    ssize_t to_ret = read;
+
+    if (iovlen < buf->length())
+        msg->msg_flags = MSG_TRUNC;
+
+    if (flags & MSG_TRUNC)
+    {
+        to_ret = buf->length();
+    }
+
+    const unsigned char *ptr = buf->data;
+
+    if (msg->msg_name)
+    {
+        // TODO
+    }
+
+    for (int i = 0; i < msg->msg_iovlen; i++)
+    {
+        auto iov = msg->msg_iov[i];
+        auto to_copy = min((ssize_t) iov.iov_len, read - was_read);
+        if (copy_to_user(iov.iov_base, ptr, to_copy) < 0)
+        {
+            spin_unlock(&rx_packet_list_lock);
+            return -EFAULT;
+        }
+
+        was_read += to_copy;
+
+        ptr += to_copy;
+
+        buf->data += to_copy;
+    }
+
+    msg->msg_controllen = 0;
+
+    if (!(flags & MSG_PEEK))
+    {
+        if (buf->length() == 0)
+        {
+            list_remove(&buf->list_node);
+            buf->unref();
+        }
+    }
+
+    spin_unlock(&rx_packet_list_lock);
+
+    return to_ret;
 }
 
 socket *create_socket(int type)

@@ -169,4 +169,11 @@ struct if_inet6_addr
 #define SIOGETIFNAME	        0x9005
 #define SIOGETINDEX	            0x9006
 
+#define SIOCGIFNAME        0x8910
+#define SIOCGIFCONF        0x8912
+#define SIOCGIFFLAGS       0x8913
+#define SIOCSIFFLAGS       0x8914
+#define SIOCGIFADDR        0x8915
+#define SIOCSIFADDR        0x8916
+
 #include <bits/ioctl_fix.h>
